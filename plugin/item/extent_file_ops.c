@@ -514,7 +514,7 @@ index_extent_jnode(reiser4_tree *tree, struct address_space *mapping, oid_t oid,
 			j = find_get_jnode(tree, mapping, oid, index);
 		if (blocknr_is_fake(&blocknr)) {
 			jnode_set_created(j);
-			JF_SET(j, JNODE_NEW);			
+			JF_SET(j, JNODE_NEW);
 		}
 		jnode_set_mapped(j);
 		jnode_set_block(j, &blocknr);
@@ -1141,7 +1141,7 @@ readpage_extent(void *vp, struct page *page)
   locked, coord is set to existing unit inside of extent item
 */
 reiser4_internal int
-writepage_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_mode_t mode)
+capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_mode_t mode)
 {
 	jnode *j;
 	int result;
