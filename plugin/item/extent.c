@@ -1293,8 +1293,8 @@ int extent_utmost_child ( const coord_t *coord, sideof side, jnode **childp )
 
 	{
 		reiser4_key key;
-		reiser4_block_nr offset;
 		struct inode * inode;
+		unsigned long index;
 		struct page * pg;
 
 		extent_get_inode_and_key_by_coord (coord, & inode, & key);
@@ -1305,12 +1305,20 @@ int extent_utmost_child ( const coord_t *coord, sideof side, jnode **childp )
 			return 0;
 		}
 
-		unit_key_by_coord(coord, &key);
-		offset = get_key_offset (&key) + pos_in_unit * current_blocksize;
+		if (side == LEFT_SIDE) {
+			/* get key of first byte addressed by the extent */
+			item_key_by_coord (coord, &key);			
+		} else {
+			/* get key of last byte addressed by the extent */
+			extent_max_key (coord, &key);
+		}
 
-		assert ("vs-544", offset >> PAGE_CACHE_SHIFT < ~0ul);
-
-		pg = reiser4_lock_page (inode->i_mapping, (unsigned long)(offset >> PAGE_CACHE_SHIFT));
+		assert ("vs-544",
+			(get_key_offset (&key) >> PAGE_CACHE_SHIFT) < ~0ul);
+		/* index of first or last (depending on @side) page addressed
+		 * by the extent */
+		index = (unsigned long)(get_key_offset (&key) >> PAGE_CACHE_SHIFT);
+		pg = reiser4_lock_page (inode->i_mapping, index);
 
 		if (pg == NULL) {
 			*childp = NULL;
