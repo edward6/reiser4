@@ -1,10 +1,20 @@
 /* Copyright 2002 by Hans Reiser */
 
 /*
- * Reiser4 i/o handles are used to count i/o requests which were submitted for
- * given the atom and i/o synchronization. 
+ * Reiser4 i/o handles are used for synchronization with i/o requests
+ * submitted for given atom.
+ *
+ * An i/o handle has a counter for submitted bio objects, which gets
+ * decremented on each i/o completion. The last i/o request ups the i/o handle
+ * semaphore. So, a thread can sleep on a semaphore instead of traverse a list
+ * of jnodes and wait on each jnode's page for i/o completion.
+ * 
+ * The reason to have a per-atom list of i/o handles rather than one i/o
+ * handle embedded into an atom is the atom fusion. After fusion one fused
+ * atom is freed from memory. This may cause problems if it had active i/o
+ * requests. With having i/o handles on atom's lists we can just join those
+ * lists regardless of existence of active i/o requests.
  */
-
 
 #include "reiser4.h"
 
@@ -47,7 +57,8 @@ static void io_handle_add_bio (struct reiser4_io_handle * io, struct bio * bio)
 	if (io) atomic_add(bio->bi_vcnt, &io->nr_submitted);
 }
 
-/* should be called from i/o completion routine to count i/o completion */
+/* This routine should be called from i/o completion handler to proper
+ * counting of completed i/o requests. */
 void io_handle_end_io (struct bio * bio)
 {
 	struct reiser4_io_handle * io = bio->bi_private;

@@ -364,12 +364,19 @@ extern int          blocknr_set_iterator   (txn_atom                *atom,
 					    void                    *data,
 					    int                      delete);
 
-/* i/o handles, see io_handle.c for details */
-
+/* reiser4 I/O handle, see io_handle.c for details */
 struct reiser4_io_handle {
+	/* 
+	 * this semaphore is upped when all submitted i/o requests complete */
 	struct semaphore      io_sema;
+	/*
+	 * number of submitted BIOs (struct bio) */
 	atomic_t              nr_submitted;
+	/*
+	 * number of i/o errors */
 	atomic_t              nr_errors;
+	/*
+	 * per-atom list of i/o handles */
 	io_handles_list_link  linkage;
 };
 
