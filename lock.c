@@ -720,11 +720,6 @@ void longterm_unlock_znode (lock_handle *handle)
 
 	spin_unlock_znode(node);
 
-	/* FIXME: kludge described below. */
-	if (! znode_above_root (node)) {
-		zrelse(node);
-	}
-
 	/* minus one reference from lh->node */
 	zput(node);
 }
@@ -901,12 +896,6 @@ int longterm_lock_znode (
 		zref (node);
 
 		ON_DEBUG(++ lock_counters()->long_term_locked_znode);
-	}
-
-	if (ret == 0 && ! znode_above_root (node)) {
-		/* FIXME: This is a short-term kludge.  zload() and zrelse()
-		 * automatically.  Flush was hitting this... */
-		ret = zload (node);
 	}
 
 	return ret;
