@@ -36,6 +36,24 @@ static int find_entry(const struct inode *dir, struct dentry *name,
 		      int *offset);
 static int check_item(const struct inode *dir,
 		      const coord_t * coord, const char *name);
+reiser4_block_nr hashed_estimate_init(struct inode *parent, struct inode *object)
+{
+	reiser4_block_nr res = 0;
+    
+	assert("vpf-321", parent != NULL);
+	assert("vpf-322", object != NULL);	
+	
+	/* hashed_add_entry(object) */
+	res += inode_dir_plugin(object)->estimate.add_entry(object);
+	/* reiser4_add_nlink(object) */
+	res += inode_file_plugin(object)->estimate.update(object);
+	/* hashed_add_entry(object) */
+	res += inode_dir_plugin(object)->estimate.add_entry(object);
+	/* reiser4_add_nlink(parent) */
+	res += inode_file_plugin(parent)->estimate.update(parent);
+
+	return 0;
+}
 
 /** create sd for directory file. Create stat-data, dot, and dotdot. */
 int
@@ -48,6 +66,8 @@ hashed_init(struct inode *object /* new directory */ ,
 								 * syscall in
 								 * particular */ )
 {
+	reiser4_block_nr reserve;
+
 	assert("nikita-680", object != NULL);
 	assert("nikita-681", S_ISDIR(object->i_mode));
 	assert("nikita-682", parent != NULL);
@@ -56,7 +76,23 @@ hashed_init(struct inode *object /* new directory */ ,
 	assert("nikita-687", object->i_mode & S_IFDIR);
 	trace_stamp(TRACE_DIR);
 
-	return create_dot_dotdot(object, parent);
+	if (reiser4_grab_space_exact(reserve = hashed_estimate_init(parent, object), 0))
+		return -ENOSPC;
+	warning("vpf-326", "SPACE: hashed_init grabs %llu blocks.", reserve);
+	
+	return create_dot_dotdot( object, parent );
+}
+
+reiser4_block_nr hashed_estimate_done(struct inode *parent, struct inode *object) 
+{
+	reiser4_block_nr res = 0;
+	
+	/* 2 hashed_rem_entry(object) */
+	res += 2 * inode_dir_plugin(object)->estimate.rem_entry(object);
+	/* del_nlink(parent) */
+	res += 2 * inode_file_plugin(parent)->estimate.update(parent);
+
+	return res;
 }
 
 /**
@@ -73,6 +109,7 @@ hashed_done(struct inode *object /* object being deleted */ )
 
 	if (!inode_get_flag(object, REISER4_NO_SD)) {
 		struct inode *parent;
+		reiser4_block_nr reserve;
 
 		/*
 		 * of course, this can be rewritten to sweep everything in one
@@ -86,6 +123,11 @@ hashed_done(struct inode *object /* object being deleted */ )
 
 		xmemset(&entry, 0, sizeof entry);
 
+		if (reiser4_grab_space_exact(reserve = hashed_estimate_done(parent, object), 0) < 0)
+			return -ENOSPC;
+		
+		warning("vpf-327", "SPACE: hashed_done grabs %llu blocks.", reserve);
+		
 		entry.obj = goodby_dots.d_inode = object;
 		xmemset(&goodby_dots, 0, sizeof goodby_dots);
 		goodby_dots.d_name.name = ".";
@@ -452,6 +494,92 @@ add_name(struct inode *inode	/* inode where @coord is to be
 	return result;
 }
 
+reiser4_block_nr hashed_estimate_rename(
+	struct inode  *old_dir  /* directory where @old is located */,
+	struct dentry *old_name /* old name */,
+	struct inode  *new_dir  /* directory where @new is located */,
+	struct dentry *new_name /* new name */) 
+{
+	reiser4_block_nr res1, res2;
+	dir_plugin *p_parent_old, *p_parent_new;
+	file_plugin *p_child_old, *p_child_new;
+	
+	assert("vpf-311", old_dir != NULL);
+	assert("vpf-312", new_dir != NULL);
+	assert("vpf-313", old_name != NULL);
+	assert("vpf-314", new_name != NULL);
+	
+	p_parent_old = inode_dir_plugin(old_dir);
+	p_parent_new = inode_dir_plugin(new_dir);
+	p_child_old = inode_file_plugin(old_name->d_inode);
+	p_child_new = inode_file_plugin(new_name->d_inode);
+
+	res1 = res2 = 0;
+	
+	/* replace_name */
+	{
+		/* reiser4_add_nlink(p_child_old) */
+		res1 += p_child_old->estimate.update(old_name->d_inode);
+		/* update key */
+		res1 += 1;
+		/* reiser4_del_nlink(p_child_old) */
+		res1 += p_child_old->estimate.update(old_name->d_inode);
+		/* reiser4_del_nlink(p_child_new) */
+		if (p_child_new)
+		    res1 += p_child_new->estimate.update(new_name->d_inode);
+	}
+    
+	/* else add_name */
+	{
+		/* reiser4_add_nlink(p_parent_new) */
+		res2 += inode_file_plugin(new_dir)->estimate.update(new_dir);
+		/* reiser4_add_nlink(p_parent_old) */
+		res2 += p_child_old->estimate.update(old_name->d_inode);
+		/* add_entry(p_parent_new) */
+		res2 += p_parent_new->estimate.add_entry(new_dir);
+		/* reiser4_del_nlink(p_parent_old) */
+		res2 += p_child_old->estimate.update(old_name->d_inode);
+		/* reiser4_del_nlink(p_parent_new) */
+		res2 += inode_file_plugin(new_dir)->estimate.update(new_dir);
+	}
+
+	res1 = res1 < res2 ? res2 : res1;
+	
+	
+	/* reiser4_write_sd(p_parent_new) */
+	res1 += inode_file_plugin(new_dir)->estimate.update(new_dir);
+
+	/* reiser4_write_sd(p_child_new) */
+	if (p_child_new)
+	    res1 += p_child_new->estimate.update(new_name->d_inode);
+	
+	/* hashed_rem_entry(p_parent_old) */
+	res1 += p_parent_old->estimate.rem_entry(old_dir);
+	
+	/* reiser4_del_nlink(p_child_old) */
+	res1 += p_child_old->estimate.update(old_name->d_inode);
+	
+	/* replace_name */
+	{
+	    /* reiser4_add_nlink(p_parent_dir_new) */
+	    res1 += inode_file_plugin(new_dir)->estimate.update(new_dir);
+	    /* update_key */
+	    res1 += 1;
+	    /* reiser4_del_nlink(p_parent_new) */
+	    res1 += inode_file_plugin(new_dir)->estimate.update(new_dir);
+	    /* reiser4_del_nlink(p_parent_old) */
+	    res1 += inode_file_plugin(old_dir)->estimate.update(old_dir);
+	}
+	
+	/* reiser4_write_sd(p_parent_old) */
+	res1 += inode_file_plugin(old_dir)->estimate.update(old_dir);
+	
+	/* reiser4_write_sd(p_child_old) */
+	res1 += p_child_old->estimate.update(old_name->d_inode);
+
+	return res1;
+}
+
 /**
  * ->rename directory plugin method implementation for hashed directories. 
  *
@@ -570,6 +698,7 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	lock_handle new_lh;
 
 	dir_plugin *dplug;
+	reiser4_block_nr reserve;
 
 	assert("nikita-2318", old_dir != NULL);
 	assert("nikita-2319", new_dir != NULL);
@@ -612,7 +741,19 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	}
 
 	seal_done(&new_fsdata->entry_seal);
+	if ((reserve = hashed_estimate_rename(old_dir, old_name, new_dir, new_name)) < 0) {
+	    /* FIXME-VITALY: What about seal for old_fs_data? */
+	    done_lh(&new_lh);
+	    return reserve;
+	}
+	
+	if (reiser4_grab_space_exact(reserve, 0)) {
+	    /* FIXME-VITALY: What about seal for old_fs_data? */
+	    done_lh(&new_lh);
+	    return -ENOSPC;
+	}
 
+	warning("vpf-328", "SPACE: hashed rename grabs %llu blocks.", reserve);	
 	/*
 	 * add or replace name for @old_inode as @new_name
 	 */
@@ -751,6 +892,7 @@ hashed_add_entry(struct inode *object	/* directory to add new name
 	coord_t *coord;
 	lock_handle lh;
 	reiser4_dentry_fsdata *fsdata;
+	reiser4_block_nr       reserve;
 	int off;
 
 	assert("nikita-1114", object != NULL);
@@ -759,12 +901,14 @@ hashed_add_entry(struct inode *object	/* directory to add new name
 	fsdata = reiser4_get_dentry_fsdata(where);
 	if (unlikely(IS_ERR(fsdata)))
 		return PTR_ERR(fsdata);
+	if (reiser4_grab_space_exact(reserve = inode_dir_plugin(object)->estimate.add_entry(object), 0))
+		return -ENOSPC;
 
+	warning("vpf-329", "SPACE: add_entry grabs %llu blocks.", reserve);
+	
 	init_lh(&lh);
-
 	trace_on(TRACE_DIR, "[%i]: creating \"%s\" in %llu\n", current_pid,
 		 where->d_name.name, get_inode_oid(object));
-
 	coord = &fsdata->entry_coord;
 
 	/*
@@ -813,10 +957,11 @@ hashed_rem_entry(struct inode *object	/* directory from which entry
 	lock_handle lh;
 	reiser4_dentry_fsdata *fsdata;
 	int off;
-
 	assert("nikita-1124", object != NULL);
 	assert("nikita-1125", where != NULL);
 
+	if (reiser4_grab_space_exact(inode_dir_plugin(object)->estimate.rem_entry(object), 0))
+		return -ENOSPC;
 	init_lh(&lh);
 
 	/*
