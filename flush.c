@@ -25,6 +25,12 @@ struct flush_scan {
 	jnode    *node;
 };
 
+typedef enum {
+	SCAN_LEFT_EVERY_LEVEL,
+	SCAN_LEFT_FIRST_LEVEL,
+	SCAN_LEFT_NEVER
+} flush_scan_left_config;
+
 static void          flush_scan_init              (flush_scan *scan);
 static void          flush_scan_cleanup           (flush_scan *scan);
 static int           flush_scan_left_finished     (flush_scan *scan);
@@ -72,9 +78,11 @@ static int           znode_same_parents           (znode *a, znode *b);
  * early-flush dirty blocks).
  *
  * Two basic steps are performed: first the "leftpoint" of the input jnode is located,
- * which is found by scaning leftward past dirty nodes and upward as long as the parent is
- * dirty or the child is being relocated.  The "leftpoint" is the node we will allocate
- * first.  The comments for flush_lock_leftpoint() will describe this in greater detail.
+ * which is found by scanning leftward past dirty nodes and upward as long as the parent
+ * is dirty or the child is being relocated.  A config option determines whether
+ * left-scanning is performed at higher levels.  The "leftpoint" is the node we will
+ * process first.  The comments for flush_lock_leftpoint() will describe this in greater
+ * detail.
  *
  * After finding the initial leftpoint, squalloc_leftpoint is called to squeeze and
  * allocate the subtree rooted at the leftpoint in a parent-first traversal, then it
@@ -89,23 +97,36 @@ int jnode_flush (jnode *node)
 	jnode *leftpoint = NULL;       /* leftpoint is jref'd when set. */
 	lock_handle leftpoint_lock;    /* if leftpoint is formatted, a write lock */
 	reiser4_blocknr_hint preceder; /* hint for block allocation */
+	flush_scan_left_config scan_config = SCAN_LEFT_EVERY_LEVEL; /* FIXME: We want to make a new mount/config
+								     * option to allow setting this to SCAN_LEFT_FIRST_LEVEL
+								     * instead of SCAN_LEFT_EVERY_LEVEL, as described in
+								     * flush-alg.html.
+								     *
+								     * Make it SCAN_LEFT_EVERY_LEVEL if:
+								     * (node-level != leaf) || in_txn_commit,
+								     *
+								     * In other words, make it SCAN_LEFT_FIRST_LEVEL if:
+								     * (in_txn_flush && node-level == leaf)
+								     */
 
 	assert ("jmacd-5012", jnode_check_dirty (node));
 
-	/* If the node has already been through the allocate process, we have
-	 * decided whether it is to be relocated or overwritten (or if it was
-	 * created, it has its initial allocation). */
+	/* If the node has already been through the allocate process, we have decided
+	 * whether it is to be relocated or overwritten (or if it is a new block, it has
+	 * an initial allocation). */
 	if (jnode_is_allocated (node)) {
 		/* FIXME: call some un-written subroutine of jnode_allocate_flush(). */
 		jnode_set_clean (node);
 		return 0;
 	}
 
-	leftpoint = NULL;
+	/* FIXME: Want init() and done() methods for the preceder, which should hold a
+	 * longterm lock on the preceder's current bitmap to avoid interleaved
+	 * allocations. */
 	preceder.blk = 0;
 	init_lh (& leftpoint_lock);
 
-	/* Locate the leftpoint of the node to flush, which found by scanning
+	/* Locate the leftpoint of the node to flush, which is found by scanning
 	 * leftward and recursing upward as long as the neighbor or parent is
 	 * dirty.
 	 *
@@ -114,7 +135,7 @@ int jnode_flush (jnode *node)
 	 * and then to the left at the leaf level.  Some extra complexity, questionable
 	 * return-on-investment given that most nodes are leaves and are likely to be
 	 * flushed before their parent nodes. */
-	if ((ret = flush_lock_leftpoint (node, NULL, & leftpoint, & leftpoint_lock, & preceder, 1 /* scan_left */))) {
+	if ((ret = flush_lock_leftpoint (node, NULL, & leftpoint, & leftpoint_lock, & preceder, scan_config))) {
 		goto failed;
 	}
 
@@ -171,12 +192,12 @@ int jnode_flush (jnode *node)
  * the leftpoint locked (and referenced), unless the node is unformatted, in which case
  * only a reference is returned.
  */
-static int flush_lock_leftpoint (jnode                *start_node,
-				 lock_handle          *start_lock,
-				 jnode               **leftpoint,
-				 lock_handle          *leftpoint_lock,
-				 reiser4_blocknr_hint *preceder,
-				 int                   scan_left)
+static int flush_lock_leftpoint (jnode                  *start_node,
+				 lock_handle            *start_lock,
+				 jnode                 **leftpoint,
+				 lock_handle            *leftpoint_lock,
+				 reiser4_blocknr_hint   *preceder,
+				 flush_scan_left_config  scan_config)
 {
 	int ret;
 	jnode *end_node;
@@ -192,7 +213,7 @@ static int flush_lock_leftpoint (jnode                *start_node,
 	init_lh (& parent_lock);
 	init_lh (& end_lock);
 
-	if (scan_left) {
+	if (scan_left != SCAN_LEFT_NEVER) {
 		/* Scan start_node's level for the leftmost dirty neighbor. */
 		if ((ret = flush_scan_left (& level_scan, start_node))) {
 			goto failure;
@@ -252,13 +273,20 @@ static int flush_lock_leftpoint (jnode                *start_node,
 		/* Release lock at this level before going upward. */
 		done_lh (start_lock ? start_lock : & end_lock);
 
+		/* Modify scan_config for the recursive call. */
+		if (scan_config == SCAN_LEFT_FIRST_LEVEL) {
+			scan_config = SCAN_LEFT_NEVER;
+		}			
+
 		/* Recurse upwards. */
-		if ((ret = flush_lock_leftpoint (ZJNODE (parent_node), & parent_lock, leftpoint, leftpoint_lock, preceder, scan_left))) {
+		if ((ret = flush_lock_leftpoint (ZJNODE (parent_node), & parent_lock, leftpoint, leftpoint_lock, preceder, scan_config))) {
 			goto failure;
 		}
 
 	} else {
 		/* End the recursion, get a write lock at the highest level. */
+
+#if 0 /* Cut this -- use an iterator to save the parent_coord.................. and simplify preceder hint?. */
 
 		/* The preceder hint may be set at this point without taking
 		 * any additional locks (if LEFTPOINT is not allocated).  If it is
@@ -273,7 +301,7 @@ static int flush_lock_leftpoint (jnode                *start_node,
 		    (ret = flush_preceder_hint (end_node, & parent_coord, preceder))) {
 			goto failure;
 		}
-
+#endif
 		(*leftpoint) = jref (end_node);
 
 		/* Release any locks we might hold first, they are all read
@@ -1577,6 +1605,9 @@ static int flush_scan_left_formatted (flush_scan *scan, znode *node)
 	assert ("jmacd-1401", ! flush_scan_left_finished (scan));
 
 	/*info_znode ("scan_left: ", node);*/
+
+	/* FIXME: should skip over unallocated extents, we know they are entirely
+	 * dirty. */
 
 	do {
 		/* Node should be connected. */
