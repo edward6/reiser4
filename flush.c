@@ -94,6 +94,8 @@ static int           flush_scan_right             (flush_scan *scan, jnode *node
 static int           flush_left_relocate_dirty    (jnode *node, const coord_t *parent_coord, flush_position *pos);
 
 static int           flush_allocate_znode         (znode *node, coord_t *parent_coord, flush_position *pos);
+static int           flush_enqueue_jnode          (jnode *node, flush_position *pos);
+
 
 static int           flush_finish                 (flush_position *pos);
 /*static*/ int       squalloc_right_neighbor      (znode *left, znode *right, flush_position *pos);
@@ -1309,17 +1311,25 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 /* This enqueues the current flush point into the developing "struct bio" queue. */
 int flush_enqueue_jnode (jnode *node, flush_position *pos)
 {
-	int ret;
 	struct page *pg;
-
-	assert ("jmacd-1771", jnode_is_allocated (node));
-	assert ("jmacd-1772", jnode_check_dirty (node));
 
 	if ((pg = jnode_page (node)) == NULL) {
 		return -ENOMEM;
 	}
 
 	lock_page (pg);
+
+	return flush_enqueue_jnode_page_locked (node, pos, pg);
+}
+
+/* FIXME: comment */
+int flush_enqueue_jnode_page_locked (jnode *node, flush_position *pos, struct page *pg)
+{
+	int ret;
+
+	assert ("jmacd-1771", jnode_is_allocated (node));
+	assert ("jmacd-1772", jnode_check_dirty (node));
+
 	ret = write_one_page (pg, 0);
 
 	ON_DEBUG (pos->enqueue_cnt += 1);
@@ -1784,13 +1794,14 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 		}
 
 		/* Now continue.  If formatted we release the parent lock and return, then
-		 * proceed.  Otherwise, repeat the above loop with next_coord. */
+		 * proceed. */
 		if (jnode_is_formatted (child)) {
 			done_lh (& scan->parent_lock);
 			done_zh (& scan->parent_load);
 			break;
 		}
 
+		/* Otherwise, repeat the above loop with next_coord. */
 		if (next_load.node != NULL) {
 			done_lh (& scan->parent_lock);
 			move_lh (& scan->parent_lock, & next_lock);

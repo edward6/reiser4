@@ -1021,7 +1021,7 @@ static reiser4_block_nr in_extent (const coord_t * coord,
         return (off - cur) >> reiser4_get_current_sb ()->s_blocksize_bits;
 }
 
-
+#if 0
 /*
  * mark jnode that it corresponds to unallocated page
  */
@@ -1046,7 +1046,7 @@ static void set_jnode_allocated (jnode * j)
 	JF_CLR (j, ZNODE_RELOC);
 	JF_SET (j, ZNODE_UNFORMATTED);
 }
-
+#endif
 
 /* insert extent item (containing one unallocated extent of width 1) to place
    set by @coord */
@@ -2403,6 +2403,7 @@ static int map_allocated_buffers (reiser4_key * key,
 
 	for (i = 0; i < (int)count; i ++, first ++) {
 		ind = offset >> PAGE_CACHE_SHIFT;
+
 		page = find_lock_page (inode->i_mapping, ind);
 		assert ("vs-349", page && page->private);
 
@@ -2410,12 +2411,12 @@ static int map_allocated_buffers (reiser4_key * key,
 		jnode_set_block (j, &first);
 
 		/* Submit I/O and set the jnode clean. */
-		if ((ret = flush_enqueue_jnode (j, flush_pos))) {
+		if ((ret = flush_enqueue_jnode_page_locked (j, flush_pos, page))) {
 			return ret;
 		}
 
-		unlock_page (page);
-		page_cache_release (page);
+		/*unlock_page (page);*/
+		/*page_cache_release (page);*/
 	}
  	iput (inode);
 		

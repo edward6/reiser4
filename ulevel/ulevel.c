@@ -681,6 +681,7 @@ void lock_page (struct page * p)
 {
 	spin_lock (&p->lock);
 	SetPageLocked (p);
+	assert ("vs-287", PageLocked (p));
 }
 
 
