@@ -491,7 +491,10 @@ reiser4_block_nr hashed_estimate_rename(
 	p_parent_old = inode_dir_plugin(old_dir);
 	p_parent_new = inode_dir_plugin(new_dir);
 	p_child_old = inode_file_plugin(old_name->d_inode);
-	p_child_new = inode_file_plugin(new_name->d_inode);
+	if (new_name->d_inode)
+		p_child_new = inode_file_plugin(new_name->d_inode);
+	else
+		p_child_new = 0;
 
 	res1 = res2 = 0;
 	
