@@ -854,8 +854,9 @@ static void invalidate_pages (void)
 		page = list_entry (cur, struct page, list);
 		spin_lock (&page->lock2);
 		lock_page (page);
-		assert ("vs-666", !PageDirty (page) && page->count == 0 &&
-			!PageKmaped (page));
+		assert ("vs-666", !PageDirty (page));
+		assert ("vs-667", page->count == 0);
+		assert ("vs-668", !PageKmaped (page));
 		list_del_init( &page -> list );
 		free (page);
 		spin_unlock (&page->lock2);

@@ -506,11 +506,13 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	int any_shifted = 0;
 	lock_handle right_lock;
 	lock_handle parent_lock;
+	load_handle right_load;
 	load_handle parent_load;
 	coord_t at_right, right_parent_coord;
 
 	init_lh (& right_lock);
 	init_lh (& parent_lock);
+	init_zh (& right_load);
 	init_zh (& parent_load);
 
 	assert ("jmacd-9925", znode_is_allocated (node));
@@ -528,6 +530,10 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 			ret = 0;
 		}
 		/* Otherwise error. */
+		goto exit;
+	}
+
+	if ((ret = load_zh (& right_load, right_lock.node))) {
 		goto exit;
 	}
 
@@ -603,6 +609,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
  exit:
 	done_lh (& right_lock);
 	done_lh (& parent_lock);
+	done_zh (& right_load);
 	done_zh (& parent_load);
 	return ret;
 }
