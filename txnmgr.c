@@ -394,7 +394,8 @@ txn_end (reiser4_context *context)
 	txn_handle *txnh;
 	
 	assert("umka-283", context != NULL);
-	assert("nikita-2446", lock_counters()->spin_locked == 0);
+	ON_DEBUG_CONTEXT (assert("nikita-2446", 
+				 lock_counters()->spin_locked == 0));
 	
 	/* closing non top-level context---nothing to do */
 	if (context != context -> parent)
@@ -933,6 +934,8 @@ int txn_commit_some (txn_mgr *mgr)
 	assert ("nikita-2444", ctx != NULL);
 	assert ("nikita-2445", check_spin_is_locked (&mgr->daemon->guard));
 
+	trace_on (TRACE_BUG, "Cleaning dotards\n");
+
 	txnh = ctx->trans;
 	spin_lock_txnmgr (mgr);
 
@@ -944,6 +947,9 @@ int txn_commit_some (txn_mgr *mgr)
 		     atom = atom_list_next  (atom)) {
 
 			spin_lock_atom (atom);
+
+			trace_on (TRACE_BUG, 
+				  "\tflushing atom: %x\n", atom->atom_id);
 
 			if ((atom->stage < ASTAGE_PRE_COMMIT) &&
 			    (atom->txnh_count == 0) &&
@@ -1066,7 +1072,7 @@ commit_txnh (txn_handle *txnh)
 				   might have a chance to run. */
 				assert( "green-15", lock_counters() -> spin_locked == 0 );
 
-				cond_resched();
+				preempt_point();
 				goto again;
 			}
 		}
@@ -1607,7 +1613,7 @@ capture_assign_block_nolock (txn_atom *atom,
 	 * reference to jnode is acquired by atom.
 	 */
 	jref (node);
-	ON_DEBUG (++ lock_counters() -> t_refs);
+	ON_DEBUG_CONTEXT (++ lock_counters() -> t_refs);
 
 	trace_on (TRACE_TXN, "capture %p for atom %u (captured %u)\n", node, atom->atom_id, atom->capture_count);
 }
@@ -2287,7 +2293,7 @@ uncapture_block (txn_atom *atom,
 
 	jput (node);
 
-	ON_DEBUG (-- lock_counters() -> t_refs);
+	ON_DEBUG_CONTEXT (-- lock_counters() -> t_refs);
 }
 
 /** 
