@@ -32,6 +32,14 @@ static int always_tail( const struct inode *inode UNUSED_ARG /* inode to
 	return 1;
 }
 
+/** store tails only Always store file's tail as direct item */
+static int test_tail( const struct inode *inode /* inode to operate on */,
+		      loff_t size /* new object size */ )
+{
+	if (size > inode->i_sb->s_blocksize * 2)
+		return 0;
+	return 1;
+}
 
 /**
  * tail plugins
@@ -64,6 +72,17 @@ reiser4_plugin tail_plugins[ LAST_TAIL_ID ] = {
 		}
 	},
 	[ TEST_TAIL_ID ] = {
+		.tail = {
+			.h = {
+				.type_id = REISER4_TAIL_PLUGIN_TYPE,
+				.id      = TEST_TAIL_ID,
+				.pops    = NULL,
+				.label   = "test",
+				.desc    = "store files shorter than 2 blocks in tail items",
+				.linkage = TS_LIST_LINK_ZERO
+			},
+			.have_tail   = test_tail
+		}
 	}
 };
 
