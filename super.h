@@ -19,6 +19,14 @@ struct reiser4_super_info_data {
 	spinlock_t        guard;
  
 	/**
+	 * allocator used to allocate new object ids for objects in the file
+	 * system. Current default implementation of object id allocator is
+	 * just counter and
+	 * used by reiser 4.0 default oid manager
+	 */
+	reiser4_oid_allocator allocator;
+
+	/**
 	 * reiser4 internal tree
 	 */
 	reiser4_tree       tree;
@@ -106,6 +114,12 @@ struct reiser4_super_info_data {
 	 */
 	int                  kmalloc_allocated;
 #endif
+	/* oid manager plugin */
+	oid_mgr_plugin * oplug;
+
+	/* space manager plugin */
+	space_mgr_plugin * splug;
+
 	/* disk layout plugin */
 	layout_plugin * lplug;
 	/* disk layout specific part of reiser4 super info data */
@@ -127,7 +141,7 @@ extern long reiser4_data_blocks( const struct super_block *super );
 extern long reiser4_free_blocks( const struct super_block *super );
 extern long reiser4_reserved_blocks( const struct super_block *super, 
 				     uid_t uid, gid_t gid );
-extern reiser4_oid_allocator_t *reiser4_get_oid_allocator( const struct super_block *super );
+extern reiser4_oid_allocator *reiser4_get_oid_allocator( const struct super_block *super );
 extern struct inode *reiser4_get_super_fake( const struct super_block *super );
 extern reiser4_tree *reiser4_get_tree( const struct super_block *super );
 extern __u32 reiser4_new_inode_generation( const struct super_block *super );
