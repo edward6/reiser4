@@ -2504,7 +2504,7 @@ static void
 set_cced_bit(jnode *node, reiser4_jnode_state bit)
 {
 	BUG_ON(JF_ISSET(node, JNODE_CCED_CLEAN));
-	BUG_ON(JF_ISSET(node, JNODE_CCED_UBER));
+	BUG_ON(JF_ISSET(node, JNODE_CCED_NOPAGE));
 	BUG_ON(JF_ISSET(node, JNODE_CCED_RELOC));
 	BUG_ON(JF_ISSET(node, JNODE_CCED_OVRWR));
 	JF_SET(node, bit);
@@ -2514,7 +2514,7 @@ static void
 clear_cced_bits(jnode *node)
 {
 	JF_CLR(node, JNODE_CCED_CLEAN);
-	JF_CLR(node, JNODE_CCED_UBER);
+	JF_CLR(node, JNODE_CCED_NOPAGE);
 	JF_CLR(node, JNODE_CCED_RELOC);
 	JF_CLR(node, JNODE_CCED_OVRWR);	
 }
@@ -2523,7 +2523,7 @@ int
 is_cced(const jnode *node)
 {
 	return (JF_ISSET(node, JNODE_CCED_CLEAN) ||
-		JF_ISSET(node, JNODE_CCED_UBER) ||
+		JF_ISSET(node, JNODE_CCED_NOPAGE) ||
 		JF_ISSET(node, JNODE_CCED_RELOC) ||
 		JF_ISSET(node, JNODE_CCED_OVRWR));
 }
@@ -3636,30 +3636,34 @@ copy_on_capture_clean(jnode *node, txn_atom *atom)
 	return result;
 }
 
-/* capture request is made for */
+/* capture request is made for node which does not have page. In most cases this
+   is "uber" znode */
 static int
-copy_on_capture_uber(jnode *node, txn_atom *atom)
+copy_on_capture_nopage(jnode *node, txn_atom *atom)
 {
 	int result;
 	jnode *copy;
 
 	assert("vs-1432", spin_jnode_is_locked(node));
-	assert("vs-1436", znode_above_root(JZNODE(node)));
 
-	/* special case: "uber" znode */
+	jref(node);
 	UNLOCK_JNODE(node);
 	copy = jclone(node);
-	if (IS_ERR(copy))
+	if (IS_ERR(copy)) {
+		jput(node);
 		return PTR_ERR(copy);
-
+	}
+	
 	LOCK_JNODE(node);
 	spin_lock(&scan_lock);
-
-	if (capturable(node, atom)) {
-		assert("vs-1428", znode_above_root(JZNODE(node)));
+	
+	if (capturable(node, atom) && node->pg == 0) {
 		replace_on_capture_list(node, copy);
-		set_cced_bit(node, JNODE_CCED_UBER);
-		reiser4_stat_inc(coc.ok_uber);
+		set_cced_bit(node, JNODE_CCED_NOPAGE);
+		if (znode_above_root(JZNODE(node)))
+			reiser4_stat_inc(coc.ok_uber);
+		else
+			reiser4_stat_inc(coc.ok_nopage);
 		result = 0;
 	} else {
 		result = RETERR(-E_REPEAT);
@@ -3668,7 +3672,8 @@ copy_on_capture_uber(jnode *node, txn_atom *atom)
 	spin_unlock(&scan_lock);
 	UNLOCK_JNODE(node);
 	jput(copy);
-	ON_TRACE(TRACE_CAPTURE_COPY, "uber\n");
+	jput(node);
+	ON_TRACE(TRACE_CAPTURE_COPY, "nopage\n");
 	return result;
 }
 
@@ -3847,7 +3852,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 
 	if (!node->pg) {
 		ON_TRACE(TRACE_CAPTURE_COPY, "uber\n");
-		return copy_on_capture_uber(node, atom);
+		return copy_on_capture_nopage(node, atom);
 	}
 
 	return real_copy_on_capture(node, atom);

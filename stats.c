@@ -315,6 +315,7 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STATCNT(coc.calls),
 	/* satisfied requests */
  	DEFINE_STATCNT(coc.ok_uber),
+ 	DEFINE_STATCNT(coc.ok_nopage),
  	DEFINE_STATCNT(coc.ok_clean),
 	DEFINE_STATCNT(coc.ok_ovrwr),
  	DEFINE_STATCNT(coc.ok_reloc),

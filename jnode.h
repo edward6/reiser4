@@ -279,7 +279,7 @@ typedef enum {
 	/* this jnode is copy of coced original */
 	JNODE_CCED_CLEAN = 28,
 	JNODE_CCED_RELOC = 29,
-	JNODE_CCED_UBER = 30,
+	JNODE_CCED_NOPAGE = 30,
 	JNODE_CCED_OVRWR = 31
 } reiser4_jnode_state;
 

@@ -497,6 +497,7 @@ typedef struct reiser4_statistics {
 		statcnt_t calls;
 		/* satisfied requests */
 		statcnt_t ok_uber;
+		statcnt_t ok_nopage;
 		statcnt_t ok_clean;
 		statcnt_t ok_ovrwr;
 		statcnt_t ok_reloc;
