@@ -3233,15 +3233,16 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 	if (allocated) {
 		do {
 			neighbor = UNDER_SPIN (tree, tree,
-					       jlook (tree, oid,
-						      scan_index));
+					       jlook (tree, oid, scan_index));
 			if (neighbor == NULL)
 				goto stop_same_parent;
-			
 
 			trace_on (TRACE_FLUSH_VERB, "alloc scan index %lu: %s\n", scan_index, flush_jnode_tostring (neighbor));
 
 			if (scan->node != neighbor && ! flush_scan_goto (scan, neighbor)) {
+				/*
+				 * @neighbor was jput() by flush_scan_goto().
+				 */
 				goto stop_same_parent;
 			}
 
@@ -3249,6 +3250,10 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 				goto exit;
 			}
 
+			/*
+			 * reference to @neighbor is stored in @scan, no need
+			 * to jput().
+			 */
 			scan_index += incr;
 
 		} while (incr + scan_max != scan_index);

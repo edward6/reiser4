@@ -207,7 +207,7 @@ extern jnode* jnew            (void);
 extern void   jnode_set_type  (jnode*, jnode_type);
 extern jnode* jget            (reiser4_tree *tree, struct page *pg);
 extern jnode *jfind           (struct page *pg);
-extern jnode *jlook           (reiser4_tree *, __u64 objectid,
+extern jnode *jlook           (reiser4_tree *, oid_t objectid, 
 			       unsigned long index);
 extern jnode* jnode_by_page   (struct page* pg);
 extern jnode* jnode_of_page   (struct page* pg);

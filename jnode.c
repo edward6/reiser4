@@ -215,8 +215,7 @@ jnode * jnew (void)
 }
 
 /** look for jnode with given mapping and offset within hash table */
-jnode *jlook (reiser4_tree *tree, 
-	      __u64 objectid, unsigned long index)
+jnode *jlook (reiser4_tree *tree, oid_t objectid, unsigned long index)
 {
 	jnode_key_t  jkey;
 	jnode       *node;
@@ -247,6 +246,7 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 	 * add a small per-page array to handle more than one jnode per
 	 * page. */
 	jnode *jal = NULL;
+	oid_t  oid = get_inode_oid (pg->mapping->host);
 	
 	assert("umka-176", pg != NULL);
 	/* check that page is unformatted */
@@ -259,14 +259,13 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 		/** check hash-table first */
 		tree = tree_by_page (pg);
 		spin_lock_tree (tree);
-		in_hash = jlook (tree, get_inode_oid (pg->mapping->host), pg->index);
+		in_hash = jlook (tree, oid, pg->index);
 		if (in_hash != NULL) {
 			assert ("nikita-2358", jnode_page (in_hash) == NULL);
 			spin_unlock_tree (tree);
 			UNDER_SPIN_VOID (jnode, in_hash,
 					 jnode_attach_page (in_hash, pg));
-			assert ("nikita-2356", 
-				jnode_get_type (in_hash) == JNODE_UNFORMATTED_BLOCK);
+			in_hash->key.j.mapping = pg->mapping;
 		} else {
 			j_hash_table *jtable;
 
@@ -284,7 +283,7 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 			jref (jal);
 
 			jal->key.j.mapping  = pg->mapping;
-			jal->key.j.objectid = get_inode_oid (pg->mapping->host);
+			jal->key.j.objectid = oid;
 			jal->key.j.index    = pg->index;
 
 			jtable = &tree->jhash_table;
@@ -303,7 +302,9 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 	assert ("nikita-2046", jnode_page(jprivate(pg)) == pg);
 	assert ("nikita-2364", jprivate(pg)->key.j.index == pg -> index);
 	assert ("nikita-2367", jprivate(pg)->key.j.mapping == pg -> mapping);
-	assert ("nikita-2365", jprivate(pg)->key.j.objectid == pg -> mapping -> host -> i_ino);
+	assert ("nikita-2365", jprivate(pg)->key.j.objectid == oid);
+	assert ("nikita-2356", 
+		jnode_get_type (jnode_by_page(pg)) == JNODE_UNFORMATTED_BLOCK);
 
 	if (jal != NULL) {
 		jfree(jal);
@@ -1000,7 +1001,15 @@ static int noparse( jnode *node UNUSED_ARG)
 
 static struct address_space *jnode_mapping( const jnode *node )
 {
-	return node -> key.j.mapping;
+	struct address_space *map;
+
+	assert( "nikita-2713", node != NULL );
+	map = node -> key.j.mapping;
+	assert( "nikita-2714", map != NULL );
+	assert( "nikita-2715", 
+		get_inode_oid( map -> host ) == node -> key.j.objectid );
+
+	return map;
 }
 
 static unsigned long jnode_index( const jnode *node )
