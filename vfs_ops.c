@@ -1635,7 +1635,7 @@ static void reiser4_kill_super (struct super_block *s)
 
 	trace_on (TRACE_VFS_OPS, "kill_super\n");
 	if ((ret = txn_mgr_force_commit (s))) {
-		warning ("jmacd-7711", "txn_force failed in umount_begin: %u", ret);
+		warning ("jmacd-7711", "txn_force failed in umount_begin: %d", ret);
 	}
 
 	__REISER4_EXIT (&__context);
@@ -1669,7 +1669,7 @@ static void reiser4_write_super (struct super_block * s)
 	__REISER4_ENTRY (s,);
 
 	if ((ret = txn_mgr_force_commit (s))) {
-		warning ("jmacd-77113", "txn_force failed in write_super: %u", ret);
+		warning ("jmacd-77113", "txn_force failed in write_super: %d", ret);
 	}
 
 	/* Oleg says do this: */

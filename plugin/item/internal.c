@@ -125,7 +125,7 @@ int internal_utmost_child_dirty ( const coord_t  *coord,
 	if (child == NULL) {
 		*is_dirty = 0;
 	} else {
-		*is_dirty = jnode_is_dirty (child);
+		*is_dirty = jnode_check_dirty (child);
 		jput (child);
 	}
 	return 0;
