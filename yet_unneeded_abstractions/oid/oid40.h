@@ -1,4 +1,4 @@
-/* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
 /* In reiser4 we use 64 bit object ids. One can easily check that
    given exponential growth in hardware speed and disk capacity,

@@ -1,4 +1,4 @@
-/* Copyright 2002 Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2002, 2003 Hans Reiser, licensing governed by reiser4/README */
 
 /* identifiers for disk layouts, they are also used as indexes in array of disk
    plugins */

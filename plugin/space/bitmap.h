@@ -1,4 +1,4 @@
-/* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
 #if !defined (__REISER4_PLUGIN_SPACE_BITMAP_H__)
 #define __REISER4_PLUGIN_SPACE_BITMAP_H__

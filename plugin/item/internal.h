@@ -1,4 +1,4 @@
-/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 /* Internal item contains down-link to the child of the internal/twig
    node in a tree. It is internal items that are actually used during
    tree traversal. */

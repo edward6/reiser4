@@ -1,4 +1,4 @@
-/* Copyright 2000, 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2000, 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
 /* Declarations of key-related data-structures and operations on keys. */
 

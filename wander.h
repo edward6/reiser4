@@ -1,4 +1,4 @@
-/* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
 #if !defined (__FS_REISER4_WANDER_H__)
 #define __FS_REISER4_WANDER_H__

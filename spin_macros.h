@@ -1,4 +1,4 @@
-/* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
 /* Wrapper functions/macros for spin locks. */
 
