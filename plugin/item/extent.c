@@ -1189,11 +1189,11 @@ extent_readpage(coord_t * coord, lock_handle * lh, struct page *page)
 	assert("vs-1040", PageLocked(page));
 	assert("vs-758", item_is_extent(coord));
 	assert("vs-1046", coord_is_existing_unit(coord));
-
+#if 0
 	if (PagePrivate(page)) {
 		/* the page is read while page was unlocked */
 		assert("vs-1043", jnode_by_page(page));
-		assert("vs-1042", PageUptodate(page));
+		assert("", PageUptodate(page));
 		reiser4_unlock_page(page);
 		return 0;
 	}
@@ -1202,7 +1202,7 @@ extent_readpage(coord_t * coord, lock_handle * lh, struct page *page)
 		reiser4_unlock_page(page);
 		return 0;
 	}
-
+#endif
 	assert("vs-1050", !PageUptodate(page));
 	assert("vs-757", !jprivate(page) && !PagePrivate(page));
 	assert("vs-1039", page->mapping && page->mapping->host);
