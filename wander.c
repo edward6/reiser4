@@ -1,359 +1,539 @@
-/* JOURNALING:
+/* Copyright 2002 by Hans Reiser */
 
-
-
-
-There may be (by default is) a dedicated journaling area.  Its purpose
-is to allow a batch of nodes that will not be logged in their optimal
-location to all be journaled together efficiently in one seek and one
-write (or perhaps to be journalled using NVRAM.)
-
-The "preserve" of a transaction is the set of blocks which may not be
-overwritten before the transaction is committed, but may be
-overwritten after it is committed.  The "minover" of a transaction is
-the set of blocks which must be overwritten after the transaction is
-committed.  There is no minover buffer which is a child of another
-minover buffer.  The "optover" is the set of blocks which it would be
-optimal to overwrite after the transaction is completed because of
-buffers in the transaction having the location of a preserve block as
-their most optimal location.
-
-Flush plugins interface with journaling by setting the
-znode->true_blocknr, and if the true_blocknr is part of the preserve
-set then they call set_journal_block to determine the
-wandered_blocknr, otherwise the wandered_blocknr is set to 0.
-
-Modified bitmaps in v4.0 are part of the minover.
-
-We need one bitmap that contains the union of all bitmaps of all
-uncommitted transcrashes in progress, plus a version of each bitmap
-for each transaction in progress, plus a bitmap that represents the
-state should all uncommitted transcreashes fail.
-
-
-
-Wandering posts have a mapping of blocks that are in the journal to
-where they should go when committed.  When the block size is 4k and
-the blocknr size is 4 bytes there is one wandering post per megabyte
-of disk, it is one 4k block in size with 2040 bytes unused (we can
-tune this later), and it is large enough to map every block in the
-interval between it and the next wandering post (this is 0.4% space
-wasteful but simplifies worst case handling code, we can get more
-complex later if we want to).  The mapping is of form (wandered
-blocknr, true blocknr).  Commit is performed by writing the next
-wandering post which may have null contents.  I wonder if this way of
-doing commits is bad design or good design....  All wandering posts
-have a sequence number and a number of other posts with the same
-sequence number, the most recent one(s) should have all of its (their)
-contents discarded, the penultimate one(s) should be replayed, the
-others are ignored.  More complex schemes that segment the sequence
-number space are possible in the future to allow nested transactions.
-When the system is idle and there is no new transaction and replay is
-completed and the penultimate wandering post was non-empty of
-mappings, the filesystem writes an empty new wandering post which
-serves to indicate that replay has been performed already.
-
-At commit time, cease allowing new joinings of the transaction, copy
-on write all modifications of buffers in the closed transaction from
-this point in time until the time that the sequence number is
-committed, and do not allow modification of disk blocks in the
-transaction until replay is completed, then update one of the
-wandering posts to contain a new sequence number thereby committing
-this transaction, then replay the wandering post.
-
-Note that where we gain over a fixed log, is when the wandered
-blocknrs equal the true blocknrs, in which case the block only needs
-to be written to disk once.  How to optimize the allocation of the
-wandered blocks for minimum I/O cost and minimum distortion of true
-block I/O is an area I haven't resolved.
-
-If a block has old contents already on disk (that should not be thrown
-away without replacing them with something newer) then the block must
-be wander-journaled for it to be reallocated.  If it has never been
-written it can be reallocated without wander-journaling it.
-
-*/
+/* Reiser4 log writer is here */
 
 #include "reiser4.h"
 
-typedef struct _log_record_header log_record_header;
-typedef struct _log_record_footer log_record_footer;
-typedef struct _log_record_block  log_record_block;
-typedef struct _log_region        log_region;
+/* journal header and footer are stored in two dedicated device blocks and
+ * contain block numbers of first block of last committed transaction and
+ * block number of first block of for oldest not flushed transaction. */
 
-enum log_record_types {
+/* FIXME: we will see, can those blocks be combined together in one block or
+ * can their data be put into reiser4 super block. */
 
-	LOG_HEADER_MAGIC = 0xBCD1BB65U,
-	LOG_BLOCK_MAGIC  = 0x42C2DFFEU,
-	LOG_FOOTER_MAGIC = 0x9666431BU,
+/* Journal header block get updated after all log records of a transaction is
+ * beign committed are written  */
+
+/* Note: the fact that not a whole fs block is used may make reiser4 journal
+ * more reliable because used part of fs block is less that 512 bytes which
+ * write operation can be considered as an atomic operation. */
+
+/* FIXME: I think that `write atomicity' means atomic write of block with
+ * sizes which are supported by the hardware */
+
+struct journal_header {
+	/* last written transaction head location */
+	d64      last_committed_tx;
 };
 
-struct _log_region {
-	/* A single region of the log. */
-
-	reiser4_block_nr base; /* first block */
-	__u32             blks; /* number of blocks */
-	__u32             generation;
+/* Journal footer gets updated after one transaction is flushed (all blocks
+ * are written in place) and _before_ wandered blocks and log records are
+ * freed in WORKING bitmap */
+struct journal_footer {
+	/* last flushed transaction location.*/
+	/* This block number is no more valid after the transaction it points
+	 * to gets flushed, this number is used only at journal replaying time
+	 * for detection of the end of on-disk list of committed transactions
+	 * which were not flushed completely */
+	d64      last_flushed_tx;
 };
 
-/*
- * Diagram of a two-block log record.
- *
- * __________________________________________________
- * |        |            |            |             |
- * | log    | list of    | list of    | delete      |
- * | record | atoms      | do-not-    | set         |
- * | header | reposessed | replay     | (start)     |
- * |        | for        | atoms      |             |
- * |________|____________|____________|_____________|
- * |
- * BLOCK 0
- *
- * __________________________________________________
- * |        |            |                 |        |
- * | log    | delete     | wander          | log    |
- * | record | set        | set             | record |
- * | block  | (cont)     |                 | footer |
- * |        |            |                 |        |
- * |________|____________|_________________|________|
- * |
- * BLOCK 1
- *
- */
+#define TX_HEADER_MAGIC  "TxMagic4"
+#define LOG_RECORD_MAGIC "LogMagc4"
 
-struct _log_record_header {
-	/* First 32 bytes of a log record */
+#define TX_HEADER_MAGIC_SIZE  (8)
+#define LOG_RECORD_MAGIC_SIZE (8)
 
-	d32   magic;        /* Indicates type (LOG_HEADER_MAGIC) */
-	d32   atom_id;      /* Committing atom/transaction ID */
-	d32   generation;   /* Increment each time the log wraps */
-	d32   num_blocks;   /* Number of blocks in this record */
+/* A transaction gets written to disk as a set of log records (each log record
+ * size is fs block) */
 
-	d32   num_repos;    /* Number of atoms this atom repossesses for */
-	d32   num_finish;   /* Number of atoms which now should not be replayed */
-	d32   num_delete;   /* Number of members in the delete set */
-	d32   num_wander;   /* Number of wandered block pairs */
+/* The first log record (transaction head) of written transaction has the
+ * special format */
+struct tx_header {
+	/* magic string makes first block in transaction different from other
+	 * logged blocks, it should help fsck. */
+	char     magic[TX_HEADER_MAGIC_SIZE];
+
+	/* transaction id*/
+	d64      id;
+
+	/* total number of records (including this first tx head) in the
+	 * transaction */
+	d32      total;
+
+	/* align next field to 8-byte boundary; this field always is zero */
+	d32      padding;
+
+	/* block number of previous transaction head */
+	d64      prev_tx;
+
+	/* next log record location */
+	d64      next_block;
+
+	/* committed versions of free blocks counter */
+	d64      free_blocks;
+};
+/* FIXME-ZAM: rest of block is unused currently, I plan to put wandered map there */
+
+
+/* each log record (except first one) has unified format with log record
+ * header followed by an array of log entries */
+struct log_record_header {
+	/* when there is no predefined location for log records, this magic
+	 * string should help reiser4fsck. */
+	char     magic[LOG_RECORD_MAGIC_SIZE];
+
+	/* transaction id */
+	d64      id;
+
+	/* total number of log records in current transaction  */
+	d32      total;
+
+	/* this block number in transaction */			
+	d32      serial;
+
+	/* number of previous block in commit */
+	d64      next_block;
 };
 
-struct _log_record_block {
-	/* First 16 bytes of subsequent blocks in a log record */
-
-	d32   magic;        /* Indicates type (LOG_BLOCK_MAGIC)  */
-	d32   atom_id;      /* Matches header */
-	d32   generation;   /* Matches header */
-	d32   sequence;     /* Sequence number (1 ... num_blocks) */
+/* rest of log record is filled by these log entries, unused space filled by
+ * zeroes */
+struct log_entry {
+	d64      original;	/* block original location */
+	d64      wandered;	/* block wandered location */
 };
 
-struct _log_record_footer {
-	/* Last 16 bytes of the last block in a log record */
-
-	d32   magic;        /* Indicates type (LOG_FOOTER_MAGIC)  */
-	d32   atom_id;      /* Matches header */
-	d32   generation;   /* Matches header */
-	d32   checksum;     /* Checksum of ... */
-};
-
-int block_is_allocated (const reiser4_block_nr *blocknr UNUSED_ARG)
+/* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
+/* jnode ref. counter is missing, it doesn't matter for us because this
+ * journal writer uses those jnodes exclusively by only one thread */
+/* FIXME: it should go to other place */
+int jload (jnode * node)
 {
-	/* stub function */
-	return 0;
+	reiser4_tree * tree = current_tree;
+	int (*read_node) ( reiser4_tree *, jnode *);
+
+	assert ("zam-441", tree->ops);
+	assert ("zam-442", tree->ops->read_node != NULL);
+
+	read_node = tree->ops->read_node;
+
+	return read_node (tree, node);
 }
 
-void mark_in_delete_set (txn_atom *atom UNUSED_ARG, znode *node UNUSED_ARG)
+int jwrite (jnode * node)
 {
+	struct page * page;
+
+	assert ("zam-445", node != NULL);
+	assert ("zam-446", jnode_page (node) != NULL);
+
+	page = jnode_page (node);
+
+	assert ("zam-450", blocknr_is_fake (jnode_get_block (node)));
+
+	return page_io (page, WRITE, GFP_NOIO);
 }
 
-void mark_in_wander_set (txn_atom *atom UNUSED_ARG, znode *node UNUSED_ARG)
+int jwait_io (jnode * node)
 {
-}
+	struct page * page;
 
-/* This function allocates a buffer of the appropriate size for formating a block of the
- * log.  It returns one pointer at the head of this buffer and one pointer at the end of
- * this buffer, for determining when the buffer is out of space.
- */
-int new_log_buffer (__u32 blksize, char **buf_ptr, char **buf_end_ptr)
-{
-	(*buf_ptr) = reiser4_kmalloc (blksize, GFP_KERNEL);
+	assert ("zam-447", node != NULL);
+	assert ("zam-448", jnode_page (node) != NULL);
 
-	if (*buf_ptr == NULL) {
-		return -ENOMEM;
+	page = jnode_page (node);
+
+	if (!PageUptodate (page)) {
+		wait_on_page_locked (page);
+
+		if (!PageUptodate (page)) return -EIO;
+	} else {
+		unlock_page (page);
 	}
 
-	(*buf_end_ptr) = (*buf_ptr) + blksize;
+	return 0;
+}
+
+int junload (jnode * node)
+{
+	reiser4_tree * tree = current_tree;
+	int (*release_node) ( reiser4_tree *, jnode *);
+
+	assert ("zam-443", tree->ops);
+	assert ("zam-444", tree->ops->release_node != NULL);
+
+	release_node = tree->ops->release_node;
+
+	return release_node (tree, node);
+}
+
+
+/* log record capacity depends on current block size */
+static int log_record_capacity (struct super_block * super)
+{
+	return (super->s_blocksize - sizeof (struct log_record_header)) /
+		sizeof (struct log_entry);
+}
+
+/* FIXME: It should go to txnmgr.c */
+static txn_atom * get_current_atom_locked (void)
+{
+	reiser4_context * cx;
+	txn_atom * atom;
+	txn_handle * txnh; 
+
+	cx = get_current_context();
+	assert ("zam-437", cx != NULL);
+
+	txnh = cx -> trans;
+	assert ("zam-435", txnh != NULL);
+	
+	atom = atom_get_locked_by_txnh (txnh);
+	assert ("zam-436", atom != NULL);
+
+	return atom;
+}
+
+static void format_tx_head (
+	jnode * node,
+	int total,
+	const reiser4_block_nr * next)
+{
+	struct super_block * super = reiser4_get_current_sb();
+	struct tx_header * h;
+
+	assert ("zam-459", node != NULL);
+
+	h = (struct tx_header*)jdata(node);
+
+	assert ("zam-460", h != NULL);
+	assert ("zam-462", super -> s_blocksize >= sizeof (struct tx_header));
+
+	xmemset (jdata(node), 0, (size_t)super->s_blocksize);
+	xmemcpy (jdata(node), TX_HEADER_MAGIC, TX_HEADER_MAGIC_SIZE); 
+
+	// cputod64((__u64)reiser4_trans_id(super), &h->id);
+	cputod32((__u32)total, & h->total);
+	// cputod64((__u64)reiser4_last_committed(super), & h->prev_tx    );
+	cputod64((__u64)(*next), & h->next_block );
+	cputod64((__u64)reiser4_free_committed_blocks(super), & h->free_blocks);
+}
+	
+static void format_log_record (
+	jnode * node,
+	int total, 
+	int serial,
+	const reiser4_block_nr * next_block)
+{
+	struct super_block * super = reiser4_get_current_sb ();
+	struct log_record_header * h;
+
+	assert ("zam-464", node != NULL);
+
+	h = (struct log_record_header*) jdata (node); 
+
+	assert ("zam-465", h != NULL);
+	assert ("zam-463", super->s_blocksize > sizeof (struct log_record_header));
+
+	xmemset (jdata(node), 0, (size_t)super->s_blocksize);
+	xmemcpy (jdata(node), LOG_RECORD_MAGIC, LOG_RECORD_MAGIC_SIZE);
+
+//	cputod64((__u64)reiser4_trans_id(super), &h->id);
+	cputod32((__u32)total,         & h->total     );
+	cputod32((__u32)serial,        & h->serial    );
+	cputod64((__u64)(*next_block), & h->next_block);
+}
+
+static void store_entry (jnode * node, 
+			 int index,
+			 const reiser4_block_nr * a,
+			 const reiser4_block_nr *b)
+{
+	char * data;
+	struct log_entry * pairs;
+
+	data = jdata (node);
+	assert ("zam-451", data != NULL);
+
+	pairs = (struct log_entry *)(data + sizeof (struct log_record_header));
+
+	cputod64(*a, & pairs[index].original);
+	cputod64(*b, & pairs[index].wandered);
+}
+
+static int count_wmap_actor (txn_atom * atom      UNUSED_ARG,
+			     const reiser4_block_nr * a UNUSED_ARG,
+			     const reiser4_block_nr * b UNUSED_ARG,
+			     void * data)
+{
+	int * count = data;
+
+	(*count) ++;
 
 	return 0;
 }
 
-/* This function allocates buffer of the appropriate size for formating a block of the log
- * after the first block (i.e., subsequent).  It formats the log_record_block at the head
- * of this buffer and returns two pointers: one at the head of the remaining space and one
- * at the end of the buffer, for determining when the buffer is out of space.
- */
-int sub_log_buffer (__u32 blksize, log_record_header *header, char **buf_ptr, char **buf_end_ptr)
+/* currently, log records contains contain only wandered map, and transaction
+ * size in log blocks depends only on size of transaction wandered map */
+static int get_tx_size (struct super_block * super)
+{
+	txn_atom * atom;
+	int wmap_size = 0;
+	int tx_size;
+
+	atom = get_current_atom_locked();
+
+	/* FIXME: this is a bit expensive */
+	blocknr_set_iterator(atom, &atom->wandered_map, count_wmap_actor, &wmap_size, 0);
+
+	spin_unlock_atom(atom);
+
+	assert ("zam-440", wmap_size != 0);
+
+	tx_size = (wmap_size - 1) / log_record_capacity (super) + 1;
+
+	tx_size ++;		/* for tx head */
+
+	return tx_size;
+}
+
+
+static int get_space_for_tx (int tx_size)
 {
 	int ret;
-	log_record_block *block;
 
-	if ((ret = new_log_buffer (blksize, buf_ptr, buf_end_ptr))) {
-		return ret;
-	}
+	while (1) {
+		reiser4_block_nr not_used;
 
-	block = (log_record_block*) (*buf_ptr);
+		ret = reiser4_reserve_blocks 
+			(&not_used, (reiser4_block_nr)tx_size, (reiser4_block_nr)tx_size);
 
-	cputod32 (LOG_BLOCK_MAGIC, & block->magic);
+		if (ret == 0) break;
 
-	/* FIXME_JMACD compute generation -josh */
-
-	block->atom_id    = header->atom_id;
-	block->generation = header->generation;
-	block->sequence   = header->num_blocks;
-
-	cputod32 (d32tocpu (& header->num_blocks) + 1, & header->num_blocks);
-
-	(*buf_ptr) += sizeof (log_record_block);
-
-	return 0;
-}
-
-extern __u32 sys_lrand (__u32 max);
-
-/* This function is named "random_commit_record" because it doesn't really format a valid
- * commit record, it is only here for me to structure the code that formats a log buffer.
- * It uses random values, but the outline of the code is correct.
- */
-int random_commit_record (txn_atom *atom, log_region *region, struct super_block *super)
-{
-#if 0
-	int   ret;
-	__u32 i;
-
-	char              *buffer;
-	char              *buffer_max;
-	log_record_header *header;
-	log_record_footer *footer;
-
-	__u32 blksize    = super->s_blocksize;
-	__u32 num_repos  = sys_lrand (10);
-	__u32 num_finish = sys_lrand (10);
-	__u32 num_delete = sys_lrand (100);
-	__u32 num_wander = sys_lrand (100);
-
-	__u32 checksum   = 0; /* FIXME_JMACD compute checksum -josh */
-	
-	assert ("jmacd-1110", (sizeof (log_record_header) + sizeof (log_record_footer)) <= (blksize + sizeof (d64)));
-
-	if ((ret = new_log_buffer (blksize, & buffer, & buffer_max))) {
-		return ret;
-	}
-
-	header = (log_record_header*) buffer;
-
-	cputod32 (LOG_HEADER_MAGIC,   & header->magic);
-	cputod32 (atom->atom_id,      & header->atom_id);
-	cputod32 (region->generation, & header->generation);
-	cputod32 (1,                  & header->num_blocks);
-
-	buffer += sizeof (log_record_header);
-
-#define NEXT_LOG_VALUE(TYPE,VALUE)                                                      \
-        do {                                                                            \
-		if ((buffer + sizeof (TYPE) > buffer_max) &&                            \
-                    (ret = sub_log_buffer (blksize, header, & buffer, & buffer_max))) { \
-			return ret;                                                     \
-		}                                                                       \
-		cputo ## TYPE ((VALUE), (TYPE*) buffer);                                \
-		buffer += sizeof (TYPE);                                                \
-        } while (0)
-
-	for (i = 0; i < num_repos; i += 1) {
-		NEXT_LOG_VALUE (d32, 0);
-	}
-
-	for (i = 0; i < num_finish; i += 1) {
-		NEXT_LOG_VALUE (d32, 0);
-	}
-
-	for (i = 0; i < num_delete; i += 1) {
-		NEXT_LOG_VALUE (d64, 0LL);
-	}
-
-	for (i = 0; i < num_wander; i += 1) {
-		NEXT_LOG_VALUE (d64, 0LL);
-		NEXT_LOG_VALUE (d64, 0LL);
-	}
-
-	if ((buffer + sizeof (log_record_footer) > buffer_max) &&
-	    (ret = sub_log_buffer (blksize, header, & buffer, & buffer_max))) {
-		return ret;
-	}
-
-	cputod32 (num_repos,  & header->num_repos);
-	cputod32 (num_finish, & header->num_finish);
-	cputod32 (num_delete, & header->num_delete);
-	cputod32 (num_wander, & header->num_wander);
-
-	footer = (log_record_footer*) (buffer_max - sizeof (log_record_footer));
-
-	cputod32 (LOG_FOOTER_MAGIC, & footer->magic);
-
-	footer->atom_id    = header->atom_id;
-	footer->generation = header->generation;
-
-	cputod32 (checksum, & footer->checksum);
-
-#endif
-	return 0;
-}
-/* This function will be combined with the logic of "random_commit_record" above, but
- * first there are some other issues to work out.  At that point, random_commit_record
- * will go away and this will be the main entry point for formatting a log record.
- */
-int format_commit_record (txn_atom *atom UNUSED_ARG)
-{
-#if 0
-	int level;
-	znode *scan;
-
-	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
-
-		for (scan = capture_list_front (& atom->capture_level[level]);
-		     /**/ ! capture_list_end   (& atom->capture_level[level], scan);
-		     scan = capture_list_next  (scan)) {
-
-			if (ZF_ISSET (scan, ZNODE_ALLOC)) {
-
-				/* Newly allocated blocks are not recorded in the commit
-				 * record. */
-				assert ("jmacd-1101", ! ZF_ISSET (scan, ZNODE_WANDER) && ! znode_is_in_deleteset (scan));
-				assert ("jmacd-1102", block_is_allocated (& scan->blocknr));
-
-			} else if (znode_is_in_deleteset (scan)) {
-
-				/* Add it to the delete set */
-				assert ("jmacd-1103", ! ZF_ISSET (scan, ZNODE_WANDER));
-				assert ("jmacd-1104", block_is_allocated (& scan->blocknr));
-				assert ("jmacd-1105", ergo (ZF_ISSET (scan, ZNODE_RELOC), block_is_allocated (& scan->relocnr)));
-
-				/* Form list of scan->blocknrs */
-				mark_in_delete_set (atom, scan);
-
-			} else if (ZF_ISSET (scan, ZNODE_WANDER)) {
-
-				/* Not delete set, not alloc implies wandered */
-				assert ("jmacd-1107", block_is_allocated (& scan->blocknr));
-				assert ("jmacd-1108", block_is_allocated (& scan->relocnr));
-
-				/* Form list of pairs (scan->blocknr, scan->relocnr) */
-				mark_in_wander_set (atom, scan);
-
-			} else {
-
-				/* Unmodified, captured node.  Should release at or prior
-				 * to this point (atom closing). */
-			}
+		if (ret == -ENOSPC) { 
+			// force_write_back_completion ();
+			// wait_for_space_available();
+		} else {
+			return ret;
 		}
 	}
+
+	return 0;
+}
+
+/* allocate given number of nodes over the journal area and link them into a
+ * list, return pinter to the first jnode in the list */
+static int alloc_tx (capture_list_head * head, int nr)
+{
+	reiser4_blocknr_hint  hint;
+
+	reiser4_block_nr allocated = 0;
+	reiser4_block_nr prev;
+
+	jnode * cur;
+	jnode *txhead;
+
+	int serial = nr;
+
+	int ret;
+
+	while (allocated < (unsigned)nr) {
+		reiser4_block_nr first, len = nr;
+		int j;
+
+		blocknr_hint_init (&hint);
+		/* FIXME: there should be some block allocation policy for
+		 * nodes which contain log records */
+		ret = reiser4_alloc_blocks (&hint, &first, &len);
+		blocknr_hint_done (&hint);
+
+		if (ret != 0) goto fail;
+
+		allocated += len;
+
+		/* create jnodes for all log records */
+		for (j = 0; (unsigned)j < len; j++) {
+			cur = jnew ();
+
+			if (cur == NULL) {
+				ret = -ENOMEM;
+				goto fail;
+			}
+
+			cur->blocknr = first;
+
+			/*
+			 * FIXME-VS: on success jload->read_node returns spin locked
+			 * jnode, please take care to spin_unlock
+			 */
+			ret = jload(cur);
+
+			if (ret != 0) {
+				jfree (cur);
+				goto fail;
+			}
+
+			capture_list_push_front (head, cur);
+
+			first ++;
+		}
+	}
+
+
+	prev = 0;
+	cur = capture_list_front(head);
+	txhead = capture_list_back(head);
+
+	assert ("zam-467", cur != txhead);
+
+	/* iterate over all list members except first one */
+	while (cur != txhead) {
+		format_log_record (cur, nr, --serial, &prev);
+		prev = *jnode_get_block(cur);
+	}
+
+	format_tx_head(txhead, nr, &prev);
+
+	return 0;
+
+ fail:
+	while (!capture_list_empty (head)) {
+		jnode * node = capture_list_pop_back(head);
+
+		junload (node);
+		jfree (node);
+	}
+
+	return ret;
+}
+
+struct store_wmap_params {
+	jnode * cur;		/* jnode of current log record to fill */
+	int     idx;		/* free element index in log record  */
+	int     capacity;	/* capacity  */
+
+#if REISER4_DEBUG
+	capture_list_head* tx_list;
 #endif
+};
+
+static int store_wmap_actor (txn_atom * atom UNUSED_ARG,
+			     const reiser4_block_nr * a,
+			     const reiser4_block_nr * b,
+			     void * data)
+{
+	struct store_wmap_params * params = data;
+
+	if (params->idx >= params->capacity) {
+		/* a new log record should be taken from the tx_list */
+		params->cur = capture_list_next (params->cur);
+		assert ("zam-454", !capture_list_end(params->tx_list, params->cur));
+
+		params->idx = 0;
+	}
+
+	store_entry (params->cur, params->idx, a, b);
+	params->idx ++;
+
+	return 0;
+}
+
+static void fill_tx (capture_list_head * tx_list,struct super_block * super)
+
+{
+	struct store_wmap_params params;
+	txn_atom * atom;
+	jnode * first_record;
+
+	assert ("zam-452", !capture_list_empty(tx_list));
+
+	first_record = capture_list_back (tx_list);
+	assert ("zam-468", !capture_list_end(tx_list, first_record));
+	params.cur = capture_list_next (first_record);
+	assert ("zam-469", !capture_list_end(tx_list, params.cur));
+
+	params.idx = 0;
+	params.capacity = log_record_capacity (super);
+
+	atom = get_current_atom_locked ();
+	blocknr_set_iterator (atom, &atom->wandered_map, &store_wmap_actor, &params , 0);
+	spin_unlock_atom (atom);
+}
+
+
+static int write_tx (capture_list_head * tx_list)
+{
+	jnode * cur;
+	int     ret;
+
+	assert ("zam-456", !capture_list_empty(tx_list));
+
+	cur = capture_list_back (tx_list);
+
+	while (capture_list_end (tx_list, cur)) {
+		ret = jwrite (cur);
+
+		if (ret != 0) return ret;
+	}
+
+	cur = capture_list_back (tx_list);
+
+	while (capture_list_end (tx_list, cur)) {
+		ret = jwait_io (cur);
+
+		junload (cur);	/* free jnode page */
+
+		if (ret != 0) return ret;
+	}
+
+	/* update journal header */
+	
+
+
+	return 0;
+}
+
+/* I assume that at this moment that all captured blocks from RELOCATE SET are
+ * written to disk to new locations, all blocks from OVERWRITE SET are written
+ * to wandered location, WANDERED MAP is created, DELETED SET exists. */
+
+int reiser4_write_logs (void)
+{
+	capture_list_head tx_list;
+
+	int               tx_size;
+	int               ret;
+
+	struct super_block * super = reiser4_get_current_sb();
+
+	tx_size = get_tx_size (super);
+
+	get_space_for_tx(tx_size);
+
+	/* allocate all space in journal area that we need, connect jnode into
+	 * a list using capture link fields */
+
+	capture_list_init (&tx_list);
+
+	ret = alloc_tx (&tx_list, tx_size);
+
+	if (ret) return ret;
+
+	fill_tx (&tx_list, super);
+
+	ret = write_tx (&tx_list);
+
+	if (ret != 0) return ret;
+
+	{
+		space_allocator_plugin * splug;
+
+		splug = get_current_super_private()->space_plug;
+		assert ("zam-457", splug != NULL);
+
+		if (splug->post_commit_hook != NULL)
+			splug->post_commit_hook ();
+	}
 
 	return 0;
 }
@@ -365,6 +545,6 @@ int format_commit_record (txn_atom *atom UNUSED_ARG)
  * mode-name: "LC"
  * c-basic-offset: 8
  * tab-width: 8
- * fill-column: 120
+ * fill-column: 78
  * End:
  */
