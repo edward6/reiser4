@@ -118,8 +118,11 @@
 /**
  * put a per-inode limit on maximal number of directory entries with identical
  * keys in hashed directory.
+ *
+ * Disable this until inheritance interfaces stabilize: we need some way to
+ * set per directory limit.
  */
-#define REISER4_USE_COLLISION_LIMIT    (1)
+#define REISER4_USE_COLLISION_LIMIT    (0)
 
 /**
  * global limit on number of directory entries with identical keys in hashed
