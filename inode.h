@@ -231,6 +231,12 @@ set_inode_oid(struct inode *inode, oid_t oid)
 /* REISER4_INO_IS_OID */
 #endif
 
+static inline oid_t
+get_inode_locality(const struct inode *inode)
+{
+	return reiser4_inode_data(inode)->locality_id;
+}
+
 /*
  * each reiser4 inode maintain a list of pages dirtied through mmap. This is
  * needed, because we need effective was to find all such pages and capture
