@@ -1,4 +1,5 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+
 /* Coords */
 
 #if !defined( __REISER4_NEW_COORD_H__ )
@@ -106,9 +107,7 @@ sideof_reverse(sideof side)
    But I think the chosen names are decent the way they are.
  */
 
-/*****************************************************************************************/
-/*				    COORD INITIALIZERS                                   */
-/*****************************************************************************************/
+/* COORD INITIALIZERS */
 
 /* Initialize an invalid coordinate. */
 extern void coord_init_invalid(coord_t * coord, const znode * node);
@@ -146,9 +145,7 @@ extern void coord_init_parent_hint(coord_t * coord, const znode * node);
    FIXME-VS: added by vs (2002, june, 8) */
 extern void coord_init_zero(coord_t * coord);
 
-/*****************************************************************************************/
-/*				      COORD METHODS                                      */
-/*****************************************************************************************/
+/* COORD METHODS */
 
 /* after shifting of node content, coord previously set properly may become
    invalid, try to "normalize" it. */
@@ -200,9 +197,7 @@ extern coord_cmp coord_compare(coord_t * c1, coord_t * c2);
 /* Returns the current item positions.  Asserts non-empty. */
 extern unsigned coord_item_pos(const coord_t * coord);
 
-/*****************************************************************************************/
-/*				     COORD PREDICATES                                    */
-/*****************************************************************************************/
+/* COORD PREDICATES */
 
 /* Returns true if the coord was initializewd by coord_init_invalid (). */
 extern int coord_is_invalid(const coord_t * coord);
@@ -251,9 +246,7 @@ extern int coord_is_after_sideof_unit(coord_t * coord, sideof dir);
    to or after the last (if RIGHT_SIDE) unit of the item. */
 extern int coord_is_delimiting(coord_t * coord, sideof dir);
 
-/*****************************************************************************************/
-/* 				      COORD MODIFIERS                                    */
-/*****************************************************************************************/
+/* COORD MODIFIERS */
 
 /* Advances the coordinate by one unit to the right.  If empty, no change.  If
    coord_is_rightmost_unit, advances to AFTER THE LAST ITEM.  Returns 0 if new position is
@@ -300,12 +293,12 @@ extern int coord_set_after_unit(coord_t * coord);
 /* Calls either coord_next_unit or coord_prev_unit depending on sideof argument. */
 extern int coord_sideof_unit(coord_t * coord, sideof dir);
 
-/** iterate over all units in @node */
+/* iterate over all units in @node */
 #define for_all_units( coord, node )					\
 	for( coord_init_before_first_item( ( coord ), ( node ) ) ; 	\
 	     coord_next_unit( coord ) == 0 ; )
 
-/** iterate over all items in @node */
+/* iterate over all items in @node */
 #define for_all_items( coord, node )					\
 	for( coord_init_before_first_item( ( coord ), ( node ) ) ; 	\
 	     coord_next_item( coord ) == 0 ; )
@@ -314,9 +307,7 @@ extern int coord_sideof_unit(coord_t * coord, sideof dir);
 extern const char *coord_tween_tostring(between_enum n);
 #endif
 
-/*****************************************************************************************/
-/* 				     COORD/ITEM METHODS                                  */
-/*****************************************************************************************/
+/* COORD/ITEM METHODS */
 
 extern int item_utmost_child_real_block(const coord_t * coord, sideof side, reiser4_block_nr * blk);
 extern int item_utmost_child(const coord_t * coord, sideof side, jnode ** child);

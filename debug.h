@@ -19,7 +19,7 @@
 
 #include <linux/sched.h>
 
-/** basic debug/logging output macro. "label" is unfamous "maintainer-id" */
+/* basic debug/logging output macro. "label" is unfamous "maintainer-id" */
 
 /* generic function to produce formatted output, decorating it with
     whatever standard prefixes/postfixes we want. "Fun" is a function
@@ -33,7 +33,7 @@
 		       __FILE__, __LINE__, label , ## __VA_ARGS__ );	\
 		      } while( 0 )
 
-/** panic. Print backtrace and die */
+/* panic. Print backtrace and die */
 #define rpanic( label, format, ... )		\
 	DCALL( KERN_EMERG, reiser4_panic, label, format , ## __VA_ARGS__ )
 /* print message with indication of current process, file, line and
@@ -76,14 +76,14 @@
 #endif
 
 #if defined( CONFIG_REISER4_DEBUG_MEMCPY )
-/** provide our own memcpy/memmove to profile shifts */
+/* provide our own memcpy/memmove to profile shifts */
 #define REISER4_DEBUG_MEMCPY (1)
 #else
 #define REISER4_DEBUG_MEMCPY (0)
 #endif
 
 #if defined( CONFIG_REISER4_DEBUG_NODE )
-/** check consistency of internal node structures */
+/* check consistency of internal node structures */
 #define REISER4_DEBUG_NODE (1)
 #else
 #define REISER4_DEBUG_NODE (0)
@@ -110,7 +110,7 @@
 #endif
 
 #if defined( CONFIG_REISER4_TRACE_TREE )
-/** collect tree traces */
+/* collect tree traces */
 #define REISER4_TRACE_TREE (1)
 #else
 #define REISER4_TRACE_TREE (0)
@@ -141,7 +141,7 @@
     switch() statement. */
 #define impossible( label, format, ... ) 			\
          rpanic( label, "impossible: " format , ## __VA_ARGS__ )
-/** stub for something you are planning to implement in a future */
+/* stub for something you are planning to implement in a future */
 #define not_implemented( label, format, ... )	\
          rpanic( label, "not implemented: " format , ## __VA_ARGS__ )
 /* assert assures that @cond is true. If it is not, rpanic() is
@@ -362,12 +362,12 @@ typedef enum {
 
 extern __u32 reiser4_current_trace_flags;
 
-/** just print where we are: file, function, line */
+/* just print where we are: file, function, line */
 #define trace_stamp( f )   trace_if( f, rlog( "trace", "" ) )
-/** print value of "var" */
+/* print value of "var" */
 #define trace_var( f, format, var ) 				\
         trace_if( f, rlog( "trace", #var ": " format, var ) )
-/** print output only if appropriate trace flag(s) is on */
+/* print output only if appropriate trace flag(s) is on */
 #define trace_on( f, ... )   trace_if( f, info( __VA_ARGS__ ) )
 
 #if REISER4_STATS
