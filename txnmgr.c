@@ -854,6 +854,30 @@ static void txn_wait_on_io (txn_atom *atom)
 }
 #endif
 
+/* Get first dirty node from the atom's dirty_nodes[n] lists; return NULL if atom has no dirty
+ * nodes on atom's lists */
+static jnode * find_first_dirty (txn_atom * atom)
+{
+	jnode * first_dirty = NULL;
+	tree_level level;
+
+	assertion ("zam-753", spin_atom_is_locked (atom));
+
+	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
+
+		if (capture_list_empty (& atom->dirty_nodes[level])) {
+			continue;
+		}
+
+		first_dirty = capture_list_front (& atom->dirty_nodes[level]);
+
+		break;
+	}
+
+	return first_dirty;
+}
+
+
 /* Called with the atom locked and no open txnhs, this function determines
  * whether the atom can commit and if so, initiates commit processing.
  * However, the atom may not be able to commit due to un-allocated nodes.  As
@@ -883,16 +907,10 @@ atom_try_commit_locked (txn_atom *atom)
 	 * which is for fake znode), find the first dirty node in this
 	 * transaction and call flush_jnode () and return -EAGAIN to the
 	 * caller.  The caller is supposed to re-lock the atom and repeat
-	 * flush attempt.  If the loop below completes that means there are no
-	 * more dirty jnodes in the atom and we can commit it. */
-	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
+	 * flush attempt. */
+	first_dirty = find_first_dirty (atom);
 
-		if (capture_list_empty (& atom->dirty_nodes[level])) {
-			continue;
-		}
-
-		first_dirty = capture_list_front (& atom->dirty_nodes[level]);
-
+	if (first_dirty) {
 		/* add an extra reference to jnode we begin flush from,
 		 * because concurrent flushing may flush it faster than we
 		 * and, probably, even throw it from memory */
@@ -1124,6 +1142,64 @@ int txn_commit_some (txn_mgr *mgr)
 	assert ("nikita-2447", check_spin_is_locked (&mgr->daemon->guard));
 
 	return ret;
+}
+
+/* Call jnode_flush for a node from one atom */
+int txn_flush_one (txn_mgr * tmgr)
+{
+	txn_atom * atom;
+	txn_handle * txnh;
+	spin_lock_txnmgr (tmgr);
+
+	for (atom = atom_list_front (&tmgr->atoms_list);
+	     ! atom_list_end (&tmgr->atom, atom);
+	     atom = atom_list_next (atom))
+	{
+		spin_lock_atom (atom);
+
+		if (atom->stage < ASTAGE_PRE_COMMIT)
+			goto found;
+
+		spin_unlock_atom (atom);
+	}
+
+	spin_unlock_txnmgr (tmgr);
+
+	return 0;
+ found:
+	atom_list_remove (atom);
+	atom_list_push_back (&tmgr->atoms_list, atom);
+
+	spin_unlock_txnmgr (tmgr);
+	
+	txnh = get_current_context()->trans;
+
+	spin_lock_txnh (txnh);
+
+	capture_assign_txnh_nolock (atom, txnh);
+
+	first_dirty = find_first_dirty (atom);
+
+	if (first_dirty) {
+		jref (first_dirty);
+	}
+
+	spin_unlock_txnh (txnh);
+	spin_unlock_atom (atom);
+
+	if (first_dirty) {
+		int ret;
+
+		ret = jnode_flush (first_dirty, NULL);
+
+		jput(first_dirty);
+
+		if (ret) {
+			info ("jnode_flush failed with err = %d\n", ret);
+		}
+	}
+
+	return txn_end();
 }
 
 /* Remove processed nodes from atom's clean list (thereby remove them from transaction). */
