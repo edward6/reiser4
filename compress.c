@@ -3,7 +3,7 @@
 
 #include "debug.h"
 #include "plugin/plugin.h"
-#include "plugin/crypto_compressed.h"
+#include "plugin/cryptcompress.h"
 #include <linux/types.h>
 
 static void none_compress (__u8 *buf, __u8 *src_first, unsigned *src_len,
