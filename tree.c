@@ -590,21 +590,6 @@ znode *child_znode( const coord_t *parent_coord /* coord of pointer to
 	return child;
 }
 
-
-unsigned node_num_items (const znode * node)
-{
-	assert ("nikita-2468", 
-		node_plugin_by_node (node)->num_of_items (node) == node->nr_items);
-	return node->nr_items;
-}
-
-/* Audited by: umka (2002.06.16) */
-int node_is_empty (const znode * node)
-{
-	return node_plugin_by_node( node ) -> num_of_items (node) == 0;
-}
-
-
 /**
  * debugging aid: magic constant we store in reiser4_context allocated at the
  * stack. Used to catch accesses to staled or uninitialized contexts.

@@ -232,8 +232,27 @@ extern int iterate_tree( reiser4_tree *tree, coord_t *coord, lock_handle *lh,
 			 tree_iterate_actor_t actor, void *arg,
 			 znode_lock_mode mode, int through_units_p );
 
-int node_is_empty (const znode * node);
-unsigned node_num_items (const znode * node);
+/** return node plugin of @node */
+static inline node_plugin *
+node_plugin_by_node( const znode *node /* node to query */ )
+{
+	assert( "vs-213", node != NULL );
+	assert( "vs-214", znode_is_loaded( node ) );
+
+	return node->nplug;
+}
+
+static inline unsigned node_num_items (const znode * node)
+{
+	assert ("nikita-2468", 
+		node_plugin_by_node (node)->num_of_items (node) == node->nr_items);
+	return node->nr_items;
+}
+
+static inline int node_is_empty (const znode * node)
+{
+	return node_num_items (node) == 0;
+}
 
 
 typedef enum { SHIFTED_SOMETHING  = 0,
