@@ -749,53 +749,16 @@ unset_hint(struct sealed_coord *hint)
 	if (hint)
 		memset(hint, 0, sizeof (hint));
 }
-#if 0
-void
-set_hint(struct sealed_coord *hint, const reiser4_key * key, coord_t * coord)
-{
-	int result;
-
-	if (hint == NULL)
-		return;
-
-	if (coord->node == NULL) {
-		unset_hint(hint);
-		return;
-	}
-	assert("vs-966", znode_is_locked(coord->node));
-	result = zload(coord->node);
-	if (result) {
-		unset_hint(hint);
-		return;
-	}
-	if (!coord_is_existing_item(coord)) {
-		printk("set_hint: coord is not set to item\n");
-		zrelse(coord->node);
-		unset_hint(hint);
-		return;
-	}
-	result = item_plugin_by_coord(coord)->s.file.key_in_item(coord, key, 0);
-	zrelse(coord->node);
-	if (result == 0) {
-		unset_hint(hint);
-		return;
-	}
-	seal_init(&hint->seal, coord, key);
-	hint->coord = *coord;
-	hint->key = *key;
-	hint->level = znode_get_level(coord->node);
-	hint->lock = znode_is_wlocked(coord->node) ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK;
-}
-#endif
 
 /* coord must be set properly. So, that set_hint has nothing to do */
 void
-set_hint(struct sealed_coord *hint, const reiser4_key * key, coord_t * coord)
+set_hint(struct sealed_coord *hint, const reiser4_key * key, coord_t * coord, coord_state_t coord_state)
 {
 	assert("vs-1208", coord->node);
+	assert("vs-1213", coord_state == COORD_RIGHT_STATE || coord_state == COORD_UNKNOWN_STATE);
 	assert("vs-1207",
-	       WITH_DATA_RET(coord->node, 1, (coord_is_existing_item(coord) &&
-					      item_plugin_by_coord(coord)->s.file.key_in_item(coord, key, 0))));
+	       WITH_DATA_RET(coord->node, 1, (ergo(coord_state == COORD_RIGHT_STATE, coord_is_existing_item(coord) &&
+						   item_plugin_by_coord(coord)->s.file.key_in_item(coord, key, 0)))));
 	seal_init(&hint->seal, coord, key);
 	hint->coord = *coord;
 	hint->key = *key;
@@ -995,7 +958,7 @@ unix_file_readpage(void *vp, struct page *page)
 
 	if (!result) {
 		set_key_offset(&key, (loff_t) (page->index + 1) << PAGE_CACHE_SHIFT);
-		set_hint(&hint, &key, &coord);
+		set_hint(&hint, &key, &coord, COORD_UNKNOWN_STATE);
 	} else
 		unset_hint(&hint);
 	zrelse(coord.node);
@@ -1139,7 +1102,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 			break;
 		}
 
-		set_hint(&hint, &f.key, &coord);
+		set_hint(&hint, &f.key, &coord, COORD_RIGHT_STATE);
 		done_lh(&lh);
 	}
 
@@ -1693,7 +1656,6 @@ unix_file_setattr(struct inode *inode,	/* Object to change attributes */
 			old_size = inode->i_size;
 
 			get_exclusive_access(inode);
-			/*INODE_SET_FIELD(inode, i_size, attr->ia_size);*/
 			result = truncate_file(inode, attr->ia_size);
 			if (!result) {
 				/* items are removed already. inode_setattr will call vmtruncate to invalidate truncated

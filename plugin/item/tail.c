@@ -311,13 +311,13 @@ overwrite_tail(coord_t * coord, flow_t * f)
 /* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
    therefore we have to update stat data if necessary */
 static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t *f, coord_t *coord, lock_handle *lh,
-				    struct sealed_coord *hint)
+				    struct sealed_coord *hint, coord_state_t coord_state)
 {
 	int result;
 	loff_t new_size;
 	
-	if (hint && coord->node)
-		set_hint(hint, &f->key, coord);
+	if (hint && coord_state != COORD_WRONG_STATE)
+		set_hint(hint, &f->key, coord, coord_state);
 	else
 		unset_hint(hint);
 	longterm_unlock_znode(lh);
@@ -364,6 +364,7 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, str
 	int result;
 	write_mode todo;
 	znode *loaded;
+	coord_state_t coord_state;
 
 	result = 0;
 	while (f->length && !result) {
@@ -403,7 +404,6 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, str
 			break;
 
 		case RESEARCH:
-			/* FIXME-VS:  */
 			result = -EAGAIN;
 			break;
 		default:
@@ -421,20 +421,20 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, str
 
 		/* check whether coord is set properly. If coord is set such that it can not be later sealed - set coord->node
 		   to 0	*/
-		if (coord->node == loaded && coord_is_existing_item(coord)) {
-			if (tail_key_in_item(coord, &f->key, 0)) {
+		if (coord->node == loaded && coord_is_existing_item(coord) && item_is_tail(coord)) {
+			if (tail_key_in_item(coord, &f->key, 0)) {				
 				/* coord is set properly, it will be sealed before calling balance_dirty_pages */;
+				coord_state = COORD_RIGHT_STATE;
 			} else {
-				coord->node = 0;
+				coord_state = COORD_WRONG_STATE;
 			}
 		} else {
-			/* FIXME: zload before key_in_item is needed */
-			coord->node = 0;
+			coord_state = COORD_UNKNOWN_STATE;
 		}
 		zrelse(loaded);
 		
 		/* throttle the writer */
-		result = tail_balance_dirty_pages(inode->i_mapping, f, coord, lh, hint);
+		result = tail_balance_dirty_pages(inode->i_mapping, f, coord, lh, hint, coord_state);
 		all_grabbed2free("tail_write");
 		if (result) {
 			// reiser4_stat_tail_add(bdp_caused_repeats);
@@ -450,6 +450,7 @@ int
 tail_read(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
 {
 	unsigned count;
+	int item_length;
 
 	assert("vs-571", f->user == 1);
 	assert("vs-571", f->data);
@@ -462,6 +463,7 @@ tail_read(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
 		return -EAGAIN;
 
 	/* calculate number of bytes to read off the item */
+	item_length = item_length_by_coord(coord);
 	count = item_length_by_coord(coord) - coord->unit_pos;
 	if (count > f->length)
 		count = f->length;
@@ -474,12 +476,18 @@ tail_read(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
 	mark_page_accessed(znode_page(coord->node));
 	move_flow_forward(f, count);
 
+	coord->unit_pos += count;
+	if (item_length == coord->unit_pos) {
+		coord->unit_pos --;
+		coord->between = AFTER_UNIT;
+	}
+
 	return 0;
 }
 
 /* 
    plugin->u.item.s.file.append_key
-   key of first byte which is the next to last byte by addressed by this extent
+   key of first byte which is the next to last byte by addressed by this item
 */
 reiser4_key *
 tail_append_key(const coord_t * coord, reiser4_key * key, void *p)

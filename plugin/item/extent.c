@@ -1088,7 +1088,6 @@ add_hole(coord_t * coord, lock_handle * lh, const reiser4_key * key)
 
 		result = insert_extent_by_coord(coord, init_new_extent(&item, &new_ext, 1), &hole_key, lh);
 		zrelse(loaded);
-		coord->node = 0;
 		return result;
 	}
 
@@ -2099,7 +2098,6 @@ insert_first_block(coord_t * coord, lock_handle * lh, jnode * j, const reiser4_k
 	/* this is to indicate that research must be performed to continue write. This is because coord->node is leaf
 	   node whereas write continues in twig level
 	*/
-	coord->node = 0;
 	return 0;
 }
 
@@ -2257,7 +2255,7 @@ overwrite_one_block(coord_t * coord, lock_handle * lh, jnode * j, reiser4_key * 
 
 static int
 make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j,
-	    const reiser4_key *key, unsigned to_page)
+	    const reiser4_key *key, unsigned to_page, coord_state_t *coord_state)
 {
 	int result;
 	znode *loaded;
@@ -2292,7 +2290,9 @@ make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j,
 	case FIRST_ITEM:
 		/* create first item of the file */
 		result = insert_first_block(coord, lh, j, &tmp_key);
-		break;
+		*coord_state = COORD_WRONG_STATE;
+		zrelse(loaded);
+		return result;
 
 	case APPEND_ITEM:
 		result = append_one_block(coord, lh, j, &tmp_key);
@@ -2301,28 +2301,30 @@ make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j,
 	case OVERWRITE_ITEM:
 		result = overwrite_one_block(coord, lh, j, &tmp_key);
 		break;
+
 	case RESEARCH:
 		/* @coord is not set to a place in a file we have to write to,
 		   so, coord_by_key must be called to find that place */
-		/*reiser4_stat_file_add (write_repeats); */
+		reiser4_stat_inc (extent.repeats);
 		result = -EAGAIN;
 		break;
 	}
 
 	/* check whether coord is set properly. If coord is set such that it can not be later sealed - set coord->node
 	   to 0	*/
-	if (key && coord->node == loaded && coord_is_existing_item(coord)) {
+	if (key && coord->node == loaded && coord_is_existing_item(coord) && item_is_extent(coord)) {
 		tmp_key = *key;
 		set_key_offset(&tmp_key, get_key_offset(&tmp_key) + to_page);
 		
 		if (extent_key_in_item(coord, &tmp_key, 0)) {
 			/* coord is set properly, it will be sealed before calling balance_dirty_pages */;
+			*coord_state = COORD_RIGHT_STATE;
 		} else {
-			coord->node = 0;
+			*coord_state = COORD_WRONG_STATE;
 		}
 	} else {
 		/* FIXME: zload before key_in_item is needed */
-		coord->node = 0;
+		*coord_state = COORD_UNKNOWN_STATE;
 	}
 
 	zrelse(loaded);
@@ -2399,19 +2401,18 @@ void extent_bdp(struct address_space *mapping)
 /* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
    therefore we have to update stat data if necessary */
 static int extent_balance_dirty_pages(struct address_space *mapping, const flow_t *f, coord_t *coord, lock_handle *lh,
-				      struct sealed_coord *hint)
+				      struct sealed_coord *hint, coord_state_t coord_state)
 {
 	int result;
 	loff_t new_size;
 	PROF_BEGIN(extent_bdp);
 
-	if (hint && coord->node)
-		set_hint(hint, &f->key, coord);
+	if (hint && coord_state != COORD_WRONG_STATE)
+		set_hint(hint, &f->key, coord, coord_state);
 	else
 		unset_hint(hint);
 	longterm_unlock_znode(lh);
 
-	coord->node = 0;
 	new_size = get_key_offset(&f->key);
 	result = update_inode_and_sd_if_necessary(mapping->host, new_size, (new_size > mapping->host->i_size) ? 1 : 0);
 	if (result)
@@ -2419,6 +2420,9 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 
 	/* balance dirty pages periodically */
 	extent_bdp(mapping);
+
+	if (coord_state == COORD_WRONG_STATE)
+		return -EAGAIN;
 	result = hint_validate(hint, &f->key, coord, lh);
 	PROF_END(extent_bdp, extent_bdp);
 	return result;
@@ -2465,6 +2469,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 	unsigned page_off, to_page;
 	struct page *page;
 	jnode *j;
+	coord_state_t coord_state;
 	PROF_BEGIN(extent_write);
 
 	assert("vs-885", current_blocksize == PAGE_CACHE_SIZE);
@@ -2482,6 +2487,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 	   modified */
 	page_off = (unsigned) (file_off & (PAGE_CACHE_SIZE - 1));
 
+	coord_state = COORD_RIGHT_STATE;
 	do {
 		unsigned long index;
 
@@ -2517,13 +2523,15 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 			/* unlock page before doing anything with filesystem tree */
 			reiser4_unlock_page(page);
 			/* make sure that page has non-hole extent pointing to it */
-			result = make_extent(inode, coord, lh, j, &f->key, to_page);
+			result = make_extent(inode, coord, lh, j, &f->key, to_page, &coord_state);
 			reiser4_lock_page(page);
 			if (result) {
 				trace_on(TRACE_EXTENTS, "FAILED: %d\n", result);
 				goto exit3;
 			}
 			trace_on(TRACE_EXTENTS, "OK\n");
+		} else {
+			coord_state = COORD_UNKNOWN_STATE;
 		}
 
 		/* if page is not completely overwritten - read it if it is not new or fill by zeros otherwise */
@@ -2565,7 +2573,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		move_flow_forward(f, to_page);
 
 		/* throttle the writer */
-		result = extent_balance_dirty_pages(page->mapping, f, coord, lh, hint);
+		result = extent_balance_dirty_pages(page->mapping, f, coord, lh, hint, coord_state);
 		all_grabbed2free("extent_write_flow");
 		if (result) {
 			reiser4_stat_inc(extent.bdp_caused_repeats);
@@ -2621,7 +2629,6 @@ extent_write_hole(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 	result = add_hole(coord, lh, &f->key);
 	if (!result) {
 		done_lh(lh);
-		coord->node = 0;
 		result = update_inode_and_sd_if_necessary(inode, new_size, 1/*update i_size*/);
 	}
 	all_grabbed2free("extent_write_hole");
@@ -2677,7 +2684,7 @@ extent_read(struct file *file, coord_t *coord, flow_t * f)
 	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 
 	if (!extent_key_in_item(coord, &f->key, 0)) {
-		printk("does");
+		printk("does this ever happen?\n");
 		return -EAGAIN;
 	}
 	if (coord->between != AT_UNIT)
@@ -2751,6 +2758,9 @@ extent_read(struct file *file, coord_t *coord, flow_t * f)
 		return -EFAULT;
 
 	move_flow_forward(f, count);
+	
+	check_me("vs-1214", extent_key_in_item(coord, &f->key, 0));
+
 	return 0;
 }
 
@@ -2846,6 +2856,7 @@ extent_writepage(coord_t * coord, lock_handle * lh, struct page *page)
 {
 	int result;
 	jnode *j;
+	coord_state_t coord_state;
 
 	trace_on(TRACE_EXTENTS, "WP: index %lu, count %d..", page->index, page_count(page));
 
@@ -2858,7 +2869,8 @@ extent_writepage(coord_t * coord, lock_handle * lh, struct page *page)
 		return PTR_ERR(j);
 
 	reiser4_unlock_page(page);
-	result = make_extent(page->mapping->host, coord, lh, j, 0, 0);
+	coord_state = COORD_RIGHT_STATE;
+	result = make_extent(page->mapping->host, coord, lh, j, 0, 0, &coord_state);
 	JF_CLR(j, JNODE_NEW);
 	reiser4_lock_page(page);
 	if (result) {
