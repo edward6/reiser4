@@ -1358,7 +1358,7 @@ again:
 		 * is not set we commit only atoms which were created before
 		 * this call is started. */
 		if (atom->stage < ASTAGE_PRE_COMMIT &&
-		    (commit_all_atoms || (atom->start_time <= start_time))) {
+		    (commit_all_atoms || time_before_eq(atom->start_time, start_time))) {
 			spin_unlock_txnmgr(mgr);
 			LOCK_TXNH(txnh);
 
