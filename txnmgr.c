@@ -2976,7 +2976,14 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode, int can_c
 		}
 	}
 
-	if (atom->stage == ASTAGE_CAPTURE_WAIT) {
+	if (atom->stage == ASTAGE_CAPTURE_WAIT && atom->txnh_count != 0) {
+		/* We don't fuse with the atom in ASTAGE_CAPTURE_WAIT only if
+		 * there is open transaction handler.  It makes sense: those
+		 * atoms should not wait ktxnmgrd to flush and commit them.
+		 * And, it solves deadlocks with loop back devices (reiser4 over
+		 * loopback over reiser4), when ktxnmrgd is busy committing one
+		 * atom (above the loop back device) and can't flush an atom
+		 * below the loopback. */
 
 		/* The atom could be blocking requests--this is the first chance we've had
 		   to test it.  Since this txnh is not yet assigned, the fuse_wait logic
@@ -3005,7 +3012,8 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode, int can_c
 
 	} else {
 
-		assert("jmacd-160", atom->stage == ASTAGE_CAPTURE_FUSE);
+		assert("jmacd-160", atom->stage == ASTAGE_CAPTURE_FUSE ||
+		       (atom->stage == ASTAGE_CAPTURE_WAIT && atom->txnh_count == 0));
 
 		/* Add txnh to active list. */
 		capture_assign_txnh_nolock(atom, txnh);
@@ -3084,7 +3092,10 @@ static int wait_for_fusion(txn_atom * atom, txn_wait_links * wlinks)
 	assert("nikita-3330", atom != NULL);
 	assert("nikita-3331", spin_atom_is_locked(atom));
 
-	return atom->stage != ASTAGE_CAPTURE_WAIT;
+
+	/* atom->txnh_count == 1 is for waking waiters up if we are releasing
+	 * last transaction handle. */
+	return atom->stage != ASTAGE_CAPTURE_WAIT || atom->txnh_count == 1;
 }
 
 /* The general purpose of this function is to wait on the first of two possible events.
@@ -3200,8 +3211,11 @@ capture_init_fusion_locked(jnode * node, txn_handle * txnh, txn_capture mode, in
 
 	/* If the node atom is in the FUSE_WAIT state then we should wait, except to
 	   avoid deadlock we still must fuse if the txnh atom is also in FUSE_WAIT. */
-	if (atomf->stage == ASTAGE_CAPTURE_WAIT && atomh->stage != ASTAGE_CAPTURE_WAIT) {
-
+	if (atomf->stage == ASTAGE_CAPTURE_WAIT && atomf->txnh_count != 0
+	    && atomh->stage != ASTAGE_CAPTURE_WAIT) 
+	{
+		/* see comment in capture_assign_txnh() about the
+		 * "atomf->txnh_count != 0" condition. */
 		/* This unlocks all four locks and returns E_REPEAT. */
 		return capture_fuse_wait(node, txnh, atomf, atomh, mode);
 
@@ -3227,7 +3241,7 @@ capture_init_fusion_locked(jnode * node, txn_handle * txnh, txn_capture mode, in
 
 	/* If we got here its either because the atomh is in CAPTURE_WAIT or because the
 	   atomf is not in CAPTURE_WAIT. */
-	assert("jmacd-176", (atomh->stage == ASTAGE_CAPTURE_WAIT || atomf->stage != ASTAGE_CAPTURE_WAIT));
+	assert("jmacd-176", (atomh->stage == ASTAGE_CAPTURE_WAIT || atomf->stage != ASTAGE_CAPTURE_WAIT) || atomf->txnh_count == 0);
 
 	/* Now release the txnh lock: only holding the atoms at this point. */
 	UNLOCK_TXNH(txnh);
