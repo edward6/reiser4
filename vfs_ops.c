@@ -889,15 +889,9 @@ int reiser4_add_nlink( struct inode *object /* object to which link is added */ 
 		return -EMLINK;
 	}
 
-	if( fplug -> add_link != NULL ) {
-		/* call plugin to do actual addition of link */
-		return fplug -> add_link( object );
-	} else {
-		/* do reasonable default stuff */
-		++ object -> i_nlink;
-		object -> i_ctime = CURRENT_TIME;
-		return fplug -> write_sd_by_inode( object );
-	}
+	assert( "nikita-2211", fplug -> add_link != NULL );
+	/* call plugin to do actual addition of link */
+	return fplug -> add_link( object );
 }
 
 /**
@@ -919,15 +913,9 @@ int reiser4_del_nlink( struct inode *object /* object from which link is
 
 	assert( "nikita-1446", object -> i_nlink > 0 );
 
-	if( fplug -> rem_link != NULL ) {
-		/* call plugin to do actual deletion of link */
-		return fplug -> rem_link( object );
-	} else {
-		/* do reasonable default stuff */
-		-- object -> i_nlink;
-		object -> i_ctime = CURRENT_TIME;
-		return fplug -> write_sd_by_inode( object );
-	}
+	assert( "nikita-2210", fplug -> rem_link != NULL );
+	/* call plugin to do actual deletion of link */
+	return fplug -> rem_link( object );
 }
 
 /** call ->create() directory plugin method. */
