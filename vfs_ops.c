@@ -94,8 +94,11 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	statfs->f_bfree = bfree;
 	
 	statfs->f_bavail = statfs->f_bfree - reiser4_reserved_blocks(super, 0, 0);
-	statfs->f_files = oids_used(super);
+/* FIXME: Seems that various df implementations are way unhappy by such big numbers.
+   So we will leave those as zeroes.
+	statfs->f_files = oids_used(super) + oids_free(super);
 	statfs->f_ffree = oids_free(super);
+*/
 
 	/* maximal acceptable name length depends on directory plugin. */
 	statfs->f_namelen = -1;
