@@ -318,9 +318,17 @@ void node_check( znode *node /* node to check */,
 {
 	const char * mes;
 	int result;
+	reiser4_tree *tree;
 
 	if( get_current_context() -> disable_node_check )
 		return;
+	tree = znode_get_tree( node );
+
+	if( lock_counters() -> spin_locked_dk > 0 )
+		return;
+	if( lock_counters() -> spin_locked_tree > 0 )
+		return;
+
 	if( znode_above_root( node ) )
 		return;
 	if( znode_just_created( node ) )
