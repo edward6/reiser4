@@ -920,17 +920,22 @@ static void unlock_carry_node( carry_node *node /* node to be released */,
 			       int failure      /* 0 if node is unlocked due
 						 * to some error */ )
 {
+	znode *real_node;
+
 	assert( "nikita-884", node != NULL );
 
 	trace_stamp( TRACE_CARRY );
 
-	if( node -> unlock && ( node -> real_node != NULL ) ) {
-		assert( "nikita-899", node -> real_node ==
-			node -> lock_handle.node );
+	real_node = node -> real_node;
+	node -> real_node = NULL;
+	/* pair to zload() in lock_carry_node_tail() */
+	zrelse( real_node );
+	if( node -> unlock && ( real_node != NULL ) ) {
+		assert( "nikita-899", real_node == node -> lock_handle.node );
 		longterm_unlock_znode( &node -> lock_handle );
 	}
 	if( failure ) {
-		if( node -> deallocate && ( node -> real_node != NULL ) ) {
+		if( node -> deallocate && ( real_node != NULL ) ) {
 			/*
 			 * free node in bitmap
 			 *
@@ -942,14 +947,11 @@ static void unlock_carry_node( carry_node *node /* node to be released */,
 			 * without checking refcounts?  Why not set HEARD_BANSHEE
 			 * bit here and zput later?
 			 */
-			deallocate_znode( node -> real_node );
+			deallocate_znode( real_node );
 		}
 		if( node -> free )
 			reiser4_pool_free( &node -> header );
 	}
-	/* pair to zload() in lock_carry_node_tail() */
-	zrelse( node -> real_node );
-	node -> real_node = NULL;
 }
 
 /**
