@@ -255,7 +255,7 @@ zfree(znode * node /* znode to free */ )
 	assert("nikita-2120", znode_page(node) == NULL);
 	assert("nikita-2301", owners_list_empty(&node->lock.owners));
 	assert("nikita-2302", requestors_list_empty(&node->lock.requestors));
-	assert("nikita-2663", capture_list_is_clean(ZJNODE(node)));
+	assert("nikita-2663", capture_list_is_clean(ZJNODE(node)) && ZJNODE(node)->list == NOT_CAPTURED);
 	assert("nikita-2773", !JF_ISSET(ZJNODE(node), JNODE_EFLUSH));
 	assert("nikita-3220", list_empty(&ZJNODE(node)->jnodes));
 	assert("nikita-3293", !znode_is_right_connected(node));
