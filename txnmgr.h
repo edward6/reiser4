@@ -181,11 +181,11 @@ struct txn_atom {
 	   changes. */
 	reiser4_spin_data alock;
 
-	/* Refcount: Initially an atom has a single reference which is decremented when
-	   the atom finishes.  The value is always modified under the above spinlock.
-	   Additional references are added by each transaction handle that joins the atom
-	   and by each waiting request in either a waitfor or waiting list. */
-	__u32 refcount;
+	/* The atom's reference counter, it became atomic for increasing (in
+	   case of a duplication of an existing reference or when we are sure
+	   that some other reference exists) without taking spinlock,
+	   decrementing of the ref. counter requires a spinlock to be held */
+	atomic_t refcount;
 
 	/* The atom_id identifies the atom in persistent records such as the log. */
 	__u32 atom_id;

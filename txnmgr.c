@@ -409,7 +409,7 @@ atom_isclean(txn_atom * atom)
 	return ((atom->stage == ASTAGE_FREE) &&
 		(atom->txnh_count == 0) &&
 		(atom->capture_count == 0) &&
-		(atom->refcount == 0) &&
+		(atomic_read(&atom->refcount) == 0) &&
 		atom_list_is_clean(atom) &&
 		txnh_list_empty(&atom->txnh_list) &&
 		capture_list_empty(&atom->clean_nodes) &&
@@ -623,17 +623,17 @@ atom_dec_and_unlock(txn_atom * atom)
 	assert("umka-186", atom != NULL);
 	assert("jmacd-1071", spin_atom_is_locked(atom));
 
-	if (--atom->refcount == 0) {
+	if (atomic_dec_and_test(&atom->refcount)) {
 		/* take txnmgr lock and atom lock in proper order. */
 		if (!spin_trylock_txnmgr(mgr)) {
 			/* This atom should exist after we re-acquire its
 			 * spinlock, so we increment its reference counter. */
-			++ atom->refcount;
+			atomic_inc(&atom->refcount);
 			UNLOCK_ATOM(atom);
 			spin_lock_txnmgr(mgr);
 			LOCK_ATOM(atom);
 
-			if (-- atom->refcount != 0) {
+			if (!atomic_dec_and_test(&atom->refcount)) {
 				UNLOCK_ATOM(atom);
 				spin_unlock_txnmgr(mgr);
 				return;
@@ -713,7 +713,7 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 	spin_unlock_txnmgr(mgr);
 
 	/* One reference until it commits. */
-	atom->refcount += 1;
+	atomic_inc(&atom->refcount);
 
 	atom->stage = ASTAGE_CAPTURE_FUSE;
 
@@ -949,13 +949,13 @@ atom_try_commit_locked(txn_atom * atom)
 
 	/* Decrement the "until commit" reference, at least one txnh (the caller) is
 	   still open. */
-	atom->refcount -= 1;
+	atomic_dec(&atom->refcount);
 
-	assert("jmacd-1070", atom->refcount > 0);
+	assert("jmacd-1070", atomic_read(&atom->refcount) > 0);
 	assert("jmacd-1062", atom->capture_count == 0);
 	assert("jmacd-1071", spin_atom_is_locked(atom));
 
-	trace_on(TRACE_TXN, "commit atom finished %u refcount %d\n", atom->atom_id, atom->refcount);
+	trace_on(TRACE_TXN, "commit atom finished %u refcount %d\n", atom->atom_id, atomic_read(&atom->refcount));
 
 	return ret;
 }
@@ -1329,7 +1329,7 @@ void atom_wait_event(txn_atom * atom)
 	assert("zam-744", spin_atom_is_locked(atom));
 	init_wlinks(&_wlinks);
 	fwaitfor_list_push_back(&atom->fwaitfor_list, &_wlinks);
-	atom->refcount++;
+	atomic_inc(&atom->refcount);
 	UNLOCK_ATOM(atom);
 
 	assert("nikita-3056", no_counters_are_held());
@@ -1446,7 +1446,7 @@ done:
 
 	txnh_list_remove(txnh);
 
-	trace_on(TRACE_TXN, "close txnh atom %u refcount %d\n", atom->atom_id, atom->refcount - 1);
+	trace_on(TRACE_TXN, "close txnh atom %u refcount %d\n", atom->atom_id, atomic_read(&atom->refcount));
 
 	UNLOCK_TXNH(txnh);
 	atom_dec_and_unlock(atom);
@@ -2041,9 +2041,9 @@ capture_assign_txnh_nolock(txn_atom * atom, txn_handle * txnh)
 	assert("jmacd-823", spin_atom_is_locked(atom));
 	assert("jmacd-824", txnh->atom == NULL);
 
-	atom->refcount += 1;
+	atomic_inc(&atom->refcount);
 
-	trace_on(TRACE_TXN, "assign txnh atom %u refcount %d\n", atom->atom_id, atom->refcount);
+	trace_on(TRACE_TXN, "assign txnh atom %u refcount %d\n", atom->atom_id, atomic_read(&atom->refcount));
 
 	txnh->atom = atom;
 	txnh_list_push_back(&atom->txnh_list, txnh);
@@ -2454,13 +2454,13 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 
 	/* Add txnh to atomf's waitfor list, unlock atomf. */
 	fwaitfor_list_push_back(&atomf->fwaitfor_list, &wlinks);
-	atomf->refcount += 1;
+	atomic_inc(&atomf->refcount);
 	UNLOCK_ATOM(atomf);
 
 	if (atomh) {
 		/* Add txnh to atomh's waiting list, unlock atomh. */
 		fwaiting_list_push_back(&atomh->fwaiting_list, &wlinks);
-		atomh->refcount += 1;
+		atomic_inc(&atomh->refcount);
 		UNLOCK_ATOM(atomh);
 	}
 
@@ -2693,8 +2693,8 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 	large->capture_count += small->capture_count;
 
 	/* Add all txnh references to large. */
-	large->refcount += small->txnh_count;
-	small->refcount -= small->txnh_count;
+	atomic_add(small->txnh_count, &large->refcount);
+	atomic_sub(small->txnh_count, &small->refcount);
 
 	/* Reset small counts */
 	small->txnh_count = 0;
@@ -2868,7 +2868,7 @@ info_atom(const char *prefix, txn_atom * atom)
 
 	printk("%s: refcount: %i id: %i flags: %x txnh_count: %i"
 	       " capture_count: %i stage: %x start: %lu\n", prefix,
-	       atom->refcount, atom->atom_id, atom->flags, atom->txnh_count,
+	       atomic_read(&atom->refcount), atom->atom_id, atom->flags, atom->txnh_count,
 	       atom->capture_count, atom->stage, atom->start_time);
 }
 
