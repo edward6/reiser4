@@ -156,14 +156,14 @@ Expression
 | Expression PLUS       Expression                { $$ = connect_expression( ws, $1, $3 ); }
 | Expression SEMICOLON  Expression                { $$ = list_expression( ws, $1, $3 ); }
 | Expression COMMA      Expression                { $$ = list_async_expression( ws, $1, $3 ); }
-| level_up  Expression R_BRACKET                   { $$ =  $2 ; run_it( ws, $2 ); level_down( ws, $1, $3 );}
+//| level_up  Expression R_BRACKET                   { $$ =  level_down( ws, $2, $1, $3 );}
 //| Expression            Expression                { $$ = list_unordered_expression( ws, $1, $2 ); }
-| if_statement                                    { $$ = $1; level_down( ws, IF_STATEMENT ); }
+| if_statement                                    { $$ = level_down( ws, $1, IF_STATEMENT, IF_STATEMENT ); }
                                                                             /* the ASSIGNMENT operator return a value: bytes written */
-|  target  L_ASSIGN        Expression         { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
-|  target  L_APPEND        Expression         { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
-|  target  L_ASSIGN  INV_L Expression INV_R   { $$ = assign_invert( ws, $1, $4 ); }     /*  <-  invert assign. destination must have ..invert method  */
-|  target  L_SYMLINK       Expression         { $$ = symlink( ws, $1, $3 ); }           /*   ->  symlink  the SYMLINK operator return a value: bytes ???? */
+|  target  L_ASSIGN        Expression             { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
+|  target  L_APPEND        Expression             { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
+|  target  L_ASSIGN  INV_L Expression INV_R       { $$ = assign_invert( ws, $1, $4 ); }     /*  <-  invert assign. destination must have ..invert method  */
+|  target  L_SYMLINK       Expression             { $$ = symlink( ws, $1, $3 ); }           /*   ->  symlink  the SYMLINK operator return a value: bytes ???? */
 ;
 
 if_statement        
@@ -203,19 +203,33 @@ target
 : Object_Name                                     { $$ = prepare_target( ws, 41 );}
 
 
-
 Object_Name 
-: WORD                                            { $$ = pars_lookup_curr( ws, $1 ) ; }
-| SLASH WORD                     %prec ROOT       { $$ = pars_lookup_root( ws, $2 ) ; }
-| Object_Name SLASH WORD                          { $$ = pars_lookup( ws, $1, $3 ) ; }
+: begin_from name                 %prec ROOT       { $$ = pars_lookup( ws, $1, $2 ) ; }
+| Object_Name SLASH name                           { $$ = pars_lookup( ws, $1, $3 ) ; }
 ;
 
-//name
-//: WORD                                            { $$ = lookup_word( ws, $1 ); }
-//;
+begin_from
+: SLASH                                            { $$ = pars_lookup_root( ws ) ; }
+|                                                  { $$ = pars_lookup_curr( ws ) ; }
+
+
+
+name
+: WORD                                             { $$ = lookup_word( ws, $1 ); }
+| level_up  Expression R_BRACKET                   { $$ =  level_down( ws, $2, $1, $3 );} /*not yet */
+;
 
 level_up
-: L_BRACKET                                        { $$=level_up( ws, $1 ); set_curr_path( ws ) }
+: L_BRACKET                                        { $$=level_up( ws, $1 ); /*set_curr_path( ws ); */}
+
+
+
+
+//Object_Name 
+//: WORD                                            { $$ = pars_lookup_curr( ws, $1 ) ; }
+//| SLASH WORD                     %prec ROOT       { $$ = pars_lookup_root( ws, $2 ) ; }
+//| Object_Name SLASH WORD                          { $$ = pars_lookup( ws, $1, $3 ) ; }
+//;
 
 
 //Object_Name 
@@ -238,7 +252,7 @@ level_up
 
 //name
 //: WORD                                            { $$ = set_curr_path( ws, pars_path_walk( ws, $1 ) ); }    /* change current path to $1 */  /*$$=?????*/
-//| level_up  Expression R_BRACKET                   { $$ = set_curr_path( ws, $2 );  /*$$=?????*/; level_down( ws, $1, $3 );}  /*$$=?????*/
+//| level_up  Expression R_BRACKET                   { $$ = set_curr_path( ws, $2 );  /*$$=?????*/; level_down( ws, $2, $1, $3 );}  /*$$=?????*/
 //;
 
 //level_up
