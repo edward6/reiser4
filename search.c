@@ -172,7 +172,7 @@ cbk_cache_invalidate(const znode * node /* node to remove from cache */ ,
 	cbk_cache *cache;
 
 	assert("nikita-350", node != NULL);
-	assert("nikita-1479", lock_counters()->rw_locked_tree > 0);
+	ON_CONTEXT(assert("nikita-1479", lock_counters()->rw_locked_tree > 0));
 
 	cache = &tree->cbk_cache;
 	assert("nikita-2470", cbk_cache_invariant(cache));

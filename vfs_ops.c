@@ -1425,6 +1425,13 @@ reiser4_kill_super(struct super_block *s)
 
 	close_trace_file(&sbinfo->trace_file);
 
+	/* we don't want ->write_super to be called any more. */
+	s->s_op->write_super = NULL;
+	kill_block_super(s);
+
+	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
+		reiser4_print_stats();
+
 #if REISER4_DEBUG
 	{
 		struct list_head *scan;
@@ -1442,14 +1449,8 @@ reiser4_kill_super(struct super_block *s)
 			"%i bytes still allocated", sbinfo->kmalloc_allocated);
 #endif
 
-	/* we don't want ->write_super to be called any more. */
-	s->s_op->write_super = NULL;
-	kill_block_super(s);
-
-	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
-		reiser4_print_stats();
-
 out:
+
 	/* no assertions below this line */
 	(void)reiser4_exit_context(&context);
 

@@ -687,7 +687,7 @@ znode_get_rd_key(znode * node /* znode to query */ )
 {
 	assert("nikita-958", node != NULL);
 	assert("nikita-1661", rw_dk_is_locked(znode_get_tree(node)));
-	assert("nikita-3067", lock_counters()->rw_locked_dk > 0);
+	ON_CONTEXT(assert("nikita-3067", lock_counters()->rw_locked_dk > 0));
 
 	return &node->rd_key;
 }
@@ -698,7 +698,7 @@ znode_get_ld_key(znode * node /* znode to query */ )
 {
 	assert("nikita-974", node != NULL);
 	assert("nikita-1662", rw_dk_is_locked(znode_get_tree(node)));
-	assert("nikita-3068", lock_counters()->rw_locked_dk > 0);
+	ON_CONTEXT(assert("nikita-3068", lock_counters()->rw_locked_dk > 0));
 
 	return &node->ld_key;
 }
@@ -708,7 +708,7 @@ reiser4_key *znode_set_rd_key(znode * node, const reiser4_key * key)
 	assert("nikita-2937", node != NULL);
 	assert("nikita-2939", key != NULL);
 	assert("nikita-2938", rw_dk_is_write_locked(znode_get_tree(node)));
-	assert("nikita-3069", lock_counters()->write_locked_dk > 0);
+	ON_CONTEXT(assert("nikita-3069", lock_counters()->write_locked_dk > 0));
 /*
 	assert("nikita-2944", 
 	       znode_is_any_locked(node) || 
@@ -725,7 +725,7 @@ reiser4_key *znode_set_ld_key(znode * node, const reiser4_key * key)
 	assert("nikita-2940", node != NULL);
 	assert("nikita-2941", key != NULL);
 	assert("nikita-2942", rw_dk_is_write_locked(znode_get_tree(node)));
-	assert("nikita-3070", lock_counters()->write_locked_dk > 0);
+	ON_CONTEXT(assert("nikita-3070", lock_counters()->write_locked_dk > 0));
 	assert("nikita-2943", 
 	       znode_is_any_locked(node) || 
 	       keyeq(znode_get_ld_key(node), min_key()));
@@ -772,7 +772,7 @@ znode *
 znode_parent(const znode * node /* child znode */ )
 {
 	assert("nikita-1226", node != NULL);
-	ON_DEBUG_CONTEXT(assert("nikita-1406", lock_counters()->rw_locked_tree > 0));
+	ON_CONTEXT(assert("nikita-1406", lock_counters()->rw_locked_tree > 0));
 	return znode_parent_nolock(node);
 }
 

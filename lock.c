@@ -795,11 +795,11 @@ longterm_unlock_znode(lock_handle * handle)
 
 	assert("jmacd-1021", handle != NULL);
 	assert("jmacd-1022", handle->owner != NULL);
-	assert("nikita-1392", lock_counters()->long_term_locked_znode > 0);
+	ON_CONTEXT(assert("nikita-1392", lock_counters()->long_term_locked_znode > 0));
 
 	assert("zam-130", oldowner == get_current_lock_stack());
 
-	ON_DEBUG(--lock_counters()->long_term_locked_znode);
+	ON_DEBUG_CONTEXT(--lock_counters()->long_term_locked_znode);
 
 	ADDSTAT(node, unlock);
 
@@ -903,7 +903,7 @@ lock_tail(lock_stack *owner, int wake_up_next, int ok, znode_lock_mode mode)
 		*/
 		zref(node);
 
-		ON_DEBUG(++lock_counters()->long_term_locked_znode);
+		ON_DEBUG_CONTEXT(++lock_counters()->long_term_locked_znode);
 		if (REISER4_DEBUG_NODE && mode == ZNODE_WRITE_LOCK) {
 			node_check(node, 0);
 			ON_DEBUG_MODIFY(znode_pre_write(node));
@@ -1313,7 +1313,7 @@ move_lh_internal(lock_handle * new, lock_handle * old, int unlink_old)
 		if (owner->curpri) {
 			node->lock.nr_hipri_owners += 1;
 		}
-		ON_DEBUG(++lock_counters()->long_term_locked_znode);
+		ON_DEBUG_CONTEXT(++lock_counters()->long_term_locked_znode);
 
 		zref(node);
 	}
