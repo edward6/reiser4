@@ -1179,6 +1179,7 @@ add_hole(coord_t * coord, lock_handle * lh, const reiser4_key * key)
 int
 extent_readpage(coord_t * coord, lock_handle * lh, struct page *page)
 {
+	reiser4_key key;
 	reiser4_block_nr block;
 	reiser4_block_nr pos;
 	jnode *j;
