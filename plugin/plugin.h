@@ -172,7 +172,7 @@ typedef struct file_plugin {
    method that also uses them. */
 
 	/* Construct flow into @flow according to user-supplied data.
-	
+
 	   This is used by read/write methods to construct a flow to
 	   write/read. ->flow_by_inode() is plugin method, rather than single
 	   global implemenation, because key in a flow used by plugin may
@@ -239,6 +239,10 @@ typedef struct file_plugin {
 
 	/* called when @child was just looked up in the @parent */
 	int (*bind) (struct inode * child, struct inode * parent);
+
+	/* process safe-link during mount */
+	int (*safelink)(struct inode *object, reiser4_safe_link_t link,
+			__u64 value);
 
 	/* The couple of estimate methods for all file operations */
 	struct {
