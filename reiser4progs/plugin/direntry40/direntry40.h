@@ -11,12 +11,12 @@
 #include <reiser4/plugin.h>
 #include <comm/misc.h>
 
-struct reiser4_objid {
+struct objid40 {
     uint8_t locality[sizeof(uint64_t)];
     uint8_t objectid[sizeof(uint64_t)];
 };
 
-typedef struct reiser4_objid reiser4_objid_t;
+typedef struct objid40 objid40_t;
 
 #define oid_get_locality(oid)		    LE64_TO_CPU(*((uint64_t *)oid->locality))
 #define oid_set_locality(oid, val)	    (*(uint64_t *)oid->locality) = CPU_TO_LE64(val)
@@ -24,12 +24,12 @@ typedef struct reiser4_objid reiser4_objid_t;
 #define oid_get_objectid(oid)		    LE64_TO_CPU(*((uint64_t *)oid->objectid))
 #define oid_set_objectid(oid, val)	    (*(uint64_t *)oid->objectid) = CPU_TO_LE64(val)
 
-struct reiser4_entryid {
+struct entryid40 {
     uint8_t objectid[sizeof(uint64_t)];
     uint8_t offset[sizeof(uint64_t)];
 };
 
-typedef struct reiser4_entryid reiser4_entryid_t;
+typedef struct entryid40 entryid40_t;
 
 #define eid_get_objectid(eid)		    LE64_TO_CPU(*((uint64_t *)eid->objectid))
 #define eid_set_objectid(eid, val)	    (*(uint64_t *)eid->objectid) = CPU_TO_LE64(val)
@@ -37,19 +37,19 @@ typedef struct reiser4_entryid reiser4_entryid_t;
 #define eid_get_offset(eid)		    LE64_TO_CPU(*((uint64_t *)eid->offset))
 #define eid_set_offset(eid, val)	    (*(uint64_t *)eid->offset) = CPU_TO_LE64(val)
 
-struct reiser4_entry40 {
-    reiser4_entryid_t entryid;
+struct entry40 {
+    entryid40_t entryid;
     uint16_t offset;
 };
 
-typedef struct reiser4_entry40 reiser4_entry40_t;
+typedef struct entry40 entry40_t;
 
-struct reiser4_direntry40 {
+struct direntry40 {
     uint16_t count;
-    reiser4_entry40_t entry[0];
+    entry40_t entry[0];
 };
 
-typedef struct reiser4_direntry40 reiser4_direntry40_t;
+typedef struct direntry40 direntry40_t;
 
 #define de40_get_count(de)		    aal_get_le16(de, count)
 #define de40_set_count(de, num)		    aal_set_le16(de, count, num)

@@ -52,7 +52,7 @@ static void stat40_extentions_done(aal_list_t *list) {
 static errno_t stat40_init(reiser4_body_t *body, 
     reiser4_item_hint_t *hint)
 {
-    reiser4_stat40_t *stat;
+    stat40_t *stat;
     aal_list_t *extentions;
     
     reiser4_body_t *extention;
@@ -61,7 +61,7 @@ static errno_t stat40_init(reiser4_body_t *body,
     aal_assert("vpf-076", body != NULL, return -1); 
     aal_assert("vpf-075", hint != NULL, return -1);
     
-    stat = (reiser4_stat40_t *)body;
+    stat = (stat40_t *)body;
     stat_hint = (reiser4_statdata_hint_t *)hint->hint;
     
     st40_set_mode(stat, stat_hint->mode);
@@ -83,7 +83,7 @@ static errno_t stat40_init(reiser4_body_t *body,
 	    return -1;
 	}
     
-	extention = ((void *)stat) + sizeof(reiser4_stat40_t);
+	extention = ((void *)stat) + sizeof(stat40_t);
 	aal_list_foreach_forward(walk, extentions) {
 	    reiser4_plugin_t *plugin = (reiser4_plugin_t *)walk->item;
 	
@@ -111,7 +111,7 @@ static errno_t stat40_estimate(uint32_t pos,
     
     aal_assert("vpf-074", hint != NULL, return -1);
 
-    hint->len = sizeof(reiser4_stat40_t);
+    hint->len = sizeof(stat40_t);
     stat_hint = (reiser4_statdata_hint_t *)hint->hint;
     
     if (stat_hint->extmask) {
@@ -150,16 +150,43 @@ static errno_t stat40_print(reiser4_body_t *body,
     return -1;
 }
 
+/* This method inserts the stat data extentions */
+static errno_t stat40_insert(reiser4_body_t *body, 
+    uint32_t pos, reiser4_item_hint_t *hint)
+{
+    return -1;
+}
+
+/* This method deletes the stat data extentions */
+static uint16_t stat40_remove(reiser4_body_t *body, 
+    uint32_t pos)
+{
+    return -1;
+}
+
+/* This function returns stat data extention count */
+static uint32_t stat40_count(reiser4_body_t *body) {
+    uint64_t extmask;
+    uint8_t i, count = 0;
+
+    extmask = st40_get_extmask((stat40_t *)body);
+    
+    for (i = 0; i < sizeof(uint64_t) * 8; i++)
+	count += (((uint64_t)1 << i) & extmask);
+    
+    return count;
+}
+
 static uint16_t stat40_get_mode(reiser4_body_t *body) {
     aal_assert("umka-710", body != NULL, return 0);
-    return st40_get_mode((reiser4_stat40_t *)body);
+    return st40_get_mode((stat40_t *)body);
 }
 
 static errno_t stat40_set_mode(reiser4_body_t *body, 
     uint16_t mode)
 {
     aal_assert("umka-711", body != NULL, return -1);
-    st40_set_mode((reiser4_stat40_t *)body, mode);
+    st40_set_mode((stat40_t *)body, mode);
 
     return 0;
 }
@@ -179,17 +206,18 @@ static reiser4_plugin_t stat40_plugin = {
 #ifndef ENABLE_COMPACT
 	    .init	= stat40_init,
 	    .estimate	= stat40_estimate,
+	    .insert	= stat40_insert,
+	    .remove	= stat40_remove,
 #else
 	    .init	= NULL,
 	    .estimate	= NULL,
+	    .insert	= NULL,
+	    .remove	= NULL,
 #endif
 	    .maxkey	= NULL,
 	    .lookup	= NULL,
 	    
-	    .insert	= NULL,
-	    .count	= NULL,
-	    .remove	= NULL,
-	    
+	    .count	= stat40_count,
 	    .confirm	= stat40_confirm,
 	    .valid	= stat40_valid,
 	    .print	= stat40_print

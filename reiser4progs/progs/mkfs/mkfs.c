@@ -26,8 +26,9 @@
 #include <comm/misc.h>
 #include <misc/misc.h>
 
-static void mkfs_print_usage(void) {
-    fprintf(stderr, "Usage: mkfs.reiser4 [ options ] FILE1 FILE2 ... [ size[K|M|G] ]\n");
+static void mkfs_print_usage(char *name) {
+    fprintf(stderr, "Usage: %s [ options ] FILE1 FILE2 ... [ size[K|M|G] ]\n", 
+	name);
     
     fprintf(stderr, 
 	"Common options:\n"
@@ -110,7 +111,7 @@ int main(int argc, char *argv[]) {
     };
     
     if (argc < 2) {
-	mkfs_print_usage();
+	mkfs_print_usage(argv[0]);
 	return USER_ERROR;
     }
     
@@ -125,7 +126,7 @@ int main(int argc, char *argv[]) {
     {
 	switch (c) {
 	    case 'h': {
-		mkfs_print_usage();
+		mkfs_print_usage(argv[0]);
 		return NO_ERROR;
 	    }
 	    case 'V': {
@@ -191,7 +192,7 @@ int main(int argc, char *argv[]) {
 	        break;
 	    }
 	    case '?': {
-	        mkfs_print_usage();
+	        mkfs_print_usage(argv[0]);
 	        return USER_ERROR;
 	    }
 	}
@@ -200,7 +201,7 @@ int main(int argc, char *argv[]) {
     printf(BANNER(argv[0]));
 
     if (optind >= argc) {
-	mkfs_print_usage();
+	mkfs_print_usage(argv[0]);
 	return USER_ERROR;
     }
     

@@ -8,3 +8,13 @@ mkfs_reiser4_LDADD 	= $(top_builddir)/libreiser4/libreiser4.la \
 mkfs_reiser4_LDFLAGS 	= $(PROGS_LDFLAGS)
 
 INCLUDES		= -I$(top_srcdir)/include -I$(top_srcdir)/progs/include
+
+uninstall-make_reiser4:
+	rm -f $(sbindir)/make_reiser4
+
+install-make_reiser4: uninstall-make_reiser4 mkfs.reiser4
+	ln $(sbindir)/mkfs.reiser4 $(sbindir)/make_reiser4
+
+install-exec-local: install-make_reiser4
+uninstall-local: uninstall-make_reiser4
+
