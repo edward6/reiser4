@@ -1133,6 +1133,10 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 	/* extent insertion starts at leaf level */
 	assert ("vs-719", znode_get_level (coord->node) == LEAF_LEVEL);
 
+	result = reiser4_grab_space1 ((__u64)1);
+	if (result)
+		return result;
+
 	first_key = *key;
 	set_key_offset (&first_key, 0ull);
 
@@ -1140,13 +1144,17 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 	result = insert_extent_by_coord (coord, init_new_extent (&unit, &ext, 1),
 					 &first_key, lh);
 	if (result) {
+		reiser4_release_grabbed_space((__u64)1);
 		return result;
 	}
+
+	reiser4_unformatted_grabbed2unallocated (1);
 
 	jnode_set_mapped (j);
 	jnode_set_created (j);
 	jnode_set_block (j, &null_block_nr);
 
+	reiser4_stat_file_add (unallocated_pointers);
 	reiser4_stat_file_add (write_repeats);
 
 	/*
@@ -1216,13 +1224,14 @@ static int append_one_block (coord_t * coord, lock_handle *lh, jnode * j,
 		coord->between = AFTER_UNIT;
 		break;
 	}
-	reiser4_count_fake_allocation ((__u64)1);
+	reiser4_unformatted_grabbed2unallocated (1);
+	/*reiser4_count_fake_allocation ((__u64)1);*/
 
 	jnode_set_mapped (j);
 	jnode_set_created (j);
 	jnode_set_block (j, &null_block_nr);
 
-	reiser4_stat_file_add (pointers);
+	reiser4_stat_file_add (unallocated_pointers);
 	return 0;
 }
 
@@ -1583,11 +1592,13 @@ static int overwrite_one_block (coord_t * coord, lock_handle * lh,
 			return result;
 		}
 
-		reiser4_count_fake_allocation((__u64)1);
+		reiser4_unformatted_grabbed2unallocated (1);
+		/*reiser4_count_fake_allocation((__u64)1);*/
 
 		jnode_set_mapped (j);
 		jnode_set_created (j);
 		jnode_set_block (j, &null_block_nr);
+		reiser4_stat_file_add (unallocated_pointers);
 		break;
 
 	default:
@@ -2312,6 +2323,8 @@ static int extent_allocate_blocks (reiser4_blocknr_hint *preceder,
 		impossible ("vs-420", "could not allocate unallocated: %d", result);
 	}
 
+	reiser4_stat_file_add_few (allocated_pointers, *allocated);
+
 	return result;
 }
 
@@ -2993,6 +3006,7 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 			return result;
 
 		assert ("vs-440", allocated > 0);
+
 		/*
 		 * update extent's start, width and recalculate preceder
 		 */
