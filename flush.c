@@ -353,6 +353,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	 * if signal was caught, return -EINTR.
 	 */
 	if (ret == 0 && (jiffies % 10) < 2 /*preempt_point ()*/) {
+		trace_on (TRACE_FLUSH, "flush returns -EINTR\n");
 		ret = -EINTR;
 	}
  clean_out:
