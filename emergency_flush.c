@@ -157,6 +157,9 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 	jnode *node;
 	int result;
 
+	if (!PageDirty(page))
+		return 0;
+
 	assert("nikita-2721", page != NULL);
 	assert("nikita-2722", wbc != NULL);
 	assert("nikita-2723", PageDirty(page));
@@ -402,6 +405,8 @@ eflush_del(jnode *node, int page_locked)
 		-- get_super_private(tree->super)->eflushed;
 		spin_unlock_tree(tree);
 
+		JF_CLR(node, JNODE_EFLUSH);
+
 		page = jnode_page(node);
 		assert("nikita-2806", ergo(page_locked, page != NULL));
 		assert("nikita-2807", ergo(page_locked, PageLocked(page)));
@@ -415,14 +420,18 @@ eflush_del(jnode *node, int page_locked)
 			spin_unlock_jnode(node);
 			wait_on_page_locked(page);
 			page_cache_release(page);
-		} else
-			spin_unlock_jnode(node);
-		ef_free_block(node, &blk);
+			spin_lock_jnode(node);
+		}
 		assert("nikita-2766", atomic_read(&node->x_count) > 1);
 		jput(node);
+
+		spin_unlock_jnode(node);
+
 		kmem_cache_free(eflush_slab, ef);
+		ef_free_block(node, &blk);
+
 		spin_lock_jnode(node);
-		JF_CLR(node, JNODE_EFLUSH);
+
 		trace_on(TRACE_EFLUSH, "unflush: %i...\n", 
 			 get_super_private(tree->super)->eflushed);
 	}
