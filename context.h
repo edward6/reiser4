@@ -103,7 +103,7 @@ struct reiser4_context {
 	int nobalance     :1;
 
 	/* count non-trivial jnode_set_dirty() calls */
-	__u64 nr_marked_dirty;
+	unsigned long nr_marked_dirty;
 	unsigned long flush_started;
 	unsigned long io_started;
 
