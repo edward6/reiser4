@@ -3,10 +3,14 @@
 	Copyright (C) 1996-2002 Hans Reiser.
 */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
+#include <stdio.h>
+
 #include <reiserfs/debug.h>
 #include <reiserfs/reiserfs.h>
-
-extern aal_list_t *plugins;
 
 int reiserfs_super_open(reiserfs_fs_t *fs) {
 	aal_block_t *block;
@@ -36,11 +40,15 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 	}
 	
 	master = (struct reiserfs_master_super *)block->data;
-	
+
 	if (aal_strncmp(master->mr_magic, REISERFS_MASTER_MAGIC, 4) != 0) {
 		/* Checking for reiser3 disk-format */
+		unsigned int blocksize;
 		
 		if (!(plugin = reiserfs_plugin_find(REISERFS_FORMAT_PLUGIN, 0x2)))
+			goto error_free_block;
+		
+		if (!(blocksize = plugin->format.probe(fs->device)))
 			goto error_free_block;
 		
 		/* Forming in memory master super block for reiser3 */
@@ -52,21 +60,19 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 	aal_memcpy(&fs->super->master, master, sizeof(*master));
 	
 	if (!aal_device_set_blocksize(fs->device, get_mr_block_size(master))) {
-			aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-019",
-					"Invalid block size detected %d. It must be power of two.", 
+		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-019",
+			"Invalid block size detected %d. It must be power of two.", 
 			get_mr_block_size(master));
 		goto error_free_block;
 	}
-	
+
 	if (!(plugin = reiserfs_plugin_find(REISERFS_FORMAT_PLUGIN, 
 		get_mr_format_id(master)))) 
 	{
 		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-020", 
-			"Can't find disk-format plugin by its identifier %d.", get_mr_format_id(master));
+			"Can't find disk-format plugin by its identifier %x.", get_mr_format_id(master));
 		goto error_free_block;
 	}
-	
-	aal_block_free(block);
 	
 	if (!(fs->super->entity = plugin->format.init(fs->device))) {
 		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-021", 
@@ -74,7 +80,8 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 		goto error_free_block;
 	}	
 	fs->super->plugin = plugin;
-	
+	aal_block_free(block);
+
 	return 1;
 	
 error_free_block:

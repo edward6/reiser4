@@ -78,6 +78,17 @@ static void reiserfs_format40_done(reiserfs_format40_t *format) {
 	aal_free(format);
 }
 
+static unsigned int reiserfs_format40_probe(aal_device_t *device) {
+	aal_block_t *block;
+
+	if (!(block = reiserfs_format40_super_open(device)))
+		return 0;
+	
+	aal_block_free(block);
+	
+	return REISERFS_DEFAULT_BLOCKSIZE;
+}
+
 static reiserfs_plugin_id_t reiserfs_format40_journal_plugin(reiserfs_format40_t *format) {
 	return 0x1;
 }
@@ -98,6 +109,7 @@ reiserfs_plugin_t plugin_info = {
 		},
 		.init = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format40_init,
 		.done = (void (*)(reiserfs_format_opaque_t *))reiserfs_format40_done,
+		.probe = (unsigned int (*)(aal_device_t *))reiserfs_format40_probe,
 		
 		.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_format_opaque_t *))
 			reiserfs_format40_journal_plugin,

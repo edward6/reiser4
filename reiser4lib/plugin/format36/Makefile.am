@@ -1,5 +1,7 @@
 includedir              = -I$(top_srcdir)/include
 
+libdir					= $(plugindir)
+
 lib_LTLIBRARIES         = libformat36.la
 libformat36_la_LDFLAGS  = -module -avoid-version
 

@@ -117,6 +117,19 @@ static void reiserfs_format36_done(reiserfs_format36_t *format) {
 	aal_free(format);
 }
 
+static unsigned int reiserfs_format36_probe(aal_device_t *device) {
+	unsigned int blocksize;
+	aal_block_t *block;
+
+	if (!(block = reiserfs_format36_super_open(device)))
+		return 0;
+	
+	blocksize = get_sb_block_size((reiserfs_format36_super_t *)block->data);
+	
+	aal_block_free(block);
+	return blocksize;
+}
+
 static reiserfs_plugin_id_t reiserfs_format36_journal_plugin(reiserfs_format36_t *format) {
 	return 0x2;
 }
@@ -137,6 +150,7 @@ reiserfs_plugin_t plugin_info = {
 		},
 		.init = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format36_init,
 		.done = (void (*)(reiserfs_format_opaque_t *))reiserfs_format36_done,
+		.probe = (unsigned int (*)(aal_device_t *))reiserfs_format36_probe,
 			
 		.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_format_opaque_t *))
 			reiserfs_format36_journal_plugin,

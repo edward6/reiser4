@@ -3,10 +3,9 @@
 	Copyright (C) 1996-2002 Hans Reiser
 */
 
-#include <dlfcn.h>
-#include <errno.h>
-#include <string.h>
-#include <limits.h>
+#ifndef ENABLE_ALONE
+#  include <dlfcn.h>
+#endif
 
 #include <aal/aal.h>
 #include <reiserfs/reiserfs.h>
@@ -33,6 +32,9 @@ reiserfs_plugin_t *reiserfs_plugin_find(reiserfs_plugin_type_t type,
 	struct walk_desc desc;
 	reiserfs_plugin_t *plugin;
 	
+	if (!plugins) 
+		return NULL;
+	
 	desc.type = type;
 	desc.id = id;
 	
@@ -44,6 +46,7 @@ reiserfs_plugin_t *reiserfs_plugin_find(reiserfs_plugin_type_t type,
 }
 
 reiserfs_plugin_t *reiserfs_plugin_load(const char *name, const char *point) {
+#ifndef ENABLE_ALONE
 	char *error;
 	void *handle, *entry;
 	reiserfs_plugin_t *plugin;
@@ -52,16 +55,19 @@ reiserfs_plugin_t *reiserfs_plugin_load(const char *name, const char *point) {
 	ASSERT(name != NULL, return NULL);
 	ASSERT(point != NULL, return NULL);
 
+	if (!plugins) 
+		return NULL;
+	
 	if (!(handle = dlopen(name, RTLD_NOW))) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-001", 
-			"Can't load plugin library %s. Error: %s.", name, strerror(errno));
+			"Can't load plugin library %s.", name);
 		return NULL;
 	}
 
 	entry = dlsym(handle, point);
 	if ((error = dlerror()) != NULL) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-002", 
-			"Can't find symbol %s in plugin %s. Error: %s.", point, name, error);
+			"Can't find symbol %s in plugin %s. %s.", point, name, error);
 		goto error_free_handle;
 	}
 	
@@ -69,7 +75,6 @@ reiserfs_plugin_t *reiserfs_plugin_load(const char *name, const char *point) {
 	plugin = get_plugin();
 
 	plugin->h.handle = handle;
-
 	aal_list_add(plugins, (void *)plugin);
 	
 	return plugin;
@@ -78,13 +83,19 @@ error_free_handle:
 	dlclose(handle);
 error:
 	return NULL;
+#else
+	return NULL;
+#endif	
 }
 
 void reiserfs_plugin_unload(reiserfs_plugin_t *plugin) {
-	
+#ifndef ENABLE_ALONE	
 	ASSERT(plugin != NULL, return);
 	
+	if (!plugins) return;
+
 	dlclose(plugin->h.handle);
 	aal_list_remove(plugins, (void *)plugin);
+#endif	
 }
 

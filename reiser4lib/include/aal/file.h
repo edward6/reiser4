@@ -12,7 +12,7 @@
 
 #ifndef ENABLE_ALONE
 
-#include <agl/device.h>
+#include <aal/device.h>
 
 extern aal_device_t *aal_file_open(const char *file, size_t blocksize, int flags);
 extern int aal_file_reopen(aal_device_t *device, int flags);

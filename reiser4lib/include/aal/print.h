@@ -12,6 +12,7 @@ typedef void (*aal_printf_handler_t)(const char *);
 
 extern void aal_printf(const char *format, ...);
 extern int aal_vsnprintf(char *buff, size_t n, const char *format, va_list arg_list);
+extern int aal_snprintf(char *buff, size_t n, const char *format, ...);
 
 #endif
 

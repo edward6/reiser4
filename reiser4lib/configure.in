@@ -47,25 +47,39 @@ AC_DEFINE_UNQUOTED(LIBREISERFS_MAX_INTERFACE_VERSION, $LIBREISERFS_BINARY_AGE)
 AC_DEFINE_UNQUOTED(LIBREISERFS_MIN_INTERFACE_VERSION, $LIBREISERFS_INTERFACE_AGE)
 
 AC_ARG_ENABLE(debug, 
-	[  --enable-debug    compile in assertions [default=yes]], , 
+	[  --enable-debug        compile in assertions [default=yes]], , 
 		enable_debug=yes
 )
 if test x$enable_debug = xyes; then
     AC_DEFINE(ENABLE_DEBUG)
 fi
 
+AM_ENABLE_SHARED
+AM_DISABLE_STATIC
+
 AC_ARG_ENABLE(alone,
-	[  --enable-alone    build in alone maner (without libc) [default=no]], ,
+	[  --enable-alone        build in alone maner (without libc) [default=no]], ,
 	    enable_alone=no
 )
 if test x$enable_alone = xyes; then
 	AC_DEFINE(ENABLE_ALONE)
+	AM_DISABLE_SHARED
 fi
 
 AC_ARG_ENABLE(Werror,
-    [  --enable-Werror         build with gcc -Werror [default=yes]], ,
+    [  --enable-Werror       build with gcc -Werror [default=yes]], ,
 		enable_Werror=yes
 )
+
+AC_ARG_WITH(plugin-dir, 
+	[  --with-plugin-dir=PATH where plugins will be placed]
+)
+if test "x$with_plugin_dir" = "x"; then
+	with_plugin_dir="$libdir/reiserfs"
+fi
+
+plugindir=$with_plugin_dir
+AC_SUBST(plugindir)
 
 LIBREISERFS_LIBS=""
 dnl Check for libdl, if we are doing dynamic loading
@@ -89,23 +103,6 @@ AC_PROG_RANLIB
 AC_SYS_LARGEFILE
 
 CFLAGS="$CFLAGS -D_FILE_OFFSET_BITS=${ac_cv_sys_file_offset_bits}"
-AC_CHECK_SIZEOF(off_t, 64, [
-	#include <stdio.h>
-	#include <sys/types.h>
-	#include <unistd.h>
-])
-
-AM_ENABLE_SHARED
-if test $ac_cv_sizeof_off_t -lt 8; then
-	dnl Need to disable shared libraries, to get llseek() to work.  Long
-	dnl story.  The short story is: lseek() isn't in glibc, so a syscall
-	dnl must be made.  syscalls can't be made from within shared libraries,
-	dnl because of a bug (?) in gcc.
-	AC_MSG_WARN(
-off_t is less than 8 bytes.  Using llseek syscall, and disabling shared
-libraries.)
-	AM_DISABLE_SHARED
-fi
 
 AM_PROG_LIBTOOL
 
@@ -134,6 +131,8 @@ CFLAGS="$CFLAGS -W -Wall -Wno-unused -Wno-switch -Wno-format"
 if test x$enable_Werror = xyes; then
 	    CFLAGS="$CFLAGS -Werror"
 fi
+
+CFLAGS="$CFLAGS -DPLUGIN_DIR=\\\"$with_plugin_dir\\\""
 
 case "$host" in
 	*-sun-*)

@@ -75,7 +75,7 @@ int aal_vsnprintf(char *buff, size_t n, const char *format, va_list arg_list) {
 						aal_memset(s, 0, sizeof(s));
 						
 						d = va_arg(arg_list, int);
-						aal_ltos(d, sizeof(s), s, c == d ? 10 : 16);
+						aal_ltos(d, sizeof(s), s, c == 'd' ? 10 : 16);
 						aal_strncat(buff, s, n - strlen(buff));
 					}
 				}
@@ -89,5 +89,15 @@ int aal_vsnprintf(char *buff, size_t n, const char *format, va_list arg_list) {
 	if (fmt - format > 0)
 		aal_memcpy(buff + strlen(buff), old, fmt - old);
 	return strlen(buff);
+}
+
+int aal_snprintf(char *buff, size_t n, const char *format, ...) {
+	int len;
+	va_list arg_list;
+	
+	va_start(arg_list, format);
+	len = aal_vsnprintf(buff, n, format, arg_list);
+	va_end(arg_list);
+	return len;
 }
 

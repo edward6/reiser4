@@ -10,6 +10,7 @@
 #include <aal/aal.h>
 
 struct aal_block {
+	int dirty;
 	void *data;
 	uint64_t location;
 	aal_device_t *device;

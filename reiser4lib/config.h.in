@@ -16,6 +16,7 @@
 
 #undef ENABLE_DEBUG
 
+
 /* Define to one of `_getb67', `GETB67', `getb67' for Cray-2 and Cray-YMP
    systems. This function is required for `alloca.c' support on those systems.
    */
@@ -158,9 +159,6 @@
 
 /* Name of package */
 #undef PACKAGE
-
-/* The size of a `off_t', as computed by sizeof. */
-#undef SIZEOF_OFF_T
 
 /* If using the C implementation of alloca, define if you know the
    direction of stack growth for your system; otherwise it will be

@@ -1,5 +1,5 @@
 /*
-	agl.h -- the central AGL (Application Gateway Library) header.
+	aal.h -- the central AGL (Application Gateway Library) header.
 	Copyright (C) 1996-2002 Hans Reiser
 */
 
@@ -14,6 +14,7 @@
 #endif
 
 #include "device.h"
+#include "file.h"
 #include "exception.h"
 #include "list.h"
 #include "block.h"

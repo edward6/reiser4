@@ -7,6 +7,11 @@
 #  include <config.h>
 #endif
 
+#ifndef ENABLE_ALONE
+#  include <sys/types.h>
+#  include <dirent.h>
+#endif
+
 #include <reiserfs/reiserfs.h>
 
 aal_list_t *plugins = NULL;
@@ -23,30 +28,62 @@ const char *libreiserfs_get_version(void) {
 	return VERSION;
 }
 
-static int libreiserfs_init_plugins(void) {
-	return 0;
-}
+int libreiserfs_init(void) {
+#ifndef ENABLE_ALONE
+	DIR *dir;
+	struct dirent *ent;
+#endif	
 
-static void libreiserfs_release_plugins(void) {
-	int i;
-	for (i = aal_list_count(plugins) - 1; i >= 0; i--)
-		reiserfs_plugin_unload((reiserfs_plugin_t *)aal_list_at(plugins, i));
-}
-
-static void _init(void) __attribute__ ((constructor));
-
-static void _init(void) {
 	plugins = aal_list_create(10);
-	if (!libreiserfs_init_plugins()) {
-		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-008", 
-			"Can't initialize plugins.");
+	
+#ifndef ENABLE_ALONE
+	if (!(dir = opendir(PLUGIN_DIR))) {
+		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-023", 
+			"Can't open directory %s.", PLUGIN_DIR);
+		return 0;
 	}
+	
+	while ((ent = readdir(dir))) {
+		char plug_name[4096];
+		reiserfs_plugin_t *plugin;
+
+		if ((strlen(ent->d_name) == 1 && aal_strncmp(ent->d_name, ".", 1)) ||
+				(strlen(ent->d_name) == 2 && aal_strncmp(ent->d_name, "..", 2)))
+			continue;	
+	
+		if (strlen(ent->d_name) <= 2)
+			continue;
+		
+		if (ent->d_name[strlen(ent->d_name) - 2] != 's' || 
+				ent->d_name[strlen(ent->d_name) - 1] != 'o')
+			continue;
+		
+		aal_memset(plug_name, 0, sizeof(plug_name));
+		aal_snprintf(plug_name, sizeof(plug_name), "%s/%s", PLUGIN_DIR, ent->d_name);
+		if (!(plugin = reiserfs_plugin_load(plug_name, "reiserfs_plugin_info"))) {
+			aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-024", 
+				"Can't load plugin %s.", plug_name);
+			continue;
+		}
+		aal_list_add(plugins, plugin);
+	}
+	
+	closedir(dir);
+#else
+	/* 
+		Here must be initialization code for 
+		builtin plugins. 
+	*/
+#endif
+	return aal_list_count(plugins) > 0;
 }
 
-static void _done(void) __attribute__ ((destructor));
-
-static void _done(void) {
-	libreiserfs_release_plugins();
+void libreiserfs_done(void) {
+	while (aal_list_count(plugins) > 0) {
+		reiserfs_plugin_unload((reiserfs_plugin_t *)aal_list_at(plugins, 
+			aal_list_count(plugins) - 1));
+	}
+	
 	aal_list_free(plugins);
 }
 

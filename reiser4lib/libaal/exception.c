@@ -63,8 +63,11 @@ char *aal_exception_hint(aal_exception_t *exception) {
 
 static aal_exception_option_t default_handler(aal_exception_t *exception) {
 	if (exception->type != EXCEPTION_BUG){
-		aal_printf("%s: %s: ", aal_exception_type_string(exception->type),
-			aal_exception_hint(exception));
+		if (strlen(exception->hint))
+			aal_printf("%s: %s: ", aal_exception_type_string(exception->type),
+				aal_exception_hint(exception));
+		else
+			aal_printf("%s: ", aal_exception_type_string(exception->type));
 	}
 	aal_printf("%s\n", exception->message);
 
@@ -116,9 +119,13 @@ aal_exception_option_t aal_exception_throw(aal_exception_type_t type,
 	if (!(exception->message = (char*)aal_malloc(4096)))
 		goto no_memory;
 
+	aal_memset(exception->message, 0, 4096);
+	
 	if (!(exception->hint = (char*)aal_malloc(255)))
 		goto no_memory;
 	
+	aal_memset(exception->hint, 0, 255);
+		
 	exception->type = type;
 	exception->options = opts;
 

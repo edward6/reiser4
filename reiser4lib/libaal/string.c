@@ -7,6 +7,7 @@
 
 void *aal_memset(void *dest, char c, size_t n) {
 	char *dest_p = (char *)dest;
+
 	for (; (int)dest_p - (int)dest < (int)n; dest_p++)
 		*dest_p = c;
 
@@ -23,24 +24,42 @@ void *aal_memcpy(void *dest, const void *src, size_t n) {
 }
 
 char *aal_strncpy(char *dest, const char *src, size_t n) {
-	int len = strlen(src) < n ? strlen(src) : n;
-	return (char *)aal_memcpy((void *)dest, (const void *)src, len);
+	size_t len = strlen(src) < n ? strlen(src) : n;
+	
+	aal_memcpy((void *)dest, (const void *)src, len);
+	
+	if (len < n) 
+		*(dest + strlen(dest)) = '\0';
+	
+	return dest;
 }
 
 char *aal_strncat(char *dest, const char *src, size_t n) {
-	aal_memcpy(dest + strlen(dest), src, (strlen(src) < n ? strlen(src) : n));
+	size_t len = strlen(src) < n ? strlen(src) : n;
+	
+	aal_memcpy(dest + strlen(dest), src, len);
+	
+	if (len < n) 
+		*(dest + strlen(dest)) = '\0';
+	
 	return dest;
 }
 
 int aal_strncmp(const char *s1, const char *s2, size_t n) {
 	const char *p;
-	for (p = s1; *p; p++, s1++, s2++) {
-		if ((size_t)(p - s1) >= n) break;
 	
-		if (*s1 < *s2) return -1;
-		if (*s1 > *s2) return 1;
+	for (p = s1; *p; p++, s1++, s2++) {
+	
+		if ((size_t)(p - s1) >= n) 
+			break;
+		
+		if (*s1 < *s2) 
+			return -1;
+		
+		if (*s1 > *s2) 
+			return 1;
 	}
-	return 0;
+	return p != s1 ? 0 : 1;
 }
 
 int aal_ltos(long int d, size_t n, char *a, int base) {
