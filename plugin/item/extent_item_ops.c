@@ -140,6 +140,8 @@ item_stat_extent(const coord_t *coord, void *vp)
 			ex_stat->hole_units++;
 			ex_stat->hole_blocks += extent_get_width(ext + i);
 			break;
+		default:
+			assert("vs-1419", 0);
 		}
 	}
 }
