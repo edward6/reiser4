@@ -332,7 +332,7 @@ get_split_point(carry_op * op, sideof dir)
 	if (!coord_is_existing_item(coord))
 		return 0;
 	if ((op->u.insert.flags & COPI_GLUE_LEFT) && dir == LEFT_SIDE && coord->unit_pos > 0) {
-		--coord->unit_pos;
+		coord_prev_unit(coord);
 		/* split point is different from the insertion point, confine
 		   shift to the source node. */
 		op->u.insert.flags &= ~COPI_GO_LEFT;
@@ -1139,7 +1139,7 @@ carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
 			coord_init_after_item_end(insert_point);
 		} else {
 			/* new item must be inserted */
-			pos_in_node new_pos;
+			pos_in_node_t new_pos;
 
 			/* FIXME-VS: this is because node40_create_item changes
 			   insert_point for obscure reasons */
@@ -1362,8 +1362,7 @@ can_paste(coord_t * icoord, const reiser4_key * key, const reiser4_item_data * d
 		coord_dup(&circa, icoord);
 		if (coord_set_to_left(&circa)) {
 			result = 0;
-			icoord->unit_pos = 0;
-			icoord->between = BEFORE_ITEM;
+			coord_init_before_item(icoord);
 		} else {
 			old_iplug = item_plugin_by_coord(&circa);
 			result = (old_iplug == new_iplug) && item_can_contain_key(icoord, key, data);
@@ -1377,8 +1376,7 @@ can_paste(coord_t * icoord, const reiser4_key * key, const reiser4_item_data * d
 		/* otherwise, try to glue to the item at the right, if any */
 		if (coord_set_to_right(&circa)) {
 			result = 0;
-			icoord->unit_pos = 0;
-			icoord->between = AFTER_ITEM;
+			coord_init_after_item(icoord);
 		} else {
 			int (*cck) (const coord_t *, const reiser4_key *, const reiser4_item_data *);
 
