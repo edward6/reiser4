@@ -281,20 +281,16 @@ scan_mgr(txn_mgr * mgr)
 	assert("nikita-2456", tree->super != NULL);
 
 	{
+		long nr_submitted;
+
 		REISER4_ENTRY(tree->super);
 
 		ret = commit_one_atom(mgr);
 
-		if (ret)
-			goto out;
-
-		if (need_flush(mgr)) {
-			ret = flush_one_atom(mgr, NULL, JNODE_FLUSH_WRITE_BLOCKS);
-
-			if (ret)
-				goto out;
+		if (!ret && need_flush(mgr)) {
+			ret = flush_one_atom(mgr, &nr_submitted, 
+					     JNODE_FLUSH_WRITE_BLOCKS);
 		}
-out:
 		REISER4_EXIT(ret);
 	}
 }
