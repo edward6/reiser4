@@ -48,7 +48,7 @@ typedef struct format40_disk_super_block {
 
 /* format 40 specific part of reiser4_super_info_data */
 typedef struct format40_super_info {
-	format40_disk_super_block actual_sb;
+/*	format40_disk_super_block actual_sb; */
 	jnode *sb_jnode;
 } format40_super_info;
 

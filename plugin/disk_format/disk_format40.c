@@ -151,7 +151,9 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	struct buffer_head *super_bh;
 	/* UMKA-FIXME-HANS: needs better name */
 	reiser4_super_info_data *private;
-	format40_disk_super_block *sb_copy;
+	format40_disk_super_block  sb;
+	/* FIXME-NIKITA ugly work-around: keep copy of on-disk super-lobk c*/
+	format40_disk_super_block *sb_copy = &sb;
 	reiser4_block_nr root_block;
 	tree_level height;
 	node_plugin *nplug;
@@ -191,8 +193,6 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	if (IS_ERR(super_bh))
 		return PTR_ERR(super_bh);
 
-	/* initialize part of reiser4_super_info_data specific to layout 40 */
-	sb_copy = &private->u.format40.actual_sb;
 	xmemcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data), sizeof (*sb_copy));
 	brelse(super_bh);
 
@@ -364,6 +364,7 @@ format40_root_dir_key(const struct super_block *super UNUSED_ARG)
 void
 format40_print_info(const struct super_block *s)
 {
+#if 0
 	format40_disk_super_block *sb_copy;
 
 	sb_copy = &get_super_private(s)->u.format40.actual_sb;
@@ -380,6 +381,7 @@ format40_print_info(const struct super_block *s)
 	     get_format40_root_block(sb_copy),
 	     tail_plugin_by_id(get_format40_tail_policy(sb_copy))->h.label,
 	     get_format40_oid(sb_copy), get_format40_file_count(sb_copy), get_format40_tree_height(sb_copy));
+#endif
 }
 
 /* Make Linus happy.
