@@ -1086,9 +1086,9 @@ static void
 cluster_sd_print(const char *prefix, char **area /* position in stat-data */,
 		int *len /* remaining length */ )
 {
-	reiser4_crypto_stat *sd = (reiser4_crypto_stat *) * area;
+	reiser4_cluster_stat *sd = (reiser4_cluster_stat *) * area;
 
-	printk("%s: %u\n", prefix, d8tocpu(&sd->clust));
+	printk("%s: %u\n", prefix, d8tocpu(&sd->cluster_shift));
 	next_stat(len, area, sizeof *sd);
 }
 #endif
