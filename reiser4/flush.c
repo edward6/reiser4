@@ -108,18 +108,14 @@ submanagers should be employed.
 #include "reiser4.h"
 
 /* Perform encryption, allocate-on-flush, and squeezing-left of slums. */
-int flush_slum (slum *hood)
+int flush_znode_slum (znode *node UNUSED_ARG)
 {
-	int ret;
-
 	/* Somewhere in here, ZNODE_RELOC and ZNODE_WANDERED are set. */
 
-	/* Lots to do in here. */
+	/* Lots to do in here.  The txnmgr expects this to clean the node. */
+	znode_set_clean (node);
 
 	/* Squeeze the slum. */
-	if ((ret = balance_slum (hood))) {
-		return ret;
-	}
 
 	return 0;
 }
@@ -138,9 +134,7 @@ int reiser4_flush_node (znode *node)
 
 		/* Page is currently in use.  What to do? */
 
-	} else if (! znode_has_slum_notlocked_context (node)) {
-
-		assert ("jmacd-1085", ! znode_is_dirty(node));
+	} else if (! znode_is_dirty (node)) {
 
 		/* Node is clean, either captured by an atom (meaning either it was
 		 * read-captured but not modified or it was modified and subsequently
@@ -162,7 +156,7 @@ int reiser4_flush_node (znode *node)
 		/* Flushing is called under the tree lock, tree lock is released. */
 		spin_lock_tree (current_tree);
 
-		if ((ret = flush_slum (node->zslum)) != 0) {
+		if ((ret = flush_znode_slum (node)) != 0) {
 			return ret;
 		}
 

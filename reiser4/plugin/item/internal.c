@@ -105,11 +105,6 @@ int internal_create_hook( const tree_coord *item, void *cookie )
 		if( cookie != NULL )
 			reiser4_sibling_list_insert_nolock( child, cookie );
 
-		/* Check ->zslum under tree lock. */
-		if( child -> zslum == NULL ) {
-			result = add_to_slum( child );
-		}
-
 		ZF_CLR( child, ZNODE_NEW );
 
 		trace_on( TRACE_ZWEB, "create: %lli: %i [%lli]\n",

@@ -407,49 +407,6 @@ static inline void unlink_object (reiser4_lock_handle *handle)
 	handle->owner = NULL;
 }
 
-unsigned znode_save_free_space( znode *node )
-{
-	unsigned free_space;
-	reiser4_lock_handle *handle;
-	
- 	assert( "jmacd-1014", ! ZF_ISSET (node, ZNODE_FREE_SPACE) );
-	free_space = znode_free_space (node);
-	ZF_SET (node, ZNODE_FREE_SPACE);
-
-	for (handle = owners_list_front ( &node -> lock.owners );
-	            ! owners_list_end   ( &node -> lock.owners, handle );
-	     handle = owners_list_next  ( handle)) {
-		handle->free_space = free_space;
-	}
-
-	return free_space;
-}
-
-unsigned znode_recover_free_space( znode *node )
-{
-	if (ZF_ISSET (node, ZNODE_FREE_SPACE)) {
-		reiser4_lock_handle *handle;
-
-		assert ("jmacd-1090", ! owners_list_empty( &node -> lock.owners ));
-		
-		handle = owners_list_front ( &node -> lock.owners );
-
-		return handle->free_space;
-	}
-
-	return znode_free_space (node);
-}
-
-static void znode_propagate_free_space( znode *node, reiser4_lock_handle *new_handle )
-{
-	reiser4_lock_handle *handle = owners_list_back( &node -> lock.owners );
-
-	assert ("jmacd-1091", ! owners_list_empty( &node -> lock.owners ));
-	assert ("jmacd-1092", handle != new_handle);
-
-	new_handle->free_space = handle->free_space;
-}
-
 /*
  * Actually locks an object knowing that we are able to do this
  */
@@ -467,23 +424,6 @@ static void lock_object (reiser4_lock_stack *owner, znode *node)
 
 	if (owner->curpri) {
 		node->lock.nr_hipri_owners ++;
-	}
-
-	if (znode_is_wlocked (node) && znode_has_slum_lock_context (node)) {
-
-		if (znode_is_wlocked_once (node)) {
-			/* Record free space prior to the first write lock so we can
-			 * update the slum free space later. */
-			znode_save_free_space (node);
-
-			ON_DEBUG_MODIFY (znode_pre_write (node));
-		} else {
-			/* Pass free space information from one write lock handle to the
-			 * others.  This is because write locks can be released in a
-			 * different order than they were aquired and we need to know this
-			 * free space value when the last lock is released. */
-			znode_propagate_free_space (node, owner->request.handle);
-		}
 	}
 }
 
@@ -689,18 +629,6 @@ static void internal_unlock_znode (reiser4_lock_handle *handle)
 		if (ZF_ISSET(node, ZNODE_HEARD_BANSHEE)) {
 			assert("nikita-1221", is_empty_node(node));
 
-			/* Remove it from the slum. */
-			if (znode_has_slum_lock_context (node)) {
-
-				assert ("jmacd-1044", ZF_ISSET (node, ZNODE_FREE_SPACE));
-
-				/* Delete node from slum under tree lock. */
-				spin_lock_tree (current_tree);
-				delete_node_from_slum (node);
-				spin_unlock_tree (current_tree);
-
-				ZF_CLR (node, ZNODE_FREE_SPACE);
-			}
 			/*
 			 * invalidate lock. FIXME-NIKITA locking.  This doesn't
 			 * actually deletes node, only removes it from
@@ -719,42 +647,6 @@ static void internal_unlock_znode (reiser4_lock_handle *handle)
 			forget_znode(handle);
 			
 			return;
-		}
-
-		/* Update/add to slum */
-
-		else if (znode_above_root (node)) {
-			/* special case -- never added to a slum. */
-		} else if (znode_is_dirty (node) && ! znode_has_slum_lock_context (node)) {
-
-			int ret;
-
-			spin_lock_tree (current_tree);
-
-			if ((ret = add_to_slum (node))) {
-				/* FIXME_JMACD This is getting ugly. -josh */
-				rpanic ("jmacd-1031", "don't know what to do");
-			}
-
-			spin_unlock_tree (current_tree);
-
-			ZF_CLR (node, ZNODE_FREE_SPACE);
-
-		} else if (znode_is_dirty (node)) {
-			unsigned free_space;
-			int      change;
-
-			assert ("jmacd-1039", ZF_ISSET (node, ZNODE_FREE_SPACE));
-
-			/* Compute change in free space. */
-			free_space = znode_free_space (node);
-			change = free_space - znode_recover_free_space (node);
-			ZF_CLR (node, ZNODE_FREE_SPACE);
-
-			/* Update slum free space under tree lock. */
-			spin_lock_tree (current_tree);
-			node->zslum->free_space += change;
-			spin_unlock_tree (current_tree);
 		}
 	}
 

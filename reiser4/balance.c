@@ -25,21 +25,12 @@ blocknumbers, which must be unique so that zget() still works.
 
 #include "reiser4.h"
 
-/** Return 1 if the slum may be squeezed enough to free a node. */
-int slum_likely_squeezable( slum *hood )
-{
-	assert( "nikita-813", hood != NULL );
-	assert( "nikita-858", hood -> leftmost != NULL );
-
-	return (hood -> free_space > znode_size( hood -> leftmost )) &&
-		! (hood->flags & (SLUM_BEING_SQUEEZED | SLUM_WAS_SQUEEZED));
-}
-
 /**
  * Scan all nodes of squeezable slum and squeeze everything to the left.
  *
  * Go ahead and read comments in the body.
  */
+#if BROKEN_WITHOUT_SLUMS
 int balance_slum( slum *hood )
 {
 	int                  result;
@@ -293,6 +284,7 @@ int balance_slum( slum *hood )
 	reiser4_stat_slum_add( squeeze );
 	return result;
 }
+#endif
 
 /*
  * Local variables:

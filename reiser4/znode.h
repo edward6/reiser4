@@ -267,8 +267,6 @@ struct znode {
 	atomic_t               x_count;
 	/** pointers to maintain hash-table */
 	z_hash_link            link;
-	/** slum this znode is in, if any */
-	slum                  *zslum;
 
 	/** plugin of node attached to this znode. NULL if znode is not
 	    loaded. */
@@ -517,10 +515,8 @@ extern int  znodes_tree_init( reiser4_tree *ztree );
 extern void znodes_tree_done( reiser4_tree *ztree );
 extern int znode_contains_key( znode *node, const reiser4_key *key );
 extern int znode_invariant( const znode *node );
-extern int  znode_has_slum_lock_context( znode *node );
-extern int  znode_has_slum_commit_context( znode *node );
-extern int  znode_has_slum_notlocked_context( znode *node );
 extern void znode_set_dirty( znode *node );
+extern void znode_set_clean( znode *node );
 extern unsigned znode_save_free_space( znode *node );
 extern unsigned znode_recover_free_space( znode *node );
 

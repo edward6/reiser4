@@ -307,8 +307,9 @@ int random_commit_record (txn_atom *atom, log_region *region, struct super_block
  * first there are some other issues to work out.  At that point, random_commit_record
  * will go away and this will be the main entry point for formatting a log record.
  */
-int format_commit_record (txn_atom *atom)
+int format_commit_record (txn_atom *atom UNUSED_ARG)
 {
+#if 0
 	int level;
 	txn_node *scan;
 
@@ -318,7 +319,6 @@ int format_commit_record (txn_atom *atom)
 		     /**/ ! capture_list_end   (& atom->capture_level[level], scan);
 		     scan = capture_list_next  (scan)) {
 
-#if 0
 			if (ZF_ISSET (scan, ZNODE_ALLOC)) {
 
 				/* Newly allocated blocks are not recorded in the commit
@@ -350,9 +350,9 @@ int format_commit_record (txn_atom *atom)
 				/* Unmodified, captured node.  Should release at or prior
 				 * to this point (atom closing). */
 			}
-#endif
 		}
 	}
+#endif
 
 	return 0;
 }

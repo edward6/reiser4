@@ -115,13 +115,12 @@ FIND_NON_SCCS     := find . \( -regex '.*\(\(SCCS\)\|\(Attic\)\).*' -prune -o -t
   #                                                                         #
   ###########################################################################
 
-INCS            := -I. -I../../slpc
+INCS            := -I.
 SRC             := \
                    debug.c \
                    znode.c \
                    key.c \
                    oid.c \
-                   slum_track.c \
                    balance.c \
                    pool.c \
                    tree_mod.c \

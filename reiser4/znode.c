@@ -271,7 +271,6 @@ void zdestroy( znode *node )
 	assert( "nikita-468", atomic_read( &node -> d_count ) == 0 );
 	assert( "nikita-469", atomic_read( &node -> x_count ) == 0 );
 	assert( "nikita-470", atomic_read( &node -> c_count ) == 0 );
-	assert( "nikita-849", node -> zslum == NULL );
 
 	/* remove reference to this znode from pbk cache */
 	cbk_cache_invalidate( node );
@@ -965,61 +964,6 @@ void znode_post_write( const znode *node )
 }
 #endif
 
-/** this function is called from certain contexts in the lock manager to check if a node
- * has a slum without locking the tree.  In this context, we know that the znode is write
- * locked, its spinlock is held, and it is dirty if it has a slum.
- */
-int znode_has_slum_lock_context( znode *node )
-{
-	int ret;
-	
-	assert ("jmacd-1082", spin_tree_is_not_locked (current_tree));
-	assert ("jmacd-1083", spin_znode_is_locked (node));
-	assert ("jmacd-1084", znode_is_write_locked (node));
-
-	ret = ( node->zslum != NULL );
-
-	assert ("jmacd-1085", ret == 0 || znode_is_dirty (node));
-
-	return ret;
-}
-
-/** this function is called from certain contexts in the transaction manager to check if a
- * node has a slum without locking the tree.  In this context, we know that the atom is
- * locked and there are no open handles, thus no locks held on the node.  The znode
- * spinlock may or may not be held.
- */
-int znode_has_slum_commit_context( znode *node )
-{
-	assert ("jmacd-1086", spin_tree_is_not_locked (current_tree));
-	assert ("jmacd-1088", node->atom != NULL && spin_atom_is_locked (node->atom));
-	assert ("jmacd-1089", ! znode_is_any_locked (node));
-
-	return node->zslum != NULL;
-}
-
-/** this function is called from certain contexts where there are no long term locks on
- * the node and its spinlock is held.
- */
-int znode_has_slum_notlocked_context( znode *node )
-{
-	assert ("jmacd-1086", spin_tree_is_not_locked (current_tree));
-	assert ("jmacd-1088", spin_znode_is_locked (node));
-	assert ("jmacd-1089", ! znode_is_any_locked (node));
-
-	return node->zslum != NULL;
-}
-
-void znode_set_dirty( znode *node )
-{
-	assert ("jmacd-1083", spin_znode_is_not_locked (node));
-
-	/* May want to do some accounting here. */
-	spin_lock_znode (node);
-	ZF_SET (node, ZNODE_DIRTY);
-	spin_unlock_znode (node);
-}
-
 /** return pointer to static storage with name of lock_mode. For
     debugging */
 const char *lock_mode_name( znode_lock_mode lock )
@@ -1048,7 +992,7 @@ void info_znode( const char *prefix, const znode *node )
 		return;
 	}
 
-	info( "%s: %p: state: %x: [%s%s%s%s%s%s%s%s%s%s%s%s%s], slum: %p, level: %i, "
+	info( "%s: %p: state: %x: [%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, "
 	      "c_count: %i, d_count: %i, x_count: %i readers: %i, ", 
 	      prefix, node, node -> zstate, 
 
@@ -1066,7 +1010,7 @@ void info_znode( const char *prefix, const znode *node )
 	      znode_state_name( node, ZNODE_WRITEOUT ),
 	      znode_state_name( node, ZNODE_IS_DYING ),
 	      
-	      node -> zslum, znode_get_level( node ),
+	      znode_get_level( node ),
 	      atomic_read( &node -> c_count ),
 	      atomic_read( &node -> d_count ),
 	      atomic_read( &node -> x_count ),

@@ -182,9 +182,12 @@ struct txn_atom
 	/* Start time. */
 	unsigned long          start_time;
 
-	/* The transaction's list of captured blocks--per level. */
-	capture_list_head      capture_level[REISER4_MAX_ZTREE_HEIGHT];
+	/* The transaction's list of dirty captured blocks--per level. */
+	capture_list_head      dirty_level[REISER4_MAX_ZTREE_HEIGHT];
 
+	/* The transaction's list of clean captured blocks. */
+	capture_list_head      clean_nodes;
+	
 	/* List of handles associated with this atom. */
 	txnh_list_head         txnh_list;
 

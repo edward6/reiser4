@@ -21,14 +21,13 @@ int allocate_new_blocks (block_nr * hint UNUSED_ARG,
 }
 
 
+#if YOU_CAN_COMPILE_PSEUDO_CODE
+
 /* for every node in the slum @sl */
 int allocate_blocks_in_slum (reiser4_tree * tree UNUSED_ARG, slum * sl UNUSED_ARG)
 {
 	return 0;
 }
-
-
-#if YOU_CAN_COMPILE_PSEUDO_CODE
 
 /* we need to allocate node to the left of an extent before allocating the extent */
 

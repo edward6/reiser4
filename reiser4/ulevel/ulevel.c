@@ -2367,7 +2367,6 @@ int real_main( int argc, char **argv )
 
 	znodes_init();
 	init_plugins();
-	slums_init();
 	txn_init_static();
 	sys_rand_init();
 	memset( &super, 0, sizeof super );
@@ -2484,7 +2483,6 @@ int main (int argc, char **argv)
 
 	ret = real_main (argc, argv);
 
-	slums_done ();
 	txn_done_static ();
 
 	return ret;
