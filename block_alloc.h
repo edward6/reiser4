@@ -57,6 +57,7 @@ extern void reiser4_release_all_grabbed_space (void);
 
 extern void reiser4_count_fake_allocation   (__u64);
 extern void reiser4_count_fake_deallocation (__u64);
+extern void reiser4_unformatted_grabbed2unallocated (__u64 count);
 
 extern void reiser4_count_block_mapping     (__u64);
 extern void reiser4_count_block_unmapping   (__u64);
@@ -69,6 +70,7 @@ extern int blocknr_is_fake(const reiser4_block_nr * da);
 extern int reiser4_alloc_blocks (reiser4_blocknr_hint * hint,
 				 reiser4_block_nr * start, reiser4_block_nr * len);
 extern int reiser4_dealloc_blocks (const reiser4_block_nr *, const reiser4_block_nr *, int defer, block_stage_t);
+extern void check_block_counters (const struct super_block *);
 
 #if REISER4_DEBUG
 

@@ -125,6 +125,34 @@ static void sub_from_sb_used (const struct super_block *super, __u64 count)
 	reiser4_set_data_blocks (super, used_blocks);
 }
 
+
+/*
+ * super block has 4 counters: free, used, grabbed, unallocated. Their sum
+ * must be number of blocks on a device. This function checks this
+ */
+void check_block_counters (const struct super_block *super)
+{
+	__u64 sum;
+
+	if (!REISER4_DEBUG)
+		return;
+	sum = reiser4_grabbed_blocks (super) + reiser4_free_blocks (super) +
+		reiser4_data_blocks (super) + reiser4_unallocated_blocks (super);
+	if (reiser4_block_count (super) != sum) {
+		info ("super block counters: "
+		      "used %llu, free %llu, "
+		      "grabbed %llu, unallocated %llu, "
+		      "sum %llu, must be (block count) %llu\n",
+		      reiser4_data_blocks (super),
+		      reiser4_free_blocks (super),
+		      reiser4_grabbed_blocks (super),
+		      reiser4_unallocated_blocks (super),
+		      sum, reiser4_block_count (super));
+		impossible ("vs-922", "wrong block counters");
+	}
+}
+
+
 /**
  * should be called after @count fake block numbers are allocated or
  * unallocated extent (@count blocks in size) created
@@ -138,9 +166,17 @@ void reiser4_count_fake_allocation (__u64 count)
 	reiser4_spin_lock_sb(super);
 
 	sub_from_sb_grabbed(super, count);
-	add_to_sb_unallocated(super, count); 
+	add_to_sb_unallocated(super, count); 	
+
+	check_block_counters (super);
 
 	reiser4_spin_unlock_sb (super);
+}
+
+
+void reiser4_unformatted_grabbed2unallocated (__u64 count)
+{
+	reiser4_count_fake_allocation (count);
 }
 
 /**
@@ -157,6 +193,8 @@ void reiser4_count_fake_deallocation (__u64 count)
 	add_to_sb_grabbed(super, count);
 	sub_from_sb_unallocated(super, count); 
 
+	check_block_counters (super);
+
 	reiser4_spin_unlock_sb (super);
 }
 
@@ -172,8 +210,11 @@ void reiser4_count_block_mapping (__u64 count)
 	sub_from_sb_unallocated(super, count);
 	add_to_sb_used(super, count);
 
+	check_block_counters (super);
+
 	reiser4_spin_unlock_sb (super);
 }
+
 /**
  * adjust sb block counters when @count unallocated blocks get unmapped from
  * disk
@@ -186,6 +227,8 @@ void reiser4_count_block_unmapping (__u64 count)
 
 	add_to_sb_unallocated(super, count);
 	sub_from_sb_used(super, count);
+
+	check_block_counters (super);
 
 	reiser4_spin_unlock_sb (super);
 }
@@ -205,6 +248,8 @@ void reiser4_count_real_allocation (__u64 count)
 	sub_from_sb_grabbed(super, count);
 	add_to_sb_used(super, count);
 
+	check_block_counters (super);
+
 	reiser4_spin_unlock_sb (super);
 }
 
@@ -222,6 +267,8 @@ void reiser4_count_real_deallocation (__u64 count)
 
 	add_to_sb_grabbed(super, count);
 	sub_from_sb_used(super, count);
+
+	check_block_counters (super);
 
 	reiser4_spin_unlock_sb (super);
 }
@@ -276,6 +323,8 @@ int reiser4_grab_space (__u64 * grabbed, __u64 min_block_count, __u64 max_block_
 	free_blocks -= *grabbed;
 	reiser4_set_free_blocks (super, free_blocks);
 
+	check_block_counters (super);
+
 	/*trace_if (TRACE_ALLOC, info ("reiser4_grab_space: grabbed %llu, free blocks left %llu\n",
 	 *grabbed, reiser4_free_blocks (super)));*/
 
@@ -310,6 +359,8 @@ void reiser4_release_grabbed_space (__u64 count)
 	sub_from_sb_grabbed(super, count);
 	reiser4_set_free_blocks (super, reiser4_free_blocks (super) + count);
 	
+	check_block_counters (super);
+
 	reiser4_spin_unlock_sb (super);
 }
 /**
