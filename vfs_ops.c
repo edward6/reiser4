@@ -1923,7 +1923,7 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	assert( "nikita-2258", node != NULL );
 
 	result = 0;
-	if( !PageDirty( page ) ) {
+	if( !PageDirty( page ) && page_count( page ) <= 3) {
 
 		spin_lock_jnode( node );
 
