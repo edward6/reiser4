@@ -1773,7 +1773,7 @@ reiser4_get_dentry_parent(struct dentry *child)
 	memset(&dentry, 0, sizeof(dentry));
 	dentry.d_name.name = "..";
 	dentry.d_name.len = 2;
-	dentry.d_op = &reiser4_dentry_operations;
+	dentry.d_op = &get_super_private(parent->i_sb)->ops.dentry;
 
 	result = inode_dir_plugin(dir)->lookup_name(dir, &dentry, &key);
 	if (result)
