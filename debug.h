@@ -243,6 +243,7 @@ extern __u32 reiser4_current_trace_flags;
  *
  */
 
+#define reiser4_stat_key_add( stat ) ST_INC_CNT( key. ## stat )
 #define	reiser4_stat_tree_add( stat ) ST_INC_CNT( tree. ## stat )
 #define reiser4_stat_znode_add( stat ) ST_INC_CNT( znode. ## stat )
 #define reiser4_stat_dir_add( stat ) ST_INC_CNT( dir. ## stat )
@@ -626,6 +627,26 @@ typedef struct reiser4_statistics {
 	 * maximal stack size ever consumed by reiser4 thread.
 	 */
 	stat_cnt stack_size_max;
+	struct {
+		/*
+		 * how many times keycmp() was called
+		 */
+		stat_cnt eq0;
+		/*
+		 * how many times keycmp() found first 64 bits of a key
+		 * equal
+		 */
+		stat_cnt eq1;
+		/*
+		 * how many times keycmp() found first 128 bits of a key
+		 * equal
+		 */
+		stat_cnt eq2;
+		/*
+		 * how many times keycmp() found equal keys
+		 */
+		stat_cnt eq3;
+	} key;
 } reiser4_stat;
 
 #else

@@ -156,8 +156,16 @@ void reiser4_print_stats()
 	      "global:\n"
 	      "\t non_uniq:\t %lli\n"
 	      "\t non_uniq_max:\t %lli\n"
-	      "\t stack_size_max:\t %lli\n",
+	      "\t stack_size_max:\t %lli\n"
 
+	      "key:\n"
+	      "\t eq0:\t %lli\n"
+	      "\t eq1:\t %lli\n"
+	      "\t eq2:\t %lli\n"
+	      "\t eq3:\t %lli\n"
+
+	      ,
+	      
 	      s -> tree.cbk,
 	      s -> tree.cbk_found,
 	      s -> tree.cbk_notfound,
@@ -210,7 +218,12 @@ void reiser4_print_stats()
 
 	      s -> non_uniq,
 	      s -> non_uniq_max,
-	      s -> stack_size_max );
+	      s -> stack_size_max,
+	      
+	      s -> key.eq0,
+	      s -> key.eq1,
+	      s -> key.eq2,
+	      s -> key.eq3 );
 
 	for( i = 0 ; i < REAL_MAX_ZTREE_HEIGHT ; ++ i ) {
 		if( s -> level[ i ].total_hits_at_level <= 0 )

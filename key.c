@@ -80,6 +80,7 @@ cmp_t keycmp( const reiser4_key *k1 /* first key to compare */,
 	assert( "nikita-440", k2 != NULL );
 
 	if( REISER4_PLANA_KEY_ALLOCATION ) {
+		reiser4_stat_key_add( eq0 );
 		/* if physical order of fields in a key is identical
 		   with logical order, we can implement key comparison
 		   as three 64bit comparisons. */
@@ -90,11 +91,16 @@ cmp_t keycmp( const reiser4_key *k1 /* first key to compare */,
 		/* compare locality and type at once */
 		result = DIFF_EL( 0 );
 		if( result == EQUAL_TO ) {
+			reiser4_stat_key_add( eq1 );
 			/* compare objectid (and band if it's there) */
 			result = DIFF_EL( 1 );
 			/* compare offset */
 			if( result == EQUAL_TO ) {
+				reiser4_stat_key_add( eq2 );
 				result = DIFF_EL( 2 );
+				ON_STATS({ 
+					if( result == EQUAL_TO ) 
+						reiser4_stat_key_add( eq3 ); });
 			}
 		}
 	} else if( REISER4_3_5_KEY_ALLOCATION ) {
