@@ -398,7 +398,6 @@ void fill_backtrace(backtrace_path *path, int depth, int shift)
 		if (is_last_frame(addr))
 			break;
 	}
-	DEBUGON(path->trace[0] != NULL && path->trace[1] == NULL);
 }
 #endif
 
