@@ -916,10 +916,12 @@ static int reiser4_permission( struct inode *inode /* object */,
  *
  * Used by link/create and during creation of dot and dotdot in mkdir
  */
-/* Audited by: umka (2002.06.12) */
-int reiser4_add_nlink( struct inode *object /* object to which link is added */ )
+int reiser4_add_nlink( struct inode *object /* object to which link is added */,
+		       int write_sd_p /* true is stat-data has to be
+				       * updated */ )
 {
 	file_plugin *fplug;
+	int          result;
 
 	assert( "nikita-1351", object != NULL );
 
@@ -934,7 +936,10 @@ int reiser4_add_nlink( struct inode *object /* object to which link is added */ 
 
 	assert( "nikita-2211", fplug -> add_link != NULL );
 	/* call plugin to do actual addition of link */
-	return fplug -> add_link( object );
+	result = fplug -> add_link( object );
+	if( ( result == 0 ) && write_sd_p )
+		result = fplug -> write_sd_by_inode( object );
+	return result;
 }
 
 /**
@@ -945,20 +950,25 @@ int reiser4_add_nlink( struct inode *object /* object to which link is added */ 
  */
 /* Audited by: umka (2002.06.12) */
 int reiser4_del_nlink( struct inode *object /* object from which link is
-					     * removed */ )
+					     * removed */,
+		       int write_sd_p /* true is stat-data has to be
+				       * updated */ )
 {
 	file_plugin *fplug;
+	int          result;
 
 	assert( "nikita-1349", object != NULL );
 
 	fplug = inode_file_plugin( object );
 	assert( "nikita-1350", fplug != NULL );
-
 	assert( "nikita-1446", object -> i_nlink > 0 );
-
 	assert( "nikita-2210", fplug -> rem_link != NULL );
+
 	/* call plugin to do actual deletion of link */
-	return fplug -> rem_link( object );
+	result = fplug -> rem_link( object );
+	if( ( result == 0 ) && write_sd_p )
+		result = fplug -> write_sd_by_inode( object );
+	return result;
 }
 
 /** call ->create() directory plugin method. */
