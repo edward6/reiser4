@@ -223,12 +223,11 @@ static freeSpace_t * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws)
 	return next;
 }
 
-static char* list_alloc(struct reiser4_syscall_w_space * ws, int size)
+static char* list_alloc(struct reiser4_syscall_w_space * ws, int len)
 {
 	char * rez;
-	PTRACE(ws, "begin, space=%p, free=%p", ws->freeSpCur,ws->freeSpCur->freeSpace);
-	assert("list_alloc:bad ws",ws!=NULL);
-	if( (unsigned long)(ws->freeSpCur->freeSpace) > ((unsigned long)(ws->freeSpCur->freeSpaceMax) - size) )
+	PTRACE(ws, "begin, space=%p, free=%p, len =%d, end=%p", ws->freeSpCur,ws->freeSpCur->freeSpace,len,ws->freeSpCur->freeSpaceMax);
+	if( (ws->freeSpCur->freeSpace+len) > (ws->freeSpCur->freeSpaceMax) )
 		{
 			PTRACE(ws, "new1, space=%p, free=%p", ws->freeSpCur,ws->freeSpCur->freeSpace);
 			ws->freeSpCur = freeSpaceNextAlloc(ws);
@@ -237,7 +236,7 @@ static char* list_alloc(struct reiser4_syscall_w_space * ws, int size)
 		}
 	rez = ws->freeSpCur->freeSpace;
 	assert("VD-LIST_ALLOC:rez==NULL",rez!=NULL);
-	ws->freeSpCur->freeSpace += ROUND_UP(size);
+	ws->freeSpCur->freeSpace += ROUND_UP(len);
 	PTRACE(ws, "end, space=%p, free=%p rez = %p", ws->freeSpCur,ws->freeSpCur->freeSpace,rez);
 	return rez;
 }
@@ -252,7 +251,7 @@ static streg_t *alloc_new_level(struct reiser4_syscall_w_space * ws)
 static vnode_t * alloc_vnode(struct reiser4_syscall_w_space * ws, vnode_t * last_vnode)
 {
 	vnode_t * vnode;
-	PTRACE(ws, "%s", "begin");
+	PTRACE(ws, "begin ws->Head_vnode =%p last_vnode=%p",ws->Head_vnode, last_vnode);
 
 	vnode = (vnode_t *)list_alloc(ws,sizeof(vnode_t));
 
@@ -265,6 +264,7 @@ static vnode_t * alloc_vnode(struct reiser4_syscall_w_space * ws, vnode_t * last
 			last_vnode->next=vnode;
 		}
 	vnode->next=NULL;
+	PTRACE(ws, "return vnode =%p ",vnode);
 	return vnode;
 }
 
@@ -552,27 +552,27 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 	char * s ;
 	PTRACE(ws, "%s", "lex1");
 
-	s = curr_symbol(ws);              /* first symbol or Last readed symbol of the previous token parsing */
-	if ( *s == 0 ) return EOF;        /* end of string is EOF */
+//	s = curr_symbol(ws);              /* first symbol or Last readed symbol of the previous token parsing */
+	if ( *curr_symbol(ws) == 0 ) return EOF;        /* end of string is EOF */
 
-	while(ncl[*s]==Blk)
+	while(ncl[*curr_symbol(ws)]==Blk)
 		{
-			s = next_symbol(ws);
-			if ( *s == 0 ) return EOF;  /* end of string is EOF */
+			next_symbol(ws);
+			if ( *curr_symbol(ws) == 0 ) return EOF;  /* end of string is EOF */
 		}
 
 
-	lcls    =       ncl[*s];
-	ws->yytext  = s;
+	lcls    =       ncl[*curr_symbol(ws)];
+	ws->yytext  = curr_symbol(ws);
 	term = 1;
 	while( term )
 		{
-//			PTRACE(ws, "while1: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*s);
-			while ( ( n = lexcls[ lcls ].c[ i=ncl[ * ( s ) ] ] ) > 0   )
+			PTRACE(ws, "while1: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*curr_symbol(ws));
+			while ( ( n = lexcls[ lcls ].c[ i=ncl[ *curr_symbol(ws) ] ] ) > 0   )
 				{
-					PTRACE(ws, "while2: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*s);
+					PTRACE(ws, "while2: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*curr_symbol(ws));
 					lcls=n;
-					s = next_symbol(ws);
+					next_symbol(ws);
 				}
 			if ( n == OK )
 				{
@@ -580,12 +580,12 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 				}
 			else 
 				{
-					PTRACE(ws, "error: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*s);
-					yyerror ( ws, 2222, (lcls-1)* 20+i, s );
+					PTRACE(ws, "error: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*curr_symbol(ws));
+					yyerror ( ws, 2222, (lcls-1)* 20+i, curr_symbol(ws) );
 					return(0);
 				}
 		}
-	PTRACE(ws, "lex2: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*s);
+	PTRACE(ws, "lex2: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*curr_symbol(ws));
 	switch (lcls)
 		{
 		case Blk:
@@ -759,23 +759,24 @@ static inline expr_v4_t * pars_lookup_root(struct reiser4_syscall_w_space * ws)
 }
 
 
-static vnode_t *  lookup_vnode_word(struct reiser4_syscall_w_space * ws, vnode_t * vnode, wrd_t * w)
+static vnode_t *  lookup_vnode_word(struct reiser4_syscall_w_space * ws, vnode_t * parent, wrd_t * w)
 {
 	int error;
 	int result=0;
 	struct dentry  * de;
 	vnode_t * rez_vnode;
 	vnode_t * last_vnode;
-	PTRACE(ws, "%s", "begin");
+	PTRACE(ws, "begin ws->Head_vnode=%p, parent=%p",ws->Head_vnode,parent);
 
 	last_vnode  = NULL;
 	rez_vnode   = ws->Head_vnode;
 #if 0
 	printk(" %s",w->u.name);
 #else
-	while (rez_vnode)
+	while (rez_vnode!=NULL)
 		{
-			if( rez_vnode->parent == vnode && rez_vnode->w == w)
+			PTRACE(ws, "while rez=%p,rez_vnode->parent=%p, last=%p",rez_vnode,rez_vnode->parent,last_vnode);
+			if( rez_vnode->parent == parent && rez_vnode->w == w)
 				{
 					rez_vnode->count++;
 					return rez_vnode;
@@ -786,23 +787,26 @@ static vnode_t *  lookup_vnode_word(struct reiser4_syscall_w_space * ws, vnode_t
 //	reiser4_fs        = 0;
 	rez_vnode         = alloc_vnode(ws, last_vnode);
 	rez_vnode->w      = w;
-	rez_vnode->parent = vnode;
+	rez_vnode->parent = parent;
 
-	switch (vnode->ln->h.type)
+	switch (parent->ln->h.type)
 		{
 		case LNODE_DENTRY:
-			de = vnode->ln->dentry.dentry;
+			PTRACE(ws, "parent dentry=%p",parent->ln->dentry.dentry);
+			de = parent->ln->dentry.dentry;
 			break;
 		case LNODE_INODE:
-			de = d_alloc_anon(vnode->ln->inode.inode);
+			de = d_alloc_anon(parent->ln->inode.inode);
 			break;
 		case LNODE_PSEUDO:
 		case LNODE_LW:
 		case LNODE_NR_TYPES:
 			break;
 		}
+	PTRACE(ws, "de=%p",de);
 	rez_vnode->ln->h.type= LNODE_DENTRY;
 	rez_vnode->ln->dentry.dentry= lookup_one_len( w->u.name, de, w->u.len);
+	PTRACE(ws, "rez de=%p",rez_vnode->ln->dentry.dentry);
 #endif
 	return rez_vnode;
 }
