@@ -1459,7 +1459,7 @@ protect_extent_nodes(oid_t oid, unsigned long ind, __u64 count, __u64 *protected
 		node = jlook_lock(tree, oid, ind + i);
 		/*
 		 * all jnodes of unallocated extent should be in
-		 * place. Truncate first removes extent item, then jnodes.
+		 * place. Truncate removes extent item together with jnodes
 		 */
 		assert("nikita-3087", node != NULL);
 
@@ -1842,8 +1842,6 @@ allocate_extent_item_in_place(coord_t *coord, lock_handle *lh, flush_pos_t *flus
 			index += width;
 			continue;
 		}
-
-		result = 0;
 
 		assert("vs-439", state_of_extent(ext) == UNALLOCATED_EXTENT);
 
