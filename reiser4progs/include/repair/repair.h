@@ -1,15 +1,17 @@
 /*
-    repair.h -- the central recovery include file.
+    repair/repair.h -- the common structures and methods for recovery.
     Copyright (C) 1996 - 2002 Hans Reiser
     Author Vitaly Fertman
 */
 
-#ifndef PROGS_H
-#define PROGS_H
+#ifndef REPAIR_H
+#define REPAIR_H
 
-//#include <reiser4/reiser4.h>
-#include <getopt.h>
-#include <stdio.h>
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
+#include <aal/aal.h>
 
 struct repair_data {
     reiser4_profile_t *profile;
@@ -17,9 +19,13 @@ struct repair_data {
     uint16_t options;
 
     FILE *logfile;
+    aal_device_t *host_device;
+    aal_device_t *journal_device;
 };
 
 typedef struct repair_data repair_data_t;
+
+#define repair_data(fs)			((repair_data_t *)fs->data)
 
 /* Repair modes. */
 #define REPAIR_CHECK	0x1
@@ -39,38 +45,11 @@ typedef struct repair_data repair_data_t;
 #define repair_test_option(bit, repair_data)	(aal_test_bit(bit, &repair_data->options))
 #define repair_clear_option(bit, repair_data)	(aal_clear_bit(bit, &repair_data->options))
 
-
-/*  -----------------------------------------------------------
-    | Common scheem for communication with users.             |
-    |---------------------------------------------------------|
-    |  stream (modifier) | default | with log | with 'no-log' |
-    |--------------------|---------|--------------------------|
-    | warn  (verbose)    | stderr  | log      |  -            |
-    | info               | stderr  | stderr   |  -            |
-    | error (verbose)    | stderr  | log      |  -            |
-    | fatal              | stderr  | stderr   | stderr        |
-    | bug                | stderr  | stderr   | stderr        |
-    -----------------------------------------------------------
-    info   - Information which is supposed to be viewed on-line.
-    warn   - Possible problems.
-    error  - Problems. 
-    fatal  - Problems which are supposed to be viewed on-line. 
-
-    Problems: we need to support auto mode (choose the default answer 
-    on all questions), verbose mode (when extra info will be printed) 
-    and quiet mode (minimum of the progress) for all plugins.
-*/
-
-#define progs_fatal(msg, list...) \
-    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, msg, ##list)
-#define progs_bug(msg, list...)	\
-    aal_exception_throw(EXCEPTION_BUG, EXCEPTION_OK, msg, ##list)
-#define progs_error(msg, list...) \
-    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, msg, ##list)
-#define progs_warn(msg, list...) \
-    aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, msg, ##list)
-#define progs_info(msg, list...) \
-    aal_exception_throw(EXCEPTION_INFORMATION, EXCEPTION_OK, msg, ##list)
+#define repair_no_journal(repair_data)	(repair_test_option(REPAIR_OPT_NO_JOURNAL, repair_data))
+#define repair_auto(repair_data)	(repair_test_option(REPAIR_OPT_AUTO, repair_data))
+#define repair_force(repair_data)	(repair_test_option(REPAIR_OPT_FORCE, repair_data))
+#define repair_quiet(repair_data)	(repair_test_option(REPAIR_OPT_QUIET, repair_data))
+#define repair_verbose(repair_data)	(repair_test_option(REPAIR_OPT_VERBOSE, repair_data))
 
 #endif
 
