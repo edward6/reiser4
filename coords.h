@@ -30,7 +30,8 @@ typedef enum {
  * insertions happen between coords in the tree, so we need some means
  * of specifying the sense of betweenness.
  */
-typedef enum { 
+typedef enum {
+	EMPTY_UNIT,
 	BEFORE_UNIT,
 	AT_UNIT,
 	AFTER_UNIT,
@@ -42,14 +43,14 @@ struct tree_coord {
 	/* node in a tree */
 	znode *node;
 	/* position of item within node */
-	pos_in_node  item_pos;
+	//pos_in_node  item_pos;
 	/* position of unit within item */
-	pos_in_item  unit_pos;
+	//pos_in_item  unit_pos;
 	/** 
 	 * position of coord w.r.t. to neighboring items and/or units. 
 	 * Values are taken from &between_enum above.
 	 */
-	between_enum  between;
+	//between_enum  between;
 	/*
 	 * FIXME-NIKITA possible future optimization: store plugin id of item
 	 * here. Profiling shows that node40_plugin_by_coord() is top CPU
@@ -66,6 +67,138 @@ struct readpage_arg {
 	tree_coord * coord;
 	lock_handle * lh;
 };
+
+/* Reverse a direction. */
+static inline sideof sideof_reverse (sideof side)
+{
+	return side == LEFT_SIDE ? RIGHT_SIDE : LEFT_SIDE;
+}
+
+/* NOTE: There is a somewhat odd mixture of the following opposed terms:
+ *
+ * "first" and "last"
+ * "next" and "prev"
+ * "before" and "after"
+ * "leftmost" and "rightmost"
+ *
+ * But I the chosen names are decent the way they are.
+ */
+
+#if 1
+
+/* Initialize an invalid coordinate. */
+extern void coord_init  (tree_coord *coord);
+
+/* Initialize a coordinate to point at the first unit of the first item.  If the node is
+ * empty, it is positioned at the EMPTY_UNIT. */
+extern void coord_init_first_unit (tree_coord *coord, znode *node);
+
+/* Initialize a coordinate to point at the last unit of the last item.  If the node is
+ * empty, it is positioned at the EMPTY_UNIT. */
+extern void coord_init_last_unit (tree_coord *coord, znode *node);
+
+/* Initialize a coordinate to before the first item.  If the node is empty, it is
+ * positioned at the EMPTY_UNIT. */
+extern void coord_init_before_first_item (tree_coord *coord, znode *node);
+
+/* Initialize a coordinate to after the last item.  If the node is empty, it is positioned
+ * at the EMPTY_UNIT. */
+extern void coord_init_after_last_item (tree_coord *coord, znode *node);
+
+/* Copy a coordinate. */
+extern void coord_dup (tree_coord *new_coord, const tree_coord *old_coord);
+
+#if REISER4_DEBUG
+/* For assertions only, checks for a valid coordinate. */
+extern int  coord_check (const tree_coord *coord);
+#endif
+
+/* Return the number of items at the present node.  Asserts coord->node != NULL. */
+extern unsigned coord_num_items (const tree_coord *coord);
+
+/* Return the number of units at the present item.  Asserts coord_is_existing_item(). */
+extern unsigned coord_num_units (const tree_coord *coord);
+
+/* Return the last valid unit number at the present item (i.e., coord_num_units() - 1). */
+extern unsigned coord_last_unit_pos (const tree_coord *coord);
+
+/* This is used to test whether the item position is valid for the current node.  If the
+ * node is empty the coord must be set to EMPTY_UNIT and the item/unit positions must be 0.
+ * Otherwise, the item position may be anywhere from before the first item to after the
+ * last item, but its item position must be less than the number of items in the node. */
+extern int coord_is_item_pos_valid (const tree_coord *coord);
+
+/* Returns true if the coordinate is positioned at an existing item, not before or after
+ * an item.  It may be placed at, before, or after any unit within the item, whether
+ * existing or not. */
+extern int coord_is_existing_item (const tree_coord *coord);
+
+/* Returns true if the coordinate is positioned between existing items (not between
+ * existing units). */
+extern int coord_is_between_items (const tree_coord *coord);
+
+/* Returns true if the coordinate is positioned at an existing unit, not before or after a
+ * unit. */
+extern int coord_is_existing_unit (const tree_coord *coord);
+
+/* Returns true if the coordinate is positioned at the first unit of the first item.  Not
+ * true for empty nodes nor coordinates positioned before the first item. */
+extern int coord_is_rightmost_unit (const tree_coord *coord);
+
+/* Returns true if the coordinate is positioned at the last unit of the last item.  Not
+ * true for empty nodes nor coordinates positioned after the last item. */
+extern int coord_is_leftmost_unit (const tree_coord *coord);
+
+/* Returns true if the coordinate is positioned AFTER THE LAST ITEM. */
+extern int coord_is_after_rightmost (const tree_coord *coord);
+
+/* Returns true if the coordinate is positioned BEFORE THE FIRST ITEM. */
+extern int coord_is_before_leftmost (const tree_coord *coord);
+
+/* Advances the coordinate by one unit to the right.  If empty, no change.  If
+ * coord_is_rightmost_unit, advances to AFTER THE LAST ITEM.  Returns 0 if new position is
+ * an existing unit. */
+extern int coord_next_unit (tree_coord *coord);
+
+/* Advances the coordinate by one item to the right.  If empty, no change.  If
+ * coord_is_rightmost_unit, advances to AFTER THE LAST ITEM.  Returns 0 if new position is
+ * an existing item. */
+extern int coord_next_item (tree_coord *coord);
+
+/* Advances the coordinate by one unit to the left.  If empty, no change.  If
+ * coord_is_leftmost_unit, advances to BEFORE THE FIRST ITEM.  Returns 0 if new position
+ * is an existing unit. */
+extern int coord_prev_unit (tree_coord *coord);
+
+/* Advances the coordinate by one item to the left.  If empty, no change.  If
+ * coord_is_leftmost_unit, advances to BEFORE THE FIRST ITEM.  Returns 0 if new position
+ * is an existing item. */
+extern int coord_prev_item (tree_coord *coord);
+
+/* If the coordinate is between items, shifts it to the right.  Returns ??? */
+extern int coord_set_to_right (tree_coord *coord);
+
+/* If the coordinate is between items, shifts it to the left.  Returns ??? */
+extern int coord_set_to_left (tree_coord *coord);
+
+/* Calls either coord_next_unit or coord_prev_unit depending on sideof argument. */
+extern int coord_sideof_unit (tree_coord *coord, sideof dir);
+
+/* Calls either coord_init_first_unit or coord_init_last_unit depending on sideof argument. */
+extern int coord_init_sideof_unit (tree_coord *coord, znode *node, sideof dir);
+
+/* Calls either coord_init_first_unit or coord_init_last_unit depending on sideof argument. */
+extern int coord_after_sideof_unit (tree_coord *coord, sideof dir);
+
+
+
+/* ??? */
+extern coord_wrt_node coord_wrt (const tree_coord *coord);
+extern int  coord_are_neighbors( tree_coord *c1, tree_coord *c2 );
+extern int coord_eq( const tree_coord *c1, const tree_coord *c2 );
+extern void coord_print (const char * mes, const tree_coord * coord, int print_node);
+
+#else
 
 extern int init_coord( tree_coord *coord );
 extern void dup_coord(tree_coord * new, const tree_coord * old);
@@ -105,10 +238,7 @@ extern void print_coord (const char * mes, const tree_coord * coord, int);
 
 extern coord_wrt_node coord_wrt( const tree_coord *coord );
 
-static inline sideof sideof_reverse (sideof side)
-{
-	return side == LEFT_SIDE ? RIGHT_SIDE : LEFT_SIDE;
-}
+#endif
 
 /* __REISER4_COORDS_H__ */
 #endif

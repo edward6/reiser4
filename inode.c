@@ -253,7 +253,6 @@ static void read_inode( struct inode * inode /* inode to read from disk */,
 	info = reiser4_inode_data( inode );
 	assert( "nikita-300", info -> locality_id != 0 );
 
-	init_coord( &coord );
 	init_lh( &lh );
 	/* locate stat-data in a tree and return znode locked */
 	result = lookup_sd_by_key( tree_by_inode( inode ), 
@@ -275,7 +274,6 @@ static void read_inode( struct inode * inode /* inode to read from disk */,
 	   stay read-locked while stat-data fields are accessed in
 	   init_inode() */
 	done_lh( &lh );
-	done_coord( &coord );
 	if( result != 0 ) {
 		reiser4_make_bad_inode( inode );
 		unlock_new_inode( inode );
@@ -463,7 +461,7 @@ void print_inode( const char *prefix /* prefix to print */,
 	print_plugin( "\thash", hash_plugin_to_plugin( ref -> hash ) );
 	print_plugin( "\tsd", item_plugin_to_plugin( ref -> sd ) );
 	print_seal( "\tsd_seal", &ref -> sd_seal );
-	print_coord( "\tsd_coord", &ref -> sd_coord, 1 );
+	coord_print( "\tsd_coord", &ref -> sd_coord, 1 );
 	info( "\tflags: %u, bytes: %llu, extmask: %llu, sd_len: %i, pmask: %i, locality: %llu\n",
 	      ref -> flags, ref -> bytes, ref -> extmask, 
 	      ( int ) ref -> sd_len, ref -> plugin_mask, ref -> locality_id );

@@ -36,7 +36,7 @@ int tail_can_contain_key (const tree_coord * coord, const reiser4_key * key,
 
 	assert ("vs-459",
 		(coord->unit_pos == 0 && coord->between == BEFORE_UNIT) ||
-		(coord->unit_pos == last_unit_pos (coord) &&
+		(coord->unit_pos == coord_last_unit_pos (coord) &&
 		 coord->between == AFTER_UNIT));
 
 	if (coord->between == BEFORE_UNIT) {
@@ -322,7 +322,7 @@ int tail_cut_units (tree_coord * coord, unsigned * from, unsigned * to,
 	/*
 	 * tails items are never cut from the middle of an item
 	 */
-	assert ("vs-396", ergo (*from != 0, *to == last_unit_pos (coord)));
+	assert ("vs-396", ergo (*from != 0, *to == coord_last_unit_pos (coord)));
 
 
 	if (smallest_removed) {
@@ -353,7 +353,7 @@ int tail_cut_units (tree_coord * coord, unsigned * from, unsigned * to,
  */
 reiser4_key * tail_unit_key (const tree_coord * coord, reiser4_key * key)
 {
-	assert ("vs-375", coord_of_unit (coord));
+	assert ("vs-375", coord_is_existing_unit (coord));
 
 	item_key_by_coord (coord, key);
 	set_key_offset (key, (get_key_offset (key) + coord->unit_pos));
@@ -415,7 +415,7 @@ static tail_write_todo tail_what_todo (struct inode * inode, tree_coord * coord,
 		get_key_objectid (key) == get_key_objectid (&item_key));
 
 
-	if (coord_of_unit (coord)) {
+	if (coord_is_existing_unit (coord)) {
 		/*
 		 * make sure that @coord is set to proper position
 		 */
@@ -427,7 +427,7 @@ static tail_write_todo tail_what_todo (struct inode * inode, tree_coord * coord,
 	}
 
 	if (coord->between != AFTER_UNIT ||
-	    coord->unit_pos != last_unit_pos (coord)) {
+	    coord->unit_pos != coord_last_unit_pos (coord)) {
 		/*
 		 * FIXME-VS: we could try to adjust coord
 		 */

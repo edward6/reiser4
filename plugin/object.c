@@ -125,7 +125,7 @@ int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */,
 		/* something other, for which we don't want to print a message */
 		break;
 	case CBK_COORD_FOUND: {
-		assert( "nikita-1082", coord_of_unit( coord ) );
+		assert( "nikita-1082", coord_is_existing_unit( coord ) );
 		assert( "nikita-721", item_plugin_by_coord( coord ) != NULL );
 		/* next assertion checks that item we found really has
 		   the key we've been looking for */
@@ -197,7 +197,6 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 
 	inode -> i_ino = oid;
 
-	init_coord( &coord );
 	init_lh( &lh );
 
 	result = insert_by_key( tree_by_inode( inode ),
@@ -257,7 +256,6 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	}
 	}
 	done_lh( &lh );
-	done_coord( &coord );
 	if( result != 0 )
 		key_warning( error_message, &key, result );
 	done_lh(&lh);
@@ -300,7 +298,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 		if( REISER4_DEBUG && ( result == 0 ) ) {
 			reiser4_key ukey;
 
-			if( !coord_of_unit( &coord ) ||
+			if( !coord_is_existing_unit( &coord ) ||
 			    !item_plugin_by_coord( &coord ) ||
 			    !keyeq( unit_key_by_coord( &coord, &ukey ), &key ) ||
 			    ( znode_get_level( coord.node ) != LEAF_LEVEL ) ||
@@ -308,7 +306,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 				warning( "nikita-1901", "Conspicuous seal" );
 				print_inode( "inode", inode );
 				print_key( "key", &key );
-				print_coord( "coord", &coord, 1 );
+				coord_print( "coord", &coord, 1 );
 				result = -EIO;
 			}
 		}
@@ -316,7 +314,6 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 		result = -EAGAIN;
 
 	if( result != 0 ) {
-		init_coord( &coord );
 		result = lookup_sd( inode, ZNODE_WRITE_LOCK, &coord, &lh, &key );
 	}
 	error_message = NULL;
@@ -387,7 +384,6 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 		}
 	}
 	done_lh( &lh );
-	done_coord( &coord );
 	return result;
 }
 
@@ -515,7 +511,7 @@ int common_file_owns_item( const struct inode *inode /* object to check
 	assert( "nikita-761", coord != NULL );
 
 	return /*coord_is_in_node( coord ) &&*/
-		coord_of_item (coord) &&
+		coord_is_existing_item (coord) &&
 		( get_key_objectid( build_sd_key ( inode, &file_key ) ) ==
 		  get_key_objectid( item_key_by_coord( coord, &item_key ) ) );
 }
@@ -630,7 +626,6 @@ static int dir_can_rem_link( const struct inode *dir )
 	if( result != 0 )
 		return result;
 
-	init_coord( &coord );
 	init_lh( &lh );
 		
 	/* 
@@ -667,7 +662,6 @@ static int dir_can_rem_link( const struct inode *dir )
 		break;
 	}
 	done_lh( &lh );
-	done_coord( &coord );
 	return result;
 }
 

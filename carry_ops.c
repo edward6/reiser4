@@ -447,7 +447,7 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 		 * shift everything possible on the right of and
 		 * including insertion coord into the right neighbor.
 		 */
-		dup_coord( &coord_shadow, op -> u.insert.d -> coord );
+		coord_dup( &coord_shadow, op -> u.insert.d -> coord );
 		node_shadow = op -> node;
 		result = carry_shift_data( RIGHT_SIDE, op -> u.insert.d -> coord,
 					   fresh -> real_node, doing, todo, 1 );
@@ -464,14 +464,11 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 			 * still no enough space?! May be there is enough
 			 * space in the source node now.
 			 */
-			done_coord( op -> u.insert.d -> coord );
-			dup_coord( op -> u.insert.d -> coord, 
-					   &coord_shadow );
+			coord_dup( op -> u.insert.d -> coord, &coord_shadow );
 			node = op -> u.insert.d -> coord -> node;
 			op -> node = node_shadow;
 			not_enough_space = free_space_shortage( node, op );
 		}
-		done_coord( &coord_shadow );
 	}
 	if( not_enough_space > 0 ) {
 		if( !( op -> u.insert.flags & COPI_DONT_ALLOCATE ) )
@@ -677,8 +674,6 @@ static int carry_insert( carry_op *op /* operation to perform */,
 	trace_stamp( TRACE_CARRY );
 	reiser4_stat_level_add( doing, insert );
 
-	init_coord( &coord );
-
 	/* perform common functionality of insert and paste. */
 	result = insert_paste_common( op, doing, todo, &cdata, &coord, &data );
 	if( result != 0 )
@@ -697,7 +692,7 @@ static int carry_insert( carry_op *op /* operation to perform */,
 		  op -> u.insert.d -> data, todo );
 	doing -> restartable = 0;
 	znode_set_dirty( node );
-	done_coord( &coord );
+
 	return result;
 }
 
@@ -727,9 +722,6 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 	assert( "nikita-895", op -> op == COP_DELETE );
 	trace_stamp( TRACE_CARRY );
 	reiser4_stat_level_add( doing, delete );
-
-	init_coord( &coord );
-	init_coord( &coord2 );
 
 	parent = op -> node -> real_node;
 	child  = op -> u.delete.child ?
@@ -766,7 +758,7 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 		return result;
 	}
 
-	dup_coord( &coord2, &coord );
+	coord_dup( &coord2, &coord );
 	result = node_plugin_by_node( parent ) -> cut_and_kill
 		( &coord, &coord2, NULL, NULL, NULL, todo, 
 		  NULL, op -> u.delete.flags );
@@ -780,8 +772,6 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 	    ( node_num_items( parent ) == 1 ) ) {
 		result = kill_tree_root( coord.node );
 	}
-	done_coord( &coord2 );
-	done_coord( &coord );
 	return result < 0 ? : 0 ;
 }
 
@@ -856,8 +846,6 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	trace_stamp( TRACE_CARRY );
 	reiser4_stat_level_add( doing, paste );
 
-	init_coord( &coord );
-
 	result = insert_paste_common( op, doing, todo, &cdata, &coord, &data );
 	if( result != 0 )
 		return result;
@@ -866,11 +854,13 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	 * handle case when op -> u.insert.coord doesn't point to the item
 	 * of required type. restart as insert.
 	 */
-	iplug = coord_of_item( op -> u.insert.d -> coord ) ? 
-		item_plugin_by_coord( op -> u.insert.d -> coord ) : NULL;
-	can_paste_here = 
-		coord_of_item( op -> u.insert.d -> coord ) &&
-		( iplug == op -> u.insert.d -> data -> iplug );
+	if (coord_is_item_pos_valid( op -> u.insert.d -> coord )) {
+		iplug = item_plugin_by_coord( op -> u.insert.d -> coord );
+		can_paste_here = iplug == op -> u.insert.d -> data -> iplug;
+	} else {
+		iplug = NULL;
+		can_paste_here = 0;
+	}
 
 	if( !can_paste_here || 
 	    ( can_paste_here &&
@@ -881,7 +871,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 		op -> u.insert.type = COPT_PASTE_RESTARTED;
 		reiser4_stat_level_add( doing, paste_restarted );
 		result = op_dispatch_table[ COP_INSERT ]( op, doing, todo );
-		done_coord( &coord );
+
 		return result;
 	}
 
@@ -892,7 +882,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	assert( "nikita-987",
 		space_needed_for_op( node, op ) <= znode_free_space( node ) );
 
-	assert( "nikita-1286", coord_of_item( op -> u.insert.d -> coord ) );
+	assert( "nikita-1286", coord_is_item_pos_valid( op -> u.insert.d -> coord ) );
 
 	assert( "nikita-992", iplug != NULL );
 	real_size = space_needed_for_op( node, op );
@@ -919,7 +909,6 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 			( op -> u.insert.d -> coord, &item_key, todo );
 	}
 
-	done_coord( &coord );
 	return result;
 }
 
@@ -1058,7 +1047,7 @@ static int update_delimiting_key( znode *parent /* node key is updated
 		return result;
 	}
 
-	if( ( left != NULL ) && !coord_is_leftmost( &right_pos ) ) {
+	if( ( left != NULL ) && !coord_is_leftmost_unit( &right_pos ) ) {
 		/* find position of the left child in a parent */
 		result = find_child_ptr( parent, left, &left_pos );
 		if( result != NS_FOUND ) {
@@ -1074,11 +1063,11 @@ static int update_delimiting_key( znode *parent /* node key is updated
 	 * sane
 	 */
 	if( REISER4_DEBUG ) {
-		if( ( left_pos.node != NULL ) && !coord_of_unit( &left_pos ) ) {
+		if( ( left_pos.node != NULL ) && !coord_is_existing_unit( &left_pos ) ) {
 			*error_msg = "Left child is bastard";
 			return -EIO;
 		}
-		if( !coord_of_unit( &right_pos ) ) {
+		if( !coord_is_existing_unit( &right_pos ) ) {
 			*error_msg = "Right child is bastard";
 			return -EIO;
 		}

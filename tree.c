@@ -472,7 +472,7 @@ insert_result insert_by_coord( tree_coord  *coord /* coord where to
 	    ( ( coord -> item_pos != 0 ) || 
 	      ( coord -> unit_pos != 0 ) || 
 	      ( coord -> between == AFTER_UNIT ) ) &&
-	    !coord_is_leftmost( coord ) && 
+	    !coord_is_leftmost_unit( coord ) && 
 	    ( node_plugin_by_coord( coord ) -> fast_insert != NULL ) &&
 	    node_plugin_by_coord( coord ) -> fast_insert( coord ) ) {
 		int result;
@@ -889,7 +889,7 @@ int check_tree_pointer( const tree_coord *pointer /* would-be pointer to
 	if( znode_get_level( pointer -> node ) != znode_get_level( child ) + 1 )
 		return NS_NOT_FOUND;
 
-	if( coord_of_unit( pointer ) ) {
+	if( coord_is_existing_unit( pointer ) ) {
 		item_plugin     *iplug;
 		reiser4_block_nr addr;
 
@@ -959,7 +959,6 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 	assert( "nikita-936", result != NULL );
 	assert( "zam-356", znode_is_loaded(parent)); 
 
-	init_coord( result );
 	result -> node = parent;
 
 	nplug = parent -> nplug;
@@ -1042,7 +1041,9 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
 	 * through... every other time it is redundent.
 	 */
 	
-	for( coord_first_unit( result, parent ) ; coord_of_unit( result ) ; ) {
+	for( coord_init_first_unit( result, parent ) ;
+	     coord_next_unit( result ) == 0 ; ) {
+
 		if( check_tree_pointer( result, child ) == NS_FOUND ) {
 			spin_lock_tree( current_tree );
 			child -> ptr_in_parent_hint = *result;
@@ -1050,8 +1051,6 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
 			ret = NS_FOUND;
 			break;
 		}
-		if( coord_next_unit( result ) )
-			break;
 	}
 	return ret;
 }
@@ -1090,7 +1089,7 @@ int shift_everything_left (znode * right, znode * left, carry_level *todo)
 	tree_coord from;
 	node_plugin * nplug;
 
-	coord_last_unit (&from, right);
+	coord_init_last_unit (&from, right);
 
 	nplug = node_plugin_by_node (right);
 	result = nplug->shift (&from, left, SHIFT_LEFT,
@@ -1196,7 +1195,7 @@ static int prepare_twig_cut (tree_coord * from, tree_coord * to,
 
 	assert ("vs-593", from->unit_pos == 0);
 
-	dup_coord (&left_coord, from);
+	coord_dup (&left_coord, from);
 	init_lh (&left_lh);
 	if (coord_prev_unit (&left_coord)) {
 		if (!locked_left_neighbor) {
@@ -1220,9 +1219,9 @@ static int prepare_twig_cut (tree_coord * from, tree_coord * to,
 			}
 
 			/* we have acquired left neighbor of from->node */
-			coord_last_unit (&left_coord, left_lh.node);
+			coord_init_last_unit (&left_coord, left_lh.node);
 		} else {
-			coord_last_unit (&left_coord, locked_left_neighbor);
+			coord_init_last_unit (&left_coord, locked_left_neighbor);
 		}
 	}
 
@@ -1252,7 +1251,7 @@ static int prepare_twig_cut (tree_coord * from, tree_coord * to,
 
 
 		assert ("vs-607", to->unit_pos == coord_last_unit_pos (to));
-		dup_coord (&right_coord, to);
+		coord_dup (&right_coord, to);
 		init_lh (&right_lh);
 		if (coord_next_unit (&right_coord)) {
 			/* @to is rightmost unit in the node */
@@ -1261,7 +1260,7 @@ static int prepare_twig_cut (tree_coord * from, tree_coord * to,
 							     GN_DO_READ);
 			switch (result) {
 			case 0:
-				coord_first_unit (&right_coord, right_lh.node);
+				coord_init_first_unit (&right_coord, right_lh.node);
 				item_key_by_coord (&right_coord, &key);
 				break;
 
@@ -1359,9 +1358,8 @@ int cut_node (tree_coord * from /* coord of the first unit/item that will be
 
 	assert ("vs-316", !node_is_empty (from->node));
 
-	if (coord_eq (from, to) && !coord_of_unit (from)) {
-		assert ("nikita-1812", !coord_of_unit (to)); /* Napoleon
-							      * defeated */
+	if (coord_eq (from, to) && !coord_is_existing_unit (from)) {
+		assert ("nikita-1812", !coord_is_existing_unit (to)); /* Napoleon defeated */
 		return 0;
 	}
 	/* set @from and @to to first and last units which are to be removed
@@ -1371,8 +1369,8 @@ int cut_node (tree_coord * from /* coord of the first unit/item that will be
 
 	/* make sure that @from and @to are set to existing units in the
 	   node */
-	assert ("vs-161", coord_of_unit (from));
-	assert ("vs-162", coord_of_unit (to));
+	assert ("vs-161", coord_is_existing_unit (from));
+	assert ("vs-162", coord_is_existing_unit (to));
 
 
 	if (znode_get_level (from->node) == TWIG_LEVEL && item_is_extent (from)) {
@@ -1442,8 +1440,6 @@ int cut_tree (reiser4_tree * tree,
 	lock_handle lock_handle;
 	int result;
 
-
-	init_coord (&intranode_to);
 	init_lh(&lock_handle);
 
 #define WE_HAVE_READAHEAD (0)
@@ -1475,7 +1471,7 @@ int cut_tree (reiser4_tree * tree,
 			break;
 
 		if (coord_eq (&intranode_from, &intranode_to) && 
-		    !coord_of_unit (&intranode_from)) {
+		    !coord_is_existing_unit (&intranode_from)) {
 			/* nothing to cut */
 			result = 0;
 			break;
@@ -1493,7 +1489,6 @@ int cut_tree (reiser4_tree * tree,
 		assert ("vs-301", !keyeq (&smallest_removed, min_key ()));
 	} while (keygt (&smallest_removed, from_key));
 
-	done_coord (&intranode_to);
 	done_lh(&lock_handle);
 
 	return result;

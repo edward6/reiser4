@@ -1866,7 +1866,6 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			     ( tree -> height < TWIG_LEVEL ) ; ++ i ) {
 			lock_handle lh;
 
-			init_coord( &coord );
 			init_lh( &lh );
 
 			info( "_____________%i_____________\n", i );
@@ -1900,7 +1899,6 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			info( "____end______%i_____________\n", i );
 
 			done_lh( &lh );
-			done_coord( &coord );
 
 		}
 		print_tree_rec( "tree:ibk", tree, REISER4_NODE_CHECK );
@@ -1944,17 +1942,17 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			data.user = 0;
 			data.length = sizeof sd.base;
 			data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
-			coord_first_unit( &coord, NULL );
+			coord_init_first_unit( &coord, NULL );
 
 			set_key_locality( &key, 2ull + i );
 
 			coord.between = ( i == 0 ) ? AT_UNIT : AFTER_UNIT;
 			info( "_____________%i_____________\n", i );
-			print_coord( "before", &coord, 1 );
+			coord_print( "before", &coord, 1 );
 			ret = carry( &lowest_level, NULL );
 			printf( "result: %i\n", ret );
 			done_carry_pool( &pool );
-			print_coord( "after", &coord, 1 );
+			coord_print( "after", &coord, 1 );
 			print_znode_content( root, REISER4_NODE_PRINT_ALL );
 			info( "____end______%i_____________\n", i );
 		}
@@ -1997,7 +1995,6 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
 			lock_handle lh;
 
-			init_coord( &coord );
 			init_lh( &lh );
 
 			info( "_____________%i_____________\n", i );
@@ -2031,7 +2028,6 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			info( "____end______%i_____________\n", i );
 
 			done_lh( &lh );
-			done_coord( &coord );
 		}
 		ret = cut_tree( tree, min_key(), max_key() );
 		printf( "result: %i\n", ret );
@@ -2143,7 +2139,7 @@ static struct inode * create_root_dir (znode * root)
 		data.user = 0;
 		data.length = sizeof sd.base;
 		data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
-		coord_first_unit( &coord, NULL );
+		coord_init_first_unit( &coord, NULL );
 	
 		coord.between = AT_UNIT;
 		ret = carry( &lowest_level, NULL );
@@ -2198,7 +2194,6 @@ static int insert_item (reiser4_tree * tree, reiser4_item_data * data,
 	int result;
 	inter_syscall_rap ra;
 
-	init_coord (&coord);
 	init_lh (&lh);
 
 	level = (item_id_by_plugin (data->iplug) == EXTENT_POINTER_ID) ? TWIG_LEVEL : LEAF_LEVEL;
@@ -2207,7 +2202,6 @@ static int insert_item (reiser4_tree * tree, reiser4_item_data * data,
 				CBK_UNIQUE);
 
 	done_lh (&lh);
-	done_coord (&coord);
 	return result;
 }
 
@@ -3271,7 +3265,6 @@ static void allocate_unallocated (reiser4_tree * tree)
 	int result;
 
 
-	init_coord (&coord);
 	init_lh (&lh);
 
 	key_init (&key);
@@ -3283,12 +3276,11 @@ static void allocate_unallocated (reiser4_tree * tree)
 			       ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN,
 			       TWIG_LEVEL, TWIG_LEVEL, 
 			       CBK_FOR_INSERT | CBK_UNIQUE);
-	coord_first_unit (&coord, NULL);
+	coord_init_first_unit (&coord, NULL);
 	result = iterate_tree (tree, &coord, &lh, 
 				       alloc_extent, 0, ZNODE_WRITE_LOCK, 0);
 
 	done_lh (&lh);
-	done_coord (&coord);
 
 	print_tree_rec ("AFTER ALLOCATION", tree, REISER4_NODE_PRINT_HEADER |
 			REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
@@ -3322,7 +3314,7 @@ static int do_twig_squeeze (reiser4_tree * tree, tree_coord * coord,
 	/*
 	 * get preceder
 	 */
-	coord_last_unit (coord, 0);
+	coord_init_last_unit (coord, 0);
 	if (item_is_internal (coord)) {
 		item_plugin_by_coord (coord)->s.internal.down_link (coord, 0,
 								    &da);
@@ -3359,7 +3351,7 @@ static int do_twig_squeeze (reiser4_tree * tree, tree_coord * coord,
 	/*
 	 * we have done with this node
 	 */
-	coord_last_unit (coord, 0);
+	coord_init_last_unit (coord, 0);
 	return 1;
 }
 
@@ -3374,7 +3366,6 @@ static void squeeze_twig_level (reiser4_tree * tree)
 	int result;
 
 
-	init_coord (&coord);
 	init_lh (&lh);
 
 	key_init (&key);
@@ -3386,12 +3377,11 @@ static void squeeze_twig_level (reiser4_tree * tree)
 			       ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN,
 			       TWIG_LEVEL, TWIG_LEVEL, 
 			       CBK_FOR_INSERT | CBK_UNIQUE);
-	coord_first_unit (&coord, NULL);
+	coord_init_first_unit (&coord, NULL);
 	result = iterate_tree (tree, &coord, &lh, 
 				       do_twig_squeeze, 0, ZNODE_WRITE_LOCK, 0/* through items */);
 
 	done_lh (&lh);
-	done_coord (&coord);
 
 	print_tree_rec ("AFTER SQUEEZING TWIG", tree, REISER4_NODE_PRINT_HEADER |
 			REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
@@ -3713,7 +3703,6 @@ void* build_test_handler (void* arg)
 			info ("_____________%u_____________ thread %u\n", count, (unsigned) pthread_self ());
 		/*}*/
 
-		init_coord (& coord);
 		jmacd_key_no (& key, NULL, & sd, & data, (__u64) count);
 
 	deadlk:
@@ -3791,7 +3780,6 @@ void* drive_test_handler (void* arg)
 			info ("_____________%u_____________ %s thread %u\n", opc, exists ? "delete" : "insert", (unsigned) pthread_self ());
 		/*}*/
 
-		init_coord (& coord);
 		jmacd_key_no       (& key, & next_key, & sd, & data, (__u64) item);
 
 	deadlk:

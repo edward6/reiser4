@@ -270,7 +270,6 @@ int internal_kill_hook( const tree_coord *item /* coord of item */,
 		/* fare thee well */
 		ZF_SET( child, ZNODE_HEARD_BANSHEE );
 		spin_lock_tree( current_tree );
-		init_coord( &child -> ptr_in_parent_hint );
 		spin_unlock_tree( current_tree );
 		atomic_dec( &item -> node -> c_count );
 		trace_on( TRACE_ZWEB, "kill: %lli: %i [%lli]\n",

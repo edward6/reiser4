@@ -501,7 +501,6 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 	if( ! S_ISDIR( inode -> i_mode ) )
 		REISER4_EXIT( -ENOTDIR );
 
-	init_coord( &coord );
 	init_lh( &lh );
 
 	result = build_readdir_key( f, &arg.key );
@@ -539,7 +538,6 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 
 	UPDATE_ATIME( inode );
 	done_lh( &lh );
-	done_coord( &coord );
 
 	REISER4_EXIT( result );
 }

@@ -114,21 +114,21 @@ int are_items_mergeable( const tree_coord *i1 /* coord of first item */,
 
 int item_is_extent (const tree_coord *item)
 {
-	assert ("vs-482", coord_of_item (item));
+	assert ("vs-482", coord_is_existing_item (item));
 	return item_id_by_coord (item) == EXTENT_POINTER_ID;
 }
 
 /* this returns true if item is of internal type */
 int item_is_internal (const tree_coord *item)
 {
-	assert ("vs-483", coord_of_item (item));
+	assert ("vs-483", coord_is_existing_item (item));
 	return item_type_by_coord (item) == INTERNAL_ITEM_TYPE;
 }
 
 
 int item_is_statdata (const tree_coord *item)
 {
-	assert ("vs-516", coord_of_item (item));
+	assert ("vs-516", coord_is_existing_item (item));
 	return item_type_by_coord (item) == STAT_DATA_ITEM_TYPE;
 }
 

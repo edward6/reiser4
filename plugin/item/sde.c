@@ -121,10 +121,9 @@ int de_rem_entry( const struct inode *dir UNUSED_ARG /* directory of item */,
 	 * possible aliasing. To work around this, create temporary copy
 	 * of @coord.
 	 */
-	dup_coord( &coord_shadow, coord );
+	coord_dup( &coord_shadow, coord );
 	result = cut_node( coord, coord, NULL, NULL, NULL, DELETE_KILL/*flags*/,
 			   0 );
-	done_coord( &coord_shadow );
 	return result;
 }
 

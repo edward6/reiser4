@@ -255,7 +255,7 @@ static void zinit( znode *node /* znode to initialise */,
 	xmemset( node, 0, sizeof *node );
 	jnode_init( &node -> zjnode );
 	reiser4_init_lock( &node -> lock );
-	init_coord( &node -> ptr_in_parent_hint );
+	coord_init( &node -> ptr_in_parent_hint );
 	node -> ptr_in_parent_hint.node = parent;
 	node -> ptr_in_parent_hint.item_pos = ~0u;
 	spin_lock_tree( current_tree );

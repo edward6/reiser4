@@ -211,7 +211,7 @@ static int add_child_ptr( znode *parent, znode *child )
 	result = zload( parent );
 	if( result != 0 )
 		return result;
-	coord_first_unit( &coord, parent );
+	coord_init_first_unit( &coord, parent );
 
 	build_child_ptr_data( child, &data );
 	data.arg = NULL;
@@ -323,7 +323,7 @@ int kill_tree_root( znode *old_root /* tree root that we are removing */ )
 	assert( "nikita-1200", node_num_items( old_root ) == 1 );
 	assert( "nikita-1401", znode_is_write_locked( old_root ) );
 
-	coord_first_unit( &down_link, old_root );
+	coord_init_first_unit( &down_link, old_root );
 
 	spin_lock_dk( current_tree );
 	new_root = child_znode( &down_link, 1 );
@@ -334,7 +334,7 @@ int kill_tree_root( znode *old_root /* tree root that we are removing */ )
 		zput( new_root );
 	} else
 		result = PTR_ERR( new_root );
-	done_coord( &down_link );
+
 	return result;
 }
 

@@ -378,7 +378,7 @@ static void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 		 sprintf_key( buffer_l, &node -> ld_key ),
 		 sprintf_key( buffer_r, &node -> rd_key ) );
 
-	coord_first_unit( &coord, node );
+	coord_init_first_unit( &coord, node );
 	for( i = 0 ; i < ( int ) node_num_items( node ) ; ++ i ) {
 		coord.item_pos = i;
 
@@ -404,7 +404,6 @@ static void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL )
 		print_address( "end children of node", znode_get_block( node ) );
 	*/
-	done_coord( &coord );
 }
 
 /** helper called by print_tree_rec() */
@@ -434,7 +433,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	if( flags & REISER4_NODE_CHECK )
 		node_check( node, flags );
 
-	coord_first_unit( &coord, node );
+	coord_init_first_unit( &coord, node );
 	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL ) {
 		print_address( "children of node", znode_get_block( node ) );
 	}
@@ -458,7 +457,6 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL ) {
 		print_address( "end children of node", znode_get_block( node ) );
 	}
-	done_coord( &coord );
 }
 
 /**
