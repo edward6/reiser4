@@ -132,7 +132,8 @@ struct reiser4_super_info_data {
 
 	/* disk layout specific part of reiser4 super info data */
 	union {
-		layout_40_super_info layout_40;
+		layout_40_super_info   layout_40;
+		test_layout_super_info test_layout;
 	} u;
 };
 
