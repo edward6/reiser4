@@ -1930,7 +1930,10 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	if( ( atomic_read( &node -> d_count ) == 0 ) && !PageDirty( page ) ) {
 		/*
 		 * can only release page if it is not in a atom and real block
-		 * number is assigned to it.
+		 * number is assigned to it. Simple check for ->atom wouldn't
+		 * do, because it is possible for node to be clean, not it
+		 * atom yet, and still having fake block number. For example,
+		 * node just created in jinit_new().
 		 */
 		if( ( node -> atom == NULL ) && 
 		    !blocknr_is_fake( jnode_get_block( node ) ) ) {
