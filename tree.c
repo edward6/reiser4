@@ -414,8 +414,7 @@ insert_result insert_by_key( reiser4_tree *tree,
 			     /** level where to insert */
 			     tree_level stop_level,
 			     inter_syscall_ra_hint *ra UNUSED_ARG,
-			     intra_syscall_ra_hint ira UNUSED_ARG
-	)
+			     intra_syscall_ra_hint ira UNUSED_ARG, __u32 flags )
 {
 	int result;
 
@@ -424,7 +423,8 @@ insert_result insert_by_key( reiser4_tree *tree,
 	assert( "nikita-361", ra != NULL );
 
 	result = coord_by_key( tree, key, coord, lh, ZNODE_WRITE_LOCK, 
-			       FIND_EXACT, stop_level, stop_level );
+			       FIND_EXACT, stop_level, stop_level, 
+			       flags | CBK_FOR_INSERT);
 	switch( result ) {
 	default:
 		break;

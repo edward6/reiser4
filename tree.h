@@ -170,6 +170,11 @@ struct reiser4_item_data {
 	item_plugin   *iplug;
 };
 
+typedef enum {
+	CBK_FOR_INSERT   =    ( 1 << 0 ),
+	CBK_UNIQUE       =    ( 1 << 1 )
+} cbk_flags;
+
 /** insertion outcome. IBK = insert by key */
 typedef enum { IBK_INSERT_OK        = 0,
 	       IBK_ALREADY_EXISTS   = -EEXIST,
@@ -256,7 +261,8 @@ extern reiser4_key *unit_key_by_coord( const tree_coord *coord, reiser4_key *key
 lookup_result coord_by_key( reiser4_tree *tree, const reiser4_key *key,
 			    tree_coord *coord, reiser4_lock_handle * handle,
 			    znode_lock_mode lock, lookup_bias bias, 
-			    tree_level lock_level, tree_level stop_level );
+			    tree_level lock_level, tree_level stop_level, 
+			    __u32 flags );
 lookup_result coord_by_hint_and_key (reiser4_tree * tree, 
 				     const reiser4_key * key,
 				     tree_coord * coord, reiser4_lock_handle * handle,
@@ -267,7 +273,7 @@ insert_result insert_by_key( reiser4_tree *tree, const reiser4_key *key,
 			     reiser4_lock_handle *lh,
 			     tree_level stop_level,
 			     inter_syscall_ra_hint *ra,
-			     intra_syscall_ra_hint ira );
+			     intra_syscall_ra_hint ira, __u32 flags );
 insert_result insert_by_coord( tree_coord  *coord,
 			       reiser4_item_data *data, const reiser4_key *key,
 			       reiser4_lock_handle *lh,

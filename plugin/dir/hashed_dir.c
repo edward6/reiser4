@@ -327,7 +327,8 @@ static int find_entry( const struct inode *dir, const struct qstr *name,
 		return result;
 
 	result = coord_by_key( tree_by_inode( dir ), &entry -> key, coord, lh,
-			       mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL );
+			       mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, 
+			       CBK_FOR_INSERT );
 	if( result == CBK_COORD_FOUND ) {
 		entry_actor_args arg;
 

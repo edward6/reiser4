@@ -35,7 +35,7 @@ static int find_item (reiser4_key * key, tree_coord * coord,
 {
 	return coord_by_key (current_tree, key, coord, lh,
 			     lock_mode, FIND_MAX_NOT_MORE_THAN,
-			     LEAF_LEVEL, LEAF_LEVEL);
+			     LEAF_LEVEL, LEAF_LEVEL, CBK_UNIQUE | CBK_FOR_INSERT);
 }
 
 

@@ -504,7 +504,7 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 	if( result == 0 ) {
 		result = coord_by_key( tree_by_inode( inode ), &key, &coord, &lh,
 				       ZNODE_READ_LOCK, FIND_MAX_NOT_MORE_THAN,
-				       LEAF_LEVEL, LEAF_LEVEL );
+				       LEAF_LEVEL, LEAF_LEVEL, 0 );
 		if( result == CBK_COORD_FOUND ) {
 			readdir_actor_args arg;
 			reiser4_file_fsdata *fsdata;

@@ -359,6 +359,7 @@ typedef struct cbk_handle {
 	reiser4_lock_handle *active_lh;
 	reiser4_key          ld_key;
 	reiser4_key          rd_key;
+	__u32                flags;
 } cbk_handle;
 
 static lookup_result cbk( cbk_handle *h );
@@ -423,7 +424,8 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 						   * here Item being looked
 						   * for has to be between
 						   * @lock_level and
-						   * @stop_level, inclusive */ )
+						   * @stop_level, inclusive */,
+			    __u32      flags /* search flags */ )
 {
 	cbk_handle          handle;
 	reiser4_lock_handle parent_lh;
@@ -448,6 +450,7 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 	handle.llevel    = lock_level;
 	handle.slevel    = stop_level;
 	handle.coord     = coord;
+	handle.flags     = flags;
 
 	handle.active_lh = lh;
 	handle.parent_lh = &parent_lh;
@@ -479,7 +482,7 @@ int coord_by_hint_and_key (reiser4_tree * tree, const reiser4_key * key,
 	reiser4_init_lh (lh);
 	result = coord_by_key (tree, key, coord, lh,
 			       ZNODE_WRITE_LOCK, bias,
-			       lock_level, stop_level);
+			       lock_level, stop_level, 0);
 	return result;
 }
 
@@ -951,7 +954,8 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 			assert( "nikita-1604",
 				ergo( h -> bias == FIND_EXACT, 
 				      coord_of_unit( h -> coord ) ) );
-			if( coord_wrt( h -> coord ) == COORD_ON_THE_LEFT ) {
+			if( !( h -> flags & CBK_UNIQUE ) && 
+			    ( coord_wrt( h -> coord ) == COORD_ON_THE_LEFT ) ) {
 				return search_to_left( h );
 			} else
 				h -> result = CBK_COORD_FOUND;
@@ -1273,7 +1277,8 @@ static level_lookup_result search_to_left( cbk_handle *h )
 	node  = h -> active_lh -> node;
 	assert( "nikita-1717", coord_wrt( coord ) == COORD_ON_THE_LEFT );
 
-	h -> result = reiser4_get_left_neighbor( &lh, node, h -> lock_mode,
+	h -> result = reiser4_get_left_neighbor( &lh, node, 
+						 ( int ) h -> lock_mode,
 						 GN_LOAD_NEIGHBOR );
 	switch( h -> result ) {
 	case -EDEADLK:

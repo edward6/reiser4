@@ -186,7 +186,8 @@ int lookup_sd_by_key( reiser4_tree *tree, znode_lock_mode lock_mode,
 	   position of an item found in node. Both are only valid if
 	   coord_found is returned. */
 	result = coord_by_key( tree, key, coord, lh,
-			       lock_mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL );
+			       lock_mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, 
+			       CBK_UNIQUE | CBK_FOR_INSERT );
 	switch( result ) {
 	case CBK_OOM:
 		error_message = "out of memory while looking for sd of";
@@ -272,7 +273,8 @@ static int insert_new_sd( struct inode *inode )
 				build_sd_key( inode, &key ), &data, &coord, &lh,
 				/* stat data lives on a leaf level */
 				LEAF_LEVEL, 
-				reiser4_inter_syscall_ra( inode ), NO_RA );
+				reiser4_inter_syscall_ra( inode ), NO_RA, 
+				CBK_UNIQUE );
 	/* we don't want to re-check that somebody didn't insert
 	   stat-data while we were doing io, because if it did,
 	   insert_by_key() returned error. */

@@ -1183,7 +1183,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 			ret = insert_by_key( tree, &key, &data, &coord, &lh, 
 					     LEAF_LEVEL,
-					     ( inter_syscall_ra_hint * )1, 0 );
+					     ( inter_syscall_ra_hint * )1, 0, 
+					     CBK_UNIQUE );
 			printf( "result: %i\n", ret );
 
 			/* print_pbk_cache( "pbk", tree -> pbk_cache ); */
@@ -1310,7 +1311,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 			ret = insert_by_key( tree, &key, &data, &coord, &lh, 
 					     LEAF_LEVEL,
-					     ( inter_syscall_ra_hint * )1, 0 );
+					     ( inter_syscall_ra_hint * )1, 0, 
+					     CBK_UNIQUE );
 			printf( "result: %i\n", ret );
 
 			/* print_pbk_cache( "pbk", tree -> pbk_cache ); */
@@ -1481,7 +1483,8 @@ int insert_item (struct inode *inode,
 
 	level = (item_plugin_id (data->iplug) == EXTENT_ITEM_ID) ? TWIG_LEVEL : LEAF_LEVEL;
 	result = insert_by_key (tree_by_inode (inode), key, data, &coord, &lh,
-				level, reiser4_inter_syscall_ra (inode), 0);
+				level, reiser4_inter_syscall_ra (inode), 0, 
+				CBK_UNIQUE);
 
 	reiser4_done_lh (&lh);
 	reiser4_done_coord (&coord);
@@ -1936,7 +1939,8 @@ static void allocate_unallocated (reiser4_tree * tree)
 	set_key_offset (&key, 0ull);
 	result = coord_by_key (tree, &key, &coord, &lh,
 			       ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN,
-			       TWIG_LEVEL, TWIG_LEVEL );
+			       TWIG_LEVEL, TWIG_LEVEL, 
+			       CBK_FOR_INSERT | CBK_UNIQUE);
 	coord_first_unit (&coord);
 	result = reiser4_iterate_tree (tree, &coord, &lh, 
 				       alloc_extent, 0, ZNODE_WRITE_LOCK, 0);
@@ -2392,7 +2396,7 @@ void* build_test_handler (void* arg)
 		
 		ret = insert_by_key( tree, &key, &data, &coord, &lock, 
 				     LEAF_LEVEL,
-				     ( inter_syscall_ra_hint * )1, 0 );
+				     ( inter_syscall_ra_hint * )1, 0, CBK_UNIQUE );
 
 		reiser4_done_lh (& lock);
 
@@ -2472,7 +2476,7 @@ void* drive_test_handler (void* arg)
 
 			ret = insert_by_key( tree, &key, &data, &coord, &lock, 
 					     LEAF_LEVEL,
-					     ( inter_syscall_ra_hint * )1, 0 );
+					     ( inter_syscall_ra_hint * )1, 0, CBK_UNIQUE );
 
 			reiser4_done_lh (& lock);
 

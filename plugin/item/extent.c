@@ -1687,7 +1687,7 @@ static int reset_coord (struct page * page,
 		reiser4_init_lh (lh);
 		result = coord_by_key (current_tree, &key, coord, lh,
 				       ZNODE_READ_LOCK, FIND_EXACT,
-				       LEAF_LEVEL, LEAF_LEVEL);
+				       LEAF_LEVEL, LEAF_LEVEL, CBK_UNIQUE);
 	}
 	return result;
 }
@@ -2117,7 +2117,8 @@ int alloc_extent (reiser4_tree * tree, tree_coord * coord,
 		reiser4_init_lh (lh);
 		if (coord_by_key (tree, &key, coord, lh,
 				  ZNODE_WRITE_LOCK, FIND_EXACT,
-				  TWIG_LEVEL, TWIG_LEVEL) != CBK_COORD_FOUND) {
+				  TWIG_LEVEL, TWIG_LEVEL, 
+				  CBK_FOR_INSERT | CBK_UNIQUE) != CBK_COORD_FOUND) {
 			result = 0;
 			assert ("vs-343",
 				get_key_offset (&key) ==
