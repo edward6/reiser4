@@ -685,17 +685,11 @@ reinitial()
 	maxbuf  =                     maxtab+(MAXBUF);
 
 	yyerrco =  0;
-	warproc =  0;
 	errco   =  0;
 	optout  =  0;
-	isupco  =  0;
-	optupco =  0;
 	isflg   =  0;
 	level   =  0;
-	patco   =  0;
 	varco   = -1;
-	parco   =  0;
-
 	strco   =  9;
 	newvar(0);
 }
@@ -704,13 +698,7 @@ initial()
 {
 	int i;
 	reinitial();
-	parend  =   partab ;
-	codend  =  codarea;
-	Nproc   =  0;
-	Nparm   =  0;
 }
-
-
 
 
 
@@ -940,8 +928,8 @@ int 	nmsg,x1,x2,x3,x4,x5,x6,x7,x8;
 	if (!freetab) freetab=malloc(1024);
 	if(i<0 || i>MAXLINE)
 		{
-		i=0;
-		*inline=0;
+			i=0;
+			*inline=0;
 		}
 	if (!errf) errf=fopen(errfname,"r");
 	j=0;
@@ -949,36 +937,36 @@ int 	nmsg,x1,x2,x3,x4,x5,x6,x7,x8;
 	strcpy(errt,"0");
 	if (errf)
 		{
-		fseek(errf,0L,SEEK_SET);
-		while( nmsg>(j=atoi(errt)) ) if ( !fgets(errt,LENFNAME,errf) ) break;
+			fseek(errf,0L,SEEK_SET);
+			while( nmsg>(j=atoi(errt)) ) if ( !fgets(errt,LENFNAME,errf) ) break;
 		}
 	if ( errf && nmsg==j )
-				sprintf( freetab, errt, x1, x2, x3, x4, x5, x6, x7, x8 ) ;
-		 else   sprintf( freetab," %d Syntax error",nmsg);
+		sprintf( freetab, errt, x1, x2, x3, x4, x5, x6, x7, x8 ) ;
+	else    sprintf( freetab," %d Syntax error",nmsg);
 	if (Pflag )
 		{
-		j=0;
-		if (i || yylineno[yyinlev] )
-			{
-			printf("\n");
-			if (i)
-				for(i--;i;i--,j++)
-					printf( ( *(inline+j)=='\t' ) ? "\t" : " " );
-			printf("\n%s\n",inline);
-			}
-		if (j || yylineno[yyinlev] )  printf("FILE %-13s LINE %4d "
-					, curfile [ yyinlev ]
-					,yylineno [ yyinlev ]  );
-		printf("ERROR #%s",freetab);
+			j=0;
+			if (i || yylineno[yyinlev] )
+				{
+					printf("\n");
+					if (i)
+						for(i--;i;i--,j++)
+							printf( ( *(inline+j)=='\t' ) ? "\t" : " " );
+					printf("\n%s\n",inline);
+				}
+			if (j || yylineno[yyinlev] )  printf("FILE %-13s LINE %4d "
+							     , curfile [ yyinlev ]
+							     ,yylineno [ yyinlev ]  );
+			printf("ERROR #%s",freetab);
 		}
 	else
 		{
-		if (!yyerrco)
-			{
-
-	mailsend (yylineno [yyinlev], i, curfile [yyinlev], freetab);
-
-			}
+			if (!yyerrco)
+				{
+					
+					mailsend (yylineno [yyinlev], i, curfile [yyinlev], freetab);
+					
+				}
 		}
 	yyerrco++;
 }
@@ -1009,25 +997,25 @@ getvar(int n,int def)
 	int i;                  /* def==0 find    variable  */
 	for( i=varco; i ; i-- )
 		if(  Vare(i)==n ) break;
-
+	
 	if ( def  )
 		{
-		if ( i )
-			{
-			if( i > parco )  yyerror(1015,tptr[n]);
+			if ( i )
+				{
+					if( i > parco )  yyerror(1015,tptr[n]);
+					else
+						if(  !Varc(i)  ) yyerror(1015,tptr[n]);
+				}
 			else
-				if(  !Varc(i)  ) yyerror(1015,tptr[n]);
-			}
-		else
-			i = newvar(n);
+				i = newvar(n);
 		}
 	else
 		{
-		if ( !i ) yyerror(1018,tptr[n]);
-		else
+			if ( !i ) yyerror(1018,tptr[n]);
+			else
 			{
-			if ( Varn( i ) & FRBD ) yyerror(1019,tptr[n]);
-			Varn( i )|=USED;
+				if ( Varn( i ) & FRBD ) yyerror(1019,tptr[n]);
+				Varn( i )|=USED;
 			}
 		}
 	return( i );
@@ -1098,16 +1086,16 @@ ldwl(int s1,int lev)
 	j=0;
 	for(i=k; Varlev(i)==lev && i; i--)
 		{
-		if ( Varc(i) && Vara(i) )
-			{
-			undefin();
-			j++;
-			}
+			if ( Varc(i) && Vara(i) )
+				{
+					undefin();
+					j++;
+				}
 		}
 	if(s1)
 		{
-		varco=k;
-		if (j) Sdef(lev) -= j;
+			varco=k;
+			if (j) Sdef(lev) -= j;
 		}
 }
 
