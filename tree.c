@@ -1124,9 +1124,16 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 				goto done;
 			}
 
-			/* link left_child and right_child */
-			UNDER_RW_VOID(tree, tree, write,
-				      link_left_and_right(left_child, right_child));
+			WLOCK_TREE(tree);
+			if (left_child != NULL) {
+				left_child->right = NULL;
+				ZF_CLR(left_child, JNODE_RIGHT_CONNECTED);
+			}
+			if (right_child != NULL) {
+				right_child->left = NULL;
+				ZF_CLR(right_child, JNODE_LEFT_CONNECTED);
+			}
+			WUNLOCK_TREE(tree);
 		}
 	} else {
 		/* only head of item @to is removed. calculate new item key, it
