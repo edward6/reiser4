@@ -281,26 +281,26 @@ typedef enum {
 	/*
 	 * trace read-IO functions
 	 */
-	TRACE_IO_R        =     (1 << 17),     /* 0x00020000 */
+	TRACE_IO_R        =    (1 << 17),     /* 0x00020000 */
 	/*
 	 * trace write-IO functions
 	 */
-	TRACE_IO_W        =     (1 << 18),     /* 0x00040000 */
+	TRACE_IO_W        =    (1 << 18),     /* 0x00040000 */
 
 	/*
 	 * trace log writing
 	 */
-	TRACE_LOG         =     (1 << 19),     /* 0x00080000 */
+	TRACE_LOG         =    (1 << 19),     /* 0x00080000 */
 
 	/*
 	 * trace journal replaying
 	 */
-	TRACE_REPLAY      =     (1 << 20),     /* 0x00100000 */
+	TRACE_REPLAY      =    (1 << 20),     /* 0x00100000 */
 
 	/*
 	 * trace space allocation
 	 */
-	TRACE_ALLOC       =     (1 << 21),     /* 0x00200000 */
+	TRACE_ALLOC       =    (1 << 21),     /* 0x00200000 */
 
 	/*
 	 * vague section: used to trace bugs. Use it to issue optional prints
@@ -391,7 +391,7 @@ extern __u32 reiser4_current_trace_flags;
 /*
  * type of statistics counters
  */
-typedef unsigned long long stat_cnt;
+typedef unsigned long stat_cnt;
 
 /*
  * set of statistics counter. This is embedded into super-block when
@@ -424,6 +424,10 @@ typedef struct reiser4_statistics {
 		 * cache
 		 */
 		stat_cnt cbk_cache_miss;
+		/*
+		 * cbk cache search found wrong node
+		 */
+		stat_cnt cbk_cache_wrong_node;
 		/*
 		 * cbk cache search found item at the edge of a node with
 		 * possibly non-unique key
