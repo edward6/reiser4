@@ -881,7 +881,6 @@ read_extent(struct file *file, flow_t *flow,  hint_t *hint)
 	assert("vs-1119", znode_is_rlocked(coord->node));
 	assert("vs-1120", znode_is_loaded(coord->node));
 	assert("vs-1256", coord_matches_key_extent(coord, &flow->key));
-	assert("vs-1355", get_key_offset(&flow->key) + flow->length <= inode->i_size);
 
 	/* offset in a file to start read from */
 	file_off = get_key_offset(&flow->key);
@@ -1223,17 +1222,25 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_
   plugin->u.item.s.file.get_block
 */
 reiser4_internal int
-get_block_address_extent(const uf_coord_t *uf_coord, sector_t block, struct buffer_head *bh)
+get_block_address_extent(const coord_t *coord, sector_t block, struct buffer_head *bh)
 {
-	const extent_coord_extension_t *ext_coord;
+	reiser4_extent *ext;
 
-	assert("vs-1321", coord_extension_is_ok(uf_coord));
-	ext_coord = &uf_coord->extension.extent;
+	assert("vs-1321", coord_is_existing_unit(coord));
 
-	if (state_of_extent(ext_coord->ext) != ALLOCATED_EXTENT)
+	ext = extent_by_coord(coord);
+
+	if (state_of_extent(ext) != ALLOCATED_EXTENT)
+		/* FIXME: bad things may happen if it is unallocated extent */
 		bh->b_blocknr = 0;
-	else
-		bh->b_blocknr = extent_get_start(ext_coord->ext) + ext_coord->pos_in_unit;
+	else {
+		reiser4_key key;
+
+		unit_key_by_coord(coord, &key);
+		assert("vs-1645", block >= get_key_offset(&key) >> current_blocksize_bits);
+		assert("vs-1646", block < (get_key_offset(&key) >> current_blocksize_bits) + extent_get_width(ext));
+		bh->b_blocknr = extent_get_start(ext) + (block - (get_key_offset(&key) >> current_blocksize_bits));
+	}
 	return 0;
 }
 
