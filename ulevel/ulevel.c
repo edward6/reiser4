@@ -884,10 +884,12 @@ int generic_file_mmap(struct file * file UNUSED_ARG,
 }
 
 
+/**/
 int add_to_page_cache_unique (struct page * page,
 			      struct address_space * mapping,
 			      unsigned long offset)
 {
+	
 	return 0;
 }
 
@@ -919,7 +921,7 @@ int reiser4_do_page_cache_readahead (struct file * file,
 				     unsigned long start_page,
 				     unsigned long intrafile_readahead_amount);
 
-void page_cache_readahead (struct file * file UNUSED_ARG, unsigned long offset)
+void page_cache_readahead (struct file * file, unsigned long offset)
 {
 	/* do readahead only if reading from the beginning of file */
 	if (offset == 0) {
@@ -1190,10 +1192,12 @@ struct page *page_cache_alloc (struct address_space * mapping UNUSED_ARG)
 	page = kmalloc (sizeof (struct page) + PAGE_CACHE_SIZE, 0);
 	assert ("vs-790", page);
 	xmemset (page, 0, sizeof (struct page) + PAGE_CACHE_SIZE);
+	atomic_set (&page->count, 1);
 	return page;
 }
 
 
+/* fs/buffer.c */
 static struct buffer_head * getblk (struct super_block * sb, int block)
 {
 	struct buffer_head * bh;
@@ -3008,7 +3012,7 @@ static int bash_mkfs (const char * file_name)
 			cputod16 (HASHED_DIR_PLUGIN_ID, &test_sb->root_dir_plugin);
 			cputod16 (DEGENERATE_HASH_ID, &test_sb->root_hash_plugin);
 			cputod16 (NODE40_ID, &test_sb->node_plugin);
-			cputod16 (ALWAYS_TAIL_ID, &test_sb->tail_policy);
+			cputod16 (NEVER_TAIL_ID, &test_sb->tail_policy);
 
 			/* block count on device */
 			block_count = get_fs_size (&super);
