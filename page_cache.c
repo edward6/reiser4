@@ -557,6 +557,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	result = wait_for_flush(page, node, wbc);
 	jput(node);
 	if (result != 0) {
+		page->mapping->a_ops->set_page_dirty(page);
 		reiser4_stat_inc(pcwb_ented);
 		reiser4_exit_context(&ctx);
 		return 0;
