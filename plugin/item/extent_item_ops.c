@@ -57,7 +57,18 @@ mergeable_extent(const coord_t *p1, const coord_t *p2)
 	return 1;
 }
 
+/* item_plugin->b.show */
+void
+show_extent(struct seq_file *m, coord_t *coord)
+{
+	reiser4_extent *ext;
+	ext = extent_by_coord(coord);
+	seq_printf(m, "%Lu %Lu", extent_get_start(ext), extent_get_width(ext));
+}
+
+
 #if REISER4_DEBUG_OUTPUT
+
 /* item_plugin->b.print */
 /* Audited by: green(2002.06.13) */
 static const char *
@@ -106,17 +117,40 @@ print_extent(const char *prefix, coord_t *coord)
 	printk("\n");
 }
 
-/* item_plugin->b.show */
-/* FIXME: ?? */
+/* item_plugin->b.item_stat */
 void
-show_extent(struct seq_file *m, coord_t *coord)
+item_stat_extent(const coord_t *coord, void *vp)
 {
 	reiser4_extent *ext;
-	ext = extent_by_coord(coord);
-	seq_printf(m, "%Lu %Lu", extent_get_start(ext), extent_get_width(ext));
+	struct extent_stat *ex_stat;
+	unsigned i, nr_units;
+
+	ex_stat = (struct extent_stat *) vp;
+
+	ext = extent_item(coord);
+	nr_units = nr_units_extent(coord);
+
+	for (i = 0; i < nr_units; i++) {
+		switch (state_of_extent(ext + i)) {
+		case ALLOCATED_EXTENT:
+			ex_stat->allocated_units++;
+			ex_stat->allocated_blocks += extent_get_width(ext + i);
+			break;
+		case UNALLOCATED_EXTENT:
+			ex_stat->unallocated_units++;
+			ex_stat->unallocated_blocks += extent_get_width(ext + i);
+			break;
+		case HOLE_EXTENT:
+			ex_stat->hole_units++;
+			ex_stat->hole_blocks += extent_get_width(ext + i);
+			break;
+		case UNALLOCATED_EXTENT2:
+			assert("vs-1419", 0);
+		}
+	}
 }
 
-#endif
+#endif /* REISER4_DEBUG_OUTPUT */
 
 /* item_plugin->b.nr_units */
 pos_in_item_t
@@ -309,6 +343,8 @@ create_hook_extent(const coord_t *coord, void *arg)
 	child_coord = arg;
 	tree = znode_get_tree(coord->node);
 
+	assert("nikita-3246", znode_get_level(child_coord->node) == LEAF_LEVEL);
+
 	WLOCK_DK(tree);
 	WLOCK_TREE(tree);
 	/* find a node on the left level for which right delimiting key has to
@@ -319,17 +355,16 @@ create_hook_extent(const coord_t *coord, void *arg)
 	} else {
 		assert("vs-412", coord_wrt(child_coord) == COORD_ON_THE_RIGHT);
 		node = child_coord->node;
+		assert("nikita-3314", node != NULL);
 	}
 
-	if (node) {
+	if (node != NULL) {
 		znode_set_rd_key(node, item_key_by_coord(coord, &key));
 
 		assert("nikita-3282", check_sibling_list(node));
 		/* break sibling links */
 		if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && node->right) {
-			/*ZF_CLR (node->right, JNODE_LEFT_CONNECTED); */
 			node->right->left = NULL;
-			/*ZF_CLR (node, JNODE_RIGHT_CONNECTED); */
 			node->right = NULL;
 		}
 	}
@@ -381,26 +416,99 @@ drop_eflushed_nodes(struct inode *inode, unsigned long index, unsigned long end)
 #endif
 }
 
-void
+
+/* FIXME: debugging code */
+#define KHH_SIZE 30
+struct {
+	
+	struct {
+		reiser4_key key; /* key of item for which kill_hook_extent was called */
+		int from; /* start unit */
+		int count; /* num of units to be cut */
+		int inode_jnodes; /* number of jnodes in inode before kill_hook */
+		int truncated_jnodes; /* number of jnodes truncated in kill_hook */
+		unsigned long index; /* */
+	} data[KHH_SIZE];
+	unsigned from;
+	int oldest;
+	int free;
+	int size;
+} kh_history;
+
+static void
+add_history(const reiser4_key *key, unsigned from, unsigned count, int inode_jnodes, int truncated_jnodes, unsigned long index)
+{
+	int i;
+
+	/* save data */
+	i = kh_history.free;
+	kh_history.data[i].key = *key;
+	kh_history.data[i].from = from;
+	kh_history.data[i].count = count;
+	kh_history.data[i].inode_jnodes = inode_jnodes;
+	kh_history.data[i].truncated_jnodes = truncated_jnodes;
+	
+	/* slot which will be used next */
+	kh_history.free ++;
+	if (kh_history.free == KHH_SIZE)
+		kh_history.free = 0;
+
+	/* history size */
+	if (kh_history.size < KHH_SIZE)
+		kh_history.size ++;
+	else {
+		/* array data is full */
+		kh_history.oldest ++;
+		if (kh_history.oldest == KHH_SIZE)
+			kh_history.oldest = 0;
+	}	
+}
+/* FIXME: end of debugging code */
+
+static int
 truncate_inode_jnodes(struct inode *inode, unsigned long from)
 {
 	reiser4_inode *r4_inode;
 	jnode *jnodes[16];
 	int i, nr;
-
+	int truncated_jnodes;
+	
+	truncated_jnodes = 0;
 	r4_inode = reiser4_inode_data(inode);
 	
 	while ((nr = radix_tree_gang_lookup(&r4_inode->jnode_tree, (void **)jnodes, from, 16)) != 0) {
 		for (i = 0; i < nr; i ++) {
 			uncapture_jnode(jnodes[i]);
 		}
+		truncated_jnodes += nr;
 	}
+	return truncated_jnodes;
+}
+
+static int
+truncate_inode_jnodes_range(struct inode *inode, unsigned long from, int count)
+{
+	int i;
+	reiser4_inode *r4_inode;
+	jnode *node;
+	int truncated_jnodes;
+
+	truncated_jnodes = 0;
+	r4_inode = reiser4_inode_data(inode);
+	for (i = 0; i < count; i ++) {
+		node = radix_tree_lookup(&r4_inode->jnode_tree, from + i);
+		if (node) {
+			uncapture_jnode(node);
+			truncated_jnodes ++;
+		}
+	}
+	return truncated_jnodes;
 }
 
 /* item_plugin->b.kill_hook
    this is called when @count units starting from @from-th one are going to be removed */
 int
-kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, void *p)
+kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, struct cut_list *p)
 {
 	reiser4_extent *ext;
 	unsigned i;
@@ -409,19 +517,46 @@ kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, void *p)
 	loff_t offset;
 	unsigned long index;
 	struct inode *inode;
-
-	inode = p;
+	reiser4_tree *tree;
+	znode *left;
+	znode *right;
 
 	assert ("zam-811", znode_is_write_locked(coord->node));
+	assert("nikita-3315", p != NULL);
 
 	item_key_by_coord(coord, &key);
 	offset = get_key_offset(&key) + extent_size(coord, from);
 	index = offset >> current_blocksize_bits;
 
-	if (inode) {
+	inode = p->inode;
+
+	tree = current_tree;
+
+	if (p->left != NULL) {
+		assert("nikita-3316", p->right != NULL);
+
+		left = p->left->node;
+		right = p->right->node;
+
+		UNDER_RW_VOID(tree, tree, write, 
+			      link_left_and_right(left, right));
+
+		if (right != NULL)
+			UNDER_RW_VOID(dk, tree, write, 
+				      update_znode_dkeys(left, right));
+	}
+
+	if (inode != NULL) {
+		int truncated;
+		int jnodes;
+
+		jnodes = reiser4_inode_data(inode)->jnodes;
+
 		truncate_inode_pages(inode->i_mapping, offset);
-		truncate_inode_jnodes(inode, offset);
+		truncated = truncate_inode_jnodes(inode, index/*offset*/);
 		drop_eflushed_nodes(inode, index, 0);
+
+		add_history(&key, from, count, jnodes, truncated, index);
 	}
 
 	ext = extent_item(coord) + from;
@@ -456,7 +591,8 @@ kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, void *p)
 static int
 cut_or_kill_units(coord_t *coord,
 		  unsigned *from, unsigned *to,
-		  int cut, const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed, struct inode *inode)
+		  int cut, const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed,
+		  struct cut_list *cl)
 {
 	reiser4_extent *ext;
 	reiser4_key key;
@@ -464,7 +600,9 @@ cut_or_kill_units(coord_t *coord,
 	reiser4_block_nr offset;
 	unsigned count;
 	__u64 cut_from_to;
+	struct inode *inode;
 
+	inode = cl->inode;
 	count = *to - *from + 1;
 
 	blocksize = current_blocksize;
@@ -493,25 +631,31 @@ cut_or_kill_units(coord_t *coord,
 		__u64 last;
 
 		if (!cut && inode != NULL) {
+			/* kill */
 			loff_t start;
 			loff_t end;
 			long nr_pages;
-			unsigned long index;
+			int truncated_jnodes;
+			int jnodes;
 
 			/* round @start upward */
 			start = round_up(get_key_offset(from_key), 
 					 PAGE_CACHE_SIZE);
 			/* convert to page index */
 			start >>= PAGE_CACHE_SHIFT;
-			/* round @end downward */
-			end   = get_key_offset(to_key) & PAGE_CACHE_MASK;
-			/* convert to page index */
-			end   >>= PAGE_CACHE_SHIFT;
+			/* index of last page which is to be truncated */
+			/* FIXME: this looses high bits. Fortunately on i386 they can not be set */
+			end   = get_key_offset(to_key) >> PAGE_CACHE_SHIFT;
 			/* number of completely removed pages */
 			nr_pages = end - start + 1;
 			truncate_mapping_pages_range(inode->i_mapping, 
 						     start, nr_pages);
-			index = start >> PAGE_CACHE_SHIFT;
+
+			/* detach jnodes from inode's tree of jnodes */
+			/*XXXX*/jnodes = reiser4_inode_data(inode)->jnodes;
+			truncated_jnodes = truncate_inode_jnodes_range(inode, start, start + nr_pages);
+			/*XXXX*/add_history(&key, *from, count, jnodes, truncated_jnodes, start);
+
 			drop_eflushed_nodes(inode, start, start + nr_pages);
 		}
 
@@ -635,9 +779,12 @@ cut_or_kill_units(coord_t *coord,
 		}
 	}
 
-	if (!cut)
+	if (!cut) {
 		/* call kill hook for all extents removed completely */
-		kill_hook_extent(coord, *from, count, NULL);
+		cl->inode = NULL;
+		kill_hook_extent(coord, *from, count, cl);
+		cl->inode = inode;
+	}
 
 	if (*from == 0 && count != coord_last_unit_pos(coord) + 1) {
 		/* part of item is removed from item beginning, update item key
@@ -659,7 +806,8 @@ cut_or_kill_units(coord_t *coord,
 /* item_plugin->b.cut_units */
 int
 cut_units_extent(coord_t *item, unsigned *from, unsigned *to,
-		 const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed, void *p)
+		 const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed,
+		 struct cut_list *p)
 {
 	return cut_or_kill_units(item, from, to, 1, from_key, to_key, smallest_removed, p);
 }
@@ -667,7 +815,8 @@ cut_units_extent(coord_t *item, unsigned *from, unsigned *to,
 /* item_plugin->b.kill_units */
 int
 kill_units_extent(coord_t *item, unsigned *from, unsigned *to,
-		  const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed, void *p)
+		  const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed,
+		  struct cut_list *p)
 {
 	return cut_or_kill_units(item, from, to, 0, from_key, to_key, smallest_removed, p);
 }
@@ -689,38 +838,6 @@ unit_key_extent(const coord_t *coord, reiser4_key *key)
 
 #if REISER4_DEBUG_OUTPUT
 
-/* item_plugin->b.item_stat */
-void
-item_stat_extent(const coord_t *coord, void *vp)
-{
-	reiser4_extent *ext;
-	struct extent_stat *ex_stat;
-	unsigned i, nr_units;
-
-	ex_stat = (struct extent_stat *) vp;
-
-	ext = extent_item(coord);
-	nr_units = nr_units_extent(coord);
-
-	for (i = 0; i < nr_units; i++) {
-		switch (state_of_extent(ext + i)) {
-		case ALLOCATED_EXTENT:
-			ex_stat->allocated_units++;
-			ex_stat->allocated_blocks += extent_get_width(ext + i);
-			break;
-		case UNALLOCATED_EXTENT:
-			ex_stat->unallocated_units++;
-			ex_stat->unallocated_blocks += extent_get_width(ext + i);
-			break;
-		case HOLE_EXTENT:
-			ex_stat->hole_units++;
-			ex_stat->hole_blocks += extent_get_width(ext + i);
-			break;
-		case UNALLOCATED_EXTENT2:
-			assert("vs-1419", 0);
-		}
-	}
-}
 
 #endif /* REISER4_DEBUG_OUTPUT */
 
@@ -740,6 +857,10 @@ check_extent(const coord_t *coord /* coord of item to check */ ,
 	unsigned i, j;
 	reiser4_block_nr start, width, blk_cnt;
 	unsigned num_units;
+	reiser4_tree *tree;
+	oid_t oid;
+	reiser4_key key;
+	coord_t scan;
 
 	assert("vs-933", REISER4_DEBUG);
 
@@ -754,8 +875,36 @@ check_extent(const coord_t *coord /* coord of item to check */ ,
 	ext = first = extent_item(coord);
 	blk_cnt = reiser4_block_count(reiser4_get_current_sb());
 	num_units = coord_num_units(coord);
+	tree = znode_get_tree(coord->node);
+	item_key_by_coord(coord, &key);
+	oid = get_key_objectid(&key);
+	coord_dup(&scan, coord);
 
 	for (i = 0; i < num_units; ++i, ++ext) {
+		__u64 index;
+
+		scan.unit_pos = i;
+		index = extent_unit_index(&scan);
+
+		/* check that all jnodes are present for the unallocated
+		 * extent */
+		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
+			for (j = 0; j < extent_get_width(ext); j ++) {
+				jnode *node;
+
+				RLOCK_TREE(tree);
+				node = jlook_lock(tree, oid, index + j);
+				if (node == NULL) {
+					BUG();
+					print_coord("scan", &scan, 0);
+					*error = "Jnode missing";
+					RUNLOCK_TREE(tree);
+					return -1;
+				}
+				RUNLOCK_TREE(tree);
+				jput(node);
+			}
+		}
 
 		start = extent_get_start(ext);
 		if (start < 2)
