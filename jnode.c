@@ -105,7 +105,6 @@
 #include "dformat.h"
 #include "plugin/plugin_header.h"
 #include "plugin/plugin.h"
-#include "plugin/plugin_hash.h"
 #include "txnmgr.h"
 #include "jnode.h"
 #include "znode.h"
@@ -1182,14 +1181,6 @@ remove_jnode(jnode * node, reiser4_tree * tree)
 		unhash_unformatted_node_nolock(node);
 }
 
-static void
-remove_inode_jnode(jnode * node, reiser4_tree * tree UNUSED_ARG)
-{
-	assert("nikita-2663", capture_list_is_clean(node));
-
-	phash_jnode_destroy(node);
-}
-
 static struct address_space *
 mapping_znode(const jnode * node)
 {
@@ -1464,7 +1455,6 @@ jnode_remove(jnode * node, jnode_type jtype, reiser4_tree * tree UNUSED_ARG)
 	case JNODE_BITMAP:
 		break;
 	case JNODE_INODE:
-		remove_inode_jnode(node, tree);
 		break;
 	case JNODE_FORMATTED_BLOCK:
 		remove_znode(node, tree);

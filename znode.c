@@ -146,7 +146,6 @@
 #include "plugin/plugin_header.h"
 #include "plugin/node/node.h"
 #include "plugin/plugin.h"
-#include "plugin/plugin_hash.h"
 #include "txnmgr.h"
 #include "jnode.h"
 #include "znode.h"
