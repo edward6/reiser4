@@ -119,8 +119,8 @@ static int reiser4_pars_free(struct reiser4_syscall_w_space * ws /* work space p
 	assert("VD-reiser4_pars_free:ws_level",        ws->ws_level >= 0);
 	assert("VD-reiser4_pars_free:cur_exp" ,        ws->cur_level->cur_exp != NULL);
 
-	free_expr( ws->cur_level->cur_exp );
-	free_expr( ws->root_e );
+	free_expr( ws, ws->cur_level->cur_exp );
+	free_expr( ws, ws->root_e );
 	if ( ws->freeSpHead ) {
 		freeList(ws->freeSpHead);
 	}
@@ -221,7 +221,7 @@ static pars_var_t * alloc_pars_var(struct reiser4_syscall_w_space * ws /* work s
 }
 
 /* free lnodes used in expression */
-static int free_expr( /*struct reiser4_syscall_w_space * ws, */ expr_v4_t * expr)
+static int free_expr( struct reiser4_syscall_w_space * ws,  expr_v4_t * expr)
 {
 	expr_list_t * tmp;
 	int ret = 0;
@@ -232,48 +232,26 @@ static int free_expr( /*struct reiser4_syscall_w_space * ws, */ expr_v4_t * expr
 	case EXPR_WRD:
 		break;
 	case EXPR_PARS_VAR:
-		assert("VD-free_expr.EXPR_PARS_VAR", expr->pars_var.v!=NULL);
-		switch(expr->pars_var.v->vtype) {
-		case VAR_LNODE:
-			assert("VD-free_expr.EXPR_PARS_VAR.ln", expr->pars_var.v->u.ln!=NULL);
-			printk("free_expr:EXPR_PARS_VAR %d\n", expr->pars_var.v->count );
-			//		if ( !--expr->pars_var.v->count )
-			{
-				path4_release( expr->pars_var.v->u.ln->dentry );
-				lput( expr->pars_var.v->u.ln );
-			}
-			break;
-		case VAR_PSEUDO:
-			kfree(expr->pars_var.v->u.data);
-			break;
-		}
+		pop_var_val_stack( ws, expr->pars_var.v->val );
+
+
+
+
 		break;
 	case EXPR_LIST:
 		tmp=&expr->list;
 		while (tmp) {
 			assert("VD-free_expr.EXPR_LIST", tmp->h.type==EXPR_LIST);
-			ret |= free_expr( tmp->source );
+			ret |= free_expr( ws, tmp->source );
 			tmp = tmp->next;
 		}
 		break;
 	case EXPR_ASSIGN:
-		assert("VD-free_expr.EXPR_ASSIGN", expr->assgn.target!=NULL);
-		switch(expr->assgn.target->vtype) {
-		case VAR_LNODE:
+		ret = pop_var_val_stack( ws, expr->assgn.target->val );
 
-			assert("VD-free_expr.EXPR_ASSIGN.ln", expr->assgn.target->u.ln!=NULL);
-			assert("VD-free_expr.EXPR_ASSIGN.count", expr->assgn.target->count>0);
-			//		if ( !--expr->assgn.target->count )
-			{
-				path4_release( expr->assgn.target->u.ln->dentry);
-				lput(expr->assgn.target->u.ln);
-			}
-			ret |= free_expr( expr->assgn.source );
-			break;
-		case VAR_PSEUDO:
-			kfree(expr->assgn.target->u.data);
-			break;
-		}
+
+
+		ret |= free_expr( ws, expr->assgn.source );
 		break;
 	case EXPR_LNODE:
 		assert("VD-free_expr.lnode.lnode", expr->lnode.lnode!=NULL);
@@ -283,11 +261,11 @@ static int free_expr( /*struct reiser4_syscall_w_space * ws, */ expr_v4_t * expr
 	case EXPR_FLOW:
 		break;
 	case EXPR_OP2:
-		ret  = free_expr( expr->op2.op_r );
-		ret |= free_expr( expr->op2.op_l );
+		ret  = free_expr( ws, expr->op2.op_r );
+		ret |= free_expr( ws, expr->op2.op_l );
 		break;
 	case EXPR_OP:
-		ret = free_expr( expr->op.op );
+		ret = free_expr( ws, expr->op.op );
 		break;
 	}
 	return ret;
@@ -355,8 +333,8 @@ static struct reiser4_syscall_w_space * reiser4_pars_init(void)
 	ws->freeSpHead          = free_space_alloc();
 	ws->freeSpCur           = ws->freeSpHead;
 	ws->wrdHead             = NULL;
-	ws->root_e              = init_root(ws);
 	ws->cur_level           = alloc_new_level(ws);
+	ws->root_e              = init_root(ws);
 	ws->cur_level->cur_exp  = init_pwd(ws);
 	ws->cur_level->wrk_exp  = ws->cur_level->cur_exp;                        /* current wrk for new level */
 	ws->cur_level->prev     = NULL;
@@ -366,23 +344,62 @@ static struct reiser4_syscall_w_space * reiser4_pars_init(void)
 	return ws;
 }
 
-
+#if 0
 static expr_v4_t * named_level_down(struct reiser4_syscall_w_space *ws /* work space ptr */,
-			     wrd_t * w /* name for expression  */,
-			     long type1 /* type of level we going to */,
+			     expr_v4_t * e /* name for expression  */,
 			     expr_v4_t * e1,
-			     long type2 /* type of level we going to */)
+			     long type /* type of level we going to */)
 {
+
+	static int push_var_val_stack( ws, struct pars_var * var, long type )
+
+	rezult->u.data  = kmalloc( SIZEFOR_ASSIGN_RESULT, GFP_KERNEL ) ;
+	sprintf( rezult->u.data, "%d", ret_code );
+
+	level_down( ws, , type2 );
+	return e1;
+}
+
+
+/* level up of parsing level */
+static void level_up_named(struct reiser4_syscall_w_space *ws /* work space ptr */,
+			   expr_v4_t * e1 /* name for expression  */,
+			   long type /* type of level we going to */)
+{
+	pars_var_t * rezult;
+
+	assert("wrong type of named expression", type == CD_BEGIN );
+
+	rezult =  e1->pars_var.v;
+	switch ( e1->pars_var.v->val->vtype) {
+	case VAR_EMPTY:
+		break;
+	case VAR_LNODE:
+		break;
+	case VAR_TMP:
+		break;
+	}
+
 	/* make name for w in this level. ????????
 	   not yet worked */
 
 
+	rezult =  lookup_pars_var_word( ws , sink, make_new_word(ws, ASSIGN_RESULT ), VAR_TMP);
+	rezult->u.data  = kmalloc( SIZEFOR_ASSIGN_RESULT, GFP_KERNEL ) ;
+	sprintf( rezult->u.data, "%d", ret_code );
+	
+?????
+
+	level_up( ws, type );
+}
+
+#endif
 
 
-
-
-	level_down( ws, type1, type2 );
-	return e1;
+static expr_v4_t *target_name( expr_v4_t *assoc_name, expr_v4_t *target )
+{
+	target->pars_var.v->val->associated = assoc_name->pars_var.v;
+	return target;
 }
 
 /* level up of parsing level */
@@ -390,10 +407,10 @@ static void level_up(struct reiser4_syscall_w_space *ws /* work space ptr */,
 		     long type /* type of level we going to */)
 {
 	if (ws->cur_level->next==NULL) {
-		ws->cur_level->next       = alloc_new_level(ws);
-		ws->cur_level->next->prev = ws->cur_level;
-		ws->cur_level->next->next = NULL;
-		ws->cur_level->level      = ws->cur_level->prev->level+1;
+		ws->cur_level->next        = alloc_new_level(ws);
+		ws->cur_level->next->next  = NULL;
+		ws->cur_level->next->prev  = ws->cur_level;
+		ws->cur_level->next->level = ws->cur_level->level+1;
 	}
 	ws->cur_level           = ws->cur_level->next;
 	ws->cur_level->stype    = type;
@@ -402,17 +419,24 @@ static void level_up(struct reiser4_syscall_w_space *ws /* work space ptr */,
 }
 
 
-
-
 /* level down of parsing level */
 static  void  level_down(struct reiser4_syscall_w_space * ws /* work space ptr */,
 			 long type1 /* type of level that was up( for checking) */,
 			 long type2 /* type of level that is down(for checking)*/)
 {
-	assert("VD-level_down: type mithmatch", type1==type2);
-	assert("VD-level_down: type mithmatch with level", type1==ws->cur_level->stype);
+	pars_var_value_t * ret,*next;
+	assert("VD-level_down: type mithmatch", type1 == type2 );
+	assert("VD-level_down: type mithmatch with level", type1 == ws->cur_level->stype );
 	assert("VD-level_down: This is top level, prev == NULL", ws->cur_level->prev != NULL);
-	free_expr(ws->cur_level->prev->wrk_exp);
+	ret = ws->cur_level->val_level;
+	while( ret != NULL )
+		{
+			next = ret->next_level;
+			assert("VD: level down: not top value was pop", ret == ret->host->val);
+			pop_var_val_stack( ws, ret );
+			ret = next;
+		}
+	free_expr( ws, ws->cur_level->prev->wrk_exp );
 	ws->cur_level->prev->wrk_exp = ws->cur_level->wrk_exp ;           /* current wrk for prev level */
 	ws->cur_level                = ws->cur_level->prev;
 }
@@ -422,7 +446,7 @@ static  wrd_t * make_new_word(struct reiser4_syscall_w_space * ws /* work space 
 	      char *txt /* string to put in name table */)
 {
 	ws->tmpWrdEnd = ws->freeSpCur->freeSpace;
-	strcmp( ws->tmpWrdEnd, txt );
+	strcat( ws->tmpWrdEnd, txt );
 	ws->tmpWrdEnd += strlen(txt) ;
 	*ws->tmpWrdEnd++ = 0;
 	return _wrd_inittab( ws );
@@ -642,14 +666,25 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws /* work space ptr */
 	case Sp5: /*>*/
 	case Sp6: /*?*/
 	case ASG:/*<-*/
-	case App:/*<<-*/
+	case App:/*<<-*/ /*???*/
 	case Lnk:/*->*/
 	case Pls:/*+*/
+	case Nam:/*<=*/
 		ret=lexcls[(int) lcls ].term;
 		break;
 	case Lpr:
 	case Rpr:
-		ws->ws_yylval.charType = *ws->yytext ;
+		ws->ws_yylval.charType = CD_BEGIN ;
+		ret=lexcls[(int) lcls ].term;
+		break;
+	case Lsq:
+	case Rsq:
+		ws->ws_yylval.charType = UNORDERED ;
+		ret=lexcls[(int) lcls ].term;
+		break;
+	case Lfl:
+	case Rfl:
+		ws->ws_yylval.charType = ASYN_BEGIN ;
 		ret=lexcls[(int) lcls ].term;
 		break;
 	default :                                /*  others  */
@@ -680,6 +715,7 @@ wrd_t * nullname(struct reiser4_syscall_w_space * ws /* work space ptr */)
 	return make_new_word(ws,"");
 }
 
+
 /* initialize node  for root lnode */
 static expr_v4_t *  init_root(struct reiser4_syscall_w_space * ws /* work space ptr */)
 {
@@ -687,6 +723,7 @@ static expr_v4_t *  init_root(struct reiser4_syscall_w_space * ws /* work space 
 	e                     = alloc_new_expr( ws, EXPR_PARS_VAR );
 	e->pars_var.v         = alloc_pars_var( ws, NULL );
 	e->pars_var.v->w      = nullname(ws) ; /* or '/' ????? */
+	e->pars_var.v->parent = NULL;
 	ws->nd.flags          = LOOKUP_NOALT;
 
 //	walk_init_root( "/", (&ws->nd));   /* from namei.c walk_init_root */
@@ -696,10 +733,10 @@ static expr_v4_t *  init_root(struct reiser4_syscall_w_space * ws /* work space 
 		ws->nd.dentry = my_dget("root", current->fs->root);
 		read_unlock(&current->fs->lock);
 	}
-
-	e->pars_var.v->u.ln   = get_lnode( ws ) ;
-	e->pars_var.v->parent = NULL;
-	e->pars_var.v->vtype  = VAR_LNODE;
+	if (push_var_val_stack( ws, e->pars_var.v, VAR_LNODE )) {
+		printk("VD-init_root: push_var_val_stack error\n");
+	}
+	else e->pars_var.v->val->u.ln = get_lnode( ws );
 	return e;
 }
 
@@ -711,6 +748,7 @@ static expr_v4_t *  init_pwd(struct reiser4_syscall_w_space * ws /* work space p
 	e                     = alloc_new_expr(ws,EXPR_PARS_VAR);
 	e->pars_var.v         = alloc_pars_var(ws,ws->root_e->pars_var.v);
 	e->pars_var.v->w      = nullname(ws) ;  /* better if it will point to full pathname for pwd */
+	e->pars_var.v->parent = ws->root_e->pars_var.v;
 
 //	path_lookup(".",,&(ws->nd));   /* from namei.c path_lookup */
 	{
@@ -719,11 +757,11 @@ static expr_v4_t *  init_pwd(struct reiser4_syscall_w_space * ws /* work space p
 		ws->nd.dentry = my_dget("pwd",current->fs->pwd);
 		read_unlock(&current->fs->lock);
 	}
-
 	current->total_link_count = 0;
-	e->pars_var.v->u.ln   = get_lnode( ws ) ;
-	e->pars_var.v->parent = ws->root_e->pars_var.v;
-	e->pars_var.v->vtype  = VAR_LNODE;
+	if (push_var_val_stack( ws, e->pars_var.v, VAR_LNODE )) {
+		printk("VD-init_pwd: push_var_val_stack error\n");
+	}
+	else e->pars_var.v->val->u.ln=get_lnode( ws );
 	return e;
 }
 
@@ -736,11 +774,11 @@ static expr_v4_t *  init_pseudo_name(struct reiser4_syscall_w_space * ws /* work
 	e                     = alloc_new_expr(ws,EXPR_PARS_VAR);
 	e->pars_var.v         = alloc_pars_var(ws,ws->root_e->pars_var.v);
 	e->pars_var.v->w      = make_new_word(ws, name);
+	e->pars_var.v->parent = ws->root_e->pars_var.v;
 
 	current->total_link_count = 0;
-	e->pars_var.v->u.ln   = get_lnode( ws ) ;
-	e->pars_var.v->parent = ws->root_e->pars_var.v;
-	e->pars_var.v->vtype  = VAR_PSEUDO;
+	push_var_val_stack( ws, e->pars_var.v, VAR_LNODE );
+	e->pars_var.v->val->u.ln = get_lnode( ws );
 	return e;
 }
 
@@ -803,7 +841,7 @@ static pars_var_t * lookup_pars_var_word(struct reiser4_syscall_w_space * ws /* 
 	while ( rez_pars_var != NULL ) {
 		if( rez_pars_var->parent == parent &&
 		    rez_pars_var->w      == w ) {
-			rez_pars_var->count++;
+			rez_pars_var->val->count++;
 			return rez_pars_var;
 		}
 		last_pars_var = rez_pars_var;
@@ -814,30 +852,30 @@ static pars_var_t * lookup_pars_var_word(struct reiser4_syscall_w_space * ws /* 
 	rez_pars_var->w      = w;
 	rez_pars_var->parent = parent;
 
-
-
-
-	switch (parent->vtype) {
+	switch (parent->val->vtype) {
+	case VAR_EMPTY:
+		break;
 	case VAR_LNODE:
-		switch (parent->u.ln->h.type) {
+		switch (parent->val->u.ln->h.type) {
 		case LNODE_INODE:  /* not use it ! */
-			de = d_alloc_anon(parent->u.ln->inode.inode);
+			de = d_alloc_anon(parent->val->u.ln->inode.inode);
 			break;
 		case LNODE_DENTRY:
-			ws->nd.dentry = parent->u.ln->dentry.dentry;
-			ws->nd.mnt    = parent->u.ln->dentry.mnt;
+			ws->nd.dentry = parent->val->u.ln->dentry.dentry;
+			ws->nd.mnt    = parent->val->u.ln->dentry.mnt;
 			ws->nd.flags  = LOOKUP_NOALT ;
 			if ( link_path_walk( w->u.name, &(ws->nd) ) ) /* namei.c */ {
 				printk("lookup error\n");
-				rez_pars_var->vtype = VAR_PSEUDO;
+				push_var_val_stack( ws, rez_pars_var, VAR_TMP );
+				rez_pars_var->val->u.ln = NULL;
 			}
 			else {
-				rez_pars_var->u.ln  = lget( LNODE_DENTRY, get_inode_oid( ws->nd.dentry->d_inode) );
-				rez_pars_var->vtype = VAR_LNODE;
+				push_var_val_stack( ws, rez_pars_var, VAR_LNODE );
+				rez_pars_var->val->u.ln = lget( LNODE_DENTRY, get_inode_oid( ws->nd.dentry->d_inode) );
 				{
 					read_lock(&current->fs->lock);
-					rez_pars_var->u.ln->dentry.mnt    = my_mntget("pars_v",ws->nd.mnt);
-					rez_pars_var->u.ln->dentry.dentry = my_dget("pars_v",ws->nd.dentry);
+					rez_pars_var->val->u.ln->dentry.mnt    = my_mntget("pars_v",ws->nd.mnt);
+					rez_pars_var->val->u.ln->dentry.dentry = my_dget("pars_v",ws->nd.dentry);
 					read_unlock(&current->fs->lock);
 				}
 			}
@@ -850,11 +888,11 @@ static pars_var_t * lookup_pars_var_word(struct reiser4_syscall_w_space * ws /* 
 		case LNODE_LW:
 			break;
 		case LNODE_REISER4_INODE:
-			rez_pars_var->u.ln->h.type        = LNODE_REISER4_INODE /* LNODE_LW */;
+			rez_pars_var->val->u.ln->h.type        = LNODE_REISER4_INODE /* LNODE_LW */;
 #if 0                   /*   NOT_YET  ???? */
 			//			ln                = lget( LNODE_DENTRY, get_key_objectid(&key ) );
-			result = coord_by_key(get_super_private(parent->ln->lw.lw_sb)->tree,
-					      parent->ln->lw.key,
+			result = coord_by_key(get_super_private(parent->val->ln->lw.lw_sb)->tree,
+					      parent->val->ln->lw.key,
 					      &coord,
 					      &lh,
 					      ZNODE_READ_LOCK,
@@ -866,7 +904,7 @@ static pars_var_t * lookup_pars_var_word(struct reiser4_syscall_w_space * ws /* 
 			//			if (REISER4_DEBUG && result == 0)
 			//				check_sd_coord(coord, key);
 			if (result != 0) {
-				lw_key_warning(parent->ln->lw.key, result);
+				lw_key_warning(parent->val->ln->lw.key, result);
 			}
 			else {
 				switch(item_type_by_coord(coord)) {
@@ -892,30 +930,12 @@ static pars_var_t * lookup_pars_var_word(struct reiser4_syscall_w_space * ws /* 
 			break;
 		}
 		break;
-	case VAR_PSEUDO:
-		rez_pars_var->vtype = VAR_PSEUDO;
+	case VAR_TMP:
+		push_var_val_stack( ws, rez_pars_var, VAR_TMP );
+		rez_pars_var->val->u.ln = NULL;
 		break;
 	}
 
-#if 0
-	switch (type)
-		{
-		case VAR_LNODE:
-
-			rez_pars_var->u.ln = 
-				rez = lookup_pars_var_lnode( ws, parent, w );
-			break;
-		case VAR_PSEUDO:
-			rez_pars_var->u.data  = ;
-			break;
-		}
-
-	if ( type == VAR_LNODE && lookup_pars_var_lnode( ws, parent, w ) == 0 )  {
-		rez_pars_var->vtype  = VAR_LNODE;
-	} else {
-		rez_pars_var->vtype  = VAR_PSEUDO;
-	}
-#endif
 	return rez_pars_var;
 }
 
@@ -1308,9 +1328,15 @@ static expr_v4_t * list_expression(struct reiser4_syscall_w_space * ws /* work s
 
 
 
-static inline expr_v4_t * list_async_expression(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2 )
+static expr_v4_t * list_async_expression(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2 )
 {
 	return list_expression( ws, e1 , e2  );
+}
+
+
+static expr_v4_t * unname( struct reiser4_syscall_w_space * ws, expr_v4_t * e1 )
+{
+	return e1;
 }
 
 
@@ -1475,6 +1501,65 @@ static int pop_tube_stack( tube_t * tube )
 	}
 }
 
+static int push_var_val_stack(struct reiser4_syscall_w_space *ws /* work space ptr */,
+			      struct pars_var * var,
+			      long type)
+{
+	pars_var_value_t * ret;
+	ret = kmalloc( sizeof(pars_var_value_t), GFP_KERNEL );
+	memset( ret , 0, sizeof( pars_var_value_t ));
+	if (!IS_ERR(ret)) {
+		ret->prev       = var->val;
+		ret->vtype      = type;
+		ret->host       = var;
+		ret->count      = 1;
+		ret->len        = -11;
+		ret->off        = 0;
+		ret->next_level = ws->cur_level->val_level;
+		ws->cur_level->val_level = ret;
+		var->val        = ret;
+		return 0;
+	}
+	else {
+		return PTR_ERR(ret);
+	}
+}
+
+static int pop_var_val_stack( struct reiser4_syscall_w_space *ws /* work space ptr */,
+			      pars_var_value_t * val )
+{
+	pars_var_value_t * ret;
+	if ( val == NULL ) {
+		return -1;
+	}
+	else {
+		switch(val->vtype) {
+#if 0
+		case VAR_EMPTY:
+			break;
+		case VAR_LNODE:
+			assert("VD-pop_var_val_stack.VAR_LNODE", val->u.ln!=NULL);
+			printk("var->val->count %d\n", val->count );
+			//		if ( !--var->val->count )
+			{
+				path4_release( val->u.ln->dentry );
+				lput( val->u.ln );
+			}
+			break;
+#endif
+		case VAR_TMP:
+			if (val->u.data!=NULL) {
+				kfree( val->u.data );
+			}
+			val->host->val           = val->prev;
+			ws->cur_level->val_level = val->next_level;
+			kfree( val );
+			break;
+		}
+		return 0;
+	}
+}
+
 /*  pop onto stack for calculate expressions one step */
 static void put_tube_src(tube_t * tube)
 {
@@ -1516,20 +1601,22 @@ static int get_tube_next_src(tube_t * tube)
 			break;
 		case EXPR_PARS_VAR:
 			assert("VD-free_expr.EXPR_PARS_VAR", s->pars_var.v!=NULL);
-			switch( s->pars_var.v->vtype) {
+			switch( s->pars_var.v->val->vtype) {
+			case VAR_EMPTY:
+				break;
 			case VAR_LNODE:
-				assert("VD-free_expr.EXPR_PARS_VAR.ln", s->pars_var.v->u.ln!=NULL);
-				//					if ( S_ISREG(s->pars_var.v->u.ln->dentry.dentry->d_inode) )
+				assert("VD-free_expr.EXPR_PARS_VAR.ln", s->pars_var.v->val->u.ln!=NULL);
+				//					if ( S_ISREG(s->pars_var.v->val->u.ln->dentry.dentry->d_inode) )
 				{
-					fl=  dentry_open( s->pars_var.v->u.ln->dentry.dentry,
-							  s->pars_var.v->u.ln->dentry.mnt, O_RDONLY ) ;
+					fl=  dentry_open( s->pars_var.v->val->u.ln->dentry.dentry,
+							  s->pars_var.v->val->u.ln->dentry.mnt, O_RDONLY ) ;
 					if ( !IS_ERR(fl) ) {
 						change_tube_stack( tube, ST_FILE , fl);
 					}
 					else printk("error for open source\n");
 				}
 #if 0          // not yet
-				else if ( S_ISDIR(s->pars_var.v->u.ln->dentry.dentry->d_inode) ) {
+				else if ( S_ISDIR(s->pars_var.v->val->u.ln->dentry.dentry->d_inode) ) {
 					while(NOT EOF)
 						{
 							readdir();
@@ -1538,15 +1625,15 @@ static int get_tube_next_src(tube_t * tube)
 #endif
 				ret = 0;
 				break;
-			case VAR_PSEUDO:
-				if ( s->pars_var.v->u.data == NULL )
+			case VAR_TMP:
+				if ( s->pars_var.v->val->u.data == NULL )
 					{
 						pop_tube_stack( tube );
 						ret = 1;
 					}
 				else
 					{
-						change_tube_stack( tube, ST_DATA , s->pars_var.v->u.data);
+						change_tube_stack( tube, ST_DATA , s->pars_var.v->val->u.data);
 						ret = 0;
 					}
 				break;
@@ -1567,7 +1654,7 @@ static int get_tube_next_src(tube_t * tube)
 #if 0   // not yet
 			assert("VD-free_expr.EXPR_ASSIGN", s->assgn.target!=NULL);
 			assert("VD-free_expr.EXPR_ASSIGN.ln", s->assgn.target->ln!=NULL);
-			assert("VD-free_expr.EXPR_ASSIGN.count", s->assgn.target->count>0);
+			assert("VD-free_expr.EXPR_ASSIGN.count", s->assgn.target->val->count>0);
 			( s->assgn.target->ln);
 			( s->assgn.source );
 #endif
@@ -1609,21 +1696,23 @@ static tube_t *  get_tube_general(tube_t * tube, pars_var_t *sink, expr_v4_t *so
 		START_KERNEL_IO_GLOB;
 		memset( tube , 0, sizeof( struct tube ));
 		assert("VD get_tube_general: no tube",!IS_ERR(tube));
-		printk("get_tube_general:%d\n",sink->vtype);
+		printk("get_tube_general:%d\n",sink->val->vtype);
 		tube->target = sink;
-		switch( sink->vtype ) {
+		switch( sink->val->vtype ) {
+		case VAR_EMPTY:
+			break;
 		case VAR_LNODE:
 			printk("VAR_LNODE\n");
-			assert("VD get_tube_general: dst no dentry",sink->u.ln->h.type== LNODE_DENTRY);
-			tube->dst         = dentry_open( sink->u.ln->dentry.dentry,
-							 sink->u.ln->dentry.mnt,
+			assert("VD get_tube_general: dst no dentry",sink->val->u.ln->h.type== LNODE_DENTRY);
+			tube->dst         = dentry_open( sink->val->u.ln->dentry.dentry,
+							 sink->val->u.ln->dentry.mnt,
 							 O_WRONLY|O_TRUNC );
 			tube->writeoff    = 0;
 			tube->st_current  = NULL;
 			push_tube_stack( tube, ST_EXPR, (long *)source );
 			break;
-		case VAR_PSEUDO:
-			printk("VAR_PSEUDO\n");
+		case VAR_TMP:
+			printk("VAR_TMP\n");
 			break;
 		}
 	}
@@ -1666,7 +1755,7 @@ static size_t get_available_src_len(tube_t * tube)
 			ret = 1;
 			break;
 		case ST_DATA:
-			s_len = strlen(tube->st_current->u.pointer);
+			s_len = strlen((char *)tube->st_current->u.pointer);
 			break;
 			}
 	}
@@ -1714,7 +1803,7 @@ static size_t source_to_tube_general(tube_t * tube)
 		}
 		else ret = 0;
 	case ST_DATA:
-		if ( tube->readoff < strlen(tube->st_current->u.pointer) ) {
+		if ( tube->readoff < strlen((char *)tube->st_current->u.pointer) ) {
 			memcpy( tube->buf,  tube->st_current->u.pointer + tube->readoff, ret = tube->len );
 			tube->readoff += ret;
 		}
@@ -1729,11 +1818,13 @@ static size_t tube_to_sink_general(tube_t * tube)
 	size_t ret;
 //	tube->sink->fplug->write(tube->offset,tube->len);
 //	tube->offset += tube->len;
-	switch(tube->target->vtype) {
+	switch(tube->target->val->vtype) {
+	case VAR_EMPTY:
+		break;
 	case VAR_LNODE:
 		ret = vfs_write(tube->dst, tube->buf, tube->len, &tube->writeoff);
 		break;
-	case VAR_PSEUDO:
+	case VAR_TMP:
 		// memncpy(tube->target->data,tube->buf,tube->len);
 		// or 
 		// tube->target->data=tube->buf;
@@ -1751,17 +1842,58 @@ static void put_tube(tube_t * tube)
 	PTRACE1( "%s\n", "begin");
 	END_KERNEL_IO_GLOB;
 	assert("VD :stack not empty ",tube->st_current == NULL);
-	switch(tube->target->vtype) {
+	switch(tube->target->val->vtype) {
+	case VAR_EMPTY:
+		break;
 	case VAR_LNODE:
 		do_truncate( tube->dst->f_dentry, tube->writeoff);
 		filp_close(tube->dst, current->files );
 		break;
-	case VAR_PSEUDO:
+	case VAR_TMP:
 		break;
 	}
 	kfree(tube->buf);
 	kfree(tube);
 }
+
+static int create_result_field(struct reiser4_syscall_w_space * ws,
+			       pars_var_t *parent,   /* parent for name */
+			       char * name ,         /* created name    */
+			       int result_len,       /* length of allocated space for value */
+			       int result)
+{
+	int ret;
+	wrd_t * tmp_wrd;
+	pars_var_t * rezult;
+
+	tmp_wrd = make_new_word(ws, name );
+	rezult =  lookup_pars_var_word( ws , parent, tmp_wrd, VAR_TMP);
+	if ( rezult != NULL ) {
+		rezult->val->u.data  = kmalloc( result_len, GFP_KERNEL ) ;
+		if ( rezult->val->u.data ) {
+			sprintf( rezult->val->u.data, "%d", result );
+			ret=0;
+		}
+	}
+	else {
+		ret = 1;
+	}
+	return ret;
+}
+
+static int create_result(struct reiser4_syscall_w_space * ws,
+			      pars_var_t *parent,   /* parent for name       */
+			      int err_code ,        /* error code of assign  */
+			      int length)           /* length of assign      */
+{
+	int ret;
+	ret  = create_result_field( ws, parent,
+			     ASSIGN_RESULT, SIZEFOR_ASSIGN_RESULT, err_code );
+	ret += create_result_field( ws, parent,
+			     ASSIGN_LENGTH, SIZEFOR_ASSIGN_LENGTH, length );
+	return ret;
+}
+
 
 
 /*
@@ -1780,14 +1912,13 @@ static void put_tube(tube_t * tube)
 */
 static expr_v4_t *  pump(struct reiser4_syscall_w_space * ws, pars_var_t *sink, expr_v4_t *source )
 {
-	pars_var_t * rezult;
-	pars_var_t * length;
+	pars_var_t * assoc;
 	expr_v4_t * ret;
 	tube_t * tube;
 	int ret_code;
-	int (*prep_tube)(tube_t *);
-	int (*source_to_tube)(tube_t *);
-	int (*tube_to_sink)(tube_t *);
+	size_t (*prep_tube)(tube_t *);
+	size_t (*source_to_tube)(tube_t *);
+	size_t (*tube_to_sink)(tube_t *);
 	PTRACE1( "%s", "begin");
 
 	/* remember to write code for freeing tube, error handling, etc. */
@@ -1821,16 +1952,30 @@ static expr_v4_t *  pump(struct reiser4_syscall_w_space * ws, pars_var_t *sink, 
 		}
 
 
-		rezult =  lookup_pars_var_word( ws , sink, make_new_word(ws, ASSIGN_RESULT ), VAR_PSEUDO);
-		rezult->u.data  = kmalloc( SIZEFOR_ASSIGN_RESULT, GFP_KERNEL ) ;
-		sprintf( rezult->u.data, "%d", ret_code );
-
-		length =  lookup_pars_var_word( ws , sink, make_new_word(ws, ASSIGN_LENGTH ), VAR_PSEUDO);
-		length->u.data  = kmalloc( SIZEFOR_ASSIGN_LENGTH, GFP_KERNEL ) ;
-		sprintf( length->u.data, "%d", tube->writeoff );
-
 		ret=alloc_new_expr( ws, EXPR_PARS_VAR );
-		ret->pars_var.v = sink;
+
+		if ( sink->val->associated == NULL) {
+			create_result( ws, sink, ret_code, tube->writeoff );
+			ret->pars_var.v = sink;
+		}
+		else {
+			create_result( ws, sink->val->associated, ret_code, tube->writeoff );
+			ret->pars_var.v = sink->val->associated;
+			sink->val->associated == NULL;
+		}
+
+#if 0
+		tmp_wrd = make_new_word(ws, ASSIGN_RESULT );
+		rezult =  lookup_pars_var_word( ws , assoc, tmp_wrd, VAR_TMP);
+		rezult->val->u.data  = kmalloc( SIZEFOR_ASSIGN_RESULT, GFP_KERNEL ) ;
+		sprintf( rezult->val->u.data, "%d", ret_code );
+
+		tmp_wrd = make_new_word(ws, ASSIGN_LENGTH );
+		length =  lookup_pars_var_word( ws , assoc, tmp_wrd, VAR_TMP);
+		length->val->u.data  = kmalloc( SIZEFOR_ASSIGN_LENGTH, GFP_KERNEL ) ;
+		sprintf( length->val->u.data, "%d", tube->writeoff );
+		
+
 		/*
 		ret1=alloc_new_expr( ws, EXPR_PARS_VAR );
 		ret->pars_var.v = rezult;
@@ -1838,7 +1983,7 @@ static expr_v4_t *  pump(struct reiser4_syscall_w_space * ws, pars_var_t *sink, 
 		ret->pars_var.v = length;
 		ret = list_expression( ws, list_expression( ws, ret, ret1 ), ret2 ) ;
 		 */
-
+#endif
 		put_tube( tube );
       }
       return ret;
