@@ -2483,7 +2483,9 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	/* Problem: ->writepages() is supposed to submit io for the pages from
 	 * ->io_pages list and to clean this list. */
 	mapping->dirtied_when = jiffies|1;
+	spin_lock(&inode_lock);
 	list_move(&mapping->host->i_list, &s->s_dirty);
+	spin_unlock(&inode_lock);
 
 	/* reiser4 has its own means of periodical write-out */
 	if (wbc->for_kupdate)
