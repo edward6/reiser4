@@ -145,7 +145,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
    I have witnessed more than 800 iterations (in 30 thread test) before cbk
    finished. --nikita
 */
-#define REISER4_MAX_CBK_ITERATIONS    (10000)
+#define REISER4_MAX_CBK_ITERATIONS    ((unsigned)~0)
 
 /* read all blocks when one block on the page is read */
 #define REISER4_FORMATTED_CLUSTER_READ (0)
