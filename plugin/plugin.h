@@ -156,8 +156,21 @@ typedef struct fplug {
 
 	int ( *can_add_link )( reiser4_key *key );
 
+	/** inherit plugin properties from parent object and from top
+	    object. Latter is particulary required in a case when parent
+	    object is unaccessible like when knfsd asks for inode in the
+	    mid-air. This is called on object creation. */
+	int ( *set_unspecified_values)( );
 
+	/** return pointer to plugin of new item that should be inserted
+	    into body of @inode at position determined by @key. This is
+	    called by write() when it has to insert new item into
+	    file. */
+	int ( *item_plugin_at )( const struct inode *inode, 
+				 const reiser4_key *key );
 
+	/* converts an offset within the file into a key */
+	int (*key_by_offset)();
 
 
 } fplug;
@@ -201,27 +214,6 @@ typedef struct dplug {
 
 
 } dplug;
-
-typedef struct reiser4_file_plugin {
-
-/* these that remain below need to be discussed with Nikita on monday. */
-
-	/** inherit plugin properties from parent object and from top
-	    object. Latter is particulary required in a case when parent
-	    object is unaccessible like when knfsd asks for inode in the
-	    mid-air. This is called on object creation. */
-	int ( *set_unspecified_values)( );
-
-	/** return pointer to plugin of new item that should be inserted
-	    into body of @inode at position determined by @key. This is
-	    called by write() when it has to insert new item into
-	    file. */
-	int ( *item_plugin_at )( const struct inode *inode, 
-				 const reiser4_key *key );
-
-	int ( *find_item )( reiser4_tree *tree, reiser4_key *key,
-			    tree_coord *coord, reiser4_lock_handle *lh );
-} reiser4_file_plugin;
 
 typedef struct reiser4_tail_plugin {
 	/** returns non-zero iff file's tail has to be stored
