@@ -330,6 +330,108 @@
  * from the two nodes being squeezed.  Looks difficult, but has potential to increase
  * space utilization. */
 
+/* NEW FLUSH QUEUEING / UNALLOCATED CHILDREN / MEMORY PRESSURE DEADLOCK (NFQUCMPD)
+ *
+ * Several ideas have been discussed to address a combination of these three issues.  This
+ * discussion largely obsoletes the previous discussion above on the subject of
+ * UNALLOCATED CHILDREN, though not entirely.  To summarize the three problems:
+ *
+ * Currently the jnode_flush routine builds a queue of all the nodes that it allocates
+ * during a single squeeze-and-allocate traversal.  The queue may grow quite large as a
+ * large number of adjacent dirty nodes are allocated.  Then the flush_empty_queue
+ * function creates a BIO and calls submit_bio for all the contiguous block ranges that
+ * were allocated.  There are several interrelated problems.
+ *
+ * First there is memory pressure: if we wait until there is no memory left to flush we
+ * are in serious trouble because flush can require allocation for new blocks, especially
+ * as extents are allocated.  A secondary but similar problem is deadlock.  If a thread
+ * that requests memory causes memory pressure while holding a lock, which is entirely
+ * possible, it may prevent flush from making any progress.  We have discussed these cases
+ * and concluded that in the absolute worst case the complex, lock-taking,
+ * memory-allocating flush algorithm may not be able to free memory once memory gets
+ * tight, and the solution for the absolute worse case is an EMERGENCY FLUSH (discussed
+ * after this section).  But we cannot accept that emergency flush be the common case
+ * under memory pressure.
+ *
+ * The second problem is that flush queues too many nodes before submitting them to the
+ * disk.  We would like to flush a little bit at a time without breaking the flush
+ * algorithm.  As discussed above for the issue of unallocated children, we decided to
+ * treat twig and leaf nodes specially--always allocating all children of a twig to ensure
+ * proper read- and write-optimization of those levels.  We would like to modify the flush
+ * algorithm to return control after it finishes squeezing all the childre of a single
+ * twig, allowing the queue of nodes prepared for writing to be consumed somewhat before
+ * continuing.
+ *
+ * With the modification that the flush algorithm will stop after finishing a twig, we can
+ * impose a new flush-queueing design that will achieve the goal of avoiding emergency
+ * flush in memory pressure in the common case.  To implement this we will create a new
+ * kmalloced object called a "struct flush_handle" (?).  Every flush_handle is associated
+ * with an atom, an atom maintains its list of flush_handles (instead of the
+ * flush_position list it currently maintains), and these lists are joined when atoms
+ * fuse.  A flush_handle object is passed into the jnode_flush() routine.  A flush_handle
+ * contains at least these fields (plus a semaphore and/or spinlock):
+ *
+ *   txn_atom           *atom;            -- The current atom of this flush_handle--maintained during atom fusion.
+ *   flushers_list_link  flushers_link;   -- A list link of all flush_handles for an atom.
+ *   capture_list_head   queue;           -- A list of jnodes (in allocation order), when a jnode is allocated it is
+ *                                           moved off the dirty list onto this list.
+ *   atomic_t            number_queued;   -- Number of jnodes in the queue.
+ *   atomic_t            number_prepped;  -- Number of jnodes ready for submit_bio.
+ *   atomic_t            number_bios_out; -- Number of BIOs/completion events outstanding.
+ *   __u32               state;           -- What state the handle is in.
+ *
+ * When a submit_bio request is issued for a flush_handle, the completion will decrement
+ * the number_bios_out and not try to remove the flush_handle from any list (if the
+ * becomes completely unused).  When the atom is locked (for some reason), we can find
+ * unused flush_handles and either free them or reuse them.
+ *
+ * A flush_handle can have these states:
+ *
+ *   EMPTY_QUEUE -- In this state the handle can be freed as long as the atom is locked
+ *   (in order to remove it from the list).  For this state:
+ *     (number_queued == 0 && number_prepped == 0)
+ * 
+ *   NON_EMPTY_QUEUE -- In this state the handle is not being used by any current flusher
+ *   but it has prepared nodes ready to for submit_bio (to be put "in-flight").  For this
+ *   state:
+ *     (number_queued == number_prepped && number_queued > 0)
+ * 
+ *   CURRENT_FLUSHER -- A call to jnode_flush is currently filling this queue.  This state
+ *   implies that the queue is being populated with nodes ready for flushing, but not all
+ *   of the queue nodes are fully "prepared".  For this state:
+ *     (number_queued <= number_prepped && number_queued >= 0)
+ *
+ * To manage these filling these queues we have a number of dedicated flushing threads.
+ * In addition, any atom that is trying to commit may be flushed by the thread that is
+ * closing it.  The dedicated flushing threads attempt to maintain a certain minimum
+ * number of outstanding write requests.  In addition to the in-flight requests, the
+ * dedicated flushing threads also attempt to maintain some additional number of queued
+ * and prepped jnodes that are ready to write but not yet submitted.  When the number of
+ * in-flight requests falls beneath the threshold, more BIOs are submitted.  When the
+ * number of prepped nodes falls beneath some other threshold, more flushing work is
+ * performed.
+ *
+ * Flush is never called directly from a memory pressure handler.  Instead, a memory
+ * pressure handler finds a flush_handle with number_prepped > 0 and calls submit_bio
+ * until the number of in-flight requests exceeds the "nr_to_flush" parameter supplied by
+ * the VM.
+ *
+ * This will require tuning to maintain a proper balance, but it should attain the goal:
+ * (1) the disk is kept busy (2) there is almost always enough allocated and prepped nodes
+ * ready to submit to the disk and thus free memory.
+ *
+ * What is required of the flush code to implement this strategy?  I will place comments
+ * in the code below marked with FIXME_NFQUCMPD.  I hope that no one ever uses this login.
+ */
+
+/* EMERGENCY FLUSH: In the worst case, we must have a way to assign block numbers without
+ * any memory allocation.  This requires that we can allocate a node without updating its
+ * parent immediately.  We can walk the dirty list and assign block numbers, and somehow
+ * the parent must "know" to update itself later.  This may be difficult to implement
+ * efficiently, so it may result in special code that is only activated when it knows that
+ * emergency flushing has occured.
+ */
+
 /********************************************************************************
  * DECLARATIONS:
  ********************************************************************************/
@@ -768,14 +870,14 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 
 	/* Do the main rightward-bottom-up squeeze and allocate loop. */
 	if ((ret = flush_forward_squalloc (& flush_pos))) {
-		/* FIXME(C): This is an ugly, UGLY hack to prevent a certain deadlocks by
-		 * trying to prevent atoms from fusing during flushing.  We allow -ENAVAIL
-		 * code to be returned from flush_forward_squalloc and continue to
-		 * flush_empty_queue.  The proper solution, I feel, is to catch -EINVAL
-		 * everywhere it may be generated, not at the top level like this.  For
-		 * example, every call to jnode_lock_parent_coord should check ENAVAIL,
-		 * perhaps should also check not-same-atom condition, then do the Right
-		 * Thing. */
+		/* FIXME(C): This ENAVAIL check is an ugly, UGLY hack to prevent a certain
+		 * deadlocks by trying to prevent atoms from fusing during flushing.  We
+		 * allow -ENAVAIL code to be returned from flush_forward_squalloc and
+		 * continue to flush_empty_queue.  The proper solution, I feel, is to
+		 * catch -EINVAL everywhere it may be generated, not at the top level like
+		 * this.  For example, every call to jnode_lock_parent_coord should check
+		 * ENAVAIL, perhaps should also check not-same-atom condition, then do the
+		 * Right Thing. */
 		if (ret != -ENAVAIL) {
 			goto failed;
 		}
@@ -783,7 +885,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		/* goto failed; */
 	}
 
-	/* FIXME: JMACD (UNALLOCATED CHILDREN): Here, handle the twig-special case.
+	/* FIXME: (NEW QUEUE UNALLOCATED CHILDREN): Here, handle the twig-special case.
 	 * Finish allocating until the last twig that was allocated has no unallocated
 	 * children.  Note that the last twig may be the first one, and it may not have
 	 * been allocated at all, in which case this doesn't matter. */
