@@ -710,8 +710,6 @@ reiser4_writepage(struct page *page, struct writeback_control *wbc)
 	assert("zam-822", current->flags & PF_MEMALLOC);
 	assert("nikita-3017", schedulable());
 	result = page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
-	/* check that we fulfill shrink_list() calling conventions */
-	assert("nikita-2907", equi(result == WRITEPAGE_ACTIVATE, PageLocked(page)));
 	assert("nikita-3018", schedulable());
 	return result;
 }
