@@ -501,7 +501,7 @@ static int jnode_lock_parent_coord(jnode         * node,
 				   lock_handle   * parent_lh, 
 				   load_count    * parent_zh, 
 				   znode_lock_mode mode, int try);
-static int znode_get_utmost_if_dirty(znode * node, lock_handle * right_lock, sideof side, znode_lock_mode mode);
+static int neighbor_in_slum(znode * node, lock_handle * right_lock, sideof side, znode_lock_mode mode);
 static int znode_same_parents(znode * a, znode * b);
 
 static int
@@ -657,7 +657,7 @@ static void prepare_flush_pos(flush_pos_t *pos, flush_scan * left_scan)
    sets preceder hints and computes the preceder is basically untested.  Careful testing
    needs to be done that preceder calculations are done correctly, since if it doesn't
    affect correctness we will not catch this stuff during regular testing. */
-/* C. EINVAL, EDEADLK, ENAVAIL, ENOENT handling.  It is unclear which of these are
+/* C. EINVAL, EDEADLK, E_NO_NEIGHBOR, ENOENT handling.  It is unclear which of these are
    considered expected but unlikely conditions.  Flush currently returns 0 (i.e., success
    but no progress, i.e., restart) whenever it receives any of these in jnode_flush().
    Many of the calls that may produce one of these return values (i.e.,
@@ -722,7 +722,7 @@ static void prepare_flush_pos(flush_pos_t *pos, flush_scan * left_scan)
    flush_unprep them.
   
    Flush treats several "failure" cases as non-failures, essentially causing them to start
-   over.  EDEADLK is one example.  FIXME:(C) EINVAL, ENAVAIL, ENOENT: these should
+   over.  EDEADLK is one example.  FIXME:(C) EINVAL, E_NO_NEIGHBOR, ENOENT: these should
    probably be handled properly rather than restarting, but there are a bunch of cases to
    audit.
 */
@@ -844,6 +844,8 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 
 		UNLOCK_JNODE(node);
 		spin_unlock_atom(atom);
+
+		ret = write_fq(fq, 0);
 
 		goto clean_out;
 	}
@@ -1015,7 +1017,7 @@ failed:
 		}
 	}
 
-	if (ret == -EINVAL || ret == -EDEADLK || ret == -ENAVAIL || ret == -ENOENT) {
+	if (ret == -EINVAL || ret == -EDEADLK || ret == -E_NO_NEIGHBOR || ret == -ENOENT) {
 		/* FIXME(C): Except for EDEADLK, these should probably be handled properly
 		   in each case.  They already are handled in many cases. */
 		/* Something bad happened, but difficult to avoid...  Try again! */
@@ -1224,7 +1226,6 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 		   whether to relocate the child now. If decision is made to
 		   relocate the child, the parent is marked dirty. */
 		ret = reverse_relocate_check_dirty_parent(pos->child, &pos->coord, pos);
-
 		if (ret)
 			goto exit;
 
@@ -1245,22 +1246,18 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 				goto exit;
 
 			ret = incr_load_count_znode(&pload, plock.node);
-
 			if (ret)
 				goto exit;
 
 			ret = find_child_ptr(plock.node, pos->lock.node, &pcoord);
-
 			if (ret)
 				goto exit;
 
 			ret = reverse_relocate_check_dirty_parent(ZJNODE(pos->lock.node), &pcoord, pos);
-
 			if (ret)
 				goto exit;
 
 			ret = alloc_one_ancestor(&pcoord, pos);
-
 			if (ret)
 				goto exit;
 		}
@@ -1356,10 +1353,12 @@ set_preceder(const coord_t * coord_in, flush_pos_t * pos)
 	int ret;
 	coord_t coord;
 	lock_handle left_lock;
+	load_count  left_load;
 
 	coord_dup(&coord, coord_in);
 
 	init_lh(&left_lock);
+	init_load_count(&left_load);
 
 	/* FIXME(B): Same FIXME as in "Find the preceder" in reverse_relocate_test.
 	   coord_is_leftmost_unit is not the right test if the unformatted child is in the
@@ -1367,15 +1366,22 @@ set_preceder(const coord_t * coord_in, flush_pos_t * pos)
 	if (!coord_is_leftmost_unit(&coord)) {
 		coord_prev_unit(&coord);
 	} else {
-		if ((ret = reiser4_get_left_neighbor(&left_lock, coord.node, ZNODE_READ_LOCK, GN_SAME_ATOM))) {
+		ret = reiser4_get_left_neighbor(&left_lock, coord.node, ZNODE_READ_LOCK, GN_SAME_ATOM);
+		if (ret) {
 			/* If we fail for any reason it doesn't matter because the
 			   preceder is only a hint.  We are low-priority at this point, so
 			   this must be the case. */
-			if (ret == -EAGAIN || ret == -ENAVAIL || ret == -ENOENT || ret == -EINVAL || ret == -EDEADLK) {
+			if (ret == -EAGAIN || ret == -E_NO_NEIGHBOR || ret == -ENOENT || ret == -EINVAL || ret == -EDEADLK) {
 				ret = 0;
 			}
 			goto exit;
 		}
+
+		ret = incr_load_count_znode(&left_load, left_lock.node);
+		if (ret)
+			goto exit;
+
+		coord_init_last_unit(&coord, left_lock.node);
 	}
 
 	if ((ret = item_utmost_child_real_block(&coord, RIGHT_SIDE, &pos->preceder.blk))) {
@@ -1384,6 +1390,7 @@ set_preceder(const coord_t * coord_in, flush_pos_t * pos)
 
 exit:
 	check_preceder(pos->preceder.blk);
+	done_load_count(&left_load);
 	done_lh(&left_lock);
 	return ret;
 }
@@ -1420,88 +1427,226 @@ exit:
    step sets the flush position to the next-right node.  Then repeat steps 4 and 5.
 */
 
-static int squeeze_right_twig (flush_pos_t * pos, znode * left, znode * right)
+/* SQUEEZE CODE */
+
+
+/* squalloc_right_twig helper function, cut a range of extent items from
+   cut node to->node from the beginning up to coord @to. */
+static int squalloc_right_twig_cut(coord_t * to, reiser4_key * to_key, znode * left)
+{
+	coord_t from;
+	reiser4_key from_key;
+
+	coord_init_first_unit(&from, to->node);
+	item_key_by_coord(&from, &from_key);
+
+	return cut_node(&from, to, &from_key, to_key, NULL /* smallest_removed */ , DELETE_DONT_COMPACT,
+			left);
+}
+
+/* Copy as much of the leading extents from @right to @left, allocating
+   unallocated extents as they are copied.  Returns SQUEEZE_TARGET_FULL or
+   SQUEEZE_SOURCE_EMPTY when no more can be shifted.  If the next item is an
+   internal item it calls shift_one_internal_unit and may then return
+   SUBTREE_MOVED. */
+static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 {
 	int ret = 0;
-	coord_t first;
+	coord_t coord,		/* used to iterate over items */
+		stop_coord;	/* used to call twig_cut properly */
+	reiser4_key stop_key;
 
-	assert ("zam-855", !node_is_empty(right));
+	assert("jmacd-2008", !node_is_empty(right));
+	coord_init_first_unit(&coord, right);
 
-	coord_init_first_unit(&first, right);
+	/* Initialize stop_key to detect if any extents are copied.  After
+	   this loop loop if stop_key is still equal to *min_key then nothing
+	   was copied (and there is nothing to cut). */
+	stop_key = *min_key();
 
-	if (item_is_extent(&first)) {
-		reiser4_key last_key;
-		reiser4_key first_key;
-		coord_t last;
+	DISABLE_NODE_CHECK;
 
-		coord_dup(&last, &first);
-		ret = allocate_and_copy_extent(left, &last, pos, &last_key);
-		if (ret < 0 || ret == SQUEEZE_TARGET_FULL)
+	trace_on(TRACE_FLUSH_VERB, "sq_twig before copy extents: left %s\n", znode_tostring(left));
+	trace_on(TRACE_FLUSH_VERB, "sq_twig before copy extents: right %s\n", znode_tostring(right));
+	/*trace_if (TRACE_FLUSH_VERB, print_node_content ("left", left, ~0u)); */
+	/*trace_if (TRACE_FLUSH_VERB, print_node_content ("right", right, ~0u)); */
+
+	while (item_is_extent(&coord)) {
+		reiser4_key last_stop_key;
+
+		trace_if(TRACE_FLUSH_VERB, print_coord("sq_twig:item_is_extent:", &coord, 0));
+
+		last_stop_key = stop_key;
+		if ((ret = allocate_and_copy_extent(left, &coord, pos, &stop_key)) < 0) {
+			ENABLE_NODE_CHECK;
 			return ret;
+		}
 
-		/* FIXME(Zam): the old code was more optimal, it deleted all
-		   copied extents a time */
-		item_key_by_coord(&first, &first_key);
-		ret = cut_node(&first, &last, &first_key, &last_key, 
-			       NULL, DELETE_DONT_COMPACT, left);
-	} else
-		ret = shift_one_internal_unit(left, right);
+		/* we will cut from the beginning of node upto @stop_coord (and
+		   @stop_key) */
+		if (!keyeq(&stop_key, &last_stop_key)) {
+			/* something were copied, update cut boundary */
+			coord_dup(&stop_coord, &coord);
+		}
 
+		if (ret == SQUEEZE_TARGET_FULL) {
+			/* Could not complete with current extent item. */
+			trace_if(TRACE_FLUSH_VERB, print_coord("sq_twig:target_full:", &coord, 0));
+			break;
+		}
+
+		assert("jmacd-2009", ret == SQUEEZE_CONTINUE);
+
+		/* coord_next_item returns 0 if there are more items. */
+		if (coord_next_item(&coord) != 0) {
+			ret = SQUEEZE_SOURCE_EMPTY;
+			trace_if(TRACE_FLUSH_VERB, print_coord("sq_twig:source_empty:", &coord, 0));
+			break;
+		}
+
+		trace_if(TRACE_FLUSH_VERB, print_coord("sq_twig:continue:", &coord, 0));
+	}
+
+	trace_on(TRACE_FLUSH_VERB, "sq_twig:after copy extents: left %s\n", znode_tostring(left));
+	trace_on(TRACE_FLUSH_VERB, "sq_twig:after copy extents: right %s\n", znode_tostring(right));
+	/*trace_if (TRACE_FLUSH_VERB, print_node_content ("left", left, ~0u)); */
+	/*trace_if (TRACE_FLUSH_VERB, print_node_content ("right", right, ~0u)); */
+
+	if (!keyeq(&stop_key, min_key())) {
+		int cut_ret;
+
+		trace_if(TRACE_FLUSH_VERB, print_coord("sq_twig:cut_coord", &coord, 0));
+
+		/* Helper function to do the cutting. */
+		if ((cut_ret = squalloc_right_twig_cut(&stop_coord, &stop_key, left))) {
+			assert("jmacd-6443", cut_ret < 0);
+			reiser4_panic("jmacd-87113", "cut_node failed: %d", cut_ret);
+		}
+
+		/*trace_if (TRACE_FLUSH_VERB, print_node_content ("right_after_cut", right, ~0u)); */
+	}
+
+	ENABLE_NODE_CHECK;
 	node_check(left, REISER4_NODE_DKEYS);
 	node_check(right, REISER4_NODE_DKEYS);
 
-	return ret;
-}
-
-/* Shift items from right twig node to the left one: zero, one or more extents
- * plus zero or one internal item. Return zero if it finished with internal
- * item, positive return code means last shift was unsuccessful because of
- * target node full or source node is empty, negative result is other error. */
-static int full_squeeze_right_twig (flush_pos_t * pos, znode * left, znode * right, coord_t * result)
-{
-	int ret;
-	coord_t dest_coord;
-
-	coord_init_after_last_item(&dest_coord, left);
-
-	assert ("zam-863", znode_is_write_locked(right));
-	assert ("zam-864", znode_is_loaded(right));
-
-	while (!node_is_empty(right)) {
-		assert ("zam-865", coord_is_after_rightmost(&dest_coord));
-
-		ret = squeeze_right_twig(pos, left, right);
-		if (ret)
-			goto out;
-
-		coord_next_unit(&dest_coord);
-		assert ("zam-867", coord_is_existing_unit(&dest_coord));
-
-		if (!item_is_extent(&dest_coord)) {
-			assert ("zam-866", item_is_internal(&dest_coord));
-			goto out;
-		}
-
-		coord_next_item(&dest_coord);
+	if (ret == SQUEEZE_TARGET_FULL) {
+		goto out;
 	}
 
-	ret = SQUEEZE_SOURCE_EMPTY;
+	if (node_is_empty(right)) {
+		/* The whole right node was copied into @left. */
+		trace_on(TRACE_FLUSH_VERB, "sq_twig right node empty: %s\n", znode_tostring(right));
+		assert("vs-464", ret == SQUEEZE_SOURCE_EMPTY);
+		goto out;
+	}
 
- out:
-	if (result)
-		coord_dup(result, &dest_coord);
+	coord_init_first_unit(&coord, right);
 
+	assert("jmacd-433", item_is_internal(&coord));
+
+	/* Shift an internal unit.  The child must be allocated before shifting any more
+	   extents, so we stop here. */
+	ret = shift_one_internal_unit(left, right);
+
+out:
+	assert("jmacd-8612", ret < 0 || ret == SQUEEZE_TARGET_FULL
+	       || ret == SUBTREE_MOVED || ret == SQUEEZE_SOURCE_EMPTY);
 	return ret;
 }
 
-static int squeeze_right_neighbor (flush_pos_t * pos, znode * left, znode * right)
-{
-	if (znode_get_level(left) == TWIG_LEVEL)
-		return full_squeeze_right_twig(pos, left, right, NULL);
+/* Squeeze and allocate the right neighbor.  This is called after @left and
+   its current children have been squeezed and allocated already.  This
+   procedure's job is to squeeze and items from @right to @left.
+  
+   If at the leaf level, use the shift_everything_left memcpy-optimized
+   version of shifting (squeeze_right_leaf).
+  
+   If at the twig level, extents are allocated as they are shifted from @right
+   to @left (squalloc_right_twig).
+  
+   At any other level, shift one internal item and return to the caller
+   (squalloc_parent_first) so that the shifted-subtree can be processed in
+   parent-first order.
+  
+   When unit of internal item is moved, squeezing stops and SUBTREE_MOVED is
+   returned.  When all content of @right is squeezed, SQUEEZE_SOURCE_EMPTY is
+   returned.  If nothing can be moved into @left anymore, SQUEEZE_TARGET_FULL
+   is returned.
+*/
 
-	return squeeze_right_non_twig(left, right);
+static int squeeze_right_neighbor(flush_pos_t * pos, znode * left, znode * right)
+{
+	int ret;
+
+	assert("jmacd-9321", !node_is_empty(left));
+	assert("jmacd-9322", !node_is_empty(right));
+	assert("jmacd-9323", znode_get_level(left) == znode_get_level(right));
+
+	trace_on(TRACE_FLUSH_VERB, "sq_rn[%u] left  %s\n", znode_get_level(left), znode_tostring(left));
+	trace_on(TRACE_FLUSH_VERB, "sq_rn[%u] right %s\n", znode_get_level(left), znode_tostring(right));
+
+	switch (znode_get_level(left)) {
+	case TWIG_LEVEL:
+		/* Shift with extent allocating until either an internal item
+		   is encountered or everything is shifted or no free space
+		   left in @left */
+		ret = squeeze_right_twig(left, right, pos);
+		break;
+
+	default:
+		/* All other levels can use shift_everything until we implement per-item
+		   flush plugins. */
+		ret = squeeze_right_non_twig(left, right);
+		break;
+	}
+
+	assert("jmacd-2011", (ret < 0 ||
+			      ret == SQUEEZE_SOURCE_EMPTY || ret == SQUEEZE_TARGET_FULL || ret == SUBTREE_MOVED));
+
+	if (ret == SQUEEZE_SOURCE_EMPTY) {
+		reiser4_stat_inc(flush.squeezed_completely);
+	}
+
+	trace_on(TRACE_FLUSH_VERB, "sq_rn[%u] returns %s: left %s\n",
+		 znode_get_level(left),
+		 (ret == SQUEEZE_SOURCE_EMPTY) ? "src empty" :
+		 ((ret == SQUEEZE_TARGET_FULL) ? "tgt full" :
+		  ((ret == SUBTREE_MOVED) ? "tree moved" : "error")), znode_tostring(left));
+	return ret;
 }
 
+static int squeeze_right_twig_and_advance_coord (flush_pos_t * pos, znode * right)
+{
+	int ret;
+
+	ret = squeeze_right_twig(pos->lock.node, right, pos);
+	if (ret < 0)
+		return ret;
+	if (ret > 0) {
+		coord_init_after_last_item(&pos->coord, pos->lock.node);
+		return ret;
+	}
+
+	coord_init_last_unit(&pos->coord, pos->lock.node);
+	return 0;
+}
+
+/* "prepped" check for parent node without long-term locking it */
+static inline int fast_check_parent_flushprepped (znode * node)
+{
+	reiser4_tree * tree = current_tree;
+	int prepped = 1;
+
+	read_lock_tree(tree);
+
+	if (node->in_parent.node || !jnode_is_flushprepped(ZJNODE(node)))
+		prepped = 0;
+
+	read_unlock_tree(tree);
+
+	return prepped;
+}
 
 /* forward declaration */
 static int squalloc_upper_levels (flush_pos_t *, znode *, znode *);
@@ -1510,7 +1655,7 @@ static int squalloc_upper_levels (flush_pos_t *, znode *, znode *);
  * squalloc_upper_levels() */
 static inline int check_parents_and_squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 {
-	if (znode_same_parents(left, right))
+	if (znode_same_parents(left, right) || fast_check_parent_flushprepped(right))
 		return 0;
 
 	return squalloc_upper_levels(pos, left, right);
@@ -1649,7 +1794,8 @@ static int lock_parent_and_allocate_znode (znode * node, flush_pos_t * pos)
 	return ret;
 }
 
-/* common code for handle_pos_on_leaf and handle_pos_on_internal functions */
+/* Process nodes on leaf level until unformatted node or rightmost node in the
+ * slum reached.  */
 static int handle_pos_on_formatted (flush_pos_t * pos)
 {
 	int ret;
@@ -1663,10 +1809,14 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		if (pos->state == POS_ON_LEAF && (ret = track_twig(pos, 0)))
 			break;
 		
-		ret = znode_get_utmost_if_dirty(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
+		ret = neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
 		if (ret)
 			break;
-
+		
+		/* we don't prep nodes for flushing twice.  This can be suboptimal, or it
+		 * can be optimal.  For now we choose to live with the risk that it will
+		 * be suboptimal because it would be quite complex to code it to be
+		 * smarter. */
 		if (znode_check_flushprepped(right_lock.node)) {
 			pos_stop(pos);
 			break;
@@ -1722,7 +1872,7 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 
 	ret = handle_pos_on_formatted(pos);
 
-	if (ret == -ENAVAIL) {
+	if (ret == -E_NO_NEIGHBOR) {
 		/* cannot get right neighbor, go process extents. */
 		pos->state = POS_TO_TWIG;
 		return 0;
@@ -1845,7 +1995,7 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 		/* If right twig node is dirty we always attempt to squeeze it
 		 * content to the left... */
 became_dirty:
-		ret = full_squeeze_right_twig(pos, pos->lock.node, right_lock.node, &pos->coord);
+		ret = squeeze_right_twig_and_advance_coord(pos, right_lock.node);
 		if (ret <=0) {
 			/* pos->coord is on internal item, go to leaf level, or
 			 * we have an error which will be caught in squalloc() */
@@ -1992,7 +2142,7 @@ static int handle_pos_to_twig (flush_pos_t * pos)
 	else if (item_is_extent(&pcoord))
 		pos->state = POS_ON_TWIG;
 	else {
-		/* Here we understand that getting -ENAVAIL in
+		/* Here we understand that getting -E_NO_NEIGHBOR in
 		 * handle_pos_on_leaf() was because of just a reaching edge of
 		 * slum */
 		pos_stop(pos);
@@ -2034,7 +2184,8 @@ static int squalloc (flush_pos_t * pos)
 	int ret = 0;
 
 	PROF_BEGIN(forward_squalloc);
-
+	/* maybe needs to be made a case statement with handle_pos_on_leaf as first case, for
+	 * greater CPU efficiency? Measure and see.... -Hans */
 	while (pos_valid(pos) && ret >= 0)
 		ret = flush_pos_handlers[pos->state](pos);
 
@@ -2042,7 +2193,7 @@ static int squalloc (flush_pos_t * pos)
 
 	/* any positive value or -EINVAL are legal return codes for handle_pos*
 	   routines, -EINVAL means that slum edge was reached */
-	if (ret > 0 || ret == -ENAVAIL)
+	if (ret > 0 || ret == -E_NO_NEIGHBOR)
 		ret = 0;
 
 	return ret;
@@ -2548,12 +2699,21 @@ jnode_lock_parent_coord(jnode         * node,
 	return 0;
 }
 
-/* Get the right neighbor of a znode locked provided the following condition is met: the neighbor
-   must be dirty and a member of the same atom.  If there is no right neighbor or the neighbor is
-   not in memory or if there is a neighbor but it is not dirty or not in the same atom, -ENAVAIL is
-   returned. */
+/* Get the (locked) next neighbor of a znode which is dirty and a member of the same atom.
+   If there is no next neighbor or the neighbor is not in memory or if there is a
+   neighbor but it is not dirty or not in the same atom, -E_NO_NEIGHBOR is returned. */
 static int
-znode_get_utmost_if_dirty(znode * node, lock_handle * lock, sideof side, znode_lock_mode mode)
+neighbor_in_slum(
+
+	znode * node, 		/* starting point */
+
+	lock_handle * lock, 		/* lock on starting point */
+
+	sideof side, 			/* left or right direction we seek the next node in */
+
+	znode_lock_mode mode		/* kind of lock we want */
+
+	)
 {
 	int ret;
 
@@ -2562,10 +2722,10 @@ znode_get_utmost_if_dirty(znode * node, lock_handle * lock, sideof side, znode_l
 	ret = reiser4_get_neighbor(lock, node, mode, GN_SAME_ATOM | (side == LEFT_SIDE ? GN_GO_LEFT : 0));
 
 	if (ret) {
-		/* May return -ENOENT or -ENAVAIL. */
+		/* May return -ENOENT or -E_NO_NEIGHBOR. */
 		/* FIXME(C): check EINVAL, EDEADLK */
 		if (ret == -ENOENT) {
-			ret = -ENAVAIL;
+			ret = -E_NO_NEIGHBOR;
 		}
 
 		return ret;
@@ -2576,7 +2736,7 @@ znode_get_utmost_if_dirty(znode * node, lock_handle * lock, sideof side, znode_l
 		return 0;
 
 	done_lh(lock);
-	return -ENAVAIL;
+	return -E_NO_NEIGHBOR;
 }
 
 /* Return true if two znodes have the same parent.  This is called with both nodes
@@ -3015,9 +3175,9 @@ scan_extent(flush_scan * scan, int skip_first)
 		if (coord_is_after_sideof_unit(&next_coord, scan->direction)) {
 
 			/* We take the write lock because we may start flushing from this coordinate. */
-			ret = znode_get_utmost_if_dirty(next_coord.node, &next_lock, scan->direction, ZNODE_WRITE_LOCK);
+			ret = neighbor_in_slum(next_coord.node, &next_lock, scan->direction, ZNODE_WRITE_LOCK);
 
-			if (ret == -ENAVAIL) {
+			if (ret == -E_NO_NEIGHBOR) {
 				scan->stop = 1;
 				ret = 0;
 				break;
