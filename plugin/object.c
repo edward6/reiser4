@@ -627,7 +627,7 @@ static int unix_key_by_inode ( struct inode *inode, loff_t off, reiser4_key *key
 }
 
 /** actor function looking for any entry different from dot or dotdot. */
-static int is_empty_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
+int is_empty_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
 			   coord_t *coord /* current coord */,
 			   lock_handle *lh UNUSED_ARG /* current lock
 						       * handle */, 

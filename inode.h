@@ -114,9 +114,12 @@ extern int truncate_object( struct inode *inode, loff_t size );
 extern int lookup_sd( struct inode *inode, znode_lock_mode lock_mode, 
 			 coord_t *coord, lock_handle *lh,
 			 reiser4_key *key );
-int lookup_sd_by_key( reiser4_tree *tree, znode_lock_mode lock_mode, 
+extern int lookup_sd_by_key( reiser4_tree *tree, znode_lock_mode lock_mode, 
 		      coord_t *coord, lock_handle *lh, 
 		      const reiser4_key *key );
+extern int is_empty_actor( reiser4_tree *tree, coord_t *coord, lock_handle *lh,
+                           void *arg );
+
 extern int guess_plugin_by_mode( struct inode *inode );
 extern int common_file_install( struct inode *inode, reiser4_plugin *plug,
 				struct inode *parent, 
