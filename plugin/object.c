@@ -81,6 +81,23 @@
 #include <linux/fs.h>
 #include <linux/dcache.h>
 #include <linux/quotaops.h>
+#define ten_percent(n)	((103 * n) >> 10)
+
+/** Amount of internals which will get dirty of get allocated we estimate as 
+  * 5% of the childs + 1 balancing. 1 balancing is 2 neighbours, 2 new blocks
+  * and the currect block on the leaf level, 2 neighbour nodes + the current 
+  * (or 1 neighbour and 1 new and the current) on twig level, 2 neighbour nodes
+  * on upper levels and 1 for a new root. So 5 for leaf level, 3 for twig level, 
+  * 2 on upper + 1 for root. 
+  *
+  * Do not calculate the current node of the lowest level here - this is overhead 
+  * only. */
+reiser4_block_nr estimate_internal_amount(
+	reiser4_block_nr childs, 
+	__u32 tree_height)
+{
+	return tree_height * 2 + 4 + ten_percent(childs);
+}
 
 /** helper function to print errors */
 static void
@@ -496,6 +513,13 @@ common_file_can_add_link(const struct inode *object /* object to check */ )
 	return object->i_nlink < (((nlink_t) ~ 0) >> 1);
 }
 
+static reiser4_block_nr common_estimate_file_delete(struct inode *inode)
+{
+	assert( "vpf-319", inode != NULL );
+
+	return estimate_internal_amount(1, tree_by_inode(inode)->height) + 1 /* the current leaf */;
+}
+
 /** common_file_delete() - delete object stat-data */
 int
 common_file_delete(struct inode *inode /* object to remove */ )
@@ -506,13 +530,17 @@ common_file_delete(struct inode *inode /* object to remove */ )
 
 	if (!inode_get_flag(inode, REISER4_NO_SD)) {
 		reiser4_key sd_key;
+		reiser4_block_nr reserve;
 
 		DQUOT_FREE_INODE(inode);
 		DQUOT_DROP(inode);
+		if (reiser4_grab_space_exact(common_estimate_file_delete(inode), 0))
+			return -ENOSPC;
 
+		warning("vpf-330", "SPACE: file delete grabs %llu block.", reserve);
+		
 		build_sd_key(inode, &sd_key);
 		result = cut_tree(tree_by_inode(inode), &sd_key, &sd_key);
-
 		if (result == 0) {
 			inode_set_flag(inode, REISER4_NO_SD);
 			result = oid_release(get_inode_oid(inode));
@@ -619,6 +647,11 @@ guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
 	return 0;
 }
 
+static reiser4_block_nr common_estimate_create(__u32 tree_height, struct inode *object)
+{
+	return estimate_internal_amount(1, tree_height) + 1;
+}
+
 /* 
  * ->create method of object plugin
  */
@@ -627,11 +660,17 @@ common_file_create(struct inode *object,
 		   struct inode *parent UNUSED_ARG,
 		   reiser4_object_create_data * data UNUSED_ARG)
 {
+	reiser4_block_nr reserve;
 	assert("nikita-744", object != NULL);
 	assert("nikita-745", parent != NULL);
 	assert("nikita-747", data != NULL);
 	assert("nikita-748", inode_get_flag(object, REISER4_NO_SD));
 
+	if (reiser4_grab_space_exact(reserve = 
+		    common_estimate_create(tree_by_inode(object)->height, object), 0))
+		return -ENOSPC;
+	
+	warning("vpf-331", "SAPCE: file create grabs %llu, blocks.", reserve);
 	return reiser4_write_sd(object);
 }
 
