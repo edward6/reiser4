@@ -781,7 +781,6 @@ int reiser4_write_logs (void)
 	capture_list_init (&overwrite_set);
 	capture_list_init (&tx_list);
 
-
 	/* isolate critical code path which should be executed by only one
  	 * thread using tmgr semaphore */
 	down (&private->tmgr.commit_semaphore);
@@ -849,6 +848,78 @@ int reiser4_write_logs (void)
 	return ret;
 }
 
+
+/* find oldest not flushed transaction and flush it */
+static int replay_oldest_transaction(struct super_block * s)
+{
+	reiser4_super_info_data * private = get_super_private(s);
+
+	jnode *jh = private->journal_header;
+	jnode *jf = private->journal_footer;
+
+	struct journal_header * H;
+	struct journal_footer * F;
+
+	reiser4_block_nr prev_tx;
+	reiser4_block_nr last_flushed_tx;
+
+	jnode * tx_head;
+
+	int ret;
+
+	if ((ret = jload(jh)) < 0) return ret;
+	if ((ret = jload(jf)) < 0) { jrelse(jh); return ret;}
+
+	H = (struct journal_header*)jdata(jh);
+	F = (struct journal_footer*)jdata(jf);
+
+	prev_tx         = d64tocpu(&H->last_committed_tx);
+	last_flushed_tx = d64tocpu(&F->last_flushed_tx);
+
+	jrelse(jf);
+	jrelse(jh);
+
+	if(prev_tx == last_flushed_tx) {
+		/* all transactions are replayed */
+		return 0;
+	}
+
+	/* */
+	warning ("zam-602", "not flushed transactions found");
+	return 0;
+
+
+	if ((tx_head = jnew()) == NULL) return -ENOMEM;
+
+	/* searching for oldest not flushed transaction */
+	while (1) {
+		struct tx_header * T;
+		reiser4_block_nr log_rec_block;
+
+		jnode_set_block(tx_head, &prev_tx);
+
+		ret = jload(tx_head);
+		if (ret < 0) { jfree (tx_head); return ret;}
+
+		T = (struct tx_header*)jdata(tx_head);
+
+		prev_tx = d64tocpu(&T->prev_tx);
+		log_rec_block = d64tocpu(&T->next_block);
+
+		if (prev_tx == last_flushed_tx) break;
+
+		jdrop(tx_head);
+	}
+
+	/* flushing transaction which we found */
+
+
+	jfree(tx_head);
+
+	return -EAGAIN;
+}
+
+
 /* reiser4 replay journal procedure */
 int reiser4_replay_journal (struct super_block * s)
 {
@@ -860,7 +931,6 @@ int reiser4_replay_journal (struct super_block * s)
 	reiser4_super_info_data * private = get_super_private(s);
 	jnode *jh, *jf;
 
-	struct journal_header * header_struct;
 	struct journal_footer * footer_struct;
 
 	int ret;
@@ -878,26 +948,24 @@ int reiser4_replay_journal (struct super_block * s)
 		return 0;
 	}
 
-	if ((ret = jload(jf)) < 0) return ret;
-	if ((ret = jload(jh)) < 0) return ret;
+	/* Take free block count from journal footer block. The free block
+	 * counter value corresponds the last flushed transaction state */
+	ret = jload(jf);
+	if (ret < 0) return ret;
 
-	header_struct = (struct journal_header*)jdata(jh);
-	footer_struct = (struct journal_footer*)jdata(jf);
+	footer_struct = (struct journal_footer *)jdata(jf);
 
 	if (d64tocpu(&footer_struct->free_blocks)) {
 		reiser4_set_free_blocks (s, d64tocpu(&footer_struct->free_blocks));
 	}
 
-	if (memcmp(&header_struct->last_committed_tx,
-		   &footer_struct->last_flushed_tx, sizeof(d64)))
-	{
-		warning ("zam-584", "not flushed transactions found \n");
-	}
-
 	jrelse(jf);
-	jrelse(jh);
 
-	return 0;
+	/* replay committed transactions */
+	
+	while ((ret = replay_oldest_transaction(s)) == -EAGAIN);
+
+	return ret;
 }
 
 /*
