@@ -78,9 +78,9 @@ int extent_readpage (void * arg, struct page * page);
 
 
 
-int allocate_extent_item_in_place (tree_coord * item, block_nr * preceder);
+int allocate_extent_item_in_place (tree_coord * item, reiser4_blocknr_hint * preceder);
 int allocate_and_copy_extent (znode * left, tree_coord * right,
-			      block_nr * preceder,
+			      reiser4_blocknr_hint * preceder,
 			      reiser4_key * stop_key);
 
 

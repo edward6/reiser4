@@ -14,6 +14,7 @@
 struct reiser4_blocknr_hint {
 	/* FIXME_ZAM: This structure is not used yet for passing of real
 	 * parameters */
+	block_nr blk;
 };
 
 /* Block allocation/deallocation are done through special bitmap objects which

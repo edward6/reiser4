@@ -237,7 +237,6 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "plugin/plugin.h"
 #include "txnmgr.h"
 #include "znode.h"
-/*#include "tree.h"*/
 #include "slum.h"
 #include "block_alloc.h"
 #include "tree_walk.h"
