@@ -19,7 +19,14 @@ struct ktxnmgrd_context {
 	txn_mgrs_list_head  queue;
 	int                 done;
 	int                 rescan;
+	atomic_t            pressure;
 };
+
+typedef enum {
+	CANNOT_COMMIT,
+	MEMORY_PRESSURE,
+	LOW_MEMORY
+} ktxnmgrd_wake;
 
 extern void init_ktxnmgrd_context( ktxnmgrd_context *context );
 extern int  ktxnmgrd( void *context );
@@ -27,7 +34,7 @@ extern int  ktxnmgrd( void *context );
 extern int ktxnmgrd_attach( ktxnmgrd_context *ctx, txn_mgr *mgr );
 extern void ktxnmgrd_detach( txn_mgr *mgr );
 
-extern void ktxnmgrd_kick( void );
+extern void ktxnmgrd_kick( ktxnmgrd_context *ctx, ktxnmgrd_wake reason );
 
 /* __KTXNMGRD_H__ */
 #endif

@@ -183,6 +183,52 @@ int done_formatted_fake( struct super_block *super )
 }
 
 /** 
+ * check amount of available for allocation memory, and kick ktxnmgrd is it
+ * is low. 
+ */
+void reiser4_check_mem( reiser4_context *ctx )
+{
+	reiser4_super_info_data *info;
+
+	unsigned int total;
+	unsigned int free;
+	unsigned int ratio;
+
+	if( ctx == NULL || ctx -> super == NULL )
+		return;
+
+	info = get_super_private( ctx -> super );
+	if( info == NULL )
+		return;
+
+	total = nr_free_pagecache_pages();
+	free  = nr_free_pages();
+
+	/* 
+	 * we don't care about overflows here, because this is only hint
+	 * anyway.
+	 */
+	ratio = free * 100 / total;
+	if( ratio <= info -> txnmgr.low_memory ) {
+		ktxnmgrd_context *daemon;
+
+		daemon = info -> tmgr.daemon;
+		if( daemon != NULL ) {
+			int kick_it;
+
+			/* 
+			 * we are first to note low free memory. Wake up
+			 * ktxnmgrd 
+			 */
+			kick_it = !atomic_read( &daemon -> pressure );
+			atomic_inc( &daemon -> pressure );
+			if( kick_it )
+				ktxnmgrd_kick( daemon, LOW_MEMORY );
+		}
+	}
+}
+
+/** 
  * helper function to find-and-lock page in a page cache and do additional
  * checks 
  */
@@ -443,17 +489,6 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 		REISER4_EXIT (0);
 	}
 
-	if( 0 ) {
-		/*
-		 * this is cof case when all flushing is done outside of
-		 * kswapd context (in "ent" thread).
-		 */
-		ktxnmgrd_kick();
-		spin_unlock_txnh (txnh);
-		jput (node);
-		REISER4_EXIT (0);
-	}
-
 	/* Attach the txn handle to this node, preventing the atom from committing while
 	 * this flush occurs.
 	 *
@@ -464,6 +499,17 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 	result = txn_attach_txnh_to_node (txnh, node, ATOM_FORCE_COMMIT);
 
 	spin_unlock_txnh (txnh);
+
+	if( 1 ) {
+		/*
+		 * this is cof case when all flushing is done outside of
+		 * kswapd context (in "ent" thread).
+		 */
+		ktxnmgrd_kick (get_super_private (ctx->super)->tmgr.daemon, 
+			       MEMORY_PRESSURE);
+		jput (node);
+		REISER4_EXIT (0);
+	}
 
 	if (result == -ENOENT) {
 

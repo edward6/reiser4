@@ -136,7 +136,13 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
  */
 #define REISER4_ATOM_MAX_AGE          (30 * HZ)
 
-/*
+/**
+ * After percentage of free memory falls below this, preventive flushing is
+ * started.
+ */
+#define REISER4_LOW_MEMORY (50)
+
+/**
  * sleeping period for ktxnmrgd
  */
 #define REISER4_TXNMGR_TIMEOUT  (5 * HZ)

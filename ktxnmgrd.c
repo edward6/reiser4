@@ -141,6 +141,7 @@ void init_ktxnmgrd_context( ktxnmgrd_context *ctx )
 	spin_lock_init( &ctx -> guard );
 	ctx -> timeout = REISER4_TXNMGR_TIMEOUT;
 	txn_mgrs_list_init( &ctx -> queue );
+	atomic_set( &ctx -> pressure, 0 );
 }
 
 static const unsigned int ktxnmrgd_flags = CLONE_VM | CLONE_FS | CLONE_FILES;
@@ -227,21 +228,17 @@ void ktxnmgrd_detach( txn_mgr *mgr )
 /**
  * wake up ktxnmgrd thread
  */
-void ktxnmgrd_kick( void )
+void ktxnmgrd_kick( ktxnmgrd_context *ctx, ktxnmgrd_wake reason )
 {
-	ktxnmgrd_context *ctx;
-
-	assert( "nikita-2459", get_current_super_private() != NULL );
-
-	ctx = get_current_super_private() -> tmgr.daemon;
-	assert( "nikita-2460", ctx != NULL );
-	spin_lock( &ctx -> guard );
-	if( ctx -> tsk != NULL ) {
-		trace_on( TRACE_BUG | TRACE_TXN, 
-			  "Waking ktxnmgrd %i", ctx -> tsk -> pid );
-		kcond_signal( &ctx -> wait );
+	if( ctx != NULL ) {
+		spin_lock( &ctx -> guard );
+		if( ctx -> tsk != NULL ) {
+			trace_on( TRACE_BUG | TRACE_TXN, 
+				  "Waking ktxnmgrd %i", ctx -> tsk -> pid );
+			kcond_signal( &ctx -> wait );
+		}
+		spin_unlock( &ctx -> guard );
 	}
-	spin_unlock( &ctx -> guard );
 }
 
 /** scan one transaction manager for old atoms */

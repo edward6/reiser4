@@ -664,8 +664,7 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 		BUG();
 	}
 
-	if( ( super -> s_op != NULL ) &&
-	    ( super -> s_op != &reiser4_super_operations ) )
+	if( super -> s_op != NULL && super -> s_op != &reiser4_super_operations )
 		BUG();
 
 	xmemset( context, 0, sizeof *context );
@@ -705,6 +704,8 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 	spin_unlock (& active_contexts_lock);
 	context -> task  = current;
 #endif
+	reiser4_check_mem (context);
+
 	return 0;
 }
 

@@ -17,6 +17,8 @@ extern reiser4_tree *tree_by_page( const struct page *page );
 extern struct page *reiser4_lock_page( struct address_space *mapping, 
 				       unsigned long index );
 
+extern void reiser4_check_mem( reiser4_context *ctx );
+
 #if REISER4_DEBUG_MEMCPY
 extern void *xmemcpy( void *dest, const void *src, size_t n );
 extern void *xmemmove( void *dest, const void *src, size_t n );

@@ -181,6 +181,7 @@ struct reiser4_super_info_data {
 	struct {
 		unsigned atom_max_size;
 		unsigned atom_max_age;
+		unsigned low_memory;
 	} txnmgr;
 
 	flush_params flush;

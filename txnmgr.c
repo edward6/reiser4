@@ -1150,7 +1150,7 @@ commit_txnh (txn_handle *txnh)
 		 * pressure.
 		 */
 		if (no_commit_thread()) {
-			ktxnmgrd_kick();
+			ktxnmgrd_kick (get_current_super_private() -> tmgr.daemon, CANNOT_COMMIT);
 		} else {
 
 			ret = atom_try_commit_locked (atom);
