@@ -39,5 +39,5 @@ int   oid_40_allocate        ( reiser4_oid_allocator *, oid_t *result );
 int   oid_40_release         ( reiser4_oid_allocator *, oid_t oid );
 int   oid_40_reserve_allocate( reiser4_oid_allocator * );
 int   oid_40_reserve_release ( reiser4_oid_allocator * );
-void  oid_40_print_info      ( char *, reiser4_oid_allocator * );
+void  oid_40_print_info      ( const char *, reiser4_oid_allocator * );
 
