@@ -386,7 +386,7 @@ int kill_node_content(coord_t *from, coord_t *to,
 		      const reiser4_key *from_key, const reiser4_key *to_key,
 		      reiser4_key *smallest_removed,
 		      znode *locked_left_neighbor,
-		      struct inode *inode);
+		      struct inode *inode, int truncate);
 
 int resize_item(coord_t * coord, reiser4_item_data * data,
 		reiser4_key * key, lock_handle * lh, cop_insert_flag);
@@ -397,12 +397,12 @@ int find_new_child_ptr(znode * parent, znode * child, znode * left, coord_t * re
 int shift_right_of_but_excluding_insert_coord(coord_t * insert_coord);
 int shift_left_of_and_including_insert_coord(coord_t * insert_coord);
 
-void fake_kill_hook_tail(struct inode *, loff_t start, loff_t end);
+void fake_kill_hook_tail(struct inode *, loff_t start, loff_t end, int);
 
-extern int cut_tree_object(reiser4_tree*, const reiser4_key*, const reiser4_key*, reiser4_key*, struct inode*);
-extern int cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to, struct inode*);
+extern int cut_tree_object(reiser4_tree*, const reiser4_key*, const reiser4_key*, reiser4_key*, struct inode*, int);
+extern int cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to, struct inode*, int);
 
-extern int delete_node(znode * node, reiser4_key *, struct inode *);
+extern int delete_node(znode * node, reiser4_key *, struct inode *, int);
 extern int check_tree_pointer(const coord_t * pointer, const znode * child);
 extern int find_new_child_ptr(znode * parent, znode * child UNUSED_ARG, znode * left, coord_t * result);
 extern int find_child_ptr(znode * parent, znode * child, coord_t * result);
