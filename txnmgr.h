@@ -584,7 +584,9 @@ struct flush_queue {
 };
 
 extern int fq_by_atom(txn_atom *, flush_queue_t **);
+extern int fq_by_atom_gfp(txn_atom *, flush_queue_t **, int);
 extern int fq_by_jnode(jnode *, flush_queue_t **);
+extern int fq_by_jnode_gfp(jnode *, flush_queue_t **, int);
 extern void fq_put_nolock(flush_queue_t *);
 extern void fq_put(flush_queue_t *);
 extern void fuse_fq(txn_atom * to, txn_atom * from);

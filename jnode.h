@@ -166,7 +166,7 @@ struct jnode {
 
 	/* the real blocknr (where io is going to/from) */
 	/*   80 */ reiser4_block_nr blocknr;
-	/* Parent item type, unformatted and CRC need it for offset => key conversion.  */ 
+	/* Parent item type, unformatted and CRC need it for offset => key conversion.  */
 	/* NOTE: this parent_item_id looks like jnode type. */
 	/*   88 */ reiser4_plugin_id parent_item_id;
 	/*   92 */
@@ -738,6 +738,7 @@ jput(jnode * node)
 		jput_final(node);
 	} else
 		rcu_read_unlock();
+	assert("nikita-3473", schedulable());
 }
 
 extern void jrelse(jnode * node);

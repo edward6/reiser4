@@ -337,7 +337,7 @@ emergency_flush(struct page *page)
 			ON_TRACE(TRACE_EFLUSH, "flushing to relocate place: %llu..", *jnode_get_block(node));
 			
 			/* get flush queue for this node */
-			result = fq_by_jnode(node, &fq);
+			result = fq_by_jnode_gfp(node, &fq, GFP_ATOMIC);
 
 			if (result)
 				return result;

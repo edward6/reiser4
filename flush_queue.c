@@ -132,11 +132,11 @@ reiser4_internal void done_fqs(void)
 
 /* create new flush queue object */
 static flush_queue_t *
-create_fq(void)
+create_fq(int gfp)
 {
 	flush_queue_t *fq;
 
-	fq = kmem_cache_alloc(fq_slab, GFP_KERNEL);
+	fq = kmem_cache_alloc(fq_slab, gfp);
 	if (fq)
 		init_fq(fq);
 
@@ -240,7 +240,7 @@ wait_io(flush_queue_t * fq, int *nr_io_errors)
 		if ( !(reiser4_get_current_sb()->s_flags & MS_RDONLY) )
 			down(&fq->io_sem);
 
-		/* Ask the caller to re-aquire the locks and call this
+		/* Ask the caller to re-acquire the locks and call this
 		   function again. Note: this technique is commonly used in
 		   the txnmgr code. */
 		return -E_REPEAT;
@@ -535,7 +535,7 @@ write_fq(flush_queue_t * fq, long * nr_submitted)
    usually it is current atom, but we need a possibility for getting fq for the
    atom of given jnode. */
 reiser4_internal int
-fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
+fq_by_atom_gfp(txn_atom * atom, flush_queue_t ** new_fq, int gfp)
 {
 	flush_queue_t *fq;
 
@@ -576,12 +576,18 @@ fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
 
 	UNLOCK_ATOM(atom);
 
-	*new_fq = create_fq();
+	*new_fq = create_fq(gfp);
 
 	if (*new_fq == NULL)
 		return RETERR(-ENOMEM);
 
 	return RETERR(-E_REPEAT);
+}
+
+reiser4_internal int
+fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
+{
+	return fq_by_atom_gfp(atom, new_fq, GFP_KERNEL);
 }
 
 /* A wrapper around fq_by_atom for getting a flush queue object for current
@@ -643,7 +649,7 @@ init_atom_fq_parts(txn_atom * atom)
 /* get a flush queue for an atom pointed by given jnode (spin-locked) ; returns
  * both atom and jnode locked and found and took exclusive access for flush
  * queue object.  */
-reiser4_internal int fq_by_jnode (jnode * node, flush_queue_t ** fq)
+reiser4_internal int fq_by_jnode_gfp(jnode * node, flush_queue_t ** fq, int gfp)
 {
 	txn_atom * atom;
 	int ret;
@@ -669,7 +675,7 @@ reiser4_internal int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 		}
 
 		/* atom lock is required for taking flush queue */
-		ret = fq_by_atom(atom, fq);
+		ret = fq_by_atom_gfp(atom, fq, gfp);
 
 		if (ret) {
 			if (ret == -E_REPEAT)
@@ -702,6 +708,11 @@ reiser4_internal int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 	}
 
 	return 0;
+}
+
+reiser4_internal int fq_by_jnode(jnode * node, flush_queue_t ** fq)
+{
+	return fq_by_jnode_gfp(node, fq, GFP_KERNEL);
 }
 
 /* Make Linus happy.
