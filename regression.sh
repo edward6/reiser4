@@ -16,7 +16,8 @@ function run()
 	/usr/bin/time -f " T: %e/%S/%U F: %F/%R" $* >/dev/null || exit 1
 #	shift
 #	shift
-	RNAME=`echo $* | sed 's/ /./g'`.$r
+	RNAME=`echo $* | sed 's/[ \/]/./g'`.$r
+#	echo $RNAME
 	mv gmon.out gmon.out.$RNAME 2>/dev/null
 }
 
