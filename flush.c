@@ -1477,7 +1477,7 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 	coord_init_after_last_item(&between, left_parent_lock.node);
 
 	ret = squeeze_right_non_twig(left_parent_lock.node, right_parent_lock.node);
-	if (ret)
+	if (ret < 0)
 		goto out;
 
 	/* If we have shifted one or more internal items, @right was reparented
