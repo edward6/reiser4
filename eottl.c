@@ -248,7 +248,7 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 		}
 		if (result == 0) {
 			WLOCK_TREE(tree);
-			assert("nikita-2983", znode_is_right_connected(node));
+			assert("nikita-3312", znode_is_right_connected(node));
 			assert("nikita-2984", node->right == NULL);
 			ZF_CLR(node, JNODE_RIGHT_CONNECTED);
 			WUNLOCK_TREE(tree);
