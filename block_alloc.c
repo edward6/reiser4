@@ -414,7 +414,7 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *hint, reiser4_block_nr *blk,
 	if (!ret) {
 
 		assert ("zam-680", *blk < reiser4_block_count (s));
-		assert ("zam-681", *blk + *len < reiser4_block_count (s));
+		assert ("zam-681", *blk + *len <= reiser4_block_count (s));
 
 		switch (stage) {
 		    case BLOCK_NOT_COUNTED:
