@@ -143,7 +143,8 @@ typedef enum {
 } cop_insert_flag;
 
 typedef enum {
-	DELETE_RETAIN_EMPTY = ( 1 << 0 )
+	DELETE_RETAIN_EMPTY = ( 1 << 0 ),
+	DELETE_DONT_COMPACT = ( 1 << 1 )
 } cop_delete_flag;
 
 /**
@@ -167,6 +168,7 @@ typedef struct carry_cut_data {
 	const reiser4_key *from_key;
 	const reiser4_key *to_key;
 	reiser4_key       *smallest_removed;
+	unsigned           flags;
 } carry_cut_data;
 
 /** 
@@ -218,7 +220,7 @@ typedef struct carry_op {
 			__u8                 type;
 			/**
 			 * various operation flags. Taken from
-			 * cop_insert_flags.
+			 * cop_insert_flag.
 			 */
 			__u8                 flags;
 			carry_insert_data   *d;
