@@ -14,7 +14,6 @@
 extern reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk,
     reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id, uint8_t level);
 
-/* plugin_id must be specified for 3.x format */
 extern reiserfs_node_t *reiserfs_node_init(aal_device_t *device, blk_t blk,
     reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id);
 
@@ -33,9 +32,12 @@ extern error_t reiserfs_node_flush(reiserfs_node_t *node);
     FIXME-VITALY: it works in another way for now.
 */
 extern int reiserfs_node_lookup(reiserfs_node_t *node, 
-    reiserfs_item_coord_t *coord, reiserfs_key_t *key);
+    reiserfs_item_coord_t *coord, void *key);
 
-extern reiserfs_plugin_id_t reiserfs_node_plugin_id(reiserfs_node_t *node);
+extern reiserfs_plugin_id_t reiserfs_node_get_plugin_id(reiserfs_node_t *node);
+
+extern void reiserfs_node_set_plugin_id(reiserfs_node_t *node, 
+    reiserfs_plugin_id_t plugin_id);
 
 extern uint8_t reiserfs_node_get_level(reiserfs_node_t *node);
 extern void reiserfs_node_set_level(reiserfs_node_t *node, uint8_t level);
@@ -53,36 +55,41 @@ extern reiserfs_node_t *reiserfs_node_find_child(reiserfs_node_t *node,
     void *key);
 
 /* Item functions */
-extern void reiserfs_node_set_item_plugin_id(reiserfs_node_t *node, 
+extern void reiserfs_node_item_set_plugin_id(reiserfs_node_t *node, 
     uint32_t pos, reiserfs_plugin_id_t plugin_id);
 
-extern reiserfs_plugin_id_t reiserfs_node_get_item_plugin_id(
+extern reiserfs_plugin_id_t reiserfs_node_item_get_plugin_id(
     reiserfs_node_t *node, uint32_t pos);
 
-extern void reiserfs_node_set_item_plugin(reiserfs_node_t *node, 
+extern void reiserfs_node_item_set_plugin(reiserfs_node_t *node, 
     uint32_t pos, reiserfs_plugin_t *plugin);
 
-extern reiserfs_plugin_t *reiserfs_node_get_item_plugin(reiserfs_node_t *node, 
+extern reiserfs_plugin_t *reiserfs_node_item_get_plugin(reiserfs_node_t *node, 
     uint32_t pos);
 
-extern error_t reiserfs_node_insert_item(reiserfs_node_t *node, 
-    reiserfs_item_coord_t *coord, reiserfs_key_t *key, reiserfs_item_info_t *item);
+extern error_t reiserfs_node_item_insert(reiserfs_node_t *node, 
+    reiserfs_item_coord_t *coord, void *key, reiserfs_item_info_t *info);
 
-extern blk_t reiserfs_node_down_link_item(reiserfs_node_t *node, 
+extern error_t reiserfs_node_item_replace(reiserfs_node_t *node, 
+    reiserfs_item_coord_t *coord, void *key, reiserfs_item_info_t *info);
+
+extern blk_t reiserfs_node_item_down_link(reiserfs_node_t *node, 
     uint32_t pos);
 
-extern int reiserfs_node_is_internal_item(reiserfs_node_t *node, uint32_t pos);
+extern int reiserfs_node_item_is_internal(reiserfs_node_t *node, uint32_t pos);
 
-extern error_t reiserfs_node_estimate_item(reiserfs_node_t *node, 
-    reiserfs_item_info_t *item_info, reiserfs_item_coord_t *coord);
+extern error_t reiserfs_node_item_estimate(reiserfs_node_t *node, 
+    reiserfs_item_info_t *info, reiserfs_item_coord_t *coord);
 
-extern uint16_t reiserfs_node_overhead_item(reiserfs_node_t *node);
-extern uint16_t reiserfs_node_maxsize_item(reiserfs_node_t *node);
-extern uint16_t reiserfs_node_maxnum_item(reiserfs_node_t *node);
-extern uint16_t reiserfs_node_count_item(reiserfs_node_t *node);
+extern uint16_t reiserfs_node_item_overhead(reiserfs_node_t *node);
+extern uint16_t reiserfs_node_item_maxsize(reiserfs_node_t *node);
+extern uint16_t reiserfs_node_item_maxnum(reiserfs_node_t *node);
+extern uint16_t reiserfs_node_item_count(reiserfs_node_t *node);
 
 extern void *reiserfs_node_item_at(reiserfs_node_t *node, uint32_t pos);
+
 extern void *reiserfs_node_item_key_at(reiserfs_node_t *node, uint32_t pos);
+
 extern int reiserfs_node_item_key_cmp(reiserfs_node_t *node, 
     const void *key1, const void *key2);
 

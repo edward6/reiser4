@@ -11,39 +11,39 @@
 
 typedef enum {
     /* File name key type */
-    KEY_FILE_NAME_MINOR = 0,
+    KEY40_FILE_NAME_MINOR = 0,
     /* Stat-data key type */
-    KEY_SD_MINOR        = 1,
+    KEY40_SD_MINOR        = 1,
     /* File attribute name */
-    KEY_ATTR_NAME_MINOR = 2,
+    KEY40_ATTR_NAME_MINOR = 2,
     /* File attribute value */
-    KEY_ATTR_BODY_MINOR = 3,
+    KEY40_ATTR_BODY_MINOR = 3,
     /* File body (tail or extent) */
-    KEY_BODY_MINOR      = 4
-} reiserfs_key_minor;
+    KEY40_BODY_MINOR      = 4
+} reiserfs_key40_minor;
 
 typedef enum {
     /* Major "locale", aka dirid. Sits in 1st element */
-    KEY_LOCALITY_INDEX   = 0,
+    KEY40_LOCALITY_INDEX   = 0,
     /* Minor "locale", aka item type. Sits in 1st element */
-    KEY_TYPE_INDEX       = 0,
+    KEY40_TYPE_INDEX       = 0,
     /* Object band. Sits in 2nd element */
-    KEY_BAND_INDEX       = 1,
+    KEY40_BAND_INDEX       = 1,
     /* Object id. Sits in 2nd element */
-    KEY_OBJECTID_INDEX   = 1,
+    KEY40_OBJECTID_INDEX   = 1,
     /* Offset. Sits in 3rd element */
-    KEY_OFFSET_INDEX     = 2,
+    KEY40_OFFSET_INDEX     = 2,
     /* Name hash. Sits in 3rd element */
-    KEY_HASH_INDEX       = 2,
-    KEY_LAST_INDEX       = 3
-} reiserfs_key_field_index;
+    KEY40_HASH_INDEX       = 2,
+    KEY40_LAST_INDEX       = 3
+} reiserfs_key40_field_index;
 
-union reiserfs_key {
-    uint64_t el[KEY_LAST_INDEX];
+union reiserfs_key40 {
+    uint64_t el[KEY40_LAST_INDEX];
     int pad;
 };
 
-typedef union reiserfs_key reiserfs_key_t;
+typedef union reiserfs_key40 reiserfs_key40_t;
 
 struct reiserfs_entryid {
     uint8_t objectid[sizeof(uint64_t)];
@@ -57,129 +57,124 @@ typedef enum {
 	Major locality occupies higher 60 bits of 
 	the first element.
     */
-    KEY_LOCALITY_MASK    = 0xfffffffffffffff0ull,
+    KEY40_LOCALITY_MASK    = 0xfffffffffffffff0ull,
     /* 
 	Minor locality occupies lower 4 bits of 
 	the first element.
     */
-    KEY_TYPE_MASK        = 0xfull,
+    KEY40_TYPE_MASK        = 0xfull,
     /* 
 	Controversial band occupies higher 4 bits 
 	of the 2nd element.
     */
-    KEY_BAND_MASK        = 0xf000000000000000ull,
+    KEY40_BAND_MASK        = 0xf000000000000000ull,
     /* 
 	Objectid occupies lower 60 bits of the 2nd 
 	element.
     */
-    KEY_OBJECTID_MASK    = 0x0fffffffffffffffull,
+    KEY40_OBJECTID_MASK    = 0x0fffffffffffffffull,
     
     /* Offset is just 3rd L.M.Nt itself */
-    KEY_OFFSET_MASK      = 0xffffffffffffffffull,
+    KEY40_OFFSET_MASK      = 0xffffffffffffffffull,
     
     /* Hash occupies 56 higher bits of 3rd element */
-    KEY_HASH_MASK        = 0xffffffffffffff00ull,
+    KEY40_HASH_MASK        = 0xffffffffffffff00ull,
     
     /* 
 	Generation counter occupies lower 8 bits of 
 	3rd element.
     */
-    KEY_GEN_MASK         = 0xffull,
-} reiserfs_key_field_mask;
+    KEY40_GEN_MASK         = 0xffull,
+} reiserfs_key40_field_mask;
 
 #define OID_CHARS (sizeof(uint64_t) - 1)
 
 typedef enum {
-    KEY_LOCALITY_SHIFT   = 4,
-    KEY_TYPE_SHIFT       = 0,
-    KEY_BAND_SHIFT       = 60,
-    KEY_OBJECTID_SHIFT   = 0,
-    KEY_OFFSET_SHIFT     = 0,
-    KEY_HASH_SHIFT       = 8,
-    KEY_GEN_SHIFT        = 0,
-} reiserfs_key_field_shift;
+    KEY40_LOCALITY_SHIFT   = 4,
+    KEY40_TYPE_SHIFT       = 0,
+    KEY40_BAND_SHIFT       = 60,
+    KEY40_OBJECTID_SHIFT   = 0,
+    KEY40_OFFSET_SHIFT     = 0,
+    KEY40_HASH_SHIFT       = 8,
+    KEY40_GEN_SHIFT        = 0,
+} reiserfs_key40_field_shift;
 
-#define KEY_COMP_ELEMENT(k1, k2, off)	    \
+#define KEY40_COMP_ELEMENT(k1, k2, off)	    \
     ({					    \
 	uint64_t e1;			    \
 	uint64_t e2;			    \
 					    \
-	e1 = get_key_el(k1, off);	    \
-	e2 = get_key_el(k2, off);	    \
+	e1 = get_key40_el(k1, off);	    \
+	e2 = get_key40_el(k2, off);	    \
 					    \
 	e1 < e2 ? -1 : e1 == e2 ? 0 : 1;    \
     })
 
-static inline uint64_t get_key_el(const reiserfs_key_t *key,
-    reiserfs_key_field_index off)
+static inline uint64_t get_key40_el(const reiserfs_key40_t *key,
+    reiserfs_key40_field_index off)
 {
     aal_assert("vpf-029", key != NULL,  return 0);
-    aal_assert("vpf-030", off < KEY_LAST_INDEX, return 0);
+    aal_assert("vpf-030", off < KEY40_LAST_INDEX, return 0);
     return LE64_TO_CPU(key->el[off]);
 }
 
-static inline void set_key_el(reiserfs_key_t *key,
-    reiserfs_key_field_index off, uint64_t value)
+static inline void set_key40_el(reiserfs_key40_t *key,
+    reiserfs_key40_field_index off, uint64_t value)
 {
     aal_assert("vpf-031", key != NULL, return);
-    aal_assert("vpf-032", off < KEY_LAST_INDEX, return);
+    aal_assert("vpf-032", off < KEY40_LAST_INDEX, return);
     key->el[off] = CPU_TO_LE64(value);
 }
 
 /* Macro to define getter and setter functions for field F with type T */
-static inline int get_key_locality2 (const reiserfs_key_t *key) {
-    aal_assert("vpf-035", key != NULL, return 0);
-    return (int)(get_key_el(key, KEY_LOCALITY_INDEX) &
-	KEY_LOCALITY_MASK) >> KEY_LOCALITY_SHIFT;
-}
-
-#define DEFINE_KEY_FIELD(L, U, T)				\
-static inline T get_key_ ## L (const reiserfs_key_t *key) {	\
-    aal_assert("vpf-036", key != NULL, return 0);		\
-    return (T) ((get_key_el(key, KEY_##U##_INDEX) &		\
-	KEY_##U##_MASK) >> KEY_##U##_SHIFT);			\
-}								\
-								\
-static inline void set_key_##L(reiserfs_key_t *key, T loc) {	\
-    uint64_t el;						\
-								\
-    aal_assert("vpf-033", key != NULL, return);			\
-								\
-    el = get_key_el(key, KEY_##U##_INDEX);			\
-								\
-    el &= ~KEY_##U##_MASK;					\
-								\
-    aal_assert("vpf-034", ((loc << KEY_##U##_SHIFT) &		\
-        ~KEY_##U##_MASK) == 0, return);				\
-								\
-    el |= (loc << KEY_##U##_SHIFT);				\
-    set_key_el(key, KEY_##U##_INDEX, el);			\
+#define DEFINE_KEY40_FIELD(L, U, T)				    \
+static inline T get_key40_##L (const reiserfs_key40_t *key) {	    \
+    aal_assert("vpf-036", key != NULL, return 0);		    \
+    return (T) ((get_key40_el(key, KEY40_##U##_INDEX) &		    \
+	KEY40_##U##_MASK) >> KEY40_##U##_SHIFT);		    \
+}								    \
+								    \
+static inline void set_key40_##L(reiserfs_key40_t *key, T loc) {    \
+    uint64_t el;						    \
+								    \
+    aal_assert("vpf-033", key != NULL, return);			    \
+								    \
+    el = get_key40_el(key, KEY40_##U##_INDEX);			    \
+								    \
+    el &= ~KEY40_##U##_MASK;					    \
+								    \
+    aal_assert("vpf-034", ((loc << KEY40_##U##_SHIFT) &		    \
+        ~KEY40_##U##_MASK) == 0, return);			    \
+								    \
+    el |= (loc << KEY40_##U##_SHIFT);				    \
+    set_key40_el(key, KEY40_##U##_INDEX, el);			    \
 }
 
 /* Define get_key_locality(), set_key_locality() */
-DEFINE_KEY_FIELD(locality, LOCALITY, uint64_t);
+DEFINE_KEY40_FIELD(locality, LOCALITY, uint64_t);
 
 /* Define get_key_type(), set_key_type() */
-DEFINE_KEY_FIELD(type, TYPE, reiserfs_key_minor);
+DEFINE_KEY40_FIELD(type, TYPE, reiserfs_key40_minor);
 
 /* Define get_key_band(), set_key_band() */
-DEFINE_KEY_FIELD(band, BAND, uint64_t);
+DEFINE_KEY40_FIELD(band, BAND, uint64_t);
 
 /* Define get_key_objectid(), set_key_objectid() */
-DEFINE_KEY_FIELD(objectid, OBJECTID, uint64_t);
+DEFINE_KEY40_FIELD(objectid, OBJECTID, uint64_t);
 
 /* Define get_key_offset(), set_key_offset() */
-DEFINE_KEY_FIELD(offset, OFFSET, uint64_t);
+DEFINE_KEY40_FIELD(offset, OFFSET, uint64_t);
 
 /* Define get_key_hash(), set_key_hash() */
-DEFINE_KEY_FIELD(hash, HASH, uint64_t);
+DEFINE_KEY40_FIELD(hash, HASH, uint64_t);
 
-extern const reiserfs_key_t *reiserfs_min_key(void);
-extern const reiserfs_key_t *reiserfs_max_key(void);
+extern const reiserfs_key40_t *reiserfs_key40_min(void);
+extern const reiserfs_key40_t *reiserfs_key40_max(void);
 
-extern void reiserfs_key_init(reiserfs_key_t *key);
-extern int reiserfs_key_cmp(reiserfs_key_t *key1, reiserfs_key_t *key2);
-extern void build_entryid_by_entry_info(reiserfs_entryid_t *entryid, 
+extern void reiserfs_key40_init(reiserfs_key40_t *key);
+extern int reiserfs_key40_cmp(reiserfs_key40_t *key1, reiserfs_key40_t *key2);
+
+extern error_t build_entryid_by_info(reiserfs_entryid_t *entryid, 
     reiserfs_entry_info_t *info);
 
 #endif

@@ -62,3 +62,16 @@ int reiserfs_misc_bin_search(
     return 0;
 }
 
+uint64_t reiserfs_misc_pack_string(const char *name, int start) {
+    unsigned i;
+    uint64_t str;
+
+    str = 0;
+    for (i = 0 ; (i < sizeof str - start) && name[i] ; ++ i) {
+        str <<= 8;
+        str |= (unsigned char)name[i];
+    }
+    str <<= (sizeof str - i - start) << 3;
+    return str;
+}
+

@@ -43,11 +43,11 @@ typedef int reiserfs_plugin_id_t;
 
 /* Common plugins header */
 struct reiserfs_plugin_header {
-    void *handle;				    /* handle filled by plugins factory */
-    reiserfs_plugin_id_t id;			    /* plugin identifier */
-    reiserfs_plugin_id_t type;			    /* plugin type */
-    const char label[REISERFS_PLUGIN_MAX_LABEL];    /* short plugin name */
-    const char desc[REISERFS_PLUGIN_MAX_DESC];	    /* long plugin description */
+    void *handle;
+    reiserfs_plugin_id_t id;
+    reiserfs_plugin_id_t type;
+    const char label[REISERFS_PLUGIN_MAX_LABEL];
+    const char desc[REISERFS_PLUGIN_MAX_DESC];
 };
 
 typedef struct reiserfs_plugin_header reiserfs_plugin_header_t;
@@ -60,6 +60,10 @@ typedef struct reiserfs_file_plugin reiserfs_file_plugin_t;
 
 struct reiserfs_dir_plugin {
     reiserfs_plugin_header_t h;
+
+    reiserfs_opaque_t *(*create) (void);
+    reiserfs_opaque_t *(*init) (void);
+    void (*fini) (reiserfs_opaque_t *);
 };
 
 typedef struct reiserfs_dir_plugin reiserfs_dir_plugin_t;
@@ -190,8 +194,29 @@ struct reiserfs_node_plugin {
     int (*lookup) (aal_block_t *, reiserfs_item_coord_t *, 
 	void *);
     
+    /* Gets/sets node's free space */
+    uint16_t (*get_free_space) (aal_block_t *);
+    void (*set_free_space) (aal_block_t *, uint32_t);
+    
+    /*
+	This is optional method. That means that there could be 
+	node formats which do not keep level.
+
+	FIXME-UMKA: At the moment this is not optional methods.
+	This is because balancing is based on node level idiom.
+    */
+    uint8_t (*get_level) (aal_block_t *);
+    void (*set_level) (aal_block_t *, uint8_t);
+
+    /* Prints node into given buffer */
+    void (*print) (aal_block_t *, char *, uint16_t);
+    
     /* Inserts item into specified node */
-    error_t (*insert) (aal_block_t *, reiserfs_item_coord_t *, 
+    error_t (*item_insert) (aal_block_t *, reiserfs_item_coord_t *, 
+	void *, void *);
+    
+    /* Replaces item into specified node */
+    error_t (*item_replace) (aal_block_t *, reiserfs_item_coord_t *, 
 	void *, void *);
     
     /* Returns item's overhead */
@@ -208,34 +233,20 @@ struct reiserfs_node_plugin {
     
     /* Returns item's length by pos */
     uint16_t (*item_length) (aal_block_t *, int32_t);
+    
+    /* Gets item at passed pos */
+    void *(*item_at) (aal_block_t *, int32_t);
 
+    /* Gets/sets node's plugin ID */
+    uint16_t (*item_get_plugin_id) (aal_block_t *, int32_t);
+    void (*item_set_plugin_id) (aal_block_t *, int32_t, uint16_t);
+    
     /* Compare two keys */
     int (*key_cmp) (const void *, const void *);
     
-    /* Gets item's body and key by pos */
+    /* Gets key by pos */
     void *(*key_at) (aal_block_t *, int32_t);
-    void *(*item_at) (aal_block_t *, int32_t);
     
-    /* Gets/sets node's free space */
-    uint16_t (*get_free_space) (aal_block_t *);
-    void (*set_free_space) (aal_block_t *, uint32_t);
-
-    /* Gets/sets node's plugin ID */
-    uint16_t (*get_item_plugin_id) (aal_block_t *, int32_t);
-    void (*set_item_plugin_id) (aal_block_t *, int32_t, uint16_t);
-    
-    /*
-	This is optional method. That means that there could be 
-	node formats which do not keep level.
-
-	FIXME-UMKA: At the moment this is not optional methods.
-	This is because balancing is based on node level idiom.
-    */
-    uint8_t (*get_level) (aal_block_t *);
-    void (*set_level) (aal_block_t *, uint8_t);
-
-    /* Prints node into given buffer */
-    void (*print) (aal_block_t *, char *, uint16_t);
 };
 
 typedef struct reiserfs_node_plugin reiserfs_node_plugin_t;

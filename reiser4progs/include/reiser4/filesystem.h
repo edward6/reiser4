@@ -168,9 +168,21 @@ struct reiserfs_entry_info {
 
 typedef struct reiserfs_entry_info reiserfs_entry_info_t;
 
-struct reiserfs_dir_info {
+struct reiserfs_direntry_info {
     uint16_t count;
     reiserfs_entry_info_t *entry;
+};
+
+typedef struct reiserfs_direntry_info reiserfs_direntry_info_t;
+
+struct reiserfs_dir {
+    reiserfs_opaque_t *entity;
+    reiserfs_plugin_t *plugin;
+};
+
+typedef struct reiserfs_dir reiserfs_dir_t;
+
+struct reiserfs_dir_info {
 };
 
 typedef struct reiserfs_dir_info reiserfs_dir_info_t;

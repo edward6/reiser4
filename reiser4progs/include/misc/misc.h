@@ -17,5 +17,7 @@ extern int reiserfs_misc_bin_search(void *needle, void *array,
     uint32_t count, reiserfs_elem_func_t elem_func, 
     reiserfs_comp_func_t comp_func, uint64_t *pos);
 
+extern uint64_t reiserfs_misc_pack_string(const char *name, int start);
+
 #endif
 

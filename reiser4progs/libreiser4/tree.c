@@ -53,16 +53,15 @@ error:
 error_t reiserfs_tree_create(reiserfs_fs_t *fs, 
     reiserfs_profile_t *profile) 
 {
-    int size;
     blk_t block_nr;
-    reiserfs_key_t key;
+    reiserfs_key40_t key;
     reiserfs_item_coord_t coord;
     reiserfs_node_t *squeeze, *leaf;
     
     reiserfs_item_info_t item_info;
     reiserfs_internal_info_t internal_info;
     reiserfs_stat_info_t stat_info;
-    reiserfs_dir_info_t dir_info;
+    reiserfs_direntry_info_t direntry_info;
 
     /* 
 	FIXME-VITALY: Directory object plugin should define what will be created in 
@@ -114,10 +113,10 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     /* Initialize internal item. */
     internal_info.blk = &block_nr;
    
-    reiserfs_key_init(&key);
-    set_key_type(&key, KEY_SD_MINOR);
-    set_key_locality(&key, reiserfs_oid_root_parent_objectid(fs));
-    set_key_objectid(&key, reiserfs_oid_root_objectid(fs));
+    reiserfs_key40_init(&key);
+    set_key40_type(&key, KEY40_SD_MINOR);
+    set_key40_locality(&key, reiserfs_oid_root_parent_objectid(fs));
+    set_key40_objectid(&key, reiserfs_oid_root_objectid(fs));
 
     aal_memset(&item_info, 0, sizeof(item_info));
     item_info.info = &internal_info;
@@ -138,7 +137,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 	Insert an internal item. Item will be created automatically from 
 	the node insert API method. 
     */
-    if (reiserfs_node_insert_item(squeeze, &coord, &key, &item_info)) {
+    if (reiserfs_node_item_insert(squeeze, &coord, &key, &item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
 	    aal_device_get_block_nr(squeeze->device, squeeze->block));
@@ -173,7 +172,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     }
 
     /* Insert the stat data. */
-    if (reiserfs_node_insert_item(leaf, &coord, &key, &item_info)) {
+    if (reiserfs_node_item_insert(leaf, &coord, &key, &item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
 	    aal_device_get_block_nr(leaf->device, leaf->block));
@@ -187,18 +186,18 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 	decide what is configuration of empty dir. It's possible that in the
 	future will be empty directories with more than two entries.
     */
-    dir_info.count = 2;
-    dir_info.entry = entry;
+    direntry_info.count = 2;
+    direntry_info.entry = entry;
 
-    reiserfs_key_init(&key);
-    set_key_type(&key, KEY_FILE_NAME_MINOR);
-    set_key_locality(&key, reiserfs_oid_root_objectid(fs));
+    reiserfs_key40_init(&key);
+    set_key40_type(&key, KEY40_FILE_NAME_MINOR);
+    set_key40_locality(&key, reiserfs_oid_root_objectid(fs));
 
     /* FIXME-VITALY: This should go into directory object API. */
-    build_entryid_by_entry_info((reiserfs_entryid_t *)key.el + 1, &entry[0]);
+    build_entryid_by_info((reiserfs_entryid_t *)key.el + 1, &entry[0]);
 
     aal_memset(&item_info, 0, sizeof(item_info));
-    item_info.info = &dir_info;
+    item_info.info = &direntry_info;
 
     coord.item_pos = 1;
     coord.unit_pos = -1;
@@ -216,7 +215,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 	Insert an internal item. Item will be created automatically from 
 	the node insert API method.
     */
-    if (reiserfs_node_insert_item(leaf, &coord, &key, &item_info)) {
+    if (reiserfs_node_item_insert(leaf, &coord, &key, &item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert direntry item into the node %llu.", 
 	    aal_device_get_block_nr(leaf->device, leaf->block));

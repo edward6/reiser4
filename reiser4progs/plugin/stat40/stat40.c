@@ -16,15 +16,15 @@ static error_t reiserfs_stat40_confirm(void *body) {
     return 0;
 }
 
-static error_t reiserfs_stat40_create(void *body, reiserfs_item_info_t *item_info) {
+static error_t reiserfs_stat40_create(void *body, reiserfs_item_info_t *info) {
     reiserfs_stat40_base_t *stat;
     reiserfs_stat_info_t *stat_info;
     
     aal_assert("vpf-076", body != NULL, return -1); 
-    aal_assert("vpf-075", item_info != NULL, return -1);
-    aal_assert("vpf-078", item_info->info != NULL, return -1);
+    aal_assert("vpf-075", info != NULL, return -1);
+    aal_assert("vpf-078", info->info != NULL, return -1);
     
-    stat_info = item_info->info;
+    stat_info = info->info;
     stat = (reiserfs_stat40_base_t *)body;
     
     stat40_set_mode(stat, stat_info->mode);
@@ -37,13 +37,13 @@ static error_t reiserfs_stat40_create(void *body, reiserfs_item_info_t *item_inf
     return 0;
 }
 
-static void reiserfs_stat40_estimate(reiserfs_item_info_t *item_info, 
+static void reiserfs_stat40_estimate(reiserfs_item_info_t *info, 
     reiserfs_item_coord_t *coord) 
 {
-    aal_assert("vpf-074", item_info != NULL, return);
+    aal_assert("vpf-074", info != NULL, return);
 
     /* Should calculate extentions size also */
-    item_info->length = sizeof(reiserfs_stat40_base_t);
+    info->length = sizeof(reiserfs_stat40_base_t);
 }
 
 static error_t reiserfs_stat40_check(void *body) {

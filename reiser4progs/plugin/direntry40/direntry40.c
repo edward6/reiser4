@@ -12,63 +12,65 @@
 static reiserfs_plugins_factory_t *factory = NULL;
 
 /* This will build sd key as objid has SD_MINOR */
-static void build_key_by_objid(reiserfs_key_t *key, 
+static void build_key_by_objid(reiserfs_key40_t *key, 
     reiserfs_objid_t *id)
 {
     aal_assert("vpf-086", key != NULL, return);
     aal_assert("vpf-087", id != NULL, return);
    
-    aal_memset(key, 0, sizeof *key);    
-    aal_memcpy(key, id, sizeof *id);
+    aal_memset(key, 0, sizeof(*key));    
+    aal_memcpy(key, id, sizeof(*id));
 }
 
 /* Will build sd key. */
 static void build_objid_by_ids(reiserfs_objid_t *objid, 
     uint64_t loc, uint64_t id)
 {
-    reiserfs_key_t sd_key;
+    reiserfs_key40_t sd_key;
     
     aal_assert("vpf-089", objid != NULL, return);
 
-    reiserfs_key_init(&sd_key);
-    set_key_locality(&sd_key, loc);
-    set_key_objectid(&sd_key, id);
-    set_key_type(&sd_key, KEY_SD_MINOR);
+    reiserfs_key40_init(&sd_key);
+    set_key40_locality(&sd_key, loc);
+    set_key40_objectid(&sd_key, id);
+    set_key40_type(&sd_key, KEY40_SD_MINOR);
     
-    aal_memcpy (objid, &sd_key, sizeof *objid);
+    aal_memcpy(objid, &sd_key, sizeof(*objid));
 }
 
 static error_t reiserfs_direntry40_create(void *body, 
-    reiserfs_item_info_t *item_info)
+    reiserfs_item_info_t *info)
 {
     int i;
     uint16_t len, offset;
-    reiserfs_dir_info_t *info;    
+    reiserfs_direntry_info_t *direntry_info;
     reiserfs_direntry40_t *direntry;
     
     aal_assert("vpf-097", body != NULL, return -1);
-    aal_assert("vpf-098", item_info != NULL, return -1);
-    aal_assert("vpf-099", item_info->info != NULL, return -1);
+    aal_assert("vpf-098", info != NULL, return -1);
+    aal_assert("vpf-099", info->info != NULL, return -1);
     
-    info = item_info->info;
+    direntry_info = info->info;
     
     direntry = (reiserfs_direntry40_t *)body;
-    direntry40_set_count(direntry, info->count);
+    direntry40_set_count(direntry, direntry_info->count);
     
     offset = sizeof(reiserfs_direntry40_t) + 
-	info->count * sizeof(reiserfs_entry40_t);
+	direntry_info->count * sizeof(reiserfs_entry40_t);
 
-    for (i = 0; i < info->count; i++) {	
+    for (i = 0; i < direntry_info->count; i++) {	
 	entry40_set_offset(&direntry->entry[i], offset);
 	
-	build_entryid_by_entry_info(&direntry->entry[i].entryid, &info->entry[i]);
+	build_entryid_by_info(&direntry->entry[i].entryid, &direntry_info->entry[i]);
 	build_objid_by_ids((reiserfs_objid_t *)((char *)direntry + offset), 
-	    info->entry[i].parent_id, info->entry[i].object_id);
+	    direntry_info->entry[i].parent_id, direntry_info->entry[i].object_id);
 	
-	len = aal_strlen(info->entry[i].name);
+	len = aal_strlen(direntry_info->entry[i].name);
 	offset += sizeof(reiserfs_objid_t);
 	
-	aal_memcpy((char *)(direntry) + offset, info->entry[i].name, len);
+	aal_memcpy((char *)(direntry) + offset, 
+	    direntry_info->entry[i].name, len);
+	
 	offset += len;
 	
 	*((char *)(direntry) + offset + 1) = 0;
@@ -78,25 +80,25 @@ static error_t reiserfs_direntry40_create(void *body,
     return 0;
 }
 
-static void reiserfs_direntry40_estimate(reiserfs_item_info_t *item_info, 
+static void reiserfs_direntry40_estimate(reiserfs_item_info_t *info, 
     reiserfs_item_coord_t *coord) 
 {
     int i;
-    reiserfs_dir_info_t *info;    
+    reiserfs_direntry_info_t *direntry_info;
 	    
-    aal_assert("vpf-095", item_info != NULL, return);
-    aal_assert("vpf-096", item_info->info != NULL, return);
+    aal_assert("vpf-095", info != NULL, return);
+    aal_assert("vpf-096", info->info != NULL, return);
     
-    info = item_info->info;
-    item_info->length = info->count * sizeof(reiserfs_entry40_t);
+    direntry_info = info->info;
+    info->length = direntry_info->count * sizeof(reiserfs_entry40_t);
     
-    for (i = 0; i < info->count; i++) {
-	item_info->length += aal_strlen(info->entry[i].name) + 
+    for (i = 0; i < direntry_info->count; i++) {
+	info->length += aal_strlen(direntry_info->entry[i].name) + 
 	    sizeof(reiserfs_objid_t) + 1;
     }
 
     if (coord == NULL || coord->unit_pos == -1)
-	item_info->length += sizeof(reiserfs_direntry40_t);
+	info->length += sizeof(reiserfs_direntry40_t);
 }
 
 static void reiserfs_direntry40_print(void *body, char *buff, uint16_t n) {

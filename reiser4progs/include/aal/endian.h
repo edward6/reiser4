@@ -89,14 +89,14 @@ int le_test_bit(int nr, const void * addr);
 #define get_leXX(xx, p, field)		(LE##xx##_TO_CPU ((p)->field))
 #define set_leXX(xx, p, field, val)	do { (p)->field = CPU_TO_LE##xx(val); } while (0)
 
-#define get_le16(p, field) 		get_leXX (16, p, field)
-#define set_le16(p, field, val) 	set_leXX (16, p, field, val)
+#define get_le16(p, field) 		get_leXX(16, p, field)
+#define set_le16(p, field, val) 	set_leXX(16, p, field, val)
 
-#define get_le32(p, field) 		get_leXX (32, p, field)
-#define set_le32(p, field, val)		set_leXX (32, p, field, val)
+#define get_le32(p, field) 		get_leXX(32, p, field)
+#define set_le32(p, field, val)		set_leXX(32, p, field, val)
 
-#define get_le64(p, field) 		get_leXX (64, p, field)
-#define set_le64(p, field, val) 	set_leXX (64, p, field, val)
+#define get_le64(p, field) 		get_leXX(64, p, field)
+#define set_le64(p, field, val) 	set_leXX(64, p, field, val)
 
 #endif
 
