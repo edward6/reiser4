@@ -780,6 +780,7 @@ int longterm_lock_znode (
 	for (;;) {
 
 		reiser4_stat_znode_add(lock_znode_iteration);
+
 		/* Check the lock's availability: if it is unavaiable we get EAGAIN, 0
 		 * indicates "can_lock", otherwise the node is invalid.  */
 		ret = can_lock_object(owner, node);
