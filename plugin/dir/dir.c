@@ -107,7 +107,6 @@ common_link(struct inode *parent /* parent directory */ ,
 {
 	int result;
 	struct inode *object;
-	file_plugin *fplug;
 	dir_plugin *parent_dplug;
 	reiser4_dir_entry_desc entry;
 	reiser4_object_create_data data;
@@ -119,8 +118,6 @@ common_link(struct inode *parent /* parent directory */ ,
 
 	object = existing->d_inode;
 	assert("nikita-1434", object != NULL);
-
-	fplug = inode_file_plugin(object);
 
 	/* check for race with create_object() */
 	if (inode_get_flag(object, REISER4_IMMUTABLE))
@@ -392,6 +389,10 @@ common_create_child(struct inode *parent /* parent object */ ,
 
 	/* reget plugin after installation */
 	obj_plug = inode_file_plugin(object);
+
+	/* call file plugin's method to initialize plugin specific part of inode */
+	if (obj_plug->init_inode_data)
+		obj_plug->init_inode_data(object, 1/*create*/);
 
 	if (obj_plug->create == NULL)
 		return -EPERM;
@@ -901,7 +902,6 @@ dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 {
 	struct inode *inode;
 	reiser4_file_fsdata *fsdata;
-	reiser4_inode *info;
 
 	assert("nikita-1359", f != NULL);
 	inode = f->f_dentry->d_inode;
@@ -914,8 +914,6 @@ dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 	assert("nikita-2571", fsdata != NULL);
 	if (IS_ERR(fsdata))
 		return PTR_ERR(fsdata);
-
-	info = reiser4_inode_data(inode);
 
 	spin_lock_inode(inode);
 	if (readdir_list_is_clean(fsdata))
