@@ -587,6 +587,8 @@ static int formatted_vm_writeback( struct page *page, int *nr_to_write )
 	int result;
 	REISER4_ENTRY( page -> mapping -> host -> i_sb );
 
+	assert( "vs-828", PageLocked( page ) );
+	unlock_page( page );
 	result = jnode_flush (jnode_by_page (page),
 			      nr_to_write, JNODE_FLUSH_MEMORY_FORMATTED);
 	REISER4_EXIT( result );
