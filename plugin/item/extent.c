@@ -1871,7 +1871,7 @@ put_unit_to_end(znode * node, reiser4_key * key, reiser4_item_data * data)
 		result = insert_into_item(&coord, 0 /*lh */ , key, data, flags);
 	}
 
-	assert("vs-438", result == 0 || result == -ENOSPC);
+	assert("vs-438", result == 0 || result == -E_NODE_FULL);
 	return result;
 }
 
@@ -2049,7 +2049,7 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_pos_t * flush_pos,
 		if (!result) {
 			/* unit does not require allocation, copy this unit as it is */
 			result = put_unit_to_end(left, &key, init_new_extent(&data, ext, 1));
-			if (result == -ENOSPC) {
+			if (result == -E_NODE_FULL) {
 				/* left->node does not have enough free space
 				   for this unit */
 				result = SQUEEZE_TARGET_FULL;
@@ -2085,7 +2085,7 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_pos_t * flush_pos,
 			extent_set_start(&new_ext, 0);
 			extent_set_width(&new_ext, 0);			
 			result = put_unit_to_end(left, &key, init_new_extent(&data, &new_ext, 1));
-			if (result == -ENOSPC) {
+			if (result == -E_NODE_FULL) {
 				result = SQUEEZE_TARGET_FULL;
 				trace_on(TRACE_EXTENTS,
 					 "alloc_and_copy_extent: target full, to_allocate = %llu\n",

@@ -327,7 +327,7 @@ insert_result insert_by_coord(coord_t * coord	/* coord where to
 		   shifting and allocations because we are in squeezing and
 		   everything to the left of @node is tightly packed.
 		*/
-		result = -ENOSPC;
+		result = -E_NODE_FULL;
 	} else if ((item_size <= znode_free_space(node)) &&
 		   !coord_is_before_leftmost(coord) &&
 		   (node_plugin_by_node(node)->fast_insert != NULL) && node_plugin_by_node(node)->fast_insert(coord)) {
@@ -417,7 +417,7 @@ insert_into_item(coord_t * coord /* coord of pasting */ ,
 	    (flags & COPI_DONT_SHIFT_LEFT) && (flags & COPI_DONT_SHIFT_RIGHT) && (flags & COPI_DONT_ALLOCATE)) {
 		/* we are forced to use free space of coord->node and new data
 		   does not fit into it. */
-		return -ENOSPC;
+		return -E_NODE_FULL;
 	}
 
 	/* shortcut paste without carry() overhead.

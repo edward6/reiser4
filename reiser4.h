@@ -220,11 +220,16 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 
 /** Reiser4 specific error codes **/
 
+#define REISER4_ERROR_CODES_BASE 1000
+
 /* Neighbor is not available (side neighbor or parent) */
-#define E_NO_NEIGHBOR  (ENAVAIL)
+#define E_NO_NEIGHBOR  (REISER4_ERROR_CODES_BASE)
 
 /* Node was not found in cache */
-#define E_NOT_IN_CACHE (ENOENT)
+#define E_NOT_IN_CACHE (REISER4_ERROR_CODES_BASE + 1)
+
+/* node has no free space enough for completion of balancing operation */
+#define E_NODE_FULL    (REISER4_ERROR_CODES_BASE + 2)
 
 #endif				/* __REISER4_H__ */
 

@@ -237,12 +237,12 @@ typedef enum {
 typedef enum { IBK_INSERT_OK = 0,
 	IBK_ALREADY_EXISTS = -EEXIST,
 	IBK_IO_ERROR = -EIO,
-	IBK_NO_SPACE = -ENOSPC,
+	IBK_NO_SPACE = -E_NODE_FULL,
 	IBK_OOM = -ENOMEM
 } insert_result;
 
 typedef enum { RESIZE_OK = 0,
-	RESIZE_NO_SPACE = -ENOSPC,
+	RESIZE_NO_SPACE = -E_NODE_FULL,
 	RESIZE_IO_ERROR = -EIO,
 	RESIZE_OOM = -ENOMEM
 } resize_result;
@@ -290,7 +290,7 @@ node_is_empty(const znode * node)
 }
 
 typedef enum { SHIFTED_SOMETHING = 0,
-	SHIFT_NO_SPACE = -ENOSPC,
+	SHIFT_NO_SPACE = -E_NODE_FULL,
 	SHIFT_IO_ERROR = -EIO,
 	SHIFT_OOM = -ENOMEM,
 } shift_result;
