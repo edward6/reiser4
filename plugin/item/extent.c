@@ -514,28 +514,41 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count)
 
 	ext = extent_item(coord) + from;
 	for (i = 0; i < count; i++, ext++) {
+		reiser4_tree *tree;
+		coord_t twin;
+
 		start = extent_get_start(ext);
 		length = extent_get_width(ext);
 		if (state_of_extent(ext) == HOLE_EXTENT)
 			continue;
-		if (REISER4_DEBUG) {
-			/* at this time there should not be already jnodes corresponding any block from this extent. Check that */
-			reiser4_tree *tree;
-			coord_t twin;
+		/* at this time there should not be already jnodes
+		 * corresponding any block from this extent. Check that */
 
-			coord_dup(&twin, coord);
-			twin.unit_pos = from + i;
-			twin.between = AT_UNIT;
-			tree = current_tree;
-			for (j = 0; j < length; j ++) {
-				jnode *node;
+		coord_dup(&twin, coord);
+		twin.unit_pos = from + i;
+		twin.between = AT_UNIT;
+		tree = current_tree;
 
-				node = UNDER_SPIN(tree, tree, jlook(tree, oid, extent_unit_index(&twin) + j));
-				assert("vs-1095",
-				       node == NULL || 
-				       (JF_ISSET(node, JNODE_HEARD_BANSHEE) && 
-					!jnode_is_loaded(node) && 
-					jnode_page(node) == NULL));
+		/* kill all jnodes of extent being removed */
+
+		/* Usually jnode is un-captured and destroyed in
+		 * ->invalidatepage() as part of truncate_inode_pages(). But
+		 * it is possible that after jnode has been flushed and its
+		 * dirty bit cleared, it was detached from page by
+		 * ->releasepage() and hence missed by ->invalidatepage(). */
+
+		for (j = 0; j < length; j ++) {
+			jnode *node;
+
+			node = UNDER_SPIN(tree, tree, 
+					  jlook(tree, oid, 
+						extent_unit_index(&twin) + j));
+			if (node != NULL) {
+				assert("vs-1095", 
+				       UNDER_SPIN(jnode, node, 
+						  jnode_page(node) == NULL));
+				JF_SET(node, JNODE_HEARD_BANSHEE);
+				jput(node);
 			}
 		}
 		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
