@@ -449,10 +449,9 @@ static int renew_neighbor (tree_coord * coord, znode * node, tree_level level, i
  out:
 	done_coord(&local);
 
-	while (nr_locked) {
+	for (-- nr_locked ; nr_locked >= 0 ; -- nr_locked) {
 		zrelse(empty[nr_locked].node);
 		longterm_unlock_znode(&empty[nr_locked]);
-		-- nr_locked;
 	}
 
 	if (neighbor != NULL) zput(neighbor);
@@ -505,6 +504,14 @@ int reiser4_get_neighbor (lock_handle * neighbor /* lock handle that
 	ret = lock_side_neighbor(neighbor, node, lock_mode, flags);
 	spin_unlock_tree(tree);
 
+	/*
+	 * FIXME-NIKITA I don't believe following error handling path in right
+	 * way to do things. It silently assumes that if ( ret != 0 ) we
+	 * should connect @node with respective neighbor. But,
+	 * lock_side_neighbor() actually returns a lot more error codes. For
+	 * one it returns -EDEADLK.
+	 *
+	 */
 	if (!ret) {
 		/* load znode content if it was specified */
 		if (flags & GN_LOAD_NEIGHBOR) {
@@ -512,7 +519,8 @@ int reiser4_get_neighbor (lock_handle * neighbor /* lock handle that
 			if (ret) longterm_unlock_znode(neighbor);
 		}
 		return ret;
-	}
+	} else if (ret == -EDEADLK)
+		return ret;
 				
 	if (!(flags & GN_DO_READ)) return ret;
 
