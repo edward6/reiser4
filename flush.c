@@ -1170,16 +1170,22 @@ static int squalloc_right_twig (znode    *left,
 	trace_if (TRACE_FLUSH, print_node_content ("right", right, ~0u));
 
 	while (item_is_extent (&coord)) {
+		reiser4_key last_stop_key;
+
 
 		trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:item_is_extent:", & coord, 0));
 
+		last_stop_key = stop_key;
 		if ((ret = allocate_and_copy_extent (left, &coord, pos, &stop_key)) < 0) {
 			return ret;
 		}
 
 		/* we will cut from the beginning of node upto @stop_coord (and
 		 * @stop_key) */
-		coord_dup (&stop_coord, &coord);
+		if (!keyeq (&stop_key, &last_stop_key)) {
+			/* something were copied, update cut boundary */
+			coord_dup (&stop_coord, &coord);
+		}
 
 		if (ret == SQUEEZE_TARGET_FULL) {
 			/* Could not complete with current extent item. */
