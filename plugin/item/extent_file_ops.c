@@ -403,7 +403,7 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 
 	page_io(page, j, READ, GFP_NOIO);
 
-	reiser4_lock_page(page);
+	lock_page(page);
 	UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
 
 	if (!PageUptodate(page)) {
@@ -501,7 +501,9 @@ index_extent_jnode(reiser4_tree *tree, struct address_space *mapping, oid_t oid,
 	if (!j || !jnode_mapped(j)) {
 		reiser4_block_nr blocknr;
 
+		DISABLE_NODE_CHECK;
 		result = make_extent(key, uf_coord, mode, &blocknr);
+		ENABLE_NODE_CHECK;
 		if (result) {
 			return ERR_PTR(result);
 		}
@@ -644,7 +646,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		if (!PageReferenced(page))
 			SetPageReferenced(page);
 
-		reiser4_unlock_page(page);
+		unlock_page(page);
 		page_cache_release(page);
 
 		/* FIXME: possible optimization: if jnode is not dirty yet - it gets into clean list in try_capture and
@@ -676,7 +678,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		continue;
 
 	exit3:
-		reiser4_unlock_page(page);
+		unlock_page(page);
 		page_cache_release(page);
 	exit2:
 		jput(j);
@@ -987,7 +989,7 @@ zero_page(struct page *page)
 	flush_dcache_page(page);
 	kunmap_atomic(kaddr, KM_USER0);
 	SetPageUptodate(page);
-	reiser4_unlock_page(page);
+	unlock_page(page);
 }
 
 static int
@@ -1070,7 +1072,7 @@ readahead_readpage_extent(void *vp, struct page *page)
 	coord = &uf_coord->base_coord;
 
 	if (coord->between != AT_UNIT) {
-		reiser4_unlock_page(page);
+		unlock_page(page);
 		return RETERR(-EINVAL);
 	}
 
@@ -1080,7 +1082,7 @@ readahead_readpage_extent(void *vp, struct page *page)
 		assert("vs-1269", page->index > ext_coord->expected_page);
 		if (move_coord_pages(coord, ext_coord,  page->index - ext_coord->expected_page)) {
 			/* extent pointing to this page is not here */
-			reiser4_unlock_page(page);
+			unlock_page(page);
 			return RETERR(-EINVAL);
 		}
 
