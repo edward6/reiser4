@@ -18,7 +18,7 @@
 */
 
 /** magic number that is stored in ->magic field of node header */
-const __u32 reiser4_node_magic = 0x52344653; /* (*(__u32 *)"R4FS"); */
+const __u32 REISER4_NODE_MAGIC = 0x52344653; /* (*(__u32 *)"R4FS"); */
 
 static int prepare_for_update (znode * left, znode * right, carry_plugin_info *info);
 
@@ -37,9 +37,14 @@ static inline node_header_40 *node40_node_header( const znode *node /* node to
 
 /* functions to get/set fields of node_header_40 */
 
-static __u32 nh_40_get_magic (node_header_40 * nh UNUSED_ARG)
+static __u32 nh_40_get_magic (node_header_40 * nh)
 {
 	return d32tocpu (&nh->magic);
+}
+
+static nh_40_set_magic (node_header_40 * nh, __u32 magic)
+{
+	return cputod32 (magic, &nh->magic);
 }
 
 
@@ -673,9 +678,10 @@ int node40_parse( znode *node /* node to parse */)
 	if( ( ( __u8 ) znode_get_level( node ) ) != nh_40_get_level( header ) )
 		warning( "nikita-494", "Wrong level found in node: %i != %i",
 			 znode_get_level( node ), nh_40_get_level( header ) );
-	else if( 0/*nh_40_get_magic( header ) != reiser4_node_magic*/ )
-		warning( "nikita-495", "Wrong magic in tree node: %x != %x",
-			 reiser4_node_magic, nh_40_get_magic( header ) );
+	else if( nh_40_get_magic( header ) != REISER4_NODE_MAGIC )
+		warning( "nikita-495", 
+			 "Wrong magic in tree node: want %x, got %x",
+			 REISER4_NODE_MAGIC, nh_40_get_magic( header ) );
 	else {
 		node -> nr_items = node40_num_of_items( node );
 		result = 0;
@@ -710,7 +716,7 @@ int node40_init( znode *node /* node to initialise */)
 	/* items: 0 */
 	save_plugin_id (node_plugin_to_plugin (node -> nplug), &header -> common_header.plugin_id);
 	nh_40_set_level (header, znode_get_level( node ));
-	/*nh_40_set_magic (header, reiser4_node_magic);*/
+	nh_40_set_magic (header, REISER4_NODE_MAGIC);
 	node -> nr_items = 0;
 
 	/* flags: 0 */
@@ -721,13 +727,15 @@ int node40_init( znode *node /* node to initialise */)
 /* Audited by: green(2002.06.12) */
 int node40_guess( const znode *node /* node to guess plugin of */)
 {
+	node_header_40 *nethack;
+
 	assert( "nikita-1058", node != NULL );
+	nethack = node40_node_header( node );
 	return
-		( nh_40_get_magic( node40_node_header( ( znode * ) node ) ) ==
-		  reiser4_node_magic ) &&
+		( nh_40_get_magic( nethack ) == REISER4_NODE_MAGIC ) &&
 		( plugin_by_disk_id( current_tree,
 				     REISER4_NODE_PLUGIN_TYPE,
-				     &node40_node_header( ( znode * ) node ) -> common_header.plugin_id ) -> h.id ==
+				     &nethack -> common_header.plugin_id ) -> h.id ==
 		  NODE40_ID );
 }
 
