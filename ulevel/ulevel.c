@@ -1307,6 +1307,7 @@ typedef struct mkdir_thread_info {
 	int           mkdir;
 	int           unlink;
 	int           sleep;
+	int           random_p;
 } mkdir_thread_info;
 
 static int call_create (struct inode * dir, const char * name);
@@ -1480,7 +1481,10 @@ void *mkdir_thread( mkdir_thread_info *info )
 		struct timespec delay;
 		const char *op;
 		
-		fno = lc_rand_max( ( __u64 ) info -> max );
+		if( info -> random_p )
+			fno = lc_rand_max( ( __u64 ) info -> max );
+		else
+			fno = i;
 		
 //		sprintf( name, "%i", i );
 		sprintf( name, "%lli-хлоп-Zzzz.", fno );
@@ -1802,12 +1806,10 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		spin_lock_init( &lc_rand_guard );
 		memset( &info, 0, sizeof info );
 		info.dir = f;
-		if (argc == 5)
-			info.num = atoi( argv[ 4 ] );
-		else
-			info.num = 1;
+		info.num = atoi( argv[ 4 ] );
 		info.max = info.num;
 		info.sleep = 0;
+		info.random_p = atoi( argv[ 5 ] );
 		if( !strcmp( argv[ 2 ], "dir" ) )
 			info.mkdir = 1;
 		else if( !strcmp( argv[ 2 ], "rm" ) )
