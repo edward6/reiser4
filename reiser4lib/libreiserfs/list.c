@@ -1,0 +1,130 @@
+/*
+	list.c -- simple list implementation.
+	Copyright (C) 1996 - 2002 Hans Reiser
+*/
+
+#include <stdlib.h>
+#include <string.h>
+
+#include <reiserfs/reiserfs.h>
+#include <reiserfs/list.h>
+
+#define ptr_by_pos(base, pos) (base + (pos * sizeof(void *)))
+#define size_by_count(count) (count * sizeof(void *))
+
+list_t *list_create(int inc) {
+	list_t *list;
+
+	if (!(list = libreiserfs_calloc(sizeof(list_t), 0)))
+		return NULL;
+	
+	list->count = 0;
+	list->size = 0;
+	list->inc = inc;
+	
+	if (!list_expand(list))
+		goto error_free_list;
+	
+	return list;
+	
+error_free_list:
+	libreiserfs_free(list);
+error:
+	return NULL;
+}
+
+void list_free(list_t *list) {
+	libreiserfs_free(list->body);
+	libreiserfs_free(list);
+}
+
+int list_expand(list_t *list) {
+	if (list->count < list->size)
+		return 1;
+
+	if (!libreiserfs_realloc((void **)&list->body, size_by_count(list->size + list->inc)))
+		return 0;
+		
+	memset(ptr_by_pos(list->body, list->count), 0, size_by_count(list->inc));
+	list->size += list->inc;
+	
+	return 1;
+}
+
+int list_shrink(list_t *list) {
+	if (list->count - list->size >= list->inc)
+		return 1;
+	
+	if (!libreiserfs_realloc((void *)&list->body, size_by_count(list->size - list->inc)))
+		return 0;
+		
+	list->size -= list->inc;
+	
+	return 1;
+}
+
+void *list_at(list_t *list, int pos) {
+	return ptr_by_pos(list->body, pos);
+}
+
+int list_pos(list_t *list, void *item) {
+	int i;
+	for (i = 0; i < list->count; i++)
+		if (list->body[i] == item) return i;
+	
+	return -1;
+}
+
+int list_insert(list_t *list, void *item, int pos) {
+	list_expand(list);
+	
+	if (pos > list->count)
+		return 0;
+	
+	if (pos < list->count) {
+		memmove(ptr_by_pos(list->body, pos), ptr_by_pos(list->body, pos + 1), 
+			size_by_count(list->count - pos));
+	}	
+	
+	list->body[pos] = item;
+	return 1;
+}
+
+int list_delete(list_t *list, int pos) {
+	if (pos < list->count - 1) {
+		memmove(ptr_by_pos(list->body, pos), ptr_by_pos(list->body, pos + 1), 
+			size_by_count(list->size - pos));
+		list->body[size_by_count(list->count)] = NULL;
+	}
+	
+	list->count--;
+	return 1;
+}
+
+int list_add(list_t *list, void *item) {
+	return list_insert(list, item, list->count);
+}
+
+int list_remove(list_t *list, void *item) {
+	int pos;
+	
+	if ((pos = list_pos(list, item)) == -1)
+		return 0;
+
+	return list_delete(list, pos);
+}
+
+void *list_run(list_t *list, int (*item_func)(void *, void *), void *data) {
+	int i;
+	
+	if (!item_func)
+		return NULL;
+		
+	for (i = 0; i < list->count; i++) {
+		void *item = list_at(list, i);
+		if (item_func(item, data))
+			return item;
+	}
+	return NULL;
+}
+
