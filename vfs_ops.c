@@ -1379,8 +1379,8 @@ static int reiser4_show_options( struct seq_file *m, struct vfsmount *mnt )
 		    default_dir_item_plugin( super ) -> h.label );
 	seq_printf( m, ",default_sd_plugin=\"%s\"",
 		    default_sd_plugin( super ) -> h.label );
-	return 0;
 #endif
+	return 0;
 }
 
 static int reiser4_fill_super (struct super_block * s, void * data,
@@ -1529,7 +1529,7 @@ static int put_super (struct super_block * s)
 	if (get_super_private (s)->lplug->release)
 		get_super_private (s)->lplug->release (s);
 		
-	print_tree_rec ("umount", &get_super_private (s)->tree, ~0ull);
+	print_tree_rec ("umount", &get_super_private (s)->tree, ~0ul);
 
 	/* no assertions below this line */
 	__REISER4_EXIT (&__context);
