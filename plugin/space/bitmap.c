@@ -15,7 +15,8 @@ struct bnode {
 
 	bmap_off_t first_zero_bit;	/* for skip_busy option implementation */
 
-	struct bnode * next_in_commit_list;
+	int        loaded       /* a flag which shows that bnode is loaded
+				 * already */;
 };
 
 static inline char * bnode_working_data (struct bnode * bnode) {
@@ -428,8 +429,9 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 
 		down (&bnode->sema);
 
-		if (jnode_page (&bnode->wjnode) != NULL) {
+		if (bnode->loaded) {
 			assert ("zam-480", jnode_page (&bnode->cjnode) != NULL);
+			assert ("zam-633", jnode_page (&bnode->wjnode) != NULL);
 
 			jput (&bnode->wjnode);
 			jdrop(&bnode->wjnode);
@@ -439,6 +441,8 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 
 			/* FIXME: check for page state and ref count should be
 			 * added here */
+
+			bnode->loaded = 0;
 		}
 
 		up (&bnode->sema);
@@ -465,46 +469,42 @@ static int load_and_lock_bnode (struct bnode * bnode)
 
 	down (&bnode->sema);
 
-	spin_lock_jnode (wj);
-	
-	add_d_ref (wj);
+	ret = jload (cj);
+	if (ret < 0) goto up_and_ret; 
 
-	if (!JF_ISSET(wj, ZNODE_LOADED)) {
-		reiser4_tree * tree = current_tree;
+	if (!bnode->loaded) {
+		{ /* allocate memory for working bitmap block */
+			reiser4_tree * tree = current_tree;
 
-		assert ("zam-630", tree->ops != NULL && tree->ops->allocate_node != NULL);
+			spin_lock_jnode (wj);
+			add_d_ref (wj);
 
-		spin_unlock_jnode(wj);
+			assert ("zam-630", tree->ops != NULL && tree->ops->allocate_node != NULL);
 
-		ret = tree->ops->allocate_node(tree, wj);
+			spin_unlock_jnode(wj);
+			ret = tree->ops->allocate_node(tree, wj);
+			if (ret < 0) {
+				jrelse_nolock(wj);
+				spin_unlock_jnode(wj);
+				jrelse(cj);
+				goto up_and_ret;
+			}
 
-		if (ret >= 0) {
 			JF_SET(wj, ZNODE_LOADED);
-			jref(wj);
-		} else {
-			jrelse_nolock(wj);
-			goto up_and_ret;
-		}
-	}
+			spin_unlock_jnode(wj);
+		} 
 
-	spin_unlock_jnode (wj);
-
-	ret = jload(cj);
-
-	if (ret < 0) { 
-		jrelse(wj);
-		jput(wj);
-		jdrop(wj);
-	
-		goto up_and_ret;
-	}
-
-	if (ret == 0) {		
 		/* node has been loaded by this jload call  */
 		/* working bitmap is initialized by on-disk commit bitmap */
 		xmemcpy(bnode_working_data(bnode), bnode_commit_data(bnode), super->s_blocksize);
 
 		jref(cj);
+		jref(wj);
+
+		bnode->loaded = 1;
+	} else {
+		ret = jload(wj);
+		if (ret < 0) goto up_and_ret;
 	}
 
 	return 0;
@@ -589,7 +589,7 @@ static int search_one_bitmap (bmap_nr_t bmap, bmap_off_t *offset, bmap_off_t max
 
 	ret = load_and_lock_bnode (bnode);
 
-	if (ret) goto out;
+	if (ret) return ret;
 
 	data = bnode_working_data (bnode);
 
