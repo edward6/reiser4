@@ -474,13 +474,14 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode)
 {
 	int result;
 	reiser4_blocknr_hint hint;
+	reiser4_block_nr count;
 
 	assert("nikita-2760", node != NULL);
 	assert("nikita-2761", blk != NULL);
 	assert("nikita-2762", efnode != NULL);
 	assert("nikita-2763", spin_jnode_is_locked(node));
 
-	one = 1ull;
+	count = one;
 
 	hint.blk         = EFLUSH_START_BLOCK;
 	hint.max_dist    = 0;
@@ -504,7 +505,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode)
 	 * there is a danger of underflowing block space */
 	spin_unlock_jnode(node);
 
-	result = reiser4_alloc_blocks(&hint, blk, &one, ef_block_flags(node));
+	result = reiser4_alloc_blocks(&hint, blk, &count, ef_block_flags(node));
 	if (result == 0) {
 		*efnode = ef_alloc(GFP_NOFS | __GFP_HIGH);
 		if (*efnode == NULL)
