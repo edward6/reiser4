@@ -16,6 +16,7 @@
 #include "../../inode.h"
 #include "../../super.h"
 #include "../../page_cache.h"
+#include "../../lib.h"
 
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct file  */
@@ -481,7 +482,7 @@ static int reserve_extent2tail(struct inode *inode, znode **first, znode **last)
 	if (result)
 		return result;
 	/* number of "flow insertions" which will be needed */
-	flow_insertions = (inode->i_size + min_bytes_per_flow() - 1) / min_bytes_per_flow();
+	flow_insertions = div64_32(inode->i_size + min_bytes_per_flow() - 1, min_bytes_per_flow(), NULL);
 
 	/* space necessary for extent2tail convertion: space for @nodes removals from tree and space for calculated
 	 * amount of flow insertions and 1 node and one insertion into tree for search_by_key(CBK_FOR_INSERT) */
