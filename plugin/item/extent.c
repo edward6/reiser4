@@ -2467,6 +2467,8 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 			extent_key_in_unit (coord, &key);
 		}));
 
+	sectors_per_block = (current_blocksize >> 9);
+
 	nr_units = extent_nr_units (coord);
 	/* position in item matching to @start_page */
 	ext = extent_by_coord (coord);
