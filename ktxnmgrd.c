@@ -71,8 +71,10 @@ ktxnmgrd(void *arg)
 		   load-average. This doesn't require any special handling,
 		   because all signals were blocked.
 		*/
+		PROFREGION_EX();
 		result = kcond_timedwait(&ctx->wait, 
 					 &ctx->guard, ctx->timeout, 1);
+		PROFREGION_IN(&pregion_spin_ktxnmgrd_held);
 		if ((result != -ETIMEDOUT) && (result != 0)) {
 			/* some other error */
 			warning("nikita-2443", "Error: %i", result);
