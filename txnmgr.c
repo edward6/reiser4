@@ -1394,7 +1394,7 @@ again:
 			/* This place have a potential to become CPU-eating dead-loop, so I've
 			   inserted schedule() here, so that other processes might have a chance to
 			   run. */
-			assert("green-15", lock_counters()->spin_locked == 0);
+			schedulable();
 
 			ret = 0;
 			failed = 1;

@@ -40,8 +40,8 @@ delete_sema
 //bnode_sema
 
 /* pseudo locks */
-pfault [color=pink, style=filled]
-kalloc [color=pink, style=filled]
+pfault [color=pink, style=filled, peripheries=2]
+kalloc [color=pink, style=filled, peripheries=2]
 
 /* system spin locks */
 mapping_i_shared_lock [label="mapping->i_shared_lock", shape=box, color=yellow, style=filled]
@@ -84,6 +84,7 @@ commit_sema->page_lock [label="submit_write()"]
 pfault->mm_mmap_sem [label="handle_page_fault()"]
 page_lock->pfault [label="extent_write_flow()"]
 mm_mmap_sem->kalloc [label="unix_file_readpage()"]
+jnode_lock->inode_guard [label="eflush_add()"]
 
 //mm_mmap_sem->inode_rw_lock [label="unix_file_filemap_nopage()", style="dotted"]
 //mm_mmap_sem->kalloc [label="DEAD2", style="dotted"]

@@ -237,10 +237,10 @@ i_sem
 ..............mm->mmap_sem------+-+                   [do_page_fault]
 ..................ktxnmgrd_lock
 ................kalloc
-..................inode_guard
 ....................txnmgr_lock
 ......................atom_lock
 ........................jnode_lock            [->vm_writeback()->jget()]
+..........................inode_guard
 ..........................txnh_lock
 ..................dk_lock
 ..............................tree_lock
@@ -387,6 +387,9 @@ kalloc->jnode_lock
 
     emergency_flush() takes jnode spin lock
 
+jnode_lock->inode_guard
+
+   eflush_add() takes inode spin lock under jnode spin lock
 ----------------------------------DEADLOCKS-------------------------------------
 
 Big section describing found/possible/already-worked-around deadlocks.
