@@ -191,7 +191,8 @@ inter_syscall_rap *inter_syscall_ra( const struct inode *inode /* inode
 static int is_inode_loaded( const struct inode *inode /* inode queried */ )
 {
 	assert( "nikita-1120", inode != NULL );
-	return reiser4_inode_data( inode ) -> flags & REISER4_LOADED;
+	return inode_get_flag( inode, REISER4_LOADED );
+	/*return reiser4_inode_data( inode ) -> flags & REISER4_LOADED;*/
 }
 #endif
 
@@ -462,7 +463,8 @@ void reiser4_make_bad_inode( struct inode *inode )
 	assert( "nikita-1934", inode != NULL );
 	
 	/* clear LOADED bit */
-	reiser4_inode_data( inode ) -> flags &= ~REISER4_LOADED;
+	inode_clr_flag( inode, REISER4_LOADED );
+	/*reiser4_inode_data( inode ) -> flags &= ~REISER4_LOADED;*/
 	make_bad_inode( inode );
 	return;
 }
@@ -550,6 +552,7 @@ void print_inode( const char *prefix /* prefix to print */,
 	print_plugin( "\ttail", tail_plugin_to_plugin( ref -> tail ) );
 	print_plugin( "\thash", hash_plugin_to_plugin( ref -> hash ) );
 	print_plugin( "\tsd", item_plugin_to_plugin( ref -> sd ) );
+	info( "\treiser4 inode flags: %lx\n", ref -> flags );
 
 	/*
 	 * FIXME-VS: this segfaults trying to print seal's coord
