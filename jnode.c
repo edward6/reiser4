@@ -812,7 +812,24 @@ jnode_type jnode_get_type( const jnode *node )
 	return mask_to_type[ ( node -> state & state_mask ) >> ZNODE_UNFORMATTED ];
 }
 
-static int noparse( jnode *node UNUSED_ARG )
+void jnode_set_type( jnode * node, jnode_type type)
+{
+	static int type_to_mask[] = {
+		[JNODE_UNFORMATTED_BLOCK] = 0,
+		[JNODE_FORMATTED_BLOCK]   = 1,
+		[JNODE_BITMAP]            = 2,
+		[JNODE_JOURNAL_RECORD]    = 4,
+		[JNODE_IO_HEAD]           = 6
+	};
+
+	assert ("zam-647", type < JNODE_LAST_TYPE);
+
+	node -> state &= ((1 << ZNODE_UNFORMATTED) - 1);
+	node -> state |= (type_to_mask[type] << ZNODE_UNFORMATTED);
+}
+
+
+static int noparse( jnode *node UNUSED_ARG)
 {
 	return 0;
 }
