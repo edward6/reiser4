@@ -154,7 +154,6 @@ void reiser4_print_stats()
 	      "\t cbk_cache_miss:\t %lu\n"
 	      "\t cbk_cache_wrong_node:\t %lu\n"
 	      "\t cbk_cache_race:\t %lu\n"
-	      "\t cbk_cache_utmost:\t %lu\n"
 	      "\t pos_in_parent_hit:\t %lu\n"
 	      "\t pos_in_parent_miss:\t %lu\n"
 	      "\t pos_in_parent_set:\t %lu\n"
@@ -174,7 +173,6 @@ void reiser4_print_stats()
 	      s -> tree.cbk_cache_miss,
 	      s -> tree.cbk_cache_wrong_node,
 	      s -> tree.cbk_cache_race,
-	      s -> tree.cbk_cache_utmost,
 	      s -> tree.pos_in_parent_hit,
 	      s -> tree.pos_in_parent_miss,
 	      s -> tree.pos_in_parent_set,
