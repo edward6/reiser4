@@ -2369,6 +2369,18 @@ static int squalloc (flush_pos_t * pos)
 	return ret;
 }
 
+static void update_ldkey(znode * left)
+{
+	reiser4_key ldkey;
+
+	if (node_is_empty(left))
+		return;
+
+	UNDER_RW_VOID(dk, znode_get_tree(left), write, 
+		      znode_set_ld_key(left, 
+				       leftmost_key_in_node(left, &ldkey)));
+}
+
 /* Shift as much as possible from @right to @left using the memcpy-optimized
    shift_everything_left.  @left and @right are formatted neighboring nodes on
    leaf level. */
@@ -2379,6 +2391,7 @@ squeeze_right_non_twig(znode * left, znode * right)
 	carry_pool pool;
 	carry_level todo;
 	int old_items;
+	reiser4_tree * tree;
 
 	assert("nikita-2246", znode_get_level(left) == znode_get_level(right));
 
@@ -2402,7 +2415,9 @@ squeeze_right_non_twig(znode * left, znode * right)
 	}
 #endif
 
-	UNDER_RW_VOID(dk, znode_get_tree(left), write, update_znode_dkeys(left, right));
+	tree = znode_get_tree(left);
+	update_ldkey(left);
+	UNDER_RW_VOID(dk, tree, write, update_znode_dkeys(left, right));
 
 	if (ret > 0) {
 		reiser4_block_nr amount;
@@ -2512,6 +2527,7 @@ shift_one_internal_unit(znode * left, znode * right)
 		
 		znode_make_dirty(left);
 		znode_make_dirty(right);
+		update_ldkey(left);
 		UNDER_RW_VOID(dk, znode_get_tree(left), write, update_znode_dkeys(left, right));
 
 		ON_STATS(todo.level_no = znode_get_level(left) + 1);
