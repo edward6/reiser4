@@ -30,15 +30,14 @@ reiser4_alloc_t *reiser4_alloc_open(
 	return NULL;
     
     if ((pid = reiser4_format_alloc_pid(format)) == INVALID_PLUGIN_ID) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Invalid block allocator plugin id has been found.");
+	aal_exception_error("Invalid block allocator plugin id has been found.");
 	goto error_free_alloc;
     }
     
     /* Finding block allocator plugin */
     if (!(plugin = libreiser4_factory_ifind(ALLOC_PLUGIN_TYPE, pid))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find block allocator plugin by its id 0x%x.", pid);
+	aal_exception_error("Can't find block allocator plugin by "
+	    "its id 0x%x.", pid);
 	goto error_free_alloc;
     }
     
@@ -46,8 +45,7 @@ reiser4_alloc_t *reiser4_alloc_open(
     if (!(alloc->entity = plugin_call(goto error_free_alloc, 
 	plugin->alloc_ops, open, format->entity, len)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't initialize block allocator.");
+	aal_exception_error("Can't initialize block allocator.");
 	goto error_free_alloc;
     }
 	
@@ -80,15 +78,15 @@ reiser4_alloc_t *reiser4_alloc_create(
 	return NULL;
 
     if ((pid = reiser4_format_alloc_pid(format)) == INVALID_PLUGIN_ID) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Invalid block allocator plugin id has been found.");
+	aal_exception_error("Invalid block allocator plugin id "
+	    "has been found.");
 	goto error_free_alloc;
     }
     
     /* Getting needed plugin from plugin factory by its id */
     if (!(plugin = libreiser4_factory_ifind(ALLOC_PLUGIN_TYPE, pid))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find block allocator plugin by its id 0x%x.", pid);
+	aal_exception_error("Can't find block allocator plugin by "
+	    "its id 0x%x.", pid);
 	goto error_free_alloc;
     }
     
@@ -96,8 +94,7 @@ reiser4_alloc_t *reiser4_alloc_create(
     if (!(alloc->entity = plugin_call(goto error_free_alloc, 
 	plugin->alloc_ops, create, format->entity, len)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't create block allocator.");
+	aal_exception_error("Can't create block allocator.");
 	goto error_free_alloc;
     }
 	

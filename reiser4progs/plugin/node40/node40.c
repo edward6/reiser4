@@ -73,8 +73,7 @@ static reiser4_entity_t *node40_open(aal_block_t *block) {
     node->plugin = &node40_plugin;
     
     if (nh40_get_pid(nh40(node->block)) != NODE_REISER40_ID) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Plugin id (%u) does not match current plugin id (%u).", 
+	aal_exception_error("Plugin id (%u) does not match current plugin id (%u).", 
 	    nh40_get_pid(nh40(node->block)), NODE_REISER40_ID);
 	goto error_free_node;
     }
@@ -409,8 +408,7 @@ static errno_t node40_cut(reiser4_entity_t *entity,
         return -1;
 	
     if (!(plugin = core->factory_ops.plugin_ifind(ITEM_PLUGIN_TYPE, pid))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find item plugin by its id 0x%x.", pid);
+	aal_exception_error("Can't find item plugin by its id 0x%x.", pid);
 	return -1;
     }
     

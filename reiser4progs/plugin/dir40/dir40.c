@@ -48,8 +48,7 @@ static errno_t dir40_rewind(reiser4_entity_t *entity) {
 	dir->hash, dir40_locality(dir), dir40_objectid(dir), ".");
 	    
     if (core->tree_ops.lookup(dir->tree, &key, &dir->place) != 1) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find direntry of object 0x%llx.", 
+	aal_exception_error("Can't find direntry of object 0x%llx.", 
 	    dir40_objectid(dir));
 	return -1;
     }
@@ -57,16 +56,14 @@ static errno_t dir40_rewind(reiser4_entity_t *entity) {
     if ((pid = core->tree_ops.item_pid(dir->tree, &dir->place, 
 	ITEM_PLUGIN_TYPE)) == INVALID_PLUGIN_ID)
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't get direntry plugin id from the tree.");
+	aal_exception_error("Can't get direntry plugin id from the tree.");
 	return -1;
     }
     
     if (!(dir->direntry.plugin = 
 	core->factory_ops.plugin_ifind(ITEM_PLUGIN_TYPE, pid)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find direntry item plugin by its id 0x%x.", pid);
+	aal_exception_error("Can't find direntry item plugin by its id 0x%x.", pid);
 	return -1;
     }
     
@@ -103,8 +100,7 @@ static errno_t dir40_realize(dir40_t *dir) {
     
     /* Positioning to the dir stat data */
     if (core->tree_ops.lookup(dir->tree, &dir->key, &dir->place) != 1) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find stat data of directory with oid 0x%llx.", 
+	aal_exception_error("Can't find stat data of directory with oid 0x%llx.", 
 	    dir40_objectid(dir));
 	return -1;
     }
@@ -116,8 +112,7 @@ static errno_t dir40_realize(dir40_t *dir) {
     if ((pid = core->tree_ops.item_pid(dir->tree, &dir->place, 
 	ITEM_PLUGIN_TYPE)) == INVALID_PLUGIN_ID)
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't get stat data plugin id of the object 0x%llx.",
+	aal_exception_error("Can't get stat data plugin id of the object 0x%llx.",
 	    dir40_objectid(dir));
 	return -1;
     }
@@ -125,8 +120,7 @@ static errno_t dir40_realize(dir40_t *dir) {
     if (!(dir->statdata.plugin = 
 	core->factory_ops.plugin_ifind(ITEM_PLUGIN_TYPE, pid)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find stat data item plugin by its id 0x%x.", pid);
+	aal_exception_error("Can't find stat data item plugin by its id 0x%x.", pid);
 	return -1;
     }
     
@@ -138,8 +132,7 @@ static errno_t dir40_realize(dir40_t *dir) {
     }
     
     if (!(dir->hash = dir40_guess_hash(dir))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't guess hash plugin for directory %llx.", 
+	aal_exception_error("Can't guess hash plugin for directory %llx.", 
 	    dir40_objectid(dir));
 	return -1;
     }
@@ -171,8 +164,7 @@ static int dir40_continue(reiser4_entity_t *entity,
 	
     /* Getting key of the first item in the right neightbour */
     if (core->tree_ops.item_key(dir->tree, next_place, &next_key)) {
-        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Can't get item key by coord.");
+        aal_exception_error("Can't get item key by coord.");
 	return 0;
     }
 	
@@ -310,16 +302,14 @@ static reiser4_entity_t *dir40_open(const void *tree,
     
     /* Grabbing stat data */
     if (dir40_realize(dir)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't grab stat data of  directory with oid 0x%llx.", 
+	aal_exception_error("Can't grab stat data of  directory with oid 0x%llx.", 
 	    dir40_objectid(dir));
 	goto error_free_dir;
     }
     
     /* Positioning to the first directory unit */
     if (dir40_rewind((reiser4_entity_t *)dir)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't rewind directory with oid 0x%llx.", 
+	aal_exception_error("Can't rewind directory with oid 0x%llx.", 
 	    dir40_objectid(dir));
 	goto error_free_dir;
     }
@@ -365,8 +355,8 @@ static reiser4_entity_t *dir40_create(const void *tree,
     if (!(dir->hash = core->factory_ops.plugin_ifind(HASH_PLUGIN_TYPE, 
 	hint->hash_pid)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find hash plugin by its id 0x%x.", hint->hash_pid);
+	aal_exception_error("Can't find hash plugin by its id 0x%x.", 
+	    hint->hash_pid);
 	goto error_free_dir;
     }
     
@@ -382,8 +372,7 @@ static reiser4_entity_t *dir40_create(const void *tree,
     if (!(dir->statdata.plugin = 
 	core->factory_ops.plugin_ifind(ITEM_PLUGIN_TYPE, hint->statdata_pid)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find stat data item plugin by its id 0x%x.", 
+	aal_exception_error("Can't find stat data item plugin by its id 0x%x.", 
 	    hint->statdata_pid);
 	
 	goto error_free_dir;
@@ -392,8 +381,7 @@ static reiser4_entity_t *dir40_create(const void *tree,
     if (!(dir->direntry.plugin = 
 	core->factory_ops.plugin_ifind(ITEM_PLUGIN_TYPE, hint->direntry_pid)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find direntry item plugin by its id 0x%x.", 
+	aal_exception_error("Can't find direntry item plugin by its id 0x%x.", 
 	    hint->direntry_pid);
 	
 	goto error_free_dir;
@@ -479,16 +467,14 @@ static reiser4_entity_t *dir40_create(const void *tree,
     
     /* Calling balancing code in order to insert statdata item into the tree */
     if (core->tree_ops.item_insert(tree, &stat_hint)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't insert stat data item of object 0x%llx into "
+	aal_exception_error("Can't insert stat data item of object 0x%llx into "
 	    "the thee.", objectid);
 	goto error_free_dir;
     }
     
     /* Inserting the direntry item into the tree */
     if (core->tree_ops.item_insert(tree, &direntry_hint)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't insert direntry item of object 0x%llx into "
+	aal_exception_error("Can't insert direntry item of object 0x%llx into "
 	    "the thee.", objectid);
 	goto error_free_dir;
     }
@@ -501,16 +487,14 @@ static reiser4_entity_t *dir40_create(const void *tree,
     
     /* Grabbing the stat data item */
     if (dir40_realize(dir)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't grab stat data of  directory with oid 0x%llx.", 
-	    dir40_objectid(dir));
+	aal_exception_error("Can't grab stat data of  directory with "
+	    "oid 0x%llx.", dir40_objectid(dir));
 	goto error_free_dir;
     }
 
     /* Positioning onto first directory unit */
     if (dir40_rewind((reiser4_entity_t *)dir)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't rewind directory with oid 0x%llx.", 
+	aal_exception_error("Can't rewind directory with oid 0x%llx.", 
 	    dir40_objectid(dir));
 	goto error_free_dir;
     }
@@ -563,8 +547,8 @@ static errno_t dir40_add(reiser4_entity_t *entity,
     
     /* Inserting the entry to the tree */
     if (core->tree_ops.item_insert(dir->tree, &hint)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't add entry \"%s\" to the thee.", entry->name);
+	aal_exception_error("Can't add entry \"%s\" to the thee.", 
+	    entry->name);
 	goto error_free_entry;
     }
     

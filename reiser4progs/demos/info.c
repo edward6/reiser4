@@ -73,8 +73,7 @@ int main(int argc, char *argv[]) {
     }
     
     if (libreiser4_init()) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't initialize libreiser4.");
+	aal_exception_error("Can't initialize libreiser4.");
 	return 0xff;
     }
     
@@ -85,13 +84,12 @@ int main(int argc, char *argv[]) {
     }
     
     if (!(device = aal_file_open(argv[1], REISER4_DEFAULT_BLOCKSIZE, O_RDONLY))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't open device %s.", argv[1]);
+	aal_exception_error("Can't open device %s.", argv[1]);
 	goto error_free_libreiser4;
     }
     
     if (!(fs = reiser4_fs_open(device, device, 0))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	aal_exception_error(
 	    "Can't open filesystem on %s.", aal_device_name(device));
 	goto error_free_device;
     }

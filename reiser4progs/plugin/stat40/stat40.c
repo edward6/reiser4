@@ -26,8 +26,8 @@ static aal_list_t *stat40_extentions_init(uint64_t extmask) {
 	    reiser4_plugin_t *plugin;
 
 	    if (!(plugin = core->factory_ops.plugin_ifind(SDEXT_PLUGIN_TYPE, i))) {
-		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
-		    "Can't find stat data extention plugin by its id 0x%x.", i);
+		aal_exception_warn("Can't find stat data extention plugin "
+		    "by its id 0x%x.", i);
 		continue;
 	    }
 	    
@@ -74,8 +74,7 @@ static errno_t stat40_init(reiser4_body_t *body,
 	    return 0;
 
 	if (aal_list_length(extentions) != stat_hint->extentions.count) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Invalid extmask or stat data hint detected.");
+	    aal_exception_error("Invalid extmask or stat data hint detected.");
 	    return -1;
 	}
     

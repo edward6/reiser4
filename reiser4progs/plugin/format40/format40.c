@@ -165,7 +165,7 @@ static errno_t format40_super_check(format40_super_t *super,
     
     offset = (FORMAT40_OFFSET / aal_device_get_bs(device));
     if (get_sb_root_block(super) < offset || get_sb_root_block(super) > dev_len) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	aal_exception_error(
 	    "Superblock has an invalid root block %llu for device "
 	    "length %llu blocks.", get_sb_root_block(super), dev_len);
 	return -1;
@@ -189,8 +189,7 @@ static aal_block_t *format40_super_open(aal_device_t *device) {
     offset = (FORMAT40_OFFSET / aal_device_get_bs(device));
 	
     if (!(block = aal_block_open(device, offset))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Can't read block %llu. %s.", offset, 
+	aal_exception_error("Can't read block %llu. %s.", offset, 
 	   aal_device_error(device));
 	return NULL;
     }
@@ -234,14 +233,12 @@ static errno_t callback_clobber_block(reiser4_entity_t *entity,
     format = (format40_t *)entity;
     
     if (!(block = aal_block_create(format->device, blk, 0))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't clobber block %llu.", blk);
+	aal_exception_error("Can't clobber block %llu.", blk);
 	return -1;
     }
     
     if (aal_block_sync(block)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't write block %llu to device. %s.", blk, 
+	aal_exception_error("Can't write block %llu to device. %s.", blk, 
 	    format->device->error);
 	goto error_free_block;
     }
@@ -273,8 +270,7 @@ static reiser4_entity_t *format40_create(aal_device_t *device,
     if (!(format->block = aal_block_create(device, (FORMAT40_OFFSET / 
 	aal_device_get_bs(device)), 0))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't allocate superblock.");
+	aal_exception_error("Can't allocate superblock.");
 	goto error_free_format;
     }
     
@@ -294,9 +290,7 @@ static reiser4_entity_t *format40_create(aal_device_t *device,
     if (format40_skipped_layout((reiser4_entity_t *)format, 
         callback_clobber_block, NULL))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't clobber skipped area.");
-	
+	aal_exception_error("Can't clobber skipped area.");
 	goto error_free_block;
     }
     
@@ -321,8 +315,7 @@ static errno_t format40_sync(reiser4_entity_t *entity) {
     if (aal_block_sync(format->block)) {
 	blk_t offset = aal_block_number(format->block);
 	
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't write superblock to %llu. %s.", offset, 
+	aal_exception_error("Can't write superblock to %llu. %s.", offset, 
 	    aal_device_error(format->device));
 	
 	return -1;

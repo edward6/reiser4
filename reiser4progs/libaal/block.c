@@ -149,8 +149,7 @@ void aal_block_relocate(
 
     /* Checking for passed block validness */
     if (blk > aal_device_len(block->device)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't setup block into address out of device.");
+	aal_exception_error("Can't setup block into address out of device.");
 	return;
     }
     

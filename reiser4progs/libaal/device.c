@@ -44,8 +44,7 @@ aal_device_t *aal_device_open(
     
     /* Rough check for blocksize validness */
     if (!aal_pow_of_two(blocksize)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Block size %u isn't power of two.", blocksize);
+	aal_exception_error("Block size %u isn't power of two.", blocksize);
 	return NULL;
     }	
     
@@ -81,8 +80,7 @@ errno_t aal_device_set_bs(
     aal_assert("umka-431", device != NULL, return -1);
 	
     if (!aal_pow_of_two(blocksize)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Block size %u isn't power of two.", blocksize);
+	aal_exception_error("Block size %u isn't power of two.", blocksize);
 	return -1;
     }	
     device->blocksize = blocksize;

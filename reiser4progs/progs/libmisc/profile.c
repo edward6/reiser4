@@ -349,8 +349,7 @@ errno_t progs_profile_override(reiser4_profile_t *profile,
     aal_assert("umka-924", name != NULL, return -1);
        	
     if ((it = progs_profile_name2it(type)) == 0xffff) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find plugin type \"%s\".", type);
+	aal_exception_error("Can't find plugin type \"%s\".", type);
 	return -1;
     }
     
@@ -358,14 +357,13 @@ errno_t progs_profile_override(reiser4_profile_t *profile,
 	return -1;
     
     if (!(plugin = libreiser4_factory_nfind(pt, name))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find plugin by type \"%s\" and name \"%s\".", type, name);
+	aal_exception_error("Can't find plugin by type \"%s\" and name \"%s\".", 
+	    type, name);
 	return -1;
     }
     
     if (!(field = progs_profile_field(profile, it))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't get profile field.");
+	aal_exception_error("Can't get profile field.");
 	return -1;
     }
     

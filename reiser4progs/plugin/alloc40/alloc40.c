@@ -29,14 +29,13 @@ static errno_t callback_fetch_bitmap(reiser4_entity_t *format,
 	device, format);
     
     if (!device) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Invalid device has been detected.");
+	aal_exception_error("Invalid device has been detected.");
 	return -1;
     }
     
     if (!(block = aal_block_open(device, blk))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't read bitmap block %llu. %s.", blk, device->error);
+	aal_exception_error("Can't read bitmap block %llu. %s.", 
+	    blk, device->error);
 	return -1;
     }
 
@@ -69,22 +68,20 @@ static reiser4_entity_t *alloc40_open(reiser4_entity_t *format,
 	return NULL;
     
     if (!(alloc->bitmap = reiser4_bitmap_create(len))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't create bitmap.");
+	aal_exception_error("Can't create bitmap.");
 	goto error_free_alloc;
     }
   
     alloc->format = format;
 
     if (!(layout = format->plugin->format_ops.alloc_layout)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Method \"alloc_layout\" doesn't implemented in format plugin.");
+	aal_exception_error("Method \"alloc_layout\" doesn't implemented "
+	    "in format plugin.");
 	goto error_free_bitmap;
     }
     
     if (layout(format, callback_fetch_bitmap, alloc)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't load ondisk bitmap.");
+	aal_exception_error("Can't load ondisk bitmap.");
 	goto error_free_bitmap;
     }
 
@@ -118,8 +115,7 @@ static reiser4_entity_t *alloc40_create(reiser4_entity_t *format,
 	return NULL;
 
     if (!(alloc->bitmap = reiser4_bitmap_create(len))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't create bitmap.");
+	aal_exception_error("Can't create bitmap.");
 	goto error_free_alloc;
     }
   
@@ -151,14 +147,13 @@ static errno_t callback_flush_bitmap(reiser4_entity_t *format,
 	device, format);
     
     if (!device) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Invalid device has been detected.");
+	aal_exception_error("Invalid device has been detected.");
 	return -1;
     }
     
     if (!(block = aal_block_create(device, blk, 0xff))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't read bitmap block %llu. %s.", blk, device->error);
+	aal_exception_error("Can't read bitmap block %llu. %s.", 
+	    blk, device->error);
 	return -1;
     }
 
@@ -173,8 +168,8 @@ static errno_t callback_flush_bitmap(reiser4_entity_t *format,
     aal_memcpy(block->data, current, chunk);
     
     if (aal_block_sync(block)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't write bitmap block %llu. %s.", blk, device->error);
+	aal_exception_error("Can't write bitmap block %llu. %s.", 
+	    blk, device->error);
 	goto error_free_block;
     }
 
@@ -197,8 +192,8 @@ static errno_t alloc40_sync(reiser4_entity_t *entity) {
     aal_assert("umka-367", alloc->bitmap != NULL, return -1);
     
     if (!(layout = alloc->format->plugin->format_ops.alloc_layout)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Method \"alloc_layout\" doesn't implemented in format plugin.");
+	aal_exception_error("Method \"alloc_layout\" doesn't implemented "
+	    "in format plugin.");
 	return -1;
     }
     

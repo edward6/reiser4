@@ -181,8 +181,7 @@ reiser4_master_t *reiser4_master_open(aal_device_t *device) {
 	    if (!(master = reiser4_master_create(device, plugin->h.id, 
 		REISER4_DEFAULT_BLOCKSIZE, NULL, NULL)))
 	    {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't find reiser4 nor reiser3 filesystem.");
+		aal_exception_error("Can't find reiser4 nor reiser3 filesystem.");
 		goto error_free_block;
 	    }
 	    
@@ -191,8 +190,7 @@ reiser4_master_t *reiser4_master_open(aal_device_t *device) {
 	    return master;
 	}
 #endif
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find reiser4 filesystem.");
+	aal_exception_error("Can't find reiser4 filesystem.");
 	goto error_free_block;
     }
     
@@ -219,10 +217,8 @@ errno_t reiser4_master_sync(
     
     /* Writing master super block to its device */
     if (aal_block_sync(master->block)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't synchronize master super block at %llu. %s.", 
-	    aal_block_number(master->block), 
-	    aal_device_error(master->block->device));
+	aal_exception_error("Can't synchronize master super block at %llu. %s.", 
+	    aal_block_number(master->block), aal_device_error(master->block->device));
 	return -1;
     }
 

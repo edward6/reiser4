@@ -34,22 +34,19 @@ static errno_t callback_fetch_journal(reiser4_entity_t *format,
 	device, format);
     
     if (!device) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Invalid device has been detected.");
+	aal_exception_error("Invalid device has been detected.");
 	return -1;
     }
 
     if (!journal->header) {
 	if (!(journal->header = aal_block_open(device, blk))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't read journal header from block %llu. %s.", 
+	    aal_exception_error("Can't read journal header from block %llu. %s.", 
 		blk, device->error);
 	    return -1;
 	}
     } else {
 	if (!(journal->footer = aal_block_open(device, blk))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't read journal footer from block %llu. %s.", 
+	    aal_exception_error("Can't read journal footer from block %llu. %s.", 
 		blk, device->error);
 	    return -1;
 	}
@@ -74,14 +71,13 @@ static reiser4_entity_t *journal40_open(reiser4_entity_t *format) {
     journal->format = format;
     
     if (!(layout = format->plugin->format_ops.journal_layout)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Method \"journal_layout\" doesn't implemented in format plugin.");
+	aal_exception_error("Method \"journal_layout\" doesn't implemented "
+	    "in format plugin.");
 	goto error_free_journal;
     }
     
     if (layout(format, callback_fetch_journal, journal)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't load journal metadata.");
+	aal_exception_error("Can't load journal metadata.");
 	goto error_free_journal;
     }
     
@@ -121,21 +117,18 @@ static errno_t callback_alloc_journal(reiser4_entity_t *format,
 	device, format);
     
     if (!device) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Invalid device has been detected.");
+	aal_exception_error("Invalid device has been detected.");
 	return -1;
     }
     
     if (!journal->header) {
 	if (!(journal->header = aal_block_create(device, blk, 0))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't alloc journal header on block %llu.", blk);
+	    aal_exception_error("Can't alloc journal header on block %llu.", blk);
 	    return -1;
 	}
     } else {
 	if (!(journal->footer = aal_block_create(device, blk, 0))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't alloc journal footer on block %llu.", blk);
+	    aal_exception_error("Can't alloc journal footer on block %llu.", blk);
 	    return -1;
 	}
     }
@@ -157,14 +150,13 @@ static reiser4_entity_t *journal40_create(reiser4_entity_t *format,
     journal->format = format;
     
     if (!(layout = format->plugin->format_ops.journal_layout)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Method \"journal_layout\" doesn't implemented in format plugin.");
+	aal_exception_error("Method \"journal_layout\" doesn't "
+	    "implemented in format plugin.");
 	goto error_free_journal;
     }
     
     if (layout(format, callback_alloc_journal, journal)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't load journal metadata.");
+	aal_exception_error("Can't load journal metadata.");
 	goto error_free_journal;
     }
     
@@ -190,22 +182,19 @@ static errno_t callback_flush_journal(reiser4_entity_t *format,
 	device, format);
     
     if (!device) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Invalid device has been detected.");
+	aal_exception_error("Invalid device has been detected.");
 	return -1;
     }
     
     if (blk == aal_block_number(journal->header)) {
 	if (aal_block_sync(journal->header)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't write journal header to block %llu. %s.", 
+	    aal_exception_error("Can't write journal header to block %llu. %s.", 
 		blk, device->error);
 	    return -1;
 	}
     } else {
 	if (aal_block_sync(journal->footer)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't write journal footer to block %llu. %s.", 
+	    aal_exception_error("Can't write journal footer to block %llu. %s.", 
 		blk, device->error);
 	    return -1;
 	}
@@ -220,14 +209,13 @@ static errno_t journal40_sync(reiser4_entity_t *entity) {
     aal_assert("umka-410", journal != NULL, return -1);
     
     if (!(layout = journal->format->plugin->format_ops.journal_layout)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	aal_exception_error(
 	    "Method \"journal_layout\" doesn't implemented in format plugin.");
 	return -1;
     }
     
     if (layout(journal->format, callback_flush_journal, journal)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't load journal metadata.");
+	aal_exception_error("Can't load journal metadata.");
 	return -1;
     }
     

@@ -32,22 +32,19 @@ static reiser4_cache_t *reiser4_tree_allocate(
     
     /* Allocating the block */
     if (!(blk = reiser4_alloc_allocate(tree->fs->alloc))) {
-        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Can't allocate block for a node.");
+        aal_exception_error("Can't allocate block for a node.");
 	return NULL;
     }
 
     if (!(block = aal_block_create(tree->fs->format->device, blk, 0))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't allocate block %llu in memory.", blk);
+	aal_exception_error("Can't allocate block %llu in memory.", blk);
 	return NULL;
     }
     
     if ((pid = reiser4_node_pid(tree->cache->node)) == 
 	INVALID_PLUGIN_ID) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Invalid node plugin has been detected.");
+	aal_exception_error("Invalid node plugin has been detected.");
 	goto error_free_block;
     }
     
@@ -94,8 +91,7 @@ static reiser4_cache_t *reiser4_tree_load(reiser4_tree_t *tree,
     reiser4_cache_t *cache;
 
     if (!(block = aal_block_open(tree->fs->format->device, blk))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't allocate block %llu in memory.", blk);
+	aal_exception_error("Can't allocate block %llu in memory.", blk);
 	return NULL;
     }
     
@@ -146,8 +142,7 @@ static errno_t reiser4_tree_build_key(
         
     /* Finding needed key plugin by its identifier */
     if (!(plugin = libreiser4_factory_ifind(KEY_PLUGIN_TYPE, pid))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find key plugin by its id 0x%x.", pid);
+	aal_exception_error("Can't find key plugin by its id 0x%x.", pid);
 	return -1;
     }
     
@@ -185,8 +180,7 @@ reiser4_tree_t *reiser4_tree_open(reiser4_fs_t *fs) {
 
     /* Building the tree root key */
     if (reiser4_tree_build_key(tree)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't build the tree root key.");
+	aal_exception_error("Can't build the tree root key.");
 	goto error_free_tree;
     }
     
@@ -235,21 +229,18 @@ reiser4_tree_t *reiser4_tree_create(
     
     /* Building the tree root key */
     if (reiser4_tree_build_key(tree)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't build the tree root key.");
+	aal_exception_error("Can't build the tree root key.");
 	goto error_free_tree;
     }
     
     /* Getting free block from block allocator for place root block in it */
     if (!(blk = reiser4_alloc_allocate(fs->alloc))) {
-        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Can't allocate block for the root node.");
+        aal_exception_error("Can't allocate block for the root node.");
 	goto error_free_tree;
     }
 
     if (!(block = aal_block_create(fs->format->device, blk, 0))) {
-        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Can't allocate in memory root block.");
+        aal_exception_error("Can't allocate in memory root block.");
 	goto error_free_tree;
     }
     
@@ -257,8 +248,7 @@ reiser4_tree_t *reiser4_tree_create(
     if (!(node = reiser4_node_create(block, profile->node, 
 	reiser4_tree_height(tree)))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't create root node.");
+	aal_exception_error("Can't create root node.");
 	goto error_free_block;
     }
 
@@ -376,24 +366,21 @@ int reiser4_tree_lookup(
 	    coord->pos.item--;
 
 	if (reiser4_item_open(&item, coord->cache->node, &coord->pos)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	        "Can't open item by its coord. Node %llu, item %u.",
+	    aal_exception_error("Can't open item by its coord. Node %llu, item %u.",
 	        aal_block_number(coord->cache->node->block), coord->pos.item);
 	    return -1;
 	}
 	    
 	if (!reiser4_item_internal(&item)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	        "Not internal item was found on the twig level. "
+	    aal_exception_error("Not internal item was found on the twig level. "
 	        "Sorry, drilling is not supported yet!");
 	    return -1;
 	}
 	    
 	/* Getting the node pointer from internal item */
 	if (!(target = reiser4_item_get_iptr(&item))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't get pointer from internal item %u, node %llu.", 
-		item.pos->item, aal_block_number(item.node->block));
+	    aal_exception_error("Can't get pointer from internal item %u, "
+		"node %llu.", item.pos->item, aal_block_number(item.node->block));
 	    return -1;
 	}
 	
@@ -412,15 +399,13 @@ int reiser4_tree_lookup(
 		cache.
 	    */
 	    if (!(coord->cache = reiser4_tree_load(tree, target, deep))) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't load node %llu durring lookup.", target);
+		aal_exception_error("Can't load node %llu durring lookup.", target);
 		return -1;
 	    }
 
 	    /* Registering node in tree cache */
 	    if (reiser4_cache_register(parent, coord->cache)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't register node %llu in the tree.", target);
+		aal_exception_error("Can't register node %llu in the tree.", target);
 		
 		reiser4_cache_close(coord->cache);
 		return -1;
@@ -459,8 +444,8 @@ static errno_t reiser4_tree_attach(
     if (!(hint.plugin = 
 	libreiser4_factory_ifind(ITEM_PLUGIN_TYPE, ITEM_INTERNAL40_ID)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find internal item plugin by its id 0x%x.", ITEM_INTERNAL40_ID);
+	aal_exception_error("Can't find internal item plugin by its id 0x%x.", 
+	    ITEM_INTERNAL40_ID);
 	return -1;
     }
 
@@ -478,22 +463,19 @@ static errno_t reiser4_tree_attach(
 	return -1;
     
     if (lookup == 1) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Key (0x%llx:0x%x:0x%llx:0x%llx) already exists in tree.", 
+	aal_exception_error("Key (0x%llx:0x%x:0x%llx:0x%llx) already exists in tree.", 
 	    reiser4_key_get_locality(&ldkey), reiser4_key_get_type(&ldkey),
 	    reiser4_key_get_objectid(&ldkey), reiser4_key_get_offset(&ldkey));
 	return -1;
     }
     
     if (reiser4_cache_insert(coord.cache, &coord.pos, &hint)) {
-        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Can't insert internal item to the tree.");
+        aal_exception_error("Can't insert internal item to the tree.");
 	return -1;
     }
     
     if (reiser4_cache_register(coord.cache, cache)) {
-        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Can't register node %llu in tree cache.", 
+        aal_exception_error("Can't register node %llu in tree cache.", 
 	    aal_block_number(cache->node->block));
 	return -1;
     }
@@ -510,14 +492,12 @@ static errno_t reiser4_tree_grow(
     if (!(tree->cache = reiser4_tree_allocate(tree,
 	reiser4_tree_height(tree) + 1))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't allocate root node.");
+	aal_exception_error("Can't allocate root node.");
 	return -1;
     }
 
     if (reiser4_tree_attach(tree, cache)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't attach node to the tree.");
+	aal_exception_error("Can't attach node to the tree.");
 	goto error_free_cache;
     }
 	    
@@ -566,8 +546,7 @@ errno_t reiser4_tree_lshift(
 	the shifting of items from target node into neighbours.
     */
     if (reiser4_cache_raise(old->cache)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't raise up neighbours of node %llu.", 
+	aal_exception_error("Can't raise up neighbours of node %llu.", 
 	    aal_block_number(old->cache->node->block));
 	return -1;
     }
@@ -586,8 +565,7 @@ errno_t reiser4_tree_lshift(
 
         /* Initializing item_len by length of the first item from shifted node */
 	if (reiser4_item_open(&item, old->cache->node, &mpos)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't open item by its coord. Node %llu, item %u.",
+	    aal_exception_error("Can't open item by its coord. Node %llu, item %u.",
 		aal_block_number(old->cache->node->block), mpos.item);
 	    return -1;
 	}
@@ -603,8 +581,7 @@ errno_t reiser4_tree_lshift(
 		reiser4_node_space(left->node) - item_len < needed)))
 	    {
 		if (!(left = reiser4_tree_allocate(tree, left->level))) {
-		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		        "Can't allocate new leaf node durring left shift.");
+		    aal_exception_error("Can't allocate new leaf node durring left shift.");
 		    return -1;
 		}
 	    }
@@ -627,8 +604,7 @@ errno_t reiser4_tree_lshift(
 	    
 	    /* Moving item into left neighbor */
 	    if (reiser4_tree_move(tree, &dst, &src)) {
-	        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		   "Left shifting failed. Can't move item.");
+	        aal_exception_error("Left shifting failed. Can't move item.");
 		return -1;
 	    }
 	    
@@ -648,15 +624,13 @@ errno_t reiser4_tree_lshift(
 		    parent.
 		*/
 		if (reiser4_tree_grow(tree, old->cache)) {
-		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-			"Can't grow tree durring right shift.");
+		    aal_exception_error("Can't grow tree durring right shift.");
 		    return -1;
 		}
 	    }
 	    
 	    if (reiser4_tree_attach(tree, left)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't attach new left neighbour block to the tree "
+		aal_exception_error("Can't attach new left neighbour block to the tree "
 		    "durring left shift.");
 		return -1;
 	    }
@@ -696,8 +670,7 @@ errno_t reiser4_tree_rshift(
 	the shifting of items from target node into neighbours.
     */
     if (reiser4_cache_raise(old->cache)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't raise up neighbours of node %llu.", 
+	aal_exception_error("Can't raise up neighbours of node %llu.", 
 	    aal_block_number(old->cache->node->block));
 	return -1;
     }
@@ -707,8 +680,7 @@ errno_t reiser4_tree_rshift(
 	if (!allocate) return 0;
 	
 	if (!(right = reiser4_tree_allocate(tree, old->cache->level))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't allocate new leaf node durring right shift.");
+	    aal_exception_error("Can't allocate new leaf node durring right shift.");
 	    return -1;
 	}
     }
@@ -725,8 +697,7 @@ errno_t reiser4_tree_rshift(
 	
 	/* Initializing item in order to get its len, etc */
 	if (reiser4_item_open(&item, old->cache->node, &mpos)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't open item by its coord. Node %llu, item %u.",
+	    aal_exception_error("Can't open item by its coord. Node %llu, item %u.",
 		aal_block_number(old->cache->node->block), mpos.item);
 	    return -1;
 	}
@@ -744,8 +715,7 @@ errno_t reiser4_tree_rshift(
 		(reiser4_node_space(right->node) - item_len) < needed)))
 	    {
 		if (!(right = reiser4_tree_allocate(tree, right->level))) {
-		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-			"Can't allocate new leaf node durring right shift.");
+		    aal_exception_error("Can't allocate new leaf node durring right shift.");
 		    return -1;
 		}
 	    }
@@ -764,8 +734,7 @@ errno_t reiser4_tree_rshift(
 	    reiser4_coord_init(&dst, right, 0, ~0ul);
 	
 	    if (reiser4_tree_move(tree, &dst, &src)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Right shifting of an item failed.");
+		aal_exception_error("Right shifting of an item failed.");
 		return -1;
 	    }
 	    
@@ -787,15 +756,13 @@ errno_t reiser4_tree_rshift(
 		    parent.
 		*/
 		if (reiser4_tree_grow(tree, old->cache)) {
-		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-			"Can't grow tree durring right shift.");
+		    aal_exception_error("Can't grow tree durring right shift.");
 		    return -1;
 		}
 	    }
 
 	    if (reiser4_tree_attach(tree, right)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't attach new right neighbour block to the tree "
+		aal_exception_error("Can't attach new right neighbour block to the tree "
 		    "durring right shift.");
 		return -1;
 	    }
@@ -871,7 +838,7 @@ errno_t reiser4_tree_insert(
 	return -1;
 
     if (lookup == 1) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	aal_exception_error(
 	    "Key (0x%llx:0x%x:0x%llx:0x%llx) already exists in tree.", 
 	    reiser4_key_get_locality(key), reiser4_key_get_type(key),
 	    reiser4_key_get_objectid(key), reiser4_key_get_offset(key));
@@ -879,8 +846,7 @@ errno_t reiser4_tree_insert(
     }
 
     if ((level = coord->cache->level) > REISER4_LEAF_LEVEL + 1) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Lookup stoped on invalid level %d.", level);
+	aal_exception_error("Lookup stoped on invalid level %d.", level);
 	return -1;
     }
     
@@ -913,8 +879,7 @@ errno_t reiser4_tree_insert(
 	reiser4_cache_t *cache;
 	
 	if (!(cache = reiser4_tree_allocate(tree, REISER4_LEAF_LEVEL))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't allocate new leaf node.");
+	    aal_exception_error("Can't allocate new leaf node.");
 	    return -1;
 	}
 
@@ -922,16 +887,14 @@ errno_t reiser4_tree_insert(
 	reiser4_coord_init(coord, cache, 0, ~0ul);
 	
         if (reiser4_cache_insert(coord->cache, &coord->pos, hint)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Can't insert an item into the node %llu.", 
+	    aal_exception_error("Can't insert an item into the node %llu.", 
 		aal_block_number(coord->cache->node->block));
 	    reiser4_tree_release(tree, cache);
 	    return -1;
 	}
 	
 	if (reiser4_tree_attach(tree, cache)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't attach node to the tree.");
+	    aal_exception_error("Can't attach node to the tree.");
 	    reiser4_tree_release(tree, cache);
 	    return -1;
 	}
@@ -950,8 +913,7 @@ errno_t reiser4_tree_insert(
     }
     
     if (reiser4_cache_insert(coord->cache, &coord->pos, hint)) {
-        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	   "Can't insert an %s into the node %llu.", 
+        aal_exception_error("Can't insert an %s into the node %llu.", 
 	    (coord->pos.unit == ~0ul ? "item" : "unit"),
 	    aal_block_number(coord->cache->node->block));
 	return -1;
@@ -978,7 +940,7 @@ errno_t reiser4_tree_remove(
 	return -1;
 
     if (lookup == 0) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	aal_exception_error(
 	    "Key (0x%llx:0x%x:0x%llx:0x%llx) doesn't found in tree.", 
 	    reiser4_key_get_locality(key), reiser4_key_get_type(key),
 	    reiser4_key_get_objectid(key), reiser4_key_get_offset(key));
@@ -986,8 +948,7 @@ errno_t reiser4_tree_remove(
     }
     
     if (coord.cache->level > REISER4_LEAF_LEVEL + 1) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Lookup stoped on invalid level %d.", level);
+	aal_exception_error("Lookup stoped on invalid level %d.", level);
 	return -1;
     }
    

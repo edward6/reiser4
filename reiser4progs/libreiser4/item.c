@@ -23,8 +23,7 @@ errno_t reiser4_item_open(reiser4_item_t *item,
 	node->entity->plugin->node_ops, item_pid, node->entity, pos);
     
     if (pid == INVALID_PLUGIN_ID) {
-        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Invalid item plugin id detected. Node %llu, item %u.", 
+        aal_exception_error("Invalid item plugin id detected. Node %llu, item %u.", 
 	    aal_block_number(node->block), pos->item);
 	return -1;
     }
@@ -32,8 +31,7 @@ errno_t reiser4_item_open(reiser4_item_t *item,
     item->plugin = libreiser4_factory_ifind(ITEM_PLUGIN_TYPE, pid);
     
     if (!item->plugin) {
-        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Can't get item plugin. Node %llu, item %u.", 
+        aal_exception_error("Can't get item plugin. Node %llu, item %u.", 
 	    aal_block_number(node->block), pos->item);
 	return -1;
     }
@@ -42,8 +40,7 @@ errno_t reiser4_item_open(reiser4_item_t *item,
 	item_body, node->entity, pos);
     
     if (!item->body) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't get item body. Node %llu, item %u.", 
+	aal_exception_error("Can't get item body. Node %llu, item %u.", 
 	    aal_block_number(node->block), pos->item);
 	return -1;
     }
@@ -181,8 +178,8 @@ uint16_t reiser4_item_get_smode(reiser4_item_t *item) {
 
     /* Checking if specified item is a statdata item */
     if (!reiser4_item_statdata(item)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "An attempt to get access mode from non-statdata item.");
+	aal_exception_error("An attempt to get access mode from "
+	    "non-statdata item.");
 	return 0;
     }
     
@@ -201,8 +198,8 @@ errno_t reiser4_item_set_smode(reiser4_item_t *item,
 
     /* Checking if specified item is a statdata item */
     if (!reiser4_item_statdata(item)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "An attempt to get access mode from non-statdata item.");
+	aal_exception_error("An attempt to get access mode from "
+	    "non-statdata item.");
 	return -1;
     }
     
@@ -228,8 +225,8 @@ blk_t reiser4_item_get_iptr(reiser4_item_t *item) {
     
     /* Checking if specified item is an internal item */
     if (!reiser4_item_internal(item)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "An attempt to get the node pointer from non-internal item.");
+	aal_exception_error("An attempt to get the node pointer "
+	    "from non-internal item.");
 	return 0;
     }
     
@@ -249,8 +246,7 @@ errno_t reiser4_item_set_iptr(reiser4_item_t *item,
 
     /* Checking if specified item is an internal item */
     if (!reiser4_item_internal(item)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "An attempt to set up the node pointer "
+	aal_exception_error("An attempt to set up the node pointer "
 	    "for non-internal item.");
 	return -1;
     }

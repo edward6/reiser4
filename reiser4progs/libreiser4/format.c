@@ -35,8 +35,8 @@ reiser4_format_t *reiser4_format_open(
     
     /* Finding needed disk-format plugin by its plugin id */
     if (!(plugin = libreiser4_factory_ifind(FORMAT_PLUGIN_TYPE, pid))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find disk-format plugin by its id 0x%x.", pid);
+	aal_exception_error("Can't find disk-format plugin by "
+	    "its id 0x%x.", pid);
 	goto error_free_format;
     }
     
@@ -73,8 +73,8 @@ reiser4_format_t *reiser4_format_create(
 
     /* Getting needed plugin from plugin factory */
     if (!(plugin = libreiser4_factory_ifind(FORMAT_PLUGIN_TYPE, pid)))  {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find disk-format plugin by its id 0x%x.", pid);
+	aal_exception_error("Can't find disk-format plugin by "
+	    "its id 0x%x.", pid);
 	return NULL;
     }
     
@@ -92,9 +92,9 @@ reiser4_format_t *reiser4_format_create(
     if (!(format->entity = plugin_call(goto error_free_format, 
 	plugin->format_ops, create, device, len, tail))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't create disk-format %s on %s.", plugin->h.label, 
-	    aal_device_name(device));
+	aal_exception_error("Can't create disk-format %s on %s.", 
+	    plugin->h.label, aal_device_name(device));
+	    
 	goto error_free_format;
     }
 	

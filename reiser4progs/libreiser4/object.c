@@ -21,8 +21,7 @@ reiser4_plugin_t *reiser4_object_guess(reiser4_object_t *object) {
     if (reiser4_item_open(&item, object->coord.cache->node, 
 	&object->coord.pos)) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't open item by coord. Node %llu, item %u.",
+	aal_exception_error("Can't open item by coord. Node %llu, item %u.",
 	    aal_block_number(object->coord.cache->node->block),
 	    object->coord.pos.item);
 
@@ -96,16 +95,14 @@ static errno_t reiser4_object_lookup(
 	if (reiser4_tree_lookup(object->fs->tree, REISER4_LEAF_LEVEL, 
 	    &object->key, &object->coord) != 1) 
 	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't find stat data of directory \"%s\".", track);
+	    aal_exception_error("Can't find stat data of directory \"%s\".", track);
 	    return -1;
 	}
 	
 	if (reiser4_item_open(&item, object->coord.cache->node,
 	    &object->coord.pos)) 
 	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't open item by coord. Node %llu, item %u.",
+	    aal_exception_error("Can't open item by coord. Node %llu, item %u.",
 		aal_block_number(object->coord.cache->node->block),
 		object->coord.pos.item);
 
@@ -122,14 +119,13 @@ static errno_t reiser4_object_lookup(
 	    mode = reiser4_item_get_smode(&item);
 
 	    if (!S_ISLNK(mode) && !S_ISDIR(mode) && !S_ISREG(mode)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "%s has invalid mode 0x%x.", track, mode);
+		aal_exception_error("%s has invalid mode 0x%x.", track, mode);
 		return -1;
 	    }
 		
 	    if (S_ISLNK(mode)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Sorry, opening objects by link is not supported yet!");
+		aal_exception_error("Sorry, opening objects by link is "
+		    "not supported yet!");
 		return -1;
 	    }
 	}
@@ -150,8 +146,8 @@ static errno_t reiser4_object_lookup(
 	aal_strncat(track, dirname, aal_strlen(dirname));
 	
 	if (!(plugin = reiser4_object_guess(object))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't guess object plugin for parent of %s.", track);
+	    aal_exception_error("Can't guess object plugin for "
+		"parent of %s.", track);
 	    return -1;
 	}
 
@@ -159,14 +155,12 @@ static errno_t reiser4_object_lookup(
 	    if (!(entity = plugin_call(return -1, 
 		plugin->dir_ops, open, object->fs->tree, &object->key)))
 	    {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't open parent of directory \"%s\".", track);
+		aal_exception_error("Can't open parent of directory \"%s\".", track);
 		return -1;
 	    }
 	    
 	    if (!plugin->dir_ops.lookup) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Method \"lookup\" is not implemented in %s plugin.", 
+		aal_exception_error("Method \"lookup\" is not implemented in %s plugin.", 
 		    plugin->h.label);
 		
 		plugin_call(return -1, plugin->dir_ops, close, entity);
@@ -174,8 +168,7 @@ static errno_t reiser4_object_lookup(
 	    }
 	
 	    if (plugin->dir_ops.lookup(entity, dirname, &object->key) != 1) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't find entry \"%s\".", dirname);
+		aal_exception_error("Can't find entry \"%s\".", dirname);
 		
 		plugin_call(return -1, plugin->dir_ops, close, entity);
 		return -1;
@@ -189,8 +182,7 @@ static errno_t reiser4_object_lookup(
 		(probably it is that strange compound object which is file and 
 		directory in the time). 
 	    */
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Sorry, files are not supported yet!");
+	    aal_exception_error("Sorry, files are not supported yet!");
 	    return -1;
 	}
 
@@ -227,8 +219,7 @@ reiser4_object_t *reiser4_object_open(
     reiser4_key_init(&parent_key, root_key->plugin, root_key->body);
     
     if (reiser4_object_lookup(object, name, &parent_key)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find object \"%s\".", name);
+	aal_exception_error("Can't find object \"%s\".", name);
 	goto error_free_object;
     }
     

@@ -182,8 +182,7 @@ static inline rpid_t __item_pid(
 	    return reiser4_node_pid(((reiser4_cache_t *)place->cache)->node);
 	    
 	default:
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Unknown plugin type 0x%x.", type);
+	    aal_exception_error("Unknown plugin type 0x%x.", type);
 	    return INVALID_PLUGIN_ID;
     }
 }

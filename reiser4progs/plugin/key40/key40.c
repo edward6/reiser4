@@ -32,8 +32,7 @@ static key40_minor_t key40_t2m(reiser4_key_type_t type) {
 	case KEY_ATTRBODY_TYPE:
 	    return KEY40_ATTRBODY_MINOR;
 	default:
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Invalid key type has been detected 0x%x.", type);
+	    aal_exception_error("Invalid key type has been detected 0x%x.", type);
 	    return 0xff;
     }
 }
@@ -50,8 +49,8 @@ static reiser4_key_type_t key40_m2t(key40_minor_t minor) {
 	case KEY40_ATTRBODY_MINOR:
 	    return KEY_ATTRBODY_TYPE;
 	default:
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Invalid key minor has been detected 0x%x.", minor);
+	    aal_exception_error("Invalid key minor has been "
+		"detected 0x%x.", minor);
 	    return 0xff;
     }
 }

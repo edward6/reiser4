@@ -240,8 +240,7 @@ static int64_t progs_ui_numeric_handler(
 	    return defvalue;
 
 	if (!(value = progs_misc_size_parse(line, &error)) && error != ~0) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Invalid numeric has been detected (%s). "
+	    aal_exception_error("Invalid numeric has been detected (%s). "
 		"Number is expected (1, 1K, 1M, 1G)", line);
 	    continue;
 	}

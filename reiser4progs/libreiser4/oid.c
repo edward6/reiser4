@@ -29,15 +29,14 @@ reiser4_oid_t *reiser4_oid_open(
 	return NULL;
     
     if ((pid = reiser4_format_oid_pid(format)) == INVALID_PLUGIN_ID) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Invalid oid allocator plugin id has been detected.");
+	aal_exception_error("Invalid oid allocator plugin id has been detected.");
 	goto error_free_oid;
     }
     
     /* Getting oid allocator plugin */
     if (!(plugin = libreiser4_factory_ifind(OID_PLUGIN_TYPE, pid))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find oid allocator plugin by its id 0x%x.", pid);
+	aal_exception_error("Can't find oid allocator plugin by "
+	    "its id 0x%x.", pid);
 	goto error_free_oid;
     }
     
@@ -48,8 +47,7 @@ reiser4_oid_t *reiser4_oid_open(
     if (!(oid->entity = plugin_call(goto error_free_oid, 
 	plugin->oid_ops, open, oid_start, oid_len))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't open oid allocator %s.", plugin->h.label);
+	aal_exception_error("Can't open oid allocator %s.", plugin->h.label);
 	goto error_free_oid;
     }
 
@@ -92,15 +90,15 @@ reiser4_oid_t *reiser4_oid_create(
 	return NULL;
    
     if ((pid = reiser4_format_oid_pid(format)) == INVALID_PLUGIN_ID) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Invalid oid allocator plugin id has been detected.");
+	aal_exception_error("Invalid oid allocator plugin id "
+	    "has been detected.");
 	goto error_free_oid;
     }
     
     /* Getting plugin from plugin id */
     if (!(plugin = libreiser4_factory_ifind(OID_PLUGIN_TYPE, pid))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find oid allocator plugin by its id 0x%x.", pid);
+	aal_exception_error("Can't find oid allocator plugin "
+	    "by its id 0x%x.", pid);
 	goto error_free_oid;
     }
     
@@ -111,8 +109,8 @@ reiser4_oid_t *reiser4_oid_create(
     if (!(oid->entity = plugin_call(goto error_free_oid, 
 	plugin->oid_ops, create, oid_start, oid_len)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't create oid allocator %s.", plugin->h.label);
+	aal_exception_error("Can't create oid allocator %s.", 
+	    plugin->h.label);
 	goto error_free_oid;
     }
 

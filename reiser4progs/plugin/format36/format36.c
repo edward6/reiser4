@@ -92,8 +92,7 @@ static aal_block_t *format36_super_open(aal_device_t *device) {
 	    }
 	    aal_block_free(block);
 	} else {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't read block %d. %s.", super_offset[i], 
+	    aal_exception_error("Can't read block %d. %s.", super_offset[i], 
 		aal_device_error(device));
 	}
     }

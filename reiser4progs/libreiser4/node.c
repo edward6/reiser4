@@ -30,8 +30,7 @@ reiser4_node_t *reiser4_node_create(
     
     /* Finding the node plugin by its id */
     if (!(plugin = libreiser4_factory_ifind(NODE_PLUGIN_TYPE, pid))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find node plugin by its id 0x%x.", pid);
+	aal_exception_error("Can't find node plugin by its id 0x%x.", pid);
 	goto error_free_node;
     }
     
@@ -39,8 +38,7 @@ reiser4_node_t *reiser4_node_create(
     if (!(node->entity = plugin_call(goto error_free_node, 
 	plugin->node_ops, create, node->block, level))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't create node entity.");
+	aal_exception_error("Can't create node entity.");
 	goto error_free_node;
     }
     
@@ -112,8 +110,7 @@ reiser4_node_t *reiser4_node_open(
     
     /* Finding the node plugin by its id */
     if (!(plugin = reiser4_node_guess(node->block))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't guess node plugin for node %llu.", 
+	aal_exception_error("Can't guess node plugin for node %llu.", 
 	    aal_block_number(block));
 	return NULL;
     }
@@ -125,8 +122,7 @@ reiser4_node_t *reiser4_node_open(
     if (!(node->entity = plugin_call(goto error_free_node, 
 	plugin->node_ops, open, node->block)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't initialize node entity.");
+	aal_exception_error("Can't initialize node entity.");
 	goto error_free_node;
     }
 	    
@@ -204,8 +200,7 @@ static errno_t reiser4_node_relocate(
     aal_assert("umka-800", dst_node != NULL, return -1);
 
     if (reiser4_item_open(&item, src_node, src_pos)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't open item by its coord. Node %llu, item %u.",
+	aal_exception_error("Can't open item by its coord. Node %llu, item %u.",
 	    aal_block_number(src_node->block), src_pos->item);
 	return -1;
     }
@@ -327,8 +322,7 @@ int reiser4_node_lookup(
     if ((lookup = plugin_call(return -1, 
 	node->entity->plugin->node_ops, lookup, node->entity, key, pos)) == -1) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Lookup in the node %llu failed.", 
+	aal_exception_error("Lookup in the node %llu failed.", 
 	    aal_block_number(node->block));
 	return -1;
     }
@@ -336,8 +330,7 @@ int reiser4_node_lookup(
     if (lookup == 1) return 1;
 
     if (reiser4_item_open(&item, node, pos)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't open item by coord. Nosde %llu, item %u.",
+	aal_exception_error("Can't open item by coord. Nosde %llu, item %u.",
 	    aal_block_number(node->block), pos->item);
 	return -1;
     }
@@ -351,9 +344,9 @@ int reiser4_node_lookup(
     if (item.plugin->item_ops.common.maxkey) {
 	    
 	if (item.plugin->item_ops.common.maxkey(&maxkey) == -1) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Getting max key of the item %d in the node %llu failed.", 
-		pos->item, aal_block_number(node->block));
+	    aal_exception_error("Getting max key of the item %d "
+		"in the node %llu failed.", pos->item, 
+		aal_block_number(node->block));
 	    return -1;
 	}
 	
@@ -371,8 +364,7 @@ int reiser4_node_lookup(
     if ((lookup = item.plugin->item_ops.common.lookup(item.body, key, 
 	&pos->unit)) == -1) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Lookup in the item %d in the node %llu failed.", 
+	aal_exception_error("Lookup in the item %d in the node %llu failed.", 
 	    pos->item, aal_block_number(node->block));
 	return -1;
     }
@@ -429,8 +421,7 @@ errno_t reiser4_node_insert(
 	    reiser4_item_init(&item, node, pos);
 	    
 	    if (reiser4_item_estimate(&item, hint)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		    "Can't estimate space that item being inserted "
+		aal_exception_error("Can't estimate space that item being inserted "
 		    "will consume.");
 		return -1;
 	    }
@@ -444,10 +435,9 @@ errno_t reiser4_node_insert(
     if (hint->len + (pos->unit == ~0ul ? reiser4_node_overhead(node) : 0) >
         reiser4_node_space(node))
     {
-        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-            "There is no space to insert the %s of (%u) size in the node (%llu).",
-            (pos->unit == ~0ul ? "item" : "unit"), hint->len, 
-	    aal_block_number(node->block));
+        aal_exception_error("There is no space to insert the %s of (%u) "
+	    "size in the node (%llu).", (pos->unit == ~0ul ? "item" : "unit"), 
+	    hint->len, aal_block_number(node->block));
         return -1;
     }
 
@@ -489,8 +479,8 @@ errno_t reiser4_node_traverse(
     device = block->device;
     
     if (!(node = open_func(block, data))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't open node on block %llu.", aal_block_number(block));
+	aal_exception_error("Can't open node on block %llu.", 
+	    aal_block_number(block));
 	return -1;
     }
     
@@ -506,8 +496,7 @@ errno_t reiser4_node_traverse(
 	    aal_block_t *block;
 	    
 	    if (reiser4_item_open(&item, node, &pos)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't open item by its coord. Node %llu, item %u.",
+		aal_exception_error("Can't open item by its coord. Node %llu, item %u.",
 		    aal_block_number(node->block), pos.item);
 		goto error_free_node;
 	    }
@@ -523,8 +512,8 @@ errno_t reiser4_node_traverse(
 		if ((target = reiser4_item_get_iptr(&item)) > 0) {
 
 		    if (!(block = aal_block_open(device, target))) {
-			aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-			    "Can't read block %llu. %s.", target, device->error);
+			aal_exception_error("Can't read block %llu. %s.", 
+			    target, device->error);
 			goto error_free_node;
 		    }
 	

@@ -25,16 +25,15 @@ reiser4_object_t *reiser4_dir_open(
 	return NULL;
     
     if (!(plugin = reiser4_object_guess(object))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find object plugin in order to open %s.", name);
+	aal_exception_error("Can't find object plugin in "
+	    "order to open %s.", name);
 	goto error_free_object;
     }
     
     if (!(object->entity = plugin_call(goto error_free_object, 
         plugin->dir_ops, open, fs->tree, &object->key)))
     {
-        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Can't open directory %s.", name);
+        aal_exception_error("Can't open directory %s.", name);
 	goto error_free_object;
     }
     
@@ -120,8 +119,7 @@ reiser4_object_t *reiser4_dir_create(
 	entry.name = (char *)name;
 
 	if (reiser4_dir_add(parent, &entry)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't add entry \"%s\".", name);
+	    aal_exception_error("Can't add entry \"%s\".", name);
 	    goto error_free_object;
 	}
     }
@@ -129,8 +127,8 @@ reiser4_object_t *reiser4_dir_create(
     if (!(object->entity = plugin_call(goto error_free_object, 
 	plugin->dir_ops, create, fs->tree, &parent_key, &object_key, hint)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Can't create object"
-	    " with oid 0x%llx.", reiser4_key_get_objectid(&object_key));
+	aal_exception_error("Can't create object with oid 0x%llx.", 
+	    reiser4_key_get_objectid(&object_key));
 	goto error_free_object;
     }
     

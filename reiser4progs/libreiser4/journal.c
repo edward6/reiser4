@@ -29,15 +29,13 @@ reiser4_journal_t *reiser4_journal_open(
 	return NULL;
 
     if ((pid = reiser4_format_journal_pid(format)) == INVALID_PLUGIN_ID) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Invalid journal plugin id has been found.");
+	aal_exception_error("Invalid journal plugin id has been found.");
 	goto error_free_journal;
     }
     
     /* Getting plugin by its id from plugin factory */
     if (!(plugin = libreiser4_factory_ifind(JOURNAL_PLUGIN_TYPE, pid))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find journal plugin by its id 0x%x.", pid);
+	aal_exception_error("Can't find journal plugin by its id 0x%x.", pid);
 	goto error_free_journal;
     }
     
@@ -50,8 +48,7 @@ reiser4_journal_t *reiser4_journal_open(
     if (!(journal->entity = plugin_call(goto error_free_journal, 
 	plugin->journal_ops, open, format->entity))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't open journal %s on %s.", plugin->h.label, 
+	aal_exception_error("Can't open journal %s on %s.", plugin->h.label, 
 	    aal_device_name(device));
 	goto error_free_journal;
     }
@@ -82,14 +79,12 @@ reiser4_journal_t *reiser4_journal_create(
 	return NULL;
 
     if ((pid = reiser4_format_journal_pid(format)) == INVALID_PLUGIN_ID) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Invalid journal plugin id has been found.");
+	aal_exception_error("Invalid journal plugin id has been found.");
 	goto error_free_journal;
     }
     
     if (!(plugin = libreiser4_factory_ifind(JOURNAL_PLUGIN_TYPE, pid)))  {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find journal plugin by its id 0x%x.", pid);
+	aal_exception_error("Can't find journal plugin by its id 0x%x.", pid);
 	goto error_free_journal;
     }
     
@@ -99,8 +94,7 @@ reiser4_journal_t *reiser4_journal_create(
     if (!(journal->entity = plugin_call(goto error_free_journal, 
 	plugin->journal_ops, create, format->entity, params))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't create journal %s on %s.", plugin->h.label, 
+	aal_exception_error("Can't create journal %s on %s.", plugin->h.label, 
 	    aal_device_name(device));
 	goto error_free_journal;
     }
@@ -122,8 +116,7 @@ errno_t reiser4_journal_replay(
     if (plugin_call(return -1, journal->entity->plugin->journal_ops, 
 	replay, journal->entity)) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't replay journal");
+	aal_exception_error("Can't replay journal");
 	return -1;
     }
     return 0;

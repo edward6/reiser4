@@ -82,8 +82,7 @@ reiser4_fs_t *reiser4_fs_open(
 	*/
 	if (replay) {
 	    if (reiser4_journal_replay(fs->journal)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't replay journal.");
+		aal_exception_error("Can't replay journal.");
 		goto error_free_journal;
 	    }
 	    
@@ -176,14 +175,13 @@ reiser4_fs_t *reiser4_fs_create(
 
     /* Makes check for validness of specified block size value */
     if (!aal_pow_of_two(blocksize)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Invalid block size %u. It must be power of two.", 
+	aal_exception_error("Invalid block size %u. It must be power of two.", 
 	    blocksize);
 	return NULL;
     }
 
     if (len > aal_device_len(host_device)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	aal_exception_error(
 	    "Device %s is too small (%llu) for filesystem %u blocks long.", 
 	    aal_device_name(host_device), aal_device_len(host_device), len);
 	return NULL;
@@ -191,8 +189,7 @@ reiser4_fs_t *reiser4_fs_create(
     
     /* Checks whether filesystem size is enough big */
     if (len < REISER4_MIN_SIZE) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Requested filesytem size (%llu) too small. "
+	aal_exception_error("Requested filesytem size (%llu) too small. "
 	    "ReiserFS required minimal size %u blocks long.", 
 	    len, REISER4_MIN_SIZE);
 	return NULL;
@@ -245,8 +242,8 @@ reiser4_fs_t *reiser4_fs_create(
 	if (!(dir_plugin = libreiser4_factory_ifind(DIR_PLUGIN_TYPE, 
 	    profile->dir.dir))) 
 	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't find directory plugin by its id 0x%x.", profile->dir.dir);
+	    aal_exception_error("Can't find directory plugin by "
+		"its id 0x%x.", profile->dir.dir);
 	    goto error_free_tree;
 	}
 	
@@ -256,8 +253,7 @@ reiser4_fs_t *reiser4_fs_create(
 	
 	/* Creating object "dir40". See object.c for details */
 	if (!(fs->dir = reiser4_dir_create(fs, &dir_hint, dir_plugin, NULL, "/"))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't create root directory.");
+	    aal_exception_error("Can't create root directory.");
 	    goto error_free_tree;
 	}
     }

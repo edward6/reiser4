@@ -121,7 +121,7 @@ static errno_t repair_fs_check_setup(reiser4_fs_t *fs, repair_check_t *data) {
     if (!(data->ld_key.plugin = 
 	libreiser4_factory_ifind(KEY_PLUGIN_TYPE, KEY_REISER40_ID)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	aal_exception_error(
 	    "Can't find key plugin by its id 0x%x.", KEY_REISER40_ID);
 	return -1;
     }
@@ -156,7 +156,7 @@ errno_t repair_fs_check(reiser4_fs_t *fs) {
     }
  
     if (!(block = aal_block_open(fs->format->device, blk))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	aal_exception_error(
 	    "Can't read block %llu. %s.", blk, fs->format->device->error);
 	return -1;
     }

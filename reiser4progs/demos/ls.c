@@ -48,26 +48,23 @@ int main(int argc, char *argv[]) {
     ls_init();
 
     if (libreiser4_init()) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't initialize libreiser4.");
+	aal_exception_error("Can't initialize libreiser4.");
 	return 0xff;
     }
     
     if (!(device = aal_file_open(argv[1], REISER4_DEFAULT_BLOCKSIZE, O_RDWR))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't open device %s.", argv[1]);
+	aal_exception_error("Can't open device %s.", argv[1]);
 	goto error_free_libreiser4;
     }
     
     if (!(fs = reiser4_fs_open(device, device, 0))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't open filesystem on %s.", aal_device_name(device));
+	aal_exception_error("Can't open filesystem on %s.", 
+	    aal_device_name(device));
 	goto error_free_device;
     }
     
     if (!(object = reiser4_dir_open(fs, argv[2]))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't open dir \"%s\".", argv[2]);
+	aal_exception_error("Can't open dir \"%s\".", argv[2]);
 	goto error_free_fs;
     }
     
@@ -96,8 +93,7 @@ int main(int argc, char *argv[]) {
     }
     
     if (reiser4_dir_rewind(object)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't rewind dir \"%s\".", argv[2]);
+	aal_exception_error("Can't rewind dir \"%s\".", argv[2]);
 	goto error_free_object;
     }
 

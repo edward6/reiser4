@@ -92,8 +92,7 @@ errno_t repair_format_check(reiser4_fs_t *fs) {
     /* Format was either opened or created. Check it and fix it. */
     if (plugin_call(return -1, fs->format->entity->plugin->format_ops, check, 
 	fs->format->entity, repair_data(fs)->options)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Failed to recover the on-disk format (%s) on (%s).", 
+	aal_exception_error("Failed to recover the on-disk format (%s) on (%s).", 
 	    plugin->h.label, aal_device_name(repair_data(fs)->host_device));
 	return -1;
     }
