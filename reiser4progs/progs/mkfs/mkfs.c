@@ -209,12 +209,8 @@ int main(int argc, char *argv[]) {
     
     host_dev = (char *)walk->item;
     
-    /* Checking given device for validness */
-    if (stat(host_dev, &st) == -1) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Device \"%s\" doesn't exists or invalid.", host_dev);
+    if (stat(host_dev, &st) == -1)
 	goto error_free_libreiser4;
-    }
     
     if (!S_ISBLK(st.st_mode)) {
 	if (!force) {
