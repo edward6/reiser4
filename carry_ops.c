@@ -285,6 +285,25 @@ static int free_space_shortage( znode *node /* node to check */,
  * Follows logic of fs/reiser4/tree.c:insert_single_item()
  *
  * See comments in the body.
+
+Assumes that the node format favors insertions at the right end of the node as node40 does. 
+
+GREEN-FIXME-HANS: why isn't this code audited?
+
+NIKITA-FIXME-HANS: can this be broken into subfunctions that will look like the following except with function arguments:
+
+if(!enough_space())
+    shift_insert_point_to_left;
+if(!enough_space())
+    shift_after_insert_point_to_right();
+if(!enough_space()){
+    insert_node_after_insert_point();
+    if(!insert_point_at_node_end())
+	shift_after_insert_point_to_right();
+        insert_node_after_insert_point();// avoids pushing detritus around when repeated insertions occur
+}
+
+
  */
 static int make_space( carry_op *op /* carry operation, insert or paste */, 
 		       carry_level *doing /* current carry queue */, 
@@ -322,7 +341,7 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 	 */
 	not_enough_space = free_space_shortage( node, op );
 	if( not_enough_space <= 0 )
-		return 0;
+		return 0;	/* is this line live code, or for debug mode only? NIKITA-FIXME-HANS */
 	if( !( op -> u.insert.flags & COPI_DONT_SHIFT_LEFT ) ) {
 		carry_node *left;
 		/* 
@@ -331,7 +350,7 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 		 */
 		reiser4_stat_level_add( doing, insert_looking_left );
 		left = find_left_neighbor( op -> node, doing );
-		if( IS_ERR( left ) ) {
+		if( unlikely(IS_ERR( left ) )) {
 			if( PTR_ERR( left ) == -EAGAIN )
 				return -EAGAIN;
 			else {
@@ -384,10 +403,15 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 		} else if( right != NULL ) {
 			/*
 			 * both nodes are write locked by now.
+both = ?
 			 *
 			 * shift everything possible on the right of and
 			 * including insertion coord into the right neighbor
 			 */
+/* NIKITA-FIXME-HANS Urgent! Should NOT include insertion point when shifting to the right.
+
+
+*/
 			result = carry_shift_data( RIGHT_SIDE, 
 						   op -> u.insert.d -> coord,
 						   right -> real_node, 
@@ -401,12 +425,13 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 		}
 	}
 	/* If there is still not enough space, allocate new node(s). */
+/* the for statement below is cryptic and uncommented NIKITA-FIXME-HANS */
 	for( blk_alloc = 0 ; 
 	     ( not_enough_space > 0 ) && ( result == 0 ) && ( blk_alloc < 2 ) &&
 	     !( op -> u.insert.flags & COPI_DONT_ALLOCATE ) ; ++ blk_alloc ) {
-		carry_node *fresh;
-		coord_t coord_shadow;
-		carry_node *node_shadow;
+		carry_node *fresh;/* NIKITA-FIXME-HANS why no commment! */
+		coord_t coord_shadow;/* NIKITA-FIXME-HANS why no commment! */
+		carry_node *node_shadow; /* NIKITA-FIXME-HANS why no commment! */
 
 		reiser4_stat_level_add( doing, insert_alloc_new );
 		if( blk_alloc > 0 )
@@ -415,6 +440,7 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 		/*
 		 * allocate new node on the right of @node. Znode and disk
 		 * block(s) for new node are allocated in bitmap.
+NIKITA-FIXME-HANS: Why isn't allocation delayed?
 		 *
 		 * add_new_znode() posts carry operation COP_INSERT with
 		 * COPT_CHILD option to the parent level to add
@@ -461,8 +487,10 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 		not_enough_space = free_space_shortage( node, op );
 		if( ( not_enough_space > 0 ) && ( node != coord_shadow.node ) ) {
 			/* 
-			 * still no enough space?! May be there is enough
+			 * still no enough space?! Maybe there is enough
 			 * space in the source node now.
+
+NIKITA-FIXME-HANS: what is a source node?
 			 */
 			coord_normalize( &coord_shadow );
 			coord_dup( op -> u.insert.d -> coord, &coord_shadow );
@@ -489,12 +517,10 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 					      ZNODE_LOCK_HIPRI );
 		reiser4_stat_level_add( doing, track_lh );
 	}
-	assert( "nikita-1622", 
-		ergo( result == 0, 
-		      op -> node -> real_node == op -> u.insert.d -> coord -> node ) );
+	assert( "nikita-1622", ergo( result == 0, op -> node -> real_node == op -> u.insert.d -> coord -> node ) );
 	return result;
 }
-
+/* HANS-FIXME-HANS remove this comment once answer known: does this code somehow try to understand the size of the item that will be inserted before getting here, or does it determine the size of what will be inserted, or does it just make space, and then let something else fill it? */
 /**
  * insert_paste_common() - common part of insert and paste operations
  *
