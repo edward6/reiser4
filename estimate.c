@@ -74,8 +74,6 @@ estimate_insert_flow(tree_level height)
 	return 3 + CARRY_FLOW_NEW_NODES_LIMIT + max_balance_overhead(3 + CARRY_FLOW_NEW_NODES_LIMIT, height);
 }
 
-
-
 #if YOU_CAN_COMPILE_PSEUDO_CODE
 
 /* maximal cost in leaf nodes of deleting an item (left and right are wandered, current disappears but not immediately)*/
