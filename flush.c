@@ -313,6 +313,9 @@ static int slum_allocate_left_edge_ancestors (jnode *node)
 			 * later call to flush that dirty child would mark its
 			 * parent dirty, thus adding it to a consecutive group
 			 * of pre-ordered nodes.
+			 *
+			 * According to Hans: its okay to search clean nodes,
+			 * if it means better packing.  Solves that issue.
 			 */
 		}
 	}
