@@ -300,7 +300,91 @@ static __u64 reserved_for_root( const struct super_block *super UNUSE /* super
 	return 0;
 }
 
+/** 
+ * default file plugin used by this file system.
+ * This should actually look at the mount options or something
+ */
+file_plugin *default_file_plugin( const struct super_block *super UNUSE /* super
+									 * block
+									 * to
+									 * query */ )
+{
+	assert( "nikita-1950", super != NULL );
 
+	return file_plugin_by_id( REISER4_FILE_PLUGIN );
+}
+
+/** 
+ * default dir plugin used by this file system.
+ * This should actually look at the mount options or something
+ */
+dir_plugin *default_dir_plugin( const struct super_block *super UNUSE /*  super
+								 *  block to
+								 *  query */ )
+{
+	assert( "nikita-1950", super != NULL );
+	return dir_plugin_by_id( REISER4_DIR_PLUGIN );
+}
+
+/** 
+ * default hash plugin used by this file system.
+ * This should actually look at the mount options or something
+ */
+hash_plugin *default_hash_plugin( const struct super_block *super UNUSE /*  super
+								 *  block to
+								 *  query */ )
+{
+	assert( "nikita-1950", super != NULL );
+	return hash_plugin_by_id( REISER4_HASH_PLUGIN );
+}
+
+/** 
+ * default perm plugin used by this file system.
+ * This should actually look at the mount options or something
+ */
+perm_plugin *default_perm_plugin( const struct super_block *super UNUSE /*  super
+								 *  block to
+								 *  query */ )
+{
+	assert( "nikita-1950", super != NULL );
+	return perm_plugin_by_id( REISER4_PERM_PLUGIN );
+}
+
+/** 
+ * default tail policy plugin used by this file system.
+ * This should actually look at the mount options or something
+ */
+tail_plugin *default_tail_plugin( const struct super_block *super UNUSE /*  super
+								 *  block to
+								 *  query */ )
+{
+	assert( "nikita-1950", super != NULL );
+	return tail_plugin_by_id( REISER4_TAIL_PLUGIN );
+}
+
+/** 
+ * default sd plugin used by this file system.
+ * This should actually look at the mount options or something
+ */
+item_plugin *default_sd_plugin( const struct super_block *super UNUSE /*  super
+								 *  block to
+								 *  query */ )
+{
+	assert( "nikita-1950", super != NULL );
+	return item_plugin_by_id( REISER4_SD_PLUGIN );
+}
+
+/** 
+ * default dir item plugin used by this file system.
+ * This should actually look at the mount options or something
+ */
+item_plugin *default_dir_item_plugin( const struct super_block *super UNUSE /*  super
+									     *  block to
+									     *  query */ )
+{
+	assert( "nikita-1950", super != NULL );
+	return item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN );
+}
 
 int init_tree( reiser4_tree *tree /* pointer to structure being
 				   * initialised */, 

@@ -87,6 +87,37 @@
  */
 #define REISER4_MIN_TREE_HEIGHT       (TWIG_LEVEL)
 
+
+/**
+ * default file plugin
+ */
+#define REISER4_FILE_PLUGIN       (REGULAR_FILE_PLUGIN_ID)
+
+/**
+ * default directory plugin
+ */
+#define REISER4_DIR_PLUGIN        (HASHED_DIR_PLUGIN_ID)
+
+/**
+ * default hash plugin
+ */
+#define REISER4_HASH_PLUGIN       (R5_HASH_ID)
+
+/**
+ * default perm(ission) plugin
+ */
+#define REISER4_PERM_PLUGIN       (RWX_PERM_ID)
+
+/**
+ * default tail policy plugin
+ */
+#define REISER4_TAIL_PLUGIN       (ALWAYS_TAIL_ID)
+
+/**
+ * item plugin used by files by default to store stat data.
+ */
+#define REISER4_SD_PLUGIN         (STATIC_STAT_DATA_ID)
+
 /**
  * item plugin used by directories by default to store directory entries.
  */

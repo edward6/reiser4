@@ -173,6 +173,15 @@ extern int  is_reiser4_super( const struct super_block *super );
 
 extern struct super_block *reiser4_get_current_sb( void );
 
+file_plugin *default_file_plugin( const struct super_block *super UNUSE );
+dir_plugin  *default_dir_plugin( const struct super_block *super UNUSE );
+hash_plugin *default_hash_plugin( const struct super_block *super UNUSE );
+perm_plugin *default_perm_plugin( const struct super_block *super UNUSE );
+tail_plugin *default_tail_plugin( const struct super_block *super UNUSE );
+item_plugin *default_sd_plugin( const struct super_block *super UNUSE );
+item_plugin *default_dir_item_plugin( const struct super_block *super UNUSE );
+
+
 /* __REISER4_SUPER_H__ */
 #endif
 
