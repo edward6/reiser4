@@ -37,6 +37,39 @@ int sys_reiser4(char * str)
   
 
 
+	struct nameidata * nd;
+
+	int	ws_yyerrco;
+	int	ws_level;              /* current level            */
+	int	ws_labco;              /* current label            */
+	int	ws_errco;              /* number of errors         */
+	int	ws_strco;              /* number of entries in tptr*/
+	int	ws_varco;              /* number of variables      */
+	int	ws_varsol;             /* begin number of variables*/
+
+	struct var   ** Var;
+	struct streg ** Str;
+	char         ** WrdTab;
+
+	int ws_yydebug;
+	int ws_yynerrs;
+	int ws_yyerrflag;
+	int ws_yychar;
+	short * ws_yyssp;
+	YYSTYPE * ws_yyvsp;
+	YYSTYPE ws_yyval;
+	YYSTYPE ws_yylval;
+	short * ws_yyss;             /*[YYSTACKSIZE]*/
+	YYSTYPE * ws_yyvs;           /*[YYSTACKSIZE]*/
+	//	short yyss[YYSTACKSIZE];
+	//	YYSTYPE yyvs[YYSTACKSIZE];
+	int  ws_yystacksize; /*500*/
+	int  ws_yymaxdepth ; /*500*/
+
+
+
+
+
 
 
     i=yyparse(work_space);

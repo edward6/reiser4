@@ -644,15 +644,12 @@ int 	yychar;			/* current input token number */
 
 
 
-allocate()
-{
-}
-
 reinitial( struct yy_r4_work_spaces * ws)
 {
 	int i;
 
-	ws->Str              =   (struct streg *) kmallok();
+	ws->Str              =
+	ws->StrBase          =   (struct streg *) kmallok();
 	ws->ws_freeSpace     =   
 	ws->ws_freeSpaceBase = kmallok();
 	ws->ws_pline         =
@@ -662,8 +659,6 @@ reinitial( struct yy_r4_work_spaces * ws)
 
 	yyerrco =  0;
 	errco   =  0;
-	optout  =  0;
-	isflg   =  0;
 	level   =  0;
 	varco   = -1;
 	strco   =  0;
@@ -672,7 +667,6 @@ reinitial( struct yy_r4_work_spaces * ws)
 
 initial( struct yy_r4_work_spaces * ws)
 {
-	int i;
 	reinitial();
 }
 

@@ -60,14 +60,34 @@ int 	yylval;
 int	yyval;
 */
 
+static int warproc;
+struct msglist
+{
+	int  msgnum;
+	long fileoff;
+	struct msglist * nextmsg;
+} ;
+static struct msglist *Fistmsg;
 
 
+
+static struct
+{
+	struct inode *inode;
+	int Name_type;
+
+};
 
 
 struct yy_r4_work_space
 {
 	char * ws_inline;
 	char * ws_pline;
+
+	char * ws_freeSpaceBase;
+	char * ws_freeSpace;
+
+	struct nameidata * nd;
 
 	int	ws_yyerrco;
 	int	ws_level;              /* current level            */
