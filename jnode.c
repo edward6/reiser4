@@ -703,11 +703,15 @@ page_clear_jnode(struct page *page, jnode * node)
 	assert("nikita-2427", spin_jnode_is_locked(node));
 	assert("nikita-2428", PagePrivate(page));
 
+	assert("nikita-3551", !PageWriteback(page));
+
 	JF_CLR(node, JNODE_PARSED);
 	page->private = 0ul;
 	ClearPagePrivate(page);
 	node->pg = NULL;
 	page_cache_release(page);
+	if (REISER4_DEBUG_MODIFY && jnode_is_znode(node))
+		ON_DEBUG_MODIFY(JZNODE(node)->cksum = 0);
 }
 
 /* it is only used in one place to handle error */
@@ -856,6 +860,7 @@ static void check_jload(jnode * node, struct page * page)
 			       z->nr_items == d16tocpu(&nh->nr_items));
 			kunmap(page);
 		}
+		assert("nikita-3565", znode_invariant(z));
 	}
 }
 #else
