@@ -538,6 +538,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 				      .size = sizeof (hash_plugin)
                                      }
         ,
+#if 0
 	[REISER4_CRYPTO_PLUGIN_TYPE] = {
                                       .type_id = REISER4_CRYPTO_PLUGIN_TYPE,
                                       .label = "crypto",
@@ -548,6 +549,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
                                       .size = sizeof (crypto_plugin)
 				      }
 	,
+#endif
 	[REISER4_TAIL_PLUGIN_TYPE] = {
 				      .type_id = REISER4_TAIL_PLUGIN_TYPE,
 				      .label = "tail",
