@@ -83,7 +83,7 @@ int internal_has_pointer_to( const tree_coord *coord,
  * parent pointer in child znode, insert child into sibling list and slum.
  *
  */
-int internal_create_hook( const tree_coord *item, void *cookie )
+int internal_create_hook( const tree_coord *item, void *arg )
 {
 	znode            *child;
 
@@ -102,8 +102,8 @@ int internal_create_hook( const tree_coord *item, void *cookie )
 		atomic_inc( &item -> node -> c_count );
 		child -> ptr_in_parent_hint = *item;
 		child -> ptr_in_parent_hint.between = AT_UNIT;
-		if( cookie != NULL )
-			reiser4_sibling_list_insert_nolock( child, cookie );
+		if( arg != NULL )
+			reiser4_sibling_list_insert_nolock( child, arg );
 
 		ZF_CLR( child, ZNODE_NEW );
 
