@@ -410,7 +410,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 			znode *child;
 
 			spin_lock_dk( current_tree );
-			child = child_znode( &coord, 0 );
+			child = child_znode( &coord, 1 );
 			spin_unlock_dk( current_tree );
 			if( !IS_ERR( child ) ) {
 				tree_rec( tree, child, flags );
