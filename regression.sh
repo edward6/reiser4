@@ -28,6 +28,8 @@ mv gmon.out gmon.out.mongo.3.1000.$r
 mv gmon.out gmon.out.rm.3.1000.$r
 ./a.out nikita unlink 10000 || exit 7
 mv gmon.out gmon.out.unlink.10000.$r
+./a.out nikita queue 30 10000 1000  || exit 6
+mv gmon.out gmon.out.rm.30.1000.$r
 ./a.out nikita mongo 30 1000 || exit 6
 mv gmon.out gmon.out.rm.30.1000.$r
 #( find /tmp | ./a.out vs copydir ) || exit 8
