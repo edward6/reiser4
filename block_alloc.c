@@ -88,6 +88,19 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *preceder, reiser4_block_nr *blk,
 				    preceder, needed, blk, len);
 }
 
+/* wrapper to call dealloc_blocks method of space allocation plugin */
+void reiser4_dealloc_blocks (const reiser4_block_nr * start, const reiser4_block_nr * len)
+{
+	space_allocator_plugin * splug;
+
+	assert ("zam-425", (get_current_super_private () &&
+			    get_current_super_private ()->space_plug &&
+			    get_current_super_private ()->space_plug->dealloc_blocks));
+
+	splug = get_current_super_private()->space_plug;
+	splug->dealloc_blocks (get_space_allocator (reiser4_get_current_sb ()), start, len);
+}
+
 /** obtain block number for formatted node */
 int alloc_blocknr (znode *neighbor, reiser4_block_nr *blocknr)
 {
