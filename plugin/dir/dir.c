@@ -163,6 +163,9 @@ static int common_unlink( struct inode *parent /* parent object */,
 	if( inode_get_flag( object, REISER4_IMMUTABLE ) )
 		return -EAGAIN;
 
+	/* victim should have stat data */
+	assert( "vs-949", !inode_get_flag( object, REISER4_NO_STAT_DATA ) );
+
 	/* check permissions */
 	if( perm_chk( parent, unlink, parent, victim ) )
 		return -EPERM;
@@ -194,6 +197,7 @@ static int common_unlink( struct inode *parent /* parent object */,
 	if( result != 0 )
 		return result;
 
+#if 0
 	/* 
 	 * removing last reference. Check that this is allowed. This is
 	 * optimization for common case when file having only one name is
@@ -219,6 +223,7 @@ static int common_unlink( struct inode *parent /* parent object */,
 			result = fplug -> delete( object, parent );
 	}
 	inode_clr_flag( object, REISER4_IMMUTABLE );
+#endif
 	/*
 	 * Upon successful completion, unlink() shall mark for update the
 	 * st_ctime and st_mtime fields of the parent directory. Also, if the
