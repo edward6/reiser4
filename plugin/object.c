@@ -739,6 +739,8 @@ static loff_t dir_seek( struct file *file UNUSED_ARG,
 	return result;
 }
 
+#define REISER4_PREFE
+
 /** simplest implementation of ->getattr() method. Completely static. */
 static int common_getattr( struct vfsmount *mnt UNUSED_ARG,
 			   struct dentry *dentry, struct kstat *stat )
@@ -763,7 +765,7 @@ static int common_getattr( struct vfsmount *mnt UNUSED_ARG,
 	stat -> ctime   = obj -> i_ctime;
 	stat -> size    = obj -> i_size;
 	stat -> blocks  = obj -> i_blocks;
-	stat -> blksize = obj -> i_blksize;
+	stat -> blksize = REISER4_OPTIMAL_IO_SIZE( obj -> i_sb, obj );
 
 	return 0;
 }
