@@ -104,7 +104,7 @@ int init_formatted_fake( struct super_block *super )
 		fake -> i_mapping -> a_ops = &formatted_fake_as_ops;
 		fake -> i_blkbits = super -> s_blocksize_bits;
 		fake -> i_size    = ~0ull;
-		fake -> i_rdev    = to_kdev_t(super -> s_dev);
+		fake -> i_rdev    = to_kdev_t( super -> s_dev );
 		fake -> i_bdev    = super -> s_bdev;
 		get_super_private( super ) -> fake = fake;
 		/*
