@@ -299,6 +299,12 @@ static int renew_sibling_link (coord_t * coord, lock_handle * handle,
 		iplug = item_plugin_by_coord(coord);
 		if (!item_is_internal (coord)) {
 			if (handle->owner != NULL) {
+				/*
+				 * FIXME:NIKITA->ZAM after staring at this
+				 * line for some time, it looks to fevered
+				 * brain that zrelse() was necessary here.
+				 */
+				zrelse(handle->node);
 				longterm_unlock_znode(handle);
 			}
 			link_znodes(child, NULL, flags & GN_GO_LEFT);
