@@ -34,8 +34,8 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     blk_t root_blk, blk;
     aal_block_t *block;
 
-    reiserfs_node40_header_t *node;
-    reiserfs_item40_header_t *item;
+    reiserfs_nh40_t *node;
+    reiserfs_ih40_t *item;
     
     reiserfs_internal40_t *internal_body;
     reiserfs_stat40_t *stat_body;
@@ -57,21 +57,21 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     if (!(block = aal_device_alloc_block(fs->device, blk, 0)))
 	return 0;
     
-    node = (reiserfs_node40_header_t *)block->data;
+    node = (reiserfs_nh40_t *)block->data;
     node->header.plugin_id = node_plugin_id;
 
     set_nh40_level(node, 2);
     set_nh40_magic(node, REISERFS_NODE40_MAGIC);
     set_nh40_num_items(node, 1);
     
-    set_nh40_free_space_start(node, sizeof(reiserfs_node40_header_t) + 
+    set_nh40_free_space_start(node, sizeof(reiserfs_nh40_t) + 
 	sizeof(reiserfs_internal40_t));
     
-    set_nh40_free_space(node, block->size - sizeof(reiserfs_node40_header_t) - 
-	sizeof(reiserfs_item40_header_t) - sizeof(reiserfs_internal40_t));
+    set_nh40_free_space(node, block->size - sizeof(reiserfs_nh40_t) - 
+	sizeof(reiserfs_ih40_t) - sizeof(reiserfs_internal40_t));
 
     /* Forming internal item and body */
-    item = (reiserfs_item40_header_t *)(block->data + block->size) - 1;
+    item = (reiserfs_ih40_t *)(block->data + block->size) - 1;
     
     aal_memset(&item->key, 0, sizeof(reiserfs_key_t));
     
@@ -81,7 +81,7 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     
     set_ih40_plugin_id(item, 0x3);
     set_ih40_length(item, sizeof(reiserfs_internal40_t));
-    set_ih40_offset(item, sizeof(reiserfs_node40_header_t));
+    set_ih40_offset(item, sizeof(reiserfs_nh40_t));
     
     internal_body = (reiserfs_internal40_t *)(block->data + get_ih40_offset(item));
     
@@ -107,24 +107,24 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     if (!(block = aal_device_alloc_block(fs->device, blk, 0)))
 	return 0;
     
-    node = (reiserfs_node40_header_t *)block->data;
+    node = (reiserfs_nh40_t *)block->data;
     node->header.plugin_id = node_plugin_id;
 
     set_nh40_level(node, 1);
     set_nh40_magic(node, REISERFS_NODE40_MAGIC);
     set_nh40_num_items(node, 2);
     
-    set_nh40_free_space_start(node, sizeof(reiserfs_node40_header_t) + 
+    set_nh40_free_space_start(node, sizeof(reiserfs_nh40_t) + 
 	sizeof(reiserfs_stat40_t) + sizeof(reiserfs_direntry40_t) + 
 	2*sizeof(reiserfs_direntry40_unit_t) + 2*sizeof(reiserfs_objid_t) + 2 + 3);
     
-    set_nh40_free_space(node, block->size - (sizeof(reiserfs_node40_header_t) + 
-	(2*sizeof(reiserfs_item40_header_t)) + sizeof(reiserfs_stat40_t) + 
+    set_nh40_free_space(node, block->size - (sizeof(reiserfs_nh40_t) + 
+	(2*sizeof(reiserfs_ih40_t)) + sizeof(reiserfs_stat40_t) + 
 	sizeof(reiserfs_direntry40_t) + 2*sizeof(reiserfs_direntry40_unit_t) + 2 + 3 + 
 	2*sizeof(reiserfs_objid_t)));
 
     /* Forming stat data item and body */
-    item = (reiserfs_item40_header_t *)(block->data + block->size) - 1;
+    item = (reiserfs_ih40_t *)(block->data + block->size) - 1;
     aal_memset(&item->key, 0, sizeof(reiserfs_key_t));
     
     set_key_type(&item->key, KEY_SD_MINOR);
@@ -133,7 +133,7 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     
     set_ih40_plugin_id(item, 0x0);
     set_ih40_length(item, sizeof(reiserfs_stat40_t));
-    set_ih40_offset(item, sizeof(reiserfs_node40_header_t));
+    set_ih40_offset(item, sizeof(reiserfs_nh40_t));
     
     stat_body = (reiserfs_stat40_t *)(block->data + get_ih40_offset(item));
     stat_body->mode = S_IFDIR | 0111;
@@ -142,7 +142,7 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     stat_body->size = 0;
 
     /* Forming direntry item and body */
-    item = (reiserfs_item40_header_t *)(block->data + block->size) - 2;
+    item = (reiserfs_ih40_t *)(block->data + block->size) - 2;
     aal_memset(&item->key, 0, sizeof(reiserfs_key_t));
     
     set_key_type(&item->key, KEY_FILE_NAME_MINOR);
@@ -153,7 +153,7 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
 	2*sizeof(reiserfs_direntry40_unit_t) + 2*sizeof(reiserfs_objid_t) + 
 	2 + 3);
     
-    set_ih40_offset(item, sizeof(reiserfs_node40_header_t) + sizeof(reiserfs_stat40_t));
+    set_ih40_offset(item, sizeof(reiserfs_nh40_t) + sizeof(reiserfs_stat40_t));
     
     direntry_body = (reiserfs_direntry40_t *)(block->data + get_ih40_offset(item));
     direntry_body->num_entries = 2;

@@ -20,7 +20,7 @@ typedef struct flush_stamp {
 } flush_stamp_t;
 
 /* Format of node header for node40. */
-struct reiserfs_node40_header {
+struct reiserfs_nh40 {
     reiserfs_node_common_header_t header;
     uint16_t free_space;
     uint16_t free_space_start;
@@ -30,13 +30,9 @@ struct reiserfs_node40_header {
     flush_stamp_t flush_stamp;
 };
 
-typedef struct reiserfs_node40_header reiserfs_node40_header_t;  
+typedef struct reiserfs_nh40 reiserfs_nh40_t;  
 
-#define reiserfs_node40(node)			((reiserfs_node40_t *)node)
-#define reiserfs_node40_data(node)		(reiserfs_node40(node)->block->data)
-#define reiserfs_node40_block(node)		(reiserfs_node40(node)->block)
-#define reiserfs_node40_size(node)		(reiserfs_node40(node)->block->size)
-#define reiserfs_node40_header(node)		((reiserfs_node40_header_t *)reiserfs_node40_data (node))
+#define reiserfs_nh40(node)			((reiserfs_nh40_t *)reiserfs_node_data(node))
 
 #define get_nh40_free_space(header)		get_le16(header, free_space)
 #define set_nh40_free_space(header, val)	set_le16(header, free_space, val)
@@ -53,42 +49,34 @@ typedef struct reiserfs_node40_header reiserfs_node40_header_t;
 #define get_nh40_num_items(header)		get_le16(header, num_items)
 #define set_nh40_num_items(header, val)		set_le16(header, num_items, val)
 
-/* Node object which plugin works with */
-struct reiserfs_node40 {
-    aal_block_t *block;
-    aal_device_t *device;
-};
-
-typedef struct reiserfs_node40 reiserfs_node40_t;
-
 /* 
     Item headers are not standard across all node layouts, pass
     pos_in_node to functions instead.
 */
-struct reiserfs_item40_header {
+struct reiserfs_ih40 {
     reiserfs_key_t key;	    
     uint16_t offset;
     uint16_t length;
     uint16_t plugin_id;
 };
 
-typedef struct reiserfs_item40_header reiserfs_item40_header_t;
+typedef struct reiserfs_ih40 reiserfs_ih40_t;
 
 #define reiserfs_node40_ih_at(node, pos) \
-    ((reiserfs_item40_header_t *) \
-    (reiserfs_node40_data(node) + reiserfs_node40_size(node)) - pos - 1)
+    ((reiserfs_ih40_t *) (reiserfs_node_data(node) + reiserfs_node_block(node)->size) \
+     - pos - 1)
 
 #define reiserfs_node40_item_at(node, pos) \
-    reiserfs_node40_data(node) + get_ih40_offset(reiserfs_node40_ih_at(node, pos))	
+    reiserfs_node_data(node) + get_ih40_offset(reiserfs_node40_ih_at(node, pos))
     
-#define get_ih40_offset(item_header)        get_le16(item_header, offset)
-#define set_ih40_offset(item_header,val)    set_le16(item_header, offset, val)
+#define get_ih40_offset(ih)        get_le16(ih, offset)
+#define set_ih40_offset(ih,val)    set_le16(ih, offset, val)
 
-#define get_ih40_length(item_header)        get_le16(item_header, length)
-#define set_ih40_length(item_header,val)    set_le16(item_header, length, val)
+#define get_ih40_length(ih)        get_le16(ih, length)
+#define set_ih40_length(ih,val)    set_le16(ih, length, val)
 
-#define get_ih40_plugin_id(item_header)     get_le16(item_header, plugin_id)
-#define set_ih40_plugin_id(item_header,val) set_le16(item_header, plugin_id, val)
+#define get_ih40_plugin_id(ih)     get_le16(ih, plugin_id)
+#define set_ih40_plugin_id(ih,val) set_le16(ih, plugin_id, val)
 
 #endif
 

@@ -45,6 +45,7 @@ static reiserfs_plugin_t stat40_plugin = {
 		reiserfs_opaque_t *item_info))reiserfs_stat40_create,
 	    .open = NULL,
 	    .close = NULL,
+	    .lookup = NULL,
 	    .add_unit = NULL,
 	    .confirm = (error_t (*)(reiserfs_opaque_t *))reiserfs_stat40_confirm,
 	    .check = (error_t (*)(reiserfs_opaque_t *))reiserfs_stat40_check,

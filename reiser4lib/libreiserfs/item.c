@@ -50,14 +50,27 @@ free_item:
     return NULL;
 }
 
-error_t reiserfs_item_init(reiserfs_item_t *item, reiserfs_coord_t *coord) {
-    reiserfs_plugin_id_t plugin_id;
+error_t reiserfs_item_close (reiserfs_item_t *item) {
+    aal_assert("vpf-052", item != NULL, return -1);
+    
+    if (item->plugin->item.common.close != NULL) {
+	if (item->plugin->item.common.close (item)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Can't close item (%u) in node (%llu).", item->coord->item_pos, 
+		aal_device_get_block_nr(item->coord->node->device, 
+		item->coord->node->block));
+	    return -1;
+	}
+    }
 
-    aal_assert("vpf-045", item != NULL, return -1);
-    aal_assert("vpf-046", coord != NULL, return -1);
+    aal_free(item);
+    return 0;
+}
 
+error_t reiserfs_item_fini(reiserfs_item_t *item) {
+    aal_assert("vpf-051", item != NULL, return -1);
+    
     if (item->entity) {
-	/* close item first */
 	if (!item->plugin) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't close item (%u) in the node (%llu).", item->coord->item_pos, 
@@ -66,17 +79,25 @@ error_t reiserfs_item_init(reiserfs_item_t *item, reiserfs_coord_t *coord) {
 	    return -1;
 	}
 	
-	if (item->plugin->item.common.close != NULL) {
-	    if (item->plugin->item.common.close (item)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		    "Can't close item (%u) in node (%llu).", item->coord->item_pos, 
-		    aal_device_get_block_nr(item->coord->node->device, 
-		    item->coord->node->block));
-		return -1;
-	    }
-	}
+	if (reiserfs_item_fini(item)) 
+	    return -1;
     }
-    
+    return 0;
+}
+
+error_t reiserfs_item_init(reiserfs_item_t *item, reiserfs_coord_t *coord) {
+    reiserfs_plugin_id_t plugin_id;
+
+    aal_assert("vpf-045", item != NULL, return -1);
+    aal_assert("vpf-046", coord != NULL, return -1);
+
+    if (reiserfs_item_fini (item)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Item plugin cannot close an item (%u) in the node (%llu).", coord->item_pos, 
+	    aal_device_get_block_nr(coord->node->device, coord->node->block));
+	return -1;
+    }
+
     item->coord = coord;
 
     if (!(plugin_id = reiserfs_node_get_item_plugin_id (coord->node, coord->item_pos))) {

@@ -70,6 +70,7 @@ struct reiserfs_common_item_plugin {
     error_t (*create) (reiserfs_opaque_t *, reiserfs_opaque_t *);
     error_t (*open) (reiserfs_opaque_t *);
     error_t (*close) (reiserfs_opaque_t *);
+    int (*lookup) (reiserfs_opaque_t *, reiserfs_key_t *);
 
     int (*add_unit) (reiserfs_opaque_t *, int32_t, 
 	reiserfs_opaque_t *unit_info);
@@ -145,12 +146,12 @@ typedef struct reiserfs_item_plugin reiserfs_item_plugin_t;
 struct reiserfs_node_plugin {
     reiserfs_plugin_header_t h;
 
-    reiserfs_opaque_t *(*open) (aal_device_t *, aal_block_t *);
-    reiserfs_opaque_t *(*create) (aal_device_t *, aal_block_t *, uint8_t);
+    error_t (*open) (reiserfs_opaque_t *);
+    error_t (*create) (reiserfs_opaque_t *, uint8_t);
     error_t (*close) (reiserfs_opaque_t *);
     error_t (*confirm) (reiserfs_opaque_t *);
     error_t (*check) (reiserfs_opaque_t *, int);
-    int (*lookup) (reiserfs_opaque_t *, reiserfs_key_t *, void *);
+    int (*lookup) (reiserfs_opaque_t *, reiserfs_key_t *);
     error_t (*insert) (reiserfs_opaque_t *, reiserfs_opaque_t *, 
 	    reiserfs_opaque_t *);
  

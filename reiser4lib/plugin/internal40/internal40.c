@@ -25,6 +25,7 @@ static reiserfs_plugin_t internal40_plugin = {
 	    .create = NULL,
 	    .open = NULL,
 	    .close = NULL,
+	    .lookup = NULL,
 	    .add_unit = NULL,
 	    .confirm = NULL,
 	    .check = NULL,

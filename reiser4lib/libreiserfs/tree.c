@@ -114,7 +114,7 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs, reiserfs_default_plugin_t *def
     reiserfs_alloc_use(fs, block_n);
     reiserfs_super_set_root(fs, block_n);
   
-    if (!(node = reiserfs_node_create(fs->device, block_n, default_plugins->node, 
+    if (!(node = reiserfs_node_create(fs->device, block_n, NULL, default_plugins->node, 
 	REISERFS_LEAF_LEVEL + 1))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -160,7 +160,7 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs, reiserfs_default_plugin_t *def
     /* free node, block, etc. about squeeze node */
     reiserfs_node_close (node);
     
-    if (!(node = reiserfs_node_create (fs->device, block_n, default_plugins->node, 
+    if (!(node = reiserfs_node_create (fs->device, block_n, node, default_plugins->node, 
 	REISERFS_LEAF_LEVEL))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -212,7 +212,7 @@ int reiserfs_tree_lookup(reiserfs_fs_t *fs, blk_t from,
 {
     int found = 0;
     reiserfs_node_t *node;
-    reiserfs_coord_t *coord;
+    reiserfs_coord_t coord;
     reiserfs_plugin_t *plugin;
     reiserfs_item_t item;
 	
@@ -222,24 +222,26 @@ int reiserfs_tree_lookup(reiserfs_fs_t *fs, blk_t from,
 	
     if (path)
 	reiserfs_path_clear(path);
-	
+    
     while (1) {
-	if (!(node = reiserfs_node_open(fs->device, from, REISERFS_GUESS_PLUGIN_ID))) {
+	if (!(node = reiserfs_node_open(fs->device, from, NULL, REISERFS_GUESS_PLUGIN_ID))) 
+	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't open node %llu.", from);
 	    return 0;
 	}
 	
-	if (!(coord = reiserfs_node_lookup(node, key)))
+	coord.node = node;
+
+	if (reiserfs_node_lookup(&coord, key) == -1)
 	    return 0;
 
-	if (path && !reiserfs_path_append(path, coord))
+	if (path && !reiserfs_path_append(path, &coord))
 	    return 0;
 	
-	if (reiserfs_item_init(&item, coord)) {
+	if (reiserfs_item_init(&item, &coord)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't open item %d, from node %llu.", 
-		coord->item_pos, from);
+		"Item %d in node %llu initialization failed.", coord.item_pos, from);
 	    return 0;
 	}
 
