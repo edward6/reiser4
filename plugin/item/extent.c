@@ -6,10 +6,6 @@
 
 static const reiser4_block_nr null_block_nr = (__u64)0;
 
-/*
- * FIXME-VS: this is to debug zam-528 only
- */
-//unsigned long unallocated_blocks;
 
 /*
  * prepare structure reiser4_item_data to put one extent unit into tree
@@ -553,16 +549,10 @@ int extent_kill_item_hook (const coord_t * coord, unsigned from,
 		 * FIXME-VS: this is to debug zam-528
 		 */
 		if (state_of_extent (ext) == UNALLOCATED_EXTENT) {
-//			assert ("", unallocated_blocks >= extent_get_width (ext));
-//			unallocated_blocks -= extent_get_width (ext);
 			/*
 			 * FIXME-VS: this is necessary???
 			 */
 			fake_allocated2free (extent_get_width (ext), 0/* unformatted */);
-/*  			if (reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()) != unallocated_blocks) */
-/*  				info ("kill_item_hook: sb: %llu, global: %lu\n", */
-/*  				      reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()), */
-/*  				      unallocated_blocks); */
 		}
 
 		if (state_of_extent (ext) != ALLOCATED_EXTENT) {
@@ -738,16 +728,10 @@ static int cut_or_kill_units (coord_t * coord,
 				 * FIXME-VS: debugging zam-528
 				 */
 				if (state_of_extent (ext) == UNALLOCATED_EXTENT && !cut) {
-//					assert ("", unallocated_blocks >= old_width - new_width);
-//					unallocated_blocks -= (old_width - new_width);
 					/*
 					 * FIXME-VS: this is necessary???
 					 */
 					fake_allocated2free (old_width - new_width, 0/*unformatted*/);
-/*  					if (reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()) != unallocated_blocks) */
-/*  						info ("cut_or_kill_units: sb: %llu, global: %lu\n", */
-/*  						      reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()), */
-/*  						      unallocated_blocks); */
 				}
 
 				if (state_of_extent (ext) == ALLOCATED_EXTENT && !cut) {
@@ -808,16 +792,10 @@ static int cut_or_kill_units (coord_t * coord,
 			 * FIXME-VS: debugging zam-528
 			 */
 			if (state_of_extent (ext) == UNALLOCATED_EXTENT && !cut) {
-//				assert ("", unallocated_blocks >= old_width - new_width);
-//				unallocated_blocks -= (old_width - new_width);
 				/*
 				 * FIXME-VS: this is necessary???
 				 */
 				fake_allocated2free (old_width - new_width, 0/*unformatted*/);
-/*  				if (reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()) != unallocated_blocks) */
-/*  					info ("cut_or_kill_units2: sb: %llu, global: %lu\n", */
-/*  					      reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()), */
-/*  					      unallocated_blocks); */
 			}
 
 			if (state_of_extent (ext) == ALLOCATED_EXTENT && !cut) {
@@ -2091,14 +2069,6 @@ static int extent_allocate_blocks (reiser4_blocknr_hint *preceder,
 		impossible ("vs-420", "could not allocate unallocated: %d", result);
 	}
 
-//	assert ("vs-956", unallocated_blocks >= *allocated);
-//	unallocated_blocks -= *allocated;
-
-/*  	if (reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()) != unallocated_blocks) */
-/*  		info ("extent_allocate_blocks: sb: %llu, global: %lu\n", */
-/*  		      reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()), */
-/*  		      unallocated_blocks); */
-
 	return result;
 }
 
@@ -2626,12 +2596,7 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 					 * again immediately.
 					 */
 					reiser4_dealloc_blocks (&first_allocated, &allocated,
-								0 /* defer */, BLOCK_UNALLOCATED, 0/* unformatted */);
-					/*
-					 * FIXME-VS: blocks goes back from state "used" to state "fake allocated"
-					 */ 
-//					unallocated_blocks += allocated;
-					
+								0 /* defer */, BLOCK_UNALLOCATED, 0/* unformatted */);					
 
 					result = SQUEEZE_TARGET_FULL;
 					trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: target full, to_allocate = %llu\n", to_allocate);
@@ -3014,13 +2979,6 @@ static void extent_assign_fake_blocknr (jnode * j)
 
 	assign_fake_blocknr (&fake_blocknr, 0/*unformatted*/);
 	jnode_set_block (j, &fake_blocknr);
-
-//	unallocated_blocks ++;
-	/*
-	 * FIXME-VS: for debugging zam-528
-	 */
-/*  	assert ("", unallocated_blocks == */
-/*  		reiser4_fake_allocated_unformatted (reiser4_get_current_sb ())); */
 }
 
 
