@@ -75,7 +75,7 @@ static ssize_t code_show(struct profregion *pregion, char *buf)
 	locksite *site;
 
 	site = pregion->code ? : &none;
-	KATTR_PRINT(p, buf, "%s:%s:%i\n", site->func, site->line);
+	KATTR_PRINT(p, buf, "%s:%i\n", site->func, site->line);
 	return (p - buf);
 }
 
