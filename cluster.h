@@ -231,8 +231,6 @@ int deflate_cluster(reiser4_cluster_t *, struct inode *);
 void truncate_page_cluster(struct inode * inode, cloff_t start);
 void set_hint_cluster(struct inode * inode, hint_t * hint, unsigned long index, znode_lock_mode mode);
 int get_disk_cluster_locked(reiser4_cluster_t * clust, struct inode * inode, znode_lock_mode lock_mode);
-void set_nrpages_by_inode(reiser4_cluster_t * clust, struct inode * inode);
-int grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust);
 void reset_cluster_params(reiser4_cluster_t * clust);
 int prepare_page_cluster(struct inode *inode, reiser4_cluster_t *clust, int capture);
 void release_cluster_pages_nocapture(reiser4_cluster_t *);
@@ -241,7 +239,6 @@ int grab_tfm_stream(struct inode * inode, tfm_cluster_t * tc, tfm_action act, tf
 int tfm_cluster_is_uptodate (tfm_cluster_t * tc);
 void tfm_cluster_set_uptodate (tfm_cluster_t * tc);
 void tfm_cluster_clr_uptodate (tfm_cluster_t * tc);
-int new_cluster(reiser4_cluster_t * clust, struct inode * inode);
 unsigned long clust_by_coord(const coord_t * coord, struct inode * inode);
 
 static inline int

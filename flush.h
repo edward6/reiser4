@@ -260,10 +260,6 @@ int init_fqs(void);
 void done_fqs(void);
 
 #if REISER4_DEBUG
-const char *jnode_tostring(jnode * node);
-#endif
-
-#if REISER4_DEBUG
 #define check_preceder(blk) \
 assert("nikita-2588", blk < reiser4_block_count(reiser4_get_current_sb()));
 extern void check_pos(flush_pos_t *pos);

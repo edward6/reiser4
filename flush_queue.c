@@ -182,7 +182,7 @@ detach_fq(flush_queue_t * fq)
 }
 
 /* destroy flush queue object */
-reiser4_internal void
+static void
 done_fq(flush_queue_t * fq)
 {
 	assert("zam-763", capture_list_empty(ATOM_FQ_LIST(fq)));
@@ -715,11 +715,6 @@ reiser4_internal int fq_by_jnode_gfp(jnode * node, flush_queue_t ** fq, int gfp)
 	}
 
 	return 0;
-}
-
-reiser4_internal int fq_by_jnode(jnode * node, flush_queue_t ** fq)
-{
-        return fq_by_jnode_gfp(node, fq, GFP_KERNEL);
 }
 
 

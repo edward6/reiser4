@@ -660,7 +660,7 @@ invalidate_unformatted(jnode *node)
 #define JNODE_GANG_SIZE (16)
 
 /* find all eflushed jnodes from range specified and invalidate them */
-reiser4_internal int
+static int
 truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 {
 	reiser4_inode *info;

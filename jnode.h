@@ -457,20 +457,18 @@ extern int jnodes_tree_init(reiser4_tree * tree);
 extern int jnodes_tree_done(reiser4_tree * tree);
 
 #if REISER4_DEBUG
+
 extern int znode_is_any_locked(const znode * node);
 extern void jnode_list_remove(jnode * node);
-extern int jnode_invariant(const jnode * node, int tlocked, int jlocked);
-#else
-#define jnode_list_remove(node) noop
-#define jnode_invariant(n, t, j) (1)
-#endif
-
-#if REISER4_DEBUG
 extern void info_jnode(const char *prefix, const jnode * node);
 extern void print_jnode(const char *prefix, const jnode * node);
+
 #else
+
+#define jnode_list_remove(node) noop
 #define info_jnode(p, n) noop
 #define print_jnode(p, n) noop
+
 #endif
 
 int znode_is_root(const znode * node) NONNULL;

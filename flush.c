@@ -433,7 +433,6 @@ assert("nikita-3435",							\
 	    extent_is_unallocated(&scan->parent_coord),			\
 	    extent_unit_index(&scan->parent_coord) == index_jnode(scan->node)))
 
-const char *pos_tostring(flush_pos_t * pos);
 
 /* This flush_cnt variable is used to track the number of concurrent flush operations,
    useful for debugging.  It is initialized in txnmgr.c out of laziness (because flush has
@@ -558,131 +557,6 @@ static int prepare_flush_pos(flush_pos_t *pos, jnode * org)
 	done_lh(&lock);
 	return ret;
 }
-
-#if REISER4_DEBUG
-
-const char *coord_tween_tostring(between_enum n);
-
-static void
-jnode_tostring_internal(jnode * node, char *buf)
-{
-	const char *state;
-	char atom[32];
-	char block[48];
-	char items[32];
-	int fmttd;
-	int dirty;
-	int lockit;
-
-	lockit = spin_trylock_jnode(node);
-
-	fmttd = jnode_is_znode(node);
-	dirty = JF_ISSET(node, JNODE_DIRTY);
-
-	sprintf(block, " block=%s page=%p state=%lx", sprint_address(jnode_get_block(node)), node->pg, node->state);
-
-	if (JF_ISSET(node, JNODE_OVRWR)) {
-		state = dirty ? "wandr,dirty" : "wandr";
-	} else if (JF_ISSET(node, JNODE_RELOC) && JF_ISSET(node, JNODE_CREATED)) {
-		state = dirty ? "creat,dirty" : "creat";
-	} else if (JF_ISSET(node, JNODE_RELOC)) {
-		state = dirty ? "reloc,dirty" : "reloc";
-	} else if (JF_ISSET(node, JNODE_CREATED)) {
-		assert("jmacd-61554", dirty);
-		state = "fresh";
-		block[0] = 0;
-	} else {
-		state = dirty ? "dirty" : "clean";
-	}
-
-	if (node->atom == NULL) {
-		atom[0] = 0;
-	} else {
-		sprintf(atom, " atom=%u", node->atom->atom_id);
-	}
-
-	items[0] = 0;
-	if (!fmttd) {
-		sprintf(items, " index=%lu", index_jnode(node));
-	}
-
-	sprintf(buf + strlen(buf),
-		"%s=%p [%s%s%s level=%u%s%s]",
-		fmttd ? "z" : "j",
-		node,
-		state, atom, block, jnode_get_level(node), items, JF_ISSET(node, JNODE_FLUSH_QUEUED) ? " fq" : "");
-
-	if (lockit == 1) {
-		UNLOCK_JNODE(node);
-	}
-}
-
-reiser4_internal const char *
-jnode_tostring(jnode * node)
-{
-	static char fmtbuf[256];
-	fmtbuf[0] = 0;
-	jnode_tostring_internal(node, fmtbuf);
-	return fmtbuf;
-}
-
-reiser4_internal const char *
-znode_tostring(znode * node)
-{
-	return jnode_tostring(ZJNODE(node));
-}
-
-
-reiser4_internal const char *
-pos_tostring(flush_pos_t * pos)
-{
-	static char fmtbuf[256];
-	load_count load;
-	fmtbuf[0] = 0;
-
-	init_load_count(&load);
-
-	if (pos->state == POS_ON_EPOINT) {
-		assert("jmacd-79123", pos->lock.node == pos->load.node);
-
-		strcat(fmtbuf, "par:");
-		jnode_tostring_internal(ZJNODE(pos->lock.node), fmtbuf);
-
-		if (incr_load_count_znode(&load, pos->lock.node)) {
-			return "*error*";
-		}
-
-		if (coord_is_before_leftmost(&pos->coord)) {
-			sprintf(fmtbuf + strlen(fmtbuf), "[left]");
-		} else if (coord_is_after_rightmost(&pos->coord)) {
-			sprintf(fmtbuf + strlen(fmtbuf), "[right]");
-		} else {
-			sprintf(fmtbuf + strlen(fmtbuf), "[%s i=%u/%u",
-				coord_tween_tostring(pos->coord.between),
-				pos->coord.item_pos, node_num_items(pos->coord.node));
-
-			if (!coord_is_existing_item(&pos->coord)) {
-				sprintf(fmtbuf + strlen(fmtbuf), "]");
-			} else {
-
-				sprintf(fmtbuf + strlen(fmtbuf), ",u=%u/%u %s]",
-					pos->coord.unit_pos,
-					coord_num_units(&pos->coord), coord_is_existing_unit(&pos->coord)
-					? (item_is_extent(&pos->coord) ?
-					   "ext" : (item_is_internal(&pos->coord) ? "int" : "other"))
-					: "tween");
-			}
-		}
-	} else if (pos->lock.node != NULL) {
-		strcat(fmtbuf, "pt:");
-		jnode_tostring_internal(ZJNODE(pos->lock.node), fmtbuf);
-	}
-
-	done_load_count(&load);
-	return fmtbuf;
-}
-
-#endif /* REISER4_TRACE */
 
 /* TODO LIST (no particular order): */
 /* I have labelled most of the legitimate FIXME comments in this file with letters to

@@ -932,7 +932,7 @@ used2free(reiser4_super_info_data *sbinfo, __u64 count)
 #if REISER4_DEBUG
 
 /* check "allocated" state of given block range */
-void
+static void
 reiser4_check_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len, int desired)
 {
 	sa_check_blocks(start, len, desired);

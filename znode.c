@@ -242,10 +242,6 @@ znodes_tree_init(reiser4_tree * tree /* tree to initialise znodes for */ )
 	return result;
 }
 
-#if REISER4_DEBUG
-extern void jnode_done(jnode * node, reiser4_tree * tree);
-#endif
-
 /* free this znode */
 reiser4_internal void
 zfree(znode * node /* znode to free */ )

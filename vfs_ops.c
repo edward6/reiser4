@@ -67,7 +67,7 @@ static void reiser4_sync_inodes(struct super_block *s, struct writeback_control 
 
 extern struct dentry_operations reiser4_dentry_operation;
 
-struct file_system_type reiser4_fs_type;
+static struct file_system_type reiser4_fs_type;
 
 /* ->statfs() VFS method in reiser4 super_operations */
 static int
@@ -241,7 +241,8 @@ static kmem_cache_t *dentry_fsdata_slab;
 /*
  * initializer for dentry_fsdata_slab called during boot or module load.
  */
-reiser4_internal int init_dentry_fsdata(void)
+static int
+init_dentry_fsdata(void)
 {
 	dentry_fsdata_slab = kmem_cache_create("dentry_fsdata",
 					       sizeof (reiser4_dentry_fsdata),
@@ -255,7 +256,8 @@ reiser4_internal int init_dentry_fsdata(void)
 /*
  * dual to init_dentry_fsdata(). Called on module unload.
  */
-reiser4_internal void done_dentry_fsdata(void)
+static void
+done_dentry_fsdata(void)
 {
 	kmem_cache_destroy(dentry_fsdata_slab);
 }
@@ -303,7 +305,8 @@ static kmem_cache_t *file_fsdata_slab;
 /*
  * initialize file_fsdata_slab. This is called during boot or module load.
  */
-reiser4_internal int init_file_fsdata(void)
+static int
+init_file_fsdata(void)
 {
 	file_fsdata_slab = kmem_cache_create("file_fsdata",
 					     sizeof (reiser4_file_fsdata),
@@ -317,7 +320,8 @@ reiser4_internal int init_file_fsdata(void)
 /*
  * dual to init_file_fsdata(). Called during module unload.
  */
-reiser4_internal void done_file_fsdata(void)
+static void 
+done_file_fsdata(void)
 {
 	kmem_cache_destroy(file_fsdata_slab);
 }
@@ -438,7 +442,7 @@ init_once(void *obj /* pointer to new inode */ ,
 }
 
 /* initialize slab cache where reiser4 inodes will live */
-reiser4_internal int
+static int
 init_inodecache(void)
 {
 	inode_cache = kmem_cache_create("reiser4_inode",
@@ -1332,7 +1336,7 @@ MODULE_AUTHOR("Hans Reiser <Reiser@Namesys.COM>");
 MODULE_LICENSE("GPL");
 
 /* description of the reiser4 file system type in the VFS eyes. */
-struct file_system_type reiser4_fs_type = {
+static struct file_system_type reiser4_fs_type = {
 	.owner = THIS_MODULE,
 	.name = "reiser4",
 	.fs_flags = FS_REQUIRES_DEV,

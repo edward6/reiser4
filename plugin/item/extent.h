@@ -118,7 +118,6 @@ int kill_units_extent(coord_t *coord, pos_in_node_t from, pos_in_node_t to,
 reiser4_key *unit_key_extent(const coord_t *, reiser4_key *);
 reiser4_key *max_unit_key_extent(const coord_t *, reiser4_key *);
 void print_extent(const char *, coord_t *);
-void show_extent(struct seq_file *m, coord_t *coord);
 int utmost_child_extent(const coord_t * coord, sideof side, jnode ** child);
 int utmost_child_real_block_extent(const coord_t * coord, sideof side, reiser4_block_nr * block);
 void item_stat_extent(const coord_t * coord, void *vp);

@@ -176,8 +176,6 @@ typedef enum {
 	REISER4_CHECK_NODE = 0x00000008
 } reiser4_debug_flags;
 
-extern int reiser4_is_debugged(struct super_block *super, __u32 flag);
-
 extern int is_in_reiser4_context(void);
 
 /*

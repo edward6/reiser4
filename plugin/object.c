@@ -912,7 +912,7 @@ bind_dir(struct inode *child, struct inode *parent)
 	return dplug->attach(child, parent);
 }
 
-reiser4_internal int
+static int
 setattr_reserve_common(reiser4_tree *tree)
 {
  	assert("vs-1096", is_grab_enabled(get_current_context()));

@@ -61,7 +61,7 @@ pg_by_coord(const coord_t * coord)
 	return get_key_offset(item_key_by_coord(coord, &key)) >> PAGE_CACHE_SHIFT;
 }
 
-reiser4_internal int
+static int
 coord_is_unprepped_ctail(const coord_t * coord)
 {
 	assert("edward-1233", coord != NULL);
@@ -1060,64 +1060,6 @@ int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode * ino
 	assert("edward-1255", znode_convertible(clust->hint->coord.base_coord.node));
  
 	return result;
-}
-
-/* Create a disk cluster of special 'minimal' format */
-int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode)
-{
-	char buf[UCTAIL_NR_UNITS];
-	flow_t f;
-	int result;
-	
-	assert("edward-1085", inode != NULL);
-	assert("edward-1086", clust->hint != NULL);
-	assert("edward-1062", clust->dstat == FAKE_DISK_CLUSTER);
-	assert("edward-1164", clust->reserved == 1);
-	assert("edward-675",  get_current_context()->grabbed_blocks == 
-	       estimate_insert_cluster(inode, 1));
-	
-	result = get_disk_cluster_locked(clust, inode, ZNODE_WRITE_LOCK);
-	if (cbk_errored(result))
-		return result;
-	assert("edward-1211", result == CBK_COORD_NOTFOUND);
-	assert("edward-1063", znode_is_write_locked(clust->hint->coord.lh->node));
-	
-	memset(buf, 0, (size_t)UCTAIL_NR_UNITS);
-	
-	flow_by_inode_cryptcompress(inode,
-				    buf,
-				    0 /* kernel space */,
-				    UCTAIL_NR_UNITS,
-				    clust_to_off(clust->index, inode),
-				    WRITE_OP,
-				    &f);
-#if 0
-	if (clust->hint->coord.base_coord.between == AT_UNIT) {
-		assert("edward-887", clust->hint->coord.base_coord.unit_pos == 0);
-		clust->hint->coord.base_coord.between = AFTER_ITEM;
-	}
-#endif
-	clust->hint->coord.base_coord.between = AFTER_ITEM;
-	clust->hint->coord.base_coord.unit_pos = 0;
-	
-	result = insert_crc_flow(&clust->hint->coord.base_coord, clust->hint->coord.lh, &f, inode);
-	all_grabbed2free();
-	if (result)
-		return result;
-	
-	assert("edward-743", crc_inode_ok(inode));
-	assert("edward-871", znode_is_write_locked(clust->hint->coord.lh->node));
-	assert("edward-677", reiser4_clustered_blocks(reiser4_get_current_sb()));
-	assert("edward-872", znode_convertible(clust->hint->coord.base_coord.node));
-#if REISER4_DEBUG	
-	if (!znode_is_dirty(clust->hint->coord.base_coord.node)) {
-		warning("edward-958",
-			"unprepped cluster inserted (clust %lu, inode %llu), "
-			"but znode is not dirty\n", 
-			clust->index, (unsigned long long)get_inode_oid(inode));
-	}
-#endif
-	return 0;
 }
 
 static int

@@ -129,6 +129,10 @@ static void jnode_set_type(jnode * node, jnode_type type);
 static int jdelete(jnode * node);
 static int jnode_try_drop(jnode * node);
 
+#if REISER4_DEBUG
+static int jnode_invariant(const jnode * node, int tlocked, int jlocked);
+#endif
+
 /* true if valid page is attached to jnode */
 static inline int jnode_is_parsed (jnode * node)
 {
@@ -272,7 +276,7 @@ jnode_init(jnode * node, reiser4_tree * tree, jnode_type type)
 /*
  * Remove jnode from ->all_jnodes list.
  */
-void
+static void
 jnode_done(jnode * node, reiser4_tree * tree)
 {
 	reiser4_super_info_data *sbinfo;
@@ -1887,7 +1891,7 @@ jnode_invariant_f(const jnode * node,
 }
 
 /* debugging aid: check znode invariant and panic if it doesn't hold */
-int
+static int
 jnode_invariant(const jnode * node, int tlocked, int jlocked)
 {
 	char const *failed_msg;

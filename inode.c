@@ -386,12 +386,12 @@ void loading_destroy(reiser4_inode *info)
 #endif
 }
 
-void loading_down(reiser4_inode *info)
+static void loading_down(reiser4_inode *info)
 {
 	down(&info->loading);
 }
 
-void loading_up(reiser4_inode *info)
+static void loading_up(reiser4_inode *info)
 {
 	up(&info->loading);
 }
@@ -678,85 +678,8 @@ inode_set_vroot(struct inode *inode, znode *vroot)
 	UNLOCK_INODE(info);
 }
 
-reiser4_internal int
-get_reiser4_inode_by_key (struct inode ** result, const reiser4_key * key)
-{
-	struct super_block * super = reiser4_get_current_sb();
-	struct inode * inode;
-
-	/* We do not need to read reiser4 inode from disk and initialize all
-	 * reiser4 inode fields. */
-	inode = iget_locked(super, (unsigned long)get_key_objectid(key));
-	if (inode == NULL)
-		return -ENOMEM;
-	if (is_bad_inode(inode)) {
-		iput(inode);
-		return -EIO;
-	}
-
-	if (inode->i_state & I_NEW) {
-		reiser4_inode * inode_data = reiser4_inode_data(inode);
-
-		/* These inode fields are required for tree traversal. */
-		set_inode_oid(inode, get_key_objectid(key));
-		inode_data->locality_id = get_key_locality(key);
-#if REISER4_LARGE_KEY
-		inode_data->ordering = get_key_ordering(key);
-#endif
-
-		inode->i_mapping->a_ops = &reiser4_as_operations;
-		unlock_new_inode(inode);
-	}
-
-	*result = inode;
-	return 0;
-}
-
-
-#if REISER4_DEBUG_OUTPUT
-/* Debugging aid: print information about inode. */
-reiser4_internal void
-print_inode(const char *prefix /* prefix to print */ ,
-	    const struct inode *i /* inode to print */ )
-{
-	reiser4_key inode_key;
-	reiser4_inode *ref;
-
-	if (i == NULL) {
-		printk("%s: inode: null\n", prefix);
-		return;
-	}
-	printk("%s: ino: %lu, count: %i, link: %i, mode: %o, size: %llu\n",
-	       prefix, i->i_ino, atomic_read(&i->i_count), i->i_nlink, i->i_mode, (unsigned long long) i->i_size);
-	printk("\tuid: %i, gid: %i, dev: %i, rdev: %i\n", i->i_uid, i->i_gid, i->i_sb->s_dev, i->i_rdev);
-	printk("\tatime: [%li,%li], mtime: [%li,%li], ctime: [%li,%li]\n",
-	       i->i_atime.tv_sec, i->i_atime.tv_nsec,
-	       i->i_mtime.tv_sec, i->i_mtime.tv_nsec,
-	       i->i_ctime.tv_sec, i->i_ctime.tv_nsec);
-	printk("\tblkbits: %i, blksize: %lu, blocks: %lu, bytes: %u\n",
-	       i->i_blkbits, i->i_blksize, i->i_blocks, i->i_bytes);
-	printk("\tversion: %lu, generation: %i, state: %lu, flags: %u\n",
-	       i->i_version, i->i_generation, i->i_state, i->i_flags);
-	printk("\tis_reiser4_inode: %i\n", is_reiser4_inode(i));
-	print_key("\tkey", build_sd_key(i, &inode_key));
-	ref = reiser4_inode_data(i);
-	print_plugin("\tfile", file_plugin_to_plugin(ref->pset->file));
-	print_plugin("\tdir", dir_plugin_to_plugin(ref->pset->dir));
-	print_plugin("\tperm", perm_plugin_to_plugin(ref->pset->perm));
-	print_plugin("\tformatting", formatting_plugin_to_plugin(ref->pset->formatting));
-	print_plugin("\thash", hash_plugin_to_plugin(ref->pset->hash));
-	print_plugin("\tsd", item_plugin_to_plugin(ref->pset->sd));
-
-	/* FIXME-VS: this segfaults trying to print seal's coord */
-	print_seal("\tsd_seal", &ref->sd_seal);
-	print_coord("\tsd_coord", &ref->sd_coord, 0);
-	printk("\tflags: %#lx, extmask: %#llx, pmask: %i, locality: %llu\n",
-	       *inode_flags(i), ref->extmask,
-	       ref->plugin_mask, ref->locality_id);
-}
-#endif
-
 #if REISER4_DEBUG
+
 void
 inode_invariant(const struct inode *inode)
 {

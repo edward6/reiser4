@@ -1153,18 +1153,6 @@ done_lh(lock_handle * handle)
 		longterm_unlock_znode(handle);
 }
 
-/* What kind of lock? */
-reiser4_internal znode_lock_mode lock_mode(lock_handle * handle)
-{
-	if (handle->owner == NULL) {
-		return ZNODE_NO_LOCK;
-	} else if (znode_is_rlocked(handle->node)) {
-		return ZNODE_READ_LOCK;
-	} else {
-		return ZNODE_WRITE_LOCK;
-	}
-}
-
 /* Transfer a lock handle (presumably so that variables can be moved between stack and
    heap locations). */
 static void

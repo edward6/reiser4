@@ -61,6 +61,11 @@ static char panic_buf[REISER4_PANIC_MSG_BUFFER_SIZE];
  */
 static spinlock_t panic_guard = SPIN_LOCK_UNLOCKED;
 
+#if REISER4_DEBUG
+static int
+reiser4_is_debugged(struct super_block *super, __u32 flag);
+#endif
+
 /* Your best friend. Call it on each occasion.  This is called by
     fs/reiser4/debug.h:reiser4_panic(). */
 reiser4_internal void
@@ -303,18 +308,18 @@ commit_check_locks(void)
 	return result;
 }
 
-/* REISER4_DEBUG */
-#endif
-
 /*
  * check that some bits specified by @flags are set in ->debug_flags of the
  * super block.
  */
-reiser4_internal int
+static int
 reiser4_is_debugged(struct super_block *super, __u32 flag)
 {
 	return get_super_private(super)->debug_flags & flag;
 }
+
+/* REISER4_DEBUG */
+#endif
 
 /* allocate memory. This calls kmalloc(), performs some additional checks, and
    keeps track of how many memory was allocated on behalf of current super

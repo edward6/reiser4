@@ -52,7 +52,6 @@ int kill_units_ctail(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 		     carry_kill_data *, reiser4_key * smallest_removed, reiser4_key *new_first);
 int ctail_ok(const coord_t * coord);
 int check_ctail(const coord_t * coord, const char **error);
-int coord_is_unprepped_ctail(const coord_t * coord);
 
 /* plugin->u.item.s.* */
 int read_ctail(struct file *, flow_t *, hint_t *);

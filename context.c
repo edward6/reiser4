@@ -47,18 +47,6 @@ static context_list_head active_contexts;
 /* lock protecting access to active_contexts. */
 spinlock_t active_contexts_lock;
 
-void
-check_contexts(void)
-{
-	reiser4_context *ctx;
-
-	spin_lock(&active_contexts_lock);
-	for_all_type_safe_list(context, &active_contexts, ctx) {
-		assert("vs-$BIGNUM", ctx->magic == context_magic);
-	}
-	spin_unlock(&active_contexts_lock);
-}
-
 #endif /* REISER4_DEBUG */
 
 /* initialise context and bind it to the current thread
@@ -109,7 +97,6 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	spin_lock(&active_contexts_lock);
 	context_list_check(&active_contexts);
 	context_list_push_front(&active_contexts, context);
-	/*check_contexts();*/
 	spin_unlock(&active_contexts_lock);
 	context->task = current;
 #endif
@@ -246,7 +233,6 @@ done_context(reiser4_context * context /* context being released */)
 #if REISER4_DEBUG
 		/* remove from active contexts */
 		spin_lock(&active_contexts_lock);
-		/*check_contexts();*/
 		context_list_remove(parent);
 		spin_unlock(&active_contexts_lock);
 #endif

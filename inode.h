@@ -166,8 +166,6 @@ struct reiser4_inode {
 void loading_init_once(reiser4_inode *);
 void loading_alloc(reiser4_inode *);
 void loading_destroy(reiser4_inode *);
-void loading_down(reiser4_inode *);
-void loading_up(reiser4_inode *);
 
 
 #define I_JNODES (512)	/* inode state bit. Set when in hash table there are more than 0 jnodes of unformatted nodes of
@@ -323,9 +321,6 @@ extern int is_reiser4_inode(const struct inode *inode);
 extern int setup_inode_ops(struct inode *inode, reiser4_object_create_data *);
 extern struct inode *reiser4_iget(struct super_block *super, const reiser4_key * key, int silent);
 extern void reiser4_iget_complete (struct inode * inode);
-extern int get_reiser4_inode_by_key (struct inode **, const reiser4_key *);
-
-
 extern void inode_set_flag(struct inode *inode, reiser4_file_plugin_flags f);
 extern void inode_clr_flag(struct inode *inode, reiser4_file_plugin_flags f);
 extern int inode_get_flag(const struct inode *inode, reiser4_file_plugin_flags f);

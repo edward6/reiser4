@@ -36,8 +36,6 @@ reiser4_key *append_key_tail(const coord_t *, reiser4_key *);
 void init_coord_extension_tail(uf_coord_t *, loff_t offset);
 int get_block_address_tail(const coord_t *coord,
 			   sector_t block, struct buffer_head *bh);
-
-void show_tail(struct seq_file *m, coord_t *coord);
 int item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 			     hint_t *hint, int back_to_dirty, int set_hint);
 

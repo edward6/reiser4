@@ -1345,7 +1345,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 /* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
    submit IO for allocated blocks.  We assume that current atom is in a stage
    when any atom fusion is impossible and atom is unlocked and it is safe. */
-reiser4_internal int
+static int
 alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 {
 	reiser4_block_nr block;
