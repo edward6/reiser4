@@ -84,6 +84,7 @@ static int common_link( struct inode *parent, struct dentry *existing,
 	parent_dplug = reiser4_get_dir_plugin( parent );
 
 	xmemset( &entry, 0, sizeof entry );
+	entry.obj = object;
 
 	data.mode = object -> i_mode;
 	data.id   = file_plugin_to_plugin( reiser4_get_object_state( object ) -> file ) -> h.id;
