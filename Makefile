@@ -55,6 +55,7 @@ reiser4-objs := \
 		   plugin/node/node40.o \
 		   plugin/object.o \
 		   plugin/symlink.o \
+		   plugin/crypo_compressed.o \
            \
 		   plugin/item/static_stat.o \
 		   plugin/item/sde.o \
