@@ -15,10 +15,17 @@ typedef struct flush_position flush_position;
 /* The flush_scan data structure maintains the state of an in-progress flush
  * scan on a single level of the tree. */
 struct flush_scan {
-	/* The current number of nodes on this level.  There may be a maximum
-	 * number of nodes for a scan on any single level determined by the
-	 * #define REISER4_FLUSH_SCAN_MAXNODES (see reiser4.h). */
+	/* The current number of nodes on this level. */
 	unsigned  size;
+
+	/* There may be a maximum number of nodes for a scan on any single level.  When
+	 * going leftward, it is determined by REISER4_FLUSH_SCAN_MAXNODES (see
+	 * reiser4.h).  When going rightward, it is determined by the number of nodes
+	 * required to reach FLUSH_RELOCATE_THRESHOLD. */
+	unsigned max_size;
+
+	/* True if scanning left. */
+	int going_left;
 
 	/* True if some condition stops the search (e.g., we found a clean
 	 * node before reaching max size, we found a node belonging to another
@@ -37,23 +44,27 @@ struct flush_position {
 	lock_handle           parent_lock;
 	tree_coord            parent_coord;
 	reiser4_blocknr_hint  preceder;
-	__u32                 left_scan_count;
+	unsigned              left_scan_count;
+	unsigned              right_scan_count;
+	int                   batch_relocate;
 	struct bio           *bio;
 };
 
 typedef enum {
-	SCAN_LEFT_EVERY_LEVEL,
-	SCAN_LEFT_FIRST_LEVEL,
-	SCAN_LEFT_NEVER
-} flush_scan_left_config;
+	SCAN_EVERY_LEVEL,
+	SCAN_FIRST_LEVEL,
+	SCAN_NEVER
+} flush_scan_config;
 
 static void          flush_scan_init              (flush_scan *scan);
-static void          flush_scan_cleanup           (flush_scan *scan);
-static int           flush_scan_left_finished     (flush_scan *scan);
-static int           flush_scan_left_extent       (flush_scan *scan);
-static int           flush_scan_left_formatted    (flush_scan *scan);
+static void          flush_scan_done              (flush_scan *scan);
 static void          flush_scan_set_current       (flush_scan *scan, jnode *node);
+static int           flush_scan_common            (flush_scan *scan);
+static int           flush_scan_finished          (flush_scan *scan);
+static int           flush_scan_extent            (flush_scan *scan);
+static int           flush_scan_formatted         (flush_scan *scan);
 static int           flush_scan_left              (flush_scan *scan, jnode *node);
+static int           flush_scan_right_upto        (flush_scan *scan, jnode *node, __u32 *res_count, __u32 limit);
 
 static int           flush_left_relocate          (jnode *node, const tree_coord *parent_coord);
 static int           flush_right_relocate         (jnode *node, const tree_coord *parent_coord);
@@ -64,7 +75,7 @@ static int           flush_finish                 (flush_position *pos);
 
 static int           flush_lock_leftpoint         (jnode                  *start_node,
 						   lock_handle            *start_lock,
-						   flush_scan_left_config  scan_config,
+						   flush_scan_config  scan_config,
 						   flush_position         *flush_pos);
 
 static int           flush_find_rightmost           (const tree_coord *parent_coord, reiser4_block_nr *pblk);
@@ -83,7 +94,7 @@ static int           squalloc_right_twig_cut      (tree_coord * to, reiser4_key 
 static int           squeeze_right_leaf           (znode *right, znode *left);
 static int           shift_one_internal_unit      (znode *left, znode *right);
 
-flush_scan_left_config flush_scan_config (jnode *node, int flags);
+flush_scan_config    flush_scan_get_config        (jnode *node, int flags);
 
 static int           jnode_lock_parent_coord      (jnode *node,
 						   tree_coord *coord,
@@ -126,9 +137,12 @@ int jnode_flush (jnode *node, int flags)
 {
 	int ret;
 	flush_position flush_pos;
-	flush_scan_left_config scan_config = flush_scan_config (node, flags);
+	flush_scan_config scan_config = flush_scan_get_config (node, flags);
+	flush_scan right_scan;
 
 	assert ("jmacd-5012", jnode_check_dirty (node));
+
+	flush_scan_init (& right_scan);
 
 	if ((ret = flush_pos_init (& flush_pos))) {
 		return ret;
@@ -156,9 +170,20 @@ int jnode_flush (jnode *node, int flags)
 			goto failed;
 		}
 
-		/* If we have not scanned past enough 
-		if (node->left_scan_count < FLUSH_RELOCATE_THRESHOLD) {
-
+		/* If we have not scanned past enough nodes to reach the threshold,
+		 * continue counting to the right.  This makes an approximation, if it has
+		 * not found enough nodes during the left-scan then it only counts nodes
+		 * to the right of the argument node.  This avoids counting nodes to the
+		 * right on internal levels, but this counts in the most-likely place
+		 * first.  The alternative would be to run squalloc_leftpoint with a "just
+		 * count up-to" argument, but I think this would be more costly and not
+		 * less effective in almost all cases. */
+		if (flush_pos.left_scan_count < FLUSH_RELOCATE_THRESHOLD) {
+			if ((ret = flush_scan_right_upto (& right_scan, node, & flush_pos.right_scan_count, FLUSH_RELOCATE_THRESHOLD - flush_pos.left_scan_count))) {
+				goto failed;
+			}
+		} else {
+			flush_pos.batch_relocate = 1;
 		}
 
 		/* Squeeze and allocate in parent-first order, scheduling writes and
@@ -176,21 +201,22 @@ int jnode_flush (jnode *node, int flags)
    failed:
 
 	flush_pos_done (& flush_pos);
+	flush_scan_done (& right_scan);
 	return ret;
 }
 
 /* This should be a plugin or mount option.  This sets the default scan_left policy
  * according to flush-alg.html. */
-flush_scan_left_config flush_scan_config (jnode *node, int flags)
+flush_scan_config flush_scan_get_config (jnode *node, int flags)
 {
 	if (flags & JNODE_FLUSH_MEMORY && jnode_get_level (node) == LEAF_LEVEL) {
 		/* The conservative approach. */
-		return SCAN_LEFT_FIRST_LEVEL;
+		return SCAN_FIRST_LEVEL;
 	}
 
 	/* The expansive approach. */
 	assert ("jmacd-8812", (flags & JNODE_FLUSH_COMMIT) || jnode_get_level (node) != LEAF_LEVEL);
-	return SCAN_LEFT_EVERY_LEVEL;
+	return SCAN_EVERY_LEVEL;
 }
 
 /********************************************************************************
@@ -231,7 +257,7 @@ flush_scan_left_config flush_scan_config (jnode *node, int flags)
  */
 static int flush_lock_leftpoint (jnode                  *start_node,
 				 lock_handle            *start_lock,
-				 flush_scan_left_config  scan_config,
+				 flush_scan_config       scan_config,
 				 flush_position         *pos)
 {
 	int ret;
@@ -248,7 +274,7 @@ static int flush_lock_leftpoint (jnode                  *start_node,
 	init_lh (& parent_lock);
 	init_lh (& end_lock);
 
-	if (scan_config != SCAN_LEFT_NEVER) {
+	if (scan_config != SCAN_NEVER) {
 		/* Scan start_node's level for the leftmost dirty neighbor. */
 		if ((ret = flush_scan_left (& level_scan, start_node))) {
 			goto failure;
@@ -327,8 +353,8 @@ static int flush_lock_leftpoint (jnode                  *start_node,
 		done_lh (start_lock ? start_lock : & end_lock);
 
 		/* Modify scan_config for the recursive call. */
-		if (scan_config == SCAN_LEFT_FIRST_LEVEL) {
-			scan_config = SCAN_LEFT_NEVER;
+		if (scan_config == SCAN_FIRST_LEVEL) {
+			scan_config = SCAN_NEVER;
 		}
 
 		/* Recurse upwards. */
@@ -369,7 +395,7 @@ static int flush_lock_leftpoint (jnode                  *start_node,
  failure:
 	done_lh            (& parent_lock);
 	done_lh            (& end_lock);
-	flush_scan_cleanup (& level_scan);
+	flush_scan_done (& level_scan);
 
 	return ret;
 }
@@ -774,7 +800,7 @@ static int squalloc_update_leftpoint (flush_position *pos)
 	assert ("jmacd-8551", ! flush_pos_unformatted (pos));
 
 	/* This call updates pos->point to its own leftpoint. */
-	if ((ret = flush_lock_leftpoint (pos->point, & pos->point_lock, SCAN_LEFT_NEVER, pos))) {
+	if ((ret = flush_lock_leftpoint (pos->point, & pos->point_lock, SCAN_NEVER, pos))) {
 		return ret;
 	}
 
@@ -1537,7 +1563,7 @@ static void flush_scan_init (flush_scan *scan)
 }
 
 /* Release any resources held by the flush scan, e.g., release locks, free memory, etc. */
-static void flush_scan_cleanup (flush_scan *scan)
+static void flush_scan_done (flush_scan *scan)
 {
 	if (scan->node != NULL) {
 		jput (scan->node);
@@ -1545,26 +1571,26 @@ static void flush_scan_cleanup (flush_scan *scan)
 }
 
 /* Returns true if leftward flush scanning is finished. */
-static int flush_scan_left_finished (flush_scan *scan)
+static int flush_scan_finished (flush_scan *scan)
 {
-	return scan->stop || scan->size >= REISER4_FLUSH_SCAN_MAXNODES;
+	return scan->stop || scan->size >= scan->max_size;
 }
 
 /* Return true if the scan should continue to the left.  Go left if the node
  * is not allocated, dirty, and in the same atom as the current scan position.
  * If not, deref the "left" node and stop the scan. */
-static int flush_scan_goleft (flush_scan *scan, jnode *left)
+static int flush_scan_goto (flush_scan *scan, jnode *tonode)
 {
-	int goleft;
+	int go;
 
-	goleft = ! jnode_is_allocated (left) && txn_same_atom_dirty (scan->node, left);
+	go = ! jnode_is_allocated (tonode) && txn_same_atom_dirty (scan->node, tonode);
 
-	if (! goleft) {
-		jput (left);
+	if (! go) {
+		jput (tonode);
 		scan->stop = 1;
 	}
 
-	return goleft;
+	return go;
 }
 
 /* Set the current scan->node, refcount it, increment size, and deref previous current. */
@@ -1580,7 +1606,7 @@ static void flush_scan_set_current (flush_scan *scan, jnode *node)
 
 /* Perform a single leftward step using the parent, finding the next-left item, and
  * descending.  Only used at the left-boundary of an extent or range of znodes. */
-static int flush_scan_left_using_parent (flush_scan *scan)
+static int flush_scan_using_parent (flush_scan *scan)
 {
 	int ret;
 	lock_handle node_lh, parent_lh, left_parent_lh;
@@ -1588,7 +1614,7 @@ static int flush_scan_left_using_parent (flush_scan *scan)
 	item_plugin *iplug;
 	jnode *child_left;
 
-	assert ("jmacd-1403", ! flush_scan_left_finished (scan));
+	assert ("jmacd-1403", ! flush_scan_finished (scan));
 
 	init_coord (& coord);
 	init_lh    (& node_lh);
@@ -1618,15 +1644,15 @@ static int flush_scan_left_using_parent (flush_scan *scan)
 	/* Finished with the node lock. */
 	done_lh (& node_lh);
 
-	/* Shift the coord to the left. */
-	if ((ret = coord_prev_unit (& coord)) != 0) {
-		/* If coord_prev returns 1, coord is already leftmost of its node. */
+	/* Shift the coord to the left or right. */
+	if ((ret = scan->going_left ? coord_prev_unit (& coord) : coord_next_unit (& coord)) != 0) {
 
-		/* Lock the left-of-parent node, but don't read into memory.
-		 * ENOENT means not-in-memory.  This may also cause atom
-		 * fusion, but in such case the regions were adjacent and so
-		 * this makes sense. */
-		if ((ret = reiser4_get_left_neighbor (& left_parent_lh, parent_lh.node, ZNODE_READ_LOCK, 0))) {
+		/* If coord_prev/next returns 1, coord is already leftmost/rightmost of its node. */
+
+		/* Lock the neighboring parent node, but don't read into memory.  ENOENT
+		 * means not-in-memory.  This may also cause atom fusion, but in such case
+		 * the regions were adjacent and so this makes sense. */
+		if ((ret = reiser4_get_neighbor (& left_parent_lh, parent_lh.node, ZNODE_READ_LOCK, (scan->going_left ? GN_GO_LEFT : 0)))) {
 			if (ret == -ENOENT) {
 				scan->stop = 1;
 				ret = 0;
@@ -1661,7 +1687,7 @@ static int flush_scan_left_using_parent (flush_scan *scan)
 	}
 
 	/* We've found a child to the left, now see if we should continue the scan.  If not then scan->stop is set. */
-	if (flush_scan_goleft (scan, child_left)) {
+	if (flush_scan_goto (scan, child_left)) {
 		flush_scan_set_current (scan, child_left);
 	}
 
@@ -1675,7 +1701,7 @@ static int flush_scan_left_using_parent (flush_scan *scan)
 }
 
 /* Performs leftward scanning starting from a formatted node */
-static int flush_scan_left_formatted (flush_scan *scan)
+static int flush_scan_formatted (flush_scan *scan)
 {
 	/* Follow left pointers under tree lock as long as:
 	 *
@@ -1686,7 +1712,7 @@ static int flush_scan_left_formatted (flush_scan *scan)
 	 */
 	znode *left;
 
-	assert ("jmacd-1401", ! flush_scan_left_finished (scan));
+	assert ("jmacd-1401", ! flush_scan_finished (scan));
 
 	/*info_znode ("scan_left: ", node);*/
 
@@ -1715,20 +1741,20 @@ static int flush_scan_left_formatted (flush_scan *scan)
 
 		/* Check the condition for going left, break if it is not met,
 		 * release left reference. */
-		if (! flush_scan_goleft (scan, ZJNODE (left))) {
+		if (! flush_scan_goto (scan, ZJNODE (left))) {
 			break;
 		}
 
 		/* Advance the flush_scan state to the left. */
 		flush_scan_set_current (scan, ZJNODE (left));
 
-	} while (! flush_scan_left_finished (scan));
+	} while (! flush_scan_finished (scan));
 
 	/* If left is NULL then we reached the end of a formatted region, or else the
 	 * sibling is out of memory, now check for an extent to the left (as long as
 	 * LEAF_LEVEL). */
-	if (left == NULL && jnode_get_level (scan->node) == LEAF_LEVEL && ! flush_scan_left_finished (scan)) {
-		return flush_scan_left_using_parent (scan);
+	if (left == NULL && jnode_get_level (scan->node) == LEAF_LEVEL && ! flush_scan_finished (scan)) {
+		return flush_scan_using_parent (scan);
 	}
 
 	scan->stop = 1;
@@ -1736,19 +1762,19 @@ static int flush_scan_left_formatted (flush_scan *scan)
 }
 
 /* Performs leftward scanning starting from an unformatted node */
-static int flush_scan_left_extent (flush_scan *scan)
+static int flush_scan_extent (flush_scan *scan)
 {
 	/* FIXME: Want to skip unallocated extents. */
 	jnode *left;
 	unsigned long scan_index;
 
-	assert ("jmacd-1404", ! flush_scan_left_finished (scan));
+	assert ("jmacd-1404", ! flush_scan_finished (scan));
 	assert ("jmacd-1405", jnode_get_level (scan->node) == LEAF_LEVEL);
 
 	/* Starting at the index (i.e., block offset) of the jnode in its extent... */
 	scan_index = jnode_get_index (scan->node);
 
-	while (scan_index > 0 && ! flush_scan_left_finished (scan)) {
+	while (scan_index > 0 && ! flush_scan_finished (scan)) {
 
 		/* For each loop iteration, get the previous index. */
 		left = jnode_get_extent_neighbor (scan->node, --scan_index);
@@ -1760,7 +1786,7 @@ static int flush_scan_left_extent (flush_scan *scan)
 		}
 
 		/* Check the condition for going left. */
-		if (! flush_scan_goleft (scan, left)) {
+		if (! flush_scan_goto (scan, left)) {
 			break;
 		}
 
@@ -1770,36 +1796,65 @@ static int flush_scan_left_extent (flush_scan *scan)
 
 	/* If we made it all the way to the beginning of the extent, check for another
 	 * extent or znode to the left. */
-	if (scan_index == 0 && ! flush_scan_left_finished (scan)) {
-		return flush_scan_left_using_parent (scan);
+	if (scan_index == 0 && ! flush_scan_finished (scan)) {
+		return flush_scan_using_parent (scan);
 	}
 
 	scan->stop = 1;
 	return 0;
 }
 
-/* Performs leftward scanning starting either kind of node */
-static int flush_scan_left (flush_scan *scan, jnode *init_node)
+/* Performs leftward scanning starting from either kind of node */
+static int flush_scan_left (flush_scan *scan, jnode *node)
+{
+	scan->max_size   = REISER4_FLUSH_SCAN_MAXNODES;
+	scan->going_left = 1;
+
+	flush_scan_set_current (scan, jref (node));
+
+	return flush_scan_common (scan);
+}
+
+/* Performs rightward scanning... */
+static int flush_scan_right_upto (flush_scan *scan, jnode *node, __u32 *res_count, __u32 limit)
 {
 	int ret;
 
-	/* Reference and set the initial leftmost boundary. */
-	flush_scan_set_current (scan, jref (init_node));
+	scan->max_size   = limit;
+	scan->going_left = 0;
+
+	flush_scan_set_current (scan, jref (node));
+
+	/* Don't count the first node when scanning right, it was counted when scanning
+	 * left. */
+	scan->size = 0;
+
+	if ((ret = flush_scan_common (scan)) == 0) {
+		(*res_count) = scan->size;
+	}
+
+	return ret;
+}
+
+/* Performs left or right scanning. */
+static int flush_scan_common (flush_scan *scan)
+{
+	int ret;
 
 	/* Continue until we've scanned far enough. */
 	do {
 		/* Choose the appropriate scan method and go. */
 		if (jnode_is_unformatted (scan->node)) {
-			ret = flush_scan_left_extent (scan);
+			ret = flush_scan_extent (scan);
 		} else {
-			ret = flush_scan_left_formatted (scan);
+			ret = flush_scan_formatted (scan);
 		}
 
 		if (ret != 0) {
 			return ret;
 		}
 
-	} while (ret == 0 && ! flush_scan_left_finished (scan));
+	} while (ret == 0 && ! flush_scan_finished (scan));
 
 	return ret;
 }
@@ -1813,6 +1868,8 @@ static int flush_pos_init (flush_position *pos)
 {
 	pos->point = NULL;
 	pos->left_scan_count = 0;
+	pos->right_scan_count = 0;
+	pos->batch_relocate = 0;
 
 	blocknr_hint_init (& pos->preceder);
 	init_lh (& pos->point_lock);
