@@ -242,7 +242,7 @@ static errno_t node40_expand(node40_t *node,
 	offset = nh40_get_free_space_start(nh);
     
     nh40_set_free_space(nh, nh40_get_free_space(nh) - 
-	hint->len - (is_insert ? sizeof(item40_header_t) : 0));
+	(hint->len + (is_insert ? sizeof(item40_header_t) : 0)));
     
     nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) + 
 	hint->len);
@@ -331,8 +331,7 @@ static errno_t node40_shrink(node40_t *node,
     ih = node40_ih_at(node->block, pos->item);
     offset = ih40_get_offset(ih);
 
-    is_move = ((offset + ih40_get_len(ih)) < 
-	nh40_get_free_space_start(nh));
+    is_move = ((offset + ih40_get_len(ih)) < nh40_get_free_space_start(nh));
     
     if (is_move) {
 	item40_header_t *cur;
@@ -392,8 +391,8 @@ static errno_t node40_cut(reiser4_entity_t *entity,
     reiser4_pos_t *pos)
 {
     void *body;
-    uint16_t len;
     rpid_t pid;
+    uint16_t len;
     
     item40_header_t *ih;
     node40_header_t *nh;
@@ -423,7 +422,7 @@ static errno_t node40_cut(reiser4_entity_t *entity,
     if (node40_shrink(node, pos, len))
         return -1;
 	
-    ih40_set_len(ih, ih40_get_len(ih) + len);
+    ih40_set_len(ih, ih40_get_len(ih) - len);
     nh40_set_free_space(nh, nh40_get_free_space(nh) + len);
 
     return 0;

@@ -29,16 +29,19 @@ reiser4_cache_t *reiser4_cache_create(
 void reiser4_cache_close(
     reiser4_cache_t *cache	/* cache instance to be closed */
 ) {
+    aal_list_t *list;
     aal_assert("umka-122", cache != NULL, return);
     
-    /* Recurcive calling of the same function in order to free all childrens too */
-    if (cache->list) {
+    list = cache->list ? aal_list_first(cache->list) : NULL;
+
+    if (list) {
 	aal_list_t *walk;
 	
-	aal_list_foreach_forward(walk, cache->list)
+	/* Recurcive calling of the same function in order to free all childrens too */
+	aal_list_foreach_forward(walk, list)
 	    reiser4_cache_close((reiser4_cache_t *)walk->item);
 
-	aal_list_free(aal_list_first(cache->list));
+	aal_list_free(list);
 	cache->list = NULL;
     }
     
@@ -58,12 +61,14 @@ void reiser4_cache_close(
 }
 
 /* Helper for comparing during finding in the cashe */
-static int callback_comp_for_find(
-    reiser4_cache_t *cache,	/* cache find should be operate on */
-    reiser4_key_t *key,		/* key to be find */
+static inline int callback_comp_key(
+    const void *item,		/* cache find should be operate on */
+    const void *k,		/* key to be find */
     void *data			/* user-specified data */
 ) {
     reiser4_key_t ldkey;
+    reiser4_key_t *key = (reiser4_key_t *)k;
+    reiser4_cache_t *cache = (reiser4_cache_t *)item;
     
     reiser4_node_lkey(cache->node, &ldkey);
     return reiser4_key_compare(&ldkey, key) == 0;
@@ -74,18 +79,17 @@ reiser4_cache_t *reiser4_cache_find(
     reiser4_cache_t *cache,	/* cache to  be greped */
     reiser4_key_t *key)		/* left delimiting key */
 {
-    aal_list_t *item;
+    aal_list_t *found;
     
     if (!cache->list)
 	return NULL;
     
     /* Using aal_list find function */
-    if (!(item = aal_list_find_custom(aal_list_first(cache->list), (void *)key, 
-	    (int (*)(const void *, const void *, void *))
-	    callback_comp_for_find, NULL)))
+    if (!(found = aal_list_find_custom(aal_list_first(cache->list), 
+	    (void *)key, callback_comp_key, NULL)))
 	return NULL;
 
-    return (reiser4_cache_t *)item->item;
+    return (reiser4_cache_t *)found->item;
 }
 
 /* Returns left or right neighbor key for passed cache */
@@ -359,16 +363,19 @@ void reiser4_cache_unregister(
 errno_t reiser4_cache_sync(
     reiser4_cache_t *cache	/* cache to be synchronized */
 ) {
+    aal_list_t *list;
     aal_assert("umka-124", cache != NULL, return 0);
+    
+    list = cache->list ? cache->list : NULL;
     
     /* 
 	Walking through the list of childrens and calling reiser4_cache_sync
 	function for each element.
     */
-    if (cache->list) {
+    if (list) {
 	aal_list_t *walk;
 	
-	aal_list_foreach_forward(walk, cache->list) {
+	aal_list_foreach_forward(walk, list) {
 	    if (reiser4_cache_sync((reiser4_cache_t *)walk->item))
 		return -1;
 	}

@@ -36,7 +36,7 @@ long long progs_misc_size_parse(
     }	
 	
     memset(number, 0, 255);
-    strncpy(number, str, strlen(str));
+    aal_strncpy(number, str, strlen(str));
     label = number[strlen(number) - 1];
 	
     if (toupper(label) == toupper('k') || toupper(label) == toupper('m') || 

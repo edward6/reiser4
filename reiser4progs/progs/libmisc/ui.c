@@ -167,7 +167,7 @@ static char *progs_ui_generator(char *text, int state) {
 	progs_misc_upper(s1, text);
 
 	if (!aal_strncmp(s, s1, aal_strlen(s1)))
-	    return aal_strdup(opt);
+	    return aal_strndup(opt, aal_strlen(opt));
     }
     
     return NULL;

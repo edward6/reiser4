@@ -1,28 +1,6 @@
 This file is part of reiser4progs package
 Copyright (C) 1996-2002 Hans Reiser
 
-Reiser4 is a file system based on dancing tree algorithms, and is
-described at http://www.namesys.com
-
-mkreiser4 and other utilities are on our webpage or wherever your
-Linux provider put them.  You really want to be running the latest
-version off the website if you use fsck.
-
-Yes, if you update your reiser4 kernel module you do have to
-recompile your kernel, most of the time.  The errors you get will be
-quite cryptic if your forget to do so.
-
-Hideous Commercial Pitch: Spread your development costs across other OS
-vendors.  Select from the best in the world, not the best in your
-building, by buying from third party OS component suppliers.  Leverage
-the software component development power of the internet.  Be the most
-aggressive in taking advantage of the commercial possibilities of
-decentralized internet development, and add value through your branded
-integration that you sell as an operating system.  Let your competitors
-be the ones to compete against the entire internet by themselves.  Be
-hip, get with the new economic trend, before your competitors do.  Send
-email to reiser@namesys.com
-
 Hans Reiser was the primary architect of Reiser4, but a whole team
 chipped their ideas in.  He invested everything he had into Namesys
 for 5.5 dark years of no money before Reiser3 finally started to work well
@@ -87,3 +65,4 @@ It is so nice to have someone like that on the team.  He (plus Chris
 and Jeff) make it possible for the entire rest of the Namesys team to
 focus on Reiser4, and he fixed a whole lot of Reiser4 bugs also.  It
 is just amazing to watch his talent for spotting bugs in action.
+

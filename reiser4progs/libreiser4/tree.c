@@ -285,13 +285,16 @@ error_free_tree:
     cache.
 */
 errno_t reiser4_tree_flush(reiser4_tree_t *tree) {
-
+    aal_list_t *list;
+    
     aal_assert("umka-573", tree != NULL, return -1);
 
-    if (tree->cache->list) {
+    list = tree->cache->list ? aal_list_first(tree->cache->list) : NULL;
+    
+    if (list) {
 	aal_list_t *walk;
 	
-	aal_list_foreach_forward(walk, tree->cache->list)
+	aal_list_foreach_forward(walk, list)
 	    reiser4_cache_close((reiser4_cache_t *)walk->item);
 	
 	tree->cache->list = NULL;

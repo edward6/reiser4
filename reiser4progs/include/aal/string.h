@@ -35,7 +35,6 @@ extern char *aal_strpbrk(const char *s, const char *accept);
 extern char *aal_strchr(const char *s, int c);
 extern char *aal_strrchr(const char *s, int c);
 extern char *aal_strsep(char **stringp, const char *delim);
-extern char *aal_strdup(const char *s, size_t n);
 
 #else
 
@@ -56,7 +55,6 @@ extern char *aal_strdup(const char *s, size_t n);
 #define aal_strchr  strchr
 #define aal_strrchr strrchr
 #define aal_strsep  strsep
-#define aal_strdup  strdup
 
 #endif	/* ENABLE_COMPACT */
 
@@ -67,6 +65,8 @@ extern int aal_llutoa(unsigned long long d, size_t n, char *a, int base, int fla
 extern int aal_stoa(int d, size_t n, char *a, int base, int flags);
 extern int aal_lstoa(long int d, size_t n, char *a, int base, int flags);
 extern int aal_llstoa(long long d, size_t n, char *a, int base, int flags);
+
+extern char *aal_strndup(const char *s, size_t n);
 
 #endif
 

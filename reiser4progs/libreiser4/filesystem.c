@@ -243,8 +243,6 @@ reiser4_fs_t *reiser4_fs_create(
 	}
 	
 	dir_hint.statdata_pid = profile->item.statdata;
-	dir_hint.sdext = profile->sdext;
-
 	dir_hint.direntry_pid = profile->item.direntry;
 	dir_hint.hash_pid = profile->hash;
 	

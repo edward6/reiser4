@@ -27,8 +27,8 @@
 #include <misc/misc.h>
 
 static void mkfs_print_usage(char *name) {
-    fprintf(stderr, "Usage: %s [ options ] FILE1 FILE2 ... [ size[K|M|G] ]\n", 
-	name);
+    fprintf(stderr, "Usage: %s [ options ] "
+	"FILE1 FILE2 ... [ size[K|M|G] ]\n", name);
     
     fprintf(stderr, 
 	"Common options:\n"
@@ -73,7 +73,6 @@ static reiser4_object_t *mkfs_create_lost_found(reiser4_fs_t *fs,
     /* Preparing object hint */
     hint.statdata_pid = profile->item.statdata;
     hint.direntry_pid = profile->item.direntry;
-    hint.sdext = profile->sdext;
     hint.hash_pid = profile->hash;
 	
     /* Creating lost+found */
@@ -114,7 +113,7 @@ int main(int argc, char *argv[]) {
 	mkfs_print_usage(argv[0]);
 	return USER_ERROR;
     }
-    
+
     mkfs_init();
     
     memset(uuid, 0, sizeof(uuid));

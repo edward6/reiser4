@@ -271,7 +271,6 @@ struct reiser4_object_hint {
     rpid_t tail_pid;
     rpid_t extent_pid;
     rpid_t hash_pid;
-    uint64_t sdext;
 };
 
 typedef struct reiser4_object_hint reiser4_object_hint_t;

@@ -80,8 +80,6 @@ int main(int argc, char *argv[]) {
 	dir_plugin = fs->dir->entity->plugin;
 	
 	dir_hint.statdata_pid = ITEM_STATDATA40_ID;
-	dir_hint.sdext = SDEXT_UNIX_ID;
-
 	dir_hint.direntry_pid = ITEM_CDE40_ID;
 	dir_hint.hash_pid = HASH_R5_ID;
 	
@@ -90,7 +88,7 @@ int main(int argc, char *argv[]) {
 	    char name[256];
 	    reiser4_object_t *dir;
 
-	    for (i = 0; i < 68; i++) {
+	    for (i = 0; i < 80; i++) {
 		aal_memset(name, 0, sizeof(name));
 		aal_snprintf(name, 256, "testdir%d", i);
 		if ((dir = reiser4_dir_create(fs, &dir_hint, dir_plugin, object, name)))

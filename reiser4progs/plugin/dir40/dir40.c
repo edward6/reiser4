@@ -457,7 +457,7 @@ static reiser4_entity_t *dir40_create(const void *tree,
     
     /* Initializing stat data item hint. */
     stat.mode = S_IFDIR | 0755;
-    stat.extmask = hint->sdext;
+    stat.extmask = 1 << SDEXT_UNIX_ID;
     stat.nlink = 2;
     stat.size = 2;
     
