@@ -31,7 +31,7 @@ extern errno_t reiserfs_tree_insert(reiserfs_tree_t *tree,
     reiserfs_item_hint_t *item, reiserfs_coord_t *coord);
 
 extern errno_t reiserfs_tree_attach(reiserfs_tree_t *tree,
-    reiserfs_key_t *key, reiserfs_cache_t *cache);
+    reiserfs_cache_t *cache);
 
 extern errno_t reiserfs_tree_grow(reiserfs_tree_t *tree,
     reiserfs_cache_t *cache);

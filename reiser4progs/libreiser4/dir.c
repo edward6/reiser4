@@ -164,7 +164,7 @@ errno_t reiserfs_dir_add(
 ) {
     aal_assert("umka-862", object != NULL, return -1);
     aal_assert("umka-863", object->entity != NULL, return -1);
-
+    
     return libreiser4_plugin_call(return -1, object->plugin->dir_ops, 
         add, object->entity, hint);
 }

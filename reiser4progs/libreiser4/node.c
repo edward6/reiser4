@@ -460,8 +460,9 @@ errno_t reiserfs_node_insert(
         reiserfs_node_get_free_space(node))
     {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-            "There is no space to insert the item of (%u) size in the node (%llu).",
-            item->len, aal_block_get_nr(node->block));
+            "There is no space to insert the %s of (%u) size in the node (%llu).",
+            (pos->unit == 0xffff ? "item" : "unit"), item->len, 
+	    aal_block_get_nr(node->block));
         return -1;
     }
 
