@@ -659,14 +659,14 @@ guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
 }
 
 /* this comon implementation of create estimation function may be used when object creation involves insertion of one item
- * (usualy stat data) into tree */
+   (usualy stat data) into tree */
 static reiser4_block_nr common_estimate_create(struct inode *object)
 {
 	return estimate_one_insert_item(tree_by_inode(object)->height);
 }
 
 /* this comon implementation of create directory estimation function may be used when directory creation involves
- * insertion of two items (usualy stat data and item containing "." and "..") into tree */
+   insertion of two items (usualy stat data and item containing "." and "..") into tree */
 static reiser4_block_nr common_estimate_create_dir(struct inode *object)
 {
 	return 2 * estimate_one_insert_item(tree_by_inode(object)->height);

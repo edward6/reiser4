@@ -826,7 +826,7 @@ reiser4_check_block(const reiser4_block_nr * block, int desired)
    not be counted in any reiser4 sb block counters, see block_stage_t comment */
 
 /* BA_FORMATTED bit is only used when BA_DEFER in not present: it is used to 
- * distinguish blocks allocated for unformatted and formatted nodes */
+   distinguish blocks allocated for unformatted and formatted nodes */
 
 int
 reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len,

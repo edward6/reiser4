@@ -667,15 +667,12 @@ prepare_node_for_write(flush_queue_t * fq, jnode * node)
 int
 write_fq(flush_queue_t * fq, int how_many)
 {
-	/* 
-	 * number of blocks we submit to write in this write_fq() call */
+	/* number of blocks we submit to write in this write_fq() call */
 	int nr_submitted;
-	/* 
-	 * a limit for maximum number of blocks in one bio implied by the device
-	 * specific request queue restriction */
+	/* a limit for maximum number of blocks in one bio implied by the device
+	   specific request queue restriction */
 	int max_blocks;	
-	/*
-	 * atom the fq is attached to */
+	/* atom the fq is attached to */
 	txn_atom * atom;
 
 #if REISER4_USER_LEVEL_SIMULATION
@@ -713,7 +710,7 @@ write_fq(flush_queue_t * fq, int how_many)
 		}
 
 		/* We save first node from sequence as an argument for
-		 * submit_write() */
+		   submit_write() */
 		first = last = capture_list_front(&fq->prepped);
 		nr_contiguous = 0;
 
@@ -736,7 +733,7 @@ write_fq(flush_queue_t * fq, int how_many)
 		}
 
 		/* All nodes we going to write are moved to sent list, nobody
-		 * can steal them from there, we can unlock atom */
+		   can steal them from there, we can unlock atom */
 		spin_unlock_atom(atom);
 
 		/* take the set we just prepped, and submit it for writing to disk */
@@ -910,7 +907,7 @@ static int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 }
 
 /* Steal prepped nodes from another flush queue (from same @atom)
- * and add them to @dst flush queue */
+   and add them to @dst flush queue */
 static void steal_queued_nodes (txn_atom * atom, flush_queue_t * dst)
 {
 	flush_queue_t * fq;
