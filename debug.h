@@ -240,7 +240,6 @@ extern __u32 reiser4_current_trace_flags;
 #define reiser4_stat_slum_add( stat ) ST_INC_CNT( slum. ## stat )
 #define reiser4_stat_pool_add( stat ) ST_INC_CNT( pool. ## stat )
 
-/* FIXME_NIKITA: Why test (level > 0) below, if you've already subtracted LEAF_LEVEL? */
 #define	reiser4_stat_level_add( l, stat )				\
 ({									\
 	tree_level level;						\
