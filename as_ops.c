@@ -350,6 +350,9 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 	LOCK_JNODE(node);
 	if (releasable(node)) {
+		struct address_space *mapping;
+
+		mapping = page->mapping;
 		INC_STAT(page, node, page_released);
 		jref(node);
 		/* there is no need to synchronize against
@@ -360,6 +363,13 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 		/* we are under memory pressure so release jnode also. */
 		jput(node);
+		spin_lock(&mapping->page_lock);
+		/* shrink_list() + radix-tree */
+		if (page_count(page) == 2) {
+			__remove_from_page_cache(page);
+			__put_page(page);
+		}
+		spin_unlock(&mapping->page_lock);
 		return 1;
 	} else {
 		UNLOCK_JNODE(node);
