@@ -3499,6 +3499,7 @@ static jnode * get_jnode_by_mapping (struct inode * inode, long index)
 		return ERR_PTR(-ENOMEM);
 	node = jnode_of_page(page);
 	unlock_page(page);
+	page_cache_release(page);
 	return node;
 }
 
@@ -3647,95 +3648,141 @@ static int make_new_extent_at_end (coord_t * coord, reiser4_block_nr width, int 
 	return replace_end_of_extent(coord, new_ext_start, width, all_replaced);
 }
 
-static int relocate_one_part_of_extent_unit (
-	struct inode * inode, tap_t * tap, reiser4_block_nr * start, 
-	reiser4_block_nr * len, int * done, int * nr_reserved)
+static void parse_extent(coord_t * coord, reiser4_block_nr * start, reiser4_block_nr * width, long * ind)
 {
 	reiser4_extent * ext;
-	jnode *check;
+
+	ext   = extent_by_coord(coord);
+	*start = extent_get_start(ext);
+	*width = extent_get_width(ext);
+	*ind   = extent_unit_index(coord);
+}
+
+static int skip_not_relocatable_extent(struct inode * inode, coord_t * coord, int * done)
+{
 	reiser4_block_nr ext_width, ext_start;
-	reiser4_block_nr new_block;
-	long ext_index;
-	long i, j;
+	long ext_index, reloc_start;
+	jnode * check = NULL;
 	int ret = 0;
 
-	ext = extent_by_coord(tap->coord);
-	ext_start = extent_get_start(ext);
-	ext_width = extent_get_width(ext);
-	ext_index = extent_unit_index(tap->coord);
 
-	/* search for the first node which can be relocated. */
-	for (i = ext_width - 1; i >= 0; i --) {
-		check = get_jnode_by_mapping(inode, i + ext_index);
-		if (IS_ERR(check)) {
-			ret = PTR_ERR(check);
-			break;
+	parse_extent(coord, &ext_start, &ext_width, &ext_index);
+
+	for (reloc_start = ext_width - 1; reloc_start > 0; reloc_start --) {
+		check = get_jnode_by_mapping(inode, reloc_start + ext_index);
+		if (IS_ERR(check))
+			return PTR_ERR(check);
+
+		if (relocatable(check)) {
+			jput(check);
+			if (reloc_start < ext_width - 1)
+				ret = make_new_extent_at_end(coord, ext_width - reloc_start, done);
+			return ret;
 		}
-
-		if (relocatable(check))
-			goto found_first;
-
 		jput(check);
 	}
-
 	*done = 1;
 	return 0;
+}
 
- found_first:
-	/* add new extent unit for the part of the extent which cannot be relocated */
-	if (i < ext_width - 1) {
-		ret = make_new_extent_at_end(tap->coord, ext_width - i, done);
-		if (ret || (*done))
-			return ret;
 
-		ext = extent_by_coord(tap->coord);
-		ext_start = extent_get_start(ext);
-		ext_width = extent_get_width(ext);
-		ext_index = extent_unit_index(tap->coord);
-	}
+static int relocate_extent (struct inode * inode, coord_t * coord, reiser4_blocknr_hint * hint, 
+			    int *done, reiser4_block_nr * len)
+{
+	reiser4_block_nr ext_width, ext_start;
+	long ext_index, reloc_ind;
+	reiser4_block_nr new_ext_width, new_ext_start, new_block;
+	int ret = 0;
 
-	/* new block number for the first node we relocate. */
-	new_block = *start + *len - 1;
+	parse_extent(coord, &ext_start, &ext_width, &ext_index);
+	assert("zam-974", *len != 0);
 
-	/* relocate all unformatted nodes which we can relocate, determine size of relocated extent,
-	   update extent item/unit to the new location. */
-	j = i;
-	while (*nr_reserved > 0) {
-		/* add node to transaction. */
-		ret = try_capture(check, ZNODE_WRITE_LOCK, 0);
-		if (ret)
-			break;
+	if (state_of_extent(extent_by_coord(coord)) == UNALLOCATED_EXTENT)
+		hint->block_stage = BLOCK_UNALLOCATED;
+	else 
+		hint->block_stage = BLOCK_FLUSH_RESERVED;
+		
+	new_ext_width = *len;
+	ret = reiser4_alloc_blocks(hint, &new_ext_start, &new_ext_width, BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
+	if (ret)
+		return ret;
 
-		jnode_make_dirty_locked(check);
-		JF_SET(check, JNODE_REPACK);
-		JF_SET(check, JNODE_RELOC);
-		(*nr_reserved) --;
+	new_block = new_ext_start;
+	for (reloc_ind = ext_width - new_ext_width; reloc_ind < ext_width; reloc_ind ++)
+	{
+		jnode * check;
+		check = get_jnode_by_mapping(inode, ext_index + reloc_ind);
+		if (IS_ERR(check))
+			return PTR_ERR(check);
+		assert("zam-975", relocatable(check));
 
 		/* relocate node */
 		jnode_set_block(check, &new_block);
-		new_block --;
-		(*len) --;
-		
+		new_block ++;
 		jput(check);
-
-		if (-- j <= 0)
-			break;
-
-		check = get_jnode_by_mapping(inode, j + ext_index);
-		if (IS_ERR(check)) {
-			ret = PTR_ERR(check);
-			check = NULL;
-			break;
-		}
-		if (!relocatable(check))
-			break;
-		
 	}
 
-	if (check != NULL)
+	ret = replace_end_of_extent(coord, new_ext_start, new_ext_width, done);
+	*len = new_ext_width;
+	return 0;
+}
+
+static int find_relocatable_extent (struct inode * inode, coord_t * coord,
+				    int * nr_reserved, reiser4_block_nr * len)
+{
+	reiser4_block_nr ext_width, ext_start;
+	long ext_index, reloc_end;
+	jnode * check = NULL;
+	int ret = 0;
+
+	*len = 0;
+	parse_extent(coord, &ext_start, &ext_width, &ext_index);
+
+	for (reloc_end = ext_width - 1;
+	     reloc_end > 0 && *nr_reserved > 0; reloc_end --) 
+	{
+		check = get_jnode_by_mapping(inode, reloc_end + ext_index);
+		if (IS_ERR(check))
+			return PTR_ERR(check);
+		if (!relocatable(check)) {
+			assert("zam-973", reloc_end < ext_width - 1);
+			goto out;
+		}
+		/* add node to transaction. */
+		ret = try_capture(check, ZNODE_WRITE_LOCK, 0);
+		if (ret)
+			goto out;
+		UNDER_SPIN_VOID(jnode, check, jnode_make_dirty_locked(check));
 		jput(check);
 
-	return replace_end_of_extent(tap->coord, *start + ext_width - (i - j), (reiser4_block_nr)(i - j), done);
+		(*len) ++;
+		(*nr_reserved) --;
+	}
+	if (0) {
+	out:
+		jput(check);
+	}
+	return ret;
+}
+
+static int find_and_relocate_end_of_extent (struct inode * inode, coord_t * coord,
+					    int * nr_reserved, reiser4_blocknr_hint *hint, int * done)
+{
+	reiser4_block_nr len;
+	int ret;
+
+	ret = skip_not_relocatable_extent(inode, coord, done);
+	if (ret || (*done))
+		return ret;
+
+	ret = find_relocatable_extent(inode, coord, nr_reserved, &len);
+	if (ret)
+		return ret;
+
+	ret = relocate_extent(inode, coord, hint, done, &len);
+	if (ret)
+		return ret;
+	return (int)len;
 }
 
 /* process (relocate) unformatted nodes in backward direction: from the end of extent to the its start.  */
@@ -3745,9 +3792,9 @@ int process_extent_backward_for_repacking (tap_t * tap, int max_nr_processed, re
 	reiser4_extent *ext;
 	int nr_reserved = max_nr_processed;
 	struct inode * inode = NULL;
-	int ret;
-	reiser4_block_nr start, len = 0;
 	int done = 0;
+	int ret;
+
 
 	ext = extent_by_coord(coord);
 	if (state_of_extent(ext) == HOLE_EXTENT)
@@ -3755,30 +3802,11 @@ int process_extent_backward_for_repacking (tap_t * tap, int max_nr_processed, re
 
 	ret = get_reiser4_inode_by_tap(&inode, tap);
 
-	while (!done && !ret) {
+	while (!done && !ret)
+		ret = find_and_relocate_end_of_extent(inode, coord, &nr_reserved, hint, &done);
 
-		len = extent_get_width(ext);
-		ret = reiser4_alloc_blocks(hint, &start, &len, BA_PERMANENT, __FUNCTION__);
-		if (ret)
-			break;
-
-		hint->blk = start;
-		while (!done && len != 0) {
-			ret = relocate_one_part_of_extent_unit(inode, tap, &start, &len, &done, &nr_reserved);
-			if (ret)
-				break;
-		}
-	}
-
-	if (len)
-		/* Discard not used block allocation. */
-		ret = reiser4_dealloc_blocks(&start, &len, BLOCK_GRABBED, 0, __FUNCTION__);
-	
-	if (inode)
-		iput(inode);
-	if (ret)
-		return ret;
-	return (max_nr_processed - nr_reserved);
+	iput(inode);
+	return ret;
 }
 
 /*
