@@ -1284,7 +1284,7 @@ static void reiser4_delete_inode( struct inode *object )
 {
 	__REISER4_ENTRY( object -> i_sb, );
 
-	if( reiser4_inode_data( object ) -> flags & REISER4_LOADED ) {
+	if( inode_get_flag( object, REISER4_LOADED ) ) {
 		file_plugin *fplug;
 
 		truncate_object( object, ( loff_t ) 0 );
@@ -1293,7 +1293,9 @@ static void reiser4_delete_inode( struct inode *object )
 		assert( "nikita-2613", fplug != NULL );
 		if( fplug -> delete != NULL )
 			fplug -> delete( object, NULL );
-	}
+	} else
+		info( "reiser4_delete_inode: inode %lu not loaded\n",
+		      object -> i_ino );
 	object -> i_blocks = 0;
 	clear_inode( object );
 	__REISER4_EXIT( &__context );
