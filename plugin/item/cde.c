@@ -748,7 +748,7 @@ copy_units_cde(coord_t * target /* coord of target item */ ,
 	int data_size;
 	int data_delta;
 	int i;
-#if REISER4_TRACE
+#if REISER4_TRACE && REISER4_DEBUG_OUTPUT
 	reiser4_key debug_key;
 #endif
 
