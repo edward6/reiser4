@@ -73,9 +73,9 @@ int balance_level_slum (slum_scan *scan)
 	target_lh = &lh_area[ 0 ];
 	source_lh = &lh_area[ 1 ];
 
-	reiser4_init_carry_pool( &pool );
-	reiser4_init_carry_level( &slum_level, &pool );
-	reiser4_init_carry_level( &todo, &pool );
+	init_carry_pool( &pool );
+	init_carry_level( &slum_level, &pool );
+	init_carry_level( &todo, &pool );
 
 	/* lock target */
 	result = longterm_lock_znode( target_lh, target, ZNODE_WRITE_LOCK, 
@@ -88,7 +88,7 @@ int balance_level_slum (slum_scan *scan)
 	if( result != 0 )
 		goto done;
 
-	addc = reiser4_add_to_carry( target, &slum_level );
+	addc = add_to_carry( target, &slum_level );
 	if ( IS_ERR( addc ) ) {
 		result = PTR_ERR( addc );
 		goto done;
@@ -150,7 +150,7 @@ int balance_level_slum (slum_scan *scan)
 			break;
 		}
 
-		addc = reiser4_add_to_carry( source, &slum_level );
+		addc = add_to_carry( source, &slum_level );
 		if( IS_ERR( addc ) ) {
 			result = PTR_ERR( addc );
 			break;
@@ -214,9 +214,9 @@ int balance_level_slum (slum_scan *scan)
 			 * keeping more nodes locked than some other limit,
 			 * flush todo queue.
 			 */
-			if( ( reiser4_carry_op_num( &todo ) > 
+			if( ( carry_op_num( &todo ) > 
 			      REISER4_SQUEEZE_OP_MAX ) ||
-			    ( reiser4_carry_node_num( &slum_level ) > 
+			    ( carry_node_num( &slum_level ) > 
 			      REISER4_SQUEEZE_NODE_MAX ) ) {
 				/*
 				 * batch-run all pending operations.
@@ -227,11 +227,11 @@ int balance_level_slum (slum_scan *scan)
 				 * reinitialise carry pool, so that 
 				 * new operations will be gathered here.
 				 */
-				reiser4_done_carry_pool( &pool );
-				reiser4_init_carry_pool( &pool );
-				reiser4_init_carry_level( &slum_level, &pool );
-				reiser4_init_carry_level( &todo, &pool );
-				addc = reiser4_add_to_carry( target, 
+				done_carry_pool( &pool );
+				init_carry_pool( &pool );
+				init_carry_level( &slum_level, &pool );
+				init_carry_level( &todo, &pool );
+				addc = add_to_carry( target, 
 							     &slum_level );
 				if ( IS_ERR( addc ) )
 					result = PTR_ERR( addc );
@@ -260,7 +260,7 @@ int balance_level_slum (slum_scan *scan)
 		warning( "nikita-1503", "Post squeezing carry skipped: %i",
 			 result );
 	
-	reiser4_done_carry_pool( &pool );
+	done_carry_pool( &pool );
 
 	reiser4_stat_slum_add( squeeze );
 	return result;

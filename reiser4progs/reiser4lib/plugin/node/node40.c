@@ -1576,12 +1576,12 @@ static int prepare_for_update (znode * left, znode * right, carry_level * todo)
 	if (!should_notify_parent (right))
 		return 0;
 
-	op = reiser4_post_carry (todo, COP_UPDATE, right, 1);
+	op = post_carry (todo, COP_UPDATE, right, 1);
 	if (IS_ERR (op) || op == NULL)
 		return op ? PTR_ERR (op) : -EIO;
 
 	if (left != NULL) {
-		cn = reiser4_add_carry (todo, POOLO_BEFORE, op->node);
+		cn = add_carry (todo, POOLO_BEFORE, op->node);
 		if (IS_ERR (cn))
 			return PTR_ERR (cn);
 		cn->parent = 1;
@@ -1603,7 +1603,7 @@ static int prepare_for_removal (znode * empty, carry_level * todo)
 
 	if (!should_notify_parent (empty))
 		return 0;
-	op = reiser4_post_carry (todo, COP_DELETE, empty, 1);
+	op = post_carry (todo, COP_DELETE, empty, 1);
 	if (IS_ERR (op) || op == NULL)
 		return op ? PTR_ERR (op) : -EIO;
 

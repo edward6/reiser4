@@ -33,11 +33,11 @@ extern int block_alloc_post_writeback_hook (txn_atom*);
 extern int reiser4_init_bitmap ();
 extern void reiser4_done_bitmap ();
 
-extern int reiser4_blocknr_is_fake (const reiser4_disk_addr *);
+extern int blocknr_is_fake (const reiser4_disk_addr *);
 
-extern int reiser4_alloc_new_unf_blocks (int count);
-extern int reiser4_alloc_new_block (block_nr * block);
-extern void reiser4_dealloc_new_blocks (int count);
+extern int alloc_new_unf_blocks (int count);
+extern int alloc_new_block (block_nr * block);
+extern void dealloc_new_blocks (int count);
 
 extern int reiser4_alloc_blocks (struct reiser4_blocknr_hint * hint UNUSED_ARG, 
 				 block_nr * start, int * len);

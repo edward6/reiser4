@@ -828,8 +828,8 @@ static int add_empty_leaf( tree_coord *insert_coord, reiser4_lock_handle *lh,
 	reiser4_item_data item;
 	carry_insert_data cdata;
 
-	reiser4_init_carry_pool( &pool );
-	reiser4_init_carry_level( &todo, &pool );
+	init_carry_pool( &pool );
+	init_carry_level( &todo, &pool );
 	ON_STATS( todo.level_no = TWIG_LEVEL );
 
 	node = new_node( insert_coord -> node, LEAF_LEVEL );	
@@ -843,7 +843,7 @@ static int add_empty_leaf( tree_coord *insert_coord, reiser4_lock_handle *lh,
 	*znode_get_rd_key( node ) = *rdkey;
 	spin_unlock_dk( current_tree );
 
-	op = reiser4_post_carry( &todo, COP_INSERT, insert_coord -> node, 0 );
+	op = post_carry( &todo, COP_INSERT, insert_coord -> node, 0 );
 	if( IS_ERR( op ) )
 		return PTR_ERR( op );
 	cdata.coord = insert_coord;
@@ -861,7 +861,7 @@ static int add_empty_leaf( tree_coord *insert_coord, reiser4_lock_handle *lh,
 	op -> node -> tracked = lh;
 
 	result = carry( &todo, 0 );
-	reiser4_done_carry_pool( &pool );
+	done_carry_pool( &pool );
 
 	return result;
 }

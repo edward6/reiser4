@@ -7,7 +7,7 @@
 /** is it a real block number from real block device or fake block number for
  * not-yet-mapped object? */
 
-int reiser4_blocknr_is_fake(const reiser4_disk_addr * da)
+int blocknr_is_fake(const reiser4_disk_addr * da)
 {
 	return da->blk & REISER4_FAKE_BLOCKNR_BIT_MASK;
 }
@@ -461,7 +461,7 @@ void reiser4_done_bitmap (struct super_block * super)
 /** Count disk space allocated for unformatted nodes. Because unformatted
  * nodes do not need block numbers (even fake ones) we do not call
  * get_next_fake_blocknr()  */
-int reiser4_alloc_new_unf_blocks (int count) 
+int alloc_new_unf_blocks (int count) 
 {
 	reiser4_super_info_data * info_data = reiser4_get_current_super_private();
 	int ret = 0;
@@ -479,7 +479,7 @@ int reiser4_alloc_new_unf_blocks (int count)
 }
 
 /** allocate one block for formatted node */
-int reiser4_alloc_new_block (block_nr * block)
+int alloc_new_block (block_nr * block)
 {
 	reiser4_super_info_data * info_data = reiser4_get_current_super_private();
 	int ret = 0;
@@ -498,7 +498,7 @@ int reiser4_alloc_new_block (block_nr * block)
 }
 
 /** */
-void reiser4_dealloc_new_blocks (int count)
+void dealloc_new_blocks (int count)
 {
 	struct super_block * super = reiser4_get_current_context()->super;
 	reiser4_super_info_data * info_data = reiser4_get_super_private(super);
@@ -572,7 +572,7 @@ void reiser4_dealloc_block (jnode *node)
 	assert ("zam-400", atom != NULL);
 	assert ("zam-401", !JF_ISSET(node, ZNODE_DELETED));
 
-	if (reiser4_blocknr_is_fake(&node->blocknr)) {
+	if (blocknr_is_fake(&node->blocknr)) {
 		/* deallocation of such not-yet-mapped-to-disk nodes does not
 		 * cause putting them to atom's DELETED SET, but fs free block
 		 * counter is changed immediately */
@@ -627,7 +627,7 @@ int block_alloc_pre_commit_hook (txn_atom * atom)
 
 		parse_blocknr(node->blocknr.blk, &bmap, &offset);
 
-		assert("zam-370", !reiser4_blocknr_is_fake(&node->blocknr));
+		assert("zam-370", !blocknr_is_fake(&node->blocknr));
 
 		bnode = &info_data->bitmap[bmap];
 
@@ -706,7 +706,7 @@ int block_alloc_post_commit_hook (txn_atom * atom) {
 			continue;
 
 		/* ... apply DELETED_SET to the WORKING bitmap */
-		assert ("zam-403", !reiser4_blocknr_is_fake(&node->blocknr));
+		assert ("zam-403", !blocknr_is_fake(&node->blocknr));
 
 		parse_blocknr(node->blocknr.blk, &bmap, &offset);
 
@@ -749,7 +749,7 @@ int block_alloc_post_writeback_hook (txn_atom * atom)
 		if (!JF_ISSET(node, ZNODE_WANDER))
 			continue;
 
-		assert ("zam-404", !reiser4_blocknr_is_fake(&node->blocknr))
+		assert ("zam-404", !blocknr_is_fake(&node->blocknr))
 ;
 		parse_blocknr(node->blocknr.blk, &bmap, &offset);
 		bnode = (struct reiser4_bnode*)(info_data->bitmap) + bmap;

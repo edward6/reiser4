@@ -386,8 +386,8 @@ static int squeeze_leaves (znode * right, znode * left)
 	carry_pool pool;
 	carry_level todo;
 
-	reiser4_init_carry_pool (& pool);
-	reiser4_init_carry_level (& todo, & pool);
+	init_carry_pool (& pool);
+	init_carry_level (& todo, & pool);
 	
 	ret = shift_everything_left (right, left, & todo);
 
@@ -398,7 +398,7 @@ static int squeeze_leaves (znode * right, znode * left)
 		ret = carry (& todo, NULL /* previous level */);
 	}
 	
-	reiser4_done_carry_pool (& pool);
+	done_carry_pool (& pool);
 
 	if (ret < 0) {
 		return ret;
@@ -424,8 +424,8 @@ static int shift_one_internal_unit (znode * left, znode * right)
 
 	assert ("jmacd-2007", item_is_internal (& coord));
 
-	reiser4_init_carry_pool (&pool);
-	reiser4_init_carry_level (&todo, &pool);
+	init_carry_pool (&pool);
+	init_carry_level (&todo, &pool);
 
 	size = item_length_by_coord (&coord);
 	ret  = node_plugin_by_node (left)->shift (&coord, left, SHIFT_LEFT,
@@ -447,7 +447,7 @@ static int shift_one_internal_unit (znode * left, znode * right)
 		ret = carry (&todo, NULL /* previous level */);
 	}
 
-	reiser4_done_carry_pool (&pool);
+	done_carry_pool (&pool);
 
 	if (ret != 0) {
 		return ret;

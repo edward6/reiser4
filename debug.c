@@ -47,7 +47,7 @@ void reiser4_panic( const char *format, ... )
  * Preemption point: this should be called periodically during long running
  * operations (carry and slum squeezing, are best examples)
  */
-void reiser4_preempt_point( void )
+void preempt_point( void )
 {
 	cond_resched();
 }
@@ -259,7 +259,7 @@ void reiser4_print_stats()
  * per-thread trace flags plus per-fs trace flags.
  *
  */
-__u32 reiser4_get_current_trace_flags( void )
+__u32 get_current_trace_flags( void )
 {
 	return 
 		reiser4_get_current_context() -> trace_flags | 

@@ -73,7 +73,7 @@
  */
 #define assert( label, cond )					\
 ({								\
-	reiser4_preempt_point();				\
+	preempt_point();				\
 	check_stack();						\
 	if( unlikely( !( cond ) ) )				\
 		rpanic( label, "assertion failed: " #cond );	\
@@ -130,7 +130,7 @@ extern lock_counters_info *lock_counters();
 
 #if REISER4_TRACE
 /* helper macro for tracing, see trace_stamp() below. */
-#define trace_if( flags, e ) if( reiser4_get_current_trace_flags() & (flags) ) e
+#define trace_if( flags, e ) if( get_current_trace_flags() & (flags) ) e
 #else
 #define trace_if( flags, e ) noop
 #endif
@@ -603,13 +603,13 @@ typedef struct {} reiser4_stat;
 extern void reiser4_panic( const char *format, ... ) 
 __attribute__( ( noreturn, format( printf, 1, 2 ) ) );
 
-extern void reiser4_preempt_point( void );
+extern void preempt_point( void );
 extern void check_stack( void );
 extern void reiser4_print_stats( void );
 
 extern void *reiser4_kmalloc( size_t size, int gfp_flag );
 extern void  reiser4_kfree( void *area, size_t size );
-extern __u32 reiser4_get_current_trace_flags( void );
+extern __u32 get_current_trace_flags( void );
 
 #define REISER4_STACK_ABORT          (8192 - sizeof( struct task_struct ) - 30)
 #define REISER4_STACK_GAP            (REISER4_STACK_ABORT - 100)

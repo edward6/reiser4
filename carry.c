@@ -235,8 +235,8 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
  *     carry_level lowest_level;
  *     carry_op   *op;
  *
- *     reiser4_init_carry_pool( &pool );
- *     reiser4_init_carry_level( &lowest_level, &pool );
+ *     init_carry_pool( &pool );
+ *     init_carry_level( &lowest_level, &pool );
  *
  *     // operation may be one of:
  *     //   COP_INSERT    --- insert new item into node
@@ -248,14 +248,14 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
  *     //   COP_MODIFY    --- update parent to reflect changes in
  *     //                     the child
  *
- *     op = reiser4_post_carry( &lowest_level, operation, node, 0 );
+ *     op = post_carry( &lowest_level, operation, node, 0 );
  *     if( IS_ERR( op ) || ( op == NULL ) ) {
  *         handle error
  *     } else {
  *         // fill in remaining fields in @op, according to carry.h:carry_op
  *         result = carry( &lowest_level, NULL );
  *     }
- *     reiser4_done_carry_pool( &pool );
+ *     done_carry_pool( &pool );
  *  }
  *
  * When you are implementing node plugin method that participates in carry
@@ -267,11 +267,11 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
  *
  *     ....
  *
- *     // note, that last argument to reiser4_post_carry() is non-null
+ *     // note, that last argument to post_carry() is non-null
  *     // here, because @op is to be applied to the parent of @node, rather
  *     // than to the @node itself as in the previous case.
  *
- *     op = reiser4_post_carry( todo, operation, node, 1 );
+ *     op = post_carry( todo, operation, node, 1 );
  *     // fill in remaining fields in @op, according to carry.h:carry_op
  *
  *     ....
@@ -375,11 +375,11 @@ int carry( carry_level *doing /* set of carry operations to be performed */,
 	trace_stamp( TRACE_CARRY );
 
 	todo = &todo_area;
-	reiser4_init_carry_level( todo, doing -> pool );
+	init_carry_level( todo, doing -> pool );
 	if( done == NULL ) {
 		/* queue of requests performed on the previous level */
 		done = &done_area;
-		reiser4_init_carry_level( done, doing -> pool );
+		init_carry_level( done, doing -> pool );
 	}
 
 	result = 0;
@@ -390,7 +390,7 @@ int carry( carry_level *doing /* set of carry operations to be performed */,
 	 * FIXME-NIKITA also, enough free memory have to be reserved.
 	 */
 	/* iterate until there is nothing more to do */
-	while( ( result == 0 ) && ( reiser4_carry_op_num( doing ) > 0 ) ) {
+	while( ( result == 0 ) && ( carry_op_num( doing ) > 0 ) ) {
 		carry_level *tmp;
 		
 		ON_STATS( todo -> level_no = doing -> level_no + 1 );
@@ -449,10 +449,10 @@ int carry( carry_level *doing /* set of carry operations to be performed */,
 		done  = doing;
 		doing = todo;
 		todo  = tmp;
-		reiser4_init_carry_level( todo, doing -> pool );
+		init_carry_level( todo, doing -> pool );
 
 		/* give other threads chance to run */
-		reiser4_preempt_point();
+		preempt_point();
 	}
 	done_carry_level( done );
 	return result;
@@ -600,7 +600,7 @@ static int carry_on_level( carry_level *doing /* queue of carry operations to
  * manages all its locks by itself, don't worry about this.
  * 
  */
-carry_op *reiser4_post_carry( carry_level *level    /* queue where new
+carry_op *post_carry( carry_level *level    /* queue where new
 						     * operation is to be
 						     * posted * at */, 
 			      carry_opcode op       /* opcode of operation */,
@@ -618,10 +618,10 @@ carry_op *reiser4_post_carry( carry_level *level    /* queue where new
 	assert( "nikita-1046", level != NULL );
 	assert( "nikita-1788", znode_is_write_locked( node ) );
 
-	result = reiser4_add_op( level, POOLO_LAST, NULL );
+	result = add_op( level, POOLO_LAST, NULL );
 	if( IS_ERR( result ) )
 		return result;
-	child = reiser4_add_carry( level, POOLO_LAST, NULL );
+	child = add_carry( level, POOLO_LAST, NULL );
 	if( IS_ERR( child ) ) {
 		reiser4_pool_free( &result -> header );
 		return ( carry_op * ) child;
@@ -639,14 +639,14 @@ carry_op *reiser4_post_carry( carry_level *level    /* queue where new
  * add new node to the carry queue
  *
  * Allocate new carry node from pool and add it to the @queue.  Normal carry
- * users should use reiser4_post_carry() instead. This function is only useful
+ * users should use post_carry() instead. This function is only useful
  * for batching, nodes on the "base" level have to kept locked while
  * operations sre batched for the parent level. Such nodes are supplied to
  * reiser4_add_to_carry() so that carry will unlock all these nodes after
  * batched operations performed.
  *
  */
-carry_node *reiser4_add_to_carry( znode *node         /* node to be added */, 
+carry_node *add_to_carry( znode *node         /* node to be added */, 
 				  carry_level *queue  /* queue where node to
 						       * be added to */ )
 {
@@ -656,7 +656,7 @@ carry_node *reiser4_add_to_carry( znode *node         /* node to be added */,
 	assert( "nikita-1063", node != NULL );
 	assert( "nikita-1064", queue != NULL );
 
-	result = reiser4_add_carry( queue, POOLO_LAST, NULL );
+	result = add_carry( queue, POOLO_LAST, NULL );
 	if( IS_ERR( result ) )
 		return result;
 	result -> node = node;
@@ -669,7 +669,7 @@ carry_node *reiser4_add_to_carry( znode *node         /* node to be added */,
 /**
  * number of carry operations in a @level
  */
-int reiser4_carry_op_num( const carry_level *level )
+int carry_op_num( const carry_level *level )
 {
 	return level -> ops_num;
 }
@@ -677,7 +677,7 @@ int reiser4_carry_op_num( const carry_level *level )
 /**
  * number of carry nodes in a @level
  */
-int reiser4_carry_node_num( const carry_level *level )
+int carry_node_num( const carry_level *level )
 {
 	return level -> nodes_num;
 }
@@ -685,7 +685,7 @@ int reiser4_carry_node_num( const carry_level *level )
 /**
  * initialise carry queue
  */
-void reiser4_init_carry_level( carry_level *level, carry_pool *pool )
+void init_carry_level( carry_level *level, carry_pool *pool )
 {
 	assert( "nikita-1045", level != NULL );
 	assert( "nikita-967", pool != NULL );
@@ -700,7 +700,7 @@ void reiser4_init_carry_level( carry_level *level, carry_pool *pool )
 /**
  * initialise pools within queue
  */
-void reiser4_init_carry_pool( carry_pool *pool )
+void init_carry_pool( carry_pool *pool )
 {
 	assert( "nikita-945", pool != NULL );
 
@@ -713,7 +713,7 @@ void reiser4_init_carry_pool( carry_pool *pool )
 /**
  * finish with queue pools
  */
-void reiser4_done_carry_pool( carry_pool *pool UNUSED_ARG )
+void done_carry_pool( carry_pool *pool UNUSED_ARG )
 {
 	reiser4_done_pool( &pool -> op_pool );
 	reiser4_done_pool( &pool -> node_pool );
@@ -729,7 +729,7 @@ void reiser4_done_carry_pool( carry_pool *pool UNUSED_ARG )
  * automatically. To control ordering use @order and @reference parameters.
  *
  */
-carry_node *reiser4_add_carry( carry_level *level     /* &carry_level to add
+carry_node *add_carry( carry_level *level     /* &carry_level to add
 						       * node to */, 
 			       pool_ordering order    /* where to insert: at
 						       * the beginning of
@@ -762,7 +762,7 @@ carry_node *reiser4_add_carry( carry_level *level     /* &carry_level to add
  * @order and @reference parameters.
  *
  */
-carry_op *reiser4_add_op( carry_level *level  /* &carry_level to add node
+carry_op *add_op( carry_level *level  /* &carry_level to add node
 					       * to */, 
 			  pool_ordering order /* where to insert: at the
 					       * beginning of @level, before
@@ -1288,7 +1288,7 @@ carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
 	 *
 	 */
 
-	fresh = reiser4_add_carry( doing, ref ? POOLO_AFTER : POOLO_LAST, ref );
+	fresh = add_carry( doing, ref ? POOLO_AFTER : POOLO_LAST, ref );
 	if( IS_ERR( fresh ) )
 		return fresh;
 
@@ -1312,7 +1312,7 @@ carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
 							     &ref -> header ) );
 	}
 
-	add_pointer = reiser4_post_carry( todo, COP_INSERT, 
+	add_pointer = post_carry( todo, COP_INSERT, 
 					  ref -> real_node, 1 );
 	if( IS_ERR( add_pointer ) ) {
 		/*

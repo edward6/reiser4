@@ -48,7 +48,7 @@ static carry_node *find_left_neighbor( carry_node *node, carry_level *doing )
 		}
 	}
 
-	left = reiser4_add_carry( doing, POOLO_BEFORE, node );
+	left = add_carry( doing, POOLO_BEFORE, node );
 	if( IS_ERR( left ) )
 		return left;
 
@@ -143,7 +143,7 @@ static carry_node *find_right_neighbor( carry_node *node, carry_level *doing )
 	if( result == 0 ) {
 		/* ok, node found and locked. */
 		reiser4_stat_level_add( doing, carry_right_in_cache );
-		right = reiser4_add_carry( doing, POOLO_AFTER, node );
+		right = add_carry( doing, POOLO_AFTER, node );
 		if( !IS_ERR( right ) ) {
 			right -> node = lh.node;
 			reiser4_move_lh( &right -> lock_handle, &lh );
@@ -650,7 +650,7 @@ static int insert_paste_common( carry_op *op /* carry operation being
 		 *        -- v6root/usr/sys/ken/slp.c
 		 */
 		if( op -> node -> real_node != op -> u.insert.d -> coord -> node ) {
-			op -> node = reiser4_add_carry( doing, POOLO_AFTER, 
+			op -> node = add_carry( doing, POOLO_AFTER, 
 							op -> node );
 			if( IS_ERR( op -> node ) )
 				return PTR_ERR( op -> node );
@@ -1038,7 +1038,7 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	 * level, creating new node. Here we are removing this node.
 	 */
 	if( node_is_empty( node ) ) {
-		delete_dummy = reiser4_post_carry( todo, COP_DELETE, node, 1 );
+		delete_dummy = post_carry( todo, COP_DELETE, node, 1 );
 		if( IS_ERR( delete_dummy ) )
 			return PTR_ERR( delete_dummy );
 		delete_dummy -> u.delete.child = NULL;
@@ -1049,7 +1049,7 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	 * proceed with inserting extent item into parent. We are definitely
 	 * inserting rather than pasting if we get that far.
 	 */
-	insert_extent = reiser4_post_carry( todo, COP_INSERT, node, 1 );
+	insert_extent = post_carry( todo, COP_INSERT, node, 1 );
 	if( IS_ERR( insert_extent ) )
 		/*
 		 * FIXME-NIKITA cleanup @delete_dummy
