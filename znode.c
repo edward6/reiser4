@@ -810,9 +810,6 @@ int zload( znode *node /* znode to load */ )
 
 	result = jload_and_lock (ZJNODE(node));
 
-	assert( "nikita-2238", ergo( znode_page( node ) != NULL,
-				     ! PageLocked( znode_page( node ) ) ) );
-
 	if (unlikely (result < 0)) {
 		spin_unlock_znode (node);
 		return result;

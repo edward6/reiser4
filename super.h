@@ -143,11 +143,6 @@ struct reiser4_super_info_data {
 	 * amount of space allocated by kmalloc. For debugging.
 	 */
 	int                  kmalloc_allocated;
-	/**
-	 * counters used in dead-lock detection. For debugging.
-	 */
-	atomic_t             active_threads;
-	atomic_t             total_threads;
 #endif
 
 	/* disk layout plugin */
@@ -225,18 +220,6 @@ tail_plugin *default_tail_plugin( const struct super_block *super );
 item_plugin *default_sd_plugin( const struct super_block *super );
 item_plugin *default_dir_item_plugin( const struct super_block *super );
 void print_fs_info (const char *prefix, const struct super_block *);
-
-#if REISER4_DEBUG
-extern void register_thread( void );
-extern void deregister_thread( void );
-extern void activate_thread( void );
-extern void deactivate_thread( void );
-#else
-#define register_thread() noop
-#define deregister_thread() noop
-#define activate_thread() noop
-#define deactivate_thread() noop
-#endif
 
 /* __REISER4_SUPER_H__ */
 #endif

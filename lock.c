@@ -1133,9 +1133,10 @@ void __reiser4_wake_up (lock_stack *owner)
  */
 void go_to_sleep (lock_stack *owner)
 {
-	deactivate_thread();
+	/*
+	 * FIXME:NIKITA->ZAM shouldn't we use down_interruptible() here?!
+	 */
 	down(&owner->sema);
-	activate_thread();
 }
 
 int lock_stack_isclean (lock_stack *owner)

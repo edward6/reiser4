@@ -222,7 +222,6 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 		spin_lock_jnode( node );
 		result = -ENOMEM;
 	}
-	assert( "nikita-2239", ergo( page != NULL, !PageLocked( page ) ) );
 	/* return with jnode spin-locked */
 	return result;
 }

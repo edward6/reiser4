@@ -1539,16 +1539,24 @@ int flush_enqueue_unformatted (jnode *node, flush_position *pos)
 static void flush_bio_write (struct bio *bio)
 {
 	int i;
-	/* Note, we may put assertion here that this is in fact our
-	   sb and so on */
-	__REISER4_ENTRY (bio->bi_io_vec[0].bv_page->mapping->host->i_sb,);
 
-	trace_on (TRACE_FLUSH, "flush_bio_write completion for %u blocks: BIO %p\n", bio->bi_vcnt, bio);
+	if (bio->bi_vcnt == 0) {
+		warning ("nikita-2243", "Empty write bio completed.");
+		return;
+	}
+	/* Note, we may put assertion here that this is in fact our sb and so
+	   on */
+	if (REISER4_TRACE) {
+		info ("flush_bio_write completion for %u blocks: BIO %p\n", 
+		      bio->bi_vcnt, bio);
+	}
 
 	for (i = 0; i < bio->bi_vcnt; i += 1) {
 		struct page *pg = bio->bi_io_vec[i].bv_page;
 
-		trace_if (TRACE_FLUSH_VERB, print_page ("flush_bio_write", pg));
+		if (REISER4_TRACE) {
+			print_page ("flush_bio_write", pg);
+		}
 
 		if (! test_bit (BIO_UPTODATE, & bio->bi_flags)) {
 			SetPageError (pg);
@@ -1567,7 +1575,6 @@ static void flush_bio_write (struct bio *bio)
 	}
 	
 	bio_put (bio);
-	__REISER4_EXIT (&__context);
 }
 
 /* FIXME: comment */
