@@ -755,9 +755,11 @@ mark_inode_update(struct inode *object, int immediate)
 	}
 	if (pos == -1)
 		warning("nikita-3402", "Too many delayed inode updates");
-	else {
+	else if (immediate) {
+		ctx->dirty[pos].ino = 0;
+	} else {
 		ctx->dirty[pos].ino = object->i_ino;
-		ctx->dirty[pos].delayed = !immediate;
+		ctx->dirty[pos].delayed = 1;
 #ifdef CONFIG_FRAME_POINTER
 		ctx->dirty[pos].stack[0] = __builtin_return_address(0);
 		ctx->dirty[pos].stack[1] = __builtin_return_address(1);
