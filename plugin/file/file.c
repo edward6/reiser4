@@ -288,13 +288,50 @@ int find_next_item (struct file * file,
  * plugin->u.file.read_flow = NULL
  */
 
+/* part of unix_file_truncate: it is called when truncate is used to make
+ * file shorter */
+static int shorten (struct inode * inode, const reiser4_key * from)
+{
+	reiser4_key to;
+
+	to = *from;
+	set_key_offset (&to, get_key_offset (max_key ()));
+
+	/* all items of ordinary reiser4 file are grouped together. That is why
+	   we can use cut_tree. Plan B files (for instance) can not be
+	   truncated that simply */
+	return cut_tree (tree_by_inode (inode), from, &to);
+}
+
+
+/* part of unix_file_truncate: it is called when truncate is used to make file
+ * longer */
+ssize_t write_flow (struct file * file, struct inode * inode, flow_t * f);
+static int expand (struct inode * inode, loff_t off, loff_t size)
+{
+	int result;
+	flow_t f;
+
+	assert ("vs-854", off < size);
+	result = inode_file_plugin (inode)->flow_by_inode (inode, 0, 1/* user space */,
+							   0 /* count */, size /* offset */,
+							   WRITE_OP, &f);
+	if (result)
+		return result;	
+
+	return  write_flow (0, inode, &f);
+}
+
 
 /* plugin->u.file.truncate */
 /* Audited by: green(2002.06.15) */
-int unix_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
+int unix_file_truncate (struct inode * inode, loff_t size)
 {
 	int result;
 	reiser4_key from, to;
+	coord_t coord;
+	lock_handle lh;
+
 
 	assert ("vs-319", size == inode->i_size);
 
@@ -306,19 +343,57 @@ int unix_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
 
 	get_nonexclusive_access (inode);
 
-	/* all items of ordinary reiser4 file are grouped together. That is why
-	   we can use cut_tree. Plan B files (for instance) can not be
-	   truncated that simply */
-	result = cut_tree (tree_by_inode (inode), &from, &to);
+	/* find whether we have to do truncate or expand */
+	coord_init_zero (&coord);
+	init_lh (&lh);
+	result = find_next_item (0, &from, &coord, &lh, ZNODE_READ_LOCK);
+	if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
+		/* error occured */
+		done_lh (&lh);
+		drop_nonexclusive_access (inode);
+		return result;
+	}
+
+	if (result == CBK_COORD_NOTFOUND) {
+		/* real file size is 0 - there are no items of this file */
+		done_lh (&lh);
+		if (size) {
+			result = expand (inode, (loff_t)0, size);
+		} else
+			result = 0;
+	} else {
+		/* there are items of this file (at least one) */
+		reiser4_key max_item_key;
+		item_plugin * iplug;
+
+		result = zload (coord.node);
+		if (result) {
+			done_lh (&lh);
+			drop_nonexclusive_access (inode);
+			return result;
+		}
+		iplug = item_plugin_by_coord (&coord);
+
+		assert ("vs-853", iplug->common.real_max_key_inside);
+		iplug->common.real_max_key_inside (&coord, &max_item_key);
+		set_key_offset (&max_item_key, get_key_offset (&max_item_key) + 1);
+
+		zrelse (coord.node);
+		done_lh (&lh);
+		if (keygt (&from, &max_item_key)) {
+			/* we have to expand file with items */
+			result = expand (inode, (loff_t)get_key_offset (&max_item_key), size);
+		} else {
+			result = shorten (inode, &from);
+		}
+	}
 	if (result) {
 		drop_nonexclusive_access (inode);
 		return result;
 	}
 
-	assert ("vs-637",
-		inode_file_plugin( inode ) -> write_sd_by_inode ==
-		common_file_save);
-	if ((result = common_file_save (inode)))
+	result = inode_file_plugin (inode)->write_sd_by_inode (inode);
+	if (result)
 		warning ("vs-638", "updating stat data failed\n");
 
 	drop_nonexclusive_access (inode);
@@ -422,9 +497,6 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	inode = file->f_dentry->d_inode;
 	result = 0;
 
-	/* build flow */
-	assert ("vs-528",
-		inode_file_plugin (inode)->flow_by_inode == common_build_flow);
 	/* this should now be called userspace_sink_build, now that we have
 	 * both sinks and flows.  See discussion of sinks and flows in
 	 * www.namesys.com/v4/v4.html */
@@ -432,8 +504,10 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	result = userspace_sink_build (inode, buf, 1/* user space */, read_amount,
 				    *off, READ_OP, &f);
 #else
-	result = common_build_flow (inode, buf, 1/* user space */, read_amount,
-				    *off, READ_OP, &f);
+	/* build flow */
+	result = inode_file_plugin (inode)->flow_by_inode (inode, buf, 1/* user space */,
+							   read_amount,
+							   *off, READ_OP, &f);
 #endif
 	if (result)
 		return result;
@@ -538,10 +612,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	if( to_read - f.length ) {
 		/* something was read. Update stat data */
 		UPDATE_ATIME (inode);
-		assert ("vs-675",
-			inode_file_plugin (inode)->write_sd_by_inode ==
-			common_file_save);
-		if (common_file_save (inode))
+		if (inode_file_plugin (inode)->write_sd_by_inode (inode))
 			warning ("vs-676", "updating stat data failed\n");
 	}
 
@@ -599,47 +670,26 @@ typedef enum {
 
 static write_todo unix_file_how_to_write (struct inode *, flow_t *, coord_t *);
 
-/* plugin->u.file.write */
-ssize_t unix_file_write (struct file * file, /* file to write to */
-			 const char * buf, /* comments are needed */
-			 size_t size, /* number of bytes ot write */
-			 loff_t * off /* position to write which */)
+
+ssize_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 {
 	int result;
-	struct inode * inode;
 	coord_t coord;
 	lock_handle lh;	
 	size_t to_write;
 	item_plugin * iplug;
-	flow_t f;
-	
 
-	/* collect statistics on the number of writes */
-	reiser4_stat_file_add (writes);
-
-	inode = file->f_dentry->d_inode;
-
-	/* build flow */
-	assert ("vs-481",
-		inode_file_plugin (inode)->flow_by_inode == common_build_flow);
-
-	result = common_build_flow (inode, (char *)buf, 1/* user space */, size, *off,
-				    WRITE_OP, &f);
-	if (result)
-		return result;
-
-	get_nonexclusive_access (inode);
 
 	init_lh (&lh);
 	coord_init_zero (&coord);
 
-	to_write = f.length;
-	while (f.length) {
+	to_write = f->length;
+	while (1) {
 		znode * loaded;
 
 		/* look for file metadata corresponding to position we write
 		 * to */
-		result = find_next_item (file, &f.key, &coord, &lh, ZNODE_WRITE_LOCK);
+		result = find_next_item (file, &f->key, &coord, &lh, ZNODE_WRITE_LOCK);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/* error occured */
 			break;
@@ -652,12 +702,12 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 			break;
 		}
 
-		switch (unix_file_how_to_write (inode, &f, &coord)) {
+		switch (unix_file_how_to_write (inode, f, &coord)) {
 		case WRITE_EXTENT:
 			iplug = item_plugin_by_id (EXTENT_POINTER_ID);
 			/* resolves to extent_write function */
 
-			result = iplug->s.file.write (inode, &coord, &lh, &f, 0);
+			result = iplug->s.file.write (inode, &coord, &lh, f, 0);
 			if (!result) {
 				inode_set_flag (inode, REISER4_TAIL_STATE_KNOWN);
 				inode_clr_flag (inode, REISER4_HAS_TAIL);
@@ -668,7 +718,7 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 			iplug = item_plugin_by_id (TAIL_ID);
 			/* resolves to tail_write function */
 
-			result = iplug->s.file.write (inode, &coord, &lh, &f, 0);
+			result = iplug->s.file.write (inode, &coord, &lh, f, 0);
 			if (!result) {
 				inode_set_flag (inode, REISER4_TAIL_STATE_KNOWN);
 				inode_set_flag (inode, REISER4_HAS_TAIL);
@@ -680,7 +730,6 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 			done_lh (&lh);
 			result = tail2extent (inode);
 			if (result) {
-				drop_nonexclusive_access (inode);
 				return result;
 			}
 			init_lh (&lh);
@@ -695,18 +744,20 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 		if (result && result != -EAGAIN)
 			/* error */
 			break;
-		if ((loff_t)get_key_offset (&f.key) > inode->i_size)
+		if ((loff_t)get_key_offset (&f->key) > inode->i_size)
 			/* file got longer */
-			inode->i_size = get_key_offset (&f.key);
+			inode->i_size = get_key_offset (&f->key);
+		if (f->length == 0)
+			break;
 	}
-	if (coord_set_properly (&f.key, &coord)) {
+	if (coord_set_properly (&f->key, &coord) && file) {
 		reiser4_file_fsdata * fdata;
 		seal_t seal;
 
 		fdata = reiser4_get_file_fsdata (file);
 		if (!IS_ERR (fdata)) {
 			/* re-set seal of last access to file */
-			seal_init (&seal, &coord, &f.key);
+			seal_init (&seal, &coord, &f->key);
 			fdata->reg.last_access = seal;
 			fdata->reg.coord = coord;
 			fdata->reg.level = znode_get_level (coord.node);
@@ -714,22 +765,56 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 	}
 	done_lh (&lh);
 
-	if( to_write - f.length ) {
+	return to_write - f->length;
+}
+
+
+/* plugin->u.file.write */
+ssize_t unix_file_write (struct file * file, /* file to write to */
+			 const char * buf, /* comments are needed */
+			 size_t size, /* number of bytes ot write */
+			 loff_t * off /* position to write which */)
+{
+	int result;
+	struct inode * inode;
+	flow_t f;
+	ssize_t written;
+
+
+	assert ("vs-855", size > 0);
+
+	/* collect statistics on the number of writes */
+	reiser4_stat_file_add (writes);
+
+	inode = file->f_dentry->d_inode;
+
+	/* build flow */
+	result = inode_file_plugin (inode)->flow_by_inode (inode, (char *)buf,
+							   1/* user space */, size, *off,
+							   WRITE_OP, &f);
+	if (result)
+		return result;
+
+	get_nonexclusive_access (inode);
+	written = write_flow (file, inode, &f);
+	if (written < 0) {
+		drop_nonexclusive_access (inode);
+		return written;
+	}
+	
+	if (written) {
 		/* something was written. Update stat data */
 		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-		assert ("vs-639",
-			inode_file_plugin (inode)->write_sd_by_inode ==
-			common_file_save);
-		if (common_file_save (inode))
+		if (inode_file_plugin (inode)->write_sd_by_inode (inode))
 			warning ("vs-636", "updating stat data failed\n");
 	}
 
 	drop_nonexclusive_access (inode);
 
 	/* update position in a file */
-	*off += (to_write - f.length);
-	/* return number of written bytes or error code if nothing is written */
-	return (to_write - f.length) ? (to_write - f.length) : result;
+	*off += written;
+	/* return number of written bytes */
+	return written;
 }
 
 
@@ -771,8 +856,8 @@ static write_todo unix_file_how_to_write (struct inode * inode, flow_t * f,
 	/* size file will have after write */
 	new_size = get_key_offset (&f->key) + f->length;
 
-	if (new_size <= inode->i_size) {
-		/* if file does not get longer - no conversion will be
+	if (new_size <= inode->i_size && f->length) {
+		/* file does not get longer - no conversion will be
 		 * performed */
 		/* AUDIT: Will this also work correctly if we start overwritting
 		   extend but then contine to overwrite over the tail? */
@@ -784,34 +869,36 @@ static write_todo unix_file_how_to_write (struct inode * inode, flow_t * f,
 
 	assert ("vs-377", inode_tail_plugin (inode)->have_tail);
 
-	if (inode->i_size == 0) {
-		/* no items of this file are in tree yet */
-		assert ("vs-378", znode_get_level (coord->node) == LEAF_LEVEL);
-		if (should_have_notail (inode, new_size))
-			return WRITE_EXTENT;
-		else
-			return WRITE_TAIL;
+	if (coord->between == AT_UNIT || coord->between == AFTER_UNIT) {
+		/* file is not empty (there is at least one its item) and will
+		 * get longer or is being expanded on truncate */
+		if (should_have_notail (inode, new_size)) {
+			/* that long file (@new_size bytes) is supposed to be
+			 * built of extents */
+			if (built_of_extents (inode, coord)) {
+				/* it is built that way already */
+				return WRITE_EXTENT;
+			} else {
+				/* file is built of tail items, conversion is
+				 * required */
+				return CONVERT;
+			}
+		} else {
+			/* "notail" is not required, so keep file in its
+			 * current form */
+			if (built_of_extents (inode, coord))
+				return WRITE_EXTENT;
+			else
+				return WRITE_TAIL;
+		}
 	}
 
-	/* file is not empty and will get longer */
-	if (should_have_notail (inode, new_size)) {
-		/* that long file (@new_size bytes) is supposed to be built of
-		 * extents */
-		if (built_of_extents (inode, coord)) {
-			/* it is built that way already */
-			return WRITE_EXTENT;
-		} else {
-			/* file is built of tail items, conversion is
-			 * required */
-			return CONVERT;
-		}
-	} else {
-		/* "notail" is not required, so keep file in its current form */
-		if (built_of_extents (inode, coord))
-			return WRITE_EXTENT;
-		else
-			return WRITE_TAIL;
-	}
+	/* there are no any items of this file. FIXME-VS: should we write by
+	 * extents? */
+	if (should_have_notail (inode, new_size))
+		return WRITE_EXTENT;
+	else
+		return WRITE_TAIL;
 }
 
 
@@ -916,7 +1003,7 @@ int unix_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
 		( data -> id == REGULAR_FILE_PLUGIN_ID ) ||
 		( data -> id == SPECIAL_FILE_PLUGIN_ID ) );
 	
-	return common_file_save( object );
+	return inode_file_plugin( object ) -> write_sd_by_inode( object );
 }
 
 

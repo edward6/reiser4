@@ -1556,7 +1556,8 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 		set_key_offset (&hole_key, 0ull);
 
 		hole_off = 0;
-		hole_width = (get_key_offset (key)) >> current_blocksize_bits;
+		hole_width = ((get_key_offset (key) + current_blocksize - 1) >>
+			      current_blocksize_bits);
 		assert ("vs-710", hole_width > 0);
 
 		/* compose body of hole extent */
@@ -1576,7 +1577,8 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 		coord->between == AFTER_UNIT);
 
 	hole_off = get_key_offset (last_key_in_extent(coord, &last_key));
-	hole_width = (get_key_offset (key) - hole_off) >> current_blocksize_bits;
+	hole_width = ((get_key_offset (key) - hole_off + current_blocksize - 1) >>
+		      current_blocksize_bits);
 	assert ("vs-709", hole_width > 0);
 
 	/* get last extent in the item */
@@ -2051,6 +2053,20 @@ int extent_write (struct inode * inode, coord_t * coord,
 
 
 	result = 0;
+
+	if (!f->length) {
+		/* special case: expanding truncate */
+		loaded = coord->node;
+		result = zload (loaded);
+		if (result)
+			return result;
+		result = add_hole (coord, lh, &f->key,
+				   znode_get_level (coord->node) == TWIG_LEVEL ?
+				   EXTENT_APPEND_HOLE : EXTENT_CREATE_HOLE);
+		zrelse (loaded);
+		return result;
+	}
+
 	while (f->length) {
 		if (f->data) {
 			assert ("vs-586", !page);
@@ -2067,13 +2083,13 @@ int extent_write (struct inode * inode, coord_t * coord,
 			/* tail2extent is in progress. Page contains data
 			 * already */
 		}
-
-		assert ("vs-701", PageLocked (page));
+		assert ("vs-701", page && PageLocked (page));
 
 		/* Capture the page. Jnodes get created for that page */
 		result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
 		if (result)
 			break;
+
 		loaded = coord->node;
 		result = zload (loaded);
 		if (result) {
@@ -2135,7 +2151,11 @@ int extent_readpage (void * vp, struct page * page)
 	assert ("vs-758", item_is_extent (coord));
 	assert ("vs-759", coord_is_existing_unit (coord));
 	ext = extent_by_coord (coord);
-	assert ("vs-760", state_of_extent (ext) == ALLOCATED_EXTENT);
+	/*
+	 * FIXME-VS: it is not possible now. When unformatted nodes will be
+	 * flushable without updating parent this must change
+	 */
+	assert ("vs-760", state_of_extent (ext) != UNALLOCATED_EXTENT);
 
 	/* calculate key of page */
 	inode_file_plugin (inode)->key_by_inode (inode, (loff_t)page->index << PAGE_CACHE_SHIFT,
@@ -2150,9 +2170,18 @@ int extent_readpage (void * vp, struct page * page)
 	if (!j)
 		return -ENOMEM;
 
-	block = extent_get_start (ext) + pos_in_extent;
-	jnode_set_block (j, &block);
-	page_io (page, READ, GFP_NOIO);
+	if (state_of_extent (ext) == ALLOCATED_EXTENT) {
+		block = extent_get_start (ext) + pos_in_extent;
+		jnode_set_block (j, &block);
+		page_io (page, READ, GFP_NOIO);
+	} else {
+		assert ("vs-858", PAGE_CACHE_SIZE == current_blocksize);
+		memset (kmap (page), 0, PAGE_CACHE_SIZE);
+		flush_dcache_page (page);
+		kunmap (page);
+		SetPageUptodate (page);
+		unlock_page(page);
+	}
 	jput (j);
 	return 0;
 }

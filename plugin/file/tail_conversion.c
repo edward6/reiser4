@@ -131,7 +131,7 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 				       (loff_t)(pages[i]->index << PAGE_CACHE_SHIFT),
 				       WRITE_OP, &f);
 
-		do {
+		while (f.length) {
 			znode * loaded;
 
 			result = find_next_item (0, &f.key, &coord, &lh, 
@@ -149,7 +149,10 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 						      pages [i]);
 			/* item's write method may return -EAGAIN */
 			zrelse (loaded);
-		} while (result == -EAGAIN);
+			if (result && result != -EAGAIN)
+				goto done;
+			result = 0;
+		}
 
 		if (p_data != NULL)
 			kunmap (pages [i]);
@@ -320,6 +323,11 @@ int tail2extent (struct inode * inode)
 			result = find_next_item (0, &key, &coord, &lh, ZNODE_READ_LOCK);
 			if (result != CBK_COORD_FOUND) {
 				drop_pages (pages, nr_pages);
+				if (result == CBK_COORD_NOTFOUND &&
+				    get_key_offset (&key) == 0)
+					/* conversion can be called
+					 * for empty file */
+					result = 0;
 				goto error1;
 			}
 			result = zload (coord.node);
@@ -343,6 +351,12 @@ int tail2extent (struct inode * inode)
 				goto error1;
 			}
 			item = item_body_by_coord (&coord);
+			if (coord.between == AFTER_UNIT) {
+				done = 1;
+				goto done;
+			}
+			assert ("vs-856", coord.between == AT_UNIT);
+			assert ("vs-857", coord.unit_pos == 0);
 			assert ("green-11",
 				keyeq (&key, item_key_by_coord (&coord, &tmp)));
 			copied = 0;
@@ -388,6 +402,7 @@ int tail2extent (struct inode * inode)
 
 		if ((done = file_is_over (inode, &key, &coord)) ||
 		    all_pages_are_full (nr_pages, page_off)) {
+		done:
 			zrelse (coord.node);
 			done_lh (&lh);
 			/* replace tail items with extent */
