@@ -1413,6 +1413,8 @@ static int squalloc_right_twig_cut(coord_t * to, reiser4_key * to_key, znode * l
 			left, 0);
 }
 
+#if 0
+
 /* Copy as much of the leading extents from @right to @left, allocating
    unallocated extents as they are copied.  Returns SQUEEZE_TARGET_FULL or
    SQUEEZE_SOURCE_EMPTY when no more can be shifted.  If the next item is an
@@ -1536,6 +1538,138 @@ out:
 
 	return ret;
 }
+
+#endif /* OLD_TWIG_SQUEEZE */
+
+#define NEW_TWIG_SQUEEZE
+#ifdef NEW_TWIG_SQUEEZE
+
+unsigned find_extent_slum_size(const coord_t *coord, unsigned pos_in_unit);
+int extent_handle_relocate_in_place(flush_pos_t *, unsigned *slum_size);
+int extent_handle_overwrite_in_place(flush_pos_t *, unsigned *slum_size);
+int extent_handle_relocate_and_copy(znode *left, coord_t *right, flush_pos_t *, unsigned *slum_size,
+				    reiser4_key *stop_key);
+int extent_handle_overwrite_and_copy(znode *left, coord_t *right, flush_pos_t *, unsigned *slum_size,
+				     reiser4_key *stop_key);
+static int
+should_relocate(unsigned slum_size)
+{
+	if (slum_size < get_current_super_private()->flush.relocate_threshold)
+		return 0;
+	return 1;
+}
+
+/* Copy as much of the leading extents from @right to @left, allocating
+   unallocated extents as they are copied.  Returns SQUEEZE_TARGET_FULL or
+   SQUEEZE_SOURCE_EMPTY when no more can be shifted.  If the next item is an
+   internal item it calls shift_one_internal_unit and may then return
+   SUBTREE_MOVED. */
+static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
+{
+	int ret = 0;
+	coord_t coord,		/* used to iterate over items */
+		stop_coord;	/* used to call twig_cut properly */
+	reiser4_key stop_key;
+	unsigned slum_size;
+
+	assert("jmacd-2008", !node_is_empty(right));
+	coord_init_first_unit(&coord, right);
+
+	/* Initialize stop_key to detect if any extents are copied.  After
+	   this loop loop if stop_key is still equal to *min_key then nothing
+	   was copied (and there is nothing to cut). */
+	stop_key = *min_key();
+
+	DISABLE_NODE_CHECK;
+
+	ON_TRACE(TRACE_FLUSH_VERB, "sq_twig before copy extents: left %s\n", znode_tostring(left));
+	ON_TRACE(TRACE_FLUSH_VERB, "sq_twig before copy extents: right %s\n", znode_tostring(right));
+	/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("left", left, ~0u)); */
+	/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("right", right, ~0u)); */
+
+	slum_size = find_extent_slum_size(&coord, 0);
+	if (!should_relocate(slum_size)) {
+		while (slum_size && ret == SQUEEZE_CONTINUE) {
+			if (extent_is_allocated(&coord))
+				ret = extent_handle_overwrite_and_copy(left, &coord, pos, &slum_size, &stop_key);
+			else
+				ret = extent_handle_relocate_and_copy(left, &coord, pos, &slum_size, &stop_key);
+			if (ret == SQUEEZE_TARGET_FULL) {
+				ENABLE_NODE_CHECK;
+				break;
+			}
+			coord_next_unit(&coord);
+		}
+	} else {
+		while (slum_size && ret == SQUEEZE_CONTINUE) {
+			ret = extent_handle_relocate_and_copy(left, &coord, pos, &slum_size, &stop_key);
+			if (ret == SQUEEZE_TARGET_FULL || ret < 0) {
+				ENABLE_NODE_CHECK;
+				break;
+			}
+			coord_next_unit(&coord);
+		}
+	}
+	if (!keyeq(&stop_key, min_key())) {
+		int cut_ret;
+
+		IF_TRACE(TRACE_FLUSH_VERB, print_coord("sq_twig:cut_coord", &coord, 0));
+
+		/* Helper function to do the cutting. */
+		coord_prev_unit(&coord);
+		cut_ret = squalloc_right_twig_cut(&coord, &stop_key, left);
+		if (cut_ret != 0) {
+			assert("jmacd-6443", cut_ret < 0);
+			reiser4_panic("jmacd-87113", "cut_node failed: %d", cut_ret);
+		}
+	}
+
+	ENABLE_NODE_CHECK;
+	node_check(left, REISER4_NODE_DKEYS);
+	node_check(right, REISER4_NODE_DKEYS);
+
+	if (ret == SQUEEZE_TARGET_FULL) {
+		goto out;
+	}
+
+	if (node_is_empty(right)) {
+		/* The whole right node was copied into @left. */
+		ON_TRACE(TRACE_FLUSH_VERB, "sq_twig right node empty: %s\n", znode_tostring(right));
+		assert("vs-464", ret == SQUEEZE_SOURCE_EMPTY);
+		goto out;
+	}
+
+	coord_init_first_unit(&coord, right);
+
+	if (!item_is_internal(&coord)) {
+		/* we do not want to squeeze anything else to left neighbor because "slum"
+		   is over */
+		ret = SQUEEZE_TARGET_FULL;
+		goto out;
+	}
+	assert("jmacd-433", item_is_internal(&coord));
+
+	/* Shift an internal unit.  The child must be allocated before shifting any more
+	   extents, so we stop here. */
+	ret = shift_one_internal_unit(left, right);
+
+out:
+	assert("jmacd-8612", ret < 0 || ret == SQUEEZE_TARGET_FULL
+	       || ret == SUBTREE_MOVED || ret == SQUEEZE_SOURCE_EMPTY);
+
+	if (ret == SQUEEZE_TARGET_FULL) {
+		/* We submit prepped nodes here and expect that this @left twig
+		 * will not be modified again during this jnode_flush() call. */
+		int ret1;
+
+		ret1 = write_prepped_nodes(pos, 1);
+		if (ret1 < 0)
+			return ret1;
+	}
+
+	return ret;
+}
+#endif /* NEW_TWIG_SQUEEZE */
 
 /* Squeeze and allocate the right neighbor.  This is called after @left and
    its current children have been squeezed and allocated already.  This
@@ -1880,20 +2014,23 @@ static int handle_pos_on_internal (flush_pos_t * pos)
 /* check whether squalloc should stop before processing given extent */
 static int squalloc_extent_should_stop (flush_pos_t * pos)
 {
-	assert ("zam-869", item_is_extent(&pos->coord));
+	assert("zam-869", item_is_extent(&pos->coord));
 
 	/* pos->child is a jnode handle_pos_on_extent() should start with in
 	 * stead of the first child of the first extent unit. */
 	if (pos->child) {
 		int prepped;
 
+		assert("vs-1383", jnode_is_unformatted(pos->child));
 		prepped = jnode_check_flushprepped(pos->child);
+		pos->pos_in_unit = jnode_get_index(pos->child) - extent_unit_index(&pos->coord);
 		jput(pos->child);
 		pos->child = NULL;
 
 		return prepped;
 	}
 
+	pos->pos_in_unit = 0;
 	if (extent_is_unallocated(&pos->coord))
 		return 0;
 
@@ -1908,8 +2045,8 @@ static int squalloc_extent_should_stop (flush_pos_t * pos)
 static int handle_pos_on_twig (flush_pos_t * pos)
 {
 	int ret;
+	int slum_size;
 
- again:
 	assert ("zam-844", pos->state == POS_ON_EPOINT);
 	assert ("zam-843", item_is_extent(&pos->coord));
 
@@ -1926,27 +2063,53 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 		return ret;
 	}
 
-	ret = allocate_extent_item_in_place(&pos->coord, &pos->lock, pos);
-	if (ret)
-		return ret;
-
-	coord_next_unit(&pos->coord);
-
+	slum_size = find_extent_slum_size(&pos->coord, pos->pos_in_unit);
+	if (!should_relocate(slum_size)) {
+		/* "slum" is not enough big to relocate */
+		while (slum_size) {
+			if (extent_is_allocated(&pos->coord))
+				ret = extent_handle_overwrite_in_place(pos, &slum_size);
+			else
+				ret = extent_handle_relocate_in_place(pos, &slum_size);
+			if (ret)
+				return ret;
+			coord_next_unit(&pos->coord);
+			pos->pos_in_unit = 0;
+		}
+	} else {
+		/* relocate "slum" */
+		/* FIXME: way for optimization: we could try to alloc blocks for whole
+		   slum at once. But, slum here may be mixture of allocated and
+		   unallocated extents, therefore some of grabbed blocks are counted as
+		   fake allocated others as flush_reserved. So, reiser4_alloc_blocks will
+		   fail. For new we have allocate_extent_item_in_place to allocate for
+		   every unit separately */
+		while (slum_size) {
+			assert("vs-1395", item_is_extent(&pos->coord));
+			ret = extent_handle_relocate_in_place(pos, &slum_size);
+			if (ret)
+				return ret;
+			
+			coord_next_unit(&pos->coord);
+			pos->pos_in_unit = 0;			
+		}
+		ret = rapid_flush(pos);
+		if (ret)
+			return ret;
+	}
 	if (coord_is_after_rightmost(&pos->coord)) {
 		pos->state = POS_END_OF_TWIG;
 		return 0;
 	}
-
-	if (item_is_extent(&pos->coord)) {
-		ret = rapid_flush(pos);
-		if (ret)
-			return ret;
-		goto again;
+	if (item_is_internal(&pos->coord)) {
+		pos->state = POS_TO_LEAF;
+		return 0;
 	}
 
-	assert ("zam-860", item_is_internal(&pos->coord));
+	assert ("zam-860", item_is_extent(&pos->coord));
 
-	pos->state = POS_TO_LEAF;
+	/* "slum" is over */
+	pos->state = POS_INVALID;
 	return 0;
 }
 
@@ -2180,11 +2343,18 @@ static pos_state_handle_t flush_pos_handlers[] = {
 static int squalloc (flush_pos_t * pos)
 {
 	int ret = 0;
+	/*XXXX*/ int twig = 0;
 
 	PROF_BEGIN(forward_squalloc);
 	/* maybe needs to be made a case statement with handle_pos_on_leaf as first case, for
 	 * greater CPU efficiency? Measure and see.... -Hans */
+	/*XXXX*/if (pos->state == POS_ON_EPOINT)
+		twig = 1;
+
 	while (pos_valid(pos)) {
+		if (twig)
+			/*XXXX*/printk("squalloc: node %p, item %d, unit %d, between %d\n", pos->coord.node,
+				       pos->coord.item_pos, pos->coord.unit_pos, pos->coord.between);
 		ret = flush_pos_handlers[pos->state](pos);
 		if (ret < 0)
 			break;
@@ -2193,7 +2363,11 @@ static int squalloc (flush_pos_t * pos)
 		if (ret)
 			break;
 	}
-
+	if (twig)
+		/*XXXX*/printk("squalloc done: node %p, item %d, unit %d, between %d\n", pos->coord.node,
+			       pos->coord.item_pos, pos->coord.unit_pos, pos->coord.between);
+		
+	
 	PROF_END(forward_squalloc);
 
 	/* any positive value or -E_NO_NEIGHBOR are legal return codes for handle_pos*
