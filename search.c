@@ -559,7 +559,7 @@ static lookup_result cbk( cbk_handle *h /* search handle */ )
 		if (IS_ERR(fake)) return PTR_ERR(fake);
 
 		done = longterm_lock_znode(h->parent_lh, fake, 
-					   GN_DO_READ, ZNODE_LOCK_LOPRI);
+					   ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI);
 
 		assert( "nikita-1637", done != -EDEADLK );
 

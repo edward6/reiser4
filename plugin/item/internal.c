@@ -46,6 +46,13 @@ static internal_item_layout *internal_at( const tree_coord *coord /* coord of
 	return ( internal_item_layout * ) item_body_by_coord( coord );
 }
 
+/* FIXME: ugly hack */
+void internal_update (const tree_coord *coord, reiser4_block_nr blocknr)
+{
+	internal_item_layout *item = internal_at (coord);
+	cpu_to_dblock (blocknr, & item->pointer);
+}
+
 /** return child block number stored in the internal item at @coord */
 static reiser4_block_nr pointer_at( const tree_coord *coord /* coord of item */ )
 {

@@ -1356,11 +1356,14 @@ static void flush_parent_first_broken (flush_position *pos)
 }
 
 /* FIXME: comment */
-static int flush_alloc_block (reiser4_blocknr_hint *preceder, jnode *node UNUSED_ARG, reiser4_block_nr max_dist)
+static int flush_alloc_block (reiser4_blocknr_hint *preceder, jnode *node, reiser4_block_nr max_dist)
 {
 	int ret;
 	reiser4_block_nr blk;
 	reiser4_block_nr len = 1;
+	int is_root;
+
+	assert ("jmacd-1233", jnode_is_formatted (node));
 
 	preceder->max_dist = max_dist;
 
@@ -1368,8 +1371,50 @@ static int flush_alloc_block (reiser4_blocknr_hint *preceder, jnode *node UNUSED
 		return ret;
 	}
 
-	node->blocknr = blk;
+	is_root = znode_is_root (JZNODE (node));
+
 	/* FIXME: free old location if not fake? */
+
+	/* WARNING: UGLY, TEMPORARY */
+	{
+		lock_handle parent_lock;
+
+		init_lh (& parent_lock);
+
+		if (! is_root) {
+			new_coord ncoord;
+			tree_coord tcoord;
+
+			if ((ret = jnode_lock_parent_coord (node, & ncoord, & parent_lock, ZNODE_WRITE_LOCK))) {
+				goto out;
+			}
+
+			ncoord_to_tcoord (& tcoord, & ncoord);
+
+			internal_update (& tcoord, blk);
+
+		} else {
+			znode *fake = zget (current_tree, &FAKE_TREE_ADDR, NULL, 0 , GFP_KERNEL);
+
+			if (IS_ERR (fake)) { ret = PTR_ERR(fake); goto out; }
+
+			ret = longterm_lock_znode (& parent_lock, fake, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+
+			if (ret != 0) { goto out; }
+
+			spin_lock_tree (current_tree);
+			current_tree->root_block = blk;
+			spin_unlock_tree (current_tree);
+		}
+	out:
+		done_lh (& parent_lock);
+		if (ret != 0) { return ret; }
+	}
+
+	if ((ret = znode_rehash (JZNODE (node), & blk))) {
+		return ret;
+	}
+
 	return 0;
 }
 
