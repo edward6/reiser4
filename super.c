@@ -41,9 +41,7 @@ get_super_private(const struct super_block * super	/* super
 							   block queried */ )
 {
 	assert("nikita-447", super != NULL);
-	assert("nikita-2245",
-	       (super->s_op == NULL) ||
-	       (super->s_op == &reiser4_super_operations));
+	assert("nikita-2245", (super->s_op == NULL) || (super->s_op == &reiser4_super_operations));
 
 	return (reiser4_super_info_data *) super->s_fs_info;
 }
@@ -98,9 +96,8 @@ reiser4_blksize(const struct super_block *super /* super block queried */ )
 /* functions to read/modify fields of reiser4_super_info_data */
 
 /** get number of blocks in file system */
-__u64
-reiser4_block_count(const struct super_block * super	/* super block
-							   queried */ )
+__u64 reiser4_block_count(const struct super_block * super	/* super block
+								   queried */ )
 {
 	assert("vs-494", super != NULL);
 	assert("vs-495", is_reiser4_super(super));
@@ -117,9 +114,8 @@ reiser4_set_block_count(const struct super_block *super, __u64 nr)
 }
 
 /** amount of blocks used (allocated for data) in file system */
-__u64
-reiser4_data_blocks(const struct super_block *super	/* super block
-							   queried */ )
+__u64 reiser4_data_blocks(const struct super_block *super	/* super block
+								   queried */ )
 {
 	assert("nikita-452", super != NULL);
 	assert("nikita-453", is_reiser4_super(super));
@@ -136,9 +132,8 @@ reiser4_set_data_blocks(const struct super_block *super, __u64 nr)
 }
 
 /** amount of free blocks in file system */
-__u64
-reiser4_free_blocks(const struct super_block *super	/* super block
-							   queried */ )
+__u64 reiser4_free_blocks(const struct super_block *super	/* super block
+								   queried */ )
 {
 	assert("nikita-454", super != NULL);
 	assert("nikita-455", is_reiser4_super(super));
@@ -158,15 +153,13 @@ reiser4_set_free_blocks(const struct super_block *super, __u64 nr)
 void
 reiser4_inc_free_blocks(const struct super_block *super)
 {
-	assert("vs-496",
-	       reiser4_free_blocks(super) < reiser4_block_count(super));
+	assert("vs-496", reiser4_free_blocks(super) < reiser4_block_count(super));
 	get_super_private(super)->blocks_free++;
 }
 
 /* get mkfs unique identifier */
-__u32
-reiser4_mkfs_id(const struct super_block *super	/* super block
-						   queried */ )
+__u32 reiser4_mkfs_id(const struct super_block *super	/* super block
+							   queried */ )
 {
 	assert("vpf-221", super != NULL);
 	assert("vpf-222", is_reiser4_super(super));
@@ -185,8 +178,7 @@ reiser4_set_mkfs_id(const struct super_block *super, __u32 id)
 /**
  * amount of free blocks in file system
  */
-__u64
-reiser4_free_committed_blocks(const struct super_block *super)
+__u64 reiser4_free_committed_blocks(const struct super_block *super)
 {
 	assert("vs-497", super != NULL);
 	assert("vs-498", is_reiser4_super(super));
@@ -207,9 +199,7 @@ reiser4_set_free_committed_blocks(const struct super_block *super, __u64 nr)
 void
 reiser4_inc_free_committed_blocks(const struct super_block *super)
 {
-	assert("vs-499",
-	       reiser4_free_committed_blocks(super) <
-	       reiser4_block_count(super));
+	assert("vs-499", reiser4_free_committed_blocks(super) < reiser4_block_count(super));
 	get_super_private(super)->blocks_free_committed++;
 }
 
@@ -245,8 +235,7 @@ reiser4_reserved_blocks(const struct super_block *super	/* super block
 /**
  * get/set value of/to grabbed blocks counter
  */
-__u64
-reiser4_grabbed_blocks(const struct super_block * super)
+__u64 reiser4_grabbed_blocks(const struct super_block * super)
 {
 	assert("zam-512", super != NULL);
 	assert("zam-513", is_reiser4_super(super));
@@ -282,8 +271,7 @@ void reiser4_set_flush_reserved (const struct super_block *super, __u64 nr)
 /**
  * get/set value of/to counter of fake allocated formatted blocks
  */
-__u64
-reiser4_fake_allocated(const struct super_block *super)
+__u64 reiser4_fake_allocated(const struct super_block *super)
 {
 	assert("zam-516", super != NULL);
 	assert("zam-517", is_reiser4_super(super));
@@ -303,8 +291,7 @@ reiser4_set_fake_allocated(const struct super_block *super, __u64 nr)
 /**
  * get/set value of/to counter of fake allocated unformatted blocks
  */
-__u64
-reiser4_fake_allocated_unformatted(const struct super_block *super)
+__u64 reiser4_fake_allocated_unformatted(const struct super_block *super)
 {
 	assert("zam-516", super != NULL);
 	assert("zam-517", is_reiser4_super(super));
@@ -313,8 +300,7 @@ reiser4_fake_allocated_unformatted(const struct super_block *super)
 }
 
 void
-reiser4_set_fake_allocated_unformatted(const struct super_block *super,
-				       __u64 nr)
+reiser4_set_fake_allocated_unformatted(const struct super_block *super, __u64 nr)
 {
 	assert("zam-518", super != NULL);
 	assert("zam-519", is_reiser4_super(super));
@@ -323,8 +309,7 @@ reiser4_set_fake_allocated_unformatted(const struct super_block *super,
 }
 
 void
-reiser4_update_last_written_location(const struct super_block *s,
-				     const reiser4_block_nr * block)
+reiser4_update_last_written_location(const struct super_block *s, const reiser4_block_nr * block)
 {
 	reiser4_super_info_data *private = get_super_private(s);
 
@@ -333,8 +318,7 @@ reiser4_update_last_written_location(const struct super_block *s,
 		private->last_written_location = *block;
 	} else {
 		warning("zam-676",
-			"block number %llu is too large to be used in a blocknr hint\n",
-			(unsigned long long) *block);
+			"block number %llu is too large to be used in a blocknr hint\n", (unsigned long long) *block);
 	}
 	reiser4_spin_unlock_sb(s);
 }
@@ -419,7 +403,7 @@ get_current_super_private(void)
  * call. Reference to this super block is stored in reiser4_context.
  */
 struct super_block *
-reiser4_get_current_sb()
+reiser4_get_current_sb(void)
 {
 	return get_current_context()->super;
 }
@@ -427,9 +411,8 @@ reiser4_get_current_sb()
 /**
  * inode generation to use for the newly created inode
  */
-__u32
-new_inode_generation(const struct super_block * super	/* super block
-							 * queried */ )
+__u32 new_inode_generation(const struct super_block * super	/* super block
+								 * queried */ )
 {
 	assert("nikita-464", is_reiser4_super(super));
 	return get_super_private(super)->inode_generation;
@@ -574,8 +557,7 @@ print_fs_info(const char *prefix, const struct super_block *s)
 	private = get_super_private(s);
 
 	info("================ fs info (%s) =================\n", prefix);
-	info("root block: %lli\ntree height: %i\n",
-	     private->tree.root_block, private->tree.height);
+	info("root block: %lli\ntree height: %i\n", private->tree.root_block, private->tree.height);
 	if (private->space_plug->print_info)
 		private->space_plug->print_info("", get_space_allocator(s));
 
@@ -589,8 +571,7 @@ print_fs_info(const char *prefix, const struct super_block *s)
 	print_key("Root directory key", private->df_plug->root_dir_key(s));
 
 	if (private->df_plug->print_info) {
-		info("=========== disk format info (%s) =============\n",
-		     private->df_plug->h.label);
+		info("=========== disk format info (%s) =============\n", private->df_plug->h.label);
 		private->df_plug->print_info(s);
 	}
 
