@@ -577,11 +577,11 @@ lookup_result cde_lookup(const reiser4_key * key /* key to search for */ ,
 			return CBK_COORD_FOUND;
 		case GREATER_THAN:
 			coord->between = BEFORE_UNIT;
-			return CBK_COORD_NOTFOUND;
+			return -ENOENT;
 		case LESS_THAN:
 		default:
 			impossible("nikita-1298", "Broken find");
-			return CBK_IO_ERROR;
+			return RETERR(-EIO);
 		}
 	} else {
 		coord->unit_pos = units(coord) - 1;

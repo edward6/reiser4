@@ -116,8 +116,8 @@ ea2nea(struct inode *inode)
 	ea_set(inode, 0);
 	inode_clr_flag(inode, REISER4_EXCLUSIVE_USE);
 	rw_latch_downgrade(&unix_file_inode_data(inode)->latch);
-	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_w --);
-	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_r ++);
+	ON_DEBUG(lock_counters()->inode_sem_w --);
+	ON_DEBUG(lock_counters()->inode_sem_r ++);
 }
 
 static int
