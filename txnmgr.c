@@ -167,6 +167,8 @@ txn_mgr_init (txn_mgr *mgr)
 
 	atom_list_init (& mgr->atoms_list);
 	spin_lock_init (& mgr->tmgr_lock);
+
+	sema_init (&mgr->commit_semaphore, 1);
 }
 
 /* Free a new transaction manager. */
@@ -732,10 +734,33 @@ txn_mgr_force_commit (struct super_block *super)
 	return 0;
 }
 
+static void invalidate_clean_list (txn_atom * atom)
+{
+	while (!capture_list_empty(&atom->clean_nodes)) {
+		jnode * cur = capture_list_front (&atom->clean_nodes);
+		capture_list_remove_clean(cur);
+		cur->atom = NULL;
+	}
+}
+
+/**
+ * start commit and end_commit isolate critical code path which should be
+ * executed by only one thread.. */
+void start_commit (void)
+{
+	reiser4_super_info_data * private = get_current_super_private();
+	down (&private->tmgr.commit_semaphore);
+}
+
+void end_commit (void)
+{
+	reiser4_super_info_data * private = get_current_super_private();
+	up (&private->tmgr.commit_semaphore);
+}
+
 /* Called to commit a transaction handle.  This decrements the atom's number of open
  * handles and if it is the last handle to commit and the atom should commit, initiates
  * atom commit. */
-/* Audited by: umka (2002.06.13) */
 static int
 commit_txnh (txn_handle *txnh)
 {
@@ -781,17 +806,33 @@ commit_txnh (txn_handle *txnh)
 	 * can't be fused */
 	spin_unlock_atom (atom);
 
-#if 0	/* NOT YET TESTED */
+	/* code between start_commit and end_commit() is protected from
+	 * parallel execution. */
+	start_commit();
+
 	pre_commit_hook ();
 
+#if 0	/* NOT YET TESTED */
 	/* write transaction log records in a manner which allows further
 	 * transaction recovery after a system crash */
 	reiser4_write_logs ();
 #endif
 
+	end_commit();
+
 	/* Now close this txnh's reference to the atom. */
 	spin_lock_atom (atom);
 	spin_lock_txnh (txnh);
+
+#if 0 /*REISER4_DEBUG*/
+	{
+		int level;
+		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level ++) {
+			assert ("zam-542", capture_list_empty(&atom->dirty_nodes[level]));
+		}
+	}
+#endif
+	invalidate_clean_list(atom);
 
 	atom->txnh_count -= 1;
 	txnh->atom = NULL;
@@ -1908,6 +1949,21 @@ uncapture_block (txn_atom *atom,
 	 * unformatted node.  Currently no detachment happens. */
 	jput (node);
 	ON_DEBUG (-- lock_counters() -> t_refs);
+}
+
+/** 
+ * Unconditional insert of jnode into atom's clean list. Currently used in
+ * bitmap-based allocator code for adding modified bitmap blocks the
+ * transaction. @atom and @node are spin locked */
+void txn_insert_into_clean_list (txn_atom * atom, jnode * node) 
+{
+	assert ("zam-538", spin_atom_is_locked (atom));
+	assert ("zam-539", spin_jnode_is_locked (node));
+	assert ("zam-540", !jnode_is_dirty (node));
+	assert ("zam-543", node -> atom == NULL);
+
+	capture_list_push_front (&atom->clean_nodes, node);
+	node->atom = atom;
 }
 
 /*****************************************************************************************
