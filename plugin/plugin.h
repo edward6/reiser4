@@ -281,17 +281,6 @@ typedef struct dir_plugin {
 	   the name used by open.  */
 	int (*resolve_into_inode)(struct inode *parent_inode, 
 				  struct dentry *dentry );
-#if 0
-				  const struct qstr *name, 
-				  /* probably needs more parameters? */
-				  name_t *,
-				  reiser4_key *,/* if name is found in
-						 * directory key of object is
-						 * stored here */
-				  reiser4_dir_entry_desc * /* entry key and
-							    * inode bound by
-							    * it */);
-#endif
 	/* VFS required/defined operations below this line */
 	int ( *unlink )( struct inode *parent, struct dentry *victim );
 	int ( *link )( struct inode *parent, struct dentry *existing, 
@@ -406,6 +395,7 @@ typedef struct inter_syscall_ra_hint {
 
 */
 struct reiser4_plugin_ref {
+	lnode_header            lnode_header;
 	/** plugin of file */
 	file_plugin            *file;
 	/** plugin of dir */
