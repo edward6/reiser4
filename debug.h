@@ -41,11 +41,9 @@
     From post by Andy Chou <acc@CS.Stanford.EDU> at lkml. */
 #define cassert( cond ) ({ switch( -1 ) { case ( cond ): case 0: break; } })
 
-/*#ifndef __KERNEL__
+#ifndef __KERNEL__
 #define CONFIG_REISER4_CHECK
-#endif*/
-
-#define CONFIG_REISER4_CHECK (0)
+#endif
 
 #ifdef __KERNEL__
 # if CONFIG_SMP
@@ -191,11 +189,9 @@ extern int reiser4_are_all_debugged( struct super_block *super, __u32 flags );
     output useless for average user.
 */
 
-/*#ifndef REISER4_TRACE
+#ifndef REISER4_TRACE
 #define REISER4_TRACE (1)
-#endif*/
-
-#define REISER4_TRACE (0)
+#endif
 
 #if REISER4_TRACE
 /* helper macro for tracing, see trace_stamp() below. */
@@ -327,11 +323,9 @@ extern __u32 reiser4_current_trace_flags;
 /** print output only if appropriate trace flag(s) is on */
 #define trace_on( f, args... )   trace_if( f, dinfo( ##args ) )
 
-/*#ifndef REISER4_STATS
+#ifndef REISER4_STATS
 #define REISER4_STATS (1)
-#endif*/
-
-#define REISER4_STATS (0)
+#endif
 
 #if REISER4_STATS
 
