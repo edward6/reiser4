@@ -6,7 +6,7 @@ lib_LTLIBRARIES		= libreiserfs.la
 libreiserfs_la_LDFLAGS 	= -version-info $(LT_CURRENT):$(LT_REVISION):$(LT_AGE) -release $(LT_RELEASE) \
 			  $(LIBREISERFS_LDFLAGS)
 
-if ENABLE_MONOLITIC
+if ENABLE_MONOLITHIC
 libreiserfs_la_LIBADD  	= $(top_builddir)/libaal/libaal.la \
 			  $(top_builddir)/plugin/format36/libformat36-static.la \
 			  $(top_builddir)/plugin/format40/libformat40-static.la \

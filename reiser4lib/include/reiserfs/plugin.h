@@ -191,23 +191,24 @@ struct reiserfs_format_plugin {
     reiserfs_plugin_header_t h;
 	
     reiserfs_opaque_t *(*open) (aal_device_t *);
-    reiserfs_opaque_t *(*create) (aal_device_t *, count_t, reiserfs_opaque_t *, 
-	reiserfs_plugin_id_t, reiserfs_plugin_id_t, reiserfs_plugin_id_t);
-    
-    void (*close) (reiserfs_opaque_t *);
+    reiserfs_opaque_t *(*create) (aal_device_t *, count_t);
     error_t (*sync) (reiserfs_opaque_t *);
     error_t (*check) (reiserfs_opaque_t *);
     int (*probe) (aal_device_t *device);
+    void (*close) (reiserfs_opaque_t *);
+    
+    reiserfs_opaque_t *(*alloc) (reiserfs_opaque_t *);
+    
     const char *(*format) (reiserfs_opaque_t *);
-
     blk_t (*offset) (reiserfs_opaque_t *);
     
     blk_t (*get_root) (reiserfs_opaque_t *);
-    count_t (*get_blocks) (reiserfs_opaque_t *);
-    count_t (*get_free) (reiserfs_opaque_t *);
-	
     void (*set_root) (reiserfs_opaque_t *, blk_t);
+    
+    count_t (*get_blocks) (reiserfs_opaque_t *);
     void (*set_blocks) (reiserfs_opaque_t *, count_t);
+    
+    count_t (*get_free) (reiserfs_opaque_t *);
     void (*set_free) (reiserfs_opaque_t *, count_t);
     
     reiserfs_plugin_id_t (*journal_plugin_id) (reiserfs_opaque_t *);
@@ -297,7 +298,7 @@ typedef error_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
 	while(0) {}
 #endif
 
-#if defined(ENABLE_COMPACT) || defined(ENABLE_MONOLITIC)
+#if defined(ENABLE_COMPACT) || defined(ENABLE_MONOLITHIC)
 #   define reiserfs_plugin_register(entry) \
 	static reiserfs_plugin_entry_t __plugin_entry \
 	    __attribute__((__section__(".plugins"))) = entry
@@ -311,7 +312,7 @@ typedef error_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
 extern error_t reiserfs_plugins_init(void);
 extern void reiserfs_plugins_fini(void);
 
-#if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITIC)
+#if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
 extern reiserfs_plugin_t *reiserfs_plugins_load_by_name(const char *name);
 #endif
 
