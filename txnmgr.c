@@ -1068,8 +1068,6 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	if (ret < 0)
 		reiser4_panic("zam-597", "write log failed (%ld)\n", ret);
 
-	LOCK_ATOM(*atom);
-
 	invalidate_list(&(*atom)->clean_nodes);
 	invalidate_list(&(*atom)->ovrwr_nodes);
 	invalidate_list(&(*atom)->writeback_nodes);
@@ -1077,6 +1075,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 
 	up(&sbinfo->tmgr.commit_semaphore);
 
+	LOCK_ATOM(*atom);
 	(*atom)->stage = ASTAGE_DONE;
 
 	/* Atom's state changes, so wake up everybody waiting for this
