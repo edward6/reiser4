@@ -17,10 +17,11 @@
 #include <string.h>
 #include <time.h>
 
-#include <version.h>
-#include <misc.h>
-#include <profile.h>
+#include <progs/include/misc/version.h>
+#include <progs/include/misc/misc.h>
+#include <progs/include/misc/exception.h>
+#include <progs/include/misc/profile.h>
+
 #include <repair/librepair.h>
 #include <reiser4/reiser4.h>
-
 

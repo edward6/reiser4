@@ -8,7 +8,7 @@
 #  include <config.h> 
 #endif
 
-#ifdef HAVE_UUID
+#ifdef HAVE_LIBUUID
 #  include <uuid/uuid.h>
 #endif
 
@@ -23,8 +23,9 @@
 
 #include <reiser4/reiser4.h>
 
-#include <misc.h>
-#include <profile.h>
+#include <progs/include/misc/misc.h>
+#include <progs/include/misc/exception.h>
+#include <progs/include/misc/profile.h>
 
 static void mkfs_print_usage(void) {
     fprintf(stderr, "Usage: mkfs.reiser4 [ options ] FILE1 FILE2 ... [ size[K|M|G] ]\n");
@@ -170,7 +171,7 @@ int main(int argc, char *argv[]) {
 			"Invalid uuid was specified (%s).", optarg);
 		    return USER_ERROR;
 		}
-#ifdef HAVE_UUID
+#ifdef HAVE_LIBUUID
 		{
 		    if (uuid_parse(optarg, uuid) < 0) {
 			aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -279,7 +280,7 @@ int main(int argc, char *argv[]) {
 	    goto error_free_libreiser4;
 	}
 
-#ifdef HAVE_UUID
+#ifdef HAVE_LIBUUID
 	if (aal_strlen(uuid) == 0)
 	    uuid_generate(uuid);
 #endif

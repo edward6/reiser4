@@ -19,7 +19,8 @@
 #include <sys/ioctl.h>
 #include <sys/mount.h>
 
-#include <misc.h>
+#include <reiser4/reiser4.h>
+#include <progs/include/misc/misc.h>
 
 #define KB 1024
 #define MB (KB * KB)
@@ -129,139 +130,6 @@ int progs_misc_dev_mounted(
 error_free_mnt:
     endmntent(mnt);
     return 0;
-}
-
-/* 
-    Common reiser4progs exception handler functions. This one returns number of
-    specified turned on options.
-*/
-static int progs_exception_bit_count(
-    aal_exception_option_t options,	    /* options to be inspected */
-    int start				    /* options will be inspected started from */
-) {
-    int i, res = 0;
-    
-    for (i = start; i < aal_log2(EXCEPTION_LAST); i++)
-	res += ((1 << i) & options) ? 1 : 0;
-
-    return res;
-}
-
-/* This function print turned on options */
-static void progs_exception_print_options(aal_exception_option_t options) {
-    int i;
-
-    if (progs_exception_bit_count(options, 0) == 0)
-	return;
-    
-    printf("(");
-    for (i = 1; i < aal_log2(EXCEPTION_LAST); i++) {
-	if ((1 << i) & options) {
-	    if (i < aal_log2(EXCEPTION_LAST) - 1 && 
-		    progs_exception_bit_count(options, i + 1) > 0)
-		printf("%s/", aal_exception_option_string(1 << i));
-	    else
-		printf("%s)? ", aal_exception_option_string(1 << i));
-	}
-    }
-}
-
-/* This function makes serach for option by its name */
-static aal_exception_option_t progs_exception_option_by_name(char *name) {
-    int i;
-    
-    if (!name || aal_strlen(name) == 0)
-	return EXCEPTION_UNHANDLED;
-    
-    for (i = 0; i < aal_log2(EXCEPTION_LAST); i++) {
-	char *opt = aal_exception_option_string(1 << i);
-	
-	if (aal_strncmp(opt, name, aal_strlen(name)) == 0 || 
-		(aal_strlen(name) == 1 && toupper(opt[0]) == toupper(name[0])))
-	    return 1 << i;
-    }
-    
-    return EXCEPTION_UNHANDLED;
-}
-
-/* This function gets user enter */
-static aal_exception_option_t progs_exception_selected_option(void) {
-    char str[256];
-    
-    aal_memset(str, 0, sizeof(str));
-    fgets(str, sizeof(str), stdin);
-
-    if (str[aal_strlen(str) - 1] == '\n')
-	str[aal_strlen(str) - 1] = '\0';
-
-    return progs_exception_option_by_name(str);
-}
-
-/* Streams assigned with exception type are stored here */
-static void *streams[10];
-
-/* This function sets up exception streams */
-void progs_exception_set_stream(
-    aal_exception_type_t type,	/* type to be assigned with stream */
-    void *stream		/* stream to be assigned */
-) {
-    streams[type] = stream;
-}
-
-/* This function gets exception streams */
-void *progs_exception_get_stream(
-    aal_exception_type_t type	/* type exception stream will be obtained for */
-) {
-    return streams[type];
-}
-
-/* 
-    Common exception handler for all reiser4progs. It implements exception handling 
-    in "question-answer" maner and used for all communications with user.
-*/
-aal_exception_option_t progs_exception_handler(
-    aal_exception_t *exception		/* exception to be processed */
-) {
-    void *stream = stderr;
-    aal_exception_option_t opt;
-    
-    if (exception->type == EXCEPTION_ERROR || 
-	exception->type == EXCEPTION_FATAL ||
-	exception->type == EXCEPTION_BUG)
-        aal_gauge_failed(); 
-    else
-	aal_gauge_pause();
-
-    if (progs_exception_bit_count(exception->options, 0) == 1) {
-	if (!(stream = streams[exception->type]))
-	    return EXCEPTION_UNHANDLED;
-    }
-    
-    /* Printing exception type */
-    if (exception->type != EXCEPTION_BUG)
-        fprintf(stream, "%s: ", aal_exception_type_string(exception->type));
-	
-    /* Printing exception message */
-    fprintf(stream, "%s\n", exception->message);
-    
-    if (progs_exception_bit_count(exception->options, 0) == 1) {
-        if (exception->type == EXCEPTION_WARNING || 
-		exception->type == EXCEPTION_INFORMATION)
-	    aal_gauge_resume();
-	    
-	return exception->options;
-    }
-	    
-    do {
-	progs_exception_print_options(exception->options);
-	opt = progs_exception_selected_option();
-    } while (opt == EXCEPTION_UNHANDLED);
-
-    if (exception->type == EXCEPTION_WARNING || 
-	    exception->type == EXCEPTION_INFORMATION)
-	aal_gauge_resume();
-	    
-    return opt;
 }
 
 /* Common gauge handler */
