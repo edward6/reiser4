@@ -1089,8 +1089,8 @@ int lock_carry_node( carry_level *level /* level @node is in */,
 		}
 	} 
 	if( ! node -> parent && ! node -> left && ! node -> left_before ) {
-		result = reiser4_lock_znode( &lh, reference_point,
-					     ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI );
+		result = longterm_lock_znode( &lh, reference_point,
+					      ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI );
 	}
 	if( result == 0 ) {
 		reiser4_move_lh( &node -> lock_handle, &lh );
@@ -1120,7 +1120,7 @@ static void unlock_carry_node( carry_node *node /* node to be released */,
 	if( node -> unlock && ( node -> real_node != NULL ) ) {
 		assert( "nikita-899", node -> real_node ==
 			node -> lock_handle.node );
-		reiser4_unlock_znode( &node -> lock_handle );
+		longterm_unlock_znode( &node -> lock_handle );
 		node -> real_node = NULL;
 	}
 	if( failure ) {
@@ -1236,9 +1236,9 @@ static int add_new_root( carry_level *level /* carry level in context of which
 	if( !IS_ERR( level -> new_root ) ) {
 		assert( "nikita-1210", znode_is_root( level -> new_root ) );
 		node -> deallocate = 1;
-		result = reiser4_lock_znode( &node -> lock_handle, 
-					     level -> new_root, 
-					     ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI );
+		result = longterm_lock_znode( &node -> lock_handle, 
+					      level -> new_root, 
+					      ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI );
 		if( result == 0 )
 			zput( level -> new_root );
 	} else {
