@@ -18,7 +18,7 @@ static inline loff_t max_count(loff_t a, loff_t b)
 	return (a > b ? a : b);
 }
 
-static inline __u8 inode_cluster_shift (struct inode * inode)
+static inline int inode_cluster_shift (struct inode * inode)
 {
 	assert("edward-92", inode != NULL);
 	assert("edward-93", reiser4_inode_data(inode) != NULL);
@@ -204,18 +204,23 @@ reiser4_cluster_init (reiser4_cluster_t * clust, reiser4_slide_t * window){
 	clust->win = window;
 }
 
-static inline dc_item_stat
-get_dc_item_stat(hint_t * hint)
+static inline int 
+dclust_get_extension(hint_t * hint)
 {
-	assert("edward-1110", hint != NULL);
-	return hint->coord.extension.ctail.stat;
+	return hint->coord.extension.ctail.shift;
 }
 
 static inline void
-set_dc_item_stat(hint_t * hint, dc_item_stat val)
+dclust_set_extension(hint_t * hint)
 {
-	assert("edward-1111", hint != NULL);
-	hint->coord.extension.ctail.stat = val;
+	assert("edward-1270", item_id_by_coord(&hint->coord.base_coord) == CTAIL_ID);
+	hint->coord.extension.ctail.shift = cluster_shift_by_coord(&hint->coord.base_coord);
+}
+
+static inline int
+hint_is_unprepped_dclust(hint_t * hint)
+{
+	return dclust_get_extension(hint) == (int)UCTAIL_SHIFT;
 }
 
 int inflate_cluster(reiser4_cluster_t *, struct inode *);
@@ -237,6 +242,7 @@ int tfm_cluster_is_uptodate (tfm_cluster_t * tc);
 void tfm_cluster_set_uptodate (tfm_cluster_t * tc);
 void tfm_cluster_clr_uptodate (tfm_cluster_t * tc);
 int new_cluster(reiser4_cluster_t * clust, struct inode * inode);
+unsigned long clust_by_coord(const coord_t * coord, struct inode * inode);
 
 static inline int
 alloc_clust_pages(reiser4_cluster_t * clust, struct inode * inode )
