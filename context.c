@@ -202,7 +202,7 @@ print_context(const char *prefix, reiser4_context * context)
 		printk("%s: null context\n", prefix);
 		return;
 	}
-#if REISER4_CONTEXT
+#if REISER4_TRACE
 	printk("%s: trace_flags: %x\n", prefix, context->trace_flags);
 #endif
 #if REISER4_DEBUG
