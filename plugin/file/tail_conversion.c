@@ -691,9 +691,9 @@ finish_conversion(struct inode *inode)
 {
 	int result;
 
-	if (inode_get_flag(inode, REISER4_PART_CONV)) {
+	if (inode_get_flag(inode, REISER4_PART_CONV))
 		result = tail2extent(unix_file_inode_data(inode));
-	} else
+	else
 		result = 0;
 	return result;
 }
