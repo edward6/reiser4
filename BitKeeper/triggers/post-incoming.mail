@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Avoid commands that do nothing
-if test "X$BK_STATUS" = XDRYRUN -o "X$BK_STATUS" = XNOTHING; then
+if test "X$BK_STATUS" != XOK; then
     exit 0
 fi
 
@@ -10,6 +10,7 @@ if test "X$BK_EVENT" != "Xincoming push"; then
     exit 0
 fi
 
+# There must be a CSETLIST, otherwise what's happening?
 if test "X$BK_CSETLIST" == X; then
     exit 0
 fi
