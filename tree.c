@@ -348,7 +348,7 @@ insert_result insert_by_coord(coord_t * coord	/* coord where to
 
 		reiser4_stat_inc(tree.fast_insert);
 		result = node_plugin_by_node(node)->create_item(coord, key, data, NULL);
-		znode_set_dirty(node);
+		znode_make_dirty(node);
 	} else {
 		/* otherwise do full-fledged carry(). */
 		result = insert_with_carry_by_coord(coord, lh, data, key, COP_INSERT, flags);
@@ -445,7 +445,7 @@ insert_into_item(coord_t * coord /* coord of pasting */ ,
 			nplug->change_item_size(coord, size_change);
 		/* NOTE-NIKITA: huh? where @key is used? */
 		result = iplug->b.paste(coord, data, NULL);
-		znode_set_dirty(coord->node);
+		znode_make_dirty(coord->node);
 		if (size_change < 0)
 			nplug->change_item_size(coord, size_change);
 	} else
@@ -823,8 +823,8 @@ shift_everything_left(znode * right, znode * left, carry_level * todo)
 			      /* delete node @right if all its contents was moved to @left */
 			      , 1 /* @from will be set to @left node */ ,
 			      &info);
-	znode_set_dirty(right);
-	znode_set_dirty(left);
+	znode_make_dirty(right);
+	znode_make_dirty(left);
 	return result;
 }
 

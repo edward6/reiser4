@@ -331,7 +331,7 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 	area = item_body_by_coord(coord);
 	spin_lock_inode(inode);
 	result = data.iplug->s.sd.save(inode, &area);
-	znode_set_dirty(coord->node);
+	znode_make_dirty(coord->node);
 	/* re-initialise stat-data seal */
 	seal_init(&state->sd_seal, coord, key);
 	state->sd_coord = *coord;

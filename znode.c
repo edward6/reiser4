@@ -900,7 +900,7 @@ relocate_locked(znode * node, znode * parent, reiser4_block_nr * blk)
 			iplug = item_plugin_by_coord(&inparent);
 			assert("nikita-3126", iplug->f.update != NULL);
 			iplug->f.update(&inparent, blk);
-			znode_set_dirty(inparent.node);
+			znode_make_dirty(inparent.node);
 			result = znode_rehash(node, blk);
 		}
 		grabbed2free_mark(grabbed);

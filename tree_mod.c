@@ -144,7 +144,7 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 				coord_t *in_parent;
 				++tree->height;
 				tree->root_block = *znode_get_block(new_root);
-				znode_set_dirty(fake);
+				znode_make_dirty(fake);
 				/* new root is a child of "fake" node */
 				WLOCK_TREE(tree);
 				in_parent = &new_root->in_parent;
@@ -226,7 +226,7 @@ add_child_ptr(znode * parent, znode * child)
 
 	key = UNDER_RW(dk, znode_get_tree(parent), read, znode_get_ld_key(child));
 	result = node_plugin_by_node(parent)->create_item(&coord, key, &data, NULL);
-	znode_set_dirty(parent);
+	znode_make_dirty(parent);
 	zrelse(parent);
 	return result;
 }
@@ -264,7 +264,7 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 		--tree->height;
 		assert("nikita-1202", tree->height = znode_get_level(new_root));
 
-		znode_set_dirty(fake);
+		znode_make_dirty(fake);
 
 		/* don't take long term lock a @new_root. Take spinlock. */
 

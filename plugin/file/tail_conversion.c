@@ -199,7 +199,7 @@ mark_frozen(const struct inode *inode, reiser4_block_nr spanned_blocks, coord_t 
 		if (result)
 			break;
 
-		znode_set_dirty(twin.node);
+		znode_make_dirty(twin.node);
 		assert("vs-1124", blocks <= spanned_blocks);
 		if (!file_continues_in_right_neighbor(inode, twin.node))
 			break;

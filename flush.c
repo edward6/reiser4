@@ -1051,7 +1051,7 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 			   that it is captured we simply prevent it from flushing.  The
 			   log-writer code relies on this to properly log superblock
 			   modifications of the tree height. */
-			jnode_set_wander(node);
+			jnode_make_wander_nolock(node);
 		} else if (JF_ISSET(node, JNODE_RELOC)) {
 			queue_jnode(fq, node);
 			++ nr_queued;
@@ -1207,7 +1207,7 @@ reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_coord, 
 			    reiser4_panic("umka-1250", "No space left during flush.");
 			
 			assert("jmacd-18923", znode_is_write_locked(parent_coord->node));
-			znode_set_dirty(parent_coord->node);
+			znode_make_dirty(parent_coord->node);
 			grabbed2free_mark(grabbed);
 		}
 	}
@@ -2391,8 +2391,8 @@ shift_one_internal_unit(znode * left, znode * right)
 		if ((ret = reiser4_grab_space_force((__u64)(left->zjnode.tree->height), BA_RESERVED, "shift_one_internal_unit")) != 0)
 			return ret;
 		
-		znode_set_dirty(left);
-		znode_set_dirty(right);
+		znode_make_dirty(left);
+		znode_make_dirty(right);
 		UNDER_RW_VOID(dk, znode_get_tree(left), write, update_znode_dkeys(left, right));
 
 		ON_STATS(todo.level_no = znode_get_level(left) + 1);
@@ -2522,7 +2522,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 			queue_jnode(pos->fq, ZJNODE(node));
 		} else {
 			assert ("zam-828", ZF_ISSET(node, JNODE_OVRWR));
-			jnode_set_wander(ZJNODE(node));
+			jnode_make_wander_nolock(ZJNODE(node));
 		}
 
 		UNLOCK_ATOM(atom);
@@ -2583,7 +2583,7 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 		assert("nikita-2954", iplug->f.update != NULL);
 		iplug->f.update(parent_coord, &blk);
 
-		znode_set_dirty(parent_coord->node);
+		znode_make_dirty(parent_coord->node);
 
 	} else {
 		reiser4_tree *tree = znode_get_tree(node);
@@ -2605,7 +2605,7 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 
 		UNDER_RW_VOID(tree, tree, write, tree->root_block = blk);
 
-		znode_set_dirty(fake);
+		znode_make_dirty(fake);
 	}
 
 	/* FIXME-ZAM: Is zload needed here? */

@@ -70,7 +70,7 @@ de_update_key(const coord_t * coord, const reiser4_key * key, lock_handle * lh U
 	result = build_obj_key_id(key, &obj_id);
 	if (result == 0) {
 		dent->id = obj_id;
-		znode_set_dirty(coord->node);
+		znode_make_dirty(coord->node);
 	}
 	return 0;
 }

@@ -793,7 +793,7 @@ carry_insert(carry_op * op /* operation to perform */ ,
 	result = node_plugin_by_node(node)->create_item
 	    (op->u.insert.d->coord, op->u.insert.d->key, op->u.insert.d->data, &info);
 	doing->restartable = 0;
-	znode_set_dirty(node);
+	znode_make_dirty(node);
 
 	return result;
 }
@@ -1165,7 +1165,7 @@ carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
 			coord_init_after_item_end(insert_point);
 		}
 		doing->restartable = 0;
-		znode_set_dirty(insert_point->node);
+		znode_make_dirty(insert_point->node);
 
 		move_flow_forward(f, (unsigned) flow_insert_data(op)->length);
 		something_written = 1;
@@ -1270,8 +1270,8 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 		result = node_plugin_by_node(parent)->cut_and_kill(&params);
 	}
 	doing->restartable = 0;
-	znode_set_dirty(coord.node);
-	znode_set_dirty(coord2.node);
+	znode_make_dirty(coord.node);
+	znode_make_dirty(coord2.node);
 	/* check whether root should be killed violently */
 	if (znode_is_root(parent) &&
 	    /* don't kill roots at and lower than twig level */
@@ -1322,7 +1322,7 @@ carry_cut(carry_op * op /* operation to be performed */ ,
 		result = node_plugin_by_node(carry_real(op->node))->cut(&params);
 
 	assert("vs-1192", op->u.cut->from->node == op->u.cut->to->node);
-	znode_set_dirty(op->u.cut->from->node);
+	znode_make_dirty(op->u.cut->from->node);
 	/*znode_set_dirty(op->u.cut->to->node);*/
 	doing->restartable = 0;
 	return result < 0 ? : 0;
@@ -1480,7 +1480,7 @@ carry_paste(carry_op * op /* operation to be performed */ ,
 	info.doing = doing;
 	info.todo = todo;
 	result = iplug->b.paste(coord, op->u.insert.d->data, &info);
-	znode_set_dirty(node);
+	znode_make_dirty(node);
 	if (real_size < 0) {
 		node->nplug->change_item_size(coord, real_size);
 	}
@@ -1666,7 +1666,7 @@ update_delimiting_key(znode * parent	/* node key is updated
 			      ldkey = *znode_get_rd_key(right));
 	node_plugin_by_node(parent)->update_item_key(&right_pos, &ldkey, &info);
 	doing->restartable = 0;
-	znode_set_dirty(parent);
+	znode_make_dirty(parent);
 	return 0;
 }
 
@@ -1806,8 +1806,8 @@ carry_shift_data(sideof side /* in what direction to move data */ ,
 	assert("nikita-915", (result >= 0) || (result == -ENOMEM));
 	if (result > 0) {
 		doing->restartable = 0;
-		znode_set_dirty(source);
-		znode_set_dirty(node);
+		znode_make_dirty(source);
+		znode_make_dirty(node);
 	}
 	assert("nikita-2077", coord_check(insert_coord));
 	return 0;

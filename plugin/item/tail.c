@@ -303,7 +303,7 @@ overwrite_tail(coord_t * coord, flow_t * f)
 	if (__copy_from_user((char *) item_body_by_coord(coord) + coord->unit_pos, f->data, count))
 		return -EFAULT;
 
-	znode_set_dirty(coord->node);
+	znode_make_dirty(coord->node);
 
 	move_flow_forward(f, count);
 	return 0;

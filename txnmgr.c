@@ -1980,7 +1980,7 @@ uncapture_jnode(jnode *node)
 {
 	txn_atom *atom;
 
-	jnode_set_clean(node);
+	jnode_make_clean(node);
 
 	LOCK_JNODE(node);
 	eflush_del(node, 0/* page is not locked */);
@@ -2050,7 +2050,7 @@ capture_assign_block_nolock(txn_atom * atom, jnode * node)
 /* Set the dirty status for this jnode.  If the jnode is not already dirty, this involves locking the atom (for its
    capture lists), removing from the clean list and pushing in to the dirty list of the appropriate level. */
 void
-jnode_set_dirty(jnode * node)
+jnode_make_dirty(jnode * node)
 {
 	txn_atom * atom;
 	struct page *page;
@@ -2148,7 +2148,7 @@ jnode_set_dirty(jnode * node)
 
 /* Unset the dirty status for the node if necessary spin locks are already taken */
 void
-jnode_set_clean_nolock(jnode * node)
+jnode_make_clean_nolock(jnode * node)
 {
 	txn_atom *atom = node->atom;
 
@@ -2185,7 +2185,7 @@ jnode_set_clean_nolock(jnode * node)
 /* Unset the dirty status for this jnode.  If the jnode is dirty, this involves locking the atom (for its capture
    lists), removing from the dirty_nodes list and pushing in to the clean list. */
 void
-jnode_set_clean(jnode * node)
+jnode_make_clean(jnode * node)
 {
 	txn_atom *atom;
 
@@ -2196,7 +2196,7 @@ jnode_set_clean(jnode * node)
 
 	atom = atom_locked_by_jnode(node);
 
-	jnode_set_clean_nolock(node);
+	jnode_make_clean_nolock(node);
 
 	if (atom)
 		UNLOCK_ATOM(atom);
@@ -2205,7 +2205,7 @@ jnode_set_clean(jnode * node)
 }
 
 /* move jnode to atom's overwrite set */
-void jnode_set_wander (jnode * node)
+void jnode_make_wander_nolock (jnode * node)
 {
 	txn_atom * atom;
 
@@ -2221,6 +2221,19 @@ void jnode_set_wander (jnode * node)
 	capture_list_remove_clean(node);
 	capture_list_push_back(&atom->ovrwr_nodes, node);
 	JF_SET(node, JNODE_OVRWR);
+}
+
+void jnode_make_wander (jnode * node)
+{
+	txn_atom * atom;
+
+	LOCK_JNODE(node);
+	atom = atom_locked_by_jnode(node);
+	assert ("zam-913", atom != NULL);
+	assert ("zam-914", !JF_ISSET(node, JNODE_RELOC));
+	jnode_make_wander_nolock(node);
+	UNLOCK_ATOM(atom);
+	UNLOCK_JNODE(node);
 }
 
 /* This function assigns a block to an atom, but first it must obtain the atom lock.  If
@@ -2357,7 +2370,7 @@ capture_super_block(struct super_block *s)
 	if ((result = reiser4_grab_space_force((__u64)1, BA_RESERVED, "capture_super_block")) != 0)
 		return result;
 	
-	znode_set_dirty(fake);
+	znode_make_dirty(fake);
 
 	done_lh(&lh);
 	return 0;
