@@ -148,6 +148,7 @@ struct znode {
 #if REISER4_DEBUG
 	void *creator;
 	reiser4_key first_key;
+	unsigned long times_locked;
 #endif
 #if REISER4_STATS
 	int last_lookup_pos;

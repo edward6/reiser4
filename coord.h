@@ -57,6 +57,10 @@ struct coord {
 	 * structure. */
 	/* 10 */ __u16 pad;
 	/* 12 */ void *body;
+#if REISER4_DEBUG
+	unsigned long plug_v;
+	unsigned long body_v;
+#endif
 };
 
 #define INVALID_PLUGID  ((char)((1 << 8) - 1))
@@ -198,6 +202,14 @@ coord_last_unit_pos(const coord_t * coord)
 #if REISER4_DEBUG
 /* For assertions only, checks for a valid coordinate. */
 extern int coord_check(const coord_t * coord);
+
+extern unsigned long znode_times_locked(const znode *z);
+
+static inline void
+coord_update_v(coord_t * coord)
+{
+	coord->plug_v = coord->body_v = znode_times_locked(coord->node);
+}
 #endif
 
 extern int coords_equal(const coord_t * c1, const coord_t * c2);

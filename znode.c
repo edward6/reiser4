@@ -1303,6 +1303,14 @@ znode_is_loaded(const znode * node /* znode to query */ )
 
 #endif
 
+#if REISER4_DEBUG
+reiser4_internal unsigned long
+znode_times_locked(const znode *z)
+{
+	return z->times_locked;
+}
+#endif
+
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"

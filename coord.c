@@ -17,6 +17,8 @@ coord_init_values(coord_t *coord, const znode *node, pos_in_node_t item_pos,
 	coord_set_item_pos(coord, item_pos);
 	coord->unit_pos = unit_pos;
 	coord->between = between;
+	ON_DEBUG(coord->plug_v = 0);
+	ON_DEBUG(coord->body_v = 0);
 
 	/*ON_TRACE (TRACE_COORDS, "init coord %p node %p: %u %u %s\n", coord, node, item_pos, unit_pos, coord_tween_tostring (between)); */
 }
@@ -68,6 +70,8 @@ coord_dup_nocheck(coord_t * coord, const coord_t * old_coord)
 	coord->unit_pos = old_coord->unit_pos;
 	coord->between = old_coord->between;
 	coord->iplugid = old_coord->iplugid;
+	ON_DEBUG(coord->plug_v = old_coord->plug_v);
+	ON_DEBUG(coord->body_v = old_coord->body_v);
 }
 
 /* Initialize an invalid coordinate. */
@@ -578,6 +582,12 @@ coord_sideof_unit(coord_t * coord, sideof dir)
 	}
 }
 
+#if REISER4_DEBUG
+#define DEBUG_COORD_FIELDS (sizeof(c1->plug_v) + sizeof(c1->body_v))
+#else
+#define DEBUG_COORD_FIELDS (0)
+#endif
+
 reiser4_internal int
 coords_equal(const coord_t * c1, const coord_t * c2)
 {
@@ -588,7 +598,11 @@ coords_equal(const coord_t * c1, const coord_t * c2)
 	cassert(sizeof(*c1) == sizeof(c1->node) +
 		sizeof(c1->item_pos) +
 		sizeof(c1->unit_pos) +
-		sizeof(c1->iplugid) + sizeof(c1->between) + sizeof(c1->pad) + sizeof(c1->body));
+		sizeof(c1->iplugid) +
+		sizeof(c1->between) +
+		sizeof(c1->pad) +
+		sizeof(c1->body) +
+		DEBUG_COORD_FIELDS);
 	return
 		c1->node == c2->node &&
 		c1->item_pos == c2->item_pos &&

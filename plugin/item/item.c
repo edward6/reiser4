@@ -29,6 +29,7 @@ item_body_by_coord_hard(coord_t * coord /* coord to query */ )
 	trace_stamp(TRACE_TREE);
 
 	coord->body = node_plugin_by_node(coord->node)->item_by_coord(coord);
+	ON_DEBUG(coord->body_v = coord->node->times_locked);
 }
 
 reiser4_internal int item_body_is_valid(const coord_t * coord)

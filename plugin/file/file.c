@@ -842,7 +842,9 @@ hint_validate(hint_t *hint, const reiser4_key *key, int check_key, znode_lock_mo
 		return RETERR(-E_REPEAT);
 
 	return seal_validate(&hint->seal, &hint->coord.base_coord, key,
-			     hint->level, hint->coord.lh, FIND_MAX_NOT_MORE_THAN, lock_mode, ZNODE_LOCK_LOPRI);
+			     hint->level, hint->coord.lh,
+			     FIND_MAX_NOT_MORE_THAN,
+			     lock_mode, ZNODE_LOCK_LOPRI);
 }
 
 /* look for place at twig level for extent corresponding to page, call extent's writepage method to create

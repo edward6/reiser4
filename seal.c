@@ -163,6 +163,7 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 			if (seal_matches(seal, node)) {
 				/* if seal version and znode version
 				   coincide */
+				ON_DEBUG(coord_update_v(coord));
 				assert("nikita-1990", node == seal->coord.node);
 				assert("nikita-1898", WITH_DATA_RET(coord->node, 1, check_seal_match(coord, key)));
 				reiser4_stat_inc(seal.perfect_match);

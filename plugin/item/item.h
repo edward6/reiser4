@@ -297,12 +297,15 @@ get_iplugid(item_plugin *iplug)
 	return (char)item_id_by_plugin(iplug);
 }
 
+extern unsigned long znode_times_locked(const znode *z);
+
 static inline void
 coord_set_iplug(coord_t * coord, item_plugin *iplug)
 {
 	assert("nikita-2837", coord != NULL);
 	assert("nikita-2838", iplug != NULL);
 	coord->iplugid = get_iplugid(iplug);
+	ON_DEBUG(coord->plug_v = znode_times_locked(coord->node));
 }
 
 static inline item_plugin *
@@ -310,7 +313,9 @@ coord_iplug(const coord_t * coord)
 {
 	assert("nikita-2833", coord != NULL);
 	assert("nikita-2834", coord->iplugid != INVALID_PLUGID);
-	return (item_plugin *)plugin_by_id(REISER4_ITEM_PLUGIN_TYPE, coord->iplugid);
+	assert("nikita-3549", coord->plug_v == znode_times_locked(coord->node));
+	return (item_plugin *)plugin_by_id(REISER4_ITEM_PLUGIN_TYPE,
+					   coord->iplugid);
 }
 
 extern int item_can_contain_key(const coord_t * item, const reiser4_key * key, const reiser4_item_data *);
@@ -370,6 +375,7 @@ item_body_by_coord(const coord_t * coord /* coord to query */ )
 	if (coord->body == NULL)
 		item_body_by_coord_hard((coord_t *)coord);
 	assert("nikita-3201", item_body_is_valid(coord));
+	assert("nikita-3550", coord->body_v == znode_times_locked(coord->node));
 	return coord->body;
 }
 

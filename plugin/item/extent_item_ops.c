@@ -182,7 +182,6 @@ lookup_extent(const reiser4_key *key, lookup_bias bias UNUSED_ARG, coord_t *coor
 	        !keygt(key, max_key_inside_extent(coord, &item_key)));
 
 	ext = extent_item(coord);
-	assert("vs-1350", ext == coord->body);
 
 	blocksize = current_blocksize;
 	blocksize_bits = current_blocksize_bits;
