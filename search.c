@@ -172,7 +172,7 @@ cbk_cache_invalidate(const znode * node /* node to remove from cache */ ,
 	cbk_cache *cache;
 
 	assert("nikita-350", node != NULL);
-	ON_DEBUG_CONTEXT(assert("nikita-1479", lock_counters()->rw_locked_tree > 0));
+	assert("nikita-1479", lock_counters()->rw_locked_tree > 0);
 
 	cache = &tree->cbk_cache;
 	assert("nikita-2470", cbk_cache_invariant(cache));
@@ -1528,11 +1528,11 @@ sanity_check(cbk_handle * h /* search handle */ )
 
 	if (h->level < h->stop_level) {
 		h->error = "Buried under leaves";
-		h->result = CBK_IO_ERROR;
+		h->result = RETERR(-EIO);
 		return LOOKUP_DONE;
 	} else if (!block_nr_is_correct(&h->block, h->tree)) {
 		h->error = "bad block number";
-		h->result = CBK_IO_ERROR;
+		h->result = RETERR(-EIO);
 		return LOOKUP_DONE;
 	} else
 		return 0;

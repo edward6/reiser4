@@ -65,10 +65,6 @@ struct sealed_coord;
 typedef enum {
 	CBK_COORD_FOUND = 0,
 	CBK_COORD_NOTFOUND = -ENOENT,
-	CBK_IO_ERROR = -EIO,	/* FIXME: it seems silly to have special OOM, IO_ERROR return codes for each search. */
-	CBK_OOM = -ENOMEM	/* FIXME: it seems silly to have special OOM, IO_ERROR return codes for each search. */
-/* why is it silly? -Hans */
-/* should this be merged with the tween field? */
 } lookup_result;
 
 /* results of lookup with directory file */
@@ -170,10 +166,6 @@ typedef enum {
 	   allocate_and_copy_extent to squalloc_twig)) */
 	SQUEEZE_CONTINUE = 3
 } squeeze_result;
-
-struct name {
-};
-typedef struct name name_t;
 
 typedef enum {
 	STATIC_STAT_DATA_ID,

@@ -157,11 +157,8 @@ insert_result insert_by_key(reiser4_tree * tree	/* tree to insert new item
 	case CBK_COORD_FOUND:
 		result = IBK_ALREADY_EXISTS;
 		break;
-	case CBK_IO_ERROR:
-		result = IBK_IO_ERROR;
-		break;
-	case CBK_OOM:
-		result = IBK_OOM;
+	case -EIO:
+	case -ENOMEM:
 		break;
 	case CBK_COORD_NOTFOUND:
 		assert("nikita-2017", coord->node != NULL);
