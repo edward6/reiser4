@@ -2659,7 +2659,8 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode)
 		LOCK_TXNH(txnh);
 		/* NOTE-NIKITA is it at all possible that current txnh
 		 * spontaneously changes ->atom from NULL to non-NULL? */
-		if (node->atom == NULL || txnh->atom != NULL) {
+		if (node->atom == NULL || 
+		    txnh->atom != NULL || atom != node->atom) {
 			/* something changed. Caller have to re-decide */
 			UNLOCK_ATOM(atom);
 			UNLOCK_TXNH(txnh);
