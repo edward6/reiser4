@@ -244,6 +244,7 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 	dots_entry.d_name.name = ".";
 	dots_entry.d_name.len = 1;
 	result = add_entry_hashed(object, &dots_entry, NULL, &entry);
+	reiser4_free_dentry_fsdata(&dots_entry);
 
 	if (result == 0)
 		result = reiser4_add_nlink(object, parent, 0);
