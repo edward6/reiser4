@@ -506,7 +506,8 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count)
 	reiser4_block_nr start, length, j;
 	oid_t oid;
 	reiser4_key key;
-	
+
+	assert ("zam-811", znode_is_write_locked(coord->node));
 	
 	item_key_by_coord(coord, &key);
 	oid = get_key_objectid(&key);
@@ -2630,6 +2631,7 @@ insert_first_block(coord_t * coord, lock_handle * lh, jnode * j, const reiser4_k
 
 	/* make sure that we really write to first block */
 	assert("vs-240", get_key_offset(key) == 0);
+	assert("zam-809", znode_is_write_locked(coord->node));
 
 	/* extent insertion starts at leaf level */
 	assert("vs-719", znode_get_level(coord->node) == LEAF_LEVEL);
@@ -2671,6 +2673,8 @@ append_one_block(coord_t * coord, lock_handle * lh, jnode * j, reiser4_key * key
 	assert("vs-883", ( {
 			  reiser4_key next; keyeq(key, last_key_in_extent(coord, &next));
 			  }));
+
+	assert("zam-810", znode_is_write_locked(coord->node));
 
 	ext = extent_by_coord(coord);
 	switch (state_of_extent(ext)) {
