@@ -666,8 +666,10 @@ void unlock_page (struct page * p)
 
 void remove_inode_page (struct page * page)
 {
+	spin_lock (&page->lock);
 	assert ("vs-618", (page->count == 2 && PageLocked (page)));
 	page->mapping = 0;
+	spin_unlock (&page->lock);
 
 	txn_delete_page (page);
 }
@@ -682,10 +684,13 @@ struct page * find_get_page (struct address_space * mapping,
 
 	list_for_each (cur, &page_list) {
 		page = list_entry (cur, struct page, list);
+		spin_lock (&page->lock);
 		if (page->index == ind && page->mapping == mapping) {
 			page->count ++;
+			spin_unlock (&page->lock);
 			return page;
 		}
+		spin_unlock (&page->lock);
 	}
 	return 0;
 }
@@ -705,10 +710,9 @@ static void truncate_inode_pages (struct address_space * mapping,
 		page = list_entry (cur, struct page, list);
 		if (page->mapping == mapping) {
 			if (page->index >= ind) {
-				page->count ++;
 				lock_page (page);
+				page->count ++;
 				remove_inode_page (page);
-				unlock_page (page);
 				page->count --;
 				if (!page->count) {
 					spin_lock( &page_list_guard );
@@ -716,6 +720,7 @@ static void truncate_inode_pages (struct address_space * mapping,
 					spin_unlock( &page_list_guard );
 					free (page);
 				}
+				unlock_page (page);
 			}
 		}
 	}
@@ -842,15 +847,17 @@ static void invalidate_pages (void)
 	struct list_head * cur, * tmp;
 	struct page * page;
 
+	spin_lock( &page_list_guard );
 	list_for_each_safe (cur, tmp, &page_list) {
 		page = list_entry (cur, struct page, list);
+		lock_page (page);
 		assert ("vs-666", !PageDirty (page) && page->count == 0 &&
 			!PageKmaped (page));
-		spin_lock( &page_list_guard );
 		list_del_init( &page -> list );
 		free (page);
-		spin_unlock( &page_list_guard );
+		lock_page (page);
 	}
+	spin_unlock( &page_list_guard );
 }
 
 void print_pages (void)
@@ -916,14 +923,18 @@ unsigned long get_jiffies ()
 
 void page_cache_get(struct page * page)
 {
+	spin_lock( &page_list_guard );
 	page->count ++;
+	spin_unlock( &page_list_guard );
 }
 
 /* mm/page_alloc.c */
 void page_cache_release (struct page * page)
 {
+	spin_lock( &page_list_guard );
 	assert ("vs-352", page->count > 0);
 	page->count --;
+	spin_unlock( &page_list_guard );
 }
 
 
@@ -2483,9 +2494,9 @@ static int call_create (struct inode * dir, const char * name)
 	dentry.d_name.len = strlen( name );
 	ret = dir->i_op -> create( dir, &dentry, S_IFREG | 0777 );
 
-	init_context( old_context, dir->i_sb );
 	if( ret == 0 )
 		iput( dentry.d_inode );
+	init_context( old_context, dir->i_sb );
 	return ret;
 }
 
@@ -4599,7 +4610,7 @@ int real_main( int argc, char **argv )
 		atomic_set( &get_current_super_private() -> total_threads, 0 );
 		atomic_set( &get_current_super_private() -> active_threads, 0 );
 #endif
-		get_current_super_private() -> blocks_free = ~0;
+		get_current_super_private() -> blocks_free = ~0ul;
 
 		assert ("jmacd-998", super.s_blocksize == PAGE_CACHE_SIZE /* don't blame me, otherwise. */);
 
