@@ -465,7 +465,9 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 						* into */ )
 {
 	struct inode *inode;
-	file_plugin *fplug;
+	file_plugin  *fplug;
+	int           result;
+	REISER4_ENTRY( f -> f_dentry -> d_inode -> i_sb );
 	
 	assert( "umka-078", f != NULL );
 	assert( "umka-079", page != NULL );
@@ -477,10 +479,11 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 
 	inode = page -> mapping -> host;
 	fplug = inode_file_plugin( inode );
-	if( !fplug -> readpage ) {
-		return -EINVAL;
-	}
-	return fplug -> readpage( f, page );
+	if( fplug -> readpage != NULL )
+		result = fplug -> readpage( f, page );
+	else
+		result = -EINVAL;
+	REISER4_EXIT( result );
 }
 
 static int reiser4_vm_writeback( struct page *page, int *nr_to_write )
@@ -752,11 +755,15 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 static int reiser4_mmap (struct file * file, struct vm_area_struct * vma)
 {
 	struct inode * inode;
+	int            result;
+	REISER4_ENTRY (file -> f_dentry -> d_inode -> i_sb);
 
 	inode = file->f_dentry->d_inode;
 	if (inode_file_plugin (inode)->mmap == NULL)
-		return -ENOSYS;
-	return inode_file_plugin (inode)->mmap (file, vma);
+		result = -ENOSYS;
+	else
+		result = inode_file_plugin (inode)->mmap (file, vma);
+	REISER4_EXIT (result);
 }
 
 
@@ -1864,7 +1871,7 @@ struct file_operations reiser4_file_operations = {
  	.readdir           = reiser4_readdir, /* d */
 /* 	.poll              = reiser4_poll, */
 /* 	.ioctl             = reiser4_ioctl, */
-/* 	.mmap              = reiser4_mmap, */
+ 	.mmap              = reiser4_mmap, /* d */
 /* 	.open              = reiser4_open, */
 /* 	.flush             = reiser4_flush, */
  	.release           = reiser4_release, /* d */
