@@ -1711,7 +1711,7 @@ static inline void inode_set_bytes(struct inode *inode, loff_t bytes)
 	inode->i_bytes = bytes & 511;
 }
 
-typedef __s64 qsize_t;
+typedef __u64 qsize_t;
 
 /*
  * NO-OP when quota not configured.
@@ -1729,7 +1729,7 @@ typedef __s64 qsize_t;
 static inline int DQUOT_PREALLOC_SPACE_NODIRTY(struct inode *inode, qsize_t nr)
 {
 	lock_kernel();
-	inode_add_bytes(inode, nr);
+	inode_add_bytes(inode, (loff_t) nr);
 	unlock_kernel();
 	return 0;
 }
@@ -1744,7 +1744,7 @@ static inline int DQUOT_PREALLOC_SPACE(struct inode *inode, qsize_t nr)
 static inline int DQUOT_ALLOC_SPACE_NODIRTY(struct inode *inode, qsize_t nr)
 {
 	lock_kernel();
-	inode_add_bytes(inode, nr);
+	inode_add_bytes(inode, (loff_t)nr);
 	unlock_kernel();
 	return 0;
 }
@@ -1759,7 +1759,7 @@ static inline int DQUOT_ALLOC_SPACE(struct inode *inode, qsize_t nr)
 static inline void DQUOT_FREE_SPACE_NODIRTY(struct inode *inode, qsize_t nr)
 {
 	lock_kernel();
-	inode_sub_bytes(inode, nr);
+	inode_sub_bytes(inode, (loff_t)nr);
 	unlock_kernel();
 }
 

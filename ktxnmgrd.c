@@ -119,6 +119,10 @@ int ktxnmgrd( void *arg )
 
 	ktxnmgrd_trace( "exiting\n" );
 	complete_and_exit( &ctx -> finish, 0 );
+	/*
+	 * not reached.
+	 */
+	return 0;
 }
 
 void init_ktxnmgrd_context( ktxnmgrd_context *ctx )
