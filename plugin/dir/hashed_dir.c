@@ -666,10 +666,8 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	reiser4_dir_entry_desc old_entry;
 	reiser4_dir_entry_desc new_entry;
 
-	coord_t *old_coord;
 	coord_t *new_coord;
 
-	reiser4_dentry_fsdata *old_fsdata;
 	reiser4_dentry_fsdata *new_fsdata;
 
 	lock_handle new_lh;
@@ -687,10 +685,8 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 
 	dplug = inode_dir_plugin(old_dir);
 
-	old_fsdata = reiser4_get_dentry_fsdata(old_name);
 	new_fsdata = reiser4_get_dentry_fsdata(new_name);
 
-	old_coord = &old_fsdata->dec.entry_coord;
 	new_coord = &new_fsdata->dec.entry_coord;
 
 	is_dir = S_ISDIR(old_inode->i_mode);
