@@ -211,6 +211,14 @@ print_extent(const char *prefix, coord_t *coord)
 
 #endif
 
+void
+show_extent(struct seq_file *m, coord_t *coord)
+{
+	reiser4_extent *ext;
+	ext = extent_by_coord(coord);
+	seq_printf(m, "%Lu %Lu", extent_get_start(ext), extent_get_width(ext));
+}
+
 #if REISER4_TRACE
 static void
 print_ext_coord(const char *s, uf_coord_t *uf_coord)
@@ -2763,7 +2771,7 @@ exit1:
 	if (flow->length)
 		DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
 
-	PROF_END(extent_write, extent_write);
+	PROF_END(extent_write, 0);
 	return result;
 }
 
