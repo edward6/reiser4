@@ -236,7 +236,9 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	brelse (super_bh);
 
 	/* init oid allocator */
-	result = oid_init_allocator(get_format_40_file_count (sb_copy),
+	private->oid_plug = 
+		oid_allocator_plugin_by_id(OID_40_ALLOCATOR_ID);
+	result = oid_init_allocator(s, get_format_40_file_count (sb_copy),
 				    get_format_40_oid (sb_copy));
 	if (result)
 		return result;
