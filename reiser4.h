@@ -429,6 +429,8 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "plugin/disk_format/disk_format.h"
 
 #include "plugin/plugin.h"
+#include "plugin/object.h"
+
 #include "txnmgr.h"
 #include "jnode.h"
 #include "znode.h"
@@ -443,6 +445,7 @@ typedef struct { int foo; } NAME ## _spin_dummy
 
 #include "trace.h"
 
+#include "vfs_ops.h"
 #include "inode.h"
 #include "lnode.h"
 #include "super.h"

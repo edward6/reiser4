@@ -48,8 +48,6 @@ typedef __u32  oid_hi_t;
 
 #define OID_HI_SHIFT ( sizeof( ino_t ) * 8 )
 
-TS_LIST_DECLARE( readdir );
-
 /* state associated with each inode.
  * reiser4 inode.
  *
@@ -117,46 +115,25 @@ extern void  set_inode_oid( struct inode *inode, oid_t oid );
 extern ino_t oid_to_ino( oid_t oid );
 extern ino_t oid_to_uino( oid_t oid );
 
-extern reiser4_tree *tree_by_inode( const struct inode *inode );
-extern reiser4_inode *reiser4_inode_data( const struct inode *inode );
-extern int reiser4_max_filename_len( const struct inode *inode );
-extern int max_hash_collisions( const struct inode *dir );
-extern inter_syscall_rap *inter_syscall_ra( const struct inode *inode );
-extern void reiser4_lock_inode( struct inode *inode );
-extern int reiser4_lock_inode_interruptible( struct inode *inode );
-extern void reiser4_unlock_inode( struct inode *inode );
-extern int is_reiser4_inode( const struct inode *inode );
-extern int setup_inode_ops( struct inode *inode, 
-			    reiser4_object_create_data *data );
-extern int init_inode( struct inode *inode, coord_t *coord );
-extern struct inode * reiser4_iget( struct super_block * super, 
-				    const reiser4_key *key );
-extern int reiser4_inode_find_actor( struct inode *inode, void *opaque);
+extern reiser4_tree  *tree_by_inode           ( const struct inode *inode );
+extern reiser4_inode *reiser4_inode_data      ( const struct inode *inode );
+extern int            reiser4_max_filename_len( const struct inode *inode );
+extern int            max_hash_collisions     ( const struct inode *dir );
+extern inter_syscall_rap *inter_syscall_ra    ( const struct inode *inode );
+extern void           reiser4_unlock_inode    ( struct inode *inode );
+extern int            is_reiser4_inode        ( const struct inode *inode );
+extern int            setup_inode_ops         ( struct inode *inode, 
+						reiser4_object_create_data * );
+extern int            init_inode              ( struct inode *inode, 
+						coord_t *coord );
+extern struct inode * reiser4_iget            ( struct super_block * super, 
+						const reiser4_key *key );
+extern int            reiser4_inode_find_actor( struct inode *inode, 
+						void *opaque);
 
-extern int reiser4_write_sd( struct inode *object );
-extern int reiser4_add_nlink( struct inode *object, int write_sd_p );
-extern int reiser4_del_nlink( struct inode *object, int write_sd_p );
-extern int truncate_object( struct inode *inode, loff_t size );
-extern int lookup_sd( struct inode *inode, znode_lock_mode lock_mode, 
-			 coord_t *coord, lock_handle *lh,
-			 reiser4_key *key );
-extern int lookup_sd_by_key( reiser4_tree *tree, znode_lock_mode lock_mode, 
-		      coord_t *coord, lock_handle *lh, 
-		      const reiser4_key *key );
+extern void           reiser4_lock_inode              ( struct inode *inode );
+extern int            reiser4_lock_inode_interruptible( struct inode *inode );
 
-extern int guess_plugin_by_mode( struct inode *inode );
-extern int common_file_install( struct inode *inode, reiser4_plugin *plug,
-				struct inode *parent, 
-				reiser4_object_create_data *data );
-extern int common_file_delete( struct inode *inode, struct inode *parent );
-extern int common_file_save( struct inode *inode );
-extern int common_build_flow( struct inode *, char *buf,
-			      int user, size_t size,
-			      loff_t off, rw_op op, flow_t *);
-
-extern int common_write_inode( struct inode *inode );
-extern int common_file_owns_item( const struct inode *inode, 
-				  const coord_t *coord );
 #if REISER4_DEBUG
 extern void print_inode( const char *prefix, const struct inode *i );
 #else
@@ -175,72 +152,6 @@ extern hash_plugin *inode_hash_plugin( const struct inode *inode );
 extern item_plugin *inode_sd_plugin( const struct inode *inode );
 extern item_plugin *inode_dir_item_plugin( const struct inode *inode );
 
-extern void reiser4_free_dentry_fsdata( struct dentry *dentry );
-
-extern struct file_operations reiser4_file_operations;
-extern struct inode_operations reiser4_inode_operations;
-extern struct inode_operations reiser4_symlink_inode_operations;
-extern struct super_operations reiser4_super_operations;
-extern struct address_space_operations reiser4_as_operations;
-extern struct dentry_operations reiser4_dentry_operation;
-
-extern int reiser4_invalidatepage( struct page *page, unsigned long offset );
-extern int reiser4_releasepage( struct page *page, int gfp );
-extern int reiser4_writepages( struct address_space *, int *nr_to_write );
-
-/**
- * &reiser4_dentry_fsdata - reiser4-specific data attached to dentries.
- *
- * This is allocated dynamically and released in d_op->d_release()
- */
-typedef struct reiser4_dentry_fsdata {
-	/*
-	 * here will go fields filled by ->lookup() to speedup next
-	 * create/unlink, like blocknr of znode with stat-data, or key
-	 * of stat-data.
-	 */
-
-	/* seal covering directory entry */
-	seal_t     entry_seal;
-	/* coord of directory entry */
-	coord_t entry_coord;
-} reiser4_dentry_fsdata;
-
-/**
- * &reiser4_dentry_fsdata - reiser4-specific data attached to files.
- *
- * This is allocated dynamically and released in reiser4_release()
- */
-typedef struct reiser4_file_fsdata {
-	struct file *back;
-	/*
-	 * We need both directory and regular file parts here, because there
-	 * are file system objects that are files and directories.
-	 */
-	struct {
-		readdir_pos readdir;
-		readdir_list_link linkage;
-	} dir;
-	struct {
-		/*
-		 * store a seal for last accessed piece of meta-data: either
-		 * tail or extent item. This can be used to avoid tree
-		 * traversals.
-		 */
-		seal_t last_access;
-		/*
-		 * FIXME-VS: without coord seal is more or less
-		 * useless. Shouldn't therefore coord be included into seal?
-		 */
-		coord_t coord;
-		tree_level level;
-	} reg;
-} reiser4_file_fsdata;
-
-TS_LIST_DEFINE( readdir, reiser4_file_fsdata, dir.linkage );
-
-extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata( struct dentry *dentry );
-extern reiser4_file_fsdata *reiser4_get_file_fsdata( struct file *f );
 extern void reiser4_make_bad_inode( struct inode *inode );
 
 
