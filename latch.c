@@ -69,6 +69,39 @@ rw_latch_downgrade(rw_latch_t * latch)
 	spin_unlock(&latch->guard);
 }
 
+int
+rw_latch_try_read(rw_latch_t * latch)
+{
+	int result;
+
+	spin_lock(&latch->guard);
+	if (latch->access < 0)
+		result = -EBUSY;
+	else {
+		result = 0;
+		latch->access ++;
+	}
+	spin_unlock(&latch->guard);
+	return result;
+}
+
+int
+rw_latch_try_write(rw_latch_t * latch)
+{
+	int result;
+
+	spin_lock(&latch->guard);
+	if (latch->access != 0)
+		result = -EBUSY;
+	else {
+		result = 0;
+		latch->access = -1;
+	}
+	spin_unlock(&latch->guard);
+	return result;
+}
+
+
 /*
    Local variables:
    c-indentation-style: "K&R"

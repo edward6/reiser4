@@ -19,6 +19,9 @@ extern void rw_latch_up_read(rw_latch_t * latch);
 extern void rw_latch_up_write(rw_latch_t * latch);
 extern void rw_latch_downgrade(rw_latch_t * latch);
 
+extern int rw_latch_try_read(rw_latch_t * latch);
+extern int rw_latch_try_write(rw_latch_t * latch);
+
 /* __LATCH_H__ */
 #endif
 
