@@ -205,14 +205,14 @@ reiser4_cluster_init (reiser4_cluster_t * clust, reiser4_slide_t * window){
 static inline int 
 dclust_get_extension(hint_t * hint)
 {
-	return hint->coord.extension.ctail.shift;
+	return hint->ext_coord.extension.ctail.shift;
 }
 
 static inline void
 dclust_set_extension(hint_t * hint)
 {
-	assert("edward-1270", item_id_by_coord(&hint->coord.base_coord) == CTAIL_ID);
-	hint->coord.extension.ctail.shift = cluster_shift_by_coord(&hint->coord.base_coord);
+	assert("edward-1270", item_id_by_coord(&hint->ext_coord.coord) == CTAIL_ID);
+	hint->ext_coord.extension.ctail.shift = cluster_shift_by_coord(&hint->ext_coord.coord);
 }
 
 static inline int
