@@ -330,7 +330,7 @@ read_ctail(struct file *file UNUSED_ARG, flow_t *f, uf_coord_t *uf_coord)
 
 /* read one cluster form disk, decrypt and decompress its data */
 int
-ctail_cluster_by_page (reiser4_cluster_t * clust, struct page * page, struct inode * inode)
+ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode)
 {
 	flow_t f; /* for items collection */
 	uf_coord_t uf_coord;
@@ -365,8 +365,7 @@ ctail_cluster_by_page (reiser4_cluster_t * clust, struct page * page, struct ino
 	if (!clust->buf) 
 		return -ENOMEM;
 	
-	/* calculate cluster index */
-	index = cluster_index_by_page(page, inode);
+	index = clust->index;
 	
 	/* build flow for the cluster */
 	fplug->flow_by_inode(inode, clust->buf, 0 /* kernel space */,
@@ -413,7 +412,6 @@ ctail_cluster_by_page (reiser4_cluster_t * clust, struct page * page, struct ino
 		res = -EIO;
 		goto out2;
 	}
-	clust->index = index;
 	res = process_cluster(clust, inode, READ_OP);
 	if (res)
 		goto out2;
@@ -425,34 +423,30 @@ ctail_cluster_by_page (reiser4_cluster_t * clust, struct page * page, struct ino
 	return res;
 }
 
-/* plugin->u.item.s.file.readpage */
-int readpage_ctail(void * vp, struct page *page)
+/* read one locked page */
+int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 {
-	reiser4_cluster_t * clust = vp;
-	int index; /* page index in the cluster */
-	int length;
+	int ret;
+	unsigned char page_idx;
+	unsigned to_page;
 	struct inode * inode;
 	char * data;
 	int release = 0;
 
-	assert("edward-114", clust != NULL);
-	assert("edward-115", PageLocked(page));
-	assert("edward-116", !PageUptodate(page));
-	assert("edward-117", !jprivate(page) && !PagePrivate(page));
-	assert("edward-118", page->mapping && page->mapping->host);
-
+	assert("edward-xxx", PageLocked(page));
+	
 	inode = page->mapping->host;
-
-	if (cluster_is_required(clust)) {
-		int ret;
-		ret = ctail_cluster_by_page(clust, page, inode);
+	
+	if (!cluster_is_uptodate(clust)) {
+		clust->index = cluster_index_by_page(page, inode);
+		ret = ctail_read_cluster(clust, inode);
 		if (ret)
 			return ret;
-		/* we just has attached data that must be released
-		   before exit */
+		/* release cluster before exit if it was uptodated here */
 		release = 1;
 	}
 	if (clust->stat == FAKE_CLUSTER) {
+		/* fill page by zeroes */
 		char *kaddr = kmap_atomic(page, KM_USER0);
 		
 		assert("edward-119", clust->buf == NULL);
@@ -461,29 +455,47 @@ int readpage_ctail(void * vp, struct page *page)
 		flush_dcache_page(page);
 		kunmap_atomic(kaddr, KM_USER0);
 		SetPageUptodate(page);
-		reiser4_unlock_page(page);
 		
 		ON_TRACE(TRACE_CTAIL, " - hole, OK\n");
 		return 0;
 	}	
-	
-	/* fill one required page */
+	/* fill page by plain text */
 	assert("edward-120", clust->len <= inode_cluster_size(inode));
-	/* length of data to copy to the page */
-
-	index = page->index >> inode_cluster_shift(inode);
-	length = (index == clust->len >> PAGE_CACHE_SHIFT ?
-		  /* is this a last page of the cluster? */
-		  inode_cluster_size(inode) - clust->len : PAGE_CACHE_SIZE);
+	/* calculate page index in the cluster */
+	page_idx = page->index & ((1 << inode_cluster_shift(inode)) - 1);
+	to_page = PAGE_CACHE_SIZE;
+	
+	if(page_idx == (clust->len >> PAGE_CACHE_SHIFT))
+		to_page = clust->len & (PAGE_CACHE_SHIFT - 1);
+	else if (page_idx > (clust->len >> PAGE_CACHE_SHIFT))
+		to_page = 0;
 	data = kmap(page);
-	memcpy(data, clust->buf + (index << PAGE_CACHE_SHIFT), length);
-	memset(data + clust->len, 0, PAGE_CACHE_SIZE - length);
+	memcpy(data, clust->buf + (page_idx << PAGE_CACHE_SHIFT), to_page);
+	memset(data + clust->len, 0, PAGE_CACHE_SIZE - to_page);
 	kunmap(page);
 	SetPageUptodate(page);
-	reiser4_unlock_page(page);
 	if (release) 
 		put_cluster_data(clust, inode);
 	return 0;	
+}
+
+/* plugin->u.item.s.file.readpage */
+int readpage_ctail(void * vp, struct page * page)
+{
+	int result;
+	reiser4_cluster_t * clust = vp;
+
+	assert("edward-114", clust != NULL);
+	assert("edward-115", PageLocked(page));
+	assert("edward-116", !PageUptodate(page));
+	assert("edward-117", !jprivate(page) && !PagePrivate(page));
+	assert("edward-118", page->mapping && page->mapping->host);
+	
+	result = do_readpage_ctail(clust, page);
+	assert("edward-xxx", PageLocked(page));
+	if (!result)
+		reiser4_unlock_page(page);
+	return result;
 }
 
 /* plugin->s.file.writepage */
@@ -494,7 +506,8 @@ writepage_ctail(uf_coord_t *uf_coord, struct page *page, write_mode_t mode)
 }
 
 /* plugin->u.item.s.file.readpages
-   populate an address space with some pages, and start reads against them. */
+   populate an address space with some pages, and start reads against them.
+*/
 void
 readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct list_head *pages)
 {
@@ -508,7 +521,7 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 	pagevec_init(&lru_pvec, 0);
 	reiser4_cluster_init(&clust);
 	inode = mapping->host;
-
+	
 	while (!list_empty(pages)) {
 		page = list_to_page(pages);
 		list_del(&page->list);
@@ -517,6 +530,7 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 			continue;
 		}
 		/* update cluster if it is necessary */
+		
 		if (!page_of_cluster(page, &clust, inode)) {
 			put_cluster_data(&clust, inode);
 			ret = ctail_cluster_by_page(&clust, page, inode);
@@ -532,7 +546,61 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 		exit:
 			while (!list_empty(pages)) {
 				struct page *victim;
+				
+				victim = list_to_page(pages);
+				list_del(&victim->list);
+				page_cache_release(victim);
+			}
+			break;
+		}
+	}
+	put_cluster_data(&clust, inode);
+	pagevec_lru_add(&lru_pvec);
+	return ret;
+}
+void
+readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct list_head *pages)
+{
+	reiser4_cluster_t clust;
+	struct page *page;
+	struct pagevec lru_pvec;
+	int ret = 0;
+	struct inode * inode = mapping->host;
+	struct page * pages[1 << inode_cluster_shift(inode)];
 
+	if (!list_empty(pages) && pages->next != pages->prev)
+		/* make sure order is write */
+		assert("edward-xxx", list_to_page(pages)->index < prev_list_to_page(pages)->index);
+	
+	pagevec_init(&lru_pvec, 0);
+	reiser4_cluster_init(&clust);
+	inode = mapping->host;
+	
+	while (!list_empty(pages)) {
+		page = list_to_page(pages);
+		list_del(&page->list);
+		if (add_to_page_cache(page, mapping, page->index, GFP_KERNEL)) {
+			page_cache_release(page);
+			continue;
+		}
+		/* update cluster if it is necessary */
+		
+		if (!page_of_cluster(page, &clust, inode)) {
+			put_cluster_data(&clust, inode);
+			ret = ctail_cluster_by_page(&clust, page, inode);
+			if (ret)
+				goto exit;
+		}
+		ret = ctail_readpage(&clust, page);
+		if (!pagevec_add(&lru_pvec, page))
+			__pagevec_lru_add(&lru_pvec);
+		if (ret) {
+			SetPageError(page);
+			reiser4_unlock_page(page);
+		exit:
+			while (!list_empty(pages)) {
+				struct page *victim;
+				
 				victim = list_to_page(pages);
 				list_del(&victim->list);
 				page_cache_release(victim);
