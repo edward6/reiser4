@@ -1791,14 +1791,20 @@ int extent_readpage (void * vp, struct page * page)
 	assert ("vs-859", znode_is_loaded (coord->node));
 	assert ("vs-860", znode_is_rlocked (coord->node));
 	assert ("vs-758", item_is_extent (coord));
-	assert ("vs-759", coord_is_existing_unit (coord));
 
 	ext = extent_by_coord (coord);
-	state = state_of_extent (ext);
+	if (!coord_is_existing_unit (coord))
+		/*
+		 * there are no items either yet or already
+		 */
+		state = HOLE_EXTENT;
+	else {
+		state = state_of_extent (ext);
+		if (REISER4_DEBUG)
+			/* this will check that unit @coord is set to addresses this page */
+			in_extent (coord, (loff_t)page->index << PAGE_CACHE_SHIFT);
+	}
 
-	if (REISER4_DEBUG)
-		/* this will check that unit @coord is set to addresses this page */
-		in_extent (coord, (loff_t)page->index << PAGE_CACHE_SHIFT);
 
 	switch (state) {
 	case HOLE_EXTENT:
@@ -3362,7 +3368,15 @@ static int make_page_extent (struct inode * inode, jnode * j,
 
 
 	init_lh (&lh);
-
+/*
+	result = find_next_item (0, &hint->key, &coord, &lh,
+				 ZNODE_WRITE_LOCK,
+				 CBK_UNIQUE | CBK_FOR_INSERT);
+	if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
+		done_lh (&lh);
+		return result;
+	}
+*/
 	result = hint_validate (hint, &f->key, &coord, &lh);
 	if (result) {
 		reiser4_stat_extent_add (broken_seals);
@@ -3622,6 +3636,15 @@ int extent_write (struct inode * inode, struct sealed_coord * hint, flow_t * f,
 
 
 	init_lh (&lh);
+/*
+	result = find_next_item (0, &hint->key, &coord, &lh,
+				 ZNODE_WRITE_LOCK,
+				 CBK_UNIQUE | CBK_FOR_INSERT);
+	if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
+		done_lh (&lh);
+		return result;
+	}
+*/
 	result = hint_validate (hint, &f->key, &coord, &lh);
 	if (result) {
 		reiser4_stat_extent_add (broken_seals);
