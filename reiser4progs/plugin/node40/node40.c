@@ -45,7 +45,7 @@ static uint16_t node40_item_maxsize(aal_block_t *block) {
 }
 
 /* Returns length of pos-th item */
-static uint16_t node40_item_length(aal_block_t *block, uint16_t pos) {
+static uint16_t node40_item_length(aal_block_t *block, uint32_t pos) {
     aal_assert("vpf-037", block != NULL, return 0);
     return ih40_get_length(node40_ih_at(block, pos));    
 }
@@ -161,7 +161,8 @@ static errno_t node40_insert(aal_block_t *block, reiserfs_pos_t *pos,
 { 
     reiserfs_nh40_t *nh;
     
-    aal_assert("vpf-119", pos != NULL && pos->unit == -1, return -1);
+    aal_assert("vpf-119", pos != NULL && 
+	pos->unit == -1, return -1);
     
     if (node40_prepare(block, pos, key, item))
 	return -1;
@@ -169,41 +170,92 @@ static errno_t node40_insert(aal_block_t *block, reiserfs_pos_t *pos,
     nh = reiserfs_nh40(block);
     nh40_set_num_items(nh, nh40_get_num_items(nh) + 1);
     
-    return libreiser4_plugin_call(return -1, item->plugin->item.common,
-	create, node40_ib_at(block, pos->item), item);
+    if (item->data) {
+	aal_memcpy(node40_ib_at(block, pos->item), item->data, 
+	    item->length);
+
+	return 0;
+    } else {
+	return libreiser4_plugin_call(return -1, item->plugin->item.common,
+	    create, node40_ib_at(block, pos->item), item);
+    }
+}
+
+/* 
+    This function remove item pointed by pos from node. Do not try to understand
+    this function. This is impossible. But it works correctly.
+*/
+static errno_t node40_remove(aal_block_t *block, reiserfs_pos_t *pos) {
+    int do_move;
+    uint32_t offset;
+    reiserfs_nh40_t *nh;
+    reiserfs_ih40_t *ih;
+    
+    reiserfs_ih40_t *ih_at_pos;
+    reiserfs_ih40_t *ih_at_end;
+    
+    aal_assert("umka-762", block != NULL, return -1);
+    aal_assert("umka-763", pos != NULL, return -1);
+
+    nh = reiserfs_nh40(block);
+    ih_at_pos = node40_ih_at(block, pos->item);
+
+    aal_assert("umka-763", pos->item < 
+	nh40_get_num_items(nh), return -1);
+    
+    /* Moving the data */
+    offset = ih40_get_offset(ih_at_pos);
+
+    do_move = ((offset + ih40_get_length(ih_at_pos)) < 
+	nh40_get_free_space_start(nh));
+    
+    if (do_move) {
+	aal_memcpy(block->data + offset, block->data + offset + 
+	    ih40_get_length(ih_at_pos), nh40_get_free_space_start(nh) - 
+	    offset - ih40_get_length(ih_at_pos));
+    
+	/* Updating offsets */
+	ih_at_end = node40_ih_at(block, nh40_get_num_items(nh) - 1);
+	for (ih = ih_at_pos + 1; ih >= ih_at_end; ih++)
+	    ih40_set_offset(ih, ih40_get_offset(ih) - ih40_get_length(ih_at_pos));
+    }
+	
+    /* 
+	Updating node header. This is performed before moving the headers because
+	we need ih_at_pos item length, that will be killed by moving.
+    */
+    nh40_set_free_space(nh, nh40_get_free_space(nh) + 
+	ih40_get_length(ih_at_pos) + sizeof(reiserfs_ih40_t));
+    
+    nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) - 
+	ih40_get_length(ih_at_pos));
+    
+    if (do_move) {
+	/* Moving the item headers */
+	aal_memcpy(ih_at_end, ih_at_end + 1, 
+	    ((void *)ih_at_pos) - ((void *)ih_at_end));
+    }
+    
+    return 0;
 }
 
 /* Pastes units into item described by hint structure. */
 static errno_t node40_paste(aal_block_t *block, reiserfs_pos_t *pos, 
     reiserfs_key_t *key, reiserfs_item_hint_t *item) 
 {   
-    aal_assert("vpf-120", pos != NULL && pos->unit != -1, return -1);
+    /* 
+	FIXME-UMKA: Vitaly, I think assertions for checking parameters should 
+	be separated, because we need to know exactly, which one assertion has
+	occured.
+    */
+    aal_assert("vpf-120", 
+	pos != NULL && pos->unit != -1, return -1);
     
     if (node40_prepare(block, pos, key, item))
 	return -1;
 
     return libreiser4_plugin_call(return -1, item->plugin->item.common,
 	unit_add, node40_ib_at(block, pos->item), pos, item);
-}
-
-/* This function counts max item number */
-static uint16_t node40_maxnum(aal_block_t *block) {
-    uint16_t i;
-    uint32_t total_size = 0;
-    reiserfs_plugin_t *plugin;
-    
-    aal_assert("vpf-017", block != NULL, return 0);
-   
-    for (i = 0; i < nh40_get_num_items(reiserfs_nh40(block)); i++) {
-	uint16_t plugin_id = ih40_get_plugin_id(node40_ih_at(block, i));
-	
-	if (!(plugin = factory->find(REISERFS_ITEM_PLUGIN, plugin_id)))
-	    libreiser4_factory_failed(return 0, find, item, plugin_id);
-	
-	total_size += libreiser4_plugin_call(return 0, plugin->item.common, 
-	    minsize,) + sizeof(reiserfs_ih40_t);
-    }
-    return (block->size - sizeof(reiserfs_nh40_t)) / total_size;
 }
 
 /*
@@ -230,6 +282,26 @@ static errno_t node40_create(aal_block_t *block, uint8_t level) {
 }
 
 #endif
+
+/* This function counts max item number */
+static uint16_t node40_maxnum(aal_block_t *block) {
+    uint16_t i;
+    uint32_t total_size = 0;
+    reiserfs_plugin_t *plugin;
+    
+    aal_assert("vpf-017", block != NULL, return 0);
+   
+    for (i = 0; i < nh40_get_num_items(reiserfs_nh40(block)); i++) {
+	uint16_t plugin_id = ih40_get_plugin_id(node40_ih_at(block, i));
+	
+	if (!(plugin = factory->find(REISERFS_ITEM_PLUGIN, plugin_id)))
+	    libreiser4_factory_failed(return 0, find, item, plugin_id);
+	
+	total_size += libreiser4_plugin_call(return 0, plugin->item.common, 
+	    minsize,) + sizeof(reiserfs_ih40_t);
+    }
+    return (block->size - sizeof(reiserfs_nh40_t)) / total_size;
+}
 
 /*
     Confirms that passed corresponds current plugin.
@@ -375,6 +447,8 @@ static reiserfs_plugin_t node40_plugin = {
 	.insert = (errno_t (*)(aal_block_t *, void *, void *, void *))
 	    node40_insert,
 	
+	.remove = (errno_t (*)(aal_block_t *, void *))node40_remove,
+	
 	.paste = (errno_t (*)(aal_block_t *, void *, void *, void *))
 	    node40_paste,
 	
@@ -389,6 +463,7 @@ static reiserfs_plugin_t node40_plugin = {
 #else
 	.create = NULL,
 	.insert = NULL,
+	.remove = NULL,
 	.paste = NULL,
 	.set_level = NULL,
 	.set_free_space = NULL,

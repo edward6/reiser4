@@ -33,8 +33,8 @@ extern errno_t reiserfs_tree_flush(reiserfs_tree_t *tree);
 extern errno_t reiserfs_tree_insert_item(reiserfs_tree_t *tree, 
     reiserfs_item_hint_t *item);
 
-extern errno_t reiserfs_tree_insert_node(reiserfs_tree_t *tree, 
-    reiserfs_node_t *parent, reiserfs_node_t *node);
+extern errno_t reiserfs_tree_insert_node(reiserfs_node_t *parent, 
+    reiserfs_node_t *node);
 
 extern errno_t reiserfs_tree_remove_item(reiserfs_tree_t *tree, 
     reiserfs_key_t *key);

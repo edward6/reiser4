@@ -13,6 +13,14 @@ void reiserfs_key_init(reiserfs_key_t *key, reiserfs_plugin_t *key_plugin) {
     key->plugin = key_plugin;
 }
 
+int reiserfs_key_compare(reiserfs_key_t *key1, reiserfs_key_t *key2) {
+    aal_assert("umka-764", key1 != NULL, return -1);
+    aal_assert("umka-765", key2 != NULL, return -1);
+
+    return libreiser4_plugin_call(return -1, key1->plugin->key, compare, 
+	key1->body, key2->body);
+}
+
 reiserfs_key_t *reiserfs_key_create(reiserfs_plugin_t *key_plugin) {
     reiserfs_key_t *key;
     

@@ -191,12 +191,32 @@ int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t stop,
 		return -1;
 	}
 	
-	if (reiserfs_node_add(node, coord->node))
+	/* Registering node in tree cache */
+	if (reiserfs_node_register(node, coord->node))
 	    return -1;
 
 	node = coord->node;
     }
     return 0;
+}
+
+reiserfs_node_t *reiserfs_tree_alloc_node(reiserfs_tree_t *tree, 
+    uint8_t level) 
+{
+    blk_t block_nr;
+    
+    aal_assert("umka-756", tree != NULL, return NULL);
+    
+    /* Allocating the block */
+    if (!(block_nr = reiserfs_alloc_alloc(tree->alloc))) {
+        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	   "Can't allocate block for a node.");
+	return NULL;
+    }
+
+    return reiserfs_node_create(tree->device, block_nr,
+        reiserfs_node_get_plugin_id(tree->root_node), 
+        tree->root_node->key_plugin->h.id, level);
 }
 
 /* 
@@ -236,51 +256,103 @@ errno_t reiserfs_tree_insert_item(reiserfs_tree_t *tree,
 	existent one. This will be performed in the case we have found an internal
 	node, or we have not enought free space in found leaf.
     */
-    if (reiserfs_node_get_level(coord.node) > REISERFS_LEAF_LEVEL ||
-	reiserfs_node_get_free_space(coord.node) < item->length) 
+    if (aal_block_get_nr(coord.node->block) == aal_block_get_nr(tree->root_node->block) ||
+	reiserfs_node_get_free_space(coord.node) < item->length)
     {
 	blk_t block_nr;
 	reiserfs_node_t *leaf;
 
-	/* Allocating the block */
-	if (!(block_nr = reiserfs_alloc_alloc(tree->alloc))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't allocate block for leaf node.");
-	    return -1;
-	}
+	if (aal_block_get_nr(coord.node->block) == aal_block_get_nr(tree->root_node->block)) {
+	    /* 
+		Found node is the root node. This may happen when tree is empty, 
+		that is consists of root node only. In this case we allocate new
+		leaf and insert it into tree immediate.
+	    */
+	    if (!(leaf = reiserfs_tree_alloc_node(tree, REISERFS_LEAF_LEVEL))) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Can't allocate a leaf node.");
+		return -1;
+	    }
 	
-	/* Creating new leaf */
-	if (!(leaf = reiserfs_node_create(tree->device, block_nr,
-	    reiserfs_node_get_plugin_id(tree->root_node), 
-	    tree->root_node->key_plugin->h.id, REISERFS_LEAF_LEVEL)))
-	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't create a leaf node at %llu.", block_nr);
-	    return -1;
-	}
-	coord.pos.item = 0;
-	coord.pos.unit = -1;
+	    coord.pos.item = 0;
+	    coord.pos.unit = -1;
     
-	/* Inserting item into new leaf */
-	if (reiserfs_node_insert(leaf, &coord.pos, key, item)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Can't insert item into the node %llu.", 
-		aal_block_get_nr(coord.node->block));
+	    /* Inserting item into new leaf */
+	    if (reiserfs_node_insert(leaf, &coord.pos, key, item)) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		    "Can't insert item into the node %llu.", 
+		    aal_block_get_nr(coord.node->block));
 
-	    reiserfs_node_close(coord.node);
-	    return -1;
-	}
+		reiserfs_node_close(leaf);
+		return -1;
+	    }
 	
-	/* Inserting new leaf into the tree */
-	if (reiserfs_tree_insert_node(tree, coord.node->parent ? 
-	    coord.node->parent : tree->root_node, leaf)) 
-	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Can't insert node %llu into the thee.", 
-		aal_block_get_nr(leaf->block));
+	    /* Inserting new leaf into the tree */
+	    if (reiserfs_tree_insert_node(coord.node->parent ? 
+		coord.node->parent : tree->root_node, leaf)) 
+	    {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		    "Can't insert node %llu into the thee.", 
+		    aal_block_get_nr(leaf->block));
 
-	    reiserfs_node_close(leaf);
-	    return -1;
+		reiserfs_node_close(leaf);
+		return -1;
+	    }
+	} else {
+	    reiserfs_coord_t insert;
+	    /* 
+		This is the case when no enought free space in found node. Here we 
+		should check whether free space in left or right neighborhoods is
+		and if so, to make shift. Then we can insert new item into found
+		node. In the case no free space found in both neightbors of found
+		node, we should allocate new leaf and insert item into it.
+	    */
+	    aal_memset(&insert, 0, sizeof(insert));
+	    
+	    if (reiserfs_node_shift(&coord, &insert) ||
+		reiserfs_node_get_free_space(insert.node) < item->length)
+	    {
+		/* 
+		    Node was unable to shift own content into left or right neighbor.
+		    Allocating the new leaf is needed.
+		*/
+		if (!(leaf = reiserfs_tree_alloc_node(tree, REISERFS_LEAF_LEVEL))) {
+		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+			"Can't allocate a leaf node.");
+		    return -1;
+		}
+	
+		coord.pos.item = 0;
+		coord.pos.unit = -1;
+    
+		/* Inserting item into new leaf */
+		if (reiserfs_node_insert(leaf, &coord.pos, key, item)) {
+		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+			"Can't insert item into the node %llu.", 
+			aal_block_get_nr(coord.node->block));
+
+		    reiserfs_node_close(leaf);
+		    return -1;
+		}
+	
+		/* Inserting new leaf into the tree */
+		if (reiserfs_tree_insert_node(coord.node->parent, leaf)) {
+		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+			"Can't insert node %llu into the thee.", 
+			aal_block_get_nr(leaf->block));
+
+		    reiserfs_node_close(leaf);
+		    return -1;
+		}
+	    } else {
+		/* Inserting item into found after shifting point */
+		if (reiserfs_node_insert(insert.node, &insert.pos, key, item)) {
+		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+			"Can't insert an internal item into the node %llu.", 
+			aal_block_get_nr(coord.node->block));
+		    return -1;
+		}
+	    }
 	}
     } else {
 	/* Inserting item into existent one leaf */
@@ -294,25 +366,17 @@ errno_t reiserfs_tree_insert_item(reiserfs_tree_t *tree,
     return 0;
 }
 
-/* Removes item by specified key */
-errno_t reiserfs_tree_remove_item(reiserfs_tree_t *tree, 
-    reiserfs_key_t *key) 
-{
-    return -1;
-}
-
 /* Inserts a node into the tree */
-errno_t reiserfs_tree_insert_node(reiserfs_tree_t *tree, 
-    reiserfs_node_t *parent, reiserfs_node_t *node) 
+errno_t reiserfs_tree_insert_node(reiserfs_node_t *parent, 
+    reiserfs_node_t *node) 
 {
     int lookup;
     reiserfs_key_t ldkey;
     reiserfs_coord_t coord;
 
-    reiserfs_item_hint_t item_hint;
-    reiserfs_internal_hint_t internal_hint;
+    reiserfs_item_hint_t item;
+    reiserfs_internal_hint_t internal;
     
-    aal_assert("umka-646", tree != NULL, return -1);
     aal_assert("umka-646", parent != NULL, return -1);
     aal_assert("umka-647", node != NULL, return -1);
 
@@ -330,41 +394,60 @@ errno_t reiserfs_tree_insert_node(reiserfs_tree_t *tree,
 	return -1;
     }
     
-    aal_memset(&item_hint, 0, sizeof(item_hint));
-    internal_hint.pointer = aal_block_get_nr(node->block);
+    aal_memset(&item, 0, sizeof(item));
+    internal.pointer = aal_block_get_nr(node->block);
 
-    item_hint.hint = &internal_hint;
-    item_hint.type = REISERFS_INTERNAL_ITEM;
+    item.hint = &internal;
+    item.type = REISERFS_INTERNAL_ITEM;
     
     /* FIXME-UMKA: Hardcoded internal item id */
-    if (!(item_hint.plugin = libreiser4_factory_find(REISERFS_ITEM_PLUGIN, 0x3)))
+    if (!(item.plugin = libreiser4_factory_find(REISERFS_ITEM_PLUGIN, 0x3)))
     	libreiser4_factory_failed(return -1, find, item, 0x3);
    
     /* Estimating found internal node */
-    if (reiserfs_node_item_estimate(parent, &item_hint, &coord.pos))
+    if (reiserfs_node_item_estimate(parent, &item, &coord.pos))
 	return -1;
  
     /* 
-	Checking for free space inside found internal node. If it is enought for
-	inserting one more internal item into it then we doing this. If no, we need 
-	to splitt internal node and insert item into one of new nodes in corresponding 
-	to key. After, we should insert new node into parent of found internal node by
-	reiserfs_tree_insert_node. This may cause tree growing when recursion reach the
-	root node.
+	Checking for free space inside found internal node. If it is enought 
+	for inserting one more internal item into it then we doing this. If no, 
+	we need to split internal node and insert item into right of new nodes.
+	After, we should insert right node into parent of found internal node 
+	by reiserfs_tree_insert_node. This may cause tree growing when recursion 
+	reach the root node.
     */
-    if (reiserfs_node_get_free_space(parent) < item_hint.length) {
+    if (reiserfs_node_get_free_space(parent) < item.length) {
+	reiserfs_node_t *left, *right;
 	/* 
 	    Splitting and calling reiserfs_tree_insert_node for new block will 
 	    be here.
 	*/
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Sorry, splitting is not suported yet!");
+/*	if (reiserfs_node_split(parent, left, right)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't split node %llu.", aal_block_get_nr(parent->block));
+	    return -1;
+	}*/
+	
+	/* Inserting item into right node */
+
+/*	coord.pos.unit = -1;
+
+	if (reiserfs_node_insert(parent, &coord.pos, &ldkey, &item)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Can't insert an internal item into the node %llu.", 
+		aal_block_get_nr(parent->block));
+	    return -1;
+	}*/
+
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Sorry, splitting and tree growing doesn't supported yet!");
 	return -1;
     }
     
     coord.pos.unit = -1;
+
     /* Inserting item */
-    if (reiserfs_node_insert(parent, &coord.pos, &ldkey, &item_hint)) {
+    if (reiserfs_node_insert(parent, &coord.pos, &ldkey, &item)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
 	    aal_block_get_nr(parent->block));
@@ -372,9 +455,16 @@ errno_t reiserfs_tree_insert_node(reiserfs_tree_t *tree,
     }
 
     /* Adding node to the tree cache */
-    reiserfs_node_add(parent, node);
+    reiserfs_node_register(parent, node);
     
     return 0;
+}
+
+/* Removes item by specified key */
+errno_t reiserfs_tree_remove_item(reiserfs_tree_t *tree, 
+    reiserfs_key_t *key) 
+{
+    return -1;
 }
 
 /* Removes node from tree by its left delimiting key */

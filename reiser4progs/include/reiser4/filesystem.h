@@ -81,6 +81,8 @@ struct reiserfs_node {
     
     reiserfs_node_t *parent;
     aal_list_t *children;
+
+    reiserfs_node_t *left, *right;
 };
 
 struct reiserfs_coord {

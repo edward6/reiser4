@@ -243,6 +243,9 @@ struct reiserfs_node_ops {
     /* Inserts item at specified pos */
     errno_t (*insert) (aal_block_t *, void *, void *, void *);
     
+    /* Removes item at specified pos */
+    errno_t (*remove) (aal_block_t *, void *);
+    
     /* Pastes units at specified pos */
     errno_t (*paste) (aal_block_t *, void *, void *, void *);
     
@@ -540,21 +543,20 @@ struct reiserfs_direntry_hint {
 typedef struct reiserfs_direntry_hint reiserfs_direntry_hint_t;
 
 /* 
-    Create item or paste into item on the base of this structure. 
-    "data" is a pointer to data to be copied. 
+    Create item or paste into item on the base of this structure. Here "data" is 
+    a pointer to data to be copied. 
 */ 
 struct reiserfs_item_hint {
     reiserfs_item_type_t type;
     /*
-	This is pointer to already formated item body. It 
-	is useful for item copying, replacing, etc. This
-	will be used by fsck probably.
+	This is pointer to already formated item body. It is useful for item copying, 
+	replacing, etc. This will be used by fsck probably.
     */
     void *data;
 
     /*
-	This is pointer to hint which describes item.
-	It is widely used for creating an item.
+	This is pointer to hint which describes item. It is widely used for creating 
+	an item.
     */
     void *hint;
 
