@@ -163,6 +163,7 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 		/* remove file body. This is probably done in a whole
 		 * lot of transactions and takes a lot of time. We keep
 		 * @object locked. So, nlink shouldn't change. */
+		object -> i_size = 0;
 		result = truncate_object( object, ( loff_t ) 0 );
 		if( result != 0 )
 			return result;
