@@ -1138,6 +1138,7 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 	ON_DEBUG(reiser4_extent orig_ext);	/* this is for debugging */
 
 	assert("vs-990", coord_is_existing_unit(un_extent));
+	assert("vs-1375", znode_is_write_locked(un_extent->node));
 
 	coord_dup(&coord_after, un_extent);
 	init_lh(&lh_after);
@@ -1196,9 +1197,15 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 
 			if (coord_after.node != orig_znode)
 				zrelse(coord_after.node);
+			if (flags == COPI_DONT_SHIFT_LEFT) {
+				/* set coord back to initial extent unit */
+				*un_extent = coord_after;
+				assert("vs-1375", znode_is_write_locked(un_extent->node));
+			}
 		}
 	}
 	tap_done(&watch);
+	
 	ENABLE_NODE_CHECK;
 	return result;
 }
@@ -1268,7 +1275,8 @@ assign_jnode_blocknrs(oid_t oid, unsigned long index, reiser4_block_nr first,
 
 #define MIN_SLUM_SIZE 32
 
-/* find "slum": sequence of dirty children. Scan the extent and look for  */
+/* scan the extent, return when first "slum" is over (*slum_start, *slum_size), conts number of dirty nodes (via
+   *overwrite) encountered before that "slum" */
 static int
 find_slum(reiser4_tree *tree, oid_t oid, unsigned long ind,
 	  reiser4_block_nr ae_width,
@@ -1293,7 +1301,8 @@ find_slum(reiser4_tree *tree, oid_t oid, unsigned long ind,
 					*slum_start = i;
 				(*slum_size) ++;
 				/* count this as overwrite yet */
-				(*overwrite) ++;
+				if (!slum_found)
+					(*overwrite) ++;
 				if (*slum_size == MIN_SLUM_SIZE/*get_current_super_private()->flush.relocate_threshold*/) {
 					/* "slum" is found */
 					slum_found = 1;
@@ -1345,7 +1354,7 @@ allocated2unallocated(coord_t *coord, reiser4_block_nr ue_start, reiser4_block_n
 	ae_width = extent_get_width(ext);
 	
 	if (ae_width == ue_width) {
-		set_extent(ext, UNALLOCATED_EXTENT_START, 1);
+		set_extent(ext, UNALLOCATED_EXTENT_START, ae_width);
 		znode_make_dirty(coord->node);
 		return 0;
 	} else if (ue_start == 0) {
@@ -1883,6 +1892,9 @@ allocate_and_copy_extent(znode *left, coord_t *right, flush_pos_t *flush_pos,
 
 		assert("vs-959", state_of_extent(ext) == UNALLOCATED_EXTENT);
 
+		/* extent width might change */
+		width = extent_get_width(ext);
+
 		to_allocate = width;
 		/* until whole extent is allocated and there is space in left neighbor */
 		while (to_allocate) {
@@ -2048,6 +2060,7 @@ allocate_extent_item_in_place(coord_t *coord, lock_handle *lh, flush_pos_t *flus
 
 		assert("vs-1021", coord->item_pos == orig_item_pos);
 		assert("vs-1020", keyeq(item_key_by_coord(coord, &key), &orig_key));
+		assert("vs-1374", index == extent_unit_index(coord));
 
 		width = extent_get_width(ext);
 
@@ -2055,13 +2068,19 @@ allocate_extent_item_in_place(coord_t *coord, lock_handle *lh, flush_pos_t *flus
 			break;
 		}
 
+		/* extent width might change */
+		width = extent_get_width(ext);
+
 		if (!result) {
 			/* unit does not require allocation, skip it */ 
 			index += width;
+			num_units = coord_num_units(coord);
 			continue;
 		}
 
+		assert("vs-1374", index == extent_unit_index(coord));
 		assert("vs-439", state_of_extent(ext) == UNALLOCATED_EXTENT);
+
 
 		/*
 		 * eflush<->extentallocation interactions.
@@ -2371,110 +2390,6 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 	uf_coord->valid = 0;
 	return replace_extent(coord, uf_coord->lh, key, init_new_extent(&item, new_exts, count), &replace, 0 /* flags */);
 }
-
-#if 0
-/* replace allocated node pointer @uf_coord is set to with unallocated node pointer */
-static int
-allocated2unallocated(uf_coord_t *uf_coord, reiser4_key *key)
-{
-	int result;
-	reiser4_extent *ext;
-	reiser4_extent new_exts[2]; /* extents which will be added after original hole one */
-	reiser4_extent replace;	    /* extent original hole extent will be replaced with */
-	reiser4_block_nr block_nr;
-	reiser4_block_nr width, pos_in_unit;
-	reiser4_item_data item;
-	int count;
-	coord_t *coord;
-	extent_coord_extension_t *ext_coord;
-
-	coord = &uf_coord->base_coord;
-	ext_coord = &uf_coord->extension.extent;
-
-	ext = ext_coord->ext;
-	width = ext_coord->width;
-	pos_in_unit = ext_coord->pos_in_unit;
-	block_nr = extent_get_start(ext) + pos_in_unit;
-
-	if (width == 1) {
-		set_extent(ext, UNALLOCATED_EXTENT_START, 1);
-		znode_make_dirty(coord->node);
-		goto ok;
-	} else if (pos_in_unit == 0) {
-		/* first block of unit */
-		if (coord->unit_pos) {
-			if (state_of_extent(ext - 1) == UNALLOCATED_EXTENT) {
-				/* widen previous unit */
-				extent_set_width(ext - 1, extent_get_width(ext - 1) + 1);
-				/* narrow current unit */
-				set_extent(ext, extent_get_start(ext) + 1, width - 1);
-				znode_make_dirty(coord->node);
-
-				/* update coord extension */
-				coord->unit_pos --;
-				ext_coord->width = extent_get_width(ext - 1);
-				ext_coord->pos_in_unit = ext_coord->width - 1;
-				ext_coord->ext --;
-				ON_DEBUG(ext_coord->extent = *ext_coord->ext);
-				goto ok;
-			}
-		}
-		/* extent for replace */
-		set_extent(&replace, UNALLOCATED_EXTENT_START, 1);
-		/* extent to be inserted */
-		set_extent(&new_exts[0], extent_get_start(ext) + 1, width - 1);
-		count = 1;
-	} else if (pos_in_unit == width - 1) {
-		/* last block of unit */
-		if (coord->unit_pos < nr_units_extent(coord) - 1) {
-			if (state_of_extent(ext + 1) == UNALLOCATED_EXTENT) {
-				/* widen next unit */
-				extent_set_width(ext + 1, extent_get_width(ext + 1) + 1);
-				/* narrow current unit */
-				extent_set_width(ext, width - 1);
-				znode_make_dirty(coord->node);
-
-				/* update coord extension */
-				coord->unit_pos ++;
-				ext_coord->width = extent_get_width(ext + 1);
-				ext_coord->pos_in_unit = 0;
-				ext_coord->ext ++;
-				ON_DEBUG(ext_coord->extent = *ext_coord->ext);
-				goto ok;
-			}
-		}
-		/* extent for replace */
-		set_extent(&replace, extent_get_start(ext), width - 1);
-		/* extent to be inserted */
-		set_extent(&new_exts[0], UNALLOCATED_EXTENT_START, 1);
-		count = 1;
-	} else {
-		/* extent for replace */
-		set_extent(&replace, extent_get_start(ext), pos_in_unit);
-		/* extents to be inserted */
-		set_extent(&new_exts[0], UNALLOCATED_EXTENT_START, 1);
-		set_extent(&new_exts[1], block_nr + 1, width - pos_in_unit - 1);
-		count = 2;
-	}
-
-	/* insert_into_item will insert new units after the one @coord is set
-	   to. So, update key correspondingly */
-	unit_key_by_coord(coord, key);	/* FIXME-VS: how does it work without this? */
-	set_key_offset(key, (get_key_offset(key) + extent_get_width(&replace) * current_blocksize));
-
-	uf_coord->valid = 0;
-	result = replace_extent(coord, uf_coord->lh, key, init_new_extent(&item, new_exts, count), &replace, 0 /* flags */);
-	if (result)
-		return result;
- ok:
-	result = reiser4_dealloc_blocks(&block_nr, &one, BLOCK_ALLOCATED, BA_DEFER,
-					"deallocate block on overwrite");
-	if (result)
-		warning("vs-1355", "Failed to deallocate block %llu overwritting file %llu\n",
-			block_nr, get_key_objectid(key));
-	return result;
-}
-#endif
 
 /* make unallocated node pointer in the position @uf_coord is set to */
 static int
