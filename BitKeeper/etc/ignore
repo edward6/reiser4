@@ -977,3 +977,4 @@ reiser4progs/libreiser4/libreiser4-static.la
 reiser4progs/reiser4progs/libmisc/.deps/misc.Po
 trunc-test
 trunc-test.2
+.io_handle.o.cmd
