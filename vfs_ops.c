@@ -504,6 +504,8 @@ reiser4_drop_inode(struct inode *object)
 static void
 writeout(struct super_block *sb, struct writeback_control *wbc)
 {
+	/*XXXX*/long written, to_write;
+
 	/* reiser4 has its own means of periodical write-out */
 	if (wbc->for_kupdate)
 		return;
@@ -516,6 +518,8 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 	if (wbc->sync_mode != WB_SYNC_NONE)
 		txnmgr_force_commit_all(sb);
 
+	/*XXXX*/written = 0;
+	/*XXXX*/to_write = wbc->nr_to_write;
 	do {
 		long nr_submitted = 0;
 
@@ -533,7 +537,11 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 			break;
 
 		wbc->nr_to_write -= nr_submitted;
+
+		/*XXXX*/written += nr_submitted;
 	} while (wbc->nr_to_write > 0);
+
+	/*XXXX*/printk("%s: to write %ld, written %ld\n", current->comm, to_write, written);
 }
 
 static void
