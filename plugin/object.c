@@ -520,6 +520,19 @@ int common_file_owns_item( const struct inode *inode /* object to check
 		  get_key_objectid( item_key_by_coord( coord, &item_key ) ) );
 }
 
+/*
+ * @count bytes of flow @f got written, update correspondingly f->length,
+ * f->data and f->key
+ */
+void move_flow_forward (flow_t * f, unsigned count)
+{
+	if (f->what == USER_BUF) {
+		f->data.user_buf += count;
+	}
+	f->length -= count;
+	set_key_offset (&f->key, get_key_offset (&f->key) + count);
+}
+
 /**
  * Default method to construct flow into @f according to user-supplied
  * data.

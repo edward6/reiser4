@@ -441,6 +441,10 @@ extern int setup_plugins( struct super_block *super,
 extern reiser4_plugin *lookup_plugin( char *type_label, char *plug_label );
 extern int init_plugins( void );
 
+/* functions implemented in fs/reiser4/plugin/object.c */
+ void move_flow_forward (flow_t * f, unsigned count);
+
+
 /* builtin plugins */
 
 /* builtin file-plugins */

@@ -515,20 +515,6 @@ static int append_hole (tree_coord * coord, lock_handle * lh, flow_t * f)
 
 
 /*
- * @count bytes of flow @f got written, update correspondingly f->length,
- * f->data and f->key
- */
-static void move_flow_forward (flow_t * f, unsigned count)
-{
-	if (f->what == USER_BUF) {
-		f->data.user_buf += count;
-	}
-	f->length -= count;
-	set_key_offset (&f->key, get_key_offset (&f->key) + count);
-}
-
-
-/*
  * insert first item of file into tree. Number of bytes appended to the file is
  * returned
  */

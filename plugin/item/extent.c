@@ -24,16 +24,6 @@ static reiser4_item_data * init_new_extent (reiser4_item_data * data,
 }
 
 
-static void move_flow_forward (flow_t * f, unsigned count)
-{
-	if (f->what == USER_BUF) {
-		f->data.user_buf += count;
-	}
-	f->length -= count;
-	set_key_offset (&f->key, get_key_offset (&f->key) + count);
-}
-
-
 /* how many bytes are addressed by @nr (or all of @nr == -1) first extents of
  * the extent item.  FIXME: Josh says this (unsigned) business is UGLY.  Make
  * it signed, since there can't be more than INT_MAX units in an extent item,
