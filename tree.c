@@ -1111,6 +1111,14 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 		return 0;
 	}
 
+	/* FIXME: JMACD->VS: I get this assertion failure when I run
+
+mkfs /scratch/loop
+mount /scratch/loop trace=0x80
+cp-r plugin/space
+umount
+
+	*/
 	assert ("vs-593", from->unit_pos == 0);
 
 	coord_dup (&left_coord, from);
