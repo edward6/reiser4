@@ -36,8 +36,8 @@
    "(re)allocate-on-flush" (see http://namesys.com/v4/txn-doc.html).  Here we
    only need to know that the actual block allocation is done by the reiser4
    flush routines in a time when a system call which reserved space for it
-   completed already. Also, disk space is needed for already allocated blocks
-   for writing them to new disk locations as a part of atom's relocate set or
+   completed already. Disk space is needed for already allocated blocks for
+   writing them to new disk locations as a part of atom's relocate set or
    allocation of wandered blocks for reliable writing them as a part of atom's
    overwrite set.
 
@@ -59,9 +59,12 @@
 
    fake allocated -- counts all nodes without real disk block numbers assigned;
  
-   flush reserved -- disk space needed for writing already allocated blocks in a
-          transactional manner;
-
+   flush reserved -- disk space needed for flushing and committing an atom.
+                     Each dirty already allocated block could be written as a
+                     part of atom's overwrite set or as a part of atom's
+                     relocate set.  In both case one additional block is needed,
+                     it is used as a wandered block if we do overwrite or as a
+		     new location for relocated block. 
 
    An example: suppose we insert new item to the reiser4 tree.  We estimate
    number of blocks to grab for most expensive case of balancing when the leaf
