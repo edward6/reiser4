@@ -2378,11 +2378,20 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 		ind = offset >> PAGE_CACHE_SHIFT;
 
 		page = reiser4_lock_page (inode->i_mapping, ind);
-		/*
-		 * FIXME:NIKITA->VS saw this failing with pg == NULL, after
-		 * mkfs, mount, cp /etc/passwd, umount.
-		 */
-		assert ("vs-349", page != NULL);
+
+		if (page == NULL)
+			/*
+			 * it is possible that concurrent truncate is removing
+			 * pages of this file. Right solution is for flush to
+			 * lock against concurrent accesses. Unfortunately
+			 * this will obviously deadlock, because flush first
+			 * takes locks on znode and then on inode and
+			 * truncate/write in the opposite order.
+			 *
+			 * For now, just skip missing pages.
+			 */
+			continue;
+
 		assert ("vs-350", page->private != 0);
 
 		j = jnode_of_page (page);
