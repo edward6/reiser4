@@ -37,6 +37,7 @@ reiser4_plugin layout_plugins[ LAST_LAYOUT_ID ] = {
 			.get_ready     = test_layout_get_ready,
 			.root_dir_key  = test_layout_root_dir_key,
 			.release       = test_layout_release,
+			.log_super     = NULL,
 			.print_info    = test_layout_print_info
 		}
 	}

@@ -1495,6 +1495,10 @@ extern int inode_setattr( struct inode * inode, struct iattr * attr );
 
 extern int inode_change_ok( struct inode *inode, struct iattr *attr );
 
+#define ____cacheline_aligned_in_smp
+
+extern loff_t default_llseek( struct file *, loff_t, int );
+
 /* __REISER4_ULEVEL_H__ */
 #endif
 

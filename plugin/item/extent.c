@@ -1620,6 +1620,7 @@ static int key_in_extent (const coord_t * coord, const reiser4_key * key)
 }
 
 
+#if 0
 /*
  * does item @coord contain @key
  */
@@ -1632,7 +1633,7 @@ static int key_in_item (coord_t * coord, reiser4_key * key)
 	return ((keyle (item_key_by_coord (coord, &item_key), key)) &&
 		(keylt (key, last_key_in_extent (coord, &item_key))));
 }
-
+#endif
 
 /* this is todo for regular reiser4 files which are made of extents
    only. Extents represent every byte of file body. One node may not have more

@@ -491,7 +491,7 @@ int extent2tail (struct file * file)
 	result = 0;
 
 	for (i = 0; i < num_pages; i ++) {
-		page = read_cache_page (inode->i_mapping, i, filler, file);
+		page = read_cache_page (inode->i_mapping, (unsigned)i, filler, file);
 		if (IS_ERR (page)) {
 			result = PTR_ERR (page);
 			break;

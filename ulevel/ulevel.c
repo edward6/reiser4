@@ -1399,7 +1399,7 @@ void page_cache_release (struct page * page)
 
 
 /* fs/buffer.c */
-int fsync_bdev(struct block_device * bdev)
+int fsync_bdev(struct block_device * bdev UNUSED_ARG)
 {
 #if 0
 	struct page *  tmp;
@@ -1896,7 +1896,8 @@ static int one_shot_filldir(void *arg, const char *name, int namelen,
 		info -> name = strdup( name );
 		info -> inum = ( int ) inum;
 		info( "%s[%i]: %s (%i), %Lx, %lx, %i\n", info -> prefix,
-		      current_pid, name, namelen, offset, inum, ftype );
+		      current_pid, name, namelen, offset, 
+		      ( long unsigned ) inum, ftype );
 		return 0;
 	} else {
 		info -> fired = 0;
@@ -1914,7 +1915,8 @@ static int echo_filldir(void *arg, const char *name, int namelen,
 	if( lc_rand_max( 10ull ) < 2 )
 		return -EINVAL;
 	info( "%s[%i]: %s (%i), %Lx, %lx, %i\n", info -> prefix,
-	      current_pid, name, namelen, offset, inum, ftype );
+	      current_pid, name, namelen, offset, 
+	      ( long unsigned ) inum, ftype );
 	return 0;
 }
 
@@ -3525,7 +3527,7 @@ static int bash_mkfs (char * file_name)
 			 * number of blocks on device */
 			reiser4_set_block_count(&super, block_count);
 			/* number of used blocks */
-			reiser4_set_data_blocks(&super, (REISER4_MAGIC_OFFSET / blocksize) + 1);
+			reiser4_set_data_blocks(&super, (__u64)(REISER4_MAGIC_OFFSET / blocksize) + 1);
 			/* number of free blocks */
 			reiser4_set_free_blocks(&super, block_count - ((REISER4_MAGIC_OFFSET / blocksize) + 1));
 
@@ -3946,6 +3948,9 @@ void * cpr_thread_start (void *arg)
 	      "\texit\n");
 
 
+
+extern void run_init_reiser4( void );
+extern void run_done_reiser4( void );
 
 static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG, 
 		      reiser4_tree *tree UNUSED_ARG)
@@ -5165,7 +5170,6 @@ int inode_setattr( struct inode * inode, struct iattr * attr )
 		inode->i_mode = attr->ia_mode;
 	}
 	mark_inode_dirty(inode);
-out:
 	unlock_kernel();
 	return error;
 }
@@ -5174,6 +5178,30 @@ int inode_change_ok( struct inode *inode UNUSED_ARG,
 		     struct iattr *attr UNUSED_ARG )
 {
 	return 0;
+}
+
+loff_t default_llseek( struct file *file, loff_t offset, int origin )
+{
+	long long retval;
+
+	lock_kernel();
+	switch (origin) {
+		case 2:
+			offset += file->f_dentry->d_inode->i_size;
+			break;
+		case 1:
+			offset += file->f_pos;
+	}
+	retval = -EINVAL;
+	if (offset >= 0) {
+		if (offset != file->f_pos) {
+			file->f_pos = offset;
+			file->f_version = ++event;
+		}
+		retval = offset;
+	}
+	unlock_kernel();
+	return retval;
 }
 
 /*
