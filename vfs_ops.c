@@ -73,7 +73,7 @@ static void reiser4_unlockfs (struct super_block *);
 static int reiser4_statfs (struct super_block *, struct statfs *);
 static int reiser4_remount_fs (struct super_block *, int *, char *);
 static void reiser4_clear_inode (struct inode *);
-static void reiser4_umount_begin (struct super_block *);
+static int reiser4_umount_begin (struct super_block *);
 static struct dentry * reiser4_fh_to_dentry(struct super_block *sb, __u32 *fh, 
 					    int len, int fhtype, int parent);
 static int reiser4_dentry_to_fh(struct dentry *, __u32 *fh, 
@@ -1513,18 +1513,23 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	REISER4_EXIT (0);
 }
 
+static int reiser4_umount_begin (struct super_block *s)
+{
+	int ret;
+	REISER4_ENTRY (s);
+
+	if ((ret = txn_mgr_force_commit (s))) {
+		warning ("jmacd-7711", "txn_force failed in umount_begin: %u", ret);
+	}
+
+	REISER4_EXIT (ret);
+}
 
 /* Audited by: umka (2002.06.12) */
 static int put_super (struct super_block * s)
 {
-	int ret;
-	
 	REISER4_ENTRY (s);
 	assert( "umka-087", get_super_private (s) != NULL );
-	
-	if ((ret = txn_mgr_force_commit (s))) {
-		warning ("jmacd-7711", "txn_force failed in put_super: %u", ret);
-	}
 
 	if (get_super_private (s)->lplug->release)
 		get_super_private (s)->lplug->release (s);
@@ -1734,7 +1739,7 @@ struct super_operations reiser4_super_operations = {
  	.statfs             = reiser4_statfs, /* d */
 /* 	.remount_fs         = reiser4_remount_fs, */
 /* 	.clear_inode        = reiser4_clear_inode, */
-/* 	.umount_begin       = reiser4_umount_begin, */
+ 	.umount_begin       = (void (*) (struct super_block *)) reiser4_umount_begin,
 /* 	.fh_to_dentry       = reiser4_fh_to_dentry, */
 /* 	.dentry_to_fh       = reiser4_dentry_to_fh */
 	.show_options       = reiser4_show_options /* d */
