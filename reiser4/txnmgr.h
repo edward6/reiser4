@@ -17,8 +17,7 @@ TS_LIST_DECLARE(fwaitfor);         /* Each atom has one of these lists: one for 
 TS_LIST_DECLARE(fwaiting);         /* waiting on another atom and one for reverse mapping.  Used
 			            * to prevent deadlock in the ASTAGE_CAPTURE_WAIT state. */
 
-TS_LIST_DECLARE(capture_znode);    /* The transaction's list of captured znodes */
-TS_LIST_DECLARE(capture_jnode);    /* The transaction's list of captured jnodes */
+TS_LIST_DECLARE(capture);          /* The transaction's list of captured znodes */
 
 /****************************************************************************************
 				    TYPE DECLARATIONS
@@ -175,9 +174,9 @@ struct txn_atom
 	/* Number of open handles. */
 	__u32                  txnh_count;
 
-	/* The number of blocks captured by this atom.  Equal to the sum of lengths of the
-	 * capture_level lists. */
-	__u32                  capture_znode_count;
+	/* The number of znodes captured by this atom.  Equal to the sum of lengths of the
+	 * dirty_znodes[level] and clean_znodes lists. */
+	__u32                  capture_count;
 
 	/* Current transaction stage. */
 	txn_stage              stage;
@@ -185,29 +184,23 @@ struct txn_atom
 	/* Start time. */
 	unsigned long          start_time;
 
-	/* The transaction's list of dirty captured znodes--per level. */
-	capture_znode_list_head      dirty_znodes[REISER4_MAX_ZTREE_HEIGHT];
+	/* The transaction's list of dirty captured nodes--per level. */
+	capture_list_head      dirty_nodes[REISER4_MAX_ZTREE_HEIGHT];
 
-	/* The transaction's list of clean captured znodes. */
-	capture_znode_list_head      clean_znodes;
+	/* The transaction's list of clean captured nodes. */
+	capture_list_head      clean_nodes;
 
-	/* The transaction's list of dirty captured jnodes. */
-	capture_jnode_list_head      dirty_jnodes;
-
-	/* The transaction's list of clean captured jnodes. */
-	capture_jnode_list_head      clean_jnodes;
-	
 	/* List of handles associated with this atom. */
-	txnh_list_head         txnh_list;
+	txnh_list_head               txnh_list;
 
 	/* Transaction list link: list of atoms in the transaction manager. */
-	atom_list_link         atom_link;
+	atom_list_link               atom_link;
 
 	/* List of handles waiting FOR this atom: see 'capture_fuse_wait' comment. */
-	fwaitfor_list_head     fwaitfor_list;   
+	fwaitfor_list_head           fwaitfor_list;   
 
 	/* List of this atom's handles that are waiting: see 'capture_fuse_wait' comment. */
-	fwaiting_list_head     fwaiting_list;
+	fwaiting_list_head           fwaiting_list;
 };
 
 /* A transaction handle: the client obtains and commits this handle which is assigned by
@@ -243,19 +236,6 @@ struct txn_mgr
 	__u32                  id_count;
 };
 
-/* The transaction manager maintains a jnode for each unformatted block's "struct page" */
-struct jnode
-{
-	/* The corresponding struct page. */
-	struct page             *pg;
-
-	/* The atom pointer. */
-	txn_atom                *atom;
-
-	/* The capture list link. */
-	capture_jnode_list_link capture_link;
-};
-
 /****************************************************************************************
 				  FUNCTION DECLARATIONS
  ****************************************************************************************/
@@ -269,8 +249,6 @@ extern void         txn_mgr_init          (txn_mgr            *mgr);
 extern int          txn_done_static       (void);
 extern int          txn_mgr_done          (txn_mgr            *mgr);
 
-extern void         txn_znode_init        (znode              *node);
-
 extern int          txn_reserve           (int                 reserved);
 
 extern void         txn_begin             (reiser4_context    *context);
@@ -278,7 +256,7 @@ extern int          txn_end               (reiser4_context    *context);
 
 extern int          txn_mgr_force_commit  (struct super_block *super);
 
-extern int          txn_try_capture       (znode              *node,
+extern int          txn_try_capture       (jnode              *node,
 					   znode_lock_mode     mode,
 					   int                 non_blocking);
 
