@@ -157,6 +157,11 @@ detach_fq(flush_queue_t * fq)
 void
 done_fq(flush_queue_t * fq)
 {
+	assert ("zam-763", capture_list_empty (&fq->prepped));
+	assert ("zam-764", capture_list_empty (&fq->sent));
+	assert ("zam-765", fq->nr_queued == 0);
+	assert ("zam-766", atomic_read(&fq->nr_submitted) == 0);
+
 	reiser4_kfree(fq, sizeof *fq);
 }
 
@@ -274,7 +279,7 @@ wait_io(flush_queue_t * fq, int *nr_io_errors)
 	assert("zam-737", spin_fq_is_locked(fq));
 	assert("zam-738", fq->atom != NULL);
 	assert("zam-739", spin_atom_is_locked(fq->atom));
-	assert("zam-736", fq_ready(fq));
+	assert("zam-736", fq_in_use(fq));
 
 	if (atomic_read(&fq->nr_submitted) != 0) {
 		spin_unlock_fq(fq);
@@ -337,12 +342,11 @@ finish_fq(flush_queue_t * fq, int *nr_io_errors)
 
 	assert("zam-743", spin_fq_is_locked(fq));
 	assert("zam-744", spin_atom_is_locked(fq->atom));
+	assert("zam-762", fq_in_use (fq));
 
 	ret = wait_io(fq, nr_io_errors);
 	if (ret)
 		return ret;
-
-	mark_fq_in_use(fq);
 
 	scan_fq_sent_list(fq);
 
@@ -353,8 +357,6 @@ finish_fq(flush_queue_t * fq, int *nr_io_errors)
 
 		/* re-submit nodes to write */
 		ret = write_fq(fq, 0);
-
-		fq_put(fq);
 
 		if (ret < 0)
 			return ret;
@@ -387,10 +389,14 @@ finish_all_fq(txn_atom * atom, int *nr_io_errors)
 		if (fq_ready(fq)) {
 			int ret;
 
+			mark_fq_in_use (fq);
+
 			ret = finish_fq(fq, nr_io_errors);
 
-			if (ret)
+			if (ret) {
+				fq_put (fq);
 				return ret;
+			}
 
 			spin_unlock_atom(atom);
 
