@@ -16,6 +16,8 @@ TS_LIST_DECLARE(txnh);       /* The atom's list of handles */
 TS_LIST_DECLARE(fwaitfor);   /* Each atom has one of these lists: one for its own handles */
 TS_LIST_DECLARE(fwaiting);   /* waiting on another atom and one for reverse mapping.  Used
 			      * to prevent deadlock in the ASTAGE_CAPTURE_WAIT state. */
+/* The transaction's list of captured znodes */
+TS_LIST_DECLARE(capture);
 
 /****************************************************************************************
 				    TYPE DECLARATIONS
@@ -183,10 +185,10 @@ struct txn_atom
 	unsigned long          start_time;
 
 	/* The transaction's list of dirty captured blocks--per level. */
-	capture_list_head      dirty_level[REISER4_MAX_ZTREE_HEIGHT];
+	capture_list_head      dirty_znodes[REISER4_MAX_ZTREE_HEIGHT];
 
 	/* The transaction's list of clean captured blocks. */
-	capture_list_head      clean_nodes;
+	capture_list_head      clean_znodes;
 	
 	/* List of handles associated with this atom. */
 	txnh_list_head         txnh_list;
@@ -273,8 +275,6 @@ extern int          txn_try_capture       (znode              *node,
 SPIN_LOCK_FUNCTIONS(atom,txn_atom,alock);
 SPIN_LOCK_FUNCTIONS(txnh,txn_handle,hlock);
 SPIN_LOCK_FUNCTIONS(txnmgr,txn_mgr,tmgr_lock);
-
-TS_LIST_DEFINE(capture,znode,capture_link);
 
 # endif /* __REISER4_TXNMGR_H__ */
 
