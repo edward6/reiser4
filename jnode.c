@@ -1254,9 +1254,13 @@ jnode_build_key(const jnode * node, reiser4_key * key)
 	assert("nikita-3094", jnode_is_unformatted(node));
 
 
-	iplug = item_plugin_by_id(node->parent_item_id);
-	inode = mapping_jnode(node)->host;
 	off   = ((loff_t)index_jnode(node)) << PAGE_CACHE_SHIFT;
+	inode = mapping_jnode(node)->host;
+
+	if (node->parent_item_id != 0)
+		iplug = item_plugin_by_id(node->parent_item_id);
+	else
+		iplug = NULL;
 
 	if (iplug != NULL && iplug->f.key_by_offset)
 		iplug->f.key_by_offset(inode, off, key);
