@@ -383,9 +383,6 @@ errno_t node40_check(reiser4_entity_t *entity, uint16_t options) {
     if (node40_check_item_count(entity))
 	return -1;
 
-    /* FIXME: Do not forget to remove it when tested. */
-    node40_corrupt(entity, options);
-
     /* Check the item array and free space. */
     if (node40_check_item_array(entity))
 	return -1;
