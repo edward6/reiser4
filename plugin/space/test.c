@@ -111,10 +111,10 @@ void test_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	return;
 }
 
-void test_print_info (const char *str UNUSED_ARG, reiser4_space_allocator * allocator)
+void test_print_info (const char *str, reiser4_space_allocator * allocator)
 {
 	spin_lock (&allocator->u.test.guard);
-	info ("test space allocator: next free block is %lli\n",
-	      allocator->u.test.new_block_nr);
+	info ("%s: test space allocator: next free block is %lli\n",
+	      str, allocator->u.test.new_block_nr);
 	spin_unlock (&allocator->u.test.guard);
 }
