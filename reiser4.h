@@ -194,7 +194,7 @@ static inline void spin_unlock_ ## NAME (TYPE *x)				\
 	spin_unlock (& x->FIELD);						\
 }										\
 										\
-static inline int  spin_ ## NAME ## _is_locked (TYPE *x)			\
+static inline int  spin_ ## NAME ## _is_locked (const TYPE *x)			\
 {										\
 	return spin_is_locked (& x->FIELD);					\
 }										\
