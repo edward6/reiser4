@@ -230,6 +230,35 @@ check_block_counters(const struct super_block *super)
 	return 1;
 }
 
+#if REISER4_DEBUG_OUTPUT
+void
+print_block_counters(const char *prefix, 
+		     const struct super_block *super, txn_atom *atom)
+{
+	if (super == NULL)
+		super = reiser4_get_current_sb();
+	info("%s:\tsuper: G: %llu, F: %llu, D: %llu, U: %llu + %llu, R: %llu, T: %llu\n",
+	     prefix,
+	     reiser4_grabbed_blocks(super),
+	     reiser4_free_blocks(super),
+	     reiser4_data_blocks(super),
+	     reiser4_fake_allocated(super),
+	     reiser4_fake_allocated_unformatted(super),
+	     reiser4_flush_reserved(super),
+	     reiser4_block_count(super));
+	info("\tcontext: G: %llu, R: %llu",
+	     get_current_context()->grabbed_blocks,
+	     get_current_context()->flush_reserved);
+	if (atom == NULL)
+		atom = get_current_atom_locked_nocheck();
+	if (atom != NULL) {
+		info("\tatom: R: %i", atom->flush_reserved);
+		spin_unlock_atom(atom);
+	}
+	info("\n");
+}
+#endif
+
 /* Get the amount of blocks of 5% of disk. */
 reiser4_block_nr reiser4_fs_reserved_space(struct super_block * super) 
 {

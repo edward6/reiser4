@@ -439,6 +439,8 @@ ef_block_flags(const jnode *node)
 	return jnode_is_znode(node) ? BA_FORMATTED : 0;
 }
 
+static const reiser4_block_nr one = 1;
+
 static int ef_free_block(jnode *node, const reiser4_block_nr *blk)
 {
 	block_stage_t stage;
@@ -449,7 +451,7 @@ static int ef_free_block(jnode *node, const reiser4_block_nr *blk)
 
 	/* We cannot just ask block allocator to return block into flush
 	 * reserved space, because there is no current atom at this point. */
-	result = reiser4_dealloc_block(blk, stage, ef_block_flags(node));
+	result = reiser4_dealloc_blocks(blk, &one, stage, ef_block_flags(node));
 	if (result == 0 && stage == BLOCK_GRABBED) {
 		txn_atom *atom;
 
@@ -469,7 +471,6 @@ static int ef_prepare(jnode *node, reiser4_block_nr *blk,
 		      eflush_node_t **efnode)
 {
 	int result;
-	reiser4_block_nr     one;
 	reiser4_blocknr_hint hint;
 
 	assert("nikita-2760", node != NULL);
