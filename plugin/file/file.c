@@ -483,7 +483,8 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 		if (result)
 			break;
 
-		result = cut_tree(current_tree, &from_key, &to_key, &smallest_removed);
+		result = cut_tree_object(current_tree, &from_key, &to_key, 
+					 &smallest_removed, inode);
 		if (result == -EAGAIN) {
 			/* -EAGAIN is a signal to interrupt a long file truncation process */
 			/* FIXME(Zam) cut_tree does not support that signaling.*/
@@ -571,6 +572,7 @@ shorten_file(struct inode *inode, loff_t new_size, int update_sd)
 		reiser4_release_reserved(inode->i_sb);
 		return RETERR(-EIO);
 	}
+	set_page_dirty_internal(page);
 	result = unix_file_writepage_nolock(page);
 	assert("vs-98221", PageLocked(page));
 	all_grabbed2free("shorten_file");
@@ -821,20 +823,31 @@ writepage_unix_file(struct page *page)
 	}
 	
 	if (PagePrivate(page)) {
-		/* tree already has pointer to this page */
-		assert("vs-1097", jnode_mapped(jnode_by_page(page)));
-
 		result = reiser4_grab_space(1, BA_CAN_COMMIT, "unix_file_writepage");
 		if (result)
 			warning("vs-1246", "Failed to grab space for page (%llu (%lu): %d\n",
 				get_inode_oid(inode), page->index, result);
 		else {
-			result = try_capture_page(page, ZNODE_WRITE_LOCK, 0);
+			jnode *j;
+			
+			j = jnode_by_page(page);
+			/* tree already has pointer to this page */
+			assert("vs-1097", jnode_mapped(j));
+
+			jref(j);
+			reiser4_unlock_page(page);
+
+			LOCK_JNODE(j);
+			result = try_capture(j, ZNODE_WRITE_LOCK, 0);
 			if (result)
 				warning("vs-1245", "Failed to capture page (%llu (%lu): %d\n",
 					get_inode_oid(inode), page->index, result);
-			else
-				jnode_make_dirty(jnode_by_page(page));
+			else {
+				unformatted_jnode_make_dirty(j);
+			}
+			UNLOCK_JNODE(j);
+			reiser4_lock_page(page);
+			jput(j);
 		}
 		return result;
 	}
@@ -1324,88 +1337,6 @@ write_flow(struct file *file, unix_file_info_t *uf_info, const char *buf, size_t
 	return append_and_or_overwrite(file, uf_info, &f);
 }
 
-/* stolen from generic_file_aio_write_nolock(). Should be genericized. */
-/* Check validness of write(2) arguments, process limits, LFS stuff, etc. */
-static int 
-write_checks(struct file * file, size_t * ocount, loff_t * off)
-{
-	struct inode *inode;
-	unsigned long limit;
-	loff_t pos;
-	size_t count;
-
-	inode = file->f_dentry->d_inode;
-	/* special files should get here in the first place */
-	assert("nikita-2932", !S_ISBLK(inode->i_mode));
-
-	pos = *off;
-	count = *ocount;
-
-	if (unlikely(pos < 0))
-		return RETERR(-EINVAL);
-
-	if (unlikely(file->f_error)) {
-		int ferr;
-
-		ferr = file->f_error;
-		file->f_error = 0;
-		return ferr;
-	}
-
-	limit = current->rlim[RLIMIT_FSIZE].rlim_cur;
-	/* FIXME: this is for backwards compatibility with 2.4 */
-	if (file->f_flags & O_APPEND)
-		pos = inode->i_size;
-
-	if (limit != RLIM_INFINITY) {
-		if (unlikely(pos >= limit)) {
-			send_sig(SIGXFSZ, current, 0);
-			return RETERR(-EFBIG);
-		}
-		if (unlikely(pos > 0xFFFFFFFFULL || count > limit - (u32)pos)) {
-			/* send_sig(SIGXFSZ, current, 0); */
-			count = limit - (u32)pos;
-		}
-	}
-
-	/*
-	 * LFS rule
-	 */
-	if (unlikely(pos + count > MAX_NON_LFS && 
-		     !(file->f_flags & O_LARGEFILE))) {
-		if (pos >= MAX_NON_LFS) {
-			send_sig(SIGXFSZ, current, 0);
-			return RETERR(-EFBIG);
-		}
-		if (count > MAX_NON_LFS - (u32)pos) {
-			/* send_sig(SIGXFSZ, current, 0); */
-			count = MAX_NON_LFS - (u32)pos;
-		}
-	}
-
-	/*
-	 * Are we about to exceed the fs block limit ?
-	 *
-	 * If we have written data it becomes a short write.  If we have
-	 * exceeded without writing data we send a signal and return EFBIG.
-	 * Linus frestrict idea will clean these up nicely..
-	 */
-	if (unlikely(pos >= inode->i_sb->s_maxbytes)) {
-		if (count || pos > inode->i_sb->s_maxbytes) {
-			send_sig(SIGXFSZ, current, 0);
-			return RETERR(-EFBIG);
-		}
-		/* zero-length writes at ->s_maxbytes are OK */
-	}
-	
-	if (unlikely(pos + count > inode->i_sb->s_maxbytes))
-		count = inode->i_sb->s_maxbytes - pos;
-
-	*off = pos;
-	*ocount = count;
-	return 0;
-}
-
 static void
 get_access(unix_file_info_t *uf_info, int ea)
 {
@@ -1439,7 +1370,7 @@ write_file(struct file * file, /* file to write to */
 
 	assert("nikita-3032", schedulable());
 
-	result = write_checks(file, &count, off);
+	result = generic_write_checks(inode, file, off, &count, 0);
 	if (unlikely(result != 0))
 		return result;
 
