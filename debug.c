@@ -261,15 +261,17 @@ reiser4_print_stats()
 	     s->extent.bdp_caused_repeats);
 
 	info("flush:\n"
-	     "\t squeeze:\t %lu\n"
-	     "\t flush_carry:\t %lu\n"
+	     "\t flush:\t %lu\n"
+	     "\t flush_left:\t %lu\n"
+	     "\t flush_right:\t %lu\n"
 	     "\t squeezed_completely:\t %lu\n"
 	     "\t flushed with unallocated children: \t %lu\n"
-	     "\t XXXX leaves squeezed to left:\t %lu\n"
-	     "\t XXXX items squeezed in those leaves:\t %lu\n"
-	     "\t XXXX bytes in those items:\t %lu\n",
-	     s->flush.squeeze, 
-	     s->flush.flush_carry, 
+	     "\t leaves squeezed to left:\t %lu\n"
+	     "\t items squeezed in those leaves:\t %lu\n"
+	     "\t bytes in those items:\t %lu\n",
+	     s->flush.flush,
+	     s->flush.flush_left,
+	     s->flush.flush_right,
 	     s->flush.squeezed_completely, 
 	     s->flush.flushed_with_unallocated,
 	     /* FIXME-VS: urgently added leaf squeeze stats */
