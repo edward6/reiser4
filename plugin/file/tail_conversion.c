@@ -615,7 +615,8 @@ extent2tail(unix_file_info_t *uf_info)
 		page_cache_release(page);
 	}
 
-	assert("vs-1260", reiser4_inode_data(inode)->eflushed == 0);
+	assert("vs-1260", (reiser4_inode_data(inode)->captured_eflushed == 0 &&
+			   reiser4_inode_data(inode)->anonymous_eflushed == 0));
 
 	if (i == num_pages) {
 		uf_info->container = UF_CONTAINER_TAILS;

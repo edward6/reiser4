@@ -581,10 +581,12 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 
 		check_me("vs-1677",
 			 radix_tree_insert(&info->ef_jnodes, index_jnode(node), node) == 0);
-		ON_DEBUG(info->eflushed ++);
 		if (!ef->hadatom) {
-			radix_tree_tag_set(&info->ef_jnodes, index_jnode(node), HAD_NO_ATOM);
-			ON_DEBUG(info->anon_eflushed ++);
+			radix_tree_tag_set(&info->ef_jnodes, index_jnode(node), EFLUSH_TAG_ANONYMOUS);
+			ON_DEBUG(info->anonymous_eflushed ++);
+		} else {			
+			radix_tree_tag_set(&info->ef_jnodes, index_jnode(node), EFLUSH_TAG_CAPTURED);
+			ON_DEBUG(info->captured_eflushed ++);
 		}
 		radix_tree_preload_end();
 #if 0
@@ -695,7 +697,10 @@ static void eflush_free (jnode * node)
 		info = reiser4_inode_data(inode);
 
 		/* removed eflushed jnode to reiser4_inode's radix tree */
+		radix_tree_delete(&info->ef_jnodes, index_jnode(node));
+		ON_DEBUG(ef->hadatom ? (info->captured_eflushed --) : (info->anonymous_eflushed --));
 
+#if 0
 		assert("vs-1194", info->eflushed > 0);
 		ON_DEBUG(-- info->eflushed);
 		if (!ef->hadatom) {
@@ -711,6 +716,7 @@ static void eflush_free (jnode * node)
 			assert("nikita-3355", info->eflushed == 0);
 			inode->i_state &= ~I_EFLUSH;
 		}
+#endif
 
 		spin_unlock_eflush(tree->super);
 		spin_unlock(&inode_lock);

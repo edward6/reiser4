@@ -400,11 +400,8 @@ reiser4_invalidatepage(struct page *page /* page to invalidate */,
 	if (get_super_private(inode->i_sb)->bitmap == inode)
 		return 0;
 
-	assert("vs-1426", ergo(PagePrivate(page),
-			       ((inode->i_state & I_JNODES) &&
-				(reiser4_inode_data(inode)->jnodes > 0))));
-	assert("vs-1427", ergo(PagePrivate(page), page->mapping == jnode_get_mapping(jnode_by_page(page))));
-	assert("vs-1449", !test_bit(PG_arch_1, &page->flags));
+	assert("vs-1426", PagePrivate(page));
+	assert("vs-1427", page->mapping == jnode_get_mapping(jnode_by_page(page)));
 
 	init_context(&ctx, inode->i_sb);
 	/* capture page being truncated. */
@@ -412,10 +409,7 @@ reiser4_invalidatepage(struct page *page /* page to invalidate */,
 	if (ret != 0) {
 		warning("nikita-3141", "Cannot capture: %i", ret);
 		print_page("page", page);
-	} else
-		assert("vs-1425", ((inode->i_state & I_JNODES) &&
-				   (reiser4_inode_data(inode)->jnodes > 0)));
-
+	}
 
 	if (offset == 0) {
 		jnode *node;
