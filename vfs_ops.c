@@ -2232,7 +2232,7 @@ try_to_lock:
 
 						if (ret != -EAGAIN)
 							reiser4_panic
-							    ("zam-x1071: cannot flush queued node (ret = %d)\n", ret);
+							    ("zam-x1071", "cannot flush queued node (ret = %d)\n", ret);
 						/* -EAGAIN means we have to
 						   repeat. Repeating of
 						   finish_all_fq() may be not

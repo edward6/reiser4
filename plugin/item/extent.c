@@ -2283,7 +2283,7 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	estimate_internal_amount(1, znode_get_tree(orig_znode)->height, &needed);
 	/* Grab from 100% of disk space, not 95% as usual. */
 	if (reiser4_grab_space_force(needed, BA_RESERVED))
-		rpanic("vpf-340", "No space left in reserved area.");
+		reiser4_panic("vpf-340", "No space left in reserved area.");
 	
 	/* set insert point after unit to be replaced */
 	un_extent->between = AFTER_UNIT;

@@ -69,7 +69,7 @@ extern void spinlock_bug (const char *msg);
 
 #define no_context (0)
 #define current_pname   (__prog_name) /* __libc_argv[ 0 ] */
-#define current_pid     ( ( int ) pthread_self() )
+#define current->pid     ( ( int ) pthread_self() )
 #define UNUSE __attribute__( ( unused ) )
 
 /*

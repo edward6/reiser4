@@ -71,7 +71,7 @@ void down( semaphore *sem )
 
 		/* check if we've been sleeping 10s */
 		if (diff > 10 * 1000 * 1000) {
-			rpanic ("jmacd-1000", "down() too long!");
+			reiser4_panic("jmacd-1000", "down() too long!");
 		}
 
 		/* sleep 100ms */
@@ -108,7 +108,7 @@ void cond_resched()
 
 void spinlock_bug (const char *msg)
 {
-	rpanic ("jmacd-1010", "spinlock: %s", msg); 
+	reiser4_panic("jmacd-1010", "spinlock: %s", msg); 
 }
 
 #define KMEM_CHECK 1
@@ -260,7 +260,7 @@ void kmem_cache_free( kmem_cache_t *slab, void *addr )
 
 	spin_lock (& slab -> lock);
 	if (slab -> count == 0) {
-		rpanic ("jmacd-1066", "%s slab allocator: too many frees", slab -> name);
+		reiser4_panic("jmacd-1066", "%s slab allocator: too many frees", slab -> name);
 	}
 	slab -> count -= 1;
 	spin_unlock (& slab -> lock);
@@ -821,7 +821,7 @@ __u32 set_current ()
 		self->sig = &self->sig_here;
 		spin_lock_init (&self->sig->siglock);
 		if ((ret = pthread_setspecific (__current_key, self)) != 0) {
-			rpanic ("jmacd-900", "pthread_setspecific failed");
+			reiser4_panic("jmacd-900", "pthread_setspecific failed");
 		}
 	}
 
@@ -1420,7 +1420,7 @@ void kunmap (struct page * page)
 	if (page->kmap_count == 0) {
 		page->virtual = 0;
 /*  		fprintf (stderr, "[%i]: page: %p, node: %p (%p:%p:%p:%p:%p)\n", */
-/*  			 current_pid, page, jnode_by_page (page), */
+/*  			 current->pid, page, jnode_by_page (page), */
 /*  			 getFrame (0), getFrame (1),  */
 /*  			 getFrame (2), getFrame (3), getFrame (4) ); */
 	}
@@ -1431,7 +1431,7 @@ unsigned long get_jiffies ()
 {
 	struct timeval tv;
 	if (gettimeofday (&tv, NULL) < 0) {
-		rpanic ("jmacd-1001", "gettimeofday failed");
+		reiser4_panic ("jmacd-1001", "gettimeofday failed");
 	}
 	/* Assume a HZ of 1e6 */
 	return (tv.tv_sec * 1e6 + tv.tv_usec);
@@ -1612,7 +1612,7 @@ int submit_bio( int rw, struct bio *bio )
 	}
 
 	trace_on( (rw == WRITE) ? TRACE_IO_W : TRACE_IO_R, "[%i] page io: %c, %llu, seek: %lli\n",
-		  current_pid, ( rw == WRITE ) ? 'w' : 'r', bio -> bi_sector,
+		  current->pid, ( rw == WRITE ) ? 'w' : 'r', bio -> bi_sector,
 		  bio -> bi_sector - bio -> bi_bdev -> last_sector - 1 );
 	bio -> bi_bdev -> last_sector = bio -> bi_sector;
 	if( success )
@@ -1953,7 +1953,7 @@ static int one_shot_filldir(void *arg, const char *name, int namelen,
 		info -> name = strdup( name );
 		info -> inum = ( int ) inum;
 		dinfo( "%s[%i]: %s (%i), %Lx, %lx, %i\n", info -> prefix,
-		       current_pid, name, namelen, offset, 
+		       current->pid, name, namelen, offset, 
 		       ( long unsigned ) inum, ftype );
 		return 0;
 	} else {
@@ -1972,7 +1972,7 @@ static int echo_filldir(void *arg, const char *name, int namelen,
 	if( lc_rand_max( 10ull ) < 2 )
 		return -EINVAL;
 	dinfo( "%s[%i]: %s (%i), %Lx, %lx, %i\n", info -> prefix,
-	       current_pid, name, namelen, offset, 
+	       current->pid, name, namelen, offset, 
 	       ( long unsigned ) inum, ftype );
 	return 0;
 }
@@ -2159,7 +2159,7 @@ void *mkdir_thread( mkdir_thread_info *info )
 	int                ret;
 	struct file        df;
 
-	sprintf( dir_name, "Dir-%i", current_pid );
+	sprintf( dir_name, "Dir-%i", current->pid );
 	xmemset( &dentry, 0, sizeof dentry );
 	dentry.d_name.name = dir_name;
 	dentry.d_name.len = strlen( dir_name );
@@ -2168,7 +2168,7 @@ void *mkdir_thread( mkdir_thread_info *info )
 	dinfo( "In directory: %s", dir_name );
 
 	if( ( ret != 0 ) && ( ret != -ENOMEM ) ) {
-		rpanic( "nikita-1636", "Cannot create dir: %i", ret );
+		reiser4_panic( "nikita-1636", "Cannot create dir: %i", ret );
 	}
 	
 	f = dentry.d_inode;
@@ -2199,11 +2199,11 @@ void *mkdir_thread( mkdir_thread_info *info )
 			op = "create";
 			ret = call_create( f, name );
 		}
-		dinfo( "(%i) %i:%s %s/%s: %i\n", current_pid, i, op,
+		dinfo( "(%i) %i:%s %s/%s: %i\n", current->pid, i, op,
 		       dir_name, name, ret );
 		if( ( ret != 0 ) && ( ret != -EEXIST ) && ( ret != -ENOENT ) &&
 		    ( ret != -EINTR ) && ( ret != -ENOMEM ) )
-			rpanic( "nikita-1493", "!!!" );
+			reiser4_panic( "nikita-1493", "!!!" );
 
 		if( info -> sleep && ( lc_rand_max( 10ull ) < 2 ) ) {
 			delay.tv_sec  = 0;
@@ -2215,7 +2215,7 @@ void *mkdir_thread( mkdir_thread_info *info )
 	xmemset( &dentry, 0, sizeof dentry );
 
 	call_readdir( f, dir_name );
-	dinfo( "(%i): done.\n", current_pid );
+	dinfo( "(%i): done.\n", current->pid );
 	iput( f );
 	return NULL;
 }
@@ -2401,12 +2401,12 @@ void *mt_queue_thread( void *arg )
 		switch( role ) {
 		case consumer:
 			v = mt_queue_get( queue );
-			info( "(%i) %i: got: %i\n", current_pid, i, v );
+			info( "(%i) %i: got: %i\n", current->pid, i, v );
 			break;
 		case producer:
 			v = lc_rand_max( ( __u64 ) INT_MAX );
 			mt_queue_put( queue, v );
-			info( "(%i) %i: put: %i\n", current_pid, i, v );
+			info( "(%i) %i: put: %i\n", current->pid, i, v );
 			break;
 		default:
 			impossible( "nikita-1917", "Revolution #9." );
@@ -2414,7 +2414,7 @@ void *mt_queue_thread( void *arg )
 		}
 		mt_queue_info( queue );
 	}
-	info( "(%i): done.\n", current_pid );
+	info( "(%i): done.\n", current->pid );
 	REISER4_EXIT_PTR( NULL );
 }
 
@@ -4015,7 +4015,7 @@ void * cpr_thread (struct cpr_thread_info * info)
 		info ("lookup failed");
 		return 0;
 	}
-	info ("cpr [%i]\n", current_pid);
+	info ("cpr [%i]\n", current->pid);
 
 	asprintf (&source_path, "%s", info->source);
 	bash_cpr (dir, source_path);
@@ -4431,11 +4431,11 @@ void* build_test_handler (void* arg)
 		}
 
 		if (ret != 0) {
-			rpanic ("jmacd-1030", "build insert_by_key failed");
+			reiser4_panic("jmacd-1030", "build insert_by_key failed");
 		}
 
 		if ((ret = __REISER4_EXIT( &__context )) != 0) {
-			rpanic ("jmacd-563", "reiser4_exit failed");
+			reiser4_panic("jmacd-563", "reiser4_exit failed");
 		}
 	}
 
@@ -4511,7 +4511,7 @@ void* drive_test_handler (void* arg)
 		}
 
 		if (ret != 0) {
-			rpanic ("jmacd-1032", "drive cut_tree failed");
+			reiser4_panic("jmacd-1032", "drive cut_tree failed");
 		}
 
 		spin_lock (& _jmacd_exists_lock);
@@ -4519,7 +4519,7 @@ void* drive_test_handler (void* arg)
 		spin_unlock (& _jmacd_exists_lock);
 		
 		if ((ret = __REISER4_EXIT( &__context )) != 0) {
-			rpanic ("jmacd-563", "reiser4_exit failed");
+			reiser4_panic("jmacd-563", "reiser4_exit failed");
 		}
 	}
 
@@ -4625,7 +4625,7 @@ static void *uswapd( void *untyped )
 		spin_unlock( &mp_guard );
 		if( going_down )
 			break;
-		rlog( "nikita-1939", "uswapd wakes up..." );
+		reiser4_log( "nikita-1939", "uswapd wakes up..." );
 
 		flushed = shrink_cache ();
 		trace_on (TRACE_PCACHE, "shrink_cache released %d pages\n",
@@ -4830,8 +4830,6 @@ int real_main( int argc, char **argv )
 	if( e != NULL ) {
 		reiser4_current_trace_flags = 
 			strtol( e, NULL, 0 );
-		/*rlog( "nikita-1496", "reiser4_current_trace_flags: %x", 
-		  get_current_trace_flags() );*/
 	}
 
 	e = getenv( "REISER4_KMALLOC_FAILURE_RATE" );
@@ -4943,8 +4941,8 @@ int main (int argc, char **argv)
 	int ret;
 	
 	if ((ret = pthread_key_create (& __current_key, free_current)) != 0) {
-		/* okay, but rpanic seg faults if current == NULL :( */
-		rpanic ("jmacd-901", "pthread_key_create failed");
+		/* okay, but reiser4_panic seg faults if current == NULL :( */
+		reiser4_panic("jmacd-901", "pthread_key_create failed");
 	}
 
 	return real_main (argc, argv);

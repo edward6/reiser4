@@ -741,7 +741,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	ON_DEBUG(atomic_inc(&flush_cnt);
 		 trace_on(TRACE_FLUSH,
 			  "flush enter: pid %ul %u concurrent procs\n",
-			  current_pid, atomic_read(&flush_cnt)); trace_if(TRACE_FLUSH, if (atomic_read(&flush_cnt) > 1) {
+			  current->pid, atomic_read(&flush_cnt)); trace_if(TRACE_FLUSH, if (atomic_read(&flush_cnt) > 1) {
 									  info("flush concurrency\n");}
 		 );) ;
 
@@ -1149,7 +1149,7 @@ flush_reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_c
 		if (ret == 1) {
 
 			if (reiser4_grab_space_force(1, BA_RESERVED) != 0)
-			    rpanic("umka-1250", "No space left durring flush.");
+			    reiser4_panic("umka-1250", "No space left durring flush.");
 			
 			assert("jmacd-18923", znode_is_write_locked(parent_coord->node));
 			znode_set_dirty(parent_coord->node);
@@ -2253,7 +2253,7 @@ squalloc_right_twig(znode * left, znode * right, flush_position * pos)
 		/* Helper function to do the cutting. */
 		if ((cut_ret = squalloc_right_twig_cut(&stop_coord, &stop_key, left))) {
 			assert("jmacd-6443", cut_ret < 0);
-			rpanic("jmacd-87113", "cut_node failed: %d", cut_ret);
+			reiser4_panic("jmacd-87113", "cut_node failed: %d", cut_ret);
 		}
 
 		/*trace_if (TRACE_FLUSH_VERB, print_node_content ("right_after_cut", right, ~0u)); */

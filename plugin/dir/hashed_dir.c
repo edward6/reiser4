@@ -828,7 +828,7 @@ hashed_add_entry(struct inode *object	/* directory to add new name
 	trace_on(TRACE_RESERVE, "add entry grabs %llu blocks.\n", reserve);
 	
 	init_lh(&lh);
-	trace_on(TRACE_DIR, "[%i]: creating \"%s\" in %llu\n", current_pid, where->d_name.name, get_inode_oid(object));
+	trace_on(TRACE_DIR, "[%i]: creating \"%s\" in %llu\n", current->pid, where->d_name.name, get_inode_oid(object));
 	coord = &fsdata->entry_coord;
 
 	/* check for this entry in a directory. This is plugin method. */
@@ -1097,7 +1097,7 @@ check_item(const struct inode *dir, const coord_t * coord, const char *name)
 	assert("nikita-1137", iplug->s.dir.extract_name);
 
 	trace_on(TRACE_DIR, "[%i]: check_item: \"%s\", \"%s\" in %lli\n",
-		 current_pid, name, iplug->s.dir.extract_name(coord), *znode_get_block(coord->node));
+		 current->pid, name, iplug->s.dir.extract_name(coord), *znode_get_block(coord->node));
 	/* Compare name stored in this entry with name we are looking for.
 	   
 	   FIXME-NIKITA Here should go code for support of something like

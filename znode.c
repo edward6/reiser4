@@ -1037,7 +1037,7 @@ znode_post_write(znode * node)
 	cksum = znode_checksum(node);
 
 	if (!(znode_is_dirty(node) || cksum == node->cksum))
-		rpanic("jmacd-1081", "changed znode is not dirty: %llu", node->zjnode.blocknr);
+		reiser4_panic("jmacd-1081", "changed znode is not dirty: %llu", node->zjnode.blocknr);
 
 	if (0 && znode_is_dirty(node) && cksum == node->cksum && !ZF_ISSET(node, JNODE_CREATED)) {
 		warning("jmacd-1082",

@@ -22,9 +22,9 @@ static char panic_buf[REISER4_PANIC_MSG_BUFFER_SIZE];
 static spinlock_t panic_guard = SPIN_LOCK_UNLOCKED;
 
 /* Your best friend. Call it on each occasion.  This is called by
-    fs/reiser4/debug.h:rpanic(). */
+    fs/reiser4/debug.h:reiser4_panic(). */
 void
-reiser4_panic(const char *format /* format string */ , ... /* rest */ )
+reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 {
 	va_list args;
 
@@ -58,6 +58,24 @@ reiser4_panic(const char *format /* format string */ , ... /* rest */ )
 	/* panic("reiser4 panicked cowardly: %s", panic_buf); */
 	printk(KERN_EMERG "reiser4 panicked cowardly: %s", panic_buf);
 	BUG();
+}
+
+void
+reiser4_print_prefix(const char *level, const char *mid,
+		     const char *function, const char *file, int lineno)
+{
+	char *comm;
+	int   pid;
+
+	if (unlikely(in_interrupt() || in_irq())) {
+		comm = "interrupt";
+		pid  = 0;
+	} else {
+		comm = current->comm;
+		pid  = current->pid;
+	}
+	printk("%s reiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n",
+	       level, comm, pid, function, file, lineno, mid);
 }
 
 /* Preemption point: this should be called periodically during long running
@@ -134,9 +152,9 @@ check_stack(void)
 
 		}
 #endif
-		if (gap > REISER4_STACK_ABORT) {
-			rpanic("nikita-1080", "Stack overflowed: %i", gap);
-		}
+		if (gap > REISER4_STACK_ABORT)
+			reiser4_panic("nikita-1080", "Stack overflow: %i", gap);
+
 		reiser4_stat_stack_check_max(gap);
 	}
 }

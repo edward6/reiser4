@@ -561,8 +561,8 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 		assert("nikita-2776", JF_ISSET(first, JNODE_FLUSH_QUEUED));
 		result = emergency_unflush(first);
 		if (result != 0)
-			rpanic("nikita-2775", 
-			       "Failure to reload jnode: %i", result);
+			reiser4_panic("nikita-2775", 
+				      "Failure to reload jnode: %i", result);
 		pg = jnode_page(first);
 
 		/* This page is protected from washing from the page cache by

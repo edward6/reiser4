@@ -30,7 +30,7 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	reiser4_tree *tree;
 	reiser4_super_info_data *sdata;
 
-	assert("nikita-2662", !no_context);
+	assert("nikita-2662", !in_interrupt() && !in_irq());
 
 	if (context == NULL || super == NULL) {
 		BUG();
@@ -60,7 +60,7 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 
 	context->super = super;
 #if (REISER4_DEBUG)
-	context->tid = set_current();
+	context->tid = current->pid;
 #endif
 	assert("green-7", super->s_op == NULL || super->s_op == &reiser4_super_operations);
 
@@ -119,7 +119,7 @@ done_context(reiser4_context * context /* context being released */ )
 	assert("nikita-2093", parent == parent->parent);
 	assert("nikita-859", parent->magic == context_magic);
 	assert("vs-646", (reiser4_context *) current->fs_context == parent);
-	assert("zam-686", !no_context);
+	assert("zam-686", !in_interrupt() && !in_irq());
 	/* add more checks here */
 
 	if (parent == context) {

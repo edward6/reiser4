@@ -1151,7 +1151,7 @@ fatal_carry_error(carry_level * doing UNUSED_ARG	/* carry level
 	assert("nikita-1230", doing != NULL);
 	assert("nikita-1231", ecode < 0);
 
-	rpanic("nikita-1232", "Carry failed: %i", ecode);
+	reiser4_panic("nikita-1232", "Carry failed: %i", ecode);
 }
 
 /* add new root to the tree
