@@ -66,13 +66,16 @@ typedef enum {
 } reiser4_znode_state;
 
 /* Macros for accessing the znode state. */
-#define	ZF_CLR(p,f)		((p)->zstate &= ~(f))
-#define	ZF_ISSET(p,f)	       (((p)->zstate &   (f)) != 0)
-#define	ZF_MASK(p,f)		((p)->zstate &   (f))
-#define	ZF_SET(p,f)		((p)->zstate |=  (f))
+#define	ZF_CLR(p,f)		((p)->zjnode.state &= ~(f))
+#define	ZF_ISSET(p,f)	       (((p)->zjnode.state &   (f)) != 0)
+#define	ZF_MASK(p,f)		((p)->zjnode.state &   (f))
+#define	ZF_SET(p,f)		((p)->zjnode.state |=  (f))
 
-typedef struct __reiser4_zlock reiser4_zlock;
-typedef struct __reiser4_lock_stack reiser4_lock_stack;
+/* Macros for accessing the jnode state. */
+#define	JF_CLR(p,f)		((p)->state &= ~(f))
+#define	JF_ISSET(p,f)	       (((p)->state &   (f)) != 0)
+#define	JF_MASK(p,f)		((p)->state &   (f))
+#define	JF_SET(p,f)		((p)->state |=  (f))
 
 /* per-znode lock requests queue; list items are lock owner objects
    which want to lock given znode */
@@ -125,15 +128,17 @@ struct __reiser4_zlock {
  *
  * Spin lock: the following fields are protected by the spin lock:
  *
- *  ->tree
- *  ->zstate
+ *  (jnode fields:)
+ *  ->state
  *  ->level
+ *  ->atom
+ *
+ *  (znode fields:)
+ *  ->tree
  *  ->blocknr
- *  ->relocnr
  *  ->node_plugin (see below)
  *  ->data (see below)
  *  ->size (see below)
- *  ->atom
  *
  * Following fields are protected by the global tree lock:
  *
@@ -141,13 +146,6 @@ struct __reiser4_zlock {
  *  ->right
  *  ->in_parent
  *  ->link
- *  ->zslum (*)
- *
- * (*) Note that the ->zslum field may be tested in certain contexts without
- * the tree lock held, using the znode_has_slum_{lock,commit}_context()
- * methods.  This is basically because ->zslum can only become non-NULL in the
- * lock context and only become NULL again by flushing.  There is also the
- * zdestroy() assertion and the internal_create_hook usage.
  *
  * Following fields are protected by the global delimiting key lock (dk_lock):
  *
@@ -173,18 +171,30 @@ struct __reiser4_zlock {
  *
  *
  */
-struct znode {
-	/** znode's state: bitwise flags from the reiser4_znode_state enum. */
-	__u32  zstate : 27;
+struct jnode
+{
+	/* jnode's state: bitwise flags from the reiser4_znode_state enum. */
+	__u32        state : 27;
 
-	/** znode's tree level */
-	__u32  zlevel : 5;
+	/* znode's tree level */
+	__u32        level : 5;
+
+	/* lock, protecting jnode's fields. */
+	spinlock_t   guard;
+
+	struct page *pg;
 
 	/* atom the block is in, if any */
-	txn_atom              *atom;
+	txn_atom    *atom;
 
 	/* capture list */
-	capture_znode_list_link      capture_link;
+	capture_list_link capture_link;
+};
+
+/* The znode is an extension of jnode. */
+struct znode {
+	/* Embedded jnode. */
+	jnode zjnode;
 	
 	/* design note: I think that tree traversal will be more
 	   efficient because of these pointers, but there will be bugs
@@ -231,12 +241,6 @@ struct znode {
 
 	/* the real blocknr (as far as the parent node is concerned) */
 	reiser4_disk_addr blocknr;
-	/* the blocknr for a temporarily relocated block */
-	reiser4_disk_addr relocnr;
-
-	/** lock, protecting znode's fields. Take this while manipulating
-	    pointers above. */
-	spinlock_t             zguard;
 
 	/**
 	 * You cannot remove from memory a node that has children in
@@ -473,7 +477,6 @@ extern const reiser4_disk_addr *znode_get_block( const znode *node );
 extern reiser4_key *znode_get_rd_key( znode *node );
 extern reiser4_key *znode_get_ld_key( znode *node );
 
-extern int znode_is_dirty( const znode *node );
 /** `connected' state checks */
 static inline int znode_is_right_connected (znode * node)
 {
@@ -490,17 +493,6 @@ static inline int znode_is_connected (const znode * node)
 	return ZF_MASK (node, ZNODE_BOTH_CONNECTED) == ZNODE_BOTH_CONNECTED;
 }
 
-static inline tree_level znode_get_level (const znode *node)
-{
-	return node -> zlevel;
-}
-
-static inline void znode_set_level (znode *node, tree_level level)
-{
-	assert ("jmacd-1161", level < 32);
-	node -> zlevel = level;
-}
-
 extern znode *znode_parent( const znode *node );
 extern znode *znode_parent_nolock( const znode *node );
 extern int znode_above_root (const znode *node);
@@ -513,8 +505,6 @@ extern int  znodes_tree_init( reiser4_tree *ztree );
 extern void znodes_tree_done( reiser4_tree *ztree );
 extern int znode_contains_key( znode *node, const reiser4_key *key );
 extern int znode_invariant( const znode *node );
-extern void znode_set_dirty( znode *node );
-extern void znode_set_clean( znode *node );
 extern unsigned znode_save_free_space( znode *node );
 extern unsigned znode_recover_free_space( znode *node );
 
@@ -528,6 +518,55 @@ const char *lock_mode_name( znode_lock_mode lock );
 #if REISER4_DEBUG
 void print_znode( const char *prefix, const znode *node );
 void info_znode( const char *prefix, const znode *node );
+#endif
+
+/**
+ * Jnode routines
+ */
+extern void  jnode_init      (jnode *node);
+extern void  jnode_set_dirty (jnode *node);
+extern void  jnode_set_clean (jnode *node);
+
+/** get the level field for a jnode */
+static inline tree_level jnode_get_level (const jnode *node)
+{
+	return node -> level;
+}
+
+/** set the level field for a jnode */
+static inline void jnode_set_level (jnode      *node,
+				    tree_level  level)
+{
+	assert ("jmacd-1161", level < 32);
+	node -> level = level;
+}
+
+/** return true if "node" is dirty */
+static inline int jnode_is_dirty( const jnode *node )
+{
+	assert( "nikita-782", node != NULL );
+	return JF_ISSET( node, ZNODE_DIRTY );
+}
+
+/* Make it look like various znode functions exist instead of treating znodes as
+ * jnodes in znode-specific code. */
+#define ZJNODE(x) (& (x) -> zjnode)
+
+#define znode_get_level(x)          jnode_get_level ( ZJNODE(x) )
+#define znode_set_level(x,l)        jnode_set_level ( ZJNODE(x), (l) )
+
+#define znode_is_dirty(x)           jnode_is_dirty  ( ZJNODE(x) )
+#define znode_set_dirty(x)          jnode_set_dirty ( ZJNODE(x) )
+#define znode_set_clean(x)          jnode_set_clean ( ZJNODE(x) )
+
+#define spin_lock_znode(x)          spin_lock_jnode ( ZJNODE(x) )
+#define spin_unlock_znode(x)        spin_unlock_jnode ( ZJNODE(x) )
+#define spin_trylock_znode(x)       spin_trylock_jnode ( ZJNODE(x) )
+#define spin_znode_is_locked(x)     spin_jnode_is_locked ( ZJNODE(x) )
+#define spin_znode_is_not_locked(x) spin_jnode_is_not_locked ( ZJNODE(x) )
+
+#if REISER4_DEBUG
+void info_jnode( const char *prefix, const jnode *node );
 #endif
 
 /* __ZNODE_H__ */
