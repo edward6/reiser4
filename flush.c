@@ -2118,7 +2118,7 @@ exit:
    its current children have been squeezed and allocated already.  This
    procedure's job is to squeeze and items from @right to @left.
   
-   If at the leaf level, use the squeeze_everything_left memcpy-optimized
+   If at the leaf level, use the shift_everything_left memcpy-optimized
    version of shifting (squeeze_right_leaf).
   
    If at the twig level, extents are allocated as they are shifted from @right
