@@ -396,6 +396,8 @@ find_plugin(reiser4_plugin_type_data * ptype	/* plugin
 
 	for (i = 0; i < ptype->builtin_num; ++i) {
 		result = plugin_at(ptype, i);
+		if (result->h.label == NULL)
+			continue;
 		if (!strcmp(result->h.label, label))
 			return result;
 	}
