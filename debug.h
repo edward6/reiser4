@@ -280,12 +280,12 @@ typedef enum {
 	/*
 	 * trace log writing
 	 */
-	TRACE_LOG         =     (1 << 19),     /* 0x00100000 */
+	TRACE_LOG         =     (1 << 19),     /* 0x00080000 */
 
 	/*
 	 * trace journal replaying
 	 */
-	TRACE_REPLAY      =     (1 << 20),     /* 0x00200000 */
+	TRACE_REPLAY      =     (1 << 20),     /* 0x00100000 */
 
 	/*
 	 * vague section: used to trace bugs. Use it to issue optional prints
