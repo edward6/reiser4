@@ -1,0 +1,89 @@
+This file is part of reiser4progs package
+Copyright (C) 1996-2002 Hans Reiser
+
+Reiser4 is a file system based on dancing tree algorithms, and is
+described at http://www.namesys.com
+
+mkreiser4 and other utilities are on our webpage or wherever your
+Linux provider put them.  You really want to be running the latest
+version off the website if you use fsck.
+
+Yes, if you update your reiser4 kernel module you do have to
+recompile your kernel, most of the time.  The errors you get will be
+quite cryptic if your forget to do so.
+
+Hideous Commercial Pitch: Spread your development costs across other OS
+vendors.  Select from the best in the world, not the best in your
+building, by buying from third party OS component suppliers.  Leverage
+the software component development power of the internet.  Be the most
+aggressive in taking advantage of the commercial possibilities of
+decentralized internet development, and add value through your branded
+integration that you sell as an operating system.  Let your competitors
+be the ones to compete against the entire internet by themselves.  Be
+hip, get with the new economic trend, before your competitors do.  Send
+email to reiser@namesys.com
+
+Hans Reiser was the primary architect of Reiser4, but a whole team
+chipped their ideas in.  He invested everything he had into Namesys
+for 5.5 dark years of no money before Reiser3 finally started to work well
+enough to bring in money.  He owns the copyright.
+
+DARPA was the primary sponsor of Reiser4.  DARPA does not endorse
+Reiser4, it merely sponsors it.  DARPA is, in solely Hans's personal
+opinion, unique in its willingness to invest into things more
+theoretical than the VC community can readily understand, and more
+longterm than allows them to be sure that they will be the ones to
+extract the economic benefits from.  DARPA also integrated us into a
+security community that transformed our security worldview.
+
+Vladimir Saveliev is our lead programmer, with us from the beginning,
+and he worked long hours writing the cleanest code.  This is why he is
+now the lead programmer after years of commitment to our work.  He
+always made the effort to be the best he could be, and to make his
+code the best that it could be.  What resulted was quite remarkable. I
+don't think that money can ever motivate someone to work the way he
+did, he is one of the most selfless men I know.
+
+Alexander Lyamin was our sysadmin, and helped to educate us in
+security issues.  Moscow State University and IMT were very generous
+in the internet access they provided us, and in lots of other little
+ways that a generous institution can be.
+
+Alexander Zarochentcev (sometimes known as zam, or sasha), wrote the
+locking code, the block allocator, and finished the flushing code.
+His code is always crystal clean and well structured.
+
+Nikita Danilov wrote the core of the balancing code, the core of the
+plugins code, and the directory code.  He worked a steady pace of long
+hours that produced a whole lot of well abstracted code.  He is our
+senior computer scientist.
+
+Vladimir Demidov wrote the parser.  Writing an in kernel parser is
+something very few persons have the skills for, and it is thanks to
+him that we can say that the parser is really not so big compared to
+various bits of our other code, and making a parser work in the kernel
+was not so complicated as everyone would imagine mainly because it was
+him doing it....
+
+Joshua McDonald wrote the transaction manager, and the flush code.
+The flush code unexpectedly turned out be extremely hairy for reasons
+you can read about on our web page, and he did a great job on an
+extremely difficult task.  
+
+Nina Reiser handled our accounting, government relations, and much
+more.
+
+Ramon Reiser developed our website.  
+
+Beverly Palmer drew our graphics.
+
+Vitaly Fertman did fsck.  He makes the code simple when it could have
+been so complex, and this is so nice of him....
+
+Yury Umanets (aka Umka) developed reiser4progs.
+
+Oleg Drokin (aka Green) is the release manager who fixes everything.
+It is so nice to have someone like that on the team.  He (plus Chris
+and Jeff) make it possible for the entire rest of the Namesys team to
+focus on Reiser4, and he fixed a whole lot of Reiser4 bugs also.  It
+is just amazing to watch his talent for spotting bugs in action.
