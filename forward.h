@@ -40,7 +40,6 @@ typedef unsigned pos_in_node;
 typedef unsigned pos_in_item;
 
 typedef struct jnode jnode;
-typedef struct slum_scan slum_scan;
 typedef struct reiser4_blocknr_hint reiser4_blocknr_hint;
 
 struct inode;

@@ -57,8 +57,6 @@ And they aren't disjoint for all items not in the same node?  Really?  Explain. 
  *    . something used to maintain tree structure in memory: sibling and
  *    parental linkage.
  *
- *    . something used to organize nodes into "slums"
- *
  *   For more on znodes see in znode.[ch]
  *
  * DELIMITING KEYS.

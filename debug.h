@@ -172,9 +172,9 @@ typedef enum {
 	 */
 	TRACE_DIR        =     (1 << 6),     /* 0x00000040 */
 	/*
-	 * trace slum tracing code
+	 * trace flush code
 	 */
-	TRACE_SLUM       =     (1 << 7),     /* 0x00000080 */
+	TRACE_FLUSH       =     (1 << 7),     /* 0x00000080 */
 	/*
 	 * trace carry
 	 */
@@ -237,7 +237,7 @@ extern __u32 reiser4_current_trace_flags;
 #define reiser4_stat_znode_add( stat ) ST_INC_CNT( znode. ## stat )
 #define reiser4_stat_dir_add( stat ) ST_INC_CNT( dir. ## stat )
 #define reiser4_stat_file_add( stat ) ST_INC_CNT( file. ## stat )
-#define reiser4_stat_slum_add( stat ) ST_INC_CNT( slum. ## stat )
+#define reiser4_stat_flush_add( stat ) ST_INC_CNT( flush. ## stat )
 #define reiser4_stat_pool_add( stat ) ST_INC_CNT( pool. ## stat )
 
 #define	reiser4_stat_add_at_level( lev, stat )				\
@@ -543,7 +543,7 @@ typedef struct reiser4_statistics {
 	} file;
 	struct {
 		/*
-		 * how many slums were squeezed
+		 * how many nodes were squeezed
 		 */
 		stat_cnt squeeze;
 		/*
@@ -555,7 +555,7 @@ typedef struct reiser4_statistics {
 		 * how many nodes were squeezed to left neighbor completely
 		 */
 		stat_cnt squeezed_completely;
-	} slum;
+	} flush;
 	struct {
 		/*
 		 * how many carry objects were allocated
@@ -590,7 +590,7 @@ typedef struct reiser4_statistics {
 #define	reiser4_stat_tree_level_add( level, stat ) noop
 #define reiser4_stat_znode_add( stat ) noop
 #define reiser4_stat_dir_add( stat ) noop
-#define reiser4_stat_slum_add( stat ) noop
+#define reiser4_stat_flush_add( stat ) noop
 #define reiser4_stat_pool_add( stat ) noop
 #define reiser4_stat_file_add( stat ) noop
 #define	reiser4_stat_add_at_level( lev, stat ) noop
