@@ -1,10 +1,11 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
-/* As of 2002 the code in this file was primarily designed by Joshua MacDonald, with aspects relating to ensuring high
- * performance, and flexibility in the amount of isolation for reasons of high performance, being heavily influenced by
- * Hans Reiser.  Alexander Zarochentcev became the maintainer when Josh left.  Hans would like to commend Josh for
- * leaving his code in a well commmented and well structured condition, and to recommend him to any prospective future
- * employers he might have.  */
+/* As of 2002 the code in this file was primarily designed by Joshua MacDonald, with
+   aspects relating to ensuring high performance, and flexibility in the amount of
+   isolation for reasons of high performance, being heavily influenced by Hans Reiser.
+   Alexander Zarochentcev became the maintainer when Josh left.  Hans would like to
+   commend Josh for leaving his code in a well commented and well structured condition,
+   and to recommend him to any prospective future employers he might have. */
 
 /* The txnmgr is a set of interfaces that keep track of atoms and transcrash handles.  The
    txnmgr processes capture_block requests and manages the relationship between jnodes and
@@ -96,14 +97,9 @@ year old --- define all technical terms used.
    requests with the RMW flag set.
 */
 
-/* Special disk space reservation:
-  
-   The space reserved for a transcrash by calling RESERVE_BLOCKS should cover only leaf nodes that will be consumed.  We
-   reserve a fixed percentage of disk space to cover all internal nodes (and to make disk layout more efficient), and thereby avoid calculating how many of them
-   will be needed.
-*/
-
 /* ZAM-FIXME-HANS: describe the deadlock avoidance design
+
+
 */
 
 #include "debug.h"
