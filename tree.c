@@ -1581,6 +1581,8 @@ void done_tree( reiser4_tree *tree /* tree to release */ )
 
 #if REISER4_DEBUG
 
+int leaves, nodes, internal_free_space, pointers, leaf_free_space;
+
 /** helper called by print_tree_rec() */
 static void tree_rec( reiser4_tree *tree /* tree to print */, 
 		      znode *node /* node to print */, 
@@ -1589,10 +1591,30 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	int ret;
 	coord_t coord;
 
+
 	ret = zload( node );
 	if( ret != 0 ) {
 		info( "Cannot load/parse node: %i", ret );
 		return;
+	}
+
+	/*
+	 * calculate some statistics:
+	 */
+	/* number of nodes in the tree */
+	nodes ++;
+	if( znode_get_level( node ) == LEAF_LEVEL ) {
+		/* number of leaves */
+		leaves ++;
+		/* amount of free space in leaves */
+		leaf_free_space += znode_free_space( node );
+	} else {
+		/* amount of free space in internal nodes and number of items
+		 * (root not included) */
+		if( *znode_get_block( node ) != tree -> root_block ) {
+			internal_free_space += znode_free_space( node );
+			pointers += node_num_items( node );
+		}
 	}
 
 	if( flags & REISER4_NODE_PRINT_ZNODE )
@@ -1688,7 +1710,18 @@ void print_tree_rec (const char * prefix /* prefix to print */,
 		zput( fake );
 		return;
 	}
+	nodes = 0;
+	leaves = 0;
+	leaf_free_space = internal_free_space = 0;
+	pointers = 0;
 	tree_rec( tree, root, flags );
+	info( "There are %d nodes (including %d leaves).\n"
+	      "Average free space in leaves %d\n"
+	      "Average free space in internals %d\n"
+	      "average number of items in internals nodes %d\n",
+	      nodes, leaves, leaf_free_space / leaves,
+	      internal_free_space / (nodes - leaves - 1),
+	      pointers / (nodes - leaves - 1));
 
 #if REISER4_USER_LEVEL_SIMULATION
 	if( ! ( flags & REISER4_NODE_DONT_DOT ) ) {
