@@ -458,11 +458,6 @@ page_of_cluster(struct page * page, reiser4_cluster_t * clust, struct inode * in
 	return (pg_to_clust(page->index, inode) == clust->index);
 }
 
-reiser4_internal int count_to_nrpages(unsigned count)
-{
-	return (!count ? 0 : off_to_pg(count - 1) + 1);
-}
-
 reiser4_internal int
 new_cluster(reiser4_cluster_t * clust, struct inode * inode)
 {
@@ -2209,7 +2204,7 @@ set_cluster_params(struct inode * inode, reiser4_cluster_t * clust,
 		hole_size = file_off - inode->i_size;
 
 		printk("edward-176, Warning: Hole of size %llu in "
-		       "cryptocompressed file (inode %llu, offset %llu) \n",
+		       "cryptcompress file (inode %llu, offset %llu) \n",
 		       hole_size, (unsigned long long)get_inode_oid(inode), file_off);
 
 		set_window(clust, win, inode, inode->i_size, file_off);
@@ -2425,42 +2420,53 @@ write_cryptcompress(struct file * file, /* file to write to */
 	return result;
 }
 
-/* Helper function for cryptcompress_truncate */
+/* If @index > 0, find real disk cluster of the index (@index - 1),
+   If @index == 0 find the real disk cluster of the object of maximal index.
+   Keep incremented index of the result in @result.
+   It succes was returned:
+   (@index == 0 && @found == 0) means that the object doesn't have real disk
+   clusters.
+   (@index != 0 && @found == 0) means that disk cluster of @index doesn't exist.
+*/
 static int
-find_object_size(struct inode *inode, loff_t * size)
+find_real_disk_cluster(struct inode * inode, cloff_t * found, cloff_t index)
 {
 	int result;
 	reiser4_key key;
+	loff_t offset;
 	hint_t hint;
+	lookup_bias bias;
 	coord_t *coord;
 	lock_handle lh;
 	item_plugin *iplug;
 	file_plugin *fplug = inode_file_plugin(inode);
-
+	
+	assert("edward-1131", fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
 	assert("edward-95", crc_inode_ok(inode));
 
 	init_lh(&lh);
 	hint_init_zero(&hint);
 	hint.coord.lh = &lh;
-	
-	fplug->key_by_inode(inode, get_key_offset(max_key()), &key);
 
+	bias =   (index ? FIND_EXACT : FIND_MAX_NOT_MORE_THAN);
+	offset = (index ? clust_to_off(index, inode) - 1 : get_key_offset(max_key()));
+		
+	fplug->key_by_inode(inode, offset, &key);
+	
 	/* find the last item of this object */
-	result = find_cluster_item(&hint, &key, 0, ZNODE_READ_LOCK, 0/* ra_info */, FIND_MAX_NOT_MORE_THAN, 0);
-	if (result == CBK_COORD_NOTFOUND) {
-		/* object doesn't have any item */
-		done_lh(&lh);
-		*size = 0;
-		return 0;
-	}
-	if (result != CBK_COORD_FOUND) {
-		/* error occurred */
+	result = find_cluster_item(&hint, &key, 0, ZNODE_READ_LOCK, 0/* ra_info */, bias, 0);
+	if (cbk_errored(result)) {
 		done_lh(&lh);
 		return result;
 	}
+	if (result == CBK_COORD_NOTFOUND) {
+		/* no real disk clusters */
+		done_lh(&lh);
+		*found = 0;
+		return 0;
+	}
+	/* disk cluster is found */
 	coord = &hint.coord.base_coord;
-
-	/* there is at least one item */
 	coord_clear_iplug(coord);
 	result = zload(coord->node);
 	if (unlikely(result)) {
@@ -2470,15 +2476,24 @@ find_object_size(struct inode *inode, loff_t * size)
 	iplug = item_plugin_by_coord(coord);
 	assert("edward-277", iplug == item_plugin_by_id(CTAIL_ID));
 	assert("edward-659", cluster_shift_by_coord(coord) == inode_cluster_shift(inode));
-
+	
+	/* FIXME-EDWARD: Should it be ->append_key() ? */
 	iplug->s.file.append_key(coord, &key);
+	
+	*found = off_to_clust(get_key_offset(&key), inode);
 
-	*size = get_key_offset(&key);
-
+	assert("edward-1132", ergo(index, index == *found));
+	
 	zrelse(coord->node);
 	done_lh(&lh);
-
+	
 	return 0;
+}
+
+static int
+find_actual_cloff(struct inode *inode, cloff_t * index)
+{
+	return find_real_disk_cluster(inode, index, 0 /* find last real one */);
 }
 
 #if 0
@@ -2528,12 +2543,72 @@ cut_items_cryptcompress(struct inode *inode, loff_t new_size, int update_sd)
 }
 #endif
 
-/* The following two procedures are called when truncate decided
-   to deal with real items */
+/* Append or expand hole in two steps (exclusive access should be aquired!)
+   1) write zeroes to the last existing cluster,
+   2) expand hole via fake clusters (just increase i_size) */
 static int
-cryptcompress_append_hole(struct inode * inode, loff_t new_size)
+cryptcompress_append_hole(struct inode * inode /*contains old i_size */,
+			  loff_t new_size)
 {
-	return write_cryptcompress_flow(0, inode, 0, 0, new_size);
+	int result = 0;
+	hint_t hint;
+	loff_t hole_size;
+	int nr_zeroes;
+	lock_handle lh;
+	reiser4_slide_t win;
+	reiser4_cluster_t clust;
+	
+	assert("edward-1133", inode->i_size < new_size);
+	assert("edward-1134", schedulable());
+	assert("edward-1135", crc_inode_ok(inode));
+	assert("edward-1136", current_blocksize == PAGE_CACHE_SIZE);
+
+	if (off_to_cloff(inode->i_size, inode))
+		/* appending hole to cluster boundary */
+		goto fake_append;
+	
+	init_lh(&lh);
+	hint_init_zero(&hint);
+	hint.coord.lh = &lh;
+	
+	reiser4_slide_init(&win);
+	reiser4_cluster_init(&clust, &win);
+	clust.hint = &hint;
+
+	/* set cluster handle */
+
+	result = alloc_cluster_pgset(&clust, inode_cluster_pages(inode));
+	if (result)
+		goto out;
+	hole_size = new_size - inode->i_size;
+	nr_zeroes = min_count(inode_cluster_size(inode) - off_to_cloff(inode->i_size, inode), hole_size);
+
+	set_window(&clust, &win, inode, inode->i_size, nr_zeroes); 
+	win.stat = HOLE_WINDOW;
+	
+	assert("edward-1137", clust.index == off_to_clust(inode->i_size, inode));
+#if REISER4_DEBUG
+	printk("edward-1138, Warning: Hole of size %llu in "
+	       "cryptcompress file (inode %llu); "
+	       "%u zeroes appended to cluster (index = %lu) \n",
+	       hole_size, (unsigned long long)get_inode_oid(inode), nr_zeroes, clust.index);
+#endif	
+	result = prepare_cluster(inode, 0, 0, &clust, "append hole");
+	if (result)
+		goto out;
+	assert("edward-1139", clust.dstat == REAL_DISK_CLUSTER);
+	       
+	hole_size -= nr_zeroes;
+	if (!hole_size)
+		/* nothing to append anymore */
+		goto out;
+ fake_append:
+	
+	INODE_SET_FIELD(inode, i_size, new_size);
+ out:
+	done_lh(&lh);
+	put_cluster_handle(&clust, TFM_READ);
+	return result;
 }
 
 reiser4_internal void
@@ -2547,107 +2622,137 @@ truncate_cluster(struct inode * inode, pgoff_t start, long count)
 	truncate_jnodes_range(inode, start, 1);
 }
 
-static int
-shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
-		      loff_t asize)
+/* Truncate @count page clusters starting from @start index.
+   Truncate @count cluster jnodes */
+reiser4_internal void
+truncate_page_clusters(struct inode * inode, cloff_t start, 
+		       unsigned long count /* number of clusters to truncate */)
 {
-	int result;
-	pgoff_t start, count;
-	loff_t old_size;
-	char * kaddr;
-	unsigned pgoff;
+	loff_t from;
+	loff_t end;
+	
+	if (!count)
+		return;
+	from = clust_to_off(start, inode);
+	end = from + ((loff_t)count << 
+		      inode_cluster_shift(inode) <<
+		      PAGE_CACHE_SHIFT);
+	
+	truncate_inode_pages_range(inode->i_mapping, from, end);
+	truncate_jnodes_range(inode, from, inode_cluster_pages(inode));
+}
+
+/* Prune some last pages of partially truncated page cluster, 
+   (which is supposed to be captured) */
+static void
+truncate_cluster_pages(struct inode * inode, pgoff_t start,
+		       unsigned long count /* number of pages to truncate */)
+{
+	truncate_inode_pages_range(inode->i_mapping, 
+				   pg_to_off(start),
+				   pg_to_off(start) + (count << PAGE_CACHE_SHIFT));
+}
+
+/* prune cryptcompress file in two steps (exclusive access should be acquired!)
+   1) cut all disk clusters but the last one partially truncated,
+   2) set zeroes and capture last partially truncated page cluster if the last
+      one exists, otherwise truncate via prune fake cluster (just decrease i_size)
+*/
+static int
+prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
+		      cloff_t aidx)
+{
+	int result = 0;
+	loff_t to_prune;
+	int nr_zeroes;
+	cloff_t index;
+
+	hint_t hint;	
+	lock_handle lh;
 	reiser4_slide_t win;
 	reiser4_cluster_t clust;
-	crypto_plugin * cplug;
 
-	assert("edward-290", inode->i_size > new_size);
-	assert("edward-756", crc_inode_ok(inode));
+	assert("edward-1140", inode->i_size > new_size);
+	assert("edward-1141", schedulable());
+	assert("edward-1142", crc_inode_ok(inode));
+	assert("edward-1143", current_blocksize == PAGE_CACHE_SIZE);
 
-	pgoff = 0;
-	start = count = 0;
-	old_size = inode->i_size;
-	cplug = inode_crypto_plugin(inode);
+	result = cut_file_items(inode,
+				new_size,
+				update_sd,
+				((loff_t)aidx << inode_cluster_shift(inode)),
+				0);
+	if (result)
+		goto out;
+	/* smallest removed item should have disk cluster key */
+	assert("edward-1144", !off_to_cloff(inode->i_size, inode));
+
+	if (!off_to_cloff(new_size, inode)) {
+		/* truncating up to cluster boundary */
+		assert("edward-1145", inode->i_size == new_size);
+		goto out;
+	}
+	to_prune = new_size - inode->i_size;
+	assert("edward-1146", to_prune != 0);
+	assert("edward-1147", to_prune < inode_cluster_size(inode));
+		
+	/* check if partially truncated cluster is fake */
+	index = off_to_clust(new_size, inode);
+	result = find_real_disk_cluster(inode, &aidx, index + 1);
+	if (result)
+		goto out;
+	if (!aidx)
+		/* yup, it is fake one */
+		goto fake_prune;
+	
+	assert("edward-1148", aidx == index + 1);
+	
+	/* read page cluster, set zeroes to its tail and try to capture */
+	init_lh(&lh);
+	hint_init_zero(&hint);
+	hint.coord.lh = &lh;
 
 	reiser4_slide_init(&win);
-	reiser4_cluster_init(&clust, &win);	
-
-	result = cut_file_items(inode, new_size, update_sd, asize, 0);
-
-	if(result)
-		return result;
-
-	assert("edward-660", ergo(!new_size,
-				  (reiser4_inode_data(inode)->anonymous_eflushed == 0 &&
-				   reiser4_inode_data(inode)->captured_eflushed == 0)));
-
-	if (!off_to_cloff(new_size, inode))
-		/* truncated to cluster boundary (1) */
-		return 0;
-
-	/* FIXME-EDWAD: Not supported yet */
-	assert("edward-1126", 0);
-
+	reiser4_cluster_init(&clust, &win);
+	clust.hint = &hint;
+	
 	result = alloc_cluster_pgset(&clust, inode_cluster_pages(inode));
 	if (result)
-		return result;
+		goto out;
+	nr_zeroes = inode_cluster_size(inode) - off_to_cloff(new_size, inode);
+	set_window(&clust, &win, inode, new_size, nr_zeroes); 
+	win.stat = HOLE_WINDOW;
 	
-	set_window(&clust, &win, inode, new_size, old_size);
-	
-	/* read the whole cluster */
-	result = prepare_cluster(inode, 0, 0, &clust, "shorten cryptcompress");
-	if (result) 
-		goto exit;
-	/* truncate last cluster pages and jnodes */
-	assert("edward-294", win.stat == DATA_WINDOW);
-	assert("edward-661", win.off > 0);
-	assert("edward-999", clust.reserved == 1);
-	
-	pgoff = off_to_pgoff(win.off);
-
-        /* reduced idx of the first page to release */
-	start = off_to_pg(win.off - 1) + 1;
-	/* number of pages to release and truncate */
-	count = clust.nr_pages - start;
-
-	/* release last pages which won't participate in flush */
-	release_cluster_pages(&clust, start);
-	/* truncate the pages above, also don't forget about jnodes */
-	truncate_cluster(inode, clust_to_pg(clust.index, inode) + start, count);
-	/* update number of cluster pages */
-	clust.nr_pages = start;
-
-	/* align last non-truncated page */
-	lock_page(clust.pages[clust.nr_pages - 1]);
-	kaddr = kmap_atomic(clust.pages[clust.nr_pages - 1], KM_USER0);
-
-	if (inode_get_crypto(inode) && cplug->align_cluster)
-		cplug->align_cluster(kaddr + pgoff, pgoff, PAGE_CACHE_SIZE);
-	else
-		xmemset(kaddr + pgoff, 0, PAGE_CACHE_SIZE - pgoff);
-	unlock_page(clust.pages[clust.nr_pages - 1]);
-	
-	set_cluster_pages_dirty(&clust);
-	result = try_capture_cluster(&clust, inode);
+	assert("edward-1149", clust.index == index);
+#if REISER4_DEBUG
+	printk("edward-1150, Warning: Hole of size %d in "
+	       "cryptcompress file (inode %llu); "
+	       "%d zeroes appended to cluster (index = %lu) \n",
+	       nr_zeroes, (unsigned long long)get_inode_oid(inode), nr_zeroes, clust.index);
+#endif
+	result = prepare_cluster(inode, 0, 0, &clust, "prune cryptcompress");
 	if (result)
-		goto err2;
+		goto out;
+	assert("edward-1151", clust.dstat == REAL_DISK_CLUSTER);
 	
-	/* FIXME-EDWARD: Update this using balance dirty cluster pages */
-	assert("edward-757", 0 /* don't free reserved4cluster when success */);
-	result = update_sd_cryptcompress(inode);
-	if(!result)
-		goto err1;
-	reiser4_throttle_write(inode);
-	goto exit;
- err2:
-	page_cache_release(clust.pages[0]);
- err1:
-	release_cluster_pages_and_jnode(&clust);
+	truncate_cluster_pages(inode,
+			       count_to_nrpages(new_size)  /* from */,
+			       count_to_nrpages(nr_zeroes) - 1 /* count */);
+ fake_prune:
 	
-	if (clust.reserved)
-	free_reserved4cluster(inode, &clust);
- exit:
+	INODE_SET_FIELD(inode, i_size, new_size);
+ out:
+	done_lh(&lh);
 	put_cluster_handle(&clust, TFM_READ);
 	return result;
+}
+
+/* returns true if the cluster we prune or append to is fake */
+static int
+truncating_last_fake_dc(struct inode * inode, cloff_t aidx, loff_t new_size)
+{
+	return (aidx == 0  /* no items */|| 
+		aidx <= off_to_clust(new_size, inode));
 }
 
 /* This is called in setattr_cryptcompress when it is used to truncate,
@@ -2659,27 +2764,28 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 		       int update_sd)
 {
 	int result;
+	cloff_t aidx; /* appended index to the last actual one */
 	loff_t old_size = inode->i_size;
-	loff_t asize; /* actual size */
-
-	result = find_object_size(inode, &asize);
-
+	
+	assert("edward-1152", new_size != old_size);
+	
+	result = find_actual_cloff(inode, &aidx);
 	if (result)
 		return result;
-	if (!asize ||
-	    /* no items */
-	    off_to_clust(asize, inode) < off_to_clust(new_size, inode)
-	    /* truncating up to fake cluster boundary */) {
+	if (truncating_last_fake_dc(inode, aidx, new_size)) {
 		/* do not touch items */
-		assert("edward-662", !off_to_cloff(new_size, inode));
-
-		INODE_SET_FIELD(inode, i_size, asize);
-		truncate_cluster(inode, size_to_next_pg(new_size),
-				 size_to_pg(old_size) - size_to_next_pg(new_size) + 1);
-		assert("edward-663", ergo(!new_size,
-					  reiser4_inode_data(inode)->anonymous_eflushed == 0 &&
-					  reiser4_inode_data(inode)->captured_eflushed == 0));
-
+		INODE_SET_FIELD(inode, i_size, new_size);
+		if (old_size > new_size) {
+			cloff_t start;
+			unsigned long count;
+			start = count_to_nrclust(new_size, inode);
+			count = count_to_nrclust(old_size, inode) - start;
+			
+			truncate_page_clusters(inode, start, count);
+			assert("edward-663", ergo(!new_size,
+						  reiser4_inode_data(inode)->anonymous_eflushed == 0 &&
+						  reiser4_inode_data(inode)->captured_eflushed == 0));
+		}
 		if (update_sd) {
 			result = setattr_reserve_common(tree_by_inode(inode));
 			if (!result)
@@ -2689,7 +2795,7 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 		return result;
 	}
 	result = (old_size < new_size ? cryptcompress_append_hole(inode, new_size) :
-		  shorten_cryptcompress(inode, new_size, update_sd, asize));
+		  prune_cryptcompress(inode, new_size, update_sd, aidx));
 	return result;
 }
 
