@@ -1104,7 +1104,6 @@ static int capture_anonymous_pages(struct address_space * mapping)
 	struct list_head *mpages;
 	int result;
 	int nr;
-	int captured = 0, clean = 0, writeback = 0;
 
 	result = 0;
 	nr = 0;
@@ -1125,7 +1124,7 @@ static int capture_anonymous_pages(struct address_space * mapping)
 	spin_unlock(&mapping->page_lock);
 
 	if (result) {
-		warning("vs-1454", "Cannot capture anon pages: %i (%d %d %d)\n", result, captured, clean, writeback);
+		warning("vs-1454", "Cannot capture anon pages: result=%i (captured=%d)\n", result, nr);
 		return result;
 	}
 
