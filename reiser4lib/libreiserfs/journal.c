@@ -39,7 +39,7 @@ int reiserfs_journal_open(reiserfs_fs_t *fs, aal_device_t *device, int replay) {
     reiserfs_plugin_check_routine(plugin->journal, open, goto error_free_journal);
     if (!(fs->journal->entity = plugin->journal.open(device))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-015", 
-	    "Can't initialize the journal plugin.");
+	    "Can't initialize the journal.");
 	goto error_free_journal;
     }
 	
@@ -104,6 +104,14 @@ error:
     return 0;
 }
 
+int reiserfs_journal_sync(reiserfs_fs_t *fs) {
+    ASSERT(fs != NULL, return 0);
+    ASSERT(fs->journal != NULL, return 0);
+
+    reiserfs_plugin_check_routine(fs->journal->plugin->journal, sync, return 0);
+    return fs->journal->plugin->journal.sync(fs->journal->entity);
+}
+
 int reiserfs_journal_reopen(reiserfs_fs_t *fs, aal_device_t *device, int replay) {
     reiserfs_journal_close(fs, 1);
     return reiserfs_journal_open(fs, device, replay);
@@ -112,11 +120,9 @@ int reiserfs_journal_reopen(reiserfs_fs_t *fs, aal_device_t *device, int replay)
 void reiserfs_journal_close(reiserfs_fs_t *fs, int sync) {
     ASSERT(fs != NULL, return);
     ASSERT(fs->journal != NULL, return);
-	
+
     reiserfs_plugin_check_routine(fs->journal->plugin->journal, close, return);
     fs->journal->plugin->journal.close(fs->journal->entity, sync);
-    fs->journal->entity = NULL;
-	
     aal_free(fs->journal);
     fs->journal = NULL;
 }

@@ -99,11 +99,23 @@ error:
     return 0;
 }
 
+int reiserfs_tree_sync(reiserfs_fs_t *fs) {
+    reiserfs_node_t *root;
+	
+    ASSERT(fs != NULL, return 0);
+    ASSERT(fs->tree != NULL, return 0);
+    ASSERT(fs->tree->root != NULL, return 0);
+
+    root = fs->tree->root;
+    reiserfs_plugin_check_routine(root->plugin->node, sync, return 0);
+    return root->plugin->node.sync(root->entity);
+}
+
 void reiserfs_tree_close(reiserfs_fs_t *fs, int sync) {
     ASSERT(fs != NULL, return);
     ASSERT(fs->tree != NULL, return);
     
-    reiserfs_node_close(fs->tree->root, 1);    
+    reiserfs_node_close(fs->tree->root, sync);
     aal_free(fs->tree);
     fs->tree = NULL;
 }

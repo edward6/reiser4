@@ -127,7 +127,7 @@ struct reiserfs_format_plugin {
     reiserfs_plugin_header_t h;
 	
     reiserfs_format_opaque_t *(*open) (aal_device_t *);
-    reiserfs_format_opaque_t *(*create) (aal_device_t *);
+    reiserfs_format_opaque_t *(*create) (aal_device_t *, count_t);
     void (*close) (reiserfs_format_opaque_t *, int);
     int (*sync) (reiserfs_format_opaque_t *);
     int (*check) (reiserfs_format_opaque_t *);

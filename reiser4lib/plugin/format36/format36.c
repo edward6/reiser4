@@ -121,7 +121,7 @@ static int reiserfs_format36_sync(reiserfs_format36_t *format) {
     return 1;
 }
 
-static reiserfs_format36_t *reiserfs_format36_create(aal_device_t *device) {
+static reiserfs_format36_t *reiserfs_format36_create(aal_device_t *device, count_t blocks) {
     return NULL;
 }
 
@@ -183,7 +183,7 @@ static reiserfs_plugin_t format36_plugin = {
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.open = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format36_open,
-	.create = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format36_create,
+	.create = (reiserfs_format_opaque_t *(*)(aal_device_t *, count_t))reiserfs_format36_create,
 	.close = (void (*)(reiserfs_format_opaque_t *, int))reiserfs_format36_close,
 	.sync = (int (*)(reiserfs_format_opaque_t *))reiserfs_format36_sync,
 	.check = (int (*)(reiserfs_format_opaque_t *))reiserfs_format36_check,

@@ -81,6 +81,14 @@ error:
     return 0;
 }
 
+int reiserfs_alloc_sync(reiserfs_fs_t *fs) {
+    ASSERT(fs != NULL, return 0);
+    ASSERT(fs->alloc != NULL, return 0);
+
+    reiserfs_plugin_check_routine(fs->alloc->plugin->alloc, sync, return 0);
+    return fs->alloc->plugin->alloc.sync(fs->alloc->entity);
+}
+
 void reiserfs_alloc_close(reiserfs_fs_t *fs, int sync) {
     ASSERT(fs != NULL, return);
     ASSERT(fs->alloc != NULL, return);

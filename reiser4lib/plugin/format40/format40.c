@@ -82,7 +82,7 @@ static int reiserfs_format40_sync(reiserfs_format40_t *format) {
     return 1;
 }
 
-static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device) {
+static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device, count_t blocks) {
     reiserfs_format40_t *format;
     reiserfs_format40_super_t *super;
 
@@ -100,7 +100,7 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device) {
 	goto error_free_format;
     }
     super = (reiserfs_format40_super_t *)format->super->data;
-    set_sb_block_count(super, aal_device_len(device));
+    set_sb_block_count(super, blocks);
     
     /* There will be superblock forming code */
    
@@ -173,7 +173,7 @@ static reiserfs_plugin_t format40_plugin = {
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.open = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format40_open,
-	.create = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format40_create,
+	.create = (reiserfs_format_opaque_t *(*)(aal_device_t *, count_t))reiserfs_format40_create,
 	.close = (void (*)(reiserfs_format_opaque_t *, int))reiserfs_format40_close,
 	.sync = (int (*)(reiserfs_format_opaque_t *))reiserfs_format40_sync,
 	.check = (int (*)(reiserfs_format_opaque_t *))reiserfs_format40_check,

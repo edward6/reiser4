@@ -13,6 +13,7 @@
 
 extern int reiserfs_tree_open(reiserfs_fs_t *fs);
 extern int reiserfs_tree_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id);
+extern int reiserfs_tree_sync(reiserfs_fs_t *fs);
 extern void reiserfs_tree_close(reiserfs_fs_t *fs, int sync);
 
 #endif
