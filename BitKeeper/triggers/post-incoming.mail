@@ -43,4 +43,4 @@ bk export -T -tpatch -du -r$CSET \
 | grep -v "^#$" \
 | grep -v "^# The following is the BitKeeper ChangeSet Log$"
 
-) | mail -s "[bk] ${SUBJECT}" reiserfs-dev@namesys.com
+) | mail -s "[v4] ${SUBJECT}" reiserfs-bk@namesys.com
