@@ -515,6 +515,7 @@ create_hook_extent(const coord_t * coord, void *arg)
 static void
 drop_eflushed_nodes(struct inode *inode, unsigned long index)
 {
+#if REISER4_USE_EFLUSH
 	struct list_head *tmp, *next;
 	reiser4_inode *info;
 	reiser4_tree *tree;
@@ -548,6 +549,7 @@ drop_eflushed_nodes(struct inode *inode, unsigned long index)
 		}
 	}
 	spin_unlock_eflush(tree->super);
+#endif
 }
 
 /* plugin->u.item.b.kill_hook
@@ -1446,8 +1448,8 @@ put_unit_to_end(znode * node, reiser4_key * key, reiser4_item_data * data)
 }
 
 /* before allocating unallocated extent we have to protect from eflushing those jnodes which are not eflushed yet and
-   "unflush" jnodes which are already eflushed. However there can be too many eflushed
-   jnodes so, we limit number of them with this macro */
+   "unflush" jnodes which are already eflushed. However there can be too many eflushed jnodes so, we limit number of
+   them with this macro */
 #define JNODES_TO_UNFLUSH (16)
 
 static int
@@ -1479,9 +1481,8 @@ unprotect_extent_nodes(oid_t oid, unsigned long ind, __u64 count)
 }
 
 /* unallocated extent of width @count is going to be allocated. Protect all unformatted nodes from e-flushing. If
-   unformatted node is eflushed already - it gets e-unflushed. Note, that it does not eflush more than JNODES_TO_UNFLUSH
-   jnodes. All jnodes corresponding to this extent must exist. If any of them does not - that means that file is being
-   either deleted or truncated, therefore, there is no reason to allocated this extent, so we return -EAGAIN */
+   unformatted node is eflushed already - it gets un-eflushed. Note, that it does not un-eflush more than JNODES_TO_UNFLUSH
+   jnodes. All jnodes corresponding to this extent must exist */
 static int
 protect_extent_nodes(oid_t oid, unsigned long ind, __u64 count, __u64 *protected)
 {
@@ -1551,6 +1552,7 @@ protect_extent_nodes(oid_t oid, unsigned long ind, __u64 count, __u64 *protected
 	return result;
 #else
 /* !REISER4_USE_EFLUSH */
+	*protected = count;
 	return 0;
 #endif
 }
@@ -1636,11 +1638,8 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_pos_t * flush_pos,
 			   will be read from their temporary locations (but not more than certain limit:
 			   JNODES_TO_UNFLUSH) and that disk space will be freed. */
 			result = protect_extent_nodes(oid, index, to_allocate, &protected);
-			if (result) {
-				/* EAGAIN or error code. EAGAIN is returned when there was a missing jnode. That means
-				   that this item is going  to be removed soon */
+			if (result)
 				goto done;
-			}
 
 			/* add extent unit (0, 0) to the end of node @left before allocating */
 			extent_set_start(&new_ext, 0);
@@ -1914,8 +1913,6 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_pos_t * f
 		   disk space will be freed. */
 		result = protect_extent_nodes(oid, index, width, &protected);
 		if (result)
-			/* EAGAIN or error code. EAGAIN is returned when there was a missing jnode. That means that this
-			   item is going to be removed soon */
 			break;
 
 		check_me("vs-1138", extent_allocate_blocks(pos_hint(flush_pos), 
@@ -2020,9 +2017,11 @@ init_new_jnode(jnode *j)
 
 	jnode_set_mapped(j);
 	jnode_set_created(j);
-	JF_SET (j, JNODE_NEW);
+	JF_SET(j, JNODE_NEW);
 	assign_fake_blocknr_unformatted(&fake_blocknr);
 	jnode_set_block(j, &fake_blocknr);
+	/* this allows to avoid */
+	JF_SET(j, JNODE_DIRTY);
 }
 
 static void
@@ -2438,9 +2437,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		index = (unsigned long) (file_off >> PAGE_CACHE_SHIFT);
 		write_page_trace(inode->i_mapping, index);
 
-		/* FIXME-NIKITA fault_in_pages_readable() should be used here
-		 * to avoid dead-locks */
-
+		fault_in_pages_readable(f->data, to_page);
 		page = grab_cache_page(inode->i_mapping, index);
 		if (!page) {
 			result = RETERR(-ENOMEM);
@@ -2479,35 +2476,38 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		assert("nikita-3033", schedulable());
 
 		/* copy user data into page */
-		/* FIXME: warning: pointer of type `void *' used in arithmetic */
 		result = __copy_from_user((char *)kmap(page) + page_off, f->data, to_page);
 		kunmap(page);
-
-		/* jnode_set_dirty() will mark page accessed. No need to call
-		 * mark_page_accessed() here */
-
 		if (unlikely(result)) {
 			result = RETERR(-EFAULT);
 			goto exit3;
 		}
+
+		set_page_dirty_internal(page);
 		SetPageUptodate(page);
+		if (!PageReferenced(page))
+			SetPageReferenced(page);
 
-		result = try_capture_page(page, ZNODE_WRITE_LOCK, 0);
-		if (result)
-			goto exit3;
-		jnode_make_dirty(j);
-		jput(j);
-
-		assert("vs-1072", PageDirty(page));
+		LOCK_JNODE(j);
 		reiser4_unlock_page(page);
 		page_cache_release(page);
+
+		result = try_capture(j, ZNODE_WRITE_LOCK, 0/* not non-blocking */);
+		if (result) {
+			UNLOCK_JNODE(j);
+			jput(j);
+			goto exit1;
+		}
+		unformatted_jnode_make_dirty(j);
+		UNLOCK_JNODE(j);
+		jput(j);
 
 		page_off = 0;
 		file_off += to_page;
 		move_flow_forward(f, to_page);
 
 		/* throttle the writer */
-		result = extent_balance_dirty_pages(page->mapping, f, coord, lh, hint, coord_state);
+		result = extent_balance_dirty_pages(inode->i_mapping, f, coord, lh, hint, coord_state);
 		if (!grabbed)
 			all_grabbed2free("extent_write_flow");
 		if (result) {
@@ -2662,7 +2662,6 @@ read_extent(struct file *file, coord_t *coord, flow_t * f)
 	inode = file->f_dentry->d_inode;
 	offset = get_key_offset(&f->key);
 	page_nr = (offset >> PAGE_CACHE_SHIFT);
-	page_off = (offset & (PAGE_CACHE_SIZE - 1));
 
 	{
 		reiser4_file_fsdata *fsdata;
@@ -2909,6 +2908,7 @@ writepage_extent(coord_t * coord, lock_handle * lh, struct page *page)
 	ON_TRACE(TRACE_EXTENTS, "WP: index %lu, count %d..", page->index, page_count(page));
 
 	assert("vs-1052", PageLocked(page));
+	assert("vs-1073", PageDirty(page));
 	assert("vs-1051", page->mapping && page->mapping->host);
 	assert("vs-864", znode_is_wlocked(coord->node));
 
@@ -2917,22 +2917,28 @@ writepage_extent(coord_t * coord, lock_handle * lh, struct page *page)
 		return PTR_ERR(j);
 
 	reiser4_unlock_page(page);
+
 	coord_state = COORD_RIGHT_STATE;
 	result = make_extent(page->mapping->host, coord, lh, j, 0, 0, &coord_state);
 	JF_CLR(j, JNODE_NEW);
-	reiser4_lock_page(page);
 	if (result) {
 		ON_TRACE(TRACE_EXTENTS, "extent_writepage failed: %d\n", result);
 		return result;
 	}
 
-	result = try_capture_page(page, ZNODE_WRITE_LOCK, 0);
-	if (result)
+	LOCK_JNODE(j);
+	result = try_capture(j, ZNODE_WRITE_LOCK, 0/* not non-blocking */);
+	if (result) {
+		UNLOCK_JNODE(j);
+		jput(j);
 		return result;
-	jnode_make_dirty(j);
+	}
+	unformatted_jnode_make_dirty(j);
+	UNLOCK_JNODE(j);
+
+	reiser4_lock_page(page);
 	jput(j);
 
-	assert("vs-1073", PageDirty(page));
 
 	ON_TRACE(TRACE_EXTENTS, "OK\n");
 
