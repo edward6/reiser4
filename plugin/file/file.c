@@ -940,9 +940,10 @@ unix_file_readpage(struct file *file, struct page *page)
 	else
 		result = -EINVAL;
 
-	if (!result)
+	if (!result) {
+		set_key_offset(&key, (loff_t) (page->index + 1) << PAGE_CACHE_SHIFT);
 		set_hint(&hint, &key, &coord);
-	else
+	} else
 		unset_hint(&hint);
 	zrelse(coord.node);
 	done_lh(&lh);
@@ -1146,7 +1147,7 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 
 	schedulable();
 
-	init_lh(&lh);
+	assert("vs-1109", get_current_context()->grabbed_blocks == 0);
 
 	/* get seal and coord sealed with it from reiser4 private data of
 	   struct file */
@@ -1163,10 +1164,11 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 			if (result)
 				return result;
 		}
-			
 		/* look for file's metadata (extent or tail item) corresponding
 		   to position we write to */
+		init_lh(&lh);
 		result = find_next_item(&hint, &f->key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT);
+		all_grabbed2free();
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/* error occurred */
 			done_lh(&lh);
@@ -1212,6 +1214,7 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 
 	/* if nothing were written - there must be an error */
 	assert("vs-951", ergo((to_write == f->length), result < 0));
+	assert("vs-1110", get_current_context()->grabbed_blocks == 0);
 
 	return (to_write - f->length) ? (to_write - f->length) : result;
 }
