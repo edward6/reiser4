@@ -982,7 +982,7 @@ make_space_by_new_nodes(carry_op * op, carry_level * doing, carry_level * todo)
 	if (op->u.insert_flow.new_nodes == CARRY_FLOW_NEW_NODES_LIMIT)
 		/* FIXME-VS: this is confusing because it is limit reaches, not
 		   that we are running out of disk space */
-		return -E_NODE_FULL;
+		return RETERR(-E_NODE_FULL);
 	/* add new node after insert point node */
 	new = add_new_znode(node, op->node, doing, todo);
 	if (unlikely(IS_ERR(new))) {
@@ -1007,7 +1007,7 @@ make_space_by_new_nodes(carry_op * op, carry_level * doing, carry_level * todo)
 			return 0;
 		}
 		if (op->u.insert_flow.new_nodes == CARRY_FLOW_NEW_NODES_LIMIT)
-			return -E_NODE_FULL;
+			return RETERR(-E_NODE_FULL);
 
 		/* add one more new node */
 		new = add_new_znode(node, op->node, doing, todo);
