@@ -517,12 +517,7 @@ int extent_create_hook (const coord_t * coord, void * arg)
 /* Audited by: green(2002.06.13) */
 static int free_blocks (reiser4_block_nr start, reiser4_block_nr length)
 {
-	space_allocator_plugin * splug;
-
-	splug = get_current_super_private ()->space_plug;
-	assert("green-4", splug && splug->dealloc_blocks);
-	splug->dealloc_blocks (get_space_allocator (reiser4_get_current_sb ()),
-			       start, length);
+	reiser4_dealloc_blocks(&start, &length, 1);
 	return 0;
 }
 
