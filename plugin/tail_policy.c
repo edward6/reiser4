@@ -15,6 +15,7 @@
  */
 
 #include "../tree.h"
+#include "../inode.h"
 #include "plugin.h"
 #include "plugin_header.h"
 
@@ -31,6 +32,25 @@ never_tail(const struct inode *inode UNUSED_ARG	/* inode to
 	return 0;
 }
 
+reiser4_block_nr never_tail_estimate ( const struct inode *inode, loff_t size,
+	int is_fake) 
+{
+	/* Estimating the number of blocks for extents. Here is handled the both
+	 * cases: request for allocating fake allocated extents and real allocated 
+	 * ones */
+	
+	assert("umka-1245", inode != NULL);
+	if (is_fake) {
+	    /* In the case of fake allocated extent (truncate does) we are counting
+	     * only overhead for one balancing */
+	    return estimate_internal_amount(1, tree_by_inode(inode)->height); 
+	} else {
+	    /* Here we are counting the number of blocks needed for creating of the
+	     * real allocated extent(s) */
+	    return ((size + (current_blocksize - 1)) / current_blocksize);
+	}
+}
+
 /** Always store file's tail as direct item */
 /* Audited by: green(2002.06.12) */
 static int
@@ -39,6 +59,20 @@ always_tail(const struct inode *inode UNUSED_ARG	/* inode to
 	    loff_t size UNUSED_ARG /* new object size */ )
 {
 	return 1;
+}
+
+reiser4_block_nr always_tail_estimate ( const struct inode *inode, loff_t size,
+	int is_fake) 
+{
+	__u32 max_item_size;
+	
+	assert("umka-1244", inode != NULL);
+
+        max_item_size = tree_by_inode(inode)->nplug->max_item_size();
+	
+	/* Write 4000 bytes: 2000 into one block and 2000 into the neighbour - 
+	 * 2 blocks are ditry */
+        return (size / max_item_size) + 2;
 }
 
 /** store tails only Always store file's tail as direct item */
@@ -53,6 +87,15 @@ test_tail(const struct inode *inode UNUSED_ARG	/* inode to operate
 	if (size > PAGE_CACHE_SIZE * 4)
 		return 0;
 	return 1;
+}
+
+reiser4_block_nr test_tail_estimate ( const struct inode *inode, loff_t size,
+	int is_fake) 
+{
+	assert("umka-1243", inode != NULL);
+
+	return test_tail(inode, size) ? always_tail_estimate(inode, size, is_fake) : 
+		never_tail_estimate(inode, size, is_fake);
 }
 
 /**
