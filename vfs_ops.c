@@ -2184,12 +2184,30 @@ int reiser4_invalidatepage( struct page *page, unsigned long offset )
 		 */
 		node = jnode_by_page( page );
 		if( node != NULL ) {
+			int ret;
 			jref( node );
+try_to_lock:
+			spin_lock_jnode( node );
+			ret = txn_try_capture( node, ZNODE_WRITE_LOCK, 0 );
+			if ( ret ) {
+				info("green-20: txn_try_capture returned %d", ret);
+				if ( (ret == -EAGAIN) || (ret == -EDEADLK) ||
+				     (ret == -EINTR) ) {
+					/* Safe to schedule since txn_try_capture unlocks jnode on error */
+					preempt_point();
+					goto try_to_lock;
+				} else {
+					jput( node );
+					return -1;
+				}
+			}
+			spin_unlock_jnode( node );
 
 			txn_delete_page( page );
 
-			UNDER_SPIN_VOID( jnode, node, 
+			UNDER_SPIN_VOID( jnode, node,
 					 page_clear_jnode( page, node ) );
+
 			JF_SET( node, JNODE_HEARD_BANSHEE );
 			/*
 			 * can safely call jput() under page lock, because
