@@ -103,14 +103,14 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 	assert ("vs-737", coord->between != BEFORE_UNIT);
 
 
-	if (coord_is_existing_unit (coord)) {
+	if (coord_is_existing_item (coord)) {
 		/* check whether @key is inside of this unit */
 		item_plugin * iplug;
 
 		iplug = item_plugin_by_coord (coord);
-		assert ("vs-716", iplug && iplug->common.key_in_coord);
+		assert ("vs-716", iplug && iplug->common.key_in_item);
 
-		if (iplug->common.key_in_coord (coord, key)) {
+		if (iplug->common.key_in_item (coord, key)) {
 			/*
 			 * FIXME-VS: should coord be updated?
 			 */
@@ -118,6 +118,8 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 			return 1;
 		}
 	}
+	assert ("vs-769", ergo (coord_is_existing_item (coord), 
+				keylt (item_plugin_by_coord (coord)->common.real_max_key_inside (coord, &max_key), key)));
 
 	/* get key of item after which coord is set */
 	coord_dup (&item, coord);
