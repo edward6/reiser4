@@ -2333,8 +2333,8 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 	unsigned long index;
 	oid_t oid;
 	__u64 width, can_be_allocated, allocated;
+	znode *orig;
 	ON_DEBUG(reiser4_key orig_key;)
-	ON_DEBUG(znode *orig;)
 
 	assert("vs-1019", item_is_extent(coord));
 	assert("vs-1018", coord_is_existing_unit(coord));
@@ -2352,7 +2352,8 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 	ext = extent_by_coord(coord);
 	num_units = coord_num_units(coord);
 
-	ON_DEBUG(orig_item_pos = coord->item_pos);
+	orig = coord->node;
+	orig_item_pos = coord->item_pos;
 	ON_DEBUG(item_key_by_coord(coord, &orig_key));
 
 	unit_key_by_coord(coord, &key);
@@ -2457,7 +2458,6 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 
 		/* [u/width] ->
 		   [first_allocated/allocated][u/width - allocated] */
-		orig = coord->node;
 
 		/* space for this operation is not reserved. reserve it from inviolable reserve */
 		grabbed = reserve_replace();
