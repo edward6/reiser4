@@ -736,6 +736,15 @@ extern void *xmemset(void *s, int c, size_t n);
 #define xmemset( s, c, n ) memset( ( s ), ( c ), ( n ) )
 #endif
 
+/* true if @i is power-of-two. Useful for rate-limited warnings, etc. */
+#define IS_POW(i) 				\
+({						\
+	typeof(i) __i;				\
+						\
+	__i = (i);				\
+	!(__i & (__i - 1));			\
+})
+
 /* __FS_REISER4_DEBUG_H__ */
 #endif
 
