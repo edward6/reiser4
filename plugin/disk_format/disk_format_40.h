@@ -39,8 +39,8 @@ typedef struct format_40_super_info {
 	format_40_disk_super_block actual_sb;
 } format_40_super_info;
 
-#define FORMAT_40_JOURNAL_HEADER_BLOCKNR 20
-#define FORMAT_40_JOURNAL_FOOTER_BLOCKNR 21
+#define FORMAT_40_JOURNAL_HEADER_BLOCKNR 19
+#define FORMAT_40_JOURNAL_FOOTER_BLOCKNR 20
 
 /* declarations of functions implementing methods of layout plugin for
  * format 40. The functions theirself are in disk_format_40.c */
