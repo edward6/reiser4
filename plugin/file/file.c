@@ -648,7 +648,7 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 	while (1) {
 		result = find_next_item (&hint, &key, &coord, &lh,
 					 op == READ_OP ? ZNODE_READ_LOCK : ZNODE_WRITE_LOCK,
-					 CBK_UNIQUE);
+					 op == READ_OP ? CBK_UNIQUE : CBK_UNIQUE | CBK_FOR_INSERT);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			done_lh (&lh);
 			break;
@@ -684,10 +684,11 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 
 		/* get plugin of found item or use plugin if extent if there
 		 * are no one */
-		if (!coord_is_existing_item (&coord))
-			iplug = item_plugin_by_id (EXTENT_POINTER_ID);
-		else
+		if (coord_is_existing_unit (&coord)) {
 			iplug = item_plugin_by_coord (&coord);
+		} else {
+			iplug = item_plugin_by_id (EXTENT_POINTER_ID);
+		}
 		zrelse (coord.node);
 		
 		set_hint (&hint, &key, &coord);
