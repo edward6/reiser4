@@ -206,14 +206,6 @@ __u32 get_current_trace_flags(void)
 	reiser4_context *ctx;
 
 	flags = reiser4_current_trace_flags;
-#if 0
-	if (get_current_context_check() != NULL) {
-		flags |= get_current_context()->trace_flags;
-		if (get_current_super_private() != NULL)
-			flags |= get_current_super_private()->trace_flags;
-	}
-#endif
-
 	ctx = get_current_context_check();
 	if (ctx) {
 		flags |= ctx->trace_flags;
@@ -454,6 +446,22 @@ void debugtrap(void)
 #endif
 
 #if REISER4_DEBUG
+
+void call_on_each_assert(void)
+{
+	return;
+	/*
+	 * DON'T USE ASSERTIONS HERE :)
+	 */
+	if (is_in_reiser4_context()) {
+		reiser4_super_info_data *sinfo;
+		reiser4_context *ctx;
+
+		ctx = (reiser4_context *) current->fs_context;
+		sinfo = ctx->super->s_fs_info;
+		/* put checks here */
+	}
+}
 
 /* Return true if an atom is currently "open". */
 int atom_isopen(const txn_atom * atom)

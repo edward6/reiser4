@@ -152,8 +152,9 @@
    this to check correctness of external data: disk blocks and user-input . */
 #define assert(label, cond)						\
 ({									\
-	BUG_ON(preempt_count() < 0);					\
+	/* call_on_each_assert(); */					\
 	if (unlikely(!(cond))) {					\
+		DEBUGON(1);						\
 		reiser4_panic(label, "assertion failed: %s", #cond);	\
 	}								\
 })
@@ -164,6 +165,7 @@
 #define ON_DEBUG( exp ) exp
 
 extern int schedulable(void);
+extern void call_on_each_assert(void);
 
 #else
 
