@@ -235,7 +235,8 @@ wait_io(flush_queue_t * fq, int *nr_io_errors)
 
 		assert("nikita-3013", schedulable());
 
-		blk_run_queues();
+		/* FIXME: blk_run_queue is not needed */
+		/*blk_run_queues();*/
 		if ( !(reiser4_get_current_sb()->s_flags & MS_RDONLY) )
 			down(&fq->io_sem);
 
