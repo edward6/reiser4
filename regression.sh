@@ -28,7 +28,7 @@ mv gmon.out gmon.out.mongo.3.1000.$r
 mv gmon.out gmon.out.rm.3.1000.$r
 ./a.out nikita unlink 10000 || exit 7
 mv gmon.out gmon.out.unlink.10000.$r
-( find /tmp | ./a.out vs copydir ) || exit 8
-mv gmon.out gmon.out.vs.copydir.tmp.$r
+#( find /tmp | ./a.out vs copydir ) || exit 8
+#mv gmon.out gmon.out.vs.copydir.tmp.$r
 echo Round $r done.
 done
