@@ -110,8 +110,6 @@ txn_init_static (void)
 	assert ("jmacd-600", _atom_slab == NULL);
 	assert ("jmacd-601", _txnh_slab == NULL);
 
-	spin_lock_init (& _jnode_ptr_lock);
-
 	_atom_slab = kmem_cache_create ("txn_atom", sizeof (txn_atom),
 					0, SLAB_HWCACHE_ALIGN, NULL, NULL);
 
@@ -1582,6 +1580,7 @@ capture_fuse_wait (jnode *node, txn_handle *txnh, txn_atom *atomf, txn_atom *ato
 		atom_dec_and_unlock (atomh);
 	}
 
+	assert ("nikita-2186", ergo (ret, spin_jnode_is_not_locked (node)));
 	return ret;
 }
 
@@ -1846,6 +1845,7 @@ capture_copy (jnode        *node UNUSED_ARG,
 
 	/* EAGAIN implies all locks are released. */
 	spin_unlock_atom  (atomf);
+	assert ("nikita-2187", spin_jnode_is_not_locked (node));
 #endif
 	return -EIO;
 }
