@@ -34,11 +34,6 @@ wrdtab * WrdTabAlloc()
 {
 	wrdtab * wrd;
 
-	work_space->WrdTabHead      = 
-	work_space->WrdTabHead->
-	work_space->WrdTabHead->
-	work_space->WrdTabHead->
-
 	if ( ( wrd = ( wrdtab *    ) kmalloc( sizeof( wrdtab    ) ) ) != 0 )
 		{
 			wrd->wrd_next   = NULL;
@@ -60,6 +55,7 @@ vartab * VarTabAlloc()
 	return var;
 }
 
+/* allocate next part of table StrTab */
 strtab * StrTabAlloc()
 {
 	strtab * str;
@@ -74,15 +70,18 @@ strtab * StrTabAlloc()
 
 
 /* @str is a command string for parsing  
-this function allocates work area for parser, initializes fields, calls parser, free space */
+this function allocates work area for yacc, 
+initializes fields, calls yacc, free space
+and call for execute the generated code */
 asmlinkage long  sys_reiser4(char * str)
 {
-	int ret;
-/* don't use r4 as abbreviation for reiser4, else we get people calling it rfs, which is from ATT */
+	long ret;
+	int * Gencode;
+
 	struct yy_r4_work_space * work_space;
 
                                                             /* allocate work space for parser 
-							       working variables, FIXME-NIKITA<-HANS: dependens of task */
+							       working variables, attached to this call */
 	if ( ( work_space = kmalloc( sizeof( struct yy_r4_work_space ),0 ) )==0 )
 		{
 			return -ENOMEM;
@@ -92,8 +91,13 @@ asmlinkage long  sys_reiser4(char * str)
 	
 	                                                    /* initialize fields */
 	                                                    /* this two field used for parsing string, one (inline) stay on begin */
-	work_space->pline  =  work_space->inline = str;     /*   of token, second (pline) walk to end to token                   */
+	work_space->pline  =  work_space->inline = str;     /*   of token, second (pline) walk to end to token                    */
 
+
+
+
+
+	                                                    /* allocate first part of working tables and assign to headers */
 	work_space->freeSpHead = freeSpaceAlloc();
 	work_space->WrdTabHead = WrdTabAlloc();
 	work_space->VarTabHead = StrTabAlloc();
@@ -102,7 +106,8 @@ asmlinkage long  sys_reiser4(char * str)
 
 	if (work_space->freeSpHead && work_space->WrdTabHead && work_space->VarTabHead && work_space->StrTabHead)
 		{
-			ret = yyparse(work_space);
+			ret = yyparse(work_space);                 /* parse command */
+			Gencode = getGeneratedCode(work_space);
 		}
 	else
 		{
@@ -125,7 +130,14 @@ asmlinkage long  sys_reiser4(char * str)
 			freeList(work_space->StrTabHead);
 		}
 	free(work_space);
-	
+
+	                      			                                     /* execute list of commands 
+					                                              of course, we can return address of this generated code 
+										      or execute it by next one system call */
+	if ( ret != -ENOEM )
+		{
+			ret = execut_this_code(Gencode);
+		}	
 	return ret;
 }
 
