@@ -1624,7 +1624,7 @@ reiser4_internal void balance_dirty_page_unix_file(struct inode *object)
 }
 
 reiser4_internal struct page *
-unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int unused)
+unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int * unused)
 {
 	struct page *page;
 	struct inode *inode;
@@ -1812,6 +1812,7 @@ write_unix_file(struct file *file, /* file to write to */
 					grab_space_enable();
 				}
 
+				all_grabbed2free();
 				written = write_file(file, buf, count, off, uf_info);
 				drop_access(uf_info);
 				gotaccess = 0;
