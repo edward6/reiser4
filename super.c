@@ -19,7 +19,7 @@ reiser4_super_info_data *
 get_super_private_nocheck( const struct super_block *super /* super block
 							    * queried */ )
 {
-	return ( reiser4_super_info_data * )super -> u.generic_sbp;
+	return ( reiser4_super_info_data * )super -> s_fs_info;
 }
 
 /** Return reiser4-specific part of super block */
@@ -31,7 +31,7 @@ block queried */ )
 		( super -> s_op == NULL ) ||
 		( super -> s_op == &reiser4_super_operations ) );
 
-	return ( reiser4_super_info_data * )super -> u.generic_sbp;
+	return ( reiser4_super_info_data * )super -> s_fs_info;
 }
 
 void reiser4_spin_lock_sb (const struct super_block * super)

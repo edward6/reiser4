@@ -37,7 +37,7 @@ typedef struct reiser4_context reiser4_context;
 typedef struct carry_level carry_level;
 typedef struct blocknr_set blocknr_set;
 typedef struct blocknr_set_entry blocknr_set_entry;
-/* super_block->u.generic_sbp points to this */
+/* super_block->s_fs_info points to this */
 typedef struct reiser4_super_info_data reiser4_super_info_data;
 /*next two objects are fields of reiser4_super_info_data */
 typedef struct reiser4_oid_allocator reiser4_oid_allocator;
