@@ -1952,7 +1952,7 @@ append_and_or_overwrite(hint_t *hint, struct file *file, struct inode *inode, fl
 		}
 		zrelse(loaded);
 		done_lh(&lh);
-		if (result && result != -E_REPEAT && result != E_DEADLOCK)
+		if (result && result != -E_REPEAT && result != -E_DEADLOCK)
 			break;
 		preempt_point();
 	}
