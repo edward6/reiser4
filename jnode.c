@@ -159,6 +159,7 @@ jnode_init(jnode * node, reiser4_tree * tree, jnode_type type)
 	node->atom = NULL;
 	node->tree = tree;
 	capture_list_clean(node);
+	ON_DEBUG(node->list = NOT_CAPTURED);
 	INIT_RCU_HEAD(&node->rcu);
 
 #if REISER4_DEBUG
@@ -215,7 +216,7 @@ jfree(jnode * node)
 {
 	assert("zam-449", node != NULL);
 
-	assert("nikita-2663", capture_list_is_clean(node));
+	assert("nikita-2663", capture_list_is_clean(node) && node->list == NOT_CAPTURED);
 	assert("nikita-2774", !JF_ISSET(node, JNODE_EFLUSH));
 	assert("nikita-3222", list_empty(&node->jnodes));
 	assert("nikita-3221", jnode_page(node) == NULL);
@@ -958,12 +959,14 @@ mapping_jnode(const jnode * node)
 	assert("nikita-2714", map != NULL);
 	assert("nikita-2897", is_reiser4_inode(map->host));
 	assert("nikita-2715", get_inode_oid(map->host) == node->key.j.objectid);
+	assert("vs-1447", !JF_ISSET(node, JNODE_CC));
 	return map;
 }
 
 unsigned long
 index_jnode(const jnode * node)
 {
+	assert("vs-1447", !JF_ISSET(node, JNODE_CC));
 	return node->key.j.index;
 }
 
@@ -985,6 +988,7 @@ remove_inode_jnode(jnode * node, reiser4_tree * tree UNUSED_ARG)
 static struct address_space *
 mapping_znode(const jnode * node)
 {
+	assert("vs-1447", !JF_ISSET(node, JNODE_CC));
 	return get_super_fake(jnode_get_tree(node)->super)->i_mapping;
 }
 
@@ -1120,7 +1124,6 @@ clone_formatted(jnode *node)
 	/* ZJNODE(clone)->key.z is not initialized */
 	clone->level = JZNODE(node)->level;
 
-	/* mapping and index methods will work properly for this jnode */
 	return ZJNODE(clone);
 }
 
@@ -1138,10 +1141,6 @@ clone_unformatted(jnode *node)
 	jnode_init(clone, current_tree, JNODE_UNFORMATTED_BLOCK);
 	jnode_set_block(clone, jnode_get_block(node));
 
-	/* mapping and index are to set differently */
-	clone->key.j.mapping = mapping_znode(clone);
-	clone->key.j.index = index_znode(clone);
-	clone->key.j.objectid = get_inode_oid(clone->key.j.mapping->host);
 	return clone;
 	
 }
@@ -1409,11 +1408,12 @@ jdelete(jnode * node /* jnode to finish with */)
 		assert("jmacd-511", atomic_read(&node->d_count) == 0);
 
 		/* detach page */
-		if (page != NULL)
+		if (page != NULL) {
 			/*
 			 * FIXME this is racy against jnode_extent_write().
 			 */
 			page_clear_jnode(page, node);
+		}
 		UNLOCK_JNODE(node);
 		/* goodbye */
 		jnode_delete(node, jtype, tree);
