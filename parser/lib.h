@@ -13,6 +13,7 @@
 
 static void yyerror( struct reiser4_syscall_w_space *ws, int msgnum , ...);
 static int yywrap(void);
+static free_space_t * free_space_alloc(void);
 static void freeList(free_space_t * list);
 static int reiser4_pars_free(struct reiser4_syscall_w_space * ws);
 static free_space_t * freeSpaceAlloc(void);
@@ -20,7 +21,7 @@ static free_space_t * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws);
 static char* list_alloc(struct reiser4_syscall_w_space * ws, int size);
 static streg_t *alloc_new_level(struct reiser4_syscall_w_space * ws);
 static pars_var_t * alloc_pars_var(struct reiser4_syscall_w_space * ws, pars_var_t * last_pars_var);
-static int free_expr(  expr_v4_t * expr);
+static int free_expr( struct reiser4_syscall_w_space * ws, expr_v4_t * expr);
 static lnode * get_lnode(struct reiser4_syscall_w_space * ws);
 static struct reiser4_syscall_w_space * reiser4_pars_init(void);
 static void level_up(struct reiser4_syscall_w_space *ws, long type);
@@ -69,6 +70,12 @@ static size_t tube_to_sink_general(tube_t * tube);
 static void put_tube(tube_t * tube);
 static expr_v4_t *  pump(struct reiser4_syscall_w_space * ws, pars_var_t *sink, expr_v4_t *source );
 
+static int pop_var_val_stack( struct reiser4_syscall_w_space *ws /* work space ptr */,
+			      pars_var_value_t * val );
+static int push_var_val_stack(struct reiser4_syscall_w_space *ws /* work space ptr */,
+			      struct pars_var * var,
+			      long type );
+static expr_v4_t *target_name( expr_v4_t *assoc_name, expr_v4_t *target );
 
 #define curr_symbol(ws) ((ws)->ws_pline)
 #define next_symbol(ws)  (++curr_symbol(ws))
