@@ -1492,8 +1492,18 @@ static extent_write_todo extent_what_todo (new_coord * coord, reiser4_key * key,
 			    ncoord_is_before_leftmost (coord)) {
 				if (fbb_offset == 0)
 					return EXTENT_FIRST_BLOCK;
-				else
+				else {
+					if (get_key_locality (key) == get_key_locality (&coord_key) &&
+					    get_key_objectid (key) == get_key_objectid (&coord_key)) {
+						/*
+						 * FIXME-VS: tail2extent
+						 */
+						assert ("vs-682", item_id_by_coord (coord) == TAIL_ID);
+						return EXTENT_RESEARCH;
+					}
+
 					return EXTENT_CREATE_HOLE;
+				}
 			}
 			return EXTENT_RESEARCH;
 		} else {
@@ -1676,7 +1686,7 @@ static int prepare_write (new_coord * coord, lock_handle * lh,
 			case EXTENT_CREATE_HOLE:
 			case EXTENT_APPEND_HOLE:
 				return add_hole (coord, lh, &tmp_key,
-						 todo);
+						   todo);
 
 			case EXTENT_FIRST_BLOCK:
 				/* create first item of the file */
