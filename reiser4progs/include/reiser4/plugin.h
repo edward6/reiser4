@@ -66,16 +66,16 @@ enum reiser4_item_plugin_id {
     ITEM_TAIL40_ID		= 0x6
 };
 
-enum reiser4_item_group {
-    STATDATA_ITEM_GROUP,
-    INTERNAL_ITEM_GROUP,
-    DIRENTRY_ITEM_GROUP,
-    TAIL_ITEM_GROUP,
-    EXTENT_ITEM_GROUP,    
-    PERMISSN_ITEM_GROUP
+enum reiser4_item_type {
+    STATDATA_ITEM_TYPE,
+    INTERNAL_ITEM_TYPE,
+    DIRENTRY_ITEM_TYPE,
+    TAIL_ITEM_TYPE,
+    EXTENT_ITEM_TYPE,    
+    PERMISSN_ITEM_TYPE
 };
 
-typedef enum reiser4_item_group reiser4_item_group_t;
+typedef enum reiser4_item_type reiser4_item_type_t;
 
 enum reiser4_node_plugin_id {
     NODE_REISER40_ID		= 0x0,
@@ -474,7 +474,7 @@ struct reiser4_item_ops {
     reiser4_plugin_header_t h;
 
     /* Item group (stat data, internal, file body, etc) */
-    reiser4_item_group_t group;
+    reiser4_item_type_t type;
 
     /* Forms item structures based on passed hint in passed memory area */
     errno_t (*init) (reiser4_body_t *, reiser4_item_hint_t *);

@@ -71,7 +71,7 @@ static reiser4_plugin_t internal40_plugin = {
 	    .label = "internal40",
 	    .desc = "Internal item for reiserfs 4.0, ver. " VERSION,
 	},
-	.group = INTERNAL_ITEM_GROUP,
+	.type = INTERNAL_ITEM_TYPE,
 	
 #ifndef ENABLE_COMPACT	    
         .init	    = internal40_init,

@@ -136,7 +136,7 @@ int reiser4_item_permissn(reiser4_item_t *item) {
     aal_assert("umka-1101", item->plugin != NULL, return 0);
 
     return item->plugin->h.type == ITEM_PLUGIN_TYPE &&
-	item->plugin->item_ops.group == PERMISSN_ITEM_GROUP;
+	item->plugin->item_ops.type == PERMISSN_ITEM_TYPE;
 }
 
 int reiser4_item_tail(reiser4_item_t *item) {
@@ -144,7 +144,7 @@ int reiser4_item_tail(reiser4_item_t *item) {
     aal_assert("umka-1099", item->plugin != NULL, return 0);
 
     return item->plugin->h.type == ITEM_PLUGIN_TYPE &&
-	item->plugin->item_ops.group == TAIL_ITEM_GROUP;
+	item->plugin->item_ops.type == TAIL_ITEM_TYPE;
 }
 
 int reiser4_item_extent(reiser4_item_t *item) {
@@ -152,7 +152,7 @@ int reiser4_item_extent(reiser4_item_t *item) {
     aal_assert("vpf-239", item->plugin != NULL, return 0);
 
     return item->plugin->h.type == ITEM_PLUGIN_TYPE &&
-	item->plugin->item_ops.group == EXTENT_ITEM_GROUP;
+	item->plugin->item_ops.type == EXTENT_ITEM_TYPE;
 }
 
 int reiser4_item_direntry(reiser4_item_t *item) {
@@ -160,7 +160,7 @@ int reiser4_item_direntry(reiser4_item_t *item) {
     aal_assert("umka-1097", item->plugin != NULL, return 0);
 
     return item->plugin->h.type == ITEM_PLUGIN_TYPE &&
-	item->plugin->item_ops.group == DIRENTRY_ITEM_GROUP;
+	item->plugin->item_ops.type == DIRENTRY_ITEM_TYPE;
 }
 
 int reiser4_item_statdata(reiser4_item_t *item) {
@@ -168,7 +168,7 @@ int reiser4_item_statdata(reiser4_item_t *item) {
     aal_assert("umka-1095", item->plugin != NULL, return 0);
 
     return item->plugin->h.type == ITEM_PLUGIN_TYPE &&
-	item->plugin->item_ops.group == STATDATA_ITEM_GROUP;
+	item->plugin->item_ops.type == STATDATA_ITEM_TYPE;
 }
 
 uint16_t reiser4_item_get_smode(reiser4_item_t *item) {
@@ -214,7 +214,7 @@ int reiser4_item_internal(reiser4_item_t *item) {
     aal_assert("umka-1072", item->plugin != NULL, return 0);
 
     return item->plugin->h.type == ITEM_PLUGIN_TYPE &&
-	item->plugin->item_ops.group == INTERNAL_ITEM_GROUP;
+	item->plugin->item_ops.type == INTERNAL_ITEM_TYPE;
 }
 
 /* Returns node pointer from internal node */
