@@ -230,7 +230,6 @@ atom_init (txn_atom     *atom)
 }
 
 #if REISER4_DEBUG
-
 /* Check if an atom is clean. */
 static int
 atom_isclean (txn_atom *atom)
@@ -809,6 +808,55 @@ commit_txnh (txn_handle *txnh)
 
 	return ret;
 }
+
+#if REISER4_USER_LEVEL_SIMULATION
+int memory_pressure (struct super_block *super)
+{
+	txn_mgr *mgr = & get_super_private (super)->tmgr;
+	txn_atom *atom;
+	jnode *node = NULL;
+	txn_handle  *txnh;
+	int ret = 0, level;
+
+	REISER4_ENTRY (super);
+
+	txnh = get_current_context ()->trans;
+
+	spin_lock_txnh (txnh);
+	spin_lock_txnmgr (mgr);
+
+	for (atom = atom_list_front (& mgr->atoms_list);
+	     /**/ ! atom_list_end   (& mgr->atoms_list, atom) && node == NULL;
+	     atom = atom_list_next  (atom)) {
+
+		spin_lock_atom (atom);
+
+		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
+			if (! capture_list_empty (& atom->dirty_nodes [level])) {
+				/* Found a dirty node to flush. */
+				node = jref (capture_list_front (& atom->dirty_nodes [level]));
+
+				/* Add force-context txnh */
+				capture_assign_txnh_nolock (atom, txnh);
+			}				
+		}
+
+		spin_unlock_atom (atom);
+	}
+
+	spin_unlock_txnmgr (mgr);
+	spin_unlock_txnh  (txnh);
+
+	if (node != NULL) {
+
+		ret = jnode_flush (node);
+
+		jput (node);
+	}
+
+	return 0;
+}
+#endif
 
 /*****************************************************************************************
 				   TXN_TRY_CAPTURE

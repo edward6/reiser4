@@ -280,6 +280,9 @@ extern int          txn_try_capture_page  (struct page        *pg,
 					   znode_lock_mode     mode,
 					   int                 non_blocking);
 
+#if REISER4_USER_LEVEL_SIMULATION
+extern int          memory_pressure        (struct super_block *super);
+#endif
 
 /* See the comment on the function blocknrset.c:blocknr_set_add for the
  * calling convention of these three routines. */
