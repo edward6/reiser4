@@ -118,7 +118,7 @@ cbk_cache_invariant(const cbk_cache * cache)
 	int unused;
 
 	if (cache->nr_slots == 0)
-		return;
+		return 1;
 
 	assert("nikita-2469", cache != NULL);
 	unused = 0;
