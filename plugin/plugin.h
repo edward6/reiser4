@@ -652,17 +652,19 @@ typedef enum {
 	LAST_TAIL_ID
 } reiser4_tail_id;
 
-/* Encapsulation of cryptcompress specific data */ 
-typedef struct cryptcompress_data {
+/* Encapsulations of crypto specific data */
+typedef struct crypto_data {
         reiser4_crypto_id      cra; /* id of the crypto algorithm */
 	reiser4_digest_id      dia; /* id of the digest algorithm */   
-        reiser4_compression_id coa; /* id of the compression algorithm */
-	__u8 cluster_shift;         /* cluster info */ 
 	__u8 * key;                 /* secret key */
 	__u16 keysize;              /* key size, bits */
 	__u8 * keyid;               /* keyid */
 	__u16 keyid_size;           /* keyid size, bytes */
-} cryptcompress_data_t;
+} crypto_data_t;
+
+/* compression/clustering specific data */
+typedef reiser4_compression_id compression_data_t; /* id of the compression algorithm */
+typedef __u8 cluster_data_t;       /* cluster info */ 
 
 /* data type used to pack parameters that we pass to vfs
     object creation function create_object() */
@@ -678,8 +680,9 @@ struct reiser4_object_create_data {
 	const char *name;
 	/* add here something for non-standard objects you invent, like
 	   query for interpolation file etc. */
-	/* cryptcompress objects create data */
-	cryptcompress_data_t * crc;
+	crypto_data_t * crypto; 
+	compression_data_t * compression;
+	cluster_data_t * cluster;
 
 	struct inode  *parent;
 	struct dentry *dentry;
