@@ -18,9 +18,7 @@ reiser4_plugin layout_plugins[ LAST_LAYOUT_ID ] = {
 		.u = {
 			.layout = {
 				.get_ready     = layout_40_get_ready,
-				.root_dir_key  = layout_40_root_dir_key,
-				.oid_manager   = &oid_plugins[OID_40_ALLOCATOR_ID].u.oid_mgr,
-				.space_manager = &space_plugins[DEFAULT_40_SPACE_MGR_ID].u.space_mgr
+				.root_dir_key  = layout_40_root_dir_key
 			}
 		}
 	}
