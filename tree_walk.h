@@ -28,17 +28,9 @@ ZAM-FIXME-HANS: wrong return code name.  Change them all.
 		       reiser4_get_parent() when we see no parent link -- it
 		       means that our node is root node.
 
-            -EDEADLK - deadlock detected (request from high-priority process
+            -E_DEADLOCK - deadlock detected (request from high-priority process
 	               received), other error codes are conformed to
 		       /usr/include/asm/errno.h .
-
-ZAM-FIXME-HANS: unconform them, all of them.  They have no place in the internals of the filesystem except when they are
-returned to user space.  It would be equally useful to use Xwindows error codes, I cannot understand what inspired this,
-try to understand rather than conform in the future.
-
-    * pointer to lock stack is not passed because we have magic
-    * get_current_stack() function.
-
 */
 
 int
@@ -55,7 +47,7 @@ typedef enum {
 	GN_GO_LEFT = 0x2,
 	/* automatically load neighbor node content */
 	GN_LOAD_NEIGHBOR = 0x4,
-	/* return -EAGAIN if can't lock  */
+	/* return -E_REPEAT if can't lock  */
 	GN_TRY_LOCK = 0x8,
 	/* used internally in tree_walk.c, causes renew_sibling to not
 	   allocate neighbor znode, but only search for it in znode cache */

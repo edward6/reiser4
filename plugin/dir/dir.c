@@ -125,7 +125,7 @@ link_common(struct inode *parent /* parent directory */ ,
 
 	/* check for race with create_object() */
 	if (inode_get_flag(object, REISER4_IMMUTABLE))
-		return RETERR(-EAGAIN);
+		return RETERR(-E_REPEAT);
 
 	/* links to directories are not allowed if file-system
 	   logical name-space should be ADG */
@@ -219,7 +219,7 @@ unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 
 	/* check for race with create_object() */
 	if (inode_get_flag(child, REISER4_IMMUTABLE))
-		return RETERR(-EAGAIN);
+		return RETERR(-E_REPEAT);
 
 	/* victim should have stat data */
 	assert("vs-949", !inode_get_flag(child, REISER4_NO_SD));
@@ -904,7 +904,7 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 				result = dir_go_to(dir, pos, tap);
 				if (result == 0) {
 					result = rewind_left(tap, shift);
-					if (result == -EDEADLK) {
+					if (result == -E_DEADLOCK) {
 						tap_done(tap);
 						reiser4_stat_inc(dir.readdir.left_restart);
 						continue;

@@ -465,7 +465,7 @@ restart:
 	done = get_uber_znode(h->tree, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI,
 			      h->parent_lh);
 
-	assert("nikita-1637", done != -EDEADLK);
+	assert("nikita-1637", done != -E_DEADLOCK);
 
 	if (done)
 		return done;
@@ -507,7 +507,7 @@ restart:
 			reiser4_stat_inc(tree.cbk_restart);
 			hput(h);
 			/* deadlock avoidance is normal case. */
-			if (h->result != -EDEADLK)
+			if (h->result != -E_DEADLOCK)
 				++iterations;
 			preempt_point();
 			goto restart;
@@ -657,9 +657,9 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 			else
 				reiser4_stat_inc_at_level(h->level, cbk_key_moved);
 		}
-		h->result = -EAGAIN;
+		h->result = -E_REPEAT;
 	}
-	if (h->result == -EAGAIN)
+	if (h->result == -E_REPEAT)
 		return LOOKUP_REST;
 
 	h->result = zload_ra(active, h->ra_info);
@@ -683,7 +683,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	return ret;
 
 fail_or_restart:
-	if (h->result == -EDEADLK)
+	if (h->result == -E_DEADLOCK)
 		return LOOKUP_REST;
 	return LOOKUP_DONE;
 }
@@ -912,7 +912,7 @@ lookup_multikey(cbk_handle * handle /* handles to search */ ,
 					          the same level, though.
 					       */
 					       ZNODE_LOCK_HIPRI);
-			if (result == -EAGAIN) {
+			if (result == -E_REPEAT) {
 				/* seal was broken, restart */
 				once_again = 1;
 				reiser4_stat_tree_add(multikey_restart);
@@ -1383,7 +1383,7 @@ search_to_left(cbk_handle * h /* search handle */ )
 	h->result = reiser4_get_left_neighbor(&lh, node, (int) h->lock_mode, GN_DO_READ);
 	neighbor = NULL;
 	switch (h->result) {
-	case -EDEADLK:
+	case -E_DEADLOCK:
 		result = LOOKUP_REST;
 		break;
 	case 0:{

@@ -126,7 +126,7 @@ static int process_znode (tap_t * tap, void * arg)
 	cursor->stats.znodes_dirtied ++;
 
 	if (-- cursor->count <= 0)
-		return -EAGAIN;
+		return -E_REPEAT;
 	return 0;
 }
 
@@ -143,7 +143,7 @@ static int process_extent (tap_t *tap, void * arg)
 		cursor->stats.jnodes_dirtied += ret;
 		cursor->count -= ret;
 		if (cursor->count <= 0)
-			     return -EAGAIN;
+			     return -E_REPEAT;
 		return 0;
 	}
 
@@ -262,7 +262,7 @@ static int relocate_extent (tap_t * tap, void * arg)
 		cursor->stats.jnodes_dirtied += ret;
 		cursor->count -= ret;
 		if (cursor->count <= 0)
-			     return -EAGAIN;
+			     return -E_REPEAT;
 		return 0;
 	}
 	return ret;

@@ -20,9 +20,9 @@
 
 static int add_child_ptr(znode * parent, znode * child);
 
-/* warning only issued if error is not -EAGAIN */
+/* warning only issued if error is not -E_REPEAT */
 #define ewarning( error, ... )			\
-	if( ( error ) != -EAGAIN )		\
+	if( ( error ) != -E_REPEAT )		\
 		warning( __VA_ARGS__ )
 
 /* allocate new node on the @level and immediately on the right of @brother. */
@@ -77,7 +77,7 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
 		}
 	} else {
 		/* failure to allocate new node during balancing.
-		   This should never happen. Ever. Returning -EAGAIN
+		   This should never happen. Ever. Returning -E_REPEAT
 		   is not viable solution, because "out of disk space"
 		   is not transient error that will go away by itself.
 		*/

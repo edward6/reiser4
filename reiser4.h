@@ -247,6 +247,11 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /* node has no free space enough for completion of balancing operation */
 #define E_NODE_FULL    (REISER4_ERROR_CODES_BASE + 2)
 
+/* repeat operation */
+#define E_REPEAT       (REISER4_ERROR_CODES_BASE + 3)
+
+/* deadlock happens */
+#define E_DEADLOCK     (REISER4_ERROR_CODES_BASE + 4)
 #endif				/* __REISER4_H__ */
 
 /* Make Linus happy.

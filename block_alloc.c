@@ -1096,7 +1096,7 @@ __reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr 
 				return ret;
 
 			/* This loop might spin at most two times */
-		} while (ret == -EAGAIN);
+		} while (ret == -E_REPEAT);
 
 		assert("zam-477", ret == 0);
 		assert("zam-433", atom != NULL);

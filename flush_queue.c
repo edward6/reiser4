@@ -210,7 +210,7 @@ wait_io(flush_queue_t * fq, int *nr_io_errors)
 		/* Ask the caller to re-aquire the locks and call this
 		   function again. Note: this technique is commonly used in
 		   the txnmgr code. */
-		return -EAGAIN;
+		return -E_REPEAT;
 	}
 
 	*nr_io_errors += atomic_read(&fq->nr_errors);
@@ -241,7 +241,7 @@ finish_fq(flush_queue_t * fq, int *nr_io_errors)
 }
 
 /* wait for all i/o for given atom to be completed, actually do one iteration
-   on that and return -EAGAIN if there more iterations needed */
+   on that and return -E_REPEAT if there more iterations needed */
 static int
 finish_all_fq(txn_atom * atom, int *nr_io_errors)
 {
@@ -271,7 +271,7 @@ finish_all_fq(txn_atom * atom, int *nr_io_errors)
 
 			UNLOCK_ATOM(atom);
 
-			return -EAGAIN;
+			return -E_REPEAT;
 		}
 	}
 
@@ -295,7 +295,7 @@ current_atom_finish_all_fq(void)
 				break;
 			atom_wait_event(atom);
 		}
-	} while (ret == -EAGAIN);
+	} while (ret == -E_REPEAT);
 
 	/* we do not need locked atom after this function finishes, SUCCESS or
 	   -EBUSY are two return codes when atom remains locked after
@@ -480,7 +480,7 @@ write_fq(flush_queue_t * fq, long * nr_submitted)
 }
 
 /* Getting flush queue object for exclusive use by one thread. May require
-   several iterations which is indicated by -EAGAIN return code. 
+   several iterations which is indicated by -E_REPEAT return code. 
 
    This function does not contain code for obtaining an atom lock because an
    atom lock is obtained by different ways in different parts of reiser4,
@@ -533,7 +533,7 @@ fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
 	if (*new_fq == NULL)
 		return RETERR(-ENOMEM);
 
-	return -EAGAIN;
+	return -E_REPEAT;
 }
 
 /* A wrapper around fq_by_atom for getting a flush queue object for current
@@ -549,7 +549,7 @@ get_fq_for_current_atom(void)
 		atom = get_current_atom_locked();
 		ret = fq_by_atom(atom, &fq);
 /* VS-FIXME-HANS: improper return code */
-	} while (ret == -EAGAIN);
+	} while (ret == -E_REPEAT);
 
 	if (ret)
 		return ERR_PTR(ret);
@@ -629,7 +629,7 @@ int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 		ret = fq_by_atom(atom, fq);
 
 		if (ret) {
-			if (ret == -EAGAIN)
+			if (ret == -E_REPEAT)
 				/* atom lock was released for doing memory
 				 * allocation, start with locked jnode one more
 				 * time */

@@ -296,7 +296,7 @@ reiser4_setattr(struct dentry *dentry, struct iattr *attr)
 			assert("nikita-2296", fplug->setattr != NULL);
 			result = fplug->setattr(inode, attr);
 		} else
-			result = -EAGAIN;
+			result = -E_REPEAT;
 	}
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);

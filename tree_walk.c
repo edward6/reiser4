@@ -694,7 +694,7 @@ again:
 			}
 			break;
 
-		case -EDEADLK:
+		case -E_DEADLOCK:
 			/* there was lock request from hi-pri locker. if
 			   it is possible we unlock last parent node and
 			   re-lock it again. */
@@ -856,7 +856,7 @@ static int lock_tree_root (lock_handle * lock, znode_lock_mode mode)
 	zput(root);
 	done_lh(&uber_znode_lock);
 
-	if (ret == -EDEADLK)
+	if (ret == -E_DEADLOCK)
 		goto again;
 
 	return ret;
@@ -998,7 +998,7 @@ static int tw_down(struct tw_handle * h)
 	return ret;
 }
 /* Traverse the reiser4 tree until either all tree traversing is done or an
- * error encountered (including recoverable ones as -EDEADLK or -EAGAIN).  The
+ * error encountered (including recoverable ones as -E_DEADLOCK or -E_REPEAT).  The
  * @actor function is able to stop tree traversal by returning an appropriate
  * error code. */
 static int tw_by_handle (struct tw_handle * h)
@@ -1114,7 +1114,7 @@ int tree_walk (const reiser4_key *start_key, int go_left, struct tree_walk_actor
 		ret = tw_by_handle(&handle);
 		tap_done (&handle.tap);
 
-	} while (!handle.done && (ret == -EDEADLK || ret == -EAGAIN));
+	} while (!handle.done && (ret == -E_DEADLOCK || ret == -E_REPEAT));
 
 	done:
 	done_lh(&lock);

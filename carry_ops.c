@@ -95,7 +95,7 @@ find_left_neighbor(carry_op * op	/* node to find left
 		assert("nikita-914", node->node != NULL);
 		left->left = 1;
 		left->free = 0;
-		left = ERR_PTR(-EAGAIN);
+		left = ERR_PTR(-E_REPEAT);
 	} else {
 		/* left neighbor is locked, level cannot be restarted. Just
 		   ignore left neighbor. */
@@ -442,8 +442,8 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 		reiser4_stat_level_inc(doing, insert_looking_left);
 		left = find_left_neighbor(op, doing);
 		if (unlikely(IS_ERR(left))) {
-			if (PTR_ERR(left) == -EAGAIN)
-				return -EAGAIN;
+			if (PTR_ERR(left) == -E_REPEAT)
+				return -E_REPEAT;
 			else {
 				/* some error other than restart request
 				   occurred. This shouldn't happen. Issue a

@@ -527,7 +527,7 @@ static void prepare_flush_pos(flush_pos_t *pos, flush_scan * left_scan)
    sets preceder hints and computes the preceder is basically untested.  Careful testing
    needs to be done that preceder calculations are done correctly, since if it doesn't
    affect correctness we will not catch this stuff during regular testing. */
-/* C. EINVAL, EDEADLK, E_NO_NEIGHBOR, ENOENT handling.  It is unclear which of these are
+/* C. EINVAL, E_DEADLOCK, E_NO_NEIGHBOR, ENOENT handling.  It is unclear which of these are
    considered expected but unlikely conditions.  Flush currently returns 0 (i.e., success
    but no progress, i.e., restart) whenever it receives any of these in jnode_flush().
    Many of the calls that may produce one of these return values (i.e.,
@@ -592,7 +592,7 @@ static void prepare_flush_pos(flush_pos_t *pos, flush_scan * left_scan)
    flush_unprep them.
   
    Flush treats several "failure" cases as non-failures, essentially causing them to start
-   over.  EDEADLK is one example.  FIXME:(C) EINVAL, E_NO_NEIGHBOR, ENOENT: these should
+   over.  E_DEADLOCK is one example.  FIXME:(C) EINVAL, E_NO_NEIGHBOR, ENOENT: these should
    probably be handled properly rather than restarting, but there are a bunch of cases to
    audit.
 */
@@ -806,8 +806,8 @@ failed:
 		}
 	}
 
-	if (ret == -EINVAL || ret == -EDEADLK || ret == -E_NO_NEIGHBOR || ret == -ENOENT) {
-		/* FIXME(C): Except for EDEADLK, these should probably be handled properly
+	if (ret == -EINVAL || ret == -E_DEADLOCK || ret == -E_NO_NEIGHBOR || ret == -ENOENT) {
+		/* FIXME(C): Except for E_DEADLOCK, these should probably be handled properly
 		   in each case.  They already are handled in many cases. */
 		/* Something bad happened, but difficult to avoid...  Try again! */
 		ON_TRACE(TRACE_FLUSH, "flush restartable failure: %ld\n", ret);
@@ -917,7 +917,7 @@ skip_jnode(const jnode *node)
 	return 0;
 }
 
-/* Flush some nodes of current atom, usually slum, return -EAGAIN if there are more nodes
+/* Flush some nodes of current atom, usually slum, return -E_REPEAT if there are more nodes
  * to flush, return 0 if atom's dirty lists empty and keep current atom locked, return
  * other errors as they are. */
 int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
@@ -933,7 +933,7 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 
 	while(1) {
 		ret = fq_by_atom(*atom, &fq);
-		if (ret != -EAGAIN)
+		if (ret != -E_REPEAT)
 			break;
 		*atom = get_current_atom_locked();
 	}
@@ -1026,7 +1026,7 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 	write_syscall_trace("ex");
 
 	if (ret == 0)
-		ret = -EAGAIN;
+		ret = -E_REPEAT;
 
 	return ret;
 }
@@ -1279,7 +1279,7 @@ static int alloc_one_ancestor(const coord_t * coord, flush_pos_t * pos)
 
 		ret = jnode_lock_parent_coord(ZJNODE(coord->node), &acoord, &alock, &aload, ZNODE_WRITE_LOCK, 0);
 		if (ret != 0) {
-			/* FIXME(C): check EINVAL, EDEADLK */
+			/* FIXME(C): check EINVAL, E_DEADLOCK */
 			goto exit;
 		}
 
@@ -1343,7 +1343,7 @@ set_preceder(const coord_t * coord_in, flush_pos_t * pos)
 			/* If we fail for any reason it doesn't matter because the
 			   preceder is only a hint.  We are low-priority at this point, so
 			   this must be the case. */
-			if (ret == -EAGAIN || ret == -E_NO_NEIGHBOR || ret == -ENOENT || ret == -EINVAL || ret == -EDEADLK) {
+			if (ret == -E_REPEAT || ret == -E_NO_NEIGHBOR || ret == -ENOENT || ret == -EINVAL || ret == -E_DEADLOCK) {
 				ret = 0;
 			}
 			goto exit;
@@ -2669,7 +2669,7 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 		/* The fake node cannot be deleted, and we must have priority
 		   here, and may not be confused with ENOSPC. */
 		assert("jmacd-74412", 
-		       ret != -EINVAL && ret != -EDEADLK && ret != -ENOSPC);
+		       ret != -EINVAL && ret != -E_DEADLOCK && ret != -ENOSPC);
 
 		if (ret)
 			goto exit;
@@ -2837,7 +2837,7 @@ neighbor_in_slum(
 
 	if (ret) {
 		/* May return -ENOENT or -E_NO_NEIGHBOR. */
-		/* FIXME(C): check EINVAL, EDEADLK */
+		/* FIXME(C): check EINVAL, E_DEADLOCK */
 		if (ret == -ENOENT) {
 			ret = RETERR(-E_NO_NEIGHBOR);
 		}
@@ -3101,16 +3101,16 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
 		ret = longterm_lock_znode(&lock, JZNODE(scan->node), ZNODE_WRITE_LOCK,
 					  scanning_left(scan) ? ZNODE_LOCK_LOPRI : ZNODE_LOCK_HIPRI);
 		if (ret != 0) 
-			/* EINVAL or EDEADLK here mean... try again!  At this point we've
+			/* EINVAL or E_DEADLOCK here mean... try again!  At this point we've
 			   scanned too far and can't back out, just start over. */
 			return ret;
 		
 		ret = jnode_lock_parent_coord(scan->node, &scan->parent_coord, &scan->parent_lock,
 					      &scan->parent_load, ZNODE_WRITE_LOCK, try);
 		
-		/* FIXME(C): check EINVAL, EDEADLK */
+		/* FIXME(C): check EINVAL, E_DEADLOCK */
 		done_lh(&lock);
-		if (ret == -EAGAIN) {
+		if (ret == -E_REPEAT) {
 			scan->stop = 1;
 			return 0;
 		}
@@ -3128,7 +3128,7 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
 			return ret;
 
 		if (ret == CBK_COORD_NOTFOUND) {
-			/* FIXME(C): check EINVAL, EDEADLK */
+			/* FIXME(C): check EINVAL, E_DEADLOCK */
 			ON_TRACE(TRACE_FLUSH,
 				 "flush_scan_common: jnode_lock_parent_coord returned %d\n", ret);
 			if (jnode_is_cluster_page(scan->node)) {

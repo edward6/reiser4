@@ -102,7 +102,7 @@ check_seal_match(const coord_t * coord, const reiser4_key * k)
 
 
 /* this is used by seal_validate. It accepts return value of longterm_lock_znode and returns 1 if it can be interpreted
-   as seal validation failure. For instance, when longterm_lock_znode returns -EINVAL, seal_validate returns -EAGAIN and
+   as seal validation failure. For instance, when longterm_lock_znode returns -EINVAL, seal_validate returns -E_REPEAT and
    caller will call tre search
    FIXME: longterm_lock_znode could probably do that itself */
 static int
@@ -115,9 +115,9 @@ should_repeat(int ltlz_result)
   
    Checks whether seal is pristine, and try to revalidate it if possible.
   
-   If seal was burned, or broken irreparably, return -EAGAIN.
+   If seal was burned, or broken irreparably, return -E_REPEAT.
   
-   NOTE-NIKITA currently seal_validate() returns -EAGAIN if key we are
+   NOTE-NIKITA currently seal_validate() returns -E_REPEAT if key we are
    looking for is in range of keys covered by the sealed node, but item wasn't
    found by node ->lookup() method. Alternative is to return -ENOENT in this
    case, but this would complicate callers logic.
@@ -168,7 +168,7 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 				   within a node. This is not a problem
 				   usually, though.
 				*/
-				result = -EAGAIN;
+				result = -E_REPEAT;
 			else if (znode_contains_key_lock(node, key))
 				/* seal is broken, but there is a hope that
 				   key is still in @node */
@@ -176,19 +176,19 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 			else {
 				/* key is not in @node */
 				reiser4_stat_inc(seal.key_drift);
-				result = -EAGAIN;
+				result = -E_REPEAT;
 			}
 		}
 		if (result != 0) {
 			if (should_repeat(result))
-				result = -EAGAIN;
+				result = -E_REPEAT;
 			/* unlock node on failure */
 			done_lh(lh);
 		}
 	} else {
 		/* znode wasn't in cache */
 		reiser4_stat_inc(seal.out_of_cache);
-		result = -EAGAIN;
+		result = -E_REPEAT;
 	}
 	return result;
 }
@@ -234,12 +234,12 @@ seal_search_node(seal_t * seal /* seal to repair */ ,
 	assert("nikita-1892", node != NULL);
 	assert("nikita-1893", znode_is_any_locked(node));
 
-	return -EAGAIN;
+	return -E_REPEAT;
 
 	if ((znode_get_level(node) != level) ||
 	    ZF_ISSET(node, JNODE_HEARD_BANSHEE) || ZF_ISSET(node, JNODE_IS_DYING) || (node != coord->node)) {
 		reiser4_stat_inc(seal.wrong_node);
-		return -EAGAIN;
+		return -E_REPEAT;
 	}
 
 	result = zload(node);
@@ -257,7 +257,7 @@ seal_search_node(seal_t * seal /* seal to repair */ ,
 			reiser4_stat_inc(seal.found);
 			seal_init(seal, coord, key);
 		} else
-			result = -EAGAIN;	/* Remove -ENOENT to simplify seal
+			result = -E_REPEAT;	/* Remove -ENOENT to simplify seal
 						 * interface */
 	}
 	zrelse(node);

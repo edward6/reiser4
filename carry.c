@@ -240,7 +240,7 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 				result = carry_on_level(doing, todo);
 				if (result == 0)
 					break;
-				else if ((result != -EAGAIN) || !doing->restartable) {
+				else if ((result != -E_REPEAT) || !doing->restartable) {
 					warning("nikita-1043", "Fatal error during carry: %i", result);
 					print_level("done", done);
 					print_level("doing", doing);
@@ -253,7 +253,7 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 					fatal_carry_error(doing, result);
 					return result;
 				}
-			} else if (result != -EAGAIN) {
+			} else if (result != -E_REPEAT) {
 				fatal_carry_error(doing, result);
 				return result;
 			}
@@ -400,7 +400,7 @@ carry_on_level(carry_level * doing	/* queue of carry operations to
 		assert("nikita-1042", op->op < COP_LAST_OP);
 		f = op_dispatch_table[op->op].handler;
 		result = f(op, doing, todo);
-		/* locking can fail with -EAGAIN. Any different error is fatal
+		/* locking can fail with -E_REPEAT. Any different error is fatal
 		   and will be handled by fatal_carry_error() sledgehammer.
 		*/
 		if (result != 0)

@@ -134,7 +134,7 @@ typedef enum {
 
 	/* By setting the ZNODE_LOCK_NONBLOCK flag in a lock request the call to longterm_lock_znode will not sleep
 	   waiting for the lock to become available.  If the lock is unavailable, reiser4_znode_lock will immediately
-	   return the value -EAGAIN. */
+	   return the value -E_REPEAT. */
 	ZNODE_LOCK_NONBLOCK = (1 << 1),
 	/* An option for longterm_lock_znode which prevents atom fusion */
 	ZNODE_LOCK_DONT_FUSE = (1 << 2)

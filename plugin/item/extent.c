@@ -2352,7 +2352,7 @@ make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode, reiser4_b
 
 	default:
 		assert("vs-1346", 0);
-		result = RETERR(-EAGAIN);
+		result = RETERR(-E_REPEAT);
 		break;
 	}
 		
@@ -3471,7 +3471,7 @@ static int get_reiser4_inode_by_tap (struct inode ** result, tap_t * tap)
 		iput(inode);
 		/* Expect the inode to be in cache when we come here
 		 * next time. */
-		return -EAGAIN;
+		return -E_REPEAT;
 	}
 
 	if (is_bad_inode(inode)) {

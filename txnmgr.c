@@ -700,7 +700,7 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 /*  ZAM-FIXME-HANS: explain this error code which is for user space interactions being used here.  I thought I clearly
  *  indicated I didn't want user space error codes used for purposes other than what they were intended for, returning
  *  errors to user space? */
-		return ERR_PTR(-EAGAIN);
+		return ERR_PTR(-E_REPEAT);
 	}
 
 	atom = *atom_alloc;
@@ -1004,7 +1004,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 
 	for (flushiters = 0 ;; ++ flushiters) {
 		ret = flush_current_atom(JNODE_FLUSH_WRITE_BLOCKS | JNODE_FLUSH_COMMIT, nr_submitted, atom);
-		if (ret != -EAGAIN)
+		if (ret != -E_REPEAT)
 			break;
 
 		*atom = get_current_atom_locked();
@@ -1023,11 +1023,11 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	if (!atom_can_be_committed(*atom)) {
 		UNLOCK_ATOM(*atom);
 		reiser4_stat_inc(txnmgr.restart.cannot_commit);
-		return RETERR(-EAGAIN);
+		return RETERR(-E_REPEAT);
 	}
 
 	/* Up to this point we have been flushing and after flush is called we
-	   return -EAGAIN.  Now we can commit.  We cannot return -EAGAIN at this
+	   return -E_REPEAT.  Now we can commit.  We cannot return -E_REPEAT at this
 	   point, commit should be successful. */
 	(*atom)->stage = ASTAGE_PRE_COMMIT;
 
@@ -1328,7 +1328,7 @@ int flush_some_atom(long *nr_submitted, int flags)
 		UNLOCK_ATOM(atom);
 	}
 
-	if (ret == -EAGAIN)
+	if (ret == -E_REPEAT)
 		ret = 0;
 
 	{
@@ -1456,7 +1456,7 @@ try_commit_txnh(commit_data *cd)
 				cd->wait = 1;
 				atom_wait_event(cd->atom);
 				reiser4_stat_inc(txnmgr.restart.should_wait);
-				result = RETERR(-EAGAIN);
+				result = RETERR(-E_REPEAT);
 			} else
 				result = 0;
 		} else if (cd->txnh->flags & TXNH_DONT_COMMIT) {
@@ -1481,7 +1481,7 @@ try_commit_txnh(commit_data *cd)
 				UNLOCK_ATOM(cd->atom);
 				cd->preflush = 0;
 				reiser4_stat_inc(txnmgr.restart.flush);
-				result = RETERR(-EAGAIN);
+				result = RETERR(-E_REPEAT);
 			} else	/* NIKITA-FIXME-HANS: comments needed here. */
 				-- cd->preflush;
 		} else {
@@ -1492,7 +1492,7 @@ try_commit_txnh(commit_data *cd)
 			cd->atom->flags |= ATOM_FORCE_COMMIT;
 
 			result = commit_current_atom(&cd->nr_written, &cd->atom);
-			if (result != 0 && result != -EAGAIN)
+			if (result != 0 && result != -E_REPEAT)
 				cd->failed = 1;
 		}
 	} else
@@ -1554,12 +1554,12 @@ commit_txnh(txn_handle * txnh)
 
 /* TRY_CAPTURE */
 
-/* This routine attempts a single block-capture request.  It may return -EAGAIN if some
+/* This routine attempts a single block-capture request.  It may return -E_REPEAT if some
    condition indicates that the request should be retried, and it may block if the
    txn_capture mode does not include the TXN_CAPTURE_NONBLOCKING request flag.
   
    The try_capture() function (below) is the external interface, which calls this
-   function repeatedly as long as -EAGAIN is returned.
+   function repeatedly as long as -E_REPEAT is returned.
   
    This routine encodes the basic logic of block capturing described by:
   
@@ -1592,7 +1592,7 @@ ZAM-FIXME-HANS: update reference
   
    This function acquires and releases the handle's spinlock.  This function is called
    under the jnode lock and if the return value is 0, it returns with the jnode lock still
-   held.  If the return is -EAGAIN or some other error condition, the jnode lock is
+   held.  If the return is -E_REPEAT or some other error condition, the jnode lock is
    released.  The external interface (try_capture) manages re-aquiring the jnode lock
    in the failure case.
 */
@@ -1703,7 +1703,7 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 			/* The txnh is unassigned, try to assign it. */
 			ret = capture_assign_txnh(node, txnh, mode);
 			if (ret != 0) {
-				/* EAGAIN or otherwise */
+				/* E_REPEAT or otherwise */
 				assert("jmacd-6129", spin_txnh_is_not_locked(txnh));
 				assert("jmacd-6130", spin_jnode_is_not_locked(node));
 				return ret;
@@ -1719,7 +1719,7 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 				return RETERR(-E_NO_NEIGHBOR);
 			}
 			/* In this case, both txnh and node belong to different atoms.  This function
-			   returns -EAGAIN on successful fusion, 0 on the fall-through case. */
+			   returns -E_REPEAT on successful fusion, 0 on the fall-through case. */
 			ret = capture_init_fusion(node, txnh, mode);
 			if (ret != 0) {
 				assert("jmacd-6131", spin_txnh_is_not_locked(txnh));
@@ -1739,7 +1739,7 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 			/* The txnh is already assigned: add the page to its atom. */
 			ret = capture_assign_block(txnh, node);
 			if (ret != 0) {
-				/* EAGAIN or otherwise */
+				/* E_REPEAT or otherwise */
 				assert("jmacd-6133", spin_txnh_is_not_locked(txnh));
 				assert("jmacd-6134", spin_jnode_is_not_locked(node));
 				return ret;
@@ -1840,7 +1840,7 @@ repeat:
 			return 0;
 	}
 
-	/* Repeat try_capture as long as -EAGAIN is returned. */
+	/* Repeat try_capture as long as -E_REPEAT is returned. */
 	ret = try_capture_block(txnh, node, cap_mode, &atom_alloc);
 
 	/* Regardless of non_blocking:
@@ -1853,29 +1853,29 @@ repeat:
 
 	assert("nikita-2974", spin_txnh_is_not_locked(txnh));
 
-	if (ret == -EAGAIN && !non_blocking) {
-		/* EAGAIN implies all locks were released, therefore we need to take the
+	if (ret == -E_REPEAT && !non_blocking) {
+		/* E_REPEAT implies all locks were released, therefore we need to take the
 		   jnode's lock again. */
 		LOCK_JNODE(node);
 
 		/* Although this may appear to be a busy loop, it is not.  There are
-		   several conditions that cause EAGAIN to be returned by the call to
+		   several conditions that cause E_REPEAT to be returned by the call to
 		   try_capture_block, all cases indicating some kind of state
 		   change that means you should retry the request and will get a different
 		   result.  In some cases this could be avoided with some extra code, but
 		   generally it is done because the necessary locks were released as a
 		   result of the operation and repeating is the simplest thing to do (less
-		   bug potential).  The cases are: atom fusion returns EAGAIN after it
+		   bug potential).  The cases are: atom fusion returns E_REPEAT after it
 		   completes (jnode and txnh were unlocked); race conditions in
-		   assign_block, assign_txnh, and init_fusion return EAGAIN (trylock
+		   assign_block, assign_txnh, and init_fusion return E_REPEAT (trylock
 		   failure); after going to sleep in capture_fuse_wait (request was
 		   blocked but may now succeed).  I'm not quite sure how capture_copy
-		   works yet, but it may also return EAGAIN.  When the request is
+		   works yet, but it may also return E_REPEAT.  When the request is
 		   legitimately blocked, the requestor goes to sleep in fuse_wait, so this
 		   is not a busy loop. */
 		/* NOTE-NIKITA: still don't understand:
 		  
-		   try_capture_block->capture_assign_txnh->spin_trylock_atom->EAGAIN
+		   try_capture_block->capture_assign_txnh->spin_trylock_atom->E_REPEAT
 		  
 		   looks like busy loop?
 		*/
@@ -1904,7 +1904,7 @@ repeat:
 	return ret;
 }
 
-/* This function sets up a call to try_capture_block and repeats as long as -EAGAIN is
+/* This function sets up a call to try_capture_block and repeats as long as -E_REPEAT is
    returned by that routine.  The txn_capture request mode is computed here depending on
    the transaction handle's type and the lock request.  This is called from the depths of
    the lock manager with the jnode lock held and it always returns with the jnode lock
@@ -1998,7 +1998,7 @@ fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 		capture_fuse_into(atomf, atomh);
 
 		reiser4_stat_inc(txnmgr.restart.fuse_lock_owners_fused);
-		return RETERR(-EAGAIN);
+		return RETERR(-E_REPEAT);
 	}
 
 	UNLOCK_ATOM(atomh);
@@ -2009,7 +2009,7 @@ fail:
 		UNLOCK_ZLOCK(&node->lock);
 		spin_unlock_znode(node);
 		reiser4_stat_inc(txnmgr.restart.fuse_lock_owners);
-		return RETERR(-EAGAIN);
+		return RETERR(-E_REPEAT);
 	}
 
 	UNLOCK_ZLOCK(&node->lock);
@@ -2092,17 +2092,17 @@ int uncapture_inode(struct inode *inode)
 /* This informs the transaction manager when a node is deleted.  Add the block to the
    atom's delete set and uncapture the block.  
 
-VS-FIXME-HANS: this EAGAIN paradigm clutters the code and creates a need for
+VS-FIXME-HANS: this E_REPEAT paradigm clutters the code and creates a need for
 explanations.  find all the functions that use it, and unless there is some very
 good reason to use it (I have not noticed one so far and I doubt it exists, but maybe somewhere somehow....),
 move the loop to inside the function.
 
 VS-FIXME-HANS: can this code be at all streamlined?  In particular, can you lock and unlock the jnode fewer times?
 
-Handles the EAGAIN result from
+Handles the E_REPEAT result from
    blocknr_set_add_block, which is returned by blocknr_set_add when it releases the atom
    lock to perform an allocation.  The atom could fuse while this lock is held, which is
-   why the EAGAIN must be handled by repeating the call to atom_locked_by_jnode.  The
+   why the E_REPEAT must be handled by repeating the call to atom_locked_by_jnode.  The
    second call is guaranteed to provide a pre-allocated blocknr_entry so it can only
    "repeat" once.  */
 void
@@ -2502,7 +2502,7 @@ trylock_wait(txn_atom *atom, txn_handle * txnh, jnode * node)
  * atom. Releasing jnode (or txnh) spin lock at this point is unsafe, because
  * concurrent fusion can render assumption made by capture so far (about
  * ->atom pointers in jnode and txnh) invalid. Initial code used try-lock and
- * if atom was busy returned -EAGAIN to the top level. This can lead to the
+ * if atom was busy returned -E_REPEAT to the top level. This can lead to the
  * busy loop if atom is locked for long enough time. Function below tries to
  * throttle this loop.
 
@@ -2528,13 +2528,13 @@ trylock_throttle(txn_atom *atom, txn_handle * txnh, jnode * node)
 	if (unlikely(trylock_wait(atom, txnh, node) != 0)) {
 		UNLOCK_ATOM(atom);
 		reiser4_stat_inc(txnmgr.restart.trylock_throttle);
-		return RETERR(-EAGAIN);
+		return RETERR(-E_REPEAT);
 	} else
 		return 0;
 }
 
 /* This function assigns a block to an atom, but first it must obtain the atom lock.  If
-   the atom lock is busy, it returns -EAGAIN to avoid deadlock with a fusing atom.  Since
+   the atom lock is busy, it returns -E_REPEAT to avoid deadlock with a fusing atom.  Since
    the transaction handle is currently open, we know the atom must also be open. */
 static int
 capture_assign_block(txn_handle * txnh, jnode * node)
@@ -2551,7 +2551,7 @@ capture_assign_block(txn_handle * txnh, jnode * node)
 
 	result = trylock_throttle(atom, txnh, node);
 	if (result != 0) {
-		/* this avoid busy loop, but we return -EAGAIN anyway to
+		/* this avoid busy loop, but we return -E_REPEAT anyway to
 		 * simplify things. */
 		reiser4_stat_inc(txnmgr.restart.assign_block);
 		return result;
@@ -2568,7 +2568,7 @@ capture_assign_block(txn_handle * txnh, jnode * node)
 }
 
 /* This function assigns a handle to an atom, but first it must obtain the atom lock.  If
-   the atom is busy, it returns -EAGAIN to avoid deadlock with a fusing atom.  Unlike
+   the atom is busy, it returns -E_REPEAT to avoid deadlock with a fusing atom.  Unlike
    capture_assign_block, the atom may be closed but we cannot know this until the atom is
    locked.  If the atom is closed and the request is to read, it is as if the block is
    unmodified and the request is satisified without actually assigning the transaction
@@ -2607,11 +2607,11 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode)
 	 *
 	 * Solutions tried here:
 	 *
-	 *     1. spin_trylock(atom), return -EAGAIN on failure.
+	 *     1. spin_trylock(atom), return -E_REPEAT on failure.
 	 *
 	 *     2. spin_trylock(atom). On failure to acquire lock, increment
 	 *     atom->refcount, release all locks, and spin on atom lock. Then
-	 *     recrement ->refcount, unlock atom and return -EAGAIN.
+	 *     recrement ->refcount, unlock atom and return -E_REPEAT.
 	 *
 	 *     3. like previous one, but before unlocking atom, re-acquire
 	 *     spin locks on node and txnh and re-check whether function
@@ -2630,7 +2630,7 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode)
 			UNLOCK_TXNH(txnh);
 			UNLOCK_JNODE(node);
 			reiser4_stat_inc(txnmgr.restart.assign_txnh);
-			return RETERR(-EAGAIN);
+			return RETERR(-E_REPEAT);
 		}
 	}
 
@@ -2639,7 +2639,7 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode)
 		/* The atom could be blocking requests--this is the first chance we've had
 		   to test it.  Since this txnh is not yet assigned, the fuse_wait logic
 		   is not to avoid deadlock, its just waiting.  Releases all three locks
-		   and returns EAGAIN. */
+		   and returns E_REPEAT. */
 
 		return capture_fuse_wait(node, txnh, atom, NULL, mode);
 
@@ -2778,7 +2778,7 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 
 		reiser4_stat_inc(txnmgr.restart.fuse_wait_nonblock);
 		PROF_END(fuse_wait);
-		return RETERR(-EAGAIN);
+		return RETERR(-E_REPEAT);
 	}
 
 	init_wlinks(&wlinks);
@@ -2808,7 +2808,7 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 		go_to_sleep(wlinks._lock_stack, ADD_TO_SLEPT_IN_WAIT_ATOM);
 
 		reiser4_stat_inc(txnmgr.restart.fuse_wait_slept);
-		ret = RETERR(-EAGAIN);
+		ret = RETERR(-E_REPEAT);
 		ON_TRACE(TRACE_TXN, "thread %u wakeup %u waiting %u\n",
 			 current->pid, atomf->atom_id, atomh ? atomh->atom_id : 0);
 	}
@@ -2850,7 +2850,7 @@ capture_init_fusion_locked(jnode * node, txn_handle * txnh, txn_capture mode)
 	   avoid deadlock we still must fuse if the txnh atom is also in FUSE_WAIT. */
 	if (atomf->stage == ASTAGE_CAPTURE_WAIT && atomh->stage != ASTAGE_CAPTURE_WAIT) {
 
-		/* This unlocks all four locks and returns EAGAIN. */
+		/* This unlocks all four locks and returns E_REPEAT. */
 		return capture_fuse_wait(node, txnh, atomf, atomh, mode);
 
 	} else if (atomf->stage > ASTAGE_CAPTURE_WAIT) {
@@ -2890,7 +2890,7 @@ capture_init_fusion_locked(jnode * node, txn_handle * txnh, txn_capture mode)
 
 	/* Atoms are unlocked in capture_fuse_into.  No locks held. */
 	reiser4_stat_inc(txnmgr.restart.init_fusion_fused);
-	return RETERR(-EAGAIN);
+	return RETERR(-E_REPEAT);
 }
 
 /* Perform the necessary work to prepare for fusing two atoms, which involves
@@ -2918,7 +2918,7 @@ capture_init_fusion(jnode * node, txn_handle * txnh, txn_capture mode)
 
 	UNLOCK_JNODE(node);
 	UNLOCK_TXNH(txnh);
-	return RETERR(-EAGAIN);
+	return RETERR(-E_REPEAT);
 }
 /* ZAM-FIXME-HANS: how do you know that this preserves the lock ordering invariants? */
 /* This function splices together two jnode lists (small and large) and sets all jnodes in
@@ -3181,7 +3181,7 @@ copy_on_capture(jnode *node, txn_atom *atom)
 		UNLOCK_JNODE(node);
 		page_detach_jnode(page, mapping_jnode(copy), index);
 		jfree(copy);		
-		return RETERR(-EAGAIN);
+		return RETERR(-E_REPEAT);
 	}
 
 	/* detach jnode from atom */
@@ -3193,7 +3193,7 @@ copy_on_capture(jnode *node, txn_atom *atom)
 	UNLOCK_ATOM(atom);
 	UNLOCK_JNODE(node);
 	
-	return RETERR(-EAGAIN);
+	return RETERR(-E_REPEAT);
 }
 
 #endif

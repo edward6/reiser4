@@ -976,7 +976,7 @@ item_removed_completely(coord_t * from, const reiser4_key * from_key, const reis
    of extent item. When head of that item is removed - we have to update right
    delimiting of left neighbor of extent. When item is removed completely - we
    have to set sibling link between left and right neighbor of removed
-   extent. This may return -EDEADLK because of trying to get left neighbor
+   extent. This may return -E_DEADLOCK because of trying to get left neighbor
    locked. So, caller should repeat an attempt
 */
 /* Audited by: umka (2002.06.16) */
@@ -1030,7 +1030,7 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 				warning("vs-605",
 					"extent item has smallest key in " "the tree and it is about to be removed");
 				return 0;
-			case -EDEADLK:
+			case -E_DEADLOCK:
 				/* need to restart */
 			default:
 				return RETERR(result);
@@ -1441,7 +1441,7 @@ int cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key
 
 		preempt_point();
 
-	} while (result == -EDEADLK);
+	} while (result == -E_DEADLOCK);
 
 	if (result == -E_NO_NEIGHBOR)
 		result = 0;
@@ -1466,7 +1466,7 @@ int cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key
  * @to_key: the end of the deleted key range,
  * @smallest_removed: the smallest removed key,
  *
- * @return: 0 if success, error code otherwise, -EAGAIN means that long cut_tree
+ * @return: 0 if success, error code otherwise, -E_REPEAT means that long cut_tree
  * operation was interrupted for allowing atom commit .
  */
 static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, 
@@ -1596,7 +1596,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
  * @smallest_removed: the smallest removed key,
  * @object: owner of cutting items.
  *
- * @return: 0 if success, error code otherwise, -EAGAIN means that long cut_tree
+ * @return: 0 if success, error code otherwise, -E_REPEAT means that long cut_tree
  * operation was interrupted for allowing atom commit .
  *
  * FIXME(Zam): the cut_tree interruption is not implemented. 
@@ -1640,7 +1640,7 @@ cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key,
 
 		preempt_point();
 
-	} while (result == -EDEADLK);
+	} while (result == -E_DEADLOCK);
 
 	if (result == -E_NO_NEIGHBOR)
 		result = 0;

@@ -510,8 +510,8 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 
 		result = cut_tree_object(current_tree, &from_key, &to_key, 
 					 &smallest_removed, inode);
-		if (result == -EAGAIN) {
-			/* -EAGAIN is a signal to interrupt a long file truncation process */
+		if (result == -E_REPEAT) {
+			/* -E_REPEAT is a signal to interrupt a long file truncation process */
 			/* FIXME(Zam) cut_tree does not support that signaling.*/
 			result = update_inode_and_sd_if_necessary
 				(inode, get_key_offset(&smallest_removed), 1, 1, update_sd);
@@ -786,12 +786,12 @@ hint_validate(hint_t *hint, const reiser4_key *key, int check_key, znode_lock_mo
 	
 	if (!hint || !hint_is_set(hint))
 		/* hint either not set or set for different key */
-		return RETERR(-EAGAIN);
+		return RETERR(-E_REPEAT);
 
 	assert("vs-1277", all_but_offset_key_eq(key, &hint->seal.key));
 	
 	if (check_key && get_key_offset(key) != hint->offset)
-		return RETERR(-EAGAIN);
+		return RETERR(-E_REPEAT);
 
 	coord = &hint->coord.base_coord;
 
@@ -844,7 +844,7 @@ unix_file_writepage_nolock(struct page *page)
 	iplug = item_plugin_by_id(EXTENT_POINTER_ID);
 	result = iplug->s.file.writepage(&key, &hint.coord, page, how_to_write(&hint.coord, &key));
 	assert("vs-982", PageLocked(page));
-	assert("vs-429378", result != -EAGAIN);
+	assert("vs-429378", result != -E_REPEAT);
 	zrelse(loaded);
 	done_lh(&lh);
 	return result;
@@ -1236,7 +1236,7 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 		else
 			unset_hint(&hint);
 		longterm_unlock_znode(&lh);
-		if (result == -EAGAIN) {
+		if (result == -E_REPEAT) {
 			printk("zam-830: unix_file_read: key was not found in item, repeat search\n");
 			unset_hint(&hint);
 			continue;
@@ -1364,7 +1364,7 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *fl
 		}
 		zrelse(loaded);
 		done_lh(&lh);
-		if (result && result != -EAGAIN)
+		if (result && result != -E_REPEAT)
 			break;
 		preempt_point();
 	}

@@ -97,7 +97,7 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
    sleep but after a "fast" attempt to lock a node fails. Any signal wakes
    sleeping process up and forces him to re-check lock status and received
    signal info. If "must-yield-this-lock" signals were received the locking
-   primitive (longterm_lock_znode()) fails with -EDEADLK error code.
+   primitive (longterm_lock_znode()) fails with -E_DEADLOCK error code.
     
    V4 LOCKING DRAWBACKS
    
@@ -181,7 +181,7 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
       owner its existence is guaranteed by znode->lock.guard spinlock.  Some its
       (lock stack's) fields should be protected from being accessed in parallel
       by two or more threads. Please look at  lock_stack structure definition
-      for the info how those fields are protected.
+      for the info how those fields are protected. */
 
 /* Josh's explanation to Zam on why the locking and capturing code are intertwined.
   ZAM-FIXME-HANS: deadlock is not observed anymore, right?  rewrite this whole comment.
@@ -199,7 +199,7 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
    capture, especially when ignorant of deadlock.  There is no reason to lock until the
    capture has succeeded.  To block in "capture" should be the same as to block waiting
    for a lock, therefore a deadlock condition will cause the capture request to return
-   -EDEADLK.
+   -E_DEADLOCK.
   
    Point 4. It is acceptable to first capture and then wait to lock.  BUT, once the
    capture request succeeds the lock request cannot be satisfied out-of-order.  For
@@ -455,11 +455,11 @@ check_lock_object(lock_stack * owner)
 	   direction and a node have a high priority request without high
 	   priority owners. */
 	if (unlikely(!owner->curpri && check_deadlock_condition(node))) {
-		return RETERR(-EAGAIN);
+		return RETERR(-E_REPEAT);
 	}
 
 	if (unlikely(!is_lock_compatible(node, owner->request.mode))) {
-		return RETERR(-EAGAIN);
+		return RETERR(-E_REPEAT);
 	}
 
 	return 0;
@@ -809,7 +809,7 @@ longterm_lock_znode(
 	znode * node,
 	/* {ZNODE_READ_LOCK, ZNODE_WRITE_LOCK}; */
 	znode_lock_mode mode,
-	/* {0, -EINVAL, -EDEADLK}, see return codes description. */
+	/* {0, -EINVAL, -E_DEADLOCK}, see return codes description. */
 	znode_lock_request request)
 {
 
@@ -885,7 +885,7 @@ longterm_lock_znode(
 	for (;;) {
 		ADDSTAT(node, lock_iteration);
 
-		/* Check the lock's availability: if it is unavaiable we get EAGAIN, 0
+		/* Check the lock's availability: if it is unavaiable we get E_REPEAT, 0
 		   indicates "can_lock", otherwise the node is invalid.  */
 		ret = can_lock_object(owner);
 
@@ -897,7 +897,7 @@ longterm_lock_znode(
 			break;
 		}
 
-		if (unlikely(ret == -EAGAIN && non_blocking)) {
+		if (unlikely(ret == -E_REPEAT && non_blocking)) {
 			/* either locking of @node by the current thread will
 			 * lead to the deadlock, or lock modes are
 			 * incompatible. */
@@ -905,7 +905,7 @@ longterm_lock_znode(
 			break;
 		}
 
-		assert("nikita-1844", (ret == 0) || ((ret == -EAGAIN) && !non_blocking));
+		assert("nikita-1844", (ret == 0) || ((ret == -E_REPEAT) && !non_blocking));
 		/* If we can get the lock... Try to capture first before
 		   taking the lock.*/
 
@@ -999,7 +999,7 @@ longterm_lock_znode(
 
 		/* This time, a return of (ret == 0) means we can lock, so we
 		   should break out of the loop. */
-		if (likely(ret != -EAGAIN || non_blocking)) {
+		if (likely(ret != -E_REPEAT || non_blocking)) {
 			ADDSTAT(node, lock_can_lock);
 			break;
 		}
@@ -1221,7 +1221,7 @@ copy_lh(lock_handle * new, lock_handle * old)
 	move_lh_internal(new, old, /*unlink_old */ 0);
 }
 
-/* after getting -EDEADLK we unlock znodes until this function returns false */
+/* after getting -E_DEADLOCK we unlock znodes until this function returns false */
 int
 check_deadlock(void)
 {
@@ -1259,11 +1259,11 @@ prepare_to_sleep(lock_stack * owner)
 	}
 	*/
 
-	/* We return -EDEADLK if one or more "give me the lock" messages are
+	/* We return -E_DEADLOCK if one or more "give me the lock" messages are
 	 * counted in nr_signaled */
 	if (unlikely(atomic_read(&owner->nr_signaled) != 0)) {
 		assert("zam-959", !owner->curpri);
-		return RETERR(-EDEADLK);
+		return RETERR(-E_DEADLOCK);
 	}
 	return 0;
 }

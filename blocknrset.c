@@ -146,7 +146,7 @@ bse_put_pair(blocknr_set_entry * bse, const reiser4_block_nr * a, const reiser4_
    the current blocknr_set_entry.  If new_bsep points to a non-NULL
    blocknr_set_entry then it will be added to the blocknr_set and new_bsep
    will be set to NULL.  If new_bsep contains NULL then the atom lock will be
-   released and a new bse will be allocated in new_bsep.  EAGAIN will be
+   released and a new bse will be allocated in new_bsep.  E_REPEAT will be
    returned with the atom unlocked for the operation to be tried again.  If
    the operation succeeds, 0 is returned.  If new_bsep is non-NULL and not
    used during the call, it will be freed automatically. */
@@ -168,7 +168,7 @@ blocknr_set_add(txn_atom * atom,
 		if (*new_bsep == NULL) {
 			UNLOCK_ATOM(atom);
 			*new_bsep = bse_alloc();
-			return (*new_bsep != NULL) ? -EAGAIN : RETERR(-ENOMEM);
+			return (*new_bsep != NULL) ? -E_REPEAT : RETERR(-ENOMEM);
 		}
 
 		/* Put it on the head of the list. */

@@ -409,7 +409,7 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 		if (result == 0)\
 			check_sd_coord(&coord, &key);\
 	} else\
-		result = -EAGAIN;\
+		result = -E_REPEAT;\
 	PROF_END(seal_validate);\
 }
 
@@ -454,7 +454,7 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 		if (result == 0)
 			check_sd_coord(&coord, &key);
 	} else
-		result = -EAGAIN;
+		result = -E_REPEAT;
 
 	if (result != 0) {
 		coord_init_zero(&coord);

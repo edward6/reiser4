@@ -938,7 +938,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 			atom = get_current_atom_locked();
 			assert("zam-536", !blocknr_is_fake(jnode_get_block(cur)));
 			ret = blocknr_set_add_pair(atom, &atom->wandered_map, &new_bsep, jnode_get_block(cur), &block);
-		} while (ret == -EAGAIN);
+		} while (ret == -E_REPEAT);
 
 		if (ret) {
 			/* deallocate blocks which were not added to wandered
@@ -1505,7 +1505,7 @@ replay_oldest_transaction(struct super_block *s)
 
 	if (ret)
 		return ret;
-	return -EAGAIN;
+	return -E_REPEAT;
 }
 
 /* The reiser4 journal current implementation was optimized to not to capture
@@ -1609,7 +1609,7 @@ reiser4_journal_replay(struct super_block *s)
 	jrelse(jh);
 
 	/* replay committed transactions */
-	while ((ret = replay_oldest_transaction(s)) == -EAGAIN)
+	while ((ret = replay_oldest_transaction(s)) == -E_REPEAT)
 		nr_tx_replayed++;
 
 	ON_TRACE(TRACE_REPLAY, "%d transactions replayed ret = %d", nr_tx_replayed, ret);
