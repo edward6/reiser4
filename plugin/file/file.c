@@ -1760,7 +1760,7 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 		/* define more precisely read size now when filesize can not change */
 		if (*off >= inode->i_size) {
 			/* position to read from is past the end of file */
-			get_nonexclusive_access(uf_info);
+			drop_nonexclusive_access(uf_info);
 			break;
 		}
 		if (*off + left > inode->i_size)
