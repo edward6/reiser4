@@ -630,6 +630,12 @@ static inline void jnode_set_level (jnode      *node,
 	node->level = level;
 }
 
+/* Get the index of a block. */
+static inline unsigned long jnode_get_index (jnode *node)
+{
+	return node->pg->index;
+}
+
 /* returns true if node is formatted, i.e, it's not a znode */
 static inline int jnode_is_unformatted( const jnode *node)
 {

@@ -21,9 +21,6 @@ typedef enum {
 	LAST_ITEM_IT
 } reiser4_item_plugin_id;
 
-//#define item_type_is_internal( coord ) \
-//( item_plugin_id_by_coord( coord ) == NODE_POINTER_IT )
-
 typedef struct item_plugin {
 	/* in reiser4 key doesn't contain full item type only several bits of
 	   it. So after doing coord_by_key() we need to check that we really

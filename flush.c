@@ -48,15 +48,20 @@ static int           flush_lock_greatest_dirty_ancestor (jnode                *s
 							 reiser4_blocknr_hint *preceder);
 
 static int           squalloc_parent_first              (jnode *gda, reiser4_blocknr_hint *preceder);
+static int           squalloc_children                  (znode *node, reiser4_blocknr_hint *preceder);
+/*static*/ int       squalloc_right_neighbor            (znode *left, znode *right, reiser4_blocknr_hint *preceder);
+static int           squeeze_leaves                     (znode *right, znode *left);
+static int           squalloc_twig                      (znode *left, znode *right, reiser4_blocknr_hint *preceder);
+static int           squalloc_twig_cut_copied           (tree_coord * to, reiser4_key * to_key);
+static int           shift_one_internal_unit            (znode *left, znode *right);
 
 static int           jnode_lock_parent_coord      (jnode *node,
 						   tree_coord *coord,
 						   reiser4_lock_handle *parent_lh,
 						   znode_lock_mode mode);
 static jnode*        jnode_get_neighbor_in_memory (jnode *node, unsigned long node_index);
-static unsigned long jnode_get_index              (jnode *node);
 static int           jnode_is_allocated           (jnode *node);
-static int           jnode_allocate               (jnode *node);
+static int           jnode_allocate               (jnode *node, reiser4_blocknr_hint *preceder);
 
 #define FLUSH_WORKS 1
 
@@ -334,307 +339,22 @@ static int flush_preceder_hint (jnode *gda,
  * SQUEEZE AND ALLOCATE
  ********************************************************************************/
 
-/* Called on a non-leaf-level znode to process its children in the
- * squalloc traversal.  For each extent or internal item in this
- * node, either allocate the extent or make a squalloc_parent_first
- * call on the child.
+/* Squeeze and allocate, parent first -- This is initially called on the
+ * greatest dirty ancestor of a subtree to flush, then it recurses downward
+ * over that subtree.
+ *
+ * If the node is not dirty or is unformatted, halt recursion.  An unformatted
+ * node will only be reached if its parent is clean (i.e, it was its own
+ * greatest dirty ancestor).
+ *
+ * Then, if the node is still unallocated: (it may have already been processed,
+ * FIXME: should we halt recursion, then?), allocate it.
+ *
+ * Once the down-recursive case has been applied, see if the right neighbor is
+ * dirty and if so, attempt to squeeze it into this
+ *
+ *
  */
-static int squalloc_children (znode *node, reiser4_blocknr_hint *preceder)
-{
-	int ret;
-	tree_coord crd;
-
-	coord_first_unit (& crd, node);
-
-	/* Assert the pre-condition for the following do-loop, essentially
-	 * stating that the node is not empty. */
-	assert ("jmacd-2000", ! coord_after_last (& crd));
-
-	do {
-		item_plugin *item = item_plugin_by_coord (& crd);
-
-		switch (item->item_plugin_id) {
-		case EXTENT_POINTER_IT:
-
-			if ((ret = allocate_extent_item_in_place (&crd, preceder))) {
-				return ret;
-			}
-			break;
-
-		case NODE_POINTER_IT: {
-
-			znode *child = child_znode (& crd, 1);
-
-			if (IS_ERR (child)) { return PTR_ERR (child); }
-
-			if (! znode_is_dirty (child)) { continue; }
-
-			if ((ret = squalloc_parent_first (ZJNODE (child), preceder))) {
-				return ret;
-			}
-			break;
-		}
-		default:
-			warning ("jmacd-2001", "Unexpected item type above leaf level");
-			print_znode ("node", node);
-			return -EIO;
-		}
-
-	} while (! coord_next_unit (& crd));
-
-	return 0;
-}
-
-/*
- * @left and @right are formatted neighboring nodes on leaf level. Shift as
- * much as possible from @right to @left using the memcpy-optimized
- * shift_everything_left.
- */
-static int squeeze_leaves (znode * right, znode * left)
-{
-	int ret;
-	carry_pool pool;
-	carry_level todo;
-
-	init_carry_pool (& pool);
-	init_carry_level (& todo, & pool);
-	
-	ret = shift_everything_left (right, left, & todo);
-
-	if (ret >= 0) {
-		/*
-		 * carry is called to update delimiting key or to remove empty node
-		 */
-		ret = carry (& todo, NULL /* previous level */);
-	}
-	
-	done_carry_pool (& pool);
-
-	if (ret < 0) {
-		return ret;
-	}
-
-	return node_is_empty (right) ? SQUEEZE_SOURCE_EMPTY : SQUEEZE_TARGET_FULL;
-}
-
-/*
- * Shift first unit of first item if it is an internal one.  Return
- * SQUEEZE_DONE if it fails to shift an item, otherwise return SUBTREE_MOVED.
- */
-static int shift_one_internal_unit (znode * left, znode * right)
-{
-	int ret;
-	carry_pool pool;
-	carry_level todo;
-	tree_coord coord;
-	int size, moved;
-
-
-	coord_first_unit (&coord, right);
-
-	assert ("jmacd-2007", item_is_internal (& coord));
-
-	init_carry_pool (&pool);
-	init_carry_level (&todo, &pool);
-
-	size = item_length_by_coord (&coord);
-	ret  = node_plugin_by_node (left)->shift (&coord, left, SHIFT_LEFT,
-						  1/* delete @right if it becomes empty*/,
-						  0/* move coord */,
-						  &todo);
-
-	/*
-	 * If shift returns positive, then we shifted the item.
-	 */
-	assert ("vs-423", ret <= 0 || size == ret);
-	moved = (ret > 0);
-
-	if (ret > 0) {
-		/*
-		 * carry is called to update delimiting key or to remove empty node,
-		 * unless shift failed.
-		 */
-		ret = carry (&todo, NULL /* previous level */);
-	}
-
-	done_carry_pool (&pool);
-
-	if (ret != 0) {
-		return ret;
-	}
-	
-	return moved ? SUBTREE_MOVED : SQUEEZE_TARGET_FULL;
-}
-
-/*
- * cut node to->node from the beginning up to coord @to
- */
-static int cut_copied (tree_coord * to, reiser4_key * to_key)
-{
-	tree_coord from;
-	reiser4_key from_key;
-
-	coord_first_unit (&from, to->node);
-	item_key_by_coord (&from, &from_key);
-
-	/*
-	 * FIXME-VS: not sure yet what to do here [if cut_node fails]
-	 * impossible ("vs-434", "carry should have done its job");
-	 *
-	 * FIXME_JMACD: What's the problem?  (Same with shift_one_internal_unit.)
-	 */
-	return cut_node (&from, to, &from_key, to_key, NULL /* smallest_removed */, DELETE_DONT_COMPACT);
-}
-
-/*
- * copy as much of the leading extents from the right to left, returning
- * SQUEEZE_DONE when no more can be shifted.  If the next item is an internal
- * item it calls shift_one_internal_unit and may then return SUBTREE_MOVED.
- */
-static int squalloc_twig (znode    *left,
-			  znode    *right,
-			  reiser4_blocknr_hint *preceder)
-{
-	int ret;
-	tree_coord coord;
-	reiser4_key stop_key;
-
-
-	assert ("jmacd-2008", ! node_is_empty (right));
-
-	coord_first_unit (&coord, right);
-
-	/*
-	 * if after while loop stop_key is still equal to *min_key - nothing
-	 * were copied, therefore there will be nothing to cut
-	 */
-	stop_key = *min_key ();
-	while (item_is_extent (&coord)) {
-
-		if ((ret = allocate_and_copy_extent (left, &coord, preceder, &stop_key)) < 0) {
-			return ret;
-		}
-
-		if (ret == SQUEEZE_TARGET_FULL) {
-			/*
-			 * could not complete with current extent item
-			 */
-			break;
-		}
-
-		assert ("jmacd-2009", ret == SQUEEZE_CONTINUE);
-
-		if (! coord_next_item (&coord)) {
-			ret = SQUEEZE_SOURCE_EMPTY;
-			break;
-		}
-	}
-
-	if (keycmp (&stop_key, min_key ()) != EQUAL_TO) {
-		int cut_ret;
-		/*
-		 * something was copied
-		 */
-		/*
-		 * @coord is set to first unit which does not have to be cut or
-		 * after last item in the node.  If we are positioned at the
-		 * coord of a * unit, it means the allocate_and_copy_extent
-		 * processing stops in the * middle of an extent item, the last
-		 * unit of which was not copied.  * Cut everything before that
-		 * point.
-		 */
-		if (coord_of_unit (& coord)) {
-			coord_prev_unit (& coord);
-		}
-		
-		if ((cut_ret = cut_copied (&coord, &stop_key))) {
-			return cut_ret;
-		}
-	}
-
-	if (node_is_empty (right)) {
-		/*
-		 * whole right fitted into left
-		 */
-		assert ("vs-464", ret == SQUEEZE_SOURCE_EMPTY);
-		return ret;
-	}
-
-	coord_first_unit (&coord, right);
-
-	if (! item_is_internal (&coord)) {
-		/*
-		 * there is no space in left anymore
-		 */
-		assert ("vs-433", item_is_extent (&coord));
-		assert ("vs-465", ret == SQUEEZE_TARGET_FULL);
-		return ret;
-	}
-
-	return shift_one_internal_unit (left, right);
-}
-
-
-/*
- * shift items from @right to @left. Unallocated extents of extent items are
- * allocated first and then moved. When unit of internal item is moved -
- * squeezing stops and SUBTREE_MOVED is returned. When all content of @rigth is
- * squeezed - SQUEEZE_SOURCE_EMPTY is returned. If nothing can be moved into
- * @left anymore - SQUEEZE_TARGET_FULL is returned
- */
-/*static*/ int squalloc_right_neighbor (znode    *left,
-					znode    *right,
-					reiser4_blocknr_hint *preceder)
-{
-	int ret;
-
-	assert ("vs-425", !node_is_empty (left));
-
-	if (node_is_empty (right)) {
-		/*
-		 * this is possible
-		 */
-		return SQUEEZE_SOURCE_EMPTY;
-	}
-
-	switch (znode_get_level (left)) {
-	case LEAF_LEVEL:
-		/*
-		 * shift as much as possible
-		 */
-		ret = squeeze_leaves (left, right);
-		assert ("jmacd-2010", ret < 0 || ret == SQUEEZE_SOURCE_EMPTY || ret == SQUEEZE_TARGET_FULL);
-		break;
-
-	case TWIG_LEVEL:
-		/*
-		 * shift with extent allocating until either internal item
-		 * encountered or everything is shifted or no free space left
-		 * in @left
-		 */
-		ret = squalloc_twig (left, right, preceder);
-		assert ("jmacd-2011", ret < 0 || ret == SQUEEZE_SOURCE_EMPTY || ret == SQUEEZE_TARGET_FULL);
-		break;
-
-	default:
-		/*
-		 * all other levels contain items of internal type only
-		 */
-		ret = shift_one_internal_unit (left, right);
-		assert ("jmacd-2012", ret < 0 || ret == SQUEEZE_SOURCE_EMPTY || ret == SQUEEZE_TARGET_FULL);
-		break;
-
-	}
-
-	if (ret == SQUEEZE_SOURCE_EMPTY) {
-		reiser4_stat_flush_add (squeezed_completely);
-	}
-
-	return ret;
-}
-
-/* Starting from the greatest dirty ancestor of a subtree to flush, allocate
- * self then recursively squeeze and allocate the children. */
 static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
 {
 	int ret, goright;
@@ -664,9 +384,9 @@ static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
         if (! jnode_is_allocated (node)) {
 
 		/* Allocate it. */
-                jnode_allocate (node);
+                jnode_allocate (node, preceder);
 
-                /* Recursive case: */
+                /* Recursive case: handles all children. */
                 if ((jnode_get_level (node) > LEAF_LEVEL) &&
 		    (ret = squalloc_children (JZNODE (node), preceder))) {
 			return ret;
@@ -710,11 +430,12 @@ static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
 
 	/* FIXME: Check ZNODE_HEARD_BANSHEE? */
 
+	/* Squeeze from the right until an internal node is shifted.  At that
+	 * point, we recurse downwards and squeeze its children.  When the
+	 * recursive case is finished, continue squeezing at this level. */
 	while ((squeeze = squalloc_right_neighbor (JZNODE (node), right_lock.node, preceder)) == SUBTREE_MOVED) {
-		/*
-		 * unit of internal item is shifted - allocated and squeeze that
-		 * subtree which roots from last unit in node
-		 */
+		/* Unit of internal item has been shifted, now allocate and
+		 * squeeze that subtree (now the last item of this node). */
 		tree_coord crd;
 		znode *child;
 		
@@ -726,24 +447,27 @@ static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
 		child = child_znode (& crd, 1/*set delim key*/);
 		if (IS_ERR (child)) { return PTR_ERR (child); }
 
+		/* Skipping this node if it is dirty means that we won't
+		 * squeeze and allocate any of its dirty grand-children.  Oh
+		 * well! */
 		if (! znode_is_dirty (child)) { continue; }
 
+		/* Recursive case: single formatted child. */
 		if ((ret = squalloc_parent_first (ZJNODE (child), preceder))) {
 			return ret;
 		}
 	}
 
 	if (squeeze == SQUEEZE_SOURCE_EMPTY) {
-		/*
-		 * right neighbor was squeezes completely into @node, try to
-		 * squeeze with new right neighbor
-		 */
+		/* Right neighbor was squeezed completely into @node, try to
+		 * squeeze with the new right neighbor.  Release the
+		 * right_lock first. */
+		assert ("vs-444", node_is_empty (right_lock.node));
+		done_lh (& right_lock);
 		goto again;
 	}
-	/*
-	 * error or nothing else of right_lock.node can be shifted to @node
-	 */
-	assert ("vs-444", node_is_empty (right_lock.node));
+
+	/* Either an error occured or SQUEEZE_TARGET_FULL */ 
 	assert ("vs-443", squeeze == SQUEEZE_TARGET_FULL || squeeze < 0);
 	ret = ((squeeze < 0) ? squeeze : 0);
 
@@ -752,12 +476,298 @@ static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
 	return ret;
 }
 
+/* Called on a non-leaf-level znode to process its current children in the
+ * squalloc traversal.  This @node was allocated immediately prior to this
+ * call.
+ *
+ * For extent children: allocate extents "in place", meaning to expand the
+ * current record within the parent node.
+ *
+ * For node children: call squalloc_parent_first (recursively).
+ */
+static int squalloc_children (znode *node, reiser4_blocknr_hint *preceder)
+{
+	int ret;
+	tree_coord crd;
+
+	coord_first_unit (& crd, node);
+
+	/* Assert the pre-condition for the following do-loop, essentially
+	 * stating that the node is not empty. */
+	assert ("jmacd-2000", ! coord_after_last (& crd));
+
+	/* Do ... while not the last unit. */
+	do {
+		item_plugin *item = item_plugin_by_coord (& crd);
+
+		switch (item->item_plugin_id) {
+		case EXTENT_POINTER_IT:
+
+			if ((ret = allocate_extent_item_in_place (&crd, preceder))) {
+				return ret;
+			}
+			break;
+
+		case NODE_POINTER_IT: {
+
+			/* Get the child of this node pointer, check for
+			 * error, skip if it is not dirty. */
+			znode *child = child_znode (& crd, 1);
+
+			if (IS_ERR (child)) { return PTR_ERR (child); }
+
+			if (! znode_is_dirty (child)) { continue; }
+
+			/* Recursive call. */
+			if ((ret = squalloc_parent_first (ZJNODE (child), preceder))) {
+				return ret;
+			}
+			break;
+		}
+		default:
+			warning ("jmacd-2001", "Unexpected item type above leaf level");
+			print_znode ("node", node);
+			return -EIO;
+		}
+
+	} while (! coord_next_unit (& crd));
+
+	return 0;
+}
+
+
+/* Squeeze and allocate the right neighbor.  This is called after @left and
+ * its current children have been squeezed and allocated already.  This
+ * proceedure's job is to squeeze and items from @right to @left.
+ *
+ * If at the leaf level, use the squeeze_everything_left memcpy-optimized
+ * version of shifting (squeeze_leaves).
+ *
+ * If at the twig level, extents are allocated as they are shifted from @right
+ * to @left (squalloc_twig).
+ *
+ * At any other level, shift one internal item and return to the caller
+ * (squalloc_parent_first) so that the shifted-subtree can be processed in
+ * parent-first order.
+ *
+ * When unit of internal item is moved, squeezing stops and SUBTREE_MOVED is
+ * returned.  When all content of @right is squeezed, SQUEEZE_SOURCE_EMPTY is
+ * returned.  If nothing can be moved into @left anymore, SQUEEZE_TARGET_FULL
+ * is returned.
+ */
+/*static*/ int squalloc_right_neighbor (znode    *left,
+					znode    *right,
+					reiser4_blocknr_hint *preceder)
+{
+	int ret;
+
+	assert ("vs-425", !node_is_empty (left));
+
+	if (node_is_empty (right)) {
+		/* This is possible.  FIXME: VS: Explain? */
+		return SQUEEZE_SOURCE_EMPTY;
+	}
+
+	switch (znode_get_level (left)) {
+	case LEAF_LEVEL:
+		/* Use the memcpy-optimzied shift. */
+		ret = squeeze_leaves (left, right);
+		break;
+
+	case TWIG_LEVEL:
+		/* Shift with extent allocating until either an internal item
+		 * is encountered or everything is shifted or no free space
+		 * left in @left */
+		ret = squalloc_twig (left, right, preceder);
+		break;
+
+	default:
+		/* All other levels contain items of internal type only. */
+		ret = shift_one_internal_unit (left, right);
+		break;
+
+	}
+
+	assert ("jmacd-2011", ret < 0 || ret == SQUEEZE_SOURCE_EMPTY || ret == SQUEEZE_TARGET_FULL  || ret == SUBTREE_MOVED);
+	
+	if (ret == SQUEEZE_SOURCE_EMPTY) {
+		reiser4_stat_flush_add (squeezed_completely);
+	}
+
+	return ret;
+}
+
+/* Shift as much as possible from @right to @left using the memcpy-optimized
+ * shift_everything_left.  @left and @right are formatted neighboring nodes on
+ * leaf level. */
+static int squeeze_leaves (znode * right, znode * left)
+{
+	int ret;
+	carry_pool pool;
+	carry_level todo;
+
+	init_carry_pool (& pool);
+	init_carry_level (& todo, & pool);
+	
+	ret = shift_everything_left (right, left, & todo);
+
+	if (ret >= 0) {
+		/* Carry is called to update delimiting key or to remove empty
+		 * node. */
+		ret = carry (& todo, NULL /* previous level */);
+	}
+	
+	done_carry_pool (& pool);
+
+	if (ret < 0) {
+		return ret;
+	}
+
+	return node_is_empty (right) ? SQUEEZE_SOURCE_EMPTY : SQUEEZE_TARGET_FULL;
+}
+
+/* Copy as much of the leading extents from @right to @left, allocating
+ * unallocated extents as they are copied.  Returns SQUEEZE_TARGET_FILL or
+ * SQUEEZE_SOURCE_EMPTY when no more can be shifted.  If the next item is an
+ * internal item it calls shift_one_internal_unit and may then return
+ * SUBTREE_MOVED. */
+static int squalloc_twig (znode    *left,
+			  znode    *right,
+			  reiser4_blocknr_hint *preceder)
+{
+	int ret;
+	tree_coord coord;
+	reiser4_key stop_key;
+
+	assert ("jmacd-2008", ! node_is_empty (right));
+
+	coord_first_unit (&coord, right);
+
+	/* Initialize stop_key to detect if any extents are copied.  After
+	 * this loop loop if stop_key is still equal to *min_key then nothing
+	 * was copied (and there is nothing to cut). */
+	stop_key = *min_key ();
+
+	while (item_is_extent (&coord)) {
+
+		if ((ret = allocate_and_copy_extent (left, &coord, preceder, &stop_key)) < 0) {
+			return ret;
+		}
+
+		if (ret == SQUEEZE_TARGET_FULL) {
+			/* Could not complete with current extent item. */
+			break;
+		}
+
+		assert ("jmacd-2009", ret == SQUEEZE_CONTINUE);
+
+		if (! coord_next_item (&coord)) {
+			ret = SQUEEZE_SOURCE_EMPTY;
+			break;
+		}
+	}
+
+	if (keycmp (&stop_key, min_key ()) != EQUAL_TO) {
+		int cut_ret;
+
+		/* @coord is set to the first unit that does not have to be
+		 * cut or after last item in the node.  If we are positioned
+		 * at the coord of a unit, it means the extent processing
+		 * stoped in the middle of an extent item, the last unit of
+		 * which was not copied.  Cut everything before that point. */
+		if (coord_of_unit (& coord)) {
+			coord_prev_unit (& coord);
+		}
+
+		/* Helper function to do the cutting. */
+		if ((cut_ret = squalloc_twig_cut_copied (&coord, &stop_key))) {
+			return cut_ret;
+		}
+	}
+
+	if (node_is_empty (right)) {
+		/* The whole right node was copied into @left. */
+		assert ("vs-464", ret == SQUEEZE_SOURCE_EMPTY);
+		return ret;
+	}
+
+	coord_first_unit (&coord, right);
+
+	if (! item_is_internal (&coord)) {
+		/* There is no space in @left anymore. */
+		assert ("vs-433", item_is_extent (&coord));
+		assert ("vs-465", ret == SQUEEZE_TARGET_FULL);
+		return ret;
+	}
+
+	return shift_one_internal_unit (left, right);
+}
+
+/* Squalloc_twig helper function, cut a range of extent items from
+ * cut node to->node from the beginning up to coord @to. */
+static int squalloc_twig_cut_copied (tree_coord * to, reiser4_key * to_key)
+{
+	tree_coord from;
+	reiser4_key from_key;
+
+	coord_first_unit (&from, to->node);
+	item_key_by_coord (&from, &from_key);
+
+	return cut_node (&from, to, &from_key, to_key, NULL /* smallest_removed */, DELETE_DONT_COMPACT);
+}
+
+/* Shift first unit of first item if it is an internal one.  Return
+ * SQUEEZE_TARGET_FULL if it fails to shift an item, otherwise return
+ * SUBTREE_MOVED.
+ */
+static int shift_one_internal_unit (znode * left, znode * right)
+{
+	int ret;
+	carry_pool pool;
+	carry_level todo;
+	tree_coord coord;
+	int size, moved;
+
+
+	coord_first_unit (&coord, right);
+
+	assert ("jmacd-2007", item_is_internal (& coord));
+
+	init_carry_pool (&pool);
+	init_carry_level (&todo, &pool);
+
+	size = item_length_by_coord (&coord);
+	ret  = node_plugin_by_node (left)->shift (&coord, left, SHIFT_LEFT,
+						  1/* delete @right if it becomes empty*/,
+						  0/* move coord */,
+						  &todo);
+
+	/* If shift returns positive, then we shifted the item. */
+	assert ("vs-423", ret <= 0 || size == ret);
+	moved = (ret > 0);
+
+	if (ret > 0) {
+		/* Carry is called to update delimiting key or to remove empty
+		 * node. */
+		ret = carry (&todo, NULL /* previous level */);
+	}
+
+	done_carry_pool (&pool);
+
+	if (ret != 0) {
+		/* Shift or carry operation failed. */
+		return ret;
+	}
+	
+	return moved ? SUBTREE_MOVED : SQUEEZE_TARGET_FULL;
+}
+
 /********************************************************************************
  * JNODE INTERFACE
  ********************************************************************************/
 
-/* Gets the sibling of an unformatted jnode using its index, only if it is in memory, and
- * reference it. */
+/* Gets the sibling of an unformatted jnode using its index, only if it is in
+ * memory, and reference it. */
 static jnode* jnode_get_neighbor_in_memory (jnode *node, unsigned long node_index)
 {
 	struct page *pg;
@@ -773,27 +783,22 @@ static jnode* jnode_get_neighbor_in_memory (jnode *node, unsigned long node_inde
 	return jnode_of_page (pg);
 }
 
-/* Get the index of a block. */
-static unsigned long jnode_get_index (jnode *node)
-{
-	return node->pg->index;
-}
-
 /* return true if "node" is allocated */
 static int jnode_is_allocated (jnode *node UNUSED_ARG)
 {
-	/* FIXME_JMACD: */
+	/* FIXME_JMACD: Zam: here's the flush/block-alloc interface, how to proceed? */
 	return 0;
 }
 
-static int jnode_allocate (jnode *node UNUSED_ARG)
+static int jnode_allocate (jnode *node UNUSED_ARG, reiser4_blocknr_hint *preceder UNUSED_ARG)
 {
-	/* FIXME_JMACD: */
+	/* FIXME_JMACD: Zam: here's the flush/block-alloc interface, how to proceed? */
 	return -EINVAL;
 }
 
-/* Lock a node (if formatted) and then get its parent of a jnode locked, get
- * the coordinate. */
+/* Lock a node (if formatted) and then get its parent locked, set the child's
+ * coordinate in the parent.  If the child is the root node, the above_root
+ * znode is returned but the coord is not set. */
 static int
 jnode_lock_parent_coord (jnode *node,
 			 tree_coord *coord,
@@ -809,7 +814,6 @@ jnode_lock_parent_coord (jnode *node,
 		/* Unformatted node case: Generate a key for the extent entry,
 		 * search in the tree using coord_by_key, which handles
 		 * locking for us. */
-
 		struct inode *ino = node->pg->mapping->host;
 		reiser4_key   key;
 		file_plugin  *fplug = get_file_plugin (ino);
@@ -831,8 +835,10 @@ jnode_lock_parent_coord (jnode *node,
 			return ret;
 		}
 
-		/* Make the child's position "hint" up-to-date. */
-		if ((ret = find_child_ptr (parent_lh->node, JZNODE (node), coord))) {
+		/* Make the child's position "hint" up-to-date.  (Unless above
+		 * root, which caller must check.) */
+		if (! znode_above_root (parent_lh->node) &&
+		    (ret = find_child_ptr (parent_lh->node, JZNODE (node), coord))) {
 			return ret;
 		}
 	}
@@ -910,7 +916,6 @@ static int flush_scan_left_using_parent (flush_scan *scan)
 	init_lh    (& parent_lh);
 	init_lh    (& left_parent_lh);
 
-
 	/* Lock the node itself, (FIXME:) which is necessary for getting its
 	 * parent. FIXME: Not sure LOPRI is correct. */
 	if (jnode_is_formatted (scan->node) &&
@@ -919,6 +924,13 @@ static int flush_scan_left_using_parent (flush_scan *scan)
 	}
 
 	if ((ret = jnode_lock_parent_coord (scan->node, & coord, & parent_lh, ZNODE_READ_LOCK))) {
+		goto done;
+	}
+
+	/* Check root case. */
+	if (znode_above_root (parent_lh.node)) {
+		scan->stop = 1;
+		ret = 0;
 		goto done;
 	}
 
