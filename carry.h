@@ -143,7 +143,7 @@ typedef enum {
 /* data supplied to COP_{INSERT|PASTE} by callers */
 typedef struct carry_insert_data {
 	/** position where new item is to be inserted */
-	tree_coord          *coord;
+	new_coord          *coord;
 	/** new item description */
 	reiser4_item_data   *data;
 	/** key of new item */
@@ -152,8 +152,8 @@ typedef struct carry_insert_data {
 
 /* data supplied to COP_CUT by callers */
 typedef struct carry_cut_data {
-	tree_coord        *from;
-	tree_coord        *to;
+	new_coord        *from;
+	new_coord        *to;
 	const reiser4_key *from_key;
 	const reiser4_key *to_key;
 	reiser4_key       *smallest_removed;
