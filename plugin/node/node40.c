@@ -671,7 +671,8 @@ check_node40(const znode * node /* node to check */ ,
 
 		coord_init_last_unit(&coord, node);
 		iplug = item_plugin_by_coord(&coord);
-		if (iplug->s.file.append_key != NULL) {
+		if ((item_is_extent(&coord) || item_is_tail(&coord)) && 
+		    iplug->s.file.append_key != NULL) {
 			reiser4_key mkey;
 
 			iplug->s.file.append_key(&coord, &mkey);
