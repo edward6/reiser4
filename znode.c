@@ -1260,9 +1260,9 @@ info_znode(const char *prefix /* prefix to print */ ,
 	if (!jnode_is_znode(ZJNODE(node)))
 		return;
 
-	printk("c_count: %i, readers: %i, items: %i, zgen: %lu\n", 
+	printk("c_count: %i, readers: %i, items: %i\n", 
 	       atomic_read(&node->c_count), node->lock.nr_readers, 
-	       node->nr_items, node->zgen);
+	       node->nr_items);
 }
 
 void
