@@ -1,40 +1,17 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
-/* NIKITA-FIXME-HANS: digest plugins do what?  why no comments */
-
-/* crypto-hash functions */
+/* reiser4 digest transform plugin (is used by cryptcompress object plugin) */
 
 #include "../debug.h"
 #include "plugin_header.h"
 #include "plugin.h"
+#include "cryptcompress.h"
 
 #include <linux/types.h>
 
-#define NONE_BLOCK_SIZE 64
-#define NONE_DIGEST_SIZE 16
+#define NONE_DIGEST_SIZE 0
 
-static int alloc_none(void * ctx)
-{
-	return 0;
-}
-
-static void free_none(void *ctx)
-{
-}
-
-static void init_none(void *ctx)
-{
-}
-
-static void update_none(void *ctx, const __u8 *data, unsigned int len)
-{	
-}
-
-static void final_none(void *ctx, __u8 *out)
-{
-	memset(out, 0, NONE_DIGEST_SIZE);
-}
-
+REGISTER_NONE_ALG(digest, DIGEST)
 
 /* digest plugins */
 digest_plugin digest_plugins[LAST_DIGEST_ID] = {
@@ -47,12 +24,9 @@ digest_plugin digest_plugins[LAST_DIGEST_ID] = {
 			.desc = "trivial digest",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.blksize = NONE_BLOCK_SIZE,
-		.digestsize = NONE_DIGEST_SIZE,
-	        .alloc = alloc_none,
-	        .free = free_none,
-	        .init = init_none,
-	        .update = update_none,
-	        .final = final_none
+		.dsize = NONE_DIGEST_SIZE,
+		.alloc = alloc_none_digest,
+		.free = free_none_digest,
 	}
 };
+
