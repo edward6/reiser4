@@ -1317,8 +1317,9 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, __
 		}
 
 #if REISER4_DEBUG
-		/* all jnodes of this extent unit must belong to
-		   one atom. Check that. */
+		/* All jnodes of this extent unit must belong to one atom
+		   because CBK() does <write locking> / <atom fusion> at twig
+		   level in file write.  Here we check that. */
 		if (check)
 			assert("vs-936", jnodes_of_one_atom(check, j));
 		else
