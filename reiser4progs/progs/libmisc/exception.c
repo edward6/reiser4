@@ -36,7 +36,6 @@ static aal_list_t *options = NULL;
 #endif /* HAVE_LIBREADLINE */
 
 #include <pty.h>
-#include <aal/aal.h>
 
 /* Gets screen width */
 static uint16_t screen_width(void) {
@@ -224,6 +223,17 @@ exit:
 
 static aal_list_t *list = NULL;
 
+void strup(char *dst, const char *src) {
+    const char *s;
+    int i = 0;
+
+    s = src;
+    while (*s)
+	dst[i++] = toupper(*s++);
+    
+    dst[i] = '\0';
+}
+
 static char *progs_exception_generator(char *text, int state) {
     char *opt;
     char s[80], s1[80];
@@ -238,9 +248,9 @@ static char *progs_exception_generator(char *text, int state) {
 	opt = (char *)list->item;
 	list = list->next;
 
-	aal_strnup(s, opt); aal_strnup(s1, text);
+	strup(s, opt); strup(s1, text);
 	if (!aal_strncmp(s, s1, aal_strlen(s1)))
-	    return aal_strndup(opt);
+	    return aal_strdup(opt);
     }
     
     return NULL;

@@ -167,7 +167,7 @@ char *aal_strsep(char **stringp, const char *delim) {
     return begin;
 }
 
-char *aal_strndup(const char *s, size_t n) {
+char *aal_strdup(const char *s, size_t n) {
     char *str = (char *)aal_calloc(n + 1, 0);
     aal_strncpy(str, s, n);
 
@@ -175,19 +175,6 @@ char *aal_strndup(const char *s, size_t n) {
 }
 
 #endif
-
-void aal_strnup(char *dst, const char *src) {
-    char *s;
-    int i = 0;
-
-    s = src;
-    while (*s) {
-	dst[i++] = toupper(*s);
-	s++;
-    }
-    
-    dst[i] = '\0';
-}
 
 /* Converts string denoted as size into digits */
 

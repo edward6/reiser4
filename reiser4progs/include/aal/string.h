@@ -8,10 +8,14 @@
     Author Yury Umanets.
 */
 
-#include <sys/types.h>
-
 #ifndef STRING_H
 #define STRING_H
+
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
+#include <sys/types.h>
 
 #ifdef ENABLE_COMPACT
 
@@ -31,7 +35,7 @@ extern char *aal_strpbrk(const char *s, const char *accept);
 extern char *aal_strchr(const char *s, int c);
 extern char *aal_strrchr(const char *s, int c);
 extern char *aal_strsep(char **stringp, const char *delim);
-extern char *aal_strndup(const char *s, size_t n);
+extern char *aal_strdup(const char *s, size_t n);
 
 #else
 
@@ -52,9 +56,9 @@ extern char *aal_strndup(const char *s, size_t n);
 #define aal_strchr  strchr
 #define aal_strrchr strrchr
 #define aal_strsep  strsep
-#define aal_strndup strndup
+#define aal_strdup  strdup
 
-#endif
+#endif	/* ENABLE_COMPACT */
 
 extern int aal_utoa(unsigned int d, size_t n, char *a, int base, int flags);
 extern int aal_lutoa(unsigned long int d, size_t n, char *a, int base, int flags);
@@ -63,7 +67,6 @@ extern int aal_llutoa(unsigned long long d, size_t n, char *a, int base, int fla
 extern int aal_stoa(int d, size_t n, char *a, int base, int flags);
 extern int aal_lstoa(long int d, size_t n, char *a, int base, int flags);
 extern int aal_llstoa(long long d, size_t n, char *a, int base, int flags);
-extern void aal_strup(char *dst, const char *src);
 
 #endif
 
