@@ -227,8 +227,10 @@ int sd_len( struct inode *inode /* object being processed */ )
 
 			sdplug = sd_ext_plugin_by_id( bit );
 			assert( "nikita-633", sdplug != NULL );
+			/* no aligment support 
 			result += 
 				round_up( result, sdplug -> alignment ) - result;
+			*/
 			result += sdplug -> save_len( inode );
 		}
 	}
@@ -260,6 +262,7 @@ int sd_save( struct inode *inode /* object being processed */,
 	cputod32( inode -> i_nlink, &sd_base -> nlink );
 	cputod64( ( __u64 ) inode -> i_size, &sd_base -> size );
 
+	*area += sizeof *sd_base;
 	len = 0xffffffffu;
 	for( bit = 0 ; emask != 0 ; ++ bit, emask >>= 1 ) {
 		if( emask & 1 ) {
@@ -267,8 +270,9 @@ int sd_save( struct inode *inode /* object being processed */,
 				sd_ext_plugin *sdplug;
 				sdplug = sd_ext_plugin_by_id( bit );
 				assert( "nikita-636", sdplug != NULL );
+				/* no alignment support yet
 				align( inode, &len, area, 
-				       sdplug -> alignment );
+				       sdplug -> alignment ); */
 				result = sdplug -> save( inode, area );
 				if( result )
 					break;
