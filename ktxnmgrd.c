@@ -151,7 +151,7 @@ ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr)
 		/* attaching first mgr, start daemon */
 		ctx->done = 0;
 		/* kernel_thread never fails. */
-		kernel_thread(ktxnmgrd, ctx, CLONE_VM | CLONE_FS | CLONE_FILES);
+		kernel_thread(ktxnmgrd, ctx, CLONE_KERNEL);
 	}
 
 	spin_lock(&ctx->guard);
