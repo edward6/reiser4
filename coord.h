@@ -60,7 +60,7 @@ struct coord {
 	reiser4_block_nr pos_in_unit;
 	reiser4_block_nr width; /* width of current unit */
 	int nr_units; /* number of units */
-	void *vp;
+	void *body;
 #if 0
 	/* fixme: attempt to decrease cpu usage */
 	unsigned long pos_in_node;
@@ -77,6 +77,7 @@ coord_clear_iplug(coord_t * coord)
 {
 	assert("nikita-2835", coord != NULL);
 	coord->iplugid = INVALID_PLUGID;
+	coord->body    = NULL;
 }
 
 static inline int

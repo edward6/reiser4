@@ -333,7 +333,6 @@ extern int item_is_extent(const coord_t *);
 extern int item_is_tail(const coord_t *);
 extern int item_is_statdata(const coord_t * item);
 
-extern void *item_body_by_coord(const coord_t * coord);
 extern int item_length_by_coord(const coord_t * coord);
 extern item_type_id item_type_by_coord(const coord_t * coord);
 extern item_id item_id_by_coord(const coord_t * coord /* coord to query */ );
@@ -363,6 +362,24 @@ item_is_internal(const coord_t * item)
 {
 	assert("vs-483", coord_is_existing_item(item));
 	return item_type_by_coord(item) == INTERNAL_ITEM_TYPE;
+}
+
+extern void item_body_by_coord_hard(coord_t * coord);
+extern int item_body_is_valid(const coord_t * coord);
+
+/* return pointer to item body */
+static inline void *
+item_body_by_coord(const coord_t * coord /* coord to query */ )
+{
+	assert("nikita-324", coord != NULL);
+	assert("nikita-325", coord->node != NULL);
+	assert("nikita-326", znode_is_loaded(coord->node));
+	trace_stamp(TRACE_TREE);
+
+	if (coord->body == NULL)
+		item_body_by_coord_hard((coord_t *)coord);
+	assert("nikita-3201", item_body_is_valid(coord));
+	return coord->body;
 }
 
 /* __REISER4_ITEM_H__ */

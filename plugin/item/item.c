@@ -20,16 +20,23 @@
 #include "ctail.h"
 
 /* return pointer to item body */
-/* Audited by: green(2002.06.15) */
-void *
-item_body_by_coord(const coord_t * coord /* coord to query */ )
+void
+item_body_by_coord_hard(coord_t * coord /* coord to query */ )
 {
 	assert("nikita-324", coord != NULL);
 	assert("nikita-325", coord->node != NULL);
 	assert("nikita-326", znode_is_loaded(coord->node));
+	assert("nikita-3200", coord->body == NULL);
 	trace_stamp(TRACE_TREE);
 
-	return node_plugin_by_node(coord->node)->item_by_coord(coord);
+	coord->body = node_plugin_by_node(coord->node)->item_by_coord(coord);
+}
+
+int item_body_is_valid(const coord_t * coord)
+{
+	return
+		coord->body == 
+		node_plugin_by_node(coord->node)->item_by_coord(coord);
 }
 
 /* return length of item at @coord */
