@@ -53,6 +53,8 @@
 /*                              End of PORT.H                                 */
 /******************************************************************************/
 
+#define fast_copy(src,dst,len) xmemcpy(dst,src,len)
+
 #endif /* __FS_REISER4_COMPRESS_H__ */
 
 /* Make Linus happy.
