@@ -163,16 +163,26 @@ insert_result insert_by_key( reiser4_tree *tree /* tree to insert new item
 	case CBK_OOM:
 		result = IBK_OOM;
 		break;
-	case CBK_COORD_NOTFOUND:
+	case CBK_COORD_NOTFOUND: {
+		znode *insertion_node;
+
+		assert( "nikita-2017", coord -> node != NULL );
+		insertion_node = coord -> node;
+		result = zload( insertion_node );
+		if( result != 0 )
+			break;
 		/*
 		 * FIXME-VS: temporary fix. The proper one should go to node's
 		 * lookup?
 		 */
 		if( node_is_empty( coord -> node ) )
 			/* this will set coord in empty node properly */
-			ncoord_init_first_unit( coord, coord -> node);
-		result = insert_by_coord( coord, data, key, lh, ra, ira, 0/*flags*/ );
+			ncoord_init_first_unit( coord, coord -> node );
+		result = insert_by_coord( coord, 
+					  data, key, lh, ra, ira, 0/*flags*/ );
+		zrelse( insertion_node );		
 		break;
+	}
 	}
 	return result;
 }
