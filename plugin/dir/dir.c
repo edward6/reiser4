@@ -197,6 +197,7 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 			-- object -> i_nlink;
 			object -> i_ctime = CURRENT_TIME;
 			result = fplug -> write_sd_by_inode( object );
+			break;
 		default:
 			wrong_return_value( "nikita-1478", "uf_type" );
 		}
