@@ -517,6 +517,22 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	return ret;
 }
 
+/* put overwrite set back to atom's clean list */
+static void put_overwrite_set(struct commit_handle * ch)
+{
+	jnode * cur;
+
+	for (cur = capture_list_front(&ch->overwrite_set);
+	     ! capture_list_end(&ch->overwrite_set, cur);
+	     cur = capture_list_next(cur))
+	{
+		jrelse(cur);
+	}
+
+	capture_list_splice(&ch->atom->clean_nodes, &ch->overwrite_set);
+
+}
+
 /* count overwrite set size and place overwrite set on a separate list  */
 static int
 get_overwrite_set(struct commit_handle *ch)
@@ -576,6 +592,9 @@ get_overwrite_set(struct commit_handle *ch)
 
 					spin_unlock_jnode(sj);
 
+					/* jload it as the rest of overwrite set */
+					jload (sj);
+
 					ch->overwrite_set_size++;
 				} else {
 					/* the fake znode was removed from
@@ -597,6 +616,14 @@ get_overwrite_set(struct commit_handle *ch)
 			} else {
 				capture_list_push_back(&ch->overwrite_set, cur);
 				ch->overwrite_set_size++;
+			}
+
+			{       /* un-e-flush it */
+				int ret;
+
+				ret = jload(cur);
+				if (ret) 
+					reiser4_panic("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
 			}
 		}
 
@@ -654,11 +681,6 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 
 		for (i = 0; i < nr_blocks; i++) {
 			struct page *pg;
-
-			/* jload() helps if node was emergency flushed */
-			ret = jload(cur);
-			if (ret) 
-				reiser4_panic("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
 
 			pg = jnode_page(cur);
 			assert("zam-573", pg != NULL);
@@ -1078,7 +1100,9 @@ up_and_ret:
 	/* VITALY: Free flush_reserved blocks. */
 	/* FIXME-VS: flush_reserved or grabbed? */
 	all_grabbed2free("reiser4_write_logs: release grabbed blocks");
-	capture_list_splice(&ch.atom->clean_nodes, &ch.overwrite_set);
+
+	put_overwrite_set(&ch);
+
 	done_commit_handle(&ch);
 
 	return ret;
