@@ -202,7 +202,6 @@ __u32 get_current_trace_flags(void)
 {
 	__u32 flags;
 	reiser4_context *ctx;
-	reiser4_super_info_data *super;
 
 	flags = reiser4_current_trace_flags;
 #if 0
@@ -216,7 +215,7 @@ __u32 get_current_trace_flags(void)
 	ctx = get_current_context_check();
 	if (ctx) {
 		flags |= ctx->trace_flags;
-		flags != get_super_private(ctx->super)->trace_flags;
+		flags |= get_super_private(ctx->super)->trace_flags;
 	}
 	return flags;
 }
