@@ -83,11 +83,8 @@ static errno_t reiser4_object_lookup(
     
     if (path[0] != '.' || path[0] == '/')
 	track[aal_strlen(track)] = '/';
-   
-    if (path[0] == '/')
-	pointer = &path[1]; 
-    else
-	pointer = &path[0];
+  
+    pointer = path[0] == '/' ? &path[1] : &path[0];
 
     /* Main big loop all work is performed inside wich */
     while (1) {
@@ -182,20 +179,6 @@ static errno_t reiser4_object_lookup(
 	    }
 	    
 	    plugin_call(return -1, plugin->dir_ops, close, entity);
-
-	    /* Updating object key by found objectid and locality */
-/*	    {
-		roid_t locality;
-
-		locality = plugin_call(return -1, object->key.plugin->key_ops,
-		    get_locality, &entry.objid);
-		
-		plugin_call(return -1, object->key.plugin->key_ops,
-		    set_locality, object->key.body, locality);
-	    
-		plugin_call(return -1, object->key.plugin->key_ops,
-		    set_objectid, object->key.body, entry.objid.objectid);
-	    }*/
 	} else {
 
 	    /* 
