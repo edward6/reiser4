@@ -434,22 +434,23 @@ restart:
 	assert("nikita-3024", schedulable());
 
 	h->result = CBK_COORD_FOUND;
-
 	/* connect_znode() needs it */
 	h->ld_key = *min_key();
 	h->rd_key = *max_key();
 	h->flags |= CBK_DKSET;
-
-	h->block = h->tree->root_block;
-	h->level = h->tree->height;
 	h->error = NULL;
 
 	done = get_uber_znode(h->tree, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI,
 			      h->parent_lh);
+
 	assert("nikita-1637", done != -E_DEADLOCK);
+
 	if (done != 0)
 		return done;
 
+
+	h->block = h->tree->root_block;
+	h->level = h->tree->height;
 	h->coord->node = h->parent_lh->node;
 
 	/* loop descending a tree */
