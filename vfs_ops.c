@@ -2060,11 +2060,28 @@ DEFINE_SPIN_PROFREGIONS(txnmgr);
 DEFINE_SPIN_PROFREGIONS(ktxnmgrd);
 DEFINE_SPIN_PROFREGIONS(inode_object);
 DEFINE_SPIN_PROFREGIONS(fq);
+DEFINE_SPIN_PROFREGIONS(cbk_cache);
 
 DEFINE_RW_PROFREGIONS(tree);
 
+#if REISER4_LOCKPROF
+static void jnode_most_wanted(struct profregion * preg)
+{
+	print_jnode("most wanted", container_of(preg->obj, jnode, guard.trying));
+}
+
+static void jnode_most_held(struct profregion * preg)
+{
+	print_jnode("most held", container_of(preg->obj, jnode, guard.held));
+}
+#endif
+
 static int register_profregions(void)
 {
+#if REISER4_LOCKPROF
+	pregion_spin_jnode_held.champion = jnode_most_held;
+	pregion_spin_jnode_trying.champion = jnode_most_wanted;
+#endif
 	register_jnode_profregion();
 	register_dk_profregion();
 	register_stack_profregion();
@@ -2075,6 +2092,7 @@ static int register_profregions(void)
 	register_ktxnmgrd_profregion();
 	register_inode_object_profregion();
 	register_fq_profregion();
+	register_cbk_cache_profregion();
 
 	register_tree_profregion();
 
@@ -2093,6 +2111,7 @@ static void unregister_profregions(void)
 	unregister_ktxnmgrd_profregion();
 	unregister_inode_object_profregion();
 	unregister_fq_profregion();
+	unregister_cbk_cache_profregion();
 
 	unregister_tree_profregion();
 }
