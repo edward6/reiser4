@@ -321,7 +321,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child            = NULL,
 			.utmost_child_real_block = NULL,
 			.update                  = NULL,
-			.scan                    = NULL 
+			.scan                    = NULL,
+			.squeeze                 = NULL
 		},
 		.s = {
 			.sd = {
@@ -373,7 +374,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child            = NULL,
 			.utmost_child_real_block = NULL,
 			.update                  = NULL,
-			.scan                    = NULL
+			.scan                    = NULL,
+			.squeeze                 = NULL
 		},
 		.s = {
 			.dir = {
@@ -428,7 +430,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child            = NULL,
 			.utmost_child_real_block = NULL,
 			.update                  = NULL,
-			.scan                    = NULL
+			.scan                    = NULL,
+			.squeeze                 = NULL
 		},
 		.s = {
 			.dir = {
@@ -483,7 +486,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child            = utmost_child_internal,
 			.utmost_child_real_block = utmost_child_real_block_internal,
 			.update                  = update_internal,
-			.scan                    = NULL 
+			.scan                    = NULL,
+			.squeeze                 = NULL
 		},
 		.s = {
 			.internal = {
@@ -534,7 +538,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child            = utmost_child_extent,
 			.utmost_child_real_block = utmost_child_real_block_extent,
 			.update                  = NULL,
-			.scan                    = scan_extent
+			.scan                    = scan_extent,
+			.squeeze                 = NULL
 		},
 		.s = {
 			.file = {
@@ -596,7 +601,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child            = NULL,
 			.utmost_child_real_block = NULL,
 			.update                  = NULL,
-			.scan                    = NULL
+			.scan                    = NULL,
+			.squeeze                 = NULL
 		},
 		.s = {
 			.file = {
@@ -658,7 +664,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			/* FIXME-EDWARD: write this */
 			.utmost_child_real_block = NULL,
 			.update                  = NULL,
-			.scan                    = scan_ctail
+			.scan                    = scan_ctail,
+			.squeeze                 = squeeze_ctail
 		},
 		.s = {
 			.file = {
@@ -722,7 +729,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child            = NULL,
 			.utmost_child_real_block = NULL,
 			.update                  = NULL,
-			.scan                    = NULL
+			.scan                    = NULL,
+			.squeeze                 = NULL
 		},
 		.s = {
 			.file = {
@@ -784,7 +792,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child = utmost_child_extent,
 			.utmost_child_real_block = utmost_child_real_block_extent,
 			.update                  = NULL,
-			.scan                    = scan_extent
+			.scan                    = scan_extent,
+			.squeeze                 = NULL
 		},
 		.s = {
 			.file = {
