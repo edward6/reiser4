@@ -2046,9 +2046,6 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 				break;
 			pos->pos_in_unit = 0;			
 		}
-		/*XXXX*/if (pos->pos_in_unit == 16723243)
-			/*XXXX*/printk("%d %d %d %llu %llu %llu\n", init_slum_size, init_pos_in_unit,
-			       init_coord.unit_pos, init_start, init_width, extent_get_start(&old[0]));
 		ret = rapid_flush(pos);
 		if (ret)
 			return ret;
