@@ -23,8 +23,11 @@ typedef struct {
 	pos_in_unit_t pos_in_unit;
 	pos_in_unit_t width; /* width of current unit */
 	pos_in_item_t nr_units; /* number of units */
-	reiser4_extent *ext;
+	reiser4_extent *ext; /* */
 	unsigned long expected_page;
+#if REISER4_DEBUG
+	reiser4_extent extent;
+#endif
 } extent_coord_extension_t;
 
 
