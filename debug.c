@@ -38,6 +38,11 @@ void reiser4_panic( const char *format /* format string */, ... /* rest */ )
 	show_stack( NULL );
 	/* do something more impressive here, print content of
 	   get_current_context() */
+	if( get_current_context() != NULL ) {
+		print_lock_counters( "pins held", lock_counters() );
+		show_context( 0 );
+		print_znodes( "znodes", current_tree );
+	}
 	panic( "reiser4 panicked cowardly: %s", panic_buf );
 }
 
