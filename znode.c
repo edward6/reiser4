@@ -417,7 +417,11 @@ zget (reiser4_tree *tree,
 	/* Take the hash table lock. */
 	spin_lock_tree (tree);
 
-	if (is_disk_addr_unallocated (blocknr)) {
+	/*
+	 * FIXME-NIKITA address-as-unallocated-blocknr still is not
+	 * implemented.
+	 */
+	if (0 && is_disk_addr_unallocated (blocknr)) {
 		/*
 		 * Asked for unallocated znode.
 		 */
@@ -618,7 +622,7 @@ static int zparse( znode *node /* znode to parse */ )
 
 static int zrelse_nolock( znode *node );
 
-/** initialize new node */
+/** load content of node into memory */
 int zload( znode *node /* znode to load */ )
 {
 	int result;
@@ -653,6 +657,10 @@ int zload( znode *node /* znode to load */ )
 		if( result >= 0 ) {
 			node -> data = data;
 			node -> size = result;
+			/*
+			 * FIXME-NIKITA kmap() is required somewhere. But
+			 * kmap() can sleep.
+			 */
 			ZF_SET( node, ZNODE_LOADED );
 			add_d_ref( node );
 			result = zparse( node );
@@ -701,6 +709,7 @@ int zunload( znode *node UNUSED_ARG /* znode to unload */ )
 	 */
 	/* node -> data = NULL; ? */
 	/* unload data... */
+	/* kupmap() */
 
 	return 0;
 }
