@@ -58,6 +58,20 @@ create_symlink(struct inode *symlink,	/* inode of symlink */
 	return result;
 }
 
+/* plugin->destroy_inode() */
+reiser4_internal void
+destroy_inode_symlink(struct inode * inode)
+{
+	assert("edward-799", inode_file_plugin(inode) == file_plugin_by_id(SYMLINK_FILE_PLUGIN_ID));
+	assert("edward-800", !is_bad_inode(inode) && is_inode_loaded(inode));
+	assert("edward-801", inode_get_flag(inode, REISER4_GENERIC_PTR_USED));
+	assert("vs-839", S_ISLNK(inode->i_mode));
+	
+	reiser4_kfree_in_sb(inode->u.generic_ip, inode->i_sb);
+	inode->u.generic_ip = 0;
+	inode_clr_flag(inode, REISER4_GENERIC_PTR_USED);
+}
+
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"

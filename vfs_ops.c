@@ -517,22 +517,17 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	assert("zam-1050", info->nr_jnodes == 0);
 
 	if (!is_bad_inode(inode) && is_inode_loaded(inode)) {
-
-		if (inode_get_flag(inode, REISER4_GENERIC_PTR_USED)) {
-			assert("vs-839", S_ISLNK(inode->i_mode));
-			reiser4_kfree_in_sb(inode->u.generic_ip, inode->i_sb);
-			inode->u.generic_ip = 0;
-			inode_clr_flag(inode, REISER4_GENERIC_PTR_USED);
-		}
-		destroy_cryptcompress_info(inode);	
+		file_plugin * fplug = inode_file_plugin(inode);
+		if (fplug->destroy_inode != NULL)
+			fplug->destroy_inode(inode);
 	}
 	dispose_cursors(inode);
 	if (info->pset)
 		plugin_set_put(info->pset);
-
+	
 	/* FIXME: assert that info's page radix tree is empty */
 	/*assert("nikita-2872", list_empty(&info->moved_pages));*/
-
+	
 	/* cannot add similar assertion about ->i_list as prune_icache return
 	 * inode into slab with dangling ->list.{next,prev}. This is safe,
 	 * because they are re-initialized in the new_inode(). */

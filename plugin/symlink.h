@@ -7,6 +7,7 @@
 #include <linux/fs.h>		/* for struct inode */
 
 int create_symlink(struct inode *symlink, struct inode *dir, reiser4_object_create_data * data);
+void destroy_inode_symlink(struct inode * inode);
 
 /* __REISER4_SYMLINK_H__ */
 #endif
