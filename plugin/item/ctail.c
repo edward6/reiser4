@@ -454,6 +454,8 @@ int ctail_readpage(void * vp, struct page *page)
 	memcpy(data, clust->buf + (index << PAGE_CACHE_SHIFT), length);
 	memset(data + clust->len, 0, PAGE_CACHE_SIZE - length);
 	kunmap(page);
+	SetPageUptodate(page);
+	reiser4_unlock_page(page);
 	if (release) 
 		put_cluster_data(clust, inode);
 	return 0;	
@@ -489,10 +491,11 @@ ctail_readpages(coord_t *coord UNUSED_ARG, struct address_space *mapping, struct
 	struct page *page;
 	struct pagevec lru_pvec;
 	int ret = 0;
-	struct inode * inode = NULL;
+	struct inode * inode;
 	
 	pagevec_init(&lru_pvec, 0);
 	reiser4_cluster_init(&clust);
+	inode = mapping->host;
 
 	while (!list_empty(pages)) {
 		page = list_to_page(pages);
@@ -502,12 +505,6 @@ ctail_readpages(coord_t *coord UNUSED_ARG, struct address_space *mapping, struct
 			continue;
 		}
 		/* update cluster if it is necessary */
-	
-		assert("edward-xx", page->mapping != NULL && page->mapping->host != NULL);
-		assert("edward-xx", ergo(inode == NULL, page->mapping->host == inode));
-		
-		inode = page->mapping->host;
-		
 		if (!page_of_cluster(page, &clust, inode)) {
 			put_cluster_data(&clust, inode);
 			ret = ctail_cluster_by_page(&clust, page, inode);
