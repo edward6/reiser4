@@ -301,10 +301,10 @@ int ktxnmgr_writeback (struct super_block * s, struct writeback_control *wbc)
 
 	if (tmgr->flush_control.nr_to_flush == 0) {
 		tmgr->flush_control.nr_to_flush += wbc->nr_to_write * 2;
+		spin_unlock_txnmgr (tmgr);
 		ktxnmgrd_kick (tmgr->daemon, 0);
-	}
-
-	spin_unlock_txnmgr (tmgr);
+	} else
+		spin_unlock_txnmgr (tmgr);
 
 	return 0;
 }
