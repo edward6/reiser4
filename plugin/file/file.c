@@ -697,34 +697,37 @@ static loff_t append_and_or_overwrite(struct file *file, struct inode *inode,
 /* Add hole to end of file. @file_size is current file size. @inode->i_size is
  * size file is to be expanded to */
 static int
-expand_file(struct inode *inode, loff_t file_size)
+expand_file(struct inode *inode, loff_t cur_size, loff_t new_size)
 {
 	int result;
 	file_plugin *fplug;
 	flow_t f;
 	loff_t written;
 
-	assert("vs-909", inode->i_size > file_size);
+	assert("vs-909", new_size > cur_size);
 
 	fplug = inode_file_plugin(inode);
 	result = fplug->flow_by_inode(inode, 0 /* buf */ , 1 /* user space */ ,
-				      inode->i_size - file_size, file_size,
+				      new_size - cur_size /* count */ ,
+				      cur_size /* pos */ ,
 				      WRITE_OP, &f);
 	if (result)
 		return result;
 
 	written = append_and_or_overwrite(0, inode, &f);
-	if (written != inode->i_size - file_size) {
+	if (written != new_size - cur_size) {
 		/* we were not able to write expand file to desired size */
 		if (written < 0)
 			return (int) written;
 		return -ENOSPC;
 	}
-
+	assert("vs-1081", new_size == inode->i_size);
 	return 0;
 }
 
-/* plugin->u.file.truncate */
+/* plugin->u.file.truncate
+ * this is called with exclusive access obtained in unix_file_setattr
+ */
 int
 unix_file_truncate(struct inode *inode, loff_t size)
 {
@@ -733,13 +736,11 @@ unix_file_truncate(struct inode *inode, loff_t size)
 
 	inode->i_size = size;
 
-//      get_nonexclusive_access (inode);
-
 	result = find_file_size(inode, &file_size);
 	if (result)
 		return result;
 	if (file_size < inode->i_size)
-		result = expand_file(inode, file_size);
+		result = expand_file(inode, file_size, inode->i_size);
 	else {
 		result = shorten(inode);
 	}
@@ -749,7 +750,6 @@ unix_file_truncate(struct inode *inode, loff_t size)
 			warning("vs-638", "updating stat data failed: %i",
 				result);
 	}
-//      drop_nonexclusive_access (inode);
 	return result;
 }
 
@@ -1734,20 +1734,15 @@ unix_file_write(struct file * file,	/* file to write to */
 		pos = inode->i_size;
 
 	if (inode->i_size < *off) {
-		loff_t old_size;
-
 		/* append file with a hole. This allows extent_write and
 		 * tail_write to not decide when hole appending is
 		 * necessary. When it is required f->length == 0 */
-		old_size = inode->i_size;
-		inode->i_size = *off;
-		result = expand_file(inode, old_size);
+		result = expand_file(inode, inode->i_size, *off);
 		if (result) {
 			/*
 			 * FIXME-VS: i_size may now be set incorrectly
 			 */
 			drop_nonexclusive_access(inode);
-			inode->i_size = old_size;
 			return result;
 		}
 	}
