@@ -337,7 +337,7 @@ typedef struct hash_plugin {
 typedef struct crypto_plugin {
 	/* generic fields */
 	plugin_header h;
-	/* secret key size */
+	/* number of cpu expkey words */
 	unsigned keysize;
 	/* encryption atom size */
 	int (*blocksize)(struct inode *inode);
@@ -495,6 +495,8 @@ union reiser4_plugin {
 	hash_plugin hash;
 	/* crypto plugin, used by file plugin */
 	crypto_plugin crypto;
+	/* digest plugin, used by file plugin */
+	digest_plugin digest;	
 	/* compression plugin, used by file plugin */
 	compression_plugin compression;
 	/* tail plugin, used by file plugin */
@@ -610,6 +612,13 @@ typedef enum {
 	LAST_CRYPTO_ID
 } reiser4_crypto_id;
 
+/* builtin digest plugins */
+
+typedef enum {
+	NONE_DIGEST_ID,
+	LAST_DIGEST_ID
+} reiser4_digest_id;
+
 /* builtin compression plugins */
 
 typedef enum {
@@ -628,13 +637,17 @@ typedef enum {
 	LAST_TAIL_ID
 } reiser4_tail_id;
 
-/* Encapsulation of crypto-compressed objects specific data */ 
-typedef struct crc_object_create_data {
+/* Encapsulation of cryptcompress specific data */ 
+typedef struct cryptcompress_data {
         reiser4_crypto_id      cra; /* id of the crypto algorithm */
-        reiser4_compression_id coa; /* id of the compression algorithm */        
-        __u8 * key;                 /* secret key */
-        __u8 * keyid;              /* secret key identification word */
-}crc_object_create_data;
+	reiser4_digest_id      dia; /* id of the digest algorithm */   
+        reiser4_compression_id coa; /* id of the compression algorithm */
+	__u8 cluster_shift;         /* cluster info */ 
+	__u8 * key;                 /* secret key */
+	__u16 keysize;              /* key size, bits */
+	__u8 * keyid;               /* keyid */
+	__u16 keyid_size;           /* keyid size, bytes */
+}cryptcompress_data_t;
 
 /* data type used to pack parameters that we pass to vfs
     object creation function create_object() */
@@ -650,8 +663,8 @@ struct reiser4_object_create_data {
 	const char *name;
 	/* add here something for non-standard objects you invent, like
 	   query for interpolation file etc. */
-	/* crypto-compression objects create data */
-	crc_object_create_data * crc;
+	/* cryptcompress objects create data */
+	cryptcompress_data_t * crc;
 };
 
 #define MAX_PLUGIN_TYPE_LABEL_LEN  32
@@ -708,6 +721,7 @@ PLUGIN_BY_ID(sd_ext_plugin, REISER4_SD_EXT_PLUGIN_TYPE, sd_ext);
 PLUGIN_BY_ID(perm_plugin, REISER4_PERM_PLUGIN_TYPE, perm);
 PLUGIN_BY_ID(hash_plugin, REISER4_HASH_PLUGIN_TYPE, hash);
 PLUGIN_BY_ID(crypto_plugin, REISER4_CRYPTO_PLUGIN_TYPE, crypto);
+PLUGIN_BY_ID(digest_plugin, REISER4_DIGEST_PLUGIN_TYPE, digest);
 PLUGIN_BY_ID(compression_plugin, REISER4_COMPRESSION_PLUGIN_TYPE, compression);
 PLUGIN_BY_ID(tail_plugin, REISER4_TAIL_PLUGIN_TYPE, tail);
 PLUGIN_BY_ID(disk_format_plugin, REISER4_FORMAT_PLUGIN_TYPE, format);
