@@ -518,7 +518,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child_real_block = utmost_child_real_block_extent,
 			.update                  = NULL,
 			.scan                    = scan_extent,
-			.squeeze                 = NULL
+			.squeeze                 = NULL,
+			.key_by_offset           = key_by_offset_extent
 		},
 		.s = {
 			.file = {

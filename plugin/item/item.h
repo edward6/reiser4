@@ -202,6 +202,8 @@ typedef struct {
 	int (*scan) (flush_scan * scan);
 	/* squeeze by unformatted child */
 	int (*squeeze) (flush_pos_t * pos);
+	/* backward mapping from jnode offset to a key.  */
+	int (*key_by_offset) (struct inode *, loff_t, reiser4_key *);
 } flush_ops;
 
 /* operations specific to the directory item */

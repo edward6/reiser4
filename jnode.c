@@ -1246,19 +1246,30 @@ reiser4_internal reiser4_key *
 jnode_build_key(const jnode * node, reiser4_key * key)
 {
 	struct inode *inode;
-	file_plugin  *fplug;
-	loff_t        off;
+	item_plugin *iplug;
+	loff_t off;
 
 	assert("nikita-3092", node != NULL);
 	assert("nikita-3093", key != NULL);
 	assert("nikita-3094", jnode_is_unformatted(node));
 
+
+	iplug = item_plugin_by_id(node->parent_item_id);
 	inode = mapping_jnode(node)->host;
-	fplug = inode_file_plugin(inode);
 	off   = ((loff_t)index_jnode(node)) << PAGE_CACHE_SHIFT;
 
-	assert("nikita-3095", fplug != NULL);
-	fplug->key_by_inode(inode, off, key);
+	if (iplug != NULL && iplug->f.key_by_offset)
+		iplug->f.key_by_offset(inode, off, key);
+	else {
+		file_plugin *fplug;
+
+		fplug = inode_file_plugin(inode);
+		assert ("zam-1007", fplug != NULL);
+		assert ("zam-1008", fplug->key_by_inode != NULL);
+
+		fplug->key_by_inode(inode, off, key);
+	}
+
 	return key;
 }
 

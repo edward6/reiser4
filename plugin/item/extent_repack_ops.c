@@ -123,6 +123,8 @@ reiser4_internal int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 			reiser4_block_nr block;
 			block = start + pos_in_extent;
 			jnode_set_block(node, &block);
+
+			node->parent_item_id = EXTENT_POINTER_ID;
 		}
 
 		if (!JF_ISSET(node, JNODE_REPACK)) {

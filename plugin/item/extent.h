@@ -148,6 +148,7 @@ reiser4_block_nr extent_unit_start(const coord_t * item);	/* Starting block loca
 
 /* plugin->u.item.f. */
 int scan_extent (flush_scan * scan);
+extern int key_by_offset_extent(struct inode *, loff_t, reiser4_key *);
 
 reiser4_item_data *init_new_extent(reiser4_item_data *data, void *ext_unit, int nr_extents);
 reiser4_block_nr extent_size(const coord_t *coord, pos_in_item_t nr);

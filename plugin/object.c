@@ -1205,6 +1205,18 @@ reiser4_internal int prepare_write_common (
 	return result;
 }
 
+reiser4_internal int
+key_by_inode_and_offset_common(struct inode *inode, loff_t off, reiser4_key *key)
+{
+	key_init(key);
+	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
+	set_key_ordering(key, get_inode_ordering(inode));
+	set_key_objectid(key, get_inode_oid(inode));/*FIXME: inode->i_ino */
+	set_key_type(key, KEY_BODY_MINOR);
+	set_key_offset(key, (__u64) off);
+	return 0;
+}
+
 /* from xattr.c */
 extern xattr_list_head xattr_common_namespaces;
 

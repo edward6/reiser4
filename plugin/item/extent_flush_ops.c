@@ -6,6 +6,7 @@
 #include "../../super.h"
 #include "../../flush.h"
 #include "../../carry.h"
+#include "../object.h"
 
 #include <linux/pagemap.h>
 
@@ -1072,6 +1073,11 @@ squalloc_extent(znode *left, const coord_t *coord, flush_pos_t *flush_pos, reise
 	return SQUEEZE_CONTINUE;
 }
 
+reiser4_internal int
+key_by_offset_extent(struct inode *inode, loff_t off, reiser4_key *key)
+{
+	return key_by_inode_and_offset_common(inode, off, key);
+}
 
 /*
    Local variables:
