@@ -474,6 +474,9 @@ int common_file_delete( struct inode *inode /* object to remove */,
 	if( !inode_get_flag( inode, REISER4_NO_STAT_DATA ) ) {
 		reiser4_key sd_key;
 
+	    	DQUOT_FREE_INODE( inode );
+		DQUOT_DROP( inode );
+
 		build_sd_key( inode, &sd_key );
 		result = cut_tree( tree_by_inode( inode ), &sd_key, &sd_key );
 
@@ -499,7 +502,11 @@ static int common_set_plug( struct inode *object /* inode to set plugin on */,
 	/* this should be plugin decision */
 	object -> i_uid = current -> fsuid;
 	object -> i_mtime = object -> i_atime = object -> i_ctime = CURRENT_TIME;
-	
+	/*
+	 * FIXME-NIKITA support for BSD style group-id assignment. See ext2
+	 * groupid mount option.
+	 */
+
 	if( parent -> i_mode & S_ISGID )
 		object -> i_gid = parent -> i_gid;
 	else

@@ -286,9 +286,18 @@ static int common_create_child( struct inode *parent /* parent object */,
 	object = new_inode( parent -> i_sb );
 	if( object == NULL )
 		return -ENOMEM;
+
+	dentry -> d_inode = object; // So that on error iput will be called.
+
+	if( DQUOT_ALLOC_INODE( object ) ) {
+		DQUOT_DROP( object );
+		object -> i_flags |= S_NOQUOTA;
+		object -> i_nlink  = 0;
+		return -EDQUOT;
+	}
+
 	xmemset( &entry, 0, sizeof entry );
 	entry.obj = object;
-	dentry -> d_inode = object; // So that on error iput will be called.
 
 	reiser4_inode_data( object ) -> file = fplug;
 	result = fplug -> set_plug_in_inode( object, parent, data );
