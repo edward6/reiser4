@@ -4,7 +4,7 @@
     Author Yury Umanets.
 */
 
-#include "tail40.h"
+#include <reiser4/plugin.h>
 
 static reiser4_core_t *core = NULL;
 
@@ -18,7 +18,6 @@ static errno_t tail40_init(reiser4_body_t *body,
     aal_assert("umka-1178", hint->data != NULL, return -1);
     
     aal_memcpy(body, hint->data, hint->len);
-    
     return 0;
 }
 

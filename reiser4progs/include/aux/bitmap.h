@@ -21,7 +21,7 @@ struct reiser4_bitmap {
     count_t total_blocks;
     
     uint32_t size;
-    char *map;;
+    char *map;
 };
 
 typedef struct reiser4_bitmap reiser4_bitmap_t;

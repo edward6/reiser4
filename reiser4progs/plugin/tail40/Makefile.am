@@ -1,7 +1,7 @@
 includedir		    = -I$(top_srcdir)/include
 libdir			    = $(plugindir)
 
-tail40_sources		    = tail40.c tail40.h
+tail40_sources		    = tail40.c
 
 lib_LTLIBRARIES		    = libtail40.la
 noinst_LTLIBRARIES	    = libtail40-static.la

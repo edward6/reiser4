@@ -20,7 +20,6 @@ static errno_t callback_fetch_bitmap(reiser4_entity_t *format,
     blk_t blk, void *data)
 {
     uint32_t size;
-    uint32_t chunk;
     aal_block_t *block;
     aal_device_t *device;
     char *current, *start;
@@ -48,13 +47,8 @@ static errno_t callback_fetch_bitmap(reiser4_entity_t *format,
     size = aal_block_size(block) - CRC_SIZE;
     current = start + (size * (blk / size / 8));
     
-    chunk = (start + alloc->bitmap->size - current < (int)aal_block_size(block) ? 
-	(int)(start + alloc->bitmap->size - current) : (int)aal_block_size(block));
+    aal_memcpy(current, block->data + CRC_SIZE, size);
     
-    chunk -= CRC_SIZE;
-    
-    aal_memcpy(current, block->data + CRC_SIZE, chunk);
-
     aal_memcpy((void *)(alloc->crc + (blk / size / 8) * CRC_SIZE), 
 	block->data, CRC_SIZE);
     
@@ -73,7 +67,7 @@ static reiser4_entity_t *alloc40_open(reiser4_entity_t *format,
     aal_device_t *device;
     reiser4_layout_func_t layout;
     
-    uint32_t crcsize;
+    uint32_t blocksize, crcsize;
     
     aal_assert("umka-364", format != NULL, return NULL);
 
@@ -89,14 +83,13 @@ static reiser4_entity_t *alloc40_open(reiser4_entity_t *format,
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
     
-    if (!(alloc->bitmap = reiser4_bitmap_create(len))) {
-	aal_exception_error("Can't create bitmap.");
+    blocksize = aal_device_get_bs(device) - CRC_SIZE;
+    
+    if (!(alloc->bitmap = reiser4_bitmap_create(len)))
 	goto error_free_alloc;
-    }
   
-    crcsize = (alloc->bitmap->size / 
-	(aal_device_get_bs(device) - CRC_SIZE)) * CRC_SIZE;
-
+    crcsize = (alloc->bitmap->size / blocksize) * CRC_SIZE;
+    
     if (!(alloc->crc = aal_calloc(crcsize, 0)))
 	goto error_free_bitmap;
     
@@ -138,7 +131,7 @@ static reiser4_entity_t *alloc40_create(reiser4_entity_t *format,
     alloc40_t *alloc;
     aal_device_t *device;
     
-    uint32_t crcsize;
+    uint32_t blocksize, crcsize;
 
     aal_assert("umka-365", format != NULL, return NULL);
 	
@@ -154,14 +147,13 @@ static reiser4_entity_t *alloc40_create(reiser4_entity_t *format,
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
 
-    if (!(alloc->bitmap = reiser4_bitmap_create(len))) {
-	aal_exception_error("Can't create bitmap.");
+    blocksize = aal_device_get_bs(device) - CRC_SIZE;
+    
+    if (!(alloc->bitmap = reiser4_bitmap_create(len)))
 	goto error_free_alloc;
-    }
   
-    crcsize = (alloc->bitmap->size / 
-	(aal_device_get_bs(device) - CRC_SIZE)) * CRC_SIZE;
-
+    crcsize = (alloc->bitmap->size / blocksize) * CRC_SIZE;
+    
     if (!(alloc->crc = aal_calloc(crcsize, 0)))
 	goto error_free_bitmap;
     
@@ -181,11 +173,9 @@ error:
 static errno_t callback_flush_bitmap(reiser4_entity_t *format, 
     blk_t blk, void *data)
 {
-    uint32_t size;
-    uint32_t adler;
-    uint32_t chunk;
     aal_block_t *block;
     aal_device_t *device;
+    uint32_t size, adler;
     char *current, *start; 
    
     alloc40_t *alloc = (alloc40_t *)data;
@@ -212,13 +202,10 @@ static errno_t callback_flush_bitmap(reiser4_entity_t *format,
     size = aal_block_size(block) - CRC_SIZE;
     current = start + (size * (blk / size / 8));
     
-    chunk = (start + alloc->bitmap->size - current < (int)size ? 
-	(int)(start + alloc->bitmap->size - current) : (int)size);
-
     /* Updating block which is going to be saved */
-    aal_memcpy(block->data + CRC_SIZE, current, chunk);
+    aal_memcpy(block->data + CRC_SIZE, current, size);
     
-    adler = aal_adler32(current, chunk);
+    adler = aal_adler32(current, size);
     aal_memcpy(block->data, &adler, sizeof(adler));
     
     if (aal_block_sync(block)) {
@@ -379,11 +366,8 @@ static errno_t callback_check_bitmap(reiser4_entity_t *format,
     /* Getting the checksum from loaded crc map */
     ladler = *((uint32_t *)(alloc->crc + (i * CRC_SIZE)));
     
-    n = alloc->bitmap->map + alloc->bitmap->size - current < (int)size ? 
-	(int)((alloc->bitmap->map + alloc->bitmap->size) - current) : (int)size;
-
     /* Calculating adler checksumm for piece of bitmap */
-    cadler = aal_adler32(current, n);
+    cadler = aal_adler32(current, size);
 
     /* 
         If loaded checksum and calculated are not equal, then we have corrupted 

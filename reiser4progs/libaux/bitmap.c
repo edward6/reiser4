@@ -80,6 +80,7 @@ blk_t reiser4_bitmap_find(
     aal_assert("umka-339", bitmap != NULL, return 0);
 	
     reiser4_bitmap_range_check(bitmap, start, return 0);
+
     if ((blk = aal_find_next_zero_bit(bitmap->map, 
 	    bitmap->total_blocks, start)) >= bitmap->total_blocks)
 	return 0;
@@ -174,9 +175,9 @@ reiser4_bitmap_t *reiser4_bitmap_create(count_t len) {
     if (!(bitmap = (reiser4_bitmap_t *)aal_calloc(sizeof(*bitmap), 0)))
 	return NULL;
 	
+    bitmap->size = (len + 7) / 8;
     bitmap->used_blocks = 0;
     bitmap->total_blocks = len;
-    bitmap->size = (len + 7) / 8;
     
     if (!(bitmap->map = aal_calloc(bitmap->size, 0)))
 	goto error_free_bitmap;
