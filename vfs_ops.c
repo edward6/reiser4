@@ -1253,7 +1253,8 @@ static void reiser4_destroy_inode( struct inode *inode /* inode being
 
 	if( inode_get_flag( inode, REISER4_GENERIC_VP_USED ) ) {
 		assert( "vs-839", S_ISLNK( inode -> i_mode ) );
-		reiser4_kfree( inode -> u.generic_ip, inode -> i_size + 1 );
+		reiser4_kfree( inode -> u.generic_ip, 
+			       ( size_t ) inode -> i_size + 1 );
 		inode -> u.generic_ip = 0;
 		inode_clr_flag( inode, REISER4_GENERIC_VP_USED );
 	}
@@ -1286,13 +1287,18 @@ static void reiser4_delete_inode( struct inode *object )
 
 	assert( "nikita-2611", object != NULL );
 
-	truncate_object( object, ( loff_t ) 0 );
-
 	fplug = inode_file_plugin( object );
-	assert( "nikita-2613", fplug != NULL );
-	if( fplug -> delete != NULL )
-		fplug -> delete( object, NULL );
-	object -> i_blocks = 0;
+	/*
+	 * fake inode has NULL fplug
+	 */
+	if( fplug != NULL ) {
+		truncate_object( object, ( loff_t ) 0 );
+
+		assert( "nikita-2613", fplug != NULL );
+		if( fplug -> delete != NULL )
+			fplug -> delete( object, NULL );
+		object -> i_blocks = 0;
+	}
 	clear_inode( object );
 	__REISER4_EXIT( &__context );
 }
