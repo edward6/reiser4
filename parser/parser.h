@@ -68,7 +68,7 @@ typedef enum
 
 #define PTRACE(ws, format, ... )						\
 ({										\
-	ON_TRACE(TRACE_PARSE, "parse:%s %p %s: " format "\n",	\
+	ON_TRACE(TRACE_PARSE, "parser:%s %p %s: " format "\n",	\
 		 __FUNCTION__, ws, (ws)->ws_pline, __VA_ARGS__);					\
 })
 

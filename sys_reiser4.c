@@ -69,7 +69,7 @@ sys_reiser4(char *p_string)
 	str=getname(p_string);
 	if (!IS_ERR(str)) 
 		{
-			reiser4_current_trace_flags |= TRACE_PARSE;
+			reiser4_current_trace_flags = TRACE_PARSE;
 			/* allocate work space for parser 
 			   working variables, attached to this call */
 			if ((work_space = reiser4_pars_init()) == NULL) {

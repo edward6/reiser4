@@ -173,6 +173,7 @@ static freeSpace_t * freeSpaceAlloc()
 	freeSpace_t * fs;
 	if ( ( fs = ( freeSpace_t * ) kmalloc( sizeof( freeSpace_t ),GFP_KERNEL ) ) != NULL )
 		{
+			memset( fs , 0, sizeof( freeSpace_t ));
 			initNextFreeSpace(fs);
 		}
 	return fs;
@@ -276,6 +277,8 @@ static lnode * get_lnode(struct reiser4_syscall_w_space * ws, struct inode * ino
 
 	if ( ( ln = ( lnode * ) kmalloc( sizeof( lnode ), GFP_KERNEL) ) != NULL )
 		{
+			memset( ln , 0, sizeof( lnode ));
+
 			if (is_reiser4_inode(inode))
 				{
 					ln->h.type = LNODE_LW;
@@ -305,6 +308,8 @@ static struct reiser4_syscall_w_space * reiser4_pars_init()
 		{
 		  return NULL; /*-ENOMEM;*/
 		}
+	memset( ws, 0, sizeof( struct reiser4_syscall_w_space ));
+
 	PTRACE(ws, "%s", "allocated");
 	ws->ws_yystacksize = MAXLEVELCO; /* must be 500 by default */
 	ws->ws_yymaxdepth  = MAXLEVELCO; /* must be 500 by default */
@@ -1018,6 +1023,7 @@ static tube_t * get_tube_general(vnode_t *sink, expr_v4_t *source)
 {
 	tube_t * tube=NULL;
 	tube = kmalloc(sizeof(struct tube), GFP_KERNEL);
+	memset( tube , 0, sizeof( struct tube ));
 
 	assert("get_tube_general: no tube",!IS_ERR(tube));
 	assert("get_tube_general: src expression wrong",source->h.type == EXPR_VNODE);
@@ -1025,6 +1031,7 @@ static tube_t * get_tube_general(vnode_t *sink, expr_v4_t *source)
 	assert("get_tube_general: dst no dentry",sink->ln->h.type== LNODE_DENTRY);
 
 	tube->buf = kmalloc(PUMP_BUF_SIZE, GFP_KERNEL);
+	memset( tube->buf , 0, PUMP_BUF_SIZE);
 
 	tube->readoff     = 0;
 	tube->writeoff    = 0;
