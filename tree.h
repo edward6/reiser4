@@ -399,7 +399,9 @@ int shift_left_of_and_including_insert_coord(coord_t * insert_coord);
 
 void fake_kill_hook_tail(struct inode *, loff_t start, loff_t end, int);
 
-extern int cut_tree_object(reiser4_tree*, const reiser4_key*, const reiser4_key*, reiser4_key*, struct inode*, int);
+extern int cut_tree_worker_common(tap_t *, const reiser4_key *, const reiser4_key *,
+				  reiser4_key *, struct inode *, int, int*);
+extern int cut_tree_object(reiser4_tree*, const reiser4_key*, const reiser4_key*, reiser4_key*, struct inode*, int, int*);
 extern int cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to, struct inode*, int);
 
 extern int delete_node(znode * node, reiser4_key *, struct inode *, int);

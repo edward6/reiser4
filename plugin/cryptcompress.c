@@ -2716,17 +2716,17 @@ adjust_left_coord(coord_t * left_coord)
 reiser4_internal int
 cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
 			      const reiser4_key * to_key, reiser4_key * smallest_removed,
-			      struct inode * object, int truncate)
+			      struct inode * object, int truncate, int *progress)
 {
 	lock_handle next_node_lock;
 	coord_t left_coord;
 	int result;
-	long iterations = 0;
 
 	assert("edward-1158", tap->coord->node != NULL);
 	assert("edward-1159", znode_is_write_locked(tap->coord->node));
 	assert("edward-1160", znode_get_level(tap->coord->node) == LEAF_LEVEL);
 
+	*progress = 0;
 	init_lh(&next_node_lock);
 
 	while (1) {
@@ -2746,7 +2746,7 @@ cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
 			return result;
 		
 			/* Prepare the second (right) point for cut_node() */
-		if (iterations)
+		if (*progress)
 			coord_init_last_unit(tap->coord, node);
 		
 		else if (item_plugin_by_coord(tap->coord)->b.lookup == NULL)
@@ -2813,14 +2813,14 @@ cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
 		
 		/* Break long cut_tree operation (deletion of a large file) if
 		 * atom requires commit. */
-		if (iterations > CRC_CUT_TREE_MIN_ITERATIONS
+		if (*progress > CRC_CUT_TREE_MIN_ITERATIONS
 		    && current_atom_should_commit())
 			{
 				result = -E_REPEAT;
 				break;
 			}
 		
-		++ iterations;
+		++ (*progress);
 	}
 	done_lh(&next_node_lock);
 	return result;

@@ -288,7 +288,7 @@ Elena doing this for you if that helps.  Email me the list of the top 10, with t
 	 * operation was interrupted for allowing atom commit .
 	 */
 	int (*cut_tree_worker)(tap_t * tap, const reiser4_key * from_key, const reiser4_key * to_key,
-			      reiser4_key * smallest_removed, struct inode * object, int);
+			      reiser4_key * smallest_removed, struct inode * object, int, int*);
 
 	/* truncate file to zero size. called by reiser4_drop_inode before truncate_inode_pages */
 	int (*pre_delete)(struct inode *);

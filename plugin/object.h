@@ -26,10 +26,7 @@ extern int prepare_write_common (struct file *, struct page *, unsigned, unsigne
 extern int key_by_inode_and_offset_common(struct inode *, loff_t, reiser4_key *);
 extern int setattr_reserve_common(reiser4_tree *);
 extern int setattr_common(struct inode *, struct iattr *);
-extern int cut_tree_worker_common(tap_t * tap, const reiser4_key * from_key,
-				  const reiser4_key * to_key, reiser4_key * smallest_removed,
-				  struct inode * object, int);
-     
+
 extern reiser4_plugin_ops cryptcompress_plugin_ops;
 
 /* __FS_REISER4_PLUGIN_OBJECT_H__ */

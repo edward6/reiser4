@@ -513,6 +513,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 	reiser4_key smallest_removed;
 	file_plugin * fplug = inode_file_plugin(inode);
 	int result;
+	int progress = 0;
 	
 	assert("vs-1248",
 	       fplug == file_plugin_by_id(UNIX_FILE_PLUGIN_ID) ||
@@ -528,11 +529,11 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 			break;
 
 		result = cut_tree_object(current_tree, &from_key, &to_key,
-					 &smallest_removed, inode, 1);
+					 &smallest_removed, inode, 1, &progress);
 		if (result == -E_REPEAT) {
 			/* -E_REPEAT is a signal to interrupt a long file truncation process */
 			INODE_SET_FIELD(inode, i_size, get_key_offset(&smallest_removed));
-			if (update_sd) {
+			if (progress && update_sd) {
 				inode->i_ctime = inode->i_mtime = CURRENT_TIME;
 				result = reiser4_update_sd(inode);
 				if (result)
@@ -552,7 +553,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 			break;
 
 		INODE_SET_FIELD(inode, i_size, new_size);
-		if (update_sd) {
+		if (progress && update_sd) {
 			/* Final sd update after the file gets its correct size */
 			inode->i_ctime = inode->i_mtime = CURRENT_TIME;
 			result = reiser4_update_sd(inode);

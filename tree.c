@@ -1376,6 +1376,7 @@ fake_kill_hook_tail(struct inode *inode, loff_t start, loff_t end, int truncate)
  * @node: node to be deleted,
  * @smallest_removed: leftmost key of deleted node,
  * @object: inode pointer, if we truncate a file body.
+ * @truncate: true if called for file truncate.
  *
  * @return: 0 if success, error code otherwise.
  *
@@ -1489,6 +1490,9 @@ reiser4_internal int delete_node (znode * node, reiser4_key * smallest_removed,
  * @from_key: the beginning of the deleted key range,
  * @to_key: the end of the deleted key range,
  * @smallest_removed: the smallest removed key,
+ * @truncate: true if called for file truncate.
+ * @progress: return true if a progress in file items deletions was made, 
+ *            @smallest_removed value is actual in that case.
  *
  * @return: 0 if success, error code otherwise, -E_REPEAT means that long cut_tree
  * operation was interrupted for allowing atom commit .
@@ -1496,16 +1500,16 @@ reiser4_internal int delete_node (znode * node, reiser4_key * smallest_removed,
 reiser4_internal int
 cut_tree_worker_common (tap_t * tap, const reiser4_key * from_key,
 				    const reiser4_key * to_key, reiser4_key * smallest_removed,
-				    struct inode * object, int truncate)
+				    struct inode * object, int truncate, int *progress)
 {
 	lock_handle next_node_lock;
 	coord_t left_coord;
 	int result;
-	long iterations = 0;
 
 	assert("zam-931", tap->coord->node != NULL);
 	assert("zam-932", znode_is_write_locked(tap->coord->node));
 
+	*progress = 0;
 	init_lh(&next_node_lock);
 
 	while (1) {
@@ -1520,7 +1524,7 @@ cut_tree_worker_common (tap_t * tap, const reiser4_key * from_key,
 		if (result != 0 && result != -E_NO_NEIGHBOR)
 			break;
 		/* Check can we delete the node as a whole. */
-		if (iterations && znode_get_level(node) == LEAF_LEVEL &&
+		if (*progress && znode_get_level(node) == LEAF_LEVEL &&
 		    UNDER_RW(dk, current_tree, read, keyle(from_key, znode_get_ld_key(node))))
 		{
 			result = delete_node(node, smallest_removed, object, truncate);
@@ -1530,7 +1534,7 @@ cut_tree_worker_common (tap_t * tap, const reiser4_key * from_key,
 				return result;
 
 			/* Prepare the second (right) point for cut_node() */
-			if (iterations)
+			if (*progress)
 				coord_init_last_unit(tap->coord, node);
 
 			else if (item_plugin_by_coord(tap->coord)->b.lookup == NULL)
@@ -1573,7 +1577,7 @@ cut_tree_worker_common (tap_t * tap, const reiser4_key * from_key,
 			}
 
 			/* cut data from one node */
-			*smallest_removed = *min_key();
+			// *smallest_removed = *min_key();
 			result = kill_node_content(&left_coord, tap->coord, from_key, to_key,
 						   smallest_removed, next_node_lock.node,
 						   object, truncate);
@@ -1598,7 +1602,7 @@ cut_tree_worker_common (tap_t * tap, const reiser4_key * from_key,
 
 		/* Break long cut_tree operation (deletion of a large file) if
 		 * atom requires commit. */
-		if (iterations > CUT_TREE_MIN_ITERATIONS
+		if (*progress > CUT_TREE_MIN_ITERATIONS
 		    && current_atom_should_commit())
 		{
 			result = -E_REPEAT;
@@ -1606,7 +1610,7 @@ cut_tree_worker_common (tap_t * tap, const reiser4_key * from_key,
 		}
 
 
-		++ iterations;
+		++ (*progress);
 	}
 	done_lh(&next_node_lock);
 	// assert("vs-301", !keyeq(&smallest_removed, min_key()));
@@ -1650,17 +1654,18 @@ cut_tree_worker_common (tap_t * tap, const reiser4_key * from_key,
  * @to_key: the end of the deleted key range,
  * @smallest_removed: the smallest removed key,
  * @object: owner of cutting items.
+ * @truncate: true if called for file truncate.
+ * @progress: return true if a progress in file items deletions was made, 
+ *            @smallest_removed value is actual in that case.
  *
  * @return: 0 if success, error code otherwise, -E_REPEAT means that long cut_tree
  * operation was interrupted for allowing atom commit .
- *
- * FIXME(Zam): the cut_tree interruption is not implemented.
  */
 
 reiser4_internal int
 cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
 		const reiser4_key * to_key, reiser4_key * smallest_removed_p,
-		struct inode * object, int truncate)
+		struct inode * object, int truncate, int *progress)
 {
 	lock_handle lock;
 	int result;
@@ -1668,7 +1673,7 @@ cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
 	coord_t right_coord;
 	reiser4_key smallest_removed;
 	int (*cut_tree_worker)(tap_t *, const reiser4_key *, const reiser4_key *,
-			       reiser4_key *, struct inode *, int);
+			       reiser4_key *, struct inode *, int, int *);
 	STORE_COUNTERS;
 
 	assert("umka-329", tree != NULL);
@@ -1695,7 +1700,7 @@ cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
 			cut_tree_worker = inode_file_plugin(object)->cut_tree_worker;
 		tap_init(&tap, &right_coord, &lock, ZNODE_WRITE_LOCK);
 		result = cut_tree_worker(
-			&tap, from_key, to_key, smallest_removed_p, object, truncate);
+			&tap, from_key, to_key, smallest_removed_p, object, truncate, progress);
 		tap_done(&tap);
 
 		preempt_point();
@@ -1732,9 +1737,10 @@ cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to,
 	 struct inode *inode, int truncate)
 {
 	int result;
+	int progress;
 
 	do {
-		result = cut_tree_object(tree, from, to, NULL, inode, truncate);
+		result = cut_tree_object(tree, from, to, NULL, inode, truncate, &progress);
 	} while (result == -E_REPEAT);
 
 	return result;
