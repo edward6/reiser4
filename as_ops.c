@@ -265,6 +265,8 @@ static int reiser4_commit_write(struct file *file, struct page *page,
 	assert("umka-3102", page != NULL);
 	assert("umka-3093", PageLocked(page));
 
+	SetPageUptodate(page);
+
 	inode = page->mapping->host;
 	init_context(&ctx, inode->i_sb);
 	fplug = inode_file_plugin(inode);
