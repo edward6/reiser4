@@ -173,6 +173,20 @@ reiser4_cluster_init (reiser4_cluster_t * clust, reiser4_slide_t * window){
 	clust->win = window;
 }
 
+static inline dc_item_stat
+get_dc_item_stat(hint_t * hint)
+{
+	assert("edward-1110", hint != NULL);
+	return hint->coord.extension.ctail.stat;
+}
+
+static inline void
+set_dc_item_stat(hint_t * hint, dc_item_stat val)
+{
+	assert("edward-1111", hint != NULL);
+	hint->coord.extension.ctail.stat = val;
+}
+
 int inflate_cluster(reiser4_cluster_t *, struct inode *);
 int find_cluster_item(hint_t * hint, const reiser4_key *key, int check_key,
 		      znode_lock_mode lock_mode, ra_info_t *ra_info,
@@ -185,7 +199,7 @@ int deflate_cluster(reiser4_cluster_t *, struct inode *);
 void truncate_cluster(struct inode * inode, pgoff_t start, long count);
 void set_hint_cluster(struct inode * inode, hint_t * hint, unsigned long index, znode_lock_mode mode);
 int get_disk_cluster_locked(reiser4_cluster_t * clust, znode_lock_mode lock_mode);
-int hint_prev_cluster(reiser4_cluster_t * clust);
+int hint_prev_cluster(reiser4_cluster_t * clust, struct inode * inode);
 void set_nrpages_by_inode(reiser4_cluster_t * clust, struct inode * inode);
 int grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust);
 int prepare_page_cluster(struct inode *inode, reiser4_cluster_t *clust, int capture);
