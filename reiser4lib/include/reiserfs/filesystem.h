@@ -167,10 +167,11 @@ For such purposes we have:
 */
 
 /* 
-Create item or paste into item on the base of this structure. 
-"data" is a pointer to data to be copied. 
-If "data" == NULL, item/units should be created on the base of "info". 
-Otherwise, "info" == NULL. */ 
+    Create item or paste into item on the base of this structure. 
+    "data" is a pointer to data to be copied. 
+    If "data" == NULL, item/units should be created on the base of "info". 
+    Otherwise, "info" == NULL. 
+*/ 
 struct reiserfs_item_info {    
     void *data;
     void *info;
@@ -186,7 +187,12 @@ struct reiserfs_internal_info {
 typedef struct reiserfs_internal_info reiserfs_internal_info_t;
 
 struct reiserfs_stat_info {
-    int be_compilable;
+/*  These fields should be changed to what proper description of 
+    needed extentions. */
+    uint16_t mode;
+    uint16_t extmask;
+    uint32_t nlink;
+    uint64_t size;
 };
 
 typedef struct reiserfs_stat_info reiserfs_stat_info_t;
@@ -199,12 +205,12 @@ struct reiserfs_entry_info {
 
 typedef struct reiserfs_entry_info reiserfs_entry_info_t;
 
-struct reiserfs_dir_entry_info {
+struct reiserfs_dir_info {
     uint16_t count;
     reiserfs_entry_info_t *entry;
 };
 
-typedef struct reiserfs_dir_entry_info reiserfs_dir_entry_info_t;
+typedef struct reiserfs_dir_info reiserfs_dir_info_t;
 
 /* Filesystem compound structure */
 struct reiserfs_fs {

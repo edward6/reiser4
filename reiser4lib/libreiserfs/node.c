@@ -71,6 +71,12 @@ error_t reiserfs_node_create(reiserfs_node_t *node, aal_device_t *device,			blk_
 	}
     }
 
+    if (aal_device_write_block(device, work_node->block)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't write block %llu on device.", blk);
+	goto error_free_block;
+    }
+   
     if (no_node)
 	aal_free(work_node);
     

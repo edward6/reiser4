@@ -11,6 +11,7 @@
 #include <misc/misc.h>
 #include <reiserfs/reiserfs.h>
 #include <reiserfs/hack.h>
+#include <sys/stat.h>
 
 error_t reiserfs_tree_open(reiserfs_fs_t *fs) {
     blk_t root_blk;
@@ -100,7 +101,10 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     reiserfs_coord_t coord;
     reiserfs_item_info_t item_info;
     reiserfs_internal_info_t internal_info;
-    reiserfs_stat_info_t stat_info;    
+    reiserfs_stat_info_t stat_info;
+    reiserfs_dir_info_t dir_info;
+    reiserfs_entry_info_t entries [2] = 
+	{{2, 3, "."}, {1, 2, ".."}};
 
     aal_assert("umka-129", fs != NULL, return -1);
     aal_assert("umka-130", fs->super != NULL, return -1);
@@ -134,9 +138,9 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     
     reiserfs_alloc_use(fs, block_n);
 
+    /* Initialize internal item. */
     internal_info.block = &block_n;
     
-    /* Insert an internal item */
     set_key_type(&key, KEY_SD_MINOR);
     set_key_locality(&key, REISERFS_RESERVED_IDS + 1);
     set_key_objectid(&key, REISERFS_RESERVED_IDS + 2);
@@ -146,9 +150,10 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     coord.item_pos = 0;
     coord.unit_pos = -1;
 
-    if (reiserfs_item_estimate (&coord, &item_info, default_plugins->item.internal)) {
+    /* Estimate the size and check the free space */
+    if (reiserfs_item_estimate (NULL, &item_info, default_plugins->item.internal)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't get space that item being inserted will consume.");
+	    "Can't estimate space that item being inserted will consume.");
 	goto error_free_tree;
     }
    
@@ -161,7 +166,9 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
 	goto error_free_tree;
     }
     
-    /* Item create method will be called from the node create method */
+    /* Insert an internal item. Item will be created automatically from 
+       the node plugin insert method */
+    /* FIXME: Hm, item should be created from node api create method. */
     if (reiserfs_node_insert_item (&coord, &key, &item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
@@ -170,7 +177,8 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     }
 
     reiserfs_node_close (&node);
-    
+
+    /* Create the leaf */
     if (reiserfs_node_create (&node, fs->device, block_n, default_plugins->node, 
 	REISERFS_LEAF_LEVEL)) 
     {
@@ -179,11 +187,18 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
 	goto error_free_tree;
     } 
 
-    /* initialize stat_info */
+    /* Initialize stat_info */
+    stat_info.mode = S_IFDIR | 0755;
+    stat_info.extmask = 0;
+    stat_info.mode = 2;
+    stat_info.size = 0;
+    
     item_info.info = &stat_info;
-    if (reiserfs_item_estimate (&coord, &item_info, default_plugins->item.internal)) {
+
+    /* Estimate the size and check the free space. */
+    if (reiserfs_item_estimate (NULL, &item_info, default_plugins->item.stat)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't get space that item being inserted will consume.");
+	    "Can't estimate the space item being inserted will consume.");
 	goto error_free_tree;
     }
 
@@ -196,14 +211,17 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
 	goto error_free_tree;
     }
     
-    /* Item create method will be called from the node create method */
+    /* Insert the stat data. */
     if (reiserfs_node_insert_item (&coord, &key, &item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
 	    aal_device_get_block_nr(node.device, node.block));
 	goto error_free_tree;
     }
-    
+   
+    /* Initialize dir_entry */
+    dir_info.count = 2;
+    dir_info.entry = entries;
     
 /*
     if (!reiserfs_direntry_create ()) {
@@ -212,6 +230,8 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
 	goto error_free_tree;
     }
 */
+
+    reiserfs_node_close (&node);
 
     return 0;
 

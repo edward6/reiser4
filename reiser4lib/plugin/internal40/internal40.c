@@ -14,14 +14,18 @@ static error_t reiserfs_internal40_create(reiserfs_coord_t *coord,
     reiserfs_item_info_t *item_info) 
 {
     reiserfs_internal40_t *inter;
+    reiserfs_internal_info_t *inter_info; 
     
     aal_assert("vpf-063", coord != NULL, return -1); 
     aal_assert("vpf-064", item_info != NULL, return -1);
     aal_assert("vpf-065", coord->node != NULL, return -1);
     aal_assert("vpf-065", item_info->info != NULL, return -1);
 
+    inter_info = item_info->info; 
+    
     inter = coord->node->plugin->node.item(coord->node, coord->item_pos);
-    int40_set_blk(inter, *((reiserfs_internal_info_t *)item_info->info)->block);
+    int40_set_blk(inter, *inter_info->block);
+	    
     return 0;
 }
 

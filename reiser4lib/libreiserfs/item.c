@@ -103,13 +103,18 @@ int reiserfs_item_is_internal (reiserfs_item_t * item) {
     return item->plugin->item.common.is_internal();
 }
 
-int reiserfs_item_estimate (reiserfs_coord_t *coord, reiserfs_item_info_t *item_info, 
+error_t reiserfs_item_estimate (reiserfs_coord_t *coord, reiserfs_item_info_t *item_info, 
     reiserfs_plugin_id_t id) 
 {
     reiserfs_plugin_id_t plugin_id;
 
-    if (item_info->plugin == NULL) {
-	if (coord == NULL || coord->unit_pos == -1) 
+    if (item_info->plugin == NULL) {	
+	aal_assert ("vpf-073", (id != 0) || ((coord != NULL) && 
+	    (coord->node != NULL) && (coord->item_pos >= 0) && 
+	    (coord->item_pos < coord->node->plugin->node.item_count(coord->node))), 
+	    return -1);
+	    
+	if (coord == NULL) 
 	    plugin_id = id;
 	else {
 	    if (!(plugin_id = reiserfs_node_get_item_plugin_id (coord->node, 

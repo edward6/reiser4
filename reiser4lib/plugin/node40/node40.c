@@ -56,10 +56,10 @@ static error_t reiserfs_node40_create(reiserfs_node_t *node, uint8_t level)
 
     nh40_set_free_space(reiserfs_nh40(node), 
 	reiserfs_node_block(node)->size - sizeof(reiserfs_nh40_t));
-    
     nh40_set_free_space_start(reiserfs_nh40(node), sizeof(reiserfs_nh40_t));
     nh40_set_level(reiserfs_nh40(node), level);
     nh40_set_magic(reiserfs_nh40(node), REISERFS_NODE40_MAGIC);
+    nh40_set_num_items(reiserfs_nh40(node), 0);
 
     return 0;
 }
