@@ -307,12 +307,13 @@ init_locked_inode(struct inode *inode /* new inode */ ,
 	assert("nikita-1996", opaque != NULL);
 	key = opaque;
 	set_inode_oid(inode, get_key_objectid(key));
+	reiser4_inode_data(inode)->locality_id = get_key_locality(key);
 	return 0;
 }
 
 /* reiser4_inode_find_actor() - "find actor" supplied by reiser4 to iget5_locked().
 
-   This function is called by iget5_locked() to distinguish reiserfs inodes
+   This function is called by iget5_locked() to distinguish reiser4 inodes
    having the same inode numbers. Such inodes can only exist due to some error
    condition. One of them should be bad. Inodes with identical inode numbers
    (objectids) are distinguished by their packing locality.
@@ -331,8 +332,18 @@ reiser4_inode_find_actor(struct inode *inode	/* inode from hash table to
 	return
 		/* oid is unique, so first term is enough, actually. */
 		get_inode_oid(inode) == get_key_objectid(key) &&
+		/*
+		 * also, locality should be checked, but locality is stored in
+		 * the reiser4-specific part of the inode, and actor can be
+		 * called against arbitrary inode that happened to be in this
+		 * hash chain. Hence we first have to check that this is
+		 * reiser4 inode at least. is_reiser4_inode() is probably too
+		 * early to call, as inode may have ->i_op not yet
+		 * initialised.
+		 */
+		is_reiser4_super(inode->i_sb) &&
 		(!is_inode_loaded(inode) ||
-		(reiser4_inode_data(inode)->locality_id == get_key_locality(key)));
+		 reiser4_inode_data(inode)->locality_id == get_key_locality(key));
 }
 
 /*
@@ -352,8 +363,11 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 
 	/* call iget(). Our ->read_inode() is dummy, so this will either
 	    find inode in cache or return uninitialised inode */
-	inode = iget5_locked(super, (unsigned long) get_key_objectid(key),
-			     reiser4_inode_find_actor, init_locked_inode, (reiser4_key *) key);
+	inode = iget5_locked(super,
+			     (unsigned long) get_key_objectid(key),
+			     reiser4_inode_find_actor,
+			     init_locked_inode,
+			     (reiser4_key *) key);
 	if (inode == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
 	if (is_bad_inode(inode)) {
@@ -362,9 +376,6 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 		iput(inode);
 		return ERR_PTR(RETERR(-EIO));
 	}
-
-	if (inode->i_state & I_NEW)
-		unlock_new_inode(inode);
 
 	/* Reiser4 inode state bit REISER4_LOADED is used to distinguish fully
 	   loaded and initialized inode from just allocated inode. If
@@ -383,20 +394,21 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 			assert("nikita-1949",
 			       reiser4_inode_find_actor(inode,
 							(reiser4_key *)key));
-			info->locality_id = get_key_locality(key);
-			/* now, inode has objectid as -> i_ino and locality in
-			   reiser4-specific part. This data is enough for
+			/* now, inode has objectid as ->i_ino and locality in
+			   reiser4-specific part. This is enough for
 			   read_inode() to read stat data from the disk */
 			read_inode(inode, key);
 		}
-		if (is_bad_inode(inode)) {
-			up(&inode->i_sem);
-			iput(inode);
-			return ERR_PTR(RETERR(-EIO));
-		}
 	}
 
-	if (REISER4_DEBUG) {
+	if (inode->i_state & I_NEW)
+		unlock_new_inode(inode);
+
+	if (is_bad_inode(inode)) {
+		up(&inode->i_sem);
+		iput(inode);
+		inode = ERR_PTR(RETERR(-EIO));
+	} else if (REISER4_DEBUG) {
 		reiser4_key found_key;
 
 		build_sd_key(inode, &found_key);
