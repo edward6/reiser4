@@ -194,6 +194,10 @@ typedef struct lock_counters_info {
 	int read_locked_dk;
 	int write_locked_dk;
 
+	int rw_locked_cbk_cache;
+	int read_locked_cbk_cache;
+	int write_locked_cbk_cache;
+
 	int spin_locked_jnode;
 	int spin_locked_jload;
 	int spin_locked_txnh;
@@ -204,7 +208,6 @@ typedef struct lock_counters_info {
 	int spin_locked_fq;
 	int spin_locked_super;
 	int spin_locked_inode_object;
-	int spin_locked_cbk_cache;
 	int spin_locked_epoch;
 	int spin_locked_super_eflush;
 	int spin_locked_zlock;

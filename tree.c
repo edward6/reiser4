@@ -599,6 +599,7 @@ forget_znode(lock_handle * handle)
 
 	assert("vs-164", znode_is_write_locked(node));
 	assert("nikita-1280", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
+	assert("nikita-3337", spin_zlock_is_locked(&node->lock));
 
 	WLOCK_TREE(tree);
 	sibling_list_remove(node);
@@ -1687,7 +1688,7 @@ init_tree(reiser4_tree * tree	/* pointer to structure being
 	tree->znode_epoch = 1ull;
 
 	cbk_cache_list_init(&tree->cbk_cache.lru);
-	spin_cbk_cache_init(&tree->cbk_cache);
+	rw_cbk_cache_init(&tree->cbk_cache);
 
 	result = znodes_tree_init(tree);
 	if (result == 0)
