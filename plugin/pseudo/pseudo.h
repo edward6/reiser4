@@ -6,7 +6,10 @@
 #if !defined( __REISER4_PSEUDO_H__ )
 #define __REISER4_PSEUDO_H__
 
-#if YOU_CAN_COMPILE_PSEUDO_CODE
+#include "../plugin_header.h"
+#include "../../key.h"
+
+#include <linux/fs.h>
 
 /* low level operations on the pseudo files.
   
@@ -17,27 +20,33 @@
    functions to look up plugin by name, dynamic loading is planned, etc.
   
 */
-typedef struct pseudo_ops {
+typedef struct pseudo_plugin {
+	plugin_header h;
 
+	int (*try) (const struct inode *parent, const char *name);
 	/* lookup method applicable to this pseudo file by method name.
 	  
 	   This is for something like "foo/..acl/dup", here "../acl" is the
 	   name of a pseudo file, and "dup" is name of an operation (method)
 	   applicable to "../acl". Once "..acl" is resolved to ACL object,
-	   ->method_lookup( "dup" ) can be called to get operation.
+	   ->lookup( "dup" ) can be called to get operation.
 	  
 	*/
-	int (*method_lookup) (const char *name, int len, reiser4_syscall_method * method);
+	int (*lookup) (const char *name);
 
-	/* generic name of this pseudo object "..acl", "..key", etc. */
-	const char *name;
+	oid_t (*makeid)(void);
 
 	/* NOTE-NIKITA some other operations. Reiser4 syntax people should
 	   add something here. */
 
-} pseudo_ops;
+} pseudo_plugin;
 
-#endif
+extern struct inode *pseudo_lookup(struct inode *parent, const char *name);
+
+typedef enum { 
+	PSEUDO_TEST_ID,
+	LAST_PSEUDO_ID
+} reiser4_pseudo_id;
 
 /* __REISER4_PSEUDO_H__ */
 #endif

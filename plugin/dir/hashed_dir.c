@@ -311,7 +311,6 @@ file_lookup_result hashed_lookup(struct inode * parent	/* inode of directory to
 			d_add(dentry, inode);
 			if (inode->i_state & I_NEW)
 				unlock_new_inode(inode);
-			result = 0;
 		} else
 			result = PTR_ERR(inode);
 	}

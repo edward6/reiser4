@@ -508,6 +508,8 @@ extern space_allocator_plugin space_plugins[LAST_SPACE_ALLOCATOR_ID];
 extern disk_format_plugin format_plugins[LAST_FORMAT_ID];
 /* defined in jnode.c */
 extern jnode_plugin jnode_plugins[LAST_JNODE_TYPE];
+/* defined in plugin/pseudo.c */
+extern pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID];
 
 reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 	/* C90 initializers */
@@ -637,6 +639,15 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin = jnode_plugins,
 		.plugins_list = TS_LIST_HEAD_ZERO,
 		.size = sizeof (jnode_plugin)
+	},
+	[REISER4_PSEUDO_PLUGIN_TYPE] = {
+		.type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+		.label = "pseudo file",
+		.desc = "pseudo file",
+		.builtin_num = sizeof_array(pseudo_plugins),
+		.builtin = pseudo_plugins,
+		.plugins_list = TS_LIST_HEAD_ZERO,
+		.size = sizeof (pseudo_plugin)
 	}
 };
 

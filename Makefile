@@ -76,6 +76,8 @@ reiser4-objs := \
 		   plugin/security/perm.o \
 		   plugin/security/acl.o \
            \
+		   plugin/pseudo/pseudo.o \
+           \
            plugin/oid/oid40.o \
            plugin/oid/oid.o \
            \

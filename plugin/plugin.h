@@ -19,6 +19,7 @@
 #include "item/extent.h"
 #include "item/tail.h"
 #include "file/file.h"
+#include "pseudo/pseudo.h"
 #include "symlink.h"
 #include "dir/hashed_dir.h"
 #include "dir/dir.h"
@@ -493,6 +494,8 @@ union reiser4_plugin {
 	space_allocator_plugin space_allocator;
 	/* plugin for different jnode types */
 	jnode_plugin jnode;
+	/* plugin for pseudo files */
+	pseudo_plugin pseudo;
 	/* place-holder for new plugin types that can be registered
 	   dynamically, and used by other dynamically loaded plugins.  */
 	void *generic;
@@ -542,13 +545,20 @@ void move_flow_forward(flow_t * f, unsigned count);
 /* builtin plugins */
 
 /* builtin file-plugins */
-typedef enum { UNIX_FILE_PLUGIN_ID, DIRECTORY_FILE_PLUGIN_ID,
+typedef enum { 
+	/* regular file */
+	UNIX_FILE_PLUGIN_ID, 
+	/* directory */
+	DIRECTORY_FILE_PLUGIN_ID,
+	/* symlink */
 	SYMLINK_FILE_PLUGIN_ID,
-	/* SPECIAL_FILE_PLUGIN_ID is for objects completely handled by
-	   VFS: fifos, devices, sockets  */
+	/* for objects completely handled by the VFS: fifos, devices,
+	   sockets  */
 	SPECIAL_FILE_PLUGIN_ID,
 	/* Plugin id for crypto-compression objects */       
 	CRC_FILE_PLUGIN_ID,       
+	/* pseudo file */
+	PSEUDO_FILE_PLUGIN_ID,
         /* number of file plugins. Used as size of arrays to hold
 	   file plugins. */
 	LAST_FILE_PLUGIN_ID
@@ -686,6 +696,7 @@ PLUGIN_BY_ID(disk_format_plugin, REISER4_FORMAT_PLUGIN_TYPE, format);
 PLUGIN_BY_ID(oid_allocator_plugin, REISER4_OID_ALLOCATOR_PLUGIN_TYPE, oid_allocator);
 PLUGIN_BY_ID(space_allocator_plugin, REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE, space_allocator);
 PLUGIN_BY_ID(jnode_plugin, REISER4_JNODE_PLUGIN_TYPE, jnode);
+PLUGIN_BY_ID(pseudo_plugin, REISER4_PSEUDO_PLUGIN_TYPE, pseudo);
 
 extern int save_plugin_id(reiser4_plugin * plugin, d16 * area);
 

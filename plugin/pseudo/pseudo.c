@@ -59,8 +59,58 @@ Use the pluginid field?
   
 */
 
-#if YOU_CAN_COMPILE_PSEUDO_CODE
-#endif
+#include "pseudo.h"
+
+#include "../../debug.h"
+#include "../plugin.h"
+
+struct inode *pseudo_lookup(struct inode *parent, const char *name)
+{
+	struct inode *inode;
+	reiser4_plugin *plugin;
+
+	assert("nikita-2999", parent != NULL);
+	assert("nikita-3000", name != NULL);
+
+	for_all_plugins(REISER4_PSEUDO_PLUGIN_TYPE, plugin) {
+		pseudo_plugin *pplug;
+
+		pplug = &plugin->pseudo;
+		assert("nikita-3001", pplug->try != NULL);
+
+		if (pplug->try(parent, name)) {
+			/*
+			 * construct object id and create inode.
+			 */
+		}
+	}
+	return NULL;
+}
+
+static int test_try(const struct inode *parent, const char *name)
+{
+	return !strcmp(name, "..test");
+}
+
+static int test_lookup(const char *name)
+{
+	return 0;
+}
+
+pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
+	[PSEUDO_TEST_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_TEST_ID,
+			       .pops = NULL,
+			       .label = "test",
+			       .desc = "test",
+			       .linkage = TS_LIST_LINK_ZERO,
+			       },
+			 .try = test_try,
+			 .lookup = test_lookup
+	}
+};
 
 /* Make Linus happy.
    Local variables:

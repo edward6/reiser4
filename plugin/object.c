@@ -1082,6 +1082,51 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					    .unlink = common_estimate_unlink
 				    },
 				    .readpages = NULL
+	},
+	[PSEUDO_FILE_PLUGIN_ID] = {
+				    .h = {
+					  .type_id = REISER4_FILE_PLUGIN_TYPE,
+					  .id = PSEUDO_FILE_PLUGIN_ID,
+					  .pops = NULL,
+					  .label = "pseudo",
+					  .desc = "pseudo file",
+					  .linkage = TS_LIST_LINK_ZERO
+				    },
+#if 0
+				    .truncate          = ,
+				    .write_sd_by_inode = ,
+				    .readpage          = ,
+				    .writepage         = ,
+				    .read              = ,
+				    .write             = ,
+				    .release           = ,
+				    .ioctl             = ,
+				    .mmap              = ,
+				    .get_block         = ,
+				    .flow_by_inode     = ,
+				    .key_by_inode      = ,
+				    .set_plug_in_inode = ,
+				    .adjust_to_parent  = ,
+				    .create            = ,
+				    .delete            = ,
+				    .add_link          = ,
+				    .rem_link          = ,
+				    .owns_item         = ,
+				    .can_add_link      = ,
+				    .can_rem_link      = ,
+				    .not_linked        = ,
+				    .setattr           = ,
+				    .getattr           = ,
+				    .seek              = ,
+				    .detach            = ,
+				    .bind              = ,
+				    .estimate = {
+					    .create = ,
+					    .update = ,
+					    .unlink = 
+				    },
+				    .readpages = 
+#endif
 	}
 };
 

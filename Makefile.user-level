@@ -158,6 +158,7 @@ SRC		:= \
 		   plugin/dir/dir.c \
 		   plugin/security/perm.c \
 		   plugin/security/acl.c \
+		   plugin/pseudo/pseudo.c \
            plugin/oid/oid40.c plugin/oid/oid.c \
            plugin/space/bitmap.c plugin/space/test.c \
 		   plugin/space/space_allocator.c \
