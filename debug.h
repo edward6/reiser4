@@ -209,7 +209,7 @@ extern lock_counters_info *lock_counters(void);
 #define lock_counters() ((lock_counters_info *)NULL)
 #endif
 
-#if REISER4_DEBUG
+#if CONFIG_FRAME_POINTER
 /* update debug.c:fill_backtrace() if you change this */
 #define REISER4_BACKTRACE_DEPTH (6)
 typedef void *backtrace_path[REISER4_BACKTRACE_DEPTH];
