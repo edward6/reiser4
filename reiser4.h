@@ -215,7 +215,7 @@ static inline int  spin_ ## NAME ## _is_not_locked (TYPE *x)			\
 typedef struct { int foo; } NAME ## _spin_dummy
 
 #include "dformat.h"
-#include "oid.h"
+/*#include "oid.h"*/
 #include "key.h"
 #include "kassign.h"
 #include "coords.h"
