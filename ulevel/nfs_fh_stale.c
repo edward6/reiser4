@@ -14,7 +14,8 @@
 #include <stdlib.h>
 #include <time.h>
 #include <sys/time.h>
-#define NDEBUG
+#include <dirent.h>
+/* #define NDEBUG */
 #include <assert.h>
 
 extern char *optarg;
@@ -47,6 +48,7 @@ typedef struct params {
 	char       *buffer;
 	const char *filename;
 	int         fileno;
+	DIR        *cwd;
 } params_t;
 
 static void sync_file(params_t *params);
@@ -57,6 +59,8 @@ static void unlink_file(params_t *params);
 static void link_file(params_t *params);
 static void sym_file(params_t *params);
 static void trunc_file(params_t *params);
+static void pip_file(params_t *params);
+static void gc_file(params_t *params);
 
 static void nap(int secs, int nanos);
 static void _nap(int secs, int nanos);
@@ -102,7 +106,9 @@ typedef enum {
 	unlinkop,
 	linkop,
 	symop,
-	truncop
+	truncop,
+	pipop,
+	gcop
 } op_id_t;
 
 #define DEFOPS(aname)				\
@@ -121,6 +127,8 @@ op_t ops[] = {
 	DEFOPS(link),
 	DEFOPS(sym),
 	DEFOPS(trunc),
+	DEFOPS(pip),
+	DEFOPS(gc),
 	{
 		.label = NULL
 	}
@@ -236,6 +244,7 @@ main(int argc, char **argv)
 		return 1;
 	}
 	pthread_mutex_init(&stats.lock, NULL);
+
 	fprintf(stderr,
 		"%s: %i processes, %i files, delta: %i"
 		"\n\titerations: %i, sleep: %i, buffer: %i, max size: %i\n",
@@ -290,6 +299,7 @@ worker(void *arg)
 	params_t params;
 	char fileName[30];
 
+	memset(&params, 0, sizeof params);
 	params.files    = (int) arg;
 	params.buffer   = malloc(max_buf_size);
 	params.filename = fileName;
@@ -310,7 +320,6 @@ worker(void *arg)
 				break;
 			}
 		}
-		assert(op->label == NULL);
 		STEX(++stats.done);
 		if (!benchmark)
 			nap(0, RND(max_sleep));
@@ -613,6 +622,45 @@ trunc_file(params_t *params)
 		}
 		STEX(++ops[truncop].result.ok);
 	}
+}
+
+static void 
+pip_file(params_t *params)
+{
+	struct dirent  entry;
+	struct dirent *ptr;
+	int result;
+
+	if (params->cwd == NULL) {
+		params->cwd = opendir(".");
+		if (params->cwd == NULL) {
+			perror("opendir");
+			exit(1);
+		}
+	}
+
+	if (readdir_r(params->cwd, &entry, &ptr) == 0) {
+		if (params->buffer[0] == 0x66)
+			unlink(entry.d_name);
+		else {
+			STEX(++ops[pipop].result.ok);
+			if (verbose)
+				printf("[%li] P: %s\n", 
+				       pthread_self(), entry.d_name);
+		}
+	} else if (errno == ENOENT)
+		rewinddir(params->cwd);
+	else
+		STEX(++ops[pipop].result.failure);
+}
+
+static void 
+gc_file(params_t *params)
+{
+	params->buffer[0] = 0x66;
+	pip_file(params);
+	params->buffer[0] = 0x00;
+	STEX(++ops[gcop].result.ok);
 }
 
 static void
