@@ -240,9 +240,10 @@ struct reiserfs_oid_plugin {
     reiserfs_plugin_header_t h;
 
     reiserfs_opaque_t *(*open) (aal_device_t *);
-    reiserfs_opaque_t *(*create) (void);
+    reiserfs_opaque_t *(*create) (aal_device_t *);
     void (*close) (reiserfs_opaque_t *);
     error_t (*sync) (reiserfs_opaque_t *);
+    uint64_t (*find) (reiserfs_opaque_t *);
 };
 
 typedef struct reiserfs_oid_plugin reiserfs_oid_plugin_t;
