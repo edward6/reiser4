@@ -267,8 +267,7 @@ void *reiser4_kmalloc( size_t size, int gfp_flag )
 	assert( "nikita-1407", reiser4_get_current_super_data() != NULL );
 	assert( "nikita-1408", lock_counters() -> spin_locked == 0 );
 
-	if( REISER4_DEBUG )
-		reiser4_get_current_super_data() -> allocated += size;
+	ON_DEBUG( reiser4_get_current_super_data() -> kmalloc_allocated += size );
 	return kmalloc( size, gfp_flag );
 }
 
@@ -281,11 +280,10 @@ void  reiser4_kfree( void *area, size_t size )
 	assert( "nikita-1410", area != NULL );
 	assert( "nikita-1411", reiser4_get_current_super_data() != NULL );
 	assert( "nikita-1412", 
-		reiser4_get_current_super_data() -> allocated >= ( int ) size );
+		reiser4_get_current_super_data() -> kmalloc_allocated >= ( int ) size );
 
 	kfree( area );
-	if( REISER4_DEBUG )
-		reiser4_get_current_super_data() -> allocated -= size;
+	ON_DEBUG( reiser4_get_current_super_data() -> kmalloc_allocated -= size );
 }
 
 
