@@ -181,7 +181,6 @@ typedef struct lock_counters_info {
 	int write_locked_dk;
 
 	int spin_locked_jnode;
-	int spin_locked_jload;
 	int spin_locked_txnh;
 	int spin_locked_atom;
 	int spin_locked_stack;
@@ -192,6 +191,7 @@ typedef struct lock_counters_info {
 	int spin_locked_inode_object;
 	int spin_locked_cbk_cache;
 	int spin_locked_epoch;
+	int spin_locked_super_eflush;
 	int spin_locked;
 	int long_term_locked_znode;
 
