@@ -778,7 +778,8 @@ int zinit_new( znode *node /* znode to initialise */ )
 
 	result = current_tree -> ops -> 
 		allocate_node( current_tree, ZJNODE( node ) );
-	if( result == 0 ) {
+	spin_lock_znode( node );
+	if( likely( ( result == 0 ) && !znode_is_loaded( node ) ) ) {
 		ZF_SET( node, ZNODE_LOADED );
 		ZF_SET( node, ZNODE_ALLOC );
 		add_d_ref( node );
@@ -786,24 +787,8 @@ int zinit_new( znode *node /* znode to initialise */ )
 		assert( "nikita-1236", node_plugin_by_node( node ) != NULL );
 		result = node_plugin_by_node( node ) -> init( node );
 	}
+	spin_unlock_znode( node );
 	return result;
-}
-
-/**
- * unload node content from memory. Write it back to the durable storage, if
- * necessary.
- */
-/* Audited by: umka (2002.06.11), umka (2002.06.15) */
-int zunload( znode *node /* znode to unload */ )
-{
-	assert( "nikita-485", node != NULL );
-	assert( "nikita-486", atomic_read( &node -> d_count ) == 0 );
-	assert( "umka-275", current_tree != NULL );
-	assert( "vs-660", current_tree -> ops -> release_node != NULL );
-
-	current_tree -> ops -> release_node( current_tree, ZJNODE( node ) );
-	ZF_CLR( node, ZNODE_LOADED );
-	return 0;
 }
 
 /** just like zrelse, but assume znode is already spin-locked */
@@ -823,7 +808,9 @@ static int zrelse_nolock( znode *node /* znode to release references to */ )
 		 * atomic_dec_and_lock() as well, although comments in
 		 * atomic.h suggest a more efficient implementation is
 		 * possible on some architectures. */
-		return zunload( node );
+		current_tree -> ops -> release_node( current_tree, 
+						     ZJNODE( node ) );
+		ZF_CLR( node, ZNODE_LOADED );
 	}
 	return 0;
 }
@@ -839,11 +826,12 @@ int zrelse( znode *node /* znode to release references to */ )
 	
 	assert( "nikita-1963", node != NULL );
 	assert( "nikita-1964", atomic_read( &node -> d_count ) > 0 );
-	
 	assert( "nikita-1381", znode_invariant( node ) );
+
 	spin_lock_znode( node );
 	ret = zrelse_nolock( node );
 	spin_unlock_znode( node );
+
 	assert( "nikita-1382", znode_invariant( node ) );
 	return ret;
 }
