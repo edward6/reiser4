@@ -784,19 +784,7 @@ int znode_contains_key( znode *node /* znode to look in */,
 	assert( "nikita-1238", key != NULL );
 
 	left = znode_get_ld_key( node );
-	spin_lock_tree( current_tree );
-	/*
-	 * FIXME-NIKITA: this has to be updated to work in the presence of "early
-	 * flushing" or alike".
-	 */
-	if( 0 && ZF_ISSET( node, ZNODE_RIGHT_CONNECTED ) && 
-	    ( node -> right != NULL ) ) {
-		right = znode_get_ld_key( node -> right );
-		assert( "nikita-1632", keycmp( znode_get_rd_key( node ), 
-					       right ) != GREATER_THAN );
-	} else
-		right = znode_get_rd_key( node );
-	spin_unlock_tree( current_tree );
+	right = znode_get_rd_key( node );
 	if( keycmp( left, right ) == EQUAL_TO )
 		return keycmp( left, key ) == EQUAL_TO;
 	/*
