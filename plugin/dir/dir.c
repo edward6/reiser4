@@ -187,7 +187,11 @@ static int common_unlink( struct inode *parent /* parent object */,
 	/* removing last reference. Check that this is allowed.  This is
 	 * optimization for common case when file having only one name
 	 * is unlinked and is not opened by any process. */
-	if( fplug -> single_link( object ) && 
+	/*
+	 * FIXME-NIKITA disable (temporarily): ->i_count is not properly
+	 * locked.
+	 */
+	if( 0 && fplug -> single_link( object ) && 
 	    ( atomic_read( &object -> i_count ) == 1 ) ) {
 		if( perm_chk( object, delete, parent, victim ) )
 			return -EPERM;
