@@ -2,11 +2,12 @@
 /* Functions to deal with diskmap storage - read-only storage (currently can only be
    set via fs-creation process) for use by various plugins */
 
-#include <linux/fs.h>
 
 #include "debug.h"
 #include "super.h"
 #include "diskmap.h"
+
+#include <linux/fs.h>
 
 /* Looks through chain of diskmap blocks, looking for table entry where label and parameter
    patch passed in "label" and "parameter"
