@@ -411,8 +411,11 @@ static int reiser4_statfs( struct super_block *super /* super block of file
 	 *
 	 * As for applications, they use ->st_blksize field as reported by
 	 * stat(2).
+	 * FIXME-GREEN: This is used by df and friends as a blocksize, so I set
+	 * it to blocksize. Also SUSv2 devines f_bsize as block size, so
+	 * it is probably wrong linux manpage that cause all the confusion.
 	 */
-	buf -> f_bsize   = REISER4_OPTIMAL_IO_SIZE( super, NULL );
+	buf -> f_bsize   = super->s_blocksize;
 	buf -> f_blocks  = reiser4_data_blocks( super );
 	buf -> f_bfree   = reiser4_free_blocks( super );
 	buf -> f_bavail  = buf -> f_bfree - 
