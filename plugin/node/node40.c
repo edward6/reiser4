@@ -1002,7 +1002,7 @@ cut_units(coord_t * coord, unsigned *from, unsigned *to,
 }
 
 /* this is auxiliary function used by both cutting methods - cut and cut_and_kill. If it is called by cut_and_kill (@cut
-   == 0) special action (kill_hook) will be performed on every unit being removed from tree. When @[arams->info != 0 -
+   == 0) special action (kill_hook) will be performed on every unit being removed from tree. When @params->info != 0 -
    it is called not by node40_shift who cares about delimiting keys itself - update znode's delimiting keys */
 static inline int
 cut_or_kill(struct cut_list *params, int cut)

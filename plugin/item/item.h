@@ -147,7 +147,7 @@ typedef struct {
 	   cut from item end - move freed space to item end. When units
 	   are cut from the middle of item - move freed space to item
 	   head. Return amount of space which got freed. Save smallest
-	   removed key is @smallest_removed is not 0
+	   removed key if @smallest_removed is not 0
 	*/
 	int (*cut_units) (coord_t *, unsigned *from, unsigned *to,
 			  const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed, struct cut_list *);
