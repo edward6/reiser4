@@ -676,8 +676,8 @@ int bitmap_alloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
  * of temporary objects like wandered blocks and transaction commit records
  * requires immediate node deletion from WORKING BITMAP.*/
 void bitmap_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
-			    const reiser4_block_nr * start,
-			    const reiser4_block_nr * len)
+			    reiser4_block_nr start,
+			    reiser4_block_nr len)
 {
 	struct super_block * super = reiser4_get_current_sb();
 
@@ -687,12 +687,12 @@ void bitmap_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	struct bnode * bnode;
 	int ret;
 
-	assert ("zam-468", len != NULL);
-	check_block_range (start, len);
+	assert ("zam-468", len != 0);
+	check_block_range (&start, &len);
 
-	parse_blocknr (start, &bmap, &offset);
+	parse_blocknr (&start, &bmap, &offset);
 
-	assert ("zam-469", offset + *len <= super->s_blocksize);
+	assert ("zam-469", offset + len <= super->s_blocksize);
 
 	bnode = get_bnode (super, bmap);
 
@@ -702,14 +702,14 @@ void bitmap_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	ret = load_and_lock_bnode (bnode);
 	assert ("zam-481", ret == 0);
 
-	reiser4_clear_bits (bnode_working_data(bnode), offset, (bmap_off_t)(offset + *len));
+	reiser4_clear_bits (bnode_working_data(bnode), offset, (bmap_off_t)(offset + len));
 
 	adjust_first_zero_bit (bnode, offset);
 
 	release_and_unlock_bnode (bnode);
 
 	reiser4_spin_lock_sb(super);
-	reiser4_set_free_blocks(super, reiser4_free_blocks(super) + *len);
+	reiser4_set_free_blocks(super, reiser4_free_blocks(super) + len);
 	reiser4_spin_unlock_sb(super);
 }
 
