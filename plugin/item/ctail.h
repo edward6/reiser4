@@ -13,6 +13,7 @@ typedef struct ctail_item_format {
 	d8 body[0];
 } __attribute__((packed)) ctail_item_format;
 
+/* for flush squeeze */
 typedef struct ctail_squeeze_info {
 	struct inode * inode;
 	reiser4_cluster_t * clust;
@@ -54,7 +55,7 @@ int kill_hook_ctail(const coord_t *, unsigned, unsigned, struct cut_list *);
 int utmost_child_ctail(const coord_t *, sideof, jnode **);
 int scan_ctail(flush_scan *, const coord_t *);
 int squeeze_ctail(flush_pos_t *);
-
+item_plugin * item_plugin_by_jnode(jnode *);
 
 __u8 inode_cluster_shift (struct inode *);
 size_t inode_cluster_size (struct inode *);
