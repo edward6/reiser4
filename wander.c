@@ -777,6 +777,9 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 			lock_and_wait_page_writeback(pg);
 
 			LOCK_JNODE(cur);
+			assert("nikita-3553", jnode_page(cur) == pg);
+			assert("nikita-3554", jprivate(pg) == cur);
+
 			assert("nikita-3166",
 			       ergo(!JF_ISSET(cur, JNODE_CC), pg->mapping == jnode_get_mapping(cur)));
 			if (!JF_ISSET(cur, JNODE_WRITEBACK)) {
