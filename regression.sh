@@ -7,13 +7,15 @@ printf "REISER4_UL_DURABLE_MMAP: %s\n" $REISER4_UL_DURABLE_MMAP
 ROUNDS=${1:-1}
 
 export REISER4_PRINT_STATS=1
+export REISER4_CRASH_MODE=debugger
+
+rm -f gmon.out.*
 
 for r in `seq 1 $ROUNDS` 
 do
 echo Round $r
-rm -f gmon.out.*
 ./a.out nikita ibk 10000 || exit 1
-mv gmon.out gmon.out.ibk.$r
+mv gmon.out gmon.out.ibk.10000.$r
 ./a.out nikita dir 1 100 || exit 2
 mv gmon.out gmon.out.dir.1.100.$r
 ./a.out nikita dir 3 1000 || exit 3
