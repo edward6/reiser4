@@ -11,9 +11,6 @@
 extern int init_fakes( void );
 extern int init_formatted_fake( struct super_block *super );
 extern int done_formatted_fake( struct super_block *super );
-extern int read_in_formatted( struct super_block *super, 
-			      sector_t block, char **data );
-extern void unread_formatted( znode *node );
 
 #if REISER4_DEBUG
 extern void *xmemcpy( void *dest, const void *src, size_t n );
@@ -24,6 +21,8 @@ extern void *xmemset( void *s, int c, size_t n );
 #define xmemmove( d, s, n ) memmove( ( d ), ( s ), ( n ) )
 #define xmemset( s, c, n ) memset( ( s ), ( c ), ( n ) )
 #endif
+
+extern tree_operations page_cache_tops;
 
 /* __REISER4_MEMORY_H__ */
 #endif
