@@ -50,13 +50,6 @@ typedef enum {
 	REISER4_KEYID_LOADED = 7,
 	/* reiser4_inode->expkey points to the secret key */
 	REISER4_SECRET_KEY_INSTALLED = 8,
-	/* this is set when we know for sure state of file: for default reiser4 ordinary files it means that we know
-	   whether file is built of extents or of tail items only or has no items at all. The below 3 bits should be
-	   only checked when this bit is set */
-	REISER4_FILE_STATE_KNOWN = 9,
-	REISER4_BUILT_OF_TAILS = 10,
-	REISER4_BUILT_OF_EXTENTS = 11,
-	REISER4_FILE_EMPTY = 12,
 	/* do not eflush nodes of this file */
 	REISER4_DONT_EFLUSH = 13
 } reiser4_file_plugin_flags;
@@ -72,19 +65,6 @@ typedef __u32 oid_hi_t;
 
 #define OID_HI_SHIFT (sizeof(ino_t) * 8)
 
-typedef struct rw_latch {
-	spinlock_t guard;
-	int        access;
-	kcond_t    cond;
-} rw_latch_t;
-
-extern void rw_latch_init(rw_latch_t * latch);
-extern void rw_latch_done(rw_latch_t * latch);
-extern void rw_latch_down_read(rw_latch_t * latch);
-extern void rw_latch_down_write(rw_latch_t * latch);
-extern void rw_latch_up_read(rw_latch_t * latch);
-extern void rw_latch_up_write(rw_latch_t * latch);
-extern void rw_latch_downgrade(rw_latch_t * latch);
 
 /* state associated with each inode.
    reiser4 inode.
@@ -100,7 +80,15 @@ extern void rw_latch_downgrade(rw_latch_t * latch);
       [inode->eflushed]
 
 */
-typedef struct reiser4_inode {
+
+typedef struct reiser4_inode reiser4_inode;
+/* return pointer to reiser4-specific part of inode */
+static inline reiser4_inode *
+reiser4_inode_data(const struct inode * inode /* inode queried */);
+
+#include "plugin/file/file.h"
+
+struct reiser4_inode {
 	/* */ reiser4_spin_data guard;
 	/* object plugins */
 	/*   0 */ plugin_set *pset;
@@ -114,7 +102,7 @@ typedef struct reiser4_inode {
 	/*  28 */ coord_t sd_coord;
 	/* truncate, tail2extent and extent2tail use down_write, read, write,
 	 * readpage - down_read */
-	/* 68 */ rw_latch_t latch;
+	/* 68 */ /*rw_latch_t latch;*/
 	/* 88 */ scint_t extmask;
 	/* 92 */ int eflushed;
 	/* bitmask of non-default plugins for this inode */
@@ -132,11 +120,10 @@ typedef struct reiser4_inode {
 	/* list of emergency flushed nodes */
 	struct list_head eflushed_nodes;
 
-#if REISER4_DEBUG
-	/* pointer to task struct of thread owning exclusive access to file */
-	void *ea_owner;
-#endif
-} reiser4_inode;
+	union {
+		unix_file_info_t unix_file_info;
+	} file_plugin_data;
+};
 
 typedef struct reiser4_inode_object {
 	/* private part */
@@ -144,6 +131,13 @@ typedef struct reiser4_inode_object {
 	/* generic fields not specific to reiser4, but used by VFS */
 	struct inode vfs_inode;
 } reiser4_inode_object;
+
+static inline reiser4_inode *
+reiser4_inode_data(const struct inode * inode /* inode queried */)
+{
+	assert("nikita-254", inode != NULL);
+	return &container_of(inode, reiser4_inode_object, vfs_inode)->p;
+}
 
 /* ordering predicate for inode spin lock: only jnode lock can be held */
 #define spin_ordering_pred_inode_object(inode)				\
@@ -162,13 +156,6 @@ extern ino_t oid_to_ino(oid_t oid) __attribute__ ((const));
 extern ino_t oid_to_uino(oid_t oid) __attribute__ ((const));
 
 extern reiser4_tree *tree_by_inode(const struct inode *inode);
-/* return pointer to reiser4-specific part of inode */
-static inline reiser4_inode *
-reiser4_inode_data(const struct inode * inode /* inode queried */)
-{
-	assert("nikita-254", inode != NULL);
-	return &container_of(inode, reiser4_inode_object, vfs_inode)->p;
-}
 
 static inline void spin_lock_inode(struct inode *inode)
 {
