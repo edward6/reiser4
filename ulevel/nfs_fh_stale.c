@@ -29,15 +29,6 @@ typedef struct stats {
 	pthread_mutex_t lock;
 	unsigned long opens;
 	unsigned long lseeks;
-	unsigned long reads;
-	unsigned long writes;
-	unsigned long renames;
-	unsigned long mrenames;
-	unsigned long unlinks;
-	unsigned long munlinks;
-	unsigned long truncates;
-	unsigned long mtruncates;
-	unsigned long fsyncs;
 	unsigned long errors;
 	unsigned long naps;
 	unsigned long total;
@@ -55,6 +46,7 @@ typedef struct params {
 	int         files;
 	char       *buffer;
 	const char *filename;
+	int         fileno;
 } params_t;
 
 static void sync_file(params_t *params);
@@ -62,10 +54,14 @@ static void read_file(params_t *params);
 static void write_file(params_t *params);
 static void rename_file(params_t *params);
 static void unlink_file(params_t *params);
-static void truncate_file(params_t *params);
+static void link_file(params_t *params);
+static void sym_file(params_t *params);
+static void trunc_file(params_t *params);
 
 static void nap(int secs, int nanos);
 static void _nap(int secs, int nanos);
+
+static void orderedname(params_t *params, char *name);
 
 int delta = 1;
 int max_sleep = 0;
@@ -89,10 +85,28 @@ typedef struct op {
 	const char *label;
 	int freq;
 	void (*handler)(params_t *params);
+	struct {
+		int subtotal;
+		int ok;
+		int failure;
+		int missed;
+		int busy;
+	} result;
 } op_t;
 
+typedef enum {
+	syncop,
+	readop,
+	writeop,
+	renameop,
+	unlinkop,
+	linkop,
+	symop,
+	truncop
+} op_id_t;
+
 #define DEFOPS(aname)				\
-{						\
+[aname ## op ] = {				\
 	.label = #aname,			\
 	.freq  = 1,				\
 	.handler = aname ## _file		\
@@ -104,7 +118,9 @@ op_t ops[] = {
 	DEFOPS(write),
 	DEFOPS(rename),
 	DEFOPS(unlink),
-	DEFOPS(truncate),
+	DEFOPS(link),
+	DEFOPS(sym),
+	DEFOPS(trunc),
 	{
 		.label = NULL
 	}
@@ -240,27 +256,29 @@ main(int argc, char **argv)
 		}
 	}
 	for (i = 0; i < iterations; i += delta) {
-		printf("\nseconds: %i"
-		       "\n\topens: %lu [%f]"
-		       "\n\tlseeks: %lu [%f]"
-		       "\n\treads: %lu [%f], writes: %lu [%f]"
-		       "\n\trenames: %lu/%lu [%f]"
-		       "\n\tunlinks: %lu/%lu [%f]"
-		       "\n\ttruncate: %lu/%lu [%f]"
-		       "\n\tfsyncs: %lu [%f]"
-		       "\n\terrors: %lu, naps: %lu [%f]\n",
+		printf("\nseconds: %i\topens: %lu [%f] lseeks: %lu [%f]\n"
+		       "\terrors: %lu, naps: %lu [%f]\n",
 		       i,
 		       stats.opens, rate(stats.opens, i),
 		       stats.lseeks, rate(stats.lseeks, i),
-		       stats.reads, rate(stats.reads, i),
-		       stats.writes, rate(stats.writes, i),
-		       stats.renames, stats.mrenames,
-		       rate(stats.renames, i), stats.unlinks,
-		       stats.munlinks, rate(stats.unlinks, i),
-		       stats.truncates, stats.mtruncates,
-		       rate(stats.truncates, i), stats.fsyncs,
-		       rate(stats.fsyncs, i), stats.errors, stats.naps,
-		       rate(stats.naps, i));
+		       stats.errors, stats.naps, rate(stats.naps, i));
+		printf("op:\tok\tmiss\tbusy\terr\trate\t\tglobal rate\n");
+		for (op = &ops[0] ; op->label ; ++ op) {
+			int done;
+			int subtotal;
+
+			done = op->result.ok;
+			subtotal = op->result.subtotal;
+			op->result.subtotal = done;
+
+			printf("%s:\t%i\t%i\t%i\t%i\t%f\t%f\n",
+			       op->label,
+			       done,
+			       op->result.missed,
+			       op->result.busy,
+			       op->result.failure,
+			       rate(done - subtotal, delta), rate(done, i));
+		}
 		_nap(delta, 0);
 	}
 	return result;
@@ -281,7 +299,8 @@ worker(void *arg)
 		int   randum;
 		int   freqreached;
 
-		sprintf(fileName, "%x", RND(params.files));
+		params.fileno = RND(params.files);
+		sprintf(fileName, "%x", params.fileno);
 		randum = RND(stats.totfreq);
 		freqreached = 0;
 		for (op = &ops[0] ; op->label ; ++ op) {
@@ -321,6 +340,8 @@ sync_file(params_t *params)
 			fprintf(stderr, "%s open: %s(%i)\n", fileName,
 				strerror(errno), errno);
 			STEX(++stats.errors);
+		} else {
+			STEX(++ops[syncop].result.missed);
 		}
 		return;
 	}
@@ -328,9 +349,10 @@ sync_file(params_t *params)
 		fprintf(stderr, "%s sync: %s(%i)\n", 
 			fileName, strerror(errno), errno);
 		STEX(++stats.errors);
+		STEX(++ops[syncop].result.failure);
 		return;
 	}
-	STEX(++stats.fsyncs);
+	STEX(++ops[syncop].result.ok);
 	if (verbose) {
 		printf("[%li] SYNC: %s\n", pthread_self(), fileName);
 	}
@@ -352,6 +374,7 @@ read_file(params_t *params)
 		fprintf(stderr, "%s open: %s(%i)\n", fileName, strerror(errno),
 			errno);
 		STEX(++stats.errors);
+		STEX(++ops[readop].result.missed);
 		return;
 	}
 	STEX(++stats.opens);
@@ -372,10 +395,11 @@ read_file(params_t *params)
 		fprintf(stderr, "%s read: %s(%i)\n", fileName, strerror(errno),
 			errno);
 		STEX(++stats.errors);
+		STEX(++ops[readop].result.failure);
 		close(fd);
 		return;
 	}
-	STEX(++stats.reads);
+	STEX(++ops[readop].result.ok);
 	if (verbose) {
 		printf("[%li] R: %s\n", pthread_self(), fileName);
 	}
@@ -397,6 +421,7 @@ write_file(params_t *params)
 		fprintf(stderr, "%s open: %s(%i)\n", fileName, strerror(errno),
 			errno);
 		STEX(++stats.errors);
+		STEX(++ops[writeop].result.missed);
 		return;
 	}
 	STEX(++stats.opens);
@@ -413,16 +438,17 @@ write_file(params_t *params)
 	bufSize = RND(max_buf_size / 3) + 30;
 	offset = RND(max_buf_size / 3);
 	buf = params->buffer;
-	memset(buf, 0xfe + stats.writes, max_buf_size);
+	memset(buf, 0xfe + stats.opens, max_buf_size);
 	sprintf(buf + offset, "---%lx+++", time(NULL));
 	if (write(fd, buf, bufSize + offset) == -1) {
 		fprintf(stderr, "%s write: %s(%i)\n",
 			fileName, strerror(errno), errno);
 		STEX(++stats.errors);
+		STEX(++ops[writeop].result.failure);
 		close(fd);
 		return;
 	}
-	STEX(++stats.writes);
+	STEX(++ops[writeop].result.ok);
 	if (verbose) {
 		printf("[%li] W: %s\n", pthread_self(), fileName);
 	}
@@ -438,11 +464,11 @@ rename_file(params_t *params)
 
 	fileName = params->filename;
 	files = params->files;
-	sprintf(target, "%x", RND(files));
+	orderedname(params, target);
 	if (rename(fileName, target) == -1) {
 		switch (errno) {
 		case ENOENT:
-			STEX(++stats.mrenames);
+			STEX(++ops[renameop].result.missed);
 			break;
 		default:
 			{
@@ -450,6 +476,7 @@ rename_file(params_t *params)
 					fileName, target, strerror(errno),
 					errno);
 				STEX(++stats.errors);
+				STEX(++ops[renameop].result.failure);
 			}
 		}
 	} else {
@@ -457,7 +484,7 @@ rename_file(params_t *params)
 			printf("[%li] %s -> %s\n", pthread_self(), fileName,
 			       target);
 		}
-		STEX(++stats.renames);
+		STEX(++ops[renameop].result.ok);
 	}
 }
 
@@ -470,25 +497,99 @@ unlink_file(params_t *params)
 	if (unlink(fileName) == -1) {
 		switch (errno) {
 		case ENOENT:
-			STEX(++stats.munlinks);
+			STEX(++ops[unlinkop].result.missed);
 			break;
 		default:
 			{
 				fprintf(stderr, "%s unlink: %s(%i)\n",
 					fileName, strerror(errno), errno);
 				STEX(++stats.errors);
+				STEX(++ops[unlinkop].result.failure);
 			}
 		}
 	} else {
 		if (verbose) {
 			printf("[%li] U: %s\n", pthread_self(), fileName);
 		}
-		STEX(++stats.unlinks);
+		STEX(++ops[unlinkop].result.ok);
 	}
 }
 
 static void
-truncate_file(params_t *params)
+link_file(params_t *params)
+{
+	char target[30];
+	const char *fileName;
+	int files;
+
+	fileName = params->filename;
+	files = params->files;
+	orderedname(params, target);
+	if (link(fileName, target) == -1) {
+		switch (errno) {
+		case ENOENT:
+			STEX(++ops[linkop].result.missed);
+			break;
+		case EEXIST:
+			STEX(++ops[linkop].result.busy);
+			break;
+		default:
+			{
+				fprintf(stderr, "link( %s, %s ): %s(%i)\n",
+					fileName, target, strerror(errno),
+					errno);
+				STEX(++stats.errors);
+				STEX(++ops[linkop].result.failure);
+			}
+		}
+	} else {
+		if (verbose) {
+			printf("[%li] %s -> %s\n", pthread_self(), fileName,
+			       target);
+		}
+		STEX(++ops[linkop].result.ok);
+	}
+}
+
+static void
+sym_file(params_t *params)
+{
+	char target[30];
+	const char *fileName;
+	int files;
+	int targetno;
+
+	fileName = params->filename;
+	files = params->files;
+	orderedname(params, target);
+	if (symlink(fileName, target) == -1) {
+		switch (errno) {
+		case ENOENT:
+			STEX(++ops[symop].result.missed);
+			break;
+		case EEXIST:
+			STEX(++ops[symop].result.busy);
+			break;
+		default:
+			{
+				fprintf(stderr, "link( %s, %s ): %s(%i)\n",
+					fileName, target, strerror(errno),
+					errno);
+				STEX(++stats.errors);
+				STEX(++ops[symop].result.failure);
+			}
+		}
+	} else {
+		if (verbose) {
+			printf("[%li] %s -> %s\n", pthread_self(), fileName,
+			       target);
+		}
+		STEX(++ops[symop].result.ok);
+	}
+}
+
+static void
+trunc_file(params_t *params)
 {
 	const char *fileName;
 
@@ -496,20 +597,21 @@ truncate_file(params_t *params)
 	if (truncate(fileName, RND(max_size)) == -1) {
 		switch (errno) {
 		case ENOENT:
-			STEX(++stats.mtruncates);
+			STEX(++ops[truncop].result.missed);
 			break;
 		default:
 			{
-				fprintf(stderr, "%s truncate: %s(%i)\n",
+				fprintf(stderr, "%s trunc: %s(%i)\n",
 					fileName, strerror(errno), errno);
 				STEX(++stats.errors);
+				STEX(++ops[truncop].result.failure);
 			}
 		}
 	} else {
 		if (verbose) {
 			printf("[%li] T: %s\n", pthread_self(), fileName);
 		}
-		STEX(++stats.truncates);
+		STEX(++ops[truncop].result.ok);
 	}
 }
 
@@ -535,6 +637,15 @@ _nap(int secs, int nanos)
 		}
 		STEX(++stats.naps);
 	}
+}
+
+/* this is a little puzzle */
+static void orderedname(params_t *params, char *name)
+{
+	int targetno;
+
+	targetno = params->fileno + RND(params->files - params->fileno - 1) + 1;
+	sprintf(name, "%x", targetno);
 }
 
 /*
