@@ -848,7 +848,8 @@ int reiser4_write_logs (void)
 }
 
 /** replay one transaction: restore and write overwrite set in place */
-static int replay_transaction (const reiser4_block_nr * log_rec_block_p, 
+static int replay_transaction (const struct super_block * s,
+			       const reiser4_block_nr * log_rec_block_p, 
 			       const reiser4_block_nr * end_block)
 {
 	capture_list_head overwrite;
@@ -865,6 +866,8 @@ static int replay_transaction (const reiser4_block_nr * log_rec_block_p,
 		struct log_record_header * LH;
 		struct log_entry * LE;
 
+		int i;
+
 		jnode_set_block(log, &log_rec_block);
 
 		ret = jload(log);
@@ -876,7 +879,7 @@ static int replay_transaction (const reiser4_block_nr * log_rec_block_p,
 		LE = (struct log_entry *)(LH + 1);
 
 		/* restore overwrite set from log record content */
-		while (1) {
+		for (i = 0; i < log_record_capacity(s); i++) {
 			reiser4_block_nr block;
 			jnode * node;
 
@@ -1004,7 +1007,7 @@ static int replay_oldest_transaction(struct super_block * s)
 	jref(tx_head);
 	jrelse(tx_head);
 
-	ret = replay_transaction(&log_rec_block, jnode_get_block(tx_head));
+	ret = replay_transaction(s, &log_rec_block, jnode_get_block(tx_head));
 	if (ret) goto out;
 
 	ret = update_journal_footer(tx_head);
