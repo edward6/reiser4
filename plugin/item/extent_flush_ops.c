@@ -329,50 +329,6 @@ free_replace_reserved(reiser4_block_nr grabbed)
 		     ctx->grabbed_blocks - grabbed);
 }
 
-/* if @key is glueable to the item @coord is set to */
-static int
-must_insert(const coord_t *coord, const reiser4_key *key)
-{
-	reiser4_key last;
-
-	if (item_id_by_coord(coord) == EXTENT_POINTER_ID && keyeq(append_key_extent(coord, &last), key))
-		return 0;
-	return 1;
-}
-
-/* before allocating unallocated extent we have to protect from eflushing those jnodes which are not eflushed yet and
-   "unflush" jnodes which are already eflushed. However there can be too many eflushed jnodes so, we limit number of
-   them with this macro */
-#define JNODES_TO_UNFLUSH (16)
-
-static int
-unprotect_extent_nodes(oid_t oid, unsigned long ind, __u64 count)
-{
-#if REISER4_USE_EFLUSH
-	__u64         i;
-	reiser4_tree *tree;
-	int	      unprotected;
-
-	tree = current_tree;
-
-	unprotected = 0;
-	for (i = 0 ; i < count; ++ i, ++ ind) {
-		jnode  *node;
-
-		node = jlookup(tree, oid, ind);
-		assert("nikita-3088", node != NULL);
-
-		junprotect(node);
-		jput(node);
-		unprotected ++;
-	}
-	return unprotected;
-#else
-/* !REISER4_USE_EFLUSH */
-	return count;
-#endif
-}
-
 #if REISER4_DEBUG
 
 static int
@@ -426,24 +382,6 @@ extent_unit_start(const coord_t *item)
 	return extent_get_start(extent_by_coord(item));
 }
 
-static void
-check_protected_node(jnode *node, reiser4_extent *ext, __u64 pos_in_unit)
-{
-#if REISER4_DEBUG
-	assert("zam-836", !JF_ISSET(node, JNODE_EPROTECTED));
-	assert("vs-1216", jnode_is_unformatted(node));
-	if (ext) {
-		if (state_of_extent(ext) == ALLOCATED_EXTENT)
-			assert("vs-1463", node->blocknr == extent_get_start(ext) + pos_in_unit);
-		else
-			assert("vs-1464", blocknr_is_fake(jnode_get_block(node)));
-	}
-#endif
-}
-
-
-#define TRACE_FLUSH 0
-
 /* replace allocated extent with two allocated extents */
 static int
 split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
@@ -480,8 +418,53 @@ split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
 	return result;
 }
 
+#define JNODES_TO_UNFLUSH (16)
+
+static void
+check_protected_node(jnode *node, reiser4_extent *ext, __u64 pos_in_unit)
+{
+#if REISER4_DEBUG
+	assert("zam-836", !JF_ISSET(node, JNODE_EPROTECTED));
+	assert("vs-1216", jnode_is_unformatted(node));
+	if (ext) {
+		if (state_of_extent(ext) == ALLOCATED_EXTENT)
+			assert("vs-1463", node->blocknr == extent_get_start(ext) + pos_in_unit);
+		else
+			assert("vs-1464", blocknr_is_fake(jnode_get_block(node)));
+	}
+#endif
+}
+
+/* this is used to unprotect nodes which were protected before allocating but which will not be allocated either because
+   space allocator allocates less blocks than were protected and/or if allocation of those nodes failed */
 static int
-protect_extent_nodes(oid_t oid, unsigned long index, reiser4_block_nr width, reiser4_block_nr *protected, reiser4_extent *ext)
+unprotect_extent_nodes(oid_t oid, unsigned long ind, __u64 count)
+{
+	__u64         i;
+	reiser4_tree *tree;
+	int	      unprotected;
+
+	tree = current_tree;
+
+	unprotected = 0;
+	for (i = 0 ; i < count; ++ i, ++ ind) {
+		jnode  *node;
+
+		node = jlookup(tree, oid, ind);
+		assert("nikita-3088", node != NULL);
+
+		junprotect(node);
+		jput(node);
+		unprotected ++;
+	}
+	return unprotected;
+}
+
+/* @count nodes of file (objectid @oid) starting from @index are going to be allocated. Protect those nodes from
+   e-flushing. Nodes which are eflushed already will be un-eflushed. There will be not more than JNODES_TO_UNFLUSH
+   un-eflushed nodes. If a node is not found or flushprepped - stop protecting */
+static int
+protect_extent_nodes(oid_t oid, unsigned long index, reiser4_block_nr count, reiser4_block_nr *protected, reiser4_extent *ext)
 {
 	__u64           i;
 	__u64           j;
@@ -494,7 +477,7 @@ protect_extent_nodes(oid_t oid, unsigned long index, reiser4_block_nr width, rei
 
 	eflushed = 0;
 	*protected = 0;
-	for (i = 0; i < width; ++i, ++index) {
+	for (i = 0; i < count; ++i, ++index) {
 		jnode  *node;
 
 		node = jlookup(tree, oid, index);
@@ -722,6 +705,7 @@ mark_jnodes_overwrite(flush_pos_t *flush_pos, oid_t oid, unsigned long index, re
 	}
 }
 
+/* this is called by handle_pos_on_twig */
 int
 alloc_extent(flush_pos_t *flush_pos)
 {
@@ -841,7 +825,18 @@ alloc_extent(flush_pos_t *flush_pos)
 	return 0;
 }
 
-/* copy extent @copy to the end of @node. It may have to either insert new item after the last one, or append last item,
+/* if @key is glueable to the item @coord is set to */
+static int
+must_insert(const coord_t *coord, const reiser4_key *key)
+{
+	reiser4_key last;
+
+	if (item_id_by_coord(coord) == EXTENT_POINTER_ID && keyeq(append_key_extent(coord, &last), key))
+		return 0;
+	return 1;
+}
+
+  /* copy extent @copy to the end of @node. It may have to either insert new item after the last one, or append last item,
    or modify last unit of last item to have greater width */
 static int
 put_unit_to_end(znode *node, const reiser4_key *key, reiser4_extent *copy_ext)

@@ -369,49 +369,6 @@ create_hook_extent(const coord_t *coord, void *arg)
 	return 0;
 }
 
-/* check inode's list of eflushed jnodes and drop those which correspond to this extent */
-static void
-drop_eflushed_nodes(struct inode *inode, unsigned long index, unsigned long end)
-{
-#if REISER4_USE_EFLUSH
-	struct list_head *tmp, *next;
-	reiser4_inode *info;
-	reiser4_tree *tree;
-	int nr;
-
-	if (!inode)
-		/* there should be no eflushed jnodes */
-		return;
-
-	nr = 0;
-	tree = tree_by_inode(inode);
- repeat:
-	
-	spin_lock_eflush(tree->super);
-
-	info = reiser4_inode_data(inode);
-	list_for_each_safe(tmp, next, &info->eflushed_jnodes) {
-		eflush_node_t *ef;
-		jnode *j;
-
-		ef = list_entry(tmp, eflush_node_t, inode_link);
-		j = ef->node;
-		if (index_jnode(j) >= index && end && index_jnode(j) < end) {
-			/* FIXME: eflushed nodes get removed by truncate_inode_jnodes */
-			assert("vs-1433", 0);
-			jref(j);			
-			spin_unlock_eflush(tree->super);
-			UNDER_SPIN_VOID(jnode, j, eflush_del(j, 0));
-			uncapture_jnode(j);
-			jput(j);
-			nr ++;
-			goto repeat;
-		}
-	}
-	spin_unlock_eflush(tree->super);
-#endif
-}
-
 /* distinguish jnodes with and without pages, captured and not */
 static void
 invalidate_unformatted(jnode *node)
@@ -523,7 +480,6 @@ kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, struct cut
 		nr_pages = nr_extent_pointers(coord, from, count);
 		truncate_mapping_pages_range(inode->i_mapping, index, nr_pages);
 		truncate_inode_jnodes_range(inode, index, nr_pages);
-		drop_eflushed_nodes(inode, index, 0);
 	}
 
 	ext = extent_item(coord) + from;
@@ -618,7 +574,6 @@ cut_or_kill_units(coord_t *coord,
 						     start, nr_pages);
 			/* detach jnodes from inode's tree of jnodes */
 			truncate_inode_jnodes_range(inode, start, nr_pages);
-			drop_eflushed_nodes(inode, start, start + nr_pages);
 		}
 
 		/* when @from_key (and @to_key) are specified things become

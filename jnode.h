@@ -380,7 +380,7 @@ jnode_get_io_block(const jnode * node)
 	assert("nikita-2768", node != NULL);
 	assert("nikita-2769", spin_jnode_is_locked(node));
 
-	if (unlikely(REISER4_USE_EFLUSH && JF_ISSET(node, JNODE_EFLUSH)))
+	if (unlikely(JF_ISSET(node, JNODE_EFLUSH)))
 		return eflush_get(node);
 	else
 		return jnode_get_block(node);
@@ -752,7 +752,7 @@ junprotect (jnode * node)
 {
 	assert("zam-837", !JF_ISSET(node, JNODE_EFLUSH));
 	/* when REISER4_USE_EFLUSH is not defined - EPROTECT bit does not get set */
-	assert("zam-838", ergo(REISER4_USE_EFLUSH, JF_ISSET(node, JNODE_EPROTECTED)));
+	assert("zam-838", JF_ISSET(node, JNODE_EPROTECTED));
 
 	JF_CLR(node, JNODE_EPROTECTED);
 }

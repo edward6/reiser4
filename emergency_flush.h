@@ -13,7 +13,6 @@
 
 extern spinlock_t eflushed_guard;
 
-#if REISER4_USE_EFLUSH
 
 #include "block_alloc.h"
 
@@ -45,24 +44,6 @@ extern void eflush_del(jnode *node, int page_locked);
 int emergency_flush(struct page *page);
 int emergency_unflush(jnode *node);
 
-
-#else
-
-typedef struct {
-} ef_hash_table;
-
-#define eflush_init() (0)
-#define eflush_done() noop
-
-#define eflush_init_at(super) (0)
-#define eflush_done_at(super) noop
-
-#define eflush_get(node)           (NULL)
-#define eflush_del(node, pl)       noop
-#define emergency_flush(page) (0)
-#define emergency_unflush(node)    (0)
-
-#endif
 
 /* __EMERGENCY_FLUSH_H__ */
 #endif

@@ -239,7 +239,6 @@
 
 spinlock_t eflushed_guard = SPIN_LOCK_UNLOCKED;
 
-#if REISER4_USE_EFLUSH
 
 static int flushable(const jnode * node, struct page *page);
 static int needs_allocation(const jnode * node);
@@ -861,8 +860,6 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 	LOCK_JNODE(node);
 	return result;
 }
-
-#endif
 
 /* Make Linus happy.
    Local variables:

@@ -1461,21 +1461,16 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 	assert("jmacd-2008", !node_is_empty(right));
 	coord_init_first_unit(&coord, right);
 
-	/* Initialize stop_key to detect if any extents are copied.  After
-	   this loop loop if stop_key is still equal to *min_key then nothing
-	   was copied (and there is nothing to cut). */
-	stop_key = *min_key();
-
 	DISABLE_NODE_CHECK;
 
 	ON_TRACE(TRACE_FLUSH_VERB, "sq_twig before copy extents: left %s\n", znode_tostring(left));
 	ON_TRACE(TRACE_FLUSH_VERB, "sq_twig before copy extents: right %s\n", znode_tostring(right));
-	/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("left", left, ~0u)); */
-	/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("right", right, ~0u)); */
 
 	/* FIXME: can be optimized to cut once */
 	while (!node_is_empty(coord.node) && item_is_extent(&coord)) {
 		assert("vs-1468", coord_is_leftmost_unit(&coord));
+
+		/* stop_key is used to find what was copied and what to cut */
 		stop_key = *min_key();
 		ret = squalloc_extent(left, &coord, pos, &stop_key);
 		if (ret != SQUEEZE_CONTINUE)
@@ -1486,51 +1481,9 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 		set_key_offset(&stop_key, get_key_offset(&stop_key) - 1);
 		check_me("vs-1466", squalloc_right_twig_cut(&coord, &stop_key, left) == 0);		
 	}
+
 	if (node_is_empty(coord.node))
 		ret = SQUEEZE_SOURCE_EMPTY;
-
-#if 0
-		slum_size = find_extent_slum_size(&coord, 0);
-		if (slum_size == 0)
-			ret = SQUEEZE_TARGET_FULL;
-		else if (!should_relocate(slum_size)) {
-			while (slum_size && ret == SQUEEZE_CONTINUE) {
-				if (extent_is_allocated(&coord))
-					ret = extent_handle_overwrite_and_copy(left, &coord, pos, &slum_size, &stop_key);
-				else
-					ret = extent_handle_relocate_and_copy(left, &coord, pos, &slum_size, &stop_key);
-				if (ret == SQUEEZE_TARGET_FULL) {
-					ENABLE_NODE_CHECK;
-					break;
-				}
-				coord_next_unit(&coord);
-			}
-		} else {
-			while (slum_size && ret == SQUEEZE_CONTINUE) {
-				ret = extent_handle_relocate_and_copy(left, &coord, pos, &slum_size, &stop_key);
-				if (ret == SQUEEZE_TARGET_FULL || ret < 0) {
-					ENABLE_NODE_CHECK;
-					break;
-				}
-				coord_next_unit(&coord);
-			}
-		}
-	}
-	if (!keyeq(&stop_key, min_key())) {
-		int cut_ret;
-
-		IF_TRACE(TRACE_FLUSH_VERB, print_coord("sq_twig:cut_coord", &coord, 0));
-
-		/* Helper function to do the cutting. */
-		coord_prev_unit(&coord);
-		cut_ret = squalloc_right_twig_cut(&coord, &stop_key, left);
-		if (cut_ret != 0) {
-			assert("jmacd-6443", cut_ret < 0);
-			reiser4_panic("jmacd-87113", "cut_node failed: %d", cut_ret);
-		}
-	}
-#endif
-
 
 	ENABLE_NODE_CHECK;
 	node_check(left, REISER4_NODE_DKEYS);
@@ -2041,55 +1994,6 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 		}
 		coord_next_unit(&pos->coord);
 	}
-
-#if 0
-	slum_size = find_extent_slum_size(&pos->coord, pos->pos_in_unit);
-	if (!should_relocate(slum_size)) {
-		/* "slum" is not enough big to relocate */
-		while (slum_size) {
-			if (extent_is_allocated(&pos->coord))
-				ret = extent_handle_overwrite_in_place(pos, &slum_size);
-			else
-				ret = extent_handle_relocate_in_place(pos, &slum_size);
-			if (ret)
-				return ret;
-			coord_next_unit(&pos->coord);
-			if (coord_is_after_rightmost(&pos->coord))
-				break;
-			pos->pos_in_unit = 0;
-		}
-	} else {
-		/*XXXX*/init_slum_size = slum_size;
-		/*XXXX*/init_pos_in_unit = pos->pos_in_unit;
-		/*XXXX*/init_coord = pos->coord;
-		/*XXXX*/init_start = extent_unit_start(&pos->coord);
-		/*XXXX*/init_width = extent_unit_width(&pos->coord);
-		/*XXXX*/memcpy(&old, extent_by_coord(&pos->coord),
-		       sizeof(reiser4_extent) * ((coord_num_units(&pos->coord) - pos->coord.unit_pos) < 20 ? (coord_num_units(&pos->coord) - pos->coord.unit_pos) : 20));
-
-		/* relocate "slum" */
-		/* FIXME: way for optimization: we could try to alloc blocks for whole
-		   slum at once. But, slum here may be mixture of allocated and
-		   unallocated extents, therefore some of grabbed blocks are counted as
-		   fake allocated others as flush_reserved. So, reiser4_alloc_blocks will
-		   fail. For new we have allocate_extent_item_in_place to allocate for
-		   every unit separately */
-		while (slum_size) {
-			assert("vs-1395", item_is_extent(&pos->coord));
-			ret = extent_handle_relocate_in_place(pos, &slum_size);
-			if (ret)
-				return ret;
-
-			coord_next_unit(&pos->coord);
-			if (coord_is_after_rightmost(&pos->coord))
-				break;
-			pos->pos_in_unit = 0;
-		}
-		ret = rapid_flush(pos);
-		if (ret)
-			return ret;
-	}
-#endif
 
 	if (coord_is_after_rightmost(&pos->coord)) {
 		pos->state = POS_END_OF_TWIG;

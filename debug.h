@@ -118,13 +118,6 @@
 #define REISER4_DEBUG_OUTPUT (0)
 #endif
 
-#if defined(CONFIG_REISER4_USE_EFLUSH)
-/* enable emergency flush */
-#define REISER4_USE_EFLUSH (1)
-#else
-#define REISER4_USE_EFLUSH (0)
-#endif
-
 #if defined(CONFIG_REISER4_COPY_ON_CAPTURE)
 /* enable copy on capture */
 #define REISER4_COPY_ON_CAPTURE (1)

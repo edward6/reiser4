@@ -832,7 +832,7 @@ int jload_gfp (jnode * node /* node to load */, int gfp_flags /* allocation
 					  jnode.jload_already);
 	}
 
-	if (unlikely(REISER4_USE_EFLUSH && JF_ISSET(node, JNODE_EFLUSH)))
+	if (unlikely(JF_ISSET(node, JNODE_EFLUSH)))
 		UNDER_SPIN_VOID(jnode, node, eflush_del(node, 0));
 
 	if (!is_writeout_mode())

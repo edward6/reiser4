@@ -2682,7 +2682,6 @@ void jnode_make_wander_nolock (jnode * node)
 
 	capture_list_remove_clean(node);
 	capture_list_push_back(&atom->ovrwr_nodes, node);
-	assert("", ergo(jnode_is_leaf(node), JF_ISSET(node, JNODE_FLUSH_RESERVED)));
 	ON_DEBUG(if (jnode_is_leaf(node) && node->list != OVRWR_LIST) atom->ovrwr_leaves ++);
 	ON_DEBUG(node->list = OVRWR_LIST);
 	JF_SET(node, JNODE_OVRWR);
@@ -3861,7 +3860,6 @@ void uncapture_block(jnode * node)
 	JF_CLR(node, JNODE_CCED);
 #if REISER4_DEBUG
 	node->written = 0;
-	JF_CLR(node, JNODE_FLUSH_RESERVED);
 #endif
 
 	capture_list_remove_clean(node);
