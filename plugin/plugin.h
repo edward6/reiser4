@@ -138,6 +138,8 @@ typedef struct file_plugin {
 
 	int ( *release )( struct file *file );
 	int ( *mmap )( struct file *file, struct vm_area_struct *vma);
+	int ( *get_block )( struct inode *inode, sector_t block,
+			    struct buffer_head *bh_result, int create );
 /*
  * private methods: These are optional.  If used they will allow you to
  * minimize the amount of code needed to implement a deviation from some other
