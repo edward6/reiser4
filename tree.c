@@ -1007,7 +1007,7 @@ int shift_everything_left (znode * right, znode * left, carry_level *todo)
 	coord_t from;
 	node_plugin * nplug;
 
-	coord_init_last_unit (&from, right);
+	coord_init_after_last_item (&from, right);
 
 	nplug = node_plugin_by_node (right);
 	result = nplug->shift (&from, left, SHIFT_LEFT,
@@ -1461,7 +1461,12 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	if( flags & REISER4_NODE_PRINT_ZNODE )
 		print_znode( "", node );
 
-	print_znode_content( node, flags );
+	if( flags & REISER4_NODE_PRINT_ZADDR ) {
+		info( "[node %p block %llu level %u]\n", node, *znode_get_block( node ), znode_get_level( node ) );
+	} else {
+		print_znode_content( node, flags );
+	}
+
 	if( node_is_empty( node ) ) {
 		indent_znode( node );
 		info( "empty\n" );
