@@ -91,7 +91,18 @@ static unsigned int jnode_page_hash( const jnode *node )
 
 spinlock_t *jnode_to_page_lock( const jnode *node )
 {
-	return &get_current_super_private() -> j_to_p[ jnode_page_hash( node ) ];
+	int spin_ind;
+	spinlock_t *result;
+
+	spin_ind = jnode_page_hash( node );
+	assert( "nikita-2240", 
+		( 0 <= spin_ind ) && 
+		( spin_ind < sizeof_array( get_current_super_private() -> j_to_p ) ) );
+	result = &get_current_super_private() -> j_to_p[ spin_ind ];
+#ifdef CONFIG_DEBUG_SPINLOCK
+	assert( "nikita-2241", result -> magic == SPINLOCK_MAGIC );
+#endif
+	return result;
 }
 
 spinlock_t *page_to_jnode_lock( const struct page *page )
@@ -413,6 +424,8 @@ int jload_and_lock( jnode *node )
 		 * kmapped, it will kunmapped in zunload
 		 */
 		result = tree -> ops -> read_node( tree, node );
+		assert( "nikita-2239", ergo( jnode_page( node ) != NULL,
+					     ! PageLocked( jnode_page( node ) ) ) );
 		reiser4_stat_znode_add( zload_read );
 
 		if( likely( result >= 0 ) ) {
