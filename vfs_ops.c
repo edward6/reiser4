@@ -2508,6 +2508,7 @@ int reiser4_sync_page(struct page *page)
 			(void)jnode_short_info(j, jbuf);
 			write_tracef(&get_super_private(s)->trace_file, s,
 				     "wait_on_page: %llu %s\n", block, jbuf);
+			(void)jbuf; /* ohoho */
 		}
 	}
 	block_sync_page(page);
