@@ -24,7 +24,7 @@
 #include "znode.h"
 #include "block_alloc.h"
 #include "tree.h"
-#include "trace.h"
+#include "log.h"
 #include "vfs_ops.h"
 #include "inode.h"
 #include "page_cache.h"
@@ -923,7 +923,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 {
 	int result;
 	reiser4_super_info_data *sbinfo = get_super_private(s);
-	char *trace_file_name;
+	char *log_file_name;
 
 	opt_desc_t opts[] = {
 		/* trace_flags=N
@@ -933,7 +933,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		   bitfield filled by values of debug.h:reiser4_trace_flags
 		   enum
 		*/
-		SB_FIELD_OPT(trace_flags, "%i"),
+		SB_FIELD_OPT(_trace_flags, "%i"),
 		/* debug_flags=N
 		
 		   set debug flags to be N for this mount. N can be C numeric
@@ -1061,12 +1061,12 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
                         }
                 },
 
-#if REISER4_TRACE_TREE
+#if REISER4_LOG
 		{
-			.name = "trace_file",
+			.name = "log_file",
 			.type = OPT_STRING,
 			.u = {
-				.string = &trace_file_name
+				.string = &log_file_name
 			}
 		},
 #endif
@@ -1093,7 +1093,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 
 	sbinfo->entd.timeout = REISER4_ENTD_TIMEOUT;
 
-	trace_file_name = NULL;
+	log_file_name = NULL;
 
 	/*
 	  init default readahead params
@@ -1121,11 +1121,11 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		warning("nikita-2497", "optimal_io_size is too small");
 		return RETERR(-EINVAL);
 	}
-#if REISER4_TRACE_TREE
-	if (trace_file_name != NULL)
-		result = open_trace_file(s, trace_file_name, REISER4_TRACE_BUF_SIZE, &sbinfo->trace_file);
+#if REISER4_LOG
+	if (log_file_name != NULL)
+		result = open_log_file(s, log_file_name, REISER4_TRACE_BUF_SIZE, &sbinfo->log_file);
 	else
-		sbinfo->trace_file.type = log_to_bucket;
+		sbinfo->log_file.type = log_to_bucket;
 #endif
 
 	/* disable single-threaded flush as it leads to deadlock */
@@ -1143,7 +1143,8 @@ reiser4_show_options(struct seq_file *m, struct vfsmount *mnt)
 	super = mnt->mnt_sb;
 	sbinfo = get_super_private(super);
 
-	seq_printf(m, ",trace=0x%x", sbinfo->trace_flags);
+	seq_printf(m, ",trace=0x%x", sbinfo->_trace_flags);
+	seq_printf(m, ",log=0x%x", sbinfo->_log_flags);
 	seq_printf(m, ",debug=0x%x", sbinfo->debug_flags);
 	seq_printf(m, ",atom_max_size=0x%x", sbinfo->tmgr.atom_max_size);
 
@@ -1338,7 +1339,7 @@ reiser4_kill_super(struct super_block *s)
 	rcu_barrier();
 	done_formatted_fake(s);
 
-	close_trace_file(&sbinfo->trace_file);
+	close_log_file(&sbinfo->log_file);
 
 	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
 		reiser4_print_stats();

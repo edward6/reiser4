@@ -15,7 +15,7 @@
 #include "block_alloc.h"
 #include "tree_walk.h"
 #include "tree.h"
-#include "trace.h"
+#include "log.h"
 #include "reiser4.h"
 #include "super.h"
 #include "prof.h"
@@ -418,7 +418,7 @@ coord_by_handle(cbk_handle * handle)
 	 * of this fails, start traversal.
 	 */
 
-	write_tree_trace(handle->tree, tree_lookup, handle->key);
+	write_tree_log(handle->tree, tree_lookup, handle->key);
 
 	/* first check whether "key" is in cache of recent lookups. */
 	if (cbk_cache_search(handle) == 0)
@@ -795,7 +795,7 @@ restart:
 			     (h->bias == FIND_EXACT) &&
 			     (!node_is_empty(h->coord->node)), coord_is_existing_item(h->coord))));
 	}
-	write_tree_trace(h->tree, tree_exit);
+	write_tree_log(h->tree, tree_exit);
 	return h->result;
 }
 
@@ -1362,7 +1362,7 @@ cbk_cache_search(cbk_handle * h /* cbk handle */ )
 		} else {
 			assert("nikita-1319", !IS_CBKERR(h->result));
 			reiser4_stat_inc(tree.cbk_cache_hit);
-			write_tree_trace(h->tree, tree_cached);
+			write_tree_log(h->tree, tree_cached);
 			break;
 		}
 	}

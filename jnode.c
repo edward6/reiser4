@@ -878,7 +878,7 @@ jload_gfp (jnode * node /* node to load */,
 	int parsed;
 
 	assert("nikita-3010", schedulable());
-	write_node_trace(node);
+	write_node_log(node);
 
 	prefetchw(&node->pg);
 

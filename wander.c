@@ -1553,7 +1553,8 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 	atom_send_event(atom);
 	UNLOCK_ATOM(atom);
 
-	trace_mark(wander);
+	/* trace_mark(wander); */
+	write_current_logf(WRITE_IO_LOG, "mark=wander\n");
 
 	if (REISER4_DEBUG) {
 		 int level;
@@ -1646,7 +1647,8 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 
 	UNDER_SPIN_VOID(atom, atom, atom_set_stage(atom, ASTAGE_POST_COMMIT));
 
-	trace_mark(ovrwr);
+	/* trace_mark(ovrwr); */
+	write_current_logf(WRITE_IO_LOG, "mark=ovrwr\n");
 
 	post_commit_hook();
 

@@ -166,7 +166,7 @@ show_options(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf
 	SHOW_OPTION(p, buf, REISER4_DEBUG_NODE);
 	SHOW_OPTION(p, buf, REISER4_ZERO_NEW_NODE);
 	SHOW_OPTION(p, buf, REISER4_TRACE);
-	SHOW_OPTION(p, buf, REISER4_TRACE_TREE);
+	SHOW_OPTION(p, buf, REISER4_LOG);
 	SHOW_OPTION(p, buf, REISER4_STATS);
 	SHOW_OPTION(p, buf, REISER4_DEBUG_OUTPUT);
 	SHOW_OPTION(p, buf, REISER4_LOCKPROF);
@@ -205,6 +205,7 @@ static reiser4_kattr device = {
 	.show = show_device
 };
 
+#if 0
 static ssize_t
 show_trace_flags(struct super_block * s,
 		 reiser4_kattr * kattr, void * o, char * buf)
@@ -239,6 +240,84 @@ static reiser4_kattr trace_flags = {
 	.store = store_trace_flags,
 	.show  = show_trace_flags
 };
+
+static ssize_t
+show_log_flags(struct super_block * s,
+	       reiser4_kattr * kattr, void * o, char * buf)
+{
+	char *p;
+
+	(void)o;
+	p = buf;
+	KATTR_PRINT(p, buf, "%#x\n", get_super_private(s)->log_flags);
+	return (p - buf);
+}
+
+ssize_t store_log_flags(struct super_block * s,
+			reiser4_kattr *ka, void *opaque, const char *buf,
+			size_t size)
+{
+	__u32 log_flags;
+
+	if (sscanf(buf, "%i", &log_flags) == 1)
+		get_super_private(s)->log_flags = log_flags;
+	else
+		size = RETERR(-EINVAL);
+	return size;
+}
+
+static reiser4_kattr log_flags = {
+	.attr = {
+		.name = (char *) "log_flags",
+		.mode = 0644   /* rw-r--r-- */
+	},
+	.cookie = NULL,
+	.store = store_log_flags,
+	.show  = show_log_flags
+};
+#endif
+
+
+/*########################*/
+#define DEFINE_XXX_FLAGS(XXX)							\
+static ssize_t									\
+show_##XXX##_flags(struct super_block * s,						\
+	       reiser4_kattr * kattr, void * o, char * buf)			\
+{										\
+	char *p;								\
+										\
+	(void)o;								\
+	p = buf;								\
+	KATTR_PRINT(p, buf, "%#x\n", get_super_private(s)->_##XXX##_flags);		\
+	return (p - buf);							\
+}										\
+										\
+ssize_t store_##XXX##_flags(struct super_block * s,					\
+			reiser4_kattr *ka, void *opaque, const char *buf,	\
+			size_t size)						\
+{										\
+	__u32 flags;							\
+										\
+	if (sscanf(buf, "%i", &flags) == 1)					\
+		get_super_private(s)->_##XXX##_flags = flags;			\
+	else									\
+		size = RETERR(-EINVAL);						\
+	return size;								\
+}										\
+										\
+static reiser4_kattr XXX##_flags = {						\
+	.attr = {								\
+		.name = (char *) "log_flags",					\
+		.mode = 0644   /* rw-r--r-- */					\
+	},									\
+	.cookie = NULL,								\
+	.store = store_##XXX##_flags,						\
+	.show  = show_##XXX##_flags							\
+};										\
+/*########################*/
+
+DEFINE_XXX_FLAGS(log);
+DEFINE_XXX_FLAGS(trace);
 
 #if REISER4_DEBUG
 ssize_t store_bugme(struct super_block * s,
@@ -329,6 +408,7 @@ static struct attribute * kattr_def_attrs[] = {
 	&compile_options.attr,
 	&device.attr,
 	&trace_flags.attr,
+	&log_flags.attr,
 #if REISER4_DEBUG
 	&bugme.attr,
 #endif

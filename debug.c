@@ -253,14 +253,31 @@ __u32 get_current_trace_flags(void)
 	__u32 flags;
 	reiser4_context *ctx;
 
-	flags = reiser4_current_trace_flags;
+	flags = 0;
 	ctx = get_current_context_check();
 	if (ctx) {
 		flags |= ctx->trace_flags;
-		flags |= get_super_private(ctx->super)->trace_flags;
+		flags |= get_super_private(ctx->super)->_trace_flags;
 	}
 	return flags;
 }
+#endif
+
+#if REISER4_TRACE
+
+/* log flags are stored in super block */
+__u32 get_current_log_flags(void)
+{
+	__u32 flags;
+	reiser4_context *ctx;
+
+	flags = 0;
+	ctx = get_current_context_check();
+	if (ctx)
+		flags = get_super_private(ctx->super)->_log_flags;
+	return flags;
+}
+
 #endif
 
 /* allocate memory. This calls kmalloc(), performs some additional checks, and

@@ -186,7 +186,7 @@
 #include "carry_ops.h"
 #include "tap.h"
 #include "tree.h"
-#include "trace.h"
+#include "log.h"
 #include "vfs_ops.h"
 #include "page_cache.h"
 #include "super.h"
@@ -380,7 +380,7 @@ insert_by_coord(coord_t * coord	/* coord where to
 	assert("vs-249", data->length >= 0);
 	assert("nikita-1191", znode_is_write_locked(coord->node));
 
-	write_tree_trace(znode_get_tree(coord->node), tree_insert, key, data, coord, flags);
+	write_tree_log(znode_get_tree(coord->node), tree_insert, key, data, coord, flags);
 
 	node = coord->node;
 	coord_clear_iplug(coord);
@@ -474,7 +474,7 @@ insert_into_item(coord_t * coord /* coord of pasting */ ,
 
 	assert("nikita-1480", iplug == data->iplug);
 
-	write_tree_trace(znode_get_tree(coord->node), tree_paste, key, data, coord, flags);
+	write_tree_log(znode_get_tree(coord->node), tree_paste, key, data, coord, flags);
 
 	size_change = space_needed(coord->node, coord, data, 0);
 	if (size_change > (int) znode_free_space(coord->node) &&
@@ -1708,7 +1708,7 @@ cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
 	if (smallest_removed_p == NULL)
 		smallest_removed_p = &smallest_removed;
 
-	write_tree_trace(tree, tree_cut, from_key, to_key);
+	write_tree_log(tree, tree_cut, from_key, to_key);
 	init_lh(&lock);
 
 	do {

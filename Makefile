@@ -62,7 +62,7 @@ reiser4-objs := \
 		   seal.o \
 		   scint.o \
 		   dscale.o \
-		   trace.o \
+		   log.o \
 		   flush_queue.o \
 		   ktxnmgrd.o \
 		   kattr.o \

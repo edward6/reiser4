@@ -19,7 +19,7 @@
 #include "znode.h"
 #include "block_alloc.h"
 #include "tree.h"
-#include "trace.h"
+#include "log.h"
 #include "vfs_ops.h"
 #include "inode.h"
 #include "page_cache.h"
@@ -136,7 +136,7 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 
 	inode = f->f_dentry->d_inode;
 	init_context(&ctx, inode->i_sb);
-	write_syscall_trace("%s", f->f_dentry->d_name.name);
+	write_syscall_log("%s", f->f_dentry->d_name.name);
 	reiser4_stat_inc(vfs_calls.readdir);
 
 	dplug = inode_dir_plugin(inode);
@@ -148,7 +148,7 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 	/*
 	 * directory st_atime is updated by callers (if necessary).
 	 */
-	write_syscall_trace("ex");
+	write_syscall_log("ex");
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 	return result;
@@ -166,7 +166,7 @@ reiser4_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned
 	reiser4_context ctx;
 
 	init_context(&ctx, inode->i_sb);
-	write_syscall_trace("%s", filp->f_dentry->d_name.name);
+	write_syscall_log("%s", filp->f_dentry->d_name.name);
 	reiser4_stat_inc(vfs_calls.ioctl);
 
 	if (inode_file_plugin(inode)->ioctl == NULL)
@@ -174,7 +174,7 @@ reiser4_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned
 	else
 		result = inode_file_plugin(inode)->ioctl(inode, filp, cmd, arg);
 
-	write_syscall_trace("ex");
+	write_syscall_log("ex");
 	reiser4_exit_context(&ctx);
 	return result;
 }
@@ -188,7 +188,7 @@ reiser4_mmap(struct file *file, struct vm_area_struct *vma)
 	reiser4_context ctx;
 
 	init_context(&ctx, file->f_dentry->d_inode->i_sb);
-	write_syscall_trace("%s", file->f_dentry->d_name.name);
+	write_syscall_log("%s", file->f_dentry->d_name.name);
 	reiser4_stat_inc(vfs_calls.mmap);
 
 	ON_TRACE(TRACE_VFS_OPS, "MMAP: (i_ino %lli, size %lld)\n",
@@ -198,7 +198,7 @@ reiser4_mmap(struct file *file, struct vm_area_struct *vma)
 	inode = file->f_dentry->d_inode;
 	assert("nikita-2936", inode_file_plugin(inode)->mmap != NULL);
 	result = inode_file_plugin(inode)->mmap(file, vma);
-	write_syscall_trace("ex");
+	write_syscall_log("ex");
 	reiser4_exit_context(&ctx);
 	return result;
 }
@@ -228,7 +228,7 @@ reiser4_read(struct file *file /* file to read from */ ,
 
 	inode = file->f_dentry->d_inode;
 	init_context(&ctx, inode->i_sb);
-	write_syscall_trace("%s", file->f_dentry->d_name.name);
+	write_syscall_log("%s", file->f_dentry->d_name.name);
 	reiser4_stat_inc(vfs_calls.read);
 
 	ON_TRACE(TRACE_VFS_OPS,
@@ -246,7 +246,7 @@ reiser4_read(struct file *file /* file to read from */ ,
 		/* unix_file_read is one method that might be invoked below */
 		result = fplug->read(file, buf, count, off);
 	}
-	write_syscall_trace("ex");
+	write_syscall_log("ex");
 	reiser4_exit_context(&ctx);
 	return result;
 }
@@ -271,7 +271,7 @@ reiser4_write(struct file *file /* file to write on */ ,
 
 	inode = file->f_dentry->d_inode;
 	init_context(&ctx, inode->i_sb);
-	write_syscall_trace("%s", file->f_dentry->d_name.name);
+	write_syscall_log("%s", file->f_dentry->d_name.name);
 	reiser4_stat_inc(vfs_calls.write);
 
 	ON_TRACE(TRACE_VFS_OPS,
@@ -286,7 +286,7 @@ reiser4_write(struct file *file /* file to write on */ ,
 
 		result = fplug->write(file, buf, size, off);
 	}
-	write_syscall_trace("ex");
+	write_syscall_log("ex");
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 	return result;

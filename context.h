@@ -239,7 +239,7 @@ static inline int is_grab_enabled(reiser4_context *ctx)
 
 #define REISER4_TRACE_CONTEXT (0)
 
-#if REISER4_TRACE_TREE && REISER4_TRACE_CONTEXT
+#if REISER4_LOG && REISER4_TRACE_CONTEXT
 extern int write_in_trace(const char *func, const char *mes);
 
 #define log_entry(super, str)						\

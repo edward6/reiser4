@@ -69,7 +69,7 @@ formatted_readahead(znode *node, ra_info_t *info)
 	if (low_on_memory())
 		return;
 
-	write_current_tracef("...readahead\n");
+	write_current_logf(READAHEAD_LOG, "...readahead\n");
 
 	/* We can have locked nodes on upper tree levels, in this situation lock
 	   priorities do not help to resolve deadlocks, we have to use TRY_LOCK
@@ -115,7 +115,7 @@ formatted_readahead(znode *node, ra_info_t *info)
 	zput(cur);
 	done_lh(&next_lh);
 
-	write_current_tracef("...readahead exits\n");
+	write_current_logf(READAHEAD_LOG, "...readahead exits\n");
 }
 
 static inline loff_t get_max_readahead(struct reiser4_file_ra_state *ra)

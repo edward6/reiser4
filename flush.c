@@ -23,7 +23,7 @@
 #include "page_cache.h"
 #include "wander.h"
 #include "super.h"
-#include "trace.h"
+#include "log.h"
 #include "entd.h"
 #include "reiser4.h"
 #include "prof.h"
@@ -470,7 +470,10 @@ static int write_prepped_nodes (flush_pos_t * pos, int check_congestion)
 	if (check_congestion && check_write_congestion())
 		return 0;
 #endif /* FLUSH_CHECKS_CONGESTION */
-	trace_mark(flush);
+
+	/* trace_mark(flush); */
+	write_current_logf(WRITE_IO_LOG, "mark=flush\n");
+
 	ret = write_fq(pos->fq, pos->nr_written, 
 		       WRITEOUT_SINGLE_STREAM | get_writeout_flags());
 	set_rapid_flush_mode(0);
@@ -893,7 +896,7 @@ failed:
 
 	ON_DEBUG(atomic_dec(&flush_cnt));
 
-	write_syscall_trace("ex");
+	write_syscall_log("ex");
 
 	leave_flush(sb);
 
@@ -986,9 +989,9 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 	/* count ourself as a flusher */
 	(*atom)->nr_flushers++;
 
-	if (REISER4_TRACE_TREE) {
+	if (REISER4_LOG) {
 		UNLOCK_ATOM(*atom);
-		write_syscall_trace("in");
+		write_syscall_log("in");
 		*atom = get_current_atom_locked();
 	}
 	reiser4_stat_inc(flush.flush);
@@ -1048,7 +1051,10 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 	}
 
 	flush_started_io();
-	trace_mark(flush);
+
+	/* trace_mark(flush); */
+	write_current_logf(WRITE_IO_LOG, "mark=flush\n");
+	
 	ret = write_fq(fq, nr_submitted, WRITEOUT_SINGLE_STREAM | get_writeout_flags());
 	set_rapid_flush_mode(0);
 
@@ -1058,7 +1064,7 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 	UNLOCK_ATOM(*atom);
 
 	writeout_mode_disable();
-	write_syscall_trace("ex");
+	write_syscall_log("ex");
 
 	if (ret == 0)
 		ret = -E_REPEAT;

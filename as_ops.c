@@ -19,7 +19,7 @@
 #include "znode.h"
 #include "block_alloc.h"
 #include "tree.h"
-#include "trace.h"
+#include "log.h"
 #include "vfs_ops.h"
 #include "inode.h"
 #include "page_cache.h"

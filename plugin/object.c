@@ -250,8 +250,8 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	*/
 
 	if (result == IBK_INSERT_OK) {
-		write_current_tracef("..sd i %#llx %#llx",
-				     get_inode_oid(inode), ref->locality_id);
+		write_current_logf(WRITE_TREE_LOG, "..sd i %#llx %#llx",
+				   get_inode_oid(inode), ref->locality_id);
 
 		coord_clear_iplug(&coord);
 		result = zload(coord.node);
@@ -504,7 +504,7 @@ common_file_delete_no_reserve(struct inode *inode /* object to remove */,
 		DQUOT_DROP(inode);
 
 		build_sd_key(inode, &sd_key);
-		write_current_tracef("..sd k %#llx", get_inode_oid(inode));
+		write_current_logf(WRITE_TREE_LOG, "..sd k %#llx", get_inode_oid(inode));
 		result = cut_tree(tree_by_inode(inode), &sd_key, &sd_key, NULL, mode);
 		if (result == 0) {
 			inode_set_flag(inode, REISER4_NO_SD);

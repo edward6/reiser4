@@ -98,7 +98,7 @@ _DONE_(context)
 
 	sbinfo = get_super_private(s);
 
-	close_trace_file(&sbinfo->trace_file);
+	close_log_file(&sbinfo->log_file);
 
 	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
 		reiser4_print_stats();
@@ -138,7 +138,7 @@ _INIT_(parse_options)
 
 _DONE_(parse_options)
 {
-	close_trace_file(&get_super_private(s)->trace_file);
+	close_log_file(&get_super_private(s)->log_file);
 }
 
 _INIT_(object_ops)

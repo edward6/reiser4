@@ -9,7 +9,7 @@
 #include "debug.h"
 #include "tree.h"
 #include "context.h"
-#include "trace.h"
+#include "log.h"
 #include "lnode.h"
 #include "entd.h"
 #include "plugin/plugin.h"
@@ -208,10 +208,14 @@ struct reiser4_super_info_data {
 
 	/* per-fs tracing flags. Use reiser4_trace_flags enum to set
 	   bits in it. */
-	__u32 trace_flags;
+	__u32 _trace_flags;
+
+	/* per-fs log flags. Use reiser4_log_flags enum to set
+	   bits in it. */
+	__u32 _log_flags;
 
 	/* file where tracing goes (if enabled). */
-	reiser4_trace_file trace_file;
+	reiser4_log_file log_file;
 
 	/* per-fs debugging flags. This is bitmask populated from
 	   reiser4_debug_flags enum. */
@@ -323,7 +327,7 @@ struct reiser4_super_info_data {
 	/* Alternative master superblock offset (in bytes) */
 	unsigned long altsuper;
 #endif
-#if REISER4_TRACE_TREE
+#if REISER4_LOG
 	/* last disk block IO was performed against by this file system. Used
 	 * by tree tracing code to track seeks. */
 	reiser4_block_nr last_touched;

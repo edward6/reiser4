@@ -19,7 +19,7 @@
 #include "znode.h"
 #include "block_alloc.h"
 #include "tree.h"
-#include "trace.h"
+#include "log.h"
 #include "vfs_ops.h"
 #include "inode.h"
 #include "page_cache.h"
@@ -359,7 +359,7 @@ truncate_object(struct inode *inode /* object to truncate */ ,
 	assert("nikita-1027", is_reiser4_inode(inode));
 	assert("nikita-1028", inode->i_sb != NULL);
 
-	write_syscall_trace("%llu %lli", get_inode_oid(inode), size);
+	write_syscall_log("%llu %lli", get_inode_oid(inode), size);
 
 	fplug = inode_file_plugin(inode);
 	assert("vs-142", fplug != NULL);
@@ -369,7 +369,7 @@ truncate_object(struct inode *inode /* object to truncate */ ,
 	if (result != 0)
 		warning("nikita-1602", "Truncate error: %i for %lli", result, get_inode_oid(inode));
 
-	write_syscall_trace("ex");
+	write_syscall_log("ex");
 	return result;
 }
 
@@ -419,7 +419,7 @@ unlink_file(struct inode *parent /* parent directory */ ,
 	reiser4_context ctx;
 
 	init_context(&ctx, parent->i_sb);
-	write_syscall_trace("%s", victim->d_name.name);
+	write_syscall_log("%s", victim->d_name.name);
 
 	assert("nikita-1435", parent != NULL);
 	assert("nikita-1436", victim != NULL);
@@ -433,7 +433,7 @@ unlink_file(struct inode *parent /* parent directory */ ,
 		result = dplug->unlink(parent, victim);
 	else
 		result = RETERR(-EPERM);
-	write_syscall_trace("ex");
+	write_syscall_log("ex");
 	/* @victim can be already removed from the disk by this time. Inode is
 	   then marked so that iput() wouldn't try to remove stat data. But
 	   inode itself is still there.
@@ -551,7 +551,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 
 	init_context(&ctx, parent->i_sb);
 	context_set_commit_async(&ctx);
-	write_syscall_trace("%s %o", dentry->d_name.name, data->mode);
+	write_syscall_log("%s %o", dentry->d_name.name, data->mode);
 
 	assert("nikita-426", parent != NULL);
 	assert("nikita-427", dentry != NULL);
@@ -593,7 +593,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 	} else
 		result = RETERR(-EPERM);
 
-	write_syscall_trace("ex");
+	write_syscall_log("ex");
 
 	reiser4_exit_context(&ctx);
 	return result;

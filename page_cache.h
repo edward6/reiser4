@@ -18,7 +18,7 @@ extern int done_formatted_fake(struct super_block *super);
 
 extern reiser4_tree *tree_by_page(const struct page *page);
 
-#if REISER4_TRACE_TREE
+#if REISER4_LOG
 extern char *jnode_short_info(const jnode *j, char *buf);
 extern int reiser4_submit_bio_helper(const char *moniker,
 				     int rw, struct bio *bio);

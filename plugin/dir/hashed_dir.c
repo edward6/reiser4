@@ -1144,11 +1144,12 @@ rem_entry_hashed(struct inode *object	/* directory from which entry
 					get_inode_oid(object));
 				result = RETERR(-EIO);
 			}
-			write_current_tracef("..de k %#llx %#llx %i %lli",
-					     get_inode_oid(where->d_inode),
-					     get_inode_oid(object),
-					     where->d_inode->i_nlink,
-					     where->d_inode->i_size);
+			write_current_logf(WRITE_TREE_LOG,
+					   "..de k %#llx %#llx %i %lli",
+					   get_inode_oid(where->d_inode),
+					   get_inode_oid(object),
+					   where->d_inode->i_nlink,
+					   where->d_inode->i_size);
 			assert("nikita-3405", where->d_inode->i_nlink != 1 ||
 			       where->d_inode->i_size != 2 ||
 			       inode_dir_plugin(where->d_inode) == NULL);

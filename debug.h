@@ -96,9 +96,9 @@
 
 #if defined(CONFIG_REISER4_EVENT_LOG)
 /* collect tree traces */
-#define REISER4_TRACE_TREE (1)
+#define REISER4_LOG (1)
 #else
-#define REISER4_TRACE_TREE (0)
+#define REISER4_LOG (0)
 #endif
 
 #if defined(CONFIG_REISER4_STATS)
@@ -338,6 +338,14 @@ extern int is_in_reiser4_context(void);
 #define IF_TRACE(flags, e) noop
 #endif
 
+/* just print where we are: file, function, line */
+#define trace_stamp( f )   IF_TRACE( f, reiser4_log( "trace", "" ) )
+/* print value of "var" */
+#define trace_var( f, format, var ) 				\
+        IF_TRACE( f, reiser4_log( "trace", #var ": " format, var ) )
+/* print output only if appropriate trace flag(s) is on */
+#define ON_TRACE( f, ... )   IF_TRACE(f, printk(__VA_ARGS__))
+
 /* tracing flags. */
 typedef enum {
 	/* trace nothing */
@@ -414,15 +422,28 @@ typedef enum {
 	TRACE_ALL = 0xffffffffu
 } reiser4_trace_flags;
 
-extern __u32 reiser4_current_trace_flags;
+#if REISER4_LOG
+/* helper macro for tracing, see trace_stamp() below. */
+#define IF_LOG(flags, e) 							\
+	if(get_current_log_flags() & (flags)) e
+#else
+#define IF_LOG(flags, e) noop
+#endif
 
-/* just print where we are: file, function, line */
-#define trace_stamp( f )   IF_TRACE( f, reiser4_log( "trace", "" ) )
-/* print value of "var" */
-#define trace_var( f, format, var ) 				\
-        IF_TRACE( f, reiser4_log( "trace", #var ": " format, var ) )
-/* print output only if appropriate trace flag(s) is on */
-#define ON_TRACE( f, ... )   IF_TRACE(f, printk(__VA_ARGS__))
+/* log only if appropriate log flag(s) is on */
+#define ON_LOG( f, ... )   IF_LOG(f, printk(__VA_ARGS__))
+
+typedef enum {
+	WRITE_NODE_LOG = (1 << 0),
+	WRITE_PAGE_LOG = (1 << 1),	/* log make_extent calls */
+	WRITE_IO_LOG = (1 << 2), 	/* log i/o requests */
+	WRITE_TREE_LOG = (1 << 3), 	/* */
+	WRITE_SYSCALL_LOG = (1 << 4),
+	READAHEAD_LOG = (1 << 5),
+	ALLOC_EXTENT_LOG = (1 << 6)
+} reiser4_log_flags;
+
+
 
 extern void reiser4_do_panic(const char *format, ...)
 __attribute__ ((noreturn, format(printf, 1, 2)));
@@ -438,6 +459,7 @@ extern void *reiser4_kmalloc(size_t size, int gfp_flag);
 extern void reiser4_kfree(void *area);
 extern void reiser4_kfree_in_sb(void *area, struct super_block *sb);
 extern __u32 get_current_trace_flags(void);
+extern __u32 get_current_log_flags(void);
 
 #if REISER4_DEBUG_OUTPUT && REISER4_DEBUG_SPIN_LOCKS
 extern void print_lock_counters(const char *prefix,
