@@ -337,10 +337,6 @@ errno_t reiserfs_tree_shift(
     reiserfs_coord_t *new,	    /* new coord will be stored here */
     uint32_t needed		    /* amount of space that should be freed */
 ) {
-    reiserfs_key_t old_ldkey;
-    reiserfs_key_t right_ldkey;
-    
-    reiserfs_pos_t pos;
     reiserfs_coord_t src, dst;
     
     reiserfs_cache_t *left;
@@ -370,22 +366,9 @@ errno_t reiserfs_tree_shift(
 	return -1;
     }
 
-    aal_memset(&old_ldkey, 0, sizeof(old_ldkey));
-    aal_memset(&right_ldkey, 0, sizeof(right_ldkey));
-    
     left = old->cache->left;
     right = old->cache->right;
     
-    /* 
-	Initializing ldkeys for node will be shifted and for right neighbor. They 
-	will be used for determining, whether updating of ldkeys in parent needed
-	or no.
-    */
-    reiserfs_node_ldkey(old->cache->node, &old_ldkey);
-    
-    if (right)
-	reiserfs_node_ldkey(right->node, &right_ldkey);
-	    
     *new = *old;
     item_overhead = reiserfs_node_item_overhead(old->cache->node);
     
@@ -494,71 +477,6 @@ errno_t reiserfs_tree_shift(
 	}
     }
     
-    /* Getting position of old ldkey */
-    aal_memset(&pos, 0, sizeof(pos));
-    
-    if (reiserfs_node_lookup(parent->node, &old_ldkey, &pos) != 1) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find internal key after shifting.");
-	return -1;
-    }
-    
-    /* 
-	Checking if shift node contains any items. If so, we should try to
-	update internal key. Otherwise, we should delete its internal key.
-    */
-    if (reiserfs_node_count(old->cache->node) == 0) {
-	reiserfs_cache_unregister(parent, old->cache);
-	
-	if (reiserfs_node_remove(parent->node, &pos))
-	    return -1;
-
-	reiserfs_tree_dealloc(tree, old->cache);
-	old->cache = NULL;
-    }
-    
-    /* Updating internal key for shifted node */
-    if (left && old->cache) {
-	reiserfs_key_t new_ldkey;
-	
-	reiserfs_node_ldkey(old->cache->node, &new_ldkey);
-	
-	/* 
-	    Checking if old ldkey differs from new one. If keys differ, we should
-	    set new ldkey into parent internal node.
-	*/
-	if (reiserfs_key_compare_full(&old_ldkey, &new_ldkey) != 0) {
-	    if (reiserfs_node_set_key(parent->node, &pos, &new_ldkey)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't update left delimiting key of shifted node.");
-		return -1;
-	    }
-	}
-    }
-    
-    /* Updating internal key for right neighbour node */
-    if (right) {
-	reiserfs_key_t new_ldkey;
-	
-	reiserfs_node_ldkey(right->node, &new_ldkey);
-
-	/* 
-	    Checking if old ldkey differs from new one. If so, we should update 
-	    internal key in parent;
-	*/
-	if (reiserfs_key_compare_full(&right_ldkey, &new_ldkey) != 0) {
-		
-	    pos.item++;
-	    
-	    if (reiserfs_node_set_key(parent->node, &pos, &new_ldkey)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't update left delimiting key of right neighbour block %llu.",
-		    aal_block_get_nr(right->node->block));
-		return -1;
-	    }
-	}
-    }
-
     return 0;
 }
 

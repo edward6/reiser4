@@ -539,7 +539,8 @@ errno_t reiserfs_cache_move(
 	}
     }
     
-    if (reiserfs_node_move(dst_cache->node, dst_pos, src_cache->node, src_pos))
+    if (reiserfs_node_move(dst_cache->node, dst_pos, 
+	    src_cache->node, src_pos))
 	return -1;
     
     if (reiserfs_node_count(src_cache->node) > 0) {
