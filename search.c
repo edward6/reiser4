@@ -566,9 +566,8 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		if (h->result)
 			goto fail_or_restart;
 
-		UNDER_SPIN_VOID(dk, h->tree,
-				set_child_delimiting_keys(parent, h->coord, 
-							  h->active_lh->node));
+		set_child_delimiting_keys(parent, h->coord, 
+					  h->active_lh->node);
 		zrelse(parent);
 	}
 
