@@ -213,6 +213,7 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "key.h"
 #include "kassign.h"
 #include "coords.h"
+#include "seal.h"
 #include "tshash.h"
 #include "tslist.h"
 #include "plugin/plugin_header.h"

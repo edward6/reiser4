@@ -49,7 +49,7 @@ void get_next_fake_blocknr (reiser4_block_nr *bnr)
 	{
 		znode * node;
 
-		node = zlook(current_tree, & gen, 0);
+		node = zlook(current_tree, & gen);
 		assert ("zam-394", node == NULL);
 	}
 #endif
