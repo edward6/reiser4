@@ -1493,6 +1493,16 @@ void node40_copy (struct shift_params * shift)
 
 	coord_init_first_unit (& to, shift->target);
 
+	/*
+	 * FIXME:NIKITA->VS not sure what I am doing: shift->target is empty,
+	 * hence to.between is set to EMPTY_NODE above. Looks like we want it
+	 * to be AT_UNIT.
+	 *
+	 * Oh, wonders of ->betweeness...
+	 *
+	 */
+	to.between = AT_UNIT;
+
 	if (shift->pend == SHIFT_LEFT) {
 		/* copying to left */
 
