@@ -192,19 +192,24 @@ typedef enum {
 			     ~( ( order ) - 1 ) ) )
 
 /*
- * values returned by allocate_and_squeeze_right_neighbor
+ * values returned by squalloc_right_neighbor and its auxiliary functions
  */
 typedef enum {
 	/*
 	 * unit of internal item is moved
 	 */
-	SUBTREE_MOVED = -1,
+	SUBTREE_MOVED = 0,
 	/*
 	 * nothing else can be squeezed into left neighbor
 	 */
-	SQUEEZE_DONE = 2,
+	SQUEEZE_TARGET_FULL = 1,
 	/*
 	 * all content of node is squeezed into its left neighbor
+	 */
+	SQUEEZE_SOURCE_EMPTY = 2,
+	/*
+	 * one more item is copied (this is only returned by
+	 * allocate_and_copy_extent to squalloc_twig))
 	 */
 	SQUEEZE_CONTINUE = 3
 } squeeze_result;
