@@ -2648,7 +2648,7 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 
 		capture_list_remove(node);
 		capture_list_push_back(ATOM_DIRTY_LIST(atom, level), node);		
-		/*XXXX*/ON_DEBUG(count_jnode(atom, node, NODE_LIST(node), DIRTY_LIST, 1));
+		ON_DEBUG(count_jnode(atom, node, NODE_LIST(node), DIRTY_LIST, 1));
 
 		/*
 		 * JNODE_CCED bit protects clean copy (page created by
@@ -2699,7 +2699,7 @@ znode_make_dirty(znode * z)
 	assert("umka-204", z != NULL);
 	assert("nikita-3290", znode_above_root(z) || znode_is_loaded(z));
 	assert("nikita-3291", !ZF_ISSET(z, JNODE_EFLUSH));
-
+	assert("nikita-3560", znode_is_write_locked(z));
 
 	node = ZJNODE(z);
 
