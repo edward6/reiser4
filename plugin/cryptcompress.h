@@ -17,20 +17,20 @@
 #define MIN_CRYPTO_BLOCKSIZE 8
 #define CLUSTER_MAGIC_SIZE (MIN_CRYPTO_BLOCKSIZE >> 1)
 
-//#define HANDLE_VIA_FLUSH_SCAN
-
 /* cluster status */
 typedef enum {
-	DATA_CLUSTER = 0,
-	HOLE_CLUSTER = 1, /* indicates hole for write ops */
-	FAKE_CLUSTER = 2  /* indicates absence of disk cluster for read ops */
-} reiser4_cluster_status;
-/* EDWARD-FIXME-HANS: comment each transform below */
-/* reiser4 transforms */
+	DATA_CLUSTER = 0, /* default value */
+	HOLE_CLUSTER = 1, /* this is set when we wanna write a hole */
+	FAKE_CLUSTER = 2  /* disk cluster is absent, so unprepped one should
+			     be created */
+} reiser4_cluster_state;
+
+/* Set of transform id supported by reiser4, 
+   each transform is implemented by appropriate transform plugin: */
 typedef enum {
-	CRYPTO_TFM,
-	DIGEST_TFM,
-	COMPRESS_TFM,
+	CRYPTO_TFM,       /* crypto plugin */  
+	DIGEST_TFM,       /* digest plugin */
+	COMPRESS_TFM,     /* compression plugin */
 	LAST_TFM
 } reiser4_tfm;
 
@@ -326,10 +326,10 @@ typedef struct reiser4_cluster{
 	struct page ** pages; /* page cluster */
 	struct file * file;
 	hint_t * hint;        /* disk cluster */
-	reiser4_cluster_status stat;
-	/* sliding frame of cluster size in loff_t-space to translate main file 'offsets'
-	   like read/write position, size, new size (for truncate), etc.. into number
-	   of pages, cluster status, etc..*/
+	reiser4_cluster_state stat;
+	/* the following index, off, count and delta represent so called "sliding window"
+	   (file cluster) to translate file size, offset to write from, etc.. into number
+	   of cluster pages, cluster state, etc.. */
 	unsigned long index; /* cluster index, coord of the frame */
 	unsigned off;    /* offset we want to read/write/truncate from */
 	unsigned count;  /* bytes to read/write/truncate */
@@ -337,21 +337,28 @@ typedef struct reiser4_cluster{
 	int reserved;    /* indicates that space for disk cluster insertion is reserved */
 } reiser4_cluster_t;
 
+static inline void
+reset_cluster_pgset(reiser4_cluster_t * clust, int nrpages)
+{
+	assert("edward-1057", clust->pages != NULL);
+	xmemset(clust->pages, 0, sizeof(*clust->pages) * nrpages);
+}
+
 static inline int
-alloc_page_cluster(reiser4_cluster_t * clust, int nrpages)
+alloc_cluster_pgset(reiser4_cluster_t * clust, int nrpages)
 {
 	assert("edward-949", clust != NULL);
 	assert("edward-950", nrpages != 0 && nrpages <= MAX_CLUSTER_NRPAGES);
 	
 	clust->pages = reiser4_kmalloc(sizeof(*clust->pages) * nrpages, GFP_KERNEL);
 	if (!clust->pages)
-		return -ENOMEM;
-	xmemset(clust->pages, 0, sizeof(*clust->pages) * nrpages);
+		return RETERR(-ENOMEM);
+	reset_cluster_pgset(clust, nrpages);
 	return 0;
 }
 
 static inline void
-free_page_cluster(reiser4_cluster_t * clust)
+free_cluster_pgset(reiser4_cluster_t * clust)
 {
 	assert("edward-951", clust->pages != NULL);
 	reiser4_kfree(clust->pages);
@@ -364,7 +371,7 @@ put_cluster_handle(reiser4_cluster_t * clust, tfm_action act)
 	
 	put_tfm_cluster(&clust->tc, act);
 	if (clust->pages)
-		free_page_cluster(clust);
+		free_cluster_pgset(clust);
 	xmemset(clust, 0, sizeof *clust);
 }
 
