@@ -587,7 +587,7 @@ static int must_continue (struct inode * inode, reiser4_key * key,
 	item_key_by_coord (coord, &coord_key);
 	set_key_offset (&coord_key,
 			get_key_offset (&coord_key) +
-			item_length_by_coord (&coord_key));
+			item_length_by_coord (coord));
 	assert ("vs-568", keycmp (key, &coord_key) == EQUAL_TO);
 	/*
 	 * FIXME-VS: do we need to try harder?
@@ -670,7 +670,6 @@ static int tail2extent (struct inode * inode, tree_coord * coord,
 	reiser4_key key;
 	struct page * page;
 	char * p_data;
-	int i;
 	unsigned page_off, count, copied;
 	char * item;
 
@@ -727,7 +726,7 @@ static int tail2extent (struct inode * inode, tree_coord * coord,
 
 		if (page_off == PAGE_SIZE ||
 		    !must_continue (inode, &key, coord)) {
-			/* page is filled completely or last item of item is
+			/* page is filled completely or last item of file is
 			 * read, cut corresponding tail items and call
 			 * extent_write to write a page */
 			done_lh (lh);
@@ -761,7 +760,7 @@ static int tail2extent (struct inode * inode, tree_coord * coord,
 			/* we have to re-search item*/
 			item = 0;
 		}
-		if (copied == item_length_by_coord (coord)) {
+		if (copied == (unsigned)item_length_by_coord (coord)) {
 			/* all content of item is copied into page, therefore
 			 * we have to find new one */
 			item = 0;
