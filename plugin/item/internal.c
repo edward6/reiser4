@@ -337,6 +337,8 @@ kill_hook_internal(const coord_t * item /* coord of item */ ,
 			 *znode_get_block(item->node), item->node->c_count,
 			 *znode_get_block(child));
 
+
+		clog_op(OP_KILL_INTERNAL, *znode_get_block(child));
 		zput(child);
 		return 0;
 	} else {
