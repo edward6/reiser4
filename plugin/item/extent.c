@@ -2478,6 +2478,7 @@ static int extent_allocate_blocks (reiser4_blocknr_hint *preceder,
 	int result;
 
 	*allocated = wanted_count;
+	preceder->max_dist = 0;	/* scan whole disk, if needed */
 	result = reiser4_alloc_blocks (preceder, first_allocated, allocated);
 	if (result) {
 		/*
