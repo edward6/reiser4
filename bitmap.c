@@ -15,7 +15,7 @@ extern block_nr reiser4_get_bmap_blocknr (int bmap);
 struct reiser4_bnode {
 	znode * working;	/* working bitmap block */
 	znode * commit;		/* commit bitmap block */
-};h
+};
 
 /** calculate bitmap block number and offset within that bitmap block */
 static void parse_blocknr (block_nr block, int *bmap, int *offset)
