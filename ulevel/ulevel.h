@@ -1015,6 +1015,7 @@ enum bh_state_bits {
 };
 
 int ulevel_read_node( );
+int ulevel_allocate_node( );
 
 
 /* __REISER4_ULEVEL_H__ */
