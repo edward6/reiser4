@@ -30,6 +30,7 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#include <limits.h>
 
 /* for rdtscll() */
 #include <asm/msr.h>
