@@ -839,9 +839,9 @@ max_crypto_overhead(struct inode * inode)
 }
 
 reiser4_internal unsigned
-compress_overhead(struct inode * inode)
+compress_overhead(struct inode * inode, int in_len)
 {
-	return inode_compression_plugin(inode)->overrun;
+	return inode_compression_plugin(inode)->overrun(in_len);
 }
 
 /* The following two functions represent reiser4 compression policy */
@@ -973,7 +973,7 @@ deflate_cluster(tfm_info_t ctx, /* data for compression plugin, which can be all
 
 		if (try_encrypt(clust, inode) || clust->nr_pages != 1) {
 			/* [12], [42], [13], tmp buffer is required */
-			bfsize += cplug->overrun;
+			bfsize += compress_overhead(inode, clust->count);
 			bf = reiser4_kmalloc(bfsize, GFP_KERNEL);
 			if (!bf)
 				return -ENOMEM;
@@ -1828,7 +1828,7 @@ flush_cluster_pages(reiser4_cluster_t * clust, struct inode * inode)
 	if (clust->bsize > inode_scaled_cluster_size(inode))
 		clust->bsize = inode_scaled_cluster_size(inode);
 	if (try_compress(clust, inode))
-		clust->bsize += compress_overhead(inode);
+		clust->bsize += compress_overhead(inode, clust->count);
 	
 	clust->buf = reiser4_kmalloc(clust->bsize, GFP_KERNEL);
 	if (!clust->buf)
