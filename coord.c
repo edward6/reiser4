@@ -988,7 +988,7 @@ const char * coord_tween_tostring (between_enum n)
 	case EMPTY_NODE: return "empty node";
 	case INVALID_COORD: return "invalid";
 	default: {
-		static char buf [20];
+		static char buf [30];
 		
 		sprintf (buf, "unknown: %i", n);
 		return buf;
