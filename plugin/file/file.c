@@ -1168,7 +1168,7 @@ readpage_unix_file(void *vp, struct page *page)
 
 	if (PageUptodate(page)) {
 		done_lh(&lh);
-		reiser4_unlock_page(page);
+		unlock_page(page);
 		return 0;
 	}
 	
