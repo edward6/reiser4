@@ -19,7 +19,7 @@
 
 static int scan_mgr( txn_mgr *mgr );
 
-#if (1)
+#if (0)
 #define ktxnmgrd_trace( args... ) info( "ktxnmgrd: " ##args )
 #else
 #define ktxnmgrd_trace( args... ) noop
