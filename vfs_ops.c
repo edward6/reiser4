@@ -116,6 +116,12 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	free     = reiser4_free_blocks(super) + deleted;
 	forroot  = reiser4_reserved_blocks(super, 0, 0);
 
+	/* These counters may be in inconsistent state because we take the
+	 * values without keeping any global spinlock.  Here we do a sanity
+	 * check that free block counter does not exceed the number of all
+	 * blocks.  */
+	if (free > total)
+		free = total;
 	statfs->f_blocks = total - reserved;
 	/* make sure statfs->f_bfree is never larger than statfs->f_blocks */
 	if (free > reserved)
