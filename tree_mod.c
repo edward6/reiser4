@@ -27,13 +27,11 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 		 tree_level level /* tree level at which new node is to
 				   * be allocated */ )
 {
-	znode *result;
+	znode *result = 0; /* to make cc happy */
 	int    retcode;
 	reiser4_block_nr blocknr;
 
 	assert( "nikita-930", brother != NULL );
-	
-	/* AUDIT: In this point passed "level" should be checked for validness */
 	assert( "umka-264", level < REAL_MAX_ZTREE_HEIGHT );
 
 	retcode = assign_fake_blocknr( &blocknr, 1/*formatted*/ );
