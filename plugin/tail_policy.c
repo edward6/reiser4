@@ -77,7 +77,8 @@ reiser4_block_nr always_tail_estimate ( const struct inode *inode, loff_t size,
 	
 	assert("umka-1244", inode != NULL);
 
-        max_item_size = tree_by_inode(inode)->nplug->max_item_size();
+	/* The five blocks is needed for shifting on leaf level */
+        max_item_size = div64_32(tree_by_inode(inode)->nplug->max_item_size(), 5);
 	
 	/* Write 4000 bytes: 2000 into one block and 2000 into the neighbour - 
 	 * 2 blocks are ditry */
