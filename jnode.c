@@ -937,6 +937,7 @@ jnode_mapping(const jnode * node)
 	assert("nikita-2713", node != NULL);
 	map = node->key.j.mapping;
 	assert("nikita-2714", map != NULL);
+	assert("nikita-2897", is_reiser4_inode(map->host));
 	assert("nikita-2715", get_inode_oid(map->host) == node->key.j.objectid);
 
 	return map;

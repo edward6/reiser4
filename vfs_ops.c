@@ -1262,6 +1262,7 @@ init_once(void *obj /* pointer to new inode */ ,
 		init_rwsem(&info->p.sem);
 		info->p.eflushed = 0;
 		INIT_LIST_HEAD(&info->p.moved_pages);
+		readdir_list_init(get_readdir_list(&info->vfs_inode));
 #if REISER4_DEBUG
 		info->p.ea_owner = 0;
 #endif
@@ -1320,7 +1321,8 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 		info->expkey = NULL;
 		info->keyid = NULL;
 		info->crypto = NULL;
-		info->compression = NULL;		
+		info->compression = NULL;
+		info->flags = 0;
 		return &obj->vfs_inode;
 	} else
 		return NULL;
@@ -1361,6 +1363,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	assert("nikita-2894", list_empty(&inode->i_list));
 	assert("nikita-2895", list_empty(&inode->i_dentry));
 	assert("nikita-2896", list_empty(&inode->i_hash));
+	assert("nikita-2898", readdir_list_empty(get_readdir_list(inode)));
 	kmem_cache_free(inode_cache, container_of(info, reiser4_inode_object, p));
 }
 

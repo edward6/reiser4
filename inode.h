@@ -120,7 +120,9 @@ typedef struct reiser4_inode {
 	/* compression plugin */
 	/* 112 */compression_plugin *compression;
 	/* 116 */
-	struct list_head moved_pages;
+	struct list_head  moved_pages;
+	readdir_list_head readdir_list;
+	unsigned long flags;
 #if REISER4_DEBUG
 	/* pointer to task struct of thread owning exclusive access to file */
 	void *ea_owner;
@@ -206,7 +208,7 @@ extern void inode_check_scale(struct inode *inode, __u64 old, __u64 new);
 static inline readdir_list_head *
 get_readdir_list(const struct inode *inode)
 {
-	return (readdir_list_head *)&inode->i_mapping->private_list;
+	return &reiser4_inode_data(inode)->readdir_list;
 }
 
 #if REISER4_DEBUG_OUTPUT

@@ -40,11 +40,11 @@ tree_by_inode(const struct inode * inode /* inode queried */ )
 	return get_tree(inode->i_sb);
 }
 
-static unsigned long *
+static inline unsigned long *
 inode_flags(const struct inode * const inode)
 {
 	assert("nikita-2842", inode != NULL);
-	return (unsigned long *)&inode->i_mapping->assoc_mapping;
+	return &reiser4_inode_data(inode)->flags;
 }
 
 void
