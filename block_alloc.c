@@ -174,16 +174,6 @@ sub_from_sb_flush_reserved (reiser4_super_info_data *sbinfo, __u64 count)
 }
 
 static void
-add_to_sb_fake_allocated(reiser4_super_info_data *sbinfo, __u64 count, reiser4_ba_flags_t flags)
-{
-	if (flags & BA_FORMATTED) {
-		sbinfo->blocks_fake_allocated += count;
-	} else {
-		sbinfo->blocks_fake_allocated_unformatted += count;
-	}
-}
-
-static void
 sub_from_sb_fake_allocated(reiser4_super_info_data *sbinfo, __u64 count, reiser4_ba_flags_t flags)
 {
 	if (flags & BA_FORMATTED) {
@@ -782,11 +772,14 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 /* adjust sb block counters when @count unallocated blocks get unmapped from
    disk */
 static void
-used2fake_allocated(reiser4_super_info_data *sbinfo, __u64 count, reiser4_ba_flags_t flags)
+used2fake_allocated(reiser4_super_info_data *sbinfo, __u64 count, int formatted)
 {
 	reiser4_spin_lock_sb(sbinfo);
 
-	add_to_sb_fake_allocated(sbinfo, count, flags & BA_FORMATTED);
+	if (formatted)
+		sbinfo->blocks_fake_allocated += count;
+	else
+		sbinfo->blocks_fake_allocated_unformatted += count;
 
 	sub_from_sb_used(sbinfo, count);
 
