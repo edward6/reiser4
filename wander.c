@@ -838,7 +838,7 @@ static int alloc_tx (struct commit_handle * ch)
  free_not_assigned:
 	/* We deallocate blocks not yet assigned to jnodes on tx_list. The
 	 * caller takes care about invalidating of tx list  */
-	reiser4_dealloc_blocks(&first, &len, 0, BLOCK_GRABBED);
+	reiser4_dealloc_blocks(&first, &len, 0, BLOCK_GRABBED, 1/* not unformatted */);
 
 	return ret;
 }
@@ -871,7 +871,7 @@ static int add_region_to_wmap (jnode * cur,
 			 * map */
 			reiser4_block_nr wide_len = len;
 
-			reiser4_dealloc_blocks(&block, &wide_len, 0, BLOCK_NOT_COUNTED); 
+			reiser4_dealloc_blocks(&block, &wide_len, 0, BLOCK_NOT_COUNTED, 1/* not unformatted */); 
 			return ret;
 		}
 
