@@ -1420,7 +1420,7 @@ static int can_paste( carry_op *op /* carry operation to check */,
 				result = 0;
 			else {
 				result = ( old_iplug == new_iplug ) &&
-					cck( icoord, key, data );
+					cck( &circa/*icoord*/, key, data );
 				if( result ) {
 					coord_dup( icoord, &circa );
 					icoord -> between = BEFORE_UNIT;
