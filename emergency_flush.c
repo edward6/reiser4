@@ -156,7 +156,7 @@ emergency_flush(struct page *page)
 	struct super_block *sb;
 	jnode *node;
 	int result;
-
+	warning("reiser-2020", "vm is badly out of balance, this code should never run.\n");
 	assert("nikita-2721", page != NULL);
 	assert("nikita-2724", PageLocked(page));
 
