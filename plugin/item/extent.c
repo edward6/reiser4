@@ -2652,10 +2652,16 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 
 		set_extent(&replace, ALLOCATED_EXTENT, first_allocated, allocated);
 		if (allocated == initial_width) {
+			int ret;
 			/*
 			 * whole extent is allocated
 			 */
 			*ext = replace;
+
+			/* grabbing one block for this dirty znode */
+			if ((ret = reiser4_grab_space_force(1, 1)) != 0)
+				return ret;
+			
 			znode_set_dirty(coord->node);
 			continue;
 		}

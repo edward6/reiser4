@@ -270,10 +270,10 @@ typedef struct file_plugin {
 	struct {
 		reiser4_block_nr (*create) (__u32, struct inode *);
 		reiser4_block_nr (*update) (const struct inode *);
-		reiser4_block_nr (*write) (struct inode *, size_t, loff_t *);
-		reiser4_block_nr (*read) (struct inode *, size_t);
-		reiser4_block_nr (*truncate) (struct inode *, size_t);
-		reiser4_block_nr (*mmap) (struct inode *, size_t);
+		reiser4_block_nr (*write) (struct inode *, loff_t, loff_t *);
+		reiser4_block_nr (*read) (struct inode *, loff_t);
+		reiser4_block_nr (*truncate) (struct inode *, loff_t);
+		reiser4_block_nr (*mmap) (struct inode *, loff_t);
 		reiser4_block_nr (*release) (struct inode *);
 		reiser4_block_nr (*delete) (struct inode *);
 	} estimate;
