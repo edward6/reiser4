@@ -2109,6 +2109,8 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_pos_t * flush_pos,
 					*/
 					reiser4_dealloc_blocks(&first_allocated, &allocated,
 						BLOCK_UNALLOCATED, BA_PERMANENT, "alloc_and_copy_extent: no space in left neighbor");
+					/* restore preceder */
+					pos_hint(flush_pos)->blk = first_allocated;
 
 					result = SQUEEZE_TARGET_FULL;
 					trace_on(TRACE_EXTENTS,
