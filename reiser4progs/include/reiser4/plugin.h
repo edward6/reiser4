@@ -103,6 +103,10 @@ struct reiserfs_key_plugin {
 
     void (*build_dir_key) (void *, oid_t, oid_t, char *, void *);
     void (*build_file_key) (void *, uint32_t, oid_t, oid_t, uint64_t);
+    void (*build_dir_short_key) (void *, char *, void *, uint8_t);
+    void (*build_file_short_key) (void *, uint32_t, oid_t, oid_t, uint8_t);
+    void (*build_key_by_dir_short_key) (void *key, void *sh_key, uint8_t size); 
+    void (*build_key_by_file_short_key) (void *key, void *sh_key, uint8_t size);
 };
 
 typedef struct reiserfs_key_plugin reiserfs_key_plugin_t;

@@ -18,37 +18,46 @@
 
 static reiserfs_plugin_factory_t *factory = NULL;
 
-/* This will build sd key as objid has SD_MINOR. */
+/* 
+    This will build sd key as objid has SD_MINOR. 
+    Use key.build_key_by_short_file_key insead
+*/
+/*
 static void direntry40_build_key_by_objid(void *key, reiserfs_plugin_t *plugin, 
     reiserfs_objid_t *id) 
 {
     aal_assert("vpf-087", id != NULL, return);
     aal_assert("vpf-124", key != NULL, return);
     aal_assert("umka-660", plugin != NULL, return);
-   
-    plugin->key.clean(key);
-    plugin->key.set_locality(key, objid_get_locality(id));
-    plugin->key.set_objectid(key, objid_get_objectid(id));
-    plugin->key.set_type(key, KEY40_SD_MINOR);
+
+    libreiser4_plugins_call(return, plugin->key, clean, key);
+    libreiser4_plugins_call(return, plugin->key, set_locality, key, 
+	objid_get_locality(id));
+    libreiser4_plugins_call(return, plugin->key, set_objectid, key, 
+	objid_get_objectid(id));
+    libreiser4_plugins_call(return, plugin->key, set_type, key, 
+	KEY40_SD_MINOR);
 }
+*/
 
 /* 
     Builds the key name poits to. It is used by direntry40_create
-    function.
+    function. Use build_key_by_short_dir_key instead 
 */
+/*
 static void direntry40_build_objid_by_params(reiserfs_objid_t *objid, 
     oid_t locality, oid_t objectid)
 {
     aal_assert("vpf-089", objid != NULL, return);
  
-    /*
-	We can use here this code which likes some hack
-	because direntry40 know about format of "objid".
-    */
+    //
+	//We can use here this code which likes some hack
+	//because direntry40 know about format of "objid".
+    //
     objid_set_locality(objid, ((locality << 4) | KEY40_SD_MINOR));
     objid_set_objectid(objid, objectid);
 }
-
+*/
 #ifndef ENABLE_COMPACT
 
 static error_t direntry40_create(reiserfs_direntry40_t *direntry, 
@@ -56,7 +65,6 @@ static error_t direntry40_create(reiserfs_direntry40_t *direntry,
 {
     int i;
     uint16_t len, offset;
-    uint8_t key[MAX_KEY_SIZE];
     reiserfs_plugin_t *key_plugin;
     reiserfs_direntry_info_t *direntry_info;
     
@@ -71,22 +79,17 @@ static error_t direntry40_create(reiserfs_direntry40_t *direntry,
     offset = sizeof(reiserfs_direntry40_t) + 
 	direntry_info->count * sizeof(reiserfs_entry40_t);
 
-    libreiser4_plugins_call(return -1, key_plugin->key, clean, key);
     for (i = 0; i < direntry_info->count; i++) {	
 	e40_set_offset(&direntry->entry[i], offset);
 
-	libreiser4_plugins_call(return -1, key_plugin->key, build_dir_key, key, 
-	    direntry_info->parent_id, direntry_info->object_id, 
-	    direntry_info->entry[i].name, direntry_info->hash_plugin);
+	libreiser4_plugins_call(return -1, key_plugin->key, build_dir_short_key, 
+	    &direntry->entry[i].entryid, direntry_info->entry[i].name, 
+	    direntry_info->hash_plugin, sizeof(reiserfs_entryid_t));
 
-	entryid_set_objectid((&direntry->entry[i].entryid), 
-	    libreiser4_plugins_call(return -1, key_plugin->key, get_objectid, key));
-	
-	entryid_set_offset((&direntry->entry[i].entryid), 
-	    libreiser4_plugins_call(return -1, key_plugin->key, get_offset, key));
-	
-	direntry40_build_objid_by_params((reiserfs_objid_t *)((char *)direntry + offset), 
-	    direntry_info->entry[i].locality, direntry_info->entry[i].objectid);
+	libreiser4_plugins_call(return -1, key_plugin->key, build_file_short_key, 
+	    (reiserfs_objid_t *)((char *)direntry + offset), KEY40_SD_MINOR, 
+	    direntry_info->entry[i].locality, direntry_info->entry[i].objectid, 
+	    sizeof(reiserfs_objid_t));
 	
 	len = aal_strlen(direntry_info->entry[i].name);
 	offset += sizeof(reiserfs_objid_t);
