@@ -12,6 +12,7 @@
 #include "funcs.h"
 
 #include <linux/writeback.h>
+#include <linux/pagevec.h>
 
 /* this file contains file plugin methods of regular reiser4 files.
 
@@ -948,7 +949,8 @@ capturepage_unix_file(struct page * page) {
 	return result;
 }
 
-static void redirty_inode(struct inode *inode)
+static void
+redirty_inode(struct inode *inode)
 {
 	spin_lock(&inode_lock);
 	inode->i_state |= I_DIRTY;
@@ -957,18 +959,94 @@ static void redirty_inode(struct inode *inode)
 
 /* this returns 1 if it captured page */
 static int
-capture_anonymous_page(struct page *pg, int keepme)
+capture_anonymous_page(struct page *page, int keepme UNUSED_ARG)
 {
 	struct address_space *mapping;
 	jnode *node;
+	struct pagevec pvec;
+	unsigned nr_pages;
+	int done;
 	int result;
+	int i;
 
-	if (PageWriteback(pg))
+	mapping = page->mapping;
+	assert("vs-1667", mapping != NULL);
+
+	if (PageWriteback(page)) {
 		/* FIXME: do nothing? */
+		warning("vs-1666", "page (%llu, %lu) under writeback",
+			get_inode_oid(mapping->host), page->index);
 		return 0;
+	}
 
-	mapping = pg->mapping;
+	/* lookup several pages to the right of current one */
+	pagevec_init(&pvec, 0);
+	nr_pages = pagevec_lookup(&pvec, mapping, page->index, PAGEVEC_SIZE);
+	assert("vs-1665", nr_pages >= 1);
+	nr_pages = 0;
+	for (i = 0; i < pagevec_count(&pvec); i ++) {
+		page = pvec.pages[i];
+		if (i && page->index != pvec.pages[i - 1]->index + 1)
+			/* break on non contiguous page */
+			break;
 
+		/* contiguous page. get jnode for it and jload before calling capture_page_and_create_extent */
+		lock_page(page);
+		/* page is guaranteed to be in the mapping, because we are operating under rw-semaphore. */
+		assert("nikita-3336", page->mapping == mapping);
+		node = jnode_of_page(page);
+		unlock_page(page);
+		if (!IS_ERR(node)) {
+			result = jload(node);
+			assert("nikita-3334", result == 0);
+			assert("nikita-3335", jnode_page(node) == page);
+			nr_pages ++;
+			continue;
+		}
+
+		result = PTR_ERR(node);
+		break;
+	}
+
+	/* jnodes of all nr_pages pages are jloaded, we can call capture_page_and_create_extent */
+	for (i = 0; nr_pages; i ++) {
+		result = capture_page_and_create_extent(pvec.pages[i]);
+		if (result == 0) {
+			/*
+			 * node will be captured into atom by
+			 * capture_page_and_create_extent(). Atom
+			 * cannot commit (because we have open
+			 * transaction handle), and node cannot be
+			 * truncated, because we have non-exclusive
+			 * access to the file.
+			 */
+			assert("nikita-3327", node->atom != NULL);
+			JF_CLR(node, JNODE_KEEPME);
+			
+			done = 1;
+		} else {
+			warning("nikita-3329",
+				"Cannot capture anon page: %i", result);
+			break;
+		}
+	}
+
+	for (i = 0; i < nr_pages; i ++) {
+		/* page's page->count is incremented, jnode of page exists, jref-ed and jloaded, so, it is safe to get
+		   jnode without taking page's lock */
+		node = jprivate(pvec.pages[i]);
+		jrelse(node);
+		jput(node);		
+	}
+	pagevec_release(&pvec);
+
+	if (done == 1)
+		/* page for which this was called were captured */
+		return 1;
+	return result;
+}
+
+#if 0
 	lock_page(pg);
 	/* page is guaranteed to be in the mapping, because we are operating under rw-semaphore. */
 	assert("nikita-3336", pg->mapping == mapping);
@@ -1001,6 +1079,7 @@ capture_anonymous_page(struct page *pg, int keepme)
 
 	return result;
 }
+#endif
 
 #define CAPTURE_AJNODE_BURST     (128)
 #define CAPTURE_APAGE_BURST      (1024)
