@@ -50,10 +50,10 @@ typedef enum {
 	   of guessing plugin by plugin id stored in the node.
 	*/
 	REISER4_ONE_NODE_PLUGIN = 1,
-#if REISER4_BSD_PORT
 	/* if set, bsd gid assignment is supported. */
 	REISER4_BSD_GID = 2,
-#endif
+	/* [mac]_time are 32 bit in inode */
+	REISER4_32_BIT_TIMES = 3
 } reiser4_fs_flag;
 
 /* reiser4-specific part of super block */

@@ -423,9 +423,9 @@ unix_sd_present(struct inode *inode /* object being processed */ ,
 
 		inode->i_uid = d32tocpu(&sd->uid);
 		inode->i_gid = d32tocpu(&sd->gid);
-		inode->i_atime = d32tocpu(&sd->atime);
-		inode->i_mtime = d32tocpu(&sd->mtime);
-		inode->i_ctime = d32tocpu(&sd->ctime);
+		inode->i_atime.tv_sec = d32tocpu(&sd->atime);
+		inode->i_mtime.tv_sec = d32tocpu(&sd->mtime);
+		inode->i_ctime.tv_sec = d32tocpu(&sd->ctime);
 		inode->i_rdev = val_to_kdev(d32tocpu(&sd->rdev));
 		inode_set_bytes(inode, (loff_t) d64tocpu(&sd->bytes));
 		next_stat(len, area, sizeof *sd);
@@ -468,9 +468,9 @@ unix_sd_save(struct inode *inode /* object being processed */ ,
 	sd = (reiser4_unix_stat *) * area;
 	cputod32(inode->i_uid, &sd->uid);
 	cputod32(inode->i_gid, &sd->gid);
-	cputod32((__u32) inode->i_atime, &sd->atime);
-	cputod32((__u32) inode->i_ctime, &sd->ctime);
-	cputod32((__u32) inode->i_mtime, &sd->mtime);
+	cputod32((__u32) inode->i_atime.tv_sec, &sd->atime);
+	cputod32((__u32) inode->i_ctime.tv_sec, &sd->ctime);
+	cputod32((__u32) inode->i_mtime.tv_sec, &sd->mtime);
 	cputod32(kdev_val(inode->i_rdev), &sd->rdev);
 	cputod64((__u64) inode_get_bytes(inode), &sd->bytes);
 	*area += sizeof *sd;
@@ -491,6 +491,67 @@ unix_sd_print(const char *prefix, char **area /* position in stat-data */ ,
 	     d32tocpu(&sd->gid),
 	     d32tocpu(&sd->atime),
 	     d32tocpu(&sd->mtime), d32tocpu(&sd->ctime), d32tocpu(&sd->rdev), d64tocpu(&sd->bytes));
+	next_stat(len, area, sizeof *sd);
+}
+#endif
+
+static int
+large_times_sd_present(struct inode *inode /* object being processed */,
+		       char **area /* position in stat-data */,
+		       int *len /* remaining length */)
+{
+	if (*len >= (int) sizeof (reiser4_large_times_stat)) {
+		reiser4_large_times_stat *sd_lt;
+
+		sd_lt = (reiser4_large_times_stat *) * area;
+
+		inode->i_atime.tv_nsec = d32tocpu(&sd_lt->atime);
+		inode->i_mtime.tv_nsec = d32tocpu(&sd_lt->mtime);
+		inode->i_ctime.tv_nsec = d32tocpu(&sd_lt->ctime);
+
+		next_stat(len, area, sizeof *sd_lt);
+		return 0;
+	} else
+		return not_enough_space(inode, "large times sd");
+}
+
+static int
+large_times_sd_save_len(struct inode *inode UNUSED_ARG	/* object being
+						 * processed */ )
+{
+	return sizeof (reiser4_large_times_stat);
+}
+
+static int
+large_times_sd_save(struct inode *inode /* object being processed */ ,
+	   char **area /* position in stat-data */ )
+{
+	reiser4_large_times_stat *sd;
+
+	assert("nikita-2817", inode != NULL);
+	assert("nikita-2818", area != NULL);
+	assert("nikita-2819", *area != NULL);
+
+	sd = (reiser4_large_times_stat *) * area;
+
+	cputod32((__u32) inode->i_atime.tv_nsec, &sd->atime);
+	cputod32((__u32) inode->i_ctime.tv_nsec, &sd->ctime);
+	cputod32((__u32) inode->i_mtime.tv_nsec, &sd->mtime);
+
+	*area += sizeof *sd;
+	return 0;
+}
+
+#if REISER4_DEBUG_OUTPUT
+static void
+large_times_sd_print(const char *prefix, char **area /* position in stat-data */,
+		     int *len /* remaining length */ )
+{
+	reiser4_large_times_stat *sd;
+
+	sd = (reiser4_large_times_stat *) * area;
+	info("%s: nanotimes: a: %i, m: %i, c: %i\n", prefix,
+	     d32tocpu(&sd->atime), d32tocpu(&sd->mtime), d32tocpu(&sd->ctime));
 	next_stat(len, area, sizeof *sd);
 }
 #endif
@@ -862,8 +923,8 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				     .pops = NULL,
 				     .label = "light-weight sd",
 				     .desc = "sd for light-weight files",
-				     .linkage = TS_LIST_LINK_ZERO}
-			       ,
+				     .linkage = TS_LIST_LINK_ZERO
+			       },
 			       .present = lw_sd_present,
 			       .absent = NULL,
 			       .save_len = lw_sd_save_len,
@@ -871,8 +932,8 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 #if REISER4_DEBUG_OUTPUT
 			       .print = lw_sd_print,
 #endif
-			       .alignment = 8}
-	,
+			       .alignment = 8
+	},
 	[UNIX_STAT] = {
 		       .h = {
 			     .type_id = REISER4_SD_EXT_PLUGIN_TYPE,
@@ -880,8 +941,8 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 			     .pops = NULL,
 			     .label = "unix-sd",
 			     .desc = "unix stat-data fields",
-			     .linkage = TS_LIST_LINK_ZERO}
-		       ,
+			     .linkage = TS_LIST_LINK_ZERO
+		       },
 		       .present = unix_sd_present,
 		       .absent = unix_sd_absent,
 		       .save_len = unix_sd_save_len,
@@ -889,8 +950,26 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 #if REISER4_DEBUG_OUTPUT
 		       .print = unix_sd_print,
 #endif
-		       .alignment = 8}
-	,
+		       .alignment = 8
+	},
+	[LARGE_TIMES_STAT] = {
+		       .h = {
+			     .type_id = REISER4_SD_EXT_PLUGIN_TYPE,
+			     .id = LARGE_TIMES_STAT,
+			     .pops = NULL,
+			     .label = "64time-sd",
+			     .desc = "nanosecond resolution for times",
+			     .linkage = TS_LIST_LINK_ZERO
+		       },
+		       .present = large_times_sd_present,
+		       .absent = NULL,
+		       .save_len = large_times_sd_save_len,
+		       .save = large_times_sd_save,
+#if REISER4_DEBUG_OUTPUT
+		       .print = large_times_sd_print,
+#endif
+		       .alignment = 8
+	},
 	[SYMLINK_STAT] = {
 			  /* stat data of symlink has this extension */
 			  .h = {
@@ -899,8 +978,8 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				.pops = NULL,
 				.label = "symlink-sd",
 				.desc = "stat data is appended with symlink name",
-				.linkage = TS_LIST_LINK_ZERO}
-			  ,
+				.linkage = TS_LIST_LINK_ZERO
+			  },
 			  .present = symlink_sd_present,
 			  .absent = NULL,
 			  .save_len = symlink_sd_save_len,
@@ -908,8 +987,8 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 #if REISER4_DEBUG_OUTPUT
 			  .print = symlink_sd_print,
 #endif
-			  .alignment = 8}
-	,
+			  .alignment = 8
+	},
 	[PLUGIN_STAT] = {
 			 .h = {
 			       .type_id = REISER4_SD_EXT_PLUGIN_TYPE,
@@ -917,8 +996,8 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 			       .pops = NULL,
 			       .label = "plugin-sd",
 			       .desc = "plugin stat-data fields",
-			       .linkage = TS_LIST_LINK_ZERO}
-			 ,
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
 			 .present = plugin_sd_present,
 			 .absent = plugin_sd_absent,
 			 .save_len = plugin_sd_save_len,
@@ -926,8 +1005,8 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 #if REISER4_DEBUG_OUTPUT
 			 .print = NULL,
 #endif
-			 .alignment = 8}
-	,
+			 .alignment = 8
+	},
 	[GEN_AND_FLAGS_STAT] = {
 				.h = {
 				      .type_id = REISER4_SD_EXT_PLUGIN_TYPE,
@@ -944,7 +1023,8 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 #if REISER4_DEBUG_OUTPUT
 				.print = NULL,
 #endif
-				.alignment = 8}
+				.alignment = 8
+	}
 };
 
 /* Make Linus happy.

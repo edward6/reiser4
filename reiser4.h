@@ -189,9 +189,6 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /* see comments in inode.c:oid_to_uino() */
 #define REISER4_UINO_SHIFT (1 << 30)
 
-/* this is BSD port. */
-#define REISER4_BSD_PORT  (0)
-
 /* Mark function argument as unused to avoid compiler warnings. */
 #define UNUSED_ARG __attribute__( ( unused ) )
 

@@ -1265,7 +1265,8 @@ update_sd_if_necessary(struct inode *inode, const flow_t *f)
 		update_inode = 1;
 	}
 	
-	if (inode->i_ctime != CURRENT_TIME || inode->i_mtime != CURRENT_TIME) {
+	if (inode->i_ctime.tv_sec != get_seconds() || 
+	    inode->i_mtime.tv_sec != get_seconds()) {
 		/* time stamps are to be updated */
 		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
 		update_inode = 1;

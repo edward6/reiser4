@@ -63,6 +63,10 @@ typedef enum {
 	/* data required to implement unix stat(2) call. Layout is in
 	    reiser4_unix_stat. If this is not present, file is light-weight */
 	UNIX_STAT,
+	/* this contains additional set of 32bit [anc]time fields to implement
+	   nanosecond resolution. Layout is in reiser4_large_times_stat. Usage
+	   if this extension is governed by 32bittimes mount option. */
+	LARGE_TIMES_STAT,
 	/* stat data has link name included */
 	SYMLINK_STAT,
 	/* if this is present, file is controlled by non-standard
@@ -75,10 +79,6 @@ typedef enum {
 	/* this extension contains capabilities sets, associated with this
 	    file. Layout is in reiser4_capabilities_stat */
 	CAPABILITIES_STAT,
-	/* this contains additional set of 32bit [anc]time fields to
-	    implement 64bit times a la BSD. Layout is in
-	    reiser4_large_times_stat */
-	LARGE_TIMES_STAT,
 	LAST_SD_EXTENSION,
 	LAST_IMPORTANT_SD_EXTENSION = PLUGIN_STAT,
 } sd_ext_bits;

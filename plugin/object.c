@@ -562,14 +562,11 @@ common_set_plug(struct inode *object /* inode to set plugin on */ ,
 	object->i_uid = current->fsuid;
 	object->i_mtime = object->i_atime = object->i_ctime = CURRENT_TIME;
 
-#if REISER4_BSD_PORT
 	/* support for BSD style group-id assignment. */
 	if (reiser4_is_set(object->i_sb, REISER4_BSD_GID))
 		object->i_gid = parent->i_gid;
-	else
-#endif
+	else if (parent->i_mode & S_ISGID) {
 		/* parent directory has sguid bit */
-	if (parent->i_mode & S_ISGID) {
 		object->i_gid = parent->i_gid;
 		if (S_ISDIR(object->i_mode))
 			/* sguid is inherited by sub-directories */
@@ -583,7 +580,10 @@ common_set_plug(struct inode *object /* inode to set plugin on */ ,
 	setup_inode_ops(object, data);
 	/* i_nlink is left 1 here as set by new_inode() */
 	seal_init(&reiser4_inode_data(object)->sd_seal, NULL, NULL);
-	reiser4_inode_data(object)->extmask = (1 << UNIX_STAT) | (1 << LIGHT_WEIGHT_STAT);
+	reiser4_inode_data(object)->extmask = 
+		(1 << UNIX_STAT) | (1 << LIGHT_WEIGHT_STAT);
+	if (!reiser4_is_set(object->i_sb, REISER4_32_BIT_TIMES))
+		reiser4_inode_data(object)->extmask |= (1 << LARGE_TIMES_STAT);
 	return 0;
 }
 
