@@ -1404,7 +1404,7 @@ commit_some_atoms(txn_mgr * mgr)
 		LOCK_ATOM(atom);
 
 		if (atom->stage < ASTAGE_PRE_COMMIT &&
-		    atom->txnh_count == 0 && atom_should_commit(atom))
+		    (atom->txnh_count == atom->nr_waiters) && atom_should_commit(atom))
 			break;
 
 		UNLOCK_ATOM(atom);
