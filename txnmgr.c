@@ -657,7 +657,7 @@ atom_try_commit_locked (txn_atom *atom)
 		spin_unlock_atom (atom);
 
 		/* Call jnode_flush() without tree_lock held. */
-		if ((ret = jnode_flush (scan)) != 0) {
+		if ((ret = jnode_flush (scan, JNODE_FLUSH_COMMIT)) != 0) {
 			return ret;
 		}
 
@@ -855,7 +855,7 @@ int memory_pressure (struct super_block *super)
 
 	if (node != NULL) {
 
-		ret = jnode_flush (node);
+		ret = jnode_flush (node, JNODE_FLUSH_MEMORY);
 
 		jput (node);
 	}
