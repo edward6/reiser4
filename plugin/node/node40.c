@@ -934,7 +934,7 @@ int node40_create_item (coord_t * target, const reiser4_key * key,
 	/*
 	 * FIXME-VS: remove after debugging
 	 */
-	{
+	if (0) {
 		reiser4_key key_1;
 		reiser4_key key;
 		coord_t crd;
