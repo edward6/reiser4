@@ -96,7 +96,6 @@ struct jnode {
 
 	/* lock, protecting jnode's fields. */
 	/*   4 */ reiser4_spin_data guard;
-	reiser4_spin_data loadguard;
 
 	/* counter of references to jnode's data. Pin data page(s) in
 	   memory while this is greater than 0. Increased on jload().
@@ -256,9 +255,6 @@ JF_TEST_AND_SET(jnode * j, int f)
    io. 
 */
 SPIN_LOCK_FUNCTIONS(jnode, jnode, guard);
-
-#define spin_ordering_pred_jload(node) (1)
-SPIN_LOCK_FUNCTIONS(jload, jnode, loadguard);
 
 static inline int
 jnode_is_in_deleteset(const jnode * node)

@@ -2043,7 +2043,6 @@ init_committed_sb_counters(const struct super_block *s)
 }
 
 DEFINE_SPIN_PROFREGIONS(jnode);
-DEFINE_SPIN_PROFREGIONS(jload);
 DEFINE_SPIN_PROFREGIONS(stack);
 DEFINE_SPIN_PROFREGIONS(super);
 DEFINE_SPIN_PROFREGIONS(atom);
@@ -2057,7 +2056,7 @@ DEFINE_SPIN_PROFREGIONS(cbk_cache);
 DEFINE_RW_PROFREGIONS(dk);
 DEFINE_RW_PROFREGIONS(tree);
 
-#if REISER4_LOCKPROF
+#if 0 && REISER4_LOCKPROF
 static void jnode_most_wanted(struct profregion * preg)
 {
 	print_jnode("most wanted", container_of(preg->obj, jnode, guard.trying));
@@ -2071,12 +2070,11 @@ static void jnode_most_held(struct profregion * preg)
 
 static int register_profregions(void)
 {
-#if REISER4_LOCKPROF
+#if 0 && REISER4_LOCKPROF
 	pregion_spin_jnode_held.champion = jnode_most_held;
 	pregion_spin_jnode_trying.champion = jnode_most_wanted;
 #endif
 	register_jnode_profregion();
-	register_jload_profregion();
 	register_stack_profregion();
 	register_super_profregion();
 	register_atom_profregion();
@@ -2096,7 +2094,6 @@ static int register_profregions(void)
 static void unregister_profregions(void)
 {
 	unregister_jnode_profregion();
-	unregister_jload_profregion();
 	unregister_stack_profregion();
 	unregister_super_profregion();
 	unregister_atom_profregion();

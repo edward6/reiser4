@@ -88,7 +88,8 @@ jnodes_tree_init(reiser4_tree * tree /* tree to initialise jnodes for */ )
 {
 	assert("nikita-2359", tree != NULL);
 
-	return j_hash_init(&tree->jhash_table, REISER4_JNODE_HASH_TABLE_SIZE);
+	return j_hash_init(&tree->jhash_table, REISER4_JNODE_HASH_TABLE_SIZE,
+			   reiser4_stat(tree->super, hashes.jnode));
 }
 
 /* call this to destroy jnode hash table */
@@ -166,7 +167,6 @@ jnode_init(jnode * node, reiser4_tree * tree)
 	atomic_set(&node->d_count, 0);
 	atomic_set(&node->x_count, 0);
 	spin_jnode_init(node);
-	spin_jload_init(node);
 	node->atom = NULL;
 	node->tree = tree;
 	capture_list_clean(node);
@@ -575,10 +575,10 @@ jload_gfp (jnode * node, int gfp_flags)
 	 * acquiring d-reference to @jnode and check for JNODE_LOADED bit
 	 * should be atomic, otherwise there is a race against jrelse().
 	 */
-	spin_lock_jload(node);
+	spin_lock_jnode(node);
 	add_d_ref(node);
 	loaded = jnode_is_loaded(node);
-	spin_unlock_jload(node);
+	spin_unlock_jnode(node);
 
 	if (!loaded) {
 		/* If node is not loaded we need a spin lock to get reliable not
@@ -747,15 +747,15 @@ jrelse(jnode * node /* jnode to release references to */)
 		kunmap(page);
 		page_cache_release(page);
 	}
-	if (atomic_dec_and_lock(&node->d_count, &node->loadguard.lock)) {
-		spin_lock_jload_acc(node, 0);
+	if (atomic_dec_and_lock(&node->d_count, &node->guard.lock)) {
+		spin_lock_jnode_acc(node, 0);
 		/* FIXME it is crucial that we first decrement ->d_count and
 		   only later clear JNODE_LOADED bit. I hope that
 		   atomic_dec_and_test() implies memory barrier (and
 		   optimization barrier, of course).
 		*/
 		JF_CLR(node, JNODE_LOADED);
-		spin_unlock_jload(node);
+		spin_unlock_jnode(node);
 	}
 	jput(node);
 	PROF_END(jrelse, jrelse);
