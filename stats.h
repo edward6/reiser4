@@ -478,10 +478,10 @@ typedef struct reiser4_statistics {
 	statcnt_inc(&get_super_private_nocheck(sb)->stats->counter)
 
 #define	reiser4_stat_inc(counter)				\
-	statcnt_inc(&get_current_stat()->counter)
+	ON_CONTEXT(statcnt_inc(&get_current_stat()->counter))
 
 #define reiser4_stat_add(counter, delta) 			\
-	statcnt_add(&get_current_stat()->counter, delta)
+	ON_CONTEXT(statcnt_add(&get_current_stat()->counter, delta))
 
 #define	reiser4_stat_inc_at_level(lev, stat)					\
 ({										\
