@@ -983,7 +983,7 @@ static void delete_inode_common(struct inode *object)
 
 	init_context(&ctx, object->i_sb);
 
-	uncapture_inode(object);
+	/*uncapture_inode(object);*/
 	kill_cursors(object);
 
 	if (!is_bad_inode(object)) {
@@ -996,7 +996,8 @@ static void delete_inode_common(struct inode *object)
 				get_inode_oid(object));
 		else
 			assert("vs-1430",
-			       reiser4_inode_data(object)->jnodes == 0);
+			       reiser4_inode_data(object)->anonymous_eflushed == 0 &&
+			       reiser4_inode_data(object)->captured_eflushed == 0);
 	}
 
 	if (object->i_data.nrpages) {
