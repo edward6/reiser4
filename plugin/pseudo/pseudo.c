@@ -513,17 +513,6 @@ static int get_rwx(struct file *file, const char *buf)
 	return result;
 }
 
-static unsigned long list_length(const struct list_head *head)
-{
-	struct list_head *scan;
-	unsigned long length;
-
-	length = 0;
-	list_for_each(scan, head)
-		++ length;
-	return length;
-}
-
 static void * pseudos_start(struct seq_file *m, loff_t *pos)
 {
 	if (*pos >= LAST_PSEUDO_ID)
@@ -970,97 +959,6 @@ static int readdir_plugins(struct file *f, void *dirent, filldir_t filld)
 				    pentry, sizeof_array(pentry));
 }
 
-typedef enum {
-	PAGECACHE_NRPAGES,
-	PAGECACHE_CLEAN,
-	PAGECACHE_DIRTY,
-	PAGECACHE_LOCKED,
-	PAGECACHE_IO
-} pagecache_stat;
-
-static plugin_entry pagecache_entry[] = {
-	PSEUDO_ARRAY_ENTRY(PAGECACHE_NRPAGES, "nrpages"),
-	PSEUDO_ARRAY_ENTRY(PAGECACHE_CLEAN, "clean"),
-	PSEUDO_ARRAY_ENTRY(PAGECACHE_DIRTY, "dirty"),
-	PSEUDO_ARRAY_ENTRY(PAGECACHE_LOCKED, "locked"),
-	PSEUDO_ARRAY_ENTRY(PAGECACHE_IO, "io"),
-	{
-		.name   = NULL
-	},
-};
-
-static int show_pagecache(struct seq_file *seq, void *cookie)
-{
-	struct inode *host;
-	struct address_space *as;
-
-	unsigned long nrpages;
-
-	host = get_seq_pseudo_host(seq);
-	
-	as = host->i_mapping;
-	spin_lock(&as->tree_lock);
-	nrpages = as->nrpages;
-	spin_unlock(&as->tree_lock);
-
-	seq_printf(seq, "%lu", nrpages);
-	return 0;
-}
-
-static int readdir_pagecache(struct file *f, void *dirent, filldir_t filld)
-{
-	return array_readdir_pseudo(f, dirent, filld,
-				    pagecache_entry,
-				    sizeof_array(pagecache_entry));
-}
-
-static int lookup_pagecache(struct inode *parent, struct dentry ** dentry)
-{
-	return array_lookup_pseudo(parent, dentry, pagecache_entry,
-				   pseudo_plugin_by_id(PSEUDO_PAGECACHE_STAT_ID));
-}
-
-static int show_pagecache_stat(struct seq_file *seq, void *cookie)
-{
-	struct inode   *host;
-	struct file    *file;
-	struct inode   *inode;
-	int             idx;
-
-	struct address_space *as;
-
-	file  = seq->private;
-	inode = file->f_dentry->d_inode;
-
-	host  = get_inode_host(inode);
-	idx   = reiser4_inode_data(inode)->file_plugin_data.pseudo_info.datum;
-	as    = host->i_mapping;
-
-	seq_printf(seq, "not info available");
-#if 0
-	spin_lock(&as->page_lock);
-	switch (idx) {
-	case PAGECACHE_NRPAGES:
-		seq_printf(seq, "%lu", as->nrpages);
-		break;
-	case PAGECACHE_CLEAN:
-		seq_printf(seq, "%lu", list_length(&as->clean_pages));
-		break;
-	case PAGECACHE_DIRTY:
-		seq_printf(seq, "%lu", list_length(&as->dirty_pages));
-		break;
-	case PAGECACHE_LOCKED:
-		seq_printf(seq, "%lu", list_length(&as->locked_pages));
-		break;
-	case PAGECACHE_IO:
-		seq_printf(seq, "%lu", list_length(&as->io_pages));
-		break;
-	}
-	spin_unlock(&as->page_lock);
-#endif
-	return 0;
-}
-
 static void * items_start(struct seq_file *m, loff_t *pos)
 {
 	struct inode   *host;
@@ -1401,47 +1299,6 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 		.read_type   = PSEUDO_READ_SINGLE,
 		.read        = {
 			 .single_show = show_locality
-		 },
-		.write_type  = PSEUDO_WRITE_NONE
-	},
-	[PSEUDO_PAGECACHE_ID] = {
-		.h = {
-			.type_id = REISER4_PSEUDO_PLUGIN_TYPE,
-			.id = PSEUDO_PAGECACHE_ID,
-			.pops = NULL,
-			.label = "pagecache",
-			.desc = "returns page cache stats",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
-		},
-		.parent      = PSEUDO_METAS_ID,
-		.try         = try_by_label,
-		.readdirable = 1,
-		.lookup      = lookup_pagecache,
-		.lookup_mode = S_IFDIR | S_IRUGO | S_IXUGO,
-		.read_type   = PSEUDO_READ_SINGLE,
-		.read        = {
-			 .single_show = show_pagecache
-		 },
-		.write_type  = PSEUDO_WRITE_NONE,
-		.readdir     = readdir_pagecache
-	},
-	[PSEUDO_PAGECACHE_STAT_ID] = {
-		.h = {
-			.type_id = REISER4_PSEUDO_PLUGIN_TYPE,
-			.id = PSEUDO_PAGECACHE_STAT_ID,
-			.pops = NULL,
-			.label = "pagecache stat",
-			.desc = "pagecache stat",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
-		},
-		.parent      = PSEUDO_METAS_ID,
-		.try         = NULL,
-		.readdirable = 0,
-		.lookup      = NULL,
-		.lookup_mode = S_IFREG | S_IRUGO,
-		.read_type   = PSEUDO_READ_SINGLE,
-		.read        = {
-			 .single_show = show_pagecache_stat
 		 },
 		.write_type  = PSEUDO_WRITE_NONE
 	},
