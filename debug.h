@@ -215,13 +215,13 @@ typedef enum {
 	 */
 	TRACE_NODES      =     (1 << 4),     /* 0x00000010 */
 	/*
-	 * trace IO functions (not used yet)
-	 */
-	TRACE_IO         =     (1 << 5),     /* 0x00000020 */
-	/*
 	 * trace directory functions
 	 */
-	TRACE_DIR        =     (1 << 6),     /* 0x00000040 */
+	TRACE_DIR        =     (1 << 5),     /* 0x00000020 */
+	/*
+	 * trace flush code verbosely
+	 */
+	TRACE_FLUSH_VERB   =     (1 << 6),     /* 0x00000040 */
 	/*
 	 * trace flush code
 	 */
@@ -263,6 +263,15 @@ typedef enum {
 	 * trace coords
 	 */
 	TRACE_COORDS      =    (1 << 16),     /* 0x00010000 */
+	/*
+	 * trace read-IO functions
+	 */
+	TRACE_IO_R        =     (1 << 17),     /* 0x00020000 */
+	/*
+	 * trace write-IO functions
+	 */
+	TRACE_IO_W        =     (1 << 18),     /* 0x00040000 */
+	
 	/*
 	 * vague section: used to trace bugs. Use it to issue optional prints
 	 * at arbitrary points of code.
