@@ -1023,7 +1023,7 @@ void reiserfs_journal_close(reiserfs_journal_t *journal) {
 
 <table width=70%><tr><td align=justify>
 			
-Disk-Format plugin defines filesystem layout  at  general.
+Disk-Format plugin defines filesystem layout at general.
 First of all it defines where the superblock lies and what
 the format this superblock has.<br><br>
 
@@ -1199,15 +1199,77 @@ void reiserfs_super_close(reiserfs_super_t *super) {
 
 <table width=70%><tr><td align=justify>
 
-Allocator plugin interface not defined yet (We have to discuss it).
-			
-A replica of bitmap in reiser3. There will be functions:
-reiserfs_alloc_create, reiserfs_alloc_close, reisitem,  
-hash and security plugins. Each plugin will be a separate 
-library (shared object, .so)  with  all  required functionality. 
-All plugins will be mapped to the corresponding abstract 
-objects in libreiserfs. Therefore libreiserfs will contain 
-the set of APIs for all plugins.
+A replica of bitmap in reiser3. There will be functions:<br><br>
+
+reiserfs_alloc_open, reiserfs_alloc_create, reiserfs_alloc_close,  
+reiserfs_alloc_use, reiserfs_alloc_unuse, reiserfs_alloc_find, 
+reiserfs_alloc_resize, reiserfs_alloc_copy, reiserfs_alloc_clone.
+</td></tr></table>
+
+<h3>Balanced Tree API.</h3>
+
+<table width=70%><tr><td alalign=justify>
+There will be routins for working with balanced tree. There following:<br><br>
+
+<b>reiserfs_tree_t *reiserfs_tree_open(reiserfs_fs_t *fs)</b>
+
+<p>
+Opens balanced tree on the specified filesystem. It reads root block, checks it for 
+validness, allocates reiserfs_tree_t instance and returns it to caller. This function 
+is called by reiserfs_fs_open function in the initialization time.<br><br>
+
+<b>reiserfs_tree_t *reiserfs_tree_create(reiserfs_fs_t *fs)</b>
+
+<p>
+Create balanced tree on the specified filesystem. It composes the root block of the 
+tree, and stores it on "host_dal" device of given filesystem. Also allocates 
+reiserfs_tree_t instance and returns it to caller. This function is used durring 
+filesystem creation by reiserfs_fs_create function.<br><br>
+
+<b>void reiserfs_tree_t *reiserfs_tree_close(reiserfs_tree_t *tree)</b>
+
+<p>
+Frees all memory assosiated with tree.<br><br>
+
+<b>int reiserfs_tree_lookup_internal(reiserfs_tree_t *tree, blk_t from, <br>
+reiserfs_comp_func_t *comp_func, struct key *key, reiserfs_path_t *path)</b>
+
+<p>
+Makes looking up for specified key in the balanced tree. Stops the looking up 
+process on the last found internal node. Fills "path" by tracked path. For comparing
+keys in tree is used "comp_func" callback function. This functions is used by tree 
+modification routines in order to find the internal node, we should insert new formated 
+node.<br><br>
+
+<b>int reiserfs_tree_lookup_leaf(reiserfs_tree_t *tree, blk_t from, <br>
+reiserfs_comp_func_t *comp_func, struct key *key, reiserfs_path_t *path)</b>
+
+<p>
+Makes looking up for specified key in the balanced tree. Stops the looking up 
+process on the found leaf node. Fills "path" by tracked path. For comparing
+keys in tree is used "comp_func" callback function. This functions is used by tree 
+modification routines in order to find the leaf in the tree, and the position inside 
+found leaf where we should insert new item. It is also used by file and directory APIs.
+<br><br>
+
+
+<b>long reiserfs_tree_traverse(reiserfs_tree_t *tree, void *data,<br>
+reiserfs_edge_traverse_func_t before_node_func, reiserfs_node_func_t node_func,<br>
+reiserfs_chld_func_t chld_func, reiserfs_edge_traverse_func_t after_node_func)</b>
+
+<p>
+Makes full traversing in the balanced tree. For all "node-specifics" operations for every 
+formated node is used a set of callback functions. Traversing may be stoped in any point 
+if an callback function returns "bool" false value.<br><br>
+
+This is the central function for all following operations:<br><br>
+
+resizing, smart resizing (resize filesystem by start and end parameters), copying, 
+relocating (relocates specified region of the balanced tree onto other specified region), 
+etc.<br><br>
+
+There will be routines for modifying the balanced tree (We have to discuss it).
+
 </td></tr></table>
 
 <h3>Plugins map.</h3>
