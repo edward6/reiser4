@@ -81,8 +81,8 @@ sys_reiser4(char *p_string)
 	work_space->ws_pline = p_string;
 
 	ret = yyparse(work_space);	/* parse command */
-	//	if (ret != -1 /*-ENOEM*/) {
-	//		ret = execut_this_code(work_space);
+	//	if (ret != -1 /*-ENOMEM*/) {
+	//		ret = execute_this_code(work_space);
 	//	}
 	sys_reiser4_free(work_space);
 	return ret;
