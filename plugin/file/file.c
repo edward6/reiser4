@@ -1960,11 +1960,12 @@ write_unix_file(struct file *file, /* file to write to */
 					 * bit captures blocks into
 					 * transaction, which should be done
 					 * after taking exclusive access on
-					 * the file.
-					 *
-					 * FIXME-NIKITA: check
-					 * return code of remove_suid(). */
-					remove_suid(file->f_dentry);
+					 * the file. */
+					written = remove_suid(file->f_dentry);
+					if (written != 0) {
+						drop_access(uf_info);
+						break;
+					}
 					grab_space_enable();
 				}
 
