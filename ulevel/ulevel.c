@@ -923,6 +923,7 @@ int fsync_bdev(struct block_device * bdev)
 		page = list_entry (cur, struct page, list);
 		if (!PageDirty (page))
 			continue;
+		impossible ("vs-747", "still dirty pages?");
 		if (PagePrivate (page))
 			j = (jnode *)page->private;
 		else if(page->mapping->host == get_current_super_private() -> fake)
@@ -1551,12 +1552,12 @@ static int create_twig( reiser4_tree *tree, struct inode *root )
 
 static void call_umount (struct super_block * sb)
 {
-	fsync_bdev (sb->s_bdev);
 
 	if (sb->s_op->put_super)
 		sb->s_op->put_super (sb);
 
 	iput (sb->s_root->d_inode);
+	fsync_bdev (sb->s_bdev);
 }
 
 
@@ -3477,13 +3478,27 @@ static int bash_write (struct inode * dir, const char * name)
 	}
 	info ("writing file %s from %d\nType data (ctrl-d to end):\n", name, from);
 
+	/* read stdin line by line and copy read data into buf. Break when '#'
+	 * is encountered */
 	buf = 0;
 	n = 0;
-	count = getdelim (&buf, &n, '#', stdin);
-	if (count == -1) {
-		info ("write: getdelim failed\n");
-		return 0;
+	while (1) {
+		char * tmp;
+		int tmp_n;
+
+		tmp = 0;
+		tmp_n = 0;
+		getline (&tmp, &tmp_n, stdin);
+		if (tmp[0] == '#')
+			break;
+		buf = realloc (buf, (unsigned)(n + strlen (tmp)));
+		assert ("vs-748", buf);
+		memcpy (buf + n, tmp, strlen (tmp));
+		n += strlen (tmp);
+		free (tmp);
 	}
+
+	info ("Writing..\n");
 	inode = call_lookup (dir, name);
 	if (IS_ERR (inode)) {
 		info ("write: lookup failed\n");
@@ -3493,7 +3508,7 @@ static int bash_write (struct inode * dir, const char * name)
 		info ("write failed\n");
 		return 0;
 	}
-
+	info ("done\n");
 	iput (inode);
 	free (buf);
 	return 0;
@@ -3878,7 +3893,7 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			 * print tree
 			 */
 			print_tree_rec ("DONE", tree_by_inode (cwd),
-					REISER4_NODE_PRINT_ALL & ~REISER4_NODE_PRINT_PLUGINS & ~REISER4_NODE_PRINT_ZNODE);
+					REISER4_NODE_PRINT_ALL & ~REISER4_NODE_PRINT_PLUGINS & ~REISER4_NODE_PRINT_ZNODE & ~REISER4_NODE_PRINT_ZADDR);
 		} else if (!strncmp (command, "info", 1)) {
 			get_current_super_private ()->lplug->print_info (reiser4_get_current_sb ());
 		} else
