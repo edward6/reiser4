@@ -333,8 +333,7 @@ reiser4_grab_space(__u64 * grabbed, __u64 min_block_count, __u64 max_block_count
 		    if (txnmgr_force_commit_all(get_current_context()->super) != 0)
 			rpanic("umka-1272", "Can't commit transactions durring block allocation\n");
 
-		if ((ret = reiser4_grab(grabbed, min_block_count, max_block_count, flags)) != 0)
-		    return ret;
+		    ret = reiser4_grab(grabbed, min_block_count, max_block_count, flags);
 	    }
     }
 
