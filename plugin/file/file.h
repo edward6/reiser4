@@ -49,7 +49,7 @@ reiser4_block_nr unix_file_estimate_write(struct inode *inode, size_t count,
     loff_t *off);
 
 reiser4_block_nr unix_file_estimate_read(struct inode *inode, size_t count);
-reiser4_block_nr unix_file_estimate_truncate(struct inode *inode, size_t count);
+reiser4_block_nr unix_file_estimate_truncate(struct inode *inode, loff_t old_size);
 reiser4_block_nr unix_file_estimate_mmap(struct inode *inode, size_t count);
 reiser4_block_nr unix_file_estimate_release(struct inode *inode);
   
