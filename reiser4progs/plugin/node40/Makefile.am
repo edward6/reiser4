@@ -1,7 +1,11 @@
 includedir		    = -I$(top_srcdir)/include
 libdir			    = $(plugindir)
 
+if ENABLE_COMPACT
 node40_sources		    = node40.c node40.h
+else
+node40_sources              = node40.c node40_repair.c node40.h
+endif
 
 lib_LTLIBRARIES		    = libnode40.la
 noinst_LTLIBRARIES	    = libnode40-static.la

@@ -58,6 +58,7 @@ struct repair_traverse_data {
     reiser4_format_t *format;
     reiser4_alloc_t *a_control;
     reiser4_key_t ld_key, rd_key;
+    uint16_t options;
     uint8_t level;
 };
 
