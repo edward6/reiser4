@@ -786,22 +786,15 @@ static inline __u32 blknrhashfn( const reiser4_disk_addr *b )
 int znode_contains_key( znode *node /* znode to look in */, 
 			const reiser4_key *key /* key to look for */ )
 {
-	reiser4_key *left;
-	reiser4_key *right;
-
 	assert( "nikita-1237", node != NULL );
 	assert( "nikita-1238", key != NULL );
 
-	left = znode_get_ld_key( node );
-	right = znode_get_rd_key( node );
-	if( keycmp( left, right ) == EQUAL_TO )
-		return keycmp( left, key ) == EQUAL_TO;
 	/*
-	 * left_delimiting_key <= key < right_delimiting_key
+	 * left_delimiting_key <= key <= right_delimiting_key
 	 */
 	return 
-		( keycmp( left, key ) != GREATER_THAN ) &&
-		( keycmp( key, right ) == LESS_THAN );
+		( keycmp( znode_get_ld_key( node ), key ) != GREATER_THAN ) &&
+		( keycmp( key, znode_get_rd_key( node ) ) != GREATER_THAN );
 }
 
 /** 
