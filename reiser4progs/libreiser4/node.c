@@ -651,7 +651,7 @@ errno_t reiserfs_node_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
 	    aal_block_get_nr(old->node->block));
 	return -1;
     }
-    
+
     if (reiserfs_node_lookup(old->node, &key, &pos) != 1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find left delimiting key of node %llu.",
@@ -702,7 +702,7 @@ errno_t reiserfs_node_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
     count = reiserfs_node_count(old->node);
    
     /* Trying to move items into the right neghbour */
-    if (right) {
+    if (right && count > 0) {
 	
 	uint32_t item_len = reiserfs_node_item_length(old->node, 
 	    reiserfs_node_count(old->node) - 1) + 
@@ -763,6 +763,16 @@ errno_t reiserfs_node_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
 		aal_block_get_nr(right->block));
 	    return -1;
 	}
+    }
+
+    /* 
+	Checking whether target node still contains any items. If no then we 
+	should delete it from the tree.
+    */
+
+    if (reiserfs_node_count(old->node) == 0) {
+	reiserfs_node_unregister(old->node->parent, old->node);
+	reiserfs_node_remove(old->node->parent, &pos);
     }
 
     return 0;
