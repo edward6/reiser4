@@ -3067,7 +3067,7 @@ writepage_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, writ
 	ON_TRACE(TRACE_EXTENTS, "WP: index %lu, count %d..", page->index, page_count(page));
 
 	assert("vs-1052", PageLocked(page));
-	assert("vs-1073", PageDirty(page));
+	// assert("vs-1073", PageDirty(page));
 	assert("vs-1051", page->mapping && page->mapping->host);
 	assert("nikita-3139", !inode_get_flag(page->mapping->host, REISER4_NO_SD));
 	assert("vs-864", znode_is_wlocked(uf_coord->base_coord.node));
