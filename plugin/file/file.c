@@ -662,7 +662,8 @@ static loff_t
 write_flow(struct file *file, unix_file_info_t *uf_info, const char *buf, loff_t count, loff_t pos);
 
 /* it is called when truncate is used to make file longer and when write position is set past real end of file. It
-   appends file which has size @cur_size with hole of certain size (@hole_size) */
+   appends file which has size @cur_size with hole of certain size (@hole_size). It returns 0 on success, error code
+   otherwise */
 static int
 append_hole(unix_file_info_t *uf_info, loff_t new_size)
 {
@@ -1710,14 +1711,13 @@ write_file(struct file *file, /* file to write to */
 	if (inode->i_size < pos) {
 		/* pos is set past real end of file */
 		written = append_hole(uf_info, pos);
-		assert("vs-1081", ergo(written == 0,
-				       pos == inode->i_size));
+		if (written)
+			return written;
+		assert("vs-1081", pos == inode->i_size);
 	}
-
-	if (written == 0)
-		/* write user data to the file */
-		written = write_flow(file,
-				     uf_info, buf, count, pos);
+	
+	/* write user data to the file */
+	written = write_flow(file, uf_info, buf, count, pos);
 	if (written > 0)
 		/* update position in a file */
 		*off = pos + written;
