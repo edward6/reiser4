@@ -258,15 +258,14 @@ void reiser4_cluster_init (reiser4_cluster_t * clust)
 void put_cluster_data(reiser4_cluster_t * clust, struct inode * inode)
 {
 	assert("edward-121", clust != NULL);
-	assert("edward-122", clust->buf != NULL);
-	assert("edward-123", clust->stat != HOLE_CLUSTER);
 	assert("edward-124", inode != NULL);
 	assert("edward-125", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
 
-	reiser4_kfree(clust->buf, (clust->tlen ?
-				   /* buf was updated */
-				   clust->tlen :
-				   inode_scaled_cluster_size(inode)));
+	if (clust->buf)
+		reiser4_kfree(clust->buf, (clust->tlen ?
+					   /* buf was updated */
+					   clust->tlen :
+					   inode_scaled_cluster_size(inode)));
 	/* invalidate cluster data */
 	xmemset(clust, 0, sizeof *clust);
 }
@@ -279,11 +278,11 @@ int cluster_is_required (reiser4_cluster_t * clust)
 }
 
 /* returns offset of the first page of the cluster that @page belows to */
-inline loff_t
-cluster_offset_by_page (struct page * page, struct inode * inode)
+inline unsigned long
+cluster_index_by_page (struct page * page, struct inode * inode)
 {
 	return (page->index >> inode_cluster_shift(inode) <<
-		inode_cluster_shift(inode) << PAGE_CACHE_SHIFT);
+		inode_cluster_shift(inode));
 }
 
 int
@@ -326,9 +325,9 @@ int process_cluster(reiser4_cluster_t *clust, /* contains data to process */
 	
 	cr_plug = inode_crypto_plugin(inode);
 	co_plug = inode_compression_plugin(inode);
-	/* original cluster size before compression */
-	size = (inode->i_size - clust->off < inode_cluster_size(inode) ?
-		inode->i_size - clust->off : inode_cluster_size(inode));
+	/* calculate actual cluster size before compression */
+	size = (inode->i_size - (clust->index << PAGE_CACHE_SIZE) < inode_cluster_size(inode) ?
+		inode->i_size - (clust->index << PAGE_CACHE_SIZE) : inode_cluster_size(inode));
 	blksize = cr_plug->blocksize(inode_crypto_stat(inode)->keysize);
 	
 	assert("edward-154", clust->len <= size);
@@ -433,6 +432,18 @@ cryptcompress_readpage(void *vp, struct page *page)
 	assert("edward-65", ergo(result == 0 && PagePrivate(page), 
 				 jnode_mapped(jprivate(page))));
 	return result;
+}
+
+/* plugin->readpages() */
+__attribute__((unused)) static void
+cryptcompress_readpages(struct file *file UNUSED_ARG, struct address_space *mapping,
+			struct list_head *pages)
+{
+	item_plugin *iplug;
+	
+	iplug = item_plugin_by_id(CTAIL_ID);
+	iplug->s.file.readpages(NULL, mapping, pages);
+	return;
 }
 
 /*
