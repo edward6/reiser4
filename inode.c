@@ -230,11 +230,12 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 			self = reiser4_inode_data(inode);
 			root = reiser4_inode_data(inode->i_sb->s_root->d_inode);
 			/* file and directory plugins are already initialised. */
-			grab_plugin(self, root, sd);
-			grab_plugin(self, root, hash);
-			grab_plugin(self, root, formatting);
-			grab_plugin(self, root, perm);
-			grab_plugin(self, root, dir_item);
+			result =
+				grab_plugin(self, root, sd) ||
+				grab_plugin(self, root, hash) ||
+				grab_plugin(self, root, formatting) ||
+				grab_plugin(self, root, perm) ||
+				grab_plugin(self, root, dir_item);
 		}
 	}
 	zrelse(coord->node);
@@ -681,11 +682,17 @@ inode_invariant(const struct inode *inode)
 {
 	reiser4_inode * object;
 
-	assert("nikita-3077", spin_inode_object_is_locked(reiser4_inode_data(inode)));
 	object = reiser4_inode_data(inode);
-	spin_lock(&eflushed_guard);
+	assert("nikita-3077", spin_inode_object_is_locked(object));
+
+	spin_lock_eflush(inode->i_sb);
+
 	assert("nikita-3146", object->eflushed >= 0);
-	spin_unlock(&eflushed_guard);
+	assert("nikita-3441", ergo(object->eflushed > 0,
+				   !list_empty(&object->eflushed_jnodes)));
+	assert("nikita-3442", object->eflushed >= object->eflushed_anon);
+
+	spin_unlock_eflush(inode->i_sb);
 }
 
 void
