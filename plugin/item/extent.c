@@ -3236,7 +3236,7 @@ static int extent_get_block (struct inode * inode, coord_t * coord,
 	/* key of first byte of the page */
 	inode_file_plugin (inode)->
 		key_by_inode (inode,
-			      (loff_t)j->pg->index << PAGE_CACHE_SHIFT,
+			      (loff_t)jnode_page(j)->index << PAGE_CACHE_SHIFT,
 			      &key);
 
 	todo = extent_what_todo2 (coord, &key);

@@ -283,7 +283,7 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 	} else
 		jref (jprivate(pg));
 
-	assert ("nikita-2046", jprivate(pg)->pg == pg);
+	assert ("nikita-2046", jnode_page(jprivate(pg)) == pg);
 	assert ("nikita-2364", jprivate(pg)->key.j.index == pg -> index);
 	assert ("nikita-2365", jprivate(pg)->key.j.mapping == pg -> mapping);
 
@@ -382,6 +382,7 @@ void jnode_attach_page( jnode *node, struct page *pg )
 	page_cache_get( pg );
 	pg -> private = ( unsigned long ) node;
 	node -> pg  = pg;
+	node -> data = page_address( pg );
 	SetPagePrivate( pg );
 }
 
@@ -434,7 +435,7 @@ struct page *jnode_lock_page( jnode *node )
 	while( 1 ) {
 
 		spin_lock_jnode( node );
-		page = node -> pg;
+		page = jnode_page( node );
 		if( page == NULL ) {
 			break;
 		}
@@ -868,7 +869,7 @@ int jdrop_in_tree( jnode *node, reiser4_tree *tree )
 
 	result = jplug -> is_busy( node );
 	if( !result ) {
-		assert( "nikita-2488", page == node -> pg );
+		assert( "nikita-2488", page == jnode_page( node ) );
 		assert( "nikita-2533", atomic_read( &node -> d_count ) == 0 );
 		if( page != NULL ) {
 			assert( "nikita-2126", !PageDirty( page ) );

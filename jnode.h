@@ -56,12 +56,13 @@ struct jnode
 
 	/* 
 	 * pointer to jnode page. 
-	 *
-	 * FIXME-NIKITA: Page itself is not enough in a case where block size
-	 * is smaller than page size. For initial version we are going to
-	 * force blocksize == PAGE_CACHE_SIZE. 
 	 */
 	struct page *pg;
+	/*
+	 * pointer to node itself. This is page_address(node->pg) when page is
+	 * attached to the jnode
+	 */
+	void        *data;
 
 	union {
 		/** pointers to maintain hash-table */
@@ -269,7 +270,7 @@ extern int    jdelete( jnode *node );
 static inline char *jdata (const jnode *node)
 {
 	assert ("nikita-1415", node != NULL);
-	return node->pg ? page_address (node->pg) : NULL;
+	return node->pg ? node->data : NULL;
 }
 
 /** get the page of jnode */
