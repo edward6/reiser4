@@ -168,7 +168,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.item_data_by_flow       = NULL,
 				.utmost_child            = NULL,
 				.utmost_child_dirty      = NULL,
-				.utmost_child_real_block = NULL
+				.utmost_child_real_block = NULL,
+				.real_max_key_inside     = NULL
 			},
 			.s = {
 				.sd = {
@@ -214,7 +215,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.item_data_by_flow       = NULL,
 				.utmost_child            = NULL,
 				.utmost_child_dirty      = NULL,
-				.utmost_child_real_block = NULL
+				.utmost_child_real_block = NULL,
+				.real_max_key_inside     = NULL
 			},
 			.s = {
 				.dir = {
@@ -262,7 +264,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.item_data_by_flow       = NULL,
 				.utmost_child            = NULL,
 				.utmost_child_dirty      = NULL,
-				.utmost_child_real_block = NULL
+				.utmost_child_real_block = NULL,
+				.real_max_key_inside     = NULL
 			},
 			.s = {
 				.dir = {
@@ -310,7 +313,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.item_data_by_flow       = NULL,
 				.utmost_child            = internal_utmost_child,
 				.utmost_child_dirty      = internal_utmost_child_dirty,
-				.utmost_child_real_block = internal_utmost_child_real_block
+				.utmost_child_real_block = internal_utmost_child_real_block,
+				.real_max_key_inside     = NULL
 			},
 			.s = {
 				.internal = {
@@ -354,7 +358,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.item_data_by_flow       = NULL,
 				.utmost_child            = extent_utmost_child,
 				.utmost_child_dirty      = extent_utmost_child_dirty,
-				.utmost_child_real_block = extent_utmost_child_real_block
+				.utmost_child_real_block = extent_utmost_child_real_block,
+				.real_max_key_inside     = extent_max_key
 			},
 			.s = {
 				.file = {
@@ -399,7 +404,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.item_data_by_flow       = NULL,
 				.utmost_child            = NULL,
 				.utmost_child_dirty      = NULL,
-				.utmost_child_real_block = NULL
+				.utmost_child_real_block = NULL,
+				.real_max_key_inside     = NULL
 			},
 			.s = {
 				.file = {
