@@ -29,7 +29,7 @@ typedef struct node40_header {
 	 * identifier of node plugin. Must be located at the very beginning
 	 * of a node.
 	 */
-	common_node_header common_header;
+	common_node_header common_header; /* this is 16 bits */
 	/** 
 	 * number of items. Should be first element in the node header,
 	 * because we haven't yet finally decided whether it shouldn't go into
@@ -58,6 +58,9 @@ typedef struct node40_header {
 	    who don't have the new trashcan installed on their linux distro
 	    delete the wrong files and send us desperate emails
 	    offering $25 for them back.  */
+	/*
+	 * FIXME-VS: there is 24 bytes hole added by compiler
+	 */
 	flush_stamp_t flush;
 } node40_header;
 
