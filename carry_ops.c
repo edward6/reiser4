@@ -1161,7 +1161,7 @@ carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
 			}
 
 			nplug->create_item(insert_point, &f->key, flow_insert_data(op), &info);
-			insert_point->item_pos = new_pos;
+			coord_set_item_pos(insert_point, new_pos);
 			coord_init_after_item_end(insert_point);
 		}
 		doing->restartable = 0;
