@@ -30,3 +30,5 @@ reiser4/AFTER 2 WRITES
 reiser4/AFTER ALLOCATION
 reiser4/BEFORE WRITE 1
 reiser4/tree:dir
+core.*
+core
