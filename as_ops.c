@@ -254,13 +254,6 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 	reiser4_exit_context(&ctx);
 	return ret;
 }
-/* VS-FIXME-HANS: is the #if really a good idea?  where are the comments? */
-#if REISER4_DEBUG
-int jnode_is_releasable(const jnode *node)
-{
-	return releasable(node);
-}
-#endif
 
 /* this checks whether page can be detached from jnode */
 static int
@@ -298,6 +291,13 @@ releasable(const jnode *node)
 		return 0;
 	return 1;
 }
+
+#if REISER4_DEBUG
+int jnode_is_releasable(const jnode *node)
+{
+	return releasable(node);
+}
+#endif
 
 #define INC_STAT(page, node, counter)						\
 	reiser4_stat_inc_at(page->mapping->host->i_sb, 				\
