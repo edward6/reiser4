@@ -1224,9 +1224,11 @@ int cut_tree (reiser4_tree * tree,
 			break;
 
 		if (coord_eq (&intranode_from, &intranode_to) && 
-		    !coord_of_unit (&intranode_from))
+		    !coord_of_unit (&intranode_from)) {
 			/* nothing to cut */
+			result = 0;
 			break;
+		}
 		/* cut data from one node */
 		smallest_removed = *min_key ();
 		result = cut_node (&intranode_from,
