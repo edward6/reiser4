@@ -417,11 +417,10 @@ static int reiser4_statfs( struct super_block *super /* super block of file
 	 * it is probably wrong linux manpage that cause all the confusion.
 	 */
 	buf -> f_bsize   = super->s_blocksize;
-	buf -> f_blocks  = reiser4_data_blocks( super );
+	buf -> f_blocks  = reiser4_block_count( super );
 	buf -> f_bfree   = reiser4_free_blocks( super );
 	buf -> f_bavail  = buf -> f_bfree - 
 		reiser4_reserved_blocks( super, 0, 0 );
-
 	buf -> f_files   = oids_used( super );
 	buf -> f_ffree   = oids_free( super );
 	/* maximal acceptable name length depends on directory plugin. */
@@ -1571,10 +1570,11 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	} else {
 		/* no standard reiser4 super block found */
 		brelse (super_bh);
-		/* FIXME-VS: call guess method for all available layout plugins */
+		/* FIXME-VS: call guess method for all available layout
+		 * plugins */
 		/* 
-		 * umka (2002.06.12) 
-		 * Is it possible when format-specific super block exists but there no master super block? 
+		 * umka (2002.06.12) Is it possible when format-specific super
+		 * block exists but there no master super block?
 		 */
 		REISER4_EXIT (-EINVAL);
 	}
