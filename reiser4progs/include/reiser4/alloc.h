@@ -24,8 +24,8 @@ extern reiser4_alloc_t *reiser4_alloc_create(reiser4_format_t *format,
 
 extern errno_t reiser4_alloc_sync(reiser4_alloc_t *alloc);
 
-extern void reiser4_alloc_mark(reiser4_alloc_t *alloc, blk_t blk);
-extern void reiser4_alloc_dealloc(reiser4_alloc_t *alloc, blk_t blk);
+extern errno_t reiser4_alloc_mark(reiser4_alloc_t *alloc, blk_t blk);
+extern errno_t reiser4_alloc_dealloc(reiser4_alloc_t *alloc, blk_t blk);
 extern blk_t reiser4_alloc_alloc(reiser4_alloc_t *alloc);
 
 #endif

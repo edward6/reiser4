@@ -138,7 +138,7 @@ static reiser4_entity_t *journal40_create(reiser4_entity_t *format,
 	goto error_free_journal;
     }
     
-    if (layout(format, callback_fetch_journal, journal)) {
+    if (layout(format, callback_alloc_journal, journal)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't load journal metadata.");
 	goto error_free_journal;

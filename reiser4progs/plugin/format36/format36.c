@@ -307,6 +307,7 @@ static reiser4_plugin_t format36_plugin = {
 	.alloc_pid	= format36_alloc_pid,
 	.oid_pid	= format36_oid_pid,
 	
+	.skipped_layout	= NULL,
 	.format_layout	= NULL,
 	.journal_layout	= NULL,
 	.alloc_layout	= NULL,

@@ -150,25 +150,29 @@ count_t reiser4_alloc_used(
 #ifndef ENABLE_COMPACT
 
 /* Marks specified block as used */
-void reiser4_alloc_mark(
+errno_t reiser4_alloc_mark(
     reiser4_alloc_t *alloc,	/* allocator for working with */
     blk_t blk			/* block to be marked */
 ) {
-    aal_assert("umka-501", alloc != NULL, return);
+    aal_assert("umka-501", alloc != NULL, return -1);
 
-    libreiser4_plugin_call(return, alloc->entity->plugin->alloc_ops, 
+    libreiser4_plugin_call(return -1, alloc->entity->plugin->alloc_ops, 
 	mark, alloc->entity, blk);
+
+    return 0;
 }
 
 /* Deallocs specified block */
-void reiser4_alloc_dealloc(
+errno_t reiser4_alloc_dealloc(
     reiser4_alloc_t *alloc,	/* allocator for wiorking with */
     blk_t blk			/* block to be deallocated */
 ) {
-    aal_assert("umka-503", alloc != NULL, return);
+    aal_assert("umka-503", alloc != NULL, return -1);
 
-    libreiser4_plugin_call(return, alloc->entity->plugin->alloc_ops, 
+    libreiser4_plugin_call(return -1, alloc->entity->plugin->alloc_ops, 
 	dealloc, alloc->entity, blk);
+
+    return 0;
 }
 
 /* Makes request to plugin for allocating block */

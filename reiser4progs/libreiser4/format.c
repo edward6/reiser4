@@ -125,10 +125,7 @@ errno_t callback_action_mark(
     blk_t blk,			/* block number to be marked */
     void *data			/* pointer to block allocator */
 ) {
-    reiser4_alloc_t *alloc = (reiser4_alloc_t *)data;
-    reiser4_alloc_mark(alloc, blk);
-
-    return 0;
+    return reiser4_alloc_mark((reiser4_alloc_t *)data, blk);
 }
 
 /* Marks format area as used */
@@ -136,6 +133,10 @@ errno_t reiser4_format_mark(
     reiser4_format_t *format,	/* format function works with */
     reiser4_alloc_t *alloc	/* block allocator */
 ) {
+    if (libreiser4_plugin_call(return -1, format->entity->plugin->format_ops,
+	    skipped_layout, format->entity, callback_action_mark, alloc))
+	return -1;
+    
     if (libreiser4_plugin_call(return -1, format->entity->plugin->format_ops,
 	    format_layout, format->entity, callback_action_mark, alloc))
 	return -1;
@@ -322,6 +323,9 @@ reiser4_id_t reiser4_format_oid_pid(
 errno_t reiser4_format_layout(reiser4_format_t *format, 
     reiser4_action_func_t action_func, void *data)
 {
+    if (reiser4_format_skipped_layout(format, action_func, data))
+	return -1;
+    
     if (reiser4_format_format_layout(format, action_func, data))
 	return -1;
     
@@ -329,6 +333,16 @@ errno_t reiser4_format_layout(reiser4_format_t *format,
 	return -1;
     
     return reiser4_format_alloc_layout(format, action_func, data);
+}
+
+errno_t reiser4_format_skipped_layout(reiser4_format_t *format, 
+    reiser4_action_func_t action_func, void *data)
+{
+    aal_assert("umka-1083", format != NULL, return -1);
+    aal_assert("umka-1084", action_func != NULL, return -1);
+
+    return libreiser4_plugin_call(return -1, format->entity->plugin->format_ops,
+	skipped_layout, format->entity, action_func, data);
 }
 
 errno_t reiser4_format_format_layout(reiser4_format_t *format, 

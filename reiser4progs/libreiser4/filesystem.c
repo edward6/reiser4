@@ -194,6 +194,12 @@ aal_device_t *reiser4_fs_journal_device(reiser4_fs_t *fs) {
 
 #ifndef ENABLE_COMPACT
 
+static errno_t callback_clobber_block(aal_device_t *device, 
+    blk_t blk, void *data) 
+{
+    return -1;
+}
+
 #define REISER4_MIN_SIZE (23 + 100)
 
 /* Creates filesystem on specified host and journal devices */
