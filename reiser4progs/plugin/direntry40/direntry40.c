@@ -37,14 +37,16 @@ static void direntry40_build_key_by_objid(void *key, reiserfs_plugin_t *plugin,
     function.
 */
 static void direntry40_build_objid_by_params(reiserfs_objid_t *objid, 
-    oid_t locality, oid_t objectid, reiserfs_plugin_t *plugin)
+    oid_t locality, oid_t objectid)
 {
-    uint8_t key[MAX_KEY_SIZE];
     aal_assert("vpf-089", objid != NULL, return);
-    
-    plugin->key.clean(key);
-    plugin->key.build_file_key(key, KEY40_SD_MINOR, locality, objectid, 0);
-    aal_memcpy(objid, key, sizeof(reiserfs_objid_t));
+ 
+    /*
+	We can use here this code which likes some hack
+	because direntry40 know about format of "objid".
+    */
+    objid_set_locality(objid, ((locality << 4) | KEY40_SD_MINOR));
+    objid_set_objectid(objid, objectid);
 }
 
 #ifndef ENABLE_COMPACT
@@ -54,34 +56,37 @@ static error_t direntry40_create(reiserfs_direntry40_t *direntry,
 {
     int i;
     uint16_t len, offset;
-    reiserfs_direntry_info_t *direntry_info;
     uint8_t key[MAX_KEY_SIZE];
-    reiserfs_plugin_t *key_plug;
+    reiserfs_plugin_t *key_plugin;
+    reiserfs_direntry_info_t *direntry_info;
     
     aal_assert("vpf-097", direntry != NULL, return -1);
     aal_assert("vpf-098", info != NULL, return -1);
     aal_assert("vpf-099", info->info != NULL, return -1);
     
     direntry_info = info->info;
-    key_plug = direntry_info->key_plugin;
+    key_plugin = direntry_info->key_plugin;
     
     de40_set_count(direntry, direntry_info->count);
-    
     offset = sizeof(reiserfs_direntry40_t) + 
 	direntry_info->count * sizeof(reiserfs_entry40_t);
 
-    libreiser4_plugins_call(return -1, key_plug->key, clean, key);
+    libreiser4_plugins_call(return -1, key_plugin->key, clean, key);
     for (i = 0; i < direntry_info->count; i++) {	
 	e40_set_offset(&direntry->entry[i], offset);
 
-	libreiser4_plugins_call(return -1, key_plug->key, build_dir_key, key, 
+	libreiser4_plugins_call(return -1, key_plugin->key, build_dir_key, key, 
 	    direntry_info->parent_id, direntry_info->object_id, 
 	    direntry_info->entry[i].name, direntry_info->hash_plugin);
 
-	aal_memcpy(&direntry->entry[i].entryid, key + sizeof(uint64_t), sizeof(reiserfs_entryid_t));
+	entryid_set_objectid((&direntry->entry[i].entryid), 
+	    libreiser4_plugins_call(return -1, key_plugin->key, get_objectid, key));
+	
+	entryid_set_offset((&direntry->entry[i].entryid), 
+	    libreiser4_plugins_call(return -1, key_plugin->key, get_offset, key));
 	
 	direntry40_build_objid_by_params((reiserfs_objid_t *)((char *)direntry + offset), 
-	    direntry_info->entry[i].locality, direntry_info->entry[i].objectid, key_plug);
+	    direntry_info->entry[i].locality, direntry_info->entry[i].objectid);
 	
 	len = aal_strlen(direntry_info->entry[i].name);
 	offset += sizeof(reiserfs_objid_t);
@@ -149,11 +154,10 @@ static void *callback_elem_for_lookup(void *direntry, uint32_t pos,
 static int callback_cmp_for_lookup(const void *key1, const void *key2, 
     void *data) 
 {
-    int res;
-    void *ekey;
     oid_t locality;
     oid_t objectid;
     uint64_t offset;
+    uint8_t key[MAX_KEY_SIZE];
     reiserfs_plugin_t *plugin;
 
     aal_assert("umka-657", key1 != NULL, return -2);
@@ -162,27 +166,18 @@ static int callback_cmp_for_lookup(const void *key1, const void *key2,
     
     plugin = (reiserfs_plugin_t *)data;
     
-    /* Preparing key for comparing */
     locality = libreiser4_plugins_call(return -2, plugin->key, 
 	get_locality, (void *)key2);
+   
+    objectid = entryid_get_objectid(((reiserfs_entryid_t *)key1));
+    offset = entryid_get_offset(((reiserfs_entryid_t *)key1));
     
-    aal_memcpy(&objectid, key1, sizeof(objectid));
-    aal_memcpy(&offset, ((uint64_t *)key1) + 1, sizeof(offset));
-
     /* FIXME-UMKA: Here should be not hardcoded key parameters */
-    if (!(ekey = libreiser4_plugins_call(return -2, plugin->key, create, 
-	0, locality, objectid, offset)))
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't create key by its params (%llu:%u:%llu:%llu)", 
-	    locality, 0, objectid, offset);
-	return -2;
-    }
+    libreiser4_plugins_call(return -2, plugin->key, clean, &key);
+    libreiser4_plugins_call(return -2, plugin->key, build_file_key, 
+	&key, 0, locality, objectid, offset);
     
-    res = libreiser4_plugins_call(return -2, plugin->key, compare, ekey, key2);
-    libreiser4_plugins_call(return -2, plugin->key, close, ekey);
-    
-    return res;
+    return libreiser4_plugins_call(return -2, plugin->key, compare, key, key2);
 }
 
 static int direntry40_lookup(reiserfs_direntry40_t *direntry, 
