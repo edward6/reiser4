@@ -888,10 +888,32 @@ static void unlock_carry_level( carry_level *level /* level to unlock */,
 		assert( "nikita-1631", 
 			ergo( ! failure,
 			      ! ZF_ISSET( node -> real_node, JNODE_ORPHAN ) ) );
-		if( ! failure )
+		if( ! failure ) {
 			node_check( node -> real_node, 
 				    REISER4_NODE_DKEYS | REISER4_NODE_PANIC );
 
+#if 0
+			/* 
+			 * this is wrong check. allocate_and_copy_extent does
+			 * not cut source. So, right delimiting key is
+			 * incorrect until cut is done
+			 */
+
+			/*
+			 * FIXME-VS: remove after debugging
+			 */
+			if( !node_is_empty( node -> real_node ) ) {
+				coord_t coord;
+				reiser4_key mkey;
+
+				
+				coord_init_last_unit( &coord, node -> real_node );
+				
+				assert( "", keylt( item_key_by_coord( &coord, &mkey ), 
+						   znode_get_rd_key( ( znode * ) node -> real_node ) ) );
+			}
+#endif
+		}
 		unlock_carry_node( node, failure );
 	}
 	level -> new_root = NULL;
