@@ -324,20 +324,22 @@ common_unlink(struct inode *parent /* parent object */ ,
    - update the SD of parent
    - estimate child creation
 */
-static reiser4_block_nr common_estimate_create_dir( 
+static reiser4_block_nr common_estimate_create_child( 
 	struct inode *parent, /* parent object */
 	struct inode *object /* object */)
 {
 	assert("vpf-309", parent != NULL);
 	assert("vpf-307", object != NULL);
 	
-	return (inode_file_plugin(object)->estimate.create(tree_by_inode(parent)->height, object) +
-	       	(inode_dir_plugin(object) ? 
-		    inode_dir_plugin(object)->estimate.init(parent, object) : 0) + 
-	       	inode_file_plugin(parent)->estimate.update(parent) + 
-		/* FIXME: call oid-alloc estimate */
-		inode_dir_plugin(parent)->estimate.add_entry(parent) + 
-		inode_dir_plugin(parent)->estimate.rem_entry(parent));
+	return 
+		/* object creation estimation */
+		inode_file_plugin(object)->estimate.create(object) +
+		/* stat data of parent dirctory estimation */
+		inode_file_plugin(parent)->estimate.update(parent) +
+		/* adding entry estimation */
+		inode_dir_plugin(parent)->estimate.add_entry(parent) +
+		/* to undo in the case of failure */
+		inode_dir_plugin(parent)->estimate.rem_entry(parent);
 }
 
 /* Create child in directory.
@@ -436,7 +438,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 		return -EPERM;
 
 	reiser4_inode_data(object)->locality_id = get_inode_oid(parent);
-	if ((reserve = common_estimate_create_dir(parent, object)) < 0)
+	if ((reserve = common_estimate_create_child(parent, object)) < 0)
 	    return reserve;
 
 	trace_on(TRACE_RESERVE, "create child grabs %llu blocks.\n", reserve);
@@ -985,14 +987,18 @@ common_attach(struct inode *child, struct inode *parent)
 	return 0;
 }
 
+/* estimation of adding entry which supposes that entry is inserting a unit into item */
 static reiser4_block_nr common_estimate_add_entry(struct inode *inode)
 {
+	return estimate_one_insert_into_item(tree_by_inode(inode)->height);
+/*
 	reiser4_block_nr amount;
 	assert("vpf-316", inode != NULL);
 	
 	estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
 
 	return amount + 1;
+*/
 }
 
 static reiser4_block_nr common_estimate_rem_entry(struct inode *inode) 
@@ -1025,13 +1031,11 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 				.done = hashed_done,
 				.attach = common_attach,
 				.estimate = {
-					.create = common_estimate_create_dir,
 					.add_entry = common_estimate_add_entry,
 					.rem_entry = common_estimate_rem_entry,
 					.link = common_estimate_link,
 					.unlink = common_estimate_unlink,
 					.rename	= hashed_estimate_rename,
-					.init = hashed_estimate_init,
 					.done = hashed_estimate_done
 				}
 	},
@@ -1059,13 +1063,11 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 				.done = hashed_done,
 				.attach = common_attach,
 				.estimate = {
-					.create = common_estimate_create_dir,
 					.add_entry = common_estimate_add_entry,
 					.rem_entry = common_estimate_rem_entry,
 					.link = common_estimate_link,
 					.unlink = common_estimate_unlink,
 					.rename	= hashed_estimate_rename,
-					.init = hashed_estimate_init,
 					.done = hashed_estimate_done
 				}
 	}

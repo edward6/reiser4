@@ -72,6 +72,8 @@
 #include <linux/fs.h>
 #include <linux/dcache.h>
 #include <linux/quotaops.h>
+
+#if 0
 /* Amount of internals which will get dirty of get allocated we estimate as 
     5% of the childs + 1 balancing. 1 balancing is 2 neighbours, 2 new blocks
     and the current block on the leaf level, 2 neighbour nodes + the current 
@@ -93,6 +95,7 @@ void estimate_internal_amount(__u32 childen, __u32 tree_height, __u64 *amount)
 	   then 1. Assume that if tree_height is 5, it can raise on 1 only. */
 	*amount = ((tree_height < 5 ? 5 : tree_height) * 2 + (4 + ten_percent));
 }
+#endif
 
 /* helper function to print errors */
 static void
@@ -505,7 +508,7 @@ static reiser4_block_nr common_estimate_file_delete(struct inode *inode)
 	
 	assert( "vpf-319", inode != NULL );
 
-	estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
+	amount = estimate_internal_amount(1, tree_by_inode(inode)->height);
 	return amount + 1;
 }
 
@@ -630,13 +633,18 @@ guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
 	return 0;
 }
 
-static reiser4_block_nr common_estimate_create(__u32 tree_height, struct inode *object)
+/* this comon implementation of create estimation function may be used when object creation involves insertion of one item
+ * (usualy stat data) into tree */
+static reiser4_block_nr common_estimate_create(struct inode *object)
 {
-	reiser4_block_nr amount;
+	return estimate_one_insert_item(tree_by_inode(object)->height);
+}
 
-	estimate_internal_amount(1, tree_height, &amount);
-	
-	return amount + 1;
+/* this comon implementation of create directory estimation function may be used when directory creation involves
+ * insertion of two items (usualy stat data and item containing "." and "..") into tree */
+static reiser4_block_nr common_estimate_create_dir(struct inode *object)
+{
+	return 2 * estimate_one_insert_item(tree_by_inode(object)->height);
 }
 
 /* ->create method of object plugin */
@@ -650,7 +658,7 @@ common_file_create(struct inode *object, struct inode *parent UNUSED_ARG, reiser
 	assert("nikita-748", inode_get_flag(object, REISER4_NO_SD));
 
 	if (reiser4_grab_space_exact(reserve = 
-		common_estimate_create(tree_by_inode(object)->height, object), BA_CAN_COMMIT))
+		common_estimate_create(object), BA_CAN_COMMIT))
 	{
 		return -ENOSPC;
 	}
@@ -886,15 +894,12 @@ common_bind(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)
 	return 0;
 }
 
-/* estimate number of blocks which will be dirtied during stat data updating */
+/* this common implementation of update estimation function may be used when stat data update does not do more than
+   inserting a unit into a stat data item which is probably true for most cases */
 static reiser4_block_nr 
-common_estimate_update(const struct inode *node)
+common_estimate_update(const struct inode *inode)
 {
-	reiser4_block_nr amount;
-	assert("vpf-315", node != NULL);
-	
-	estimate_internal_amount(1, tree_by_inode(node)->height, &amount);
-	return amount + 1;
+	return estimate_one_insert_into_item(tree_by_inode(inode)->height);
 }
 
 
@@ -989,7 +994,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				      .seek = dir_seek,
 				      .bind = dir_bind,
 				      .estimate = {
-					    .create = common_estimate_create,
+					    .create = common_estimate_create_dir,
 					    .update = common_estimate_update,
 					    .delete = common_estimate_file_delete
 				      }

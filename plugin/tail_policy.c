@@ -45,7 +45,7 @@ static reiser4_block_nr never_tail_estimate ( const struct inode *inode, loff_t 
 	    /* In the case of unallocated extent (truncate does) we are counting 
 	       the overhead for one balancing, stat data update and three blocks
 	       may become dirty in the worse case on the twig level */
-	    estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
+	    amount = estimate_internal_amount(1, tree_by_inode(inode)->height);
 	    return inode_file_plugin(inode)->estimate.update(inode) + amount + 3;
 	} else {
 	    /* Here we are counting the number of blocks needed for creating of the
@@ -85,7 +85,7 @@ static reiser4_block_nr always_tail_estimate ( const struct inode *inode, loff_t
 	/* write_flow writes in small pieces and every write starts it own balancing. 
 	   Early flush may clean dirty nodes and they can become dirty again during
 	   futher writes. */
-	estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
+	amount = estimate_internal_amount(1, tree_by_inode(inode)->height);
 
 	return block_nr + (block_nr * amount) + 
 		inode_file_plugin(inode)->estimate.update(inode) + 1;

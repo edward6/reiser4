@@ -23,7 +23,6 @@ extern int common_write_inode(struct inode *inode);
 extern int common_file_owns_item(const struct inode *inode,
 				 const coord_t * coord);
 
-extern void estimate_internal_amount(__u32 childen, __u32 tree_height, __u64 *amount);
 extern int common_file_owns_item(const struct inode *inode, const coord_t * coord);
 
 /* __FS_REISER4_PLUGIN_OBJECT_H__ */
