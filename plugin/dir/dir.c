@@ -367,6 +367,11 @@ common_create_child(struct inode *parent /* parent object */ ,
 		return -ENOMEM;
 	/* we'll update i_nlink below */
 	object->i_nlink = 0;
+	/* new_inode() initializes i_ino to "arbitrary" value. Reset it to 0,
+	 * to simplify error handling: if some error occurs before i_ino is
+	 * initialized with oid, i_ino should already be set to some
+	 * distinguished value. */
+	object->i_ino = 0;
 
 	/* So that on error iput will be called. */
 	*retobj = object;
@@ -414,13 +419,9 @@ common_create_child(struct inode *parent /* parent object */ ,
 		return -EPERM;
 
 	reiser4_inode_data(object)->locality_id = get_inode_oid(parent);
-	/*
-	 * FIXME: comparing unsigned with 0
-	 */
-	if ((reserve = common_estimate_create_child(parent, object)) < 0)
-		return reserve;
 
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "comon_create_child"))
+	reserve = common_estimate_create_child(parent, object);
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, __FUNCTION__))
 		return -ENOSPC;
 
 	/* mark inode `immutable'. We disable changes to the file being
