@@ -274,6 +274,7 @@ void reiserfs_fs_close(reiserfs_fs_t *fs) {
     aal_assert("umka-230", fs != NULL, return);
     
     reiserfs_tree_close(fs);
+
     if (fs->journal)
 	reiserfs_journal_close(fs);
 	

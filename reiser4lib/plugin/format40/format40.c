@@ -119,7 +119,7 @@ static reiserfs_format40_t *reiserfs_format40_open(aal_device_t *host_device,
 	}
     }
     
-    if (!(oid_plugin = factory->find_by_coords(REISERFS_OID_PLUGIN, 
+/*    if (!(oid_plugin = factory->find_by_coords(REISERFS_OID_PLUGIN, 
 	REISERFS_FORMAT40_OID))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -133,7 +133,7 @@ static reiserfs_format40_t *reiserfs_format40_open(aal_device_t *host_device,
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't open oid allocator \"%s\".", oid_plugin->h.label);
 	goto error_free_journal;
-    }
+    }*/
     
     return format;
 
@@ -177,6 +177,7 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
     }
     
     reiserfs_check_method(plugin->alloc, sync, return -1);
+    plugin->alloc.sync(format->alloc);
     
     if (!(plugin = factory->find_by_coords(REISERFS_JOURNAL_PLUGIN, 
 	REISERFS_FORMAT40_JOURNAL))) 
@@ -188,6 +189,7 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
     }
     
     reiserfs_check_method(plugin->journal, sync, return -1);
+    plugin->journal.sync(format->journal);
     
 /*    if (!(plugin = factory->find_by_coords(REISERFS_OID_PLUGIN, 
 	REISERFS_FORMAT40_OID))) 
@@ -198,7 +200,8 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
 	return -1;
     }
     
-    reiserfs_check_method(plugin->oid, sync, return -1);*/
+    reiserfs_check_method(plugin->oid, sync, return -1);
+    plugin->oid.sync(format->oid);*/
     
     return 0;
 }
@@ -348,16 +351,18 @@ static void reiserfs_format40_close(reiserfs_format40_t *format) {
     reiserfs_check_method(plugin->alloc, close, return);
     plugin->alloc.close(format->alloc);
 
-    if (!(plugin = factory->find_by_coords(REISERFS_JOURNAL_PLUGIN, 
-	REISERFS_FORMAT40_JOURNAL))) 
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find journal plugin by its id %x.", 
-	    REISERFS_FORMAT40_JOURNAL);
-    }
+    if (format->journal) {
+	if (!(plugin = factory->find_by_coords(REISERFS_JOURNAL_PLUGIN, 
+	    REISERFS_FORMAT40_JOURNAL))) 
+	{
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Can't find journal plugin by its id %x.", 
+		REISERFS_FORMAT40_JOURNAL);
+	}
     
-    reiserfs_check_method(plugin->journal, close, return);
-    plugin->journal.close(format->journal);
+	reiserfs_check_method(plugin->journal, close, return);
+	plugin->journal.close(format->journal);
+    }
     
 /*    if (!(plugin = factory->find_by_coords(REISERFS_OID_PLUGIN, 
 	REISERFS_FORMAT40_OID))) 

@@ -44,7 +44,6 @@ void reiserfs_bitmap_unuse_block(reiserfs_bitmap_t *bitmap, blk_t blk) {
 
 int reiserfs_bitmap_test_block(reiserfs_bitmap_t *bitmap, blk_t blk) {
     aal_assert("umka-338", bitmap != NULL, return 0);
-
     reiserfs_bitmap_range_check(bitmap, blk, return 0);
     return reiserfs_misc_test_bit(blk, bitmap->map);
 }
@@ -170,7 +169,7 @@ static error_t callback_bitmap_flush(aal_device_t *device,
     blk_t blk, char *map, uint32_t chunk, void *data) 
 {
     aal_block_t *block;
-	
+
     if (!(block = aal_device_alloc_block(device, blk, 0xff)))
 	goto error;
 		
@@ -214,8 +213,8 @@ error_t reiserfs_bitmap_pipe(reiserfs_bitmap_t *bitmap,
     blk_t blk;
     uint16_t left, chunk;
 	
-    aal_assert("umka-347", bitmap != NULL, return 0);
-    aal_assert("umka-348", bitmap->device != NULL, return 0);
+    aal_assert("umka-347", bitmap != NULL, return -1);
+    aal_assert("umka-348", bitmap->device != NULL, return -1);
 	
     for (left = bitmap->size, blk = bitmap->start, map = bitmap->map; left > 0; ) {	
 	chunk = (left < aal_device_get_blocksize(bitmap->device) ? left : 
