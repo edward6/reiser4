@@ -151,11 +151,11 @@ int setup_inode_ops( struct inode *inode /* inode to intialise */ )
 	case S_IFBLK:
 	case S_IFCHR:
 	case S_IFIFO: {
-		__u32 rdev = 0; /* to keep gcc happy */
+		int rdev; /* to keep gcc happy */
 
 		/* ugly hack with rdev */
-		rdev = inode -> i_rdev;
-		inode -> i_rdev = 0;
+		rdev = kdev_val (inode -> i_rdev);
+		inode -> i_rdev = val_to_kdev( 0 );
 		inode -> i_blocks = 0;
 		init_special_inode( inode, inode -> i_mode, rdev );
 		break;
@@ -191,6 +191,9 @@ int init_inode( struct inode *inode /* inode to intialise */,
 	assert( "nikita-293", inode != NULL );
 	assert( "nikita-1946", inode -> i_state & I_NEW );
 
+	result = zload( coord -> node );
+	if( result )
+		return result;
 	iplug  = item_plugin_by_coord( coord );
 	body   = item_body_by_coord  ( coord );
 	length = item_length_by_coord( coord );
@@ -231,6 +234,7 @@ int init_inode( struct inode *inode /* inode to intialise */,
 				self -> dir_item = root -> dir_item;
 		}
 	}
+	zrelse( coord -> node );
 	return result;
 }
 
@@ -430,44 +434,6 @@ item_plugin *inode_dir_item_plugin( const struct inode *inode )
 	return reiser4_inode_data( inode ) -> dir_item;
 }
 
-/** Debugging aid: print information about inode. */
-void print_inode( const char *prefix /* prefix to print */, 
-		  const struct inode *i /* inode to print */ )
-{
-	reiser4_key         inode_key;
-	reiser4_inode_info *ref;
-
-	if( i == NULL ) {
-		info( "%s: inode: null\n", prefix );
-		return;
-	}
-	info( "%s: ino: %lu, count: %i, link: %i, mode: %o, size: %llu\n",
-	      prefix, i -> i_ino, atomic_read( &i -> i_count ), i -> i_nlink,
-	      i -> i_mode, ( unsigned long long ) i -> i_size );
-	info( "\tuid: %i, gid: %i, dev: %i, rdev: %i\n", 
-	      i -> i_uid, i -> i_gid, ( int ) i -> i_dev, i -> i_rdev );
-	info( "\tatime: %li, mtime: %li, ctime: %li\n",
-	      i -> i_atime, i -> i_mtime, i -> i_ctime );
-	info( "\tblkbits: %i, blksize: %lu, blocks: %lu\n",
-	      i -> i_blkbits, i -> i_blksize, i -> i_blocks );
-	info( "\tversion: %lu, generation: %i, attr. flags: %u, flags: %u\n",
-	      i -> i_version, i -> i_generation, i -> i_attr_flags, 
-	      i -> i_flags );
-	info( "\tis_reiser4_inode: %i\n", is_reiser4_inode( i ) );
-	print_key( "\tkey", build_sd_key( i, &inode_key ) );
-	ref = reiser4_inode_data( i );
-	print_plugin( "\tfile", file_plugin_to_plugin( ref -> file ) );
-	print_plugin( "\tdir", dir_plugin_to_plugin( ref -> dir ) );
-	print_plugin( "\tperm", perm_plugin_to_plugin( ref -> perm ) );
-	print_plugin( "\ttail", tail_plugin_to_plugin( ref -> tail ) );
-	print_plugin( "\thash", hash_plugin_to_plugin( ref -> hash ) );
-	print_plugin( "\tsd", item_plugin_to_plugin( ref -> sd ) );
-	print_seal( "\tsd_seal", &ref -> sd_seal );
-	ncoord_print( "\tsd_coord", &ref -> sd_coord, 1 );
-	info( "\tflags: %u, bytes: %llu, extmask: %llu, sd_len: %i, pmask: %i, locality: %llu\n",
-	      ref -> flags, ref -> bytes, ref -> extmask, 
-	      ( int ) ref -> sd_len, ref -> plugin_mask, ref -> locality_id );
-}
 
 /* 
  * Make Linus happy.
