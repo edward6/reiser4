@@ -1118,16 +1118,20 @@ static void unlock_carry_node( carry_node *node /* node to be released */,
 		node -> real_node = NULL;
 	}
 	if( failure ) {
-		if( node -> deallocate && ( node -> real_node != NULL ) )
+		if( node -> deallocate && ( node -> real_node != NULL ) ) {
 			/*
 			 * free node in bitmap
 			 *
-			 * FIXME-NIKITA deallocate_node() is wrong call
+			 * FIXME-NIKITA deallocate_znode() is wrong call
 			 * here. We only want to release bit in bitmap and
 			 * nothing more.
 			 *
+			 * FIXME_JMACD Deallocate_znode calls zdestroy
+			 * without checking refcounts?  Why not set HEARD_BANSHEE
+			 * bit here and zput later?
 			 */
-			deallocate_node( node -> real_node );
+			deallocate_znode( node -> real_node );
+		}
 		node -> real_node = NULL;
 		if( node -> free )
 			reiser4_pool_free( &node -> header );
