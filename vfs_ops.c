@@ -1918,6 +1918,11 @@ static void reiser4_kill_super (struct super_block *s)
 	}
 #endif
 
+	/*
+	 * FIXME-VS: here?
+	 */
+	reiser4_print_stats ();
+
 	/* no assertions below this line */
 	__REISER4_EXIT (&__context);
 
