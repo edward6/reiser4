@@ -283,34 +283,37 @@ jget(reiser4_tree * tree, struct page * pg)
 	   page. */
 	jnode *jal = NULL;
 	oid_t oid = get_inode_oid(pg->mapping->host);
+	int takeread;
 
 	assert("umka-176", pg != NULL);
 	/* check that page is unformatted */
 	assert("nikita-2065", pg->mapping->host != get_super_private(pg->mapping->host->i_sb)->fake);
 	assert("nikita-2394", PageLocked(pg));
+	takeread = 1;
 again:
 	if (jprivate(pg) == NULL) {
 		jnode *in_hash;
 		/* check hash-table first */
 		tree = tree_by_page(pg);
-		WLOCK_TREE(tree);
+		XLOCK_TREE(tree, takeread);
 		in_hash = jlook(tree, oid, pg->index);
 		if (in_hash != NULL) {
 			assert("nikita-2358", jnode_page(in_hash) == NULL);
-			WUNLOCK_TREE(tree);
+			XUNLOCK_TREE(tree, takeread);
 			UNDER_SPIN_VOID(jnode, in_hash, jnode_attach_page(in_hash, pg));
 			in_hash->key.j.mapping = pg->mapping;
 		} else {
 			j_hash_table *jtable;
 
 			if (jal == NULL) {
-				WUNLOCK_TREE(tree);
+				assert("nikita-3090", takeread);
+				RUNLOCK_TREE(tree);
 				jal = jnew();
 
 				if (jal == NULL) {
 					return ERR_PTR(-ENOMEM);
 				}
-
+				takeread = 0;
 				goto again;
 			}
 
@@ -324,6 +327,7 @@ again:
 			assert("nikita-2357", j_hash_find(jtable, &jal->key.j) == NULL);
 
 			j_hash_insert(jtable, jal);
+			assert("nikita-3091", !takeread);
 			WUNLOCK_TREE(tree);
 
 			UNDER_SPIN_VOID(jnode, jal, jnode_attach_page(jal, pg));
@@ -562,7 +566,6 @@ jload_gfp (jnode * node, int gfp_flags)
 
 	result = 0;
 	reiser4_stat_inc_at_level(jnode_get_level(node), jnode.jload);
-	jref(node);
 
 	/*
 	 * acquiring d-reference to @jnode and check for JNODE_LOADED bit
@@ -685,7 +688,6 @@ jinit_new(jnode * node /* jnode to initialise */)
 
 	assert("nikita-1234", node != NULL);
 
-	jref(node);
 	add_d_ref(node);
 	jplug = jnode_ops(node);
 	page = grab_cache_page(jplug->mapping(node), jplug->index(node));
@@ -752,7 +754,6 @@ jrelse(jnode * node /* jnode to release references to */)
 		JF_CLR(node, JNODE_LOADED);
 	}
 	UNLOCK_JNODE(node);
-	jput(node);
 	PROF_END(jrelse, jrelse);
 }
 
@@ -1343,7 +1344,7 @@ jnode_invariant_f(const jnode * node,
 		/* [jnode-refs] invariant */
 
 		/* only referenced jnode can be loaded */
-		_check(atomic_read(&node->x_count) >= node->d_count);
+		_check(ergo(node->d_count > 0, atomic_read(&node->x_count) > 0));
 
 }
 
