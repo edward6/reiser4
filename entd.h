@@ -20,6 +20,7 @@ typedef struct entd_context {
 	spinlock_t          guard;
 	struct task_struct *tsk;
 	int                 done;
+	int                 kicks_pending;
 	unsigned long       last_flush;
 	int                 flushers;
 	unsigned long       timeout;

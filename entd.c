@@ -77,6 +77,7 @@ entd(void *arg)
 
 		set_comm(".");
 		spin_lock(&ctx->guard);
+		ctx->kicks_pending = 0;
 		result = kcond_wait(&ctx->wait, &ctx->guard, 1);
 
 		/* we are asked to exit */
@@ -240,11 +241,16 @@ static int get_flushers(struct super_block *super, unsigned long *flush_start)
 
 static void kick_entd(struct super_block *super)
 {
+	entd_context    * ctx;
 	assert("nikita-3109", super != NULL);
 
-	/* contrary to the popular belief it is completely safe to
-	 * signal condition variable without spinlock being held. */
-	kcond_signal(&get_entd_context(super)->wait);
+	ctx = get_entd_context(super);
+
+	spin_lock(&ctx->guard);
+	if (ctx->kicks_pending == 0)
+		kcond_signal(&ctx->wait);
+	++ ctx->kicks_pending;
+	spin_unlock(&ctx->guard);
 }
 
 /*
@@ -254,7 +260,7 @@ static void kick_entd(struct super_block *super)
  * Used in wait_for_flush(), which see for more details.
  */
 static int
-is_writepage_done(jnode *node, int *iterations)
+is_writepage_done(jnode *node)
 {
 	reiser4_stat_inc(wff.iteration);
 	/*
@@ -270,14 +276,6 @@ is_writepage_done(jnode *node, int *iterations)
 	if (JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
 		reiser4_stat_inc(wff.removed);
 		return 1;
-	}
-	/*
-	 * check for some weird condition to avoid stalling
-	 * memory scan.
-	 */
-	if (++ (*iterations) > 100) {
-		reiser4_stat_inc(wff.toolong);
-		return RETERR(-ENOMEM);
 	}
 
 	return 0;
@@ -308,6 +306,8 @@ static int dont_wait_for_flush(struct super_block *super)
 	}
 	return 0;
 }
+
+#define WFF_MAX_ITERATIONS (3)
 
 /*
  * This function uses some heuristic algorithm that results in @page being
@@ -370,83 +370,83 @@ wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 	iterations = 0;
 
 	while (result == 0) {
-
-		while (result == 0) {
-			flushers = get_flushers(super, &flush_started);
-			/*
-			 * if there is no flushing going on---launch ent
-			 * thread.
-			 */
-			if (flushers == 0) {
-				reiser4_stat_inc(wff.kicked);
-				kick_entd(super);
-			}
-
-			/*
-			 * if scanning priority (which is a measure of memory
-			 * pressure) is lowest, do nothing
-			 */
-			if (wbc->priority > DEF_PRIORITY / 2) {
-				reiser4_stat_inc(wff.low_priority);
-				return 1;
-			}
-
-			/*
-			 * we don't want to apply usual wait-for-flush logic
-			 * in ->writepage() if current thread is ent or, more
-			 * generally, if it is the only active flusher in this
-			 * file system. Otherwise we get some thread waiting
-			 * for flush to clean some pages and flush is waiting
-			 * for nothing. This brings VM scanning to almost
-			 * complete halt.
-			 */
-			if (dont_wait_for_flush(super))
-				return 0;
-
-			/*
-			 * wait until at least one flushing thread is running
-			 * for at least @timeout
-			 */
-			if (flushers != 0 &&
-			    time_before(flush_started + timeout, jiffies))
-				break;
-
-			schedule_timeout(timeout);
-			reiser4_stat_inc(wff.wait_flush);
-
-			/*
-			 * if flush managed to clean this page we are done.
-			 */
-			result = is_writepage_done(node, &iterations);
-		}
+		flushers = get_flushers(super, &flush_started);
 		/*
-		 * at this point we are either done (result != 0), or there is
-		 * flush going on for at least @timeout. If device in
-		 * congested, we conjecture that flush is actively progressing
-		 * (as opposed to being stalled). Wait more.
+		 * if there is no flushing going on---launch ent thread.
 		 */
-		if (result == 0 && bdi_write_congested(bdi)) {
-			schedule_timeout(timeout);
-			reiser4_stat_inc(wff.wait_congested);
-			result = is_writepage_done(node, &iterations);
-			if (result == 0)
-				/*
-				 * still no luck.
-				 */
-				continue;
+		if (flushers == 0) {
+			reiser4_stat_inc(wff.kicked);
+			kick_entd(super);
 		}
 
-		result = is_writepage_done(node, &iterations);
 		/*
-		 * at this point we are either done (result != 0), or there is
-		 * flushing thread going on for at least @timeout, but nothing
-		 * is send down to the disk. Probably flush stalls waiting for
-		 * memory. This shouldn't happen often for normal file system
-		 * loads, because balance dirty pages ensures there are enough
-		 * clean pages around.
+		 * if scanning priority (which is a measure of memory
+		 * pressure) is low, do nothing
 		 */
-		break;
+		if (wbc->priority > DEF_PRIORITY / 2) {
+			reiser4_stat_inc(wff.low_priority);
+			result = 1;
+			break;
+		}
+
+		/*
+		 * we don't want to apply usual wait-for-flush logic in
+		 * ->writepage() if current thread is ent or, more generally,
+		 * if it is the only active flusher in this file
+		 * system. Otherwise we get some thread waiting for flush to
+		 * clean some pages and flush is waiting for nothing. This
+		 * brings VM scanning to almost complete halt.
+		 */
+		if (dont_wait_for_flush(super))
+			break;
+
+		/*
+		 * wait until at least one flushing thread is running for at
+		 * least @timeout
+		 */
+		if (flushers != 0 &&
+		    time_before(flush_started + timeout, jiffies))
+			break;
+
+		schedule_timeout(timeout);
+		reiser4_stat_inc(wff.wait_flush);
+
+		/*
+		 * if flush managed to clean this page we are done.
+		 */
+		result = is_writepage_done(node);
+
+		/*
+		 * check for some weird condition to avoid stalling memory
+		 * scan.
+		 */
+		if (++ iterations > WFF_MAX_ITERATIONS) {
+			reiser4_stat_inc(wff.toolong);
+			break;
+		}
 	}
+
+	if (result == 0)
+		result = is_writepage_done(node);
+
+	/*
+	 * at this point we are either done (result != 0), or there is flush
+	 * going on for at least @timeout. If device in congested, we
+	 * conjecture that flush is actively progressing (as opposed to being
+	 * stalled).
+	 */
+	if (result == 0 && bdi_write_congested(bdi)) {
+		reiser4_stat_inc(wff.skipped_congested);
+		result = 1;
+	}
+
+	/*
+	 * at this point we are either done (result != 0), or there is
+	 * flushing thread going on for at least @timeout, but nothing is send
+	 * down to the disk. Probably flush stalls waiting for memory. This
+	 * shouldn't happen often for normal file system loads, because
+	 * balance dirty pages ensures there are enough clean pages around.
+	 */
 	return result;
 }
 
