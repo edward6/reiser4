@@ -85,6 +85,10 @@ typedef d64 dblock_nr;
 typedef __u64 block_nr;
 
 union reiser4_disk_addr {
+
+	/**
+	 * block number on durable block-addressable storage
+	 */
 	block_nr     blk;
 };
 
