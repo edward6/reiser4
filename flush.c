@@ -992,9 +992,9 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 
 		if (JF_ISSET(node, JNODE_WRITEBACK)) {
 			capture_list_remove_clean(node);
-			capture_list_push_back(&(*atom)->writeback_nodes, node);
+			capture_list_push_back(ATOM_WB_LIST(*atom), node);
+			/*XXXX*/ON_DEBUG(count_jnode(*atom, node, DIRTY_LIST, WB_LIST, 1));
 
-			ON_DEBUG(node->list = WB_LIST);
 		} else if (jnode_is_znode(node) && znode_above_root(JZNODE(node))) {
 			/* A special case for znode-above-root.  The above-root (fake)
 			   znode is captured and dirtied when the tree height changes or

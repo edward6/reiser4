@@ -176,7 +176,7 @@ struct jnode {
 	/* how many times this jnode was written in one transaction */
 	int      written;
 	/* this indicates which atom's list the jnode is on */
-        atom_list list;
+        atom_list list1;
 #endif
 } __attribute__((aligned(16)));
 
