@@ -81,8 +81,7 @@
 #include "key.h"
 #include "coord.h"
 #include "plugin/item/static_stat.h"
-#include "plugin/item/extent.h"
-#include "plugin/file/file.h"
+/*#include "plugin/file/file.h"*/
 #include "plugin/item/item.h"
 #include "plugin/node/node.h"
 #include "plugin/plugin.h"
@@ -956,7 +955,7 @@ item_removed_completely(coord_t * from, const reiser4_key * from_key, const reis
 	iplug = item_plugin_by_coord(from);
 	assert("vs-611", iplug && iplug->s.file.append_key);
 
-	iplug->s.file.append_key(from, &key_in_item, 0);
+	iplug->s.file.append_key(from, &key_in_item);
 	set_key_offset(&key_in_item, get_key_offset(&key_in_item) - 1);
 
 	if (keylt(to_key, &key_in_item))
