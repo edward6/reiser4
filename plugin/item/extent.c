@@ -992,6 +992,7 @@ static int add_extents (coord_t * coord,
 					current_blocksize *
 					extent_get_width ((reiser4_extent *)data->data + i));
 		data->data += delta * sizeof (reiser4_extent);
+		data->length -= delta * sizeof (reiser4_extent);
 
 		{
 			reiser4_key tmp_key;
@@ -1471,7 +1472,6 @@ static int overwrite_one_block (coord_t * coord, lock_handle * lh,
 {
 	reiser4_extent * ext;
 	int result;
-
 
 	ext = extent_by_coord (coord);
 
