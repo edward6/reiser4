@@ -571,17 +571,6 @@ int jload( jnode *node )
 	return result;
 }
 
-/* same as jload(), but locks jnode */
-int jload_and_lock( jnode *node )
-{
-	int ret;
-
-	ret = jload( node );
-	spin_lock_jnode( node );
-	return ret;
-}
-
-
 /** just like jrelse, but assume jnode is already spin-locked */
 void jrelse_nolock( jnode *node /* jnode to release references to */ )
 {
