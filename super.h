@@ -87,6 +87,8 @@ typedef struct reiser4_super_info_data {
 	/** transaction manager */
 	txn_mgr              tmgr;
 
+	/** fake inode used to bind formatted nodes */
+	struct inode        *fake;
 #if REISER4_DEBUG
 	/**
 	 * amount of space allocated by kmalloc. For debugging.
@@ -111,6 +113,7 @@ extern long reiser4_free_blocks( const struct super_block *super );
 extern long reiser4_reserved_blocks( const struct super_block *super, 
 				     uid_t uid, gid_t gid );
 extern reiser4_oid_allocator *reiser4_get_oid_allocator( const struct super_block *super );
+extern struct inode *reiser4_get_super_fake( const struct super_block *super );
 extern reiser4_tree *reiser4_get_tree( const struct super_block *super );
 extern __u32 reiser4_new_inode_generation( const struct super_block *super );
 extern int  reiser4_adg( const struct super_block *super );

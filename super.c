@@ -109,6 +109,15 @@ reiser4_oid_allocator *reiser4_get_oid_allocator( const struct super_block *supe
 }
 
 /**
+ * return fake inode used to bind formatted nodes in the page cache
+ */
+struct inode *reiser4_get_super_fake( const struct super_block *super )
+{
+	assert( "nikita-1719", super != NULL );
+	return reiser4_get_super_private( super ) -> fake;
+}
+
+/**
  * tree used by this file system
  */
 reiser4_tree *reiser4_get_tree( const struct super_block *super )
