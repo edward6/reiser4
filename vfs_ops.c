@@ -541,7 +541,7 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 		/*XXXX*/written += nr_submitted;
 	} while (wbc->nr_to_write > 0);
 
-	/*XXXX*/printk("%s: to write %ld, written %ld\n", current->comm, to_write, written);
+	/*XXXX*//*printk("%s: to write %ld, written %ld\n", current->comm, to_write, written);*/
 }
 
 static void
