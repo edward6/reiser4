@@ -1894,9 +1894,10 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 				if (node_is_empty(right_lock.node)) {
 					done_load_count(&right_load);
 					done_lh(&right_lock);
-					continue;
 				} 
-				goto next;
+				else
+					move_flush_pos(pos, &right_lock, &right_load, NULL);
+				continue;
 			}
 			pos_stop(pos);
 			break;
@@ -1923,7 +1924,7 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 			set_item_convert_count(pos, 0);
 			break;
 		}
-	next:
+		
 		/* advance the flush position to the right neighbor */
 		move_flush_pos(pos, &right_lock, &right_load, NULL);
 
