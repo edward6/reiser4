@@ -326,7 +326,7 @@ int blocknr_set_iterator (txn_atom * atom,
 	blocknr_set_entry * entry;
 	
 	assert ("zam-429", atom != NULL);
-	ON_SMP (assert ("zam-430", spin_atom_is_locked (atom)));
+	assert ("zam-430", spin_atom_is_locked (atom));
 	assert ("zam-431", bset != 0);
 	assert ("zam-432", actor != NULL);
 
@@ -340,6 +340,11 @@ int blocknr_set_iterator (txn_atom * atom,
 		/*assert ("zam-565", bse_avail(entry) >= 0);*/
 
 		for (i = 0; i < entry->nr_singles; i++) {
+			/*
+			 * FIXME:NIKITA->ZAM I see this calling
+			 * actor==apply_dset_to_commit_bmap with
+			 * entry->ents[0]==NULL.
+			 */
 			ret = actor (atom, &entry->ents[i], NULL, data);
 
 			/* FIXME: we can't break a loop if delete flag is
