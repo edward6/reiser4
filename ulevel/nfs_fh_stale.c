@@ -300,7 +300,7 @@ main(int argc, char **argv)
 		       stats.lseeks, rate(stats.lseeks, i),
 		       stats.errors, stats.naps, rate(stats.naps, i),
 		       used, ops[gcop].freq);
-		printf("op:\tok\tmiss\tbusy\terr\trate\t\tglobal rate\n");
+		printf("op:\tok\tmiss\tbusy\terr\tdone\trate\tglobal rate\n");
 		for (op = &ops[0] ; op->label ; ++ op) {
 			int done;
 			int subtotal;
@@ -314,12 +314,13 @@ main(int argc, char **argv)
 			else
 				ratio = 0;
 
-			printf("%s:\t%i\t%i\t%i\t%i\t%f\t%f\n",
+			printf("%s:\t%i\t%i\t%i\t%i\t%i\t%.1f\t%.1f\n",
 			       op->label,
 			       done,
 			       op->result.missed,
 			       op->result.busy,
 			       op->result.failure,
+			       done - subtotal,
 			       rate((done - subtotal) * ratio, delta), 
 			       rate(done * ratio, i));
 		}
