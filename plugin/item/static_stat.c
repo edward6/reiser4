@@ -293,7 +293,7 @@ static int unix_sd_present( struct inode *inode /* object being processed */,
 		inode -> i_atime = d32tocpu( &sd -> atime );
 		inode -> i_mtime = d32tocpu( &sd -> mtime );
 		inode -> i_ctime = d32tocpu( &sd -> ctime );
-		inode -> i_rdev  = d32tocpu( &sd -> rdev );
+		inode -> i_rdev  = val_to_kdev (d32tocpu( &sd -> rdev ));
 		reiser4_inode_data( inode ) -> bytes = d64tocpu( &sd -> bytes );
 		move_on( len, area, sizeof *sd );
 		return 0;
@@ -335,7 +335,7 @@ static int unix_sd_save( struct inode *inode /* object being processed */,
 	cputod32( ( __u32 ) inode -> i_atime, &sd -> atime );
 	cputod32( ( __u32 ) inode -> i_ctime, &sd -> ctime );
 	cputod32( ( __u32 ) inode -> i_mtime, &sd -> mtime );
-	cputod32( inode -> i_rdev, &sd -> rdev );
+	cputod32( kdev_val( inode -> i_rdev ), &sd -> rdev );
 	cputod64( reiser4_inode_data( inode ) -> bytes, &sd -> bytes );
 	*area += sizeof *sd;
 	return 0;
