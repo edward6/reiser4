@@ -502,10 +502,7 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 		blksz = super->s_blocksize;
 		assert("nikita-2028", blksz == (int) PAGE_CACHE_SIZE);
 
-		if (rw == READ)
-			blocknr = *jnode_get_io_block(node);
-		else
-			blocknr = *jnode_get_block(node);
+		blocknr = *UNDER_SPIN(jnode, node, jnode_get_io_block(node));
 
 		assert("nikita-2275", blocknr != (reiser4_block_nr) 0);
 		assert("nikita-2276", !blocknr_is_fake(&blocknr));
@@ -574,10 +571,16 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	int flush_some;
 	struct super_block *s = page->mapping->host->i_sb;
 	reiser4_tree *tree;
+	int result;
 
 	REISER4_ENTRY(s);
 
 	assert("vs-828", PageLocked(page));
+
+	result = emergency_flush(page, wbc);
+	if (result > 0) {
+		REISER4_EXIT(0);
+	}
 
 	tree = &get_super_private(s)->tree;
 	/* jfind which used to be here creates jnode for the page if it is not private yet. But that jnode is only later

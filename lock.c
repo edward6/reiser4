@@ -515,7 +515,7 @@ check_deadlock_condition(znode * node)
 
 /* checks lock/request compatibility */
 static int
-can_lock_object(lock_stack * owner, znode * node)
+check_lock_object(lock_stack * owner, znode * node)
 {
 	assert("nikita-1842", owner == get_current_lock_stack());
 	assert("nikita-1843", spin_znode_is_locked(node));
@@ -538,6 +538,23 @@ can_lock_object(lock_stack * owner, znode * node)
 	}
 
 	return 0;
+}
+
+static int
+can_lock_object(lock_stack * owner, znode * node)
+{
+	int result;
+
+	result = check_lock_object(owner, node);
+	if (REISER4_STATS && znode_get_level(node) > 0) {
+		if (result != 0)
+			reiser4_stat_add_at_level(znode_get_level(node), 
+						  long_term_lock_contented);
+		else
+			reiser4_stat_add_at_level(znode_get_level(node), 
+						  long_term_lock_uncontented);
+	}
+	return result;
 }
 
 /* Setting of a high priority to the process. It clears "signaled" flags

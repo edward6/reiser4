@@ -442,11 +442,11 @@ int lookup_couple(reiser4_tree * tree,
 		  tree_level lock_level, tree_level stop_level, __u32 flags, int *result1, int *result2);
 
 /* list of active lock stacks */
-TS_LIST_DECLARE(context);
+ON_DEBUG(TS_LIST_DECLARE(context);)
 
 typedef enum {
-    FLUSH_MODE	    =   0,
-    GRABBED_ONCE    =	1
+    FLUSH_MODE	    =   (1 << 0),
+    GRAB_ENABLED    =	(1 << 1)
 } context_flags_t;
 
 /* global context used during system call. Variable of this type is
@@ -488,11 +488,6 @@ struct reiser4_context {
 	   bits in it. */
 	__u32 trace_flags;
 
-	/* thread ID */
-	__u32 tid;
-
-	/* A link of all active contexts. */
-	context_list_link contexts_link;
 	/* parent context */
 	reiser4_context *parent;
 	tap_list_head taps;
@@ -500,6 +495,11 @@ struct reiser4_context {
 	int		      grab_enabled;
 	    
 #if REISER4_DEBUG
+	/* thread ID */
+	__u32 tid;
+
+	/* A link of all active contexts. */
+	context_list_link contexts_link;
 	lock_counters_info locks;
 	int nr_children;	/* number of child contexts */
 	struct task_struct *task;	/* so we can easily find owner of the stack */
@@ -510,10 +510,6 @@ struct reiser4_context {
 };
 
 extern reiser4_context *get_context_by_lock_stack(lock_stack *);
-
-#define is_flush_mode()	    test_bit(FLUSH_MODE, &get_current_context()->flags)
-#define flush_mode()	    set_bit(FLUSH_MODE, &get_current_context()->flags)
-#define not_flush_mode()    clear_bit(FLUSH_MODE, &get_current_context()->flags)
 
 /* Debugging helps. */
 extern int init_context_mgr(void);
@@ -530,9 +526,9 @@ extern void print_contexts(void);
 #endif
 
 /* Hans, is this too expensive? */
-#define current_tree (&(get_super_private (reiser4_get_current_sb ())->tree))
-#define current_blocksize reiser4_get_current_sb ()->s_blocksize
-#define current_blocksize_bits reiser4_get_current_sb ()->s_blocksize_bits
+#define current_tree (&(get_super_private(reiser4_get_current_sb())->tree))
+#define current_blocksize reiser4_get_current_sb()->s_blocksize
+#define current_blocksize_bits reiser4_get_current_sb()->s_blocksize_bits
 
 extern int init_context(reiser4_context * context, struct super_block *super);
 extern void done_context(reiser4_context * context);
@@ -571,9 +567,36 @@ get_current_context(void)
 		return NULL;
 }
 
-/* comment me.  Say something clever, like I am called at every reiser4 entry point, and I create a struct that is used
-   to allow functions to efficiently pass large amounts of parameters around by moving a pointer to the parameters
-   called "context". */
+static inline int is_flush_mode(void)
+{
+	return get_current_context()->flags &   FLUSH_MODE;
+}
+
+static inline void flush_mode(void)
+{
+	get_current_context()->flags |=  FLUSH_MODE;
+}
+
+static inline void not_flush_mode(void)
+{
+	get_current_context()->flags &= ~FLUSH_MODE;
+}
+
+static inline void grab_space_enable(void) 
+{
+	get_current_context()->flags |= GRAB_ENABLED;
+}
+
+static inline void grab_space_disable(void) 
+{
+	get_current_context()->flags &= ~GRAB_ENABLED;
+}
+
+static inline int is_grab_enabled(void)
+{
+	return get_current_context()->flags & GRAB_ENABLED;
+}
+
 #define __REISER4_ENTRY( super, errret )			\
 	reiser4_context __context;				\
 	do {							\
@@ -653,6 +676,8 @@ jput(jnode * node)
 
 	if (atomic_dec_and_lock(&node->x_count, &tree->tree_lock)) {
 		int r_i_p;
+
+		assert("nikita-2772", !JF_ISSET(node, JNODE_EFLUSH));
 
 		ON_DEBUG_CONTEXT(++lock_counters()->spin_locked_tree);
 		ON_DEBUG_CONTEXT(++lock_counters()->spin_locked);
