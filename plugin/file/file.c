@@ -923,7 +923,6 @@ unix_file_readpage(void *vp, struct page *page)
 	}
 
 	if (PageUptodate(page)) {
-		printk("unix_file_readpage: page became already uptodate\n");
 		done_lh(&lh);
 		unlock_page(page);
 		return 0;
