@@ -1911,7 +1911,7 @@ repeat:
 }
 
 /* this is similar to the above uncapture_page, except that it is always called for unformatted jnode which was just emergency
-   flushed and therefore does not have a page */
+   flushed and therefore may have no page */
 void
 uncapture_jnode(jnode *node)
 {
@@ -1920,6 +1920,7 @@ uncapture_jnode(jnode *node)
 	jnode_set_clean(node);
 
 	LOCK_JNODE(node);
+	eflush_del(node, 0/* page is not locked */);
 
 	atom = atom_locked_by_jnode(node);
 	UNLOCK_JNODE (node);
