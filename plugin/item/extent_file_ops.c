@@ -657,14 +657,28 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 
 		page_cache_get(page);
 
-		if (!PageUptodate(page) && write_is_partial(inode, file_off, page_off, count)) {
-			if (created == 0 || JF_ISSET(j, JNODE_EFLUSH)) {
-				result = page_io(page, j, READ, GFP_KERNEL);
-				if (result)
-					goto exit3;
-				lock_page(page);
-				if (!PageUptodate(page))
-					goto exit3;
+		if (!PageUptodate(page)) {
+			if (mode == OVERWRITE_ITEM) {				
+				/* this page may be either an anonymous page (a page which was dirtied via mmap,
+				   writepage-ed and for which extent pointer was just created. In this case jnode is
+				   eflushed) or correspod to not page cached block (in which case created == 0). In
+				   either case we have to read this page if it is being overwritten partially */
+				if (write_is_partial(inode, file_off, page_off, count) &&
+				    (created == 0 || JF_ISSET(j, JNODE_EFLUSH))) {
+					result = page_io(page, j, READ, GFP_KERNEL);
+					if (result)
+						goto exit3;
+					lock_page(page);
+					if (!PageUptodate(page))
+						goto exit3;
+				} else {
+					zero_around(page, page_off, count);
+				}
+			} else {
+				/* new page added to the file. No need to carry about data it might contain. Zero
+				   content of new page around write area */
+				assert("vs-1681", !JF_ISSET(j, JNODE_EFLUSH));
+				zero_around(page, page_off, count);
 			}
 		}
 
