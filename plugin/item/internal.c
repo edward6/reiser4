@@ -10,23 +10,18 @@
 
 /* see internal.h for explanation */
 
-/*
- * plugin->u.item.b.mergeable
- */
-int internal_mergeable (const tree_coord * p1 UNUSED_ARG,
-			const tree_coord * p2 UNUSED_ARG)
+/* plugin->u.item.b.mergeable */
+int internal_mergeable (const tree_coord * p1 UNUSED_ARG /* first item */,
+			const tree_coord * p2 UNUSED_ARG /* second item */)
 {
-	/*
-	 * internal items are not mergeable
-	 */
+	/* internal items are not mergeable */
 	return 0;
 }
 
-/*
- * Nice comment!
- */
-lookup_result internal_lookup (const reiser4_key * key, lookup_bias bias UNUSED_ARG,
-			       tree_coord * coord)
+/* ->lookup() method for internal items */
+lookup_result internal_lookup (const reiser4_key *key /* key to look up */, 
+			       lookup_bias bias UNUSED_ARG /* lookup bias */,
+			       tree_coord *coord /* coord of item */ )
 {
 	reiser4_key ukey;
 
@@ -42,7 +37,8 @@ lookup_result internal_lookup (const reiser4_key * key, lookup_bias bias UNUSED_
 }
 
 /** return body of internal item at @coord */
-static internal_item_layout *internal_at( const tree_coord *coord )
+static internal_item_layout *internal_at( const tree_coord *coord /* coord of
+								   * item */ )
 {
 	assert( "nikita-607", coord != NULL );
 	assert( "nikita-1650", item_plugin_by_coord( coord ) == 
@@ -51,14 +47,14 @@ static internal_item_layout *internal_at( const tree_coord *coord )
 }
 
 /** return child block number stored in the internal item at @coord */
-static reiser4_block_nr pointer_at( const tree_coord *coord )
+static reiser4_block_nr pointer_at( const tree_coord *coord /* coord of item */ )
 {
 	assert( "nikita-608", coord != NULL );
 	return dblock_to_cpu( & internal_at( coord ) -> pointer );
 }
 
 /** get znode pointed to by internal @item */
-static znode *znode_at( const tree_coord *item )
+static znode *znode_at( const tree_coord *item /* coord of item */ )
 {
 	znode *result;
 
@@ -71,9 +67,9 @@ static znode *znode_at( const tree_coord *item )
 
 /** store pointer from internal item into "block". Implementation of
     ->down_link() method */
-void internal_down_link( const tree_coord *coord, 
-			 const reiser4_key *key, 
-			 reiser4_block_nr *block )
+void internal_down_link( const tree_coord *coord /* coord of item */, 
+			 const reiser4_key *key /* key to get pointer for */, 
+			 reiser4_block_nr *block /* resulting block number */ )
 {
 #if REISER4_DEBUG
 	reiser4_key item_key;
@@ -165,14 +161,16 @@ int internal_utmost_child ( const tree_coord  *coord,
  * debugging aid: print human readable information about internal item at
  * @coord 
  */
-void internal_print( const char *prefix, tree_coord *coord )
+void internal_print( const char *prefix /* prefix to print */, 
+		     tree_coord *coord /* coord of item to print  */ )
 {
 	info( "%s: internal: %llu\n", prefix, pointer_at( coord ) );
 }
 
 /** return true only if this item really points to "block" */
-int internal_has_pointer_to( const tree_coord *coord, 
-			     const reiser4_block_nr *block )
+int internal_has_pointer_to( const tree_coord *coord /* coord of item */, 
+			     const reiser4_block_nr *block /* block number to
+							    * check */ )
 {
 	assert( "nikita-613", coord != NULL );
 	assert( "nikita-614", block != NULL );
@@ -188,7 +186,8 @@ int internal_has_pointer_to( const tree_coord *coord,
  * parent pointer in child znode, insert child into sibling list and slum.
  *
  */
-int internal_create_hook( const tree_coord *item, void *arg )
+int internal_create_hook( const tree_coord *item /* coord of item */, 
+			  void *arg /* child's left neighbor, if any */ )
 {
 	znode            *child;
 
@@ -255,8 +254,9 @@ int internal_create_hook( const tree_coord *item, void *arg )
  *
  *
  */
-int internal_kill_hook( const tree_coord *item, 
-			unsigned from UNUSED_ARG, unsigned count UNUSED_ARG )
+int internal_kill_hook( const tree_coord *item /* coord of item */, 
+			unsigned from UNUSED_ARG /* start unit */, 
+			unsigned count UNUSED_ARG /* stop unit */ )
 {
 	znode *child;
 
@@ -300,9 +300,10 @@ int internal_kill_hook( const tree_coord *item,
  * Update parent pointer in child and c_counts in old and new parent
  *
  */
-int internal_shift_hook( const tree_coord *item, 
-			 unsigned from UNUSED_ARG, unsigned count UNUSED_ARG, 
-			 znode *old_node )
+int internal_shift_hook( const tree_coord *item /* coord of item */, 
+			 unsigned from UNUSED_ARG /* start unit */, 
+			 unsigned count UNUSED_ARG /* stop unit */, 
+			 znode *old_node /* old parent */ )
 {
 	znode *child;
 

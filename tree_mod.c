@@ -234,7 +234,7 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 		      znode *new_root /* new root---sole child of *
 				       * @old_root */, 
 		      const reiser4_block_nr *new_root_blk /* disk address of
-							     * @new_root */ )
+							    * @new_root */ )
 {
 	znode *fake;
 	int    result;
@@ -248,9 +248,7 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 					     znode_get_block( new_root ) ) );
 
 	result = 0;
-	/*
-	 * obtain and lock "fake" znode protecting changes in tree height.
-	 */
+	/* obtain and lock "fake" znode protecting changes in tree height. */
 	fake = zget( tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL );
 	if( !IS_ERR( fake ) ) {
 		reiser4_lock_handle handle_for_fake;
@@ -266,14 +264,13 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 				tree -> height = znode_get_level( new_root ) );
 
 			/*
-			 * don't take long term lock a @new_root. Take
+			 * don't take long term lock a @new_root. Take *
 			 * spinlock.
 			 */
 			
 			spin_lock_tree( tree );
-			/*
-			 * new root is child on "fake" node
-			 */
+
+			/* new root is child on "fake" node */
 			new_root -> ptr_in_parent_hint.node = fake;
 			new_root -> ptr_in_parent_hint.item_pos = ~0u;
 			new_root -> ptr_in_parent_hint.between = AT_UNIT;
@@ -281,9 +278,7 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 			sibling_list_insert_nolock( new_root, NULL );
 			spin_unlock_tree( tree );
 
-			/*
-			 * reinitialise old root.
-			 */
+			/* reinitialise old root. */
 			result = zinit_new( old_root );
 			if( result == 0 ) {
 				assert( "nikita-1279", 

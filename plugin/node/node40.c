@@ -25,7 +25,8 @@ static int prepare_for_removal (znode * empty, carry_level * todo);
 
 
 /* header of node of reiser40 format is at the beginning of node */
-static node_header_40 *node40_node_header( const znode *node )
+static node_header_40 *node40_node_header( const znode *node /* node to
+							      * query */ )
 {
 	assert( "nikita-567", node != NULL );
 	assert( "nikita-568", znode_is_loaded( node ) );
@@ -167,8 +168,10 @@ size_t node40_free_space ( znode *node )
 /* plugin->u.node.lookup
    look for description of this method in plugin/node/node.h
 */
-node_search_result node40_lookup( znode *node, const reiser4_key *key,
-				  lookup_bias bias, tree_coord *coord )
+node_search_result node40_lookup( znode *node /* node to query */, 
+				  const reiser4_key *key /* key to look for */,
+				  lookup_bias bias /* search bias */, 
+				  tree_coord *coord /* resulting coord */ )
 {
 	int left;
 	int right;
@@ -449,7 +452,9 @@ size_t node40_estimate( znode *node )
 /* plugin->u.node.check
    look for description of this method in plugin/node/node.h
 */
-int node40_check( const znode *node, __u32 flags, const char **error )
+int node40_check( const znode *node /* node to check */, 
+		  __u32 flags /* check flags */, 
+		  const char **error /* where to store error message */ )
 {
 	int nr_items;
 	int i;
@@ -594,7 +599,7 @@ int node40_check( const znode *node, __u32 flags, const char **error )
 /* plugin->u.node.parse
    look for description of this method in plugin/node/node.h
 */
-int node40_parse( const znode *node )
+int node40_parse( const znode *node /* node to parse */)
 {
 	node_header_40   *header;
 	int               result;
@@ -618,7 +623,7 @@ int node40_parse( const znode *node )
 /* plugin->u.node.init
    look for description of this method in plugin/node/node.h
 */
-int node40_init( znode *node )
+int node40_init( znode *node /* node to initialise */)
 {
 	node_header_40 *header;
 
@@ -645,7 +650,7 @@ int node40_init( znode *node )
 }
 
 
-int node40_guess( const znode *node )
+int node40_guess( const znode *node /* node to guess plugin of */)
 {
 	assert( "nikita-1058", node != NULL );
 	return
@@ -658,7 +663,8 @@ int node40_guess( const znode *node )
 }
 
 
-void node40_print( const znode *node, __u32 flags UNUSED_ARG )
+void node40_print( const znode *node /* node to print */, 
+		   __u32 flags UNUSED_ARG /* print flags */ )
 {
 	node_header_40   *header;
 	
@@ -1968,21 +1974,21 @@ int node40_shift (tree_coord * from, znode * to,
 
 /* plugin->u.node.fast_insert() 
    look for description of this method in plugin/node/node.h */
-int node40_fast_insert( const tree_coord *coord UNUSED_ARG )
+int node40_fast_insert( const tree_coord *coord UNUSED_ARG /* node to query */ )
 {
 	return 1;
 }
 
 /* plugin->u.node.fast_paste() 
    look for description of this method in plugin/node/node.h */
-int node40_fast_paste( const tree_coord *coord UNUSED_ARG )
+int node40_fast_paste( const tree_coord *coord UNUSED_ARG /* node to query */ )
 {
 	return 1;
 }
 
 /* plugin->u.node.fast_cut() 
    look for description of this method in plugin/node/node.h */
-int node40_fast_cut( const tree_coord *coord UNUSED_ARG )
+int node40_fast_cut( const tree_coord *coord UNUSED_ARG /* node to query */ )
 {
 	return 1;
 }
@@ -1990,9 +1996,7 @@ int node40_fast_cut( const tree_coord *coord UNUSED_ARG )
 /* plugin->u.node.modify - not defined
 */
 
-/*
- * plugin->u.node.max_item_size
- */
+/* plugin->u.node.max_item_size */
 int node40_max_item_size( void )
 {
 	return reiser4_get_current_sb() -> s_blocksize -

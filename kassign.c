@@ -152,7 +152,7 @@ int build_entry_key( const struct inode *dir /* directory where entry is
 /**
  * true, if @key is the key of "."
  */
-int is_dot_key( const reiser4_key *key )
+int is_dot_key( const reiser4_key *key /* key to check */ )
 {
 	assert( "nikita-1717", key != NULL );
 	assert( "nikita-1718", get_key_type( key ) == KEY_FILE_NAME_MINOR );
@@ -206,7 +206,8 @@ static int build_obj_key_id( const reiser4_key *key /* key to encode */,
  *
  * This is like build_obj_key_id() above, but takes inode as parameter.
  */
-int build_inode_key_id( const struct inode *obj, obj_key_id *id )
+int build_inode_key_id( const struct inode *obj /* object to build key of */, 
+			obj_key_id *id /* result */ )
 {
 	reiser4_key sdkey;
 	
@@ -224,7 +225,9 @@ int build_inode_key_id( const struct inode *obj, obj_key_id *id )
  * Restore key of object stat-data from @id. This is dual to
  * build_obj_key_id() above.
  */
-int extract_key_from_id( const obj_key_id *id, reiser4_key *key )
+int extract_key_from_id( const obj_key_id *id /* object key id to extract key
+					       * from */, 
+			 reiser4_key *key /* result */ )
 {
 	assert( "nikita-1153", id != NULL );
 	assert( "nikita-1154", key != NULL );
@@ -289,8 +292,7 @@ int build_de_id( const struct inode *dir /* inode of directory */,
  * to objectid of their directory.
  *
  */
-int build_de_id_by_key( const reiser4_key *entry_key /* full key of
-						      * directory
+int build_de_id_by_key( const reiser4_key *entry_key /* full key of directory
 						      * entry */, 
 			de_id *id /* short key of directory entry */ )
 {
@@ -305,8 +307,10 @@ int build_de_id_by_key( const reiser4_key *entry_key /* full key of
  * key of directory entry within directory item.
  *
  */
-int extract_key_from_de_id( const oid_t locality, 
-			    const de_id *id, reiser4_key *key )
+int extract_key_from_de_id( const oid_t locality /* locality of directory
+						  * entry */, 
+			    const de_id *id /* directory entry id */, 
+			    reiser4_key *key /* result */ )
 {
 	/*
 	 * no need to initialise key here: all fields are overwritten
@@ -317,11 +321,9 @@ int extract_key_from_de_id( const oid_t locality,
 	return 0;
 }
 
-/**
- * compare two &obj_key_id
- *
- */
-cmp_t key_id_cmp( const obj_key_id *i1, const obj_key_id *i2 )
+/** compare two &obj_key_id */
+cmp_t key_id_cmp( const obj_key_id *i1 /* first object key id to compare */, 
+		  const obj_key_id *i2 /* second object key id to compare */ )
 {
 	reiser4_key k1;
 	reiser4_key k2;
@@ -331,11 +333,9 @@ cmp_t key_id_cmp( const obj_key_id *i1, const obj_key_id *i2 )
 	return keycmp( &k1, &k2 );
 }
 
-/**
- * compare &obj_key_id with full key
- *
- */
-cmp_t key_id_key_cmp( const obj_key_id *id, const reiser4_key *key )
+/** compare &obj_key_id with full key */
+cmp_t key_id_key_cmp( const obj_key_id *id /* object key id to compare */, 
+		      const reiser4_key *key /* key to compare */ )
 {
 	reiser4_key k1;
 
@@ -343,11 +343,9 @@ cmp_t key_id_key_cmp( const obj_key_id *id, const reiser4_key *key )
 	return keycmp( &k1, key );
 }
 
-/**
- * compare &de_id with key
- *
- */
-cmp_t de_id_key_cmp( const de_id *id, const reiser4_key *key )
+/** compare &de_id with key */
+cmp_t de_id_key_cmp( const de_id *id /* directory entry id to compare */, 
+		     const reiser4_key *key /* key to compare */ )
 {
 	reiser4_key k1;
 
@@ -358,7 +356,8 @@ cmp_t de_id_key_cmp( const de_id *id, const reiser4_key *key )
 extern const reiser4_key ROOT_DIR_KEY;
 
 /** true if key of root directory sd */
-int is_root_dir_key( const struct super_block *super, const reiser4_key *key )
+int is_root_dir_key( const struct super_block *super /* super block to check*/, 
+		     const reiser4_key *key /* key to check */ )
 {
 	assert( "nikita-1819", super != NULL );
 	assert( "nikita-1820", key != NULL );

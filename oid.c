@@ -25,7 +25,8 @@ static const oid_t ABSOLUTE_MIN_OID = ( oid_t )  0;
 /**
  * Initialise object id allocator
  */
-int init_oid_allocator( reiser4_oid_allocator_t *map )
+int init_oid_allocator( reiser4_oid_allocator_t *map /* oid allocator to
+						      * initialise */ )
 {
 	assert( "nikita-1168", map != NULL );
 	
@@ -36,21 +37,21 @@ int init_oid_allocator( reiser4_oid_allocator_t *map )
 }
 
 /** helper function: spin lock allocator */
-static void lock( reiser4_oid_allocator_t *map )
+static void lock( reiser4_oid_allocator_t *map /* oid allocator to lock */ )
 {
 	assert( "nikita-1648", map != NULL );
 	spin_lock( &map -> oguard );
 }
 
 /** helper function: spin unlock allocator */
-static void unlock( reiser4_oid_allocator_t *map )
+static void unlock( reiser4_oid_allocator_t *map /* oid allocator to unlock */ )
 {
 	assert( "nikita-1660", map != NULL );
 	spin_unlock( &map -> oguard );
 }
 
 /** number of oids available for use by users */
-__u64 oids_free( reiser4_oid_allocator_t *map )
+__u64 oids_free( reiser4_oid_allocator_t *map /* oid allocator to query */ )
 {
 	__u64 result;
 
@@ -65,7 +66,7 @@ __u64 oids_free( reiser4_oid_allocator_t *map )
 
 /** return number of user-visible oids already allocated in this map.
     Used by reiser4_statfs() to report "f_files". */
-__u64 oids_used( reiser4_oid_allocator_t *map )
+__u64 oids_used( reiser4_oid_allocator_t *map /* oid allocator to query */ )
 {
 	__u64 result;
 
@@ -78,7 +79,9 @@ __u64 oids_used( reiser4_oid_allocator_t *map )
 
 /** allocate new objectid in "map" and store it in "result". Return 0 on
     success, negative error code on failure. */
-int allocate_oid( reiser4_oid_allocator_t *map, oid_t *result UNUSED_ARG )
+int allocate_oid( reiser4_oid_allocator_t *map /* oid allocator to allocate
+						* oid from */, 
+		  oid_t *result UNUSED_ARG /* result */ )
 {
 	assert( "nikita-445", map != NULL );
 	lock( map );
@@ -92,8 +95,10 @@ int allocate_oid( reiser4_oid_allocator_t *map, oid_t *result UNUSED_ARG )
 }
 
 /** release object id back to "map". */
-int release_oid( reiser4_oid_allocator_t *map UNUSED_ARG,
-		 oid_t oid UNUSED_ARG )
+int release_oid( reiser4_oid_allocator_t *map UNUSED_ARG /* oid allocator to
+							  * release oid back
+							  * to */,
+		 oid_t oid UNUSED_ARG /* oid to release */ )
 {
 	assert( "nikita-446", map != NULL );
 	trace_on( TRACE_OIDS, "[%i]: released: %llx\n", current_pid, oid );
@@ -107,14 +112,20 @@ int release_oid( reiser4_oid_allocator_t *map UNUSED_ARG,
 
 /** how many pages to reserve in transaction for allocation of new
     objectid */
-int oid_reserve_allocate( reiser4_oid_allocator_t *map UNUSED_ARG )
+int oid_reserve_allocate( reiser4_oid_allocator_t *map UNUSED_ARG /* oid
+								     allocator
+								     to
+								     query */ )
 {
 	return 1;
 }
 
 /** how many pages to reserve in transaction for freeing of an
     objectid */
-int oid_reserve_release( reiser4_oid_allocator_t *map UNUSED_ARG )
+int oid_reserve_release( reiser4_oid_allocator_t *map UNUSED_ARG /* oid
+								  * allocator
+								  * to
+								  * query */)
 {
 	return 1;
 }

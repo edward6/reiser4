@@ -31,7 +31,7 @@
  * initialize condition variable. Initializer for global condition variables
  * is macro in kcond.h 
  */
-kcond_t *kcond_init( kcond_t *cvar )
+kcond_t *kcond_init( kcond_t *cvar /* cvar to init */ )
 {
 	assert( "nikita-1868", cvar != NULL );
 
@@ -44,7 +44,7 @@ kcond_t *kcond_init( kcond_t *cvar )
 /**
  * destroy condition variable.
  */
-int kcond_destroy( kcond_t *cvar )
+int kcond_destroy( kcond_t *cvar /* cvar to destroy */ )
 {
 	return kcond_are_waiters( cvar ) ? -EBUSY : 0;
 }
@@ -80,7 +80,9 @@ int kcond_destroy( kcond_t *cvar )
  * step (5) would return immediately.
  *
  */
-int kcond_wait( kcond_t *cvar, spinlock_t *lock, int signl )
+int kcond_wait( kcond_t *cvar /* cvar to wait for */, 
+		spinlock_t *lock /* lock to use */, 
+		int signl /* if 0, ignore signals during sleep */ )
 {
 	kcond_queue_link_t qlink;
 	int result;
@@ -110,7 +112,7 @@ int kcond_wait( kcond_t *cvar, spinlock_t *lock, int signl )
 /**
  * Signal condition variable: wake up one waiter, if any.
  */
-int kcond_signal( kcond_t *cvar )
+int kcond_signal( kcond_t *cvar /* cvar to signal */ )
 {
 	kcond_queue_link_t *queue_head;
 
@@ -130,7 +132,7 @@ int kcond_signal( kcond_t *cvar )
 /**
  * Broadcast condition variable: wake up all waiters.
  */
-int kcond_broadcast( kcond_t *cvar )
+int kcond_broadcast( kcond_t *cvar /* cvar to broadcast */ )
 {
 	kcond_queue_link_t *queue_head;
 
@@ -148,7 +150,7 @@ int kcond_broadcast( kcond_t *cvar )
 }
 
 /** true if there are threads sleeping on @cvar */
-int kcond_are_waiters( kcond_t *cvar )
+int kcond_are_waiters( kcond_t *cvar /* cvar to query */ )
 {
 	assert( "nikita-1877", cvar != NULL );
 	return cvar -> queue != NULL;

@@ -8,7 +8,8 @@
 
 #include "../../reiser4.h"
 
-void de_print( const char *prefix, tree_coord *coord )
+void de_print( const char *prefix /* prefix to print */, 
+	       tree_coord *coord /* item to print */ )
 {
 	assert( "nikita-1456", prefix != NULL );
 	assert( "nikita-1457", coord != NULL );
@@ -32,7 +33,8 @@ void de_print( const char *prefix, tree_coord *coord )
 /**
  * ->extract_key() method of simple directory item plugin.
  */
-int de_extract_key( const tree_coord *coord, reiser4_key *key )
+int de_extract_key( const tree_coord *coord /* coord of item */,
+		    reiser4_key *key /* resulting key */ )
 {
 	directory_entry_format *dent;
 
@@ -48,7 +50,7 @@ int de_extract_key( const tree_coord *coord, reiser4_key *key )
 /**
  * ->extract_name() method of simple directory item plugin.
  */
-char *de_extract_name( const tree_coord *coord )
+char *de_extract_name( const tree_coord *coord /* coord of item */ )
 {
 	directory_entry_format *dent;
 
@@ -63,7 +65,8 @@ char *de_extract_name( const tree_coord *coord )
 /**
  * ->extract_file_type() method of simple directory item plugin.
  */
-unsigned de_extract_file_type( const tree_coord *coord UNUSED_ARG )
+unsigned de_extract_file_type( const tree_coord *coord UNUSED_ARG /* coord of
+								   * item */ )
 {
 	assert( "nikita-1764", coord != NULL );
 	/*
@@ -74,9 +77,12 @@ unsigned de_extract_file_type( const tree_coord *coord UNUSED_ARG )
 	return DT_UNKNOWN;
 }
 
-int de_add_entry( const struct inode *dir, tree_coord *coord, 
-		  reiser4_lock_handle *lh, const struct dentry *name, 
-		  reiser4_dir_entry_desc *entry )
+int de_add_entry( const struct inode *dir /* directory of item */, 
+		  tree_coord *coord /* coord of item */, 
+		  reiser4_lock_handle *lh /* insertion lock handle */, 
+		  const struct dentry *name /* name to add */, 
+		  reiser4_dir_entry_desc *entry /* parameters of new directory
+						 * entry */ )
 {
 	reiser4_item_data       data;
 	directory_entry_format *dent;
@@ -97,9 +103,13 @@ int de_add_entry( const struct inode *dir, tree_coord *coord,
 	return 0;
 }
 
-int de_rem_entry( const struct inode *dir UNUSED_ARG, tree_coord *coord, 
-		  reiser4_lock_handle *lh UNUSED_ARG , 
-		  reiser4_dir_entry_desc *entry UNUSED_ARG )
+int de_rem_entry( const struct inode *dir UNUSED_ARG /* directory of item */, 
+		  tree_coord *coord /* coord of item */,
+		  reiser4_lock_handle *lh UNUSED_ARG /* lock handle for
+						      * removal */, 
+		  reiser4_dir_entry_desc *entry UNUSED_ARG /* parameters of
+							    * directory entry
+							    * being removed */ )
 {
 	int         result;
 	tree_coord coord_shadow;
@@ -116,7 +126,7 @@ int de_rem_entry( const struct inode *dir UNUSED_ARG, tree_coord *coord,
 	return result;
 }
 
-int de_max_name_len( int block_size )
+int de_max_name_len( int block_size /* block size */ )
 {
 	return block_size - REISER4_NODE_MAX_OVERHEAD - 
 		sizeof( directory_entry_format ) - 2;

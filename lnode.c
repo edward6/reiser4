@@ -120,13 +120,14 @@ static struct {
 /* hash table support */
 
 /** compare two block numbers for equality. Used by hash-table macros */
-static inline int oid_eq( const oid_t *o1, const oid_t *o2 )
+static inline int oid_eq( const oid_t *o1 /* first oid to compare */, 
+			  const oid_t *o2 /* second oid to compare */ )
 {
 	return *o1 == *o2;
 }
 
 /** Hash znode by block number. Used by hash-table macros */
-static inline __u32 oid_hash( const oid_t *o )
+static inline __u32 oid_hash( const oid_t *o /* oid to hash */ )
 {
 	return *o & ( LNODE_HTABLE_BUCKETS - 1 );
 }
@@ -149,13 +150,15 @@ TS_HASH_DEFINE( ln, lnode, oid_t, h.oid, h.link, oid_hash, oid_eq );
  * reiser4() call (that is, there are lnodes with type LNODE_LW).
  *
  */
-int lnode_compatible_type( lnode_type required, lnode_type set )
+int lnode_compatible_type( lnode_type required /* required lnode type */, 
+			   lnode_type set /* lnode type already set */ )
 {
 	return !( ( set == LNODE_LW ) && ( required != LNODE_INODE ) );
 }
 
 /** initialise lnode module for @super. */
-int lnodes_init( struct super_block *super )
+int lnodes_init( struct super_block *super /* super block to initialise lnodes
+					    * for */ )
 {
 	assert( "nikita-1861", super != NULL ); /* slavery forbidden in Russia */
 	ln_hash_init( &get_super_private( super ) -> lnode_htable, 
@@ -165,7 +168,8 @@ int lnodes_init( struct super_block *super )
 }
 
 /** free lnode recources associated with @super. */
-int lnodes_done( struct super_block *super )
+int lnodes_done( struct super_block *super /* super block to destroy lnodes
+					    * for */ )
 {
 	assert( "nikita-1863", super != NULL );
 	ln_hash_done( &get_super_private( super ) -> lnode_htable );
@@ -185,7 +189,8 @@ int lnodes_done( struct super_block *super )
  *
  *
  */
-lnode *lget( lnode *node, lnode_type type, oid_t oid )
+lnode *lget( lnode *node /* lnode to add to the hash table */, 
+	     lnode_type type /* lnode type */, oid_t oid /* objectid */ )
 {
 	lnode         *result;
 	ln_hash_table *htable;
@@ -240,7 +245,8 @@ lnode *lget( lnode *node, lnode_type type, oid_t oid )
 	return result;
 }
 
-void lput( lnode *node )
+/** release reference to file system object */
+void lput( lnode *node /* lnode to release */ )
 {
 	reiser4_super_info_data *sinfo;
 
@@ -258,38 +264,49 @@ void lput( lnode *node )
 	spin_unlock( &sinfo -> lnode_htable_guard );
 }
 
-reiser4_key *lnode_key( const lnode *node, reiser4_key *result )
+/** return key of object behind @node */
+reiser4_key *lnode_key( const lnode *node /* lnode to query */, 
+			reiser4_key *result /* result */ )
 {
 	assert( "nikita-1849", node != NULL );
 	assert( "nikita-1855", lnode_valid_type( node -> h.type ) );
 	return lnode_ops[ node -> h.type ].key( node, result );
 }
 
-int get_lnode_plugins( const lnode *node, reiser4_plugin_ref *area )
+/** return plugins of object behind @node */
+int get_lnode_plugins( const lnode *node /* lnode to query */, 
+		       reiser4_plugin_ref *area /* result */ )
 {
 	assert( "nikita-1853", node != NULL );
 	assert( "nikita-1858", lnode_valid_type( node -> h.type ) );
 	return lnode_ops[ node -> h.type ].get_plugins( node, area );
 }
 
-int set_lnode_plugins( lnode *node, const reiser4_plugin_ref *area )
+/** set plugins of object behind @node */
+int set_lnode_plugins( lnode *node /* lnode to modify */, 
+		       const reiser4_plugin_ref *area /* plugins to install */)
 {
 	assert( "nikita-1859", node != NULL );
 	assert( "nikita-1860", lnode_valid_type( node -> h.type ) );
 	return lnode_ops[ node -> h.type ].set_plugins( node, area );
 }
 
-static int lnode_valid_type( lnode_type type )
+/** true if @type is valid lnode type */
+static int lnode_valid_type( lnode_type type /* would-be lnode type */ )
 {
 	return type < LNODE_NR_TYPES;
 }
 
-static reiser4_key *lnode_inode_key( const lnode *node, reiser4_key *result )
+/** return key of object behind inode-based @node */
+static reiser4_key *lnode_inode_key( const lnode *node /* lnode to query */, 
+				     reiser4_key *result /* result */ )
 {
 	return build_sd_key( node -> inode.inode, result );
 }
 
-static reiser4_key *lnode_lw_key( const lnode *node, reiser4_key *result )
+/** return key of object behind lighweight @node */
+static reiser4_key *lnode_lw_key( const lnode *node /* lnode to query */, 
+				  reiser4_key *result /* result */ )
 {
 	*result = node -> lw.key;
 	return result;

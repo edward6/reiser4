@@ -2,9 +2,6 @@
  * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
  */
 
-
-// VOVA TEST
-
 /*
  * Basic plugin infrastructure, lookup etc.
  */
@@ -256,23 +253,14 @@ int init_plugins( void )
 
 /** parse mount time option and update root-directory plugin
     appropriately. */
-int handle_default_plugin_option( char *option, /* Option should
-							   has form
-							   "type:label",
-							   where "type"
-							   is label of
-							   plugin type
-							   and "label"
-							   is label of
-							   plugin
-							   instance
-							   within this
-							   type. */
-					  reiser4_plugin **area /* where
-								 * result
-								 * is to
-								 * be
-								 * stored */ )
+int handle_default_plugin_option( char *option, /* Option should has form
+						   "type:label", where "type"
+						   is label of plugin type and
+						   "label" is label of plugin
+						   instance within this
+						   type. */
+				  reiser4_plugin **area /* where result is to
+							 * be stored */ )
 {
 	char *type_label;
 	char *plug_label;
@@ -307,7 +295,7 @@ int handle_default_plugin_option( char *option, /* Option should
 }
 
 /** lookup plugin name by scanning tables */
-reiser4_plugin *lookup_plugin_name( char *plug_label )
+reiser4_plugin *lookup_plugin_name( char *plug_label /* label to search for */ )
 {
 	reiser4_plugin_type type_id;
 	reiser4_plugin     *plugin;
@@ -328,7 +316,8 @@ reiser4_plugin *lookup_plugin_name( char *plug_label )
 
 
 /** lookup plugin by scanning tables */
-reiser4_plugin *lookup_plugin( char *type_label, char *plug_label )
+reiser4_plugin *lookup_plugin( char *type_label /* plugin type label */, 
+			       char *plug_label /* plugin label */ )
 {
 	reiser4_plugin     *result;
 	reiser4_plugin_type type_id;
@@ -397,8 +386,11 @@ int locate_plugin( struct inode *inode, plugin_locator *loc )
  * Both arguments are checked for validness: this is supposed to be called
  * from user-level.
  */
-reiser4_plugin *plugin_by_unsafe_id( reiser4_plugin_type type_id, 
-				     reiser4_plugin_id id )
+reiser4_plugin *plugin_by_unsafe_id( reiser4_plugin_type type_id /* plugin
+								  * type id,
+								  * unchecked */, 
+				     reiser4_plugin_id id /* plugin id,
+							   * unchecked */ )
 {
 	if( is_type_id_valid( type_id ) ) {
 		if( is_plugin_id_valid( type_id, id ) )
@@ -412,11 +404,9 @@ reiser4_plugin *plugin_by_unsafe_id( reiser4_plugin_type type_id,
 	return NULL;
 }
 
-/** 
- * return plugin by its @type_id and @id
- * FIXME-VS: this was plugin_by_type_id (not sure how it got renamed)
- */
-reiser4_plugin *plugin_by_id( reiser4_plugin_type type_id, reiser4_plugin_id id )
+/** return plugin by its @type_id and @id */
+reiser4_plugin *plugin_by_id( reiser4_plugin_type type_id /* plugin type id */, 
+			      reiser4_plugin_id id /* plugin id */ )
 {
 	assert( "nikita-1651", is_type_id_valid( type_id ) );
 	assert( "nikita-1652", is_plugin_id_valid( type_id, id ) );
@@ -424,8 +414,13 @@ reiser4_plugin *plugin_by_id( reiser4_plugin_type type_id, reiser4_plugin_id id 
 }
 
 /** get plugin whose id is stored in disk format */
-reiser4_plugin *plugin_by_disk_id( reiser4_tree *tree UNUSED_ARG, 
-				 reiser4_plugin_type type_id, d16 *did )
+reiser4_plugin *plugin_by_disk_id( reiser4_tree *tree UNUSED_ARG /* tree,
+								  * plugin
+								  * belongs
+								  * to */, 
+				 reiser4_plugin_type type_id /* plugin type
+							      * id */, 
+				   d16 *did /* plugin id in disk format */ )
 {
 	/* what we should do properly is to maintain within each
 	   file-system a dictionary that maps on-disk plugin ids to
@@ -435,7 +430,9 @@ reiser4_plugin *plugin_by_disk_id( reiser4_tree *tree UNUSED_ARG,
 	return plugin_by_id( type_id, d16tocpu( did ) );
 }
 
-int save_plugin_id( reiser4_plugin *plugin, d16 *area )
+/** convert plugin id to the disk format */
+int save_plugin_id( reiser4_plugin *plugin /* plugin to convert */, 
+		    d16 *area /* where to store result */ )
 {
 	assert( "nikita-1261", plugin != NULL );
 	assert( "nikita-1262", area != NULL );
@@ -444,27 +441,34 @@ int save_plugin_id( reiser4_plugin *plugin, d16 *area )
 	return 0;
 }
 
-plugin_list_head *get_plugin_list( reiser4_plugin_type type_id )
+/** list of all plugins of given type */
+plugin_list_head *get_plugin_list( reiser4_plugin_type type_id /* plugin type
+								* id */ )
 {
 	assert( "nikita-1056", is_type_id_valid( type_id ) );
 	return &plugins[ type_id ].plugins_list;
 }
 
-static int is_type_id_valid( reiser4_plugin_type type_id )
+/** true if plugin type id is valid */
+static int is_type_id_valid( reiser4_plugin_type type_id /* plugin type id */ )
 {
 	/* "type_id" is unsigned, so no comparison with 0 is
 	   necessary */
 	return( type_id < REISER4_PLUGIN_TYPES );
 }
 
-static int is_plugin_id_valid( reiser4_plugin_type type_id, 
-			       reiser4_plugin_id id )
+/** true if plugin id is valid */
+static int is_plugin_id_valid( reiser4_plugin_type type_id /* plugin type id */, 
+			       reiser4_plugin_id id /* plugin id */ )
 {
 	assert( "nikita-1653", is_type_id_valid( type_id ) );
 	return( ( id < plugins[ type_id ].builtin_num ) && ( id >= 0 ) );
 }
 
-void print_plugin( const char *prefix, reiser4_plugin *plugin )
+#if REISER4_DEBUG
+/** print human readable plugin information */
+void print_plugin( const char *prefix /* prefix to print */, 
+		   reiser4_plugin *plugin /* plugin to print */)
 {
 	if( plugin != NULL ) {
 		info( "%s: %s (%s:%i)\n",
@@ -474,13 +478,18 @@ void print_plugin( const char *prefix, reiser4_plugin *plugin )
 		info( "%s: (nil)\n", prefix );
 }
 
+/** debugging. Hook plugin */
 static int dump_hook( struct super_block *super UNUSED_ARG, ... )
 {
 	dinfo( "dump hook called for %p\n", super );
 	return 0;
 }
 
-static reiser4_plugin_type find_type( const char *label )
+#endif
+
+/** find plugin type by label */
+static reiser4_plugin_type find_type( const char *label /* plugin type
+							 * label */ )
 {
 	reiser4_plugin_type type_id;
 
@@ -496,8 +505,12 @@ static reiser4_plugin_type find_type( const char *label )
 /** given plugin label find it within given plugin type by scanning
     array. Used to map user-visible symbolic name to internal kernel
     id */
-static reiser4_plugin *find_plugin( reiser4_plugin_type_data *ptype,
-				    const char *label )
+static reiser4_plugin *find_plugin( reiser4_plugin_type_data *ptype /* plugin
+								     * type to
+								     * find
+								     * plugin
+								     * within */,
+				    const char *label /* plugin label */ )
 {
 	int i;
 	reiser4_plugin *result;
@@ -511,20 +524,6 @@ static reiser4_plugin *find_plugin( reiser4_plugin_type_data *ptype,
 			return result;
 	}
 	return NULL;
-}
-
-/** helper function used by object.c to inherit missing plugins from
-    parent. Install plugin only if it's not already installed. */
-int inherit_if_nil( reiser4_plugin **to, reiser4_plugin **from )
-{
-	assert( "nikita-553", to != NULL );
-	assert( "nikita-554", from != NULL );
-
-	if( *to == NULL ) {
-		*to = *from;
-		return 1;
-	} else
-		return 0;
 }
 
 /* defined in fs/reiser4/plugin/dir.c */

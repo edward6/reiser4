@@ -34,47 +34,51 @@ typedef struct d16 { __u16 datum; } d16;
 typedef struct d32 { __u32 datum; } d32;
 typedef struct d64 { __u64 datum; } d64;
 
-static inline __u8 d8tocpu( const d8 *ondisk ) 
+static inline __u8 d8tocpu( const d8 *ondisk /* on-disk value to convert */ ) 
 { 
 	return ondisk -> datum; 
 }
 
-static inline __u16 d16tocpu( const d16 *ondisk ) 
+static inline __u16 d16tocpu( const d16 *ondisk /* on-disk value to convert */ ) 
 { 
 	return __le16_to_cpu( ondisk -> datum ); 
 }
 
-static inline __u32 d32tocpu( const d32 *ondisk ) 
+static inline __u32 d32tocpu( const d32 *ondisk /* on-disk value to convert */ ) 
 { 
 	return __le32_to_cpu( ondisk -> datum ); 
 }
 
-static inline __u64 d64tocpu( const d64 *ondisk ) 
+static inline __u64 d64tocpu( const d64 *ondisk /* on-disk value to convert */ ) 
 { 
 	return __le64_to_cpu( ondisk -> datum ); 
 }
 
-static inline d8 *cputod8( unsigned int oncpu, d8 *ondisk )
+static inline d8 *cputod8( unsigned int oncpu /* CPU value to convert */, 
+			   d8 *ondisk /* result */ )
 {
 	assert( "nikita-1264", oncpu < 0x100 );
 	ondisk -> datum = oncpu;
 	return ondisk;
 }
 
-static inline d16 *cputod16( unsigned int oncpu, d16 *ondisk )
+static inline d16 *cputod16( unsigned int oncpu /* CPU value to convert */, 
+			     d16 *ondisk /* result */ )
 {
 	assert( "nikita-1265", oncpu < 0x10000 );
 	ondisk -> datum = __cpu_to_le16( oncpu );
 	return ondisk;
 }
 
-static inline d32 *cputod32( __u32 oncpu, d32 *ondisk )
+static inline d32 *cputod32( __u32 oncpu /* CPU value to convert */, 
+			     d32 *ondisk /* result */ )
 {
 	ondisk -> datum = __cpu_to_le32( oncpu );
 	return ondisk;
 }
 
-static inline d64 *cputod64( __u64 oncpu, d64 *ondisk )
+static inline d64 *cputod64( __u64 oncpu /* CPU value to convert */, 
+			     d64 *ondisk /* result */ )
 {
 	ondisk -> datum = __cpu_to_le64( oncpu );
 	return ondisk;
@@ -102,8 +106,13 @@ static inline void cpu_to_dblock (reiser4_block_nr block, reiser4_dblock_nr *dbl
 	cputod64 (block, & dblock->blk);
 }
 
-static inline int disk_addr_eq( const reiser4_block_nr *b1, 
-				const reiser4_block_nr *b2 )
+/** true if disk addresses are the same */
+static inline int disk_addr_eq( const reiser4_block_nr *b1 /* first block
+							    * number to
+							    * compare */, 
+				const reiser4_block_nr *b2 /* second block
+							    * number to
+							    * compare */ )
 {
 	assert( "nikita-1033", b1 != NULL );
 	assert( "nikita-1266", b2 != NULL );

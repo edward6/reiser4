@@ -15,7 +15,7 @@ extern void cond_resched( void );
 
 /** Your best friend. Call it on each occasion.  This is called by
     fs/reiser4/debug.h:rpanic(). */
-void reiser4_panic( const char *format, ... )
+void reiser4_panic( const char *format /* format string */, ... /* rest */ )
 {
 	static char buf[ REISER4_PANIC_MSG_BUFFER_SIZE ];
 	va_list args;
@@ -274,7 +274,8 @@ __u32 get_current_trace_flags( void )
  * keeps track of how many memory was allocated on behalf of current super
  * block.
  */
-void *reiser4_kmalloc( size_t size, int gfp_flag )
+void *reiser4_kmalloc( size_t size /* number of bytes to allocate */, 
+		       int gfp_flag /* allocation flag */ )
 {
 	assert( "nikita-1407", get_current_super_private() != NULL );
 	assert( "nikita-1408", lock_counters() -> spin_locked == 0 );
@@ -287,7 +288,8 @@ void *reiser4_kmalloc( size_t size, int gfp_flag )
  * release memory allocated by reiser4_kmalloc() and update counter.
  *
  */
-void  reiser4_kfree( void *area, size_t size UNUSED_ARG )
+void  reiser4_kfree( void *area /* memory to from */, 
+		     size_t size UNUSED_ARG /* number of bytes to free */ )
 {
 	assert( "nikita-1410", area != NULL );
 	assert( "nikita-1411", get_current_super_private() != NULL );
@@ -301,8 +303,10 @@ void  reiser4_kfree( void *area, size_t size UNUSED_ARG )
 
 #if REISER4_DEBUG
 /** helper called by print_tree_rec() */
-static void tree_rec_dot( reiser4_tree *tree, znode *node, 
-			  __u32 flags, FILE *dot )
+static void tree_rec_dot( reiser4_tree *tree /* tree to print */, 
+			  znode *node /* node to print */, 
+			  __u32 flags /* print flags */, 
+			  FILE *dot /* dot-output */ )
 {
 	int i;
 	tree_coord coord;
@@ -351,7 +355,9 @@ static void tree_rec_dot( reiser4_tree *tree, znode *node,
 }
 
 /** helper called by print_tree_rec() */
-static void tree_rec( reiser4_tree *tree, znode *node, __u32 flags )
+static void tree_rec( reiser4_tree *tree /* tree to print */, 
+		      znode *node /* node to print */, 
+		      __u32 flags /* print flags */ )
 {
 	int i;
 	tree_coord coord;
@@ -405,7 +411,9 @@ static void tree_rec( reiser4_tree *tree, znode *node, __u32 flags )
 /**
  * debugging aid: recursively print content of a @tree.
  */
-void print_tree_rec (const char * prefix, reiser4_tree * tree, __u32 flags)
+void print_tree_rec (const char * prefix /* prefix to print */, 
+		     reiser4_tree * tree /* tree to print */, 
+		     __u32 flags /* print flags*/ )
 {
 	znode *fake;
 	znode *root;

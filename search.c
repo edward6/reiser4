@@ -14,7 +14,7 @@
    plugin/nodes/* */
 
 /** clear coord content */
-int init_coord( tree_coord *coord )
+int init_coord( tree_coord *coord /* coord to init */ )
 {
 	assert( "nikita-312", coord != NULL );
 	trace_stamp( TRACE_TREE );
@@ -41,7 +41,7 @@ void dup_coord (tree_coord * new, const tree_coord * old)
  * there is a good reason to ref coord->node (i.e., dcount), then implement it
  * NOW.  My code doesn't call done_coord because I didn't know there was such
  * a method. */
-int done_coord( tree_coord *coord UNUSED_ARG )
+int done_coord( tree_coord *coord UNUSED_ARG /* coord to finish with */ )
 {
 	assert( "nikita-313", coord != NULL );
 	trace_stamp( TRACE_TREE );
@@ -50,7 +50,7 @@ int done_coord( tree_coord *coord UNUSED_ARG )
 }
 
 /* return pointer to item body */
-void *item_body_by_coord( const tree_coord *coord )
+void *item_body_by_coord( const tree_coord *coord /* coord to query */ )
 {
 	assert( "nikita-324", coord != NULL );
 	assert( "nikita-325", coord -> node != NULL );
@@ -60,10 +60,8 @@ void *item_body_by_coord( const tree_coord *coord )
 	return node_plugin_by_node( coord -> node ) -> item_by_coord( coord );
 }
 
-/**
- * return length of item at @coord
- */
-int item_length_by_coord( const tree_coord *coord )
+/** return length of item at @coord */
+int item_length_by_coord( const tree_coord *coord /* coord to query */ )
 {
 	assert( "nikita-327", coord != NULL );
 	assert( "nikita-328", coord -> node != NULL );
@@ -73,10 +71,9 @@ int item_length_by_coord( const tree_coord *coord )
 	return node_plugin_by_node( coord -> node ) -> length_by_coord( coord );
 }
 
-/**
- * return plugin of item at @coord
- */
-common_item_plugin *commin_item_plugin_by_coord( const tree_coord *coord )
+/** return plugin of item at @coord */
+common_item_plugin *item_plugin_by_coord( const tree_coord *coord /* coord to
+								     query */ )
 {
 	assert( "nikita-330", coord != NULL );
 	assert( "nikita-331", coord -> node != NULL );
@@ -86,10 +83,8 @@ common_item_plugin *commin_item_plugin_by_coord( const tree_coord *coord )
 	return node_plugin_by_node( coord -> node ) -> plugin_by_coord( coord );
 }
 
-/**
- * return node plugin of @node
- */
-node_plugin * node_plugin_by_node( const znode *node )
+/** return node plugin of @node */
+node_plugin * node_plugin_by_node( const znode *node /* node to query */ )
 {
 	assert( "vs-213", node != NULL );
 	assert( "vs-214", znode_is_loaded( node ) );
@@ -97,10 +92,9 @@ node_plugin * node_plugin_by_node( const znode *node )
 	return node->nplug;
 }
 
-/**
- * return type of item at @coord
- */
-item_plugin_id item_plugin_id_by_coord( const tree_coord *coord )
+/** return type of item at @coord */
+item_plugin_id item_plugin_id_by_coord( const tree_coord *coord /* coord to
+								   query */ )
 {
 	assert( "nikita-333", coord != NULL );
 	assert( "nikita-334", coord -> node != NULL );
@@ -112,10 +106,9 @@ item_plugin_id item_plugin_id_by_coord( const tree_coord *coord )
 	return item_plugin_by_coord( coord ) -> item_plugin_id;
 }
 
-/**
- * return key of item at @coord
- */
-reiser4_key *item_key_by_coord( const tree_coord *coord, reiser4_key *key )
+/** return key of item at @coord */
+reiser4_key *item_key_by_coord( const tree_coord *coord /* coord to query */, 
+				reiser4_key *key /* result */ )
 {
 	assert( "nikita-338", coord != NULL );
 	assert( "nikita-339", coord -> node != NULL );
@@ -125,10 +118,9 @@ reiser4_key *item_key_by_coord( const tree_coord *coord, reiser4_key *key )
 	return node_plugin_by_node( coord -> node ) -> key_at( coord, key );
 }
 
-/**
- * return key of unit at @coord
- */
-reiser4_key *unit_key_by_coord( const tree_coord *coord, reiser4_key *key )
+/** return key of unit at @coord */
+reiser4_key *unit_key_by_coord( const tree_coord *coord /* coord to query */, 
+				reiser4_key *key /* result */ )
 {
 	assert( "nikita-772", coord != NULL );
 	assert( "nikita-774", coord -> node != NULL );
@@ -147,9 +139,7 @@ reiser4_key *unit_key_by_coord( const tree_coord *coord, reiser4_key *key )
 
 TS_LIST_DEFINE( cbk_cache, cbk_cache_slot, lru );
 
-/**
- * Initialise coord cache slot
- */
+/** Initialise coord cache slot */
 static void cbk_cache_init_slot( cbk_cache_slot *slot )
 {
 	assert( "nikita-345", slot != NULL );
@@ -158,10 +148,8 @@ static void cbk_cache_init_slot( cbk_cache_slot *slot )
 	slot -> node = NULL;
 }
 
-/**
- * Initialise coord cache
- */
-int cbk_cache_init( cbk_cache *cache )
+/** Initialise coord cache */
+int cbk_cache_init( cbk_cache *cache /* cache to init */ )
 {
 	int i;
 
@@ -176,13 +164,13 @@ int cbk_cache_init( cbk_cache *cache )
 	return 0;
 }
 
-static void cbk_cache_lock( cbk_cache *cache )
+static void cbk_cache_lock( cbk_cache *cache /* cache to lock */ )
 {
 	assert( "nikita-1800", cache != NULL );
 	spin_lock( &cache -> guard );
 }
 
-static void cbk_cache_unlock( cbk_cache *cache )
+static void cbk_cache_unlock( cbk_cache *cache /* cache to unlock */)
 {
 	assert( "nikita-1801", cache != NULL );
 	spin_unlock( &cache -> guard );
@@ -199,7 +187,7 @@ static void cbk_cache_unlock( cbk_cache *cache )
 /**
  * Remove references, if any, to @node from coord cache
  */
-void cbk_cache_invalidate( const znode *node )
+void cbk_cache_invalidate( const znode *node /* node to remove from cache */ )
 {
 	cbk_cache_slot *slot;
 	cbk_cache      *cache;
@@ -224,7 +212,7 @@ void cbk_cache_invalidate( const znode *node )
 
 /** add to the cbk-cache in the "tree" information about "node". This
     can actually be update of existing slot in a cache. */
-void cbk_cache_add( znode *node )
+void cbk_cache_add( znode *node /* node to add to the cache */ )
 {
 	cbk_cache        *cache;
 	cbk_cache_slot   *slot;
@@ -253,10 +241,9 @@ void cbk_cache_add( znode *node )
 }
 
 #if REISER4_DEBUG
-/**
- * Debugging aid: print human readable information about @slot
- */
-void print_cbk_slot( const char *prefix, cbk_cache_slot *slot )
+/** Debugging aid: print human readable information about @slot */
+void print_cbk_slot( const char *prefix /* prefix to print */, 
+		     cbk_cache_slot *slot /* slot to print */ )
 {
 	if( slot == NULL )
 		info( "%s: null slot\n", prefix );
@@ -264,10 +251,9 @@ void print_cbk_slot( const char *prefix, cbk_cache_slot *slot )
 		print_znode( "node", slot -> node );
 }
 
-/**
- * Debugging aid: print human readable information about @cache
- */
-void print_cbk_cache( const char *prefix, cbk_cache  *cache )
+/** Debugging aid: print human readable information about @cache */
+void print_cbk_cache( const char *prefix /* prefix to print */, 
+		      cbk_cache  *cache /* cache to print */)
 {
 	if( cache == NULL )
 		info( "%s: null cache\n", prefix );
@@ -455,10 +441,16 @@ int coord_by_hint_and_key (reiser4_tree * tree, const reiser4_key * key,
  *
  * This is used by readdir() and alikes.
  */
-int iterate_tree( reiser4_tree *tree, tree_coord *coord, 
-			  reiser4_lock_handle *lh, 
-			  tree_iterate_actor_t actor, void *arg,
-			  znode_lock_mode mode, int through_units_p )
+int iterate_tree( reiser4_tree *tree /* tree to scan */, 
+		  tree_coord *coord /* coord to start from */, 
+		  reiser4_lock_handle *lh /* lock handle to start with and to
+					   * update along the way */, 
+		  tree_iterate_actor_t actor /* function to call on each
+					      * item/unit */, 
+		  void *arg /* argument to pass to @actor */,
+		  znode_lock_mode mode /* lock mode on scanned nodes */, 
+		  int through_units_p /* call @actor on each item or on each
+				       * unit */ )
 {
 	int result;
 
@@ -506,7 +498,7 @@ int iterate_tree( reiser4_tree *tree, tree_coord *coord,
 
 /** main function that handles common parts of tree traversal: starting
     (fake znode handling), restarts, error handling, completion */
-static lookup_result cbk( cbk_handle *h )
+static lookup_result cbk( cbk_handle *h /* search handle */ )
 {
 	int done;
 	int iterations;
@@ -620,7 +612,7 @@ static lookup_result cbk( cbk_handle *h )
 
 /** coord_by_key level function that maintains znode sibling/parent
     pointers (web of znodes)) */
-static level_lookup_result cbk_level_lookup (cbk_handle *h)
+static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 {
 	int ret;
 	znode * active;
@@ -870,7 +862,7 @@ static int add_empty_leaf( tree_coord *insert_coord, reiser4_lock_handle *lh,
    Process one node during tree traversal.
    This is standard function independent of tree locking protocols.
  */
-static level_lookup_result cbk_node_lookup( cbk_handle *h )
+static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 {
 	node_plugin      *nplug;
 	common_item_plugin      *iplug;
@@ -1057,7 +1049,8 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 /**
  * true if @key is one of delimiting keys in @node
  */
-static int key_is_delimiting( znode *node, const reiser4_key *key )
+static int key_is_delimiting( znode *node /* node to check key against */, 
+			      const reiser4_key *key /* key to check */ )
 {
 	int result;
 
@@ -1285,7 +1278,7 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
  * child that will be processed on the next level.
  *
  */
-static int prepare_delimiting_keys( cbk_handle *h )
+static int prepare_delimiting_keys( cbk_handle *h /* search handle */ )
 {
 	int result;
 	assert( "nikita-1095", h != NULL );
@@ -1297,7 +1290,7 @@ static int prepare_delimiting_keys( cbk_handle *h )
 	return result;
 }
 
-static level_lookup_result search_to_left( cbk_handle *h )
+static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 {
 	level_lookup_result result;
 	tree_coord         *coord;
@@ -1375,7 +1368,7 @@ static level_lookup_result search_to_left( cbk_handle *h )
 	({ typedef _t = (a); _t tmp ; tmp = (a) ; (a) = (b) ; (b) = tmp; })
 
 /** debugging aid: return symbolic name of search bias */
-const char *bias_name( lookup_bias bias )
+const char *bias_name( lookup_bias bias /* bias to get name of */ )
 {
 	if( bias == FIND_EXACT )
 		return "exact";
@@ -1392,7 +1385,8 @@ const char *bias_name( lookup_bias bias )
 }
 
 /** debugging aid: print human readable information about @p */
-void print_coord_content( const char *prefix, tree_coord *p )
+void print_coord_content( const char *prefix /* prefix to print */, 
+			  tree_coord *p /* coord to print */ )
 {
 	reiser4_key key;
 
@@ -1409,7 +1403,8 @@ void print_coord_content( const char *prefix, tree_coord *p )
 }
 
 /** debugging aid: print human readable information about @block */
-void print_address( const char *prefix, const reiser4_block_nr *block )
+void print_address( const char *prefix /* prefix to print */, 
+		    const reiser4_block_nr *block /* block number to print */ )
 {
 	if( block == NULL ) {
 		info( "%s: null\n", prefix );
@@ -1419,7 +1414,7 @@ void print_address( const char *prefix, const reiser4_block_nr *block )
 }
 
 /** release parent node during traversal */
-static void put_parent( cbk_handle *h )
+static void put_parent( cbk_handle *h /* search handle */ )
 {
 	assert( "nikita-383", h != NULL );
 	if(h->parent_lh->node != NULL) {
@@ -1430,7 +1425,7 @@ static void put_parent( cbk_handle *h )
 /**
  * helper function used by coord_by_key(): release reference to parent znode
  * stored in handle before processing its child. */
-static void hput( cbk_handle *h )
+static void hput( cbk_handle *h /* search handle */ )
 {
 	assert( "nikita-385", h != NULL );
 	done_lh(h->parent_lh);
@@ -1441,7 +1436,7 @@ static void hput( cbk_handle *h )
  * Helper function used by cbk(): update delimiting keys of child node (stored
  * in h->active_lh->node) using key taken from parent on the parent level.
  */
-static void setup_delimiting_keys( cbk_handle *h )
+static void setup_delimiting_keys( cbk_handle *h /* search handle */ )
 {
 	assert( "nikita-1088", h != NULL );
 	spin_lock_dk( current_tree );
@@ -1450,8 +1445,12 @@ static void setup_delimiting_keys( cbk_handle *h )
 	spin_unlock_dk( current_tree );
 }
 
-static int block_nr_is_correct( reiser4_block_nr *block UNUSED_ARG, 
-				reiser4_tree *tree UNUSED_ARG )
+static int block_nr_is_correct( reiser4_block_nr *block UNUSED_ARG /* block
+								    * number
+								    * to
+								    * check */, 
+				reiser4_tree *tree UNUSED_ARG /* tree to check
+							       * against */ )
 {
 	assert( "nikita-757", block != NULL );
 	assert( "nikita-758", tree != NULL );
@@ -1462,7 +1461,7 @@ static int block_nr_is_correct( reiser4_block_nr *block UNUSED_ARG,
 }
 
 /** check consistency of fields */
-static int sanity_check( cbk_handle *h )
+static int sanity_check( cbk_handle *h /* search handle */ )
 {
 	assert( "nikita-384", h != NULL );
 

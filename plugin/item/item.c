@@ -10,7 +10,8 @@
 
 /** ->max_key_inside() method for items consisting of exactly one key (like
     stat-data) */
-static reiser4_key *single_key( const tree_coord *coord, reiser4_key *result )
+static reiser4_key *single_key( const tree_coord *coord /* coord of item */, 
+				reiser4_key *result /* resulting key */ )
 {
 	assert( "nikita-604", coord != NULL );
 
@@ -20,19 +21,23 @@ static reiser4_key *single_key( const tree_coord *coord, reiser4_key *result )
 }
 
 /** ->nr_units() method for items consisting of exactly one unit always */
-static unsigned int single_unit( const tree_coord *coord UNUSED_ARG )
+static unsigned int single_unit( const tree_coord *coord UNUSED_ARG /* coord
+								       of
+								       item */ )
 {
 	return 1;
 }
 
 /** default ->fast_paste() method */
-int agree_to_fast_op( const tree_coord *coord UNUSED_ARG )
+int agree_to_fast_op( const tree_coord *coord UNUSED_ARG /* coord of item */ )
 {
 	return 1;
 }
 
-int item_can_contain_key( const tree_coord *item, const reiser4_key *key,
-			  const reiser4_item_data *data )
+int item_can_contain_key( const tree_coord *item /* coord of item */, 
+			  const reiser4_key *key /* key to check */,
+			  const reiser4_item_data *data /* parameters of item
+							 * being created */ )
 {
 	common_item_plugin *iplug;
 	reiser4_key min_key_in_item;
@@ -61,7 +66,8 @@ int item_can_contain_key( const tree_coord *item, const reiser4_key *key,
 }
 
 /* return 0 if @item1 and @item2 are not mergeable, !0 - otherwise */
-int are_items_mergeable( const tree_coord *i1, const tree_coord *i2 )
+int are_items_mergeable( const tree_coord *i1 /* coord of first item */, 
+			 const tree_coord *i2 /* coord of second item */ )
 {
 	common_item_plugin *iplug;
 	reiser4_key k1;

@@ -234,10 +234,7 @@ static spinlock_t        active_contexts_lock;
 static context_list_head active_contexts;
 #endif
 
-/**
- * release resources associated with @tree
- *
- */
+/** release resources associated with @tree */
 void reiser4_done_tree( reiser4_tree *tree /* tree to release */ )
 {
 	assert( "nikita-311", tree != NULL );
@@ -247,16 +244,6 @@ void reiser4_done_tree( reiser4_tree *tree /* tree to release */ )
 	if( tree -> cbk_cache != NULL )
 		reiser4_kfree( tree -> cbk_cache, sizeof( cbk_cache ) );
 }
-
-void insert_znode( tree_coord *coord, znode *node )
-{
-	assert( "nikita-314", coord != NULL );
-	assert( "nikita-315", node != NULL );
-
- 	/* FIXME_JMACD: Why zref() here? */
-	coord -> node = zref( node );
-}
-
 
 node_plugin *node_plugin_by_coord ( const tree_coord *coord )
 {
@@ -270,15 +257,23 @@ node_plugin *node_plugin_by_coord ( const tree_coord *coord )
 
 /** insert item into tree. Fields of "coord" are updated so
     that they can be used by consequent insert operation. */
-insert_result insert_by_key( reiser4_tree *tree,
-			     const reiser4_key *key,
-			     reiser4_item_data *data UNUSED_ARG,
-			     tree_coord *coord,
-			     reiser4_lock_handle * lh,
-			     /** level where to insert */
-			     tree_level stop_level,
-			     inter_syscall_ra_hint *ra UNUSED_ARG,
-			     intra_syscall_ra_hint ira UNUSED_ARG, __u32 flags )
+insert_result insert_by_key( reiser4_tree *tree /* tree to insert new item
+						 * into */,
+			     const reiser4_key *key /* key of new item */,
+			     reiser4_item_data *data UNUSED_ARG /* parameters
+								 * for item
+								 * creation */,
+			     tree_coord *coord /* resulting insertion coord */,
+			     reiser4_lock_handle * lh /* resulting lock
+						       * handle */,
+			     tree_level stop_level /** level where to insert */,
+			     inter_syscall_ra_hint *ra UNUSED_ARG /* repetitive
+								   * access
+								   * hint */,
+			     intra_syscall_ra_hint ira UNUSED_ARG /* repetitive
+								   * access
+								   * hint */, 
+			     __u32 flags /* insertion flags */ )
 {
 	int result;
 
@@ -309,12 +304,33 @@ insert_result insert_by_key( reiser4_tree *tree,
 }
 
 
-static insert_result insert_with_carry_by_coord( tree_coord  *coord,
-						 reiser4_lock_handle *lh,
-						 reiser4_item_data *data, 
-						 const reiser4_key *key,
-						 carry_opcode cop,
-						 cop_insert_flag flags )
+/** 
+ * insert item by calling carry. Helper function called if short-cut
+ * insertion failed 
+ */
+static insert_result insert_with_carry_by_coord( tree_coord  *coord /* coord
+								     * where
+								     * to
+								     * insert */,
+						 reiser4_lock_handle *lh /* lock
+									  * handle
+									  * of
+									  * insertion
+									  * node */,
+						 reiser4_item_data *data /* parameters
+									  * of
+									  * new
+									  * item */, 
+						 const reiser4_key *key /* key
+									 * of
+									 * new
+									 * item */,
+						 carry_opcode cop /* carry
+								   * operation
+								   * to
+								   * perform */,
+						 cop_insert_flag flags /* carry
+									* flags */ )
 {
 	int result;
 	carry_pool  pool;
@@ -355,9 +371,14 @@ static insert_result insert_with_carry_by_coord( tree_coord  *coord,
  * different block.
  *
  */
-static int paste_with_carry( tree_coord *coord, reiser4_lock_handle *lh,
-			     reiser4_item_data *data, const reiser4_key *key,
-			     unsigned flags )
+static int paste_with_carry( tree_coord *coord /* coord of paste */, 
+			     reiser4_lock_handle *lh /* lock handle of node
+						      * where item is
+						      * pasted */,
+			     reiser4_item_data *data /* parameters of new
+						      * item */,
+			     const reiser4_key *key /* key of new item */,
+			     unsigned flags /* paste flags */ )
 {
 	int result;
 	carry_pool  pool;
@@ -407,10 +428,13 @@ insert_result insert_by_coord( tree_coord  *coord /* coord where to
 			       const reiser4_key *key /* key of new item */,
 			       reiser4_lock_handle *lh /* lock handle of write
 							* lock on node */,
-			       inter_syscall_ra_hint *ra UNUSED_ARG,
-			       intra_syscall_ra_hint ira UNUSED_ARG,
-			       unsigned flags  
-			       )
+			       inter_syscall_ra_hint *ra UNUSED_ARG /* repetitive
+								     * access
+								     * hint */,
+			       intra_syscall_ra_hint ira UNUSED_ARG /* repetitive
+								     * access
+								     * hint */, 
+			       __u32 flags /* insertion flags */ )
 {
 	unsigned item_size;
 
@@ -499,10 +523,13 @@ insert_result insert_extent_by_coord( tree_coord  *coord /* coord where to
  * paste_with_carry() that will do full carry().
  *
  */
-static int paste_into_item( tree_coord *coord,
-			    reiser4_lock_handle *lh,
-			    reiser4_key *key, reiser4_item_data *data,
-			    unsigned flags )
+static int paste_into_item( tree_coord *coord /* coord of pasting */,
+			    reiser4_lock_handle *lh /* lock handle on node
+						     * involved */,
+			    reiser4_key *key /* key of unit being pasted*/, 
+			    reiser4_item_data *data /* parameters for new
+						     * unit */,
+			    unsigned flags /* insert/paste flags */ )
 {
 	int result;
 	int size_change;
@@ -568,9 +595,12 @@ static int paste_into_item( tree_coord *coord,
 }
 
 /** this either appends or truncates item @coord */
-resize_result resize_item( tree_coord *coord, reiser4_item_data *data,
-			   reiser4_key *key, reiser4_lock_handle *lh,
-			   cop_insert_flag flags )
+resize_result resize_item( tree_coord *coord /* coord of item being resized */, 
+			   reiser4_item_data *data /* parameters of resize*/,
+			   reiser4_key *key /* key of new unit */, 
+			   reiser4_lock_handle *lh /* lock handle of node
+						    * being modified */,
+			   cop_insert_flag flags /* carry flags */ )
 {
 	int result;
 	carry_pool  pool;
@@ -613,7 +643,10 @@ resize_result resize_item( tree_coord *coord, reiser4_item_data *data,
 /**
  * Given a coord in parent node, obtain a znode for the corresponding child
  */
-znode *child_znode( const tree_coord *parent_coord, int setup_dkeys_p )
+znode *child_znode( const tree_coord *parent_coord /* coord of pointer to
+						    * child */, 
+		    int setup_dkeys_p /* if !0 update delimiting keys of
+				       * child */ )
 {
 	znode *child;
 	znode *parent;
@@ -680,11 +713,10 @@ static const __u32 context_magic = 0x4b1b5d0a;
  * This function should be called at the beginning of reiser4 part of
  * syscall.
  */
-int init_context( reiser4_context *context /* pointer to the reiser4
-						    * context being
-						    * initalised */, 
-			  struct super_block *super /* super block we are
-						     * going to work with */ )
+int init_context( reiser4_context *context /* pointer to the reiser4 context
+					    * being initalised */, 
+		  struct super_block *super /* super block we are going to
+					     * work with */ )
 {
 	reiser4_tree *tree;
 	reiser4_super_info_data *sdata;
@@ -737,7 +769,7 @@ int init_context( reiser4_context *context /* pointer to the reiser4
  *
  */
 void done_context( reiser4_context *context UNUSED_ARG /* context being
-							        * released */ )
+							* released */ )
 {
 	assert( "nikita-860", context != NULL );
 	assert( "nikita-859", context -> magic == context_magic );
@@ -827,7 +859,7 @@ void forget_znode (reiser4_lock_handle *handle)
  * also calls this function, but I don't know what the call in unlock_carry_node
  * should really do.
  */
-int deallocate_znode( znode *node )
+int deallocate_znode( znode *node /* znode released */ )
 {
 	assert ("nikita-1281", ZF_ISSET (node, ZNODE_HEARD_BANSHEE));
 	zdestroy( node );
@@ -836,9 +868,10 @@ int deallocate_znode( znode *node )
 
 /**
  * Check that internal item at @pointer really contains pointer to @child.
- *
  */
-int check_tree_pointer( const tree_coord *pointer, const znode *child )
+int check_tree_pointer( const tree_coord *pointer /* would-be pointer to
+						   * @child */, 
+			const znode *child /* child znode */ )
 {
 	assert( "nikita-1016", pointer != NULL );
 	assert( "nikita-1017", child != NULL );
@@ -1020,7 +1053,8 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
  * true, if @addr is "unallocated block number", which is just address, with
  * highest bit set.
  */
-int is_disk_addr_unallocated( const reiser4_block_nr *addr )
+int is_disk_addr_unallocated( const reiser4_block_nr *addr /* address to
+							    * check */ )
 {
 	assert( "nikita-1766", addr != NULL );
 	cassert( sizeof( reiser4_block_nr ) == 8 );
@@ -1032,7 +1066,8 @@ int is_disk_addr_unallocated( const reiser4_block_nr *addr )
  *
  * FIXME: This needs a big comment.
  */
-void *unallocated_disk_addr_to_ptr( const reiser4_block_nr *addr )
+void *unallocated_disk_addr_to_ptr( const reiser4_block_nr *addr /* address to
+								  * convert */ )
 {
 	assert( "nikita-1688", addr != NULL );
 	assert( "nikita-1689", is_disk_addr_unallocated( addr ) );
@@ -1110,7 +1145,7 @@ int cut_node (tree_coord * from /* coord of the first unit/item that will be
 	      const reiser4_key * to_key /* last key to be removed */,
 	      reiser4_key * smallest_removed /* smallest key actually
 					      * removed */,
-	      unsigned flags)
+	      unsigned flags /* cut flags */ )
 {
 	int result;
 	carry_pool  pool;

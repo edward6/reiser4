@@ -49,7 +49,8 @@ int hashed_create( struct inode *object /* new directory */,
  * common_file_delete() to delete stat data.
  *
  */
-int hashed_delete( struct inode *object, struct inode *parent )
+int hashed_delete( struct inode *object /* object being deleted */, 
+		   struct inode *parent /* parent object */ )
 {
 	reiser4_dir_entry_desc entry;
 	struct dentry goodby_dots;
@@ -77,7 +78,8 @@ int hashed_delete( struct inode *object, struct inode *parent )
 /**
  * ->owns_item() for hashed directory object plugin.
  */
-int hashed_owns_item( const struct inode *inode, const tree_coord *coord )
+int hashed_owns_item( const struct inode *inode /* object to check against */, 
+		      const tree_coord *coord /* coord of item to check */ )
 {
 	reiser4_key item_key;
 
@@ -94,7 +96,9 @@ int hashed_owns_item( const struct inode *inode, const tree_coord *coord )
 }
 
 /** helper function for directory_file_create(). Create "." and ".." */
-static int create_dot_dotdot( struct inode *object, struct inode *parent )
+static int create_dot_dotdot( struct inode *object /* object to create dot and
+						    * dotdot for */, 
+			      struct inode *parent /* parent of @object */ )
 {
 	int           result;
 	struct dentry dots_entry;
@@ -153,7 +157,7 @@ static int create_dot_dotdot( struct inode *object, struct inode *parent )
  */
 file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 							* lookup into */,
-				  struct dentry *dentry )
+				  struct dentry *dentry /* name to look for */ )
 {
 	int                    result;
 	tree_coord             coord;
@@ -248,9 +252,14 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 /**
  * ->add_entry() method for hashed directory object plugin.
  */
-int hashed_add_entry( struct inode *object, struct dentry *where, 
-		      reiser4_object_create_data *data UNUSED_ARG, 
-		      reiser4_dir_entry_desc *entry )
+int hashed_add_entry( struct inode *object /* directory to add new name
+					    * in */, 
+		      struct dentry *where /* new name */, 
+		      reiser4_object_create_data *data UNUSED_ARG /* parameters
+								   * of new
+								   * object */, 
+		      reiser4_dir_entry_desc *entry /* parameters of new
+						     * directory entry */ )
 {
 	int                 result;
 	tree_coord          coord;
@@ -367,9 +376,10 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 }
 
 
-static int entry_actor( reiser4_tree *tree, 
-			tree_coord *coord, reiser4_lock_handle *lh,
-			void *args );
+static int entry_actor( reiser4_tree *tree /* tree being scanned */, 
+			tree_coord *coord /* current coord */, 
+			reiser4_lock_handle *lh /* current lock handle */,
+			void *args /* argument to scan */ );
 
 typedef struct entry_actor_args {
 	const char  *name;
@@ -397,9 +407,13 @@ typedef struct entry_actor_args {
  * the same key, checking name in each directory entry along the way.
  *
  */
-static int find_entry( const struct inode *dir, const struct qstr *name, 
-		       tree_coord *coord, reiser4_lock_handle *lh,
-		       znode_lock_mode mode, reiser4_dir_entry_desc *entry )
+static int find_entry( const struct inode *dir /* directory to scan */, 
+		       const struct qstr *name /* name to search for */, 
+		       tree_coord *coord /* resulting coord */, 
+		       reiser4_lock_handle *lh /* resulting lock handle */,
+		       znode_lock_mode mode /* required lock mode */,
+		       reiser4_dir_entry_desc *entry /* parameters of found
+						      * directory entry */ )
 {
 	int         result;
 
@@ -464,9 +478,10 @@ static int find_entry( const struct inode *dir, const struct qstr *name,
 /**
  * Function called by find_entry() to look for given name in the directory.
  */
-static int entry_actor( reiser4_tree *tree UNUSED_ARG, tree_coord *coord, 
-			reiser4_lock_handle *lh UNUSED_ARG,
-			void *entry_actor_arg )
+static int entry_actor( reiser4_tree *tree /* tree being scanned */, 
+			tree_coord *coord /* current coord */, 
+			reiser4_lock_handle *lh /* current lock handle */,
+			void *args /* argument to scan */ )
 {
 	reiser4_key       unit_key;
 	item_plugin      *iplug;

@@ -18,15 +18,14 @@ extern int lock_carry_node_tail( carry_node *node );
  * comments in the body.
  *
  */
-static carry_node *find_left_neighbor( carry_node *node, carry_level *doing )
+static carry_node *find_left_neighbor( carry_node *node /* node to find left
+							 * neighbor of */, 
+				       carry_level *doing /* level to scan */ )
 {
 	int         result;
 	carry_node *left;
 
-	/*
-	 * first, check whether left neighbor is already in a @doing
-	 * queue
-	 */
+	/* first, check whether left neighbor is already in a @doing queue */
 	left = find_left_carry( node, doing );
 	/*
 	 * if we are not at the left end of level, check whether left neighbor
@@ -99,7 +98,9 @@ static carry_node *find_left_neighbor( carry_node *node, carry_level *doing )
  * comments in the body.
  *
  */
-static carry_node *find_right_neighbor( carry_node *node, carry_level *doing )
+static carry_node *find_right_neighbor( carry_node *node /* node to find right
+							  * neighbor of */, 
+					carry_level *doing /* level to scan */ )
 {
 	int         result;
 	carry_node *right;
@@ -107,10 +108,7 @@ static carry_node *find_right_neighbor( carry_node *node, carry_level *doing )
 
 	init_lh( &lh );
 
-	/*
-	 * first, check whether right neighbor is already in a @doing
-	 * queue
-	 */
+	/* first, check whether right neighbor is already in a @doing queue */
 	right = find_right_carry( node, doing );
 	/*
 	 * if we are not at the right end of level, check whether right
@@ -188,16 +186,14 @@ static unsigned int space_needed_for_op( znode *node /* znode data are
  * how much space in @node is required to insert or paste @data at
  * @coord.
  */
-unsigned int space_needed( const znode *node /* node data are inserted
-					      * or pasted in */, 
-			   const tree_coord *coord /* coord where data
-						     * are inserted or
-						     * pasted at */,
-			   const reiser4_item_data *data /* data to
-							  * insert or
+unsigned int space_needed( const znode *node /* node data are inserted or
+					      * pasted in */, 
+			   const tree_coord *coord /* coord where data are
+						     * inserted or pasted
+						     * at */,
+			   const reiser4_item_data *data /* data to insert or
 							  * paste */, 
-			   int insertion /* non-0 is inserting,
-					  * 0---paste */ )
+			   int insertion /* non-0 is inserting, 0---paste */ )
 {
 	int          result;
 	common_item_plugin *iplug;
@@ -231,9 +227,9 @@ unsigned int space_needed( const znode *node /* node data are inserted
 }
 
 /* find &coord in parent where pointer to new child is to be stored. */
-static int find_new_child_coord( carry_op *op /* COP_INSERT carry
-					       * operation to insert
-					       * pointer to new child */ )
+static int find_new_child_coord( carry_op *op /* COP_INSERT carry operation to
+					       * insert pointer to new
+					       * child */ )
 {
 	int    result;
 	znode *node;
@@ -257,7 +253,8 @@ static int find_new_child_coord( carry_op *op /* COP_INSERT carry
 }
 
 /* additional amount of free space in @node required to complete @op */
-static int free_space_shortage( znode *node, carry_op *op )
+static int free_space_shortage( znode *node /* node to check */, 
+				carry_op *op /* operation being performed */ )
 {
 	assert( "nikita-1061", node != NULL );
 	assert( "nikita-1062", op != NULL );
@@ -289,11 +286,9 @@ static int free_space_shortage( znode *node, carry_op *op )
  *
  * See comments in the body.
  */
-static int make_space( carry_op *op /* carry operation, insert or
-				     * paste */, 
+static int make_space( carry_op *op /* carry operation, insert or paste */, 
 		       carry_level *doing /* current carry queue */, 
-		       carry_level *todo /* carry queue on the parent
-					  * level */ )
+		       carry_level *todo /* carry queue on the parent level */ )
 {
 	znode *node;
 	int    result;
@@ -537,7 +532,8 @@ static int insert_paste_common( carry_op *op /* carry operation being
 					      * performed */, 
 				carry_level *doing /* current carry level */, 
 				carry_level *todo /* next carry level */,
-				carry_insert_data *cdata /* pointer to cdata */,
+				carry_insert_data *cdata /* pointer to
+							  * cdata */,
 				tree_coord *coord /* insertion/paste coord */, 
 				reiser4_item_data *data /* data to be
 							 * inserted/pasted */ )
@@ -1188,8 +1184,7 @@ static int carry_update( carry_op *op /* operation to be performed */,
 static int carry_modify( carry_op *op /* operation to be performed */, 
 			 carry_level *doing UNUSED_ARG /* current carry
 							* level */, 
-			 carry_level *todo UNUSED_ARG /* next curry
-						       * level */ )
+			 carry_level *todo UNUSED_ARG /* next curry level */ )
 {
 	znode *node;
 
@@ -1213,19 +1208,16 @@ static int carry_modify( carry_op *op /* operation to be performed */,
 
 /* move items from @node during carry */
 static int carry_shift_data( sideof side /* in what direction to move data */, 
-			     tree_coord *insert_coord /* coord where
-							* new item is to
-							* be inserted */, 
-			     znode *node /* node which data are moved
-					  * from */,
+			     tree_coord *insert_coord /* coord where new item
+							* is to be inserted */, 
+			     znode *node /* node which data are moved from */,
 			     carry_level *doing /* active carry queue */, 
 			     carry_level *todo /* carry queue where new
-						* operations are to be
-						* put in */, 
+						* operations are to be put
+						* in */, 
 			     int including_insert_coord_p /* true if
 							   * @insertion_coord
-							   * can be
-							   * moved */)
+							   * can be moved */)
 {
 	int result;
 
@@ -1253,7 +1245,9 @@ static carry_node *find_dir_carry( carry_node *node, carry_level *level,
  * really gives any advantage. More statistics required.
  *
  */
-carry_node *find_left_carry( carry_node *node, carry_level *level )
+carry_node *find_left_carry( carry_node *node /* node to fine left neighbor
+					       * of */,
+			     carry_level *level /* level to scan */ )
 {
 	return find_dir_carry( node, level, 
 			       ( carry_iterator ) pool_level_list_prev );
@@ -1267,7 +1261,9 @@ carry_node *find_left_carry( carry_node *node, carry_level *level )
  * really gives any advantage. More statistics required.
  *
  */
-carry_node *find_right_carry( carry_node *node, carry_level *level )
+carry_node *find_right_carry( carry_node *node /* node to fine right neighbor
+					       * of */,
+			      carry_level *level /* level to scan */ )
 {
 	return find_dir_carry( node, level, 
 			       ( carry_iterator ) pool_level_list_next );
@@ -1279,8 +1275,12 @@ carry_node *find_right_carry( carry_node *node, carry_level *level )
  *
  * Helper function used by find_{left|right}_carry().
  */
-static carry_node *find_dir_carry( carry_node *node, carry_level *level,
-				   carry_iterator iterator )
+static carry_node *find_dir_carry( carry_node *node /* node to start scanning
+						     * from */, 
+				   carry_level *level /* level to scan */,
+				   carry_iterator iterator /* operation to
+							    * move to the next
+							    * node */)
 {
 	carry_node *neighbor;
 

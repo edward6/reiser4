@@ -592,17 +592,14 @@ static int carry_on_level( carry_level *doing /* queue of carry operations to
  * manages all its locks by itself, don't worry about this.
  * 
  */
-carry_op *post_carry( carry_level *level    /* queue where new
-						     * operation is to be
-						     * posted * at */, 
-			      carry_opcode op       /* opcode of operation */,
-			      znode *node           /* node on which this
-						     * operation will
-						     * operate */, 
-			      int apply_to_parent_p /* whether operation will
-						     * operate directly on
-						     * @node or on it
-						     * parent. */ )
+carry_op *post_carry( carry_level *level    /* queue where new operation is to
+					     * be posted at */, 
+		      carry_opcode op       /* opcode of operation */,
+		      znode *node           /* node on which this operation
+					     * will operate */, 
+		      int apply_to_parent_p /* whether operation will operate
+					     * directly on @node or on it
+					     * parent. */ )
 {
 	carry_op   *result;
 	carry_node *child;
@@ -639,8 +636,8 @@ carry_op *post_carry( carry_level *level    /* queue where new
  *
  */
 carry_node *add_to_carry( znode *node         /* node to be added */, 
-				  carry_level *queue  /* queue where node to
-						       * be added to */ )
+			  carry_level *queue  /* queue where node to be added
+					       * to */ )
 {
 	carry_node *result;
 	int lock_result;
@@ -671,7 +668,9 @@ int carry_node_num( const carry_level *level )
 }
 
 /* initialise carry queue */
-void init_carry_level( carry_level *level, carry_pool *pool )
+void init_carry_level( carry_level *level /* level to initialise */, 
+		       carry_pool *pool /* pool @level will allocate objects
+					 * from */ )
 {
 	assert( "nikita-1045", level != NULL );
 	assert( "nikita-967", pool != NULL );
@@ -684,7 +683,7 @@ void init_carry_level( carry_level *level, carry_pool *pool )
 }
 
 /* initialise pools within queue */
-void init_carry_pool( carry_pool *pool )
+void init_carry_pool( carry_pool *pool /* pool to initialise */ )
 {
 	assert( "nikita-945", pool != NULL );
 
@@ -695,7 +694,7 @@ void init_carry_pool( carry_pool *pool )
 }
 
 /* finish with queue pools */
-void done_carry_pool( carry_pool *pool UNUSED_ARG )
+void done_carry_pool( carry_pool *pool UNUSED_ARG /* pool to destroy */ )
 {
 	reiser4_done_pool( &pool -> op_pool );
 	reiser4_done_pool( &pool -> node_pool );
@@ -711,16 +710,14 @@ void done_carry_pool( carry_pool *pool UNUSED_ARG )
  * automatically. To control ordering use @order and @reference parameters.
  *
  */
-carry_node *add_carry( carry_level *level     /* &carry_level to add
-						       * node to */, 
-			       pool_ordering order    /* where to insert: at
-						       * the beginning of
-						       * @level, before
-						       * @reference, after
-						       * @reference, at the
-						       * end of @level */,
-			       carry_node  *reference /* reference node for
-						       * insertion */ )
+carry_node *add_carry( carry_level *level     /* &carry_level to add node
+					       * to */, 
+		       pool_ordering order    /* where to insert: at the
+					       * beginning of @level, before
+					       * @reference, after @reference,
+					       * at the end of @level */,
+		       carry_node  *reference /* reference node for
+					       * insertion */ )
 {
 	carry_node *result;
 
@@ -742,14 +739,11 @@ carry_node *add_carry( carry_level *level     /* &carry_level to add
  * @order and @reference parameters.
  *
  */
-carry_op *add_op( carry_level *level  /* &carry_level to add node
-					       * to */, 
-			  pool_ordering order /* where to insert: at the
-					       * beginning of @level, before
-					       * @reference, after @reference,
-					       * at the end of @level */,
-			  carry_op *reference /* reference node for
-					       * insertion */ )
+carry_op *add_op( carry_level *level  /* &carry_level to add node to */, 
+		  pool_ordering order /* where to insert: at the beginning of
+				       * @level, before @reference, after
+				       * @reference, at the end of @level */,
+		  carry_op *reference /* reference node for insertion */ )
 {
 	carry_op *result;
 
@@ -774,7 +768,10 @@ carry_op *add_op( carry_level *level  /* &carry_level to add node
  * parent, it has corresponding bit (ZNODE_NEW) set in zstate.
  *
  */
-carry_node *find_begetting_brother( carry_node *node, carry_level *kin UNUSED_ARG )
+carry_node *find_begetting_brother( carry_node *node /* node to start search
+						      * from */, 
+				    carry_level *kin UNUSED_ARG /* level to
+								 * scan */ )
 {
 	carry_node *scan;
 	
@@ -798,7 +795,7 @@ carry_node *find_begetting_brother( carry_node *node, carry_level *kin UNUSED_AR
 }
 
 /* lock all carry nodes in @level */
-static int lock_carry_level( carry_level *level )
+static int lock_carry_level( carry_level *level /* level to lock */ )
 {
 	int         result;
 	carry_node *node;
@@ -829,7 +826,8 @@ static int lock_carry_level( carry_level *level )
  * neighbor's right delimiting key to conincide with least key in @node.
  *
  */
-static void sync_dkeys( carry_node *node, carry_level *doing UNUSED_ARG )
+static void sync_dkeys( carry_node *node /* node to update */, 
+			carry_level *doing UNUSED_ARG /* level @node is in */ )
 {
 	znode *left;
 	znode *right;
@@ -867,7 +865,9 @@ static void sync_dkeys( carry_node *node, carry_level *doing UNUSED_ARG )
 }
 
 /* unlock all carry nodes in @level */
-static void unlock_carry_level( carry_level *level, int failure )
+static void unlock_carry_level( carry_level *level /* level to unlock */, 
+				int failure /* true if unlocking owing to
+					     * failure */ )
 {
 	carry_node *node;
  	carry_node *tmp_node;
@@ -909,7 +909,7 @@ static void unlock_carry_level( carry_level *level, int failure )
  *
  * Unlock nodes and release all allocated resources
  */
-static void done_carry_level( carry_level *level )
+static void done_carry_level( carry_level *level /* level to finish */ )
 {
 	carry_node *node;
 	carry_node *tmp_node;
@@ -1312,13 +1312,13 @@ carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
  */
 
 /* get symbolic name for boolean */
-static const char *tf( int boolean )
+static const char *tf( int boolean /* truth value */)
 {
 	return boolean ? "t" : "f";
 }
 
 /* symbolic name for carry operation */
-static const char *carry_op_name( carry_opcode op )
+static const char *carry_op_name( carry_opcode op /* carry opcode */ )
 {
 	switch( op ) {
 	case COP_INSERT:
@@ -1344,7 +1344,8 @@ static const char *carry_op_name( carry_opcode op )
 }
 
 /* dump information about carry node */
-void print_carry( const char *prefix, carry_node *node )
+void print_carry( const char *prefix /* prefix to print */, 
+		  carry_node *node /* node to print */ )
 {
 	if( node == NULL ) {
 		info( "%s: null\n", prefix );
@@ -1359,7 +1360,8 @@ void print_carry( const char *prefix, carry_node *node )
 }
 
 /* dump information about carry operation */
-void print_op( const char *prefix, carry_op *op )
+void print_op( const char *prefix /* prefix to print */, 
+	       carry_op *op /* operation to print */ )
 {
 	if( op == NULL ) {
 		info( "%s: null\n", prefix );
@@ -1395,7 +1397,8 @@ void print_op( const char *prefix, carry_op *op )
 }
 
 /* dump information about all nodes and operations in a @level */
-void print_level( const char *prefix, carry_level *level )
+void print_level( const char *prefix /* prefix to print */, 
+		  carry_level *level /* level to print */)
 {
 	carry_node *node;
 	carry_node *tmp_node;

@@ -14,19 +14,17 @@ static __u64 reserved_for_gid( const struct super_block *super, gid_t gid );
 static __u64 reserved_for_uid( const struct super_block *super, uid_t uid );
 static __u64 reserved_for_root( const struct super_block *super );
 
-/**
- * Return reiser4-specific part of super block
- */
+/** Return reiser4-specific part of super block */
 reiser4_super_info_data *
-get_super_private_nocheck( const struct super_block *super )
+get_super_private_nocheck( const struct super_block *super /* super block
+							    * queried */ )
 {
 	return ( reiser4_super_info_data * )super -> u.generic_sbp;
 }
 
-/**
- * Return reiser4-specific part of super block
- */
-reiser4_super_info_data *get_super_private( const struct super_block *super )
+/** Return reiser4-specific part of super block */
+reiser4_super_info_data *get_super_private( const struct super_block *super /* super
+block queried */ )
 {
 	assert( "nikita-447", super != NULL );
 	return ( reiser4_super_info_data * )super -> u.generic_sbp;
@@ -35,17 +33,16 @@ reiser4_super_info_data *get_super_private( const struct super_block *super )
 /**
  * Return reiser4 fstype: value that is returned in ->f_type field by statfs()
  */
-long statfs_type( const struct super_block *super UNUSED_ARG )
+long statfs_type( const struct super_block *super UNUSED_ARG /* super block
+							      * queried */ )
 {
 	assert( "nikita-448", super != NULL );
 	assert( "nikita-449", is_reiser4_super( super ) );
 	return ( long ) REISER4_SUPER_MAGIC;
 }
 
-/** 
- * block size used by file system corresponding to @super
- */
-int reiser4_blksize( const struct super_block *super )
+/** block size used by file system corresponding to @super */
+int reiser4_blksize( const struct super_block *super /* super block queried */ )
 {
 	assert( "nikita-450", super != NULL );
 	assert( "nikita-451", is_reiser4_super( super ) );
@@ -57,10 +54,9 @@ int reiser4_blksize( const struct super_block *super )
 
 /* functions to read/modify fields of reiser4_super_info_data */
 
-/**
- * get number of blocks in file system
- */
-__u64 reiser4_block_count( const struct super_block *super )
+/** get number of blocks in file system */
+__u64 reiser4_block_count( const struct super_block *super /* super block
+							      queried */ )
 {
 	assert( "vs-494", super != NULL );
 	assert( "vs-495", is_reiser4_super( super ) );
@@ -75,10 +71,9 @@ void reiser4_set_block_count( const struct super_block *super, __u64 nr )
 	get_super_private( super ) -> block_count2 = nr;
 }
 
-/**
- * amount of blocks used (allocated for data) in file system
- */
-__u64 reiser4_data_blocks( const struct super_block *super )
+/** amount of blocks used (allocated for data) in file system */
+__u64 reiser4_data_blocks( const struct super_block *super /* super block
+							      queried */ )
 {
 	assert( "nikita-452", super != NULL );
 	assert( "nikita-453", is_reiser4_super( super ) );
@@ -93,10 +88,9 @@ void reiser4_set_data_blocks( const struct super_block *super, __u64 nr )
 	get_super_private( super ) -> blocks_used2 = nr;
 }
 
-/**
- * amount of free blocks in file system
- */
-__u64 reiser4_free_blocks( const struct super_block *super )
+/** amount of free blocks in file system */
+__u64 reiser4_free_blocks( const struct super_block *super /* super block
+							      queried */ )
 {
 	assert( "nikita-454", super != NULL );
 	assert( "nikita-455", is_reiser4_super( super ) );
@@ -111,7 +105,7 @@ void reiser4_set_free_blocks( const struct super_block *super, __u64 nr )
 	get_super_private( super ) -> blocks_free2 = nr;
 }
 
-/* increment reiser4_super_info_data's counter of free blocks */
+/** increment reiser4_super_info_data's counter of free blocks */
 void reiser4_inc_free_blocks( const struct super_block *super )
 {
 	assert( "vs-496",
@@ -156,11 +150,10 @@ void reiser4_dec_free_committed_blocks( const struct super_block *super )
 	get_super_private( super ) -> blocks_free_committed2 --;
 }
 
-/**
- * amount of reserved blocks in file system
- */
-long reiser4_reserved_blocks( const struct super_block *super, 
-			      uid_t uid, gid_t gid )
+/** amount of blocks in the file system reserved for @uid and @gid */
+long reiser4_reserved_blocks( const struct super_block *super /* super block
+								 queried */, 
+			      uid_t uid /* user id */, gid_t gid /* group id */ )
 {
 	long reserved;
 
@@ -180,7 +173,9 @@ long reiser4_reserved_blocks( const struct super_block *super,
 /**
  * objectid allocator used by this file system
  */
-reiser4_oid_allocator *get_oid_allocator( const struct super_block *super )
+reiser4_oid_allocator *get_oid_allocator( const struct super_block *super /* super
+									     block
+									     queried */ )
 {
 	assert( "nikita-458", super != NULL );
 	assert( "nikita-459", is_reiser4_super( super ) );
@@ -200,7 +195,8 @@ reiser4_space_allocator *reiser4_get_space_allocator( const struct super_block *
 /**
  * return fake inode used to bind formatted nodes in the page cache
  */
-struct inode *get_super_fake( const struct super_block *super )
+struct inode *get_super_fake( const struct super_block *super /* super block
+								 queried */ )
 {
 	assert( "nikita-1757", super != NULL );
 	return get_super_private( super ) -> fake;
@@ -209,7 +205,8 @@ struct inode *get_super_fake( const struct super_block *super )
 /**
  * tree used by this file system
  */
-reiser4_tree *get_tree( const struct super_block *super )
+reiser4_tree *get_tree( const struct super_block *super /* super block
+							 * queried */ )
 {
 	assert( "nikita-460", super != NULL );
 	assert( "nikita-461", is_reiser4_super( super ) );
@@ -226,7 +223,7 @@ reiser4_tree *get_tree( const struct super_block *super )
  * This is used by reiser4_link().
  *
  */
-int reiser4_adg( const struct super_block *super )
+int reiser4_adg( const struct super_block *super /* super block queried */ )
 {
 	return get_super_private( super ) -> adg;
 }
@@ -235,7 +232,8 @@ int reiser4_adg( const struct super_block *super )
  * Check that @super is (looks like) reiser4 super block. This is mainly for
  * use in assertions.
  */
-int is_reiser4_super( const struct super_block *super )
+int is_reiser4_super( const struct super_block *super /* super block
+						       * queried */ )
 {
 	return ( super != NULL ) && 
 		( super -> s_op == &reiser4_super_operations );
@@ -263,7 +261,8 @@ struct super_block *reiser4_get_current_sb()
 /**
  * inode generation to use for the newly created inode
  */
-__u32 new_inode_generation( const struct super_block *super )
+__u32 new_inode_generation( const struct super_block *super /* super block
+							     * queried */ )
 {
 	assert( "nikita-464", is_reiser4_super( super ) );
 	return get_super_private( super ) -> inode_generation;
@@ -272,8 +271,10 @@ __u32 new_inode_generation( const struct super_block *super )
 /**
  * amount of blocks reserved for given group in file system
  */
-static __u64 reserved_for_gid( const struct super_block *super UNUSE, 
-			       gid_t gid UNUSE )
+static __u64 reserved_for_gid( const struct super_block *super UNUSE/* super
+								       block
+								       queried */,
+			       gid_t gid UNUSE /* group id */ )
 {
 	return 0;
 }
@@ -281,8 +282,10 @@ static __u64 reserved_for_gid( const struct super_block *super UNUSE,
 /**
  * amount of blocks reserved for given user in file system
  */
-static __u64 reserved_for_uid( const struct super_block *super UNUSE, 
-			       uid_t uid UNUSE )
+static __u64 reserved_for_uid( const struct super_block *super UNUSE /* super
+									block
+									queried */, 
+			       uid_t uid UNUSE /* user id */ )
 {
 	return 0;
 }
@@ -290,7 +293,9 @@ static __u64 reserved_for_uid( const struct super_block *super UNUSE,
 /**
  * amount of blocks reserved for super user in file system
  */
-static __u64 reserved_for_root( const struct super_block *super UNUSE )
+static __u64 reserved_for_root( const struct super_block *super UNUSE /* super
+									 block
+									 queried */ )
 {
 	return 0;
 }
@@ -298,12 +303,13 @@ static __u64 reserved_for_root( const struct super_block *super UNUSE )
 
 
 int init_tree( reiser4_tree *tree /* pointer to structure being
-					   * initialised */, 
-		       const reiser4_block_nr *root_block /* address of a
-							    * root block on a
-							    * disk */,
-		       tree_level height /* height of a tree */, 
-		       node_plugin *nplug, node_read_actor read_node )
+				   * initialised */, 
+	       const reiser4_block_nr *root_block /* address of a root block
+						   * on a disk */,
+	       tree_level height /* height of a tree */, 
+	       node_plugin *nplug /* default node plugin */, 
+	       node_read_actor read_node /* function to read nodes from
+					  * disk */ )
 {
 	assert( "nikita-306", tree != NULL );
 	assert( "nikita-307", root_block != NULL );

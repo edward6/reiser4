@@ -6,20 +6,28 @@
  * Tail policy plugins
  */
 
-/* does this actually get used?  Why is it missing a tail for files larger than or equal to 12k policy */
+/*
+ * Tail policy is used by object plugin (of regular file) to convert file
+ * between two representations. TO BE CONTINUED.
+ *
+ * Currently only trivial policies are implemented.
+ *
+ */
 
 #include "../reiser4.h"
 
 /** Never store file's tail as direct item */
-static int never_tail( const struct inode *inode UNUSED_ARG, 
-		       loff_t size UNUSED_ARG )
+static int never_tail( const struct inode *inode UNUSED_ARG /* inode to
+							     * operate on */, 
+		       loff_t size UNUSED_ARG /* new object size */ )
 {
 	return 0;
 }
 
 /** Always store file's tail as direct item */
-static int always_tail( const struct inode *inode UNUSED_ARG,
-			loff_t size UNUSED_ARG )
+static int always_tail( const struct inode *inode UNUSED_ARG /* inode to
+							      * operate on */,
+			loff_t size UNUSED_ARG /* new object size */ )
 {
 	return 1;
 }

@@ -52,7 +52,8 @@
 /**
  * return starting key of the leftmost item in the @node
  */
-reiser4_key *leftmost_key_in_node( const znode *node, reiser4_key *key )
+reiser4_key *leftmost_key_in_node( const znode *node /* node to query */, 
+				   reiser4_key *key /* resulting key */ )
 {
 	assert( "nikita-1634", node != NULL );
 	assert( "nikita-1635", key != NULL );
@@ -68,7 +69,7 @@ reiser4_key *leftmost_key_in_node( const znode *node, reiser4_key *key )
 }
 
 /** helper function: convert integer to its hex representation */
-static char hex_to_ascii( const int hex )
+static char hex_to_ascii( const int hex /* hex digit */ )
 {
 	assert( "nikita-1081", ( 0 <= hex ) && ( hex < 0x10 ) );
 
@@ -90,7 +91,7 @@ void indent (unsigned indentation)
 
 /** helper function used to indent output for @node during recursive tree
  * printing */
-void indent_znode( const znode *node )
+void indent_znode( const znode *node /* current node */ )
 {
 	indent( current_tree -> height - znode_get_level( node ) );
 }
@@ -98,7 +99,8 @@ void indent_znode( const znode *node )
 /**
  * debugging aid: output human readable information about @node
  */
-void print_znode_content( const znode *node, __u32 flags )
+void print_znode_content( const znode *node /* node to print */, 
+			  __u32 flags /* print flags */ )
 {
 	unsigned i;
 	tree_coord coord;
@@ -186,10 +188,9 @@ void print_znode_content( const znode *node, __u32 flags )
 }
 
 #if REISER4_DEBUG
-/**
- * debugging aid: check consistency of @node content
- */
-void node_check( const znode *node, __u32 flags )
+/** debugging aid: check consistency of @node content */
+void node_check( const znode *node /* node to check */, 
+		 __u32 flags /* check flags */ )
 {
 	const char * mes;
 	

@@ -51,7 +51,8 @@
 /**
  * initialise new pool object
  */
-static void reiser4_init_pool_obj( reiser4_pool_header *h )
+static void reiser4_init_pool_obj( reiser4_pool_header *h /* pool object to
+							   * initialise */ )
 {
 	pool_usage_list_clean( h );
 	pool_level_list_clean( h );
@@ -61,8 +62,10 @@ static void reiser4_init_pool_obj( reiser4_pool_header *h )
 /**
  * initialise new pool
  */
-void reiser4_init_pool( reiser4_pool *pool, 
-			size_t obj_size, int num_of_objs, char *data )
+void reiser4_init_pool( reiser4_pool *pool /* pool to initialise */, 
+			size_t obj_size /* size of objects in @pool */, 
+			int num_of_objs /* number of preallocated objects */, 
+			char *data /* area for preallocated objects */ )
 {
 	reiser4_pool_header *h;
 	int i;
@@ -94,7 +97,7 @@ void reiser4_init_pool( reiser4_pool *pool,
  * allocated objects.
  *
  */
-void reiser4_done_pool( reiser4_pool *pool UNUSED_ARG )
+void reiser4_done_pool( reiser4_pool *pool UNUSED_ARG /* pool to destroy */ )
 {
 }
 
@@ -105,7 +108,8 @@ void reiser4_done_pool( reiser4_pool *pool UNUSED_ARG )
  * allocation.
  *
  */
-void *reiser4_pool_alloc( reiser4_pool *pool )
+void *reiser4_pool_alloc( reiser4_pool *pool /* pool to allocate object
+					      * from */ )
 {
 	reiser4_pool_header *result;
 
@@ -143,7 +147,8 @@ void *reiser4_pool_alloc( reiser4_pool *pool )
  * return object back to the pool
  *
  */
-void reiser4_pool_free( reiser4_pool_header *h )
+void reiser4_pool_free( reiser4_pool_header *h /* pool to return object back
+						* into */)
 {
 	assert( "nikita-961", h != NULL );
 	assert( "nikita-962", h -> pool != NULL );

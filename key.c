@@ -25,10 +25,8 @@ static const reiser4_key MAXIMAL_KEY = {
 	.el = { { ~0ull }, { ~0ull }, { ~0ull } }
 };
 
-/**
- * Initialise key.
- */
-void key_init( reiser4_key *key )
+/** Initialise key. */
+void key_init( reiser4_key *key /* key to init */ )
 {
 	assert( "nikita-1169", key != NULL );
 	xmemset( key, 0, sizeof *key );
@@ -73,7 +71,8 @@ const reiser4_key *max_key( void )
 /** compare `k1' and `k2'.  This function is a heart of "key allocation
     policy". All you need to implement new policy is to add yet another
     clause here. */
-cmp_t keycmp( const reiser4_key *k1, const reiser4_key *k2 )
+cmp_t keycmp( const reiser4_key *k1 /* first key to compare */, 
+	      const reiser4_key *k2 /* second key to compare */ )
 {
 	cmp_t result;
 
@@ -113,7 +112,7 @@ cmp_t keycmp( const reiser4_key *k1, const reiser4_key *k2 )
 }
 
 /** debugging aid: print symbolic name of key type */
-static const char *type_name( unsigned int key_type )
+static const char *type_name( unsigned int key_type /* key type */ )
 {
 	switch( key_type ) {
 	case KEY_FILE_NAME_MINOR:
@@ -132,7 +131,8 @@ static const char *type_name( unsigned int key_type )
 }
 
 /** debugging aid: print human readable information about key */
-void print_key( const char *prefix, const reiser4_key *key )
+void print_key( const char *prefix /* prefix to print */, 
+		const reiser4_key *key /* key to print */ )
 {
 	/* turn bold on */
 	/* printf ("\033[1m"); */
@@ -149,7 +149,8 @@ void print_key( const char *prefix, const reiser4_key *key )
 	/* printf ("\033[m\017"); */
 }
 
-char *sprintf_key( char *buffer, const reiser4_key *key )
+char *sprintf_key( char *buffer /* buffer to print key into */, 
+		   const reiser4_key *key /* key to print */ )
 {
 	sprintf( buffer, "(%Lx:%x:%Lx:%Lx:%Lx)",
 		 get_key_locality( key ), get_key_type( key ),

@@ -229,7 +229,6 @@ extern int init_tree( reiser4_tree *tree,
 			      node_plugin *default_plugin,
 			      node_read_actor read_node );
 extern void reiser4_done_tree( reiser4_tree *tree );
-extern void insert_znode( tree_coord *coord, znode *node );
 extern node_plugin *node_plugin_by_coord ( const tree_coord *coord );
 extern node_plugin *node_plugin_by_node( const znode *node );
 extern int is_coord_in_node( const tree_coord *coord );

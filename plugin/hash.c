@@ -9,7 +9,8 @@
 #include "../reiser4.h"
 
 /** old rupasov (yura) hash */
-static __u64 rupasov_hash( const unsigned char *name, int len )
+static __u64 rupasov_hash( const unsigned char *name /* name to hash */, 
+			   int len /* @name's length */ )
 {
 	int   i;
 	int   j;
@@ -53,7 +54,8 @@ static __u64 rupasov_hash( const unsigned char *name, int len )
 }
 
 /** r5 hash */
-static __u64 r5_hash( const unsigned char *name, int len UNUSED_ARG )
+static __u64 r5_hash( const unsigned char *name /* name to hash */, 
+		      int len /* @name's length */ )
 {
 	__u64 a = 0;
 
@@ -82,7 +84,8 @@ static __u64 r5_hash( const unsigned char *name, int len UNUSED_ARG )
  *
  * This code was blindly upgraded to __u64 by s/__u32/__u64/g.
  */
-static __u64 tea_hash( const unsigned char *name, int len )
+static __u64 tea_hash( const unsigned char *name /* name to hash */, 
+		       int len /* @name's length */ )
 {
 	__u64 k[] = { 0x9464a485u, 0x542e1a94u, 0x3e846bffu, 0xb75bcfc3u }; 
 
@@ -247,7 +250,8 @@ static __u64 tea_hash( const unsigned char *name, int len )
  *   domain.
  * 
  */
-static __u64 fnv1_hash( const unsigned char *name, int len UNUSED_ARG )
+static __u64 fnv1_hash( const unsigned char *name /* name to hash */, 
+			int len /* @name's length */ )
 {
 	unsigned long long a = 0xcbf29ce484222325ull;
 	const unsigned long long fnv_64_prime = 0x100000001b3ull;
@@ -268,7 +272,8 @@ static __u64 fnv1_hash( const unsigned char *name, int len UNUSED_ARG )
 
 /** degenerate hash function used to simplify testing of non-unique key
  * handling */
-static __u64 deg_hash( const unsigned char *name UNUSED_ARG, int len UNUSED_ARG )
+static __u64 deg_hash( const unsigned char *name /* name to hash */, 
+		       int len /* @name's length */ )
 {
 	trace_on( TRACE_DIR, "Hashing %s\n", name );
 	return 0xc0c0c0c010101010ull;
