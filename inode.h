@@ -108,7 +108,7 @@ extern struct inode * reiser4_iget( struct super_block * super,
 				    const reiser4_key *key );
 extern int reiser4_inode_find_actor( struct inode *inode, void *opaque);
 
-extern int reiser4_write_sd( const struct inode *object );
+extern int reiser4_write_sd( struct inode *object );
 extern int reiser4_add_nlink( struct inode *object, int write_sd_p );
 extern int reiser4_del_nlink( struct inode *object, int write_sd_p );
 extern int truncate_object( struct inode *inode, loff_t size );

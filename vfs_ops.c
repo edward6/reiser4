@@ -930,7 +930,7 @@ static int reiser4_permission( struct inode *inode /* object */,
 /**
  * update inode stat-data by calling plugin
  */
-int reiser4_write_sd( const struct inode *object )
+int reiser4_write_sd( struct inode *object )
 {
 	file_plugin *fplug;
 
@@ -1905,6 +1905,7 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	write_lock( &page -> mapping -> page_lock );
 	spin_lock_tree( current_tree );
 
+	result = 0;
 	if( ( atomic_read( &node -> x_count ) == 0 ) && !PageDirty( page ) ) {
 		if( node -> atom == NULL ) {
 			/*
@@ -1916,14 +1917,13 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 			 */
 			page_detach_jnode( page );
 			result = 1;
-		} else
-			result = 0;
+		}
 	}
 
 	spin_unlock_tree( current_tree );
 	write_unlock( &page -> mapping -> page_lock );
 
-	REISER4_EXIT (result);
+	REISER4_EXIT( result );
 }
 
 int reiser4_writepages( struct address_space *mapping UNUSED_ARG, 
