@@ -135,7 +135,7 @@ struct jnode
 	spinlock_t   guard;
 
 	/* the real blocknr (as far as the parent node is concerned) */
-	reiser4_disk_addr blocknr;
+	reiser4_block_nr blocknr;
 
 	/* the struct page pointer
 	 *
@@ -488,15 +488,15 @@ static inline void reiser4_wake_up (reiser4_lock_stack *owner)
 }
 
 extern znode *zref( znode *node );
-extern znode *zget( reiser4_tree *tree, const reiser4_disk_addr *const block,
+extern znode *zget( reiser4_tree *tree, const reiser4_block_nr *const block,
 		    znode *parent, tree_level level, int gfp_flag );
-extern znode *zlook( reiser4_tree *tree, const reiser4_disk_addr *const block, tree_level level );
+extern znode *zlook( reiser4_tree *tree, const reiser4_block_nr *const block, tree_level level );
 extern void zput( znode *node );
 extern int zload( znode *node );
 extern int zinit_new( znode *node );
 extern int zunload( znode *node );
 extern int zrelse( znode *node, int count );
-extern void znode_change_parent( znode *new_parent, reiser4_disk_addr *block );
+extern void znode_change_parent( znode *new_parent, reiser4_block_nr *block );
 
 extern int zparse( znode *node );
 extern char *zdata( const znode *node );
@@ -504,7 +504,7 @@ extern unsigned znode_size( const znode *node );
 extern unsigned znode_free_space( znode *node );
 extern int znode_is_loaded( const znode *node );
 extern int znode_is_loaded_nolock( const znode *node );
-extern const reiser4_disk_addr *znode_get_block( const znode *node );
+extern const reiser4_block_nr* znode_get_block( const znode *node );
 
 extern reiser4_key *znode_get_rd_key( znode *node );
 extern reiser4_key *znode_get_ld_key( znode *node );
