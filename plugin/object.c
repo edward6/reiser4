@@ -531,6 +531,8 @@ delete_object(struct inode *inode /* object to remove */, int mode /* cut mode *
 	int result;
 
 	assert("nikita-1477", inode != NULL);
+	/* FIXME: if file body deletion failed (i/o error, for instance),
+	   inode->i_size can be != 0 here */
 	assert("nikita-3420", inode->i_size == 0 || S_ISLNK(inode->i_mode));
 	assert("nikita-3421", inode->i_nlink == 0);
 
