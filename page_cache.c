@@ -557,7 +557,7 @@ void print_page( struct page *page )
 	info( "page index: %lu virtual: %p mapping: %p count: %i private: %lx\n",
 	      page -> index, page -> virtual, page -> mapping, 
 	      atomic_read( &page -> count ), page -> private );
-	info( "flags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s\n",
+	info( "\tflags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s\n",
 	      page_flag_name( page,  PG_locked ),
 	      page_flag_name( page,  PG_error ),
 	      page_flag_name( page,  PG_referenced ),
@@ -577,7 +577,7 @@ void print_page( struct page *page )
 	      page_flag_name( page,  PG_writeback ),
 	      page_flag_name( page,  PG_nosave ) );
 	if( jprivate( page ) != NULL ) {
-		info_jnode( "page jnode", jprivate( page ) );
+		info_jnode( "\tpage jnode", jprivate( page ) );
 		info( "\n" );
 	}
 }
