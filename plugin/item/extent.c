@@ -2406,7 +2406,7 @@ static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first,
 		do {
 			assert ("vs-350", buffer_mapped (bh));
 			bh->b_blocknr = first;
-			/* FIXME-VS: do we need to set jnode's block here? */
+
 			j = jnode_of_page (page);
 			assert ("vs-351", !jnode_has_block (j));
 			jnode_set_block (j, &first);
@@ -2420,7 +2420,7 @@ static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first,
 		unlock_page (page);
 		page_cache_release (page);
 		if (!count)
-			break;
+			break; 
 	}
 	iput (inode);
 }
