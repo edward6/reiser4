@@ -84,6 +84,13 @@ errno_t reiserfs_format_sync(reiserfs_format_t *format) {
 	format->plugin->format_ops, sync, format->entity);
 }
 
+errno_t reiserfs_format_check(reiserfs_format_t *format, int flags) {
+    aal_assert("umka-829", format != NULL, return -1);
+
+    return libreiser4_plugin_call(return -1, format->plugin->format_ops, 
+	check, format->entity, flags);
+}
+
 #endif
 
 reiserfs_format_t *reiserfs_format_reopen(reiserfs_format_t *format, 
@@ -107,6 +114,13 @@ void reiserfs_format_close(reiserfs_format_t *format) {
     
 error_free_format:    
     aal_free(format);
+}
+
+int reiserfs_format_confirm(reiserfs_format_t *format) {
+    aal_assert("umka-832", format != NULL, return 0);
+
+    return libreiser4_plugin_call(return 0, format->plugin->format_ops, 
+	confirm, format->entity);
 }
 
 const char *reiserfs_format_format(reiserfs_format_t *format) {

@@ -149,7 +149,21 @@ blk_t reiserfs_alloc_alloc(reiserfs_alloc_t *alloc) {
 	alloc, alloc->entity);
 }
 
+errno_t reiserfs_alloc_check(reiserfs_alloc_t *alloc, int flags) {
+    aal_assert("umka-833", alloc != NULL, return -1);
+
+    return libreiser4_plugin_call(return -1, alloc->plugin->alloc_ops, 
+	check, alloc->entity, flags);
+}
+
 #endif
+
+int reiserfs_alloc_confirm(reiserfs_alloc_t *alloc) {
+    aal_assert("umka-834", alloc != NULL, return 0);
+
+    return libreiser4_plugin_call(return 0, alloc->plugin->alloc_ops, 
+	confirm, alloc->entity);
+}
 
 /* 
     Checks whether specified block used or not. Returns TRUE for used and FALSE 

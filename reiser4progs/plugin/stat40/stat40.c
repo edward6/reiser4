@@ -50,7 +50,7 @@ static errno_t stat40_estimate(uint16_t pos, reiserfs_item_hint_t *hint) {
 
 #endif
 
-static errno_t stat40_check(reiserfs_stat40_base_t *stat) {
+static errno_t stat40_check(reiserfs_stat40_base_t *stat, int flags) {
     return 0;
 }
 
@@ -89,15 +89,15 @@ static reiserfs_plugin_t stat40_plugin = {
 	},
 	.common = {
 #ifndef ENABLE_COMPACT
-	    .create = (errno_t (*)(void *, void *))stat40_create,
+	    .create = (errno_t (*)(const void *, reiserfs_item_hint_t *))stat40_create,
 	    .estimate = (errno_t (*)(uint16_t, reiserfs_item_hint_t *))stat40_estimate,
 #else
 	    .create = NULL,
 	    .estimate = NULL,
 #endif
-	    .confirm = (errno_t (*)(void *))stat40_confirm,
-	    .check = (errno_t (*)(void *))stat40_check,
-	    .print = (errno_t (*)(void *, char *, uint16_t))stat40_print,
+	    .confirm = (errno_t (*)(const void *))stat40_confirm,
+	    .check = (errno_t (*)(const void *, int))stat40_check,
+	    .print = (errno_t (*)(const void *, char *, uint16_t))stat40_print,
 	    .minsize = (uint16_t (*)(void))stat40_minsize,
 
 	    .maxkey = NULL,
@@ -109,8 +109,8 @@ static reiserfs_plugin_t stat40_plugin = {
 	},
 	.specific = {
 	    .stat = {
-		.get_mode = (uint16_t (*)(void *))stat40_get_mode,
-		.set_mode = (void (*)(void *, uint16_t))stat40_get_mode
+		.get_mode = (uint16_t (*)(const void *))stat40_get_mode,
+		.set_mode = (void (*)(const void *, uint16_t))stat40_get_mode
 	    }
 	}
     }

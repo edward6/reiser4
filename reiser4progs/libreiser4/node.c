@@ -95,11 +95,6 @@ reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk,
     if (!(node->key_plugin = libreiser4_factory_find(REISERFS_KEY_PLUGIN, key_pid))) 
 	libreiser4_factory_failed(goto error_free_block, find, key, key_pid);
     
-    /* 
-	First of all we are trying to open node as one of reiser4 node. After our
-	attempt failed, we will try to open it as reiser3 node. In the case this 
-	attempt failed too, we will report about error.
-    */
     node_pid = *((uint16_t *)node->block->data);
     
     /* Finding the node plugin by its id */
@@ -222,6 +217,13 @@ errno_t reiserfs_node_split(reiserfs_node_t *node,
     }
     
     return 0;
+}
+
+int reiserfs_node_confirm(reiserfs_node_t *node) {
+    aal_assert("umka-123", node != NULL, return 0);
+    
+    return libreiser4_plugin_call(return 0, node->node_plugin->node_ops, 
+	confirm, node->entity);
 }
 
 /* Checks node for validness */

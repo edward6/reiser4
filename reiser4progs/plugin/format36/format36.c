@@ -149,7 +149,7 @@ static reiserfs_format36_t *format36_create(aal_device_t *device,
 
 #endif
 
-static errno_t format36_check(reiserfs_format36_t *format) {
+static errno_t format36_check(reiserfs_format36_t *format, int flags) {
     
     aal_assert("umka-383", format != NULL, return -1);
     
@@ -258,7 +258,7 @@ static reiserfs_plugin_t format36_plugin = {
 	.create = NULL,
 #endif
 	.close = (void (*)(reiserfs_entity_t *))format36_close,
-	.check = (errno_t (*)(reiserfs_entity_t *))format36_check,
+	.check = (errno_t (*)(reiserfs_entity_t *, int))format36_check,
 	.confirm = (int (*)(aal_device_t *))format36_confirm,
 	.format = (const char *(*)(reiserfs_entity_t *))format36_format,
 

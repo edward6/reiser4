@@ -86,7 +86,8 @@ static reiserfs_plugin_t internal40_plugin = {
 	},
 	.common = {
 #ifndef ENABLE_COMPACT	    
-	    .create = (errno_t (*)(void *, void *))internal40_create,
+	    .create = (errno_t (*)(const void *, reiserfs_item_hint_t *))
+		internal40_create,
 	    
 	    .estimate = (errno_t (*)(uint16_t, reiserfs_item_hint_t *))
 		internal40_estimate,
@@ -95,7 +96,7 @@ static reiserfs_plugin_t internal40_plugin = {
 	    .estimate = NULL,
 #endif
 	    .minsize = (uint16_t (*)(void))internal40_minsize,
-	    .print = (errno_t (*)(void *, char *, uint16_t))internal40_print,
+	    .print = (errno_t (*)(const void *, char *, uint16_t))internal40_print,
 
 	    .lookup = NULL,
 	    .maxkey = NULL,
@@ -109,12 +110,12 @@ static reiserfs_plugin_t internal40_plugin = {
 	.specific = {
 	    .internal = {
 #ifndef ENABLE_COMPACT
-		.set_pointer = (errno_t (*)(void *, blk_t))internal40_set_pointer,
+		.set_pointer = (errno_t (*)(const void *, blk_t))internal40_set_pointer,
 #else
 		.set_pointer = NULL,
 #endif
-		.get_pointer = (blk_t (*)(void *))internal40_get_pointer,
-		.has_pointer = (int (*)(void *, blk_t))internal40_has_pointer
+		.get_pointer = (blk_t (*)(const void *))internal40_get_pointer,
+		.has_pointer = (int (*)(const void *, blk_t))internal40_has_pointer
 	    }
 	}
     }

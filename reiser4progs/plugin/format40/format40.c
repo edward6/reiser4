@@ -149,7 +149,7 @@ static errno_t format40_sync(reiserfs_format40_t *format) {
 
 #endif
 
-static errno_t format40_check(reiserfs_format40_t *format) {
+static errno_t format40_check(reiserfs_format40_t *format, int flags) {
     aal_assert("umka-397", format != NULL, return -1);
     
     return format40_super_check((reiserfs_format40_super_t *)format->super->data, 
@@ -272,7 +272,7 @@ static reiserfs_plugin_t format40_plugin = {
 #endif
 	.oid = (void (*)(reiserfs_entity_t *, void **, void **))format40_oid,
 	.close = (void (*)(reiserfs_entity_t *))format40_close,
-	.check = (errno_t (*)(reiserfs_entity_t *))format40_check,
+	.check = (errno_t (*)(reiserfs_entity_t *, int))format40_check,
 	.confirm = (int (*)(aal_device_t *))format40_confirm,
 	.format = (const char *(*)(reiserfs_entity_t *))format40_format,
 	

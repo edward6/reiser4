@@ -47,21 +47,6 @@ static reiserfs_node40_t *node40_create(aal_block_t *block,
 
 #endif
 
-/*
-    Confirms that passed node corresponds current plugin. This is something like 
-    "probe" method.
-*/
-static int node40_confirm(reiserfs_node40_t *node) {
-    aal_assert("vpf-014", node != NULL, return 0);
-    return -(nh40_get_magic(reiserfs_nh40(node->block)) != REISERFS_NODE40_MAGIC);
-}
-
-/* Returns item number in given block. Used for any loops through all items */
-static uint32_t node40_count(reiserfs_node40_t *node) {
-    aal_assert("vpf-018", node != NULL, return 0);
-    return nh40_get_num_items(reiserfs_nh40(node->block));
-}
-
 static uint32_t node40_get_pid(reiserfs_node40_t *node) {
     aal_assert("umka-827", node != NULL, return 0);
     return nh40_get_pid(reiserfs_nh40(node->block));
@@ -76,12 +61,6 @@ static reiserfs_node40_t *node40_open(aal_block_t *block) {
 	return NULL;
     
     node->block = block;
-    
-    if (!node40_confirm(node)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Invalid node signature has been found.");
-	goto error_free_node;
-    }
     
     if (node40_get_pid(node) != REISERFS_NODE40_PID) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -101,6 +80,21 @@ static errno_t node40_close(reiserfs_node40_t *node) {
     aal_assert("umka-825", node != NULL, return -1);
     aal_free(node);
     return 0;
+}
+
+/*
+    Confirms that passed node corresponds current plugin. This is something like 
+    "probe" method.
+*/
+static int node40_confirm(reiserfs_node40_t *node) {
+    aal_assert("vpf-014", node != NULL, return 0);
+    return -(nh40_get_magic(reiserfs_nh40(node->block)) != REISERFS_NODE40_MAGIC);
+}
+
+/* Returns item number in given block. Used for any loops through all items */
+static uint32_t node40_count(reiserfs_node40_t *node) {
+    aal_assert("vpf-018", node != NULL, return 0);
+    return nh40_get_num_items(reiserfs_nh40(node->block));
 }
 
 static errno_t node40_get_key(reiserfs_node40_t *node, uint32_t pos, 

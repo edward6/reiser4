@@ -26,9 +26,13 @@ extern reiserfs_journal_t *reiserfs_journal_create(aal_device_t *device,
 extern errno_t reiserfs_journal_sync(reiserfs_journal_t *journal);
 extern errno_t reiserfs_journal_replay(reiserfs_journal_t *journal);
 
+extern errno_t reiserfs_journal_check(reiserfs_journal_t *journal, 
+    int flags);
+
 #endif
 
 extern void reiserfs_journal_close(reiserfs_journal_t *journal);
+extern int reiserfs_journal_confirm(reiserfs_journal_t *journal);
 
 #endif
 

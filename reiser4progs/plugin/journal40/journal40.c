@@ -189,6 +189,7 @@ static reiserfs_plugin_t journal40_plugin = {
 #ifndef ENABLE_COMPACT
 	.create = (reiserfs_entity_t *(*)(aal_device_t *, void *))
 	    journal40_create,
+
 	.sync = (errno_t (*)(reiserfs_entity_t *))journal40_sync,
 #else
 	.create = NULL,

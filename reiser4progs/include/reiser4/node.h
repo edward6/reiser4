@@ -56,6 +56,8 @@ extern int reiserfs_node_lookup(reiserfs_node_t *node,
 
 extern errno_t reiserfs_node_check(reiserfs_node_t *node, int flags);
 
+extern int reiserfs_node_confirm(reiserfs_node_t *node);
+
 extern blk_t reiserfs_node_get_pointer(reiserfs_node_t *node, 
     uint32_t pos);
 

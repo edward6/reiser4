@@ -22,7 +22,7 @@ extern reiserfs_format_t *reiserfs_format_reopen(reiserfs_format_t *format,
     aal_device_t *device);
 
 extern void reiserfs_format_close(reiserfs_format_t *format);
-
+extern int reiserfs_format_confirm(reiserfs_format_t *format);
 extern blk_t reiserfs_format_get_root(reiserfs_format_t *format);
 extern count_t reiserfs_format_get_blocks(reiserfs_format_t *format);
 extern count_t reiserfs_format_get_free(reiserfs_format_t *format);
@@ -31,6 +31,7 @@ extern uint16_t reiserfs_format_get_height(reiserfs_format_t *format);
 #ifndef ENABLE_COMPACT
 
 extern errno_t reiserfs_format_sync(reiserfs_format_t *format);
+extern errno_t reiserfs_format_check(reiserfs_format_t *format, int flags);
 
 extern reiserfs_format_t *reiserfs_format_create(aal_device_t *device,
     count_t len, uint16_t tail_policy, reiserfs_id_t pid);

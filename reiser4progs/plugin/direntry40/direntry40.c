@@ -197,7 +197,8 @@ static reiserfs_plugin_t direntry40_plugin = {
 	},
 	.common = {
 #ifndef ENABLE_COMPACT	    
-	    .create = (errno_t (*)(void *, void *))direntry40_create,
+	    .create = (errno_t (*)(const void *, reiserfs_item_hint_t *))
+		direntry40_create,
 	    
 	    .estimate = (errno_t (*)(uint16_t, reiserfs_item_hint_t *))
 		direntry40_estimate,
@@ -206,14 +207,16 @@ static reiserfs_plugin_t direntry40_plugin = {
 	    .estimate = NULL,
 #endif
 	    .minsize = (uint16_t (*)(void))direntry40_minsize,
-	    .print = (errno_t (*)(void *, char *, uint16_t))direntry40_print,
 	    
-	    .lookup = (int (*) (void *, reiserfs_key_t *, uint16_t *))
+	    .print = (errno_t (*)(const void *, char *, uint16_t))
+		direntry40_print,
+	    
+	    .lookup = (int (*) (const void *, reiserfs_key_t *, uint16_t *))
 		direntry40_lookup,
 	    
-	    .maxkey = (errno_t (*)(void *))direntry40_maxkey,
+	    .maxkey = (errno_t (*)(const void *))direntry40_maxkey,
 	    
-	    .insert = (errno_t (*)(void *, uint16_t, reiserfs_item_hint_t *))
+	    .insert = (errno_t (*)(const void *, uint16_t, reiserfs_item_hint_t *))
 		direntry40_insert,
 	    
 	    .count = NULL,

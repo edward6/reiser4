@@ -211,6 +211,9 @@ typedef struct reiserfs_plugin_header reiserfs_plugin_header_t;
 struct reiserfs_key_ops {
     reiserfs_plugin_header_t h;
 
+    /* Smart check of key structure */
+    errno_t (*check) (const void *, int);
+    
     /* Confirms key format */
     int (*confirm) (const void *);
 
@@ -286,31 +289,31 @@ typedef struct reiserfs_dir_ops reiserfs_dir_ops_t;
 struct reiserfs_item_common_ops {
     
     /* Forms item structures based on passed hint in passed memory area */
-    errno_t (*create) (void *, void *);
+    errno_t (*create) (const void *, reiserfs_item_hint_t *);
 
     /* Makes lookup for passed key */
-    int (*lookup) (void *, reiserfs_key_t *, uint16_t *);
+    int (*lookup) (const void *, reiserfs_key_t *, uint16_t *);
 
     /* Confirms item type */
-    errno_t (*confirm) (void *);
+    int (*confirm) (const void *);
 
     /* Checks item for validness */
-    errno_t (*check) (void *);
+    errno_t (*check) (const void *, int);
 
     /* Prints item into specified buffer */
-    errno_t (*print) (void *, char *, uint16_t);
+    errno_t (*print) (const void *, char *, uint16_t);
 
     /* Get the max key which could be stored in the item of this type */
-    errno_t (*maxkey) (void *);
+    errno_t (*maxkey) (const void *);
     
     /* Returns unit count */
-    uint16_t (*count) (void *);
+    uint16_t (*count) (const void *);
 
     /* Removes specified unit from the item */
-    errno_t (*remove) (void *, uint16_t);
+    errno_t (*remove) (const void *, uint16_t);
 
     /* Inserts unit described by passed hint into the item */
-    errno_t (*insert) (void *, uint16_t, reiserfs_item_hint_t *);
+    errno_t (*insert) (const void *, uint16_t, reiserfs_item_hint_t *);
     
     /* Estimatess item */
     errno_t (*estimate) (uint16_t, reiserfs_item_hint_t *);
@@ -327,16 +330,16 @@ struct reiserfs_direntry_ops {
 typedef struct reiserfs_direntry_ops reiserfs_direntry_ops_t;
 
 struct reiserfs_stat_ops {
-    uint16_t (*get_mode) (void *);
-    void (*set_mode) (void *, uint16_t);
+    uint16_t (*get_mode) (const void *);
+    void (*set_mode) (const void *, uint16_t);
 };
 
 typedef struct reiserfs_stat_ops reiserfs_stat_ops_t;
 
 struct reiserfs_internal_ops {
-    errno_t (*set_pointer) (void *, blk_t);
-    blk_t (*get_pointer) (void *);
-    int (*has_pointer) (void *, blk_t);
+    errno_t (*set_pointer) (const void *, blk_t);
+    blk_t (*get_pointer) (const void *);
+    int (*has_pointer) (const void *, blk_t);
 };
 
 typedef struct reiserfs_internal_ops reiserfs_internal_ops_t;
@@ -358,10 +361,9 @@ struct reiserfs_item_ops {
 typedef struct reiserfs_item_ops reiserfs_item_ops_t;
 
 /*
-    Node plugin operates on passed block. It doesn't any 
-    initialization, so it hasn't close method and all its
-    methods accepts first argument aal_block_t, not initialized
-    previously hypothetic instance of node.
+    Node plugin operates on passed block. It doesn't any initialization, so it 
+    hasn't close method and all its methods accepts first argument aal_block_t, 
+    not initialized previously hypothetic instance of node.
 */
 struct reiserfs_node_ops {
     reiserfs_plugin_header_t h;
@@ -512,7 +514,7 @@ struct reiserfs_format_ops {
 	format-specific super block for format40 must lie in 17-th
 	block for 4096 byte long blocks.
     */
-    errno_t (*check) (reiserfs_entity_t *);
+    errno_t (*check) (reiserfs_entity_t *, int);
 
     /*
 	Probes whether filesystem on given device has this format.
@@ -559,6 +561,7 @@ struct reiserfs_format_ops {
     reiserfs_id_t (*alloc_pid) (reiserfs_entity_t *);
     reiserfs_id_t (*oid_pid) (reiserfs_entity_t *);
 
+    /* Returns area where oid data lies */
     void (*oid)(reiserfs_entity_t *, void **, void **);
 };
 
@@ -571,6 +574,9 @@ struct reiserfs_oid_ops {
     reiserfs_entity_t *(*create) (void *, void *);
 
     errno_t (*sync) (reiserfs_entity_t *);
+
+    int (*confirm) (reiserfs_entity_t *);
+    errno_t (*check) (reiserfs_entity_t *);
 
     void (*close) (reiserfs_entity_t *);
     
@@ -603,6 +609,9 @@ struct reiserfs_alloc_ops {
 
     count_t (*free) (reiserfs_entity_t *);
     count_t (*used) (reiserfs_entity_t *);
+
+    int (*confirm) (reiserfs_entity_t *);
+    errno_t (*check) (reiserfs_entity_t *, int);
 };
 
 typedef struct reiserfs_alloc_ops reiserfs_alloc_ops_t;
@@ -611,15 +620,16 @@ struct reiserfs_journal_ops {
     reiserfs_plugin_header_t h;
     
     reiserfs_entity_t *(*open) (aal_device_t *);
-    
-    reiserfs_entity_t *(*create) (aal_device_t *, 
-	reiserfs_entity_t *);
-    
-    void (*area) (reiserfs_entity_t *, blk_t *start, blk_t *end);
-    
+    reiserfs_entity_t *(*create) (aal_device_t *, void *);
     void (*close) (reiserfs_entity_t *);
+
+    int (*confirm) (reiserfs_entity_t *);
+    errno_t (*check) (reiserfs_entity_t *, int);
+    
     errno_t (*sync) (reiserfs_entity_t *);
     errno_t (*replay) (reiserfs_entity_t *);
+    
+    void (*area) (reiserfs_entity_t *, blk_t *, blk_t *);
 };
 
 typedef struct reiserfs_journal_ops reiserfs_journal_ops_t;

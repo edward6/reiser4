@@ -27,6 +27,7 @@ extern errno_t reiserfs_alloc_sync(reiserfs_alloc_t *alloc);
 extern void reiserfs_alloc_mark(reiserfs_alloc_t *alloc, blk_t blk);
 extern void reiserfs_alloc_dealloc(reiserfs_alloc_t *alloc, blk_t blk);
 extern blk_t reiserfs_alloc_alloc(reiserfs_alloc_t *alloc);
+extern errno_t reiserfs_alloc_check(reiserfs_alloc_t *alloc, int flags);
 
 #endif
 
@@ -36,6 +37,7 @@ extern count_t reiserfs_alloc_free(reiserfs_alloc_t *alloc);
 extern count_t reiserfs_alloc_used(reiserfs_alloc_t *alloc);
 
 extern int reiserfs_alloc_test(reiserfs_alloc_t *alloc, blk_t blk);
+extern int reiserfs_alloc_confirm(reiserfs_alloc_t *alloc);
 
 #endif
 

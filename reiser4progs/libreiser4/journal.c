@@ -96,7 +96,21 @@ errno_t reiserfs_journal_sync(reiserfs_journal_t *journal) {
 	sync, journal->entity);
 }
 
+errno_t reiserfs_journal_check(reiserfs_journal_t *journal, int flags) {
+    aal_assert("umka-830", journal != NULL, return -1);
+
+    return libreiser4_plugin_call(return -1, journal->plugin->journal_ops, 
+	check, journal->entity, flags);
+}
+
 #endif
+
+int reiserfs_journal_confirm(reiserfs_journal_t *journal) {
+    aal_assert("umka-831", journal != NULL, return 0);
+
+    return libreiser4_plugin_call(return 0, journal->plugin->journal_ops, 
+	confirm, journal->entity);
+}
 
 void reiserfs_journal_close(reiserfs_journal_t *journal) {
     aal_assert("umka-102", journal != NULL, return);
