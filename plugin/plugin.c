@@ -644,22 +644,24 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.builtin       = sd_ext_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
-	[ REISER4_OID_MGR_PLUGIN_TYPE ] = {
-		.type_id       = REISER4_OID_MGR_PLUGIN_TYPE,
+	[ REISER4_OID_ALLOCATOR_PLUGIN_TYPE ] = {
+		.type_id       = REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
 		.label         = "oid manager",
 		.desc          = "allocate/deallocate oids",
 		.builtin_num   = sizeof_array( oid_plugins ),
 		.builtin       = oid_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
-	[ REISER4_SPACE_MGR_PLUGIN_TYPE ] = {
-		.type_id       = REISER4_SPACE_MGR_PLUGIN_TYPE,
+/*
+	[ REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE ] = {
+		.type_id       = REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,
 		.label         = "disk space manager",
 		.desc          = "allocate/deallocate disk free space",
 		.builtin_num   = sizeof_array( space_plugins ),
 		.builtin       = space_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
+*/
 	[ REISER4_LAYOUT_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_LAYOUT_PLUGIN_TYPE,
 		.label         = "disk layout",
