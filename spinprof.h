@@ -17,14 +17,16 @@
 #define PROFREGION_MAX_DEPTH (12)
 
 typedef struct locksite {
-	int   hits;
+	int         ins;
+	int         hits;
 	const char *func;
 	const char *file;
-	int   line;
+	int         line;
 } locksite;
 
 #define LOCKSITE_INIT(name)			\
 	static locksite name = {		\
+		.ins  = 0,			\
 		.hits = 0,			\
 		.func = __FUNCTION__,		\
 		.file = __FILE__,		\
@@ -44,8 +46,11 @@ struct profregion {
 
 
 struct pregactivation {
+	/* profiling region */
 	struct profregion *preg;
+	/* pointer to hits counter, embedded into object */
 	int               *objloc;
+	/* current lock site */
 	locksite          *codeloc;
 };
 

@@ -76,7 +76,8 @@ static ssize_t code_show(struct profregion *pregion, char *buf)
 	locksite *site;
 
 	site = pregion->code ? : &none;
-	KATTR_PRINT(p, buf, "%s:%s:%i\n", site->func, site->file, site->line);
+	KATTR_PRINT(p, buf, "%i:%s:%s:%i\n",
+		    site->ins, site->func, site->file, site->line);
 	return (p - buf);
 }
 
@@ -301,7 +302,7 @@ int profregion_find(struct profregionstack *stack, struct profregion *pregion)
 
 void profregfill(struct pregactivation *act,
 		 struct profregion *pregion,
-		 void *objloc, void *codeloc)
+		 void *objloc, locksite *codeloc)
 {
 	act->objloc  = NULL;
 	act->codeloc = NULL;
@@ -309,6 +310,8 @@ void profregfill(struct pregactivation *act,
 	act->preg    = pregion;
 	act->objloc  = objloc;
 	act->codeloc = codeloc;
+	if (codeloc != NULL)
+		++ codeloc->ins;
 }
 
 void profregion_in(int cpu, struct profregion *pregion,
