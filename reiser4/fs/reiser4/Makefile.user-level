@@ -83,6 +83,7 @@ BUILD_TAG_FILE     = .build
   ###########################################################################
 
 JUNK_FILES        := *.o *.so *.rpo core core.* *~ \\\#*\\\#
+FIND_NON_SCCS     := find . \( -regex '.*\(\(SCCS\)\|\(Attic\)\).*' -prune -o -true \) -name '*.[ch]'
 
 ###########################################################################
 #                                                                         #
@@ -184,7 +185,7 @@ dep .dependencies:
 	makedepend -Y -w 8000 $(INCS) $(SRC) $(DEFINES) -f .dependencies
 
 tags: 
-	etags `find . \( -name SCCS -prune -o -true \) -name '*.[ch]'`
+	etags `$(FIND_NON_SCCS)`
 
 gtags: 
 	gtags
@@ -194,16 +195,16 @@ gprof:
 	gprof -l > gprof.out.ll
 
 check-nikita:
-	python ../../scripts/uniqerrid.py nikita `find . -name '*.[ch]'`
+	python ../../scripts/uniqerrid.py nikita `$(FIND_NON_SCCS)`
 
 check-jmacd:
-	python ../../scripts/uniqerrid.py jmacd `find . -name '*.[ch]'`
+	python ../../scripts/uniqerrid.py jmacd `$(FIND_NON_SCCS)`
 
 check-vs:
-	python ../../scripts/uniqerrid.py vs `find . -name '*.[ch]'`
+	python ../../scripts/uniqerrid.py vs `$(FIND_NON_SCCS)`
 
 check-zam:
-	python ../../scripts/uniqerrid.py zam `find . -name '*.[ch]'`
+	python ../../scripts/uniqerrid.py zam `$(FIND_NON_SCCS)`
 
 check-all:
 	$(MAKE) -f Makefile.user-level check-nikita
