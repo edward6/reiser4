@@ -322,10 +322,12 @@ cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
 
 /* plugin->u.item.s.file.read */
 int
-read_ctail(struct file *file UNUSED_ARG, flow_t *f, uf_coord_t *uf_coord)
+read_ctail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 {
+	uf_coord_t *uf_coord;
 	coord_t *coord;
 
+	uf_coord = &hint->coord;
 	coord = &uf_coord->base_coord;
 	assert("edward-127", f->user == 1);
 	assert("edward-128", f->data);
