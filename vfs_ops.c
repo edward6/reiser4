@@ -123,6 +123,7 @@ static int reiser4_vm_writeback(struct page *page, struct writeback_control *wbc
 static int reiser4_commit_write(struct file *, 
 				struct page *, unsigned, unsigned);
 */
+static int reiser4_set_page_dirty (struct page *);
 static sector_t reiser4_bmap(struct address_space *, sector_t);
 /* static int reiser4_direct_IO(int, struct inode *, 
 			     struct kiobuf *, unsigned long, int); */
@@ -518,6 +519,43 @@ reiser4_statfs(struct super_block *super	/* super block of file
 }
 
 /* address space operations */
+
+/* as_ops->set_page_dirty() VFS method in reiser4_address_space_operations.
+
+   It is used by others (except reiser4) to set reiser4 pages dirty. Reiser4
+   itself uses set_page_dirty_internal(). 
+
+   The difference is that reiser4_set_page_dirty puts dirty page on
+   mapping->io_pages (it could be a reiser4 inode private list instead of
+   mapping->io_pages).  That list is processed by reiser4_writepages() to do
+   reiser4 specific work over dirty pages (allocation jnode, capturing, atom
+   creation) which cannot be done in the contexts where set_page_dirty is
+   called.
+
+   Mostly this function is __set_page_dirty_nobuffers() but target page list
+   differs.
+*/
+static int reiser4_set_page_dirty (struct page * page)
+{
+	int ret = 0;
+
+	if (!TestSetPageDirty(page)) {
+		struct address_space *mapping = page->mapping;
+
+		if (mapping) {
+			write_lock(&mapping->page_lock);
+			if (page->mapping) {	/* Race with truncate? */
+				if (!mapping->backing_dev_info->memory_backed)
+					inc_page_state(nr_dirty);
+				list_del(&page->list);
+				list_add(&page->list, &mapping->io_pages);
+			}
+			write_unlock(&mapping->page_lock);
+			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
+		}
+	}
+	return ret;
+}
 
 /* ->writepage() VFS method in reiser4 address_space_operations */
 static int
@@ -2298,9 +2336,13 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 /* Check mapping for existence of not captured dirty pages */
 static int mapping_has_anonymous_pages (struct address_space * mapping )
 {
-	/* FIXME: The method to check has this mapping not captured dirty pages
-	   or not is not implemented yet */
-	return 1;
+	int ret;
+
+	read_lock (&mapping->page_lock);
+	ret = !list_empty (&mapping->io_pages);
+	read_unlock (&mapping->page_lock);
+
+	return ret;
 }
 
 static void capture_page_and_create_extent (struct page * page)
@@ -2325,11 +2367,6 @@ static void capture_page_and_create_extent (struct page * page)
 static int capture_anonymous_pages (struct address_space * mapping)
 {
 	write_lock (&mapping->page_lock);
-
-	/* We can teach reiser4_set_page_dirty to place dirty page directly to
-	   io_list. is it reasonable ? */
-
-	list_splice_init (&mapping->dirty_pages, &mapping->io_pages);
 
 	while (!list_empty (&mapping->io_pages)) {
 		struct page *pg = list_entry(mapping->io_pages.prev, struct page, list);
@@ -2580,7 +2617,7 @@ struct address_space_operations reiser4_as_operations = {
 	.writepages = reiser4_writepages,
 	/* called during memory pressure by kswapd */
 	.vm_writeback = reiser4_vm_writeback,
-	.set_page_dirty = __set_page_dirty_nobuffers,
+	.set_page_dirty = reiser4_set_page_dirty,
 	/* called during read-ahead */
 	.readpages = NULL,
 	.prepare_write = V(never_ever_prepare_write_vfs),
