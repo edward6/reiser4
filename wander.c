@@ -1539,6 +1539,11 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 	 * early flushed jnodes with CREATED bit are transferred to the
 	 * overwrite list. */
 	invalidate_list(ATOM_CLEAN_LIST(atom));
+	LOCK_ATOM(atom);
+	/* There might be waiters for the relocate nodes which we have
+	 * released, wake them up. */
+	atom_send_event(atom);
+	UNLOCK_ATOM(atom);
 
 	trace_mark(wander);
 
