@@ -320,6 +320,7 @@ typedef struct oid_allocator_plugin {
 	/* how many pages to reserve in transaction for freeing of an
 	   objectid */
 	int ( *oid_reserve_release )( reiser4_oid_allocator *map );
+	void ( *print_info )( reiser4_oid_allocator * );
 } oid_allocator_plugin;
 
 /* this plugin contains method to allocate and deallocate free space of disk */
@@ -330,9 +331,12 @@ typedef struct space_allocator_plugin {
 				 struct super_block *, void * );
 	int ( *destroy_allocator )( reiser4_space_allocator *,
 				    struct super_block *);
-	int ( *alloc_blocks )( reiser4_blocknr_hint *, int needed,
+	int ( *alloc_blocks )( reiser4_space_allocator *,
+			       reiser4_blocknr_hint *, int needed,
 			       reiser4_block_nr *start, reiser4_block_nr *len );
-	void ( *dealloc_blocks )( reiser4_block_nr start, reiser4_block_nr len );
+	void ( *dealloc_blocks )( reiser4_space_allocator *,
+				  reiser4_block_nr start, reiser4_block_nr len );
+	void ( *print_info )( reiser4_space_allocator * );
 
 	/* program hooks from journal code */
 	void ( *pre_commit_hook      )( txn_atom * );
@@ -352,6 +356,7 @@ typedef struct layout_plugin {
 	const reiser4_key * ( *root_dir_key )( const struct super_block * );
 
 	void ( *release )( struct super_block * );
+	void ( *print_info )( struct super_block * );
 } layout_plugin;
 
 
