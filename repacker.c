@@ -18,7 +18,6 @@
 #include "reiser4.h"
 #include "kattr.h"
 #include "super.h"
-#include "repacker.h"
 #include "tree.h"
 #include "tree_walk.h"
 #include "jnode.h"
@@ -29,6 +28,8 @@
 
 #include <linux/spinlock.h>
 #include "kcond.h"
+
+#include "repacker.h"
 
 /* The reiser4 repacker process nodes by chunks of REPACKER_CHUNK_SIZE
  * size. */
@@ -56,7 +57,9 @@ struct repacker {
 	struct kobject kobj;
 #endif
 	struct {
+		reiser4_key start_key;
 		reiser4_block_nr chunk_size;
+		reiser4_block_nr count;
 	} params;
 };
 
@@ -71,16 +74,6 @@ static inline int check_repacker_state_bit(struct repacker *repacker, enum repac
 
 	return result;
 }
-
-/* Repacker per tread state and statistics. */
-struct repacker_cursor {
-	reiser4_blocknr_hint hint;
-	int count;
-	struct  {
-		long znodes_dirtied;
-		long jnodes_dirtied;
-	} stats;
-};
 
 static void repacker_cursor_init (struct repacker_cursor * cursor, struct repacker * repacker)
 {
@@ -457,27 +450,92 @@ static ssize_t direction_attr_store (struct repacker * repacker,  const char *bu
 	return size;
 }
 
-static struct repacker_attr start_attr = {
-	.attr = {
-		.name = "start",
-		.mode = 0644		/* rw-r--r */
-	},
-	.show = start_attr_show,
-	.store = start_attr_store,
-};
+static ssize_t start_key_attr_show (struct repacker * repacker, char * buf)
+{
+	spin_lock(&repacker->guard);
+	spin_unlock(&repacker->guard);
 
-static struct repacker_attr direction_attr = {
-	.attr = {
-		.name = "direction",
-		.mode = 0644		/* rw-r--r */
-	},
-	.show = direction_attr_show,
-	.store = direction_attr_store,
-};
+	return 0;
+}
+
+static ssize_t start_key_attr_store (struct repacker * repacker,  const char *buf, size_t size)
+{
+	spin_lock(&repacker->guard);
+	spin_unlock(&repacker->guard);
+
+	return (ssize_t)size;
+}
+
+static ssize_t count_attr_show (struct repacker * repacker, char * buf)
+{
+	__u64 count;
+
+	spin_lock(&repacker->guard);
+	count = repacker->params.count;
+	spin_unlock(&repacker->guard);
+
+	return snprintf(buf, PAGE_SIZE, "%llu", (unsigned long long)count);
+}
+
+static ssize_t count_attr_store (struct repacker * repacker,  const char *buf, size_t size)
+{
+	unsigned long long count;
+
+	sscanf(buf, "%llu", &count);
+
+	spin_lock(&repacker->guard);
+	repacker->params.count = (__u64)count;
+	spin_unlock(&repacker->guard);
+
+	return (ssize_t)size;
+}
+
+static ssize_t chunk_size_attr_show (struct repacker * repacker, char * buf)
+{
+	__u64 chunk_size;
+
+	spin_lock(&repacker->guard);
+	chunk_size = repacker->params.chunk_size;
+	spin_unlock(&repacker->guard);
+
+	return snprintf(buf, PAGE_SIZE, "%llu", (unsigned long long)chunk_size);
+}
+
+static ssize_t chunk_size_attr_store (struct repacker * repacker,  const char *buf, size_t size)
+{
+	unsigned long long chunk_size;
+
+	sscanf(buf, "%llu", &chunk_size);
+
+	spin_lock(&repacker->guard);
+	repacker->params.chunk_size = (__u64)chunk_size;
+	spin_unlock(&repacker->guard);
+
+	return (ssize_t)size;
+}
+
+#define REPACKER_ATTR(attr_name, perm)			\
+static struct repacker_attr attr_name ## _attr = {	\
+	.attr = {					\
+		.name = # attr_name,			\
+		.mode = perm				\
+	},						\
+	.show = attr_name ## _attr_show,		\
+	.store = attr_name ## _attr_store,		\
+}
+
+REPACKER_ATTR(start, 0644);
+REPACKER_ATTR(direction, 0644);
+REPACKER_ATTR(start_key, 0644);
+REPACKER_ATTR(count, 0644);
+REPACKER_ATTR(chunk_size, 0644);
 
 static struct attribute * repacker_def_attrs[] = {
 	&start_attr.attr,
 	&direction_attr.attr,
+	&start_key_attr.attr,
+	&count_attr.attr,
+	&chunk_size_attr.attr,
 	NULL
 };
 
