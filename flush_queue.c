@@ -563,7 +563,7 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 		assert("nikita-2776", JF_ISSET(first, JNODE_FLUSH_QUEUED));
 		assert("zam-825", JF_ISSET(first, JNODE_RELOC));
 
-		result = jprotect(first); /* un(-e-)flush it */
+		result = jload(first); /* un(-e-)flush it */
 		if (result != 0)
 			reiser4_panic("nikita-2775", 
 				      "Failure to reload jnode: %i", result);
@@ -621,7 +621,7 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 		jnode_io_hook(first, pg, WRITE);
 
 		/* we do not need to protect this node from e-flush anymore  */
- 		junprotect(first);
+ 		jrelse(first);
 
 		bio->bi_io_vec[nr_processed].bv_page = pg;
 		bio->bi_io_vec[nr_processed].bv_len = s->s_blocksize;
