@@ -167,7 +167,7 @@ int lnodes_init( struct super_block *super /* super block to initialise lnodes
 	return 0;
 }
 
-/** free lnode recources associated with @super. */
+/** free lnode resources associated with @super. */
 int lnodes_done( struct super_block *super /* super block to destroy lnodes
 					    * for */ )
 {
