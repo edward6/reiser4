@@ -308,6 +308,10 @@ static int common_create_child( struct inode *parent /* parent object */,
 		reiser4_inode_info *self;
 		reiser4_inode_info *ancestor;
 
+		/*
+		 * FIXME-NIKITA this is wrong: this way each file by default
+		 * inherits directory plugin of parent directory.
+		 */
 		self     = reiser4_inode_data( object );
 		ancestor = reiser4_inode_data
 			( parent ? : object -> i_sb -> s_root -> d_inode );
