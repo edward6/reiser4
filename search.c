@@ -382,7 +382,7 @@ object_lookup(struct inode *object,
 	assert("nikita-355", coord != NULL);
 	assert("nikita-356", (bias == FIND_EXACT) || (bias == FIND_MAX_NOT_MORE_THAN));
 	assert("nikita-357", stop_level >= LEAF_LEVEL);
-	/* no locks can be held during tree traversal */
+	/* no locks can be held during tree search by key */
 	assert("nikita-2104", lock_stack_isclean(get_current_lock_stack()));
 	trace_stamp(TRACE_TREE);
 
@@ -1016,7 +1016,7 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 	node_bias = h->bias;
 	result = nplug->lookup(active, h->key, node_bias, h->coord);
 	if (unlikely(result != NS_FOUND && result != NS_NOT_FOUND)) {
-		/* error occured */
+		/* error occurred */
 		h->result = result;
 		return LOOKUP_DONE;
 	}
@@ -1029,6 +1029,7 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 			   ->lookup method of internal item sets ->between ==
 			   AFTER_UNIT and bias is unconditionally set to
 			   FIND_EXACT above (why?)
+			   NIKITA-FIXME-HANS: clean the above comment or its referenced code
 			*/
 			assert("nikita-1604", 1 || ergo(h->bias == FIND_EXACT, coord_is_existing_unit(h->coord)));
 			if (!(h->flags & CBK_UNIQUE) && key_is_ld(active, h->key)) {

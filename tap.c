@@ -275,7 +275,7 @@ go_prev_unit(tap_t * tap)
 }
 
 /**
- * @shift times apply @actor to the @tap. This is used to move @tap to the
+ * @shift times apply @actor to the @tap. This is used to move @tap by
  * @shift units (or items, or nodes) in either direction.
  */
 int
