@@ -315,9 +315,9 @@ jnode_get_io_block(const jnode * node)
 }
 
 /* Jnode flush interface. */
-extern int enqueue_unformatted(jnode * node, flush_pos_t * pos);
 extern reiser4_blocknr_hint *pos_hint(flush_pos_t * pos);
 extern int pos_leaf_relocate(flush_pos_t * pos);
+extern flush_queue_t * pos_fq(flush_pos_t * pos);
 
 /* FIXME-VS: these are used in plugin/item/extent.c */
 

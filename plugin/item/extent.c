@@ -1194,10 +1194,8 @@ assign_jnode_blocknrs(oid_t oid, unsigned long index, reiser4_block_nr first,
 		      reiser4_block_nr count, flush_pos_t * flush_pos)
 {
 	jnode *j;
-	int i, ret = 0;
-	reiser4_tree *tree;
-
-	tree = current_tree;
+	int i;
+	reiser4_tree *tree = current_tree;
 
 	for (i = 0; i < (int) count; i++, first++, index ++) {
 		j = jlook_lock(tree, oid, index);
@@ -1210,27 +1208,23 @@ assign_jnode_blocknrs(oid_t oid, unsigned long index, reiser4_block_nr first,
 		/* If we allocated it cannot have been wandered -- in that case
 		   extent_needs_allocation returns 0. */
 		assert("jmacd-61442", !JF_ISSET(j, JNODE_OVRWR));
-		jnode_set_reloc(j);
-
-		/* Submit I/O and set the jnode clean. */
-		ret = enqueue_unformatted(j, flush_pos);
+		jnode_make_reloc(j, pos_fq(flush_pos));
 		jput(j);
-		if (ret)
-			warning("vs-1136", "enqueue_unformatted failed with %d\n", ret);
 	}
 
 	return 0;
 }
 
+#if 0
 static int
-extent_needs_allocation(extent_state st, oid_t oid, unsigned long ind, __u64 count, flush_pos_t * pos)
+extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, __u64 count, flush_pos_t * pos)
 {
 	__u64 i;
 	reiser4_tree *tree;
 	jnode *j;
 	ON_DEBUG(jnode *check = 0;)
 
-	switch (st) {
+	switch (state_of_extent(extent)) {
 	case UNALLOCATED_EXTENT:
 		return 1;
 	case HOLE_EXTENT:
@@ -1238,7 +1232,7 @@ extent_needs_allocation(extent_state st, oid_t oid, unsigned long ind, __u64 cou
 	default:
 		break;
 	}
-	assert("jmacd-83112", st == ALLOCATED_EXTENT);
+	assert("jmacd-83112", state_of_extent(extent) == ALLOCATED_EXTENT);
 
 	/* look for all dirty jnodes and mark them OVERWRITE if they are not marked yet */
 	tree = current_tree;
@@ -1272,7 +1266,7 @@ extent_needs_allocation(extent_state st, oid_t oid, unsigned long ind, __u64 cou
 	return 0;
 }
 
-#if 0
+#else
 
 /* return 1 if @extent unit needs allocation, 0 - otherwise. Try to update preceder in
    parent-first order for next block which will be allocated.
@@ -1293,186 +1287,134 @@ extent_needs_allocation(extent_state st, oid_t oid, unsigned long ind, __u64 cou
    require changes to allocate_extent_item as well.
 */
 static int
-extent_needs_allocation(reiser4_extent * extent, const coord_t * coord, flush_pos_t * pos)
+extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, __u64 count, flush_pos_t * pos)
 {
-	extent_state st;
 	reiser4_blocknr_hint *preceder;
 	int relocate = 0;
 	int ret;
-	jnode *check;		/* this is used to check that all dirty jnodes are of
-				 * the same atom */
+	reiser4_tree *tree = current_tree;
+	unsigned long i;
+	int all_need_alloc = 1;
+
+	ON_DEBUG(jnode *check = NULL;) /* this is used to check that all dirty jnodes are of the same atom */
 
 	/* Handle the non-allocated cases. */
-	switch ((st = state_of_extent(extent))) {
-	case UNALLOCATED_EXTENT:
-		return 1;
-	case HOLE_EXTENT:
-		return 0;
-	default:
+	switch (state_of_extent(extent)) {
+	    case UNALLOCATED_EXTENT:
+		    return 1;
+	    case HOLE_EXTENT:
+		    return 0;
+	    default:
+		    break;
 	}
-	assert("jmacd-83112", st == ALLOCATED_EXTENT);
-	assert("vs-1023", coord_is_existing_unit(coord));
-	assert("vs-1022", item_is_extent(coord));
-	assert("vs-1024", extent_by_coord(coord) == extent);
+
+	assert("jmacd-83112", state_of_extent(extent) == ALLOCATED_EXTENT);
+	assert("jmacd-748", count > 0);
 
 	preceder = pos_hint(pos);
 
-	/* Note: code very much copied from assign_jnode_blocknrs. */
-	/* Find the inode (if it is in-memory). */
-	{
-		jnode *j;
-		reiser4_key item_key;
-		reiser4_block_nr start, count;
-		loff_t offset;
-		/*struct page * pg; */
-		reiser4_tree *tree;
-		unsigned long i, blocksize;
-		unsigned long ind;
-		int all_need_alloc = 1;
+	/* See if the extent is entirely dirty. */
+	for (i = 0; i < count; i ++) {
+		jnode * j;
 
-		unit_key_by_coord(coord, &item_key);
+		j = jlook_lock(tree, oid, ind + i);
+		if (!j) {
+			all_need_alloc = 0;
+			break;
+		}
+		if (jnode_check_flushprepped(j)) {
+			jput(j);
+			all_need_alloc = 0;
+			break;
+		}
+		jput(j);
+	}
 
-		/* Offset of first byte, blocksize */
+	/* If all blocks are dirty we may justify relocating this extent. */
+
+	/* FIXME: JMACD->HANS: It is very complicated to use the
+	   formula you give in the document for extent-relocation
+	   because asking "is there a closer allocation" may not have
+	   a great answer.  There may be a closer allocation but it
+	   may be not large enough.
+		  
+	   JOSH-FIXME-HANS
+		  
+	   Keep it simple and allocate it closer anyway.  If you keep
+	   it simple, it will be easier for other future optimizations
+	   to arrange for the right thing to be done.  For now just
+	   implement the leaf_relocate threshold policy.  
+		  
+	   What does this mean?  Did you do it as requested or
+	   differently?
+	*/
+	relocate = all_need_alloc && pos_leaf_relocate(pos);
+
+	/* Now if relocating, free old blocks & change extent state */
+	if (relocate) {
+		reiser4_block_nr start;
+		txn_atom * atom;
+
+		atom = get_current_atom_locked();
+		flush_reserved2grabbed(atom, count);
+		UNLOCK_ATOM(atom);
+
 		start = extent_get_start(extent);
-		count = extent_get_width(extent);
-		offset = get_key_offset(&item_key);
-		blocksize = current_blocksize;
-		assert("jmacd-748", count > 0);
-		assert("jmacd-749", blocksize == PAGE_CACHE_SIZE);
-		assert("jmacd-750", ((offset & (blocksize - 1)) == 0));
-#if 0
-		/* See if the extent is entirely dirty. */
-		for (i = 0; i < count; i += 1, offset += blocksize) {
 
-			ind = offset >> PAGE_CACHE_SHIFT;
-			pg = reiser4_lock_page(inode->i_mapping, ind);
-
-			if (pg == NULL) {
-				all_need_alloc = 0;
-				break;
-			}
-
-			j = jnode_of_page(pg);
-			reiser4_unlock_page(pg);
-			page_cache_release(pg);
-
-			if (IS_ERR(j)) {
-				all_need_alloc = 0;
-				break;
-			}
-
-			/* Was (! jnode_check_dirty (j)) but the node may
-			   already have been * allocated, in which case we
-			   take the * previous allocation for this *
-			   extent. */
-			if (jnode_is_flush_prepped(j)) {
-				jput(j);
-				all_need_alloc = 0;
-				break;
-			}
-
-			jput(j);
-		}
-#endif
-		/* If all blocks are dirty we may justify relocating this
-		   extent. */
-
-		/* FIXME: JMACD->HANS: It is very complicated to use the
-		   formula you give in the document for extent-relocation
-		   because asking "is there a closer allocation" may not have
-		   a great answer.  There may be a closer allocation but it
-		   may be not large enough.
-		  
-		   JOSH-FIXME-HANS
-		  
-		   Keep it simple and allocate it closer anyway.  If you keep
-		   it simple, it will be easier for other future optimizations
-		   to arrange for the right thing to be done.  For now just
-		   implement the leaf_relocate threshold policy.  
-		  
-		   What does this mean?  Did you do it as requested or
-		   differently?
-		*/
-		relocate = (all_need_alloc == 1)
-		    && pos_leaf_relocate(pos);
-		/* FIXME-VS: no relocation of allocated extents yet */
-		relocate = 0;
-		check = 0;
-
-		tree = current_tree;	/*tree_by_inode (inode); */
-
-		/* Now scan through again. */
-		offset = get_key_offset(&item_key);
-		for (i = 0; i < count; i += 1, offset += blocksize) {
-			ind = offset >> PAGE_CACHE_SHIFT;
-
-			j = jlook_lock(tree, get_key_objectid(&item_key), ind);
-			if (!j) {
-				continue;
-			}
-
-			if (!jnode_check_dirty(j)) {
-				jput(j);
-				continue;
-			}
-
-			if (REISER4_DEBUG) {
-				/* all jnodes of this extent unit must belong
-				   to one atom. Check that */
-				if (check) {
-					assert("vs-936", jnodes_of_one_atom(check, j));
-				} else {
-					check = jref(j);
-				}
-			}
-
-			if (!jnode_is_flush_prepped(j)	/* Was (jnode_check_dirty (j)),
-								   * but allocated check prevents us
-								   * from relocating/wandering a
-								   * previously allocated block  */ ) {
-
-				if (relocate == 0) {
-					/* WANDER it */
-					jnode_set_wander(j);
-					jnode_set_clean(j);
-				} else {
-					/* this does not work now */
-					/* Or else set RELOC.  It will get set again, but... */
-					jnode_set_reloc(j);
-					if ((ret = enqueue_unformatted(j, pos))) {
-						assert("jmacd-71891", ret < 0);
-						jput(j);
-						goto fail;
-					}
-				}
-			}
-
-			jput(j);
+		/* FIXME-VS: grab space first */
+		/* FIXME: JMACD->ZAM: Is this right? */
+		if ((ret = reiser4_dealloc_blocks(&start, &count, BLOCK_ALLOCATED, BA_DEFER, ""))) 
+		{
+			assert("jmacd-71892", ret < 0);
+			goto fail;
 		}
 
-		if (REISER4_DEBUG && check)
-			jput(check);
-
-		/* Now if relocating, free old blocks & change extent state */
-		if (relocate == 1) {
-
-			/* FIXME-VS: grab space first */
-			/* FIXME: JMACD->ZAM: Is this right? */
-			if ((ret = reiser4_dealloc_blocks(&start, &count, BLOCK_ALLOCATED, 
-				BA_DEFER/* unformatted with defer */))) 
-			{
-				assert("jmacd-71892", ret < 0);
-				goto fail;
-			}
-
-			extent_set_start(extent, 1ull /* UNALLOCATED_EXTENT */ );
-		}
-	}
-
-	/* Recalculate preceder */
-	if (relocate == 0) {
+		extent_set_start(extent, 1ull /* UNALLOCATED_EXTENT */ );
+	} else 
+		/* Recalculate preceder */
 		preceder->blk = extent_get_start(extent) + extent_get_width(extent) - 1;
+
+	/* Now scan through again. */
+	for (i = 0; i < count; i ++) {
+		jnode *j;
+
+		j = jlook_lock(tree, oid, ind + i);
+		if (!j)
+			continue;
+
+		if (!jnode_check_dirty(j)) {
+			jput(j);
+			continue;
+		}
+
+		if (REISER4_DEBUG) {
+			/* all jnodes of this extent unit must belong to
+			   one atom. Check that. */
+			if (check) {
+				assert("vs-936", jnodes_of_one_atom(check, j));
+			} else {
+				check = jref(j);
+			}
+		}
+
+		/* Was (jnode_check_dirty (j)), but allocated check
+		 * prevents us from relocating/wandering a previously
+		 * allocated block  */ 
+		if (!jnode_check_flushprepped(j)) {
+			if (relocate == 0)
+				jnode_make_wander(j);
+			else {
+				reiser4_block_nr block;
+				assign_fake_blocknr(&block, 0, "");
+				jnode_set_block(j, &block);
+			}
+		}
+
+		jput(j);
 	}
+
+	if (REISER4_DEBUG && check)
+		jput(check);
 
 	return relocate;
 
@@ -1681,7 +1623,7 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_pos_t * flush_pos,
 		trace_on(TRACE_EXTENTS, "alloc_and_copy_extent: unit %u/%u\n", right->unit_pos, coord_num_units(right));
 
 		width = extent_get_width(ext);
-		if ((result = extent_needs_allocation(state_of_extent(ext), oid, index, width, flush_pos)) < 0) {
+		if ((result = extent_needs_allocation(ext, oid, index, width, flush_pos)) < 0) {
 			goto done;
 		}
 
@@ -1955,7 +1897,7 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_pos_t * f
 
 		width = extent_get_width(ext);
 
-		if ((result = extent_needs_allocation(state_of_extent(ext), oid, index, width, flush_pos)) < 0) {
+		if ((result = extent_needs_allocation(ext, oid, index, width, flush_pos)) < 0) {
 			break;
 		}
 

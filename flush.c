@@ -2621,31 +2621,6 @@ exit:
 	return ret;
 }
 
-/* This is called by the extent code for each jnode after allocation has been performed.
-   Contrast with thef allocate_znode() routine, which does znode allocation and then
-   calls flush_queue_jnode, the unformatted allocation is handled by the extent plugin and
-   simply queued by this function. */
-int
-enqueue_unformatted(jnode * node, flush_pos_t * pos)
-{
-	txn_atom *atom;
-	/* flush_queue_jnode expects the jnode to be locked. */
-	LOCK_JNODE(node);
-
-	atom = atom_locked_by_jnode(node);
-
-	if (atom) {
-		if (JF_ISSET(node, JNODE_DIRTY))
-			queue_jnode(pos->fq, node);
-		UNLOCK_ATOM(atom);
-		++ pos->alloc_cnt;
-	}
-
-	UNLOCK_JNODE(node);
-
-	return 0;
-}
-
 /* JNODE INTERFACE */
 
 /* Lock a node (if formatted) and then get its parent locked, set the child's
@@ -3585,6 +3560,11 @@ int
 pos_leaf_relocate(flush_pos_t * pos)
 {
 	return pos->leaf_relocate;
+}
+
+flush_queue_t * pos_fq(flush_pos_t * pos)
+{
+	return pos->fq;
 }
 
 #if REISER4_TRACE
