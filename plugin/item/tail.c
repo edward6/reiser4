@@ -475,7 +475,8 @@ int tail_write (struct inode * inode, tree_coord * coord,
 	int result;
 
 
-	while (f->length) {
+	result = 0;
+	while (f->length && !result) {
 		switch (what_todo (inode, coord, &f->key)) {
 		case CREATE_HOLE:
 			result = create_hole (coord, lh, f);
@@ -506,9 +507,36 @@ int tail_write (struct inode * inode, tree_coord * coord,
 }
 
 
-/* plugin->u.item.s.file.fill_page
-   this uses @reiser4_iterate_tree to find all blocks populating @page. 
+/*
+ * plugin->u.item.s.file.read
  */
+int tail_read (struct inode * inode UNUSED_ARG, tree_coord * coord,
+	       reiser4_lock_handle * lh UNUSED_ARG, flow * f)
+{
+	unsigned count;
+
+
+	assert ("vs-387", 
+	({
+		reiser4_key key;
+
+		keycmp (unit_key_by_coord (coord, &key), &f->key) == EQUAL_TO;
+	}));
+
+	/*
+	 * calculate number of bytes to read off the item
+	 */
+	count = item_length_by_coord (coord) - coord->unit_pos;
+	if (count > f->length)
+		count = f->length;
+
+	memcpy (f->data, (char *)item_body_by_coord (coord) + coord->unit_pos,
+		count);
+
+	move_flow_forward (f, count);
+	return 0;
+}
+
 
 
 /* 
