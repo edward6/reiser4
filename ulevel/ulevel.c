@@ -273,6 +273,7 @@ struct super_block * get_sb_bdev (struct file_system_type *fs_type,
 	s->s_blocksize_bits = PAGE_CACHE_SHIFT;
 	s->s_bdev = &block_devices[0];
 	s->s_bdev->bd_dev = open (dev_name, O_RDWR);
+	s->s_bdev->last_sector = 0ull;
 	if (s->s_bdev->bd_dev == -1)
 		return ERR_PTR (-errno);
 
@@ -1142,7 +1143,7 @@ int submit_bio( int rw, struct bio *bio )
 		count = bvec -> bv_len;
 		if( rw == READ ) {
 			if( read( fd, addr, count) != (ssize_t)count ) {
-				info( "submit_bio: read failed\n" );
+				perror( "submit_bio: read failed\n" );
 				success = 0;
 			}
 		} else if( rw == WRITE ) {
@@ -1154,6 +1155,10 @@ int submit_bio( int rw, struct bio *bio )
 		kunmap( pg );
 	}
 
+	trace_on( TRACE_IO, "[%i] page io: %c, %llu, seek: %lli\n",
+		  current_pid, ( rw == WRITE ) ? 'w' : 'r', bio -> bi_sector,
+		  bio -> bi_sector - bio -> bi_bdev -> last_sector - 1 );
+	bio -> bi_bdev -> last_sector = bio -> bi_sector;
 	if( success )
 		set_bit( BIO_UPTODATE, &bio -> bi_flags );
 	else
@@ -2056,7 +2061,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			mkdir_thread( &info );
 
 		call_readdir( f, argv[ 2 ] );
-		print_tree_rec( "tree-dir", tree, REISER4_NODE_CHECK );
+		print_tree_rec( "tree-dir", tree, 
+				REISER4_NODE_CHECK | REISER4_NODE_ONLY_INCORE | REISER4_NODE_SILENT );
 	} else if( !strcmp( argv[ 2 ], "queue" ) ) {
 		/*
 		 * a.out nikita queue T C O | egrep '^queue' | cut -f2 -d' '
@@ -2161,7 +2167,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			done_lh( &lh );
 
 		}
-		print_tree_rec( "tree:ibk", tree, REISER4_NODE_CHECK );
+		print_tree_rec( "tree:ibk", tree, 
+				REISER4_NODE_CHECK | REISER4_NODE_ONLY_INCORE );
 		/* print_tree_rec( "tree", tree, ~0u ); */
 	} else if( !strcmp( argv[ 2 ], "inode" ) ) {
 		struct inode f;
@@ -4453,7 +4460,7 @@ void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 			znode *child;
 
 			spin_lock_dk( current_tree );
-			child = child_znode( &coord, coord.node, 0 );
+			child = child_znode( &coord, coord.node, 0, 0 );
 			spin_unlock_dk( current_tree );
 			if( !IS_ERR( child ) ) {
 				tree_rec_dot( tree, child, flags, dot );
