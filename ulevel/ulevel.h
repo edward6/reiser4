@@ -589,7 +589,6 @@ struct inode {
 
 	struct block_device    *i_bdev;
 	atomic_t		i_writecount;
-	unsigned int		i_attr_flags;
 	__u32			i_generation;
 	union {
 		void				*generic_ip;
