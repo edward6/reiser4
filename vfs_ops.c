@@ -933,7 +933,8 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 			}
 		},
 #endif
-		/* Load all bitmap blocks at mount time */
+		/* Don't load all bitmap blocks at mount time, it is useful for machines 
+		   with tiny RAM and large disks. */
 		{
 			.name = "dont_load_bitmap",
 			.type = OPT_BIT,
