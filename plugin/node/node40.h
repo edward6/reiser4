@@ -103,6 +103,7 @@ int node40_fast_paste(const coord_t * coord);
 int node40_fast_cut(const coord_t * coord);
 int node40_max_item_size(void);
 int node40_prepare_for_removal(znode * empty, carry_plugin_info * info);
+int node40_set_item_plugin(coord_t * coord, item_id id);
 
 void update_znode_dkeys(znode * left, znode * right);
 

@@ -243,6 +243,9 @@ typedef struct node_plugin {
 	   number of bytes item in a node may be appended with */
 	int (*max_item_size) (void);
 	int (*prepare_removal) (znode * empty, carry_plugin_info * info);
+	/* change plugin id of items which are in a node already. Currently it is Used in tail conversion for regular
+	 * files */
+	int (*set_item_plugin) (coord_t * coord, item_id);
 } node_plugin;
 
 typedef enum {

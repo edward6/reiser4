@@ -378,7 +378,9 @@ node_plugin node_plugins[LAST_NODE_ID] = {
 		       .modify = NULL,
 #endif
 		       .max_item_size = node40_max_item_size,
-		       .prepare_removal = node40_prepare_for_removal}
+		       .prepare_removal = node40_prepare_for_removal,
+		       .set_item_plugin = node40_set_item_plugin
+	}
 };
 
 /*
