@@ -4,7 +4,6 @@
 #include "../../key.h"
 #include "../../tree.h"
 #include "../../context.h"
-#include "../file/file.h"
 
 #include <linux/quotaops.h>
 #include <asm/uaccess.h>
