@@ -427,17 +427,21 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 					  GN_DO_READ );
 				zrelse( coord -> node );
 				if( result == 0 ) {
-					done_lh( lh );
 
 					result = zload( couple.node );
-					if( result != 0 )
+					if( result != 0 ) {
+						done_lh( &couple );
 						return result;
-					coord_init_first_unit( coord, couple.node );
+					}
+
+					coord_init_first_unit( coord, 
+							       couple.node );
+					done_lh( lh );
 					move_lh( lh, &couple );
 				} else
 					return result;
 			} while( node_is_empty( coord -> node ) );
-		};
+		}
 
 		assert( "nikita-1149", coord_is_existing_unit( coord ) );
 	}
