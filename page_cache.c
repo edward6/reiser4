@@ -436,7 +436,7 @@ page_io(struct page *page /* page to perform io for */ ,
 			SetPageWriteback(page);
 			reiser4_unlock_page(page);
 		}
-		if ( rw == WRITE && reiser4_get_current_sb()->s_flags & MS_RDONLY ) {
+		if ( (rw == WRITE) && (reiser4_get_current_sb()->s_flags & MS_RDONLY) ) {
 			ClearPageWriteback(page);
 			bio_put(bio);
 		} else {
