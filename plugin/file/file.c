@@ -1242,7 +1242,7 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 				unset_hint(&hint);
 				continue;
 			}
-			write_f = write_f = item_plugin_by_id(TAIL_ID)->s.file.write;
+			write_f = item_plugin_by_id(TAIL_ID)->s.file.write;
 		}
 
 		result = write_f(inode, &coord, &lh, f);
