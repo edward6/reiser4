@@ -11,29 +11,6 @@
    tail2extent and extent2tail */
 
 
-#if REISER4_DEBUG
-static inline struct task_struct *
-inode_ea_owner(const unix_file_info_t *uf_info)
-{
-	return uf_info->ea_owner;
-}
-
-static void ea_set(unix_file_info_t *uf_info, void *value)
-{
-	uf_info->ea_owner = value;
-}
-#else
-#define ea_set(inode, value) noop
-#endif
-
-static int ea_obtained(const unix_file_info_t *uf_info)
-{
-	
-	assert("vs-1167", ergo (inode_ea_owner(uf_info) != NULL,
-				inode_ea_owner(uf_info) == current));
-	return uf_info->exclusive_use;
-}
-
 /* exclusive access to a file is acquired when file state changes: tail2extent, empty2tail, extent2tail, etc */
 void
 get_exclusive_access(unix_file_info_t *uf_info)
@@ -41,6 +18,8 @@ get_exclusive_access(unix_file_info_t *uf_info)
 	assert("nikita-3028", schedulable());
 	assert("nikita-3047", LOCK_CNT_NIL(inode_sem_w));
 	assert("nikita-3048", LOCK_CNT_NIL(inode_sem_r));
+	assert("nikita-3361", get_current_context()->trans->atom == NULL);
+	BUG_ON(get_current_context()->trans->atom != NULL);
 	LOCK_CNT_INC(inode_sem_w);
 	rw_latch_down_write(&uf_info->latch);
 	assert("nikita-3060", inode_ea_owner(uf_info) == NULL);
@@ -80,25 +59,6 @@ drop_nonexclusive_access(unix_file_info_t *uf_info)
 	assert("vs-1160", !ea_obtained(uf_info));
 	rw_latch_up_read(&uf_info->latch);
 	LOCK_CNT_DEC(inode_sem_r);
-}
-
-static void
-nea2ea(unix_file_info_t *uf_info)
-{
-	drop_nonexclusive_access(uf_info);
-	get_exclusive_access(uf_info);
-}
-
-static void
-ea2nea(unix_file_info_t *uf_info)
-{
-	assert("nikita-3060", inode_ea_owner(uf_info) == current);
-	assert("vs-1168", ea_obtained(uf_info));
-	ea_set(uf_info, 0);
-	uf_info->exclusive_use = 0;
-	rw_latch_downgrade(&uf_info->latch);
-	LOCK_CNT_DEC(inode_sem_w);
-	LOCK_CNT_INC(inode_sem_r);
 }
 
 static int
@@ -255,7 +215,7 @@ cut_tail_items(struct inode *inode, loff_t offset, int count)
 	set_key_offset(&to, (__u64) (offset + count - 1));
 
 	/* cut everything between those keys */
-	return cut_tree(tree_by_inode(inode), &from, &to);
+	return cut_tree(tree_by_inode(inode), &from, &to, NULL);
 }
 
 typedef enum {
@@ -338,31 +298,18 @@ tail2extent(unix_file_info_t *uf_info)
 	int done;		/* set to 1 when all file is read */
 	char *item;
 	int i;
-	int access_switched;
 
-	/* switch inode's rw_semaphore from read_down (set by unix_file_write)
-	   to write_down */
-	access_switched = 0;
-	if (!ea_obtained(uf_info)) {
-		/* we are called from write */
-		access_switched = 1;
-		nea2ea(uf_info);
-	}
+	assert("nikita-3362", ea_obtained(uf_info));
 
 	if (uf_info->container == UF_CONTAINER_EXTENTS) {
 		warning("vs-1171",
 			"file %llu is built of tails already. Should not happen",
 			get_inode_oid(unix_file_info_to_inode(uf_info)));
-		/* tail was converted by someone else */
-		if (access_switched)
-			ea2nea(uf_info);
 		return 0;
 	}
 
 	result = prepare_tail2extent(unix_file_info_to_inode(uf_info));
 	if (result) {
-		if (access_switched)
-			ea2nea(uf_info);
 		return result;
 	}
 
@@ -490,8 +437,6 @@ tail2extent(unix_file_info_t *uf_info)
 	uf_info->container = UF_CONTAINER_EXTENTS;
 
 	for_all_pages(pages, sizeof_array(pages), RELEASE);
-	if (access_switched)
-		ea2nea(uf_info);
 
 	/* It is advisable to check here that all grabbed pages were freed */
 
@@ -505,8 +450,6 @@ tail2extent(unix_file_info_t *uf_info)
 error:
 	for_all_pages(pages, sizeof_array(pages), DROP);
 exit:
-	if (access_switched)
-		ea2nea(uf_info);
 	all_grabbed2free();
 	return result;
 }
@@ -666,11 +609,14 @@ extent2tail(unix_file_info_t *uf_info)
 		/* cut part of file we have read */
 		set_key_offset(&from, (__u64) (i << PAGE_CACHE_SHIFT));
 		set_key_offset(&to, (__u64) ((i << PAGE_CACHE_SHIFT) + PAGE_CACHE_SIZE - 1));
-		result = cut_tree_object(tree_by_inode(inode),
-					 &from,
-					 &to,
-					 NULL,
-					 inode);
+		/*
+		 * cut_tree_object() returns -E_REPEAT to allow atom
+		 * commits during over-long truncates. But
+		 * extent->tail conversion should be performed in one
+		 * transaction.
+		 */
+		result = cut_tree(tree_by_inode(inode), &from, &to, inode);
+
 		if (result) {
 			page_cache_release(page);
 			break;

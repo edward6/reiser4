@@ -15,7 +15,7 @@
 /* this file contains file plugin methods of regular reiser4 files. Those files are either built of tail items only (TAIL_ID) or
    of extent items only (EXTENT_POINTER_ID) or empty (have no items but stat data) */
 
-static int unpack(struct inode *inode, int forever);
+static int unpack(struct inode *inode, int forever, int locked);
 
 /* get unix file plugin specific portion of inode */
 inline unix_file_info_t *
@@ -303,7 +303,7 @@ goto_right_neighbor(coord_t * coord, lock_handle * lh)
 
 	init_lh(&lh_right);
 	result = reiser4_get_right_neighbor(
-		&lh_right, coord->node, 
+		&lh_right, coord->node,
 		znode_is_wlocked(coord->node) ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK,
 		GN_CAN_USE_UPPER_LEVELS);
 	if (result) {
@@ -1570,7 +1570,7 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *fl
 
 	while (flow->length) {
 		off = get_key_offset(&flow->key);
-		/*XXX*//*printk("write (oid %llu, size %llu, offset %llu)\n", 
+		/*XXX*//*printk("write (oid %llu, size %llu, offset %llu)\n",
 		  get_inode_oid(uf_info->inode), uf_info->inode->i_size, off);*/
 		assert("vs-1123", get_current_context()->grabbed_blocks == 0);
 		if (to_write == flow->length) {
@@ -1610,6 +1610,8 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *fl
 		case UF_CONTAINER_TAILS:
 			if (should_have_notail(uf_info, get_key_offset(&flow->key) + flow->length)) {
 				longterm_unlock_znode(&lh);
+				if (!ea_obtained(uf_info))
+					return RETERR(-E_REPEAT);
 				result = tail2extent(uf_info);
 				if (result)
 					return result;
@@ -1719,8 +1721,9 @@ static struct vm_operations_struct unix_file_vm_ops = {
 };
 
 /* takes care about mapped pages. Performs tail conversion. Called from write_unix_file() and mmap_unix_file(). */
-int check_pages_unix_file(struct file *file, int vm_flags, int caller_is_write,
-			  int perform_convert)
+static int
+check_pages_unix_file(struct file *file, int vm_flags, int caller_is_write,
+		      int perform_convert, int *gotaccess)
 {
 	int result;
 	struct inode *inode;
@@ -1729,16 +1732,21 @@ int check_pages_unix_file(struct file *file, int vm_flags, int caller_is_write,
 	inode = file->f_dentry->d_inode;
 	uf_info = unix_file_inode_data(inode);
 
-	/* Check if object is RDONLY. If so, we go out with no error. This may happed, when file
-	   is opened for RDONLY and then mmaped for read with flags MAP_PRIVATE. */
+	*gotaccess = 0;
+
+	/* Check if object is RDONLY. If so, we go out with no error. This may
+	   happened, when file is opened for RDONLY and then mmaped for read
+	   with flags MAP_PRIVATE. */
 	if (IS_RDONLY(inode))
 		return 0;
 
-	get_exclusive_access(uf_info);
-
-	/* throwing out mapped pages if they was mapped for read and file consists of tails. */
+	result = 0;
+	/* throwing out mapped pages if they was mapped for read and file
+	 * consists of tails. */
 	if (inode_get_flag(inode, REISER4_TAILS_FILE_MMAPED)) {
 		if ((vm_flags & VM_MAYWRITE) || caller_is_write) {
+			get_exclusive_access(uf_info);
+			*gotaccess = 1;
 			truncate_inode_pages(inode->i_mapping, 0);
 			inode_clr_flag(inode, REISER4_TAILS_FILE_MMAPED);
 		}
@@ -1747,17 +1755,14 @@ int check_pages_unix_file(struct file *file, int vm_flags, int caller_is_write,
 	/* converting file to extents if it is going to be mapped for write. */
 	if (perform_convert) {
 		if ((vm_flags & VM_MAYWRITE) || caller_is_write) {
-			drop_access(uf_info);
-			
-			if ((result = unpack(inode, 0)))
-				return result;
-
-			get_exclusive_access(uf_info);
+			if (!*gotaccess) {
+				get_exclusive_access(uf_info);
+				*gotaccess = 1;
+			}
+			result = unpack(inode, 0, 1);
 		}
 	}
-
-	drop_access(uf_info);
-	return 0;
+	return result;
 }
 
 /* plugin->u.file.mmap
@@ -1768,12 +1773,17 @@ mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 	int result;
 	struct inode *inode;
 	unix_file_info_t *uf_info;
+	int gotaccess;
 
 	inode = file->f_dentry->d_inode;
 	uf_info = unix_file_inode_data(inode);
 
 	/* Checking for mapped pages, converting to something (tails, extents) */
-	if ((result = check_pages_unix_file(file, vma->vm_flags, 0, 1)))
+	result = check_pages_unix_file(file, vma->vm_flags, 0, 1, &gotaccess);
+	if (gotaccess)
+		drop_access(uf_info);
+
+	if (result != 0)
 		return result;
 	
 	result = generic_file_mmap(file, vma);
@@ -1786,8 +1796,82 @@ mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 	if (!(vma->vm_flags & VM_MAYWRITE) && (uf_info->container == UF_CONTAINER_TAILS))
 		inode_set_flag(inode, REISER4_TAILS_FILE_MMAPED);
 	
-
 	return 0;
+}
+
+static ssize_t
+write_file(struct file *file, /* file to write to */
+	   const char *buf, /* address of user-space buffer */
+	   size_t count, /* number of bytes to write */
+	   loff_t *off /* position in file to write to */,
+	   int exclusive)
+{
+	struct inode *inode;
+	ssize_t written;	/* amount actually written so far */
+	loff_t pos;		/* current location in the file */
+	unix_file_info_t *uf_info;
+	int gotaccess;
+
+	assert("vs-855", count > 0);
+
+	if (unlikely(count == 0))
+		return 0;
+
+	inode = file->f_dentry->d_inode;
+	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
+
+	/* linux's VM requires this. See mm/vmscan.c:shrink_list() */
+	current->backing_dev_info = inode->i_mapping->backing_dev_info;
+
+	down(&inode->i_sem);
+
+	/* Checking for mapped pages, converting to something (tails, extents) */
+	written = check_pages_unix_file(file, 0, 1, 0, &gotaccess);
+
+	uf_info = unix_file_inode_data(inode);
+	if (!gotaccess) {
+		if (inode->i_size == 0 || exclusive)
+			get_exclusive_access(uf_info);
+		else
+			get_nonexclusive_access(uf_info);
+	}
+
+	if (written == 0) {
+		assert("nikita-3032", schedulable());
+
+		written = generic_write_checks(inode, file, off, &count, 0);
+		if (likely(written == 0)) {
+
+			/* UNIX behavior: clear suid bit on file modification */
+			remove_suid(file->f_dentry);
+
+			/* estimation for write is entrusted to write item
+			 * plugins */
+
+			pos = *off;
+
+			if (inode->i_size < pos) {
+				/* pos is set past real end of file */
+				written = append_hole(uf_info, pos);
+				assert("vs-1081", ergo(written == 0,
+						       pos == inode->i_size));
+			}
+
+			if (written == 0)
+				/* write user data to the file */
+				written = write_flow(file,
+						     uf_info, buf, count, pos);
+			if (written > 0)
+				/* update position in a file */
+				*off = pos + written;
+		}
+	}
+	drop_access(uf_info);
+	up(&inode->i_sem);
+	current->backing_dev_info = 0;
+	assert("vs-43196", written != -EEXIST);
+	/* return number of written bytes, or error code */
+	return written;
 }
 
 /* plugin->u.file.write */
@@ -1797,83 +1881,22 @@ write_unix_file(struct file *file, /* file to write to */
 		size_t count, /* number of bytes to write */
 		loff_t *off /* position in file to write to */)
 {
-	struct inode *inode;
-	int result;
-	ssize_t written;	/* amount actually written so far */
-	loff_t pos;		/* current location in the file */
-	unix_file_info_t *uf_info;
+	ssize_t written;
+	int rep;
 
-	/* Checking for mapped pages, converting to something (tails, extents) */
-	if ((result = check_pages_unix_file(file, 0, 1, 0)))
-		return result;
+	for (rep = 0;; ++ rep) {
+		written = write_file(file, buf, count, off, rep);
+		if (written == -E_REPEAT) {
+			reiser4_context * ctx;
 
-	inode = file->f_dentry->d_inode;
-
-	down(&inode->i_sem);
-
-	assert("nikita-3032", schedulable());
-
-	result = generic_write_checks(inode, file, off, &count, 0);
-	if (unlikely(result != 0)) {
-		up(&inode->i_sem);
-		return result;
+			ctx = get_current_context();
+			written = txn_end(ctx);
+			if (written < 0)
+				break;
+			txn_begin(ctx);
+		} else
+			break;
 	}
-
-	if (unlikely(count == 0)) {
-		up(&inode->i_sem);
-		return 0;
-	}
-
-	/* linux's VM requires this. See mm/vmscan.c:shrink_list() */
-/* setting this causes the following behavior.  If we request memory, and vmscan finds a dirty page from the same device
- * we are writing to, and the device is congested, vmscan submits the page to this congested device, which causes the IO
- * to block, which causes vmscan to block and perform slowly, which throttles this function. This is in addition to
- * balance_dirty throttling.  I can't say we understand why it is needed.  -Hans */
-	current->backing_dev_info = inode->i_mapping->backing_dev_info;
-
-	/* UNIX behavior: clear suid bit on file modification */
-	remove_suid(file->f_dentry);
-
-	assert("vs-855", count > 0);
-	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
-	uf_info = unix_file_inode_data(inode);
-	if (inode->i_size == 0)
-		get_exclusive_access(uf_info);
-	else
-		get_nonexclusive_access(uf_info);
-
-	/* estimation for write is entrusted to write item plugins */
-
-	pos = *off;
-
-	if (inode->i_size < pos) {
-		/* pos is set past real end of file */
-		result = append_hole(uf_info, pos);
-		if (result) {
-			drop_access(uf_info);
-			current->backing_dev_info = 0;
-			up(&inode->i_sem);
-			return result;
-		}
-		assert("vs-1081", pos == inode->i_size);
-	}
-
-	/* write user data to the file */
-	written = write_flow(file, uf_info, buf, count, pos);
-	drop_access(uf_info);
-	/* linux's VM requires this. See mm/vmscan.c:shrink_list() */
-	current->backing_dev_info = 0;
-
-	up(&inode->i_sem);
-	if (written < 0) {
-		if (written == -EEXIST)
-			printk("write_file returns EEXIST!\n");
-		return written;
-	}
-
-	/* update position in a file */
-	*off = pos + written;
-	/* return number of written bytes */
 	return written;
 }
 
@@ -1917,14 +1940,15 @@ set_file_notail(struct inode *inode)
 
 /* if file is built of tails - convert it to extents */
 static int
-unpack(struct inode *inode, int forever)
+unpack(struct inode *inode, int forever, int locked)
 {
 	int            result = 0;
 	unix_file_info_t *uf_info;
 
 	uf_info = unix_file_inode_data(inode);
 	
-	get_exclusive_access(uf_info);
+	if (!locked)
+		get_exclusive_access(uf_info);
 
 	if (uf_info->container == UF_CONTAINER_UNKNOWN) {
 		loff_t file_size;
@@ -1939,7 +1963,8 @@ unpack(struct inode *inode, int forever)
 			set_file_notail(inode);
 	}
 
-	drop_exclusive_access(uf_info);
+	if (!locked)
+		drop_exclusive_access(uf_info);
 
 	if (result == 0) {
 		__u64 tograb;
@@ -1962,7 +1987,7 @@ ioctl_unix_file(struct inode *inode, struct file *filp UNUSED_ARG, unsigned int 
 
 	switch (cmd) {
 	case REISER4_IOC_UNPACK:
-		result = unpack(inode, 1);
+		result = unpack(inode, 1, 0);
 		break;
 
 	default:

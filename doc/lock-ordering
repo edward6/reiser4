@@ -106,6 +106,25 @@ Reiser4 introduces following locks:
 39. Per-jnode spin lock used to synchronize jload() with        (jload_lock*)
     ->releasepage().
 
+40. Per-atom imaginary read-write semaphore handle_sema         (handle_sema)
+
+    let's pretend for the sake of simplicity that there is special per-atom
+    read-write semaphore that threads can claim. Call it
+    handle_sema. This semaphore is acquired on read when thread captures first
+    block and is released when thread's reiser4_context is closed. Formally
+    thread holds this semaphore on read exactly when
+    get_current_context()->trans->atom != NULL, i.e., when thread is
+    associated with atom. Logic behind introducing this imaginary semaphore is
+    that while some thread is associated with an atom (that is, keeps
+    transaction handle opened), this atom cannot commit. In particular, other
+    threads waiting on fusion with atom that is in CAPTURE_WAIT stage wait
+    until this atom commits, that is wait (at least) until there are no opened
+    transaction handles for this atom. Effectively such threads wait until
+    handle_semaphore is free, that is, they in some sense are trying to
+    acquire handle_semaphore in write mode.  So, this circumferential
+    description allows one to reduce (at least partially) problem of waiting
+    on atom fusion to the lock ordering.
+
 99. Various locks used by the user level simulator
 
 Locks marked by (*) after label, are accessed through spin lock macros,
@@ -301,6 +320,7 @@ obviously.
 
 i_sem
 ..inode_rw_lock <-------DEAD1-----+
+....handle_sema                   |
 ......I_LOCK                      |
 ......delete_sema                 |
 ......flush_sema                  |

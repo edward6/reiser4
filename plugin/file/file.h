@@ -119,6 +119,28 @@ static inline void set_inode_ordering(const struct inode *inode, __u64 ordering)
 
 #endif
 
+#if REISER4_DEBUG
+static inline struct task_struct *
+inode_ea_owner(const unix_file_info_t *uf_info)
+{
+	return uf_info->ea_owner;
+}
+
+static inline void ea_set(unix_file_info_t *uf_info, void *value)
+{
+	uf_info->ea_owner = value;
+}
+#else
+#define ea_set(inode, value) noop
+#endif
+
+static inline int ea_obtained(const unix_file_info_t *uf_info)
+{
+	assert("vs-1167", ergo (inode_ea_owner(uf_info) != NULL,
+				inode_ea_owner(uf_info) == current));
+	return uf_info->exclusive_use;
+}
+
 /* __REISER4_FILE_H__ */
 #endif
 
