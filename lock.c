@@ -917,7 +917,7 @@ longterm_lock_znode(
 			ADDSTAT(node, lock_lopri);
 	}
 
-	cap_mode = (mode == ZNODE_WRITE_LOCK) ? TXN_CAPTURE_WRITE : 0;
+	cap_mode = build_capture_mode(node, mode, cap_flags);
 
 	/* Synchronize on node's zlock guard lock. */
 	WLOCK_ZLOCK(lock);

@@ -1920,7 +1920,9 @@ build_capture_mode(jnode * node, znode_lock_mode lock_mode, txn_capture flags)
 		return 0;
 	}
 
-	cap_mode |= (flags & (TXN_CAPTURE_NONBLOCKING | TXN_CAPTURE_DONT_FUSE | TXN_CAPTURE_CAN_COC));
+	cap_mode |= (flags & (TXN_CAPTURE_NONBLOCKING |
+			      TXN_CAPTURE_DONT_FUSE |
+			      TXN_CAPTURE_CAN_COC));
 	assert("nikita-3186", cap_mode != 0);
 	return cap_mode;
 }
