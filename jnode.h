@@ -314,9 +314,6 @@ extern int flush_enqueue_unformatted(jnode * node, flush_position * pos);
 extern reiser4_blocknr_hint *flush_pos_hint(flush_position * pos);
 extern int flush_pos_leaf_relocate(flush_position * pos);
 
-extern int jnode_is_flush_prepped(jnode * node);
-extern int znode_is_flush_prepped(znode * node);
-
 /* FIXME-VS: these are used in plugin/item/extent.c */
 
 /* does extent_get_block have to be called */
@@ -419,6 +416,18 @@ jnode_is_flushprepped(const jnode * node)
 	assert("jmacd-71276", spin_jnode_is_locked(node));
 	return !jnode_is_dirty(node) || JF_ISSET(node, JNODE_RELOC)
 	    || JF_ISSET(node, JNODE_OVRWR);
+}
+
+/* Return true if @node has already been processed by the squeeze and allocate
+   process.  This implies the block address has been finalized for the
+   duration of this atom (or it is clean and will remain in place).  If this
+   returns true you may use the block number as a hint. */
+static inline int
+jnode_check_flushprepped(jnode * node)
+{
+	/* It must be clean or relocated or wandered.  New allocations are set to relocate. */
+	assert("jmacd-71275", spin_jnode_is_not_locked(node));
+	return UNDER_SPIN(jnode, node, jnode_is_flushprepped(node));
 }
 
 static inline void

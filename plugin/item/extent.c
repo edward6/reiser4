@@ -1646,7 +1646,7 @@ extent_needs_allocation(extent_state st, oid_t oid, unsigned long ind, __u64 cou
 			}
 		})
 
-		if (!jnode_is_flush_prepped(j)) {
+		if (!jnode_check_flushprepped(j)) {
 			jnode_set_wander(j);
 			jnode_set_clean(j);
 		}

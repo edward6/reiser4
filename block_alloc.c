@@ -83,7 +83,7 @@ static void add_to_sb_flush_reserved (const struct super_block * super, __u64 co
 	__u64 reserved = flush_reserved (super);
 
 	reserved += count;
-	reiser4_set_flush_reserved (super, reserved);
+	set_flush_reserved (super, reserved);
 }
 
 static void

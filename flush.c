@@ -113,7 +113,7 @@
      re-enable the JNODE_FLUSH_BUSY bit support in future.
 
    With these state bits, we describe a test used frequently in the code below,
-   jnode_is_flushprepped() (and the spin-lock-taking jnode_is_flush_prepped()).  The
+   jnode_is_flushprepped() (and the spin-lock-taking jnode_check_flushprepped()).  The
    test for "flushprepped" returns true if any of the following are true:
   
      - The node is not dirty
@@ -489,6 +489,12 @@ static int jnode_lock_parent_coord(jnode         * node,
 				   znode_lock_mode mode, int try);
 static int znode_get_utmost_if_dirty(znode * node, lock_handle * right_lock, sideof side, znode_lock_mode mode);
 static int znode_same_parents(znode * a, znode * b);
+
+static int
+znode_check_flushprepped(znode * node)
+{
+	return jnode_check_flushprepped(ZJNODE(node));
+}
 
 /* Flush position functions */
 static void flush_pos_init(flush_position * pos);
@@ -1230,7 +1236,7 @@ flush_alloc_ancestors(flush_position * pos)
 	   is it?  It needs to be moved into some kind of spinlock protection, probably
 	   flush_reverse_relocate_check_dirty_parent or flush_reverse_relocate_test,
 	   definitely flush_allocate_znode. */
-	if (jnode_is_flush_prepped(pos->point)) {
+	if (jnode_check_flushprepped(pos->point)) {
 		trace_on(TRACE_FLUSH_VERB, "flush concurrency: %s already allocated\n", flush_pos_tostring(pos));
 		return 0;
 	}
@@ -1301,7 +1307,7 @@ flush_alloc_one_ancestor(coord_t * coord, flush_position * pos)
 
 	/* If the ancestor is clean or already allocated, or if the child is not a
 	   leftmost child, stop going up. */
-	if (znode_is_flush_prepped(coord->node)
+	if (znode_check_flushprepped(coord->node)
 	    || !coord_is_leftmost_unit(coord)) {
 		return 0;
 	}
@@ -1324,7 +1330,7 @@ flush_alloc_one_ancestor(coord_t * coord, flush_position * pos)
 		}
 
 		/* Recursive call. */
-		if (!znode_is_flush_prepped(acoord.node) && (ret = flush_alloc_one_ancestor(&acoord, pos))) {
+		if (!znode_check_flushprepped(acoord.node) && (ret = flush_alloc_one_ancestor(&acoord, pos))) {
 			goto exit;
 		}
 	}
@@ -1434,7 +1440,7 @@ squalloc(flush_position * pos)
 				 * squalloc when there is no concurrent flushing. */
 
 	/* If there is a race and the current node is already prepped, why continue? */
-	if (jnode_is_flush_prepped(pos->point)) {
+	if (jnode_check_flushprepped(pos->point)) {
 		return 0;
 	}
 #endif
@@ -1522,7 +1528,7 @@ squalloc(flush_position * pos)
 				 * dequeue_jnode(), prepare_node_for_write(),
 				 * uncapture_page()
 				 */
-				keep_going = !jnode_is_flush_prepped(child);
+				keep_going = !jnode_check_flushprepped(child);
 
 				jput(child);
 
@@ -1573,7 +1579,7 @@ squalloc(flush_position * pos)
 			}
 		}
 
-		while (flush_pos_valid(pos));
+	} while (flush_pos_valid(pos));
 
 	ENABLE_NODE_CHECK;
 	PROF_END(forward_squalloc, forward_squalloc);
@@ -1739,7 +1745,7 @@ flush_squalloc_changed_ancestors(flush_position * pos)
 			goto exit;
 		}
 
-		keep_going = !jnode_is_flush_prepped(child);
+		keep_going = !jnode_check_flushprepped(child);
 
 		jput(child);
 
@@ -1761,7 +1767,7 @@ flush_squalloc_changed_ancestors(flush_position * pos)
 	/* We have a new right and it should have been flushprepped by the call to
 	   flush_squalloc_one_changed_ancestor.  However, a concurrent thread could
 	   possibly insert a new node, so just stop if ! flushprepped. */
-	if (!jnode_is_flush_prepped(ZJNODE(right_lock.node))) {
+	if (!jnode_check_flushprepped(ZJNODE(right_lock.node))) {
 		trace_on(TRACE_FLUSH_VERB, "sq_rca: STOP (right not allocated): %s\n", flush_pos_tostring(pos));
 		ret = flush_pos_stop(pos);
 		goto exit;
@@ -1865,7 +1871,7 @@ RIGHT_AGAIN:
 	   may be refinements here.  There is a region to the right that was already
 	   squeezed, but it could be that squeezing it with this node (and then squeezing
 	   to the right) will reduce by a node. */
-	if (znode_is_flush_prepped(right_lock.node)) {
+	if (znode_check_flushprepped(right_lock.node)) {
 		trace_on(TRACE_FLUSH_VERB, "sq1_ca: STOP (right already prepped): %s\n", flush_pos_tostring(pos));
 		ret = flush_pos_stop(pos);
 		goto exit;
@@ -2026,7 +2032,7 @@ RIGHT_AGAIN:
 	/* Allocate the right node if it was not already allocated.  We already checked if
 	   the right node was flushprepped above, before squeezing, so why check it now?
 	   Why not?  The call to flush_allocate_znode acquires a spinlock */
-	if (!znode_is_flush_prepped(right_lock.node)) {
+	if (!znode_check_flushprepped(right_lock.node)) {
 		if (
 		    (ret =
 		     jnode_lock_parent_coord(ZJNODE(right_lock.node),
@@ -2402,25 +2408,6 @@ shift_one_internal_unit(znode * left, znode * right)
 }
 
 /* ALLOCATE INTERFACE */
-
-/* Return true if @node has already been processed by the squeeze and allocate
-   process.  This implies the block address has been finalized for the
-   duration of this atom (or it is clean and will remain in place).  If this
-   returns true you may use the block number as a hint. */
-int
-jnode_is_flush_prepped(jnode * node)
-{
-	/* It must be clean or relocated or wandered.  New allocations are set to relocate. */
-	assert("jmacd-71275", spin_jnode_is_not_locked(node));
-	return UNDER_SPIN(jnode, node, jnode_is_flushprepped(node));
-}
-
-int
-znode_is_flush_prepped(znode * node)
-{
-	return jnode_is_flush_prepped(ZJNODE(node));
-}
-
 /* Audited by: umka (2002.06.11) */
 void
 jnode_set_block(jnode * node /* jnode to update */ ,
@@ -2442,7 +2429,7 @@ flush_allocate_znode(znode * node, coord_t * parent_coord, flush_position * pos)
 	/* FIXME(D): We have the node write-locked and should have checked for ! 
 	   allocated() somewhere before reaching this point, but there can be a race, so
 	   this assertion is bogus. */
-	assert("jmacd-7987", !jnode_is_flush_prepped(ZJNODE(node)));
+	assert("jmacd-7987", !jnode_check_flushprepped(ZJNODE(node)));
 	assert("jmacd-7988", znode_is_write_locked(node));
 	assert("jmacd-7989", coord_is_invalid(parent_coord)
 	       || znode_is_write_locked(parent_coord->node));
@@ -3415,7 +3402,7 @@ repeat:
 
 		trace_on(TRACE_FLUSH_VERB, "unalloc scan index %lu: %s\n", scan_index, flush_jnode_tostring(neighbor));
 
-		assert("jmacd-3551", !jnode_is_flush_prepped(neighbor)
+		assert("jmacd-3551", !jnode_check_flushprepped(neighbor)
 		       && same_atom_dirty(neighbor, scan->node, 0, 0));
 
 		if ((ret = flush_scan_set_current(scan, neighbor, scan_dist, &coord))) {
@@ -3559,7 +3546,7 @@ flush_pos_to_child_and_alloc(flush_position * pos)
 		goto stop;
 	}
 
-	if (jnode_is_flush_prepped(child)) {
+	if (jnode_check_flushprepped(child)) {
 		trace_on(TRACE_FLUSH_VERB,
 			 "fpos_to_child_alloc: STOP (already flushprepped): %s\n", flush_pos_tostring(pos));
 		jput(child);
