@@ -999,6 +999,19 @@ int znode_is_root( const znode *node /* znode to query */ )
 	return result;
 }
 
+void jnode_attach_to_page( jnode *node, struct page *pg )
+{
+	assert( "nikita-2047", node != NULL );
+	assert( "nikita-2048", pg != NULL );
+
+	spin_lock( &_jnode_ptr_lock );
+	if( pg -> private == 0ul ) {
+		pg -> private = ( unsigned long ) node;
+		node -> data  = page_address( pg );
+	}
+	spin_unlock( &_jnode_ptr_lock );
+}
+
 /** debugging aid: znode invariant */
 /* Audited by: umka (2002.06.11) */
 static int znode_invariant_f( const znode *node /* znode to check */, 

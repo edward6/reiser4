@@ -672,6 +672,8 @@ static inline int jnode_is_dirty( const jnode *node )
 	return JF_ISSET( node, ZNODE_DIRTY );
 }
 
+extern void jnode_attach_to_page( jnode *node, struct page *pg );
+
 /** return true if "node" is dirty, node is unlocked */
 static inline int jnode_check_dirty( jnode *node )
 {

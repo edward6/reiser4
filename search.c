@@ -255,7 +255,7 @@ void cbk_cache_add( znode *node /* node to add to the cache */ )
 	cbk_cache_unlock( cache );
 }
 
-#if defined (REISER4_DEBUG) && defined (REISER4_USER_LEVEL_SIMULATION)
+#if REISER4_DEBUG && REISER4_USER_LEVEL_SIMULATION
 /** Debugging aid: print human readable information about @slot */
 void print_cbk_slot( const char *prefix /* prefix to print */, 
 		     cbk_cache_slot *slot /* slot to print */ )

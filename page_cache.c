@@ -101,6 +101,7 @@ void *alloc_jnode_data( struct super_block *super, const jnode *node )
 	page = add_page( super, node );
 	if( page != NULL ) {
 		kmap( page );
+		jnode_attach_to_page( node, page );
 		unlock_page( page );
 		return page_address( page );
 	} else
@@ -137,7 +138,9 @@ void *read_in_jnode_data( struct super_block *super, const jnode *node )
 			unlock_page( page );
 		}
 		if( result == 0 ) {
-			return kmap( page );
+			kmap( page );
+			jnode_attach_to_page( node, page );
+			return page_address( page );
 		} else
 			return ERR_PTR( result );
 	} else
@@ -233,12 +236,6 @@ static struct page *add_page( struct super_block *super, const jnode *node )
 	 * We are under page lock now, so it can be used as synchronization.
 	 *
 	 */
-
-	spin_lock( &_jnode_ptr_lock );
-	assert( "nikita-2022", 
-		( jprivate( page ) == NULL ) || ( jprivate( page ) == node ) );
-	jprivate( page ) = node;
-	spin_unlock( &_jnode_ptr_lock );
 	return page;
 }
 
