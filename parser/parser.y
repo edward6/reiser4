@@ -48,13 +48,13 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 {
 	long longType;
 	struct Label * Label;
-	struct Name * NamePtr;
 	struct String * StrPtr;
 	struct lnode * expr;
+	var * Var;
 }
 
-%type <NamePtr> WORD N_WORD P_WORD P_RUNNER 
-%type <NamePtr> Unordered
+%type <Var> WORD N_WORD P_WORD P_RUNNER 
+%type <Var> Unordered
 
 %type <StrPtr> STRING_CONSTANT
 
@@ -280,6 +280,7 @@ Object_Name
 Object_Path_Name
 : WORD                                            { $$ = pars_path_walk( $1 ); }
 | SLASH_PROCESS                                   { $$ = make_proc_lnode(); }
+| UNNAME WORD                                     { $$ = contens_of(pars_path_walk( $1 )); }
 ;
 
 /*
@@ -492,77 +493,46 @@ b_check_word(struct yy_r4_work_spaces * ws )
 	return(0);
 }
 
-inttab(struct yy_r4_work_spaces * ws )
+
+
+
+var * inttab(struct yy_r4_work_spaces * ws )
 {
 	int i;
+	var * cur_var;
+	var * new_var;
 
+	cur_var = ws->WrdHead;
 
+	cur_var = get_first_wrd(ws);
 
+	len = strlen( ws->freeSpace );
 
-
-
-	if (strco)
-		for( i = strco - 1; i; i--)
-			if( !( strcmp( wrdTab( i ), ws->freeSpace ) )  )
+	while ( !( cur_var == Null ) )
+		{
+			if (cur_var->txt.len==len)
 				{
-					return(i);
+					if( !( strcmp( cur_var->txt.name, ws->freeSpace ) )  )
+						{
+							return cur_var;
+						}
 				}
-	if( strco >= MAXSTRN )             yyerror( ws, MaxStringsNumberOwerflow);
-	wrdTab(strco) = ws->freeSpace;
-	ws->freeSpace = ws->tmpWrdEnd;
-	return(strco++);
+
+			cur_var = get_next_wrd(ws,cur_var);
+		}
+
+	new_var=(var*)( (char*)(ws->freeSpace) + len );
+	new_var->txt.name = ws->freeSpace;
+	new_var->txt.len  = ws->freeSpace;
+
+	return new_var;
 }
 
 
 
-yyerror(struct yy_r4_work_spaces * ws , nmsg,x1,x2,x3,x4,x5,x6,x7,x8)
-int 	nmsg,x1,x2,x3,x4,x5,x6,x7,x8;
-{
-	int i,j,k;
-	char errt[100];
-	char far * fss;
-	char     * nss;
-
-	i= ws->ws_pline - ws->ws_inline;
-	if (!ws->freeSpace) ws->freeSpace=malloc(1024);
-	if(i<0 || i>MAXLINE)
-		{
-			i=0;
-			*ws->ws_inline=0;
-		}
-	if (!errf) errf=fopen(errfname,"r");
-	j=0;
-	sprintf(ws->freeSpace,"%5d",nmsg);
-	strcpy(errt,"0");
-	if (errf)
-		{
-			fseek(errf,0L,SEEK_SET);
-			while( nmsg>(j=atoi(errt)) ) if ( !fgets(errt,LENFNAME,errf) ) break;
-		}
-	if ( errf && nmsg==j )
-		sprintf( ws->freeSpace, errt, x1, x2, x3, x4, x5, x6, x7, x8 ) ;
-	else    sprintf( ws->freeSpace," %d Syntax error",nmsg);
-	j=0;
-	if (i || yylineno[yyinlev] )
-		{
-			printf("\n");
-			if (i)
-				for(i--;i;i--,j++)
-					printf( ( *(ws->ws_inline+j)=='\t' ) ? "\t" : " " );
-			printf("\n%s\n",ws->ws_inline);
-		}
-	if (j || yylineno[yyinlev] )  printf("FILE %-13s LINE %4d "
-					     , curfile [ yyinlev ]
-					     ,yylineno [ yyinlev ]  );
-	printf("ERROR #%s",ws->freeSpace);
-	yyerrco++;
-}
 
 
-
-lnode * root_lnode;
-
-lnode * get_root_lnode()
+lnode * get_root_lnode(struct yy_r4_work_space * ws)
 {
 	struct dentry   dentry;
 	struct dentry * result;
@@ -572,19 +542,19 @@ lnode * get_root_lnode()
 
 	walk_init_root("/",&nd);
 
-	root_lnode = allocate_lnode();
+	ws->root_lnode = allocate_lnode();
 
 	if ( is_reiser4_inode( nd.dentry.d_inode ) )
 		{
-			root_lnode->h.type = LNODE_LW;
-			k_rez = build_sd_key( nd.dentry.d_inode, &root_lnode->lw.key);
-			l_rez = lget( root_lnode, LNODE_LW, root_lnode->lw.key.el[KEY_OBJECTID_INDEX]  );
+			ws->root_lnode->h.type = LNODE_LW;
+			k_rez = build_sd_key( nd.dentry.d_inode, &ws->root_lnode->lw.key);
+			l_rez = lget( ws->root_lnode, LNODE_LW, ws->root_lnode->lw.key.el[KEY_OBJECTID_INDEX]  );
 
 		}
 	else
 		{
-			root_lnode->h.type = LNODE_INODE;
-			root_lnode->inode.inode = nd.dentry.d_inode;
+			ws->root_lnode->h.type = LNODE_INODE;
+			ws->root_lnode->inode.inode = nd.dentry.d_inode;
 		}
 
 }
