@@ -83,6 +83,21 @@ void set_file_state_empty(struct inode *inode)
 	inode_set_flag(inode, REISER4_FILE_EMPTY);
 }
 
+static char *file_state(const struct inode *inode)
+{
+	if (file_state_is_known(inode)) {
+		if (file_is_empty(inode))
+			return "empty";
+		else if (file_is_built_of_tails(inode))
+			return "tails";
+		else if (file_is_built_of_extents(inode))
+			return "extent";
+		else
+			return "weird";
+	} else
+		return "unknown";
+}
+
 /* this is to be used after find_file_item to determine real state of file */
 void set_file_state(struct inode *inode, int cbk_result, tree_level level)
 {
@@ -688,7 +703,7 @@ append_hole(struct inode *inode, loff_t new_size)
 
 	result = 0;
 	hole_size = new_size - inode->i_size;
-	written = write_flow(0, inode, 0, new_size - inode->i_size, inode->i_size);
+	written = write_flow(0/*file*/, inode, 0/*buf*/, hole_size, inode->i_size);
 	if (written != hole_size) {
 		/* return error because file is not expanded as required */
 		if (written > 0)
@@ -700,50 +715,56 @@ append_hole(struct inode *inode, loff_t new_size)
 	return result;
 }
 
+/* this either cuts or add items of/to the file so that items match new_size. It is used in unix_file_setattr when it is
+   used to truncate and in unix_file_delete */
 static int
-truncate_file(struct inode *inode)
+truncate_file(struct inode *inode, loff_t new_size)
 {
 	int result;
 	loff_t cur_size;
-	loff_t new_size;
+	loff_t old_i_size;
 
-	new_size = inode->i_size;
+	/* FIXME-VS: remove after debugging */
+	/*info("truncate_file: ino %llu, size %llu (%s)\n", get_inode_oid(inode), inode->i_size,
+	  file_state(inode));*/
+
+	old_i_size = inode->i_size;
+	INODE_SET_FIELD(inode, i_size, new_size);
 
 	result = find_file_size(inode, &cur_size);
-	if (result)
-		return result;
-
-	if (new_size != cur_size) {
-		int (*truncate_f)(struct inode *, loff_t);
-
-		INODE_SET_FIELD(inode, i_size, cur_size);
-		truncate_f = (cur_size < new_size) ? append_hole : shorten_file;
-		result = truncate_f(inode, new_size);
-	} else {
-		/* when file is built of extens - find_file_size can only calculate old file size up to page size. Case
-		 * of not changing file size is detected in unix_file_setattr, therefore here we have expanding file
-		 * within its last page up to the end of that page */
-		assert("vs-1115", file_is_built_of_extents(inode));
-		assert("vs-1116", (new_size & ~PAGE_CACHE_MASK) == 0);
+	if (!result) {
+		if (new_size != cur_size) {
+			int (*truncate_f)(struct inode *, loff_t);
+			
+			INODE_SET_FIELD(inode, i_size, cur_size);
+			truncate_f = (cur_size < new_size) ? append_hole : shorten_file;
+			result = truncate_f(inode, new_size);
+		} else {
+			/* when file is built of extens - find_file_size can only calculate old file size up to page
+			 * size. Case of not changing file size is detected in unix_file_setattr, therefore here we have
+			 * expanding file within its last page up to the end of that page */
+			assert("vs-1115", file_is_built_of_extents(inode));
+			assert("vs-1116", (new_size & ~PAGE_CACHE_MASK) == 0);
+		}
 	}
 	return result;
 }
 
-/* plugin->u.file.truncate
-   this is called with exclusive access obtained in unix_file_setattr */
+/* plugin->u.file.truncate 
+   FIXME: truncate is not simple. It currently consists of 3 steps:
+   reiser4_setattr
+   	unix_file_setattr
+		1. truncate_file
+		inode_setattr
+			2. vmtruncate
+			3. unix_file_truncate (this function)
+*/
 int
 unix_file_truncate(struct inode *inode, loff_t new_size)
 {
-	int result;
-
-	assert("vs-1097", inode->i_size == new_size);
-	result = truncate_file(inode);
-	if (!result) {
-		INODE_SET_FIELD(inode, i_size, new_size);
-		inode->i_mtime = inode->i_ctime = CURRENT_TIME;
-		result = reiser4_write_sd(inode);		
-	}
-	return result;
+	INODE_SET_FIELD(inode, i_size, new_size);
+	inode->i_mtime = inode->i_ctime = CURRENT_TIME;
+	return reiser4_write_sd(inode);		
 }
 
 /* plugin->u.write_sd_by_inode = common_file_save */
@@ -1124,8 +1145,9 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 
 		if (coord.between != AT_UNIT) {
 			info("zam-829: unix_file_read: key not in item, "
-			     "reading offset (%llu) from the file with size (%llu)",
+			     "reading offset (%llu) from the file (oid %llu) with size (%llu)\n",
 			     (unsigned long long)get_key_offset(&f.key),
+			     get_inode_oid(inode),
 			     (unsigned long long)inode->i_size);
 			done_lh(&lh);
 			break;
@@ -1523,26 +1545,29 @@ static struct vm_operations_struct unix_file_vm_ops = {
 	.nopage = unix_file_filemap_nopage,
 };
 
-/* reiser4_unpack -- function try to convert tail into extent by means of using
-   tail2extent function. */
+/* if file is built of tails - convert it to extents */
 static int
 unpack(struct inode *inode)
 {
 	int result;
 
+	result = 0;
+
+	/* tail2extent expects either exclusive or non-exclusive access obtained */
 	get_exclusive_access(inode);
-	result = tail2extent(inode);
 
-	if (result == 0) {
-		reiser4_inode *state;
+	if (!file_state_is_known(inode)) {
+		loff_t file_size;
 
-		state = reiser4_inode_data(inode);
-		/* set new tail policy plugin in in-core inode */
-		plugin_set_tail(&state->pset, tail_plugin_by_id(NEVER_TAIL_ID));
-		/* store it in stat data */
-		inode_set_plugin(inode, tail_plugin_to_plugin(state->pset->tail));
-		result = reiser4_write_sd(inode);
+		result = find_file_size(inode, &file_size);
+		if (result) {
+			drop_exclusive_access(inode);
+			return result;
+		}
 	}
+	assert("vs-1074", file_state_is_known(inode));
+	if (file_is_built_of_tails(inode))
+		result = tail2extent(inode);
 
 	drop_exclusive_access(inode);
 	return result;
@@ -1556,10 +1581,18 @@ unix_file_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsign
 
 	switch (cmd) {
 	case REISER4_IOC_UNPACK:
-		if (arg) {
-			result = unpack(inode);
-			break;
+		result = unpack(inode);
+		if (!result) {
+			reiser4_inode *state;
+
+			state = reiser4_inode_data(inode);
+			/* set new tail policy plugin in in-core inode */
+			plugin_set_tail(&state->pset, tail_plugin_by_id(NEVER_TAIL_ID));
+			/* store it in stat data */
+			inode_set_plugin(inode, tail_plugin_to_plugin(state->pset->tail));
+			result = reiser4_write_sd(inode);
 		}
+		break;
 
 	default:
 		result = -ENOTTY;
@@ -1578,26 +1611,9 @@ unix_file_mmap(struct file *file, struct vm_area_struct *vma)
 
 	inode = file->f_dentry->d_inode;
 
-	/* tail2extent expects file to be nonexclusively locked */
-	get_nonexclusive_access(inode);
-
-	if (!file_state_is_known(inode)) {
-		loff_t file_size;
-
-		result = find_file_size(inode, &file_size);
-		if (result)
-			return result;
-	}
-	assert("vs-1074", file_state_is_known(inode));
-	if (file_is_built_of_tails(inode)) {
-		result = tail2extent(inode);
-		if (result) {
-			drop_nonexclusive_access(inode);
-			return result;
-		}
-	}
-
-	drop_nonexclusive_access(inode);
+	result = unpack(inode);
+	if (result)
+		return result;
 
 	result = generic_file_mmap(file, vma);
 	if (result)
@@ -1667,11 +1683,15 @@ unix_file_delete(struct inode *inode)
 {
 	int result;
 
+	/* FIXME-VS: remove after debugging */
+	/*info("unix_file_delete: ino %llu, size %llu, (%s)\n", get_inode_oid(inode), inode->i_size,
+	  file_state(inode));*/
+
 	assert("vs-1099", inode->i_nlink == 0);
 	if (inode->i_size) {
 		get_exclusive_access(inode);
-		INODE_SET_FIELD(inode, i_size, 0);
-		result = truncate_file(inode);
+		/*INODE_SET_FIELD(inode, i_size, 0);*/
+		result = truncate_file(inode, 0);
 		drop_exclusive_access(inode);
 		if (result) {
 			warning("nikita-2848",
@@ -1726,9 +1746,21 @@ unix_file_setattr(struct inode *inode,	/* Object to change attributes */
 	if (attr->ia_valid & ATTR_SIZE) {
 		/* truncate does reservation itself and requires exclusive access obtained */
 		if (inode->i_size != attr->ia_size) {
+			loff_t old_size;
+
 			inode_check_scale(inode, inode->i_size, attr->ia_size);
+
+			old_size = inode->i_size;
+
 			get_exclusive_access(inode);
-			result = inode_setattr(inode, attr);
+			/*INODE_SET_FIELD(inode, i_size, attr->ia_size);*/
+			result = truncate_file(inode, attr->ia_size);
+			if (!result) {
+				/* items are removed already. inode_setattr will call vmtruncate to invalidate truncated
+				   pages and unix_file_truncate which will do nothing */
+				INODE_SET_FIELD(inode, i_size, old_size);
+				result = inode_setattr(inode, attr);
+			}
 			drop_exclusive_access(inode);
 		} else
 			result = 0;
