@@ -723,6 +723,33 @@ int ulevel_read_node( const reiser4_block_nr *addr, char **data )
 	}
 }
 
+
+struct buffer_head * sb_bread(struct super_block * sb UNUSED_ARG, int block UNUSED_ARG)
+{
+	return 0;
+}
+
+
+void brelse (struct buffer_head * bh)
+{
+	assert ("vs-472", bh->b_count > 0);
+	bh->b_count --;
+}
+
+
+int sb_set_blocksize(struct super_block *sb UNUSED_ARG, int size UNUSED_ARG)
+{
+	return size;
+}
+
+
+/* fs/dcache.c */
+struct dentry * d_alloc_root(struct inode * inode UNUSED_ARG)
+{
+	return 0;
+}
+
+
 znode *allocate_znode( reiser4_tree *tree, znode *parent,
 		       unsigned int level, const reiser4_block_nr *addr, int init_node_p )
 {
@@ -911,17 +938,18 @@ static int one_shot_filldir(void *arg, const char *name, int namelen,
 
 	info = arg;
 	info -> eof = 0;
-	if( info -> fired > 0 ) {
-		info -> fired = 0;
+	
+	if( info -> fired == 0 ) {
+		info -> fired = 1;
 		info -> name = strdup( name );
 		info -> inum = ( int ) inum;
+		info( "%s[%i]: %s (%i), %Lx, %Lx, %i\n", info -> prefix,
+		      current_pid, name, namelen, offset, inum, ftype );
+		return 0;
+	} else {
+		info -> fired = 0;
 		return -EINVAL;
-	} else
-		info -> name = NULL;
-	++ info -> fired;
-	info( "%s[%i]: %s (%i), %Lx, %Lx, %i\n", info -> prefix,
-	      current_pid, name, namelen, offset, inum, ftype );
-	return 0;
+	}
 }
 
 static int echo_filldir(void *arg, const char *name, int namelen, 
@@ -1586,6 +1614,9 @@ static struct inode * create_root_dir (znode * root)
 	inode->i_blksize = 4096;
 	inode->i_blocks = 1;
 	inode->i_mapping = &inode->i_data;
+	spin_lock( &inode_hash_guard );
+	list_add (&inode->i_hash, &inode_hash_list);
+	spin_unlock( &inode_hash_guard );
 	inode->i_sb = reiser4_get_current_sb();
 	sema_init( &inode->i_sem, 1 );
 	init_inode( inode, &coord );
@@ -1955,16 +1986,24 @@ static int copy_dir (struct inode * dir)
 		
 		/* stat "source" file */
 		if (!stat (local, &st)) {
-			depth = get_depth (local) + 1;
-			assert ("vs-344", depth > 1);
+			int new_depth;
 
+			new_depth = get_depth (local) + 1;
+			assert ("vs-344", new_depth > 1);
+
+			for (i = new_depth - 1 ; i < depth ; ++ i)
+				if (inodes [i])
+					iput (inodes [i]);
+			depth = new_depth;
+
+			inodes = (struct inode **) realloc (inodes, sizeof (struct inode *) * depth);
+			if (!inodes) {
+				info ("copy_dir: realloc failed\n");
+				break;
+			}
+			assert ("vs-471", inodes [depth - 2]);
 			if (S_ISDIR (st.st_mode)) {
 				printf ("DIR\n");
-				inodes = (struct inode **) realloc (inodes, sizeof (struct inode *) * depth);
-				if (!inodes) {
-					info ("copy_dir: realloc failed\n");
-					break;
-				}
 
 				if (call_mkdir (inodes [depth - 2], last_name (local))) {
 					info ("copy_dir: mkdir failed\n");
@@ -1992,6 +2031,7 @@ static int copy_dir (struct inode * dir)
 					info ("copy_dir: copy_file failed\n");
 					break;
 				}
+				inodes [depth - 1] = 0;
 				files ++;
 			} else
 				printf ("OTHER");
@@ -2008,8 +2048,10 @@ static int copy_dir (struct inode * dir)
 
 	free (name);
 
-	for (i = 0 ; i < depth ; ++ i)
-		iput (inodes [i]);
+	for (i = 0 ; i < depth ; ++ i) {
+		if (inodes [i])
+			iput (inodes [i]);
+	}
 
 	if (chdir (cwd)) {
 		perror ("copy_dir: chdir failed");
@@ -2478,8 +2520,8 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				tmp = call_cd (cwd, command + 3);
 				if (IS_ERR(tmp)) {
 					info ("%s failed\n", command);
-				}
-				cwd = tmp;
+				} else
+					cwd = tmp;
 				continue;
 			}
 			BASH_CMD ("mkdir ", call_mkdir);
@@ -2955,10 +2997,10 @@ int real_main( int argc, char **argv )
 	else
 		++ __prog_name;
  	abendInit( argc, argv );
-
+/*
 	trap_signal( SIGBUS );
 	trap_signal( SIGSEGV );
-
+*/
 	if( getenv( "REISER4_TRACE_FLAGS" ) != NULL ) {
 		reiser4_current_trace_flags = 
 			strtol( getenv( "REISER4_TRACE_FLAGS" ), NULL, 0 );
