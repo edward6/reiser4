@@ -2581,7 +2581,7 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 	unsigned long ind;
 	reiser4_key sd_key;
 	jnode * j;
-	int i, ret;
+	int i, ret = 0;
 
 
 	blocksize = current_blocksize;
@@ -2613,7 +2613,8 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 
 		j = jnode_of_page (page);
 		if (! j) {
-			return -ENOMEM;
+			ret = -ENOMEM;
+			break;
 		}
 		jnode_set_block (j, &first);
 
@@ -2633,14 +2634,14 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 		page_cache_release (page);
 		jput (j);
 		if (ret) {
-			return ret;
+			break;
 		}
 
 		offset += blocksize;
 	}
  	iput (inode);
 
-	return 0;
+	return ret;
 }
 
 
@@ -2773,7 +2774,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 					if ((ret = flush_enqueue_unformatted (j, pos))) {
 						assert ("jmacd-71891", ret < 0);
 						jput (j);
-						return ret;
+						goto fail;
 					}
 				} else {
 					/* Or else set RELOC.  It will get set again, but... */
@@ -2790,7 +2791,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 			/* FIXME: JMACD->ZAM: Is this right? */
 			if ((ret = reiser4_dealloc_blocks (& start, & count, /* defer */ 1, BLOCK_ALLOCATED))) {
 				assert ("jmacd-71892", ret < 0);
-				return ret;
+				goto fail;
 			}
 
 			extent_set_start (extent, 1ull /* UNALLOCATED_EXTENT */);
@@ -2807,6 +2808,12 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 	}
 
 	return relocate;
+
+ fail:
+	if (inode != NULL) {
+		iput (inode);
+	}
+	return ret;
 }
 
 
