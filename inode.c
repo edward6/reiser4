@@ -741,10 +741,9 @@ inode_invariant(const struct inode *inode)
 
 	spin_lock_eflush(inode->i_sb);
 
-	assert("nikita-3146", object->eflushed >= 0);
-	assert("nikita-3441", ergo(object->eflushed > 0,
-				   object->ef_jnodes.rnode != NULL));
-	assert("nikita-3442", object->eflushed >= object->eflushed_anon);
+	assert("nikita-3146", object->anonymous_eflushed >= 0 && object->captured_eflushed >= 0);
+	assert("nikita-3441", ergo(object->anonymous_eflushed > 0 || object->captured_eflushed > 0,
+				   ef_jnode_tree_by_reiser4_inode(object)->rnode != NULL));
 	
 	spin_unlock_eflush(inode->i_sb);
 }
