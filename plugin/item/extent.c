@@ -2160,13 +2160,10 @@ int extent_read (struct inode * inode, coord_t * coord,
 		return PTR_ERR (page);
 	}
 
-	/*
-	 * FIXME-VS: there should be jnode attached to page
-	 */
-	assert ("vs-756", page->private);
 	wait_on_page_locked (page);
 	if (!PageUptodate (page)) {
-		page_detach_jnode (page);
+		if (PagePrivate (page))
+			page_detach_jnode (page);
 		page_cache_release (page);
 		warning ("jmacd-97178", "extent_read: page is not up to date");
 		return -EIO;
@@ -2239,19 +2236,38 @@ static void print_range_list (struct list_head * list)
 {
 	struct list_head * cur;
 	struct page_range * range;
+	unsigned long long sector;
+
 
 	list_for_each (cur, list) {
 		range = list_entry (cur, struct page_range, next);
-		info ("range: sector %llu, nr_pages %d\n", range->sector, range->nr_pages);
+		sector = range->sector;
+		info ("range: sector %llu, nr_pages %d\n", sector, range->nr_pages);
 	}
 }
 
 
-/* return true if number of pages in a range is maximal possible number of
- * pages in one bio */
-static int range_is_full (struct page_range * range)
+static void extent_end_io_read(struct bio *bio)
 {
-	return ((unsigned)range->nr_pages == (BIO_MAX_SIZE / PAGE_CACHE_SIZE)) ? 1 : 0;
+	int uptodate;
+        struct bio_vec * bvec;
+	struct page * page;
+	int i;
+
+
+	uptodate = test_bit (BIO_UPTODATE, &bio->bi_flags);
+	bvec = &bio->bi_io_vec [0];
+	for (i = 0; i < bio->bi_vcnt; i ++, bvec ++) {
+		page = bvec->bv_page;
+                if (uptodate) {
+                        SetPageUptodate (page);
+                } else {
+                        ClearPageUptodate (page);
+                        SetPageError (page);
+                }
+                unlock_page (page);		
+	}
+        bio_put (bio);
 }
 
 
@@ -2363,7 +2379,7 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 					range->sector = extent_get_start (&ext [i]) +
 						pos_in_unit;
 				INIT_LIST_HEAD (&range->pages);
-				list_add (&range->next, &range_list);
+				list_add_tail (&range->next, &range_list);
 			}
 
 			read_unlock (&mapping->page_lock);
@@ -2372,8 +2388,9 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 			if (!page)
 				break;
 			page->index = start_page + j;
-			list_add (&page->list, &range->pages);
+			list_add_tail (&page->list, &range->pages);
 			range->nr_pages ++;
+			pos_in_unit ++;
 		}
 		read_unlock (&mapping->page_lock);
 
@@ -2410,24 +2427,57 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 			 */
 			prev = ~0lu;
 			while (range->nr_pages) {
-				/* list of pages must contains at list one page
-				 * in it */
+				/* list of pages should contain at least one
+				 * page in it */
 				assert ("vs-798", !list_empty (&range->pages));
-				/* make sure that pages are in right order */
-				assert ("vs-800", ergo (prev != ~0lu, prev + 1 == page->index));
+
+				if (range->sector != 0 && !bio) {
+					/* create bio if it is not created yet
+					 * and if pages in this range are not
+					 * of hole */
+					int vcnt;
+
+					vcnt = BIO_MAX_SIZE / PAGE_CACHE_SIZE;
+					if (vcnt > range->nr_pages)
+						vcnt = range->nr_pages;
+					bio = bio_alloc (GFP_KERNEL, vcnt);
+					if (!bio) {
+						/*
+						 * FIXME-VS: drop all allocated pages?
+						 */
+						continue;
+					}
+					bio->bi_bdev = mapping->host->i_sb->s_bdev;
+					bio->bi_vcnt = vcnt;
+					bio->bi_idx = 0;
+					bio->bi_size = 0;
+					bio->bi_end_io = extent_end_io_read;
+					bio->bi_sector = range->sector;
+					bio->bi_io_vec[0].bv_page = NULL;					
+				}
 
 				/* take first page off the list */
 				page = list_entry (range->pages.next, struct page, list);
 				list_del (&page->list);
 				range->nr_pages --;
 
+				/* make sure that pages are in right order */
+				assert ("vs-800", ergo (prev != ~0lu, prev + 1 == page->index));
+				prev = page->index;
+
 				if (add_to_page_cache_unique (page, mapping, page->index)) {
 					/* someone else added this page */
 					page_cache_release (page);
 					if (bio) {
 						bio->bi_vcnt = bio->bi_idx;
-						submit_bio (READ, bio);
-						bio = 0;
+						if (bio->bi_idx) {
+							/* only submit not
+							 * empty bio */
+							submit_bio (READ, bio);
+							bio = 0;
+						} else {
+							; /* use the same bio */
+						}
 					}
 					continue;
 				}
@@ -2436,9 +2486,7 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 
 				if (range->sector == 0) {
 					/* this range matches to hole
-					 * extent. no bio is created for this
-					 * range of pages which correspond to
-					 * hole extent */
+					 * extent. no bio is created */
 					assert ("vs-799", bio == 0);
 					memset (kmap (page), 0, PAGE_CACHE_SIZE);
 					flush_dcache_page (page);
@@ -2447,37 +2495,26 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 					unlock_page (page);
 					page_cache_release (page);
 					continue;
-				}
-
-				/* put this page into bio */
-				if (!bio) {
-					bio = bio_alloc (GFP_KERNEL, range->nr_pages + 1);
-					if (!bio) {
-						page_cache_release (page);
-						range->nr_pages --;
-						continue;
+				} else {
+					assert ("vs-814", bio);
+					/* put this page into bio */
+					bvec = &bio->bi_io_vec [bio->bi_idx];
+					bvec->bv_page = page;
+					bvec->bv_len = current_blocksize;
+					bvec->bv_offset = 0;
+					bio->bi_size += bvec->bv_len;
+					bio->bi_idx ++;
+					page_cache_release (page);
+					if (bio->bi_idx == BIO_MAX_SIZE / PAGE_CACHE_SIZE ||
+					    !range->nr_pages) {
+						/* bio is full or there are no
+						 * pages anymore */
+						submit_bio (READ, bio);
+						bio = 0;
 					}
-					bio->bi_bdev = mapping->host->i_bdev;
-					bio->bi_vcnt = range->nr_pages;
-					bio->bi_idx = 0;
-					bio->bi_size = 0;
-					bio->bi_sector = range->sector;
-					bio->bi_io_vec[0].bv_page = NULL;
-				}
-				bvec = &bio->bi_io_vec [bio->bi_idx];
-				bvec->bv_page = page;
-				bvec->bv_len = current_blocksize;
-				bvec->bv_offset = 0;
-				bio->bi_size += bvec->bv_len;
-				bio->bi_idx ++;
-				page_cache_release (page);
+				}					
 
-				range->nr_pages --;
 			}
-			bio->bi_vcnt = bio->bi_idx;
-			submit_bio (READ, bio);
-			bio = NULL;
-			range->nr_pages -= bio->bi_vcnt;
 			assert ("vs-783", list_empty (&range->pages));
 			assert ("vs-788", !range->nr_pages);
 			kfree (range);
