@@ -393,6 +393,44 @@ static int load_bnode (struct reiser4_bnode * bnode)
 	return ret;
 }
 
+#if 0
+
+/* calls an actor for each bitmap block which is in a given range of disk
+ * blocks with parameters of start and end offsets within bitmap block */
+static int bitmap_iterator (reiser4_block_nr *start, reiser4_block_nr *start,
+		     int (*actor)(void *, int bmap, int start_offset, int end_offset), 
+		     void * opaque)
+{
+	struct super_block * super = get_current_sb();
+	const int max_offset = super->s_blocksize * 8;
+
+	int bmap, offset;
+	int end_bmap, end_offset;
+
+	reiser4_block_nr tmp;
+
+	int ret;
+
+	assert ("zam-426", *end > *start);
+	assert ("zam-427", *end <= reiser4_block_count (super));
+	assert ("zam-428", actor != NULL);
+
+	parse_blocknr (start, &bmap, &offset);
+	tmp = *end - 1;
+	parse_blocknr (&tmp, &end_bmap, &end_offset);
+	++end_offset; 
+
+	for (; bmap < end_bmap; bmap ++, offset = 0) {
+		ret = actor (opaque, bmap, offset, max_offset);
+
+		if (ret != 0) return ret;
+	}
+
+	return actor (opaque, bmap, offset, end_offset);
+} 
+
+#endif
+
 /** This function does all block allocation work but only for one bitmap
  * block.*/
 /* FIXME_ZAM: It does not allow us to allocate block ranges across bitmap
@@ -546,55 +584,11 @@ int bitmap_alloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 }
 
 /* plugin->u.space_allocator.dealloc_block */
-void bitmap_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
-			    reiser4_block_nr start UNUSED_ARG,
-			    reiser4_block_nr len UNUSED_ARG)
+void bitmap_dealloc_blocks (reiser4_space_allocator * allocator,
+			    reiser4_block_nr start,
+			    reiser4_block_nr len)
 {
-	struct super_block      * super = get_current_context()->super;
-	reiser4_super_info_data * info_data = get_current_super_private();
-	jnode *node;
-	txn_atom * atom = node->atom;
-
-	/*
-	 * FIXME-ZAM: please fix it to deal with block number instead of jnode
-	 * and with not only one node
-	 */
-	node = 0;
- 	assert ("zam-399", node != NULL);
-
-	spin_lock_jnode(node);
-
-	atom = node->atom;
-	assert ("zam-400", atom != NULL);
-
-	if (blocknr_is_fake(&node->blocknr)) {
-		/* deallocation of such not-yet-mapped-to-disk nodes does not
-		 * cause putting them to atom's DELETED SET, but fs free block
-		 * counter is changed immediately */
-
-		spin_lock (&info_data->guard);
-
-		reiser4_inc_free_blocks (super);
-
-		assert ("zam-405", (reiser4_free_blocks (super) >
-				    reiser4_data_blocks (super)));
-
-		spin_unlock (&info_data->guard);
-	}
-
-#if 0
-	/* with mapped nodes we mark them as DELETED and put them to
-	 * atom->clean_nodes list. */
-
-	JF_SET(node, ZNODE_DELETED);
-#endif
-	/* move jnode to a atom's clean list */
-	capture_list_remove (node);
-	capture_list_push_front(&atom->clean_nodes, node);
-
-	/* we do not change free blocks count until transaction commits */
-
-	spin_unlock_jnode(node);
+	
 }
 
 /*
