@@ -86,6 +86,10 @@ reiser4_set_block_count(const struct super_block *super, __u64 nr)
 	   i386 platform. Because we do not need a precise calculation here we
 	   can replace a div64 operation by this combination of multiplication
 	   and shift: 51. / (2^10) == .0498 .*/
+	/* FIXME: this is a bug. It comes up only for very small filesystems
+	   which probably are never user. Nevertheless, it is a bug. Number of
+	   reserved blocks must be not less than maximal number of blocks which
+	   get grabbed with BA_RESERVED. */
 	get_super_private(super)->blocks_reserved = ((nr * 51) >> 10);
 }
 
