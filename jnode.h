@@ -135,6 +135,9 @@ static inline int jnode_is_in_deleteset( const jnode *node )
 /**
  * Jnode routines
  */
+extern jnode* jalloc          (void);
+extern void   jfree           (jnode * node);
+extern jnode* jnew            (void);
 extern jnode* jnode_by_page   (struct page* pg);
 extern jnode* jnode_of_page   (struct page* pg);
 extern jnode* page_next_jnode (jnode *node);
