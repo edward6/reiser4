@@ -118,10 +118,10 @@ int           extent_check              ( const coord_t *coord, const char **err
  */
 int extent_write    (struct inode *, struct sealed_coord *,
 		     flow_t *, struct page *);
-int extent_read     (struct inode *, coord_t *, lock_handle *,
+int extent_read     (struct inode *, struct sealed_coord *,
 		     flow_t *);
 int extent_readpage (void *, struct page * page);
-int extent_writepage (coord_t *, lock_handle *, struct page *);
+int extent_writepage (void *, struct page *);
 int extent_page_cache_readahead (struct file * file, coord_t * coord,
 				 lock_handle * lh UNUSED_ARG,
 				 unsigned long start_page,

@@ -1730,70 +1730,73 @@ static int key_in_extent (const coord_t * coord, const reiser4_key * key)
 		extent_get_width (ext) * current_blocksize;
 }
 
-#if 0
-/* return true if writing at offset @file_off @count bytes to file should block
- * be read before writing into it */
-static int have_to_read_block (struct inode * inode, jnode * j,
-		loff_t file_off, int count)
-{
-	/* file_off fits into block jnode @j refers to */
-	assert ("vs-705", j->pg);
-	assert ("vs-706", current_blocksize == (unsigned)PAGE_CACHE_SIZE);
-	assert ("vs-704", ((file_off & ~(current_blocksize - 1)) ==
-			   ((loff_t)j->pg->index << PAGE_CACHE_SHIFT)));
-
-	if (PageUptodate (j->pg))
-		return 0;
-	if ((*jnode_get_block (j) == 0) || blocknr_is_fake (jnode_get_block (j)))
-		/* jnode of unallocated unformatted node, or of hole */
-		return 0;
-	if (count == (int)current_blocksize)
-		/* all content of block will be overwritten */
-		return 0;
-	if (file_off & (current_blocksize - 1)) {
-		/* start of block is not overwritten */
-		assert ("vs-699",
-			inode->i_size > (file_off & ~(current_blocksize - 1)));
-		return 1;
-	}
-	if (file_off + count >= inode->i_size) {
-		/* all old content of file is overwritten */
-		return 0;
-	}
-	return 1;
-}
-#endif
 
 /*
- * FIXME-VS: comment, cleanups are needed here
+ * this is called by both extent_readpage and extent_writepage
+ */
+static void check_hint (const struct sealed_coord * hint,
+			const struct page * page)
+{
+	assert ("vs-870", PAGE_CACHE_SIZE == current_blocksize);
+
+	/* check that seal is set properly */
+	assert ("vs-975",
+		get_key_objectid (&hint->key) == page->mapping->host->i_ino);
+	assert ("vs-974",
+		(get_key_offset (&hint->key) & PAGE_CACHE_MASK) ==
+		(loff_t)page->index << PAGE_CACHE_SHIFT);
+}
+
+
+/*
+ * this can be called via reiser4_read->unix_file_read->extent_read->read_cache_page->extent_readpage
+ * or
+ * reiser4_read->unix_file_read->page_cache_readahead->reiser4_readpage->unix_file_readpage->extent_readpage
+ * or
+ * filemap_nopage->reiser4_readpage->unix_file_readpage->->extent_readpage
  */
 int extent_readpage (void * vp, struct page * page)
 {
 	int result;
 	struct inode * inode;
-	coord_t * coord;
 	reiser4_extent * ext;
 	extent_state state;
 	reiser4_block_nr block;
 	jnode * j;
+	struct sealed_coord * hint;
+	coord_t coord;
+	lock_handle lh;
 
-	
+
 	trace_on (TRACE_EXTENTS, "RP: index %lu, count %d..", page->index, page_count (page));
 
-	assert ("vs-858", PAGE_CACHE_SIZE == current_blocksize);
+	hint = (struct sealed_coord *)vp;
+	check_hint (hint, page);
+
 	assert ("vs-761", page && page->mapping && page->mapping->host);
 	inode = page->mapping->host;
 
 	/* there should be no jnode yet */
 	assert ("vs-757", !page->private && !PagePrivate (page));
 
-	coord = (coord_t *)vp;
-	assert ("vs-859", znode_is_loaded (coord->node));
-	assert ("vs-860", znode_is_rlocked (coord->node));
-	assert ("vs-758", item_is_extent (coord));
 
-	ext = extent_by_coord (coord);
-	if (!coord_is_existing_unit (coord))
+	init_lh (&lh);
+	result = hint_validate (hint, &hint->key, &coord, &lh);
+	if (result)
+		return -EAGAIN;
+
+	result = zload (coord.node);
+	if (result) {
+		done_lh (&lh);
+		return result;
+	}
+
+	assert ("vs-859", znode_is_loaded (coord.node));
+	assert ("vs-860", znode_is_rlocked (coord.node));
+	assert ("vs-758", item_is_extent (&coord));
+
+	ext = extent_by_coord (&coord);
+	if (!coord_is_existing_unit (&coord))
 		/*
 		 * there are no items either yet or already
 		 */
@@ -1802,14 +1805,17 @@ int extent_readpage (void * vp, struct page * page)
 		state = state_of_extent (ext);
 		if (REISER4_DEBUG)
 			/* this will check that unit @coord is set to addresses this page */
-			in_extent (coord, (loff_t)page->index << PAGE_CACHE_SHIFT);
+			in_extent (&coord, get_key_offset (&hint->key));
 	}
-
 
 	switch (state) {
 	case HOLE_EXTENT:
 		{
 			char *kaddr = kmap_atomic (page, KM_USER0);
+
+			zrelse (coord.node);
+			done_lh (&lh);
+
 			memset (kaddr, 0, PAGE_CACHE_SIZE);
 			flush_dcache_page (page);
 			kunmap_atomic (kaddr, KM_USER0);
@@ -1826,7 +1832,7 @@ int extent_readpage (void * vp, struct page * page)
 		j = jnode_of_page (page);
 		if (IS_ERR (j))
 			return PTR_ERR (j);
-		block = blocknr_by_coord_in_extent (coord,
+		block = blocknr_by_coord_in_extent (&coord,
 						    (reiser4_block_nr)page->index << PAGE_CACHE_SHIFT);
 		jnode_set_mapped (j);
 		jnode_set_block (j, &block);
@@ -1853,6 +1859,8 @@ int extent_readpage (void * vp, struct page * page)
 		j = 0;
 		break;
 	}
+	zrelse (coord.node);
+	done_lh (&lh);
 
 	result = txn_try_capture_page (page, ZNODE_READ_LOCK, 0);
 	if (!result)
@@ -1861,30 +1869,41 @@ int extent_readpage (void * vp, struct page * page)
 	return result;
 }
 
+
 static int extent_get_block (struct inode * inode, coord_t * coord,
 			     lock_handle * lh, jnode * j);
 static jnode * extent_capture_page (struct page * page);
 
-int extent_writepage (coord_t * coord, lock_handle * lh, struct page * page)
+int extent_writepage (void * vp, struct page * page)
 {
 	int result;
 	jnode * j;
+	struct sealed_coord * hint;
+	coord_t coord;
+	lock_handle lh;
 
 
 	trace_on (TRACE_EXTENTS, "WP: index %lu, count %d..", page->index, page_count (page));
 
-	assert ("vs-870", PAGE_CACHE_SIZE == current_blocksize);
+	hint = (struct sealed_coord *)vp;
+	check_hint (hint, page);
 
+	init_lh (&lh);
+	result = hint_validate (hint, &hint->key, &coord, &lh);
+	if (result)
+		return -EAGAIN;
 
 	j = extent_capture_page (page);
-	if (IS_ERR (j))
+	if (IS_ERR (j)) {
+		done_lh (&lh);
 		return PTR_ERR (j);
+	}
 
 	assert ("vs-862", !jnode_mapped (j));
-	assert ("vs-864", znode_is_wlocked (coord->node));
+	assert ("vs-864", znode_is_wlocked (coord.node));
 
-	result = extent_get_block (page->mapping->host, coord, lh, j);
-	done_lh (lh);
+	result = extent_get_block (page->mapping->host, &coord, &lh, j);
+	done_lh (&lh);
 	if (result) {
 		txn_delete_page (page);
 		jput (j);
@@ -1907,8 +1926,7 @@ int extent_writepage (coord_t * coord, lock_handle * lh, struct page * page)
 /*
  * Implements plugin->u.item.s.file.read operation for extent items.
  */
-int extent_read (struct inode * inode, coord_t * coord,
-		 lock_handle * lh, flow_t * f)
+int extent_read (struct inode * inode, struct sealed_coord * hint, flow_t * f)
 {
 	int result;
 	struct page * page;
@@ -1916,12 +1934,14 @@ int extent_read (struct inode * inode, coord_t * coord,
 	unsigned page_off, count;
 	char * kaddr;
 
+
 	page_nr = (get_key_offset (&f->key) >> PAGE_CACHE_SHIFT);
 	count = 0;
 
 	/* this will return page if it exists and is uptodate, otherwise it
 	 * will allocate page and call extent_readpage to fill it */
-	page = read_cache_page (inode->i_mapping, page_nr, extent_readpage, (void *)coord);
+	page = read_cache_page (inode->i_mapping, page_nr, extent_readpage,
+				hint);
 
 	if (IS_ERR (page)) {
 		return PTR_ERR (page);
@@ -2370,7 +2390,7 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 	sd_key = *key;
 	set_key_type (&sd_key, KEY_SD_MINOR);
 	set_key_offset (&sd_key, 0ull);
-//	inode = reiser4_iget (reiser4_get_current_sb (), &sd_key);
+
 	inode = find_get_inode (reiser4_get_current_sb (), 
 				oid_to_ino (get_key_objectid (key)), 
 				reiser4_inode_find_actor, key);
@@ -2379,9 +2399,6 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 		 * inode is being removed right now by concurrent iput().
 		 */
 		return 0;
-
-/*	if( inode -> i_state & I_NEW )
-		unlock_new_inode( inode );*/
 
 
 	/* offset of first byte addressed by block for which blocknr @first is
@@ -2399,30 +2416,6 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 			      inode->i_ino, ind, inode->i_nlink, inode->i_size);
 			continue;
 		}
-#if 0
-		page = reiser4_lock_page (inode->i_mapping, ind);
-
-		if (page == NULL)
-			/*
-			 * it is possible that concurrent truncate is removing
-			 * pages of this file. Right solution is for flush to
-			 * lock against concurrent accesses. Unfortunately
-			 * this will obviously deadlock, because flush first
-			 * takes locks on znode and then on inode and
-			 * truncate/write in the opposite order.
-			 *
-			 * For now, just skip missing pages.
-			 */
-			continue;
-
-		assert ("vs-350", page->private != 0);
-
-		j = jnode_of_page (page);
-		if (IS_ERR(j)) {
-			ret = PTR_ERR(j);
-			break;
-		}
-#endif
 
 		jnode_set_block (j, &first);
 
@@ -2432,18 +2425,7 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 		jnode_set_reloc (j);
 
 		/* Submit I/O and set the jnode clean. */
-		
-#if 0
-		/* FIXME: JMACD->VS: flush_enqueue_unformatted no longer needs the page
-		 * locked, it will lock it later.  Can we remove unlock_page and use
-		 * find_get_page instead? */
-		unlock_page (page);
-#endif
 		ret = flush_enqueue_unformatted (j, flush_pos);
-#if 0
-		/* page_detach_jnode (page); */
-		page_cache_release (page);
-#endif
 		jput (j);
 		if (ret) {
 			break;
@@ -2966,7 +2948,6 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 static int paste_unallocated_extent (coord_t * item, reiser4_key * key,
 				     reiser4_block_nr width)
 {
-	int result;
 	coord_t coord;
 	reiser4_item_data data;
 	reiser4_extent new_ext;
@@ -3611,8 +3592,6 @@ int extent_write (struct inode * inode, struct sealed_coord * hint, flow_t * f,
 		  struct page * page)
 {
 	int result;
-	coord_t coord;
-	lock_handle lh;
 
 
 	if (!page && f->data)
@@ -3620,25 +3599,19 @@ int extent_write (struct inode * inode, struct sealed_coord * hint, flow_t * f,
 		return extent_write_flow (inode, hint, f);
 
 
-	init_lh (&lh);
-/*
-	result = find_next_item (0, &hint->key, &coord, &lh,
-				 ZNODE_WRITE_LOCK,
-				 CBK_UNIQUE | CBK_FOR_INSERT);
-	if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
-		done_lh (&lh);
-		return result;
-	}
-*/
-	result = hint_validate (hint, &f->key, &coord, &lh);
-	if (result) {
-		reiser4_stat_extent_add (broken_seals);
-		return result;
-	}
-
 	if (!f->data && !page) {
 		/* expanding truncate. add_hole requires f->key to be set to
 		 * new end of file */
+		coord_t coord;
+		lock_handle lh;
+
+
+		init_lh (&lh);
+		result = hint_validate (hint, &f->key, &coord, &lh);
+		if (result) {
+			reiser4_stat_extent_add (broken_seals);
+			return result;
+		}
 		assert ("vs-958", !page);
 		set_key_offset (&f->key, get_key_offset (&f->key) + f->length);
 		f->length = 0;
@@ -3654,8 +3627,7 @@ int extent_write (struct inode * inode, struct sealed_coord * hint, flow_t * f,
 	assert ("vs-884", page != 0);
 	assert ("vs-963", !f->data);
 	assert ("vs-894", f->length <= PAGE_CACHE_SIZE);
-	result = extent_writepage (&coord, &lh, page);
-	done_lh (&lh);
+	result = extent_writepage (hint, page);
 	if (result == 0) {
 		/* everything is ok */
 		f->length = 0;
