@@ -25,7 +25,7 @@ reiser4_tree *tree_by_inode( const struct inode *inode )
 
 /** main function for external code to get plugins associated with 
     given file-system object */
-reiser4_plugin_ref *get_object_state( const struct inode *inode )
+inodes_plugins *get_inode_plugin_data( const struct inode *inode )
 {
 	assert( "nikita-264", inode != NULL );
 	return &reiser4_inode_data( inode ) -> plugin;
@@ -359,11 +359,11 @@ struct inode * reiser4_iget( struct super_block *super,
 		}
 		if( !failed ) {
 			/* install remaining plugins */
-			reiser4_plugin_ref *self;
+			inodes_plugins *self;
 
 			self = get_object_state( inode );
 			if( ! is_root_dir_key( inode -> i_sb, key ) ) {
-				reiser4_plugin_ref *root;
+				inodes_plugins *root;
 
 				/* take missing plugins from file-system
 				 * defaults */
@@ -401,7 +401,7 @@ struct inode * reiser4_iget( struct super_block *super,
 void print_inode( const char *prefix, const struct inode *i )
 {
 	reiser4_key         inode_key;
-	reiser4_plugin_ref *ref;
+	inodes_plugins *ref;
 
 	if( i == NULL ) {
 		info( "%s: inode: null\n", prefix );
