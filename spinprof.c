@@ -363,7 +363,13 @@ void profregion_functions_end_here(void) { }
 /* REISER4_LOCKPROF */
 #else
 
+#if defined (CONFIG_REISER4_NOOPT)
+
 locksite __hits;
+locksite __hits_held;
+locksite __fits_trying;
+
+#endif /* CONFIG_REISER4_NOOPT */
 
 /* REISER4_LOCKPROF */
 #endif
