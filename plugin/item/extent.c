@@ -689,7 +689,11 @@ static int cut_or_kill_units (coord_t * coord,
 			old_width = extent_get_width (ext);
 			cut_from_to = (old_width - new_width) * blocksize;
 
-			assert ("vs-617", new_width > 0 && new_width < old_width);
+			/*
+			 * FIXME:NIKITA->VS I see this failing with new_width
+			 * == old_width (@to unit is not affected at all).
+			 */
+			assert ("vs-617", new_width > 0 && new_width <= old_width);
 
 			if (state_of_extent (ext) == ALLOCATED_EXTENT && !cut) {
 				reiser4_block_nr start, length;
@@ -2756,7 +2760,7 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 		/* If we allocated it cannot have been wandered -- in that case
 		 * extent_needs_allocation returns 0. */
 		assert ("jmacd-61442", ! JF_ISSET (j, ZNODE_WANDER));
-		JF_SET (j, ZNODE_RELOC);
+		jnode_set_reloc (j);
 
 		/* Submit I/O and set the jnode clean. */
 		
@@ -2906,7 +2910,14 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 
 				if (relocate == 0) {
 					/* If not relocating and dirty, WANDER it */
-					JF_SET (j, ZNODE_WANDER);
+					/*
+					 * FIXME:NIKITA->* I see this failing
+					 * because @j already has ZNODE_RELOC
+					 * set on it. I DONT KNOW WHAT I AM
+					 * DOING.
+					 */
+					JF_CLR (j, ZNODE_RELOC);
+					jnode_set_wander (j);
 
 					if ((ret = flush_enqueue_unformatted (j, pos))) {
 						assert ("jmacd-71891", ret < 0);
@@ -2915,7 +2926,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 					}
 				} else {
 					/* Or else set RELOC.  It will get set again, but... */
-					JF_SET (j, ZNODE_RELOC);
+					jnode_set_reloc (j);
 				}
 			}
 
