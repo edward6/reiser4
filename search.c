@@ -683,7 +683,9 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h)
 		 * 2. or, node itself is going to be removed from the
 		 * tree. Release lock and restart.
 		 */
-		reiser4_stat_tree_add( cbk_key_moved );
+		reiser4_stat_tree_add
+			( znode_contains_key( active, h -> key ) ? 
+			  cbk_met_ghost : cbk_key_moved );
 		h -> result = -EAGAIN;
 	}
 	spin_unlock_dk( current_tree );

@@ -103,6 +103,7 @@ void reiser4_print_stats()
 	      "\t cbk_notfound:\t %lli\n"
 	      "\t cbk_restart:\t %lli\n"
 	      "\t cbk_key_moved:\t %lli\n"
+	      "\t cbk_met_ghost:\t %lli\n"
 	      "\t cbk_cache_hit:\t %lli\n"
 	      "\t cbk_cache_miss:\t %lli\n"
 	      "\t cbk_cache_race:\t %lli\n"
@@ -151,6 +152,7 @@ void reiser4_print_stats()
 	      s -> tree.cbk_notfound,
 	      s -> tree.cbk_restart,
 	      s -> tree.cbk_key_moved,
+	      s -> tree.cbk_met_ghost,
 	      s -> tree.cbk_cache_hit,
 	      s -> tree.cbk_cache_miss,
 	      s -> tree.cbk_cache_race,
