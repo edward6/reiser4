@@ -1655,6 +1655,7 @@ static int convert_node(flush_pos_t * pos, znode * node)
 	assert("edward-305", pos->child == NULL);
 	assert("edward-475", znode_convertible(node));
 	assert("edward-669", znode_is_wlocked(node));
+	assert("edward-1210", !node_is_empty(node));
 	
 	if (znode_get_level(node) != LEAF_LEVEL)
 		/* unsupported */
