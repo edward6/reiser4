@@ -116,7 +116,7 @@ int           extent_check              ( const coord_t *coord, const char **err
 /*
  * plugin->u.item.s.file.*
  */
-int extent_write    (struct inode *, lw_coord_t *,
+int extent_write    (struct inode *, struct sealed_coord *,
 		     flow_t *, struct page *);
 int extent_read     (struct inode *, coord_t *, lock_handle *,
 		     flow_t *);
