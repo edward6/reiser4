@@ -132,6 +132,8 @@ subgraph spin {
 	SYSSPIN(tasklist_lock, "&tasklist_lock");
 	SYSSPIN(sig_siglock, "sig->siglock");
 	SYSSPIN(fown_lock, "fown->lock");
+	SYSSPIN(task_switch_lock, "task->switch_lock");
+	SYSSPIN(task_proc_lock, "task->proc_lock");
 	SYSSPIN(task_alloc_lock, "task->alloc_lock");
 	/* rq->lock is special: it can be unlocked by thread different from locker */
 	SYSSPIN(rq_lock, "rq->lock");
@@ -140,6 +142,7 @@ subgraph spin {
 	SYSSPIN(files_file_lock, "files->file_lock");
 	SYSSPIN(dn_lock, "&dn_lock");
 	//SYSSPIN(bdev_lock, "&bdev_lock");
+	SYSSPIN(suspend_pagedir_lock, "&suspend_pagedir_lock")
 }
 
 /* dependencies */
@@ -159,6 +162,7 @@ ARC(txnmgr_lock, atom_lock, "atom_dec_and_unlock()"); //txnmgr_force_commit_all(
 ARC(txnmgr_lock, jnode_lock, "atom_begin_andlock()");
 ARC(txnmgr_lock, txnh_lock, "atom_begin_andlock()");
 ARC(i_sem, inode_rw_lock, "unix_file_setattr()");//,\nunix_file_write()");
+ARC(page_lock, i_sem, "reiserfs_unpack()");
 ARC(inode_rw_lock, delete_sema, "shorten()");
 //ARC(delete_sema, txncommit, "reiser4_release_reserved()");
 ARC(flush_sema, longterm_lock, "flush_scan_left()");//,\nflush_allocate_znode_update(),\nflush_scan_formatted(),\nflush_pos_to_child_and_alloc()");
@@ -212,6 +216,10 @@ ARC(namespace_sem, i_sem, "sys_pivot_root()");
 ARC(sb_s_lock, txncommit, "reiser4_write_super()");
 ARC(sb_s_umount, txncommit, "reiser4_kill_super()");
 
+ARC(task_switch_lock, rq_lock, "finish_arch_switch()");
+ARC(task_proc_lock, tasklist_lock, "unhash_process()"); // de_thread()
+ARC(task_proc_lock, dcache_lock, "proc_pid_unhash()");
+
 ARC(tasklist_lock, sig_siglock, "de_thread()");//,\ndo_notify_parent(),\nsys_tkill(),\ncopy_process()"); //collect_sigign_sigcatch(),\n__exit_sighand(),\nfreeze_processes()
 ARC(dn_lock, fown_lock, "__inode_dir_notify()");
 ARC(fown_lock, tasklist_lock, "send_sigio()");//,\nsend_sigurg()");
@@ -247,4 +255,15 @@ ARC(fq_lock, stack_lock, "wakeup_atom_waitfor_list()");
 ARC(atom_lock, fq_lock, "detach_fq()");
 ARC(jnode_lock, zlock, "check_not_fused_lock_owners()");
 ARC(txnh_lock, zlock, "check_not_fused_lock_owners()");
+
+ARC(suspend_pagedir_lock, zone_lock, "do_magic_suspend_2()");
+ARC(cachep_spinlock, zone_lock, "cache_flusharray()");
+
+ARC(mapping_page_lock, zone_lock, "add_to_page_cache()"); // find_lock_page
+ARC(mapping_page_lock, zone_lru_lock, "add_to_page_cache()"); // find_lock_page
+ARC(mm_page_table_lock, zone_lock, "try_to_unmap_one()"); // get_user_pages, do_wp_page, do_anonymous_page, do_no_page
+ARC(mm_page_table_lock, zone_lru_lock, "try_to_unmap_one()"); // get_user_pages, do_wp_page, do_anonymous_page, do_no_page
+ARC(jnode_lock, zone_lock, "page_clear_jnode()"); // uncapture_page, extent_write_flow
+ARC(jnode_lock, zone_lru_lock, "page_clear_jnode()"); // uncapture_page, extent_write_flow
+
 }
