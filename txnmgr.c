@@ -2521,23 +2521,23 @@ uncapture_block (txn_atom *atom,
 
 	spin_lock_jnode (node);
 
+	JF_CLR (node, JNODE_RELOC);
+	JF_CLR (node, JNODE_WANDER);
+	JF_CLR (node, JNODE_CREATED);
+
 	if (!JF_ISSET (node, JNODE_FLUSH_QUEUED)) {
 		/* do not remove jnode from capture list if it is on flush queue */
 		capture_list_remove_clean (node);
 		atom->capture_count -= 1;
 		node->atom = NULL;
-	}
+		spin_unlock_jnode (node);
 
-	JF_CLR (node, JNODE_RELOC);
-	JF_CLR (node, JNODE_WANDER);
-	JF_CLR (node, JNODE_CREATED);
+		/*trace_if (TRACE_FLUSH, print_page ("uncapture", node->pg));*/
 
-	spin_unlock_jnode (node);
-
-	/*trace_if (TRACE_FLUSH, print_page ("uncapture", node->pg));*/
-
-	jput (node);
-
+		jput (node);
+	} else 
+		spin_unlock_jnode (node);
+	
 	ON_DEBUG_CONTEXT (-- lock_counters() -> t_refs);
 }
 
