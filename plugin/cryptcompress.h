@@ -16,7 +16,6 @@
 #define DEFAULT_CLUSTER_SHIFT 0
 #define DC_CHECKSUM_SIZE 4
 #define MIN_CRYPTO_BLOCKSIZE 8
-#define UNPREPPED_DCLUSTER_LEN 2
 
 /* Set of transform id's supported by reiser4, 
    each transform is implemented by appropriate transform plugin: */
@@ -303,13 +302,6 @@ tfm_cluster_is_set(tfm_cluster_t * tc)
 		if (!tfm_stream_is_set(tc, i))
 			return 0;
 	return 1;
-}
-
-static inline int
-disk_cluster_unprepped(tfm_cluster_t * tc)
-{
-	
-	return tc->len == UNPREPPED_DCLUSTER_LEN;
 }
 
 static inline void
