@@ -29,6 +29,7 @@
 #include <linux/types.h>
 #include <linux/slab.h>
 #include <linux/pagemap.h>
+#include <linux/vmalloc.h>      /* for vmalloc(), vfree() */
 #include <linux/swap.h>
 #include <linux/fs.h>		/* for struct address_space  */
 #include <linux/writeback.h>	/* for inode_lock */
@@ -54,16 +55,17 @@ jnode_key_eq(const jnode_key_t * k1, const jnode_key_t * k2)
 
 /* Hash jnode by its key (inode plus offset). Used by hash-table macros */
 static inline __u32
-jnode_key_hashfn(const jnode_key_t * key)
+jnode_key_hashfn(j_hash_table *table, const jnode_key_t * key)
 {
 	assert("nikita-2352", key != NULL);
+	assert("nikita-3346", IS_POW(table->_buckets));
 
-	return (key->objectid + key->index) & (REISER4_JNODE_HASH_TABLE_SIZE - 1);
+	return (key->objectid + key->index) & (table->_buckets - 1);
 }
 
 /* The hash table definition */
-#define KMALLOC( size ) reiser4_kmalloc( ( size ), GFP_KERNEL )
-#define KFREE( ptr, size ) reiser4_kfree( ptr, size )
+#define KMALLOC(size) vmalloc(size)
+#define KFREE(ptr, size) vfree(ptr)
 TS_HASH_DEFINE(j, jnode, jnode_key_t, key.j, link.j, jnode_key_hashfn, jnode_key_eq);
 #undef KFREE
 #undef KMALLOC
@@ -72,10 +74,18 @@ TS_HASH_DEFINE(j, jnode, jnode_key_t, key.j, link.j, jnode_key_hashfn, jnode_key
 int
 jnodes_tree_init(reiser4_tree * tree /* tree to initialise jnodes for */ )
 {
+	int buckets;
+	int result;
+
 	assert("nikita-2359", tree != NULL);
 
-	return j_hash_init(&tree->jhash_table, REISER4_JNODE_HASH_TABLE_SIZE,
-			   reiser4_stat(tree->super, hashes.jnode));
+	buckets = 1 << fls(nr_free_pagecache_pages());
+	do {
+		result = j_hash_init(&tree->jhash_table, buckets,
+				     reiser4_stat(tree->super, hashes.jnode));
+		buckets >>= 1;
+	} while (result == -ENOMEM);
+	return result;
 }
 
 /* call this to destroy jnode hash table */
