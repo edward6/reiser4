@@ -888,8 +888,7 @@ unlock_carry_level(carry_level * level /* level to unlock */ ,
 							       JNODE_ORPHAN)));
 		if (!failure)
 			node_check(carry_real(node), REISER4_NODE_DKEYS);
-		if (REISER4_DEBUG)
-			check_dkeys(carry_real(node));
+		ON_DEBUG(check_dkeys(carry_real(node)));
 		unlock_carry_node(level, node, failure);
 	}
 	level->new_root = NULL;
