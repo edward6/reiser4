@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Key manipulations.
- */
+/* Key manipulations. */
 
 #include "debug.h"
 #include "key.h"
@@ -13,18 +9,14 @@
 
 #include <linux/types.h>	/* for __u??  */
 
-/**
- * Minimal possible key: all components are zero. It is presumed that this is
- * independent of key scheme.
- */
+/* Minimal possible key: all components are zero. It is presumed that this is
+   independent of key scheme. */
 static const reiser4_key MINIMAL_KEY = {
 	.el = {{0ull}, {0ull}, {0ull}}
 };
 
-/**
- * Maximal possible key: all components are ~0. It is presumed that this is
- * independent of key scheme.
- */
+/* Maximal possible key: all components are ~0. It is presumed that this is
+   independent of key scheme. */
 static const reiser4_key MAXIMAL_KEY = {
 	.el = {{~0ull}, {~0ull}, {~0ull}}
 };
@@ -101,13 +93,12 @@ sprintf_key(char *buffer /* buffer to print key into */ ,
 		       get_key_band(key), get_key_objectid(key), get_key_offset(key));
 }
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

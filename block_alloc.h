@@ -1,6 +1,4 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #if !defined (__FS_REISER4_BLOCK_ALLOC_H__)
 #define __FS_REISER4_BLOCK_ALLOC_H__
@@ -17,8 +15,8 @@
 #define REISER4_BLOCKNR_STATUS_BIT_MASK 0xF000000000000000ULL
 
 /*result after applying the REISER4_BLOCKNR_STATUS_BIT_MASK should be compared
- * against these two values to understand is the object unallocated or bitmap
- * shadow object (WORKING BITMAP block, look at the plugin/space/bitmap.c) */
+   against these two values to understand is the object unallocated or bitmap
+   shadow object (WORKING BITMAP block, look at the plugin/space/bitmap.c) */
 #define REISER4_UNALLOCATED_STATUS_VALUE    0xF000000000000000ULL
 #define REISER4_BITMAP_BLOCKS_STATUS_VALUE  0x9000000000000000ULL
 
@@ -115,13 +113,12 @@ extern void post_write_back_hook(void);
 
 #endif				/* __FS_REISER4_BLOCK_ALLOC_H__ */
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

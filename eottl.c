@@ -1,6 +1,4 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "forward.h"
 #include "debug.h"
@@ -18,110 +16,108 @@
 
 #include <linux/types.h>	/* for __u??  */
 
-/*
- * Extents on the twig level (EOTTL) handling.
- *
- * EOTTL poses some problems to the tree traversal, that are better
- * explained by example.
- *
- * Suppose we have block B1 on the twig level with the following items:
- * 
- * 0. internal item I0 with key (0:0:0:0) (locality, key-type, object-id, offset)
- * 1. extent item E1 with key (1:4:100:0), having 10 blocks of 4k each
- * 2. internal item I2 with key (10:0:0:0)
- * 
- * We are trying to insert item with key (5:0:0:0). Lookup finds node
- * B1, and then intra-node lookup is done. This lookup finished on the
- * E1, because the key we are looking for is larger than the key of E1
- * and is smaller than key the of I2.
- * 
- * Here search is stuck.
- * 
- * After some thought it is clear what is wrong here: extents on the
- * twig level break some basic property of the *search* tree (on the
- * pretext, that they restore property of balanced tree).
- * 
- * Said property is the following: if in the internal node of the search
- * tree we have [ ... Key1 Pointer Key2 ... ] then, all data that are or
- * will be keyed in the tree with the Key such that Key1 <= Key < Key2
- * are accessible through the Pointer.
- * 
- * This is not true, when Pointer is Extent-Pointer, simply because
- * extent cannot expand indefinitely to the right to include any item
- * with
- *   
- *   Key1 <= Key <= Key2. 
- * 
- * For example, our E1 extent is only responsible for the data with keys
- * 
- *   (1:4:100:0) <= key <= (1:4:100:0xffffffffffffffff), and
- * 
- * so, key range 
- * 
- *   ( (1:4:100:0xffffffffffffffff), (10:0:0:0) ) 
- * 
- * is orphaned: there is no way to get there from the tree root.
- * 
- * In other words, extent pointers are different than normal child
- * pointers as far as search tree is concerned, and this creates such
- * problems.
- * 
- * Possible solution for this problem is to insert our item into node
- * pointed to by I2. There are some problems through:
- *
- * (1) I2 can be in a different node.
- * (2) E1 can be immediately followed by another extent E2.
- *
- * (1) is solved by calling reiser4_get_right_neighbor() and accounting
- * for locks/coords as necessary.
- *
- * (2) is more complex. Solution here is to insert new empty leaf node
- * and insert internal item between E1 and E2 pointing to said leaf
- * node. This is further complicated by possibility that E2 is in a
- * different node, etc.
- *
- * Problems:
- *
- * (1) if there was internal item I2 immediately on the right of an
- * extent E1 we and we decided to insert new item S1 into node N2
- * pointed to by I2, then key of S1 will be less than smallest key in
- * the N2. Normally, search key checks that key we are looking for is in
- * the range of keys covered by the node key is being looked in. To work
- * around of this situation, while preserving useful consistency check
- * new flag CBK_TRUST_DK was added to the cbk falgs bitmask. This flag
- * is automatically set on entrance to the coord_by_key() and is only
- * cleared when we are about to enter situation described above.
- *
- * (2) If extent E1 is immediately followed by another extent E2 and we
- * are searching for the key that is between E1 and E2 we only have to
- * insert new empty leaf node when coord_by_key was called for
- * insertion, rather than just for lookup. To distinguish these cases,
- * new flag CBK_FOR_INSERT was added to the cbk falgs bitmask. This flag
- * is automatically set by coord_by_key calls performed by
- * insert_by_key() and friends.
- *
- * (3) Insertion of new empty leaf node (possibly) requires
- * balancing. In any case it requires modification of node content which
- * is only possible under write lock. It may well happen that we only
- * have read lock on the node where new internal pointer is to be
- * inserted (common case: lookup of non-existent stat-data that fells
- * between two extents). If only read lock is held, tree traversal is
- * restarted with lock_level modified so that next time we hit this
- * problem, write lock will be held. Once we have write lock, balancing
- * will be performed.
- *
- *
- *
- *
- *
- *
+/* Extents on the twig level (EOTTL) handling.
+  
+   EOTTL poses some problems to the tree traversal, that are better
+   explained by example.
+  
+   Suppose we have block B1 on the twig level with the following items:
+   
+   0. internal item I0 with key (0:0:0:0) (locality, key-type, object-id, offset)
+   1. extent item E1 with key (1:4:100:0), having 10 blocks of 4k each
+   2. internal item I2 with key (10:0:0:0)
+   
+   We are trying to insert item with key (5:0:0:0). Lookup finds node
+   B1, and then intra-node lookup is done. This lookup finished on the
+   E1, because the key we are looking for is larger than the key of E1
+   and is smaller than key the of I2.
+   
+   Here search is stuck.
+   
+   After some thought it is clear what is wrong here: extents on the
+   twig level break some basic property of the *search* tree (on the
+   pretext, that they restore property of balanced tree).
+   
+   Said property is the following: if in the internal node of the search
+   tree we have [ ... Key1 Pointer Key2 ... ] then, all data that are or
+   will be keyed in the tree with the Key such that Key1 <= Key < Key2
+   are accessible through the Pointer.
+   
+   This is not true, when Pointer is Extent-Pointer, simply because
+   extent cannot expand indefinitely to the right to include any item
+   with
+     
+     Key1 <= Key <= Key2. 
+   
+   For example, our E1 extent is only responsible for the data with keys
+   
+     (1:4:100:0) <= key <= (1:4:100:0xffffffffffffffff), and
+   
+   so, key range 
+   
+     ( (1:4:100:0xffffffffffffffff), (10:0:0:0) ) 
+   
+   is orphaned: there is no way to get there from the tree root.
+   
+   In other words, extent pointers are different than normal child
+   pointers as far as search tree is concerned, and this creates such
+   problems.
+   
+   Possible solution for this problem is to insert our item into node
+   pointed to by I2. There are some problems through:
+  
+   (1) I2 can be in a different node.
+   (2) E1 can be immediately followed by another extent E2.
+  
+   (1) is solved by calling reiser4_get_right_neighbor() and accounting
+   for locks/coords as necessary.
+  
+   (2) is more complex. Solution here is to insert new empty leaf node
+   and insert internal item between E1 and E2 pointing to said leaf
+   node. This is further complicated by possibility that E2 is in a
+   different node, etc.
+  
+   Problems:
+  
+   (1) if there was internal item I2 immediately on the right of an
+   extent E1 we and we decided to insert new item S1 into node N2
+   pointed to by I2, then key of S1 will be less than smallest key in
+   the N2. Normally, search key checks that key we are looking for is in
+   the range of keys covered by the node key is being looked in. To work
+   around of this situation, while preserving useful consistency check
+   new flag CBK_TRUST_DK was added to the cbk falgs bitmask. This flag
+   is automatically set on entrance to the coord_by_key() and is only
+   cleared when we are about to enter situation described above.
+  
+   (2) If extent E1 is immediately followed by another extent E2 and we
+   are searching for the key that is between E1 and E2 we only have to
+   insert new empty leaf node when coord_by_key was called for
+   insertion, rather than just for lookup. To distinguish these cases,
+   new flag CBK_FOR_INSERT was added to the cbk falgs bitmask. This flag
+   is automatically set by coord_by_key calls performed by
+   insert_by_key() and friends.
+  
+   (3) Insertion of new empty leaf node (possibly) requires
+   balancing. In any case it requires modification of node content which
+   is only possible under write lock. It may well happen that we only
+   have read lock on the node where new internal pointer is to be
+   inserted (common case: lookup of non-existent stat-data that fells
+   between two extents). If only read lock is held, tree traversal is
+   restarted with lock_level modified so that next time we hit this
+   problem, write lock will be held. Once we have write lock, balancing
+   will be performed.
+  
+  
+  
+  
+  
+  
  */
 
-/*
- * look to the right of @coord. If it is an item of internal type - 1 is
- * returned. If that item is in right neighbor and it is internal - @coord and
- * @lh are switched to that node: move lock handle, zload right neighbor and
- * zrelse znode coord was set to at the beginning
+/* look to the right of @coord. If it is an item of internal type - 1 is
+   returned. If that item is in right neighbor and it is internal - @coord and
+   @lh are switched to that node: move lock handle, zload right neighbor and
+   zrelse znode coord was set to at the beginning
  */
 /* Audited by: green(2002.06.15) */
 static int
@@ -185,10 +181,8 @@ is_next_item_internal(coord_t * coord, lock_handle * lh)
 	}
 }
 
-/*
- * inserting empty leaf after (or between) item of not internal type we have to
- * know which right delimiting key corresponding znode has to be inserted with
- */
+/* inserting empty leaf after (or between) item of not internal type we have to
+   know which right delimiting key corresponding znode has to be inserted with */
 static reiser4_key *
 rd_key(coord_t * coord, reiser4_key * key)
 {
@@ -214,10 +208,8 @@ rd_key(coord_t * coord, reiser4_key * key)
 	return key;
 }
 
-/*
- * this is used to insert empty node into leaf level if tree lookup can not go
- * further down because it stopped between items of not internal type
- */
+/* this is used to insert empty node into leaf level if tree lookup can not go
+   further down because it stopped between items of not internal type */
 static int
 add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key, const reiser4_key * rdkey)
 {
@@ -297,9 +289,7 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	return result;
 }
 
-/**
- * handle extent-on-the-twig-level cases in tree traversal
- */
+/* handle extent-on-the-twig-level cases in tree traversal */
 inline int
 handle_eottl(cbk_handle * h /* cbk handle */ ,
 	     int *outcome /* how traversal should proceed */ )
@@ -406,14 +396,13 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 	return 0;
 }
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

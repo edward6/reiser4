@@ -1,6 +1,4 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 /* first read balance.c comments before reading this */
 
@@ -8,9 +6,9 @@
    balancing that are item specific. */
 
 /* an item plugin also implements other operations that are specific to that
- * item.  These go into the item specific operations portion of the item
- * handler, and all of the item specific portions of the item handler are put
- * into a union. */
+   item.  These go into the item specific operations portion of the item
+   handler, and all of the item specific portions of the item handler are put
+   into a union. */
 
 #if !defined( __REISER4_ITEM_H__ )
 #define __REISER4_ITEM_H__
@@ -33,8 +31,8 @@ typedef enum {
 } item_type_id;
 
 /* this is the part of each item plugin that all items are expected to
- * support or at least explicitly fail to support by setting the
- * pointer to null. */
+   support or at least explicitly fail to support by setting the
+   pointer to null. */
 typedef struct {
 	item_type_id item_type;
 
@@ -321,14 +319,13 @@ extern reiser4_key *unit_key_by_coord(const coord_t * coord, reiser4_key * key);
 
 /* __REISER4_ITEM_H__ */
 #endif
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

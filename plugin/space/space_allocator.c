@@ -1,6 +1,4 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "../plugin_header.h"
 #include "../plugin.h"

@@ -1,10 +1,6 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Declaration of seals: "weak" tree pointers. See seal.c for comments.
- */
+/* Declaration of seals: "weak" tree pointers. See seal.c for comments. */
 
 #ifndef __SEAL_H__
 #define __SEAL_H__
@@ -60,13 +56,12 @@ extern void print_seal(const char *prefix, const seal_t * seal);
 /* __SEAL_H__ */
 #endif
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

@@ -1,60 +1,55 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Directory entry implementation
- */
+/* Directory entry implementation */
 
-/*
- * DESCRIPTION:
- *
- * This is "compound" directory item plugin implementation. This directory
- * item type is compound (as opposed to the "simple directory item" in
- * fs/reiser4/plugin/item/sde.[ch]), because it consists of several directory
- * entries.
- *
- * The reason behind this decision is disk space efficiency: all directory
- * entries inside the same directory have identical fragment in their
- * keys. This, of course, depends on key assignment policy. In our default key
- * assignment policy, all directory entries have the same locality which is
- * equal to the object id of their directory.
- *
- * Composing directory item out of several directory entries for the same
- * directory allows us to store said key fragment only once. That is, this is
- * some ad hoc form of key compression (stem compression) that is implemented
- * here, because general key compression is not supposed to be implemented in
- * v4.0.
- *
- * Another decision that was made regarding all directory item plugins, is
- * that they will store entry keys unaligned. This is for that sake of disk
- * space efficiency again.
- *
- * In should be noted, that storing keys unaligned increases CPU consumption,
- * at least on some architectures.
- *
- * Internal on-disk structure of the compound directory item is the following:
- *
- *      HEADER          cde_item_format.        Here number of entries is stored.
- *      ENTRY_HEADER_0  cde_unit_header.        Here part of entry key and 
- *      ENTRY_HEADER_1                          offset of entry body are stored.
- *      ENTRY_HEADER_2				(basically two last parts of key)
- *      ...
- *      ENTRY_HEADER_N
- *      ENTRY_BODY_0    directory_entry_format. Here part of stat data key and
- *      ENTRY_BODY_1                            NUL-terminated name are stored.
- *      ENTRY_BODY_2				(part of statadta key in the
- *						 sence that since all SDs have
- *						 zero offset, this offset is not
- *						 stored on disk).
- *      ...
- *      ENTRY_BODY_N
- *
- * When it comes to the balancing, each directory entry in compound directory
- * item is unit, that is, something that can be cut from one item and pasted
- * into another item of the same type. Handling of unit cut and paste is major
- * reason for the complexity of code below.
- *
+/* DESCRIPTION:
+  
+   This is "compound" directory item plugin implementation. This directory
+   item type is compound (as opposed to the "simple directory item" in
+   fs/reiser4/plugin/item/sde.[ch]), because it consists of several directory
+   entries.
+  
+   The reason behind this decision is disk space efficiency: all directory
+   entries inside the same directory have identical fragment in their
+   keys. This, of course, depends on key assignment policy. In our default key
+   assignment policy, all directory entries have the same locality which is
+   equal to the object id of their directory.
+  
+   Composing directory item out of several directory entries for the same
+   directory allows us to store said key fragment only once. That is, this is
+   some ad hoc form of key compression (stem compression) that is implemented
+   here, because general key compression is not supposed to be implemented in
+   v4.0.
+  
+   Another decision that was made regarding all directory item plugins, is
+   that they will store entry keys unaligned. This is for that sake of disk
+   space efficiency again.
+  
+   In should be noted, that storing keys unaligned increases CPU consumption,
+   at least on some architectures.
+  
+   Internal on-disk structure of the compound directory item is the following:
+  
+        HEADER          cde_item_format.        Here number of entries is stored.
+        ENTRY_HEADER_0  cde_unit_header.        Here part of entry key and 
+        ENTRY_HEADER_1                          offset of entry body are stored.
+        ENTRY_HEADER_2				(basically two last parts of key)
+        ...
+        ENTRY_HEADER_N
+        ENTRY_BODY_0    directory_entry_format. Here part of stat data key and
+        ENTRY_BODY_1                            NUL-terminated name are stored.
+        ENTRY_BODY_2				(part of statadta key in the
+  						 sence that since all SDs have
+  						 zero offset, this offset is not
+  						 stored on disk).
+        ...
+        ENTRY_BODY_N
+  
+   When it comes to the balancing, each directory entry in compound directory
+   item is unit, that is, something that can be cut from one item and pasted
+   into another item of the same type. Handling of unit cut and paste is major
+   reason for the complexity of code below.
+  
  */
 
 #include "../../forward.h"
@@ -181,10 +176,8 @@ find(const coord_t * coord /* coord of item */ ,
 		return -ENOENT;
 }
 
-/**
- * expand @coord as to accomodate for insertion of @no new entries starting
- * from @pos, with total bodies size @size.
- */
+/* expand @coord as to accomodate for insertion of @no new entries starting
+   from @pos, with total bodies size @size. */
 static int
 expand_item(const coord_t * coord /* coord of item */ ,
 	    int pos /* unit position */ , int no	/* number of new
@@ -308,10 +301,8 @@ paste_entry(const coord_t * coord /* coord of item */ ,
 	return 0;
 }
 
-/**
- * estimate how much space is necessary in item to insert/paste set of entries
- * described in @data.
- */
+/* estimate how much space is necessary in item to insert/paste set of entries
+   described in @data. */
 int
 cde_estimate(const coord_t * coord /* coord of item */ ,
 	     const reiser4_item_data * data /* parameters for new item */ )
@@ -352,9 +343,7 @@ cde_nr_units(const coord_t * coord /* coord of item */ )
 	return units(coord);
 }
 
-/**
- * ->unit_key() method for this item plugin.
- */
+/* ->unit_key() method for this item plugin. */
 reiser4_key *
 cde_unit_key(const coord_t * coord /* coord of item */ ,
 	     reiser4_key * key /* resulting key */ )
@@ -368,12 +357,11 @@ cde_unit_key(const coord_t * coord /* coord of item */ ,
 	return key;
 }
 
-/**
- * cde_mergeable(): implementation of ->mergeable() item method.
- *
- * Two directory items are mergeable iff they are from the same
- * directory. That simple.
- *
+/* cde_mergeable(): implementation of ->mergeable() item method.
+  
+   Two directory items are mergeable iff they are from the same
+   directory. That simple.
+  
  */
 int
 cde_mergeable(const coord_t * p1 /* coord of first item */ ,
@@ -486,12 +474,11 @@ cde_print(const char *prefix /* prefix to print */ ,
 }
 #endif
 
-/**
- * cde_check ->check() method for compressed directory items
- *
- * used for debugging, every item should have here the most complete
- * possible check of the consistency of the item that the inventor can
- * construct 
+/* cde_check ->check() method for compressed directory items
+  
+   used for debugging, every item should have here the most complete
+   possible check of the consistency of the item that the inventor can
+   construct 
  */
 int
 cde_check(const coord_t * coord /* coord of item to check */ ,
@@ -626,10 +613,8 @@ cde_paste(coord_t * coord /* coord of item */ ,
 	return result;
 }
 
-/**
- * amount of space occupied by all entries starting from @idx both headers and
- * bodies.
- */
+/* amount of space occupied by all entries starting from @idx both headers and
+   bodies. */
 static unsigned int
 part_size(const coord_t * coord /* coord of item */ ,
 	  int idx /* index of unit */ )
@@ -987,13 +972,12 @@ cde_max_name_len(const struct inode *dir /* directory */ )
 	    sizeof (directory_entry_format) - sizeof (cde_item_format) - sizeof (cde_unit_header) - 2;
 }
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

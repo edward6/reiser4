@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Directory plugin's methods.
- */
+/* Directory plugin's methods. */
 
 #if !defined( __REISER4_DIR_H__ )
 #define __REISER4_DIR_H__
@@ -44,18 +40,17 @@ typedef struct {
 extern void adjust_dir_file(struct inode *dir, const coord_t * coord, int offset, int adj);
 extern int dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos);
 
-/** 
- * description of directory entry being created/destroyed/sought for
- * 
- * It is passed down to the directory plugin and farther to the
- * directory item plugin methods. Creation of new directory is done in
- * several stages: first we search for an entry with the same name, then
- * create new one. reiser4_dir_entry_desc is used to store some information
- * collected at some stage of this process and required later: key of
- * item that we want to insert/delete and pointer to an object that will
- * be bound by the new directory entry. Probably some more fields will
- * be added there.
- *
+/* description of directory entry being created/destroyed/sought for
+   
+   It is passed down to the directory plugin and farther to the
+   directory item plugin methods. Creation of new directory is done in
+   several stages: first we search for an entry with the same name, then
+   create new one. reiser4_dir_entry_desc is used to store some information
+   collected at some stage of this process and required later: key of
+   item that we want to insert/delete and pointer to an object that will
+   be bound by the new directory entry. Probably some more fields will
+   be added there.
+  
  */
 struct reiser4_dir_entry_desc {
 	/*
@@ -74,12 +69,11 @@ int is_dir_empty(const struct inode *dir);
 /* __REISER4_DIR_H__ */
 #endif
 
-/* 
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

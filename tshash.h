@@ -1,11 +1,10 @@
-/* Copyright (C) 2001, 2002 Hans Reiser.  All rights reserved.
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 /* TS stands for TYPE SAFETY */
 
 /* Modify the header to make this clear and remove my comments. */
 /* A hash table class that uses hash chains (singly-linked) and is parametrized to
- * provide type safety.  */
+   provide type safety.  */
 
 #ifndef __REISER4_TSHASH_H__
 #define __REISER4_TSHASH_H__
@@ -17,8 +16,8 @@
 #include <asm/errno.h>
 /* what are table and link objects? -Hans */
 /* Step 1: Use TS_HASH_DECLARE() to define the TABLE and LINK objects
- * based on the object type.  You need to declare the item type before
- * this definition, define it after this definition. */
+   based on the object type.  You need to declare the item type before
+   this definition, define it after this definition. */
 #define TS_HASH_DECLARE(PREFIX,ITEM_TYPE)                                                     \
                                                                                               \
 typedef struct PREFIX##_hash_table_  PREFIX##_hash_table;                                     \
@@ -36,56 +35,56 @@ struct PREFIX##_hash_link_                                                      
 }
 /* what is an object type of the hash?  What is a prefix? */
 /* Step 2: Define the object type of the hash: give it field of type
- * PREFIX_hash_link. */
+   PREFIX_hash_link. */
 
 /* Step 3: Use TS_HASH_DEFINE to define the hash table interface using
- * the type and field name used in step 3.  The arguments are:
- *
+   the type and field name used in step 3.  The arguments are:
+  
 
 put this explanation at the top of this file.
 
- * ITEM_TYPE    The item type being hashed
- * KEY_TYPE     The type of key being hashed
- * KEY_NAME     The name of the key field within the item
- * LINK_NAME    The name of the link field within the item, which you must make type PREFIX_hash_link)
- * HASH_FUNC    The name of the hash function (or macro, takes const pointer to key)
+   ITEM_TYPE    The item type being hashed
+   KEY_TYPE     The type of key being hashed
+   KEY_NAME     The name of the key field within the item
+   LINK_NAME    The name of the link field within the item, which you must make type PREFIX_hash_link)
+   HASH_FUNC    The name of the hash function (or macro, takes const pointer to key)
 sentence below is not enough.
- * EQ_FUNC      The name of the equality function (or macro, takes const pointer to two keys)
- *
- * It implements these functions:
- *
- * prefix_hash_init           Initialize the table given its size.
- * prefix_hash_insert         Insert an item
- * prefix_hash_insert_index   Insert an item w/ precomputed hash_index
- * prefix_hash_find           Find an item by key
- * prefix_hash_find_index     Find an item w/ precomputed hash_index
- * prefix_hash_remove         Remove an item, returns 1 if found, 0 if not found
- * prefix_hash_remove_index   Remove an item w/ precomputed hash_index
- *
- * If you'd like something to be done differently, feel free to ask me
- * for modifications.  Additional features that could be added but
- * have not been:
- *
- * prefix_hash_remove_key           Find and remove an item by key
- * prefix_hash_remove_key_index     Find and remove an item by key w/ precomputed hash_index
- *
- * The hash_function currently receives only the key as an argument,
- * meaning it must somehow know the number of buckets.  If this is a
- * problem let me know.
- *
- * This hash table uses a single-linked hash chain.  This means
- * insertion is fast but deletion requires searching the chain.
+   EQ_FUNC      The name of the equality function (or macro, takes const pointer to two keys)
+  
+   It implements these functions:
+  
+   prefix_hash_init           Initialize the table given its size.
+   prefix_hash_insert         Insert an item
+   prefix_hash_insert_index   Insert an item w/ precomputed hash_index
+   prefix_hash_find           Find an item by key
+   prefix_hash_find_index     Find an item w/ precomputed hash_index
+   prefix_hash_remove         Remove an item, returns 1 if found, 0 if not found
+   prefix_hash_remove_index   Remove an item w/ precomputed hash_index
+  
+   If you'd like something to be done differently, feel free to ask me
+   for modifications.  Additional features that could be added but
+   have not been:
+  
+   prefix_hash_remove_key           Find and remove an item by key
+   prefix_hash_remove_key_index     Find and remove an item by key w/ precomputed hash_index
+  
+   The hash_function currently receives only the key as an argument,
+   meaning it must somehow know the number of buckets.  If this is a
+   problem let me know.
+  
+   This hash table uses a single-linked hash chain.  This means
+   insertion is fast but deletion requires searching the chain.
 
 we do as much deletion as insertion....
 
- *
- * There is also the doubly-linked hash chain approach, under which
- * deletion requires no search but the code is longer and it takes two
- * pointers per item.
- *
- * The circularly-linked approach has the shortest code but requires
- * two pointers per bucket, doubling the size of the bucket array (in
- * addition to two pointers per item).
+  
+   There is also the doubly-linked hash chain approach, under which
+   deletion requires no search but the code is longer and it takes two
+   pointers per item.
+  
+   The circularly-linked approach has the shortest code but requires
+   two pointers per bucket, doubling the size of the bucket array (in
+   addition to two pointers per item).
  */
 #define TS_HASH_DEFINE(PREFIX,ITEM_TYPE,KEY_TYPE,KEY_NAME,LINK_NAME,HASH_FUNC,EQ_FUNC)	\
 											\
@@ -232,13 +231,12 @@ for ((item) = prefix ## _hash_first ((table), 0), (next) = prefix ## _hash_next 
 
 #endif				/* __REISER4_TSHASH_H__ */
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

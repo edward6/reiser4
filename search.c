@@ -1,6 +1,4 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "forward.h"
 #include "debug.h"
@@ -88,9 +86,7 @@ cbk_cache_unlock(cbk_cache * cache /* cache to unlock */ )
 	spin_unlock(&cache->guard);
 }
 
-/**
- * macro to iterate over all cbk cache slots
- */
+/* macro to iterate over all cbk cache slots */
 #define for_all_slots( cache, slot )					\
 	for( ( slot ) = cbk_cache_list_front( &( cache ) -> lru ) ;	\
 	     !cbk_cache_list_end( &( cache ) -> lru, ( slot ) ) ; 	\
@@ -169,9 +165,7 @@ cbk_cache_invariant(const cbk_cache * cache)
 
 #endif
 
-/**
- * Remove references, if any, to @node from coord cache
- */
+/* Remove references, if any, to @node from coord cache */
 void
 cbk_cache_invalidate(const znode * node /* node to remove from cache */ ,
 		     reiser4_tree * tree /* tree to remove node from */ )
@@ -200,7 +194,7 @@ cbk_cache_invalidate(const znode * node /* node to remove from cache */ ,
 	assert("nikita-2471", cbk_cache_invariant(cache));
 }
 
-/** add to the cbk-cache in the "tree" information about "node". This
+/* add to the cbk-cache in the "tree" information about "node". This
     can actually be update of existing slot in a cache. */
 void
 cbk_cache_add(const znode * node /* node to add to the cache */ )
@@ -253,17 +247,16 @@ static void setup_delimiting_keys(cbk_handle * h);
 static int prepare_delimiting_keys(cbk_handle * h);
 static level_lookup_result search_to_left(cbk_handle * h);
 
-/**
- * main tree lookup procedure
- *
- * Check coord cache. If key we are looking for is not found there, call cbk()
- * to do real tree traversal.
- *
- * As we have extents on the twig level, @lock_level and @stop_level can
- * be different from LEAF_LEVEL and each other.
- *
- * Thread cannot keep any reiser4 locks (tree, znode, dk spin-locks, or znode
- * long term locks) while calling this. 
+/* main tree lookup procedure
+  
+   Check coord cache. If key we are looking for is not found there, call cbk()
+   to do real tree traversal.
+  
+   As we have extents on the twig level, @lock_level and @stop_level can
+   be different from LEAF_LEVEL and each other.
+  
+   Thread cannot keep any reiser4 locks (tree, znode, dk spin-locks, or znode
+   long term locks) while calling this. 
  */
 lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 						 * in. Usually this tree is
@@ -342,18 +335,17 @@ coord_by_handle(cbk_handle * handle)
 		return traverse_tree(handle);
 }
 
-/**
- * Execute actor for each item (or unit, depending on @through_units_p),
- * starting from @coord, right-ward, until either: 
- *
- * - end of the tree is reached
- * - unformatted node is met
- * - error occurred
- * - @actor returns 0 or less
- *
- * Error code, or last actor return value is returned.
- *
- * This is used by readdir() and alikes.
+/* Execute actor for each item (or unit, depending on @through_units_p),
+   starting from @coord, right-ward, until either: 
+  
+   - end of the tree is reached
+   - unformatted node is met
+   - error occurred
+   - @actor returns 0 or less
+  
+   Error code, or last actor return value is returned.
+  
+   This is used by readdir() and alikes.
  */
 int
 iterate_tree(reiser4_tree * tree /* tree to scan */ ,
@@ -417,7 +409,7 @@ iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 	return result;
 }
 
-/** main function that handles common parts of tree traversal: starting
+/* main function that handles common parts of tree traversal: starting
     (fake znode handling), restarts, error handling, completion */
 static lookup_result
 traverse_tree(cbk_handle * h /* search handle */ )
@@ -533,12 +525,11 @@ restart:
 	return h->result;
 }
 
-/**
- * Perform tree lookup at one level. This is called from cbk_traverse()
- * function that drives lookup through tree and calls cbk_node_lookup() to
- * perform lookup within one node.
- *
- * See comments in a code.
+/* Perform tree lookup at one level. This is called from cbk_traverse()
+   function that drives lookup through tree and calls cbk_node_lookup() to
+   perform lookup within one node.
+  
+   See comments in a code.
  */
 static level_lookup_result
 cbk_level_lookup(cbk_handle * h /* search handle */ )
@@ -670,10 +661,9 @@ fail_or_restart:
 	return LOOKUP_DONE;
 }
 
-/*
- * Process one node during tree traversal.
- *
- * This is called by cbk_level_lookup().
+/* Process one node during tree traversal.
+  
+   This is called by cbk_level_lookup().
  */
 static level_lookup_result
 cbk_node_lookup(cbk_handle * h /* search handle */ )
@@ -781,33 +771,32 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 /* multi-key search: comment it out and leave rotting until really needed. */
 #if 0
 
-/**
- * look for several keys at once. 
- *
- * Outline:
- *
- * One cannot just issue several tree traversals in sequence without releasing
- * locks on lookup results, because keeping a lock at the bottom of the tree
- * while doing new top-to-bottom traversal can easily lead to the
- * deadlock. (Actually, there is assertion at the very beginning of
- * coord_by_key(), checking that no locks are held.)
- *
- * Still, node-level locking for rename requires locking of several nodes at
- * once, before starting balancings.
- *
- * lookup_multikey() uses seals (see seal.[ch]) to work around deadlocks:
- *
- * tree lookups are issued starting from the largest key in decsending key
- * order. For each, but the smallest key, after lookup finishes, its result is
- * sealed and corresponding node is unlocked.
- *
- * After all lookups were performed, we have result of lookup of smallest key
- * locked and results of the rest of lookups sealed.
- *
- * All seals are re-validated in ascending key order. If seal is found broken,
- * all locks and seals are released and process repeated.
- *
- * See comments in the body.
+/* look for several keys at once. 
+  
+   Outline:
+  
+   One cannot just issue several tree traversals in sequence without releasing
+   locks on lookup results, because keeping a lock at the bottom of the tree
+   while doing new top-to-bottom traversal can easily lead to the
+   deadlock. (Actually, there is assertion at the very beginning of
+   coord_by_key(), checking that no locks are held.)
+  
+   Still, node-level locking for rename requires locking of several nodes at
+   once, before starting balancings.
+  
+   lookup_multikey() uses seals (see seal.[ch]) to work around deadlocks:
+  
+   tree lookups are issued starting from the largest key in decsending key
+   order. For each, but the smallest key, after lookup finishes, its result is
+   sealed and corresponding node is unlocked.
+  
+   After all lookups were performed, we have result of lookup of smallest key
+   locked and results of the rest of lookups sealed.
+  
+   All seals are re-validated in ascending key order. If seal is found broken,
+   all locks and seals are released and process repeated.
+  
+   See comments in the body.
  */
 int
 lookup_multikey(cbk_handle * handle /* handles to search */ ,
@@ -904,16 +893,15 @@ lookup_multikey(cbk_handle * handle /* handles to search */ ,
 	return result;
 }
 
-/** 
- * lookup two keys in a tree. This is required for node-level locking during
- * rename. Arguments are similar to these of coord_by_key(). 
- *
- * Returned value: if some sort of unexpected error (-EIO, -ENOMEM) happened,
- * all locks are released, all seals are invalidated, and error code is
- * returned. *result1 and *result2 are not modified. If searches completed
- * successfully (items were either found, or not found), 0 is returned and
- * *result1 and *result2 contain search results for respective keys.
- *
+/* lookup two keys in a tree. This is required for node-level locking during
+   rename. Arguments are similar to these of coord_by_key(). 
+  
+   Returned value: if some sort of unexpected error (-EIO, -ENOMEM) happened,
+   all locks are released, all seals are invalidated, and error code is
+   returned. *result1 and *result2 are not modified. If searches completed
+   successfully (items were either found, or not found), 0 is returned and
+   *result1 and *result2 contain search results for respective keys.
+  
  */
 int
 lookup_couple(reiser4_tree * tree /* tree to perform search in */ ,
@@ -1002,11 +990,10 @@ lookup_couple(reiser4_tree * tree /* tree to perform search in */ ,
 }
 #endif
 
-/** 
- * true if @key is strictly within @node
- *
- * we are looking for possibly non-unique key and it is item is at the edge of
- * @node. May be it is in the neighbor.
+/* true if @key is strictly within @node
+  
+   we are looking for possibly non-unique key and it is item is at the edge of
+   @node. May be it is in the neighbor.
  */
 static int
 znode_contains_key_strict(znode * node	/* node to check key
@@ -1157,19 +1144,18 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	return result;
 }
 
-/**
- * look for item with given key in the coord cache
- *
- * This function, called by coord_by_key(), scans "coord cache" (&cbk_cache)
- * which is a small LRU list of znodes accessed lately. For each znode in
- * znode in this list, it checks whether key we are looking for fits into key
- * range covered by this node. If so, and in addition, node lies at allowed
- * level (this is to handle extents on a twig level), node is locked, and
- * lookup inside it is performed.
- *
- * we need a measurement of the cost of this cache search compared to the cost
- * of coord_by_key.
- *
+/* look for item with given key in the coord cache
+  
+   This function, called by coord_by_key(), scans "coord cache" (&cbk_cache)
+   which is a small LRU list of znodes accessed lately. For each znode in
+   znode in this list, it checks whether key we are looking for fits into key
+   range covered by this node. If so, and in addition, node lies at allowed
+   level (this is to handle extents on a twig level), node is locked, and
+   lookup inside it is performed.
+  
+   we need a measurement of the cost of this cache search compared to the cost
+   of coord_by_key.
+  
  */
 static int
 cbk_cache_search(cbk_handle * h /* cbk handle */ )
@@ -1193,7 +1179,7 @@ cbk_cache_search(cbk_handle * h /* cbk handle */ )
 	return result;
 }
 
-/** type of lock we want to obtain during tree traversal. On stop level
+/* type of lock we want to obtain during tree traversal. On stop level
     we want type of lock user asked for, on upper levels: read lock. */
 znode_lock_mode cbk_lock_mode(tree_level level, cbk_handle * h)
 {
@@ -1202,12 +1188,11 @@ znode_lock_mode cbk_lock_mode(tree_level level, cbk_handle * h)
 	return (level <= h->lock_level) ? h->lock_mode : ZNODE_READ_LOCK;
 }
 
-/**
- * find delimiting keys of child
- *
- * Determine left and right delimiting keys for child pointed to by
- * @parent_coord.
- *
+/* find delimiting keys of child
+  
+   Determine left and right delimiting keys for child pointed to by
+   @parent_coord.
+  
  */
 int
 find_child_delimiting_keys(znode * parent	/* parent znode, passed
@@ -1248,10 +1233,9 @@ find_child_delimiting_keys(znode * parent	/* parent znode, passed
 	return 0;
 }
 
-/**
- * helper function used by coord_by_key(): remember in @h delimiting keys of
- * child that will be processed on the next level.
- *
+/* helper function used by coord_by_key(): remember in @h delimiting keys of
+   child that will be processed on the next level.
+  
  */
 static int
 prepare_delimiting_keys(cbk_handle * h /* search handle */ )
@@ -1415,9 +1399,8 @@ put_parent(cbk_handle * h /* search handle */ )
 	}
 }
 
-/**
- * helper function used by coord_by_key(): release reference to parent znode
- * stored in handle before processing its child. */
+/* helper function used by coord_by_key(): release reference to parent znode
+   stored in handle before processing its child. */
 /* Audited by: green(2002.06.15) */
 static void
 hput(cbk_handle * h /* search handle */ )
@@ -1427,10 +1410,8 @@ hput(cbk_handle * h /* search handle */ )
 	done_lh(h->active_lh);
 }
 
-/**
- * Helper function used by cbk(): update delimiting keys of child node (stored
- * in h->active_lh->node) using key taken from parent on the parent level.
- */
+/* Helper function used by cbk(): update delimiting keys of child node (stored
+   in h->active_lh->node) using key taken from parent on the parent level. */
 static void
 setup_delimiting_keys(cbk_handle * h /* search handle */ )
 {
@@ -1475,14 +1456,13 @@ sanity_check(cbk_handle * h /* search handle */ )
 		return 0;
 }
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

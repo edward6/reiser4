@@ -1,7 +1,5 @@
 
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 /* This file contains all defines useful to persons tuning/configuring
    reiser4. */
@@ -46,7 +44,7 @@
 #define REISER4_JNODE_HASH_TABLE_BITS (13)
 #define REISER4_JNODE_HASH_TABLE_SIZE (1 << REISER4_JNODE_HASH_TABLE_BITS)
 
-/** some ridiculously high maximal limit on height of znode tree. This
+/* some ridiculously high maximal limit on height of znode tree. This
     is used in declaration of various per level arrays and
     to allocate stattistics gathering array for per-level stats. */
 #define REISER4_MAX_ZTREE_HEIGHT     (20)
@@ -68,19 +66,16 @@
 
 #define REISER4_PANIC_MSG_BUFFER_SIZE (1024)
 
-/**
- * If array contains less than REISER4_SEQ_SEARCH_BREAK elements then,
- * sequential search is on average faster than binary. This is because
- * of better optimization and because sequential search is more CPU
- * cache friendly. This number was found by experiments on dual AMD
- * Athlon(tm), 1400MHz.
- *
+/* If array contains less than REISER4_SEQ_SEARCH_BREAK elements then,
+   sequential search is on average faster than binary. This is because
+   of better optimization and because sequential search is more CPU
+   cache friendly. This number was found by experiments on dual AMD
+   Athlon(tm), 1400MHz.
+  
  */
 #define REISER4_SEQ_SEARCH_BREAK      (25)
 
-/**
- * don't allow tree to be lower than this
- */
+/* don't allow tree to be lower than this */
 #define REISER4_MIN_TREE_HEIGHT       (TWIG_LEVEL)
 
 #define REISER4_DIR_ITEM_PLUGIN       (COMPOUND_DIR_ID)
@@ -89,13 +84,12 @@
 /* __REISER4_H__ */
 #endif
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

@@ -1,5 +1,4 @@
 /* 
-
 Symfiles are a generalization of Unix symlinks.
 
 A symfile when read behaves as though you took its contents and

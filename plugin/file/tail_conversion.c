@@ -1,6 +1,4 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "../../forward.h"
 #include "../../debug.h"
@@ -23,8 +21,7 @@
 #include <linux/pagemap.h>
 
 /* this file contains:
- * tail2extent and extent2tail
- */
+   tail2extent and extent2tail */
 
 /* exclusive access to a file is acquired for tail conversion */
 /* Audited by: green(2002.06.15) */
@@ -71,7 +68,7 @@ ea2nea(struct inode *inode)
 }
 
 /* part of tail2extent. Cut all items covering @count bytes starting from
- * @offset */
+   @offset */
 /* Audited by: green(2002.06.15) */
 static int
 cut_tail_items(struct inode *inode, loff_t offset, int count)
@@ -121,9 +118,9 @@ for_all_pages(struct page **pages, unsigned nr_pages, page_action action)
 }
 
 /* part of tail2extent. replace tail items with extent one. Content of tail
- * items (@count bytes) being cut are copied already into
- * pages. extent_writepage method is called to create extents corresponding to
- * those pages */
+   items (@count bytes) being cut are copied already into
+   pages. extent_writepage method is called to create extents corresponding to
+   those pages */
 static int
 replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 {
@@ -334,9 +331,9 @@ exit:
 }
 
 /* part of extent2tail. Page contains data which are to be put into tree by
- * tail items. Use tail_write for this. flow is composed like in
- * unix_file_write. The only difference is that data for writing are in
- * kernel space */
+   tail items. Use tail_write for this. flow is composed like in
+   unix_file_write. The only difference is that data for writing are in
+   kernel space */
 /* Audited by: green(2002.06.15) */
 static int
 write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
@@ -394,7 +391,7 @@ filler(void *vp, struct page *page)
 }
 
 /* for every page of file: read page, cut part of extent pointing to this page,
- * put data of page tree by tail item */
+   put data of page tree by tail item */
 int
 extent2tail(struct file *file)
 {
@@ -491,13 +488,12 @@ extent2tail(struct file *file)
 	return result;
 }
 
-/* 
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

@@ -1,9 +1,6 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
-/*
- * Tree Access Pointers.
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+
+/* Tree Access Pointers. */
 
 #include "forward.h"
 #include "debug.h"
@@ -231,14 +228,13 @@ rewind_left(tap_t * tap, int shift)
 	return rewind_to(tap, go_prev_unit, shift);
 }
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

@@ -1,95 +1,90 @@
-/*
- *
- * Copyright 2000, 2001, 2002 Hans Reiser <reiser@namesys.com>
- *
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * We assume that reiserfs tree operations, such as modification (balancing),
- * lookup (search_by_key) and maybe super balancing (squeeze left) should
- * require locking of small or huge chunks of tree nodes to perform these
- * operations.  We need to introduce per node lock object (it will be part of
- * znode object which is associated with each node (buffer) in cache), and we
- * need special techniques to avoid deadlocks.
- *
- * V4 LOCKING ALGORITHM DESCRIPTION
- *
- * Suppose we have a set of processes which do lock (R/W) of tree nodes. Each
- * process have a set (m.b. empty) of already locked nodes ("process locked
- * set"). Each process may have a pending lock request to the node locked by
- * another process (this request cannot be satisfied without unlocking the
- * node because request mode and node lock mode are not compatible).
+/* We assume that reiserfs tree operations, such as modification (balancing),
+   lookup (search_by_key) and maybe super balancing (squeeze left) should
+   require locking of small or huge chunks of tree nodes to perform these
+   operations.  We need to introduce per node lock object (it will be part of
+   znode object which is associated with each node (buffer) in cache), and we
+   need special techniques to avoid deadlocks.
+  
+   V4 LOCKING ALGORITHM DESCRIPTION
+  
+   Suppose we have a set of processes which do lock (R/W) of tree nodes. Each
+   process have a set (m.b. empty) of already locked nodes ("process locked
+   set"). Each process may have a pending lock request to the node locked by
+   another process (this request cannot be satisfied without unlocking the
+   node because request mode and node lock mode are not compatible).
 
- * The deadlock situation appears when we have a loop constructed from
- * process locked sets and lock request vectors.
+   The deadlock situation appears when we have a loop constructed from
+   process locked sets and lock request vectors.
 
- *
- * NOTE: we can have loops there because initial strict tree structure is
- * extended in reiser4 tree by having of sibling pointers which connect
- * neighboring cached nodes.
- *
- * +-P1-+          +-P3-+
- * |+--+|   V1     |+--+|
- * ||N1|| -------> ||N3||
- * |+--+|          |+--+|
- * +----+          +----+
- *   ^               |
- *   |V2             |V3
- *   |               v
- * +---------P2---------+
- * |+--+            +--+|
- * ||N2|  --------  |N4||
- * |+--+            +--+|
- * +--------------------+
- *
- * The basic deadlock avoidance mechanism used by everyone is to acquire locks
- * only in one predetermined order -- it makes loop described above
- * impossible.  The problem we have with chosen balancing algorithm is that we
- * could not find predetermined order of locking there. Tree lookup goes from
- * top to bottom locking more than one node at time, tree change (AKA
- * balancing) goes from bottom, two (or more) tree change operations may lock
- * same set of nodes in different orders. So, basic deadlock avoidance scheme
- * does not work there.
- *
- * Instead of having one predetermined order of getting locks for all
- * processes we divide all processes into two classes, and each class
- * has its own order of locking.
- *
- * Processes of first class (we call it L-class) take locks in from top to
- * tree bottom and from right to left, processes from second class (H-class)
- * take locks from bottom to top and left to right. It is not a complete
- * definition for the order of locking. Exact definitions will be given later,
- * now we should know that some locking orders are predefined for both
- * classes, L and H.
- *
- * How does it help to avoid deadlocks ?
- *
- * Suppose we have a deadlock with n processes. Processes from one
- * class never deadlock because they take locks in one consistent
- * order.
- *
- * So, any possible deadlock loop must have L-class processes as well as H-class
- * ones. This lock.c contains code that prevents deadlocks between L- and
- * H-class processes by using process lock priorities.
- *
- * We assign low priority to all L-class processes and high priority to all
- * processes from class H. There are no other lock priority levels except low
- * and high. We know that any deadlock loop contains at least one node locked
- * by L-class process and requested by H-class process. It is enough to avoid
- * deadlocks if this situation is caught and resolved.
- *
- * V4 DEADLOCK PREVENTION ALGORITHM IMPLEMENTATION.
- *
- * The deadlock prevention algorithm is based on comparing of
- * priorities of node owners (processes which keep znode locked) and
- * requesters (processes which want to acquire a lock on znode).  We
- * implement a scheme where low-priority owners yield locks to
- * high-priority requesters. We created a signal passing system that
- * is used to ask low-priority processes to yield one or more locked
- * znodes.
- *
- * The condition when a znode needs to change its owners is described by the
- * following formula:
+  
+   NOTE: we can have loops there because initial strict tree structure is
+   extended in reiser4 tree by having of sibling pointers which connect
+   neighboring cached nodes.
+  
+   +-P1-+          +-P3-+
+   |+--+|   V1     |+--+|
+   ||N1|| -------> ||N3||
+   |+--+|          |+--+|
+   +----+          +----+
+     ^               |
+     |V2             |V3
+     |               v
+   +---------P2---------+
+   |+--+            +--+|
+   ||N2|  --------  |N4||
+   |+--+            +--+|
+   +--------------------+
+  
+   The basic deadlock avoidance mechanism used by everyone is to acquire locks
+   only in one predetermined order -- it makes loop described above
+   impossible.  The problem we have with chosen balancing algorithm is that we
+   could not find predetermined order of locking there. Tree lookup goes from
+   top to bottom locking more than one node at time, tree change (AKA
+   balancing) goes from bottom, two (or more) tree change operations may lock
+   same set of nodes in different orders. So, basic deadlock avoidance scheme
+   does not work there.
+  
+   Instead of having one predetermined order of getting locks for all
+   processes we divide all processes into two classes, and each class
+   has its own order of locking.
+  
+   Processes of first class (we call it L-class) take locks in from top to
+   tree bottom and from right to left, processes from second class (H-class)
+   take locks from bottom to top and left to right. It is not a complete
+   definition for the order of locking. Exact definitions will be given later,
+   now we should know that some locking orders are predefined for both
+   classes, L and H.
+  
+   How does it help to avoid deadlocks ?
+  
+   Suppose we have a deadlock with n processes. Processes from one
+   class never deadlock because they take locks in one consistent
+   order.
+  
+   So, any possible deadlock loop must have L-class processes as well as H-class
+   ones. This lock.c contains code that prevents deadlocks between L- and
+   H-class processes by using process lock priorities.
+  
+   We assign low priority to all L-class processes and high priority to all
+   processes from class H. There are no other lock priority levels except low
+   and high. We know that any deadlock loop contains at least one node locked
+   by L-class process and requested by H-class process. It is enough to avoid
+   deadlocks if this situation is caught and resolved.
+  
+   V4 DEADLOCK PREVENTION ALGORITHM IMPLEMENTATION.
+  
+   The deadlock prevention algorithm is based on comparing of
+   priorities of node owners (processes which keep znode locked) and
+   requesters (processes which want to acquire a lock on znode).  We
+   implement a scheme where low-priority owners yield locks to
+   high-priority requesters. We created a signal passing system that
+   is used to ask low-priority processes to yield one or more locked
+   znodes.
+  
+   The condition when a znode needs to change its owners is described by the
+   following formula:
 
    #############################################
    #                                           #
@@ -99,45 +94,45 @@
    #                                           #
    #############################################
 
-   *
-   * FIXME: It is a bit different from initial statement of resolving of all
-   * situations where we have a node locked by low-priority process and
-   * requested by high-priority one.
-   *
-   * The difference is that in current implementation a low-priority process
-   * delays node releasing if another high-priority process owns this node.
-   *
-   * It is not proved yet that modified deadlock check prevents deadlocks. It
-   * is possible we should return to strict deadlock check formula as
-   * described above in the proof (i.e. any low pri owners release locks when
-   * high-pri lock request arrives, unrelated to another high-pri owner
-   * existence). -zam.
+    
+     FIXME: It is a bit different from initial statement of resolving of all
+     situations where we have a node locked by low-priority process and
+     requested by high-priority one.
+    
+     The difference is that in current implementation a low-priority process
+     delays node releasing if another high-priority process owns this node.
+    
+     It is not proved yet that modified deadlock check prevents deadlocks. It
+     is possible we should return to strict deadlock check formula as
+     described above in the proof (i.e. any low pri owners release locks when
+     high-pri lock request arrives, unrelated to another high-pri owner
+     existence). -zam.
 
- * It is enough to avoid deadlocks if we prevent any low-priority process from
- * falling asleep if its locked set contains a node which satisfies the
- * deadlock condition.
- *
- * That condition is implicitly or explicitly checked in all places where new
- * high-priority request may be added or removed from node request queue or
- * high-priority process takes or releases a lock on node. The main
- * goal of these checks is to never lose the moment when node becomes "has
- * wrong owners" and send "must-yield-this-lock" signals to its low-pri owners
- * at that time.
- *
- * The information about received signals is stored in the per-process
- * structure (lock stack) and analyzed before low-priority process is going to
- * sleep but after a "fast" attempt to lock a node fails. Any signal wakes
- * sleeping process up and forces him to re-check lock status and received
- * signal info. If "must-yield-this-lock" signals were received the locking
- * primitive (longterm_lock_znode()) fails with -EDEADLK error code.
- *
- * USING OF V4 LOCKING ALGORITHM IN V4 TREE TRAVERSAL CODE
- *
- * Let's complete definitions of lock orders used by L- and H-class
- * processes.
- *
- * 1. H-class:
- *    We count all tree nodes as shown at the picture:
+   It is enough to avoid deadlocks if we prevent any low-priority process from
+   falling asleep if its locked set contains a node which satisfies the
+   deadlock condition.
+  
+   That condition is implicitly or explicitly checked in all places where new
+   high-priority request may be added or removed from node request queue or
+   high-priority process takes or releases a lock on node. The main
+   goal of these checks is to never lose the moment when node becomes "has
+   wrong owners" and send "must-yield-this-lock" signals to its low-pri owners
+   at that time.
+  
+   The information about received signals is stored in the per-process
+   structure (lock stack) and analyzed before low-priority process is going to
+   sleep but after a "fast" attempt to lock a node fails. Any signal wakes
+   sleeping process up and forces him to re-check lock status and received
+   signal info. If "must-yield-this-lock" signals were received the locking
+   primitive (longterm_lock_znode()) fails with -EDEADLK error code.
+  
+   USING OF V4 LOCKING ALGORITHM IN V4 TREE TRAVERSAL CODE
+  
+   Let's complete definitions of lock orders used by L- and H-class
+   processes.
+  
+   1. H-class:
+      We count all tree nodes as shown at the picture:
 
   .
   .
@@ -149,13 +144,13 @@
   | \   | \                           | \
   1  2  3  4  5  6  7  8  9  10 .. (n-1) (n)
 
- * i.e. leaves first, then all nodes at one level above and so on until tree
- * root. H-class process acquires (and requests) locks in increasing order of
- * assigned numbers. Current implementation of v4 balancing follows these
- * rules.
+   i.e. leaves first, then all nodes at one level above and so on until tree
+   root. H-class process acquires (and requests) locks in increasing order of
+   assigned numbers. Current implementation of v4 balancing follows these
+   rules.
 
- * 2. L-class:
- * Count all tree nodes in recursive order:
+   2. L-class:
+   Count all tree nodes in recursive order:
 
  .
  .
@@ -167,12 +162,12 @@
  |\  |\ \  | \
  1 2 4 5 6 9 (10) ...
 
- * and L-class process requests locks in decreasing order of assigned
- * numbers. You see that any movement left or down decreases the node number.
- * Recursive counting was used because one situation in
- * reiser4_get_left_neighbor() where process does low-pri lock request (to
- * left) after locking of a set of nodes as high-pri process in upward
- * direction.
+   and L-class process requests locks in decreasing order of assigned
+   numbers. You see that any movement left or down decreases the node number.
+   Recursive counting was used because one situation in
+   reiser4_get_left_neighbor() where process does low-pri lock request (to
+   left) after locking of a set of nodes as high-pri process in upward
+   direction.
 
  x <- c
       ^
@@ -182,145 +177,145 @@
       |
       a
 
- * Nodes a-b-c are locked in accordance with H-class rules, then the process
- * changes its class and tries to lock node x. Recursive order guarantees that
- * node x will have a number less than all already locked nodes (a-b-c)
- * numbers.
- *
- * V4 LOCKING DRAWBACKS
- * 
- * The deadlock prevention code may signal about possible deadlock in the
- * situation where is no deadlock actually. 
- *
- * Suppose we have a tree balancing operation in progress. One level is
- * completely balanced and we are going to propagate tree changes on the level
- * above. We locked leftmost node in the set of all immediate parents of all
- * modified nodes (by current balancing operation) on already balanced level
- * as it requires by locking order defined for H-class (high-priority)
- * processes.  At this moment we want to look on left neighbor for free space
- * on this level and thus avoid new node allocation. That locking is done in
- * the order not defined for H-class, but for L-class process. It means we
- * should change the process locking priority and make process locked set
- * available to high-priority requests from any balancing that goes upward. It
- * is not good.  First, for most cases it is not a deadlock situation; second,
- * locking of left neighbor node is impossible in that situation. -EDEADLK is
- * returned from longterm_lock_znode() until we release all nodes requested by
- * high-pri processes, we can't do it because nodes we need to unlock contain
- * modified data, we can't unroll changes due to reiser4 journal limits.
- *
- *  +-+     +-+
- *  |X| <-- | |
- *  +-+     +-+--LOW-PRI-----+
- *          |already balanced|
- *          +----------------+
- *              ^
- *              |
- *            +----HI-PRI-------+
- *            |another balancing|
- *            +-----------------+
- *
- * The solution is not to lock nodes to left in described situation. Current
- * implementation of reiser4 tree balancing algorithms uses non-blocking
- * try_lock call in that case.
- *
- * LOCK STRUCTURES DESCRIPTION
- *
- * The following data structures are used in reiser4 locking
- * implementation:
- *
- * Lock owner (lock_stack) is an lock objects accumulator. It
- * has a list of special link objects (lock_handle) each one
- * has a pointer to lock object this lock owner owns.  Reiser4 lock
- * object (reiser4_lock) has list of link objects of same type each
- * one points to lock owner object -- this lock object owner.  This
- * more complex structure (comparing with older design) is used
- * because we have to implement n<->m relationship between lock owners
- * and lock objects -- one lock owner may own several lock objects and
- * one lock object may belong to several lock owners (in case of
- * `read' or `shared' locks).  Yet another relation may exist between
- * one lock object and lock owners.  If lock procedure cannot
- * immediately take lock on an object it adds the lock owner on
- * special `requestors' list belongs to lock object.  That list
- * represents a queue of pending lock requests.  Because one lock
- * owner may request only only one lock object in a time, it is a 1>n
- * relation between lock objects and a lock owner implemented as it
- * written above. Full information (priority, pointers to lock and
- * link objects) about each lock request is stored in lock owner
- * structure in `request' field.
- *
- * SHORT_TERM LOCKING
- *
- * We use following scheme for protection of shared objects in smp
- * environment: locks (zlock objects) and lock owners
- * (lock_stack objects) have own spinlocks. The spinlock at
- * lock object protects all lock object fields and double-linked lists
- * of requesters and owner_links. The spinlock in lock_stack structure
- * protects only owner->nr_hipri_requests flag. There is simple rule to avoid
- * deadlocks: lock reiser4 lock object first, no more then one in a
- * time, then lock lock_stack object for owner->nr_hipri_requests flag
- * analysis/modification.
- *
- * Actually, lock object spinlocks do all we need. There are several cases of
- * concurrent access all protected by that spinlocks: putting/removing of
- * owner on/from requesters list at given lock object and linking/unlinking of
- * lock object and owner.
- *
- * The lock_handles lists don't need additional spinlocks for protection.
- * We can safely scan that lists when lock owner is not connected to
- * some `requesters' list because it means noone can pass new lock to us
- * and modify our lock_handles list. When lock owner is connected (and
- * while connecting/disconnecting) to requesters list, it is protected
- * by lock object (that owns req. list) spinlock.
- *
- * Only one case when lock object's spinlocks are not enough is protection of
- * owner object from concurrent access when we are passing signal to lock
- * owners.  The operations of sleep (with check for `nr_hipri_requests' flag) and
- * waking process up must serialized, which is currently done by taking
- * owner->guard spinlock.
+   Nodes a-b-c are locked in accordance with H-class rules, then the process
+   changes its class and tries to lock node x. Recursive order guarantees that
+   node x will have a number less than all already locked nodes (a-b-c)
+   numbers.
+  
+   V4 LOCKING DRAWBACKS
+   
+   The deadlock prevention code may signal about possible deadlock in the
+   situation where is no deadlock actually. 
+  
+   Suppose we have a tree balancing operation in progress. One level is
+   completely balanced and we are going to propagate tree changes on the level
+   above. We locked leftmost node in the set of all immediate parents of all
+   modified nodes (by current balancing operation) on already balanced level
+   as it requires by locking order defined for H-class (high-priority)
+   processes.  At this moment we want to look on left neighbor for free space
+   on this level and thus avoid new node allocation. That locking is done in
+   the order not defined for H-class, but for L-class process. It means we
+   should change the process locking priority and make process locked set
+   available to high-priority requests from any balancing that goes upward. It
+   is not good.  First, for most cases it is not a deadlock situation; second,
+   locking of left neighbor node is impossible in that situation. -EDEADLK is
+   returned from longterm_lock_znode() until we release all nodes requested by
+   high-pri processes, we can't do it because nodes we need to unlock contain
+   modified data, we can't unroll changes due to reiser4 journal limits.
+  
+    +-+     +-+
+    |X| <-- | |
+    +-+     +-+--LOW-PRI-----+
+            |already balanced|
+            +----------------+
+                ^
+                |
+              +----HI-PRI-------+
+              |another balancing|
+              +-----------------+
+  
+   The solution is not to lock nodes to left in described situation. Current
+   implementation of reiser4 tree balancing algorithms uses non-blocking
+   try_lock call in that case.
+  
+   LOCK STRUCTURES DESCRIPTION
+  
+   The following data structures are used in reiser4 locking
+   implementation:
+  
+   Lock owner (lock_stack) is an lock objects accumulator. It
+   has a list of special link objects (lock_handle) each one
+   has a pointer to lock object this lock owner owns.  Reiser4 lock
+   object (reiser4_lock) has list of link objects of same type each
+   one points to lock owner object -- this lock object owner.  This
+   more complex structure (comparing with older design) is used
+   because we have to implement n<->m relationship between lock owners
+   and lock objects -- one lock owner may own several lock objects and
+   one lock object may belong to several lock owners (in case of
+   `read' or `shared' locks).  Yet another relation may exist between
+   one lock object and lock owners.  If lock procedure cannot
+   immediately take lock on an object it adds the lock owner on
+   special `requestors' list belongs to lock object.  That list
+   represents a queue of pending lock requests.  Because one lock
+   owner may request only only one lock object in a time, it is a 1>n
+   relation between lock objects and a lock owner implemented as it
+   written above. Full information (priority, pointers to lock and
+   link objects) about each lock request is stored in lock owner
+   structure in `request' field.
+  
+   SHORT_TERM LOCKING
+  
+   We use following scheme for protection of shared objects in smp
+   environment: locks (zlock objects) and lock owners
+   (lock_stack objects) have own spinlocks. The spinlock at
+   lock object protects all lock object fields and double-linked lists
+   of requesters and owner_links. The spinlock in lock_stack structure
+   protects only owner->nr_hipri_requests flag. There is simple rule to avoid
+   deadlocks: lock reiser4 lock object first, no more then one in a
+   time, then lock lock_stack object for owner->nr_hipri_requests flag
+   analysis/modification.
+  
+   Actually, lock object spinlocks do all we need. There are several cases of
+   concurrent access all protected by that spinlocks: putting/removing of
+   owner on/from requesters list at given lock object and linking/unlinking of
+   lock object and owner.
+  
+   The lock_handles lists don't need additional spinlocks for protection.
+   We can safely scan that lists when lock owner is not connected to
+   some `requesters' list because it means noone can pass new lock to us
+   and modify our lock_handles list. When lock owner is connected (and
+   while connecting/disconnecting) to requesters list, it is protected
+   by lock object (that owns req. list) spinlock.
+  
+   Only one case when lock object's spinlocks are not enough is protection of
+   owner object from concurrent access when we are passing signal to lock
+   owners.  The operations of sleep (with check for `nr_hipri_requests' flag) and
+   waking process up must serialized, which is currently done by taking
+   owner->guard spinlock.
  */
 
 /* Josh's explanation to Zam on why the locking and capturing code are intertwined.
- *
- * FIXME: DEADLOCK STILL OBSERVED:!!!
- *
- * Point 1. The order in which a node is captured matters.  If a read-capture arrives
- * before a write-capture, the read-capture may cause no capturing "work" to be done at
- * all, whereas the write-capture may cause copy-on-capture to occur.  For this to be
- * correct the writer cannot beat the reader to the lock, if they are captured in the
- * opposite order.
- *
- * Point 2. Just as locking can block waiting for the request to be satisfied, capturing
- * can block waiting for expired atoms to commit.
- *
- * Point 3. It is not acceptable to first acquire the lock and then block waiting to
- * capture, especially when ignorant of deadlock.  There is no reason to lock until the
- * capture has succeeded.  To block in "capture" should be the same as to block waiting
- * for a lock, therefore a deadlock condition will cause the capture request to return
- * -EDEADLK.
- *
- * Point 4. It is acceptable to first capture and then wait to lock.  BUT, once the
- * capture request succeeds the lock request cannot be satisfied out-of-order.  For
- * example, once a read-capture is satisfied no writers may acquire the lock until the
- * reader has a chance to read the block.
- *
- * Point 5. Summary: capture requests must be partially-ordered with respect to lock
- * requests.
- *
- * What this means is for a regular lock_znode request (try_lock is slightly simpler).
- *
- *   1. acquire znode spinlock, check whether the lock request is compatible
- *      \_ and if not, make request and sleep on lock_stack semaphore
- *      |_ and when it wakes, go to step #1
- *   2. perform a try_capture request
- *      \_ and if it would block, sleep on lock_stack semaphore
- *      |_ and when it wakes, go to step #1
- *      |_ if the try_capture request is successful, it returns with
- *         the znode locked
- *   3. since try_capture occasionally releases the znode lock due to
- *      spinlock-ordering constraints (there's a pointer cycle atom->node->atom),
- *      recheck whether lock request is still compatible.
- *      \_ and if it is not, same as step #1
- *   4. before releasing znode spinlock, call lock_object() as before.  */
+  
+   FIXME: DEADLOCK STILL OBSERVED:!!!
+  
+   Point 1. The order in which a node is captured matters.  If a read-capture arrives
+   before a write-capture, the read-capture may cause no capturing "work" to be done at
+   all, whereas the write-capture may cause copy-on-capture to occur.  For this to be
+   correct the writer cannot beat the reader to the lock, if they are captured in the
+   opposite order.
+  
+   Point 2. Just as locking can block waiting for the request to be satisfied, capturing
+   can block waiting for expired atoms to commit.
+  
+   Point 3. It is not acceptable to first acquire the lock and then block waiting to
+   capture, especially when ignorant of deadlock.  There is no reason to lock until the
+   capture has succeeded.  To block in "capture" should be the same as to block waiting
+   for a lock, therefore a deadlock condition will cause the capture request to return
+   -EDEADLK.
+  
+   Point 4. It is acceptable to first capture and then wait to lock.  BUT, once the
+   capture request succeeds the lock request cannot be satisfied out-of-order.  For
+   example, once a read-capture is satisfied no writers may acquire the lock until the
+   reader has a chance to read the block.
+  
+   Point 5. Summary: capture requests must be partially-ordered with respect to lock
+   requests.
+  
+   What this means is for a regular lock_znode request (try_lock is slightly simpler).
+  
+     1. acquire znode spinlock, check whether the lock request is compatible
+        \_ and if not, make request and sleep on lock_stack semaphore
+        |_ and when it wakes, go to step #1
+     2. perform a try_capture request
+        \_ and if it would block, sleep on lock_stack semaphore
+        |_ and when it wakes, go to step #1
+        |_ if the try_capture request is successful, it returns with
+           the znode locked
+     3. since try_capture occasionally releases the znode lock due to
+        spinlock-ordering constraints (there's a pointer cycle atom->node->atom),
+        recheck whether lock request is still compatible.
+        \_ and if it is not, same as step #1
+     4. before releasing znode spinlock, call lock_object() as before.  */
 
 #include "debug.h"
 #include "txnmgr.h"
@@ -332,18 +327,14 @@
 
 #include <linux/spinlock.h>
 
-/**
- * Returns a lock owner associated with current thread
- */
+/* Returns a lock owner associated with current thread */
 lock_stack *
 get_current_lock_stack(void)
 {
 	return &get_current_context()->stack;
 }
 
-/**
- * Wakes up all low priority owners informing them about possible deadlock
- */
+/* Wakes up all low priority owners informing them about possible deadlock */
 static void
 wake_up_all_lopri_owners(znode * node)
 {
@@ -369,11 +360,10 @@ wake_up_all_lopri_owners(znode * node)
 	}
 }
 
-/*
- * Adds a lock to a lock owner, which means creating a link to the lock and
- * putting the link into the two lists all links are on (the doubly linked list
- * that forms the lock_stack, and the doubly linked list of links attached
- * to a lock.
+/* Adds a lock to a lock owner, which means creating a link to the lock and
+   putting the link into the two lists all links are on (the doubly linked list
+   that forms the lock_stack, and the doubly linked list of links attached
+   to a lock.
  */
 static inline void
 link_object(lock_handle * handle, lock_stack * owner, znode * node)
@@ -389,9 +379,7 @@ link_object(lock_handle * handle, lock_stack * owner, znode * node)
 	handle->signaled = 0;
 }
 
-/*
- * Breaks a relation between a lock and its owner
- */
+/* Breaks a relation between a lock and its owner */
 static inline void
 unlink_object(lock_handle * handle)
 {
@@ -407,9 +395,7 @@ unlink_object(lock_handle * handle)
 	handle->owner = NULL;
 }
 
-/*
- * Actually locks an object knowing that we are able to do this
- */
+/* Actually locks an object knowing that we are able to do this */
 static void
 lock_object(lock_stack * owner, znode * node)
 {
@@ -436,9 +422,7 @@ lock_object(lock_stack * owner, znode * node)
 		 owner->curpri ? "hi" : "lo", owner, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 }
 
-/**
- * Check for recursive write locking
- */
+/* Check for recursive write locking */
 static int
 recursive(lock_stack * owner, znode * node)
 {
@@ -514,17 +498,16 @@ znode_is_write_locked(const znode * node)
 }
 #endif
 
-/**
- * This "deadlock" condition is the essential part of reiser4 locking
- * implementation. This condition is checked explicitly by calling
- * check_deadlock_condition() or implicitly in all places where znode lock
- * state (set of owners and request queue) is changed. Locking code is
- * designed to use this condition to trigger procedure of passing object from
- * low priority owner(s) to high priority one(s).
- *
- * The procedure results in passing an event (setting lock_handle->signaled
- * flag) and count this event in nr_signaled field of owner's lock stack
- * object and wakeup owner's process.
+/* This "deadlock" condition is the essential part of reiser4 locking
+   implementation. This condition is checked explicitly by calling
+   check_deadlock_condition() or implicitly in all places where znode lock
+   state (set of owners and request queue) is changed. Locking code is
+   designed to use this condition to trigger procedure of passing object from
+   low priority owner(s) to high priority one(s).
+  
+   The procedure results in passing an event (setting lock_handle->signaled
+   flag) and count this event in nr_signaled field of owner's lock stack
+   object and wakeup owner's process.
  */
 static inline int
 check_deadlock_condition(znode * node)
@@ -533,9 +516,7 @@ check_deadlock_condition(znode * node)
 	return node->lock.nr_hipri_requests > 0 && node->lock.nr_hipri_owners == 0;
 }
 
-/**
- * checks lock/request compatibility
- */
+/* checks lock/request compatibility */
 static int
 can_lock_object(lock_stack * owner, znode * node)
 {
@@ -562,10 +543,9 @@ can_lock_object(lock_stack * owner, znode * node)
 	return 0;
 }
 
-/**
- * Setting of a high priority to the process. It clears "signaled" flags
- * because znode locked by high-priority process can't satisfy our "deadlock
- * condition".
+/* Setting of a high priority to the process. It clears "signaled" flags
+   because znode locked by high-priority process can't satisfy our "deadlock
+   condition".
  */
 static void
 set_high_priority(lock_stack * owner)
@@ -598,9 +578,7 @@ set_high_priority(lock_stack * owner)
 	}
 }
 
-/**
- * Sets a low priority to the process.
- */
+/* Sets a low priority to the process. */
 static void
 set_low_priority(lock_stack * owner)
 {
@@ -643,9 +621,7 @@ set_low_priority(lock_stack * owner)
 	}
 }
 
-/**
- * unlock a znode long term lock
- */
+/* unlock a znode long term lock */
 void
 longterm_unlock_znode(lock_handle * handle)
 {
@@ -739,9 +715,7 @@ longterm_unlock_znode(lock_handle * handle)
 	zput(node);
 }
 
-/**
- * locks given lock object
- */
+/* locks given lock object */
 int longterm_lock_znode(
 			       /* local link object (may be allocated on the process owner); */
 			       lock_handle * handle,
@@ -932,10 +906,8 @@ int longterm_lock_znode(
 	return ret;
 }
 
-/**
- * lock object invalidation means changing of lock object state to `INVALID'
- * and waiting for all other processes to cancel theirs lock requests.
- */
+/* lock object invalidation means changing of lock object state to `INVALID'
+   and waiting for all other processes to cancel theirs lock requests. */
 void
 invalidate_lock(lock_handle * handle	/* path to lock
 					   * owner and lock
@@ -985,9 +957,7 @@ invalidate_lock(lock_handle * handle	/* path to lock
 	spin_unlock_znode(node);
 }
 
-/**
- * Initializes lock_stack.
- */
+/* Initializes lock_stack. */
 void
 init_lock_stack(lock_stack * owner	/* pointer to
 					   * allocated
@@ -1001,9 +971,7 @@ init_lock_stack(lock_stack * owner	/* pointer to
 	sema_init(&owner->sema, 0);
 }
 
-/**
- * Initializes lock object.
- */
+/* Initializes lock object. */
 void
 reiser4_init_lock(zlock * lock	/* pointer on allocated
 				   * uninitialized lock object
@@ -1044,10 +1012,8 @@ znode_lock_mode lock_mode(lock_handle * handle)
 	}
 }
 
-/**
- * Transfer a lock handle (presumably so that variables can be moved between stack and
- * heap locations).
- */
+/* Transfer a lock handle (presumably so that variables can be moved between stack and
+   heap locations). */
 void
 move_lh_internal(lock_handle * new, lock_handle * old, int unlink_old)
 {
@@ -1112,9 +1078,8 @@ check_deadlock(void)
 	return atomic_read(&owner->nr_signaled) != 0;
 }
 
-/**
- * Reset the semaphore (under protection of lock_stack spinlock) to avoid lost
- * wake-up. */
+/* Reset the semaphore (under protection of lock_stack spinlock) to avoid lost
+   wake-up. */
 int
 prepare_to_sleep(lock_stack * owner)
 {
@@ -1154,18 +1119,14 @@ prepare_to_sleep(lock_stack * owner)
 	return 0;
 }
 
-/*
- * Wakes up a single thread
- */
+/* Wakes up a single thread */
 void
 __reiser4_wake_up(lock_stack * owner)
 {
 	up(&owner->sema);
 }
 
-/*
- * Puts a thread to sleep
- */
+/* Puts a thread to sleep */
 int
 go_to_sleep(lock_stack * owner)
 {
@@ -1188,9 +1149,7 @@ lock_stack_isclean(lock_stack * owner)
 }
 
 #if REISER4_DEBUG_OUTPUT
-/*
- * Debugging help
- */
+/* Debugging help */
 void
 print_lock_stack(const char *prefix, lock_stack * owner)
 {
@@ -1261,13 +1220,12 @@ check_lock_node_data(znode * node)
 
 #endif
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

@@ -1,5 +1,4 @@
-/* Copyright (C) 2001, 2002 Hans Reiser.  All rights reserved.
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #ifndef __REISER4_TXNMGR_H__
 #define __REISER4_TXNMGR_H__
@@ -16,9 +15,7 @@
 #include <asm/atomic.h>
 #include <asm/semaphore.h>
 
-/*****************************************************************************************
-				        LIST TYPES
- *****************************************************************************************/
+/* LIST TYPES */
 
 TS_LIST_DECLARE(atom);		/* The manager's list of atoms */
 TS_LIST_DECLARE(txnh);		/* The atom's list of handles */
@@ -33,13 +30,11 @@ TS_LIST_DECLARE(capture);	/* The transaction's list of captured znodes */
 TS_LIST_DECLARE(blocknr_set);	/* Used for the transaction's delete set
 				 * and wandered mapping. */
 
-/****************************************************************************************
-				    TYPE DECLARATIONS
- ****************************************************************************************/
+/* TYPE DECLARATIONS */
 
 /* This enumeration describes the possible types of a capture request (try_capture).
- * A capture request dynamically assigns a block to the calling thread's transaction
- * handle. */
+   A capture request dynamically assigns a block to the calling thread's transaction
+   handle. */
 typedef enum {
 	/* A READ_ATOMIC request indicates that a block will be read and that the caller's
 	 * atom should fuse in order to ensure that the block commits atomically with the
@@ -83,9 +78,9 @@ typedef enum {
 } txn_capture;
 
 /* There are two kinds of transaction handle: WRITE_FUSING and READ_FUSING, the only
- * difference is in the handling of read requests.  A WRITE_FUSING transaction handle
- * defaults read capture requests to TXN_CAPTURE_READ_NONCOM whereas a READ_FUSIONG
- * transaction handle defaults to TXN_CAPTURE_READ_ATOMIC. */
+   difference is in the handling of read requests.  A WRITE_FUSING transaction handle
+   defaults read capture requests to TXN_CAPTURE_READ_NONCOM whereas a READ_FUSIONG
+   transaction handle defaults to TXN_CAPTURE_READ_ATOMIC. */
 typedef enum {
 	TXN_WRITE_FUSING = (1 << 0),
 	TXN_READ_FUSING = (1 << 1) | TXN_WRITE_FUSING,	/* READ implies WRITE */
@@ -131,42 +126,40 @@ typedef enum {
 	TXNH_WAIT_COMMIT = 0x2
 } txn_handle_flags_t;
 
-/****************************************************************************************
-				     TYPE DEFINITIONS
- ****************************************************************************************/
+/* TYPE DEFINITIONS */
 
 /* A note on lock ordering: the handle & jnode spinlock protects reading of their ->atom
- * fields, so typically an operation on the atom through either of these objects must (1)
- * lock the object, (2) read the atom pointer, (3) lock the atom.
- *
- * During atom fusion, the process holds locks on both atoms at once.  Then, it iterates
- * through the list of handles and pages held by the smaller of the two atoms.  For each
- * handle and page referencing the smaller atom, the fusing process must: (1) lock the
- * object, and (2) update the atom pointer.
- *
- * You can see that there is a conflict of lock ordering here, so the more-complex
- * procedure should have priority, i.e., the fusing process has priority so that it is
- * guaranteed to make progress and to avoid restarts.
- *
- * This decision, however, means additional complexity for aquiring the atom lock in the
- * first place.  The general procedure followed in the code is:
- *
- * TXN_OBJECT *obj = ...;
- * TXN_ATOM   *atom;
- *
- * spin_lock (& obj->_lock);
- *
- * atom = obj->_atom;
- *
- * if (! spin_trylock_atom (atom))
- *   {
- *     spin_unlock (& obj->_lock);
- *     RESTART OPERATION, THERE WAS A RACE;
- *   }
- *
- * ELSE YOU HAVE BOTH ATOM AND OBJ LOCKED
- *
- * See the getatom_locked() method for a common case.
+   fields, so typically an operation on the atom through either of these objects must (1)
+   lock the object, (2) read the atom pointer, (3) lock the atom.
+  
+   During atom fusion, the process holds locks on both atoms at once.  Then, it iterates
+   through the list of handles and pages held by the smaller of the two atoms.  For each
+   handle and page referencing the smaller atom, the fusing process must: (1) lock the
+   object, and (2) update the atom pointer.
+  
+   You can see that there is a conflict of lock ordering here, so the more-complex
+   procedure should have priority, i.e., the fusing process has priority so that it is
+   guaranteed to make progress and to avoid restarts.
+  
+   This decision, however, means additional complexity for aquiring the atom lock in the
+   first place.  The general procedure followed in the code is:
+  
+   TXN_OBJECT *obj = ...;
+   TXN_ATOM   *atom;
+  
+   spin_lock (& obj->_lock);
+  
+   atom = obj->_atom;
+  
+   if (! spin_trylock_atom (atom))
+     {
+       spin_unlock (& obj->_lock);
+       RESTART OPERATION, THERE WAS A RACE;
+     }
+  
+   ELSE YOU HAVE BOTH ATOM AND OBJ LOCKED
+  
+   See the getatom_locked() method for a common case.
  */
 
 /* A block number set consists of only the list head. */
@@ -178,7 +171,7 @@ TS_LIST_DECLARE(fq);
 TS_LIST_DECLARE(fq_prepared);
 
 /* An atomic transaction: this is the underlying system representation
- * of a transaction, not the one seen by clients. */
+   of a transaction, not the one seen by clients. */
 struct txn_atom {
 	/* The spinlock protecting the atom, held during fusion and various other state
 	 * changes. */
@@ -259,7 +252,7 @@ struct txn_atom {
 };
 
 /* A transaction handle: the client obtains and commits this handle which is assigned by
- * the system to a txn_atom. */
+   the system to a txn_atom. */
 struct txn_handle {
 	/* Spinlock protecting ->atom pointer */
 	spinlock_t hlock;
@@ -313,12 +306,10 @@ struct txn_mgr {
 
 TS_LIST_DEFINE(txn_mgrs, txn_mgr, linkage);
 
-/****************************************************************************************
-				  FUNCTION DECLARATIONS
- ****************************************************************************************/
+/* FUNCTION DECLARATIONS */
 
 /* These are the externally (within Reiser4) visible transaction functions, therefore they
- * are prefixed with "txn_".  For comments, see txnmgr.c. */
+   are prefixed with "txn_".  For comments, see txnmgr.c. */
 
 extern int txnmgr_init_static(void);
 extern void txnmgr_init(txn_mgr * mgr);
@@ -385,7 +376,7 @@ extern int capture_super_block(struct super_block *s);
 extern int jnodes_of_one_atom(jnode *, jnode *);
 
 /* See the comment on the function blocknrset.c:blocknr_set_add for the
- * calling convention of these three routines. */
+   calling convention of these three routines. */
 extern void blocknr_set_init(blocknr_set * bset);
 extern void blocknr_set_destroy(blocknr_set * bset);
 extern void blocknr_set_merge(blocknr_set * from, blocknr_set * into);
@@ -402,9 +393,7 @@ extern int blocknr_set_add_pair(txn_atom * atom,
 typedef int (*blocknr_set_actor_f) (txn_atom *, const reiser4_block_nr *, const reiser4_block_nr *, void *);
 
 extern int blocknr_set_iterator(txn_atom * atom, blocknr_set * bset, blocknr_set_actor_f actor, void *data, int delete);
-/*
- * these are needed to move to PAGE_CACHE_SIZE > blocksize
- */
+/* these are needed to move to PAGE_CACHE_SIZE > blocksize */
 jnode *nth_jnode(struct page *page, int block);
 jnode *next_jnode(jnode * node);
 
@@ -412,9 +401,7 @@ jnode *next_jnode(jnode * node);
 extern void flush_init_atom(txn_atom * atom);
 extern void flush_fuse_queues(txn_atom * large, txn_atom * small);
 
-/*****************************************************************************************
-				     INLINE FUNCTIONS
- *****************************************************************************************/
+/* INLINE FUNCTIONS */
 
 #define spin_ordering_pred_atom(atom)				\
 	( ( lock_counters() -> spin_locked_txnh == 0 ) &&	\
@@ -447,7 +434,7 @@ typedef enum {
 typedef struct flush_queue flush_queue_t;
 
 /* This is an accumulator for jnodes prepared for writing to disk. A flush queue is filled by the jnode_flush()
- * routine, and written to disk under memory pressure or at atom commit time. */
+   routine, and written to disk under memory pressure or at atom commit time. */
 struct flush_queue {
 	/* 
 	 * linkage element is the first in this structure to make debugging
@@ -516,13 +503,12 @@ void info_atom(const char *prefix, txn_atom * atom);
 
 # endif				/* __REISER4_TXNMGR_H__ */
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

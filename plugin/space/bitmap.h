@@ -1,6 +1,4 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #if !defined (__REISER4_PLUGIN_SPACE_BITMAP_H__)
 #define __REISER4_PLUGIN_SPACE_BITMAP_H__
@@ -13,7 +11,7 @@
 #include <linux/fs.h>		/* for struct super_block  */
 
 /* declarations of functions implementing methods of space allocator plugin for
- * bitmap based allocator. The functions theirself are in bitmap.c */
+   bitmap based allocator. The functions theirself are in bitmap.c */
 extern int bitmap_init_allocator(reiser4_space_allocator *, struct super_block *, void *);
 extern int bitmap_destroy_allocator(reiser4_space_allocator *, struct super_block *);
 extern int bitmap_alloc_blocks(reiser4_space_allocator *,

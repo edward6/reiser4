@@ -1,6 +1,4 @@
-/*
- * Copyright 2002 Hans Reiser
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "debug.h"
 #include "tslist.h"
@@ -18,9 +16,9 @@
 #include <linux/pagevec.h>
 
 /* A flush queue object is an accumulator for keeping jnodes prepared
- * by the jnode_flush() function for writing to disk. Those "queued" jnodes are
- * kept on the flush queue until memory pressure or atom commit asks
- * flush queues to write some or all from their jnodes. */
+   by the jnode_flush() function for writing to disk. Those "queued" jnodes are
+   kept on the flush queue until memory pressure or atom commit asks
+   flush queues to write some or all from their jnodes. */
 
 TS_LIST_DEFINE(fq, flush_queue_t, alink);
 TS_LIST_DEFINE(atom, txn_atom, atom_link);
@@ -32,7 +30,7 @@ TS_LIST_DEFINE(atom, txn_atom, atom_link);
 SPIN_LOCK_FUNCTIONS(fq, flush_queue_t, guard);
 
 /* The deadlock-safe order for flush queues and atoms is: first lock atom,
- * then lock flush queue object, then lock jnode  */
+   then lock flush queue object, then lock jnode  */
 
 #define fq_in_use(fq)          ((fq)->state & FQ_IN_USE)
 #define fq_ready(fq)           (!fq_in_use(fq))
@@ -187,8 +185,8 @@ uncapture_queued_node(flush_queue_t * fq, jnode * node)
 }
 
 /* Check if this node must be removed from the transaction, if so, remove
- * it. Return value: 1 if node has been removed from the transaction, 0
- * otherwise. */
+   it. Return value: 1 if node has been removed from the transaction, 0
+   otherwise. */
 static inline int
 try_uncapture_node(flush_queue_t * fq, jnode * node)
 {
@@ -200,9 +198,8 @@ try_uncapture_node(flush_queue_t * fq, jnode * node)
 	return 0;
 }
 
-/**
- * Putting jnode into the flush queue. Both atom and jnode should be
- * spin-locked. */
+/* Putting jnode into the flush queue. Both atom and jnode should be
+   spin-locked. */
 void
 queue_jnode(flush_queue_t * fq, jnode * node)
 {
@@ -238,7 +235,7 @@ queue_jnode(flush_queue_t * fq, jnode * node)
 }
 
 /* remove jnode from the flush queue; return 0 if node has been uncaptured;
- * always unlocks jnode */
+   always unlocks jnode */
 static int
 dequeue_jnode(flush_queue_t * fq, jnode * node)
 {
@@ -364,7 +361,7 @@ finish_fq(flush_queue_t * fq, int *nr_io_errors)
 }
 
 /* wait for all i/o for given atom to be completed, actually do one iteration
- * on that and return -EAGAIN if there more iterations needed */
+   on that and return -EAGAIN if there more iterations needed */
 int
 finish_all_fq(txn_atom * atom, int *nr_io_errors)
 {
@@ -519,7 +516,7 @@ end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUS
 }
 
 /* Count I/O requests which will be submitted by @bio in given flush queues
- * @fq */
+   @fq */
 void
 add_fq_to_bio(flush_queue_t * fq, struct bio *bio)
 {
@@ -609,10 +606,9 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 	return nr;
 }
 
-/**
- * 1. check whether this node should be written to disk or not; 
- * 2. change its state if yes, dequeue jnode if not; 
- * 3. inform the caller about the decision */
+/* 1. check whether this node should be written to disk or not; 
+   2. change its state if yes, dequeue jnode if not; 
+   3. inform the caller about the decision */
 static int
 prepare_node_for_write(flush_queue_t * fq, jnode * node)
 {
@@ -643,11 +639,10 @@ prepare_node_for_write(flush_queue_t * fq, jnode * node)
 	return ret;
 }
 
-/**
- * submit @how_many write requests for nodes on the already filled
- * flush queue @fq. There is a feature that any chunk of contiguous
- * blocks are written even if we must submit more requests than
- * @how_many.
+/* submit @how_many write requests for nodes on the already filled
+   flush queue @fq. There is a feature that any chunk of contiguous
+   blocks are written even if we must submit more requests than
+   @how_many.
 
  @fq       -- flush queue object which contains jnodes we can (and will) write.
  @how_many -- limit for number of blocks we should write, if 0 -- write all
@@ -731,7 +726,7 @@ write_fq(flush_queue_t * fq, int how_many)
 }
 
 /* Getting flush queue object for exclusive use by one thread. May require
- * several iterations which is indicated by -EAGAIN return code. */
+   several iterations which is indicated by -EAGAIN return code. */
 int
 fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
 {
@@ -825,7 +820,7 @@ fq_put(flush_queue_t * fq)
 }
 
 /* A part of atom object initialization related to the embedded flush queue
- * list head */
+   list head */
 void
 init_atom_fq_parts(txn_atom * atom)
 {
@@ -866,8 +861,8 @@ get_enough_fq(txn_atom * atom, flush_queue_t ** result_list, int how_many)
 }
 
 /* Submit nodes to write from single-linked list of flush queues until number
- * of submitted nodes is equal to or greater than @how_many nodes requested
- * for submission */
+   of submitted nodes is equal to or greater than @how_many nodes requested
+   for submission */
 static long
 write_list_fq(flush_queue_t * first, long how_many)
 {

@@ -1,152 +1,147 @@
-/* Copyright 2002 by Hans Reiser */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Reiser4 Wandering Log
- */
+/* Reiser4 Wandering Log */
 
-/*
- * You should read www.namesys.com/txn-mgr.html before trying to read this
- * file.
+/* You should read www.namesys.com/txn-mgr.html before trying to read this
+   file.
 
- * That describes how filesystem operations are performed as atomic
- * transactions, and how we try to arrange it so that we can write most of the
- * data only once while performing the operation atomically.
+   That describes how filesystem operations are performed as atomic
+   transactions, and how we try to arrange it so that we can write most of the
+   data only once while performing the operation atomically.
 
- * For the purposes of this code, it is enough for it to understand that it
- * has been told a given block should be written either once, or twice (if
- * twice then once to the wandered location and once to the real location).
+   For the purposes of this code, it is enough for it to understand that it
+   has been told a given block should be written either once, or twice (if
+   twice then once to the wandered location and once to the real location).
 
- * This code guarantees that those blocks that are defined to be part of an
- * atom either all take effect or none of them take effect.
+   This code guarantees that those blocks that are defined to be part of an
+   atom either all take effect or none of them take effect.
 
- * Relocate set nodes are submitted to write by the jnode_flush() routine, and
- * the overwrite set is submitted by reiser4_write_log().  This is because
- * with the overwrite set we seek to optimize writes, and with the relocate
- * set we seek to cause disk order to correlate with the parent first preorder.
+   Relocate set nodes are submitted to write by the jnode_flush() routine, and
+   the overwrite set is submitted by reiser4_write_log().  This is because
+   with the overwrite set we seek to optimize writes, and with the relocate
+   set we seek to cause disk order to correlate with the parent first preorder.
 
- * reiser4_write_log() allocates and writes wandered blocks and maintains
- * additional on-disk structures of the atom as log records (each log record
- * occupies one block) for storing of the "wandered map" (a table which
- * contains a relation between wandered and real block numbers) and other
- * information which might be needed at transaction recovery time.
+   reiser4_write_log() allocates and writes wandered blocks and maintains
+   additional on-disk structures of the atom as log records (each log record
+   occupies one block) for storing of the "wandered map" (a table which
+   contains a relation between wandered and real block numbers) and other
+   information which might be needed at transaction recovery time.
 
- * The log records are unidirectionally linked into a circle: each log record
- * contains a block number of the next log record, the last log records points
- * to the first one.
+   The log records are unidirectionally linked into a circle: each log record
+   contains a block number of the next log record, the last log records points
+   to the first one.
 
- * One log record (named "tx head" in this file) has a format which is
- * different from the other log records. The "tx head" has a reference to the
- * "tx head" block of the previously committed atom.  Also, "tx head" contains
- * fs information (the free blocks counter, and the oid allocator state) which
- * is logged in a special way .
+   One log record (named "tx head" in this file) has a format which is
+   different from the other log records. The "tx head" has a reference to the
+   "tx head" block of the previously committed atom.  Also, "tx head" contains
+   fs information (the free blocks counter, and the oid allocator state) which
+   is logged in a special way .
 
- * There are two journal control blocks, named journal header and journal
- * footer which have fixed on-disk locations.  The journal header has a
- * reference to the "tx head" block of the last committed atom.  The journal
- * footer points to the "tx head" of the last flushed atom.  The atom is
- * "played" when all blocks from its overwrite set are written to disk the
- * second time (i.e. written to their real locations).
+   There are two journal control blocks, named journal header and journal
+   footer which have fixed on-disk locations.  The journal header has a
+   reference to the "tx head" block of the last committed atom.  The journal
+   footer points to the "tx head" of the last flushed atom.  The atom is
+   "played" when all blocks from its overwrite set are written to disk the
+   second time (i.e. written to their real locations).
 
- * The atom commit process is the following: 
- *
- * 1. The overwrite set is taken from atom's clean list, and its size is counted.
- *
- * 2. The number of necessary log records (including tx head) is calculated,
- *    and the log record blocks are allocated.
- *
- * 3. Allocate wandered blocks and populate log records by wandered map.
- * 
- * 4. submit write requests for log records and wandered blocks.
- *
- * 5. wait until submitted write requests complete.
- * 
- * 6. update journal header: change the pointer to the block number of just
- * written tx head, submit an i/o for modified journal header block and wait
- * for i/o completion.
+   The atom commit process is the following: 
+  
+   1. The overwrite set is taken from atom's clean list, and its size is counted.
+  
+   2. The number of necessary log records (including tx head) is calculated,
+      and the log record blocks are allocated.
+  
+   3. Allocate wandered blocks and populate log records by wandered map.
+   
+   4. submit write requests for log records and wandered blocks.
+  
+   5. wait until submitted write requests complete.
+   
+   6. update journal header: change the pointer to the block number of just
+   written tx head, submit an i/o for modified journal header block and wait
+   for i/o completion.
 
- * NOTE: The special logging for bitmap blocks and some reiser4 super block
- * fields makes processes of atom commit, flush and recovering a bit more
- * complex (see comments in the source code for details).
+   NOTE: The special logging for bitmap blocks and some reiser4 super block
+   fields makes processes of atom commit, flush and recovering a bit more
+   complex (see comments in the source code for details).
 
- * The atom flush process (the term "flush" is used here in a different
- * meaning than in flush.c, it means writing block of atom's overwrite set
- * in-place, i.e. to their real locations) follows atom commit.
+   The atom flush process (the term "flush" is used here in a different
+   meaning than in flush.c, it means writing block of atom's overwrite set
+   in-place, i.e. to their real locations) follows atom commit.
 
 ZAM-FIXME-HANS: use term "play" and define it too;-)
 
- * Atom flush:
- *
- * 1. Write atom's overwrite set in-place
- *
- * 2. Wait on i/o.
- *
- * 3. Update journal footer: change the pointer to block number of tx head
- * block of the atom we currently flushing, submit an i/o, wait on i/o
- * completion.
- *
- * 4. Free disk space which was used for wandered blocks and log records.
- *
- * After the freeing of wandered blocks and log records we have that journal
- * footer points to the on-disk structure which might be overwritten soon.
- * Neither the log writer nor the journal recovery procedure use that pointer
- * for accessing the data.  When the journal recovery procedure finds the
- * oldest transaction it compares the journal footer pointer value with the
- * "prev_tx" pointer value in tx head, if values are equal the oldest not
- * flushed transaction is found.
+   Atom flush:
+  
+   1. Write atom's overwrite set in-place
+  
+   2. Wait on i/o.
+  
+   3. Update journal footer: change the pointer to block number of tx head
+   block of the atom we currently flushing, submit an i/o, wait on i/o
+   completion.
+  
+   4. Free disk space which was used for wandered blocks and log records.
+  
+   After the freeing of wandered blocks and log records we have that journal
+   footer points to the on-disk structure which might be overwritten soon.
+   Neither the log writer nor the journal recovery procedure use that pointer
+   for accessing the data.  When the journal recovery procedure finds the
+   oldest transaction it compares the journal footer pointer value with the
+   "prev_tx" pointer value in tx head, if values are equal the oldest not
+   flushed transaction is found.
  */
 
-/*
- * Special logging of reiser4 super block fields.
- */
+/* Special logging of reiser4 super block fields. */
 
 /* There are some reiser4 super block fields (free block count and OID allocator
- * state (number of files and next free OID) which are logged separately from
- * super block to avoid unnecessary atom fusion.
- *
- * So, the reiser4 super block can be not captured by a transaction with
- * allocates/deallocates disk blocks or create/delete file objects.  Moreover,
- * the reiser4 on-disk super block is not touched when such a transaction is
- * committed and flushed.  Those "counters logged specially" are logged in "tx
- * head" blocks and in the journal footer block.
- *
- * The step-by-step description of special logging is the following:
- *
- * 0. The per-atom information about deleted or created files and allocated or
- * freed blocks is collected during the transaction.  The atom's
- * ->nr_objects_created and ->nr_objects_deleted are for object
- * deletion/creation tracking, the numbers of allocated and freed blocks are
- * calculated using atom's delete set and atom's capture list -- all new and
- * relocated nodes should be on atom's clean list and should have JNODE_RELOC
- * bit set.
- * 
- * 1. The "logged specially" reiser4 super block fields have their "committed"
- * versions in the reiser4 in-memory super block.  They get modified only at
- * atom commit time.  The atom's commit thread has an exclusive access to that
- * "committed" fields because the log writer implementation supports only one
- * atom commit a time (it is done by using of per-fs "commit" semaphore).  At
- * that time "committed" counters are modified using per-atom information
- * collected during the transaction. These counters are stored on disk as a
- * part of tx head block when atom is committed.
- * 
- * 2. When the atom is flushed the value of free block counter and OID allocator
- * state get written to the journal footer block.  A special journal procedure
- * (journal_recover_sb_data()) takes those values from the journal footer and
- * updates the reiser4 in-memory super block.
- *
- * NOTE: That means free block count and OID allocator state are logged
- * separately from the reiser4 super block regardless of the fact that the
- * reiser4 super block has fields to store both the free block counter and the
- * OID allocator.
- *
- * The reason for that is that for the writing of the reiser4 super block we
- * need to know the actual values of all of its fields.  For example if we
- * have a transaction which has not captured the super block we cannot
- * re-write the super block when such a transaction is committed because we do
- * not know the actual value of the tree root pointer. Knowing that requires
- * write locking of the super block and implies some dependency between atoms
- * which we wanted to avoid. So, the simplest solution seems to be the
- * implemented one, in which the data logged in different ways are written in
- * different blocks.
+   state (number of files and next free OID) which are logged separately from
+   super block to avoid unnecessary atom fusion.
+  
+   So, the reiser4 super block can be not captured by a transaction with
+   allocates/deallocates disk blocks or create/delete file objects.  Moreover,
+   the reiser4 on-disk super block is not touched when such a transaction is
+   committed and flushed.  Those "counters logged specially" are logged in "tx
+   head" blocks and in the journal footer block.
+  
+   The step-by-step description of special logging is the following:
+  
+   0. The per-atom information about deleted or created files and allocated or
+   freed blocks is collected during the transaction.  The atom's
+   ->nr_objects_created and ->nr_objects_deleted are for object
+   deletion/creation tracking, the numbers of allocated and freed blocks are
+   calculated using atom's delete set and atom's capture list -- all new and
+   relocated nodes should be on atom's clean list and should have JNODE_RELOC
+   bit set.
+   
+   1. The "logged specially" reiser4 super block fields have their "committed"
+   versions in the reiser4 in-memory super block.  They get modified only at
+   atom commit time.  The atom's commit thread has an exclusive access to that
+   "committed" fields because the log writer implementation supports only one
+   atom commit a time (it is done by using of per-fs "commit" semaphore).  At
+   that time "committed" counters are modified using per-atom information
+   collected during the transaction. These counters are stored on disk as a
+   part of tx head block when atom is committed.
+   
+   2. When the atom is flushed the value of free block counter and OID allocator
+   state get written to the journal footer block.  A special journal procedure
+   (journal_recover_sb_data()) takes those values from the journal footer and
+   updates the reiser4 in-memory super block.
+  
+   NOTE: That means free block count and OID allocator state are logged
+   separately from the reiser4 super block regardless of the fact that the
+   reiser4 super block has fields to store both the free block counter and the
+   OID allocator.
+  
+   The reason for that is that for the writing of the reiser4 super block we
+   need to know the actual values of all of its fields.  For example if we
+   have a transaction which has not captured the super block we cannot
+   re-write the super block when such a transaction is committed because we do
+   not know the actual value of the tree root pointer. Knowing that requires
+   write locking of the super block and implies some dependency between atoms
+   which we wanted to avoid. So, the simplest solution seems to be the
+   implemented one, in which the data logged in different ways are written in
+   different blocks.
  */
 
 #include "debug.h"
@@ -214,9 +209,7 @@ done_commit_handle(struct commit_handle *ch)
 	assert("zam-690", capture_list_empty(&ch->tx_list));
 }
 
-/**
- * fill journal header block data 
- */
+/* fill journal header block data  */
 static void
 format_journal_header(struct commit_handle *ch)
 {
@@ -240,9 +233,7 @@ format_journal_header(struct commit_handle *ch)
 	jrelse(private->journal_header);
 }
 
-/**
- * fill journal footer block data
- */
+/* fill journal footer block data */
 static void
 format_journal_footer(struct commit_handle *ch)
 {
@@ -279,9 +270,7 @@ log_record_capacity(const struct super_block *super)
 	return (super->s_blocksize - sizeof (struct log_record_header)) / sizeof (struct log_entry);
 }
 
-/**
- * fill first log record (tx head) in accordance with supplied given data
- */
+/* fill first log record (tx head) in accordance with supplied given data */
 static void
 format_tx_head(struct commit_handle *ch)
 {
@@ -313,9 +302,7 @@ format_tx_head(struct commit_handle *ch)
 	cputod64(ch->next_oid, &TH->next_oid);
 }
 
-/**
- * prepare ordinary log record block (fill all service fields)
- */
+/* prepare ordinary log record block (fill all service fields) */
 static void
 format_log_record(struct commit_handle *ch, jnode * node, int serial)
 {
@@ -359,7 +346,7 @@ store_entry(jnode * node, int index, const reiser4_block_nr * a, const reiser4_b
 }
 
 /* currently, log records contains contain only wandered map, which depend on
- * overwrite set size */
+   overwrite set size */
 static void
 get_tx_size(struct commit_handle *ch)
 {
@@ -373,7 +360,7 @@ get_tx_size(struct commit_handle *ch)
 }
 
 /* A special structure for using in store_wmap_actor() for saving its state
- * between calls */
+   between calls */
 struct store_wmap_params {
 	jnode *cur;		/* jnode of current log record to fill */
 	int idx;		/* free element index in log record  */
@@ -385,7 +372,7 @@ struct store_wmap_params {
 };
 
 /* an actor for use in blocknr_set_iterator routine which populates the list
- * of pre-formatted log records by wandered map info */
+   of pre-formatted log records by wandered map info */
 static int
 store_wmap_actor(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const reiser4_block_nr * b, void *data)
 {
@@ -406,9 +393,9 @@ store_wmap_actor(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const r
 }
 
 /* This function is called after Relocate set gets written to disk, Overwrite
- * set is written to wandered locations and all log records are written
- * also. Updated journal header blocks contains a pointer (block number) to
- * first log record of the just written transaction */
+   set is written to wandered locations and all log records are written
+   also. Updated journal header blocks contains a pointer (block number) to
+   first log record of the just written transaction */
 static int
 update_journal_header(struct commit_handle *ch)
 {
@@ -439,8 +426,8 @@ update_journal_header(struct commit_handle *ch)
 }
 
 /* This function is called after write-back is finished. We update journal
- * footer block and free blocks which were occupied by wandered blocks and
- * transaction log records */
+   footer block and free blocks which were occupied by wandered blocks and
+   transaction log records */
 static int
 update_journal_footer(struct commit_handle *ch)
 {
@@ -481,7 +468,7 @@ dealloc_tx_list(struct commit_handle *ch)
 }
 
 /* An actor for use in block_nr_iterator() routine which frees wandered blocks
- * from atom's overwrite set. */
+   from atom's overwrite set. */
 static int
 dealloc_wmap_actor(txn_atom * atom,
 		   const reiser4_block_nr * a UNUSED_ARG, const reiser4_block_nr * b, void *data UNUSED_ARG)
@@ -510,7 +497,7 @@ dealloc_wmap(struct commit_handle *ch)
 }
 
 /* helper function for alloc wandered blocks, which refill set of block
- * numbers needed for wandered blocks  */
+   numbers needed for wandered blocks  */
 static int
 get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 {
@@ -619,11 +606,11 @@ get_overwrite_set(struct commit_handle *ch)
 	return ch->overwrite_set_size;
 }
 
-/** Submit a write request for @nr jnodes beginning from the @first, other
- * jnodes are after the @first on the double-linked "capture" list.  All
- * jnodes will be written to the disk region of @nr blocks starting with
- * @block_p block number.  If @fq is not NULL it means that waiting for i/o
- * completion will be done more efficiently by using flush_queue_t objects */
+/* Submit a write request for @nr jnodes beginning from the @first, other
+   jnodes are after the @first on the double-linked "capture" list.  All
+   jnodes will be written to the disk region of @nr blocks starting with
+   @block_p block number.  If @fq is not NULL it means that waiting for i/o
+   completion will be done more efficiently by using flush_queue_t objects */
 static int
 submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
 {
@@ -722,8 +709,8 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 }
 
 /* This is a procedure which recovers a contiguous sequences of disk block
- * numbers in the given list of j-nodes and submits write requests on this
- * per-sequence basis */
+   numbers in the given list of j-nodes and submits write requests on this
+   per-sequence basis */
 static int
 submit_batched_write(capture_list_head * head, flush_queue_t * fq)
 {
@@ -752,7 +739,7 @@ submit_batched_write(capture_list_head * head, flush_queue_t * fq)
 }
 
 /* allocate given number of nodes over the journal area and link them into a
- * list, return pinter to the first jnode in the list */
+   list, return pinter to the first jnode in the list */
 static int
 alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 {
@@ -900,8 +887,8 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 }
 
 /* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
- * submit IO for allocated blocks.  We assume that current atom is in a stage
- * when any atom fusion is impossible and atom is unlocked and it is safe. */
+   submit IO for allocated blocks.  We assume that current atom is in a stage
+   when any atom fusion is impossible and atom is unlocked and it is safe. */
 int
 alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 {
@@ -945,8 +932,8 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 }
 
 /* We assume that at this moment all captured blocks are marked as RELOC or
- * WANDER (belong to Relocate o Overwrite set), all nodes from Relocate set
- * are submitted to write.*/
+   WANDER (belong to Relocate o Overwrite set), all nodes from Relocate set
+   are submitted to write.*/
 
 int
 reiser4_write_logs(void)
@@ -1108,7 +1095,7 @@ up_and_ret:
 }
 
 /* consistency checks for journal data/control blocks: header, footer, log
- * records, transactions head blocks. All functions return zero on success. */
+   records, transactions head blocks. All functions return zero on success. */
 
 static int
 check_journal_header(const jnode * node UNUSED_ARG)
@@ -1407,14 +1394,14 @@ replay_oldest_transaction(struct super_block *s)
 }
 
 /* The reiser4 journal current implementation was optimized to not to capture
- * super block if certain super blocks fields are modified. Currently, the set
- * is (<free block count>, <OID allocator>). These fields are logged by
- * special way which includes storing them in each transaction head block at
- * atom commit time and writing that information to journal footer block at
- * atom flush time.  For getting info from journal footer block to the
- * in-memory super block there is a special function
- * reiser4_journal_recover_sb_data() which should be called after disk format
- * plugin re-reads super block after journal replaying.
+   super block if certain super blocks fields are modified. Currently, the set
+   is (<free block count>, <OID allocator>). These fields are logged by
+   special way which includes storing them in each transaction head block at
+   atom commit time and writing that information to journal footer block at
+   atom flush time.  For getting info from journal footer block to the
+   in-memory super block there is a special function
+   reiser4_journal_recover_sb_data() which should be called after disk format
+   plugin re-reads super block after journal replaying.
  */
 
 /* get the information from journal footer in-memory super block */
@@ -1593,13 +1580,12 @@ init_journal_info(struct super_block *s, const reiser4_block_nr * header_block, 
 	return ret;
 }
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 78
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 78
+   End:
  */

@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Methods of directory plugin.
- */
+/* Methods of directory plugin. */
 
 /* version 3 has no directory read-ahead.  This is silly/wrong.  It
    would be nice if there was some commonality between file and
@@ -36,12 +32,11 @@
 #include <linux/quotaops.h>
 #include <linux/dcache.h>	/* for struct dentry */
 
-/*
- * Directory read-ahead control.
- *
- * FIXME-NIKITA this is just stub. This function is supposed to be
- * called during lookup, readdir, and may be creation.
- *
+/* Directory read-ahead control.
+  
+   FIXME-NIKITA this is just stub. This function is supposed to be
+   called during lookup, readdir, and may be creation.
+  
  */
 void
 directory_readahead(struct inode *dir /* directory being accessed */ ,
@@ -55,10 +50,8 @@ directory_readahead(struct inode *dir /* directory being accessed */ ,
 	trace_stamp(TRACE_DIR);
 }
 
-/** 
- * helper function. Standards require than for many file-system operations
- * on success ctime and mtime of parent directory is to be updated.
- */
+/* helper function. Standards require than for many file-system operations
+   on success ctime and mtime of parent directory is to be updated. */
 static int
 update_dir(struct inode *dir)
 {
@@ -94,17 +87,16 @@ static reiser4_block_nr common_estimate_link(
 	return res;
 }
 
-/** 
- * add link from @parent directory to @existing object.
- *
- *     . get plugins
- *     . check permissions
- *     . check that "existing" can hold yet another link
- *     . start transaction
- *     . add link to "existing"
- *     . add entry to "parent"
- *     . if last step fails, remove link from "existing"
- *
+/* add link from @parent directory to @existing object.
+  
+       . get plugins
+       . check permissions
+       . check that "existing" can hold yet another link
+       . start transaction
+       . add link to "existing"
+       . add entry to "parent"
+       . if last step fails, remove link from "existing"
+  
  */
 static int
 common_link(struct inode *parent /* parent directory */ ,
@@ -212,14 +204,13 @@ static reiser4_block_nr common_estimate_unlink (
 	return res;
 }
 
-/** 
- * remove link from @parent directory to @victim object.
- *
- *     . get plugins
- *     . find entry in @parent
- *     . check permissions
- *     . decrement nlink on @victim
- *     . if nlink drops to 0, delete object
+/* remove link from @parent directory to @victim object.
+  
+       . get plugins
+       . find entry in @parent
+       . check permissions
+       . decrement nlink on @victim
+       . if nlink drops to 0, delete object
  */
 static int
 common_unlink(struct inode *parent /* parent object */ ,
@@ -338,9 +329,9 @@ common_unlink(struct inode *parent /* parent object */ ,
 }
 
 /* Estimate the maximum amount of nodes will be allocated or changed for:
- * - insert an in the parent entry
- * - update the SD of parent
- * - estimate child creation
+   - insert an in the parent entry
+   - update the SD of parent
+   - estimate child creation
  */
 static reiser4_block_nr common_estimate_create_dir( 
 	struct inode *parent, /* parent object */
@@ -358,17 +349,16 @@ static reiser4_block_nr common_estimate_create_dir(
 		inode_dir_plugin(parent)->estimate.rem_entry(parent));
 }
 
-/**
- * Create child in directory.
- *
- * . get object's plugin
- * . get fresh inode
- * . initialize inode
- * . add object's stat-data
- * . initialize object's directory
- * . add entry to the parent
- * . instantiate dentry
- *
+/* Create child in directory.
+  
+   . get object's plugin
+   . get fresh inode
+   . initialize inode
+   . add object's stat-data
+   . initialize object's directory
+   . add entry to the parent
+   . instantiate dentry
+  
  */
 static int
 common_create_child(struct inode *parent /* parent object */ ,
@@ -555,8 +545,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 	return result;
 }
 
-/*
-static common_esimate_create( 
+/* static common_esimate_create( 
     struct inode *parent // parent object , 
 			      struct dentry *dentry // new name , 
 			      reiser4_object_create_data *data // parameters
@@ -750,10 +739,8 @@ adjust_dir_pos(struct file *dir, readdir_pos * readdir_spot, const dir_pos * mod
 	}
 }
 
-/**
- * scan all file-descriptors for this directory and adjust their positions
- * respectively.
- */
+/* scan all file-descriptors for this directory and adjust their positions
+   respectively. */
 void
 adjust_dir_file(struct inode *dir, const coord_t * coord, int offset, int adj)
 {
@@ -876,10 +863,8 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 	return result;
 }
 
-/**
- * Function that is called by common_readdir() on each directory item
- * while doing readdir.
- */
+/* Function that is called by common_readdir() on each directory item
+   while doing readdir. */
 static int
 feed_entry(readdir_pos * pos, coord_t * coord, filldir_t filldir, void *dirent)
 {
@@ -1145,13 +1130,12 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 	,
 };
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

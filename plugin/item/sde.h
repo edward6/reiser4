@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/* 
- * Directory entry.
- */
+/* Directory entry. */
 
 #if !defined( __FS_REISER4_PLUGIN_DIRECTORY_ENTRY_H__ )
 #define __FS_REISER4_PLUGIN_DIRECTORY_ENTRY_H__
@@ -50,13 +46,12 @@ int de_rem_and_shrink(struct inode *dir, coord_t * coord, int length);
 /* __FS_REISER4_PLUGIN_DIRECTORY_ENTRY_H__ */
 #endif
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

@@ -1,11 +1,7 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * definitions of common constants and data-types used by
- * reiser4_fs_i.h and reiser4_fs_sb.h
- */
+/* definitions of common constants and data-types used by
+   reiser4_fs_i.h and reiser4_fs_sb.h */
 
 #if !defined( __REISER4_H__ )
 #define __REISER4_H__
@@ -58,7 +54,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /** number of buckets in lnode hash-table */
 #define LNODE_HTABLE_BUCKETS (1024)
 
-/** some ridiculously high maximal limit on height of znode tree. This
+/* some ridiculously high maximal limit on height of znode tree. This
     is used in declaration of various per level arrays and
     to allocate stattistics gathering array for per-level stats. */
 #define REISER4_MAX_ZTREE_HEIGHT     (10)
@@ -80,126 +76,93 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 
 #define REISER4_PANIC_MSG_BUFFER_SIZE (1024)
 
-/**
- * If array contains less than REISER4_SEQ_SEARCH_BREAK elements then,
- * sequential search is on average faster than binary. This is because
- * of better optimization and because sequential search is more CPU
- * cache friendly. This number was found by experiments on dual AMD
- * Athlon(tm), 1400MHz.
- *
+/* If array contains less than REISER4_SEQ_SEARCH_BREAK elements then,
+   sequential search is on average faster than binary. This is because
+   of better optimization and because sequential search is more CPU
+   cache friendly. This number was found by experiments on dual AMD
+   Athlon(tm), 1400MHz.
+  
  */
 #define REISER4_SEQ_SEARCH_BREAK      (25)
 
-/**
- * don't allow tree to be lower than this
- */
+/* don't allow tree to be lower than this */
 #define REISER4_MIN_TREE_HEIGHT       (TWIG_LEVEL)
 
-/**
- * default file plugin
- */
+/* default file plugin */
 #define REISER4_FILE_PLUGIN       (REGULAR_FILE_PLUGIN_ID)
 
-/**
- * default directory plugin
- */
+/* default directory plugin */
 #define REISER4_DIR_PLUGIN        (HASHED_DIR_PLUGIN_ID)
 
-/**
- * default hash plugin
- */
+/* default hash plugin */
 #define REISER4_HASH_PLUGIN       (R5_HASH_ID)
 
-/**
- * default perm(ission) plugin
- */
+/* default perm(ission) plugin */
 #define REISER4_PERM_PLUGIN       (RWX_PERM_ID)
 
-/**
- * default tail policy plugin
- */
+/* default tail policy plugin */
 #define REISER4_TAIL_PLUGIN       (ALWAYS_TAIL_ID)
 
-/**
- * item plugin used by files by default to store stat data.
- */
+/* item plugin used by files by default to store stat data. */
 #define REISER4_SD_PLUGIN         (STATIC_STAT_DATA_ID)
 
-/**
- * item plugin used by directories by default to store directory entries.
- */
+/* item plugin used by directories by default to store directory entries. */
 #define REISER4_DIR_ITEM_PLUGIN       (COMPOUND_DIR_ID)
 
-/**
- * Default value of maximal atom size. Can be ovewritten by
- * txnmgr.atom_max_size mount option. By default infinity.
- */
+/* Default value of maximal atom size. Can be ovewritten by
+   txnmgr.atom_max_size mount option. By default infinity. */
 #define REISER4_ATOM_MAX_SIZE         (( unsigned )(~0))
 
-/**
- * Default value of maximal atom age (in jiffies). After reaching this age
- * atom will be forced to commit, either synchronously or asynchronously. Can
- * be overwritten by txnmgr.atom_max_age mount option.
+/* Default value of maximal atom age (in jiffies). After reaching this age
+   atom will be forced to commit, either synchronously or asynchronously. Can
+   be overwritten by txnmgr.atom_max_age mount option.
  */
 #define REISER4_ATOM_MAX_AGE          (600 * HZ)
 
-/**
- * After percentage of free memory falls below this, preventive flushing is
- * started.
- */
+/* After percentage of free memory falls below this, preventive flushing is
+   started. */
 #define REISER4_LOW_MEMORY (50)
 
-/**
- * sleeping period for ktxnmrgd
- */
+/* sleeping period for ktxnmrgd */
 #define REISER4_TXNMGR_TIMEOUT  (5 * HZ)
 
-/**
- * start complaining after that many restarts in coord_by_key().
- *
- * This either means incredibly heavy contention for this part of a tree, or
- * some corruption or bug.
+/* start complaining after that many restarts in coord_by_key().
+  
+   This either means incredibly heavy contention for this part of a tree, or
+   some corruption or bug.
  */
 #define REISER4_CBK_ITERATIONS_LIMIT  (100)
 
-/**
- * return -EIO after that many iterations in coord_by_key().
- *
- * I have witnessed more than 4000 iterations (in 30 thread test) before cbk
- * finished. --nikita
+/* return -EIO after that many iterations in coord_by_key().
+  
+   I have witnessed more than 4000 iterations (in 30 thread test) before cbk
+   finished. --nikita
  */
 #define REISER4_MAX_CBK_ITERATIONS    (100000)
 
-/**
- * read all blocks when one block on the page is read
- */
+/* read all blocks when one block on the page is read */
 #define REISER4_FORMATTED_CLUSTER_READ (0)
 
-/**
- * put a per-inode limit on maximal number of directory entries with identical
- * keys in hashed directory.
- *
- * Disable this until inheritance interfaces stabilize: we need some way to
- * set per directory limit.
+/* put a per-inode limit on maximal number of directory entries with identical
+   keys in hashed directory.
+  
+   Disable this until inheritance interfaces stabilize: we need some way to
+   set per directory limit.
  */
 #define REISER4_USE_COLLISION_LIMIT    (0)
 
-/**
- * global limit on number of directory entries with identical keys in hashed
- * directory
- */
+/* global limit on number of directory entries with identical keys in hashed
+   directory */
 #define REISER4_GLOBAL_COLLISION_LIMIT (1024)
 
-/**
- * maximal number of keys lookup_multikey() can handle.
- */
+/* maximal number of keys lookup_multikey() can handle. */
 #define REISER4_MAX_MULTI_SEARCH (4)
 
 /* If flush finds more than FLUSH_RELOCATE_THRESHOLD adjacent dirty leaf-level blocks it
- * will force them to be relocated. */
+   will force them to be relocated. */
 #define FLUSH_RELOCATE_THRESHOLD 64
 /* If flush finds can find a block allocation closer than at most FLUSH_RELOCATE_DISTANCE
- * from the preceder it will relocate to that position. */
+   from the preceder it will relocate to that position. */
 #define FLUSH_RELOCATE_DISTANCE  64
 /* Flush defers actualy BIO submission until it gathers FLUSH_QUEUE_SIZE blocks. */
 #define FLUSH_QUEUE_SIZE         256
@@ -209,30 +172,23 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
    this jnode will be clean already, and we will save some seeks. */
 #define FLUSH_WRITTEN_THRESHOLD 50
 
-/**
- * The maximum number of nodes to scan left on a level during flush.
- */
+/* The maximum number of nodes to scan left on a level during flush. */
 #define FLUSH_SCAN_MAXNODES 10000
 
 /** default tracing buffer size */
 #define REISER4_TRACE_BUF_SIZE ( 1 << 16 )
 
-/* 
- * what size units of IO we would like cp, etc., to use, in writing to
- * reiser4. In bytes.
- *
- * Can be overwritten by optimal_io_size mount option.
+/* what size units of IO we would like cp, etc., to use, in writing to
+   reiser4. In bytes.
+  
+   Can be overwritten by optimal_io_size mount option.
  */
 #define REISER4_OPTIMAL_IO_SIZE (64 * 1024)
 
-/**
- * see comments in inode.c:oid_to_uino()
- */
+/* see comments in inode.c:oid_to_uino() */
 #define REISER4_UINO_SHIFT (1 << 30)
 
-/**
- * this is BSD port.
- */
+/* this is BSD port. */
 #define REISER4_BSD_PORT  (0)
 
 /* Mark function argument as unused to avoid compiler warnings. */
@@ -274,13 +230,12 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 
 #endif				/* __REISER4_H__ */
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

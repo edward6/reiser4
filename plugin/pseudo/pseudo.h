@@ -1,26 +1,21 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Handling of "pseudo" files representing unified access to meta data in
- * reiser4. See pseudo.c for more comments.
- */
+/* Handling of "pseudo" files representing unified access to meta data in
+   reiser4. See pseudo.c for more comments. */
 
 #if !defined( __REISER4_PSEUDO_H__ )
 #define __REISER4_PSEUDO_H__
 
 #if YOU_CAN_COMPILE_PSEUDO_CODE
 
-/**
- * low level operations on the pseudo files.
- *
- * Methods from this interface are directly callable by reiser4 system call.
- *
- * This operation structure looks suspiciously like yet another plugin
- * type. Doing so would simplify some things. For example, there are already
- * functions to look up plugin by name, dynamic loading is planned, etc.
- *
+/* low level operations on the pseudo files.
+  
+   Methods from this interface are directly callable by reiser4 system call.
+  
+   This operation structure looks suspiciously like yet another plugin
+   type. Doing so would simplify some things. For example, there are already
+   functions to look up plugin by name, dynamic loading is planned, etc.
+  
  */
 typedef struct pseudo_ops {
 
@@ -52,14 +47,13 @@ typedef struct pseudo_ops {
 /* __REISER4_PSEUDO_H__ */
 #endif
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Inode functions.
- */
+/* Inode functions. */
 
 #if !defined( __REISER4_INODE_H__ )
 #define __REISER4_INODE_H__
@@ -64,13 +60,13 @@ typedef __u32 oid_hi_t;
 #define OID_HI_SHIFT ( sizeof( ino_t ) * 8 )
 
 /* state associated with each inode.
- * reiser4 inode.
- *
- * FIXME-NIKITA In 2.5 kernels it is not necessary that all file-system inodes
- * be of the same size. File-system allocates inodes by itself through
- * s_op->allocate_inode() method. So, it is possible to adjust size of inode
- * at the time of its creation.
- *
+   reiser4 inode.
+  
+   FIXME-NIKITA In 2.5 kernels it is not necessary that all file-system inodes
+   be of the same size. File-system allocates inodes by itself through
+   s_op->allocate_inode() method. So, it is possible to adjust size of inode
+   at the time of its creation.
+  
  */
 typedef struct reiser4_inode {
 	/** plugin of file */
@@ -167,13 +163,12 @@ extern void print_inode(const char *prefix, const struct inode *i);
 /* __REISER4_INODE_H__ */
 #endif
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

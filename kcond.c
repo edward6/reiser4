@@ -1,43 +1,41 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
-/*
- * Kernel condition variables implementation.
- *
- * This is simplistic (90 LOC mod comments) condition variable
- * implementation. Condition variable is the most natural "synchronization
- * object" in some circumstances.
- *
- * Each CS text-book on multi-threading should discuss condition
- * variables. Also see man/info for:
- *
- *                 pthread_cond_init(3),
- *                 pthread_cond_destroy(3), 
- *                 pthread_cond_signal(3), 
- *                 pthread_cond_broadcast(3),
- *                 pthread_cond_wait(3), 
- *                 pthread_cond_timedwait(3).
- *
- * See comments in kcond_wait().
- *
- * TODO
- *
- *  1. Add an option (to kcond_init?) to make conditional variable async-safe
- *  so that signals and broadcasts can be done from interrupt
- *  handlers. Requires using spin_lock_irq in kcond_*().
- *
- *  2. "Predicated" sleeps: add predicate function to the qlink and only wake
- *  sleeper if predicate is true. Probably requires additional parameters to
- *  the kcond_{signal,broadcast}() to supply cookie to the predicate. Standard
- *  wait_queues already have this functionality. Idea is that if one has
- *  object behaving like finite state automaton it is possible to use single
- *  per-object condition variable to signal all state transitions. Predicates
- *  allow waiters to select only transitions they are interested in without
- *  going through context switch.
- *
- *  3. It is relatively easy to add support for sleeping on the several
- *  condition variables at once. Does anybody need this?
- *
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+
+/* Kernel condition variables implementation.
+  
+   This is simplistic (90 LOC mod comments) condition variable
+   implementation. Condition variable is the most natural "synchronization
+   object" in some circumstances.
+  
+   Each CS text-book on multi-threading should discuss condition
+   variables. Also see man/info for:
+  
+                   pthread_cond_init(3),
+                   pthread_cond_destroy(3), 
+                   pthread_cond_signal(3), 
+                   pthread_cond_broadcast(3),
+                   pthread_cond_wait(3), 
+                   pthread_cond_timedwait(3).
+  
+   See comments in kcond_wait().
+  
+   TODO
+  
+    1. Add an option (to kcond_init?) to make conditional variable async-safe
+    so that signals and broadcasts can be done from interrupt
+    handlers. Requires using spin_lock_irq in kcond_*().
+  
+    2. "Predicated" sleeps: add predicate function to the qlink and only wake
+    sleeper if predicate is true. Probably requires additional parameters to
+    the kcond_{signal,broadcast}() to supply cookie to the predicate. Standard
+    wait_queues already have this functionality. Idea is that if one has
+    object behaving like finite state automaton it is possible to use single
+    per-object condition variable to signal all state transitions. Predicates
+    allow waiters to select only transitions they are interested in without
+    going through context switch.
+  
+    3. It is relatively easy to add support for sleeping on the several
+    condition variables at once. Does anybody need this?
+  
  */
 
 #include "debug.h"
@@ -50,10 +48,8 @@
 static void kcond_timeout(unsigned long datum);
 static void kcond_remove(kcond_t * cvar, kcond_queue_link_t * link);
 
-/** 
- * initialize condition variable. Initializer for global condition variables
- * is macro in kcond.h 
- */
+/* initialize condition variable. Initializer for global condition variables
+   is macro in kcond.h  */
 kcond_t *
 kcond_init(kcond_t * cvar /* cvar to init */ )
 {
@@ -65,45 +61,42 @@ kcond_init(kcond_t * cvar /* cvar to init */ )
 	return cvar;
 }
 
-/**
- * destroy condition variable.
- */
+/* destroy condition variable. */
 int
 kcond_destroy(kcond_t * cvar /* cvar to destroy */ )
 {
 	return kcond_are_waiters(cvar) ? -EBUSY : 0;
 }
 
-/**
- * Wait until condition variable is signalled. Call this with @lock locked.
- * If @signl is true, then sleep on condition variable will be interruptible
- * by signals. -EINTR is returned if sleep were interrupted by signal and 0
- * otherwise.
- *
- * kcond_t is just a queue protected by spinlock. Whenever thread is going to
- * sleep on the kcond_t it does the following:
- *
- *  (1) prepares "queue link" @qlink which is semaphore constructed locally on
- *  the stack of the thread going to sleep.
- *
- *  (2) takes @cvar spinlock
- *
- *  (3) adds @qlink to the @cvar queue of waiters
- * 
- *  (4) releases @cvar spinlock
- * 
- *  (5) sleeps on semaphore constructed at step (1)
- *
- * When @cvar will be signalled or broadcasted all semaphors enqueued to the
- * @cvar queue will be upped and kcond_wait() will return.
- *
- * By use of local semaphore for each waiter we avoid races between going to
- * sleep and waking up---endemic plague of condition variables.
- *
- * For example, should kcond_broadcast() come in between steps (4) and (5) it
- * would call up() on semaphores already in a queue and hence, down() in the
- * step (5) would return immediately.
- *
+/* Wait until condition variable is signalled. Call this with @lock locked.
+   If @signl is true, then sleep on condition variable will be interruptible
+   by signals. -EINTR is returned if sleep were interrupted by signal and 0
+   otherwise.
+  
+   kcond_t is just a queue protected by spinlock. Whenever thread is going to
+   sleep on the kcond_t it does the following:
+  
+    (1) prepares "queue link" @qlink which is semaphore constructed locally on
+    the stack of the thread going to sleep.
+  
+    (2) takes @cvar spinlock
+  
+    (3) adds @qlink to the @cvar queue of waiters
+   
+    (4) releases @cvar spinlock
+   
+    (5) sleeps on semaphore constructed at step (1)
+  
+   When @cvar will be signalled or broadcasted all semaphors enqueued to the
+   @cvar queue will be upped and kcond_wait() will return.
+  
+   By use of local semaphore for each waiter we avoid races between going to
+   sleep and waking up---endemic plague of condition variables.
+  
+   For example, should kcond_broadcast() come in between steps (4) and (5) it
+   would call up() on semaphores already in a queue and hence, down() in the
+   step (5) would return immediately.
+  
  */
 int
 kcond_wait(kcond_t * cvar /* cvar to wait for */ ,
@@ -154,9 +147,7 @@ typedef struct {
 	int *woken_up;
 } kcond_timer_arg;
 
-/**
- * like kcond_wait(), but with timeout
- */
+/* like kcond_wait(), but with timeout */
 int
 kcond_timedwait(kcond_t * cvar /* cvar to wait for */ ,
 		spinlock_t * lock /* lock to use */ ,
@@ -220,9 +211,7 @@ kcond_timedwait(kcond_t * cvar /* cvar to wait for */ ,
 	return result;
 }
 
-/**
- * Signal condition variable: wake up one waiter, if any.
- */
+/* Signal condition variable: wake up one waiter, if any. */
 int
 kcond_signal(kcond_t * cvar /* cvar to signal */ )
 {
@@ -241,9 +230,7 @@ kcond_signal(kcond_t * cvar /* cvar to signal */ )
 	return 1;
 }
 
-/**
- * Broadcast condition variable: wake up all waiters.
- */
+/* Broadcast condition variable: wake up all waiters. */
 int
 kcond_broadcast(kcond_t * cvar /* cvar to broadcast */ )
 {
@@ -269,9 +256,7 @@ kcond_are_waiters(kcond_t * cvar /* cvar to query */ )
 	return cvar->queue != NULL;
 }
 
-/**
- * timer expiration function used by kcond_timedwait
- */
+/* timer expiration function used by kcond_timedwait */
 static void
 kcond_timeout(unsigned long datum)
 {
@@ -282,9 +267,7 @@ kcond_timeout(unsigned long datum)
 	up(&arg->link->wait);
 }
 
-/**
- * helper function to remove @link from @cvar queue
- */
+/* helper function to remove @link from @cvar queue */
 static void
 kcond_remove(kcond_t * cvar /* cvar to operate on */ ,
 	     kcond_queue_link_t * link /* link to remove */ )
@@ -306,14 +289,13 @@ kcond_remove(kcond_t * cvar /* cvar to operate on */ ,
 	}
 }
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

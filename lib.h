@@ -2,7 +2,7 @@
 #define __FS_REISER4_LIB_H__
 
 /* These 2 functions of 64 bit numbers division were taken from 
- * include/sound/pcm.h */
+   include/sound/pcm.h */
 
 /* Helper function for 64 bits numbers division. */
 static inline void

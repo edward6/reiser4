@@ -1,6 +1,4 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "debug.h"
 #include "reiser4.h"
@@ -8,11 +6,10 @@
 #include "tree.h"
 #include "inode.h"
 
-/*
- * reiser4_ioctl - handler for ioctl for inode supported commands:
- * 
- * REISER4_IOC_UNPACK - try to unpack tail from into extent and prevent packing 
- * file (argument arg has to be non-zero)
+/* reiser4_ioctl - handler for ioctl for inode supported commands:
+   
+   REISER4_IOC_UNPACK - try to unpack tail from into extent and prevent packing 
+   file (argument arg has to be non-zero)
  */
 int
 reiser4_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg)
@@ -37,10 +34,8 @@ reiser4_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned
 	REISER4_EXIT(result);
 }
 
-/*
- * reiser4_unpack -- function try to convert tail into extent by means of using
- * tail2extent function.
- */
+/* reiser4_unpack -- function try to convert tail into extent by means of using
+   tail2extent function. */
 int
 reiser4_unpack(struct inode *inode, struct file *filp)
 {
@@ -62,14 +57,13 @@ reiser4_unpack(struct inode *inode, struct file *filp)
 	return result;
 }
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

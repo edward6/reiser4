@@ -1,11 +1,7 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Basic plugin data-types.
- * see fs/reiser4/plugin/plugin.c for details
- */
+/* Basic plugin data-types.
+   see fs/reiser4/plugin/plugin.c for details */
 
 #if !defined( __FS_REISER4_PLUGIN_TYPES_H__ )
 #define __FS_REISER4_PLUGIN_TYPES_H__
@@ -62,8 +58,7 @@ struct flow {
 
 typedef ssize_t(*rw_f_type) (struct file * file, flow_t * a_flow, loff_t * off);
 
-/**
-
+/* 
  File plugin.  Defines the set of methods that file plugins implement, some of which are optional.  
 
  A file plugin offers to the caller an interface for IO ( writing to and/or reading from) to what the caller sees as one
@@ -97,22 +92,22 @@ typedef ssize_t(*rw_f_type) (struct file * file, flow_t * a_flow, loff_t * off);
 
  LINK TAXONOMY:
 
- * Many objects have a reference count, and when the reference count reaches 0 the object's deletion method is invoked.
+   Many objects have a reference count, and when the reference count reaches 0 the object's deletion method is invoked.
  Some links embody a reference count increase ("countlinks"), and others do not ("nocountlinks").
 
- * Some links are bi-directional links ("bilinks"), and some are uni-directional("unilinks").
+   Some links are bi-directional links ("bilinks"), and some are uni-directional("unilinks").
 
- * Some links are between parts of the same object ("intralinks"), and some are between different objects ("interlinks").
+   Some links are between parts of the same object ("intralinks"), and some are between different objects ("interlinks").
 
  PACKING TAXONOMY:
 
- * Some items of an object are stored with a major packing locality based on their object's objectid (e.g. unix directory
+   Some items of an object are stored with a major packing locality based on their object's objectid (e.g. unix directory
  items in plan A), and these are called "self-major-packed".
 
- * Some items of an object are stored with a major packing locality based on their semantic parent object's objectid
+   Some items of an object are stored with a major packing locality based on their semantic parent object's objectid
  (e.g. unix file bodies in plan A), and these are called "parent-major-packed".
 
- * Some items of an object are stored with a major packing locality based on their semantic grandparent, and these are
+   Some items of an object are stored with a major packing locality based on their semantic grandparent, and these are
  called "grandparent-major-packed".  Now carefully notice that we run into trouble with key length if we have to store a
  8 byte major+minor grandparent based packing locality, an 8 byte parent objectid, an 8 byte attribute objectid, and an
  8 byte offset, all in a 24 byte key.  One of these fields must be sacrificed if an item is to be
@@ -175,10 +170,9 @@ typedef struct file_plugin {
 	int (*release) (struct file * file);
 	int (*mmap) (struct file * file, struct vm_area_struct * vma);
 	int (*get_block) (struct inode * inode, sector_t block, struct buffer_head * bh_result, int create);
-/*
- * private methods: These are optional.  If used they will allow you to
- * minimize the amount of code needed to implement a deviation from some other
- * method that also uses them.
+/* private methods: These are optional.  If used they will allow you to
+   minimize the amount of code needed to implement a deviation from some other
+   method that also uses them.
  */
 
 	/**
@@ -393,8 +387,8 @@ typedef struct sd_ext_plugin {
 } sd_ext_plugin;
 
 /* this plugin contains methods to allocate objectid for newly created files,
- * to deallocate objectid when file gets removed, to report number of used and
- * free objectids */
+   to deallocate objectid when file gets removed, to report number of used and
+   free objectids */
 typedef struct oid_allocator_plugin {
 	/** generic fields */
 	plugin_header h;
@@ -439,7 +433,7 @@ typedef struct space_allocator_plugin {
 } space_allocator_plugin;
 
 /* disk layout plugin: this specifies super block, journal, bitmap (if there
- * are any) locations, etc */
+   are any) locations, etc */
 typedef struct disk_format_plugin {
 	/** generic fields */
 	plugin_header h;
@@ -522,11 +516,11 @@ union reiser4_plugin {
 	void *generic;
 };
 
-/** intra-syscall Repetitive Access Pattern. Use it when you are going to do
+/* intra-syscall Repetitive Access Pattern. Use it when you are going to do
     several operations in a row */
 typedef enum { AHEAD_RAP, BEHIND_RAP, NO_RAP } intra_syscall_rap;
 
-/** inter-syscall Repetitive Access Pattern structure. We can store such thing into inode.  It would be better if it was
+/* inter-syscall Repetitive Access Pattern structure. We can store such thing into inode.  It would be better if it was
     associated with struct file rather than with struct inode, but there is no file-system specific part in struct
     file. insert/delete tree operations consult this structure and update it. We can add user interface to this later.
     This will help improve the performance of cross-syscall insertions and reads that are localized within the tree. */
@@ -585,7 +579,7 @@ typedef enum {
 	LAST_DIR_ID
 } reiser4_dir_id;
 
-/** data type used to pack parameters that we pass to vfs
+/* data type used to pack parameters that we pass to vfs
     object creation function create_object() */
 struct reiser4_object_create_data {
 	/** plugin to control created object */
@@ -626,7 +620,7 @@ typedef enum {
 #define MAX_PLUGIN_TYPE_LABEL_LEN  32
 #define MAX_PLUGIN_PLUG_LABEL_LEN  32
 
-/** used for interface with user-land: table-driven parsing in
+/* used for interface with user-land: table-driven parsing in
     reiser4(). */
 typedef struct plugin_locator {
 	reiser4_plugin_type type_id;
@@ -770,13 +764,12 @@ plugin_by_disk_id(reiser4_tree * tree UNUSED_ARG	/* tree,
 /* __FS_REISER4_PLUGIN_TYPES_H__ */
 #endif
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

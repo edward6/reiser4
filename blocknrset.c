@@ -1,7 +1,7 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 /* This file contains code for various block number sets used by the atom to
- * track the deleted set and wandered block mappings. */
+   track the deleted set and wandered block mappings. */
 
 #include "debug.h"
 #include "dformat.h"
@@ -11,25 +11,25 @@
 #include <linux/slab.h>
 
 /* The proposed data structure for storing unordered block number sets is a
- * list of elements, each of which contains an array of block number or/and
- * array of block number pairs. That element called blocknr_set_entry is used
- * to store block numbers from the beginning and for extents from the end of
- * the data field (char data[...]). The ->nr_blocks and ->nr_pairs fields
- * count numbers of blocks and extents.
- *
- * +------------------- blocknr_set_entry->data ------------------+
- * |block1|block2| ... <free space> ... |pair3|pair2|pair1|
- * +------------------------------------------------------------+
- *
- * When current blocknr_set_entry is full, allocate a new one. */
+   list of elements, each of which contains an array of block number or/and
+   array of block number pairs. That element called blocknr_set_entry is used
+   to store block numbers from the beginning and for extents from the end of
+   the data field (char data[...]). The ->nr_blocks and ->nr_pairs fields
+   count numbers of blocks and extents.
+  
+   +------------------- blocknr_set_entry->data ------------------+
+   |block1|block2| ... <free space> ... |pair3|pair2|pair1|
+   +------------------------------------------------------------+
+  
+   When current blocknr_set_entry is full, allocate a new one. */
 
 /* Auditor comments (green): It appeared that block number pair can represent
- * two things. It can represent extents, then first number in a pair represents
- * starting block number of extent and second number is lenght of extent.
- * Extents cannot be less then 2 blocks in length. Second meaning of block
- * number pair is used and wandered sets (and the likes?) where the first block
- * represent original data location and second block represents new data
- * location (and/or vice versa?). */
+   two things. It can represent extents, then first number in a pair represents
+   starting block number of extent and second number is lenght of extent.
+   Extents cannot be less then 2 blocks in length. Second meaning of block
+   number pair is used and wandered sets (and the likes?) where the first block
+   represent original data location and second block represents new data
+   location (and/or vice versa?). */
 
 typedef struct blocknr_pair blocknr_pair;
 
@@ -142,17 +142,17 @@ bse_put_pair(blocknr_set_entry * bse, const reiser4_block_nr * a, const reiser4_
 	pair->b = *b;
 }
 
-/** Add either a block or pair of blocks to the block number set.  The first
- * blocknr (@a) must be non-NULL.  If @b is NULL a single blocknr is added, if
- * @b is non-NULL a pair is added.  The block number set belongs to atom, and
- * the call is made with the atom lock held.  There may not be enough space in
- * the current blocknr_set_entry.  If new_bsep points to a non-NULL
- * blocknr_set_entry then it will be added to the blocknr_set and new_bsep
- * will be set to NULL.  If new_bsep contains NULL then the atom lock will be
- * released and a new bse will be allocated in new_bsep.  EAGAIN will be
- * returned with the atom unlocked for the operation to be tried again.  If
- * the operation succeeds, 0 is returned.  If new_bsep is non-NULL and not
- * used during the call, it will be freed automatically. */
+/* Add either a block or pair of blocks to the block number set.  The first
+   blocknr (@a) must be non-NULL.  If @b is NULL a single blocknr is added, if
+   @b is non-NULL a pair is added.  The block number set belongs to atom, and
+   the call is made with the atom lock held.  There may not be enough space in
+   the current blocknr_set_entry.  If new_bsep points to a non-NULL
+   blocknr_set_entry then it will be added to the blocknr_set and new_bsep
+   will be set to NULL.  If new_bsep contains NULL then the atom lock will be
+   released and a new bse will be allocated in new_bsep.  EAGAIN will be
+   returned with the atom unlocked for the operation to be tried again.  If
+   the operation succeeds, 0 is returned.  If new_bsep is non-NULL and not
+   used during the call, it will be freed automatically. */
 /* Audited by: green(2002.06.11) */
 static int
 blocknr_set_add(txn_atom * atom,
@@ -199,7 +199,7 @@ blocknr_set_add(txn_atom * atom,
 }
 
 /* Add an extent to the block set.  If the length is 1, it is treated as a
- * single block (e.g., reiser4_set_add_block). */
+   single block (e.g., reiser4_set_add_block). */
 /* Audited by: green(2002.06.11) */
 /* Auditor note: Entire call chain cannot hold any spinlocks, because
    kmalloc might schedule. The only exception is atom spinlock, which is
@@ -384,13 +384,12 @@ blocknr_set_iterator(txn_atom * atom, blocknr_set * bset, blocknr_set_actor_f ac
 	return 0;
 }
 
-/* 
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 78
- * scroll-step: 1
- * End:
+/* Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 78
+   scroll-step: 1
+   End:
  */

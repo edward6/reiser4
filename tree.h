@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Tree operations. See fs/reiser4/tree.c for comments
- */
+/* Tree operations. See fs/reiser4/tree.c for comments */
 
 #if !defined( __REISER4_TREE_H__ )
 #define __REISER4_TREE_H__
@@ -28,17 +24,14 @@
 /** fictive block number never actually used */
 extern const reiser4_block_nr FAKE_TREE_ADDR;
 
-/*
- * define typed list for cbk_cache lru
- */
+/* define typed list for cbk_cache lru */
 TS_LIST_DECLARE(cbk_cache);
 
-/**
- * &cbk_cache_slot - entry in a coord cache.
- *
- * This is entry in a coord_by_key (cbk) cache, represented by
- * &cbk_cache.
- *
+/* &cbk_cache_slot - entry in a coord cache.
+  
+   This is entry in a coord_by_key (cbk) cache, represented by
+   &cbk_cache.
+  
  */
 typedef struct cbk_cache_slot {
 	/** cached node */
@@ -47,24 +40,23 @@ typedef struct cbk_cache_slot {
 	cbk_cache_list_link lru;
 } cbk_cache_slot;
 
-/**
- * &cbk_cache - coord cache. This is part of reiser4_tree.
- *
- * cbk_cache is supposed to speed up tree lookups by caching results of recent
- * successful lookups (we don't cache negative results as dentry cache
- * does). Cache consists of relatively small number of entries kept in a LRU
- * order. Each entry (&cbk_cache_slot) containts a pointer to znode, from
- * which we can obtain a range of keys that covered by this znode. Before
- * embarking into real tree traversal we scan cbk_cache slot by slot and for
- * each slot check whether key we are looking for is between minimal and
- * maximal keys for node pointed to by this slot. If no match is found, real
- * tree traversal is performed and if result is successful, appropriate entry
- * is inserted into cache, possibly pulling least recently used entry out of
- * it.
- *
- * Tree spin lock is used to protect coord cache. If contention for this
- * lock proves to be too high, more finer grained locking can be added.
- *
+/* &cbk_cache - coord cache. This is part of reiser4_tree.
+  
+   cbk_cache is supposed to speed up tree lookups by caching results of recent
+   successful lookups (we don't cache negative results as dentry cache
+   does). Cache consists of relatively small number of entries kept in a LRU
+   order. Each entry (&cbk_cache_slot) containts a pointer to znode, from
+   which we can obtain a range of keys that covered by this znode. Before
+   embarking into real tree traversal we scan cbk_cache slot by slot and for
+   each slot check whether key we are looking for is between minimal and
+   maximal keys for node pointed to by this slot. If no match is found, real
+   tree traversal is performed and if result is successful, appropriate entry
+   is inserted into cache, possibly pulling least recently used entry out of
+   it.
+  
+   Tree spin lock is used to protect coord cache. If contention for this
+   lock proves to be too high, more finer grained locking can be added.
+  
  */
 typedef struct cbk_cache {
 	int nr_slots;
@@ -78,10 +70,8 @@ typedef struct cbk_cache {
 
 TS_LIST_DEFINE(cbk_cache, cbk_cache_slot, lru);
 
-/**
- * level_lookup_result - possible outcome of looking up key at some level.
- * This is used by coord_by_key when traversing tree downward.
- */
+/* level_lookup_result - possible outcome of looking up key at some level.
+   This is used by coord_by_key when traversing tree downward. */
 typedef enum {
 	/** continue to the next level */
 	LOOKUP_CONT,
@@ -92,22 +82,22 @@ typedef enum {
 	LOOKUP_REST
 } level_lookup_result;
 
-/** PUT THIS IN THE SUPER BLOCK
- *
- * This is representation of internal reiser4 tree where all file-system
- * data and meta-data are stored. This structure is passed to all tree
- * manipulation functions. It's different from the super block because:
- * we don't want to limit ourselves to strictly one to one mapping
- * between super blocks and trees, and, because they are logically
- * different: there are things in a super block that have no relation to
- * the tree (bitmaps, journalling area, mount options, etc.) and there
- * are things in a tree that bear no relation to the super block, like
- * tree of znodes.
- *
- * At this time, there is only one tree
- * per filesystem, and this struct is part of the super block.  We only
- * call the super block the super block for historical reasons (most
- * other filesystems call the per filesystem metadata the super block).
+/* PUT THIS IN THE SUPER BLOCK
+  
+   This is representation of internal reiser4 tree where all file-system
+   data and meta-data are stored. This structure is passed to all tree
+   manipulation functions. It's different from the super block because:
+   we don't want to limit ourselves to strictly one to one mapping
+   between super blocks and trees, and, because they are logically
+   different: there are things in a super block that have no relation to
+   the tree (bitmaps, journalling area, mount options, etc.) and there
+   are things in a tree that bear no relation to the super block, like
+   tree of znodes.
+  
+   At this time, there is only one tree
+   per filesystem, and this struct is part of the super block.  We only
+   call the super block the super block for historical reasons (most
+   other filesystems call the per filesystem metadata the super block).
  */
 struct reiser4_tree {
 	/* block_nr == 0 is fake znode. Write lock it, while changing
@@ -163,15 +153,14 @@ extern int init_tree(reiser4_tree * tree,
 		     const reiser4_block_nr * root_block, tree_level height, node_plugin * default_plugin);
 extern void done_tree(reiser4_tree * tree);
 
-/**
- * &reiser4_item_data - description of data to be inserted or pasted
- *
- * Q: articulate the reasons for the difference between this and flow.
- *
- * A: Becides flow we insert into tree other things: stat data, directory
- * entry, etc.  To insert them into tree one has to provide this structure. If
- * one is going to insert flow - he can use insert_flow, where this structure
- * does not have to be created
+/* &reiser4_item_data - description of data to be inserted or pasted
+  
+   Q: articulate the reasons for the difference between this and flow.
+  
+   A: Becides flow we insert into tree other things: stat data, directory
+   entry, etc.  To insert them into tree one has to provide this structure. If
+   one is going to insert flow - he can use insert_flow, where this structure
+   does not have to be created
  */
 struct reiser4_item_data {
 	/**
@@ -283,7 +272,7 @@ node_num_items(const znode * node)
 }
 
 /* Return the number of items at the present node.  Asserts coord->node !=
- * NULL. */
+   NULL. */
 static inline unsigned
 coord_num_items(const coord_t * coord)
 {
@@ -409,7 +398,7 @@ extern int deallocate_znode(znode * node);
 extern int is_disk_addr_unallocated(const reiser4_block_nr * addr);
 extern void *unallocated_disk_addr_to_ptr(const reiser4_block_nr * addr);
 
-/** struct used internally to pack all numerous arguments of tree lookup.
+/* struct used internally to pack all numerous arguments of tree lookup.
     Used to avoid passing a lot of arguments to helper functions. */
 typedef struct cbk_handle {
 	/** tree we are in */
@@ -474,17 +463,16 @@ typedef enum {
     GRABBED_ONCE    =	1
 } context_flags_t;
 
-/** 
- * global context used during system call. Variable of this type is
- * allocated on the stack at the beginning of the reiser4 part of the
- * system call and pointer to it is stored in the
- * current->fs_context. This allows us to avoid passing pointer to
- * current transaction and current lockstack (both in one-to-one mapping
- * with threads) all over the call chain.
+/* global context used during system call. Variable of this type is
+   allocated on the stack at the beginning of the reiser4 part of the
+   system call and pointer to it is stored in the
+   current->fs_context. This allows us to avoid passing pointer to
+   current transaction and current lockstack (both in one-to-one mapping
+   with threads) all over the call chain.
 
- * It's kind of like those global variables the prof used to tell you
- * not to use in CS1, except thread specific.;-) Nikita, this was a
- * good idea.
+   It's kind of like those global variables the prof used to tell you
+   not to use in CS1, except thread specific.;-) Nikita, this was a
+   good idea.
  */
 struct reiser4_context {
 	/** magic constant. For debugging */
@@ -572,10 +560,8 @@ extern void print_contexts(void);
 extern int init_context(reiser4_context * context, struct super_block *super);
 extern void done_context(reiser4_context * context);
 
-/**
- * magic constant we store in reiser4_context allocated at the stack. Used to
- * catch accesses to staled or uninitialized contexts.
- */
+/* magic constant we store in reiser4_context allocated at the stack. Used to
+   catch accesses to staled or uninitialized contexts. */
 #define context_magic ( ( __u32 ) 0x4b1b5d0b )
 
 static inline int
@@ -646,25 +632,19 @@ get_current_context(void)
 	return IS_ERR (__result) ? __result : ERR_PTR (__ret);         \
 })
 
-/*
- * ordering constraint for tree spin lock: tree lock is "strongest"
- */
+/* ordering constraint for tree spin lock: tree lock is "strongest" */
 #define spin_ordering_pred_tree( tree ) ( 1 )
 
 /* Define spin_lock_tree, spin_unlock_tree, and spin_tree_is_locked:
- * spin lock protecting znode hash, and parent and sibling pointers. */
+   spin lock protecting znode hash, and parent and sibling pointers. */
 SPIN_LOCK_FUNCTIONS(tree, reiser4_tree, tree_lock);
 
-/*
- * ordering constraint for delimiting key spin lock: dk lock is weaker than 
- * tree lock
- */
+/* ordering constraint for delimiting key spin lock: dk lock is weaker than 
+   tree lock */
 #define spin_ordering_pred_dk( tree ) 				\
 	( lock_counters() -> spin_locked_tree == 0 )
-/*
- * Define spin_lock_dk(), spin_unlock_dk(), etc: locking for delimiting
- * keys.
- */
+/* Define spin_lock_dk(), spin_unlock_dk(), etc: locking for delimiting
+   keys. */
 SPIN_LOCK_FUNCTIONS(dk, reiser4_tree, dk_lock);
 
 #if REISER4_DEBUG
@@ -674,13 +654,12 @@ TS_LIST_DEFINE(context, reiser4_context, contexts_link);
 #define check_tree() noop
 #endif
 
-/**
- * jput() - decrement x_count reference counter on znode.
- *
- * Count may drop to 0, jnode stays in cache until memory pressure causes the
- * eviction of its page. The c_count variable also ensures that children are
- * pressured out of memory before the parent. The jnode remains hashed as
- * long as the VM allows its page to stay in memory.
+/* jput() - decrement x_count reference counter on znode.
+  
+   Count may drop to 0, jnode stays in cache until memory pressure causes the
+   eviction of its page. The c_count variable also ensures that children are
+   pressured out of memory before the parent. The jnode remains hashed as
+   long as the VM allows its page to stay in memory.
  */
 static inline void
 jput(jnode * node)
@@ -721,14 +700,13 @@ jput(jnode * node)
 /* __REISER4_TREE_H__ */
 #endif
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

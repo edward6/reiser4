@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Key assignment policy interface.
- */
+/* Key assignment policy interface. */
 
 #if !defined( __KASSIGN_H__ )
 #define __KASSIGN_H__
@@ -18,43 +14,41 @@
 #include <linux/dcache.h>	/* for struct qstr */
 /* key assignment functions */
 
-/**
- * Information from which key of file stat-data can be uniquely
- * restored. This depends on key assignment policy for
- * stat-data. Currently it's enough to store object id and locality id
- * (60+60==120) bits, because minor packing locality and offset of
- * stat-data key are always known constants: KEY_SD_MINOR and 0
- * respectively. For simplicity 4 bits are wasted in each id, and just
- * two 64 bit integers are stored.
- *
- * This field has to be byte-aligned, because we don't want to waste
- * space in directory entries. There is another side of a coin of
- * course: we waste CPU and bus bandwidth in stead, by copying data back
- * and forth.
- *
- * Next optimization: &obj_key_id is mainly used to address stat data from
- * directory entries. Under the assumption that majority of files only have
- * only name (one hard link) from *the* parent directory it seems reasonable
- * to only store objectid of stat data and take its locality from key of
- * directory item.
- *
- * This requires some flag to be added to the &obj_key_id to distinguish
- * between these two cases. Remaining bits in flag byte are then asking to be
- * used to store file type.
- *
- * This optimization requires changes in directory item handling code.
- *
+/* Information from which key of file stat-data can be uniquely
+   restored. This depends on key assignment policy for
+   stat-data. Currently it's enough to store object id and locality id
+   (60+60==120) bits, because minor packing locality and offset of
+   stat-data key are always known constants: KEY_SD_MINOR and 0
+   respectively. For simplicity 4 bits are wasted in each id, and just
+   two 64 bit integers are stored.
+  
+   This field has to be byte-aligned, because we don't want to waste
+   space in directory entries. There is another side of a coin of
+   course: we waste CPU and bus bandwidth in stead, by copying data back
+   and forth.
+  
+   Next optimization: &obj_key_id is mainly used to address stat data from
+   directory entries. Under the assumption that majority of files only have
+   only name (one hard link) from *the* parent directory it seems reasonable
+   to only store objectid of stat data and take its locality from key of
+   directory item.
+  
+   This requires some flag to be added to the &obj_key_id to distinguish
+   between these two cases. Remaining bits in flag byte are then asking to be
+   used to store file type.
+  
+   This optimization requires changes in directory item handling code.
+  
  */
 typedef struct obj_key_id {
 	d8 locality[sizeof (__u64)];
 	d8 objectid[sizeof (__u64)];
 } obj_key_id;
 
-/**
- * Information sufficient to uniquely identify directory entry within
- * compressed directory item.
- *
- * For alignment issues see &obj_key_id above.
+/* Information sufficient to uniquely identify directory entry within
+   compressed directory item.
+  
+   For alignment issues see &obj_key_id above.
  */
 typedef struct de_id {
 	d8 objectid[sizeof (__u64)];
@@ -83,13 +77,12 @@ extern int is_root_dir_key(const struct super_block *super, const reiser4_key * 
 /* __KASSIGN_H__ */
 #endif
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

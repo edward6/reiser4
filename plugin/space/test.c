@@ -1,6 +1,4 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "../../super.h"
 #include "../../block_alloc.h"
@@ -12,10 +10,8 @@
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block  */
 
-/*
- * this file contains:
- * - dummy implementation of space allocation plugin, it is for debugging only
- */
+/* this file contains:
+   - dummy implementation of space allocation plugin, it is for debugging only */
 
 /* plugin->u.space_allocator.init_allocator */
 int
@@ -40,10 +36,8 @@ test_init_allocator(reiser4_space_allocator * allocator, struct super_block *sup
 	return 0;
 }
 
-/*
- * Probability of getting blocks perfectly allocated (eek, floating point in kernel?)
- * When it is 10, you get what you asked for.
- */
+/* Probability of getting blocks perfectly allocated (eek, floating point in kernel?)
+   When it is 10, you get what you asked for. */
 #define P 10
 
 /* plugin->u.space_allocator.alloc_blocks */

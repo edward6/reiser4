@@ -7,13 +7,11 @@
 
 #include <linux/fs.h>		/* for struct super_block  */
 
-/*****************************************************************************************
-                            REISER4 JOURNAL ON-DISK DATA STRUCTURES  
- *****************************************************************************************/
+/* REISER4 JOURNAL ON-DISK DATA STRUCTURES   */
 
 /* FIXME: a temporary solution for keep test layout working is to convert
- * WRITE_LOG constant to a boolean variable which is TRUE by default and it is
- * set to FALSE in test disk layout initialize code */
+   WRITE_LOG constant to a boolean variable which is TRUE by default and it is
+   set to FALSE in test disk layout initialize code */
 extern int WRITE_LOG;
 
 #define TX_HEADER_MAGIC  "TxMagic4"
@@ -50,7 +48,7 @@ struct journal_footer {
 };
 
 /* each log record (except first one) has unified format with log record
- * header followed by an array of log entries */
+   header followed by an array of log entries */
 struct log_record_header {
 	/* when there is no predefined location for log records, this magic
 	 * string should help reiser4fsck. */
@@ -70,7 +68,7 @@ struct log_record_header {
 };
 
 /* The first log record (transaction head) of written transaction has the
- * special format */
+   special format */
 struct tx_header {
 	/* magic string makes first block in transaction different from other
 	 * logged blocks, it should help fsck. */
@@ -102,18 +100,16 @@ struct tx_header {
 };
 
 /* A transaction gets written to disk as a set of log records (each log record
- * size is fs block) */
+   size is fs block) */
 
 /* rest of log record is filled by these log entries, unused space filled by
- * zeroes */
+   zeroes */
 struct log_entry {
 	d64 original;		/* block original location */
 	d64 wandered;		/* block wandered location */
 };
 
-/*****************************************************************************************
-                            REISER4 JOURNAL WRITER FUNCTIONS  
- *****************************************************************************************/
+/* REISER4 JOURNAL WRITER FUNCTIONS   */
 
 extern int reiser4_write_logs(void);
 extern int reiser4_journal_replay(struct super_block *);

@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Super-block manipulations.
- */
+/* Super-block manipulations. */
 
 #include "debug.h"
 #include "dformat.h"
@@ -70,9 +66,7 @@ reiser4_spin_unlock_sb(const struct super_block *super)
 	spin_unlock(&info->guard);
 }
 
-/**
- * Return reiser4 fstype: value that is returned in ->f_type field by statfs()
- */
+/* Return reiser4 fstype: value that is returned in ->f_type field by statfs() */
 long
 statfs_type(const struct super_block *super UNUSED_ARG	/* super block
 							 * queried */ )
@@ -175,9 +169,7 @@ reiser4_set_mkfs_id(const struct super_block *super, __u32 id)
 	get_super_private(super)->mkfs_id = id;
 }
 
-/**
- * amount of free blocks in file system
- */
+/* amount of free blocks in file system */
 __u64 reiser4_free_committed_blocks(const struct super_block *super)
 {
 	assert("vs-497", super != NULL);
@@ -186,7 +178,7 @@ __u64 reiser4_free_committed_blocks(const struct super_block *super)
 }
 
 /* this is only used once on mount time to number of free blocks in
- * filesystem */
+   filesystem */
 void
 reiser4_set_free_committed_blocks(const struct super_block *super, __u64 nr)
 {
@@ -232,9 +224,7 @@ reiser4_reserved_blocks(const struct super_block *super	/* super block
 	return reserved;
 }
 
-/**
- * get/set value of/to grabbed blocks counter
- */
+/* get/set value of/to grabbed blocks counter */
 __u64 reiser4_grabbed_blocks(const struct super_block * super)
 {
 	assert("zam-512", super != NULL);
@@ -268,9 +258,7 @@ void reiser4_set_flush_reserved (const struct super_block *super, __u64 nr)
 	get_super_private (super) -> blocks_flush_reserved = nr;
 }
 
-/**
- * get/set value of/to counter of fake allocated formatted blocks
- */
+/* get/set value of/to counter of fake allocated formatted blocks */
 __u64 reiser4_fake_allocated(const struct super_block *super)
 {
 	assert("zam-516", super != NULL);
@@ -288,9 +276,7 @@ reiser4_set_fake_allocated(const struct super_block *super, __u64 nr)
 	get_super_private(super)->blocks_fake_allocated = nr;
 }
 
-/**
- * get/set value of/to counter of fake allocated unformatted blocks
- */
+/* get/set value of/to counter of fake allocated unformatted blocks */
 __u64 reiser4_fake_allocated_unformatted(const struct super_block *super)
 {
 	assert("zam-516", super != NULL);
@@ -323,9 +309,7 @@ reiser4_update_last_written_location(const struct super_block *s, const reiser4_
 	reiser4_spin_unlock_sb(s);
 }
 
-/**
- * objectid allocator used by this file system
- */
+/* objectid allocator used by this file system */
 reiser4_oid_allocator *
 get_oid_allocator(const struct super_block *super	/* super
 							   block
@@ -336,9 +320,7 @@ get_oid_allocator(const struct super_block *super	/* super
 	return &get_super_private(super)->oid_allocator;
 }
 
-/**
- * space allocator used by this file system
- */
+/* space allocator used by this file system */
 reiser4_space_allocator *
 get_space_allocator(const struct super_block * super)
 {
@@ -347,9 +329,7 @@ get_space_allocator(const struct super_block * super)
 	return &get_super_private(super)->space_allocator;
 }
 
-/**
- * return fake inode used to bind formatted nodes in the page cache
- */
+/* return fake inode used to bind formatted nodes in the page cache */
 struct inode *
 get_super_fake(const struct super_block *super	/* super block
 						   queried */ )
@@ -358,9 +338,7 @@ get_super_fake(const struct super_block *super	/* super block
 	return get_super_private(super)->fake;
 }
 
-/**
- * tree used by this file system
- */
+/* tree used by this file system */
 reiser4_tree *
 get_tree(const struct super_block * super	/* super block
 						 * queried */ )
@@ -370,10 +348,8 @@ get_tree(const struct super_block * super	/* super block
 	return &get_super_private(super)->tree;
 }
 
-/**
- * Check that @super is (looks like) reiser4 super block. This is mainly for
- * use in assertions.
- */
+/* Check that @super is (looks like) reiser4 super block. This is mainly for
+   use in assertions. */
 int
 is_reiser4_super(const struct super_block *super	/* super block
 							 * queried */ )
@@ -387,10 +363,9 @@ reiser4_is_set(const struct super_block *super, reiser4_fs_flag f)
 	return test_bit((int) f, &get_super_private(super)->fs_flags);
 }
 
-/**
- * Reiser4-specific part of "current" super-block: main super block used
- * during current system call. Reference to this super block is stored in
- * reiser4_context.
+/* Reiser4-specific part of "current" super-block: main super block used
+   during current system call. Reference to this super block is stored in
+   reiser4_context.
  */
 reiser4_super_info_data *
 get_current_super_private(void)
@@ -398,19 +373,15 @@ get_current_super_private(void)
 	return get_super_private(reiser4_get_current_sb());
 }
 
-/**
- * "Current" super-block: main super block used during current system
- * call. Reference to this super block is stored in reiser4_context.
- */
+/* "Current" super-block: main super block used during current system
+   call. Reference to this super block is stored in reiser4_context. */
 struct super_block *
 reiser4_get_current_sb(void)
 {
 	return get_current_context()->super;
 }
 
-/**
- * inode generation to use for the newly created inode
- */
+/* inode generation to use for the newly created inode */
 __u32 new_inode_generation(const struct super_block * super	/* super block
 								 * queried */ )
 {
@@ -418,9 +389,7 @@ __u32 new_inode_generation(const struct super_block * super	/* super block
 	return get_super_private(super)->inode_generation;
 }
 
-/**
- * amount of blocks reserved for given group in file system
- */
+/* amount of blocks reserved for given group in file system */
 static __u64
 reserved_for_gid(const struct super_block *super UNUSED_ARG	/* super
 								 * block
@@ -430,9 +399,7 @@ reserved_for_gid(const struct super_block *super UNUSED_ARG	/* super
 	return 0;
 }
 
-/**
- * amount of blocks reserved for given user in file system
- */
+/* amount of blocks reserved for given user in file system */
 static __u64
 reserved_for_uid(const struct super_block *super UNUSED_ARG	/* super
 								   block
@@ -442,9 +409,7 @@ reserved_for_uid(const struct super_block *super UNUSED_ARG	/* super
 	return 0;
 }
 
-/**
- * amount of blocks reserved for super user in file system
- */
+/* amount of blocks reserved for super user in file system */
 static __u64
 reserved_for_root(const struct super_block *super UNUSED_ARG	/* super
 								   block
@@ -453,10 +418,8 @@ reserved_for_root(const struct super_block *super UNUSED_ARG	/* super
 	return 0;
 }
 
-/** 
- * default file plugin used by this file system.
- * This should actually look at the mount options or something
- */
+/* default file plugin used by this file system.
+   This should actually look at the mount options or something */
 file_plugin *
 default_file_plugin(const struct super_block * super UNUSED_ARG	/* super
 								 * block
@@ -468,10 +431,8 @@ default_file_plugin(const struct super_block * super UNUSED_ARG	/* super
 	return file_plugin_by_id(REISER4_FILE_PLUGIN);
 }
 
-/** 
- * default dir plugin used by this file system.
- * This should actually look at the mount options or something
- */
+/* default dir plugin used by this file system.
+   This should actually look at the mount options or something */
 dir_plugin *
 default_dir_plugin(const struct super_block * super UNUSED_ARG	/*  super
 								 *  block to
@@ -481,10 +442,8 @@ default_dir_plugin(const struct super_block * super UNUSED_ARG	/*  super
 	return get_super_private(super)->plug.d;
 }
 
-/** 
- * default hash plugin used by this file system.
- * This should actually look at the mount options or something
- */
+/* default hash plugin used by this file system.
+   This should actually look at the mount options or something */
 hash_plugin *
 default_hash_plugin(const struct super_block * super UNUSED_ARG	/*  super
 								 *  block to
@@ -494,10 +453,8 @@ default_hash_plugin(const struct super_block * super UNUSED_ARG	/*  super
 	return get_super_private(super)->plug.h;
 }
 
-/** 
- * default perm plugin used by this file system.
- * This should actually look at the mount options or something
- */
+/* default perm plugin used by this file system.
+   This should actually look at the mount options or something */
 perm_plugin *
 default_perm_plugin(const struct super_block * super UNUSED_ARG	/*  super
 								 *  block to
@@ -507,10 +464,8 @@ default_perm_plugin(const struct super_block * super UNUSED_ARG	/*  super
 	return get_super_private(super)->plug.p;
 }
 
-/** 
- * default tail policy plugin used by this file system.
- * This should actually look at the mount options or something
- */
+/* default tail policy plugin used by this file system.
+   This should actually look at the mount options or something */
 tail_plugin *
 default_tail_plugin(const struct super_block * super	/*  super
 							 *  block to
@@ -520,10 +475,8 @@ default_tail_plugin(const struct super_block * super	/*  super
 	return get_super_private(super)->plug.t;
 }
 
-/** 
- * default sd plugin used by this file system.
- * This should actually look at the mount options or something
- */
+/* default sd plugin used by this file system.
+   This should actually look at the mount options or something */
 item_plugin *
 default_sd_plugin(const struct super_block * super UNUSED_ARG	/*  super
 								 *  block to
@@ -533,10 +486,8 @@ default_sd_plugin(const struct super_block * super UNUSED_ARG	/*  super
 	return get_super_private(super)->plug.sd;
 }
 
-/** 
- * default dir item plugin used by this file system.
- * This should actually look at the mount options or something
- */
+/* default dir item plugin used by this file system.
+   This should actually look at the mount options or something */
 item_plugin *
 default_dir_item_plugin(const struct super_block * super UNUSED_ARG	/*  super
 									 *  block
@@ -578,13 +529,12 @@ print_fs_info(const char *prefix, const struct super_block *s)
 }
 #endif
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

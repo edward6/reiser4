@@ -1,182 +1,181 @@
-/* Copyright (C) 2001, 2002 Hans Reiser.  All rights reserved.
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 /* The txnmgr is a set of interfaces that keep track of atoms and transcrash handles.  The
- * txnmgr processes capture_block requests and manages the relationship between jnodes and
- * atoms through the various stages of a transcrash, and it also oversees the fusion and
- * capture-on-copy processes.  The main difficulty with this task is maintaining a
- * deadlock-free lock ordering between atoms and jnodes/handles.  The reason for the
- * difficulty is that jnodes, handles, and atoms contain pointer circles, and the cycle
- * must be broken.  The main requirement is that atom-fusion be deadlock free, so once you
- * hold the atom_lock you may then wait to acquire any jnode or handle lock.  This implies
- * that any time you check the atom-pointer of a jnode or handle and then try to lock that
- * atom, you must use trylock() and possibly reverse the order.
- *
- * This code implements the design documented at:
- *
- *   http://namesys.com/txn-doc.html
+   txnmgr processes capture_block requests and manages the relationship between jnodes and
+   atoms through the various stages of a transcrash, and it also oversees the fusion and
+   capture-on-copy processes.  The main difficulty with this task is maintaining a
+   deadlock-free lock ordering between atoms and jnodes/handles.  The reason for the
+   difficulty is that jnodes, handles, and atoms contain pointer circles, and the cycle
+   must be broken.  The main requirement is that atom-fusion be deadlock free, so once you
+   hold the atom_lock you may then wait to acquire any jnode or handle lock.  This implies
+   that any time you check the atom-pointer of a jnode or handle and then try to lock that
+   atom, you must use trylock() and possibly reverse the order.
+  
+   This code implements the design documented at:
+  
+     http://namesys.com/txn-doc.html
  */
 
 /* Thoughts on the external transaction interface:
- *
- * In the current code, a TRANSCRASH handle is created implicitely by REISER4_ENTRY and
- * closed by REISER4_EXIT, occupying the scope of a single system call.  We wish to give
- * certain applications an interface to begin and close (commit) transactions.  Since our
- * implementation of transactions does not yet support isolation, allowing an application
- * to open a transaction implies trusting it to later close the transaction.  Part of the
- * transaction interface will be aimed at enabling that trust, but the interface for
- * actually using transactions is fairly narrow.
- *
- * BEGIN_TRANSCRASH: Returns a transcrash identifier.  It should be possible to translate
- * this identifier into a string that a shell-script could use, allowing you to start a
- * transaction by issuing a command.  Once open, the transcrash should be set in the task
- * structure, and there should be options (I suppose) to allow it to be carried across
- * fork/exec.  A transcrash has several options:
- *
- *   - READ_FUSING or WRITE_FUSING: The default policy is for txn-capture to capture only
- *   on writes (WRITE_FUSING) and allow "dirty reads".  If the application wishes to
- *   capture on reads as well, it should set READ_FUSING.
- *
- *   - TIMEOUT: Since a non-isolated transcrash cannot be undone, every transcrash must
- *   eventually close (or else the machine must crash).  If the application dies an
- *   unexpected death with an open transcrash, for example, or if it hangs for a long
- *   duration, one solution (to avoid crashing the machine) is to simply close it anyway.
- *   This is a dangerous option, but it is one way to solve the problem until isolated
- *   transcrashes are available for untrusted applications.
- *
- * RESERVE_BLOCKS: A running transcrash should indicate to the transaction manager how
- * many dirty blocks it expects.  The reserve_blocks interface should be called at a point
- * where it is safe for the application to fail, because the system may not be able to
- * grant the allocation and the application must be able to back-out.  For this reason,
- * the number of reserve-blocks can also be passed as an argument to BEGIN_TRANSCRASH, but
- * the application may also wish to extend the allocation after beginning its transcrash.
- *
- * CLOSE_TRANSCRASH: The application closes the transcrash when it is finished making
- * modifications that require transaction protection.  When isolated transactions are
- * supported the CLOSE operation is replaced by either COMMIT or ABORT.  For example, if a
- * RESERVE_BLOCKS call fails for the application, it should "abort" by calling
- * CLOSE_TRANSCRASH, even though it really commits any changes that were made (which is
- * why, for safety, the application should call RESERVE_BLOCKS before making any changes).
- *
- * For actually implementing these out-of-system-call-scopped transcrashes, the
- * reiser4_context has a "txn_handle *trans" pointer that may be set to an open
- * transcrash.  Currently there are no dynamically-allocated transcrashes, but there is a
- * "kmem_cache_t *_txnh_slab" created for that purpose in this file.
+  
+   In the current code, a TRANSCRASH handle is created implicitely by REISER4_ENTRY and
+   closed by REISER4_EXIT, occupying the scope of a single system call.  We wish to give
+   certain applications an interface to begin and close (commit) transactions.  Since our
+   implementation of transactions does not yet support isolation, allowing an application
+   to open a transaction implies trusting it to later close the transaction.  Part of the
+   transaction interface will be aimed at enabling that trust, but the interface for
+   actually using transactions is fairly narrow.
+  
+   BEGIN_TRANSCRASH: Returns a transcrash identifier.  It should be possible to translate
+   this identifier into a string that a shell-script could use, allowing you to start a
+   transaction by issuing a command.  Once open, the transcrash should be set in the task
+   structure, and there should be options (I suppose) to allow it to be carried across
+   fork/exec.  A transcrash has several options:
+  
+     - READ_FUSING or WRITE_FUSING: The default policy is for txn-capture to capture only
+     on writes (WRITE_FUSING) and allow "dirty reads".  If the application wishes to
+     capture on reads as well, it should set READ_FUSING.
+  
+     - TIMEOUT: Since a non-isolated transcrash cannot be undone, every transcrash must
+     eventually close (or else the machine must crash).  If the application dies an
+     unexpected death with an open transcrash, for example, or if it hangs for a long
+     duration, one solution (to avoid crashing the machine) is to simply close it anyway.
+     This is a dangerous option, but it is one way to solve the problem until isolated
+     transcrashes are available for untrusted applications.
+  
+   RESERVE_BLOCKS: A running transcrash should indicate to the transaction manager how
+   many dirty blocks it expects.  The reserve_blocks interface should be called at a point
+   where it is safe for the application to fail, because the system may not be able to
+   grant the allocation and the application must be able to back-out.  For this reason,
+   the number of reserve-blocks can also be passed as an argument to BEGIN_TRANSCRASH, but
+   the application may also wish to extend the allocation after beginning its transcrash.
+  
+   CLOSE_TRANSCRASH: The application closes the transcrash when it is finished making
+   modifications that require transaction protection.  When isolated transactions are
+   supported the CLOSE operation is replaced by either COMMIT or ABORT.  For example, if a
+   RESERVE_BLOCKS call fails for the application, it should "abort" by calling
+   CLOSE_TRANSCRASH, even though it really commits any changes that were made (which is
+   why, for safety, the application should call RESERVE_BLOCKS before making any changes).
+  
+   For actually implementing these out-of-system-call-scopped transcrashes, the
+   reiser4_context has a "txn_handle *trans" pointer that may be set to an open
+   transcrash.  Currently there are no dynamically-allocated transcrashes, but there is a
+   "kmem_cache_t *_txnh_slab" created for that purpose in this file.
  */
 
 /* Extending the other system call interfaces for future transaction features:
- *
- * Specialized applications may benefit from passing flags to the ordinary system call
- * interface such as read(), write(), or stat().  For example, the application specifies
- * WRITE_FUSING by default but wishes to add that a certain read() command should be
- * treated as READ_FUSING.  But which read?  Is it the directory-entry read, the stat-data
- * read, or the file-data read?  These issues are straight-forward, but there are a lot of
- * them and adding the necessary flags-passing code will be tedious.
- *
- * When supporting isolated transactions, there is a corresponding READ_MODIFY_WRITE (RMW)
- * flag, which specifies that although it is a read operation being requested, a
- * write-lock should be taken.  The reason is that read-locks are shared while write-locks
- * are exclusive, so taking a read-lock when a later-write is known in advance will often
- * leads to deadlock.  If a reader knows it will write later, it should issue read
- * requests with the RMW flag set.
+  
+   Specialized applications may benefit from passing flags to the ordinary system call
+   interface such as read(), write(), or stat().  For example, the application specifies
+   WRITE_FUSING by default but wishes to add that a certain read() command should be
+   treated as READ_FUSING.  But which read?  Is it the directory-entry read, the stat-data
+   read, or the file-data read?  These issues are straight-forward, but there are a lot of
+   them and adding the necessary flags-passing code will be tedious.
+  
+   When supporting isolated transactions, there is a corresponding READ_MODIFY_WRITE (RMW)
+   flag, which specifies that although it is a read operation being requested, a
+   write-lock should be taken.  The reason is that read-locks are shared while write-locks
+   are exclusive, so taking a read-lock when a later-write is known in advance will often
+   leads to deadlock.  If a reader knows it will write later, it should issue read
+   requests with the RMW flag set.
  */
 
 /* Special disk space reservation:
- *
- * The space reserved for a transcrash by calling RESERVE_BLOCKS does not cover all
- * possible space requirements that a transaction may encounter trying to flush.  The
- * prime example of this is extent-allocation, which can consume an unpredictable amount
- * of space during flush, due to fragmentation.  We have discussed two ways to reserve for
- * any "extra allocation":
- *
- * - Reserve a fixed percentage of disk space for use (e.g., 5%), and if that approach
- * doesn't work (because Nikita Was Right), then...
- *
- * - Reserve an amount of disk space proportional to the number of unallocated extent
- * blocks, or something like that.
+  
+   The space reserved for a transcrash by calling RESERVE_BLOCKS does not cover all
+   possible space requirements that a transaction may encounter trying to flush.  The
+   prime example of this is extent-allocation, which can consume an unpredictable amount
+   of space during flush, due to fragmentation.  We have discussed two ways to reserve for
+   any "extra allocation":
+  
+   - Reserve a fixed percentage of disk space for use (e.g., 5%), and if that approach
+   doesn't work (because Nikita Was Right), then...
+  
+   - Reserve an amount of disk space proportional to the number of unallocated extent
+   blocks, or something like that.
  */
 
 /* CURRENT DEADLOCK BETWEEN LOCK_MANAGER & ATOM_CAPTURE_WAIT: SOLUTION.  Its not a true
- * deadlock, its a bug.  The bug occurs when one thread waits on a lock held by another
- * thread waiting in capture_wait.  The thread waiting for capture is blocked because the
- * atom is expired, trying to commit, but it holds a lock.  This problem has the symptoms
- * of PRIORITY INVERSION because the lock-waiter should be unblocked so that it can
- * eventually release the lock needed to commit the atom.
- *
- * Currently the transaction manager code is properly signalled by the lock manager when a
- * thread is waiting for capture but the lock manager determines that it must yield one of
- * its locks.  The problem is that the transaction manager does not wake threads that are
- * blocked in capture_wait when they hold a lock needed to commit the atom.
- *
- * The problem seems impossible--it seems to be already solved.  As described in comments
- * at the top of lock.c, we try to capture a block before we try to lock it.  First we
- * take the znode spinlock, then we try to capture.  When capture succeeds it returns with
- * the spinlock still held.  This is important because if the lock is available (i.e., it
- * is unlocked or read-locked) the lock must be granted before any other thread "skips
- * ahead" and takes the lock first.  This is done because sometimes a capture request can
- * return without actually requiring capture.  For example, a read-request with a
- * WRITE_FUSING transcrash does nothing, or a read-request with READ_FUSING and a clean
- * node does nothing.  But in order for this to work, the read-request must be granted
- * before any writers can lock the node.  For this reason, we capture before we lock.
- *
- * At first glance, capture-before-lock would seem to address the problem, but it does not
- * always.  The explanation is not difficult, but it requires carefully labeling the
- * objects involved.
- *
- * - There are two threads, BLOCKED_IN_LOCK and BLOCKED_IN_CAPTURE, and there are two
- * nodes, CLEAN_NODE and DIRTY_NODE.
- *
- * - BLOCKED_IN_LOCK and DIRTY_NODE belong to an atom that is trying to commit.
- * BLOCKED_IN_LOCK has already made modifications.
- *
- * - BLOCKED_IN_CAPTURE and CLEAN_NODE have no atom.  BLOCKED_IN_CAPTURE is likely a
- * coord_by_key tree traversal and it has made no modifications.
- *
- * The chain of events goes like this:
- *
- *                 BLOCKED_IN_CAPTURE                  BLOCKED_IN_LOCK
- *
- * 1.           read-captures CLEAN_NODE
- *                (no capture needed)
- *
- * 2.            read-locks CLEAN_NODE
- *                    (succeeds)
- *
- * 3.                                              write-captures CLEAN_NODE
- *                                                  (capture succeeds, now
- *                                                   CLEAN_NODE is part of
- *                                                   the atom)
- *
- * 4.                                               write-locks CLEAN_NODE
- *                                                   (!-- blocked waiting for
- *                                                    the CLEAN_NODE lock --!)
- *
- * 5.          write-captures DIRTY_NODE
- *               (!-- blocked waiting for
- *                atom to commit --!)
- *
- * There we have both processes blocked and capture-before-lock did not help.  The reason
- * capture-before-lock did not help is that neither BLOCKED_IN_CAPTURE nor CLEAN_NODE have
- * an atom, thus the capture step in #3 causes no fusion.  The above order of events is
- * fine the way it is, except in step #3.  At the moment we capture CLEAN_NODE (#3), the
- * BLOCKED_IN_CAPTURE thread (which is not actually blocked until #5) should be "taken in"
- * to the atom because it is trying to commit.  Then BLOCKED_IN_CAPTURE will never
- * actually be blocked in capture when it reaches #5, it will get the lock it wants and
- * eventually release CLEAN_NODE so that BLOCKED_IN_LOCK can get it.  In general, the
- * following steps will solve this problem:
- *
- * - When an atom that is trying to commit will succeed at capturing a block, the to-be
- * captured block's list of lock owners should be inspected.
- *
- * - If the thread (transcrash) that holds the lock belongs to another atom: fuse the
- * lock-holder's atom with the capturer's atom.
- *
- * - If the thread (transcrash) that holds the lock does NOT belong to another atom:
- * assign that thread to the capturer's atom.
- *
- * In our previous discussion on this matter, we included the following step "wake the
- * thread", but now I believe that is not necessary.  In the example above, taking these
- * steps will prevent the BLOCKED_IN_CAPTURE thread from ever blocking.
+   deadlock, its a bug.  The bug occurs when one thread waits on a lock held by another
+   thread waiting in capture_wait.  The thread waiting for capture is blocked because the
+   atom is expired, trying to commit, but it holds a lock.  This problem has the symptoms
+   of PRIORITY INVERSION because the lock-waiter should be unblocked so that it can
+   eventually release the lock needed to commit the atom.
+  
+   Currently the transaction manager code is properly signalled by the lock manager when a
+   thread is waiting for capture but the lock manager determines that it must yield one of
+   its locks.  The problem is that the transaction manager does not wake threads that are
+   blocked in capture_wait when they hold a lock needed to commit the atom.
+  
+   The problem seems impossible--it seems to be already solved.  As described in comments
+   at the top of lock.c, we try to capture a block before we try to lock it.  First we
+   take the znode spinlock, then we try to capture.  When capture succeeds it returns with
+   the spinlock still held.  This is important because if the lock is available (i.e., it
+   is unlocked or read-locked) the lock must be granted before any other thread "skips
+   ahead" and takes the lock first.  This is done because sometimes a capture request can
+   return without actually requiring capture.  For example, a read-request with a
+   WRITE_FUSING transcrash does nothing, or a read-request with READ_FUSING and a clean
+   node does nothing.  But in order for this to work, the read-request must be granted
+   before any writers can lock the node.  For this reason, we capture before we lock.
+  
+   At first glance, capture-before-lock would seem to address the problem, but it does not
+   always.  The explanation is not difficult, but it requires carefully labeling the
+   objects involved.
+  
+   - There are two threads, BLOCKED_IN_LOCK and BLOCKED_IN_CAPTURE, and there are two
+   nodes, CLEAN_NODE and DIRTY_NODE.
+  
+   - BLOCKED_IN_LOCK and DIRTY_NODE belong to an atom that is trying to commit.
+   BLOCKED_IN_LOCK has already made modifications.
+  
+   - BLOCKED_IN_CAPTURE and CLEAN_NODE have no atom.  BLOCKED_IN_CAPTURE is likely a
+   coord_by_key tree traversal and it has made no modifications.
+  
+   The chain of events goes like this:
+  
+                   BLOCKED_IN_CAPTURE                  BLOCKED_IN_LOCK
+  
+   1.           read-captures CLEAN_NODE
+                  (no capture needed)
+  
+   2.            read-locks CLEAN_NODE
+                      (succeeds)
+  
+   3.                                              write-captures CLEAN_NODE
+                                                    (capture succeeds, now
+                                                     CLEAN_NODE is part of
+                                                     the atom)
+  
+   4.                                               write-locks CLEAN_NODE
+                                                     (!-- blocked waiting for
+                                                      the CLEAN_NODE lock --!)
+  
+   5.          write-captures DIRTY_NODE
+                 (!-- blocked waiting for
+                  atom to commit --!)
+  
+   There we have both processes blocked and capture-before-lock did not help.  The reason
+   capture-before-lock did not help is that neither BLOCKED_IN_CAPTURE nor CLEAN_NODE have
+   an atom, thus the capture step in #3 causes no fusion.  The above order of events is
+   fine the way it is, except in step #3.  At the moment we capture CLEAN_NODE (#3), the
+   BLOCKED_IN_CAPTURE thread (which is not actually blocked until #5) should be "taken in"
+   to the atom because it is trying to commit.  Then BLOCKED_IN_CAPTURE will never
+   actually be blocked in capture when it reaches #5, it will get the lock it wants and
+   eventually release CLEAN_NODE so that BLOCKED_IN_LOCK can get it.  In general, the
+   following steps will solve this problem:
+  
+   - When an atom that is trying to commit will succeed at capturing a block, the to-be
+   captured block's list of lock owners should be inspected.
+  
+   - If the thread (transcrash) that holds the lock belongs to another atom: fuse the
+   lock-holder's atom with the capturer's atom.
+  
+   - If the thread (transcrash) that holds the lock does NOT belong to another atom:
+   assign that thread to the capturer's atom.
+  
+   In our previous discussion on this matter, we included the following step "wake the
+   thread", but now I believe that is not necessary.  In the example above, taking these
+   steps will prevent the BLOCKED_IN_CAPTURE thread from ever blocking.
  */
 
 #include "debug.h"
@@ -230,9 +229,7 @@ static void uncapture_block(txn_atom * atom, jnode * node);
 
 static void invalidate_clean_list(txn_atom * atom);
 
-/****************************************************************************************
-				    GENERIC STRUCTURES
-****************************************************************************************/
+/* GENERIC STRUCTURES */
 
 typedef struct _txn_wait_links txn_wait_links;
 
@@ -249,15 +246,13 @@ TS_LIST_DEFINE(fwaitfor, txn_wait_links, _fwaitfor_link);
 TS_LIST_DEFINE(fwaiting, txn_wait_links, _fwaiting_link);
 
 /* FIXME: In theory, we should be using the slab cache init & destructor
- * methods instead of, e.g., jnode_init, etc. */
+   methods instead of, e.g., jnode_init, etc. */
 static kmem_cache_t *_atom_slab = NULL;
 static kmem_cache_t *_txnh_slab = NULL;	/* FIXME_LATER_JMACD Will it be used? */
 
 ON_DEBUG(extern atomic_t flush_cnt;)
 
-/*****************************************************************************************
-				       TXN_INIT
-*****************************************************************************************/
+/* TXN_INIT */
 ktxnmgrd_context kdaemon;
 
 /* Initialize static variables in this file. */
@@ -422,7 +417,7 @@ atom_isclean(txn_atom * atom)
 #endif
 
 /* FIXME_LATER_JMACD Not sure how this is used yet.  The idea is to reserve a number of
- * blocks for use by the current transaction handle. */
+   blocks for use by the current transaction handle. */
 /* Audited by: umka (2002.06.13) */
 int
 txn_reserve(int reserved UNUSED_ARG)
@@ -431,8 +426,8 @@ txn_reserve(int reserved UNUSED_ARG)
 }
 
 /* Begin a transaction in this context.  Currently this uses the reiser4_context's
- * trans_in_ctx, which means that transaction handles are stack-allocated.  Eventually
- * this will be extended to allow transaction handles to span several contexts. */
+   trans_in_ctx, which means that transaction handles are stack-allocated.  Eventually
+   this will be extended to allow transaction handles to span several contexts. */
 /* Audited by: umka (2002.06.13) */
 void
 txn_begin(reiser4_context * context)
@@ -479,13 +474,11 @@ txn_end(reiser4_context * context)
 	return ret;
 }
 
-/*****************************************************************************************
-				      TXN_ATOM
-*****************************************************************************************/
+/* TXN_ATOM */
 
 /* Get the atom belonging to a txnh, which is not locked.  Return txnh locked. Locks atom, if atom
- * is not NULL.  This performs the necessary spin_trylock to break the lock-ordering cycle.  May
- * return NULL. */
+   is not NULL.  This performs the necessary spin_trylock to break the lock-ordering cycle.  May
+   return NULL. */
 txn_atom *
 atom_get_locked_with_txnh_locked_nocheck(txn_handle * txnh)
 {
@@ -532,9 +525,9 @@ get_current_atom_locked_nocheck(void)
 }
 
 /* Get the atom belonging to a jnode, which is initially locked.  Return with
- * both jnode and atom locked.  This performs the necessary spin_trylock to
- * break the lock-ordering cycle.  Assumes the jnode is already locked, and
- * returns NULL if atom is not set. */
+   both jnode and atom locked.  This performs the necessary spin_trylock to
+   break the lock-ordering cycle.  Assumes the jnode is already locked, and
+   returns NULL if atom is not set. */
 txn_atom *
 atom_get_locked_by_jnode(jnode * node)
 {
@@ -565,8 +558,8 @@ try_again:
 }
 
 /* Returns true if @node is dirty and part of the same atom as one of its neighbors.  Used
- * by flush code to indicate whether the next node (in some direction) is suitable for
- * flushing. */
+   by flush code to indicate whether the next node (in some direction) is suitable for
+   flushing. */
 int
 same_atom_dirty(jnode * node, jnode * check, int alloc_check, int alloc_value)
 {
@@ -651,8 +644,8 @@ atom_dec_and_unlock(txn_atom * atom)
 }
 
 /* Return an new atom, locked.  This adds the atom to the transaction manager's list and
- * sets its reference count to 1, an artificial reference which is kept until it
- * commits.  We play strange games to avoid allocation under jnode & txnh spinlocks. */
+   sets its reference count to 1, an artificial reference which is kept until it
+   commits.  We play strange games to avoid allocation under jnode & txnh spinlocks. */
 static txn_atom *
 atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 {
@@ -727,8 +720,8 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 }
 
 /* Return the number of pointers to this atom that must be updated during fusion.  This
- * approximates the amount of work to be done.  Fusion chooses the atom with fewer
- * pointers to fuse into the atom with more pointers. */
+   approximates the amount of work to be done.  Fusion chooses the atom with fewer
+   pointers to fuse into the atom with more pointers. */
 /* Audited by: umka (2002.06.13), umka (2002.16.15) */
 static int
 atom_pointer_count(const txn_atom * atom)
@@ -742,7 +735,7 @@ atom_pointer_count(const txn_atom * atom)
 }
 
 /* Called holding the atom lock, this removes the atom from the transaction manager list
- * and frees it. */
+   and frees it. */
 static void
 atom_free(txn_atom * atom)
 {
@@ -780,9 +773,8 @@ atom_is_dotard(const txn_atom * atom)
 }
 
 /* Return true if an atom should commit now.  This will be determined by aging.  For now
- * this says to commit after the atom has 20 captured nodes.  The routine is only called
- * when the txnh_count drops to 0.
- */
+   this says to commit after the atom has 20 captured nodes.  The routine is only called
+   when the txnh_count drops to 0. */
 static int
 atom_should_commit(const txn_atom * atom)
 {
@@ -793,7 +785,7 @@ atom_should_commit(const txn_atom * atom)
 
 #if 0
 /* FIXME: JMACD->ZAM: This should be removed after a transaction can wait on all its
- * active io_handles here. */
+   active io_handles here. */
 static void
 txn_wait_on_io(txn_atom * atom)
 {
@@ -810,7 +802,7 @@ txn_wait_on_io(txn_atom * atom)
 #endif
 
 /* Get first dirty node from the atom's dirty_nodes[n] lists; return NULL if atom has no dirty
- * nodes on atom's lists */
+   nodes on atom's lists */
 static jnode *
 find_first_dirty(txn_atom * atom)
 {
@@ -834,16 +826,16 @@ find_first_dirty(txn_atom * atom)
 }
 
 /* Called with the atom locked and no open txnhs, this function determines
- * whether the atom can commit and if so, initiates commit processing.
- * However, the atom may not be able to commit due to un-allocated nodes.  As
- * it finds such nodes, it calls the appropriate allocate/balancing routines.
- *
- * Called by the single remaining open txnh, which is closing.  Therefore as
- * long as we hold the atom lock none of the jnodes can be captured and/or
- * locked.
- * 
- * Return value is an error code if commit fails, or non-negative number of
- * blocks written.
+   whether the atom can commit and if so, initiates commit processing.
+   However, the atom may not be able to commit due to un-allocated nodes.  As
+   it finds such nodes, it calls the appropriate allocate/balancing routines.
+  
+   Called by the single remaining open txnh, which is closing.  Therefore as
+   long as we hold the atom lock none of the jnodes can be captured and/or
+   locked.
+   
+   Return value is an error code if commit fails, or non-negative number of
+   blocks written.
  */
 static long
 atom_try_commit_locked(txn_atom * atom)
@@ -956,13 +948,11 @@ atom_try_commit_locked(txn_atom * atom)
 	return ret;
 }
 
-/*****************************************************************************************
-				      TXN_TXNH
-*****************************************************************************************/
+/* TXN_TXNH */
 
 /* Called to force commit of any outstanding atoms.  Later this should be improved to: (1)
- * wait for atoms with open txnhs to commit and (2) not wait indefinitely if new atoms are
- * created. */
+   wait for atoms with open txnhs to commit and (2) not wait indefinitely if new atoms are
+   created. */
 int
 txnmgr_force_commit_all(struct super_block *super)
 {
@@ -1037,9 +1027,7 @@ again:
 	return 0;
 }
 
-/**
- * called periodically from ktxnmgrd to commit old atoms.
- */
+/* called periodically from ktxnmgrd to commit old atoms. */
 int
 commit_one_atom(txn_mgr * mgr)
 {
@@ -1227,7 +1215,7 @@ found:
 }
 
 /* calls jnode_flush for current atom if it exists; if not, just take another atom and call
- * jnode_flush() for him  
+   jnode_flush() for him  
 
 Is using the current atom the right thing when called from balance_dirty_pages()?  Why? What is the advantage of the current atom over, say, the oldest atom.  */
 int
@@ -1303,10 +1291,8 @@ atom_send_event(txn_atom * atom)
 	wakeup_atom_waitfor_list(atom);
 }
 
-/*
- * Disable commits during memory pressure.  A call to sync() does not set PF_MEMALLOC.
- * Kswapd sets the PF_MEMALLOC flag on itself before calling our vm_writeback.
- */
+/* Disable commits during memory pressure.  A call to sync() does not set PF_MEMALLOC.
+   Kswapd sets the PF_MEMALLOC flag on itself before calling our vm_writeback. */
 static inline int
 should_delegate_commit(void)
 {
@@ -1314,7 +1300,7 @@ should_delegate_commit(void)
 }
 
 /* Informs txn manager code that owner of this txn_handle should wait atom commit completion (for
- * example, because it does fsync(2)) */
+   example, because it does fsync(2)) */
 static int
 should_wait_commit(txn_handle * h)
 {
@@ -1322,8 +1308,8 @@ should_wait_commit(txn_handle * h)
 }
 
 /* Called to commit a transaction handle.  This decrements the atom's number of open
- * handles and if it is the last handle to commit and the atom should commit, initiates
- * atom commit. if commit does not fail, return number of written blocks */
+   handles and if it is the last handle to commit and the atom should commit, initiates
+   atom commit. if commit does not fail, return number of written blocks */
 static long
 commit_txnh(txn_handle * txnh)
 {
@@ -1436,49 +1422,47 @@ done:
 	return nr_written;
 }
 
-/*****************************************************************************************
-				   TRY_CAPTURE
-*****************************************************************************************/
+/* TRY_CAPTURE */
 
 /* This routine attempts a single block-capture request.  It may return -EAGAIN if some
- * condition indicates that the request should be retried, and it may block if the
- * txn_capture mode does not include the TXN_CAPTURE_NONBLOCKING request flag.
- *
- * The try_capture() function (below) is the external interface, which calls this
- * function repeatedly as long as -EAGAIN is returned.
- *
- * This routine encodes the basic logic of block capturing described by:
- *
- *   http://namesys.com/txn-doc.html
- *
- * Our goal here is to ensure that any two blocks that contain dependent modifications
- * should commit at the same time.  This function enforces this discipline by initiating
- * fusion whenever a transaction handle belonging to one atom requests to read or write a
- * block belonging to another atom (TXN_CAPTURE_WRITE or TXN_CAPTURE_READ_ATOMIC).
- *
- * In addition, this routine handles the initial assignment of atoms to blocks and
- * transaction handles.  These are possible outcomes of this function:
- *
- * 1. The block and handle are already part of the same atom: return immediate success
- *
- * 2. The block is assigned but the handle is not: call capture_assign_txnh to assign
- *    the handle to the block's atom.
- *
- * 3. The handle is assigned but the block is not: call capture_assign_block to assign
- *    the block to the handle's atom.
- *
- * 4. Both handle and block are assigned, but to different atoms: call capture_init_fusion
- *    to fuse atoms.
- *
- * 5. Neither block nor handle are assigned: create a new atom and assign them both.
- *
- * 6. A read request for a non-captured block: return immediate success.
- *
- * This function acquires and releases the handle's spinlock.  This function is called
- * under the jnode lock and if the return value is 0, it returns with the jnode lock still
- * held.  If the return is -EAGAIN or some other error condition, the jnode lock is
- * released.  The external interface (try_capture) manages re-aquiring the jnode lock
- * in the failure case.
+   condition indicates that the request should be retried, and it may block if the
+   txn_capture mode does not include the TXN_CAPTURE_NONBLOCKING request flag.
+  
+   The try_capture() function (below) is the external interface, which calls this
+   function repeatedly as long as -EAGAIN is returned.
+  
+   This routine encodes the basic logic of block capturing described by:
+  
+     http://namesys.com/txn-doc.html
+  
+   Our goal here is to ensure that any two blocks that contain dependent modifications
+   should commit at the same time.  This function enforces this discipline by initiating
+   fusion whenever a transaction handle belonging to one atom requests to read or write a
+   block belonging to another atom (TXN_CAPTURE_WRITE or TXN_CAPTURE_READ_ATOMIC).
+  
+   In addition, this routine handles the initial assignment of atoms to blocks and
+   transaction handles.  These are possible outcomes of this function:
+  
+   1. The block and handle are already part of the same atom: return immediate success
+  
+   2. The block is assigned but the handle is not: call capture_assign_txnh to assign
+      the handle to the block's atom.
+  
+   3. The handle is assigned but the block is not: call capture_assign_block to assign
+      the block to the handle's atom.
+  
+   4. Both handle and block are assigned, but to different atoms: call capture_init_fusion
+      to fuse atoms.
+  
+   5. Neither block nor handle are assigned: create a new atom and assign them both.
+  
+   6. A read request for a non-captured block: return immediate success.
+  
+   This function acquires and releases the handle's spinlock.  This function is called
+   under the jnode lock and if the return value is 0, it returns with the jnode lock still
+   held.  If the return is -EAGAIN or some other error condition, the jnode lock is
+   released.  The external interface (try_capture) manages re-aquiring the jnode lock
+   in the failure case.
  */
 static int
 try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom ** atom_alloc)
@@ -1639,10 +1623,10 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 }
 
 /* This function sets up a call to try_capture_block and repeats as long as -EAGAIN is
- * returned by that routine.  The txn_capture request mode is computed here depending on
- * the transaction handle's type and the lock request.  This is called from the depths of
- * the lock manager with the jnode lock held and it always returns with the jnode lock
- * held.
+   returned by that routine.  The txn_capture request mode is computed here depending on
+   the transaction handle's type and the lock request.  This is called from the depths of
+   the lock manager with the jnode lock held and it always returns with the jnode lock
+   held.
  */
 int
 try_capture(jnode * node, znode_lock_mode lock_mode, txn_capture flags
@@ -1841,7 +1825,7 @@ fail:
 }
 
 /* This is the interface to capture unformatted nodes via their struct page
- * reference. */
+   reference. */
 int
 try_capture_page(struct page *pg, znode_lock_mode lock_mode, int non_blocking)
 {
@@ -1869,9 +1853,8 @@ try_capture_page(struct page *pg, znode_lock_mode lock_mode, int non_blocking)
 }
 
 /* This interface is used by flush routines when they need to prevent an atom from
- * committing while they perform early flushing.  The node is already captured but the
- * txnh is not.
- */
+   committing while they perform early flushing.  The node is already captured but the
+   txnh is not. */
 int
 attach_txnh_to_node(txn_handle * txnh, jnode * node, txn_flags flags)
 {
@@ -1905,12 +1888,12 @@ fail_unlock:
 }
 
 /* This informs the transaction manager when a node is deleted.  Add the block to the
- * atom's delete set and uncapture the block.  Handles the EAGAIN result from
- * blocknr_set_add_block, which is returned by blocknr_set_add when it releases the atom
- * lock to perform an allocation.  The atom could fuse while this lock is held, which is
- * why the EAGAIN must be handled by repeating the call to atom_get_locked_by_jnode.  The
- * second call is guaranteed to provide a pre-allocated blocknr_entry so it can only
- * "repeat" once.  */
+   atom's delete set and uncapture the block.  Handles the EAGAIN result from
+   blocknr_set_add_block, which is returned by blocknr_set_add when it releases the atom
+   lock to perform an allocation.  The atom could fuse while this lock is held, which is
+   why the EAGAIN must be handled by repeating the call to atom_get_locked_by_jnode.  The
+   second call is guaranteed to provide a pre-allocated blocknr_entry so it can only
+   "repeat" once.  */
 void
 uncapture_page(struct page *pg)
 {
@@ -1989,7 +1972,7 @@ repeat:
 }
 
 /* No-locking version of assign_txnh.  Sets the transaction handle's atom pointer,
- * increases atom refcount, adds to txnh_list. */
+   increases atom refcount, adds to txnh_list. */
 static void
 capture_assign_txnh_nolock(txn_atom * atom, txn_handle * txnh)
 {
@@ -2015,7 +1998,7 @@ capture_assign_txnh_nolock(txn_atom * atom, txn_handle * txnh)
 }
 
 /* No-locking version of assign_block.  Sets the block's atom pointer, references the
- * block, adds it to the clean or dirty capture_jnode list, increments capture_count. */
+   block, adds it to the clean or dirty capture_jnode list, increments capture_count. */
 static void
 capture_assign_block_nolock(txn_atom * atom, jnode * node)
 {
@@ -2047,8 +2030,7 @@ capture_assign_block_nolock(txn_atom * atom, jnode * node)
 }
 
 /* Set the dirty status for this jnode.  If the jnode is not already dirty, this involves locking the atom (for its
- * capture lists), removing from the clean list and pushing in to the dirty list of the appropriate level.
- */
+   capture lists), removing from the clean list and pushing in to the dirty list of the appropriate level. */
 void
 jnode_set_dirty(jnode * node)
 {
@@ -2165,8 +2147,7 @@ jnode_set_clean_nolock(jnode * node)
 }
 
 /* Unset the dirty status for this jnode.  If the jnode is dirty, this involves locking the atom (for its capture
- * lists), removing from the dirty_nodes list and pushing in to the clean list.
- */
+   lists), removing from the dirty_nodes list and pushing in to the clean list. */
 void
 jnode_set_clean(jnode * node)
 {
@@ -2188,8 +2169,8 @@ jnode_set_clean(jnode * node)
 }
 
 /* This function assigns a block to an atom, but first it must obtain the atom lock.  If
- * the atom lock is busy, it returns -EAGAIN to avoid deadlock with a fusing atom.  Since
- * the transaction handle is currently open, we know the atom must also be open. */
+   the atom lock is busy, it returns -EAGAIN to avoid deadlock with a fusing atom.  Since
+   the transaction handle is currently open, we know the atom must also be open. */
 static int
 capture_assign_block(txn_handle * txnh, jnode * node)
 {
@@ -2228,12 +2209,12 @@ capture_assign_block(txn_handle * txnh, jnode * node)
 }
 
 /* This function assigns a handle to an atom, but first it must obtain the atom lock.  If
- * the atom is busy, it returns -EAGAIN to avoid deadlock with a fusing atom.  Unlike
- * capture_assign_block, the atom may be closed but we cannot know this until the atom is
- * locked.  If the atom is closed and the request is to read, it is as if the block is
- * unmodified and the request is satisified without actually assigning the transaction
- * handle.  If the atom is closed and the handle requests to write the block, then
- * initiate copy-on-capture.
+   the atom is busy, it returns -EAGAIN to avoid deadlock with a fusing atom.  Unlike
+   capture_assign_block, the atom may be closed but we cannot know this until the atom is
+   locked.  If the atom is closed and the request is to read, it is as if the block is
+   unmodified and the request is satisified without actually assigning the transaction
+   handle.  If the atom is closed and the handle requests to write the block, then
+   initiate copy-on-capture.
  */
 static int
 capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode)
@@ -2371,21 +2352,21 @@ wakeup_atom_waiting_list(txn_atom * atom)
 }
 
 /* The general purpose of this function is to wait on the first of two possible events.
- * The situation is that a handle (and its atom atomh) is blocked trying to capture a
- * block (i.e., node) but the node's atom (atomf) is in the CAPTURE_WAIT state.  The
- * handle's atom (atomh) is not in the CAPTURE_WAIT state.  However, atomh could fuse with
- * another atom or, due to age, enter the CAPTURE_WAIT state itself, at which point it
- * needs to unblock the handle to avoid deadlock.  When the txnh is unblocked it will
- * proceed and fuse the two atoms in the CAPTURE_WAIT state.
- *
- * In other words, if either atomh or atomf change state, the handle will be awakened,
- * thus there are two lists per atom: WAITING and WAITFOR.
- * 
- * This is also called by capture_assign_txnh with (atomh == NULL) to wait for atomf to
- * close but it is not assigned to an atom of its own.
- *
- * Lock ordering in this method: all four locks are held: JNODE_LOCK, TXNH_LOCK,
- * BOTH_ATOM_LOCKS.  Result: all four locks are released.
+   The situation is that a handle (and its atom atomh) is blocked trying to capture a
+   block (i.e., node) but the node's atom (atomf) is in the CAPTURE_WAIT state.  The
+   handle's atom (atomh) is not in the CAPTURE_WAIT state.  However, atomh could fuse with
+   another atom or, due to age, enter the CAPTURE_WAIT state itself, at which point it
+   needs to unblock the handle to avoid deadlock.  When the txnh is unblocked it will
+   proceed and fuse the two atoms in the CAPTURE_WAIT state.
+  
+   In other words, if either atomh or atomf change state, the handle will be awakened,
+   thus there are two lists per atom: WAITING and WAITFOR.
+   
+   This is also called by capture_assign_txnh with (atomh == NULL) to wait for atomf to
+   close but it is not assigned to an atom of its own.
+  
+   Lock ordering in this method: all four locks are held: JNODE_LOCK, TXNH_LOCK,
+   BOTH_ATOM_LOCKS.  Result: all four locks are released.
  */
 static int
 capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh, txn_capture mode)
@@ -2466,11 +2447,11 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 }
 
 /* Perform the necessary work to prepare for fusing two atoms, which involves acquiring two
- * atom locks in the proper order.  If one of the node's atom is blocking fusion (i.e., it
- * is in the CAPTURE_WAIT stage) and the handle's atom is not then the handle's request is
- * put to sleep.  If the node's atom is committing, then the node can be copy-on-captured.
- * Otherwise, pick the atom with fewer pointers to be fused into the atom with more
- * pointer and call capture_fuse_into.
+   atom locks in the proper order.  If one of the node's atom is blocking fusion (i.e., it
+   is in the CAPTURE_WAIT stage) and the handle's atom is not then the handle's request is
+   put to sleep.  If the node's atom is committing, then the node can be copy-on-captured.
+   Otherwise, pick the atom with fewer pointers to be fused into the atom with more
+   pointer and call capture_fuse_into.
  */
 /* Audited by: umka (2002.06.13) */
 static int
@@ -2550,7 +2531,7 @@ noatomf_out:
 }
 
 /* This function splices together two jnode lists (small and large) and sets all jnodes in
- * the small list to point to the large atom.  Returns the length of the list. */
+   the small list to point to the large atom.  Returns the length of the list. */
 static int
 capture_fuse_jnode_lists(txn_atom * large, capture_list_head * large_head, capture_list_head * small_head)
 {
@@ -2578,7 +2559,7 @@ capture_fuse_jnode_lists(txn_atom * large, capture_list_head * large_head, captu
 }
 
 /* This function splices together two txnh lists (small and large) and sets all txn handles in
- * the small list to point to the large atom.  Returns the length of the list. */
+   the small list to point to the large atom.  Returns the length of the list. */
 /* Audited by: umka (2002.06.13) */
 static int
 capture_fuse_txnh_lists(txn_atom * large, txnh_list_head * large_head, txnh_list_head * small_head)
@@ -2608,9 +2589,9 @@ capture_fuse_txnh_lists(txn_atom * large, txnh_list_head * large_head, txnh_list
 }
 
 /* This function fuses two atoms.  The captured nodes and handles belonging to SMALL are
- * added to LARGE and their ->atom pointers are all updated.  The associated counts are
- * updated as well, and any waiting handles belonging to either are awakened.  Finally the
- * smaller atom's refcount is decremented.
+   added to LARGE and their ->atom pointers are all updated.  The associated counts are
+   updated as well, and any waiting handles belonging to either are awakened.  Finally the
+   smaller atom's refcount is decremented.
  */
 static void
 capture_fuse_into(txn_atom * small, txn_atom * large)
@@ -2701,12 +2682,9 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 	atom_dec_and_unlock(small);
 }
 
-/*****************************************************************************************
-				   TXNMGR STUFF
-*****************************************************************************************/
+/* TXNMGR STUFF */
 
-/* Perform copy-on-capture of a block.  INCOMPLETE CODE.
- */
+/* Perform copy-on-capture of a block.  INCOMPLETE CODE. */
 static int
 capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh, txn_capture mode)
 {
@@ -2735,7 +2713,7 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
 }
 
 /* Release a block from the atom, reversing the effects of being captured.
- * Currently this is only called when the atom commits. */
+   Currently this is only called when the atom commits. */
 static void
 uncapture_block(txn_atom * atom, jnode * node)
 {
@@ -2771,10 +2749,9 @@ uncapture_block(txn_atom * atom, jnode * node)
 	ON_DEBUG_CONTEXT(--lock_counters()->t_refs);
 }
 
-/** 
- * Unconditional insert of jnode into atom's clean list. Currently used in
- * bitmap-based allocator code for adding modified bitmap blocks the
- * transaction. @atom and @node are spin locked */
+/* Unconditional insert of jnode into atom's clean list. Currently used in
+   bitmap-based allocator code for adding modified bitmap blocks the
+   transaction. @atom and @node are spin locked */
 void
 insert_into_atom_clean_list(txn_atom * atom, jnode * node)
 {
@@ -2789,9 +2766,7 @@ insert_into_atom_clean_list(txn_atom * atom, jnode * node)
 	atom->capture_count++;
 }
 
-/**
- * return 1 if two dirty jnodes belong to one atom, 0 - otherwise
- */
+/* return 1 if two dirty jnodes belong to one atom, 0 - otherwise */
 int
 jnodes_of_one_atom(jnode * j1, jnode * j2)
 {
@@ -2818,9 +2793,7 @@ jnodes_of_one_atom(jnode * j1, jnode * j2)
 	return ret;
 }
 
-/*****************************************************************************************
-					DEBUG HELP
-*****************************************************************************************/
+/* DEBUG HELP */
 
 #if REISER4_DEBUG_OUTPUT
 void
@@ -2871,13 +2844,12 @@ print_atom(const char *prefix, txn_atom * atom)
 }
 #endif
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 98
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 98
+   End:
  */

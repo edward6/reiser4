@@ -1,16 +1,13 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * In reiser4 we use 64 bit object ids. One can easily check that
- * given exponential growth in hardware speed and disk capacity,
- * amount of time required to exhaust 64 bit oid space is enough to
- * relax, and forget about oid reuse.
- *
- * reiser 4.0 oid allocator is then simple counter incremented on each
- * oid allocation. Also counter of used oids is maintained, mainly for
- * statfs(2) sake.
+/* In reiser4 we use 64 bit object ids. One can easily check that
+   given exponential growth in hardware speed and disk capacity,
+   amount of time required to exhaust 64 bit oid space is enough to
+   relax, and forget about oid reuse.
+  
+   reiser 4.0 oid allocator is then simple counter incremented on each
+   oid allocation. Also counter of used oids is maintained, mainly for
+   statfs(2) sake.
  */
 #ifndef __REISER4_OID40_H__
 #define __REISER4_OID40_H__

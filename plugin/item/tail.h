@@ -1,10 +1,6 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * plugin->u.item.common.*
- */
+/* plugin->u.item.common.* */
 
 #if !defined( __REISER4_TAIL_H__ )
 #define __REISER4_TAIL_H__
@@ -30,9 +26,7 @@ reiser4_key *tail_unit_key(const coord_t * coord, reiser4_key * key);
 reiser4_key *tail_max_key(const coord_t * coord, reiser4_key * key);
 int tail_key_in_item(coord_t * coord, const reiser4_key * key);
 
-/*
- * plugin->u.item.s.*
- */
+/* plugin->u.item.s.* */
 int tail_write(struct inode *, coord_t *, lock_handle *, flow_t *);
 int tail_read(struct inode *, coord_t *, flow_t *);
 

@@ -1,6 +1,4 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "../../forward.h"
 #include "../../debug.h"
@@ -15,9 +13,7 @@
 #include <linux/quotaops.h>
 #include <asm/uaccess.h>
 
-/*
- * plugin->u.item.b.max_key_inside
- */
+/* plugin->u.item.b.max_key_inside */
 /* Audited by: green(2002.06.14) */
 reiser4_key *
 tail_max_key_inside(const coord_t * coord, reiser4_key * key)
@@ -27,9 +23,7 @@ tail_max_key_inside(const coord_t * coord, reiser4_key * key)
 	return key;
 }
 
-/*
- * plugin->u.item.b.can_contain_key
- */
+/* plugin->u.item.b.can_contain_key */
 int
 tail_can_contain_key(const coord_t * coord, const reiser4_key * key, const reiser4_item_data * data)
 {
@@ -64,10 +58,8 @@ tail_can_contain_key(const coord_t * coord, const reiser4_key * key, const reise
 	}
 }
 
-/*
- * plugin->u.item.b.mergeable
- * first item is of tail type
- */
+/* plugin->u.item.b.mergeable
+   first item is of tail type */
 /* Audited by: green(2002.06.14) */
 int
 tail_mergeable(const coord_t * p1, const coord_t * p2)
@@ -102,23 +94,17 @@ tail_mergeable(const coord_t * p1, const coord_t * p2)
 	return 1;
 }
 
-/*
- * plugin->u.item.b.print
- * plugin->u.item.b.check
- */
+/* plugin->u.item.b.print
+   plugin->u.item.b.check */
 
-/*
- * plugin->u.item.b.nr_units
- */
+/* plugin->u.item.b.nr_units */
 unsigned
 tail_nr_units(const coord_t * coord)
 {
 	return item_length_by_coord(coord);
 }
 
-/*
- * plugin->u.item.b.lookup
- */
+/* plugin->u.item.b.lookup */
 lookup_result tail_lookup(const reiser4_key * key, lookup_bias bias, coord_t * coord)
 {
 	reiser4_key item_key;
@@ -165,9 +151,7 @@ lookup_result tail_lookup(const reiser4_key * key, lookup_bias bias, coord_t * c
 	return bias == FIND_MAX_NOT_MORE_THAN ? CBK_COORD_FOUND : CBK_COORD_NOTFOUND;
 }
 
-/*
- * plugin->u.item.b.paste
- */
+/* plugin->u.item.b.paste */
 int
 tail_paste(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info UNUSED_ARG)
 {
@@ -215,14 +199,11 @@ tail_paste(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info U
 	return 0;
 }
 
-/*
- * plugin->u.item.b.fast_paste
- */
+/* plugin->u.item.b.fast_paste */
 
-/*
- * plugin->u.item.b.can_shift
- * number of units is returned via return value, number of bytes via @size. For
- * tail items they coincide
+/* plugin->u.item.b.can_shift
+   number of units is returned via return value, number of bytes via @size. For
+   tail items they coincide
  */
 int
 tail_can_shift(unsigned free_space, coord_t * source UNUSED_ARG,
@@ -237,9 +218,7 @@ tail_can_shift(unsigned free_space, coord_t * source UNUSED_ARG,
 	return *size;
 }
 
-/*
- * plugin->u.item.b.copy_units
- */
+/* plugin->u.item.b.copy_units */
 void
 tail_copy_units(coord_t * target, coord_t * source,
 		unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space UNUSED_ARG)
@@ -278,16 +257,13 @@ tail_copy_units(coord_t * target, coord_t * source,
 	}
 }
 
-/*
- * plugin->u.item.b.create_hook
- * plugin->u.item.b.kill_hook
- * plugin->u.item.b.shift_hook
+/* plugin->u.item.b.create_hook
+   plugin->u.item.b.kill_hook
+   plugin->u.item.b.shift_hook
  */
 
-/*
- * plugin->u.item.b.cut_units
- * plugin->u.item.b.kill_units
- */
+/* plugin->u.item.b.cut_units
+   plugin->u.item.b.kill_units */
 int
 tail_cut_units(coord_t * coord, unsigned *from, unsigned *to,
 	       const reiser4_key * from_key UNUSED_ARG,
@@ -328,9 +304,7 @@ tail_cut_units(coord_t * coord, unsigned *from, unsigned *to,
 	return count;
 }
 
-/*
- * plugin->u.item.b.unit_key
- */
+/* plugin->u.item.b.unit_key */
 reiser4_key *
 tail_unit_key(const coord_t * coord, reiser4_key * key)
 {
@@ -342,10 +316,8 @@ tail_unit_key(const coord_t * coord, reiser4_key * key)
 	return key;
 }
 
-/*
- * plugin->u.item.b.estimate
- * plugin->u.item.b.item_data_by_flow
- */
+/* plugin->u.item.b.estimate
+   plugin->u.item.b.item_data_by_flow */
 
 /* item_plugin->common.real_max_key_inside */
 reiser4_key *
@@ -379,9 +351,7 @@ tail_key_in_item(coord_t * coord, const reiser4_key * key)
 	return 1;
 }
 
-/*
- * overwrite tail item or its part by use data
- */
+/* overwrite tail item or its part by use data */
 static int
 overwrite_tail(coord_t * coord, flow_t * f)
 {
@@ -411,10 +381,8 @@ overwrite_tail(coord_t * coord, flow_t * f)
 	return 0;
 }
 
-/*
- * plugin->u.item.s.file.write
- * access to data stored in tails goes directly through formatted nodes
- */
+/* plugin->u.item.s.file.write
+   access to data stored in tails goes directly through formatted nodes */
 int
 tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 {
@@ -471,9 +439,7 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 	return result;
 }
 
-/*
- * plugin->u.item.s.file.read
- */
+/* plugin->u.item.s.file.read */
 int
 tail_read(struct inode *inode UNUSED_ARG, coord_t *coord, flow_t * f)
 {
@@ -512,13 +478,12 @@ tail_read(struct inode *inode UNUSED_ARG, coord_t *coord, flow_t * f)
 	return 0;
 }
 
-/* 
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

@@ -1,4 +1,4 @@
-/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README. */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 /* implementation of carry operations */
 
@@ -29,12 +29,11 @@ static int carry_shift_data(sideof side, coord_t * insert_coord, znode * node,
 extern int lock_carry_node(carry_level * level, carry_node * node);
 extern int lock_carry_node_tail(carry_node * node);
 
-/**
- * find left neighbor of a carry node
- *
- * Look for left neighbor of @node and add it to the @doing queue. See
- * comments in the body.
- *
+/* find left neighbor of a carry node
+  
+   Look for left neighbor of @node and add it to the @doing queue. See
+   comments in the body.
+  
  */
 static carry_node *
 find_left_neighbor(carry_op * op	/* node to find left
@@ -121,12 +120,11 @@ find_left_neighbor(carry_op * op	/* node to find left
 	return left;
 }
 
-/**
- * find right neighbor of a carry node
- *
- * Look for right neighbor of @node and add it to the @doing queue. See
- * comments in the body.
- *
+/* find right neighbor of a carry node
+  
+   Look for right neighbor of @node and add it to the @doing queue. See
+   comments in the body.
+  
  */
 static carry_node *
 find_right_neighbor(carry_op * op	/* node to find right
@@ -199,11 +197,10 @@ find_right_neighbor(carry_op * op	/* node to find right
 	return right;
 }
 
-/**
- * how much free space in a @node is needed for @op
- *
- * How much space in @node is required for completion of @op, where @op is
- * insert or paste operation.
+/* how much free space in a @node is needed for @op
+  
+   How much space in @node is required for completion of @op, where @op is
+   insert or paste operation.
  */
 static unsigned int
 space_needed_for_op(znode * node	/* znode data are
@@ -224,10 +221,8 @@ space_needed_for_op(znode * node	/* znode data are
 	}
 }
 
-/**
- * how much space in @node is required to insert or paste @data at
- * @coord.
- */
+/* how much space in @node is required to insert or paste @data at
+   @coord. */
 unsigned int
 space_needed(const znode * node	/* node data are inserted or
 				 * pasted in */ ,
@@ -321,10 +316,8 @@ free_space_shortage(znode * node /* node to check */ ,
 	}
 }
 
-/**
- * helper function: update node pointer in operation after insertion
- * point was probably shifted into @target.
- */
+/* helper function: update node pointer in operation after insertion
+   point was probably shifted into @target. */
 static znode *
 sync_op(carry_op * op, carry_node * target)
 {
@@ -381,21 +374,20 @@ put_split_point(carry_op * op, int adj, __u32 flags)
 	op->u.insert.flags = flags;
 }
 
-/**
- * This is insertion policy function. It shifts data to the left and right
- * neighbors of insertion coord and allocates new nodes until there is enough
- * free space to complete @op.
- *
- * Follows logic of fs/reiser4/tree.c:insert_single_item()
- *
- * See comments in the body.
- *
- * GREEN-FIXME-HANS: why isn't this code audited?
- *
- * Assumes that the node format favors insertions at the right end of the node
- * as node40 does.
- *
- * See carry_flow() on detail about flow insertion
+/* This is insertion policy function. It shifts data to the left and right
+   neighbors of insertion coord and allocates new nodes until there is enough
+   free space to complete @op.
+  
+   Follows logic of fs/reiser4/tree.c:insert_single_item()
+  
+   See comments in the body.
+  
+   GREEN-FIXME-HANS: why isn't this code audited?
+  
+   Assumes that the node format favors insertions at the right end of the node
+   as node40 does.
+  
+   See carry_flow() on detail about flow insertion
  */
 static int
 make_space(carry_op * op /* carry operation, insert or paste */ ,
@@ -634,47 +626,46 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 	return result;
 }
 
-/**
- * insert_paste_common() - common part of insert and paste operations
- *
- * This function performs common part of COP_INSERT and COP_PASTE.
- *
- * There are two ways in which insertion/paste can be requested: 
- *
- *  . by directly supplying reiser4_item_data. In this case, op ->
- *  u.insert.type is set to COPT_ITEM_DATA.
- *
- *  . by supplying child pointer to which is to inserted into parent. In this
- *  case op -> u.insert.type == COPT_CHILD.
- *
- *  . by supplying key of new item/unit. This is currently only used during
- *  extent insertion
- *
- * This is required, because when new node is allocated we don't know at what
- * position pointer to it is to be stored in the parent. Actually, we don't
- * even know what its parent will be, because parent can be re-balanced
- * concurrently and new node re-parented, and because parent can be full and
- * pointer to the new node will go into some other node.
- *
- * insert_paste_common() resolves pointer to child node into position in the
- * parent by calling find_new_child_coord(), that fills
- * reiser4_item_data. After this, insertion/paste proceeds uniformly.
- *
- * Another complication is with finding free space during pasting. It may
- * happen that while shifting items to the neighbors and newly allocated
- * nodes, insertion coord can no longer be in the item we wanted to paste
- * into. At this point, paste becomes (morphs) into insert. Moreover free
- * space analysis has to be repeated, because amount of space required for
- * insertion is different from that of paste (item header overhead, etc).
- *
- * This function "unifies" different insertion modes (by resolving child
- * pointer or key into insertion coord), and then calls make_space() to free
- * enough space in the node by shifting data to the left and right and by
- * allocating new nodes if necessary. Carry operation knows amount of space
- * required for its completion. After enough free space is obtained, caller of
- * this function (carry_{insert,paste,etc.}) performs actual insertion/paste
- * by calling item plugin method.
- *
+/* insert_paste_common() - common part of insert and paste operations
+  
+   This function performs common part of COP_INSERT and COP_PASTE.
+  
+   There are two ways in which insertion/paste can be requested: 
+  
+    . by directly supplying reiser4_item_data. In this case, op ->
+    u.insert.type is set to COPT_ITEM_DATA.
+  
+    . by supplying child pointer to which is to inserted into parent. In this
+    case op -> u.insert.type == COPT_CHILD.
+  
+    . by supplying key of new item/unit. This is currently only used during
+    extent insertion
+  
+   This is required, because when new node is allocated we don't know at what
+   position pointer to it is to be stored in the parent. Actually, we don't
+   even know what its parent will be, because parent can be re-balanced
+   concurrently and new node re-parented, and because parent can be full and
+   pointer to the new node will go into some other node.
+  
+   insert_paste_common() resolves pointer to child node into position in the
+   parent by calling find_new_child_coord(), that fills
+   reiser4_item_data. After this, insertion/paste proceeds uniformly.
+  
+   Another complication is with finding free space during pasting. It may
+   happen that while shifting items to the neighbors and newly allocated
+   nodes, insertion coord can no longer be in the item we wanted to paste
+   into. At this point, paste becomes (morphs) into insert. Moreover free
+   space analysis has to be repeated, because amount of space required for
+   insertion is different from that of paste (item header overhead, etc).
+  
+   This function "unifies" different insertion modes (by resolving child
+   pointer or key into insertion coord), and then calls make_space() to free
+   enough space in the node by shifting data to the left and right and by
+   allocating new nodes if necessary. Carry operation knows amount of space
+   required for its completion. After enough free space is obtained, caller of
+   this function (carry_{insert,paste,etc.}) performs actual insertion/paste
+   by calling item plugin method.
+  
  */
 static int
 insert_paste_common(carry_op * op	/* carry operation being
@@ -785,17 +776,16 @@ insert_paste_common(carry_op * op	/* carry operation being
 	return make_space(op, doing, todo);
 }
 
-/**
- * handle carry COP_INSERT operation.
- *
- * Insert new item into node. New item can be given in one of two ways:
- *
- * - by passing &tree_coord and &reiser4_item_data as part of @op. This is
- * only applicable at the leaf/twig level.
- *
- * - by passing a child node pointer to which is to be inserted by this
- * operation.
- *
+/* handle carry COP_INSERT operation.
+  
+   Insert new item into node. New item can be given in one of two ways:
+  
+   - by passing &tree_coord and &reiser4_item_data as part of @op. This is
+   only applicable at the leaf/twig level.
+  
+   - by passing a child node pointer to which is to be inserted by this
+   operation.
+  
  */
 static int
 carry_insert(carry_op * op /* operation to perform */ ,
@@ -849,19 +839,19 @@ carry_insert(carry_op * op /* operation to perform */ ,
 #if 0
 
 /* make_space_for_flow_insertion is the below pseudocode detailed to state from
- * which it can be coded:
- * if(!enough_space())
- *      shift_insert_point_to_left;
- * if(!enough_space())
- *      shift_after_insert_point_to_right();
- * if(!enough_space()){
- *      insert_node_after_insert_point();
- * if(!insert_point_at_node_end()) {
- *	shift_after_insert_point_to_right();
- *	if ( optimizing_for_repeat_insertions_at_point)
- *            insert_node_after_insert_point();// avoids pushing detritus around when repeated insertions occur
- *
- * 
+   which it can be coded:
+   if(!enough_space())
+        shift_insert_point_to_left;
+   if(!enough_space())
+        shift_after_insert_point_to_right();
+   if(!enough_space()){
+        insert_node_after_insert_point();
+   if(!insert_point_at_node_end()) {
+  	shift_after_insert_point_to_right();
+  	if ( optimizing_for_repeat_insertions_at_point)
+              insert_node_after_insert_point();// avoids pushing detritus around when repeated insertions occur
+  
+   
  */
 
 make_space_for_flow_insertion()
@@ -909,11 +899,10 @@ make_space_for_flow_insertion()
 #define flow_insert_flow(op) ( ( op ) -> u.insert_flow.flow )
 #define flow_insert_data(op) ( ( op ) -> u.insert_flow.data )
 
-/*
- * FIXME-VS: this is called several times during one make_flow_for_insertion
- * and it will always return the same result. Some optimization could be made
- * by calculating this value once at the beginning and passing it around. That
- * would reduce some flexibility in future changes
+/* FIXME-VS: this is called several times during one make_flow_for_insertion
+   and it will always return the same result. Some optimization could be made
+   by calculating this value once at the beginning and passing it around. That
+   would reduce some flexibility in future changes
  */
 static int can_paste(coord_t *, const reiser4_key *, const reiser4_item_data *);
 static size_t
@@ -944,10 +933,8 @@ what_can_fit_into_node(carry_op * op)
 	return min(free, op->u.insert_flow.flow->length);
 }
 
-/*
- * in make_space_for_flow_insertion we need to check either whether whole flow
- * fits into a node or whether minimal fraction of flow fits into a node
- */
+/* in make_space_for_flow_insertion we need to check either whether whole flow
+   fits into a node or whether minimal fraction of flow fits into a node */
 static int
 enough_space_for_whole_flow(carry_op * op)
 {
@@ -964,8 +951,8 @@ enough_space_for_min_flow_fraction(carry_op * op)
 }
 
 /* this returns 0 if left neighbor was obtained successfully and everything
- * upto insertion point including it were shifted and left neighbor still has
- * some free space to put minimal fraction of flow into it */
+   upto insertion point including it were shifted and left neighbor still has
+   some free space to put minimal fraction of flow into it */
 static int
 make_space_by_shift_left(carry_op * op, carry_level * doing, carry_level * todo)
 {
@@ -1011,8 +998,8 @@ make_space_by_shift_left(carry_op * op, carry_level * doing, carry_level * todo)
 }
 
 /* this returns 0 if right neighbor was obtained successfully and everything to
- * the right of insertion point was shifted to it and node got enough free
- * space to put minimal fraction of flow into it */
+   the right of insertion point was shifted to it and node got enough free
+   space to put minimal fraction of flow into it */
 static int
 make_space_by_shift_right(carry_op * op, carry_level * doing, carry_level * todo)
 {
@@ -1049,7 +1036,7 @@ make_space_by_shift_right(carry_op * op, carry_level * doing, carry_level * todo
 }
 
 /* this returns 0 when insert coord is set at the node end and fraction of flow
- * fits into that node */
+   fits into that node */
 static int
 make_space_by_new_nodes(carry_op * op, carry_level * doing, carry_level * todo)
 {
@@ -1141,9 +1128,7 @@ make_space_for_flow_insertion(carry_op * op, carry_level * doing, carry_level * 
 	return make_space_by_new_nodes(op, doing, todo);
 }
 
-/**
- * implements COP_INSERT_FLOW operation
- */
+/* implements COP_INSERT_FLOW operation */
 static int
 carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
 {
@@ -1241,15 +1226,14 @@ carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
 	return result;
 }
 
-/**
- * implements COP_DELETE operation
- *
- * Remove pointer to @op -> u.delete.child from it's parent.
- *
- * This function also handles killing of a tree root is last pointer from it
- * was removed. This is complicated by our handling of "twig" level: root on
- * twig level is never killed.
- *
+/* implements COP_DELETE operation
+  
+   Remove pointer to @op -> u.delete.child from it's parent.
+  
+   This function also handles killing of a tree root is last pointer from it
+   was removed. This is complicated by our handling of "twig" level: root on
+   twig level is never killed.
+  
  */
 static int
 carry_delete(carry_op * op /* operation to be performed */ ,
@@ -1336,11 +1320,10 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 	return result < 0 ? : 0;
 }
 
-/**
- * implements COP_CUT opration
- *
- * Cuts part or whole content of node.
- *
+/* implements COP_CUT opration
+  
+   Cuts part or whole content of node.
+  
  */
 static int
 carry_cut(carry_op * op /* operation to be performed */ ,
@@ -1380,10 +1363,8 @@ carry_cut(carry_op * op /* operation to be performed */ ,
 	return result < 0 ? : 0;
 }
 
-/** 
- * helper function for carry_paste(): returns true if @op can be continued as
- * paste 
- */
+/* helper function for carry_paste(): returns true if @op can be continued as
+   paste  */
 static int
 can_paste(coord_t * icoord, const reiser4_key * key, const reiser4_item_data * data)
 {
@@ -1476,15 +1457,14 @@ can_paste(coord_t * icoord, const reiser4_key * key, const reiser4_item_data * d
 	return result;
 }
 
-/**
- * implements COP_PASTE operation
- *
- * Paste data into existing item. This is complicated by the fact that after
- * we shifted something to the left or right neighbors trying to free some
- * space, item we were supposed to paste into can be in different node than
- * insertion coord. If so, we are no longer doing paste, but insert. See
- * comments in insert_paste_common().
- *
+/* implements COP_PASTE operation
+  
+   Paste data into existing item. This is complicated by the fact that after
+   we shifted something to the left or right neighbors trying to free some
+   space, item we were supposed to paste into can be in different node than
+   insertion coord. If so, we are no longer doing paste, but insert. See
+   comments in insert_paste_common().
+  
  */
 static int
 carry_paste(carry_op * op /* operation to be performed */ ,
@@ -1673,11 +1653,10 @@ carry_extent(carry_op * op /* operation to perform */ ,
 	return 0;
 }
 
-/**
- * update key in @parent between pointers to @left and @right.
- *
- * Find coords of @left and @right and update delimiting key between them.
- * 
+/* update key in @parent between pointers to @left and @right.
+  
+   Find coords of @left and @right and update delimiting key between them.
+   
  */
 static int
 update_delimiting_key(znode * parent	/* node key is updated
@@ -1750,11 +1729,10 @@ update_delimiting_key(znode * parent	/* node key is updated
 	return 0;
 }
 
-/**
- * implements COP_UPDATE opration
- *
- * Update delimiting keys.
- *
+/* implements COP_UPDATE opration
+  
+   Update delimiting keys.
+  
  */
 static int
 carry_update(carry_op * op /* operation to be performed */ ,
@@ -1829,11 +1807,10 @@ carry_update(carry_op * op /* operation to be performed */ ,
 	return result;
 }
 
-/**
- * implements COP_MODIFY opration
- *
- * Notify parent about changes in its child
- *
+/* implements COP_MODIFY opration
+  
+   Notify parent about changes in its child
+  
  */
 static int
 carry_modify(carry_op * op /* operation to be performed */ ,
@@ -1903,12 +1880,11 @@ carry_shift_data(sideof side /* in what direction to move data */ ,
 typedef carry_node *(*carry_iterator) (carry_node * node);
 static carry_node *find_dir_carry(carry_node * node, carry_level * level, carry_iterator iterator);
 
-/**
- * look for the left neighbor of given carry node in a carry queue.
- *
- * This is used by find_left_neighbor(), but I am not sure that this
- * really gives any advantage. More statistics required.
- *
+/* look for the left neighbor of given carry node in a carry queue.
+  
+   This is used by find_left_neighbor(), but I am not sure that this
+   really gives any advantage. More statistics required.
+  
  */
 carry_node *
 find_left_carry(carry_node * node	/* node to fine left neighbor
@@ -1918,13 +1894,12 @@ find_left_carry(carry_node * node	/* node to fine left neighbor
 	return find_dir_carry(node, level, (carry_iterator) pool_level_list_prev);
 }
 
-/**
- * look for the right neighbor of given carry node in a
- * carry queue.
- *
- * This is used by find_right_neighbor(), but I am not sure that this
- * really gives any advantage. More statistics required.
- *
+/* look for the right neighbor of given carry node in a
+   carry queue.
+  
+   This is used by find_right_neighbor(), but I am not sure that this
+   really gives any advantage. More statistics required.
+  
  */
 carry_node *
 find_right_carry(carry_node * node	/* node to fine right neighbor
@@ -1934,11 +1909,10 @@ find_right_carry(carry_node * node	/* node to fine right neighbor
 	return find_dir_carry(node, level, (carry_iterator) pool_level_list_next);
 }
 
-/**
- * look for the left or right neighbor of given carry node in a carry
- * queue.
- *
- * Helper function used by find_{left|right}_carry().
+/* look for the left or right neighbor of given carry node in a carry
+   queue.
+  
+   Helper function used by find_{left|right}_carry().
  */
 static carry_node *
 find_dir_carry(carry_node * node	/* node to start scanning
@@ -1967,9 +1941,7 @@ find_dir_carry(carry_node * node	/* node to start scanning
 	}
 }
 
-/**
- * ->estimate method of tree operations
- */
+/* ->estimate method of tree operations */
 static __u64
 common_estimate(carry_op * op, carry_level * doing UNUSED_ARG)
 {
@@ -2016,10 +1988,9 @@ common_estimate(carry_op * op, carry_level * doing UNUSED_ARG)
 	return result;
 }
 
-/**
- * This is dispatch table for carry operations. It can be trivially
- * abstracted into useful plugin: tunable balancing policy is a good
- * thing.
+/* This is dispatch table for carry operations. It can be trivially
+   abstracted into useful plugin: tunable balancing policy is a good
+   thing.
  **/
 carry_op_handler op_dispatch_table[COP_LAST_OP] = {
 	[COP_INSERT] = {
@@ -2055,14 +2026,13 @@ carry_op_handler op_dispatch_table[COP_LAST_OP] = {
 			     .estimate = common_estimate}
 };
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

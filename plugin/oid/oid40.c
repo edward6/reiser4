@@ -1,6 +1,4 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "../../debug.h"
 #include "../../key.h"
@@ -9,32 +7,24 @@
 
 #include <linux/types.h>	/* for __u??  */
 
-/*
- * Object-id manipulations.
- * reiser 4.0 default objectid manager
- */
+/* Object-id manipulations.
+   reiser 4.0 default objectid manager */
 
-/**
- * Maximal possible object id.
- */
+/* Maximal possible object id. */
 static const oid_t ABSOLUTE_MAX_OID = (oid_t) ~ 0;
 
-/**
- * Minimal possible object id.
- */
+/* Minimal possible object id. */
 static const oid_t ABSOLUTE_MIN_OID = (oid_t) 0;
 
-/** reserve 65k oids for internal use on both ends of oid-space.
+/* reserve 65k oids for internal use on both ends of oid-space.
     There is no reason to be greedy here. */
 /* AUDIT how is it reserved on both ends of oid space, if oid40_read_allocator
    is passed with pre-determined starting oid value (that is not checked against
    being smaller then this value)? */
 #define OIDS_RESERVED  ( 1 << 16 )
 
-/**
- * plugin->u.oid_allocator.read_oid_allocator
- * Initialise object id allocator
- */
+/* plugin->u.oid_allocator.read_oid_allocator
+   Initialise object id allocator */
 int
 oid40_read_allocator(reiser4_oid_allocator * map, __u64 nr_files, __u64 oids)
 {
@@ -62,10 +52,8 @@ unlock(reiser4_oid_allocator * map)
 	spin_unlock(&map->u.oid40.oguard);
 }
 
-/**
- * plugin->u.oid_allocator.oids_free
- * number of oids available for use by users
- */
+/* plugin->u.oid_allocator.oids_free
+   number of oids available for use by users */
 __u64 oid40_free(reiser4_oid_allocator * map)
 {
 	__u64 result;
@@ -78,9 +66,7 @@ __u64 oid40_free(reiser4_oid_allocator * map)
 	return result;
 }
 
-/**
- * plugin->u.oid_allocator.next_oid
- */
+/* plugin->u.oid_allocator.next_oid */
 __u64 oid40_next_oid(reiser4_oid_allocator * map)
 {
 	__u64 result;
@@ -94,10 +80,8 @@ __u64 oid40_next_oid(reiser4_oid_allocator * map)
 	return result;
 }
 
-/**
- * plugin->u.oid_allocator.oids_used
- * return number of user-visible oids already allocated in this map
- */
+/* plugin->u.oid_allocator.oids_used
+   return number of user-visible oids already allocated in this map */
 __u64 oid40_used(reiser4_oid_allocator * map)
 {
 	__u64 result;
@@ -110,10 +94,9 @@ __u64 oid40_used(reiser4_oid_allocator * map)
 	return result;
 }
 
-/** 
- * plugin->u.oid_allocator.allocate_oid
- * allocate new objectid in "map" and store it in "result". Return 0
- * on success, negative error code on failure.
+/* plugin->u.oid_allocator.allocate_oid
+   allocate new objectid in "map" and store it in "result". Return 0
+   on success, negative error code on failure.
  */
 int
 oid40_allocate(reiser4_oid_allocator * map, oid_t * result)
@@ -130,10 +113,8 @@ oid40_allocate(reiser4_oid_allocator * map, oid_t * result)
 	return 0;
 }
 
-/**
- * plugin->u.oid_allocator.allocate_oid
- * release object id back to "map".
- */
+/* plugin->u.oid_allocator.allocate_oid
+   release object id back to "map". */
 /* This never actually marks oid as free, oid "map" is 64 bits and right now
    there is assumption that counter would never overflow */
 int
@@ -150,10 +131,8 @@ oid40_release(reiser4_oid_allocator * map, oid_t oid UNUSED_ARG)
 	return 0;
 }
 
-/**
- * plugin->u.oid_allocator.reserve_allocate
- * how many pages to reserve in transaction for allocation of new objectid
- */
+/* plugin->u.oid_allocator.reserve_allocate
+   how many pages to reserve in transaction for allocation of new objectid */
 /* This currently assumes that PAGE_SIZE equals blocksize */
 int
 oid40_reserve_allocate(reiser4_oid_allocator * map UNUSED_ARG)
@@ -161,10 +140,8 @@ oid40_reserve_allocate(reiser4_oid_allocator * map UNUSED_ARG)
 	return 1;
 }
 
-/**
- * plugin->u.oid_allocator.reserve_release
- * how many pages to reserve in transaction for freeing of an objectid
- */
+/* plugin->u.oid_allocator.reserve_release
+   how many pages to reserve in transaction for freeing of an objectid */
 /* This currently assumes that PAGE_SIZE equals blocksize */
 int
 oid40_reserve_release(reiser4_oid_allocator * map UNUSED_ARG)

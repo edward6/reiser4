@@ -1,6 +1,4 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "../../debug.h"
 #include "../../dformat.h"
@@ -24,7 +22,7 @@
 #define bmap_bit_count(blocksize)   (bmap_size(blocksize) << 3)
 
 /* Block allocation/deallocation are done through special bitmap objects which
- * are allocated in an array at fs mount. */
+   are allocated in an array at fs mount. */
 struct bnode {
 	struct semaphore sema;	/* long term lock object */
 
@@ -92,10 +90,9 @@ bnew(void)
 	return jal;
 }
 
-/*
- * this file contains:
- * - bitmap based implementation of space allocation plugin
- * - all the helper functions like set bit, find_first_zero_bit, etc
+/* this file contains:
+   - bitmap based implementation of space allocation plugin
+   - all the helper functions like set bit, find_first_zero_bit, etc
  */
 
 /* Audited by: green(2002.06.12) */
@@ -282,8 +279,7 @@ reiser4_set_bits(char *addr, bmap_off_t start, bmap_off_t end)
 #define ADLER_BASE    65521
 #define ADLER_NMAX    5552
 
-/* 
-    Calculates the adler32 checksum for the data pointed by `data` of the 
+/* Calculates the adler32 checksum for the data pointed by `data` of the 
     length `len`. This function was originally taken from zlib, version 1.1.3, 
     July 9th, 1998. 
 
@@ -334,8 +330,7 @@ adler32(char *data, __u32 len)
 	return (s2 << 16) | s1;
 }
 
-/* 
-    Recalculates the adler32 checksum for only 1 byte change.
+/* Recalculates the adler32 checksum for only 1 byte change.
     adler - previous adler checksum
     old_data, data - old, new byte values.
     tail == (chunk - offset) : length, checksum was calculated for, - offset of 
@@ -358,38 +353,38 @@ checksum_recalc(__u32 adler, unsigned char old_data, unsigned char data, __u32 t
 }
 
 /* The useful optimization in reiser4 bitmap handling would be dynamic bitmap
- * blocks loading/unloading which is different from v3.x where all bitmap
- * blocks are loaded at mount time.
- *
- * To implement bitmap blocks unloading we need to count bitmap block usage
- * and detect currently unused blocks allowing them to be unloaded. It is not
- * a simple task since we allow several threads to modify one bitmap block
- * simultaneously.
- *
- * Briefly speaking, the following schema is proposed: we count in special
- * variable associated with each bitmap block. That is for counting of block
- * alloc/dealloc operations on that bitmap block. With a deferred block
- * deallocation feature of reiser4 all those operation will be represented in
- * atom dirty/deleted lists as jnodes for freshly allocated or deleted
- * nodes. 
- *
- * So, we increment usage counter for each new node allocated or deleted, and
- * decrement it at atom commit one time for each node from the dirty/deleted
- * atom's list.  Of course, freshly allocated node deletion and node reusing
- * from atom deleted (if we do so) list should decrement bitmap usage counter
- * also.
- *
- * FIXME-ZAM: This schema seems to be working but that reference counting is
- * not easy to debug. I think we should agree with Hans and do not implement
- * it in v4.0. Current code implements "on-demand" bitmap blocks loading only.
+   blocks loading/unloading which is different from v3.x where all bitmap
+   blocks are loaded at mount time.
+  
+   To implement bitmap blocks unloading we need to count bitmap block usage
+   and detect currently unused blocks allowing them to be unloaded. It is not
+   a simple task since we allow several threads to modify one bitmap block
+   simultaneously.
+  
+   Briefly speaking, the following schema is proposed: we count in special
+   variable associated with each bitmap block. That is for counting of block
+   alloc/dealloc operations on that bitmap block. With a deferred block
+   deallocation feature of reiser4 all those operation will be represented in
+   atom dirty/deleted lists as jnodes for freshly allocated or deleted
+   nodes. 
+  
+   So, we increment usage counter for each new node allocated or deleted, and
+   decrement it at atom commit one time for each node from the dirty/deleted
+   atom's list.  Of course, freshly allocated node deletion and node reusing
+   from atom deleted (if we do so) list should decrement bitmap usage counter
+   also.
+  
+   FIXME-ZAM: This schema seems to be working but that reference counting is
+   not easy to debug. I think we should agree with Hans and do not implement
+   it in v4.0. Current code implements "on-demand" bitmap blocks loading only.
  */
 
 #define LIMIT(val, boundary) ((val) > (boundary) ? (boundary) : (val))
 
-/** A number of bitmap blocks for given fs. This number can be stored on disk
- * or calculated on fly; it depends on disk format.
- * FIXME-VS: number of blocks in a filesystem is taken from reiser4
- * super private data */
+/* A number of bitmap blocks for given fs. This number can be stored on disk
+   or calculated on fly; it depends on disk format.
+   FIXME-VS: number of blocks in a filesystem is taken from reiser4
+   super private data */
 /* Audited by: green(2002.06.12) */
 static bmap_nr_t
 get_nr_bmap(struct super_block *super)
@@ -447,8 +442,8 @@ check_bnode_loaded(const struct bnode *bnode)
 
 #endif
 
-/** modify bnode->first_zero_bit (if we free bits before); bnode should be
- * spin-locked */
+/* modify bnode->first_zero_bit (if we free bits before); bnode should be
+   spin-locked */
 static inline void
 adjust_first_zero_bit(struct bnode *bnode, bmap_off_t offset)
 {
@@ -495,7 +490,7 @@ init_bnode(struct bnode *bnode, struct super_block *super, bmap_nr_t bmap)
 }
 
 /* This function is for internal bitmap.c use because it assumes that jnode is
- * in under full control of this thread */
+   in under full control of this thread */
 static void
 invalidate_jnode(jnode * node)
 {
@@ -513,9 +508,8 @@ invalidate_jnode(jnode * node)
 	}
 }
 
-/** plugin->u.space_allocator.init_allocator
- *  constructor of reiser4_space_allocator object. It is called on fs mount
- */
+/* plugin->u.space_allocator.init_allocator
+    constructor of reiser4_space_allocator object. It is called on fs mount */
 int
 bitmap_init_allocator(reiser4_space_allocator * allocator, struct super_block *super, void *arg UNUSED_ARG)
 {
@@ -553,7 +547,7 @@ bitmap_init_allocator(reiser4_space_allocator * allocator, struct super_block *s
 }
 
 /* plugin->u.space_allocator.destroy_allocator
- * destructor. It is called on fs unmount */
+   destructor. It is called on fs unmount */
 int
 bitmap_destroy_allocator(reiser4_space_allocator * allocator, struct super_block *super)
 {
@@ -688,7 +682,7 @@ release_and_unlock_bnode(struct bnode *bnode)
 #if 0
 
 /* calls an actor for each bitmap block which is in a given range of disk
- * blocks with parameters of start and end offsets within bitmap block */
+   blocks with parameters of start and end offsets within bitmap block */
 static int
 bitmap_iterator(reiser4_block_nr * start, reiser4_block_nr * start,
 		int (*actor) (void *, bmap_nr_t bmap, int start_offset, int end_offset), void *opaque)
@@ -724,11 +718,11 @@ bitmap_iterator(reiser4_block_nr * start, reiser4_block_nr * start,
 
 #endif
 
-/** This function does all block allocation work but only for one bitmap
- * block.*/
+/* This function does all block allocation work but only for one bitmap
+   block.*/
 /* FIXME_ZAM: It does not allow us to allocate block ranges across bitmap
- * block responsibility zone boundaries. This had no sense in v3.6 but may
- * have it in v4.x */
+   block responsibility zone boundaries. This had no sense in v3.6 but may
+   have it in v4.x */
 
 static int
 search_one_bitmap(bmap_nr_t bmap, bmap_off_t * offset, bmap_off_t max_offset, int min_len, int max_len)
@@ -900,9 +894,9 @@ out:
 
 /** plugin->u.space_allocator.dealloc_blocks(). */
 /* It just frees blocks in WORKING BITMAP. Usually formatted an unformatted
- * nodes deletion is deferred until transaction commit.  However, deallocation
- * of temporary objects like wandered blocks and transaction commit records
- * requires immediate node deletion from WORKING BITMAP.*/
+   nodes deletion is deferred until transaction commit.  However, deallocation
+   of temporary objects like wandered blocks and transaction commit records
+   requires immediate node deletion from WORKING BITMAP.*/
 void
 bitmap_dealloc_blocks(reiser4_space_allocator * allocator UNUSED_ARG, reiser4_block_nr start, reiser4_block_nr len)
 {
@@ -998,8 +992,8 @@ cond_add_to_overwrite_set (txn_atom * atom, jnode * node)
 	spin_unlock_jnode(node);
 }
 
-/** an actor which applies delete set to COMMIT bitmap pages and link modified
- * pages in a single-linked list */
+/* an actor which applies delete set to COMMIT bitmap pages and link modified
+   pages in a single-linked list */
 /* Audited by: green(2002.06.12) */
 static int
 apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const reiser4_block_nr * len, void *data)
@@ -1062,9 +1056,9 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 	return 0;
 }
 
-/** It just applies transaction changes to fs-wide COMMIT BITMAP, hoping the
- * rest is done by transaction manager (allocate wandered locations for COMMIT
- * BITMAP blocks, copy COMMIT BITMAP blocks data). */
+/* It just applies transaction changes to fs-wide COMMIT BITMAP, hoping the
+   rest is done by transaction manager (allocate wandered locations for COMMIT
+   BITMAP blocks, copy COMMIT BITMAP blocks data). */
 /* Only one instance of this function can be running at one given time, because
    only one transaction can be committed a time, therefore it is safe to access
    some global variables without any locking */
@@ -1161,13 +1155,12 @@ bitmap_pre_commit_hook(void)
 	}
 }
 
-/* 
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 78
- * scroll-step: 1
- * End:
+/* Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 78
+   scroll-step: 1
+   End:
  */

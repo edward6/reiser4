@@ -1,6 +1,4 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 /* definitions of reiser4 tree walk functions */
 
@@ -13,8 +11,7 @@
 /* establishes horizontal links between cached znodes */
 int connect_znode(coord_t * coord, znode * node);
 
-/*
-  tree traversal functions (reiser4_get_parent(), reiser4_get_neighbor())
+/* tree traversal functions (reiser4_get_parent(), reiser4_get_neighbor())
   have the following common arguments:
 
   return codes:
@@ -34,8 +31,8 @@ int connect_znode(coord_t * coord, znode * node);
 	               received), other error codes are conformed to
 		       /usr/include/asm/errno.h .
 
-  *** pointer to lock stack is not passed because we have magic
-  *** get_current_stack() function.
+   ** pointer to lock stack is not passed because we have magic
+   ** get_current_stack() function.
 
 */
 
@@ -94,12 +91,11 @@ extern void link_left_and_right(znode * left, znode * right);
 
 #endif				/* __FS_REISER4_TREE_WALK_H__ */
 
-/* 
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Directory entry implementation
- */
+/* Directory entry implementation */
 #include "../../forward.h"
 #include "../../debug.h"
 #include "../../dformat.h"
@@ -44,9 +40,7 @@ de_print(const char *prefix /* prefix to print */ ,
 }
 #endif
 
-/**
- * ->extract_key() method of simple directory item plugin.
- */
+/* ->extract_key() method of simple directory item plugin. */
 int
 de_extract_key(const coord_t * coord /* coord of item */ ,
 	       reiser4_key * key /* resulting key */ )
@@ -80,9 +74,7 @@ de_update_key(const coord_t * coord, const reiser4_key * key, lock_handle * lh U
 	return 0;
 }
 
-/**
- * ->extract_name() method of simple directory item plugin.
- */
+/* ->extract_name() method of simple directory item plugin. */
 char *
 de_extract_name(const coord_t * coord /* coord of item */ )
 {
@@ -95,9 +87,7 @@ de_extract_name(const coord_t * coord /* coord of item */ )
 	return (char *) dent->name;
 }
 
-/**
- * ->extract_file_type() method of simple directory item plugin.
- */
+/* ->extract_file_type() method of simple directory item plugin. */
 unsigned
 de_extract_file_type(const coord_t * coord UNUSED_ARG	/* coord of
 							   * item */ )
@@ -188,13 +178,12 @@ de_max_name_len(const struct inode *dir)
 	return tree_by_inode(dir)->nplug->max_item_size() - sizeof (directory_entry_format) - 2;
 }
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

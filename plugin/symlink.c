@@ -1,6 +1,4 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "../forward.h"
 #include "../debug.h"
@@ -14,9 +12,7 @@
 #include <linux/fs.h>		/* for struct inode */
 
 extern int common_file_save(struct inode *inode);
-/*
- * symlink plugin's specific functions
- */
+/* symlink plugin's specific functions */
 
 int
 symlink_create(struct inode *symlink,	/* inode of symlink */

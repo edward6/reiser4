@@ -94,8 +94,7 @@ Then a read will return:
 
 */
 
-/*
-  OPEN method places a struct file in memory associated with invert body
+/* OPEN method places a struct file in memory associated with invert body
   and returns something like file descriptor to the user for the future access
   to the invert file.
   During opening we parse the body of invert and get a list of the 'entryes'
@@ -153,17 +152,17 @@ Then a read will return:
 
   Legend:
 
-  * START_MAGIC - keyword indicates the start of subfile signature;
+    START_MAGIC - keyword indicates the start of subfile signature;
 
-  * <> indicates the start of 'subfile metadata', that is the pair
+    <> indicates the start of 'subfile metadata', that is the pair
   (TYPE="...",LOOKUP_ARG="...") in parenthesis separated by comma. 
   
-  * TYPE - the string "type" indicates the start of one of the three words:
+    TYPE - the string "type" indicates the start of one of the three words:
   - ORDINARY_FILE,
   - LIGHT_WEIGHT_FILE,
   - INVERT_FILE;  
   
-  * LOOKUP_ARG - lookup argument depends on previous type:
+    LOOKUP_ARG - lookup argument depends on previous type:
   */
 
  /************************************************************/
@@ -319,8 +318,7 @@ struct incore_sd_base {
 };
 
 /* open invert create a list of invert entries,
-   every entry is represented by structure inv_entry
-*/
+   every entry is represented by structure inv_entry */
 
 struct inv_entry {
 	struct list_head *ie_list;
@@ -414,8 +412,8 @@ init_incore_sd_base(struct inv_entry *inv_entry, coord_t * coord)
 }
 
 /* takes a key or filename and allocates new invert_entry,
- * init and adds it into the list,
- * we use lookup_sd_by_key() for light-weight files and VFS lookup by filename */
+   init and adds it into the list,
+   we use lookup_sd_by_key() for light-weight files and VFS lookup by filename */
 
 int
 get_inv_entry(struct inode *invert_inode,	/* inode of invert's body */
@@ -463,8 +461,7 @@ get_inv_entry(struct inode *invert_inode,	/* inode of invert's body */
 }
 
 /* takes inode of invert, reads the body of this invert, parses it,
-   opens all invert entries and return pointer on the first inv_entry
-*/
+   opens all invert entries and return pointer on the first inv_entry */
 
 struct inv_entry *
 open_invert(struct file *invert_file)

@@ -1,6 +1,4 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "../../forward.h"
 #include "../../debug.h"
@@ -25,8 +23,7 @@
 #include <asm/uaccess.h>
 #include <linux/types.h>
 
-/*
-  leaf 40 format:
+/* leaf 40 format:
 
   [node header | item 0, item 1, .., item N-1 |  free space | item_head N-1, .. item_head 1, item head 0 ]
    plugin_id (16)                                                key
@@ -152,7 +149,6 @@ node40_ih_at(const znode * node, unsigned pos)
 }
 
 /* 
-
 ( page_address( node -> pg ) + PAGE_CACHE_SIZE ) - pos - 1
 
  */
@@ -181,22 +177,19 @@ ih40_get_offset(item_header40 * ih)
 /* plugin methods */
 
 /* plugin->u.node.item_overhead
-   look for description of this method in plugin/node/node.h
-*/
+   look for description of this method in plugin/node/node.h */
 size_t node40_item_overhead(const znode * node UNUSED_ARG, flow_t * f UNUSED_ARG)
 {
 	return sizeof (item_header40);
 }
 
-/*
-  int           ( *move_items )( znode *source, pos_in_node source_pos_in_node, znode *target, pos_in_node target_pos_in_node, int item_count );
+/* int           ( *move_items )( znode *source, pos_in_node source_pos_in_node, znode *target, pos_in_node target_pos_in_node, int item_count );
   size_t           ( *create_body_space)( znode *node, int byte_count, pos_in_node pos );
   size_t           ( *create )( znode *node, pos_in_node pos, flow *a_flow );
 */
 
 /* plugin->u.node.free_space
-   look for description of this method in plugin/node/node.h
-*/
+   look for description of this method in plugin/node/node.h */
 size_t node40_free_space(znode * node)
 {
 	assert("nikita-577", node != NULL);
@@ -207,10 +200,9 @@ size_t node40_free_space(znode * node)
 	return nh40_get_free_space(node40_node_header(node));
 }
 
-/**
- * private inline version of node40_num_of_items() for use in this file. This
- * is necessary, because address of node40_num_of_items() is taken and it is
- * never inlined as a result.
+/* private inline version of node40_num_of_items() for use in this file. This
+   is necessary, because address of node40_num_of_items() is taken and it is
+   never inlined as a result.
  */
 static inline int
 node40_num_of_items_internal(const znode * node)
@@ -231,8 +223,7 @@ static inline void check_num_items(const znode *node)
 #endif
 
 /* plugin->u.node.num_of_items
-   look for description of this method in plugin/node/node.h
-*/
+   look for description of this method in plugin/node/node.h */
 int
 node40_num_of_items(const znode * node)
 {
@@ -253,8 +244,7 @@ node40_set_num_items(znode * node, node40_header * nh, unsigned value)
 }
 
 /* plugin->u.node.item_by_coord
-   look for description of this method in plugin/node/node.h
-*/
+   look for description of this method in plugin/node/node.h */
 char *
 node40_item_by_coord(const coord_t * coord)
 {
@@ -269,8 +259,7 @@ node40_item_by_coord(const coord_t * coord)
 }
 
 /* plugin->u.node.length_by_coord
-   look for description of this method in plugin/node/node.h
-*/
+   look for description of this method in plugin/node/node.h */
 int
 node40_length_by_coord(const coord_t * coord)
 {
@@ -288,8 +277,7 @@ node40_length_by_coord(const coord_t * coord)
 }
 
 /* plugin->u.node.plugin_by_coord
-   look for description of this method in plugin/node/node.h
-*/
+   look for description of this method in plugin/node/node.h */
 item_plugin *
 node40_plugin_by_coord(const coord_t * coord)
 {
@@ -307,8 +295,7 @@ node40_plugin_by_coord(const coord_t * coord)
 }
 
 /* plugin->u.node.key_at
-   look for description of this method in plugin/node/node.h
-*/
+   look for description of this method in plugin/node/node.h */
 reiser4_key *
 node40_key_at(const coord_t * coord, reiser4_key * key)
 {
@@ -323,8 +310,7 @@ node40_key_at(const coord_t * coord, reiser4_key * key)
 }
 
 /* plugin->u.node.lookup
-   look for description of this method in plugin/node/node.h
-*/
+   look for description of this method in plugin/node/node.h */
 node_search_result node40_lookup(znode * node /* node to query */ ,
 				 const reiser4_key * key /* key to look for */ ,
 				 lookup_bias bias /* search bias */ ,
@@ -522,8 +508,7 @@ node_search_result node40_lookup(znode * node /* node to query */ ,
 }
 
 /* plugin->u.node.estimate
-   look for description of this method in plugin/node/node.h
-*/
+   look for description of this method in plugin/node/node.h */
 size_t node40_estimate(znode * node)
 {
 	size_t result;
@@ -536,8 +521,7 @@ size_t node40_estimate(znode * node)
 }
 
 /* plugin->u.node.check
-   look for description of this method in plugin/node/node.h
-*/
+   look for description of this method in plugin/node/node.h */
 int
 node40_check(const znode * node /* node to check */ ,
 	     __u32 flags /* check flags */ ,
@@ -697,8 +681,7 @@ node40_check(const znode * node /* node to check */ ,
 }
 
 /* plugin->u.node.parse
-   look for description of this method in plugin/node/node.h
-*/
+   look for description of this method in plugin/node/node.h */
 int
 node40_parse(znode * node /* node to parse */ )
 {
@@ -732,8 +715,7 @@ node40_parse(znode * node /* node to parse */ )
 }
 
 /* plugin->u.node.init
-   look for description of this method in plugin/node/node.h
-*/
+   look for description of this method in plugin/node/node.h */
 int
 node40_init(znode * node /* node to initialise */ )
 {
@@ -791,8 +773,7 @@ node40_print(const char *prefix, const znode * node /* node to print */ ,
 #endif
 
 /* plugin->u.node.chage_item_size
-   look for description of this method in plugin/node/node.h
-*/
+   look for description of this method in plugin/node/node.h */
 void
 node40_change_item_size(coord_t * coord, int by)
 {
@@ -836,8 +817,7 @@ should_notify_parent(const znode * node)
 }
 
 /* plugin->u.node.create_item
-   look for description of this method in plugin/node/node.h
-*/
+   look for description of this method in plugin/node/node.h */
 int
 node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data * data, carry_plugin_info * info)
 {
@@ -952,8 +932,7 @@ node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data 
 }
 
 /* plugin->u.node.update_item_key
-   look for description of this method in plugin/node/node.h
-*/
+   look for description of this method in plugin/node/node.h */
 void
 node40_update_item_key(coord_t * target, const reiser4_key * key, carry_plugin_info * info)
 {
@@ -1231,8 +1210,7 @@ cut_or_kill(coord_t * from, coord_t * to,
 	return removed_entirely;
 }
 
-/* plugin->u.node.cut_and_kill
- */
+/* plugin->u.node.cut_and_kill */
 int
 node40_cut_and_kill(coord_t * from, coord_t * to,
 		    const reiser4_key * from_key,
@@ -1242,8 +1220,7 @@ node40_cut_and_kill(coord_t * from, coord_t * to,
 	return cut_or_kill(from, to, from_key, to_key, smallest_removed, info, 0 /* not cut */ , kill_params, flags);
 }
 
-/* plugin->u.node.cut
- */
+/* plugin->u.node.cut */
 int
 node40_cut(coord_t * from, coord_t * to,
 	   const reiser4_key * from_key,
@@ -2025,9 +2002,7 @@ call_shift_hooks(struct shift_params *shift)
 	return 0;
 }
 
-/*
- * shift to left is completed. Return 1 if unit @old was moved to left neighbor
- */
+/* shift to left is completed. Return 1 if unit @old was moved to left neighbor */
 static int
 unit_moved_left(const struct shift_params *shift, const coord_t * old)
 {
@@ -2042,10 +2017,8 @@ unit_moved_left(const struct shift_params *shift, const coord_t * old)
 	return 1;
 }
 
-/*
- * shift to right is completed. Return 1 if unit @old was moved to right
- * neighbor
- */
+/* shift to right is completed. Return 1 if unit @old was moved to right
+   neighbor */
 static int
 unit_moved_right(const struct shift_params *shift, const coord_t * old)
 {
@@ -2060,10 +2033,8 @@ unit_moved_right(const struct shift_params *shift, const coord_t * old)
 	return 1;
 }
 
-/*
- * coord @old was set in node from which shift was performed. What was shifted
- * is stored in @shift. Update @old correspondingly to performed shift
- */
+/* coord @old was set in node from which shift was performed. What was shifted
+   is stored in @shift. Update @old correspondingly to performed shift */
 static coord_t *
 adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * new)
 {
@@ -2143,8 +2114,8 @@ adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * n
 }
 
 /* this is called when shift is completed (something of source node is copied
- * to target and deleted in source) to update all taps set in current
- * context */
+   to target and deleted in source) to update all taps set in current
+   context */
 static void
 update_taps(const struct shift_params *shift)
 {
@@ -2159,8 +2130,7 @@ update_taps(const struct shift_params *shift)
 }
 
 /* plugin->u.node.shift
-   look for description of this method in plugin/node/node.h
- */
+   look for description of this method in plugin/node/node.h */
 int
 node40_shift(coord_t * from, znode * to, shift_direction pend, int delete_child,	/* if @from->node becomes empty - it will
 											   be deleted from the tree if this is set
@@ -2299,8 +2269,7 @@ node40_fast_cut(const coord_t * coord UNUSED_ARG /* node to query */ )
 	return 1;
 }
 
-/* plugin->u.node.modify - not defined
-*/
+/* plugin->u.node.modify - not defined */
 
 /* plugin->u.node.max_item_size */
 int
@@ -2309,13 +2278,12 @@ node40_max_item_size(void)
 	return reiser4_get_current_sb()->s_blocksize - sizeof (node40_header) - sizeof (item_header40);
 }
 
-/*
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

@@ -28,15 +28,15 @@
 #include "super.h"
 
 /* These macros are used internally in tree_walk.c in attempt to make
- * lock_neighbor() code usable to build lock_parent(), lock_right_neighbor,
- * lock_left_neighbor */
+   lock_neighbor() code usable to build lock_parent(), lock_right_neighbor,
+   lock_left_neighbor */
 #define GET_NODE_BY_PTR_OFFSET(node, off) (*(znode**)(((unsigned long)(node)) + (off)))
 #define FIELD_OFFSET(name)  offsetof(znode, name)
 #define PARENT_PTR_OFFSET FIELD_OFFSET(in_parent.node)
 #define LEFT_PTR_OFFSET   FIELD_OFFSET(left)
 #define RIGHT_PTR_OFFSET  FIELD_OFFSET(right)
 
-/** This is the generic procedure to get and lock `generic' neighbor (left or
+/* This is the generic procedure to get and lock `generic' neighbor (left or
     right neighbor or parent). It implements common algorithm for all cases of
     getting lock on neighbor node, only znode structure field is different in
     each case. This is parameterized by ptr_offset argument, which is byte
@@ -146,10 +146,8 @@ reiser4_get_parent(lock_handle * result	/* resulting lock
 					ZNODE_LOCK_HIPRI, only_connected_p ? 0 : GN_ALLOW_NOT_CONNECTED));
 }
 
-/** 
- * wrapper function to lock right or left neighbor depending on GN_GO_LEFT
- * bit in @flags parameter 
- */
+/* wrapper function to lock right or left neighbor depending on GN_GO_LEFT
+   bit in @flags parameter  */
 /* Audited by: umka (2002.06.14) */
 static inline int
 lock_side_neighbor(lock_handle * result, znode * node, znode_lock_mode mode, int flags)
@@ -178,33 +176,29 @@ lock_side_neighbor(lock_handle * result, znode * node, znode_lock_mode mode, int
 	return ret;
 }
 
-/*
- * znode sibling pointers maintaining.
- */
+/* znode sibling pointers maintaining. */
 
 /* After getting new znode we have to establish sibling pointers. Znode web
- * maintaining overhead is in additional hash table searches for left and
- * right neighbors (and worse locking scheme in case close neighbors do not
- * share same parent).
- *
- * We can reduce that overhead by introducing of znode `connected' states. For
- * simpler locking and simpler implementation znodes have two connection state
- * bits: left-connected and right connected. We never do hash table search for
- * neighbor from connected side even corresponded pointer is null. This way we
- * only do hash searches when new znode is allocated and should be connected
- * to znode web dynamic structure.
- *
- * Locking in left direction (required for finding of parent of left neighbor)
- * can fail and cause whole lookup process to restart. It means lookup process
- * may leave znode in unconnected state. These znodes should not be used,
- * loaded while they are is such state. */
+   maintaining overhead is in additional hash table searches for left and
+   right neighbors (and worse locking scheme in case close neighbors do not
+   share same parent).
+  
+   We can reduce that overhead by introducing of znode `connected' states. For
+   simpler locking and simpler implementation znodes have two connection state
+   bits: left-connected and right connected. We never do hash table search for
+   neighbor from connected side even corresponded pointer is null. This way we
+   only do hash searches when new znode is allocated and should be connected
+   to znode web dynamic structure.
+  
+   Locking in left direction (required for finding of parent of left neighbor)
+   can fail and cause whole lookup process to restart. It means lookup process
+   may leave znode in unconnected state. These znodes should not be used,
+   loaded while they are is such state. */
 
 /* adjusting of sibling pointers and `connected' states for two
- * neighbors; works if one neighbor is NULL (was not found). */
+   neighbors; works if one neighbor is NULL (was not found). */
 
-/*
- * FIXME-VS: this is unstatic-ed to use in tree.c in prepare_twig_cut
- */
+/* FIXME-VS: this is unstatic-ed to use in tree.c in prepare_twig_cut */
 /* Audited by: umka (2002.06.14) */
 /*static*//*inline */ void
 link_left_and_right(znode * left, znode * right)
@@ -231,10 +225,10 @@ link_znodes(znode * first, znode * second, int to_left)
 }
 
 /* getting of next (to left or to right, depend on gn_to_left bit in flags)
- * coord's unit position in horizontal direction, even across node
- * boundary. Should be called under tree lock, it protects nonexistence of
- * sibling link on parent level, if lock_side_neighbor() fails with
- * -ENOENT. */
+   coord's unit position in horizontal direction, even across node
+   boundary. Should be called under tree lock, it protects nonexistence of
+   sibling link on parent level, if lock_side_neighbor() fails with
+   -ENOENT. */
 /* Audited by: umka (2002.06.14) */
 static int
 far_next_coord(coord_t * coord, lock_handle * handle, int flags)
@@ -282,11 +276,11 @@ far_next_coord(coord_t * coord, lock_handle * handle, int flags)
 	return 0;
 }
 
-/** Very significant function which performs a step in horizontal direction
- * when sibling pointer is not available.  Actually, it is only function which
- * does it. 
- * Note: this function does not restore locking status at exit,
- * caller should does care about proper unlocking and zrelsing */
+/* Very significant function which performs a step in horizontal direction
+   when sibling pointer is not available.  Actually, it is only function which
+   does it. 
+   Note: this function does not restore locking status at exit,
+   caller should does care about proper unlocking and zrelsing */
 static int
 renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_level level, int flags, int *nr_locked)
 {
@@ -364,10 +358,8 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 	return ret;
 }
 
-/*
- *
- * This function is for establishing of one side relation.
- */
+/* 
+   This function is for establishing of one side relation. */
 /* Audited by: umka (2002.06.14) */
 static int
 connect_one_side(coord_t * coord, znode * node, int flags)
@@ -401,7 +393,7 @@ connect_one_side(coord_t * coord, znode * node, int flags)
 }
 
 /* if node is not in `connected' state, performs hash searches for left and
- * right neighbor nodes and establishes horizontal sibling links */
+   right neighbor nodes and establishes horizontal sibling links */
 /* Audited by: umka (2002.06.14), umka (2002.06.15) */
 int
 connect_znode(coord_t * coord, znode * node)
@@ -459,10 +451,10 @@ zrelse_and_ret:
 }
 
 /* this function is like renew_sibling_link() but allocates neighbor node if
- * it doesn't exist and `connects' it. It may require making two steps in
- * horizontal direction, first one for neighbor node finding/allocation,
- * second one is for finding neighbor of neighbor to connect freshly allocated
- * znode. */
+   it doesn't exist and `connects' it. It may require making two steps in
+   horizontal direction, first one for neighbor node finding/allocation,
+   second one is for finding neighbor of neighbor to connect freshly allocated
+   znode. */
 /* Audited by: umka (2002.06.14), umka (2002.06.15) */
 static int
 renew_neighbor(coord_t * coord, znode * node, tree_level level, int flags)
@@ -525,20 +517,19 @@ out:
 	return ret;
 }
 
-/*
- * reiser4_get_neighbor() locks node's neighbor (left or right one, depends on
- * given parameter) using sibling link to it. If sibling link is not available
- * (i.e. neighbor znode is not in cache) and flags allow read blocks, we go
- * one level up for information about neighbor's disk address. We lock node's
- * parent, if it is common parent for both 'node' and its neighbor, neighbor's
- * disk address is in next (to left or to right) down link from link that
- * points to original node. If not, we need to lock parent's neighbor, read
- * its content and take first(last) downlink with neighbor's disk address.
- * That locking could be done by using sibling link and lock_neighbor()
- * function, if sibling link exists. In another case we have to go level up
- * again until we find common parent or valid sibling link. Then go down
- * allocating/connecting/locking/reading nodes until neigbor of first one is
- * locked.
+/* reiser4_get_neighbor() locks node's neighbor (left or right one, depends on
+   given parameter) using sibling link to it. If sibling link is not available
+   (i.e. neighbor znode is not in cache) and flags allow read blocks, we go
+   one level up for information about neighbor's disk address. We lock node's
+   parent, if it is common parent for both 'node' and its neighbor, neighbor's
+   disk address is in next (to left or to right) down link from link that
+   points to original node. If not, we need to lock parent's neighbor, read
+   its content and take first(last) downlink with neighbor's disk address.
+   That locking could be done by using sibling link and lock_neighbor()
+   function, if sibling link exists. In another case we have to go level up
+   again until we find common parent or valid sibling link. Then go down
+   allocating/connecting/locking/reading nodes until neigbor of first one is
+   locked.
  */
 
 /* Audited by: umka (2002.06.14), umka (2002.06.15) */
@@ -751,9 +742,9 @@ sibling_list_insert_nolock(znode * new, znode * before)
 	ZF_SET(new, JNODE_RIGHT_CONNECTED);
 }
 
-/** Insert new node into sibling list. Regular balancing inserts new node
- * after (at right side) existing and locked node (@before), except one case
- * of adding new tree root node. @before should be NULL in that case. */
+/* Insert new node into sibling list. Regular balancing inserts new node
+   after (at right side) existing and locked node (@before), except one case
+   of adding new tree root node. @before should be NULL in that case. */
 /* Audited by: umka (2002.06.14) */
 void
 sibling_list_insert(znode * new, znode * before)
@@ -764,12 +755,11 @@ sibling_list_insert(znode * new, znode * before)
 	UNDER_SPIN_VOID(tree, znode_get_tree(new), sibling_list_insert_nolock(new, before));
 }
 
-/*
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Forward declarations. Thank you Kernighan.
- */
+/* Forward declarations. Thank you Kernighan. */
 
 #if !defined( __REISER4_FORWARD_H__ )
 #define __REISER4_FORWARD_H__
@@ -83,7 +79,7 @@ typedef enum {
 	FILE_OOM = -ENOMEM	/* FIXME: it seems silly to have special OOM, IO_ERROR return codes for each search. */
 } file_lookup_result;
 
-/** behaviors of lookup. If coord we are looking for is actually in a tree,
+/* behaviors of lookup. If coord we are looking for is actually in a tree,
     both coincide. */
 typedef enum {
 	/** search exactly for the coord with key given */
@@ -111,10 +107,10 @@ typedef enum {
 } tree_level;
 
 /* The "real" maximum ztree height is the 0-origin size of any per-level
- * array, since the zero'th level is not used. */
+   array, since the zero'th level is not used. */
 #define REAL_MAX_ZTREE_HEIGHT     (REISER4_MAX_ZTREE_HEIGHT-LEAF_LEVEL)
 
-/** enumeration of possible mutual position of item and coord.  This enum is
+/* enumeration of possible mutual position of item and coord.  This enum is
     return type of ->is_in_item() item plugin method which see. */
 typedef enum {
 	/** coord is on the left of an item*/
@@ -167,9 +163,7 @@ typedef enum {
 	( ( typeof( value ) )( ( ( long ) ( value ) + ( order ) - 1U ) &	\
 			     ~( ( order ) - 1 ) ) )
 
-/*
- * values returned by squalloc_right_neighbor and its auxiliary functions
- */
+/* values returned by squalloc_right_neighbor and its auxiliary functions */
 typedef enum {
 	/*
 	 * unit of internal item is moved
@@ -206,7 +200,7 @@ typedef enum {
 } item_id;
 
 /* Flags passed to jnode_flush() to allow it to distinguish default settings based on
- * whether commit() was called or VM memory pressure was applied. */
+   whether commit() was called or VM memory pressure was applied. */
 typedef enum {
 	/* submit flush queue to disk at jnode_flush completion */
 	JNODE_FLUSH_WRITE_BLOCKS = 1,
@@ -220,10 +214,9 @@ typedef enum {
 	JNODE_FLUSH_MEMORY_UNFORMATTED = 8,
 } jnode_flush_flags;
 
-/** 
- * Flags to insert/paste carry operations. Currently they only used in
- * flushing code, but in future, they can be used to optimize for repetitive
- * accesses. 
+/* Flags to insert/paste carry operations. Currently they only used in
+   flushing code, but in future, they can be used to optimize for repetitive
+   accesses. 
  */
 typedef enum {
 	/** 
@@ -269,13 +262,12 @@ typedef enum {
 /* __REISER4_FORWARD_H__ */
 #endif
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

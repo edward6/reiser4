@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Functions to add/delete new nodes to/from the tree
- */
+/* Functions to add/delete new nodes to/from the tree */
 
 #include "forward.h"
 #include "debug.h"
@@ -24,17 +20,13 @@
 
 static int add_child_ptr(znode * parent, znode * child);
 
-/**
- * warning only issued if error is not -EAGAIN
- */
+/* warning only issued if error is not -EAGAIN */
 #define ewarning( error, ... )			\
 	if( ( error ) != -EAGAIN )		\
 		warning( __VA_ARGS__ )
 
-/**
- * allocate new node on the @level and immediately on the right of @brother.
- *
- */
+/* allocate new node on the @level and immediately on the right of @brother.
+   */
 /* Audited by: umka (2002.06.15) */
 znode *
 new_node(znode * brother /* existing left neighbor of new node */ ,
@@ -100,11 +92,10 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
 	return result;
 }
 
-/**
- * allocate new root and add it to the tree
- *
- * This helper function is called by add_new_root().
- *
+/* allocate new root and add it to the tree
+  
+   This helper function is called by add_new_root().
+  
  */
 /* Audited by: umka (2002.06.15) */
 znode *
@@ -192,12 +183,11 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 	return new_root;
 }
 
-/**
- * build &reiser4_item_data for inserting child pointer
- *
- * Build &reiser4_item_data that can be later used to insert pointer to @child
- * in its parent.
- *
+/* build &reiser4_item_data for inserting child pointer
+  
+   Build &reiser4_item_data that can be later used to insert pointer to @child
+   in its parent.
+  
  */
 /* Audited by: umka (2002.06.15) */
 void
@@ -219,11 +209,10 @@ build_child_ptr_data(znode * child	/* node pointer to which will be
 	data->iplug = item_plugin_by_id(NODE_POINTER_ID);
 }
 
-/**
- * add pointer to @child into empty @parent.
- *
- * This is used when pointer to old root is inserted into new root which is
- * empty.
+/* add pointer to @child into empty @parent.
+  
+   This is used when pointer to old root is inserted into new root which is
+   empty.
  */
 /* Audited by: umka (2002.06.15) */
 static int
@@ -254,9 +243,7 @@ add_child_ptr(znode * parent, znode * child)
 	return result;
 }
 
-/**
- * actually remove tree root
- */
+/* actually remove tree root */
 /* Audited by: umka (2002.06.15) */
 static int
 kill_root(reiser4_tree * tree	/* tree from which root is being
@@ -324,22 +311,21 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 	return result;
 }
 
-/**
- * remove tree root
- *
- * This function removes tree root, decreasing tree height by one.  Tree root
- * and its only child (that is going to become new tree root) are write locked
- * at the entry.
- *
- * To remove tree root we need to take lock on special "fake" znode that
- * protects changes of tree height. See comments in add_tree_root() for more
- * on this.
- *
- * Also parent pointers have to be updated in
- * old and new root. To simplify code, function is split into two parts: outer
- * kill_tree_root() collects all necessary arguments and calls kill_root()
- * to do the actual job.
- *
+/* remove tree root
+  
+   This function removes tree root, decreasing tree height by one.  Tree root
+   and its only child (that is going to become new tree root) are write locked
+   at the entry.
+  
+   To remove tree root we need to take lock on special "fake" znode that
+   protects changes of tree height. See comments in add_tree_root() for more
+   on this.
+  
+   Also parent pointers have to be updated in
+   old and new root. To simplify code, function is split into two parts: outer
+   kill_tree_root() collects all necessary arguments and calls kill_root()
+   to do the actual job.
+  
  */
 /* Audited by: umka (2002.06.15) */
 int
@@ -369,14 +355,13 @@ kill_tree_root(znode * old_root /* tree root that we are removing */ )
 	return result;
 }
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

@@ -1,6 +1,4 @@
-/*
- * Copyright 2002 Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2002 Hans Reiser, licensing governed by reiser4/README */
 
 #include "../../debug.h"
 #include "../../dformat.h"
@@ -20,9 +18,7 @@
 #include <linux/fs.h>		/* for struct super_block  */
 #include <linux/buffer_head.h>
 
-/*
- * reiser 4.0 default disk layout
- */
+/* reiser 4.0 default disk layout */
 
 /* functions to access fields of format40_disk_super_block */
 static __u64
@@ -74,7 +70,7 @@ get_format40_mkfs_id(const format40_disk_super_block * sb)
 }
 
 /* find any valid super block of disk_format40 (even if the first
- * super block is destroyed) */
+   super block is destroyed) */
 static struct buffer_head *
 find_a_disk_format40_super_block(struct super_block *s UNUSED_ARG)
 {
@@ -100,7 +96,7 @@ find_a_disk_format40_super_block(struct super_block *s UNUSED_ARG)
 }
 
 /* find the most recent version of super block. This is called after journal is
- * replayed */
+   replayed */
 static struct buffer_head *
 read_super_block(struct super_block *s UNUSED_ARG)
 {
@@ -292,7 +288,7 @@ pack_format40_super(const struct super_block *s, char *data)
 }
 
 /* return a jnode which should be added to transaction when the super block
- * gets logged */
+   gets logged */
 jnode *
 format40_log_super(struct super_block *s)
 {

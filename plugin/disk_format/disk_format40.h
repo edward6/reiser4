@@ -1,15 +1,12 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * this file contains:
- * - definition of ondisk super block of standart disk layout for
- *   reiser 4.0 (layout 40)
- * - definition of layout 40 specific portion of in-core super block
- * - declarations of functions implementing methods of layout plugin
- *   for layout 40
- * - declarations of functions used to get/set fields in layout 40 super block
+/* this file contains:
+   - definition of ondisk super block of standart disk layout for
+     reiser 4.0 (layout 40)
+   - definition of layout 40 specific portion of in-core super block
+   - declarations of functions implementing methods of layout plugin
+     for layout 40
+   - declarations of functions used to get/set fields in layout 40 super block
  */
 
 #ifndef __DISK_FORMAT40_H__
@@ -59,7 +56,7 @@ typedef struct format40_super_info {
 #define FORMAT40_JOURNAL_FOOTER_BLOCKNR 20
 
 /* declarations of functions implementing methods of layout plugin for
- * format 40. The functions theirself are in disk_format40.c */
+   format 40. The functions theirself are in disk_format40.c */
 int format40_get_ready(struct super_block *, void *data);
 const reiser4_key *format40_root_dir_key(const struct super_block *);
 int format40_release(struct super_block *s);

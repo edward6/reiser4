@@ -1,9 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 /* 
-
 This describes the static_stat item, used to hold all information needed by the stat() syscall.
 
 In the case where each file has not less than the fields needed by the
@@ -101,7 +98,7 @@ typedef enum {
    complete.  Not until v4.1, or later.  */
 /* NIKITA-FIXME-HANS: read the above */
 /* HANS-FIXME-ZAM: it would be better to see light-weight files before changing
- * stat_data_base. Do you have a proof that they do not need this? */
+   stat_data_base. Do you have a proof that they do not need this? */
 /** minimal stat-data. This allows to support light-weight files. */
 typedef struct reiser4_stat_data_base {
 	/*  0 */ d16 extmask;
@@ -196,13 +193,12 @@ extern int sd_save(struct inode *inode, char **area);
 /* __FS_REISER4_PLUGIN_ITEM_STATIC_STAT_H__ */
 #endif
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

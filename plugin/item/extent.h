@@ -1,6 +1,4 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #ifndef __REISER4_EXTENT_H__
 #define __REISER4_EXTENT_H__
@@ -68,9 +66,7 @@ extent_set_width(reiser4_extent * ext, reiser4_block_nr width)
 #define extent_by_coord(coord) (extent_item (coord) + (coord)->unit_pos)
 #define width_by_coord(coord) extent_get_width (extent_by_coord(coord))
 
-/*
- * plugin->item.common.*
- */
+/* plugin->item.common.* */
 reiser4_key *extent_max_key_inside(const coord_t *, reiser4_key *);
 int extent_can_contain_key(const coord_t * coord, const reiser4_key * key, const reiser4_item_data *);
 int extent_mergeable(const coord_t * p1, const coord_t * p2);
@@ -102,9 +98,7 @@ int extent_key_in_unit(const coord_t * coord, const reiser4_key * key);
 void extent_item_stat(const coord_t * coord, void *vp);
 int extent_check(const coord_t * coord, const char **error);
 
-/*
- * plugin->u.item.s.file.*
- */
+/* plugin->u.item.s.file.* */
 int extent_write(struct inode *, coord_t *, lock_handle *, flow_t *);
 int extent_read(struct inode *, coord_t *, flow_t *);
 int extent_readpage(coord_t *, lock_handle *, struct page *page);
@@ -117,7 +111,7 @@ int extent_page_cache_readahead(struct file *file, coord_t * coord,
 int extent_get_block_address(const coord_t *, sector_t block, struct buffer_head *);
 
 /* these are used in flush.c
- * FIXME-VS: should they be somewhere in item_plugin? */
+   FIXME-VS: should they be somewhere in item_plugin? */
 int allocate_extent_item_in_place(coord_t *, lock_handle *, flush_position * pos);
 int allocate_and_copy_extent(znode * left, coord_t * right, flush_position * pos, reiser4_key * stop_key);
 
@@ -129,12 +123,11 @@ void extent_get_inode(const coord_t * item, struct inode **inode);	/* Get the in
 
 /* __REISER4_EXTENT_H__ */
 #endif
-/* 
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

@@ -1,6 +1,4 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #ifndef __DISK_FORMAT_TEST_H__
 #define __DISK_FORMAT_TEST_H__
@@ -41,8 +39,8 @@ typedef struct {
 } test_format_super_info;
 
 /* declarations of functions implementing methods of format plugin for
- * test format. The functions theirself are in
- * plugin/disk_format/test.c */
+   test format. The functions theirself are in
+   plugin/disk_format/test.c */
 int test_format_get_ready(struct super_block *, void *data);
 const reiser4_key *test_format_root_dir_key(const struct super_block *);
 int test_format_release(struct super_block *);
@@ -51,13 +49,12 @@ void test_format_print_info(const struct super_block *);
 /* __DISK_FORMAT_TEST_H__ */
 #endif
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

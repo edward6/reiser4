@@ -1,134 +1,128 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Znode manipulation functions. */
+/* Znode is the in-memory header for a tree node. It is stored
+   separately from the node itself so that it does not get written to
+   disk.  In this respect znode is like buffer head or page head. We
+   also use znodes for additional reiser4 specific purposes:
+  
+    . they are organized into tree structure which is a part of whole
+      reiser4 tree. 
+    . they are used to implement node grained locking
+    . they are used to keep additional state associated with a
+      node 
+    . they contain links to lists used by the transaction manager
+  
+   Znode is attached to some variable "block number" which is instance of
+   fs/reiser4/tree.h:reiser4_block_nr type. Znode can exist without
+   appropriate node being actually loaded in memory. Existence of znode itself
+   is regulated by reference count (->x_count) in it. Each time thread
+   acquires reference to znode through call to zget(), ->x_count is
+   incremented and decremented on call to zput().  Data (content of node) are
+   brought in memory through call to zload(), which also increments ->d_count
+   reference counter.  zload can block waiting on IO.  Call to zrelse()
+   decreases this counter. Also, ->c_count keeps track of number of child
+   znodes and prevents parent znode from being recycled until all of its
+   children are. ->c_count is decremented whenever child goes out of existence
+   (being actually recycled in zdestroy()) which can be some time after last
+   reference to this child dies if we support some form of LRU cache for
+   znodes.
+  
  */
-/*
- * Znode manipulation functions.
- */
-/*
- * Znode is the in-memory header for a tree node. It is stored
- * separately from the node itself so that it does not get written to
- * disk.  In this respect znode is like buffer head or page head. We
- * also use znodes for additional reiser4 specific purposes:
- *
- *  . they are organized into tree structure which is a part of whole
- *    reiser4 tree. 
- *  . they are used to implement node grained locking
- *  . they are used to keep additional state associated with a
- *    node 
- *  . they contain links to lists used by the transaction manager
- *
- * Znode is attached to some variable "block number" which is instance of
- * fs/reiser4/tree.h:reiser4_block_nr type. Znode can exist without
- * appropriate node being actually loaded in memory. Existence of znode itself
- * is regulated by reference count (->x_count) in it. Each time thread
- * acquires reference to znode through call to zget(), ->x_count is
- * incremented and decremented on call to zput().  Data (content of node) are
- * brought in memory through call to zload(), which also increments ->d_count
- * reference counter.  zload can block waiting on IO.  Call to zrelse()
- * decreases this counter. Also, ->c_count keeps track of number of child
- * znodes and prevents parent znode from being recycled until all of its
- * children are. ->c_count is decremented whenever child goes out of existence
- * (being actually recycled in zdestroy()) which can be some time after last
- * reference to this child dies if we support some form of LRU cache for
- * znodes.
- *
- */
-/*
- * EVERY ZNODE'S STORY
- *
- * 1. His infancy.
- *
- * Once upon a time, the znode was born deep inside of zget() by call to
- * zalloc(). At the return from zget() znode had:
- *
- *  . reference counter (x_count) of 1
- *  . assigned block number, marked as used in bitmap
- *  . pointer to parent znode. Root znode parent pointer points 
- *    to its father: "fake" znode. This, in turn, has NULL parent pointer.
- *  . hash table linkage
- *  . no data loaded from disk
- *  . no node plugin
- *  . no sibling linkage
- *
- * 2. His childhood
- *
- * Each node is either brought into memory as a result of tree
- * traversal, or created afresh, creation of the root being a special
- * case of the latter. In either case it's inserted into sibling
- * list. This will typically require some ancillary tree traversing,
- * but ultimately both sibling pointers will exist and
- * JNODE_LEFT_CONNECTED and JNODE_RIGHT_CONNECTED will be true in zstate.
- *
- * 3. His youth.
- *
- * If znode is bound to already existing node in a tree, its content is read
- * from the disk by call to zload(). At that moment, JNODE_LOADED bit is set
- * in zstate and zdata() function starts to return non null for this
- * znode. zload() further calls zparse() that determines which node layout
- * this node is rendered in, and sets ->nplug on success.
- *
- * If znode is for new node just created, memory for it is allocated
- * [this is not done yet] and zinit_new() function is called to
- * initialise data, according to selected node layout.
- *
- * 4. His maturity.
- *
- * After this point, znode lingers in memory for some time. Threads can
- * acquire references to znode either by blocknr through call to zget(), or by
- * following a pointer to unallocated znode from internal item [not
- * implemented yet]. Each time reference to znode is obtained, x_count is
- * increased. Thread can read/write lock znode. Znode data can be loaded
- * through calls to zload(), d_count will be increased appropriately. If all
- * references to znode are released (x_count drops to 0), znode is not
- * recycled immediately. Rather, it is still cached in the hash table in the
- * hope that it will be accessed shortly.
- *
- * There are two ways in which znode existence can be terminated: 
- *
- *  . sudden death: node bound to this znode is removed from the tree
- *  . overpopulation: znode is purged out of memory due to memory pressure
- *
- * 5. His death.
- *
- * Death is complex process.
- *
- * When we irrevocably commit ourselves to decision to remove node from
- * the tree, JNODE_HEARD_BANSHEE bit is set in zstate of corresponding
- * znode. This is done either in ->kill_hook() of internal item or in
- * kill_root() function when tree root is removed.
- *
- * At this moment znode still has:
- *
- *  . locks held on it, necessary write ones
- *  . references to it
- *  . disk block assigned to it
- *  . data loaded from the disk
- *  . pending requests for lock
- *
- * But once JNODE_HEARD_BANSHEE bit set, last call to unlock_znode() does node
- * deletion. Node deletion includes two phases. First all ways to get
- * references to that znode (sibling and parent links and hash lookup using
- * block number stored in parent node) should be deleted -- it is done through
- * sibling_list_remove(), also we assume that nobody uses down link from
- * parent node due to its nonexistence or proper parent node locking and
- * nobody uses parent pointers from children due to absence of them. Second we
- * invalidate all pending lock requests which still are on znode's lock
- * request queue, this is done by invalidate_lock(). Another JNODE_IS_DYING
- * znode status bit is used to invalidate pending lock requests. Once it set
- * all requesters are forced to return -EINVAL from
- * longterm_lock_znode(). Future locking attempts are not possible because all
- * ways to get references to that znode are removed already. Last, node is
- * uncaptured from transaction.
- *
- * When last reference to the dying znode is just about to be released,
- * block number for this lock is released and znode is removed from the
- * hash table.
- *
- * Now znode can be recycled.
- *
- * [it's possible to free bitmap block and remove znode from the hash
- * table when last lock is released. This will result in having
- * referenced but completely orphaned znode]
+/* EVERY ZNODE'S STORY
+  
+   1. His infancy.
+  
+   Once upon a time, the znode was born deep inside of zget() by call to
+   zalloc(). At the return from zget() znode had:
+  
+    . reference counter (x_count) of 1
+    . assigned block number, marked as used in bitmap
+    . pointer to parent znode. Root znode parent pointer points 
+      to its father: "fake" znode. This, in turn, has NULL parent pointer.
+    . hash table linkage
+    . no data loaded from disk
+    . no node plugin
+    . no sibling linkage
+  
+   2. His childhood
+  
+   Each node is either brought into memory as a result of tree
+   traversal, or created afresh, creation of the root being a special
+   case of the latter. In either case it's inserted into sibling
+   list. This will typically require some ancillary tree traversing,
+   but ultimately both sibling pointers will exist and
+   JNODE_LEFT_CONNECTED and JNODE_RIGHT_CONNECTED will be true in zstate.
+  
+   3. His youth.
+  
+   If znode is bound to already existing node in a tree, its content is read
+   from the disk by call to zload(). At that moment, JNODE_LOADED bit is set
+   in zstate and zdata() function starts to return non null for this
+   znode. zload() further calls zparse() that determines which node layout
+   this node is rendered in, and sets ->nplug on success.
+  
+   If znode is for new node just created, memory for it is allocated
+   [this is not done yet] and zinit_new() function is called to
+   initialise data, according to selected node layout.
+  
+   4. His maturity.
+  
+   After this point, znode lingers in memory for some time. Threads can
+   acquire references to znode either by blocknr through call to zget(), or by
+   following a pointer to unallocated znode from internal item [not
+   implemented yet]. Each time reference to znode is obtained, x_count is
+   increased. Thread can read/write lock znode. Znode data can be loaded
+   through calls to zload(), d_count will be increased appropriately. If all
+   references to znode are released (x_count drops to 0), znode is not
+   recycled immediately. Rather, it is still cached in the hash table in the
+   hope that it will be accessed shortly.
+  
+   There are two ways in which znode existence can be terminated: 
+  
+    . sudden death: node bound to this znode is removed from the tree
+    . overpopulation: znode is purged out of memory due to memory pressure
+  
+   5. His death.
+  
+   Death is complex process.
+  
+   When we irrevocably commit ourselves to decision to remove node from
+   the tree, JNODE_HEARD_BANSHEE bit is set in zstate of corresponding
+   znode. This is done either in ->kill_hook() of internal item or in
+   kill_root() function when tree root is removed.
+  
+   At this moment znode still has:
+  
+    . locks held on it, necessary write ones
+    . references to it
+    . disk block assigned to it
+    . data loaded from the disk
+    . pending requests for lock
+  
+   But once JNODE_HEARD_BANSHEE bit set, last call to unlock_znode() does node
+   deletion. Node deletion includes two phases. First all ways to get
+   references to that znode (sibling and parent links and hash lookup using
+   block number stored in parent node) should be deleted -- it is done through
+   sibling_list_remove(), also we assume that nobody uses down link from
+   parent node due to its nonexistence or proper parent node locking and
+   nobody uses parent pointers from children due to absence of them. Second we
+   invalidate all pending lock requests which still are on znode's lock
+   request queue, this is done by invalidate_lock(). Another JNODE_IS_DYING
+   znode status bit is used to invalidate pending lock requests. Once it set
+   all requesters are forced to return -EINVAL from
+   longterm_lock_znode(). Future locking attempts are not possible because all
+   ways to get references to that znode are removed already. Last, node is
+   uncaptured from transaction.
+  
+   When last reference to the dying znode is just about to be released,
+   block number for this lock is released and znode is removed from the
+   hash table.
+  
+   Now znode can be recycled.
+  
+   [it's possible to free bitmap block and remove znode from the hash
+   table when last lock is released. This will result in having
+   referenced but completely orphaned znode]
 
  # Surely an attempt to access a node raises it from the dead (though
  # does not necessarily prevent death if it is in progress)....  surely
@@ -141,19 +135,19 @@
  # So attempting to get a znode by blocknr does not create the znode
  # and perform IO for the case where no such znode exists?
 
- *
- * 6. Limbo
- *
- * As have been mentioned above znodes with reference counter 0 are
- * still cached in a hash table. Once memory pressure increases they are
- * purged out of there [this requires something like LRU list for
- * efficient implementation. LRU list would also greatly simplify
- * implementation of coord cache that would in this case morph to just
- * scanning some initial segment of LRU list]. Data loaded into
- * unreferenced znode are flushed back to the durable storage if
- * necessary and memory is freed. Znodes themselves can be recycled at
- * this point too.
- *
+  
+   6. Limbo
+  
+   As have been mentioned above znodes with reference counter 0 are
+   still cached in a hash table. Once memory pressure increases they are
+   purged out of there [this requires something like LRU list for
+   efficient implementation. LRU list would also greatly simplify
+   implementation of coord cache that would in this case morph to just
+   scanning some initial segment of LRU list]. Data loaded into
+   unreferenced znode are flushed back to the durable storage if
+   necessary and memory is freed. Znodes themselves can be recycled at
+   this point too.
+  
  */
 
 #include "debug.h"
@@ -209,9 +203,7 @@ TS_HASH_DEFINE(z, znode, reiser4_block_nr, zjnode.key.z, zjnode.link.z, blknrhas
 /** slab for znodes */
 static kmem_cache_t *znode_slab;
 
-/****************************************************************************************
-				   ZNODE INITIALIZATION
- ****************************************************************************************/
+/* ZNODE INITIALIZATION */
 
 /** call this once on reiser4 initialisation*/
 /* Audited by: umka (2002.06.11) */
@@ -306,9 +298,7 @@ znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 	z_hash_done(&tree->zhash_table);
 }
 
-/****************************************************************************************
-				   ZNODE STRUCTURES
- ****************************************************************************************/
+/* ZNODE STRUCTURES */
 
 /** allocate fresh znode */
 static znode *
@@ -379,10 +369,9 @@ znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 	eflush_del(ZJNODE(node));
 }
 
-/** zdrop() -- Remove znode from the tree.
- *
- * This is called when znode is removed from the memory.
- */
+/* zdrop() -- Remove znode from the tree.
+  
+   This is called when znode is removed from the memory. */
 void
 zdrop(znode * node /* znode to finish with */ )
 {
@@ -419,16 +408,13 @@ znode_rehash(znode * node /* node to rehash */ ,
 	return 0;
 }
 
-/****************************************************************************************
-				   ZNODE LOOKUP, GET, PUT
- ****************************************************************************************/
+/* ZNODE LOOKUP, GET, PUT */
 
-/**
- * zlook() - get znode with given block_nr in a hash table or return NULL
- *
- * If result is non-NULL then the znode's x_count is incremented.  Internal version
- * accepts pre-computed hash index.  The hash table is accessed under caller's
- * tree->hash_lock.
+/* zlook() - get znode with given block_nr in a hash table or return NULL
+  
+   If result is non-NULL then the znode's x_count is incremented.  Internal version
+   accepts pre-computed hash index.  The hash table is accessed under caller's
+   tree->hash_lock.
  */
 znode *
 zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
@@ -466,15 +452,14 @@ del_c_ref(znode * node /* node to decrease c_count of */ )
 	atomic_dec(&node->c_count);
 }
 
-/**
- * zget() - get znode from hash table, allocating it if necessary.
- *
- * First a call to zlook, locating a x-referenced znode if one
- * exists.  If znode is not found, allocate new one and return.  Result
- * is returned with x_count reference increased.
- *
- * LOCKS TAKEN:   TREE_LOCK, ZNODE_LOCK
- * LOCK ORDERING: NONE
+/* zget() - get znode from hash table, allocating it if necessary.
+  
+   First a call to zlook, locating a x-referenced znode if one
+   exists.  If znode is not found, allocate new one and return.  Result
+   is returned with x_count reference increased.
+  
+   LOCKS TAKEN:   TREE_LOCK, ZNODE_LOCK
+   LOCK ORDERING: NONE
  */
 znode *
 zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent, tree_level level, int gfp_flag)
@@ -615,14 +600,10 @@ retry_miss_race:
 	return result;
 }
 
-/****************************************************************************************
-				    ZNODE PLUGINS/DATA
- ****************************************************************************************/
+/* ZNODE PLUGINS/DATA */
 
-/**
- * "guess" plugin for node loaded from the disk. Plugin id of node plugin is
- * stored at the fixed offset from the beginning of the node.
- */
+/* "guess" plugin for node loaded from the disk. Plugin id of node plugin is
+   stored at the fixed offset from the beginning of the node. */
 static node_plugin *
 znode_guess_plugin(const znode * node	/* znode to guess
 					 * plugin of */ )
@@ -703,10 +684,8 @@ zinit_new(znode * node /* znode to initialise */ )
 	return jinit_new(ZJNODE(node));
 }
 
-/**
- * drop reference to node data. When last reference is dropped, data are
- * unloaded.
- */
+/* drop reference to node data. When last reference is dropped, data are
+   unloaded. */
 void
 zrelse(znode * node /* znode to release references to */ )
 {
@@ -805,9 +784,8 @@ znode_above_root(const znode * node /* znode to query */ )
 	return disk_addr_eq(&ZJNODE(node)->blocknr, &FAKE_TREE_ADDR);
 }
 
-/** 
- * check that @node is root---that its block number is recorder in the tree as
- * that of root node */
+/* check that @node is root---that its block number is recorder in the tree as
+   that of root node */
 int
 znode_is_true_root(const znode * node /* znode to query */ )
 {
@@ -837,10 +815,8 @@ znode_is_root(const znode * node /* znode to query */ )
 	return result;
 }
 
-/**
- * Returns true is @node was just created by zget() and wasn't ever loaded
- * into memory.
- */
+/* Returns true is @node was just created by zget() and wasn't ever loaded
+   into memory. */
 int
 znode_just_created(const znode * node)
 {
@@ -1091,7 +1067,7 @@ znode_post_write(znode * node)
 }
 #endif
 
-/** return pointer to static storage with name of lock_mode. For
+/* return pointer to static storage with name of lock_mode. For
     debugging */
 /* Audited by: umka (2002.06.11) */
 const char *
@@ -1111,8 +1087,8 @@ lock_mode_name(znode_lock_mode lock /* lock mode to get name of */ )
 
 #if REISER4_DEBUG_OUTPUT
 
-/** debugging aid: output more human readable information about @node that
- * info_znode(). */
+/* debugging aid: output more human readable information about @node that
+   info_znode(). */
 void
 print_znode(const char *prefix /* prefix to print */ ,
 	    const znode * node /* node to print */ )
@@ -1178,10 +1154,8 @@ print_znodes(const char *prefix, reiser4_tree * tree)
 #endif
 
 #if REISER4_DEBUG
-/** 
- * helper function used to implement assertion in zref():
- * change of x_count from 0 to 1 is protected by tree spin-lock 
- */
+/* helper function used to implement assertion in zref():
+   change of x_count from 0 to 1 is protected by tree spin-lock  */
 int
 znode_x_count_is_protected(const znode * node)
 {
@@ -1191,13 +1165,12 @@ znode_x_count_is_protected(const znode * node)
 
 #endif
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

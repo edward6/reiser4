@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * vfs_ops.c's exported symbols
- */
+/* vfs_ops.c's exported symbols */
 
 #if !defined( __FS_REISER4_VFS_OPS_H__ )
 #define __FS_REISER4_VFS_OPS_H__
@@ -39,10 +35,9 @@ extern int reiser4_invalidatepage(struct page *page, unsigned long offset);
 extern int reiser4_releasepage(struct page *page, int gfp);
 extern int reiser4_writepages(struct address_space *, struct writeback_control *wbc);
 
-/**
- * &reiser4_dentry_fsdata - reiser4-specific data attached to dentries.
- *
- * This is allocated dynamically and released in d_op->d_release()
+/* &reiser4_dentry_fsdata - reiser4-specific data attached to dentries.
+  
+   This is allocated dynamically and released in d_op->d_release()
  */
 typedef struct reiser4_dentry_fsdata {
 	/*
@@ -59,10 +54,9 @@ typedef struct reiser4_dentry_fsdata {
 
 TS_LIST_DECLARE(readdir);
 
-/**
- * &reiser4_dentry_fsdata - reiser4-specific data attached to files.
- *
- * This is allocated dynamically and released in reiser4_release()
+/* &reiser4_dentry_fsdata - reiser4-specific data attached to files.
+  
+   This is allocated dynamically and released in reiser4_release()
  */
 typedef struct reiser4_file_fsdata {
 	struct file *back;

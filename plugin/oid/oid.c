@@ -1,6 +1,4 @@
-/*
- * Copyright 2002 Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "../plugin.h"
 #include "../plugin_header.h"
@@ -44,16 +42,16 @@ oid_release(oid_t oid)
 }
 
 /* FIXME-ZAM: it is enough ugly but each operation of OID allocating/releasing
- * are split into two parts, allocating/releasing itself and counting it (or
- * logging). At OID allocation time an atom could not be available yet, but it
- * should be available after we modify at least one block. So, new OID is
- * allocated _before_ actual transaction begins, and this operations is
- * counted _after_ it.  An allocation of empty atom can be a solution which
- * has inefficiency in case of further atom fusion on first captured
- * block. The OID releasing operation is spilt just for symmetry */
+   are split into two parts, allocating/releasing itself and counting it (or
+   logging). At OID allocation time an atom could not be available yet, but it
+   should be available after we modify at least one block. So, new OID is
+   allocated _before_ actual transaction begins, and this operations is
+   counted _after_ it.  An allocation of empty atom can be a solution which
+   has inefficiency in case of further atom fusion on first captured
+   block. The OID releasing operation is spilt just for symmetry */
 
 /* count an object allocation in atom's nr_objects_created when current atom
- * is available */
+   is available */
 void
 oid_count_allocated(void)
 {

@@ -1,49 +1,46 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Fast pool allocation.
- *
- * There are situations when some sub-system normally asks memory allocator
- * for only few objects, but under some circumstances could require much
- * more. Typical and actually motivating example is tree balancing. It needs
- * to keep track of nodes that were involved into it, and it is well-known
- * that in reasonable packed balanced tree most (92.938121%) percent of all
- * balancings end up after working with only few nodes (3.141592 on
- * average). But in rare cases balancing can involve much more nodes
- * (3*tree_height+1 in extremal situation).
- *
- * On the one hand, we don't want to resort to dynamic allocation (slab,
- * *malloc(), etc.) to allocate data structures required to keep track of
- * nodes during balancing. On the other hand, we cannot statically allocate
- * required amount of space on the stack, because first: it is useless wastage
- * of precious resource, and second: this amount is unknown in advance (tree
- * height can change).
- *
- * Pools, implemented in this file are solution for this problem:
- *
- *  - some configurable amount of objects is statically preallocated on the
- *  stack
- *
- *  - if this preallocated pool is exhausted and more objects is requested
- *  they are allocated dynamically.
- *
- * Pools encapsulate distinction between statically and dynamically allocated
- * objects. Both allocation and recycling look exactly the same.
- *
- * To keep track of dynamically allocated objects, pool adds its own linkage
- * to each object. 
- *
- * FIXME-NIKITA This linkage also contains some balancing-specific data. This
- * is not perfect. On the other hand, balancing is currently the only client
- * of pool code.
- *
- * FIXME-NIKITA Another desirable feature is to rewrite all pool manipulation
- * functions in the style of tslist/tshash, i.e., make them unreadable, but
- * type-safe.
- *
- *
+/* Fast pool allocation.
+  
+   There are situations when some sub-system normally asks memory allocator
+   for only few objects, but under some circumstances could require much
+   more. Typical and actually motivating example is tree balancing. It needs
+   to keep track of nodes that were involved into it, and it is well-known
+   that in reasonable packed balanced tree most (92.938121%) percent of all
+   balancings end up after working with only few nodes (3.141592 on
+   average). But in rare cases balancing can involve much more nodes
+   (3*tree_height+1 in extremal situation).
+  
+   On the one hand, we don't want to resort to dynamic allocation (slab,
+   *malloc(), etc.) to allocate data structures required to keep track of
+   nodes during balancing. On the other hand, we cannot statically allocate
+   required amount of space on the stack, because first: it is useless wastage
+   of precious resource, and second: this amount is unknown in advance (tree
+   height can change).
+  
+   Pools, implemented in this file are solution for this problem:
+  
+    - some configurable amount of objects is statically preallocated on the
+    stack
+  
+    - if this preallocated pool is exhausted and more objects is requested
+    they are allocated dynamically.
+  
+   Pools encapsulate distinction between statically and dynamically allocated
+   objects. Both allocation and recycling look exactly the same.
+  
+   To keep track of dynamically allocated objects, pool adds its own linkage
+   to each object. 
+  
+   FIXME-NIKITA This linkage also contains some balancing-specific data. This
+   is not perfect. On the other hand, balancing is currently the only client
+   of pool code.
+  
+   FIXME-NIKITA Another desirable feature is to rewrite all pool manipulation
+   functions in the style of tslist/tshash, i.e., make them unreadable, but
+   type-safe.
+  
+  
  */
 
 #include "debug.h"
@@ -53,9 +50,7 @@
 #include <linux/types.h>
 #include <linux/err.h>
 
-/**
- * initialise new pool object
- */
+/* initialise new pool object */
 /* Audited by: green(2002.06.15) */
 static void
 reiser4_init_pool_obj(reiser4_pool_header * h	/* pool object to
@@ -66,9 +61,7 @@ reiser4_init_pool_obj(reiser4_pool_header * h	/* pool object to
 	pool_extra_list_clean(h);
 }
 
-/**
- * initialise new pool
- */
+/* initialise new pool */
 /* Audited by: green(2002.06.15) */
 void
 reiser4_init_pool(reiser4_pool * pool /* pool to initialise */ ,
@@ -99,12 +92,11 @@ reiser4_init_pool(reiser4_pool * pool /* pool to initialise */ ,
 	}
 }
 
-/**
- * release pool resources
- *
- * Release all resources acquired by this pool, specifically, dynamically
- * allocated objects.
- *
+/* release pool resources
+  
+   Release all resources acquired by this pool, specifically, dynamically
+   allocated objects.
+  
  */
 /* Audited by: green(2002.06.15) */
 void
@@ -112,12 +104,11 @@ reiser4_done_pool(reiser4_pool * pool UNUSED_ARG /* pool to destroy */ )
 {
 }
 
-/**
- * allocate carry object from pool
- *
- * First, try to get preallocated object. If this fails, resort to dynamic
- * allocation.
- *
+/* allocate carry object from pool
+  
+   First, try to get preallocated object. If this fails, resort to dynamic
+   allocation.
+  
  */
 /* Audited by: green(2002.06.15) */
 void *
@@ -156,10 +147,8 @@ reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 	return result;
 }
 
-/**
- * return object back to the pool
- *
- */
+/* return object back to the pool
+   */
 /* Audited by: green(2002.06.15) */
 void
 reiser4_pool_free(reiser4_pool_header * h	/* pool to return object back
@@ -182,22 +171,21 @@ reiser4_pool_free(reiser4_pool_header * h	/* pool to return object back
 	}
 }
 
-/**
- * add new object to the carry level list
- *
- * Carry level is FIFO most of the time, but not always. Complications arise
- * when make_space() function tries to go to the left neighbor and thus adds
- * carry node before existing nodes, and also, when updating delimiting keys
- * after moving data between two nodes, we want left node to be locked before
- * right node.
- *
- * Latter case is confusing at the first glance. Problem is that COP_UPDATE
- * opration that updates delimiting keys is sometimes called with two nodes
- * (when data are moved between two nodes) and sometimes with only one node
- * (when leftmost item is deleted in a node). In any case operation is
- * supplied with at least node whose left delimiting key is to be updated
- * (that is "right" node).
- *
+/* add new object to the carry level list
+  
+   Carry level is FIFO most of the time, but not always. Complications arise
+   when make_space() function tries to go to the left neighbor and thus adds
+   carry node before existing nodes, and also, when updating delimiting keys
+   after moving data between two nodes, we want left node to be locked before
+   right node.
+  
+   Latter case is confusing at the first glance. Problem is that COP_UPDATE
+   opration that updates delimiting keys is sometimes called with two nodes
+   (when data are moved between two nodes) and sometimes with only one node
+   (when leftmost item is deleted in a node). In any case operation is
+   supplied with at least node whose left delimiting key is to be updated
+   (that is "right" node).
+  
  */
 /* Audited by: green(2002.06.15) */
 reiser4_pool_header *
@@ -243,13 +231,12 @@ add_obj(reiser4_pool * pool	/* pool from which to
 	return result;
 }
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Hash functions
- */
+/* Hash functions */
 
 #include "../debug.h"
 #include "plugin_header.h"
@@ -78,18 +74,17 @@ r5_hash(const unsigned char *name /* name to hash */ ,
 	return a;
 }
 
-/*
- * Keyed 32-bit hash function using TEA in a Davis-Meyer function
- *   H0 = Key
- *   Hi = E Mi(Hi-1) + Hi-1
- *
- * (see Applied Cryptography, 2nd edition, p448).
- *
- * Jeremy Fitzhardinge <jeremy@zip.com.au> 1998
- * 
- * Jeremy has agreed to the contents of reiserfs/README. -Hans
- *
- * This code was blindly upgraded to __u64 by s/__u32/__u64/g.
+/* Keyed 32-bit hash function using TEA in a Davis-Meyer function
+     H0 = Key
+     Hi = E Mi(Hi-1) + Hi-1
+  
+   (see Applied Cryptography, 2nd edition, p448).
+  
+   Jeremy Fitzhardinge <jeremy@zip.com.au> 1998
+   
+   Jeremy has agreed to the contents of reiserfs/README. -Hans
+  
+   This code was blindly upgraded to __u64 by s/__u32/__u64/g.
  */
 static __u64
 tea_hash(const unsigned char *name /* name to hash */ ,
@@ -200,21 +195,20 @@ tea_hash(const unsigned char *name /* name to hash */ ,
 
 }
 
-/** 
- * classical 64 bit Fowler/Noll/Vo-1 (FNV-1) hash. 
- * 
- * See http://www.isthe.com/chongo/tech/comp/fnv/ for details.
- * 
- * Excerpts:
- * 
- *   FNV hashes are designed to be fast while maintaining a low collision
- *   rate.
- * 
- *   [This version also seems to preserve lexicographical order locally.]
- * 
- *   FNV hash algorithms and source code have been released into the public
- *   domain.
- * 
+/* classical 64 bit Fowler/Noll/Vo-1 (FNV-1) hash. 
+   
+   See http://www.isthe.com/chongo/tech/comp/fnv/ for details.
+   
+   Excerpts:
+   
+     FNV hashes are designed to be fast while maintaining a low collision
+     rate.
+   
+     [This version also seems to preserve lexicographical order locally.]
+   
+     FNV hash algorithms and source code have been released into the public
+     domain.
+   
  */
 static __u64
 fnv1_hash(const unsigned char *name /* name to hash */ ,
@@ -237,8 +231,8 @@ fnv1_hash(const unsigned char *name /* name to hash */ ,
 	return a;
 }
 
-/** degenerate hash function used to simplify testing of non-unique key
- * handling */
+/* degenerate hash function used to simplify testing of non-unique key
+   handling */
 static __u64
 deg_hash(const unsigned char *name UNUSED_ARG /* name to hash */ ,
 	 int len UNUSED_ARG /* @name's length */ )
@@ -247,9 +241,7 @@ deg_hash(const unsigned char *name UNUSED_ARG /* name to hash */ ,
 	return 0xc0c0c0c010101010ull;
 }
 
-/**
- * hash plugins
- */
+/* hash plugins */
 hash_plugin hash_plugins[LAST_HASH_ID] = {
 	[RUPASOV_HASH_ID] = {
 			     .h = {
@@ -307,13 +299,12 @@ hash_plugin hash_plugins[LAST_HASH_ID] = {
 				.hash = deg_hash}
 };
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Inode specific operations.
- */
+/* Inode specific operations. */
 
 #include "forward.h"
 #include "debug.h"
@@ -130,25 +126,24 @@ ino_t oid_to_uino(oid_t oid)
 		return REISER4_UINO_SHIFT + ((oid - max_ino) & (max_ino >> 1));
 }
 
-/** 
- * INODE LOCKING: not sure what to do.
- *
- * lock inode. We lock file-system wide spinlock, because we have to lock
- * inode _before_ we have actually read and initialised it and we cannot rely
- * on memset() in fs/inode.c to initialise spinlock. Alternative is to grab
- * i_sem, but it's semaphore rather than spinlock, so it's not clear what
- * would be more effective.
- *
- * Taking inode->i_sem is simple and scalable, but taking and releasing
- * semaphore is much more expensive than taking spin-lock. So, for the time
- * being, let's just pile a number of possible locking schemes here and choose
- * best (or leave them as options) after benchmarking.
- *
- * This is because we dont't have enough empirical evidence about scalability
- * of each scheme.
- *
- * FIXME-NIKITA ->i_sem is not what we actually won't. May be spinlock is
- * better after all.
+/* INODE LOCKING: not sure what to do.
+  
+   lock inode. We lock file-system wide spinlock, because we have to lock
+   inode _before_ we have actually read and initialised it and we cannot rely
+   on memset() in fs/inode.c to initialise spinlock. Alternative is to grab
+   i_sem, but it's semaphore rather than spinlock, so it's not clear what
+   would be more effective.
+  
+   Taking inode->i_sem is simple and scalable, but taking and releasing
+   semaphore is much more expensive than taking spin-lock. So, for the time
+   being, let's just pile a number of possible locking schemes here and choose
+   best (or leave them as options) after benchmarking.
+  
+   This is because we dont't have enough empirical evidence about scalability
+   of each scheme.
+  
+   FIXME-NIKITA ->i_sem is not what we actually won't. May be spinlock is
+   better after all.
  */
 
 /** check that "inode" is on reiser4 file-system */
@@ -160,10 +155,9 @@ is_reiser4_inode(const struct inode *inode /* inode queried */ )
 
 }
 
-/**
- * Maximal length of a name that can be stored in directory @inode.
- *
- * This is used in check during file creation and lookup.
+/* Maximal length of a name that can be stored in directory @inode.
+  
+   This is used in check during file creation and lookup.
  */
 /* Audited by: green(2002.06.17) */
 int
@@ -177,9 +171,7 @@ reiser4_max_filename_len(const struct inode *inode /* inode queried */ )
 		return 255;
 }
 
-/**
- * Maximal number of hash collisions for this directory.
- */
+/* Maximal number of hash collisions for this directory. */
 /* Audited by: green(2002.06.17) */
 int
 max_hash_collisions(const struct inode *dir /* inode queried */ )
@@ -193,7 +185,7 @@ max_hash_collisions(const struct inode *dir /* inode queried */ )
 #endif
 }
 
-/** return information about "repetitive access" (ra) patterns,
+/* return information about "repetitive access" (ra) patterns,
     accumulated in inode. */
 /* Audited by: green(2002.06.17) */
 inter_syscall_rap *
@@ -218,10 +210,8 @@ is_inode_loaded(const struct inode *inode /* inode queried */ )
 }
 #endif
 
-/**
- * Install file, inode, and address_space operation on @inode, depending on
- * its mode.
- */
+/* Install file, inode, and address_space operation on @inode, depending on
+   its mode. */
 /* Audited by: green(2002.06.17) */
 int
 setup_inode_ops(struct inode *inode /* inode to intialise */ ,
@@ -267,7 +257,7 @@ setup_inode_ops(struct inode *inode /* inode to intialise */ ,
 	return 0;
 }
 
-/** initialise inode from disk data. Called with inode locked.
+/* initialise inode from disk data. Called with inode locked.
     Return inode locked. */
 /* Audited by: green(2002.06.17) */
 int
@@ -381,9 +371,7 @@ read_inode(struct inode *inode /* inode to read from disk */ ,
 	}
 }
 
-/**
- * initialise new reiser4 inode being inserted into hash table.
- */
+/* initialise new reiser4 inode being inserted into hash table. */
 /* Audited by: green(2002.06.17) */
 static int
 init_locked_inode(struct inode *inode /* new inode */ ,
@@ -400,14 +388,13 @@ init_locked_inode(struct inode *inode /* new inode */ ,
 	return 0;
 }
 
-/**
- * reiser4_inode_find_actor() - "find actor" supplied by reiser4 to iget5_locked().
- *
- * This function is called by iget5_locked() to distinguish reiserfs inodes
- * having the same inode numbers. Such inodes can only exist due to some error
- * condition. One of them should be bad. Inodes with identical inode numbers
- * (objectids) are distinguished by their packing locality.
- *
+/* reiser4_inode_find_actor() - "find actor" supplied by reiser4 to iget5_locked().
+  
+   This function is called by iget5_locked() to distinguish reiserfs inodes
+   having the same inode numbers. Such inodes can only exist due to some error
+   condition. One of them should be bad. Inodes with identical inode numbers
+   (objectids) are distinguished by their packing locality.
+  
  */
 /* Audited by: green(2002.06.17) */
 int
@@ -428,7 +415,7 @@ reiser4_inode_find_actor(struct inode *inode	/* inode from hash table to
 	    (reiser4_inode_data(inode)->locality_id == get_key_locality(key));
 }
 
-/** this is our helper function a la iget().
+/* this is our helper function a la iget().
     Probably we also need function taking locality_id as the second argument. ???
     This will be called by reiser4_lookup() and reiser4_read_super().
     Return inode locked or error encountered. 
@@ -619,13 +606,12 @@ print_inode(const char *prefix /* prefix to print */ ,
 }
 #endif
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

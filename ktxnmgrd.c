@@ -1,9 +1,5 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
-/*
- * Transaction manager daemon.
- */
+/* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Transaction manager daemon. */
 
 #include "debug.h"
 #include "kcond.h"
@@ -26,20 +22,17 @@ static int scan_mgr(txn_mgr * mgr);
 #define ktxnmgrd_trace( args... ) noop
 #endif
 
-/**
- * change current->comm so that ps, top, and friends will see changed
- * state. This serves no useful purpose whatsoever, but also costs
- * nothing. May be it will make lonely system administrator feeling less alone
- * at 3 A.M.
+/* change current->comm so that ps, top, and friends will see changed
+   state. This serves no useful purpose whatsoever, but also costs
+   nothing. May be it will make lonely system administrator feeling less alone
+   at 3 A.M.
  */
 #define set_comm( state ) 						\
 	snprintf( current -> comm, sizeof( current -> comm ),	\
 		  "%s:%s", __FUNCTION__, ( state ) )
 
-/**
- * The background transaction manager daemon, started as a kernel thread
- * during reiser4 initialization.
- */
+/* The background transaction manager daemon, started as a kernel thread
+   during reiser4 initialization. */
 int
 ktxnmgrd(void *arg)
 {
@@ -233,9 +226,7 @@ ktxnmgrd_detach(txn_mgr * mgr)
 		spin_unlock(&ctx->guard);
 }
 
-/**
- * wake up ktxnmgrd thread
- */
+/* wake up ktxnmgrd thread */
 void
 ktxnmgrd_kick(ktxnmgrd_context * ctx, ktxnmgrd_wake reason)
 {
@@ -315,13 +306,12 @@ ktxnmgr_writeback(struct super_block *s, struct writeback_control *wbc)
 	return 0;
 }
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

@@ -1,7 +1,6 @@
 /* We need a definition of the default node layout here. */
 
 /* 
-
 Generally speaking, it is best to have free space in the middle of the
 node so that two sets of things can grow towards it, and to have the
 item bodies on the left so that the last one of them grows into free
@@ -101,9 +100,7 @@ typedef enum {
 	NS_NOT_FOUND = -ENOENT
 } node_search_result;
 
-/**
- * Maximal possible space overhead for creation of new item in a node
- */
+/* Maximal possible space overhead for creation of new item in a node */
 #define REISER4_NODE_MAX_OVERHEAD ( sizeof( reiser4_key ) + 32 )
 
 typedef enum {
@@ -130,8 +127,7 @@ typedef enum {
 #define REISER4_TREE_BRIEF ( REISER4_NODE_PRINT_BRIEF )
 #define REISER4_TREE_CHECK_ALL ( REISER4_TREE_CHECK & ~REISER4_NODE_ONLY_INCORE )
 
-/**
-   The responsibility of the node plugin is to store and give access
+/* The responsibility of the node plugin is to store and give access
    to the sequence of items within the node.  */
 typedef struct node_plugin {
 	/* generic plugin fields */
@@ -294,7 +290,7 @@ extern void indent_znode(const znode * node);
 
 #if YOU_CAN_COMPILE_PSEUDO_CODE
 
-/** returns length of condensation corresponding to the item, in other
+/* returns length of condensation corresponding to the item, in other
     words, the length of the item's data when uncompressed. */
 extern size_t get_condensation_length(item * item);
 
@@ -309,13 +305,12 @@ typedef struct common_node_header {
 } common_node_header;
 /* __REISER4_NODE_H__ */
 #endif
-/* 
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

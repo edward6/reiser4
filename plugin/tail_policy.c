@@ -1,17 +1,12 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Tail policy plugins
- */
+/* Tail policy plugins */
 
-/*
- * Tail policy is used by object plugin (of regular file) to convert file
- * between two representations. TO BE CONTINUED.
- *
- * Currently only trivial policies are implemented.
- *
+/* Tail policy is used by object plugin (of regular file) to convert file
+   between two representations. TO BE CONTINUED.
+  
+   Currently only trivial policies are implemented.
+  
  */
 
 #include "../tree.h"
@@ -93,7 +88,7 @@ reiser4_block_nr always_tail_estimate ( const struct inode *inode, loff_t size,
 }
 
 /* This function makes test if we should store file denoted @inode as tails only or
- * as extents only. */
+   as extents only. */
 static int
 test_tail(const struct inode *inode UNUSED_ARG	/* inode to operate
 						 * on */ ,
@@ -116,9 +111,7 @@ reiser4_block_nr test_tail_estimate ( const struct inode *inode, loff_t size,
 		never_tail_estimate(inode, size, is_fake);
 }
 
-/**
- * tail plugins
- */
+/* tail plugins */
 tail_plugin tail_plugins[LAST_TAIL_ID] = {
 	[NEVER_TAIL_ID] = {
 			   .h = {
@@ -157,13 +150,12 @@ tail_plugin tail_plugins[LAST_TAIL_ID] = {
 			  .estimate = test_tail_estimate}
 };
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

@@ -4,7 +4,7 @@
 
 Unresolved issues:
 
-* how do we flag an item as being a crypto item?  Or do we make crypto items distinct item types?  
+  how do we flag an item as being a crypto item?  Or do we make crypto items distinct item types?  
 
 
 */

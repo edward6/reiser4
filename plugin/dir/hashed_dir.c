@@ -1,11 +1,7 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Directory plugin using hashes (see fs/reiser4/plugin/hash.c) to map
- * file names to the files.
- */
+/* Directory plugin using hashes (see fs/reiser4/plugin/hash.c) to map
+   file names to the files. */
 
 #include "../../forward.h"
 #include "../../debug.h"
@@ -93,12 +89,11 @@ reiser4_block_nr hashed_estimate_done(struct inode *parent, struct inode *object
 	return res;
 }
 
-/**
- * ->delete() method of directory plugin
- *
- * Delete dot and dotdot, decrease nlink on parent and call
- * common_file_delete() to delete stat data.
- *
+/* ->delete() method of directory plugin
+  
+   Delete dot and dotdot, decrease nlink on parent and call
+   common_file_delete() to delete stat data.
+  
  */
 int
 hashed_done(struct inode *object /* object being deleted */ )
@@ -161,9 +156,7 @@ hashed_done(struct inode *object /* object being deleted */ )
 	return 0;
 }
 
-/**
- * ->owns_item() for hashed directory object plugin.
- */
+/* ->owns_item() for hashed directory object plugin. */
 int
 hashed_owns_item(const struct inode *inode /* object to check against */ ,
 		 const coord_t * coord /* coord of item to check */ )
@@ -247,9 +240,7 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 	return result;
 }
 
-/**
- * implementation of ->resolve_into_inode() method for hashed directories.
- */
+/* implementation of ->resolve_into_inode() method for hashed directories. */
 file_lookup_result hashed_lookup(struct inode * parent	/* inode of directory to
 							 * lookup into */ ,
 				 struct dentry * dentry /* name to look for */ )
@@ -316,10 +307,9 @@ file_lookup_result hashed_lookup(struct inode * parent	/* inode of directory to
 
 static const char *possible_leak = "Possible disk space leak.";
 
-/**
- * re-bind existing name at @from_coord in @from_dir to point to @to_inode.
- *
- * Helper function called from hashed_rename()
+/* re-bind existing name at @from_coord in @from_dir to point to @to_inode.
+  
+   Helper function called from hashed_rename()
  */
 static int
 replace_name(struct inode *to_inode	/* inode where @from_coord is
@@ -406,10 +396,9 @@ replace_name(struct inode *to_inode	/* inode where @from_coord is
 	return result;
 }
 
-/**
- * add new entry pointing to @inode into @dir at @coord, locked by @lh
- *
- * Helper function used by hashed_rename().
+/* add new entry pointing to @inode into @dir at @coord, locked by @lh
+  
+   Helper function used by hashed_rename().
  */
 static int
 add_name(struct inode *inode	/* inode where @coord is to be
@@ -562,17 +551,16 @@ reiser4_block_nr hashed_estimate_rename(
 	return res1;
 }
 
-/**
- * ->rename directory plugin method implementation for hashed directories. 
- *
- * See comments in the body.
- *
- * It is arguable that this function can be made generic so, that it will be
- * applicable to any kind of directory plugin that deals with directories
- * composed out of directory entries. The only obstacle here is that we don't
- * have any data-type to represent directory entry. This should be
- * re-considered when more than one different directory plugin will be
- * implemented.
+/* ->rename directory plugin method implementation for hashed directories. 
+  
+   See comments in the body.
+  
+   It is arguable that this function can be made generic so, that it will be
+   applicable to any kind of directory plugin that deals with directories
+   composed out of directory entries. The only obstacle here is that we don't
+   have any data-type to represent directory entry. This should be
+   re-considered when more than one different directory plugin will be
+   implemented.
  */
 int
 hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
@@ -848,9 +836,7 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	return result;
 }
 
-/**
- * ->add_entry() method for hashed directory object plugin.
- */
+/* ->add_entry() method for hashed directory object plugin. */
 int
 hashed_add_entry(struct inode *object	/* directory to add new name
 					 * in */ ,
@@ -909,9 +895,7 @@ hashed_add_entry(struct inode *object	/* directory to add new name
 	return result;
 }
 
-/**
- * ->rem_entry() method for hashed directory object plugin.
- */
+/* ->rem_entry() method for hashed directory object plugin. */
 int
 hashed_rem_entry(struct inode *object	/* directory from which entry
 					 * is begin removed */ ,
@@ -982,16 +966,15 @@ typedef struct entry_actor_args {
 	const struct inode *inode;
 } entry_actor_args;
 
-/**
- * Look for given @name within directory @dir.
- *
- * This is called during lookup, creation and removal of directory
- * entries.
- *
- * First calculate key that directory entry for @name would have. Search
- * for this key in the tree. If such key is found, scan all items with
- * the same key, checking name in each directory entry along the way.
- *
+/* Look for given @name within directory @dir.
+  
+   This is called during lookup, creation and removal of directory
+   entries.
+  
+   First calculate key that directory entry for @name would have. Search
+   for this key in the tree. If such key is found, scan all items with
+   the same key, checking name in each directory entry along the way.
+  
  */
 static int
 find_entry(const struct inode *dir /* directory to scan */ ,
@@ -1093,9 +1076,7 @@ find_entry(const struct inode *dir /* directory to scan */ ,
 	return result;
 }
 
-/**
- * Function called by find_entry() to look for given name in the directory.
- */
+/* Function called by find_entry() to look for given name in the directory. */
 static int
 entry_actor(reiser4_tree * tree UNUSED_ARG /* tree being scanned */ ,
 	    coord_t * coord /* current coord */ ,
@@ -1173,13 +1154,12 @@ check_item(const struct inode *dir, const coord_t * coord, const char *name)
 	return !!strcmp(name, iplug->s.dir.extract_name(coord));
 }
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

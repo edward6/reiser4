@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Declaration of znode (Zam's node).
- */
+/* Declaration of znode (Zam's node). */
 
 #ifndef __ZNODE_H__
 #define __ZNODE_H__
@@ -29,9 +25,8 @@
    which want to lock given znode */
 TS_LIST_DECLARE(requestors);
 /* per-znode list of lock handles for this znode
- * 
- * Locking: protected by znode spin lock.
- */
+   
+   Locking: protected by znode spin lock. */
 TS_LIST_DECLARE(owners);
 /* per-owner list of lock handles that point to locked znodes which
    belong to one lock owner 
@@ -41,9 +36,7 @@ TS_LIST_DECLARE(owners);
 */
 TS_LIST_DECLARE(locks);
 
-/**
- * Per-znode lock object
- */
+/* Per-znode lock object */
 struct zlock {
 	/**
 	 * The number of readers if positive; the number of recursively taken
@@ -71,57 +64,56 @@ struct zlock {
    Don't carelessly add bloat here (or anywhere, this is not user
    space office suite programming we are doing) .  */
 
-/**
- * &znode - node in a reiser4 tree.
- *
- * FIXME-NIKITA fields in this struct have to be rearranged (later) to reduce
- * cacheline pressure.
- *
- * Locking: 
- *
- * Long term: data in a disk node attached to this znode are protected
- * by long term, deadlock aware lock ->lock;
- *
- * Spin lock: the following fields are protected by the spin lock:
- *
- *  (jnode fields:)
- *  ->state
- *  ->level
- *  ->atom
- *  ->blocknr
- *  ->pg
- *
- *  (znode fields:)
- *  ->node_plugin (see below)
- *
- * Following fields are protected by the global tree lock:
- *
- *  ->left
- *  ->right
- *  ->in_parent
- *  ->link
- *
- * Following fields are protected by the global delimiting key lock (dk_lock):
- *
- *  ->ld_key
- *  ->rd_key
- *
- * Atomic counters
- *
- *  ->x_count
- *  ->d_count 
- *  ->c_count
- *
- * can be accessed and modified without locking
- *
- * If you ever need to spin lock two nodes at once, do this in "natural"
- * memory order: lock znode with lower address first. (See
- * spin_lock_znode_pair() and spin_lock_znode_triple() functions, FIXME-NIKITA
- * TDB)
- *
- * ->node_plugin is never changed once set. This means that after code made
- * itself sure that field is valid it can be accessed without any additional
- * locking.
+/* &znode - node in a reiser4 tree.
+  
+   FIXME-NIKITA fields in this struct have to be rearranged (later) to reduce
+   cacheline pressure.
+  
+   Locking: 
+  
+   Long term: data in a disk node attached to this znode are protected
+   by long term, deadlock aware lock ->lock;
+  
+   Spin lock: the following fields are protected by the spin lock:
+  
+    (jnode fields:)
+    ->state
+    ->level
+    ->atom
+    ->blocknr
+    ->pg
+  
+    (znode fields:)
+    ->node_plugin (see below)
+  
+   Following fields are protected by the global tree lock:
+  
+    ->left
+    ->right
+    ->in_parent
+    ->link
+  
+   Following fields are protected by the global delimiting key lock (dk_lock):
+  
+    ->ld_key
+    ->rd_key
+  
+   Atomic counters
+  
+    ->x_count
+    ->d_count 
+    ->c_count
+  
+   can be accessed and modified without locking
+  
+   If you ever need to spin lock two nodes at once, do this in "natural"
+   memory order: lock znode with lower address first. (See
+   spin_lock_znode_pair() and spin_lock_znode_triple() functions, FIXME-NIKITA
+   TDB)
+  
+   ->node_plugin is never changed once set. This means that after code made
+   itself sure that field is valid it can be accessed without any additional
+   locking.
  */
 struct znode {
 	/* Embedded jnode. */
@@ -218,10 +210,9 @@ struct znode {
 #define	ZF_ISSET(p,f)	        JF_ISSET(ZJNODE(p), (f))
 #define	ZF_SET(p,f)		JF_SET  (ZJNODE(p), (f))
 
-/**
- * Since we have R/W znode locks we need additional bidirectional `link'
- * objects to implement n<->m relationship between lock owners and lock
- * objects. We call them `lock handles'.
+/* Since we have R/W znode locks we need additional bidirectional `link'
+   objects to implement n<->m relationship between lock owners and lock
+   objects. We call them `lock handles'.
  */
 struct lock_handle {
 	/**
@@ -245,9 +236,7 @@ struct lock_handle {
 	owners_list_link owners_link;
 };
 
-/**
- * A lock stack structure for accumulating locks owned by a process
- */
+/* A lock stack structure for accumulating locks owned by a process */
 struct lock_stack {
 	/**
 	 * A guard lock protecting a lock stack */
@@ -321,9 +310,8 @@ TS_LIST_DEFINE(requestors, lock_stack, requestors_link);
 TS_LIST_DEFINE(owners, lock_handle, owners_link);
 TS_LIST_DEFINE(locks, lock_handle, locks_link);
 
-/*****************************************************************************\
- * User-visible znode locking functions
-\*****************************************************************************/
+/*\
+   User-visible znode locking functions */
 
 extern int longterm_lock_znode(lock_handle * handle, znode * node, znode_lock_mode mode, znode_lock_request request);
 extern void longterm_unlock_znode(lock_handle * handle);
@@ -348,7 +336,7 @@ extern void __reiser4_wake_up(lock_stack * owner);
 extern int lock_stack_isclean(lock_stack * owner);
 
 /* zlock object state check macros: only used in assertions.  Both forms imply that the
- * lock is held by the current thread. */
+   lock is held by the current thread. */
 #if REISER4_DEBUG
 extern int znode_is_write_locked(const znode * node);
 #endif
@@ -450,7 +438,7 @@ extern void print_lock_stack(const char *prefix, lock_stack * owner);
 #endif
 
 /* Make it look like various znode functions exist instead of treating znodes as
- * jnodes in znode-specific code. */
+   jnodes in znode-specific code. */
 #define znode_page(x)               jnode_page ( ZJNODE(x) )
 #define zdata(x)                    jdata ( ZJNODE(x) )
 #define znode_get_block(x)          jnode_get_block ( ZJNODE(x) )
@@ -526,12 +514,12 @@ znode_get_tree(const znode * node)
 }
 
 /* Data-handles.  A data handle object manages pairing calls to zload() and zrelse().  We
- * must load the data for a node in many places.  We could do this by simply calling
- * zload() everywhere, the difficulty arises when we must release the loaded data by
- * calling zrelse.  In a function with many possible error/return paths, it requires extra
- * work to figure out which exit paths must call zrelse and those which do not.  The data
- * handle automatically calls zrelse for every zload that it is responsible for.  In that
- * sense, it acts much like a lock_handle.
+   must load the data for a node in many places.  We could do this by simply calling
+   zload() everywhere, the difficulty arises when we must release the loaded data by
+   calling zrelse.  In a function with many possible error/return paths, it requires extra
+   work to figure out which exit paths must call zrelse and those which do not.  The data
+   handle automatically calls zrelse for every zload that it is responsible for.  In that
+   sense, it acts much like a lock_handle.
  */
 typedef struct load_count {
 	znode *node;
@@ -553,9 +541,8 @@ extern void copy_load_count(load_count * new, load_count * old);	/* Copy the con
 #define INIT_LOAD_COUNT_NODE( n ) ( load_count ){ .node = ( n ), .d_ref = 0 }
 
 /* A convenience macro for use in assertions or debug-only code, where loaded data is only
- * required to perform the debugging check.  This macro encapsulates an expression inside
- * a pair of calls to zload()/zrelse().
- */
+   required to perform the debugging check.  This macro encapsulates an expression inside
+   a pair of calls to zload()/zrelse(). */
 #define WITH_DATA( node, exp )				\
 ({							\
 	int __with_dh_result;				\
@@ -615,13 +602,12 @@ extern void check_lock_node_data(znode * node);
 /* __ZNODE_H__ */
 #endif
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

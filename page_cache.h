@@ -1,9 +1,5 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
-/*
- * Memory pressure hooks. Fake inodes handling. See memory.c.
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Memory pressure hooks. Fake inodes handling. See memory.c. */
 
 #if !defined( __REISER4_PAGE_CACHE_H__ )
 #define __REISER4_PAGE_CACHE_H__
@@ -46,14 +42,13 @@ extern void print_page(const char *prefix, struct page *page);
 /* __REISER4_PAGE_CACHE_H__ */
 #endif
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

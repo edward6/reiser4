@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * definition of item plugins.
- */
+/* definition of item plugins. */
 
 #include "../../forward.h"
 #include "../../debug.h"
@@ -122,7 +118,7 @@ unit_key_by_coord(const coord_t * coord /* coord to query */ ,
 		return item_key_by_coord(coord, key);
 }
 
-/** ->max_key_inside() method for items consisting of exactly one key (like
+/* ->max_key_inside() method for items consisting of exactly one key (like
     stat-data) */
 static reiser4_key *
 single_key(const coord_t * coord /* coord of item */ ,
@@ -585,13 +581,12 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		     }
 };
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

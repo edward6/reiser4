@@ -12,14 +12,14 @@ estimate_rename()
 {
 
 /* we ignore internal nodes because we have some percent of the device
- * space in reserve, and no set of changes to internal nodes can
- * exceed that reserve and leave us with internal nodes whose children
- * can fit onto this disk drive because we know what worst case fan
- * out is. */
+   space in reserve, and no set of changes to internal nodes can
+   exceed that reserve and leave us with internal nodes whose children
+   can fit onto this disk drive because we know what worst case fan
+   out is. */
 
 /* if we ever get a rename that does more than insert one item and
- * delete one item and update a parent directory stat data, we'll need
- * to recode this. */
+   delete one item and update a parent directory stat data, we'll need
+   to recode this. */
 	return ESTIMATE_ITEM_DELETE + ESTIMATE_ITEM_INSERT + ESTIMATE_ITEM_UPDATE;
 
 }

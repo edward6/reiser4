@@ -1,8 +1,7 @@
-/*
- * Declarations of key-related data-structures and operations on keys.
- *
- * Copyright 2000, 2001, 2002 by Hans Reiser, licensing governed by reiserfs/README
- *
+/* Declarations of key-related data-structures and operations on keys.
+  
+   Copyright 2000, 2001, 2002 by Hans Reiser, licensing governed by reiserfs/README
+  
  */
 
 #if !defined( __REISER4_KEY_H__ )
@@ -55,18 +54,17 @@ typedef enum {
    can be had. */
 
 /* 
-
 Arbitrary major packing localities can be assigned to objects using
 the reiser4(filenameA/..packing<=some_number) system call.
 
 In reiser4, the creat() syscall creates a directory
 
-* whose default flow (that which is referred to if the directory is
+  whose default flow (that which is referred to if the directory is
   read as a file) is the traditional unix file body.
 
-* whose directory plugin is the 'filedir'
+  whose directory plugin is the 'filedir'
 
-* whose major packing locality is that of the parent of the object created.
+  whose major packing locality is that of the parent of the object created.
 
 The static_stat item is a particular commonly used directory
 compression (the one for normal unix files).
@@ -80,7 +78,7 @@ contents.
 
 */
 
-/** offset of fields in reiser4_key. Value of each element of this enum
+/* offset of fields in reiser4_key. Value of each element of this enum
     is index within key (thought as array of __u64's) where this field
     is. */
 typedef enum {
@@ -99,7 +97,7 @@ typedef enum {
 	KEY_LAST_INDEX = 3
 } reiser4_key_field_index;
 
-/** key in reiser4 internal "balanced" tree. It is just array of three
+/* key in reiser4 internal "balanced" tree. It is just array of three
     64bit integers in disk byte order (little-endian by default). This
     array is actually indexed by reiser4_key_field.  Each __u64 within
     this array is called "element". Logical key component encoded within
@@ -112,7 +110,7 @@ union reiser4_key {
 	int pad;
 };
 
-/** bitmasks showing where within reiser4_key particular key is
+/* bitmasks showing where within reiser4_key particular key is
     stored. */
 typedef enum {
 	/** major locality occupies higher 60 bits of the first element */
@@ -241,7 +239,7 @@ extern const reiser4_key *max_key(void);
 	( e1 < e2 ) ? LESS_THAN : ( ( e1 == e2 ) ? EQUAL_TO : GREATER_THAN );	\
 })
 
-/** compare `k1' and `k2'.  This function is a heart of "key allocation
+/* compare `k1' and `k2'.  This function is a heart of "key allocation
     policy". All you need to implement new policy is to add yet another
     clause here. */
 static inline cmp_t
@@ -347,13 +345,12 @@ extern void print_key(const char *prefix, const reiser4_key * key);
 /* __FS_REISERFS_KEY_H__ */
 #endif
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

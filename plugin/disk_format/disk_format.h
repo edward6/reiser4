@@ -1,9 +1,7 @@
-/*
- * Copyright 2002 Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2002 Hans Reiser, licensing governed by reiser4/README */
 
 /* identifiers for disk layouts, they are also used as indexes in array of disk
- * plugins */
+   plugins */
 
 #if !defined( __REISER4_DISK_FORMAT_H__ )
 #define __REISER4_DISK_FORMAT_H__

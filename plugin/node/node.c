@@ -1,8 +1,4 @@
-/*
- *
- * Copyright 2000, 2001, 2002 by Hans Reiser, licensing governed by reiserfs/README
- *
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 /* Node plugin interface.
 
@@ -36,14 +32,14 @@
 
    When moving the bodies of items from one node to another:
 
-   * if a partial item is shifted to another node the balancing code invokes
+     if a partial item is shifted to another node the balancing code invokes
      an item handler method to handle the item splitting.
 
-   * if the balancing code needs to merge with an item in the node it
+     if the balancing code needs to merge with an item in the node it
      is shifting to, it will invoke an item handler method to handle
      the item merging.
 
-   * if it needs to move whole item bodies unchanged, the balancing code uses xmemcpy()
+     if it needs to move whole item bodies unchanged, the balancing code uses xmemcpy()
      adjusting the item headers after the move is done using the node handler.
 */
 
@@ -60,9 +56,7 @@
 #include "../../super.h"
 #include "../../reiser4.h"
 
-/**
- * return starting key of the leftmost item in the @node
- */
+/* return starting key of the leftmost item in the @node */
 reiser4_key *
 leftmost_key_in_node(const znode * node /* node to query */ ,
 		     reiser4_key * key /* resulting key */ )
@@ -105,8 +99,8 @@ indent(unsigned indentation)
 		info("%.1i........", indentation - i);
 }
 
-/** helper function used to indent output for @node during recursive tree
- * printing */
+/* helper function used to indent output for @node during recursive tree
+   printing */
 void
 indent_znode(const znode * node /* current node */ )
 {
@@ -116,9 +110,7 @@ indent_znode(const znode * node /* current node */ )
 		indent(znode_get_tree(node)->height - znode_get_level(node));
 }
 
-/**
- * debugging aid: output human readable information about @node
- */
+/* debugging aid: output human readable information about @node */
 void
 print_node_content(const char *prefix /* output prefix */ ,
 		   const znode * node /* node to print */ ,
@@ -209,10 +201,8 @@ print_node_content(const char *prefix /* output prefix */ ,
 	info("\n");
 }
 
-/**
- * debugging aid: output human readable information about @node
- * the same as the above, but items to be printed must be specified
- */
+/* debugging aid: output human readable information about @node
+   the same as the above, but items to be printed must be specified */
 void
 print_node_items(const char *prefix /* output prefix */ ,
 		 const znode * node /* node to print */ ,
@@ -395,13 +385,12 @@ node_plugin node_plugins[LAST_NODE_ID] = {
 		       .prepare_removal = node40_prepare_for_removal}
 };
 
-/* 
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

@@ -1,6 +1,4 @@
-/*
- * Copyright 2002 Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2002 Hans Reiser, licensing governed by reiser4/README */
 
 DO NOT COMPILE THIS
 #include "debug.h"
@@ -24,13 +22,12 @@ get_bitmap_blocknr(struct super_block *super, int bmap, reiser4_block_nr * bnr)
 	}
 }
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

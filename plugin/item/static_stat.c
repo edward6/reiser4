@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * stat data manipulation.
- */
+/* stat data manipulation. */
 
 #include "../../forward.h"
 #include "../plugin.h"
@@ -24,7 +20,7 @@
 
 /* see static_stat.h for explanation */
 
-/** helper function used while we are dumping/loading inode/plugin state
+/* helper function used while we are dumping/loading inode/plugin state
     to/from the stat-data. */
 
 static void
@@ -42,10 +38,8 @@ next_stat(int *length /* space remaining in stat-data */ ,
 }
 
 #if REISER4_DEBUG_OUTPUT
-/**
- * ->print() method of static sd item. Prints human readable information about
- * sd at @coord
- */
+/* ->print() method of static sd item. Prints human readable information about
+   sd at @coord */
 void
 sd_print(const char *prefix /* prefix to print */ ,
 	 coord_t * coord /* coord of item */ )
@@ -140,7 +134,7 @@ sd_item_stat(const coord_t * coord, void *vp)
 		stat->others++;
 }
 
-/** helper function used while loading inode/plugin state from stat-data.
+/* helper function used while loading inode/plugin state from stat-data.
     Complain if there is less space in stat-data than was expected.
     Can only happen on disk corruption. */
 static int
@@ -153,7 +147,7 @@ not_enough_space(struct inode *inode /* object being processed */ ,
 	return -EINVAL;
 }
 
-/** helper function used while loading inode/plugin state from
+/* helper function used while loading inode/plugin state from
     stat-data. Call it if invalid plugin id was found. */
 static int
 unknown_plugin(reiser4_plugin_id id /* invalid id */ ,
@@ -163,7 +157,7 @@ unknown_plugin(reiser4_plugin_id id /* invalid id */ ,
 	return -EINVAL;
 }
 
-/** helper function used while storing/loading inode/plugin data to/from
+/* helper function used while storing/loading inode/plugin data to/from
     stat-data. Move current coord in stat-data ("area") to position
     aligned up to "alignment" bytes. */
 static int
@@ -187,7 +181,7 @@ align(struct inode *inode /* object being processed */ ,
 	return 0;
 }
 
-/** this is installed as ->init_inode() method of 
+/* this is installed as ->init_inode() method of 
     item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c).
     Copies data from on-disk stat-data format into inode.
     Handles stat-data extensions. */
@@ -275,7 +269,7 @@ sd_load(struct inode *inode /* object being processed */ ,
 	return result;
 }
 
-/** estimates size of stat-data required to store inode.
+/* estimates size of stat-data required to store inode.
     Installed as ->save_len() method of
     item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c). */
 int
@@ -306,7 +300,7 @@ sd_len(struct inode *inode /* object being processed */ )
 	return result;
 }
 
-/** saves inode into stat-data.
+/* saves inode into stat-data.
     Installed as ->save() method of
     item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c). */
 int
@@ -503,9 +497,7 @@ unix_sd_print(const char *prefix, char **area /* position in stat-data */ ,
 }
 #endif
 
-/*
- * symlink stat data extention
- */
+/* symlink stat data extention */
 
 /* allocate memory for symlink target and attach it to inode->u.generic_ip */
 static int
@@ -529,7 +521,7 @@ symlink_target_to_inode(struct inode *inode, const char *target, int len)
 }
 
 /* this is called on read_inode. There is nothing to do actually, but some
- * sanity checks */
+   sanity checks */
 static int
 symlink_sd_present(struct inode *inode, char **area, int *len)
 {
@@ -562,7 +554,7 @@ symlink_sd_save_len(struct inode *inode)
 }
 
 /* this is called on create and update stat data. Do nothing on update but
- * update @area */
+   update @area */
 static int
 symlink_sd_save(struct inode *inode, char **area)
 {
@@ -751,7 +743,7 @@ plugin_sd_absent(struct inode *inode /* object being processed */ )
 	return result;
 }
 
-/** helper function for plugin_sd_save_len(): calculate how much space
+/* helper function for plugin_sd_save_len(): calculate how much space
     required to save state of given plugin */
 /* Audited by: green(2002.06.14) */
 static int
@@ -771,7 +763,7 @@ len_for(reiser4_plugin * plugin /* plugin to save */ ,
 	return len;
 }
 
-/** calculate how much space is required to save state of all plugins,
+/* calculate how much space is required to save state of all plugins,
     associated with inode */
 static int
 plugin_sd_save_len(struct inode *inode /* object being processed */ )
@@ -800,7 +792,7 @@ plugin_sd_save_len(struct inode *inode /* object being processed */ )
 	return len;
 }
 
-/** helper function for plugin_sd_save(): save plugin, associated with
+/* helper function for plugin_sd_save(): save plugin, associated with
     inode. */
 static int
 save_plug(reiser4_plugin * plugin /* plugin to save */ ,
@@ -963,13 +955,12 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				.alignment = 8}
 };
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

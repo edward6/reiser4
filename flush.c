@@ -1,5 +1,4 @@
-/* Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 /* The design document for this file is at www.namesys.com/fast_reiser4.html. */
 
@@ -35,445 +34,441 @@
 #include <linux/pagemap.h>
 #include <linux/blkdev.h>
 
-/********************************************************************************
- * IMPLEMENTATION NOTES
- ********************************************************************************/
+/* IMPLEMENTATION NOTES */
 
 /* PARENT-FIRST: Some terminology: A parent-first traversal is a way of assigning a total
- * order to the nodes of the tree in which the parent is placed before its children, which
- * are ordered (recursively) in left-to-right order.  We have the notion of "forward"
- * parent-first order (the ordinary case, just described) and "reverse" parent-first
- * order, which inverts the relationship.  When we speak of a "parent-first preceder", it
- * describes the node that "came before in forward parent-first order" (alternatively the
- * node that "comes next in reverse parent-first order").  When we speak of a
- * "parent-first follower", it describes the node that "comes next in forward parent-first
- * order" (alternatively the node that "came before in reverse parent-first order").
- *
- * The following pseudo-code prints the nodes of a tree in forward parent-first order:
- *
- * void parent_first (node)
- * {
- *   print_node (node);
- *   if (node->level > leaf) {
- *     for (i = 0; i < num_children; i += 1) {
- *       parent_first (node->child[i]);
- *     }
- *   }
- * }
+   order to the nodes of the tree in which the parent is placed before its children, which
+   are ordered (recursively) in left-to-right order.  We have the notion of "forward"
+   parent-first order (the ordinary case, just described) and "reverse" parent-first
+   order, which inverts the relationship.  When we speak of a "parent-first preceder", it
+   describes the node that "came before in forward parent-first order" (alternatively the
+   node that "comes next in reverse parent-first order").  When we speak of a
+   "parent-first follower", it describes the node that "comes next in forward parent-first
+   order" (alternatively the node that "came before in reverse parent-first order").
+  
+   The following pseudo-code prints the nodes of a tree in forward parent-first order:
+  
+   void parent_first (node)
+   {
+     print_node (node);
+     if (node->level > leaf) {
+       for (i = 0; i < num_children; i += 1) {
+         parent_first (node->child[i]);
+       }
+     }
+   }
  */
 
 /* JUST WHAT ARE WE TRYING TO OPTIMIZE, HERE?  The idea is to optimize block allocation so
- * that a left-to-right scan of the tree's data (i.e., the leaves in left-to-right order)
- * can be accomplished with sequential reads, which results in reading nodes in their
- * parent-first order.  This is a read-optimization aspect of the flush algorithm, and
- * there is also a write-optimization aspect, which is that we wish to make large
- * sequential writes to the disk by allocating or reallocating blocks so that they can be
- * written in sequence.  Sometimes the read-optimization and write-optimization goals
- * conflict with each other, as we discuss in more detail below.
+   that a left-to-right scan of the tree's data (i.e., the leaves in left-to-right order)
+   can be accomplished with sequential reads, which results in reading nodes in their
+   parent-first order.  This is a read-optimization aspect of the flush algorithm, and
+   there is also a write-optimization aspect, which is that we wish to make large
+   sequential writes to the disk by allocating or reallocating blocks so that they can be
+   written in sequence.  Sometimes the read-optimization and write-optimization goals
+   conflict with each other, as we discuss in more detail below.
  */
 
 /* STATE BITS: The flush code revolves around the state of the jnodes it covers.  Here are
- * the relevant jnode->state bits and their relevence to flush:
- *
- *   JNODE_DIRTY: If a node is dirty, it must be flushed.  But in order to be written it
- *   must be allocated first.  In order to be considered allocated, the jnode must have
- *   exactly one of { JNODE_OVRWR, JNODE_RELOC } set.  These two bits are exclusive, and
- *   all dirtied jnodes eventually have one of these bits set during each transaction.
- *
- *   JNODE_CREATED: The node was freshly created in its transaction and has no previous
- *   block address, so it is unconditionally assigned to be relocated, although this is
- *   mainly for code-convenience.  It is not being 'relocated' from anything, but in
- *   almost every regard it is treated as part of the relocate set.  The JNODE_CREATED bit
- *   remains set even after JNODE_RELOC is set, so the actual relocate can be
- *   distinguished from the created-and-allocated set easily: relocate-set members
- *   (belonging to the preserve-set) have (JNODE_RELOC) set and created-set members which
- *   have no previous location to preserve have (JNODE_RELOC | JNODE_CREATED) set.
- *
- *   JNODE_OVRWR: The flush algorithm made the decision to maintain the pre-existing
- *   location for this node and it will be written to the wandered-log.  FIXME(E): The
- *   following NOTE needs to be fixed by adding a wander_list to the atom.  NOTE: In this
- *   case, flush sets the node to be clean!  By returning the node to the clean list,
- *   where the log-writer expects to find it, flush simply pretends it was written even
- *   though it has not been.  Clean nodes with JNODE_OVRWR set cannot be released from
- *   memory (checked in reiser4_releasepage()).
- *
- *   JNODE_RELOC: The flush algorithm made the decision to relocate this block (if it was
- *   not created, see note above).  A block with JNODE_RELOC set is eligible for
- *   early-flushing and may be submitted during flush_empty_queues.  When the JNODE_RELOC
- *   bit is set on a znode, the parent node's internal item is modified and the znode is
- *   rehashed.
- *
- *   JNODE_FLUSH_QUEUED: This bit is set when a call to flush enters the jnode into its
- *   flush queue.  This means the jnode is not on any clean or dirty list, instead it is
- *   on a flush_position->capture_list indicating that it is in a queue that will be
- *   submitted for writing when the flush finishes.  This prevents multiple concurrent
- *   flushes from attempting to flush the same node.
- *
- *   (DEAD STATE BIT) JNODE_FLUSH_BUSY: This bit was set during the bottom-up
- *   squeeze-and-allocate on a node while its children are actively being squeezed and
- *   allocated.  This flag was created to avoid submitting a write request for a node
- *   while its children are still being allocated and squeezed.  However, this flag is no
- *   longer needed because flush_empty_queue is only called in one place after flush
- *   finishes.  It used to be that flush_empty_queue was called periodically during flush
- *   when there was a fixed queue, but that is no longer done.  See the changes on August
- *   6, 2002 when this support was removed.
- *
- * With these state bits, we describe a test used frequently in the code below,
- * jnode_is_flushprepped() (and the spin-lock-taking jnode_check_flushprepped()).  The
- * test for "flushprepped" returns true if any of the following are true:
- *
- *   - The node is not dirty
- *   - The node has JNODE_RELOC set
- *   - The node has JNODE_OVRWR set
- *
- * If either the node is not dirty or it has already been processed by flush (and assigned
- * JNODE_OVRWR or JNODE_RELOC), then it is prepped.  If jnode_is_flushprepped() returns
- * true then flush has work to do on that node.
+   the relevant jnode->state bits and their relevence to flush:
+  
+     JNODE_DIRTY: If a node is dirty, it must be flushed.  But in order to be written it
+     must be allocated first.  In order to be considered allocated, the jnode must have
+     exactly one of { JNODE_OVRWR, JNODE_RELOC } set.  These two bits are exclusive, and
+     all dirtied jnodes eventually have one of these bits set during each transaction.
+  
+     JNODE_CREATED: The node was freshly created in its transaction and has no previous
+     block address, so it is unconditionally assigned to be relocated, although this is
+     mainly for code-convenience.  It is not being 'relocated' from anything, but in
+     almost every regard it is treated as part of the relocate set.  The JNODE_CREATED bit
+     remains set even after JNODE_RELOC is set, so the actual relocate can be
+     distinguished from the created-and-allocated set easily: relocate-set members
+     (belonging to the preserve-set) have (JNODE_RELOC) set and created-set members which
+     have no previous location to preserve have (JNODE_RELOC | JNODE_CREATED) set.
+  
+     JNODE_OVRWR: The flush algorithm made the decision to maintain the pre-existing
+     location for this node and it will be written to the wandered-log.  FIXME(E): The
+     following NOTE needs to be fixed by adding a wander_list to the atom.  NOTE: In this
+     case, flush sets the node to be clean!  By returning the node to the clean list,
+     where the log-writer expects to find it, flush simply pretends it was written even
+     though it has not been.  Clean nodes with JNODE_OVRWR set cannot be released from
+     memory (checked in reiser4_releasepage()).
+  
+     JNODE_RELOC: The flush algorithm made the decision to relocate this block (if it was
+     not created, see note above).  A block with JNODE_RELOC set is eligible for
+     early-flushing and may be submitted during flush_empty_queues.  When the JNODE_RELOC
+     bit is set on a znode, the parent node's internal item is modified and the znode is
+     rehashed.
+  
+     JNODE_FLUSH_QUEUED: This bit is set when a call to flush enters the jnode into its
+     flush queue.  This means the jnode is not on any clean or dirty list, instead it is
+     on a flush_position->capture_list indicating that it is in a queue that will be
+     submitted for writing when the flush finishes.  This prevents multiple concurrent
+     flushes from attempting to flush the same node.
+  
+     (DEAD STATE BIT) JNODE_FLUSH_BUSY: This bit was set during the bottom-up
+     squeeze-and-allocate on a node while its children are actively being squeezed and
+     allocated.  This flag was created to avoid submitting a write request for a node
+     while its children are still being allocated and squeezed.  However, this flag is no
+     longer needed because flush_empty_queue is only called in one place after flush
+     finishes.  It used to be that flush_empty_queue was called periodically during flush
+     when there was a fixed queue, but that is no longer done.  See the changes on August
+     6, 2002 when this support was removed.
+  
+   With these state bits, we describe a test used frequently in the code below,
+   jnode_is_flushprepped() (and the spin-lock-taking jnode_check_flushprepped()).  The
+   test for "flushprepped" returns true if any of the following are true:
+  
+     - The node is not dirty
+     - The node has JNODE_RELOC set
+     - The node has JNODE_OVRWR set
+  
+   If either the node is not dirty or it has already been processed by flush (and assigned
+   JNODE_OVRWR or JNODE_RELOC), then it is prepped.  If jnode_is_flushprepped() returns
+   true then flush has work to do on that node.
  */
 
 /* FLUSH_PREP_ONCE_PER_TRANSACTION: Within a single transaction a node is never
- * flushprepped twice (unless an explicit call to flush_unprep is made as described in
- * detail below).  For example a node is dirtied, allocated, and then early-flushed to
- * disk and set clean.  Before the transaction commits, the page is dirtied again and, due
- * to memory pressure, the node is flushed again.  The flush algorithm will not relocate
- * the node to a new disk location, it will simply write it to the same, previously
- * relocated position again.
+   flushprepped twice (unless an explicit call to flush_unprep is made as described in
+   detail below).  For example a node is dirtied, allocated, and then early-flushed to
+   disk and set clean.  Before the transaction commits, the page is dirtied again and, due
+   to memory pressure, the node is flushed again.  The flush algorithm will not relocate
+   the node to a new disk location, it will simply write it to the same, previously
+   relocated position again.
  */
 
 /* THE BOTTOM-UP VS. TOP-DOWN ISSUE: This code implements a bottom-up algorithm where we
- * start at a leaf node and allocate in parent-first order by iterating to the right.  At
- * each step of the iteration, we check for the right neighbor.  Before advancing to the
- * right neighbor, we check if the current position and the right neighbor share the same
- * parent.  If they do not share the same parent, the parent is allocated before the right
- * neighbor.  This process goes recursively up the tree as long as the right neighbor and
- * the current position have different parents, then it allocates the
- * right-neighbors-with-different-parents on the way back down.  This process is described
- * in more detail in flush_squalloc_changed_ancestor and the recursive function
- * flush_squalloc_one_changed_ancestor.  But the purpose here is not to discuss the
- * specifics of the bottom-up approach as it is to contrast the bottom-up and top-down
- * approaches.
- *
- * The top-down algorithm was implemented earlier (April-May 2002).  In the top-down
- * approach, we find a starting point by scanning left along each level past dirty nodes,
- * then going up and repeating the process until the left node and the parent node are
- * clean.  We then perform a parent-first traversal from the starting point, which makes
- * allocating in parent-first order trivial.  After one subtree has been allocated in this
- * manner, we move to the right, try moving upward, then repeat the parent-first
- * traversal.
- *
- * Both approaches have problems that need to be addressed.  Both are approximately the
- * same amount of code, but the bottom-up approach has advantages in the order it acquires
- * locks which, at the very least, make it the better approach.  At first glance each one
- * makes the other one look simpler, so it is important to remember a few of the problems
- * with each one.
- *
- * Main problem with the top-down approach: When you encounter a clean child during the
- * parent-first traversal, what do you do?  You would like to avoid searching through a
- * large tree of nodes just to find a few dirty leaves at the bottom, and there is not an
- * obvious solution.  One of the advantages of the top-down approach is that during the
- * parent-first traversal you check every child of a parent to see if it is dirty.  In
- * this way, the top-down approach easily handles the main problem of the bottom-up
- * approach: unallocated children.
- *
- * The unallocated children problem is that before writing a node to disk we must make
- * sure that all of its children are allocated.  Otherwise, the writing the node means
- * extra I/O because the node will have to be written again when the child is finally
- * allocated.
- *
- * WE HAVE NOT YET ELIMINATED THE UNALLOCATED CHILDREN PROBLEM.  Except for bugs, this
- * should not cause any file system corruption, it only degrades I/O performance because a
- * node may be written when it is sure to be written at least one more time in the same
- * transaction when the remaining children are allocated.  What follows is a description
- * of how we will solve the problem.
+   start at a leaf node and allocate in parent-first order by iterating to the right.  At
+   each step of the iteration, we check for the right neighbor.  Before advancing to the
+   right neighbor, we check if the current position and the right neighbor share the same
+   parent.  If they do not share the same parent, the parent is allocated before the right
+   neighbor.  This process goes recursively up the tree as long as the right neighbor and
+   the current position have different parents, then it allocates the
+   right-neighbors-with-different-parents on the way back down.  This process is described
+   in more detail in flush_squalloc_changed_ancestor and the recursive function
+   flush_squalloc_one_changed_ancestor.  But the purpose here is not to discuss the
+   specifics of the bottom-up approach as it is to contrast the bottom-up and top-down
+   approaches.
+  
+   The top-down algorithm was implemented earlier (April-May 2002).  In the top-down
+   approach, we find a starting point by scanning left along each level past dirty nodes,
+   then going up and repeating the process until the left node and the parent node are
+   clean.  We then perform a parent-first traversal from the starting point, which makes
+   allocating in parent-first order trivial.  After one subtree has been allocated in this
+   manner, we move to the right, try moving upward, then repeat the parent-first
+   traversal.
+  
+   Both approaches have problems that need to be addressed.  Both are approximately the
+   same amount of code, but the bottom-up approach has advantages in the order it acquires
+   locks which, at the very least, make it the better approach.  At first glance each one
+   makes the other one look simpler, so it is important to remember a few of the problems
+   with each one.
+  
+   Main problem with the top-down approach: When you encounter a clean child during the
+   parent-first traversal, what do you do?  You would like to avoid searching through a
+   large tree of nodes just to find a few dirty leaves at the bottom, and there is not an
+   obvious solution.  One of the advantages of the top-down approach is that during the
+   parent-first traversal you check every child of a parent to see if it is dirty.  In
+   this way, the top-down approach easily handles the main problem of the bottom-up
+   approach: unallocated children.
+  
+   The unallocated children problem is that before writing a node to disk we must make
+   sure that all of its children are allocated.  Otherwise, the writing the node means
+   extra I/O because the node will have to be written again when the child is finally
+   allocated.
+  
+   WE HAVE NOT YET ELIMINATED THE UNALLOCATED CHILDREN PROBLEM.  Except for bugs, this
+   should not cause any file system corruption, it only degrades I/O performance because a
+   node may be written when it is sure to be written at least one more time in the same
+   transaction when the remaining children are allocated.  What follows is a description
+   of how we will solve the problem.
  */
 
 /* HANDLING UNALLOCATED CHILDREN: During flush we may allocate a parent node then,
- * proceeding in parent first order, allocate some of its left-children, then encounter a
- * clean child in the middle of the parent.  We do not allocate the clean child, but there
- * may remain unallocated (dirty) children to the right of the clean child.  If we were to
- * stop flushing at this moment and write everything to disk, the parent might still
- * contain unallocated children.
+   proceeding in parent first order, allocate some of its left-children, then encounter a
+   clean child in the middle of the parent.  We do not allocate the clean child, but there
+   may remain unallocated (dirty) children to the right of the clean child.  If we were to
+   stop flushing at this moment and write everything to disk, the parent might still
+   contain unallocated children.
 
- * We could try to allocate all the descendents of every node that we allocate, but this
- * is not necessary.  Doing so could result in allocating the entire tree: if the root
- * node is allocated then every unallocated node would have to be allocated before
- * flushing.  Actually, we do not have to write a node just because we allocate it.  It is
- * possible to allocate but not write a node during flush, when it still has unallocated
- * children.  However, this approach is probably not optimal for the following reason.
- *
- * The flush algorithm is designed to allocate nodes in parent-first order in an attempt
- * to optimize reads that occur in the same order.  Thus we are read-optimizing for a
- * left-to-right scan through all the leaves in the system, and we are hoping to
- * write-optimize at the same time because those nodes will be written together in batch.
- * What happens, however, if we assign a block number to a node in its read-optimized
- * order but then avoid writing it because it has unallocated children?  In that
- * situation, we lose out on the write-optimization aspect because a node will have to be
- * written again to the its location on the device, later, which likely means seeking back
- * to that location.
- *
- * So there are tradeoffs. We can choose either:
- *
- * A. Allocate all unallocated children to preserve both write-optimization and
- * read-optimization, but this is not always desirable because it may mean having to
- * allocate and flush very many nodes at once.
- *
- * B. Defer writing nodes with unallocated children, keep their read-optimized locations,
- * but sacrifice write-optimization because those nodes will be written again.
- *
- * C. Defer writing nodes with unallocated children, but do not keep their read-optimized
- * locations.  Instead, choose to write-optimize them later, when they are written.  To
- * facilitate this, we "undo" the read-optimized allocation that was given to the node so
- * that later it can be write-optimized, thus "unpreparing" the flush decision.  This is a
- * case where we disturb the FLUSH_PREP_ONCE_PER_TRANSACTION rule described above.  By a
- * call to flush_unprep() we will: if the node was wandered, unset the JNODE_OVRWR bit;
- * if the node was relocated, unset the JNODE_RELOC bit, non-deferred-deallocate its block
- * location, and set the JNODE_CREATED bit, effectively setting the node back to an
- * unallocated state.
- *
- * We will take the following approach in v4.0: for twig nodes we will always finish
- * allocating unallocated children (A).  For nodes with (level > TWIG) with will defer
- * writing and choose write-optimization (C).
- *
- * To summarize, there are several parts to a solution that avoids the problem with
- * unallocated children:
- *
- * 1. When flush reaches a stopping point (e.g., a clean node), it should continue calling
- * squeeze-and-allocate on any remaining unallocated children.  FIXME: Difficulty to
- * implement: should be simple -- amounts to adding a while loop to jnode_flush, see
- * comments in that function.
- *
- * 2. When flush reaches flush_empty_queue(), some of the (level > TWIG) nodes may still
- * have unallocated children.  If the twig level has unallocated children it is an
- * assertion failure.  If a higher-level node has unallocated children, then it should be
- * explicitly de-allocated by a call to flush_unprep().  FIXME: Difficulty to implement:
- * should be simple.
- *
- * 3. (CPU-Optimization) Checking whether a node has unallocated children may consume more
- * CPU cycles than we would like, and it is possible (but medium complexity) to optimize
- * this somewhat in the case where large sub-trees are flushed.  The following observation
- * helps: if both the left- and right-neighbor of a node are processed by the flush
- * algorithm then the node itself is guaranteed to have all of its children allocated.
- * However, the cost of this check may not be so expensive after all: it is not needed for
- * leaves and flush can guarantee this property for twigs.  That leaves only (level >
- * TWIG) nodes that have to be checked, so this optimization only helps if at least three
- * (level > TWIG) nodes are flushed in one pass, and the savings will be very small unless
- * there are many more (level > TWIG) nodes.  But if there are many (level > TWIG) nodes
- * then the number of blocks being written will be very large, so the savings may be
- * insignificant.  That said, the idea is to maintain both the left and right edges of
- * nodes that are processed in flush.  When flush_empty_queue() is called, a relatively
- * simple test will tell whether the (level > TWIG) node is on the edge.  If it is on the
- * edge, the slow check is necessary, but if it is in the interior then it can be assumed
- * to have all of its children allocated.  FIXME: medium complexity to implement, but
- * simple to verify given that we must have a slow check anyway.
- *
- * 4. (Optional) This part is optional, not for v4.0--flush should work independently of
- * whether this option is used or not.  Called RAPID_SCAN, the idea is to amend the
- * left-scan operation to take unallocated children into account.  Normally, the left-scan
- * operation goes left as long as adjacent nodes are dirty up until some large maximum
- * value (FLUSH_SCAN_MAXNODES) at which point it stops and begins flushing.  But scan-left
- * may stop at a position where there are unallocated children to the left with the same
- * parent.  When RAPID_SCAN is enabled, the ordinary scan-left operation stops after
- * FLUSH_RELOCATE_THRESHOLD, which is much smaller than FLUSH_SCAN_MAXNODES, then procedes
- * with a rapid scan.  The rapid scan skips all the interior children of a node--if the
- * leftmost child of a twig is dirty, check its left neighbor (the rightmost child of the
- * twig to the left).  If the left neighbor of the leftmost child is also dirty, then
- * continue the scan at the left twig and repeat.  This option will cause flush to
- * allocate more twigs in a single pass, but it also has the potential to write many more
- * nodes than would otherwise be written without the RAPID_SCAN option.  RAPID_SCAN
- * was partially implemented, code removed August 12, 2002 by JMACD.
+   We could try to allocate all the descendents of every node that we allocate, but this
+   is not necessary.  Doing so could result in allocating the entire tree: if the root
+   node is allocated then every unallocated node would have to be allocated before
+   flushing.  Actually, we do not have to write a node just because we allocate it.  It is
+   possible to allocate but not write a node during flush, when it still has unallocated
+   children.  However, this approach is probably not optimal for the following reason.
+  
+   The flush algorithm is designed to allocate nodes in parent-first order in an attempt
+   to optimize reads that occur in the same order.  Thus we are read-optimizing for a
+   left-to-right scan through all the leaves in the system, and we are hoping to
+   write-optimize at the same time because those nodes will be written together in batch.
+   What happens, however, if we assign a block number to a node in its read-optimized
+   order but then avoid writing it because it has unallocated children?  In that
+   situation, we lose out on the write-optimization aspect because a node will have to be
+   written again to the its location on the device, later, which likely means seeking back
+   to that location.
+  
+   So there are tradeoffs. We can choose either:
+  
+   A. Allocate all unallocated children to preserve both write-optimization and
+   read-optimization, but this is not always desirable because it may mean having to
+   allocate and flush very many nodes at once.
+  
+   B. Defer writing nodes with unallocated children, keep their read-optimized locations,
+   but sacrifice write-optimization because those nodes will be written again.
+  
+   C. Defer writing nodes with unallocated children, but do not keep their read-optimized
+   locations.  Instead, choose to write-optimize them later, when they are written.  To
+   facilitate this, we "undo" the read-optimized allocation that was given to the node so
+   that later it can be write-optimized, thus "unpreparing" the flush decision.  This is a
+   case where we disturb the FLUSH_PREP_ONCE_PER_TRANSACTION rule described above.  By a
+   call to flush_unprep() we will: if the node was wandered, unset the JNODE_OVRWR bit;
+   if the node was relocated, unset the JNODE_RELOC bit, non-deferred-deallocate its block
+   location, and set the JNODE_CREATED bit, effectively setting the node back to an
+   unallocated state.
+  
+   We will take the following approach in v4.0: for twig nodes we will always finish
+   allocating unallocated children (A).  For nodes with (level > TWIG) with will defer
+   writing and choose write-optimization (C).
+  
+   To summarize, there are several parts to a solution that avoids the problem with
+   unallocated children:
+  
+   1. When flush reaches a stopping point (e.g., a clean node), it should continue calling
+   squeeze-and-allocate on any remaining unallocated children.  FIXME: Difficulty to
+   implement: should be simple -- amounts to adding a while loop to jnode_flush, see
+   comments in that function.
+  
+   2. When flush reaches flush_empty_queue(), some of the (level > TWIG) nodes may still
+   have unallocated children.  If the twig level has unallocated children it is an
+   assertion failure.  If a higher-level node has unallocated children, then it should be
+   explicitly de-allocated by a call to flush_unprep().  FIXME: Difficulty to implement:
+   should be simple.
+  
+   3. (CPU-Optimization) Checking whether a node has unallocated children may consume more
+   CPU cycles than we would like, and it is possible (but medium complexity) to optimize
+   this somewhat in the case where large sub-trees are flushed.  The following observation
+   helps: if both the left- and right-neighbor of a node are processed by the flush
+   algorithm then the node itself is guaranteed to have all of its children allocated.
+   However, the cost of this check may not be so expensive after all: it is not needed for
+   leaves and flush can guarantee this property for twigs.  That leaves only (level >
+   TWIG) nodes that have to be checked, so this optimization only helps if at least three
+   (level > TWIG) nodes are flushed in one pass, and the savings will be very small unless
+   there are many more (level > TWIG) nodes.  But if there are many (level > TWIG) nodes
+   then the number of blocks being written will be very large, so the savings may be
+   insignificant.  That said, the idea is to maintain both the left and right edges of
+   nodes that are processed in flush.  When flush_empty_queue() is called, a relatively
+   simple test will tell whether the (level > TWIG) node is on the edge.  If it is on the
+   edge, the slow check is necessary, but if it is in the interior then it can be assumed
+   to have all of its children allocated.  FIXME: medium complexity to implement, but
+   simple to verify given that we must have a slow check anyway.
+  
+   4. (Optional) This part is optional, not for v4.0--flush should work independently of
+   whether this option is used or not.  Called RAPID_SCAN, the idea is to amend the
+   left-scan operation to take unallocated children into account.  Normally, the left-scan
+   operation goes left as long as adjacent nodes are dirty up until some large maximum
+   value (FLUSH_SCAN_MAXNODES) at which point it stops and begins flushing.  But scan-left
+   may stop at a position where there are unallocated children to the left with the same
+   parent.  When RAPID_SCAN is enabled, the ordinary scan-left operation stops after
+   FLUSH_RELOCATE_THRESHOLD, which is much smaller than FLUSH_SCAN_MAXNODES, then procedes
+   with a rapid scan.  The rapid scan skips all the interior children of a node--if the
+   leftmost child of a twig is dirty, check its left neighbor (the rightmost child of the
+   twig to the left).  If the left neighbor of the leftmost child is also dirty, then
+   continue the scan at the left twig and repeat.  This option will cause flush to
+   allocate more twigs in a single pass, but it also has the potential to write many more
+   nodes than would otherwise be written without the RAPID_SCAN option.  RAPID_SCAN
+   was partially implemented, code removed August 12, 2002 by JMACD.
  */
 
 /* FLUSH CALLED ON NON-LEAF LEVEL.  Most of our design considerations assume that the
- * starting point for flush is a leaf node, but actually the flush code cares very little
- * about whether or not this is true.  It is possible that all the leaf nodes are flushed
- * and dirty parent nodes still remain, in which case jnode_flush() is called on a
- * non-leaf argument.  Flush doesn't care--it treats the argument node as if it were a
- * leaf, even when it is not.  This is a simple approach, and there may be a more optimal
- * policy but until a problem with this approach is discovered, simplest is probably best.
- *
- * NOTE: In this case, the ordering produced by flush is parent-first only if you ignore
- * the leafs.  This is done as a matter of simplicity and there is only one (shaky)
- * justification.  When an atom commits, it flushes all leaf level nodes first, followed
- * by twigs, and so on.  With flushing done in this order, if flush is eventually called
- * on a non-leaf node it means that (somehow) we reached a point where all leaves are
- * clean and only internal nodes need to be flushed.  If that it the case, then it means
- * there were no leaves that were the parent-first preceder/follower of the parent.  This
- * is expected to be a rare case, which is why we do nothing special about it.  However,
- * memory pressure may pass an internal node to flush when there are still dirty leaf
- * nodes that need to be flushed, which could prove our original assumptions
- * "inoperative".  If this needs to be fixed, then flush_scan_left/right should have
- * special checks for the non-leaf levels.  For example, instead of passing from a node to
- * the left neighbor, it should pass from the node to the left neighbor's rightmost
- * descendent (if dirty).
+   starting point for flush is a leaf node, but actually the flush code cares very little
+   about whether or not this is true.  It is possible that all the leaf nodes are flushed
+   and dirty parent nodes still remain, in which case jnode_flush() is called on a
+   non-leaf argument.  Flush doesn't care--it treats the argument node as if it were a
+   leaf, even when it is not.  This is a simple approach, and there may be a more optimal
+   policy but until a problem with this approach is discovered, simplest is probably best.
+  
+   NOTE: In this case, the ordering produced by flush is parent-first only if you ignore
+   the leafs.  This is done as a matter of simplicity and there is only one (shaky)
+   justification.  When an atom commits, it flushes all leaf level nodes first, followed
+   by twigs, and so on.  With flushing done in this order, if flush is eventually called
+   on a non-leaf node it means that (somehow) we reached a point where all leaves are
+   clean and only internal nodes need to be flushed.  If that it the case, then it means
+   there were no leaves that were the parent-first preceder/follower of the parent.  This
+   is expected to be a rare case, which is why we do nothing special about it.  However,
+   memory pressure may pass an internal node to flush when there are still dirty leaf
+   nodes that need to be flushed, which could prove our original assumptions
+   "inoperative".  If this needs to be fixed, then flush_scan_left/right should have
+   special checks for the non-leaf levels.  For example, instead of passing from a node to
+   the left neighbor, it should pass from the node to the left neighbor's rightmost
+   descendent (if dirty).
  */
 
 /* REPACKING AND RESIZING.  We walk the tree in 4MB-16MB chunks, dirtying everything and
- * putting it into a transaction.  We tell the allocator to allocate the blocks as far as
- * possible towards one end of the logical device--the left (starting) end of the device
- * if we are walking from left to right, the right end of the device if we are walking
- * from right to left.  We then make passes in alternating directions, and as we do this
- * the device becomes sorted such that tree order and block number order fully correlate.
- * 
- * Resizing is done by shifting everything either all the way to the left or all the way
- * to the right, and then reporting the last block.
+   putting it into a transaction.  We tell the allocator to allocate the blocks as far as
+   possible towards one end of the logical device--the left (starting) end of the device
+   if we are walking from left to right, the right end of the device if we are walking
+   from right to left.  We then make passes in alternating directions, and as we do this
+   the device becomes sorted such that tree order and block number order fully correlate.
+   
+   Resizing is done by shifting everything either all the way to the left or all the way
+   to the right, and then reporting the last block.
  */
 
 /* RELOCATE DECISIONS: The code makes a decision to relocate in several places.  This
- * descibes the policy from the highest level:
- *
- * The FLUSH_RELOCATE_THRESHOLD parameter: If we count this many consecutive nodes on the
- * leaf level during flush-scan (right, left), then we unconditionally decide to relocate
- * leaf nodes.
- *
- * Otherwise, there are two contexts in which we make a decision to relocate:
- *
- * 1. The REVERSE PARENT-FIRST context: Implemented in flush_reverse_relocate_test().
- * During the initial stages of flush, after scan-left completes, we want to ask the
- * question: should we relocate this leaf node and thus dirty the parent node.  Then if
- * the node is a leftmost child its parent is its own paren-first preceder, thus we repeat
- * the question at the next level up, and so on.  In these cases we are moving in the
- * reverse-parent first direction.
- *
- * There is another case which is considered the reverse direction, which comes at the end
- * of a twig in flush_reverse_relocate_end_of_twig().  As we finish processing a twig we may
- * reach a point where there is a clean twig to the right with a dirty leftmost child.  In
- * this case, we may wish to relocate the child by testing if it should be relocated
- * relative to its parent.
- *
- * 2. The FORWARD PARENT-FIRST context: Testing for forward relocation is done in
- * flush_allocate_znode.  What distinguishes the forward parent-first case from the
- * reverse-parent first case is that the preceder has already been allocated in the
- * forward case, whereas in the reverse case we don't know what the preceder is until we
- * finish "going in reverse".  That simplifies the forward case considerably, and there we
- * actually use the block allocator to determine whether, e.g., a block closer to the
- * preceder is available.
+   descibes the policy from the highest level:
+  
+   The FLUSH_RELOCATE_THRESHOLD parameter: If we count this many consecutive nodes on the
+   leaf level during flush-scan (right, left), then we unconditionally decide to relocate
+   leaf nodes.
+  
+   Otherwise, there are two contexts in which we make a decision to relocate:
+  
+   1. The REVERSE PARENT-FIRST context: Implemented in flush_reverse_relocate_test().
+   During the initial stages of flush, after scan-left completes, we want to ask the
+   question: should we relocate this leaf node and thus dirty the parent node.  Then if
+   the node is a leftmost child its parent is its own paren-first preceder, thus we repeat
+   the question at the next level up, and so on.  In these cases we are moving in the
+   reverse-parent first direction.
+  
+   There is another case which is considered the reverse direction, which comes at the end
+   of a twig in flush_reverse_relocate_end_of_twig().  As we finish processing a twig we may
+   reach a point where there is a clean twig to the right with a dirty leftmost child.  In
+   this case, we may wish to relocate the child by testing if it should be relocated
+   relative to its parent.
+  
+   2. The FORWARD PARENT-FIRST context: Testing for forward relocation is done in
+   flush_allocate_znode.  What distinguishes the forward parent-first case from the
+   reverse-parent first case is that the preceder has already been allocated in the
+   forward case, whereas in the reverse case we don't know what the preceder is until we
+   finish "going in reverse".  That simplifies the forward case considerably, and there we
+   actually use the block allocator to determine whether, e.g., a block closer to the
+   preceder is available.
  */
 
 /* SQUEEZE_LEFT_EDGE: Unimplemented idea for future consideration.  The idea is, once we
- * finish scan-left and find a starting point, if the parent's left neighbor is dirty then
- * squeeze the parent's left neighbor and the parent.  This may change the
- * flush-starting-node's parent.  Repeat until the child's parent is stable.  If the child
- * is a leftmost child, repeat this left-edge squeezing operation at the next level up.
- * Note that we cannot allocate extents during this or they will be out of parent-first
- * order.  There is also some difficult coordinate maintenence issues.  We can't do a tree
- * search to find coordinates again (because we hold locks), we have to determine them
- * from the two nodes being squeezed.  Looks difficult, but has potential to increase
- * space utilization. */
+   finish scan-left and find a starting point, if the parent's left neighbor is dirty then
+   squeeze the parent's left neighbor and the parent.  This may change the
+   flush-starting-node's parent.  Repeat until the child's parent is stable.  If the child
+   is a leftmost child, repeat this left-edge squeezing operation at the next level up.
+   Note that we cannot allocate extents during this or they will be out of parent-first
+   order.  There is also some difficult coordinate maintenence issues.  We can't do a tree
+   search to find coordinates again (because we hold locks), we have to determine them
+   from the two nodes being squeezed.  Looks difficult, but has potential to increase
+   space utilization. */
 
 /* NEW FLUSH QUEUEING / UNALLOCATED CHILDREN / MEMORY PRESSURE DEADLOCK (NFQUCMPD)
- *
- * Several ideas have been discussed to address a combination of these three issues.  This
- * discussion largely obsoletes the previous discussion above on the subject of
- * UNALLOCATED CHILDREN, though not entirely.  To summarize the three problems:
- *
- * Currently the jnode_flush routine builds a queue of all the nodes that it allocates
- * during a single squeeze-and-allocate traversal.  The queue may grow quite large as a
- * large number of adjacent dirty nodes are allocated.  Then the flush_empty_queue
- * function creates a BIO and calls submit_bio for all the contiguous block ranges that
- * were allocated.  There are several interrelated problems.
- *
- * First there is memory pressure: if we wait until there is no memory left to flush we
- * are in serious trouble because flush can require allocation for new blocks, especially
- * as extents are allocated.  A secondary but similar problem is deadlock.  If a thread
- * that requests memory causes memory pressure while holding a lock, which is entirely
- * possible, it may prevent flush from making any progress.  We have discussed these cases
- * and concluded that in the absolute worst case the complex, lock-taking,
- * memory-allocating flush algorithm may not be able to free memory once memory gets
- * tight, and the solution for the absolute worse case is an EMERGENCY FLUSH (discussed
- * after this section).  But we cannot accept that emergency flush be the common case
- * under memory pressure.
- *
- * The second problem is that flush queues too many nodes before submitting them to the
- * disk.  We would like to flush a little bit at a time without breaking the flush
- * algorithm.  As discussed above for the issue of unallocated children, we decided to
- * treat twig and leaf nodes specially--always allocating all children of a twig to ensure
- * proper read- and write-optimization of those levels.  We would like to modify the flush
- * algorithm to return control after it finishes squeezing all the childre of a single
- * twig, allowing the queue of nodes prepared for writing to be consumed somewhat before
- * continuing.
- *
- * With the modification that the flush algorithm will stop after finishing a twig, we can
- * impose a new flush-queueing design that will achieve the goal of avoiding emergency
- * flush in memory pressure in the common case.  To implement this we will create a new
- * kmalloced object called a "struct flush_handle" (?).  Every flush_handle is associated
- * with an atom, an atom maintains its list of flush_handles (instead of the
- * flush_position list it currently maintains), and these lists are joined when atoms
- * fuse.  A flush_handle object is passed into the jnode_flush() routine.  A flush_handle
- * contains at least these fields (plus a semaphore and/or spinlock):
- *
- *   txn_atom           *atom;            -- The current atom of this flush_handle--maintained during atom fusion.
- *   flushers_list_link  flushers_link;   -- A list link of all flush_handles for an atom.
- *   capture_list_head   queue;           -- A list of jnodes (in allocation order), when a jnode is allocated it is
- *                                           moved off the dirty list onto this list.
- *   atomic_t            number_queued;   -- Number of jnodes in the queue.
- *   atomic_t            number_prepped;  -- Number of jnodes ready for submit_bio.
- *   atomic_t            number_bios_out; -- Number of BIOs/completion events outstanding.
- *   __u32               state;           -- What state the handle is in.
- *
- * When a submit_bio request is issued for a flush_handle, the completion will decrement
- * the number_bios_out and not try to remove the flush_handle from any list (if the
- * becomes completely unused).  When the atom is locked (for some reason), we can find
- * unused flush_handles and either free them or reuse them.
- *
- * A flush_handle can have these states:
- *
- *   EMPTY_QUEUE -- In this state the handle can be freed as long as the atom is locked
- *   (in order to remove it from the list).  For this state:
- *     (number_queued == 0 && number_prepped == 0)
- * 
- *   NON_EMPTY_QUEUE -- In this state the handle is not being used by any current flusher
- *   but it has prepared nodes ready to for submit_bio (to be put "in-flight").  For this
- *   state:
- *     (number_queued == number_prepped && number_queued > 0)
- * 
- *   CURRENT_FLUSHER -- A call to jnode_flush is currently filling this queue.  This state
- *   implies that the queue is being populated with nodes ready for flushing, but not all
- *   of the queue nodes are fully "prepared".  For this state:
- *     (number_queued <= number_prepped && number_queued >= 0)
- *
- * To manage these filling these queues we have a number of dedicated flushing threads.
- * In addition, any atom that is trying to commit may be flushed by the thread that is
- * closing it.  The dedicated flushing threads attempt to maintain a certain minimum
- * number of outstanding write requests.  In addition to the in-flight requests, the
- * dedicated flushing threads also attempt to maintain some additional number of queued
- * and prepped jnodes that are ready to write but not yet submitted.  When the number of
- * in-flight requests falls beneath the threshold, more BIOs are submitted.  When the
- * number of prepped nodes falls beneath some other threshold, more flushing work is
- * performed.
- *
- * Flush is never called directly from a memory pressure handler.  Instead, a memory
- * pressure handler finds a flush_handle with number_prepped > 0 and calls submit_bio
- * until the number of in-flight requests exceeds the "nr_to_flush" parameter supplied by
- * the VM.
- *
- * This will require tuning to maintain a proper balance, but it should attain the goal:
- * (1) the disk is kept busy (2) there is almost always enough allocated and prepped nodes
- * ready to submit to the disk and thus free memory.
- *
- * What is required of the flush code to implement this strategy?  I will place comments
- * in the code below marked with FIXME_NFQUCMPD.  I hope that no one ever uses this login.
+  
+   Several ideas have been discussed to address a combination of these three issues.  This
+   discussion largely obsoletes the previous discussion above on the subject of
+   UNALLOCATED CHILDREN, though not entirely.  To summarize the three problems:
+  
+   Currently the jnode_flush routine builds a queue of all the nodes that it allocates
+   during a single squeeze-and-allocate traversal.  The queue may grow quite large as a
+   large number of adjacent dirty nodes are allocated.  Then the flush_empty_queue
+   function creates a BIO and calls submit_bio for all the contiguous block ranges that
+   were allocated.  There are several interrelated problems.
+  
+   First there is memory pressure: if we wait until there is no memory left to flush we
+   are in serious trouble because flush can require allocation for new blocks, especially
+   as extents are allocated.  A secondary but similar problem is deadlock.  If a thread
+   that requests memory causes memory pressure while holding a lock, which is entirely
+   possible, it may prevent flush from making any progress.  We have discussed these cases
+   and concluded that in the absolute worst case the complex, lock-taking,
+   memory-allocating flush algorithm may not be able to free memory once memory gets
+   tight, and the solution for the absolute worse case is an EMERGENCY FLUSH (discussed
+   after this section).  But we cannot accept that emergency flush be the common case
+   under memory pressure.
+  
+   The second problem is that flush queues too many nodes before submitting them to the
+   disk.  We would like to flush a little bit at a time without breaking the flush
+   algorithm.  As discussed above for the issue of unallocated children, we decided to
+   treat twig and leaf nodes specially--always allocating all children of a twig to ensure
+   proper read- and write-optimization of those levels.  We would like to modify the flush
+   algorithm to return control after it finishes squeezing all the childre of a single
+   twig, allowing the queue of nodes prepared for writing to be consumed somewhat before
+   continuing.
+  
+   With the modification that the flush algorithm will stop after finishing a twig, we can
+   impose a new flush-queueing design that will achieve the goal of avoiding emergency
+   flush in memory pressure in the common case.  To implement this we will create a new
+   kmalloced object called a "struct flush_handle" (?).  Every flush_handle is associated
+   with an atom, an atom maintains its list of flush_handles (instead of the
+   flush_position list it currently maintains), and these lists are joined when atoms
+   fuse.  A flush_handle object is passed into the jnode_flush() routine.  A flush_handle
+   contains at least these fields (plus a semaphore and/or spinlock):
+  
+     txn_atom           *atom;            -- The current atom of this flush_handle--maintained during atom fusion.
+     flushers_list_link  flushers_link;   -- A list link of all flush_handles for an atom.
+     capture_list_head   queue;           -- A list of jnodes (in allocation order), when a jnode is allocated it is
+                                             moved off the dirty list onto this list.
+     atomic_t            number_queued;   -- Number of jnodes in the queue.
+     atomic_t            number_prepped;  -- Number of jnodes ready for submit_bio.
+     atomic_t            number_bios_out; -- Number of BIOs/completion events outstanding.
+     __u32               state;           -- What state the handle is in.
+  
+   When a submit_bio request is issued for a flush_handle, the completion will decrement
+   the number_bios_out and not try to remove the flush_handle from any list (if the
+   becomes completely unused).  When the atom is locked (for some reason), we can find
+   unused flush_handles and either free them or reuse them.
+  
+   A flush_handle can have these states:
+  
+     EMPTY_QUEUE -- In this state the handle can be freed as long as the atom is locked
+     (in order to remove it from the list).  For this state:
+       (number_queued == 0 && number_prepped == 0)
+   
+     NON_EMPTY_QUEUE -- In this state the handle is not being used by any current flusher
+     but it has prepared nodes ready to for submit_bio (to be put "in-flight").  For this
+     state:
+       (number_queued == number_prepped && number_queued > 0)
+   
+     CURRENT_FLUSHER -- A call to jnode_flush is currently filling this queue.  This state
+     implies that the queue is being populated with nodes ready for flushing, but not all
+     of the queue nodes are fully "prepared".  For this state:
+       (number_queued <= number_prepped && number_queued >= 0)
+  
+   To manage these filling these queues we have a number of dedicated flushing threads.
+   In addition, any atom that is trying to commit may be flushed by the thread that is
+   closing it.  The dedicated flushing threads attempt to maintain a certain minimum
+   number of outstanding write requests.  In addition to the in-flight requests, the
+   dedicated flushing threads also attempt to maintain some additional number of queued
+   and prepped jnodes that are ready to write but not yet submitted.  When the number of
+   in-flight requests falls beneath the threshold, more BIOs are submitted.  When the
+   number of prepped nodes falls beneath some other threshold, more flushing work is
+   performed.
+  
+   Flush is never called directly from a memory pressure handler.  Instead, a memory
+   pressure handler finds a flush_handle with number_prepped > 0 and calls submit_bio
+   until the number of in-flight requests exceeds the "nr_to_flush" parameter supplied by
+   the VM.
+  
+   This will require tuning to maintain a proper balance, but it should attain the goal:
+   (1) the disk is kept busy (2) there is almost always enough allocated and prepped nodes
+   ready to submit to the disk and thus free memory.
+  
+   What is required of the flush code to implement this strategy?  I will place comments
+   in the code below marked with FIXME_NFQUCMPD.  I hope that no one ever uses this login.
  */
 
 /* EMERGENCY FLUSH: In the worst case, we must have a way to assign block numbers without
- * any memory allocation.  This requires that we can allocate a node without updating its
- * parent immediately.  We can walk the dirty list and assign block numbers, and somehow
- * the parent must "know" to update itself later.  This may be difficult to implement
- * efficiently, so it may result in special code that is only activated when it knows that
- * emergency flushing has occurred.
+   any memory allocation.  This requires that we can allocate a node without updating its
+   parent immediately.  We can walk the dirty list and assign block numbers, and somehow
+   the parent must "know" to update itself later.  This may be difficult to implement
+   efficiently, so it may result in special code that is only activated when it knows that
+   emergency flushing has occurred.
  */
 
-/********************************************************************************
- * DECLARATIONS:
- ********************************************************************************/
+/* DECLARATIONS: */
 
 /* The flush_scan data structure maintains the state of an in-progress flush-scan on a
- * single level of the tree.  A flush-scan is used for counting the number of adjacent
- * nodes to flush, which is used to determine whether we should relocate, and it is also
- * used to find a starting point for flush.  A flush-scan object can scan in both right
- * and left directions via the flush_scan_left() and flush_scan_right() interfaces.  The
- * right- and left-variations are similar but perform different functions.  When scanning
- * left we (optionally perform rapid scanning and then) longterm-lock the endpoint node.
- * When scanning right we are simply counting the number of adjacent, dirty nodes. */
+   single level of the tree.  A flush-scan is used for counting the number of adjacent
+   nodes to flush, which is used to determine whether we should relocate, and it is also
+   used to find a starting point for flush.  A flush-scan object can scan in both right
+   and left directions via the flush_scan_left() and flush_scan_right() interfaces.  The
+   right- and left-variations are similar but perform different functions.  When scanning
+   left we (optionally perform rapid scanning and then) longterm-lock the endpoint node.
+   When scanning right we are simply counting the number of adjacent, dirty nodes. */
 struct flush_scan {
 
 	/* The current number of nodes scanned on this level. */
@@ -516,8 +511,8 @@ struct flush_scan {
 };
 
 /* An encapsulation of the current flush point and all the parameters that are passed
- * through the entire squeeze-and-allocate stage of the flush routine.  A single
- * flush_position object is constructed after left- and right-scanning finishes. */
+   through the entire squeeze-and-allocate stage of the flush routine.  A single
+   flush_position object is constructed after left- and right-scanning finishes. */
 struct flush_position {
 	jnode *point;		/* The current position, if it is formatted (with a minor exception,
 				 * allowing an unformatted node to be set here, explained in jnode_flush,
@@ -538,11 +533,11 @@ struct flush_position {
 };
 
 /* The flushers list maintains a per-atom list of active flush_positions.  This is because
- * each concurrent flush maintains its own, private queue of allocated nodes.  When a node
- * is placed on the flush queue it is removed from the atom's dirty list.  When the node
- * is finally written to disk, it is returned to the atom's clean list.  Remember that
- * atoms can fuse during flush--the flushers lists are fused and each flush_position and
- * every jnode in the flush queues are updated to reflect the new combined atom. */
+   each concurrent flush maintains its own, private queue of allocated nodes.  When a node
+   is placed on the flush queue it is removed from the atom's dirty list.  When the node
+   is finally written to disk, it is returned to the atom's clean list.  Remember that
+   atoms can fuse during flush--the flushers lists are fused and each flush_position and
+   every jnode in the flush queues are updated to reflect the new combined atom. */
 
 /* Flush-scan helper functions. */
 static void flush_scan_init(flush_scan * scan);
@@ -632,100 +627,95 @@ check_preceder(reiser4_block_nr blk)
 #endif
 
 /* This flush_cnt variable is used to track the number of concurrent flush operations,
- * useful for debugging.  It is initialized in txnmgr.c out of laziness (because flush has
- * no static initializer function...) */
+   useful for debugging.  It is initialized in txnmgr.c out of laziness (because flush has
+   no static initializer function...) */
 ON_DEBUG(atomic_t flush_cnt;)
 
-/********************************************************************************
- * TODO LIST (no particular order):
- ********************************************************************************/
+/* TODO LIST (no particular order): */
 /* I have labelled most of the legitimate FIXME comments in this file with letters to
- * indicate which issue they relate to.  There are a few miscellaneous FIXMEs with
- * specific names mentioned instead that need to be inspected/resolved. */
+   indicate which issue they relate to.  There are a few miscellaneous FIXMEs with
+   specific names mentioned instead that need to be inspected/resolved. */
 /* A. Deal with the IO completion issue described at the end of jnode_flush(), then remove
- * the temporary-hack txn_wait_on_io() in txnmgr.c.  Currently it is possible for a
- * transaction to commit before all of its IO has completed... Solution described
- * below. */
+   the temporary-hack txn_wait_on_io() in txnmgr.c.  Currently it is possible for a
+   transaction to commit before all of its IO has completed... Solution described
+   below. */
 /* B. There is an issue described in flush_reverse_relocate_test having to do with an
- * imprecise is_preceder? check having to do with partially-dirty extents.  The code that
- * sets preceder hints and computes the preceder is basically untested.  Careful testing
- * needs to be done that preceder calculations are done correctly, since if it doesn't
- * affect correctness we will not catch this stuff during regular testing. */
+   imprecise is_preceder? check having to do with partially-dirty extents.  The code that
+   sets preceder hints and computes the preceder is basically untested.  Careful testing
+   needs to be done that preceder calculations are done correctly, since if it doesn't
+   affect correctness we will not catch this stuff during regular testing. */
 /* C. EINVAL, EDEADLK, ENAVAIL, ENOENT handling.  It is unclear which of these are
- * considered expected but unlikely conditions.  Flush currently returns 0 (i.e., success
- * but no progress, i.e., restart) whenever it receives any of these in jnode_flush().
- * Many of the calls that may produce one of these return values (i.e.,
- * longterm_lock_znode, reiser4_get_parent, reiser4_get_neighbor, ...) check some of these
- * values themselves and, for instance, stop flushing instead of resulting in a restart.
- * If any of these results are true error conditions then flush will go into a busy-loop,
- * as we noticed during testing when a corrupt tree caused find_child_ptr to return
- * ENOENT.  It needs careful thought and testing of corner conditions.
+   considered expected but unlikely conditions.  Flush currently returns 0 (i.e., success
+   but no progress, i.e., restart) whenever it receives any of these in jnode_flush().
+   Many of the calls that may produce one of these return values (i.e.,
+   longterm_lock_znode, reiser4_get_parent, reiser4_get_neighbor, ...) check some of these
+   values themselves and, for instance, stop flushing instead of resulting in a restart.
+   If any of these results are true error conditions then flush will go into a busy-loop,
+   as we noticed during testing when a corrupt tree caused find_child_ptr to return
+   ENOENT.  It needs careful thought and testing of corner conditions.
  */
 /* D. Atomicity of flush_prep against deletion and flush concurrency.  Suppose a created
- * block is assigned a block number then early-flushed to disk.  It is dirtied again and
- * flush is called again.  Concurrently, that block is deleted, and the de-allocation of
- * its block number does not need to be deferred, since it is not part of the preserve set
- * (i.e., it didn't exist before the transaction).  I think there may be a race condition
- * where flush writes the dirty, created block after the non-deferred deallocated block
- * number is re-allocated, making it possible to write deleted data on top of non-deleted
- * data.  Its just a theory, but it needs to be thought out. */
+   block is assigned a block number then early-flushed to disk.  It is dirtied again and
+   flush is called again.  Concurrently, that block is deleted, and the de-allocation of
+   its block number does not need to be deferred, since it is not part of the preserve set
+   (i.e., it didn't exist before the transaction).  I think there may be a race condition
+   where flush writes the dirty, created block after the non-deferred deallocated block
+   number is re-allocated, making it possible to write deleted data on top of non-deleted
+   data.  Its just a theory, but it needs to be thought out. */
 /* E. Never put JNODE_OVRWR blocks in the flush queue.  This is easy to implement, but it
- * is done for historical reasons related to the time when we had no log-writing and the
- * test layout.  If (WRITE_LOG == 0) then wandered blocks in the flush queue makes sense
- * (and the test layout doesn't support WRITE_LOG, I think?), but once (WRITE_LOG == 1)
- * placing wandered blocks in the flush queue can only cause more BIO objects to be
- * allocated than might otherwise be required.  We need to create a wander_queue to solve
- * this properly. */
+   is done for historical reasons related to the time when we had no log-writing and the
+   test layout.  If (WRITE_LOG == 0) then wandered blocks in the flush queue makes sense
+   (and the test layout doesn't support WRITE_LOG, I think?), but once (WRITE_LOG == 1)
+   placing wandered blocks in the flush queue can only cause more BIO objects to be
+   allocated than might otherwise be required.  We need to create a wander_queue to solve
+   this properly. */
 /* F. bio_alloc() failure is not handled gracefully. */
 /* G. Unallocated children. */
 /* H. Add a WANDERED_LIST to the atom to clarify the placement of wandered blocks. */
 /* I. SHORT LIST:
- *
- * FIXME: Rename flush-scan to scan-point, (flush-pos to flush-point?)
- */
-/********************************************************************************
- * JNODE_FLUSH: MAIN ENTRY POINT
- ********************************************************************************/
+  
+   FIXME: Rename flush-scan to scan-point, (flush-pos to flush-point?) */
+/* JNODE_FLUSH: MAIN ENTRY POINT */
 /* This is the main entry point for flushing a jnode, called by the transaction manager
- * when an atom closes (to commit writes) and called by the VM under memory pressure (via
- * page_cache.c:page_common_writeback() to early-flush dirty blocks).
- *
- * The "argument" @node tells flush where to start.  From there, flush searches through
- * the adjacent nodes to find a better place to start the parent-first traversal, during
- * which nodes are squeezed and allocated (squalloc).  To find a "better place" to start
- * squalloc first we perform a flush_scan.
- *
- * Flush-scanning may be performed in both left and right directions, but for different
- * purposes.  When scanning to the left, we are searching for a node that precedes a
- * sequence of parent-first-ordered nodes which we will then flush in parent-first order.
- * During flush-scanning, we also take the opportunity to count the number of consecutive
- * leaf nodes.  If this number is past some threshold (FLUSH_RELOCATE_THRESHOLD), then we
- * make a decision to reallocate leaf nodes (thus favoring write-optimization).
- *
- * Since the flush argument node can be anywhere in a sequence of dirty leaves, there may
- * also be dirty nodes to the right of the argument.  If the scan-left operation does not
- * count at least FLUSH_RELOCATE_THRESHOLD nodes then we follow it with a right-scan
- * operation to see whether there is, in fact, enough nodes to meet the relocate
- * threshold.  Each right- and left-scan operation uses a single flush_scan object.
- *
- * After left-scan and possibly right-scan, we prepare a flush_position object with the
- * starting flush point or parent coordinate, which was determined using scan-left.
- * 
- * Next we call the main flush routine, flush_forward_squalloc, which iterates along the
- * leaf level, squeezing and allocating nodes (and placing them into the flush queue).
- *
- * After flush_forward_squalloc returns we take extra steps to ensure that all the children
- * of the final twig node are allocated--this involves repeating flush_forward_squalloc
- * until we finish at a twig with no unallocated children.
- *
- * Finally, we call flush_empty_queue to submit write-requests to disk.  If we encounter
- * any above-twig nodes during flush_empty_queue that still have unallocated children, we
- * flush_unprep them.
- *
- * Flush treats several "failure" cases as non-failures, essentially causing them to start
- * over.  EDEADLK is one example.  FIXME:(C) EINVAL, ENAVAIL, ENOENT: these should
- * probably be handled properly rather than restarting, but there are a bunch of cases to
- * audit.
+   when an atom closes (to commit writes) and called by the VM under memory pressure (via
+   page_cache.c:page_common_writeback() to early-flush dirty blocks).
+  
+   The "argument" @node tells flush where to start.  From there, flush searches through
+   the adjacent nodes to find a better place to start the parent-first traversal, during
+   which nodes are squeezed and allocated (squalloc).  To find a "better place" to start
+   squalloc first we perform a flush_scan.
+  
+   Flush-scanning may be performed in both left and right directions, but for different
+   purposes.  When scanning to the left, we are searching for a node that precedes a
+   sequence of parent-first-ordered nodes which we will then flush in parent-first order.
+   During flush-scanning, we also take the opportunity to count the number of consecutive
+   leaf nodes.  If this number is past some threshold (FLUSH_RELOCATE_THRESHOLD), then we
+   make a decision to reallocate leaf nodes (thus favoring write-optimization).
+  
+   Since the flush argument node can be anywhere in a sequence of dirty leaves, there may
+   also be dirty nodes to the right of the argument.  If the scan-left operation does not
+   count at least FLUSH_RELOCATE_THRESHOLD nodes then we follow it with a right-scan
+   operation to see whether there is, in fact, enough nodes to meet the relocate
+   threshold.  Each right- and left-scan operation uses a single flush_scan object.
+  
+   After left-scan and possibly right-scan, we prepare a flush_position object with the
+   starting flush point or parent coordinate, which was determined using scan-left.
+   
+   Next we call the main flush routine, flush_forward_squalloc, which iterates along the
+   leaf level, squeezing and allocating nodes (and placing them into the flush queue).
+  
+   After flush_forward_squalloc returns we take extra steps to ensure that all the children
+   of the final twig node are allocated--this involves repeating flush_forward_squalloc
+   until we finish at a twig with no unallocated children.
+  
+   Finally, we call flush_empty_queue to submit write-requests to disk.  If we encounter
+   any above-twig nodes during flush_empty_queue that still have unallocated children, we
+   flush_unprep them.
+  
+   Flush treats several "failure" cases as non-failures, essentially causing them to start
+   over.  EDEADLK is one example.  FIXME:(C) EINVAL, ENAVAIL, ENOENT: these should
+   probably be handled properly rather than restarting, but there are a bunch of cases to
+   audit.
  */
 long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 {
@@ -1056,16 +1046,14 @@ clean_out:
 	return ret;
 }
 
-/********************************************************************************
- * REVERSE PARENT-FIRST RELOCATION POLICIES
- ********************************************************************************/
+/* REVERSE PARENT-FIRST RELOCATION POLICIES */
 
 /* This implements the is-it-close-enough-to-its-preceder? test for relocation in the
- * reverse parent-first relocate context.  Here all we know is the preceder and the block
- * number.  Since we are going in reverse, the preceder may still be relocated as well, so
- * we can't ask the block allocator "is there a closer block available to relocate?" here.
- * In the _forward_ parent-first relocate context (not here) we actually call the block
- * allocator to try and find a closer location. */
+   reverse parent-first relocate context.  Here all we know is the preceder and the block
+   number.  Since we are going in reverse, the preceder may still be relocated as well, so
+   we can't ask the block allocator "is there a closer block available to relocate?" here.
+   In the _forward_ parent-first relocate context (not here) we actually call the block
+   allocator to try and find a closer location. */
 static int
 flush_reverse_relocate_if_close_enough(const reiser4_block_nr * pblk, const reiser4_block_nr * nblk)
 {
@@ -1088,11 +1076,11 @@ flush_reverse_relocate_if_close_enough(const reiser4_block_nr * pblk, const reis
 }
 
 /* This function is a predicate that tests for relocation.  Always called in the
- * reverse-parent-first context, when we are asking whether the current node should be
- * relocated in order to expand the flush by dirtying the parent level (and thus
- * proceeding to flush that level).  When traversing in the forward parent-first direction
- * (not here), relocation decisions are handled in two places: flush_allocate_znode() and
- * extent_needs_allocation(). */
+   reverse-parent-first context, when we are asking whether the current node should be
+   relocated in order to expand the flush by dirtying the parent level (and thus
+   proceeding to flush that level).  When traversing in the forward parent-first direction
+   (not here), relocation decisions are handled in two places: flush_allocate_znode() and
+   extent_needs_allocation(). */
 static int
 flush_reverse_relocate_test(jnode * node, const coord_t * parent_coord, flush_position * pos)
 {
@@ -1130,7 +1118,7 @@ flush_reverse_relocate_test(jnode * node, const coord_t * parent_coord, flush_po
 }
 
 /* This function calls flush_reverse_relocate_test to make a reverse-parent-first
- * relocation decision and then, if yes, it marks the parent dirty. */
+   relocation decision and then, if yes, it marks the parent dirty. */
 static int
 flush_reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_coord, flush_position * pos)
 {
@@ -1157,14 +1145,14 @@ flush_reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_c
 }
 
 /* This function is called when flush_forward_squalloc reaches the end of a twig node.  At
- * this point the leftmost child of the right twig may be considered for relocation.  This
- * is another case of the reverse parent-first context relocate test (where we are testing
- * the child against its parent which precedes it in parent-first order).  The right twig
- * may already be dirty, in which case this step is unnecessary--we will check the child
- * for relocation in forward parent-first context when we get there.  If neither the right
- * twig or its leftmost child are dirty then we stop flushing here.  But if the right twig
- * is clean, we need to check its leftmost child for dirtiness and relocation, possibly
- * dirtying the right twig so we can continue the flush. */
+   this point the leftmost child of the right twig may be considered for relocation.  This
+   is another case of the reverse parent-first context relocate test (where we are testing
+   the child against its parent which precedes it in parent-first order).  The right twig
+   may already be dirty, in which case this step is unnecessary--we will check the child
+   for relocation in forward parent-first context when we get there.  If neither the right
+   twig or its leftmost child are dirty then we stop flushing here.  But if the right twig
+   is clean, we need to check its leftmost child for dirtiness and relocation, possibly
+   dirtying the right twig so we can continue the flush. */
 static int
 flush_reverse_relocate_end_of_twig(flush_position * pos)
 {
@@ -1245,20 +1233,18 @@ exit:
 	return ret;
 }
 
-/********************************************************************************
- * INITIAL ALLOCATE ANCESTORS STEP (REVERSE PARENT-FIRST ALLOCATION BEFORE FORWARD
- * PARENT-FIRST LOOP BEGINS)
- ********************************************************************************/
+/* INITIAL ALLOCATE ANCESTORS STEP (REVERSE PARENT-FIRST ALLOCATION BEFORE FORWARD
+   PARENT-FIRST LOOP BEGINS) */
 
 /* This step occurs after the left- and right-scans are completed, before starting the
- * forward parent-first traversal.  Here we attempt to allocate ancestors of the starting
- * flush point, which means continuing in the reverse parent-first direction to the
- * parent, grandparent, and so on (as long as the child is a leftmost child).  This
- * routine calls a recursive process, flush_alloc_one_ancestor, which does the real work,
- * except there is special-case handling here for the first ancestor, which may be a twig.
- * At each level (here and flush_alloc_one_ancestor), we check for relocation and then, if
- * the child is a leftmost child, repeat at the next level.  On the way back down (the
- * recursion), we allocate the ancestors in parent-first order.
+   forward parent-first traversal.  Here we attempt to allocate ancestors of the starting
+   flush point, which means continuing in the reverse parent-first direction to the
+   parent, grandparent, and so on (as long as the child is a leftmost child).  This
+   routine calls a recursive process, flush_alloc_one_ancestor, which does the real work,
+   except there is special-case handling here for the first ancestor, which may be a twig.
+   At each level (here and flush_alloc_one_ancestor), we check for relocation and then, if
+   the child is a leftmost child, repeat at the next level.  On the way back down (the
+   recursion), we allocate the ancestors in parent-first order.
  */
 static int
 flush_alloc_ancestors(flush_position * pos)
@@ -1318,10 +1304,10 @@ exit:
 }
 
 /* This is the recursive step described in flush_alloc_ancestors, above.  Ignoring the
- * call to flush_set_preceder, which is the next function described, this checks if the
- * child is a leftmost child and returns if it is not.  If the child is a leftmost child
- * it checks for relocation, possibly dirtying the parent.  Then it performs the recursive
- * step. */
+   call to flush_set_preceder, which is the next function described, this checks if the
+   child is a leftmost child and returns if it is not.  If the child is a leftmost child
+   it checks for relocation, possibly dirtying the parent.  Then it performs the recursive
+   step. */
 static int
 flush_alloc_one_ancestor(coord_t * coord, flush_position * pos)
 {
@@ -1381,18 +1367,18 @@ exit:
 }
 
 /* During the reverse parent-first flush_alloc_ancestors process described above there is
- * a call to this function at the twig level.  During flush_alloc_ancestors we may ask:
- * should this node be relocated (in reverse parent-first context)?  We repeat this
- * process as long as the child is the leftmost child, eventually reaching an ancestor of
- * the flush point that is not a leftmost child.  The preceder of that ancestors, which is
- * not a leftmost child, is actually on the leaf level.  The preceder of that block is the
- * left-neighbor of the flush point.  The preceder of that block is the rightmost child of
- * the twig on the left.  So, when flush_alloc_ancestors passes upward through the twig
- * level, it stops momentarily to remember the block of the rightmost child of the twig on
- * the left and sets it to the flush_position's preceder_hint.
- *
- * There is one other place where we may set the flush_position's preceder hint, which is
- * during scan-left.
+   a call to this function at the twig level.  During flush_alloc_ancestors we may ask:
+   should this node be relocated (in reverse parent-first context)?  We repeat this
+   process as long as the child is the leftmost child, eventually reaching an ancestor of
+   the flush point that is not a leftmost child.  The preceder of that ancestors, which is
+   not a leftmost child, is actually on the leaf level.  The preceder of that block is the
+   left-neighbor of the flush point.  The preceder of that block is the rightmost child of
+   the twig on the left.  So, when flush_alloc_ancestors passes upward through the twig
+   level, it stops momentarily to remember the block of the rightmost child of the twig on
+   the left and sets it to the flush_position's preceder_hint.
+  
+   There is one other place where we may set the flush_position's preceder hint, which is
+   during scan-left.
  */
 static int
 flush_set_preceder(const coord_t * coord_in, flush_position * pos)
@@ -1432,38 +1418,36 @@ exit:
 	return ret;
 }
 
-/********************************************************************************
- * MAIN SQUEEZE AND ALLOCATE LOOP (THREE BIG FUNCTIONS)
- ********************************************************************************/
+/* MAIN SQUEEZE AND ALLOCATE LOOP (THREE BIG FUNCTIONS) */
 
 /* This procedure implements the outer loop of the flush algorithm.  To put this in
- * context, here is the general list of steps taken by the flush routine as a whole:
- *
- * 1. Scan-left
- * 2. Scan-right (maybe)
- * 3. Allocate initial ancestors
- * 4. <handle extents>
- * 5. <squeeze and allocate changed ancestors of the next position to-the-right,
- *     then update position to-the-right>
- * 6. <repeat from #4 until flush is stopped>
- *
- * This procedure implements the loop in steps 4 through 6 in the above listing.
- *
- * Step 4: if the current flush position is an extent item (position on the twig level),
- * it allocates the extent (allocate_extent_item_in_place) then shifts to the next
- * coordinate.  If the next coordinate's leftmost child needs flushprep, we will continue.
- * If the next coordinate is an internal item, we descend back to the leaf level,
- * otherwise we repeat a step #4 (labeled ALLOC_EXTENTS below).  If the "next coordinate"
- * brings us past the end of the twig level, then we call
- * flush_reverse_relocate_end_of_twig to possibly dirty the next (right) twig, prior to
- * step #5 which moves to the right.
- *
- * Step 5: calls flush_squalloc_changed_ancestors, which initiates a recursive call up the
- * tree to allocate any ancestors of the next-right flush position that are not also
- * ancestors of the current position.  Those ancestors (in top-down order) are the next in
- * parent-first order.  We squeeze adjacent nodes on the way up until the right node and
- * current node share the same parent, then allocate on the way back down.  Finally, this
- * step sets the flush position to the next-right node.  Then repeat steps 4 and 5.
+   context, here is the general list of steps taken by the flush routine as a whole:
+  
+   1. Scan-left
+   2. Scan-right (maybe)
+   3. Allocate initial ancestors
+   4. <handle extents>
+   5. <squeeze and allocate changed ancestors of the next position to-the-right,
+       then update position to-the-right>
+   6. <repeat from #4 until flush is stopped>
+  
+   This procedure implements the loop in steps 4 through 6 in the above listing.
+  
+   Step 4: if the current flush position is an extent item (position on the twig level),
+   it allocates the extent (allocate_extent_item_in_place) then shifts to the next
+   coordinate.  If the next coordinate's leftmost child needs flushprep, we will continue.
+   If the next coordinate is an internal item, we descend back to the leaf level,
+   otherwise we repeat a step #4 (labeled ALLOC_EXTENTS below).  If the "next coordinate"
+   brings us past the end of the twig level, then we call
+   flush_reverse_relocate_end_of_twig to possibly dirty the next (right) twig, prior to
+   step #5 which moves to the right.
+  
+   Step 5: calls flush_squalloc_changed_ancestors, which initiates a recursive call up the
+   tree to allocate any ancestors of the next-right flush position that are not also
+   ancestors of the current position.  Those ancestors (in top-down order) are the next in
+   parent-first order.  We squeeze adjacent nodes on the way up until the right node and
+   current node share the same parent, then allocate on the way back down.  Finally, this
+   step sets the flush position to the next-right node.  Then repeat steps 4 and 5.
  */
 static int
 flush_forward_squalloc(flush_position * pos)
@@ -1583,10 +1567,10 @@ exit:
 }
 
 /* This implements "step 5" described in flush_forward_squalloc.  This is the entry point
- * for the recursive function flush_squalloc_one_changed_ancestor, described above.  This
- * function mainly deals with special cases related to the twig-level and extents, then
- * initiates the upward-recursive call, then establishes the next flush position after the
- * recursive call is complete.  */
+   for the recursive function flush_squalloc_one_changed_ancestor, described above.  This
+   function mainly deals with special cases related to the twig-level and extents, then
+   initiates the upward-recursive call, then establishes the next flush position after the
+   recursive call is complete.  */
 static int
 flush_squalloc_changed_ancestors(flush_position * pos)
 {
@@ -1805,11 +1789,11 @@ exit:
 }
 
 /* This implements the recursive part of step 5 described in flush_forward_squalloc,
- * including squeezing on the way up, as long as the node and its right neighbor have
- * different parents, then allocating the right side on the way back down.  This is a
- * complicated beast.  The call_depth paramter tells us how high in the recursion we are.
- * Note that the greater (recursive) call_depth, the higher tree level.  When the comments
- * below discuss "lower-level", it means lower smaller call_depth as well.  */
+   including squeezing on the way up, as long as the node and its right neighbor have
+   different parents, then allocating the right side on the way back down.  This is a
+   complicated beast.  The call_depth paramter tells us how high in the recursion we are.
+   Note that the greater (recursive) call_depth, the higher tree level.  When the comments
+   below discuss "lower-level", it means lower smaller call_depth as well.  */
 static int
 flush_squalloc_one_changed_ancestor(znode * node, int call_depth, flush_position * pos)
 {
@@ -2056,28 +2040,26 @@ exit:
 	return ret;
 }
 
-/********************************************************************************
- * SQUEEZE CODE
- ********************************************************************************/
+/* SQUEEZE CODE */
 
 /* Squeeze and allocate the right neighbor.  This is called after @left and
- * its current children have been squeezed and allocated already.  This
- * procedure's job is to squeeze and items from @right to @left.
- *
- * If at the leaf level, use the squeeze_everything_left memcpy-optimized
- * version of shifting (squeeze_right_leaf).
- *
- * If at the twig level, extents are allocated as they are shifted from @right
- * to @left (squalloc_right_twig).
- *
- * At any other level, shift one internal item and return to the caller
- * (squalloc_parent_first) so that the shifted-subtree can be processed in
- * parent-first order.
- *
- * When unit of internal item is moved, squeezing stops and SUBTREE_MOVED is
- * returned.  When all content of @right is squeezed, SQUEEZE_SOURCE_EMPTY is
- * returned.  If nothing can be moved into @left anymore, SQUEEZE_TARGET_FULL
- * is returned.
+   its current children have been squeezed and allocated already.  This
+   procedure's job is to squeeze and items from @right to @left.
+  
+   If at the leaf level, use the squeeze_everything_left memcpy-optimized
+   version of shifting (squeeze_right_leaf).
+  
+   If at the twig level, extents are allocated as they are shifted from @right
+   to @left (squalloc_right_twig).
+  
+   At any other level, shift one internal item and return to the caller
+   (squalloc_parent_first) so that the shifted-subtree can be processed in
+   parent-first order.
+  
+   When unit of internal item is moved, squeezing stops and SUBTREE_MOVED is
+   returned.  When all content of @right is squeezed, SQUEEZE_SOURCE_EMPTY is
+   returned.  If nothing can be moved into @left anymore, SQUEEZE_TARGET_FULL
+   is returned.
  */
 /*static*/ int
 squalloc_right_neighbor(znode * left, znode * right, flush_position * pos)
@@ -2094,8 +2076,8 @@ squalloc_right_neighbor(znode * left, znode * right, flush_position * pos)
 	switch (znode_get_level(left)) {
 	case TWIG_LEVEL:
 		/* Shift with extent allocating until either an internal item
-		 * is encountered or everything is shifted or no free space
-		 * left in @left */
+		   is encountered or everything is shifted or no free space
+		   left in @left */
 		ret = squalloc_right_twig(left, right, pos);
 		break;
 
@@ -2122,8 +2104,8 @@ squalloc_right_neighbor(znode * left, znode * right, flush_position * pos)
 }
 
 /* Shift as much as possible from @right to @left using the memcpy-optimized
- * shift_everything_left.  @left and @right are formatted neighboring nodes on
- * leaf level. */
+   shift_everything_left.  @left and @right are formatted neighboring nodes on
+   leaf level. */
 static int
 squeeze_right_non_twig(znode * left, znode * right)
 {
@@ -2183,10 +2165,10 @@ squeeze_right_non_twig(znode * left, znode * right)
 }
 
 /* Copy as much of the leading extents from @right to @left, allocating
- * unallocated extents as they are copied.  Returns SQUEEZE_TARGET_FULL or
- * SQUEEZE_SOURCE_EMPTY when no more can be shifted.  If the next item is an
- * internal item it calls shift_one_internal_unit and may then return
- * SUBTREE_MOVED. */
+   unallocated extents as they are copied.  Returns SQUEEZE_TARGET_FULL or
+   SQUEEZE_SOURCE_EMPTY when no more can be shifted.  If the next item is an
+   internal item it calls shift_one_internal_unit and may then return
+   SUBTREE_MOVED. */
 static int
 squalloc_right_twig(znode * left, znode * right, flush_position * pos)
 {
@@ -2295,7 +2277,7 @@ out:
 }
 
 /* squalloc_right_twig helper function, cut a range of extent items from
- * cut node to->node from the beginning up to coord @to. */
+   cut node to->node from the beginning up to coord @to. */
 static int
 squalloc_right_twig_cut(coord_t * to, reiser4_key * to_key, znode * left)
 {
@@ -2310,9 +2292,8 @@ squalloc_right_twig_cut(coord_t * to, reiser4_key * to_key, znode * left)
 }
 
 /* Shift first unit of first item if it is an internal one.  Return
- * SQUEEZE_TARGET_FULL if it fails to shift an item, otherwise return
- * SUBTREE_MOVED.
- */
+   SQUEEZE_TARGET_FULL if it fails to shift an item, otherwise return
+   SUBTREE_MOVED. */
 static int
 shift_one_internal_unit(znode * left, znode * right)
 {
@@ -2391,14 +2372,12 @@ shift_one_internal_unit(znode * left, znode * right)
 	return moved ? SUBTREE_MOVED : SQUEEZE_TARGET_FULL;
 }
 
-/********************************************************************************
- * ALLOCATE INTERFACE
- ********************************************************************************/
+/* ALLOCATE INTERFACE */
 
 /* Return true if @node has already been processed by the squeeze and allocate
- * process.  This implies the block address has been finalized for the
- * duration of this atom (or it is clean and will remain in place).  If this
- * returns true you may use the block number as a hint. */
+   process.  This implies the block address has been finalized for the
+   duration of this atom (or it is clean and will remain in place).  If this
+   returns true you may use the block number as a hint. */
 int
 jnode_check_flushprepped(jnode * node)
 {
@@ -2424,7 +2403,7 @@ jnode_set_block(jnode * node /* jnode to update */ ,
 }
 
 /* Make the final relocate/wander decision during forward parent-first squalloc for a
- * znode.  For unformatted nodes this is done in plugin/item/extent.c:extent_needs_allocation(). */
+   znode.  For unformatted nodes this is done in plugin/item/extent.c:extent_needs_allocation(). */
 static int
 flush_allocate_znode(znode * node, coord_t * parent_coord, flush_position * pos)
 {
@@ -2525,9 +2504,9 @@ flush_allocate_znode(znode * node, coord_t * parent_coord, flush_position * pos)
 }
 
 /* A subroutine of flush_allocate_znode, this is called first to see if there is a close
- * position to relocate to.  It may return ENOSPC if there is no close position.  If there
- * is no close position it may not relocate.  This takes care of updating the parent node
- * with the relocated block address. */
+   position to relocate to.  It may return ENOSPC if there is no close position.  If there
+   is no close position it may not relocate.  This takes care of updating the parent node
+   with the relocated block address. */
 static int
 flush_allocate_znode_update(znode * node, coord_t * parent_coord, flush_position * pos)
 {
@@ -2600,9 +2579,9 @@ exit:
 }
 
 /* This is called by the extent code for each jnode after allocation has been performed.
- * Contrast with thef flush_allocate_znode() routine, which does znode allocation and then
- * calls flush_queue_jnode, the unformatted allocation is handled by the extent plugin and
- * simply queued by this function. */
+   Contrast with thef flush_allocate_znode() routine, which does znode allocation and then
+   calls flush_queue_jnode, the unformatted allocation is handled by the extent plugin and
+   simply queued by this function. */
 int
 flush_enqueue_unformatted(jnode * node, flush_position * pos)
 {
@@ -2624,17 +2603,15 @@ flush_enqueue_unformatted(jnode * node, flush_position * pos)
 	return 0;
 }
 
-/********************************************************************************
- * JNODE INTERFACE
- ********************************************************************************/
+/* JNODE INTERFACE */
 
 /* Lock a node (if formatted) and then get its parent locked, set the child's
- * coordinate in the parent.  If the child is the root node, the above_root
- * znode is returned but the coord is not set.  This function may cause atom
- * fusion, but it is only used for read locks (at this point) and therefore
- * fusion only occurs when the parent is already dirty. */
+   coordinate in the parent.  If the child is the root node, the above_root
+   znode is returned but the coord is not set.  This function may cause atom
+   fusion, but it is only used for read locks (at this point) and therefore
+   fusion only occurs when the parent is already dirty. */
 /* Hans adds this note: remember to ask how expensive this operation is vs. storing parent
- * pointer in jnodes. */
+   pointer in jnodes. */
 static int
 jnode_lock_parent_coord(jnode * node,
 			coord_t * coord, lock_handle * parent_lh, load_count * parent_zh, znode_lock_mode parent_mode)
@@ -2700,9 +2677,9 @@ jnode_lock_parent_coord(jnode * node,
 }
 
 /* Get the right neighbor of a znode locked provided a condition is met.  The neighbor
- * must be dirty and a member of the same atom.  If there is no right neighbor or the
- * neighbor is not in memory or if there is a neighbor but it is not dirty or not in the
- * same atom, -ENAVAIL is returned. */
+   must be dirty and a member of the same atom.  If there is no right neighbor or the
+   neighbor is not in memory or if there is a neighbor but it is not dirty or not in the
+   same atom, -ENAVAIL is returned. */
 static int
 znode_get_utmost_if_dirty(znode * node, lock_handle * lock, sideof side, znode_lock_mode mode)
 {
@@ -2753,7 +2730,7 @@ fail:
 }
 
 /* Return true if two znodes have the same parent.  This is called with both nodes
- * write-locked (for squeezing) so no tree lock is needed. */
+   write-locked (for squeezing) so no tree lock is needed. */
 static int
 znode_same_parents(znode * a, znode * b)
 {
@@ -2763,9 +2740,7 @@ znode_same_parents(znode * a, znode * b)
 	return UNDER_SPIN(tree, znode_get_tree(a), (znode_parent_nolock(a) == znode_parent_nolock(b)));
 }
 
-/********************************************************************************
- * FLUSH SCAN
- ********************************************************************************/
+/* FLUSH SCAN */
 
 /* Initialize the flush_scan data structure. */
 static void
@@ -2801,7 +2776,7 @@ flush_scan_finished(flush_scan * scan)
 }
 
 /* Return true if the scan should continue to the @tonode.  True if the node meets the
- * same_atom_dirty condition.  If not, deref the "left" node and stop the scan. */
+   same_atom_dirty condition.  If not, deref the "left" node and stop the scan. */
 static int
 flush_scan_goto(flush_scan * scan, jnode * tonode)
 {
@@ -2822,8 +2797,8 @@ flush_scan_goto(flush_scan * scan, jnode * tonode)
 }
 
 /* Set the current scan->node, refcount it, increment count by the @add_count (number to
- * count, e.g., skipped unallocated nodes), deref previous current, and copy the current
- * parent coordinate. */
+   count, e.g., skipped unallocated nodes), deref previous current, and copy the current
+   parent coordinate. */
 static int
 flush_scan_set_current(flush_scan * scan, jnode * node, unsigned add_count, const coord_t * parent)
 {
@@ -2858,38 +2833,38 @@ flush_scanning_left(flush_scan * scan)
 }
 
 /* Performs leftward scanning starting from either kind of node.  Counts the starting
- * node.  The right-scan object is passed in for the left-scan in order to copy the parent
- * of an unformatted starting position.  This way we avoid searching for the unformatted
- * node's parent when scanning in each direction.  If we search for the parent once it is
- * set in both scan objects.  The limit parameter tells flush-scan when to stop.
- *
- * Rapid scanning is used only during scan_left, where we are interested in finding the
- * 'leftpoint' where we begin flushing.  We are interested in stopping at the left child
- * of a twig that does not have a dirty left neighbor.  THIS IS A SPECIAL CASE.  The
- * problem is finding a way to flush only those nodes without unallocated children, and it
- * is difficult to solve in the bottom-up flushing algorithm we are currently using.  The
- * problem can be solved by scanning left at every level as we go upward, but this would
- * basically bring us back to using a top-down allocation strategy, which we already tried
- * (see BK history from May 2002), and has a different set of problems.  The top-down
- * strategy makes avoiding unallocated children easier, but makes it difficult to
- * propertly flush dirty children with clean parents that would otherwise stop the
- * top-down flush, only later to dirty the parent once the children are flushed.  So we
- * solve the problem in the bottom-up algorithm with a special case for twigs and leaves
- * only.
- *
- * The first step in solving the problem is this rapid leftward scan.  After we determine
- * that there are at least enough nodes counted to qualify for FLUSH_RELOCATE_THRESHOLD we
- * are no longer interested in the exact count, we are only interested in finding a the
- * best place to start the flush.  We could choose one of two possibilities:
- *
- * 1. Stop at the leftmost child (of a twig) that does not have a dirty left neighbor.
- * This requires checking one leaf per rapid-scan twig
- *
- * 2. Stop at the leftmost child (of a twig) where there are no dirty children of the twig
- * to the left.  This requires checking possibly all of the in-memory children of each
- * twig during the rapid scan.
- *
- * For now we implement the first policy.
+   node.  The right-scan object is passed in for the left-scan in order to copy the parent
+   of an unformatted starting position.  This way we avoid searching for the unformatted
+   node's parent when scanning in each direction.  If we search for the parent once it is
+   set in both scan objects.  The limit parameter tells flush-scan when to stop.
+  
+   Rapid scanning is used only during scan_left, where we are interested in finding the
+   'leftpoint' where we begin flushing.  We are interested in stopping at the left child
+   of a twig that does not have a dirty left neighbor.  THIS IS A SPECIAL CASE.  The
+   problem is finding a way to flush only those nodes without unallocated children, and it
+   is difficult to solve in the bottom-up flushing algorithm we are currently using.  The
+   problem can be solved by scanning left at every level as we go upward, but this would
+   basically bring us back to using a top-down allocation strategy, which we already tried
+   (see BK history from May 2002), and has a different set of problems.  The top-down
+   strategy makes avoiding unallocated children easier, but makes it difficult to
+   propertly flush dirty children with clean parents that would otherwise stop the
+   top-down flush, only later to dirty the parent once the children are flushed.  So we
+   solve the problem in the bottom-up algorithm with a special case for twigs and leaves
+   only.
+  
+   The first step in solving the problem is this rapid leftward scan.  After we determine
+   that there are at least enough nodes counted to qualify for FLUSH_RELOCATE_THRESHOLD we
+   are no longer interested in the exact count, we are only interested in finding a the
+   best place to start the flush.  We could choose one of two possibilities:
+  
+   1. Stop at the leftmost child (of a twig) that does not have a dirty left neighbor.
+   This requires checking one leaf per rapid-scan twig
+  
+   2. Stop at the leftmost child (of a twig) where there are no dirty children of the twig
+   to the left.  This requires checking possibly all of the in-memory children of each
+   twig during the rapid scan.
+  
+   For now we implement the first policy.
  */
 static int
 flush_scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned limit)
@@ -2923,14 +2898,14 @@ flush_scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned li
 }
 
 /* Performs rightward scanning... Does not count the starting node.  The limit parameter
- * is described in flush_scan_left.  If the starting node is unformatted then the
- * parent_coord was already set during scan_left.  The rapid_after parameter is not used
- * during right-scanning.
- *
- * scan_right is only called if the scan_left operation does not count at least
- * FLUSH_RELOCATE_THRESHOLD nodes for flushing.  Otherwise, the limit parameter is set to
- * the difference between scan-left's count and FLUSH_RELOCATE_THRESHOLD, meaning
- * scan-right counts as high as FLUSH_RELOCATE_THRESHOLD and then stops. */
+   is described in flush_scan_left.  If the starting node is unformatted then the
+   parent_coord was already set during scan_left.  The rapid_after parameter is not used
+   during right-scanning.
+  
+   scan_right is only called if the scan_left operation does not count at least
+   FLUSH_RELOCATE_THRESHOLD nodes for flushing.  Otherwise, the limit parameter is set to
+   the difference between scan-left's count and FLUSH_RELOCATE_THRESHOLD, meaning
+   scan-right counts as high as FLUSH_RELOCATE_THRESHOLD and then stops. */
 static int
 flush_scan_right(flush_scan * scan, jnode * node, unsigned limit)
 {
@@ -3014,12 +2989,12 @@ flush_scan_common(flush_scan * scan, flush_scan * other)
 }
 
 /* Performs left- or rightward scanning starting from a formatted node. Follow left
- * pointers under tree lock as long as:
- *
- * - node->left/right is non-NULL
- * - node->left/right is connected, dirty
- * - node->left/right belongs to the same atom
- * - scan has not reached maximum count
+   pointers under tree lock as long as:
+  
+   - node->left/right is non-NULL
+   - node->left/right is connected, dirty
+   - node->left/right belongs to the same atom
+   - scan has not reached maximum count
  */
 static int
 flush_scan_formatted(flush_scan * scan)
@@ -3119,12 +3094,12 @@ flush_scan_formatted(flush_scan * scan)
 }
 
 /* Performs leftward scanning starting from a (possibly) unformatted node.  Skip_first
- * indicates that the scan->node is set to a formatted node and we are interested in
- * continuing at the next neighbor only if it is unformatted.  When called initially from
- * flush_scan_common, it sets skip_first=0 (because the first node is unformatted), but
- * when called from flush_scan_formatted, it sets skip_first=1 (because the current
- * position is formatted).  After one iteration through the loop below, skip_first is
- * reset to zero and the flush .  */
+   indicates that the scan->node is set to a formatted node and we are interested in
+   continuing at the next neighbor only if it is unformatted.  When called initially from
+   flush_scan_common, it sets skip_first=0 (because the first node is unformatted), but
+   when called from flush_scan_formatted, it sets skip_first=1 (because the current
+   position is formatted).  After one iteration through the loop below, skip_first is
+   reset to zero and the flush .  */
 static int
 flush_scan_extent(flush_scan * scan, int skip_first)
 {
@@ -3268,17 +3243,17 @@ exit:
 }
 
 /* Performs leftward scanning starting from an unformatted node and its parent coordinate.
- * This scan continues, advancing the parent coordinate, until either it encounters a
- * formatted child or it finishes scanning this node.
- *
- * If unallocated, the entire extent must be dirty and in the same atom.  (Actually, I'm
- * not sure this is last property (same atom) is enforced, but it should be the case since
- * one atom must write the parent and the others must read the parent, thus fusing?).  In
- * any case, the code below asserts this case for unallocated extents.  Unallocated
- * extents are thus optimized because we can skip to the endpoint when scanning.
- *
- * It returns control to flush_scan_extent, handles these terminating conditions, e.g., by
- * loading the next twig.
+   This scan continues, advancing the parent coordinate, until either it encounters a
+   formatted child or it finishes scanning this node.
+  
+   If unallocated, the entire extent must be dirty and in the same atom.  (Actually, I'm
+   not sure this is last property (same atom) is enforced, but it should be the case since
+   one atom must write the parent and the others must read the parent, thus fusing?).  In
+   any case, the code below asserts this case for unallocated extents.  Unallocated
+   extents are thus optimized because we can skip to the endpoint when scanning.
+  
+   It returns control to flush_scan_extent, handles these terminating conditions, e.g., by
+   loading the next twig.
  */
 static int
 flush_scan_extent_coord(flush_scan * scan, const coord_t * in_coord)
@@ -3319,8 +3294,7 @@ repeat:
 	 * this repeats the get_inode call for every unit even when the OID doesn't
 	 * change. */
 	oid = get_key_objectid(item_key_by_coord(&coord, &key));
-/*
-	extent_get_inode (& coord, & ino);
+/* extent_get_inode (& coord, & ino);
 
 	if (ino == NULL) {
 		scan->stop = 1;
@@ -3458,9 +3432,7 @@ exit:
 	return ret;
 }
 
-/********************************************************************************
- * FLUSH POS HELPERS
- ********************************************************************************/
+/* FLUSH POS HELPERS */
 
 /* Initialize the fields of a flush_position. */
 static int
@@ -3486,15 +3458,15 @@ flush_pos_init(flush_position * pos, long *nr_to_flush, flush_queue_t * fq)
 }
 
 /* The flush loop inside flush_forward_squalloc periodically checks flush_pos_valid to
- * determine when "enough flushing" has been performed.  This will return true until one
- * of the following conditions is met:
- *
- * 1. the number of flush-queued nodes has reached the kernel-supplied "int *nr_to_flush"
- * parameter, meaning we have flushed as many blocks as the kernel requested.  When
- * flushing to commit, this parameter is NULL.
- *
- * 2. flush_pos_stop() is called because squalloc discovers that the "next" node in the
- * flush order is either non-existant, not dirty, or not in the same atom.
+   determine when "enough flushing" has been performed.  This will return true until one
+   of the following conditions is met:
+  
+   1. the number of flush-queued nodes has reached the kernel-supplied "int *nr_to_flush"
+   parameter, meaning we have flushed as many blocks as the kernel requested.  When
+   flushing to commit, this parameter is NULL.
+  
+   2. flush_pos_stop() is called because squalloc discovers that the "next" node in the
+   flush order is either non-existant, not dirty, or not in the same atom.
  */
 static int
 flush_pos_valid(flush_position * pos)
@@ -3514,7 +3486,7 @@ flush_pos_done(flush_position * pos)
 }
 
 /* Reset the point and parent.  Called during flush subroutines to terminate the
- * flush_forward_squalloc loop. */
+   flush_forward_squalloc loop. */
 static int
 flush_pos_stop(flush_position * pos)
 {
@@ -3531,8 +3503,8 @@ flush_pos_stop(flush_position * pos)
 }
 
 /* When the flush_position is on a twig and just finished allocating an extent, if the
- * next item is an internal item, this function descends to the child and, if the child is
- * not flushprepped, it sets the flush_position to continue at the leaf level.  */
+   next item is an internal item, this function descends to the child and, if the child is
+   not flushprepped, it sets the flush_position to continue at the leaf level.  */
 static int
 flush_pos_to_child_and_alloc(flush_position * pos)
 {
@@ -3598,8 +3570,8 @@ stop:
 }
 
 /* The flush position is positioned at the leaf level and wants to shift to the parent
- * level.  Releases the flush_position->point_lock, acquires flush_position->parent_lock
- * and sets the parent coordinate. */
+   level.  Releases the flush_position->point_lock, acquires flush_position->parent_lock
+   and sets the parent coordinate. */
 static int
 flush_pos_to_parent(flush_position * pos)
 {
@@ -3629,7 +3601,7 @@ flush_pos_to_parent(flush_position * pos)
 }
 
 /* Return true if the flush position is set to the parent coordinate of some node on the
- * leaf level.  This is done as part of handling unformatted nodes. */
+   leaf level.  This is done as part of handling unformatted nodes. */
 static int
 flush_pos_on_twig_level(flush_position * pos)
 {
@@ -3637,7 +3609,7 @@ flush_pos_on_twig_level(flush_position * pos)
 }
 
 /* Release all references associated with flush_position->point: a reference count,
- * load_count, and lock_handle. */
+   load_count, and lock_handle. */
 static void
 flush_pos_release_point(flush_position * pos)
 {
@@ -3650,8 +3622,8 @@ flush_pos_release_point(flush_position * pos)
 }
 
 /* This function changes the current value of flush_position->point by releasing the old
- * point (its ref_count, load_count, and lock_handle) then refcounting and load_counting
- * the new point.  Setting the new point's lock_handle is left to the calling code. */
+   point (its ref_count, load_count, and lock_handle) then refcounting and load_counting
+   the new point.  Setting the new point's lock_handle is left to the calling code. */
 static int
 flush_pos_set_point(flush_position * pos, jnode * node)
 {
@@ -3661,8 +3633,8 @@ flush_pos_set_point(flush_position * pos, jnode * node)
 }
 
 /* This function implements a special case to lock the parent coordinate of the current
- * flush point.  If the flush position is on the twig level then the parent coordinate is
- * already locked--otherwise we actually lock the parent coordinate. */
+   flush point.  If the flush position is on the twig level then the parent coordinate is
+   already locked--otherwise we actually lock the parent coordinate. */
 static int
 flush_pos_lock_parent(flush_position * pos, coord_t * parent_coord,
 		      lock_handle * parent_lock, load_count * parent_load, znode_lock_mode mode)
@@ -3700,7 +3672,7 @@ flush_pos_hint(flush_position * pos)
 }
 
 /* Return true if we have decided to unconditionally relocate leaf nodes, thus write
- * optimizing. */
+   optimizing. */
 int
 flush_pos_leaf_relocate(flush_position * pos)
 {
@@ -3851,13 +3823,12 @@ flush_flags_tostring(int flags)
 }
 #endif
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

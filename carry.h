@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
-/*
- * Functions and data types to "carry" tree modification(s) upward.
- * See fs/reiser4/carry.c for details.
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Functions and data types to "carry" tree modification(s) upward.
+   See fs/reiser4/carry.c for details. */
 
 #if !defined( __FS_REISER4_CARRY_H__ )
 #define __FS_REISER4_CARRY_H__
@@ -21,18 +17,17 @@
 
 #include <linux/types.h>
 
-/**
- * &carry_node - "location" of carry node.
- *
- * "location" of node that is involved or going to be involved into
- * carry process. Node where operation will be carried to on the
- * parent level cannot be recorded explicitly. Operation will be carried
- * usually to the parent of some node (where changes are performed at
- * the current level) or, to the left neighbor of its parent. But while
- * modifications are performed at the current level, parent may
- * change. So, we have to allow some indirection (or, positevly,
- * flexibility) in locating carry nodes.
- *
+/* &carry_node - "location" of carry node.
+  
+   "location" of node that is involved or going to be involved into
+   carry process. Node where operation will be carried to on the
+   parent level cannot be recorded explicitly. Operation will be carried
+   usually to the parent of some node (where changes are performed at
+   the current level) or, to the left neighbor of its parent. But while
+   modifications are performed at the current level, parent may
+   change. So, we have to allow some indirection (or, positevly,
+   flexibility) in locating carry nodes.
+  
  */
 typedef struct carry_node {
 	/** pool linkage */
@@ -80,18 +75,17 @@ typedef struct carry_node {
 	lock_handle *tracked;
 } carry_node;
 
-/** 
- * &carry_opcode - elementary operations that can be carried upward
- *
- * Operations that carry() can handle. This list is supposed to be
- * expanded.
- *
- * Each carry operation (cop) is handled by appropriate function defined
- * in fs/reiser4/carry.c. For example COP_INSERT is handled by
- * fs/reiser4/carry.c:carry_insert() etc. These functions in turn
- * call plugins of nodes affected by operation to modify nodes' content
- * and to gather operations to be performed on the next level.
- *
+/* &carry_opcode - elementary operations that can be carried upward
+  
+   Operations that carry() can handle. This list is supposed to be
+   expanded.
+  
+   Each carry operation (cop) is handled by appropriate function defined
+   in fs/reiser4/carry.c. For example COP_INSERT is handled by
+   fs/reiser4/carry.c:carry_insert() etc. These functions in turn
+   call plugins of nodes affected by operation to modify nodes' content
+   and to gather operations to be performed on the next level.
+  
  **/
 typedef enum {
 	/** insert new item into node. */
@@ -126,10 +120,8 @@ typedef enum {
 						 * -josh */
 } cop_modify_flag;
 
-/**
- * mode (or subtype) of COP_{INSERT|PASTE} operation. Specifies how target
- * item is determined.
- */
+/* mode (or subtype) of COP_{INSERT|PASTE} operation. Specifies how target
+   item is determined. */
 typedef enum {
 	/* target item is one containing pointer to the ->child node */
 	COPT_CHILD,
@@ -169,26 +161,25 @@ typedef struct carry_cut_data {
 	void *iplug_params;
 } carry_cut_data;
 
-/** 
- * &carry_tree_op - operation to "carry" upward.
- *
- * Description of an operation we want to "carry" to the upper level of
- * a tree: e.g, when we insert something and there is not enough space
- * we allocate a new node and "carry" the operation of inserting a
- * pointer to the new node to the upper level, on removal of empty node,
- * we carry up operation of removing appropriate entry from parent.
- *
- * There are two types of carry ops: when adding or deleting node we
- * node at the parent level where appropriate modification has to be
- * performed is known in advance. When shifting items between nodes
- * (split, merge), delimiting key should be changed in the least common
- * parent of the nodes involved that is not known in advance.
- *
- * For the operations of the first type we store in &carry_op pointer to
- * the &carry_node at the parent level. For the operation of the second
- * type we store &carry_node or parents of the left and right nodes
- * modified and keep track of them upward until they conicide.
- *
+/* &carry_tree_op - operation to "carry" upward.
+  
+   Description of an operation we want to "carry" to the upper level of
+   a tree: e.g, when we insert something and there is not enough space
+   we allocate a new node and "carry" the operation of inserting a
+   pointer to the new node to the upper level, on removal of empty node,
+   we carry up operation of removing appropriate entry from parent.
+  
+   There are two types of carry ops: when adding or deleting node we
+   node at the parent level where appropriate modification has to be
+   performed is known in advance. When shifting items between nodes
+   (split, merge), delimiting key should be changed in the least common
+   parent of the nodes involved that is not known in advance.
+  
+   For the operations of the first type we store in &carry_op pointer to
+   the &carry_node at the parent level. For the operation of the second
+   type we store &carry_node or parents of the left and right nodes
+   modified and keep track of them upward until they conicide.
+  
  **/
 typedef struct carry_op {
 	/** pool linkage */
@@ -269,14 +260,13 @@ typedef struct carry_pool {
 	reiser4_pool node_pool;
 } carry_pool;
 
-/**
- * &carry_tree_level - carry process on given level
- *
- * Description of balancing process on the given level. 
- *
- * No need for locking here, as carry_tree_level is essentially per
- * thread thing (for now).
- *
+/* &carry_tree_level - carry process on given level
+  
+   Description of balancing process on the given level. 
+  
+   No need for locking here, as carry_tree_level is essentially per
+   thread thing (for now).
+  
  */
 struct carry_level {
 	/** this level may be restarted */
@@ -295,10 +285,8 @@ struct carry_level {
 #endif
 };
 
-/** 
- * information carry passes to plugin methods that may add new operations to
- * the @todo queue 
- */
+/* information carry passes to plugin methods that may add new operations to
+   the @todo queue  */
 struct carry_plugin_info {
 	carry_level *doing;
 	carry_level *todo;
@@ -342,14 +330,13 @@ extern void print_level(const char *prefix, carry_level * level);
 /* __FS_REISER4_CARRY_H__ */
 #endif
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

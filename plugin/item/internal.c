@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Implementation of internal-item plugin methods.
- */
+/* Implementation of internal-item plugin methods. */
 
 #include "../../forward.h"
 #include "../../debug.h"
@@ -93,7 +89,7 @@ znode_at(const coord_t * item /* coord of item */ ,
 	return UNDER_SPIN(dk, znode_get_tree(item->node), child_znode(item, parent, incore_p, 0));
 }
 
-/** store pointer from internal item into "block". Implementation of
+/* store pointer from internal item into "block". Implementation of
     ->down_link() method */
 void
 internal_down_link(const coord_t * coord /* coord of item */ ,
@@ -112,9 +108,7 @@ internal_down_link(const coord_t * coord /* coord of item */ ,
 	*block = pointer_at(coord);
 }
 
-/**
- * Get the child's block number, or 0 if the block is unallocated.
- */
+/* Get the child's block number, or 0 if the block is unallocated. */
 int
 internal_utmost_child_real_block(const coord_t * coord, sideof side UNUSED_ARG, reiser4_block_nr * block)
 {
@@ -129,9 +123,7 @@ internal_utmost_child_real_block(const coord_t * coord, sideof side UNUSED_ARG, 
 	return 0;
 }
 
-/**
- * Return the child.
- */
+/* Return the child. */
 int
 internal_utmost_child(const coord_t * coord, sideof side UNUSED_ARG, jnode ** childp)
 {
@@ -152,10 +144,8 @@ internal_utmost_child(const coord_t * coord, sideof side UNUSED_ARG, jnode ** ch
 }
 
 #if REISER4_DEBUG_OUTPUT
-/** 
- * debugging aid: print human readable information about internal item at
- * @coord 
- */
+/* debugging aid: print human readable information about internal item at
+   @coord  */
 void
 internal_print(const char *prefix /* prefix to print */ ,
 	       coord_t * coord /* coord of item to print  */ )
@@ -180,13 +170,12 @@ internal_has_pointer_to(const coord_t * coord /* coord of item */ ,
 	return pointer_at(coord) == *block;
 }
 
-/**
- * hook called by ->create_item() method of node plugin after new internal
- * item was just created.
- *
- * This is point where pointer to new node is inserted into tree. Initialize
- * parent pointer in child znode, insert child into sibling list and slum.
- *
+/* hook called by ->create_item() method of node plugin after new internal
+   item was just created.
+  
+   This is point where pointer to new node is inserted into tree. Initialize
+   parent pointer in child znode, insert child into sibling list and slum.
+  
  */
 int
 internal_create_hook(const coord_t * item /* coord of item */ ,
@@ -226,22 +215,21 @@ internal_create_hook(const coord_t * item /* coord of item */ ,
 		return PTR_ERR(child);
 }
 
-/**
- * hook called by ->cut_and_kill() method of node plugin just before internal
- * item is removed.
- *
- * This is point where empty node is removed from the tree. Clear parent
- * pointer in child, and mark node for pending deletion.
- *
- * Node will be actually deleted later and in several installations:
- *  
- *  . when last lock on this node will be released, node will be removed from
- *  the sibling list and its lock will be invalidated
- *
- *  . when last reference to this node will be dropped, bitmap will be updated
- *  and node will be actually removed from the memory.
- *
- *
+/* hook called by ->cut_and_kill() method of node plugin just before internal
+   item is removed.
+  
+   This is point where empty node is removed from the tree. Clear parent
+   pointer in child, and mark node for pending deletion.
+  
+   Node will be actually deleted later and in several installations:
+    
+    . when last lock on this node will be released, node will be removed from
+    the sibling list and its lock will be invalidated
+  
+    . when last reference to this node will be dropped, bitmap will be updated
+    and node will be actually removed from the memory.
+  
+  
  */
 int
 internal_kill_hook(const coord_t * item /* coord of item */ ,
@@ -278,12 +266,11 @@ internal_kill_hook(const coord_t * item /* coord of item */ ,
 	}
 }
 
-/**
- * hook called by ->shift() node plugin method when iternal item was just
- * moved from one node to another.
- *
- * Update parent pointer in child and c_counts in old and new parent
- *
+/* hook called by ->shift() node plugin method when iternal item was just
+   moved from one node to another.
+  
+   Update parent pointer in child and c_counts in old and new parent
+  
  */
 int
 internal_shift_hook(const coord_t * item /* coord of item */ ,
@@ -327,19 +314,16 @@ internal_shift_hook(const coord_t * item /* coord of item */ ,
 		return PTR_ERR(child);
 }
 
-/* plugin->u.item.b.max_key_inside - not defined
- */
+/* plugin->u.item.b.max_key_inside - not defined */
 
-/* plugin->u.item.b.nr_units - item.c:single_unit
- */
+/* plugin->u.item.b.nr_units - item.c:single_unit */
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

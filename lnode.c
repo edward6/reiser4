@@ -1,83 +1,79 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
-/*
- * Lnode manipulation functions.
- */
-/*
- * Lnode is light-weight node used as common data-structure by both VFS access
- * paths and reiser4() system call processing.
- *
- * One of the main targets of reiser4() system call is to allow manipulation
- * on potentially huge number of objects. This makes use of inode in reiser4()
- * impossible. On the other hand there is a need to synchronize reiser4() and
- * VFS access.
- *
- * To do this small object (lnode) is allocated (on the stack if possible) for
- * each object involved into reiser4() system call. Such lnode only contains
- * lock, information necessary to link it into global hash table, and
- * condition variable to wake up waiters (see below).
- *
- * In other words, lnode is handle that reiser4 keeps for a file system object
- * while object is being actively used. For example, when read is performed by
- * reiser4_read(), lnode exists for inode being read. When reiser4_read()
- * exits lnode is deleted, but inode is still there in the inode cache.
- *
- * As lnode only exists while object is being actively manipulated by some
- * threads, it follows that lnodes can always live on the stack of such
- * threads.
- *
- * Case-by-case:
- *
- *   A. access through VFS (reiser4_{read|write|truncate|*}()):
- *
- *     1. operation starts with inode supplied by VFS.
- *
- *     2. lget( &local_lnode, LNODE_INODE, inode -> i_ino ) is called. This,
- *     if necessary, will wait until sys_reiser4() access to this file is
- *     finished, and
- *     
- *     3. add lnode to the per super block hash table.
- *
- *   B. creation of new inode in reiser4_iget():
- *   
- *     1. create new empty inode (iget(), or icreate())
- *
- *     2. step A.3. A.2 is not necessary, because we are creating new object
- *     and parent is in VFS access (hence sys_reiser4() cannot add/delete
- *     objects in parent).
- *
- *     3. read stat data from disk and initialise inode
- *
- *   C. sys_reiser4() access:
- *
- *     1. check for existing inode in a hash-table. 
- *
- *        Rationale: if inode is already here it is advantageous to use it,
- *        because it already has information from stat data.
- *
- *        If inode is found proceed as in case A.
- *
- *     2. otherwise, lget( &local_lnode, LNODE_LW, oid ) is called.
- *
- *
- * NOT FINISHED.
- *
- *
- *
- *
- *
- *
- *
- * INTERNAL NOTES:
- *
- * 1. fs/inode.c:inode_lock is not static: we can use it. Good.
- *
- * 2. but fs/inode.c:find_inode() is. Either write own version, or remove
- * static and EXPORT_SYMBOL-ize it.
- *
- *
- *
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+
+/* Lnode manipulation functions. */
+/* Lnode is light-weight node used as common data-structure by both VFS access
+   paths and reiser4() system call processing.
+  
+   One of the main targets of reiser4() system call is to allow manipulation
+   on potentially huge number of objects. This makes use of inode in reiser4()
+   impossible. On the other hand there is a need to synchronize reiser4() and
+   VFS access.
+  
+   To do this small object (lnode) is allocated (on the stack if possible) for
+   each object involved into reiser4() system call. Such lnode only contains
+   lock, information necessary to link it into global hash table, and
+   condition variable to wake up waiters (see below).
+  
+   In other words, lnode is handle that reiser4 keeps for a file system object
+   while object is being actively used. For example, when read is performed by
+   reiser4_read(), lnode exists for inode being read. When reiser4_read()
+   exits lnode is deleted, but inode is still there in the inode cache.
+  
+   As lnode only exists while object is being actively manipulated by some
+   threads, it follows that lnodes can always live on the stack of such
+   threads.
+  
+   Case-by-case:
+  
+     A. access through VFS (reiser4_{read|write|truncate|*}()):
+  
+       1. operation starts with inode supplied by VFS.
+  
+       2. lget( &local_lnode, LNODE_INODE, inode -> i_ino ) is called. This,
+       if necessary, will wait until sys_reiser4() access to this file is
+       finished, and
+       
+       3. add lnode to the per super block hash table.
+  
+     B. creation of new inode in reiser4_iget():
+     
+       1. create new empty inode (iget(), or icreate())
+  
+       2. step A.3. A.2 is not necessary, because we are creating new object
+       and parent is in VFS access (hence sys_reiser4() cannot add/delete
+       objects in parent).
+  
+       3. read stat data from disk and initialise inode
+  
+     C. sys_reiser4() access:
+  
+       1. check for existing inode in a hash-table. 
+  
+          Rationale: if inode is already here it is advantageous to use it,
+          because it already has information from stat data.
+  
+          If inode is found proceed as in case A.
+  
+       2. otherwise, lget( &local_lnode, LNODE_LW, oid ) is called.
+  
+  
+   NOT FINISHED.
+  
+  
+  
+  
+  
+  
+  
+   INTERNAL NOTES:
+  
+   1. fs/inode.c:inode_lock is not static: we can use it. Good.
+  
+   2. but fs/inode.c:find_inode() is. Either write own version, or remove
+   static and EXPORT_SYMBOL-ize it.
+  
+  
+  
  */
 
 #include "debug.h"
@@ -101,10 +97,9 @@ static int lnode_lw_eq(const lnode * node1, const lnode * node2);
 static int lnode_valid_type(lnode_type type);
 #endif
 
-/*
- * Common operations for various types of lnodes.
- *
- * FIXME-NIKITA consider making this plugin.
+/* Common operations for various types of lnodes.
+  
+   FIXME-NIKITA consider making this plugin.
  */
 static struct {
 	/** get a key of the corresponding file system object */
@@ -147,16 +142,15 @@ TS_HASH_DEFINE(ln, lnode, oid_t, h.oid, h.link, oid_hash, oid_eq);
 #undef KFREE
 #undef KMALLOC
 
-/** 
- * true if @required lnode type is @compatible with @set lnode type. If lnode
- * types are incompatible, then thread trying to obtain @required type of
- * access will wait until all references (lnodes) of the @set type to the file
- * system object are released. 
- * 
- * For example, thread trying to manipulate object through VFS (@required type
- * is LNODE_INODE) will wait if object is currently manipulated through
- * reiser4() call (that is, there are lnodes with type LNODE_LW).
- *
+/* true if @required lnode type is @compatible with @set lnode type. If lnode
+   types are incompatible, then thread trying to obtain @required type of
+   access will wait until all references (lnodes) of the @set type to the file
+   system object are released. 
+   
+   For example, thread trying to manipulate object through VFS (@required type
+   is LNODE_INODE) will wait if object is currently manipulated through
+   reiser4() call (that is, there are lnodes with type LNODE_LW).
+  
  */
 /* Audited by: green(2002.06.15) */
 int
@@ -189,18 +183,17 @@ lnodes_done(struct super_block *super	/* super block to destroy lnodes
 	return 0;
 }
 
-/**
- * Acquire handle to file system object.
- *
- * First check whether there is already lnode for this oid in a hash table.
- * If no---initialise @node and add it into the hash table. If hash table
- * already contains lnode with such oid, and incompatible type, wait until
- * said lnode is deleted. If compatible lnode is found in the hash table,
- * increase its reference counter and return.
- *
- *
- *
- *
+/* Acquire handle to file system object.
+  
+   First check whether there is already lnode for this oid in a hash table.
+   If no---initialise @node and add it into the hash table. If hash table
+   already contains lnode with such oid, and incompatible type, wait until
+   said lnode is deleted. If compatible lnode is found in the hash table,
+   increase its reference counter and return.
+  
+  
+  
+  
  */
 /* Audited by: green(2002.06.15) */
 lnode *
@@ -393,13 +386,12 @@ lnode_lw_eq(const lnode * node1 UNUSED_ARG	/* first node to
 	return 1;
 }
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

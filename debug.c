@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Debugging/logging/tracing/profiling/statistical facilities.
- */
+/* Debugging/logging/tracing/profiling/statistical facilities. */
 
 #include "debug.h"
 #include "super.h"
@@ -26,7 +22,7 @@ extern void cond_resched(void);
 static char panic_buf[REISER4_PANIC_MSG_BUFFER_SIZE];
 static spinlock_t panic_guard = SPIN_LOCK_UNLOCKED;
 
-/** Your best friend. Call it on each occasion.  This is called by
+/* Your best friend. Call it on each occasion.  This is called by
     fs/reiser4/debug.h:rpanic(). */
 void
 reiser4_panic(const char *format /* format string */ , ... /* rest */ )
@@ -62,10 +58,8 @@ reiser4_panic(const char *format /* format string */ , ... /* rest */ )
 	panic("reiser4 panicked cowardly: %s", panic_buf);
 }
 
-/**
- * Preemption point: this should be called periodically during long running
- * operations (carry, allocate, and squeeze are best examples)
- */
+/* Preemption point: this should be called periodically during long running
+   operations (carry, allocate, and squeeze are best examples) */
 int
 preempt_point(void)
 {
@@ -75,11 +69,10 @@ preempt_point(void)
 }
 
 #if REISER4_DEBUG
-/**
- * Debugging aid: return struct where information about locks taken by current
- * thread is accumulated. This can be used to formulate lock ordering
- * constraints and various assertions.
- *
+/* Debugging aid: return struct where information about locks taken by current
+   thread is accumulated. This can be used to formulate lock ordering
+   constraints and various assertions.
+  
  */
 lock_counters_info *
 lock_counters()
@@ -107,10 +100,8 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 #endif
 
 #if REISER4_DEBUG
-/**
- * check_stack() - check for possible stack overflow
- *
- */
+/* check_stack() - check for possible stack overflow
+   */
 void
 check_stack(void)
 {
@@ -154,9 +145,7 @@ reiser4_is_debugged(struct super_block *super, __u32 flag)
 }
 
 #if REISER4_STATS
-/**
- * Print statistical data accumulated so far.
- */
+/* Print statistical data accumulated so far. */
 void
 reiser4_print_stats()
 {
@@ -402,10 +391,9 @@ reiser4_print_stats()
 }
 #endif
 
-/** 
- * tracing setup: global trace flags stored in global variable plus
- * per-thread trace flags plus per-fs trace flags.
- *
+/* tracing setup: global trace flags stored in global variable plus
+   per-thread trace flags plus per-fs trace flags.
+  
  */
 __u32 get_current_trace_flags(void)
 {
@@ -421,10 +409,9 @@ __u32 get_current_trace_flags(void)
 	return flags;
 }
 
-/** 
- * allocate memory. This calls kmalloc(), performs some additional checks, and
- * keeps track of how many memory was allocated on behalf of current super
- * block.
+/* allocate memory. This calls kmalloc(), performs some additional checks, and
+   keeps track of how many memory was allocated on behalf of current super
+   block.
  */
 void *
 reiser4_kmalloc(size_t size /* number of bytes to allocate */ ,
@@ -437,9 +424,7 @@ reiser4_kmalloc(size_t size /* number of bytes to allocate */ ,
 	return kmalloc(size, gfp_flag);
 }
 
-/**
- * release memory allocated by reiser4_kmalloc() and update counter.
- */
+/* release memory allocated by reiser4_kmalloc() and update counter. */
 void
 reiser4_kfree(void *area /* memory to from */ ,
 	      size_t size UNUSED_ARG /* number of bytes to free */)
@@ -489,13 +474,12 @@ no_counters_are_held()
 
 #endif
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

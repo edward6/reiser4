@@ -1,17 +1,12 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
-/*
- * Jnode manipulation functions.
- */
-/*
- * Jnode is entity used to track blocks with data and meta-data in reiser4.
- *
- * In particular, jnodes are used to track transactional information
- * associated with each block. Each znode contains jnode as ->zjnode field.
- *
- * Jnode stands for either Josh or Journal node.
- *
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Jnode manipulation functions. */
+/* Jnode is entity used to track blocks with data and meta-data in reiser4.
+  
+   In particular, jnodes are used to track transactional information
+   associated with each block. Each znode contains jnode as ->zjnode field.
+  
+   Jnode stands for either Josh or Journal node.
+  
  */
 
 #include "debug.h"
@@ -252,10 +247,9 @@ jlook(reiser4_tree * tree, oid_t objectid, unsigned long index)
 	return node;
 }
 
-/**
- * jget() (a la zget() but for unformatted nodes). Returns (and possibly
- * creates) jnode corresponding to page @pg. jnode is attached to page and
- * inserted into jnode hash-table.
+/* jget() (a la zget() but for unformatted nodes). Returns (and possibly
+   creates) jnode corresponding to page @pg. jnode is attached to page and
+   inserted into jnode hash-table.
  */
 jnode *
 jget(reiser4_tree * tree, struct page * pg)
@@ -355,7 +349,7 @@ jfind(struct page * page)
 }
 
 /* FIXME-VS: change next two functions switching to support of blocksize !=
- * page cache size */
+   page cache size */
 jnode *
 nth_jnode(struct page * page, int block)
 {
@@ -366,7 +360,7 @@ nth_jnode(struct page * page, int block)
 }
 
 /* get next jnode of a page.
- * FIXME-VS: update this when more than one jnode per page will be allowed */
+   FIXME-VS: update this when more than one jnode per page will be allowed */
 /* Audited by: umka (2002.06.13) */
 jnode *
 next_jnode(jnode * node UNUSED_ARG)
@@ -424,13 +418,12 @@ page_detach_jnode(struct page *page, struct address_space *mapping, unsigned lon
 	reiser4_unlock_page(page);
 }
 
-/**
- * return @node page locked.
- *
- * Locking ordering requires that one first takes page lock and afterwards
- * spin lock on node attached to this page. Sometimes it is necessary to go in
- * the opposite direction. This is done through standard trylock-and-release
- * loop.
+/* return @node page locked.
+  
+   Locking ordering requires that one first takes page lock and afterwards
+   spin lock on node attached to this page. Sometimes it is necessary to go in
+   the opposite direction. This is done through standard trylock-and-release
+   loop.
  */
 struct page *
 jnode_lock_page(jnode * node)
@@ -493,7 +486,7 @@ add_d_ref(jnode * node /* node to increase d_count of */ )
 
 /* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
 /* load content of jnode into memory in all places except cases of unformatted
- * nodes access  */
+   nodes access  */
 
 static int
 page_filler(void *arg, struct page *page)
@@ -762,9 +755,7 @@ jnode_try_drop(jnode * node)
 	return result;
 }
 
-/** 
- * jdelete() -- Remove jnode from the tree
- */
+/* jdelete() -- Remove jnode from the tree */
 int
 jdelete(jnode * node /* jnode to finish with */ )
 {
@@ -807,15 +798,14 @@ jdelete(jnode * node /* jnode to finish with */ )
 	return result;
 }
 
-/**
- * drop jnode on the floor.
- *
- * Return value:
- *
- *  -EBUSY:  failed to drop jnode, because there are still references to it
- *
- *  0:       successfully dropped jnode
- *
+/* drop jnode on the floor.
+  
+   Return value:
+  
+    -EBUSY:  failed to drop jnode, because there are still references to it
+  
+    0:       successfully dropped jnode
+  
  */
 int
 jdrop_in_tree(jnode * node, reiser4_tree * tree)
@@ -863,10 +853,8 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 	return result;
 }
 
-/**
- * This function frees jnode "if possible". In particular, [dcx]_count has to
- * be 0 (where applicable). 
- */
+/* This function frees jnode "if possible". In particular, [dcx]_count has to
+   be 0 (where applicable).  */
 void
 jdrop(jnode * node)
 {
@@ -1117,10 +1105,9 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 			   .io_hook = no_hook}
 };
 
-/*
- * IO head jnode implementation; The io heads are simple j-nodes with limited
- * functionality (these j-nodes are not in any hash table) just for reading
- * from and writing to disk.
+/* IO head jnode implementation; The io heads are simple j-nodes with limited
+   functionality (these j-nodes are not in any hash table) just for reading
+   from and writing to disk.
  */
 
 jnode *
@@ -1270,13 +1257,12 @@ print_jnodes(const char *prefix, reiser4_tree * tree)
 
 #endif
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

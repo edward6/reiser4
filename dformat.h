@@ -1,19 +1,14 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Formats of on-disk data and conversion functions.
- */
+/* Formats of on-disk data and conversion functions. */
 
 /* put all item formats in the files describing the particular items,
    our model is, everything you need to do to add an item to reiser4,
    (excepting the changes to the plugin that uses the item which go
    into the file defining that plugin), you put into one file. */
-/*
- * Data on disk are stored in little-endian format.
- * To declare fields of on-disk structures, use d8, d16, d32 and d64.
- * d??tocpu() and cputod??() to convert.
+/* Data on disk are stored in little-endian format.
+   To declare fields of on-disk structures, use d8, d16, d32 and d64.
+   d??tocpu() and cputod??() to convert.
  */
 
 #if !defined( __FS_REISER4_DFORMAT_H__ )
@@ -106,11 +101,11 @@ cputod64(__u64 oncpu /* CPU value to convert */ ,
 	return ondisk;
 }
 
-/** data-type for block number on disk: these types enable changing the block
- * size to other sizes, but they are only a start.  Suppose we wanted to
- * support 48bit block numbers.  The dblock_nr blk would be changed to "short
- * blk[3]".  The block_nr type should remain an integral type greater or equal
- * to the dblock_nr type in size so that CPU arithmetic operations work. */
+/* data-type for block number on disk: these types enable changing the block
+   size to other sizes, but they are only a start.  Suppose we wanted to
+   support 48bit block numbers.  The dblock_nr blk would be changed to "short
+   blk[3]".  The block_nr type should remain an integral type greater or equal
+   to the dblock_nr type in size so that CPU arithmetic operations work. */
 typedef __u64 reiser4_block_nr;
 
 /** data-type for block number on disk, disk format */
@@ -157,13 +152,12 @@ typedef struct reiser4_master_sb {
 /* __FS_REISER4_DFORMAT_H__ */
 #endif
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

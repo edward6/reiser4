@@ -1,31 +1,26 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
-/*
- * Seals implemenation.
- */
-/*
- * Seals are "weak" tree pointers. They are analogous to tree coords in
- * allowing to bypass tree traversal. But normal usage of coords implies that
- * node pointed to by coord is locked, whereas seals don't keep a lock (or
- * even a reference) to znode. In stead, each znode contains a version number,
- * increased on each znode modification. This version number is copied into a
- * seal when seal is created. Later, one can "validate" seal by calling
- * seal_validate(). If znode is in cache and its version number is still the
- * same, seal is "pristine" and coord associated with it can be re-used
- * immediately.
- *
- * If, on the other hand, znode is out of cache, or it is obviously different
- * one from the znode seal was initially attached to (for example, it is on
- * the different level, or is being removed from the tree), seal is
- * irreparably invalid ("burned") and tree traversal has to be repeated.
- *
- * Otherwise, there is some hope, that while znode was modified (and seal was
- * "broken" as a result), key attached to the seal is still in the node. This
- * is checked by first comparing this key with delimiting keys of node and, if
- * key is ok, doing intra-node lookup.
- *
- *
+/* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Seals implemenation. */
+/* Seals are "weak" tree pointers. They are analogous to tree coords in
+   allowing to bypass tree traversal. But normal usage of coords implies that
+   node pointed to by coord is locked, whereas seals don't keep a lock (or
+   even a reference) to znode. In stead, each znode contains a version number,
+   increased on each znode modification. This version number is copied into a
+   seal when seal is created. Later, one can "validate" seal by calling
+   seal_validate(). If znode is in cache and its version number is still the
+   same, seal is "pristine" and coord associated with it can be re-used
+   immediately.
+  
+   If, on the other hand, znode is out of cache, or it is obviously different
+   one from the znode seal was initially attached to (for example, it is on
+   the different level, or is being removed from the tree), seal is
+   irreparably invalid ("burned") and tree traversal has to be repeated.
+  
+   Otherwise, there is some hope, that while znode was modified (and seal was
+   "broken" as a result), key attached to the seal is still in the node. This
+   is checked by first comparing this key with delimiting keys of node and, if
+   key is ok, doing intra-node lookup.
+  
+  
  */
 
 #include "forward.h"
@@ -45,10 +40,8 @@ static int seal_matches(const seal_t * seal, znode * node);
 static int seal_search_node(seal_t * seal, coord_t * coord,
 			    znode * node, const reiser4_key * key, lookup_bias bias, tree_level level);
 
-/** 
- * initialise seal. This can be called several times on the same seal. @coord
- * and @key can be NULL. 
- */
+/* initialise seal. This can be called several times on the same seal. @coord
+   and @key can be NULL.  */
 /* Audited by: green(2002.06.17) */
 void
 seal_init(seal_t * seal /* seal to initialise */ ,
@@ -110,18 +103,17 @@ check_seal_match(const coord_t * coord, const reiser4_key * k)
 }
 #endif
 
-/**
- * (re-)validate seal.
- *
- * Checks whether seal is pristine, and try to revalidate it if possible.
- *
- * If seal was burned, or broken irreparably, return -EAGAIN.
- *
- * FIXME-NIKITA currently seal_validate() returns -EAGAIN if key we are
- * looking for is in range of keys covered by the sealed node, but item wasn't
- * found by node ->lookup() method. Alternative is to return -ENOENT in this
- * case, but this would complicate callers logic.
- *
+/* (re-)validate seal.
+  
+   Checks whether seal is pristine, and try to revalidate it if possible.
+  
+   If seal was burned, or broken irreparably, return -EAGAIN.
+  
+   FIXME-NIKITA currently seal_validate() returns -EAGAIN if key we are
+   looking for is in range of keys covered by the sealed node, but item wasn't
+   found by node ->lookup() method. Alternative is to return -ENOENT in this
+   case, but this would complicate callers logic.
+  
  */
 /* Audited by: green(2002.06.17) */
 int
@@ -280,14 +272,13 @@ print_seal(const char *prefix, const seal_t * seal)
 }
 #endif
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Perm (short for "permissions") plugins common stuff.
- */
+/* Perm (short for "permissions") plugins common stuff. */
 
 #if !defined( __REISER4_PERM_H__ )
 #define __REISER4_PERM_H__
@@ -16,20 +12,19 @@
 #include <linux/fs.h>		/* for struct file  */
 #include <linux/dcache.h>	/* for struct dentry */
 
-/**
- * interface for perm plugin.
- *
- * Perm plugin method can be implemented through:
- *
- *  1. consulting ->i_mode bits in stat data
- *
- *  2. obtaining acl from the tree and inspecting it
- *
- *  3. asking some kernel module or user-level program to authorize access.
- *
- * This allows for integration with things like capabilities, SELinux-style
- * secutiry contexts, etc.
- *
+/* interface for perm plugin.
+  
+   Perm plugin method can be implemented through:
+  
+    1. consulting ->i_mode bits in stat data
+  
+    2. obtaining acl from the tree and inspecting it
+  
+    3. asking some kernel module or user-level program to authorize access.
+  
+   This allows for integration with things like capabilities, SELinux-style
+   secutiry contexts, etc.
+  
  */
 typedef struct perm_plugin {
 	/* generic fields */
@@ -79,13 +74,12 @@ typedef enum { RWX_PERM_ID, LAST_PERM_ID } reiser4_perm_id;
 /* __REISER4_PERM_H__ */
 #endif
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

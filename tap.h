@@ -1,10 +1,6 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Tree Access Pointers.
- */
+/* Tree Access Pointers. */
 
 #if !defined( __REISER4_TAP_H__ )
 #define __REISER4_TAP_H__
@@ -51,14 +47,13 @@ extern tap_list_head *taps_list(void);
 
 /* __REISER4_TAP_H__ */
 #endif
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

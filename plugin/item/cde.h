@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/* 
- * Compound directory item. See cde.c for description.
- */
+/* Compound directory item. See cde.c for description. */
 
 #if !defined( __FS_REISER4_PLUGIN_COMPRESSED_DE_H__ )
 #define __FS_REISER4_PLUGIN_COMPRESSED_DE_H__
@@ -69,13 +65,12 @@ int cde_max_name_len(const struct inode *dir);
 /* __FS_REISER4_PLUGIN_COMPRESSED_DE_H__ */
 #endif
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

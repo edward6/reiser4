@@ -1,6 +1,4 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #if !defined( __REISER4_NODE40_H__ )
 #define __REISER4_NODE40_H__
@@ -11,8 +9,7 @@
 
 #include <linux/types.h>
 
-/*
-    flushstamp is made of mk_id and write_counter. mk_id is an id generated 
+/* flushstamp is made of mk_id and write_counter. mk_id is an id generated 
     randomly at mkreiserfs time. So we can just skip all nodes with different 
     mk_id. write_counter is d64 incrementing counter of writes on disk. It is 
     used for choosing the newest data at fsck time.
@@ -66,11 +63,11 @@ typedef struct node40_header {
 } node40_header;
 
 /* item headers are not standard across all node layouts, pass
- * pos_in_node to functions instead */
+   pos_in_node to functions instead */
 typedef struct item_header40 {
 	/** key of item */
 /* this will get compressed to a few bytes on average in 4.1, so don't get too excited about how it doesn't hurt much to
- * add more bytes to item headers.  Probably you'll want your code to work for the 4.1 format also.... -Hans */
+   add more bytes to item headers.  Probably you'll want your code to work for the 4.1 format also.... -Hans */
 	/*  0 */ reiser4_key key;
 	/** offset from start of a node measured in 8-byte chunks */
 	/* 24 */ d16 offset;
@@ -124,13 +121,12 @@ void update_znode_dkeys(znode * left, znode * right);
 
 /* __REISER4_NODE40_H__ */
 #endif
-/* 
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */

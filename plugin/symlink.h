@@ -1,6 +1,4 @@
-/*
- * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #if !defined( __REISER4_SYMLINK_H__ )
 #define __REISER4_SYMLINK_H__

@@ -1,11 +1,7 @@
-/*
- * Declarations of debug macros.
- *
- * Copyright 2000, 2001, 2002 by Hans Reiser, licensing governed by
- * reiser4/README
- *
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
+/* Declarations of debug macros. */
+  
 #if !defined( __FS_REISER4_DEBUG_H__ )
 #define __FS_REISER4_DEBUG_H__
 
@@ -25,7 +21,7 @@
 
 /** basic debug/logging output macro. "label" is unfamous "maintainer-id" */
 
-/** generic function to produce formatted output, decorating it with
+/* generic function to produce formatted output, decorating it with
     whatever standard prefixes/postfixes we want. "Fun" is a function
     that will be actually called, can be printk, panic etc.
     This is for use by other debugging macros, not by users. */
@@ -40,15 +36,15 @@
 /** panic. Print backtrace and die */
 #define rpanic( label, format, ... )		\
 	DCALL( KERN_EMERG, reiser4_panic, label, format , ## __VA_ARGS__ )
-/** print message with indication of current process, file, line and
+/* print message with indication of current process, file, line and
     function */
 #define rlog( label, format, ... ) 				\
 	DCALL( KERN_DEBUG, printk, label, format , ## __VA_ARGS__ )
-/** use info() for output without any kind of prefix like
+/* use info() for output without any kind of prefix like
     when doing output in several chunks. */
 #define info( format, ... ) printk( format , ## __VA_ARGS__ )
 
-/** Assertion checked during compilation. 
+/* Assertion checked during compilation. 
     If "cond" is false (0) we get duplicate case label in switch.
     Use this to check something like famous 
        cassert (sizeof(struct reiserfs_journal_commit) == 4096) ;
@@ -72,10 +68,8 @@
 #endif
 
 #if defined( CONFIG_REISER4_DEBUG_MODIFY )
-/* 
- * this significantly slows down testing, but we should run our testsuite
- * through with this every once in a while. 
- */
+/* this significantly slows down testing, but we should run our testsuite
+   through with this every once in a while.  */
 #define REISER4_DEBUG_MODIFY (1)
 #else
 #define REISER4_DEBUG_MODIFY (0)
@@ -96,22 +90,19 @@
 #endif
 
 #if defined( CONFIG_REISER4_ZERO_NEW_NODE )
-/** 
- * if this is non-zero, clear content of new node, otherwise leave whatever
- * may happen to be here
- */
+/* if this is non-zero, clear content of new node, otherwise leave whatever
+   may happen to be here */
 #define REISER4_ZERO_NEW_NODE (1)
 #else
 #define REISER4_ZERO_NEW_NODE (0)
 #endif
 
 #if defined( CONFIG_REISER4_TRACE )
-/** 
- * tracing facility.
- *
- *  REISER4_DEBUG doesn't necessary implies tracing, because tracing is only
- *  meaningful during debugging and can produce big amonts of output useless
- *  for average user.
+/* tracing facility.
+  
+    REISER4_DEBUG doesn't necessary implies tracing, because tracing is only
+    meaningful during debugging and can produce big amonts of output useless
+    for average user.
  */
 #define REISER4_TRACE (1)
 #else
@@ -126,19 +117,15 @@
 #endif
 
 #if defined( CONFIG_REISER4_STATS )
-/** 
- * collect internal stats. Should be switched to use kernel logging facility
- * once latter merged. 
- */
+/* collect internal stats. Should be switched to use kernel logging facility
+   once latter merged.  */
 #define REISER4_STATS (1)
 #else
 #define REISER4_STATS (0)
 #endif
 
 #if defined( CONFIG_REISER4_DEBUG_OUTPUT )
-/**
- * debugging print functions.
- */
+/* debugging print functions. */
 #define REISER4_DEBUG_OUTPUT (1)
 #else
 #define REISER4_DEBUG_OUTPUT (0)
@@ -147,20 +134,19 @@
 #define noop   do {;} while( 0 )
 
 #if REISER4_DEBUG
-/** version of info that only actually prints anything when _d_ebugging
+/* version of info that only actually prints anything when _d_ebugging
     is on */
 #define dinfo( format, ... ) info( format , ## __VA_ARGS__ )
-/** macro to catch logical errors. Put it into `default' clause of
+/* macro to catch logical errors. Put it into `default' clause of
     switch() statement. */
 #define impossible( label, format, ... ) 			\
          rpanic( label, "impossible: " format , ## __VA_ARGS__ )
 /** stub for something you are planning to implement in a future */
 #define not_implemented( label, format, ... )	\
          rpanic( label, "not implemented: " format , ## __VA_ARGS__ )
-/**
- * assert assures that @cond is true. If it is not, rpanic() is
- * called. Use this for checking logical consistency and _never_ call
- * this to check correctness of external data: disk blocks and user-input .
+/* assert assures that @cond is true. If it is not, rpanic() is
+   called. Use this for checking logical consistency and _never_ call
+   this to check correctness of external data: disk blocks and user-input .
  */
 #define assert( label, cond )					\
 ({								\
@@ -169,9 +155,7 @@
 		rpanic( label, "assertion failed: " #cond );	\
 })
 
-/**
- * like assertion, but @expr is evaluated even if REISER4_DEBUG is off.
- */
+/* like assertion, but @expr is evaluated even if REISER4_DEBUG is off. */
 #define check_me( label, expr )	assert( label, ( expr ) )
 
 #define ON_DEBUG( exp ) exp
@@ -208,10 +192,8 @@ extern lock_counters_info *lock_counters(void);
 /* REISER4_DEBUG */
 #endif
 
-/**
- * flags controlling debugging behavior. Are set through debug_flags=N mount
- * option.
- */
+/* flags controlling debugging behavior. Are set through debug_flags=N mount
+   option. */
 typedef enum {
 	/**
 	 * print a lot of information during panic.
@@ -234,10 +216,8 @@ typedef enum {
 extern int reiser4_are_all_debugged(struct super_block *super, __u32 flags);
 extern int reiser4_is_debugged(struct super_block *super, __u32 flag);
 
-/**
- * FIXME-NIKITA this is wrong, because other file systems share ->fs_context
- * with us.
- */
+/* FIXME-NIKITA this is wrong, because other file systems share ->fs_context
+   with us. */
 #define ON_CONTEXT( e )	do {			\
 	if( current -> fs_context != NULL ) {	\
 		e;				\
@@ -266,9 +246,7 @@ extern int reiser4_is_debugged(struct super_block *super, __u32 flag);
 #define trace_if( flags, e ) noop
 #endif
 
-/*
- * tracing flags.
- */
+/* tracing flags. */
 typedef enum {
 	/*
 	 * trace nothing
@@ -402,13 +380,12 @@ extern __u32 reiser4_current_trace_flags;
 #define ST_INC_CNT( field ) ( ++ STS . field )
 #define ST_ADD_CNT( field, cnt ) ( STS . field += cnt )
 
-/*
- * Macros to gather statistical data. If REISER4_STATS is disabled, they
- * are preprocessed to nothing.
- *
- * reiser4_stat_foo_add( counter ) increases by one counter in foo section of 
- * &reiser4_stat - big struct used to collect all statistical data.
- *
+/* Macros to gather statistical data. If REISER4_STATS is disabled, they
+   are preprocessed to nothing.
+  
+   reiser4_stat_foo_add( counter ) increases by one counter in foo section of 
+   &reiser4_stat - big struct used to collect all statistical data.
+  
  */
 
 #define	reiser4_stat_tree_add( stat ) ST_INC_CNT( tree . stat )
@@ -454,15 +431,11 @@ extern __u32 reiser4_current_trace_flags;
 
 /* statistics gathering features. */
 
-/*
- * type of statistics counters
- */
+/* type of statistics counters */
 typedef unsigned long stat_cnt;
 
-/*
- * set of statistics counter. This is embedded into super-block when
- * REISER4_STATS is on.
- */
+/* set of statistics counter. This is embedded into super-block when
+   REISER4_STATS is on. */
 typedef struct reiser4_statistics {
 	struct {
 		/*
@@ -952,13 +925,12 @@ extern void *xmemset(void *s, int c, size_t n);
 /* __FS_REISER4_DEBUG_H__ */
 #endif
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */

@@ -1,175 +1,169 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
-/*
- * Memory pressure hooks. Fake inodes handling.
- */
-/*
- *
- * We store all file system meta data (and data, of course) in the page cache.
- *
- * What does this mean? In stead of using bread/brelse we create special
- * "fake" inode (one per super block) and store content of formatted nodes
- * into pages bound to this inode in the page cache. In newer kernels bread()
- * already uses inode attached to block device (bd_inode). Advantage of having
- * our own fake inode is that we can install appropriate methods in its
- * address_space operations. Such methods are called by VM on memory pressure
- * (or during background page flushing) and we can use them to react
- * appropriately.
- *
- * In initial version we only support one block per page. Support for multiple
- * blocks per page is complicated by relocation.
- *
- * To each page, used by reiser4, jnode is attached. jnode is analogous to
- * buffer head. Difference is that jnode is bound to the page permanently:
- * jnode cannot be removed from memory until its backing page is.
- *
- * jnode contain pointer to page (->pg field) and page contain pointer to
- * jnode in ->private field. Pointer from jnode to page is protected to by
- * jnode's spinlock and pointer from page to jnode is protected by page lock
- * (PG_locked bit). Lock ordering is: first take page lock, then jnode spin
- * lock. To go into reverse direction use jnode_lock_page() function that uses
- * standard try-lock-and-release device.
- *
- * Properties:
- *
- * 1. when jnode-to-page mapping is established (by jnode_attach_page()), page
- * reference counter is increased.
- *
- * 2. when jnode-to-page mapping is destroyed (by jnode_detach_page() and
- * page_detach_jnode()), page reference counter is decreased.
- *
- * 3. on jload() reference counter on jnode page is increased, page is
- * kmapped and `referenced'.
- *
- * 4. on jrelse() inverse operations are performed.
- *
- * 5. kmapping/kunmapping of unformatted pages is done by read/write methods.
- *
- *
- * DEADLOCKS RELATED TO MEMORY PRESSURE.
- *
- * [In the following discussion, `lock' invariably means long term lock on
- * znode.] (What about page locks?)
- *
- * There is some special class of deadlock possibilities related to memory
- * pressure. Locks acquired by other reiser4 threads are accounted for in
- * deadlock prevention mechanism (lock.c), but when ->vm_writeback() is
- * invoked additional hidden arc is added to the locking graph: thread that
- * tries to allocate memory waits for ->vm_writeback() to finish. If this
- * thread keeps lock and ->vm_writeback() tries to acquire this lock, deadlock
- * prevention is useless.
- *
- * Another related problem is possibility for ->vm_writeback() to run out of
- * memory itself. This is not a problem for ext2 and friends, because their
- * ->vm_writeback() don't allocate much memory, but reiser4 flush is
- * definitely able to allocate huge amounts of memory.
- *
- * It seems that there is no reliable way to cope with the problems above. In
- * stead it was decided that ->vm_writeback() (as invoked in the kswapd
- * context) wouldn't perform any flushing itself, but rather should just wake
- * up some auxiliary thread dedicated for this purpose (or, the same thread
- * that does periodic commit of old atoms (ktxnmgrd.c)).
- *
- * Details:
- *
- * 1. Page is called `reclaimable' against particular reiser4 mount F if this
- * page can be ultimately released by try_to_free_pages() under presumptions
- * that:
- *
- *  a. ->vm_writeback() for F is no-op, and
- *
- *  b. none of the threads accessing F are making any progress, and
- *
- *  c. other reiser4 mounts obey the same memory reservation protocol as F
- *  (described below).
- *
- * For example, clean un-pinned page, or page occupied by ext2 data are
- * reclaimable against any reiser4 mount. 
- *
- * When there is more than one reiser4 mount in a system, condition (c) makes
- * reclaim-ability not easily verifiable beyond trivial cases mentioned above.
- *
- *
- *
- *
- *
- *
- *
- *
- * THIS COMMENT IS VALID FOR "MANY BLOCKS ON PAGE" CASE
- *
- * Fake inode is used to bound formatted nodes and each node is indexed within
- * fake inode by its block number. If block size of smaller than page size, it
- * may so happen that block mapped to the page with formatted node is occupied
- * by unformatted node or is unallocated. This lead to some complications,
- * because flushing whole page can lead to an incorrect overwrite of
- * unformatted node that is moreover, can be cached in some other place as
- * part of the file body. To avoid this, buffers for unformatted nodes are
- * never marked dirty. Also pages in the fake are never marked dirty. This
- * rules out usage of ->writepage() as memory pressure hook. In stead
- * ->releasepage() is used.
- *
- * Josh is concerned that page->buffer is going to die. This should not pose
- * significant problem though, because we need to add some data structures to
- * the page anyway (jnode) and all necessary book keeping can be put there.
- *
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Memory pressure hooks. Fake inodes handling. */
+/* 
+   We store all file system meta data (and data, of course) in the page cache.
+  
+   What does this mean? In stead of using bread/brelse we create special
+   "fake" inode (one per super block) and store content of formatted nodes
+   into pages bound to this inode in the page cache. In newer kernels bread()
+   already uses inode attached to block device (bd_inode). Advantage of having
+   our own fake inode is that we can install appropriate methods in its
+   address_space operations. Such methods are called by VM on memory pressure
+   (or during background page flushing) and we can use them to react
+   appropriately.
+  
+   In initial version we only support one block per page. Support for multiple
+   blocks per page is complicated by relocation.
+  
+   To each page, used by reiser4, jnode is attached. jnode is analogous to
+   buffer head. Difference is that jnode is bound to the page permanently:
+   jnode cannot be removed from memory until its backing page is.
+  
+   jnode contain pointer to page (->pg field) and page contain pointer to
+   jnode in ->private field. Pointer from jnode to page is protected to by
+   jnode's spinlock and pointer from page to jnode is protected by page lock
+   (PG_locked bit). Lock ordering is: first take page lock, then jnode spin
+   lock. To go into reverse direction use jnode_lock_page() function that uses
+   standard try-lock-and-release device.
+  
+   Properties:
+  
+   1. when jnode-to-page mapping is established (by jnode_attach_page()), page
+   reference counter is increased.
+  
+   2. when jnode-to-page mapping is destroyed (by jnode_detach_page() and
+   page_detach_jnode()), page reference counter is decreased.
+  
+   3. on jload() reference counter on jnode page is increased, page is
+   kmapped and `referenced'.
+  
+   4. on jrelse() inverse operations are performed.
+  
+   5. kmapping/kunmapping of unformatted pages is done by read/write methods.
+  
+  
+   DEADLOCKS RELATED TO MEMORY PRESSURE.
+  
+   [In the following discussion, `lock' invariably means long term lock on
+   znode.] (What about page locks?)
+  
+   There is some special class of deadlock possibilities related to memory
+   pressure. Locks acquired by other reiser4 threads are accounted for in
+   deadlock prevention mechanism (lock.c), but when ->vm_writeback() is
+   invoked additional hidden arc is added to the locking graph: thread that
+   tries to allocate memory waits for ->vm_writeback() to finish. If this
+   thread keeps lock and ->vm_writeback() tries to acquire this lock, deadlock
+   prevention is useless.
+  
+   Another related problem is possibility for ->vm_writeback() to run out of
+   memory itself. This is not a problem for ext2 and friends, because their
+   ->vm_writeback() don't allocate much memory, but reiser4 flush is
+   definitely able to allocate huge amounts of memory.
+  
+   It seems that there is no reliable way to cope with the problems above. In
+   stead it was decided that ->vm_writeback() (as invoked in the kswapd
+   context) wouldn't perform any flushing itself, but rather should just wake
+   up some auxiliary thread dedicated for this purpose (or, the same thread
+   that does periodic commit of old atoms (ktxnmgrd.c)).
+  
+   Details:
+  
+   1. Page is called `reclaimable' against particular reiser4 mount F if this
+   page can be ultimately released by try_to_free_pages() under presumptions
+   that:
+  
+    a. ->vm_writeback() for F is no-op, and
+  
+    b. none of the threads accessing F are making any progress, and
+  
+    c. other reiser4 mounts obey the same memory reservation protocol as F
+    (described below).
+  
+   For example, clean un-pinned page, or page occupied by ext2 data are
+   reclaimable against any reiser4 mount. 
+  
+   When there is more than one reiser4 mount in a system, condition (c) makes
+   reclaim-ability not easily verifiable beyond trivial cases mentioned above.
+  
+  
+  
+  
+  
+  
+  
+  
+   THIS COMMENT IS VALID FOR "MANY BLOCKS ON PAGE" CASE
+  
+   Fake inode is used to bound formatted nodes and each node is indexed within
+   fake inode by its block number. If block size of smaller than page size, it
+   may so happen that block mapped to the page with formatted node is occupied
+   by unformatted node or is unallocated. This lead to some complications,
+   because flushing whole page can lead to an incorrect overwrite of
+   unformatted node that is moreover, can be cached in some other place as
+   part of the file body. To avoid this, buffers for unformatted nodes are
+   never marked dirty. Also pages in the fake are never marked dirty. This
+   rules out usage of ->writepage() as memory pressure hook. In stead
+   ->releasepage() is used.
+  
+   Josh is concerned that page->buffer is going to die. This should not pose
+   significant problem though, because we need to add some data structures to
+   the page anyway (jnode) and all necessary book keeping can be put there.
+  
  */
 
-/*
- * Life cycle of pages/nodes.
- *
- * jnode contains reference to page and page contains reference back to
- * jnode. This reference is counted in page ->count. Thus, page bound to jnode
- * cannot be released back into free pool.
- *
- *  1. Formatted nodes.
- *
- *    1. formatted node is represented by znode. When new znode is created its
- *    ->pg pointer is NULL initially.
- *
- *    2. when node content is loaded into znode (by call to zload()) for the
- *    first time following happens (in call to ->read_node() or
- *    ->allocate_node()):
- *
- *      1. new page is added to the page cache.
- *
- *      2. this page is attached to znode and its ->count is increased.
- *
- *      3. page is kmapped.
- *
- *    3. if more calls to zload() follow (without corresponding zrelses), page
- *    counter is left intact and in its stead ->d_count is increased in znode.
- *
- *    4. each call to zrelse decreases ->d_count. When ->d_count drops to zero
- *    ->release_node() is called and page is kunmapped as result.
- *
- *    5. at some moment node can be captured by a transaction. Its ->x_count
- *    is then increased by transaction manager.
- *
- *    6. if node is removed from the tree (empty node with JNODE_HEARD_BANSHEE
- *    bit set) following will happen (also see comment at the top of znode.c):
- *
- *      1. when last lock is released, node will be uncaptured from
- *      transaction. This released reference that transaction manager acquired
- *      at the step 5.
- *
- *      2. when last reference is released, zput() detects that node is
- *      actually deleted and calls ->delete_node()
- *      operation. page_cache_delete_node() implementation detaches jnode from
- *      page and releases page.
- *
- *    7. otherwise (node wasn't removed from the tree), last reference to
- *    znode will be released after transaction manager committed transaction
- *    node was in. This implies squallocing of this node (see
- *    flush.c). Nothing special happens at this point. Znode is still in the
- *    hash table and page is still attached to it.
- *
- *    8. znode is actually removed from the memory because of the memory
- *    pressure, or during umount (znodes_tree_done()). Anyway, znode is
- *    removed by the call to zdrop(). At this moment, page is detached from
- *    znode and removed from the inode address space.
- *
+/* Life cycle of pages/nodes.
+  
+   jnode contains reference to page and page contains reference back to
+   jnode. This reference is counted in page ->count. Thus, page bound to jnode
+   cannot be released back into free pool.
+  
+    1. Formatted nodes.
+  
+      1. formatted node is represented by znode. When new znode is created its
+      ->pg pointer is NULL initially.
+  
+      2. when node content is loaded into znode (by call to zload()) for the
+      first time following happens (in call to ->read_node() or
+      ->allocate_node()):
+  
+        1. new page is added to the page cache.
+  
+        2. this page is attached to znode and its ->count is increased.
+  
+        3. page is kmapped.
+  
+      3. if more calls to zload() follow (without corresponding zrelses), page
+      counter is left intact and in its stead ->d_count is increased in znode.
+  
+      4. each call to zrelse decreases ->d_count. When ->d_count drops to zero
+      ->release_node() is called and page is kunmapped as result.
+  
+      5. at some moment node can be captured by a transaction. Its ->x_count
+      is then increased by transaction manager.
+  
+      6. if node is removed from the tree (empty node with JNODE_HEARD_BANSHEE
+      bit set) following will happen (also see comment at the top of znode.c):
+  
+        1. when last lock is released, node will be uncaptured from
+        transaction. This released reference that transaction manager acquired
+        at the step 5.
+  
+        2. when last reference is released, zput() detects that node is
+        actually deleted and calls ->delete_node()
+        operation. page_cache_delete_node() implementation detaches jnode from
+        page and releases page.
+  
+      7. otherwise (node wasn't removed from the tree), last reference to
+      znode will be released after transaction manager committed transaction
+      node was in. This implies squallocing of this node (see
+      flush.c). Nothing special happens at this point. Znode is still in the
+      hash table and page is still attached to it.
+  
+      8. znode is actually removed from the memory because of the memory
+      pressure, or during umount (znodes_tree_done()). Anyway, znode is
+      removed by the call to zdrop(). At this moment, page is detached from
+      znode and removed from the inode address space.
+  
  */
 
 #include "debug.h"
@@ -199,18 +193,14 @@ static struct address_space_operations formatted_fake_as_ops;
 
 static const oid_t fake_ino = 0x1;
 
-/**
- * one-time initialisation of fake inodes handling functions.
- */
+/* one-time initialisation of fake inodes handling functions. */
 int
 init_fakes()
 {
 	return 0;
 }
 
-/**
- * initialise fake inode to which formatted nodes are bound in the page cache.
- */
+/* initialise fake inode to which formatted nodes are bound in the page cache. */
 int
 init_formatted_fake(struct super_block *super)
 {
@@ -249,10 +239,8 @@ done_formatted_fake(struct super_block *super)
 }
 
 #if 0
-/** 
- * check amount of available for allocation memory, and kick ktxnmgrd is it
- * is low. NEITHER FINISHED NOR USED.
- */
+/* check amount of available for allocation memory, and kick ktxnmgrd is it
+   is low. NEITHER FINISHED NOR USED. */
 void
 reiser4_check_mem(reiser4_context * ctx)
 {
@@ -298,10 +286,8 @@ reiser4_check_mem(reiser4_context * ctx)
 
 #endif
 
-/** 
- * helper function to find-and-lock page in a page cache and do additional
- * checks 
- */
+/* helper function to find-and-lock page in a page cache and do additional
+   checks  */
 void
 reiser4_lock_page(struct page *page)
 {
@@ -327,10 +313,8 @@ tree_by_page(const struct page *page /* page to query */ )
 
 #if REISER4_DEBUG_MEMCPY
 
-/*
- * Our own versions of memcpy, memmove, and memset used to profile shifts of
- * tree node content. Coded to avoid inlining.
- */
+/* Our own versions of memcpy, memmove, and memset used to profile shifts of
+   tree node content. Coded to avoid inlining. */
 
 struct mem_ops_table {
 	void *(*cpy) (void *dest, const void *src, size_t n);
@@ -384,11 +368,10 @@ xmemset(void *s, int c, size_t n)
 
 #endif
 
-/** 
- * completion handler for single page bio-based read. 
- *
- * mpage_end_io_read() would also do. But it's static.
- *
+/* completion handler for single page bio-based read. 
+  
+   mpage_end_io_read() would also do. But it's static.
+  
  */
 static int
 end_bio_single_page_read(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUSED_ARG)
@@ -411,11 +394,10 @@ end_bio_single_page_read(struct bio *bio, unsigned int bytes_done UNUSED_ARG, in
 	return 0;
 }
 
-/** 
- * completion handler for single page bio-based write. 
- *
- * mpage_end_io_write() would also do. But it's static.
- *
+/* completion handler for single page bio-based write. 
+  
+   mpage_end_io_write() would also do. But it's static.
+  
  */
 static int
 end_bio_single_page_write(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUSED_ARG)
@@ -551,10 +533,8 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 		return ERR_PTR(-ENOMEM);
 }
 
-/**
- * ->vm_writeback() callback for formatted page. Called from shrink_cache()
- * (or however it will be called by the time you read this).
- */
+/* ->vm_writeback() callback for formatted page. Called from shrink_cache()
+   (or however it will be called by the time you read this). */
 static int
 formatted_vm_writeback(struct page *page	/* page to start
 						 * writeback from */ ,
@@ -572,22 +552,21 @@ formatted_vm_writeback(struct page *page	/* page to start
 	return result;
 }
 
-/**
- * Common memory pressure notification.
- *
- * This is called from our ->vm_writeback() methods: formatted_vm_writeback()
- * and reiser4_vm_writeback().
- *
- * Initial design was that this function would perform all flush and IO
- * submitting directly (that is, in the context of kswapd, or caller of
- * balance_classzone()). It was found, though, that problems with deadlocks
- * and flush running of memory are very hard if at all possible to overcome.
- *
- * It was then decided, that this function should in stead just wake up some
- * worker thread (disguised under fancy name of `ent') to perform actual flush
- * and submit IO requests. Currently very simple scheme is implemented. There
- * is not much sense in elaborating it now when VM is in such a flux.
- *
+/* Common memory pressure notification.
+  
+   This is called from our ->vm_writeback() methods: formatted_vm_writeback()
+   and reiser4_vm_writeback().
+  
+   Initial design was that this function would perform all flush and IO
+   submitting directly (that is, in the context of kswapd, or caller of
+   balance_classzone()). It was found, though, that problems with deadlocks
+   and flush running of memory are very hard if at all possible to overcome.
+  
+   It was then decided, that this function should in stead just wake up some
+   worker thread (disguised under fancy name of `ent') to perform actual flush
+   and submit IO requests. Currently very simple scheme is implemented. There
+   is not much sense in elaborating it now when VM is in such a flux.
+  
  */
 int
 page_common_writeback(struct page *page /* page to start writeback from */ ,
@@ -644,9 +623,7 @@ define_never_ever_op(readpages)
     define_never_ever_op(bmap)
     define_never_ever_op(direct_IO)
 #define V( func ) ( ( void * ) ( func ) )
-/**
- * address space operations for the fake inode
- */
+/* address space operations for the fake inode */
 static struct address_space_operations formatted_fake_as_ops = {
 	.writepage = formatted_writepage,
 	/* this is called to read formatted node */
@@ -685,10 +662,8 @@ static struct address_space_operations formatted_fake_as_ops = {
 	.direct_IO = V(never_ever_direct_IO)
 };
 
-/**
- * called just before page is released (no longer used by reiser4). Callers:
- * jdelete() and extent2tail().
- */
+/* called just before page is released (no longer used by reiser4). Callers:
+   jdelete() and extent2tail(). */
 void
 drop_page(struct page *page, jnode * node)
 {
@@ -742,14 +717,13 @@ print_page(const char *prefix, struct page *page)
 
 #endif
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */
