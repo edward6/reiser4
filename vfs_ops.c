@@ -27,7 +27,6 @@
 #include "ktxnmgrd.h"
 #include "super.h"
 #include "reiser4.h"
-#include "ioctl.h"
 #include "kattr.h"
 #include "emergency_flush.h"
 
@@ -78,6 +77,7 @@ static loff_t reiser4_llseek(struct file *, loff_t, int);
 static ssize_t reiser4_read(struct file *, char *, size_t, loff_t *);
 static ssize_t reiser4_write(struct file *, const char *, size_t, loff_t *);
 static int reiser4_readdir(struct file *, void *, filldir_t);
+static int reiser4_ioctl(struct inode *, struct file *, unsigned int cmd, unsigned long arg);
 static int reiser4_mmap(struct file *, struct vm_area_struct *);
 static int reiser4_release(struct inode *, struct file *);
 static int reiser4_fsync(struct file *, struct dentry *, int datasync);
@@ -861,6 +861,27 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 	write_syscall_trace("ex");
 	REISER4_EXIT(result);
 
+}
+
+/* reiser4_ioctl - handler for ioctl for inode supported commands:
+   
+   REISER4_IOC_UNPACK - try to unpack tail from into extent and prevent packing 
+   file (argument arg has to be non-zero)
+*/
+static int
+reiser4_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	int result;
+	REISER4_ENTRY(inode->i_sb);
+	write_syscall_trace("%s", filp->f_dentry->d_name.name);
+
+	if (inode_file_plugin(inode)->ioctl == NULL)
+		result = -ENOSYS;
+	else
+		result = inode_file_plugin(inode)->ioctl(inode, filp, cmd, arg);
+
+	write_syscall_trace("ex");
+	REISER4_EXIT(result);
 }
 
 /* ->mmap() VFS method in reiser4 file_operations */
