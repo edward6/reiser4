@@ -14,7 +14,7 @@ static int reiserfs_format40_super_check(reiserfs_format40_super_t *super,
 	blk_t dev_len = aal_device_len(device);
 	if (get_sb_block_count(super) > dev_len) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
-			"umka-010", "Superblock has an invalid block count %d for device "
+			"umka-023", "Superblock has an invalid block count %d for device "
 			"length %d blocks.", get_sb_block_count(super), dev_len);
 		return 0;
 	}
@@ -75,7 +75,7 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device) {
 
 static void reiserfs_format40_done(reiserfs_format40_t *format, int sync) {
 	if (sync && !aal_block_write(format->device, format->super)) {
-		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-009", 
+		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-024", 
 			"Can't synchronize super block.");
 	}
 	aal_block_free(format->super);

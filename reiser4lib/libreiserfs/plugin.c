@@ -45,47 +45,13 @@ reiserfs_plugin_t *reiserfs_plugin_find(reiserfs_plugin_type_t type,
 	return plugin;
 }
 
-#define reiserfs_plugin_check_routine(plugin, routine, action) \
-	do { \
-		if (!plugin.##routine##) { \
-			aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, "", \
-				"Routine \"" #routine "\" isn't implemented in plugin %s. "\
-				"Plugin will be skiped.", plugin.h.label); \
-			action; \
-		} \
-	} while(0)
-
-static int reiserfs_plugin_check(reiserfs_plugin_t *plugin) {
-	switch (plugin->h.type) {
-		case REISERFS_FORMAT_PLUGIN: 
-			reiserfs_plugin_check_routine(plugin->format, init, return 0);
-			reiserfs_plugin_check_routine(plugin->format, done, return 0);
-			reiserfs_plugin_check_routine(plugin->format, create, return 0);
-			reiserfs_plugin_check_routine(plugin->format, format, return 0);
-			reiserfs_plugin_check_routine(plugin->format, journal_plugin_id, return 0);
-			reiserfs_plugin_check_routine(plugin->format, alloc_plugin_id, return 0);
-			break;
-		case REISERFS_JOURNAL_PLUGIN: 
-			reiserfs_plugin_check_routine(plugin->journal, init, return 0);
-			reiserfs_plugin_check_routine(plugin->journal, done, return 0);
-			reiserfs_plugin_check_routine(plugin->journal, create, return 0);
-			break;
-		case REISERFS_ALLOC_PLUGIN: 
-			reiserfs_plugin_check_routine(plugin->alloc, init, return 0);
-			reiserfs_plugin_check_routine(plugin->alloc, done, return 0);
-			reiserfs_plugin_check_routine(plugin->alloc, create, return 0);
-			break;
-	}
-	return 1;
-}
-
 reiserfs_plugin_t *reiserfs_plugin_load(const char *name, const char *point) {
 #ifndef ENABLE_ALONE
 	char *error;
 	void *handle, *entry;
 	reiserfs_plugin_t *plugin;
 	reiserfs_plugin_t *(*get_plugin) (void);
-
+	
 	ASSERT(name != NULL, return NULL);
 	ASSERT(point != NULL, return NULL);
 
@@ -106,8 +72,7 @@ reiserfs_plugin_t *reiserfs_plugin_load(const char *name, const char *point) {
 	}
 	
 	get_plugin = (reiserfs_plugin_t *(*)(void))entry;
-	if (!reiserfs_plugin_check(plugin = get_plugin()))
-		goto error_free_handle;
+	plugin = get_plugin();
 
 	plugin->h.handle = handle;
 	aal_list_add(plugins, (void *)plugin);

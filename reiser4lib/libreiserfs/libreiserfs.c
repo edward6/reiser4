@@ -38,7 +38,7 @@ int libreiserfs_init(void) {
 	
 #ifndef ENABLE_ALONE
 	if (!(dir = opendir(PLUGIN_DIR))) {
-		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-023", 
+		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-003", 
 			"Can't open directory %s.", PLUGIN_DIR);
 		return 0;
 	}
@@ -61,7 +61,7 @@ int libreiserfs_init(void) {
 		aal_memset(plug_name, 0, sizeof(plug_name));
 		aal_snprintf(plug_name, sizeof(plug_name), "%s/%s", PLUGIN_DIR, ent->d_name);
 		if (!(plugin = reiserfs_plugin_load(plug_name, "reiserfs_plugin_info"))) {
-			aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-024", 
+			aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-004", 
 				"Plugin %s was not loaded.", plug_name);
 			continue;
 		}

@@ -45,14 +45,14 @@ static int reiserfs_format36_super_check(reiserfs_format36_super_t *super,
 
 	if (is_journal_dev != is_journal_magic) {
 		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
-			"umka-006", "Journal relocation flags mismatch. Journal device: %x, magic: %s.",
+			"umka-020", "Journal relocation flags mismatch. Journal device: %x, magic: %s.",
 			get_jp_dev(get_sb_jp(super)), super->s_v1.sb_magic);
 	}
 
 	dev_len = aal_device_len(device);
 	if (get_sb_block_count(super) > dev_len) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
-			"umka-007", "Superblock has an invalid block count %d for device "
+			"umka-021", "Superblock has an invalid block count %d for device "
 			"length %d blocks.", get_sb_block_count(super), dev_len);
 		return 0;
 	}
@@ -114,7 +114,7 @@ static reiserfs_format36_t *reiserfs_format36_create(aal_device_t *device) {
 
 static void reiserfs_format36_done(reiserfs_format36_t *format, int sync) {
 	if (sync && !aal_block_write(format->device, format->super)) {
-		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-008", 
+		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-022", 
 			"Can't synchronize super block.");
 	}
 	aal_block_free(format->super);

@@ -35,7 +35,7 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 	ASSERT(fs->device != NULL, return 0);
 	
 	if (fs->super) {
-		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-007", 
+		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-005", 
 			"Super block already opened.");
 		return 0;
 	}
@@ -48,7 +48,7 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 	if (!(block = aal_block_read(fs->device, 
 		(blk_t)(REISERFS_MASTER_OFFSET / REISERFS_DEFAULT_BLOCKSIZE))))
 	{
-		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-018", 
+		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-006", 
 			"Can't read master super block.");
 		goto error_free_super;
 	}
@@ -62,7 +62,8 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 		
 		if (!(format36 = reiserfs_plugin_find(REISERFS_FORMAT_PLUGIN, 0x2)))
 			goto error_free_block;
-	
+		
+		reiserfs_plugin_check_routine(format36->format, probe, goto error_free_block);
 		if (!(blocksize = format36->format.probe(fs->device)))
 			goto error_free_block;
 		
@@ -73,7 +74,7 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 	aal_memcpy(&fs->super->master, master, sizeof(*master));
 	
 	if (!aal_device_set_blocksize(fs->device, get_mr_block_size(master))) {
-		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-019",
+		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-007",
 			"Invalid block size detected %d. It must be power of two.", 
 			get_mr_block_size(master));
 		goto error_free_block;
@@ -82,7 +83,7 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 	if (!(plugin = reiserfs_plugin_find(REISERFS_FORMAT_PLUGIN, 
 		get_mr_format_id(master)))) 
 	{
-		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-020", 
+		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-008", 
 			"Can't find disk-format plugin by its identifier %x.", 
 			get_mr_format_id(master));
 		
@@ -90,8 +91,9 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 	}
 	fs->super->plugin = plugin;
 	
+	reiserfs_plugin_check_routine(plugin->format, init, goto error_free_block);
 	if (!(fs->super->entity = plugin->format.init(fs->device))) {
-		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-021", 
+		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-009", 
 			"Can't initialize disk-format plugin.");
 		goto error_free_block;
 	}	
@@ -126,7 +128,7 @@ int reiserfs_super_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format,
 	ASSERT(fs != NULL, return 0);
 
 	if (!(plugin = reiserfs_plugin_find(REISERFS_FORMAT_PLUGIN, format))) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-026", 
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-010", 
 			"Can't find format plugin by its identifier %x.", format);
 		return 0;
 	}
@@ -142,7 +144,7 @@ int reiserfs_super_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format,
 		goto error_free_super;
 	
 	if (!aal_block_write(fs->device, block)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-027", 
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-011", 
 			"Can't create master super block on the device.");
 		aal_block_free(block);
 		goto error_free_super;
@@ -151,8 +153,9 @@ int reiserfs_super_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format,
 	aal_block_free(block);
 	
 	/* Creating specified disk-format and format-specific superblock */
+	reiserfs_plugin_check_routine(plugin->format, create, goto error_free_super);
 	if (!(fs->super->entity = plugin->format.create(fs->device))) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-028", 
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-012", 
 			"Can't create disk-format for %s format.", plugin->h.label);
 		goto error_free_super;
 	}
@@ -171,6 +174,7 @@ const char *reiserfs_super_format(reiserfs_fs_t *fs) {
 	ASSERT(fs != NULL, return NULL);
 	ASSERT(fs->super != NULL, return NULL);
 	
+	reiserfs_plugin_check_routine(fs->super->plugin->format, format, return NULL);
 	return fs->super->plugin->format.format(fs->super->entity);
 }
 
@@ -186,6 +190,8 @@ reiserfs_plugin_id_t reiserfs_super_journal_plugin(reiserfs_fs_t *fs) {
 	ASSERT(fs != NULL, return REISERFS_UNSUPPORTED_PLUGIN);
 	ASSERT(fs->super != NULL, return REISERFS_UNSUPPORTED_PLUGIN);
 	
+	reiserfs_plugin_check_routine(fs->super->plugin->format, journal_plugin_id, 
+		return REISERFS_UNSUPPORTED_PLUGIN);
 	return fs->super->plugin->format.journal_plugin_id();
 }
 
@@ -194,6 +200,8 @@ reiserfs_plugin_id_t reiserfs_super_alloc_plugin(reiserfs_fs_t *fs) {
 	ASSERT(fs != NULL, return REISERFS_UNSUPPORTED_PLUGIN);
 	ASSERT(fs->super != NULL, return REISERFS_UNSUPPORTED_PLUGIN);
 	
+	reiserfs_plugin_check_routine(fs->super->plugin->format, alloc_plugin_id, 
+		return REISERFS_UNSUPPORTED_PLUGIN);
 	return fs->super->plugin->format.alloc_plugin_id();
 }
 

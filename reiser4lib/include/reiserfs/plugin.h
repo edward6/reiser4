@@ -175,6 +175,16 @@ union reiserfs_plugin {
 
 typedef union reiserfs_plugin reiserfs_plugin_t;
 
+#define reiserfs_plugin_check_routine(plugin, routine, action) \
+	do { \
+		if (!plugin.##routine##) { \
+			aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, "", \
+				"Routine \"" #routine "\" isn't implemented in plugin %s.", \
+				plugin.h.label); \
+			action; \
+		} \
+	} while(0)
+
 extern reiserfs_plugin_t *reiserfs_plugin_load(const char *name, 
 	const char *point);
 

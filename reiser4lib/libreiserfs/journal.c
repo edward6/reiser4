@@ -16,7 +16,7 @@ int reiserfs_journal_open(reiserfs_fs_t *fs, aal_device_t *device, int replay) {
 	ASSERT(device != NULL, return 0);
 	
 	if (fs->journal) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-011", 
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-013", 
 			"Journal already initialized.");
 		return 0;
 	}
@@ -28,22 +28,24 @@ int reiserfs_journal_open(reiserfs_fs_t *fs, aal_device_t *device, int replay) {
 	
 	id = reiserfs_super_journal_plugin(fs);
 	if (!(plugin = reiserfs_plugin_find(REISERFS_JOURNAL_PLUGIN, id))) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-012", 
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-014", 
 			"Can't find journal plugin by its identifier %x.", id);
 		goto error_free_journal;
 	}
 	
 	fs->journal->plugin = plugin;
 	
+	reiserfs_plugin_check_routine(plugin->journal, init, goto error_free_journal);
 	if (!(fs->journal->entity = plugin->journal.init(device))) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-013", 
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-015", 
 			"Can't initialize the journal plugin.");
 		goto error_free_journal;
 	}
 	
 	/* Optional replaying the journal */
+	reiserfs_plugin_check_routine(plugin->journal, replay, goto error_free_entity);
 	if (replay && !plugin->journal.replay(fs->journal->entity)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-014", 
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-016", 
 			"Can't replay the journal.");
 		goto error_free_entity;
 	}
@@ -51,7 +53,9 @@ int reiserfs_journal_open(reiserfs_fs_t *fs, aal_device_t *device, int replay) {
 	return 1;
 
 error_free_entity:
+	reiserfs_plugin_check_routine(plugin->journal, done, goto error_free_journal);
 	plugin->journal.done(fs->journal->entity, 0);
+	
 	fs->journal->entity = NULL;
 error_free_journal:
 	aal_free(fs->journal);
@@ -69,8 +73,11 @@ void reiserfs_journal_close(reiserfs_fs_t *fs, int sync) {
 	ASSERT(fs != NULL, return);
 	ASSERT(fs->journal != NULL, return);
 	
+	reiserfs_plugin_check_routine(fs->journal->plugin->journal, done, return);
+	
 	fs->journal->plugin->journal.done(fs->journal->entity, sync);
 	fs->journal->entity = NULL;
+	
 	aal_free(fs->journal);
 	fs->journal = NULL;
 }
