@@ -63,7 +63,7 @@ internal_at(const coord_t * coord	/* coord of
 }
 
 void
-internal_update(const coord_t * coord, reiser4_block_nr * blocknr)
+internal_update(const coord_t * coord, const reiser4_block_nr * blocknr)
 {
 	internal_item_layout *item = internal_at(coord);
 	assert("nikita-2959", reiser4_blocknr_is_sane(blocknr));
