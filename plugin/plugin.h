@@ -18,7 +18,6 @@
 #include "item/cde.h"
 #include "item/extent.h"
 #include "item/tail.h"
-#include "file/file.h"
 #include "pseudo/pseudo.h"
 #include "symlink.h"
 #include "dir/hashed_dir.h"
@@ -244,7 +243,11 @@ typedef struct file_plugin {
 		reiser4_block_nr (*unlink) (struct inode *, struct inode *);
 	} estimate;
 	void (*readpages)(struct file *file, struct address_space *mapping,
-			  struct list_head *pages);	
+			  struct list_head *pages);
+	/* reiser4 specific part of inode has a union of structures which are specific to a plugin. This method is
+	   called when inode is read (read_inode) and when file is created (common_create_child) so that file plugin
+	   could initialize its inode data */
+	void (*init_inode_data)(struct inode *, int create);
 } file_plugin;
 
 typedef struct dir_plugin {
@@ -444,15 +447,6 @@ typedef struct jnode_plugin {
 	unsigned long (*index) (const jnode * node);
 	int (*io_hook) (jnode * node, struct page * page, int rw);
 } jnode_plugin;
-
-typedef enum {
-	JNODE_UNFORMATTED_BLOCK,
-	JNODE_FORMATTED_BLOCK,
-	JNODE_BITMAP,
-	JNODE_CLUSTER_PAGE,
-	JNODE_IO_HEAD,
-	LAST_JNODE_TYPE
-} jnode_type;
 
 /* plugin instance.                                                         */
 /*                                                                          */
