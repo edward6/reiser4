@@ -9,8 +9,7 @@ into ctails.
 
 Internal on-disk structure:
 
-        HEADER   (4)  Here stored disk cluster size in bytes (this is original cluster size
-                      translated by ->scale() method of crypto plugin)
+        HEADER   (1)  Here stored disk cluster shift
 	BODY
 */
 
@@ -45,24 +44,24 @@ formatted_at(const coord_t * coord)
 	return item_body_by_coord(coord);
 }
 
+static __u8
+cluster_shift_by_coord(const coord_t * coord)
+{
+	return d8tocpu(&formatted_at(coord)->cluster_shift);
+}
+
 static unsigned
 cluster_size_by_coord(const coord_t * coord)
 {
-	return d32tocpu(&formatted_at(coord)->disk_cluster_size);
+	return (PAGE_CACHE_SIZE << cluster_shift_by_coord(coord));
 }
 
 static unsigned long
 cluster_index_by_coord(const coord_t * coord)
 {
 	reiser4_key  key;
-	/* commented out as it doesn't compile. Again: __u64 division is not
-	 * supported in kernel. Rinse. Repeat. */
-#if 0
-	return get_key_offset(item_key_by_coord(coord, &key)) / cluster_size_by_coord(coord);
-#else
-	assert("nikita-3267", 0);
-	return 0;
-#endif
+	
+	return get_key_offset(item_key_by_coord(coord, &key)) >>  cluster_shift_by_coord(coord) >> PAGE_CACHE_SHIFT;
 }
 
 static char *
@@ -100,12 +99,13 @@ mergeable_ctail(const coord_t * p1, const coord_t * p2)
 	    get_key_type(&key1) != get_key_type(&key2)) {
 		/* items of different objects */
 		return 0;
-	}
-	if ((get_key_offset(&key1) + nr_units_ctail(p1) != get_key_offset(&key2)) ||
-	    nr_units_ctail(p1) == cluster_size_by_coord(p1)) {
+	    }
+	if (get_key_offset(&key1) + nr_units_ctail(p1) != get_key_offset(&key2)) 
+		/*  not adjacent items */
+		return 0;
+	if (!(get_key_offset(&key2) & ~(~0ULL << cluster_shift_by_coord(p2) << PAGE_CACHE_SHIFT)))
 		/* items of different clusters */
 		return 0;
-	}
 	return 1;
 }
 
@@ -113,7 +113,7 @@ mergeable_ctail(const coord_t * p1, const coord_t * p2)
 pos_in_item_t
 nr_units_ctail(const coord_t * coord)
 {
-	return (item_length_by_coord(coord) - sizeof(formatted_at(coord)->disk_cluster_size));
+	return (item_length_by_coord(coord) - sizeof(formatted_at(coord)->cluster_shift));
 }
 
 /* plugin->u.item.b.unit_key: 
@@ -768,15 +768,8 @@ utmost_child_ctail(const coord_t * coord, sideof side, jnode ** child)
 	assert("edward-258", child != NULL);
 	assert("edward-259", side == LEFT_SIDE);
 	assert("edward-260", item_plugin_by_coord(coord) == item_plugin_by_id(CTAIL_ID));
-	
-	/* commented out as it doesn't compile. Again: __u64 division is not
-	 * supported in kernel. Rinse. Repeat. */
-	assert("nikita-3268", 0);
-#if 0
-	if (get_key_offset(&key) != cluster_size_by_coord(coord) * (get_key_offset(&key) / cluster_size_by_coord(coord)))
-#else
-	if (1)
-#endif
+
+	if (get_key_offset(&key) & ~(~0ULL << cluster_shift_by_coord(coord) << PAGE_CACHE_SHIFT))
 		*child = NULL;
 	else
 		*child = jlook_lock(current_tree, get_key_objectid(item_key_by_coord(coord, &key)), cluster_index_by_coord(coord));
