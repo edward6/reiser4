@@ -44,6 +44,7 @@ int main( int argc, char **argv )
   dodirs = 0;
   cycle = 20000;
   writelen = 0;
+  reverse = 0;
   buf = 0;
   while( ( ch = getopt( argc, argv, "dn:p:c:w:r" ) ) != -1 )
 	{
