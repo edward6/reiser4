@@ -40,7 +40,7 @@ next_stat(int *length /* space remaining in stat-data */ ,
 /* ->print() method of static sd item. Prints human readable information about
    sd at @coord */
 void
-sd_print(const char *prefix /* prefix to print */ ,
+print_sd(const char *prefix /* prefix to print */ ,
 	 coord_t * coord /* coord of item */ )
 {
 	char *sd;
@@ -346,7 +346,7 @@ save_static_sd(struct inode *inode /* object being processed */ ,
 /* stat-data extension handling functions. */
 
 static int
-lw_sd_present(struct inode *inode /* object being processed */ ,
+present_lw_sd(struct inode *inode /* object being processed */ ,
 	      char **area /* position in stat-data */ ,
 	      int *len /* remaining length */ )
 {
@@ -365,14 +365,14 @@ lw_sd_present(struct inode *inode /* object being processed */ ,
 }
 
 static int
-lw_sd_save_len(struct inode *inode UNUSED_ARG	/* object being
+save_len_lw_sd(struct inode *inode UNUSED_ARG	/* object being
 						 * processed */ )
 {
 	return sizeof (reiser4_light_weight_stat);
 }
 
 static int
-lw_sd_save(struct inode *inode /* object being processed */ ,
+save_lw_sd(struct inode *inode /* object being processed */ ,
 	   char **area /* position in stat-data */ )
 {
 	reiser4_light_weight_stat *sd;
@@ -392,7 +392,7 @@ lw_sd_save(struct inode *inode /* object being processed */ ,
 
 #if REISER4_DEBUG_OUTPUT
 static void
-lw_sd_print(const char *prefix, char **area /* position in stat-data */ ,
+print_lw_sd(const char *prefix, char **area /* position in stat-data */ ,
 	    int *len /* remaining length */ )
 {
 	reiser4_light_weight_stat *sd;
@@ -405,7 +405,7 @@ lw_sd_print(const char *prefix, char **area /* position in stat-data */ ,
 #endif
 
 static int
-unix_sd_present(struct inode *inode /* object being processed */ ,
+present_unix_sd(struct inode *inode /* object being processed */ ,
 		char **area /* position in stat-data */ ,
 		int *len /* remaining length */ )
 {
@@ -434,7 +434,7 @@ unix_sd_present(struct inode *inode /* object being processed */ ,
 }
 
 static int
-unix_sd_absent(struct inode *inode /* object being processed */ )
+absent_unix_sd(struct inode *inode /* object being processed */ )
 {
 	inode->i_uid = get_super_private(inode->i_sb)->default_uid;
 	inode->i_gid = get_super_private(inode->i_sb)->default_gid;
@@ -448,14 +448,14 @@ unix_sd_absent(struct inode *inode /* object being processed */ )
 
 /* Audited by: green(2002.06.14) */
 static int
-unix_sd_save_len(struct inode *inode UNUSED_ARG	/* object being
+save_len_unix_sd(struct inode *inode UNUSED_ARG	/* object being
 						 * processed */ )
 {
 	return sizeof (reiser4_unix_stat);
 }
 
 static int
-unix_sd_save(struct inode *inode /* object being processed */ ,
+save_unix_sd(struct inode *inode /* object being processed */ ,
 	     char **area /* position in stat-data */ )
 {
 	reiser4_unix_stat *sd;
@@ -478,7 +478,7 @@ unix_sd_save(struct inode *inode /* object being processed */ ,
 
 #if REISER4_DEBUG_OUTPUT
 static void
-unix_sd_print(const char *prefix, char **area /* position in stat-data */ ,
+print_unix_sd(const char *prefix, char **area /* position in stat-data */ ,
 	      int *len /* remaining length */ )
 {
 	reiser4_unix_stat *sd;
@@ -495,7 +495,7 @@ unix_sd_print(const char *prefix, char **area /* position in stat-data */ ,
 #endif
 
 static int
-large_times_sd_present(struct inode *inode /* object being processed */,
+present_large_times_sd(struct inode *inode /* object being processed */,
 		       char **area /* position in stat-data */,
 		       int *len /* remaining length */)
 {
@@ -515,15 +515,14 @@ large_times_sd_present(struct inode *inode /* object being processed */,
 }
 
 static int
-large_times_sd_save_len(struct inode *inode UNUSED_ARG	/* object being
-						 * processed */ )
+save_len_large_times_sd(struct inode *inode UNUSED_ARG	/* object being processed */ )
 {
 	return sizeof (reiser4_large_times_stat);
 }
 
 static int
-large_times_sd_save(struct inode *inode /* object being processed */ ,
-	   char **area /* position in stat-data */ )
+save_large_times_sd(struct inode *inode /* object being processed */ ,
+		    char **area /* position in stat-data */ )
 {
 	reiser4_large_times_stat *sd;
 
@@ -543,7 +542,7 @@ large_times_sd_save(struct inode *inode /* object being processed */ ,
 
 #if REISER4_DEBUG_OUTPUT
 static void
-large_times_sd_print(const char *prefix, char **area /* position in stat-data */,
+print_large_times_sd(const char *prefix, char **area /* position in stat-data */,
 		     int *len /* remaining length */ )
 {
 	reiser4_large_times_stat *sd;
@@ -579,7 +578,7 @@ symlink_target_to_inode(struct inode *inode, const char *target, int len)
 /* this is called on read_inode. There is nothing to do actually, but some
    sanity checks */
 static int
-symlink_sd_present(struct inode *inode, char **area, int *len)
+present_symlink_sd(struct inode *inode, char **area, int *len)
 {
 	int result;
 	int length;
@@ -601,7 +600,7 @@ symlink_sd_present(struct inode *inode, char **area, int *len)
 /* symlink_sd_absent */
 
 static int
-symlink_sd_save_len(struct inode *inode)
+save_len_symlink_sd(struct inode *inode)
 {
 	/* FIXME-VS: no alignment */
 	return inode->i_size + 1;
@@ -610,7 +609,7 @@ symlink_sd_save_len(struct inode *inode)
 /* this is called on create and update stat data. Do nothing on update but
    update @area */
 static int
-symlink_sd_save(struct inode *inode, char **area)
+save_symlink_sd(struct inode *inode, char **area)
 {
 	int result;
 	int length;
@@ -644,7 +643,7 @@ symlink_sd_save(struct inode *inode, char **area)
 
 #if REISER4_DEBUG_OUTPUT
 static void
-symlink_sd_print(const char *prefix, char **area /* position in stat-data */ ,
+print_symlink_sd(const char *prefix, char **area /* position in stat-data */ ,
 		 int *len /* remaining length */ )
 {
 	reiser4_symlink_stat *sd;
@@ -658,7 +657,7 @@ symlink_sd_print(const char *prefix, char **area /* position in stat-data */ ,
 #endif
 
 static int
-gaf_sd_present(struct inode *inode /* object being processed */ ,
+present_gaf_sd(struct inode *inode /* object being processed */ ,
 	       char **area /* position in stat-data */ ,
 	       int *len /* remaining length */ )
 {
@@ -684,7 +683,7 @@ gaf_sd_present(struct inode *inode /* object being processed */ ,
 
 /* Audited by: green(2002.06.14) */
 static int
-gaf_sd_save_len(struct inode *inode UNUSED_ARG	/* object being
+save_len_gaf_sd(struct inode *inode UNUSED_ARG	/* object being
 						 * processed */ )
 {
 	return sizeof (reiser4_gen_and_flags_stat);
@@ -692,7 +691,7 @@ gaf_sd_save_len(struct inode *inode UNUSED_ARG	/* object being
 
 /* Audited by: green(2002.06.14) */
 static int
-gaf_sd_save(struct inode *inode /* object being processed */ ,
+save_gaf_sd(struct inode *inode /* object being processed */ ,
 	    char **area /* position in stat-data */ )
 {
 	reiser4_gen_and_flags_stat *sd;
@@ -708,9 +707,9 @@ gaf_sd_save(struct inode *inode /* object being processed */ ,
 	return 0;
 }
 
-static int plugin_sd_absent(struct inode *inode);
+static int absent_plugin_sd(struct inode *inode);
 static int
-plugin_sd_present(struct inode *inode /* object being processed */ ,
+present_plugin_sd(struct inode *inode /* object being processed */ ,
 		  char **area /* position in stat-data */ ,
 		  int *len /* remaining length */ )
 {
@@ -772,7 +771,7 @@ plugin_sd_present(struct inode *inode /* object being processed */ ,
 	   mode bits */
 	plugin = file_plugin_to_plugin(inode_file_plugin(inode));
 	if (plugin == NULL) {
-		result = plugin_sd_absent(inode);
+		result = absent_plugin_sd(inode);
 	}
 	/* FIXME-VS: activate was called here */
 
@@ -782,7 +781,7 @@ plugin_sd_present(struct inode *inode /* object being processed */ ,
 
 /* Audited by: green(2002.06.14) */
 static int
-plugin_sd_absent(struct inode *inode /* object being processed */ )
+absent_plugin_sd(struct inode *inode /* object being processed */ )
 {
 	int result;
 
@@ -820,7 +819,7 @@ len_for(reiser4_plugin * plugin /* plugin to save */ ,
 /* calculate how much space is required to save state of all plugins,
     associated with inode */
 static int
-plugin_sd_save_len(struct inode *inode /* object being processed */ )
+save_len_plugin_sd(struct inode *inode /* object being processed */ )
 {
 	int len;
 	reiser4_inode *state;
@@ -887,7 +886,7 @@ save_plug(reiser4_plugin * plugin /* plugin to save */ ,
 
 /* save state of all non-standard plugins associated with inode */
 static int
-plugin_sd_save(struct inode *inode /* object being processed */ ,
+save_plugin_sd(struct inode *inode /* object being processed */ ,
 	       char **area /* position in stat-data */ )
 {
 	int result;
@@ -955,7 +954,7 @@ static int crypto_stat_to_inode (struct inode *inode,
 
 /* crypto stat-data extension */
 
-static int crypto_sd_present(struct inode *inode, char **area, int *len)
+static int present_crypto_sd(struct inode *inode, char **area, int *len)
 {
 	int result;
 	reiser4_crypto_stat *sd;
@@ -987,12 +986,12 @@ static int crypto_sd_present(struct inode *inode, char **area, int *len)
 	return result;
 }
 
-static int crypto_sd_save_len(struct inode *inode)
+static int save_len_crypto_sd(struct inode *inode)
 {
 	return (sizeof(reiser4_crypto_stat) + inode_digest_plugin(inode)->digestsize);
 }
 
-static int crypto_sd_save(struct inode *inode, char **area) 
+static int save_crypto_sd(struct inode *inode, char **area) 
 {
 	int result = 0;
 	reiser4_crypto_stat *sd;
@@ -1025,7 +1024,7 @@ static int crypto_sd_save(struct inode *inode, char **area)
 
 #if REISER4_DEBUG_OUTPUT
 static void
-crypto_sd_print(const char *prefix, char **area /* position in stat-data */ ,
+print_crypto_sd(const char *prefix, char **area /* position in stat-data */ ,
 		 int *len /* remaining length */ )
 {
 	/* FIXME-EDWARD Make sure we debug only with none digest plugin */
@@ -1039,7 +1038,7 @@ crypto_sd_print(const char *prefix, char **area /* position in stat-data */ ,
 
 /* cluster stat-data extension */
 
-static int cluster_sd_present(struct inode *inode, char **area, int *len)
+static int present_cluster_sd(struct inode *inode, char **area, int *len)
 {
 	reiser4_inode * info;
 	
@@ -1065,12 +1064,12 @@ static int cluster_sd_present(struct inode *inode, char **area, int *len)
 		return not_enough_space(inode, "cluster sd");
 }
 
-static int cluster_sd_save_len(struct inode *inode UNUSED_ARG)
+static int save_len_cluster_sd(struct inode *inode UNUSED_ARG)
 {
 	return sizeof (reiser4_cluster_stat);
 }
 
-static int cluster_sd_save(struct inode *inode, char **area)
+static int save_cluster_sd(struct inode *inode, char **area)
 {
 	reiser4_cluster_stat *sd;
 	
@@ -1086,8 +1085,8 @@ static int cluster_sd_save(struct inode *inode, char **area)
 
 #if REISER4_DEBUG_OUTPUT
 static void
-cluster_sd_print(const char *prefix, char **area /* position in stat-data */,
-		int *len /* remaining length */ )
+print_cluster_sd(const char *prefix, char **area /* position in stat-data */,
+		 int *len /* remaining length */ )
 {
 	reiser4_cluster_stat *sd = (reiser4_cluster_stat *) * area;
 
@@ -1106,12 +1105,12 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				     .desc = "sd for light-weight files",
 				     .linkage = TS_LIST_LINK_ZERO
 			       },
-			       .present = lw_sd_present,
+			       .present = present_lw_sd,
 			       .absent = NULL,
-			       .save_len = lw_sd_save_len,
-			       .save = lw_sd_save,
+			       .save_len = save_len_lw_sd,
+			       .save = save_lw_sd,
 #if REISER4_DEBUG_OUTPUT
-			       .print = lw_sd_print,
+			       .print = print_lw_sd,
 #endif
 			       .alignment = 8
 	},
@@ -1124,12 +1123,12 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 			     .desc = "unix stat-data fields",
 			     .linkage = TS_LIST_LINK_ZERO
 		       },
-		       .present = unix_sd_present,
-		       .absent = unix_sd_absent,
-		       .save_len = unix_sd_save_len,
-		       .save = unix_sd_save,
+		       .present = present_unix_sd,
+		       .absent = absent_unix_sd,
+		       .save_len = save_len_unix_sd,
+		       .save = save_unix_sd,
 #if REISER4_DEBUG_OUTPUT
-		       .print = unix_sd_print,
+		       .print = print_unix_sd,
 #endif
 		       .alignment = 8
 	},
@@ -1142,12 +1141,12 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 			     .desc = "nanosecond resolution for times",
 			     .linkage = TS_LIST_LINK_ZERO
 		       },
-		       .present = large_times_sd_present,
+		       .present = present_large_times_sd,
 		       .absent = NULL,
-		       .save_len = large_times_sd_save_len,
-		       .save = large_times_sd_save,
+		       .save_len = save_len_large_times_sd,
+		       .save = save_large_times_sd,
 #if REISER4_DEBUG_OUTPUT
-		       .print = large_times_sd_print,
+		       .print = print_large_times_sd,
 #endif
 		       .alignment = 8
 	},
@@ -1161,12 +1160,12 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				.desc = "stat data is appended with symlink name",
 				.linkage = TS_LIST_LINK_ZERO
 			  },
-			  .present = symlink_sd_present,
+			  .present = present_symlink_sd,
 			  .absent = NULL,
-			  .save_len = symlink_sd_save_len,
-			  .save = symlink_sd_save,
+			  .save_len = save_len_symlink_sd,
+			  .save = save_symlink_sd,
 #if REISER4_DEBUG_OUTPUT
-			  .print = symlink_sd_print,
+			  .print = print_symlink_sd,
 #endif
 			  .alignment = 8
 	},
@@ -1179,10 +1178,10 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 			       .desc = "plugin stat-data fields",
 			       .linkage = TS_LIST_LINK_ZERO
 			 },
-			 .present = plugin_sd_present,
-			 .absent = plugin_sd_absent,
-			 .save_len = plugin_sd_save_len,
-			 .save = plugin_sd_save,
+			 .present = present_plugin_sd,
+			 .absent = absent_plugin_sd,
+			 .save_len = save_len_plugin_sd,
+			 .save = save_plugin_sd,
 #if REISER4_DEBUG_OUTPUT
 			 .print = NULL,
 #endif
@@ -1197,10 +1196,10 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				      .desc = "generation and attrs fields",
 				      .linkage = TS_LIST_LINK_ZERO}
 				,
-				.present = gaf_sd_present,
+				.present = present_gaf_sd,
 				.absent = NULL,
-				.save_len = gaf_sd_save_len,
-				.save = gaf_sd_save,
+				.save_len = save_len_gaf_sd,
+				.save = save_gaf_sd,
 #if REISER4_DEBUG_OUTPUT
 				.print = NULL,
 #endif
@@ -1215,12 +1214,12 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				      .desc = "cluster shift",
 				      .linkage = TS_LIST_LINK_ZERO}
 				,
-				.present = cluster_sd_present,
+				.present = present_cluster_sd,
 				.absent = NULL,
-				.save_len = cluster_sd_save_len,
-				.save = cluster_sd_save,
+				.save_len = save_len_cluster_sd,
+				.save = save_cluster_sd,
 #if REISER4_DEBUG_OUTPUT
-				.print = cluster_sd_print,
+				.print = print_cluster_sd,
 #endif
 				.alignment = 8
 	},
@@ -1233,12 +1232,12 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				      .desc = "secret key size and id",
 				      .linkage = TS_LIST_LINK_ZERO}
 				,
-				.present = crypto_sd_present,
+				.present = present_crypto_sd,
 				.absent = NULL,
-				.save_len = crypto_sd_save_len,
-				.save = crypto_sd_save,
+				.save_len = save_len_crypto_sd,
+				.save = save_crypto_sd,
 #if REISER4_DEBUG_OUTPUT
-				.print = crypto_sd_print,
+				.print = print_crypto_sd,
 #endif
 				.alignment = 8
 	}

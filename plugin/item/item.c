@@ -288,7 +288,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.can_contain_key = NULL,
 			.mergeable = NULL,
 #if REISER4_DEBUG_OUTPUT
-			.print = sd_print,
+			.print = print_sd,
 #endif
 			.check = NULL,
 			.nr_units = nr_units_single_unit,

@@ -191,7 +191,7 @@ typedef struct sd_stat {
 } sd_stat;
 
 /* plugin->item.common.* */
-extern void sd_print(const char *prefix, coord_t * coord);
+extern void print_sd(const char *prefix, coord_t * coord);
 extern void item_stat_static_sd(const coord_t * coord, void *vp);
 
 /* plugin->item.s.sd.* */
