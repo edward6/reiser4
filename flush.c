@@ -618,6 +618,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	/*assert ("jmacd-9925", znode_is_allocated (node));*/
 
 	if ((ret = load_zh (& node_load, node))) {
+		warning ("jmacd-61424", "zload failed: %d", ret);
 		goto exit;
 	}
 
@@ -632,12 +633,15 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 			 * test, except that complicates the recursion here. */
 			ret = 0;
 			trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] EINVAL: %s\n", call_depth, flush_pos_tostring (pos));
+		} else {
+			warning ("jmacd-61425", "znode_get_if_dirty failed: %d", ret);
 		}
 		/* Otherwise error. */
 		goto exit;
 	}
 
 	if ((ret = load_zh (& right_load, right_lock.node))) {
+		warning ("jmacd-61426", "zload failed: %d", ret);
 		goto exit;
 	}
 
@@ -650,6 +654,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	/* We found the right znode (and locked it), now squeeze from right into
 	 * current node position. */
 	if ((ret = squalloc_right_neighbor (node, right_lock.node, pos)) < 0) {
+		warning ("jmacd-61427", "squalloc_right_neighbor failed: %d", ret);
 		goto exit;
 	}
 
@@ -718,10 +723,12 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 		/* Recurse upwards on parent of node. */
 		if ((ret = reiser4_get_parent (& parent_lock, node, ZNODE_WRITE_LOCK, 1 /*only_connected*/))) {
+			warning ("jmacd-61428", "reiser4_get_parent failed: %d", ret);
 			goto exit;
 		}
 
 		if ((ret = flush_squalloc_one_changed_ancestor (parent_lock.node, call_depth + 1, pos))) {
+			warning ("jmacd-61429", "flush_squalloc_one_changed_ancestor failed: %d", ret);
 			goto exit;
 		}
 
@@ -734,6 +741,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	/* Now finished with node. */
 	if (znode_check_dirty (node) && znode_is_allocated (node) && (ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
+		warning ("jmacd-61440", "flush_enqueue_jnode failed: %d", ret);
 		goto exit;
 	}
 
@@ -755,14 +763,17 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	if (! znode_is_allocated (right_lock.node)) {
 		if ((ret = jnode_lock_parent_coord (ZJNODE (right_lock.node), & right_parent_coord, & parent_lock, & parent_load, ZNODE_WRITE_LOCK))) {
+			warning ("jmacd-61430", "jnode_lock_parent_coord failed: %d", ret);
 			goto exit;
 		}
 
 		if ((ret = flush_allocate_znode (right_lock.node, & right_parent_coord, pos))) {
+			warning ("jmacd-61431", "flush_allocate_znode failed: %d", ret);
 			goto exit;
 		}
 	}
 
+	ret = 0;
  exit:
 	done_zh (& node_load);
 	done_zh (& right_load);
@@ -797,6 +808,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	init_lh (& right_lock);
 
 	if ((ret = flush_squalloc_one_changed_ancestor (node, 0, pos))) {
+		warning ("jmacd-61432", "flush_squalloc_one_changed_ancestor failed: %d", ret);
 		goto exit;
 	}
 
@@ -832,6 +844,8 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 				ret = flush_enqueue_ancestors (node, pos);
 				trace_on (TRACE_FLUSH, "sq_changed_ancestors: STOP (EINVAL, ancestors allocated): %s\n", flush_pos_tostring (pos));
 				flush_pos_stop (pos);
+			} else {
+				warning ("jmacd-61433", "znode_get_if_dirty failed: %d", ret);
 			}
 			goto exit;
 		}
@@ -840,11 +854,13 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		
 		/* We are leaving node now, enqueue it. */
 		if ((ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
+			warning ("jmacd-61434", "flush_enqueue_jnode failed: %d", ret);
 			goto exit;
 		}
 		
 		/* We may have a unformatted node to the right. */
 		if ((ret = flush_pos_to_parent (pos))) {
+			warning ("jmacd-61435", "flush_pos_to_parent failed: %d", ret);
 			goto exit;
 		}
 
@@ -876,6 +892,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		stop_at_twig:
 			/* We are leaving twig now, enqueue it if allocated. */
 			if ((ret = flush_enqueue_ancestors (node, pos))) {
+				warning ("jmacd-61436", "flush_enqueue_ancestors failed: %d", ret);
 				goto exit;
 			}
 			
@@ -888,6 +905,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 
 		/* Finally, we must now be positioned over an extent, but is it dirty? */
 		if ((ret = item_utmost_child_dirty (& pos->parent_coord, LEFT_SIDE, & is_dirty))) {
+			warning ("jmacd-61437", "item_utmost_child_dirty failed: %d", ret);
 			goto exit;
 		}
 
@@ -908,6 +926,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		done_lh (& pos->parent_lock);
 		move_lh (& pos->parent_lock, & right_lock);
 		if ((ret = load_zh (& pos->parent_load, pos->parent_lock.node))) {
+			warning ("jmacd-61438", "zload failed: %d", ret);
 			goto exit;
 		}
 		coord_init_first_unit (& pos->parent_coord, pos->parent_lock.node);
@@ -918,6 +937,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	} else {
 		done_lh (& pos->point_lock);
 		if ((ret = flush_pos_set_point (pos, ZJNODE (right_lock.node)))) {
+			warning ("jmacd-61439", "flush_pos_set_point failed: %d", ret);
 			goto exit;
 		}
 		move_lh (& pos->point_lock, & right_lock);
@@ -1145,8 +1165,8 @@ static int squalloc_right_twig (znode    *left,
 	stop_key = *min_key ();
 
 	trace_on (TRACE_FLUSH, "squalloc_right_twig:before copy extents: %p %p\n", left, right);
-	trace_if (TRACE_FLUSH, print_znode_content (left, ~0u));
-	trace_if (TRACE_FLUSH, print_znode_content (right, ~0u));
+	/*trace_if (TRACE_FLUSH, print_znode_content (left, ~0u));*/
+	/*trace_if (TRACE_FLUSH, print_znode_content (right, ~0u));*/
 
 	while (item_is_extent (&coord)) {
 
@@ -1175,8 +1195,8 @@ static int squalloc_right_twig (znode    *left,
 	}
 
 	trace_on (TRACE_FLUSH, "squalloc_right_twig:after copy extents: %p %p\n", left, right);
-	trace_if (TRACE_FLUSH, print_znode_content (left, ~0u));
-	trace_if (TRACE_FLUSH, print_znode_content (right, ~0u));
+	/*trace_if (TRACE_FLUSH, print_znode_content (left, ~0u));*/
+	/*trace_if (TRACE_FLUSH, print_znode_content (right, ~0u));*/
 
 	if (!keyeq (&stop_key, min_key ())) {
 		int cut_ret;
@@ -1201,7 +1221,7 @@ static int squalloc_right_twig (znode    *left,
 			return cut_ret;
 		}
 
-		trace_if (TRACE_FLUSH, print_znode_content (right, ~0u));
+		/*trace_if (TRACE_FLUSH, print_znode_content (right, ~0u));*/
 	}
 
 	if (ret == SQUEEZE_TARGET_FULL) { goto out; }
@@ -1491,6 +1511,10 @@ int flush_enqueue_jnode_page_locked (jnode *node, flush_position *pos UNUSED_ARG
 		trace_on (TRACE_FLUSH, "enqueue znode: %p block %llu level %u\n", node, *jnode_get_block (node), jnode_get_level (node));
 	} else {
 		trace_on (TRACE_FLUSH, "enqueue jnode: %p block %llu index %lu level %u\n", node, *jnode_get_block (node), node->pg->index, jnode_get_level (node));
+	}
+
+	if (ret != 0) {
+		warning ("jmacd-61449", "write_one_page failed: %d", ret);
 	}
 
 	return ret;

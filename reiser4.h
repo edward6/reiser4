@@ -294,7 +294,7 @@ static inline int  spin_ ## NAME ## _is_locked (const TYPE *x)			\
 										\
 static inline int  spin_ ## NAME ## _is_not_locked (TYPE *x)			\
 {										\
-	return !spin_is_locked (& x->FIELD);				        \
+	return spin_is_not_locked (& x->FIELD);				        \
 }										\
 										\
 typedef struct { int foo; } NAME ## _spin_dummy
