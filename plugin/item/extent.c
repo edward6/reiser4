@@ -1533,6 +1533,7 @@ int extent_readpage (coord_t * coord, lock_handle * lh, struct page * page)
 {
 	reiser4_key key;
 	reiser4_block_nr block;
+	reiser4_block_nr pos;
 	jnode * j;
 
 
@@ -1566,7 +1567,7 @@ int extent_readpage (coord_t * coord, lock_handle * lh, struct page * page)
 	check_me ("vs-1048",
 		  offset_is_in_extent (coord,
 				       ((loff_t)page->index) << PAGE_CACHE_SHIFT,
-				       &block));
+				       &pos));
 		  
 
 	switch (state_of_extent (extent_by_coord (coord))) {
@@ -1592,6 +1593,7 @@ int extent_readpage (coord_t * coord, lock_handle * lh, struct page * page)
 			return PTR_ERR (j);
 		}
 		jnode_set_mapped (j);
+		block = extent_get_start (extent_by_coord (coord)) + pos;
 		jnode_set_block (j, &block);
 		reiser4_stat_extent_add (unfm_block_reads);
 
