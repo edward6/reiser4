@@ -9,7 +9,7 @@ tmp:  tmp.o
 	cc tmp.o -o tmp
 
 tmp.o: tmp.c y.t.c
-	cc -c -O tmp.c
+	cc -c -O -I "/usr/src/linux/arch/i386/mach-generic" tmp.c
 
 y.t.c: parser.y
 	./yacc -v -d parser.y
