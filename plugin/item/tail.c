@@ -525,7 +525,6 @@ write_tail(struct inode *inode, flow_t *f, hint_t *hint,
 	int result;
 	coord_t *coord;
 
-	clog_op(TAIL_WRITE_IN, (void *)(unsigned long)get_inode_oid(inode), (void *)(unsigned long)get_key_offset(&f->key));
 	assert("vs-1338", hint->coord.valid == 1);
 
 	coord = &hint->coord.base_coord;
@@ -580,8 +579,6 @@ write_tail(struct inode *inode, flow_t *f, hint_t *hint,
 			break;
 		}
 	}
-
-	clog_op(TAIL_WRITE_OUT, (void *)(unsigned long)get_inode_oid(inode), (void *)result);
 
 	return result;
 }
