@@ -845,6 +845,9 @@ longterm_lock_znode(
 	assert("jmacd-808", handle->owner == NULL);
 	assert("nikita-3026", schedulable());
 	assert("nikita-3219", request_is_deadlock_safe(node, mode, request));
+	/* long term locks are not allowed in the VM contexts (->writepage(),
+	 * prune_{d,i}cache()). */
+	assert("nikita-3547", (current->flags | PF_MEMALLOC) == 0);
 
 	cap_flags = 0;
 	if (request & ZNODE_LOCK_NONBLOCK) {
