@@ -2323,6 +2323,10 @@ capture_super_block(struct super_block *s)
 		return result;
 	}
 
+	/* Grabbing one block for superblock */
+	if ((result = reiser4_grab_space_force(1, 1)) != 0)
+		return result;
+	
 	znode_set_dirty(fake);
 	zput(fake);
 
