@@ -35,7 +35,7 @@ typedef struct node_header_40 {
 	 * level */
 	d8	       level;
 /* commented out uncommented field */
- 	d32	       magic;
+ /* 	d32	       magic; */
 	/** number of items --- is it too large? Probably.  */
 	d16           num_items;
 	/** node flags to be used by fsck (reiser4ck or reiser4fsck?)
@@ -56,16 +56,13 @@ typedef struct node_header_40 {
  * pos_in_node to functions instead */
 typedef struct item_header_40 {
 	/** key of item */
+/* this will get compressed to a few bytes on average in 4.1, so don't get too excited about how it doesn't hurt much to
+ * add more bytes to item headers.  Probably you'll want your code to work for the 4.1 format also.... -Hans */
 	/*  0 */ reiser4_key  key;
 	/** offset from start of a node measured in 8-byte chunks */
 	/* 24 */ node_offset_40  offset;
 	/* 26 */ d16             length;
 	/* 28 */ d16             plugin_id;
-	/* 30 */ d16             flags; /* fsck may want to mark some items 
-					   as unreachable and so on. 
-					   Deleting of this field leads to 
-					   losing 2 bytes anyway due to C 
-					   language padding. */		
 } item_header_40;
 
 size_t             node40_item_overhead    ( const znode *node, flow_t * aflow);
