@@ -396,7 +396,6 @@ int find_new_child_ptr(znode * parent, znode * child, znode * left, coord_t * re
 
 int shift_right_of_but_excluding_insert_coord(coord_t * insert_coord);
 int shift_left_of_and_including_insert_coord(coord_t * insert_coord);
-int shift_everything_left(znode * right, znode * left, carry_level * todo);
 
 void fake_kill_hook_tail(struct inode *, loff_t start, loff_t end);
 

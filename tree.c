@@ -978,32 +978,6 @@ unallocated_disk_addr_to_ptr(const reiser4_block_nr * addr	/* address to
 	return (void *) (long) (*addr << 1);
 }
 
-/* try to shift everything from @right to @left. If everything was shifted -
-   @right is removed from the tree.  Result is the number of bytes shifted. */
-reiser4_internal int
-shift_everything_left(znode * right, znode * left, carry_level * todo)
-{
-	int result;
-	coord_t from;
-	node_plugin *nplug;
-	carry_plugin_info info;
-
-	coord_init_after_last_item(&from, right);
-
-	IF_TRACE(TRACE_COORDS, print_coord("shift_everything_left:", &from, 0));
-
-	nplug = node_plugin_by_node(right);
-	info.doing = NULL;
-	info.todo = todo;
-	result = nplug->shift(&from, left, SHIFT_LEFT, 1
-			      /* delete node @right if all its contents was moved to @left */
-			      , 1 /* @from will be set to @left node */ ,
-			      &info);
-	znode_make_dirty(right);
-	znode_make_dirty(left);
-	return result;
-}
-
 /* returns true if removing bytes of given range of key [from_key, to_key]
    causes removing of whole item @from */
 static int
