@@ -861,19 +861,6 @@ failed:
 		ret = 0;
 	}
 
-
-	{
-		int ret1;
-		/* Write anything left in the queue, if specified by flags */
-		ret1 = write_prepped_nodes(&flush_pos, 0);
-
-		if (ret && ret != -ENOMEM)
-			warning("jmacd-16739", "flush failed: %ld", ret);
-		else
-			ret = ret1;
-
-	}
-
 	if (leftmost_in_slum)
 		jput(leftmost_in_slum);
 
