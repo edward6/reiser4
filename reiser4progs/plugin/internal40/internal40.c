@@ -6,7 +6,7 @@
 
 #include "internal40.h"
 
-#define INTERNAL40_ID 0x0
+#define INTERNAL40_ID 0x3
 
 static reiserfs_plugins_factory_t *factory = NULL;
 
@@ -31,10 +31,12 @@ static error_t reiserfs_internal40_create(reiserfs_coord_t *coord,
     return 0;
 }
 
-static error_t reiserfs_internal40_estimate (reiserfs_coord_t *coord, 
+static error_t reiserfs_internal40_estimate(reiserfs_coord_t *coord, 
     reiserfs_item_info_t *item_info) 
 {
     aal_assert("vpf-068", item_info != NULL, return -1);
+    /* coord cannot be not NULL, because we cannot paste into internal40 */
+    aal_assert("vpf-116", coord == NULL, return -1);
 
     item_info->length = sizeof(reiserfs_internal40_t);
     return 0;
@@ -50,14 +52,14 @@ static reiserfs_plugin_t internal40_plugin = {
     .item = {
 	.h = {
     	    .handle = NULL,
-	    .id = INTERNAL_ITEM,
+	    .id = INTERNAL40_ID,
 	    .type = REISERFS_ITEM_PLUGIN,
 	    .label = "internal40",
 	    .desc = "Internal item for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.common = {
-	    .item_type = INTERNAL40_ID,
+	    .item_type = INTERNAL_ITEM,
 	    .create = (error_t (*)(reiserfs_opaque_t *, reiserfs_opaque_t *))
 		reiserfs_internal40_create,
 	    .open = NULL,
@@ -69,7 +71,8 @@ static reiserfs_plugin_t internal40_plugin = {
 	    .print = NULL,
 	    .units_count = NULL,
 	    .remove_units = NULL,
-	    .estimate = NULL,
+	    .estimate = (error_t (*)(reiserfs_opaque_t *, reiserfs_opaque_t *))
+		reiserfs_internal40_estimate,
 	    .is_internal = NULL		
 	},
 	.specific = {

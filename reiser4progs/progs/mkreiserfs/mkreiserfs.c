@@ -11,23 +11,23 @@
 
 static void set_base_plugin_ids (reiserfs_default_plugin_t *def_plugs, int profile) {
     reiserfs_default_plugin_t reiser40 = 
-	    {	0, /* node */ 
+	    {	0x0, /* node */ 
 		{ /* item */
-		    0 /* internal */,
-		    0 /* stat */,
-		    0 /* dir_item */,
-		    0 /* file_item */
+		    0x3 /* internal */,
+		    0x0 /* stat */,		    
+		    0x2 /* dir_item */,
+		    0x0 /* file_item */
 		},
-		0 /* file */,
-		0 /* dir */,
-		0 /* hash */,
-		0 /* tail */,
-		0 /* hook */,
-		0 /* perm */,
-		0 /* format */,
-		0 /* oid */,
-		0 /* alloc */,
-		0 /* journal */
+		0x0 /* file */,
+		0x0 /* dir */,
+		0x0 /* hash */,
+		0x0 /* tail */,
+		0x0 /* hook */,
+		0x0 /* perm */,
+		0x0 /* format */,
+		0x0 /* oid */,
+		0x0 /* alloc */,
+		0x0 /* journal */
 	    };
     
     aal_assert("vpf-104", def_plugs != NULL, return);

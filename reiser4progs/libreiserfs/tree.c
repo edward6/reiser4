@@ -91,7 +91,7 @@ error:
 
 /* To be moved into oid plugin when ready */
 #define REISERFS_ROOT_DIRECTORY_LOCATION 41
-#define REISERFS_ROOT_PARENT_DIRECTORY_LOCATION 41
+#define REISERFS_ROOT_PARENT_DIRECTORY_LOCATION 38
 #define REISERFS_ROOT_DIRECTORY_OBJECTID 42
 
 error_t reiserfs_tree_create_2(reiserfs_fs_t *fs, 
@@ -108,7 +108,6 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     reiserfs_internal_info_t internal_info;
     reiserfs_stat_info_t stat_info;
     reiserfs_dir_info_t dir_info;
-
     /* FIXME: Directory object plugin should define what will be created in 
        the empty directory. Move it there when ready. */
     reiserfs_entry_info_t entry [2] = {
@@ -123,6 +122,7 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
 
     aal_assert("umka-129", fs != NULL, return -1);
     aal_assert("umka-130", fs->format != NULL, return -1);
+    aal_assert("vpf-115", default_plugins != NULL, return -1);
 
     if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
 	return -1;
@@ -199,6 +199,7 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
    
     reiserfs_init_item_info(&item_info);
     item_info.info = &stat_info;
+    coord.node = &leaf;
 
     /* Insert the stat data. */
     if (reiserfs_node_insert_item (&coord, &key, &item_info, default_plugins->item.stat)) {
@@ -209,13 +210,15 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     }
    
     /* Initialize dir_entry */
-    dir_info.count = 1;
+    dir_info.count = 2;
     dir_info.entry = entry;
 
     reiserfs_key_init(&key);
     set_key_type(&key, KEY_FILE_NAME_MINOR);
-    set_key_locality(&key, REISERFS_ROOT_DIRECTORY_LOCATION);
-    set_key_objectid(&key, REISERFS_ROOT_DIRECTORY_OBJECTID);
+    set_key_locality(&key, REISERFS_ROOT_DIRECTORY_OBJECTID);
+
+    /* FIXME: this should go into directory object api. */
+    build_entryid_by_entry_info((reiserfs_entryid_t *)key.el + 1, &entry[0]);
 
     reiserfs_init_item_info(&item_info);
     item_info.info = &dir_info;
@@ -233,6 +236,9 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
 	    aal_device_get_block_nr(squeeze.device, squeeze.block));
 	goto error_close_leaf;
     }
+   
+    reiserfs_node_sync(&squeeze);
+    reiserfs_node_sync(&leaf);
     
     reiserfs_node_close(&squeeze);
     reiserfs_node_close(&leaf);
@@ -240,9 +246,9 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     return 0;
 
 error_close_leaf:
-
+    reiserfs_node_close(&leaf);
 error_close_squeese:
-    
+    reiserfs_node_close(&leaf);
 error_free_tree:
     aal_free(fs->tree);
     fs->tree = NULL;
@@ -294,7 +300,9 @@ int reiserfs_tree_lookup(reiserfs_fs_t *fs, blk_t from,
 	    return -1; 
 	}
 	
-	if (reiserfs_node_open(node, fs->host_device, from, NULL, REISERFS_GUESS_PLUGIN_ID)) {
+	if (reiserfs_node_open(node, fs->host_device, from, NULL, 
+	    REISERFS_GUESS_PLUGIN_ID)) 
+	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't open node %llu.", from);
 	    return 0;

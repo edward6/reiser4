@@ -8,6 +8,8 @@
 
 #include "stat40.h"
 
+#define STAT40_ID 0x0
+
 static reiserfs_plugins_factory_t *factory = NULL;
 
 static error_t reiserfs_stat40_confirm(reiserfs_coord_t *coord) {
@@ -42,6 +44,8 @@ static error_t reiserfs_stat40_estimate(reiserfs_coord_t *coord,
     reiserfs_item_info_t *item_info) 
 {
     aal_assert("vpf-074", item_info != NULL, return -1);
+    /* coord cannot be not NULL, because we cannot paste into internal40 */
+    aal_assert("vpf-117", coord == NULL, return -1);
     
     /* should calculate extentions size also */
     item_info->length = sizeof(reiserfs_stat40_base_t);
@@ -56,20 +60,18 @@ static error_t reiserfs_stat40_check(reiserfs_coord_t *coord) {
 static void reiserfs_stat40_print(reiserfs_coord_t *coord, char *buff) {
 }
 
-#define STAT40_ID 0x0
-
 static reiserfs_plugin_t stat40_plugin = {
     .item = {
 	.h = {
 	    .handle = NULL,
-	    .id = STAT_DATA_ITEM,
+	    .id = STAT40_ID,
 	    .type = REISERFS_ITEM_PLUGIN,
 	    .label = "stat40",
 	    .desc = "Stat data for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.common = {
-	    .item_type = STAT40_ID,
+	    .item_type = STAT_DATA_ITEM,
 	    .create = (error_t (*)(reiserfs_opaque_t *coord, reiserfs_opaque_t *))
 		reiserfs_stat40_create,
 	    .open = NULL,
@@ -82,7 +84,7 @@ static reiserfs_plugin_t stat40_plugin = {
 	    .units_count = NULL,
 	    .remove_units = NULL,
 	    .estimate = (error_t (*)(reiserfs_opaque_t *, reiserfs_opaque_t *))
-		reiserfs_stat40_check,
+		reiserfs_stat40_estimate,
 	    .is_internal = NULL
 	},
 	.specific = {

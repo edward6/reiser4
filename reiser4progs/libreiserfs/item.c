@@ -153,7 +153,12 @@ error_t reiserfs_item_estimate (reiserfs_coord_t *coord, reiserfs_item_info_t *i
 	
     reiserfs_check_method(item_info->plugin->item.common, estimate, return -1);    
 
-    item_info->plugin->item.common.estimate((insert ? NULL : coord), item_info);  
+    if (item_info->plugin->item.common.estimate((insert ? NULL : coord), item_info)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't estimate space needed for an item of plugin (%x) in the node (%llu).", 
+	    plugin_id, aal_device_get_block_nr(coord->node->device, coord->node->block));
+	return -1;
+    }
     
     return 0;
 }

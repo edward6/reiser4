@@ -8,6 +8,8 @@
 
 #include "direntry40.h"
 
+#define	DIRENTRY40_ID 0x2
+
 /* This will build sd key as objid has SD_MINOR */
 static void build_key_by_objid(reiserfs_key_t *key, reiserfs_objid_t *id)
 {
@@ -78,12 +80,11 @@ static error_t direntry40_estimate(reiserfs_coord_t *coord,
     int i;
     reiserfs_dir_info_t *info;    
 	    
-    aal_assert("vpf-094", coord != NULL, return -1);
     aal_assert("vpf-095", item_info != NULL, return -1);
     aal_assert("vpf-096", item_info->info != NULL, return -1);
     
     info = item_info->info;
-    item_info->length = info->count * sizeof(reiserfs_direntry40_t);
+    item_info->length = info->count * sizeof(reiserfs_entry40_t);
     
     for (i = 0; i < info->count; i++)
 	item_info->length += aal_strlen(info->entry[i].name) + 1;
@@ -96,20 +97,18 @@ static error_t direntry40_estimate(reiserfs_coord_t *coord,
 
 static reiserfs_plugins_factory_t *factory = NULL;
 
-#define	DIRENTRY40_ID 0x0
-
 static reiserfs_plugin_t direntry40_plugin = {
     .item = {
 	.h = {
 	    .handle = NULL,
-	    .id = DIR_ENTRY_ITEM,
+	    .id = DIRENTRY40_ID,
 	    .type = REISERFS_ITEM_PLUGIN,
 	    .label = "direntry40",
 	    .desc = "Directory plugin for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.common = {
-	    .item_type = DIRENTRY40_ID,
+	    .item_type = DIR_ENTRY_ITEM,
 	    .create = (error_t (*)(reiserfs_opaque_t *coord, reiserfs_opaque_t *))
 		direntry40_create,
 	    .open = NULL,
