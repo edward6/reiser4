@@ -2607,42 +2607,40 @@ page_extent_jnode(reiser4_tree *tree, oid_t oid, reiser4_key *key, uf_coord_t *u
 
 	if (!PagePrivate(page)) {
 		/* page has no jnode */
-		reiser4_block_nr blocknr;
+		j = jlook_lock(tree, oid, page->index);
+		if (!j) {
+			reiser4_block_nr blocknr;
 
-		/*XXXX*/j =jlook_lock(tree, oid, page->index);
-		/*XXXX*/if (j) {
-			/*XXXX*/info_jnode("jnode found", j);
-		}
+			j = jnew();
+			if (unlikely(!j))
+				return ERR_PTR(RETERR(-ENOMEM));
 
-
-		assert("vs-1391", !jlook_lock(tree, oid, page->index));
-		j = jnew();
-		if (unlikely(!j))
-			return ERR_PTR(RETERR(-ENOMEM));
-
-		reiser4_unlock_page(page);			
-		result = make_extent(key, uf_coord, mode, &blocknr);
-		if (result) {
-			jfree(j);
-			return ERR_PTR(result);
-		}
-		reiser4_lock_page(page);
-		if (!PagePrivate(page)) {
-			/* page is still not private. Initialize jnode and attach to page */
-			jnode_set_mapped(j);
-			jnode_set_block(j, &blocknr);
-			if (blocknr_is_fake(&blocknr)) {
-				jnode_set_created(j);
-				JF_SET(j, JNODE_NEW);					
+			reiser4_unlock_page(page);
+			result = make_extent(key, uf_coord, mode, &blocknr);
+			if (result) {
+				jfree(j);
+				return ERR_PTR(result);
 			}
-			bind_jnode_and_page(j, oid, page);
+			reiser4_lock_page(page);
+			if (!PagePrivate(page)) {
+				/* page is still not private. Initialize jnode and attach to page */
+				jnode_set_mapped(j);
+				jnode_set_block(j, &blocknr);
+				if (blocknr_is_fake(&blocknr)) {
+					jnode_set_created(j);
+					JF_SET(j, JNODE_NEW);			
+				}
+				bind_jnode_and_page(j, oid, page);
+			} else {
+				/* page was attached to jnode already in other thread */
+				jfree(j);
+				j = jnode_by_page(page);
+				assert("vs-1390", jnode_mapped(j));
+				assert("vs-1392", *jnode_get_block(j) == blocknr);
+				jref(j);
+			}
 		} else {
-			/* page was attached to jnode already in other thread */
-			jfree(j);
-			j = jnode_by_page(page);
 			assert("vs-1390", jnode_mapped(j));
-			assert("vs-1392", *jnode_get_block(j) == blocknr);
-			jref(j);
 		}
 	} else {
 		/* page has jnode already. Therefore, there is non hole extent which points to this page */
