@@ -843,8 +843,10 @@ getattr_common(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct ks
 static int
 release_dir(struct inode *inode, struct file *file)
 {
+	spin_lock_inode(inode);
 	if (file->private_data != NULL)
 		readdir_list_remove(reiser4_get_file_fsdata(file));
+	spin_unlock_inode(inode);
 	return 0;
 }
 
