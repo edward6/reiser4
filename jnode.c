@@ -800,7 +800,7 @@ jstartio(jnode * node)
 		unlock_page(page);
 	}
 
-	cache_page_release(page);
+	page_cache_release(page);
 	return result;
 }
 
