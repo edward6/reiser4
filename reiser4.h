@@ -221,6 +221,9 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 #include <linux/sched.h>
 #include <linux/module.h>
 
+/* For __init definitions */
+#include <linux/init.h>
+
 
 #define no_context      ( in_interrupt() || in_irq() )
 #define current_pname   ( current -> comm )
