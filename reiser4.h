@@ -252,6 +252,7 @@
 #define REISER4_DEBUG_SPIN_LOCKS (0)
 #endif
 
+#define CONFIG_REISER4_DEBUG_CONTEXTS y
 #if defined(CONFIG_REISER4_DEBUG_CONTEXTS)
 /*
  * In this mode reiser4_context debugging is activated. reiser4_context is a
