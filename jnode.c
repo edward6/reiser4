@@ -145,10 +145,10 @@ jnode_init (jnode *node)
 	capture_list_clean (node);
 
 #if REISER4_DEBUG
-		UNDER_SPIN_VOID 
-			(tree, current_tree,
-			 list_add (&node->jnodes, 
-				   &get_current_super_private()->all_jnodes));
+	UNDER_SPIN_VOID 
+		(tree, current_tree,
+		 list_add (&node->jnodes, 
+			   &get_current_super_private()->all_jnodes));
 #endif
 }
 
