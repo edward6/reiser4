@@ -398,6 +398,11 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 	spin_unlock_inode(inode);
 
 	build_sd_key(inode, &key);
+	/*
+	 * coord.between was possibly skewed from AT_UNIT when stat-data size
+	 * was changed and new extensions were pasted into item.
+	 */
+	coord.between = AT_UNIT;
 	if (seal_is_set(&seal)) {
 		/* first, try to use seal */
 		result = seal_validate(&seal,
