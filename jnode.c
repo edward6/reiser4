@@ -768,9 +768,6 @@ jput_final(jnode * node)
 {
 	int r_i_p;
 
-	assert("nikita-2772", !JF_ISSET(node, JNODE_EFLUSH));
-	assert("jmacd-511", atomic_read(&node->d_count) == 0);
-
 	/* A fast check for keeping node in cache. We always keep node in cache
 	 * if its page is present and node was not marked for deletion */
 	if (jnode_page(node) != NULL && !JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
@@ -1176,7 +1173,6 @@ jnode_try_drop(jnode * node)
 
 	trace_stamp(TRACE_ZNODES);
 	assert("nikita-2491", node != NULL);
-	assert("nikita-2582", !JF_ISSET(node, JNODE_HEARD_BANSHEE));
 	assert("nikita-2583", JF_ISSET(node, JNODE_RIP));
 
 	ON_TRACE(TRACE_PCACHE, "trying to drop node: %p\n", node);
@@ -1195,6 +1191,10 @@ jnode_try_drop(jnode * node)
 
 	result = jnode_is_busy(node, jtype);
 	if (result == 0) {
+		assert("nikita-2582", !JF_ISSET(node, JNODE_HEARD_BANSHEE));
+		assert("nikita-3223", !JF_ISSET(node, JNODE_EFLUSH));
+		assert("jmacd-511/b", atomic_read(&node->d_count) == 0);
+
 		UNLOCK_JNODE(node);
 		/* no page and no references---despatch him. */
 		jnode_remove(node, jtype, tree);
@@ -1219,7 +1219,6 @@ jdelete(jnode * node /* jnode to finish with */)
 
 	trace_stamp(TRACE_ZNODES);
 	assert("nikita-467", node != NULL);
-	assert("nikita-2123", JF_ISSET(node, JNODE_HEARD_BANSHEE));
 	assert("nikita-2531", JF_ISSET(node, JNODE_RIP));
 	/* jnode cannot be eflushed at this point, because emegrency flush
 	 * acquired additional reference counter. */
@@ -1237,6 +1236,9 @@ jdelete(jnode * node /* jnode to finish with */)
 	WLOCK_TREE(tree);
 	result = jnode_is_busy(node, jtype);
 	if (likely(!result)) {
+		assert("nikita-2123", JF_ISSET(node, JNODE_HEARD_BANSHEE));
+		assert("jmacd-511", atomic_read(&node->d_count) == 0);
+
 		/* detach page */
 		if (page != NULL)
 			page_clear_jnode(page, node);
