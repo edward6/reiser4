@@ -69,7 +69,7 @@
 				* while. */
 
 /** provide our own memcpy/memmove to profile shifts */
-#define REISER4_DEBUG_MEMCPY (1)
+#define REISER4_DEBUG_MEMCPY (0)
 
 #define noop   do {;} while( 0 )
 
