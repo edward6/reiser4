@@ -88,7 +88,7 @@ typedef struct {
 	IF_LOG(log_flag, write_log(&get_super_private(super)->log_file,		\
                                    "%s %s %s " format "\n",			\
 				   current->comm,				\
-				   super->s_id, __FUNCTION__, ## __VA_ARGS__));	\
+				   super->s_id, __FUNCTION__ , ## __VA_ARGS__));	\
 })
 
 /* __REISER4_LOG_H__ */
