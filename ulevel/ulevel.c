@@ -1706,7 +1706,7 @@ static struct inode * create_root_dir (znode * root)
 	sema_init( &inode->i_sem, 1 );
 	init_inode( inode, &coord );
 	rii -> hash = hash_plugin_by_id ( DEGENERATE_HASH_ID );
-	rii -> tail = tail_plugin_by_id ( ALWAYS_TAIL_ID );
+	rii -> tail = tail_plugin_by_id ( TEST_TAIL_ID );
 	rii -> perm = perm_plugin_by_id ( RWX_PERM_ID );
 	rii -> dir_item = item_plugin_by_id ( SIMPLE_DIR_ENTRY_ID );
 	rii -> locality_id = get_key_locality( &key );
