@@ -40,8 +40,6 @@
 #include <linux/byteorder/little_endian.h>
 
 #include <stdio.h>
-#include <readline/readline.h>
-#include <readline/history.h>
 
 #include "bitops.h"
 #include "atomic.h"
