@@ -44,6 +44,7 @@ struct tree_coord {
 	/* node in a tree */
 	znode *node;
 
+#if 1 /* def DONTUSE_COORD_FIELDS*/
 	/* position of item within node */
 	pos_in_node  item_pos;
 	/* position of unit within item */
@@ -58,6 +59,7 @@ struct tree_coord {
 	 * here. Profiling shows that node40_plugin_by_coord() is top CPU
 	 * user.
 	 */
+#endif
 };
 
 /*
@@ -151,6 +153,9 @@ extern int  coord_are_neighbors (tree_coord *c1, tree_coord *c2);
 /* Assuming two coordinates are positioned in the same node, return COORD_CMP_ON_RIGHT,
  * COORD_CMP_ON_LEFT, or COORD_CMP_SAME depending on c1's position relative to c2.  */
 extern coord_cmp coord_compare (tree_coord * c1, tree_coord * c2);
+
+/* Returns the current item positions.  Asserts non-empty. */
+extern unsigned coord_item_pos (const tree_coord *coord);
 
 /*****************************************************************************************/
 /*				     COORD PREDICATES                                    */

@@ -100,6 +100,14 @@ unsigned coord_last_unit_pos (const tree_coord * coord)
 	return coord_num_units (coord) - 1;
 }
 
+/* Returns the current item positions.  Asserts non-empty. */
+unsigned coord_item_pos (const tree_coord *coord)
+{
+	assert ("jmacd-5512", coord->between != EMPTY_NODE && coord->between != INVALID_COORD);
+	assert ("jmacd-5513", node_num_items (coord->node) != 0);
+	return coord->item_pos;
+}
+
 /* Returns true if the coord was initializewd by coord_init_invalid (). */
 int coord_is_invalid (const tree_coord *coord)
 {
