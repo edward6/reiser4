@@ -32,6 +32,7 @@ struct reiserfs_alloc {
 typedef struct reiserfs_alloc reiserfs_alloc_t;
 
 struct reiserfs_tree {
+	reiserfs_plugin_t *plugin;
 };
 
 typedef struct reiserfs_tree reiserfs_tree_t;

@@ -7,7 +7,6 @@
 #include <reiserfs/reiserfs.h>
 #include <reiserfs/debug.h>
 
-/* Opens the filesystem and journal on the specified devices. */
 reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, 
 	aal_device_t *journal_device, int replay) 
 {
@@ -24,22 +23,23 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 	if (!reiserfs_super_open(fs))
 		goto error_free_fs;
 
-	if (reiserfs_super_journal_supported(fs) && 
+	if (reiserfs_super_journal_plugin(fs) != REISERFS_UNSUPPORTED_PLUGIN && 
 			!reiserfs_journal_open(fs, journal_device, replay))
 		goto error_free_super;
 	
-/*	if (!reiserfs_alloc_open(fs))
+	if (reiserfs_super_alloc_plugin(fs) != REISERFS_UNSUPPORTED_PLUGIN &&
+			!reiserfs_alloc_open(fs))
 		goto error_free_journal;
 	
 	if (!reiserfs_tree_open(fs))
-		goto error_free_alloc;*/
+		goto error_free_alloc;
 	
 	return fs;
 
-/*error_free_alloc:
+error_free_alloc:
 	reiserfs_alloc_close(fs);
 error_free_journal:
-	reiserfs_journal_close(fs);*/
+	reiserfs_journal_close(fs);
 error_free_super:
 	reiserfs_super_close(fs);
 error_free_fs:
@@ -48,10 +48,13 @@ error:
 	return NULL;
 }
 
-/* Closes filesystem. Closes all filesystem's entities. Frees all assosiated memory. */
+/* 
+	Closes all filesystem's entities. Calls plugins' "done" 
+	routine for every plugin and frees all assosiated memory. 
+*/
 void reiserfs_fs_close(reiserfs_fs_t *fs) {
-/*	reiserfs_tree_close(fs);
-	reiserfs_alloc_close(fs);*/
+	reiserfs_tree_close(fs);
+	reiserfs_alloc_close(fs);
 	reiserfs_journal_close(fs);
 	reiserfs_super_close(fs);
 	aal_free(fs);

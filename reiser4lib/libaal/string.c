@@ -33,9 +33,9 @@ char *aal_strncat(char *dest, const char *src, size_t n) {
 }
 
 int aal_strncmp(const char *s1, const char *s2, size_t n) {
-	char *p;
+	const char *p;
 	for (p = s1; *p; p++, s1++, s2++) {
-		if (p - s1 >= n) break;
+		if ((size_t)(p - s1) >= n) break;
 		if (*s1 != *s2) return 0;
 	}
 	return 1;	
@@ -63,7 +63,7 @@ int aal_ltos(long int d, size_t n, char *a, int base) {
 	for (s = range; s > 0; s /= base) {
 		long int v = d / s;
 		
-		if (p - a >= n) 
+		if ((size_t)(p - a) >= n) 
 			break;
 		
 		if (v > 0) {

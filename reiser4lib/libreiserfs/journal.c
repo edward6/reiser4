@@ -25,10 +25,10 @@ int reiserfs_journal_open(reiserfs_fs_t *fs, aal_device_t *device, int replay) {
 		return 0;
 	
 	fs->journal->device = device;
-	id = fs->super->plugin->layout.journal_plugin_id(fs->super->entity);
-
+	
+	id = reiserfs_super_journal_plugin(fs);
 	if (!(plugin = reiserfs_plugin_find(REISERFS_JOURNAL_PLUGIN, id))) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-011", 
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-012", 
 			"Can't find journal plugin by its identifier %d.", id);
 		goto error_free_journal;
 	}
@@ -36,14 +36,14 @@ int reiserfs_journal_open(reiserfs_fs_t *fs, aal_device_t *device, int replay) {
 	fs->journal->plugin = plugin;
 	
 	if ((fs->journal->entity = plugin->journal.init(device))) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-012", 
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-013", 
 			"Can't initialize the journal plugin.");
 		goto error_free_journal;
 	}
 	
 	/* Optional replaying the journal */
 	if (replay && !plugin->journal.replay(fs->journal->entity)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-013", 
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-014", 
 			"Can't replay the journal.");
 		goto error_free_entity;
 	}

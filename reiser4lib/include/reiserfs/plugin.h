@@ -131,6 +131,8 @@ typedef void reiserfs_alloc_opaque_t;
 
 struct reiserfs_alloc_plugin {
 	reiserfs_plugin_header_t h;
+	reiserfs_alloc_opaque_t *(*init) (aal_device_t *);
+	void (*done) (reiserfs_alloc_opaque_t *);
 };
 
 typedef struct reiserfs_alloc_plugin reiserfs_alloc_plugin_t;

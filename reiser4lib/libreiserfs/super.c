@@ -50,11 +50,19 @@ void reiserfs_super_close(reiserfs_fs_t *fs) {
 	fs->super = NULL;
 }
 
-int reiserfs_super_journal_supported(reiserfs_fs_t *fs) {
-	ASSERT(fs != NULL, return 0);
-	ASSERT(fs->super != NULL, return 0);
+reiserfs_plugin_id_t reiserfs_super_journal_plugin(reiserfs_fs_t *fs) {
 
-	return fs->super->plugin->layout.journal_plugin_id(fs->super->entity) != 
-		REISERFS_UNSUPPORTED_PLUGIN;
+	ASSERT(fs != NULL, return REISERFS_UNSUPPORTED_PLUGIN);
+	ASSERT(fs->super != NULL, return REISERFS_UNSUPPORTED_PLUGIN);
+	
+	return fs->super->plugin->layout.journal_plugin_id(fs->super->entity);
+}
+
+reiserfs_plugin_id_t reiserfs_super_alloc_plugin(reiserfs_fs_t *fs) {
+
+	ASSERT(fs != NULL, return REISERFS_UNSUPPORTED_PLUGIN);
+	ASSERT(fs->super != NULL, return REISERFS_UNSUPPORTED_PLUGIN);
+	
+	return fs->super->plugin->layout.alloc_plugin_id(fs->super->entity);
 }
 

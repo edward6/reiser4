@@ -10,7 +10,9 @@
 
 extern int reiserfs_super_open(reiserfs_fs_t *fs);
 extern void reiserfs_super_close(reiserfs_fs_t *fs);
-extern int reiserfs_super_journal_supported(reiserfs_fs_t *fs);
+
+extern reiserfs_plugin_id_t reiserfs_super_journal_plugin(reiserfs_fs_t *fs);
+extern reiserfs_plugin_id_t reiserfs_super_alloc_plugin(reiserfs_fs_t *fs);
 
 #endif
 
