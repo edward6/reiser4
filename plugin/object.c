@@ -549,6 +549,8 @@ common_set_plug(struct inode *object /* inode to set plugin on */ ,
 		reiser4_object_create_data * data	/* creational
 							 * data */ )
 {
+	__u64 mask;
+
 	object->i_mode = data->mode;
 	/* this should be plugin decision */
 	object->i_uid = current->fsuid;
@@ -572,10 +574,11 @@ common_set_plug(struct inode *object /* inode to set plugin on */ ,
 	setup_inode_ops(object, data);
 	/* i_nlink is left 1 here as set by new_inode() */
 	seal_init(&reiser4_inode_data(object)->sd_seal, NULL, NULL);
-	reiser4_inode_data(object)->extmask = 
-		(1 << UNIX_STAT) | (1 << LIGHT_WEIGHT_STAT);
+	mask = (1 << UNIX_STAT) | (1 << LIGHT_WEIGHT_STAT);
 	if (!reiser4_is_set(object->i_sb, REISER4_32_BIT_TIMES))
-		reiser4_inode_data(object)->extmask |= (1 << LARGE_TIMES_STAT);
+		mask |= (1 << LARGE_TIMES_STAT);
+
+	scint_pack(&reiser4_inode_data(object)->extmask, mask, GFP_ATOMIC);
 	return 0;
 }
 

@@ -1311,7 +1311,7 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 		info->hash = NULL;
 		info->sd = NULL;
 		info->dir_item = NULL;
-		info->extmask = 0ull;
+		scint_init(&info->extmask);
 		info->locality_id = 0ull;
 		info->parent = NULL;
 		info->plugin_mask = 0;
@@ -2498,6 +2498,7 @@ typedef enum {
 	INIT_FAKES,
 	INIT_JNODES,
 	INIT_EFLUSH,
+	INIT_SCINT,
 	INIT_FS_REGISTERED
 } reiser4_init_stage;
 
@@ -2514,8 +2515,9 @@ shutdown_reiser4(void)
 	}
 
 	DONE_IF(INIT_FS_REGISTERED, unregister_filesystem(&reiser4_fs_type));
-	DONE_IF(INIT_JNODES, jnode_done_static());
+	DONE_IF(INIT_SCINT, scint_done_once());
 	DONE_IF(INIT_EFLUSH, eflush_done());
+	DONE_IF(INIT_JNODES, jnode_done_static());
 	DONE_IF(INIT_FAKES,;);
 	DONE_IF(INIT_TXN, txnmgr_done_static());
 	DONE_IF(INIT_PLUGINS,;);
@@ -2555,6 +2557,7 @@ init_reiser4(void)
 	CHECK_INIT_RESULT(init_fakes());
 	CHECK_INIT_RESULT(jnode_init_static());
 	CHECK_INIT_RESULT(eflush_init());
+	CHECK_INIT_RESULT(scint_init_once());
 	CHECK_INIT_RESULT(register_filesystem(&reiser4_fs_type));
 
 	assert("nikita-2515", init_stage == INIT_FS_REGISTERED);

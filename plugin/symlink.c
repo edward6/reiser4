@@ -25,6 +25,7 @@ symlink_create(struct inode *symlink,	/* inode of symlink */
 							   * particular */ )
 {
 	int result;
+	scint_t *mask;
 
 	assert("nikita-680", symlink != NULL);
 	assert("nikita-681", S_ISLNK(symlink->i_mode));
@@ -34,7 +35,8 @@ symlink_create(struct inode *symlink,	/* inode of symlink */
 	assert("nikita-686", data->id == SYMLINK_FILE_PLUGIN_ID);
 
 	/* stat data of symlink has symlink extension */
-	reiser4_inode_data(symlink)->extmask |= (1 << SYMLINK_STAT);
+	mask = &reiser4_inode_data(symlink)->extmask;
+	scint_pack(mask, scint_unpack(mask) | (1 << SYMLINK_STAT), GFP_ATOMIC);
 
 	assert("vs-838", symlink->u.generic_ip == 0);
 	symlink->u.generic_ip = (void *) data->name;

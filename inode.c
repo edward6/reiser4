@@ -520,7 +520,8 @@ inode_set_extension(struct inode *inode, sd_ext_bits ext)
 
 	state = reiser4_inode_data(inode);
 	spin_lock_inode(inode);
-	state->extmask |= (1 << ext);
+	scint_pack(&state->extmask, 
+		   scint_unpack(&state->extmask) | (1 << ext), GFP_ATOMIC);
 	/* force re-calculation of stat-data length on next call to
 	   update_sd(). */
 	inode_clr_flag(inode, REISER4_SDLEN_KNOWN);
@@ -576,7 +577,8 @@ print_inode(const char *prefix /* prefix to print */ ,
 	print_coord("\tsd_coord", &ref->sd_coord, 0);
 	info
 	    ("\tflags: %lx, extmask: %llu, pmask: %i, locality: %llu\n",
-	     *inode_flags(i), ref->extmask, ref->plugin_mask, ref->locality_id);
+	     *inode_flags(i), scint_unpack(&ref->extmask), 
+	     ref->plugin_mask, ref->locality_id);
 }
 #endif
 

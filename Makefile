@@ -34,6 +34,7 @@ reiser4-objs := \
 		   lnode.o \
 		   kcond.o \
 		   seal.o \
+		   scint.o \
 		   trace.o \
 		   flush_queue.o \
 		   ktxnmgrd.o \

@@ -10,6 +10,7 @@
 #include "spin_macros.h"
 #include "key.h"
 #include "seal.h"
+#include "scint.h"
 #include "plugin/plugin.h"
 #include "plugin/security/perm.h"
 #include "vfs_ops.h"
@@ -91,22 +92,23 @@ typedef struct reiser4_inode {
 	/* 28 */ struct inode *parent;
 	/* seal for stat-data */
 	/* 32 */ seal_t sd_seal;
-	/* 48 */ __u64 extmask;
 	/* locality id for this file */
-	/* 56 */ oid_t locality_id;
+	/* 48 */ oid_t locality_id;
 	/* coord of stat-data in sealed node */
-	/* 64 */ coord_t sd_coord;
-	/* bitmask of non-default plugins for this inode */
+	/* 56 */ coord_t sd_coord;
 	/* truncate, tail2extent and extent2tail use down_write, read, write,
 	 * readpage - down_read */
-	/* 76 */ struct rw_semaphore sem;
+	/* 68 */ struct rw_semaphore sem;
 	/* high 32 bits of object id */
-	/* 92 */ oid_hi_t oid_hi;
-	/* 96 */ int eflushed;
-	/* 100 */ __u16 plugin_mask;
-	/* 102 */ inter_syscall_rap ra;
-	/* 102 */ __u16 padding;
-	/* 104 */
+	/* 84 */ oid_hi_t oid_hi;
+	/* 88 */ scint_t extmask;
+	/* 92 */ int eflushed;
+	/* bitmask of non-default plugins for this inode */
+	/* 96 */ __u16 plugin_mask;
+	/* 98 */ inter_syscall_rap ra;
+	/* 98 */ __u16 padding;
+	/* 100 */
+
 #if REISER4_DEBUG
 	/* pointer to task struct of thread owning exclusive access to file */
 	void *ea_owner;
