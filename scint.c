@@ -54,7 +54,7 @@ static int prepare(scint_t *scint, __u64 value, int gfp_mask)
 	arena = kmem_cache_alloc(scint_cache, gfp_mask);
 	if (arena != NULL) {
 		/* set highest bit */
-		scint->datum = ((__u32)arena) | 0x80000000;
+		scint->datum = (((__u32)arena) >> 1) | 0x80000000;
 		return 1;
 	} else
 		return RETERR(-ENOMEM);
