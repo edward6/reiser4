@@ -57,9 +57,7 @@ static inline int set_page_dirty_internal (struct page * page)
 					page->index, PAGECACHE_TAG_REISER4_MOVED);
 			}
 			spin_unlock_irq(&mapping->tree_lock);
-			if (!PageSwapCache(page))
-				__mark_inode_dirty(mapping->host,
-							I_DIRTY_PAGES);
+			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 		}
 	}
 	return 0;

@@ -174,6 +174,7 @@ struct reiser4_inode {
 	/* block number of virtual root for this object. See comment above
 	 * fs/reiser4/search.c:handle_vroot() */
 	reiser4_block_nr vroot;
+	struct semaphore loading;
 #if REISER4_DEBUG
 	/* number of jnodes in jnode tree */
 	int jnodes;

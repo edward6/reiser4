@@ -373,6 +373,7 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 {
 	struct inode *inode;
 	int result;
+	reiser4_inode * info;
 
 	assert("nikita-302", super != NULL);
 	assert("nikita-303", key != NULL);
@@ -395,17 +396,16 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 		return ERR_PTR(RETERR(-EIO));
 	}
 
+	info = reiser4_inode_data(inode);
+
 	/* Reiser4 inode state bit REISER4_LOADED is used to distinguish fully
 	   loaded and initialized inode from just allocated inode. If
 	   REISER4_LOADED bit is not set, reiser4_iget() completes loading under
-	   inode->i_sem.  The place in reiser4 which uses not initialized inode
+	   info->loading.  The place in reiser4 which uses not initialized inode
 	   is the reiser4 repacker, see repacker-related functions in
 	   plugin/item/extent.c */
 	if (!is_inode_loaded(inode)) {
-		reiser4_inode * info;
-
-		info = reiser4_inode_data(inode);
-		down(&inode->i_sem);
+		down(&info->loading);
 		if (!is_inode_loaded(inode)) {
 			/* locking: iget5_locked returns locked inode */
 			assert("nikita-1941", !is_inode_loaded(inode));
@@ -423,7 +423,7 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 		unlock_new_inode(inode);
 
 	if (is_bad_inode(inode)) {
-		up(&inode->i_sem);
+		up(&info->loading);
 		iput(inode);
 		inode = ERR_PTR(result);
 	} else if (REISER4_DEBUG) {
@@ -452,7 +452,7 @@ reiser4_internal void reiser4_iget_complete (struct inode * inode)
 
 	if (!is_inode_loaded(inode)) {
 		inode_set_flag(inode, REISER4_LOADED);
-		up(&inode->i_sem);
+		up(&reiser4_inode_data(inode)->loading);
 	}
 }
 
