@@ -74,27 +74,72 @@ typedef enum {
 	VFS_PREPARE_WRITE_OP, VFS_COMMIT_WRITE_OP, VFS_BMAP_OP
 } vfs_op;
 
-typedef ssize_t ( *rw_f_type )( struct file *file, flow *a_flow, loff_t *off );
+typedef ssize_t ( *rw_f_type )( struct file *file, flow_t *a_flow, loff_t *off );
 
-typedef struct reg_file_builtins
-{
-	int (*body_write_flow)();
-	int (*sd_write_flow)();
-	/* attributes differ from child files in that they are packed in the major packing locality of the parent file
-	   rather than a major packing locality based on the objectid of their parent.  They also differ in that based
-	   on their name the is_builtin() method for the parent file determines that they are a built_in().  What it is
-	   about their name that causes the is_built_in() method to determine that they are a built_in() depends on how
-	   the plugin is written.  Checking whether they are pre-pended with '..' is a common name distinction method,
-	   but this is only a style convention, not a plugin authoring requirement. */
-	int (*attr_write_flow)();
-	/* others? */
-	int (*body_read_flow)();
-	int (*sd_read_flow)();
-	int (*attr_read_flow)();
-} reg_file_builtins;
+
 /**
- * File (object) plugin.  Defines the set of methods that file plugins implement, some of which are optional.  This
- * includes all of the file related VFS operations.
+
+ File plugin.  Defines the set of methods that file plugins implement, some of which are optional.  
+
+ A file plugin offers to the caller an interface for IO ( writing to and/or reading from) to what the caller sees as one
+ sequence of bytes.  An IO to it may affect more than one physical sequence of bytes, or no physical sequence of bytes,
+ it may affect sequences of bytes offered by other file plugins to the semantic layer, and the file plugin may invoke
+ other plugins and delegate work to them, but its interface is structured for offering the caller the ability to read
+ and/or write what the caller sees as being a single sequence of bytes.
+
+ The file plugin must present a sequence of bytes to the caller, but it does not necessarily have to store a sequence of
+ bytes, it does not necessarily have to support efficient tree traversal to any offset in the sequence of bytes (tail
+ and extent items, whose keys contain offsets, do however provide efficient non-sequential lookup of any offset in the
+ sequence of bytes).
+
+ Directory plugins provide methods for selecting file plugins by resolving a name for them.  
+
+ The functionality other filesystems call an attribute, and rigidly tie together, we decompose into orthogonal
+ selectable features of files.  Using the terminology we will define next, an attribute is a perhaps constrained,
+ perhaps static length, file whose parent has a uni-count-intra-link to it, which might be grandparent-major-packed, and
+ whose parent has a deletion method that deletes it.
+
+ File plugins implement constraints. 
+
+ Files can be of variable length (e.g. regular unix files), or of static length (e.g. static sized attributes).
+
+ An object may have many sequences of bytes, and many file plugins, but, it has exactly one objectid.  It is usually
+ desirable that an object has a deletion method which deletes every item with that objectid.  Items cannot in general be
+ found by just their objectids.  This means that an object must have either a method built into its deletion plugin
+ method for knowing what items need to be deleted, or links stored with the object that provide the plugin with a method
+ for finding those items.  Deleting a file within an object may or may not have the effect of deleting the entire
+ object, depending on the file plugin's deletion method.
+
+ LINK TAXONOMY:
+
+ * Many objects have a reference count, and when the reference count reaches 0 the object's deletion method is invoked.
+ Some links embody a reference count increase ("countlinks"), and others do not ("nocountlinks").
+
+ * Some links are bi-directional links ("bilinks"), and some are uni-directional("unilinks").
+
+ * Some links are between parts of the same object ("intralinks"), and some are between different objects ("interlinks").
+
+ PACKING TAXONOMY:
+
+ * Some items of an object are stored with a major packing locality based on their object's objectid (e.g. unix directory
+ items in plan A), and these are called "self-major-packed".
+
+ * Some items of an object are stored with a major packing locality based on their semantic parent object's objectid
+ (e.g. unix file bodies in plan A), and these are called "parent-major-packed".
+
+ * Some items of an object are stored with a major packing locality based on their semantic grandparent, and these are
+ called "grandparent-major-packed".  Now carefully notice that we run into trouble with key length if we have to store a
+ 8 byte major+minor grandparent based packing locality, an 8 byte parent objectid, an 8 byte attribute objectid, and an
+ 8 byte offset, all in a 24 byte key.  One of these fields must be sacrificed if an item is to be
+ grandparent-major-packed, and which to sacrifice is left to the item author choosing to make the item
+ grandparent-major-packed.  You cannot make tail items and extent items grandparent-major-packed, though you could make
+ them self-major-packed (usually they are parent-major-packed).
+
+ In the case of ACLs (which are composed of fixed length ACEs which consist of {subject-type,
+ subject, and permission bitmask} triples), it makes sense to not have an offset field in the ACE item key, and to allow
+ duplicate keys for ACEs.  Thus, the set of ACES for a given file is found by looking for a key consisting of the
+ objectid of the grandparent (thus grouping all ACLs in a directory together), the minor packing locality of ACE, the
+ objectid of the file, and 0.  
 
  IO involves moving data from one location to another, which means that two locations must be specified, source and
  destination.  
@@ -105,7 +150,7 @@ typedef struct reg_file_builtins
  of bytes (which we call a flow, and define as a struct containing a key, a data pointer, and a length).  This may mean
  converting one of them into a flow.  We provide a generic cast_into_flow() method, which will work for any plugin
  supporting read_flow(), though it is inefficiently implemented in that it temporarily stores the flow in a buffer
- (Issue: what to do with huge flows?)
+ (Question: what to do with huge flows that cannot fit into memory?  Answer: we must not convert them all at once. )
 
  Performing a write requires resolving the write request into a flow defining the source, and a method that performs the write, and
  a key that defines where in the tree the write is to go.
@@ -113,37 +158,21 @@ typedef struct reg_file_builtins
  Performing a read requires resolving the read request into a flow defining the target, and a method that performs the
  read, and a key that defines where in the tree the read is to come from.
 
- So, you should ask, what request formats are we able to resolve?
-
- The formats supported by the reiser4() syscall:
-
- Demidov, specify them....
-
- The parser converts these reiser4() formats into a specification of read or write, plus a flow, plus a name.
- reiser4_lookup() then resolves the name into a plugin, and the plugin then converts the name plus the specification of
- read or write into a method of that plugin.
-
- For a given plugin there exists a distinct method for every type of builtin pseudo-file and every type of builtin attribute.  
-
- The formats supported by POSIX:
-
- Nikita, specify them.... 
-
- For the methods supported by VFS (any exceptions?), the method and the key need to be stored in struct inode, because
- resolving the name and performing the IO are separate syscalls.
+ There will exist file plugins which have no pluginid stored on the disk for them, and which are only invoked by other
+ plugins.  
 
  */
 
 typedef struct file_plugin {
-	/* each individual plugin will have some special methods (builtins) that are accessed by performing IO using
-	   some special names (builtin names). */
-	 union {
-		 reg_file_builtins rf;
-	 } builtins;
+
 
 /* reiser4 required file operations */
 
-	/* VFS required/defined operations */
+	int (* write_flow)(flow_t * , /* buffer of data to write */
+		      reiser4_key *);
+	int (* read_flow)(flow_t * , /* buffer to hold data to be read */
+		     reiser4_key *);
+/* VFS required/defined operations */
 	int ( *truncate )( struct inode *inode, loff_t size );
 
 	/** save inode cached stat-data onto disk. It was called
@@ -157,33 +186,18 @@ typedef struct file_plugin {
 			 loff_t *off );
 
 	
-	/*
-	 * private methods: These are optional.  If used they will allow you to
-	 * minimize the amount of code needed to implement a deviation from
-	 * some other method that also uses them.
-	 */
-
-	/* for reiser4, the directory lookup procedure will first check to see if a name is a file builtin, if not it
-	   will invoke the directory lookup method, if it is a file builtin it will call this function to determine
-	   which builtin method to invoke, with what key value setting in the flow->key that it passes to the builtin at
-	   invocation time. */
-	/*
-
-	 Since what builtins are available depends on what file plugin is in use, checking names to see whether they
-	 match a builtin is a file plugin method, even though it implements directory functionality.
-
-	*/
-	int (*is_flow_built_in)(char * name, int length);
-
-	int (*select_method_and_key)(char *builtin_name, int length, int (*builtin_method), reiser4_key * key );
+/*
+ * private methods: These are optional.  If used they will allow you to minimize the amount of code needed to implement
+ * a deviation from some other method that also uses them.
+ */
 
 	/**
 	 * Construct flow into @flow according to user-supplied data.
 	 * needs better comment
 	 */
 	int ( *flow_by_inode )( struct file *file, char *buf, size_t size, 
-				loff_t *off, rw_op op, flow * );
-	int ( *flow_by_key )( reiser4_key *key, flow * );
+				loff_t *off, rw_op op, flow_t * );
+	int ( *flow_by_key )( reiser4_key *key, flow_t * );
 	/*
 	 * set the plugin for a file.  Called during file creation in reiser4()
 	 * and creat().
@@ -237,23 +251,37 @@ typedef struct file_plugin {
 	int ( *can_add_link )( const struct inode *inode );
 } file_plugin;
 
+
 typedef struct dir_plugin {
+
+				/* resolves one component of name_in, and returns the key that it resolves to plus the
+				   remaining name */
+	int ( *resolve)(name_t * name_in, /* name within this directory that is to be found */
+			name_t * name_out, /* name remaining after the part of the name that was resolved is stripped from it */
+			key_t key_found	/* key of what was named */
+			);
+
+	/* for use by open call, based on name supplied will install
+	   appropriate plugin and state information, into the inode such that
+	   subsequent VFS operations that supply a pointer to that inode
+	   operate in a manner appropriate.  Note that this may require storing
+	   some state for the plugin, and that this state might even include
+	   the name used by open.  */
+	int (*resolve_into_inode)(struct inode *parent_inode, 
+				  const struct qstr *name, 
+				  /* probably needs more parameters? */
+				  name_t *,
+				  reiser4_key *,/* if name is found in
+						 * directory key of object is
+						 * stored here */
+				  reiser4_dir_entry_desc * /* entry key and
+							    * inode bound by
+							    * it */);
 
 	/* VFS required/defined operations below this line */
 	int ( *unlink )( struct inode *parent, struct dentry *victim );
 	int ( *link )( struct inode *parent, struct dentry *existing, 
 		       struct dentry *where );
-	/** lookup for "name" within this object and return its key in
-	    "key". If this is not implemented (set to NULL),
-	    reiser4_lookup will return -ENOTDIR 
-
-	should be made to be more precisely VFS lookup -Hans 
-
-	*/
-	file_lookup_result ( *lookup )( struct inode *parent_inode, 
-					const struct qstr *name,
-					reiser4_key *key, /* this is the result */
-					reiser4_dir_entry_desc *entry );
 	/* sub-methods: These are optional.  If used they will allow you to minimize the amount of code needed to
 	   implement a deviation from some other method that uses them.  You could logically argue that they should be a
 	   separate type of plugin. */
