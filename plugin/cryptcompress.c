@@ -148,7 +148,6 @@ create_cryptcompress(struct inode *object, struct inode *parent, reiser4_object_
 	assert("edward-27", data->id == CRC_FILE_PLUGIN_ID);
 	
 	info = reiser4_inode_data(object);
-	cryptcompress_inode_data(object);
 	
 	assert("edward-29", info != NULL);
 	assert("edward-30", info->pset->crypto == NULL);
