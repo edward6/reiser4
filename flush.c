@@ -1404,9 +1404,9 @@ exit:
   
    1. Scan-left
    2. Scan-right (maybe)
-   3. Allocate initial ancestors
+   3. Allocate initial flush position and its ancestors
    4. <handle extents>
-   5. <squeeze and allocate changed ancestors of the next position to-the-right,
+   5. <squeeze and next position and its ancestors to-the-right,
        then update position to-the-right>
    6. <repeat from #4 until flush is stopped>
   
@@ -2083,7 +2083,7 @@ exit:
    returned.  If nothing can be moved into @left anymore, SQUEEZE_TARGET_FULL
    is returned.
 */
-/*static*/ int
+static int
 squalloc_right_neighbor(znode * left, znode * right, flush_position * pos)
 {
 	int ret;
