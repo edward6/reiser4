@@ -2751,7 +2751,7 @@ move_coord_pages(extent_coord_t *ext_coord, unsigned count)
 	ext_coord->expected_page += count;
 
 	coord = &ext_coord->coord;
-	check_coord(coord);
+	ON_DEBUG(check_coord(coord));
 
 	do {
 		if (coord->pos_in_unit + count < coord->width) {
