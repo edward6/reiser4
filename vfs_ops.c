@@ -1184,6 +1184,7 @@ reiser4_get_file_fsdata(struct file *f	/* file
 	return f->private_data;
 }
 
+#if REISER4_TRACE
 static const char *
 tail_status(const struct inode *inode)
 {
@@ -1193,6 +1194,7 @@ tail_status(const struct inode *inode)
 		return "tail";
 	return "notail";
 }
+#endif
 
 /* Release reiser4 file. This is f_op->release() method. Called when last
    holder closes a file */
