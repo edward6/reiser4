@@ -496,7 +496,7 @@ invalidate_jnode(jnode * node)
 	if (node) {
 		int relsed = 0;
 		spin_lock_jnode(node);
-		if (JF_ISSET(node, JNODE_LOADED)) {
+		if (jnode_is_loaded(node)) {
 			jrelse_nolock(node);
 			relsed = 1;
 		}
@@ -962,7 +962,7 @@ bitmap_check_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len
 	ret = load_and_lock_bnode(bnode);
 	assert("zam-626", ret == 0);
 
-	assert("nikita-2216", JF_ISSET(bnode->wjnode, JNODE_LOADED));
+	assert("nikita-2216", jnode_is_loaded(bnode->wjnode));
 
 	if (desired) {
 		assert("zam-623", reiser4_find_next_zero_bit(bnode_working_data(bnode), end_offset, start_offset)
