@@ -224,10 +224,10 @@ int find_cluster_item(hint_t * hint, const reiser4_key *key, int check_key,
 		      lookup_bias bias, __u32 flags);
 int page_of_cluster(struct page *, reiser4_cluster_t *, struct inode *);
 int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
-void forget_cluster_pages(reiser4_cluster_t *);
+void forget_cluster_pages(struct page ** page, int nrpages);
 int flush_cluster_pages(reiser4_cluster_t *, jnode *, struct inode *);
 int deflate_cluster(reiser4_cluster_t *, struct inode *);
-void truncate_pages_cryptcompress(struct inode * inode, pgoff_t start);
+void truncate_page_cluster(struct inode * inode, cloff_t start);
 void set_hint_cluster(struct inode * inode, hint_t * hint, unsigned long index, znode_lock_mode mode);
 int get_disk_cluster_locked(reiser4_cluster_t * clust, struct inode * inode, znode_lock_mode lock_mode);
 int hint_prev_cluster(reiser4_cluster_t * clust, struct inode * inode);
