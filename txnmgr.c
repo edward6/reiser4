@@ -2522,6 +2522,7 @@ capture_assign_block_nolock(txn_atom * atom, jnode * node)
 	assert("jmacd-323", node->atom == NULL);
 	assert("vs-1442", node->list == NOT_CAPTURED);
 	BUG_ON(!capture_list_is_clean(node));
+	assert("nikita-3470", !jnode_is_dirty(node));
 
 	/* Pointer from jnode to atom is not counted in atom->refcount. */
 	node->atom = atom;
@@ -2533,11 +2534,6 @@ capture_assign_block_nolock(txn_atom * atom, jnode * node)
 		inode = inode_by_reiser4_inode(container_of(node, reiser4_inode, inode_jnode));
 		grabbed2flush_reserved_nolock(atom,
 					      reserved_for_sd_update(inode));
-		/*printk("capture inode %p, atom %p (reserved %llu)\n", inode, atom, atom->flush_reserved);*/
-		
-	} else if (jnode_is_dirty(node)) {
-		capture_list_push_back(&atom->dirty_nodes[jnode_get_level(node)], node);
-		ON_DEBUG(node->list = DIRTY_LIST);
 	} else {
 		capture_list_push_back(&atom->clean_nodes, node);
 		ON_DEBUG(node->list = CLEAN_LIST);
