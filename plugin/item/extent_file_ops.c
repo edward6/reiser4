@@ -610,7 +610,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	page_off = (unsigned long)(file_off & (PAGE_CACHE_SIZE - 1));
 
 	clog_op(EXTENT_WRITE_IN, (void *)(unsigned long)oid, (void *)(unsigned long)file_off);
-	clog_op(EXTENT_WRITE_IN2, get_current_lock_stack()->nr_locks, 0);
+	clog_op(EXTENT_WRITE_IN2, (void *)get_current_lock_stack()->nr_locks, 0);
 
 	/* key of first byte of page */
 	page_key = flow->key;
