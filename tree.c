@@ -1227,6 +1227,7 @@ cut_node(coord_t * from		/* coord of the first unit/item that will be
 */
 
 /* Audited by: umka (2002.06.16) */
+#if 1
 int
 cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const reiser4_key * to_key)
 {
@@ -1317,6 +1318,109 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 	CHECK_COUNTERS;
 	return result;
 }
+
+#else
+
+#include "tap.h"
+/* cut_tree, the new version. */
+int
+cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const reiser4_key * to_key)
+{
+	reiser4_key smallest_removed;
+	lock_handle lock_handle;
+	int result;
+	znode *loaded = NULL;
+	tap_t 
+	STORE_COUNTERS;
+
+	assert("umka-329", tree != NULL);
+	assert("umka-330", from_key != NULL);
+	assert("umka-331", to_key != NULL);
+
+	write_tree_trace(tree, tree_cut, from_key, to_key);
+	init_lh(&lock);
+
+	/* Find leftmost item to cut away from the tree. */
+	result = coord_by_key(current_tree, from_key, &intranode_from, &lock, 
+			      ZNODE_WRITE_LOCK, FIND_EXACT,
+			      TWIG_LEVEL, LEAF_LEVEL, CBK_UNIQUE, 0/*ra_info*/);
+	if (result != CBK_COORD_FOUND)
+		/* -EIO, or something like that */
+		goto done;
+
+	tap_init(&tap, &intranode_from, &lock, ZNODE_WRITE_LOCK);
+
+	while (1) {
+		coord_t intranode_to,
+			intranode_from;
+
+		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
+			break;
+
+		loaded = intranode_to.node;
+		result = zload(loaded);
+		if (result)
+			break;
+
+		{ /* Prepare the second (right) point for cut_node() */
+			node_plugin *nplug;
+
+			nplug = tap.node->nplug;
+
+			assert("vs-686", nplug);
+			assert("vs-687", nplug->lookup);
+
+			result = nplug->lookup(tap.node, from_key, FIND_EXACT, &intranode_to);
+
+			if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
+				zrelse(loaded);
+				break;
+			}
+		}
+
+		/* cut data from one node */
+		biggest_removed = *min_key();
+		result = cut_node(&intranode_from, &intranode_to,
+				  from_key, to_key, &biggest_removed, 
+				  DELETE_KILL, /*flags */ 0, 0/*inode*/);
+		zrelse(loaded);
+		done_lh(&handle);
+
+		if (result) {
+			/* cut_node may return -EDEADLK when we cut from the beginning of twig node and it had to lock
+			   neighbor to get "left child" to update its right delimiting key and it failed because left
+			   neighbor was locked. So, release lock held and try again */
+			if (result == -EDEADLK) {
+				if (!keygt(&smallest_removed, from_key)) {
+					print_key("smallest_removed", 
+						  &smallest_removed);
+					print_key("from_key", from_key);
+				}
+				continue;
+			}
+			break;
+		}
+
+		{ /* Advance the intranode_from position to the next node. */
+			
+		}
+		
+
+		assert("vs-301", !keyeq(&smallest_removed, min_key()));
+	}
+
+ done:
+	done_lh(&lock);
+	if (loaded)
+		zrelse(loaded);
+
+	if (result != 0)
+		warning("nikita-2861", "failure: %i", result);
+
+	CHECK_COUNTERS;
+	return result;
+}
+#endif
 
 /* return number of unallocated children for  @node, or an error code, if result < 0 */
 int
