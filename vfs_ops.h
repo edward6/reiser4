@@ -97,7 +97,8 @@ struct reiser4_file_fsdata {
 	/* hints to speed up operations with regular files: read and write. */
 	struct {
 		hint_t hint;
-		/* this is set by read_extent before calling page_cache_readahead */
+		/* this is set by read_extent before calling
+		 * page_cache_readahead */
 		void *coord;
 	} reg;
 	struct reiser4_file_ra_state ra;
