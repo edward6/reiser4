@@ -1761,6 +1761,18 @@ static int shift_one_internal_unit (znode * left, znode * right)
 
 	coord_init_first_unit (&coord, right);
 
+	if (REISER4_DEBUG && !node_is_empty (left)) {
+		coord_t last;
+		reiser4_key right_key;
+		reiser4_key left_key;
+
+		coord_init_last_unit (&last, left);
+
+		assert ("nikita-2463", 
+			keyle (item_key_by_coord (&last, &left_key), 
+			       item_key_by_coord (&coord, &right_key)));
+	}
+
 	assert ("jmacd-2007", item_is_internal (&coord));
 
 	init_carry_pool (&pool);
@@ -2283,8 +2295,6 @@ static int flush_empty_queue (flush_position *pos)
 				SetPageWriteback (pg);
 				set_page_clean_nolock(pg);
 
-				trace_on (TRACE_BUG, "submitted: %li, %lu\n",
-					  pg->mapping->host->i_ino, pg->index);
 				unlock_page (pg);
 
 				/* Prepare node to being written by calling the io_hook.
