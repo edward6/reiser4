@@ -681,6 +681,7 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first, reiser4_blo
 		jnode_set_block(node, &first);
 		unformatted_make_reloc(node, fq);
 		junprotect(node);
+		ON_DEBUG(node->list = FQ_LIST);
 		UNLOCK_JNODE(node);
 		first ++;
 	}
@@ -700,6 +701,7 @@ make_node_ovrwr(capture_list_head *jnodes, jnode *node)
 	JF_SET(node, JNODE_OVRWR);
 	capture_list_remove_clean(node);
 	capture_list_push_back(jnodes, node);	
+	ON_DEBUG(node->list = OVRWR_LIST);
 
 	UNLOCK_JNODE(node);
 }
