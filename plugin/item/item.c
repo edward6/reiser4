@@ -304,7 +304,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_IT ] = {
 						internal_has_pointer_to
 					}
 				},
-				.utmost_child           = NULL,
+				.utmost_child           = internal_utmost_child,
 			}
 		}
 	},
@@ -349,7 +349,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_IT ] = {
 						.readpage = extent_readpage
 					}
 				},
-				.utmost_child           = NULL,
+				.utmost_child           = extent_utmost_child,
 			}
 		}
 	},

@@ -67,6 +67,8 @@ int           extent_item_data_by_flow (const tree_coord *, const flow_t *,
 					reiser4_item_data *);
 void          extent_print             (const char *, tree_coord *);
 
+int           extent_utmost_child      (const tree_coord *coord, sideof side, int flags, jnode **child, reiser4_block_nr *blocknr);
+
 /*
  * plugin->u.item.s.file.*
  */

@@ -88,6 +88,12 @@ void internal_down_link( const tree_coord *coord,
 	*block = pointer_at( coord );
 }
 
+/* FIXME_JMACD: Implement me! */
+int internal_utmost_child ( const tree_coord *coord, sideof side, int flags, jnode **child, reiser4_block_nr *blocknr )
+{
+	not_yet ("jmacd-20000", "internal_utmost_child");
+}
+
 /** 
  * debugging aid: print human readable information about internal item at
  * @coord 

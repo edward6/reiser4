@@ -1067,7 +1067,8 @@ static reiser4_block_nr blocknr_by_coord_in_extent (tree_coord * coord,
 /*
  * FIXME-VS: add code to get jnode by blocknumber
  */
-struct jnode * extent_utmost_child (tree_coord * coord, sideof side)
+/* FIXME_JMACD: See flush.c:jnode_lock_parent_coord(), it can almost do that. */
+int extent_utmost_child ( const tree_coord *coord, sideof side, int flags, jnode **child, reiser4_block_nr *blocknr )
 {
 	reiser4_extent * ext;
 	reiser4_block_nr pos_in_unit;
