@@ -49,25 +49,24 @@ int blocknr_is_fake(const reiser4_block_nr * da)
 /** a generator for tree nodes fake block numbers */
 void get_next_fake_blocknr (reiser4_block_nr *bnr)
 {
-	/* FIXME: This isn't thread-safe.
-	 * Who will fix this? */
-	static reiser4_block_nr gen = 0;
+	static spinlock_t       fake_lock = SPIN_LOCK_UNLOCKED;
+	static reiser4_block_nr fake_gen  = 0;
 
-	gen += 1;
-
-	gen &= ~REISER4_BLOCKNR_STATUS_BIT_MASK;
-	gen |= REISER4_UNALLOCATED_BIT_MASK;
+	spin_lock (& fake_lock);
+	*bnr = fake_gen++;
+	spin_unlock (& fake_lock);
+	
+	*bnr &= ~REISER4_BLOCKNR_STATUS_BIT_MASK;
+	*bnr |= REISER4_UNALLOCATED_BIT_MASK;
 
 #if REISER4_DEBUG
 	{
 		znode * node;
 
-		node = zlook(current_tree, & gen);
+		node = zlook(current_tree, bnr);
 		assert ("zam-394", node == NULL);
 	}
 #endif
-
-	*bnr = gen;
 }
 
 
