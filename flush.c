@@ -8,8 +8,6 @@
 #include "key.h"
 #include "coord.h"
 #include "tslist.h"
-#include "plugin/item/internal.h"
-#include "plugin/item/extent.h"
 #include "plugin/item/item.h"
 #include "plugin/plugin.h"
 #include "plugin/object.h"
@@ -792,7 +790,6 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	   scan limit is the difference between left_scan.count and the threshold. */
 	reiser4_stat_add(flush.left, left_scan.count);
 
-	/* ZAM-FIXME-HANS: reduce the layers of wrappings, eliminate get_params function please */
 	todo = sbinfo->flush.relocate_threshold - left_scan.count;
 	if (todo > 0) {
 		ret = scan_right(&right_scan, node, (unsigned)todo);
