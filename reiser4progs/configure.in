@@ -162,18 +162,17 @@ AC_OUTPUT([
     libmisc/Makefile
     libreiser4/Makefile
     plugin/Makefile
-    plugin/format36/Makefile
     plugin/format40/Makefile
-    plugin/journal36/Makefile
     plugin/journal40/Makefile
-    plugin/alloc36/Makefile
     plugin/alloc40/Makefile
-    plugin/node36/Makefile    
+    plugin/oid40/Makefile
     plugin/node40/Makefile
     plugin/internal40/Makefile
     plugin/stat40/Makefile
     plugin/direntry40/Makefile
-    plugin/oid40/Makefile
+    plugin/format36/Makefile
+    plugin/journal36/Makefile
+    plugin/alloc36/Makefile
     demos/Makefile
     reiser4progs/Makefile
     reiser4progs/mkfs/Makefile

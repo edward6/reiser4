@@ -1,7 +1,7 @@
 includedir		     = -I$(top_srcdir)/include
 libdir			     = $(plugindir)
 
-alloc40_sources		     = alloc40.c alloc40.h bitmap.c bitmap.h
+alloc40_sources		     = alloc40.c alloc40.h
 
 lib_LTLIBRARIES		     = liballoc40.la
 noinst_LTLIBRARIES	     = liballoc40-static.la

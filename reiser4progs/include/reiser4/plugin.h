@@ -119,25 +119,10 @@ struct reiserfs_item_ops {
 
 typedef struct reiserfs_item_ops reiserfs_item_ops_t;
 
-/*
-    What is the sence of this structures? Is it does the same as
-    uset-working functions or not? If so, we should remove its
-    fields and move usit-working functions into it.
-*/
 struct reiserfs_direntry_ops {
-    int (*add_entry) (reiserfs_opaque_t *, int32_t, 
-	reiserfs_opaque_t *parent, char *, reiserfs_opaque_t *entry);
-    int (*max_name_len) (int blocksize);
 };
 
 typedef struct reiserfs_direntry_ops reiserfs_direntry_ops_t;
-
-struct reiserfs_file_ops {
-    int (*write) (reiserfs_opaque_t *file, void *buff, uint64_t size);
-    int (*read) (reiserfs_opaque_t *file, void *buff, uint64_t size);
-};
-
-typedef struct reiserfs_file_ops reiserfs_file_ops_t;
 
 struct reiserfs_stat_ops {
 };
@@ -158,13 +143,9 @@ struct reiserfs_item_plugin {
     /* Methods common for all item types */
     reiserfs_item_ops_t common;
 
-    /* 
-	Methods specific to particular type of item.
-	FIXME-UMKA: 
-    */
+    /* Methods specific to particular type of item */
     union {
 	reiserfs_direntry_ops_t dir;
-	reiserfs_file_ops_t file;
 	reiserfs_stat_ops_t stat;
 	reiserfs_internal_ops_t internal;
     } specific;

@@ -1,2 +1,2 @@
-SUBDIRS = format36 format40 journal36 journal40 alloc36 alloc40 node40 stat40 direntry40 internal40 oid40
-
+SUBDIRS = format40 journal40 alloc40 node40 stat40 direntry40 internal40 oid40 \
+	  format36 journal36 alloc36 

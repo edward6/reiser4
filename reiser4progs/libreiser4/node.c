@@ -12,12 +12,6 @@
 
 #ifndef ENABLE_COMPACT
 
-/*
-    Vitaly, at the moment architecture of libreiser4 doesn't mean
-    write anything to device out of "sync" method. So, writing of created 
-    node in this method is not valid. Node writing should be performed
-    in "sync" method of the node.
-*/
 reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk,
     reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id, uint8_t level)
 {
@@ -81,11 +75,6 @@ reiserfs_node_t *reiserfs_node_init(aal_device_t *device, blk_t blk,
     node->parent = parent;
     node->children = NULL;
     
-    /*
-	FIXME-UMKA: Here we need to check whether given blk
-	is allocated already.
-    */
-    
     if (!(node->block = aal_device_read_block(device, blk))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't read block %llu.", blk);
@@ -126,10 +115,6 @@ void reiserfs_node_fini(reiserfs_node_t *node) {
     aal_free(node);
 }
 
-/*
-    FIXME-UMKA: Probably here we should check also every node's item
-    by its check method.
-*/
 error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
     aal_assert("umka-123", node != NULL, return -1);
     return libreiserfs_plugins_call(return -1, node->plugin->node, 
@@ -201,9 +186,7 @@ static int callback_comp_for_insert(reiserfs_node_t *node1,
     Callback function for comparing node's left delimiting key
     with given key.
 */
-static int callback_comp_for_find(reiserfs_node_t *node, 
-    void *key) 
-{
+static int callback_comp_for_find(reiserfs_node_t *node, void *key) {
     return reiserfs_node_item_key_cmp(node, 
 	reiserfs_node_item_key_at(node, 0), key);
 }

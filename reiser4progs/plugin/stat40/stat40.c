@@ -89,7 +89,7 @@ static reiserfs_plugin_t stat40_plugin = {
 	    .unit_remove = NULL
 	},
 	.specific = {
-	    .stat = {}
+	    .stat = { }
 	}
     }
 };

@@ -8,8 +8,7 @@
 #define ALLOC40_H
 
 #include <aal/aal.h>
-
-#include "bitmap.h"
+#include <misc/bitmap.h>
 
 struct reiserfs_alloc40 {
     aal_device_t *device;

@@ -154,10 +154,7 @@ static reiserfs_plugin_t direntry40_plugin = {
 	    .unit_remove = NULL
 	},
 	.specific = {
-	    .dir = { 
-		.add_entry = NULL, 
-		.max_name_len = NULL
-	    }
+	    .dir = { }
 	}
     }
 };

@@ -66,6 +66,13 @@ static blk_t reiserfs_internal40_get_pointer(reiserfs_internal40_t *internal) {
     return int40_get_blk(internal);
 }
 
+static int reiserfs_internal40_has_pointer(reiserfs_internal40_t *internal, 
+    blk_t blk) 
+{
+    aal_assert("umka-628", internal != NULL, return 0);
+    return blk = int40_get_blk(internal);
+}
+
 static reiserfs_plugin_t internal40_plugin = {
     .item = {
 	.h = {
@@ -99,7 +106,7 @@ static reiserfs_plugin_t internal40_plugin = {
 	    .internal = {
 		.set_pointer = (void (*)(void *, blk_t))reiserfs_internal40_set_pointer,
 		.get_pointer = (blk_t (*)(void *))reiserfs_internal40_get_pointer,
-		.has_pointer = NULL
+		.has_pointer = (int (*)(void *, blk_t))reiserfs_internal40_has_pointer
 	    }
 	}
     }

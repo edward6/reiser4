@@ -223,7 +223,6 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     }
 
     reiserfs_node_add_children(fs->tree->root, leaf);
-    
     return 0;
 
 error_free_leaf:
