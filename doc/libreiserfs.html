@@ -325,7 +325,7 @@ dal_open to create DAL instance working over application-specific storage.</p>
 int flags, void *data)</b>
 
 <p>Allocates new instance of DAL that will use given operations. Sets blocksize
-and user specific data for allocated DAL. Then actualy opens device and returns 
+and user specific data for allocated DAL. Then actually opens device and returns 
 initialized instance.</p>
 
 <b>void dal_close(dal_t *dal)</b>
@@ -337,11 +337,11 @@ initialized instance.</p>
 
 <p>Functions to set/get block size. dal_set_blocksize makes check whether given
 block size is power of two and if so, sets new blocksize. Function dal_blocksize
-returns blocksize of specified DAL. These functions are useful for chnaging block
+returns blocksize of specified DAL. These functions are useful for changing block
 size of underlying DAL. For example, default block size before reading the superblock
 was 4096. After reading the superblock we have found that "blocksize" in the superblock
 someone else (for example 2048). And then we are setting up DAL for filesystem and 
-DAL for journal by readed from superblock "blocksize" value.</p>
+DAL for journal by redded from superblock "blocksize" value.</p>
 
 <p>The functions below are wrappers for operations registered in DAL's "ops" field. 
 These functions also public function, which will be using by "master" project.</p>
@@ -475,7 +475,7 @@ error:
 to open filesystem with standard journal. If filesystem has relocated
 journal then exception will be throwed out and NULL will be returned.</p>
 
-<p>See bellow at "Filesystem API" topic for detailed decription of the filesystem 
+<p>See bellow at "Filesystem API" topic for detailed description of the filesystem 
 opening process.
 </td></tr></table>
 
@@ -547,9 +547,9 @@ initialized filesystem instance.</p>
 
 <p>etc.</p>
 
-<p>In the case an fatal exception occurs (an exception that causes imposibility to continue 
+<p>In the case an fatal exception occurs (an exception that causes impossibility to continue 
 current operation) then control will be passed onto highest level (the level of "master"
-project). And than "master" project have to deside what it will be doing. As usual it's actions
+project). And than "master" project have to decide what it will be doing. As usual it's actions
 are following: report about exception and going to finalization.</p>
 
 <p>However more smart behavior may be implemented too.</p>
@@ -601,7 +601,7 @@ functionality to it. It may to ask user something. For example:</p>
 
 <p><i>"Error: Can't read block 8193. (C)ancel, (R)etry"</i></p>
 
-<p>Or yet another behavior. Exception handler may emmit all errors in system log. 
+<p>Or yet another behavior. Exception handler may emit all errors in system log. 
 The exception handler behavior will depends on application.</p>
 
 <p>Exception handling functions:</p>
@@ -619,8 +619,8 @@ options (IGNORE, CANCEL, RETRY, etc) and error message.</p>
 
 <p>After exceptions factory has been catch an exception, it passes control onto 
 exception handler. Then exception handler processes exception in some maner and 
-retutns result into calling function. Therefore, calling function may decide what 
-it have to do. And this decission will be based on result of processing of issued 
+returns result into calling function. Therefore, calling function may decide what 
+it have to do. And this decision will be based on result of processing of issued 
 exception.</p>
 
 For example:
@@ -651,17 +651,17 @@ following:</p>
 <ul>
 	<li>EXCEPTION_UNHANDLED - exception has not processed.
 	<li>EXCEPTION_YES - exception has processed and user has selected "yes" 
-	from suggested choise.
+	from suggested choice.
 	<li>EXCEPTION_NO - exception has processed and user has selected "no" 
-	from suggested choise.
+	from suggested choice.
 	<li>EXCEPTION_OK - exception has processed and user has selected "ok" 
-	from suggested choise.
+	from suggested choice.
 	<li>EXCEPTION_RETRY - exception has processed and user has selected "retry" 
-	from suggested choise.
+	from suggested choice.
 	<li>EXCEPTION_IGNORE - exception has processed and user has selected "ignore" 
-	from suggested choise.
+	from suggested choice.
 	<li>EXCEPTION_CANCEL - exception has processed and user has selected "cancel" 
-	from suggested choise.
+	from suggested choice.
 </ul>
 
 <p>The default exception handler returns value that was passed to it in second 
@@ -710,7 +710,7 @@ presentation may be changed by installing other handler than the default handler
 
 <p>Gauge API consists of the following routines and types:</p>
 
-<b>typedef (reiserfs_gauge_habdler_t) (const char *, unsigned int, void *, int, int, int)</b>
+<b>typedef (reiserfs_gauge_handler_t) (const char *, unsigned int, void *, int, int, int)</b>
 
 <p>Type for gauge callback function. Gauge callback function accepts following 
 parameters:</p>
@@ -731,7 +731,7 @@ reiserfs_gauge_handler_t handler, void *data)</b>
 
 <b>void libreiserfs_gauge_free(reiserfs_gauge_t *gauge)</b>
 
-<p>Frees all gauge assosiated memory.</p>
+<p>Frees all gauge associated memory.</p>
 
 <b>void libreiserfs_gauge_reset(reiserfs_gauge_t *gauge)</b>
 
@@ -825,10 +825,10 @@ progress information will looks like this:</p>
 
 <h3>Memory allocation.</h3>
 <table width=70%><tr><td align=justify>
-<p>In order to using libreiserfs in bootloaders (Yaboot, GNU GRUB, etc), which 
+<p>In order to using libreiserfs in boot-loaders (Yaboot, GNU GRUB, etc), which 
 are working without libc and kernel, and can't use standard memory allocation factory,
 libreiserfs should have a mechanism for using memory allocation functions which 
-actualy implemented by its "master" project (some bootloader in this case). As usual, 
+actually implemented by its "master" project (some bootloader in this case). As usual, 
 a project oriented to be working alone (without libc and kernel) has its own memory 
 management subsystem. Therefore, we may be using its memory allocation subsystem for 
 libreiserfs.</p>
@@ -884,7 +884,7 @@ from corresponding libc.</p>
 
 <b>void libreiserfs_free_set_handler(libreiserfs_free_handler_t handler)</b>
 
-<p>Sets handler for memory freeing purposes. By defauld it is "free()" function from
+<p>Sets handler for memory freeing purposes. By default it is "free()" function from
 corresponding libc.</p>
 
 <b>libreiserfs_free_handler_t libreiserfs_free_handler(void)</b>
@@ -930,7 +930,7 @@ void milo_libreiserfs_init() {
 <h3>String-working functions. Memory-working functions.</h3>
 
 <table width=70%><tr><td align=justify>
-<p>As libreiserfs will be used by bootloaders or any other applications which 
+<p>As libreiserfs will be used by boot-loaders or any other applications which 
 are working alone (without libc), we need to reimplement in libreiserfs some 
 string-working functions and memory-working functions which are used by libreiserfs.</p>
 
@@ -961,7 +961,7 @@ strlen(), strcmp(), strncmp(), strncat(), strchr().
 <p>There are few reasons why libreiserfs should implement these functions:</p>
 
 <ul>
-	<li>as usual these functions not implemened in "alone" applications at all or implemented
+	<li>as usual these functions not implemented in "alone" applications at all or implemented
 	in minimal maner. Implemented set is not quite sufficient for libreiserfs.
 	<li>all "alone" applications should implement these functions in order to use libreiserfs.
 	This is an additional condition for using libreiserfs and this condition makes using 
@@ -976,7 +976,7 @@ functions to the "master" project.</p>
 
 <ul>
 	<li>implementation of these functions in libreiserfs causes libreiserfs code to be
-	growed.
+	growed up.
 	<li>bad portability.
 </ul>
 
@@ -1004,7 +1004,7 @@ and methods. And at finish, filesystem be must closed by "reiserfs_fs_close" fun
 </p>initialize all internal structures; read superblock, and journal header; 
 replay journal; check journal header for validness; re-read superblock from 
 the journal (if it was overwritten by journal replay); check superblock for 
-validness; optionaly initialize allocator and check it for validness; initialize tree; 
+validness; optionally initialize allocator and check it for validness; initialize tree; 
 read the root block, and check it for validness; return initialized filesystem instance.</p>
 
 <p>And closing will include such actions: calling for free all filesystem objects 
@@ -1293,7 +1293,7 @@ is journal plugin using at the moment.
 	<li>What the plugin is used for oid allocator.
 </ul>
 
-<p>As opening the filesystem directly dependends on disk-format, all available 
+<p>As opening the filesystem directly depends on disk-format, all available 
 disk-format plugins must be loaded during library initialization time, just after 
 plugin cache will be initialized in order to be able to find any superblock at 
 filesystem opening time. Or they might be loaded on first attempt to open filesystem 
@@ -1343,12 +1343,12 @@ typedef struct reiserfs_layout_plug reiserfs_layout_plug_t;
 
 <b>reiserfs_layout_opaque_t *(*init) (dal_t *)</b>
 
-<p>Opens disk-layout. Initializes internal plugins strucres and returns
+<p>Opens disk-layout. Initializes internal plugins structures and returns
 layout opaque instance to caller.</p>
 
 <b>reiserfs_layout_opaque_t *(*create) (dal_t *, some_format_specific_parameters)</b>
 
-<p>Creates superblock onspecified device.</p>
+<p>Creates superblock on specified device.</p>
 
 <b>void (*done) (reiserfs_layout_opaque_t *)</b>
 
@@ -1361,7 +1361,7 @@ layout opaque instance to caller.</p>
 <b>uint16_t (*oid_plug_id) (reiserfs_layout_opaque_t *)</b>
 
 <p>Returns oid allocator plugin's ID. Will be used in order
-to find oid allocator plugin in plugins cashe and plugins
+to find oid allocator plugin in plugins cache and plugins
 map.</p>
 
 <b>reiserfs_key_t *(*get_rootdir_key) (reiserfs_layout_opaque_t *)</b>
@@ -1412,7 +1412,7 @@ reiserfs_layout_opaque_t(*get_file_count) (reiserfs_layout_opaque_t *, uint64_t)
 It will include the following: reiserfs_super_open, reiserfs_super_close, 
 reiserfs_super_update_magic, etc.</p>
 
-<p>Superblock initialization and finalization routins will roughly look:</p>
+<p>Superblock initialization and finalization routines will roughly look:</p>
 
 <pre>
 struct reiserfs_super {
@@ -1501,12 +1501,12 @@ typedef struct reiserfs_alloc reiserfs_alloc_t;
 
 <b>reiserfs_alloc_opaque_t *(*init) (dal_t *)</b>
 
-<p>Initializes allocator on specified device. Returns initialized alloator opaque
+<p>Initializes allocator on specified device. Returns initialized allocator opaque
 instance.</p>
 
 <b>reiserfs_alloc_opaque_t *(*create) (dal_t *)</b>
 
-<p>Creteates allocator on specified device. Returns initialized allocator opaque
+<p>Creates allocator on specified device. Returns initialized allocator opaque
 instance.</p>
 
 <b>void (*done) (reiserfs_alloc_opaque_t *)</b>
@@ -1538,12 +1538,12 @@ is called by reiserfs_fs_open function in the initialization time.</p>
 
 <p>Create balanced tree on the specified filesystem. It composes the root block of the 
 tree, and stores it on "host_dal" device of given filesystem. Also allocates 
-reiserfs_tree_t instance and returns it to caller. This function is used durring 
+reiserfs_tree_t instance and returns it to caller. This function is used during 
 filesystem creation by reiserfs_fs_create function.</p>
 
 <b>void reiserfs_tree_t *reiserfs_tree_close(reiserfs_tree_t *tree)</b>
 
-<p>Frees all memory assosiated with tree.</p>
+<p>Frees all memory associated with tree.</p>
 
 <b>int reiserfs_tree_lookup_internal(reiserfs_tree_t *tree, blk_t from, <br>
 reiserfs_comp_func_t *comp_func, struct key *key, reiserfs_path_t *path)</b>
@@ -1557,7 +1557,7 @@ insert new formated node in it.</p>
 <b>int reiserfs_tree_lookup_leaf(reiserfs_tree_t *tree, blk_t from, <br>
 reiserfs_comp_func_t *comp_func, struct key *key, reiserfs_path_t *path)</b>
 
-<p>Makes looking up for specified key in the balanced tree. Stops serach on the found 
+<p>Makes looking up for specified key in the balanced tree. Stops search on the found 
 leaf node. Fills "path" by tracked path. For comparing keys in tree is used "comp_func" 
 callback function. Is used by tree modification routines in order to find the leaf in 
 the tree, and the position inside found leaf where we should insert new item. It is 
@@ -1589,12 +1589,12 @@ Returns result of operation: "true" on success or "false" on failure.</p>
 
 <b>int reiserfs_tree_delete_node(reiserfs_tree_t *tree, reiserfs_key_t *key)</b>
 
-<p>Remomes node by specified key from the tree. Returns result of operation: "true" on success 
+<p>Removes node by specified key from the tree. Returns result of operation: "true" on success 
 or "false" on failure.</p>
 
 <b>int reiserfs_tree_delete_item(reiserfs_tree_t *tree, reiserfs_key_t *key)</b>
 
-<p>Remomes item by specified key from the tree. Returns result of operation: "true" on success 
+<p>Removes item by specified key from the tree. Returns result of operation: "true" on success 
 or "false" on failure.</p>
 
 </td></tr></table>
@@ -1602,7 +1602,7 @@ or "false" on failure.</p>
 <h3>Plugins map.</h3>
 
 <table width=70%><tr><td align=justify>
-<p>Plugins map keeps correspondence between plugin's coords (KIND, ID) and library for 
+<p>Plugins map keeps correspondence between plugin's cords (KIND, ID) and library for 
 this plugin.</p>
 </td></tr></table>
 
@@ -1695,7 +1695,7 @@ For example: plug_id = 0x01, plug_kind = 0x01, file = libreiserfs_journal40.so</
 
 <b>const char plug_name[REISERFS_PLUG_MAX_NAME]</b>
 
-<p>Plugin name. For example, "journal40". Will be used to looking pluging up by its 
+<p>Plugin name. For example, "journal40". Will be used to looking plugin up by its 
 "plug_name".</p>
 
 <b>const char plug_desc[REISERFS_PLUG_MAX_DESC]</b>
@@ -1773,10 +1773,10 @@ error:
 }
 </pre>
 
-<p>As you can see loaded plugins are registering in the  plugin cashe.</p>
+<p>As you can see loaded plugins are registering in the  plugin cache.</p>
 
 <p>There will be set of functions (reiserfs_plugin_*) for
-working with plugins and plugins cashe.</p>
+working with plugins and plugins cache.</p>
 
 <b>int reiserfs_plug_register(reiserfs_plug_t *plug)</b>
 
@@ -1803,15 +1803,15 @@ loaded plugin in the cache.</p>
 <h3>Compact building.</h3>
 
 <table width=70%><tr><td align=justify>
-<p>As libreiserfs will be used by "alone" applications (some bootloaders), 
+<p>As libreiserfs will be used by "alone" applications (some boot-loaders), 
 we need a mechanism for building libreiserfs in "compact" maner needed by 
 bootloadeds.</p>
 
 <p>In compact building mode libreiserfs will contain: filesystem opening code, 
 file and directory access code. All modifying code (resizing, copying, tree 
-modifying, etc), block allocator code, oid allocator code will be skiped. 
+modifying, etc), block allocator code, oid allocator code will be skipped. 
 The acceptable size for libreiserfs built in compact maner and without libc code 
-should be about 10k. This numver was choosed as evarage filesystem-code size in
+should be about 10k. This number was choosed as evarage filesystem-code size in
 some bootloader. If our reiserfs code will take more than 10k then no one project
 will be using it.</p>
 
