@@ -1,10 +1,11 @@
 /* Copyright 2003 by Hans Reiser, licensing governed by
  * reiser4/README */
 
-#include "inode.h"
+#include "../inode.h"
+#include "../debug.h"
+
 #include "xattr.h"
 #include "plugin.h"
-#include "debug.h"
 
 #include <linux/xattr.h>
 
