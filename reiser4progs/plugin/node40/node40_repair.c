@@ -436,7 +436,6 @@ errno_t node40_item_legal(reiser4_entity_t *entity, reiser4_plugin_t *plugin) {
     } else if (level != NODE40_LEAF) 
 	return 0;
     
-
     return 1;
 }
 

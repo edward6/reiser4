@@ -429,7 +429,9 @@ static errno_t node40_cut(reiser4_entity_t *entity,
     return 0;
 }
 
-extern errno_t node40_check(reiser4_entity_t *entity, uint16_t options);
+extern errno_t node40_check(reiser4_entity_t *entity, 
+    uint16_t options);
+
 extern errno_t node40_item_legal(reiser4_entity_t *entity, 
     reiser4_plugin_t *plugin);
     
@@ -590,10 +592,12 @@ static reiser4_plugin_t node40_plugin = {
 	.paste		= node40_paste,
 	.cut		= node40_cut,
 	.check		= node40_check,
-	.item_legal	= node40_item_legal,
+
 	.set_key	= node40_set_key,
 	.set_level	= node40_set_level,
 	.set_stamp	= node40_set_stamp,
+	
+	.item_legal	= node40_item_legal,
 #else
 	.create		= NULL,
 	.insert		= NULL,
@@ -601,13 +605,16 @@ static reiser4_plugin_t node40_plugin = {
 	.paste		= NULL,
 	.cut		= NULL,
 	.check		= NULL,
+	
 	.set_key	= NULL,
 	.set_level	= NULL,
 	.set_stamp	= NULL,
+	
+	.item_legal	= NULL,
 #endif
 	.item_len	= node40_item_len,
 	.item_body	= node40_item_body,
-	.item_pid	= node40_item_pid,
+	.item_pid	= node40_item_pid
     }
 };
 
