@@ -221,26 +221,17 @@ write_mode how_to_write(coord_t * coord, lock_handle * lh UNUSED_ARG,
 	write_mode result;
 	ON_DEBUG(reiser4_key check);
 
-	result = zload(coord->node);
-	if (result)
-		return result;
+	assert("coord->node", znode_is_loaded(coord->node));
 
 	if (less_than_ldk(coord->node, key)) {
 		assert("vs-1014", get_key_offset(key) == 0);
 
 		coord_init_before_first_item(coord, coord->node);
-		/* FIXME-VS: BEFORE_ITEM should be fine, but node's
-		   lookup returns BEFORE_UNIT */
-		if (node_is_empty(coord->node))
-			coord->between = EMPTY_NODE;
-		else
-			coord->between = BEFORE_UNIT;
 		result = FIRST_ITEM;
 		goto ok;
 	}
 
 	if (!less_than_rdk(coord->node, key)) {
-		zrelse(coord->node);
 		return RESEARCH;
 	}
 		
@@ -249,7 +240,6 @@ write_mode how_to_write(coord_t * coord, lock_handle * lh UNUSED_ARG,
 		assert("vs-880", get_key_offset(key) == 0);
 		if (UNDER_SPIN(dk, current_tree, !keyeq(key, znode_get_ld_key(coord->node)))) {
 			/* this is possible when cbk_cache_search does eottl handling and returns not found */
-			zrelse(coord->node);
 			return RESEARCH;
 		}
 		assert("vs-1000", UNDER_SPIN(dk, current_tree, keylt(key, znode_get_rd_key(coord->node))));
@@ -261,7 +251,6 @@ write_mode how_to_write(coord_t * coord, lock_handle * lh UNUSED_ARG,
 	if (coord->item_pos >= node_num_items(coord->node)) {
 		printk("how_to_write: "
 		       "coord->item_pos is out of range: %u (%u)\n", coord->item_pos, node_num_items(coord->node));
-		zrelse(coord->node);
 		return RESEARCH;
 	}
 
@@ -297,7 +286,6 @@ write_mode how_to_write(coord_t * coord, lock_handle * lh UNUSED_ARG,
 	result = FIRST_ITEM;
 ok:
 	check_coord(coord, key);
-	zrelse(coord->node);
 	return result;
 }
 
