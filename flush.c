@@ -2526,7 +2526,9 @@ int flush_enqueue_unformatted (jnode *node, flush_position *pos)
 /* This is an I/O completion callback which is called after the result of a submit_bio has
  * completed.  Its task is to notify any waiters that are waiting, either for an
  * individual page or an atom (via the io_handle) which may be waiting to commit. */
-static int flush_bio_write (struct bio *bio, unsigned int bytes_done, int err)
+static int flush_bio_write (struct bio *bio, 
+			    unsigned int bytes_done UNUSED_ARG, 
+			    int err UNUSED_ARG)
 {
 	int i;
 
@@ -2667,7 +2669,7 @@ static int flush_empty_queue (flush_position *pos)
 				if ((WRITE_LOG && JF_ISSET (node, JNODE_OVRWR)) /* NOTE*** Wandered blocks should not enter the queue.  See the note above */ ||
 				    /*JF_ISSET (node, JNODE_FLUSH_BUSY) ||*/
 				    (*jnode_get_block (node) != *jnode_get_block (check) + nr) ||
-				    PageWriteback (npage)) {
+				    !npage || PageWriteback (npage)) {
 					unlock_page (npage);
 					break;
 				}
