@@ -127,10 +127,12 @@ struct reiser4_tree {
 	struct super_block  *super;
 };
 
-extern int init_tree( reiser4_tree *tree, struct super_block *super,
+extern void init_tree_0 (reiser4_tree *,
+			 struct super_block *,
+			 node_operations *);
+extern int init_tree( reiser4_tree *tree,
 		      const reiser4_block_nr *root_block,
-		      tree_level height, node_plugin *default_plugin,
-		      node_operations *tops20 );
+		      tree_level height, node_plugin *default_plugin);
 extern void done_tree( reiser4_tree *tree );
 
 /**

@@ -3109,9 +3109,9 @@ static int bash_mkfs (char * file_name)
 		/* initialize empty tree */
 		tree = &get_super_private( &super ) -> tree;
 		init_formatted_fake( &super );
-		result = init_tree( tree, &super, &root_block,
-				    1/*tree_height*/, node_plugin_by_id( NODE40_ID ),
-				    /*&mkfs_tops*/ &page_cache_tops);
+		init_tree_0( tree, &super, /*&mkfs_tops*/ &page_cache_tops);
+		result = init_tree( tree, &root_block,
+				    1/*tree_height*/, node_plugin_by_id( NODE40_ID ));
 
 		fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR );
 		root = allocate_znode( tree, fake, tree->height, &tree->root_block);

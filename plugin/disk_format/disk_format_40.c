@@ -144,10 +144,23 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	assert ("vs-475", s != NULL);
 	assert ("vs-474", get_super_private (s));
 
+	/* initialize reiser4_super_info_data */
+	private = get_super_private (s);
+
 	super_bh = find_a_disk_format_40_super_block (s);
 	if (IS_ERR (super_bh))
 		return PTR_ERR (super_bh);
 	brelse (super_bh);
+
+	init_tree_0(&private->tree, s, &page_cache_tops);
+
+	result = init_journal_info (s); /* map jnodes for journal control
+					    * blocks (header, footer) to
+					    * disk  */
+
+	if (result)
+		return result;
+	
 
 	/* ok, we are sure that filesystem format is a format_40 format */
 	result = reiser4_replay_journal (s);
@@ -157,9 +170,6 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	super_bh = read_super_block (s);
 	if (IS_ERR (super_bh))
 		return PTR_ERR (super_bh);
-
-	/* initialize reiser4_super_info_data */
-	private = get_super_private (s);
 
 	/* initialize part of reiser4_super_info_data specific to layout 40 */
 	sb_copy = &private->u.format_40.actual_sb;
@@ -196,8 +206,8 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	nplug = node_plugin_by_id (NODE40_ID);
 
 	/* init reiser4_tree for the filesystem */
-	result = init_tree (&private->tree, s, &root_block, height, nplug,
-			    &page_cache_tops);
+	result = init_tree (&private->tree, &root_block, height, nplug);
+
 	if (result)
 		return result;
 
@@ -219,13 +229,6 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	private->one_node_plugin = 1; /* all nodes in layout 40 are of one
 				       * plugin */
 
-	result = init_journal_info (s); /* map jnodes for journal control
-					    * blocks (header, footer) to
-					    * disk  */
-
-	if (result)
-		return result;
-	
 	/* FIXME-VS: maybe this should be dealt with in common code */
 	xmemset(&private->stats, 0, sizeof (reiser4_stat));
 	/* private->tmgr is initialized already */

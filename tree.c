@@ -1475,30 +1475,41 @@ int cut_tree (reiser4_tree * tree,
 	return result;
 }
 
+/* a first stage of reiser4 tree initialization which makes jload/jrelse
+ * functions working (it is needed for journal replaying ) */
+void init_tree_0( reiser4_tree *tree, 
+		  struct super_block * super,
+		  node_operations *tops)
+{
+	assert ("zam-585", tree != NULL);
+	assert( "nikita-2037", tops != NULL );
+	assert( "nikita-1099", tops -> read_node != NULL );
+	assert( "nikita-2043", super != NULL );
+
+	xmemset( tree, 0, sizeof (*tree));
+
+	tree->super = super;
+	tree->ops = tops;
+}
+
+/* finishing reiser4 initialization */
 int init_tree( reiser4_tree *tree /* pointer to structure being
 				   * initialized */, 
-	       struct super_block *super /* super block this tree is
-					  * associated with */,
 	       const reiser4_block_nr *root_block /* address of a root block
 						   * on a disk */,
 	       tree_level height /* height of a tree */, 
-	       node_plugin *nplug /* default node plugin */, 
-	       node_operations *tops /* tree operations */ )
+	       node_plugin *nplug /* default node plugin */ )
 {
 	assert( "nikita-306", tree != NULL );
-	assert( "nikita-2043", super != NULL );
 	assert( "nikita-307", root_block != NULL );
 	assert( "nikita-308", height > 0 );
 	assert( "nikita-309", nplug != NULL );
-	assert( "nikita-2037", tops != NULL );
-	assert( "nikita-1099", tops -> read_node != NULL );
+	assert( "zam-587", tree->super != NULL );
+	assert( "zam-588", tree->ops != NULL );
 
-	xmemset( tree, 0, sizeof *tree );
-	tree -> super = super;
 	tree -> root_block = *root_block;
 	tree -> height = height;
 	tree -> nplug = nplug;
-	tree -> ops = tops;
 	tree -> cbk_cache = reiser4_kmalloc( sizeof( cbk_cache ), GFP_KERNEL );
 	if( tree -> cbk_cache == NULL )
 		return -ENOMEM;

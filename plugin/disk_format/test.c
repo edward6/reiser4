@@ -80,9 +80,9 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	root_block = d64tocpu (&disk_sb->root_block);
 	height = d16tocpu (&disk_sb->tree_height);
 	assert ("vs-642", d16tocpu (&disk_sb->node_plugin) == NODE40_ID);
-	result = init_tree (&private->tree, s, &root_block, height, 
-			    node_plugin_by_id (NODE40_ID),
-			    &page_cache_tops);
+	init_tree_0(&private->tree, s, &page_cache_tops);
+	result = init_tree (&private->tree,  &root_block, height, 
+			    node_plugin_by_id (NODE40_ID));
 	if (result) {
 		brelse (super_bh);
 		return result;
