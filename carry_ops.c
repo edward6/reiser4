@@ -464,6 +464,7 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 			 * still no enough space?! May be there is enough
 			 * space in the source node now.
 			 */
+			ncoord_normalize( &coord_shadow );
 			ncoord_dup( op -> u.insert.d -> coord, 
 				    &coord_shadow );
 			node = op -> u.insert.d -> coord -> node;
