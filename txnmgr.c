@@ -1462,11 +1462,13 @@ void jnode_set_dirty( jnode *node )
 		spin_lock_tree (current_tree);
 		JZNODE (node)->version = ++ current_tree->znode_epoch;
 		spin_unlock_tree (current_tree);
-		/* the flush code sets a node dirty even though it is read locked... but
+		/* FIXME: This makes no sense, delete it, reenable nikita-1900:
+		 *
+		 * the flush code sets a node dirty even though it is read locked... but
 		 * it captures it first.  However, the new assertion (jmacd-9777) seems to
 		 * contradict the statement above, that a node is captured before being
 		 * captured.  Perhaps that is no longer true. */
-		/*assert ("nikita-1900", znode_is_write_locked (JZNODE (node)));*/
+		assert ("nikita-1900", znode_is_write_locked (JZNODE (node)));
 		assert ("jmacd-9777", node->atom != NULL && znode_is_any_locked (JZNODE (node)));
 	}
 
