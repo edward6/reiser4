@@ -134,6 +134,7 @@ lock_counters(void)
 	assert("jmacd-1123", ctx != NULL);
 	return &ctx->locks;
 }
+
 #if REISER4_DEBUG_OUTPUT
 void
 print_lock_counters(const char *prefix, const lock_counters_info * info)
@@ -177,9 +178,6 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 	       info->inode_sem_r, info->inode_sem_w,
 	       info->d_refs, info->x_refs, info->t_refs);
 }
-/* REISER4_DEBUG_OUTPUT */
-#endif
-
 
 int
 no_counters_are_held(void)
@@ -227,6 +225,9 @@ commit_check_locks(void)
 	counters->inode_sem_w = inode_sem_w;
 	return result;
 }
+
+/* REISER4_DEBUG_OUTPUT */
+#endif
 
 /* REISER4_DEBUG_SPIN_LOCKS */
 #endif
