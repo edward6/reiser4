@@ -896,17 +896,17 @@ int longterm_lock_znode (
 
 	spin_unlock_znode(node);
 
-	if (ret == 0 && ! znode_above_root (node)) {
-		/* FIXME: This is a short-term kludge.  zload() and zrelse()
-		 * automatically.  Flush was hitting this... */
-		ret = zload (node);
-	}
-
 	if (ret == 0) {
 		/* count a reference from lockhandle->node */
 		zref (node);
 
 		ON_DEBUG(++ lock_counters()->long_term_locked_znode);
+	}
+
+	if (ret == 0 && ! znode_above_root (node)) {
+		/* FIXME: This is a short-term kludge.  zload() and zrelse()
+		 * automatically.  Flush was hitting this... */
+		ret = zload (node);
 	}
 
 	return ret;
