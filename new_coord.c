@@ -1036,7 +1036,6 @@ void tcoord_to_ncoord (new_coord *ncoord, const new_coord *tcoord)
 	assert ("jmacd-5112", ncoord->item_pos < items);
 	assert ("jmacd-5113", ncoord->unit_pos <= ncoord_last_unit_pos (ncoord));
 }
-*/
 
 /*item_plugin* item_plugin_by_ncoord (const new_coord *ncoord)
 {

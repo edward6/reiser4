@@ -98,8 +98,8 @@ znode *add_tree_root( znode *old_root /* existing tree root */,
 	int           result;
 
 	assert( "nikita-1069", old_root != NULL );
-	assetr( "umka-262", fake != NULL );
-	assetr( "umka-263", tree != NULL );
+	assert( "umka-262", fake != NULL );
+	assert( "umka-263", tree != NULL );
 
 	/*
 	 * "fake" znode---one always hanging just above current root. This
