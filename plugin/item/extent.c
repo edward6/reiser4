@@ -2674,6 +2674,7 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 
 	ext = extent_item (right);
 	for (; right->unit_pos < coord_num_units (right); right->unit_pos ++, ext ++) {
+		trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: unit %u/%u\n", right->unit_pos, coord_num_units (right));
 		if (!extent_needs_allocation (ext, flush_pos_hint (flush_pos))) {
 			/*
 			 * unit does not require allocation, copy this unit as
@@ -2687,6 +2688,7 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 				 * for this unit
 				 */
 				result = SQUEEZE_TARGET_FULL;
+				trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: target full, !needs_allocation\n");
 				goto done;
 			}
 			/*
@@ -2713,6 +2715,8 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 			if (result) {
 				return result;
 			}
+
+			trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: to_allocate = %llu got %llu\n", to_allocate, allocated);
 
 			to_allocate -= allocated;
 
@@ -2756,6 +2760,7 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 				 */
 				free_blocks (first_allocated, allocated);
 				result = SQUEEZE_TARGET_FULL;
+				trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: target full, to_allocate = %llu\n", to_allocate);
 				goto done;
 			}
 			/*

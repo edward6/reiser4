@@ -219,6 +219,10 @@ typedef enum {
 	 */
 	TRACE_PCACHE      =    (1 << 13),     /* 0x00002000 */
 	/*
+	 * trace extents
+	 */
+	TRACE_EXTENTS     =    (1 << 14),     /* 0x00004000 */
+	/*
 	 * vague section: used to trace bugs. Use it to issue optional prints
 	 * at arbitrary points of code.
 	 */

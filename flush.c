@@ -866,10 +866,10 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		/* If positioned over a formatted node, then the preceding
 		 * get_utmost_if_dirty would have succeeded if it were in memory. */
 		if (item_is_internal (& pos->parent_coord)) {
+			trace_on (TRACE_FLUSH, "sq_changed_ancestors stop at twig, next is internal: %s\n", flush_pos_tostring (pos));
 		stop_at_twig:
-			trace_on (TRACE_FLUSH, "sq_changed_ancestors stop at twig: %s\n", flush_pos_tostring (pos));
-
 			/* We are leaving twig now, enqueue it if allocated. */
+			/* FIXME: This is failing sometimes... */
 			if (znode_check_dirty (node) && (ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
 				goto exit;
 			}
@@ -886,7 +886,10 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 			goto exit;
 		}
 
-		if (! is_dirty) { goto stop_at_twig; }
+		if (! is_dirty) {
+			trace_on (TRACE_FLUSH, "sq_changed_ancestors stop at twig, child not dirty: %s\n", flush_pos_tostring (pos));
+			goto stop_at_twig;
+		}
 
 		ret = 0;
 		goto exit;
@@ -1202,6 +1205,8 @@ static int squalloc_right_twig (znode    *left,
 		trace_if (TRACE_FLUSH, print_znode_content (right, ~0u));
 	}
 
+	if (ret == SQUEEZE_TARGET_FULL) { goto out; }
+
 	if (node_is_empty (right)) {
 		/* The whole right node was copied into @left. */
 		trace_on (TRACE_FLUSH, "sq_right_neighbor right node %p is empty: %s\n", right, flush_pos_tostring (pos));
@@ -1224,7 +1229,6 @@ static int squalloc_right_twig (znode    *left,
 	ret = shift_one_internal_unit (left, right);
 
 out:
-	/*if (left == pos->parent_coord.node) { coord_set_to_right (& pos->parent_coord); }*/
 	assert ("jmacd-8612", ret < 0 || ret == SQUEEZE_TARGET_FULL || ret == SUBTREE_MOVED || ret == SQUEEZE_SOURCE_EMPTY);
 	return ret;
 }
