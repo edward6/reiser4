@@ -105,7 +105,7 @@ PREFIX##_hash_init (PREFIX##_hash_table *hash,						\
 static __inline__ void									\
 PREFIX##_hash_done (PREFIX##_hash_table *hash)						\
 {											\
-  if (REISER4_DEBUG) {                                                                  \
+  if (REISER4_DEBUG && hash->_table != NULL) {                                          \
 	    __u32 i;                                                                    \
 	    for (i = 0 ; i < hash->_buckets ; ++ i)                                     \
 		    assert("nikita-2905", hash->_table[i] == NULL);                     \
