@@ -608,17 +608,6 @@ static int reiser4_writepages_nofile (
 	return 0;
 }
 
-static int reiser4_writepage_nofile (
-	struct page * page, struct writeback_control * wbc)
-{
-	/* no actual work */
-	SetPageDirty(page);
-	inc_page_state(nr_dirty);
-	unlock_page(page);
-
-	return 0;
-}
-
 /*
  * reiser4 methods for VM
  */
@@ -662,7 +651,7 @@ struct address_space_operations reiser4_as_operations = {
 
 struct address_space_operations reiser4_as_ops_nofile = {
 	.writepages = reiser4_writepages_nofile,
-	.writepage  = reiser4_writepage_nofile
+	.writepage  = reiser4_writepage
 }; 
 
 /* Make Linus happy.
