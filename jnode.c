@@ -135,7 +135,7 @@ void
 jnode_init (jnode *node)
 {
 	assert("umka-175", node != NULL);
-	
+
 	memset (node, 0, sizeof (jnode));
 	node->state = 0;
 	atomic_set (&node->d_count, 0);
@@ -144,11 +144,12 @@ jnode_init (jnode *node)
 	node->atom = NULL;
 	capture_list_clean (node);
 
-#if REISER4_DEBUG
-	UNDER_SPIN_VOID (tree, current_tree,
+	if (REISER4_DEBUG)
+		UNDER_SPIN_VOID 
+			(tree, current_tree,
 			 list_add (&node->jnodes, 
 				   &get_current_super_private()->all_jnodes));
-#endif
+
 }
 
 #define jprivate( page ) ( ( jnode * ) ( page ) -> private )
