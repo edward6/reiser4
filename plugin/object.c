@@ -1156,7 +1156,6 @@ reiser4_internal int prepare_write_common (
 	int result;
 	file_plugin *fplug;
 	struct inode *inode;
-	reiser4_context ctx;
 
 	assert("umka-3099", file != NULL);
 	assert("umka-3100", page != NULL);
@@ -1166,20 +1165,20 @@ reiser4_internal int prepare_write_common (
 		return 0;
 
 	inode = page->mapping->host;
-	init_context(&ctx, inode->i_sb);
 	fplug = inode_file_plugin(inode);
 	
-	if (fplug->readpage != NULL)
-		result = fplug->readpage(file, page);
-	else
-		result = RETERR(-EINVAL);
-	
+	if (fplug->readpage == NULL)
+		return RETERR(-EINVAL);
+
+	result = fplug->readpage(file, page);
 	if (result != 0) {
 		SetPageError(page);
 		ClearPageUptodate(page);
-		/* here we do not unlock the page, as loop back device driver
-		   expects it will be locked after ->prepare_write()
-		   finish. */
+		/* All reiser4 readpage() implementations should unlock the page
+		 * in case of error, we have to lock the page again becuse the
+		 * loop back driver expects it be locked after ->prepare_write()
+		 * finishes. */
+		lock_page(page);
 	} else {
 		/*
 		 * ->readpage() either:
@@ -1200,7 +1199,6 @@ reiser4_internal int prepare_write_common (
 			result = RETERR(-EIO);
 	}
 	assert("umka-3098", PageLocked(page));
-	reiser4_exit_context(&ctx);
 	return result;
 }
 
