@@ -632,7 +632,7 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 	reserved += plugin -> u.file.estimate.create( data );
 	/* if addition of new entry to the parent fails, we have to
 	   remove stat-data just created, prepare for this. */
-	reserved += plugin -> u.file.estimate.delete( object );
+	reserved += plugin -> u.file.estimate.destroy( object );
 
 	result = txn_reserve( reserved );
 	if( result == 0 ) {
@@ -661,12 +661,12 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 			result = fplug -> add_entry( parent, dentry,
 							     data, &entry );
 			if( result != 0 ) {
-				if( plugin -> u.file.delete != NULL )
+				if( plugin -> u.file.destroy != NULL )
 					/*
 					 * failure to create entry,
 					 * remove object
 					 */
-					plugin -> u.file.delete( object, parent );
+					plugin -> u.file.destroy( object, parent );
 				else {
 					warning( "nikita-1164",
 						 "Cannot cleanup failed create: %i"
@@ -826,7 +826,7 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 		assert( "nikita-871", object -> i_nlink == 1 );
 		assert( "nikita-873", atomic_read( &object -> i_count ) == 1 );
 		assert( "nikita-872", object -> i_size == 0 );
-		reserved += fplug -> estimate.delete( object );
+		reserved += fplug -> estimate.destroy( object );
 		uf_type = UNLINK_BY_DELETE;
 	} else if( fplug -> add_link ) {
 		/* call plugin to do actual removal of link */
@@ -846,7 +846,7 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 	if( result == 0 ) {
 		switch( uf_type ) {
 		case UNLINK_BY_DELETE:
-			result = fplug -> delete( object, parent );
+			result = fplug -> destroy( object, parent );
 			break;
 		case UNLINK_BY_PLUGIN:
 			result = fplug -> rem_link( object );
@@ -977,7 +977,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 					.add         = 0,
 					.rem         = 0,
 					.create      = reserve_one_balance,
-					.delete      = __reserve_one_balance,
+					.destroy     = __reserve_one_balance,
 					.add_link    = __reserve_one_page,
 					.rem_link    = __reserve_one_page,
 					.save        = __reserve_one_balance
@@ -986,7 +986,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.create              = ordinary_file_create,
 				.unlink              = NULL,
 				.link                = NULL,
-				.delete              = common_file_delete,
+				.destroy             = common_file_delete,
 				.add_entry           = NULL,
 				.rem_entry           = NULL,
 				.add_link            = NULL,
@@ -1030,7 +1030,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 					.add         = __reserve_one_balance,
 					.rem         = __reserve_one_balance,
 					.create      = reserve_one_balance,
-					.delete      = __reserve_one_balance,
+					.destroy     = __reserve_one_balance,
 					.add_link    = __reserve_one_page,
 					.rem_link    = __reserve_one_page,
 					.save        = __reserve_one_balance
@@ -1039,7 +1039,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.create              = hashed_create,
 				.unlink              = common_unlink,
 				.link                = common_link,
-				.delete              = hashed_delete,
+				.destroy             = hashed_delete,
 				.add_entry           = hashed_add_entry,
 				.rem_entry           = hashed_rem_entry,
 				.add_link            = NULL,
@@ -1087,7 +1087,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 					.add         = 0,
 					.rem         = 0,
 					.create      = reserve_one_balance,
-					.delete      = __reserve_one_balance,
+					.destroy     = __reserve_one_balance,
 					.add_link    = __reserve_one_page,
 					.rem_link    = __reserve_one_page,
 					.save        = __reserve_one_balance
@@ -1096,7 +1096,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.create              = ordinary_file_create,
 				.unlink              = NULL,
 				.link                = NULL,
-				.delete              = common_file_delete,
+				.destroy             = common_file_delete,
 				.add_entry           = NULL,
 				.rem_entry           = NULL,
 				.add_link            = NULL,
@@ -1140,7 +1140,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 					.add         = 0,
 					.rem         = 0,
 					.create      = reserve_one_balance,
-					.delete      = __reserve_one_balance,
+					.destroy     = __reserve_one_balance,
 					.add_link    = __reserve_one_page,
 					.rem_link    = __reserve_one_page,
 					.save        = __reserve_one_balance
@@ -1149,7 +1149,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.create              = ordinary_file_create,
 				.unlink              = NULL,
 				.link                = NULL,
-				.delete              = common_file_delete,
+				.destroy             = common_file_delete,
 				.add_entry           = NULL,
 				.rem_entry           = NULL,
 				.add_link            = NULL,
