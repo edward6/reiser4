@@ -4,13 +4,7 @@
 
 #include "reiser4.h"
 
-unsigned num_items (const znode * node)
-{
-	return node_plugin_by_node (node)->num_of_items (node);
-}
-
-
-unsigned num_units (const tree_coord * coord)
+unsigned coord_num_units (const tree_coord * coord)
 {
 	assert ("vs-276", coord_of_item (coord));
 	return item_plugin_by_coord (coord)->b.nr_units (coord);
@@ -18,7 +12,7 @@ unsigned num_units (const tree_coord * coord)
 
 unsigned last_unit_pos (const tree_coord * coord)
 {
-	return num_units (coord) - 1;
+	return coord_num_units (coord) - 1;
 }
 
 
@@ -33,7 +27,7 @@ int coord_correct (const tree_coord * coord)
 		/**/
 		return 0;
 
-	if (coord->item_pos > num_items (coord->node))
+	if (coord->item_pos > node_num_items (coord->node))
 		/* position within a node is out of range */
 		return 0;
 
@@ -43,7 +37,7 @@ int coord_correct (const tree_coord * coord)
 			return 0;
 		return 1;
 	}
-	if (coord->item_pos == num_items (coord->node)) {
+	if (coord->item_pos == node_num_items (coord->node)) {
 		if (coord->unit_pos != 0)
 			/* position within an not-existing item is not 0 */
 			return 0;
@@ -51,10 +45,10 @@ int coord_correct (const tree_coord * coord)
 	}
 
 	/* coord is set to an existing item */
-	if (coord->unit_pos > num_units (coord))
+	if (coord->unit_pos > coord_num_units (coord))
 		/* position within an item is out of range */
 		return 0;
-	else if (coord->unit_pos == num_units (coord) && 
+	else if (coord->unit_pos == coord_num_units (coord) && 
 		 coord->between != BEFORE_UNIT)
 		return 0;
 	return 1;
@@ -65,7 +59,7 @@ int coord_correct (const tree_coord * coord)
    @coord->node */
 int coord_of_item (const tree_coord * coord)
 {
-	return coord->item_pos < num_items (coord->node);
+	return coord->item_pos < node_num_items (coord->node);
 }
 
 
@@ -77,7 +71,7 @@ int coord_of_unit (const tree_coord * coord)
 		return 0;
 	if (node_is_empty (coord->node))
 		return 0;
-	if (coord->item_pos >= num_items (coord->node))
+	if (coord->item_pos >= node_num_items (coord->node))
 		return 0;
 	if (coord->unit_pos > last_unit_pos (coord))
 		return 0;
@@ -103,7 +97,7 @@ int coord_is_in_node( const tree_coord *coord )
 	pos = coord -> item_pos;
 	unit = coord -> unit_pos;
 	tweenness = coord -> between;
-	items = num_items( coord -> node );
+	items = node_num_items( coord -> node );
 	if( coord_of_item( coord ) )
 		units = last_unit_pos( coord ) + 1;
 	else
@@ -174,20 +168,24 @@ void coord_first_item_unit (tree_coord * coord)
 /*
  * set coord to first unit within a node
  */
-void coord_first_unit (tree_coord * coord)
+void coord_first_unit (tree_coord * coord, znode *node)
 {
+	if (node != NULL) { coord->node = node; }
 	coord->item_pos = 0;
 	coord_first_item_unit (coord);
 }
 
 
-void coord_last_unit (tree_coord * coord)
+void coord_last_unit (tree_coord * coord, znode *node)
 {
+	if (node != NULL) { coord->node = node; }
+
 	if (node_is_empty (coord->node)) {
-		coord_first_unit (coord);
+		coord_first_unit (coord, node);
 		return;
 	}
-	coord->item_pos = num_items (coord->node) - 1;
+
+	coord->item_pos = node_num_items (coord->node) - 1;
 	coord->unit_pos = last_unit_pos (coord);
 	coord->between = AT_UNIT;
 }
@@ -201,7 +199,7 @@ int coord_next_item (tree_coord * coord)
 	assert ("vs-427", coord_correct (coord));
 	assert ("vs-428", coord_of_unit (coord));
 
-	if (coord->item_pos >= num_items (coord->node) - 1)
+	if (coord->item_pos >= node_num_items (coord->node) - 1)
 		return 0;
 	coord->item_pos ++;
 	coord_first_item_unit (coord);
@@ -238,7 +236,7 @@ int coord_between_items (const tree_coord * coord)
 /* return 1 if @coord is set after last unit within @coord->node */
 int coord_after_last (const tree_coord * coord)
 {
-	if (coord->item_pos == num_items (coord->node))
+	if (coord->item_pos == node_num_items (coord->node))
 		return 1;
 	if (coord_is_rightmost(coord) && coord->between == AFTER_UNIT)
 		return 1;
@@ -257,8 +255,8 @@ int left_item_pos (const tree_coord * coord)
 	if ((coord->item_pos == 0) &&
 	    (coord->between != AFTER_UNIT) && (coord->between != AFTER_ITEM))
 		return -1;
-	if (coord->item_pos == num_items (coord->node))
-		return num_items (coord->node) - 1;
+	if (coord->item_pos == node_num_items (coord->node))
+		return node_num_items (coord->node) - 1;
 
 	if ((coord->unit_pos == last_unit_pos (coord) &&
 	     coord->between == AFTER_UNIT) ||
@@ -305,7 +303,7 @@ unsigned right_item_pos (const tree_coord * coord)
 	assert ("vs-198", !node_is_empty (coord->node));
 	assert ("vs-153", coord_between_items (coord) == 1);
 
-	if (coord->item_pos > num_items (coord->node) - 1)
+	if (coord->item_pos > node_num_items (coord->node) - 1)
 		return coord->item_pos;
 	if ((coord->unit_pos == 0 && coord->between == BEFORE_UNIT) ||
 	    coord->between == BEFORE_ITEM)
@@ -314,7 +312,7 @@ unsigned right_item_pos (const tree_coord * coord)
 	assert ("vs-160",
 		(coord->unit_pos == last_unit_pos (coord) &&
 		 coord->between == AFTER_UNIT) ||
-		(coord->unit_pos == num_units (coord) &&
+		(coord->unit_pos == coord_num_units (coord) &&
 		 coord->between == BEFORE_UNIT) ||
 		coord->between == AFTER_ITEM);
 	
@@ -332,7 +330,7 @@ int coord_set_to_right (tree_coord * coord)
 	if (node_is_empty (coord->node))
 		return 1;
 	else if (coord_between_items (coord)) {
-		if (right_item_pos (coord) + 1 > num_items (coord->node))
+		if (right_item_pos (coord) + 1 > node_num_items (coord->node))
 			/* there is no units on the right of @coord */
 			return 1;
 		coord->item_pos = right_item_pos (coord);
@@ -409,7 +407,7 @@ int coord_is_rightmost( const tree_coord *coord )
 {
 	assert( "nikita-1091", coord != NULL );
 	return 
-		( coord -> item_pos + 1u == num_items( coord -> node ) ) && 
+		( coord -> item_pos + 1u == node_num_items( coord -> node ) ) && 
 		( coord -> unit_pos == last_unit_pos( coord ) );
 }
 
@@ -469,7 +467,7 @@ coord_wrt_node coord_wrt( const tree_coord *coord )
 			return COORD_ON_THE_RIGHT;
 		if( left_item_pos( coord ) == -1 )
 			return COORD_ON_THE_LEFT;
-		if( right_item_pos( coord ) >= num_items( coord -> node ) )
+		if( right_item_pos( coord ) >= node_num_items( coord -> node ) )
 			return COORD_ON_THE_RIGHT;
 	}
 	return COORD_INSIDE;
