@@ -1359,10 +1359,7 @@ set_preceder(const coord_t * coord_in, flush_pos_t * pos)
 		coord_init_last_unit(&coord, left_lock.node);
 	}
 
-	if ((ret = item_utmost_child_real_block(&coord, RIGHT_SIDE, &pos->preceder.blk))) {
-		goto exit;
-	}
-
+	ret = item_utmost_child_real_block(&coord, RIGHT_SIDE, &pos->preceder.blk);
 exit:
 	check_preceder(pos->preceder.blk);
 	done_load_count(&left_load);
