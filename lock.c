@@ -975,6 +975,7 @@ invalidate_lock(lock_handle * handle	/* path to lock
 	assert("nikita-1393", !ZF_ISSET(node, JNODE_LEFT_CONNECTED));
 	assert("nikita-1793", !ZF_ISSET(node, JNODE_RIGHT_CONNECTED));
 	assert("nikita-1394", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
+	assert("nikita-3097", znode_is_wlocked_once(node));
 
 	if (handle->signaled)
 		atomic_dec(&owner->nr_signaled);
