@@ -390,6 +390,41 @@ int page_io( struct page *page, int rw, int gfp )
 	REISER4_EXIT( result );
 }
 
+#define page_flag_name( page, flag )			\
+	( test_bit( ( flag ), &( page ) -> flags ) ? ((#flag ## "|")+3) : "" )
+
+void __tmp_print_page( struct page *page )
+{
+	if( page == NULL ) {
+		info( "null page\n" );
+		return;
+	}
+	info( "page index: %lu virtual: %p mapping: %p count: %i private: %lx kmap_count %d\n",
+	      page -> index, page -> virtual, page -> mapping, page -> count,
+	      page -> private, page -> kmap_count );
+	info( "flags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s%s\n",
+	      page_flag_name( page,  PG_locked ),
+	      page_flag_name( page,  PG_error ),
+	      page_flag_name( page,  PG_referenced ),
+	      page_flag_name( page,  PG_uptodate ),
+
+	      page_flag_name( page,  PG_dirty_dontuse ),
+	      page_flag_name( page,  PG_lru ),
+	      page_flag_name( page,  PG_active ),
+	      page_flag_name( page,  PG_slab ),
+
+	      page_flag_name( page,  PG_highmem ),
+	      page_flag_name( page,  PG_checked ),
+	      page_flag_name( page,  PG_arch_1 ),
+	      page_flag_name( page,  PG_reserved ),
+
+	      page_flag_name( page,  PG_private ),
+	      page_flag_name( page,  PG_writeback ),
+	      page_flag_name( page,  PG_nosave ),
+	      page_flag_name( page,  PG_kmapped ) );
+}
+
+
 /** helper function to construct bio for page */
 static struct bio *page_bio( struct page *page, int gfp )
 {
@@ -418,11 +453,9 @@ static struct bio *page_bio( struct page *page, int gfp )
 		int                 blksz;
 		struct super_block *super;
 
-		trace_on( TRACE_BUG, "page: index: %lu, ino: %li, private: %p",
-			  page -> index, page -> mapping -> host -> i_ino,
-			  jprivate( page ) );
 		trace_if( TRACE_BUG, 
 			  info_jnode( "page", ( jnode * ) page -> index ) );
+		trace_if( TRACE_BUG, __tmp_print_page( page ) );
 
 		assert( "nikita-2026", jprivate( page ) != NULL );
 		node = jprivate( page );
