@@ -434,25 +434,6 @@ static tail_write_todo tail_what_todo (struct inode * inode, coord_t * coord,
 
 
 	assert ("vs-860", znode_is_loaded (coord->node));
-#if 0
-	if (!znode_contains_key_lock (coord->node, key)) {
-		
-		if (coord_is_before_leftmost (coord)) {
-			/*
-			 * we are in leaf node. Its left neighbor is unformatted node.
-			 */
-			assert ("vs-684", UNDER_SPIN 
-				(tree, tree_by_inode (inode),
-				 znode_is_left_connected (coord->node) && coord->node->left == 0));
-			if (get_key_offset (key) == 0)
-				return TAIL_FIRST_ITEM;
-			else
-				return TAIL_CREATE_HOLE;
-		}
-		return TAIL_RESEARCH;
-	}
-
-#endif
 	if (!coord_set_properly (key, coord)) {
 		return TAIL_RESEARCH;
 	}
@@ -463,29 +444,6 @@ static tail_write_todo tail_what_todo (struct inode * inode, coord_t * coord,
 	}
 
 	return TAIL_WRITE_FLOW;
-#if 0
-	if (coord->between == AFTER_ITEM) {
-		if (get_key_offset (key) == 0)
-			return TAIL_FIRST_ITEM;
-		else
-			return TAIL_CREATE_HOLE;
-	}
-	if (coord->between == EMPTY_NODE) {
-		assert ("vs-806", node_is_empty (coord->node));
-		if (get_key_offset (key) == 0)
-			return TAIL_FIRST_ITEM;
-		else
-			return TAIL_CREATE_HOLE;
-	}
-
-	assert ("vs-804", coord->between == AFTER_UNIT);
-	assert ("vs-805", coord->unit_pos == (unsigned)item_length_by_coord (coord) - 1);
-
-	
-	if (get_key_offset (key) == get_key_offset (tail_max_key (coord, &item_key)) + 1)
-		return TAIL_APPEND;
-	return TAIL_APPEND_HOLE;
-#endif
 }
 
 
