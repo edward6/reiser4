@@ -80,7 +80,7 @@ cut_formatting_items(struct inode *inode, loff_t offset, int count)
 	set_key_offset(&to, (__u64) (offset + count - 1));
 
 	/* cut everything between those keys */
-	return cut_tree(tree_by_inode(inode), &from, &to, NULL);
+	return cut_tree(tree_by_inode(inode), &from, &to, inode);
 }
 
 typedef enum {
