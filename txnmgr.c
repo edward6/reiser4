@@ -2456,8 +2456,9 @@ uncapture_page(struct page *pg)
 
 	spin_unlock(&pg->mapping->page_lock);
 
-	node = (jnode *) (pg->private);
+	reiser4_wait_page_writeback(pg);
 
+	node = (jnode *) (pg->private);
 	if (node == NULL)
 		return;
 
@@ -2467,7 +2468,6 @@ uncapture_page(struct page *pg)
 	/*assert ("zam-815", !JF_ISSET(node, JNODE_EFLUSH));*/
 
 	atom = jnode_get_atom(node);
-
 	if (atom == NULL) {
 		assert("jmacd-7111", !jnode_is_dirty(node));
 		UNLOCK_JNODE (node);
@@ -2500,7 +2500,7 @@ uncapture_page(struct page *pg)
 		/*
 		 * page may has been detached by ->writepage()->releasepage().
 		 */
-		wait_on_page_writeback(pg);
+		reiser4_wait_page_writeback(pg);
 		LOCK_JNODE(node);
 		eflush_del(node, 1);
 		page_cache_release(pg);
