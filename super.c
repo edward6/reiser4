@@ -9,6 +9,9 @@
 #include "reiser4.h"
 
 const __u32 REISER4_SUPER_MAGIC = 0x52345362; /* (*(__u32 *)"R4Sb"); */
+const char *REISER4_SUPER_MAGIC_STRING = "R4Sb";
+const int REISER4_MAGIC_OFFSET = 16 * 4096; /* offset to magic string from the
+					     * beginning of device */
 
 static __u64 reserved_for_gid( const struct super_block *super, gid_t gid );
 static __u64 reserved_for_uid( const struct super_block *super, uid_t uid );
@@ -20,7 +23,7 @@ static __u64 reserved_for_root( const struct super_block *super );
 reiser4_super_info_data *
 get_super_private_nocheck( const struct super_block *super )
 {
-	return ( reiser4_super_info_data * )&super -> u.reiser4_sb;
+	return ( reiser4_super_info_data * )super -> u.generic_sbp;
 }
 
 /**
@@ -29,13 +32,14 @@ get_super_private_nocheck( const struct super_block *super )
 reiser4_super_info_data *get_super_private( const struct super_block *super )
 {
 	assert( "nikita-447", super != NULL );
-	/* If you got compilation error at this point, go to the
-	   include/linux/reiser4_sb.h and increase
-	   REISER4_STUB_SUPER_INFO_LENGTH */
-	cassert( sizeof( reiser4_super_info_data ) <= 
-		 sizeof( struct reiser4_sb_info ) );
-	return ( reiser4_super_info_data * )&super -> u.reiser4_sb;
+	return ( reiser4_super_info_data * )super -> u.generic_sbp;
 }
+
+
+layout_plugin *get_layout_plugin()
+{
+}
+
 
 /**
  * Return reiser4 fstype: value that is returned in ->f_type field by statfs()
@@ -99,6 +103,7 @@ long reiser4_reserved_blocks( const struct super_block *super,
 	return reserved;
 }
 
+#if 0
 /**
  * objectid allocator used by this file system
  */
@@ -108,7 +113,7 @@ reiser4_oid_allocator_t *reiser4_get_oid_allocator( const struct super_block *su
 	assert( "nikita-459", is_reiser4_super( super ) );
 	return &get_super_private( super ) -> allocator;
 }
-
+#endif
 /**
  * return fake inode used to bind formatted nodes in the page cache
  */
@@ -235,6 +240,98 @@ int reiser4_init_tree( reiser4_tree *tree /* pointer to structure being
 
 	return znodes_tree_init( tree );
 }
+
+
+/* get layout plugin by plugin id if master_sb != 0, call guess method for all
+ * layout plugins available otherwise */
+static layout_plugin * find_layout_plugin (struct super_block * s UNUSED_ARG,
+					   struct reiser4_master_sb * master_sb,
+					   struct buffer_head ** super_bh UNUSED_ARG)
+{
+	__u16 plugin_id;
+
+	if (!master_sb) {
+		/* FIXME-VS: call guess method for all available layout plugins */
+		return ERR_PTR (-EINVAL);
+	} else {
+		plugin_id = d16tocpu (&master_sb->disk_plugin_id);
+		/* only one plugin is available for now */
+		assert ("vs-476", plugin_id == LAYOUT_40_ID);
+	}
+
+	return layout_plugin_by_id (plugin_id);
+}
+
+
+static int reiser4_fill_super (struct super_block * s, void * data UNUSED_ARG,
+			       int silent UNUSED_ARG)
+{
+	struct buffer_head * super_bh;
+	struct reiser4_master_sb * master_sb;
+	layout_plugin * lplug;
+	struct inode * inode;
+	int result;
+
+
+ read_super_block:
+	/* look for reiser4 magic at hardcoded place */
+	super_bh = sb_bread (s, (int)(REISER4_MAGIC_OFFSET / s->s_blocksize));
+	if (!super_bh)
+		return -EIO;
+	
+	master_sb = (struct reiser4_master_sb *)super_bh->b_data;
+	/* check reiser4 magic string */
+	if (!strncmp (master_sb->magic, REISER4_SUPER_MAGIC_STRING, 4)) {
+		/* reset block size if it is not a right one */
+		if (d16tocpu (&master_sb->blocksize) != s->s_blocksize) {
+			brelse (super_bh);
+			if (!sb_set_blocksize (s, d16tocpu (&master_sb->blocksize)))
+				return -EINVAL;
+			goto read_super_block;
+		}
+	} else {
+		/* no standard reiser4 super block found */
+		brelse (super_bh);
+		master_sb = 0;
+		super_bh = 0;
+	}
+
+	lplug = find_layout_plugin (s, master_sb, &super_bh);
+	if (IS_ERR (lplug)) {
+		brelse (super_bh);
+		return -EINVAL;
+	}
+
+	s->s_op = &reiser4_super_operations;
+
+	/* this is common for every disk layout. It has a pointer where layout
+	 * specific part of info can be attached to, though */
+	s->u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
+				    GFP_KERNEL);
+	if (!s->u.generic_sbp) {
+		brelse (super_bh);
+		return -ENOMEM;
+	}
+	memset (s->u.generic_sbp, 0, sizeof (reiser4_super_info_data));
+
+	((reiser4_super_info_data *)(s->u.generic_sbp))->lplug = lplug;
+ 
+	/* call disk format plugin method to do all the preparations like
+	 * journal replay, super_info_data initialization, etc */
+	result = lplug->get_ready (s, get_super_private (s), super_bh);
+	if (result)
+		return result;
+
+	inode = reiser4_iget (s, lplug->root_dir_key ());
+	/* allocate dentry for root inode, It works with inode == 0 */
+	s->s_root = d_alloc_root (inode);
+	if (!s->s_root) {
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 
 /* 
  * Make Linus happy.
