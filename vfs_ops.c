@@ -327,7 +327,8 @@ reiser4_get_file_fsdata(struct file *f	/* file
 		if (fsdata == NULL)
 			return ERR_PTR(RETERR(-ENOMEM));
 		xmemset(fsdata, 0, sizeof *fsdata);
-
+		fsdata->ra.max_window_size = VM_MAX_READAHEAD * 1024;
+		
 		inode = f->f_dentry->d_inode;
 		spin_lock_inode(inode);
 		if (f->private_data == NULL) {
