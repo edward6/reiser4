@@ -171,7 +171,7 @@
 
 #define ON_DEBUG( exp ) exp
 
-extern int schedulable (void);
+extern int schedulable(void);
 
 #else
 
