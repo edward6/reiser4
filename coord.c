@@ -77,6 +77,12 @@ coord_init_invalid(coord_t * coord, const znode * node)
 	coord_init_values(coord, node, 0, 0, INVALID_COORD);
 }
 
+void
+coord_init_first_unit_nocheck(coord_t * coord, const znode * node)
+{
+	coord_init_values(coord, node, 0, 0, AT_UNIT);
+}
+
 /* Initialize a coordinate to point at the first unit of the first item.  If the node is
    empty, it is positioned at the EMPTY_NODE. */
 void

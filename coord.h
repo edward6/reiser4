@@ -110,6 +110,8 @@ sideof_reverse(sideof side)
 /* Initialize an invalid coordinate. */
 extern void coord_init_invalid(coord_t * coord, const znode * node);
 
+extern void coord_init_first_unit_nocheck(coord_t * coord, const znode * node);
+
 /* Initialize a coordinate to point at the first unit of the first item.  If the node is
    empty, it is positioned at the EMPTY_NODE. */
 extern void coord_init_first_unit(coord_t * coord, const znode * node);
