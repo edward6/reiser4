@@ -243,7 +243,7 @@ void ktxnmgrd_kick( ktxnmgrd_context *ctx, ktxnmgrd_wake reason )
 		}
 		spin_unlock( &ctx -> guard );
 
-		sched_yield ();
+		preempt_point ();
 	}
 }
 
@@ -307,7 +307,7 @@ int ktxnmgr_writeback (struct super_block * s, struct writeback_control *wbc)
 		ktxnmgrd_kick (tmgr->daemon, 0);
 	} else {
 		spin_unlock_txnmgr (tmgr);
-		sched_yield ();
+		preempt_point ();
 	}
 
 	return 0;
