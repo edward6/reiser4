@@ -1703,7 +1703,7 @@ void txn_delete_page (struct page *pg)
 	jnode *node;
 	txn_atom *atom;
 	blocknr_set_entry *blocknr_entry = NULL;
-	
+
 	assert("umka-199", pg != NULL);
 
 	ClearPageDirty (pg);
@@ -1857,8 +1857,8 @@ void jnode_set_dirty( jnode *node )
 			capture_list_remove     (node);
 			capture_list_push_front (& atom->dirty_nodes[level], node);
 
-			spin_unlock_atom (atom);
 		}
+		spin_unlock_atom (atom);
 
 		/*trace_on (TRACE_FLUSH, "dirty %sformatted node %p\n", 
 		  jnode_is_unformatted (node) ? "un" : "", node);*/
@@ -1928,7 +1928,7 @@ void jnode_set_clean( jnode *node )
 		/* FIXME-VS: remove jnode from capture list even when jnode is not
 		 * dirty.  JMACD says: Is it wrong? */
 		atom = atom_get_locked_by_jnode (node);
-	
+
 		capture_list_remove (node);
 
 		/* Now it's possible that atom may be NULL, in case this was called
