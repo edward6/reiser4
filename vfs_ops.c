@@ -435,6 +435,9 @@ static int reiser4_link( struct dentry *existing,
 	assert( "nikita-1430", dplug != NULL );
 	if( dplug -> link != NULL ) {
 		result = dplug -> link( parent, existing, where );
+		if( result == 0 ) {
+			d_instantiate( where, existing -> d_inode );
+		}
 	} else {
 		result = -EPERM;
 	}
