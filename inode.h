@@ -117,6 +117,11 @@ typedef struct reiser4_dentry_fsdata {
 	 * create/unlink, like blocknr of znode with stat-data, or key
 	 * of stat-data.
 	 */
+
+	/* seal covering directory entry */
+	seal_t     entry_seal;
+	/* coord of directory entry */
+	tree_coord entry_coord;
 } reiser4_dentry_fsdata;
 
 /**
