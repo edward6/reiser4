@@ -263,7 +263,7 @@ static int skip_not_relocatable_extent(struct inode * inode, coord_t * coord, in
 			block = ext_start + reloc_start;
 			jnode_set_block(check, &block);
 
-			node->parent_item_id = EXTENT_POINTER_ID;
+			check->parent_item_id = EXTENT_POINTER_ID;
 		}
 
 		if (relocatable(check)) {
@@ -323,6 +323,7 @@ static int relocate_extent (struct inode * inode, coord_t * coord, reiser4_block
 		assert("zam-986", check->blocknr != 0);
 
 		jnode_set_block(check, &new_block);
+		check->parent_item_id = EXTENT_POINTER_ID;
 		new_block ++;
 
 		JF_SET(check, JNODE_RELOC);
