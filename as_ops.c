@@ -553,6 +553,8 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 	node = jnode_by_page(page);
 	assert("nikita-2258", node != NULL);
+	BUG_ON(page->mapping == NULL);
+	BUG_ON(page->mapping->host == NULL);
 
 	INC_STAT(page, node, vm.release.try);
 
@@ -593,6 +595,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 			__put_page(page);
 		}
 		spin_unlock_irq(&mapping->tree_lock);
+
 		return 1;
 	} else {
 		UNLOCK_JLOAD(node);
