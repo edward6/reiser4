@@ -25,7 +25,6 @@ static int reiser4_readlink (struct dentry *, char *,int);
 static int reiser4_follow_link (struct dentry *, struct nameidata *);
 static void reiser4_truncate (struct inode *);
 static int reiser4_permission (struct inode *, int);
-static int reiser4_revalidate (struct dentry *);
 static int reiser4_setattr (struct dentry *, struct iattr *);
 static int reiser4_getattr (struct vfsmount *mnt, struct dentry *, struct kstat *);
 static int reiser4_setxattr(struct dentry *, const char *, void *, size_t, int);
@@ -99,6 +98,8 @@ static int reiser4_direct_IO(int, struct inode *,
 			     struct kiobuf *, unsigned long, int);
 */
 extern struct dentry_operations reiser4_dentry_operation;
+
+static struct file_system_type reiser4_fs_type;
 
 static int invoke_create_method( struct inode *parent, 
 				 struct dentry *dentry, 
@@ -248,12 +249,6 @@ static int reiser4_follow_link (struct dentry *dentry,
 	    !inode_get_flag( dentry -> d_inode, REISER4_GENERIC_VP_USED ) )
 		return -EINVAL;
 	return vfs_follow_link (data, dentry -> d_inode -> u.generic_ip);
-}
-
-static int reiser4_revalidate (struct dentry *dentry UNUSED_ARG)
-{
-	printk("reiser4_revalidate\n");
-	return -ENOSYS;
 }
 
 /*
@@ -1435,9 +1430,19 @@ static int parse_options( char *opt_string, opt_desc_t *opts, int nr_opts )
 			++ next;
 		}
 		for( j = 0 ; j < nr_opts ; ++ j ) {
-			if( !strncmp( opt_string, opts[ j ].name, 
-				      strlen( opts[ j ].name ) ) )
+			if( !strcmp( opt_string, opts[ j ].name ) ) {
 				result = parse_option( opt_string, &opts[ j ] );
+				break;
+			}
+		}
+		if( j == nr_opts ) {
+			warning( "nikita-2307", "Unrecognized option: \"%s\"",
+				 opt_string );
+			/* 
+			 * traditionally, -EINVAL is returned on wrong mount
+			 * option
+			 */
+			result = -EINVAL;
 		}
 		opt_string = next;
 	}
@@ -1530,20 +1535,22 @@ static int reiser4_show_options( struct seq_file *m, struct vfsmount *mnt )
 	info = get_super_private( super );
 
 	seq_printf( m, ",trace=0x%x", info -> trace_flags );
+	seq_printf( m, ",debug=0x%x", info -> debug_flags );
+	seq_printf( m, ",atom_max_size=0x%x", info -> txnmgr.atom_max_size );
 
-	seq_printf( m, ",default_file_plugin=\"%s\"",
+	seq_printf( m, ",default plugins: file=\"%s\"",
 		    default_file_plugin( super ) -> h.label );
-	seq_printf( m, ",default_dir_plugin=\"%s\"",
+	seq_printf( m, ",dir=\"%s\"",
 		    default_dir_plugin( super ) -> h.label );
-	seq_printf( m, ",default_hash_plugin=\"%s\"",
+	seq_printf( m, ",hash=\"%s\"",
 		    default_hash_plugin( super ) -> h.label );
-	seq_printf( m, ",default_tail_plugin=\"%s\"",
+	seq_printf( m, ",tail=\"%s\"",
 		    default_tail_plugin( super ) -> h.label );
-	seq_printf( m, ",default_perm_plugin=\"%s\"",
+	seq_printf( m, ",perm=\"%s\"",
 		    default_perm_plugin( super ) -> h.label );
-	seq_printf( m, ",default_dir_item_plugin=\"%s\"",
+	seq_printf( m, ",dir_item=\"%s\"",
 		    default_dir_item_plugin( super ) -> h.label );
-	seq_printf( m, ",default_sd_plugin=\"%s\"",
+	seq_printf( m, ",sd=\"%s\"",
 		    default_sd_plugin( super ) -> h.label );
 	return 0;
 }
@@ -1788,138 +1795,6 @@ static struct super_block *reiser4_get_sb( struct file_system_type *fs_type /* f
 	return get_sb_bdev( fs_type, flags, dev_name, data, reiser4_fill_super );
 }
 
-/**
- * description of the reiser4 file system type in the VFS eyes.
- */
-static struct file_system_type reiser4_fs_type = {
-	.owner     = THIS_MODULE,
-	.name      = "reiser4",
-	.get_sb    = reiser4_get_sb,
-	.kill_sb   = reiser4_kill_super,
-
-	/*
-	 * FIXME-NIKITA something more?
-	 */
-	.fs_flags  = FS_REQUIRES_DEV,
-	.next      = NULL
-};
-
-/**
- * initialise reiser4: this is called either at bootup or at module load.
- */
-/* Audited by: umka (2002.06.12) I'd reorganize this function in more simple maner. */
-static int __init init_reiser4(void)
-{
-	int result;
-
-	/* This kind of stair-steping code sucks ass. */
-	info( KERN_INFO "Loading Reiser4. See www.namesys.com for a description of Reiser4.\n" );
-	result = init_inodecache();
-	if( result == 0 ) {
-		init_context_mgr();
-		result = znodes_init();
-		if( result == 0 ) {
-			result = init_plugins();
-			if( result == 0 ) {
-				result = txn_init_static();
-				if( result == 0 ) {
-					result = init_fakes();
-					if( result == 0 ) {
-						result = register_filesystem ( &reiser4_fs_type );
-
-						if( result == 0 ) {
-
-							result = jnode_init_static ();
-
-							if (result != 0) {
-								jnode_done_static ();
-							}
-						}
-					}
-				}
-			}
-			if( result != 0 )
-				znodes_done();
-		}
-		if( result != 0 )
-			destroy_inodecache();
-	}
-	return result;
-}
-
-/**
- * finish with reiser4: this is called either at shutdown or at module unload.
- */
-static void __exit done_reiser4(void)
-{
-        unregister_filesystem( &reiser4_fs_type );
-	znodes_done();
-	destroy_inodecache();
-	txn_done_static();
-	jnode_done_static(); /* why no error checks here? */
-	/*
-	 * FIXME-NIKITA more cleanups here
-	 */
-}
-
-module_init( init_reiser4 );
-module_exit( done_reiser4 );
-
-MODULE_DESCRIPTION( "Reiser4 filesystem" );
-MODULE_AUTHOR( "Hans Reiser <Reiser@Namesys.COM>" );
-
-/*
- * FIXME-NIKITA is this correct?
- */
-MODULE_LICENSE( "GPL" );
-
-struct inode_operations reiser4_inode_operations = {
-	.create      = reiser4_create, /* d */
-	.lookup      = reiser4_lookup, /* d */
-	.link        = reiser4_link, /* d */
- 	.unlink      = reiser4_unlink, /* d */
-	.symlink     = reiser4_symlink, /* d */
-	.mkdir       = reiser4_mkdir, /* d */
- 	.rmdir       = reiser4_rmdir, /* d */
-	.mknod       = reiser4_mknod, /* d */
- 	.rename      = reiser4_rename,
- 	.readlink    = NULL,
- 	.follow_link = NULL,
- 	.truncate    = reiser4_truncate, /* d */
- 	.permission  = reiser4_permission, /* d */
-/* 	.revalidate  = reiser4_revalidate, */
- 	.setattr     = reiser4_setattr,  /* d */
- 	.getattr     = reiser4_getattr,  /* d */
-/* 	.getxattr    = reiser4_getxattr, */
-/* 	.listxattr   = reiser4_listxattr, */
-/* 	.removexattr = reiser4_removexattr */
-};
-
-struct file_operations reiser4_file_operations = {
- 	.llseek            = reiser4_llseek, /* d */
-	.read              = reiser4_read, /* d */
-	.write             = reiser4_write, /* d */
- 	.readdir           = reiser4_readdir, /* d */
-/* 	.poll              = reiser4_poll, */
-/* 	.ioctl             = reiser4_ioctl, */
- 	.mmap              = reiser4_mmap, /* d */
-/* 	.open              = reiser4_open, */
-/* 	.flush             = reiser4_flush, */
- 	.release           = reiser4_release, /* d */
-/* 	.fsync             = reiser4_fsync, */
-/* 	.fasync            = reiser4_fasync, */
-/* 	.lock              = reiser4_lock, */
-/* 	.readv             = reiser4_readv, */
-/* 	.writev            = reiser4_writev, */
-/* 	.sendpage          = reiser4_sendpage, */
-/* 	.get_unmapped_area = reiser4_get_unmapped_area */
-};
-
-struct inode_operations reiser4_symlink_inode_operations = {
- 	.readlink    = reiser4_readlink,
- 	.follow_link = reiser4_follow_link
-};
-
 define_never_ever_op( prepare_write_vfs )
 define_never_ever_op( commit_write_vfs )
 define_never_ever_op( direct_IO_vfs )
@@ -1992,8 +1867,145 @@ int reiser4_writepages( struct address_space *mapping UNUSED_ARG,
 	return 0;
 }
 
+/**
+ * initialise reiser4: this is called either at bootup or at module load.
+ */
+/* Audited by: umka (2002.06.12) I'd reorganize this function in more simple maner. */
+static int __init init_reiser4(void)
+{
+	int result;
+
+	/* This kind of stair-steping code sucks ass. */
+	info( KERN_INFO "Loading Reiser4. See www.namesys.com for a description of Reiser4.\n" );
+	result = init_inodecache();
+	if( result == 0 ) {
+		init_context_mgr();
+		result = znodes_init();
+		if( result == 0 ) {
+			result = init_plugins();
+			if( result == 0 ) {
+				result = txn_init_static();
+				if( result == 0 ) {
+					result = init_fakes();
+					if( result == 0 ) {
+						result = register_filesystem ( &reiser4_fs_type );
+
+						if( result == 0 ) {
+
+							result = jnode_init_static ();
+
+							if (result != 0) {
+								jnode_done_static ();
+							}
+						}
+					}
+				}
+			}
+			if( result != 0 )
+				znodes_done();
+		}
+		if( result != 0 )
+			destroy_inodecache();
+	}
+	return result;
+}
+
+/**
+ * finish with reiser4: this is called either at shutdown or at module unload.
+ */
+static void __exit done_reiser4(void)
+{
+        unregister_filesystem( &reiser4_fs_type );
+	znodes_done();
+	destroy_inodecache();
+	txn_done_static();
+	jnode_done_static(); /* why no error checks here? */
+	/*
+	 * FIXME-NIKITA more cleanups here
+	 */
+}
+
+module_init( init_reiser4 );
+module_exit( done_reiser4 );
+
+MODULE_DESCRIPTION( "Reiser4 filesystem" );
+MODULE_AUTHOR( "Hans Reiser <Reiser@Namesys.COM>" );
+
+/*
+ * FIXME-NIKITA is this correct?
+ */
+MODULE_LICENSE( "GPL" );
+
+/**
+ * description of the reiser4 file system type in the VFS eyes.
+ */
+static struct file_system_type reiser4_fs_type = {
+	.owner     = THIS_MODULE,
+	.name      = "reiser4",
+	.get_sb    = reiser4_get_sb,
+	.kill_sb   = reiser4_kill_super,
+
+	/*
+	 * FIXME-NIKITA something more?
+	 */
+	.fs_flags  = FS_REQUIRES_DEV,
+	.next      = NULL
+};
+
+struct inode_operations reiser4_inode_operations = {
+	.create      = reiser4_create, /* d */
+	.lookup      = reiser4_lookup, /* d */
+	.link        = reiser4_link, /* d */
+ 	.unlink      = reiser4_unlink, /* d */
+	.symlink     = reiser4_symlink, /* d */
+	.mkdir       = reiser4_mkdir, /* d */
+ 	.rmdir       = reiser4_rmdir, /* d */
+	.mknod       = reiser4_mknod, /* d */
+ 	.rename      = reiser4_rename,
+ 	.readlink    = NULL,
+ 	.follow_link = NULL,
+ 	.truncate    = reiser4_truncate, /* d */
+ 	.permission  = reiser4_permission, /* d */
+ 	.setattr     = reiser4_setattr,  /* d */
+ 	.getattr     = reiser4_getattr,  /* d */
+/*	.setxattr    = reiser4_setxattr, */
+/* 	.getxattr    = reiser4_getxattr, */
+/* 	.listxattr   = reiser4_listxattr, */
+/* 	.removexattr = reiser4_removexattr */
+};
+
+struct file_operations reiser4_file_operations = {
+ 	.llseek            = reiser4_llseek, /* d */
+	.read              = reiser4_read, /* d */
+	.write             = reiser4_write, /* d */
+ 	.readdir           = reiser4_readdir, /* d */
+/* 	.poll              = reiser4_poll, */
+/* 	.ioctl             = reiser4_ioctl, */
+ 	.mmap              = reiser4_mmap, /* d */
+/* 	.open              = reiser4_open, */
+/* 	.flush             = reiser4_flush, */
+ 	.release           = reiser4_release, /* d */
+/* 	.fsync             = reiser4_fsync, */
+/* 	.fasync            = reiser4_fasync, */
+/* 	.lock              = reiser4_lock, */
+/* 	.readv             = reiser4_readv, */
+/* 	.writev            = reiser4_writev, */
+/* 	.sendpage          = reiser4_sendpage, */
+/* 	.get_unmapped_area = reiser4_get_unmapped_area */
+};
+
+struct inode_operations reiser4_symlink_inode_operations = {
+ 	.readlink    = reiser4_readlink,
+ 	.follow_link = reiser4_follow_link
+};
+
 struct address_space_operations reiser4_as_operations = {
+	/** called from write_one_page(). Not sure how this is to be used. */
 	.writepage      = reiser4_writepage,
+	/** 
+	 * called to read page from the storage when page is added into page
+	 * cache 
+	 */
 	.readpage       = reiser4_readpage,
 	/**
 	 * This is most annoyingly misnomered method. Actually it is called
@@ -2008,14 +2020,19 @@ struct address_space_operations reiser4_as_operations = {
 	.set_page_dirty = __set_page_dirty_nobuffers,
 	/** called during read-ahead */
 	.readpages      = NULL,
-	/*reiser4_prepare_write,*/
 	.prepare_write  = V( never_ever_prepare_write_vfs ),
-	/*reiser4_commit_write,*/
 	.commit_write   = V( never_ever_commit_write_vfs ),
  	.bmap           = reiser4_bmap,
+	/**
+	 * called just before page is taken out from address space (on
+	 * truncate, umount, or similar). 
+	 */
 	.invalidatepage = reiser4_invalidatepage,
+	/**
+	 * called when VM is about to take page from address space (due to
+	 * memory pressure).
+	 */
 	.releasepage    = reiser4_releasepage,
- 	/*reiser4_direct_IO*/
 	.direct_IO      = V( never_ever_direct_IO_vfs )
 };
 
