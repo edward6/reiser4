@@ -33,6 +33,16 @@ ON_DEBUG(TS_LIST_DECLARE(flushers);)
    It's kind of like those global variables the prof used to tell you
    not to use in CS1, except thread specific.;-) Nikita, this was a
    good idea.
+
+   In some situations it is desirable to have ability to enter reiser4_context
+   twice for the same thread (nested contexts). For example, there are some
+   functions that can be called either directly from VFS/VM or from already
+   active reiser4 context (->writepage, for example).
+
+   In such situations "child" context acts like dummy: all activity is
+   actually performed in the top level context, and get_current_context()
+   always returns top level context. Of course, init_context()/done_context()
+   have to be properly nested any way.
 */
 struct reiser4_context {
 	/* magic constant. For identification of reiser4 contexts. */
