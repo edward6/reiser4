@@ -850,7 +850,7 @@ int lookup_multikey( cbk_handle *handle /* handles to search */,
 	int once_again;
 
 	/* helper routine to clean up seals and locks */
-	static void done_handles() {
+	static void done_handles(void) {
 		for( i = 0 ; i < nr_keys - 1 ; ++ i )
 			seal_done( &seal[ i ] );
 		if( result != 0 ) {
