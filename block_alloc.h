@@ -69,10 +69,9 @@ extern void reiser4_grab_space_disable(void);
 extern int assign_fake_blocknr(reiser4_block_nr *, int formatted);
 /* fake_allocated -> used */
 extern int reiser4_alloc_blocks(reiser4_blocknr_hint * hint,
-				reiser4_block_nr * start,
+				reiser4_block_nr * start, 
 				reiser4_block_nr * len, 
-				int formatted, 
-				int reserved);
+				int formatted, int reserved);
 
 /* used -> fake_allocated -> grabbed -> free */
 extern void fake_allocated2free(__u64, int formatted);
@@ -87,14 +86,12 @@ extern __u64 reiser4_atom_flush_reserved(void);
 
 extern int blocknr_is_fake(const reiser4_block_nr * da);
 extern int reiser4_dealloc_blocks(const reiser4_block_nr *,
-				  const reiser4_block_nr *, int defer,
-				  block_stage_t, int formatted);
+				  const reiser4_block_nr *, int defer, block_stage_t, int formatted);
 extern int check_block_counters(const struct super_block *);
 
 #if REISER4_DEBUG
 
-extern void reiser4_check_blocks(const reiser4_block_nr *,
-				 const reiser4_block_nr *, int);
+extern void reiser4_check_blocks(const reiser4_block_nr *, const reiser4_block_nr *, int);
 extern void reiser4_check_block(const reiser4_block_nr *, int);
 
 #else
@@ -105,8 +102,7 @@ extern void reiser4_check_block(const reiser4_block_nr *, int);
 #endif
 
 static inline int
-reiser4_dealloc_block(const reiser4_block_nr * block, int defer,
-		      block_stage_t stage)
+reiser4_dealloc_block(const reiser4_block_nr * block, int defer, block_stage_t stage)
 {
 	const reiser4_block_nr one = 1;
 	return reiser4_dealloc_blocks(block, &one, defer, stage, 1);
