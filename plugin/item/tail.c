@@ -558,6 +558,7 @@ static int append_hole (coord_t * coord, lock_handle * lh, flow_t * f)
 	return item.length;
 }
 
+#if 0
 
 /*
  * insert first item of file into tree. Number of bytes appended to the file is
@@ -571,16 +572,12 @@ static int insert_first_item (coord_t * coord, lock_handle * lh, flow_t * f)
 
 	assert ("vs-383", get_key_offset (&f->key) == 0);
 
-	make_item_data (coord, &item, f->data, f->user, f->length);
-
-	result = insert_by_coord (coord, &item, &f->key, lh, 0, 0, 0/*flags*/);
+	result = insert_flow (coord, f);
 	if (result)
 		return result;
 	
-	move_flow_forward (f, (unsigned)item.length);
 	return item.length;
 }
-
 
 /*
  * append item @coord with flow @f's data. Number of bytes appended to the file
@@ -593,16 +590,22 @@ static int append_tail (coord_t * coord, lock_handle * lh, flow_t * f)
 	int result;
 
 
+
+	/*make_space(flow_t f);*/
+
+	/* makes an item of size equal to free space in node pointed to by
+	 * coord */
+
 	make_item_data (coord, &item, f->data, f->user, f->length);
 
-	result = resize_item (coord, &item, &f->key, lh, 0/*flags*/);
+	result = insert_into_item (coord, &item, &f->key, lh, 0/*flags*/);
 	if (result)
 		return result;
 
 	move_flow_forward (f, (unsigned)item.length);
 	return item.length;
 }
-
+#endif
 
 /*
  * copy user data over file tail item
@@ -682,13 +685,11 @@ int tail_write (struct inode * inode, coord_t * coord,
 			result = append_hole (coord, lh, f);
 			break;
 		case TAIL_FIRST_ITEM:
-			result = insert_first_item (coord, lh, f);
+		case TAIL_APPEND:
+			result = insert_flow (coord, f);
 			break;
 		case TAIL_OVERWRITE:
 			result = overwrite_tail (coord, f);
-			break;
-		case TAIL_APPEND:
-			result = append_tail (coord, lh, f);
 			break;
 		case TAIL_RESEARCH:
 			result = -EAGAIN;
