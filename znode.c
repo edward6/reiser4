@@ -836,6 +836,7 @@ int zload( znode *node /* znode to load */ )
 		}
 	} else
 		add_d_ref( node );
+	assert( "nikita-2135", ZF_ISSET( node, ZNODE_KMAPPED ) );
 	spin_unlock_znode( node );
 	assert( "nikita-1378", znode_invariant( node ) );
 	return result;
