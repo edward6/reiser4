@@ -55,7 +55,8 @@ static void   capture_fuse_into               (txn_atom   *small,
 static int    capture_copy                    (jnode      *node,
 					       txn_handle *txnh,
 					       txn_atom   *atomf,
-					       txn_atom   *atomh);
+					       txn_atom   *atomh,
+					       txn_capture  mode);
 
 static void   uncapture_block                 (txn_atom   *atom,
 					       jnode      *node);
@@ -1601,7 +1602,7 @@ capture_assign_txnh (jnode       *node,
 
 			/* Perform COPY-ON-CAPTURE.  Copy and try again.  This function
 			 * releases all three locks. */
-			return capture_copy (node, txnh, atom, NULL);
+			return capture_copy (node, txnh, atom, NULL, mode);
 		}
 
 	} else {
@@ -1815,7 +1816,7 @@ capture_init_fusion (jnode       *node,
 		} else {
 			/* Perform COPY-ON-CAPTURE.  Copy and try again.  This function
 			 * releases all four locks. */
-			return capture_copy (node, txnh, atomf, atomh);
+			return capture_copy (node, txnh, atomf, atomh, mode);
 		}
 	} 
 
@@ -1993,12 +1994,15 @@ capture_fuse_into (txn_atom  *small,
  */
 /* Audited by: umka (2002.06.13) */
 static int
-capture_copy (jnode        *node UNUSED_ARG,
-	      txn_handle   *txnh UNUSED_ARG,
-	      txn_atom     *atomf UNUSED_ARG,
-	      txn_atom     *atomh UNUSED_ARG)
+capture_copy (jnode           *node,
+	      txn_handle      *txnh,
+	      txn_atom        *atomf,
+	      txn_atom        *atomh,
+	      txn_capture      mode)
 {
-	impossible ("jmacd-1060", "can't happen yet");
+	trace_on (TRACE_TXN, "capture_copy: fuse wait\n");
+	
+	return capture_fuse_wait (node, txnh, atomf, atomh, mode);
 #if 0
 	/* The txnh and its (possibly NULL) atom's locks are not needed at this
 	 * point. */
