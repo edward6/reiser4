@@ -1,7 +1,7 @@
 /*
  * Declarations of key-related data-structures and operations on keys.
  *
- * Copyright 2000 by Hans Reiser, licensing governed by reiserfs/README
+ * Copyright 2000, 2001, 2002 by Hans Reiser, licensing governed by reiserfs/README
  *
  */
 

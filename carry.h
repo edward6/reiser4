@@ -1,5 +1,5 @@
 /*
- * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
+ * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 /*
  * Functions and data types to "carry" tree modification(s) upward.

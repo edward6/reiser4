@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2000 Hans Reiser <reiser@namesys.com>
+ * Copyright 2000, 2001, 2002 Hans Reiser <reiser@namesys.com>
  *
  */
 

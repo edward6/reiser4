@@ -1,4 +1,4 @@
-/* Copyright (C) 2001 Hans Reiser.  All rights reserved.
+/* Copyright (C) 2001, 2002 Hans Reiser.  All rights reserved.
  */
 
 /* TS stands for TYPE SAFETY */
