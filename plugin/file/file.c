@@ -666,8 +666,22 @@ unix_file_truncate(struct inode *inode, loff_t new_size)
 	if (result)
 		return result;
 
-	inode->i_size = cur_size;
-	return (cur_size < new_size) ? append_hole(inode, new_size) : shorten_file(inode, new_size);
+	if (inode->i_size != cur_size) {
+		inode->i_size = cur_size;
+		result = (cur_size < new_size) ? append_hole(inode, new_size) : shorten_file(inode, new_size);
+	} else {
+		/* when file is built of extens - find_file_size can only calculate old file size up to page size. Case
+		 * of not changing file size is detected in unix_file_setattr, therefore here we have expanding file
+		 * within its last page up to the end of that page */
+		assert("vs-1115", file_is_built_of_extents(inode));
+		assert("vs-1116", (inode->i_size & ~PAGE_CACHE_MASK) == 0);
+	}
+	if (!result) {
+		inode->i_size = new_size;
+		inode->i_mtime = inode->i_ctime = CURRENT_TIME;
+		result = reiser4_write_sd(inode);		
+	}
+	return result;
 }
 
 /* plugin->u.write_sd_by_inode = common_file_save */
@@ -808,8 +822,6 @@ unix_file_writepage(struct page *page)
 {
 	int result;
 	struct inode *inode;
-	tail_plugin *tail_plugin;
-	reiser4_block_nr needed;
 
 	assert("vs-1084", page->mapping && page->mapping->host);
 	inode = page->mapping->host;
@@ -842,18 +854,8 @@ unix_file_writepage(struct page *page)
 		return -EIO;
 	}
 
-	/*
-	 * FIXME-VS: why is tail plugin used here?
-	 */
-	tail_plugin = inode_tail_plugin(inode);
-
-	assert("umka-1254", tail_plugin != NULL);
-
-	needed = tail_plugin->estimate(inode, 1, 0);
-
-	trace_on(TRACE_RESERVE, "write page grabbed %llu blocks\n", needed);
-
-	if ((result = reiser4_grab_space_exact(needed, BA_CAN_COMMIT)) != 0)
+	/* writepage may involve insertion of one unit into tree */
+	if ((result = reiser4_grab_space_exact(estimate_one_insert_into_item(tree_by_inode(inode)->height), BA_CAN_COMMIT)) != 0)
 		goto out;
 
 	result = unix_file_writepage_nolock(page);
@@ -1391,37 +1393,15 @@ static struct vm_operations_struct unix_file_vm_ops = {
 	.nopage = unix_file_filemap_nopage,
 };
 
-reiser4_block_nr unix_file_estimate_mmap(struct inode *inode, loff_t count) 
-{
-	tail_plugin *tail_plugin;
-	assert("umka-1246", inode != NULL);
-	
-	tail_plugin = inode_tail_plugin(inode);
-	assert("umka-1238", tail_plugin != NULL);
-	
-	return tail_plugin->estimate(inode, count, 0) + 
-		inode_file_plugin(inode)->estimate.update(inode) + 1;
-}
-
 /* plugin->u.file.mmap
-   make sure that file is built of extent blocks */
-/* Audited by: green(2002.06.15) */
+   make sure that file is built of extent blocks. An estimation is in tail2extent */
 int
 unix_file_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct inode *inode;
 	int result;
-	reiser4_block_nr needed;
 
 	inode = file->f_dentry->d_inode;
-
-	/* FIXME-VITALY: Should get_nonexclusive_access be first? */
-	needed = unix_file_estimate_mmap(inode, inode->i_size);
-	result = reiser4_grab_space_exact(needed, BA_CAN_COMMIT);
-	
-	if (result != 0) return -ENOSPC;
-	
-	trace_on(TRACE_RESERVE, "file mmap grabs %llu blocks.\n", needed);
 
 	/* tail2extent expects file to be nonexclusively locked */
 	get_nonexclusive_access(inode);
