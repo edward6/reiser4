@@ -297,7 +297,7 @@ tail2extent(unix_file_info_t *uf_info)
 		all_grabbed2free();
 		result = reserve_tail2extent_iteration(inode);
 		if (result != 0)
-			break;
+			goto out;
 		if (first_iteration) {
 			inode_set_flag(inode, REISER4_PART_CONV);
 			reiser4_update_sd(inode);
@@ -539,7 +539,6 @@ reiser4_internal int
 extent2tail(unix_file_info_t *uf_info)
 {
 	int result;
-	int s_result;
 	struct inode *inode;
 	struct page *page;
 	unsigned long num_pages, i;
@@ -548,6 +547,7 @@ extent2tail(unix_file_info_t *uf_info)
 	reiser4_key to;
 	unsigned count;
 	__u64 offset;
+	int space_reserved;
 
 	/* collect statistics on the number of extent2tail conversions */
 	reiser4_stat_inc(file.extent2tail);
@@ -584,14 +584,16 @@ extent2tail(unix_file_info_t *uf_info)
 	to = from;
 
 	result = 0;
-
+	space_reserved = 0;
 	for (i = 0; i < num_pages; i++) {
 		__u64 start_byte;
 
 		all_grabbed2free();
+		space_reserved = 0;
 		result = reserve_extent2tail_iteration(inode);
 		if (result != 0)
 			break;
+		space_reserved = 1;
 		if (i == 0) {
 			inode_set_flag(inode, REISER4_PART_CONV);
 			reiser4_update_sd(inode);
@@ -657,6 +659,7 @@ extent2tail(unix_file_info_t *uf_info)
 
 	if (i == num_pages) {
 		uf_info->container = UF_CONTAINER_TAILS;
+		assert("nikita-3471", space_reserved);
 		if (inode_get_flag(inode, REISER4_PART_CONV)) {
 			inode_clr_flag(inode, REISER4_PART_CONV);
 			reiser4_update_sd(inode);
@@ -670,10 +673,14 @@ extent2tail(unix_file_info_t *uf_info)
 			get_inode_oid(inode), i, num_pages, result);
 		print_inode("inode", inode);
 	}
-	s_result = safe_link_del(inode, SAFE_E2T);
-	if (s_result != 0) {
-		warning("nikita-3422", "Cannot kill safe-link %lli: %i",
-			get_inode_oid(inode), s_result);
+	if (space_reserved) {
+		int s_result;
+
+		s_result = safe_link_del(inode, SAFE_E2T);
+		if (s_result != 0) {
+			warning("nikita-3422", "Cannot kill safe-link %lli: %i",
+				get_inode_oid(inode), s_result);
+		}
 	}
 	all_grabbed2free();
 	return result ? : s_result;
