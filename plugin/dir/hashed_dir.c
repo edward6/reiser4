@@ -117,10 +117,8 @@ hashed_done(struct inode *object /* object being deleted */ )
 
 		reserve = hashed_estimate_done(parent, object);
 		if (reiser4_grab_space_exact(reserve, 
-					     BA_CAN_COMMIT | BA_RESERVED) < 0)
-		{
+					     BA_CAN_COMMIT | BA_RESERVED)) 
 			return -ENOSPC;
-		}
 		
 		trace_on(TRACE_RESERVE, info("hashed_done grabs %llu blocks.\n", reserve));
 		
@@ -464,16 +462,15 @@ reiser4_block_nr hashed_estimate_rename(
 	else
 		p_child_new = 0;
 
-	res1 = res2 = 0;
+	/* find_entry - can insert one leaf. */
+	res1 = res2 = 1;
 	
 	/* replace_name */
 	{
-		/* reiser4_add_nlink(p_child_old) */
-		res1 += p_child_old->estimate.update(old_name->d_inode);
+		/* reiser4_add_nlink(p_child_old) and reiser4_del_nlink(p_child_old) */
+		res1 += 2 * p_child_old->estimate.update(old_name->d_inode);
 		/* update key */
 		res1 += 1;
-		/* reiser4_del_nlink(p_child_old) */
-		res1 += p_child_old->estimate.update(old_name->d_inode);
 		/* reiser4_del_nlink(p_child_new) */
 		if (p_child_new)
 		    res1 += p_child_new->estimate.update(new_name->d_inode);
@@ -481,16 +478,14 @@ reiser4_block_nr hashed_estimate_rename(
     
 	/* else add_name */
 	{
-		/* reiser4_add_nlink(p_parent_new) */
-		res2 += inode_file_plugin(new_dir)->estimate.update(new_dir);
+		/* reiser4_add_nlink(p_parent_new) and reiser4_del_nlink(p_parent_new) */
+		res2 += 2 * inode_file_plugin(new_dir)->estimate.update(new_dir);
 		/* reiser4_add_nlink(p_parent_old) */
 		res2 += p_child_old->estimate.update(old_name->d_inode);
 		/* add_entry(p_parent_new) */
 		res2 += p_parent_new->estimate.add_entry(new_dir);
 		/* reiser4_del_nlink(p_parent_old) */
 		res2 += p_child_old->estimate.update(old_name->d_inode);
-		/* reiser4_del_nlink(p_parent_new) */
-		res2 += inode_file_plugin(new_dir)->estimate.update(new_dir);
 	}
 
 	res1 = res1 < res2 ? res2 : res1;
@@ -528,6 +523,24 @@ reiser4_block_nr hashed_estimate_rename(
 	res1 += p_child_old->estimate.update(old_name->d_inode);
 
 	return res1;
+}
+
+static int hashed_rename_estimate_and_grab(
+	struct inode *old_dir /* directory where @old is located */ ,
+	struct dentry *old_name /* old name */ ,
+	struct inode *new_dir /* directory where @new is located */ ,
+	struct dentry *new_name /* new name */ ) 
+{
+	reiser4_block_nr reserve;
+    
+	reserve = hashed_estimate_rename(old_dir, old_name, new_dir, new_name);
+	
+	if (reiser4_grab_space_exact(reserve, BA_CAN_COMMIT)) 
+		return -ENOSPC;
+
+	trace_on(TRACE_RESERVE, info("hashed rename grabs %llu blocks.\n", reserve));
+
+	return 0;
 }
 
 /* ->rename directory plugin method implementation for hashed directories. 
@@ -646,7 +659,7 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	lock_handle new_lh;
 
 	dir_plugin *dplug;
-	reiser4_block_nr reserve;
+	int res;
 
 	assert("nikita-2318", old_dir != NULL);
 	assert("nikita-2319", new_dir != NULL);
@@ -674,6 +687,10 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	if (is_dir && (new_inode != NULL) && (is_dir_empty(new_inode) != 0))
 		return -ENOTEMPTY;
 
+	res = hashed_rename_estimate_and_grab(old_dir, old_name, new_dir, new_name);
+	if (res)
+	    return res;
+		
 	init_lh(&new_lh);
 
 	/* find entry for @new_name */
@@ -685,20 +702,6 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	}
 
 	seal_done(&new_fsdata->entry_seal);
-	reserve = hashed_estimate_rename(old_dir, old_name, new_dir, new_name);
-	if (reserve < 0) {
-	    /* FIXME-VITALY: What about seal for old_fs_data? */
-	    done_lh(&new_lh);
-	    return reserve;
-	}
-	
-	if (reiser4_grab_space_exact(reserve, BA_CAN_COMMIT)) {
-	    /* FIXME-VITALY: What about seal for old_fs_data? */
-	    done_lh(&new_lh);
-	    return -ENOSPC;
-	}
-
-	trace_on(TRACE_RESERVE, info("hashed rename grabs %llu blocks.\n", reserve));
 	
 	/* add or replace name for @old_inode as @new_name */
 	if (new_inode != NULL) {
