@@ -503,6 +503,11 @@ typedef struct reiser4_statistics {
 		 * node different from original target
 		 */
 		stat_cnt track_lh;
+		/*
+		 * how many times sibling lookup required getting that high in
+		 * a tree
+		 */
+		stat_cnt sibling_search;
 		stat_cnt total_hits_at_level;
 	} level[ REAL_MAX_ZTREE_HEIGHT ];
 	struct {
