@@ -994,7 +994,7 @@ static void
 cond_add_to_overwrite_set (txn_atom * atom, jnode * node)
 {
 	assert("zam-546", atom != NULL);
-	assert("zam-547", spin_atom_is_locked(atom));
+	assert("zam-547", atom->stage == ASTAGE_PRE_COMMIT);
 	assert("zam-548", node != NULL);
 
 	LOCK_JNODE(node);
@@ -1039,11 +1039,7 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 
 	/* it is safe to unlock atom with is in ASTAGE_PRE_COMMIT */
 	assert ("zam-767", atom->stage == ASTAGE_PRE_COMMIT);
-
-	UNLOCK_ATOM (atom);
 	ret = load_and_lock_bnode(bnode);
-	LOCK_ATOM (atom);
-
 	if (ret)
 		return ret;
 
@@ -1088,6 +1084,8 @@ bitmap_pre_commit_hook(void)
 	long long blocks_freed = 0;
 
 	atom = get_current_atom_locked ();
+	assert ("zam-876", atom->stage == ASTAGE_PRE_COMMIT);
+	spin_unlock_atom(atom);
 
 	{			/* scan atom's captured list and find all freshly allocated nodes,
 				 * mark corresponded bits in COMMIT BITMAP as used */
@@ -1115,13 +1113,8 @@ bitmap_pre_commit_hook(void)
 				if (REISER4_DEBUG && *bnode_commit_crc(bn) != adler32(bnode_commit_data(bn), size))
 					warning("vpf-262", "Checksum for the bitmap block %llu is incorrect", bmap);
 
-				assert ("zam-779", atom->stage == ASTAGE_PRE_COMMIT);
-				UNLOCK_ATOM (atom);
-
 				check_bnode_loaded(bn);
 				load_and_lock_bnode(bn);
-
-				LOCK_ATOM (atom);
 
 				byte = *(bnode_commit_data(bn) + offset / 8);
 				reiser4_set_bit(offset, bnode_commit_data(bn));
@@ -1151,8 +1144,6 @@ bitmap_pre_commit_hook(void)
 	blocknr_set_iterator(atom, &atom->delete_set, apply_dset_to_commit_bmap, &blocks_freed, 0);
 
 	blocks_freed -= atom->nr_blocks_allocated;
-
-	UNLOCK_ATOM(atom);
 
 	{
 		__u64 free_committed_blocks;

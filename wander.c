@@ -975,11 +975,10 @@ reiser4_write_logs(void)
 	pre_commit_hook();
 
 	atom = get_current_atom_locked();
-
+	spin_unlock_atom(atom);
+	
 	sbinfo->nr_files_committed += (unsigned) atom->nr_objects_created;
 	sbinfo->nr_files_committed -= (unsigned) atom->nr_objects_deleted;
-
-	UNLOCK_ATOM(atom);
 
 	init_commit_handle(&ch, atom);
 
@@ -1048,6 +1047,10 @@ reiser4_write_logs(void)
 		 sprint_address(jnode_get_block(capture_list_front(&ch.tx_list))));
 
 	reiser4_stat_inc(txnmgr.commits);
+
+	spin_lock_atom(atom);
+	atom->stage = ASTAGE_POST_COMMIT;
+	spin_unlock_atom(atom);
 
 	post_commit_hook();
 

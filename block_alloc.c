@@ -1104,6 +1104,7 @@ apply_dset(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const reiser4
 
 	__u64 len = 1;
 
+	assert("zam-877", atom->stage >= ASTAGE_PRE_COMMIT);
 	assert("zam-552", sbinfo != NULL);
 	splug = sbinfo->space_plug;
 	assert("zam-553", splug != NULL);
@@ -1120,13 +1121,8 @@ apply_dset(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const reiser4
 		reiser4_spin_unlock_sb(s);
 	}
 
-	/* it should be safe because of atom stage */
-	UNLOCK_ATOM(atom);
-
 	if (splug->dealloc_blocks != NULL)
 		splug->dealloc_blocks(&sbinfo->space_allocator, *a, len);
-
-	LOCK_ATOM(atom);
 
 	/* adjust sb block counters */
 	used2grabbed(len);
@@ -1142,13 +1138,12 @@ post_commit_hook(void)
 	txn_atom *atom;
 
 	atom = get_current_atom_locked();
-	assert("zam-452", atom != NULL);
+	assert("zam-452", atom->stage == ASTAGE_POST_COMMIT);
+	UNLOCK_ATOM(atom);
 
 	/* do the block deallocation which was deferred 
 	   until commit is done */
 	blocknr_set_iterator(atom, &atom->delete_set, apply_dset, NULL, 1);
-
-	UNLOCK_ATOM(atom);
 
 	assert("zam-504", get_current_super_private() != NULL);
 	splug = get_current_super_private()->space_plug;
