@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
     
     if (argc < 2) {
 	mkfs_print_usage();
-	return ERROR_USER;
+	return USER_ERROR;
     }
     
     aal_exception_set_handler(progs_exception_handler);
@@ -89,11 +89,11 @@ int main(int argc, char *argv[]) {
 	    case 'u': 
 	    case 'h': {
 		mkfs_print_usage();
-		return ERROR_NONE;
+		return NO_ERROR;
 	    }
 	    case 'v': {
 		printf("%s %s\n", argv[0], VERSION);
-		return ERROR_NONE;
+		return NO_ERROR;
 	    }
 	    case 'p': {
 		profile_label = optarg;
@@ -109,7 +109,7 @@ int main(int argc, char *argv[]) {
 	    }
 	    case 'k': {
 		progs_misc_profile_list();
-		return ERROR_NONE;
+		return NO_ERROR;
 	    }
 	    case 'b': {
 		
@@ -117,12 +117,12 @@ int main(int argc, char *argv[]) {
 	        if (!(blocksize = (uint16_t)progs_misc_strtol(optarg, &error)) && error) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		        "Invalid blocksize (%s).", optarg);
-		    return ERROR_USER;
+		    return USER_ERROR;
 		}
 		if (!aal_pow_of_two(blocksize)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL, 
 			"Invalid block size %u. It must power of two.", (uint16_t)blocksize);
-		    return ERROR_USER;	
+		    return USER_ERROR;	
 		}
 		break;
 	    }
@@ -132,14 +132,14 @@ int main(int argc, char *argv[]) {
 		if (aal_strlen(optarg) != 36) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 			"Invalid uuid was specified (%s).", optarg);
-		    return ERROR_USER;
+		    return USER_ERROR;
 		}
 #ifdef HAVE_UUID
 		{
 		    if (uuid_parse(optarg, uuid) < 0) {
 			aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 			    "Invalid uuid was specified (%s).", optarg);
-			return ERROR_USER;
+			return USER_ERROR;
 		    }
 		}
 #endif		
@@ -151,14 +151,14 @@ int main(int argc, char *argv[]) {
 	    }
 	    case '?': {
 	        mkfs_print_usage();
-	        return ERROR_USER;
+	        return USER_ERROR;
 	    }
 	}
     }
 
     if (optind >= argc) {
 	mkfs_print_usage();
-	return ERROR_USER;
+	return USER_ERROR;
     }
     
     /* Initializing passed profile */
@@ -317,7 +317,7 @@ int main(int argc, char *argv[]) {
     aal_list_free(devices);
     libreiser4_done();
     
-    return ERROR_NONE;
+    return NO_ERROR;
 
 error_free_fs:
     reiserfs_fs_close(fs);
@@ -326,6 +326,6 @@ error_free_device:
 error_free_libreiser4:
     libreiser4_done();
 error:
-    return ERROR_PROG;
+    return OPERATION_ERROR;
 }
 
