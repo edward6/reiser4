@@ -1256,18 +1256,27 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, fl
 	preceder = pos_hint(pos);
 
 	/* See if the extent is entirely dirty. */
-	for (i = 0; i < extent_width; i ++) {
+	for (i = 0; (i < extent_width) && relocate; i ++) {
 		j = jlook_lock(tree, oid, ind + i);
-		if (!j) {
-			relocate = 0;
-			break;
-		}
-		if (jnode_check_flushprepped(j)) {
+		relocate = 0;
+
+		if (j) {
+			if (!jnode_check_flushprepped(j)) {
+				LOCK_JNODE(j);
+
+				assert("nikita-3188", 
+				       !JF_ISSET(j, JNODE_EPROTECTED));
+				assert("nikita-3189", jnode_is_unformatted(j));
+
+				JF_SET(j, JNODE_EPROTECTED);
+
+				if (!JF_ISSET(j, JNODE_EFLUSH))
+					relocate = 1;
+
+				UNLOCK_JNODE(j);
+			}
 			jput(j);
-			relocate = 0;
-			break;
 		}
-		jput(j);
 	}
 
 	/* FIXME: JMACD->HANS: It is very complicated to use the
@@ -1308,8 +1317,16 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, fl
 
 		ret = reiser4_dealloc_blocks(&start, &extent_width, BLOCK_ALLOCATED, BA_DEFER,
 					     "deallocate blocks of already allocated extent");
-		if (ret)
+		if (ret) {
+			for (i = 0; i < extent_width; i ++) {
+				j = jlook_lock(tree, oid, ind + i);
+				if (j) {
+					JF_CLR(j, JNODE_EPROTECTED);
+					jput(j);
+				}
+			}
 			return ret;
+		}
 
 		extent_set_start(extent, 1ull /* UNALLOCATED_EXTENT */ );
 	} else 
@@ -1320,6 +1337,7 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, fl
 		j = jlook_lock(tree, oid, ind + i);
 		if (!j)
 			continue;
+		JF_CLR(j, JNODE_EPROTECTED);
 		if (!jnode_check_dirty(j)) {
 			jput(j);
 			continue;
@@ -1340,6 +1358,11 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, fl
 		 * allocated block  */ 
 		if (!jnode_check_flushprepped(j)) {
 			if (relocate == 0)
+				/* NOTE-NIKITA spin locking here is
+				 * "funny". As we know that all jnodes met
+				 * during this scan are from the same atom, we
+				 * can grab atom spin lock once and then take
+				 * jnode spin locks without much fuss. */
 				jnode_make_wander(j);
 			else {
 				reiser4_block_nr block;
