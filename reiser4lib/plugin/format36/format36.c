@@ -130,6 +130,14 @@ static unsigned int reiserfs_format36_probe(aal_device_t *device) {
 	return blocksize;
 }
 
+static const char *formats[] = {"3.5", "unknown", "3.6"};
+
+static const char *reiserfs_format36_format(reiserfs_format36_t *format) {
+	reiserfs_format36_super_t *super = (reiserfs_format36_super_t *)format->super->data;
+	int version = get_sb_format(super);
+	return formats[version >= 0 && version < 3 ? version : 1];
+}
+
 static reiserfs_plugin_id_t reiserfs_format36_journal_plugin(reiserfs_format36_t *format) {
 	return 0x2;
 }
@@ -151,12 +159,13 @@ reiserfs_plugin_t plugin_info = {
 		.init = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format36_init,
 		.done = (void (*)(reiserfs_format_opaque_t *, int))reiserfs_format36_done,
 		.probe = (unsigned int (*)(aal_device_t *))reiserfs_format36_probe,
+		.format = (const char *(*)(reiserfs_format_opaque_t *))reiserfs_format36_format,
 			
 		.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_format_opaque_t *))
 			reiserfs_format36_journal_plugin,
 		
 		.alloc_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_format_opaque_t *))
-			reiserfs_format36_alloc_plugin
+			reiserfs_format36_alloc_plugin,
 	}
 };
 

@@ -36,7 +36,8 @@ int main(int argc, char *argv[]) {
 		goto error_free_device;
 	}
 	
-	fprintf(stderr, "Reiserfs was successfully oneped on %s.\n", argv[1]);
+	aal_printf("Found reiserfs %s, block size %d.\n", reiserfs_fs_format(fs), 
+		reiserfs_fs_blocksize(fs));
 	
 	reiserfs_fs_close(fs, 0);
 	libreiserfs_done();
@@ -50,3 +51,4 @@ error_free_device:
 error:
 	return 0xff;
 }
+

@@ -66,3 +66,11 @@ void reiserfs_fs_close(reiserfs_fs_t *fs, int sync) {
 	aal_free(fs);
 }
 
+const char *reiserfs_fs_format(reiserfs_fs_t *fs) {
+	return reiserfs_super_format(fs);
+}
+
+unsigned int reiserfs_fs_blocksize(reiserfs_fs_t *fs) {
+	return reiserfs_super_blocksize(fs);
+}
+

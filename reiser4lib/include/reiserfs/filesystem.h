@@ -72,5 +72,8 @@ extern reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 
 extern void reiserfs_fs_close(reiserfs_fs_t *fs, int sync);
 
+extern const char *reiserfs_fs_format(reiserfs_fs_t *fs);
+extern unsigned int reiserfs_fs_blocksize(reiserfs_fs_t *fs);
+
 #endif
 

@@ -53,7 +53,7 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 		
 		/* Forming in memory master super block for reiser3 */
 		aal_memset(master, 0, sizeof(*master));
-		set_mr_block_size(master, REISERFS_DEFAULT_BLOCKSIZE);
+		set_mr_block_size(master, blocksize);
 		set_mr_format_id(master, 0x2);
 	}	
 	
@@ -70,7 +70,9 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 		get_mr_format_id(master)))) 
 	{
 		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-020", 
-			"Can't find disk-format plugin by its identifier %x.", get_mr_format_id(master));
+			"Can't find disk-format plugin by its identifier %x.", 
+			get_mr_format_id(master));
+		
 		goto error_free_block;
 	}
 	
@@ -100,6 +102,20 @@ void reiserfs_super_close(reiserfs_fs_t *fs, int sync) {
 	fs->super->plugin->format.done(fs->super->entity, sync);
 	aal_free(fs->super);
 	fs->super = NULL;
+}
+
+const char *reiserfs_super_format(reiserfs_fs_t *fs) {
+	ASSERT(fs != NULL, return NULL);
+	ASSERT(fs->super != NULL, return NULL);
+	
+	return fs->super->plugin->format.format(fs->super->entity);
+}
+
+unsigned int reiserfs_super_blocksize(reiserfs_fs_t *fs) {
+	ASSERT(fs != NULL, return 0);
+	ASSERT(fs->super != NULL, return 0);
+	
+	return get_mr_block_size(&fs->super->master);
 }
 
 reiserfs_plugin_id_t reiserfs_super_journal_plugin(reiserfs_fs_t *fs) {

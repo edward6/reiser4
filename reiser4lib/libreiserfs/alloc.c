@@ -31,7 +31,7 @@ int reiserfs_alloc_open(reiserfs_fs_t *fs) {
 
 	fs->alloc->plugin = plugin;
 
-	if ((fs->alloc->entity = plugin->alloc.init(fs->device))) {
+	if (!(fs->alloc->entity = plugin->alloc.init(fs->device))) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-017",
 			"Can't initialize block allocator plugin.");
 		goto error_free_alloc;
