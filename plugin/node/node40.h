@@ -9,16 +9,6 @@
 
 #include <linux/types.h>
 
-/* flushstamp is made of mk_id and write_counter. mk_id is an id generated 
-    randomly at mkreiserfs time. So we can just skip all nodes with different 
-    mk_id. write_counter is d64 incrementing counter of writes on disk. It is 
-    used for choosing the newest data at fsck time.
-*/
-
-typedef struct flush_stamp {
-	d32 mkfs_id;
-	d64 flush_id;
-} flush_stamp_t;
 
 /* format of node header for 40 node layouts. Keep bloat out of this struct.  */
 typedef struct node40_header {
@@ -31,20 +21,9 @@ typedef struct node40_header {
 	*/
 	d16 nr_items;
 	/* free space in node measured in bytes */
-	/* it might make some of the code simpler to store this just
-	   before the last item header, but then free_space finding
-	   code would be more complex.... A thought.... */
 	d16 free_space;
-	 /**/
 	/* offset to start of free space in node */
-	 d16 free_space_start;
-	/* magic field we need to tell formatted nodes */
-	d32 magic;
-	/* 1 is leaf level, 2 is twig level, root is the numerically largest
-	   level */
-	d8 level;
-	/* node flags to be used by fsck (reiser4ck or reiser4fsck?)
-	    and repacker */
+	d16 free_space_start;
 	/* for reiser4_fsck.  When information about what is a free
 	    block is corrupted, and we try to recover everything even
 	    if marked as freed, then old versions of data may
@@ -53,20 +32,34 @@ typedef struct node40_header {
 	    who don't have the new trashcan installed on their linux distro
 	    delete the wrong files and send us desperate emails
 	    offering $25 for them back.  */
-	/* FIXME-VS: there is 24 bytes hole added by compiler */
-	flush_stamp_t flush;
+	struct {
+		/* magic field we need to tell formatted nodes */
+		d32 magic;
+		/* flushstamp is made of mk_id and write_counter. mk_id is an
+		   id generated randomly at mkreiserfs time. So we can just
+		   skip all nodes with different mk_id. write_counter is d64
+		   incrementing counter of writes on disk. It is used for
+		   choosing the newest data at fsck time.
+		*/
+		d32 mkfs_id;
+		d64 flush_id;
+		/* node flags to be used by fsck (reiser4ck or reiser4fsck?)
+		   and repacker */
+		d16 flags;
+	} fsck;
+	/* 1 is leaf level, 2 is twig level, root is the numerically largest
+	   level */
+	d8 level;
 } node40_header;
 
 /* item headers are not standard across all node layouts, pass
    pos_in_node to functions instead */
 typedef struct item_header40 {
 	/* key of item */
-/* this will get compressed to a few bytes on average in 4.1, so don't get too excited about how it doesn't hurt much to
-   add more bytes to item headers.  Probably you'll want your code to work for the 4.1 format also.... -Hans */
 	/*  0 */ reiser4_key key;
 	/* offset from start of a node measured in 8-byte chunks */
 	/* 24 */ d16 offset;
-	/* 26 */ d16 length;
+	/* 26 */ d16 flags;
 	/* 28 */ d16 plugin_id;
 } item_header40;
 

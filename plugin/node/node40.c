@@ -57,13 +57,13 @@ node40_node_header(const znode * node	/* node to
 static __u32
 nh40_get_magic(node40_header * nh)
 {
-	return d32tocpu(&nh->magic);
+	return d32tocpu(&nh->fsck.magic);
 }
 
 static void
 nh40_set_magic(node40_header * nh, __u32 magic)
 {
-	cputod32(magic, &nh->magic);
+	cputod32(magic, &nh->fsck.magic);
 }
 
 static void
@@ -118,13 +118,13 @@ nh40_get_num_items(node40_header * nh)
 static void
 nh40_set_mkfs_id(node40_header * nh, __u32 id)
 {
-	cputod32(id, &nh->flush.mkfs_id);
+	cputod32(id, &nh->fsck.mkfs_id);
 }
 
 static inline __u32
 nh40_get_mkfs_id(node40_header * nh)
 {
-	return d32tocpu(&nh->flush.mkfs_id);
+	return d32tocpu(&nh->fsck.mkfs_id);
 }
 
 #if 0
@@ -138,7 +138,7 @@ nh40_set_flush_id(node40_header * nh, __u64 id)
 static inline __u64
 nh40_get_flush_id(node40_header * nh)
 {
-	return d64tocpu(&nh->flush.flush_id);
+	return d64tocpu(&nh->fsck.flush_id);
 }
 
 /* plugin field of node header should be read/set by
