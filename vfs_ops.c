@@ -118,7 +118,7 @@ static int reiser4_dentry_to_fh(struct dentry *, __u32 * fh, int *lenp, int need
 
 /* address space operations */
 
-static int reiser4_writepage(struct page *);
+static int reiser4_writepage(struct page *, struct writeback_control *wbc);
 static int reiser4_readpage(struct file *, struct page *);
 /* static int reiser4_prepare_write(struct file *, 
 				 struct page *, unsigned, unsigned);
@@ -565,11 +565,10 @@ static int reiser4_set_page_dirty (struct page * page)
 #if 0
 /* ->writepage() VFS method in reiser4 address_space_operations */
 static int
-reiser4_writepage(struct page *page)
+reiser4_writepage(struct page *page, struct writeback_control *wbc)
 {
 	int result;
 	file_plugin *fplug;
-	struct writeback_control wbc;
 	REISER4_ENTRY(page->mapping->host->i_sb);
 
 	impossible("vs-1099", "this is not to be called");
@@ -578,7 +577,7 @@ reiser4_writepage(struct page *page)
 
 	fplug = inode_file_plugin(page->mapping->host);
 	if (fplug->writepage != NULL)
-		result = fplug->writepage(page);
+		result = fplug->writepage(page, wbc);
 	else
 		result = -EINVAL;
 	if (result != 0) {
@@ -591,7 +590,7 @@ reiser4_writepage(struct page *page)
 	   clean page.  An extra reference should protect this page from
 	   removing from memory */
 	page_cache_get(page);
-	result = page_common_writeback(page, &wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
+	result = page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
 	page_cache_release(page);
 	REISER4_EXIT(result);
 }
@@ -634,10 +633,10 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 
 /* write page in response to memory pressure */
 static int
-reiser4_writepage(struct page *page)
+reiser4_writepage(struct page *page, struct writeback_control *wbc)
 {
 	assert ("zam-822", current->flags & PF_MEMALLOC);
-	return page_common_writeback(page, JNODE_FLUSH_MEMORY_UNFORMATTED);
+	return page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
 }
 
 /* ->writepages()
@@ -1889,6 +1888,8 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 
 	sema_init(&info->delete_sema, 1);
 
+	s->s_op = &reiser4_super_operations;
+
 	result = init_context(&__context, s);
 	if (result) {
 		kfree(info);
@@ -1942,8 +1943,6 @@ read_super_block:
 		   block exists but there no master super block? */
 		goto error1;
 	}
-
-	s->s_op = &reiser4_super_operations;
 
 	spin_lock_init(&info->guard);
 
@@ -2437,7 +2436,7 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	/* FIXME: This way to support fsync is too expensive. Proper solution
 	   support is to commit only atoms which contain dirty pages from given
 	   address space. */
-	if (wbc->sync_mode == WB_SYNC_HOLD || called_for_sync()) {
+	if (wbc->sync_mode != WB_SYNC_NONE) {
 		ret = txnmgr_force_commit_all(s);
 		REISER4_EXIT(ret);
 	}

@@ -472,7 +472,7 @@ formatted_readpage(struct file *f UNUSED_ARG, struct page *page /* page to read 
 
 /* ->writepage() method for formatted nodes */
 static int
-formatted_writepage(struct page *page /* page to write */ )
+formatted_writepage(struct page *page, /* page to write */ struct writeback_control *wbc)
 {
 	int result;
 
@@ -483,7 +483,7 @@ formatted_writepage(struct page *page /* page to write */ )
 	   clean page. An extra reference should protect this page from
 	   removing from memory */
 	page_cache_get(page);
-	result = page_common_writeback(page, JNODE_FLUSH_MEMORY_FORMATTED);
+	result = page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_FORMATTED);
 	page_cache_release(page);
 	return result;
 }
@@ -590,6 +590,7 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 */
 int
 page_common_writeback(struct page *page /* page to start writeback from */ ,
+		      struct writeback_control *wbc,
 		      int flush_flags UNUSED_ARG /* Additional hint. Seems to
 						  * be unused currently. */)
 {
