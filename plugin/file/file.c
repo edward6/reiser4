@@ -720,6 +720,7 @@ load_file_hint(struct file *file, hint_t *hint, lock_handle *lh)
 			hint->coord.lh = lh;
 			return 0;
 		}
+		xmemset(&fsdata->reg.hint, 0, sizeof(hint_t));
 	}
 	hint_init_zero(hint, lh);
 	return 0;
@@ -796,7 +797,7 @@ hint_validate(hint_t *hint, const reiser4_key *key, int check_key, znode_lock_mo
 	coord = &hint->coord.base_coord;
 
 	/* FIXME: measure effect of this */
-	invalidate_extended_coord(&hint->coord);
+	/*invalidate_extended_coord(&hint->coord);*/
 
 	result = seal_validate(&hint->seal, coord, key,
 			       hint->level, hint->coord.lh, FIND_MAX_NOT_MORE_THAN, lock_mode, ZNODE_LOCK_LOPRI);
@@ -1125,7 +1126,7 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 	size_t read;
 	reiser4_block_nr needed;
 	ra_info_t ra_info;
-	int (*read_f) (struct file *, flow_t *, uf_coord_t *);
+	int (*read_f) (struct file *, flow_t *, hint_t *);
 	unix_file_info_t *uf_info;
 	PROF_BEGIN(file_read);
 	
@@ -1223,13 +1224,12 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 			longterm_unlock_znode(&lh);
 			return result;
 		}
-		if (!hint.coord.valid)
-			validate_extended_coord(&hint.coord, get_key_offset(&f.key));
+		validate_extended_coord(&hint.coord, get_key_offset(&f.key));
 
 		/* call item's read method */
 		if (!read_f)
 			read_f = item_plugin_by_coord(coord)->s.file.read;
-		result = read_f(file, &f, &hint.coord);
+		result = read_f(file, &f, &hint);
 		zrelse(coord->node);
 		if (result == 0 && hint.coord.valid)
 			set_hint(&hint, &f.key);
