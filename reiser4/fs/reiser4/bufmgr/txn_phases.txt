@@ -1,0 +1,312 @@
+
+REVISION HISTORY:
+
+
+Version 1: Posted Oct 15, 2001
+
+Version 2: Posted Oct 16, 2001: Eliminates the second phase based on
+discussion with Hans.  Now a three phase process with free space
+bitmaps treated as ordinary blocks by the capturing process.  This
+change means that an atom does not block waiting for commit processing
+to occur.  Most changes	in the text occur after around line 150.
+
+Version 3: Posted Oct 17, 2001: Incorporate a number of scattered
+comments from Hans.  Mostly these were clarifications, but there are a
+few changes so you will have to read it again.  Enjoy.
+
+INTRODUCTION
+
+
+A transaction goes through several phases from its inception through
+to its commit point.  To begin with some terms, an "atom" is the
+implementation device corresponding to an atomic transaction; the atom
+construct is not visible to the file system access primitives, instead
+it is simply the underlying implementation of atomic updates in the
+file system.
+
+A "handle" is the portion of the transaction interface visible to the
+rest of the system.  File system primitives access the file system
+through handles in order to ensure atomicity of a given operation.  An
+open handle is associated with some underlying atom, and all accesses
+made through a handle will be atomic.
+
+The use of a handle could be:
+
+(1) The actions of an individual system call such as rename() must be
+    atomic, therefore an atomic system call begins by opening a
+    transaction handle and ends by closing the handle.
+
+(2) A "transcrash" is an application-level interface that allows the
+    actions associated with a sequence of system calls to be made
+    atomic.  A transacrash corresponds to an open transaction handle.
+
+In traditional Unix semantics, a sequence of write() system calls are
+not expected to be atomic.  Writes are not even guaranteed to be
+ordered in the traditional semantics, meaning that newer data could
+survive a crash while older data does not.  File systems with ordered
+writes are called "data-journaling", but this feature usually comes at
+a significant cost.  The straight-forward way to add data-journaling
+to a file system is to log the contents of every modified block before
+writing it to its actual location.  This technique doubles the number
+of writes in the system.  Our design aims to reduce the cost of
+ordered writes by relocating data blocks instead of logging them prior
+to updating in place, somewhat along the lines of TUX2.  We expect
+this technique will reduce the cost of atomic ordered writes to a
+tolerable level.  Even with the new architecture, we will still offer
+the option of disabling atomic ordered writes.
+
+Our definition of a transaction does not include many of the
+properties typically associated with database transactions.  Our
+transactions do not provide isolation or the ability to abort or undo
+the effects of a partial sequence of operations.  Further, the
+implementation of transactions described here does not provide
+"nesting", which would allow the implementation of an individual
+system call to fail and have part of its actions rolled back.  These
+are all features that can be provided independently of this
+transaction mechanism.
+
+
+DEFINITION OF ATOMICITY
+
+
+For performance reasons, updates to the file system are typically
+deferred, which allows better throughput by combining many small
+updates into larger granules.  The deferred update strategy causes
+problems for atomicity because a crash can come at any time causing
+some updates to be lost.  The problem is that some updates may be lost
+while others are not.
+
+For example, if some file is written by process A and then later read
+by process B, then A has had an influence on B.  Now suppose B writes
+to a different file, possibly depending on the output of process A.
+If the deferred update strategy in use by the file system allows B's
+write to commit and before A's write, then a crash could leave the
+system in an inconsistent state.
+
+Our definition of "atomicity" is based on the notion of a "sphere of
+influence".  During a deferred update period the sphere of influence
+encompasses all writes that are dependent on one another, such as in
+the above example.  These writes must be committed together or else
+atomicity will be violated.  There are several rules for maintaining a
+sphere of influence:
+
+- Initially the sphere of influence (SOI) is empty.
+
+- Initially a process is not bound to any SOI, it may be bound to a
+  SOI whenever it reads data belonging to an existing SOI.
+
+- Once a process is bound to an SOI, any writes it produces are added
+  to the SOI.
+
+- When a process bound to one SOI reads or writes data belonging to
+  another SOI, those SOIs are joined together due to their possible
+  influence on each other.  Our definition of read and write includes
+  possible mmap() operations.
+
+In the implementation discussion that follows, an atom corresponds to
+a sphere of influence and a handle corresponds to a process.
+
+
+PHASE ONE: "Capturing" and "Fusing"
+
+
+The initial phase starts when an atom "begins".  The beginning of an
+atom is controlled by the transaction manager itself, but the event is
+always triggered by a handle's request to "capture" a block (i.e.,
+znode, free space bitmap).  A handle requests to capture a block with a
+mode flag saying whether it intends to read or write that block.  The
+outcome ensures that the block and handle belong to the same atom
+(i.e., the same sphere of influence).
+
+Handles and blocks are initially unassigned to any atom, represented
+by a NULL atom pointer in the implementation.  When processing a
+capture request there are four possible scenarios:
+
+
+1. BLOCK is not assigned, HANDLE is not assigned:
+
+   If it is a write request: In this case the transaction manager may
+   begin a new atom or, if there are resource limits in place that
+   prevent beginning a new atom, the manager may select another phase
+   one atom.  Both the handle and the block are assigned to the
+   selected atom.
+
+   If it is a read request: No action.
+
+2. BLOCK is not assigned, HANDLE already assigned:
+
+   If it is a write request: The handle's atom captures the block.
+
+   If it is a read request: No action.
+
+3. BLOCK already assigned, HANDLE is not assigned:
+
+   Assigned the handle to the block's atom (both read and write
+   requests).
+
+4. BLOCK already assigned, HANDLE already assigned:
+
+   If they are assigned to the same atom, the capture request succeeds
+   immediately (both read and write requests).
+
+   Otherwise the two atoms are "fused" together, resulting in
+   reassignment of one atom's blocks and handles to the other atom
+   (both read and write requests).
+
+
+The implementation of this process is described by the function
+txnmgr_block_capture.  Each atom maintains a list of its
+currently-assigned blocks and handles.  When fusion occurs, the
+smaller of the two atoms is chosen to have its members reassigned.
+
+Atoms in phase one continue in this state, capturing blocks as
+requests are issued and fusing whenever a process reads or writes
+blocks assigned to another atom.
+
+The system responds to memory pressure by allocating and flushing
+dirty blocks.  Allocation requires access to the bitmap blocks,
+obtained through the ordinary capture process.  This is likely to be a
+cause of atoms fusing due to sharing of bitmap blocks, but we can
+accept this.
+
+The dirty blocks of an atom are divided into two sets:
+
+- The "preserve" set contains those blocks that have a dirty parent
+  block in the atom.  These blocks can be allocated to a new
+  location, thus preserving their original contents until the atom
+  commits.  By writing the preserve set to a different location we
+  avoid the need for an extra journal write.
+
+- The "overwrite" set contains those blocks that do not have a dirty
+  parent block in the atom.  These blocks will be journaled before the
+  atom commits and their contents will be overwritten after the atom
+  commits.  Note that the superblock is the parent of the root tree
+  node and the free space bitmap blocks have no parent.  By these
+  definitions, the superblock and modified bitmap blocks are always
+  part of the overwrite set.  An alternative definition would be the
+  "minimum overwrite" set, which consists of those blocks that do not
+  have a dirty ancestor
+
+
+
+
+The response to memory pressure will be to select dirty blocks from
+the atom that can be flushed.  At this point, however, there are still
+concurrent writers actively working on the tree.  A difficult issue
+will be enforcing that progress is made so that an atom can eventually
+commit.  You can only commit an atom when it has no open handles, but
+allowing atoms to fuse can bring new open handles to an old atom that
+is trying to commit.
+
+The general form of a solution is to maintain the age of each atom.
+At some point when an atom becomes sufficiently old it must stop
+accepting new handles and stop fusing, otherwise there is no way to
+guarantee it will ever commit.  Meanwhile, allocating and flushing
+activity continues on the atom.
+
+Applications that are required to wait for synchronous commit (e.g.,
+using fsync()) may have to wait for a lot of unrelated blocks to flush
+since a large atom may be have captured the bitmaps.  This is
+acceptable as long as we can provide a new system interface for "lazy
+fsync".  Even better would be to provide an interface by which an
+event is sent to the application via /dev/poll notifying it when each
+closed transaction handle has actually committed.  This would allow an
+application to wait for several files to be synchronized at once
+without any calls to fsync().  On the other hand, an application that
+would like to synchronize its data as soon as possible would perhaps
+benefit from logical logging, which is not currently supported by our
+architecture.
+
+When an atom becomes sufficiently old, we stop accepting new handles
+and block attempts to fuse.  Once there are no open handles the atom
+can commit, which implies finalizing any flush operations.  All
+rebalancing and allocating tasks should be complete.  To finish phase
+one we have:
+
+- The free space bitmaps have been updated such that: (1) the new
+  preserve block locations are now allocated, (2) blocks allocated for
+  the journal, including "wandered" locations for the overwrite set
+  (which includes all modified bitmaps), are now allocated.  The old
+  preserve locations remain allocated because the commit is
+  asynchronous--they cannot be released until the commit is finished.
+
+  (An alternative would be to commit a different version of the bitmap
+  than the one that stays in memory, but I find this solution
+  unattractive.) @@@
+
+- Formatted journal commit record(s) are prepared, so we are ready to
+  begin writing.
+
+
+PHASE TWO: "Ordered disk writes"
+
+
+Phase two occurs for atoms that reach their commit point and still
+have dirty blocks in memory.  An atom that flushes all of its dirty
+blocks can pass through phase two and commit immediately.  The blocks
+that remain in memory will need copy-on-capture protection until they
+have been flushed.  At this stage,
+
+- The remaining non-flushed preserve set are written to their new
+  locations
+
+- The remaining non-flushed overwrite set (including modified bitmaps)
+  are written to their wandered locations
+
+A phase one atom may request to write-capture one of these blocks before
+they have been written to disk.  This results in a "copy-on-capture"
+of that block--a copy is made allowing the phase one handle to proceed
+without blocking.  When the write of a preserve block is complete it
+may be released immediately and no further copying will be required.
+
+The overwrite set is still needed in the next phase and there is a
+different logic for releasing those blocks.  If a request to
+write-capture an overwrite page comes before it has been written to
+disk, it must be copied according to the rule given above.  If a
+request to write-capture an overwrite block comes after it has been
+written to its wandered location but before it has been written to its
+original location in phase three, then it is simply removed from the
+overwrite set of the atom.  The reason for this is that the atom which
+captures the overwrite block has to write it again anyway, so there is
+no need to write it a second time by the committing atom.  The
+capturing atom must also capture the deallocation responsibility for
+the wandered location of that overwrite block.  A similar optimization
+is made in v3.
+
+One issue with the copy-on-capture approach is that it does not
+address the use of memory-mapped files, which can have their contents
+modified at any point by a process.  My answer to this is to exclude
+the mmap() interface from any atomicity guarantees.
+
+Another issue with the copy-on-capture approach is that it there are
+circumstances when the flush plugin would rather produce its own copy.
+For example, an encryption plugin produces a set of encrypted blocks.
+If it leaves the encrypted blocks in the buffer cache then the next
+reader will be forced to un-encrypt them again.  It may be preferrable
+to leave the originals in the buffer cache and to produce copies for
+writing to disk instead, before the atom commits.
+
+PHASE THREE: "Commit"
+
+
+When all of the outstanding phase-two disk writes have completed, the
+atom reaches phase three at which time it finally commits by a final
+write of the journal commit block.  Once this block reaches the disk,
+recovery will replay the transaction should a crash occur.
+
+
+PHASE THREE: "Post-commit disk writes"
+
+
+In phase three:
+
+- Exclusind the modified bitmaps, the remaining members of the
+  overwrite set, those which have not been captured by another atom
+  already, are written in place of their previous "wandered" contents.
+
+- The wandered locations of the overwrite set are now deallocated. @@@
+
+- The old preserve set locations are now deallocated. @@@
+
+- Modified bitmaps, those which have not been captured by another atom
+  already, are written with the above modifications. @@@
