@@ -296,6 +296,15 @@ static __inline__ void list_splice(struct list_head *list, struct list_head *hea
 
 /* end of <linux/list.h> */
 
+/* include/linux/radix-tree.h */
+struct radix_tree_root {
+	void * root;
+};
+
+extern void *radix_tree_lookup(struct radix_tree_root *, unsigned long);
+
+
+
 static inline void prefetch(const void *x UNUSED_ARG ) {;}
 
 extern pthread_key_t __current_key;
@@ -552,6 +561,7 @@ struct address_space {
 	spinlock_t		i_shared_lock;  /* and spinlock protecting it */
 	int			gfp_mask;	/* how to allocate the pages */
 	spinlock_t                page_lock;
+	struct radix_tree_root  page_tree;
 };
 
 struct block_device;
@@ -753,6 +763,7 @@ struct page {
 	spinlock_t lock2;
 	int kmap_count;
 	struct page *self;
+	struct list_head list; /* FIXME-VS: this is used to link page into */
 };
 
 #define PG_locked	 0	/* Page is locked. Don't touch. */
@@ -913,6 +924,7 @@ struct page {
 void remove_inode_page(struct page *);
 void page_cache_readahead(struct file *file, unsigned long offset);
 
+
 /* include/linux/pagemap.h */
 struct page * find_get_page (struct address_space *, unsigned long);
 struct page * find_lock_page (struct address_space *, unsigned long);
@@ -920,6 +932,10 @@ void wait_on_page_locked(struct page * page);
 typedef int filler_t(void *, struct page*);
 void lock_page(struct page *page);
 void unlock_page(struct page *page);
+struct page *page_cache_alloc (struct address_space *);
+extern int add_to_page_cache_unique(struct page *, struct address_space *,
+				    unsigned long index);
+
 
 /* include/linux/swap.h */
 void lru_cache_del(struct page *);
@@ -1195,8 +1211,8 @@ extern void declare_memory_pressure( void );
 
 
 extern int PAGE_CACHE_SHIFT;
-extern int PAGE_CACHE_SIZE;
-extern int PAGE_CACHE_MASK;
+extern unsigned long PAGE_CACHE_SIZE;
+extern unsigned long PAGE_CACHE_MASK;
 /*
 #define PAGE_CACHE_SHIFT	12
 #define PAGE_CACHE_SIZE	(1UL << PAGE_CACHE_SHIFT)
@@ -1228,6 +1244,7 @@ int ulevel_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG );
 
 #define GFP_NOFS 0
 
+/* include/linux/bio.h */
 struct bio;
 typedef void (bio_end_io_t) (struct bio *);
 typedef void (bio_destructor_t) (struct bio *);
@@ -1352,6 +1369,23 @@ extern int write_one_page(struct page *page, int wait);
 
 extern void wait_on_page_locked(struct page *page);
 extern void wait_on_page_writeback(struct page *page);
+
+
+/* include/linux/spinlock.h */
+/*
+ * FIXME-VS: read_lock and read_unlock are used around radix_tree_lookup
+ */
+static inline void read_lock (spinlock_t * lock)
+{
+	spin_lock (lock);
+}
+
+static inline void read_unlock (spinlock_t * lock)
+{
+	spin_unlock (lock);
+}
+
+
 
 /* __REISER4_ULEVEL_H__ */
 #endif
