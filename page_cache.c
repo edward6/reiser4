@@ -5,7 +5,6 @@
  * Memory pressure hooks. Fake inodes handling.
  */
 /*
- * COMMENT BELOW IS OBSOLETE. Will be updated when design stabilizes.
  *
  * We store all file system meta data (and data, of course) in the page cache.
  *
@@ -17,6 +16,42 @@
  * address_space operations. Such methods are called by VM on memory pressure
  * (or during background page flushing) and we can use them to react
  * appropriately.
+ *
+ * In initial version we only support one block per page. Support for multiple
+ * blocks per page is complicated by relocation.
+ *
+ * To each page, used by reiser4, jnode is attached. jnode is analogous to
+ * buffer head. Difference is that jnode is bound to the page permanently:
+ * jnode cannot be removed from memory until its backing page is.
+ *
+ * jnode contain pointer to page (->pg field) and page contain pointer to
+ * jnode in ->private field. These fields are protected by global
+ * _jnode_ptr_lock spinlock. This is so, because we have to go in both
+ * direction and jnode spinlock is useless when going from page to
+ * jnode. Scalability can be improved by introducing array of spinlocks and
+ * hashing by page ->offset. Then something similar to try-and-release
+ * approach of transaction manager has to be used.
+ *
+ * Properties:
+ *
+ * 1. when jnode-to-page mapping is established (by jnode_attach_page()), page
+ * reference counter is increased.
+ *
+ * 2. when jnode-to-page mapping is destroyed (by jnode_detach_page() and
+ * page_detach_jnode()), page reference counter is decreased.
+ *
+ * 3. when znode is loaded (->d_count becomes larger than 0), page is kmapped.
+ *
+ * 4. when znode is unloaded (->d_count drops to zero), page is kunmapped.
+ *
+ * 5. kmapping/kunmapping of unformatted pages is done by read/write methods.
+ *
+ *
+ *
+ *
+ *
+ *
+ * THIS COMMENT IS VALID FOR "MANY BLOCKS ON PAGE" CASE
  *
  * Fake inode is used to bound formatted nodes and each node is indexed within
  * fake inode by its block number. If block size of smaller than page size, it
@@ -286,7 +321,7 @@ static int formatted_get_block( struct inode *inode, sector_t iblock,
 	assert( "nikita-2031", PageLocked( page ) );
 	assert( "nikita-2035", jprivate( page ) != NULL );
 
-	node = jnode_of_page( page );
+	node = jnode_by_page( page );
 	assert( "nikita-2036", jnode_is_formatted( node ) );
 	map_bh( bh, inode -> i_sb, jnode_get_block( node ) );
 	/*
