@@ -20,8 +20,8 @@ extern reiser4_plugin_t *reiser4_file_guess(reiser4_file_t *object);
 #ifndef ENABLE_COMPACT
 
 extern reiser4_file_t *reiser4_file_create(reiser4_fs_t *fs,
-    reiser4_file_hint_t *hint, reiser4_plugin_t *plugin,
-    reiser4_file_t *parent, const char *name);
+    reiser4_file_hint_t *hint, reiser4_file_t *parent, 
+    const char *name);
 
 extern errno_t reiser4_file_add(reiser4_file_t *object,
     reiser4_entry_hint_t *hint);

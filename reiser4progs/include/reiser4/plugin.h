@@ -272,6 +272,8 @@ struct reiser4_file_hint {
     rpid_t tail_pid;
     rpid_t extent_pid;
     rpid_t hash_pid;
+    
+    reiser4_plugin_t *plugin;
 };
 
 typedef struct reiser4_file_hint reiser4_file_hint_t;

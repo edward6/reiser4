@@ -64,20 +64,16 @@ static void mkfs_init(void) {
 static reiser4_file_t *mkfs_create_lost_found(reiser4_fs_t *fs, 
     reiser4_profile_t *profile) 
 {
-    reiser4_plugin_t *plugin;
     reiser4_file_hint_t hint;
 
-    /* Getting the plugin from entity of the root directory */
-    plugin = fs->root->entity->plugin;
-	
     /* Preparing object hint */
+    hint.plugin = fs->root->entity->plugin;
     hint.statdata_pid = profile->item.statdata;
     hint.direntry_pid = profile->item.direntry;
     hint.hash_pid = profile->hash;
 	
     /* Creating lost+found */
-    return reiser4_file_create(fs, &hint, plugin, 
-	fs->root, "lost+found");
+    return reiser4_file_create(fs, &hint, fs->root, "lost+found");
 }
 
 int main(int argc, char *argv[]) {

@@ -235,26 +235,24 @@ reiser4_fs_t *reiser4_fs_create(
 
     /* Creates root directory */
     {
-	reiser4_plugin_t *dir_plugin;
-	reiser4_file_hint_t dir_hint;
+	reiser4_file_hint_t root_hint;
 	
 	/* Finding directroy plugin */
-	if (!(dir_plugin = libreiser4_factory_ifind(DIR_PLUGIN_TYPE, 
+	if (!(root_hint.plugin = libreiser4_factory_ifind(DIR_PLUGIN_TYPE, 
 	    profile->dir.dir))) 
 	{
 	    aal_exception_error("Can't find directory plugin by "
 		"its id 0x%x.", profile->dir.dir);
+	    
 	    goto error_free_tree;
 	}
 	
-	dir_hint.statdata_pid = profile->item.statdata;
-	dir_hint.direntry_pid = profile->item.direntry;
-	dir_hint.hash_pid = profile->hash;
+	root_hint.statdata_pid = profile->item.statdata;
+	root_hint.direntry_pid = profile->item.direntry;
+	root_hint.hash_pid = profile->hash;
 	
 	/* Creating object "dir40". See object.c for details */
-	if (!(fs->root = reiser4_file_create(fs, 
-	    &dir_hint, dir_plugin, NULL, "/"))) 
-	{
+	if (!(fs->root = reiser4_file_create(fs, &root_hint, NULL, "/"))) {
 	    aal_exception_error("Can't create root directory.");
 	    goto error_free_tree;
 	}
