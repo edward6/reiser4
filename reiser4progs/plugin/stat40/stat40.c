@@ -8,7 +8,6 @@
 #  include <config.h>
 #endif
 
-#include <reiser4/reiser4.h>
 #include "stat40.h"
 
 static reiser4_core_t *core = NULL;
@@ -100,7 +99,9 @@ static errno_t stat40_init(reiser4_body_t *body,
     return 0;
 }
 
-static errno_t stat40_estimate(uint32_t pos, reiser4_item_hint_t *hint) {
+static errno_t stat40_estimate(uint32_t pos, 
+    reiser4_item_hint_t *hint) 
+{
     aal_list_t *extplugins = NULL;
     reiser4_stat_hint_t *stat_hint;
     
@@ -133,9 +134,7 @@ static errno_t stat40_estimate(uint32_t pos, reiser4_item_hint_t *hint) {
 
 #endif
 
-static errno_t stat40_valid(reiser4_body_t *body, 
-    int flags) 
-{
+static errno_t stat40_valid(reiser4_body_t *body) {
     aal_assert("umka-1007", body != NULL, return -1);
     return 0;
 }

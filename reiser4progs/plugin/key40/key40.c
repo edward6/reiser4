@@ -58,9 +58,7 @@ static int key40_confirm(reiser4_body_t *body) {
     return 1;
 }
 
-static errno_t key40_valid(reiser4_body_t *body, 
-    int flags) 
-{
+static errno_t key40_valid(reiser4_body_t *body) {
     aal_assert("vpf-137", body != NULL, return -1);
     return -1;
 }

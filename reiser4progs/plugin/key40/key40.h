@@ -7,6 +7,8 @@
 #ifndef KEY40_H
 #define KEY40_H
 
+#include <aal/aal.h>
+#include <reiser4/plugin.h>
 #include <reiser4/key.h>
 
 typedef enum {

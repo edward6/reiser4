@@ -8,9 +8,6 @@
 #  include <config.h>
 #endif
 
-#include <reiser4/reiser4.h>
-#include <comm/misc.h>
-
 #include "direntry40.h"
 
 static reiser4_core_t *core = NULL;

@@ -8,7 +8,6 @@
 #  include <config.h>
 #endif
 
-#include <reiser4/reiser4.h>
 #include "internal40.h"
 
 static reiser4_core_t *core = NULL;
@@ -57,7 +56,7 @@ static errno_t internal40_print(reiser4_body_t *body,
 
 #ifndef ENABLE_COMPACT
 
-static errno_t internal40_set_pointer(reiser4_body_t *body, 
+static errno_t internal40_pointo(reiser4_body_t *body, 
     blk_t blk)
 {
     aal_assert("umka-605", body != NULL, return -1);
@@ -68,16 +67,9 @@ static errno_t internal40_set_pointer(reiser4_body_t *body,
 
 #endif
 
-static blk_t internal40_get_pointer(reiser4_body_t *body) {
+static blk_t internal40_target(reiser4_body_t *body) {
     aal_assert("umka-606", body != NULL, return 0);
     return it40_get_pointer((internal40_t *)body);
-}
-
-static int internal40_has_pointer(reiser4_body_t *body, 
-    blk_t blk)
-{
-    aal_assert("umka-628", body != NULL, return 0);
-    return (blk == it40_get_pointer((internal40_t *)body));
 }
 
 static reiser4_plugin_t internal40_plugin = {
@@ -113,12 +105,11 @@ static reiser4_plugin_t internal40_plugin = {
 	},
 	.specific = {
 	    .internal = {
-		.get_pointer = internal40_get_pointer,
-		.has_pointer = internal40_has_pointer,
+		.target = internal40_target,
 #ifndef ENABLE_COMPACT
-		.set_pointer = internal40_set_pointer
+		.pointo = internal40_pointo
 #else
-		.set_pointer = NULL
+		.pointo = NULL
 #endif
 	    }
 	}
