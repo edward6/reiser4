@@ -1199,7 +1199,7 @@ int txn_flush_one (txn_mgr * tmgr, long * nr_submitted, int flags)
 	{
 		spin_lock_atom (atom);
 
-		if (atom->stage < ASTAGE_PRE_COMMIT)
+		if (atom->stage < ASTAGE_PRE_COMMIT && atom->nr_flushers == 0)
 			goto found;
 
 		spin_unlock_atom (atom);
@@ -2676,6 +2676,9 @@ capture_fuse_into (txn_atom  *small,
 
 	/* splice flush queues */
 	fq_fuse (large, small);
+
+	/* count flushers in result atom */
+	large->nr_flushers += small->nr_flushers;
 	
 	/* Transfer list counts to large. */
 	large->txnh_count          += small->txnh_count;

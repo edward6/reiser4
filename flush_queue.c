@@ -713,7 +713,7 @@ int fq_write (flush_queue_t * fq, int how_many)
 		first = last;
 	} while (!capture_list_end (&fq->prepped, last));
 
-	return 0;
+	return nr_submitted;
 }
 
 /* Getting flush queue object for exclusive use by one thread. May require

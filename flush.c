@@ -783,6 +783,9 @@ int jnode_flush (jnode *node, long *nr_to_flush, int flags)
 		spin_unlock_atom (atom);
 	} 
 
+	/* count ourself as a flusher */
+	atom->nr_flushers ++;
+
 	/* A special case for znode-above-root.  The above-root (fake) znode is captured
 	 * and dirtied when the tree height changes or when the root node is relocated.
 	 * This causes atoms to fuse so that changes at the root are serialized.  However,
@@ -1048,6 +1051,10 @@ int jnode_flush (jnode *node, long *nr_to_flush, int flags)
 
 	if (fq)
 		fq_put (fq);
+
+	atom = get_current_atom_locked ();
+	atom->nr_flushers --;
+	spin_unlock_atom (atom);
 
 	return ret;
 }
