@@ -1520,7 +1520,7 @@ int check_jnode_for_unallocated (jnode * node)
 		int ret = zload (z);
 		if (ret) return ret;
 
-		spin_lock_znode (z);
+		// spin_lock_znode (z);
 		for_all_units (&coord, z) {
 			if(item_is_internal (&coord)) {
 				reiser4_block_nr block;
@@ -1540,7 +1540,7 @@ int check_jnode_for_unallocated (jnode * node)
 				}
 			}
 		}
-		spin_unlock_znode (z);
+		// spin_unlock_znode (z);
 
 		zrelse (z);
 	}
