@@ -35,12 +35,15 @@ int main( int argc, char **argv )
   int pad;
   unsigned long cycle;
   int dodirs;
+  int writelen;
+  char *buf;
 
   N = 0;
   pad = 0;
   dodirs = 0;
   cycle = 20000;
-  while( ( ch = getopt( argc, argv, "dn:p:c:" ) ) != -1 )
+  writelen = 0;
+  while( ( ch = getopt( argc, argv, "dn:p:c:w:" ) ) != -1 )
 	{
 	  switch( ch )
 		{
@@ -56,6 +59,9 @@ int main( int argc, char **argv )
 		case 'd':
 		  dodirs = 1;
 		  break;
+		case 'w':
+		  writelen = atoi( optarg );
+		  break;
 		default:
 		  exit( 0 );
 		}
@@ -66,6 +72,21 @@ int main( int argc, char **argv )
   prev = 0;
   gettimeofday( &instant, 0 );
   start = instant;
+
+  if( writelen > 0 )
+	{
+	  if( dodirs )
+		{
+		  fprintf( stderr, "Cannot write into directories\n" );
+		  exit( 1 );
+		}
+	  buf = ( char * )malloc( writelen );
+	  if( buf == NULL )
+		{
+		  perror( "malloc" );
+		  exit( 1 );
+		}
+	}
 
   for( i = 0 ; N && i < N ; ++ i )
 	{
@@ -124,7 +145,7 @@ int main( int argc, char **argv )
 		}
 	  else
 		{
-		  fd = open( fname, O_CREAT, 0444 );
+		  fd = open( fname, O_CREAT | O_WRONLY, 0444 );
 		}
 	  if( fd == -1 )
 		{
@@ -134,6 +155,16 @@ int main( int argc, char **argv )
 		}
 	  if( !dodirs )
 		{
+		  if( writelen > 0 )
+			{
+			  int result;
+
+			  if( write( fd, buf, writelen ) != writelen )
+				{
+				  perror( "write" );
+				  exit( 3 );
+				}
+			}
 		  close( fd );
 		}
 	  if( ( i % cycle ) == 0 )
@@ -150,4 +181,5 @@ int main( int argc, char **argv )
 		  prev = i;
 		}
 	}
+  free( buf );
 }
