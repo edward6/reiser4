@@ -1042,7 +1042,7 @@ get_overwrite_set(struct commit_handle *ch)
 	
 	assert("zam-697", ch->overwrite_set_size == 0);
 
-	ch->overwrite_set = &ch->atom->ovrwr_nodes;
+	ch->overwrite_set = ATOM_OVRWR_LIST(ch->atom);
 	cur = capture_list_front(ch->overwrite_set);
 
 	while (!capture_list_end(ch->overwrite_set, cur)) {

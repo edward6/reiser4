@@ -1028,8 +1028,8 @@ static void dispatch_wb_list (txn_atom * atom, flush_queue_t * fq)
 
         assert("zam-905", atom_is_protected(atom));
 
-        cur = capture_list_front(&atom->writeback_nodes);
-        while (!capture_list_end(&atom->writeback_nodes, cur)) {
+        cur = capture_list_front(ATOM_WB_LIST(atom));
+        while (!capture_list_end(ATOM_WB_LIST(atom), cur)) {
                 jnode * next = capture_list_next(cur);
 
                 LOCK_JNODE(cur);
@@ -1038,7 +1038,7 @@ static void dispatch_wb_list (txn_atom * atom, flush_queue_t * fq)
                                 queue_jnode(fq, cur);
                         } else {
                                 capture_list_remove(cur);
-                                capture_list_push_back(&atom->clean_nodes, cur);
+                                capture_list_push_back(ATOM_CLEAN_LIST(atom), cur);
                         }
                 }
                 UNLOCK_JNODE(cur);

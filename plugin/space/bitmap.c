@@ -1355,7 +1355,7 @@ pre_commit_hook_bitmap(void)
 
 	{			/* scan atom's captured list and find all freshly allocated nodes,
 				 * mark corresponded bits in COMMIT BITMAP as used */
-		capture_list_head *head = &atom->clean_nodes;
+		capture_list_head *head = ATOM_CLEAN_LIST(atom);
 		jnode *node = capture_list_front(head);
 
 		while (!capture_list_end(head, node)) {
