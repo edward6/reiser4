@@ -120,24 +120,24 @@ i_sem
 ........pfault              | |
 ..........mm->mmap_sem------+-+                   [do_page_fault]
 ............kalloc
-..............mapping->i_shared_lock          [vmtruncate]
 ..............ktxnmgrd_lock
-................mapping->private_lock         [__set_page_dirty_buffers]
 ................txnmgr_lock
-..................cachep->spinlock
-..................zone->lock
-..................&inode_lock
 ..................atom_lock
-..................&swaplock
-....................swap->device_lock     [exclusive_swap_page,.others]
 ....................jnode_lock            [->vm_writeback()->jget()]
-......................mm->page_table_lock [handle_mm_fault, do_no_page]
-......................zone->lru_lock
-......................mapping->page_lock
 ......................txnh_lock
 ........................dk_lock
 ..........................tree_lock
 ............................cbk_guard
+..............mapping->i_shared_lock          [vmtruncate]
+................mapping->private_lock         [__set_page_dirty_buffers]
+................mapping->page_lock
+..................cachep->spinlock
+..................zone->lock
+..................&inode_lock
+..................&swaplock
+....................swap->device_lock     [exclusive_swap_page,.others]
+......................mm->page_table_lock [handle_mm_fault, do_no_page]
+......................zone->lru_lock
 ....................&sb_lock 		          [fs/fs-writeback.c]
               ^
               +-- spin locks are starting here. Don't schedule rightward.
