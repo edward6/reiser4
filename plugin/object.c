@@ -230,9 +230,9 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 
 	ref = reiser4_inode_data(inode);
 	spin_lock_inode(inode);
-	if (ref->sd == NULL) {
+	if (ref->sd == NULL)
 		ref->sd = inode_sd_plugin(inode);
-	}
+
 	data.iplug = ref->sd;
 	data.length = ref->sd->s.sd.save_len(inode);
 	spin_unlock_inode(inode);
