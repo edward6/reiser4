@@ -220,7 +220,7 @@ extern int znode_is_write_locked(const znode * node);
 	 (lock_counters()->spin_locked_txnh == 0) &&		\
 	 (lock_counters()->spin_locked_jnode == 0) &&		\
 	 (lock_counters()->spin_locked_stack == 0) &&		\
-	 (lock_counters()->spin_locked_txnmgrd == 0) &&		\
+	 (lock_counters()->spin_locked_ktxnmgrd == 0) &&	\
 	 (lock_counters()->spin_locked_fq == 0) &&		\
 	 (lock_counters()->spin_locked_super == 0) &&		\
 	 (lock_counters()->spin_locked_inode_object == 0) &&	\
