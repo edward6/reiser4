@@ -1297,6 +1297,7 @@ struct kstat {
 #define put_unaligned(val, ptr) ((void)( *(ptr) = (val) ))
 
 #define to_kdev_t( x ) ( x )
+#define kdev_t_to_nr( x ) ( x )
 
 /* __REISER4_ULEVEL_H__ */
 #endif

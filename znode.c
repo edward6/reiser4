@@ -1134,7 +1134,7 @@ static int znode_invariant_f( const znode *node /* znode to check */,
 		/*
 		 * Condition 7+: Flags
 		 */
-		_equi( ZF_ISSET( node, ZNODE_LOADED ), zdata( node ) != NULL ) &&
+		_ergo( ZF_ISSET( node, ZNODE_LOADED ), zdata( node ) != NULL ) &&
 
 		_ergo( atomic_read( &node -> d_count ) > 0, 
 		      ZF_ISSET( node, ZNODE_LOADED ) ) &&
