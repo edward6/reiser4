@@ -364,6 +364,8 @@ extern int carry_node_num( const carry_level *level );
 carry_node *add_new_znode( znode *brother, carry_node *reference,
 			   carry_level *doing, carry_level *todo );
 
+carry_node *find_carry_node( carry_level *level, const znode *node );
+
 /* debugging function */
 
 #if REISER4_DEBUG

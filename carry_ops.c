@@ -1236,6 +1236,14 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 	parent = op -> node -> real_node;
 	child  = op -> u.delete.child ?
 		op -> u.delete.child -> real_node : op -> node -> node;
+	spin_lock_tree( current_tree );
+	if( znode_parent( child ) != parent ) {
+		/*
+		 * FIXME-NIKITA add stat counter for this.
+		 */
+		parent = znode_parent( child );
+		assert( "nikita-2581", find_carry_node( doing, parent ) );
+	}
 
 	assert( "nikita-1213", znode_get_level( parent ) > LEAF_LEVEL );
 
@@ -1258,7 +1266,7 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 		return 0;
 	}
 
-	/* convert child pointer to the tree_coord */
+	/* convert child pointer to the coord_t */
 	result = find_child_ptr( parent, child, &coord );
 	if( result != NS_FOUND ) {
 		warning( "nikita-994", "Cannot find child pointer: %i", result );
