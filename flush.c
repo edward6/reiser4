@@ -108,7 +108,13 @@ int jnode_flush (jnode *node)
 
 	/* Locate the leftpoint of the node to flush, which found by scanning
 	 * leftward and recursing upward as long as the neighbor or parent is
-	 * dirty. */
+	 * dirty.
+	 *
+	 * Note: If NODE is a non-leaf node, the scan_left in the first call to
+	 * flush_lock_leftpoint might consider descending downward to its leftmost child
+	 * and then to the left at the leaf level.  Some extra complexity, questionable
+	 * return-on-investment given that most nodes are leaves and are likely to be
+	 * flushed before their parent nodes. */
 	if ((ret = flush_lock_leftpoint (node, NULL, & leftpoint, & leftpoint_lock, & preceder, 1 /* scan_left */))) {
 		goto failed;
 	}
