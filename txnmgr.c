@@ -1131,13 +1131,16 @@ void jnode_set_dirty( jnode *node )
 		spin_lock_tree (current_tree);
 		JZNODE (node)->version = ++ current_tree->znode_epoch;
 		spin_unlock_tree (current_tree);
+		assert ("nikita-1900", znode_is_write_locked (node)); /* 20-th
+								       * century
+								       * coming */
 	}
 
 	spin_unlock_jnode (node);
 }
 
 /* Unset the dirty status for this jnode.  If the jnode is dirty, this involves locking the atom (for its capture
- * lists), removeing from the dirty_nodes list and pushing in to the clean list.
+ * lists), removing from the dirty_nodes list and pushing in to the clean list.
  */
 void jnode_set_clean( jnode *node )
 {
@@ -1150,6 +1153,10 @@ void jnode_set_clean( jnode *node )
 	if (jnode_is_dirty (node)) {
 
 		JF_CLR (node, ZNODE_DIRTY);
+#if REISER4_DEBUG_MODIFY
+		if ( ! JF_ISSET (node, ZNODE_UNFORMATTED))
+			JZNODE (node)->cksum = znode_checksum (JZNODE (node));
+#endif
 
 		atom = atom_get_locked_by_jnode (node);
 
