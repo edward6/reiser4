@@ -40,8 +40,7 @@ reiser4_plugin tail_plugins[ LAST_TAIL_ID ] = {
 		},
 		.u = {
 			.tail = {
-				.tail   = never_tail,
-				.notail = always_tail
+				.have_tail   = never_tail
 			}
 		}
 	},
@@ -56,8 +55,7 @@ reiser4_plugin tail_plugins[ LAST_TAIL_ID ] = {
 		},
 		.u = {
 			.tail = {
-				.tail   = always_tail,
-				.notail = never_tail
+				.have_tail   = always_tail
 			}
 		}
 	}
