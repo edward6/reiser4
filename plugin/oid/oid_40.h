@@ -31,13 +31,14 @@ typedef struct {
 } oid_40_allocator;
 
 
-int   oid_40_read_allocator  ( reiser4_oid_allocator *, __u64 nr_files,
-			       __u64 oids );
-__u64 oid_40_free            ( reiser4_oid_allocator * );
-__u64 oid_40_used            ( reiser4_oid_allocator * );
-int   oid_40_allocate        ( reiser4_oid_allocator *, oid_t *result );
-int   oid_40_release         ( reiser4_oid_allocator *, oid_t oid );
-int   oid_40_reserve_allocate( reiser4_oid_allocator * );
-int   oid_40_reserve_release ( reiser4_oid_allocator * );
-void  oid_40_print_info      ( const char *, reiser4_oid_allocator * );
+extern int   oid_40_read_allocator  ( reiser4_oid_allocator *, __u64 nr_files,
+				      __u64 oids );
+extern __u64 oid_40_free            ( reiser4_oid_allocator * );
+extern __u64 oid_40_next_oid        ( reiser4_oid_allocator * );
+extern __u64 oid_40_used            ( reiser4_oid_allocator * );
+extern int   oid_40_allocate        ( reiser4_oid_allocator *, oid_t *result );
+extern int   oid_40_release         ( reiser4_oid_allocator *, oid_t oid );
+extern int   oid_40_reserve_allocate( reiser4_oid_allocator * );
+extern int   oid_40_reserve_release ( reiser4_oid_allocator * );
+extern void  oid_40_print_info      ( const char *, reiser4_oid_allocator * );
 

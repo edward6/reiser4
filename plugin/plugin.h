@@ -316,6 +316,8 @@ typedef struct oid_allocator_plugin {
 				     __u64 oids );
 	/* used to report statfs->f_files */	
 	__u64 ( *oids_used )( reiser4_oid_allocator *map );
+	/* get next oid to use */
+	__u64 ( *next_oid )( reiser4_oid_allocator *map );
 	/* used to report statfs->f_ffree */
 	__u64 ( *oids_free )( reiser4_oid_allocator *map );
 	/* allocate new objectid */
