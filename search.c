@@ -1427,6 +1427,8 @@ void print_address( const char *prefix /* prefix to print */,
 {
 	if( block == NULL ) {
 		info( "%s: null\n", prefix );
+	} else if( blocknr_is_fake( block ) ) {
+		info( "%s: %llx (fake)\n", prefix, *block );
 	} else {
 		info( "%s: %llu\n", prefix, *block );
 	}
