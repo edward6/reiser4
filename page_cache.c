@@ -543,8 +543,9 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 
 	reiser4_lock_page(page);
 	result = emergency_flush(page);
+
 	if (result <= 0)
-		reiser4_unlock_page(page);
+		REISER4_EXIT(WRITEPAGE_ACTIVATE);
 
 	REISER4_EXIT(0);
 }
