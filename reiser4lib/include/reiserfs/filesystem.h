@@ -19,7 +19,10 @@ struct reiserfs_master_super {
 	uint16_t mr_format_id;
 	uint16_t mr_blocksize;
 	char mr_uuid[16];
+	char mr_label[16];
 };
+
+typedef struct reiserfs_master_super reiserfs_master_super_t;
 
 #define get_mr_format_id(mr)		get_le16(mr, mr_format_id)
 #define set_mr_format_id(mr, val)	set_le16(mr, mr_format_id, val)
@@ -67,10 +70,18 @@ struct reiserfs_fs {
 
 typedef struct reiserfs_fs reiserfs_fs_t;
 
+typedef void reiserfs_params_opaque_t;
+
+/* Public functions */
 extern reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, 
 	aal_device_t *journal_device, int replay);
 
 extern void reiserfs_fs_close(reiserfs_fs_t *fs, int sync);
+
+extern reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
+	reiserfs_plugin_id_t format, unsigned int blocksize, const char *uuid, 
+	const char *label, count_t len, aal_device_t *journal_device, 
+	reiserfs_params_opaque_t *journal_params);
 
 extern const char *reiserfs_fs_format(reiserfs_fs_t *fs);
 extern unsigned int reiserfs_fs_blocksize(reiserfs_fs_t *fs);

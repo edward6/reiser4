@@ -66,6 +66,52 @@ void reiserfs_fs_close(reiserfs_fs_t *fs, int sync) {
 	aal_free(fs);
 }
 
+reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, reiserfs_plugin_id_t format, 
+	unsigned int blocksize, const char *uuid, const char *label, count_t len, 
+	aal_device_t *journal_device, reiserfs_params_opaque_t *journal_params)
+{
+	reiserfs_fs_t *fs;
+
+	ASSERT(host_device != NULL, return NULL);
+	ASSERT(journal_device != NULL, return NULL);
+
+	if (!aal_pow_of_two(blocksize)) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-025", 
+			"Invalid block size %d. It must be power of two.", blocksize);
+		return NULL;
+	}
+	
+	if (!(fs = aal_calloc(sizeof(*fs), 0)))
+		return NULL;
+	
+	fs->device = host_device;
+	
+	if (!reiserfs_super_create(fs, format, blocksize, uuid, label, len))
+		goto error_free_fs;
+	
+/*	if (!reiserfs_journal_create(fs, journal_device, journal_params))
+		goto error_free_super;
+	
+	if (!reiserfs_alloc_create(fs))
+		goto error_free_journal;
+	
+	if (!reiserfs_tree_create(fs))
+		goto error_free_alloc;*/
+	
+	return fs;
+
+error_free_alloc:
+	reiserfs_alloc_close(fs, 0);
+error_free_journal:
+	reiserfs_journal_close(fs, 0);
+error_free_super:
+	reiserfs_super_close(fs, 0);
+error_free_fs:
+	aal_free(fs);
+error:
+	return NULL;
+}
+
 const char *reiserfs_fs_format(reiserfs_fs_t *fs) {
 	return reiserfs_super_format(fs);
 }

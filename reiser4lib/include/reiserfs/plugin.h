@@ -112,13 +112,15 @@ struct reiserfs_format_plugin {
 	reiserfs_plugin_header_t h;
 	
 	reiserfs_format_opaque_t *(*init) (aal_device_t *);
+	reiserfs_format_opaque_t *(*create) (aal_device_t *);
 	void (*done) (reiserfs_format_opaque_t *, int);
+	
 	unsigned int (*probe) (aal_device_t *device);
 
 	const char *(*format) (reiserfs_format_opaque_t *);
 	
-	reiserfs_plugin_id_t (*journal_plugin_id) (reiserfs_format_opaque_t *);
-	reiserfs_plugin_id_t (*alloc_plugin_id) (reiserfs_format_opaque_t *);
+	reiserfs_plugin_id_t (*journal_plugin_id) (void);
+	reiserfs_plugin_id_t (*alloc_plugin_id) (void);
 };
 
 typedef struct reiserfs_format_plugin reiserfs_format_plugin_t;

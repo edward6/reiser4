@@ -108,6 +108,10 @@ error:
 	return NULL;
 }
 
+static reiserfs_format36_t *reiserfs_format36_create(aal_device_t *device) {
+	return NULL;
+}
+
 static void reiserfs_format36_done(reiserfs_format36_t *format, int sync) {
 	if (sync && !aal_block_write(format->device, format->super)) {
 		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-008", 
@@ -138,11 +142,11 @@ static const char *reiserfs_format36_format(reiserfs_format36_t *format) {
 	return formats[version >= 0 && version < 3 ? version : 1];
 }
 
-static reiserfs_plugin_id_t reiserfs_format36_journal_plugin(reiserfs_format36_t *format) {
+static reiserfs_plugin_id_t reiserfs_format36_journal_plugin(void) {
 	return 0x2;
 }
 
-static reiserfs_plugin_id_t reiserfs_format36_alloc_plugin(reiserfs_format36_t *format) {
+static reiserfs_plugin_id_t reiserfs_format36_alloc_plugin(void) {
 	return 0x2;
 }
 
@@ -157,14 +161,15 @@ reiserfs_plugin_t plugin_info = {
 				"Copyright (C) 1996-2002 Hans Reiser",
 		},
 		.init = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format36_init,
+		.create = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format36_create,
 		.done = (void (*)(reiserfs_format_opaque_t *, int))reiserfs_format36_done,
 		.probe = (unsigned int (*)(aal_device_t *))reiserfs_format36_probe,
 		.format = (const char *(*)(reiserfs_format_opaque_t *))reiserfs_format36_format,
 			
-		.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_format_opaque_t *))
+		.journal_plugin_id = (reiserfs_plugin_id_t(*)(void))
 			reiserfs_format36_journal_plugin,
 		
-		.alloc_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_format_opaque_t *))
+		.alloc_plugin_id = (reiserfs_plugin_id_t(*)(void))
 			reiserfs_format36_alloc_plugin,
 	}
 };
