@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
 	    int i;
 	    char name[256];
 
-	    for (i = 0; i < 1; i++) {
+	    for (i = 0; i < 89; i++) {
 		aal_memset(name, 0, sizeof(name));
 		aal_snprintf(name, 256, "testdir%d", i);
 		reiser4_dir_close(reiser4_dir_create(fs, 
@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
     }
     
     reiser4_dir_close(object);
-    reiser4_fs_sync(fs);
+//    reiser4_fs_sync(fs);
 
     reiser4_fs_close(fs);
     libreiser4_done();

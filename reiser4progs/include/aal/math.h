@@ -10,5 +10,6 @@
 extern int aal_pow_of_two(unsigned long n);
 extern int aal_log2(unsigned long n);
 extern long long int aal_fact(int64_t n);
+
 #endif
 

@@ -57,7 +57,6 @@ aal_device_t *aal_device_open(
     device->data = data;
     device->flags = flags;
     device->blocksize = blocksize;
-    device->length = 0;
 
     return device;
 }
@@ -195,12 +194,8 @@ count_t aal_device_len(
 ) {
     aal_assert("vpf-216", device != NULL, return 0);	
 
-    if (!device->length) {
-	aal_device_check_routine(device, len, return 0);
-	device->length = device->ops->len(device);
-    }
-
-    return device->length * 1024 / device->blocksize;
+    aal_device_check_routine(device, len, return 0);
+    return device->ops->len(device);
 }
 
 /* Returns device name. For standard file it is file name */

@@ -42,7 +42,6 @@ struct aal_device {
     void *data;
     void *entity;
     uint16_t blocksize;
-    uint64_t length;
     char name[256], error[256];
     struct aal_device_ops *ops;
 };
@@ -54,11 +53,18 @@ typedef struct aal_device aal_device_t;
     be implemented.
 */
 struct aal_device_ops {
-    errno_t (*read)(aal_device_t *, void *, blk_t, count_t);
-    errno_t (*write)(aal_device_t *, void *, blk_t, count_t);
+    errno_t (*read)(aal_device_t *, 
+	void *, blk_t, count_t);
+    
+    errno_t (*write)(aal_device_t *, 
+	void *, blk_t, count_t);
+    
     errno_t (*sync)(aal_device_t *);
     int (*flags)(aal_device_t *);
-    errno_t (*equals)(aal_device_t *, aal_device_t *);
+    
+    errno_t (*equals)(aal_device_t *, 
+	aal_device_t *);
+    
     uint32_t (*stat)(aal_device_t *);
     count_t (*len)(aal_device_t *);
 };

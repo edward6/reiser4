@@ -207,12 +207,14 @@ static count_t file_len(
     
 #endif
     
-    if ((max_off = lseek(*((int *)device->entity), 0, SEEK_END)) == (loff_t)-1) {
+    if ((max_off = lseek(*((int *)device->entity), 
+	0, SEEK_END)) == (loff_t)-1) 
+    {
 	save_error(device);
 	return 0;
     }
     
-    return (count_t)(max_off / 1024);
+    return (count_t)(max_off / device->blocksize);
 }
 
 /*

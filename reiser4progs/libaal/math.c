@@ -21,5 +21,6 @@ int aal_log2(unsigned long n) {
 }
 
 long long int aal_fact(long long int n) {
-    return n ? n * aal_fact(n-1) : 1;
+    return n ? n * aal_fact(n - 1) : 1;
 }
+
