@@ -320,7 +320,7 @@ zinit(znode * node, const znode * parent, reiser4_tree * tree)
 
 	jnode_init(&node->zjnode, tree);
 	reiser4_init_lock(&node->lock);
-	coord_init_parent_hint(&node->in_parent, parent);
+	init_parent_coord(&node->in_parent, parent);
 	ON_DEBUG_MODIFY(spin_lock_init(&node->cksum_guard));
 	ON_DEBUG_MODIFY(node->cksum = 0);
 }
@@ -418,19 +418,17 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 
 	hash   = blknrhashfn(blocknr);
 	htable = get_htable(tree, blocknr);
-	/* Precondition for call to zlook_internal: locked hash table */
+
 	RLOCK_TREE(tree);
 
 	result = z_hash_find_index(htable, hash, blocknr);
 
-	/* According to the current design, the hash table lock protects new znode
-	   references. */
-	if (result != NULL) {
-		add_x_ref(ZJNODE(result));
-	}
-
-	/* Release hash table lock: non-null result now referenced. */
+	/* tree lock may be released early (before doing add_x_ref(), because
+	 * node is protected by RCU */
 	RUNLOCK_TREE(tree);
+
+	if (result != NULL)
+		add_x_ref(ZJNODE(result));
 
 	return result;
 }
@@ -1020,6 +1018,35 @@ move_load_count(load_count * new, load_count * old)
 	old->node = NULL;
 	old->d_ref = 0;
 }
+
+void parent_coord_to_coord(const parent_coord_t * pcoord, coord_t * coord)
+{
+	assert("nikita-3204", pcoord != NULL);
+	assert("nikita-3205", coord != NULL);
+
+	coord_init_first_unit_nocheck(coord, pcoord->node);
+	coord_set_item_pos(coord, pcoord->item_pos);
+	coord->between = AT_UNIT;
+}
+
+void coord_to_parent_coord(const coord_t * coord, parent_coord_t * pcoord)
+{
+	assert("nikita-3206", pcoord != NULL);
+	assert("nikita-3207", coord != NULL);
+
+	pcoord->node = coord->node;
+	pcoord->item_pos = coord->item_pos;
+}
+
+/* Initialize a parent hint pointer. (parent hint pointer is a field in znode,
+   look for comments there) */
+void
+init_parent_coord(parent_coord_t * pcoord, const znode * node)
+{
+	pcoord->node = (znode *) node;
+	pcoord->item_pos = (unsigned short)~0;
+}
+
 
 #if REISER4_DEBUG
 extern int jnode_invariant_f(const znode * node, char const **msg);

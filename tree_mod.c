@@ -141,7 +141,7 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 			init_lh(&rlh);
 			result = longterm_lock_znode(&rlh, new_root, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
 			if (result == 0) {
-				coord_t *in_parent;
+				parent_coord_t *in_parent;
 				++tree->height;
 
 				/* recalculate max balance overhead */
@@ -152,9 +152,7 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 				/* new root is a child of "fake" node */
 				WLOCK_TREE(tree);
 				in_parent = &new_root->in_parent;
-				in_parent->node = fake;
-				coord_invalid_item_pos(in_parent);
-				in_parent->between = AT_UNIT;
+				init_parent_coord(in_parent, fake);
 				WUNLOCK_TREE(tree);
 
 				/* insert into new root pointer to the
@@ -279,9 +277,7 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 		WLOCK_TREE(tree);
 
 		/* new root is child on "fake" node */
-		new_root->in_parent.node = fake;
-		coord_invalid_item_pos(&new_root->in_parent);
-		new_root->in_parent.between = AT_UNIT;
+		init_parent_coord(&new_root->in_parent, fake);
 		atomic_inc(&fake->c_count);
 
 		sibling_list_insert_nolock(new_root, NULL);

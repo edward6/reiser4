@@ -598,7 +598,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		   ->in_parent: coord where pointer to this node is stored in
 		   parent.
 		*/
-		active->in_parent = *h->coord;
+		coord_to_parent_coord(h->coord, &active->in_parent);
 		/* protect sibling pointers and `connected' state bits, check
 		   znode state */
 		ret = znode_is_connected(active);

@@ -728,14 +728,14 @@ find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 	   node->pos_in_parent and pos->*_blocknr consistent. */
 	if (child->in_parent.item_pos + 1 != 0) {
 		reiser4_stat_inc(tree.pos_in_parent_set);
-		xmemcpy(result, &child->in_parent, sizeof *result);
+		parent_coord_to_coord(&child->in_parent, result);
 		if (check_tree_pointer(result, child) == NS_FOUND) {
 			RUNLOCK_TREE(tree);
 			return NS_FOUND;
 		}
 
 		reiser4_stat_inc(tree.pos_in_parent_miss);
-		coord_invalid_item_pos(&child->in_parent);
+		child->in_parent.item_pos = (unsigned short)~0;
 	}
 	RUNLOCK_TREE(tree);
 
@@ -754,8 +754,7 @@ find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 	/* update cached pos_in_node */
 	if (lookup_res == NS_FOUND) {
 		WLOCK_TREE(tree);
-		child->in_parent = *result;
-		child->in_parent.between = AT_UNIT;
+		coord_to_parent_coord(result, &child->in_parent);
 		WUNLOCK_TREE(tree);
 		lookup_res = check_tree_pointer(result, child);
 	}
@@ -788,7 +787,8 @@ find_child_by_addr(znode * parent /* parent znode, passed locked */ ,
 	for_all_units(result, parent) {
 		if (check_tree_pointer(result, child) == NS_FOUND) {
 			UNDER_RW_VOID(tree, znode_get_tree(parent), write,
-				      child->in_parent = *result);
+				      coord_to_parent_coord(result, 
+							    &child->in_parent));
 			ret = NS_FOUND;
 			break;
 		}

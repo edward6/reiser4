@@ -23,6 +23,11 @@
 #include <asm/atomic.h>
 #include <asm/semaphore.h>
 
+typedef struct parent_coord {
+	znode       *node;
+	pos_in_node  item_pos;
+} parent_coord_t;
+
 /* &znode - node in a reiser4 tree.
   
    NOTE-NIKITA fields in this struct have to be rearranged (later) to reduce
@@ -88,7 +93,7 @@ struct znode {
 	   in_parent->node points to the parent of this node, and is NOT a
 	   hint.
 	*/
-	coord_t in_parent;
+	parent_coord_t in_parent;
 
 	znode *left;
 	znode *right;
@@ -170,6 +175,10 @@ znode_size(const znode * node UNUSED_ARG /* znode to query */ )
 	assert("nikita-1416", node != NULL);
 	return PAGE_CACHE_SIZE;
 }
+
+extern void parent_coord_to_coord(const parent_coord_t *pcoord, coord_t *coord);
+extern void coord_to_parent_coord(const coord_t *coord, parent_coord_t *pcoord);
+extern void init_parent_coord(parent_coord_t * pcoord, const znode * node);
 
 extern unsigned znode_free_space(znode * node);
 extern int znode_is_loaded(const znode * node);

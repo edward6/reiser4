@@ -2607,7 +2607,7 @@ static void
 check_coord(const coord_t *coord)
 {
 	assert("vs-1285", coord->width == extent_get_width(extent_by_coord(coord)));
-	assert("vs-1286", coord->vp == extent_item(coord));
+	assert("vs-1286", coord->body == extent_item(coord));
 	assert("vs-1287", coord->nr_units == nr_units_extent(coord));
 }
 

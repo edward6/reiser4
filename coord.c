@@ -141,15 +141,6 @@ coord_init_after_item_end(coord_t * coord)
 	coord->unit_pos = coord_last_unit_pos(coord);
 }
 
-/* Initialize a parent hint pointer. (parent hint pointer is a field in znode,
-   look for comments there) */
-void
-coord_init_parent_hint(coord_t * coord, const znode * node)
-{
-	coord->node = (znode *) node;
-	coord_invalid_item_pos(coord);
-}
-
 /* Initialize a coordinate by 0s. Used in places where init_coord was used and
    it was not clear how actually */
 void
