@@ -604,10 +604,12 @@ static void wander_end_io (struct bio * bio)
 	bio_put(bio);
 }
 
-
-/* create a BIO object for all pages for all j-nodes and submit write
- * request. j-nodes are in a double-linked list (capture_list)*/
-/* FIXME: it should be combined with similar code in flush.c */
+/** Submit a write request for @nr jnodes beginning from the @first, other
+ * jnodes are after the @first on the double-linked "capture" list.  All
+ * jnodes will be written to the disk region of @nr blocks starting with
+ * @block_p block number.  If @use_io_handle option is set (!= 0) it means
+ * that i/o handle object is allocated and it will be used for this i/o
+ * request synchronization.*/
 static int submit_write (jnode * first, int nr, 
 			 const reiser4_block_nr * block_p,
 			 int use_io_handle)
