@@ -1109,7 +1109,7 @@ longterm_lock_znode(
 		/* This time, a return of (ret == 0) means we can lock, so we
 		   should break out of the loop. */
 		if (likely(ret != -EAGAIN || non_blocking)) {
-			ADDSTAT(node, lock_cannot_lock);
+			ADDSTAT(node, lock_can_lock);
 			break;
 		}
 
