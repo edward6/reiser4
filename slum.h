@@ -25,9 +25,6 @@ struct slum_scan {
 
 	/* Lock at the end of the scan, if formatted. */
 	reiser4_lock_handle node_lock;
-	
-	/* The current scan atom. */
-	txn_atom *atom;
 };
 
 extern int balance_level_slum( slum_scan *scan );

@@ -256,6 +256,9 @@ extern int          txn_end               (reiser4_context    *context);
 
 extern int          txn_mgr_force_commit  (struct super_block *super);
 
+extern int          txn_same_atom_dirty   (jnode              *base,
+					   jnode              *check);
+
 extern int          txn_try_capture       (jnode              *node,
 					   znode_lock_mode     mode,
 					   int                 non_blocking);

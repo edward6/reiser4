@@ -25,6 +25,7 @@ blocknumbers, which must be unique so that zget() still works.
 
 #include "reiser4.h"
 
+#if 0
 /**
  * Scan all nodes of squeezable slum and squeeze everything to the left.
  *
@@ -264,6 +265,7 @@ int balance_level_slum (slum_scan *scan)
 	reiser4_stat_slum_add( squeeze );
 	return result;
 }
+#endif
 
 /*
  * Local variables:

@@ -366,6 +366,34 @@ atom_get_locked_by_jnode (jnode *node)
 	return atom;
 }
 
+/* Returns true if @node should be considered part of a slum in @atom. */
+int
+txn_same_atom_dirty (jnode *node, jnode *check)
+{
+	int compat;
+	txn_atom *atom;
+
+	/* Need a lock on CHECK to get its atom and to check various state
+	 * bits.  Don't need a lock on NODE once we get the atom lock. */
+	spin_lock_jnode (check);
+	
+	atom = atom_get_locked_by_jnode (check);
+
+	if (atom == NULL) {
+		compat = 0;
+	} else {
+		compat = ((jnode_is_unformatted (check) ? 1 : znode_is_connected (JZNODE (check))) &&
+			  jnode_is_dirty (check) &&
+			  (node->atom == atom));
+
+		spin_unlock_atom (atom);
+	}
+
+	spin_unlock_jnode (check);
+
+	return compat;
+}
+
 /* Return true if an atom is currently "open". */
 static int
 atom_isopen (txn_atom *atom)
