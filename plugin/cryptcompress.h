@@ -8,6 +8,7 @@
 
 #include <linux/pagemap.h>
 #include <linux/crypto.h>
+#include <linux/vmalloc.h>
 
 #define MIN_CLUSTER_SIZE PAGE_CACHE_SIZE
 #define MAX_CLUSTER_SHIFT 4
@@ -98,7 +99,7 @@ alloc_ts_data(tfm_stream_t * stm, size_t size)
 	assert("edward-936", !ts_size(stm));
 	assert("edward-937", size != 0);
 
-	stm->data = reiser4_kmalloc(size, GFP_KERNEL);
+	stm->data = vmalloc(size);
 	if (!stm->data)
 		return -ENOMEM;
 	set_ts_size(stm, size);
@@ -111,7 +112,7 @@ free_ts_data(tfm_stream_t * stm)
 	assert("edward-938", equi(ts_data(stm), ts_size(stm)));
 	
 	if (ts_data(stm))
-		reiser4_kfree(ts_data(stm));
+		vfree(ts_data(stm));
 	memset(stm, 0, sizeof *stm);
 }
 
