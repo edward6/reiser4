@@ -15,9 +15,11 @@
 #include <stdlib.h>
 #include <time.h>
 #include <sys/time.h>
+#include <sys/mman.h>
 #include <dirent.h>
 /* #define NDEBUG */
 #include <assert.h>
+#include <signal.h>
 
 extern char *optarg;
 extern int optind, opterr, optopt;
@@ -44,6 +46,11 @@ stats_t stats;
 
 static void *worker(void *arg);
 
+typedef struct {
+	void *start;
+	int   length;
+} mmapped_t;
+
 typedef struct params {
 	int         dirs;
 	int         files;
@@ -52,6 +59,8 @@ typedef struct params {
 	int         fileno;
 	int         dirno;
 	DIR       **cwd;
+	int        *fd;
+	mmapped_t  *mmapped;
 } params_t;
 
 static void sync_file(params_t *params);
@@ -63,6 +72,8 @@ static void link_file(params_t *params);
 static void sym_file(params_t *params);
 static void trunc_file(params_t *params);
 static void pip_file(params_t *params);
+static void mmap_file(params_t *params);
+static void open_file(params_t *params);
 static void gc_file(params_t *params);
 
 static void nap(int secs, int nanos);
@@ -82,6 +93,8 @@ static void orderedname(params_t *params, char *name);
 #define DEFAULT_LIMIT 0
 #define DEFAULT_BENCHMARK 0
 #define DEFAULT_OPERATIONS 0
+#define DEFAULT_OPEN_FD    10
+#define DEFAULT_MMAPED_AREAS  100
 
 int delta = DEFAULT_DELTA;
 int max_sleep = DEFAULT_MAX_SLEEP;
@@ -93,6 +106,9 @@ unsigned long long operations = DEFAULT_OPERATIONS;
 int benchmark = DEFAULT_BENCHMARK;
 int files = DEFAULT_FILES;
 int dirs = DEFAULT_DIRS;
+int fd_num = DEFAULT_OPEN_FD;
+int nr_mmapped = DEFAULT_MMAPED_AREAS;
+int pgsize;
 
 DIR **cwds = NULL;
 
@@ -131,6 +147,8 @@ typedef enum {
 	symop,
 	truncop,
 	pipop,
+	openop,
+	mmapop,
 	gcop
 } op_id_t;
 
@@ -151,13 +169,15 @@ op_t ops[] = {
 	DEFOPS(sym),
 	DEFOPS(trunc),
 	DEFOPS(pip),
+	DEFOPS(mmap),
+	DEFOPS(open),
 	DEFOPS(gc),
 	{
 		.label = NULL
 	}
 };
 
-const char optstring[] = "p:f:d:D:i:s:b:M:BvF:L:O:";
+const char optstring[] = "p:f:d:D:i:s:b:M:BvF:L:O:o:m:";
 
 static double
 rate(unsigned long events, int secs)
@@ -193,6 +213,8 @@ usage(char *argv0)
 		"\t-s N   \tsleep [0 .. N] nanoseconds between operations [%i]\n"
 		"\t-b N   \tmaximal buffer size is N bytes [%i]\n"
 		"\t-M N   \tmaximal file size is N bytes [%i]\n"
+		"\t-o N   \tkeep N file descriptors open [%i]\n"
+		"\t-m N   \tkeep N memory areas mmapped [%i]\n"
 		"\t-B     \tbenchmark mode: don't ever sleep [%i]\n"
 		"\t-v     \tincrease verbosity\n"
 		"\t-F op=N\tset relative frequence of op (see below) to N\n"
@@ -207,6 +229,8 @@ usage(char *argv0)
 		DEFAULT_MAX_SLEEP,
 		DEFAULT_BUF_SIZE,
 		DEFAULT_MAX_SIZE,
+		DEFAULT_OPEN_FD,
+		DEFAULT_MMAPED_AREAS,
 		DEFAULT_BENCHMARK,
 		DEFAULT_LIMIT);
 
@@ -285,6 +309,12 @@ main(int argc, char **argv)
 		case 'M':
 			max_size = atoi(optarg);
 			break;
+		case 'o':
+			fd_num = atoi(optarg);
+			break;
+		case 'm':
+			nr_mmapped = atoi(optarg);
+			break;
 		case 'B':
 			benchmark = 1;
 			break;
@@ -336,7 +366,10 @@ main(int argc, char **argv)
 	}
 	pthread_mutex_init(&stats.lock, NULL);
 
+	pgsize = getpagesize();
 	initiallyavail = getavail();
+
+	signal(SIGBUS, SIG_IGN);
 
 	cwds = calloc(dirs, sizeof cwds[0]);
 	if (cwds == NULL) {
@@ -436,6 +469,8 @@ worker(void *arg)
 	params.buffer   = malloc(max_buf_size);
 	params.filename = fileName;
 	params.cwd      = cwds;
+	params.fd       = calloc(fd_num, sizeof params.fd[0]);
+	params.mmapped  = calloc(nr_mmapped, sizeof params.mmapped[0]);
 
 	while (1) {
 		op_t *op;
@@ -811,6 +846,118 @@ pip_file(params_t *params)
 		printf("[%li] P: %i, %i, %p, %s\n", 
 		       pthread_self(), result, errno, ptr, entry.d_name);
 		STEX(++ops[dogc ? gcop : pipop].result.failure);
+	}
+}
+
+static void 
+open_file(params_t *params)
+{
+	int fdno;
+
+	fdno = RND(fd_num);
+	if (params->fd[fdno] == 0) {
+		int fd;
+		const char *fileName;
+
+		fileName = params->filename;
+		fd = open(fileName, O_CREAT | O_APPEND | O_RDWR, 0700);
+		if (fd == -1) {
+			fprintf(stderr, "%s open/open: %s(%i)\n", 
+				fileName, strerror(errno), errno);
+			STEX(++stats.errors);
+			STEX(++ops[openop].result.missed);
+			return;
+		}
+		params->fd[fdno] = fd;
+		STEX(++stats.opens);
+		STEX(++ops[openop].result.ok);
+	} else {
+		close(params->fd[fdno]);
+		params->fd[fdno] = 0;
+	}
+}
+
+static char *minp(char *p1, char *p2)
+{
+	if (p1 < p2)
+		return p1;
+	else
+		return p2;
+}
+
+static roundtopage(unsigned long val)
+{
+	return (val + pgsize - 1) / pgsize * pgsize;
+}
+
+static void 
+mmap_file(params_t *params)
+{
+	int areano;
+
+	areano = RND(nr_mmapped);
+	if (params->mmapped[areano].start == NULL) {
+		int fd;
+
+		fd = params->fd[RND(fd_num)];
+		if (fd != 0) {
+			int result;
+			size_t length;
+			int flags;
+			off_t offset;
+			void *addr;
+
+			length = roundtopage(RND(max_buf_size) + 30);
+			offset = roundtopage(RND(max_size));
+			flags  = RND(1) == 0 ? MAP_SHARED : MAP_PRIVATE;
+			result = ftruncate(fd, offset + length + 1);
+			if (result == -1) {
+				fprintf(stderr, 
+					"%i mmap/truncate: %s(%i)\n", 
+					fd, strerror(errno), errno);
+				STEX(++stats.errors);
+				STEX(++ops[mmapop].result.missed);
+			} else {
+				addr = mmap(NULL, length, PROT_READ | PROT_WRITE,
+					    flags, fd, offset);
+				if (addr == MAP_FAILED) {
+					fprintf(stderr, "%i mmap: %s(%i)\n", 
+						fd, strerror(errno), errno);
+					STEX(++stats.errors);
+					STEX(++ops[mmapop].result.missed);
+				} else {
+					params->mmapped[areano].start  = addr;
+					params->mmapped[areano].length = length;
+				}
+			}
+			STEX(++ops[mmapop].result.ok);
+		}
+	} else if (RND(100) == 0) {
+		munmap(params->mmapped[areano].start,
+		       params->mmapped[areano].length);
+		params->mmapped[areano].start = NULL;
+		STEX(++ops[mmapop].result.ok);
+	} else {
+		char *scan;
+		char *end;
+		int length;
+
+		scan = params->mmapped[areano].start;
+		scan += RND(params->mmapped[areano].length);
+		end = minp(scan + RND(max_buf_size) + 30,
+			   params->mmapped[areano].start +
+			   params->mmapped[areano].length - 1);
+		if (RND(1) == 0) {
+			char x;
+
+			x = 0;
+			for (;scan < end; ++scan)
+				x += *scan;
+		} else {
+			for (;scan < end; ++scan)
+				*scan = ((int)scan) ^ (*scan);
+		}
+		STEX(++ops[mmapop].result.ok);
 	}
 }
 
