@@ -1,0 +1,14 @@
+This file is part of reiser4progs
+Copyright (C) 1996 - 2002 Hans Reiser
+
+This file may be modified and/or distributed without restriction.  This is
+not an invitation to misrepresent the history of reiser4progs.
+
+2002-07-01 Vitaly Vertman <vitaly@namesys.com>
+    * Combine reiser4lib and reiser4progs into one package.
+
+2002-06-20 Vitaly Vertman <vitaly@namesys.com>
+    * Initial release of reiser4progs.
+
+2002-31-05 Yury Umanets <umka@namesys.com>
+    * Initial release of reiser4lib.

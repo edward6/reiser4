@@ -1,0 +1,27 @@
+/*
+    alloc.h -- reiserfs block allocator functions.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
+*/
+
+#ifndef ALLOC_H
+#define ALLOC_H
+
+#include <aal/aal.h>
+#include <reiserfs/filesystem.h>
+#include <reiserfs/plugin.h>
+
+extern error_t reiserfs_alloc_init(reiserfs_fs_t *fs);
+
+extern error_t reiserfs_alloc_sync(reiserfs_fs_t *fs);
+extern void reiserfs_alloc_close(reiserfs_fs_t *fs);
+
+extern count_t reiserfs_alloc_free(reiserfs_fs_t *fs);
+extern count_t reiserfs_alloc_used(reiserfs_fs_t *fs);
+
+extern void reiserfs_alloc_use(reiserfs_fs_t *fs, blk_t blk);
+extern void reiserfs_alloc_unuse(reiserfs_fs_t *fs, blk_t blk);
+extern blk_t reiserfs_alloc_find(reiserfs_fs_t *fs);
+
+#endif
+

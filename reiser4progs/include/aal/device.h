@@ -1,0 +1,79 @@
+/*
+    device.h -- device independent interface and block-working functions.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
+*/
+
+#ifndef DEVICE_H
+#define DEVICE_H
+
+#include <aal/aal.h>
+
+typedef uint64_t blk_t;
+typedef uint64_t count_t;
+
+struct aal_device_ops;
+
+struct aal_device {
+    int flags;
+    void *data;
+    void *entity;
+    char name[256];
+    uint16_t blocksize;
+    struct aal_device_ops *ops;
+};
+
+typedef struct aal_device aal_device_t;
+
+struct aal_device_ops {
+    error_t (*read)(aal_device_t *, void *, blk_t, count_t);
+    error_t (*write)(aal_device_t *, void *, blk_t, count_t);
+    error_t (*sync)(aal_device_t *);
+    error_t (*flags)(aal_device_t *);
+    error_t (*equals)(aal_device_t *, aal_device_t *);
+    uint32_t (*stat)(aal_device_t *);
+    count_t (*len)(aal_device_t *);
+};
+
+struct aal_block {
+    int flags;
+    void *data;
+    uint16_t size;
+    uint64_t offset;
+};
+
+typedef struct aal_block aal_block_t;
+
+extern aal_device_t *aal_device_open(struct aal_device_ops *ops, uint16_t blocksize, 
+    int flags, void *data);
+
+extern void aal_device_close(aal_device_t *device);
+
+extern error_t aal_device_set_blocksize(aal_device_t *device, uint16_t blocksize);
+extern uint16_t aal_device_get_blocksize(aal_device_t *device);
+
+extern error_t aal_device_read(aal_device_t *device, void *buff, blk_t block, count_t count);
+extern error_t aal_device_write(aal_device_t *device, void *buff, blk_t block, count_t count);
+extern error_t aal_device_sync(aal_device_t *device);
+extern int aal_device_flags(aal_device_t *device);
+extern int aal_device_equals(aal_device_t *device1, aal_device_t *device2);
+extern uint32_t aal_device_stat(aal_device_t *device);
+extern count_t aal_device_len(aal_device_t *device);
+extern char *aal_device_name(aal_device_t *device);
+
+/* Block-working functions */
+extern aal_block_t *aal_device_alloc_block(aal_device_t *device, blk_t blk, char c);
+extern aal_block_t *aal_device_read_block(aal_device_t *device, blk_t blk);
+extern error_t aal_device_write_block(aal_device_t *device, aal_block_t *block);
+extern blk_t aal_device_get_block_nr(aal_device_t *device, aal_block_t *block);
+extern void aal_device_set_block_nr(aal_device_t *device, aal_block_t *block, blk_t blk);
+extern void aal_device_free_block(aal_block_t *block);
+
+#define B_DIRTY 0 
+
+#define aal_block_dirty(block)      block->flags & (1 << B_DIRTY)
+#define aal_block_mark_dirty(block) block->flags |=  (1 << B_DIRTY)
+#define aal_block_mark_clean(block) block->flags &= ~(1 << B_DIRTY)
+
+#endif
+

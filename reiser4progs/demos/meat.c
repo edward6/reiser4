@@ -1,0 +1,127 @@
+/*
+    meat.c -- a demo program that works with libreiserfs.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
+*/
+
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
+#ifndef ENABLE_COMPACT
+#  include <stdio.h>
+#  include <fcntl.h>
+#endif
+
+#include <aal/aal.h>
+#include <reiserfs/reiserfs.h>
+
+static void usage(void) {
+    fprintf(stderr, "Usage: meat <open|create> DEV\n");
+}
+
+static void print_plugin(reiserfs_plugin_t *plugin) {
+    aal_printf("%x:%x (%s)\n", plugin->h.type, plugin->h.id, plugin->h.label);
+    aal_printf("%s\n\n", plugin->h.desc);
+}
+
+static void print_fs(reiserfs_fs_t *fs) {
+    reiserfs_plugin_t *plugin;
+
+    aal_printf("reiserfs %s, block size %u, blocks: %llu, used: %llu, free: %llu.\n\n", 
+	reiserfs_fs_format(fs), reiserfs_fs_blocksize(fs), 
+	reiserfs_format_get_blocks(fs), reiserfs_alloc_used(fs), 
+	reiserfs_alloc_free(fs));
+    
+    print_plugin(fs->format->plugin);
+    
+    if (fs->journal)
+	print_plugin(fs->journal->plugin);
+
+    print_plugin(fs->alloc->plugin);
+}
+
+int main(int argc, char *argv[]) {
+    reiserfs_fs_t *fs;
+    aal_device_t *device;
+
+#ifndef ENABLE_COMPACT    
+    
+    if (argc < 3) {
+	usage();
+	return 0xfe;
+    }
+	
+    if (aal_strncmp(argv[1], "open", 4) && aal_strncmp(argv[1], "create", 6)) {
+	usage();
+	return 0xfe;
+    }
+	
+    if (libreiserfs_init()) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't initialize libreiserfs.");
+	return 0xff;
+    }
+    
+    if (aal_strncmp(argv[1], "open", 4) == 0) {
+	    
+	if (!(device = aal_file_open(argv[2], REISERFS_DEFAULT_BLOCKSIZE, O_RDONLY))) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Can't open device %s.", argv[2]);
+	    goto error_free_libreiserfs;
+	}
+    
+	if (!(fs = reiserfs_fs_open(device, NULL, 0))) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Can't %s filesystem on %s.", argv[1], argv[2]);
+	    goto error_free_device;
+	}
+    } else {
+	if (!(device = aal_file_open(argv[2], REISERFS_DEFAULT_BLOCKSIZE, O_RDWR))) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Can't open device %s.", argv[2]);
+	    goto error_free_libreiserfs;
+	}
+    
+	if (!(fs = reiserfs_fs_create(device, 0x0, 0x0, 4096, "test-uuid", "test-label", 
+	    aal_device_len(device), device, NULL))) 
+	{
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Can't create filesystem on %s.", argv[2]);
+	    goto error_free_device;
+	}
+	
+	if (reiserfs_fs_sync(fs)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Can't synchronize created filesystem.");
+	    goto error_free_fs;
+	}
+	
+	if (aal_device_sync(device)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Can't synchronize device %s.", argv[2]);
+	    goto error_free_fs;
+	}
+	
+    }
+    print_fs(fs);
+
+    reiserfs_fs_close(fs);
+    libreiserfs_fini();
+    aal_file_close(device);
+
+    return 0;
+
+error_free_fs:
+    reiserfs_fs_close(fs);
+error_free_device:
+    aal_file_close(device);
+error_free_libreiserfs:
+    libreiserfs_fini();
+error:
+    
+#endif
+    
+    return 0xff;
+}
+
