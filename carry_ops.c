@@ -1122,6 +1122,8 @@ static int carry_insert_flow( carry_op *op, carry_level *doing, carry_level *tod
 	node_plugin *nplug;
 	int something_written;
 	carry_plugin_info info;
+	znode *orig_node;
+	lock_handle *orig_lh;
 
 
 	f = op -> u.insert_flow.flow;
@@ -1135,6 +1137,9 @@ static int carry_insert_flow( carry_op *op, carry_level *doing, carry_level *tod
 	/* carry system needs this to work */
 	info.doing  = doing;
 	info.todo   = todo;
+
+	orig_node = flow_insert_point( op ) -> node;
+	orig_lh = op -> node -> tracked;
 
 	while( f -> length ) {
 		result = make_space_for_flow_insertion( op, doing, todo );
@@ -1198,6 +1203,17 @@ static int carry_insert_flow( carry_op *op, carry_level *doing, carry_level *tod
 		move_flow_forward( f, 	flow_insert_data( op ) -> length );
 		something_written = 1;
 	}
+
+	if( orig_node != flow_insert_point( op ) -> node ) {
+		/* move lock to new insert point */
+		done_lh( orig_lh );
+		init_lh( orig_lh );
+		result = longterm_lock_znode( orig_lh,
+					      flow_insert_point( op ) -> node,
+					      ZNODE_WRITE_LOCK, 
+					      ZNODE_LOCK_HIPRI );
+	}
+
 	return result;
 }
 
