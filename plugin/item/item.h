@@ -11,12 +11,9 @@ typedef enum {
 	OTHER_ITEM_TYPE
 } item_type;
 
-/*
-typedef struct item_in_node {
-	znode      *node;
-	pos_in_node pos;
-} item_in_node;
-*/
+#define item_type_is_internal( coord ) \
+( item_type_by_coord( coord ) == INTERNAL_ITEM_TYPE )
+
 typedef struct item_plugin {
 	/* in reiser4 key doesn't contain full item type only several bits of
 	   it. So after doing coord_by_key() we need to check that we really
