@@ -353,7 +353,7 @@ static void wake_up_all_lopri_owners (znode *node)
 {
 	lock_handle *handle = owners_list_front(&node->lock.owners);
 
-	assert("nikita-1824", spin_znode_is_locked(node));
+	ON_SMP(assert("nikita-1824", spin_znode_is_locked(node)));
 	while (!owners_list_end(&node->lock.owners, handle)) {
 		spin_lock_stack(handle->owner);
 
@@ -385,7 +385,7 @@ static inline void link_object (
 {
 	assert ("jmacd-810", handle->owner == NULL);
 	assert ("nikita-1828", owner == get_current_lock_stack());
-	assert ("nikita-1830", spin_znode_is_locked (node));
+	ON_SMP (assert ("nikita-1830", spin_znode_is_locked (node)));
 
 	handle->owner = owner;
 	handle->node = node;
@@ -403,7 +403,7 @@ static inline void unlink_object (lock_handle *handle)
 {
 	assert ("zam-354", handle->owner != NULL);
 	assert ("nikita-1608", handle->node != NULL);
-	assert ("nikita-1633", spin_znode_is_locked(handle->node));
+	ON_SMP (assert ("nikita-1633", spin_znode_is_locked(handle->node)));
 	assert ("nikita-1829", handle->owner == get_current_lock_stack());
 
 	if(REISER4_DEBUG) {
@@ -423,7 +423,7 @@ static inline void unlink_object (lock_handle *handle)
  */
 static void lock_object (lock_stack *owner, znode *node)
 {
-	assert("nikita-1834", spin_znode_is_locked(node));
+	ON_SMP (assert("nikita-1834", spin_znode_is_locked(node)));
 	assert("nikita-1839", owner == get_current_lock_stack());
 
 	if (owner->request.mode == ZNODE_READ_LOCK) {
@@ -455,7 +455,7 @@ static int recursive (lock_stack *owner, znode *node)
 	 * Owners list is not empty for a locked node */
 	assert("zam-314", !owners_list_empty(&node->lock.owners));
 	assert("nikita-1841", owner == get_current_lock_stack());
-	assert("nikita-1848", spin_znode_is_locked(node));
+	ON_SMP (assert("nikita-1848", spin_znode_is_locked(node)));
 
 	ret = (owners_list_front(&node->lock.owners)->owner == owner);
 
@@ -535,7 +535,7 @@ int znode_is_write_locked( const znode *node )
  */
 static inline int check_deadlock_condition (znode *node)
 {
-	assert ("nikita-1833", spin_znode_is_locked (node));
+	ON_SMP (assert ("nikita-1833", spin_znode_is_locked (node)));
 	return node->lock.nr_hipri_requests > 0
 		&& node->lock.nr_hipri_owners == 0;
 }
@@ -546,7 +546,7 @@ static inline int check_deadlock_condition (znode *node)
 static int can_lock_object (lock_stack *owner, znode *node)
 {
 	assert("nikita-1842", owner == get_current_lock_stack());
-	assert("nikita-1843", spin_znode_is_locked(node));
+	ON_SMP (assert("nikita-1843", spin_znode_is_locked(node)));
 
 	/* See if the node is disconnected. */
 	if (ZF_ISSET (node, ZNODE_IS_DYING)) {
@@ -838,7 +838,7 @@ int longterm_lock_znode (
 			break;
 		}
 
-		assert("nikita-1837", spin_znode_is_locked(node));
+		ON_SMP(assert("nikita-1837", spin_znode_is_locked(node)));
 		if (hipri) {
 			/*
 			 * If we are going in high priority direction then
@@ -887,7 +887,7 @@ int longterm_lock_znode (
 		}
 	}
 
-	assert ("jmacd-807", spin_znode_is_locked (node));
+	ON_SMP (assert ("jmacd-807", spin_znode_is_locked (node)));
 
 	/* If we broke with (ret == 0) it means we can_lock, now do it. */
 	if (ret == 0) {

@@ -760,7 +760,7 @@ int bitmap_is_allocated (reiser4_block_nr *start)
 static void cond_add_to_clean_list (txn_atom * atom, jnode * node)
 {
 	assert ("zam-546", atom != NULL);
-	assert ("zam-547", spin_atom_is_locked(atom));
+	ON_SMP (assert ("zam-547", spin_atom_is_locked(atom)));
 	assert ("zam-548", node != NULL);
 
 	spin_lock_jnode (node);

@@ -410,7 +410,8 @@ int jload_and_lock( jnode *node )
 		reiser4_stat_znode_add( zload_read );
 
 		if( likely( result >= 0 ) ) {
-			assert( "nikita-2075", spin_jnode_is_locked( node ) );
+			ON_SMP( assert( "nikita-2075", 
+					spin_jnode_is_locked( node ) ) );
 			JF_SET( node, ZNODE_LOADED );
 		} else
 			jrelse_nolock( node );
@@ -429,7 +430,7 @@ void jrelse_nolock( jnode *node /* jnode to release references to */ )
 {
 	assert( "nikita-487", node != NULL );
 	assert( "nikita-489", atomic_read( &node -> d_count ) > 0 );
-	assert( "nikita-1906", spin_jnode_is_locked( node ) );
+	ON_SMP( assert( "nikita-1906", spin_jnode_is_locked( node ) ) );
 
 	ON_DEBUG( -- lock_counters() -> d_refs );
 	if( atomic_dec_and_test( &node -> d_count ) ) {

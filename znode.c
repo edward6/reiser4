@@ -421,7 +421,7 @@ void zdrop( reiser4_tree *tree /* tree to remove znode from */,
 	trace_stamp( TRACE_ZNODES );
 	assert( "nikita-2153", node != NULL );
 	assert( "nikita-2154", tree != NULL );
-	assert( "nikita-2128", spin_tree_is_locked( tree ) );
+	ON_SMP( assert( "nikita-2128", spin_tree_is_locked( tree ) ) );
 
 	if( atomic_read( &node -> x_count ) > 0 )
 		return;
@@ -845,7 +845,7 @@ int zinit_new( znode *node /* znode to initialise */ )
 	add_d_ref( ZJNODE( node ) );
 	result = tree -> ops -> allocate_node( tree, ZJNODE( node ) );
 	if( likely( result == 0 ) ) {
-		assert( "nikita-2076", spin_znode_is_locked( node ) );
+		ON_SMP( assert( "nikita-2076", spin_znode_is_locked( node ) ) );
 		if( likely( !znode_is_loaded( node ) ) ) {
 			ZF_SET( node, ZNODE_LOADED );
 			ZF_SET( node, ZNODE_CREATED );
@@ -908,7 +908,7 @@ int znode_is_loaded( const znode *node /* znode to query */ )
 reiser4_key *znode_get_rd_key( znode *node /* znode to query */ )
 {
 	assert( "nikita-958", node != NULL );
-	assert( "nikita-1661", spin_dk_is_locked( current_tree ) );
+	ON_SMP( assert( "nikita-1661", spin_dk_is_locked( current_tree ) ) );
 
 	return &node -> rd_key;
 }
@@ -918,7 +918,7 @@ reiser4_key *znode_get_rd_key( znode *node /* znode to query */ )
 reiser4_key *znode_get_ld_key( znode *node /* znode to query */ )
 {
 	assert( "nikita-974", node != NULL );
-	assert( "nikita-1662", spin_dk_is_locked( current_tree ) );
+	ON_SMP( assert( "nikita-1662", spin_dk_is_locked( current_tree ) ) );
 
 	return &node -> ld_key;
 }

@@ -45,6 +45,16 @@
 #define CONFIG_REISER4_CHECK
 #endif
 
+#ifdef __KERNEL__
+# if CONFIG_SMP
+#  define ON_SMP( e ) e
+# else
+#  define ON_SMP( e )
+# endif
+#else
+# define ON_SMP( e ) e
+#endif
+
 #ifndef REISER4_DEBUG
 
 #if defined( CONFIG_REISER4_CHECK )

@@ -549,7 +549,7 @@ znode *child_znode( const coord_t *parent_coord /* coord of pointer to
 
 	assert( "nikita-1374", parent_coord != NULL );
 	assert( "nikita-1482", parent != NULL );
-	assert( "nikita-1384", spin_dk_is_locked( current_tree ) );
+	ON_SMP( assert( "nikita-1384", spin_dk_is_locked( current_tree ) ) );
 
 	if( znode_get_level( parent ) <= LEAF_LEVEL ) {		
 		/*

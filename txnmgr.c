@@ -204,7 +204,7 @@ static int
 txnh_isclean (txn_handle *txnh)
 {
 	assert("umka-172", txnh != NULL);
-	return ((txnh->atom == NULL) && spin_txnh_is_not_locked (txnh));
+	return ((txnh->atom == NULL) ON_SMP (&& spin_txnh_is_not_locked (txnh)));
 }
 
 /* Initialize an atom. */
@@ -337,7 +337,7 @@ atom_get_locked_with_txnh_locked (txn_handle *txnh)
 	txn_atom *atom;
 	
 	assert ("umka-180", txnh != NULL);
-	assert ("jmacd-5108", spin_txnh_is_not_locked (txnh));
+	ON_SMP (assert ("jmacd-5108", spin_txnh_is_not_locked (txnh)));
 
  try_again:
 
@@ -391,7 +391,7 @@ atom_get_locked_by_jnode (jnode *node)
 	txn_atom *atom;
 
 	assert ("umka-181", node != NULL);
-	assert ("jmacd-5108", spin_jnode_is_locked (node));
+	ON_SMP (assert ("jmacd-5108", spin_jnode_is_locked (node)));
 
  try_again:
 
@@ -469,7 +469,7 @@ static void
 atom_dec_and_unlock (txn_atom *atom)
 {
 	assert ("umka-186", atom != NULL);
-	assert ("jmacd-1071", spin_atom_is_locked (atom));
+	ON_SMP (assert ("jmacd-1071", spin_atom_is_locked (atom)));
 	
 	if (--atom->refcount == 0) {
 		atom_free (atom);
@@ -549,7 +549,7 @@ atom_free (txn_atom *atom)
 	
 	trace_on (TRACE_TXN, "free atom %u\n", atom->atom_id);	
 
-	assert ("jmacd-18", spin_atom_is_locked (atom));
+	ON_SMP (assert ("jmacd-18", spin_atom_is_locked (atom)));
 
 	/* Remove from the txn_mgr's atom list */
 	spin_lock_txnmgr (mgr);
@@ -700,7 +700,7 @@ atom_try_commit_locked (txn_atom *atom)
 
 	assert ("jmacd-1070", atom->refcount > 0);
 	assert ("jmacd-1062", atom->capture_count == 0);
-	assert ("jmacd-1071", spin_atom_is_locked (atom));
+	ON_SMP (assert ("jmacd-1071", spin_atom_is_locked (atom)));
 
 	trace_on (TRACE_TXN, "commit atom finished %u refcount %d\n", atom->atom_id, atom->refcount);
 	
@@ -828,7 +828,7 @@ commit_txnh (txn_handle *txnh)
 		ret = atom_try_commit_locked (atom);
 
 		if (ret != 0) {
-			assert ("jmacd-1027", spin_atom_is_not_locked (atom));
+			ON_SMP (assert ("jmacd-1027", spin_atom_is_not_locked (atom)));
 			if (ret != -EAGAIN) {
 				warning ("jmacd-7881", "transaction commit failed: %d", ret);
 				failed = 1;
@@ -840,7 +840,7 @@ commit_txnh (txn_handle *txnh)
 		}
 	}
 
-	assert ("jmacd-1027", spin_atom_is_locked (atom));
+	ON_SMP (assert ("jmacd-1027", spin_atom_is_locked (atom)));
 	spin_lock_txnh (txnh);
 
 	atom->txnh_count -= 1;
@@ -996,7 +996,7 @@ try_capture_block (txn_handle  *txnh,
 	assert("umka-195", node != NULL);
 
 	/* The jnode is already locked!  Being called from txn_try_capture(). */
-	assert ("jmacd-567", spin_jnode_is_locked (node));
+	ON_SMP (assert ("jmacd-567", spin_jnode_is_locked (node)));
 
 	/* Get txnh spinlock, this allows us to compare txn_atom pointers but it doesn't
 	 * let us touch the atoms themselves. */
@@ -1015,8 +1015,8 @@ try_capture_block (txn_handle  *txnh,
 			/* The txnh is unassigned, try to assign it. */
 			if ((ret = capture_assign_txnh (node, txnh, mode)) != 0) {
 				/* EAGAIN or otherwise */
-				assert ("jmacd-6129", spin_txnh_is_not_locked (txnh));
-				assert ("jmacd-6130", spin_jnode_is_not_locked (node));
+				ON_SMP (assert ("jmacd-6129", spin_txnh_is_not_locked (txnh)));
+				ON_SMP (assert ("jmacd-6130", spin_jnode_is_not_locked (node)));
 				return ret;
 			}
 
@@ -1026,8 +1026,8 @@ try_capture_block (txn_handle  *txnh,
 			/* In this case, both txnh and node belong to different atoms.  This function
 			 * returns -EAGAIN on successful fusion, 0 on the fall-through case. */
 			if ((ret = capture_init_fusion (node, txnh, mode)) != 0) {
-				assert ("jmacd-6131", spin_txnh_is_not_locked (txnh));
-				assert ("jmacd-6132", spin_jnode_is_not_locked (node));
+				ON_SMP (assert ("jmacd-6131", spin_txnh_is_not_locked (txnh)));
+				ON_SMP (assert ("jmacd-6132", spin_jnode_is_not_locked (node)));
 				return ret;
 			}
 
@@ -1043,8 +1043,8 @@ try_capture_block (txn_handle  *txnh,
 			/* The txnh is already assigned: add the page to its atom. */
 			if ((ret = capture_assign_block (txnh, node)) != 0) {
 				/* EAGAIN or otherwise */
-				assert ("jmacd-6133", spin_txnh_is_not_locked (txnh));
-				assert ("jmacd-6134", spin_jnode_is_not_locked (node));
+				ON_SMP (assert ("jmacd-6133", spin_txnh_is_not_locked (txnh)));
+				ON_SMP (assert ("jmacd-6134", spin_jnode_is_not_locked (node)));
 				return ret;
 			}
 
@@ -1079,8 +1079,8 @@ try_capture_block (txn_handle  *txnh,
 	}
 
 	/* Successful case: both jnode and txnh are still locked. */
-	assert ("jmacd-740", spin_txnh_is_locked (txnh));
-	assert ("jmacd-741", spin_jnode_is_locked (node));
+	ON_SMP (assert ("jmacd-740", spin_txnh_is_locked (txnh)));
+	ON_SMP (assert ("jmacd-741", spin_jnode_is_locked (node)));
 
 	/* Release txnh lock, return with the jnode still locked. */
 	spin_unlock_txnh (txnh);
@@ -1131,7 +1131,7 @@ txn_try_capture (jnode           *node,
 		cap_mode |= TXN_CAPTURE_NONBLOCKING;
 	}
 
-	assert ("jmacd-604", spin_jnode_is_locked (node));
+	ON_SMP (assert ("jmacd-604", spin_jnode_is_locked (node)));
 
  repeat:
 	/* Repeat try_capture as long as -EAGAIN is returned. */
@@ -1175,7 +1175,7 @@ txn_try_capture (jnode           *node,
 	}
 
 	/* Jnode is still locked. */
-	assert ("jmacd-760", spin_jnode_is_locked (node));
+	ON_SMP (assert ("jmacd-760", spin_jnode_is_locked (node)));
 
 	return ret;
 }
@@ -1285,8 +1285,8 @@ capture_assign_txnh_nolock (txn_atom   *atom,
 	assert ("umka-200", atom != NULL);
 	assert ("umka-201", txnh != NULL);
 	
-	assert ("jmacd-822", spin_txnh_is_locked (txnh));
-	assert ("jmacd-823", spin_atom_is_locked (atom));
+	ON_SMP (assert ("jmacd-822", spin_txnh_is_locked (txnh)));
+	ON_SMP (assert ("jmacd-823", spin_atom_is_locked (atom)));
 	assert ("jmacd-824", txnh->atom == NULL);
 
 	atom->refcount += 1;
@@ -1308,10 +1308,10 @@ capture_assign_block_nolock (txn_atom *atom,
 	assert ("umka-202", atom != NULL);
 	assert ("umka-203", node != NULL);
 	
-	assert ("jmacd-321", spin_jnode_is_locked (node));
+	ON_SMP (assert ("jmacd-321", spin_jnode_is_locked (node)));
 	
 	/* AUDIT: Check whether atom is locked due to atom modifying protection */
-	assert ("umka-295", spin_atom_is_locked (atom));
+	ON_SMP (assert ("umka-295", spin_atom_is_locked (atom)));
 	
 	assert ("jmacd-323", node->atom == NULL);
 
@@ -1398,7 +1398,7 @@ void jnode_set_clean( jnode *node )
 	txn_atom *atom;
 
 	assert ("umka-205", node != NULL);	
-	assert ("jmacd-1083", spin_jnode_is_not_locked (node));
+	ON_SMP (assert ("jmacd-1083", spin_jnode_is_not_locked (node)));
 
 	spin_lock_jnode (node);
 
@@ -1682,7 +1682,7 @@ capture_fuse_wait (jnode *node, txn_handle *txnh, txn_atom *atomf, txn_atom *ato
 		atom_dec_and_unlock (atomh);
 	}
 
-	assert ("nikita-2186", ergo (ret, spin_jnode_is_not_locked (node)));
+	ON_SMP (assert ("nikita-2186", ergo (ret, spin_jnode_is_not_locked (node))));
 	return ret;
 }
 
@@ -1856,8 +1856,8 @@ capture_fuse_into (txn_atom  *small,
 	assert ("umka-225", small != NULL);
 	
 	/* AUDIT: These atoms chould be loocked by caller in order to be safe modified. */
-	assert ("umka-299", spin_is_locked(&large->alock));
-	assert ("umka-300", spin_is_locked(&small->alock));
+	ON_SMP (assert ("umka-299", spin_is_locked(&large->alock)));
+	ON_SMP (assert ("umka-300", spin_is_locked(&small->alock)));
 	
 	assert ("jmacd-201", atom_isopen (small));
 	assert ("jmacd-202", atom_isopen (large));
@@ -1947,7 +1947,7 @@ capture_copy (jnode        *node UNUSED_ARG,
 
 	/* EAGAIN implies all locks are released. */
 	spin_unlock_atom  (atomf);
-	assert ("nikita-2187", spin_jnode_is_not_locked (node));
+	ON_SMP (assert ("nikita-2187", spin_jnode_is_not_locked (node)));
 #endif
 	return -EIO;
 }
@@ -1963,8 +1963,8 @@ uncapture_block (txn_atom *atom,
 	assert ("umka-228", atom != NULL);
 	
 	assert ("jmacd-1021", node->atom == atom);
-	assert ("jmacd-1022", spin_jnode_is_not_locked (node));
-	assert ("jmacd-1023", spin_atom_is_locked (atom));
+	ON_SMP (assert ("jmacd-1022", spin_jnode_is_not_locked (node)));
+	ON_SMP (assert ("jmacd-1023", spin_atom_is_locked (atom)));
 	assert ("nikita-2118", !jnode_check_dirty (node));
 
 	trace_on (TRACE_TXN, "uncapture %p from atom %u (captured %u)\n", node, atom->atom_id, atom->capture_count);
@@ -1994,8 +1994,8 @@ uncapture_block (txn_atom *atom,
  * transaction. @atom and @node are spin locked */
 void txn_insert_into_clean_list (txn_atom * atom, jnode * node) 
 {
-	assert ("zam-538", spin_atom_is_locked (atom));
-	assert ("zam-539", spin_jnode_is_locked (node));
+	ON_SMP (assert ("zam-538", spin_atom_is_locked (atom)));
+	ON_SMP (assert ("zam-539", spin_jnode_is_locked (node)));
 	assert ("zam-540", !jnode_is_dirty (node));
 	assert ("zam-543", node -> atom == NULL);
 

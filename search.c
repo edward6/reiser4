@@ -1217,7 +1217,7 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
 	coord_t neighbor;
 	
 	assert( "nikita-1484", parent != NULL );
-	assert( "nikita-1485", spin_dk_is_locked( current_tree ) );
+	ON_SMP( assert( "nikita-1485", spin_dk_is_locked( current_tree ) ) );
 	
 	coord_dup( &neighbor, parent_coord );
 

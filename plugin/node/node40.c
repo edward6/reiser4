@@ -1693,7 +1693,7 @@ void update_znode_dkeys (znode * left, znode * right)
 {
 	reiser4_key key;
 
-	assert ("nikita-1470", spin_dk_is_locked (current_tree));
+	ON_SMP (assert ("nikita-1470", spin_dk_is_locked (current_tree)));
 
 	leftmost_key_in_node (right, &key );
 

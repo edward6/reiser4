@@ -326,7 +326,7 @@ int blocknr_set_iterator (txn_atom * atom,
 	blocknr_set_entry * entry;
 	
 	assert ("zam-429", atom != NULL);
-	assert ("zam-430", spin_atom_is_locked (atom));
+	ON_SMP (assert ("zam-430", spin_atom_is_locked (atom)));
 	assert ("zam-431", bset != 0);
 	assert ("zam-432", actor != NULL);
 

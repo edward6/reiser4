@@ -194,7 +194,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 		trace_on (TRACE_FLUSH, "flush rewrite %s\n", flush_jnode_tostring (node));
 		ret = flush_rewrite_jnode (node);
 
-		assert ("jmacd-97755", spin_jnode_is_not_locked (node));
+		ON_SMP (assert ("jmacd-97755", spin_jnode_is_not_locked (node)));
 
 		if (nr_to_flush != NULL) {
 			(*nr_to_flush) = 1;
@@ -1344,7 +1344,7 @@ int jnode_check_allocated (jnode *node)
 {
 	/* It must be clean or relocated or wandered.  New allocations are set to relocate. */
 	int ret;
-	assert ("jmacd-71275", spin_jnode_is_not_locked (node));
+	ON_SMP (assert ("jmacd-71275", spin_jnode_is_not_locked (node)));
 	spin_lock_jnode (node);
 	ret = jnode_is_allocated (node);
 	spin_unlock_jnode (node);
@@ -1514,7 +1514,7 @@ static int flush_queue_jnode (jnode *node, flush_position *pos)
 	 * still be reached through the sibling list, which can confuse flush code.
 	 * However, this should only be able to confuse a concurrent flush process.  We
 	 * shall see. */
-	assert ("jmacd-65551", spin_jnode_is_locked (node));
+	ON_SMP (assert ("jmacd-65551", spin_jnode_is_locked (node)));
 
 	/* FIXME: See comment in flush_rewrite_jnode. */
 	if (! jnode_is_dirty (node) || JF_ISSET (node, ZNODE_HEARD_BANSHEE) || JF_ISSET (node, ZNODE_FLUSH_QUEUED)) {
@@ -1829,7 +1829,7 @@ static int flush_rewrite_jnode (jnode *node)
 	/* FIXME: Have to be absolutely sure that HEARD_BANSHEE isn't set when we write,
 	 * otherwise if the page was a fresh allocation the dealloc of that block might
 	 * have been non-deferred, and then we could trash otherwise-allocated data? */
-	assert ("jmacd-53312", spin_jnode_is_locked (node));
+	ON_SMP (assert ("jmacd-53312", spin_jnode_is_locked (node)));
 	assert ("jmacd-53313", jnode_is_dirty (node));
 	assert ("jmacd-53314", ! JF_ISSET (node, ZNODE_HEARD_BANSHEE));
 	assert ("jmacd-53315", ! JF_ISSET (node, ZNODE_FLUSH_QUEUED));
