@@ -1730,7 +1730,6 @@ try_commit_txnh(commit_data *cd)
 		if (atom_should_commit_asap(cd->atom)) {
 			cd->atom->stage = ASTAGE_CAPTURE_WAIT;
 			cd->atom->flags |= ATOM_FORCE_COMMIT;
-			cd->wake_ktxnmgrd_up = 1;
 			atom_send_event(cd->atom);
 		}
 		if (cd->txnh->flags & TXNH_DONT_COMMIT) {
@@ -1742,6 +1741,7 @@ try_commit_txnh(commit_data *cd)
 			 * atom right now to avoid stalling other threads
 			 * working in the same directory.
 			 */
+			cd->wake_ktxnmgrd_up = 1;
 			atom_send_event(cd->atom);
 			result = 0;
 		} else if (!atom_can_be_committed(cd->atom)) {
