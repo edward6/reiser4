@@ -341,7 +341,7 @@ __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
  *
  */
 
-int __reiser4_grab_reserved(struct super_block *super,
+int reiser4_grab_reserved(struct super_block *super,
 			    __u64 count, reiser4_ba_flags_t flags, const char *message)
 {
 	assert("nikita-3175", flags & BA_CAN_COMMIT);
