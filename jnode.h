@@ -201,8 +201,6 @@ typedef enum {
        /* node was deleted, not all locks on it were released. This
 	   node is empty and is going to be removed from the tree
 	   shortly. */
-       /* Josh respectfully disagrees with obfuscated, metaphoric names
-	   such as this.  He thinks it should be named ZNODE_BEING_REMOVED. */
 	JNODE_HEARD_BANSHEE = 1,
        /* left sibling pointer is valid */
 	JNODE_LEFT_CONNECTED = 2,
@@ -582,8 +580,6 @@ jnode_get_type(const jnode * node)
 	return mask_to_type[(node->state & state_mask) >> JNODE_TYPE_1];
 }
 
-extern void jnode_set_type(jnode * node, jnode_type type);
-
 /* returns true if node is a znode */
 static inline int
 jnode_is_znode(const jnode * node)
@@ -730,40 +726,6 @@ jput(jnode * node)
 }
 
 extern void jrelse(jnode * node);
-
-/* protect @node from e-flush */
-static inline int
-jprotect (jnode * node)
-{
-	int ret;
-
-	LOCK_JNODE(node);
-
-	assert("zam-836", !JF_ISSET(node, JNODE_EPROTECTED));
-	assert("vs-1216", jnode_is_unformatted(node));
-	
-
-	JF_SET(node, JNODE_EPROTECTED);
-	ret = JF_ISSET(node, JNODE_EFLUSH);
-
-	UNLOCK_JNODE(node);
-
-	if (ret)
-		ret = emergency_unflush(node);
-
-	return ret;
-}
-
-/* remove protection from e-flush */
-static inline void
-junprotect (jnode * node)
-{
-	assert("zam-837", !JF_ISSET(node, JNODE_EFLUSH));
-	/* when REISER4_USE_EFLUSH is not defined - EPROTECT bit does not get set */
-	assert("zam-838", JF_ISSET(node, JNODE_EPROTECTED));
-
-	JF_CLR(node, JNODE_EPROTECTED);
-}
 
 extern jnode *jnode_rip_sync(reiser4_tree *t, jnode * node);
 
