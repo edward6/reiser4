@@ -799,6 +799,87 @@ restart:
 	return h->result;
 }
 
+/* find delimiting keys of child
+
+   Determine left and right delimiting keys for child pointed to by
+   @parent_coord.
+
+*/
+static void
+find_child_delimiting_keys(znode * parent	/* parent znode, passed
+						 * locked */ ,
+			   const coord_t * parent_coord	/* coord where
+							   * pointer to
+							   * child is
+							   * stored */ ,
+			   reiser4_key * ld	/* where to store left
+						 * delimiting key */ ,
+			   reiser4_key * rd	/* where to store right
+						 * delimiting key */ )
+{
+	coord_t neighbor;
+
+	assert("nikita-1484", parent != NULL);
+	assert("nikita-1485", rw_dk_is_locked(znode_get_tree(parent)));
+
+	coord_dup(&neighbor, parent_coord);
+
+	if (neighbor.between == AT_UNIT)
+		/* imitate item ->lookup() behavior. */
+		neighbor.between = AFTER_UNIT;
+
+	if (coord_is_existing_unit(&neighbor) ||
+	    coord_set_to_left(&neighbor) == 0)
+		unit_key_by_coord(&neighbor, ld);
+	else
+		*ld = *znode_get_ld_key(parent);
+
+	coord_dup(&neighbor, parent_coord);
+	if (neighbor.between == AT_UNIT)
+		neighbor.between = AFTER_UNIT;
+	if (coord_set_to_right(&neighbor) == 0)
+		unit_key_by_coord(&neighbor, rd);
+	else
+		*rd = *znode_get_rd_key(parent);
+}
+
+/*
+ * setup delimiting keys for a child
+ *
+ * @parent parent node
+ *
+ * @coord location in @parent where pointer to @child is
+ *
+ * @child child node
+ */
+reiser4_internal int
+set_child_delimiting_keys(znode * parent,
+			  const coord_t * coord, znode * child)
+{
+	reiser4_tree *tree;
+	int result;
+
+	assert("nikita-2952",
+	       znode_get_level(parent) == znode_get_level(coord->node));
+
+	tree = znode_get_tree(parent);
+	result = 0;
+	/* fast check without taking dk lock. This is safe, because
+	 * JNODE_DKSET is never cleared once set. */
+	if (!ZF_ISSET(child, JNODE_DKSET)) {
+		WLOCK_DK(tree);
+		if (likely(!ZF_ISSET(child, JNODE_DKSET))) {
+			find_child_delimiting_keys(parent, coord,
+						   znode_get_ld_key(child),
+						   znode_get_rd_key(child));
+			ZF_SET(child, JNODE_DKSET);
+			result = 1;
+		}
+		WUNLOCK_DK(tree);
+	}
+	return result;
+}
+
 /* Perform tree lookup at one level. This is called from cbk_traverse()
    function that drives lookup through tree and calls cbk_node_lookup() to
    perform lookup within one node.
@@ -938,8 +1019,8 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	if (!node_is_empty(active) &&
 	    !keyeq(leftmost_key_in_node(active, &key), &ldkey)) {
 		warning("vs-3533", "Keys are inconsistent. Fsck?");
-		print_node("parent", parent);
-		print_node("child", active);
+		print_node_content("parent", parent, ~0);
+		print_node_content("child", active, ~0);
 		print_key("inparent", &ldkey);
 		print_key("inchild", &key);
 		h->result = RETERR(-EIO);
@@ -1292,87 +1373,6 @@ reiser4_internal znode_lock_mode cbk_lock_mode(tree_level level, cbk_handle * h)
 	assert("nikita-382", h != NULL);
 
 	return (level <= h->lock_level) ? h->lock_mode : ZNODE_READ_LOCK;
-}
-
-/* find delimiting keys of child
-
-   Determine left and right delimiting keys for child pointed to by
-   @parent_coord.
-
-*/
-static void
-find_child_delimiting_keys(znode * parent	/* parent znode, passed
-						 * locked */ ,
-			   const coord_t * parent_coord	/* coord where
-							   * pointer to
-							   * child is
-							   * stored */ ,
-			   reiser4_key * ld	/* where to store left
-						 * delimiting key */ ,
-			   reiser4_key * rd	/* where to store right
-						 * delimiting key */ )
-{
-	coord_t neighbor;
-
-	assert("nikita-1484", parent != NULL);
-	assert("nikita-1485", rw_dk_is_locked(znode_get_tree(parent)));
-
-	coord_dup(&neighbor, parent_coord);
-
-	if (neighbor.between == AT_UNIT)
-		/* imitate item ->lookup() behavior. */
-		neighbor.between = AFTER_UNIT;
-
-	if (coord_is_existing_unit(&neighbor) ||
-	    coord_set_to_left(&neighbor) == 0)
-		unit_key_by_coord(&neighbor, ld);
-	else
-		*ld = *znode_get_ld_key(parent);
-
-	coord_dup(&neighbor, parent_coord);
-	if (neighbor.between == AT_UNIT)
-		neighbor.between = AFTER_UNIT;
-	if (coord_set_to_right(&neighbor) == 0)
-		unit_key_by_coord(&neighbor, rd);
-	else
-		*rd = *znode_get_rd_key(parent);
-}
-
-/*
- * setup delimiting keys for a child
- *
- * @parent parent node
- *
- * @coord location in @parent where pointer to @child is
- *
- * @child child node
- */
-reiser4_internal int
-set_child_delimiting_keys(znode * parent,
-			  const coord_t * coord, znode * child)
-{
-	reiser4_tree *tree;
-	int result;
-
-	assert("nikita-2952",
-	       znode_get_level(parent) == znode_get_level(coord->node));
-
-	tree = znode_get_tree(parent);
-	result = 0;
-	/* fast check without taking dk lock. This is safe, because
-	 * JNODE_DKSET is never cleared once set. */
-	if (!ZF_ISSET(child, JNODE_DKSET)) {
-		WLOCK_DK(tree);
-		if (likely(!ZF_ISSET(child, JNODE_DKSET))) {
-			find_child_delimiting_keys(parent, coord,
-						   znode_get_ld_key(child),
-						   znode_get_rd_key(child));
-			ZF_SET(child, JNODE_DKSET);
-			result = 1;
-		}
-		WUNLOCK_DK(tree);
-	}
-	return result;
 }
 
 /* update outdated delimiting keys */
