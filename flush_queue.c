@@ -103,7 +103,7 @@ init_fq(flush_queue_t * fq)
 
 	capture_list_init(&fq->prepped);
 
-	sema_init(&fq->sema, 0);
+	sema_init(&fq->io_sem, 0);
 	spin_fq_init(fq);
 }
 
@@ -205,7 +205,7 @@ wait_io(flush_queue_t * fq, int *nr_io_errors)
 
 		blk_run_queues();
 		if ( !(reiser4_get_current_sb()->s_flags & MS_RDONLY) ) 
-			down(&fq->sema);
+			down(&fq->io_sem);
 
 		/* Ask the caller to re-aquire the locks and call this
 		   function again. Note: this technique is commonly used in
@@ -405,7 +405,7 @@ end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUS
 		/* If all write requests registered in this "fq" are done we up
 		 * the semaphore. */
 		if (atomic_sub_and_test(bio->bi_vcnt, &fq->nr_submitted))
-			up(&fq->sema);
+			up(&fq->io_sem);
 	}
 
 	bio_put(bio);

@@ -563,9 +563,8 @@ struct flush_queue {
 	atomic_t nr_errors;
 	/* An atom this flush queue is attached to */
 	txn_atom *atom;
-	/* ZAM-FIXME-HANS: can you use a better name */
 	/* A semaphore for waiting on i/o completion */
-	struct semaphore sema;
+	struct semaphore io_sem;
 #if REISER4_DEBUG
 	/* A thread which took this fq in exclusive use, NULL if fq is free,
 	 * used for debugging. */
