@@ -1509,3 +1509,7 @@ plugin/item/ctail.h.orig
 series
 txt/profile-stat-trace-repacker.txt
 patches/profile-stat-trace-repacker.patch
+cluster.h.orig
+plugin/cryptcompress.c.rej
+plugin/file/file.c.orig
+plugin/file/file.c.rej
