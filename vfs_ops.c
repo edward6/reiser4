@@ -1928,7 +1928,12 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	 * protected against races with parallel calls to jload().
 	 */
 	if( ( atomic_read( &node -> d_count ) == 0 ) && !PageDirty( page ) ) {
-		if( node -> atom == NULL ) {
+		/*
+		 * can only release page if it is not in a atom and real block
+		 * number is assigned to it.
+		 */
+		if( ( node -> atom == NULL ) && 
+		    !blocknr_is_fake( jnode_get_block( node ) ) ) {
 			page_detach_jnode( page );
 			result = 1;
 		}
