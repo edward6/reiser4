@@ -188,7 +188,6 @@
 
 /* initialise plugin sub-system. Just call this once on reiser4 startup. */
 int init_plugins(void);
-int handle_default_plugin_option(char *option, reiser4_plugin ** area);
 int setup_plugins(struct super_block *super, reiser4_plugin ** area);
 reiser4_plugin *lookup_plugin(const char *type_label, const char *plug_label);
 reiser4_plugin *lookup_plugin_name(char *plug_label);
@@ -237,50 +236,6 @@ init_plugins(void)
 			plugin_list_push_back(&ptype->plugins_list, plugin);
 		}
 	}
-	return 0;
-}
-
-/* parse mount time option and update root-directory plugin
-    appropriately. */
-reiser4_internal int
-handle_default_plugin_option(char *option,	/* Option should has form
-						   "type:label", where "type"
-						   is label of plugin type and
-						   "label" is label of plugin
-						   instance within this
-						   type. */
-			     reiser4_plugin ** area	/* where result is to
-							 * be stored */ )
-{
-	char *type_label;
-	char *plug_label;
-	reiser4_plugin *plugin;
-
-	assert("nikita-538", option != NULL);
-	assert("nikita-539", area != NULL);
-
-	type_label = option;
-	plug_label = strchr(option, ':');
-	if (plug_label == NULL) {
-		printk("Use 'plug=type:label'\n");
-		return RETERR(-EINVAL);
-	}
-
-	*plug_label = '\0';
-	++plug_label;
-
-	plugin = lookup_plugin(type_label, plug_label);
-	if (plugin == NULL) {
-		printk("Unknown plugin: %s:%s\n", type_label, plug_label);
-		return RETERR(-EINVAL);
-	}
-	if (area[plugin->h.type_id] != NULL) {
-		printk("Plugin already set\n");
-		print_plugin("existing", area[plugin->h.type_id]);
-		print_plugin("new", plugin);
-		return RETERR(-EINVAL);
-	}
-	area[plugin->h.type_id] = plugin;
 	return 0;
 }
 
@@ -344,47 +299,6 @@ lookup_plugin(const char *type_label /* plugin type label */ ,
 		printk("Unknown plugin type '%s'\n", type_label);
 	return result;
 }
-
-#if NOT_YET
-/* convert string labels to in-memory identifiers and visa versa.
-    Requered for proper interaction with user-land */
-/* takes loc->type_label and loc->plug_label and fills in loc->type_id and loc->id */
-	/* it is not necessary to have a non-NULL type label to find a plugin
-	   by the plug_label */
-
-int
-locate_plugin(struct inode *inode, plugin_locator * loc)
-{
-	reiser4_plugin_type type_id;
-
-	assert("nikita-548", inode != NULL);
-	assert("nikita-549", loc != NULL);
-
-	if (loc->type_label[0] != '\0')
-		loc->type_id = type_by_label(loc->type_label);
-	type_id = loc->type_id;
-	if (is_type_id_valid(type_id)) {
-		reiser4_plugin *plugin;
-
-		if (loc->plug_label[0] != '\0')
-			plugin = find_plugin(&plugins[type_id], loc->plug_label);
-		else
-			plugin = reiser4_get_plugin(inode, type_id);
-		if (plugin == NULL)
-			return -ENOENT;
-
-		strncpy(loc->plug_label, plugin->h.label, min(MAX_PLUGIN_PLUG_LABEL_LEN, strlen(plugin->h.label) + 1));
-		if (loc->type_label[0] == '\0')
-			strncpy(loc->type_label,
-				plugins[type_id].label,
-				min(MAX_PLUGIN_TYPE_LABEL_LEN, strlen(plugins[type_id].label) + 1));
-		loc->id = plugin->h.id;
-		return 0;
-	} else
-		return RETERR(-EINVAL);
-
-}
-#endif
 
 /* return plugin by its @type_id and @id.
 

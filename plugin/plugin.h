@@ -576,7 +576,6 @@ struct reiser4_plugin_ops {
 
 /* stores plugin reference in reiser4-specific part of inode */
 extern int set_object_plugin(struct inode *inode, reiser4_plugin_id id);
-extern int handle_default_plugin_option(char *option, reiser4_plugin ** area);
 extern int setup_plugins(struct super_block *super, reiser4_plugin ** area);
 extern reiser4_plugin *lookup_plugin(const char *type_label, const char *plug_label);
 extern int init_plugins(void);

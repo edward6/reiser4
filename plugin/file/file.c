@@ -225,76 +225,6 @@ ok:
 	return result;
 }
 
-#if 0
-/* update inode's timestamps and size. If any of these change - update sd as well */
-reiser4_internal int
-update_inode_and_sd_if_necessary(struct inode *inode,
-				 loff_t new_size,
-				 int update_i_size, int update_times)
-{
-	int result;
-	int inode_changed;
-
-	result = 0;
-
-	/* FIXME: no need to avoid mark_inode_dirty call. It does not do anything but "capturing" inode */
-	inode_changed = 0;
-
-	if (update_i_size && (inode->i_size != new_size)) {
-		INODE_SET_FIELD(inode, i_size, new_size);
-		inode_changed = 1;
-	}
-	
-	if (update_times && (inode->i_ctime.tv_sec != get_seconds() ||
-			     inode->i_mtime.tv_sec != get_seconds())) {
-		/* time stamps are to be updated */
-		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-		inode_changed = 1;
-	}
-	
-	if (inode_changed) {
-		assert("vs-946", !inode_get_flag(inode, REISER4_NO_SD));
-		/* update sd inode */
-		result = reiser4_update_sd(inode);
-		if (result)
-			warning("vs-636", "updating stat data failed: %i", result);
-	}
-
-	return result;
-}
-
-#endif
-
-/* look for item of file @inode corresponding to @key */
-
-#ifdef PSEUDO_CODE_CAN_COMPILE
-find_item_obsolete()
-{
-	if (!coord && seal)
-		set coord based on seal;
-	if (coord) {
-		if (key_in_coord(coord))
-			return coord;
-		coord = get_next_item(coord);
-		if (key_in_coord(coord))
-			return coord;
-	}
-	coord_by_key();
-}
-find_item()
-{
-	if (seal_is_set) {
-		set coord by seal;
-		if (key is in coord)
-			return;
-		if (key is right delim key) {
-			get right neighbor;
-			return first unit in it;
-		}
-	}
-}
-#endif
-
 /* obtain lock on right neighbor and drop lock on current node */
 reiser4_internal int
 goto_right_neighbor(coord_t * coord, lock_handle * lh)
@@ -1684,7 +1614,7 @@ check_pages_unix_file(struct file *file, int vm_flags, int caller_is_write,
 		if ((vm_flags & VM_MAYWRITE) || caller_is_write) {
 			get_exclusive_access(uf_info);
 			*gotaccess = 1;
-			reiser4_invalidate_pages(inode->i_mapping, 0, 
+			reiser4_invalidate_pages(inode->i_mapping, 0,
 						 (inode->i_size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT);
 			inode_clr_flag(inode, REISER4_TAILS_FILE_MMAPED);
 		}
@@ -2077,7 +2007,7 @@ setattr_truncate(struct inode *inode, struct iattr *attr)
 		INODE_SET_FIELD(inode, i_size, old_size);
 		result = inode_setattr(inode, attr);
 	} else
-		warning("vs-1588", "truncate_file failed: oid %lli, old size %lld, new size %lld, retval %d", 
+		warning("vs-1588", "truncate_file failed: oid %lli, old size %lld, new size %lld, retval %d",
 			get_inode_oid(inode), old_size, attr->ia_size, result);
 
 	s_result = safe_link_grab(tree_by_inode(inode), BA_CAN_COMMIT);
