@@ -295,7 +295,7 @@ static struct super_block * call_mount (const char * dev_name, const char *opts)
 	if (!fs)
 		return 0;
 
-	return fs->get_sb (fs, 0/*flags*/, (char *)dev_name, opts);
+	return fs->get_sb (fs, 0/*flags*/, (char *)dev_name, (char *)opts);
 }
 
 static struct inode *get_root_dir( struct super_block *s )
@@ -982,12 +982,11 @@ sector_t generic_block_bmap(struct address_space *mapping,
 void ll_rw_block (int rw, int nr, struct buffer_head ** pbh)
 {
 	int i;
+	loff_t offset;
 
 	for (i = 0; i < nr; i ++) {
-		if (lseek64 (pbh[i]->b_bdev->bd_dev,
-			     pbh[i]->b_size * (off64_t)pbh[i]->b_blocknr,
-			     SEEK_SET) != 
-		    pbh[i]->b_size * (off64_t)pbh[i]->b_blocknr, SEEK_SET) {
+		offset = pbh[i]->b_size * (off64_t)pbh[i]->b_blocknr;
+		if (lseek64 (pbh[i]->b_bdev->bd_dev, offset, SEEK_SET) != offset) {
 			info ("ll_rw_block: lsek64 failed\n");
 			return;
 		}
@@ -1159,8 +1158,9 @@ struct buffer_head * sb_bread (struct super_block * sb, int block)
 
 
 	bh = getblk (sb, block);
-	if (!bh)
-		return 0;
+	if (bh == 0) {
+		return bh;
+	}
 
 	if (lseek64 (sb->s_bdev->bd_dev, bh->b_size * (off64_t)block, SEEK_SET) != 
 	    bh->b_size * (off64_t)block, SEEK_SET) {
@@ -2469,12 +2469,6 @@ static struct inode * call_lookup (struct inode * dir, const char * name)
 }
 
 
-static struct inode * call_cd (struct inode * dir, const char * name)
-{
-	return call_lookup (dir, name);
-}
-
-
 static struct inode *sandbox( struct inode * dir )
 {
 	char dir_name[ 100 ];
@@ -2562,10 +2556,6 @@ static int copy_file (const char * oldname, struct inode * dir,
 		info ("copy_file: create failed\n");
 		return 1;
 	}
-	/*
-	 * FIXME-VS: temporary: do not copy bodies
-	 */
-	/*return 0;*/
 
 	/* get its inode */
 	inode = call_lookup (dir, newname);
@@ -2623,10 +2613,6 @@ static int copy_file (const char * oldname, struct inode * dir,
 		}
 		st->st_size -= count;
 		off += count;
-		/*
-		 * FIXME-VS: temporary: write only 255 bytes into file
-		 */
-		break;
 	}
 
 	if (!silent)
@@ -2922,7 +2908,7 @@ static __u64 get_fs_size (struct super_block * s)
 	loff_t size;
 
 	check_me ("vs-749", fstat (s->s_bdev->bd_dev, &st) == 0);
-	size = lseek64 (s->s_bdev->bd_dev, 0, SEEK_END);
+	size = lseek64 (s->s_bdev->bd_dev, 0ull, SEEK_END);
 	assert ("vs-750", size != (loff_t)-1);
 	return size / 512 / (s->s_blocksize / 512);
 }
@@ -2963,6 +2949,9 @@ static int bash_mkfs (const char * file_name)
 		info ("Could not open device: %s\n", strerror (errno));
 		return 1;
 	}
+	/* set number of blocks on device */
+	reiser4_set_block_count (&super, get_fs_size (&super));
+
 	xmemset( &root_dentry, 0, sizeof root_dentry );
 
 	{
@@ -3011,7 +3000,7 @@ static int bash_mkfs (const char * file_name)
 			cputod16 (HASHED_DIR_PLUGIN_ID, &test_sb->root_dir_plugin);
 			cputod16 (DEGENERATE_HASH_ID, &test_sb->root_hash_plugin);
 			cputod16 (NODE40_ID, &test_sb->node_plugin);
-			cputod16 (NEVER_TAIL_ID, &test_sb->node_plugin);
+			cputod16 (ALWAYS_TAIL_ID, &test_sb->tail_policy);
 
 			/* block count on device */
 			cputod64 (get_fs_size (&super), &test_sb->block_count);
@@ -3721,9 +3710,12 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			 */
 			struct inode * tmp;
 
-			tmp = call_cd (cwd, command + 3);
+			tmp = call_lookup (cwd, command + 3);
 			if (IS_ERR(tmp)) {
 				info ("%s failed\n", command);
+			} else if (!S_ISDIR (tmp->i_mode)) {
+				info ("%s is not a directory\n", command + 3);
+				iput (tmp);
 			} else
 				cwd = tmp;
 			continue;
