@@ -9,12 +9,15 @@
  * are allocated in an array at fs mount. */
 struct bnode {
 	spinlock_t guard;
-	char     * wpage; /* working bitmap block */
-	char     * cpage; /* commit bitmap block */
-	jnode    * wjnode;
-	jnode    * cjnode;
+
+	jnode      wjnode;	/* embedded jnodes for WORKING ... */
+	jnode      cjnode;	/* ... and COMMIT bitmap blocks */
+
 	struct bnode * next_in_commit_list;
 };
+
+#define bnode_working_data(bnode) jdata(&(bnode)->wjnode)
+#define bnode_commit_data(bnode)  jdata(&(bnode)->cjnode)
 
 /* Audited by: green(2002.06.12) */
 static inline void spin_lock_bnode (struct bnode * bnode)
@@ -276,19 +279,19 @@ static void check_block_range (const reiser4_block_nr * start, const reiser4_blo
 	}
 }
 
+static void check_bnode_loaded (const struct bnode * bnode)
+{
+	assert ("zam-485", bnode != NULL);
+	assert ("zam-483", JF_ISSET (&bnode->wjnode, ZNODE_LOADED));
+	assert ("zam-484", JF_ISSET (&bnode->cjnode, ZNODE_LOADED));
+}
+
 #else
 
 #  define check_block_range(start, len) do { /* nothing */} while(0)
+#  define check_bnode_loaded(bnode)     do { /* nothing */} while(0)
 
 #endif
-
-/* bnode structure initialization */
-/* Audited by: green(2002.06.12) */
-static void init_bnode (struct bnode * bnode)
-{
-	xmemset (bnode, 0, sizeof (struct bnode)); 
-	spin_lock_init (& bnode -> guard); 
-}
 
 /** return a physical disk address for logical bitmap number @bmap */
 /* FIXME-VS: this is somehow related to disk layout? */
@@ -309,10 +312,33 @@ void get_bitmap_blocknr (struct super_block * super, bmap_nr_t bmap, reiser4_blo
 	}
 }
 
+/* construct a fake block number for shadow bitmap (WORKING BITMAP) block */
+/* Audited by: green(2002.06.12) */
+void get_working_bitmap_blocknr (bmap_nr_t bmap, reiser4_block_nr *bnr)
+{
+	*bnr = (reiser4_block_nr) ((bmap 
+		& ~REISER4_BLOCKNR_STATUS_BIT_MASK) | REISER4_BITMAP_BLOCKS_STATUS_VALUE);
+}
+
+/* bnode structure initialization */
+static void init_bnode (struct bnode * bnode, struct super_block * super, bmap_nr_t bmap)
+{
+	xmemset (bnode, 0, sizeof (struct bnode)); 
+
+	spin_lock_init (& bnode -> guard); 
+
+	jnode_init (& bnode->wjnode);
+	jref (&bnode->wjnode);
+	get_working_bitmap_blocknr (bmap, & bnode->wjnode.blocknr); 
+
+	jnode_init (& bnode->cjnode);
+	jref (& bnode->cjnode);
+	get_bitmap_blocknr (super, bmap, & bnode->cjnode.blocknr);
+}
+
 /** plugin->u.space_allocator.init_allocator
  *  constructor of reiser4_space_allocator object. It is called on fs mount
  */
-/* Audited by: green(2002.06.12) */
 int bitmap_init_allocator (reiser4_space_allocator * allocator,
 			   struct super_block * super, void * arg UNUSED_ARG)
 {
@@ -340,7 +366,7 @@ int bitmap_init_allocator (reiser4_space_allocator * allocator,
 		return -ENOMEM;
 	}
 
-	for (i = 0; i < bitmap_blocks_nr; i++) init_bnode(data -> bitmap + i);
+	for (i = 0; i < bitmap_blocks_nr; i++) init_bnode(data -> bitmap + i, super, i);
 
 	allocator->u.generic = data;
 
@@ -367,106 +393,111 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 	for (i = 0; i < bitmap_blocks_nr; i ++) {
 		ON_DEBUG (struct bnode * bnode = data -> bitmap + i);
 
-		assert ("zam-378", equi(bnode -> wpage == NULL, bnode -> cpage == NULL));
+		spin_lock_bnode (bnode);
 
-		/* FIXME: we need to release all pinned buffers/pages, it is
-		 * not done because release_node isn't ready */
+		if (bnode->wjnode.pg != NULL) {
+			assert ("zam-480", bnode->cjnode.pg != NULL);
+
+			jnode_set_clean (& bnode->wjnode);
+			jnode_detach_page (& bnode->wjnode);
+
+			jnode_set_clean (& bnode->cjnode);
+			jnode_detach_page (&bnode->cjnode);
+
+			/* FIXME: check for page state and ref count should be
+			 * added here */
+		}
+
+		spin_unlock_bnode (bnode);
 	}
 
 	reiser4_kfree (data->bitmap, (size_t) (sizeof(struct bnode) * bitmap_blocks_nr));
 	reiser4_kfree (data, sizeof (struct bitmap_allocator_data));
-	allocator->u.generic = NULL;
-	return 0;
-}
 
-/* construct a fake block number for shadow bitmap (WORKING BITMAP) block */
-/* Audited by: green(2002.06.12) */
-void get_working_bitmap_blocknr (bmap_nr_t bmap, reiser4_block_nr *bnr)
-{
-	*bnr = (reiser4_block_nr) ((bmap 
-		& ~REISER4_BLOCKNR_STATUS_BIT_MASK) | REISER4_BITMAP_BLOCKS_STATUS_VALUE);
+	allocator->u.generic = NULL;
+
+	return 0;
 }
 
 /** Load node at given blocknr, update given pointer. This function should be
  * called under bnode spin lock held */
-/* Audited by: green(2002.06.12) */
-/* AUDIT (green) I think it incorrect that in case of loading failure 
-   load_bnode_half and load_and_lock_bnode still returns locked bnode. It should
-   only return locked bnode on success. So that caller can immediattely exit
-   on failure without unlocking bnode first */
-static int load_bnode_half (struct bnode * bnode, char ** data, reiser4_block_nr *block)
+static int load_bnode_half (struct bnode * bnode, jnode * node)
 {
-	int (*read_node) ( reiser4_tree *, jnode *, char ** );
-
-	char * tmp = NULL;
+	int (*read_node) ( reiser4_tree *, jnode *);
 	int    ret;
+
+	assert ("zam-478", bnode != NULL);
+	assert ("zam-415", read_node != NULL);
+
+	assert ("zam-479", 
+		( node == &bnode->wjnode && blocknr_is_fake (jnode_get_block(node))) ||
+		( node == &bnode->cjnode && !blocknr_is_fake (jnode_get_block(node)))) ;
+
+	if (JF_ISSET (node, ZNODE_LOADED)) return 0;
 
 	spin_unlock_bnode (bnode);
 
 	read_node = current_tree -> ops -> read_node;
 
-	assert ("zam-415", read_node != NULL);
- 
-	if (blocknr_is_fake(block)) {
-		ret = read_node (current_tree, bnode->wjnode, &tmp);
-	} else {
-		ret = read_node (current_tree, bnode->cjnode, &tmp);
-	}
+	assert ("zam-487", read_node != NULL);
 
-	spin_lock_bnode(bnode);
+	ret = read_node (current_tree, node);
 
 	if (ret) return ret;
 
-	if (*data == NULL) {
-		*data = tmp;
-	} else {
-		spin_unlock_bnode(bnode);
+	spin_lock_bnode(bnode);
 
-		/* FIXME: tree->release_node (block) should be called here */
-		not_yet("zam-416", "proper node releasing");
+	/* another thread might call tree->read_node, we should re-check
+	 * ZNODE_LOADED state bit */
+	if (JF_ISSET (node, ZNODE_LOADED)) {
+		int (*release_node) (reiser4_tree*, jnode*);
+		reiser4_tree * tree = current_tree;
 
-		spin_lock_bnode(bnode);
+		release_node = tree->ops->release_node;
 
-		return 1;
+		assert ("zam-488", release_node != NULL);
+
+		release_node (tree, node);
 	}
 
 	return 0;
 }
 
 /* load bitmap blocks "on-demand" */
-/* Audited by: green(2002.06.12) */
 static int load_and_lock_bnode (struct bnode * bnode)
 {
 	struct super_block * super = get_current_context()->super;
 	int ret = 0;
-	bmap_nr_t bmap_nr = bnode - get_barray(super);
-	reiser4_block_nr bnr;
 
 	spin_lock_bnode(bnode);
 
-	if (bnode->cpage == NULL) {
-		get_bitmap_blocknr(super, bmap_nr, & bnr);
-		ret = load_bnode_half(bnode, & bnode -> cpage, & bnr);
+	ret = load_bnode_half(bnode, & bnode -> cjnode);
 
-		if (ret < 0) return ret;
+	if (ret < 0) return ret;
+
+	ret = load_bnode_half(bnode, & bnode -> wjnode);
+
+	if (ret < 0) return ret;
+
+	if (ret == 0) {
+		/* commit bitmap is initialized by on-disk bitmap
+		 * content (working bitmap in this context) */
+		xmemcpy(jdata (&bnode -> wjnode), jdata (&bnode->cjnode), super->s_blocksize);
 	}
 
-	if (bnode->wpage == NULL) {
-		get_working_bitmap_blocknr(bmap_nr, &bnr);
-		ret = load_bnode_half(bnode, & bnode -> wpage, & bnr);
+	return 0;
+}
 
-		if (ret < 0) return ret;
+static void release_and_unlock_bnode (struct bnode * bnode)
+{
+	reiser4_tree * tree = current_tree;
 
-		if (ret == 0) {
-			/* commit bitmap is initialized by on-disk bitmap
-			 * content (working bitmap in this context) */
-			xmemcpy(bnode -> wpage, bnode->cpage, super->s_blocksize);
-		}
+	assert ("zam-489", tree->ops->release_node != NULL);
 
-		ret = 0;
-	}
-	
-	return ret;
+	spin_unlock_bnode (bnode);
+
+	tree->ops->release_node (tree, &bnode->wjnode);
+	tree->ops->release_node (tree, &bnode->cjnode);
 }
 
 #if 0
@@ -513,43 +544,46 @@ static int bitmap_iterator (reiser4_block_nr *start, reiser4_block_nr *start,
  * block responsibility zone boundaries. This had no sense in v3.6 but may
  * have it in v4.x */
 
-/* Audited by: green(2002.06.12) */
 static int search_one_bitmap (bmap_nr_t bmap, bmap_off_t *offset, bmap_off_t max_offset, 
 			      int min_len, int max_len)
 {
 	struct super_block * super = get_current_context() -> super;
 	struct bnode * bnode = get_bnode (super, bmap);
 
+	char * data;
+
 	bmap_off_t search_end;
 	bmap_off_t start;
 	bmap_off_t end;
 
-	int ret = 0;
+	int ret;
 
 	assert("zam-364", min_len > 0);
 	assert("zam-365", max_len >= min_len);
 	assert("zam-366", *offset < max_offset);
 
 	ret = load_and_lock_bnode (bnode);
+
 	if (ret) goto out;
-	/* ret = 0; */
+
+	data = bnode_working_data (bnode);
 
 	start = *offset;
 
 	while (start + min_len < max_offset) {
 
-		start = reiser4_find_next_zero_bit((long*) bnode -> wpage, max_offset, start);
+		start = reiser4_find_next_zero_bit((long*) data, max_offset, start);
 
 		if (start >= max_offset) break;
 
 		search_end = LIMIT(start + max_len, max_offset);
-		end = reiser4_find_next_set_bit((long*) bnode->wpage, search_end, start);
+		end = reiser4_find_next_set_bit((long*) data, search_end, start);
 
 		if (end >= start + min_len) {
 			ret = end - start;
 			*offset = start;
 
-			reiser4_set_bits(bnode->wpage, start, end);
+			reiser4_set_bits(data, start, end);
 			break;
 		}
 
@@ -557,13 +591,18 @@ static int search_one_bitmap (bmap_nr_t bmap, bmap_off_t *offset, bmap_off_t max
 	}
 
  out:
-	spin_unlock_bnode(bnode);
-	/*release_bnode(bnode);*/
+	if (ret > 0) {
+		jnode_set_dirty(& bnode->wjnode);
+		jnode_set_dirty(& bnode->wjnode);
+	}
+
+	release_and_unlock_bnode (bnode);
+
 	return ret;
 }
 
 /** allocate contiguous range of blocks in bitmap */
-/* Audited by: green(2002.06.12) */
+
 int bitmap_alloc (reiser4_block_nr *start, const reiser4_block_nr *end, int min_len, int max_len)
 {
 	bmap_nr_t bmap, end_bmap;
@@ -665,6 +704,7 @@ void bitmap_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	bmap_off_t offset;
 
 	struct bnode * bnode;
+	int ret;
 
 	assert ("zam-468", len != NULL);
 	check_block_range (start, len);
@@ -674,12 +714,16 @@ void bitmap_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	assert ("zam-469", offset + *len <= super->s_blocksize);
 
 	bnode = get_bnode (super, bmap);
-	assert ("zam-470", bnode != NULL);
-	assert ("zam-471", bnode->wpage != NULL);
 
-	spin_lock_bnode (bnode);
-	reiser4_clear_bits (bnode->wpage, offset, (bmap_off_t)(offset + *len));
-	spin_unlock_bnode (bnode);
+	assert ("zam-470", bnode != NULL);
+	assert ("zam-471", JF_ISSET(&bnode->wjnode, ZNODE_LOADED));
+
+	ret = load_and_lock_bnode (bnode);
+	assert ("zam-481", ret == 0);
+
+	reiser4_clear_bits (jdata (&bnode->wjnode), offset, (bmap_off_t)(offset + *len));
+
+	release_and_unlock_bnode (bnode);
 
 	reiser4_spin_lock_sb(super);
 	reiser4_set_free_blocks(super, reiser4_free_blocks(super) + *len);
@@ -727,24 +771,25 @@ static int apply_dset_to_commit_bmap (txn_atom               * atom UNUSED_ARG,
 	 * other journal hooks in bitmap code. */
 	bnode = get_bnode(sb, bmap);
 	assert ("zam-448", bnode != NULL);
-
+	
 	/* put bnode in a special list for post-processing */
 	add_bnode_to_commit_list (commit_list, bnode);
 
 	/* apply DELETE SET */
-	assert ("zam-444", bnode->cpage != NULL);
+	check_bnode_loaded (bnode);
+	load_and_lock_bnode (bnode);
 
-	spin_lock_bnode (bnode);
+	data = jdata (& bnode->cjnode);
 
 	if (len != NULL) {
 		/* FIXME-ZAM: a check that all bits are set should be there */
 		assert ("zam-443", offset + *len <= sb->s_blocksize);
-		reiser4_clear_bits (bnode->cpage, offset, (bmap_off_t)(offset + *len));
+		reiser4_clear_bits (data, offset, (bmap_off_t)(offset + *len));
 	} else {
-		reiser4_clear_bit (offset, bnode->cpage);
+		reiser4_clear_bit (offset, data);
 	}
 
-	spin_unlock_bnode (bnode);
+	release_and_unlock_bnode (bnode);
 
 	reiser4_spin_lock_sb(sb);
 
@@ -805,12 +850,11 @@ void bitmap_pre_commit_hook (void)
 
 					bn = get_bnode (ctx->super, bmap);
 
-					assert ("zam-458", bn != NULL);
-					assert ("zam-459", bn->cpage != NULL); 
+					check_bnode_loaded (bn);
 					
-					spin_lock_bnode (bn);
-					reiser4_set_bit (offset, bn->cpage);
-					spin_unlock_bnode (bn);
+					load_and_lock_bnode (bn);
+					reiser4_set_bit (offset, jdata (&bn->cjnode));
+					release_and_unlock_bnode (bn);
 
 					reiser4_spin_lock_sb (ctx->super);
 					reiser4_inc_free_committed_blocks (ctx->super);
@@ -832,15 +876,9 @@ void bitmap_pre_commit_hook (void)
 	 * done as a bnode commit list post-processing */
 	while (commit_list != NULL) {
 		struct bnode * bnode = commit_list;
-		struct page  * page;
 		int err;
 
-		/* FIXME: page locking ?*/
-		page = virt_to_page (bnode->cpage);
-		
-		assert ("zam-445", page != NULL);
-
-		err = txn_try_capture_page(page, ZNODE_WRITE_LOCK, 0);
+		err = txn_try_capture(&bnode->cjnode, ZNODE_WRITE_LOCK, 0);
 
 		if (err == -EAGAIN) continue;
 
@@ -852,7 +890,6 @@ void bitmap_pre_commit_hook (void)
 /* FIXME: it probably needs to be changed when I get understanding what
  * wandered map format Josh proposed. I assume for now that wandered set
  * contains pairs (original location, target location). */
-/* Audited by: green(2002.06.12) */
 /** an actor which applies delete set to WORKING BITMAP pages */
 static int apply_dset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
 				       const reiser4_block_nr * start,
@@ -871,20 +908,19 @@ static int apply_dset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
 	parse_blocknr (start, &bmap, &offset);
 
 	bnode = get_bnode (sb, bmap);
-	assert ("zam-447", bnode != NULL);
 
-	assert ("zam-450", bnode->wpage != NULL);
+	check_bnode_loaded (bnode);
 
-	spin_lock_bnode (bnode);
+	load_and_lock_bnode (bnode);
 
 	if (len != NULL) {
 		assert ("zam-449", offset + *len <= sb->s_blocksize);
-		reiser4_clear_bits(bnode->wpage, offset, (bmap_off_t)(offset + *len));
+		reiser4_clear_bits(jdata (&bnode->wjnode), offset, (bmap_off_t)(offset + *len));
 	} else {
-		reiser4_set_bit (offset, bnode->wpage);
+		reiser4_clear_bit (offset, data);
 	}
 
-	spin_unlock_bnode(bnode);
+	release_and_unlock_bnode(bnode);
 
 	reiser4_spin_lock_sb (sb);
 
@@ -938,12 +974,12 @@ static int apply_wset_to_working_bmap (
 	parse_blocknr (b, &bmap, &offset);
 
 	bnode = get_bnode (sb, bmap);
-	assert ("zam-456", bnode != NULL);
-	assert ("zam-457", bnode->wpage != NULL);
 
-	spin_lock_bnode(bnode);
-	reiser4_clear_bit(offset, bnode->wpage); 
-	spin_unlock_bnode(bnode);
+	check_bnode_loaded (bnode);
+
+	load_and_lock_bnode (bnode);
+	reiser4_clear_bit(offset, jdata (&bnode->wjnode)); 
+	release_and_unlock_bnode(bnode);
 
 	reiser4_spin_lock_sb (sb);
 	reiser4_inc_free_blocks (sb);
