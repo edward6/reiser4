@@ -4,95 +4,98 @@
     Author Vitaly Fertman.
 */
 
-#include <progs/profile.h>
+#include <profile.h>
 
 static reiserfs_profile_t reiser4profiles[] = {
     [0] = {
 	.label = "default40",
         .desc = "Profile for reiser4 with smart tail policy",
-	.node		= REISERFS_NODE40_ID,
-	.object = {
-	    .file	= REISERFS_FILE40_ID, 
-	    .dir	= REISERFS_DIR40_ID,
-	    .symlink	= REISERFS_SYMLINK40_ID,
-	    .special	= REISERFS_SPECIAL40_ID,
+	.node		= NODE_REISER40_ID,
+	.file = {
+	    .reg	= FILE_FILE40_ID, 
+	    .dir	= FILE_DIR40_ID,
+	    .symlink	= FILE_SYMLINK40_ID,
+	    .special	= FILE_SPECIAL40_ID,
 	},
 	.item = {
-	    .internal = REISERFS_INTERNAL40_ID,
-	    .statdata	= REISERFS_STATDATA40_ID,
-	    .direntry	= REISERFS_CDE40_ID,
+	    .internal	= ITEM_INTERNAL40_ID,
+	    .statdata	= ITEM_STATDATA40_ID,
+	    .direntry	= ITEM_CDE40_ID,
 	    .file_body = {
-		.tail	= REISERFS_TAIL40_ID,
-		.extent	= REISERFS_EXTENT40_ID,
+		.drop	= ITEM_DROP40_ID,
+		.extent	= ITEM_EXTENT40_ID,
 	    },
-	    .acl	= REISERFS_ACL40_ID,
+	    .acl	= ITEM_ACL40_ID,
 	},       
-	.hash		= REISERFS_R5_HASH_ID,
-	.tail_policy	= REISERFS_SMART_TAIL_ID,
-	.perm		= REISERFS_RWX_PERM_ID,
-	.format		= REISERFS_FORMAT40_ID,
-	.oid		= REISERFS_OID40_ID,
-	.alloc		= REISERFS_ALLOC40_ID,
-	.journal	= REISERFS_JOURNAL40_ID,
-	.key		= REISERFS_KEY40_ID
+	.hash		= HASH_R5_ID,
+	.drop_policy	= DROP_SMART_ID,
+	.perm		= PERM_RWX_ID,
+	.format		= FORMAT_REISER40_ID,
+	.oid		= OID_REISER40_ID,
+	.alloc		= ALLOC_REISER40_ID,
+	.journal	= JOURNAL_REISER40_ID,
+	.key		= KEY_REISER40_ID,
+	.sdext		= SDEXT_UNIX_ID
     },
     [1] = {
 	.label = "extent40",
 	.desc = "Profile for reiser4 with extents turned on",
-	.node		= REISERFS_NODE40_ID,	
-	.object = {
-	    .file	= REISERFS_FILE40_ID,
-	    .dir	= REISERFS_DIR40_ID,
-	    .symlink	= REISERFS_SYMLINK40_ID,
-	    .special	= REISERFS_SPECIAL40_ID,
+	.node		= NODE_REISER40_ID,
+	.file = {
+	    .reg	= FILE_FILE40_ID, 
+	    .dir	= FILE_DIR40_ID,
+	    .symlink	= FILE_SYMLINK40_ID,
+	    .special	= FILE_SPECIAL40_ID,
 	},
 	.item = {
-	    .internal	= REISERFS_INTERNAL40_ID,
-	    .statdata	= REISERFS_STATDATA40_ID,
-	    .direntry	= REISERFS_CDE40_ID,
+	    .internal	= ITEM_INTERNAL40_ID,
+	    .statdata	= ITEM_STATDATA40_ID,
+	    .direntry	= ITEM_CDE40_ID,
 	    .file_body = {
-		.tail	= REISERFS_TAIL40_ID,
-		.extent	= REISERFS_EXTENT40_ID,
+		.drop	= ITEM_DROP40_ID,
+		.extent	= ITEM_EXTENT40_ID,
 	    },
-	    .acl	= REISERFS_ACL40_ID,
-	},
-	.hash		= REISERFS_R5_HASH_ID,
-	.tail_policy	= REISERFS_NEVER_TAIL_ID,
-	.perm		= REISERFS_RWX_PERM_ID,
-	.format		= REISERFS_FORMAT40_ID,
-	.oid		= REISERFS_OID40_ID,
-	.alloc		= REISERFS_ALLOC40_ID,
-	.journal	= REISERFS_JOURNAL40_ID,
-	.key		= REISERFS_KEY40_ID
+	    .acl	= ITEM_ACL40_ID,
+	},       
+	.hash		= HASH_R5_ID,
+	.drop_policy	= DROP_NEVER_ID,
+	.perm		= PERM_RWX_ID,
+	.format		= FORMAT_REISER40_ID,
+	.oid		= OID_REISER40_ID,
+	.alloc		= ALLOC_REISER40_ID,
+	.journal	= JOURNAL_REISER40_ID,
+	.key		= KEY_REISER40_ID,
+	.sdext		= SDEXT_UNIX_ID
     },
     [2] = {
 	.label = "tail40",
 	.desc = "Profile for reiser4 with tails turned on",     
-	.node		= REISERFS_NODE40_ID,
-	.object = {
-	    .file	= REISERFS_FILE40_ID,
-	    .dir	= REISERFS_DIR40_ID,
-	    .symlink	= REISERFS_SYMLINK40_ID,
-	    .special	= REISERFS_SPECIAL40_ID,
+	.node		= NODE_REISER40_ID,
+	.file = {
+	    .reg	= FILE_FILE40_ID, 
+	    .dir	= FILE_DIR40_ID,
+	    .symlink	= FILE_SYMLINK40_ID,
+	    .special	= FILE_SPECIAL40_ID,
 	},
 	.item = {
-	    .internal	= REISERFS_INTERNAL40_ID,
-	    .statdata	= REISERFS_STATDATA40_ID,
-	    .direntry	= REISERFS_CDE40_ID,
+	    .internal	= ITEM_INTERNAL40_ID,
+	    .statdata	= ITEM_STATDATA40_ID,
+	    .direntry	= ITEM_CDE40_ID,
 	    .file_body = {
-		.tail	= REISERFS_TAIL40_ID,
-		.extent	= REISERFS_EXTENT40_ID,
+		.drop	= ITEM_DROP40_ID,
+		.extent	= ITEM_EXTENT40_ID,
 	    },
-	    .acl	= REISERFS_ACL40_ID,
-	},
-	.hash		= REISERFS_R5_HASH_ID,
-	.tail_policy	= REISERFS_ALWAYS_TAIL_ID,
-	.perm		= REISERFS_RWX_PERM_ID,
-	.format		= REISERFS_FORMAT40_ID,
-	.oid		= REISERFS_OID40_ID,
-	.alloc		= REISERFS_ALLOC40_ID,
-	.journal	= REISERFS_JOURNAL40_ID,
-	.key		= REISERFS_KEY40_ID
+	    .acl	= ITEM_ACL40_ID,
+	},       
+	.hash		= HASH_R5_ID,
+	.drop_policy	= DROP_ALWAYS_ID,
+	.perm		= PERM_RWX_ID,
+	.format		= FORMAT_REISER40_ID,
+	.oid		= OID_REISER40_ID,
+	.alloc		= ALLOC_REISER40_ID,
+	.journal	= JOURNAL_REISER40_ID,
+	.key		= KEY_REISER40_ID,
+	.sdext		= SDEXT_UNIX_ID
     }
 };
 
