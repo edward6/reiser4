@@ -576,8 +576,10 @@ void print_page( struct page *page )
 	      page_flag_name( page,  PG_private ),
 	      page_flag_name( page,  PG_writeback ),
 	      page_flag_name( page,  PG_nosave ) );
-	if( jprivate( page ) != NULL )
+	if( jprivate( page ) != NULL ) {
 		info_jnode( "page jnode", jprivate( page ) );
+		info( "\n" );
+	}
 }
 
 

@@ -97,7 +97,7 @@ PREFIX##_hash_init (PREFIX##_hash_table *hash,                                  
     {                                                                                         \
       return -ENOMEM;                                                                         \
     }                                                                                         \
-  xmemset (hash->_table, 0, sizeof (ITEM_TYPE*) * buckets);                                    \
+  xmemset (hash->_table, 0, sizeof (ITEM_TYPE*) * buckets);                                   \
   return 0;                                                                                   \
 }                                                                                             \
                                                                                               \
@@ -185,6 +185,15 @@ PREFIX##_hash_insert (PREFIX##_hash_table *hash,                                
 {                                                                                             \
   return PREFIX##_hash_insert_index (hash, HASH_FUNC(&ins_item->KEY_NAME), ins_item);         \
 }
+
+
+#define for_all_ht_buckets(table, head)					\
+for ((head) = &(table) -> _table[ 0 ] ;					\
+     (head) != &(table) -> _table[ (table) -> _buckets ] ; ++ (head))
+
+#define for_all_in_bucket(bucket, item, field)	\
+for ((item) = *(bucket) ; (item) != NULL ;	\
+     (item) = (item) -> field._next)
 
 #endif /* __REISER4_TSHASH_H__ */
 

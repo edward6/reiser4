@@ -452,9 +452,11 @@ const char *lock_mode_name( znode_lock_mode lock );
 #if REISER4_DEBUG
 void print_znode( const char *prefix, const znode *node );
 void info_znode( const char *prefix, const znode *node );
+void print_znodes( const char *prefix, reiser4_tree *tree );
 #else
 #define print_znode( p, n ) noop
 #define info_znode( p, n ) noop
+#define print_znodes( p, t ) noop
 #endif
 
 /* Make it look like various znode functions exist instead of treating znodes as

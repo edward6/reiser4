@@ -3705,7 +3705,10 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	/*for ( ; (command = readline ("> ")) != NULL ; free (command)) {*/
 	tmp = 0;
 	tmp_n = 0;
-	for ( ; (getline (&tmp, &tmp_n, stdin)) != -1 ; ) {
+	while (1) {
+		info ("> ");
+		if (getline (&tmp, &tmp_n, stdin) == -1)
+			break;
 		/*add_history (command);*/
 		/* remove \n */
 		tmp [strlen (tmp) - 1] = 0;

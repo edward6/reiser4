@@ -1210,6 +1210,24 @@ void info_znode( const char *prefix /* prefix to print */,
 	print_address( "blocknr", znode_get_block( node ) );
 }
 
+void print_znodes( const char *prefix, reiser4_tree *tree )
+{
+	znode       **bucket;
+	znode        *item;
+	z_hash_table *htable;
+
+	spin_lock_tree( tree );
+	htable = &tree -> hash_table;
+
+	for_all_ht_buckets( htable, bucket ) {
+		for_all_in_bucket( bucket, item, link ) {
+			info_znode( prefix, item );
+			info( "\n" );
+		}
+	}
+	spin_unlock_tree( tree );
+}
+
 #endif
 
 /*
