@@ -1550,9 +1550,6 @@ capture_unix_file(struct inode *inode, const struct writeback_control *wbc, long
 }
 #endif
 
-pgoff_t cur_pindex;
-extern int clog_id;
-
 reiser4_internal int
 capture_unix_file(struct inode *inode, const struct writeback_control *wbc)
 {
@@ -1560,15 +1557,12 @@ capture_unix_file(struct inode *inode, const struct writeback_control *wbc)
 	unix_file_info_t *uf_info;
 	pgoff_t pindex, jindex, nr_pages;
 	int to_capture;
-	int clog_begin;
 	int phantoms;
 
-	clog_begin = clog_id;
 	if (!inode_has_anonymous_pages(inode))
 		return 0;
 
 	uf_info = unix_file_inode_data(inode);
-	clog_op(CLOG_CUF_START, (void *)reiser4_inode_data(inode)->anonymous_eflushed, (void *)wbc->sync_mode);
 
 	result = 0;
 	pindex = 0;
@@ -1615,14 +1609,11 @@ capture_unix_file(struct inode *inode, const struct writeback_control *wbc)
 			pgoff_t start;
 			
 			assert("vs-1727", jindex <= pindex);
-			cur_pindex = pindex;
 			if (pindex == jindex) {
 				start = pindex;
-				/*clog_op(CLOG_CAP_START, (void *)start, NULL);*/
 				result = capture_anonymous_pages(inode->i_mapping, &pindex, to_capture);
 				if (result < 0)
 					break;
-				/*clog_op(CLOG_CAP_END, (void *)start, (void *)pindex);*/
 				to_capture -= result;				
 				if (start + result == pindex) {
 					jindex = pindex;
@@ -1630,9 +1621,7 @@ capture_unix_file(struct inode *inode, const struct writeback_control *wbc)
 				}
 			}
 			/* deal with anonymous jnodes between jindex and pindex */
-			/*clog_op(CLOG_CAJ_START, (void *)jindex, NULL);*/
 			result = capture_anonymous_jnodes(inode->i_mapping, &jindex, pindex, to_capture);
-			/*clog_op(CLOG_CAJ_END, (void *)jindex, NULL);*/
 			if (result < 0)
 				break;
 			to_capture -= result;
@@ -1664,10 +1653,6 @@ capture_unix_file(struct inode *inode, const struct writeback_control *wbc)
 		if (pindex >= nr_pages && jindex == pindex)
 			break;
 	} while (1);
-
-	clog_op(CLOG_CAP_END, (void *)pindex, (void *)jindex);
-	clog_op(CLOG_CUF_END, (void *)reiser4_inode_data(inode)->anonymous_eflushed, (void *)phantoms);
-	cur_pindex = 0;
 
 	return result;
 }
