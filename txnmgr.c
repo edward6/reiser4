@@ -632,13 +632,15 @@ atom_dec_and_unlock(txn_atom * atom)
 			UNLOCK_ATOM(atom);
 			spin_lock_txnmgr(mgr);
 			LOCK_ATOM(atom);
+
+			if (-- atom->refcount != 0) {
+				UNLOCK_ATOM(atom);
+				spin_unlock_txnmgr(mgr);
+				return;
+			}
 		}
 		assert("nikita-2656", spin_txnmgr_is_locked(mgr));
-		if (--atom->refcount == 0) {
-			atom_free(atom);
-		} else {
-			UNLOCK_ATOM(atom);
-		}
+		atom_free(atom);
 		spin_unlock_txnmgr(mgr);
 	} else {
 		UNLOCK_ATOM(atom);
