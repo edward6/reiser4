@@ -723,6 +723,10 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	assert("jmacd-76619", lock_stack_isclean(get_current_lock_stack()));
 	assert("nikita-3022", schedulable());
 
+	/* lock ordering: delete_sema and flush_sema are unordered */
+	assert("nikita-3185", 
+	       get_current_super_private()->delete_sema_owner != current);
+
 	sb = reiser4_get_current_sb();
 	sbinfo = get_super_private(sb);
 	if (!reiser4_is_set(sb, REISER4_MTFLUSH)) {
