@@ -233,7 +233,7 @@ struct txn_atom
 
 	int num_queued;		/* number of jnodes which were removed from
 				 * atom's lists and put on flush_queue */
-	/* all flush queue objects that flush this atom are on this list  */
+	/* ZAM-FIXME-HANS unclear: all flush queue objects that flush this atom are on this list  */
 	fq_list_head      flush_queues; 
 
 	/* active i/o requests accounting */
@@ -438,21 +438,25 @@ typedef enum {
 	 FQ_IN_USE
 } flush_queue_state_t;
 
+/* This is an accumulator for jnodes prepared for writing to disk. A flush queue is filled by the jnode_flush()
+ * routine, and written to disk under memory pressure or at atom commit time. */
 struct flush_queue {
 	/* 
 	 * linkage element is the first in this structure to make debugging
-	 * easier */
+	 * easier.  See field in atom struct for description of list. */
 	fq_list_link  link;
 	/*
-	 * A spinlock to protect state changes */
+	 * A spinlock to protect state changes.  Acquire before modifying all fields in this struct except atomic
+	 * fields. */
 	spinlock_t          guard;
 	/*
 	 * flush_handle state: empty, active, */
 	flush_queue_state_t state;
 	/*
 	 * lists for jnodes in different states */
-	capture_list_head   queue;
-	capture_list_head   io;
+	capture_list_head   prepped; /* list of not yet submitted to disk nodes */
+	capture_list_head   sent;	   /* list of already submitted to disk nodes (more precisely, sent or just
+					    * about to be sent, see fq_prepare_node_for_write() details */
 
 	/*
 	 * total number of queued nodes */
@@ -467,11 +471,14 @@ struct flush_queue {
 	 * An atom this flush handle is attached to */
 	txn_atom          * atom;
 	/*
+	  A semaphore for waiting on i/o completion */
 	 */
 	struct semaphore    sema;
 };
 
 typedef struct flush_queue flush_queue_t;
+
+#if 0
 
 /*
  * Flush manager is an object which manages all flush queues and maintain a
@@ -484,7 +491,7 @@ struct flush_mgr {
 };
 
 typedef struct flush_mgr flush_mgr_t;
-
+#endif /* 0 */
 
 extern int  fq_get         (txn_atom *, flush_queue_t **);
 extern void fq_put         (flush_queue_t *);

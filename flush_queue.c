@@ -2,6 +2,11 @@
  * Copyright 2002 Hans Reiser
  */
 
+/* A flush queue object is an accumulator for keeping jnodes prepared
+ * by the jnode_flush() function for writing to disk. Those "queued" jnodes are
+ * kept on the flush queue until memory pressure or atom commit asks
+ * flush queues to write some or all from their jnodes. */
+
 #include "reiser4.h"
 
 TS_LIST_DEFINE (fq, flush_queue_t, link);
@@ -15,7 +20,7 @@ TS_LIST_DEFINE (fq, flush_queue_t, link);
 SPIN_LOCK_FUNCTIONS(fq,flush_queue_t,guard);
 
 /* The deadlock-safe order for flush queues and atoms is: first lock atom,
- * then flush queue object, then jnode  */
+ * then lock flush queue object, then lock jnode  */
 
 
 /* get lock on atom from locked flush queue object */
@@ -532,27 +537,30 @@ static int fq_prepare_node_for_write (flush_queue_t * fq, jnode * node)
 
 
 /**
- * submit @how_many write requests for already filled flush queue @fq. There
- * is a feature that a chunk of contiguous blocks are written even if we
- * submit more requests than @how_many. 
+ * submit @how_many write requests for nodes on the already filled
+ * flush queue @fq. There is a feature that any chunk of contiguous
+ * blocks are written even if we must submit more requests than
+ * @how_many.
 
  @fq       -- flush queue object which contains jnodes we can (and will) write.
- @how_many -- limit for number of block we should write, if 0 -- write all
+ @how_many -- limit for number of blocks we should write, if 0 -- write all
               blocks.
 
- @return   -- number of blocks submitted to write if >=0, otherwise -- error
-              code.
+ @return   -- 0 if success, otherwise -- error code.
 */
 int fq_write (flush_queue_t * fq, int how_many)
 {
 
-	jnode * first;          /* should point to the first jnode submitted
+	jnode * first;          /* should point to the first jnode we are going to submit
 				 * in one bio */
-	jnode * last;	/* should point to the jnode _after_ last
-				 * submitted in that bio */
+	jnode * last;	/* should point to the jnode _after_ last to be submitted in that bio */
 	int nr_submitted;	/* number of blocks we submit to write in this
 				 * fq_write() call */
-	int max_blocks;
+	int max_blocks;		/* a limit for maximum number of blocks in one bio implied by the
+				 * device specific request queue restriction */
+
+	if (capture_list_empty (&fq->queue))
+		return 0;
 
 #if REISER4_USER_LEVEL_SIMULATION
 	max_blocks = fq->nr_queued;
@@ -563,19 +571,19 @@ int fq_write (flush_queue_t * fq, int how_many)
 	}
 #endif
 
-	if (capture_list_empty (&fq->queue))
-		return 0;
-
 	nr_submitted = 0;
 
 	first = capture_list_front (&fq->queue);
 	last = first;
 
+	/* repeat until either we empty the queue or we submit how_many were requested to be submitted. */
 	do {
 		int nr_contiguous = 0;
 		int ret;
-		/* searching for contiguous sequence of block numbers, not
-		 * greater than max_blocks (i/o subsystem limitation) */
+		/* take those nodes from the front of the prepped queue that are a contiguous
+		 * sequence of block numbers, not greater than max_blocks (i/o subsystem
+		 * limitation), and form a set from them defined by the range from the front of
+		 * the queue to cur.  Pass that set to fq_prepare_node_for_write(). */
 		for (;;) {
 			jnode * cur = last;
 
@@ -594,7 +602,7 @@ int fq_write (flush_queue_t * fq, int how_many)
 				break;
 
 		}
-
+		/* take the set we just prepped, and submit it for writing to disk */
 		if (nr_contiguous) {
 			ret = fq_submit_write (fq, first, nr_contiguous);
 

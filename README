@@ -35,7 +35,8 @@ govern for this license.
 
 Finally, nothing in this license shall be interpreted to allow you to
 fail to fairly credit me, or to remove my credits such as by creating
-a front end that hides my credits from the user, without my
+a front end that hides my credits from the user or renaming mkreiserfs
+to mkyourcompanyfs or even just make_filesystem, without my
 permission, unless you are an end user not redistributing to others.
 If you have doubts about how to properly do that, or about what is
 fair, ask.  (Last I spoke with him Richard was contemplating how best
@@ -44,7 +45,7 @@ to address the fair crediting issue in the next GPL version.)
 Also, a clustering file system built to work on top of this file
 system shall be considered a derivative work for the purposes of
 interpreting the GPL license granted herein.  Plugins are also to be
-considered derivative works.  Give code or pay money, we give you the
+considered derivative works.  Share code or pay money, we give you the
 choice.
 
 [END LICENSING]
