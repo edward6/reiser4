@@ -43,6 +43,8 @@ extent_size(const coord_t * coord, unsigned nr)
 	reiser4_block_nr blocks;
 	reiser4_extent *ext;
 
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
+
 	ext = item_body_by_coord(coord);
 	if ((int) nr == -1) {
 		nr = extent_nr_units(coord);
@@ -99,6 +101,8 @@ extent_mergeable(const coord_t * p1, const coord_t * p2)
 	reiser4_key key1, key2;
 
 	assert("vs-299", item_id_by_coord(p1) == EXTENT_POINTER_ID);
+	DEBUGON(znode_get_level(p1->node) != TWIG_LEVEL);
+	DEBUGON(znode_get_level(p2->node) != TWIG_LEVEL);
 	/* FIXME-VS: Which is it? Assert or return 0 */
 	if (item_id_by_coord(p2) != EXTENT_POINTER_ID) {
 		return 0;
@@ -207,6 +211,10 @@ extent_check(const coord_t * coord /* coord of item to check */ ,
 
 	assert("vs-933", REISER4_DEBUG);
 
+	if (znode_get_level(coord->node) != TWIG_LEVEL) {
+		*error = "Extent on the wrong level";
+		return -1;
+	}
 	if (item_length_by_coord(coord) % sizeof (reiser4_extent) != 0) {
 		*error = "Wrong item size";
 		return -1;
@@ -255,6 +263,7 @@ extent_nr_units(const coord_t * coord)
 	if ((item_length_by_coord(coord) % sizeof (reiser4_extent)) != 0)
 		reiser4_panic("vs-10", "assertion failed: (item_length_by_coord(coord) %% sizeof (reiser4_extent)) != 0");
 #endif
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 	return item_length_by_coord(coord) / sizeof (reiser4_extent);
 }
 
@@ -342,6 +351,7 @@ extent_paste(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info
 	unsigned old_nr_units;
 	reiser4_extent *ext;
 	int item_length;
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 
 	ext = extent_item(coord);
 	item_length = item_length_by_coord(coord);
@@ -387,6 +397,8 @@ int
 extent_can_shift(unsigned free_space, coord_t * source,
 		 znode * target UNUSED_ARG, shift_direction pend UNUSED_ARG, unsigned *size, unsigned want)
 {
+	DEBUGON(znode_get_level(source->node) != TWIG_LEVEL);
+
 	*size = item_length_by_coord(source);
 	if (*size > free_space)
 		/* never split a unit of extent item */
@@ -410,6 +422,8 @@ extent_copy_units(coord_t * target, coord_t * source,
 	char *from_ext, *to_ext;
 
 	assert("vs-217", free_space == count * sizeof (reiser4_extent));
+	DEBUGON(znode_get_level(target->node) != TWIG_LEVEL);
+	DEBUGON(znode_get_level(source->node) != TWIG_LEVEL);
 
 	from_ext = item_body_by_coord(source);
 	to_ext = item_body_by_coord(target);
@@ -452,6 +466,8 @@ extent_create_hook(const coord_t * coord, void *arg)
 	znode *node;
 	reiser4_key key;
 	reiser4_tree *tree;
+
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 
 	if (!arg)
 		return 0;
@@ -498,7 +514,8 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count)
 	reiser4_key key;
 
 	assert ("zam-811", znode_is_write_locked(coord->node));
-	
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
+
 	item_key_by_coord(coord, &key);
 
 	ext = extent_item(coord) + from;
@@ -548,6 +565,8 @@ cut_or_kill_units(coord_t * coord,
 	reiser4_block_nr offset;
 	unsigned count;
 	__u64 cut_from_to;
+
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 
 	count = *to - *from + 1;
 
@@ -724,6 +743,7 @@ int
 extent_cut_units(coord_t * item, unsigned *from, unsigned *to,
 		 const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed)
 {
+	DEBUGON(znode_get_level(item->node) != TWIG_LEVEL);
 	return cut_or_kill_units(item, from, to, 1, from_key, to_key, smallest_removed);
 }
 
@@ -732,6 +752,7 @@ int
 extent_kill_units(coord_t * item, unsigned *from, unsigned *to,
 		  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed)
 {
+	DEBUGON(znode_get_level(item->node) != TWIG_LEVEL);
 	return cut_or_kill_units(item, from, to, 0, from_key, to_key, smallest_removed);
 }
 
@@ -744,6 +765,7 @@ extent_unit_key(const coord_t * coord, reiser4_key * key)
 	item_key_by_coord(coord, key);
 	set_key_offset(key, (get_key_offset(key) + extent_size(coord, (unsigned) coord->unit_pos)));
 
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 	return key;
 }
 
@@ -763,6 +785,8 @@ optimize_extent(const coord_t * item)
 	assert("vs-765", coord_is_existing_item(item));
 	assert("vs-763", item_is_extent(item));
 	assert("vs-934", extent_check(item, &error) == 0);
+
+	DEBUGON(znode_get_level(item->node) != TWIG_LEVEL);
 
 	cur = start = extent_item(item);
 	old_num = extent_nr_units(item);
@@ -896,6 +920,8 @@ blocknr_by_coord_in_extent(const coord_t * coord, reiser4_block_nr off)
 	assert("vs-264", state_of_extent(extent_by_coord(coord)) == ALLOCATED_EXTENT);
 	check_me("vs-1092", offset_is_in_unit(coord, off, &pos_in_unit));
 
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
+
 	return extent_get_start(extent_by_coord(coord)) + pos_in_unit;
 }
 
@@ -904,6 +930,8 @@ static reiser4_extent *
 extent_utmost_ext(const coord_t * coord, sideof side, reiser4_block_nr * pos_in_unit)
 {
 	reiser4_extent *ext;
+
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 
 	if (side == LEFT_SIDE) {
 		/* get first extent of item */
@@ -926,6 +954,8 @@ extent_utmost_child(const coord_t * coord, sideof side, jnode ** childp)
 {
 	reiser4_extent *ext;
 	reiser4_block_nr pos_in_unit;
+
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 
 	ext = extent_utmost_ext(coord, side, &pos_in_unit);
 
@@ -968,6 +998,8 @@ extent_utmost_child_real_block(const coord_t * coord, sideof side, reiser4_block
 {
 	reiser4_extent *ext;
 	reiser4_block_nr pos_in_unit;
+
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 
 	ext = extent_utmost_ext(coord, side, &pos_in_unit);
 
@@ -1535,6 +1567,8 @@ protect_extent_nodes(oid_t oid, unsigned long ind, __u64 count, __u64 *protected
 		if (node == NULL) {
 			/* non-existence of at least one jnode means that this unallocated extent is going to be
 			   removed */
+			(*protected) ++;
+			continue;
 			result = -EAGAIN;
 			goto error;
 		}
@@ -1745,6 +1779,7 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	znode *orig_znode;
 
 	assert("vs-990", coord_is_existing_unit(un_extent));
+	DEBUGON(znode_get_level(un_extent->node) != TWIG_LEVEL);
 
 	coord_dup(&coord_after, un_extent);
 	init_lh(&lh_after);
@@ -1854,6 +1889,7 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_pos_t * f
 	assert("vs-1019", item_is_extent(coord));
 	assert("vs-1018", coord_is_existing_unit(coord));
 	assert("zam-807", znode_is_write_locked(coord->node));
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 
 	/*
 	 * skip extent being converted into tail
@@ -1996,6 +2032,7 @@ __u64 extent_unit_index(const coord_t * item)
 
 	assert("vs-648", coord_is_existing_unit(item));
 	unit_key_by_coord(item, &key);
+	DEBUGON(znode_get_level(item->node) != TWIG_LEVEL);
 	return get_key_offset(&key) >> current_blocksize_bits;
 }
 
@@ -2004,12 +2041,14 @@ __u64 extent_unit_index(const coord_t * item)
 __u64 extent_unit_width(const coord_t * item)
 {
 	assert("vs-649", coord_is_existing_unit(item));
+	DEBUGON(znode_get_level(item->node) != TWIG_LEVEL);
 	return width_by_coord(item);
 }
 
 /* Starting block location of this unit. */
 reiser4_block_nr extent_unit_start(const coord_t * item)
 {
+	DEBUGON(znode_get_level(item->node) != TWIG_LEVEL);
 	return extent_get_start(extent_by_coord(item));
 }
 
@@ -2082,6 +2121,7 @@ append_one_block(coord_t * coord, lock_handle * lh, jnode * j, reiser4_key * key
 	       }));
 
 	assert("zam-810", znode_is_write_locked(coord->node));
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 
 	ext = extent_by_coord(coord);
 	switch (state_of_extent(ext)) {
@@ -2122,6 +2162,7 @@ plug_hole(coord_t * coord, lock_handle * lh, reiser4_key * key)
 	int count;
 
 	assert("vs-234", coord_is_existing_unit(coord));
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 
 	ext = extent_by_coord(coord);
 	width = extent_get_width(ext);
@@ -2184,6 +2225,8 @@ overwrite_one_block(coord_t * coord, lock_handle * lh, jnode * j, reiser4_key * 
 {
 	int result;
 	reiser4_extent *ext;
+
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 
 	ext = extent_by_coord(coord);
 
@@ -2632,6 +2675,7 @@ extent_read(struct file *file, coord_t *coord, flow_t * f)
 
 	assert("vs-1119", znode_is_rlocked(coord->node));
 	assert("vs-1120", znode_is_loaded(coord->node));
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 
 	if (!extent_key_in_item(coord, &f->key, 0)) {
 		printk("does");
@@ -2738,6 +2782,7 @@ extent_readpage(coord_t * coord, struct page *page)
 	assert("vs-1046", coord_is_existing_unit(coord));
 	assert("vs-1045", znode_is_rlocked(coord->node));
 	assert("vs-1047", (page->mapping->host->i_ino == get_key_objectid(item_key_by_coord(coord, &key))));
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 
 	if (!offset_is_in_item(coord, ((loff_t) page->index) << PAGE_CACHE_SHIFT, &pos))
 		return -EINVAL;
@@ -2840,6 +2885,7 @@ extent_writepage(coord_t * coord, lock_handle * lh, struct page *page)
 */
 int extent_get_block_address(const coord_t *coord, sector_t block, struct buffer_head *bh)
 {
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 	if (state_of_extent(extent_by_coord(coord)) != ALLOCATED_EXTENT)
 		bh->b_blocknr = 0;
 	else
@@ -2864,6 +2910,7 @@ reiser4_key *
 extent_append_key(const coord_t * coord, reiser4_key * key, void *p)
 {
 
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 	if (p) {
 		struct coord_item_info *pinfo = p;
 
@@ -2895,6 +2942,7 @@ extent_key_in_item(coord_t * coord, const reiser4_key * key, void *p)
 
 
 	assert("vs-771", coord_is_existing_item(coord));
+	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 
 	if (!p) {
 		pinfo = &info;
