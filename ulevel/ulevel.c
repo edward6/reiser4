@@ -311,7 +311,8 @@ static tree_operations ul_tops = {
 	.allocate_node = ulevel_read_node,
 	.delete_node   = NULL,
 	.release_node  = ulevel_release_node,
-	.dirty_node    = ulevel_dirty_node
+	.dirty_node    = ulevel_dirty_node,
+	.drop_node     = NULL
 };
 
 static struct inode * alloc_inode (struct super_block * sb)
@@ -3277,7 +3278,7 @@ static int bash_mkfs (const char * file_name)
 
 			cputod64 (reiser4_inode_data( inode ) -> locality_id, 
 				  &test_sb->root_locality);
-			cputod64 (inode -> i_ino, &test_sb->root_objectid);
+			cputod64 ((__u64)inode -> i_ino, &test_sb->root_objectid);
 			/* OIDS_RESERVED---macro defines in oid.c */
 			cputod64 ( ( 1 << 16 ), &test_sb->next_to_use);
 			mark_buffer_dirty (bh);
