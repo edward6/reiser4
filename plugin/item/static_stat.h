@@ -110,20 +110,20 @@ typedef struct reiser4_light_weight_stat {
 } PACKED reiser4_light_weight_stat;
 
 typedef struct reiser4_unix_stat {
-	/*  0 */ d32 uid;
 	/* owner id */
-	/*  4 */ d32 gid;
+	/*  0 */ d32 uid;
 	/* group id */
-	/*  8 */ d32 atime;
+	/*  4 */ d32 gid;
 	/* access time */
-	/* 12 */ d32 mtime;
+	/*  8 */ d32 atime;
 	/* modification time */
-	/* 16 */ d32 ctime;
+	/* 12 */ d32 mtime;
 	/* change time */
-	/* 20 */ d32 rdev;
+	/* 16 */ d32 ctime;
 	/* minor:major for device files */
-	/* 24 */ d64 bytes;
+	/* 20 */ d32 rdev;
 	/* bytes used by file */
+	/* 24 */ d64 bytes;
 	/* 32 */
 } PACKED reiser4_unix_stat;
 
@@ -164,12 +164,12 @@ typedef struct reiser4_keyid_stat {
 } PACKED reiser4_keyid_stat;
 
 typedef struct reiser4_large_times_stat {
-	/*  0 */ d32 atime;
 	/* access time */
-	/*  8 */ d32 mtime;
+	/*  0 */ d32 atime;
 	/* modification time */
-	/* 16 */ d32 ctime;
+	/*  8 */ d32 mtime;
 	/* change time */
+	/* 16 */ d32 ctime;
 	/* 24 */
 } PACKED reiser4_large_times_stat;
 
