@@ -383,6 +383,7 @@ jref(jnode * node)
 extern int jdelete(jnode * node);
 
 /* get the page of jnode */
+/* ZAM-FIXME-HANS: do you mean we get a (page aligned) pointer to the start of the data for the jnode? */
 static inline char *
 jdata(const jnode * node)
 {
