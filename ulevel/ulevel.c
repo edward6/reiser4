@@ -786,6 +786,17 @@ static int mmap_back_end_fd = -1;
 static char *mmap_back_end_start = NULL;
 static size_t mmap_back_end_size = 0;
 
+int ulevel_allocate_node( znode *node )
+{
+	assert( "nikita-1909", node != NULL );
+	node -> size = reiser4_get_current_sb() -> s_blocksize;
+	node -> data = malloc( node -> size );
+	if( node -> data != NULL )
+		return 0;
+	else
+		return -ENOMEM;
+}
+
 int ulevel_read_node( const reiser4_block_nr *addr, char **data )
 {
 	if( mmap_back_end_fd > 0 ) {
@@ -846,21 +857,20 @@ znode *allocate_znode( reiser4_tree *tree, znode *parent,
 
 	if( znode_above_root( root ) ) {
 		ZF_SET( root, ZNODE_LOADED );
-		atomic_inc( &root -> d_count );
+		add_d_ref( root );
 		root -> ld_key = *min_key();
 		root -> rd_key = *max_key();
 		root -> data = malloc( 1 );
 		return root;
 	}
-	result = zload( root );
-	assert( "nikita-1171", result == 0 );
-	root -> nplug = node_plugin_by_id( NODE40_ID );
 	if( ( mmap_back_end_fd == -1 ) || init_node_p ) {
-		zinit_new( root );
+		root -> nplug = node_plugin_by_id( NODE40_ID );
+		result = zinit_new( root );
+		zrelse( root );
+	} else {
+		result = zload( root );
 	}
-	root -> nplug = NULL;
-	result = zparse( root );
-	assert( "nikita-1170", result == 0 );
+	assert( "nikita-1171", result == 0 );
 	return root;
 }
 
@@ -1173,6 +1183,7 @@ static int call_link( struct inode *dir, const char *old, const char *new )
 		r = dir -> i_op -> link( &old_dentry, dir, &new_dentry );
 		init_context( old_context, dir -> i_sb );
 		iput( old_dentry.d_inode );
+		iput( new_dentry.d_inode );
 		return r;
 	} else
 		return PTR_ERR( old_dentry.d_inode );
@@ -1442,7 +1453,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			done_coord( &coord );
 
 		}
-		print_tree_rec( "tree:ibk", tree, REISER4_NODE_CHECK );
+		print_tree_rec( "tree:ibk", tree, ~0u | REISER4_NODE_CHECK );
 		/* print_tree_rec( "tree", tree, ~0u ); */
 	} else if( !strcmp( argv[ 2 ], "carry" ) ) {
 		reiser4_item_data data;
@@ -2352,6 +2363,27 @@ static int bash_write (struct inode * dir, const char * name)
 	return 0;
 }
 
+static void bash_df (struct inode * cwd)
+{
+	struct statfs st;
+	reiser4_context *old_context;
+
+	old_context = get_current_context();
+	SUSPEND_CONTEXT( old_context );
+
+	cwd -> i_sb -> s_op -> statfs( cwd -> i_sb, &st );
+	info( "\n\tf_type: %lx", st.f_type );
+	info( "\n\tf_bsize: %li", st.f_bsize );
+	info( "\n\tf_blocks: %li", st.f_blocks );
+	info( "\n\tf_bfree: %li", st.f_bfree );
+	info( "\n\tf_bavail: %li", st.f_bavail );
+	info( "\n\tf_files: %li", st.f_files );
+	info( "\n\tf_ffree: %li", st.f_ffree );
+	info( "\n\tf_fsid: %lx", st.f_fsid );
+	info( "\n\tf_namelen: %li\n", st.f_namelen );
+
+	init_context( old_context, cwd -> i_sb );
+}
 
 static int bash_trunc (struct inode * cwd, const char * name)
 {
@@ -2814,6 +2846,8 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				}
 			} else if (!strcmp (command, "alloc")) {
 				allocate_unallocated (tree_by_inode (cwd));
+			} else if (!strcmp (command, "df")) {
+				bash_df (cwd);
 			} else if (!strcmp (command, "squeeze")) {
 				squeeze_twig_level (tree_by_inode (cwd));
 			} else if (!strncmp (command, "p", 1)) {
@@ -3344,7 +3378,7 @@ int real_main( int argc, char **argv )
 	tree = &get_super_private( s ) -> tree;
 	result = init_tree( tree, &root_block,
 				    1, node_plugin_by_id( NODE40_ID ),
-				    ulevel_read_node );
+				    ulevel_read_node, ulevel_allocate_node );
 	tree -> height = tree_height;
 
 	if( result )
