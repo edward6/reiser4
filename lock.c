@@ -660,7 +660,10 @@ void longterm_unlock_znode (lock_handle *handle)
 	/* Last write-lock release. */
 	if (znode_is_wlocked_once(node)) {
 
-		ON_DEBUG_MODIFY (znode_post_write (node));
+		if (REISER4_DEBUG_MODIFY && (zload (node) == 0)) {
+			ON_DEBUG_MODIFY (znode_post_write (node));
+			zrelse(node);
+		}
 
 		/* Handle znode deallocation */
 		if (ZF_ISSET(node, ZNODE_HEARD_BANSHEE)) {
