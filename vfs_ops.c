@@ -2465,8 +2465,8 @@ typedef enum {
 static reiser4_init_stage init_stage;
 
 /* finish with reiser4: this is called either at shutdown or at module unload. */
-static void __exit
-done_reiser4(void)
+static void 
+shutdown_reiser4(void)
 {
 #define DONE_IF( stage, exp )			\
 	if( init_stage == ( stage ) ) {		\
@@ -2487,25 +2487,6 @@ done_reiser4(void)
 #undef DONE_IF
 }
 
-#if 0
-static int
-test(struct notifier_block *self, unsigned long event, void *arg)
-{
-	struct low_mem_info *info;
-
-	info = arg;
-
-	info("low_mem: %lu, zone: %s, prio: %i, scanned: %i\n", event, info->zone->name, info->priority, info->scanned);
-	return NOTIFY_DONE;
-}
-
-static struct notifier_block low_mem_test = {
-	.notifier_call = test,
-	.next = NULL,
-	.priority = 1
-};
-#endif
-
 /* initialise reiser4: this is called either at bootup or at module load. */
 static int __init
 init_reiser4(void)
@@ -2516,7 +2497,7 @@ init_reiser4(void)
 	if( result == 0 )			\
 		++ init_stage;			\
 	else {					\
-		done_reiser4();			\
+		shutdown_reiser4();		\
 		return result;			\
 	}					\
 })
@@ -2536,9 +2517,14 @@ init_reiser4(void)
 	CHECK_INIT_RESULT(register_filesystem(&reiser4_fs_type));
 
 	assert("nikita-2515", init_stage == INIT_FS_REGISTERED);
-	// notifier_chain_register( &low_mem_chain, &low_mem_test );
 	return 0;
 #undef CHECK_INIT_RESULT
+}
+
+static void __exit
+done_reiser4(void)
+{
+	shutdown_reiser4();
 }
 
 module_init(init_reiser4);
