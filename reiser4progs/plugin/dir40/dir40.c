@@ -68,9 +68,8 @@ static errno_t dir40_rewind(reiser4_entity_t *entity) {
 static errno_t dir40_realize(dir40_t *dir) {
     aal_assert("umka-857", dir != NULL, return -1);	
 
-    /* FIXME-UMKA: Here should not be hardcoded key minor */
     plugin_call(return -1, dir->key.plugin->key_ops, 
-	build_generic, dir->key.body, KEY40_STATDATA_MINOR, 
+	build_generic, dir->key.body, KEY_STATDATA_TYPE, 
 	dir40_locality(dir), dir40_objectid(dir), 0);
     
     /* Positioning to the dir stat data */
@@ -345,7 +344,7 @@ static reiser4_entity_t *dir40_create(const void *tree,
     direntry.entry[0].name = ".";
     
     plugin_call(goto error_free_dir, object->plugin->key_ops, 
-	build_objid, &direntry.entry[0].objid, KEY40_STATDATA_MINOR, 
+	build_objid, &direntry.entry[0].objid, KEY_STATDATA_TYPE, 
 	locality, objectid);
 	
     plugin_call(goto error_free_dir, object->plugin->key_ops, 
@@ -356,7 +355,7 @@ static reiser4_entity_t *dir40_create(const void *tree,
     direntry.entry[1].name = "..";
     
     plugin_call(goto error_free_dir, object->plugin->key_ops, 
-	build_objid, &direntry.entry[1].objid, KEY40_STATDATA_MINOR, 
+	build_objid, &direntry.entry[1].objid, KEY_STATDATA_TYPE, 
 	parent_locality, locality);
 	
     plugin_call(goto error_free_dir, object->plugin->key_ops, 
@@ -460,10 +459,9 @@ static errno_t dir40_add(reiser4_entity_t *entity,
     
     hint.hint = &direntry_hint;
    
-    /* FIXME-UMKA: Hardcoded key type should be removed */
     plugin_call(goto error_free_entry, dir->key.plugin->key_ops, 
-	build_objid, &entry->objid, KEY40_STATDATA_MINOR, entry->objid.locality, 
-	entry->objid.objectid);
+	build_objid, &entry->objid, KEY_STATDATA_TYPE, 
+	entry->objid.locality, entry->objid.objectid);
 	
     plugin_call(goto error_free_entry, dir->key.plugin->key_ops, 
 	build_entryid, &entry->entryid, dir->hash_plugin, entry->name);

@@ -92,7 +92,7 @@ reiser4_object_t *reiser4_dir_create(
 	oid_t root_parent_locality = reiser4_oid_root_parent_locality(fs->oid);
 		
         parent_key.plugin = fs->tree->key.plugin;
-        reiser4_key_build_generic(&parent_key, KEY40_STATDATA_MINOR, 
+        reiser4_key_build_generic(&parent_key, KEY_STATDATA_TYPE, 
 	    root_parent_locality, root_locality, 0);
 
 	objectid = reiser4_oid_root_objectid(fs->oid);
@@ -103,7 +103,7 @@ reiser4_object_t *reiser4_dir_create(
     object_key.plugin = parent_key.plugin;
 
     /* Building stat data key of directory */
-    reiser4_key_build_generic(&object_key, KEY40_STATDATA_MINOR,
+    reiser4_key_build_generic(&object_key, KEY_STATDATA_TYPE,
         locality, objectid, 0);
     
     /* Updating object key */

@@ -8,6 +8,50 @@
 
 static reiser4_core_t *core = NULL;
 
+static const char *const minor_names[] = {
+    "file name", "stat data", "attr name",
+    "attr body", "file body", "unknown"
+};
+
+const char *key40_m2n(key40_minor_t type) {
+    if (type > KEY40_LAST_MINOR)
+	type = KEY40_LAST_MINOR;
+	    
+    return minor_names[type];
+}
+
+/* Translates key type from libreiser4 type to key40 one */
+static key40_minor_t key40_t2m(reiser4_key_type_t type) {
+    switch (type) {
+	case KEY_FILENAME_TYPE:
+	    return KEY40_FILENAME_MINOR;
+	case KEY_STATDATA_TYPE:
+	    return KEY40_STATDATA_MINOR;
+	case KEY_ATTRNAME_TYPE:
+	    return KEY40_ATTRNAME_MINOR;
+	case KEY_ATTRBODY_TYPE:
+	    return KEY40_ATTRBODY_MINOR;
+	default:
+	    return 0xff;
+    }
+}
+
+/* Translates key type from key40 to libreiser4 one */
+static reiser4_key_type_t key40_m2t(key40_minor_t type) {
+    switch (type) {
+	case KEY40_FILENAME_MINOR:
+	    return KEY_FILENAME_TYPE;
+	case KEY40_STATDATA_MINOR:
+	    return KEY_STATDATA_TYPE;
+	case KEY40_ATTRNAME_MINOR:
+	    return KEY_ATTRNAME_TYPE;
+	case KEY40_ATTRBODY_MINOR:
+	    return KEY_ATTRBODY_TYPE;
+	default:
+	    return 0xff;
+    }
+}
+
 static const key40_t MINIMAL_KEY = {
     .el = { 0ull, 0ull, 0ull }
 };
@@ -60,19 +104,20 @@ static int key40_confirm(reiser4_body_t *body) {
 
 static errno_t key40_valid(reiser4_body_t *body) {
     aal_assert("vpf-137", body != NULL, return -1);
-    return -1;
+    
+    return -(k40_get_minor((key40_t *)body) >= KEY40_LAST_MINOR);
 }
 
 static void key40_set_type(reiser4_body_t *body, 
-    uint32_t type)
+    reiser4_key_type_t type)
 {
     aal_assert("umka-634", body != NULL, return);
-    k40_set_type((key40_t *)body, (reiser4_key40_minor_t)type);
+    k40_set_minor((key40_t *)body, key40_t2m(type));
 }
 
-static uint32_t key40_get_type(reiser4_body_t *body) {
+static reiser4_key_type_t key40_get_type(reiser4_body_t *body) {
     aal_assert("umka-635", body != NULL, return 0);
-    return (uint32_t)k40_get_type((key40_t *)body);
+    return key40_m2t(k40_get_minor((key40_t *)body));
 }
 
 static void key40_set_locality(reiser4_body_t *body, 
@@ -206,7 +251,7 @@ static errno_t key40_build_direntry(reiser4_body_t *body,
     key40_clean(key);
 
     k40_set_locality(key, objectid);
-    k40_set_type(key, KEY40_FILENAME_MINOR);
+    k40_set_minor(key, KEY40_FILENAME_MINOR);
     
     key40_build_hash(key, hash_plugin, name);
 
@@ -230,7 +275,7 @@ static errno_t key40_build_entryid(reiser4_body_t *body,
 }
 
 static errno_t key40_build_generic(reiser4_body_t *body, 
-    uint32_t type, oid_t locality, oid_t objectid, uint64_t offset) 
+    reiser4_key_type_t type, oid_t locality, oid_t objectid, uint64_t offset) 
 {
     key40_t *key = (key40_t *)body;
     
@@ -239,15 +284,15 @@ static errno_t key40_build_generic(reiser4_body_t *body,
     key40_clean(key);
     
     k40_set_locality(key, locality);
-    k40_set_type(key, (reiser4_key40_minor_t)type);
+    k40_set_minor(key, key40_t2m(type));
     k40_set_objectid(key, objectid);
     k40_set_offset(key, offset);
 
     return 0;
 }
 
-static errno_t key40_build_objid(reiser4_body_t *body, uint32_t type, 
-    oid_t locality, oid_t objectid)
+static errno_t key40_build_objid(reiser4_body_t *body, 
+    reiser4_key_type_t type, oid_t locality, oid_t objectid)
 {
     key40_t key;
     
@@ -256,7 +301,7 @@ static errno_t key40_build_objid(reiser4_body_t *body, uint32_t type,
     key40_clean(&key);
 
     k40_set_locality(&key, locality);
-    k40_set_type(&key, (reiser4_key40_minor_t)type);
+    k40_set_minor(&key, key40_t2m(type));
     k40_set_objectid(&key, objectid);
     
     aal_memset(body, 0, sizeof(uint64_t)*2);

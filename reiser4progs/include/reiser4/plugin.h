@@ -148,22 +148,14 @@ struct reiser4_key {
 
 typedef struct reiser4_key reiser4_key_t;
 
-/*
-    FIXME-VITALY: We should change these names to plugin independent style. Pass 
-    these names to key plugin where they will be converted to plugin-specific names.
-*/
-typedef enum {
-    /* File name key type */
-    KEY40_FILENAME_MINOR = 0,
-    /* Stat-data key type */
-    KEY40_STATDATA_MINOR = 1,
-    /* File attribute name */
-    KEY40_ATTRNAME_MINOR = 2,
-    /* File attribute value */
-    KEY40_ATTRBODY_MINOR = 3,
-    /* File body (drop or extent) */
-    KEY40_BODY_MINOR	 = 4
-} reiser4_key40_minor_t;
+#define KEY_FILENAME_TYPE   0
+#define KEY_STATDATA_TYPE   1
+#define KEY_ATTRNAME_TYPE   2
+#define KEY_ATTRBODY_TYPE   3
+#define KEY_BODY_TYPE	    4
+#define KEY_LAST_TYPE	    5
+
+typedef uint32_t reiser4_key_type_t;
 
 /* 
     To create a new item or to insert into the item we need to perform the 
@@ -342,23 +334,25 @@ struct reiser4_key_ops {
     void (*clean) (reiser4_body_t *);
 
     errno_t (*build_generic) (reiser4_body_t *, 
-	uint32_t, uint64_t, uint64_t, uint64_t);
+	reiser4_key_type_t, uint64_t, uint64_t, uint64_t);
     
     errno_t (*build_direntry) (reiser4_body_t *, 
 	reiser4_plugin_t *, uint64_t, uint64_t, 
 	const char *);
     
     errno_t (*build_objid) (reiser4_body_t *, 
-	uint32_t, uint64_t, uint64_t);
+	reiser4_key_type_t, uint64_t, uint64_t);
     
     errno_t (*build_entryid) (reiser4_body_t *, 
 	reiser4_plugin_t *, const char *);
 
-    errno_t (*build_by_entry) (reiser4_body_t *, void *);
+    /* Builds full key by short entry key */
+    errno_t (*build_by_entry) (reiser4_body_t *, 
+	reiser4_body_t *);
 
     /* Gets/sets key type (minor in reiser4 notation) */	
-    void (*set_type) (reiser4_body_t *, uint32_t);
-    uint32_t (*get_type) (reiser4_body_t *);
+    void (*set_type) (reiser4_body_t *, reiser4_key_type_t);
+    reiser4_key_type_t (*get_type) (reiser4_body_t *);
 
     /* Gets/sets key locality */
     void (*set_locality) (reiser4_body_t *, uint64_t);
@@ -377,7 +371,8 @@ struct reiser4_key_ops {
     uint64_t (*get_hash) (reiser4_body_t *);
 
     /* Prints key into specified buffer */
-    errno_t (*print) (reiser4_body_t *, char *, uint32_t, uint16_t);
+    errno_t (*print) (reiser4_body_t *, char *, 
+	uint32_t, uint16_t);
 };
 
 typedef struct reiser4_key_ops reiser4_key_ops_t;

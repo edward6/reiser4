@@ -100,8 +100,7 @@ static errno_t reiser4_object_lookup(
     while (1) {
 	reiser4_item_t item;
 
-	/* FIXME-UMKA: Hardcoded key40 key type */
-	reiser4_key_set_type(&object->key, KEY40_STATDATA_MINOR);
+	reiser4_key_set_type(&object->key, KEY_STATDATA_TYPE);
 	reiser4_key_set_offset(&object->key, 0);
 	
 	if (reiser4_tree_lookup(object->fs->tree, REISER4_LEAF_LEVEL, 

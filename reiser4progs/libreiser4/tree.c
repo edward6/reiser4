@@ -158,10 +158,8 @@ static errno_t reiser4_tree_build_key(
     /* Initializing the key by found plugin */
     tree->key.plugin = plugin;
 
-    /* FIXME-UMKA: Hardcoded key40 stat data minor */
-    
     /* Building the key */
-    reiser4_key_build_generic(&tree->key, KEY40_STATDATA_MINOR,
+    reiser4_key_build_generic(&tree->key, KEY_STATDATA_TYPE,
 	locality, objectid, 0);
 
     return 0;
@@ -1158,10 +1156,6 @@ errno_t reiser4_tree_move(
 	    src->cache, &src->pos))
 	return -1;
 	    
-    /* 
-	FIXME-UMKA: Here should be keeping track of the situation when we need 
-	to change tree root.
-    */
     return 0;
 }
 

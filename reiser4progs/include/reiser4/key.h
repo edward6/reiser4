@@ -36,12 +36,20 @@ extern errno_t reiser4_key_build_entryid(reiser4_key_t *key,
 extern errno_t reiser4_key_build_by_entry(reiser4_key_t *key,
     void *data);
 
-extern errno_t reiser4_key_set_type(reiser4_key_t *key, uint32_t type);
-extern errno_t reiser4_key_set_offset(reiser4_key_t *key, uint64_t offset);
-extern errno_t reiser4_key_set_hash(reiser4_key_t *key, uint64_t hash);
+extern errno_t reiser4_key_set_type(reiser4_key_t *key, 
+    uint32_t type);
 
-extern errno_t reiser4_key_set_objectid(reiser4_key_t *key, oid_t objectid);
-extern errno_t reiser4_key_set_locality(reiser4_key_t *key, oid_t locality);
+extern errno_t reiser4_key_set_offset(reiser4_key_t *key, 
+    uint64_t offset);
+
+extern errno_t reiser4_key_set_hash(reiser4_key_t *key, 
+    uint64_t hash);
+
+extern errno_t reiser4_key_set_objectid(reiser4_key_t *key, 
+    oid_t objectid);
+
+extern errno_t reiser4_key_set_locality(reiser4_key_t *key, 
+    oid_t locality);
 
 extern uint32_t reiser4_key_get_type(reiser4_key_t *key);
 extern uint64_t reiser4_key_get_offset(reiser4_key_t *key);
@@ -51,8 +59,9 @@ extern oid_t reiser4_key_get_objectid(reiser4_key_t *key);
 extern oid_t reiser4_key_get_locality(reiser4_key_t *key);
 extern void reiser4_key_maximal(reiser4_key_t *key);
 extern void reiser4_key_minimal(reiser4_key_t *key);
-extern void reiser4_key_print(reiser4_key_t *key, char *buffer, uint32_t size, 
-    uint16_t options);
+
+extern errno_t reiser4_key_print(reiser4_key_t *key, char *buff, 
+    uint32_t n, uint16_t options);
 
 #endif
 

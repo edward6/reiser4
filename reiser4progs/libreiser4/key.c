@@ -8,7 +8,7 @@
 
 /* Initializes passed key by specified data */
 errno_t reiser4_key_init(
-    reiser4_key_t *key,	    /* key to be initialized */
+    reiser4_key_t *key,		    /* key to be initialized */
     reiser4_plugin_t *plugin,	    /* key plugin to be used */
     const void *data		    /* key data */
 ) {
@@ -274,12 +274,14 @@ void reiser4_key_minimal(reiser4_key_t *key) {
     aal_memcpy(key->body, body, REISER4_KEY_SIZE);
 }
 
-void reiser4_key_print(reiser4_key_t *key, char *buffer, uint32_t size, 
-    uint16_t options) 
+/* Prints key to passed buffer */
+errno_t reiser4_key_print(reiser4_key_t *key, char *buff, 
+    uint32_t n, uint16_t options) 
 {
-    aal_assert("vpf-189", key != NULL, return);
-    aal_assert("vpf-190", key->plugin != NULL, return);
+    aal_assert("vpf-189", key != NULL, return -1);
+    aal_assert("vpf-190", key->plugin != NULL, return -1);
 
-    plugin_call(return, key->plugin->key_ops, 
-	print, key->body, buffer, size, options); 
+    return plugin_call(return -1, key->plugin->key_ops, 
+	print, key->body, buff, n, options); 
 }
+

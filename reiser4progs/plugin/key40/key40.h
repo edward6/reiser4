@@ -9,22 +9,45 @@
 
 #include <aal/aal.h>
 #include <reiser4/plugin.h>
-#include <reiser4/key.h>
+
+typedef enum {
+    /* File name key type */
+    KEY40_FILENAME_MINOR = 0,
+    
+    /* Stat-data key type */
+    KEY40_STATDATA_MINOR = 1,
+    
+    /* File attribute name */
+    KEY40_ATTRNAME_MINOR = 2,
+    
+    /* File attribute value */
+    KEY40_ATTRBODY_MINOR = 3,
+    
+    /* File body (drop or extent) */
+    KEY40_BODY_MINOR	 = 4,
+    KEY40_LAST_MINOR
+} key40_minor_t;
 
 typedef enum {
     /* Major "locale", aka dirid. Sits in 1st element */
     KEY40_LOCALITY_INDEX  = 0,
+    
     /* Minor "locale", aka item type. Sits in 1st element */
     KEY40_TYPE_INDEX	  = 0,
+    
     /* Object band. Sits in 2nd element */
     KEY40_BAND_INDEX	  = 1,
+    
     /* Object id. Sits in 2nd element */
     KEY40_OBJECTID_INDEX  = 1,
+    
     /* Offset. Sits in 3rd element */
     KEY40_OFFSET_INDEX	  = 2,
+    
     /* Name hash. Sits in 3rd element */
     KEY40_HASH_INDEX	  = 2,
     KEY40_LAST_INDEX	  = 3
+    
 } key40_field_t;
 
 union key40 {
@@ -140,7 +163,7 @@ static inline void k40_set_##L(key40_t *key, T loc) {		    \
 }
 
 DEFINE_KEY40_FIELD(locality, LOCALITY, uint64_t);
-DEFINE_KEY40_FIELD(type, TYPE, reiser4_key40_minor_t);
+DEFINE_KEY40_FIELD(minor, TYPE, key40_minor_t);
 DEFINE_KEY40_FIELD(band, BAND, uint64_t);
 DEFINE_KEY40_FIELD(objectid, OBJECTID, uint64_t);
 DEFINE_KEY40_FIELD(offset, OFFSET, uint64_t);
