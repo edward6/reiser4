@@ -362,9 +362,13 @@ void *xmemset( void *s, int c, size_t n )
  * mpage_end_io_read() would also do. But it's static.
  *
  */
-static void end_bio_single_page_read( struct bio *bio )
+static int end_bio_single_page_read( struct bio *bio, 
+				     unsigned int bytes_done, int err )
 {
 	struct page *page;
+
+	if( bio -> bi_size != 0 )
+		return 1;
 
 	page = bio -> bi_io_vec[ 0 ].bv_page;
 
@@ -376,6 +380,7 @@ static void end_bio_single_page_read( struct bio *bio )
 	}
 	unlock_page( page );
 	bio_put( bio );
+	return 0;
 }
 
 /** 
@@ -384,9 +389,13 @@ static void end_bio_single_page_read( struct bio *bio )
  * mpage_end_io_write() would also do. But it's static.
  *
  */
-static void end_bio_single_page_write( struct bio *bio )
+static int end_bio_single_page_write( struct bio *bio, 
+				      unsigned int bytes_done, int err )
 {
 	struct page *page;
+
+	if( bio -> bi_size != 0 )
+		return 1;
 
 	page = bio -> bi_io_vec[ 0 ].bv_page;
 
@@ -394,6 +403,7 @@ static void end_bio_single_page_write( struct bio *bio )
 		SetPageError( page );
 	end_page_writeback( page );
 	bio_put( bio );
+	return 0;
 }
 
 /** ->readpage() method for formatted nodes */
@@ -566,6 +576,8 @@ int page_common_writeback( struct page *page /* page to start writeback from */,
 		jput (node);
 		REISER4_EXIT (0);
 	}
+
+	spin_unlock_txnh (txnh);
 
 	/* Attach the txn handle to this node, preventing the atom from
 	 * committing while this flush occurs.
