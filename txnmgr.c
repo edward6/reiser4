@@ -462,8 +462,13 @@ txn_end(reiser4_context * context)
 	txnh = context->trans;
 
 	if (txnh != NULL) {
-		/* The txnh's field "atom" can be checked for NULL w/o holding a lock because
-		   only this thread's call to try_capture will set it. */
+		/* The txnh's field "atom" can be checked for NULL w/o holding a
+		   lock because txnh->atom could be set by this thread's call to
+		   try_capture or the deadlock prevention code in
+		   check_not_fused_lock_owners().  But that code may assign an
+		   atom to this transaction handle only if there are locked and
+		   not yet fused nodes.  It cannot happen because lock stack
+		   should be clean at this moment. */
 		if (txnh->atom != NULL) 
 			ret = commit_txnh(txnh);
 
@@ -882,50 +887,47 @@ jnode * find_first_dirty_jnode (txn_atom * atom)
    Return value is an error code if commit fails, or non-negative number of
    blocks written.
 */
-static int commit_current_atom (long *nr_submitted, txn_atom ** result_atom)
+static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 {
 	reiser4_super_info_data * sbinfo = get_current_super_private ();
-	txn_atom * atom;
 	long ret;
 
-	if (REISER4_DEBUG) {
-		atom = get_current_atom_locked();
-
-		assert("jmacd-151", atom_isopen(atom));
-		UNLOCK_ATOM(atom);
-	}
+	assert ("zam-888", atom != NULL && *atom != NULL);
+	assert ("zam-886", spin_atom_is_locked(*atom));
+	assert ("zam-887", get_current_context()->trans->atom == *atom);
+	assert("jmacd-151", atom_isopen(*atom));
 
 	trace_on(TRACE_TXN, "atom %u trying to commit %u: CAPTURE_WAIT\n", atom->atom_id, current->pid);
 
-	do {
-		ret = flush_current_atom(JNODE_FLUSH_WRITE_BLOCKS, nr_submitted, &atom);
-	} while (ret == -EAGAIN);
+	while (1) {
+		ret = flush_current_atom(JNODE_FLUSH_WRITE_BLOCKS, nr_submitted, atom);
+		if (ret != -EAGAIN)
+			break;
+
+		*atom = get_current_atom_locked();
+	}
 
 	if (ret)
 		return ret;
 
-	assert ("zam-883", atom != NULL);
-	assert ("zam-882", spin_atom_is_locked(atom));
+	assert ("zam-882", spin_atom_is_locked(*atom));
 
-	if (!atom_can_be_committed(atom)) {
-		UNLOCK_ATOM(atom);
+	if (!atom_can_be_committed(*atom)) {
+		UNLOCK_ATOM(*atom);
 		return -EAGAIN;
 	}
 
 	/* Up to this point we have been flushing and after flush is called we
 	   return -EAGAIN.  Now we can commit.  We cannot return -EAGAIN at this
 	   point, commit should be successful. */
-	atom->stage = ASTAGE_PRE_COMMIT;
+	(*atom)->stage = ASTAGE_PRE_COMMIT;
 
-	trace_on(TRACE_TXN, "commit atom %u: PRE_COMMIT\n", atom->atom_id);
-	trace_on(TRACE_FLUSH, "everything flushed atom %u: PRE_COMMIT\n", atom->atom_id);
+	trace_on(TRACE_TXN, "commit atom %u: PRE_COMMIT\n", (*atom)->atom_id);
+	trace_on(TRACE_FLUSH, "everything flushed atom %u: PRE_COMMIT\n", (*atom)->atom_id);
 
-	UNLOCK_ATOM(atom);
+	UNLOCK_ATOM(*atom);
 
 	ret = current_atom_finish_all_fq();
-
-	assert("zam-752", ret != -EBUSY);
-
 	if (ret)
 		return ret;
 
@@ -939,31 +941,29 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** result_atom)
 	if (ret < 0)
 		reiser4_panic("zam-597", "write log failed (%ld)\n", ret);
 
-	LOCK_ATOM(atom);
+	LOCK_ATOM(*atom);
 
-	invalidate_clean_list(atom);
+	invalidate_clean_list(*atom);
 
 	up(&sbinfo->tmgr.commit_semaphore);
 
-	atom->stage = ASTAGE_DONE;
+	(*atom)->stage = ASTAGE_DONE;
 
 	/* Atom's state changes, so wake up everybody waiting for this
 	   event. */
-	wakeup_atom_waitfor_list(atom);
-	wakeup_atom_waiting_list(atom);
+	wakeup_atom_waitfor_list(*atom);
+	wakeup_atom_waiting_list(*atom);
 
 	/* Decrement the "until commit" reference, at least one txnh (the caller) is
 	   still open. */
-	atomic_dec(&atom->refcount);
+	atomic_dec(&(*atom)->refcount);
 
-	assert("jmacd-1070", atomic_read(&atom->refcount) > 0);
-	assert("jmacd-1062", atom->capture_count == 0);
-	assert("jmacd-1071", spin_atom_is_locked(atom));
+	assert("jmacd-1070", atomic_read(&(*atom)->refcount) > 0);
+	assert("jmacd-1062", (*atom)->capture_count == 0);
+	assert("jmacd-1071", spin_atom_is_locked(*atom));
 
-	trace_on(TRACE_TXN, "commit atom finished %u refcount %d\n", atom->atom_id, atomic_read(&atom->refcount));
-
-	*result_atom = atom;
-
+	trace_on(TRACE_TXN, "commit atom finished %u refcount %d\n",
+		 (*atom)->atom_id, atomic_read(&(*atom)->refcount));
 	return ret;
 }
 
@@ -1161,7 +1161,7 @@ int flush_some_atom(long *nr_submitted, int flags)
 	txn_atom *atom;
 	int ret;
 
-	if (UNDER_SPIN(txnh, txnh, txnh->atom) == NULL) {
+	if (txnh->atom == NULL) {
 		int found = 0;
 		/* current atom is available, take first from txnmgr */
 		txn_mgr *tmgr = &get_super_private(ctx->super)->tmgr;
@@ -1180,11 +1180,12 @@ int flush_some_atom(long *nr_submitted, int flags)
 			 * flushers (jnode_flush() add one flusher at the beginning and
 			 * subtract one at the end). */
 			if (atom->stage < ASTAGE_PRE_COMMIT && atom->nr_flushers == 0) {
-				found = 1;
 				LOCK_TXNH(txnh);
-				if (txnh->atom == NULL)
-					capture_assign_txnh_nolock(atom, txnh);
+				capture_assign_txnh_nolock(atom, txnh);
 				UNLOCK_TXNH(txnh);
+
+				found = 1;
+				break;
 			}
 
 			UNLOCK_ATOM(atom);
@@ -1195,7 +1196,8 @@ int flush_some_atom(long *nr_submitted, int flags)
 		/* no suitable atoms found, return */
 		if (!found)
 			return 0;
-	}
+	} else 
+		atom = get_current_atom_locked();
 
 	ret = flush_current_atom(flags, nr_submitted, &atom);
 	if (ret == 0) {
@@ -1334,8 +1336,6 @@ again:
 		   ourself as an active flusher */
 		atom->stage = ASTAGE_CAPTURE_WAIT;
 		atom->flags |= ATOM_FORCE_COMMIT;
-
-		UNLOCK_ATOM(atom);
 
 		ret = commit_current_atom(&nr_written, &atom);
 		if (ret) {
