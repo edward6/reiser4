@@ -4,10 +4,6 @@
     Author Yury Umanets.
 */
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h>
-#endif
-
 #include "node40.h"
 
 extern reiser4_plugin_t node40_plugin;
@@ -355,7 +351,7 @@ static errno_t node40_shrink(node40_t *node,
     This function removes item from the node at specified pos. Do not try to 
     understand it. This is impossible. But it works correctly.
 */
-static errno_t node40_remove(reiser4_entity_t *entity, 
+errno_t node40_remove(reiser4_entity_t *entity, 
     reiser4_pos_t *pos) 
 {
     uint16_t len;
@@ -421,6 +417,8 @@ static errno_t node40_cut(reiser4_entity_t *entity,
 
     return 0;
 }
+
+extern errno_t node40_check(reiser4_entity_t *entity, uint16_t options);
 
 #endif
 
@@ -549,6 +547,7 @@ static reiser4_plugin_t node40_plugin = {
 	.remove		= node40_remove,
 	.paste		= node40_paste,
 	.cut		= node40_cut,
+	.check		= node40_check,
 	.set_key	= node40_set_key,
 #else
 	.create		= NULL,
@@ -556,7 +555,7 @@ static reiser4_plugin_t node40_plugin = {
 	.remove		= NULL,
 	.paste		= NULL,
 	.cut		= NULL,
-	
+	.check		= NULL,
 	.set_key	= NULL,
 #endif
 	.item_len	= node40_item_len,

@@ -1039,7 +1039,7 @@ errno_t reiser4_tree_traverse(
 		goto error_free_node;
 	    }
 	    
-	    for (; pos.unit < reiser4_item_count(&item); pos.unit++) {
+	    for (; pos.unit <= reiser4_item_count(&item); pos.unit++) {
 		blk_t target;
 
 		if (!reiser4_item_internal(&item))

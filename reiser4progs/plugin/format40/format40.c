@@ -4,10 +4,6 @@
     Author Yury Umanets.
 */
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h>
-#endif
-
 #include "format40.h"
 
 extern reiser4_plugin_t format40_plugin;
