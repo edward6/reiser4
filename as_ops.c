@@ -81,8 +81,6 @@ static sector_t reiser4_bmap(struct address_space *, sector_t);
 */
 static int reiser4_set_page_dirty (struct page * page /* page to mark dirty */)
 {
-	int ret = 0;
-
 	if (!TestSetPageDirty(page)) {
 		struct address_space *mapping = page->mapping;
 
@@ -96,10 +94,31 @@ static int reiser4_set_page_dirty (struct page * page /* page to mark dirty */)
 				list_add(&page->list, get_moved_pages(mapping));
 			}			
 			spin_unlock(&mapping->page_lock);
-			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 		}
 	}
-	return ret;
+	return 0;
+}
+
+/* alternative version of reiser4_set_page_dirty() that tried to keep dirty
+ * pages in LRU order */
+static int reiser4_set_page_dirty_lru(struct page * page)
+{
+	struct address_space *mapping = page->mapping;
+	int wascl = !TestSetPageDirty(page);
+
+	if (mapping != NULL) {
+		spin_lock(&mapping->page_lock);
+		/* check for race with truncate */
+		if (page->mapping != NULL) {
+			if (!mapping->backing_dev_info->memory_backed && wascl)
+				inc_page_state(nr_dirty);
+			list_move(&page->list, get_moved_pages(mapping));
+		}			
+		spin_unlock(&mapping->page_lock);
+		if (wascl && mapping != NULL)
+			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
+	}
+	return 0;
 }
 
 /* ->readpage() VFS method in reiser4 address_space_operations
@@ -568,7 +587,7 @@ move_inode_out_from_sync_inodes_loop(struct address_space * mapping)
 	/* work around infinite loop in pdflush->sync_sb_inodes. */
 	/* Problem: ->writepages() is supposed to submit io for the pages from
 	 * ->io_pages list and to clean this list. */
-	mapping->dirtied_when = jiffies;
+	mapping->host->dirtied_when = jiffies;
 	spin_lock(&inode_lock);
 	list_move(&mapping->host->i_list, &mapping->host->i_sb->s_dirty);
 	spin_unlock(&inode_lock);
