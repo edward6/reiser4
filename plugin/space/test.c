@@ -46,7 +46,7 @@ int test_alloc_blocks (reiser4_space_allocator * allocator,
 {
 	double p;
 	reiser4_block_nr min_free;
-	int rand;
+	unsigned int rand;
 
 	assert ("vs-460", needed > 0);
 
