@@ -172,6 +172,7 @@
 #include "reiser4.h"
 #include "super.h"
 #include "vfs_ops.h"
+#include "writeout.h"
 
 #include <linux/types.h>
 #include <linux/fs.h>		/* for struct super_block  */
@@ -180,7 +181,8 @@
 #include <linux/bio.h>		/* for struct bio */
 #include <linux/blkdev.h>
 
-static int write_jnodes_to_disk_extent(capture_list_head * head, jnode *, int, const reiser4_block_nr *, flush_queue_t * fq);
+static int write_jnodes_to_disk_extent(
+	capture_list_head * head, jnode *, int, const reiser4_block_nr *, flush_queue_t *, int );
 
 /* The commit_handle is a container for objects needed at atom commit time  */
 struct commit_handle {
@@ -420,7 +422,7 @@ update_journal_header(struct commit_handle *ch)
 
 	format_journal_header(ch);
 
-	ret = write_jnodes_to_disk_extent(&ch->tx_list, jh, 1, jnode_get_block(jh), NULL);
+	ret = write_jnodes_to_disk_extent(&ch->tx_list, jh, 1, jnode_get_block(jh), NULL, 0);
 
 	if (ret)
 		return ret;
@@ -452,7 +454,7 @@ update_journal_footer(struct commit_handle *ch)
 
 	format_journal_footer(ch);
 
-	ret = write_jnodes_to_disk_extent(&ch->tx_list, jf, 1, jnode_get_block(jf), NULL);
+	ret = write_jnodes_to_disk_extent(&ch->tx_list, jf, 1, jnode_get_block(jf), NULL, 0);
 	if (ret)
 		return ret;
 
@@ -730,9 +732,11 @@ FIXME: ZAM->HANS: What layer are you talking about? Can you point me to that?
 Why that layer needed? Why BIOs cannot be constructed here?
 */
 static int
-write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
+write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr, 
+			    const reiser4_block_nr * block_p, flush_queue_t * fq, int flags)
 {
 	struct super_block *super = reiser4_get_current_sb();
+	int for_reclaim = flags & WRITEOUT_FOR_PAGE_RECLAIM;
 	int max_blocks;
 	jnode *cur = first;
 	reiser4_block_nr block;
@@ -795,7 +799,8 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr, con
 				UNLOCK_JNODE(cur);
 
 				SetPageWriteback(pg);
-
+				if (for_reclaim)
+					SetPageReclaim(pg);
 				spin_lock(&pg->mapping->page_lock);
 
 				if (REISER4_STATS && !PageDirty(pg))
@@ -874,7 +879,7 @@ unscan_sequence(jnode *j, int nr)
    numbers in the given list of j-nodes and submits write requests on this
    per-sequence basis */
 reiser4_internal int
-write_jnode_list(capture_list_head *head, flush_queue_t *fq, long *nr_submitted)
+write_jnode_list(capture_list_head *head, flush_queue_t *fq, long *nr_submitted, int flags)
 {
 	int ret;
 	jnode *beg, *end;
@@ -901,7 +906,7 @@ write_jnode_list(capture_list_head *head, flush_queue_t *fq, long *nr_submitted)
 		}
 		spin_unlock(&scan_lock);
 
-		ret = write_jnodes_to_disk_extent(head, beg, nr, jnode_get_block(beg), fq);
+		ret = write_jnodes_to_disk_extent(head, beg, nr, jnode_get_block(beg), fq, flags);
 		if (ret) {
 			unscan_sequence(beg, nr);
 			return ret;
@@ -1014,7 +1019,7 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 			unscan_sequence(beg, len);
 			return ret;
 		}
-		ret = write_jnodes_to_disk_extent(ch->overwrite_set, beg, len, &block, fq);
+		ret = write_jnodes_to_disk_extent(ch->overwrite_set, beg, len, &block, fq, 0);
 		if (ret) {
 			unscan_sequence(beg, len);
 			return ret;
@@ -1167,9 +1172,11 @@ get_overwrite_set(struct commit_handle *ch)
    all low-level things as bio construction and page states manipulation.
 */
 static int
-write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
+write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr, 
+			    const reiser4_block_nr * block_p, flush_queue_t * fq, int flags)
 {
 	struct super_block *super = reiser4_get_current_sb();
+	int for_reclaim = flags & WRITEOUT_FOR_PAGE_RECLAIM;
 	int max_blocks;
 	jnode *cur = first;
 	reiser4_block_nr block;
@@ -1232,6 +1239,8 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr, con
 				reiser4_stat_inc(pages_clean);
 
 			set_page_writeback(pg);
+                        if (for_reclaim)
+                                SetPageReclaim(pg);
 			/* clear DIRTY or REISER4_MOVED tag if it is set */
 			reiser4_clear_page_dirty(pg);
 
@@ -1270,7 +1279,7 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr, con
    numbers in the given list of j-nodes and submits write requests on this
    per-sequence basis */
 reiser4_internal int
-write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_submitted)
+write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_submitted, int flags)
 {
 	int ret;
 	jnode *beg = capture_list_front(head);
@@ -1286,7 +1295,7 @@ write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_submitt
 			cur = capture_list_next(cur);
 		}
 
-		ret = write_jnodes_to_disk_extent(head, beg, nr, jnode_get_block(beg), fq);
+		ret = write_jnodes_to_disk_extent(head, beg, nr, jnode_get_block(beg), fq, flags);
 		if (ret)
 			return ret;
 
@@ -1372,7 +1381,7 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 		if (ret)
 			return ret;
 
-		ret = write_jnodes_to_disk_extent(ch->overwrite_set, cur, len, &block, fq);
+		ret = write_jnodes_to_disk_extent(ch->overwrite_set, cur, len, &block, fq, 0);
 		if (ret)
 			return ret;
 
@@ -1486,7 +1495,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		}
 	}
 
-	ret = write_jnode_list(&ch->tx_list, fq, NULL);
+	ret = write_jnode_list(&ch->tx_list, fq, NULL, 0);
 
 	return ret;
 
@@ -1655,7 +1664,7 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 
 		UNLOCK_ATOM(fq->atom);
 
-		ret = write_jnode_list(ch.overwrite_set, fq, NULL);
+		ret = write_jnode_list(ch.overwrite_set, fq, NULL, get_writeout_flags());
 
 		fq_put(fq);
 
@@ -1906,7 +1915,7 @@ replay_transaction(const struct super_block *s,
 	}
 
 	{			/* write wandered set in place */
-		write_jnode_list(ch.overwrite_set, 0, NULL);
+		write_jnode_list(ch.overwrite_set, 0, NULL, 0);
 		ret = wait_on_jnode_list(ch.overwrite_set);
 
 		if (ret) {
