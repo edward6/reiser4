@@ -356,18 +356,24 @@ int atom_fq_parts_are_clean (txn_atom * atom)
 	return fq_list_empty(&atom->flush_queues);
 }
 #endif
-/* ZAM-FIXME-HANS: comment this. */
-/* bio i/o completion routine */
+/* Bio i/o completion routine for reiser4 write operations. */
 static int
 end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUSED_ARG)
 {
 	int i;
 	int nr_errors = 0;
-	flush_queue_t *fq = bio->bi_private;
+	flush_queue_t *fq;
 
+	assert ("zam-958", bio->bi_rw & WRITE);
+
+	/* i/o op. is not fully completed */
 	if (bio->bi_size != 0)
 		return 1;
 
+	/* we expect that bio->private is set to NULL or fq object which is used
+	 * for synchronization and error counting. */
+	fq = bio->bi_private;
+	/* Check all elements of io_vec for correct write completion. */
 	for (i = 0; i < bio->bi_vcnt; i += 1) {
 		struct page *pg = bio->bi_io_vec[i].bv_page;
 
@@ -377,6 +383,8 @@ end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUS
 		}
 
 		{
+			/* jnode WRITEBACK ("write is in progress bit") is
+			 * atomically cleared here. */
 			jnode *node;
 
 			assert("zam-736", pg != NULL);
@@ -391,8 +399,11 @@ end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUS
 	}
 
 	if (fq) {
+		/* count i/o error in fq object */
 		atomic_add(nr_errors, &fq->nr_errors);
 
+		/* If all write requests registered in this "fq" are done we up
+		 * the semaphore. */
 		if (atomic_sub_and_test(bio->bi_vcnt, &fq->nr_submitted))
 			up(&fq->sema);
 	}

@@ -167,9 +167,8 @@ blocknr_set_add(txn_atom * atom,
 	assert("jmacd-5101", a != NULL);
 
 	entries_needed = (b == NULL) ? 1 : 2;
-/* ZAM-FIXME-HANS: remove this comment and tell me where blocknr_set_list_empty is defined? Also explain in email and comment the role of entries_needed in this condition.  */
-	if (blocknr_set_list_empty(&bset->entries) || bse_avail(blocknr_set_list_front(&bset->entries)) < entries_needed) {
-
+	if (blocknr_set_list_empty(&bset->entries) || bse_avail(blocknr_set_list_front(&bset->entries)) 
+	    < entries_needed) {
 		/* See if a bse was previously allocated. */
 		if (*new_bsep == NULL) {
 			UNLOCK_ATOM(atom);

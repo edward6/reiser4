@@ -61,12 +61,6 @@ typedef struct cbk_cache_slot {
 
       [cbk-cache-invariant]
 */
-/* ZAM-FIXME-HANS: evaluate on a 4-way, 1-way, and 16-way, with lots of processes running mongo smp, the effect on
- * performance of removing all of the cbk cache code.  Also analyze different settings of CBK_CACHE_SLOTS. 
-
-As a separate task, while running mongo, collect a random sample of 100 coord_by_key invocations.  Document for me where
-the invocations occurred, and whether they were truly necessary in your view, or could have been avoided by more clever
-coding.  */
 typedef struct cbk_cache {
 	int nr_slots;
 	/* head of LRU list of cache slots */

@@ -1364,8 +1364,11 @@ prepare_to_sleep(lock_stack * owner)
 		sema_init(&owner->sema, 0);
 		spin_unlock_stack(owner);
 	}
-/* ZAM-FIXME-HANS: comment this */
-	if (unlikely(atomic_read(&owner->nr_signaled) != 0 && !owner->curpri)) {
+
+	/* We return -EDEADLK if one or more "give me the lock" messages are
+	 * counted in nr_signaled */
+	if (unlikely(atomic_read(&owner->nr_signaled) != 0) {
+		assert("zam-959", !owner->curpri);
 		return RETERR(-EDEADLK);
 	}
 	return 0;
