@@ -1382,6 +1382,8 @@ void atom_wait_event(txn_atom * atom)
 	PROF_BEGIN(atom_wait_event);
 
 	assert("zam-744", spin_atom_is_locked(atom));
+	assert("nikita-3156", lock_stack_isclean(get_current_lock_stack()));
+
 	init_wlinks(&_wlinks);
 	fwaitfor_list_push_back(&atom->fwaitfor_list, &_wlinks);
 	atomic_inc(&atom->refcount);
