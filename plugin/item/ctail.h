@@ -38,6 +38,10 @@ int writepage_ctail(reiser4_key *, uf_coord_t *, struct page *, write_mode_t);
 void readpages_ctail(void *, struct address_space *, struct list_head *);
 reiser4_key *append_key_ctail(const coord_t *, reiser4_key *);
 
+/* plugin->u.item.f */
+int scan_ctail(flush_scan *, const coord_t *);
+
+
 __u8 inode_cluster_shift (struct inode *);
 size_t inode_cluster_size (struct inode *);
 crypto_stat_t * inode_crypto_stat(struct inode *);
@@ -52,6 +56,8 @@ int inflate_cluster(reiser4_cluster_t *, struct inode *);
 int find_cluster_item(const reiser4_key *, coord_t *, lock_handle *, ra_info_t *);
 int page_of_cluster(struct page *, reiser4_cluster_t *, struct inode *);
 int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
+int flush_cluster_pages(reiser4_cluster_t *, struct inode *);
+void deflate_cluster(reiser4_cluster_t *, struct inode *);
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"
