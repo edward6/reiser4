@@ -376,7 +376,7 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	inode = page->mapping->host;
 
 	if (!cluster_is_uptodate(clust)) {
-		clust->index = pg_to_clust_to_pg(page->index, inode);
+		clust->index = pg_to_clust(page->index, inode);
 		reiser4_unlock_page(page);
 		ret = ctail_read_cluster(clust, inode, 0 /* do not write */);
 		reiser4_lock_page(page);
@@ -482,7 +482,7 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 		/* update cluster if it is necessary */
 		if (!cluster_is_uptodate(&clust) || !page_of_cluster(page, &clust, inode)) {
 			put_cluster_data(&clust, inode);
-			clust.index = pg_to_clust_to_pg(page->index, inode);
+			clust.index = pg_to_clust(page->index, inode);
 			reiser4_unlock_page(page);
 			ret = ctail_read_cluster(&clust, inode, 0 /* do not write */);
 			if (ret)
@@ -680,7 +680,7 @@ int scan_ctail(flush_scan * scan, const coord_t * in_coord)
 	   in the tree (new file or converted hole), so insert flow and
 	   continue scan from rightmost dirty node */
 	
-	clust.index = pg_to_clust_to_pg(page->index, inode);
+	clust.index = pg_to_clust(page->index, inode);
 	
 	/* remove appropriate jnodes from dirty list */
 	result = flush_cluster_pages(&clust, inode);
@@ -690,7 +690,7 @@ int scan_ctail(flush_scan * scan, const coord_t * in_coord)
 	if (result)
 		goto exit;
 	
-	fplug->flow_by_inode(inode, clust.buf, 0, clust.len, clust.index << PAGE_CACHE_SHIFT, WRITE, &f);
+	fplug->flow_by_inode(inode, clust.buf, 0, clust.len, clust_to_off(clust.index, inode), WRITE, &f);
 	/* insert processed data */
 	result = insert_crc_flow(&scan->parent_coord, /* insert point */
 				 &scan->parent_lock, &f, inode);
@@ -755,7 +755,7 @@ attach_squeeze_ctail_data(flush_pos_t * pos, struct inode * inode)
 	}
 	reiser4_cluster_init(info->clust);
 	info->inode = inode;
-	info->clust->index = jnode_page(pos->child)->index;
+	info->clust->index = pg_to_clust(jnode_page(pos->child)->index, inode);
 	
 	ret = flush_cluster_pages(info->clust, inode);
 	if (ret)
