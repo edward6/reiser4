@@ -1889,8 +1889,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 				* FIXME-VS: page can be not dirty: do_writepages clears dirty bit
 				*/
 				/*assert ("jmacd-74234", PageDirty (pg));*/
-				assert ("jmacd-74234", PageDirty (pg));
-	
+
 				/* The page cannot be purged while it is in writeback,
 				 * release last reference. */
 				jput (node);
