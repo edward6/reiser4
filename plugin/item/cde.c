@@ -411,8 +411,12 @@ int cde_can_contain_key( const coord_t *coord /* coord of item */,
 {
 	reiser4_key item_key;
 
-	assert( "vs-457", data && data -> data );
-	assert( "vs-553", data -> user == 0 );
+	/*
+	 * FIXME-VS: do not rely on anything but iplug field of @data. Only
+	 * data->iplug is initialized
+	 */
+	assert( "vs-457", data && data -> iplug );
+/*	assert( "vs-553", data -> user == 0 );*/
 	item_key_by_coord( coord, &item_key);
 
 	return 	( item_plugin_by_coord( coord ) == data -> iplug ) &&
