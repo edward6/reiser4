@@ -1146,7 +1146,6 @@ writepage_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, writ
 
 	ON_TRACE(TRACE_EXTENTS, "WP: index %lu, count %d..", page->index, page_count(page));
 
-	assert("vs-1052", PageLocked(page));
 	assert("vs-1051", page->mapping && page->mapping->host);
 	assert("nikita-3139", !inode_get_flag(page->mapping->host, REISER4_NO_SD));
 	assert("vs-864", znode_is_wlocked(uf_coord->base_coord.node));
@@ -1158,9 +1157,13 @@ writepage_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, writ
 		return PTR_ERR(j);
 	JF_CLR(j, JNODE_NEW);
 
+	lock_page(page);
 	LOCK_JNODE(j);
-	if (!jnode_page(j))
+	if (!jnode_page(j)) {
 		jnode_attach_page(j, page);
+	}
+	unlock_page(page);
+	done_lh(uf_coord->lh);
 
 	result = try_capture(j, ZNODE_WRITE_LOCK, 0);
 	if (result != 0)
@@ -1170,7 +1173,6 @@ writepage_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, writ
 
 	UNLOCK_JNODE(j);
 	jput(j);
-	/*reiser4_lock_page(page);*/
 
 	ON_TRACE(TRACE_EXTENTS, "OK\n");
 	return 0;

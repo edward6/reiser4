@@ -325,7 +325,6 @@ replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 	/* put into tree replacement for just removed items: extent item, namely */
 	for (i = 0; i < nr_pages; i++) {
 		result = unix_file_writepage_nolock(pages[i]);
-		reiser4_unlock_page(pages[i]);
 		if (result)
 			break;
 		SetPageUptodate(pages[i]);
