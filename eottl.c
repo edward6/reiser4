@@ -172,7 +172,7 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	carry_pool pool;
 	carry_level todo;
 	carry_op *op;
-	znode *parent_node;
+	/*znode *parent_node;*/
 	znode *node;
 	reiser4_item_data item;
 	carry_insert_data cdata;
@@ -187,6 +187,7 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	node = new_node(insert_coord->node, LEAF_LEVEL);
 	if (IS_ERR(node))
 		return PTR_ERR(node);
+
 	/* setup delimiting keys for node being inserted */
 	WLOCK_DK(tree);
 	znode_set_ld_key(node, key);
@@ -196,7 +197,6 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	WUNLOCK_DK(tree);
 
 	ZF_SET(node, JNODE_ORPHAN);
-	parent_node = insert_coord->node;
 	op = post_carry(&todo, COP_INSERT, insert_coord->node, 0);
 	if (!IS_ERR(op)) {
 		cdata.coord = insert_coord;
@@ -213,31 +213,51 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 
 		result = carry(&todo, 0);
 		if (result == 0) {
-			lock_handle lh;
-
 			/*
 			 * pin node in memory. This is necessary for
 			 * znode_make_dirty() below.
 			 */
 			result = zload(node);
 			if (result == 0) {
+				lock_handle local_lh;
+
 				/*
 				 * if we inserted new child into tree we have
 				 * to mark it dirty so that flush will be able
 				 * to process it.
 				 */
-				init_lh(&lh);
-				result = longterm_lock_znode(&lh, node,
+				init_lh(&local_lh);
+				result = longterm_lock_znode(&local_lh, node,
 							     ZNODE_WRITE_LOCK,
 							     ZNODE_LOCK_LOPRI);
 				if (result == 0) {
 					znode_make_dirty(node);
-					done_lh(&lh);
+
+					/* when internal item pointing to @node
+					   was inserted into twig node
+					   create_hook_internal did not connect
+					   it properly because its right
+					   neighbor was not known. Do it
+					   here */
+					WLOCK_TREE(tree);
+					assert("nikita-3312", znode_is_right_connected(node));
+					assert("nikita-2984", node->right == NULL);
+					ZF_CLR(node, JNODE_RIGHT_CONNECTED);
+					WUNLOCK_TREE(tree);
+					result = connect_znode(insert_coord, node);
+					if (result == 0)
+						ON_DEBUG(check_dkeys(node));
+
+					done_lh(lh);
+					move_lh(lh, &local_lh);
+					assert("vs-1676", node_is_empty(node));
+					coord_init_first_unit(insert_coord, node);
 				} else {
 					warning("nikita-3136",
-						"Cannot dirty child");
+						"Cannot lock child");
 					print_znode("child", node);
 				}
+				done_lh(&local_lh);
 				zrelse(node);
 			}
 		}
@@ -245,25 +265,6 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 		result = PTR_ERR(op);
 	zput(node);
 	done_carry_pool(&pool);
-	if (result == 0) {
-		/* balancing probably shifted @insert_coord into different
-		   node. Reload. */
-		if (parent_node != insert_coord->node) {
-			zrelse(parent_node);
-			result = zload(insert_coord->node);
-			coord_clear_iplug(insert_coord);
-		}
-		if (result == 0) {
-			WLOCK_TREE(tree);
-			assert("nikita-3312", znode_is_right_connected(node));
-			assert("nikita-2984", node->right == NULL);
-			ZF_CLR(node, JNODE_RIGHT_CONNECTED);
-			WUNLOCK_TREE(tree);
-			result = connect_znode(insert_coord, node);
-			if (result == 0)
-				ON_DEBUG(check_dkeys(node));
-		}
-	}
 	return result;
 }
 
@@ -310,16 +311,8 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 
 	/* take a look at the item to the right of h -> coord */
 	result = is_next_item_internal(coord);
-	if (result < 0) {
-		/* error occured while we were trying to look at the item to
-		   the right */
-		h->error = "could not check next item";
-		h->result = result;
-		*outcome = LOOKUP_DONE;
-		return 1;
-	} else if (result == 0) {
-
-		/* item to the right is not internal one. Allocate a new node
+	if (result == 0) {
+		/* item to the right is also an extent one. Allocate a new node
 		   and insert pointer to it after item h -> coord.
 		
 		   This is a result of extents being located at the twig
@@ -342,7 +335,12 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 			*outcome = LOOKUP_DONE;
 			return 1;
 		}
-		assert("vs-358", keyeq(h->key, item_key_by_coord(coord, &key)));
+		/* added empty leaf is locked, its parent node is unlocked,
+		   coord is set as EMPTY */
+		*outcome = LOOKUP_DONE;
+		h->result = CBK_COORD_NOTFOUND;
+		return 1;
+		/*assert("vs-358", keyeq(h->key, item_key_by_coord(coord, &key)));*/
 	} else {
 		/* this is special case mentioned in the comment on
 		   tree.h:cbk_flags. We have found internal item immediately
