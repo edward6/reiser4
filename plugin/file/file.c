@@ -1635,7 +1635,16 @@ static struct vm_operations_struct unix_file_vm_ops = {
 	.nopage = unix_file_filemap_nopage,
 };
 
-/* takes care about mapped pages. Performs tail conversion. Called from write_unix_file() and mmap_unix_file(). */
+/* This function takes care about @file's pages. First of all it checks if 
+   filesystems readonly and if so gets out. Otherwise, it throws out all 
+   pages of file if it was mapped for read and going to be mapped for write 
+   and consists of tails. This is done in order to not manage few copies 
+   of the data (first in page cache and second one in tails them selves) 
+   for the case of mapping files consisting tails. 
+   
+   Here also tail2extent conversion is performed if it is allowed and file 
+   is going to be written or mapped for write. This functions may be called 
+   from write_unix_file() or mmap_unix_file(). */
 static int
 check_pages_unix_file(struct file *file, int vm_flags, int caller_is_write,
 		      int perform_convert, int *gotaccess)
