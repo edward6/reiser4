@@ -19,7 +19,7 @@
    by the invert plugin (see invert.c).
 
    A read only version of the /etc/passwd file might be
-   constructed as a symfile whose contemts are as follows:
+   constructed as a symfile whose contents are as follows:
 
    /etc/passwd/userlines/*
 

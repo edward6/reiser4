@@ -8,6 +8,8 @@
 #include <linux/seq_file.h>
 #include <linux/fs.h>
 
+/* NIKITA-FIXME-HANS: please write a one paragraph header for the top of this file */
+
 struct seq_operations pseudo_seq_op;
 
 static pseudo_plugin *

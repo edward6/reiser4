@@ -1,16 +1,16 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
-/* Suppose you want to conveniently read and write a large variety of
-   small files conveniently within a single emacs buffer, without
-   having a separate buffer for each 8 byte or so file.  Inverts are
-   the way to do that.
+/* Suppose you want to conveniently read and write a large variety of small files conveniently within a single emacs
+   buffer, without having a separate buffer for each 8 byte or so file.  Inverts are the way to do that.  An invert
+   provides you with the contents of a set of subfiles plus its own contents.  It is a file which inherits other files
+   when you read it, and allows you to write to it and through it to the files that it inherits from.  In order for it
+   to know which subfiles each part of your write should go into, there must be delimiters indicating that.  It tries to
+   make that easy for you by providing those delimiters in what you read from it.
 
-  An invert is an inverted assignment.  Instead of taking an
-  assignment command and writing a bunch of files, it takes a bunch of
-  files and writes an assignment command that if executed would create
-  those files.  But which files?  Well, that must be specified in the
-  body of the invert using a special syntax, and that specification is
-  called the invert of the assignment.
+  When you read it, an invert performs an inverted assignment.  Instead of taking an assignment command and writing a
+  bunch of files, it takes a bunch of files and composes an assignment command for you to read from it that if executed
+  would create those files.  But which files?  Well, that must be specified in the body of the invert using a special
+  syntax, and that specification is called the invert of the assignment.
 
   When written to, an invert performs the assignment command that is written
   to it, and modifies its own body to contain the invert of that
@@ -59,7 +59,15 @@ will create  /my_invert_file , and use existing files /filenameA and /filenameB.
 and when we will read it will be as previously invert file.
 
 This is correct?
+
  vv
+DEMIDOV-FIXME-HANS:
+
+Maybe you are right, but then you must disable writes to /my_invert_file/ and only allow writes to /my_invert_file/..invert
+
+Do you agree?  Discuss it on reiserfs-list....
+
+-Hans
 =======================
 
   Then a read will return:
