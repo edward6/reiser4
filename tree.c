@@ -1007,7 +1007,7 @@ item_removed_completely(coord_t * from, const reiser4_key * from_key, const reis
 	return 1;
 }
 
-/* helper function for prepare_twig_cut(): @left and @right are formatted
+/* helper function for prepare_twig_kill(): @left and @right are formatted
  * neighbors of extent item being completely removed. Load and lock neighbors
  * and store lock handles into @cdata for later use by kill_hook_extent() */
 static int
@@ -1216,29 +1216,13 @@ prepare_twig_kill(carry_kill_data *kdata, znode * locked_left_neighbor)
 			}
 
 		}
+		/* whole extent is removed between znodes left_child and right_child. Prepare them for linking and
+		   update of right delimiting key of left_child */
 		result = prepare_children(left_child, right_child, kdata);
 	} else {
-		/* only head of item @to is removed. calculate new item key, it
-		   will be used to set right delimiting key of "left child" */
-		key = *kdata->params.to_key;
-		set_key_offset(&key, get_key_offset(&key) + 1);
-		assert("vs-608", (get_key_offset(&key) & (reiser4_get_current_sb()->s_blocksize - 1)) == 0);
-		kdata->left = kdata->right = NULL;
+		/* head of item @to is removed. left_child has to get right delimting key update. Prepare it for that */
+		result = prepare_children(left_child, NULL, kdata);
 	}
-
-#if 1
-	/* th*/
-	/* update right delimiting key of left_child */
-
-	if (result == 0 && left_child != NULL) {
-		WLOCK_DK(tree);
-		RLOCK_TREE(tree);
-		znode_set_rd_key(left_child, &key);
-		ZF_SET(left_child, JNODE_DKSET);
-		RUNLOCK_TREE(tree);
-		WUNLOCK_DK(tree);
-	}
-#endif
 
  done:
 	if (right_child)
