@@ -46,10 +46,7 @@
        cassert (sizeof(struct reiserfs_journal_commit) == 4096) ;
     in 3.x journal.c. If cassertion fails you get compiler error,
     so no "maintainer-id". 
-    From post by Andy Chou <acc@CS.Stanford.EDU> at lkml. */
-
-/* GREEN-FIXME-HANS: if you copied more than the idea, did you get a license for it?  If you copied only the idea, so
- * indicate, otherwise our licensors will be made nervous. */
+*/
 #define cassert(cond) ({ switch(-1) { case (cond): case 0: break; } })
 
 #if defined(CONFIG_REISER4_DEBUG)
