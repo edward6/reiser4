@@ -355,6 +355,101 @@ static int common_create_child( struct inode *parent /* parent object */,
 	return result;
 }
 
+/** ->rename directory plugin method implementation */
+int common_rename( struct inode *old_dir /* directory where @old is located */,
+		   struct dentry *old /* old name */,
+		   struct inode *new_dir /* directory where @new is located */, 
+		   struct dentry *new /* new name */ )
+{
+	assert( "nikita-2318", old_dir != NULL );
+	assert( "nikita-2319", new_dir != NULL );
+	assert( "nikita-2320", old != NULL );
+	assert( "nikita-2321", new != NULL );
+
+	/*
+	 * From `The Open Group Base Specifications Issue 6'
+	 *
+	 *
+	 * If either the old or new argument names a symbolic link, rename()
+	 * shall operate on the symbolic link itself, and shall not resolve
+	 * the last component of the argument. If the old argument and the new
+	 * argument resolve to the same existing file, rename() shall return
+	 * successfully and perform no other action.
+	 *
+	 * [this is done by VFS: vfs_rename()]
+	 *
+	 *
+	 * If the old argument points to the pathname of a file that is not a
+	 * directory, the new argument shall not point to the pathname of a
+	 * directory. 
+	 *
+	 * [checked by VFS: vfs_rename->may_delete()]
+	 *
+	 *            If the link named by the new argument exists, it shall
+	 * be removed and old renamed to new. In this case, a link named new
+	 * shall remain visible to other processes throughout the renaming
+	 * operation and refer either to the file referred to by new or old
+	 * before the operation began. 
+	 *
+	 * [we should assure this]
+	 *
+	 *                             Write access permission is required for
+	 * both the directory containing old and the directory containing new.
+	 *
+	 * [checked by VFS: vfs_rename->may_delete(), may_create()]
+	 *
+	 * If the old argument points to the pathname of a directory, the new
+	 * argument shall not point to the pathname of a file that is not a
+	 * directory. 
+	 *
+	 * [checked by VFS: vfs_rename->may_delete()]
+	 *
+	 *            If the directory named by the new argument exists, it
+	 * shall be removed and old renamed to new. In this case, a link named
+	 * new shall exist throughout the renaming operation and shall refer
+	 * either to the directory referred to by new or old before the
+	 * operation began. 
+	 *
+	 * [we should assure this]
+	 *
+	 *                  If new names an existing directory, it shall be
+	 * required to be an empty directory.
+	 *
+	 * [we should check this]
+	 *
+	 * If the old argument points to a pathname of a symbolic link, the
+	 * symbolic link shall be renamed. If the new argument points to a
+	 * pathname of a symbolic link, the symbolic link shall be removed.
+	 *
+	 * The new pathname shall not contain a path prefix that names
+	 * old. Write access permission is required for the directory
+	 * containing old and the directory containing new. If the old
+	 * argument points to the pathname of a directory, write access
+	 * permission may be required for the directory named by old, and, if
+	 * it exists, the directory named by new.
+	 *
+	 * [checked by VFS: vfs_rename(), vfs_rename_dir()]
+	 *
+	 * If the link named by the new argument exists and the file's link
+	 * count becomes 0 when it is removed and no process has the file
+	 * open, the space occupied by the file shall be freed and the file
+	 * shall no longer be accessible. If one or more processes have the
+	 * file open when the last link is removed, the link shall be removed
+	 * before rename() returns, but the removal of the file contents shall
+	 * be postponed until all references to the file are closed.
+	 *
+	 * [iput() handles this, but we can do this manually, a la
+	 * reiser4_unlink()]
+	 *
+	 * Upon successful completion, rename() shall mark for update the
+	 * st_ctime and st_mtime fields of the parent directory of each file.
+	 *
+	 * [N/A]
+	 *
+	 */
+
+}
+
 /** ->is_name_acceptable() method of directory plugin */
 /* Audited by: green(2002.06.15) */
 int is_name_acceptable( const struct inode *inode /* directory to check */, 

@@ -233,7 +233,9 @@ typedef struct file_plugin {
 	int ( *getattr )( struct vfsmount *mnt UNUSED_ARG,
 			  struct dentry *dentry, struct kstat *stat );
 
-	loff_t ( *seek )( struct file *, loff_t, int );
+	/** seek */
+	loff_t ( *seek )( struct file *f, loff_t offset, int origin );
+
 } file_plugin;
 
 
@@ -289,6 +291,12 @@ typedef struct dir_plugin {
 	 */	   
 	int ( *create_child )( struct inode *parent, struct dentry *dentry, 
 			       reiser4_object_create_data *data );
+	/**
+	 * rename object named by @old entry in @old_dir to be named by @new
+	 * entry in @new_dir
+	 */
+	int ( *rename )( struct inode *old_dir, struct dentry *old,
+			 struct inode *new_dir, struct dentry *new );
 } dir_plugin;
 
 typedef struct tail_plugin {
