@@ -427,10 +427,11 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 void reiser4_iget_complete (struct inode * inode)
 {
 	assert("zam-988", is_reiser4_inode(inode));
-	assert("zam-989", !is_inode_loaded(inode));
 
-	inode_set_flag(inode, REISER4_LOADED);
-	up(&inode->i_sem);
+	if (!is_inode_loaded(inode)) {
+		inode_set_flag(inode, REISER4_LOADED);
+		up(&inode->i_sem);
+	}
 }
 
 void
