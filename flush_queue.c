@@ -590,9 +590,6 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 		lock_and_wait_page_writeback(pg);
 		SetPageWriteback(pg);
 
-		/* we do not need to protect this node from e-flush anymore  */
- 		jrelse(first);
-
 		if (doing_reclaim)
 			/* pages are submitted from kswapd as part of memory
 			 * reclamation. Mark them as such. */
@@ -610,6 +607,9 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 		reiser4_unlock_page(pg);
 
 		jnode_io_hook(first, pg, WRITE);
+
+		/* we do not need to protect this node from e-flush anymore  */
+ 		jrelse(first);
 
 		bio->bi_io_vec[nr_processed].bv_page = pg;
 		bio->bi_io_vec[nr_processed].bv_len = s->s_blocksize;
