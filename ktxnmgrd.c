@@ -36,8 +36,8 @@ int ktxnmgrd( void *arg )
 
 	/* standard kernel thread prologue */
 	me = current;
+	/* reparent_to_init() is done by daemonize() */
 	daemonize();
-	reparent_to_init();
 	strcpy( me -> comm, __FUNCTION__ );
 
 	/* block all signals */
