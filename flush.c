@@ -115,7 +115,8 @@ static int           slum_scan_left_formatted     (slum_scan *scan, znode *node)
 static void          slum_scan_set_current        (slum_scan *scan, jnode *node);
 static int           slum_scan_left               (slum_scan *scan, jnode *node);
 
-static int           slum_preceder_hint           (jnode *gda, znode *parent_node, reiser4_blocknr_hint *preceder);
+static int           flush_preceder_hint          (jnode *gda, znode *parent_node, reiser4_blocknr_hint *preceder);
+static int           flush_should_relocate        (jnode *node, znode *parent);
 
 static int           slum_lock_greatest_dirty_ancestor      (jnode                *start,
 							     reiser4_lock_handle  *start_lock,
@@ -149,19 +150,18 @@ int flush_jnode_slum (jnode *node)
 	/* First, locate the greatest dirty ancestor of the node to flush,
 	 * which found by recursing upward as long as the parent is dirty and
 	 * leftward along each level as long as the left neighbor is dirty.
+	 * Also initializes preceder hint.
 	 */
 	if (FLUSH_WORKS && (ret = slum_lock_greatest_dirty_ancestor (node, NULL, & gda, & gda_lock, & preceder))) {
 		goto failed;
 	}
-
-	/* FIXME: Initialize @preceder using GDA (somehow) */
 
 	/* Second, the parent-first squeeze and allocate traversal. */
 	if (FLUSH_WORKS && (ret = squalloc_parent_first (gda, & preceder))) {
 		goto failed;
 	}
 
-	/* FIXME: Now what? */
+	/* FIXME: Is that it? */
 	   
 	if (! FLUSH_WORKS) {
 		/* FIXME: Old behavior: The txnmgr expects this to clean the
@@ -243,6 +243,8 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node,
 	 * FIXME: if node is root, reiser4_get_parent() returns error.  Use
 	 * znode_is_root()?  Use znode_is_true_root()?  Don't you need to lock
 	 * the above_root node to determine this?  Confused.
+	 *
+	 * FIXME: This is wrong!!!!! get_parent doesn't work on unformatted nodes.
 	 */
 	if ((ret = reiser4_get_parent (& parent_lock, JZNODE (end_node), ZNODE_READ_LOCK, 1))) {
 		goto failure;
@@ -250,15 +252,17 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node,
 
 	parent_node = parent_lock.node;
 
-	/* Actual relocation policy will be:
-	 *
-	 *   (leftmost_of_parent && (is_leaf || leftmost_child_is_relocated))
-	 *
-	 * or so I think, at least. */
-#define flush_should_relocate(x) 1
+	/* Some or all of this should be a plugin.  Since I don't know exactly
+	 * what yet, none of it is a plugin.  I am partly concerned that
+	 * breaking these things into plugins will result in duplicated
+	 * effort.  Returns 0 for no-relocate, 1 for relocate, < 0 for
+	 * error. */
+	if ((ret = flush_should_relocate (end_node, parent_node)) < 0) {
+		goto failure;
+	}
 
 	/* If relocating the child, artificially dirty the parent right now. */
-	if (flush_should_relocate (end_node)) {
+	if (ret == 1) {
 		znode_set_dirty (parent_node);
 	}
 
@@ -284,7 +288,7 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node,
 		 * initialize the preceder hint now.  It could release the
 		 * lock for us after determining we don't need to look at the
 		 * parent to initialize the hint. */
-		if ((ret = slum_preceder_hint (end_node, parent_node, preceder))) {
+		if ((ret = flush_preceder_hint (end_node, parent_node, preceder))) {
 			goto failure;
 		}
 		
@@ -316,11 +320,70 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node,
  * SLUM ALLOCATE AND SQUEEZE
  ********************************************************************************/
 
-static int slum_preceder_hint (jnode *gda UNUSED_ARG,
-			       znode *parent_node UNUSED_ARG,
-			       reiser4_blocknr_hint *preceder UNUSED_ARG)
+/* This relocation policy is:
+ *
+ *   (leftmost_of_parent && (is_leaf || leftmost_child_is_relocated))
+ */
+static int flush_should_relocate (jnode *node, znode *parent)
 {
-	/* FIXME */
+	int ret;
+
+	if (jnode_is_formatted (node)) {
+
+		int is_leftmost;
+		tree_coord coord;
+		item_plugin *iplug;
+		jnode *left_child;
+
+		if ((ret = find_child_ptr (JZNODE (node), parent, & coord))) {
+			assert ("jmacd-2050", ret < 0);
+			return ret;
+		}
+
+		if (! (is_leftmost = coord_prev_item (& coord))) {
+			/* Not leftmost of parent, don't relocate */
+			return 0;
+		}
+
+		if (jnode_get_level (node) == LEAF_LEVEL) {
+			/* Leftmost leaf, relocate */
+			return 1;
+		}
+
+		coord_first_unit (& coord, JZNODE (node));
+
+		iplug = item_plugin_by_coord (& coord);
+
+		if ((ret = iplug->utmost_child (& coord, LEFT_SIDE, 0, & left_child, NULL))) {
+			assert ("jmacd-2051", ret < 0);
+			return ret;
+		}
+
+		if (left_child == NULL) {
+			/* Leftmost of parent, left child not dirty, don't relocate. */
+			return 0;
+		}
+
+		if (jnode_is_dirty (left_child)) {
+			/* Leftmost of parent, leftmost child dirty, relocate. */
+			return 1;
+		}
+
+		/* Leftmost of parent, leftmost child clean, don't relocate. */
+		return 0;
+	} else {
+		/* FIXME: how to get parent of unforamtted? */
+	}
+}
+
+/* Called while the parent is still locked, since we may need it.
+ */
+static int flush_preceder_hint (jnode *gda,
+				znode *parent_node,
+				reiser4_blocknr_hint *preceder)
+{
+	
+
 	return 0;
 }
 
@@ -710,7 +773,7 @@ static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
 		reiser4_init_coord (& crd);
 		coord_last_unit (& crd, JZNODE (node));
 
-		assert ("vs-442", item_type_is_internal (& crd));
+		assert ("vs-442", item_is_internal (& crd));
 
 		child = child_znode (& crd, 1/*set delim key*/);
 		if (IS_ERR (child)) { return PTR_ERR (child); }
@@ -925,15 +988,17 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 	/* Get the item plugin. */
 	iplug = item_plugin_by_coord (& coord);
 
-	/* If the item has no utmost_child routine (odd), or if the child is not in memory, stop. */
-	if (iplug->utmost_child == NULL || (child_left = iplug->utmost_child (& coord, RIGHT_SIDE)) == NULL) {
-		scan->stop = 1;
-		ret = 0;
+	assert ("jmacd-2040", iplug->utmost_child != NULL);
+
+	/* Get the rightmost child of this coord, which is the child to the left of the scan position. */
+	if ((ret = iplug->utmost_child (& coord, RIGHT_SIDE, UTMOST_GET_CHILD, & child_left, NULL))) {
 		goto done;
 	}
 
-	if (IS_ERR (child_left)) {
-		ret = PTR_ERR (child_left);
+	/* If the child is not in memory, stop. */
+	if (child_left == NULL) {
+		scan->stop = 1;
+		ret = 0;
 		goto done;
 	}
 
