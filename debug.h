@@ -154,8 +154,9 @@
    this to check correctness of external data: disk blocks and user-input . */
 #define assert(label, cond)						\
 ({									\
+	BUG_ON(preempt_count() < 0);					\
 	check_stack();							\
-	if(unlikely(!(cond)))						\
+	if (unlikely(!(cond)))						\
 		reiser4_panic(label, "assertion failed: " #cond);	\
 })
 
