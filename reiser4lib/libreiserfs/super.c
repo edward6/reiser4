@@ -1,0 +1,60 @@
+/*
+	super.c -- format independent super block code.
+	Copyright (C) 1996-2002 Hans Reiser.
+*/
+
+#include <reiserfs/debug.h>
+#include <reiserfs/reiserfs.h>
+
+#if ENABLE_NLS
+#  include <libintl.h>
+#  define _(String) dgettext (PACKAGE, String)
+#else
+#  define _(String) (String)
+#endif
+
+extern aal_list_t *plugins;
+
+int reiserfs_super_open(reiserfs_fs_t *fs) {
+	int i;
+	reiserfs_plugin_t *plugin;
+	
+	ASSERT(fs != NULL, return 0);
+	ASSERT(fs->device != NULL, return 0);
+	
+	if (fs->super) {
+		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-007", 
+			_("Super block already opened."));
+		return 0;
+	}
+	
+	if (!(fs->super = aal_calloc(sizeof(*fs->super), 0)))
+		return 0;
+	
+	for (i = 0; i < aal_list_count(plugins); i++) {
+		plugin = (reiserfs_plugin_t *)aal_list_at(plugins, i);
+		
+		if (plugin->h.type != REISERFS_LAYOUT_PLUGIN)
+			continue;
+		
+		if ((fs->super->entity = plugin->layout.init(fs->device))) {
+			fs->super->plugin = plugin;
+			return 1;
+		}	
+	}
+	
+	aal_free(fs->super);
+	fs->super = NULL;
+	
+	return 0;
+}
+
+void reiserfs_super_close(reiserfs_fs_t *fs) {
+	
+	ASSERT(fs != NULL, return);
+	
+	fs->super->plugin->layout.done(fs->super->entity);
+	aal_free(fs->super);
+	fs->super = NULL;
+}
+
