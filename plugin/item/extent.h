@@ -158,7 +158,7 @@ int replace_extent(coord_t *un_extent, lock_handle *lh,
 		   reiser4_key *key, reiser4_item_data *data, const reiser4_extent *new_ext, unsigned flags);
 lock_handle *znode_lh(znode *, znode_lock_mode mode);
 
-extern int process_extent_backward_for_repacking (tap_t *, int, reiser4_blocknr_hint *);
+extern int process_extent_backward_for_repacking (tap_t *, int *, reiser4_blocknr_hint *);
 extern int mark_extent_for_repacking (tap_t *, int);
 
 /* __REISER4_EXTENT_H__ */
