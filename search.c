@@ -1026,13 +1026,23 @@ lookup_couple(reiser4_tree * tree /* tree to perform search in */ ,
 static int
 znode_contains_key_strict(znode * node	/* node to check key
 					 * against */ ,
-			  const reiser4_key * key /* key to check */ )
+			  const reiser4_key * key /* key to check */,
+			  int isunique)
 {
+	int answer;
+
 	assert("nikita-1760", node != NULL);
 	assert("nikita-1722", key != NULL);
-	assert("zam-839", rw_dk_is_locked(znode_get_tree(node)));
 	
-	return keylt(znode_get_ld_key(node), key) && keylt(key, znode_get_rd_key(node));
+	if (keyge(key, &node->rd_key))
+		return 0;
+
+	answer = keycmp(&node->ld_key, key);
+
+	if (isunique)
+		return answer != GREATER_THAN;
+	else
+		return answer == LESS_THAN;
 }
 
 static int
@@ -1044,6 +1054,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	cbk_cache_slot *slot;
 	cbk_cache *cache;
 	tree_level level;
+	int isunique;
 	const reiser4_key *key;
 	int result;
 
@@ -1055,19 +1066,20 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	cache = &tree->cbk_cache;
 	if (cache->nr_slots == 0)
 		/* size of cbk cache was set to 0 by mount time option. */
-		return -ENOENT;
+		return RETERR(-ENOENT);
 
 	assert("nikita-2474", cbk_cache_invariant(cache));
 	node = NULL;		/* to keep gcc happy */
 	level = h->level;
 	key = h->key;
-	result = -ENOENT;
+	isunique = h->flags & CBK_UNIQUE;
+	result = RETERR(-ENOENT);
 
-	RLOCK_DK(tree);
 	RLOCK_TREE(tree);
 	cbk_cache_lock(cache);
 	slot = cbk_cache_list_prev(cbk_cache_list_front(&cache->lru));
 	while (1) {
+
 		slot = cbk_cache_list_next(slot);
 
 		if (!cbk_cache_list_end(&cache->lru, slot)) {
@@ -1078,24 +1090,30 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		if (node == NULL)
 			break;
 
-		if ((znode_get_level(node) == level) &&
+		/*
+		 * this is (hopefully) the only place in the code where we are
+		 * working with delimiting keys without holding dk lock. This
+		 * is fine here, because this is only "guess" anyway---keys
+		 * are rechecked under dk lock below.
+		 */
+		if (znode_get_level(node) == level &&
 		    /* min_key < key < max_key */
-		    znode_contains_key_strict(node, key)) {
+		    znode_contains_key_strict(node, key, isunique)) {
 			zref(node);
 			result = 0;
 			break;
 		}
-	}
 
+	}
 	cbk_cache_unlock(cache);
 	RUNLOCK_TREE(tree);
-	RUNLOCK_DK(tree);
+
 
 	assert("nikita-2475", cbk_cache_invariant(cache));
 
 	if (result != 0) {
 		h->result = CBK_COORD_NOTFOUND;
-		return -ENOENT;
+		return RETERR(-ENOENT);
 	}
 
 	result = longterm_lock_znode(h->active_lh, node, cbk_lock_mode(level, h), ZNODE_LOCK_LOPRI);
@@ -1107,8 +1125,10 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		return result;
 
 	/* recheck keys */
-	result = UNDER_RW(dk, tree, read, znode_contains_key_strict(node, key))
-		&& !ZF_ISSET(node, JNODE_HEARD_BANSHEE);
+	result = 
+		UNDER_RW(dk, tree, read, 
+			 znode_contains_key_strict(node, key, isunique)) &&
+		!ZF_ISSET(node, JNODE_HEARD_BANSHEE);
 
 	if (result) {
 		/* do lookup inside node */
@@ -1120,10 +1140,10 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		if (llr != LOOKUP_DONE) {
 			/* restart of continue on the next level */
 			reiser4_stat_inc(tree.cbk_cache_wrong_node);
-			result = -ENOENT;
+			result = RETERR(-ENOENT);
 		} else if ((h->result != CBK_COORD_NOTFOUND) && (h->result != CBK_COORD_FOUND))
 			/* io or oom */
-			result = -ENOENT;
+			result = RETERR(-ENOENT);
 		else {
 			/* good. Either item found or definitely not found. */
 			result = 0;
@@ -1150,7 +1170,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		   important, because such races should be rare. Are they?
 		*/
 		reiser4_stat_inc(tree.cbk_cache_race);
-		result = -ENOENT;	/* -ERAUGHT */
+		result = RETERR(-ENOENT);	/* -ERAUGHT */
 	}
 	zrelse(node);
 	assert("nikita-2476", cbk_cache_invariant(cache));
