@@ -154,7 +154,6 @@
 ({									\
 	BUG_ON(preempt_count() < 0);					\
 	if (unlikely(!(cond))) {					\
-		DEBUGON(1);						\
 		reiser4_panic(label, "assertion failed: %s", #cond);	\
 	}								\
 })

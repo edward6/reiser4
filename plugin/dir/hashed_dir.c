@@ -189,8 +189,9 @@ detach_hashed(struct inode *object, struct inode *parent)
 
 	/* the dot should be the only entry remaining at this time... */
 	assert("nikita-3400", object->i_size == 1);
-	/* and it provides for the only remaining reference */
-	assert("nikita-3401", object->i_nlink == 1);
+	/* and, together with the only name directory can have, they provides
+	 * for the last 2 remaining references */
+	assert("nikita-3401", object->i_nlink == 2);
 
 	reiser4_del_nlink(parent, object, 0);
 	return 0;

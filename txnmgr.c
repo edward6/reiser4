@@ -2702,7 +2702,6 @@ void jnode_make_wander_nolock (jnode * node)
 	assert("nikita-3153", jnode_is_dirty(node));
 	assert("zam-897", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
 	assert("nikita-3367", !blocknr_is_fake(jnode_get_block(node)));
-	DEBUGON(blocknr_is_fake(jnode_get_block(node)));
 
 	atom = node->atom;
 
@@ -2749,7 +2748,6 @@ void znode_make_reloc (znode *z, flush_queue_t * fq)
 	assert ("zam-918", !JF_ISSET(node, JNODE_OVRWR));
 	assert ("zam-920", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
 	assert ("nikita-3367", !blocknr_is_fake(jnode_get_block(node)));
-	DEBUGON(blocknr_is_fake(jnode_get_block(node)));
 
 	jnode_set_reloc(node);
 	queue_jnode(fq, node);

@@ -191,7 +191,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	oid_t oid;
 
 	assert("nikita-723", inode != NULL);
-	assert("nikita-3406", !inode_get_flag(inode, REISER4_NO_SD));
+	assert("nikita-3406", inode_get_flag(inode, REISER4_NO_SD));
 
 	ref = reiser4_inode_data(inode);
 	spin_lock_inode(inode);
