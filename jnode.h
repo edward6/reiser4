@@ -343,7 +343,7 @@ static inline int jload (jnode * node)
 
 extern int  jwrite            (jnode* node);
 extern int  jwrite_to         (jnode* node, const reiser4_block_nr *block);
-extern int  jwait_io          (jnode* node);
+extern int  jwait_io          (jnode* node, int rw);
 
 extern void jrelse_nolock     (jnode* node);
 
