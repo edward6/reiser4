@@ -978,3 +978,17 @@ reiser4progs/reiser4progs/libmisc/.deps/misc.Po
 trunc-test
 trunc-test.2
 .io_handle.o.cmd
+reiser4progs/libreiser4/.libs/libreiser4-0.1.so.0.0.0T
+reiser4progs/plugin/alloc36/.libs/liballoc36.so.0.0.0T
+reiser4progs/plugin/alloc40/.libs/liballoc40.so.0.0.0T
+reiser4progs/plugin/dir40/.libs/libdir40.so.0.0.0T
+reiser4progs/plugin/direntry40/.libs/libdirentry40.so.0.0.0T
+reiser4progs/plugin/format36/.libs/libformat36.so.0.0.0T
+reiser4progs/plugin/format40/.libs/libformat40.so.0.0.0T
+reiser4progs/plugin/internal40/.libs/libinternal40.so.0.0.0T
+reiser4progs/plugin/journal36/.libs/libjournal36.so.0.0.0T
+reiser4progs/plugin/journal40/.libs/libjournal40.so.0.0.0T
+reiser4progs/plugin/key40/.libs/libkey40.so.0.0.0T
+reiser4progs/plugin/node40/.libs/libnode40.so.0.0.0T
+reiser4progs/plugin/oid40/.libs/liboid40.so.0.0.0T
+reiser4progs/plugin/stat40/.libs/libstat40.so.0.0.0T
