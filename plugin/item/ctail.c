@@ -897,6 +897,11 @@ int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode
 	return result;
 }
 
+static ctail_squeeze_info_t * ctail_squeeze_data(flush_pos_t * pos)
+{
+	return &pos->sq->itm->u.ctail_info;
+}
+
 /* the following functions are used by flush item methods */
 /* plugin->u.item.s.file.write ? */
 reiser4_internal int
@@ -906,9 +911,10 @@ write_ctail(flush_pos_t * pos, crc_write_mode_t mode)
 	ctail_squeeze_info_t * info;
 	
 	assert("edward-468", pos != NULL);
-	assert("edward-469", pos->idata != NULL);
+	assert("edward-469", pos->sq != NULL);
+	assert("edward-845", item_squeeze_data(pos) != NULL);
 	
-	info = &pos->idata->u.ctail_info;
+	info = ctail_squeeze_data(pos);
 	
 	switch (mode) {
 	case CRC_FIRST_ITEM:
@@ -1009,7 +1015,7 @@ reiser4_internal int scan_ctail(flush_scan * scan)
 		result = flush_cluster_pages(&clust, inode);
 		if (result)
 			return result;
-		result = deflate_cluster(&clust, inode);
+		result = deflate_cluster(NULL, &clust, inode);
 		if (result)
 			goto error;
 		
@@ -1064,98 +1070,249 @@ should_attach_squeeze_idata(flush_pos_t * pos)
 	return result;
 }
 
-reiser4_internal void
-init_squeeze_idata_ctail(flush_pos_t * pos)
+static int
+alloc_squeeze_tfm_data(squeeze_info_t * sq)
 {
-	assert("edward-471", pos != NULL);
-	assert("edward-472", pos->idata != NULL);	
-	assert("edward-473", item_plugin_by_coord(&pos->coord) == item_plugin_by_id(CTAIL_ID));
+	assert("edward-808", sq != NULL);
+	assert("edward-809", sq->tfm == NULL);
 	
-	xmemset(pos->idata, 0, sizeof(*pos->idata));
-	pos->idata->iplug = item_plugin_by_coord(&pos->coord);
+	sq->tfm = reiser4_kmalloc(SQUEEZE_TFM_INFO_SIZE , GFP_KERNEL);
+	if (!sq->tfm)
+		return -ENOMEM;
+	xmemset(sq->tfm, 0, SQUEEZE_TFM_INFO_SIZE);
+	return 0;
 }
 
-/* attach valid squeeze item data to the flush position */
+static void
+free_squeeze_tfm_data(squeeze_info_t * sq)
+{
+	reiser4_compression_id i;
+	compression_plugin * cplug;
+	
+	assert("edward-810", sq != NULL);
+	assert("edward-811", sq->tfm != NULL);
+	
+	for(i=0; i < LAST_COMPRESSION_ID; i++) {
+		if (!sq->tfm[i]) 
+			continue;
+		cplug = compression_plugin_by_id(i);
+		assert("edward-812", cplug->free != NULL);
+		cplug->free(&sq->tfm[i], TFM_WRITE);
+	}
+	reiser4_kfree(sq->tfm);
+	sq->tfm = NULL;
+	return;
+}
+
+/* plugin->init_squeeze_data() */
+static int
+init_squeeze_data_ctail(squeeze_item_info_t * idata, struct inode * inode)
+{
+	ctail_squeeze_info_t * info;
+	assert("edward-813", idata != NULL);
+	assert("edward-814", inode != NULL);
+	
+	info = &idata->u.ctail_info;
+	info->clust = reiser4_kmalloc(sizeof(*info->clust), GFP_KERNEL);
+	if (!info->clust) 
+		return -ENOMEM;
+	
+	reiser4_cluster_init(info->clust);
+	info->inode = inode;
+	
+	return 0;
+}
+
+/* plugin->free_squeeze_data() */
+static void
+free_squeeze_data_ctail(squeeze_item_info_t * idata)
+{
+	ctail_squeeze_info_t * info;
+	assert("edward-815", idata != NULL);
+	
+	info = &idata->u.ctail_info;
+	if (info->clust) {
+		release_cluster_buf(info->clust);
+		reiser4_kfree(info->clust);
+	}
+	return;
+}
+
+static int
+alloc_item_squeeze_data(squeeze_info_t * sq)
+{
+	assert("edward-816", sq != NULL);
+	assert("edward-817", sq->itm == NULL);	
+	
+	sq->itm = reiser4_kmalloc(sizeof(*sq->itm), GFP_KERNEL);
+	if (sq->itm == NULL) 
+		return -ENOMEM;
+	return 0;
+}
+
+static void
+free_item_squeeze_data(squeeze_info_t * sq)
+{
+	assert("edward-818", sq != NULL);
+	assert("edward-819", sq->itm != NULL);
+	assert("edward-820", sq->iplug != NULL);
+	
+	/* iplug->free(sq->idata); */
+	free_squeeze_data_ctail(sq->itm);
+	
+	reiser4_kfree(sq->itm);
+	sq->itm = NULL;
+	return;
+}
+
+static int
+alloc_squeeze_data(flush_pos_t * pos)
+{
+	assert("edward-821", pos != NULL);
+	assert("edward-822", pos->sq == NULL);
+	
+	pos->sq = reiser4_kmalloc(sizeof(*pos->sq), GFP_KERNEL);
+	if (!pos->sq)
+		return -ENOMEM;
+	xmemset(pos->sq, 0, sizeof(*pos->sq));
+	return 0;
+}
+
+reiser4_internal void
+free_squeeze_data(flush_pos_t * pos)
+{
+	squeeze_info_t * sq;
+	
+	assert("edward-823", pos != NULL);
+	assert("edward-824", pos->sq != NULL);
+
+	sq = pos->sq;
+	if (sq->tfm)
+		free_squeeze_tfm_data(sq);
+	if (sq->itm)
+		free_item_squeeze_data(sq);
+	reiser4_kfree(pos->sq);
+	pos->sq = NULL;
+	return;
+}
+
+static int
+init_item_squeeze_data(flush_pos_t * pos, struct inode * inode)
+{
+	squeeze_info_t * sq; 
+	
+	assert("edward-825", pos != NULL);
+	assert("edward-826", pos->sq != NULL);
+	assert("edward-827", item_squeeze_data(pos) != NULL);
+	assert("edward-828", inode != NULL);
+	
+	sq = pos->sq;
+	
+	xmemset(sq->itm, 0, sizeof(*sq->itm));
+	
+	/* iplug->init_squeeze_data() */
+	return init_squeeze_data_ctail(sq->itm, inode);
+}
+
+/* create disk cluster info used by 'squeeze' phase of the flush squalloc() */
 static int
 attach_squeeze_idata(flush_pos_t * pos, struct inode * inode)
 {
 	int ret = 0;
-	file_plugin * fplug;
 	ctail_squeeze_info_t * info;
+	reiser4_cluster_t *clust;
+	file_plugin * fplug = inode_file_plugin(inode);
+	compression_plugin * cplug = inode_compression_plugin(inode);
 	
 	assert("edward-248", pos != NULL);
 	assert("edward-249", pos->child != NULL);
-	assert("edward-250", pos->idata == NULL);
 	assert("edward-251", inode != NULL);
 	assert("edward-682", crc_inode_ok(inode));
-
-	fplug = inode_file_plugin(inode);
-	
 	assert("edward-252", fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
+	assert("edward-473", item_plugin_by_coord(&pos->coord) == item_plugin_by_id(CTAIL_ID));
 
-	pos->idata = reiser4_kmalloc(sizeof(flush_squeeze_item_data_t), GFP_KERNEL);
-	if (pos->idata == NULL)
-		return -ENOMEM;
-	init_squeeze_idata_ctail(pos);
-	info = &pos->idata->u.ctail_info;
-	info->clust = reiser4_kmalloc(sizeof(reiser4_cluster_t), GFP_KERNEL);
-	if (info->clust == NULL) {
-		ret = -ENOMEM;
-		goto exit2;
+	if (!pos->sq) {
+		ret = alloc_squeeze_data(pos);
+		if (ret)
+			return ret;
 	}
-	reiser4_cluster_init(info->clust);
-	info->inode = inode;
-	info->clust->index = pg_to_clust(jnode_page(pos->child)->index, inode);
+	if (!tfm_squeeze_data(pos) && cplug->alloc != NULL) {
+		ret = alloc_squeeze_tfm_data(pos->sq);
+		if (ret)
+			goto exit;
+	}
+	if (cplug->alloc != NULL && *tfm_squeeze_idx(pos, cplug->h.id) == NULL) {
+		ret = cplug->alloc(tfm_squeeze_idx(pos, cplug->h.id), TFM_WRITE);
+		if (ret)
+			goto exit;
+	}
+	assert("edward-829", pos->sq != NULL);
+	assert("edward-250", item_squeeze_data(pos) == NULL);
 	
-	ret = flush_cluster_pages(info->clust, inode);
+	pos->sq->iplug = item_plugin_by_id(CTAIL_ID);
+	
+	ret = alloc_item_squeeze_data(pos->sq);
 	if (ret)
-		goto exit1;
-
-	ret = deflate_cluster(info->clust, inode);
+		goto exit;
+	ret = init_item_squeeze_data(pos, inode);
 	if (ret)
-		goto exit1;
-	/* attach flow by cluster buffer */
-	fplug->flow_by_inode(info->inode, info->clust->buf, 0/* kernel space */, info->clust->len, clust_to_off(info->clust->index, inode), WRITE_OP, &info->flow);
+		goto exit;
+	info = ctail_squeeze_data(pos);
+	clust = info->clust; 
+	clust->index = pg_to_clust(jnode_page(pos->child)->index, inode);
+	
+	ret = flush_cluster_pages(clust, inode);
+	if (ret)
+		goto exit;
+	
+	assert("edward-830", ergo(!tfm_squeeze_pos(pos, cplug->h.id), !cplug->alloc));
+	
+	ret = deflate_cluster(tfm_squeeze_pos(pos, cplug->h.id), clust, inode);
+	if (ret)
+		goto exit;
+	
+	inc_item_squeeze_count(pos);
+	
+	/* make flow by transformed stream */
+	fplug->flow_by_inode(info->inode, clust->buf, 0/* kernel space */,
+			     clust->len, clust_to_off(clust->index, inode), 
+			     WRITE_OP, &info->flow);
 	jput(pos->child);
-
+	
 	assert("edward-683", crc_inode_ok(inode));
-
- 	return 0;
-
- exit1:
-	reiser4_kfree(info->clust);
- exit2:
-	reiser4_kfree(pos->idata);
+	return 0;
+ exit:
 	jput(pos->child);
-        /* invalidate squeeze item info */
-	pos->idata = NULL;
+	free_squeeze_data(pos);
 	return ret;
 }
 
+/* clear up disk cluster info */
 static void
-detach_squeeze_idata(flush_squeeze_item_data_t ** idata)
+detach_squeeze_idata(squeeze_info_t * sq)
 {
+	squeeze_item_info_t * idata;
 	ctail_squeeze_info_t * info;
 	struct inode * inode; 
 	
-	assert("edward-253", idata != NULL);
-	info = &(*idata)->u.ctail_info;
+	assert("edward-253", sq != NULL);
+	assert("edward-840", sq->itm != NULL);
+
+	idata = sq->itm;
+	info = &idata->u.ctail_info;
 	
 	assert("edward-254", info->clust != NULL);
 	assert("edward-255", info->inode != NULL);
 
 	inode = info->inode;
-
-	assert("edward-784", atomic_read(&inode->i_count));
+	
+	assert("edward-841", atomic_read(&inode->i_count));
 	assert("edward-256", info->clust->buf != NULL);
 	
 	atomic_dec(&inode->i_count);
 	
-	release_cluster_buf(info->clust);
-	reiser4_kfree(info->clust);
-	reiser4_kfree(*idata);
-	
-	*idata = NULL;
+	free_item_squeeze_data(sq);
+	return;
 }
 
 /* plugin->u.item.f.utmost_child */
@@ -1194,7 +1351,7 @@ squeeze_ctail(flush_pos_t * pos)
 	
 	assert("edward-261", pos != NULL);
 	
-	if (pos->idata == NULL) {
+	if (!pos->sq || !item_squeeze_data(pos)) {
 		if (should_attach_squeeze_idata(pos)) {
 			/* attach squeeze item info */
 			struct inode * inode;
@@ -1212,33 +1369,35 @@ squeeze_ctail(flush_pos_t * pos)
 			pos->child = NULL;
 			if (result != 0)
 				return result;
-			info = &pos->idata->u.ctail_info;
+			info = ctail_squeeze_data(pos);
 		}
 		else
 			/* unsqueezable */
 			return 0;
 	}
 	else {
-		/* there is attached squeeze info, it can be still valid! */
-		info = &pos->idata->u.ctail_info;
+		/* use old squeeze info */
+		
+		squeeze_item_info_t * idata = item_squeeze_data(pos);
+		info = ctail_squeeze_data(pos);
 		
 		if (info->flow.length) {
 			/* append or overwrite */
-			if (pos->idata->mergeable) {
+			if (idata->mergeable) {
 				mode = CRC_OVERWRITE_ITEM;
-				pos->idata->mergeable = 0;
+				idata->mergeable = 0;
 			}
 			else
 				mode = CRC_APPEND_ITEM;
 		}
 		else {
                         /* cut or invalidate */
-			if (pos->idata->mergeable) {
+			if (idata->mergeable) {
 				mode = CRC_CUT_ITEM;
-				pos->idata->mergeable = 0;
+				idata->mergeable = 0;
 			}
 			else {
-				detach_squeeze_idata(&pos->idata);
+				detach_squeeze_idata(pos->sq);
 				return RETERR(-E_REPEAT);
 			}
 		}
@@ -1246,20 +1405,18 @@ squeeze_ctail(flush_pos_t * pos)
 	assert("edward-433", info != NULL);
 	result = write_ctail(pos, mode);
 	if (result) {
-		detach_squeeze_idata(&pos->idata);
+		detach_squeeze_idata(pos->sq);
 		return result;
 	}
 	
 	if (mode == CRC_APPEND_ITEM) {
 		/* detach squeeze info */
-		assert("edward-434", pos->idata->u.ctail_info.flow.length == 0);
-		detach_squeeze_idata(&pos->idata);
+		assert("edward-434", info->flow.length == 0);
+		detach_squeeze_idata(pos->sq);
 		return RETERR(-E_REPEAT);
 	}
 	return 0;
 }
-
-
 
 /* Make Linus happy.
    Local variables:
