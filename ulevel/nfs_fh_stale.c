@@ -14,17 +14,18 @@
 #include <stdlib.h>
 #include <time.h>
 #include <sys/time.h>
-
+#define NDEBUG
+#include <assert.h>
 
 extern char *optarg;
 extern int optind, opterr, optopt;
 
-typedef enum { ok = 0, 
-	       wrong_argc, 
-	       pthread_create_error } ret_t;
+typedef enum { ok = 0,
+	wrong_argc,
+	pthread_create_error
+} ret_t;
 
-typedef struct stats
-{
+typedef struct stats {
 	pthread_mutex_t lock;
 	unsigned long opens;
 	unsigned long lseeks;
@@ -43,21 +44,28 @@ typedef struct stats
 	unsigned long done;
 	struct timeval start;
 	struct timeval end;
+	int totfreq;
 } stats_t;
 
 stats_t stats;
 
-static void *worker( void * arg );
-static void sync_file( char *fileName );
-static void read_file( char *fileName );
-static void write_file( char *fileName );
-static void rename_file( int files, char *fileName );
-static void unlink_file( char *fileName );
-static void truncate_file( char *fileName );
-static void nap( int secs, int nanos );
-static void _nap( int secs, int nanos );
+static void *worker(void *arg);
 
-pthread_key_t  buffer_key;
+typedef struct params {
+	int         files;
+	char       *buffer;
+	const char *filename;
+} params_t;
+
+static void sync_file(params_t *params);
+static void read_file(params_t *params);
+static void write_file(params_t *params);
+static void rename_file(params_t *params);
+static void unlink_file(params_t *params);
+static void truncate_file(params_t *params);
+
+static void nap(int secs, int nanos);
+static void _nap(int secs, int nanos);
 
 int delta = 1;
 int max_sleep = 0;
@@ -65,32 +73,66 @@ int max_buf_size = 4096 * 100;
 int max_size = 4096 * 100 * 1000;
 int verbose = 0;
 
-#define RND( n ) \
- ( ( int ) ( ( ( double ) ( n ) ) * rand() / ( RAND_MAX + 1.0 ) ) )
+/* random integer number in [0, n - 1] */
+#define RND(n) ((int)(((double)(n)) * rand() / (RAND_MAX + 1.0)))
 
-#define STEX( e ) \
- pthread_mutex_lock( &stats.lock ) ; e ; pthread_mutex_unlock( &stats.lock )
+#define STRICT (0)
 
-const char optstring[] = "p:f:d:i:s:b:M:B:v";
+#if STRICT
+#define STEX(e) \
+	pthread_mutex_lock(&stats.lock) ; e ; pthread_mutex_unlock(&stats.lock)
+#else
+#define STEX(e) e
+#endif
 
-static double rate( unsigned long events, int secs )
-{
-	return ( ( double ) events ) / secs;
+typedef struct op {
+	const char *label;
+	int freq;
+	void (*handler)(params_t *params);
+} op_t;
+
+#define DEFOPS(aname)				\
+{						\
+	.label = #aname,			\
+	.freq  = 1,				\
+	.handler = aname ## _file		\
 }
 
-static void usage( char *argv0 )
+op_t ops[] = {
+	DEFOPS(sync),
+	DEFOPS(read),
+	DEFOPS(write),
+	DEFOPS(rename),
+	DEFOPS(unlink),
+	DEFOPS(truncate),
+	{
+		.label = NULL
+	}
+};
+
+const char optstring[] = "p:f:d:i:s:b:M:BvF:";
+
+static double
+rate(unsigned long events, int secs)
 {
-	fprintf( stderr, 
-		 "usage: %s %s\n"
-		 "\n\tRandomly creates and removes files from multiple threads."
-		 "\n\tCan be used to test NFS stale handle detection."
-		 "\n\tCompiled from " __FILE__ " at " __DATE__ "\n\n", 
-		 argv0, optstring );
+	return ((double) events) / secs;
+}
+
+static void
+usage(char *argv0)
+{
+	fprintf(stderr,
+		"usage: %s %s\n"
+		"\n\tRandomly creates and removes files from multiple threads."
+		"\n\tCan be used to test NFS stale handle detection."
+		"\n\tCompiled from " __FILE__ " at " __DATE__ "\n\n",
+		argv0, optstring);
 }
 
 int benchmark = 0;
 
-int main( int argc , char **argv )
+int
+main(int argc, char **argv)
 {
 	ret_t result;
 	int threads = 10;
@@ -98,392 +140,401 @@ int main( int argc , char **argv )
 	int i;
 	int iterations = 10;
 	int opt;
+	op_t *op;
 
 	result = ok;
-	do
-		{
-			opt = getopt( argc, argv, optstring );
-			switch( opt )
-				{
-				case '?':
-					usage( argv[ 0 ] );
-					return wrong_argc;
-				case 'p':
-					threads = atoi( optarg );
-					break;
-				case 'f':
-					files = atoi( optarg );
-					break;
-				case 'd':
-					delta = atoi( optarg );
-					break;
-				case 'i':
-					iterations = atoi( optarg );
-					break;
-				case 's':
-					max_sleep = atoi( optarg );
-					break;
-				case 'b':
-					max_buf_size = atoi( optarg );
-					if( max_buf_size < 255 )
-						{
-							fprintf( stderr, "%s: max_buf_size too small\n", argv[ 0 ] );
-							return 1;
-						}
-					break;
-				case 'M':
-					max_size = atoi( optarg );
-					break;
-				case 'B':
-					benchmark = 1;
-					break;
-				case 'v':
-					++ verbose;
-				case -1:
+	do {
+		opt = getopt(argc, argv, optstring);
+		switch (opt) {
+		case '?':
+			usage(argv[0]);
+			return wrong_argc;
+		case 'p':
+			threads = atoi(optarg);
+			break;
+		case 'f':
+			files = atoi(optarg);
+			break;
+		case 'd':
+			delta = atoi(optarg);
+			break;
+		case 'i':
+			iterations = atoi(optarg);
+			break;
+		case 's':
+			max_sleep = atoi(optarg);
+			break;
+		case 'b':
+			max_buf_size = atoi(optarg);
+			if (max_buf_size < 255) {
+				fprintf(stderr, "%s: max_buf_size too small\n",
+					argv[0]);
+				return 1;
+			}
+			break;
+		case 'M':
+			max_size = atoi(optarg);
+			break;
+		case 'B':
+			benchmark = 1;
+			break;
+		case 'v':
+			++verbose;
+		case 'F': {
+			char *eq;
+			int   opfreq;
+
+			eq = strchr(optarg, '=');
+			if (eq == NULL) {
+				fprintf(stderr, "%s: Use -F op=freq\n", argv[0]);
+				return 1;
+			}
+			*eq = 0;
+			opfreq = atoi(eq + 1);
+			for (op = &ops[0] ; op->label ; ++ op) {
+				if (!strcmp(op->label, optarg)) {
+					op->freq = opfreq;
 					break;
 				}
+			}
+			if (!op->label) {
+				fprintf(stderr, "%s: Unknown op: %s\n", 
+					argv[0], optarg);
+				return 1;
+			}
+			*eq = '=';
 		}
-	while( opt != -1 );
+		case -1:
+			break;
+		}
+	} while (opt != -1);
 	stats.total = iterations;
 	stats.done = 0;
-	if( gettimeofday( &stats.start, NULL ) != 0 )
-		{
-			perror( "gettimeofday" );
+
+	stats.totfreq = 0;
+	for (op = &ops[0] ; op->label ; ++ op)
+		stats.totfreq += op->freq;
+
+	if (gettimeofday(&stats.start, NULL) != 0) {
+		perror("gettimeofday");
+		return 1;
+	}
+	pthread_mutex_init(&stats.lock, NULL);
+	fprintf(stderr,
+		"%s: %i processes, %i files, delta: %i"
+		"\n\titerations: %i, sleep: %i, buffer: %i, max size: %i\n",
+		argv[0], threads, files, delta, iterations,
+		max_sleep, max_buf_size, max_size);
+	for (i = 0; i < threads; ++i) {
+		int rv;
+		pthread_t id;
+
+		rv = pthread_create(&id, NULL, worker, (void *) files);
+		if (rv != 0) {
+			fprintf(stderr,
+				"%s: pthread_create fails: %s(%i) while creating %i-%s thread\n",
+				argv[0], strerror(rv), rv, i,
+				(i % 10 == 1) ? "st" : (i % 10 ==
+							2) ? "nd" : "th");
 			return 1;
 		}
-	pthread_mutex_init( &stats.lock, NULL );
-	pthread_key_create( &buffer_key, free );
-	fprintf( stderr, 
-		 "%s: %i processes, %i files, delta: %i"
-		 "\n\titerations: %i, sleep: %i, buffer: %i, max size: %i\n",
-		 argv[ 0 ], threads, files, delta, iterations, 
-		 max_sleep, max_buf_size, max_size );
-	for( i = 0 ; i < threads ; ++i )
-		{
-			int rv;
-			pthread_t id;
-
-			rv = pthread_create( &id, NULL, worker, ( void * ) files );
-			if( rv != 0 )
-				{
-					fprintf( stderr, "%s: pthread_create fails: %s(%i) while creating %i-%s thread\n",
-						 argv[ 0 ], strerror( rv ), rv, i,
-						 ( i % 10 == 1 ) ? "st" : ( i % 10 == 2 ) ? "nd" :"th" );
-					return 1;
-				}
-		}
-	if( !benchmark )
-		{
-			for( i = 0 ; i < iterations ; i += delta )
-				{
-					printf( "\nseconds: %i"
-						"\n\topens: %lu [%f]"
-						"\n\tlseeks: %lu [%f]"
-						"\n\treads: %lu [%f], writes: %lu [%f]"
-						"\n\trenames: %lu/%lu [%f]"
-						"\n\tunlinks: %lu/%lu [%f]"
-						"\n\ttruncate: %lu/%lu [%f]"
-						"\n\tfsyncs: %lu [%f]"
-						"\n\terrors: %lu, naps: %lu [%f]\n",
-						i,
-						stats.opens, rate( stats.opens, i ), 
-						stats.lseeks, rate( stats.lseeks, i ), 
-						stats.reads, rate( stats.reads, i ),
-						stats.writes, rate( stats.writes, i ),
-						stats.renames, stats.mrenames, rate( stats.renames, i ),
-						stats.unlinks, stats.munlinks, rate( stats.unlinks, i ), 
-						stats.truncates, stats.mtruncates, rate( stats.truncates, i ),
-						stats.fsyncs, rate( stats.fsyncs, i ),
-						stats.errors, stats.naps, rate( stats.naps, i ) );
-					nap( delta, 0 );
-				}
-		}
-	else
-		{
-			while( 1 )
-				{
-					_nap( 1, 0 );
-				}
-		}
+	}
+	for (i = 0; i < iterations; i += delta) {
+		printf("\nseconds: %i"
+		       "\n\topens: %lu [%f]"
+		       "\n\tlseeks: %lu [%f]"
+		       "\n\treads: %lu [%f], writes: %lu [%f]"
+		       "\n\trenames: %lu/%lu [%f]"
+		       "\n\tunlinks: %lu/%lu [%f]"
+		       "\n\ttruncate: %lu/%lu [%f]"
+		       "\n\tfsyncs: %lu [%f]"
+		       "\n\terrors: %lu, naps: %lu [%f]\n",
+		       i,
+		       stats.opens, rate(stats.opens, i),
+		       stats.lseeks, rate(stats.lseeks, i),
+		       stats.reads, rate(stats.reads, i),
+		       stats.writes, rate(stats.writes, i),
+		       stats.renames, stats.mrenames,
+		       rate(stats.renames, i), stats.unlinks,
+		       stats.munlinks, rate(stats.unlinks, i),
+		       stats.truncates, stats.mtruncates,
+		       rate(stats.truncates, i), stats.fsyncs,
+		       rate(stats.fsyncs, i), stats.errors, stats.naps,
+		       rate(stats.naps, i));
+		_nap(delta, 0);
+	}
 	return result;
 }
 
-static void *worker( void * arg )
+static void *
+worker(void *arg)
 {
+	params_t params;
+	char fileName[30];
+
+	params.files    = (int) arg;
+	params.buffer   = malloc(max_buf_size);
+	params.filename = fileName;
+
+	while (1) {
+		op_t *op;
+		int   randum;
+		int   freqreached;
+
+		sprintf(fileName, "%x", RND(params.files));
+		randum = RND(stats.totfreq);
+		freqreached = 0;
+		for (op = &ops[0] ; op->label ; ++ op) {
+			freqreached += op->freq;
+			if (randum < freqreached) {
+				op->handler(&params);
+				break;
+			}
+		}
+		assert(op->label == NULL);
+		STEX(++stats.done);
+		if (!benchmark)
+			nap(0, RND(max_sleep));
+		else if (stats.done >= stats.total) {
+			pthread_mutex_lock(&stats.lock);
+			gettimeofday(&stats.end, NULL);
+			printf("start: %li.%li, end: %li.%li, diff: %li, %li\n",
+			       stats.start.tv_sec, stats.start.tv_usec,
+			       stats.end.tv_sec, stats.end.tv_usec,
+			       stats.end.tv_sec - stats.start.tv_sec,
+			       stats.end.tv_usec - stats.start.tv_usec);
+			exit(0);
+		}
+	}
+}
+
+static void
+sync_file(params_t *params)
+{
+	int fd;
+	const char *fileName;
+
+	fileName = params->filename;
+	fd = open(fileName, O_WRONLY);
+	if (fd == -1) {
+		if (errno != ENOENT) {
+			fprintf(stderr, "%s open: %s(%i)\n", fileName,
+				strerror(errno), errno);
+			STEX(++stats.errors);
+		}
+		return;
+	}
+	if (fsync(fd)) {
+		fprintf(stderr, "%s sync: %s(%i)\n", 
+			fileName, strerror(errno), errno);
+		STEX(++stats.errors);
+		return;
+	}
+	STEX(++stats.fsyncs);
+	if (verbose) {
+		printf("[%li] SYNC: %s\n", pthread_self(), fileName);
+	}
+	close(fd);
+}
+
+static void
+read_file(params_t *params)
+{
+	int fd;
+	char *buf;
+	int bufSize;
+	int offset;
+	const char *fileName;
+
+	fileName = params->filename;
+	fd = open(fileName, O_CREAT | O_APPEND | O_RDWR, 0700);
+	if (fd == -1) {
+		fprintf(stderr, "%s open: %s(%i)\n", fileName, strerror(errno),
+			errno);
+		STEX(++stats.errors);
+		return;
+	}
+	STEX(++stats.opens);
+	nap(0, RND(max_sleep));
+	if (lseek(fd, RND(max_size), SEEK_SET) == -1) {
+		fprintf(stderr, "%s lseek: %s(%i)\n",
+			fileName, strerror(errno), errno);
+		STEX(++stats.errors);
+		close(fd);
+		return;
+	}
+	STEX(++stats.lseeks);
+	nap(0, RND(max_sleep));
+	bufSize = RND(max_buf_size / 3) + 30;
+	offset = RND(max_buf_size / 3);
+	buf = params->buffer;
+	if (read(fd, buf, bufSize + offset) == -1) {
+		fprintf(stderr, "%s read: %s(%i)\n", fileName, strerror(errno),
+			errno);
+		STEX(++stats.errors);
+		close(fd);
+		return;
+	}
+	STEX(++stats.reads);
+	if (verbose) {
+		printf("[%li] R: %s\n", pthread_self(), fileName);
+	}
+	close(fd);
+}
+
+static void
+write_file(params_t *params)
+{
+	int fd;
+	char *buf;
+	int bufSize;
+	int offset;
+	const char *fileName;
+
+	fileName = params->filename;
+	fd = open(fileName, O_CREAT | O_APPEND | O_RDWR, 0700);
+	if (fd == -1) {
+		fprintf(stderr, "%s open: %s(%i)\n", fileName, strerror(errno),
+			errno);
+		STEX(++stats.errors);
+		return;
+	}
+	STEX(++stats.opens);
+	nap(0, RND(max_sleep));
+	if (lseek(fd, RND(max_size), SEEK_SET) == -1) {
+		fprintf(stderr, "%s lseek: %s(%i)\n",
+			fileName, strerror(errno), errno);
+		STEX(++stats.errors);
+		close(fd);
+		return;
+	}
+	STEX(++stats.lseeks);
+	nap(0, RND(max_sleep));
+	bufSize = RND(max_buf_size / 3) + 30;
+	offset = RND(max_buf_size / 3);
+	buf = params->buffer;
+	memset(buf, 0xfe + stats.writes, max_buf_size);
+	sprintf(buf + offset, "---%lx+++", time(NULL));
+	if (write(fd, buf, bufSize + offset) == -1) {
+		fprintf(stderr, "%s write: %s(%i)\n",
+			fileName, strerror(errno), errno);
+		STEX(++stats.errors);
+		close(fd);
+		return;
+	}
+	STEX(++stats.writes);
+	if (verbose) {
+		printf("[%li] W: %s\n", pthread_self(), fileName);
+	}
+	close(fd);
+}
+
+static void
+rename_file(params_t *params)
+{
+	char target[30];
+	const char *fileName;
 	int files;
 
-	files = ( int ) arg;
-	pthread_setspecific( buffer_key, malloc( max_buf_size ) );
-	while( 1 )
-		{
-			char fileName[ 30 ];
-
-			sprintf( fileName, "%x", RND( files ) );
-			if( rand() < RAND_MAX / 6 )
-				{
-					sync_file( fileName );
-				}
-			else if( rand() <  RAND_MAX / 5 )
-				{
-					read_file( fileName );
-				}
-			else if( rand() < RAND_MAX / 4 )
-				{
-					write_file( fileName );
-				}
-			else if( rand() < RAND_MAX / 3 )
-				{
-					rename_file( files, fileName );
-				}
-			else if( rand() < RAND_MAX / 2 )
-				{
-					unlink_file( fileName );
-				}
-			else
-				{
-					truncate_file( fileName );
-				}
-			STEX( ++stats.done );
-			if( !benchmark )
-				nap( 0, RND( max_sleep ) );
-			else if( stats.done >= stats.total )
-				{
-					pthread_mutex_lock( &stats.lock );
-					gettimeofday( &stats.end, NULL );
-					printf( "start: %li.%li, end: %li.%li, diff: %li, %li\n",
-						stats.start.tv_sec, stats.start.tv_usec,
-						stats.end.tv_sec, stats.end.tv_usec,
-						stats.end.tv_sec - stats.start.tv_sec,
-						stats.end.tv_usec - stats.start.tv_usec );
-					exit( 0 );
-				}
+	fileName = params->filename;
+	files = params->files;
+	sprintf(target, "%x", RND(files));
+	if (rename(fileName, target) == -1) {
+		switch (errno) {
+		case ENOENT:
+			STEX(++stats.mrenames);
+			break;
+		default:
+			{
+				fprintf(stderr, "rename( %s, %s ): %s(%i)\n",
+					fileName, target, strerror(errno),
+					errno);
+				STEX(++stats.errors);
+			}
 		}
+	} else {
+		if (verbose) {
+			printf("[%li] %s -> %s\n", pthread_self(), fileName,
+			       target);
+		}
+		STEX(++stats.renames);
+	}
 }
 
-static void sync_file( char *fileName )
+static void
+unlink_file(params_t *params)
 {
-	int fd;
+	const char *fileName;
 
-	fd = open( fileName, O_WRONLY );
-	if( fd == -1 )
-		{
-			if( errno != ENOENT )
-				{
-					fprintf( stderr, "%s open: %s(%i)\n", fileName, strerror( errno ), errno );
-					STEX( ++stats.errors );
-				}
-			return;
+	fileName = params->filename;
+	if (unlink(fileName) == -1) {
+		switch (errno) {
+		case ENOENT:
+			STEX(++stats.munlinks);
+			break;
+		default:
+			{
+				fprintf(stderr, "%s unlink: %s(%i)\n",
+					fileName, strerror(errno), errno);
+				STEX(++stats.errors);
+			}
 		}
-	if( fsync( fd ) )
-		{
-			fprintf( stderr, "%s sync: %s(%i)\n", fileName, strerror( errno ), errno );
-			STEX( ++stats.errors );
-			return;
+	} else {
+		if (verbose) {
+			printf("[%li] U: %s\n", pthread_self(), fileName);
 		}
-	STEX( ++stats.fsyncs );
-	if( verbose )
-		{
-			printf( "[%li] SYNC: %s\n", pthread_self(), fileName );
-		}
-	close( fd );
+		STEX(++stats.unlinks);
+	}
 }
 
-static void read_file( char *fileName )
+static void
+truncate_file(params_t *params)
 {
-	int fd;
-	char *buf;
-	int bufSize;
-	int offset;
+	const char *fileName;
 
-	fd = open( fileName, O_CREAT | O_APPEND | O_RDWR, 0700 );
-	if( fd == -1 )
-		{
-			fprintf( stderr, "%s open: %s(%i)\n", fileName, strerror( errno ), errno );
-			STEX( ++stats.errors );
-			return;
+	fileName = params->filename;
+	if (truncate(fileName, RND(max_size)) == -1) {
+		switch (errno) {
+		case ENOENT:
+			STEX(++stats.mtruncates);
+			break;
+		default:
+			{
+				fprintf(stderr, "%s truncate: %s(%i)\n",
+					fileName, strerror(errno), errno);
+				STEX(++stats.errors);
+			}
 		}
-	STEX( ++stats.opens );
-	nap( 0, RND( max_sleep ) );
-	if( lseek( fd, RND( max_size ), SEEK_SET ) == -1 )
-		{
-			fprintf( stderr, "%s lseek: %s(%i)\n", 
-				 fileName, strerror( errno ), errno );
-			STEX( ++stats.errors );
-			close( fd );
-			return;
+	} else {
+		if (verbose) {
+			printf("[%li] T: %s\n", pthread_self(), fileName);
 		}
-	STEX( ++stats.lseeks );
-	nap( 0, RND( max_sleep ) );
-	bufSize = RND( max_buf_size / 3 ) + 30;
-	offset = RND( max_buf_size / 3 );
-	buf = pthread_getspecific( buffer_key );
-	if( read( fd, buf, bufSize + offset ) == -1 )
-		{
-			fprintf( stderr, "%s read: %s(%i)\n", fileName, strerror( errno ), errno );
-			STEX( ++stats.errors );
-			close( fd );
-			return;
-		}
-	STEX( ++stats.reads );
-	if( verbose )
-		{
-			printf( "[%li] R: %s\n", pthread_self(), fileName );
-		}
-	close( fd );
+		STEX(++stats.truncates);
+	}
 }
 
-static void write_file( char *fileName )
+static void
+nap(int secs, int nanos)
 {
-	int fd;
-	char *buf;
-	int bufSize;
-	int offset;
-
-	fd = open( fileName, O_CREAT | O_APPEND | O_RDWR, 0700 );
-	if( fd == -1 )
-		{
-			fprintf( stderr, "%s open: %s(%i)\n", fileName, strerror( errno ), errno );
-			STEX( ++stats.errors );
-			return;
-		}
-	STEX( ++stats.opens );
-	nap( 0, RND( max_sleep ) );
-	if( lseek( fd, RND( max_size ), SEEK_SET ) == -1 )
-		{
-			fprintf( stderr, "%s lseek: %s(%i)\n", 
-				 fileName, strerror( errno ), errno );
-			STEX( ++stats.errors );
-			close( fd );
-			return;
-		}
-	STEX( ++stats.lseeks );
-	nap( 0, RND( max_sleep ) );
-	bufSize = RND( max_buf_size / 3 ) + 30;
-	offset = RND( max_buf_size / 3 );
-	buf = pthread_getspecific( buffer_key );
-	memset( buf, 0xfe + stats.writes, max_buf_size );
-	sprintf( buf + offset, "---%lx+++", time( NULL ) );
-	if( write( fd, buf, bufSize + offset ) == -1 )
-		{
-			fprintf( stderr, "%s write: %s(%i)\n", 
-				 fileName, strerror( errno ), errno );
-			STEX( ++stats.errors );
-			close( fd );
-			return;
-		}
-	STEX( ++stats.writes );
-	if( verbose )
-		{
-			printf( "[%li] W: %s\n", pthread_self(), fileName );
-		}
-	close( fd );
+	if (!benchmark)
+		_nap(secs, nanos);
 }
 
-static void rename_file( int files, char *fileName )
+static void
+_nap(int secs, int nanos)
 {
-	char target[ 30 ];
+	if ((secs > 0) || (nanos > 0)) {
+		struct timespec delay;
 
-	sprintf( target, "%x", RND( files ) );
-	if( rename( fileName, target ) == -1 )
-		{
-			switch( errno )
-				{
-				case ENOENT:
-					STEX( ++stats.mrenames );
-					break;
-				default:
-					{
-						fprintf( stderr, "rename( %s, %s ): %s(%i)\n", 
-							 fileName, target, strerror( errno ), errno );
-						STEX( ++stats.errors );
-					}
-				}
-		}
-	else
-		{
-			if( verbose )
-				{
-					printf( "[%li] %s -> %s\n", pthread_self(), fileName, target );
-				}
-			STEX( ++stats.renames );
-		}
-}
+		delay.tv_sec = secs;
+		delay.tv_nsec = nanos;
 
-static void unlink_file( char *fileName )
-{
-	if( unlink( fileName ) == -1 )
-		{
-			switch( errno )
-				{
-				case ENOENT:
-					STEX( ++stats.munlinks );
-					break;
-				default:
-					{
-						fprintf( stderr, "%s unlink: %s(%i)\n", 
-							 fileName, strerror( errno ), errno );
-						STEX( ++stats.errors );
-					}
-				}
+		if (nanosleep(&delay, NULL) == -1) {
+			fprintf(stderr, "nanosleep: %s(%i)\n", strerror(errno),
+				errno);
 		}
-	else
-		{
-			if( verbose )
-				{
-					printf( "[%li] U: %s\n", pthread_self(), fileName );
-				}
-			STEX( ++stats.unlinks );
-		}
-}
-
-static void truncate_file( char *fileName )
-{
-	if( truncate( fileName, RND( max_size ) ) == -1 )
-		{
-			switch( errno )
-				{
-				case ENOENT:
-					STEX( ++stats.mtruncates );
-					break;
-				default:
-					{
-						fprintf( stderr, "%s truncate: %s(%i)\n", 
-							 fileName, strerror( errno ), errno );
-						STEX( ++stats.errors );
-					}
-				}
-		}
-	else
-		{
-			if( verbose )
-				{
-					printf( "[%li] T: %s\n", pthread_self(), fileName );
-				}
-			STEX( ++stats.truncates );
-		}
-}
-
-static void nap( int secs, int nanos )
-{
-	if( !benchmark )
-		_nap( secs, nanos );
-}
-
-static void _nap( int secs, int nanos )
-{
-	if( ( secs > 0 ) || ( nanos > 0 ) )
-		{
-			struct timespec delay;
-	  
-			delay.tv_sec = secs;
-			delay.tv_nsec = nanos;
-
-			if( nanosleep( &delay, NULL ) == -1 )
-				{
-					fprintf( stderr, "nanosleep: %s(%i)\n", strerror( errno ), errno );
-				}
-			STEX( ++stats.naps );
-		}
+		STEX(++stats.naps);
+	}
 }
 
 /*
