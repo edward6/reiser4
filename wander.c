@@ -178,7 +178,7 @@
 #include <linux/bio.h>		/* for struct bio */
 #include <linux/blkdev.h>
 
-static int jnode_extent_write(jnode *, int, const reiser4_block_nr *, flush_queue_t * fq);
+static int jnode_extent_write(capture_list_head * head, jnode *, int, const reiser4_block_nr *, flush_queue_t * fq);
 
 /* The commit_handle is a container for objects needed at atom commit time  */
 struct commit_handle {
@@ -418,7 +418,7 @@ update_journal_header(struct commit_handle *ch)
 
 	format_journal_header(ch);
 
-	ret = jnode_extent_write(jh, 1, jnode_get_block(jh), NULL);
+	ret = jnode_extent_write(&ch->tx_list, jh, 1, jnode_get_block(jh), NULL);
 
 	if (ret)
 		return ret;
@@ -449,7 +449,7 @@ update_journal_footer(struct commit_handle *ch)
 
 	format_journal_footer(ch);
 
-	ret = jnode_extent_write(jf, 1, jnode_get_block(jf), 0);
+	ret = jnode_extent_write(&ch->tx_list, jf, 1, jnode_get_block(jf), 0);
 	if (ret)
 		return ret;
 
@@ -525,6 +525,349 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 
 	return ret;
 }
+
+#if REISER4_COPY_ON_CAPTURE
+
+extern spinlock_t scan_lock;
+
+/* put overwrite set back to atom's clean list */
+static void put_overwrite_set(struct commit_handle * ch)
+{
+	jnode * cur;
+
+	spin_lock(&scan_lock);
+	cur = capture_list_front(ch->overwrite_set);
+	while (!capture_list_end(ch->overwrite_set, cur)) {
+		JF_SET(cur, JNODE_SCANNED);
+		spin_unlock(&scan_lock);
+		JF_CLR(cur, JNODE_JLOADED_BY_GET_OVERWRITE_SET);
+		if (JF_ISSET(cur, JNODE_CC)) {
+			/* on copy on capture old page had reference counter
+			   increased. Decrement it here */
+			page_cache_release(cur->pg);
+		}
+		jrelse(cur);
+		spin_lock(&scan_lock);
+		cur = capture_list_next(cur);
+	}
+	spin_unlock(&scan_lock);
+}
+
+/* Count overwrite set size, grab disk space for wandered blocks allocation.
+   Since we have a separate list for atom's overwrite set we just scan the list,
+   count bitmap and other not leaf nodes which wandered blocks allocation we
+   have to grab space for. */
+static int
+get_overwrite_set(struct commit_handle *ch)
+{
+	int ret;
+	jnode *cur;
+	__u64 nr_not_leaves = 0;
+#if REISER4_DEBUG
+	__u64 nr_formatted_leaves = 0;
+	__u64 nr_unformatted_leaves = 0;
+#endif
+	
+	
+	assert("zam-697", ch->overwrite_set_size == 0);
+
+	ch->overwrite_set = &ch->atom->ovrwr_nodes;
+
+	spin_lock(&scan_lock);
+	cur = capture_list_front(ch->overwrite_set);
+
+	while (!capture_list_end(ch->overwrite_set, cur)) {
+		jnode *next;
+
+		/* FIXME: for all but first this bit is set already */
+		JF_SET(cur, JNODE_SCANNED);
+		next = capture_list_next(cur);
+		if (!capture_list_end(ch->overwrite_set, next))
+			JF_SET(next, JNODE_SCANNED);
+		spin_unlock(&scan_lock);
+
+		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
+			ON_TRACE(TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, JNODE_OVRWR));
+		}
+
+		/* Count not leaves here because we have to grab disk space for
+		 * wandered blocks. They were not counted as "flush
+		 * reserved". */
+		if (!jnode_is_leaf(cur))
+			nr_not_leaves ++;
+#if REISER4_DEBUG
+		else {
+			if (jnode_is_znode(cur))
+				nr_formatted_leaves ++;
+			else
+				nr_unformatted_leaves ++;
+		}
+#endif		
+
+		/* Count bitmap locks for getting correct statistics what number
+		 * of blocks were cleared by the transaction commit. */
+		if (jnode_get_type(cur) == JNODE_BITMAP)
+			ch->nr_bitmap ++;
+
+		assert("zam-939", JF_ISSET(cur, JNODE_OVRWR) || jnode_get_type(cur) == JNODE_BITMAP);
+			    
+		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
+			/* we replace fake znode by another (real)
+			   znode which is suggested by disk_layout
+			   plugin */
+
+			/* FIXME: it looks like fake znode should be
+			   replaced by jnode supplied by
+			   disk_layout. */
+
+			struct super_block *s = reiser4_get_current_sb();
+			reiser4_super_info_data *sbinfo = get_current_super_private();
+
+			if (sbinfo->df_plug->log_super) {
+				jnode *sj = sbinfo->df_plug->log_super(s);
+
+				assert("zam-593", sj != NULL);
+
+				if (IS_ERR(sj))
+					return PTR_ERR(sj);
+
+				LOCK_JNODE(sj);
+				JF_SET(sj, JNODE_OVRWR);
+				insert_into_atom_ovrwr_list(ch->atom, sj);
+				UNLOCK_JNODE(sj);
+
+				/* jload it as the rest of overwrite set */
+				jload (sj);
+
+				ch->overwrite_set_size++;
+			}
+			LOCK_JNODE(cur);
+			uncapture_block(cur);
+			jput(cur);
+				
+			spin_lock(&scan_lock);
+			JF_CLR(cur, JNODE_SCANNED);
+			cur = next;
+		} else {
+			int ret;
+			ch->overwrite_set_size++;
+			ret = jload(cur);
+			if (ret) 
+				reiser4_panic("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
+
+			spin_lock(&scan_lock);
+			JF_SET(cur, JNODE_JLOADED_BY_GET_OVERWRITE_SET);
+			assert("", cur->pg);
+			JF_CLR(cur, JNODE_SCANNED);
+			cur = next;
+		}
+
+	}
+	spin_unlock(&scan_lock);
+
+	/* Grab space for writing (wandered blocks) of not leaves found in
+	 * overwrite set. */
+	ret = reiser4_grab_space_force(nr_not_leaves, BA_RESERVED, 
+				       "get_overwrite_set: grab space for not leaves.");
+	if (ret)
+		return ret;
+
+	/* Disk space for allocation of wandered blocks of leaf nodes already
+	 * reserved as "flush reserved", move it to grabbed space counter. */
+	spin_lock_atom(ch->atom);
+	assert("zam-940", nr_formatted_leaves + nr_unformatted_leaves <= ch->atom->flush_reserved);
+	flush_reserved2grabbed(ch->atom, ch->atom->flush_reserved);
+	spin_unlock_atom(ch->atom);
+
+	return ch->overwrite_set_size;
+}
+
+/* Submit a write request for @nr jnodes beginning from the @first, other
+   jnodes are after the @first on the double-linked "capture" list.  All
+   jnodes will be written to the disk region of @nr blocks starting with
+   @block_p block number.  If @fq is not NULL it means that waiting for i/o
+   completion will be done more efficiently by using flush_queue_t objects 
+
+ZAM-FIXME-HANS: brief me on why this function exists, and why bios are
+aggregated in this function instead of being left to the layers below
+
+FXIME: ZAM->HANS: What layer are you talking about? Can you point me to that?
+Why that layer needed? Why BIOs cannot be constructed here?
+*/
+static int
+jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
+{
+	struct super_block *super = reiser4_get_current_sb();
+	int max_blocks;
+	jnode *cur = first;
+	reiser4_block_nr block;
+
+	assert("zam-571", first != NULL);
+	assert("zam-572", block_p != NULL);
+	assert("zam-570", nr > 0);
+
+	block = *block_p;
+
+	ON_TRACE (TRACE_IO_W, "write of %d blocks starting from %llu\n",
+		  nr, (unsigned long long)block);
+
+#if REISER4_USER_LEVEL_SIMULATION
+	max_blocks = nr;
+#else
+	max_blocks = bdev_get_queue(super->s_bdev)->max_sectors >> (super->s_blocksize_bits - 9);
+#endif
+
+	while (nr > 0) {
+		struct bio *bio;
+		int nr_blocks = min(nr, max_blocks);
+		int i;
+		int nr_used;
+
+		bio = bio_alloc(GFP_NOIO, nr_blocks);
+		if (!bio)
+			return RETERR(-ENOMEM);
+
+		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
+			struct page *pg;
+			ON_DEBUG(int releasable(const jnode *));
+
+			assert("vs-1423", ergo(jnode_is_znode(cur) || jnode_is_unformatted(cur),  JF_ISSET(cur, JNODE_SCANNED)));
+			pg = jnode_page(cur);
+			assert("zam-573", pg != NULL);
+
+			page_cache_get(pg);
+
+			lock_and_wait_page_writeback(pg);
+
+			LOCK_JNODE(cur);
+			assert("nikita-3166", 
+			       pg->mapping == jnode_get_mapping(cur));
+			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
+			assert("nikita-3165", !releasable(cur));
+			JF_SET(cur, JNODE_WRITEBACK);
+			JF_CLR(cur, JNODE_DIRTY);
+			UNLOCK_JNODE(cur);
+
+			SetPageWriteback(pg);
+
+			spin_lock(&pg->mapping->page_lock);
+
+#if REISER4_STATS
+			if (!PageDirty(pg))
+				reiser4_stat_inc(pages_clean);
+#endif
+			/* don't check return value: submit page even if it
+			   wasn't dirty. */		
+			test_clear_page_dirty(pg);
+
+			list_del(&pg->list);
+			list_add(&pg->list, &pg->mapping->locked_pages);
+
+			spin_unlock(&pg->mapping->page_lock);
+
+			reiser4_unlock_page(pg);
+
+			/* prepare node to being written */
+			jnode_io_hook(cur, pg, WRITE);
+
+			bio->bi_io_vec[nr_used].bv_page = pg;
+			bio->bi_io_vec[nr_used].bv_len = super->s_blocksize;
+			bio->bi_io_vec[nr_used].bv_offset = 0;
+				
+			spin_lock(&scan_lock);
+			if (cur != first)
+				JF_CLR(cur, JNODE_SCANNED);
+			cur = capture_list_next(cur);
+			if (!capture_list_end(head, cur))
+				JF_SET(cur, JNODE_SCANNED);
+			else {
+				/* end of overwrite list reached */
+				assert("", i == nr_blocks - 1);
+				assert("", nr_used + 1 == nr);
+			}
+			spin_unlock(&scan_lock);
+			nr_used ++;
+		}
+		if (nr_used > 0) {
+			bio->bi_sector = block * (super->s_blocksize >> 9);
+			bio->bi_bdev = super->s_bdev;
+			bio->bi_size = super->s_blocksize * nr_used;
+			bio->bi_vcnt = nr_used;
+
+			/* Check if we are allowed to write at all */
+			if ( super->s_flags & MS_RDONLY ) {
+				int i;
+				for ( i = 0; i < nr_used ; i++) {
+					struct page *pg = bio->bi_io_vec[i].bv_page;
+					ClearPageWriteback(pg);
+					JF_CLR((jnode *)pg->private, JNODE_WRITEBACK);
+					JF_SET((jnode *)pg->private, JNODE_DIRTY);
+				}
+				bio_put(bio);
+			} else {
+				add_fq_to_bio(fq, bio);
+				reiser4_submit_bio(WRITE, bio);
+			}
+
+			block += nr_used - 1;
+			update_blocknr_hint_default (super, &block);
+			block += 1;
+		} else {
+			reiser4_stat_inc(txnmgr.empty_bio);
+			bio_put(bio);
+		}
+		nr -= nr_used;
+	}
+	return 0;
+}
+
+/* This is a procedure which recovers a contiguous sequences of disk block
+   numbers in the given list of j-nodes and submits write requests on this
+   per-sequence basis */
+int write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_submitted)
+{
+	int ret;
+	jnode *beg;
+
+	spin_lock(&scan_lock);
+	beg = capture_list_front(head);
+	while (!capture_list_end(head, beg)) {
+		int nr = 1;
+		jnode *cur;
+
+		JF_SET(beg, JNODE_SCANNED);
+		cur = capture_list_next(beg);
+
+		while (!capture_list_end(head, cur)) {
+			if (*jnode_get_block(cur) != *jnode_get_block(beg) + nr) {
+				/* jnode from which next sequence of blocks starts */
+				JF_SET(cur, JNODE_SCANNED);
+				break;
+			}
+			++nr;
+			cur = capture_list_next(cur);
+		}
+		spin_unlock(&scan_lock);
+
+		ret = jnode_extent_write(head, beg, nr, jnode_get_block(beg), fq);
+		if (ret) {
+			JF_CLR(beg, JNODE_SCANNED);
+			return ret;
+		}
+
+		if (nr_submitted)
+			*nr_submitted += nr;
+
+		spin_lock(&scan_lock);
+		JF_CLR(beg, JNODE_SCANNED);
+		beg = cur;
+	}
+
+	spin_unlock(&scan_lock);
+	return 0;
+}
+
+#else
 
 /* put overwrite set back to atom's clean list */
 static void put_overwrite_set(struct commit_handle * ch)
@@ -808,6 +1151,8 @@ int write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_sub
 	return 0;
 }
 
+#endif /* ! REISER4_COPY_ON_CAPTURE */
+
 /* allocate given number of nodes over the journal area and link them into a
    list, return pointer to the first jnode in the list */
 static int
@@ -919,6 +1264,124 @@ free_not_assigned:
 	return ret;
 }
 
+#if REISER4_COPY_ON_CAPTURE
+
+/* add given wandered mapping to atom's wandered map
+   this starts from jnode which is in JNODE_SCANNED state.  */
+static int
+add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
+{
+	int ret;
+	blocknr_set_entry *new_bsep = NULL;
+	reiser4_block_nr block;
+	int first;
+	txn_atom *atom;
+
+	assert("zam-568", block_p != NULL);
+	block = *block_p;
+	assert("zam-569", len > 0);
+	assert("vs-1422", JF_ISSET(cur, JNODE_SCANNED));
+
+	first = 1;
+	spin_lock(&scan_lock);
+
+	while ((len--) > 0) {
+		if (!first)
+			JF_SET(cur, JNODE_SCANNED);
+		spin_unlock(&scan_lock);
+
+		do {
+			atom = get_current_atom_locked();
+			assert("zam-536", !blocknr_is_fake(jnode_get_block(cur)));
+			ret = blocknr_set_add_pair(atom, &atom->wandered_map, &new_bsep, jnode_get_block(cur), &block);
+		} while (ret == -EAGAIN);
+
+		if (ret) {
+			/* deallocate blocks which were not added to wandered
+			   map */
+			reiser4_block_nr wide_len = len;
+
+			reiser4_dealloc_blocks(&block, &wide_len, BLOCK_NOT_COUNTED,
+				BA_FORMATTED/* formatted, without defer */, "add_region_to_wmap");
+			
+			if (!first)
+				JF_CLR(cur, JNODE_SCANNED);
+			return ret;
+		}
+
+		UNLOCK_ATOM(atom);
+
+		spin_lock(&scan_lock);
+		if (!first)
+			JF_CLR(cur, JNODE_SCANNED);
+		cur = capture_list_next(cur);
+		++block;
+		first = 0;
+	}
+	spin_unlock(&scan_lock);
+
+	return 0;
+}
+
+/* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
+   submit IO for allocated blocks.  We assume that current atom is in a stage
+   when any atom fusion is impossible and atom is unlocked and it is safe. */
+static int
+alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
+{
+	reiser4_block_nr block;
+
+	int rest;
+	int len;
+	int ret;
+
+	jnode *cur;
+
+	assert("zam-534", ch->overwrite_set_size > 0);
+
+	rest = ch->overwrite_set_size;
+
+	spin_lock(&scan_lock);
+	cur = capture_list_front(ch->overwrite_set);
+	while (!capture_list_end(ch->overwrite_set, cur)) {
+		assert("zam-567", JF_ISSET(cur, JNODE_OVRWR));
+		JF_SET(cur, JNODE_SCANNED);
+		spin_unlock(&scan_lock);
+
+		ret = get_more_wandered_blocks(rest, &block, &len);
+		if (ret) {
+			JF_CLR(cur, JNODE_SCANNED);
+			return ret;
+		}
+
+		rest -= len;
+
+		ret = add_region_to_wmap(cur, len, &block);
+		if (ret) {
+			JF_CLR(cur, JNODE_SCANNED);
+			return ret;
+		}
+
+		ret = jnode_extent_write(ch->overwrite_set, cur, len, &block, fq);
+		if (ret) {
+			JF_CLR(cur, JNODE_SCANNED);
+			return ret;
+		}
+
+		spin_lock(&scan_lock);
+		JF_CLR(cur, JNODE_SCANNED);
+		while ((len--) > 0) {
+			assert("zam-604", !capture_list_end(ch->overwrite_set, cur));
+			cur = capture_list_next(cur);
+		}
+	}
+	spin_unlock(&scan_lock);
+
+	return 0;
+}
+
+#else
+
 /* add given wandered mapping to atom's wandered map */
 static int
 add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
@@ -1004,6 +1467,36 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 
 	return 0;
 }
+
+#endif
+
+#if 0
+scan_capture_list(capture_list_head *head)
+{
+	jnode *cur;
+
+	spin_lock(&scan_lock);
+	cur = capture_list_front(head);
+	while (!capture_list_end(head, cur)) {
+		JF_SET(cur, JNODE_SCANNED);
+		spin_unlock(&scan_lock);
+
+		/* do whatever has to be done with protected jnode cur */
+		
+		spin_lock(&spin_lock);
+		JF_CLR(cur, JNODE_SCANNED);
+		cur = capture_list_next(cur);
+	}
+	spin_unlock(&scan_lock);
+}
+
+/* starting from JNODE_SCANNED jnode skip x jnodes*/
+jnode *move_forward(jnode *j, int x)
+{
+	assert();
+}
+
+#endif
 
 /* We assume that at this moment all captured blocks are marked as RELOC or
    WANDER (belong to Relocate o Overwrite set), all nodes from Relocate set
