@@ -1005,7 +1005,6 @@ static void dispatch_wb_list (txn_atom * atom, flush_queue_t * fq)
 				/* move from writeback list to clean list */
 				capture_list_remove(cur);
 				capture_list_push_back(&atom->clean_nodes, cur);
-				ON_DEBUG(cur->list = CLEAN_LIST);
 			}
 		}
 		UNLOCK_JNODE(cur);
@@ -1081,7 +1080,9 @@ static void atom_update_stat_data(txn_atom **atom)
 {
 	jnode *j;
 	
-	assert ("vs-1241", spin_atom_is_locked(*atom));
+	assert("vs-1241", spin_atom_is_locked(*atom));
+	assert("vs-1616", capture_list_empty(&(*atom)->inodes));
+
 	while (!capture_list_empty(&(*atom)->inodes)) {
 		struct inode *inode;
 
@@ -1204,8 +1205,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	   point, commit should be successful. */
 	/* XXX why waiters are not waken up at atom stage change? --nikita */
 	(*atom)->stage = ASTAGE_PRE_COMMIT;
-	ON_DEBUG(((*atom)->committer = current,
-		  (*atom)->coc_reloc = (*atom)->coc_ovrwr = (*atom)->coc_nopage = (*atom)->coc_uber = (*atom)->coc_clean = 0));
+	ON_DEBUG(((*atom)->committer = current));
 
 	ON_TRACE(TRACE_TXN, "commit atom %u: PRE_COMMIT\n", (*atom)->atom_id);
 	ON_TRACE(TRACE_FLUSH, "everything flushed atom %u: PRE_COMMIT\n", (*atom)->atom_id);
@@ -1256,6 +1256,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 
 	assert("jmacd-1070", atomic_read(&(*atom)->refcount) > 0);
 	assert("jmacd-1062", (*atom)->capture_count == 0);
+	BUG_ON((*atom)->capture_count != 0);
 	assert("jmacd-1071", spin_atom_is_locked(*atom));
 
 	ON_TRACE(TRACE_TXN, "commit atom finished %u refcount %d\n",
@@ -2529,21 +2530,11 @@ capture_assign_block_nolock(txn_atom * atom, jnode * node)
 	/* Pointer from jnode to atom is not counted in atom->refcount. */
 	node->atom = atom;
 
-	if (jnode_is_inode(node)) {
-		struct inode *inode;
-
-		capture_list_push_back(&atom->inodes, node);
-		inode = inode_by_reiser4_inode(container_of(node, reiser4_inode, inode_jnode));
-		grabbed2flush_reserved_nolock(atom,
-					      reserved_for_sd_update(inode));
-	} else {
-		capture_list_push_back(&atom->clean_nodes, node);
-		ON_DEBUG(node->list = CLEAN_LIST);
-	}
-
+	capture_list_push_back(&atom->clean_nodes, node);
 	atom->capture_count += 1;
 	/* reference to jnode is acquired by atom. */
 	jref(node);
+
 	LOCK_CNT_INC(t_refs);
 
 	ON_TRACE(TRACE_TXN, "capture %p for atom %u (captured %u)\n", node, atom->atom_id, atom->capture_count);
@@ -2613,7 +2604,7 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 
 		capture_list_remove(node);
 		capture_list_push_back(&atom->dirty_nodes[level], node);
-		ON_DEBUG(node->list = DIRTY_LIST);
+		
 		/*
 		 * JNODE_CCED bit protects clean copy (page created by
 		 * copy-on-capture) from being evicted from the memory. This
@@ -2731,7 +2722,6 @@ jnode_make_clean(jnode * node)
 
 			capture_list_remove_clean(node);
 			capture_list_push_front(&atom->clean_nodes, node);
-			ON_DEBUG(node->list = CLEAN_LIST);
 		}
 	}
 
@@ -2761,7 +2751,6 @@ reiser4_internal void jnode_make_wander_nolock (jnode * node)
 
 	capture_list_remove_clean(node);
 	capture_list_push_back(&atom->ovrwr_nodes, node);
-	ON_DEBUG(node->list = OVRWR_LIST);
 	JF_SET(node, JNODE_OVRWR);
 }
 
@@ -3371,6 +3360,7 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 	zcount += capture_fuse_jnode_lists(large, &large->clean_nodes, &small->clean_nodes);
 	zcount += capture_fuse_jnode_lists(large, &large->ovrwr_nodes, &small->ovrwr_nodes);
 	zcount += capture_fuse_jnode_lists(large, &large->writeback_nodes, &small->writeback_nodes);
+
 	zcount += capture_fuse_jnode_lists(large, &large->inodes, &small->inodes);
 	tcount += capture_fuse_txnh_lists(large, &large->txnh_list, &small->txnh_list);
 
@@ -3627,30 +3617,31 @@ replace_on_capture_list(jnode *node, jnode *copy)
 {
 	assert("vs-1415", node->atom);
 	assert("vs-1489", !capture_list_is_clean(node));
+	assert("vs-1493", JF_ISSET(copy, JNODE_CC) && JF_ISSET(copy, JNODE_HEARD_BANSHEE));
+
+	copy->state = node->state | (1 << JNODE_CC) | (1 << JNODE_HEARD_BANSHEE);
 
 	/* insert jnode @copy into capture list before jnode @node */
 	capture_list_insert_before(node, copy);
-	ON_DEBUG(copy->list = node->list);
+	jref(copy);
 	copy->atom = node->atom;
-	atomic_inc(&copy->x_count);
-	assert("vs-1493", JF_ISSET(copy, JNODE_CC) && JF_ISSET(copy, JNODE_HEARD_BANSHEE));
-	copy->state = node->state | (1 << JNODE_CC) | (1 << JNODE_HEARD_BANSHEE);
+	node->atom->capture_count ++;
 
-	/* this resembles uncapture */
- 	ON_DEBUG_MODIFY(znode_set_checksum(node, 1));
-	JF_CLR(node, JNODE_DIRTY);
-	JF_CLR(node, JNODE_RELOC);
-	JF_CLR(node, JNODE_OVRWR);
-	JF_CLR(node, JNODE_CREATED);
-	JF_CLR(node, JNODE_WRITEBACK);
-	JF_CLR(node, JNODE_REPACK);
-	clear_cced_bits(node);
-
-	capture_list_remove_clean(node);
-	ON_DEBUG(node->list = NOT_CAPTURED);
-	assert("vs-1488", capture_list_is_clean(node));
-	node->atom = 0;
-	atomic_dec(&node->x_count);
+	{
+		ON_DEBUG_MODIFY(znode_set_checksum(node, 1));
+		JF_CLR(node, JNODE_DIRTY);
+		JF_CLR(node, JNODE_RELOC);
+		JF_CLR(node, JNODE_OVRWR);
+		JF_CLR(node, JNODE_CREATED);
+		JF_CLR(node, JNODE_WRITEBACK);
+		JF_CLR(node, JNODE_REPACK);
+		clear_cced_bits(node);
+		
+		capture_list_remove_clean(node);
+		node->atom->capture_count --;
+		atomic_dec(&node->x_count);
+		node->atom = 0;
+	}
 }
 
 /* when capture request is made for a node which is captured but was never
@@ -3658,27 +3649,36 @@ replace_on_capture_list(jnode *node, jnode *copy)
 static int
 copy_on_capture_clean(jnode *node, txn_atom *atom)
 {
-	int result;
-
 	assert("vs-1432", spin_jnode_is_locked(node));
 	spin_lock(&scan_lock);
 	if (capturable(node, atom)) {
+		{
+			ON_DEBUG_MODIFY(znode_set_checksum(node, 1));
+			JF_CLR(node, JNODE_DIRTY);
+			JF_CLR(node, JNODE_RELOC);
+			JF_CLR(node, JNODE_OVRWR);
+			JF_CLR(node, JNODE_CREATED);
+			JF_CLR(node, JNODE_WRITEBACK);
+			JF_CLR(node, JNODE_REPACK);
+			clear_cced_bits(node);
+			
+			capture_list_remove_clean(node);
+			node->atom->capture_count --;
+			atomic_dec(&node->x_count);	
+			node->atom = 0;
+		}
+
 		spin_unlock(&scan_lock);
-		uncapture_block(node);
-		/* atom is protected by stage >= ASTAGE_PRE_COMMIT, so no
-		   UNLOCK_ATOM here */
-		jput(node);
-		reiser4_stat_inc(coc.ok_clean);
-		ON_DEBUG(atom->coc_clean ++);
-		return 0;
-	} else {
-		/* may be we should restart capture_copy rather then wait in capture_fuse_wait */
 		UNLOCK_JNODE(node);
-		result = RETERR(-E_REPEAT);
+
+		reiser4_stat_inc(coc.ok_clean);
+		return 0;
 	}
+
+	UNLOCK_JNODE(node);
 	spin_unlock(&scan_lock);
 
-	return result;
+	return RETERR(-E_REPEAT);
 }
 
 /* capture request is made for node which does not have page. In most cases this
@@ -3707,10 +3707,8 @@ copy_on_capture_nopage(jnode *node, txn_atom *atom)
 		set_cced_bit(node);
 		if (znode_above_root(JZNODE(node))) {
 			reiser4_stat_inc(coc.ok_uber);
-			ON_DEBUG(atom->coc_uber ++);
 		} else {
 			reiser4_stat_inc(coc.ok_nopage);
-			ON_DEBUG(atom->coc_nopage ++);
 		}
 		result = 0;
 	} else {
@@ -3737,6 +3735,18 @@ static void check_coc(jnode * node, struct page * page)
 		 * debugging. */
 		assert("nikita-3253", z->nr_items == d16tocpu(&nh->nr_items));
 		kunmap(page);
+	}
+}
+
+static void
+lock_two_nodes(jnode *node1, jnode *node2)
+{
+	if (node1 > node2) {
+		LOCK_JNODE(node2);
+		LOCK_JNODE(node1);		
+	} else {
+		LOCK_JNODE(node1);
+		LOCK_JNODE(node2);		
 	}
 }
 
@@ -3769,7 +3779,8 @@ real_copy_on_capture(jnode *node, txn_atom *atom)
 				to = kmap(new_page);
 				lock_page(page);
 				from = kmap(page);
-				LOCK_JNODE(node);
+				lock_two_nodes(node, copy);
+				/*LOCK_JNODE(node);*/
 				spin_lock(&scan_lock);
 				if (capturable(node, atom)) {
 					int was_jloaded; /* if node was jloaded
@@ -3792,10 +3803,8 @@ real_copy_on_capture(jnode *node, txn_atom *atom)
 					/* statistics */
 					if (JF_ISSET(copy, JNODE_RELOC)) {
 						reiser4_stat_inc(coc.ok_reloc);
-						ON_DEBUG(atom->coc_reloc ++);
 					} else if (JF_ISSET(copy, JNODE_OVRWR)) {
 						reiser4_stat_inc(coc.ok_ovrwr);
-						ON_DEBUG(atom->coc_ovrwr ++);
 					} else
 						impossible("", "");
 
@@ -3810,6 +3819,7 @@ real_copy_on_capture(jnode *node, txn_atom *atom)
 					assert("vs-1419", page_count(new_page) >= 3);
 					spin_unlock(&scan_lock);
 					UNLOCK_JNODE(node);
+					UNLOCK_JNODE(copy);
 					unlock_page(page);
 
 					if (was_jloaded) {
@@ -3834,6 +3844,7 @@ real_copy_on_capture(jnode *node, txn_atom *atom)
 
 				spin_unlock(&scan_lock);
 				UNLOCK_JNODE(node);
+				UNLOCK_JNODE(copy);
 				kunmap(page);
 				unlock_page(page);
 				kunmap(new_page);
@@ -3984,7 +3995,6 @@ reiser4_internal void uncapture_block(jnode * node)
 #endif
 
 	capture_list_remove_clean(node);
-	ON_DEBUG(node->list = NOT_CAPTURED);
 	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 		assert("zam-925", atom_isopen(atom));
 		ON_DEBUG(atom->num_queued --);
@@ -3992,6 +4002,7 @@ reiser4_internal void uncapture_block(jnode * node)
 	}
 	atom->capture_count -= 1;
 	node->atom = NULL;
+
 	UNLOCK_JNODE(node);
 	LOCK_CNT_DEC(t_refs);
 }
@@ -4009,7 +4020,6 @@ insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node)
 	assert("vs-1433", !jnode_is_unformatted(node) && !jnode_is_znode(node));
 
 	capture_list_push_front(&atom->ovrwr_nodes, node);
-	ON_DEBUG(node->list = OVRWR_LIST);
 	jref(node);
 	node->atom = atom;
 	atom->capture_count++;
