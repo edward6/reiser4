@@ -37,11 +37,14 @@ static void direntry40_build_key_by_objid(void *key, reiserfs_plugin_t *plugin,
     function.
 */
 static void direntry40_build_objid_by_params(reiserfs_objid_t *objid, 
-    oid_t locality, oid_t objectid)
+    oid_t locality, oid_t objectid, reiserfs_plugin_t *plugin)
 {
+    uint8_t key[MAX_KEY_SIZE];
     aal_assert("vpf-089", objid != NULL, return);
-    objid_set_locality(objid, locality);
-    objid_set_objectid(objid, objectid);
+    
+    plugin->key.clean(key);
+    plugin->key.build_file_key(key, KEY40_SD_MINOR, locality, objectid, 0);
+    aal_memcpy(objid, key, sizeof(reiserfs_objid_t));
 }
 
 #ifndef ENABLE_COMPACT
@@ -75,13 +78,10 @@ static error_t direntry40_create(reiserfs_direntry40_t *direntry,
 	    direntry_info->parent_id, direntry_info->object_id, 
 	    direntry_info->entry[i].name, direntry_info->hash_plugin);
 
-	entryid_set_objectid(&direntry->entry[i].entryid, 
-	    key_plug->key.get_objectid(key));
-	entryid_set_offset(&direntry->entry[i].entryid, 
-	    key_plug->key.get_offset(key));
+	aal_memcpy(&direntry->entry[i].entryid, key + sizeof(uint64_t), sizeof(reiserfs_entryid_t));
 	
 	direntry40_build_objid_by_params((reiserfs_objid_t *)((char *)direntry + offset), 
-	    direntry_info->entry[i].locality, direntry_info->entry[i].objectid);
+	    direntry_info->entry[i].locality, direntry_info->entry[i].objectid, key_plug);
 	
 	len = aal_strlen(direntry_info->entry[i].name);
 	offset += sizeof(reiserfs_objid_t);
