@@ -140,7 +140,7 @@ typedef struct {
 	   prepend @count units to @target. @target has been already
 	   expanded by @free_space bytes. That must be exactly what is
 	   needed for those items in @target. If @where_is_free_space
-	   == append - free space is at the end of @target item,
+	   == SHIFT_LEFT - free space is at the end of @target item,
 	   othersize - it is in the beginning of it. */
 	void (*copy_units) (coord_t * target, coord_t * source,
 			    unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space);
