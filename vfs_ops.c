@@ -17,6 +17,7 @@
 #include "plugin/oid/oid.h"
 #include "plugin/disk_format/disk_format.h"
 #include "plugin/plugin.h"
+#include "plugin/object.h"
 #include "txnmgr.h"
 #include "jnode.h"
 #include "znode.h"
@@ -1062,7 +1063,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 		result = -ENOTDIR;
 	else if (dplug->create_child != NULL) {
 		struct inode *child;
-
+		
 		result = dplug->create_child(parent, dentry, data);
 		child = dentry->d_inode;
 		if (unlikely(result != 0)) {
@@ -1077,6 +1078,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 				 dentry->d_name.name, data->mode,
 				 get_inode_oid(child));
 		}
+		
 	} else
 		result = -EPERM;
 
@@ -1381,12 +1383,15 @@ reiser4_dirty_inode(struct inode *inode)
 	 */
 
 	assert("nikita-2523", inode != NULL);
-
+	if (reiser4_grab_space_exact(1, 0))
+		goto no_space;
+	
+	warning("vpf-332", "SPACE: ditry inode grabs 1 block.");
 	result = reiser4_write_sd(inode);
 	if (result != 0)
 		warning("nikita-2524", "Failed to write sd of %llu: %i",
 			get_inode_oid(inode), result);
-
+no_space:
 	__REISER4_EXIT(&__context);
 }
 
@@ -1432,8 +1437,15 @@ reiser4_delete_inode(struct inode *object)
 
 	if (inode_get_flag(object, REISER4_LOADED)) {
 		file_plugin *fplug;
+		reiser4_block_nr reserve;
 		dir_plugin *dplug;
 
+		if (reiser4_grab_space_exact(reserve = 
+			(inode_file_plugin(object)->estimate.truncate(object, 0) +
+			inode_file_plugin(object)->estimate.delete(object)), 0))
+			goto no_space;
+		
+		warning("vpf-333", "SPACE: delete inode grabs %llu blocks.", reserve);
 		get_exclusive_access(object);
 		truncate_object(object, (loff_t) 0);
 		drop_exclusive_access(object);
@@ -1446,6 +1458,7 @@ reiser4_delete_inode(struct inode *object)
 		if ((fplug != NULL) && (fplug->delete != NULL))
 			fplug->delete(object);
 	}
+no_space:
 	object->i_blocks = 0;
 	clear_inode(object);
 	__REISER4_EXIT(&__context);
