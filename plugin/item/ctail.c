@@ -27,6 +27,8 @@ Internal on-disk structure:
 #include "../../carry.h"
 #include "../../tree.h"
 #include "../../inode.h"
+#include "../../super.h"
+#include "../../context.h"
 #include "ctail.h"
 #include "../../page_cache.h"
 
@@ -270,7 +272,8 @@ cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
    tail_unit_key */
 
 /* collect locked pages */
-int grab_cache_cluster(struct inode * inode,
+__attribute__((unused)) static int
+grab_cache_cluster(struct inode * inode,
 		       unsigned long index, /* index of a first page */
 		       struct page ** page)
 {
@@ -297,14 +300,15 @@ int grab_cache_cluster(struct inode * inode,
 }
 
 /* collect jnodes */
-int jnodes_of_cluster(struct page * page, /* first page of the cluster */ 
+__attribute__((unused)) static int
+jnodes_of_cluster(struct page ** page, /* first page of the cluster */ 
 		      struct inode * inode,
 		      jnode ** jnode)
 {
 	int i;
 	int result = 0;
 	for (i=0; i < (1 << inode_cluster_shift(inode)); i++, page++, jnode++) {
-		*jnode = jnode_of_page(page);
+		*jnode = jnode_of_page(*page);
 		if (IS_ERR(*jnode)) {
 			result = PTR_ERR(*jnode);
 			break;
@@ -320,20 +324,37 @@ int jnodes_of_cluster(struct page * page, /* first page of the cluster */
 	return result;
 }
 
+__attribute__((unused)) static void
+set_cluster_uptodate(struct inode * inode,
+		     struct page ** page /* first page of the cluster */)
+{
+	int i;
+	for (i=0; i < (1 << inode_cluster_shift(inode)); i++, page++)
+		SetPageUptodate(*page);
+}
+
 __attribute__((unused)) static int
 prepare_cluster(struct inode *inode, struct page * pages, loff_t file_off, unsigned clust_off, unsigned to_clust)
 {
 	return 0;
 }
 
+/* This is the interface to capture cluster nodes via their struct page reference.
+   Any two blocks of the same cluster contain dependent modification and should
+   commit at the same time */
+int
+try_capture_cluster(struct page **pg, znode_lock_mode lock_mode, int non_blocking)
+{
+	return 0;
+}
 /* plugin->u.item.s.file.write */
 int
 write_ctail(struct inode *inode, coord_t *coord UNUSED_ARG,
 	    lock_handle *lh UNUSED_ARG, flow_t * f,
 	    hint_t *hint UNUSED_ARG, int grabbed)
 {
+	int result = 0;
 #if 0
-	int result;
 	loff_t file_off;
 	unsigned clust_off, to_clust;
 	struct page * page;
@@ -341,8 +362,6 @@ write_ctail(struct inode *inode, coord_t *coord UNUSED_ARG,
 
 	assert("edward-159", current_blocksize == PAGE_CACHE_SIZE);
 	assert("edward-160", f->user == 1);
-
-	result = 0;
 	
 	/* write position */
 	file_off = get_key_offset(&f->key);
@@ -350,8 +369,10 @@ write_ctail(struct inode *inode, coord_t *coord UNUSED_ARG,
 	clust_off = (unsigned) (file_off & (inode_cluster_size(inode) - 1));
 	
 	do {
+		unsigned page_off, to_page;
 		struct page * pages[1 << inode_cluster_shift(inode)];
 		jnode * jnodes[1 << inode_cluster_shift(inode)];
+		/* index of first cluster page */
 		unsigned long index =
 			(unsigned long) (file_off >>
 					 PAGE_CACHE_SHIFT >>
@@ -360,28 +381,58 @@ write_ctail(struct inode *inode, coord_t *coord UNUSED_ARG,
 		to_clust = inode_cluster_size(inode) - clust_off;
 		if (to_clust > f->length)
 			to_clust = f->length;
+		/* offset in page */
+		page_off = clust_off & (PAGE_CACHE_SIZE - 1);
 		
-		result = grab_cache_cluster(inode, index, &pages);
+		result = grab_cache_cluster(inode, index, pages);
 		if (result)
-			goto exit;
-		result = jnodes_of_cluster(pages, inode, &jnodes);
+			goto exit1;
+		result = jnodes_of_cluster(pages, inode, jnodes);
 		if (result)
-			goto exit;
+			goto exit2;
 		result = prepare_cluster(inode, pages, file_off, clust_off, to_clust);
 		if (result)
-			goto exit;
+			goto exit3;
 		assert("edward-161", schedulable());
-		/* copy user data into cluster */
-		for (i = clust_off >> PAGE_CACHE_SHIFT;
+
+                /* copy user data into cluster */
+ 		for (i = clust_off >> PAGE_CACHE_SHIFT;
 		     i <= clust_off + to_clust >> PAGE_CACHE_SHIFT; i++) {
-			
-			/* to be continued */
+			to_page = PAGE_CACHE_SIZE - page_off;
+			if (to_page > to_clust)
+				to_page = to_clust;
+			result = __copy_from_user((char *)kmap(pages[i]) + page_off, f->data, to_page);
+			kunmap(pages[i]);
+			if (unlikely(result)) {
+				result = -EFAULT;
+				goto exit3;
+			}
+			page_off = 0;
 		}
+		set_cluster_uptodate(inode, pages);
+		result = try_capture_cluster(pages, ZNODE_WRITE_LOCK, 0);
+		if (result)
+			goto exit3;
+		cluster_jnodes_make_dirty(jnodes);
+		put_cluster_jnodes(jnodes);
+		unlock_cluster_pages(pages);
+		cluster_pages_release(pages);
+
+		clust_off = 0;
+		file_off += to_clust;
+		move_flow_forward(f, to_clust);
 		
+	exit3:
+		put_cluster_jnodes(jnodes);
+	exit2:
+		unlock_cluster_pages(pages);
+		cluster_pages_release(pages);
+	exit1:
+		break;
 	} while (f->length);
-#endif		
-	return 0;
-} 
+#endif
+	return result;
+}
 
 /* plugin->u.item.s.file.read */
 int
