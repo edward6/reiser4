@@ -666,9 +666,8 @@ void print_page( const char *prefix, struct page *page )
 		info( "null page\n" );
 		return;
 	}
-	kmap (page);
-	info( "%s: page index: %lu virtual: %p mapping: %p count: %i private: %lx\n",
-	      prefix, page -> index, page_address( page ), page -> mapping, 
+	info( "%s: page index: %lu mapping: %p count: %i private: %lx\n",
+	      prefix, page -> index, page -> mapping, 
 	      atomic_read( &page -> count ), page -> private );
 	info( "\tflags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s\n",
 	      page_flag_name( page,  PG_locked ),
@@ -693,7 +692,6 @@ void print_page( const char *prefix, struct page *page )
 		info_znode( "\tpage jnode", ( znode * ) jprivate( page ) );
 		info( "\n" );
 	}
-	kunmap (page);
 }
 
 
