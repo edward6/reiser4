@@ -1302,6 +1302,8 @@ free_ow_set:
 		drop_io_head(cur);
 	}
 
+	capture_list_remove_clean (tx_head);
+
 	done_commit_handle(&ch);
 
 	return ret;
