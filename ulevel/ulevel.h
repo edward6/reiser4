@@ -124,6 +124,9 @@ void run_##a ()\
 	(void) (&_x == &_y);		\
 	_x > _y ? _x : _y; })
 
+
+#define MEMORY_PRESSURE_THRESHOLD   (10000)
+
 /* from <linux/list.h> */
 
 /*
@@ -962,6 +965,8 @@ static inline int block_read_full_page(struct page *page UNUSED_ARG,
 static inline void mark_page_accessed( struct page *page UNUSED_ARG )
 {
 }
+
+extern void declare_memory_pressure( void );
 
 #define PAGE_SHIFT	10
 #define PAGE_SIZE	(1UL << PAGE_SHIFT)
