@@ -55,6 +55,7 @@ size_t inode_cluster_size (struct inode *);
 crypto_stat_t * inode_crypto_stat(struct inode *);
 unsigned long pg_to_clust(unsigned long, struct inode *);
 loff_t clust_to_off(unsigned long, struct inode *);
+unsigned long off_to_pg(loff_t);
 
 void reiser4_cluster_init(reiser4_cluster_t *);
 void put_cluster_data(reiser4_cluster_t *, struct inode *);
@@ -69,6 +70,8 @@ int page_of_cluster(struct page *, reiser4_cluster_t *, struct inode *);
 int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
 int flush_cluster_pages(reiser4_cluster_t *, struct inode *);
 int deflate_cluster(reiser4_cluster_t *, struct inode *);
+void truncate_pages_cryptcompress(struct address_space *, loff_t);
+
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"
