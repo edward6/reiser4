@@ -269,12 +269,119 @@ cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
 /* plugin->u.item.b.unit_key :
    tail_unit_key */
 
-/* plugin->u.item.s.file.write */
-int
-write_ctail(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, hint_t *hint, int grabbed)
+/* collect locked pages */
+int grab_cache_cluster(struct inode * inode,
+		       unsigned long index, /* index of a first page */
+		       struct page ** page)
+{
+	int i;
+	int result = 0;
+	assert("edward-158", !(index & ~(~0UL << inode_cluster_shift(inode))));
+	
+	for (i=0; i < (1 << inode_cluster_shift(inode)); i++, page++) {
+		*page = grab_cache_page(inode->i_mapping, index + i);
+		if (!(*page)) {
+			result = RETERR(-ENOMEM);
+			break;
+		}
+	}
+	if (result) {
+		while(i) {
+			i--;
+			page--;
+			reiser4_unlock_page(*page);
+			page_cache_release(*page);
+		}
+	}
+	return result;
+}
+
+/* collect jnodes */
+int jnodes_of_cluster(struct page * page, /* first page of the cluster */ 
+		      struct inode * inode,
+		      jnode ** jnode)
+{
+	int i;
+	int result = 0;
+	for (i=0; i < (1 << inode_cluster_shift(inode)); i++, page++, jnode++) {
+		*jnode = jnode_of_page(page);
+		if (IS_ERR(*jnode)) {
+			result = PTR_ERR(*jnode);
+			break;
+		}
+	}
+	if (result) {
+		while(i) {
+			i--;
+			jnode--;
+			jput(*jnode);
+		}
+	}
+	return result;
+}
+
+__attribute__((unused)) static int
+prepare_cluster(struct inode *inode, struct page * pages, loff_t file_off, unsigned clust_off, unsigned to_clust)
 {
 	return 0;
 }
+
+/* plugin->u.item.s.file.write */
+int
+write_ctail(struct inode *inode, coord_t *coord UNUSED_ARG,
+	    lock_handle *lh UNUSED_ARG, flow_t * f,
+	    hint_t *hint UNUSED_ARG, int grabbed)
+{
+#if 0
+	int result;
+	loff_t file_off;
+	unsigned clust_off, to_clust;
+	struct page * page;
+	int i;
+
+	assert("edward-159", current_blocksize == PAGE_CACHE_SIZE);
+	assert("edward-160", f->user == 1);
+
+	result = 0;
+	
+	/* write position */
+	file_off = get_key_offset(&f->key);
+	/* offset in cluster */
+	clust_off = (unsigned) (file_off & (inode_cluster_size(inode) - 1));
+	
+	do {
+		struct page * pages[1 << inode_cluster_shift(inode)];
+		jnode * jnodes[1 << inode_cluster_shift(inode)];
+		unsigned long index =
+			(unsigned long) (file_off >>
+					 PAGE_CACHE_SHIFT >>
+					 inode_cluster_shift(inode) <<
+					 inode_cluster_shift(inode));
+		to_clust = inode_cluster_size(inode) - clust_off;
+		if (to_clust > f->length)
+			to_clust = f->length;
+		
+		result = grab_cache_cluster(inode, index, &pages);
+		if (result)
+			goto exit;
+		result = jnodes_of_cluster(pages, inode, &jnodes);
+		if (result)
+			goto exit;
+		result = prepare_cluster(inode, pages, file_off, clust_off, to_clust);
+		if (result)
+			goto exit;
+		assert("edward-161", schedulable());
+		/* copy user data into cluster */
+		for (i = clust_off >> PAGE_CACHE_SHIFT;
+		     i <= clust_off + to_clust >> PAGE_CACHE_SHIFT; i++) {
+			
+			/* to be continued */
+		}
+		
+	} while (f->length);
+#endif		
+	return 0;
+} 
 
 /* plugin->u.item.s.file.read */
 int
@@ -469,12 +576,13 @@ writepage_ctail(coord_t * coord, lock_handle * lh, struct page *page)
 }
 
 /* return true if the cluster contains specified page */
-static int page_of_cluster(struct page * page, reiser4_cluster_t * clust, struct inode * inode)
+__attribute__((unused)) static int
+page_of_cluster(struct page * page, reiser4_cluster_t * clust, struct inode * inode)
 {
-	assert("edward-xx", page != NULL);
-	assert("edward-xx", clust != NULL);
-	assert("edward-xx", inode != NULL);
-	assert("edward-xx", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
+	assert("edward-162", page != NULL);
+	assert("edward-163", clust != NULL);
+	assert("edward-164", inode != NULL);
+	assert("edward-165", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
 	
 	return (clust->buf != NULL &&
 		clust->index <= page->index &&
