@@ -68,10 +68,10 @@ typedef struct {;
 typedef __u32 oid_hi_t;
 #define set_inode_oid(inode, oid) do { \
 	assert("nikita-2519", inode != NULL); \
-	inode->i_ino = (ino_t)oid; reiser4_inode_data(inode)->oid_hi = (oid) >> OID_HI_SHIFT; \
+	inode->i_ino = (ino_t)oid; (reiser4_inode_data(inode)->oid_hi = (oid) >> OID_HI_SHIFT; \
 	assert("nikita-2521", get_inode_oid(inode) == oid); \
 	 } while (0)
-#define get_inode_oid(inode) ((reiser4_inode_data(inode)->oid_hi << OID_HI_SHIFT) | inode->i_ino)
+#define get_inode_oid(inode) (((__u64)reiser4_inode_data(inode)->oid_hi << OID_HI_SHIFT) | inode->i_ino)
 #endif
 
 #define OID_HI_SHIFT (sizeof(ino_t) * 8)
