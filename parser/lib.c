@@ -258,6 +258,7 @@ static lnode * get_lnode(struct reiser4_syscall_w_space * ws, struct inode * ino
 	reiser4_key * k_rez,* l_rez;
 	PTRACE( ws, " inode=%p", inode );
 	ln = alloc_lnode( ws );
+	/*
 	if ( is_reiser4_inode( inode ) )
 		{
 			ln->h.type = LNODE_LW;
@@ -267,11 +268,13 @@ static lnode * get_lnode(struct reiser4_syscall_w_space * ws, struct inode * ino
 		}
 	else
 		{
+	*/
 			ln->h.type = LNODE_DENTRY;
 			ln->dentry.dentry = d_alloc_anon(inode);
 //			ln->inode.inode = inode;
 			PTRACE( ws, "no r4 lnode=%p,dentry=%p", ln, ln->dentry.dentry);
-		}
+//		}
+
 	PTRACE( ws, " lnode=%p", ln );
 	return ln;
 }
