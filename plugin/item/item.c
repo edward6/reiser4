@@ -779,13 +779,13 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.unit_key = unit_key_extent,
 			.show = show_extent,
 			.estimate = NULL,
-			.item_data_by_flow = NULL
+			.item_data_by_flow = NULL,
 #if REISER4_DEBUG_OUTPUT
-			, .print = print_extent,
-			.item_stat = item_stat_extent
+			.print = print_extent,
+			.item_stat = item_stat_extent,
 #endif
 #if REISER4_DEBUG
-			, .check = check_extent
+			.check = check_extent
 #endif
 		},
 		.f = {
