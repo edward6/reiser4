@@ -2640,10 +2640,10 @@ jnode_lock_parent_coord(jnode         * node,
 {
 	int ret;
 
-	assert("edward-53", jnode_has_parent(node) || jnode_is_znode(node));
-	assert("edward-54", jnode_has_parent(node)|| znode_is_any_locked(JZNODE(node)));
+	assert("edward-53", jnode_is_unformatted(node) || jnode_is_znode(node));
+	assert("edward-54", jnode_is_unformatted(node) || znode_is_any_locked(JZNODE(node)));
 	
-	if (jnode_has_parent(node)) {
+	if (!jnode_is_znode(node)) {
 		reiser4_key key;
 		tree_level stop_level = TWIG_LEVEL ;
 		lookup_bias bias = FIND_EXACT;
@@ -2652,6 +2652,9 @@ jnode_lock_parent_coord(jnode         * node,
 		   Generate a key for the appropriate entry,
 		   search in the tree using coord_by_key, which handles
 		   locking for us. */
+
+		assert("edward-168", !(jnode_get_type(node) == JNODE_BITMAP));
+		
 		jnode_build_key(node, &key);
 
 		if (jnode_is_cluster_page(node)) {
@@ -2665,6 +2668,10 @@ jnode_lock_parent_coord(jnode         * node,
 		switch (ret) {
 		case CBK_COORD_NOTFOUND:
 			if (jnode_is_cluster_page(node)) {
+				assert("edward-164", jnode_page(node) != NULL);
+				assert("edward-165", jnode_page(node)->mapping != NULL);
+				assert("edward-166", jnode_page(node)->mapping->host != NULL);
+				assert("edward-167", inode_get_flag(jnode_page(node)->mapping->host, REISER4_CLUSTER_KNOWN));
 				/* file was just created 
 				 * FIXME-EDWARD Process one cluster and insert appropriate items 
  				 * by (ino, coord, parent_lh, get_key_offset(&key)))
@@ -2970,14 +2977,14 @@ scan_common(flush_scan * scan, flush_scan * other)
 	int ret;
 
 	assert("nikita-2376", scan->node != NULL);
-	assert("edward-54", jnode_has_parent(scan->node) || jnode_is_znode(scan->node));
+	assert("edward-54", jnode_is_unformatted(scan->node) || jnode_is_znode(scan->node));
 
 	/* Special case for starting at a non-formatted node.  Optimization: we only want
 	   to search for the parent (which requires a tree traversal) once.  Obviously, we
 	   shouldn't have to call it once for the left scan and once for the right scan.
 	   For this reason, if we search for the parent during scan-left we then duplicate
 	   the coord/lock/load into the scan-right object. */
-	if (jnode_has_parent(scan->node)) {
+	if (jnode_is_unformatted(scan->node)) {
 
 		if (coord_is_invalid(&scan->parent_coord)) {
 
@@ -3014,7 +3021,7 @@ scan_common(flush_scan * scan, flush_scan * other)
 		*/
 		/* skip_first = false (i.e., starting position is
 		 * unformatted) */
-		if (jnode_is_unformatted(scan->node) && (ret = scan_extent(scan, 0)))
+		if ((ret = scan_extent(scan, 0)))
 			return ret;
 	}
 
