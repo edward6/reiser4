@@ -624,9 +624,6 @@ reiser4_writepages(struct address_space *mapping,
 		/* call file plugin method to capture anonymous pages and
 		 * anonymous jnodes */
 		ret = fplug->capture(inode, wbc, &captured);
-		if (captured)
-			ON_TRACE(TRACE_WRITEOUT, "%s: captured %ld pages\n",
-				 current->comm, captured);
 	}
 
 	move_inode_out_from_sync_inodes_loop(mapping);
