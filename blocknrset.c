@@ -39,9 +39,7 @@ typedef struct blocknr_pair blocknr_pair;
 #define BLOCKNR_SET_ENTRY_SIZE 128
 
 /* The number of blocks that can fit the blocknr data area. */
-
-/* ZAM-FIXME-HANS: remove all references to ents that are not references to flushing daemons */
-#define BLOCKNR_SET_ENTS_SIZE               \
+#define BLOCKNR_SET_ENTRIES_NUMBER               \
        ((BLOCKNR_SET_ENTRY_SIZE -           \
          2 * sizeof (unsigned) -            \
          sizeof (blocknr_set_list_link)) /  \
@@ -52,7 +50,7 @@ struct blocknr_set_entry {
 	unsigned nr_singles;
 	unsigned nr_pairs;
 	blocknr_set_list_link link;
-	reiser4_block_nr ents[BLOCKNR_SET_ENTS_SIZE];
+	reiser4_block_nr entries[BLOCKNR_SET_ENTRIES_NUMBER];
 };
 
 /* A pair of blocks as recorded in the blocknr_set_entry data. */
@@ -71,10 +69,10 @@ bse_avail(blocknr_set_entry * bse)
 {
 	unsigned used = bse->nr_singles + 2 * bse->nr_pairs;
 
-	assert("jmacd-5088", BLOCKNR_SET_ENTS_SIZE >= used);
+	assert("jmacd-5088", BLOCKNR_SET_ENTRIES_NUMBER >= used);
 	cassert(sizeof (blocknr_set_entry) == BLOCKNR_SET_ENTRY_SIZE);
 
-	return BLOCKNR_SET_ENTS_SIZE - used;
+	return BLOCKNR_SET_ENTRIES_NUMBER - used;
 }
 
 /* Initialize a blocknr_set_entry. */
@@ -118,7 +116,7 @@ bse_put_single(blocknr_set_entry * bse, const reiser4_block_nr * block)
 {
 	assert("jmacd-5099", bse_avail(bse) >= 1);
 
-	bse->ents[bse->nr_singles++] = *block;
+	bse->entries[bse->nr_singles++] = *block;
 }
 
 /* Get a pair of block numbers */
@@ -126,9 +124,9 @@ bse_put_single(blocknr_set_entry * bse, const reiser4_block_nr * block)
 static inline blocknr_pair *
 bse_get_pair(blocknr_set_entry * bse, unsigned pno)
 {
-	assert("green-1", BLOCKNR_SET_ENTS_SIZE >= 2 * (pno + 1));
+	assert("green-1", BLOCKNR_SET_ENTRIES_NUMBER >= 2 * (pno + 1));
 
-	return (blocknr_pair *) (bse->ents + BLOCKNR_SET_ENTS_SIZE - 2 * (pno + 1));
+	return (blocknr_pair *) (bse->entries + BLOCKNR_SET_ENTRIES_NUMBER - 2 * (pno + 1));
 }
 
 /* Add a pair of block numbers to a blocknr_set_entry */
@@ -164,13 +162,13 @@ blocknr_set_add(txn_atom * atom,
 		blocknr_set_entry ** new_bsep, const reiser4_block_nr * a, const reiser4_block_nr * b)
 {
 	blocknr_set_entry *bse;
-	unsigned ents_needed;
+	unsigned entries_needed;
 
 	assert("jmacd-5101", a != NULL);
 
-	ents_needed = (b == NULL) ? 1 : 2;
-/* ZAM-FIXME-HANS: remove this comment and tell me where blocknr_set_list_empty is defined? Also explain in email and comment the role of ents_needed in this condition.  */
-	if (blocknr_set_list_empty(&bset->entries) || bse_avail(blocknr_set_list_front(&bset->entries)) < ents_needed) {
+	entries_needed = (b == NULL) ? 1 : 2;
+/* ZAM-FIXME-HANS: remove this comment and tell me where blocknr_set_list_empty is defined? Also explain in email and comment the role of entries_needed in this condition.  */
+	if (blocknr_set_list_empty(&bset->entries) || bse_avail(blocknr_set_list_front(&bset->entries)) < entries_needed) {
 
 		/* See if a bse was previously allocated. */
 		if (*new_bsep == NULL) {
@@ -296,7 +294,7 @@ blocknr_set_merge(blocknr_set * from, blocknr_set * into)
 
 		/* Combine singles. */
 		for (into_avail = bse_avail(bse_into); into_avail != 0 && bse_from->nr_singles != 0; into_avail -= 1) {
-			bse_put_single(bse_into, &bse_from->ents[--bse_from->nr_singles]);
+			bse_put_single(bse_into, &bse_from->entries[--bse_from->nr_singles]);
 		}
 
 		/* Combine pairs. */
@@ -306,7 +304,7 @@ blocknr_set_merge(blocknr_set * from, blocknr_set * into)
 		}
 
 		/* If bse_from is empty, delete it now. */
-		if (bse_avail(bse_from) == BLOCKNR_SET_ENTS_SIZE) {
+		if (bse_avail(bse_from) == BLOCKNR_SET_ENTRIES_NUMBER) {
 			bse_free(bse_from);
 		} else {
 			/* Otherwise, bse_into is full or nearly full (e.g.,
@@ -346,7 +344,7 @@ blocknr_set_iterator(txn_atom * atom, blocknr_set * bset, blocknr_set_actor_f ac
 		int ret;
 
 		for (i = 0; i < entry->nr_singles; i++) {
-			ret = actor(atom, &entry->ents[i], NULL, data);
+			ret = actor(atom, &entry->entries[i], NULL, data);
 
 			/* We can't break a loop if delete flag is set. */
 			if (ret != 0 && !delete)
