@@ -9,6 +9,7 @@
 #include "../../znode.h"
 #include "../../tree.h"
 #include "../../super.h"
+#include "../../inode.h"
 
 #include <linux/fs.h>		/* for struct inode */
 #include <linux/quotaops.h>
@@ -351,16 +352,36 @@ static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t 
 {
 	int result;
 	struct sealed_coord hint;
-
+	loff_t new_size;
+	
 	set_hint(&hint, &f->key, coord);
 	done_lh(lh);
 	coord->node = 0;
-	result = update_sd_if_necessary(mapping->host, f);
+	new_size = get_key_offset(&f->key);
+	result = update_inode_and_sd_if_necessary(mapping->host, new_size, (new_size > mapping->host->i_size) ? 1 : 0);
 	if (result)
 		return result;
 
 	balance_dirty_pages(mapping);
 	return hint_validate(&hint, &f->key, coord, lh);
+}
+
+/* calculate number of blocks which can be dirtied/added when flow is inserted and stat data gets updated and grab them.
+   FIXME-VS: we may want to call grab_space with BA_CAN_COMMIT flag but that would require all that complexity with
+   sealing coord, releasing long term lock and validating seal later */
+static int
+insert_flow_reserve(tree_level height)
+{
+	grab_space_enable();
+	return reiser4_grab_space_exact(estimate_insert_flow(height) + estimate_one_insert_into_item(height), 0);
+}
+
+/* one block gets overwritten and stat data may get updated */
+static int
+overwrite_reserve(tree_level height)
+{
+	grab_space_enable();
+	return reiser4_grab_space_exact(1 + estimate_one_insert_into_item(height), 0);
 }
 
 /* plugin->u.item.s.file.write
@@ -392,13 +413,17 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 				result = -EDQUOT;
 				break;
 			}
-			result = insert_flow(coord, lh, f);
+			result = insert_flow_reserve(tree_by_inode(inode)->height);
+			if (!result)
+				result = insert_flow(coord, lh, f);
 			if (f->length)
 				DQUOT_FREE_SPACE_NODIRTY(inode, f->length);
 			break;
 
 		case OVERWRITE_ITEM:
-			result = overwrite_tail(coord, f);
+			result = overwrite_reserve(tree_by_inode(inode)->height);
+			if (!result)
+				result = overwrite_tail(coord, f);
 			break;
 
 		case RESEARCH:
@@ -413,14 +438,17 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 		}
 		zrelse(loaded);
 
-		if (result)
+		if (result) {
+			all_grabbed2free();
 			break;
+		}
 		/* throttle the writer */
 		result = tail_balance_dirty_pages(inode->i_mapping, f, coord, lh);
+		all_grabbed2free();
 		if (result) {
 			// reiser4_stat_tail_add(bdp_caused_repeats);
 			break;
-		}		
+		}
 	}
 
 	return result;
