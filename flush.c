@@ -2531,7 +2531,7 @@ static int znode_same_parents (znode *a, znode *b)
 	assert ("jmacd-7012", znode_is_write_locked (b));
 
 	spin_lock_tree (current_tree);
-	x = (a->ptr_in_parent_hint.node == b->ptr_in_parent_hint.node);
+	x = (a->in_parent.node == b->in_parent.node);
 	spin_unlock_tree (current_tree);
 	return x;
 }
