@@ -106,7 +106,6 @@ static kmem_cache_t *_txnh_slab = NULL; /* FIXME_LATER_JMACD Will it be used? */
 
 /* Initialize static variables in this file. */
 /* Audited by: umka (2002.06.13) */
-extern struct semaphore flush_semaphore;
 extern atomic_t flush_cnt;
 int
 txn_init_static (void)
@@ -114,7 +113,6 @@ txn_init_static (void)
 	assert ("jmacd-600", _atom_slab == NULL);
 	assert ("jmacd-601", _txnh_slab == NULL);
 
-	sema_init (& flush_semaphore, 1);
 	atomic_set (& flush_cnt, 0);
 
 	_atom_slab = kmem_cache_create ("txn_atom", sizeof (txn_atom),
