@@ -710,7 +710,8 @@ __fake_allocated2free(__u64 count, reiser4_ba_flags_t flags)
 void grabbed2free_mark(int mark)
 {
 	assert("nikita-3007", mark >= 0);
-	assert("nikita-3006", get_current_context()->grabbed_blocks >= mark);
+	assert("nikita-3006", 
+	       get_current_context()->grabbed_blocks >= (__u64)mark);
 	grabbed2free(get_current_context()->grabbed_blocks - mark, __FUNCTION__);
 }
 

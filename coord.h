@@ -61,16 +61,6 @@ struct coord {
 
 #define INVALID_PLUGID  ((char)((1 << 8) - 1))
 
-static inline item_plugin *item_plugin_by_id(reiser4_plugin_id id);
-
-static inline item_plugin *
-coord_iplug(const coord_t * coord)
-{
-	assert("nikita-2833", coord != NULL);
-	assert("nikita-2834", coord->iplugid != INVALID_PLUGID);
-	return item_plugin_by_id(coord->iplugid);
-}
-
 static inline void
 coord_clear_iplug(coord_t * coord)
 {
@@ -83,16 +73,6 @@ coord_is_iplug_set(const coord_t * coord)
 {
 	assert("nikita-2836", coord != NULL);
 	return coord->iplugid != INVALID_PLUGID;
-}
-
-static inline char get_iplugid(item_plugin *iplug);
-
-static inline void
-coord_set_iplug(coord_t * coord, item_plugin *iplug)
-{
-	assert("nikita-2837", coord != NULL);
-	assert("nikita-2838", iplug != NULL);
-	coord->iplugid = get_iplugid(iplug);
 }
 
 static inline void

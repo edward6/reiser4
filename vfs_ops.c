@@ -1947,7 +1947,9 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 					.format  = "%u:%u",
 					.nr_args = 2,
 					.arg1 = &sbinfo->ra_params.max,
-					.arg2 = &sbinfo->ra_params.flags
+					.arg2 = &sbinfo->ra_params.flags,
+					.arg3 = NULL,
+					.arg4 = NULL
 				}
 			}
 		},
@@ -2926,10 +2928,8 @@ static struct file_system_type reiser4_fs_type = {
 			.ktype = &ktype_reiser4
 		}
 	},
-	.fs_flags = FS_REQUIRES_DEV | FS_REGISTER_WITH_SYSFS,
-#else
-	.fs_flags = FS_REQUIRES_DEV,
 #endif
+	.fs_flags = FS_REQUIRES_DEV,
 	.get_sb = reiser4_get_sb,
 	.kill_sb = reiser4_kill_super,
 
@@ -3021,7 +3021,7 @@ struct super_operations reiser4_super_operations = {
 	.destroy_inode = reiser4_destroy_inode,	/* d */
 	.read_inode = noop_read_inode,	/* d */
 	.dirty_inode = NULL, /*reiser4_dirty_inode,*/	/* d */
-/* 	.write_inode        = reiser4_write_inode, */
+ 	.write_inode        = NULL, /* d */
  	.put_inode          = NULL, /* d */
 	.drop_inode = reiser4_drop_inode,	/* d */
 	.delete_inode = reiser4_delete_inode,	/* d */

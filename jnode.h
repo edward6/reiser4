@@ -406,28 +406,6 @@ jnode_is_loaded(const jnode * node)
 
 extern void page_detach_jnode(struct page *page, struct address_space *mapping, unsigned long index);
 extern void page_clear_jnode(struct page *page, jnode * node);
-static inline int jnode_is_dirty(const jnode * node);
-
-static inline int
-jnode_is_flushprepped(const jnode * node)
-{
-	assert("jmacd-78212", node != NULL);
-	assert("jmacd-71276", spin_jnode_is_locked(node));
-	return !jnode_is_dirty(node) || JF_ISSET(node, JNODE_RELOC)
-	    || JF_ISSET(node, JNODE_OVRWR);
-}
-
-/* Return true if @node has already been processed by the squeeze and allocate
-   process.  This implies the block address has been finalized for the
-   duration of this atom (or it is clean and will remain in place).  If this
-   returns true you may use the block number as a hint. */
-static inline int
-jnode_check_flushprepped(jnode * node)
-{
-	/* It must be clean or relocated or wandered.  New allocations are set to relocate. */
-	assert("jmacd-71275", spin_jnode_is_not_locked(node));
-	return UNDER_SPIN(jnode, node, jnode_is_flushprepped(node));
-}
 
 static inline void
 jnode_set_reloc(jnode * node)
@@ -546,6 +524,27 @@ jnode_check_dirty(jnode * node)
 	assert("jmacd-7798", node != NULL);
 	assert("jmacd-7799", spin_jnode_is_not_locked(node));
 	return UNDER_SPIN(jnode, node, jnode_is_dirty(node));
+}
+
+static inline int
+jnode_is_flushprepped(const jnode * node)
+{
+	assert("jmacd-78212", node != NULL);
+	assert("jmacd-71276", spin_jnode_is_locked(node));
+	return !jnode_is_dirty(node) || JF_ISSET(node, JNODE_RELOC)
+	    || JF_ISSET(node, JNODE_OVRWR);
+}
+
+/* Return true if @node has already been processed by the squeeze and allocate
+   process.  This implies the block address has been finalized for the
+   duration of this atom (or it is clean and will remain in place).  If this
+   returns true you may use the block number as a hint. */
+static inline int
+jnode_check_flushprepped(jnode * node)
+{
+	/* It must be clean or relocated or wandered.  New allocations are set to relocate. */
+	assert("jmacd-71275", spin_jnode_is_not_locked(node));
+	return UNDER_SPIN(jnode, node, jnode_is_flushprepped(node));
 }
 
 /* returns true if node is unformatted */

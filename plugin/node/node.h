@@ -289,14 +289,6 @@ extern void node_check(znode * node, __u32 flags);
 
 extern void indent_znode(const znode * node);
 
-#if YOU_CAN_COMPILE_PSEUDO_CODE
-
-/* returns length of condensation corresponding to the item, in other
-    words, the length of the item's data when uncompressed. */
-extern size_t get_condensation_length(item * item);
-
-#endif
-
 typedef struct common_node_header {
 	/* identifier of node plugin. Must be located at the very beginning
 	   of a node. */

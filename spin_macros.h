@@ -48,7 +48,7 @@
      /* User level simulator. There spin locks know who owns them. */
 #    define check_spin_is_locked(s)     spin_is_locked(s)
 #    define check_spin_is_not_locked(s) spin_is_not_locked(s)
-#elif defined(CONFIG_DEBUG_SPINLOCK) && defined(CONFIG_SMP) && 0
+#elif defined(CONFIG_DEBUG_SPINLOCK) && defined(CONFIG_SMP)
      /* Spin lock debugging in the kernel. This depends on patch that adds
       * ->owner field to the spin lock. */
 #    define check_spin_is_not_locked(s) ((s)->owner != get_current())

@@ -61,7 +61,7 @@ static super_field_cookie __cookie_ ## aname = {		\
 								\
 static reiser4_kattr kattr_super_ro_ ## aname = {		\
 	.attr = {						\
-		.name = #afield,				\
+		.name = (char *) #afield,			\
 		.mode = 0444   /* r--r--r-- */			\
 	},							\
 	.cookie = &__cookie_ ## aname,				\
@@ -163,12 +163,14 @@ static struct attribute * def_attrs[] = {
 };
 
 static struct sysfs_ops attr_ops = {
-	.show = kattr_show,
+	.show  = kattr_show,
+	.store = NULL
 };
 
 struct kobj_type ktype_reiser4 = {
 	.sysfs_ops	= &attr_ops,
 	.default_attrs	= def_attrs,
+	.release	= NULL
 };
 
 #if REISER4_STATS
@@ -189,12 +191,14 @@ kattr_stats_show(struct kobject *kobj, struct attribute *attr,  char *buf)
 }
 
 static struct sysfs_ops stats_attr_ops = {
-	.show = kattr_stats_show,
+	.show  = kattr_stats_show,
+	.store = NULL
 };
 
 static struct kobj_type ktype_noattr = {
 	.sysfs_ops	= &stats_attr_ops,
 	.default_attrs	= NULL,
+	.release        = NULL
 };
 
 static ssize_t
@@ -218,12 +222,14 @@ kattr_level_show(struct kobject *kobj, struct attribute *attr,  char *buf)
 }
 
 static struct sysfs_ops attr_level_ops = {
-	.show = kattr_level_show,
+	.show  = kattr_level_show,
+	.store = NULL
 };
 
 static struct kobj_type ktype_level_reiser4 = {
 	.sysfs_ops	= &attr_level_ops,
-	.default_attrs	= NULL
+	.default_attrs	= NULL,
+	.release        = NULL
 };
 
 static int register_level_attrs(reiser4_super_info_data *sbinfo, int i)

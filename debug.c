@@ -230,7 +230,7 @@ typedef struct reiser4_stats_cnt {
 {							\
 	.kattr = {					\
 		.attr = {				\
-			.name = aname,			\
+			.name = (char *)aname,		\
 			.mode = 0444 /* r--r--r-- */	\
 		},					\
 		.cookie = 0,				\

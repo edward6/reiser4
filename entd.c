@@ -369,16 +369,6 @@ wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 	result     = 0;
 	iterations = 0;
 
-	/*
-	 * we don't want to apply usual wait-for-flush logic in ->writepage()
-	 * if current thread is ent or, more generally, if it is the only
-	 * active flusher in this file system. Otherwise we get some thread
-	 * waiting for flush to clean some pages and flush is waiting for
-	 * nothing. This brings VM scanning to almost complete halt.
-	 */
-	if (dont_wait_for_flush(super))
-		return 0;
-
 	while (result == 0) {
 
 		while (result == 0) {
@@ -398,9 +388,20 @@ wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 			 */
 			if (wbc->priority > DEF_PRIORITY / 2) {
 				reiser4_stat_inc(wff.low_priority);
-				result = 1;
-				break;
+				return 1;
 			}
+
+			/*
+			 * we don't want to apply usual wait-for-flush logic
+			 * in ->writepage() if current thread is ent or, more
+			 * generally, if it is the only active flusher in this
+			 * file system. Otherwise we get some thread waiting
+			 * for flush to clean some pages and flush is waiting
+			 * for nothing. This brings VM scanning to almost
+			 * complete halt.
+			 */
+			if (dont_wait_for_flush(super))
+				return 0;
 
 			/*
 			 * wait until at least one flushing thread is running

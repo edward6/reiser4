@@ -207,6 +207,11 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 
 #define sizeof_array(x) ((int) (sizeof(x) / sizeof(x[0])))
 
+
+#define REISER4_USER_LEVEL_SIMULATION (0)
+#define YOU_CAN_COMPILE_PSEUDO_CODE   (0)
+#define NOT_YET                       (0)
+
 /* Certain user-level testing requirements */
 #if REISER4_USER_LEVEL_SIMULATION
 

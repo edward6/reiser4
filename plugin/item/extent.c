@@ -2480,12 +2480,13 @@ reserve_extent_write_iteration(struct inode *inode, tree_level height)
 }
 
 /* FIXME: remove me */
-#define COPY_FROM_USER \
-{\
-	PROF_BEGIN(copy);\
-	result = __copy_from_user(kmap(page) + page_off, f->data, to_page);\
-	kunmap(page);\
-	PROF_END(copy, copy);\
+#define COPY_FROM_USER								\
+{										\
+	PROF_BEGIN(copy);							\
+	/* FIXME: warning: pointer of type `void *' used in arithmetic */	\
+	result = __copy_from_user(kmap(page) + page_off, f->data, to_page);	\
+	kunmap(page);								\
+	PROF_END(copy, copy);							\
 }
 
 /* write flow's data into file by pages */

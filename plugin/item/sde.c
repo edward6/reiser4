@@ -83,7 +83,7 @@ extract_dent_name(const coord_t * coord, directory_entry_format *dent, char *buf
 	unit_key_by_coord(coord, &key);
 	if (!is_longname_key(&key)) {
 		if (is_dot_key(&key))
-			return ".";
+			return (char *) ".";
 		else
 			return extract_name_from_key(&key, buf);
 	} else
