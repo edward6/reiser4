@@ -197,14 +197,6 @@ typedef struct dir_plugin {
 } dir_plugin;
 
 typedef struct tail_plugin {
-	/* into body of @inode at position determined by @key. This is
-	 * called by write() when it has to insert new item into
-	 *  file. */
-	int ( *item_plugin_at )( const struct inode *inode, 
-				 const reiser4_key *key );
-
-	int ( *find_item )( reiser4_tree *tree, reiser4_key *key,
-			    tree_coord *coord, reiser4_lock_handle *lh );
 	/** returns non-zero iff file's tail has to be stored
 	    in a direct item. */
 	int ( *tail )( const struct inode *inode, loff_t size );
