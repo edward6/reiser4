@@ -84,6 +84,10 @@ Reiser4 introduces following locks:
 
 31. Global spin lock used to protect plugin set hash table      (pset_guard+)
 
+32. Global spin lock used to protect phash hash table           (phash_guard+)
+
+33. Per-bitmap-block semaphore used to serialize bitmap loading (bnode_sema+)
+
 99. Various locks used by the user level simulator
 
 Locks marked by (*) after label, are accessed through spin lock macros,
@@ -103,7 +107,9 @@ Also, following kernel locks are used by our code:
 
 1. Per-page lock                                                (page_lock)
 
-2. Per-inode semaphore                                          (i_sem)
+2. Per-page writeback bit                                       (page_write)
+
+3. Per-inode semaphore                                          (i_sem)
 
 Thread also can block on the following "objects" that are not really locks:
 
@@ -221,22 +227,22 @@ with respect to each other. Any spin lock is righter than any long term lock,
 obviously.
 
 i_sem
-..delete_sema
-....flush_sema
-....commit_sema
-......inode_rw_lock <-----DEAD1---+
+..inode_rw_lock <---------DEAD1---+
+....delete_sema                   |
+......flush_sema                  |
 ........longterm_lock <---DEAD2-+ |
+......commit_sema               | |
 ..........page_lock             | |
 ............pfault              | |
 ..............mm->mmap_sem------+-+                   [do_page_fault]
-................kalloc
 ..................ktxnmgrd_lock
+................kalloc
 ..................inode_guard
 ....................txnmgr_lock
 ......................atom_lock
 ........................jnode_lock            [->vm_writeback()->jget()]
 ..........................txnh_lock
-............................dk_lock
+..................dk_lock
 ..............................tree_lock
 ................................cbk_guard
 ..................mapping->i_shared_lock          [vmtruncate]
@@ -287,9 +293,31 @@ starts taking locks from the very beginning.
 
 DEAD1 
 
-   is safe, because inode_rw_lock is read-taken by both read/write and
-   ->readpage. It is only write-taken during tail<->extent conversion and if
-   file is mmaped is was already converted to extents.
+   Scenario:
+
+      process has mmapped reiser4 regular file and then does write(2) into
+      this file from buffer that is in mmaped area. copy_from_user() causes
+      page fault:
+
+         sys_write()
+           reiser4_write()
+             unix_file_write() [inode_rw_lock]
+                         .
+                         .
+                         .
+                 __copy_from_user()
+                         .
+                         .
+                         .
+                   handle_page_fault()
+                     handle_mm_fault()
+                       handle_pte_fault()
+                         do_no_page()
+                           unix_file_filemap_nopage() [inode_rw_lock]
+
+   This is safe, because inode_rw_lock is read-taken by both read/write and
+   unix_file_filemap_nopage(). It is only write-taken during tail<->extent
+   conversion and if file is mmaped is was already converted to extents.
 
 DEAD2
 
@@ -305,9 +333,9 @@ DEAD2
 When memory allocation tries to free some memory it 
 
 1. asynchronously launches kswapd that will ultimately call
-   reiser4_vm_writeback().
+   reiser4_writepage().
 
-2. calls reiser4_vm_writeback() synchronously.
+2. calls reiser4_writepage() synchronously.
 
 ----------------------------------LOCK PATTERNS---------------------------------
 
@@ -339,7 +367,7 @@ atom_lock->tree_lock && jnode_lock && page_lock
 
 delete_sema
 
-    common_unlink()->unlink_check_and_grab()
+    common_unlink(), shorten_file()->unlink_check_and_grab()
 
         to serialize access to reserved 5% of disk only used by unlinks. (This
         is necessary so that it is always possible to unlink something and
@@ -347,7 +375,17 @@ delete_sema
 
 delete_sema->flush_sema || commit_sema
 
-    common_unlink() calls txnmgr_force_commit_current_atom()
+    reiser4_release_reserved() calls txnmgr_force_commit_current_atom() under
+    delete_sema
+
+inode_rw_lock->delete_sema
+
+    unix_file_truncate()->shorten_file() takes delete_sema from under write
+    mode of inode_rw_lock
+
+kalloc->jnode_lock
+
+    emergency_flush() takes jnode spin lock
 
 ----------------------------------DEADLOCKS-------------------------------------
 
