@@ -1420,7 +1420,9 @@ static void reiser4_delete_inode( struct inode *object )
 		file_plugin *fplug;
 		dir_plugin  *dplug;
 
+		get_exclusive_access(object);
 		truncate_object( object, ( loff_t ) 0 );
+		drop_exclusive_access(object);
 
 		dplug = inode_dir_plugin( object );
 		if( dplug != NULL )
