@@ -237,9 +237,16 @@ _DONE_(entd)
 	done_entd_context(s);
 }
 
+_DONE_(disk_format);
+
 _INIT_(disk_format)
 {
-	return get_super_private(s)->df_plug->get_ready(s, data);
+	int res;
+
+	if ((res = get_super_private(s)->df_plug->get_ready(s, data)))
+		return res;
+
+	return get_super_private(s)->df_plug->check_mount(s);
 }
 
 _DONE_(disk_format)
