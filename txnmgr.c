@@ -1060,7 +1060,7 @@ static int submit_wb_list (void)
 	dispatch_wb_list(fq->atom, fq);
 	UNLOCK_ATOM(fq->atom);
 	trace_mark(flush);
-	ret = write_fq(fq, NULL);
+	ret = write_fq(fq, NULL, 1);
 	fq_put(fq);
 	
 	return ret;

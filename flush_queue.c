@@ -504,7 +504,7 @@ static void release_prepped_list(flush_queue_t * fq)
    @return: number of submitted blocks (>=0) if success, otherwise -- an error
             code (<0). */
 reiser4_internal int
-write_fq(flush_queue_t * fq, long * nr_submitted)
+write_fq(flush_queue_t * fq, long * nr_submitted, int wait)
 {
 	int ret;
 	txn_atom * atom;
@@ -513,7 +513,7 @@ write_fq(flush_queue_t * fq, long * nr_submitted)
 		atom = UNDER_SPIN(fq, fq, atom_get_locked_by_fq(fq));
 		assert ("zam-924", atom);
 		/* do not write fq in parallel. */
-		if (atom->nr_running_queues == 0)
+		if (atom->nr_running_queues == 0 || !wait)
 			break;
 		atom_wait_event(atom);
 	}

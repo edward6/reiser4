@@ -470,7 +470,7 @@ static int write_prepped_nodes (flush_pos_t * pos, int check_congestion)
 		return 0;
 #endif /* FLUSH_CHECKS_CONGESTION */
 	trace_mark(flush);
-	ret = write_fq(pos->fq, pos->nr_written);
+	ret = write_fq(pos->fq, pos->nr_written, 1);
 	set_rapid_flush_mode(0);
 	flush_started_io();
 	return ret;
@@ -1021,7 +1021,7 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 
 	flush_started_io();
 	trace_mark(flush);
-	ret = write_fq(fq, nr_submitted);
+	ret = write_fq(fq, nr_submitted, 1);
 	set_rapid_flush_mode(0);
 
 	*atom = get_current_atom_locked();

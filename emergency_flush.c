@@ -362,7 +362,7 @@ emergency_flush(struct page *page)
 			UNLOCK_JNODE(node);
 			UNLOCK_ATOM(atom);
 
-			result = write_fq(fq, NULL);
+			result = write_fq(fq, NULL, 0);
 			if (result != 0)
 				lock_page(page);
 
