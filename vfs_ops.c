@@ -1425,10 +1425,6 @@ reiser4_kill_super(struct super_block *s)
 
 	close_trace_file(&sbinfo->trace_file);
 
-	/* we don't want ->write_super to be called any more. */
-	s->s_op->write_super = NULL;
-	kill_block_super(s);
-
 	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
 		reiser4_print_stats();
 
@@ -1454,9 +1450,6 @@ reiser4_kill_super(struct super_block *s)
 		warning("nikita-2622", 
 			"%i bytes still allocated", sbinfo->kmalloc_allocated);
 #endif
-
-	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
-		reiser4_print_stats();
 
 out:
 
