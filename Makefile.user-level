@@ -2,98 +2,98 @@
 #
 
 ###########################################################################
-#									  #
+#                                                                         #
 # ###########################################################################
-# #									    #
-# # User-visible targets:						    #
-# #									    #
-# #									    #
-###									    #
-  #									    #
+# #                                                                         #
+# # User-visible targets:                                                   #
+# #                                                                         #
+# #                                                                         #
+###                                                                         #
+  #                                                                         #
   ###########################################################################
 
 default: all
 
 ###########################################################################
-#									  #
+#                                                                         #
 # ###########################################################################
-# #									    #
-# #  Compiler settings.							    #
-# #  Tune for your system.						    #
-###									    #
-  #									    #
+# #                                                                         #
+# #  Compiler settings.                                                     #
+# #  Tune for your system.                                                  #
+###                                                                         #
+  #                                                                         #
   ###########################################################################
 
-CC	     = cc
-DEFINES	     = -D_REENTRANT -DREISER4_USER_LEVEL_SIMULATION=1
+CC           = cc
+DEFINES      = -D_REENTRANT -DREISER4_USER_LEVEL_SIMULATION=1
 # -D_THREAD_SAFE -D__USE_REENTRANT -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 
-LIBS	     = -lpthread \
-	       -ldl \
-	       -lbfd \
-	       -liberty \
-	       -lreadline
+LIBS         = -lpthread \
+               -ldl \
+               -lbfd \
+               -liberty \
+               -lreadline
 PROFFLAGS   := -pg
 OPTFLAGS    := 
-CFLAGS	    := -g -pthread $(PROFFLAGS) $(OPTFLAGS) \
-	       -pipe \
-	       -W \
-	       -Wall \
-	       -Wtraditional \
-	       -Wshadow \
-	       -Wid-clash-32 \
-	       -Wpointer-arith \
-	       -Wwrite-strings \
-	       -Wconversion \
-	       -Wnested-externs \
-	       -Woverloaded-virtual \
-	       -Winline -Wformat \
-	       -Wsynth \
-	       -Wundef \
-	       -Wcast-align \
-	       -Wno-comment \
-	       -Wsign-compare \
-	       -Wlarger-than-3000 \
-	       -Wnon-virtual-dtor \
-	       -Wreorder \
-	       -Wsign-promo
+CFLAGS      := -g -pthread $(PROFFLAGS) $(OPTFLAGS) \
+               -pipe \
+               -W \
+               -Wall \
+               -Wtraditional \
+               -Wshadow \
+               -Wid-clash-32 \
+               -Wpointer-arith \
+               -Wwrite-strings \
+               -Wconversion \
+               -Wnested-externs \
+               -Woverloaded-virtual \
+               -Winline -Wformat \
+               -Wsynth \
+               -Wundef \
+               -Wcast-align \
+               -Wno-comment \
+               -Wsign-compare \
+               -Wlarger-than-3000 \
+               -Wnon-virtual-dtor \
+               -Wreorder \
+               -Wsign-promo
 
-#	       -pedantic, -ansi: don't allow macros with variable arguments
-#	       -Wmissing-declarations: kernel headers don't comply
-#	       -Wmissing-prototypes \
-#	       -Wstrict-prototypes \
-#	       -Wmissing-noreturn \
-#	       -Wbad-function-cast \
+#              -pedantic, -ansi: don't allow macros with variable arguments
+#              -Wmissing-declarations: kernel headers don't comply
+#              -Wmissing-prototypes \
+#              -Wstrict-prototypes \
+#              -Wmissing-noreturn \
+#              -Wbad-function-cast \
 
 #-Weffc++ -Waggregate-return -Wcast-qual -Wredundant-decls 
 
 LDFLAGS=$(PROFFLAGS)
 
-DATE		  := $(shell env LANG=C date -u "+%a %b %e %T %Z %Y")
-HOST		  := $(shell hostname -s)
-USR		  := $(shell id -un)
+DATE              := $(shell env LANG=C date -u "+%a %b %e %T %Z %Y")
+HOST              := $(shell hostname -s)
+USR               := $(shell id -un)
 
-BUILD_INFO_FILE	  := build.h
-BUILD_TAG_FILE	   = .build
+BUILD_INFO_FILE   := build.h
+BUILD_TAG_FILE     = .build
 
 ###########################################################################
-#									  #
+#                                                                         #
 # ###########################################################################
-# #									    #
-# #  Source tree structure						    #
-###									    #
-  #									    #
+# #                                                                         #
+# #  Source tree structure                                                  #
+###                                                                         #
+  #                                                                         #
   ###########################################################################
 
-JUNK_FILES	  := *.o *.so *.rpo core core.* *~ \\\#*\\\#
-FIND_NON_SCCS	  := find . \( -regex '.*\(\(SCCS\)\|\(Attic\)\|\(reiser4progs\)\).*' -prune -o -true \) -name '*.[ch]'
+JUNK_FILES        := *.o *.so *.rpo core core.* *~ \\\#*\\\#
+FIND_NON_SCCS     := find . \( -regex '.*\(\(SCCS\)\|\(Attic\)\|\(reiser4progs\)\).*' -prune -o -true \) -name '*.[ch]'
 
 ###########################################################################
-#									  #
+#                                                                         #
 # ###########################################################################
-# #									    #
-# #   Make misc.							    #
-###									    #
-  #									    #
+# #                                                                         #
+# #   Make misc.                                                            #
+###                                                                         #
+  #                                                                         #
   ###########################################################################
 
 .DONE:
@@ -109,72 +109,72 @@ FIND_NON_SCCS	  := find . \( -regex '.*\(\(SCCS\)\|\(Attic\)\|\(reiser4progs\)\)
 .SUFFIXES:	.c .h $(SUFFIXES)
 
 ###########################################################################
-#									  #
+#                                                                         #
 # ###########################################################################
-# #									    #
-# #  Sources.								    #
-###									    #
-  #									    #
+# #                                                                         #
+# #  Sources.                                                               #
+###                                                                         #
+  #                                                                         #
   ###########################################################################
 
-INCS		:= -I.
-SRC		:= \
-		   debug.c \
-		   znode.c \
-		   key.c \
-		   pool.c \
-		   tree_mod.c \
-		   carry.c \
-		   carry_ops.c \
-		   lock.c \
-		   tree.c \
-		   coords.c \
-		   block_alloc.c \
-		   txnmgr.c \
-		   kassign.c \
-		   flush.c \
-		   wander.c \
-		   search.c \
-		   plugin/plugin.c \
-		   plugin/node/node.c \
-		   plugin/node/node40.c \
-		   plugin/object.c \
-		   plugin/item/static_stat.c \
-		   plugin/item/sde.c \
-		   plugin/item/cde.c \
-		   plugin/item/internal.c \
-		   plugin/item/tail.c \
-		   plugin/hash.c \
-		   plugin/tail_policy.c \
-		   plugin/item/item.c \
-		   plugin/dir/hashed_dir.c \
-		   plugin/dir/dir.c \
-		   plugin/security/perm.c \
-		   plugin/security/acl.c \
-                   plugin/oid/oid_40.c plugin/oid/oid.c \
-                   plugin/space/bitmap.c plugin/space/test.c \
-		   plugin/space/space_allocator.c \
-                   plugin/disk_format/layout_40.c plugin/disk_format/layout.c \
-		   super.c \
-		   tree_walk.c \
-		   inode.c \
-		   vfs_ops.c \
-		   plugin/item/extent.c \
-		   plugin/file/file.c \
-		   ulevel/uabend.c \
-		   ulevel/ulevel.c \
-		   memory.c \
-		   lnode.c
+INCS            := -I.
+SRC             := \
+                   debug.c \
+                   znode.c \
+                   key.c \
+                   oid.c \
+                   balance.c \
+                   pool.c \
+                   tree_mod.c \
+                   carry.c \
+                   carry_ops.c \
+                   lock.c \
+                   tree.c \
+                   coords.c \
+                   dformat.c \
+                   block_alloc.c \
+                   txnmgr.c \
+                   kassign.c \
+				   flush.c \
+				   wander.c \
+				   search.c \
+                   plugin/plugin.c \
+                   plugin/node/node.c \
+                   plugin/node/node40.c \
+                   plugin/object.c \
+                   plugin/item/static_stat.c \
+                   plugin/item/sde.c \
+                   plugin/item/cde.c \
+                   plugin/item/internal.c \
+                   plugin/item/tail.c \
+                   plugin/hash.c \
+                   plugin/tail_policy.c \
+                   plugin/item/item.c \
+                   plugin/dir/hashed_dir.c \
+                   plugin/dir/dir.c \
+                   plugin/security/perm.c \
+                   plugin/security/acl.c \
+                   super.c \
+                   tree_walk.c \
+                   inode.c \
+                   vfs_ops.c \
+                   plugin/item/extent.c \
+                   plugin/file/file.c \
+				   ulevel/uabend.c \
+				   ulevel/ulevel.c \
+                   memory.c \
+                   lnode.c \
+                   kcond.c
 
-OBJ		:= $(SRC:.c=.o)
+OBJ             := $(SRC:.c=.o)
 
 ###########################################################################
-#									  #
+#                                                                         #
 # ###########################################################################
-# #									    #
-# #  User-visible targets.						    #
-###									    #
-  #									    #
+# #                                                                         #
+# #  User-visible targets.                                                  #
+###                                                                         #
+  #                                                                         #
   ###########################################################################
 
 all: $(OBJ)
@@ -185,6 +185,8 @@ all-in-one:
 
 clean:
 	for dir in `find . -type d -exec echo {} \;` ;do ( cd $$dir ; rm -f $(JUNK_FILES) ; rm -fr $(JUNK_DIRS) ) ;done
+
+obj: $(OBJ)
 
 archive: 
 	LANG=C ; tar cf - . | gzip -9c > $$HOME/archive/reiser4-`date "+%Y-%m-%d-%H-%M"`.tar.gz
@@ -229,8 +231,8 @@ build:
 	echo '/* Automatically generated. Do not edit. */' >> $(BUILD_INFO_FILE)
 	echo '#define BUILD_DATE "$(DATE)"' >> $(BUILD_INFO_FILE)
 	echo '#define BUILD_HOST "$(HOST)"' >> $(BUILD_INFO_FILE)
-	echo '#define BUILDER	 "$(USR)"'  >> $(BUILD_INFO_FILE)
-	echo '#define BUILD	 ' $(shell cat $(BUILD_TAG_FILE))  >> $(BUILD_INFO_FILE)
+	echo '#define BUILDER    "$(USR)"'  >> $(BUILD_INFO_FILE)
+	echo '#define BUILD      ' $(shell cat $(BUILD_TAG_FILE))  >> $(BUILD_INFO_FILE)
 	echo >> $(BUILD_INFO_FILE)
 
 
