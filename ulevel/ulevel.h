@@ -301,6 +301,7 @@ typedef struct kmem_cache_t {
 	spinlock_t  lock;
 } kmem_cache_t;
 
+/* quick string, with pre-computed hash used to speedup comparisons */
 struct qstr {
 	const unsigned char * name;
 	unsigned int len;
@@ -319,8 +320,8 @@ struct dentry {
 	struct list_head d_child;	/* child of parent list */
 	struct list_head d_subdirs;	/* our children */
 	struct list_head d_alias;	/* inode alias list */
-	int d_mounted;
-	struct qstr d_name;	
+	int d_mounted;		
+	struct qstr d_name;	/* quick string, with pre-computed hash used to speedup comparisons */
 	unsigned long d_time;		/* used by d_revalidate */
 	struct dentry_operations  *d_op;
 	struct super_block * d_sb;	/* The root of the dentry tree */
