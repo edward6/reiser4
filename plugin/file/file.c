@@ -825,7 +825,8 @@ unix_file_readpage(struct file *file, struct page *page)
 
 	assert("vs-979", ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
 	/* if page has jnode - that jnode is mapped */
-	assert("vs-1098", ergo(result == 0 && PagePrivate(page), jnode_mapped(jnode_by_page(page))));
+	assert("vs-1098", ergo(result == 0 && PagePrivate(page), 
+			       jnode_mapped(jprivate(page))));
 	return result;
 }
 
