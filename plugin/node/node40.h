@@ -100,8 +100,6 @@ int max_item_size_node40(void);
 int prepare_removal_node40(znode * empty, carry_plugin_info * info);
 int set_item_plugin_node40(coord_t * coord, item_id id);
 
-void update_znode_dkeys(znode * left, znode * right);
-
 /* __REISER4_NODE40_H__ */
 #endif
 /*

@@ -195,6 +195,7 @@ extern reiser4_key *znode_get_ld_key(znode * node);
 
 extern reiser4_key *znode_set_rd_key(znode * node, const reiser4_key * key);
 extern reiser4_key *znode_set_ld_key(znode * node, const reiser4_key * key);
+extern void update_znode_dkeys(znode * left, znode * right);
 
 /* `connected' state checks */
 static inline int

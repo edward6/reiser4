@@ -730,6 +730,65 @@ znode_set_rd_key(znode * node, const reiser4_key * key)
 	return &node->rd_key;
 }
 
+/* znode has left and right delimiting keys. We moved data between nodes,
+   therefore we must update delimiting keys of those znodes */
+/* Audited by: green(2002.06.13) */
+reiser4_internal void
+update_znode_dkeys(znode * left, znode * right)
+{
+	reiser4_key key;
+
+	assert("nikita-1470", rw_dk_is_write_locked(znode_get_tree(right)));
+
+	leftmost_key_in_node(right, &key);
+
+	if (0) {
+		printk("update_znode_dkeys: %p(%s) %p(%s)\n",
+		       left, left ? (node_is_empty(left) ? "e" : "o") : "n",
+		       right, right ? (node_is_empty(right) ? "e" : "o") : "n");
+		print_key("leftmost", &key);
+	}
+
+	if (left == NULL) {
+		/* update left delimiting key of @right */
+		znode_set_ld_key(right, &key);
+		return;
+	}
+	if (!node_is_empty(left) && !node_is_empty(right)) {
+		/* update right delimiting key of @left */
+		znode_set_rd_key(left, &key);
+		/* update left delimiting key of @right */
+		znode_set_ld_key(right, &key);
+		return;
+	}
+	if (node_is_empty(left) && node_is_empty(right))
+		/* AUDIT: there are 2 checks below both stating that both nodes cannot be empty, yet we return success
+		   before we even had a chance to check for the error. Perhaps some typo is here? */
+		return;
+	if (node_is_empty(left)) {
+		assert("vs-186", !node_is_empty(right));
+
+		/* update right delimiting key of @left */
+		znode_set_rd_key(left, znode_get_ld_key(left));
+
+		/* update left delimiting key of @right */
+		znode_set_ld_key(right, &key);
+		return;
+	}
+
+	if (node_is_empty(right)) {
+		assert("vs-187", !node_is_empty(left));
+
+		/* update right delimiting key of @left */
+		znode_set_rd_key(left, znode_get_rd_key(right));
+
+		/* update left delimiting key of @right */
+		znode_set_ld_key(right, znode_get_rd_key(right));
+		return;
+	}
+	impossible("vs-188", "both nodes can not be empty");
+}
+
 /* update left-delimiting key of @node */
 reiser4_internal reiser4_key *
 znode_set_ld_key(znode * node, const reiser4_key * key)
