@@ -808,6 +808,7 @@ znode_is_root(const znode * node /* znode to query */ )
 
 /* Returns true is @node was just created by zget() and wasn't ever loaded
    into memory. */
+/* NIKITA-FIXME-HANS: What happens at flush time, do you get znodes left around for which the below is true?  */
 int
 znode_just_created(const znode * node)
 {
