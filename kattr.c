@@ -10,8 +10,7 @@
 
 typedef struct reiser4_kattr {
 	struct attribute attr;
-	ssize_t (*show) (struct super_block * s, char *buf, size_t count,
-			 loff_t off);
+	ssize_t (*show) (struct super_block * s, char *buf);
 } reiser4_kattr;
 
 #define DEFINE_REISER4_KATTR(aname, amode)	\
@@ -38,22 +37,20 @@ to_super(struct kobject *kobj)
 	return info->tree.super;
 }
 
-#define left (count - (p - buf) - 1)
+#define LEFT(p, buf) (PAGE_SIZE - (p - buf) - 1)
 
-static ssize_t show_test (struct super_block * s, char *buf, size_t count,
-			  loff_t off)
+static ssize_t show_test (struct super_block * s, char *buf)
 {
 	char *p;
 	static int cnt = 0;
 
 	p = buf;
-	p += snprintf(p, left, "cnt: %i\n", ++ cnt);
+	p += snprintf(p, LEFT(p, buf), "cnt: %i\n", ++ cnt);
 	return (p - buf);
 }
 
 static ssize_t
-kattr_show(struct kobject *kobj, struct attribute *attr,
-	   char *buf, size_t count, loff_t off)
+kattr_show(struct kobject *kobj, struct attribute *attr,  char *buf)
 {
 	struct super_block *super;
 	reiser4_kattr *kattr;
@@ -62,8 +59,8 @@ kattr_show(struct kobject *kobj, struct attribute *attr,
 	super = to_super(kobj);
 	kattr = to_kattr(attr);
 
-	if (kattr->show != NULL && off == 0)
-		ret = kattr->show(super, buf, count, off);
+	if (kattr->show != NULL)
+		ret = kattr->show(super, buf);
 	else
 		ret = 0;
 	return ret;
