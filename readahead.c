@@ -79,6 +79,11 @@ formatted_readahead(znode *node, ra_info_t *info)
 	 */
 	grn_flags |= GN_DO_READ;
 
+	/* We can have locked nodes on upper tree levels, in this situation lock
+	   priorities do not help to resolve deadlocks, we have to use TRY_LOCK
+	   here. */
+	grn_flags |= GN_TRY_LOCK;
+
 	i = 0;
 	cur = zref(node);
 	while (i < ra_params->max) {
