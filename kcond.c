@@ -168,6 +168,8 @@ kcond_timedwait(kcond_t * cvar /* cvar to wait for */ ,
 	spin_unlock(&cvar->lock);
 	spin_unlock(lock);
 
+	schedulable();
+
 	/* prepare timer */
 	init_timer(&timer);
 	timer.expires = jiffies + timeout;
