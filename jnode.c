@@ -543,6 +543,8 @@ static struct page * jnode_get_page_locked(jnode * node, int gfp_flags)
 		page_cache_get(page);
 		UNLOCK_JNODE(node);
 		lock_page(page);
+		assert("nikita-3134",
+		       page->mapping == jnode_ops(node)->mapping(node));
 	}
 
 	LOCK_JNODE(node);
