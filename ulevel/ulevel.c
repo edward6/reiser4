@@ -773,6 +773,22 @@ struct page * find_get_page (struct address_space * mapping,
 }
 
 
+void * radix_tree_lookup (struct radix_tree_root * tree, unsigned long index)
+{
+	return 0;
+/*
+	struct page * page;
+
+	page = find_get_page ();
+	if (page) {
+		spin_lock( &page_list_guard );
+		atomic_dec (&page->count);
+		spin_unlock( &page_list_guard );
+	}
+*/
+}
+
+
 static void truncate_inode_pages (struct address_space * mapping,
 				  loff_t from)
 {
@@ -867,6 +883,12 @@ int generic_file_mmap(struct file * file UNUSED_ARG,
 }
 
 
+int add_to_page_cache_unique (struct page * page,
+			      struct address_space * mapping,
+			      unsigned long offset)
+{
+	return 0;
+}
 
 
 void wait_on_page_locked(struct page * page)
@@ -1140,58 +1162,18 @@ int submit_bio( int rw, struct bio *bio )
 	return success ? 0 : -1;
 }
 
-#if 0
-int ulevel_read_node( reiser4_tree *tree, jnode *node )
+
+/* include/linux/pagemap.h */
+struct page *page_cache_alloc (struct address_space * mapping)
 {
-	const reiser4_block_nr *addr;
-	unsigned int blksz;
-	struct page *pg;
+	struct page * page;
 
-	addr = jnode_get_block( node );
-	blksz = tree -> super -> s_blocksize;
-	if( ( mmap_back_end_fd > 0 ) && !blocknr_is_fake( addr ) ) {
-		off_t start;
-
-		pg = *addr * ( blksz + sizeof *pg );
-		start = pg + 1;
-		init_page (pg, get_super_private( tree -> super ) -> fake -> i_mapping,
-			   node);
-		if( start + blksz > mmap_back_end_size ) {
-			warning( "nikita-1372", "Trying to access beyond the device: %li > %u",
-				 start, mmap_back_end_size );
-			return -EIO;
-		} else {
-			++ total_allocations;
-
-			if (total_allocations > MEMORY_PRESSURE_THRESHOLD)
-				declare_memory_pressure();
-
-			node -> pg = pg;
-			return 0;
-		}
-	} else {
-		node -> pg = xxmalloc( blksz + sizeof *pg );
-		if( node -> pg != NULL ) {
-			init_page (pg, 
-				   get_super_private( tree -> super ) -> fake -> i_mapping, node);
-			return 0;
-		} else
-			return -ENOMEM;
-	}
+	page = kmalloc (sizeof (struct page) + PAGE_CACHE_SIZE, 0);
+	assert ("vs-790", page);
+	xmemset (page, 0, sizeof (struct page) + PAGE_CACHE_SIZE);
+	return page;
 }
 
-int ulevel_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG )
-{
-	return 0;
-}
-
-int ulevel_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG )
-{
-	assert ("vs-688", znode_is_loaded (JZNODE (node)));
-	set_page_dirty (jnode_page (node));
-	return 0;
-}
-#endif
 
 static struct buffer_head * getblk (struct super_block * sb, int block)
 {
@@ -4304,8 +4286,8 @@ void funJustBeforeMain()
 reiser4_block_nr new_block_nr;
 
 int PAGE_CACHE_SHIFT;
-int PAGE_CACHE_SIZE;
-int PAGE_CACHE_MASK;
+unsigned long PAGE_CACHE_SIZE;
+unsigned long PAGE_CACHE_MASK;
 
 int real_main( int argc, char **argv )
 {
@@ -4334,7 +4316,7 @@ int real_main( int argc, char **argv )
 	
 	PAGE_CACHE_SIZE	= (1UL << PAGE_CACHE_SHIFT);
 	PAGE_CACHE_MASK	= (~(PAGE_CACHE_SIZE-1));
-	info ("PAGE_CACHE_SHIFT=%d, PAGE_CACHE_SIZE=%d, PAGE_CACHE_MASK=0x%x\n",
+	info ("PAGE_CACHE_SHIFT=%d, PAGE_CACHE_SIZE=%lu, PAGE_CACHE_MASK=0x%lx\n",
 	      PAGE_CACHE_SHIFT, PAGE_CACHE_SIZE, PAGE_CACHE_MASK);
 
 	if( getenv( "REISER4_TRAP" ) ) {
