@@ -435,11 +435,11 @@ init_once(void *obj /* pointer to new inode */ ,
 		readdir_list_init(get_readdir_list(&info->vfs_inode));
 		init_rwsem(&info->p.coc_sem);
 		sema_init(&info->p.loading, 1);
-		INIT_LIST_HEAD(&info->p.eflushed_jnodes);
-		INIT_LIST_HEAD(&info->p.anon_jnodes);
-		INIT_RADIX_TREE(&info->p.jnode_tree, GFP_ATOMIC);
-		ON_DEBUG(info->p.jnodes = 0);
+		/*INIT_LIST_HEAD(&info->p.eflushed_jnodes);
+		  INIT_LIST_HEAD(&info->p.anon_jnodes);*/
+		INIT_RADIX_TREE(&info->p.ef_jnodes, GFP_ATOMIC);
 		ON_DEBUG(info->p.eflushed = 0);
+		ON_DEBUG(info->p.anon_eflushed = 0);
 	}
 }
 
@@ -495,8 +495,8 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 		spin_inode_object_init(info);
 
 		/* initizalize inode's jnode */
-		jnode_init(&info->inode_jnode, current_tree, JNODE_INODE);
-		atomic_set(&info->inode_jnode.x_count, 1);
+		/*jnode_init(&info->inode_jnode, current_tree, JNODE_INODE);
+		  atomic_set(&info->inode_jnode.x_count, 1);*/
 		info->vroot = UBER_TREE_ADDR;
 		return &obj->vfs_inode;
 	} else
@@ -509,13 +509,15 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 {
 	reiser4_inode *info;
 
-	info = reiser4_inode_data(inode);
 	reiser4_stat_inc_at(inode->i_sb, vfs_calls.destroy_inode);
 
-	assert("vs-1220", list_empty(&info->eflushed_jnodes));
-	assert("vs-1222", info->eflushed == 0);
-	assert("vs-1428", info->jnodes == 0);
+	info = reiser4_inode_data(inode);
 
+	assert("vs-1220", info->ef_jnodes.rnode == NULL);
+	assert("vs-1222", info->eflushed == 0);
+	assert("vs-1428", info->anon_eflushed == 0);
+
+#if 0
 	{
 		/* finish with inode's jnode */
 		jnode *j;
@@ -526,6 +528,8 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 		JF_SET(j, JNODE_RIP);
 		check_me("vs-1242", jnode_try_drop(j) == 0);
 	}
+#endif
+
 	if (!is_bad_inode(inode) && is_inode_loaded(inode)) {
 
 		assert("nikita-2828", reiser4_inode_data(inode)->eflushed == 0);
