@@ -360,6 +360,19 @@ __u32 get_current_log_flags(void)
 	return flags;
 }
 
+/* oid of file page events of which are to be logged */
+__u32 get_current_oid_to_log(void)
+{
+	__u32 oid;
+	reiser4_context *ctx;
+
+	oid = 0;
+	ctx = get_current_context_check();
+	if (ctx)
+		oid = get_super_private(ctx->super)->oid_to_log;
+	return oid;
+}
+
 #endif
 
 /* allocate memory. This calls kmalloc(), performs some additional checks, and
@@ -609,6 +622,84 @@ void debugtrap(void)
 #endif
 }
 #endif
+
+
+/* debugging tool
+   use clog_op to make a record
+   use print_clog to see last CLOG_LENGTH record
+ */
+#define CLOG_LENGTH 512
+static spinlock_t clog_lock = SPIN_LOCK_UNLOCKED;
+
+typedef struct {
+	int id;
+	pid_t pid;
+	int op;
+	int data;
+} clog_t;
+
+clog_t clog[CLOG_LENGTH];
+
+int clog_start = 0;
+int clog_length = 0;
+int clog_id = 0;
+
+void
+clog_op(int op, int data)
+{
+	spin_lock(&clog_lock);
+	if (clog_length == CLOG_LENGTH) {
+		clog[clog_start].id = clog_id ++;
+		clog[clog_start].op = op;
+		clog[clog_start].data = data;
+		clog[clog_start].pid = current->pid;
+		clog_start ++;
+		clog_start %= CLOG_LENGTH;
+	} else {
+		assert("vs-1672", clog_start == 0);
+		clog[clog_length].id = clog_id ++;
+		clog[clog_length].op = op;
+		clog[clog_length].data = data;
+		clog[clog_length].pid = current->pid;
+		clog_length ++;		
+	}
+
+	spin_unlock(&clog_lock);
+}
+
+static const char *
+op2str(int op)
+{
+	static const char *op_names[OP_NUM] = {
+		"add-empty-leaf",
+		"kill-empty-node",
+		"lookup-deadlock",
+		"store-bb",
+		"make-znode-dirty",
+		"dirty-empty-node",
+		"create-item",
+		"new-node",
+		"kill-internal",
+		"delete-empty-node"
+	};
+	assert("vs-1673", op < OP_NUM);
+	return op_names[op];
+}
+
+void
+print_clog(void)
+{
+	int i, j;
+
+	j = clog_start;
+	for (i = 0; i < clog_length; i ++) {
+		printk("%d(%d): id %d: pid %d, op %s, data %d\n",
+		       i, j, clog[j].id, clog[j].pid, op2str(clog[j].op), clog[j].data);
+		j ++;
+		j %= CLOG_LENGTH;
+	}
+	printk("clog length %d\n", clog_length);
+}
 
 /* Make Linus happy.
    Local variables:
