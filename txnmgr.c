@@ -1270,9 +1270,10 @@ txn_try_capture_page  (struct page        *pg,
 	jnode *node;
        
 	assert("umka-292", pg != NULL);
-	assert("umka-293", !spin_jnode_is_locked (node));
 	
 	node = jnode_of_page (pg);
+	
+	assert("umka-293", !spin_jnode_is_locked (node));
 	spin_lock_jnode (node);
 	
 	ret = txn_try_capture (node, lock_mode, non_blocking);
