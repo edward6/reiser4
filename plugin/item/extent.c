@@ -2930,14 +2930,11 @@ extent_read(struct inode *inode, coord_t *coord, flow_t * f)
 	char *kaddr;
 	jnode *j;
 
-	result = zload(coord->node);
-	if (result)
-		return result;
+	assert("vs-1119", znode_is_rlocked(coord->node));
+	assert("vs-1120", znode_is_loaded(coord->node));
 
-	if (!extent_key_in_item(coord, &f->key)) {
-		zrelse(coord->node);
+	if (!extent_key_in_item(coord, &f->key))
 		return -EAGAIN;
-	}
 
 	page_nr = (get_key_offset(&f->key) >> PAGE_CACHE_SHIFT);
 
@@ -2945,10 +2942,8 @@ extent_read(struct inode *inode, coord_t *coord, flow_t * f)
 	   will allocate page and call extent_readpage to fill it */
 	page = read_cache_page(inode->i_mapping, page_nr, filler, coord);
 
-	if (IS_ERR(page)) {
-		zrelse(coord->node);
+	if (IS_ERR(page))
 		return PTR_ERR(page);
-	}
 
 	reiser4_lock_page(page);
 	if (PagePrivate(page)) {
@@ -2962,7 +2957,6 @@ extent_read(struct inode *inode, coord_t *coord, flow_t * f)
 		page_detach_jnode(page, inode->i_mapping, page_nr);
 		page_cache_release(page);
 		warning("jmacd-97178", "extent_read: page is not up to date");
-		zrelse(coord->node);
 		return -EIO;
 	}
 
@@ -2990,15 +2984,11 @@ extent_read(struct inode *inode, coord_t *coord, flow_t * f)
 	kunmap(page);
 
 	page_cache_release(page);
-	if (result) {
-		zrelse(coord->node);
+	if (result)
 		return -EFAULT;
-	}
 
-	zrelse(coord->node);
 	move_flow_forward(f, count);
 	return 0;
-
 }
 
 /* 
