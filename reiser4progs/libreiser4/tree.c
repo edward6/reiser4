@@ -184,7 +184,7 @@ void reiserfs_tree_close(reiserfs_tree_t *tree) {
     Makes search in the tree by specified key. Fills passed
     coord by coords of found item. 
 */
-int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t stop_level,
+int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t level,
     reiserfs_key_t *key, reiserfs_coord_t *coord) 
 {
     int lookup;
@@ -206,7 +206,7 @@ int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t stop_level,
 	    return -1;
 
 	/* Checking for level */
-	if (reiserfs_node_get_level(coord->cache->node) <= stop_level)
+	if (reiserfs_node_get_level(coord->cache->node) <= level)
 	    return lookup;
        	
 	/* 

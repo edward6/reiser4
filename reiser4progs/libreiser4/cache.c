@@ -87,21 +87,31 @@ static errno_t reiserfs_cache_nkey(reiserfs_cache_t *cache,
 	if (pos == 0)
 	    return -1;
     } else {
-	if ((uint32_t)pos == reiserfs_node_count(cache->parent->node) - 1)
-	    return -1;
+	if ((uint32_t)pos == reiserfs_node_count(cache->parent->node) - 1) {
+
+	    /* Here we are checking for the case called "shaft" */
+    	    if (!cache->parent->parent)
+		return -1;
+		
+	    return reiserfs_cache_nkey(cache->parent->parent, 
+		direction, key);
+	}
     }
     pos += (direction == RIGHT ? 1 : -1);
-    
     reiserfs_node_get_key(cache->parent->node, pos, key);
     
     return 0;
 }
 
-errno_t reiserfs_cache_lnkey(reiserfs_cache_t *cache, reiserfs_key_t *key) {
+errno_t reiserfs_cache_lnkey(reiserfs_cache_t *cache, 
+    reiserfs_key_t *key) 
+{
     return reiserfs_cache_nkey(cache, LEFT, key);
 }
 
-errno_t reiserfs_cache_rnkey(reiserfs_cache_t *cache, reiserfs_key_t *key) {
+errno_t reiserfs_cache_rnkey(reiserfs_cache_t *cache, 
+    reiserfs_key_t *key) 
+{
     return reiserfs_cache_nkey(cache, RIGHT, key);
 }
 
@@ -132,58 +142,45 @@ int32_t reiserfs_cache_pos(reiserfs_cache_t *cache) {
     by shifting code in tree.c
 */
 errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
-    int32_t pos;
-    blk_t block_nr;
-
-    reiserfs_node_t *node;
-    reiserfs_node_t *parent;
+    uint32_t level;
+    reiserfs_key_t key;
+    reiserfs_coord_t coord;
     
     aal_assert("umka-776", cache != NULL, return -1);
 
-    if (cache->left && cache->right)
+    if (!cache->parent)
 	return 0;
     
-    if (!(parent = cache->parent->node))
-	return 0;
-    
-    if ((pos = reiserfs_cache_pos(cache)) == -1)
-	return -1;
+    /* 
+	Initializing stop level for tree lookup function. Here tree lookup function is
+	used as instrument for reflecting the part of b*tree into libreiser4 tree cache.
+	So, connecting to the stop level for lookup we need to map part of the b*tree
+	from the root (tree height) to the level of passed node, because we should make
+	sure, that needed neighbour will be mapped into cache and will be accesible by
+	cache->left or cache->right pointers.
+    */
+    level = reiserfs_node_get_level(cache->node);
     
     /* Rasing the right neighbour */
-    if (!cache->left && pos > 0) {
-	if (!(block_nr = reiserfs_node_get_pointer(parent, pos - 1))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't get pointer to left neighbour.");
-	    return -1;
+    if (!cache->left) {
+	if (!reiserfs_cache_lnkey(cache, &key)) {
+	    if (reiserfs_tree_lookup(cache->tree, level, &key, &coord) != 1) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Can't find left neighbour key when raising left neigbour.");
+		return -1;
+	    }
 	}
-
-	if (!(node = reiserfs_node_open(cache->node->block->device, 
-	    block_nr, cache->node->key_plugin->h.id)))
-	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't open node %llu.", block_nr);
-	    return -1;
-	}
-	reiserfs_cache_register(cache->parent, reiserfs_cache_create(node));
     }
 
     /* Raising the right neighbour */
-    if (!cache->right && (uint32_t)pos < reiserfs_node_count(parent) - 1) {
-	if (!(block_nr = reiserfs_node_get_pointer(parent, pos + 1))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't get pointer to right neighbour.");
-	    return -1;
+    if (!cache->right) {
+	if (!reiserfs_cache_rnkey(cache, &key)) {
+	    if (reiserfs_tree_lookup(cache->tree, level, &key, &coord) != 1) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Can't find right neighbour key when raising right neigbour.");
+		return -1;
+	    }
 	}
-
-	if (!(node = reiserfs_node_open(cache->node->block->device, 
-	    block_nr, cache->node->key_plugin->h.id)))
-	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't open node %llu.", block_nr);
-	    return -1;
-	}
-    
-	reiserfs_cache_register(cache->parent, reiserfs_cache_create(node));
     }
     
     return 0;
