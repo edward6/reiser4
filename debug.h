@@ -1,7 +1,7 @@
 /*
  * Declarations of debug macros.
  *
- * Copyright 2000 by Hans Reiser, licensing governed by reiser4/README
+ * Copyright 2000, 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  *
  */
 
