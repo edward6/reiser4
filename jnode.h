@@ -10,6 +10,7 @@
 #include "tslist.h"
 #include "txnmgr.h"
 #include "plugin/plugin.h"
+#include "plugin/crypto_compressed.h"
 #include "debug.h"
 #include "dformat.h"
 #include "spin_macros.h"
@@ -133,7 +134,8 @@ struct jnode {
 	/* capture list */
 	/*  48 */ capture_list_link capture_link;
 	/*  52 */ reiser4_tree *tree;
-	/*  56 */
+	/*  56 */ cluster_head *c_cache;
+	/*  60 */
 #if REISER4_DEBUG
 	/* list of all jnodes for debugging purposes. */
 	struct list_head jnodes;
