@@ -453,6 +453,9 @@ struct flush_position {
 	flush_queue_t *fq;
 	long nr_written;	/* number of nodes submitted to disk */
 	int flags;		/* a copy of jnode_flush flags argument */
+
+	znode * prev_twig;	/* previous parent pointer value, used to catch
+				 * processing of new twig node */
 };
 
 /* Flush-scan helper functions. */
@@ -565,6 +568,29 @@ static int write_prepped_nodes (flush_pos_t * pos, int scan)
 	return ret;
 }
 
+/* get an address of current twig node */
+static znode * get_twig_pointer (flush_pos_t * pos, int twig_is_pos_node)
+{
+	if (twig_is_pos_node)
+		return pos->lock.node;
+
+	return UNDER_RW(tree, current_tree, read, pos->lock.node->in_parent.node);
+}
+
+/* tracking when flush position is moved from one twig and its children to
+ * another one */
+static int track_twig (flush_pos_t * pos, int twig_is_pos_node)
+{
+	int ret = 0;
+	znode * twig = get_twig_pointer(pos, twig_is_pos_node);
+
+	if (pos->prev_twig && pos->prev_twig != twig)
+		ret = write_prepped_nodes(pos, 0);
+
+	pos->prev_twig = twig;
+
+	return ret;
+}
 
 /* Proper release all flush pos. resources then move flush position to new
    locked node */
@@ -1581,6 +1607,10 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 	while (1) {
 		assert ("zam-845", pos->state == POS_ON_LEAF);
 
+		ret = track_twig(pos, 0);
+		if (ret)
+			return ret;
+
 		ret = znode_get_utmost_if_dirty(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
 		if (ret) {
 			if (ret == -ENAVAIL) {
@@ -1680,6 +1710,10 @@ static int handle_pos_on_twig (flush_pos_t * pos)
  again:
 	assert ("zam-844", pos->state == POS_ON_TWIG);
 	assert ("zam-843", item_is_extent(&pos->coord));
+
+	ret = track_twig(pos, 1);
+	if (ret)
+		return ret;
 	
 	/* We decide should we continue slum processing with current extent
 	   unit: if leftmost child of current extent unit is flushprepped
@@ -1831,8 +1865,6 @@ became_dirty:
 	pos->state = item_is_extent(&at_right) ? POS_ON_TWIG : POS_TO_LEAF;
 	move_flush_pos(pos, &right_lock, &right_load, &at_right);
 
-	/* submit prepped nodes when pos is going to the next twig */
-	ret = write_prepped_nodes(pos, 0);
  out:
 	done_load_count(&right_load);
 	done_lh(&right_lock);
