@@ -8,6 +8,7 @@
 
 #include "../reiser4.h"
 
+/** old rupasov (yura) hash */
 static __u64 rupasov_hash( const unsigned char *name, int len )
 {
 	int   i;
@@ -51,6 +52,7 @@ static __u64 rupasov_hash( const unsigned char *name, int len )
 	return a;
 }
 
+/** r5 hash */
 static __u64 r5_hash( const unsigned char *name, int len UNUSED_ARG )
 {
 	__u64 a = 0;
@@ -250,12 +252,17 @@ static __u64 fnv1_hash( const unsigned char *name, int len UNUSED_ARG )
 	return a;
 }
 
+/** degenerate hash function used to simplify testing of non-unique key
+ * handling */
 static __u64 deg_hash( const unsigned char *name UNUSED_ARG, int len UNUSED_ARG )
 {
 	trace_on( TRACE_DIR, "Hashing %s\n", name );
 	return 0xc0c0c0c010101010ull;
 }
 
+/**
+ * hash plugins
+ */
 reiser4_plugin hash_plugins[ LAST_HASH_ID ] = {
 	[ RUPASOV_HASH_ID ] = {
 		.h = {

@@ -6,25 +6,28 @@
  * Tail policy plugins
  */
 
-/* this is completely uncommented.  Nikita, I want you to systematically review all of the code you have written and comment it.  Then remove this comment. */
-
 /* does this actually get used?  Why is it missing a tail for files larger than or equal to 12k policy */
 
 #include "../reiser4.h"
 
+/** Never store file's tail as direct item */
 static int never_tail( const struct inode *inode UNUSED_ARG, 
 		       loff_t size UNUSED_ARG )
 {
 	return 0;
 }
 
-static int always_tail( const struct inode *inode UNUSED_ARG, 
+/** Always store file's tail as direct item */
+static int always_tail( const struct inode *inode UNUSED_ARG,
 			loff_t size UNUSED_ARG )
 {
 	return 1;
 }
 
 
+/**
+ * tail plugins
+ */
 reiser4_plugin tail_plugins[ LAST_TAIL_ID ] = {
 	[ NEVER_TAIL_ID ] = {
 		.h = {
