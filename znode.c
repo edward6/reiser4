@@ -287,7 +287,7 @@ znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 	ztable = &tree->zhash_table;
 
 	for_all_in_htable(ztable, z, node, next) {
-		atomic_set(&node->c_count, 0);
+		node->c_count = 0;
 		node->in_parent.node = NULL;
 		assert("nikita-2179", atomic_read(&ZJNODE(node)->x_count) == 0);
 		zdrop(node);
@@ -298,7 +298,7 @@ znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 	ztable = &tree->zfake_table;
 
 	for_all_in_htable(ztable, z, node, next) {
-		atomic_set(&node->c_count, 0);
+		node->c_count = 0;
 		node->in_parent.node = NULL;
 		assert("nikita-2179", atomic_read(&ZJNODE(node)->x_count) == 0);
 		zdrop(node);
@@ -345,7 +345,7 @@ void
 znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 {
 	assert("nikita-2108", node != NULL);
-	assert("nikita-470", atomic_read(&node->c_count) == 0);
+	assert("nikita-470", node->c_count == 0);
 	assert("zam-879", rw_tree_is_write_locked(tree));
 
 	/* remove reference to this znode from cbk cache */
@@ -359,9 +359,9 @@ znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 	*/
 
 	if (znode_parent(node) != NULL) {
-		assert("nikita-472", atomic_read(&znode_parent(node)->c_count) > 0);
+		assert("nikita-472", znode_parent(node)->c_count > 0);
 		/* father, onto your hands I forward my spirit... */
-		del_c_ref(znode_parent(node));
+		znode_parent(node)->c_count --;
 		node->in_parent.node = NULL;
 	} else {
 		/* orphaned znode?! Root? */
@@ -445,15 +445,6 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 	rcu_read_unlock();
 
 	return result;
-}
-
-/* decrease c_count on @node */
-void
-del_c_ref(znode * node /* node to decrease c_count of */ )
-{
-	assert("nikita-2157", node != NULL);
-	assert("nikita-2133", atomic_read(&node->c_count) > 0);
-	atomic_dec(&node->c_count);
 }
 
 z_hash_table *
@@ -549,7 +540,7 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 			z_hash_insert_index_rcu(zth, hashi, result);
 
 			if (parent != NULL)
-				atomic_inc(&parent->c_count);
+				++ parent->c_count;
 		}
 
 		add_x_ref(ZJNODE(result));
@@ -823,37 +814,6 @@ znode_just_created(const znode * node)
 	return (znode_page(node) == NULL);
 }
 
-int
-io_hook_znode(jnode * node, struct page *page UNUSED_ARG, int rw)
-{
-	if (REISER4_STATS && (rw == WRITE)) {
-		int result = 0;
-		txn_atom *atom;
-
-		/* current flush alg. implementation allows internal nodes
-		   with unallocated children to be written to disk if atom is
-		   not being committed but just flushed at out-of-memory
-		   situation. */
-		LOCK_JNODE(node);
-		atom = atom_locked_by_jnode(node);
-		/* formatted nodes cannot be written without assigning an atom
-		   to them */
-		assert("zam-674", atom != NULL);
-		if (!(atom->flags & ATOM_FORCE_COMMIT))
-			result = 1;
-		UNLOCK_ATOM(atom);
-		UNLOCK_JNODE(node);
-		if (result)
-			return 0;	/* not a commit */
-
-		if (check_jnode_for_unallocated(node)) {
-			reiser4_stat_inc(flush.flushed_with_unallocated);
-		}
-	}
-
-	return 0;
-}
-
 __u64
 znode_build_version(reiser4_tree * tree)
 {
@@ -1111,10 +1071,10 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 		/* for any znode, c_count of its parent is greater than 0 */
 		_ergo(znode_parent(node) != NULL &&
 		      !znode_above_root(znode_parent(node)),
-		      atomic_read(&znode_parent(node)->c_count) > 0) &&
+		      znode_parent(node)->c_count > 0) &&
 		/* leaves don't have children */
 		_ergo(znode_get_level(node) == LEAF_LEVEL,
-		      atomic_read(&node->c_count) == 0) &&
+		      node->c_count == 0) &&
 
 		_check(node->zjnode.jnodes.prev != NULL) &&
 		_check(node->zjnode.jnodes.next != NULL) &&
@@ -1258,8 +1218,7 @@ info_znode(const char *prefix /* prefix to print */ ,
 		return;
 
 	printk("c_count: %i, readers: %i, items: %i\n",
-	       atomic_read(&node->c_count), node->lock.nr_readers,
-	       node->nr_items);
+	       node->c_count, node->lock.nr_readers, node->nr_items);
 }
 
 void
