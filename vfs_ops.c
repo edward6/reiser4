@@ -438,15 +438,6 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	kmem_cache_free(inode_cache, container_of(info, reiser4_inode_object, p));
 }
 
-static void drop_object_body(struct inode *inode)
-{
-	if (!inode_file_plugin(inode)->pre_delete)
-		return;
-	if (inode_file_plugin(inode)->pre_delete(inode))
-		warning("vs-1216", "Failed to delete file body for %llu)\n",
-			get_inode_oid(inode));
-}
-
 static void
 reiser4_drop_inode(struct inode *object)
 {
@@ -459,44 +450,9 @@ reiser4_drop_inode(struct inode *object)
 
 	fplug = inode_file_plugin(object);
 	/* fplug is NULL for fake inode */
-	if (fplug != NULL && fplug->not_linked(object)) {
-		/* create context here.
-
-		   removal of inode from the hash table (done at the very
-		   beginning of generic_delete_inode(), truncate of pages, and
-		   removal of file's extents has to be performed in the same
-		   atom. Otherwise, it may so happen, that twig node with
-		   unallocated extent will be flushed to the disk.
-		*/
-		reiser4_context ctx;
-
-		init_context(&ctx, object->i_sb);
-		/*
-		 * FIXME: this resembles generic_delete_inode
-		 */
-		hlist_del_init(&object->i_hash);
-		list_del_init(&object->i_list);
-		object->i_state|=I_FREEING;
-		inodes_stat.nr_inodes--;
-		spin_unlock(&inode_lock);
-
-		uncapture_inode(object);
-
-		if (!is_bad_inode(object))
-			drop_object_body(object);
-
-		if (object->i_data.nrpages)
-			truncate_inode_pages(&object->i_data, 0);
-
-		security_inode_delete(object);
-		if (!is_bad_inode(object))
-			DQUOT_INIT(object);
-
-		reiser4_delete_inode(object);
-		if (object->i_state != I_CLEAR)
-			BUG();
-		destroy_inode(object);
-		(void)reiser4_exit_context(&ctx);
+	if (fplug != NULL) {
+		assert("nikita-3251", fplug->drop != NULL);
+		fplug->drop(object);
 	} else
 		generic_forget_inode(object);
 }
@@ -807,6 +763,18 @@ parse_options(char *opt_string /* starting point */ ,
 		}							\
 	}
 
+#define BIT_OPT(label, bitnr)					\
+	{							\
+		.name = label,					\
+		.type = OPT_BIT,				\
+		.u = {						\
+			.bit = {				\
+				.nr = bitnr,			\
+				.addr = &sbinfo->fs_flags	\
+			}					\
+		}						\
+	}
+
 static int
 reiser4_parse_options(struct super_block *s, char *opt_string)
 {
@@ -898,40 +866,15 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		PLUG_OPT("plugin.dir", dir, &sbinfo->plug.d),
 		PLUG_OPT("plugin.hash", hash, &sbinfo->plug.h),
 
-		{
-			/* turn on BSD-style gid assignment */
-			.name = "bsdgroups",
-			.type = OPT_BIT,
-			.u = {
-				.bit = {
-					.nr = REISER4_BSD_GID,
-					.addr = &sbinfo->fs_flags
-				}
-			}
-		},
+		/* turn on BSD-style gid assignment */
+		BIT_OPT("bsdgroups", REISER4_BSD_GID),
+		/* turn on 32 bit times */
+		BIT_OPT("32bittimes", REISER4_32_BIT_TIMES),
+		/* turn on concurrent flushing */
+		BIT_OPT("mtflush", REISER4_MTFLUSH),
+		/* disable pseudo files support */
+		BIT_OPT("nopseudo", REISER4_NO_PSEUDO),
 
-		{
-			/* turn on 32 bit times */
-			.name = "32bittimes",
-			.type = OPT_BIT,
-			.u = {
-				.bit = {
-					.nr = REISER4_32_BIT_TIMES,
-					.addr = &sbinfo->fs_flags
-				}
-			}
-		},
-		{
-			/* turn on concurrent flushing */
-			.name = "mtflush",
-			.type = OPT_BIT,
-			.u = {
-				.bit = {
-					.nr = REISER4_MTFLUSH,
-					.addr = &sbinfo->fs_flags
-				}
-			}
-		},
 		{
 			/* tree traversal readahead parameters:
 			   -o readahead:MAXNUM:FLAGS
@@ -1191,17 +1134,6 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 	first_read_started = second_read_started = 0;
 	assert("umka-085", s != NULL);
 
-	if ((REISER4_DEBUG || 
-	     REISER4_DEBUG_MODIFY || 
-	     REISER4_TRACE ||
-	     REISER4_STATS || 
-	     REISER4_DEBUG_MEMCPY || 
-	     REISER4_ZERO_NEW_NODE || 
-	     REISER4_TRACE_TREE || 
-	     REISER4_PROF || 
-	     REISER4_LOCKPROF) && !silent)
-		warning("nikita-2372", "Debugging is on. Benchmarking is invalid.");
-
 	/* this is common for every disk layout. It has a pointer where layout
 	   specific part of info can be attached to, though */
 	sbinfo = kmalloc(sizeof (reiser4_super_info_data), GFP_KERNEL);
@@ -1321,6 +1253,8 @@ read_super_block:
 		goto error3;
 	}
 
+	build_object_ops(s, &sbinfo->ops);
+
 	init_committed_sb_counters(s);
 
 	assert("nikita-2687", check_block_counters(s));
@@ -1344,7 +1278,7 @@ read_super_block:
 		result = RETERR(-ENOMEM);
 		goto error4;
 	}
-	s->s_root->d_op = &reiser4_dentry_operation;
+	s->s_root->d_op = &sbinfo->ops.dentry;
 
 	if (inode->i_state & I_NEW) {
 		reiser4_inode *info;
@@ -1372,8 +1306,22 @@ read_super_block:
 	s->s_maxbytes = MAX_LFS_FILESIZE;
 	reiser4_sysfs_init(s);
 
-	if (!silent)
+	if (!silent) {
 		print_fs_info("mount ok", s);
+		if (REISER4_DEBUG || 
+		    REISER4_DEBUG_MODIFY || 
+		    REISER4_TRACE ||
+		    REISER4_STATS || 
+		    REISER4_DEBUG_MEMCPY || 
+		    REISER4_ZERO_NEW_NODE || 
+		    REISER4_TRACE_TREE || 
+		    REISER4_PROF || 
+		    REISER4_LOCKPROF || 
+		    !reiser4_is_set(s, REISER4_NO_PSEUDO))
+			reiser4_log("nikita-2372",
+				    "Debugging is on. Benchmarking is invalid.");
+
+	}
 	reiser4_exit_context(&ctx);
 	return 0;
 
