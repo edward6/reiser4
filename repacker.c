@@ -23,9 +23,10 @@
 #include "kcond.h"
 
 enum repacker_state_bits {
-	REPACKER_RUNNING = 0x1,
-	REPACKER_STOP    = 0x2,
-	REPACKER_DESTROY = 0x4
+	REPACKER_RUNNING   = 0x1,
+	REPACKER_STOP      = 0x2,
+	REPACKER_DESTROY   = 0x4,
+	REPACKER_GOES_LEFT = 0x8
 };
 
 struct repacker {
@@ -163,7 +164,7 @@ static int repacker_d(void *arg)
 	{
 		struct repacker_stats stats = {.znodes_dirtied = 0, .jnodes_dirtied = 0};
 
-		ret = tree_walk(NULL, 0, &repacker_actor, &stats);
+		ret = tree_walk(NULL, repacker->state & REPACKER_GOES_LEFT, &repacker_actor, &stats);
 		printk(KERN_INFO "reiser4 repacker: "
 		       "%lu formatted node(s) processed, %lu unformatted node(s) processed, ret = %d\n",
 		       stats.znodes_dirtied, stats.jnodes_dirtied, ret);
@@ -218,25 +219,23 @@ static void stop_repacker(struct repacker * repacker)
 
 #if REISER4_USE_SYSFS
 
-static struct attribute start_repacker_attr = {
-	.name = "start",
-	.mode = 0644		/* rw-r--r */
+struct repacker_attr_ops {
+	ssize_t (*show)(struct repacker *, char * buf);
+	ssize_t (*store)(struct repacker *, const char * buf, size_t size);
 };
 
-static struct attribute * repacker_def_attrs[] = {
-	&start_repacker_attr,
-	NULL
-}; 
+struct repacker_attr {
+	struct repacker_attr_ops ops;
+	struct attribute attr;
+};
 
-static ssize_t repacker_attr_show (struct kobject *kobj, struct attribute *attr,  char *buf)
+static ssize_t start_attr_show (struct repacker * repacker, char * buf)	
 {
-	struct repacker * repacker = container_of(kobj, struct repacker, kobj);
 	return snprintf(buf, PAGE_SIZE , "%d", check_repacker_state(repacker, REPACKER_RUNNING));
 }
 
-static ssize_t repacker_attr_store (struct kobject *kobj, struct attribute *attr,  const char *buf, size_t size)
+static ssize_t start_attr_store (struct repacker * repacker,  const char *buf, size_t size)
 {
-	struct repacker * repacker = container_of(kobj, struct repacker, kobj);
 	int start_stop = 0;
 
 	sscanf(buf, "%d", &start_stop);
@@ -247,6 +246,74 @@ static ssize_t repacker_attr_store (struct kobject *kobj, struct attribute *attr
 
 	return size;
 }
+
+static ssize_t direction_attr_show (struct repacker * repacker, char * buf)	
+{
+	return snprintf(buf, PAGE_SIZE , "%d", check_repacker_state(repacker, REPACKER_GOES_LEFT));
+}
+
+static ssize_t direction_attr_store (struct repacker * repacker,  const char *buf, size_t size)
+{
+	int go_left = 0;
+
+	sscanf(buf, "%d", &go_left);
+
+	spin_lock(&repacker->guard);
+	if (!(repacker->state & REPACKER_RUNNING)) {
+		if (go_left) 
+			repacker->state |= REPACKER_GOES_LEFT;
+		else
+			repacker->state &= ~REPACKER_GOES_LEFT;
+	}
+	spin_unlock(&repacker->guard);
+	return size;
+}
+
+static struct repacker_attr start_attr = {
+	.ops = { 
+		.show = start_attr_show,
+		.store = start_attr_store,
+	},
+	.attr = {
+		.name = "start",
+		.mode = 0644		/* rw-r--r */
+	}
+};
+
+static struct repacker_attr direction_attr = {
+	.ops = { 
+		.show = direction_attr_show,
+		.store = direction_attr_store
+	},
+	.attr = {
+		.name = "direction",
+		.mode = 0644		/* rw-r--r */
+	}
+};
+
+static struct attribute * repacker_def_attrs[] = {
+	&start_attr.attr,
+	&direction_attr.attr,
+	NULL
+}; 
+
+static ssize_t repacker_attr_show (struct kobject *kobj, struct attribute *attr,  char *buf)
+{
+	struct repacker_attr * r_attr = container_of(attr, struct repacker_attr, attr);
+	struct repacker * repacker = container_of(kobj, struct repacker, kobj);
+
+	return r_attr->ops.show(repacker, buf);
+}
+	
+static ssize_t repacker_attr_store (struct kobject *kobj, struct attribute *attr, const char *buf, size_t size)
+{
+	struct repacker_attr * r_attr = container_of(attr, struct repacker_attr, attr);
+	struct repacker * repacker = container_of(kobj, struct repacker, kobj);
+
+	return r_attr->ops.store(repacker, buf, size);
+}
+
+
 
 static struct sysfs_ops repacker_sysfs_ops = {
 	.show  = repacker_attr_show,
