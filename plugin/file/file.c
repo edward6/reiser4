@@ -139,7 +139,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 	/* build flow */
 	assert ("vs-528",
 		inode_file_plugin (inode)->flow_by_inode == common_build_flow);
-
+/* this should now be called userspace_sink_build, now that we have both sinks and flows.  See discussion of sinks and flows in www.namesys.com/v4/v4.html */
 	result = common_build_flow (inode, buf, 1/* user space */, size,
 				    *off, READ_OP, &f);
 	if (result)
@@ -147,15 +147,28 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 
 	get_nonexclusive_access (inode);
 
+#if PSEUDO_CODE_CAN_COMPILE
+		call_code resembling generic_readahead in its algorithms but which modifies to_read
+#endif
+
 	to_read = f.length;
 	while (f.length) {
 		if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
 			/* do not read out of file */
 			break;
+/* AUDIT: lock handle not initialized */
+#if PSEUDO_CODE_CAN_COMPILE
 		
+
 		/* look for file metadata corresponding to position we read
 		 * from */
-		/* AUDIT: lock handle not initialized prior to usage */
+		if (finding_first_item && inode contains unbroken seal) {
+			use seal pointed to by struct file to try to find first item;
+		}
+				/* on entry, lh should be lock on current node, on exit lh should be lock of node for item found */
+		result = next_item_by_seal_and_key(&f.key, &coord, &lh,
+						   ZNODE_READ_LOCK, coord_of_current_item);
+#endif
 		result = find_item (&f.key, &coord, &lh,
 				    ZNODE_READ_LOCK);
 		switch (result) {
