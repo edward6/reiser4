@@ -177,17 +177,17 @@ extern void inode_invariant(const struct inode *inode);
 #define inode_invariant(inode) noop
 #endif
 
-static inline void spin_lock_inode(struct inode *inode)
-{
-	spin_lock_inode_object(reiser4_inode_data(inode));
-	inode_invariant(inode);
-}
+#define spin_lock_inode(inode)			\
+({						\
+	LOCK_INODE(reiser4_inode_data(inode));	\
+	inode_invariant(inode);			\
+})
 
-static inline void spin_unlock_inode(struct inode *inode)
-{
-	inode_invariant(inode);
-	spin_unlock_inode_object(reiser4_inode_data(inode));
-}
+#define spin_unlock_inode(inode)			\
+({							\
+	inode_invariant(inode);				\
+	UNLOCK_INODE(reiser4_inode_data(inode));	\
+})
 
 extern int reiser4_max_filename_len(const struct inode *inode);
 extern int max_hash_collisions(const struct inode *dir);
