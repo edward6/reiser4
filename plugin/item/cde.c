@@ -933,6 +933,17 @@ extract_name_cde(const coord_t * coord /* coord of item */, char *buf)
 	return extract_dent_name(coord, dent, buf);
 }
 
+static int
+cde_bytes(int pasting, const reiser4_item_data * data)
+{
+	int result;
+
+	result = data->length;
+	if (!pasting)
+		result -= sizeof (cde_item_format);
+	return result;
+}
+
 /* ->s.dir.add_entry() method for this item plugin */
 int
 add_entry_cde(struct inode *dir /* directory object */ ,
@@ -967,7 +978,7 @@ add_entry_cde(struct inode *dir /* directory object */ ,
 	data.length = estimate_cde(result ? coord : NULL, &data);
 
 	/* NOTE-NIKITA quota plugin? */
-	if (DQUOT_ALLOC_SPACE_NODIRTY(dir, data.length))
+	if (DQUOT_ALLOC_SPACE_NODIRTY(dir, cde_bytes(result, &data)))
 		return RETERR(-EDQUOT);
 
 	if (result)
