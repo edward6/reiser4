@@ -48,6 +48,16 @@ struct bitmap_allocator_data {
 
 #define get_bnode(super, i) (get_barray(super) + i)
 
+/* allocate and initialize jnode with JNODE_BITMAP type */
+static jnode * bnew (void)
+{
+	jnode * jal = jnew ();
+
+	if (jal) jnode_set_type(jal, JNODE_BITMAP);
+
+	return jal;
+}
+ 
 /*
  * this file contains:
  * - bitmap based implementation of space allocation plugin
@@ -488,9 +498,9 @@ static int load_and_lock_bnode (struct bnode * bnode)
 
 		ret = -ENOMEM;
 
-		if ((bnode->wjnode = jnew ()) == NULL) goto fail;
+		if ((bnode->wjnode = bnew ()) == NULL) goto fail;
 
-		if ((bnode->cjnode = jnew ()) == NULL) goto fail;
+		if ((bnode->cjnode = bnew ()) == NULL) goto fail;
 
 		/*bitmap nodes should be marked as having no znode fields, it is done
 		  by setting of ZNODE_UNFORMATTED bit.*/
