@@ -3112,6 +3112,7 @@ extent_writepage(coord_t * coord, lock_handle * lh, struct page *page)
 
 	reiser4_unlock_page(page);
 	result = make_extent(page->mapping->host, coord, lh, j);
+	JF_CLR(j, JNODE_NEW);
 	reiser4_lock_page(page);
 	if (result) {
 		trace_on(TRACE_EXTENTS, "extent_writepage failed: %d\n", result);
