@@ -264,6 +264,7 @@ extern int is_in_reiser4_context(void);
 
 #define wrong_return_value( label, function )				\
 	impossible( label, "wrong return value from " function )
+/* NIKITA-FIXME-HANS: comment is where? */
 #define warning( label, format, ... )					\
 	DCALL( KERN_WARNING, 						\
 	       printk, 1, label, "WARNING: " format , ## __VA_ARGS__ )
