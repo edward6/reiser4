@@ -815,7 +815,7 @@ longterm_lock_tryfast(lock_stack * owner, txn_handle * txnh)
 		result = try_capture_args(ZJNODE(node),
 					  txnh,
 					  ZNODE_READ_LOCK,
-					  TXN_CAPTURE_CAN_COC, 0, 0);
+					  0, 0, 0, 1/* can copy on capture */);
 		spin_unlock_znode(node);
 		WLOCK_ZLOCK(lock);
 		if (unlikely(result != 0)) {
@@ -865,7 +865,7 @@ longterm_lock_znode(
 	assert("nikita-3026", schedulable());
 	assert("nikita-3219", request_is_deadlock_safe(node, mode, request));
 
-	cap_flags = TXN_CAPTURE_CAN_COC;
+	cap_flags = 0;
 	if (request & ZNODE_LOCK_NONBLOCK) {
 		cap_flags |= TXN_CAPTURE_NONBLOCKING;
 		non_blocking = 1;
@@ -1013,7 +1013,7 @@ longterm_lock_znode(
 			WUNLOCK_ZLOCK(lock);
 			spin_lock_znode(node);
 			ret = try_capture_args(ZJNODE(node), txnh, mode,
-					       cap_flags, non_blocking, 0);
+					       cap_flags, non_blocking, 0/* cap_mode */, 1/* can copy on capture*/);
 			spin_unlock_znode(node);
 			WLOCK_ZLOCK(lock);
 			if (unlikely(ret != 0)) {
