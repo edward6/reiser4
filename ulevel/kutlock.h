@@ -58,13 +58,13 @@ spin_trylock (spinlock_t *s)
 }
 
 static __inline__ int
-spin_is_locked (spinlock_t *s)
+spin_is_locked (const spinlock_t *s)
 {
-	if (pthread_mutex_trylock (s) != 0) {
+	if (pthread_mutex_trylock ((spinlock_t *) s) != 0) {
 		return 1;
 	}
 
-	pthread_mutex_unlock (s);
+	pthread_mutex_unlock ((spinlock_t *) s);
 	return 0;
 }
 
@@ -178,7 +178,7 @@ spin_trylock (spinlock_t *s)
 /* This is intended for use in assertions--why else would you check is_locked and not use
  * trylock instead?  However, it returns false if the lock is unlocked. */
 static __inline__ int
-spin_is_locked (spinlock_t *s)
+spin_is_locked (const spinlock_t *s)
 {
 	pthread_t me = pthread_self ();
 	int ret;
