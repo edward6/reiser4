@@ -104,10 +104,6 @@ typedef struct reiser4_stat_data_base {
 	/*  0 */ d16 mode;
 	/** bitmask indicating what pieces of data (extensions) follow
 	    this minimal stat-data */
-	/*  2 */ d16 extmask;
-	/*  4 */ d32 nlink;
-	/*  8 */ d64 size;	/* size in bytes */
-	/* 16 */
 } reiser4_stat_data_base;
 
 typedef struct reiser4_unix_stat {
