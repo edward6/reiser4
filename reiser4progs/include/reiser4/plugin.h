@@ -16,90 +16,117 @@ typedef void reiserfs_entity_t;
 typedef union reiserfs_plugin reiserfs_plugin_t;
 
 enum reiserfs_plugin_type {
-    REISERFS_FILE_PLUGIN,
-    REISERFS_DIR_PLUGIN,
-    REISERFS_ITEM_PLUGIN,
-    REISERFS_NODE_PLUGIN,
-    REISERFS_HASH_PLUGIN,
-    REISERFS_DROP_POLICY_PLUGIN,
-    REISERFS_HOOK_PLUGIN,
-    REISERFS_PERM_PLUGIN,
-    REISERFS_SDEXT_PLUGIN,
-    REISERFS_FORMAT_PLUGIN,
-    REISERFS_OID_PLUGIN,
-    REISERFS_ALLOC_PLUGIN,
-    REISERFS_JOURNAL_PLUGIN,
-    REISERFS_KEY_PLUGIN,
+    FILE_PLUGIN_TYPE,
+    ITEM_PLUGIN_TYPE,
+    NODE_PLUGIN_TYPE,
+    HASH_PLUGIN_TYPE,
+    DROP_POLICY_PLUGIN_TYPE,
+    PERM_PLUGIN_TYPE,
+    SDEXT_PLUGIN_TYPE,
+    FORMAT_PLUGIN_TYPE,
+    OID_PLUGIN_TYPE,
+    ALLOC_PLUGIN_TYPE,
+    JOURNAL_PLUGIN_TYPE,
+    KEY_PLUGIN_TYPE
 };
 
 typedef enum reiserfs_plugin_type reiserfs_plugin_type_t;
 
+/*
+enum reiserfs_file_type {
+    REISERFS_REGULAR_FILE,
+    REISERFS_DIRECTORY_FILE,
+    REISERFS_SYMLINK_FILE,
+    REISERFS_SPECIAL_FILE,
+};
+
 enum reiserfs_item_type {
     REISERFS_STATDATA_ITEM,
-    REISERFS_SDE_ITEM,
-    REISERFS_CDE_ITEM,
+    REISERFS_DIRENTRY_ITEM,
     REISERFS_INTERNAL_ITEM,
     REISERFS_ACL_ITEM,
-    REISERFS_EXTENT_ITEM,
-    REISERFS_DROP_ITEM
+    REISERFS_FILEBODY_ITEM
+};
+*/
+
+enum reiserfs_file_plugin_id {
+    FILE_REG40_ID		    = 0x0,
+    FILE_DIR40_ID		    = 0x1,
+    FILE_SYMLINK40_ID		    = 0x2,
+    FILE_SPECIAL40_ID		    = 0x3
 };
 
-typedef enum reiserfs_item_type reiserfs_item_type_t;
-
-enum reiserfs_drop_policy {
-    REISERFS_NEVER_DROP,
-    REISERFS_SUPPOLD_DROP,
-    REISERFS_FOURK_DROP,
-    REISERFS_ALWAYS_DROP,
-    REISERFS_SMART_DROP
+enum reiserfs_item_plugin_id {
+    ITEM_STATDATA40_ID		    = 0x0,
+    ITEM_SDE40_ID		    = 0x1,
+    ITEM_CDE40_ID		    = 0x2,
+    ITEM_INTERNAL40_ID		    = 0x3,
+    ITEM_ACL40_ID		    = 0x4,
+    ITEM_EXTENT40_ID		    = 0x5,
+    ITEM_DROP40_ID		    = 0x6
 };
 
-typedef enum reiserfs_drop_policy reiserfs_drop_policy_t;
+enum reiserfs_node_plugin_id {
+    NODE_REISER40_ID		    = 0x0,
+};
 
-enum reiserfs_hash {
-    REISERFS_RUPASOV_HASH,
-    REISERFS_R5_HASH,
-    REISERFS_TEA_HASH,
-    REISERFS_FNV1_HASH
+enum reiserfs_hash_plugin_id {
+    HASH_RUPASOV_ID		    = 0x0,
+    HASH_R5_ID			    = 0x1,
+    HASH_TEA_ID			    = 0x2,
+    HASH_FNV1_ID		    = 0x3,
+    HASH_DEGENERATE_ID		    = 0x4
 };
 
 typedef enum reiserfs_hash reiserfs_hash_t;
 
-/* Stat data extention bits */
-enum reiserfs_sdext {
-    /* 
-	Data required to implement unix stat(2) call. Layout is in structure
-	reiserfs_stat40_unix. If this is not present, file is light-weight.
-    */
-    REISERFS_UNIX_SDEXT,
-
-    /* Stat data has symlink name included */
-    REISERFS_SYMLINK_SDEXT,
-    /* 
-	If this is present, file is controlled by non-standard plugin (that is, 
-	plugin that cannot be deduced from file mode bits), for example, aggregation, 
-	interpolation etc. 
-    */
-    REISERFS_PLUGIN_SDEXT,
-    /* 
-	This extension contains inode generation and persistent inode
-        flags.
-    */
-    REISERFS_GEN_AND_FLAGS_SDEXT,
-    /* 
-	This extension contains capabilities sets, associated with this
-        file. Layout is in reiserfs_capabilities_stat
-    */
-    REISERFS_CAPABILITIES_SDEXT,
-    /* 
-	This contains additional set of 32bit [anc]time fields to
-        implement 64bit times a la BSD. 
-    */
-    REISERFS_LARGE_TIMES_SDEXT,
-    REISERFS_LAST_SDEXT
+enum reiserfs_drop_policy_plugin_id {
+    DROP_NEVER_ID		    = 0x0,
+    DROP_SUPPRESS_ID		    = 0x1,
+    DROP_FOURK_ID		    = 0x2,
+    DROP_ALWAYS_ID		    = 0x3,
+    DROP_SMART_ID		    = 0x4
 };
 
-typedef enum reiserfs_sdext reiserfs_sdext_t;
+enum reiserfs_perm_plugin_id {
+    PREM_RWX_ID			    = 0x0
+};
+
+enum reiserfs_sdext_plugin_id {
+    SDEXT_UNIX_ID		    = 0x0,
+    SDEXT_SYMLINK_ID		    = 0x1,
+    SDEXT_PLUGIN_ID		    = 0x2,
+    SDEXT_GEN_AND_FLAGS_ID	    = 0x3,
+    SDEXT_CAPABILITIES_ID	    = 0x4,
+    SDEXT_LARGE_TIMES_ID	    = 0x5,
+    SDEXT_LAST_ID
+};
+
+enum reiserfs_format_plugin_id {
+    FORMAT_REISER40_ID		    = 0x0,
+    FORMAT_REISER36_ID		    = 0x1
+};
+
+enum reiserfs_oid_plugin_id {
+    OID_REISER40_ID		    = 0x0,
+    OID_REISER36_ID		    = 0x1
+};
+
+enum reiserfs_alloc_plugin_id {
+    ALLOC_REISER40_ID		    = 0x0,
+    ALLOC_REISER36_ID		    = 0x1
+};
+
+enum reiserfs_journal_plugin_id {
+    JOURNAL_REISER40_ID		    = 0x0,
+    JOURNAL_REISER36_ID		    = 0x1
+};
+
+enum reiserfs_key_plugin_id {
+    KEY_REISER40_ID		    = 0x0,
+    KEY_REISER36_ID		    = 0x1
+};
+
 
 /* 
     Maximal possible key size. It is used for creating temporary keys by declaring 
