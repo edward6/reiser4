@@ -802,23 +802,27 @@ txn_wait_on_io(txn_atom * atom)
 static jnode *
 find_first_dirty(txn_atom * atom)
 {
-	jnode *first_dirty = NULL;
+	jnode *first_dirty;
 	tree_level level;
 
 	assert("zam-753", spin_atom_is_locked(atom));
 
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
+		capture_list_head *head;
 
 		if (capture_list_empty(&atom->dirty_nodes[level])) {
 			continue;
 		}
 
-		first_dirty = capture_list_front(&atom->dirty_nodes[level]);
-
-		break;
+		/* skip jnodes which have "heard banshee" */
+		head = &atom->dirty_nodes[level];
+		for (first_dirty = capture_list_front(head); !capture_list_end(head, first_dirty);
+		     first_dirty = capture_list_next(first_dirty)) {
+			if (!JF_ISSET(first_dirty, JNODE_HEARD_BANSHEE))
+				return first_dirty;
+		}
 	}
-
-	return first_dirty;
+	return NULL;
 }
 
 /* Called with the atom locked and no open txnhs, this function determines
@@ -1973,7 +1977,7 @@ repeat:
 		} else {
 			/* jnode has assigned block which is counted as "fake
 			   allocated". Return it back to "free blocks") */
-			fake_allocated2free((__u64) 1, BA_FORMATTED);
+			fake_allocated2free((__u64) 1, BA_FORMATTED, "uncapture_page: formatted fake allocated node");
 		}
 	}
 
@@ -2066,9 +2070,7 @@ jnode_set_dirty(jnode * node)
 		    && !JF_ISSET(node, JNODE_OVRWR))
 		{
 			assert("vs-1093", !blocknr_is_fake(&node->blocknr));
-			trace_on(TRACE_RESERVE1, 
-				 "jnode_set_dirty: moving 1 grabbed block to flush reserved. Atom %u: block %llu\n", atom ? atom->atom_id : 0, node->blocknr);
-			grabbed2flush_reserved_nolock(atom, (__u64)1);
+			grabbed2flush_reserved_nolock(atom, (__u64)1, "jnode_set_dirty: for clean, !created, !reloc and !ovrwr");
 		}
 
 		if (atom && !JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
@@ -2315,7 +2317,7 @@ capture_super_block(struct super_block *s)
 	}
 
 	/* Grabbing one block for superblock */
-	if ((result = reiser4_grab_space_force((__u64)1, BA_RESERVED)) != 0)
+	if ((result = reiser4_grab_space_force((__u64)1, BA_RESERVED, "capture_super_block")) != 0)
 		return result;
 	
 	znode_set_dirty(fake);
