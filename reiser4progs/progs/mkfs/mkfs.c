@@ -45,6 +45,8 @@ static void mkfs_print_usage(void) {
 int main(int argc, char *argv[]) {
     struct stat st;
     char uuid[17], label[17];
+    aal_list_t *walk = NULL;
+    aal_list_t *devices = NULL;
     count_t fs_len = 0, dev_len = 0;
     int c, error, force = 0, quiet = 0;
     char *host_dev, *profile_label = "default40";
@@ -165,38 +167,60 @@ int main(int argc, char *argv[]) {
 	goto error;
     }
     
-    host_dev = argv[optind++];
-    
-    if (optind < argc) {
-	char *len_str = argv[optind];
-
-	if (stat(host_dev, &st) == -1) {
-	    char *tmp = host_dev;
-	    host_dev = len_str;
-	    len_str = tmp;
-	}
-	
-	if (!(fs_len = (progs_misc_size_parse(len_str, 
-	    &error) / blocksize)) && error) 
-	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Invalid filesystem size (%s).", len_str);
-	    return ERROR_USER;
-	}
+    /* 
+	Initializing libreiser4. We are using zero as tree cache limit. In this 
+	case, libreiser4 will set up it by itself. We do this because mkfs doesn't
+	need a big cache.
+    */
+    if (libreiser4_init(0)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't initialize libreiser4.");
+	goto error;
     }
-   
+
+    /* Building list of devices filesystem will be created on */
+    for (; optind < argc; optind++) {
+	if (stat(argv[optind], &st) == -1) {
+	    if (progs_misc_size_check(argv[optind])) {
+		fs_len = (progs_misc_size_parse(argv[optind], &error));
+		if (!error && fs_len < blocksize) {
+		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+			"Strange filesystem size has been detected (%s).", argv[optind]);
+		    goto error_free_libreiser4;
+		}
+		fs_len /= blocksize;
+	    } else {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		    "Something strange has been detected while parsing "
+		    "parameetrs (%s).", argv[optind]);
+		goto error_free_libreiser4;
+	    }
+	} else
+	    devices = aal_list_append(devices, argv[optind]);
+    }
+    
+    if (aal_list_length(devices) > 1) {
+	aal_memset(uuid, 0, sizeof(uuid));
+	aal_memset(label, 0, sizeof(label));
+    }
+    
+    /* The loop through all devices */
+    aal_list_foreach_forward(walk, devices) {
+    
+    host_dev = (char *)walk->item;
+    
     /* Checking given device for validness */
     if (stat(host_dev, &st) == -1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Device \"%s\" doesn't exists or invalid.", host_dev);
-	return ERROR_USER;
+	goto error_free_libreiser4;
     }
     
     if (!S_ISBLK(st.st_mode)) {
 	if (!force) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Device \"%s\" is not block device. Use -f to force over.", host_dev);
-	    return ERROR_USER;
+	    goto error_free_libreiser4;
 	}
     } else {
 	if (((IDE_DISK_MAJOR(MAJOR(st.st_rdev)) && MINOR(st.st_rdev) % 64 == 0) ||
@@ -204,15 +228,15 @@ int main(int argc, char *argv[]) {
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Device \"%s\" is an entire harddrive, not just one partition.", host_dev);
-	    return ERROR_USER;
+	    goto error_free_libreiser4;
 	}
     }
    
     /* Checking if passed partition is mounted */
     if (progs_misc_dev_mounted(host_dev, NULL) && !force) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Partition \"%s\" is mounted at the moment. Use -f to force over.", host_dev);
-	return ERROR_USER;
+	    "Device \"%s\" is mounted at the moment. Use -f to force over.", host_dev);
+	goto error_free_libreiser4;
     }
 
 #ifdef HAVE_UUID
@@ -225,21 +249,10 @@ int main(int argc, char *argv[]) {
 	char *error = strerror(errno);
 	
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't open device %s. %s.", host_dev, error);
-	goto error;
+	    "Can't open device \"%s\". %s.", host_dev, error);
+	goto error_free_libreiser4;
     }
     
-    /* 
-	Initializing libreiser4. We are using zero as tree cache limit. In this 
-	case, libreiser4 will set up it by itself. We do this because mkfs doesn't
-	need a big cache.
-    */
-    if (libreiser4_init(0)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't initialize libreiser4.");
-	goto error_free_device;
-    }
-
     /* Preparing filesystem length */
     dev_len = aal_device_len(device);
     
@@ -248,18 +261,21 @@ int main(int argc, char *argv[]) {
 	
     if (fs_len > dev_len) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Filesystem wouldn't fit into device %llu blocks long, %llu blocks required.", dev_len, fs_len);
-	goto error_free_libreiser4;
+	    "Filesystem wouldn't fit into device %llu blocks long,"
+	    " %llu blocks required.", dev_len, fs_len);
+	goto error_free_device;
     }
 
     /* Checking for "quiet" mode */
     if (!quiet) {
 	if (aal_exception_throw(EXCEPTION_INFORMATION, EXCEPTION_YESNO, 
 		"All data on \"%s\" will be lost.", host_dev) == EXCEPTION_NO)
-	    goto error_free_libreiser4;
+	    goto error_free_device;
     }
 
-    fprintf(stderr, "Creating reiser4 with \"%s\" profile...", profile->label);
+    fprintf(stderr, "Creating reiser4 on \"%s\" with "
+	"\"%s\" profile...", host_dev, profile->label);
+    
     fflush(stderr);
     
     /* Creating filesystem */
@@ -268,7 +284,7 @@ int main(int argc, char *argv[]) {
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't create filesystem on %s.", aal_device_name(device));
-	goto error_free_libreiser4;
+	goto error_free_device;
     }
     fprintf(stderr, "done\n");
 
@@ -291,17 +307,21 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "done\n");
     
     reiserfs_fs_close(fs);
-    libreiser4_done();
     aal_file_close(device);
+
+    }
+    
+    aal_list_free(devices);
+    libreiser4_done();
     
     return ERROR_NONE;
 
 error_free_fs:
     reiserfs_fs_close(fs);
-error_free_libreiser4:
-    libreiser4_done();
 error_free_device:
     aal_file_close(device);
+error_free_libreiser4:
+    libreiser4_done();
 error:
     return ERROR_PROG;
 }
