@@ -132,6 +132,7 @@ static inline loff_t get_min_readahead(struct reiser4_file_ra_state *ra)
 /* Start read for the given window. */
 static loff_t do_reiser4_file_readahead (struct inode * inode, loff_t offset, loff_t size)
 {
+	reiser4_tree * tree = current_tree;
 	reiser4_inode * object;
 	reiser4_key start_key;
 	reiser4_key stop_key;
@@ -173,7 +174,8 @@ static loff_t do_reiser4_file_readahead (struct inode * inode, loff_t offset, lo
 	 * less than stop_key.  */
 	while (1) {
 		reiser4_key key;
-		jnode * child;
+		znode * child;
+		reiser4_block_nr blk;
 
 		/* Currently this read-ahead is for formatted nodes only */
 		if (!item_is_internal(&coord))
@@ -183,16 +185,19 @@ static loff_t do_reiser4_file_readahead (struct inode * inode, loff_t offset, lo
 		if (keyge(&key, &stop_key))
 			break;
 
-		result = item_utmost_child(&coord, LEFT_SIDE, &child);
-		if (result || child == NULL)
+		result = item_utmost_child_real_block(&coord, LEFT_SIDE, &blk);
+		if (result || blk == 0)
 			break;
+
+		child = zget(tree, &blk, lock.node, LEAF_LEVEL, GFP_KERNEL);
+		
 		if (IS_ERR(child)) {
 			result = PTR_ERR(child);
 			break;
 		}
 
-		result = jstartio(child);
-		jput(child);
+		result = jstartio(ZJNODE(child));
+		zput(child);
 		if (result)
 			break;
 
@@ -218,7 +223,6 @@ static loff_t do_reiser4_file_readahead (struct inode * inode, loff_t offset, lo
 	if (result) {
 		if (result == -E_REPEAT || result == -E_NO_NEIGHBOR) {
 			loff_t end_offset;
-			reiser4_tree * tree = current_tree;
 
 			assert("zam-994", lock.node != NULL);
 
@@ -318,6 +322,21 @@ do_io:
 			ra->size = actual;
 		}
 	} else {
+		/*
+		 * This read request is within the current window.  It is time
+		 * to submit I/O for the ahead window while the application is
+		 * crunching through the current window.
+		 */
+		if (ra->ahead_start == 0) {
+			ra->ahead_start = ra->start + ra->size;
+			ra->ahead_size = ra->next_size;
+			actual = do_reiser4_file_readahead(
+				inode, ra->ahead_start, ra->ahead_size);
+			if (actual > 0) {
+				ra->ahead_size = actual;
+			}
+		}
+
 		/* Have we merely advanced into the ahead window? */
 		if (offset + size >= ra->ahead_start) {
 			/*
@@ -336,21 +355,6 @@ do_io:
 			 * requested, control will return here and more I/O
 			 * will be submitted to build the new ahead window.
 			 */
-			goto out;
-		}
-		/*
-		 * This read request is within the current window.  It is time
-		 * to submit I/O for the ahead window while the application is
-		 * crunching through the current window.
-		 */
-		if (ra->ahead_start == 0) {
-			ra->ahead_start = ra->start + ra->size;
-			ra->ahead_size = ra->next_size;
-			actual = do_reiser4_file_readahead(
-				inode, ra->ahead_start, ra->ahead_size);
-			if (actual > 0) {
-				ra->size = actual;
-			}
 		}
 	}
 out:
