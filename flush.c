@@ -583,8 +583,11 @@ static int flush_allocate_znode(znode * node, coord_t * parent_coord, flush_posi
 static int flush_allocate_znode_update(znode * node, coord_t * parent_coord, flush_position * pos);
 
 /* Flush helper functions: */
-static int jnode_lock_parent_coord(jnode * node, coord_t * coord,
-				   lock_handle * parent_lh, load_count * parent_zh, znode_lock_mode mode);
+static int jnode_lock_parent_coord(jnode         * node, 
+				   coord_t       * coord,
+				   lock_handle   * parent_lh, 
+				   load_count    * parent_zh, 
+				   znode_lock_mode mode, int try);
 static int znode_get_utmost_if_dirty(znode * node, lock_handle * right_lock, sideof side, znode_lock_mode mode);
 static int znode_same_parents(znode * a, znode * b);
 
@@ -723,6 +726,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	flush_position flush_pos;
 	flush_scan right_scan;
 	flush_scan left_scan;
+	int todo;
 
 	txn_atom *atom;
 	flush_queue_t *fq = NULL;
@@ -731,6 +735,8 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 
 	flush_mode();
 	
+	reiser4_stat_flush_add(flush);
+
 	/* Flush-concurrency debug code */
 	ON_DEBUG(atomic_inc(&flush_cnt);
 		 trace_on(TRACE_FLUSH,
@@ -867,13 +873,22 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	   leftward scan.  If we do scan right, we only care to go far enough to establish
 	   that at least FLUSH_RELOCATE_THRESHOLD number of nodes are being flushed.  The
 	   scan limit is the difference between left_scan.count and the threshold. */
-	if ((left_scan.count < flush_get_params()->relocate_threshold) &&
-	    (ret = flush_scan_right(&right_scan, node, flush_get_params()->relocate_threshold - left_scan.count))) {
-		goto failed;
+	reiser4_stat_flush_add_few(flush_left, left_scan.count);
+
+	todo = flush_get_params()->relocate_threshold - left_scan.count;
+	if (todo > 0) {
+		ret = flush_scan_right(&right_scan, node, todo);
+		if (ret != 0)
+			goto failed;
 	}
 
 	/* Only the right-scan count is needed, release any rightward locks right away. */
 	flush_scan_done(&right_scan);
+
+	trace_on(TRACE_FLUSH, "flush: left: %i, right: %i\n", 
+		 left_scan.count, right_scan.count);
+
+	reiser4_stat_flush_add_few(flush_left, right_scan.count);
 
 	/* ... and the answer is: we should relocate leaf nodes if at least
 	   FLUSH_RELOCATE_THRESHOLD nodes were found. */
@@ -1340,7 +1355,7 @@ flush_alloc_one_ancestor(coord_t * coord, flush_position * pos)
 	   parent in case we will relocate the child. */
 	if (!znode_is_root(coord->node)) {
 
-		if ((ret = jnode_lock_parent_coord(ZJNODE(coord->node), &acoord, &alock, &aload, ZNODE_WRITE_LOCK))) {
+		if ((ret = jnode_lock_parent_coord(ZJNODE(coord->node), &acoord, &alock, &aload, ZNODE_WRITE_LOCK, 0))) {
 			/* FIXME(C): check EINVAL, EDEADLK */
 			goto exit;
 		}
@@ -2014,7 +2029,7 @@ RIGHT_AGAIN:
 		if (
 		    (ret =
 		     jnode_lock_parent_coord(ZJNODE(right_lock.node),
-					     &right_parent_coord, &parent_lock, &parent_load, ZNODE_WRITE_LOCK))) {
+					     &right_parent_coord, &parent_lock, &parent_load, ZNODE_WRITE_LOCK, 0))) {
 			/* FIXME(C): check EINVAL, EDEADLK */
 			warning("jmacd-61430", "jnode_lock_parent_coord failed: %d", ret);
 			goto exit;
@@ -2610,8 +2625,12 @@ flush_enqueue_unformatted(jnode * node, flush_position * pos)
 /* Hans adds this note: remember to ask how expensive this operation is vs. storing parent
    pointer in jnodes. */
 static int
-jnode_lock_parent_coord(jnode * node,
-			coord_t * coord, lock_handle * parent_lh, load_count * parent_zh, znode_lock_mode parent_mode)
+jnode_lock_parent_coord(jnode         * node,
+			coord_t       * coord, 
+			lock_handle   * parent_lh, 
+			load_count    * parent_zh, 
+			znode_lock_mode parent_mode,
+			int             try)
 {
 	int ret;
 
@@ -2647,10 +2666,19 @@ jnode_lock_parent_coord(jnode * node,
 		}
 
 	} else {
+		int flags;
+
 		/* Formatted node case: */
 		assert("jmacd-2061", !znode_is_root(JZNODE(node)));
 
-		if ((ret = reiser4_get_parent(parent_lh, JZNODE(node), parent_mode, 0))) {
+		flags = GN_ALLOW_NOT_CONNECTED;
+		if (try)
+			flags |= GN_TRY_LOCK;
+
+		ret = reiser4_get_parent_flags(parent_lh, JZNODE(node), 
+					       parent_mode, flags);
+		if (ret != 0) {
+			warning("nikita-2757", "get_parent failed: %i", ret);
 			return ret;
 		}
 
@@ -2871,8 +2899,7 @@ flush_scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned li
 	scan->max_count = limit;
 	scan->direction = LEFT_SIDE;
 
-	if ((ret = flush_scan_set_current(scan, jref(node), 1 /* count starting node */ , NULL	/* no parent coord */
-	     ))) {
+	if ((ret = flush_scan_set_current(scan, jref(node), 1, NULL))) {
 		return ret;
 	}
 
@@ -2911,8 +2938,7 @@ flush_scan_right(flush_scan * scan, jnode * node, unsigned limit)
 	scan->max_count = limit;
 	scan->direction = RIGHT_SIDE;
 
-	if ((ret = flush_scan_set_current(scan, jref(node), 0 /* do not count starting node */ , NULL	/* no parent coord */
-	     ))) {
+	if ((ret = flush_scan_set_current(scan, jref(node), 0, NULL))) {
 		return ret;
 	}
 
@@ -2941,7 +2967,7 @@ flush_scan_common(flush_scan * scan, flush_scan * other)
 			    (ret =
 			     jnode_lock_parent_coord(scan->node,
 						     &scan->parent_coord,
-						     &scan->parent_lock, &scan->parent_load, ZNODE_WRITE_LOCK))) {
+						     &scan->parent_lock, &scan->parent_load, ZNODE_WRITE_LOCK, 0))) {
 				/* FIXME(C): check EINVAL, EDEADLK */
 				return ret;
 			}
@@ -3056,13 +3082,14 @@ flush_scan_formatted(flush_scan * scan)
 	/* Otherwise, check for an extent at the parent level then possibly continue. */
 	{
 		int ret;
+		int try;
 		lock_handle end_lock;
 
 		init_lh(&end_lock);
 
-		assert("nikita-2756",
-		       ergo(flush_scanning_left(scan), 
-			    lock_stack_isclean(get_current_lock_stack())));
+		try = 
+			flush_scanning_left(scan) && 
+			!lock_stack_isclean(get_current_lock_stack());
 
 		/* Need the node locked to get the parent lock, We have to
 		   take write lock since there is at least one call path
@@ -3076,7 +3103,7 @@ flush_scan_formatted(flush_scan * scan)
 		/* This is a write-lock since we may start flushing from this locked coordinate. */
 		ret =
 		    jnode_lock_parent_coord(scan->node, &scan->parent_coord,
-					    &scan->parent_lock, &scan->parent_load, ZNODE_WRITE_LOCK);
+					    &scan->parent_lock, &scan->parent_load, ZNODE_WRITE_LOCK, try);
 		/* FIXME(C): check EINVAL, EDEADLK */
 
 		done_lh(&end_lock);
@@ -3129,7 +3156,8 @@ flush_scan_extent(flush_scan * scan, int skip_first)
 				   only. Will be removed. */
 				warning("nikita-2732", 
 					"Flush raced against extent->tail");
-				ret = -EAGAIN;
+				scan->stop = 1;
+				ret = 0;
 				goto exit;
 			}
 			assert("jmacd-1230", item_is_extent(&scan->parent_coord));
@@ -3572,7 +3600,7 @@ flush_pos_to_parent(flush_position * pos)
 	if (
 	    (ret =
 	     jnode_lock_parent_coord(pos->point, &pos->parent_coord,
-				     &pos->parent_lock, &pos->parent_load, ZNODE_WRITE_LOCK))) {
+				     &pos->parent_lock, &pos->parent_load, ZNODE_WRITE_LOCK, 0))) {
 		/* FIXME(C): check EINVAL, EDEADLK */
 		return ret;
 	}
@@ -3649,7 +3677,7 @@ flush_pos_lock_parent(flush_position * pos, coord_t * parent_coord,
 		assert("jmacd-9922", !znode_is_root(JZNODE(pos->point)));
 		assert("jmacd-9924", lock_mode(&pos->parent_lock) == ZNODE_NO_LOCK);
 		/* FIXME(C): check EINVAL, EDEADLK */
-		return jnode_lock_parent_coord(pos->point, parent_coord, parent_lock, parent_load, mode);
+		return jnode_lock_parent_coord(pos->point, parent_coord, parent_lock, parent_load, mode, 0);
 	}
 }
 
