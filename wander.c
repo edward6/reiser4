@@ -479,8 +479,8 @@ static int write_tx (capture_list_head * tx_list)
 		if (ret != 0) return ret;
 	}
 
-	/* update journal header */
-	{
+	{	/* update journal header */
+
 		struct super_block * s = reiser4_get_current_sb();
 		struct reiser4_super_info_data * private = get_super_private (s);
 		jnode * head = capture_list_back (tx_list);
