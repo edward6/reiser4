@@ -4491,7 +4491,6 @@ int jmacd_test( int argc UNUSED_ARG,
 
 #define BLOCK_COUNT 14000
 
-
 /** a temporary solutions for setting up reiser4 super block */
 static void fill_sb (struct super_block * super)
 {
