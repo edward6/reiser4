@@ -1240,6 +1240,11 @@ replay_transaction(const struct super_block *s,
 			node = alloc_io_head(&block);
 			if (node == NULL) {
 				ret = -ENOMEM;
+				/*
+				 * FIXME-VS:???
+				 */
+				jrelse(log);
+				drop_io_head(log);
 				goto free_ow_set;
 			}
 
@@ -1247,6 +1252,11 @@ replay_transaction(const struct super_block *s,
 
 			if (ret < 0) {
 				drop_io_head(node);
+				/*
+				 * FIXME-VS:???
+				 */
+				jrelse(log);
+				drop_io_head(log);
 				goto free_ow_set;
 			}
 
