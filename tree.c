@@ -628,6 +628,9 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 	tid = set_current ();
 	if( current -> journal_info ) {
 		context -> parent = current -> journal_info;
+#if (REISER4_DEBUG)
+		++ context->parent->nr_children;
+#endif
 		return 0;
 	}
 	sdata = ( reiser4_super_info_data* ) super -> u.generic_sbp;
@@ -698,10 +701,18 @@ void done_context( reiser4_context *context /* context being released */ )
 		spin_lock (& active_contexts_lock);
 		context_list_remove (parent);
 		spin_unlock (& active_contexts_lock);
+
+		assert ("zam-684", context->nr_children == 0);
 #endif
 		current -> journal_info = NULL;
-	} else
-		current -> journal_info = parent;
+	} else {
+#if REISER4_DEBUG
+		parent->nr_children --;
+		assert ("zam-685", parent->nr_children >= 0);
+#endif
+		/* FIXME_ZAM->NIKITA: why we need this? */
+		// current -> journal_info = parent;
+	}
 }
 
 /* Audited by: umka (2002.06.16) */
