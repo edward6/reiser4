@@ -20,14 +20,14 @@ static int reiser4_symlink (struct inode *,struct dentry *,const char *);
 static int reiser4_mkdir (struct inode *,struct dentry *,int);
 static int reiser4_mknod (struct inode *,struct dentry *,int,int);
 static int reiser4_rename (struct inode *, struct dentry *,
-		    struct inode *, struct dentry *);
+			   struct inode *, struct dentry *);
 static int reiser4_readlink (struct dentry *, char *,int);
 static int reiser4_follow_link (struct dentry *, struct nameidata *);
 static void reiser4_truncate (struct inode *);
 static int reiser4_permission (struct inode *, int);
 static int reiser4_revalidate (struct dentry *);
 static int reiser4_setattr (struct dentry *, struct iattr *);
-static int reiser4_getattr (struct dentry *, struct iattr *);
+static int reiser4_getattr (struct vfsmount *mnt, struct dentry *, struct kstat *);
 static int reiser4_setxattr(struct dentry *, const char *, void *, size_t, int);
 static ssize_t reiser4_getxattr(struct dentry *, const char *, void *, size_t);
 static ssize_t reiser4_listxattr(struct dentry *, char *, size_t);
@@ -37,7 +37,7 @@ static int reiser4_removexattr(struct dentry *, const char *);
 
 static loff_t reiser4_llseek (struct file *, loff_t, int);
 static ssize_t reiser4_read (struct file *, char *, size_t, loff_t *);
-static ssize_t reiser4_write (struct file *, char *, size_t, loff_t *);
+static ssize_t reiser4_write (struct file *, const char *, size_t, loff_t *);
 static int reiser4_readdir (struct file *, void *, filldir_t);
 static unsigned int reiser4_poll (struct file *, struct poll_table_struct *);
 static int reiser4_ioctl (struct inode *, 
@@ -86,15 +86,18 @@ static int reiser4_fill_super(struct super_block *s, void *data, int silent);
 static int reiser4_writepage(struct page *);
 static int reiser4_readpage(struct file *, struct page *);
 static int reiser4_sync_page(struct page *);
+/*
 static int reiser4_prepare_write(struct file *, 
 				 struct page *, unsigned, unsigned);
 static int reiser4_commit_write(struct file *, 
 				struct page *, unsigned, unsigned);
+*/
 static int reiser4_bmap(struct address_space *, long);
+/*
 static int reiser4_direct_IO(int, struct inode *, 
 			     struct kiobuf *, unsigned long, int);
-
-struct dentry_operations reiser4_dentry_operation;
+*/
+extern struct dentry_operations reiser4_dentry_operation;
 
 static int invoke_create_method( struct inode *parent, 
 				 struct dentry *dentry, 
@@ -215,6 +218,45 @@ static int reiser4_mknod( struct inode *parent /* inode of parent directory */,
 	return invoke_create_method( parent, dentry, &data );
 }
 
+static int reiser4_rename (struct inode *old_dir UNUSED_ARG,
+			   struct dentry *old UNUSED_ARG,
+			   struct inode *new_dir UNUSED_ARG,
+			   struct dentry *new UNUSED_ARG)
+{
+	return -ENOSYS;
+}
+
+static int reiser4_readlink (struct dentry *denrty UNUSED_ARG,
+			     char *buf UNUSED_ARG, int buflen UNUSED_ARG)
+{
+	return -ENOSYS;
+}
+
+static int reiser4_follow_link (struct dentry *dentry UNUSED_ARG,
+				struct nameidata *data UNUSED_ARG)
+{
+	return -ENOSYS;
+}
+
+static int reiser4_revalidate (struct dentry *dentry UNUSED_ARG)
+{
+	return -ENOSYS;
+}
+
+static int reiser4_setattr (struct dentry *dentry UNUSED_ARG,
+			    struct iattr *attr UNUSED_ARG)
+{
+	return -ENOSYS;
+}
+
+static int reiser4_getattr (struct vfsmount *mnt UNUSED_ARG,
+			    struct dentry *dentry UNUSED_ARG,
+			    struct kstat *stat UNUSED_ARG)
+{
+	return -ENOSYS;
+}
+
+
 /** ->read() VFS method in reiser4 file_operations */
 /* Audited by: umka (2002.06.12) */
 static ssize_t reiser4_read( struct file *file /* file to read from */,
@@ -249,8 +291,8 @@ static ssize_t reiser4_read( struct file *file /* file to read from */,
 /** ->write() VFS method in reiser4 file_operations */
 /* Audited by: umka (2002.06.12) */
 static ssize_t reiser4_write( struct file *file /* file to write on */,
-			      char *buf /* user-space buffer to get data to
-					 * write on the file */, 
+			      const char *buf /* user-space buffer to get data
+					       * to write on the file */, 
 			      size_t size /* bytes to write */, 
 			      loff_t *off /* offset to start writing
 					   * from. This is updated to indicate
@@ -422,6 +464,13 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 }
 
 
+static int reiser4_bmap(struct address_space * mapping UNUSED_ARG, long block UNUSED_ARG)
+{
+	return -ENOSYS;
+}
+
+
+
 /**
  * ->link() VFS method in reiser4 inode_operations
  *
@@ -569,6 +618,19 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 
 	REISER4_EXIT( result );
 }
+
+
+/** ->mmap() VFS method in reiser4 file_operations */
+static int reiser4_mmap (struct file * file, struct vm_area_struct * vma)
+{
+	struct inode * inode;
+
+	inode = file->f_dentry->d_inode;
+	if (inode_file_plugin (inode)->mmap == NULL)
+		return -ENOSYS;
+	return inode_file_plugin (inode)->mmap (file, vma);
+}
+
 
 /* Audited by: umka (2002.06.12) */
 static int unlink_file( struct inode *parent /* parent directory */, 
@@ -1064,33 +1126,31 @@ const int REISER4_MAGIC_OFFSET = 16 * 4096; /* offset to magic string from the
 static int reiser4_fill_super (struct super_block * s, void * data,
 			       int silent UNUSED_ARG)
 {
-	struct buffer_head super_bh;
+	struct buffer_head * super_bh;
 	struct reiser4_master_sb * master_sb;
 	int plugin_id;
 	layout_plugin * lplug;
 	struct inode * inode;
 	int result;
+	unsigned long blocksize;
 	REISER4_ENTRY (s);
 
 	assert( "umka-085", s != NULL );
 	
  read_super_block:
 	/* look for reiser4 magic at hardcoded place */
-	super_bh.b_blocknr = (int)(REISER4_MAGIC_OFFSET / s->s_blocksize);
-	super_bh.b_data = 0;
-	super_bh.b_count = 0;
-	super_bh.b_size = s->s_blocksize;
-	result = reiser4_sb_bread (s, &super_bh);
-	if (result)
-		REISER4_EXIT (result);
+	super_bh = sb_bread (s, (int)(REISER4_MAGIC_OFFSET / s->s_blocksize));
+	if (!super_bh)
+		REISER4_EXIT (-EIO);
 	
-	master_sb = (struct reiser4_master_sb *)super_bh.b_data;
+	master_sb = (struct reiser4_master_sb *)super_bh->b_data;
 	/* check reiser4 magic string */
 	if (!strncmp (master_sb->magic, REISER4_SUPER_MAGIC_STRING, 4)) {
 		/* reset block size if it is not a right one FIXME-VS: better comment is needed */
-		if (d16tocpu (&master_sb->blocksize) != s->s_blocksize) {
-			reiser4_sb_brelse (&super_bh);
-			if (!sb_set_blocksize (s, d16tocpu (&master_sb->blocksize)))
+		blocksize = d16tocpu (&master_sb->blocksize);
+		if (blocksize != s->s_blocksize) {
+			brelse (super_bh);
+			if (!sb_set_blocksize (s, (int)blocksize))
 				REISER4_EXIT (-EINVAL);
 			goto read_super_block;
 		}
@@ -1099,10 +1159,10 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 		assert ("vs-476", (plugin_id == LAYOUT_40_ID ||
 				   plugin_id == TEST_LAYOUT_ID));
 		lplug = layout_plugin_by_id (plugin_id);
-		reiser4_sb_brelse (&super_bh);
+		brelse (super_bh);
 	} else {
 		/* no standard reiser4 super block found */
-		reiser4_sb_brelse (&super_bh);
+		brelse (super_bh);
 		/* FIXME-VS: call guess method for all available layout plugins */
 		/* 
 		 * umka (2002.06.12) 
@@ -1118,7 +1178,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	s->u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
 				    GFP_KERNEL);
 	if (!s->u.generic_sbp) {
-		reiser4_sb_brelse (&super_bh);
+		brelse (super_bh);
 		REISER4_EXIT (-ENOMEM);
 	}
 	memset (s->u.generic_sbp, 0, sizeof (reiser4_super_info_data));
@@ -1203,6 +1263,7 @@ static int put_super (struct super_block * s)
 		if (get_super_private (s)->lplug->release)
 			get_super_private (s)->lplug->release (s);
 		
+		done_formatted_fake (s);
 		kfree(s->u.generic_sbp);
 		s->u.generic_sbp = NULL;
 		
@@ -1253,7 +1314,7 @@ static struct file_system_type reiser4_fs_type = {
  * initialise reiser4: this is called either at bootup or at module load.
  */
 /* Audited by: umka (2002.06.12) I'd reorganize this function in more simple maner. */
-static int __init init_reiser4()
+static int __init init_reiser4(void)
 {
 	int result;
 
@@ -1321,14 +1382,14 @@ struct inode_operations reiser4_inode_operations = {
 	.mkdir       = reiser4_mkdir, /* d */
  	.rmdir       = reiser4_rmdir, /* d */
 	.mknod       = reiser4_mknod, /* d */
-/* 	.rename      = reiser4_rename, */
-/* 	.readlink    = reiser4_readlink, */
-/* 	.follow_link = reiser4_follow_link, */
+ 	.rename      = reiser4_rename,
+ 	.readlink    = reiser4_readlink,
+ 	.follow_link = reiser4_follow_link,
  	.truncate    = reiser4_truncate, /* d */
  	.permission  = reiser4_permission, /* d */
 /* 	.revalidate  = reiser4_revalidate, */
-/* 	.setattr     = reiser4_setattr, */
-/* 	.getattr     = reiser4_getattr, */
+ 	.setattr     = reiser4_setattr,
+ 	.getattr     = reiser4_getattr,
 /* 	.getxattr    = reiser4_getxattr, */
 /* 	.listxattr   = reiser4_listxattr, */
 /* 	.removexattr = reiser4_removexattr */
@@ -1355,20 +1416,25 @@ struct file_operations reiser4_file_operations = {
 };
 
 struct address_space_operations reiser4_as_operations = {
- 	.writepage      = reiser4_writepage, 
- 	.readpage       = reiser4_readpage, /* d */
-/* 	.sync_page      = reiser4_sync_page, */
-/* 	.prepare_write  = reiser4_prepare_write, */
-/* 	.commit_write   = reiser4_commit_write, */
-/* 	.bmap           = reiser4_bmap, */
-/* 	.direct_IO      = reiser4_direct_IO */
+	.writepage      = reiser4_writepage,
+	.readpage       = reiser4_readpage,
+ 	.sync_page      = NULL,
+	.writepages     = NULL,
+	.vm_writeback   = NULL,
+	.set_page_dirty = NULL,
+	.readpages      = NULL,
+ 	.prepare_write  = NO_SUCH_OP,/*reiser4_prepare_write,*/
+ 	.commit_write   = NO_SUCH_OP,/*reiser4_commit_write,*/
+ 	.bmap           = reiser4_bmap,
+	.invalidatepage = NULL,
+	.releasepage    = NULL,
+ 	.direct_IO      = NO_SUCH_OP/*reiser4_direct_IO*/
 };
 
 struct super_operations reiser4_super_operations = {
    	.alloc_inode        = reiser4_alloc_inode, /* d */
 	.destroy_inode      = reiser4_destroy_inode, /* d */
 	.read_inode         = noop_read_inode, /* d */
-	.read_inode2        = NULL, /* d */
 /* 	.dirty_inode        = reiser4_dirty_inode, */
 /* 	.write_inode        = reiser4_write_inode, */
 /* 	.put_inode          = reiser4_put_inode, */
