@@ -1223,7 +1223,7 @@ static void init_wlinks (txn_wait_links * wlinks)
 
 /* Add and atom to the atom's waitfor list and wait somebody who is pleased to wake us up;
  * reacquire atom lock after sleep using given txn_handle object, return spin locked atom. */
-static txn_atom * atom_wait_event (txn_handle * h)
+txn_atom * atom_wait_event (txn_handle * h)
 {
 	txn_atom * atom = h->atom;
 	txn_wait_links _wlinks;
