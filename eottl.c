@@ -216,11 +216,9 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	assert("", znode_contains_key_lock(insert_coord->node, key));
 
 	grabbed = get_current_context() -> grabbed_blocks;
+	
 	/* VITALY: Grab block for the balancing needs. */
-
-	/* UMKA: Should we grab any way here? What if grab_enabled is false?
-	 Is this function used in hierarchical context creation code pathes? */
-	result = reiser4_grab_space_exact(1, BA_CAN_COMMIT);
+	result = reiser4_grab_space_force(1, BA_CAN_COMMIT);
 	if( result != 0 )
 		return result;
 
@@ -230,7 +228,7 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	/* VITALY: Ungrab block for the balancing needs. */
 	grabbed2free
 	    /*reiser4_release_grabbed_space */
-	    (grabbed - get_current_context()->grabbed_blocks);
+	    (get_current_context()->grabbed_blocks - grabbed);
 
 	if (IS_ERR(node))
 		return PTR_ERR(node);
