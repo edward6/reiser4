@@ -96,16 +96,6 @@ write_trace(reiser4_trace_file * file, const char *format, ...)
 		file->used += vsnprintf(file->buf + file->used, file->size - file->used, format, args);
 		va_end(args);
 	}
-
-	{
-		reiser4_context * ctx = get_current_context();
-		if (ctx != NULL && ctx->trace_mark != NULL) {
-			file->buf[file->used ++] = ' ';
-			strcpy(file->buf + file->used, ctx->trace_mark);
-			file->used += strlen(ctx->trace_mark);
-		}
-	}
-
 	unlock_trace(file);
 	return result;
 }
@@ -410,26 +400,6 @@ write_io_trace(const char *moniker, int rw, struct bio *bio)
 			     start - sbinfo->last_touched - 1,
 			     start, bio->bi_vcnt, jbuf);
 	sbinfo->last_touched = start + bio->bi_vcnt - 1;
-}
-
-/* Set an optional mark which is printed as a suffix in log events. */
-void set_trace_mark (const char * mark)
-{
-	reiser4_context * ctx = get_current_context();
-	
-	assert ("zam-928", ctx != NULL);
-	assert ("zam-929", ctx->trace_mark == NULL);
-	ctx->trace_mark = mark;
-}
-
-/* Clear an optional mark which is printed as a suffix in log events. */
-void clear_trace_mark (void)
-{
-	reiser4_context * ctx = get_current_context();
-	
-	assert ("zam-930", ctx != NULL);
-	assert ("zam-931", ctx->trace_mark != NULL);
-	ctx->trace_mark = NULL;
 }
 
 #endif
