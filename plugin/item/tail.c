@@ -234,7 +234,7 @@ int tail_cut_units (tree_coord * item, unsigned from, unsigned count,
 	 * item - we have nothing to do
 	 */
 	assert ("vs-374", count > 0 &&
-		count < (unsigned)item_length_by_coord (item));
+		count <= (unsigned)item_length_by_coord (item));
 
 	if (where_to_move_free_space == SHIFT_APPEND) {
 		assert ("vs-371", 
