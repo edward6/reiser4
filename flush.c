@@ -1620,7 +1620,11 @@ static int flush_finish (flush_position *pos, int none_busy)
 			continue;
 		}
 
-		if (JF_ISSET (check, ZNODE_WANDER)) {
+		/*
+		 * FIXME:NIKITA->* temporary workaround until log record are
+		 * implemented and debugged.
+		 */
+		if (0 && JF_ISSET (check, ZNODE_WANDER)) {
 			/* It will be written later. */
 
 			/* Log-writer expects these to be on the clean list.  They cannot
