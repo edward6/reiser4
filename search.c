@@ -293,6 +293,9 @@ lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 {
 	cbk_handle handle;
 	lock_handle parent_lh;
+	lookup_result result;
+	PROF_BEGIN(cbk);
+
 	init_lh(lh);
 	init_lh(&parent_lh);
 
@@ -324,7 +327,9 @@ lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 	
 	handle.ra_info = info;
 
-	return coord_by_handle(&handle);
+	result = coord_by_handle(&handle);
+	PROF_END(cbk);
+	return result;
 }
 
 static lookup_result
