@@ -577,7 +577,7 @@ int find_or_create_extent(struct page *page);
 
 /* part of unix_file_truncate: it is called when truncate is used to make file shorter */
 static int
-shorten_file(struct inode *inode, loff_t new_size, loff_t cur_size)
+shorten_file(struct inode *inode, loff_t new_size)
 {
 	int result;
 	struct page *page;
@@ -587,7 +587,7 @@ shorten_file(struct inode *inode, loff_t new_size, loff_t cur_size)
 
 	/* all items of ordinary reiser4 file are grouped together. That is why we can use cut_tree. Plan B files (for
 	   instance) can not be truncated that simply */
-	result = cut_file_items(inode, new_size, 1/*update_sd*/, cur_size, 1);
+	result = cut_file_items(inode, new_size, 1/*update_sd*/, get_key_offset(max_key()), 1);
 	if (result)
 		return result;
 
@@ -695,39 +695,12 @@ static int
 truncate_file_body(struct inode *inode, loff_t new_size)
 {
 	int result;
-/*	loff_t cur_size;*/
-/*
-	result = find_file_size(inode, &cur_size);
-	if (result != 0)
-		return result;
-*/
-	/*cur_size = get_key_offset(max_key());*/
+
 	if (inode->i_size < new_size)
 		result = append_hole(inode, new_size);
 	else
-		result = shorten_file(inode, new_size, get_key_offset(max_key()));
+		result = shorten_file(inode, new_size);
 
-#if 0
-	if (new_size != cur_size) {
-		INODE_SET_FIELD(inode, i_size, cur_size);
-		if (cur_size < new_size)
-			result = append_hole(inode, new_size);
-		else
-			result = shorten_file(inode, new_size, cur_size);
-		/* stat data is updated already */
-	} else {
-		/* when file is built of extens - find_file_size can only
-		 * calculate old file size up to page size. Case of not
-		 * changing file size is detected in unix_file_setattr,
-		 * therefore here we have expanding file within its last page
-		 * up to the end of that page */
-		assert("vs-1115",
-		       file_is_built_of_extents(inode) ||
-		       (file_is_empty(inode) && cur_size == 0));
-		assert("vs-1116", (new_size & ~PAGE_CACHE_MASK) == 0);
-		/* stat data has to be updated */
-	}
-#endif
 	return result;
 }
 
