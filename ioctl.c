@@ -3,6 +3,7 @@
 #include "debug.h"
 #include "reiser4.h"
 #include "ioctl.h"
+#include "context.h"
 #include "tree.h"
 #include "inode.h"
 

@@ -32,7 +32,6 @@
 #include "plugin/node/node.h"
 #include "jnode.h"
 #include "znode.h"
-#include "tree.h"
 #include "super.h"
 
 static znode *seal_node(const seal_t * seal);

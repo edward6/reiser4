@@ -19,6 +19,7 @@ reiser4-objs := \
 		   carry_ops.o \
 		   lock.o \
 		   tree.o \
+		   context.o \
 		   tap.o \
 		   coord.o \
 		   block_alloc.o \

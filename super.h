@@ -8,6 +8,7 @@
 #include "forward.h"
 #include "debug.h"
 #include "tree.h"
+#include "context.h"
 #include "trace.h"
 #include "lnode.h"
 #include "plugin/plugin.h"

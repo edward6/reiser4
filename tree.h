@@ -376,11 +376,11 @@ extern void print_tree_rec(const char *prefix, reiser4_tree * tree, __u32 flags)
 extern void print_cbk_slot(const char *prefix, const cbk_cache_slot * slot);
 extern void print_cbk_cache(const char *prefix, const cbk_cache * cache);
 #else
-#define print_coord_content( p, c ) noop
-#define print_address( p, b ) noop
-#define print_tree_rec( p, f, t ) noop
-#define print_cbk_slot( p, s ) noop
-#define print_cbk_cache( p, c ) noop
+#define print_coord_content(p, c) noop
+#define print_address(p, b) noop
+#define print_tree_rec(p, f, t) noop
+#define print_cbk_slot(p, s) noop
+#define print_cbk_cache(p, c) noop
 #endif
 
 extern void forget_znode(lock_handle * handle);
@@ -441,197 +441,6 @@ int lookup_couple(reiser4_tree * tree,
 		  znode_lock_mode lock_mode, lookup_bias bias,
 		  tree_level lock_level, tree_level stop_level, __u32 flags, int *result1, int *result2);
 
-/* list of active lock stacks */
-ON_DEBUG(TS_LIST_DECLARE(context);)
-
-typedef enum {
-    FLUSH_MODE	    =   (1 << 0),
-    GRAB_ENABLED    =	(1 << 1)
-} context_flags_t;
-
-/* global context used during system call. Variable of this type is
-   allocated on the stack at the beginning of the reiser4 part of the
-   system call and pointer to it is stored in the
-   current->fs_context. This allows us to avoid passing pointer to
-   current transaction and current lockstack (both in one-to-one mapping
-   with threads) all over the call chain.
-
-   It's kind of like those global variables the prof used to tell you
-   not to use in CS1, except thread specific.;-) Nikita, this was a
-   good idea.
-*/
-struct reiser4_context {
-	/* magic constant. For debugging */
-	__u32 magic;
-
-	/* current lock stack. See lock.[ch]. This is where list of all
-	   locks taken by current thread is kept. This is also used in
-	   deadlock detection. */
-	lock_stack stack;
-
-	/* current transcrash. */
-	txn_handle *trans;
-	txn_handle trans_in_ctx;
-
-	/* super block we are working with.  To get the current tree
-	   use &get_super_private (reiser4_get_current_sb ())->tree. */
-	struct super_block *super;
-
-	/* parent fs activation */
-	struct fs_activation *outer;
-
-	/* per-thread grabbed (for further allocation) blocks counter */
-	reiser4_block_nr grabbed_blocks;
-
-	reiser4_block_nr flush_reserved;
-	/* per-thread tracing flags. Use reiser4_trace_flags enum to set
-	   bits in it. */
-	__u32 trace_flags;
-
-	/* parent context */
-	reiser4_context *parent;
-	tap_list_head taps;
-	long                  flags;
-	int		      grab_enabled;
-	    
-#if REISER4_DEBUG
-	/* thread ID */
-	__u32 tid;
-
-	/* A link of all active contexts. */
-	context_list_link contexts_link;
-	lock_counters_info locks;
-	int nr_children;	/* number of child contexts */
-	struct task_struct *task;	/* so we can easily find owner of the stack */
-#endif
-#if REISER4_DEBUG_NODE
-	int disable_node_check;
-#endif
-};
-
-extern reiser4_context *get_context_by_lock_stack(lock_stack *);
-
-/* Debugging helps. */
-extern int init_context_mgr(void);
-#if REISER4_DEBUG_OUTPUT
-extern void print_context(const char *prefix, reiser4_context * ctx);
-#else
-#define print_context(p,c) noop
-#endif
-
-#if REISER4_DEBUG_OUTPUT && REISER4_DEBUG
-extern void print_contexts(void);
-#else
-#define print_contexts() noop
-#endif
-
-/* Hans, is this too expensive? */
-#define current_tree (&(get_super_private(reiser4_get_current_sb())->tree))
-#define current_blocksize reiser4_get_current_sb()->s_blocksize
-#define current_blocksize_bits reiser4_get_current_sb()->s_blocksize_bits
-
-extern int init_context(reiser4_context * context, struct super_block *super);
-extern void done_context(reiser4_context * context);
-
-/* magic constant we store in reiser4_context allocated at the stack. Used to
-   catch accesses to staled or uninitialized contexts. */
-#define context_magic ( ( __u32 ) 0x4b1b5d0b )
-
-static inline int
-is_in_reiser4_context(void)
-{
-	return current->fs_context != NULL && ((__u32) current->fs_context->owner) == context_magic;
-}
-
-/* return context associated with given thread */
-static inline reiser4_context *
-get_context(const struct task_struct *tsk)
-{
-	if (tsk == NULL) {
-		BUG();
-	}
-
-	return (reiser4_context *) tsk->fs_context;
-}
-
-/* return context associated with current thread */
-static inline reiser4_context *
-get_current_context(void)
-{
-	reiser4_context *context;
-
-	context = get_context(current);
-	if (context != NULL)
-		return context->parent;
-	else
-		return NULL;
-}
-
-static inline int is_flush_mode(void)
-{
-	return get_current_context()->flags &   FLUSH_MODE;
-}
-
-static inline void flush_mode(void)
-{
-	get_current_context()->flags |=  FLUSH_MODE;
-}
-
-static inline void not_flush_mode(void)
-{
-	get_current_context()->flags &= ~FLUSH_MODE;
-}
-
-static inline void grab_space_enable(void) 
-{
-	get_current_context()->flags |= GRAB_ENABLED;
-}
-
-static inline void grab_space_disable(void) 
-{
-	get_current_context()->flags &= ~GRAB_ENABLED;
-}
-
-static inline int is_grab_enabled(void)
-{
-	return get_current_context()->flags & GRAB_ENABLED;
-}
-
-#define __REISER4_ENTRY( super, errret )			\
-	reiser4_context __context;				\
-	do {							\
-                int __ret;					\
-                __ret = init_context( &__context, ( super ) );	\
-                if (__ret != 0) {				\
-			return errret;				\
-		}						\
-        } while (0)
-
-#define REISER4_ENTRY_PTR( super )  __REISER4_ENTRY( super, ERR_PTR(__ret) )
-#define REISER4_ENTRY( super )      __REISER4_ENTRY( super, __ret )
-
-#define __REISER4_EXIT( context )		\
-({						\
-        int __ret1 = txn_end( context );	\
-	done_context( context );		\
-        if (__ret1 > 0) __ret1 = 0;             \
-        __ret1;					\
-})
-
-#define REISER4_EXIT( ret_exp ) 		                       \
-({						                       \
-	typeof ( ret_exp ) __result = ( ret_exp );                     \
-        int __ret = __REISER4_EXIT( &__context );                      \
-	return __result ? : __ret;		                       \
-})
-
-#define REISER4_EXIT_PTR( ret_exp ) 		                       \
-({						                       \
-	typeof ( ret_exp ) __result = ( ret_exp );                     \
-        int __ret = __REISER4_EXIT( &__context );                      \
-	return IS_ERR (__result) ? __result : ERR_PTR (__ret);         \
-})
-
 /* ordering constraint for tree spin lock: tree lock is "strongest" */
 #define spin_ordering_pred_tree( tree ) ( 1 )
 
@@ -649,51 +458,9 @@ SPIN_LOCK_FUNCTIONS(dk, reiser4_tree, dk_lock);
 
 #if REISER4_DEBUG
 #define check_tree() print_tree_rec( "", current_tree, REISER4_TREE_CHECK )
-TS_LIST_DEFINE(context, reiser4_context, contexts_link);
 #else
 #define check_tree() noop
 #endif
-
-/* jput() - decrement x_count reference counter on znode.
-  
-   Count may drop to 0, jnode stays in cache until memory pressure causes the
-   eviction of its page. The c_count variable also ensures that children are
-   pressured out of memory before the parent. The jnode remains hashed as
-   long as the VM allows its page to stay in memory.
-*/
-static inline void
-jput(jnode * node)
-{
-	reiser4_tree *tree;
-	trace_stamp(TRACE_ZNODES);
-
-	assert("jmacd-509", node != NULL);
-	assert("jmacd-510", atomic_read(&node->x_count) > 0);
-	assert("jmacd-511", atomic_read(&node->d_count) >= 0);
-	ON_DEBUG_CONTEXT(--lock_counters()->x_refs);
-
-	tree = jnode_get_tree(node);
-
-	if (atomic_dec_and_lock(&node->x_count, &tree->tree_lock)) {
-		int r_i_p;
-
-		assert("nikita-2772", !JF_ISSET(node, JNODE_EFLUSH));
-
-		ON_DEBUG_CONTEXT(++lock_counters()->spin_locked_tree);
-		ON_DEBUG_CONTEXT(++lock_counters()->spin_locked);
-		r_i_p = !JF_TEST_AND_SET(node, JNODE_RIP);
-		spin_unlock_tree(tree);
-		if (r_i_p) {
-			if (JF_ISSET(node, JNODE_HEARD_BANSHEE))
-				/* node is removed from the tree. */
-				jdelete(node);
-			else
-				jnode_try_drop(node);
-		}
-		/* if !r_i_p some other thread is already killing it */
-	}
-}
-
 
 /* __REISER4_TREE_H__ */
 #endif

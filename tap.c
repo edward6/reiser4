@@ -6,6 +6,7 @@
 #include "debug.h"
 #include "coord.h"
 #include "tree.h"
+#include "context.h"
 #include "tap.h"
 #include "znode.h"
 #include "tree_walk.h"
