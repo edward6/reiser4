@@ -2842,7 +2842,9 @@ static int ls_lR (struct inode * inode, const char * path)
 						 "Wrong inode number: %i != %i",
 						 ( int ) info.inum, ( int ) i -> i_ino );
 				else {
-					info ("%s\t%d\t%10llu\t%s\n", S_ISREG (i->i_mode) ? "-rw-r--r--" : "drw-r--r--",
+					info ("(%llu:%lu) %crw-r--r--\t%d\t%10llu\t%s\n", 
+					      reiser4_inode_data (i)->locality_id, i->i_ino, 
+					      S_ISREG (i->i_mode) ? '-' : 'd',
 					      i->i_nlink, i->i_size, name);
 					ls_lR (i, name);
 				}
