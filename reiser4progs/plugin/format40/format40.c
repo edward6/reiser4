@@ -61,12 +61,12 @@ static errno_t format40_journal_layout(reiser4_entity_t *entity,
     
     blk = FORMAT40_JHEADER / aal_device_get_bs(format->device);
     
-    if (action_func(format->device, blk, data))
+    if (action_func((reiser4_entity_t *)format, blk, data))
 	return -1;
     
     blk = FORMAT40_JFOOTER / aal_device_get_bs(format->device);
     
-    if (action_func(format->device, blk, data))
+    if (action_func((reiser4_entity_t *)format, blk, data))
 	return -1;
 
     return 0;
@@ -87,7 +87,7 @@ static errno_t format40_alloc_layout(reiser4_entity_t *entity,
     
     for (blk = start; blk < format40_get_len(entity);) {	
 	
-	if (action_func(format->device, blk, data))
+	if (action_func((reiser4_entity_t *)format, blk, data))
 	    return -1;
 	
 	blk = (blk / (aal_device_get_bs(format->device) * 8) + 1) * 
@@ -109,7 +109,7 @@ static errno_t format40_skipped_layout(reiser4_entity_t *entity,
     offset = REISER4_MASTER_OFFSET / format->device->blocksize;
     
     for (blk = 0; blk < offset; blk++) {
-	if (action_func(format->device, blk, data))
+	if (action_func((reiser4_entity_t *)format, blk, data))
 	    return -1;
     }
     
@@ -129,7 +129,7 @@ static errno_t format40_format_layout(reiser4_entity_t *entity,
     offset = FORMAT40_OFFSET / format->device->blocksize;
     
     for (; blk <= offset; blk++) {
-	if (action_func(format->device, blk, data))
+	if (action_func((reiser4_entity_t *)format, blk, data))
 	    return -1;
     }
     
@@ -162,6 +162,10 @@ static errno_t format40_super_check(format40_super_t *super,
 static int format40_magic(format40_super_t *super) {
     return aal_strncmp(super->sb_magic, FORMAT40_MAGIC, 
 	aal_strlen(FORMAT40_MAGIC)) == 0;
+}
+
+static aal_device_t *format40_device(reiser4_entity_t *entity) {
+    return ((format40_t *)entity)->device;
 }
 
 static aal_block_t *format40_super_open(aal_device_t *device) {
@@ -207,12 +211,15 @@ error:
 
 #ifndef ENABLE_COMPACT
 
-static errno_t callback_clobber_block(aal_device_t *device, 
+static errno_t callback_clobber_block(reiser4_entity_t *entity, 
     blk_t blk, void *data) 
 {
     aal_block_t *block;
+    format40_t *format;
 
-    if (!(block = aal_block_create(device, blk, 0))) {
+    format = (format40_t *)entity;
+    
+    if (!(block = aal_block_create(format->device, blk, 0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't clobber block %llu.", blk);
 	return -1;
@@ -221,7 +228,7 @@ static errno_t callback_clobber_block(aal_device_t *device,
     if (aal_block_sync(block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't write block %llu to device. %s.", blk, 
-	    device->error);
+	    format->device->error);
 	goto error_free_block;
     }
     
@@ -436,6 +443,7 @@ static reiser4_plugin_t format40_plugin = {
 	},
 	.open		= format40_open,
 	.valid		= format40_valid,
+	.device		= format40_device,
 #ifndef ENABLE_COMPACT	
 	.check		= format40_check,
 	.sync		= format40_sync,
