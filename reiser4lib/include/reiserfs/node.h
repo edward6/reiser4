@@ -41,7 +41,6 @@ extern error_t reiserfs_node_sync(reiserfs_node_t *node);
 extern uint32_t reiserfs_node_max_item_size(reiserfs_node_t *node);
 extern uint32_t reiserfs_node_max_item_num(reiserfs_node_t *node);
 extern uint32_t reiserfs_node_count(reiserfs_node_t *node);
-extern uint8_t reiserfs_node_level(reiserfs_node_t *node);
 
 extern uint32_t reiserfs_node_free_space(reiserfs_node_t *node);
 extern void reiserfs_node_set_free_space(reiserfs_node_t *node);

@@ -8,6 +8,7 @@
 #define MISC_H
 
 #include <stdint.h>
+#include <aal/aal.h>
 
 typedef void *(get_element_to_comp_t)(void *, int64_t);
 typedef int (comp_function_t)(void *, void *);
