@@ -216,9 +216,11 @@ static int slum_allocate_left_edge_ancestors (jnode *node)
 	relocate_child = flush_should_relocate (node);
 	parent_mode    = (relocate_child ? ZNODE_WRITE_LOCK : ZNODE_WRITE_IF_DIRTY);
 
-	/* We're at the end of a level slum, lock node & parent. */
-	if ((ret = jnode_lock_parent_coord (node, NULL, & parent_lock, & coord, parent_mode))) {
-		goto failure;
+	/* We're at the end of a level slum, lock the parent.
+	 * FIXME_JMACD: if node is root, reiser4_get_parent() returns error.
+	 */
+	if ((ret = reiser4_get_parent (& parent_lock, JZNODE (node), parent_mode, 1))) {
+		return ret;
 	}
 	
 	/* If relocating, artificially dirty it right now. */
@@ -251,13 +253,14 @@ static int slum_allocate_left_edge_ancestors (jnode *node)
 		if (parent_changed) {
 			reiser4_done_lh (& parent_lock);
 
-			/* Pass NULL for child lock handle since it is already locked. */
-			if ((ret = jnode_lock_parent_coord (node, NULL, & parent_lock, & coord, parent_mode))) {
+			if ((ret = reiser4_get_parent (& parent_lock, JZNODE (node), parent_mode, 1))) {
 				goto failure;
 			}
-		} else {
-			/* FIXME: Update child pos.  This basically makes the
-			 * first call to lock_parent_coord unneeded. */
+		}
+
+		/* Compute child coordinate. */
+		if ((ret = find_child_ptr (parent_lock.node, JZNODE (node), & coord))) {
+			return ret;
 		}
 
 		/* If child is leftmost of a dirty parent, make recursive
@@ -346,8 +349,7 @@ static int jnode_parent_equals (jnode *node, znode *parent)
  * the coordinate. */
 static int
 jnode_lock_parent_coord (jnode *node,
-			 reiser4_lock_handle *node_lh,   /* lock handle for node -- may be passed as NULL if
-							  * the node is already locked. */
+			 reiser4_lock_handle *node_lh,
 			 reiser4_lock_handle *parent_lh,
 			 tree_coord *coord,
 			 znode_lock_mode parent_mode)
@@ -365,7 +367,7 @@ jnode_lock_parent_coord (jnode *node,
 		/* Lock the node itself, which is necessary for getting its
 		 * parent. FIXME_JMACD: Not sure LOPRI is correct. */
 		
-		if (node_lh && (ret = reiser4_lock_znode (node_lh, JZNODE (node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
+		if ((ret = reiser4_lock_znode (node_lh, JZNODE (node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
 			return ret;
 		}
 
