@@ -79,9 +79,10 @@ typedef struct {
 
 #define write_tracef(file, super, format, ...)		\
 ({							\
+	char b[BDEVNAME_SIZE];				\
 	write_trace(file, "%i %s %s %lu " format "\n",	\
 		    current->pid, current->comm,	\
-		    kdevname(to_kdev_t(super->s_dev)),	\
+		    bdevname(super->s_bdev, b),	\
 		    jiffies , ## __VA_ARGS__);		\
 })
 
