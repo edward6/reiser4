@@ -1126,6 +1126,11 @@ static int flush_reverse_relocate_end_of_twig (flush_position *pos)
 		goto exit;
 	}
 
+	if (IS_ERR (child)) {
+		flush_pos_stop (pos);
+		ret = -EINVAL;
+		goto exit;
+	}
 	if (child == NULL || ! jnode_check_dirty (child)) {
 		/* Finished at this twig. */
 		trace_on (TRACE_FLUSH_VERB, "end_of_twig: STOP right node & leftmost child clean\n");
@@ -1143,7 +1148,9 @@ static int flush_reverse_relocate_end_of_twig (flush_position *pos)
 	 * flush_squalloc_changed_ancestors. */
 
  exit:
-	if (child != NULL) { jput (child); }
+	if (child != NULL && !IS_ERR (child)) { 
+		jput (child); 
+	}
 	done_lh (& right_lock);
 	done_load_count (& right_load);
 	return ret;
@@ -1393,7 +1400,7 @@ static int flush_forward_squalloc (flush_position *pos)
 		 * allocate_extent_item_in_place call will try to allocate everything.  If
 		 * the disk is fragmented and we are low on memory, this may be a bad
 		 * idea.  Perhaps extent allocation should be aware of this... */
-		if ((ret = allocate_extent_item_in_place (& pos->parent_coord, pos))) {
+		if ((ret = allocate_extent_item_in_place (& pos->parent_coord, pos, pos->point))) {
 			goto exit;
 		}
 
@@ -1409,6 +1416,18 @@ static int flush_forward_squalloc (flush_position *pos)
 
 			/* If child is not flushprepped then repeat, otherwise stop here. */
 			if ((ret = item_utmost_child (& pos->parent_coord, LEFT_SIDE, & child)) || (child == NULL)) {
+				goto exit;
+			}
+
+			if (IS_ERR (child)) {
+				/*
+				 * item_utmost_child() failed to find leftmost
+				 * child. Currently this is only possible due
+				 * to the race with unlink. See comment in
+				 * extent_utmost_child().
+				 */
+				flush_pos_stop (pos);
+				ret = -EINVAL;
 				goto exit;
 			}
 
@@ -1604,6 +1623,12 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 
 		/* Finally, we must now be positioned over an extent, but does it need flushprep? */
 		if ((ret = item_utmost_child (& pos->parent_coord, LEFT_SIDE, & child))) {
+			goto exit;
+		}
+
+		if (IS_ERR (child)) {
+			flush_pos_stop (pos);
+			ret = -EINVAL;
 			goto exit;
 		}
 
@@ -3337,8 +3362,10 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 			goto exit;
 		}
 
-		/* If the next child is not in memory, stop here. */
-		if (child == NULL) {
+		/* If the next child is not in memory, or, item_utmost_child
+		 * failed (due to race with unlink, most probably), stop
+		 * here. */
+		if (child == NULL || IS_ERR (child)) {
 			scan->stop = 1;
 			break;
 		}
@@ -3706,6 +3733,11 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 	/* Get the child if it is memory, lock it, unlock the parent. */
 	if ((ret = item_utmost_child (& pos->parent_coord, LEFT_SIDE, & child))) {
 		return ret;
+	}
+
+	if (IS_ERR (child)) {
+		flush_pos_stop (pos);
+		return -EINVAL;
 	}
 
 	if (child == NULL) {
