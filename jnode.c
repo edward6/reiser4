@@ -289,6 +289,33 @@ void jnode_lockprof_hook(const jnode *node)
 static void
 jnode_attach_page(jnode * node, struct page *pg);
 
+void
+bind_jnode_and_page(jnode *node, oid_t oid, struct page *pg)
+{
+	j_hash_table *jtable;
+
+	jref(node);
+
+	node->key.j.mapping  = pg->mapping;
+	node->key.j.objectid = oid;
+	node->key.j.index    = pg->index;
+
+	jtable = &node->tree->jhash_table;
+
+	WLOCK_TREE(node->tree);
+	/* race with some other thread inserting jnode into the hash table is
+	 * impossible, because we keep the page lock. */
+	/*
+	 * following assertion no longer holds because of RCU: it is possible
+	 * jnode is in the hash table, but with JNODE_RIP bit set.
+	 */
+	/* assert("nikita-3211", j_hash_find(jtable, &node->key.j) == NULL); */
+	j_hash_insert_rcu(jtable, node);
+	WUNLOCK_TREE(node->tree);
+
+	UNDER_SPIN_VOID(jnode, node, jnode_attach_page(node, pg));
+}
+
 /* jget() (a la zget() but for unformatted nodes). Returns (and possibly
    creates) jnode corresponding to page @pg. jnode is attached to page and
    inserted into jnode hash-table. */
@@ -301,7 +328,6 @@ do_jget(reiser4_tree * tree, struct page * pg)
 	   page. */
 	jnode *jal;
 	jnode *result;
-	j_hash_table *jtable;
 	oid_t oid = get_inode_oid(pg->mapping->host);
 
 	assert("umka-176", pg != NULL);
@@ -331,31 +357,13 @@ do_jget(reiser4_tree * tree, struct page * pg)
 
 	assert("nikita-3209", jprivate(pg) == NULL);
 
-	jref(jal);
-
-	jal->key.j.mapping  = pg->mapping;
-	jal->key.j.objectid = oid;
-	jal->key.j.index    = pg->index;
-
-	jtable = &tree->jhash_table;
-
-	WLOCK_TREE(tree);
-	/* race with some other thread inserting jnode into the hash table is
-	 * impossible, because we keep the page lock. */
-	/*
-	 * following assertion no longer holds because of RCU: it is possible
-	 * jnode is in the hash table, but with JNODE_RIP bit set.
-	 */
-	/* assert("nikita-3211", j_hash_find(jtable, &jal->key.j) == NULL); */
-	j_hash_insert_rcu(jtable, jal);
-	WUNLOCK_TREE(tree);
-
-	UNDER_SPIN_VOID(jnode, jal, jnode_attach_page(jal, pg));
+	bind_jnode_and_page(jal, oid, pg);
 	return jal;
 }
 
-static jnode *
-jget(reiser4_tree * tree, struct page * pg)
+/* FIXME-VS: is it still needed? */
+jnode *
+jnode_of_page(struct page * pg)
 {
 	jnode * result;
 
@@ -364,7 +372,7 @@ jget(reiser4_tree * tree, struct page * pg)
 	assert("nikita-2065", pg->mapping->host != get_super_private(pg->mapping->host->i_sb)->fake);
 	assert("nikita-2394", PageLocked(pg));
 
-	result = do_jget(tree, pg);
+	result = do_jget(tree_by_page(pg), pg);
 
 	if (REISER4_DEBUG && !IS_ERR(result)) {
 		assert("nikita-3210", result == jprivate(pg));
@@ -380,12 +388,6 @@ jget(reiser4_tree * tree, struct page * pg)
 		assert("nikita-2956", jnode_invariant(jprivate(pg), 0, 0));
 	}
 	return result;
-}
-
-jnode *
-jnode_of_page(struct page * pg)
-{
-	return jget(tree_by_page(pg), pg);
 }
 
 static void
