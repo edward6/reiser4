@@ -133,6 +133,15 @@ typedef enum
 	ATOM_FORCE_COMMIT = (1 << 0)
 } txn_flags;
 
+/* Flags for controlling commit_txnh */
+typedef enum
+{
+	/* Force commit of the atom this txnh attached to */
+	TXNH_FORCE_COMMIT = 0x1,
+	/* Wait commit atom completion in commit_txnh */
+	TXNH_WAIT_COMMIT  = 0x2
+} txn_handle_flags_t;
+
 /****************************************************************************************
 				     TYPE DEFINITIONS
  ****************************************************************************************/
@@ -260,6 +269,9 @@ struct txn_handle
 {
 	/* Spinlock protecting ->atom pointer */
 	spinlock_t             hlock;
+
+	/* Flags for controlling commit_txnh() behavior */
+	txn_handle_flags_t     flags;         
 
 	/* Whether it is READ_FUSING or WRITE_FUSING. */
 	txn_mode               mode;

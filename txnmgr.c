@@ -1040,8 +1040,9 @@ txn_mgr_force_commit_all (struct super_block *super)
 			spin_unlock_txnmgr (mgr);
 			spin_lock_txnh (txnh);
 
-			/* Set the atom to force committing */
-			atom->flags |= ATOM_FORCE_COMMIT;
+			/* Set txnh flags for: forcing atom commit and waiting for commit
+			 * completion */
+			txnh->flags |= (TXNH_FORCE_COMMIT | TXNH_WAIT_COMMIT);
 
 			/* Add force-context txnh */
 			capture_assign_txnh_nolock (atom, txnh);
@@ -1277,7 +1278,7 @@ static inline int should_delegate_commit( void )
  * example, because it does fsync(2)) */
 static int should_wait_commit (txn_handle *h)
 {
-	return 0; /* FIXME: nobody needs this wait for commit yet. */
+	return h -> flags & TXNH_WAIT_COMMIT;
 }
 
 /* Called to commit a transaction handle.  This decrements the atom's number of open
@@ -1295,6 +1296,9 @@ commit_txnh (txn_handle *txnh)
  again:
 	/* Get the atom and txnh locked. */
 	atom = atom_get_locked_with_txnh_locked (txnh);
+
+	if (txnh->flags & TXNH_FORCE_COMMIT)
+		atom->flags |= ATOM_FORCE_COMMIT;
 
 	/* The txnh stays open while we try to commit, since it is still being used, but
 	 * we don't need the txnh lock while trying to commit. */
