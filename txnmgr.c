@@ -959,8 +959,7 @@ void jnode_set_dirty( jnode *node )
 		 * capture_assign_block_nolock. */
 		atom = atom_get_locked_by_jnode (node);
 
-		/* FIXME-NIKITA should it read "a node is set dirty..."? */
-		/* Sometimes an atom is set dirty before being captured -- the case for new jnodes.  In that case the
+		/* Sometimes a node is set dirty before being captured -- the case for new jnodes.  In that case the
 		 * jnode will be added to the appropriate list in capture_assign_block_nolock. */
 		if (atom != NULL) {
 
