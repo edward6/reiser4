@@ -296,6 +296,9 @@ struct reiser4_super_info_data {
 
 	/* Diskmap's blocknumber */
 	__u64 diskmap_block;
+
+	/* What to do in case of error */
+	int onerror;
 #ifdef CONFIG_REISER4_BADBLOCKS
 	/* Alternative master superblock offset (in bytes) */
 	unsigned long altsuper;
