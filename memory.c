@@ -26,6 +26,10 @@
  * rules out usage of ->writepage() as memory pressure hook. In stead
  * ->releasepage() is used.
  *
+ * Josh is concerned that page->buffer is going to die. This should not pose
+ * significant problem though, because we need to add some data structures to
+ * the page anyway (jnode) and all necessary book keeping can be put there.
+ *
  */
 
 #include "reiser4.h"
@@ -126,6 +130,15 @@ int read_in_formatted( struct super_block *super, sector_t block, char **data )
 		assert( "nikita-1714", PageLocked( page ) );
 
 		/*
+		 * FIXME-NIKITA add reiser4 decorations to the page, if they
+		 * aren't in place: pointer to jnode, whatever. 
+		 * 
+		 * We are under page lock now, so it can be used as
+		 * synchronization.
+		 *
+		 */
+
+		/*
 		 * start io for all blocks on this page. They are close to
 		 * each other on the disk, so this is cheap.
 		 */
@@ -161,6 +174,7 @@ int read_in_formatted( struct super_block *super, sector_t block, char **data )
 		 */
 		if( buffer_uptodate( bh ) ) {
 			*data = bh -> b_data;
+			mark_page_accessed( page );
 			result = 0;
 		} else
 			result = -EIO;
