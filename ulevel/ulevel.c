@@ -1085,7 +1085,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		f -> i_sb = reiser4_get_current_sb();
 		sema_init( &f -> i_sem, 1 );
 		init_inode( f, &coord );
-		reiser4_get_object_state( f ) -> hash = hash_plugin_by_id ( TEA_HASH_ID );
+		reiser4_get_object_state( f ) -> hash = hash_plugin_by_id ( DEGENERATE_HASH_ID );
 		reiser4_get_object_state( f ) -> tail = tail_plugin_by_id ( NEVER_TAIL_ID );
 		reiser4_get_object_state( f ) -> perm = perm_plugin_by_id ( RWX_PERM_ID );
 		reiser4_get_object_state( f ) -> locality_id = get_key_locality( &key );
