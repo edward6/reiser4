@@ -211,7 +211,9 @@ int lookup_sd_by_key( reiser4_tree *tree, znode_lock_mode lock_mode,
 		/* check that what we really found is stat data */
 		if( item_type_by_coord( coord ) != STAT_DATA_ITEM_TYPE ) {
 			error_message = "sd found, but it doesn't look like sd ";
-			/* FIXME_BREAKAGE print_plugin( "found", item_plugin_by_coord( coord ) ); */
+			print_plugin( "found", 
+				      item_plugin_to_plugin( 
+					      item_plugin_by_coord( coord ) ) );
 			result = -ENOENT;
 		}
 	}
