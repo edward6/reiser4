@@ -181,6 +181,7 @@
 #include "plugin.h"
 #include "../reiser4.h"
 #include "../jnode.h"
+#include "../inode.h"
 
 #include <linux/fs.h>		/* for struct super_block  */
 
@@ -210,6 +211,9 @@ init_plugins(void)
 		int i;
 
 		ptype = &plugins[type_id];
+		assert("nikita-3508", ptype->label != NULL);
+		assert("nikita-3509", ptype->type_id == type_id);
+
 		plugin_list_init(&ptype->plugins_list);
 		ON_TRACE(TRACE_PLUGINS,
 			 "Of type %s (%s):\n", ptype->label, ptype->desc);
@@ -289,14 +293,11 @@ lookup_plugin(const char *type_label /* plugin type label */ ,
 	assert("nikita-546", type_label != NULL);
 	assert("nikita-547", plug_label != NULL);
 
-	result = NULL;
 	type_id = find_type(type_label);
-	if (is_type_id_valid(type_id)) {
+	if (is_type_id_valid(type_id))
 		result = find_plugin(&plugins[type_id], plug_label);
-		if (result == NULL)
-			printk("Unknown plugin: %s\n", plug_label);
-	} else
-		printk("Unknown plugin type '%s'\n", type_label);
+	else
+		result = NULL;
 	return result;
 }
 
@@ -369,7 +370,9 @@ find_type(const char *label	/* plugin type
 
 	assert("nikita-550", label != NULL);
 
-	for (type_id = 0; (type_id < REISER4_PLUGIN_TYPES) && strcmp(label, plugins[type_id].label); ++type_id) {;
+	for (type_id = 0; type_id < REISER4_PLUGIN_TYPES &&
+		     strcmp(label, plugins[type_id].label); ++type_id) {
+		;
 	}
 	return type_id;
 }
@@ -397,6 +400,58 @@ find_plugin(reiser4_plugin_type_data * ptype	/* plugin
 			return result;
 	}
 	return NULL;
+}
+
+int
+grab_plugin(struct inode *self, struct inode *ancestor, pset_member memb)
+{
+	reiser4_plugin *plug;
+	reiser4_inode *parent;
+
+	parent = reiser4_inode_data(ancestor);
+	plug = pset_get(parent->hset, memb) ? : pset_get(parent->pset, memb);
+	return grab_plugin_from(self, memb, plug);
+}
+
+static void
+update_plugin_mask(reiser4_inode *info, pset_member memb)
+{
+	reiser4_inode *root;
+
+	root = reiser4_inode_data(inode_by_reiser4_inode(info)->i_sb->s_root->d_inode);
+	if (pset_get(info->pset, memb) != pset_get(root->pset, memb))
+		info->plugin_mask |= (1 << memb);
+}
+
+int
+grab_plugin_from(struct inode *self, pset_member memb, reiser4_plugin *plug)
+{
+	reiser4_inode *info;
+	int            result = 0;
+
+	info = reiser4_inode_data(self);
+	if (pset_get(info->pset, memb) == NULL) {
+		result = pset_set(&info->pset, memb, plug);
+		if (result == 0)
+			update_plugin_mask(info, memb);
+	}
+	return result;
+}
+
+int
+force_plugin(struct inode *self, pset_member memb, reiser4_plugin *plug)
+{
+	reiser4_inode *info;
+	int            result = 0;
+
+	info = reiser4_inode_data(self);
+	if (plug->h.pops != NULL && plug->h.pops->change != NULL)
+		result = plug->h.pops->change(self, plug);
+	else
+		result = pset_set(&info->pset, memb, plug);
+	if (result == 0)
+		update_plugin_mask(info, memb);
+	return result;
 }
 
 /* defined in fs/reiser4/plugin/file.c */
@@ -498,7 +553,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 
 	[REISER4_FORMATTING_PLUGIN_TYPE] = {
 		.type_id = REISER4_FORMATTING_PLUGIN_TYPE,
-		.label = "tail",
+		.label = "formatting",
 		.desc = "Tail inlining policies",
 		.builtin_num = sizeof_array(formatting_plugins),
 		.builtin = formatting_plugins,
@@ -543,7 +598,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 	},
 	[REISER4_FORMAT_PLUGIN_TYPE] = {
 		.type_id = REISER4_FORMAT_PLUGIN_TYPE,
-		.label = "disk layout",
+		.label = "disk_layout",
 		.desc = "defines filesystem on disk layout",
 		.builtin_num = sizeof_array(format_plugins),
 		.builtin = format_plugins,
@@ -552,7 +607,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 	},
 	[REISER4_JNODE_PLUGIN_TYPE] = {
 		.type_id = REISER4_JNODE_PLUGIN_TYPE,
-		.label = "jnode flavor",
+		.label = "jnode",
 		.desc = "defines kind of jnode",
 		.builtin_num = sizeof_array(jnode_plugins),
 		.builtin = jnode_plugins,
@@ -561,7 +616,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 	},
 	[REISER4_PSEUDO_PLUGIN_TYPE] = {
 		.type_id = REISER4_PSEUDO_PLUGIN_TYPE,
-		.label = "pseudo file",
+		.label = "pseudo_file",
 		.desc = "pseudo file",
 		.builtin_num = sizeof_array(pseudo_plugins),
 		.builtin = pseudo_plugins,

@@ -756,7 +756,6 @@ PLUGIN_BY_ID(digest_plugin, REISER4_DIGEST_PLUGIN_TYPE, digest);
 PLUGIN_BY_ID(compression_plugin, REISER4_COMPRESSION_PLUGIN_TYPE, compression);
 PLUGIN_BY_ID(formatting_plugin, REISER4_FORMATTING_PLUGIN_TYPE, formatting);
 PLUGIN_BY_ID(disk_format_plugin, REISER4_FORMAT_PLUGIN_TYPE, format);
-PLUGIN_BY_ID(oid_allocator_plugin, REISER4_OID_ALLOCATOR_PLUGIN_TYPE, oid_allocator);
 PLUGIN_BY_ID(jnode_plugin, REISER4_JNODE_PLUGIN_TYPE, jnode);
 PLUGIN_BY_ID(pseudo_plugin, REISER4_PSEUDO_PLUGIN_TYPE, pseudo);
 
@@ -777,32 +776,26 @@ for( plugin = plugin_list_front( get_plugin_list( ptype ) ) ;	\
      ! plugin_list_end( get_plugin_list( ptype ), plugin ) ;	\
      plugin = plugin_list_next( plugin ) )
 
+/* enumeration of fields within plugin_set */
+typedef enum {
+	PSET_FILE,
+	PSET_DIR, /* PSET_FILE and PSET_DIR should be first elements:
+		   * inode.c:read_inode() depends on this. */
+	PSET_PERM,
+	PSET_FORMATTING,
+	PSET_HASH,
+	PSET_FIBRATION,
+	PSET_SD,
+	PSET_DIR_ITEM,
+	PSET_CRYPTO,
+	PSET_DIGEST,
+	PSET_COMPRESSION,
+	PSET_LAST
+} pset_member;
 
-#define grab_plugin(self, ancestor, plugin)				\
-	grab_plugin_from((self), plugin, (ancestor)->pset->plugin)
-
-/* if plugin in @self->field is not yet set, set it to be equal to @val */
-#define grab_plugin_from(self, field, val)				\
-({									\
-	typeof(val) __val;						\
-	struct inode *__inode;						\
-	reiser4_inode *__self;						\
-	int __result;							\
-									\
-	__val = (val);							\
-	__self = (self);						\
-	__inode = inode_by_reiser4_inode(__self);			\
-	__result = 0;							\
-	if(__self->pset->field == NULL) {				\
-		if (__val->h.pops != NULL &&				\
-		    __val->h.pops->change != NULL) {			\
-			__result = __val->h.pops->change(__inode,	\
-					      (reiser4_plugin *)__val);	\
-		} else							\
-			plugin_set_ ## field(&__self->pset, __val);	\
-	}								\
-	__result;							\
-})
+int grab_plugin(struct inode *self, struct inode *ancestor, pset_member memb);
+int grab_plugin_from(struct inode *self, pset_member memb, reiser4_plugin *plug);
+int force_plugin(struct inode *self, pset_member memb, reiser4_plugin *plug);
 
 /* __FS_REISER4_PLUGIN_TYPES_H__ */
 #endif
