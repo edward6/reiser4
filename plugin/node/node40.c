@@ -903,7 +903,10 @@ int node40_create_item (coord_t * target, const reiser4_key * key,
 	}
 	else if (data->data != NULL) {
 		if (data->user) {
-			/* AUDIT: Are we really should not check that pointer from userspace was valid and data bytes were available? How will we return -EFAULT of some kind without this check? */
+			/* AUDIT: Are we really should not check that pointer
+			 * from userspace was valid and data bytes were
+			 * available? How will we return -EFAULT of some kind
+			 * without this check? */
 			ON_DEBUG_CONTEXT( assert( "green-2", 
 						  lock_counters() -> spin_locked == 0 ) );
 			/* copy data from user space */
@@ -927,6 +930,27 @@ int node40_create_item (coord_t * target, const reiser4_key * key,
 	}
 
 	node_check (target->node, REISER4_NODE_PANIC);
+
+	/*
+	 * FIXME-VS: remove after debugging
+	 */
+	{
+		reiser4_key key_1;
+		reiser4_key key;
+		coord_t crd;
+
+		for_all_items (&crd, target->node) {
+			item_key_by_coord (&crd, &key);
+			if (crd.item_pos != 0)
+				assert ("vs-970", keylt (&key_1, &key));
+			key_1 = key;
+		}
+	}
+	/*
+	 * FIXME-VS: remove after debugging
+	 */
+	
+
 	return 0;
 }
 
