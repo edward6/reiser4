@@ -373,43 +373,10 @@ sync_op(carry_op * op, carry_node * target)
 	return insertion_node;
 }
 
-/* "split" code is not yet ready */
-static int
-get_split_point(carry_op * op, sideof dir)
-{
-	coord_t *coord;
-
-	return 0;
-
-	assert("nikita-2619", op->op == COP_INSERT || op->op == COP_PASTE || op->op == COP_EXTENT);
-
-	coord = op->u.insert.d->coord;
-
-	if (!coord_is_existing_item(coord))
-		return 0;
-	if ((op->u.insert.flags & COPI_GLUE_LEFT) && dir == LEFT_SIDE && coord->unit_pos > 0) {
-		coord_prev_unit(coord);
-		/* split point is different from the insertion point, confine
-		   shift to the source node. */
-		op->u.insert.flags &= ~COPI_GO_LEFT;
-		return -1;
-	}
-	/* glueing to the right is not yet implemented */
-	assert("nikita-2620", !(op->u.insert.flags & COPI_GLUE_RIGHT));
-	return 0;
-}
-
-static void
-put_split_point(carry_op * op, int adj, __u32 flags)
-{
-	return;
-
-	assert("nikita-2621", op->op == COP_INSERT || op->op == COP_PASTE || op->op == COP_EXTENT);
-
-	op->u.insert.d->coord += adj;
-	op->u.insert.flags = flags;
-}
-
+/*
+ * complete make_space() call: update tracked lock handle if necessary. See
+ * comments for fs/reiser4/carry.h:carry_track_type
+ */
 static int
 make_space_tail(carry_op * op, carry_level * doing, znode * orig_node)
 {
@@ -459,7 +426,6 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 	int blk_alloc;
 	znode *orig_node;
 	__u32 flags;
-	int adj;
 
 	coord_t *coord;
 
@@ -523,11 +489,11 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 			}
 		} else if (left != NULL) {
 
-			adj = get_split_point(op, LEFT_SIDE);
 			/* shift everything possible on the left of and
 			   including insertion coord into the left neighbor */
-			result = carry_shift_data(LEFT_SIDE, coord, carry_real(left), doing, todo, flags & COPI_GO_LEFT);
-			put_split_point(op, adj, flags);
+			result = carry_shift_data(LEFT_SIDE, coord,
+						  carry_real(left), doing, todo,
+						  flags & COPI_GO_LEFT);
 
 			/* reget node from coord: shift_left() might move
 			   insertion coord to the left neighbor */
@@ -553,7 +519,6 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 				PTR_ERR(right));
 			print_znode("node", node);
 		} else if (right != NULL) {
-			adj = get_split_point(op, RIGHT_SIDE);
 			/* node containing insertion point, and its right
 			   neighbor node are write locked by now.
 			
@@ -564,7 +529,6 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 						  carry_real(right),
 						  doing, todo,
 						  flags & COPI_GO_RIGHT);
-			put_split_point(op, adj, flags);
 			/* reget node from coord: shift_right() might move
 			   insertion coord to the right neighbor */
 			node = sync_op(op, right);
@@ -627,7 +591,6 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 		*/
 		coord_dup(&coord_shadow, op->u.insert.d->coord);
 		node_shadow = op->node;
-		adj = get_split_point(op, RIGHT_SIDE);
 		/* move insertion point into newly created node if:
 		
 		    . insertion point is rightmost in the source node, or
@@ -639,7 +602,6 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 
 		result = carry_shift_data(RIGHT_SIDE, coord, carry_real(fresh),
 					  doing, todo, gointo);
-		put_split_point(op, adj, flags);
 		/* if insertion point was actually moved into new node,
 		   update carry node pointer in operation. */
 		node = sync_op(op, fresh);
@@ -796,6 +758,19 @@ insert_paste_common(carry_op * op	/* carry operation being
 		
 		   You are not expected to understand this.
 		          -- v6root/usr/sys/ken/slp.c
+
+		   Basically, what happens here is the following: carry came
+		   to the parent level and is about to insert internal item
+		   pointing to the child node that it just inserted in the
+		   level below. Position where internal item is to be inserted
+		   was found by find_new_child_coord() above, but node of the
+		   current carry operation (that is, parent node of child
+		   inserted on the previous level), was determined earlier in
+		   the lock_carry_level/lock_carry_node. It could so happen
+		   that other carry operations already performed on the parent
+		   level already split parent node, so that insertion point
+		   moved into another node. Handle this by creating new carry
+		   node for insertion point if necessary.
 		*/
 		if (carry_real(op->node) != op->u.insert.d->coord->node) {
 			pool_ordering direction;
@@ -804,12 +779,18 @@ insert_paste_common(carry_op * op	/* carry operation being
 			reiser4_key k1;
 			reiser4_key k2;
 
+			/*
+			 * determine in what direction insertion point
+			 * moved. Do this by comparing delimiting keys.
+			 */
 			z1 = op->u.insert.d->coord->node;
 			z2 = carry_real(op->node);
 			if (keyle(leftmost_key_in_node(z1, &k1),
 				  leftmost_key_in_node(z2, &k2)))
+				/* insertion point moved to the left */
 				direction = POOLO_BEFORE;
 			else
+				/* insertion point moved to the right */
 				direction = POOLO_AFTER;
 
 			op->node = add_carry_skip(doing, direction, op->node);
@@ -822,6 +803,11 @@ insert_paste_common(carry_op * op	/* carry operation being
 				return result;
 		}
 
+		/*
+		 * set up key of an item being inserted: we are inserting
+		 * internal item and its key is (by the very definition of
+		 * search tree) is leftmost key in the child node.
+		 */
 		op->u.insert.d->key = UNDER_RW(dk, znode_get_tree(child), read,
 					       leftmost_key_in_node(child, znode_get_ld_key(child)));
 		op->u.insert.d->data->arg = op->u.insert.brother;
@@ -866,8 +852,6 @@ carry_insert(carry_op * op /* operation to perform */ ,
 	trace_stamp(TRACE_CARRY);
 	reiser4_stat_level_inc(doing, insert);
 
-	/* FIXME-VS: init_coord used to be here. insert_paste_common seems to
-	   use that zeroed coord */
 	coord_init_zero(&coord);
 
 	/* perform common functionality of insert and paste. */
@@ -891,6 +875,12 @@ carry_insert(carry_op * op /* operation to perform */ ,
 
 	return result;
 }
+
+/*
+ * Flow insertion code. COP_INSERT_FLOW is special tree operation that is
+ * supplied with a "flow" (that is, a stream of data) and inserts it into tree
+ * by slicing into multiple items.
+ */
 
 #define flow_insert_point(op) ( ( op ) -> u.insert_flow.insert_point )
 #define flow_insert_flow(op) ( ( op ) -> u.insert_flow.flow )
@@ -1251,6 +1241,12 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 	carry_plugin_info info;
 	reiser4_tree *tree;
 
+	/*
+	 * This operation is called to delete internal item pointing to the
+	 * child node that was removed by carry from the tree on the previous
+	 * tree level.
+	 */
+
 	assert("nikita-893", op != NULL);
 	assert("nikita-894", todo != NULL);
 	assert("nikita-895", op->op == COP_DELETE);
@@ -1265,6 +1261,14 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 		carry_real(op->u.delete.child) : op->node->node;
 	tree = znode_get_tree(child);
 	RLOCK_TREE(tree);
+
+	/*
+	 * @parent was determined when carry entered parent level
+	 * (lock_carry_level/lock_carry_node). Since then, actual parent of
+	 * @child node could change due to other carry operations performed on
+	 * the parent level. Check for this.
+	 */
+
 	if (znode_parent(child) != parent) {
 		/* NOTE-NIKITA add stat counter for this. */
 		parent = znode_parent(child);
@@ -1280,7 +1284,8 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 	*/
 
 	if (znode_is_root(parent) &&
-	    (znode_get_level(parent) <= REISER4_MIN_TREE_HEIGHT) && (node_num_items(parent) == 1)) {
+	    znode_get_level(parent) <= REISER4_MIN_TREE_HEIGHT &&
+	    node_num_items(parent) == 1) {
 		/* Delimiting key manipulations. */
 		WLOCK_DK(tree);
 		znode_set_ld_key(child, znode_set_ld_key(parent, min_key()));
@@ -1306,6 +1311,11 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 	info.doing = doing;
 	info.todo = todo;
 	{
+		/*
+		 * Actually kill internal item: prepare structure with
+		 * arguments for ->cut_and_kill() method...
+		 */
+
 		struct carry_kill_data kdata;
 		kdata.params.from = &coord;
 		kdata.params.to = &coord2;
@@ -1316,14 +1326,17 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 		kdata.inode = 0;
 		kdata.left = 0;
 		kdata.right = 0;
-		result = node_plugin_by_node(parent)->cut_and_kill(&kdata, &info);
+		/* ... and call it. */
+		result = node_plugin_by_node(parent)->cut_and_kill(&kdata,
+								   &info);
 	}
 	doing->restartable = 0;
 
 	/* check whether root should be killed violently */
 	if (znode_is_root(parent) &&
 	    /* don't kill roots at and lower than twig level */
-	    (znode_get_level(parent) > REISER4_MIN_TREE_HEIGHT) && (node_num_items(parent) == 1)) {
+	    znode_get_level(parent) > REISER4_MIN_TREE_HEIGHT &&
+	    node_num_items(parent) == 1) {
 		result = kill_tree_root(coord.node);
 	}
 
@@ -1505,6 +1518,13 @@ carry_paste(carry_op * op /* operation to be performed */ ,
 
 	assert("nikita-1286", coord_is_existing_item(coord));
 
+	/*
+	 * if item is expanded as a result of this operation, we should first
+	 * change item size, than call ->b.paste item method. If item is
+	 * shrunk, it should be done other way around: first call ->b.paste
+	 * method, then reduce item size.
+	 */
+
 	real_size = space_needed_for_op(node, op);
 	if (real_size > 0)
 		node->nplug->change_item_size(coord, real_size);
@@ -1588,6 +1608,7 @@ carry_extent(carry_op * op /* operation to perform */ ,
 	assert("nikita-1754", node != NULL);
 	assert("nikita-1755", node_plugin_by_node(node) != NULL);
 	assert("nikita-1700", coord_wrt(op->u.extent.d->coord) != COORD_INSIDE);
+
 	/* NOTE-NIKITA add some checks here. Not assertions, -EIO. Check that
 	   extent fits between items. */
 
@@ -1647,7 +1668,9 @@ carry_extent(carry_op * op /* operation to perform */ ,
 /* update key in @parent between pointers to @left and @right.
 
    Find coords of @left and @right and update delimiting key between them.
-
+   This is helper function called by carry_update(). Finds position of
+   internal item involved. Updates item key. Updates delimiting keys of child
+   nodes involved.
 */
 static int
 update_delimiting_key(znode * parent	/* node key is updated
@@ -1699,7 +1722,8 @@ update_delimiting_key(znode * parent	/* node key is updated
 			*error_msg = "Right child is bastard";
 			return RETERR(-EIO);
 		}
-		if (left_pos.node != NULL && !coord_are_neighbors(&left_pos, &right_pos)) {
+		if (left_pos.node != NULL &&
+		    !coord_are_neighbors(&left_pos, &right_pos)) {
 			*error_msg = "Children are not direct siblings";
 			return RETERR(-EIO);
 		}
@@ -1708,6 +1732,16 @@ update_delimiting_key(znode * parent	/* node key is updated
 
 	info.doing = doing;
 	info.todo = todo;
+
+	/*
+	 * If child node is not empty, new key of internal item is a key of
+	 * leftmost item in the child node. If the child is empty, take its
+	 * right delimiting key as a new key of the internal item. Precise key
+	 * in the latter case is not important per se, because the child (and
+	 * the internal item) are going to be killed shortly anyway, but we
+	 * have to preserve correct order of keys in the parent node.
+	 */
+
 	if (!ZF_ISSET(right, JNODE_HEARD_BANSHEE))
 		leftmost_key_in_node(right, &ldkey);
 	else
@@ -1737,6 +1771,17 @@ carry_update(carry_op * op /* operation to be performed */ ,
 	carry_node *rchild;
 	const char *error_msg;
 	reiser4_tree *tree;
+
+	/*
+	 * This operation is called to update key of internal item. This is
+	 * necessary when carry shifted of cut data on the child
+	 * level. Arguments of this operation are:
+	 *
+	 *     @right --- child node. Operation should update key of internal
+	 *     item pointing to @right.
+	 *
+	 *     @left --- left neighbor of @right. This parameter is optional.
+	 */
 
 	assert("nikita-902", op != NULL);
 	assert("nikita-903", todo != NULL);
@@ -1776,7 +1821,9 @@ carry_update(carry_op * op /* operation to be performed */ ,
 
 	if (right != NULL) {
 		result = update_delimiting_key(right,
-					       lchild ? lchild->node : NULL, rchild->node, doing, todo, &error_msg);
+					       lchild ? lchild->node : NULL,
+					       rchild->node,
+					       doing, todo, &error_msg);
 	} else {
 		error_msg = "Cannot find node to update key in";
 		result = RETERR(-EIO);
@@ -1794,35 +1841,6 @@ carry_update(carry_op * op /* operation to be performed */ ,
 	return result;
 }
 
-/* implements COP_MODIFY opration
-
-   Notify parent about changes in its child
-
-*/
-static int
-carry_modify(carry_op * op /* operation to be performed */ ,
-	     carry_level * doing UNUSED_ARG	/* current carry
-						 * level */ ,
-	     carry_level * todo UNUSED_ARG /* next curry level */ )
-{
-	znode *node;
-
-	assert("nikita-905", op != NULL);
-	assert("nikita-906", todo != NULL);
-	assert("nikita-907", op->op == COP_MODIFY);
-	trace_stamp(TRACE_CARRY);
-	reiser4_stat_level_inc(doing, modify);
-
-	node = carry_real(op->node);
-	assert("nikita-995", node != NULL);
-#ifdef MODIFY_EXISTS
-	if (node_plugin_by_node(node)->modify != NULL)
-		return node_plugin_by_node(node)->modify(node, op->u.modify.child->real_node, op->u.modify.flag, todo);
-	else
-#endif
-		return 0;
-}
-
 /* move items from @node during carry */
 static int
 carry_shift_data(sideof side /* in what direction to move data */ ,
@@ -1834,8 +1852,8 @@ carry_shift_data(sideof side /* in what direction to move data */ ,
 					 * operations are to be put
 					 * in */ ,
 		 unsigned int including_insert_coord_p	/* true if
-							   * @insertion_coord
-							   * can be moved */ )
+							 * @insertion_coord
+							 * can be moved */ )
 {
 	int result;
 	znode *source;
@@ -1855,6 +1873,10 @@ carry_shift_data(sideof side /* in what direction to move data */ ,
 	   -ENOMEM due to carry node/operation allocation. */
 	assert("nikita-915", result >= 0 || result == -ENOMEM);
 	if (result > 0) {
+		/*
+		 * if some number of bytes was actually shifted, mark nodes
+		 * dirty, and carry level as non-restartable.
+		 */
 		doing->restartable = 0;
 		znode_make_dirty(source);
 		znode_make_dirty(node);
@@ -1926,30 +1948,89 @@ find_dir_carry(carry_node * node	/* node to start scanning
 	}
 }
 
+/*
+ * Memory reservation estimation.
+ *
+ * Carry process proceeds through tree levels upwards. Carry assumes that it
+ * takes tree in consistent state (e.g., that search tree invariants hold),
+ * and leaves tree consistent after it finishes. This means that when some
+ * error occurs carry cannot simply return if there are pending carry
+ * operations. Generic solution for this problem is carry-undo either as
+ * transaction manager feature (requiring checkpoints and isolation), or
+ * through some carry specific mechanism.
+ *
+ * Our current approach is to panic if carry hits an error while tree is
+ * inconsistent. Unfortunately -ENOMEM can easily be triggered. To work around
+ * this "memory reservation" mechanism was added.
+ *
+ * Memory reservation is implemented by perthread-pages.diff patch from
+ * core-patches. Its API is defined in <linux/gfp.h>
+ *
+ *     int  perthread_pages_reserve(int nrpages, int gfp);
+ *     void perthread_pages_release(int nrpages);
+ *     int  perthread_pages_count(void);
+ *
+ * carry estimates its worst case memory requirements at the entry, reserved
+ * enough memory, and released unused pages before returning.
+ *
+ * Code below estimates worst case memory requirements for a given carry
+ * queue. This is dome by summing worst case memory requirements for each
+ * operation in the queue.
+ *
+ */
+
+/*
+ * Memory memory requirements of many operations depends on the tree
+ * height. For example, item insertion requires new node to be inserted at
+ * each tree level in the worst case. What tree height should be used for
+ * estimation? Current tree height is wrong, because tree height can change
+ * between the time when estimation was done and the time when operation is
+ * actually performed. Maximal possible tree height (REISER4_MAX_ZTREE_HEIGHT)
+ * is also not desirable, because it would lead to the huge over-estimation
+ * all the time. Plausible solution is "capped tree height": if current tree
+ * height is less than some TREE_HEIGHT_CAP constant, capped tree height is
+ * TREE_HEIGHT_CAP, otherwise it's current tree height. Idea behind this is
+ * that if tree height is TREE_HEIGHT_CAP or larger, it's extremely unlikely
+ * to be increased even more during short interval of time.
+ */
 #define TREE_HEIGHT_CAP (5)
 
+/* return capped tree height for the @tree. See comment above. */
 static int
 cap_tree_height(reiser4_tree * tree)
 {
-	return tree->height >= TREE_HEIGHT_CAP ? TREE_HEIGHT_CAP : tree->height;
+	return max_t(int, tree->height, TREE_HEIGHT_CAP);
 }
 
+/* return capped tree height for the current tree. */
 static int capped_height(void)
 {
 	return cap_tree_height(current_tree);
 }
 
+/* return number of pages required to store given number of bytes */
 static int bytes_to_pages(int bytes)
 {
 	return (bytes + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 }
 
+/* how many pages are required to allocate znodes during item insertion. */
 static int
 carry_estimate_znodes(void)
 {
+	/*
+	 * Note, that there we have some problem here: there is no way to
+	 * reserve pages specifically for the given slab. This means that
+	 * these pages can be hijacked for some other end.
+	 */
+
+	/* in the worst case we need 3 new znode on each tree level */
 	return bytes_to_pages(capped_height() * sizeof(znode) * 3);
 }
 
+/*
+ * how many pages are required to load bitmaps. One bitmap per level.
+ */
 static int
 carry_estimate_bitmaps(void)
 {
@@ -1966,6 +2047,7 @@ carry_estimate_bitmaps(void)
 		return 0;
 }
 
+/* worst case item insertion memory requirements */
 static int
 carry_estimate_insert(carry_op * op, carry_level * level)
 {
@@ -1978,6 +2060,7 @@ carry_estimate_insert(carry_op * op, carry_level * level)
 		3; /* loading of leaves into memory */
 }
 
+/* worst case item deletion memory requirements */
 static int
 carry_estimate_delete(carry_op * op, carry_level * level)
 {
@@ -1988,6 +2071,7 @@ carry_estimate_delete(carry_op * op, carry_level * level)
 		3; /* loading of leaves into memory */
 }
 
+/* worst case tree cut memory requirements */
 static int
 carry_estimate_cut(carry_op * op, carry_level * level)
 {
@@ -1998,6 +2082,7 @@ carry_estimate_cut(carry_op * op, carry_level * level)
 		3; /* loading of leaves into memory */
 }
 
+/* worst case memory requirements of pasting into item */
 static int
 carry_estimate_paste(carry_op * op, carry_level * level)
 {
@@ -2010,6 +2095,7 @@ carry_estimate_paste(carry_op * op, carry_level * level)
 		3; /* loading of leaves into memory */
 }
 
+/* worst case memory requirements of extent insertion */
 static int
 carry_estimate_extent(carry_op * op, carry_level * level)
 {
@@ -2018,18 +2104,14 @@ carry_estimate_extent(carry_op * op, carry_level * level)
 		carry_estimate_delete(op, level);  /* kill leaf */
 }
 
+/* worst case memory requirements of key update */
 static int
 carry_estimate_update(carry_op * op, carry_level * level)
 {
 	return 0;
 }
 
-static int
-carry_estimate_modify(carry_op * op, carry_level * level)
-{
-	return 0;
-}
-
+/* worst case memory requirements of flow insertion */
 static int
 carry_estimate_insert_flow(carry_op * op, carry_level * level)
 {
@@ -2070,10 +2152,6 @@ reiser4_internal carry_op_handler op_dispatch_table[COP_LAST_OP] = {
 	[COP_UPDATE] = {
 		.handler = carry_update,
 		.estimate = carry_estimate_update
-	},
-	[COP_MODIFY] = {
-		.handler = carry_modify,
-		.estimate = carry_estimate_modify
 	},
 	[COP_INSERT_FLOW] = {
 		.handler = carry_insert_flow,
