@@ -570,7 +570,7 @@ static int
 atom_should_commit (txn_atom *atom)
 {
 	assert("umka-189", atom != NULL);
-	return (atom_pointer_count (atom) > 20000) || (atom->flags & ATOM_FORCE_COMMIT);
+	return (atom_pointer_count (atom) > 20) || (atom->flags & ATOM_FORCE_COMMIT);
 }
 
 /* Called with the atom locked and no open txnhs, this function determines
