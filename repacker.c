@@ -12,6 +12,7 @@
 #include <linux/fs.h>
 #include <linux/kobject.h>
 #include <linux/sched.h>
+#include <linux/writeback.h>
 
 #include <asm/atomic.h>
 
@@ -95,18 +96,22 @@ static void repacker_cursor_done (struct repacker_cursor * cursor)
 	blocknr_hint_done(&cursor->hint);
 }
 
-/* Close current transaction and begin new one */
-static int renew_transaction (void)
+/* routines for closing current transaction and beginning new one */
+
+static int end_work (void)
 {
 	reiser4_context * ctx = get_current_context();
 	long _ret;
 
 	_ret = txn_end(ctx);
-	txn_begin(ctx);
-
 	if (_ret < 0)
 		return (int)_ret;
 	return 0;
+}
+static void begin_work (void)
+{
+	reiser4_context * ctx = get_current_context();
+	txn_begin(ctx);
 }
 
 /* Processing of a formatted node when the repacker goes forward. */
@@ -122,6 +127,9 @@ static int process_znode_forward (tap_t * tap, void * arg)
 
 	if (ZF_ISSET(node, JNODE_REPACK))
 		return 0;
+
+	if (current_atom_should_commit())
+		return -E_REPEAT;
 
 	znode_make_dirty(node);
 	ZF_SET(node, JNODE_REPACK);
@@ -142,6 +150,9 @@ static int process_extent_forward (tap_t *tap, void * arg)
 
 	if (check_repacker_state_bit(get_current_super_private()->repacker, REPACKER_STOP))
 		return -EINTR;
+
+	if (current_atom_should_commit())
+		return -E_REPEAT;
 
 	ret = mark_extent_for_repacking(tap, cursor->count);
 	if (ret > 0) {
@@ -165,12 +176,12 @@ static int prepare_repacking_session (void * arg)
 	assert("zam-951", schedulable());
 
 	all_grabbed2free();
-	ret = renew_transaction();
+	ret = end_work();
 	if (ret)
 		return ret;
-
+	balance_dirty_pages_ratelimited(get_current_super_private()->fake->i_mapping);
+	begin_work();
 	cursor->count = get_current_super_private()->repacker->params.chunk_size;
-
 	return  reiser4_grab_space((__u64)cursor->count,
 				   BA_CAN_COMMIT | BA_FORCE);
 }
@@ -290,6 +301,9 @@ static int process_extent_backward (tap_t * tap, void * arg)
 
 	if (check_repacker_state_bit(get_current_super_private()->repacker, REPACKER_STOP))
 		return -EINTR;
+
+	if (current_atom_should_commit())
+		return -E_REPEAT;
 
 	ret = process_extent_backward_for_repacking(tap, cursor);
 	if (ret)
