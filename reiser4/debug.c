@@ -114,7 +114,6 @@ void reiser4_print_stats()
 	      "\t fast_cut:\t %lli\n"
 	      "\t reparenting:\t %lli\n"
 	      "\t rd_key_skew:\t %lli\n"
-	      "\t spun_for_fake:\t %lli\n"
 
 	      "znode:\n"
 	      "\t zload:\t %lli\n"
@@ -160,7 +159,6 @@ void reiser4_print_stats()
 	      s -> tree.fast_cut,
 	      s -> tree.reparenting,
 	      s -> tree.rd_key_skew,
-	      s -> tree.spun_for_fake,
 
 	      s -> znode.zload,
 	      s -> znode.zload_read,

@@ -352,11 +352,6 @@ typedef struct reiser4_stat {
 		 * right delimiting key is not exact
 		 */
 		stat_cnt rd_key_skew;
-		/*
-		 * how many times coord_by_key() had to restart its
-		 * attempts to get low-priority lock on fake znode
-		 */
-		stat_cnt spun_for_fake;
 	} tree;
 	struct {
 		/*
