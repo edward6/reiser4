@@ -646,6 +646,24 @@ print_dir_pos(const char *prefix, const dir_pos *pos)
 #define print_dir_pos(prefix, pos) noop
 #endif
 
+static inline int
+file_is_stateless(struct file *f)
+{
+	return reiser4_get_dentry_fsdata(f->f_dentry)->stateless;
+}
+
+#define CID_SHIFT (20)
+#define CID_MASK  (0xfffffull)
+
+static loff_t
+get_dir_fpos(struct file * dir)
+{
+	if (file_is_stateless(dir))
+		return dir->f_pos & CID_MASK;
+	else
+		return dir->f_pos;
+}
+
 /* see comment before readdir_common() for overview of why "adjustment" is
  * necessary. */
 static void
@@ -686,7 +704,8 @@ adjust_dir_pos(struct file   * dir,
 		/* logical number of directory entry readdir is "looking" at
 		 * changes */
 		readdir_spot->entry_no += adj;
-		assert("nikita-2577", ergo(dir != NULL, dir->f_pos + adj >= 0));
+		assert("nikita-2577",
+		       ergo(dir != NULL, get_dir_fpos(dir) + adj >= 0));
 		if (de_id_cmp(&pos->dir_entry_key,
 			      &mod_point->dir_entry_key) == EQUAL_TO) {
 			assert("nikita-2575", mod_point->pos < pos->pos);
@@ -846,21 +865,23 @@ dir_rewind(struct file *dir, readdir_pos * pos, tap_t * tap)
 	__s64 shift;
 	int result;
 	struct inode *inode;
+	loff_t dirpos;
 
 	assert("nikita-2553", dir != NULL);
 	assert("nikita-2548", pos != NULL);
 	assert("nikita-2551", tap->coord != NULL);
 	assert("nikita-2552", tap->lh != NULL);
 
-	shift = dir->f_pos - pos->fpos;
+	dirpos = get_dir_fpos(dir);
+	shift = dirpos - pos->fpos;
 	/* this is logical directory entry within @dir which we are rewinding
 	 * to */
 	destination = pos->entry_no + shift;
 
 	inode = dir->f_dentry->d_inode;
-	if (dir->f_pos < 0)
+	if (dirpos < 0)
 		return RETERR(-EINVAL);
-	else if (destination == 0ll || dir->f_pos == 0) {
+	else if (destination == 0ll || dirpos == 0) {
 		/* rewind to the beginning of directory */
 		xmemset(pos, 0, sizeof *pos);
 		reiser4_stat_inc(dir.readdir.reset);
@@ -907,7 +928,7 @@ dir_rewind(struct file *dir, readdir_pos * pos, tap_t * tap)
 		if (result == 0) {
 			/* update pos->position.pos */
 			pos->entry_no = destination;
-			pos->fpos = dir->f_pos;
+			pos->fpos = dirpos;
 		}
 	}
 	return result;
@@ -1025,24 +1046,398 @@ move_entry(readdir_pos * pos, coord_t * coord)
 	++pos->fpos;
 }
 
-#define CLIENT_MASK  (0xffff000000000000ull)
-#define CLIENT_SHIFT (48)
+TYPE_SAFE_LIST_DECLARE(d_cursor);
+TYPE_SAFE_LIST_DECLARE(a_cursor);
+
+typedef struct {
+	__u16 cid;
+	__u64 oid;
+} d_cursor_key;
+
+struct dir_cursor {
+	int                  ref;
+	reiser4_file_fsdata *fsdata;
+	d_cursor_hash_link   hash;
+	d_cursor_list_link   list;
+	d_cursor_key         key;
+	d_cursor_info       *info;
+	a_cursor_list_link   alist;
+};
+
+static kmem_cache_t *d_cursor_slab;
+static struct shrinker *d_cursor_shrinker;
+static unsigned long d_cursor_unused = 0;
+static spinlock_t d_lock = SPIN_LOCK_UNLOCKED;
+static a_cursor_list_head cursor_cache = TYPE_SAFE_LIST_HEAD_INIT(cursor_cache);
+
+#define D_CURSOR_TABLE_SIZE (256)
+
+static inline unsigned long
+d_cursor_hash(d_cursor_hash_table *table, const d_cursor_key * key)
+{
+	assert("nikita-3555", IS_POW(D_CURSOR_TABLE_SIZE));
+	return (key->oid + key->cid) & (D_CURSOR_TABLE_SIZE - 1);
+}
+
+static inline int
+d_cursor_eq(const d_cursor_key * k1, const d_cursor_key * k2)
+{
+	return k1->cid == k2->cid && k1->oid == k2->oid;
+}
+
+#define KMALLOC(size) kmalloc((size), GFP_KERNEL)
+#define KFREE(ptr, size) kfree(ptr)
+TYPE_SAFE_HASH_DEFINE(d_cursor,
+		      dir_cursor,
+		      d_cursor_key,
+		      key,
+		      hash,
+		      d_cursor_hash,
+		      d_cursor_eq);
+#undef KFREE
+#undef KMALLOC
+
+TYPE_SAFE_LIST_DEFINE(d_cursor, dir_cursor, list);
+TYPE_SAFE_LIST_DEFINE(a_cursor, dir_cursor, alist);
+
+static void kill_cursor(dir_cursor *cursor);
+
+int d_cursor_shrink(int nr, unsigned int gfp_mask)
+{
+	return d_cursor_unused;
+	if (nr != 0) {
+		dir_cursor *scan;
+		int killed;
+
+		killed = 0;
+		spin_lock(&d_lock);
+		while (!a_cursor_list_empty(&cursor_cache)) {
+			scan = a_cursor_list_front(&cursor_cache);
+			assert("nikita-3567", scan->ref == 0);
+			kill_cursor(scan);
+			++ killed;
+			-- nr;
+			if (nr == 0)
+				break;
+		}
+		spin_unlock(&d_lock);
+		printk("%s: %i %lu\n", __FUNCTION__, killed, d_cursor_unused);
+	}
+	return d_cursor_unused;
+}
+
+reiser4_internal int
+d_cursor_init(void)
+{
+	d_cursor_slab = kmem_cache_create("d_cursor", sizeof (dir_cursor), 0,
+					  SLAB_HWCACHE_ALIGN, NULL, NULL);
+	if (d_cursor_slab == NULL)
+		return RETERR(-ENOMEM);
+	else {
+		d_cursor_shrinker = set_shrinker(DEFAULT_SEEKS, d_cursor_shrink);
+		if (d_cursor_shrinker == NULL)
+			return RETERR(-ENOMEM);
+		else
+			return 0;
+	}
+}
+
+reiser4_internal void
+d_cursor_done(void)
+{
+	if (d_cursor_shrinker != NULL) {
+		remove_shrinker(d_cursor_shrinker);
+		d_cursor_shrinker = NULL;
+	}
+	if (d_cursor_slab != NULL) {
+		kmem_cache_destroy(d_cursor_slab);
+		d_cursor_slab = NULL;
+	}
+}
+
+reiser4_internal int
+d_cursor_init_at(struct super_block *s)
+{
+	d_cursor_info *p;
+
+	p = &get_super_private(s)->d_info;
+
+	INIT_RADIX_TREE(&p->tree, GFP_KERNEL);
+	return d_cursor_hash_init(&p->table, D_CURSOR_TABLE_SIZE, NULL);
+}
+
+reiser4_internal void
+d_cursor_done_at(struct super_block *s)
+{
+	d_cursor_hash_done(&get_super_private(s)->d_info.table);
+}
+
+static inline d_cursor_info * d_info(struct inode *inode)
+{
+	return &get_super_private(inode->i_sb)->d_info;
+}
+
+static inline dir_cursor *lookup(d_cursor_info *info, unsigned long index)
+{
+	return (dir_cursor *)radix_tree_lookup(&info->tree, index);
+}
+
+static void bind_cursor(dir_cursor *cursor, unsigned long index)
+{
+	dir_cursor *head;
+
+	head = lookup(cursor->info, index);
+	if (head == NULL) {
+		/* this is the first cursor for this index */
+		d_cursor_list_clean(cursor);
+		radix_tree_insert(&cursor->info->tree, index, cursor);
+	} else {
+		/* some cursor already exist. Chain ours */
+		d_cursor_list_insert_after(head, cursor);
+	}
+}
 
 static void
+kill_cursor(dir_cursor *cursor)
+{
+	assert("nikita-3566", cursor->ref == 0);
+
+	readdir_list_remove_clean(cursor->fsdata);
+	reiser4_free_fsdata(cursor->fsdata);
+	if (d_cursor_list_is_clean(cursor))
+		radix_tree_delete(&cursor->info->tree,
+				  (unsigned long)cursor->key.oid);
+	else
+		d_cursor_list_remove_clean(cursor);
+	a_cursor_list_remove_clean(cursor);
+	d_cursor_hash_remove(&cursor->info->table, cursor);
+	kmem_cache_free(d_cursor_slab, cursor);
+	-- d_cursor_unused;
+}
+
+enum cursor_action {
+	CURSOR_LOAD,
+	CURSOR_DISPOSE,
+	CURSOR_KILL
+};
+
+static void
+process_cursors(struct inode *inode, enum cursor_action act)
+{
+	oid_t oid;
+	dir_cursor *start;
+	readdir_list_head *head;
+	reiser4_context ctx;
+	d_cursor_info *info;
+
+	/* this can be called by
+	 *
+	 * kswapd->...->prune_icache->..reiser4_destroy_inode
+	 *
+	 * without reiser4_context
+	 */
+	init_context(&ctx, inode->i_sb);
+
+	assert("nikita-3558", inode != NULL);
+
+	info = d_info(inode);
+	oid = get_inode_oid(inode);
+	spin_lock_inode(inode);
+	head = get_readdir_list(inode);
+	spin_lock(&d_lock);
+	start = lookup(info, (unsigned long)oid);
+	if (start != NULL) {
+		dir_cursor *scan;
+		reiser4_file_fsdata *fsdata;
+
+		scan = start;
+		do {
+			dir_cursor *next;
+
+			next = d_cursor_list_next(scan);
+			fsdata = scan->fsdata;
+			assert("nikita-3557", fsdata != NULL);
+			if (scan->key.oid == oid) {
+				switch (act) {
+				case CURSOR_DISPOSE:
+					readdir_list_remove_clean(fsdata);
+					break;
+				case CURSOR_LOAD:
+					readdir_list_push_front(head, fsdata);
+					break;
+				case CURSOR_KILL:
+					kill_cursor(scan);
+					break;
+				}
+			}
+			if (scan == next)
+				/* last cursor was just killed */
+				break;
+			scan = next;
+		} while (scan != start);
+	}
+	spin_unlock(&d_lock);
+	/* check that we killed 'em all */
+	assert("nikita-3568", ergo(act == CURSOR_KILL,
+				   readdir_list_empty(get_readdir_list(inode))));
+	assert("nikita-3569", ergo(act == CURSOR_KILL,
+				   lookup(info, oid) == NULL));
+	spin_unlock_inode(inode);
+	reiser4_exit_context(&ctx);
+}
+
+reiser4_internal void dispose_cursors(struct inode *inode)
+{
+	process_cursors(inode, CURSOR_DISPOSE);
+}
+
+reiser4_internal void load_cursors(struct inode *inode)
+{
+	process_cursors(inode, CURSOR_LOAD);
+}
+
+reiser4_internal void kill_cursors(struct inode *inode)
+{
+	process_cursors(inode, CURSOR_KILL);
+}
+
+static __u32 cid_counter = 0;
+
+static void
+clean_fsdata(struct file *f)
+{
+	dir_cursor   *cursor;
+	reiser4_file_fsdata *fsdata;
+
+	assert("nikita-3570", file_is_stateless(f));
+
+	fsdata = (reiser4_file_fsdata *)f->private_data;
+	if (fsdata != NULL) {
+		cursor = fsdata->cursor;
+		if (cursor != NULL) {
+			spin_lock(&d_lock);
+			-- cursor->ref;
+			if (cursor->ref == 0) {
+				a_cursor_list_push_back(&cursor_cache, cursor);
+				++ d_cursor_unused;
+			}
+			spin_unlock(&d_lock);
+			f->private_data = NULL;
+		}
+	}
+}
+
+static int
+insert_cursor(dir_cursor *cursor, struct file *f, struct inode *inode)
+{
+	int                  result;
+	reiser4_file_fsdata *fsdata;
+
+	xmemset(cursor, 0, sizeof *cursor);
+
+	/* this is either first call to readdir, or rewind. Anyway, create new
+	 * cursor. */
+	fsdata = create_fsdata(NULL, GFP_KERNEL);
+	if (fsdata != NULL) {
+		result = radix_tree_preload(GFP_KERNEL);
+		if (result == 0) {
+			d_cursor_info *info;
+			oid_t oid;
+
+			info = d_info(inode);
+			oid  = get_inode_oid(inode);
+			/* cid occupies higher 12 bits of f->f_pos. Don't
+			 * allow it to become negative: this confuses
+			 * nfsd_readdir() */
+			cursor->key.cid = (++ cid_counter) & 0x7ff;
+			cursor->key.oid = oid;
+			cursor->fsdata  = fsdata;
+			cursor->info    = info;
+			cursor->ref     = 1;
+			spin_lock_inode(inode);
+			/* install cursor as @f's private_data, discarding old
+			 * one if necessary */
+			clean_fsdata(f);
+			reiser4_free_file_fsdata(f);
+			f->private_data = fsdata;
+			fsdata->cursor = cursor;
+			spin_unlock_inode(inode);
+			spin_lock(&d_lock);
+			/* insert cursor into hash table */
+			d_cursor_hash_insert(&info->table, cursor);
+			/* and chain it into radix-tree */
+			bind_cursor(cursor, (unsigned long)oid);
+			spin_unlock(&d_lock);
+			radix_tree_preload_end();
+			f->f_pos = ((__u64)cursor->key.cid) << CID_SHIFT;
+		}
+	} else
+		result = RETERR(-ENOMEM);
+	return result;
+}
+
+static int
 try_to_attach_fsdata(struct file *f, struct inode *inode)
 {
-	int client;
-	__u64 pos;
+	loff_t pos;
+	int    result;
+	dir_cursor *cursor;
 
-	assert("nikita-3544", f != NULL);
-	assert("nikita-3545", inode != NULL);
+	/*
+	 * we are serialized by inode->i_sem
+	 */
+
+	if (!file_is_stateless(f))
+		return 0;
 
 	pos = f->f_pos;
-	if (pos == 0)
-		/* we are asked to rewind to the beginning of directory. No
-		 * state is needed. */
+	result = 0;
+	if (pos == 0) {
+		cursor = kmem_cache_alloc(d_cursor_slab, GFP_KERNEL);
+		if (cursor != NULL)
+			result = insert_cursor(cursor, f, inode);
+		else
+			result = RETERR(-ENOMEM);
+	} else {
+		/* try to find existing cursor */
+		d_cursor_key key;
+
+		key.cid = pos >> CID_SHIFT;
+		key.oid = get_inode_oid(inode);
+		spin_lock(&d_lock);
+		cursor = d_cursor_hash_find(&d_info(inode)->table, &key);
+		if (cursor != NULL) {
+			if (cursor->ref == 0) {
+				a_cursor_list_remove_clean(cursor);
+				-- d_cursor_unused;
+			}
+			++ cursor->ref;
+		}
+		spin_unlock(&d_lock);
+		if (cursor != NULL) {
+			spin_lock_inode(inode);
+			assert("nikita-3556", cursor->fsdata->back == NULL);
+			clean_fsdata(f);
+			reiser4_free_file_fsdata(f);
+			f->private_data = cursor->fsdata;
+			spin_unlock_inode(inode);
+		}
+	}
+	return result;
+}
+
+static void
+detach_fsdata(struct file *f)
+{
+	struct inode *inode;
+
+	if (!file_is_stateless(f))
 		return;
-	client = (pos & CLIENT_MASK) >> CLIENT_SHIFT;
+
+	inode = f->f_dentry->d_inode;
+	spin_lock_inode(inode);
+	clean_fsdata(f);
+	spin_unlock_inode(inode);
 }
 
 static int
@@ -1050,13 +1445,15 @@ dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 {
 	struct inode *inode;
 	reiser4_file_fsdata *fsdata;
+	int result;
 
 	assert("nikita-1359", f != NULL);
 	inode = f->f_dentry->d_inode;
 	assert("nikita-1360", inode != NULL);
 
-	if (inode_get_flag(inode, REISER4_STATELESS))
-		try_to_attach_fsdata(f, inode);
+	result = try_to_attach_fsdata(f, inode);
+	if (result != 0)
+		return result;
 
 	if (!S_ISDIR(inode->i_mode))
 		return RETERR(-ENOTDIR);
@@ -1142,7 +1539,7 @@ readdir_common(struct file *f /* directory file being read */ ,
 	reiser4_readdir_readahead_init(inode, &tap);
 
 	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS,
-		 "readdir: inode: %llu offset: %lli\n",
+		 "readdir: inode: %llu offset: %#llx\n",
 		 get_inode_oid(inode), f->f_pos);
 
  repeat:
@@ -1159,7 +1556,7 @@ readdir_common(struct file *f /* directory file being read */ ,
 
 			result = feed_entry(f, pos, &tap, filld, dirent);
 			ON_TRACE(TRACE_DIR | TRACE_VFS_OPS,
-				 "readdir: entry: offset: %lli\n", f->f_pos);
+				 "readdir: entry: offset: %#llx\n", f->f_pos);
 			if (result > 0) {
 				break;
 			} else if (result == 0) {
@@ -1193,7 +1590,8 @@ readdir_common(struct file *f /* directory file being read */ ,
 		result = 0;
 	tap_done(&tap);
 	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS,
-		 "readdir_exit: offset: %lli\n", f->f_pos);
+		 "readdir_exit: offset: %#llx\n", f->f_pos);
+	detach_fsdata(f);
 	return (result <= 0) ? result : 0;
 }
 
@@ -1226,10 +1624,12 @@ seek_dir(struct file *file, loff_t off, int origin)
 		tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
 
 		ff = dir_readdir_init(file, &tap, &pos);
+		detach_fsdata(file);
 		if (ff != 0)
 			result = (loff_t) ff;
 		tap_done(&tap);
 	}
+	detach_fsdata(file);
 	up(&inode->i_sem);
 	return result;
 }
