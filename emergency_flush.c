@@ -254,6 +254,7 @@ supervise it....
 #include <linux/mm.h>
 #include <linux/writeback.h>
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
 #include <linux/swap.h>
 
 spinlock_t eflushed_guard = SPIN_LOCK_UNLOCKED;
@@ -464,8 +465,8 @@ jnode_hfn(jnode * const * j)
 
 
 /* The hash table definition */
-#define KMALLOC(size) reiser4_kmalloc((size), GFP_KERNEL)
-#define KFREE(ptr, size) reiser4_kfree(ptr, size)
+#define KMALLOC(size) vmalloc(size)
+#define KFREE(ptr, size) vfree(ptr)
 TS_HASH_DEFINE(ef, eflush_node_t, jnode *, node, linkage, jnode_hfn, jnode_eq);
 #undef KFREE
 #undef KMALLOC
