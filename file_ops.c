@@ -141,7 +141,7 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 	if ((dplug != NULL) && (dplug->readdir != NULL))
 		result = dplug->readdir(f, dirent, filldir);
 	else
-		result = -ENOTDIR;
+		result = RETERR(-ENOTDIR);
 
 	update_atime(inode);
 	write_syscall_trace("ex");
