@@ -37,6 +37,30 @@
 
 static int scan_mgr(txn_mgr * mgr);
 
+reiser4_internal int
+init_ktxnmgrd_context(txn_mgr * mgr)
+{
+	ktxnmgrd_context * ctx;
+
+	assert ("zam-1013", mgr != NULL);
+	assert ("zam-1014", mgr->daemon == NULL);
+
+	ctx = reiser4_kmalloc(sizeof(ktxnmgrd_context), GFP_KERNEL);
+	if (ctx == NULL)
+		return RETERR(-ENOMEM);
+		
+	assert("nikita-2442", ctx != NULL);
+
+	xmemset(ctx, 0, sizeof *ctx);
+	init_completion(&ctx->finish);
+	kcond_init(&ctx->startup);
+	kcond_init(&ctx->wait);
+	spin_lock_init(&ctx->guard);
+	ctx->timeout = REISER4_TXNMGR_TIMEOUT;
+	mgr->daemon = ctx;
+	return 0;
+}
+
 /* change current->comm so that ps, top, and friends will see changed
    state. This serves no useful purpose whatsoever, but also costs
    nothing. May be it will make lonely system administrator feeling less alone
@@ -44,22 +68,7 @@ static int scan_mgr(txn_mgr * mgr);
 */
 #define set_comm( state ) 						\
 	snprintf( current -> comm, sizeof( current -> comm ),	\
-		  "%s:%s", __FUNCTION__, ( state ) )
-
-reiser4_internal void
-init_ktxnmgrd_context(ktxnmgrd_context * ctx)
-{
-	assert("nikita-2442", ctx != NULL);
-
-	xmemset(ctx, 0, sizeof *ctx);
-	init_completion(&ctx->finish);
-	kcond_init(&ctx->startup);
-	kcond_init(&ctx->wait);
-	kcond_init(&ctx->loop);
-	spin_lock_init(&ctx->guard);
-	ctx->timeout = REISER4_TXNMGR_TIMEOUT;
-	txn_mgrs_list_init(&ctx->queue);
-}
+		  "%s:%s:%s", __FUNCTION__, (super)->s_id, ( state ) )
 
 /* The background transaction manager daemon, started as a kernel thread
    during reiser4 initialization. */
@@ -67,7 +76,9 @@ static int
 ktxnmgrd(void *arg)
 {
 	struct task_struct *me;
+	struct super_block * super;
 	ktxnmgrd_context *ctx;
+	txn_mgr * mgr;
 
 	/* standard kernel thread prologue */
 	me = current;
@@ -86,13 +97,14 @@ ktxnmgrd(void *arg)
 	*/
 	me->fs_context = NULL;
 
-	ctx = arg;
+	mgr = arg;
+	ctx = mgr->daemon;
 	spin_lock(&ctx->guard);
 	ctx->tsk = me;
+	super = container_of(mgr, reiser4_super_info_data, tmgr)->tree.super;
 	kcond_broadcast(&ctx->startup);
 	while (1) {
 		int result;
-		txn_mgr *mgr;
 
 		/* software suspend support. */
 		if (me->flags & PF_FREEZE) {
@@ -112,9 +124,6 @@ ktxnmgrd(void *arg)
 		result = kcond_timedwait(&ctx->wait,
 					 &ctx->guard, ctx->timeout, 1);
 
-		/* wake up all threads doing umount. See ktxnmgrd_detach(). */
-		kcond_broadcast(&ctx->loop);
-
 		if (result != -ETIMEDOUT && result != -EINTR && result != 0) {
 			/* some other error */
 			warning("nikita-2443", "Error: %i", result);
@@ -133,16 +142,14 @@ ktxnmgrd(void *arg)
 		*/
 		do {
 			ctx->rescan = 0;
-			for_all_type_safe_list(txn_mgrs, &ctx->queue, mgr) {
-				scan_mgr(mgr);
-				spin_lock(&ctx->guard);
-				if (ctx->rescan) {
-					/* the list could be modified while ctx
-					   spinlock was released, we have to
-					   repeat scanning from the
-					   beginning  */
-					break;
-				}
+			scan_mgr(mgr);
+			spin_lock(&ctx->guard);
+			if (ctx->rescan) {
+				/* the list could be modified while ctx
+				   spinlock was released, we have to
+				   repeat scanning from the
+				   beginning  */
+				break;
 			}
 		} while (ctx->rescan);
 	}
@@ -155,86 +162,6 @@ ktxnmgrd(void *arg)
 }
 
 #undef set_comm
-
-reiser4_internal int
-ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr)
-{
-	int first_mgr;
-
-	assert("nikita-2448", mgr != NULL);
-
-	spin_lock(&ctx->guard);
-
-	first_mgr = !ctx->started;
-	ctx->started = 1;
-	ctx->rescan = 1;
-
-	/* attach @mgr to daemon. Not taking spin-locks, because this is early
-	   during @mgr initialization. */
-	mgr->daemon = ctx;
-	txn_mgrs_list_push_back(&ctx->queue, mgr);
-
-	spin_unlock(&ctx->guard);
-
-	if (first_mgr) {
-		/* attaching first mgr, start daemon */
-		ctx->done = 0;
-		/* kernel_thread never fails. */
-		kernel_thread(ktxnmgrd, ctx, CLONE_KERNEL);
-	}
-
-	spin_lock(&ctx->guard);
-
-	/* daemon thread is not yet initialized */
-	if (ctx->tsk == NULL)
-		/* wait until initialization completes */
-		kcond_wait(&ctx->startup, &ctx->guard, 0);
-
-	assert("nikita-2452", ctx->tsk != NULL);
-
-	spin_unlock(&ctx->guard);
-	return 0;
-}
-
-reiser4_internal void
-ktxnmgrd_detach(txn_mgr * mgr)
-{
-	ktxnmgrd_context *ctx;
-
-	assert("nikita-2450", mgr != NULL);
-
-	/* this is supposed to happen when @mgr is quiesced and no locking is
-	   necessary. */
-	ctx = mgr->daemon;
-	if (ctx == NULL)
-		return;
-
-	spin_lock(&ctx->guard);
-	txn_mgrs_list_remove(mgr);
-	mgr->daemon = NULL;
-	ctx->rescan = 1;
-
-	/* removing last mgr, stop daemon */
-	if (txn_mgrs_list_empty(&ctx->queue)) {
-		ctx->tsk = NULL;
-		ctx->done = 1;
-		ctx->started = 0;
-		spin_unlock(&ctx->guard);
-		kcond_signal(&ctx->wait);
-
-		/* wait until daemon finishes */
-		wait_for_completion(&ctx->finish);
-	} else {
-		kcond_signal(&ctx->wait);
-		/* ctx->loop is signaled by ktxnmgrd() after it woke up, but
-		 * before it enters scan_mgr() loop. Note that both signaling
-		 * of ctx->wait and wait on ctx->loop are done under
-		 * ctx->guard spin lock. This guarantees that current thread
-		 * cannot lose wakeup. */
-		kcond_wait(&ctx->loop, &ctx->guard, 0);
-		spin_unlock(&ctx->guard);
-	}
-}
 
 reiser4_internal void
 ktxnmgrd_kick(txn_mgr * mgr)
@@ -272,6 +199,68 @@ scan_mgr(txn_mgr * mgr)
 
 	reiser4_exit_context(&ctx);
 	return ret;
+}
+
+
+reiser4_internal int start_ktxnmgrd (txn_mgr * mgr)
+{
+	ktxnmgrd_context * ctx;
+
+	assert("nikita-2448", mgr != NULL);
+	assert("zam-1015", mgr->daemon != NULL);
+
+	ctx = mgr->daemon;
+
+	spin_lock(&ctx->guard);
+
+	ctx->rescan = 1;
+	ctx->done = 0;
+
+	spin_unlock(&ctx->guard);
+
+	kernel_thread(ktxnmgrd, mgr, CLONE_KERNEL);
+
+	spin_lock(&ctx->guard);
+
+	/* daemon thread is not yet initialized */
+	if (ctx->tsk == NULL)
+		/* wait until initialization completes */
+		kcond_wait(&ctx->startup, &ctx->guard, 0);
+
+	assert("nikita-2452", ctx->tsk != NULL);
+
+	spin_unlock(&ctx->guard);
+	return 0;
+}
+
+reiser4_internal void stop_ktxnmgrd (txn_mgr * mgr)
+{
+	ktxnmgrd_context * ctx;
+
+	assert ("zam-1016", mgr != NULL);
+	assert ("zam-1017", mgr->daemon != NULL);
+
+	ctx = mgr->daemon;
+
+	spin_lock(&ctx->guard);
+	ctx->tsk = NULL;
+	ctx->done = 1;
+	spin_unlock(&ctx->guard);
+
+	kcond_signal(&ctx->wait);
+
+	/* wait until daemon finishes */
+	wait_for_completion(&ctx->finish);
+}
+ 
+reiser4_internal void
+done_ktxnmgrd_context (txn_mgr * mgr)
+{
+	assert ("zam-1011", mgr != NULL);
+	assert ("zam-1012", mgr->daemon != NULL);
+
+	reiser4_kfree(mgr->daemon);
+	mgr->daemon = NULL;
 }
 
 /* Make Linus happy.

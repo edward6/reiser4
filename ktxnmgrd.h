@@ -25,9 +25,6 @@ struct ktxnmgrd_context {
 	struct completion finish;
 	/* condition variable on which ktxnmgrd sleeps */
 	kcond_t wait;
-	/* condition variable that ktxnmgrd broadcasts on each iterations. It
-	 * is used to synchronize with umount. */
-	kcond_t loop;
 	/* spin lock protecting all fields of this structure */
 	spinlock_t guard;
 	/* timeout of sleeping on ->wait */
@@ -36,18 +33,17 @@ struct ktxnmgrd_context {
 	struct task_struct *tsk;
 	/* list of all file systems served by this ktxnmgrd */
 	txn_mgrs_list_head queue;
-	/* is ktxnmgrd already started? */
-	int started:1;
 	/* is ktxnmgrd being shut down? */
 	int done:1;
 	/* should ktxnmgrd repeat scanning of atoms? */
 	int rescan:1;
 };
 
-extern void init_ktxnmgrd_context(ktxnmgrd_context * context);
+extern int  init_ktxnmgrd_context(txn_mgr *);
+extern void done_ktxnmgrd_context(txn_mgr *);
 
-extern int ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr);
-extern void ktxnmgrd_detach(txn_mgr * mgr);
+extern int  start_ktxnmgrd(txn_mgr *);
+extern void stop_ktxnmgrd(txn_mgr *);
 
 extern void ktxnmgrd_kick(txn_mgr * mgr);
 

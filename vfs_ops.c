@@ -1305,6 +1305,7 @@ reiser4_kill_super(struct super_block *s)
 	ON_TRACE(TRACE_VFS_OPS, "kill_super\n");
 
 	done_reiser4_repacker(s);
+	stop_ktxnmgrd(&sbinfo->tmgr);
 
 	reiser4_sysfs_done(s);
 
@@ -1336,6 +1337,7 @@ reiser4_kill_super(struct super_block *s)
 	if (get_super_private(s)->df_plug->release(s) != 0)
 		goto out;
 
+	done_ktxnmgrd_context(&sbinfo->tmgr);
 	done_entd_context(s);
 
 	check_block_counters(s);

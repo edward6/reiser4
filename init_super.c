@@ -236,16 +236,24 @@ _DONE_(txnmgr)
 	txnmgr_done(&get_super_private(s)->tmgr);
 }
 
-extern ktxnmgrd_context kdaemon;
+_INIT_(ktxnmgrd_context)
+{
+	return init_ktxnmgrd_context(&get_super_private(s)->tmgr);
+}
+
+_DONE_(ktxnmgrd_context)
+{
+	done_ktxnmgrd_context(&get_super_private(s)->tmgr);
+}
 
 _INIT_(ktxnmgrd)
 {
-	return ktxnmgrd_attach(&kdaemon, &get_super_private(s)->tmgr);
+	return start_ktxnmgrd(&get_super_private(s)->tmgr);
 }
 
 _DONE_(ktxnmgrd)
 {
-	ktxnmgrd_detach(&get_super_private(s)->tmgr);
+	stop_ktxnmgrd(&get_super_private(s)->tmgr);
 }
 
 _INIT_(formatted_fake)
@@ -446,6 +454,7 @@ static struct reiser4_subsys subsys_array[] = {
 	_SUBSYS(read_super),
 	_SUBSYS(tree0),
 	_SUBSYS(txnmgr),
+	_SUBSYS(ktxnmgrd_context),
 	_SUBSYS(ktxnmgrd),
 	_SUBSYS(entd),
 	_SUBSYS(formatted_fake),

@@ -297,8 +297,6 @@ static kmem_cache_t *_txnh_slab = NULL;
 ON_DEBUG(extern atomic_t flush_cnt;)
 
 /* TXN_INIT */
-ktxnmgrd_context kdaemon;
-
 /* Initialize static variables in this file. */
 reiser4_internal int
 txnmgr_init_static(void)
@@ -321,8 +319,6 @@ txnmgr_init_static(void)
 	if (_txnh_slab == NULL) {
 		goto error;
 	}
-
-	init_ktxnmgrd_context(&kdaemon);
 
 	return 0;
 
