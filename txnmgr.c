@@ -1316,7 +1316,7 @@ atom_send_event(txn_atom * atom)
 static inline int
 should_delegate_commit(void)
 {
-	return current->flags & PF_MEMALLOC;
+	return current->flags & PF_KSWAPD;
 }
 
 /* Informs txn manager code that owner of this txn_handle should wait atom commit completion (for
