@@ -413,20 +413,14 @@ int tail_key_in_item (coord_t * coord, const reiser4_key * key)
 }
 
 
-
 typedef enum {
-	TAIL_CREATE_HOLE,
-	TAIL_APPEND_HOLE,
-	TAIL_FIRST_ITEM,
 	TAIL_OVERWRITE,
-	TAIL_APPEND,
 	TAIL_RESEARCH,
 	TAIL_CANT_CONTINUE,
 	TAIL_WRITE_FLOW
 } tail_write_todo;
 
 
-/* Audited by: green(2002.06.14) */
 static tail_write_todo tail_what_todo (struct inode * inode, coord_t * coord,
 				       reiser4_key * key)
 {
@@ -448,35 +442,34 @@ static tail_write_todo tail_what_todo (struct inode * inode, coord_t * coord,
 
 
 /*
- * copy user data over file tail item
+ * overwrite tail item or its part by use data
  */
-/* Audited by: green(2002.06.14) */
 static int overwrite_tail (coord_t * coord, flow_t * f)
 {
-	int result;
 	unsigned count;
 
+
+	assert ("vs-570", f->user == 1);
+	assert ("vs-946", f->data);
+	assert ("vs-947", coord_is_existing_unit (coord));
+	assert ("vs-948", znode_is_write_locked (coord->node));
+	ON_DEBUG_CONTEXT( assert( "green-7", 
+				  lock_counters() -> spin_locked == 0 ) );
 
 	count = item_length_by_coord (coord) - coord->unit_pos;
 	if (count > f->length)
 		count = f->length;
 
 	/*
-	 * FIXME-ME: mark_znode_dirty ?
-	 */
-	assert ("vs-570", f->user == 1);
-	ON_DEBUG_CONTEXT( assert( "green-7", 
-				  lock_counters() -> spin_locked == 0 ) );
-	/*
 	 * FIXME:NIKITA->VS this is called with f -> data == NULL during
 	 * unix_file_write->expand_file->write_flow->tail_write.
 	 */
-	
-	result = __copy_from_user ((char *)item_body_by_coord (coord) +
-				   coord->unit_pos, f->data, count);
-	if (result)
+	if (__copy_from_user ((char *)item_body_by_coord (coord) +
+			      coord->unit_pos, f->data, count))
 		return -EFAULT;
-		
+
+	znode_set_dirty (coord->node);
+
 	move_flow_forward (f, count);
 	return 0;
 }
@@ -513,11 +506,7 @@ int tail_write (struct inode * inode, coord_t * coord,
 		what = tail_what_todo (inode, coord, &f->key);
 
 		switch (what) {
-		case TAIL_CREATE_HOLE:
-		case TAIL_APPEND_HOLE:
-		case TAIL_FIRST_ITEM:
-		case TAIL_APPEND:
-		case TAIL_WRITE_FLOW: {
+		case TAIL_WRITE_FLOW:
 			/*
 			 * check quota before appending data
 			 */
@@ -529,11 +518,15 @@ int tail_write (struct inode * inode, coord_t * coord,
 			if (f->length)
 				DQUOT_FREE_SPACE_NODIRTY (inode, f->length);
 			break;
-		}
+
 		case TAIL_OVERWRITE:
 			result = overwrite_tail (coord, f);
 			break;
+
 		case TAIL_RESEARCH:
+			/*
+			 * FIXME-VS: 
+			 */
 			result = -EAGAIN;
 			break;
 		case TAIL_CANT_CONTINUE:
@@ -556,13 +549,15 @@ int tail_write (struct inode * inode, coord_t * coord,
 /*
  * plugin->u.item.s.file.read
  */
-/* Audited by: green(2002.06.14) */
 int tail_read (struct inode * inode UNUSED_ARG, coord_t * coord,
 	       lock_handle * lh UNUSED_ARG, flow_t * f)
 {
 	unsigned count;
 
 
+	assert ("vs-571", f->user == 1);
+	assert ("vs-571", f->data);
+	ON_DEBUG_CONTEXT( assert( "green-8", lock_counters() -> spin_locked == 0 ) );
 	assert ("vs-387", 
 	({
 		reiser4_key key;
@@ -577,12 +572,9 @@ int tail_read (struct inode * inode UNUSED_ARG, coord_t * coord,
 	if (count > f->length)
 		count = f->length;
 
-	assert ("vs-571", f->user == 1);
-	ON_DEBUG_CONTEXT( assert( "green-8", lock_counters() -> spin_locked == 0 ) );
-
-	/* AUDIT: return value of copy_to_user is not checked */
-	__copy_to_user (f->data,  (char *)item_body_by_coord (coord) + coord->unit_pos,
-			count);
+	if (__copy_to_user (f->data, ((char *)item_body_by_coord (coord) +
+				      coord->unit_pos), count))
+		return -EFAULT;
 
 	move_flow_forward (f, count);
 	return 0;
