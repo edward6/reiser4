@@ -98,16 +98,6 @@ typedef struct {
       [jnode-page-binding]
 */
 
-/* this is to show on which list of atom jnode is */
-typedef enum {
-	NOT_CAPTURED,
-	DIRTY_LIST,
-	CLEAN_LIST,
-	FQ_LIST,
-	WB_LIST,
-	OVRWR_LIST
-} atom_list;
-
 struct jnode {
 #if REISER4_DEBUG
 #define JMAGIC 0x52654973 /* "ReIs" */
@@ -185,6 +175,7 @@ struct jnode {
 	struct list_head jnodes;
 	/* how many times this jnode was written in one transaction */
 	int      written;
+	/* this indicates which atom's list the jnode is on */
         atom_list list;
 #endif
 } __attribute__((aligned(16)));
@@ -336,7 +327,7 @@ JF_TEST_AND_SET(jnode * j, int f)
 	     in addition you cannot hold more than one jnode spin lock at a     \
 	     time.                                                              \
 	  */                                                                   \
-	  ( lock_counters() -> spin_locked_jnode == 0 ) )
+	  ( lock_counters() -> spin_locked_jnode < 2 ) )
 
 /* Define spin_lock_jnode, spin_unlock_jnode, and spin_jnode_is_locked.
    Take and release short-term spinlocks.  Don't hold these across
