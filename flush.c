@@ -771,7 +771,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 		jnode_set_clean_nolock(node);
 
 		UNLOCK_JNODE(node);
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 
 		trace_on(TRACE_FLUSH, "flush aboveroot %s %s\n",
 			 jnode_tostring(node), flags_tostring(flags));
@@ -792,7 +792,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 			(*nr_to_flush) = 0;
 		}
 		UNLOCK_JNODE(node);
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 		trace_on(TRACE_FLUSH, "flush nothing %s %s\n", jnode_tostring(node), flags_tostring(flags));
 		goto clean_out;
 	}
@@ -818,7 +818,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 		}
 
 		UNLOCK_JNODE(node);
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 
 		ret = write_fq(fq, 0);
 
@@ -826,7 +826,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	}
 
 	UNLOCK_JNODE(node);
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 
 	trace_on(TRACE_FLUSH, "flush squalloc %s %s\n", jnode_tostring(node), flags_tostring(flags));
 
@@ -1033,7 +1033,7 @@ clean_out:
 
 	atom = get_current_atom_locked();
 	atom->nr_flushers--;
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 	writeout_mode_disable();
 	write_syscall_trace("ex");
 
@@ -1622,12 +1622,12 @@ static inline int fast_check_parent_flushprepped (znode * node)
 	reiser4_tree * tree = current_tree;
 	int prepped = 1;
 
-	read_lock_tree(tree);
+	RLOCK_TREE(tree);
 
 	if (node->in_parent.node || !jnode_is_flushprepped(ZJNODE(node)))
 		prepped = 0;
 
-	read_unlock_tree(tree);
+	RUNLOCK_TREE(tree);
 
 	return prepped;
 }
@@ -2280,9 +2280,9 @@ shift_one_internal_unit(znode * left, znode * right)
 	assert("nikita-2436", znode_is_write_locked(right));
 
 	if (REISER4_DEBUG) {
-		read_lock_tree(znode_get_tree(left));
+		RLOCK_TREE(znode_get_tree(left));
 		assert("nikita-2434", left->right == right);
-		read_unlock_tree(znode_get_tree(left));
+		RUNLOCK_TREE(znode_get_tree(left));
 	}
 
 	coord_init_first_unit(&coord, right);
@@ -2462,7 +2462,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 			jnode_set_clean_nolock(ZJNODE(node));
 		}
 
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 		spin_unlock_znode(node);
 
 		return 0;
@@ -2574,7 +2574,7 @@ enqueue_unformatted(jnode * node, flush_pos_t * pos)
 	if (atom) {
 		if (JF_ISSET(node, JNODE_DIRTY))
 			queue_jnode(pos->fq, node);
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 		++ pos->alloc_cnt;
 	}
 
@@ -3015,7 +3015,7 @@ scan_formatted(flush_scan * scan)
 		}
 
 		/* Lock the tree, check-for and reference the next sibling. */
-		read_lock_tree(znode_get_tree(node));
+		RLOCK_TREE(znode_get_tree(node));
 
 		/* It may be that a node is inserted or removed between a node and its
 		   left sibling while the tree lock is released, but the flush-scan count
@@ -3025,7 +3025,7 @@ scan_formatted(flush_scan * scan)
 			zref(neighbor);
 		}
 
-		read_unlock_tree(znode_get_tree(node));
+		RUNLOCK_TREE(znode_get_tree(node));
 
 		/* If neighbor is NULL at the leaf level, need to check for an unformatted
 		   sibling using the parent--break in any case. */
