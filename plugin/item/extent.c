@@ -499,7 +499,7 @@ extent_create_hook(const coord_t * coord, void *arg)
 /* plugin->u.item.b.kill_item_hook
    this is called when @count units starting from @from-th one are going to be removed */
 int
-extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count, void *kill_params UNUSED_ARG)
+extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count)
 {
 	reiser4_extent *ext;
 	unsigned i;
@@ -715,7 +715,7 @@ cut_or_kill_units(coord_t * coord,
 
 	if (!cut)
 		/* call kill hook for all extents removed completely */
-		extent_kill_item_hook(coord, *from, count, NULL /*FIXME!!! */ );
+		extent_kill_item_hook(coord, *from, count);
 
 	if (*from == 0 && count != coord_last_unit_pos(coord) + 1) {
 		/* part of item is removed from item beginning, update item key
