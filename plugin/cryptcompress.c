@@ -430,7 +430,7 @@ int inflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 		    struct inode *inode)
 {
 	int result = 0;
-	__u8 * buff;
+	__u8 * buff = 0;
 	size_t buff_size = 0;
 	
 	assert("edward-407", clust->buf != NULL);
