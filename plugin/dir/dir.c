@@ -136,8 +136,8 @@ common_link(struct inode *parent /* parent directory */ ,
 
 	/* links to directories are not allowed if file-system
 	   logical name-space should be ADG */
-	if (reiser4_is_set(parent->i_sb, REISER4_ADG) &&
-	    S_ISDIR(object->i_mode)) return -EISDIR;
+	if (reiser4_is_set(parent->i_sb, REISER4_ADG) && S_ISDIR(object->i_mode))
+		return -EISDIR;
 
 	/* check permissions */
 	if (perm_chk(parent, link, existing, parent, where))
@@ -303,8 +303,7 @@ common_unlink(struct inode *parent /* parent object */ ,
 	 */
 	inode_set_flag(object, REISER4_IMMUTABLE);
 	if (fplug->not_linked(object) &&
-	    atomic_read(&object->i_count) == 1 &&
-	    !perm_chk(object, delete, parent, victim)) {
+	    atomic_read(&object->i_count) == 1 && !perm_chk(object, delete, parent, victim)) {
 		/* 
 		 * remove file body. This is probably done in a whole lot of
 		 * transactions and takes a lot of time. We keep @object
@@ -399,8 +398,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 
 	/* check, that name is acceptable for parent */
 	if (par_dir->is_name_acceptable &&
-	    !par_dir->is_name_acceptable(parent, dentry->d_name.name,
-					 (int) dentry->d_name.len)) {
+	    !par_dir->is_name_acceptable(parent, dentry->d_name.name, (int) dentry->d_name.len)) {
 		return -ENAMETOOLONG;
 	}
 
@@ -432,8 +430,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 	reiser4_inode_data(object)->file = obj_plug;
 	result = obj_plug->set_plug_in_inode(object, parent, data);
 	if (result) {
-		warning("nikita-431", "Cannot install plugin %i on %llx",
-			data->id, get_inode_oid(object));
+		warning("nikita-431", "Cannot install plugin %i on %llx", data->id, get_inode_oid(object));
 		return result;
 	}
 
@@ -449,11 +446,9 @@ common_create_child(struct inode *parent /* parent object */ ,
 	 * directory
 	 */
 	assert("nikita-2070", obj_plug->adjust_to_parent != NULL);
-	result = obj_plug->adjust_to_parent
-	    (object, parent, object->i_sb->s_root->d_inode);
+	result = obj_plug->adjust_to_parent(object, parent, object->i_sb->s_root->d_inode);
 	if (result != 0) {
-		warning("nikita-432", "Cannot inherit from %llx to %llx",
-			get_inode_oid(parent), get_inode_oid(object));
+		warning("nikita-432", "Cannot inherit from %llx to %llx", get_inode_oid(parent), get_inode_oid(object));
 		return result;
 	}
 
@@ -501,8 +496,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 		if (result != -ENAMETOOLONG)
 			warning("nikita-2219",
 				"Failed to create sd for %llu (%lx)",
-				get_inode_oid(object),
-				reiser4_inode_data(object)->flags);
+				get_inode_oid(object), reiser4_inode_data(object)->flags);
 		return result;
 	}
 
@@ -541,8 +535,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 			if (obj_dir != NULL)
 				obj_dir->done(object);
 	} else
-		warning("nikita-2219", "Failed to initialize dir for %llu: %i",
-			get_inode_oid(object), result);
+		warning("nikita-2219", "Failed to initialize dir for %llu: %i", get_inode_oid(object), result);
 
 	if (result != 0)
 		/*
@@ -609,8 +602,8 @@ is_empty_actor(reiser4_tree * tree UNUSED_ARG /* tree scanned */ ,
 	dir = arg;
 	assert("nikita-2003", dir != NULL);
 
-	if (item_id_by_coord(coord) !=
-	    item_id_by_plugin(inode_dir_item_plugin(dir))) return 0;
+	if (item_id_by_coord(coord) != item_id_by_plugin(inode_dir_item_plugin(dir)))
+		return 0;
 
 	fplug = inode_file_plugin(dir);
 	if (!fplug->owns_item(dir, coord))
@@ -662,13 +655,11 @@ is_dir_empty(const struct inode *dir)
 	init_lh(&lh);
 
 	result = coord_by_key(tree_by_inode(dir), &de_key, &coord, &lh,
-			      ZNODE_READ_LOCK, FIND_MAX_NOT_MORE_THAN,
-			      LEAF_LEVEL, LEAF_LEVEL, 0);
+			      ZNODE_READ_LOCK, FIND_MAX_NOT_MORE_THAN, LEAF_LEVEL, LEAF_LEVEL, 0);
 	switch (result) {
 	case CBK_COORD_FOUND:
 		result = iterate_tree(tree_by_inode(dir), &coord, &lh,
-				      is_empty_actor, (void *) dir,
-				      ZNODE_READ_LOCK, 1);
+				      is_empty_actor, (void *) dir, ZNODE_READ_LOCK, 1);
 		switch (result) {
 		default:
 		case -ENOTEMPTY:
@@ -681,8 +672,7 @@ is_dir_empty(const struct inode *dir)
 		break;
 	case CBK_COORD_NOTFOUND:
 		/* no entries?! */
-		warning("nikita-2002", "Directory %lli is TOO empty",
-			get_inode_oid(dir));
+		warning("nikita-2002", "Directory %lli is TOO empty", get_inode_oid(dir));
 		result = 0;
 		break;
 	default:
@@ -695,8 +685,7 @@ is_dir_empty(const struct inode *dir)
 }
 
 /** compare two logical positions within the same directory */
-cmp_t
-dir_pos_cmp(const dir_pos * p1, const dir_pos * p2)
+cmp_t dir_pos_cmp(const dir_pos * p1, const dir_pos * p2)
 {
 	cmp_t result;
 
@@ -708,15 +697,13 @@ dir_pos_cmp(const dir_pos * p1, const dir_pos * p2)
 		int diff;
 
 		diff = p1->pos - p2->pos;
-		result =
-		    (diff < 0) ? LESS_THAN : (diff ? GREATER_THAN : EQUAL_TO);
+		result = (diff < 0) ? LESS_THAN : (diff ? GREATER_THAN : EQUAL_TO);
 	}
 	return result;
 }
 
 void
-adjust_dir_pos(struct file *dir, readdir_pos * readdir_spot,
-	       const dir_pos * mod_point, int adj)
+adjust_dir_pos(struct file *dir, readdir_pos * readdir_spot, const dir_pos * mod_point, int adj)
 {
 	dir_pos *pos;
 
@@ -729,8 +716,7 @@ adjust_dir_pos(struct file *dir, readdir_pos * readdir_spot,
 		assert("nikita-2577", dir->f_pos + adj >= 0);
 		dir->f_pos += adj;
 		unlock_kernel();
-		if (de_id_cmp(&pos->dir_entry_key,
-			      &mod_point->dir_entry_key) == EQUAL_TO) {
+		if (de_id_cmp(&pos->dir_entry_key, &mod_point->dir_entry_key) == EQUAL_TO) {
 			assert("nikita-2575", mod_point->pos < pos->pos);
 			pos->pos += adj;
 		}
@@ -787,8 +773,7 @@ adjust_dir_file(struct inode *dir, const coord_t * coord, int offset, int adj)
 	info = reiser4_inode_data(dir);
 	spin_lock(&info->guard);
 	for (scan = readdir_list_front(&info->readdir_list);
-	     !readdir_list_end(&info->readdir_list, scan);
-	     scan = readdir_list_next(scan)) {
+	     !readdir_list_end(&info->readdir_list, scan); scan = readdir_list_next(scan)) {
 		adjust_dir_pos(scan->back, &scan->dir.readdir, &mod_point, adj);
 	}
 	spin_unlock(&info->guard);
@@ -808,9 +793,7 @@ dir_go_to(struct file *dir, readdir_pos * pos, tap_t * tap)
 	if (result != 0)
 		return result;
 	result = coord_by_key(tree_by_inode(inode), &key,
-			      tap->coord, tap->lh, tap->mode,
-			      FIND_MAX_NOT_MORE_THAN,
-			      LEAF_LEVEL, LEAF_LEVEL, 0);
+			      tap->coord, tap->lh, tap->mode, FIND_MAX_NOT_MORE_THAN, LEAF_LEVEL, LEAF_LEVEL, 0);
 	if (result == CBK_COORD_FOUND)
 		result = rewind_right(tap, (int) pos->position.pos);
 	else
@@ -848,8 +831,7 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 		/*
 		 * something strange: huge seek
 		 */
-		warning("nikita-2549", "Strange seekdir: %llu->%llu",
-			pos->entry_no, destination);
+		warning("nikita-2549", "Strange seekdir: %llu->%llu", pos->entry_no, destination);
 	if (shift >= 0) {
 		/*
 		 * rewinding to the left
@@ -876,8 +858,7 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 					result = rewind_left(tap, shift);
 					if (result == -EDEADLK) {
 						tap_done(tap);
-						reiser4_stat_dir_add(readdir.
-								     left_restart);
+						reiser4_stat_dir_add(readdir.left_restart);
 						continue;
 					}
 				}
@@ -949,8 +930,7 @@ feed_entry(readdir_pos * pos, coord_t * coord, filldir_t filldir, void *dirent)
 		    /*
 		     * inode number of object bounden by this entry
 		     */
-		    oid_to_uino(get_key_objectid(&sd_key)),
-		    iplug->s.dir.extract_file_type(coord)) < 0) {
+		    oid_to_uino(get_key_objectid(&sd_key)), iplug->s.dir.extract_file_type(coord)) < 0) {
 		/*
 		 * ->filldir() is satisfied.
 		 */
@@ -1021,9 +1001,7 @@ common_readdir(struct file *f /* directory file being read */ ,
 	init_lh(&lh);
 	tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
 
-	trace_on(TRACE_DIR | TRACE_VFS_OPS,
-		 "readdir: inode: %llu offset: %lli\n",
-		 get_inode_oid(inode), f->f_pos);
+	trace_on(TRACE_DIR | TRACE_VFS_OPS, "readdir: inode: %llu offset: %lli\n", get_inode_oid(inode), f->f_pos);
 
 	fplug = inode_file_plugin(inode);
 	result = dir_readdir_init(f, &tap, &pos);
@@ -1076,8 +1054,7 @@ common_attach(struct inode *child, struct inode *parent)
 	assert("nikita-2648", parent != NULL);
 
 	info = reiser4_inode_data(child);
-	assert("nikita-2649",
-	       (info->parent == NULL) || (info->parent == parent));
+	assert("nikita-2649", (info->parent == NULL) || (info->parent == parent));
 	info->parent = parent;
 	return 0;
 }
