@@ -168,7 +168,7 @@ int internal_kill_hook( const tree_coord *item,
 	child = znode_at( item );
 	if( IS_ERR( child ) )
 		return PTR_ERR( child );
-	else if( is_empty_node( child ) ) {
+	else if( node_is_empty( child ) ) {
 		assert( "nikita-1397", znode_is_write_locked( child ) );
 		assert( "nikita-1398", atomic_read( &child -> c_count ) == 0 );
 		/* fare thee well */
