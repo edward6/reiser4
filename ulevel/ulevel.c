@@ -3036,7 +3036,7 @@ static int bash_mkfs (const char * file_name)
 			cputod16 (HASHED_DIR_PLUGIN_ID, &test_sb->root_dir_plugin);
 			cputod16 (DEGENERATE_HASH_ID, &test_sb->root_hash_plugin);
 			cputod16 (NODE40_ID, &test_sb->node_plugin);
-			cputod16 (NEVER_TAIL_ID, &test_sb->tail_policy);
+			cputod16 (ALWAYS_TAIL_ID, &test_sb->tail_policy); /* FIXME: mount option! */
 
 			/* block count on device */
 			block_count = get_fs_size (&super);
