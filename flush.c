@@ -1561,11 +1561,12 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 		if (iplug->f.squeeze == NULL)
 			/* do not squeeze this item */
 			goto next;
-		ret = iplug->f.squeeze(pos, 1 /* attach info */);
-		
-		assert("edward-307", pos->child == NULL);
+		ret = iplug->f.squeeze(pos);
 		if (ret)
 			return ret;
+		
+		assert("edward-307", pos->child == NULL);
+		
 	next:
 		if (coord_next_item(&pos->coord))
 			/* node is over */
@@ -1836,6 +1837,8 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 	ret = squeeze_node(pos, pos->lock.node);
 	if (ret)
 		return ret;
+
+	assert("edward-310", !node_is_empty(pos->lock.node));
 	
 	while (1) {
 		ret = neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
@@ -1854,12 +1857,19 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		ret = incr_load_count_znode(&right_load, right_lock.node);
 		if (ret)
 			break;
-
+		
 		ret = squeeze_node(pos, right_lock.node);
 		if (ret)
 			break;
+
+		if (node_is_empty(right_lock.node)) {
+			/* node was squeezed completely, repeat */
+			done_load_count(&right_load);
+			done_lh(&right_lock);
+			continue;
+		}
 		
-		/* squeeze _before_ going upward. */
+                /* squeeze _before_ going upward. */
 		ret = squeeze_right_neighbor(pos, pos->lock.node, right_lock.node);
 		if (ret < 0)
 			break;
