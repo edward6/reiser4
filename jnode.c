@@ -552,12 +552,18 @@ jload_gfp (jnode * node, int gfp_flags)
 	result = 0;
 	reiser4_stat_inc_at_level(jnode_get_level(node), jnode.jload);
 	jref(node);
+
+	/*
+	 * acquiring d-reference to @jnode and check for JNODE_LOADED bit
+	 * should be atomic, otherwise there is a race against jrelse().
+	 */
+	spin_lock_jnode(node);
 	add_d_ref(node);
 
 	if (!jnode_is_loaded(node)) {
 		/* If node is not loaded we need a spin lock to get reliable not
 		 * null jnode_page() result */
-		page = UNDER_SPIN(jnode, node, jnode_page(node));
+		page = jnode_page(node);
 		/* read data from page cache. Page reference counter is
 		   incremented and page is kmapped, it will kunmapped in
 		   zrelse
@@ -598,6 +604,7 @@ jload_gfp (jnode * node, int gfp_flags)
 		   because page can be detached from jnode only when ->d_count
 		   is 0, and JNODE_LOADED is not set.
 		*/
+		spin_unlock_jnode(node);
 		if (likely(page != NULL && !JF_ISSET(node, JNODE_ASYNC))) {
 			load_page(page, node);
 			node->data = page_address(page);
@@ -642,6 +649,7 @@ jload_gfp (jnode * node, int gfp_flags)
 				jrelse(node);
 		}
 	} else {
+		spin_unlock_jnode(node);
 		page = jnode_page(node);
 		assert("nikita-2348", page != NULL);
 		load_page(page, node);
