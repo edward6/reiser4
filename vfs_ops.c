@@ -1478,8 +1478,8 @@ reiser4_drop_inode(struct inode *object)
 	   called and all existing ->not_linked() methods are one liners. */
 
 	fplug = inode_file_plugin(object);
-	assert("nikita-3084", fplug != NULL);
-	if (fplug->not_linked(object)) {
+	/* fplug is NULL for fake inode */
+	if (fplug != NULL && fplug->not_linked(object)) {
 		/* create context here.
 
 		   removal of inode from the hash table (done at the very
