@@ -90,8 +90,6 @@
 
 #define LEAF40_NODE_SIZE PAGE_CACHE_SIZE
 
-#include "../../forward.h"
-#include "../../debug.h"
 #include "../../dformat.h"
 #include "../plugin_header.h"
 
@@ -142,6 +140,9 @@ struct cut_list {
 	lock_handle *left;
 	lock_handle *right;
 };
+
+struct carry_cut_data;
+struct carry_kill_data;
 
 /* The responsibility of the node plugin is to store and give access
    to the sequence of items within the node.  */
@@ -213,13 +214,17 @@ typedef struct node_plugin {
 	/* update key of item. */
 	void (*update_item_key) (coord_t * target, const reiser4_key * key, carry_plugin_info * info);
 
+#if 0
 	/* remove data between @from and @to from the tree */
-	int (*cut_and_kill) (struct cut_list *);
+	int (*cut_and_kill1) (struct cut_list *);
 
 	/* remove data between @from and @to from a node (when shifting from
 	   one node to another, one cuts from a node but does not cut_and_kill
 	   from the tree) */
-	int (*cut) (struct cut_list *);
+	int (*cut1) (struct cut_list *);
+#endif
+	int (*cut_and_kill) (struct carry_kill_data *, carry_plugin_info *);
+	int (*cut) (struct carry_cut_data *, carry_plugin_info *);
 
 	/* copy as much as possible but not more than up to @stop from
 	   @stop->node to @target. If (pend == append) then data from beginning of
