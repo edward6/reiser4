@@ -170,6 +170,9 @@ write_log_raw(reiser4_log_file * file, const void *data, size_t len)
 void
 close_log_file(reiser4_log_file * log)
 {
+	if (log->buf == NULL)
+		/* log file is not opened. There is nothing to close */
+		return;
 	if (log->type == log_to_file && lock_log(log) == 0) {
 		log_flush(log);
 		unlock_log(log);
