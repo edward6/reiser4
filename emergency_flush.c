@@ -254,6 +254,7 @@ supervise it....
 #include <linux/mm.h>
 #include <linux/writeback.h>
 #include <linux/slab.h>
+#include <linux/swap.h>
 
 spinlock_t eflushed_guard = SPIN_LOCK_UNLOCKED;
 
@@ -439,11 +440,26 @@ jnode_eq(jnode * const * j1, jnode * const * j2)
 	return *j1 == *j2;
 }
 
+static ef_hash_table *
+get_jnode_enhash(const jnode *node)
+{
+	struct super_block *super;
+
+	assert("nikita-2739", node != NULL);
+
+	super = jnode_get_tree(node)->super;
+	return &get_super_private(super)->efhash_table;
+}
+
 static inline __u32
 jnode_hfn(jnode * const * j)
 {
+	__u32 val;
+
 	assert("nikita-2735", j != NULL);
-	return ((unsigned long)*j) & (REISER4_EF_HASH_SIZE - 1);
+	val = (unsigned long)*j;
+	val /= sizeof(**j);
+	return val % (get_jnode_enhash(*j)->_buckets);
 }
 
 
@@ -475,7 +491,7 @@ int
 eflush_init_at(struct super_block *super)
 {
 	return ef_hash_init(&get_super_private(super)->efhash_table, 
-			    REISER4_EF_HASH_SIZE, 
+			    nr_free_pagecache_pages() >> 2,
 			    reiser4_stat(super, hashes.eflush));
 }
 
@@ -483,17 +499,6 @@ void
 eflush_done_at(struct super_block *super)
 {
 	ef_hash_done(&get_super_private(super)->efhash_table);
-}
-
-static ef_hash_table *
-get_jnode_enhash(const jnode *node)
-{
-	struct super_block *super;
-
-	assert("nikita-2739", node != NULL);
-
-	super = jnode_get_tree(node)->super;
-	return &get_super_private(super)->efhash_table;
 }
 
 static eflush_node_t *
@@ -536,6 +541,15 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 
 		inode = mapping_jnode(node)->host;
 		info = reiser4_inode_data(inode);
+
+		spin_lock(&inode_lock);
+		if (info->eflushed == 0 && inodes_stat.nr_unused > 0) {
+			/* it is not unused */
+			inodes_stat.nr_unused--;
+			inode_set_flag(inode, REISER4_DEC_UNUSED);
+		}
+		spin_unlock(&inode_lock);
+
 		++ info->eflushed;
 
 		/* this is to make inode not freeable */
@@ -585,7 +599,6 @@ eflush_del(jnode *node, int page_locked)
 		eflush_node_t *ef;
 		ef_hash_table *table;
 		reiser4_tree  *tree;
-		struct page   *lockedpage;
 		struct page   *page;
 		struct inode  *inode = NULL;
 
@@ -594,7 +607,8 @@ eflush_del(jnode *node, int page_locked)
 		table = get_jnode_enhash(node);
 		tree = jnode_get_tree(node);
 		page = jnode_page(node);
-		lockedpage = NULL;
+		if (page != NULL)
+			page_cache_get(page);
 
 		/* there is no reason to unflush node if it can be flushed
 		 * back immediately */
@@ -609,16 +623,30 @@ eflush_del(jnode *node, int page_locked)
 			 * we clear JNODE_EFLUSH bit concurrently---page_io()
 			 * gets wrong block number. */
 			UNLOCK_JNODE(node);
-			lockedpage = jnode_lock_page(node);
-			assert("nikita-3113", lockedpage == page);
+			reiser4_lock_page(page);
+			wait_on_page_writeback(page);
+			LOCK_JNODE(node);
 
 			if (unlikely(!JF_ISSET(node, JNODE_EFLUSH))) {
 				/*
 				 * race: some other thread unflushed jnode.
 				 */
 				reiser4_unlock_page(page);
+				page_cache_release(page);
 				return;
 			}
+			if (jnode_is_dirty(node))
+				/*
+				 * jnode was dirty (otherwise it wouldn't be
+				 * eflushed in th first place). Page's dirty
+				 * bit was cleared before io was submitted. If
+				 * page is left clean, we would have dirty
+				 * jnode with clean page. Neither
+				 * ->writepage() nor ->releasepage() can free
+				 * it. Re-dirty page, so ->writepage() will be
+				 * called again if necessary.
+				 */
+				set_page_dirty_internal(page);
 		}
 		assert("nikita-2766", atomic_read(&node->x_count) > 1);
 
@@ -644,8 +672,15 @@ eflush_del(jnode *node, int page_locked)
 			-- info->eflushed;
 			/* remove eflush node from inode's list of eflush nodes */
 			list_del(&ef->inode_link);
-			if (info->eflushed == 0)
+			if (info->eflushed == 0) {
 				inode->i_state &= ~I_EFLUSH;
+				if (inode_get_flag(inode, REISER4_DEC_UNUSED)) {
+					spin_lock(&inode_lock);
+					inodes_stat.nr_unused++;
+					inode_clr_flag(inode, REISER4_DEC_UNUSED);
+					spin_unlock(&inode_lock);
+				}
+			}
 
 			/*printk("eflush_del: j %p, inode %llu, index %lu atom %p\n", node, get_inode_oid(inode),
 			  jnode_index(node), node->atom);*/
@@ -666,8 +701,11 @@ eflush_del(jnode *node, int page_locked)
 		kmem_cache_free(eflush_slab, ef);
 		ef_free_block(node, &blk);
 
-		if (lockedpage != NULL)
-			reiser4_unlock_page(lockedpage);
+		if (page != NULL) {
+			if (!page_locked)
+				reiser4_unlock_page(page);
+			page_cache_release(page);
+		}
 
 		LOCK_JNODE(node);
 
@@ -776,6 +814,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 		} else {
 			result = reiser4_grab_space_force((__u64)1, BA_RESERVED, 
 							  "eflush takes 1 block reserved area");
+			grab_space_enable();
 			if (result)
 				return result;
 		}
