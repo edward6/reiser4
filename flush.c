@@ -1721,8 +1721,21 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 		goto out;
 
 	if (znode_check_flushprepped(right_parent_lock.node)) {
-		pos->preceder.blk = *znode_get_block(right_parent_lock.node);
-		check_preceder(pos->preceder.blk);
+		/* Keep parent-first order.  In the order, the right parent node stands
+		   before the @right node.  If it is already allocated, we set the
+		   preceder (next block search start point) to its block number, @right
+		   node should be allocated after it.  
+
+		   However, preceder is set only if the right parent is on twig level.
+		   The explanation is the following: new branch nodes are allocated over
+		   already allocated children while the tree grows, it is difficult to
+		   keep tree ordered, we assume that only leaves and twings are correctly
+		   allocated.  So, only twigs are used as a preceder for allocating of the
+		   rest of the slum. */
+		if (znode_get_level(right_parent_lock.node) == TWIG_LEVEL) {
+			pos->preceder.blk = *znode_get_block(right_parent_lock.node);
+			check_preceder(pos->preceder.blk);
+		}
 		goto out;
 	}
 
