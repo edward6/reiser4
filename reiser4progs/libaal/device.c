@@ -123,7 +123,7 @@ char *aal_device_name(aal_device_t *device) {
 }
 
 /* Block-working functions */
-aal_block_t *aal_device_alloc_block(aal_device_t *device, blk_t blk, char c) {
+aal_block_t *aal_block_alloc(aal_device_t *device, blk_t blk, char c) {
     aal_block_t *block;
 
     aal_assert("umka-443", device != NULL, return NULL);
@@ -145,7 +145,7 @@ aal_block_t *aal_device_alloc_block(aal_device_t *device, blk_t blk, char c) {
 	goto error_free_block;
 	
     block->offset = (aal_device_get_bs(device) * blk);
-    aal_block_mark_dirty(block);
+    aal_block_dirty(block);
 	
     return block;
 	
@@ -155,7 +155,7 @@ error:
     return NULL;
 }
 
-aal_block_t *aal_device_read_block(aal_device_t *device, blk_t blk) {
+aal_block_t *aal_block_read(aal_device_t *device, blk_t blk) {
     aal_block_t *block;
 
     aal_assert("umka-444", device != NULL, return NULL);
@@ -163,53 +163,59 @@ aal_block_t *aal_device_read_block(aal_device_t *device, blk_t blk) {
     if (blk > aal_device_len(device))
 	return NULL;
 	
-    if (!(block = aal_device_alloc_block(device, blk, 0)))
+    if (!(block = aal_block_alloc(device, blk, 0)))
 	return NULL;
 
     if (aal_device_read(device, block->data, blk, 1)) {
-	aal_device_free_block(block);
+	aal_block_free(block);
 	return NULL;
     }
     
-    aal_block_mark_clean(block);
+    aal_block_clean(block);
     
     return block;
 }
 
-error_t aal_device_write_block(aal_device_t *device, aal_block_t *block) {
+error_t aal_block_write(aal_device_t *device, aal_block_t *block) {
     error_t error;
 
     aal_assert("umka-445", device != NULL, return -1);
     aal_assert("umka-446", block != NULL, return -1);
 
-    if (!aal_block_dirty(block))
+    if (aal_block_is_clean(block))
 	return 0;
 
     if((error = aal_device_write(device, block->data, 
-	aal_device_get_block_nr(block), 1)))
+	aal_block_get_nr(block), 1)))
 
-    aal_block_mark_clean(block);
+    aal_block_clean(block);
     
     return error;
 }
 
-blk_t aal_device_get_block_nr(aal_block_t *block) {
+blk_t aal_block_get_nr(aal_block_t *block) {
     aal_assert("umka-448", block != NULL, return 0);
    
-    return (blk_t)(block->offset >> aal_log2(aal_device_get_bs(block->device)));
+    return (blk_t)(block->offset >> 
+	aal_log2(aal_device_get_bs(block->device)));
 }
 
-void aal_device_set_block_nr(aal_block_t *block, blk_t blk) {
+void aal_block_set_nr(aal_block_t *block, blk_t blk) {
     aal_assert("umka-450", block != NULL, return);
 
+    if (blk > aal_device_len(block->device)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't setup block into address out of device.");
+	return;
+    }
+    
     block->offset = (uint64_t)(blk * aal_device_get_bs(block->device));
 }
 
-void aal_device_free_block(aal_block_t *block) {
+void aal_block_free(aal_block_t *block) {
     aal_assert("umka-451", block != NULL, return);
 	
     aal_free(block->data);
-    block->data = NULL;
     aal_free(block);
 }
 
