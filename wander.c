@@ -843,7 +843,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 free_not_assigned:
 	/* We deallocate blocks not yet assigned to jnodes on tx_list. The
 	   caller takes care about invalidating of tx list  */
-	reiser4_dealloc_blocks(&first, &len, hint.block_stage, 
+	reiser4_dealloc_blocks(&first, &len, BLOCK_NOT_COUNTED, 
 		BA_FORMATTED/* formatted without defer */);
 
 	return ret;
