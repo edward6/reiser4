@@ -596,12 +596,19 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 {
 	int result;
 	jnode *node;
+	reiser4_context *ctx;
+	txn_handle *txnh;
 	REISER4_ENTRY( page -> mapping -> host -> i_sb );
 
 	assert( "vs-828", PageLocked( page ) );
 	unlock_page( page );
 
-	if (get_current_context ()->trans->atom != NULL) {
+	ctx  = get_current_context ();
+	txnh = ctx->trans;
+
+	spin_lock_txnh (txnh);
+
+	if (txnh->atom != NULL) {
 		/*
 		 * Good Lord, we are called synchronously! What a shame.
 		 *
@@ -610,6 +617,7 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 		 *
 		 * no chance of working in such situation.
 		 */
+		spin_unlock_txnh (txnh);
 		REISER4_EXIT (0);
 	}
 
@@ -619,9 +627,11 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 	 * this flush occurs. */ 
 	result = txn_attach_txnh_to_node (node, ATOM_FORCE_COMMIT);
 
+	spin_unlock_txnh (txnh);
+
 	if (result == -ENOENT) {
 
-		/* Txn committed during attach... */
+		/* Txn committed during attach, jnode has no atom. */
 		result = 0;
 
 	} else if (result == 0) {

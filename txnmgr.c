@@ -1253,21 +1253,14 @@ txn_try_capture_page  (struct page        *pg,
  * committing while they perform early flushing.  The node is already captured but the
  * txnh is not.
  */
-int txn_attach_txnh_to_node (jnode *node, txn_flags flags)
+int txn_attach_txnh_to_node (txn_handle *txnh, jnode *node, txn_flags flags)
 {
 	txn_atom *atom;
-	reiser4_context *ctx;
-	txn_handle *txnh;
 	int ret = 0;
 
-	ctx  = get_current_context ();
-	txnh = ctx->trans;
-
-	/* Expecting the call under these circumstances: root context, txnh has no atom. */
-	assert ("jmacd-77917", ctx->parent == ctx);
+	assert ("jmacd-77917", spin_txnh_is_locked (txnh));
 	assert ("jmacd-77918", txnh->atom == NULL);
 
-	spin_lock_txnh (txnh);
 	spin_lock_jnode (node);
 
 	atom = atom_get_locked_by_jnode (node);
@@ -1284,7 +1277,6 @@ int txn_attach_txnh_to_node (jnode *node, txn_flags flags)
 
 	spin_unlock_atom (atom);
  fail_unlock:
-	spin_unlock_txnh (txnh);
 	spin_unlock_jnode (node);
 	return ret;
 }
