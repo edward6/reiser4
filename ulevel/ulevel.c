@@ -4186,6 +4186,7 @@ int jmacd_test( int argc UNUSED_ARG,
 
 #define BLOCK_COUNT 10000
 
+#if 0
 /* tree op. read node which emulates read from valid reiser4 volume  */
 static int bm_test_read_node (const reiser4_block_nr *addr, char **data, size_t blksz )
 {
@@ -4226,6 +4227,7 @@ static int bm_test_read_node (const reiser4_block_nr *addr, char **data, size_t 
 
 	return 0;
 }
+#endif
 
 /** a temporary solutions for setting up reiser4 super block */
 static void fill_sb (struct super_block * super)
@@ -4259,7 +4261,7 @@ static int bitmap_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tr
 		get_super_private (super)->space_plug->init_allocator (
 			get_space_allocator (super), super, 0);
 
-	tree -> ops -> read_node = bm_test_read_node;
+	// tree -> ops -> read_node = bm_test_read_node;
 
 
 	{
