@@ -464,10 +464,8 @@ static int load_and_lock_bnode (struct bnode * bnode)
 		 * (working bitmap in this context) */
 
 		/*
-		 * FIXME:NIKITA->ZAM this doesn't work. 0 from jload means
-		 * that page was either read from disk -or- found after page
-		 * cache lookup. As a result, this overwrites working area
-		 * after each release_and_unlock_bnode().
+		 * FIXME:NIKITA->ZAM this copies commit bitmap into working
+		 * bitmap, but comment says visa versa.
 		 */
 		xmemcpy(bnode_working_data(bnode), 
 			bnode_commit_data(bnode), 
