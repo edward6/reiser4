@@ -1089,8 +1089,11 @@ static void unlock_carry_node( carry_node *node /* node to be released */,
 			 * FIXME_JMACD Deallocate_znode calls zdestroy
 			 * without checking refcounts?  Why not set HEARD_BANSHEE
 			 * bit here and zput later?
+			 *
+			 * This looks so bogus to me.  Why isn't this handled eventually
+			 * by zput()?
 			 */
-			deallocate_znode( real_node );
+			jdelete( ZJNODE( real_node ));
 		}
 		if( node -> free ) {
 			assert( "nikita-2177", 

@@ -985,6 +985,7 @@ static int replay_transaction (const struct super_block * s,
 
 		jrelse(log);
 		jdrop(log);
+		/* FIXME: JMACD->ZAM: Can you explain why jdrop is not followed by jfree here? */
 
 		-- nr_log_records;
 	}
@@ -1081,6 +1082,7 @@ static int replay_oldest_transaction(struct super_block * s)
 
 		jrelse(tx_head);
 		jdrop(tx_head);
+		/* FIXME: JMACD->ZAM: Can you explain why jdrop is not followed by jfree here? */
 	}
 
 	total = d32tocpu(&T->total);

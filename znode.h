@@ -174,11 +174,7 @@ struct znode {
 	 * reference addition/drop.
 	 */
 	atomic_t               c_count;
-	/**
-	 * counter of references to znode itself. Increased on zref().
-	 * Decreased on zput().
-	 */
-	atomic_t               x_count;
+
 	/** pointers to maintain hash-table */
 	z_hash_link            link;
 
@@ -397,14 +393,12 @@ static inline void reiser4_wake_up (lock_stack *owner)
 	spin_unlock_stack(owner);
 }
 
-extern void add_x_ref( znode *node );
+extern void add_x_ref( jnode *node );
 extern void del_c_ref( znode *node );
 
-extern znode *zref( znode *node );
 extern znode *zget( reiser4_tree *tree, const reiser4_block_nr *const block,
 		    znode *parent, tree_level level, int gfp_flag );
 extern znode *zlook( reiser4_tree *tree, const reiser4_block_nr *const block );
-extern void zput( znode *node );
 extern int zload( znode *node );
 extern int zinit_new( znode *node );
 extern void zrelse( znode *node );
@@ -440,7 +434,6 @@ extern znode *znode_parent_nolock( const znode *node );
 extern int znode_above_root (const znode *node);
 extern int znode_is_true_root( const znode *node );
 extern void zdrop( reiser4_tree *tree, znode *node );
-extern void zdelete( znode *node );
 extern int  znodes_init( void );
 extern int  znodes_done( void );
 extern int  znodes_tree_init( reiser4_tree *ztree );
@@ -491,6 +484,16 @@ void print_znodes( const char *prefix, reiser4_tree *tree );
 #define spin_trylock_znode(x)       spin_trylock_jnode ( ZJNODE(x) )
 #define spin_znode_is_locked(x)     spin_jnode_is_locked ( ZJNODE(x) )
 #define spin_znode_is_not_locked(x) spin_jnode_is_not_locked ( ZJNODE(x) )
+
+static inline znode* zref (znode *node)
+{
+	return (znode*) jref (ZJNODE (node));
+}
+
+static inline void zput (znode *node)
+{
+	jput (ZJNODE (node));
+}
 
 /* data-handles */
 

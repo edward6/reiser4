@@ -2019,14 +2019,12 @@ static int znode_get_utmost_if_dirty (znode *node, lock_handle *lock, sideof sid
 	znode *neighbor;
 	int go;
 	int ret;
-	ON_DEBUG (int xcnt = -1);
 
 	assert ("jmacd-6334", znode_is_connected (node));
 
 	spin_lock_tree (current_tree);
 	neighbor = side == RIGHT_SIDE ? node->right : node->left;
 	if (neighbor != NULL) {
-		ON_DEBUG (xcnt = atomic_read (& neighbor->x_count));
 		zref (neighbor);
 	}
 	spin_unlock_tree (current_tree);

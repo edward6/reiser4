@@ -284,10 +284,10 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 				/*
 				 * FIXME debugging output
 				 */
-				if( atomic_read( &node -> x_count ) != 0 )
+				if( atomic_read( &ZJNODE(node) -> x_count ) != 0 )
 					print_znode( "busy on umount", node );
 				assert( "nikita-2179", 
-					atomic_read( &node -> x_count ) == 0 );
+					atomic_read( &ZJNODE(node) -> x_count ) == 0 );
 				zdrop( tree, node );
 				ON_DEBUG( ++ killed );
 			}
@@ -338,7 +338,7 @@ static void znode_remove( znode *node /* znode to remove */ )
 	assert( "nikita-2108", node != NULL );
 
 	assert( "nikita-468", atomic_read( &ZJNODE(node) -> d_count ) == 0 );
-	assert( "nikita-469", atomic_read( &node -> x_count ) == 0 );
+	assert( "nikita-469", atomic_read( &ZJNODE(node) -> x_count ) == 0 );
 	assert( "nikita-470", atomic_read( &node -> c_count ) == 0 );
 
 	/* remove reference to this znode from pbk cache */
@@ -372,7 +372,7 @@ static int znode_lock_remove( reiser4_tree *tree, znode *node )
 
 	spin_lock_tree( tree );
 
-	if( atomic_read( &node -> x_count ) > 0 ) {
+	if( atomic_read( &ZJNODE(node) -> x_count ) > 0 ) {
 		spin_unlock_tree( tree );
 		return -EAGAIN;
 	}
@@ -382,37 +382,49 @@ static int znode_lock_remove( reiser4_tree *tree, znode *node )
 	return 0;
 }
 
-/** zdelete() -- Remove znode from the tree
+/** jdelete() -- Remove znode from the tree
  *
- * This is called from deallocate_znode() when last reference to the
- * znode removed from the tree is release.
+ * This is called from zdrop() when last reference to the znode removed from the tree is
+ * release.  Also for some unexplained reason, this is called from carry.
  */
-void zdelete( znode *node /* znode to finish with */ )
+void jdelete( jnode *node /* znode to finish with */ )
 {
 	reiser4_tree *tree;
 
 	trace_stamp( TRACE_ZNODES );
 	assert( "nikita-467", node != NULL );
 	assert( "nikita-1443", current_tree != NULL );
-	assert( "nikita-2123", ZF_ISSET( node, ZNODE_HEARD_BANSHEE ) );
-	assert( "nikita-2306", !znode_is_locked( node ) );
+	assert( "nikita-2123", JF_ISSET( node, ZNODE_HEARD_BANSHEE ) );
 
 	tree = current_tree;
 
-	if( znode_lock_remove( tree, node ) )
-		return;
+	if( jnode_is_formatted( node )) {
+		assert( "nikita-2306", !znode_is_locked( JZNODE( node ) ) );
+
+		/* FIXME: JMACD->NIKITA: I think this should be done in
+		 * tree->ops->delete_node(), since we need to extend it to unformatted
+		 * nodes.  If those nodes are only deleted by invalidatepage(), which only
+		 * calls delete_node(), right? */
+		if( znode_lock_remove( tree, JZNODE( node ) ) ) {
+			return;
+		}
+	}
 
 	assert( "nikita-2057", tree -> ops -> delete_node != NULL );
 
 	/*
 	 * remove node backing store (page).
 	 */
-	if( tree -> ops -> delete_node( tree, ZJNODE( node ) ) != 0 ) {
+	if( tree -> ops -> delete_node( tree, node ) != 0 ) {
 		warning( "nikita-2058", "Failed to delete node: %llx",
-			 *znode_get_block( node ) );
+			 *jnode_get_block( node ) );
 	}
 
-	zfree( node );
+	if( jnode_is_formatted( node ) ) {
+		zfree( JZNODE( node ) );
+	} else {
+		jfree( node );
+	}
 }
 
 /** zdrop() -- Remove znode from the tree.
@@ -427,9 +439,10 @@ void zdrop( reiser4_tree *tree /* tree to remove znode from */,
 	assert( "nikita-2154", tree != NULL );
 	ON_SMP( assert( "nikita-2128", spin_tree_is_locked( tree ) ) );
 
-	if( atomic_read( &node -> x_count ) > 0 )
+	if( atomic_read( &ZJNODE(node) -> x_count ) > 0 )
 		return;
 
+	/* FIXME: JMACD->NIKITA: Why not znode_lock_remove here? */
 	znode_remove( node );
 
 	assert( "nikita-2155", tree -> ops -> drop_node != NULL );
@@ -502,7 +515,7 @@ zlook (reiser4_tree *tree, const reiser4_block_nr *const blocknr)
 	/* According to the current design, the hash table lock protects new znode
 	 * references. */
 	if (result != NULL) {
-		add_x_ref (result);
+		add_x_ref (ZJNODE (result));
 	}
 
 	/* Release hash table lock: non-null result now referenced. */
@@ -513,7 +526,7 @@ zlook (reiser4_tree *tree, const reiser4_block_nr *const blocknr)
 
 /** bump reference counter on @node */
 /* Audited by: umka (2002.06.11) */
-void add_x_ref( znode *node /* node to increase x_count of */ )
+void add_x_ref( jnode *node /* node to increase x_count of */ )
 {
 	assert( "nikita-1911", node != NULL );
 
@@ -530,20 +543,6 @@ void del_c_ref( znode *node /* node to decrease c_count of */ )
 	assert( "nikita-2133", atomic_read( &node -> c_count ) > 0 );
 	atomic_dec( &node -> c_count );
 }
-
-/**
- * zref() - increase counter of references to znode (x_count)
- */
-/* Audited by: umka (2002.06.11) */
-znode *zref (znode *node)
-{
-	assert ("jmacd-508", (node != NULL) && ! IS_ERR (node));
-
-	add_x_ref( node );
-	
-	return node;
-}
-
 
 /**
  * zget() - get znode from hash table, allocating it if necessary.
@@ -598,7 +597,7 @@ zget (reiser4_tree *tree,
 	/* According to the current design, the hash table lock protects new znode
 	 * references. */
 	if (result != NULL) {
-		add_x_ref (result);
+		add_x_ref (ZJNODE (result));
 		/*
 		 * FIXME-NIKITA it should be so, but special case during
 		 * creation of new root makes such assertion highly
@@ -646,7 +645,7 @@ zget (reiser4_tree *tree,
 
 		znode_set_level (result, level);
 
-		add_x_ref (result);
+		add_x_ref (ZJNODE (result));
 
 		/* Repeat search in case of a race, first take the hash table lock. */
 		spin_lock_tree (tree);
@@ -706,29 +705,20 @@ zget (reiser4_tree *tree,
  * in memory, and then we force its children out first?  There is no zcache_shrink().
  */
 /* Audited by: umka (2002.06.11) */
-void zput (znode *node)
+void jput (jnode *node)
 {
 	trace_stamp (TRACE_ZNODES);
 
 	assert ("jmacd-509", node != NULL);
 	assert ("jmacd-510", atomic_read (& node->x_count) > 0);
-	assert ("jmacd-511", atomic_read (& ZJNODE(node)->d_count) >= 0);
-	assert ("jmacd-572", atomic_read (& node->c_count) >= 0);
+	assert ("jmacd-511", atomic_read (& node->d_count) >= 0);
+	assert ("jmacd-572", jnode_is_unformatted (node) || atomic_read (& JZNODE (node)->c_count) >= 0);
 	ON_DEBUG (-- lock_counters() -> x_refs);
 
-	/*
-	 * FIXME-NIKITA nikita: handle releasing reference to the znode that is
-	 * removed from the tree. Locking?
-	 */
 	/*trace_on (TRACE_FLUSH, "del_x_ref: %p: %d\n", node, atomic_read (& node->x_count));*/
 	if (atomic_dec_and_test (& node->x_count)) {
-		if (ZF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
-
-			/* FIXME_JMACD: Currently deallocate_znode just calls
-			 * zdestroy(). */
-			deallocate_znode (node);
-			/* FIXME_JMACD: The atom has no reference because
-			 * jnodes don't have an x_count... what to do? */
+		if (JF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
+			jdelete (node);
 		}
 	}
 }
@@ -813,7 +803,7 @@ int zload( znode *node /* znode to load */ )
 	assert( "nikita-484", node != NULL );
 	assert( "nikita-1377", znode_invariant( node ) );
 	assert( "jmacd-7771", ! znode_above_root( node ) );
-	assert( "nikita-2125", atomic_read( &node -> x_count ) > 0 );
+	assert( "nikita-2125", atomic_read( &ZJNODE(node) -> x_count ) > 0 );
 	assert( "nikita-2189", lock_counters() -> spin_locked == 0 );
 
 	result = jload_and_lock (ZJNODE(node));
@@ -1146,7 +1136,7 @@ static int znode_invariant_f( const znode *node /* znode to check */,
 		_ergo( znode_get_level( node ) == LEAF_LEVEL,
 		       atomic_read( &node -> c_count ) == 0 ) &&
 		_ergo( node -> lock.nr_readers != 0,
-		       atomic_read( &node -> x_count ) != 0 ) &&
+		       atomic_read( &ZJNODE(node) -> x_count ) != 0 ) &&
 		zergo( ZNODE_ORPHAN, znode_parent( node ) == NULL );
 }
 
@@ -1279,7 +1269,7 @@ void info_znode( const char *prefix /* prefix to print */,
 	info( "c_count: %i, d_count: %i, x_count: %i readers: %i, ", 
 	      atomic_read( &node -> c_count ),
 	      atomic_read( &ZJNODE(node) -> d_count ),
-	      atomic_read( &node -> x_count ),
+	      atomic_read( &ZJNODE(node) -> x_count ),
 	      node -> lock.nr_readers );
 
 	print_address( "blocknr", znode_get_block( node ) );

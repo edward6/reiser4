@@ -788,27 +788,6 @@ void forget_znode (lock_handle *handle)
 }
 
 /**
- * This is called from zput() when last reference is dropped to the znode that
- * was removed from the tree. At this point we free corrsponding bit in bitmap.
- *
- * This is only stub for now.
- *
- * FIXME_JMACD: I strongly object to calling this (in tree.c) from zput() (in
- * znode.c) and then immediately calling zdestroy (in znode.c).  This is just
- * obfuscated.  I would like to see zdestroy() called directly from zput(), which
- * also calls this function, but I don't know what the call in unlock_carry_node
- * should really do.
- */
-/* Audited by: umka (2002.06.16) */
-int deallocate_znode( znode *node /* znode released */ )
-{
-	assert ("umka-320", node != NULL);
-	assert ("nikita-1281", ZF_ISSET (node, ZNODE_HEARD_BANSHEE));
-	zdelete( node );
-	return 0;
-}
-
-/**
  * Check that internal item at @pointer really contains pointer to @child.
  */
 /* Audited by: umka (2002.06.16) */
@@ -1607,14 +1586,13 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	if( flags & REISER4_NODE_SILENT ) {
 		/* Nothing */
 	} else if( flags == REISER4_NODE_PRINT_BRIEF ) {
-		info( "[node %p block %llu level %u dirty %u created %u alloc %u xcnt %u]\n",
+		info( "[node %p block %llu level %u dirty %u created %u alloc %u]\n",
 		      node,
 		      *znode_get_block( node ),
 		      znode_get_level( node ),
 		      znode_check_dirty( node ),
 		      ZF_ISSET( node, ZNODE_CREATED ),
-		      ZF_ISSET( node, ZNODE_RELOC ) || ZF_ISSET( node, ZNODE_WANDER ),
-		      atomic_read( &node -> x_count ) );
+		      ZF_ISSET( node, ZNODE_RELOC ) || ZF_ISSET( node, ZNODE_WANDER ) );
 	} else {
 		print_node_content( "", node, flags );
 	}

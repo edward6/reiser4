@@ -27,6 +27,12 @@ struct jnode
 	 */
 	atomic_t               d_count;
 
+	/**
+	 * counter of references to jnode itself. Increased on jref().
+	 * Decreased on jput().
+	 */
+	atomic_t               x_count;
+
 	/* the real blocknr (as far as the parent node is concerned) */
 	reiser4_block_nr blocknr;
 
@@ -36,7 +42,7 @@ struct jnode
 	 * FIXME-NIKITA: Page itself is not enough in a case where block size
 	 * is smaller than page size. For initial version we are going to
 	 * force blocksize == PAGE_CACHE_SIZE. Later, when and if support for
-	 * different block sizes will be added, some bits can be stealed from
+	 * different block sizes will be added, some bits can be stolen from
 	 * ->level to store number of block within page.
 	 */
 	struct page *pg;
@@ -200,6 +206,7 @@ extern int znode_is_root( const znode *node );
 /* Similar to zref() and zput() for jnodes, calls those routines if the node is formatted. */
 extern jnode *jref( jnode *node );
 extern void   jput( jnode *node );
+extern void jdelete( jnode *node );
 
 /** get the page of jnode */
 static inline char *jdata (const jnode *node)
