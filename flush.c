@@ -164,8 +164,6 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 		/**/return 0;
 	/**/}
 
-	trace_on (TRACE_FLUSH, "flush_jnode %s\n", flush_jnode_tostring (node));
-
 	spin_lock_jnode (node);
 
 	/* a special case for znode-above-root */
@@ -174,6 +172,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 		JF_SET(node, ZNODE_WANDER);
 		spin_unlock_jnode(node);
 		jnode_set_clean(node);
+		trace_on (TRACE_FLUSH, "flush aboveroot %s\n", flush_jnode_tostring (node));
 		return 0;
 	}
 
@@ -186,12 +185,13 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 			(*nr_to_flush) = 0;
 		}
 		spin_unlock_jnode (node);
-		trace_on (TRACE_FLUSH_VERB, "flush_jnode not dirty/connected or queued\n");
+		trace_on (TRACE_FLUSH, "flush nothing %s\n", flush_jnode_tostring (node));
 		return 0;
 	}
 
 	if (jnode_is_allocated (node)) {
 		/* Already has been assigned a block number, just write it again? */
+		trace_on (TRACE_FLUSH, "flush rewrite %s\n", flush_jnode_tostring (node));
 		ret = flush_rewrite_jnode (node);
 
 		assert ("jmacd-97755", spin_jnode_is_not_locked (node));
@@ -200,11 +200,12 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 			(*nr_to_flush) = 1;
 		}
 
-		trace_on (TRACE_FLUSH_VERB, "flush_jnode rewrite\n");
 		return ret;
 	}
 
 	spin_unlock_jnode (node);
+
+	trace_on (TRACE_FLUSH, "flush squalloc %s\n", flush_jnode_tostring (node));
 
 	if ((ret = flush_pos_init (& flush_pos, nr_to_flush))) {
 		return ret;
