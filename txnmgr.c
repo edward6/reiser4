@@ -546,7 +546,7 @@ txn_same_atom_dirty (jnode *node, jnode *check, int alloc_check, int alloc_value
 		}
 
 		if (compat && alloc_check) {
-			compat &= (alloc_value == jnode_is_allocated (check));
+			compat &= (alloc_value == jnode_is_flushprepped (check));
 		}
 
 		spin_unlock_atom (atom);

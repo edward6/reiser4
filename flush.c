@@ -9,6 +9,39 @@
  * IMPLEMENTATION NOTES
  ********************************************************************************/
 
+/* PARENT-FIRST: Some terminology: A parent-first traversal is a way of assigning a total
+ * order to the nodes of the tree in which the parent is placed before its children, which
+ * are ordered (recursively) in left-to-right order.  We have the notion of "forward"
+ * parent-first order (the ordinary case, just described) and "reverse" parent-first
+ * order, which inverts the relationship.  When we speak of a "parent-first preceder", it
+ * describes the node that "came before in forward parent-first order" (alternatively the
+ * node that "comes next in reverse parent-first order").  When we speak of a
+ * "parent-first follower", it describes the node that "comes next in forward parent-first
+ * order" (alternatively the node that "came before in reverse parent-first order").
+ *
+ * The following pseudo-code prints the nodes of a tree in forward parent-first order:
+ *
+ * void parent_first (node)
+ * {
+ *   print_node (node);
+ *   if (node->level > leaf) {
+ *     for (i = 0; i < num_children; i += 1) {
+ *       parent_first (node->child[i]);
+ *     }
+ *   }
+ * }
+ */
+
+/* JUST WHAT ARE WE TRYING TO OPTIMIZE, HERE?  The idea is to optimize block allocation so
+ * that a left-to-right scan of the tree's data (i.e., the leaves in left-to-right order)
+ * can be accomplished with sequential reads.
+ *
+ * FIXME :keep going
+ */
+
+FIXME: flush_is_prepped for is_allocated
+FIXME: force_commit vs. force_commit_all
+
 /* STATE BITS: The flush code revolves around the state of the jnodes it covers.  Here are
  * the relevant jnode->state bits and their relevence to flush:
  *
@@ -56,7 +89,7 @@
  *   6, 2002 when this support was removed.
  *
  * With these state bits, we describe a test used frequently in the code below,
- * jnode_is_allocated() (and the spin-lock-taking jnode_check_allocated()).  The test for
+ * jnode_is_flushprepped() (and the spin-lock-taking jnode_check_flushprepped()).  The test for
  * "allocated" returns true if any of the following are true:
  *
  *   - The node is not dirty
@@ -64,7 +97,7 @@
  *   - The node has JNODE_WANDER set
  *
  * If either the node is clean or it has already been processed by flush, then it is
- * allocated.  If jnode_is_allocated() returns true then flush has work to do on that
+ * allocated.  If jnode_is_flushprepped() returns true then flush has work to do on that
  * node.
  */
 
@@ -229,19 +262,33 @@
  * non-leaf argument.  Flush doesn't care--it treats the argument node as if it were a
  * leaf, even when it is not.  This is a simple approach, and there may be a more optimal
  * policy but until a problem with this approach is discovered, simplest is probably best.
-
-JOSH-FIXME-HANS: What happens to ordering in this case?
-
+ *
+ * NOTE: In this case, the ordering produced by flush is parent-first only if you ignore
+ * the leafs.  This is done as a matter of simplicity and there is only one (shaky)
+ * justification.  When an atom commits, it flushes all leaf level nodes first, followed
+ * by twigs, and so on.  With flushing done in this order, if flush is eventually called
+ * on a non-leaf node it means that (somehow) we reached a point where all leaves are
+ * clean and only internal nodes need to be flushed.  If that it the case, then it means
+ * there were no leaves that were the parent-first preceder/follower of the parent.  This
+ * is expected to be a rare case, which is why we do nothing special about it.  However,
+ * memory pressure may pass an internal node to flush when there are still dirty leaf
+ * nodes that need to be flushed, which could prove our original assumptions
+ * "inoperative".  If this needs to be fixed, then flush_scan_left/right should have
+ * special checks for the non-leaf levels.  For example, instead of passing from a node to
+ * the left neighbor, it should pass from the node to the left neighbor's rightmost
+ * descendent (if dirty).
  */
 
-/* 
-REPACKING AND RESIZING.  We walk the tree in 4MB-16MB chunks, dirtying everything and putting it into a transaction,
-and we tell the allocator to allocate the blocks as far towards the direction on the logical device that corresponds
-to the tree order direction that we started our walk from as possible.  We then make passes in alternating
-directions, and as we do this the device becomes sorted such that tree order and block number order fully correlate.
-
-Resizing is done by shifting everything either all the way to the left or all the way to the right, and then reporting the last block.
-*/
+/* REPACKING AND RESIZING.  We walk the tree in 4MB-16MB chunks, dirtying everything and
+ * putting it into a transaction.  We tell the allocator to allocate the blocks as far as
+ * possible towards one end of the logical device--the left (starting) end of the device
+ * if we are walking from left to right, the right end of the device if we are walking
+ * from right to left.  We then make passes in alternating directions, and as we do this
+ * the device becomes sorted such that tree order and block number order fully correlate.
+ * 
+ * Resizing is done by shifting everything either all the way to the left or all the way
+ * to the right, and then reporting the last block.
+ */
 
 /********************************************************************************
  * DECLARATIONS:
@@ -346,10 +393,6 @@ static int           flush_scan_common            (flush_scan *scan, flush_scan 
 static int           flush_scan_formatted         (flush_scan *scan);
 static int           flush_scan_extent            (flush_scan *scan, int skip_first);
 static int           flush_scan_extent_coord      (flush_scan *scan, const coord_t *in_coord);
-#if 0
-static int           flush_scan_rapid             (flush_scan *scan);
-static int           flush_scan_leftmost_dirty_unit (flush_scan *scan);
-#endif
 
 /* Main flush algorithm.  Note on abbreviation: "squeeze and allocate" == "squalloc". */
 /*static*/ int       squalloc_right_neighbor      (znode *left, znode *right, flush_position *pos);
@@ -447,9 +490,7 @@ ON_DEBUG (atomic_t flush_cnt;)
 
 /* H. Add a WANDERED_LIST to the atom to clarify the placement of wandered blocks. */
 
-
-/* NEW STUFF: */
-/* FIXME: Rename flush-scan to scan-point, (flush-pos to flush-point?) */
+/* I. Rename flush-scan to scan-point, (flush-pos to flush-point?) */
 
 /********************************************************************************
  * JNODE_FLUSH: MAIN ENTRY POINT
@@ -458,22 +499,20 @@ ON_DEBUG (atomic_t flush_cnt;)
 /* This is the main entry point for flushing a jnode, called by the transaction manager
  * when an atom closes (to commit writes) and called by the VM under memory pressure (via
  * page_cache.c:page_common_writeback() to early-flush dirty blocks).
-
-
-
- * Two basic steps are performed: first the "leftpoint" of the input jnode is located,
- * which is found by scanning leftward through dirty nodes and upward as long as the parent
- * is dirty or the child is being relocated.  A config option determines whether
- * left-scanning is performed at higher levels.  The "leftpoint" is the node we will
- * process first.  The comments for flush_lock_leftpoint() will describe this in greater
- * detail.
-
-JOSH-FIXME-HANS: Is this comment above still true?  I thought we went bottom up? 
-
  *
- * After finding the initial leftpoint, squalloc_leftpoint is called to squeeze and
- * allocate the subtree rooted at the leftpoint in a parent-first traversal, then it
- * proceeds to squeeze and allocate the leftpoint of the subtree to its right, and so on.
+ * The "argument" @node tells flush where to start.  From there, flush searches through
+ * the adjacent nodes to find a better place to start the parent-first traversal, during
+ * which nodes are squeezed and allocated (squalloc).  To find a "better place" to start
+ * squalloc first we perform a flush_scan.
+ *
+ * Flush-scanning may be performed in both left and right directions, but for different
+ * purposes.  When scanning to the left, we are searching for a node that precedes a consecutive
+ *
+ * 
+ *
+ * 
+
+
  *
  * During squeeze and allocate, nodes are scheduled for writeback and their jnodes are set
  * to the "clean" state (as far as the atom is concerned).
@@ -541,9 +580,9 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	 * transaction.  In this case, the flush algorithm has already run and made a
 	 * decision to relocate/overwrite this node and given it a new/temporary location.
 	 * The node was then flushed and subsequently dirtied again.  Now flush is called
-	 * again and jnode_is_allocated returns true.  At this point we simply re-submit
+	 * again and jnode_is_flushprepped returns true.  At this point we simply re-submit
 	 * the block to disk using the previously decided location. */
-	if (jnode_is_allocated (node)) {
+	if (jnode_is_flushprepped (node)) {
 
 		trace_on (TRACE_FLUSH, "flush rewrite %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
 		ret = flush_rewrite_jnode (node);
@@ -600,19 +639,22 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 
 	/*assert ("jmacd-6218", jnode_check_dirty (left_scan.node));*/
 
-	/* Funny business here.  We set an unformatted point at the left-end of the scan,
-	 * but after that an unformatted flush position sets pos->point to NULL.  This
-	 * seems lazy, but it makes the initial calls to flush_query_relocate 
-
-JOSH-FIXME-HANS: flush_query_relocate is not found by tags.
-
-
-much easier
-	 * because we know the first unformatted child already.  Nothing is broken by
-	 * this, but the reasoning is subtle.  Holding an extra reference on a jnode
-	 * during flush can cause us to see nodes with HEARD_BANSHEE during squalloc,
-	 * which is not good, but this only happens on the left-edge of flush, where nodes
-	 * cannot be deleted.  So if nothing is broken, why fix it? */
+	/* Funny business here.  We set the 'point' in the flush_position at prior to
+	 * starting flush_squalloc_right regardless of whether the first point is
+	 * formatted or unformatted.  Without this there would be an invariant, in the
+	 * rest of the code, that if the flush_position is unformatted then
+	 * flush_position->point is NULL and flush_position->parent_{lock,coord} is set,
+	 * and if the flush_position is formatted then flush_position->point is non-NULL
+	 * and no parent info is set.
+	 *
+	 * This seems lazy, but it makes the initial calls to flush_query_relocate_check
+	 * (which ask "is it the pos->point the leftmost child of its parent") much easier
+	 * because we know the first child already.  Nothing is broken by this, but the
+	 * reasoning is subtle.  Holding an extra reference on a jnode during flush can
+	 * cause us to see nodes with HEARD_BANSHEE during squalloc, because nodes are not
+	 * removed from sibling lists until they have zero reference count.  Flush would
+	 * never observe a HEARD_BANSHEE node on the left-edge of flush, nodes are only
+	 * deleted to the right.  So if nothing is broken, why fix it? */
 	if ((ret = flush_pos_set_point (& flush_pos, left_scan.node))) {
 		goto failed;
 	}
@@ -952,7 +994,7 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 
 	/* If the ancestor is clean or already allocated, or if the child is not a
 	 * leftmost child, stop going up. */
-	if (znode_check_allocated (coord->node) || ! coord_is_leftmost_unit (coord)) {
+	if (znode_check_flushprepped (coord->node) || ! coord_is_leftmost_unit (coord)) {
 		return 0;
 	}
 
@@ -974,7 +1016,7 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 		}
 
 		/* Recursive call. */
-		if (! znode_check_allocated (acoord.node) &&
+		if (! znode_check_flushprepped (acoord.node) &&
 		    (ret = flush_alloc_one_ancestor (& acoord, pos))) {
 			goto exit;
 		}
@@ -1056,7 +1098,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	 * upward recursion here, but its not always true.  We are allocating in the
 	 * rightward direction and there is no reason the initial (leftmost) ancestors
 	 * must be allocated.  They are not considered part of this parent-first traversal. */
-	/*assert ("jmacd-9925", znode_check_allocated (node));*/
+	/*assert ("jmacd-9925", znode_check_flushprepped (node));*/
 
 	if ((ret = load_lc_znode (& node_load, node))) {
 		warning ("jmacd-61424", "zload failed: %d", ret);
@@ -1202,7 +1244,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	/* Allocate the right node. */
 	trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] ready to allocate right %s\n", call_depth, flush_znode_tostring (right_lock.node));
 
-	if (! znode_check_allocated (right_lock.node)) {
+	if (! znode_check_flushprepped (right_lock.node)) {
 		if ((ret = jnode_lock_parent_coord (ZJNODE (right_lock.node), & right_parent_coord, & parent_lock, & parent_load, ZNODE_WRITE_LOCK))) {
 			/* FIXME(C): check EINVAL, EDEADLK */
 			warning ("jmacd-61430", "jnode_lock_parent_coord failed: %d", ret);
@@ -1354,7 +1396,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	/* We have a new right and it should have been allocated by the call to
 	 * flush_squalloc_one_changed_ancestor.  However, a concurrent thread could
 	 * possibly insert a new node, so just stop if ! allocated. */
-	if (! jnode_check_allocated (ZJNODE (right_lock.node))) {
+	if (! jnode_check_flushprepped (ZJNODE (right_lock.node))) {
 		trace_on (TRACE_FLUSH_VERB, "sq_rca: STOP (right not allocated): %s\n", flush_pos_tostring (pos));
 		ret = flush_pos_stop (pos);
 		goto exit;
@@ -1396,7 +1438,7 @@ static int flush_squalloc_right (flush_position *pos)
 	 * child. */
 	trace_on (TRACE_FLUSH_VERB, "sq_r alloc ancestors: %s\n", flush_pos_tostring (pos));
 
-	if (jnode_check_allocated (pos->point)) {
+	if (jnode_check_flushprepped (pos->point)) {
 		trace_on (TRACE_FLUSH_VERB, "flush concurrency: %s already allocated\n", flush_pos_tostring (pos));
 		return 0;
 	}
@@ -1808,20 +1850,20 @@ static int shift_one_internal_unit (znode * left, znode * right)
  * process.  This implies the block address has been finalized for the
  * duration of this atom (or it is clean and will remain in place).  If this
  * returns true you may use the block number as a hint. */
-int jnode_check_allocated (jnode *node)
+int jnode_check_flushprepped (jnode *node)
 {
 	/* It must be clean or relocated or wandered.  New allocations are set to relocate. */
 	int ret;
 	assert ("jmacd-71275", spin_jnode_is_not_locked (node));
 	spin_lock_jnode (node);
-	ret = jnode_is_allocated (node);
+	ret = jnode_is_flushprepped (node);
 	spin_unlock_jnode (node);
 	return ret;
 }
 
-int znode_check_allocated (znode *node)
+int znode_check_flushprepped (znode *node)
 {
-	return jnode_check_allocated (ZJNODE (node));
+	return jnode_check_flushprepped (ZJNODE (node));
 }
 
 /* Audited by: umka (2002.06.11) */
@@ -1900,7 +1942,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 
 	/* We have the node write-locked and should have checked for ! allocated()
 	 * somewhere before reaching this point. */
-	assert ("jmacd-7987", ! jnode_check_allocated (ZJNODE (node)));
+	assert ("jmacd-7987", ! jnode_check_flushprepped (ZJNODE (node)));
 	assert ("jmacd-7988", znode_is_write_locked (node));
 	assert ("jmacd-7989", coord_is_invalid (parent_coord) || znode_is_write_locked (parent_coord->node));
 
@@ -1989,7 +2031,7 @@ static int flush_queue_jnode (jnode *node, flush_position *pos)
 	JF_SET (node, JNODE_FLUSH_QUEUED);
 
 	// assert ("zam-670", PageDirty(jnode_page(node)));
-	assert ("jmacd-1771", jnode_is_allocated (node));
+	assert ("jmacd-1771", jnode_is_flushprepped (node));
 
 	{
 		txn_atom * atom;
@@ -2132,7 +2174,7 @@ static int flush_empty_queue (flush_position *pos)
 			continue;
 		}
 
-		assert ("jmacd-71236", jnode_check_allocated (check));
+		assert ("jmacd-71236", jnode_check_flushprepped (check));
 
 		/* Skip if the node is still busy (i.e., its children are being squalloced). */
 		/* FIXME: JMACD->?: This is dead code now that FLUSH_BUSY is no longer
@@ -2341,7 +2383,7 @@ static int flush_rewrite_jnode (jnode *node)
 	assert ("jmacd-53313", jnode_is_dirty (node));
 	assert ("jmacd-53314", ! JF_ISSET (node, JNODE_HEARD_BANSHEE));
 	assert ("jmacd-53315", ! JF_ISSET (node, JNODE_FLUSH_QUEUED));
-	assert ("jmacd-53316", jnode_is_allocated (node));
+	assert ("jmacd-53316", jnode_is_flushprepped (node));
 
 	/* If this node is being wandered, just set it clean and return. */
 	if ((WRITE_LOG && JF_ISSET (node, JNODE_WANDER))) {
@@ -3117,7 +3159,7 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 
 		trace_on (TRACE_FLUSH_VERB, "unalloc scan index %lu: %s\n", scan_index, flush_jnode_tostring (neighbor));
 
-		assert ("jmacd-3551", ! jnode_check_allocated (neighbor) && txn_same_atom_dirty (neighbor, scan->node, 0, 0));
+		assert ("jmacd-3551", ! jnode_check_flushprepped (neighbor) && txn_same_atom_dirty (neighbor, scan->node, 0, 0));
 
 		if ((ret = flush_scan_set_current (scan, neighbor, scan_dist, & coord))) {
 			goto exit;
@@ -3305,7 +3347,7 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 		return ret;
 	}
 
-	if (! jnode_check_allocated (child) && (ret = flush_allocate_znode (JZNODE (child), & pos->parent_coord, pos))) {
+	if (! jnode_check_flushprepped (child) && (ret = flush_allocate_znode (JZNODE (child), & pos->parent_coord, pos))) {
 		return ret;
 	}
 

@@ -190,8 +190,8 @@ extern int    flush_enqueue_unformatted (jnode *node, flush_position *pos);
 extern reiser4_blocknr_hint* flush_pos_hint (flush_position *pos);
 extern int    flush_pos_leaf_relocate (flush_position *pos);
 
-extern int jnode_check_allocated (jnode *node);
-extern int znode_check_allocated (znode *node);
+extern int jnode_check_flushprepped (jnode *node);
+extern int znode_check_flushprepped (znode *node);
 
 extern jnode_type jnode_get_type( const jnode *node );
 extern void jnode_set_type( jnode * node, jnode_type type );
@@ -314,7 +314,7 @@ static inline int jnode_check_dirty( jnode *node )
 	return is_dirty;
 }
 
-static inline int jnode_is_allocated (const jnode *node)
+static inline int jnode_is_flushprepped (const jnode *node)
 {
 	assert ("jmacd-78212", node != NULL );
 	assert ("jmacd-71276", spin_jnode_is_locked (node));

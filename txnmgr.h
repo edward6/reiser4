@@ -13,6 +13,7 @@
 TS_LIST_DECLARE(atom);             /* The manager's list of atoms */
 TS_LIST_DECLARE(txnh);             /* The atom's list of handles */ 
 
+/* FIXME!!! Comments unclear, names even worse? */
 TS_LIST_DECLARE(fwaitfor);         /* Each atom has one of these lists: one for its own handles */
 TS_LIST_DECLARE(fwaiting);         /* waiting on another atom and one for reverse mapping.  Used
 			            * to prevent deadlock in the ASTAGE_CAPTURE_WAIT state. */
