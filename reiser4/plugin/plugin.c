@@ -565,37 +565,11 @@ extern reiser4_plugin tail_plugins[ LAST_TAIL_ID ];
 /* defined in fs/reiser4/plugin/plugin.c */
 extern reiser4_plugin hook_plugins[ DUMP_HOOK_ID + 1 ];
 /* defined in fs/reiser4/plugin/security/security.c */
-extern reiser4_plugin perm_plugins[ RWX_PERM_ID + 1 ];
+extern reiser4_plugin perm_plugins[ LAST_PERM_ID ];
 /* defined in fs/reiser4/plugin/item/item.c */
 extern reiser4_plugin item_plugins[ LAST_ITEM_ID ];
 /* defined in fs/reiser4/plugin/node/node.c */
 extern reiser4_plugin node_plugins[ LAST_NODE_ID ];
-
-reiser4_plugin perm_plugins[] = {
-	[ RWX_PERM_ID ] = {
-		.h = {
-			.rec_len = sizeof( reiser4_plugin ),
-			.type_id = REISER4_PERM_PLUGIN_ID,
-			.id      = RWX_PERM_ID,
-			.pops    = NULL,
-			.label   = "rwx",
-			.desc    = "standard UNIX permissions",
-			.linkage = TS_LIST_LINK_ZERO,
-		},
-		.u = {
-			.perm = {
-				.rw_ok     = NULL,
-				.lookup_ok = NULL,
-				.create_ok = NULL,
-				.link_ok   = NULL,
-				.unlink_ok = NULL,
-				.delete_ok = NULL,
-				/* smart thing */
-				.mask_ok   = vfs_permissions
-			}
-		}
-	}
-};
 
 reiser4_plugin hook_plugins[] = {
 	[ DUMP_HOOK_ID ] = {

@@ -811,6 +811,12 @@ struct dentry_operations {
 	void (*d_iput)(struct dentry *, struct inode *);
 };
 
+static inline int vfs_permission(struct inode * inode UNUSED_ARG, 
+				 int mask UNUSED_ARG)
+{
+	return 0;
+}
+
 /* __REISER4_ULEVEL_H__ */
 #endif
 

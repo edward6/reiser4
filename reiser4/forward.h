@@ -162,6 +162,8 @@ typedef enum {
 	ZNODE_LOCK_NONBLOCK = (1 << 1),
 } znode_lock_request;
 
+typedef enum { READ_OP = 0, WRITE_OP = 1 } rw_op;
+
 /* used to specify direction of shift. These must be -1 and 1 */
 typedef enum {
 	SHIFT_APPEND = 1,

@@ -132,9 +132,9 @@ SRC             := \
                    block_alloc.c \
                    txnmgr.c \
                    kassign.c \
-		   flush.c \
-		   wander.c \
-		   search.c \
+				   flush.c \
+				   wander.c \
+				   search.c \
                    plugin/plugin.c \
                    plugin/node/node.c \
                    plugin/node/node40.c \
@@ -148,6 +148,8 @@ SRC             := \
                    plugin/item/item.c \
                    plugin/dir/hashed_dir.c \
                    plugin/dir/dir.c \
+                   plugin/security/perm.c \
+                   plugin/security/acl.c \
                    super.c \
                    tree_walk.c \
                    inode.c \

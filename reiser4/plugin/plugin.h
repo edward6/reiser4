@@ -74,8 +74,6 @@ typedef enum {
 	VFS_PREPARE_WRITE_OP, VFS_COMMIT_WRITE_OP, VFS_BMAP_OP
 } vfs_op;
 
-typedef enum { READ_OP = 0, WRITE_OP = 1 } rw_op;
-
 typedef ssize_t ( *rw_f_type )( struct file *file, flow *a_flow, loff_t *off );
 
 /** entry in file object */
@@ -272,42 +270,6 @@ typedef struct reiser4_hook_plugin {
 	int ( *hook ) ( struct super_block *super, ... );
 } reiser4_hook_plugin;
 
-typedef struct reiser4_perm_plugin {
-	/** check permissions for read/write */
-	int ( *rw_ok )( struct file *file, const char *buf, 
-			size_t size, loff_t *off, rw_op op );
-
-	/** check permissions for lookup */
-	int ( *lookup_ok )( struct inode *parent, struct dentry *dentry );
-
-	/** check permissions for create */
-	int ( *create_ok )( struct inode *parent, struct dentry *dentry, 
-			    reiser4_object_create_data *data );
-
-	/** check permissions for linking @where to @existing */
-	int ( *link_ok )( struct dentry *existing, struct inode *parent, 
-			  struct dentry *where );
-	/** check permissions for unlinking @victim from @parent */
-	int ( *unlink_ok )( struct inode *parent, struct dentry *victim );
-	/** check permissions from deletion of @object whose last
-	    reference is in in @parent */
-	int ( *delete_ok )( struct inode *parent, struct dentry *victim );
-	/** check UNIX access bits. This is ->permission() check called by
-	 * VFS */
-	int ( *mask_ok )( struct inode *inode, int mask );
-} reiser4_perm_plugin;
-
-/** call ->check_ok method of perm plugin for inode */
-#define perm_chk( inode, check, args... )			\
-({								\
-	reiser4_plugin *perm;					\
-								\
-	perm = reiser4_get_object_state( inode ) -> perm;	\
-	( ( perm != NULL ) &&					\
-	  ( perm -> u.perm. ## check ## _ok != NULL ) &&	\
-	    perm -> u.perm. ## check ## _ok( ##args ) );	\
-})
-
 typedef struct reiser4_sd_ext_plugin {
 	int ( *present ) ( struct inode *inode, char **area, int *len );
 	int ( *absent ) ( struct inode *inode );
@@ -479,8 +441,6 @@ typedef enum {
 } reiser4_tail_id;
 
 typedef enum { DUMP_HOOK_ID } reiser4_hook_id;
-
-typedef enum { RWX_PERM_ID } reiser4_perm_id;
 
 #define MAX_PLUGIN_TYPE_LABEL_LEN  32
 #define MAX_PLUGIN_PLUG_LABEL_LEN  32
