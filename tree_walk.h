@@ -68,7 +68,9 @@ int reiser4_get_left_neighbor (lock_handle * result,
 static inline
 int reiser4_get_right_neighbor (lock_handle * result, znode * node, int lock_mode, int flags)
 {
-    return reiser4_get_neighbor (result, node, lock_mode, flags & (~GN_GO_LEFT));
+	ON_DEBUG(check_lock_node_data (node));
+	ON_DEBUG(check_lock_data ());
+	return reiser4_get_neighbor (result, node, lock_mode, flags & (~GN_GO_LEFT));
 }
 
 extern void invalidate_lock (lock_handle *_link);

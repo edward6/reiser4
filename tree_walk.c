@@ -293,6 +293,11 @@ static int renew_sibling_link (coord_t * coord, lock_handle * handle,
 		item_plugin * iplug;
 		spin_unlock_tree(tree);
 
+		if (handle->owner != NULL) {
+			(*nr_locked) ++;
+			side_parent = handle->node;
+		}
+
 		/* does coord object points to internal item? We do not
 		 * support sibling pointers between znode for formatted and
 		 * unformatted nodes and return -ENAVAIL in that case. */
@@ -302,11 +307,6 @@ static int renew_sibling_link (coord_t * coord, lock_handle * handle,
 			link_znodes(child, NULL, flags & GN_GO_LEFT);
 			/* we know there can't be formatted neighbor*/
 			return -ENAVAIL;
-		}
-
-		if (handle->owner != NULL) {
-			(*nr_locked) ++;
-			side_parent = handle->node;
 		}
 
 		iplug -> s.internal.down_link(coord, NULL, &da);
@@ -456,7 +456,7 @@ static int renew_neighbor (coord_t * coord, znode * node, tree_level level, int 
 	assert("umka-250", coord != NULL);
 	assert("umka-251", node != NULL);
 	assert("umka-307", tree != NULL);
-	assert("umka-308", level < tree->height);
+	assert("umka-308", level <= tree->height);
 	
 	/* 
 	 * umka (2002.06.14) 
@@ -644,6 +644,9 @@ int reiser4_get_neighbor (lock_handle * neighbor /* lock handle that
 		}
 	}
  fail:
+	ON_DEBUG(check_lock_node_data (node));
+	ON_DEBUG(check_lock_data ());
+
 	/* unlock path */
 	do {
 		longterm_unlock_znode(&path[h]);
