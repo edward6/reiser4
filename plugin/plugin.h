@@ -219,7 +219,7 @@ Elena doing this for you if that helps.  Email me the list of the top 10, with t
 	int (*delete) (struct inode * object);
 
 	/* method implementing f_op->fsync() */
-	int (*sync)(struct file *file, struct dentry *dentry, int datasync);
+	int (*sync)(struct inode *, int datasync);
 
 	/* add link from @parent to @object */
 	int (*add_link) (struct inode * object, struct inode * parent);

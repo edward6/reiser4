@@ -391,7 +391,7 @@ reiser4_fsync(struct file *file, struct dentry *dentry, int datasync)
 	init_context(&ctx, inode->i_sb);
 	fplug = inode_file_plugin(inode);
 	if (fplug->sync != NULL)
-		result = fplug->sync(file, dentry, datasync);
+		result = fplug->sync(inode, datasync);
 	else
 		result = 0;
 	context_set_commit_async(&ctx);

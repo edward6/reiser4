@@ -29,7 +29,7 @@ extern ssize_t sendfile_unix_file (
 	struct file *file, loff_t *ppos, size_t count, read_actor_t actor, void __user *target);
 extern int prepare_write_unix_file (struct file *, struct page *, unsigned, unsigned);
 
-int sync_unix_file(struct file *file, struct dentry *dentry, int datasync);
+int sync_unix_file(struct inode *, int datasync);
 
 
 /* all the write into unix file is performed by item write method. Write method of unix file plugin only decides which

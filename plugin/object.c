@@ -1192,9 +1192,9 @@ key_by_inode_and_offset_common(struct inode *inode, loff_t off, reiser4_key *key
 
 /* default implementation of ->sync() method: commit all transactions */
 static int
-sync_common(struct file *file, struct dentry *dentry, int datasync)
+sync_common(struct inode *inode, int datasync)
 {
-	return txnmgr_force_commit_all(dentry->d_inode->i_sb, 0);
+	return txnmgr_force_commit_all(inode->i_sb, 0);
 }
 
 static int

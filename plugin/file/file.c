@@ -1400,15 +1400,13 @@ capture_unix_file(struct inode *inode, const struct writeback_control *wbc, long
  * all missing extents and capture anonymous pages.
  */
 reiser4_internal int
-sync_unix_file(struct file *file, struct dentry *dentry, int datasync)
+sync_unix_file(struct inode *inode, int datasync)
 {
 	int result;
-	struct inode *inode;
 	reiser4_context *ctx;
 
 	ctx = get_current_context();
 	assert("nikita-3486", ctx->trans->atom == NULL);
-	inode = dentry->d_inode;
 	result = commit_file_atoms(inode);
 	assert("nikita-3484", ergo(result == 0, ctx->trans->atom == NULL));
 	if (result == 0 && !datasync) {
@@ -1989,6 +1987,7 @@ write_unix_file(struct file *file, /* file to write to */
 {
 	struct inode *inode;
 	ssize_t written;	/* amount actually written so far */
+	int result;
 
 	if (unlikely(count == 0))
 		return 0;
@@ -2076,6 +2075,12 @@ write_unix_file(struct file *file, /* file to write to */
 		}
 	}
 
+	if ((file->f_flags & O_SYNC) || IS_SYNC(inode)) {
+		result = sync_unix_file(inode, 0/* data and stat data */);
+		if (result)
+			warning("reiser4-7", "failed to sync file %llu",
+				get_inode_oid(inode));
+	}
 	up(&inode->i_sem);
 	current->backing_dev_info = 0;
 	return written;
