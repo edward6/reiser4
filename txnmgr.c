@@ -1263,10 +1263,14 @@ int txn_flush_some_atom (long * nr_submitted, int flags)
 	txn_atom * atom;
 	int ret;
 
-	atom = atom_get_locked_with_txnh_locked (txnh);
+	spin_lock_txnh (txnh);
+	atom = txnh->atom;
 	spin_unlock_txnh (txnh);
 
 	if (atom) {
+		atom = atom_get_locked_with_txnh_locked (txnh);
+		spin_unlock_txnh (txnh);
+
 		ret = txn_flush_this_atom (atom, nr_submitted, flags);
 	} else {
 		txn_mgr * tmgr = &get_super_private (ctx->super)->tmgr;
