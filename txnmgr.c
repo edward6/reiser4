@@ -980,7 +980,7 @@ static int current_atom_complete_writes (void)
 	return current_atom_finish_all_fq();
 }
 
-#define TOOMANYFLUSHES (1000)
+#define TOOMANYFLUSHES (1 << 13)
 
 /* Called with the atom locked and no open "active" transaction handlers except
    ours, this function calls flush_current_atom() until all dirty nodes are
@@ -998,7 +998,9 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 {
 	reiser4_super_info_data * sbinfo = get_current_super_private ();
 	long ret;
-	int  flushiters;	/* NIKITA-FIXME-HANS: comment this */
+	/* how many times jnode_flush() was called as a part of attempt to
+	 * commit this atom. */
+	int  flushiters;
 	
 	assert ("zam-888", atom != NULL && *atom != NULL);
 	assert ("zam-886", spin_atom_is_locked(*atom));
@@ -2222,6 +2224,30 @@ uncapture_page(struct page *pg)
 	jput(node);
 }
 
+/* this is similar to the above uncapture_page, except that it is always called for unformatted jnode which was just emergency
+   flushed and therefore may have no page */
+void
+uncapture_jnode(jnode *node)
+{
+	txn_atom *atom;
+
+	jnode_make_clean(node);
+
+	LOCK_JNODE(node);
+	eflush_del(node, 0/* page is not locked */);
+
+	atom = atom_locked_by_jnode(node);
+	if (atom == NULL) {
+		assert("jmacd-7111", !jnode_check_dirty(node));
+		UNLOCK_JNODE (node);
+		return;
+	}
+
+	uncapture_block(node);
+	UNLOCK_ATOM(atom);
+	jput(node);
+}
+
 /* No-locking version of assign_txnh.  Sets the transaction handle's atom pointer,
    increases atom refcount and txnh_count, adds to txnh_list. */
 static void
@@ -2377,7 +2403,7 @@ znode_make_dirty(znode * z)
 	Perhaps that is no longer true. */
 	assert("nikita-1900", znode_is_write_locked(z));
 	assert("jmacd-9777", node->atom != NULL);
-	ON_DEBUG_MODIFY(znode_set_checksum(z));
+	ON_DEBUG_MODIFY(znode_set_checksum(ZJNODE(z)));
 }
 
 /* ZAM-FIXME-HANS: I suggest you drop either unformatted or jnode from the function name below. */
@@ -2411,11 +2437,7 @@ jnode_make_clean_nolock(jnode * node)
 
 	if (jnode_is_dirty(node)) {
 
-#if REISER4_DEBUG_MODIFY
-		if (jnode_is_znode(node))
-			znode_set_checksum(JZNODE(node));
-#endif
-
+		ON_DEBUG_MODIFY(znode_set_checksum(node));
 		JF_CLR(node, JNODE_DIRTY);
 
 		assert("jmacd-9366", !jnode_is_dirty(node));
