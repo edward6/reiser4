@@ -217,7 +217,7 @@ typedef enum {
 	JNODE_EPROTECTED = 21,
 	JNODE_CLUSTER_PAGE = 22,
 	/* Jnode is marked for repacking, that means the reiser4 flush and the
-	 * block allocator should process this node spacial way  */
+	 * block allocator should process this node special way  */
 	JNODE_REPACK = 23
 } reiser4_znode_state;
 
