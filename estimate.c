@@ -4,7 +4,8 @@
 #include "dformat.h"
 #include "tree.h"
 #include "carry.h"
-#include "plugin/item/ctail.h"
+#include "inode.h"
+#include "cluster.h"
 
 /* this returns how many nodes might get dirty and added nodes if @children nodes are dirtied
 

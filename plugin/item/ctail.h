@@ -64,17 +64,7 @@ int scan_ctail(flush_scan *);
 int squeeze_ctail(flush_pos_t *);
 item_plugin * item_plugin_by_jnode(jnode *);
 
-__u8 inode_cluster_shift (struct inode *);
-size_t inode_cluster_size (struct inode *);
 crypto_stat_t * inode_crypto_stat(struct inode *);
-unsigned long pg_to_clust(unsigned long, struct inode *);
-loff_t clust_to_off(unsigned long, struct inode *);
-unsigned long off_to_pg(loff_t);
-unsigned long clust_to_pg(unsigned long, struct inode *);
-unsigned off_to_pgoff(loff_t);
-unsigned off_to_pgcount(loff_t, unsigned long);
-unsigned pg_to_off_to_cloff(unsigned long, struct inode *);
-unsigned fsize_to_count(reiser4_cluster_t *, struct inode *);
 
 void reiser4_cluster_init(reiser4_cluster_t *);
 void put_cluster_data(reiser4_cluster_t *, struct inode *);
@@ -82,9 +72,6 @@ int cluster_is_uptodate (reiser4_cluster_t *);
 void release_cluster_buf(reiser4_cluster_t *, struct inode *);
 size_t inode_scaled_cluster_size(struct inode *);
 loff_t inode_scaled_offset (struct inode *, const loff_t);
-__u8 inode_cluster_shift (struct inode * inode);
-int inode_cluster_pages (struct inode * inode);
-inline unsigned long pg_to_clust_to_pg(unsigned long idx, struct inode *);
 unsigned max_crypto_overhead(crypto_plugin *, crypto_stat_t *);
 
 int inflate_cluster(reiser4_cluster_t *, struct inode *);
