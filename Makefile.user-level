@@ -51,7 +51,7 @@ CFLAGS	    := -g -pthread $(PROFFLAGS) $(OPTFLAGS) \
 	       -Wcast-align \
 	       -Wno-comment \
 	       -Wsign-compare \
-	       -Wlarger-than-500 \
+	       -Wlarger-than-700 \
 	       -Wnon-virtual-dtor \
 	       -Wreorder \
 	       -Wsign-promo
