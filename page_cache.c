@@ -648,15 +648,13 @@ static struct address_space_operations formatted_fake_as_ops = {
 /* called just before page is released (no longer used by reiser4). Callers:
    jdelete() and extent2tail(). */
 void
-drop_page(struct page *page, jnode * node)
+drop_page(struct page *page)
 {
 	assert("nikita-2181", PageLocked(page));
 	clear_page_dirty(page);
 	ClearPageUptodate(page);
 	remove_from_page_cache(page);
 
-	if (node != NULL)
-		page_clear_jnode(page, node);
 	reiser4_unlock_page(page);
 	/* page removed from the mapping---decrement page counter */
 	page_cache_release(page);

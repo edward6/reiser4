@@ -49,7 +49,7 @@ static int never_ever_ ## op ( void )						\
 	return RETERR(-EIO);							\
 }
 
-extern void drop_page(struct page *page, jnode * node);
+extern void drop_page(struct page *page);
 
 #if REISER4_DEBUG_OUTPUT
 extern void print_page(const char *prefix, struct page *page);
