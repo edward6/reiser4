@@ -296,9 +296,16 @@ tail_key_in_item(coord_t * coord, const reiser4_key * key)
 
 	assert("vs-778", coord_is_existing_item(coord));
 
-	if (keygt(key, tail_max_key(coord, &item_key)))
+	if (keygt(key, tail_max_key(coord, &item_key))) {
 		/* key > max key of item */
+		if (get_key_offset(key) == get_key_offset(&item_key) + 1) {
+			coord->unit_pos = tail_nr_units(coord) - 1;
+			coord->between = AFTER_UNIT;
+			return 1;
+		}
+		
 		return 0;
+	}
 
 	/* key of first byte pointed by item */
 	item_key_by_coord(coord, &item_key);

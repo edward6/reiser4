@@ -23,10 +23,14 @@ int extent2tail(struct file *file);
 int unix_file_writepage_nolock(struct page *page);
 int find_next_item(struct sealed_coord *, const reiser4_key *, coord_t *,
 		   lock_handle *, znode_lock_mode, __u32 cbk_flags);
-void set_hint(struct sealed_coord *, const reiser4_key *, const coord_t *);
+void set_hint(struct sealed_coord *, const reiser4_key *, coord_t *);
 void unset_hint(struct sealed_coord *hint);
 int hint_is_set(const struct sealed_coord *hint);
 int hint_validate(struct sealed_coord *, const reiser4_key *, coord_t *, lock_handle *);
+int file_is_built_of_tail_items(const struct inode *inode);
+int file_is_built_of_extents(const struct inode *inode);
+void set_file_state(struct inode *inode, item_id id);
+
 
 typedef enum {
 	FIRST_ITEM = 1,

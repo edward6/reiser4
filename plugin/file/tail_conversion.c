@@ -192,7 +192,7 @@ tail2extent(struct inode *inode)
 		nea2ea(inode);
 	}
 
-	if (inode_get_flag(inode, REISER4_TAIL_STATE_KNOWN) && !inode_get_flag(inode, REISER4_HAS_TAIL)) {
+	if (file_is_built_of_extents(inode)) {
 		/* tail was converted by someone else */
 		if (access_switched)
 			ea2nea(inode);
@@ -323,8 +323,7 @@ tail2extent(struct inode *inode)
 			goto exit;
 	}
 	/* tail coverted */
-	inode_set_flag(inode, REISER4_TAIL_STATE_KNOWN);
-	inode_clr_flag(inode, REISER4_HAS_TAIL);
+	set_file_state(inode, EXTENT_POINTER_ID);
 
 	for_all_pages(pages, sizeof_array(pages), RELEASE);
 	if (access_switched)
@@ -334,7 +333,7 @@ tail2extent(struct inode *inode)
 
 	/* file could not be converted back to tails while we did not
 	   have neither NEA nor EA to the file */
-	assert("vs-830", (inode_get_flag(inode, REISER4_TAIL_STATE_KNOWN) && !inode_get_flag(inode, REISER4_HAS_TAIL)));
+	assert("vs-830", file_is_built_of_extents(inode));
 	assert("vs-1083", result == 0);
 	return 0;
 
@@ -426,7 +425,7 @@ extent2tail(struct file *file)
 
 	get_exclusive_access(inode);
 
-	if (inode_get_flag(inode, REISER4_TAIL_STATE_KNOWN) && inode_get_flag(inode, REISER4_HAS_TAIL)) {
+	if (file_is_built_of_tail_items(inode)) {
 		drop_exclusive_access(inode);
 		return 0;
 	}
@@ -498,7 +497,7 @@ extent2tail(struct file *file)
 	if (i == num_pages)
 		/* FIXME-VS: not sure what to do when conversion did
 		   not complete */
-		inode_set_flag(inode, REISER4_HAS_TAIL);
+		set_file_state(inode, EXTENT_POINTER_ID);
 	else
 		warning("nikita-2282", "Partial conversion of %lu: %lu of %lu", inode->i_ino, i, num_pages);
 	drop_exclusive_access(inode);

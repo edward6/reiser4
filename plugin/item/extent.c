@@ -995,9 +995,15 @@ extent_key_in_item(coord_t * coord, const reiser4_key * key)
 
 	assert("vs-771", coord_is_existing_item(coord));
 
-	if (keygt(key, extent_max_key(coord, &item_key)))
+	if (keygt(key, extent_max_key(coord, &item_key))) {
 		/* key > max key of item */
+		if (get_key_offset(key) == get_key_offset(&item_key) + 1) {
+			coord->unit_pos = extent_nr_units(coord) - 1;
+			coord->between = AFTER_UNIT;
+			return 1;
+		}
 		return 0;
+	}
 
 	/* key of first byte pointed by item */
 	item_key_by_coord(coord, &item_key);
@@ -1021,12 +1027,11 @@ extent_key_in_item(coord_t * coord, const reiser4_key * key)
 			return 1;
 		}
 	}
-
-	impossible("vs-772", "key must be in item");
+       	impossible("vs-772", "key must be in item");
 	return 0;
 }
 
-/* plugin->u.item.b.key_in_coord
+/* plugin->u.item.b.key_in_unit
    return true if unit pointed by @coord addresses byte of file @key refers
    to */
 int
@@ -1117,6 +1122,7 @@ add_hole(coord_t * coord, lock_handle * lh, const reiser4_key * key)
 
 		result = insert_extent_by_coord(coord, init_new_extent(&item, &new_ext, 1), &hole_key, lh);
 		zrelse(loaded);
+		coord->node = 0;
 		return result;
 	}
 
@@ -1187,25 +1193,11 @@ extent_readpage(coord_t * coord, lock_handle * lh, struct page *page)
 	trace_on(TRACE_EXTENTS, "RP: index %lu, count %d..", page->index, page_count(page));
 
 	assert("vs-1040", PageLocked(page));
-	assert("vs-758", item_is_extent(coord));
-	assert("vs-1046", coord_is_existing_unit(coord));
-#if 0
-	if (PagePrivate(page)) {
-		/* the page is read while page was unlocked */
-		assert("vs-1043", jnode_by_page(page));
-		assert("", PageUptodate(page));
-		reiser4_unlock_page(page);
-		return 0;
-	}
-	if (PageUptodate(page)) {
-		/* nothing todo: page matching to hole */
-		reiser4_unlock_page(page);
-		return 0;
-	}
-#endif
 	assert("vs-1050", !PageUptodate(page));
 	assert("vs-757", !jprivate(page) && !PagePrivate(page));
 	assert("vs-1039", page->mapping && page->mapping->host);
+	assert("vs-758", item_is_extent(coord));
+	assert("vs-1046", coord_is_existing_unit(coord));
 	assert("vs-1044", znode_is_loaded(coord->node));
 	assert("vs-1045", znode_is_rlocked(coord->node));
 	assert("vs-1047", (page->mapping->host->i_ino == get_key_objectid(item_key_by_coord(coord, &key))));
@@ -1264,7 +1256,7 @@ extent_readpage(coord_t * coord, lock_handle * lh, struct page *page)
 	return 0;
 }
 
-static int extent_get_block(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j);
+static int make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j);
 
 /* At the beginning: coord.node is read locked, zloaded, page is
    locked, coord is set to existing unit inside of extent item */
@@ -1288,7 +1280,7 @@ extent_writepage(coord_t * coord, lock_handle * lh, struct page *page)
 
 	reiser4_unlock_page(page);
 
-	result = extent_get_block(page->mapping->host, coord, lh, j);
+	result = make_extent(page->mapping->host, coord, lh, j);
 	reiser4_lock_page(page);
 	if (result) {
 		uncapture_page(page);
@@ -2766,7 +2758,7 @@ overwrite_one_block(coord_t * coord, lock_handle * lh, jnode * j, reiser4_key * 
 }
 
 static int
-extent_get_block(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j)
+make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j)
 {
 	int result;
 	znode *loaded;
@@ -2801,13 +2793,6 @@ extent_get_block(struct inode *inode, coord_t * coord, lock_handle * lh, jnode *
 	case OVERWRITE_ITEM:
 		result = overwrite_one_block(coord, lh, j, &key);
 		break;
-#if 0
-	case EXTENT_CANT_CONTINUE:
-		/* unexpected structure of file found */
-		warning("jmacd-81263", "extent_get_create_block: can't continue");
-		result = -EIO;
-		break;
-#endif
 	case RESEARCH:
 		/* @coord is not set to a place in a file we have to write to,
 		   so, coord_by_key must be called to find that place */
@@ -2818,22 +2803,6 @@ extent_get_block(struct inode *inode, coord_t * coord, lock_handle * lh, jnode *
 
 	zrelse(loaded);
 	return result;
-}
-
-/* make sure that page is represented by extent item */
-static int
-make_node_extent(struct inode *inode, jnode * j, coord_t *coord, lock_handle *lh, flow_t * f, unsigned to_page)
-{
-	int result;
-
-	if (!jnode_mapped(j)) {
-		result = extent_get_block(inode, coord, lh, j);
-		if (result)
-			return result;
-	}
-
-	move_flow_forward(f, to_page);
-	return 0;
 }
 
 /* if page is not completely overwritten - read it if it is not
@@ -2902,9 +2871,11 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 
 	set_hint(&hint, &f->key, coord);
 	done_lh(lh);
+	coord->node = 0;
 	result = update_sd_if_necessary(mapping->host, f);
 	if (result)
 		return result;
+
 	balance_dirty_pages(mapping);
 	return hint_validate(&hint, &f->key, coord, lh);
 }
@@ -2917,7 +2888,6 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 	loff_t file_off;
 	unsigned page_off, to_page;
 	char *data;
-	char *user_buf;
 	struct page *page;
 	jnode *j;
 
@@ -2954,18 +2924,16 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 			goto exit2;
 		}
 
-		/* make_node_extent will move flow forward to to seal point
-		   when leaving */
-		user_buf = f->data;
+		if (!jnode_mapped(j)) {
+			/* unlock page before doing anything with filesystem tree */
+			reiser4_unlock_page(page);
 
-		/* unlock page before doing anything with filesystem tree */
-		reiser4_unlock_page(page);
-
-		/* make sure that page has non-hole extent pointing to it */
-		result = make_node_extent(inode, j, coord, lh, f, to_page);
-		reiser4_lock_page(page);
-		if (result)
-			goto exit3;
+			/* make sure that page has non-hole extent pointing to it */
+			result = make_extent(inode, coord, lh, j);
+			reiser4_lock_page(page);
+			if (result)
+				goto exit3;
+		}
 
 		/* if page is not completely overwritten - read it if it is not
 		   new or fill by zeros otherwise */
@@ -2977,28 +2945,28 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 
 		/* copy user data into page */
 		data = kmap(page);
-		result = __copy_from_user(data + page_off, user_buf, to_page);
+		result = __copy_from_user(data + page_off, f->data, to_page);
 		kunmap(page);
 		if (unlikely(result)) {
 			result = -EFAULT;
 			goto exit3;
 		}
-
 		SetPageUptodate(page);
+
+		jnode_set_dirty(j);
+		jput(j);
 
 		result = try_capture_page(page, ZNODE_WRITE_LOCK, 0);
 		if (result)
 			goto exit3;
 
+		assert("vs-1072", PageDirty(page));
 		reiser4_unlock_page(page);
 		page_cache_release(page);
 
-		jnode_set_dirty(j);
-		jput(j);
-		assert("vs-1072", PageDirty(page));
-
 		page_off = 0;
 		file_off += to_page;
+		move_flow_forward(f, to_page);
 
 		/* throttle the writer */
 		result = extent_balance_dirty_pages(page->mapping, f, coord, lh);
