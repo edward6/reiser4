@@ -1510,13 +1510,18 @@ int extent_readpage (void * vp, struct page * page)
 	lock_handle lh;
 
 
+	if ( !page->mapping ) {
+		info("page->mapping disappeared under our foot\n");
+		return -EIO;
+	}
+		
 	trace_on (TRACE_EXTENTS, "RP: index %lu, count %d..",
 		  page->index, page_count (page));
 
 	hint = (struct sealed_coord *)vp;
 	check_hint (hint, page);
 
-	assert ("vs-761", page && page->mapping && page->mapping->host);
+	assert ("vs-761", page->mapping && page->mapping->host);
 	inode = page->mapping->host;
 
 	/* there should be no jnode yet */
@@ -1626,6 +1631,10 @@ int extent_writepage (void * vp, struct page * page)
 	coord_t coord;
 	lock_handle lh;
 
+        if ( !page->mapping ) {
+                info("page->mapping disappeared under our foot\n");
+                return -EIO;
+        }
 
 	trace_on (TRACE_EXTENTS, "WP: index %lu, count %d..", page->index, page_count (page));
 
@@ -1647,7 +1656,12 @@ int extent_writepage (void * vp, struct page * page)
 		return -EAGAIN;
 	}
 
-	assert ("vs-862", !jnode_mapped (j));
+	if ( jnode_mapped (j)) {
+		done_lh(&lh);
+		/* Should we do jnode_set_dirty here? */
+		lock_page (page);
+		return 0;
+	}
 	assert ("vs-864", znode_is_wlocked (coord.node));
 
 	result = extent_get_block (page->mapping->host, &coord, &lh, j);
