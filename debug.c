@@ -64,6 +64,27 @@ lock_counters_info *lock_counters()
 	return &ctx -> locks;
 }
 
+void print_lock_counters( const char *prefix, lock_counters_info *info )
+{
+	info( "%s: jnode: %i, tree: %i, dk: %i, txnh: %i, atom: %i, stack: %i, txnmgr: %i"
+	      "inode: %i, spin: %i, long: %i\n"
+	      "d: %i, i: %i, t: %i\n", prefix,
+	      info -> spin_locked_jnode,
+	      info -> spin_locked_tree,
+	      info -> spin_locked_dk,
+	      info -> spin_locked_txnh,
+	      info -> spin_locked_atom,
+	      info -> spin_locked_stack,
+	      info -> spin_locked_txnmgr,
+	      info -> spin_locked_inode,
+	      info -> spin_locked,
+	      info -> long_term_locked_znode,
+	      
+	      info -> d_refs,
+	      info -> x_refs,
+	      info -> t_refs );
+}
+
 /**
  * check_stack() - check for possible stack overflow
  *

@@ -707,6 +707,9 @@ extern __u32 get_current_trace_flags( void );
 #if REISER4_DEBUG
 extern int no_counters_are_held(void);
 extern void check_stack( void );
+extern void print_lock_counters( const char *prefix, lock_counters_info *info );
+#else
+#define print_lock_counters( p, i ) noop
 #endif
 
 #define REISER4_STACK_ABORT          (8192 - sizeof( struct task_struct ) - 30)

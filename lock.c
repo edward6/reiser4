@@ -749,7 +749,9 @@ int longterm_lock_znode (
 	/* Check that the lock handle is initialized and isn't already being used. */
 	assert ("jmacd-808", handle->owner == NULL);
 
-	assert("nikita-1391", lock_counters()->spin_locked == 0);
+	if (REISER4_DEBUG && lock_counters()->spin_locked != 0)
+		print_lock_counters ("held", lock_counters());
+	assert ("nikita-1391", lock_counters()->spin_locked == 0);
 
 	/* If we are changing our process priority we must adjust a number
 	 * of high priority owners for each znode that we already lock */
