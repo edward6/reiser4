@@ -2188,11 +2188,11 @@ int reiser4_invalidatepage( struct page *page, unsigned long offset )
 		node = jnode_by_page( page );
 		if( node != NULL ) {
 			jref( node );
-			unlock_page( page );
 try_to_lock:
 			spin_lock_jnode( node );
 			unlock_page( page );
 			ret = txn_try_capture( node, ZNODE_WRITE_LOCK, 0 );
+			spin_unlock_jnode( node );
 			/*
 			 * return with page still
 			 * locked. truncate_list_pages() expects this.
@@ -2204,15 +2204,10 @@ try_to_lock:
 					 "txn_try_capture returned %d", ret );
 				if( ( ret == -EAGAIN ) || ( ret == -EDEADLK ) ||
 				    ( ret == -EINTR ) ) {
-					/* Safe to schedule since
-					 * txn_try_capture unlocks jnode on
-					 * error */
 					preempt_point();
 					goto try_to_lock;
 				}
 			} else {
-				spin_unlock_jnode( node );
-
 				txn_delete_page( page );
 
 				UNDER_SPIN_VOID( jnode, node,
