@@ -136,7 +136,7 @@ static extent_state state_of_extent (reiser4_extent * ext)
 	return ALLOCATED_EXTENT;
 }
 
-int extent_is_allocated (tree_coord *item)
+int extent_is_allocated (const tree_coord *item)
 {
 	assert ("jmacd-5133", item_is_extent (item)); 
 
@@ -2934,7 +2934,7 @@ int alloc_extent (reiser4_tree * tree UNUSED_ARG, tree_coord * coord,
 
 
 /* Block offset of firts block addressed by unit */
-__u64 extent_unit_index (tree_coord * item)
+__u64 extent_unit_index (const tree_coord * item)
 {
 	reiser4_key key;
 
@@ -2944,7 +2944,7 @@ __u64 extent_unit_index (tree_coord * item)
 }
 
 
-__u64 extent_unit_width (tree_coord * item)
+__u64 extent_unit_width (const tree_coord * item)
 {
 	assert ("vs-649", coord_of_unit (item));
 	return width_by_coord (item);

@@ -41,12 +41,49 @@ static inline sideof sideof_reverse (sideof side)
  * "before" and "after"
  * "leftmost" and "rightmost"
  *
- * But I the chosen names are decent the way they are.
+ * But I think the chosen names are decent the way they are.
  */
 
 /*****************************************************************************************/
 /*				    COORD INITIALIZERS                                   */
 /*****************************************************************************************/
+
+/* Hack. */
+extern void ncoord_to_tcoord (tree_coord *tcoord, const new_coord *ncoord);
+extern void tcoord_to_ncoord (new_coord *ncoord, const tree_coord *tcoord);
+
+extern int          item_utmost_child_real_block (const new_coord *coord, sideof side, reiser4_block_nr *blk);
+extern int          item_utmost_child            (const new_coord *coord, sideof side, jnode **child);
+extern int          item_is_extent_n             (const new_coord *coord);
+extern int          item_is_internal_n           (const new_coord *coord);
+extern void         item_key_by_ncoord           (const new_coord *coord, reiser4_key *key);
+extern int          item_length_by_ncoord        (const new_coord *coord);
+
+extern znode*       child_znode_n                (const new_coord *coord, int set_delim);
+extern int          cut_node_n                   (new_coord * from, new_coord * to,
+						  const reiser4_key * from_key,
+						  const reiser4_key * to_key,
+						  reiser4_key * smallest_removed, unsigned flags,
+						  znode * left);
+extern int allocate_extent_item_in_place_n       (new_coord * item, reiser4_blocknr_hint * preceder);
+extern int allocate_and_copy_extent_n            (znode * left, new_coord * right,
+						  reiser4_blocknr_hint * preceder,
+						  reiser4_key * stop_key);
+
+extern int   extent_is_allocated_n               (const new_coord *item);
+extern __u64 extent_unit_index_n                 (const new_coord *item);
+extern __u64 extent_unit_width_n                 (const new_coord *item);
+extern int   node_shift_n (znode *pnode, new_coord *coord, znode *snode, sideof side,
+			   int del_right,
+			   int move_coord,
+			   carry_level *todo);
+extern lookup_result ncoord_by_key( reiser4_tree *tree, const reiser4_key *key,
+				    new_coord *coord, lock_handle * handle,
+				    znode_lock_mode lock, lookup_bias bias, 
+				    tree_level lock_level, tree_level stop_level, 
+				    __u32 flags );
+
+extern int find_child_ptr_n( znode *parent, znode *child, new_coord *result );
 
 /* Initialize an invalid coordinate. */
 extern void ncoord_init_invalid (new_coord *coord, znode *node);
@@ -111,9 +148,6 @@ extern int  ncoord_are_neighbors (new_coord *c1, new_coord *c2);
 extern coord_cmp ncoord_compare (new_coord * c1, new_coord * c2);
 /* Returns the current item positions.  Asserts non-empty. */
 extern unsigned ncoord_item_pos (const new_coord *coord);
-
-/* Hack. */
-extern void ncoord_to_tcoord (tree_coord *tcoord, const new_coord *ncoord);
 
 /*****************************************************************************************/
 /*				     COORD PREDICATES                                    */

@@ -108,9 +108,9 @@ int allocate_and_copy_extent (znode * left, tree_coord * right,
 			      reiser4_blocknr_hint * preceder,
 			      reiser4_key * stop_key);
 
-int   extent_is_allocated (tree_coord *item); /* True if this extent is allocated (i.e., not a hole, not unallocated). */
-__u64 extent_unit_index   (tree_coord *item); /* Block offset of this unit. */
-__u64 extent_unit_width   (tree_coord *item); /* Number of blocks in this unit. */
+int   extent_is_allocated (const tree_coord *item); /* True if this extent is allocated (i.e., not a hole, not unallocated). */
+__u64 extent_unit_index   (const tree_coord *item); /* Block offset of this unit. */
+__u64 extent_unit_width   (const tree_coord *item); /* Number of blocks in this unit. */
 
 /* 
  * Local variables:
