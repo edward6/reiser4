@@ -109,35 +109,35 @@ static inline sideof sideof_reverse (sideof side)
 /*****************************************************************************************/
 
 /* Initialize an invalid coordinate. */
-extern void coord_init_invalid (coord_t *coord, znode *node);
+extern void coord_init_invalid (coord_t *coord, const znode *node);
 
 /* Initialize a coordinate to point at the first unit of the first item.  If the node is
  * empty, it is positioned at the EMPTY_NODE. */
-extern void coord_init_first_unit (coord_t *coord, znode *node);
+extern void coord_init_first_unit (coord_t *coord, const znode *node);
 
 /* Initialize a coordinate to point at the last unit of the last item.  If the node is
  * empty, it is positioned at the EMPTY_NODE. */
-extern void coord_init_last_unit (coord_t *coord, znode *node);
+extern void coord_init_last_unit (coord_t *coord, const znode *node);
 
 /* Initialize a coordinate to before the first item.  If the node is empty, it is
  * positioned at the EMPTY_NODE. */
-extern void coord_init_before_first_item (coord_t *coord, znode *node);
+extern void coord_init_before_first_item (coord_t *coord, const znode *node);
 
 /* Initialize a coordinate to after the last item.  If the node is empty, it is positioned
  * at the EMPTY_NODE. */
-extern void coord_init_after_last_item (coord_t *coord, znode *node);
+extern void coord_init_after_last_item (coord_t *coord, const znode *node);
 
 /* Initialize a coordinate to after last unit in the item. Coord must be set
  * already to existing item */
 void coord_init_after_item_end (coord_t *coord);
 
 /* Calls either coord_init_first_unit or coord_init_last_unit depending on sideof argument. */
-extern void coord_init_sideof_unit (coord_t *coord, znode *node, sideof dir);
+extern void coord_init_sideof_unit (coord_t *coord, const znode *node, sideof dir);
 
 /* Initialize a parent hint pointer. (parent hint pointer is a field in znode,
  * look for comments there)
  * FIXME-VS: added by vs (2002, june, 8) */
-extern void coord_init_parent_hint (coord_t *coord, znode *node);
+extern void coord_init_parent_hint (coord_t *coord, const znode *node);
 
 /* Initialize a coordinate by 0s. Used in places where init_coord was used and
  * it was not clear how actually 

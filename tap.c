@@ -110,7 +110,7 @@ int go_dir_el( tap_t *tap, sideof dir, int units_p )
 
 	int ( *coord_dir )( coord_t * );
 	int ( *get_dir_neighbor )( lock_handle *, znode *, int, int );
-	void ( *coord_init )( coord_t *, znode * );
+	void ( *coord_init )( coord_t *, const znode * );
 	ON_DEBUG( int ( *coord_check )( const coord_t * ) );
 
 	assert( "nikita-2556", tap != NULL );

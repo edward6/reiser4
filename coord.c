@@ -7,12 +7,12 @@
 /* Internal constructor. */
 /* Audited by: green(2002.06.15) */
 static inline void coord_init_values (coord_t  *coord,
-				      znode       *node,
+				      const znode       *node,
 				      pos_in_node  item_pos,
 				      pos_in_item  unit_pos,
 				      between_enum between)
 {
-	coord->node     = node;
+	coord->node     = (znode *) node;
 	coord_set_item_pos (coord, item_pos);
 	coord->unit_pos = unit_pos;
 	coord->between  = between;
@@ -80,7 +80,7 @@ void coord_dup_nocheck (coord_t *coord, const coord_t *old_coord)
 
 /* Initialize an invalid coordinate. */
 /* Audited by: green(2002.06.15) */
-void coord_init_invalid (coord_t *coord, znode *node)
+void coord_init_invalid (coord_t *coord, const znode *node)
 {
 	coord_init_values (coord, node, 0, 0, INVALID_COORD);
 }
@@ -88,7 +88,7 @@ void coord_init_invalid (coord_t *coord, znode *node)
 /* Initialize a coordinate to point at the first unit of the first item.  If the node is
  * empty, it is positioned at the EMPTY_NODE. */
 /* Audited by: green(2002.06.15) */
-void coord_init_first_unit (coord_t *coord, znode *node)
+void coord_init_first_unit (coord_t *coord, const znode *node)
 {
 	int is_empty = node_is_empty (node);
 
@@ -100,7 +100,7 @@ void coord_init_first_unit (coord_t *coord, znode *node)
 /* Initialize a coordinate to point at the last unit of the last item.  If the node is
  * empty, it is positioned at the EMPTY_NODE. */
 /* Audited by: green(2002.06.15) */
-void coord_init_last_unit  (coord_t *coord, znode *node)
+void coord_init_last_unit  (coord_t *coord, const znode *node)
 {
 	int is_empty = node_is_empty (node);
 
@@ -115,7 +115,7 @@ void coord_init_last_unit  (coord_t *coord, znode *node)
 /* Initialize a coordinate to before the first item.  If the node is empty, it is
  * positioned at the EMPTY_NODE. */
 /* Audited by: green(2002.06.15) */
-void coord_init_before_first_item (coord_t *coord, znode *node)
+void coord_init_before_first_item (coord_t *coord, const znode *node)
 {
 	int is_empty = node_is_empty (node);
 
@@ -127,7 +127,7 @@ void coord_init_before_first_item (coord_t *coord, znode *node)
 /* Initialize a coordinate to after the last item.  If the node is empty, it is positioned
  * at the EMPTY_NODE. */
 /* Audited by: green(2002.06.15) */
-void coord_init_after_last_item (coord_t *coord, znode *node)
+void coord_init_after_last_item (coord_t *coord, const znode *node)
 {
 	int is_empty = node_is_empty (node);
 
@@ -147,9 +147,9 @@ void coord_init_after_item_end (coord_t *coord)
 /* Initialize a parent hint pointer. (parent hint pointer is a field in znode,
  * look for comments there) */
 /* Audited by: green(2002.06.15) */
-void coord_init_parent_hint (coord_t *coord, znode *node)
+void coord_init_parent_hint (coord_t *coord, const znode *node)
 {
-	coord->node = node;
+	coord->node = (znode *) node;
 	coord_set_item_pos (coord, ~0u);
 }
 
@@ -578,7 +578,7 @@ int coord_prev_item (coord_t *coord)
 
 /* Calls either coord_init_first_unit or coord_init_last_unit depending on sideof argument. */
 /* Audited by: green(2002.06.15) */
-void coord_init_sideof_unit (coord_t *coord, znode *node, sideof dir)
+void coord_init_sideof_unit (coord_t *coord, const znode *node, sideof dir)
 {
 	assert ("jmacd-9821", dir == LEFT_SIDE || dir == RIGHT_SIDE);
 	if (dir == LEFT_SIDE) {
