@@ -160,8 +160,10 @@
 #define assert(label, cond)						\
 ({									\
 	BUG_ON(preempt_count() < 0);					\
-	if (unlikely(!(cond)))						\
+	if (unlikely(!(cond))) {					\
+		DEBUGON(1);						\
 		reiser4_panic(label, "assertion failed: %s", #cond);	\
+	}								\
 })
 
 /* like assertion, but @expr is evaluated even if REISER4_DEBUG is off. */
