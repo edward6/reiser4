@@ -1016,7 +1016,7 @@ static int znode_init( jnode *node )
 	return node_plugin_by_node( z ) -> init( z );
 }
 
-static int no_hook( const jnode *node UNUSED_ARG, 
+static int no_hook( jnode *node UNUSED_ARG, 
 		    struct page *page UNUSED_ARG, int rw UNUSED_ARG )
 {
 	return 1;

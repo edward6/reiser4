@@ -902,20 +902,36 @@ int znode_just_created( const znode *node )
 	return( znode_page( node ) == NULL );
 }
 
-int znode_io_hook( const jnode *node, struct page *page UNUSED_ARG, int rw )
+int znode_io_hook( jnode *node, struct page *page UNUSED_ARG, int rw )
 {
 	return 0;
 
 	/*
-	 * It doesn't work. I don't know why.
+	 * It still breaks reiser4 flushing :(
 	 */
 
 	if( REISER4_DEBUG && ( rw == WRITE ) && 
 	    ( jnode_get_level( node ) > LEAF_LEVEL ) ) {
 		/* make sure we don't write unallocated pointers to disk */
 		coord_t coord;
-		int     result;
+		int     result = 0;
 		znode  *z;
+
+		txn_atom * atom;
+
+		/* current flush alg. implementation allows internal nodes
+		 * with unallocated children to be written to disk if atom is
+		 * not being committed but just flushed at out-of-memory
+		 * situation. */
+		spin_lock_jnode (node);
+		atom = atom_get_locked_by_jnode (node);
+		/* formatted nodes cannot be written without assigning an atom
+		 * to them */
+		assert ("zam-674", atom != NULL);
+		if (!(atom->flags & ATOM_FORCE_COMMIT)) result = 1;
+		spin_unlock_atom (atom);
+		spin_unlock_jnode (node);
+		if (result) return 0; /* not a commit */
 
 		z = JZNODE( node );
 		result = zload( z );
