@@ -14,7 +14,8 @@ static void yy_exit()
 
 /* FIXME:NIKITA->VOVA this file uses indentation completely different than the
  * rest of reiser4 and kernel. This complicates reading of the code by other
- * people. I think this should be changed. */
+ * people. I think this should be changed. 
+ * OK. But after it's works*/
 
 static void yyerror( struct reiser4_syscall_w_space *ws, int msgnum , ...)
 {
@@ -40,9 +41,7 @@ static void freeList(freeSpace * list)
 }
 
 
-/* FIXME:NIKITA->VOVA sys_* names are reserved for system call entry
- * points. This function should be renamed. */
-static int sys_reiser4_free(struct reiser4_syscall_w_space * ws)
+static int reiser4_pars_free(struct reiser4_syscall_w_space * ws)
 {
 	if (ws->freeSpHead)
 		{
@@ -143,9 +142,6 @@ static lnode * get_lnode(struct inode * in)
 {
 	struct lnode * ln;
 
-#if 0
-	thi is wrong. fist find lnode in existing list- if false then next:
-
 	ln=allocate_lnode();
 
 	if (is_reiser4_inode(in))
@@ -159,12 +155,10 @@ static lnode * get_lnode(struct inode * in)
 			ln->h.type = LNODE_INODE;
 			ln->inode.inode = in;
 		}
-#endif
+
 }
 
-/* FIXME:NIKITA->VOVA sys_* names are reserved for system call entry
- * points. This function should be renamed. */
-static struct reiser4_syscall_w_space * sys_reiser4_init()
+static struct reiser4_syscall_w_space * reiser4_pars_init()
 {
 	struct reiser4_syscall_w_space * ws;
                                                             /* allocate work space for parser 
@@ -400,8 +394,11 @@ static __inline__ wrd_t * _wrd_inittab(struct reiser4_syscall_w_space * ws )
 	wrd_t * new_wrd;
 	int len;
 	new_wrd =  ws->wrdHead;
+#if 0
 	len = strlen( ws->freeSpCur->freeSpace) ;
+#else
 	len = ws->tmpWrdEnd - ws->freeSpCur->freeSpace - 1 ;
+#endif
 	cur_wrd = NULL;
 	while ( !( new_wrd == NULL ) )
 		{
@@ -679,6 +676,10 @@ static expr_v4_t * alloc_new_expr(struct reiser4_syscall_w_space * ws, int type)
 	return e;
 }
 
+wrd_t * nullname(struct reiser4_syscall_w_space * ws)
+{
+	return NULL;
+}
 
 static expr_v4_t *  lookup_root(struct reiser4_syscall_w_space * ws)
 {
@@ -686,7 +687,7 @@ static expr_v4_t *  lookup_root(struct reiser4_syscall_w_space * ws)
 	e                  = alloc_new_expr(ws,EXPR_VNODE);
 	e->vnode.v         = alloc_vnode(ws,NULL);
 	e->vnode.v->w      = nullname(ws) ; /* or '/' ????? */
-	e->vnode.v->ln     = get_lnode(current->fs->root->d_inode) ;???
+	e->vnode.v->ln     = get_lnode(current->fs->root->d_inode) ;
 	e->vnode.v->parent = NULL;
 	return e;
 }
@@ -697,7 +698,7 @@ static expr_v4_t *  lookup_pwd(struct reiser4_syscall_w_space * ws)
 	e                  = alloc_new_expr(ws,EXPR_VNODE);
 	e->vnode.v         = alloc_vnode(ws,ws->root->vnode);
 	e->vnode.v->w      = nullname(ws) ;  /* better if it will point to full pathname for pwd */
-	e->vnode.v->ln     = get_lnode(current->fs->pwd->d_inode) ; ???
+	e->vnode.v->ln     = get_lnode(current->fs->pwd->d_inode) ; 
 	e->vnode.v->parent = ws->root->vnode;
 	return e;
 }
@@ -707,13 +708,59 @@ static expr_v4_t *  lookup_pwd(struct reiser4_syscall_w_space * ws)
 static expr_v4_t *  lookup_word(struct reiser4_syscall_w_space * ws, wrd_t * w)
 {
 	expr_v4_t * e;
+	vnode_t * vnode;
+	vnode        = ws->level->wrk_exp->vnode.v;          /* tmp.  this is fist version.  for II we need do "while" throus expression for all vnode */
+//	vnode       = getFirsVnodeFromExpr(ws->level->wrk_exp); 
+//	while(vnode!=NULL)
+//		{
 	e             = alloc_new_expr( ws, EXPR_VNODE );
-	e->vnode.v    = lookup_vnode_word( ws, w );
+	e->vnode.v    = lookup_vnode_word( ws, vnode, w );
+//			vnode=getNextVnodeFromExpr(ws->level->wrk_exp); 
+//		}
+// all rezult mast be connected to expression. 
 	return e;
 }
 
 
-static vnode_t *  lookup_vnode_word(struct reiser4_syscall_w_space * ws, wrd_t * w)
+//			if (path_lookup( w, /*flags*/ /*LOOKUP_FOLLOW|LOOKUP_DIRECTORY|LOOKUP_NOALT*/ 0, ws->nd))
+//				{
+//					yyerror(ws, 11111);
+//				}
+//			else
+//				{
+//					ln = get_lnode(ws->nd.dentry->d_inode);
+//				}
+
+
+
+
+lookup_vnode(struct reiser4_syscall_w_space * ws, vnode_t * vnode, wrd_t * w);
+{
+	struct dentry * de,* de_rez;
+	struct inode  * inode;
+	lnode * ln;
+
+	switch (vnode->ln->h.type)
+		{
+		case LNODE_DENTRY:
+			de = lookup_hash( w, vnode->ln->dentry.dentry);
+
+			break;
+		case LNODE_INODE:
+			de=d_alloc_anon(vnode->ln->dentry.dentry->d_inode);
+		case LNODE_PSEUDO:
+		case LNODE_LW:
+		case LNODE_NR_TYPES:
+
+//		case V4Spave:
+//			break;
+//		case noV4Plugin:
+//			break;
+
+}
+
+
+static vnode_t *  lookup_vnode_word(struct reiser4_syscall_w_space * ws, vnode_t * vnode, wrd_t * w)
 {
 	path_walk_name this_path;
 	lnode * lnode;
@@ -723,39 +770,48 @@ static vnode_t *  lookup_vnode_word(struct reiser4_syscall_w_space * ws, wrd_t *
 	char * name  ;
 	int reiser4_fs;
 	struct nameidata nd;
-	struct dentry  curent_dentry, * res_de;
-	struct inode  * inode;
-	vnode_t * vnode;
+	struct dentry  curent_dentry, * de;
 	vnode_t * rez_vnode;
 	vnode_t * last_vnode;
 
-	vnode       = ws->level->wrk_exp->vnode.v;          /* tmp.  this is fist version.  for II we need do "while" throus expression for all vnode */
-//	vnode       = getFirsVnodeFromExpr(ws->level->wrk_exp); 
-//	while(vnode!=NULL)
-//		{
-			last_vnode  = NULL;
-			rez_vnode   = ws->Head_vnode;
-#ifdef 0
-			printk(" %s",w->u.name);
+	last_vnode  = NULL;
+	rez_vnode   = ws->Head_vnode;
+#if 0
+	printk(" %s",w->u.name);
 #else
-			while (rez_vnode)
+	while (rez_vnode)
+		{
+			if( rez_vnode->parent == vnode && rez_vnode->w == w)
 				{
-					if( rez_vnode->parent == vnode && rez_vnode->w == w)
-						{
-							rez_vnode->count++;
-							return rez_vnode;
-						}
-					last_vnode = rez_vnode;
-					rez_vnode  = rez_vnode->next;
+					rez_vnode->count++;
+					return rez_vnode;
 				}
-			reiser4_fs        = 0;
-			rez_vnode         = alloc_vnode(ws, last_vnode);
-			rez_vnode->w      = w;
-			rez_vnode->parent = vnode;
-//			vnode=getNextVnodeFromExpr(ws->level->wrk_exp); 
+			last_vnode = rez_vnode;
+			rez_vnode  = rez_vnode->next;
+		}
+	reiser4_fs        = 0;
+	rez_vnode         = alloc_vnode(ws, last_vnode);
+	rez_vnode->w      = w;
+	rez_vnode->parent = vnode;
+
+	switch (vnode->ln->h.type)
+		{
+		case LNODE_DENTRY:
+			rez_vnode->ln->h.type= LNODE_DENTRY;
+			rez_vnode->ln->dentry.dentry= lookup_hash( w, vnode->ln->dentry.dentry);
+			break;
+		case LNODE_INODE:
+			de=d_alloc_anon(vnode->ln->dentry.dentry->d_inode);
+			rez_vnode->ln->h.type= LNODE_DENTRY;
+			rez_vnode->ln->dentry.dentry= lookup_hash( w, d_alloc_anon(vnode->ln->inode.inode));
+		case LNODE_PSEUDO:
+		case LNODE_LW:
+		case LNODE_NR_TYPES:
+		}
+	rez_vnode->ln     = lookup_vnode(ws,vnode,w);
+
+
 #endif
-//		}
-// all rezult mast be connected to expression. this change the return type!
 	return rez_vnode;
 }
 
