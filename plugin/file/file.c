@@ -2394,7 +2394,9 @@ readpages_unix_file(struct file *file, struct address_space *mapping,
 	reiser4_file_fsdata *fsdata;
 	item_plugin *iplug;
 
-	assert("vs-1282", unix_file_inode_data(mapping->host)->container == UF_CONTAINER_EXTENTS);
+	/* FIXME: readpages_unix_file() only supports files built of extents. */
+	if (unix_file_inode_data(mapping->host)->container != UF_CONTAINER_EXTENTS)
+		return;
 
 	fsdata = reiser4_get_file_fsdata(file);
 	iplug = item_plugin_by_id(EXTENT_POINTER_ID);
