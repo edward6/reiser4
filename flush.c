@@ -2539,12 +2539,12 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord, flush_position
 	}
 
 	/* discard e-flush allocation */
-	ret = jload(node);
+	ret = zload(node);
 	if (ret)
 		return ret;
         /* We may do not use 5% of reserved disk space here and flush will not pack tightly. */
         ret = reiser4_alloc_blocks(&pos->preceder, &blk, &len, BA_FORMATTED | BA_PERMANENT);
-	jrelse(node);
+	zrelse(node);
 	if(ret)
                 return ret;
                             
