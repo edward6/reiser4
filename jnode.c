@@ -560,11 +560,14 @@ static void check_jload(jnode * node, struct page * page)
 		znode *z;
 
 		z = JZNODE(node);
-		nh = (node40_header *)kmap(page);
-		/* this only works for node40-only file systems. For
-		 * debugging. */
-		assert("nikita-3253", z->nr_items == d16tocpu(&nh->nr_items));
-		kunmap(page);
+		if (znode_is_any_locked(z)) {
+			nh = (node40_header *)kmap(page);
+			/* this only works for node40-only file systems. For
+			 * debugging. */
+			assert("nikita-3253", 
+			       z->nr_items == d16tocpu(&nh->nr_items));
+			kunmap(page);
+		}
 	}
 }
 #else
@@ -916,6 +919,12 @@ index_znode(const jnode * node)
 	return JZNODE(node)->zgen;
 }
 
+static struct address_space *
+mapping_bitmap(const jnode * node)
+{
+	return get_super_private(jnode_get_tree(node)->super)->bitmap->i_mapping;
+}
+
 static unsigned long
 index_is_address(const jnode * node)
 {
@@ -1064,7 +1073,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		},
 		.init = init_noinit,
 		.parse = parse_noparse,
-		.mapping = mapping_znode,
+		.mapping = mapping_bitmap,
 		.index = index_is_address,
 		.io_hook = io_hook_no_hook
 	},
@@ -1079,7 +1088,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		},
 		.init = init_noinit,
 		.parse = parse_noparse,
-		.mapping = mapping_znode,
+		.mapping = mapping_bitmap,
 		.index = index_is_address,
 		.io_hook = io_hook_no_hook
 	},
