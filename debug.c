@@ -17,7 +17,7 @@
 
 __u32 reiser4_current_trace_flags = 0;
 
-extern void show_stack(unsigned long *esp);
+extern void show_stack(struct task_struct *task, unsigned long *esp);
 extern void cond_resched(void);
 
 static char panic_buf[REISER4_PANIC_MSG_BUFFER_SIZE];
