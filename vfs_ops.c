@@ -563,6 +563,7 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 	REISER4_EXIT( result );
 }
 
+/* nikita-fixme-hans: comment all functions and their parameters */
 static int reiser4_vm_writeback( struct page *page, int *nr_to_write )
 {
 	return page_common_writeback( page, nr_to_write, JNODE_FLUSH_MEMORY_UNFORMATTED);
