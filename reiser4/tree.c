@@ -1111,7 +1111,7 @@ void *unallocated_disk_addr_to_ptr( const reiser4_disk_addr *addr )
 {
 	assert( "nikita-1688", addr != NULL );
 	assert( "nikita-1689", is_disk_addr_unallocated( addr ) );
-	return addr -> blk & ~UNALLOCATED_BIT_MASK;
+	return ( void * ) ( long ) ( addr -> blk & ~UNALLOCATED_BIT_MASK );
 }
 
 /* grab right neighbor of @insert_coord->node and shift as much as possible of
