@@ -1,5 +1,5 @@
 /*
-    tree.c -- reiser4 balanced tree code.
+    tree.c -- reiser4 tree cache code.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */

@@ -26,6 +26,7 @@
 #include <aux/aux.h>
 #include <misc/misc.h>
 
+/* Prints mkfs options */
 static void mkfs_print_usage(char *name) {
     fprintf(stderr, "Usage: %s [ options ] "
 	"FILE1 FILE2 ... [ size[K|M|G] ]\n", name);
@@ -50,6 +51,7 @@ static void mkfs_print_usage(char *name) {
 	"  -K | --known-profiles          prints known profiles.\n");
 }
 
+/* Initializes used by mkfs exception streams */
 static void mkfs_init(void) {
     int i;
 
@@ -259,10 +261,17 @@ int main(int argc, char *argv[]) {
 	if (stat(host_dev, &st) == -1)
 	    goto error_free_libreiser4;
     
+	/* 
+	    Checking is passed device is a block device. If so, we check also
+	    is it whole drive or just a partition. If the device is not a block
+	    device, then we emmit exception and propose user to use -f flag to 
+	    force.
+	*/
 	if (!S_ISBLK(st.st_mode)) {
 	    if (!force) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Device \"%s\" is not block device. Use -f to force over.", host_dev);
+		    "Device \"%s\" is not block device. "
+		    "Use -f to force over.", host_dev);
 		goto error_free_libreiser4;
 	    }
 	} else {
@@ -270,7 +279,8 @@ int main(int argc, char *argv[]) {
 		(SCSI_BLK_MAJOR(MAJOR(st.st_rdev)) && MINOR(st.st_rdev) % 16 == 0)) && !force)
 	    {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Device \"%s\" is an entire harddrive, not just one partition.", host_dev);
+		    "Device \"%s\" is an entire harddrive, not "
+		    "just one partition.", host_dev);
 		goto error_free_libreiser4;
 	    }
 	}
@@ -278,10 +288,12 @@ int main(int argc, char *argv[]) {
 	/* Checking if passed partition is mounted */
 	if (progs_misc_dev_mounted(host_dev, NULL) && !force) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Device \"%s\" is mounted at the moment. Use -f to force over.", host_dev);
+		"Device \"%s\" is mounted at the moment. "
+		"Use -f to force over.", host_dev);
 	    goto error_free_libreiser4;
 	}
 
+	/* Generating uuid if it was not specified and if libuuid is in use */
 #ifdef HAVE_LIBUUID
 	if (aal_strlen(uuid) == 0)
 	    uuid_generate(uuid);
@@ -341,7 +353,12 @@ int main(int argc, char *argv[]) {
 	    reiser4_object_close(object);
 	}
 	
-	/* Flushing all filesystem buffers onto the device */
+	/* 
+	    Flushing all filesystem buffers onto the device. In this time are 
+	    flushing master super block, format specific super block, oid allocator
+	    data, block allocator data (alloc40 which in use flushes bitmap) and
+	    tree cache.
+	*/
 	if (reiser4_fs_sync(fs)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't synchronize created filesystem.");
@@ -353,7 +370,9 @@ int main(int argc, char *argv[]) {
 	aal_gauge_rename("Synchronizing \"%s\"", host_dev);
 	aal_gauge_start();
 	
-	/* Synchronizing device */
+	/* Synchronizing device. If device we are using is a file_device 
+	    (libaal/file.c), then function fsync will be called.
+	*/
 	if (aal_device_sync(device)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't synchronize device %s.", aal_device_name(device));
@@ -374,6 +393,7 @@ int main(int argc, char *argv[]) {
 	
 	aal_gauge_done();
 
+	/* Deinitializing filesystem instance and device instance */
 	reiser4_fs_close(fs);
 	aal_file_close(device);
     }
@@ -381,6 +401,11 @@ int main(int argc, char *argv[]) {
     /* Freeing the all used objects */
     aal_gauge_free();
     aal_list_free(devices);
+
+    /* 
+	Deinitializing libreiser4. At the moment only plugins are unloading 
+	durrign this.
+    */
     libreiser4_done();
     
     return NO_ERROR;
