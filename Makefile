@@ -5,7 +5,6 @@
 obj-$(CONFIG_REISER4_FS) += reiser4.o
 
 EXTRA_CFLAGS += \
-	       -Wpointer-arith \
            -Wformat \
 	       -Wundef \
            -Wunused \
@@ -15,6 +14,7 @@ EXTRA_CFLAGS += \
 	       -Wno-write-strings \
 	       -Wno-sign-compare
 
+#	       -Wpointer-arith \
 #	       -Wlarger-than-16384 \
 #	       -Winline \
 
