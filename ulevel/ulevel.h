@@ -474,7 +474,7 @@ struct super_block {
 	struct dentry *s_root;
 	struct super_operations *s_op;
 	union {
-		struct reiser4_sb_info      reiser4_sb;
+		void * generic_sbp;
 	} u;
 };
 
@@ -730,6 +730,7 @@ struct buffer_head {
 	char * b_data;
 	struct buffer_head * b_this_page;
 	struct block_device * b_bdev;
+	int b_count;
 };
 #define BH2_New 1
 #define BH2_Mapped 2
@@ -782,6 +783,7 @@ void map_bh (struct buffer_head * bh, struct super_block * sb,
 	     unsigned long long block);
 int generic_commit_write(struct file *, struct page *, unsigned, unsigned);
 
+
 /* include/linux/locks.h */
 void wait_on_buffer(struct buffer_head *);
 
@@ -795,7 +797,14 @@ struct page *read_cache_page(struct address_space *mapping, unsigned long idx,
 			     int (*filler)(void *,struct page*), void *data);
 
 /* fs/buffer.c */
+struct buffer_head * sb_bread(struct super_block *sb, int block);
+void brelse (struct buffer_head *);
 
+/* include/linux/dcache.h */
+struct dentry * d_alloc_root(struct inode *);
+
+/* fs/block_dev.c */
+int sb_set_blocksize(struct super_block *, int);
 
 /* include/asm/highmem.h */
 char *kmap (struct page * page);
