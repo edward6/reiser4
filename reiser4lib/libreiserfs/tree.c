@@ -7,37 +7,11 @@
 #include <reiserfs/reiserfs.h>
 #include <reiserfs/debug.h>
 
-/* 
-    Tree functions which work with root node will 
-    work through node API later. 
-*/
-int reiserfs_tree_node_check(reiserfs_fs_t *fs, aal_block_t *block) {    
-    reiserfs_plugin_id_t id;
-    reiserfs_plugin_t *plugin;
-    reiserfs_node_common_header_t *header;
-
-    ASSERT(fs != NULL, return 0);
-    ASSERT(block != NULL, return 0);
-
-    if (!(plugin = reiserfs_plugin_find(REISERFS_NODE_PLUGIN, 
-				    reiserfs_get_node_plugin_id (block)))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-035", 
-	    "Can't find node plugin for root node by its identifier %x.",
-	    reiserfs_get_node_plugin_id (block) );
-	return 0;
-    }
-    
-    reiserfs_plugin_check_routine(plugin->node, check, return 0);
-    return plugin->node.check(block, 0);
-}
-
 int reiserfs_tree_open(reiserfs_fs_t *fs) {
-    /*
     blk_t root_block;
     aal_block_t *block;
     reiserfs_plugin_id_t id;
     reiserfs_plugin_t *plugin;
-    reiserfs_node_common_header_t *header;
 
     ASSERT(fs != NULL, return 0);
     ASSERT(fs->super != NULL, return 0);
@@ -58,38 +32,37 @@ int reiserfs_tree_open(reiserfs_fs_t *fs) {
 	    "Can't read root block %d.", block);
 	goto error_free_tree;
     }
-
-    header = (reiserfs_node_common_header_t *)block->data;
-    id = get_nh_plugin_id(header);
     
+    if (!(fs->tree->root = reiserfs_node_open(block))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-045", 
+	    "Can't initialize root node of the tree.");
+	goto error_free_block;
+    }
+    
+/*    id = reiserfs_node_plugin(fs->tree->root);
     if (!(plugin = reiserfs_plugin_find(REISERFS_NODE_PLUGIN, id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-039", 
 	    "Can't find node plugin for root node by its identifier %x.", id);
-	goto error_free_block;
+	goto error_free_node;
     }
-    fs->tree->plugin = plugin;
+    fs->tree->plugin = plugin;*/
 
-    reiserfs_plugin_check_routine(plugin->node, open, goto error_free_block);
-    if (!(fs->tree->entity = plugin->node.open(block))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-040", 
-	    "Can't open node %d.", aal_block_location(block));
-	goto error_free_block;
-    }
-	    
     return 1;
 
+error_free_root:
+    reiserfs_node_close(fs->tree->root, 0);
 error_free_block:
     aal_block_free(block);
 error_free_tree:
     aal_free(fs->tree);
-error:*/
+    fs->tree = NULL;
+error:
     return 0;
 }
 
 int reiserfs_tree_create(reiserfs_fs_t *fs) {
-    /*
     blk_t root_block;
-    reiserfs_plugin_id_t id;
+    aal_block_t *block;
     reiserfs_plugin_t *plugin;
     
     ASSERT(fs != NULL, return 0);
@@ -106,25 +79,34 @@ int reiserfs_tree_create(reiserfs_fs_t *fs) {
 	goto error_free_tree;
     }
     
-    id = reiserfs_super_node_plugin(fs);
-    if (!(plugin = reiserfs_plugin_find(REISERFS_NODE_PLUGIN, id))) {
+    if (!(plugin = reiserfs_plugin_find(REISERFS_NODE_PLUGIN, 0x01))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-037", 
-	    "Can't find node plugin by its identifier %x.", id);
+	    "Can't find node plugin by its identifier %x.", 0x01);
 	goto error_free_tree;
     }
     fs->tree->plugin = plugin;
     
-    reiserfs_plugin_check_routine(plugin->node, create, goto error_free_tree);
-    if (!(fs->tree->entity = plugin->node->create(REISERFS_NODE_LEAF))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-038", 
-	    "Can't create root node.");
+    if (!(block = aal_block_alloc(fs->device, root_block, 0))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-046", 
+	    "Can't allocate root block.");
 	goto error_free_tree;
-    }*/
+    }
+    
+    if (!(fs->tree->root = reiserfs_node_create(block, REISERFS_ROOT_LEVEL)))
+	goto error_free_block;
+    
+/*    if (!reiserfs_node_sync(fs->tree->root))
+	goto error_free_root;*/
     
     return 1;
 
+/*error_free_root:
+    reiserfs_node_close(fs->tree->root, 0);*/
+error_free_block:
+    aal_block_free(block);
 error_free_tree:
     aal_free(fs->tree);
+    fs->tree = NULL;
 error:
     return 0;
 }
@@ -133,8 +115,10 @@ void reiserfs_tree_close(reiserfs_fs_t *fs, int sync) {
     ASSERT(fs != NULL, return);
     ASSERT(fs->tree != NULL, return);
     
-    reiserfs_plugin_check_routine(fs->tree->plugin->node, close, return);
-    fs->tree->plugin->node.close(fs->tree->entity, 1);
+    reiserfs_node_close(fs->tree->root, 1);    
+
+error_free_tree:
     aal_free(fs->tree);
     fs->tree = NULL;
 }
+
