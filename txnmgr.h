@@ -17,18 +17,44 @@
 
 /* LIST TYPES */
 
-TS_LIST_DECLARE(atom);		/* The manager's list of atoms */
-TS_LIST_DECLARE(txnh);		/* The atom's list of handles */
-/* NIKITA-FIXME-HANS: josh is gone, so you must clean this file up */
-/* FIXME!!! Comments unclear, names even worse? */
-TS_LIST_DECLARE(fwaitfor);	/* Each atom has one of these lists: one for its own handles */
-TS_LIST_DECLARE(fwaiting);	/* waiting on another atom and one for reverse mapping.  Used
-				 * to prevent deadlock in the ASTAGE_CAPTURE_WAIT state. */
+/* list of all atoms controlled by single transaction manager (that is, file
+ * system) */
+TS_LIST_DECLARE(atom);
+/* list of transaction handles attached to given atom */
+TS_LIST_DECLARE(txnh);
 
-TS_LIST_DECLARE(capture);	/* The transaction's list of captured znodes */
+/* 
+ * ->fwaitfor and ->fwaiting lists.
+ *
+ * Each atom has one of these lists: one for its own handles waiting on
+ * another atom and one for reverse mapping.  Used to prevent deadlock in the
+ * ASTAGE_CAPTURE_WAIT state. 
+ *
+ * Thread that needs to wait for a given atom, attaches itself to the atom's
+ * ->fwaitfor list. This is done in atom_wait_event() (and, in
+ * capture_fuse_wait()). All threads waiting on this list are waked up
+ * whenever "event" occurs for this atom: it changes stage, commits, flush
+ * queue is released, etc. This is used, in particular, to implement sync(),
+ * where thread has to wait until atom commits.
+ */
+TS_LIST_DECLARE(fwaitfor);
+
+/*
+ * This list is used to wait for atom fusion (in capture_fuse_wait()). Threads
+ * waiting on this list are waked up if atom commits or is fused into another.
+ *
+ * This is used in capture_fuse_wait() which see for more comments.
+ */
+TS_LIST_DECLARE(fwaiting);	
+
+/* The transaction's list of captured jnodes */
+TS_LIST_DECLARE(capture);
 
 TS_LIST_DECLARE(blocknr_set);	/* Used for the transaction's delete set
 				 * and wandered mapping. */
+
+/* list of flush queues attached to a given atom */
+TS_LIST_DECLARE(fq);
 
 /* TYPE DECLARATIONS */
 
@@ -144,32 +170,63 @@ typedef enum {
    guaranteed to make progress and to avoid restarts.
   
    This decision, however, means additional complexity for aquiring the atom lock in the
-   first place.  The general procedure followed in the code is:
+   first place.  
+
+   The general original procedure followed in the code was:
   
-   TXN_OBJECT *obj = ...;
-   TXN_ATOM   *atom;
+       TXN_OBJECT *obj = ...;
+       TXN_ATOM   *atom;
+
+       spin_lock (& obj->_lock);
   
-   spin_lock (& obj->_lock);
+       atom = obj->_atom;
   
-   atom = obj->_atom;
+       if (! spin_trylock_atom (atom))
+         {
+           spin_unlock (& obj->_lock);
+           RESTART OPERATION, THERE WAS A RACE;
+         }
   
-   if (! spin_trylock_atom (atom))
-     {
-       spin_unlock (& obj->_lock);
-       RESTART OPERATION, THERE WAS A RACE;
-     }
+       ELSE YOU HAVE BOTH ATOM AND OBJ LOCKED
+
+
+   It has however been found that this wastes CPU a lot in a manner that is
+   hard to profile. So, proper refcounting was added to atoms, and new
+   standard locking sequence is like following:
+
+       TXN_OBJECT *obj = ...;
+       TXN_ATOM   *atom;
+
+       spin_lock (& obj->_lock);
   
-   ELSE YOU HAVE BOTH ATOM AND OBJ LOCKED
+       atom = obj->_atom;
   
-   See the getatom_locked() method for a common case.
+       if (! spin_trylock_atom (atom))
+         {
+           atomic_inc (& atom->refcount);
+           spin_unlock (& obj->_lock);
+           spin_lock (&atom->_lock);
+           atomic_dec (& atom->refcount);
+           // HERE atom is locked
+           spin_unlock (&atom->_lock);
+           RESTART OPERATION, THERE WAS A RACE;
+         }
+  
+       ELSE YOU HAVE BOTH ATOM AND OBJ LOCKED
+
+   (core of this is implemented in trylock_throttle() function)
+
+   See the atom_locked_by_jnode() function for a common case.
+
+   As an additional (and important) optimization allowing to avoid restarts,
+   it is possible to re-check required pre-conditions at the HERE point in
+   code above and proceed without restarting if they are still satisfied.
 */
 
 /* A block number set consists of only the list head. */
 struct blocknr_set {
 	blocknr_set_list_head entries;
 };
-
-TS_LIST_DECLARE(fq);
 
 /* An atomic transaction: this is the underlying system representation
    of a transaction, not the one seen by clients. 
@@ -183,10 +240,15 @@ struct txn_atom {
 	   changes. */
 	reiser4_spin_data alock;
 
-	/* The atom's reference counter, it became atomic for increasing (in
-	   case of a duplication of an existing reference or when we are sure
-	   that some other reference exists) without taking spinlock,
-	   decrementing of the ref. counter requires a spinlock to be held */
+	/* The atom's reference counter, increasing (in case of a duplication
+	   of an existing reference or when we are sure that some other
+	   reference exists) may be done without taking spinlock, decrementing
+	   of the ref. counter requires a spinlock to be held.
+
+	   Each transaction handle counts in ->refcount. All jnodes count as
+	   one reference acquired in atom_begin_andlock(), released in
+	   commit_current_atom().
+	*/
 	atomic_t refcount;
 
 	/* The atom_id identifies the atom in persistent records such as the log. */
@@ -320,6 +382,7 @@ struct txn_mgr {
 	unsigned int atom_max_age;
 };
 
+/* list of all transaction managers in a system */
 TS_LIST_DEFINE(txn_mgrs, txn_mgr, linkage);
 
 /* FUNCTION DECLARATIONS */
