@@ -64,7 +64,7 @@ _INIT_(sinfo)
 	sema_init(&sbinfo->delete_sema, 1);
 	sema_init(&sbinfo->flush_sema, 1);
 	s->s_op = &reiser4_super_operations;
-
+	s->s_export_op = &reiser4_export_operations;
 	spin_super_init(sbinfo);
 	spin_super_eflush_init(sbinfo);
 
@@ -347,6 +347,16 @@ _DONE_(sysfs)
 	reiser4_sysfs_done(s);
 }
 
+_INIT_(sysctl)
+{
+	return reiser4_sysctl_init();
+}
+
+_DONE_(sysctl)
+{
+	reiser4_sysctl_done();
+}
+
 _INIT_(repacker)
 {
 	return init_reiser4_repacker(s);
@@ -388,6 +398,7 @@ static struct reiser4_subsys subsys_array[] = {
 	_SUBSYS(cbk_cache),
 	_SUBSYS(fs_root),
 	_SUBSYS(sysfs),
+	_SUBSYS(sysctl),
 	_SUBSYS(repacker),
 	_SUBSYS(exit_context)
 };
