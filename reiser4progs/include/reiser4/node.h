@@ -86,11 +86,11 @@ extern void reiserfs_node_item_set_pointer(reiserfs_node_t *node,
     uint32_t pos, blk_t blk); 
 
 extern error_t reiserfs_node_item_estimate(reiserfs_node_t *node, 
-    reiserfs_item_info_t *info, reiserfs_unit_coord_t *coord);
+    reiserfs_item_hint_t *hint, reiserfs_unit_coord_t *coord);
 
 extern error_t reiserfs_node_item_insert(reiserfs_node_t *node, 
     reiserfs_unit_coord_t *coord, reiserfs_key_t *key, 
-    reiserfs_item_info_t *info);
+    reiserfs_item_hint_t *hint);
 
 #endif
 

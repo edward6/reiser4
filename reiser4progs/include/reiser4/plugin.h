@@ -148,14 +148,6 @@ struct reiserfs_item_common_ops {
     */
     error_t (*max_key) (void *);
     
-    /* 
-	Unit-working routines. 	We need to create special opaque 
-	type for item_info and unit_info. But for awhile it will 
-	be void *.
-
-	Vitaly: No, we should not. I wrote about it already in 
-	filesystem.h. 
-    */
     int (*unit_add) (void *, void *, void *);
     uint16_t (*unit_count) (void *);
     int (*unit_remove) (void *, int32_t, int32_t);
@@ -502,7 +494,7 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
     Create item or paste into item on the base of this structure. 
     "data" is a pointer to data to be copied. 
 */ 
-struct reiserfs_item_info {    
+struct reiserfs_item_hint {    
     void *data;
     void *info;
 
@@ -510,54 +502,56 @@ struct reiserfs_item_info {
     reiserfs_plugin_t *plugin;
 };
 
-typedef struct reiserfs_item_info reiserfs_item_info_t;
+typedef struct reiserfs_item_hint reiserfs_item_hint_t;
 
-struct reiserfs_internal_info {    
+struct reiserfs_internal_hint {    
     blk_t blk;
 };
 
-typedef struct reiserfs_internal_info reiserfs_internal_info_t;
+typedef struct reiserfs_internal_hint reiserfs_internal_hint_t;
 
 /*  
     These fields should be changed to what proper description 
     of needed extentions. 
 */
-struct reiserfs_stat_info {
+struct reiserfs_stat_hint {
     uint16_t mode;
     uint16_t extmask;
     uint32_t nlink;
     uint64_t size;
 };
 
-typedef struct reiserfs_stat_info reiserfs_stat_info_t;
+typedef struct reiserfs_stat_hint reiserfs_stat_hint_t;
 
-struct reiserfs_entry_info {
+struct reiserfs_entry_hint {
     uint64_t locality;
     uint64_t objectid;
     char *name;
 };
 
-typedef struct reiserfs_entry_info reiserfs_entry_info_t;
+typedef struct reiserfs_entry_hint reiserfs_entry_hint_t;
 
-struct reiserfs_direntry_info {
-    uint64_t parent_id;
-    uint64_t object_id;
+struct reiserfs_direntry_hint {
     uint16_t count;
-    reiserfs_entry_info_t *entry;
-    /* 
-	FIXME_VITALY: key_plugin should be probably saved 
-	at plugin initializing time.
-    */
+    reiserfs_entry_hint_t *entry;
+    
     reiserfs_plugin_t *key_plugin;
     reiserfs_plugin_t *hash_plugin;    
 };
 
-typedef struct reiserfs_direntry_info reiserfs_direntry_info_t;
+typedef struct reiserfs_direntry_hint reiserfs_direntry_hint_t;
 
-struct reiserfs_dir_info {
+struct reiserfs_dir_hint {
 };
 
-typedef struct reiserfs_dir_info reiserfs_dir_info_t;
+typedef struct reiserfs_dir_hint reiserfs_dir_hint_t;
+
+struct reiserfs_object_hint {
+    uint16_t count;
+    reiserfs_item_hint_t items[0];
+};
+
+typedef struct reiserfs_object_hint reiserfs_object_hint_t;
 
 struct reiserfs_unit_coord {
     int16_t item_pos;

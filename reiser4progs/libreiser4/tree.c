@@ -78,8 +78,8 @@ reiserfs_tree_t *reiserfs_tree_create(aal_device_t *device,
     reiserfs_unit_coord_t coord;
     reiserfs_node_t *squeeze, *leaf;
     
-    reiserfs_item_info_t item_info;
-    reiserfs_internal_info_t internal_info;
+    reiserfs_item_hint_t item_hint;
+    reiserfs_internal_hint_t internal_hint;
 
     aal_assert("umka-129", device != NULL, return NULL);
     aal_assert("umka-741", alloc != NULL, return NULL);
@@ -112,11 +112,11 @@ reiserfs_tree_t *reiserfs_tree_create(aal_device_t *device,
     }
 
     /* Initialize internal item. */
-    aal_memset(&item_info, 0, sizeof(item_info));
-    internal_info.blk = block_nr;
-    item_info.info = &internal_info;
+    aal_memset(&item_hint, 0, sizeof(item_hint));
+    internal_hint.blk = block_nr;
+    item_hint.info = &internal_hint;
     
-    if (!(item_info.plugin = libreiser4_factory_find_by_coord(REISERFS_ITEM_PLUGIN, 
+    if (!(item_hint.plugin = libreiser4_factory_find_by_coord(REISERFS_ITEM_PLUGIN, 
 	internal_plugin_id))) 
     {
     	libreiser4_factory_find_failed(REISERFS_ITEM_PLUGIN, internal_plugin_id,
@@ -130,7 +130,7 @@ reiserfs_tree_t *reiserfs_tree_create(aal_device_t *device,
 	Insert an internal item. Item will be created automatically from 
 	the node insert API method. 
     */
-    if (reiserfs_node_item_insert(squeeze, &coord, tree->root_key, &item_info)) {
+    if (reiserfs_node_item_insert(squeeze, &coord, tree->root_key, &item_hint)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
 	    aal_block_get_nr(squeeze->block));
@@ -273,7 +273,7 @@ int reiserfs_tree_lookup(reiserfs_tree_t *tree,
     functions.
 */
 error_t reiserfs_tree_item_insert(reiserfs_tree_t *tree, 
-    reiserfs_key_t *key, reiserfs_item_info_t *item_info)
+    reiserfs_key_t *key, reiserfs_item_hint_t *hint)
 {
     return -1;
 }

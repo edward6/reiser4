@@ -19,26 +19,26 @@ static reiserfs_plugin_factory_t *factory = NULL;
 
 /* Forms internal item in given memory area */
 static error_t internal40_create(reiserfs_internal40_t *internal, 
-    reiserfs_item_info_t *info) 
+    reiserfs_item_hint_t *hint) 
 {
-    reiserfs_internal_info_t *inter_info; 
+    reiserfs_internal_hint_t *internal_hint; 
     
     aal_assert("vpf-063", internal != NULL, return -1); 
-    aal_assert("vpf-064", info != NULL, return -1);
-    aal_assert("vpf-065", info->info != NULL, return -1);
+    aal_assert("vpf-064", hint != NULL, return -1);
+    aal_assert("vpf-065", hint->info != NULL, return -1);
 
-    inter_info = info->info; 
-    int40_set_blk(internal, inter_info->blk);
+    internal_hint = hint->info; 
+    int40_set_blk(internal, internal_hint->blk);
 	    
     return 0;
 }
 
-static error_t internal40_estimate(reiserfs_item_info_t *info, 
+static error_t internal40_estimate(reiserfs_item_hint_t *hint, 
     reiserfs_unit_coord_t *coord) 
 {
-    aal_assert("vpf-068", info != NULL, return -1);
+    aal_assert("vpf-068", hint != NULL, return -1);
 
-    info->length = sizeof(reiserfs_internal40_t);
+    hint->length = sizeof(reiserfs_internal40_t);
     return 0;
 }
 

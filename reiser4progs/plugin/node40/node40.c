@@ -120,7 +120,7 @@ static void node40_item_set_plugin_id(aal_block_t *block,
 
 static error_t node40_prepare_space(aal_block_t *block, 
     reiserfs_unit_coord_t *coord, reiserfs_key_t *key, 
-    reiserfs_item_info_t *info) 
+    reiserfs_item_hint_t *hint) 
 {
     void *body;
     int i, item_pos;
@@ -132,12 +132,12 @@ static error_t node40_prepare_space(aal_block_t *block,
     int is_new_item = 0;
 
     aal_assert("vpf-006", coord != NULL, return -1);
-    aal_assert("vpf-007", info != NULL, return -1);
+    aal_assert("vpf-007", hint != NULL, return -1);
     aal_assert("umka-712", key != NULL, return -1);
     aal_assert("umka-713", key->plugin != NULL, return -1);
 
     is_enought_space = (nh40_get_free_space(reiserfs_nh40(block)) >= 
-	info->length + sizeof(reiserfs_ih40_t));
+	hint->length + sizeof(reiserfs_ih40_t));
 
     is_inside_range = coord->item_pos <= node40_item_count(block);
     
@@ -157,15 +157,15 @@ static error_t node40_prepare_space(aal_block_t *block,
     if (item_pos < nh40_get_num_items(nh)) {
 	offset = ih40_get_offset(ih);
 
-	aal_memcpy(block->data + offset + info->length, 
+	aal_memcpy(block->data + offset + hint->length, 
 		block->data + offset, nh40_get_free_space_start(nh) - offset);
 	
 	for (i = item_pos; i < nh40_get_num_items(nh); i++, ih--) 
-	    ih40_set_offset(ih, ih40_get_offset(ih) + info->length);
+	    ih40_set_offset(ih, ih40_get_offset(ih) + hint->length);
 
 	if (!is_new_item) {	    
 	    ih = node40_ih_at(block, coord->item_pos);
-	    ih40_set_length(ih, ih40_get_length(ih) + info->length);
+	    ih40_set_length(ih, ih40_get_length(ih) + hint->length);
 	} else {
 	    /* ih is set at the last item head - 1 in the last _for_ clause */
 	    aal_memcpy(ih, ih + 1, sizeof(reiserfs_ih40_t) * 
@@ -180,10 +180,10 @@ static error_t node40_prepare_space(aal_block_t *block,
     
     /* Update node header */
     nh40_set_free_space(nh, nh40_get_free_space(nh) - 
-	info->length - (is_new_item ? sizeof(reiserfs_ih40_t) : 0));
+	hint->length - (is_new_item ? sizeof(reiserfs_ih40_t) : 0));
     
     nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) + 
-	info->length);
+	hint->length);
     
     if (!is_new_item)	
 	return 0;
@@ -193,43 +193,43 @@ static error_t node40_prepare_space(aal_block_t *block,
 	key->plugin->key, size,));
     
     ih40_set_offset(ih, offset);
-    ih40_set_plugin_id(ih, info->plugin->h.id);
-    ih40_set_length(ih, info->length);
+    ih40_set_plugin_id(ih, hint->plugin->h.id);
+    ih40_set_length(ih, hint->length);
     
     return 0;
 }
 
-/* Inserts item described by info structure into node. */
+/* Inserts item described by hint structure into node. */
 static error_t node40_item_insert(aal_block_t *block, 
     reiserfs_unit_coord_t *coord, reiserfs_key_t *key, 
-    reiserfs_item_info_t *info) 
+    reiserfs_item_hint_t *hint) 
 { 
     reiserfs_nh40_t *nh;
     
     aal_assert("vpf-119", coord != NULL && coord->unit_pos == -1, return -1);
     
-    if (node40_prepare_space(block, coord, key, info))
+    if (node40_prepare_space(block, coord, key, hint))
 	return -1;
 
     nh = reiserfs_nh40(block);
     nh40_set_num_items(nh, nh40_get_num_items(nh) + 1);
     
-    return libreiser4_plugin_call(return -1, info->plugin->item.common,
-	create, node40_item_at_pos(block, coord->item_pos), info);
+    return libreiser4_plugin_call(return -1, hint->plugin->item.common,
+	create, node40_item_at_pos(block, coord->item_pos), hint);
 }
 
-/* Pastes units into item described by info structure. */
+/* Pastes units into item described by hint structure. */
 static error_t node40_item_paste(aal_block_t *block, 
     reiserfs_unit_coord_t *coord, reiserfs_key_t *key, 
-    reiserfs_item_info_t *info) 
+    reiserfs_item_hint_t *hint) 
 {   
     aal_assert("vpf-120", coord != NULL && coord->unit_pos != -1, return -1);
     
-    if (node40_prepare_space(block, coord, key, info))
+    if (node40_prepare_space(block, coord, key, hint))
 	return -1;
 
-    return libreiser4_plugin_call(return -1, info->plugin->item.common,
-	unit_add, node40_item_at_pos(block, coord->item_pos), coord, info);
+    return libreiser4_plugin_call(return -1, hint->plugin->item.common,
+	unit_add, node40_item_at_pos(block, coord->item_pos), coord, hint);
 }
 
 /*

@@ -29,7 +29,7 @@ endif
 
 libreiser4_la_SOURCES  = libreiser4.c filesystem.c format.c journal.c \
 			 alloc.c oid.c tools.c plugin.c node.c tree.c \
-			 key.c object.c dir.c
+			 key.c object.c
 
 libplugins_header_la_SOURCES = plugins_header.c
 libplugins_footer_la_SOURCES = plugins_footer.c

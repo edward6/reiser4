@@ -32,7 +32,7 @@ extern error_t reiserfs_tree_sync(reiserfs_tree_t *tree);
 extern error_t reiserfs_tree_flush(reiserfs_tree_t *tree);
 
 extern error_t reiserfs_tree_item_insert(reiserfs_tree_t *tree, 
-    reiserfs_key_t *key, reiserfs_item_info_t *item_info);
+    reiserfs_key_t *key, reiserfs_item_hint_t *hint);
 
 extern error_t reiserfs_tree_item_remove(reiserfs_tree_t *tree, 
     reiserfs_key_t *key);
