@@ -8,16 +8,6 @@ typedef struct {
 	reiser4_dblock_nr width;
 } reiser4_extent;
 
-/*
- * this structure is used to pass both coord and lock handle from extent_read
- * down to extent_readpage via read_cache_page which can deliver to filler only
- * one parameter specified by its caller
- */
-struct readpage_arg {
-	coord_t * coord;
-	lock_handle * lh;
-};
-
 
 /* macros to set/get fields of on-disk extent */
 static inline reiser4_block_nr extent_get_start(const reiser4_extent *ext)
