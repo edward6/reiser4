@@ -216,10 +216,9 @@ int init_inode( struct inode *inode /* inode to intialise */,
 			self = reiser4_inode_data( inode );
 			root = reiser4_inode_data
 				( inode -> i_sb -> s_root -> d_inode );
-			if( self -> file == NULL )
-				self -> file = root -> file;
-			if( self -> dir == NULL )
-				self -> dir = root -> dir;
+			/*
+			 * file and directory plugins are already initialised.
+			 */
 			if( self -> sd == NULL )
 				self -> sd = root -> sd;
 			if( self -> hash == NULL )
