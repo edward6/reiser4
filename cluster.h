@@ -210,7 +210,7 @@ int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
 void forget_cluster_pages(reiser4_cluster_t *);
 int flush_cluster_pages(reiser4_cluster_t *, jnode *, struct inode *);
 int deflate_cluster(reiser4_cluster_t *, struct inode *);
-void truncate_cluster(struct inode * inode, pgoff_t start, long count);
+void truncate_page_clusters(struct inode * inode, cloff_t start, unsigned long count);
 void set_hint_cluster(struct inode * inode, hint_t * hint, unsigned long index, znode_lock_mode mode);
 int get_disk_cluster_locked(reiser4_cluster_t * clust, znode_lock_mode lock_mode);
 int hint_prev_cluster(reiser4_cluster_t * clust, struct inode * inode);
