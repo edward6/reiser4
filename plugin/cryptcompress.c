@@ -727,7 +727,7 @@ make_cluster_jnodes_dirty(reiser4_cluster_t * clust)
 		assert("edward-221", node != NULL);
 		
 		LOCK_JNODE(node);
-		unformatted_jnode_make_dirty(node);
+		jnode_make_dirty_locked(node);
 		UNLOCK_JNODE(node);
 		
 		jput(node);
