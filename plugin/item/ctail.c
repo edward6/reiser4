@@ -30,7 +30,6 @@ Internal on-disk structure:
 #include "../../inode.h"
 #include "../../super.h"
 #include "../../context.h"
-#include "ctail.h"
 #include "../../page_cache.h"
 #include "../../flush.h"
 
@@ -46,10 +45,17 @@ formatted_at(const coord_t * coord)
 	return item_body_by_coord(coord);
 }
 
-unsigned
+static unsigned
 cluster_size_by_coord(const coord_t * coord)
 {
 	return d32tocpu(&formatted_at(coord)->disk_cluster_size);
+}
+
+static unsigned long
+cluster_index_by_coord(const coord_t * coord)
+{
+	reiser4_key  key;
+	return get_key_offset(item_key_by_coord(coord, &key)) / cluster_size_by_coord(coord);
 }
 
 static char *
@@ -492,13 +498,6 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 	return;
 }
 
-/* plugin->u.item.s.file.write */
-int
-write_ctail(struct inode *inode, flow_t * f, hint_t *hint, int grabbed, write_mode_t mode)
-{
-	return 0;
-}
-
 /* 
    plugin->u.item.s.file.append_key
    key of first byte which is the next to last byte by addressed by this item
@@ -509,8 +508,8 @@ append_key_ctail(const coord_t *coord, reiser4_key *key)
 	return NULL;
 }
 
-int
-insert_cryptcompress_flow(coord_t * coord, lock_handle * lh, flow_t * f)
+static int
+insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 {
 	int result;
 	carry_pool pool;
@@ -543,6 +542,57 @@ insert_cryptcompress_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 	result = carry(&lowest_level, 0);
 	done_carry_pool(&pool);
 	
+	return result;
+}
+
+static int
+insert_crc_flow_in_place(coord_t * coord, lock_handle * lh, flow_t * f)
+{
+	int ret;
+	coord_t point;
+	lock_handle lock;
+
+	coord_dup (&point, coord);
+	init_lh (&lock);
+	copy_lh(&lock, lh);
+	
+	ret = insert_crc_flow(&point, &lock, f);
+	done_lh(&lock);
+	return ret;
+}
+
+static int
+overwrite_ctail(coord_t * coord, flow_t * flow)
+{
+	return 0;
+}
+
+static int
+cut_ctail(coord_t * coord)
+{
+	return 0;
+}
+
+/* plugin->u.item.s.file.write ? */
+int
+write_ctail(flow_t *f, coord_t *coord, lock_handle *lh, int grabbed, crc_write_mode_t mode)
+{
+	int result;
+	
+	switch (mode) {
+	case CRC_FIRST_ITEM:
+	case CRC_APPEND_ITEM:
+		result = insert_crc_flow_in_place(coord, lh, f);
+		break;
+	case CRC_OVERWRITE_ITEM:
+		result = overwrite_ctail(coord, f);
+		break;
+	case CRC_CUT_ITEM:
+		result = cut_ctail(coord);
+		break;
+	default:
+		assert("edward-244", 0);
+	}
 	return result;
 }
 
@@ -593,21 +643,178 @@ int scan_ctail(flush_scan * scan, const coord_t * in_coord)
 	result = flush_cluster_pages(&clust, inode);
 	if (result)
 		return result;
-	deflate_cluster(&clust, inode);
-	fplug->flow_by_inode(inode, clust.buf, 0, clust.len /* ??? */, clust.index << PAGE_CACHE_SHIFT, WRITE, &f);
-	/* insert processed data */
-	result = insert_cryptcompress_flow(&scan->parent_coord, /* insert point */
-					   &scan->parent_lock, &f);
+	result = deflate_cluster(&clust, inode);
 	if (result)
-		return result;
-
+		goto exit;
+	
+	fplug->flow_by_inode(inode, clust.buf, 0, clust.len, clust.index << PAGE_CACHE_SHIFT, WRITE, &f);
+	/* insert processed data */
+	result = insert_crc_flow(&scan->parent_coord, /* insert point */
+				 &scan->parent_lock, &f);
+	if (result)
+		goto exit;
+	
 	assert("edward-234", f.length == 0);
 	assert("edward-235", !coord_is_invalid(&scan->parent_coord));
-	
+
+ exit:	
 	put_cluster_data(&clust, inode);
+	return result;
+}
+
+/* how to write */
+static crc_write_mode_t
+guess_write_mode(flush_pos_t * pos, int child)
+{
+	ctail_squeeze_info_t * info;
+	
+	assert("edward-245", pos != NULL);
+	assert("edward-246", znode_is_wlocked(pos->coord.node));
+	assert("edward-247", znode_is_loaded(pos->coord.node));
+	
+	info = &pos->idata->ctail_info;
+	
+	if (!info->flow.length)
+		return CRC_CUT_ITEM;
+	
+	if (!child)
+		return CRC_APPEND_ITEM;
+	
+	return CRC_OVERWRITE_ITEM;
+}
+
+/* attach valid squeeze item data to the flush position */
+static int
+attach_squeeze_ctail_data(flush_pos_t * pos, struct inode * inode)
+{
+	int ret = 0;
+	file_plugin * fplug;
+	ctail_squeeze_info_t * info;
+	
+	assert("edward-248", pos != NULL);
+	assert("edward-249", pos->child != NULL);
+	assert("edward-250", pos->idata == NULL);
+	assert("edward-251", inode != NULL);
+
+	fplug = inode_file_plugin(inode);
+	
+	assert("edward-252", fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
+
+	pos->idata = reiser4_kmalloc(sizeof(flush_squeeze_item_data_t), GFP_KERNEL);
+	if (pos->idata == NULL)
+		return -ENOMEM;
+	
+	info = &pos->idata->ctail_info;
+	info->clust = reiser4_kmalloc(sizeof(reiser4_cluster_t), GFP_KERNEL);
+	if (info->clust == NULL) {
+		ret = -ENOMEM;
+		goto exit2;
+	}
+	reiser4_cluster_init(info->clust);
+	info->inode = inode;
+	info->clust->index = jnode_page(pos->child)->index;
+	
+	ret = flush_cluster_pages(info->clust, inode);
+	if (ret)
+		goto exit1;
+
+	ret = deflate_cluster(info->clust, inode);
+	if (ret)
+		goto exit1;
+	/* attach flow by cluster buffer */
+	fplug->flow_by_inode(info->inode, info->clust->buf, 0/* kernel space */, info->clust->len, 0, WRITE_OP, &info->flow);
+	jput(pos->child);
+ 	return 0;
+
+ exit1:
+	reiser4_kfree(info->clust, sizeof(reiser4_cluster_t));
+ exit2:
+	reiser4_kfree(pos->idata, sizeof(flush_squeeze_item_data_t));
+	jput(pos->child);
+        /* invalidate squeeze item info */
+	pos->idata = NULL;
+	return ret;
+}
+
+static void
+invalidate_squeeze_ctail_data(flush_squeeze_item_data_t * idata)
+{
+
+	ctail_squeeze_info_t * info;
+	
+	assert("edward-253", idata != NULL);
+	info = &idata->ctail_info;
+
+	assert("edward-254", info->clust != NULL);
+	assert("edward-255", info->inode != NULL);
+	assert("edward-256", info->clust->buf != NULL);
+
+	reiser4_kfree(info->clust->buf, inode_scaled_cluster_size(info->inode));
+	reiser4_kfree(info->clust, sizeof(reiser4_cluster_t));
+	reiser4_kfree(info, sizeof(ctail_squeeze_info_t));
+}
+
+/* plugin->u.item.f.utmost_child */
+
+/* This function sets leftmost child for a first cluster item,
+   if the child exists, and NULL in other cases.
+   NOTE-EDWARD: Do not call this for RIGHT_SIDE */
+
+int
+utmost_child_ctail(const coord_t * coord, sideof side, jnode ** child)
+{	
+	reiser4_key key;
+	
+	assert("edward-257", coord != NULL);
+	assert("edward-258", child != NULL);
+	assert("edward-259", side == LEFT_SIDE);
+	assert("edward-260", item_plugin_by_coord(coord) == item_plugin_by_id(CTAIL_ID));
+	
+	if (get_key_offset(item_key_by_coord(coord, &key)) % cluster_size_by_coord(coord))
+		*child = NULL;
+	else
+		*child = jlook_lock(current_tree, get_key_objectid(item_key_by_coord(coord, &key)), cluster_index_by_coord(coord));
 	return 0;
 }
 
+/* plugin->u.item.f.squeeze */
+/* @child == 1: attach squeeze item info to the @pos if it is not uptodate,
+   @child == 0: detach and invalidate it.
+*/
+int squeeze_ctail(flush_pos_t * pos, int child)
+{
+	int result;
+	ctail_squeeze_info_t * info;
+	
+	assert("edward-261", pos != NULL);
+	assert("edward-262", item_plugin_by_coord(&pos->coord) == item_plugin_by_id(CTAIL_ID));
+	
+	if (pos->idata == 0) {
+		
+		struct inode * inode;
+		
+		assert("edward-263", child != 0);
+		assert("edward-264", pos->child != NULL);
+		assert("edward-265", jnode_page(pos->child) != NULL);
+		assert("edward-266", jnode_page(pos->child)->mapping != NULL);
+		
+		inode = jnode_page(pos->child)->mapping->host;
+		
+		assert("edward-267", inode != NULL);
+		
+		/* attach item squeeze info by child and put the last one */
+		result = attach_squeeze_ctail_data(pos, inode);
+		pos->child = NULL;
+		if (result != 0)
+			return result;
+	}
+	
+	info = &pos->idata->ctail_info;
+	result = write_ctail(&info->flow, &pos->coord, &pos->lock, 0, guess_write_mode(pos, child));
+	if (result != 0 || child == 0)
+		invalidate_squeeze_ctail_data(pos->idata); 
+	return result;
+}
 
 
 
