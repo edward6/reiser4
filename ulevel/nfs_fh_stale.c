@@ -45,11 +45,13 @@ stats_t stats;
 static void *worker(void *arg);
 
 typedef struct params {
+	int         dirs;
 	int         files;
 	char       *buffer;
 	const char *filename;
 	int         fileno;
-	DIR        *cwd;
+	int         dirno;
+	DIR       **cwd;
 } params_t;
 
 static void sync_file(params_t *params);
@@ -68,12 +70,29 @@ static void _nap(int secs, int nanos);
 
 static void orderedname(params_t *params, char *name);
 
-int delta = 1;
-int max_sleep = 0;
-int max_buf_size = 4096 * 100;
-int max_size = 4096 * 100 * 1000;
-int verbose = 0;
-unsigned long long limit = 0;
+#define DEFAULT_THREADS 10
+#define DEFAULT_FILES 100
+#define DEFAULT_DIRS 1
+#define DEFAULT_ITERATIONS 10
+#define DEFAULT_DELTA 1
+#define DEFAULT_MAX_SLEEP 0
+#define DEFAULT_BUF_SIZE 4096 * 100
+#define DEFAULT_MAX_SIZE 4096 * 100 * 1000
+#define DEFAULT_VERBOSE 0
+#define DEFAULT_LIMIT 0
+#define DEFAULT_BENCHMARK 0
+
+int delta = DEFAULT_DELTA;
+int max_sleep = DEFAULT_MAX_SLEEP;
+int max_buf_size = DEFAULT_BUF_SIZE;
+int max_size = DEFAULT_MAX_SIZE;
+int verbose = DEFAULT_VERBOSE;
+unsigned long long limit = DEFAULT_LIMIT;
+int benchmark = DEFAULT_BENCHMARK;
+int files = DEFAULT_FILES;
+int dirs = DEFAULT_DIRS;
+
+DIR **cwds = NULL;
 
 /* random integer number in [0, n - 1] */
 #define RND(n) ((int)(((double)(n)) * rand() / (RAND_MAX + 1.0)))
@@ -136,7 +155,7 @@ op_t ops[] = {
 	}
 };
 
-const char optstring[] = "p:f:d:i:s:b:M:BvF:L:";
+const char optstring[] = "p:f:d:D:i:s:b:M:BvF:L:";
 
 static double
 rate(unsigned long events, int secs)
@@ -147,12 +166,50 @@ rate(unsigned long events, int secs)
 static void
 usage(char *argv0)
 {
+	char *progname;
+	op_t *op;
+
+	progname = strrchr(argv0, '/');
+	if (progname == NULL)
+		progname = argv0;
+	else
+		progname ++;
+
 	fprintf(stderr,
-		"usage: %s %s\n"
+		"usage: %s options\n"
 		"\n\tRandomly creates and removes files from multiple threads."
 		"\n\tCan be used to test NFS stale handle detection."
 		"\n\tCompiled from " __FILE__ " at " __DATE__ "\n\n",
-		argv0, optstring);
+		progname);
+	fprintf(stderr, "options, deafults in []\n"
+		"\t-p N   \tlaunch N concurrent processes [%i]\n"
+		"\t-f N   \toperate on N files [%i]\n"
+		"\t-d N   \tduplicate file set in N directories [%i]\n"
+		"\t-D N   \titeration takes N seconds [%i]\n"
+		"\t-i N   \tperform N iterations [%i]\n"
+		"\t-s N   \tsleep [0 .. N] nanoseconds between operations [%i]\n"
+		"\t-b N   \tmaximal buffer size is N bytes [%i]\n"
+		"\t-M N   \tmaximal file size is N bytes [%i]\n"
+		"\t-B     \tbenchmark mode: don't ever sleep [%i]\n"
+		"\t-v     \tincrease verbosity\n"
+		"\t-F op=N\tset relative frequence of op (see below) to N\n"
+		"\t-L N   \tlimit amount of used disk space to N kbytes [%i]\n",
+
+		DEFAULT_THREADS,
+		DEFAULT_FILES,
+		DEFAULT_DIRS,
+		DEFAULT_DELTA,
+		DEFAULT_ITERATIONS,
+		DEFAULT_MAX_SLEEP,
+		DEFAULT_BUF_SIZE,
+		DEFAULT_MAX_SIZE,
+		DEFAULT_BENCHMARK,
+		DEFAULT_LIMIT);
+
+	fprintf(stderr, "\noperations with default frequencies\n");
+	for (op = &ops[0] ; op->label ; ++ op) {
+		fprintf(stderr, "\t%s\t%i\n", op->label, op->freq);
+	}
 }
 
 static unsigned long long
@@ -170,17 +227,15 @@ getavail()
 	return buf.f_bsize * (buf.f_bavail >> 10);
 }
 
-int benchmark = 0;
-
 int
 main(int argc, char **argv)
 {
 	ret_t result;
-	int threads = 10;
-	int files = 100;
+	int threads = DEFAULT_THREADS;
 	int i;
-	int iterations = 10;
+	int iterations = DEFAULT_ITERATIONS;
 	int opt;
+	char dname[30];
 	unsigned long long initiallyavail;
 	unsigned long long used;
 	op_t *op;
@@ -200,6 +255,9 @@ main(int argc, char **argv)
 			files = atoi(optarg);
 			break;
 		case 'd':
+			dirs = atoi(optarg);
+			break;
+		case 'D':
 			delta = atoi(optarg);
 			break;
 		case 'i':
@@ -271,6 +329,20 @@ main(int argc, char **argv)
 
 	initiallyavail = getavail();
 
+	cwds = calloc(dirs, sizeof cwds[0]);
+	if (cwds == NULL) {
+		perror("calloc");
+		return 1;
+	}
+
+	for (i = 0; i < dirs; ++i) {
+		sprintf(dname, "d%x", i);
+		if (mkdir(dname, 0700) == -1 && errno != EEXIST) {
+			perror("mkdir");
+			return 1;
+		}
+	}
+
 	fprintf(stderr,
 		"%s: %i processes, %i files, delta: %i"
 		"\n\titerations: %i, sleep: %i, buffer: %i, max size: %i\n",
@@ -280,7 +352,7 @@ main(int argc, char **argv)
 		int rv;
 		pthread_t id;
 
-		rv = pthread_create(&id, NULL, worker, (void *) files);
+		rv = pthread_create(&id, NULL, worker, NULL);
 		if (rv != 0) {
 			fprintf(stderr,
 				"%s: pthread_create fails: %s(%i) while creating %i-%s thread\n",
@@ -350,9 +422,11 @@ worker(void *arg)
 	char fileName[30];
 
 	memset(&params, 0, sizeof params);
-	params.files    = (int) arg;
+	params.files    = files;
+	params.dirs     = dirs;
 	params.buffer   = malloc(max_buf_size);
 	params.filename = fileName;
+	params.cwd      = cwds;
 
 	while (1) {
 		op_t *op;
@@ -360,7 +434,8 @@ worker(void *arg)
 		int   freqreached;
 
 		params.fileno = RND(params.files);
-		sprintf(fileName, "%x", params.fileno);
+		params.dirno = RND(params.dirs);
+		sprintf(fileName, "d%x/%x", params.dirno, params.fileno);
 		randum = RND(stats.totfreq);
 		freqreached = 0;
 		for (op = &ops[0] ; op->label ; ++ op) {
@@ -396,7 +471,7 @@ sync_file(params_t *params)
 	fd = open(fileName, O_WRONLY);
 	if (fd == -1) {
 		if (errno != ENOENT) {
-			fprintf(stderr, "%s open: %s(%i)\n", fileName,
+			fprintf(stderr, "%s open/sync: %s(%i)\n", fileName,
 				strerror(errno), errno);
 			STEX(++stats.errors);
 		} else {
@@ -430,7 +505,7 @@ read_file(params_t *params)
 	fileName = params->filename;
 	fd = open(fileName, O_CREAT | O_APPEND | O_RDWR, 0700);
 	if (fd == -1) {
-		fprintf(stderr, "%s open: %s(%i)\n", fileName, strerror(errno),
+		fprintf(stderr, "%s open/read: %s(%i)\n", fileName, strerror(errno),
 			errno);
 		STEX(++stats.errors);
 		STEX(++ops[readop].result.missed);
@@ -477,7 +552,7 @@ write_file(params_t *params)
 	fileName = params->filename;
 	fd = open(fileName, O_CREAT | O_APPEND | O_RDWR, 0700);
 	if (fd == -1) {
-		fprintf(stderr, "%s open: %s(%i)\n", fileName, strerror(errno),
+		fprintf(stderr, "%s open/write: %s(%i)\n", fileName, strerror(errno),
 			errno);
 		STEX(++stats.errors);
 		STEX(++ops[writeop].result.missed);
@@ -614,13 +689,15 @@ static void
 sym_file(params_t *params)
 {
 	char target[30];
+	char source[30];
 	const char *fileName;
 	int files;
 
 	fileName = params->filename;
 	files = params->files;
 	orderedname(params, target);
-	if (symlink(fileName, target) == -1) {
+	sprintf(source, "../%s", fileName);
+	if (symlink(source, target) == -1) {
 		switch (errno) {
 		case ENOENT:
 			STEX(++ops[symop].result.missed);
@@ -679,11 +756,17 @@ pip_file(params_t *params)
 	struct dirent  entry;
 	struct dirent *ptr;
 	int result;
+	int dirno;
 	int dogc;
 
-	if (params->cwd == NULL) {
-		params->cwd = opendir(".");
-		if (params->cwd == NULL) {
+	dirno = RND(params->dirs);
+
+	if (params->cwd[dirno] == NULL) {
+		char dname[30];
+
+		sprintf(dname, "d%x", dirno);
+		params->cwd[dirno] = opendir(dname);
+		if (params->cwd[dirno] == NULL) {
 			perror("opendir");
 			exit(1);
 		}
@@ -691,7 +774,7 @@ pip_file(params_t *params)
 
 	dogc = (params->buffer[0] == 0x66);
 	errno = 0;
-	result = readdir_r(params->cwd, &entry, &ptr);
+	result = readdir_r(params->cwd[dirno], &entry, &ptr);
 	if (result == 0 && errno == 0 && ptr == &entry) {
 		if (dogc) {
 			if (unlink(entry.d_name) == -1) {
@@ -714,7 +797,7 @@ pip_file(params_t *params)
 				       pthread_self(), entry.d_name);
 		}
 	} else if (errno == ENOENT || ptr == NULL)
-		rewinddir(params->cwd);
+		rewinddir(params->cwd[dirno]);
 	else {
 		printf("[%li] P: %i, %i, %p, %s\n", 
 		       pthread_self(), result, errno, ptr, entry.d_name);
@@ -761,9 +844,13 @@ _nap(int secs, int nanos)
 static void orderedname(params_t *params, char *name)
 {
 	int targetno;
+	int dirno;
 
-	targetno = params->fileno + RND(params->files - params->fileno - 1) + 1;
-	sprintf(name, "%x", targetno);
+	targetno = params->fileno + 
+		RND(params->files - params->fileno - 1) + 1;
+
+	dirno = RND(params->dirs);
+	sprintf(name, "d%x/%x", dirno, targetno);
 }
 
 /*
