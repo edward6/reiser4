@@ -9,10 +9,8 @@
 
 #include <reiserfs/plugin.h>
 #include <reiserfs/filesystem.h>
-#include <reiserfs/plugin.h>
 
 #define REISERFS_LEAF_LEVEL 1
-#define REISERFS_RESERVED_IDS 40
 
 extern error_t reiserfs_tree_open(reiserfs_fs_t *fs);
 

@@ -17,7 +17,7 @@ extern error_t reiserfs_node_free(reiserfs_node_t *node);
 
 /* If node == NULL, just create in blk a node. */
 extern error_t reiserfs_node_create(reiserfs_node_t *node, aal_device_t *device,
-    blk_t blk, reiserfs_plugin_id_t plugin_id, uint8_t level);
+    blk_t blk, reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id, uint8_t level);
 
 /* plugin_id must be specified for 3.x format */
 extern error_t reiserfs_node_open(reiserfs_node_t *node, aal_device_t *device, 
@@ -42,7 +42,7 @@ extern void reiserfs_node_set_free_space(reiserfs_node_t *node, uint32_t value);
 extern void *reiserfs_node_item(reiserfs_node_t *node, uint32_t pos);
 
 extern int reiserfs_node_insert_item(reiserfs_coord_t *coord, reiserfs_key_t *key,
-    reiserfs_item_info_t *item);
+    reiserfs_item_info_t *item, reiserfs_plugin_id_t id);
 
 extern reiserfs_plugin_id_t reiserfs_node_get_item_plugin_id(reiserfs_node_t *node, uint16_t pos);
 

@@ -97,8 +97,6 @@ struct reiserfs_dir_entry_ops {
     int (*add_entry) (reiserfs_opaque_t *, int32_t, reiserfs_opaque_t *parent, 
 	char *, reiserfs_opaque_t *entry);
     
-    int (*remove_entry) (reiserfs_opaque_t *, int32_t, reiserfs_opaque_t *parent);
-    
     int (*max_name_len) (int blocksize);
 };
 
@@ -154,6 +152,8 @@ struct reiserfs_node_plugin {
     int (*lookup) (reiserfs_opaque_t *, reiserfs_key_t *);
     error_t (*insert) (reiserfs_opaque_t *, reiserfs_opaque_t *, 
 	    reiserfs_opaque_t *);
+    error_t (*update_parent) (reiserfs_opaque_t *parent, 
+	reiserfs_opaque_t *node);
  
     uint16_t (*item_overhead) (reiserfs_opaque_t *);
     uint16_t (*item_max_size) (reiserfs_opaque_t *);

@@ -21,7 +21,7 @@ endif
 
 libreiserfs_la_SOURCES  = libreiserfs.c filesystem.c super.c journal.c \
 			  alloc.c tools.c plugin.c node.c path.c item.c \
-			  tree.c hack.c
+			  tree.c hack.c key.c
 
 INCLUDES = $(includedir)
 

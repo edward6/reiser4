@@ -89,6 +89,11 @@ error:
     return -1;
 }
 
+/* To be moved into oid plugin when ready */
+#define REISERFS_ROOT_DIRECTORY_LOCATION 41
+#define REISERFS_ROOT_PARENT_DIRECTORY_LOCATION 41
+#define REISERFS_ROOT_DIRECTORY_OBJECTID 42
+
 error_t reiserfs_tree_create_2(reiserfs_fs_t *fs, 
     reiserfs_default_plugin_t *default_plugins) 
 {
@@ -97,14 +102,24 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     reiserfs_plugin_t *item_plugin;
     reiserfs_plugin_id_t item_plugin_id;
     reiserfs_key_t key;
-    reiserfs_node_t node;
+    reiserfs_node_t squeeze, leaf;
     reiserfs_coord_t coord;
     reiserfs_item_info_t item_info;
     reiserfs_internal_info_t internal_info;
     reiserfs_stat_info_t stat_info;
     reiserfs_dir_info_t dir_info;
-    reiserfs_entry_info_t entries [2] = 
-	{{2, 3, "."}, {1, 2, ".."}};
+
+    /* FIXME: Directory object plugin should define what will be created in 
+       the empty directory. Move it there when ready. */
+    reiserfs_entry_info_t entry [2] = {
+	{   REISERFS_ROOT_DIRECTORY_LOCATION, 
+	    REISERFS_ROOT_DIRECTORY_OBJECTID, 
+	    "."	}, 
+	{
+	    REISERFS_ROOT_PARENT_DIRECTORY_LOCATION, 
+	    REISERFS_ROOT_DIRECTORY_LOCATION, 
+	    ".." }
+	};
 
     aal_assert("umka-129", fs != NULL, return -1);
     aal_assert("umka-130", fs->super != NULL, return -1);
@@ -122,7 +137,7 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     reiserfs_alloc_use(fs, block_n);
     reiserfs_super_set_root(fs, block_n);
   
-    if (reiserfs_node_create(&node, fs->device, block_n, default_plugins->node, 
+    if (reiserfs_node_create(&squeeze, fs->device, block_n, NULL, default_plugins->node, 
 	REISERFS_LEAF_LEVEL + 1)) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -133,58 +148,46 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     if (!(block_n = reiserfs_alloc_find(fs))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't allocate block for root node.");
-	goto error_free_tree;
+	goto error_close_squeese;
     }
     
     reiserfs_alloc_use(fs, block_n);
 
     /* Initialize internal item. */
-    internal_info.block = &block_n;
-    
+    internal_info.blk = &block_n;
+   
+    reiserfs_key_init(&key);
     set_key_type(&key, KEY_SD_MINOR);
-    set_key_locality(&key, REISERFS_RESERVED_IDS + 1);
-    set_key_objectid(&key, REISERFS_RESERVED_IDS + 2);
+    set_key_locality(&key, REISERFS_ROOT_DIRECTORY_LOCATION);
+    set_key_objectid(&key, REISERFS_ROOT_DIRECTORY_OBJECTID);
 
     item_info.info = &internal_info;
-    coord.node = &node;
+    coord.node = &squeeze;
     coord.item_pos = 0;
     coord.unit_pos = -1;
 
-    /* Estimate the size and check the free space */
-    if (reiserfs_item_estimate (NULL, &item_info, default_plugins->item.internal)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't estimate space that item being inserted will consume.");
-	goto error_free_tree;
-    }
-   
-    if (item_info.length + reiserfs_node_item_overhead (&node) > 
-	reiserfs_node_get_free_space(&node)) 
+    /* Insert an internal item. Item will be created automatically from 
+       the node insert api method */
+    if (reiserfs_node_insert_item (&coord, &key, &item_info, 
+	default_plugins->item.internal)) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "THere is no space to insert the only item of (%u) size in the node (%llu).", 
-	    item_info.length, aal_device_get_block_nr(node.device, node.block));
-	goto error_free_tree;
-    }
-    
-    /* Insert an internal item. Item will be created automatically from 
-       the node plugin insert method */
-    /* FIXME: Hm, item should be created from node api create method. */
-    if (reiserfs_node_insert_item (&coord, &key, &item_info)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
-	    aal_device_get_block_nr(node.device, node.block));
-	goto error_free_tree;
+	    aal_device_get_block_nr(squeeze.device, squeeze.block));
+	goto error_close_squeese;
     }
 
-    reiserfs_node_close (&node);
-
+    /*	We cannot just close the squeeze node here and create a leaf node in 
+	the same object, because node plugin will probably want to update 
+	the parent and we should provide it the whole path up to the root. */
+    
     /* Create the leaf */
-    if (reiserfs_node_create (&node, fs->device, block_n, default_plugins->node, 
+    if (reiserfs_node_create (&leaf, fs->device, block_n, &squeeze, default_plugins->node, 
 	REISERFS_LEAF_LEVEL)) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create a leaf node.");
-	goto error_free_tree;
+	goto error_close_leaf;
     } 
 
     /* Initialize stat_info */
@@ -195,46 +198,49 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     
     item_info.info = &stat_info;
 
-    /* Estimate the size and check the free space. */
-    if (reiserfs_item_estimate (NULL, &item_info, default_plugins->item.stat)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't estimate the space item being inserted will consume.");
-	goto error_free_tree;
-    }
-
-    if (item_info.length + reiserfs_node_item_overhead (&node) > 
-	reiserfs_node_get_free_space(&node)) 
+    /* Insert the stat data. */
+    if (reiserfs_node_insert_item (&coord, &key, &item_info, default_plugins->item.stat)) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "THere is no space to insert the only item of (%u) size in the node (%llu).", 
-	    item_info.length, aal_device_get_block_nr(node.device, node.block));
-	goto error_free_tree;
-    }
-    
-    /* Insert the stat data. */
-    if (reiserfs_node_insert_item (&coord, &key, &item_info)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
-	    aal_device_get_block_nr(node.device, node.block));
-	goto error_free_tree;
+	    aal_device_get_block_nr(leaf.device, leaf.block));
+	goto error_close_leaf;
     }
    
     /* Initialize dir_entry */
-    dir_info.count = 2;
-    dir_info.entry = entries;
-    
-/*
-    if (!reiserfs_direntry_create ()) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't create the root directory.");
-	goto error_free_tree;
-    }
-*/
+    dir_info.count = 1;
+    dir_info.entry = entry;
 
-    reiserfs_node_close (&node);
+    reiserfs_key_init(&key);
+    set_key_type(&key, KEY_FILE_NAME_MINOR);
+    set_key_locality(&key, REISERFS_ROOT_DIRECTORY_LOCATION);
+    set_key_objectid(&key, REISERFS_ROOT_DIRECTORY_OBJECTID);
+
+    item_info.info = &dir_info;
+
+    coord.item_pos = 1;
+    coord.unit_pos = -1;
+
+    /* Insert an internal item. Item will be created automatically from 
+       the node insert api method */
+    if (reiserfs_node_insert_item (&coord, &key, &item_info, 
+	default_plugins->item.dir_item)) 
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't insert an internal item into the node %llu.", 
+	    aal_device_get_block_nr(squeeze.device, squeeze.block));
+	goto error_close_leaf;
+    }
+    
+    reiserfs_node_close(&squeeze);
+    reiserfs_node_close(&leaf);
 
     return 0;
 
+error_close_leaf:
+
+error_close_squeese:
+    
 error_free_tree:
     aal_free(fs->tree);
     fs->tree = NULL;

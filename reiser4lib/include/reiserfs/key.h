@@ -7,6 +7,8 @@
 #ifndef KEY_H
 #define KEY_H
 
+#include <aal/aal.h>
+
 typedef enum {
     /* file name */
     KEY_FILE_NAME_MINOR = 0,
@@ -23,7 +25,6 @@ typedef enum {
     /* file body (tail or extent) */
     KEY_BODY_MINOR      = 4
 } key_minor_locality;
-
 
 typedef enum {
     /* major "locale", aka dirid. Sits in 1st element */
@@ -52,20 +53,6 @@ union reiserfs_key {
 };
 
 typedef union reiserfs_key reiserfs_key_t;
-
-struct reiserfs_dirid {
-    uint8_t objectid[sizeof(uint64_t)];
-    uint8_t offset[sizeof(uint64_t)];
-};
-
-typedef struct reiserfs_dirid reiserfs_dirid_t;
-
-struct reiserfs_objid {
-    uint8_t locality[sizeof(uint64_t)];
-    uint8_t objectid[sizeof(uint64_t)];
-};
-
-typedef struct reiserfs_objid reiserfs_objid_t;
 
 typedef enum {
     /* major locality occupies higher 60 bits of the first element */
@@ -164,6 +151,9 @@ DEFINE_KEY_FIELD(offset, OFFSET, uint64_t);
 
 /* define get_key_hash(), set_key_hash() */
 DEFINE_KEY_FIELD(hash, HASH, uint64_t);
+
+extern void reiserfs_key_init(reiserfs_key_t *key);
+
 
 #endif
 

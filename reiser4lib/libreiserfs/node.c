@@ -28,7 +28,7 @@ error_t reiserfs_node_free (reiserfs_node_t *node) {
 
 #ifndef ENABLE_COMPACT
 
-error_t reiserfs_node_create(reiserfs_node_t *node, aal_device_t *device,			blk_t blk, reiserfs_plugin_id_t plugin_id, uint8_t level)
+error_t reiserfs_node_create(reiserfs_node_t *node, aal_device_t *device,			blk_t blk, reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id, uint8_t level)
 {
     int no_node = 0;
     reiserfs_node_t *work_node;
@@ -92,7 +92,6 @@ error_free_node:
 }
 
 #endif
-
 
 error_t reiserfs_node_open(reiserfs_node_t *node, aal_device_t *device, 
     blk_t blk, reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id) 
@@ -295,16 +294,51 @@ void *reiserfs_node_item(reiserfs_node_t *node, uint32_t pos) {
 }
 
 int reiserfs_node_insert_item(reiserfs_coord_t *coord, reiserfs_key_t *key, 
-    reiserfs_item_info_t *item) 
+    reiserfs_item_info_t *item_info, reiserfs_plugin_id_t id) 
 {
     reiserfs_check_method (coord->node->plugin->node, insert, return -1);
     
-    if (coord->node->plugin->node.insert (&coord, &key, &item)) {
+    /* Estimate the size and check the free space */
+    if (reiserfs_item_estimate ((id == 0 ? coord : NULL), item_info, id)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't estimate space that item being inserted will consume.");
+	return -1;
+    }
+
+    if (item_info->length + reiserfs_node_item_overhead (coord->node) > 
+	reiserfs_node_get_free_space(coord->node)) 
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "There is no space to insert the item of (%u) size in the node (%llu).", 
+	    item_info->length, 
+	    aal_device_get_block_nr(coord->node->device, coord->node->block));
+	return -1;
+    }
+    
+    if (coord->node->plugin->node.insert(coord, key, item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an item into the node %llu.", 
 	    aal_device_get_block_nr(coord->node->device, coord->node->block));
 	return -1;
     }
+
+   /* Insert item or create it if needed */
+    if (item_info->plugin == NULL) {
+	reiserfs_check_method (coord->node->plugin->node, item, return -1);
+    
+	aal_memcpy(coord->node->plugin->node.item(coord->node, coord->item_pos), 
+	    item_info->data, item_info->length);
+    } else {
+	reiserfs_check_method (item_info->plugin->item.common, create, return -1);
+	if (item_info->plugin->item.common.create (coord, item_info)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Item plugin could not create an item (%d) in the node (%llu).", 
+		coord->item_pos,
+		aal_device_get_block_nr(coord->node->device, coord->node->block));
+	    return -1;
+	}
+    } 
+    
     return 0;
 }
 

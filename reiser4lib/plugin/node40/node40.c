@@ -61,6 +61,16 @@ static error_t reiserfs_node40_create(reiserfs_node_t *node, uint8_t level)
     nh40_set_magic(reiserfs_nh40(node), REISERFS_NODE40_MAGIC);
     nh40_set_num_items(reiserfs_nh40(node), 0);
 
+    /*	Any change in the node must be accompanied by parent updating. */
+    if (node->parent && node->parent->plugin->node.update_parent != NULL) {
+	if (node->parent->plugin->node.update_parent (node->parent, node)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Updating of the parent (%llu) of the node (%llu) failed.", 
+		aal_device_get_block_nr(node->parent->device, node->parent->block),
+		aal_device_get_block_nr(node->device, node->block));
+	    return -1;
+	}
+    }
     return 0;
 }
 
@@ -224,6 +234,7 @@ static error_t reiserfs_node40_insert(reiserfs_coord_t *where, reiserfs_key_t *k
 //    void *position, *end_position;
     reiserfs_ih40_t *ih;
     reiserfs_nh40_t *nh;
+    reiserfs_node_t *node;
 	
     aal_assert("vpf-006", where != NULL, return -1);
     aal_assert("vpf-007", item_info != NULL, return -1);
@@ -236,15 +247,16 @@ static error_t reiserfs_node40_insert(reiserfs_coord_t *where, reiserfs_key_t *k
     aal_assert("vpf-061", where->item_pos >= 0, return -1);
     aal_assert("vpf-062", where->unit_pos == -1, return -1);
 
-    nh = reiserfs_nh40(where->node);
+    node = where->node;
+    nh = reiserfs_nh40(node);
 
     /* Insert free space for item and ih, change item heads */
     if (where->item_pos < nh40_get_num_items(nh)) {
-	ih = reiserfs_node40_ih_at(where->node, where->item_pos);
+	ih = reiserfs_node40_ih_at(node, where->item_pos);
 	offset = ih40_get_offset(ih);
 	
-	aal_memcpy(reiserfs_node_data(where->node) + offset + item_info->length, 
-	    reiserfs_node_data(where->node) + offset, 
+	aal_memcpy(reiserfs_node_data(node) + offset + item_info->length, 
+	    reiserfs_node_data(node) + offset, 
 	    nh40_get_free_space_start(nh) - offset);
 	
 	for (i = where->item_pos; i < nh40_get_num_items(nh); i++, ih--) 
@@ -252,13 +264,13 @@ static error_t reiserfs_node40_insert(reiserfs_coord_t *where, reiserfs_key_t *k
 
 	/* ih is set at the last item head - 1 in the last _for_ clause */
 	aal_memcpy(ih, ih + 1, sizeof(reiserfs_ih40_t) * 
-	    (reiserfs_node40_item_count(where->node) - where->item_pos));
+	    (reiserfs_node40_item_count(node) - where->item_pos));
     } else {
 	offset = nh40_get_free_space_start(nh);
     }
 
     /* Create a new item header */
-    ih = reiserfs_node40_ih_at(where->node, where->item_pos);
+    ih = reiserfs_node40_ih_at(node, where->item_pos);
     aal_memcpy(&ih->key, key, sizeof(reiserfs_key_t));
     ih40_set_offset(ih, offset);
     ih40_set_plugin_id(ih, item_info->plugin->h.id);
@@ -269,18 +281,14 @@ static error_t reiserfs_node40_insert(reiserfs_coord_t *where, reiserfs_key_t *k
 	sizeof(reiserfs_ih40_t));
     nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) + item_info->length);
     nh40_set_num_items(nh, nh40_get_num_items(nh) + 1);
-    
-    /* Insert item or create it if needed */
-    if (item_info->plugin == NULL)
-	aal_memcpy(reiserfs_node_data(where->node) + ih40_get_offset(ih), 
-	    item_info->data, item_info->length);
-    else {
-	reiserfs_check_method (item_info->plugin->item.common, create, return -1);
-	if (item_info->plugin->item.common.create (where, item_info)) {
+   
+    /*	Any change in the node must be accompanied by parent updating. */
+    if (node->parent && node->parent->plugin->node.update_parent) {
+	if (node->parent->plugin->node.update_parent (node->parent, node)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Item plugin could not create an item (%d) in the node (%llu).", 
-		where->item_pos,
-		aal_device_get_block_nr(where->node->device, where->node->block));
+		"Updating of the parent (%llu) of the node (%llu) failed.", 
+		aal_device_get_block_nr(node->parent->device, node->parent->block),
+		aal_device_get_block_nr(node->device, node->block));
 	    return -1;
 	}
     }
@@ -307,6 +315,7 @@ static reiserfs_plugin_t node40_plugin = {
 	    reiserfs_node40_lookup,
 	.insert = (error_t (*)(reiserfs_opaque_t *, reiserfs_opaque_t *, 
 	    reiserfs_opaque_t *))reiserfs_node40_insert,
+	.update_parent = NULL,
 
 	.item_overhead = (uint16_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_overhead,
 	.item_max_size = (uint16_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_max_size,
