@@ -538,6 +538,9 @@ static int reiser4_unlink( struct inode *parent, struct dentry *victim )
 	REISER4_EXIT( result );
 }
 
+/**
+ * ->permission() method in reiser4_inode_operations.
+ */
 static int reiser4_permission( struct inode *inode, int mask )
 {
 	assert( "nikita-1687", inode != NULL );
