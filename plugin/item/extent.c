@@ -2654,18 +2654,25 @@ make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j)
 	/* key of first byte of the page */
 	inode_file_plugin(inode)->key_by_inode(inode, (loff_t) jnode_page(j)->index << PAGE_CACHE_SHIFT, &key);
 
-	todo = how_to_write(coord, lh, &key);
-	/*
-	 * FIXME: comparing unsigned and 0
-	 */
-	if (unlikely(todo < 0))
-		return todo;
-
-	/* zload is necessary because balancing may return coord->node moved to another possibly not loaded node */
 	result = zload(coord->node);
 	if (result)
 		return result;
 	loaded = coord->node;
+	
+	todo = how_to_write(coord, lh, &key);
+	/*
+	 * FIXME: comparing unsigned and 0
+	 */
+	if (unlikely(todo < 0)) {
+		zrelse(loaded);
+		return todo;
+	}
+#if 0
+	/* zload is necessary because balancing may return coord->node moved to another possibly not loaded node */
+	result = zload(coord->node);
+	if (result)
+		return result;
+#endif
 
 	switch (todo) {
 	case FIRST_ITEM:
