@@ -69,12 +69,133 @@
  * WHERE TO WRITE PAGE INTO?
  *
  *  
+ *******HISTORICAL SECTION****************************************************
  *
+ *   So, it was decided that flush has to be performed from a separate
+ *   thread. Reiser4 has a thread used to periodically commit old transactions,
+ *   and this thread can be used for the flushing. That is, flushing thread
+ *   does flush and accumulates nodes prepared for the IO on the special
+ *   queue. reiser4_vm_writeback() submits nodes from this queue, if queue is
+ *   empty, it only wakes up flushing thread and immediately returns.
+ *
+ *   Still there are some problems with integrating this stuff into VM
+ *   scanning:
+ *
+ *      1 As ->vm_writeback() returns immediately without actually submitting
+ *      pages for IO, throttling on PG_writeback in shrink_list() will not
+ *      work. This opens a possibility (on a fast CPU), of try_to_free_pages()
+ *      completing scanning and calling out_of_memory() before flushing thread
+ *      managed to add anything to the queue.
+ *
+ *      2 It is possible, however unlikely, that flushing thread will be
+ *      unable to flush anything, because there is not enough memory. In this
+ *      case reiser4 resorts to the "emergency flush": some dumb algorithm,
+ *      implemented in this file, that tries to write tree nodes to the disk
+ *      without taking locks and without thoroughly optimizing tree layout. We
+ *      only want to call emergency flush in desperate situations, because it
+ *      is going to produce sub-optimal disk layouts.
+ *
+ *      3 Nodes prepared for IO can be from the active list, this means that
+ *      they will not be met/freed by shrink_list() after IO completion. New
+ *      blk_congestion_wait() should help with throttling but not
+ *      freeing. This is not fatal though, because inactive list refilling
+ *      will ultimately get to these pages and reclaim them.
+ *
+ * REQUIREMENTS
+ *
+ *   To make this work we need at least some hook inside VM scanning which
+ *   gets triggered after scanning (or scanning with particular priority)
+ *   failed to free pages. This is already present in the
+ *   mm/vmscan.c:set_shrinker() interface.
+ *
+ *   Another useful thing that we would like to have is passing scanning
+ *   priority down to the ->vm_writeback() that will allow file system to
+ *   switch to the emergency flush more gracefully.
+ *
+ * POSSIBLE ALGORITHMS
+ *
+ *   1 Start emergency flush from ->vm_writeback after reaching some priority.
+ *   This allows to implement simple page based algorithm: look at the page VM
+ *   supplied us with and decide what to do.
+ *
+ *   2 Start emergency flush from shrinker after reaching some priority.
+ *   This delays emergency flush as far as possible.
+ *
+ *******END OF HISTORICAL SECTION**********************************************
  *
  */
 
 #include "forward.h"
 #include "debug.h"
+
+static int flushable(const jnode *node);
+
+/**
+ * try to flush @page to the disk
+ */
+int
+emergency_flush(struct page *page, struct writeback_control *wbc)
+{
+	struct super_block *sb;
+	jnode              *node;
+	int                 result;
+
+	assert("nikita-2721", page != NULL);
+	assert("nikita-2722", wbc  != NULL);
+	assert("nikita-2723", PageDirty(page));
+	assert("nikita-2724", PageLocked(page));
+
+	sb = page->mapping->host->i_sb;
+	node = jprivate(pg);
+
+	if (node == NULL)
+		return 0;
+
+	jref(node);
+	reiser4_stat_add_at_level(jnode_get_level(node), emergency_flush);
+
+	result = 0;
+	spin_lock_jnode(node);
+	if (flushable(node)) {
+		int sendit;
+
+		sendit = 0;
+		if (JF_ISSET(node, JNODE_RELOC)) {
+			if (blocknr_is_fake(jnode_get_block(node))) {
+				/*
+				 * not very likely case: @node is in relocate
+				 * set, block number is already assigned, but
+				 * @node wasn't yet submitted for io.
+				 */
+				sendit = 1;
+			}
+		} else {
+		}
+		if (sendit) {
+			-- wbc->nr_to_write;
+			result = page_io(page, node, WRITE, GFP_NOFS|__GFP_HIGH);
+		}
+	}
+	spin_unlock_jnode(node);
+	jput(node);
+	return result;
+}
+
+static int flushable(const jnode *node)
+{
+	assert("nikita-2725", node != NULL);
+	assert("nikita-2726", spin_jnode_is_locked(node));
+
+	if (atomic_read(&node->d_count) != 0)
+		return 0;
+	if (jnode_is_loaded(node))
+		return 0;
+	if (JF_ISSET(node, JNODE_FLUSH_QUEUED))
+		return 0;
+	if (jnode_is_znode(node) && znode_is_locked(JZNODE(node)))
+		return 0;
+	return 1;
+}
 
 /* 
  * Make Linus happy.
