@@ -161,7 +161,7 @@ xattr_del_namespace(struct inode *inode, reiser4_xattr_plugin *plug)
 	for_all_type_safe_list(xattr, &info->xattr_namespaces, ns) {
 		if (ns->plug == plug) {
 			xattr_list_remove(ns);
-			reiser4_kfree(ns, sizeof *ns);
+			reiser4_kfree(ns);
 			break;
 		}
 	}
@@ -204,7 +204,7 @@ xattr_clean(struct inode *inode)
 
 		ns = xattr_list_front(&info->xattr_namespaces);
 		xattr_list_remove(ns);
-		reiser4_kfree(ns, sizeof *ns);
+		reiser4_kfree(ns);
 	}
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);

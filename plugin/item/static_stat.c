@@ -969,13 +969,13 @@ static int crypto_stat_to_inode (struct inode *inode,
 		return RETERR(-ENOMEM);
 	stat->keyid = reiser4_kmalloc((size_t)size, GFP_KERNEL);
 	if (!stat->keyid) {
-		reiser4_kfree(stat, sizeof(*stat));
+		reiser4_kfree(stat);
 		return RETERR(-ENOMEM);
 	}
 	/* load inode crypto-stat */
 	stat->keysize = tmp->keysize;
 	xmemcpy(stat->keyid, tmp->keyid, (size_t)size);
-	(reiser4_inode_data(inode))->crypt = stat;
+	reiser4_inode_data(inode)->crypt = stat;
 	
 	inode_set_flag(inode, REISER4_CRYPTO_STAT_LOADED);
 	return 0;

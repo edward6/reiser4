@@ -416,8 +416,8 @@ extern int preempt_point(void);
 extern void reiser4_print_stats(void);
 
 extern void *reiser4_kmalloc(size_t size, int gfp_flag);
-extern void reiser4_kfree(void *area, size_t size);
-extern void reiser4_kfree_in_sb(void *area, size_t size, struct super_block *sb);
+extern void reiser4_kfree(void *area);
+extern void reiser4_kfree_in_sb(void *area, struct super_block *sb);
 extern __u32 get_current_trace_flags(void);
 
 #if REISER4_DEBUG

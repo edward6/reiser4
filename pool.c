@@ -158,7 +158,7 @@ reiser4_pool_free(reiser4_pool * pool,
 		pool_usage_list_push_front(&pool->free, h);
 	else {
 		pool_extra_list_remove_clean(h);
-		reiser4_kfree(h, pool->obj_size);
+		reiser4_kfree(h);
 	}
 }
 
