@@ -231,8 +231,22 @@ static __u64 tea_hash( const unsigned char *name, int len )
 
 }
 
-/** classical 64 bit Fowler/Noll/Vo-1 (FNV-1) hash. Use Google to get a
-    reference. */
+/** 
+ * classical 64 bit Fowler/Noll/Vo-1 (FNV-1) hash. 
+ * 
+ * See http://www.isthe.com/chongo/tech/comp/fnv/ for details.
+ * 
+ * Excerpts:
+ * 
+ *   FNV hashes are designed to be fast while maintaining a low collision
+ *   rate.
+ * 
+ *   [This version also seems to preserve lexicographical order locally.]
+ * 
+ *   FNV hash algorithms and source code have been released into the public
+ *   domain.
+ * 
+ */
 static __u64 fnv1_hash( const unsigned char *name, int len UNUSED_ARG )
 {
 	unsigned long long a = 0xcbf29ce484222325ull;
