@@ -572,8 +572,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 			assert("vs-1504", *jnode_get_block(j) == 0);
 			UNDER_SPIN_VOID(jnode, j, JF_SET(j, JNODE_CREATED));
 			jnode_set_block(j, &blocknr);		
-		} else
-			assert("vs-1505", *jnode_get_block(j) == blocknr);
+		}
 
 		move_flow_forward(flow, count);
 		write_move_coord(coord, uf_coord, mode, page_off + count == PAGE_CACHE_SIZE);
@@ -588,38 +587,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		}
 		page_cache_get(page);
 		assert("vs-1425", jnode_page(j) == page);
-
-#if 0
-		if (!PageUptodate(page)) {
-			if (write_is_partial(inode, file_off, page_off, count)) {
-				if (new_page) {
-					/* */
-				}
-
-			} &&
-			    (JF_ISSET(j, JNODE_EFLUSH) || !JF_ISSET(j, JNODE_CREATED))) {
-				/* page is not being overwritten completely, therefore we have to take care about data
-				   which might be written to file already. */
-				unlock_page(page);
-				result = jload(j);
-				lock_page(page);
-				if (result)
-					goto exit3;
-				jrelse(j);
-			} else {
-				/* page is either new () or its content is going to be overwritten. Here we zero page
-				   content around write area */
-				char *data;
-				
-				data = kmap_atomic(page, KM_USER0);
-				memset(data, 0, page_off);
-				memset(data + page_off + count, 0, PAGE_CACHE_SIZE - page_off - count);
-				flush_dcache_page(page);
-				kunmap_atomic(data, KM_USER0);
-			}
-		} else
-			UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
-#endif
 
 		if (!PageUptodate(page)) {
 			if (write_is_partial(inode, file_off, page_off, count)) {
@@ -643,7 +610,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 				UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
 			}
 		} else {
-			/* page did not manage to get relleased yet */
+			/* make sure that jnode is not eflushed */
 			UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
 		}
 
@@ -1210,8 +1177,7 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_
 		assert("vs-1504", *jnode_get_block(j) == 0);
 		UNDER_SPIN_VOID(jnode, j, JF_SET(j, JNODE_CREATED));
 		jnode_set_block(j, &blocknr);		
-	} else
-		assert("vs-1505", *jnode_get_block(j) == blocknr);
+	}
 	done_lh(uf_coord->lh);
 
 
