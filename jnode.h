@@ -273,7 +273,6 @@ extern int jnode_done_static(void);
 extern jnode *jalloc(void);
 extern void jfree(jnode * node) NONNULL;
 extern jnode *jnew(void);
-extern jnode *jlook(reiser4_tree *, oid_t objectid, unsigned long index) NONNULL;
 extern jnode *jlook_lock(reiser4_tree * tree, 
 			 oid_t objectid, unsigned long ind) NONNULL;
 extern jnode *jnode_by_page(struct page *pg) NONNULL;
@@ -369,6 +368,17 @@ add_x_ref(jnode * node /* node to increase x_count of */ )
 
 	atomic_inc(&node->x_count);
 	ON_DEBUG_CONTEXT(++lock_counters()->x_refs);
+}
+
+static inline void
+dec_x_ref(jnode * node)
+{
+	assert("nikita-3215", node != NULL);
+	assert("nikita-3216", atomic_read(&node->x_count) > 0);
+
+	atomic_dec(&node->x_count);
+	ON_CONTEXT(assert("nikita-3217", lock_counters()->x_refs > 0));
+	ON_DEBUG_CONTEXT(--lock_counters()->x_refs);
 }
 
 /* jref() - increase counter of references to jnode/znode (x_count) */

@@ -241,30 +241,29 @@ jnew(void)
 
 /* look for jnode with given mapping and offset within hash table */
 jnode *
-jlook(reiser4_tree * tree, oid_t objectid, unsigned long index)
+jlook_lock(reiser4_tree * tree, oid_t objectid, unsigned long index)
 {
 	jnode_key_t jkey;
 	jnode *node;
 
 	assert("nikita-2353", tree != NULL);
-	assert("nikita-2355", rw_tree_is_locked(tree));
 
 	jkey.objectid = objectid;
 	jkey.index = index;
+
+	rcu_read_lock();
 	node = j_hash_find(&tree->jhash_table, &jkey);
 	if (node != NULL) {
 		/* protect @node from recycling */
 		jref(node);
 		assert("nikita-2955", jnode_invariant(node, 1, 0));
+		if (unlikely(JF_ISSET(node, JNODE_RIP))) {
+			dec_x_ref(node);
+			node = NULL;
+		}
 	}
+	rcu_read_unlock();
 	return node;
-}
-
-/* like jlook, but acquire tree read lock first */
-jnode *
-jlook_lock(reiser4_tree * tree, oid_t objectid, unsigned long index)
-{
-	return UNDER_RW(tree, tree, read, jlook(tree, objectid, index));
 }
 
 #if REISER4_LOCKPROF
@@ -341,8 +340,12 @@ do_jget(reiser4_tree * tree, struct page * pg)
 	WLOCK_TREE(tree);
 	/* race with some other thread inserting jnode into the hash table is
 	 * impossible, because we keep the page lock. */
-	assert("nikita-3211", j_hash_find(jtable, &jal->key.j) == NULL);
-	j_hash_insert(jtable, jal);
+	/*
+	 * following assertion no longer holds because of RCU: it is possible
+	 * jnode is in the hash table, but with JNODE_RIP bit set.
+	 */
+	/* assert("nikita-3211", j_hash_find(jtable, &jal->key.j) == NULL); */
+	j_hash_insert_rcu(jtable, jal);
 	WUNLOCK_TREE(tree);
 
 	UNDER_SPIN_VOID(jnode, jal, jnode_attach_page(jal, pg));
@@ -868,7 +871,7 @@ static inline void
 remove_jnode(jnode * node, reiser4_tree * tree)
 {
 	/* remove jnode from hash-table */
-	j_hash_remove(&tree->jhash_table, node);
+	j_hash_remove_rcu(&tree->jhash_table, node);
 }
 
 static void
@@ -1482,10 +1485,11 @@ info_jnode(const char *prefix /* prefix to print */ ,
 		return;
 	}
 
-	printk("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
+	printk("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
 	       " block: %s, d_count: %d, x_count: %d, "
 	       "pg: %p, atom: %p, lock: %i:%i, type: %s, ",
 	       prefix, node, node->state,
+	       jnode_state_name(node, JNODE_PARSED),
 	       jnode_state_name(node, JNODE_HEARD_BANSHEE),
 	       jnode_state_name(node, JNODE_LEFT_CONNECTED),
 	       jnode_state_name(node, JNODE_RIGHT_CONNECTED),
@@ -1502,11 +1506,10 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	       jnode_state_name(node, JNODE_MISSED_IN_CAPTURE),
 	       jnode_state_name(node, JNODE_WRITEBACK),
 	       jnode_state_name(node, JNODE_NEW),
-	       jnode_state_name(node, JNODE_PARSED),
 	       jnode_state_name(node, JNODE_DKSET),
 	       jnode_state_name(node, JNODE_EPROTECTED),
 	       jnode_get_level(node), sprint_address(jnode_get_block(node)),
-	       node->d_count, atomic_read(&node->x_count),
+	       atomic_read(&node->d_count), atomic_read(&node->x_count),
 	       jnode_page(node), node->atom,
 #if REISER4_LOCKPROF
 	       node->guard.held, node->guard.trying,
