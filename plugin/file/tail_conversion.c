@@ -571,9 +571,14 @@ static int prepare_extent2tail(struct inode *inode)
 
 	/* space necessary for extent2tail convertion: space for @nodes removals from tree and space for calculated
 	 * amount of flow insertions and 1 node and one insertion into tree for search_by_key(CBK_FOR_INSERT) */
+	/*
+	 * FIXME-NIKITA if grab_space would try to commit current transaction
+	 * at this point we are stymied, because long term lock is held in
+	 * @first_lh. I removed BA_CAN_COMMIT from garbbing flags.
+	 */
 	result = reiser4_grab_space(twig_nodes * estimate_one_item_removal(height) +
 				    flow_insertions * estimate_insert_flow(height) +
-				    1 + estimate_one_insert_item(height), BA_CAN_COMMIT, "extent2tail");
+				    1 + estimate_one_insert_item(height), 0, "extent2tail");
 	if (result) {
 		done_lh(&first_lh);
 		return result;
