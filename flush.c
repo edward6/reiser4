@@ -154,6 +154,14 @@ int jnode_flush (jnode *node, int flags UNUSED_ARG)
 	flush_scan right_scan;
 	flush_scan left_scan;
 
+	if (0) {
+		/*
+		 * FIXME-VS: disable flush
+		 */
+		jnode_set_clean (node);
+		return 0;
+	}
+
 	flush_scan_init (& right_scan);
 	flush_scan_init (& left_scan);
 
