@@ -5,6 +5,18 @@
 
 typedef d16 node_offset_40;
 
+/*
+    flushstamp is made of mk_id and write_counter. mk_id is an id generated 
+    randomly at mkreiserfs time. So we can just skip all nodes with different 
+    mk_id. write_counter is d64 increamenting counter of writes on disk. It is 
+    used for choosing the newest data at fsck time.
+ */
+
+typedef struct flush_stamp {
+    d32 mk_fs_id;
+    d64 flush_time;
+} flush_stamp_t;
+
 /** format of node header for 40 node layouts. Keep bloat out of this struct.  */
 typedef struct node_header_40 {
 	/** 
@@ -37,7 +49,7 @@ typedef struct node_header_40 {
 	    restore the newer version.  Also useful for when users
 	    delete the wrong files and send us desperate emails
 	    offering $25 for them back.  */
-	d32            flush_time;
+	flush_stamp_t flush;
 } node_header_40;
 
 /* item headers are not standard across all node layouts, pass
