@@ -555,7 +555,6 @@ static int flush_enqueue_ancestors (znode *node, flush_position *pos)
 		return 0;
 	}
 
-	/* FIXME: This can fail after running ibk 3 times. */
 	assert ("jmacd-7443", znode_is_allocated (node));
 
 	if ((ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
@@ -600,6 +599,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	init_zh (& parent_load);
 	init_zh (& node_load);
 
+	/* FIXME: This can fail after running ibk 3 times. */
 	assert ("jmacd-9925", znode_is_allocated (node));
 
 	if ((ret = load_zh (& node_load, node))) {
@@ -661,6 +661,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	if (any_shifted && flush_pos_unformatted (pos)) {
 
 		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] before (shifted & unformatted): %s\n", call_depth, flush_pos_tostring (pos));
+
 		/* We reached this point because we were at the end of a twig, and now we
 		 * have shifted new contents into that twig.  Skip past any allocated
 		 * extents.  If we are still at the end of the node, unset any_shifted. */
@@ -830,7 +831,13 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		/* Now maybe try the twig to the right... */
 		if (coord_is_after_rightmost (& pos->parent_coord)) {
 			trace_on (TRACE_FLUSH, "sq_changed_ancestors right again: %s\n", flush_pos_tostring (pos));
-			goto repeat;
+
+			if (znode_check_dirty (node)) {
+				goto repeat;
+			} else {
+				ret = flush_pos_stop (pos);
+				goto exit;
+			}
 		}
 
 		/* If positioned over a formatted node, then the preceding
@@ -1155,7 +1162,6 @@ static int squalloc_right_twig (znode    *left,
 	ret = shift_one_internal_unit (left, right);
 
 out:
-	coord_set_to_right (& pos->parent_coord);
 	assert ("jmacd-8612", ret < 0 || ret == SQUEEZE_TARGET_FULL || ret == SUBTREE_MOVED);
 	return ret;
 }
@@ -2231,6 +2237,9 @@ static const char* flush_pos_tostring (flush_position *pos)
 	}
 
 	if (pos->parent_lock.node != NULL) {
+
+		assert ("jmacd-79123", pos->parent_lock.node == pos->parent_load.node);
+
 		sprintf (fmtbuf+strlen(fmtbuf), "par: %p", pos->parent_lock.node);
 
 		if (load_zh (& load, pos->parent_lock.node)) {
@@ -2242,15 +2251,25 @@ static const char* flush_pos_tostring (flush_position *pos)
 		} else if (coord_is_after_rightmost (& pos->parent_coord)) {
 			sprintf (fmtbuf+strlen(fmtbuf), "[right]");
 		} else {
-			sprintf (fmtbuf+strlen(fmtbuf), "[%s i=%u/%u,u=%u/%u %s]",
+			sprintf (fmtbuf+strlen(fmtbuf), "[%s i=%u/%u",
 				 coord_tween_tostring (pos->parent_coord.between),
 				 pos->parent_coord.item_pos,
-				 node_num_items (pos->parent_coord.node),
-				 pos->parent_coord.unit_pos,
-				 coord_num_units (& pos->parent_coord),
-				 item_is_extent (& pos->parent_coord) ? "ext" : (item_is_internal (& pos->parent_coord) ? "int" : "other"));
-		}
-			
+				 node_num_items (pos->parent_coord.node));
+
+			if (! coord_is_existing_item (& pos->parent_coord)) {
+				sprintf (fmtbuf+strlen(fmtbuf), "]");
+			} else {
+				
+				sprintf (fmtbuf+strlen(fmtbuf), ",u=%u/%u %s]",
+					 pos->parent_coord.unit_pos,
+					 coord_num_units (& pos->parent_coord),
+					 coord_is_existing_unit (& pos->parent_coord) ?
+					 (item_is_extent (& pos->parent_coord) ?
+					  "ext" :
+					  (item_is_internal (& pos->parent_coord) ? "int" : "other")) :
+					 "tween");
+			}
+		}			
 	}
 
 	done_zh (& load);
