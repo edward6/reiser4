@@ -459,21 +459,6 @@ int ordinary_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
 	return common_file_save( object );
 }
 
-static int reserve_one_page( struct inode *inode UNUSED_ARG )
-{
-	return 1;
-}
-
-#define BALANCE_CNT   (12) /* stub */
-
-static int reserve_one_balance( reiser4_object_create_data *data UNUSED_ARG )
-{
-	return BALANCE_CNT;
-}
-
-#define __reserve_one_balance ( ( void * ) reserve_one_balance )
-#define __reserve_one_page ( ( void * ) reserve_one_page )
-
 file_lookup_result noent( struct inode *inode UNUSED_ARG, 
 			  const struct qstr *name UNUSED_ARG,
 			  reiser4_key *key UNUSED_ARG, 
@@ -575,7 +560,7 @@ int common_build_flow( struct file *file UNUSED_ARG, char *buf, size_t size,
  * . get object's plugin
  * . get fresh inode
  * . initialize inode
- * . ask parent and plugin how much space to reserve and start transaction 
+ * . start transaction 
  * . add object's stat-data
  * . add entry to the parent
  * . end transaction
@@ -590,7 +575,6 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
         dir_plugin          *dplug;
 	file_plugin         *fplug;
 	struct inode        *object;
-	int                  reserved;
 	reiser4_entry        entry;
 
 	assert( "nikita-1418", parent != NULL );
@@ -642,58 +626,48 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 	fplug = & reiser4_get_object_state( object ) -> file -> u.file;
 	reiser4_get_object_state( object ) -> locality_id = parent -> i_ino;
 
-	/* reserve space in transaction to add new entry to parent */
-	reserved = dplug -> estimate.add( parent, dentry, data );
-	/* reserve space in transaction to create stat-data */
-	reserved += fplug -> estimate.create( data );
-	/* if addition of new entry to the parent fails, we have to
-	   remove stat-data just created, prepare for this. */
-	reserved += fplug -> estimate.destroy( object );
-
-	result = txn_reserve( reserved );
+	/* mark inode immutable. We disable changes to the file
+	   being created until valid directory entry for it is
+	   inserted. Otherwise, if file were expanded and
+	   insertion of directory entry fails, we have to remove
+	   file, but we only alloted enough space in transaction
+	   to remove _empty_ file. 3.x code used to remove stat
+	   data in different transaction thus possibly leaking
+	   disk space on crash. This all only matters if it's
+	   possible to access file without name, for example, by
+	   inode number */
+	*reiser4_inode_flags( object ) |= REISER4_IMMUTABLE;
+	/* create stat-data, this includes allocation of new
+	   objectid (if we support objectid reuse). For
+	   directories this implies creation of dot and
+	   dotdot */
+	result = fplug -> create( object, parent, data );
 	if( result == 0 ) {
-		/* mark inode immutable. We disable changes to the file
-		   being created until valid directory entry for it is
-		   inserted. Otherwise, if file were expanded and
-		   insertion of directory entry fails, we have to remove
-		   file, but we only alloted enough space in transaction
-		   to remove _empty_ file. 3.x code used to remove stat
-		   data in different transaction thus possibly leaking
-		   disk space on crash. This all only matters if it's
-		   possible to access file without name, for example, by
-		   inode number */
-		*reiser4_inode_flags( object ) |= REISER4_IMMUTABLE;
-		/* create stat-data, this includes allocation of new
-		   objectid (if we support objectid reuse). For
-		   directories this implies creation of dot and
-		   dotdot */
-		result = fplug -> create( object, parent, data );
-		if( result == 0 ) {
-			assert( "nikita-434", !( *reiser4_inode_flags( object ) & 
-						 REISER4_NO_STAT_DATA ) );
-			/* insert inode into VFS hash table */
-			insert_inode_hash( object );
-			/* create entry */
-			result = dplug -> add_entry( parent, dentry,
-							     data, &entry );
-			if( result != 0 ) {
-				if( fplug -> destroy != NULL ) {
-					/*
-					 * failure to create entry,
-					 * remove object
-					 */
-					fplug -> destroy( object, parent );
-				} else {
-					warning( "nikita-1164",
-						 "Cannot cleanup failed create: %i"
-						 " Possible disk space leak.",
-						 result );
-				}
+		assert( "nikita-434", !( *reiser4_inode_flags( object ) & 
+					 REISER4_NO_STAT_DATA ) );
+		/* insert inode into VFS hash table */
+		insert_inode_hash( object );
+		/* create entry */
+		result = dplug -> add_entry( parent, dentry,
+					     data, &entry );
+		if( result != 0 ) {
+			if( fplug -> destroy != NULL ) {
+				/*
+				 * failure to create entry,
+				 * remove object
+				 */
+				fplug -> destroy( object, parent );
+			} else {
+				warning( "nikita-1164",
+					 "Cannot cleanup failed create: %i"
+					 " Possible disk space leak.",
+					 result );
 			}
 		}
-		/* file has name now, clear immutable flag */
-		*reiser4_inode_flags( object ) &= ~REISER4_IMMUTABLE;
 	}
+	/* file has name now, clear immutable flag */
+	*reiser4_inode_flags( object ) &= ~REISER4_IMMUTABLE;
+
 	if( result != 0 ) {
 		/* iput() will call ->delete_inode(). We should keep
 		   track of the existence of stat-data for this inode
@@ -731,7 +705,6 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 	file_plugin               *fplug;
 	file_plugin               *parent_fplug;
 	reiser4_entry              entry;
-	int reserved;
 	unlink_f_type              uf_type;
 
 	assert( "nikita-864", parent != NULL );
@@ -754,7 +727,6 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 
 	memset( &entry, 0, sizeof entry );
 
-	reserved = parent_fplug -> estimate.rem( parent, victim );
 	/* removing last reference. Check that this is allowed.  This is
 	 * optimization for common case when file having only one name
 	 * is unlinked and is not opened by any process. */
@@ -771,21 +743,16 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 		assert( "nikita-871", object -> i_nlink == 1 );
 		assert( "nikita-873", atomic_read( &object -> i_count ) == 1 );
 		assert( "nikita-872", object -> i_size == 0 );
-		reserved += fplug -> estimate.destroy( object );
+
 		uf_type = UNLINK_BY_DELETE;
 	} else if( fplug -> add_link ) {
 		/* call plugin to do actual removal of link */
 		uf_type = UNLINK_BY_PLUGIN;
-		reserved += fplug -> estimate.rem_link( object );
 	} else {
 		/* do reasonable default stuff */
-		reserved += fplug -> estimate.save( object );
 		uf_type = UNLINK_BY_NLINK;
 	}
 
-	result = txn_reserve( reserved );
-	if( result != 0 )
-		return result;
 	/* first, delete directory entry */
 	result = parent_fplug -> rem_entry( parent, victim, &entry );
 	if( result == 0 ) {
@@ -813,7 +780,7 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
  *     . get plugins
  *     . check permissions
  *     . check that "existing" can hold yet another link
- *     . reserve space and start transaction
+ *     . start transaction
  *     . add link to "existing"
  *     . add entry to "parent"
  *     . if last step fails, remove link from "existing"
@@ -829,7 +796,6 @@ static int common_link( struct inode *parent, struct dentry *existing,
 	file_plugin               *fplug;
 	file_plugin               *parent_fplug;
 	reiser4_entry              entry;
-	int                        reserved;
 	reiser4_object_create_data data;
 
 	assert( "nikita-1431", existing != NULL );
@@ -860,23 +826,7 @@ static int common_link( struct inode *parent, struct dentry *existing,
 
 	data.mode = object -> i_mode;
 	data.id   = reiser4_get_object_state( object ) -> file -> h.id;
-	/* reserve space in transaction to add new entry to parent */
-	reserved = parent_fplug -> estimate.add( parent, existing, &data );
-	/* reserve space in transaction to add link and may be to remove link */
-	if( fplug -> add_link ) {
-		/* if there is optional ->add_link() method in this plugin,
-		   use it */
-		reserved += fplug -> estimate.add_link( object );
-		reserved += fplug -> estimate.rem_link( object );
-	} else
-		/* otherwise, update stat-data, may be twice */
-		reserved += 2 * fplug -> estimate.save( object );
 
-	result = txn_reserve( reserved );
-	if( result != 0 ) {
-		/* cannot open transaction, chiao. */
-		return result;
-	}
 	result = reiser4_add_nlink( object );
 	if( result == 0 ) {
 		/* add entry to the parent */
@@ -918,16 +868,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.install             = common_file_install,
 				.activate            = NULL,
 				.save_sd             = common_file_save,
-				.estimate = {
-					.rw          = __reserve_one_balance,
-					.add         = 0,
-					.rem         = 0,
-					.create      = reserve_one_balance,
-					.destroy     = __reserve_one_balance,
-					.add_link    = __reserve_one_page,
-					.rem_link    = __reserve_one_page,
-					.save        = __reserve_one_balance
-				},
 				.create_child        = NULL,
 				.create              = ordinary_file_create,
 				.unlink              = NULL,
@@ -970,16 +910,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.install             = common_file_install,
 				.activate            = NULL,
 				.save_sd             = common_file_save,
-				.estimate = {
-					.rw          = 0,
-					.add         = __reserve_one_balance,
-					.rem         = __reserve_one_balance,
-					.create      = reserve_one_balance,
-					.destroy     = __reserve_one_balance,
-					.add_link    = __reserve_one_page,
-					.rem_link    = __reserve_one_page,
-					.save        = __reserve_one_balance
-				},
 				.create_child        = common_create_child,
 				.create              = hashed_create,
 				.unlink              = common_unlink,
@@ -1026,16 +956,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.install             = common_file_install,
 				.activate            = NULL,
 				.save_sd             = common_file_save,
-				.estimate = {
-					.rw          = 0,
-					.add         = 0,
-					.rem         = 0,
-					.create      = reserve_one_balance,
-					.destroy     = __reserve_one_balance,
-					.add_link    = __reserve_one_page,
-					.rem_link    = __reserve_one_page,
-					.save        = __reserve_one_balance
-				},
 				.create_child        = NULL,
 				.create              = ordinary_file_create,
 				.unlink              = NULL,
@@ -1078,16 +998,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.install             = common_file_install,
 				.activate            = NULL,
 				.save_sd             = common_file_save,
-				.estimate = {
-					.rw          = 0,
-					.add         = 0,
-					.rem         = 0,
-					.create      = reserve_one_balance,
-					.destroy     = __reserve_one_balance,
-					.add_link    = __reserve_one_page,
-					.rem_link    = __reserve_one_page,
-					.save        = __reserve_one_balance
-				},
 				.create_child        = NULL,
 				.create              = ordinary_file_create,
 				.unlink              = NULL,
