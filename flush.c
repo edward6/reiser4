@@ -120,10 +120,7 @@ int jnode_flush (jnode *node)
 		return 0;
 	}
 
-	/* FIXME: Want init() and done() methods for the preceder, which should hold a
-	 * longterm lock on the preceder's current bitmap to avoid interleaved
-	 * allocations. */
-	preceder.blk = 0;
+	blocknr_hint_init (& preceder);
 	init_lh (& leftpoint_lock);
 
 	/* Locate the leftpoint of the node to flush, which is found by scanning
@@ -153,6 +150,7 @@ int jnode_flush (jnode *node)
 		jput (leftpoint);
 	}
 	done_lh (& leftpoint_lock);
+	blocknr_hint_done (& preceder);
 	return ret;
 }
 

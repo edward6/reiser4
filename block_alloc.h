@@ -13,10 +13,14 @@
 
 /** a hint for block allocator */
 struct reiser4_blocknr_hint {
-	/* FIXME_ZAM: This structure is not used yet for passing of real
-	 * parameters */
+	/* FIXME: I think we want to add a longterm lock on the bitmap block here.  This
+	 * is to prevent jnode_flush() calls from interleaving allocations on the same
+	 * bitmap, once a hint is established. */
 	reiser4_block_nr blk;
 };
+
+extern void blocknr_hint_init (reiser4_blocknr_hint *hint);
+extern void blocknr_hint_done (reiser4_blocknr_hint *hint);
 
 /*
 extern int bitmap_alloc (reiser4_block_nr *, const reiser4_block_nr *, int, int);

@@ -29,6 +29,18 @@
 /** is it a real block number from real block device or fake block number for
  * not-yet-mapped object? */
 
+/* Initialize a blocknr hint. */
+void blocknr_hint_init (reiser4_blocknr_hint *hint)
+{
+	hint->blk = 0;
+}
+
+/* Release any resources of a blocknr hint. */
+void blocknr_hint_done (reiser4_blocknr_hint *hint UNUSED_ARG)
+{
+	/* FIXME: relase bitmap lock. */
+}
+
 int blocknr_is_fake(const reiser4_block_nr * da)
 {
 	return *da & REISER4_FAKE_BLOCKNR_BIT_MASK;
