@@ -531,9 +531,14 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	if (page->mapping->host != get_super_private(s)->fake) {
 		reiser4_stat_inc(pcwb_unformatted);
 		
-		node = jlook_lock(tree, get_inode_oid(page->mapping->host),
-				  page->index);
-		if (!node) {
+		node = jnode_by_page(page);
+		if (node == NULL)
+			node = jlook_lock(tree, 
+					  get_inode_oid(page->mapping->host),
+					  page->index);
+		else
+			jref(node);
+		if (node == NULL) {
 			/*
 			 * page dirtied via mapping?
 			 * shrink_list cleared page dirty bit and moved page to locked_pages list?
@@ -590,12 +595,13 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	}
 	if (result <= 0) {
 		reiser4_stat_inc(pcwb_not_written);		
-		reiser4_exit_context(&ctx);
-		return WRITEPAGE_ACTIVATE;
-	}
-	reiser4_stat_inc(pcwb_written);
+		set_page_dirty_internal(page);
+		reiser4_unlock_page(page);
+		result = 0;
+	} else
+		reiser4_stat_inc(pcwb_written);
 	reiser4_exit_context(&ctx);
-	return 0;
+	return result;
 }
 
 /* ->set_page_dirty() method of formatted address_space */
