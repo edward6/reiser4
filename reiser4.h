@@ -262,6 +262,7 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 #include <linux/blkdev.h>
 /* for DQUOT_TRANSFER in plugin/perm/perm.c */
 #include <linux/quotaops.h>
+#include <linux/seq_file.h>
 
 #define no_context      ( in_interrupt() || in_irq() )
 #define current_pname   ( current -> comm )
