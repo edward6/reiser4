@@ -120,8 +120,8 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 	struct sealed_coord hint;
 
 
-	assert ("vs-604", ergo (item_plugin_id(iplug) == TAIL_ID, 
-				nr_pages == 1));
+	assert ("vs-604", (item_plugin_id (iplug) == TAIL_ID &&
+			   nr_pages == 1));
 	assert ("vs-564", iplug && iplug->s.file.write);
 
 	result = 0;
@@ -130,10 +130,8 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 	init_lh (&lh);
 
 	for (i = 0; i < nr_pages; i ++) {
-		if (item_plugin_id (iplug) == TAIL_ID)
-			p_data = kmap (pages [i]);
-		else
-			p_data = 0;
+		p_data = kmap (pages [i]);
+
 
 		/* build flow */
 		if (count > (int)PAGE_CACHE_SIZE)
@@ -165,15 +163,13 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 			set_hint (&hint, &f.key, &coord);
 			done_lh (&lh);
 
-			result = iplug->s.file.write (inode, &hint, &f,
-						      pages [i]);
+			result = iplug->s.file.write (inode, &hint, &f);
 			if (result)
 				goto done;
 			
 		}
 
-		if (p_data != NULL)
-			kunmap (pages [i]);
+		kunmap (pages [i]);
 		/* page is written */
 		count -= to_page;
 	}
