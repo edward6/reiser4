@@ -395,13 +395,6 @@ struct reiser4_context {
 	 */
 	__u32                 trace_flags;
 
-	/** 
-	 * This is increased on enter to reiser4_panic() and used to
-	 * check for recursive panicking, which is possible because
-	 * kernel tries to do some cleanup on panic.
-	 */
-	int                   in_panic;
-
 	/** thread ID */
 	__u32                 tid;
 

@@ -22,31 +22,22 @@ void reiser4_panic( const char *format /* format string */, ... /* rest */ )
 {
 	va_list args;
 
-	++ get_current_context() -> in_panic;
-	if( get_current_context() -> in_panic == 1 ) {
-		/* FIXME-NIKITA bust_spinlocks() should go here. Quoting
-		 * lib/bust_spinlocks.c:
-		 *
-		 * bust_spinlocks() clears any spinlocks which would
-		 * prevent oops, die(), BUG() and panic() information
-		 * from reaching the user.
-		 */
-		spin_lock( &panic_guard );
-		va_start( args, format );
-		vsprintf( panic_buf, format, args );
-		va_end( args );
-		spin_unlock( &panic_guard );
-		
-		/* print back-trace */
-		show_stack( NULL );
-		/* do something more impressive here, print content of
-		   get_current_context() */
-	} else {
-		BUG(); /* push it down harder */
-	}
-	/*
-	 * panic is here so that gcc is happy about __noreturn__
+	/* FIXME-NIKITA bust_spinlocks() should go here. Quoting
+	 * lib/bust_spinlocks.c:
+	 *
+	 * bust_spinlocks() clears any spinlocks which would prevent oops,
+	 * die(), BUG() and panic() information from reaching the user.
 	 */
+	spin_lock( &panic_guard );
+	va_start( args, format );
+	vsprintf( panic_buf, format, args );
+	va_end( args );
+	spin_unlock( &panic_guard );
+	
+	/* print back-trace */
+	show_stack( NULL );
+	/* do something more impressive here, print content of
+	   get_current_context() */
 	panic( "reiser4 panicked cowardly: %s", panic_buf );
 }
 
