@@ -15,12 +15,13 @@ int mmap_unix_file(struct file *, struct vm_area_struct *vma);
 int get_block_unix_file(struct inode *, sector_t block, struct buffer_head *bh_result, int create);
 int flow_by_inode_unix_file(struct inode *, char *buf, int user, loff_t, loff_t, rw_op, flow_t *);
 int key_by_inode_unix_file(struct inode *, loff_t off, reiser4_key *);
-int delete_unix_file(struct inode *);
 int owns_item_unix_file(const struct inode *, const coord_t *);
 int setattr_unix_file(struct inode *, struct iattr *);
 void readpages_unix_file(struct file *, struct address_space *, struct list_head *pages);
 void init_inode_data_unix_file(struct inode *, reiser4_object_create_data *, int create);
 int pre_delete_unix_file(struct inode *);
+int safelink_unix_file(struct inode *object, reiser4_safe_link_t link,
+		       __u64 value);
 
 void balance_dirty_page_unix_file(struct inode *object);
 
@@ -55,8 +56,6 @@ typedef struct unix_file_info {
 	file_container_t container; /* this enum specifies which items are used to build the file */
 	struct formatting_plugin *tplug; /* tail policy plugin which controls when file is to be converted to extents and back
 				      to tail */
-	/* pointer back to the inode */
-	struct inode *_inode;
 	/* if this is set, file is in exclusive use */
 	int exclusive_use;
 #if REISER4_DEBUG

@@ -141,6 +141,7 @@ SRC		:= \
 		   search.c \
 		   blocknrset.c \
 		   crab_lock.c \
+		   safe_link.c \
 		   plugin/plugin.c \
 		   plugin/plugin_set.c \
 		   plugin/plugin_hash.c \
@@ -151,6 +152,7 @@ SRC		:= \
 		   plugin/item/static_stat.c \
 		   plugin/item/sde.c \
 		   plugin/item/cde.c \
+		   plugin/item/blackbox.c \
 		   plugin/item/internal.c \
 		   plugin/item/tail.c \
 		   plugin/hash.c \

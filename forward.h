@@ -179,8 +179,7 @@ typedef enum {
 	EXTENT_POINTER_ID,
 	FORMATTING_ID,
 	CTAIL_ID,
-	FROZEN_EXTENT_POINTER_ID,
-	FROZEN_FORMATTING_ID,	
+	BLACK_BOX_ID,
 	LAST_ITEM_ID
 } item_id;
 
@@ -226,6 +225,13 @@ typedef enum {
 	COPI_GLUE_LEFT = (1 << 8),
 	COPI_GLUE_RIGHT = (1 << 9)
 } cop_insert_flag;
+
+typedef enum {
+	SAFE_UNLINK,   /* safe-link for unlink */
+	SAFE_TRUNCATE, /* safe-link for truncate */
+	SAFE_E2T,      /* safe-link for extent->tail conversion */
+	SAFE_T2E       /* safe-link for tail->extent conversion */
+} reiser4_safe_link_t;
 
 /* __REISER4_FORWARD_H__ */
 #endif

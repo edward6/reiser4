@@ -81,6 +81,7 @@ reiser4-objs := \
 		   status_flags.o \
 		   init_super.o \
 		   crab_lock.o \
+		   safe_link.o \
            \
 		   plugin/plugin.o \
 		   plugin/plugin_set.o \
@@ -95,6 +96,7 @@ reiser4-objs := \
 		   plugin/item/static_stat.o \
 		   plugin/item/sde.o \
 		   plugin/item/cde.o \
+		   plugin/item/blackbox.o \
 		   plugin/item/internal.o \
 		   plugin/item/tail.o \
 		   plugin/item/ctail.o \

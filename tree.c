@@ -220,9 +220,8 @@ node_plugin_by_coord(const coord_t * coord)
 insert_result insert_by_key(reiser4_tree * tree	/* tree to insert new item
 						 * into */ ,
 			    const reiser4_key * key /* key of new item */ ,
-			    reiser4_item_data * data UNUSED_ARG	/* parameters
-								 * for item
-								 * creation */ ,
+			    reiser4_item_data * data	/* parameters for item
+							 * creation */ ,
 			    coord_t * coord /* resulting insertion coord */ ,
 			    lock_handle * lh	/* resulting lock
 						   * handle */ ,
@@ -375,7 +374,7 @@ insert_result insert_by_coord(coord_t * coord	/* coord where to
 
 	assert("vs-247", coord != NULL);
 	assert("vs-248", data != NULL);
-	assert("vs-249", data->length > 0);
+	assert("vs-249", data->length >= 0);
 	assert("nikita-1191", znode_is_write_locked(coord->node));
 
 	write_tree_trace(znode_get_tree(coord->node), tree_insert, key, data, coord, flags);
@@ -513,9 +512,9 @@ insert_into_item(coord_t * coord /* coord of pasting */ ,
 			nplug->change_item_size(coord, size_change);
 		/* NOTE-NIKITA: huh? where @key is used? */
 		result = iplug->b.paste(coord, data, NULL);
-		znode_make_dirty(coord->node);
 		if (size_change < 0)
 			nplug->change_item_size(coord, size_change);
+		znode_make_dirty(coord->node);
 	} else
 		/* otherwise do full-fledged carry(). */
 		result = paste_with_carry(coord, lh, data, key, flags);
