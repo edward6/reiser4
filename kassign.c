@@ -402,14 +402,8 @@ build_entry_key_common(const struct inode *dir	/* directory where entry is
 	assert("nikita-3480", inode_fibration_plugin(dir) != NULL);
 	second_el |= inode_fibration_plugin(dir)->fibre(dir, name, len);
 
-	if (REISER4_LARGE_KEY) {
-		set_key_ordering(result, ordering);
-		set_key_fulloid(result, objectid);
-	} else {
-		/* objectid is 60 bits */
-		assert("nikita-1405", !(objectid & ~KEY_OBJECTID_MASK));
-		set_key_objectid(result, objectid);
-	}
+	set_key_ordering(result, ordering);
+	set_key_fulloid(result, objectid);
 	set_key_offset(result, offset);
 	return;
 }
