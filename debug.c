@@ -253,7 +253,8 @@ show_prof_attr(struct super_block * s, reiser4_kattr * kattr,
 
 reiser4_stats_cnt reiser4_prof_defs[] = {
 	DEFINE_PROF_CNT(jload),
-	DEFINE_PROF_CNT(carry)
+	DEFINE_PROF_CNT(carry),
+	DEFINE_PROF_CNT(load_page)
 };
 
 void calibrate_prof(void)

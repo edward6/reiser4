@@ -338,6 +338,7 @@ typedef struct reiser4_prof_cnt {
 typedef struct reiser4_prof {
 	reiser4_prof_cnt jload;
 	reiser4_prof_cnt carry;
+	reiser4_prof_cnt load_page;
 } reiser4_prof;
 
 extern unsigned long nr_context_switches(void);
