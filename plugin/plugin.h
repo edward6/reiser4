@@ -282,6 +282,9 @@ Elena doing this for you if that helps.  Email me the list of the top 10, with t
 	/* called from ->drop() when there are no links, and object should be
 	 * garbage collected. */
 	void (*delete_inode)(struct inode *);
+	
+	/* called from ->destroy_inode() */
+	void (*destroy_inode)(struct inode *);	
 	void (*forget_inode)(struct inode *);
 	ssize_t (*sendfile)(struct file *, loff_t *, size_t, read_actor_t, void __user *);
 	/*
@@ -661,6 +664,7 @@ typedef enum {
 
 typedef enum {
 	NONE_COMPRESSION_ID,
+	NULL_COMPRESSION_ID,
 	LZRW1_COMPRESSION_ID,
 	GZIP6_COMPRESSION_ID,
 	LAST_COMPRESSION_ID

@@ -1315,6 +1315,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.pre_delete = pre_delete_unix_file,
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
+		.destroy_inode = NULL,
 		.forget_inode = forget_inode_common,
 		.sendfile = sendfile_unix_file,
 		.prepare_write = prepare_write_unix_file
@@ -1375,6 +1376,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.pre_delete = NULL,
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
+		.destroy_inode = NULL,
 		.forget_inode = forget_inode_common,
 	},
 	[SYMLINK_FILE_PLUGIN_ID] = {
@@ -1436,6 +1438,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.pre_delete = NULL,
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
+		.destroy_inode = destroy_inode_symlink,
 		.forget_inode = forget_inode_common,
 	},
 	[SPECIAL_FILE_PLUGIN_ID] = {
@@ -1495,6 +1498,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.pre_delete = NULL,
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
+		.destroy_inode = NULL,
 		.forget_inode = forget_inode_common,
 	},
 	[PSEUDO_FILE_PLUGIN_ID] = {
@@ -1554,6 +1558,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.pre_delete = NULL,
 		.drop = drop_pseudo,
 		.delete_inode = NULL,
+		.destroy_inode = NULL,
 		.forget_inode = NULL,
 	},
 	[CRC_FILE_PLUGIN_ID] = {
@@ -1614,6 +1619,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.pre_delete = pre_delete_cryptcompress,
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
+		.destroy_inode = destroy_inode_cryptcompress,
 		.forget_inode = forget_inode_common,
 		.sendfile = sendfile_common,
 		.prepare_write = prepare_write_common
