@@ -790,6 +790,7 @@ struct page *read_cache_page (struct address_space * mapping,
 			      int (* filler)(void *, struct page *),
 			      void *data)
 {
+	int result;
 	struct page * page;
 
 	page = find_get_page (mapping, idx);
@@ -798,7 +799,9 @@ struct page *read_cache_page (struct address_space * mapping,
 	
 	if (!PageUptodate (page)) {
 		lock_page (page);
-		filler (data, page);
+		result = filler (data, page);
+		if (result)
+			return ERR_PTR (result);
 	}
 	return page;
 }
@@ -824,6 +827,8 @@ void wait_on_page_locked(struct page * page)
 {
 	if (PageLocked (page)) {
 		reiser4_stat_file_add (wait_on_page);
+		SetPageUptodate (page);
+		kunmap (page);
 		unlock_page (page);
 	}
 }
