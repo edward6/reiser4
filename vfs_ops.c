@@ -549,6 +549,7 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 		 * to kill page ourselves.
 		 */
 		remove_inode_page( page );
+		page_cache_release(page);
 		unlock_page( page );
 	}
 	REISER4_EXIT( result );
