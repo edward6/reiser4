@@ -421,7 +421,6 @@ static void lock_object (lock_stack *owner, znode *node)
 		/* We allow recursive locking; a node can be locked several
 		 * times for write by same process */
 		node->lock.nr_readers--;
-		ON_DEBUG_MODIFY(znode_pre_write(node));
 	}
 
 	link_object(owner->request.handle, owner, node);
@@ -915,8 +914,10 @@ int longterm_lock_znode (
 		zref (node);
 
 		ON_DEBUG_CONTEXT(++ lock_counters()->long_term_locked_znode);
-		if (REISER4_DEBUG_NODE && mode == ZNODE_WRITE_LOCK)
+		if (REISER4_DEBUG_NODE && mode == ZNODE_WRITE_LOCK) {
 			node_check (node, REISER4_NODE_PANIC);
+			ON_DEBUG_MODIFY(WITH_DATA(node, znode_pre_write(node)));
+		}
 	}
 
 	ON_DEBUG( check_lock_data() );

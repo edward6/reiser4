@@ -1035,12 +1035,12 @@ int znode_invariant( const znode *node /* znode to check */ )
 
 #if REISER4_DEBUG_MODIFY
 /* Audited by: umka (2002.06.11) */
-static __u32 znode_checksum( const znode *node )
+__u32 znode_checksum( const znode *node )
 {
-	int i, size = node->size;
+	int i, size = znode_size( node );
 	__u32 l = 0;
 	__u32 h = 0;
-	const char *data = node->data;;
+	const char *data = zdata( node );
 
 	assert( "umka-065", node != NULL );
 	assert ("jmacd-1080", znode_is_loaded (node));
@@ -1055,17 +1055,18 @@ static __u32 znode_checksum( const znode *node )
 }
 
 /* Audited by: umka (2002.06.11) */
-void znode_pre_write( znode *node )
+int znode_pre_write( znode *node )
 {
 	assert( "umka-066", node != NULL );
 	
 	if ( ! znode_is_dirty( node ) ) {
 		node->cksum = znode_checksum( node );
 	}
+	return 0;
 }
 
 /* Audited by: umka (2002.06.11) */
-void znode_post_write( const znode *node )
+int znode_post_write( const znode *node )
 {
 	__u32 cksum;
 	
@@ -1080,6 +1081,7 @@ void znode_post_write( const znode *node )
 	if (znode_is_dirty (node) && cksum == node->cksum) {
 		warning ("jmacd-1082", "dirty node %llu was not actually modified (or cksum collision)", node->zjnode.blocknr);
 	}
+	return 0;
 }
 #endif
 

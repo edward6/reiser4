@@ -64,7 +64,7 @@
 
 #endif /* REISER4_DEBUG */
 
-#define REISER4_DEBUG_MODIFY 0 /* this significantly slows down testing, but we should run
+#define REISER4_DEBUG_MODIFY (1) /* this significantly slows down testing, but we should run
 				* our testsuite through with this every once in a
 				* while. */
 
@@ -868,7 +868,6 @@ extern __u32 get_current_trace_flags( void );
 #if REISER4_DEBUG
 extern int no_counters_are_held(void);
 extern void check_stack( void );
-extern void check_spinlocks_array( void );
 extern void print_lock_counters( const char *prefix, lock_counters_info *info );
 #else
 #define print_lock_counters( p, i ) noop
