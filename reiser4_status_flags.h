@@ -4,6 +4,9 @@
    The status that helps us to find out if the filesystem is valid or if it
    contains some critical, or not so critical errors */
 
+#if !defined( __REISER4_STATUS_FLAGS_H__ )
+#define __REISER4_STATUS_FLAGS_H__
+
 #include "dformat.h"
 /* These are major status flags */
 #define REISER4_STATUS_OK 0
@@ -35,3 +38,5 @@ int reiser4_status_init(reiser4_block_nr block);
 int reiser4_status_query(u64 *status, u64 *extended);
 int reiser4_status_write(u64 status, u64 extended_status, char *message);
 int reiser4_status_finish(void);
+
+#endif
