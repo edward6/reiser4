@@ -204,14 +204,15 @@ void ktxnmgrd_detach( txn_mgr *mgr )
 	if( txn_mgrs_list_empty( &ctx -> queue ) ) {
 		ctx -> tsk  = NULL;
 		ctx -> done = 1;
+		spin_unlock( &ctx -> guard );
 		kcond_signal( &ctx -> wait );
 
 		/*
 		 * wait until daemon finishes
 		 */
 		wait_for_completion( &ctx -> finish );
-	}
-	spin_unlock( &ctx -> guard );
+	} else
+		spin_unlock( &ctx -> guard );
 }
 
 /**
