@@ -321,6 +321,25 @@ void  reiser4_kfree( void *area /* memory to from */,
 
 
 #if REISER4_DEBUG
+
+int no_counters_are_held()
+{
+	lock_counters_info *counters;
+
+	counters = lock_counters();
+	return
+		( counters -> spin_locked_jnode      == 0 ) &&
+		( counters -> spin_locked_tree       == 0 ) &&
+		( counters -> spin_locked_dk         == 0 ) &&
+		( counters -> spin_locked_txnh       == 0 ) &&
+		( counters -> spin_locked_atom       == 0 ) &&
+		( counters -> spin_locked_stack      == 0 ) &&
+		( counters -> spin_locked_txnmgr     == 0 ) &&
+		( counters -> spin_locked_inode      == 0 ) &&
+		( counters -> spin_locked            == 0 ) &&
+		( counters -> long_term_locked_znode == 0 );
+}
+
 /** helper called by print_tree_rec() */
 static void tree_rec_dot( reiser4_tree *tree /* tree to print */, 
 			  znode *node /* node to print */, 

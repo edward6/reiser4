@@ -777,6 +777,7 @@ void done_context( reiser4_context *context UNUSED_ARG /* context being
 	assert( "nikita-859", context -> magic == context_magic );
 	assert( "jmacd-673", context -> trans == NULL );
 	assert( "jmacd-1002", lock_stack_isclean (& context->stack));
+	assert( "nikita-1936", no_counters_are_held() );
 	/* add more checks here */
 
 #if REISER4_DEBUG
