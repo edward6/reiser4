@@ -1,0 +1,20 @@
+README file for bench package.
+
+Bench is a set of simple shell scripts to perform automated benchmarking.
+
+Goal of bench package is to run (potentially long) series of benchmarks
+varying some parameters from run to run.
+
+At the top level bench main entry point is driver.sh. This script is supposed
+to be called directly from rc.d (powerhouse.namesys.com has hook for this in
+/etc/init.d/rc1.d). 
+
+driver.sh:    handles queues of tests: todo/, current/, and done/ with obvious
+meaning.
+
+functions.sh: contains common functions that tests are supposed to use:
+create, mount, umount file system, reboot, create report file, etc.
+
+Each test is represented by directory (initially within todo/). The only thing
+driver.sh requires from test is existence of executable run.me file within
+test directory.
