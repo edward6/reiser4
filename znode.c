@@ -314,10 +314,8 @@ void
 znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 {
 	assert("nikita-2108", node != NULL);
-
-	assert("nikita-468", atomic_read(&ZJNODE(node)->d_count) == 0);
-	assert("nikita-469", atomic_read(&ZJNODE(node)->x_count) == 0);
 	assert("nikita-470", atomic_read(&node->c_count) == 0);
+	assert("zam-879", rw_tree_is_write_locked(tree));
 
 	/* remove reference to this znode from cbk cache */
 	cbk_cache_invalidate(node, tree);

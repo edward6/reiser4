@@ -596,16 +596,22 @@ void
 forget_znode(lock_handle * handle)
 {
 	znode *node;
+	reiser4_tree *tree;
 
 	assert("umka-319", handle != NULL);
 
 	node = handle->node;
+	tree = znode_get_tree(node);
+
 	assert("vs-164", znode_is_write_locked(node));
 	assert("nikita-1280", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
 
+	write_lock_tree(tree);
 	sibling_list_remove(node);
-	invalidate_lock(handle);
+	znode_remove(node, tree);
+	write_unlock_tree(tree);
 
+	invalidate_lock(handle);
 	uncapture_page(znode_page(node));
 }
 

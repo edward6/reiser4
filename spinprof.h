@@ -73,7 +73,7 @@ struct profregionstack {};
 #define profregion_unregister(pregion) noop
 
 typedef struct locksite {} locksite;
-#define LOCKSITE_INIT(name) extern locksite name
+#define LOCKSITE_INIT(name) static locksite name
 
 /* REISER4_LOCKPROF */
 #endif

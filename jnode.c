@@ -1084,7 +1084,6 @@ znode_parse(jnode * node)
 	return zparse(JZNODE(node));
 }
 
-extern void znode_remove(znode * node, reiser4_tree * tree);
 static int
 znode_delete_op(jnode * node, reiser4_tree * tree)
 {

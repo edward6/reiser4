@@ -681,6 +681,7 @@ void
 sibling_list_remove(znode * node)
 {
 	assert("umka-255", node != NULL);
+	assert("zam-878", rw_tree_is_write_locked(znode_get_tree(node)));
 
 	if (znode_is_right_connected(node) && node->right != NULL) {
 		assert("zam-322", znode_is_left_connected(node->right));

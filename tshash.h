@@ -153,7 +153,12 @@ PREFIX##_hash_remove_index (PREFIX##_hash_table *hash,					\
   ITEM_TYPE *last_item;									\
 											\
   PREFIX##_check_hash(hash, hash_index);						\
-											\
+                                                                                        \
+  if (hash_item == NULL)                                                                \
+    {                                                                                   \
+      return 0;                                                                         \
+    }                                                                                   \
+                                                                                        \
   if (del_item == hash_item)								\
     {											\
       hash->_table[hash_index] = del_item->LINK_NAME._next;				\
