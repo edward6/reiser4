@@ -247,9 +247,10 @@ int register_filesystem (struct file_system_type * fs)
 }
 
 struct super_block super_blocks[1];
+struct block_device block_devices[1];
 
 struct super_block * get_sb_bdev (struct file_system_type *fs_type UNUSED_ARG,
-				  int flags, char *dev_name UNUSED_ARG, 
+				  int flags, char *dev_name, 
 				  void * data,
 				  int (*fill_super)(struct super_block *, void *, int))
 {
@@ -259,9 +260,11 @@ struct super_block * get_sb_bdev (struct file_system_type *fs_type UNUSED_ARG,
 	s = &super_blocks[0];
 	s->s_flags = flags;
 	s->s_blocksize = 1024;
-	/* not yet */
-	if (dev_name)
-		BUG ();
+	s->s_blocksize_bits = 10;
+	s->s_bdev = &block_devices[0];
+	s->s_bdev->fd = open (dev_name, O_RDWR);
+	if (s->s_bdev->fd == -1)
+		return ERR_PTR (errno);
 
 	result = fill_super (s, data, 0/*silent*/);
 
@@ -282,7 +285,7 @@ static struct file_system_type * find_filesystem (const char * name)
 
 
 
-static struct super_block * do_mount (char * dev_name)
+static struct super_block * call_mount (const char * dev_name)
 {
 	struct file_system_type * fs;
 
@@ -290,7 +293,7 @@ static struct super_block * do_mount (char * dev_name)
 	if (!fs)
 		return 0;
 
-	return fs->get_sb (fs, 0/*flags*/, dev_name, 0/*data*/);
+	return fs->get_sb (fs, 0/*flags*/, (char *)dev_name, 0/*data*/);
 }
 
 
@@ -332,7 +335,7 @@ struct inode * new_inode (struct super_block * sb)
 
 
 int init_special_inode( struct inode *inode UNUSED_ARG, __u32 mode UNUSED_ARG,
-			__u32 rdev UNUSED_ARG )
+			int rdev UNUSED_ARG )
 {
 	return 0;
 }
@@ -389,6 +392,8 @@ static void invalidate_inodes (void)
 
 void iput( struct inode *inode )
 {
+	if( !inode )
+		return;
 	if( atomic_dec_and_test( & inode -> i_count) ) {
 		/* i_count drops to 0, call release
 		 * FIXME-VS: */
@@ -589,41 +594,42 @@ void lru_cache_del (struct page * page UNUSED_ARG)
 /* mm/filemap.c */
 
 struct list_head page_list;
+static spinlock_t page_list_guard;
 
 static struct page * new_page (struct address_space * mapping,
 			       unsigned long ind)
 {
 	struct page * page;
 
-	page = kmalloc (sizeof (struct page), 0);
+	page = kmalloc (sizeof (struct page) + PAGE_CACHE_SIZE, 0);
 	assert ("vs-288", page);
-	xmemset (page, 0, sizeof (struct page));
+	xmemset (page, 0, sizeof (struct page) + PAGE_CACHE_SIZE);
 
 	page->index = ind;
 	page->mapping = mapping;
 	page->private = 0;
 	page->count = 1;
+	/* use kmap to set this */
+	page->virtual = 0;
 
-	page->virtual = kmalloc (PAGE_SIZE, 0);
-	assert ("vs", page->virtual);
-	xmemset (page->virtual, 0, PAGE_SIZE);
-
+	spin_lock( &page_list_guard );
 	list_add (&page->list, &page_list);
+	spin_unlock( &page_list_guard );
 	return page;
 }
 
 
 void lock_page (struct page * p)
 {
-	assert ("vs-287", !PageLocked (p));\
-	(p)->flags |= PG_locked;\
+	assert ("vs-287", !PageLocked (p));
+	SetPageLocked (p);
 }
 
 
 void unlock_page (struct page * p)
 {
-	assert ("vs-286", PageLocked (p));\
-	(p)->flags &= ~PG_locked;\
+	assert ("vs-286", PageLocked (p));
+	ClearPageLocked (p);
 }
 
 
@@ -721,7 +727,7 @@ struct page *read_cache_page (struct address_space * mapping,
 	if (!page)
 		page = new_page (mapping, idx);
 	
-	if (!Page_Uptodate (page)) {
+	if (!PageUptodate (page)) {
 		lock_page (page);
 		filler (data, page);
 	}
@@ -729,24 +735,20 @@ struct page *read_cache_page (struct address_space * mapping,
 }
 
 
-void wait_on_page(struct page * page)
+int generic_file_mmap(struct file * file UNUSED_ARG,
+		      struct vm_area_struct * vma UNUSED_ARG)
+{
+	return 0;
+}
+
+
+
+
+void wait_on_page_locked(struct page * page)
 {
 	if (PageLocked (page)) {
-		struct buffer_head * bh;
-		int notuptodate = 0;
-
-		/* wait until all buffers are unlocked */
-		bh = page->buffers;
-		do {
-			wait_on_buffer (bh);
-			if (!buffer_uptodate (bh))
-				notuptodate ++;
-		} while (bh = bh->b_this_page, bh != page->buffers);
-
 		reiser4_stat_file_add (wait_on_page);
 		unlock_page (page);
-		if (!notuptodate)
-			SetPageUptodate (page);
 	}
 }
 
@@ -760,10 +762,10 @@ static void print_page (struct page * page)
 	info ("PAGE: index %lu, count %d, ino %lx%s%s\nbuffers:\n",
 	      page->index, page->count, page->mapping->host->i_ino,
 	      PageLocked (page) ? ", Locked" : "",
-	      Page_Uptodate (page) ? ", Uptodate" : "");
+	      PageUptodate (page) ? ", Uptodate" : "");
 
 
-	bh = page->buffers;
+	bh = page_buffers (page);
 	if (!bh) {
 		info ("NULL\n;");
 		return;
@@ -777,9 +779,31 @@ static void print_page (struct page * page)
 		      buffer_new (bh) ? ", New" : "",
 		      buffer_unallocated (bh) ? ", Unallocated" : "",
 		      buffer_allocated (bh) ? ", Allocated" : "");
-	} while (bh = bh->b_this_page, bh != page->buffers);
+	} while (bh = bh->b_this_page, bh != page_buffers (page));
 }
 
+/* mm/readahead.c */
+void page_cache_readahead (struct file * file UNUSED_ARG, unsigned long offset UNUSED_ARG)
+{
+	return;
+}
+
+
+static void invalidate_pages (void)
+{
+	struct list_head * cur, * tmp;
+	struct page * page;
+
+	list_for_each_safe (cur, tmp, &page_list) {
+		page = list_entry (cur, struct page, list);
+		assert ("vs-666", !PageDirty (page) && page->count == 0 &&
+			!PageKmaped (page));
+		spin_lock( &page_list_guard );
+		list_del_init( &page -> list );
+		free (page);
+		spin_unlock( &page_list_guard );
+	}
+}
 
 void print_pages (void)
 {
@@ -807,12 +831,18 @@ void print_inodes (void)
 
 char * kmap (struct page * page)
 {
+	assert ("vs-664", !PageKmaped (page));
+	SetPageKmaped (page);
+	page->virtual = (char *)page + sizeof (struct page);
 	return page->virtual;
 }
 
 
-void kunmap (struct page * page UNUSED_ARG)
+void kunmap (struct page * page)
 {
+	assert ("vs-665", PageKmaped (page));
+	ClearPageKmaped (page);
+	page->virtual = 0;
 }
 
 unsigned long get_jiffies ()
@@ -834,13 +864,45 @@ void page_cache_release (struct page * page)
 
 
 /* fs/buffer.c */
-int create_empty_buffers (struct page * page, unsigned blocksize)
+int fsync_bdev(struct block_device * bdev)
+{
+	struct list_head * cur;
+	struct page * page;
+	jnode * j;
+
+	list_for_each (cur, &page_list) {
+		page = list_entry (cur, struct page, list);
+		if (!PageDirty (page))
+			continue;
+		if (PagePrivate (page)) {
+			struct buffer_head bh, *pbh;
+
+			j = (jnode *)page->private;
+			bh.b_size = reiser4_get_current_sb ()->s_blocksize;
+			bh.b_blocknr = j->blocknr;
+			bh.b_bdev = bdev;
+			bh.b_data = kmap (page);
+			pbh = &bh;
+			ll_rw_block (WRITE, 1, &pbh);
+			kunmap (page);
+			ClearPageDirty (page);
+		} else {
+			info ("dirty page does not have jnode\n");
+			ClearPageDirty (page);
+		}
+	}
+	return 0;
+}
+
+/*
+int create_empty_buffers (struct page * page, unsigned blocksize,
+			  unsigned long b_state UNUSED_ARG)
 {
 	int i;
 	struct buffer_head * bh, * last;
 
 
-	assert ("vs-292", !page->buffers);
+	assert ("vs-292", !page_has_buffers (page));
 
 	bh = NULL;
 	last = NULL;
@@ -869,14 +931,41 @@ void map_bh (struct buffer_head * bh, struct super_block * sb, reiser4_block_nr 
 	bh->b_dev = sb->s_dev;
 	bh->b_blocknr = block;
 }
+*/
 
-void ll_rw_block (int rw UNUSED_ARG, int nr UNUSED_ARG,
-		  struct buffer_head ** pbh UNUSED_ARG)
+void ll_rw_block (int rw, int nr, struct buffer_head ** pbh)
 {
+	int i;
+
+	for (i = 0; i < nr; i ++) {
+		if (lseek64 (pbh[i]->b_bdev->fd,
+			     pbh[i]->b_size * (off64_t)pbh[i]->b_blocknr,
+			     SEEK_SET) != 
+		    pbh[i]->b_size * (off64_t)pbh[i]->b_blocknr, SEEK_SET) {
+			info ("ll_rw_block: lsek64 failed\n");
+			return;
+		}
+		if (rw == READ) {
+			if (read (pbh[i]->b_bdev->fd, pbh[i]->b_data, pbh[i]->b_size) != 
+			    (ssize_t)pbh[i]->b_size) {
+				info ("ll_rw_block: read failed\n");
+				clear_buffer_uptodate (pbh[i]);
+			} else {
+				set_buffer_uptodate (pbh[i]);
+			}
+		} else {
+			if (write (pbh[i]->b_bdev->fd, pbh[i]->b_data, pbh[i]->b_size) !=
+			    (ssize_t)pbh[i]->b_size) {
+				info ("ll_rw_block: read failed\n");
+			}
+		}
+	}
 }
 
-void set_buffer_async_io (struct buffer_head * bh UNUSED_ARG)
+
+void mark_buffer_async_read (struct buffer_head * bh UNUSED_ARG)
 {
+	
 }
 
 int submit_bh (int rw UNUSED_ARG, struct buffer_head * bh UNUSED_ARG)
@@ -888,7 +977,7 @@ void wait_on_buffer (struct buffer_head * bh)
 {
 	if (buffer_locked (bh)) {
 		unlock_buffer (bh);
-		make_buffer_uptodate (bh, 1);
+		set_buffer_uptodate (bh);
 	}
 }
 
@@ -973,49 +1062,128 @@ int ulevel_allocate_node( znode *node )
 }
 
 
-int reiser4_sb_bread (struct super_block * sb, struct buffer_head * bh)
+static struct buffer_head * getblk (struct super_block * sb, int block)
 {
-	int result;
-	reiser4_tree * tree;
+	struct buffer_head * bh;
 
-	assert ("vs-634", bh->b_count == 0);
+	bh = malloc (sizeof *bh);
+	if (!bh)
+		return 0;
+	bh->b_data = malloc (sb->s_blocksize);
+	if (!bh->b_data) {
+		free (bh);
+		return 0;
+	}
 	bh->b_count = 1;
-
-	if (sb && get_super_private (sb) && get_super_private (sb)->tree.read_node) {
-		tree = &get_super_private (sb)->tree;
-		result = tree->read_node (&bh->b_blocknr, &bh->b_data, bh->b_size);
-	} else
-		result =  ulevel_read_node (&bh->b_blocknr, &bh->b_data, bh->b_size);
-	return result < 0 ? result : 0;
-
-
+	bh->b_blocknr = block;
+	bh->b_size = sb->s_blocksize;
+	bh->b_bdev = sb->s_bdev;
+	return bh;
 }
 
-
-void reiser4_sb_bwrite (struct buffer_head * bh UNUSED_ARG)
+struct buffer_head * sb_bread (struct super_block * sb, int block)
 {
-	if (mmap_back_end_fd > 0) {
-		;
-	} else
-		impossible ("vs-635", "no write");
+	struct buffer_head * bh;
+
+
+	bh = getblk (sb, block);
+	if (!bh)
+		return 0;
+
+	if (lseek64 (sb->s_bdev->fd, bh->b_size * (off64_t)block, SEEK_SET) != 
+	    bh->b_size * (off64_t)block, SEEK_SET) {
+		brelse (bh);
+		return 0;
+	}
+	if (read (sb->s_bdev->fd, bh->b_data, bh->b_size) != (int)bh->b_size) {
+		brelse (bh);
+		return 0;
+	}
+	return bh;
 }
 
 
-void reiser4_sb_brelse (struct buffer_head * bh)
+void brelse (struct buffer_head * bh)
 {
 	assert ("vs-472", bh->b_count > 0);
-	bh->b_count --;
-	if (mmap_back_end_fd > 0) {
-		;
-	} else
+	if (bh->b_count -- == 1) {
+		if (buffer_dirty (bh)) {
+			ll_rw_block (WRITE, 1, &bh);
+			wait_on_buffer (bh);
+		}
 		free (bh->b_data);
+		free (bh);
+	}
+}
+
+
+int block_read_full_page (struct page *page,
+			  get_block_t *get_block)
+{
+        struct inode *inode = page->mapping->host;
+        unsigned long iblock, lblock, i;
+        struct buffer_head *arr[MAX_BUF_PER_PAGE], bhs[MAX_BUF_PER_PAGE];
+        unsigned int blocksize, blocksize_bits, blocks;
+        int nr, j;
+	char * data;
+
+
+	/*
+	 * FIXME-VS: inode->i_sb is a fake super block. Its blocksize is
+	 * wrong. Wouldn't it make troubles to real block_read_full_page
+	 */
+	blocksize = reiser4_get_current_sb ()->s_blocksize;
+	blocksize_bits = reiser4_get_current_sb ()->s_blocksize_bits;
+
+
+        blocks = PAGE_CACHE_SIZE >> blocksize_bits;
+        iblock = page->index << (PAGE_CACHE_SHIFT - blocksize_bits);
+	/*
+	 * FIXME-VS: assume block device endless
+	 */
+        lblock = ~0ul;/*(inode->i_size+blocksize-1) >> blocksize_bits;*/
+
+        nr = 0;
+        i = 0;
+	data = kmap (page);
+
+	for (i = 0; i < blocks; i ++, data += blocksize, iblock ++) {
+		bhs[i].b_state = 0;
+		bhs[i].b_size = blocksize;
+		bhs[i].b_data = data;
+
+		if (iblock < lblock) {
+			if (get_block(inode, (sector_t)iblock, &bhs[i], 0))
+				return -EIO;
+		} else {
+			return -EIO;
+		}
+		arr[nr++] = &bhs[i];
+	}
+
+	ll_rw_block (READ, nr, arr);
+	kunmap (page);
+
+	/*
+	 * FIXME-VS: wait is here
+	 */
+	for (j = 0; j < nr; j ++) {
+		if (!buffer_uptodate (arr[j]))
+			break;
+	}
+	if (j == nr)
+		SetPageUptodate (page);
+	else
+		ClearPageUptodate (page);
+	return 0;
 }
 
 
 int sb_set_blocksize(struct super_block *sb, int size)
 {
 	sb->s_blocksize = size;
-	return size;
+	for (sb->s_blocksize_bits = 0; size >>= 1; sb->s_blocksize_bits ++);
+	return sb->s_blocksize;
 }
 
 
@@ -1348,6 +1516,9 @@ static void call_umount (struct super_block * sb)
 	if (sb->s_op->put_super)
 		sb->s_op->put_super (sb);
 
+	iput (sb->s_root->d_inode);
+
+	fsync_bdev (sb->s_bdev);
 	init_context( old_context, sb );
 }
 
@@ -2523,17 +2694,6 @@ static int copy_file (const char * oldname, struct inode * dir,
 }
 
 
-static int get_depth (const char * path)
-{
-	int i;
-	const char * slash;
-
-	i = 1;
-	for (slash = path; (slash = strchr (slash, '/')) != 0; i ++, slash ++);
-	return i;
-}
-
-
 static const char * last_name (const char * full_name)
 {
 	const char * name;
@@ -2544,6 +2704,17 @@ static const char * last_name (const char * full_name)
 
 
 #if 0
+
+static int get_depth (const char * path)
+{
+	int i;
+	const char * slash;
+
+	i = 1;
+	for (slash = path; (slash = strchr (slash, '/')) != 0; i ++, slash ++);
+	return i;
+}
+
 
 static int copy_dir (struct inode * dir)
 {
@@ -2753,49 +2924,13 @@ static int bash_cpr (struct inode * dir, const char * source)
 }
 
 
-static void open_device (const char * fname)
-{
-	mmap_back_end_fd = open( fname, O_RDWR, 0700 );
-	if( mmap_back_end_fd == -1 ) {
-		perror( "open" );
-		exit( 1 );
-	}
-	mmap_back_end_size = lseek( mmap_back_end_fd, (off_t)0, SEEK_END );
-	if( ( off_t ) mmap_back_end_size == ( off_t ) -1 ) {
-		perror( "lseek" );
-		exit( 2 );
-	}
-	mmap_back_end_start = mmap( NULL, 
-				    mmap_back_end_size, 
-				    PROT_WRITE | PROT_READ, 
-				    MAP_SHARED, mmap_back_end_fd, (off_t)0 );
-	if( mmap_back_end_start == MAP_FAILED ) {
-		perror( "mmap" );
-		exit( 3 );
-	}
-}
-
-
-static void close_device (void)
-{
-	if (munmap (mmap_back_end_start, mmap_back_end_size)) {
-		perror( "munmap" );
-		exit( 3 );
-	}
-	mmap_back_end_start = 0;	
-}
-
-
 
 static int bash_mount (reiser4_context * context, const char * file_name)
 {
 	struct super_block * sb;
 
-	open_device (file_name);
-
-	sb = do_mount (0);
+	sb = call_mount (file_name);
 	if (IS_ERR (sb)) {
-		close_device ();
 		return PTR_ERR (sb);
 	}
 
@@ -2808,9 +2943,19 @@ static int bash_mount (reiser4_context * context, const char * file_name)
 static void bash_umount (reiser4_context * context)
 {
 	int ret;
+	struct super_block * sb;
+	int fd;
 
-	call_umount (reiser4_get_current_sb ());
+	sb = reiser4_get_current_sb ();
+	fd = sb->s_bdev->fd;
+	call_umount (sb);
+
+	close (fd);
+
+	/* free all pages and inodes, make sure that there are no dirty/used
+	 * pages/inodes */
 	invalidate_inodes ();
+	invalidate_pages ();
 
 	/* REISER4_EXIT */
         ret = txn_end (context);
@@ -2819,7 +2964,56 @@ static void bash_umount (reiser4_context * context)
 	/*
 	txn_mgr_force_commit (s);
 	*/
-	close_device ();
+}
+
+
+static int mkfs_bread (const reiser4_block_nr *addr, char **data, size_t blksz)
+{
+	struct buffer_head bh, *pbh;
+
+	memset (&bh, 0, sizeof (bh));
+
+	bh.b_blocknr = *addr;
+	bh.b_size = blksz;
+	bh.b_bdev = reiser4_get_current_sb ()->s_bdev;
+	bh.b_data = malloc (blksz);
+	assert ("vs-669", bh.b_data);
+	memset (bh.b_data, 0, bh.b_size);
+	pbh = &bh;
+	ll_rw_block (READ, 1, &pbh);
+	*data = bh.b_data;
+	return 0;
+}
+
+
+static int mkfs_getblk (znode *node)
+{
+	assert ("vs-671", node->data == 0);
+	node->size = reiser4_get_current_sb ()->s_blocksize;
+	node->data = malloc (node->size);
+	assert ("vs-668", node->data);
+	return 0;
+}
+
+
+static void mkfs_brelse (znode *node)
+{
+	struct buffer_head bh, *pbh;
+
+	memset (&bh, 0, sizeof (bh));
+
+	ZF_SET (node, ZNODE_DIRTY);
+	if (ZF_ISSET (node, ZNODE_DIRTY)) {
+		assert ("vs-670", *znode_get_block (node));
+		bh.b_blocknr = *znode_get_block (node);
+		bh.b_size = node->size;
+		bh.b_bdev = reiser4_get_current_sb ()->s_bdev;
+		bh.b_data = zdata (node);
+		pbh = &bh;
+		ll_rw_block (WRITE, 1, &pbh);
+		ZF_CLR (node, ZNODE_DIRTY);
+	}
+	free (node->data);
 }
 
 
@@ -2828,16 +3022,15 @@ static int bash_mkfs (const char * file_name)
 {
 	znode * fake, * root;
 	struct super_block super;
+	struct block_device bd;
 	struct dentry root_dentry;
 	reiser4_block_nr root_block;
-	oid_t next_oid;
 	reiser4_block_nr next_block;
 	reiser4_tree * tree;
 	int result;
+	unsigned long blocksize;
 
 	
-	open_device (file_name);
-
 	super.u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
 				       GFP_KERNEL);
 	if( super.u.generic_sbp == NULL )
@@ -2846,8 +3039,16 @@ static int bash_mkfs (const char * file_name)
 		 sizeof (reiser4_super_info_data));
 	super.s_op = &reiser4_super_operations;
 	super.s_root = &root_dentry;
-	super.s_blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
+	blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
 		atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
+	super.s_blocksize = blocksize;
+	for (super.s_blocksize_bits = 0; blocksize >>= 1; super.s_blocksize_bits ++);
+	super.s_bdev = &bd;
+	super.s_bdev->fd = open (file_name, O_RDWR);
+	if (super.s_bdev->fd == -1) {
+		info ("Could not open device: %s\n", strerror (errno));
+		return 1;
+	}
 	xmemset( &root_dentry, 0, sizeof root_dentry );
 
 	{
@@ -2858,76 +3059,80 @@ static int bash_mkfs (const char * file_name)
 
 		get_super_private (&super)->lplug = layout_plugin_by_id (TEST_LAYOUT_ID);
 
-		next_oid = 1000ull;
-		get_super_private (&super)->oid_plug = oid_allocator_plugin_by_id (OID_40_ALLOCATOR_ID);
-		get_super_private (&super)->oid_plug->
-			init_oid_allocator (get_oid_allocator (&super), 1ull, next_oid);
 
-		root_block = 3ull;
-		next_block = root_block + 1;
-		get_super_private (&super)->space_plug = space_allocator_plugin_by_id (TEST_SPACE_ALLOCATOR_ID);
-		get_super_private (&super)->space_plug->
-			init_allocator (get_space_allocator( &super ),
-					&super, &next_block );
 
 		/*  make super block */
 		{
-			struct buffer_head bh;
+			struct buffer_head * bh;
 			reiser4_master_sb * master_sb;
 			test_disk_super_block * test_sb;
 			size_t blocksize;
 
 			blocksize = super.s_blocksize;
-			bh.b_blocknr = REISER4_MAGIC_OFFSET / blocksize;
-			bh.b_data = 0;
-			bh.b_count = 0;
-			bh.b_size = blocksize;
-			reiser4_sb_bread (0, &bh);
-			memset (bh.b_data, 0, blocksize);
+			bh = sb_bread (&super, (int)(REISER4_MAGIC_OFFSET / blocksize));
+			assert ("vs-654", bh);
+			memset (bh->b_data, 0, blocksize);
 
-			master_sb = (reiser4_master_sb *)bh.b_data;
+			/* master */
+			master_sb = (reiser4_master_sb *)bh->b_data;
 			strncpy (master_sb->magic, REISER4_SUPER_MAGIC_STRING, 4);
 			cputod16 (TEST_LAYOUT_ID, &master_sb->disk_plugin_id);
 			cputod16 (blocksize, &master_sb->blocksize);
 
-			test_sb = (test_disk_super_block *)(bh.b_data + sizeof (*master_sb));
+
+			/* block allocator */
+			root_block = bh->b_blocknr + 1;
+			next_block = root_block + 1;
+			get_super_private (&super)->space_plug = space_allocator_plugin_by_id (TEST_SPACE_ALLOCATOR_ID);
+			get_super_private (&super)->space_plug->
+				init_allocator (get_space_allocator( &super ),
+						&super, &next_block );
+
+			/* oid allocator */
+			get_super_private (&super)->oid_plug = oid_allocator_plugin_by_id (OID_40_ALLOCATOR_ID);
+			get_super_private (&super)->oid_plug->
+				init_oid_allocator (get_oid_allocator (&super), 1ull, 1000ull);
+
+			/* test layout super block */
+			test_sb = (test_disk_super_block *)(bh->b_data + sizeof (*master_sb));
 			strncpy (test_sb->magic, TEST_MAGIC, strlen (TEST_MAGIC));
-			/* root block and tree height will be changed on umount */
-			cputod64 (root_block, &test_sb->root_block);
-			cputod16 (1, &test_sb->tree_height);
 			cputod16 (HASHED_DIR_PLUGIN_ID, &test_sb->root_dir_plugin);
 			cputod16 (DEGENERATE_HASH_ID, &test_sb->root_hash_plugin);
 			cputod16 (NODE40_ID, &test_sb->node_plugin);
-
-			{
-				oid_t oid;
-			
-				get_super_private (&super)->oid_plug->allocate_oid (get_oid_allocator (&super),
-										    &oid);
-				cputod64 (oid, &test_sb->next_to_use);
-			}
-
-			assert ("vs-640",
-				get_super_private (&super)->space_plug ==
-				space_allocator_plugin_by_id (TEST_SPACE_ALLOCATOR_ID));
-			cputod64 (get_space_allocator (&super)->u.test.new_block_nr,
-				  &test_sb->new_block_nr);
-
-			reiser4_sb_bwrite (&bh);
-			reiser4_sb_brelse (&bh);
+			/* this will change on put_super in accordance to state
+			 * of filesystem at that time */
+			cputod64 (0ull, &test_sb->root_block);
+			cputod16 (0, &test_sb->tree_height);
+			cputod64 (0ull, &test_sb->new_block_nr);
+			cputod64 (0ull, &test_sb->next_to_use);
+			mark_buffer_dirty (bh);
+			ll_rw_block (WRITE, 1, &bh);
+			wait_on_buffer (bh);
+			brelse (bh);
 		}
 
 		/* initialize empty tree */
 		tree = &get_super_private( &super ) -> tree;
 		result = init_tree( tree, &root_block,
 				    1/*tree_height*/, node_plugin_by_id( NODE40_ID ),
-				    ulevel_read_node, ulevel_allocate_node );
+				    mkfs_bread,
+				    /*ulevel_allocate_node*/mkfs_getblk,
+				    mkfs_brelse );
 		fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR, 1 );
 		root = allocate_znode( tree, fake, tree->height, &tree->root_block, 1);
 		root -> rd_key = *max_key();
 		sibling_list_insert( root, NULL );
+/*
+		{
+			lock_handle lh;
 
-		zput (root);
+			init_lh (&lh);
+			longterm_lock_znode (&lh, root, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
+			znode_set_dirty (root);
+			done_lh (&lh);
+		}
+*/
+		/*zrelse (root);*/
 		zput (fake);
 
 		{
@@ -3027,13 +3232,13 @@ static int bash_mkfs (const char * file_name)
 			super.s_root->d_inode = inode;
 			call_umount (&super);
 			invalidate_inodes ();
+			invalidate_pages ();
 		}
 
 		/*print_tree_rec ("mkfs", tree, REISER4_NODE_PRINT_ALL);*/
 
 		result = __REISER4_EXIT( &__context );
 	}
-	close_device ();
 	return result;
 } /* bash_mkfs */
 
@@ -3938,7 +4143,7 @@ int jmacd_test( int argc UNUSED_ARG,
 static int bm_test_read_node (const reiser4_block_nr *addr, char **data, size_t blksz )
 {
 	struct super_block * super = get_current_context() -> super;
-	int bmap_nr;
+	bmap_nr_t bmap_nr;
 	reiser4_block_nr bmap_block_addr;
 
 	assert ("zam-413", *data == NULL);
@@ -4327,7 +4532,7 @@ int real_main( int argc, char **argv )
 		tree = &get_super_private( s ) -> tree;
 		result = init_tree( tree, &root_block,
 				    tree_height, node_plugin_by_id( NODE40_ID ),
-				    ulevel_read_node, ulevel_allocate_node );
+				    ulevel_read_node, ulevel_allocate_node, 0 );
 		if( result )
 			rpanic ("jmacd-500", "znode_tree_init failed");
 	}
@@ -4396,6 +4601,196 @@ int main (int argc, char **argv)
 
 void funJustAfterMain()
 {}
+
+
+/** helper called by print_tree_rec() */
+static void tree_rec_dot( reiser4_tree *tree /* tree to print */, 
+			  znode *node /* node to print */, 
+			  __u32 flags /* print flags */, 
+			  FILE *dot /* dot-output */ )
+{
+	int ret;
+	new_coord coord;
+	char buffer_l[ 100 ];
+	char buffer_r[ 100 ];
+
+	ret = zload( node );
+	if( ret != 0 ) {
+		info( "Cannot load/parse node: %i", ret );
+		return;
+	}
+
+	fprintf( dot, "B%lli [shape=record,label=\"%lli\\n%s\\n%s\"];\n", 
+		 *znode_get_block( node ), 
+		 *znode_get_block( node ),
+		 sprintf_key( buffer_l, &node -> ld_key ),
+		 sprintf_key( buffer_r, &node -> rd_key ) );
+
+	for( ncoord_init_before_first_item( &coord, node ); ncoord_next_item( &coord ) == 0; ) {
+
+		if( item_is_internal( &coord ) ) {
+			znode *child;
+
+			spin_lock_dk( current_tree );
+			child = child_znode( &coord, 0 );
+			spin_unlock_dk( current_tree );
+			if( !IS_ERR( child ) ) {
+				tree_rec_dot( tree, child, flags, dot );
+				fprintf( dot, "B%lli -> B%lli ;\n", 
+					 *znode_get_block( node ),
+					 *znode_get_block( child ) );
+				zput( child );
+			} else {
+				info( "Cannot get child: %li\n", 
+				      PTR_ERR( child ) );
+			}
+		}
+	}
+	/*
+	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL )
+		print_address( "end children of node", znode_get_block( node ) );
+	*/
+}
+
+/** helper called by print_tree_rec() */
+static void tree_rec( reiser4_tree *tree /* tree to print */, 
+		      znode *node /* node to print */, 
+		      __u32 flags /* print flags */ )
+{
+	int ret;
+	new_coord coord;
+
+	ret = zload( node );
+	if( ret != 0 ) {
+		info( "Cannot load/parse node: %i", ret );
+		return;
+	}
+
+	if( flags & REISER4_NODE_PRINT_ZNODE )
+		print_znode( "", node );
+
+	print_znode_content( node, flags );
+	if( node_is_empty( node ) ) {
+		indent_znode( node );
+		info( "empty\n" );
+		return;
+	}
+
+	if( flags & REISER4_NODE_CHECK )
+		node_check( node, flags );
+
+	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL ) {
+		print_address( "children of node", znode_get_block( node ) );
+	}
+
+	for( ncoord_init_before_first_item( &coord, node ); ncoord_next_item( &coord ) == 0; ) {
+
+		if( item_is_internal(&coord ) ) {
+			znode *child;
+
+			spin_lock_dk( current_tree );
+			child = child_znode( &coord, 0 );
+			spin_unlock_dk( current_tree );
+			if( !IS_ERR( child ) ) {
+				tree_rec( tree, child, flags );
+				zput( child );
+			} else {
+				info( "Cannot get child: %li\n", 
+				      PTR_ERR( child ) );
+			}
+		}
+	}
+	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL ) {
+		print_address( "end children of node", znode_get_block( node ) );
+	}
+}
+
+/**
+ * debugging aid: recursively print content of a @tree.
+ */
+void print_tree_rec (const char * prefix /* prefix to print */, 
+		     reiser4_tree * tree /* tree to print */, 
+		     __u32 flags /* print flags*/ )
+{
+	znode *fake;
+	znode *root;
+
+	if( ( flags & ( unsigned ) ~REISER4_NODE_CHECK ) != 0 )
+		info( "tree: [%s]\n", prefix );
+	fake = zget( tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL );
+	if( IS_ERR( fake ) ) {
+		info( "Cannot get fake\n" );
+		return;
+	}
+	root = zget( tree, &tree -> root_block, fake, tree -> height, 
+		     GFP_KERNEL );
+	if( IS_ERR( root ) ) {
+		info( "Cannot get root\n" );
+		return;
+	}
+	tree_rec( tree, root, flags );
+	if( ! ( flags & REISER4_NODE_DONT_DOT ) ) {
+		char path[ 1024 ];
+		FILE *dot;
+
+		sprintf( path, "/tmp/%s.dot", prefix );
+		dot = fopen( path, "w+" );
+		if( dot != NULL ) {
+			fprintf( dot,
+				 "digraph L0 {\n"
+				 "ordering=out;\n"
+				 "node [shape = box];\n" );
+			tree_rec_dot( tree, root, flags, dot );
+			fprintf( dot, "}\n" );
+			fclose( dot );
+		}
+	}
+
+	if( ( flags & ( unsigned ) ~REISER4_NODE_CHECK ) != 0 )
+		info( "end tree: [%s]\n", prefix );
+	zput( root );
+	zput( fake );
+}
+
+
+/** Debugging aid: print information about inode. */
+void print_inode( const char *prefix /* prefix to print */, 
+		  const struct inode *i /* inode to print */ )
+{
+	reiser4_key         inode_key;
+	reiser4_inode_info *ref;
+
+	if( i == NULL ) {
+		info( "%s: inode: null\n", prefix );
+		return;
+	}
+	info( "%s: ino: %lu, count: %i, link: %i, mode: %o, size: %llu\n",
+	      prefix, i -> i_ino, atomic_read( &i -> i_count ), i -> i_nlink,
+	      i -> i_mode, ( unsigned long long ) i -> i_size );
+	info( "\tuid: %i, gid: %i, dev: %i, rdev: %i\n", 
+	      i -> i_uid, i -> i_gid, i -> i_dev, i -> i_rdev );
+	info( "\tatime: %li, mtime: %li, ctime: %li\n",
+	      i -> i_atime, i -> i_mtime, i -> i_ctime );
+	info( "\tblkbits: %i, blksize: %lu, blocks: %lu\n",
+	      i -> i_blkbits, i -> i_blksize, i -> i_blocks );
+	info( "\tversion: %lu, generation: %i, attr. flags: %u, flags: %u\n",
+	      i -> i_version, i -> i_generation, i -> i_attr_flags, 
+	      i -> i_flags );
+	info( "\tis_reiser4_inode: %i\n", is_reiser4_inode( i ) );
+	print_key( "\tkey", build_sd_key( i, &inode_key ) );
+	ref = reiser4_inode_data( i );
+	print_plugin( "\tfile", file_plugin_to_plugin( ref -> file ) );
+	print_plugin( "\tdir", dir_plugin_to_plugin( ref -> dir ) );
+	print_plugin( "\tperm", perm_plugin_to_plugin( ref -> perm ) );
+	print_plugin( "\ttail", tail_plugin_to_plugin( ref -> tail ) );
+	print_plugin( "\thash", hash_plugin_to_plugin( ref -> hash ) );
+	print_plugin( "\tsd", item_plugin_to_plugin( ref -> sd ) );
+	print_seal( "\tsd_seal", &ref -> sd_seal );
+	ncoord_print( "\tsd_coord", &ref -> sd_coord, 1 );
+	info( "\tflags: %u, bytes: %llu, extmask: %llu, sd_len: %i, pmask: %i, locality: %llu\n",
+	      ref -> flags, ref -> bytes, ref -> extmask, 
+	      ( int ) ref -> sd_len, ref -> plugin_mask, ref -> locality_id );
+}
 
 /*
  * Make Linus happy.
