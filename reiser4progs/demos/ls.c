@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
 	    int i;
 	    char name[256];
 
-	    for (i = 0; i < 89; i++) {
+	    for (i = 0; i < 100; i++) {
 		aal_memset(name, 0, sizeof(name));
 		aal_snprintf(name, 256, "testdir%d", i);
 		reiserfs_dir_close(reiserfs_dir_create(fs, 

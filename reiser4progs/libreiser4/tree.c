@@ -997,7 +997,7 @@ errno_t reiserfs_tree_insert(
 
 /* Removes item by specified key */
 errno_t reiserfs_tree_remove(
-    reiserfs_tree_t *tree,	/* tree item will beremoved from */
+    reiserfs_tree_t *tree,	/* tree item will be removed from */
     reiserfs_key_t *key		/* key item will be found by */
 ) {
     int lookup, level;
@@ -1031,7 +1031,7 @@ errno_t reiserfs_tree_remove(
     if (reiserfs_cache_remove(coord.cache, &coord.pos))
 	return -1;
 
-    /* 
+    /*
 	FIXME-UMKA: Here should be also checking if we need descrease tree 
 	height.
     */
@@ -1053,13 +1053,15 @@ errno_t reiserfs_tree_move(
     aal_assert("umka-1020", src != NULL, return -1);
     
 
+    if (reiserfs_cache_move(dst->cache, &dst->pos, 
+	    src->cache, &src->pos))
+	return -1;
+	    
     /* 
 	FIXME-UMKA: Here should be keeping track of the situation when we need 
 	to change tree root.
     */
-
-    return reiserfs_cache_move(dst->cache, &dst->pos, 
-	src->cache, &src->pos);
+    return 0;
 }
 
 #endif
