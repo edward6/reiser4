@@ -110,7 +110,7 @@ extract_name_from_key(const reiser4_key *key, char *buf)
 
 /* build key for directory entry.
    ->build_entry_key() for directory plugin */
-int
+void
 build_entry_key_common(const struct inode *dir	/* directory where entry is
 						 * (or will be) in.*/ ,
 		       const struct qstr *qname	/* name of file referenced
@@ -145,7 +145,7 @@ build_entry_key_common(const struct inode *dir	/* directory where entry is
 	   directory entry.
 	*/
 	if (len == 1 && name[0] == '.')
-		return 0;
+		return;
 
 	/* This is our brand new proposed key allocation algorithm for
 	   directory entries:
@@ -205,7 +205,7 @@ build_entry_key_common(const struct inode *dir	/* directory where entry is
 		set_key_objectid(result, objectid);
 	}
 	set_key_offset(result, offset);
-	return 0;
+	return;
 }
 
 /* build key for directory entry.
@@ -214,7 +214,7 @@ build_entry_key_common(const struct inode *dir	/* directory where entry is
    This is for directories where we want repeatable and restartable readdir()
    even in case 32bit user level struct dirent (readdir(3)).
 */
-int
+void
 build_entry_key_stable_entry(const struct inode *dir	/* directory where
 							 * entry is (or
 							 * will be) in. */ ,
@@ -242,7 +242,7 @@ build_entry_key_stable_entry(const struct inode *dir	/* directory where
 	   directory entry.
 	*/
 	if ((name->len == 1) && (name->name[0] == '.'))
-		return 0;
+		return;
 
 	/* objectid of key is 31 lowest bits of hash. */
 	objectid = inode_hash_plugin(dir)->hash(name->name, (int) name->len) & 0x7fffffff;
@@ -252,7 +252,7 @@ build_entry_key_stable_entry(const struct inode *dir	/* directory where
 
 	/* offset is always 0. */
 	set_key_offset(result, (__u64) 0);
-	return 0;
+	return;
 }
 
 /* build key to be used by ->readdir() method.

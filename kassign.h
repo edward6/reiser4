@@ -70,8 +70,8 @@ extern cmp_t de_id_cmp(const de_id * id1, const de_id * id2);
 extern cmp_t de_id_key_cmp(const de_id * id, const reiser4_key * key);
 
 extern int build_readdir_key_common(struct file *dir, reiser4_key * result);
-extern int build_entry_key_common(const struct inode *dir, const struct qstr *name, reiser4_key * result);
-extern int build_entry_key_stable_entry(const struct inode *dir, const struct qstr *name, reiser4_key * result);
+extern void build_entry_key_common(const struct inode *dir, const struct qstr *name, reiser4_key * result);
+extern void build_entry_key_stable_entry(const struct inode *dir, const struct qstr *name, reiser4_key * result);
 extern int is_dot_key(const reiser4_key * key);
 extern reiser4_key *build_sd_key(const struct inode *target, reiser4_key * result);
 extern int is_root_dir_key(const struct super_block *super, const reiser4_key * key);
