@@ -2339,32 +2339,33 @@ znode_make_dirty(znode * z)
 
 	assert("umka-204", z != NULL);
 	assert("nikita-3290", znode_above_root(z) || znode_is_loaded(z));
+	assert("nikita-3291", !ZF_ISSET(z, JNODE_EFLUSH));
+
 
 	node = ZJNODE(z);
 
 	LOCK_JNODE(node);
 	jnode_make_dirty_locked(node);
 	page = jnode_page(node);
-	if (page != NULL)
-		page_cache_get(page);
-	else
-		/* FIXME-NIKITA dubious. What if jnode doesn't have page,
-		   because it was early flushed, or ->releasepaged? */
-		assert("zam-596", znode_above_root(JZNODE(node)));
-
-	ON_DEBUG_MODIFY(znode_set_checksum(ZJNODE(z), 1));
-	UNLOCK_JNODE(node);
-
-	/* jnode lock is not needed for the rest of znode_set_dirty(). */
 	if (page != NULL) {
-		/* reiser4 file write code calls set_page_dirty for unformatted
-		 * nodes, for formatted nodes we do it here. */
+		assert("nikita-3292", 
+		       !PageWriteback(page) || ZF_ISSET(z, JNODE_WRITEBACK));
+		page_cache_get(page);
+		ON_DEBUG_MODIFY(znode_set_checksum(ZJNODE(z), 1));
+		/* jnode lock is not needed for the rest of
+		 * znode_set_dirty(). */
+		UNLOCK_JNODE(node);
+		/* reiser4 file write code calls set_page_dirty for
+		 * unformatted nodes, for formatted nodes we do it here. */
 		set_page_dirty_internal(page);
 		page_cache_release(page);
+		/* bump version counter in znode */
+		z->version = znode_build_version(jnode_get_tree(node));
+	} else {
+		assert("zam-596", znode_above_root(JZNODE(node)));
+		UNLOCK_JNODE(node);
 	}
 
-	/* bump version counter in znode */
-	z->version = znode_build_version(jnode_get_tree(node));
 	assert("nikita-1900", znode_is_write_locked(z));
 	assert("jmacd-9777", node->atom != NULL);
 }
