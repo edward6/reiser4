@@ -181,17 +181,10 @@ typedef struct file_plugin {
 	int ( *create )( struct inode *object, struct inode *parent,
 			 reiser4_object_create_data *data );
 	/** 
-	 * delete this object's stat-data if REISER4_NO_STAT_DATA is not set
-	 * and set REISER4_NO_STAT_DATA 
-
-	 This means which, vs should fix it, or vs thinks it should be fixed?
-
-	 * FIXME-VS: this does not delete stat data only. For example, for
-	 * directories which have "." and ".." explicitly it also removes those
-	 * entries
-
-	 That should be part of rem_link, not destroy_stat_data, yes?
-
+	 * delete empty object. This method should check REISER4_NO_STAT_DATA
+	 * and set REISER4_NO_STAT_DATA on success. Deletion of empty object
+	 * at least includes removal of stat-data if any. For directories this
+	 * also includes removal of dot and dot-dot.
 	 */
 	int ( *destroy_stat_data )( struct inode *object, struct inode *parent );
 	/** bump reference counter on "object" */

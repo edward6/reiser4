@@ -313,7 +313,7 @@ typedef struct cbk_handle {
 	__u32                flags;
 } cbk_handle;
 
-static lookup_result cbk( cbk_handle *h );
+static lookup_result cbk_traversal( cbk_handle *h );
 static int cbk_cache_search( cbk_handle *h );
 
 static level_lookup_result cbk_level_lookup( cbk_handle *h );
@@ -413,8 +413,7 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 	if( cbk_cache_search( &handle ) == 0 )
 		return handle.result;
 	else
-	  /* this is what happens when I say no do_ ? ;-/ Fix this. -Hans */
-		return cbk( &handle );
+		return cbk_traversal( &handle );
 }
 
 
@@ -516,7 +515,7 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 
 /** main function that handles common parts of tree traversal: starting
     (fake znode handling), restarts, error handling, completion */
-static lookup_result cbk( cbk_handle *h /* search handle */ )
+static lookup_result cbk_traversal( cbk_handle *h /* search handle */ )
 {
 	int done;
 	int iterations;

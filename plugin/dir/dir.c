@@ -33,8 +33,7 @@ void directory_readahead( struct inode *dir /* directory being accessed */,
 
 typedef enum { 
 	UNLINK_BY_DELETE, 
-	UNLINK_BY_PLUGIN, 
-	UNLINK_BY_NLINK 
+	UNLINK_BY_PLUGIN
 } unlink_f_type;
 
 /** 
@@ -187,16 +186,10 @@ static int common_unlink( struct inode *parent /* parent object */,
 		assert( "nikita-872", object -> i_size == 0 );
 
 		uf_type = UNLINK_BY_DELETE;
-	} else if( fplug -> add_link ) {
-		/* call plugin to do actual removal of link */
+	} else if( fplug -> rem_link == 0 )
+		return -EPERM;
+	else
 		uf_type = UNLINK_BY_PLUGIN;
-	} else {
-		/* explain how it makes sense to do this for plugins that don't support it? Does it make any sense at
-		   all to have a default method for plugins?  I suspect it will just make the code more confusing to
-		   follow.... -Hans */
-		/* do reasonable default stuff */
-		uf_type = UNLINK_BY_NLINK;
-	}
 
 	/* first, delete directory entry */
 	result = parent_dplug -> rem_entry( parent, victim, &entry );
@@ -208,11 +201,6 @@ static int common_unlink( struct inode *parent /* parent object */,
 			break;
 		case UNLINK_BY_PLUGIN:
 			result = fplug -> rem_link( object );
-			break;
-		case UNLINK_BY_NLINK:
-			-- object -> i_nlink;
-			object -> i_ctime = CURRENT_TIME;
-			result = fplug -> write_sd_by_inode( object );
 			break;
 		default:
 			wrong_return_value( "nikita-1478", "uf_type" );
