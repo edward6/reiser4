@@ -329,8 +329,7 @@ node_check(znode * node /* node to check */ ,
 	if (result != 0) {
 		info("%s\n", mes);
 		print_node_content("check", node, ~0u);
-		if (flags & REISER4_NODE_PANIC)
-			reiser4_panic("vs-273", "node corrupted");
+		reiser4_panic("vs-273", "node corrupted");
 	}
 	zrelse(node);
 }

@@ -2315,8 +2315,8 @@ squalloc_right_twig(znode * left, znode * right, flush_position * pos)
 	}
 
 	ENABLE_NODE_CHECK;
-	node_check(left, REISER4_NODE_DKEYS | REISER4_NODE_PANIC);
-	node_check(right, REISER4_NODE_DKEYS | REISER4_NODE_PANIC);
+	node_check(left, REISER4_NODE_DKEYS);
+	node_check(right, REISER4_NODE_DKEYS);
 
 	if (ret == SQUEEZE_TARGET_FULL) {
 		goto out;

@@ -326,7 +326,7 @@ node_search_result node40_lookup(znode * node /* node to query */ ,
 	assert("nikita-2693", znode_is_any_locked(node));
 	trace_stamp(TRACE_NODES);
 
-	node_check(node, REISER4_NODE_DKEYS | REISER4_NODE_PANIC);
+	node_check(node, REISER4_NODE_DKEYS);
 
 	/* binary search for item that can contain given key */
 	left = 0;
@@ -760,7 +760,7 @@ node40_change_item_size(coord_t * coord, int by)
 	int item_length;
 	unsigned i;
 
-	node_check(coord->node, REISER4_NODE_PANIC);
+	node_check(coord->node, 0);
 
 	/* make sure that @item is coord of existing item */
 	assert("vs-210", coord_is_existing_item(coord));
@@ -803,7 +803,7 @@ node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data 
 	unsigned offset;
 	unsigned i;
 
-	node_check(target->node, REISER4_NODE_PANIC);
+	node_check(target->node, 0);
 
 	nh = node40_node_header(target->node);
 
@@ -884,23 +884,7 @@ node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data 
 		item_plugin_by_coord(target)->b.create_hook(target, data->arg);
 	}
 
-	node_check(target->node, REISER4_NODE_PANIC);
-
-	/* FIXME-VS: remove after debugging */
-	if (0) {
-		reiser4_key key_1;
-		reiser4_key key;
-		coord_t crd;
-
-		for_all_items(&crd, target->node) {
-			item_key_by_coord(&crd, &key);
-			if (crd.item_pos != 0)
-				assert("vs-970", keylt(&key_1, &key));
-			key_1 = key;
-		}
-	}
-	/* FIXME-VS: remove after debugging */
-
+	node_check(target->node, 0);
 	return 0;
 }
 
@@ -2072,8 +2056,8 @@ node40_shift(coord_t * from, znode * to, shift_direction pend, int delete_child,
 
 	assert("nikita-1473", znode_is_write_locked(from->node));
 	assert("nikita-1474", znode_is_write_locked(to));
-	node_check(from->node, REISER4_NODE_PANIC);
-	node_check(to, REISER4_NODE_PANIC);
+	node_check(from->node, 0);
+	node_check(to, 0);
 
 	source = from->node;
 
@@ -2157,8 +2141,8 @@ node40_shift(coord_t * from, znode * to, shift_direction pend, int delete_child,
 		 (shift.pend == SHIFT_LEFT) ? "<" : "",
 		 (shift.pend == SHIFT_LEFT) ? "" : ">", *znode_get_block(right), shift.shift_bytes);
 
-	node_check(source, REISER4_NODE_PANIC);
-	node_check(to, REISER4_NODE_PANIC);
+	node_check(source, 0);
+	node_check(to, 0);
 	assert("nikita-2080", coord_check(from));
 
 	return result ? result : (int) shift.shift_bytes;

@@ -677,7 +677,7 @@ longterm_unlock_znode(lock_handle * handle)
 			spin_unlock_znode(node);
 			ON_DEBUG(check_lock_data());
 			ON_DEBUG(check_lock_node_data(node));
-			ON_DEBUG(node_check(node, REISER4_NODE_PANIC));
+			ON_DEBUG(node_check(node, 0));
 			forget_znode(handle);
 			assert("nikita-2191", znode_invariant(node));
 			zput(node);
@@ -898,7 +898,7 @@ int longterm_lock_znode(
 
 		ON_DEBUG_CONTEXT(++lock_counters()->long_term_locked_znode);
 		if (REISER4_DEBUG_NODE && mode == ZNODE_WRITE_LOCK) {
-			node_check(node, REISER4_NODE_PANIC);
+			node_check(node, 0);
 			ON_DEBUG_MODIFY(znode_pre_write(node));
 		}
 	}
