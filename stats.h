@@ -11,14 +11,12 @@
 #include "debug.h"
 #include "statcnt.h"
 
-#ifdef __KERNEL__
 /* for __u?? types */
 #include <linux/types.h>
 /* for struct super_block, etc */
 #include <linux/fs.h>
 /* for in_interrupt() */
 #include <asm/hardirq.h>
-#endif
 
 #include <linux/sched.h>
 

@@ -190,17 +190,6 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 #define YOU_CAN_COMPILE_PSEUDO_CODE   (0)
 #define NOT_YET                       (0)
 
-/* Certain user-level testing requirements */
-#if REISER4_USER_LEVEL_SIMULATION
-
-#include "ulevel/ulevel.h"
-
-#endif
-
-#ifndef __KERNEL__
-#include "build.h"
-#endif
-
 /** Reiser4 specific error codes **/
 
 #define REISER4_ERROR_CODES_BASE 500

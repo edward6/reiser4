@@ -161,8 +161,6 @@ find_next_zero_bit_in_byte(unsigned int byte, int start)
 	return i;
 }
 
-#if defined (__KERNEL__)
-
 #include <asm/bitops.h>
 
 #define reiser4_set_bit(nr, addr)    ext2_set_bit(nr, addr)
@@ -172,67 +170,6 @@ find_next_zero_bit_in_byte(unsigned int byte, int start)
 #define reiser4_find_next_zero_bit(addr, maxoffset, offset) \
 ext2_find_next_zero_bit(addr, maxoffset, offset)
 
-#else
-
-static inline void
-reiser4_set_bit(bmap_off_t nr, void *addr)
-{
-	unsigned char *base = (char *) addr + (nr >> 3);
-	unsigned char mask = (1 << (nr & 0x7));
-
-	*base |= mask;
-}
-
-static inline void
-reiser4_clear_bit(bmap_off_t nr, void *addr)
-{
-	unsigned char *base = (char *) addr + (nr >> 3);
-	unsigned char mask = (1 << (nr & 0x7));
-
-	*base &= ~mask;
-}
-
-static bmap_off_t
-reiser4_find_next_zero_bit(void *addr, bmap_off_t max_offset, bmap_off_t start_offset)
-{
-	unsigned char *base = addr;
-	int byte_nr = start_offset >> 3;
-	int bit_nr = start_offset & 0x7;
-	int max_byte_nr = (max_offset - 1) >> 3;
-
-	assert("zam-388", max_offset != 0);
-
-	if (bit_nr != 0) {
-		int nr;
-
-		nr = find_next_zero_bit_in_byte(base[byte_nr], bit_nr);
-
-		if (nr < 8)
-			return (byte_nr << 3) + nr;
-
-		++byte_nr;
-	}
-
-	while (byte_nr <= max_byte_nr) {
-		if (base[byte_nr] != 0xFF) {
-			return (byte_nr << 3)
-			    + find_next_zero_bit_in_byte(base[byte_nr], 0);
-		}
-
-		++byte_nr;
-	}
-
-	return max_offset;
-}
-
-static inline int
-reiser4_test_bit(bmap_off_t nr, void *addr)
-{
-	unsigned char *base = (char *) addr + (nr >> 3);
-	return *base & (1 << (nr & 0x7));
-}
-
-#endif
 
 static bmap_off_t
 reiser4_find_next_set_bit(void *addr, bmap_off_t max_offset, bmap_off_t start_offset)
