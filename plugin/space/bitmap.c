@@ -281,8 +281,8 @@ reiser4_find_last_set_bit (bmap_off_t * result, void * addr, bmap_off_t low_off,
 	int last_bit;
 	int nr;
 
-	assert ("zam-961", high_off > 0);
-	assert ("zam-962", high_off > low_off);
+	assert ("zam-961", high_off >= 0);
+	assert ("zam-962", high_off >= low_off);
 
 	last_byte = high_off >> 3;
 	last_bit = high_off & 0x7;
@@ -852,7 +852,6 @@ search_one_bitmap_backward (bmap_nr_t bmap, bmap_off_t * start_offset, bmap_off_
 	struct bnode *bnode = get_bnode(super, bmap);
 	char *data;
 	bmap_off_t start;
-	bmap_off_t end;
 	int ret;
 
 	assert("zam-958", min_len > 0);
@@ -867,26 +866,28 @@ search_one_bitmap_backward (bmap_nr_t bmap, bmap_off_t * start_offset, bmap_off_
 	start = *start_offset;
 
 	while (1) {
+		bmap_off_t end, search_end;
+
 		/* Find the beginning of the zero filled region */
 		if (reiser4_find_last_zero_bit(&start, data, end_offset, start))
 			break;
 		/* Is there more than `min_len' bits from `start' to
 		 * `end_offset'?  */
-		if (start < end_offset + min_len)
+		if (start < end_offset + min_len - 1)
 			break;
 
 		/* Do not search to `end_offset' if we need to find less than
 		 * `max_len' zero bits. */
-		if (end_offset + max_len < start)
-			end = start - max_len + 1;
+		if (end_offset + max_len - 1 < start)
+			search_end = start - max_len + 1;
 		else
-			end = end_offset;
+			search_end = end_offset;
 
-		reiser4_find_last_set_bit(&end, data, end_offset, start);
-
+		if (reiser4_find_last_set_bit(&end, data, search_end, start))
+			end = search_end;
 		if (end + min_len <= start + 1) {
-			if (end < end_offset)
-				end = end_offset;
+			if (end < search_end)
+				end = search_end;
 			ret = start - end + 1;
 			*start_offset = end; /* `end' is lowest offset */
 			reiser4_set_bits(data, end, start + 1);
