@@ -24,6 +24,8 @@ typedef enum {
 	REISER4_PERM_PLUGIN_TYPE,
 	REISER4_SD_EXT_PLUGIN_TYPE,
 	REISER4_LAYOUT_PLUGIN_TYPE,
+	REISER4_OID_MGR_PLUGIN_TYPE,
+	REISER4_SPACE_MGR_PLUGIN_TYPE,
 	REISER4_PLUGIN_TYPES
 } reiser4_plugin_type;
 
@@ -180,7 +182,8 @@ typedef struct file_plugin {
 	    reiserfs_update_sd() in 3.x */
 	int ( *write_sd_by_inode)( struct inode *inode );
 	int ( *readpage )( struct file *file, struct page * );
-	/* these should be implemented using body_read_flow and body_write_flow builtins */
+	/* these should be implemented using body_read_flow and body_write_flow
+	 * builtins */
 	ssize_t ( *read )( struct file *file, char *buf, size_t size, 
 			 loff_t *off );
 	ssize_t ( *write )( struct file *file, char *buf, size_t size, 
@@ -188,8 +191,9 @@ typedef struct file_plugin {
 
 	
 /*
- * private methods: These are optional.  If used they will allow you to minimize the amount of code needed to implement
- * a deviation from some other method that also uses them.
+ * private methods: These are optional.  If used they will allow you to
+ * minimize the amount of code needed to implement a deviation from some other
+ * method that also uses them.
  */
 
 	/**
@@ -267,8 +271,8 @@ typedef struct file_plugin {
 
 typedef struct dir_plugin {
 
-				/* resolves one component of name_in, and returns the key that it resolves to plus the
-				   remaining name */
+	/* resolves one component of name_in, and returns the key that it
+	 * resolves to plus the remaining name */
 	int ( *resolve)(name_t * name_in, /* name within this directory that is to be found */
 			name_t * name_out, /* name remaining after the part of the name that was resolved is stripped from it */
 			key_t key_found	/* key of what was named */
@@ -286,9 +290,10 @@ typedef struct dir_plugin {
 	int ( *unlink )( struct inode *parent, struct dentry *victim );
 	int ( *link )( struct inode *parent, struct dentry *existing, 
 		       struct dentry *where );
-	/* sub-methods: These are optional.  If used they will allow you to minimize the amount of code needed to
-	   implement a deviation from some other method that uses them.  You could logically argue that they should be a
-	   separate type of plugin. */
+	/* sub-methods: These are optional.  If used they will allow you to
+	   minimize the amount of code needed to implement a deviation from
+	   some other method that uses them.  You could logically argue that
+	   they should be a separate type of plugin. */
 
 	/** check whether "name" is acceptable name to be inserted into
 	    this object. Optionally implemented by directory-like objects.
@@ -337,25 +342,49 @@ typedef struct sd_ext_plugin {
 	int alignment;
 } sd_ext_plugin;
 
+/* this plugin contains methods to allocate objectid for newly created files,
+ * to deallocate objectid when file gets removed, to report number of used and
+ * free objectids */
+typedef struct oid_mgr_plugin {
+	int ( *init_oid_allocator )( reiser4_oid_allocator *map );
+	/* used to report statfs->f_files */	
+	__u64 ( *oids_used )( reiser4_oid_allocator *map );
+	/* used to report statfs->f_ffree */	
+	__u64 ( *oids_free )( reiser4_oid_allocator *map );
+	/* allocate new objectid */
+	int ( *allocate_oid )( reiser4_oid_allocator *map, oid_t * );
+	/* release objectid */
+	int ( *release_oid )( reiser4_oid_allocator *map, oid_t );
+	/* how many pages to reserve in transaction for allocation of new
+	   objectid */
+	int ( *oid_reserve_allocate )( reiser4_oid_allocator *map );
+	/* how many pages to reserve in transaction for freeing of an
+	   objectid */
+	int ( *oid_reserve_release )( reiser4_oid_allocator *map );
+} oid_mgr_plugin;
+
+/* this plugin contains method to allocate and deallocate free space of disk */
+typedef struct space_mgr_plugin {
+	int ( *init_space_mgr )( struct super_block * );
+} space_mgr_plugin;
 
 /* disk layout plugin: this specifies super block, journal, bitmap (if there
  * are any) locations, etc */
 typedef struct layout_plugin {
-	/* replay journal, initialize super_info_data, prepare block allocator,
-	 * etc */
+	/* replay journal, initialize super_info_data, etc */
 	int ( *get_ready )( struct super_block *, reiser4_super_info_data *,
 			    struct buffer_head * );
+
 	/* key of root directory stat data */
 	const reiser4_key * ( *root_dir_key )( void );
-	/* used to report statfs->f_files */	
-	long ( *oids_used )( struct super_block * );
-	/* used to report statfs->f_ffree */	
-	long ( *oids_free )( struct super_block * );
-	/* allocate new objectid */
-	int ( *allocate_oid )( struct super_block *, oid_t * );
-	/* release objectid */
-	int ( *release_oid )( struct super_block *, oid_t );
+
+	/* plugin responsible for objectid allocation/freeing */
+	oid_mgr_plugin *oid_manager;
+
+	/* plugin responsible for free disk space allocation */
+	space_mgr_plugin *space_manager;
 } layout_plugin;
+
 
 /** plugin instance. 
     We keep everything inside single union for simplicity.
@@ -366,16 +395,18 @@ struct reiser4_plugin {
 	plugin_header h;
 	/** data specific to particular plugin type */
 	union __plugins {
-		file_plugin   file;
-		dir_plugin    dir;
-		hash_plugin   hash;
-		tail_plugin   tail;
-		hook_plugin   hook;
-		perm_plugin   perm;
-		node_plugin   node;
-		item_plugin   item;
-		sd_ext_plugin sd_ext;
-		layout_plugin layout;
+		file_plugin      file;
+		dir_plugin       dir;
+		hash_plugin      hash;
+		tail_plugin      tail;
+		hook_plugin      hook;
+		perm_plugin      perm;
+		node_plugin      node;
+		item_plugin      item;
+		sd_ext_plugin    sd_ext;
+		layout_plugin    layout;
+		oid_mgr_plugin   oid_mgr;
+		space_mgr_plugin space_mgr;
 		void                *generic;
 	} u;
 };
