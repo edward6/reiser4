@@ -137,8 +137,6 @@ typedef struct {
 int kcond_timedwait( kcond_t *cvar /* cvar to wait for */, 
 		     spinlock_t *lock /* lock to use */,
 		     signed long timeout /* timeout in jiffies */,
-			/* FIXME: timeout in jiffies makes no sence at all,
-			   because juffues are different everywhere */
 		     int signl /* if 0, ignore signals during sleep */ )
 {
 	struct timer_list timer;
