@@ -14,7 +14,11 @@
 #include <linux/writeback.h>
 #include <linux/pagemap.h>
 
-static const reiser4_block_nr null_block_nr = (__u64) 0;
+static const reiser4_block_nr zero = 0;
+static const reiser4_block_nr one = 1;
+
+#define HOLE_EXTENT_START zero
+#define UNALLOCATED_EXTENT_START one
 
 #if REISER4_DEBUG
 static int
@@ -33,7 +37,9 @@ coord_extension_is_ok(const uf_coord_t *uf_coord)
 				       ext_coord->ext == extent_by_coord(coord) &&
 				       ext_coord->width == extent_get_width(ext_coord->ext) &&
 				       coord->unit_pos < ext_coord->nr_units &&
-				       ext_coord->pos_in_unit < ext_coord->width));
+				       ext_coord->pos_in_unit < ext_coord->width &&
+				       extent_get_start(ext_coord->ext) == extent_get_start(&ext_coord->extent) &&
+				       extent_get_width(ext_coord->ext) == extent_get_width(&ext_coord->extent)));
 }
 #endif
 
@@ -285,23 +291,10 @@ lookup_extent(const reiser4_key *key, lookup_bias bias UNUSED_ARG, coord_t *coor
 	return CBK_COORD_FOUND;
 }
 
-/* set extent width and convert type to on disk representation */
-/* Audited by: green(2002.06.13) */
+/* set extent's start and width */
 static void
-set_extent(reiser4_extent *ext, extent_state state, reiser4_block_nr start, pos_in_unit_t width)
+set_extent(reiser4_extent *ext, reiser4_block_nr start, pos_in_unit_t width)
 {
-	switch (state) {
-	case HOLE_EXTENT:
-		start = 0ull;
-		break;
-	case UNALLOCATED_EXTENT:
-		start = 1ull;
-		break;
-	case ALLOCATED_EXTENT:
-		break;
-	default:
-		impossible("vs-338", "do not create extents but holes and unallocated");
-	}
 	extent_set_start(ext, start);
 	extent_set_width(ext, width);
 }
@@ -799,14 +792,10 @@ optimize_extent(const coord_t *item)
 
 		cur_state = state_of_extent(cur);
 		if (new_cur && state_of_extent(new_cur) == cur_state) {
-			/* extents can be unioned when they are holes or
-			   unallocated extents or when they are adjacent
+			/* extents can be unioned when they are holes or unallocated extents or when they are adjacent
 			   allocated extents */
-			if (cur_state != ALLOCATED_EXTENT) {
-				new_cur_width += cur_width;
-				set_extent(new_cur, cur_state, 0, new_cur_width);
-				continue;
-			} else if (extent_get_start(new_cur) + new_cur_width == extent_get_start(cur)) {
+			if (cur_state != ALLOCATED_EXTENT ||
+			    (extent_get_start(new_cur) + new_cur_width == extent_get_start(cur))) {
 				new_cur_width += cur_width;
 				extent_set_width(new_cur, new_cur_width);
 				continue;
@@ -1072,7 +1061,7 @@ add_hole(coord_t *coord, lock_handle *lh, const reiser4_key *key /* key of posit
 		assert("vs-710", hole_width > 0);
 
 		/* compose body of hole extent */
-		set_extent(&new_ext, HOLE_EXTENT, 0, hole_width);
+		set_extent(&new_ext, HOLE_EXTENT_START, hole_width);
 
 		result = insert_extent_by_coord(coord, init_new_extent(&item, &new_ext, 1), &hole_key, lh);
 		zrelse(loaded);
@@ -1111,7 +1100,7 @@ add_hole(coord_t *coord, lock_handle *lh, const reiser4_key *key /* key of posit
 		/* last extent of a file is hole extent. Widen that extent by
 		   @hole_width blocks. Note that we do not worry about
 		   overflowing - extent width is 64 bits */
-		set_extent(ext, HOLE_EXTENT, 0, extent_get_width(ext) + hole_width);
+		set_extent(ext, HOLE_EXTENT_START, extent_get_width(ext) + hole_width);
 		znode_make_dirty(coord->node);
 		zrelse(loaded);
 		return 0;
@@ -1121,7 +1110,7 @@ add_hole(coord_t *coord, lock_handle *lh, const reiser4_key *key /* key of posit
 	assert("vs-713", (state_of_extent(ext) == ALLOCATED_EXTENT || state_of_extent(ext) == UNALLOCATED_EXTENT));
 
 	/* compose body of hole extent */
-	set_extent(&new_ext, HOLE_EXTENT, 0, hole_width);
+	set_extent(&new_ext, HOLE_EXTENT_START, hole_width);
 
 	result = insert_into_item(coord, lh, &hole_key, init_new_extent(&item, &new_ext, 1), 0 /*flags */ );
 	zrelse(loaded);
@@ -1892,7 +1881,7 @@ allocate_extent_item_in_place(coord_t *coord, lock_handle *lh, flush_pos_t *flus
 		   assert("vs-1202", protected == 0);
 		*/
 		index += allocated;
-		set_extent(&replace, ALLOCATED_EXTENT, first_allocated, allocated);
+		set_extent(&replace, first_allocated, allocated);
 		if (allocated == width) {
 			/* whole extent is allocated */
 			*ext = replace;
@@ -1905,7 +1894,7 @@ allocate_extent_item_in_place(coord_t *coord, lock_handle *lh, flush_pos_t *flus
 		/* set @key to key of first byte of part of extent which left
 		   unallocated */
 		set_key_offset(&key, index << PAGE_CACHE_SHIFT);
-		set_extent(&paste, UNALLOCATED_EXTENT, 0, width - allocated);
+		set_extent(&paste, UNALLOCATED_EXTENT_START, width - allocated);
 
 		/* [u/width] ->
 		   [first_allocated/allocated][u/width - allocated] */
@@ -1963,28 +1952,34 @@ extent_unit_width(const coord_t *item)
 	return width_by_coord(item);
 }
 
-/* Starting block location of this unit. */
+/* Starting block location of this unit */
 reiser4_block_nr
 extent_unit_start(const coord_t *item)
 {
 	return extent_get_start(extent_by_coord(item));
 }
 
-/* new extent pointer is added into tree. init jnode corresponding to block addressed by that pointer */
 static void
-init_new_jnode(jnode *j)
+init_unallocated_jnode(jnode *j)
 {
 	reiser4_block_nr fake_blocknr;
 
 	jnode_set_mapped(j);
-	jnode_set_created(j);
-	JF_SET(j, JNODE_NEW);
 	assign_fake_blocknr_unformatted(&fake_blocknr);
-	jnode_set_block(j, &fake_blocknr);
-	/* mark jnode dirty right here*/
+	jnode_set_block(j, &fake_blocknr);	
 	JF_SET(j, JNODE_DIRTY);
 }
 
+/* initialize jnode if newly created block. It is called by insert_first_block, append_one_block and hole overwrite */
+static void
+init_new_jnode(jnode *j)
+{
+	init_unallocated_jnode(j);
+	jnode_set_created(j);
+	JF_SET(j, JNODE_NEW);
+}
+
+/* initialize jnode of */
 static void
 init_allocated_jnode(jnode *j, reiser4_block_nr block)
 {
@@ -1995,7 +1990,7 @@ init_allocated_jnode(jnode *j, reiser4_block_nr block)
 /* insert extent item (containing one unallocated extent of width 1) to place
    set by @coord */
 static int
-insert_first_block(coord_t *coord, lock_handle *lh, jnode *j, const reiser4_key *key)
+insert_first_block(uf_coord_t *uf_coord, jnode *j, const reiser4_key *key)
 {
 	int result;
 	reiser4_extent ext;
@@ -2003,13 +1998,12 @@ insert_first_block(coord_t *coord, lock_handle *lh, jnode *j, const reiser4_key 
 
 	/* make sure that we really write to first block */
 	assert("vs-240", get_key_offset(key) == 0);
-	assert("zam-809", znode_is_write_locked(coord->node));
 
 	/* extent insertion starts at leaf level */
-	assert("vs-719", znode_get_level(coord->node) == LEAF_LEVEL);
+	assert("vs-719", znode_get_level(uf_coord->base_coord.node) == LEAF_LEVEL);
 
-	set_extent(&ext, UNALLOCATED_EXTENT, 0, 1ull);
-	result = insert_extent_by_coord(coord, init_new_extent(&unit, &ext, 1), key, lh);
+	set_extent(&ext, UNALLOCATED_EXTENT_START, 1);
+	result = insert_extent_by_coord(&uf_coord->base_coord, init_new_extent(&unit, &ext, 1), key, uf_coord->lh);
 	if (result) {
 		/* FIXME-VITALY: this is grabbed at file_write time. */
 		/* grabbed2free ((__u64)1); */
@@ -2018,9 +2012,8 @@ insert_first_block(coord_t *coord, lock_handle *lh, jnode *j, const reiser4_key 
 
 	init_new_jnode(j);
 
-	/* this is to indicate that research must be performed to continue write. This is because coord->node is leaf
-	   node whereas write continues in twig level
-	*/
+	/* invalidate coordinate, research must be performed to continue because write will continue on twig level */
+	uf_coord->valid = 0;
 	return 0;
 }
 
@@ -2050,7 +2043,7 @@ append_one_block(uf_coord_t *uf_coord, jnode *j, reiser4_key *key)
 
 	switch (state_of_extent(ext_coord->ext)) {
 	case UNALLOCATED_EXTENT:
-		set_extent(ext_coord->ext, UNALLOCATED_EXTENT, 0, extent_get_width(ext_coord->ext) + 1);
+		set_extent(ext_coord->ext, UNALLOCATED_EXTENT_START, extent_get_width(ext_coord->ext) + 1);
 		znode_make_dirty(coord->node);
 
 		/* update coord extension */
@@ -2060,7 +2053,7 @@ append_one_block(uf_coord_t *uf_coord, jnode *j, reiser4_key *key)
 	case HOLE_EXTENT:
 	case ALLOCATED_EXTENT:
 		/* append one unallocated extent of width 1 */
-		set_extent(&new_ext, UNALLOCATED_EXTENT, 0, 1ull);
+		set_extent(&new_ext, UNALLOCATED_EXTENT_START, 1);
 		result = insert_into_item(coord, uf_coord->lh, key, init_new_extent(&unit, &new_ext, 1), 0 /* flags */ );
 		/* FIXME: for now */
 		uf_coord->valid = 0;
@@ -2099,7 +2092,7 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 	pos_in_unit = ext_coord->pos_in_unit;
 
 	if (width == 1) {
-		set_extent(ext, UNALLOCATED_EXTENT, 0, 1ull);
+		set_extent(ext, UNALLOCATED_EXTENT_START, 1);
 		znode_make_dirty(coord->node);
 		return 0;
 	} else if (pos_in_unit == 0) {
@@ -2114,13 +2107,14 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 				ext_coord->width = extent_get_width(ext - 1);
 				ext_coord->pos_in_unit = ext_coord->width - 1;
 				ext_coord->ext --;
+				ON_DEBUG(ext_coord->extent = *ext_coord->ext);
 				return 0;
 			}
 		}
 		/* extent for replace */
-		set_extent(&replace, UNALLOCATED_EXTENT, 0, 1);
+		set_extent(&replace, UNALLOCATED_EXTENT_START, 1);
 		/* extent to be inserted */
-		set_extent(&new_exts[0], HOLE_EXTENT, 0, width - 1);
+		set_extent(&new_exts[0], HOLE_EXTENT_START, width - 1);
 		count = 1;
 	} else if (pos_in_unit == width - 1) {
 		if (coord->unit_pos < nr_units_extent(coord) - 1) {
@@ -2134,20 +2128,21 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 				ext_coord->width = extent_get_width(ext + 1);
 				ext_coord->pos_in_unit = 0;
 				ext_coord->ext ++;
+				ON_DEBUG(ext_coord->extent = *ext_coord->ext);
 				return 0;
 			}
 		}
 		/* extent for replace */
-		set_extent(&replace, HOLE_EXTENT, 0, width - 1);
+		set_extent(&replace, HOLE_EXTENT_START, width - 1);
 		/* extent to be inserted */
-		set_extent(&new_exts[0], UNALLOCATED_EXTENT, 0, 1ull);
+		set_extent(&new_exts[0], UNALLOCATED_EXTENT_START, 1);
 		count = 1;
 	} else {
 		/* extent for replace */
-		set_extent(&replace, HOLE_EXTENT, 0, pos_in_unit);
-		/* extent to be inserted */
-		set_extent(&new_exts[0], UNALLOCATED_EXTENT, 0, 1ull);
-		set_extent(&new_exts[1], HOLE_EXTENT, 0, width - pos_in_unit - 1);
+		set_extent(&replace, HOLE_EXTENT_START, pos_in_unit);
+		/* extents to be inserted */
+		set_extent(&new_exts[0], UNALLOCATED_EXTENT_START, 1);
+		set_extent(&new_exts[1], HOLE_EXTENT_START, width - pos_in_unit - 1);
 		count = 2;
 	}
 
@@ -2160,6 +2155,109 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 	return replace_extent(coord, uf_coord->lh, key, init_new_extent(&item, new_exts, count), &replace, 0 /* flags */);
 }
 
+/* @coord is set to allocated unit inside of extent item, replace it with unallocated one */
+static int
+allocated2unallocated(uf_coord_t *uf_coord, reiser4_key *key)
+{
+	int result;
+	reiser4_extent *ext;
+	reiser4_extent new_exts[2]; /* extents which will be added after original hole one */
+	reiser4_extent replace;	    /* extent original hole extent will be replaced with */
+	reiser4_block_nr block_nr;
+	pos_in_unit_t width, pos_in_unit;
+	reiser4_item_data item;
+	int count;
+	coord_t *coord;
+	extent_coord_extension_t *ext_coord;
+
+	coord = &uf_coord->base_coord;
+	ext_coord = &uf_coord->extension.extent;
+
+	ext = ext_coord->ext;
+	width = ext_coord->width;
+	pos_in_unit = ext_coord->pos_in_unit;
+	block_nr = extent_get_start(ext) + pos_in_unit;
+
+	if (width == 1) {
+		set_extent(ext, UNALLOCATED_EXTENT_START, 1);
+		znode_make_dirty(coord->node);
+		return 0;
+	} else if (pos_in_unit == 0) {
+		/* first block of unit */
+		if (coord->unit_pos) {
+			if (state_of_extent(ext - 1) == UNALLOCATED_EXTENT) {
+				/* widen previous unit */
+				extent_set_width(ext - 1, extent_get_width(ext - 1) + 1);
+				/* narrow current unit */
+				extent_set_start(ext, extent_get_start(ext) + 1);
+				extent_set_width(ext, width - 1);
+				znode_make_dirty(coord->node);
+
+				/* update coord extension */
+				coord->unit_pos --;
+				ext_coord->width = extent_get_width(ext - 1);
+				ext_coord->pos_in_unit = ext_coord->width - 1;
+				ext_coord->ext --;
+				ON_DEBUG(ext_coord->extent = *ext_coord->ext);
+				goto ok;
+			}
+		}
+		/* extent for replace */
+		set_extent(&replace, UNALLOCATED_EXTENT_START, 1);
+		/* extent to be inserted */
+		set_extent(&new_exts[0], extent_get_start(ext) + 1, width - 1);
+		count = 1;
+	} else if (pos_in_unit == width - 1) {
+		/* last block of unit */
+		if (coord->unit_pos < nr_units_extent(coord) - 1) {
+			if (state_of_extent(ext + 1) == UNALLOCATED_EXTENT) {
+				/* widen next unit */
+				extent_set_width(ext + 1, extent_get_width(ext + 1) + 1);
+				/* narrow current unit */
+				extent_set_width(ext, width - 1);
+				znode_make_dirty(coord->node);
+
+				/* update coord extension */
+				coord->unit_pos ++;
+				ext_coord->width = extent_get_width(ext + 1);
+				ext_coord->pos_in_unit = 0;
+				ext_coord->ext ++;
+				ON_DEBUG(ext_coord->extent = *ext_coord->ext);
+				goto ok;
+			}
+		}
+		/* extent for replace */
+		set_extent(&replace, extent_get_start(ext), width - 1);
+		/* extent to be inserted */
+		set_extent(&new_exts[0], UNALLOCATED_EXTENT_START, 1);
+		count = 1;
+	} else {
+		/* extent for replace */
+		set_extent(&replace, extent_get_start(ext), pos_in_unit);
+		/* extents to be inserted */
+		set_extent(&new_exts[0], UNALLOCATED_EXTENT_START, 1);
+		set_extent(&new_exts[1], block_nr + 1, width - pos_in_unit - 1);
+		count = 2;
+	}
+
+	/* insert_into_item will insert new units after the one @coord is set
+	   to. So, update key correspondingly */
+	unit_key_by_coord(coord, key);	/* FIXME-VS: how does it work without this? */
+	set_key_offset(key, (get_key_offset(key) + extent_get_width(&replace) * current_blocksize));
+
+	uf_coord->valid = 0;
+	result = replace_extent(coord, uf_coord->lh, key, init_new_extent(&item, new_exts, count), &replace, 0 /* flags */);
+	if (result)
+		return result;
+ ok:
+	result = reiser4_dealloc_blocks(&block_nr, &one, BLOCK_ALLOCATED, BA_DEFER,
+					"deallocate block on overwrite");
+	if (result)
+		warning("vs-1355", "Failed to deallocate block %llu overwritting file %llu\n",
+			block_nr, get_key_objectid(key));
+	return result;
+}
+
 /* pointer to block for @bh exists in extent item and it is addressed by
    @coord. If it is hole - make unallocated extent for it. */
 /* Audited by: green(2002.06.13) */
@@ -2167,28 +2265,25 @@ static int
 overwrite_one_block(uf_coord_t *uf_coord, jnode *j, reiser4_key *key)
 {
 	int result;
-	coord_t *coord;
-	extent_coord_extension_t *ext_coord;
 
-	coord = &uf_coord->base_coord;
-	ext_coord = &uf_coord->extension.extent;
+	assert("vs-1312", uf_coord->base_coord.between == AT_UNIT);
 
-	assert("vs-1312", coord->between == AT_UNIT);
-
-	switch (state_of_extent(ext_coord->ext)) {
+	switch (state_of_extent(uf_coord->extension.extent.ext)) {
 	case ALLOCATED_EXTENT:
-		init_allocated_jnode(j, extent_get_start(ext_coord->ext) + ext_coord->pos_in_unit);
+		result = allocated2unallocated(uf_coord, key);
+		if (!result)
+			init_unallocated_jnode(j);
 		break;
 
 	case UNALLOCATED_EXTENT:
 		assert("vs-1114", jnode_mapped(j));
+		result = 0;
 		break;
 
 	case HOLE_EXTENT:
 		result = plug_hole(uf_coord, key);
-		if (result)
-			return result;
-		init_new_jnode(j);
+		if (!result)
+			init_new_jnode(j);
 		break;
 
 	default:
@@ -2196,7 +2291,7 @@ overwrite_one_block(uf_coord_t *uf_coord, jnode *j, reiser4_key *key)
 		return RETERR(-EIO);
 	}
 
-	return 0;
+	return result;
 }
 
 static int
@@ -2204,7 +2299,6 @@ make_extent(struct inode *inode, uf_coord_t *uf_coord, jnode *j, const reiser4_k
 {
 	int result;
 	reiser4_key tmp_key;
-	coord_t *coord;
 
 	assert("nikita-3139", !inode_get_flag(inode, REISER4_NO_SD));
 
@@ -2215,15 +2309,13 @@ make_extent(struct inode *inode, uf_coord_t *uf_coord, jnode *j, const reiser4_k
 	} else
 		inode_file_plugin(inode)->key_by_inode(inode, (loff_t) jnode_page(j)->index << PAGE_CACHE_SHIFT, &tmp_key);
 
-	coord = &uf_coord->base_coord;
-	assert("vs-960", znode_is_write_locked(coord->node));
-	assert("vs-1334", znode_is_loaded(coord->node));
+	assert("vs-960", znode_is_write_locked(uf_coord->base_coord.node));
+	assert("vs-1334", znode_is_loaded(uf_coord->base_coord.node));
 
 	switch (mode) {
 	case FIRST_ITEM:
 		/* create first item of the file */
-		result = insert_first_block(coord, uf_coord->lh, j, &tmp_key);
-		uf_coord->valid = 0;
+		result = insert_first_block(uf_coord, j, &tmp_key);
 		break;
 
 	case APPEND_ITEM:
@@ -2380,6 +2472,7 @@ write_move_coord(coord_t *coord, uf_coord_t *uf_coord, write_mode_t mode, int fu
 			/* move to the next unit */
 			coord->unit_pos ++;
 			ext_coord->ext ++;
+			ON_DEBUG(ext_coord->extent = *ext_coord->ext);
 			ext_coord->width = extent_get_width(ext_coord->ext);
 			ext_coord->pos_in_unit = 0;
 		}
@@ -2445,7 +2538,7 @@ extent_write_flow(struct inode *inode, flow_t *f, hint_t *hint, int grabbed, wri
 			goto exit2;
 		}
 
-		if (!jnode_mapped(j)) {
+		if (!jnode_mapped(j) || !JF_ISSET(j, JNODE_DIRTY)) {
 			ON_TRACE(TRACE_EXTENTS, "MAKE: page %p, index %lu, count %d..", page, page->index, page_count(page));
 
 			/* unlock page before doing anything with filesystem tree */
@@ -2640,6 +2733,7 @@ read_move_coord(coord_t *coord, extent_coord_extension_t *ext_coord)
 			/* move to the next unit */
 			coord->unit_pos ++;
 			ext_coord->ext ++;
+			ON_DEBUG(ext_coord->extent = *ext_coord->ext);
 			ext_coord->width = extent_get_width(ext_coord->ext);
 			ext_coord->pos_in_unit = 0;
 		}
@@ -2780,6 +2874,7 @@ move_coord_pages(coord_t *coord, extent_coord_extension_t *ext_coord, unsigned c
 		coord->unit_pos ++;
 		ext_coord->pos_in_unit = 0;
 		ext_coord->ext ++;
+		ON_DEBUG(ext_coord->extent = *ext_coord->ext);
 		ext_coord->width = extent_get_width(ext_coord->ext);
 	} while (1);
 
@@ -3025,6 +3120,7 @@ init_coord_extension_extent(uf_coord_t *uf_coord, loff_t lookuped)
 	if (coord->between == AFTER_UNIT) {
 		assert("vs-1330", coord->unit_pos == nr_units_extent(coord) - 1);
 		ext_coord->ext = extent_by_coord(coord);
+		ON_DEBUG(ext_coord->extent = *ext_coord->ext);
 		ext_coord->width = extent_get_width(ext_coord->ext);
 		ext_coord->pos_in_unit = ext_coord->width - 1;
 		uf_coord->valid = 1;
@@ -3037,8 +3133,10 @@ init_coord_extension_extent(uf_coord_t *uf_coord, loff_t lookuped)
 
 	/* FIXME: it would not be necessary if pos_in_unit were in coord_t */
 	ext_coord->ext = extent_item(coord);
+
 	for (i = 0; i < coord->unit_pos; i++, ext_coord->ext ++)
 		offset += (extent_get_width(ext_coord->ext) * current_blocksize);
+	ON_DEBUG(ext_coord->extent = *ext_coord->ext);
 	ext_coord->width = extent_get_width(ext_coord->ext);
 
 	assert("vs-1328", offset <= lookuped);
