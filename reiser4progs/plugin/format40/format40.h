@@ -18,13 +18,13 @@
 #define FORMAT40_OFFSET	    (65536 + 4096)
 
 struct format40_super {
-    d32_t sb_mkfs_id;
     d64_t sb_block_count;
     d64_t sb_free_blocks;
     d64_t sb_root_block;
     d64_t sb_oid;
     d64_t sb_file_count;
     d64_t sb_flushes;
+    d32_t sb_mkfs_id;
     char sb_magic[16];
 
     d16_t sb_tree_height;

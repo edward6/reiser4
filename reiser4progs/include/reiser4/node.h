@@ -69,10 +69,10 @@ extern errno_t reiser4_node_set_key(reiser4_node_t *node,
 
 #endif
 
-extern uint32_t reiser4_node_overhead(reiser4_node_t *node);
-extern uint32_t reiser4_node_maxspace(reiser4_node_t *node);
-extern uint32_t reiser4_node_space(reiser4_node_t *node);
-extern uint32_t reiser4_node_pid(reiser4_node_t *node);
+extern uint16_t reiser4_node_overhead(reiser4_node_t *node);
+extern uint16_t reiser4_node_maxspace(reiser4_node_t *node);
+extern uint16_t reiser4_node_space(reiser4_node_t *node);
+extern uint16_t reiser4_node_pid(reiser4_node_t *node);
 
 #endif
 

@@ -54,15 +54,21 @@ typedef struct repair_data repair_data_t;
 #define repair_verbose(repair_data)	(repair_test_option(REPAIR_OPT_VERBOSE, repair_data))
 #define repair_read_only(repair_data)	(repair_test_option(REPAIR_OPT_READ_ONLY, repair_data))
 
-struct repair_traverse_data {
+struct repair_check {
     reiser4_format_t *format;
     reiser4_alloc_t *a_control;
     reiser4_key_t ld_key, rd_key;
     uint16_t options;
     uint8_t level;
+    uint64_t flags;
 };
 
-typedef struct repair_traverse_data repair_traverse_data_t;
+typedef struct repair_check repair_check_t;
+
+#define REPAIR_NOT_FIXED  0x1
+
+#define repair_set_flag(data, flag)	(aal_set_bit(flag, &data->flags))
+#define repair_test_flag(data, flag)	(aal_set_bit(flag, &data->flags))
 
 #endif
 

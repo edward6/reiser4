@@ -7,6 +7,10 @@
 #ifndef INTERNAL40_H
 #define INTERNAL40_H
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <aal/aal.h>
 #include <reiser4/plugin.h>
 

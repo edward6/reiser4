@@ -1,7 +1,11 @@
 includedir		    = -I$(top_srcdir)/include
 libdir			    = $(plugindir)
 
+if ENABLE_COMPACT
 stat40_sources		    = stat40.c stat40.h
+else
+stat40_sources              = stat40.c stat40_repair.c stat40.h
+endif
 
 lib_LTLIBRARIES		    = libstat40.la
 noinst_LTLIBRARIES	    = libstat40-static.la

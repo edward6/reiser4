@@ -55,9 +55,9 @@ extern int reiser4_tree_lookup(reiser4_tree_t *tree,
 
 extern errno_t reiser4_tree_traverse(aal_device_t *device, 
     aal_block_t *block, reiser4_open_func_t open_func, 
-    reiser4_edge_func_t before_func, reiser4_setup_func_t setup_func,
-    reiser4_update_func_t update_func, reiser4_edge_func_t after_func,
-    void *data);
+    reiser4_handler_func_t handler_func, reiser4_edge_func_t before_func, 
+    reiser4_setup_func_t setup_func, reiser4_setup_func_t update_func, 
+    reiser4_edge_func_t after_func, void *data);
 
 extern blk_t reiser4_tree_root(reiser4_tree_t *tree);
 extern reiser4_key_t *reiser4_tree_key(reiser4_tree_t *tree);

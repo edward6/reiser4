@@ -7,6 +7,10 @@
 #ifndef STAT40_H
 #define STAT40_H
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <aal/aal.h>
 #include <reiser4/plugin.h>
 

@@ -1,5 +1,5 @@
 /*
-    node40.c -- reiser4 default node plugin.
+    node40_repair.c -- reiser4 default node plugin.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Vitaly Fertman.
 */
@@ -9,6 +9,8 @@
 #define INVALID_U16	0xffff
 
 extern errno_t node40_remove(reiser4_entity_t *entity, reiser4_pos_t *pos);
+extern uint16_t node40_count(reiser4_entity_t *entity);
+extern uint8_t node40_get_level(reiser4_entity_t *entity);
 
 static uint16_t node40_get_offset_at(aal_block_t *block, int pos) {
     if (pos > nh40_get_num_items(nh40(block)))
@@ -47,8 +49,7 @@ static errno_t node40_region_fix_offsets(reiser4_entity_t *entity, uint16_t star
     aal_assert("vpf-196", node->block != NULL, return -1);
     aal_assert("vpf-217", start_pos < end_pos, return -1);
     aal_assert("vpf-218", start_pos > 0, return -1);
-    aal_assert("vpf-219", end_pos <= nh40_get_num_items(nh40(node->block)), 
-	return -1);
+    aal_assert("vpf-219", end_pos <= node40_count(entity), return -1);
 
     ih = node40_ih_at(node->block, start_pos);
     for (i = start_pos; i < end_pos; i++, ih--) {
@@ -76,12 +77,11 @@ static errno_t node40_region_delete(reiser4_entity_t *entity, uint16_t start_pos
     aal_assert("vpf-201", node != NULL, return -1);
     aal_assert("vpf-202", node->block != NULL, return -1);
     aal_assert("vpf-213", start_pos <= end_pos, return -1);
-    aal_assert("vpf-214", end_pos <= nh40_get_num_items(nh40(node->block)), 
-	return -1);
+    aal_assert("vpf-214", end_pos <= node40_count(entity), return -1);
     
     ih = node40_ih_at(node->block, start_pos);
     for (i = start_pos; i <= end_pos; i++, ih--) {
-	if (i != end_pos || i == nh40_get_num_items(nh40(node->block))) {
+	if (i != end_pos || i == node40_count(entity)) {
 	    node40_set_offset_at(node->block, i, ih40_get_offset(ih + 1) + 1);
 	    ih40_set_len(ih + 1, 1);
 	} else {
@@ -94,9 +94,10 @@ static errno_t node40_region_delete(reiser4_entity_t *entity, uint16_t start_pos
     pos.item = start_pos - 1;
     for (i = start_pos - 1; i < end_pos; i++) {
 	if (node40_remove(entity, &pos)) {
-	    aal_exception_fatal("Node (%llu): Failed to delete an item (%d) of "
-		"a region (%d-%d).", aal_block_number(node->block), 
+	    aal_exception_bug("Node (%llu): Failed to delete the item (%d) "
+		"of a region (%d-%d).", aal_block_number(node->block), 
 		i - start_pos + 1, start_pos, end_pos);
+	    return -1;
 	}
     }
     
@@ -114,7 +115,7 @@ static errno_t node40_region_check(reiser4_entity_t *entity, uint16_t start_pos,
     aal_assert("vpf-203", node != NULL, return -1);
     aal_assert("vpf-204", node->block != NULL, return -1);
 
-    items_num = nh40_get_num_items(nh40(node->block));
+    items_num = node40_count(entity);
     
     aal_assert("vpf-205", end_pos <= items_num, return -1);
     aal_assert("vpf-206", start_pos <= items_num, return -1);
@@ -162,7 +163,7 @@ static errno_t node40_region_check(reiser4_entity_t *entity, uint16_t start_pos,
 		node40_get_offset_at(node->block, i - 1));
 	    sum_length += ih40_get_len(ih + 1);
 	} else {
-	    if (i == nh40_get_num_items(nh40(node->block)))
+	    if (i == node40_count(entity))
 		aal_exception_error("Node (%llu): the start of the free space "
 		    "was fixed to (%d).", aal_block_number(node->block), 
 		    node40_get_offset_at(node->block, i - 1) + 
@@ -245,14 +246,14 @@ static int node40_region_find_bad(reiser4_entity_t *entity, uint16_t *start_pos,
     aal_assert("vpf-211", end_pos != NULL, return -1);
 
     *start_pos = 0;
-    *end_pos = nh40_get_num_items(nh40(node->block));
+    *end_pos = node40_count(entity);
     ih = node40_ih_at(node->block, 0);
     prev_offset = ih40_get_offset(ih);
     
     free_end = node40_free_space_end(node->block);
     max_len = free_end - sizeof(node40_header_t);
 
-    for(i = 1, ih--; i <= nh40_get_num_items(nh40(node->block)); i++, ih--) {
+    for(i = 1, ih--; i <= node40_count(entity); i++, ih--) {
 	offset = node40_get_offset_at(node->block, i);
 	
 	/* Check if the previous item length is invalid. */
@@ -265,7 +266,7 @@ static int node40_region_find_bad(reiser4_entity_t *entity, uint16_t *start_pos,
 	
 	/* Check if the item offset is invalid. */
 	if (offset < sizeof(node40_header_t) || offset > free_end) {
-	    if (i == nh40_get_num_items(nh40(node->block)))
+	    if (i == node40_count(entity))
 		aal_exception_error("Node (%llu): the start of the free space (%llu) "
 		    "is invalid.", aal_block_number(node->block), offset);
 	    else
@@ -303,7 +304,7 @@ static int node40_region_find_bad(reiser4_entity_t *entity, uint16_t *start_pos,
     Checks the set of items within the node. Recovers items lengths, offsets, 
     free space. 
 */
-static errno_t node40_check_item_array(reiser4_entity_t *entity) {
+static errno_t node40_item_array_check(reiser4_entity_t *entity) {
     node40_t *node = (node40_t *)entity;
     item40_header_t *ih;
     uint16_t start_pos, end_pos, free_space;
@@ -318,18 +319,23 @@ static errno_t node40_check_item_array(reiser4_entity_t *entity) {
 	    "fixed to (%d).", aal_block_number(node->block), 
 	    ih40_get_offset(ih), sizeof(node40_header_t));
 	ih40_set_offset(ih, sizeof(node40_header_t));
-    }
+    }   
+    
+    /* 
+	FIXME-VITALY: it is possible to fix the start_free_space on the base of 
+	free_space also, not only vice versa.
+    */
     
     while (1) {
 	if ((retval = node40_region_find_bad(entity, &start_pos, &end_pos)) == -1)
 	{
-	    aal_exception_fatal("Node (%llu): failed to find a corrupted "
+	    aal_exception_bug("Node (%llu): failed to find a corrupted "
 		"region.", aal_block_number(node->block));
 	    return -1;
 	} else if (retval > 0) {
 	    /* Corrupted region was found, try to fix it. */
 	    if (node40_region_check(entity, start_pos, end_pos)) {
-		aal_exception_fatal("Failed to delete a region: block (%llu), "
+		aal_exception_bug("Failed to delete a region: block (%llu), "
 		    "start (%u), end (%u).", aal_block_number(node->block), 
 		    start_pos, end_pos);
 		return -1;
@@ -355,20 +361,19 @@ static errno_t node40_check_item_array(reiser4_entity_t *entity) {
     return 0;
 }
 
-static errno_t node40_check_item_count(reiser4_entity_t *entity) {
+static errno_t node40_item_count_check(reiser4_entity_t *entity) {
     node40_t *node = (node40_t *)entity;
 
     aal_assert("vpf-199", node != NULL, return -1);
     aal_assert("vpf-200", node->block != NULL, return -1);
-    aal_assert("vpf-200", node->block->device != NULL, return -1);
+    aal_assert("vpf-247", node->block->device != NULL, return -1);
 
-    if (nh40_get_num_items(nh40(node->block)) > 
+    if (node40_count(entity) > 
 	(aal_device_get_bs(node->block->device) - sizeof(node40_header_t)) / 
 	(sizeof(item40_header_t) + 1)) 
     {
 	aal_exception_error("Node (%llu): number of items (%d) exceeds the "
-	    "limit.", aal_block_number(node->block), 
-	    nh40_get_num_items(nh40(node->block)));
+	    "limit.", aal_block_number(node->block), node40_count(entity));
 	return -1;
     }
     return 0;
@@ -380,14 +385,14 @@ static errno_t node40_corrupt(reiser4_entity_t *entity, uint16_t options) {
     node40_t *node = (node40_t *)entity;
     
     for(i = 0, ih = node40_ih_at(node->block, 0); 
-	i < 2 * nh40_get_num_items(nh40(node->block)) + 1; i++, ih--) 
+	i < 2 * node40_count(entity) + 1; i++, ih--) 
     {
 	if (aal_test_bit(i, &options)) {
-	    if (i < nh40_get_num_items(nh40(node->block)))
+	    if (i < node40_count(entity))
 		ih40_set_len(ih, INVALID_U16);
 	    else
-		node40_set_offset_at(node->block, i - 
-		    nh40_get_num_items(nh40(node->block)), INVALID_U16);
+		node40_set_offset_at(node->block, i - node40_count(entity), 
+		    INVALID_U16);
 	}
     }
     return 0;
@@ -399,12 +404,39 @@ errno_t node40_check(reiser4_entity_t *entity, uint16_t options) {
     aal_assert("vpf-194", node != NULL, return -1);
  
     /* Check the count of items */
-    if (node40_check_item_count(entity))
+    if (node40_item_count_check(entity))
 	return -1;
 
     /* Check the item array and free space. */
-    if (node40_check_item_array(entity))
+    if (node40_item_array_check(entity))
 	return -1;
 
     return 0;    
 }
+
+/* 
+    This checks the level constrains like no internal and extent items 
+    at leaf level or no statdata items at internal level.
+*/
+errno_t node40_item_legal(reiser4_entity_t *entity, reiser4_plugin_t *plugin) {
+    node40_t *node = (node40_t *)entity;
+    uint16_t level;
+
+    aal_assert("vpf-225", node != NULL, return -1);
+    aal_assert("vpf-237", plugin != NULL, return -1);
+    
+    level = node40_get_level(entity);
+    
+    if (plugin->item_ops.group == INTERNAL_ITEM_GROUP) {
+	if (level == NODE40_LEAF)
+	    return 0;
+    } else if (plugin->item_ops.group == EXTENT_ITEM_GROUP) {
+	if (level != NODE40_TWIG)
+	    return 0;
+    } else if (level != NODE40_LEAF) 
+	return 0;
+    
+
+    return 1;
+}
+

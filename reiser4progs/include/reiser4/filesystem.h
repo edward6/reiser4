@@ -267,17 +267,18 @@ struct reiser4_tree {
     reiser4_key_t key;
 };
 
-/* Callback function for opening node */
+/* Callback function type for opening node. */
 typedef reiser4_node_t *(*reiser4_open_func_t) (aal_block_t *, void *);
 
-/* This function will be called before node traverse and after it */
+/* Callback function type for preparing per-node traverse data. */
 typedef errno_t (*reiser4_edge_func_t) (reiser4_node_t *, void *);
 
-/* On node callback function */
-typedef errno_t (*reiser4_setup_func_t) (reiser4_node_t *, void *);
+/* Callback function type for node handler. */
+typedef errno_t (*reiser4_handler_func_t) (reiser4_node_t *, void *);
 
-/* The function that will be called on every child */
-typedef errno_t (*reiser4_update_func_t) (reiser4_node_t *, uint32_t, void *);
+/* Callback function type for preparing per-item traverse data. */
+typedef errno_t (*reiser4_setup_func_t) (reiser4_node_t *, reiser4_item_t *, 
+    void *);
 
 /* Filesystem compound structure */
 struct reiser4_fs {

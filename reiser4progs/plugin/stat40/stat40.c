@@ -4,10 +4,6 @@
     Author Yury Umanets.
 */
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h>
-#endif
-
 #include "stat40.h"
 
 static reiser4_core_t *core = NULL;
@@ -134,6 +130,8 @@ static errno_t stat40_estimate(uint32_t pos,
     return 0;
 }
 
+extern errno_t stat40_check(reiser4_body_t *, uint16_t);
+
 #endif
 
 static errno_t stat40_valid(reiser4_body_t *body) {
@@ -208,11 +206,13 @@ static reiser4_plugin_t stat40_plugin = {
 	    .estimate	= stat40_estimate,
 	    .insert	= stat40_insert,
 	    .remove	= stat40_remove,
+	    .check	= stat40_check,
 #else
 	    .init	= NULL,
 	    .estimate	= NULL,
 	    .insert	= NULL,
 	    .remove	= NULL,
+	    .check	= NULL,
 #endif
 	    .maxkey	= NULL,
 	    .lookup	= NULL,

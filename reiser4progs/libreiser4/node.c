@@ -471,7 +471,7 @@ errno_t reiser4_node_insert(
 #endif
 
 /* Returns node plugin id in use */
-uint32_t reiser4_node_pid(
+uint16_t reiser4_node_pid(
     reiser4_node_t *node	/* node pid to be obtained */
 ) {
     aal_assert("umka-828", node != NULL, return 0);
@@ -481,7 +481,7 @@ uint32_t reiser4_node_pid(
 }
 
 /* Returns free space of specified node */
-uint32_t reiser4_node_space(reiser4_node_t *node) {
+uint16_t reiser4_node_space(reiser4_node_t *node) {
     aal_assert("umka-455", node != NULL, return 0);
     
     return plugin_call(return 0, node->entity->plugin->node_ops, 
@@ -489,7 +489,7 @@ uint32_t reiser4_node_space(reiser4_node_t *node) {
 }
 
 /* Returns overhead of specified node */
-uint32_t reiser4_node_overhead(reiser4_node_t *node) {
+uint16_t reiser4_node_overhead(reiser4_node_t *node) {
     aal_assert("vpf-066", node != NULL, return 0);
 
     return plugin_call(return 0, node->entity->plugin->node_ops, 
@@ -497,7 +497,7 @@ uint32_t reiser4_node_overhead(reiser4_node_t *node) {
 }
 
 /* Returns item max size from in specified node */
-uint32_t reiser4_node_maxspace(reiser4_node_t *node) {
+uint16_t reiser4_node_maxspace(reiser4_node_t *node) {
     aal_assert("umka-125", node != NULL, return 0);
     
     return plugin_call(return 0, node->entity->plugin->node_ops, 

@@ -27,7 +27,7 @@ static reiser4_plugin_t *__choose_format(reiser4_fs_t *fs,
     aal_assert("vpf-167", fs != NULL, return NULL);
     aal_assert("vpf-169", host_device != NULL, return NULL);
     aal_assert("vpf-168", repair_data(fs) != NULL, return NULL);
-    aal_assert("vpf-168", repair_data(fs)->profile != NULL, return NULL);
+    aal_assert("vpf-244", repair_data(fs)->profile != NULL, return NULL);
     
     if (!(plugin = reiser4_master_guess(host_device))) {
 	/* Format was not detected on the partition. */
@@ -104,7 +104,7 @@ errno_t repair_format_check(reiser4_fs_t *fs) {
 void repair_format_print(reiser4_fs_t *fs, FILE *stream, uint16_t options) {
     char buf[4096];
 
-    aal_assert("vpf-165", fs != NULL, return);
+    aal_assert("vpf-245", fs != NULL, return);
     aal_assert("vpf-175", fs->format != NULL, return);
 
     if (!stream)

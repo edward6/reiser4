@@ -14,9 +14,7 @@
 #include <repair/repair.h>
 #include <reiser4/filesystem.h>
 
-extern errno_t repair_node_check(reiser4_node_t *node, void *data);
-extern errno_t repair_node_update_internal(reiser4_node_t *node, uint32_t pos, 
-    void *data);
+extern errno_t repair_node_check(reiser4_node_t *node, repair_check_t *data);
 
 #endif
 

@@ -118,7 +118,7 @@ static int key40_confirm(reiser4_body_t *body) {
 }
 
 static errno_t key40_valid(reiser4_body_t *body) {
-    aal_assert("vpf-137", body != NULL, return -1);
+    aal_assert("vpf-243", body != NULL, return -1);
     
     return -(k40_get_minor((key40_t *)body) >= KEY40_LAST_MINOR);
 }

@@ -12,21 +12,92 @@ static reiser4_node_t *__node_open(aal_block_t *block, void *data) {
     return reiser4_node_open(block);
 }
 
-static errno_t __prepare_traverse(reiser4_node_t *node, void *data) {
-    repair_traverse_data_t *traverse = data;
+static errno_t __before_traverse(reiser4_node_t *node, void *data) {
+    repair_check_t *check_data = data;
     
-    if (!traverse)
-	return 0;
+    aal_assert("vpf-251", node != NULL, return -1);
+    aal_assert("vpf-253", check_data != NULL, return -1);
+    aal_assert("vpf-254", check_data->format != NULL, return -1);
 
-    traverse->level--;
+    if (!check_data->level)
+	check_data->level = (node->entity->plugin->node_ops.get_level ?
+	    node->entity->plugin->node_ops.get_level(node->entity) : 
+	    reiser4_format_get_height(check_data->format));
+    
+    check_data->level--;
+
     return 0;
 }
 
-static errno_t repair_fs_check_setup(reiser4_fs_t *fs, 
-    repair_traverse_data_t *traverse) 
+static errno_t __after_traverse(reiser4_node_t *node, void *data) {
+    repair_check_t *check_data = data;
+    
+    aal_assert("vpf-256", check_data != NULL, return -1);
+    
+    check_data->level++;
+    
+    return 0;
+}
+
+static errno_t __setup_traverse(reiser4_node_t *node, reiser4_item_t *item, 
+    void *data)
 {
+    repair_check_t *check_data = data;
+    
+    aal_assert("vpf-255", check_data != NULL, return -1);
+
+    reiser4_node_lkey(node, &check_data->ld_key);
+    reiser4_node_rkey(node, &check_data->rd_key);
+    return 0;
+}
+
+static errno_t __update_traverse(reiser4_node_t *node, reiser4_item_t *item, 
+    void *data) 
+{
+    repair_check_t *check_data = data;
+    
+    aal_assert("vpf-257", check_data != NULL, return -1);
+    
+    if (repair_test_flag(check_data, REPAIR_NOT_FIXED)) {
+	/* The node corruption was not fixed - delete the internal item. */
+	if (reiser4_node_remove(node, item->pos)) {
+	    if (item->pos->unit == ~0ul)
+		aal_exception_error("Node (%llu): Failed to remove the item "
+		    "(%u).", aal_block_number(node->block), item->pos->item);
+	    else
+		aal_exception_error("Node (%llu): Failed to remove the unit "
+		    "(%u) from  item (%u).", aal_block_number(node->block), 
+		    item->pos->item, item->pos->unit);
+	    return -1;
+	}
+	if (item->pos->unit == ~0ul) 
+	    item->pos->item--;
+	else 
+	    item->pos->unit--;	
+    }
+    
+    return 0;
+}
+
+static errno_t __node_check(reiser4_node_t *node, void *data) {
+    repair_check_t *check_data = data;
+    errno_t res;
+    
+    aal_assert("vpf-252", check_data != NULL, return -1);
+    
+    if ((res = repair_node_check(node, check_data)) > 0) {
+	repair_set_flag(check_data, REPAIR_NOT_FIXED);
+	return 0;
+    } else {
+	return res;
+    }
+    
+    return 0;
+}
+
+static errno_t repair_fs_check_setup(reiser4_fs_t *fs, repair_check_t *data) {
     /* Prepare a control allocator */
-    if (!(traverse->a_control = reiser4_alloc_create(fs->format, 
+    if (!(data->a_control = reiser4_alloc_create(fs->format, 
 	reiser4_format_get_len(fs->format)))) 
     {
 	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, 
@@ -35,17 +106,19 @@ static errno_t repair_fs_check_setup(reiser4_fs_t *fs,
     }
 
     /* Mark the format area as used in the control allocator */
-    reiser4_format_mark(fs->format, traverse->a_control);
+    reiser4_format_mark(fs->format, data->a_control);
 
-    traverse->format = fs->format;
-    traverse->options = repair_data(fs)->options;
+    data->format = fs->format;
+    data->options = repair_data(fs)->options;
     
-    /* Prepare a level. */
-    /* FIXME-VITALY: height as well as a level of nodes */
-    traverse->level = reiser4_format_get_height(fs->format) + 1;
+    /* 
+	Set the level to 0 for the root block. Rely on the root level more 
+	then on super block height.
+    */
+    data->level = 0;
 
     /* FIXME-VITALY: Hardcoded key plugin id */
-    if (!(traverse->ld_key.plugin = 
+    if (!(data->ld_key.plugin = 
 	libreiser4_factory_ifind(KEY_PLUGIN_TYPE, KEY_REISER40_ID)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -53,16 +126,16 @@ static errno_t repair_fs_check_setup(reiser4_fs_t *fs,
 	return -1;
     }
     
-    traverse->rd_key.plugin = traverse->ld_key.plugin;
+    data->rd_key.plugin = data->ld_key.plugin;
     
-    reiser4_key_minimal(&traverse->ld_key);
-    reiser4_key_maximal(&traverse->rd_key);
+    reiser4_key_minimal(&data->ld_key);
+    reiser4_key_maximal(&data->rd_key);
     
     return 0;
 }
 
 errno_t repair_fs_check(reiser4_fs_t *fs) {
-    repair_traverse_data_t traverse;
+    repair_check_t data;
     blk_t blk;
     aal_block_t *block;
     int res;    
@@ -71,7 +144,7 @@ errno_t repair_fs_check(reiser4_fs_t *fs) {
     aal_assert("vpf-181", fs->format != NULL, return -1);
     aal_assert("vpf-182", fs->format->device != NULL, return -1);
 
-    aal_memset(&traverse, 0, sizeof(traverse));
+    aal_memset(&data, 0, sizeof(data));
     
     blk = reiser4_format_get_root(fs->format);
     if ((res = reiser4_format_layout(fs->format, callback_data_block_check, &blk)) &&
@@ -88,12 +161,12 @@ errno_t repair_fs_check(reiser4_fs_t *fs) {
 	return -1;
     }
     
-    if (repair_fs_check_setup(fs, &traverse))
+    if (repair_fs_check_setup(fs, &data))
 	return -1;    
     
-    reiser4_tree_traverse(fs->format->device, block, __node_open, 
-	__prepare_traverse, repair_node_check, repair_node_update_internal, 
-	NULL, &traverse);
+    reiser4_tree_traverse(fs->format->device, block, __node_open, __node_check, 
+	__before_traverse, __setup_traverse, __update_traverse, __after_traverse, 
+	&data);
 
     return 0;
 }

@@ -4,10 +4,6 @@
     Author Vitaly Fertman.
 */
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h>
-#endif
-
 #include "internal40.h"
 
 static reiser4_core_t *core = NULL;
@@ -34,6 +30,8 @@ static errno_t internal40_estimate(uint32_t pos,
     hint->len = sizeof(internal40_t);
     return 0;
 }
+
+extern errno_t internal40_check(reiser4_body_t *, uint16_t);
 
 #endif
 
@@ -78,9 +76,11 @@ static reiser4_plugin_t internal40_plugin = {
 #ifndef ENABLE_COMPACT	    
 	    .init	= internal40_init,
 	    .estimate	= internal40_estimate,
+	    .check	= internal40_check,
 #else
 	    .init	= NULL,
 	    .estimate	= NULL,
+	    .check	= NULL,
 #endif
 	    .lookup	= NULL,
 	    .maxkey	= NULL,
