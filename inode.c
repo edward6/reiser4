@@ -73,7 +73,7 @@ ino_t oid_to_uino(oid_t oid)
 	   32 bit i_ino field, but this is not a problem, because there is a
 	   way to further distinguish inodes with identical inode numbers
 	   (find_actor supplied to iget()).
-	  
+	
 	   But user space expects unique 32 bit inode number. Obviously this
 	   is impossible. Work-around is to somehow hash oid into user visible
 	   inode number.
@@ -101,7 +101,7 @@ is_reiser4_inode(const struct inode *inode /* inode queried */ )
 }
 
 /* Maximal length of a name that can be stored in directory @inode.
-  
+
    This is used in check during file creation and lookup. */
 /* Audited by: green(2002.06.17) */
 int
@@ -263,7 +263,7 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 	return result;
 }
 
-/* read `inode' from the disk. This is what was previously in 
+/* read `inode' from the disk. This is what was previously in
    reiserfs_read_inode2().
 
    Must be called with inode locked. Return inode still locked.
@@ -334,12 +334,12 @@ init_locked_inode(struct inode *inode /* new inode */ ,
 }
 
 /* reiser4_inode_find_actor() - "find actor" supplied by reiser4 to iget5_locked().
-  
+
    This function is called by iget5_locked() to distinguish reiserfs inodes
    having the same inode numbers. Such inodes can only exist due to some error
    condition. One of them should be bad. Inodes with identical inode numbers
    (objectids) are distinguished by their packing locality.
-  
+
 */
 /* Audited by: green(2002.06.17) */
 int
@@ -361,7 +361,7 @@ reiser4_inode_find_actor(struct inode *inode	/* inode from hash table to
 /* this is our helper function a la iget().
     Probably we also need function taking locality_id as the second argument. ???
     This will be called by reiser4_lookup() and reiser4_read_super().
-    Return inode locked or error encountered. 
+    Return inode locked or error encountered.
 */
 /* Audited by: green(2002.06.17) */
 struct inode *
@@ -509,7 +509,7 @@ inode_set_extension(struct inode *inode, sd_ext_bits ext)
 	state = reiser4_inode_data(inode);
 	spin_lock_inode(inode);
 	/* FIXME: return value of scint_pack is not checked. */
-	scint_pack(&state->extmask, 
+	scint_pack(&state->extmask,
 		   scint_unpack(&state->extmask) | (1 << ext), GFP_ATOMIC);
 	/* force re-calculation of stat-data length on next call to
 	   update_sd(). */
@@ -537,8 +537,8 @@ inode_check_scale(struct inode *inode, __u64 old, __u64 new)
 	spin_unlock_inode(inode);
 }
 
-void 
-init_inode_ordering(struct inode *inode, 
+void
+init_inode_ordering(struct inode *inode,
 		    reiser4_object_create_data *crd, int create)
 {
 	reiser4_key key;
@@ -548,8 +548,8 @@ init_inode_ordering(struct inode *inode,
 
 		parent = crd->parent;
 		assert("nikita-3224", inode_dir_plugin(parent) != NULL);
-		inode_dir_plugin(parent)->build_entry_key(parent, 
-							  &crd->dentry->d_name, 
+		inode_dir_plugin(parent)->build_entry_key(parent,
+							  &crd->dentry->d_name,
 							  &key);
 	} else {
 		coord_t *coord;
@@ -580,7 +580,7 @@ print_inode(const char *prefix /* prefix to print */ ,
 	printk("%s: ino: %lu, count: %i, link: %i, mode: %o, size: %llu\n",
 	       prefix, i->i_ino, atomic_read(&i->i_count), i->i_nlink, i->i_mode, (unsigned long long) i->i_size);
 	printk("\tuid: %i, gid: %i, dev: %i, rdev: %i\n", i->i_uid, i->i_gid, i->i_sb->s_dev, i->i_rdev);
-	printk("\tatime: [%li,%li], mtime: [%li,%li], ctime: [%li,%li]\n", 
+	printk("\tatime: [%li,%li], mtime: [%li,%li], ctime: [%li,%li]\n",
 	       i->i_atime.tv_sec, i->i_atime.tv_nsec,
 	       i->i_mtime.tv_sec, i->i_mtime.tv_nsec,
 	       i->i_ctime.tv_sec, i->i_ctime.tv_nsec);
@@ -602,7 +602,7 @@ print_inode(const char *prefix /* prefix to print */ ,
 	print_seal("\tsd_seal", &ref->sd_seal);
 	print_coord("\tsd_coord", &ref->sd_coord, 0);
 	printk("\tflags: %lx, extmask: %llu, pmask: %i, locality: %llu\n",
-	       *inode_flags(i), scint_unpack(&ref->extmask), 
+	       *inode_flags(i), scint_unpack(&ref->extmask),
 	       ref->plugin_mask, ref->locality_id);
 }
 #endif

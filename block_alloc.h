@@ -101,7 +101,7 @@ void __fake_allocated2free(__u64 count, reiser4_ba_flags_t flags, const char *);
 void __grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count, const char *);
 void __grabbed2flush_reserved(__u64 count, const char *);
 void __flush_reserved2free_all(const char *);
-int __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * start, 
+int __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * start,
 			   reiser4_block_nr * len, reiser4_ba_flags_t flags, const char *);
 int __reiser4_dealloc_blocks(const reiser4_block_nr *,
 			     const reiser4_block_nr *, block_stage_t, reiser4_ba_flags_t flags, const char *);
@@ -128,7 +128,7 @@ void __fake_allocated2free(__u64 count, reiser4_ba_flags_t flags);
 void __grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count);
 void __grabbed2flush_reserved(__u64 count);
 void __flush_reserved2free_all(void);
-int __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * start, 
+int __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * start,
 			   reiser4_block_nr * len, reiser4_ba_flags_t flags);
 int __reiser4_dealloc_blocks(const reiser4_block_nr *,
 			     const reiser4_block_nr *, block_stage_t, reiser4_ba_flags_t flags);
@@ -184,8 +184,8 @@ extern void reiser4_check_block(const reiser4_block_nr *, int);
 #endif
 
 #if REISER4_DEBUG_OUTPUT
-extern void print_block_counters(const char *, 
-				 const struct super_block *, 
+extern void print_block_counters(const char *,
+				 const struct super_block *,
 				 txn_atom *atom);
 #else
 #define print_block_counters(p, s, a) noop

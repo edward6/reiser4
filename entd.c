@@ -208,7 +208,7 @@ void leave_flush(struct super_block *super)
 	spin_lock(&ctx->guard);
 
 	assert("nikita-3117", ctx->flushers > 0);
-	assert("nikita-3115", 
+	assert("nikita-3115",
 	       get_current_context()->flush_started != INITIAL_JIFFIES);
 
 	ctx->flushers -= 1;
@@ -297,7 +297,7 @@ static int dont_wait_for_flush(struct super_block *super)
 		return 1;
 	}
 
-	if (get_flushers(super, &flush_started) == 1 && 
+	if (get_flushers(super, &flush_started) == 1 &&
 	    cur->flush_started != INITIAL_JIFFIES) {
 		reiser4_stat_inc(wff.skipped_last);
 		return 1;
@@ -326,8 +326,8 @@ static int dont_wait_for_flush(struct super_block *super)
  *  3. specifically we wait until following happens:
  *
  *       there is flush (possibly being done by the ent) that started more
- *       than timeout ago, 
- *  
+ *       than timeout ago,
+ *
  *                              and
  *
  *       device queue is not congested.
