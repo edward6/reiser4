@@ -132,22 +132,20 @@ static void key40_clean(reiserfs_key40_t *key) {
     aal_memset(key, 0, key40_size());
 }
 
-static errno_t key40_build_hash(reiserfs_key40_t *key, const char *name, 
-    reiserfs_plugin_t *hash_plugin) 
+static errno_t key40_build_hash(reiserfs_key40_t *key,
+    reiserfs_plugin_t *hash_plugin, const char *name) 
 {
     uint16_t len;
     
     aal_assert("vpf-101", key != NULL, return -1);
     aal_assert("vpf-102", name != NULL, return -1);
-    /* When ready
     aal_assert("vpf-128", hash_plugin != NULL, return -1); 
-    */
     
     len = aal_strlen(name);
     if (len != 1 || aal_strncmp(name, ".", 1)) {
 	/* 
 	    Not dot, pack the first part of the name into 
-	    objectid. 
+	    objectid.
 	*/
 	key40_set_objectid(key, key40_pack_string(name, 1));
 	if (len <= OID_CHARS + sizeof(uint64_t)) {
@@ -162,8 +160,9 @@ static errno_t key40_build_hash(reiserfs_key40_t *key, const char *name,
 	    /* Note in the key that it is hash, not a name */
 	    key->el[1] |= 0x0100000000000000ull;
 		
-/*	    When hash plugin is ready
- 	    key40_set_hash(key, hash_plugin->hash.hash(name)); */
+ 	    key40_set_hash(key, hash_plugin->hash_ops.build((const unsigned char *)name, 
+		    aal_strlen(name)));
+
 	    key40_set_counter(key, 0);
 	}
     }
@@ -183,7 +182,7 @@ static errno_t key40_build_entry_full(reiserfs_key40_t *key,
     set_key40_locality(key, objectid);
     set_key40_type(key, KEY40_FILENAME_MINOR);
     
-    key40_build_hash(key, name, hash_plugin);
+    key40_build_hash(key, hash_plugin, name);
 
     return 0;
 }
@@ -211,7 +210,7 @@ static errno_t key40_build_entry_short(void *ptr,
     aal_assert("vpf-142", ptr != NULL, return -1);
     
     key40_clean(&key);
-    key40_build_hash(&key, name, hash_plugin);
+    key40_build_hash(&key, hash_plugin, name);
     
     aal_memset(ptr, 0, 2 * sizeof(uint64_t));
     aal_memcpy(ptr, &key.el[1], 2 * sizeof(uint64_t));
