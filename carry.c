@@ -1243,33 +1243,6 @@ add_new_znode(znode * brother	/* existing left neighbor of new
 	return fresh;
 }
 
-/* estimate how much disk space is necessary to perform @op */
-/* static __u64
-carry_estimate_op(carry_level * level UNUSED_ARG,
-		  carry_op * op UNUSED_ARG )
-{
-	return op_dispatch_table[op->op].estimate(op, level);
-}
-*/
-/* estimate how much disk space is necessary to perform @level */
-/*static __u64
-carry_estimate_space(carry_level * level)
-{
-	carry_op *op;
-	carry_op *tmp_op;
-	__u64 blocks;
-
-	assert("nikita-2278", level != NULL);
-
-	trace_stamp(TRACE_CARRY);
-
-	blocks = 0;
-	for_all_ops(level, op, tmp_op) {
-		blocks += carry_estimate_op(level, op);
-	}
-	return blocks;
-}
-*/
 /* DEBUGGING FUNCTIONS. 
   
    Probably we also should leave them on even when

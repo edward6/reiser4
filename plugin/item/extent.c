@@ -2352,27 +2352,6 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		 *   possible for extent_allocate_blocks() to just be unable
 		 *   to find enough free space on the disk.
 		 *
-		 * Current solution is to unflush all eflushed jnodes. This
-		 * solves both problems, but this is suboptimal, because:
-		 *
-		 *   . as a result extents jnodes are scanned trice.
-		 *
-		 *   . this can exhaust memory (nodes were eflushed, because
-		 *   we were short on memory in the first place).
-		 *
-		 * Possible proper solutions:
-		 *
-		 *   . scan extent. If eflushed jnode is found, split extent
-		 *   into three: extent before, single-block-extent, extent
-		 *   after. This requires mechanism to block eflush for jnodes
-		 *   of this extent during this extent allocation (easy to
-		 *   implement through inode flag).
-		 *
-		 *   . allocate chunk of extent. Scan this chunk, for each
-		 *   eflushed jnode, load it, clear JNODE_EFLUSH bit and
-		 *   release. This requires handling of temporary underflow of
-		 *   fake space.
-		 *
 		 */
 
 		/* zload nodes before allocating disk space for them. Nodes which were eflushed will be read from their

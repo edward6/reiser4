@@ -1957,10 +1957,8 @@ repeat:
 		return;
 	}
 
-	/* FXIME-ZAM: jnode_get_type seems to be atomic */
 	if (jnode_is_znode(node)) {
-		if ( /**jnode_get_block(node) &&*/
-			   !blocknr_is_fake(jnode_get_block(node))) {
+		if (!blocknr_is_fake(jnode_get_block(node))) {
 			/* jnode has assigned real disk block. Put it into
 			   atom's delete set */
 			if (REISER4_DEBUG) {
