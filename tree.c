@@ -1146,12 +1146,10 @@ cut_node(coord_t * from		/* coord of the first unit/item that will be
 	assert("vs-162", coord_is_existing_unit(to));
 
 	if (znode_get_level(from->node) == TWIG_LEVEL && item_is_extent(from)) {
-		STORE_COUNTERS;
 		/* left child of extent item may have to get updated right
 		   delimiting key and to get linked with right child of extent
 		   @from if it will be removed completely */
 		result = prepare_twig_cut(from, to, from_key, to_key, locked_left_neighbor);
-		CHECK_COUNTERS;
 		if (result)
 			return result;
 	}
