@@ -542,6 +542,9 @@ typedef struct reiser4_statistics {
 		 * search_by_key
 		 */
 		stat_cnt write_repeats;
+		/* number of tail conversions */
+		stat_cnt tail2extent;
+		stat_cnt extent2tail;
 	} file;
 	struct {
 		/*
