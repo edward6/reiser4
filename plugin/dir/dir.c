@@ -268,38 +268,16 @@ static int common_create_child( struct inode *parent /* parent object */,
 	xmemset( &entry, 0, sizeof entry );
 	entry.obj = object;
 
-#ifndef INSTALL_EXISTS
-	/*
-	 * this does what did removed install method do: namelly, inialization
-	 * of newly created inode's fields
-	 */
-	object -> i_mode = data -> mode;
-	object -> i_generation = new_inode_generation( object -> i_sb );
-	/* this should be plugin decision */
-	object -> i_uid = current -> fsuid;
-	object -> i_mtime = object -> i_atime = object -> i_ctime = CURRENT_TIME;
-	
-	if( parent -> i_mode & S_ISGID )
-		object -> i_gid = parent -> i_gid;
-	else
-		object -> i_gid = current -> fsgid;
-
 	reiser4_inode_data( object ) -> file = fplug;
-
-	/* this object doesn't have stat-data yet */
-	*reiser4_inode_flags( object ) |= REISER4_NO_STAT_DATA;
-	/* setup inode and file-operations for this inode */
-	setup_inode_ops( object );
-	/* i_nlink is left 0 here. It'll be increased by ->add_link() */
-	seal_init( &reiser4_inode_data( object ) -> sd_seal, NULL, NULL );
-#else
-	result = fplug -> install( object, fplug, parent, data );
+	result = fplug -> set_plug_in_inode( object, parent, data );
 	if( result ) {
 		warning( "nikita-431", "Cannot install plugin %i on %lx", 
 			 data -> id, ( long ) object -> i_ino );
 		return result;
 	}
-#endif /* install */
+
+	/* reget plugin after installation */
+	fplug = inode_file_plugin( object );
 
 	/*
 	 * if any of hash, tail, sd or permission plugins for newly created
@@ -315,8 +293,6 @@ static int common_create_child( struct inode *parent /* parent object */,
 		return result;
 	}
 
-	/* reget plugin after installation */
-	fplug = inode_file_plugin( object );
 	reiser4_inode_data( object ) -> locality_id = parent -> i_ino;
 
 	/* mark inode immutable. We disable changes to the file

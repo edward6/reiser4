@@ -18,7 +18,7 @@ export REISER4_CRASH_MODE=debugger
 rm -f gmon.out.*
 
 #ORDER='000'
-ORDER='0'
+ORDER=${2:-'0'}
 
 for r in `seq 1 $ROUNDS` 
 do

@@ -196,7 +196,7 @@ void default_unread_node (znode *);
 extern int init_tree( reiser4_tree *tree, struct super_block *super,
 		      const reiser4_block_nr *root_block,
 		      tree_level height, node_plugin *default_plugin,
-		      tree_operations *tops20 );
+		      node_operations *tops20 );
 extern void done_tree( reiser4_tree *tree );
 
 #if REISER4_DEBUG

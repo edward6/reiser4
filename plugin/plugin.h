@@ -163,19 +163,15 @@ typedef struct file_plugin {
 	 * (common_build_flow()) and, among other things, to get to the extent
 	 * from jnode of unformatted node.
 	 */
-	int ( *key_by_inode )( struct inode *inode, loff_t off, reiser4_key *key );
+	int ( *key_by_inode )( struct inode *inode, loff_t off, 
+			       reiser4_key *key );
 
-	/*
-	 * set the plugin for a file.  Called during file creation in reiser4()
-	 * and creat().
-	 */
-	int ( *set_plug_in_sd )( reiser4_plugin_type plug_type, reiser4_key key_of_sd );
 	/*
 	 * set the plugin for a file.  Called during file creation in creat()
 	 * but not reiser4() unless an inode already exists for the file.
 	 */
-	int ( *set_plug_in_inode )( reiser4_plugin_type plug_type, struct inode *inode );
-	int ( *create_blank_sd )( reiser4_key *key );
+	int ( *set_plug_in_inode )( struct inode *inode, struct inode *parent, 
+				    reiser4_object_create_data *data );
 
 	/**
 	 * set up plugins for new @object created in @parent. @root is root

@@ -326,6 +326,7 @@ typedef struct { int foo; } NAME ## _spin_dummy
 
 #include "plugin/plugin.h"
 #include "txnmgr.h"
+#include "jnode.h"
 #include "znode.h"
 #include "block_alloc.h"
 #include "tree_walk.h"

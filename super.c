@@ -418,7 +418,7 @@ int init_tree( reiser4_tree *tree /* pointer to structure being
 						   * on a disk */,
 	       tree_level height /* height of a tree */, 
 	       node_plugin *nplug /* default node plugin */, 
-	       tree_operations *tops /* tree operations */ )
+	       node_operations *tops /* tree operations */ )
 {
 	assert( "nikita-306", tree != NULL );
 	assert( "nikita-2043", super != NULL );
