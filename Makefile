@@ -58,7 +58,6 @@ reiser4-objs := \
 		   page_cache.o \
 		   lnode.o \
 		   kcond.o \
-		   latch.o \
 		   seal.o \
 		   scint.o \
 		   dscale.o \
