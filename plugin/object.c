@@ -1179,11 +1179,9 @@ reiser4_internal int prepare_write_common (
 	if (result != 0) {
 		SetPageError(page);
 		ClearPageUptodate(page);
-		/* All reiser4 readpage() implementations should unlock the page
-		 * in case of error, we have to lock the page again becuse the
-		 * loop back driver expects it be locked after ->prepare_write()
-		 * finishes. */
-		lock_page(page);
+		/* All reiser4 readpage() implementations should return the
+		 * page locked in case of error. */
+		assert("nikita-3472", PageLocked(page));
 	} else {
 		/*
 		 * ->readpage() either:

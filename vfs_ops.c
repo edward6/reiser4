@@ -59,6 +59,7 @@
 #include <linux/quotaops.h>
 #include <linux/security.h>
 #include <linux/reboot.h>
+#include <linux/rcupdate.h>
 
 /* super operations */
 
@@ -1286,16 +1287,6 @@ static void unregister_profregions(void)
 	unregister_tree_profregion();
 }
 
-#if REISER4_DEBUG
-void finish_rcu(reiser4_super_info_data *sbinfo)
-{
-	spin_lock_irq(&sbinfo->all_guard);
-	while (atomic_read(&sbinfo->jnodes_in_flight) > 0)
-		kcond_wait(&sbinfo->rcu_done, &sbinfo->all_guard, 0);
-	spin_unlock_irq(&sbinfo->all_guard);
-}
-#endif
-
 /* umount. */
 static void
 reiser4_kill_super(struct super_block *s)
@@ -1350,14 +1341,13 @@ reiser4_kill_super(struct super_block *s)
 
 	check_block_counters(s);
 
-	finish_rcu(sbinfo);
-
+	rcu_barrier();
 	/* done_formatted_fake just has finished with last jnodes (bitmap
 	 * ones) */
 	done_tree(&sbinfo->tree);
 	/* call finish_rcu(), because some znode were "released" in
 	 * done_tree(). */
-	finish_rcu(sbinfo);
+	rcu_barrier();
 	done_formatted_fake(s);
 
 	close_trace_file(&sbinfo->trace_file);

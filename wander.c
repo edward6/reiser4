@@ -773,12 +773,14 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 				assert("nikita-3165", !jnode_is_releasable(cur));
 				UNLOCK_JNODE(cur);
 				if (!bio_add_page(bio,
-						  pg, super->s_blocksize, 0))
+						  pg, super->s_blocksize, 0)) {
 					/*
 					 * underlying device is satiated. Stop
 					 * adding pages to the bio.
 					 */
+					unlock_page(pg);
 					break;
+				}
 
 				LOCK_JNODE(cur);
 				JF_SET(cur, JNODE_WRITEBACK);
@@ -798,10 +800,9 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 				
 				list_del(&pg->list);
 				list_add(&pg->list, &pg->mapping->locked_pages);
-				
+
 				spin_unlock(&pg->mapping->page_lock);
-				
-				unlock_page(pg);
+
 				nr_used ++;
 			} else {
 				/* jnode being WRITEBACK might be replaced on
@@ -811,6 +812,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 				assert("zam-912", JF_ISSET(cur, JNODE_CC));
 				UNLOCK_JNODE(cur);				
 			}
+			unlock_page(pg);
 
 			spin_lock(&scan_lock);
 			if (cur != first)
@@ -1183,12 +1185,14 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 
 			lock_and_wait_page_writeback(pg);
 
-			if (!bio_add_page(bio, pg, super->s_blocksize, 0))
+			if (!bio_add_page(bio, pg, super->s_blocksize, 0)) {
 				/*
 				 * underlying device is satiated. Stop adding
 				 * pages to the bio.
 				 */
+				unlock_page(pg);
 				break;
+			}
 
 			LOCK_JNODE(cur);
 			ON_DEBUG_MODIFY(znode_set_checksum(cur, 1));
