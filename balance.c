@@ -108,6 +108,11 @@ int balance_level_slum (slum_scan *scan)
 
 		assert ("jmacd-1034", znode_is_connected (target));
 
+		/* FIXME_JMACD: We need to avoid fusing atoms due to a
+		 * WRITE_LOCK request without modification, otherwise the
+		 * scan->atom != target->atom test will never do anything.
+		 * Think about that.
+		 */
 		result = reiser4_get_right_neighbor (source_lh, frontier, 
 						     ZNODE_WRITE_LOCK, 0);
 		if (result != 0) {
