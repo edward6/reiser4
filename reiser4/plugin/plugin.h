@@ -96,8 +96,8 @@ typedef struct fplug {
 /* reiser4 required file operations */
 
 	/* note that keys should have 0 for their offsets */
-	int (*write_flow)(flow * flow);
-	int (*read_flow)(flow * flow);
+	int (*write_flow)(flow * f);
+	int (*read_flow)(flow * f);
 	
 /* VFS required/defined operations */
 	int ( *reiser4_truncate )( struct inode *inode, loff_t size );
@@ -118,13 +118,13 @@ typedef struct fplug {
 	 */
 	int ( *flow_by_inode )( struct file *file, char *buf, size_t size, 
 			     loff_t *off, rw_op op, flow *f );
-	int (*flow_by_key)(key key, flow * flow);
+	int (*flow_by_key)(reiser4_key *key, flow * f);
 	/* set the plugin for a file.  Called during file creation in reiser4() and creat(). */
-	int (*set_plug_in_sd)(plug_type plug_type, key key_of_sd);
+	int (*set_plug_in_sd)(reiser4_plugin_type plug_type, reiser4_key key_of_sd);
 	/* set the plugin for a file.  Called during file creation in creat() but not reiser4() unless an inode already exists
 	   for the file. */
-	int (*set_plug_in_inode)(plug_type plug_type, struct inode *inode);
-	int (*create_blank_sd)(key key);
+	int (*set_plug_in_inode)(reiser4_plugin_type plug_type, struct inode *inode);
+	int (*create_blank_sd)(reiser4_key *key);
 	/** 
 	 * delete this object's stat-data if REISER4_NO_STAT_DATA is cleared
 	 * and set REISER4_NO_STAT_DATA 
@@ -145,7 +145,7 @@ typedef struct fplug {
 	int ( *owns_item )( const struct inode *inode,
 			    const tree_coord *coord );
 
-	int ( *can_add_link )( key key );
+	int ( *can_add_link )( reiser4_key *key );
 
 
 
