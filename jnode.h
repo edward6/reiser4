@@ -394,7 +394,6 @@ jdata(const jnode * node)
 static inline struct page *
 jnode_page(const jnode * node)
 {
-	assert("nikita-3164", spin_jnode_is_locked(node));
 	return node->pg;
 }
 
@@ -602,8 +601,6 @@ jnode_ops(const jnode * node)
 static inline unsigned long
 jnode_get_index(jnode * node)
 {
-	assert("edward-52", jnode_has_parent(node));
-	/*return jnode_page(node)->index;*/
 	return jnode_ops(node)->index(node);
 }
 
