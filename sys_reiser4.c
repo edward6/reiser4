@@ -16,3 +16,23 @@ It seems most issues of consistency can be resolved by locking the parent direct
 
 
  */
+
+//#include "y.tab.c"
+
+
+
+int yywrap()
+{
+    return 1;
+}
+
+int sys_reiser4(char * str)
+{
+
+  inline = str;
+
+
+    i=yyparse();
+
+    return 0;
+}

@@ -66,15 +66,15 @@ A<-B
 
 assigns the contents of the object named B to A, overwriting the contents of A if A exists.
 
-' and ' indicate that all special characters between them should be
-ignored and parsed as a single string. That is, A<-'some text' causes A to have
-contents equal to a file named 'some text'.  Quotes are allowed to nest.
+` and ' indicate that all special characters between them should be
+ignored and parsed as a single string. That is, A<-`some text' causes A to have
+contents equal to a file named `some text'.  Quotes are allowed to nest.
 
 " indicates that the next word is inlined text.  Sorry, " is the symbol least useful for something else, so it got used.
 
-A<-"(this is a string not a name of a file) 
+A<-"(this is a string not a name of a file)  // German style quoting: ,,ksdajfhkasdh``
 
-assigns (minus the single quotes) the string `this is a string not a name of a file' to A.
+assigns (sans the single quotes) the string `this is a string not a name of a file' to A.
 
 A<-"`I think that using " in a language for delimiting quoting is bad style because delimiters should be matching pairs not matching identical singletons if nesting is to work at all.'
 
@@ -531,7 +531,7 @@ Object_Name
 
 
 Unordered_list
-: Object_Name                                           { }
+: Object_Name                                           {???? }
 | P_RUNNER                                              {}
 | Unordered_list SPACE Unordered_list                   {}
 ;
@@ -752,17 +752,17 @@ move_selected_word()
 	for( tmpWrdEnd = freeSpace; yytext <= s; )
 		{
 			i=0;
-			while( *yytext == '\'' )
-				{
-					yytext++;
-					i++;
-				} 
-			while ( yytext > s )
-				{
-					i--;
-					yytext--;
-				}
-			if ( i ) for ( i/=2; i; i-- )      *tmpWrdEnd++='\'';    /*   in source text for each '' - result will '   */
+			//			while( *yytext == '\'' )
+			//				{
+			//					yytext++;
+			//					i++;
+			//				} 
+			//			while ( yytext > s )
+			//				{
+			//					i--;
+			//					yytext--;
+			//				}
+			//			if ( i ) for ( i/=2; i; i-- )      *tmpWrdEnd++='\'';    /*   in source text for each '' - result will '   */
 
 			if ( *yytext == '\\' )           /*         \????????   */
 				{
@@ -770,35 +770,6 @@ move_selected_word()
 					yytext++;
 					switch ( tolower(*yytext) )
 						{
-						case 'n':                       /*  \n  */
-							*tmpWrdEnd++='\n';
-							yytext++;
-							break;
-						case 'b':                       /*  \b  */
-							*tmpWrdEnd++='\b';
-							yytext++;
-							break;
-						case 'r':                       /*  \r  */
-							*tmpWrdEnd++='\r';
-							yytext++;
-							break;
-						case 'f':                       /*  \f  */
-							*tmpWrdEnd++='\f';
-							yytext++;
-							break;
-						case 't':                       /*  \t  */
-							*tmpWrdEnd++='\t';
-							yytext++;
-							break;
-						case 'o':                       /*  \o123  */
-							tmpI = 3;
-							i = 0;
-							while( tmpI-- && isdigit( * ( yytext ) ) )
-								{
-									i = (i << 3) + ( *yytext++ - '0' );
-								}
-							*tmpWrdEnd++ = (unsigned char) i;
-							break;
 						case 'x':                       /*  \x01..9a..e  */
 							i = 0;
 							tmpI = 1;
@@ -816,7 +787,7 @@ move_selected_word()
 										{
 											if ( tmpI & 1 )
 												{
-													yyerror(); /* x format has odd number of symbols */
+													yyerror(??); /* x format has odd number of symbols */
 												}
 											tmpI = 0;
 										}
@@ -827,27 +798,13 @@ move_selected_word()
 										}
 								}
 							break;
-						default:     
-							if ( isdigit(*yytext) )            /*  decimal notation \123  */
-								{
-									int tmpI;
-									i=atoi(yytext);
-									tmpI=3;
-									while( tmpI-- && isdigit( * ( ++yytext ) ) ) ;
-									i = i % 256 ;    /* ??????? */
-									*tmpWrdEnd++ = (unsigned char) i;
-								}
-							else
-								{                          /*    any symbol */
-									*tmpWrdEnd++ = *yytext++;
-								}
 						}
 				}
 			else *tmpWrdEnd++ = *yytext++;
 	                if( tmpWrdEnd > maxtab )
 		                {
-					yyerror(1101);
-					exit(1101);
+					yyerror(); /**Internal text buffer overflow./
+					exit();
 		                }
                 }
 	*tmpWrdEnd++ = '\0';
@@ -877,14 +834,14 @@ inttab()
 {
 	int i;
 	if (strco)
-		for( i=strco-1;i; i--)
-			if( !(strcmp(wrdTab(i),freeSpace)) )
+		for( i = strco - 1; i; i--)
+			if( !( strcmp( wrdTab( i ), freeSpace ) )  )
 				{
 					return(i);
 				}
-	if( strco >= MAXSTRN )             yyerror(1101);
+	if( strco >= MAXSTRN )             yyerror(MaxStringsNumberOwerflow);
 	wrdTab(strco) = freeSpace;
-	freeSpace=tmpWrdEnd;
+	freeSpace = tmpWrdEnd;
 	return(strco++);
 }
 
@@ -950,10 +907,16 @@ int 	nmsg,x1,x2,x3,x4,x5,x6,x7,x8;
 
 int pars_path_init()
 {
-	if ( path_init( "/", ??flags, nd ) )
+	if (current  is reiser4)
 		{
-			err = path_walk("/", nd);
-//			current_path_inode=nd->dentry->d_inode;
+		}
+	else
+		{
+			if ( path_init( "/", ??flags, nd ) )
+				{
+					err = path_walk("/", nd);
+					
+				}
 		}
 }
 
@@ -963,24 +926,41 @@ int pars_path_walk(int name)
 	int error;
 	reiser4_plugin * r4_plugin;
 
-	if ( path_init( name, ??flags, nd ) )
+	if (current  is reiser4)
 		{
-			error = path_walk( name, nd);
-		}
-	
-	if (error) 
-		{
-			r4_plugin = lookup_plugin_name( name );
+			get_dir_plugin( l_node? ) -> lookup( l_node, "f" ); /*?????????????*/
+			while ( ?? )
+				{
+					permission;
+					mount_point;
+					symlink;
 
-?????
-			inode = make_inode_from_plugin( r4_plugin , nd );
+				}
 
 		}
 	else
 		{
-			inode = nd.dentry->d_inode;
+			if ( path_init( name, ??flags, nd ) )
+				{
+					error = path_walk( name, nd);
+					
+					
+				}
+			
+			if (error) 
+				{
+					r4_plugin = lookup_plugin_name( name );
+					
+						?????	inode = make_inode_from_plugin( r4_plugin , nd );
+						
+				}
+			else
+				{
+					inode = nd.dentry->d_inode;
+				}
 		}
-
+	
+	
 	return error;
 }
 
@@ -1000,21 +980,20 @@ getvar(int n,int def)
 		{
 			if ( i )
 				{
-					if( i > parco )  yyerror(1015,wrdTab(n));
+					if( i > parco )  yyerror(???,wrdTab(n)); /* in use */
 					else
-						if(  !Varc(i)  ) yyerror(1015,wrdTab(n));
+						if(  !Varc(i)  ) yyerror(???,wrdTab(n)); /* in use */
 				}
 			else
 				i = newvar(n);
 		}
 	else
 		{
-			if ( !i ) yyerror(1018,wrdTab(n));
+			if ( !i ) yyerror(???,wrdTab(n)); /* not defined*/
 			else
-			{
-				if ( Varn( i ) & FRBD ) yyerror(1019,wrdTab(n));
-				Varn( i )|=USED;
-			}
+				{
+					Varn( i )|=USED;
+				}
 		}
 	return( i );
 }
@@ -1022,7 +1001,7 @@ getvar(int n,int def)
 newvar(int n)
 {
 	int i;
-	i=newtmp(getnam(n));
+	i=newtmp( getnam( n ) );
 	Vare(i)     = n;
 	return(i);
 }
@@ -1032,7 +1011,7 @@ newtmp(int n)
 	int i;
 	++varco;
 	i=varco;
-	if(i >= NVAR)  yyerror(1106);
+	if(i >= NVAR)  yyerror();
 	Vart(i)     = n;
 	Vare(i)     = 0;
 	Varn(i)     = 0;
@@ -1047,7 +1026,6 @@ lup(int s1)
 	switch ( Slist   (level) )
 		{
                         
-			yyerror(456);
 		}
 	subup();
 	level++;
@@ -1072,29 +1050,6 @@ ldw()
 	int i;
 	ldwl(1,level);
 	level--;
-}
-
-ldwl(int s1,int lev)
-{
-	int i,j,k;
-	if (lev==0) yyerror(500);
-	for (i=Sdef(lev);i;i--) undefin();
-	k=varco-Sdef(lev);
-	lev--;
-	j=0;
-	for(i=k; Varlev(i)==lev && i; i--)
-		{
-			if ( Varc(i) && Vara(i) )
-				{
-					undefin();
-					j++;
-				}
-		}
-	if(s1)
-		{
-			varco=k;
-			if (j) Sdef(lev) -= j;
-		}
 }
 
 
