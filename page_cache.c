@@ -70,6 +70,62 @@
  *
  */
 
+/*
+ * Life cycle of pages/nodes.
+ *
+ * jnode contains reference to page and page contains reference back to
+ * jnode. This reference is counted in page ->count. Thus, page bound to jnode
+ * cannot be released back into free pool.
+ *
+ *  1. Formatted nodes.
+ *
+ *    1. formatted node is represented by znode. When new znode is created its
+ *    ->pg pointer is NULL initially.
+ *
+ *    2. when node content is loaded into znode (by call to zload()) for the
+ *    first time following happens (in call to ->read_node() or
+ *    ->allocate_node()):
+ *
+ *      1. new page is added to the page cache.
+ *
+ *      2. this page is attached to znode and its ->count is increased.
+ *
+ *      3. page is kmapped.
+ *
+ *    3. if more calls to zload() follow (without corresponding zrelses), page
+ *    counter is left intact and in its stead ->d_count is increased in znode.
+ *
+ *    4. each call to zrelse decreases ->d_count. When ->d_count drops to zero
+ *    ->release_node() is called and page is kunmapped as result.
+ *
+ *    5. at some moment node can be captured by a transaction. Its ->x_count
+ *    is then increased by transaction manager.
+ *
+ *    6. if node is removed from the tree (empty node with ZNODE_HEARD_BANSHEE
+ *    bit set) following will happen (also see comment at the top of znode.c):
+ *
+ *      1. when last lock is released, node will be uncaptured from
+ *      transaction. This released reference that transaction manager acquired
+ *      at the step 5.
+ *
+ *      2. when last reference is released, zput() detects that node is
+ *      actually deleted and calls ->delete_node()
+ *      operation. page_cache_delete_node() implementation detaches jnode from
+ *      page and releases page.
+ *
+ *    7. otherwise (node wasn't removed from the tree), last reference to
+ *    znode will be released after transaction manager committed transaction
+ *    node was in. This implies squallocing of this node (see
+ *    flush.c). Nothing special happens at this point. Znode is still in the
+ *    hash table and page is still attached to it.
+ *
+ *    8. znode is actually removed from the memory because of the memory
+ *    pressure, or during umount (znodes_tree_done()). Anyway, znode is
+ *    removed by the call to zdrop(). At this moment, page is detached from
+ *    znode and removed from the inode address space.
+ *
+ */
+
 #include "reiser4.h"
 
 static struct page *add_page( struct super_block *super, jnode *node );
@@ -214,25 +270,46 @@ static int page_cache_delete_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 	struct page *page;
 
 	trace_on( TRACE_PCACHE, "delete node: %p\n", node );
-	page = jnode_page( node );
-	assert( "nikita-2108", page != NULL );
 
-	/* FIXME-NIKITA locking? */
-	ClearPageDirty( page );
-	ClearPageUptodate( page );
-	lock_page( page ); /* remove_inode_page needs page locked. May be we
-			      should use __remove_inode_page instead? */
-	remove_inode_page( page );
-	unlock_page( page );
- 	jnode_detach_page( node );
+	spin_lock( &_jnode_ptr_lock );
+	page = jnode_page( node );
+	if( page != NULL ) {
+		lock_page( page );
+		/* FIXME-NIKITA locking? */
+		ClearPageDirty( page );
+		ClearPageUptodate( page );
+		remove_inode_page( page );
+		unlock_page( page );
+		break_page_jnode_linkage( page, node );
+		spin_unlock( &_jnode_ptr_lock );
+		page_cache_release( page );
+		return 0;
+	}
+	spin_unlock( &_jnode_ptr_lock );
 	return 0;
 }
 
 /** ->drop_node method of page-cache based tree operations */
 static int page_cache_drop_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
+	struct page *page;
+
 	trace_on( TRACE_PCACHE, "drop node: %p\n", node );
- 	jnode_detach_page( node );
+
+	spin_lock( &_jnode_ptr_lock );
+	page = jnode_page( node );
+	if( page != NULL ) {
+		lock_page( page );
+		assert( "nikita-2126", !PageDirty( page ) );
+		assert( "nikita-2127", PageUptodate( page ) );
+		remove_inode_page( page );
+		unlock_page( page );
+		break_page_jnode_linkage( page, node );
+		spin_unlock( &_jnode_ptr_lock );
+		page_cache_release( page );
+		return 0;
+	}
+	spin_unlock( &_jnode_ptr_lock );
 	return 0;
 }
 
@@ -396,12 +473,11 @@ static int formatted_writepage( struct page *page /* page to write */ )
 
 /** ->invalidatepage() method for formatted nodes */
 static int formatted_invalidatepage( struct page *page /* page to write */,
-				     unsigned long offset /*  truncate offset */ )
+				     unsigned long offset UNUSED_ARG /*  truncate
+								      *  offset */ )
 {
-	assert( "nikita-2110", offset == 0 );
-	assert( "nikita-2111", !PageDirty( page ) );
-	assert( "nikita-2112", PageUptodate( page ) );
-	page_detach_jnode( page );
+	warning( "nikita-2129", "Shouldn't happen\n" );
+	print_page( page );
 	return 0;
 }
 
@@ -577,7 +653,7 @@ void print_page( struct page *page )
 	      page_flag_name( page,  PG_writeback ),
 	      page_flag_name( page,  PG_nosave ) );
 	if( jprivate( page ) != NULL ) {
-		info_jnode( "\tpage jnode", jprivate( page ) );
+		info_znode( "\tpage jnode", ( znode * ) jprivate( page ) );
 		info( "\n" );
 	}
 }

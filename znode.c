@@ -110,15 +110,16 @@
  * deletion. Node deletion includes two phases. First all ways to get
  * references to that znode (sibling and parent links and hash lookup using
  * block number stored in parent node) should be deleted -- it is done through
- * sibling_list_remove(), also we assume that nobody uses down link
- * from parent node due to its nonexistence or proper parent node locking and
+ * sibling_list_remove(), also we assume that nobody uses down link from
+ * parent node due to its nonexistence or proper parent node locking and
  * nobody uses parent pointers from children due to absence of them. Second we
  * invalidate all pending lock requests which still are on znode's lock
- * request queue, this is done by invalidate_lock(). Another
- * ZNODE_IS_DYING znode status bit is used to invalidate pending lock
- * requests. Once it set all requesters are forced to return -EINVAL from
+ * request queue, this is done by invalidate_lock(). Another ZNODE_IS_DYING
+ * znode status bit is used to invalidate pending lock requests. Once it set
+ * all requesters are forced to return -EINVAL from
  * longterm_lock_znode(). Future locking attempts are not possible because all
- * ways to get references to that znode are removed already.
+ * ways to get references to that znode are removed already. Last, node is
+ * uncaptured from transaction.
  *
  * When last reference to the dying znode is just about to be released,
  * block number for this lock is released and znode is removed from the
@@ -268,8 +269,7 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 		for_all_ht_buckets( &tree -> hash_table, bucket ) {
 			for_all_in_bucket( bucket, node, next, link ) {
 				if( atomic_read( &node -> c_count ) == 0 ) {
-					znode_remove( node );
-					zfree( node );
+					zdrop( tree, node );
 				} else
 					++ parents;
 			}
@@ -397,19 +397,20 @@ void zdelete( znode *node /* znode to finish with */ )
 
 /** zdrop() -- Remove znode from the tree.
  *
- * This is called when last reference to the znode is release.
+ * This is called when znode is removed from the memory.
  */
-void zdrop( znode *node /* znode to finish with */ )
+void zdrop( reiser4_tree *tree /* tree to remove znode from */, 
+	    znode *node /* znode to finish with */ )
 {
-	reiser4_tree *tree;
-
 	trace_stamp( TRACE_ZNODES );
 	assert( "nikita-467", node != NULL );
-	assert( "nikita-1443", current_tree != NULL );
+	assert( "nikita-1443", tree != NULL );
+	assert( "nikita-2128", spin_tree_is_locked( tree ) );
 
-	tree = current_tree;
-	if( znode_lock_remove( tree, node ) )
+	if( atomic_read( &node -> x_count ) > 0 )
 		return;
+
+	znode_remove( node );
 
 	assert( "nikita-2057", tree -> ops -> drop_node != NULL );
 
@@ -680,15 +681,13 @@ void zput (znode *node)
 	assert ("jmacd-510", atomic_read (& node->x_count) > 0);
 	assert ("jmacd-511", atomic_read (& node->d_count) >= 0);
 	assert ("jmacd-572", atomic_read (& node->c_count) >= 0);
-	ON_DEBUG ( -- lock_counters() -> x_refs );
+	ON_DEBUG (-- lock_counters() -> x_refs);
 
 	/*
 	 * FIXME-NIKITA nikita: handle releasing reference to the znode that is
 	 * removed from the tree. Locking?
 	 */
 	if (atomic_dec_and_test (& node->x_count)) {
-		reiser4_tree *tree;
-
 		if (ZF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
 
 			/* FIXME_JMACD: Currently deallocate_znode just calls
@@ -696,37 +695,7 @@ void zput (znode *node)
 			deallocate_znode (node);
 			/* FIXME_JMACD: The atom has no reference because
 			 * jnodes don't have an x_count... what to do? */
-			return;
 		}
-		/* last reference on fake znode is released: nothing to do. */
-		if (znode_above_root (node))
-			return;
-		tree = current_tree;
-		spin_lock_tree (tree);
-		if (atomic_read (& node->x_count) > 0) {
-			/*
-			 * some other lucky thread referenced znode while we
-			 * were waiting for the tree lock.
-			 */
-			spin_unlock_tree (tree);
-			return;
-		}
-		assert ("nikita-2065", atomic_read (& node->d_count) == 0);
-		
-		/*
-		 * znode is unreferenced. Page is not needed in memory any
-		 * longer.
-		 */
-		/* 
-		 * znode fields can be accessed here, because tree is locked
-		 * and thus, no hash-table lookup can be performed. 
-		 */
-		assert ("nikita-2066", tree->ops->drop_node != NULL);
-		if (tree->ops->drop_node (tree, ZJNODE (node)) != 0) {
-			warning ("nikita-2067", "Failed to free node: %llx",
-				 *znode_get_block (node));
-		}
-		spin_unlock_tree (tree);
 	}
 }
 
