@@ -120,9 +120,9 @@ year old --- define all technical terms used.
    ASTAGE_CAPTURE_WAIT and it waits for a znode lock.  The thread can't wait for
    a capture because it's stage allows fusion with any atom except which are
    being committed currently. A process of atom commit can't deadlock because
-   atom commit procedure does not aquire locks and does not fuse with other
+   atom commit procedure does not acquire locks and does not fuse with other
    atoms.  Reiser4 does capturing right before going to sleep inside the
-   longtertm_lock_znode() function, it means the znode which we wont to lock is
+   longtertm_lock_znode() function, it means the znode which we want to lock is
    already captured and its atom is in ASTAGE_CAPTURE_WAIT stage.  If we
    continue the analysis we understand that no one process in the sequence may
    waits atom fusion.  Thereby there are no deadlocks of described kind.
@@ -130,7 +130,7 @@ year old --- define all technical terms used.
    The capturing optimization makes the deadlocks possible.  A thread can wait a
    lock which owner did not captured that node.  The lock owner's current atom
    is not fused with the first atom and it does not get a ASTAGE_CAPTURE_WAIT
-   state. A deadlock is possible when that atom meats another one which is in
+   state. A deadlock is possible when that atom meets another one which is in
    ASTAGE_CAPTURE_WAIT already.
 
    The deadlock avoidance scheme includes two algorithms:
