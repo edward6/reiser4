@@ -905,9 +905,8 @@ static int znode_invariant_f( const znode *node /* znode to check */,
 		 */
 		_ergo( znode_get_level( node ) == 0, znode_parent( node ) == NULL ) &&
 		_ergo( znode_get_level( node ) == 0, 
-		       ( blocknr_is_fake( znode_get_block( node ) ) ||
-			 disk_addr_eq( znode_get_block( node ), 
-				       &FAKE_TREE_ADDR ) ) ) &&
+		      disk_addr_eq( znode_get_block( node ), 
+				    &FAKE_TREE_ADDR ) ) &&
 		_ergo( znode_is_true_root( node ), 
 		       znode_above_root( znode_parent( node ) ) ) &&
 		/*
