@@ -23,7 +23,7 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 		goto error_free_fs;
 
 	if (journal_device)
-		aal_device_set_blocksize(journal_device, get_mr_blocksize(&fs->super->master));
+		aal_device_set_blocksize(journal_device, get_mr_block_size(&fs->super->master));
 
 	if (reiserfs_super_journal_plugin(fs) != REISERFS_UNSUPPORTED_PLUGIN && 
 			journal_device && !reiserfs_journal_open(fs, journal_device, replay))

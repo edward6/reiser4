@@ -36,15 +36,25 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 	}
 	
 	master = (struct reiserfs_master_super *)block->data;
-	if (aal_strncmp(master->mr_magic, REISERFS_MASTER_MAGIC, 4) != 0)
-		goto error_free_block;
+	
+	if (aal_strncmp(master->mr_magic, REISERFS_MASTER_MAGIC, 4) != 0) {
+		/* Checking for reiser3 disk-format */
+		
+		if (!(plugin = reiserfs_plugin_find(REISERFS_FORMAT_PLUGIN, 0x2)))
+			goto error_free_block;
+		
+		/* Forming in memory master super block for reiser3 */
+		aal_memset(master, 0, sizeof(*master));
+		set_mr_block_size(master, REISERFS_DEFAULT_BLOCKSIZE);
+		set_mr_format_id(master, 0x2);
+	}	
 	
 	aal_memcpy(&fs->super->master, master, sizeof(*master));
 	
-	if (!aal_device_set_blocksize(fs->device, get_mr_blocksize(master))) {
+	if (!aal_device_set_blocksize(fs->device, get_mr_block_size(master))) {
 			aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-019",
 					"Invalid block size detected %d. It must be power of two.", 
-			get_mr_blocksize(master));
+			get_mr_block_size(master));
 		goto error_free_block;
 	}
 	

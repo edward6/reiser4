@@ -28,7 +28,7 @@ static int reiserfs_format40_signature(reiserfs_format40_super_t *super) {
 static aal_block_t *reiserfs_format40_super_open(aal_device_t *device) {
 	aal_block_t *block;
 	reiserfs_format40_super_t *super;
-	int i, super_offset[] = {16, 2, -1};
+	int i, super_offset[] = {17, -1};
 	
 	for (i = 0; super_offset[i] != -1; i++) {
 		if ((block = aal_block_read(device, super_offset[i]))) {
