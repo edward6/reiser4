@@ -180,6 +180,23 @@ typedef enum {
 static int carry_level_invariant(carry_level * level, carry_queue_state state);
 #endif
 
+static int
+perthread_pages_reserve(int nrpages, int gfp)
+{
+	return 0;
+}
+
+static void
+perthread_pages_release(int nrpages)
+{
+}
+
+static int
+perthread_pages_count(void)
+{
+	return 0;
+}
+
 /* main entry point for tree balancing.
 
    Tree carry performs operations from @doing and while doing so accumulates
