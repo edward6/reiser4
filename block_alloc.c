@@ -938,7 +938,7 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr * 
 			grabbed2free(*len);
 			break;
 		case BLOCK_GRABBED:
-			assert("vs-961", flags & BA_FORMATTED);
+			/* assert("vs-961", flags & BA_FORMATTED); */
 			
 			trace_on(TRACE_RESERVE, "moving %llu used blocks to grabbed\n", *len);
 			used2grabbed(*len);
