@@ -907,7 +907,7 @@ find_or_create_extent(struct page *page)
 #if REISER4_USE_EFLUSH
 static int inode_has_eflushed_jnodes(struct inode * inode)
 {
-	reiser4_tree * tree = current_tree;
+	reiser4_tree * tree = &get_super_private(inode->i_sb)->tree;
 	int ret;
 
 	RLOCK_TREE(tree);
