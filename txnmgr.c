@@ -509,9 +509,9 @@ txn_end (reiser4_context *context)
 				      TXN_ATOM
 *****************************************************************************************/
 
-/* Get the atom belonging to a txnh, which is not locked.  Return with both
- * txnh and atom locked.  This performs the necessary spin_trylock to break
- * the lock-ordering cycle.  May return NULL. */
+/* Get the atom belonging to a txnh, which is not locked.  Return txnh locked. Locks atom, if atom
+ * is not NULL.  This performs the necessary spin_trylock to break the lock-ordering cycle.  May
+ * return NULL. */
 txn_atom*
 atom_get_locked_with_txnh_locked_nocheck (txn_handle *txnh)
 {
@@ -537,20 +537,8 @@ atom_get_locked_with_txnh_locked_nocheck (txn_handle *txnh)
 	return atom;
 }
 
-/* Same as atom_get_locked_with_txnh_locked_nocheck, by may not return NULL */
-txn_atom * 
-atom_get_locked_with_txnh_locked (txn_handle *txnh)
-{
-	txn_atom * atom;
-
-	atom = atom_get_locked_with_txnh_locked_nocheck (txnh);
-
-	assert ("jmacd-309", atom != NULL);
-	return atom;
-}
-
-/* Get the current atom and spinlock it. */
-txn_atom * get_current_atom_locked (void)
+/* Get the current atom and spinlock it if current atom present. May return NULL  */
+txn_atom * get_current_atom_locked_nocheck (void)
 {
 	reiser4_context * cx;
 	txn_atom * atom;
@@ -562,13 +550,11 @@ txn_atom * get_current_atom_locked (void)
 	txnh = cx -> trans;
 	assert ("zam-435", txnh != NULL);
 	
-	atom = atom_get_locked_with_txnh_locked (txnh);
-	assert ("zam-436", atom != NULL);
+	atom = atom_get_locked_with_txnh_locked_nocheck (txnh);
 
 	spin_unlock_txnh (txnh);
 	return atom;
 }
-
 
 /* Get the atom belonging to a jnode, which is initially locked.  Return with
  * both jnode and atom locked.  This performs the necessary spin_trylock to
