@@ -664,13 +664,13 @@ shorten_file(struct inode *inode, loff_t new_size)
 }
 
 static loff_t
-write_flow(hint_t *, struct file *, struct inode *, const char *buf, loff_t count, loff_t pos);
+write_flow(hint_t *, struct file *, struct inode *, const char *buf, loff_t count, loff_t pos, int exclusive);
 
 /* it is called when truncate is used to make file longer and when write position is set past real end of file. It
    appends file which has size @cur_size with hole of certain size (@hole_size). It returns 0 on success, error code
    otherwise */
 static int
-append_hole(hint_t *hint, struct inode *inode, loff_t new_size)
+append_hole(hint_t *hint, struct inode *inode, loff_t new_size, int exclusive)
 {
 	int result;
 	loff_t written;
@@ -681,7 +681,7 @@ append_hole(hint_t *hint, struct inode *inode, loff_t new_size)
 	result = 0;
 	hole_size = new_size - inode->i_size;
 	written = write_flow(hint, NULL, inode, NULL/*buf*/, hole_size,
-			     inode->i_size);
+			     inode->i_size, exclusive);
 	if (written != hole_size) {
 		/* return error because file is not expanded as required */
 		if (written > 0)
@@ -706,7 +706,7 @@ truncate_file_body(struct inode *inode, loff_t new_size)
 
 	hint_init_zero(&hint);
 	if (inode->i_size < new_size)
-		result = append_hole(&hint, inode, new_size);
+		result = append_hole(&hint, inode, new_size, 1/* exclusive access is obtained */);
 	else
 		result = shorten_file(inode, new_size);
 
@@ -1758,9 +1758,11 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 		get_nonexclusive_access(uf_info);
 
 		/* define more precisely read size now when filesize can not change */
-		if (*off >= inode->i_size)
+		if (*off >= inode->i_size) {
 			/* position to read from is past the end of file */
+			get_nonexclusive_access(uf_info);
 			break;
+		}
 		if (*off + left > inode->i_size)
 			left = inode->i_size - *off;
 		if (*off + to_read > inode->i_size)
@@ -1805,7 +1807,8 @@ typedef int (*write_f_t)(struct inode *, flow_t *, hint_t *, int grabbed, write_
    appropriate item to actually copy user data into filesystem. This loops
    until all the data from flow @f are written to a file. */
 static loff_t
-append_and_or_overwrite(hint_t *hint, struct file *file, struct inode *inode, flow_t *flow)
+append_and_or_overwrite(hint_t *hint, struct file *file, struct inode *inode, flow_t *flow,
+			int exclusive /* if 1 - exclusive access on a file is obtained */)
 {
 	int result;
 	lock_handle lh;
@@ -1867,12 +1870,16 @@ append_and_or_overwrite(hint_t *hint, struct file *file, struct inode *inode, fl
 		case UF_CONTAINER_TAILS:
 			if (should_have_notail(uf_info, get_key_offset(&flow->key) + flow->length)) {
 				done_lh(&lh);
- 				drop_nonexclusive_access(uf_info);
-				txn_restart_current();
- 				get_exclusive_access(uf_info);
+				if (!exclusive) {
+					drop_nonexclusive_access(uf_info);
+					txn_restart_current();
+					get_exclusive_access(uf_info);
+				}
 				result = tail2extent(uf_info);
- 				drop_exclusive_access(uf_info);
- 				get_nonexclusive_access(uf_info);
+				if (!exclusive) {
+					drop_exclusive_access(uf_info);
+					get_nonexclusive_access(uf_info);
+				}
 				if (result)
 					return result;
 				unset_hint(hint);
@@ -1925,7 +1932,8 @@ append_and_or_overwrite(hint_t *hint, struct file *file, struct inode *inode, fl
 /* make flow and write data (@buf) to the file. If @buf == 0 - hole of size @count will be created. This is called with
    uf_info->latch either read- or write-locked */
 static loff_t
-write_flow(hint_t *hint, struct file *file, struct inode *inode, const char *buf, loff_t count, loff_t pos)
+write_flow(hint_t *hint, struct file *file, struct inode *inode, const char *buf, loff_t count, loff_t pos,
+	   int exclusive)
 {
 	int result;
 	flow_t flow;
@@ -1937,7 +1945,7 @@ write_flow(hint_t *hint, struct file *file, struct inode *inode, const char *buf
 	if (result)
 		return result;
 
-	return append_and_or_overwrite(hint, file, inode, &flow);
+	return append_and_or_overwrite(hint, file, inode, &flow, exclusive);
 }
 
 reiser4_internal void
@@ -2050,7 +2058,8 @@ write_file(hint_t *hint,
 	   struct file *file, /* file to write to */
 	   const char *buf, /* address of user-space buffer */
 	   size_t count, /* number of bytes to write */
-	   loff_t *off /* position in file to write to */)
+	   loff_t *off /* position in file to write to */,
+	   int exclusive)
 {
 	struct inode *inode;
 	ssize_t written;	/* amount actually written so far */
@@ -2063,14 +2072,14 @@ write_file(hint_t *hint,
 
 	if (inode->i_size < pos) {
 		/* pos is set past real end of file */
-		written = append_hole(hint, inode, pos);
+		written = append_hole(hint, inode, pos, exclusive);
 		if (written)
 			return written;
 		assert("vs-1081", pos == inode->i_size);
 	}
 
 	/* write user data to the file */
-	written = write_flow(hint, file, inode, buf, count, pos);
+	written = write_flow(hint, file, inode, buf, count, pos, exclusive);
 	if (written > 0)
 		/* update position in a file */
 		*off = pos + written;
@@ -2322,7 +2331,7 @@ write_unix_file(struct file *file, /* file to write to */
 		}
 
 		all_grabbed2free();
-		written = write_file(&hint, file, buf, to_write, off);
+		written = write_file(&hint, file, buf, to_write, off, excl);
 		if (user_space)
 			reiser4_put_user_pages(pages, nr_pages);
 		if (excl)
@@ -2662,6 +2671,7 @@ init_inode_data_unix_file(struct inode *inode,
 
 #if REISER4_DEBUG
 	data->ea_owner = 0;
+	atomic_set(&data->nr_neas, 0);
 #endif
 	init_inode_ordering(inode, crd, create);
 }
