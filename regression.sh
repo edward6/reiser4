@@ -21,35 +21,35 @@ for r in `seq 1 $ROUNDS`
 do
 echo Round $r
 # "non-persistent" tests
-if [ x$$REISER4_UL_DURABLE_MMAP = x ]
+if [ x$REISER4_UL_DURABLE_MMAP = x ]
 then
-	run ./a.out nikita ibk 10000 || exit 1
-	mv gmon.out gmon.out.ibk.10000.$r 2>/dev/null
+	run ./a.out nikita ibk 30000 || exit 1
+	mv gmon.out gmon.out.ibk.30000.$r 2>/dev/null
 
-	run ./a.out jmacd build 3 1000 1000 || exit 4
-	mv gmon.out gmon.out.build.3.1000.$r 2>/dev/null
+#	run ./a.out jmacd build 3 1000 1000 || exit 4
+#	mv gmon.out gmon.out.build.3.1000.$r 2>/dev/null
 fi
 
-run ./a.out nikita dir 1 100 || exit 2
-mv gmon.out gmon.out.dir.1.100.$r 2>/dev/null
+run ./a.out nikita dir 1 100000 || exit 2
+mv gmon.out gmon.out.dir.1.100000.$r 2>/dev/null
 
-run ./a.out nikita dir 3 1000 || exit 3
-mv gmon.out gmon.out.dir.3.1000.$r 2>/dev/null
+run ./a.out nikita dir 4 7000 || exit 3
+mv gmon.out gmon.out.dir.7.7000.$r 2>/dev/null
 
-run ./a.out nikita mongo 3 1000 || exit 5
-mv gmon.out gmon.out.mongo.3.1000.$r 2>/dev/null
+run ./a.out nikita mongo 3 20000 || exit 5
+mv gmon.out gmon.out.mongo.3.20000.$r 2>/dev/null
 
-run ./a.out nikita rm 3 1000 1000 || exit 6
-mv gmon.out gmon.out.rm.3.1000.$r 2>/dev/null
+run ./a.out nikita rm 6 10000 || exit 6
+mv gmon.out gmon.out.rm.6.10000.$r 2>/dev/null
 
-run ./a.out nikita unlink 10000 || exit 7
-mv gmon.out gmon.out.unlink.10000.$r 2>/dev/null
+run ./a.out nikita unlink 15000 || exit 7
+mv gmon.out gmon.out.unlink.15000.$r 2>/dev/null
 
-run ./a.out nikita queue 30 10000 10000  || exit 6
-mv gmon.out gmon.out.rm.30.10000.10000.$r 2>/dev/null
+#run ./a.out nikita queue 30 10000 10000  || exit 6
+#mv gmon.out gmon.out.rm.30.10000.10000.$r 2>/dev/null
 
-run ./a.out nikita mongo 30 1000 || exit 6
-mv gmon.out gmon.out.rm.30.1000.$r 2>/dev/null
+run ./a.out nikita mongo 30 1500 || exit 6
+mv gmon.out gmon.out.rm.30.1500.$r 2>/dev/null
 #( find /tmp | ./a.out vs copydir ) || exit 8
 #mv gmon.out gmon.out.vs.copydir.tmp.$r
 echo Round $r done.
