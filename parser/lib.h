@@ -55,13 +55,13 @@ static expr_v4_t * compare_AND_expression(struct reiser4_syscall_w_space * ws, e
 static expr_v4_t * not_expression(struct reiser4_syscall_w_space * ws, expr_v4_t * e1);
 static expr_v4_t * check_exist(struct reiser4_syscall_w_space * ws, expr_v4_t * e1);
 static expr_v4_t * list_expression(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2 );
-static inline expr_v4_t * list_async_expression(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2 );
+static expr_v4_t * list_async_expression(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2 );
 static expr_v4_t * assign(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2);
 static expr_v4_t * assign_invert(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2);
 static expr_v4_t * symlink(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2);
 static  int source_not_empty(expr_v4_t *source);
-static tube_t * get_tube_general(pars_var_t *sink, expr_v4_t *source);
-static size_t reserv_space_in_sink(tube_t * tube, size_t len );
+static tube_t * get_tube_general(tube_t * tube, pars_var_t *sink, expr_v4_t *source);
+static size_t reserv_space_in_sink(tube_t * tube);
 static size_t get_available_len(tube_t * tube);
 static int prep_tube_general(tube_t * tube);
 static int source_to_tube_general(tube_t * tube);

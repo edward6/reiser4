@@ -138,6 +138,8 @@ struct tube {
 	loff_t readoff;      /* reading offset   */
 	loff_t writeoff;     /* writing offset   */
 
+ 	sourece_stack_t * last;
+	sourece_stack_t * next;
 	sourece_stack_t * st_current;
 
 //	expr_v4_t * source;
