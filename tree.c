@@ -923,8 +923,7 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
 	 * through... every other time it is redundent.
 	 */
 	
-	for( ncoord_init_before_first_item( result, parent ) ; 
-	     ncoord_next_unit( result ) == 0 ; ) { 
+	for_all_units( result, parent ) {
 		if( check_tree_pointer( result, child ) == NS_FOUND ) {
 			spin_lock_tree( current_tree );
 			child -> ptr_in_parent_hint = *result;

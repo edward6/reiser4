@@ -291,6 +291,17 @@ extern int ncoord_set_after_unit (new_coord *coord);
 /* Calls either ncoord_next_unit or ncoord_prev_unit depending on sideof argument. */
 extern int ncoord_sideof_unit (new_coord *coord, sideof dir);
 
+/** iterate over all units in @node */
+#define for_all_units( coord, node )					\
+	for( ncoord_init_before_first_item( ( coord ), ( node ) ) ; 	\
+	     ncoord_next_unit( coord ) == 0 ; )
+
+/** iterate over all items in @node */
+#define for_all_items( coord, node )					\
+	for( ncoord_init_before_first_item( ( coord ), ( node ) ) ; 	\
+	     ncoord_next_item( coord ) == 0 ; )
+
+
 /* __REISER4_NEW_COORD_H__ */
 #endif
 
