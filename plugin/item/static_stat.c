@@ -28,7 +28,7 @@ void sd_print( const char *prefix /* prefix to print */,
 		info( "%s: wrong size: %i < %i\n", prefix,
 		      item_length_by_coord( coord ), sizeof *sd_base );
 	} else {
-		info( "%s: mode: %o, extmask: %x, nlink: %u, size: %qu\n", 
+		info( "%s: mode: %o, extmask: %x, nlink: %u, size: %llu\n", 
 		      prefix,
 		      d16tocpu( &sd_base -> mode ), 
 		      d16tocpu( &sd_base -> extmask ),
