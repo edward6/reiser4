@@ -357,6 +357,7 @@ static void wake_up_all_lopri_owners (znode *node)
 	while (!owners_list_end(&node->lock.owners, handle)) {
 		spin_lock_stack(handle->owner);
 
+		assert("nikita-1832", handle->node == node);
 		/*
 		 * count this signal in owner->nr_signaled */
 		if (!handle->signaled) {
@@ -383,6 +384,8 @@ static inline void link_object (
 )
 {
 	assert ("jmacd-810", handle->owner == NULL);
+	assert ("nikita-1828", owner == get_current_lock_stack());
+	assert ("nikita-1830", spin_znode_is_locked (node));
 
 	handle->owner = owner;
 	handle->node = node;
@@ -401,6 +404,7 @@ static inline void unlink_object (reiser4_lock_handle *handle)
 	assert ("zam-354", handle->owner != NULL);
 	assert ("nikita-1608", handle->node != NULL);
 	assert ("nikita-1633", spin_znode_is_locked(handle->node));
+	assert ("nikita-1829", handle->owner == get_current_lock_stack());
 
 	locks_list_remove(handle);
 	owners_list_remove(handle);
@@ -414,9 +418,14 @@ static inline void unlink_object (reiser4_lock_handle *handle)
  */
 static void lock_object (reiser4_lock_stack *owner, znode *node)
 {
+	assert("nikita-1834", spin_znode_is_locked(node));
+	assert("nikita-1839", owner == get_current_lock_stack());
+
 	if (owner->request.mode == ZNODE_READ_LOCK) {
 		node->lock.nr_readers++;
 	} else {
+		/* check that we don't switched from read to write lock */
+		assert("nikita-1840", node->lock.nr_readers <= 0);
 		/* We allow recursive locking; a node can be locked several
 		 * times for write by same process */
 		node->lock.nr_readers--;
@@ -438,6 +447,8 @@ static int recursive (reiser4_lock_stack *owner, znode *node)
 	/*
 	 * Owners list is not empty for a locked node */
 	assert("zam-314", !owners_list_empty(&node->lock.owners));
+	assert("nikita-1841", owner == get_current_lock_stack());
+	assert("nikita-1848", spin_znode_is_locked(node));
 
 	ret = (owners_list_front(&node->lock.owners)->owner == owner);
 
@@ -515,6 +526,7 @@ int znode_is_write_locked( const znode *node )
  */
 static inline int check_deadlock_condition (znode *node)
 {
+	assert ("nikita-1833", spin_znode_is_locked (node));
 	return node->lock.nr_hipri_requests > 0
 		&& node->lock.nr_hipri_owners == 0;
 }
@@ -524,6 +536,9 @@ static inline int check_deadlock_condition (znode *node)
  */
 static int can_lock_object (reiser4_lock_stack *owner, znode *node)
 {
+	assert("nikita-1842", owner == get_current_lock_stack());
+	assert("nikita-1843", spin_znode_is_locked(node));
+
 	/* See if the node is disconnected. */
 	if (ZF_ISSET (node, ZNODE_IS_DYING)) {
 		return -EINVAL;
@@ -551,6 +566,7 @@ static int can_lock_object (reiser4_lock_stack *owner, znode *node)
  */
 static void set_high_priority(reiser4_lock_stack *owner)
 {
+	assert("nikita-1846", owner == get_current_lock_stack());
 	/* Do nothing if current priority is already high */
 	if (!owner->curpri) {
 		reiser4_lock_handle *item = locks_list_front(&owner->locks);
@@ -579,10 +595,20 @@ static void set_low_priority(reiser4_lock_stack *owner)
 {
 	/* Do nothing if current priority is already low */
 	if (owner->curpri) {
+		/*
+		 * scan all locks (lock handles) held by @owner, which is
+		 * actually current thread, and check whether we are reaching
+		 * deadlock possibility anywhere.
+		 */
 		reiser4_lock_handle *handle = locks_list_front(&owner->locks);
 		while (!locks_list_end(&owner->locks, handle)) {
 			znode *node = handle->node;
 			spin_lock_znode(node);
+			/*
+			 * this thread just was hipri owner of @node, so
+			 * nr_hipri_owners has to be greater than zero.
+			 */
+			assert("nikita-1835", node->lock.nr_hipri_owners > 0);
 			node->lock.nr_hipri_owners--;
 			/*
 			 * If we have deadlock condition, adjust a nr_signaled
@@ -605,9 +631,8 @@ static void set_low_priority(reiser4_lock_stack *owner)
 }
 
 /**
- * lock a znode
+ * unlock a znode long term lock
  */
-
 void longterm_unlock_znode (reiser4_lock_handle *handle)
 {
 	znode *node =  handle->node;
@@ -624,7 +649,10 @@ void longterm_unlock_znode (reiser4_lock_handle *handle)
 	assert("zam-101", znode_is_locked (node));
 
 	/* Adjust a number of high priority owners of this lock*/
-	if (oldowner->curpri) node->lock.nr_hipri_owners--;
+	if (oldowner->curpri) {
+		assert("nikita-1836", node->lock.nr_hipri_owners > 0);
+		node->lock.nr_hipri_owners--;
+	}
 
 	/* Last write-lock release. */
 	if (znode_is_wlocked_once(node)) {
@@ -754,6 +782,8 @@ int longterm_lock_znode (
 			break;
 		}
 
+		assert("nikita-1844", 
+		       (ret == 0) || ((ret == -EAGAIN) && !non_blocking));
 		/* If we could get the lock... Try to capture first before taking the
 		 * lock.  Don't capture above the root. */
 		if (! znode_above_root (node)) {
@@ -766,6 +796,9 @@ int longterm_lock_znode (
 				owner->request.mode = 0;
 				/* next requestor may not fail */
 				wake_up_next = 1;
+				warning("nikita-1845", "Failed to capture node: %i",
+					ret);
+				print_znode("node", node);
 				break;
 			}
 
@@ -790,6 +823,7 @@ int longterm_lock_znode (
 			break;
 		}
 
+		assert("nikita-1837", spin_znode_is_locked(node));
 		if (hipri) {
 			/*
 			 * If we are going in high priority direction then
@@ -826,7 +860,10 @@ int longterm_lock_znode (
 		go_to_sleep(owner);
 
 		spin_lock_znode(node);
-		if (hipri) node->lock.nr_hipri_requests--;
+		if (hipri) {
+			assert("nikita-1838", node->lock.nr_hipri_requests > 0);
+			node->lock.nr_hipri_requests--;
+		}
 
 		requestors_list_remove(owner);
 	}
@@ -1010,6 +1047,14 @@ void move_lh (reiser4_lock_handle * new, reiser4_lock_handle * old)
 	reiser4_lock_stack * owner = old -> owner;
 	int signaled;
 
+	/*
+	 * locks_list, modified by link_object() is not protected by
+	 * anything. This is valid because only current thread ever modifies
+	 * locks_list of its lock_stack.
+	 */
+	assert( "nikita-1827", owner == get_current_lock_stack() );
+	assert( "nikita-1831", new -> owner == NULL );
+
 	spin_lock_znode( node );
 
 	new -> node  = node;
@@ -1035,9 +1080,13 @@ int check_deadlock ( void )
  * wake-up. */
 int prepare_to_sleep (reiser4_lock_stack *owner)
 {
-	spin_lock_stack(owner);
-	sema_init(&owner->sema, 0);
-	spin_unlock_stack(owner);
+	assert("nikita-1847", owner == get_current_lock_stack());
+
+	if(0) {
+		spin_lock_stack(owner);
+		sema_init(&owner->sema, 0);
+		spin_unlock_stack(owner);
+	}
 
 	if (atomic_read(&owner->nr_signaled) != 0 && !owner->curpri) {
 		return -EDEADLK;

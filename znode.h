@@ -15,10 +15,17 @@ TS_HASH_DECLARE(z, znode);
 /* per-znode lock requests queue; list items are lock owner objects
    which want to lock given znode */
 TS_LIST_DECLARE(requestors);
-/* per-znode list of lock handles that point to owner's lock owners */
+/* per-znode list of lock handles for this znode
+ * 
+ * Locking: protected by znode spin lock.
+ */
 TS_LIST_DECLARE(owners);
 /* per-owner list of lock handles that point to locked znodes which
-   belong to one lock owner */
+   belong to one lock owner 
+
+   Locking: this list is only accessed by the thread owning lock stack this
+   list is attached to. Hence, no locking is necessary.
+*/
 TS_LIST_DECLARE(locks);
   
 /**
@@ -340,7 +347,10 @@ typedef enum {
 struct __reiser4_lock_handle {
 	/**
 	 * This flag indicates that a signal to yield a lock was passed to
-	 * lock owner and counted in owner->nr_signalled */
+	 * lock owner and counted in owner->nr_signalled 
+	 *
+	 * Locking: this is accessed under spin lock on ->node.
+	 */
 	int signaled;
 	/**
 	 * A link to owner of a lock */
@@ -370,7 +380,11 @@ struct __reiser4_lock_stack {
 	 * number of znodes which were requested by high priority processes */
 	atomic_t nr_signaled;
 	/**
-	 * Current priority of a process */
+	 * Current priority of a process 
+	 *
+	 * This is only accessed by the current thread and thus requires no
+	 * locking.
+	 */
 	int curpri;
 	/**
 	 * A list of all locks owned by this process */
@@ -380,7 +394,11 @@ struct __reiser4_lock_stack {
 	 * requestors list of that lock */
 	requestors_list_link requestors_link;
 	/**
-	 * Current lock request info */
+	 * Current lock request info.
+	 *
+	 * This is only accessed by the current thread and thus requires no
+	 * locking.
+	 */
 	struct {
 		/**
 		 * A pointer to uninitialized link object */
