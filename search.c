@@ -117,6 +117,9 @@ cbk_cache_invariant(const cbk_cache * cache)
 	int result;
 	int unused;
 
+	if (cache->nr_slots == 0)
+		return;
+
 	assert("nikita-2469", cache != NULL);
 	unused = 0;
 	result = 1;
@@ -190,6 +193,10 @@ cbk_cache_add(const znode * node /* node to add to the cache */ )
 
 	cache = &znode_get_tree(node)->cbk_cache;
 	assert("nikita-2472", cbk_cache_invariant(cache));
+
+	if (cache->nr_slots == 0)
+		return;
+
 	write_lock_cbk_cache(cache);
 	/* find slot to update/add */
 	for (i = 0, slot = cache->slot; i < cache->nr_slots; ++ i, ++ slot) {
@@ -535,11 +542,11 @@ znode_contains_key_strict(znode * node	/* node to check key
  *     a node N such that a key we are looking for (which is the key inside
  *     object's body) is located within N. In function handle_vroot() called
  *     from cbk_level_lookup() we check whether N is possible vroot for
- *     F. Check is trivial---if neither leftmost nor rightmost items of N
- *     belong to F (and we already have helpful ->owns_item() method of object
- *     plugin for this), then N is possible vroot of F. This, of course,
- *     relies on the assumption that each object occupies contiguous range of
- *     keys in the tree.
+ *     F. Check is trivial---if neither leftmost nor rightmost item of N
+ *     belongs to F (and we already have helpful ->owns_item() method of
+ *     object plugin for this), then N is possible vroot of F. This, of
+ *     course, relies on the assumption that each object occupies contiguous
+ *     range of keys in the tree.
  *
  *     Thus, traversing tree downward and checking each node as we go, we can
  *     find lowest such node, which, by definition, is vroot.
