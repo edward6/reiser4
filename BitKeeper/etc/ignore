@@ -1491,3 +1491,7 @@ plugin/.fibration.o.d
 .log.o.cmd
 tags
 .minilzo.o.cmd
+.reiser4.ko.cmd
+.reiser4.mod.o.cmd
+reiser4.ko
+reiser4.mod.c
