@@ -115,7 +115,7 @@ static void          slum_scan_set_current        (slum_scan *scan, jnode *node)
 static int           slum_scan_left               (slum_scan *scan, jnode *node);
 
 static int           slum_lock_left_ancestor      (jnode *node, jnode **left_ancestor, reiser4_lock_handle *left_ancestor_lock);
-static int           slum_allocate_and_squeeze_parent_first (jnode *gda);
+static int           slum_allocate_and_squeeze_parent_first (jnode *gda, block_nr *preceder);
 
 static int           jnode_lock_parent_coord      (jnode *node, reiser4_lock_handle *node_lh, reiser4_lock_handle *parent_lh,
 						   tree_coord *coord, znode_lock_mode mode);
@@ -127,37 +127,22 @@ static int           jnode_allocate               (jnode *node);
 
 #define FLUSH_WORKS 0
 
-/* First phase:
- *
- * If leaf-level: scan to left
- *
- * If not leaf-level: scan to left in parent-first-order, meaning, if the left
- * neighbor's rightmost descendent is in memory, scan from there, otherwise
- * stop.  I don't think this makes sense because we don't know if that
- * descendant will continue to be if we squeeze, which we should do first,
- * which means we should scan at this level.
- *
- * If stopped at leftmost leaf, mark for relocate (dirty parent)
- *
- * Go to parent, try to squeeze left, scan left at parent level first.
- *
- */
-
 /* Perform encryption, allocate-on-flush, and squeezing-left of slums. */
 int flush_jnode_slum (jnode *node)
 {
 	int ret;
 	jnode *gda = NULL; /* Greatest dirty ancestor */
 	reiser4_lock_handle gda_lock;
+	block_nr preceder; /* FIXME: initialize me! */
 
 	reiser4_init_lh (& gda_lock);
 
-	/* FIXME: comments out of date */
+	/* FIXME: comments out of date! */
 	if (FLUSH_WORKS && (ret = slum_lock_left_ancestor (node, & gda, & gda_lock))) {
 		goto failed;
 	}
 
-	if (FLUSH_WORKS && (ret = slum_allocate_and_squeeze_parent_first (gda))) {
+	if (FLUSH_WORKS && (ret = slum_allocate_and_squeeze_parent_first (gda, & preceder))) {
 		goto failed;
 	}
 
@@ -259,17 +244,25 @@ static int slum_lock_left_ancestor (jnode *level_node, jnode **left_ancestor, re
 /********************************************************************************
  * SLUM ALLOCATE AND SQUEEZE
  ********************************************************************************/
+
 #if NOT_YET
-static int slum_allocate_and_squeeze_children (znode *node)
+
+/* Called on a non-leaf-level znode to process its children in the
+ * allocate_and_squeeze traversal.  For each extent or internal item in this
+ * node, either allocate the extent or make a allocate_and_squeeze_parent_first
+ * call on the child.
+ */
+static int slum_allocate_and_squeeze_children (znode *node, block_nr *preceder)
 {
 	int ret;
 	tree_coord crd;
 
 	reiser4_init_coord (& crd);
-	crd.node = node;
 
-	coord_first_unit (& crd);
+	coord_first_unit (& crd, node);
 
+	/* Assert the pre-condition for the following do-loop, essentially
+	 * stating that the node is not empty. */
 	assert ("jmacd-2000", ! coord_after_last (& crd));
 
 	do {
@@ -278,8 +271,9 @@ static int slum_allocate_and_squeeze_children (znode *node)
 		switch (item->item_type) {
 		case EXTENT_ITEM_TYPE:
 
-			/* FIXME: */
-			allocate_extent_item_in_place (&crd, preceder);
+			if ((ret = allocate_extent_item_in_place (&crd, preceder))) {
+				return ret;
+			}
 			break;
 
 		case INTERNAL_ITEM_TYPE: {
@@ -290,13 +284,13 @@ static int slum_allocate_and_squeeze_children (znode *node)
 
 			if (! znode_is_dirty (child)) { continue; }
 
-			if ((ret = slum_allocate_and_squeeze_parent_first (ZJNODE (child)))) {
+			if ((ret = slum_allocate_and_squeeze_parent_first (ZJNODE (child), preceder))) {
 				return ret;
 			}
 			break;
 		}
 		default:
-			warning ("jmacd-2001", "Unexpected item type");
+			warning ("jmacd-2001", "Unexpected item type above leaf level");
 			print_znode ("node", node);
 			return -EIO;
 		}
@@ -305,7 +299,6 @@ static int slum_allocate_and_squeeze_children (znode *node)
 
 	return 0;
 }
-
 
 /*
  * @left and @right are formatted neighboring nodes on leaf level. Shift as
@@ -352,8 +345,7 @@ static squeeze_result shift_one_internal_unit (znode * left, znode * right)
 	if (node_is_empty (right))
 		return SQUEEZE_CONTINUE;
 
-	coord.node = right;
-	coord_first_unit (&coord);
+	coord_first_unit (&coord, right);
 
 	if (!item_is_internal (&coord)) {
 		assert ("vs-433", item_is_extent (&coord));
@@ -395,7 +387,7 @@ static void cut_copied (tree_coord * to, reiser4_key * to_key)
 
 
 	reiser4_init_coord (&from);
-	coord_first_unit (&from);
+	coord_first_unit (&from, to->node);
 	item_key_by_coord (&from, &from_key);
 
 	/*
@@ -460,9 +452,7 @@ static squeeze_result allocate_and_squeeze_right_neighbor (znode * left,
 {
 	squeeze_result result;
 
-
 	assert ("vs-425", !node_is_empty (left) && !node_is_empty (right));
-
 
 	switch (znode_get_level (left)) {
 	case LEAF_LEVEL:
@@ -494,7 +484,7 @@ static squeeze_result allocate_and_squeeze_right_neighbor (znode * left,
 }
 
 
-static int slum_allocate_and_squeeze_parent_first (jnode *node)
+static int slum_allocate_and_squeeze_parent_first (jnode *node, block_nr *preceder)
 {
 	int ret, goright;
 	znode *right;
@@ -570,9 +560,7 @@ static int slum_allocate_and_squeeze_parent_first (jnode *node)
 
 	/* FIXME: Check ZNODE_HEARD_BANSHEE? */
 
-
 	while ((squeeze = allocate_and_squeeze_right_neighbor (JZNODE (node), right_lock.node)) ==
-	       SUBTREE_MOVED) {
 		/*
 		 * unit of internal item is shifted - allocated and squeeze that
 		 * subtree which roots from last unit in node
@@ -595,12 +583,14 @@ static int slum_allocate_and_squeeze_parent_first (jnode *node)
 			return ret;
 		}
 	}
-	if (squeeze == SQUEEZE_CONTINUE)
+
+	if (squeeze == SQUEEZE_CONTINUE) {
 		/*
 		 * right neighbor was squeezes completely into @node, try to
 		 * squeeze with new right neighbor
 		 */
 		goto again;
+	}
 	/*
 	 * error or nothing else of right_lock.node can be shifted to @node
 	 */
@@ -612,8 +602,7 @@ static int slum_allocate_and_squeeze_parent_first (jnode *node)
 	reiser4_done_lh (& right_lock);
 	return ret;
 }
-
-#endif /*NOTYET*/
+#endif /* NOT_YET */
 
 /********************************************************************************
  * SLUM JNODE INTERFACE
@@ -793,12 +782,7 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 			reiser4_done_lh (& parent_lh);
 
 			/* Set coord to the rightmost position of the left-of-parent node. */
-			coord.node = left_parent_lh.node;
-			coord_last_unit (& coord);
-
-			ret = 0;
-			coord.node = left_parent_lh.node;
-			coord_last_unit (& coord);
+			coord_last_unit (& coord, left_parent_lh.node);
 
 			ret = 0;
 		}
