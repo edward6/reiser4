@@ -358,7 +358,10 @@ __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
 	    }
     }
     trace_if(TRACE_RESERVE2, info("%s(%d)\n", (ret == 0) ? "ok" : "failed", ret));
-
+    /*
+     * allocation from reserved pool cannot fail. This is severe error.
+     */
+    assert("nikita-3005", ergo(flags & BA_RESERVED, ret == 0));
     return ret;
 }
 
@@ -701,6 +704,13 @@ __fake_allocated2free(__u64 count, reiser4_ba_flags_t flags)
 #else
 	__grabbed2free(count);
 #endif
+}
+
+void grabbed2free_mark(int mark)
+{
+	assert("nikita-3007", mark >= 0);
+	assert("nikita-3006", get_current_context()->grabbed_blocks >= mark);
+	__grabbed2free(get_current_context()->grabbed_blocks - mark);
 }
 
 /* Adjust free blocks count for blocks which were reserved but were not used. */
