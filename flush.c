@@ -113,7 +113,7 @@
  *
  * The unallocated children problem is that before writing a node to disk we must make
  * sure that all of its children are allocated.  Otherwise, the writing the node means
- * extra I/O because the node will have to be wrutten again when the child is finally
+ * extra I/O because the node will have to be written again when the child is finally
  * allocated.
  *
  * WE HAVE NOT YET SOLVED THE UNALLOCATED CHILDREN PROBLEM.  Except for bugs, this should
