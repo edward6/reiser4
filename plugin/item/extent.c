@@ -2615,16 +2615,18 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 
 	blocksize = current_blocksize;
 
+	optimize_extent (right);
+
+	/* make sure that we start from first unit of the item */
 	assert ("vs-419", item_id_by_coord (right) == EXTENT_POINTER_ID);
 	assert ("vs-418", right->unit_pos == 0);
-
-
-	optimize_extent (right);
+	assert ("vs-794", right->between == AT_UNIT);
 
 	result = SQUEEZE_CONTINUE;
 	item_key_by_coord (right, &key);
 
 	ext = extent_item (right);
+	partial = 0;
 	for (; right->unit_pos < coord_num_units (right); right->unit_pos ++, ext ++) {
 		trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: unit %u/%u\n", right->unit_pos, coord_num_units (right));
 		if (!extent_needs_allocation (ext, flush_pos_hint (flush_pos))) {
@@ -2641,6 +2643,9 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 				 */
 				result = SQUEEZE_TARGET_FULL;
 				trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: target full, !needs_allocation\n");
+				/* set coord @right such that this unit does
+				 * not get cut because it was not moved */
+				right->between = BEFORE_UNIT;
 				goto done;
 			}
 			/*
@@ -2712,6 +2717,22 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 								0 /* defer */, BLOCK_GRABBED);
 					result = SQUEEZE_TARGET_FULL;
 					trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: target full, to_allocate = %llu\n", to_allocate);
+					/**/
+					if (to_allocate == extent_get_width (ext)) {
+						/* nothing of this unit were
+						 * allocated and copied. Take
+						 * care that it does not get
+						 * cut */
+						right->between = BEFORE_UNIT;
+					} else {
+						/* part of extent was allocated
+						 * and copied to left
+						 * neighbor. Leave coord @right
+						 * at this unit so that it will
+						 * be cut properly by
+						 * squalloc_right_twig_cut */
+					}
+					
 					goto done;
 				}
 			}
@@ -2737,10 +2758,8 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 	assert ("vs-421",
 		result < 0 || result == SQUEEZE_TARGET_FULL || SQUEEZE_CONTINUE);
 
-	/* set coord to first unit in it */
 	assert ("vs-678", item_is_extent (right));
-	right->unit_pos = 0;
-	right->between = AT_UNIT;
+
 	return result;
 }
 
