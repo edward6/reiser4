@@ -879,12 +879,14 @@ void print_inodes (void)
 
 char * kmap (struct page * page)
 {
+	spin_lock (&page->lock);
 	if (!PageKmaped (page)) {
 		assert ("vs-664", page->kmap_count == 0);
 		SetPageKmaped (page);
 		page->virtual = (char *)page + sizeof (struct page);
 	}
 	page->kmap_count ++;
+	spin_unlock (&page->lock);
 	return page->virtual;
 }
 
@@ -893,11 +895,13 @@ void kunmap (struct page * page)
 {
 	assert ("vs-665", PageKmaped (page));
 	assert ("vs-724", page->kmap_count > 0);
+	spin_lock (&page->lock);
 	page->kmap_count --;
 	if (page->kmap_count == 0) {
 		ClearPageKmaped (page);
 		page->virtual = 0;
 	}
+	spin_unlock (&page->lock);
 }
 
 unsigned long get_jiffies ()
