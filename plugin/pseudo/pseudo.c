@@ -471,23 +471,26 @@ static void * bmap_next(struct seq_file *m, void *v, loff_t *pos)
 	return bmap_start(m, pos);
 }
 
-extern sector_t reiser4_bmap(struct address_space *mapping, sector_t block);
+extern int reiser4_lblock_to_blocknr(struct address_space *mapping,
+				     sector_t lblock, reiser4_block_nr *blocknr);
+
 
 static int bmap_show(struct seq_file *m, void *v)
 {
 	sector_t lblock;
-	reiser4_block_nr sector;
+	int result;
+	reiser4_block_nr blocknr;
 
 	lblock = ((sector_t)(unsigned long)v) - 1;
-	sector = reiser4_bmap(get_seq_pseudo_host(m)->i_mapping, lblock);
-	if (sector >= 0) {
-		if (blocknr_is_fake(&sector))
-			seq_printf(m, "%#llx\n", sector);
+	result = reiser4_lblock_to_blocknr(get_seq_pseudo_host(m)->i_mapping,
+					   lblock, &blocknr);
+	if (result == 0) {
+		if (blocknr_is_fake(&blocknr))
+			seq_printf(m, "%#llx\n", blocknr);
 		else
-			seq_printf(m, "%llu\n", sector);
-		return 0;
-	} else
-		return sector;
+			seq_printf(m, "%llu\n", blocknr);
+	}
+	return result;
 }
 
 typedef struct readdir_cookie {

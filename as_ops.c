@@ -58,7 +58,7 @@ static int reiser4_commit_write(struct file *,
 				struct page *, unsigned, unsigned);
 */
 static int reiser4_set_page_dirty (struct page *);
-sector_t reiser4_bmap(struct address_space *, sector_t);
+static sector_t reiser4_bmap(struct address_space *, sector_t);
 /* static int reiser4_direct_IO(int, struct inode *,
 			     struct kiobuf *, unsigned long, int); */
 
@@ -200,23 +200,43 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
 */
 
 /* ->bmap() VFS method in reiser4 address_space_operations */
-sector_t
-reiser4_bmap(struct address_space *mapping, sector_t block)
+int
+reiser4_lblock_to_blocknr(struct address_space *mapping,
+			  sector_t lblock, reiser4_block_nr *blocknr)
 {
 	file_plugin *fplug;
-	sector_t result;
+	int result;
 	reiser4_context ctx;
 
 	init_context(&ctx, mapping->host->i_sb);
 	reiser4_stat_inc(vfs_calls.bmap);
 
 	fplug = inode_file_plugin(mapping->host);
-	if (fplug || fplug->get_block) {
-		result = generic_block_bmap(mapping, block, fplug->get_block);
+	if (fplug && fplug->get_block) {
+		*blocknr = generic_block_bmap(mapping, lblock, fplug->get_block);
+		result = 0;
 	} else
 		result = RETERR(-EINVAL);
 	reiser4_exit_context(&ctx);
 	return result;
+}
+
+/* ->bmap() VFS method in reiser4 address_space_operations */
+static sector_t
+reiser4_bmap(struct address_space *mapping, sector_t lblock)
+{
+	reiser4_block_nr blocknr;
+	int result;
+
+	result = reiser4_lblock_to_blocknr(mapping, lblock, &blocknr);
+	if (result == 0)
+		if (sizeof blocknr == sizeof(sector_t) ||
+		    !blocknr_is_fake(&blocknr))
+			return blocknr;
+		else
+			return 0;
+	else
+		return result;
 }
 
 /* ->invalidatepage method for reiser4 */
