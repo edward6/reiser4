@@ -1262,12 +1262,9 @@ set_child_delimiting_keys(znode * parent,
 	if (!ZF_ISSET(child, JNODE_DKSET)) {
 		WLOCK_DK(tree);
 		if (!ZF_ISSET(child, JNODE_DKSET)) {
-			reiser4_key ld;
-			reiser4_key rd;
-
-			find_child_delimiting_keys(parent, coord, &ld, &rd);
-			znode_set_ld_key(child, &ld);
-			znode_set_rd_key(child, &rd);
+			find_child_delimiting_keys(parent, coord, 
+						   znode_get_ld_key(child),
+						   znode_get_rd_key(child));
 			ZF_SET(child, JNODE_DKSET);
 		}
 		WUNLOCK_DK(tree);
