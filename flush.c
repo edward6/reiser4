@@ -760,6 +760,8 @@ jnode_flush(jnode * node, long *nr_to_flush, int flags)
 
 	assert("jmacd-76619", lock_stack_isclean(get_current_lock_stack()));
 
+	flush_mode();
+	
 	/* Flush-concurrency debug code */
 	ON_DEBUG(atomic_inc(&flush_cnt);
 		 trace_on(TRACE_FLUSH,
@@ -1088,7 +1090,8 @@ clean_out:
 	atom = get_current_atom_locked();
 	atom->nr_flushers--;
 	spin_unlock_atom(atom);
-
+	not_flush_mode();
+	
 	return ret;
 }
 
@@ -2721,14 +2724,12 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord,
 	reiser4_block_nr len = 1;
 	lock_handle fake_lock;
 
-	pos->preceder.block_stage =
-	    ZF_ISSET(node,
-		     JNODE_CREATED) ? BLOCK_UNALLOCATED : BLOCK_NOT_COUNTED;
+tage = ZF_ISSET(node, ZNODE_CREATED) ? BLOCK_UNALLOCATED : BLOCK_NOT_COUNTED;
 
-	if (
-	    (ret =
-	     reiser4_alloc_blocks(&pos->preceder, &blk, &len,
-				  1 /*formatted */ ))) {
+PACE: flush allocates %llu blocks from flush_reserved.", len);
+5% of reserved disk space here and flush will not pack tightly. */
+loc_blocks (& pos->preceder, & blk, & len, 1/*formatted*/, 
+ */))) {
 		return ret;
 	}
 
