@@ -103,7 +103,7 @@ int init_formatted_fake( struct super_block *super )
  * read @block into page cache and bind it to the formatted fake inode of
  * @super. Return pointer to the data in @data.
  */
-int read_in_formatted( struct super_block *super, sector_t block, char **data )
+int read_in_formatted( struct super_block *super, sector_t block, char **area )
 {
 	unsigned long page_idx;
 	struct page  *page;
@@ -111,7 +111,7 @@ int read_in_formatted( struct super_block *super, sector_t block, char **data )
 	int           blksizebits;
 
 	assert( "nikita-1771", super != NULL );
-	assert( "nikita-1772", data != NULL );
+	assert( "nikita-1772", area != NULL );
 
 	blksizebits = super -> s_blocksize_bits;
 	/*
@@ -173,7 +173,7 @@ int read_in_formatted( struct super_block *super, sector_t block, char **data )
 		 * got io error.
 		 */
 		if( buffer_uptodate( bh ) ) {
-			*data = bh -> b_data;
+			*area = bh -> b_data;
 			mark_page_accessed( page );
 			result = 0;
 		} else
