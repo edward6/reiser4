@@ -255,16 +255,6 @@ static void reiser4_set_bits (char * addr, bmap_off_t start, bmap_off_t end)
 
 #define LIMIT(val, boundary) ((val) > (boundary) ? (boundary) : (val))
 
-/** calculate bitmap block number and offset within that bitmap block */
-/* Audited by: green(2002.06.12) */
-static void parse_blocknr (const reiser4_block_nr *block, bmap_nr_t *bmap, bmap_off_t *offset)
-{
-	struct super_block * super = get_current_context()->super;
-
-	*bmap   = *block >> super->s_blocksize_bits;
-	*offset = *block & (super->s_blocksize - 1);
-} 
-
 /** A number of bitmap blocks for given fs. This number can be stored on disk
  * or calculated on fly; it depends on disk format.
  * FIXME-VS: number of blocks in a filesystem is taken from reiser4
@@ -276,6 +266,17 @@ static bmap_nr_t get_nr_bmap (struct super_block * super)
 
 	return ((reiser4_block_count (super) - 1) >> (super->s_blocksize_bits + 3)) + 1;
 }
+
+/** calculate bitmap block number and offset within that bitmap block */
+static void parse_blocknr (const reiser4_block_nr *block, bmap_nr_t *bmap, bmap_off_t *offset)
+{
+	struct super_block * super = get_current_context()->super;
+
+	*bmap   = *block >> (super->s_blocksize_bits + 3);
+	*offset = *block & (super->s_blocksize - 1);
+
+	assert ("zam-433", *bmap < get_nr_bmap(super));
+} 
 
 #if REISER4_DEBUG
 
@@ -423,11 +424,7 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 
 		if (bnode->wjnode.pg != NULL) {
 			assert ("zam-480", bnode->cjnode.pg != NULL);
-
-			jnode_set_clean (& bnode->wjnode);
 			jnode_detach_page (& bnode->wjnode);
-
-			jnode_set_clean (& bnode->cjnode);
 			jnode_detach_page (&bnode->cjnode);
 
 			/* FIXME: check for page state and ref count should be
@@ -478,6 +475,8 @@ static int load_bnode_half (struct bnode * bnode, jnode * node)
 	if (ret) return ret;
 
 	spin_lock_bnode(bnode);
+
+	JF_SET (node, ZNODE_LOADED);
 
 	return 0;
 }
@@ -627,13 +626,6 @@ static int search_one_bitmap (bmap_nr_t bmap, bmap_off_t *offset, bmap_off_t max
 
 		start = end + 1;
 	}
-
-#if 0
-	if (ret > 0) {
-		jnode_set_dirty(& bnode->wjnode);
-		jnode_set_dirty(& bnode->wjnode);
-	}
-#endif
 
  out:
 	release_and_unlock_bnode (bnode);
