@@ -2031,6 +2031,8 @@ int extent_write (struct inode * inode, coord_t * coord,
 		  lock_handle * lh, flow_t * f, struct page * page)
 {
 	int result;
+	znode * loaded;
+
 
 	result = 0;
 	while (f->length) {
@@ -2056,15 +2058,23 @@ int extent_write (struct inode * inode, coord_t * coord,
 		result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
 		if (result)
 			break;
-		result = write_flow_to_page (coord, lh, f, page);
+		loaded = coord->node;
+		result = zload (loaded);
 		if (result)
 			break;
+		result = write_flow_to_page (coord, lh, f, page);
+		if (result) {
+			zrelse (loaded);
+			break;
+		}
 		if (f->data) {
 			unlock_page (page);
 			page_cache_release (page);
 			page = 0;
 		}
+		zrelse (loaded);
 	}
+
 	if (result) {
 		if (f->data) {
 			unlock_page (page);
