@@ -2116,47 +2116,6 @@ static void unregister_profregions(void)
 	unregister_tree_profregion();
 }
 
-static struct rw_semaphore rwsem;
-static int access;
-
-static int rwsem_thread(void *arg)
-{
-	int no;
-
-	no = (int)arg;
-	daemonize("%s-%i", __FUNCTION__, no);
-	while (1) {
-		printk("loop: %i\n", no);
-		down_write(&rwsem);
-		BUG_ON(access != 0);
-		access = -1;
-		barrier();
-		access = 0;
-		up_write(&rwsem);
-		down_read(&rwsem);
-		BUG_ON(access < 0);
-		access ++;
-		barrier();
-		access --;
-		up_read(&rwsem);
-	}
-	return 0;
-}
-
-static void
-test_rw_sem(void)
-{
-	int i;
-
-	init_rwsem(&rwsem);
-	access = 0;
-	for (i = 0 ; i < 41 ; ++ i) {
-		kernel_thread(rwsem_thread, (void *)i, 
-			      CLONE_VM | CLONE_FS | CLONE_FILES);
-		printk("started: %i\n", i);
-	}
-}
-
 /* read super block from device and fill remaining fields in @s.
   
    This is read_super() of the past.   */
@@ -2207,8 +2166,6 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 		s->s_fs_info = NULL;
 		return result;
 	}
-
-	test_rw_sem();
 
 read_super_block:
 	/* look for reiser4 magic at hardcoded place */
