@@ -128,3 +128,5 @@ ulevel/#ulevel.h#
 .coord.o.cmd
 read.c
 11459
+mkfs
+remove_me
