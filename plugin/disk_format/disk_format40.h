@@ -14,7 +14,7 @@
 
 /* magic for default reiser4 layout */
 #define FORMAT40_MAGIC "R4Sb-Default"
-#define FORMAT40_OFFSET (65536 + 4096)
+#define FORMAT40_OFFSET (65536 + PAGE_CACHE_SIZE)
 
 #include "../../dformat.h"
 
