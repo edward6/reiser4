@@ -117,17 +117,8 @@ int ktxnmgrd( void *arg )
 	
 	spin_unlock( &ctx -> guard );
 
-	/*
-	 * Leave with BKL locked. It will be unlocked within
-	 * do_exit()/schedule(). This allows caller to avoid races between
-	 * daemon completion and module unload. Standard way to do this is to
-	 * use complete_and_exit() core function, but let us stick to kcond
-	 * for now.
-	 */
-	lock_kernel();
-	kcond_broadcast( &ctx -> finish );
 	ktxnmgrd_trace( "exiting\n" );
-	return 0;
+	complete_and_exit( &ctx -> finish, 0 );
 }
 
 void init_ktxnmgrd_context( ktxnmgrd_context *ctx )
@@ -136,7 +127,7 @@ void init_ktxnmgrd_context( ktxnmgrd_context *ctx )
 
 	xmemset( ctx, 0, sizeof *ctx );
 	kcond_init( &ctx -> startup );
-	kcond_init( &ctx -> finish );
+	init_completion( &ctx -> finish );
 	kcond_init( &ctx -> wait );
 	spin_lock_init( &ctx -> guard );
 	ctx -> timeout = REISER4_TXNMGR_TIMEOUT;
@@ -218,9 +209,7 @@ void ktxnmgrd_detach( txn_mgr *mgr )
 		/*
 		 * wait until daemon finishes
 		 */
-		lock_kernel();
-		kcond_wait( &ctx -> finish, &ctx -> guard, 0 );
-		unlock_kernel();
+		wait_for_completion( &ctx -> finish );
 	}
 	spin_unlock( &ctx -> guard );
 }

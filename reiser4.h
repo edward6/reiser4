@@ -290,6 +290,8 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 #include <linux/writeback.h>
 /* for suspend callback in ktxnmgrd.c */
 #include <linux/suspend.h>
+/* for completion stuff */
+#include <linux/completion.h>
 
 #define no_context      ( in_interrupt() || in_irq() )
 #define current_pname   ( current -> comm )

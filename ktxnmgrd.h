@@ -11,7 +11,7 @@
 
 struct ktxnmgrd_context {
 	kcond_t             startup;
-	kcond_t             finish;
+	struct completion   finish;
 	kcond_t             wait;
 	spinlock_t          guard;
 	signed long         timeout;
