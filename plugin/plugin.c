@@ -184,11 +184,6 @@ typedef struct reiser4_plugin_type_data {
 	/** internal plugin type identifier. Should coincide with
 	    index of this item in plugins[] array. */
 	reiser4_plugin_type   type_id;
-	/** fallback function. Used to determine default instance of
-	    this type for given subject. For example, fallback
-	    function for object (file) plugin, determines plugin instance to use
-	    by looking into i_mode of inode. */
-	reiser4_plugin    *( *fallback )( void *subj );
 	/** short symbolic label of this plugin type. Should be no longer
 	    than MAX_PLUGIN_TYPE_LABEL_LEN characters including '\0'. */
 	const char           *label;
@@ -309,46 +304,6 @@ int reiser4_handle_default_plugin_option( char *option, /* Option should
 	area[ plugin -> h.type_id ] = plugin;
 	return 0;
 }
-
-/** install plugins on root directory. */
-int reiser4_setup_plugins( struct super_block *super, reiser4_plugin **area )
-{
-	reiser4_plugin_type  type_id;
-	struct inode        *root_dir;
-	int                  result;
-
-
-	assert( "nikita-540", super != NULL );
-	assert( "nikita-541", is_reiser4_super( super ) );
-	assert( "nikita-542", area != NULL );
-	assert( "nikita-543", super -> s_root != NULL );
-
-	root_dir = super -> s_root -> d_inode;
-	assert( "nikita-544", is_reiser4_inode( root_dir ) );
-	
-	result = 0;
-	for( type_id = 0 ; type_id < REISER4_PLUGIN_TYPES ; ++ type_id ) {
-		reiser4_plugin *plugin;
-
-		plugin = area[ type_id ];
-		if( plugin == NULL )
-			plugin = plugins[ type_id ].fallback( root_dir );
-		assert( "nikita-545", plugin != NULL );
-		if( plugin -> h.pops -> change != NULL ) {
-			result = plugin -> h.pops -> change( root_dir, plugin );
-			if( result == 0 )
-				print_plugin( "installed", plugin );
-			else {
-				print_plugin( "failed to install", plugin );
-				break;
-			}
-		}
-	}
-	return result;
-}
-
-
-
 
 /** lookup plugin name by scanning tables */
 reiser4_plugin *lookup_plugin_name( char *plug_label )
@@ -571,6 +526,8 @@ int inherit_if_nil( reiser4_plugin **to, reiser4_plugin **from )
 		return 0;
 }
 
+/* defined in fs/reiser4/plugin/dir.c */
+extern reiser4_plugin dir_plugins[ LAST_DIR_ID ];
 /* defined in fs/reiser4/plugin/item/static_stat.c */
 extern reiser4_plugin sd_ext_plugins[ LAST_SD_EXTENSION ];
 /* defined in fs/reiser4/plugin/hash.c */
@@ -604,65 +561,26 @@ reiser4_plugin hook_plugins[] = {
 	}
 };
 
-static reiser4_plugin *file_fallback( void *subj )
-{
-	assert( "nikita-555", subj != NULL );
-
-	return guess_plugin_by_mode( ( struct inode * ) subj );
-}
-
-static reiser4_plugin *hash_fallback( void *subj UNUSED_ARG )
-{
-	assert( "nikita-556", subj != NULL );
-	assert( "nikita-557", S_ISDIR( ( ( struct inode * ) subj ) -> i_mode ) );
-
-	return &hash_plugins[ R5_HASH_ID ];
-}
-
-static reiser4_plugin *tail_fallback( void *subj UNUSED_ARG )
-{
-	return &tail_plugins[ FOURK_TAIL_ID ];
-}
-
-static reiser4_plugin *hook_fallback( void *subj UNUSED_ARG )
-{
-	return &hook_plugins[ DUMP_HOOK_ID ];
-}
-
-static reiser4_plugin *node_fallback( void *subj UNUSED_ARG )
-{
-	return &node_plugins[ NODE40_ID ];
-}
-
-static reiser4_plugin *perm_fallback( void *subj UNUSED_ARG )
-{
-	return &perm_plugins[ RWX_PERM_ID ];
-}
-
-static reiser4_plugin *item_fallback( void *subj UNUSED_ARG )
-{
-	return &item_plugins[ SD_ITEM_ID ];
-}
-
-static reiser4_plugin *sd_ext_fallback( void *subj UNUSED_ARG )
-{
-	return &sd_ext_plugins[ UNIX_STAT ];
-}
-
 static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 	/* C90 initializers */
 	[ REISER4_FILE_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_FILE_PLUGIN_TYPE,
-		.fallback      = file_fallback,
 		.label         = "file",
 		.desc          = "Object plugins",
 		.builtin_num   = sizeof_array( file_plugins ),
 		.builtin       = file_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
+	[ REISER4_DIR_PLUGIN_TYPE ] = {
+		.type_id       = REISER4_DIR_PLUGIN_TYPE,
+		.label         = "dir",
+		.desc          = "Directory plugins",
+		.builtin_num   = sizeof_array( dir_plugins ),
+		.builtin       = dir_plugins,
+		.plugins_list  = TS_LIST_HEAD_ZERO
+	},
 	[ REISER4_HASH_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_HASH_PLUGIN_TYPE,
-		.fallback      = hash_fallback,
 		.label         = "hash",
 		.desc          = "Directory hashes",
 		.builtin_num   = sizeof_array( hash_plugins ),
@@ -671,7 +589,6 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 	},
 	[ REISER4_TAIL_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_TAIL_PLUGIN_TYPE,
-		.fallback      = tail_fallback,
 		.label         = "tail",
 		.desc          = "Tail inlining policies",
 		.builtin_num   = sizeof_array( tail_plugins ),
@@ -680,7 +597,6 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 	},
 	[ REISER4_HOOK_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_HOOK_PLUGIN_TYPE,
-		.fallback      = hook_fallback,
 		.label         = "hook",
 		.desc          = "Generic loadable hooks",
 		.builtin_num   = sizeof_array( hook_plugins ),
@@ -689,7 +605,6 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 	},
 	[ REISER4_PERM_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_PERM_PLUGIN_TYPE,
-		.fallback      = perm_fallback,
 		.label         = "perm",
 		.desc          = "Permission checks",
 		.builtin_num   = sizeof_array( perm_plugins ),
@@ -698,7 +613,6 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 	},
 	[ REISER4_ITEM_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_ITEM_PLUGIN_TYPE,
-		.fallback      = item_fallback,
 		.label         = "item",
 		.desc          = "Item handlers",
 		.builtin_num   = sizeof_array( item_plugins ),
@@ -707,7 +621,6 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 	},
 	[ REISER4_NODE_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_NODE_PLUGIN_TYPE,
-		.fallback      = node_fallback,
 		.label         = "node",
 		.desc          = "node layout handlers",
 		.builtin_num   = sizeof_array( node_plugins ),
@@ -716,7 +629,6 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 	},
 	[ REISER4_SD_EXT_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_SD_EXT_PLUGIN_TYPE,
-		.fallback      = sd_ext_fallback,
 		.label         = "sd_ext",
 		.desc          = "Parts of stat-data",
 		.builtin_num   = sizeof_array( sd_ext_plugins ),

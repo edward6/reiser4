@@ -465,7 +465,7 @@ struct super_block {
 	unsigned long s_blocksize;
 	unsigned char s_blocksize_bits;
 	struct dentry *s_root;
-	void *s_op;
+	struct super_operations *s_op;
 	union {
 		struct reiser4_sb_info      reiser4_sb;
 	} u;

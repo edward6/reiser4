@@ -15,6 +15,7 @@
 
 typedef enum {
 	REISER4_FILE_PLUGIN_TYPE,
+	REISER4_DIR_PLUGIN_TYPE,
 	REISER4_ITEM_PLUGIN_TYPE,
 	REISER4_NODE_PLUGIN_TYPE,
 	REISER4_HASH_PLUGIN_TYPE,
@@ -186,8 +187,11 @@ typedef struct file_plugin {
 	int ( *owns_item )( const struct inode *inode,
 			    const tree_coord *coord );
 
-	/** FIXME-HANS: I NEED A COMMENT */
-	int ( *can_add_link )( struct inode *inode );
+	/** 
+	 * checks whether yet another hard links to this object can be
+	 * added 
+	 */
+	int ( *can_add_link )( const struct inode *inode );
 } file_plugin;
 
 typedef struct dir_plugin {
@@ -398,6 +402,13 @@ typedef enum { REGULAR_FILE_PLUGIN_ID, DIRECTORY_FILE_PLUGIN_ID,
 	       SPECIAL_FILE_PLUGIN_ID,
 	       LAST_FILE_PLUGIN_ID
 } reiser4_file_id;
+
+/* builtin dir-plugins */
+typedef enum { 
+	HASHED_DIR_PLUGIN_ID,
+	LAST_DIR_ID
+} reiser4_dir_id;
+
 /* defined in fs/reiser4/plugin/object.c */
 extern reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ];
 
@@ -490,6 +501,7 @@ typedef struct { int foo; } TYPE ## _plugin_dummy
 
 PLUGIN_BY_ID(item_plugin,REISER4_ITEM_PLUGIN_TYPE,item);
 PLUGIN_BY_ID(file_plugin,REISER4_FILE_PLUGIN_TYPE,file);
+PLUGIN_BY_ID(dir_plugin,REISER4_DIR_PLUGIN_TYPE,dir);
 PLUGIN_BY_ID(node_plugin,REISER4_NODE_PLUGIN_TYPE,node);
 PLUGIN_BY_ID(sd_ext_plugin,REISER4_SD_EXT_PLUGIN_TYPE,sd_ext);
 PLUGIN_BY_ID(perm_plugin,REISER4_PERM_PLUGIN_TYPE,perm);

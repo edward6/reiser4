@@ -251,6 +251,7 @@ void *kmem_cache_alloc( kmem_cache_t *slab, int gfp_flag UNUSE )
 	void *addr;
 
 	addr = kmalloc( slab -> size, 0 );
+	memset( addr, 0, slab -> size );
 
 	if (addr) {
 		spin_lock (& slab -> lock);
@@ -270,7 +271,7 @@ static struct inode * alloc_inode (struct super_block * sb)
 {
 	struct inode * inode;
 
-	inode = malloc (sizeof (struct inode));
+	inode = sb->s_op->alloc_inode(sb);
 	assert ("vs-289", inode);
 	memset (inode, 0, sizeof (struct inode));
 	inode->i_sb = sb;
@@ -1009,13 +1010,15 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		pthread_t *tid;
 		mkdir_thread_info info;
 
-		struct inode f;
+		reiser4_inode_info rf;
+		struct inode *f;
 		struct dentry dentry;
 		reiser4_item_data data;
 		struct {
 			reiser4_stat_data_base base;
 		} sd;
 
+		f = &rf.vfs_inode;
 		threads = atoi( argv[ 3 ] );
 		assert( "nikita-1494", threads > 0 );
 		tid = malloc( threads * sizeof tid[ 0 ] );
@@ -1057,71 +1060,71 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		info( "_____________sd inserted_____________\n" );
 		reiser4_done_carry_pool( &pool );
 
-		memset( &f, 0, sizeof f );
-		INIT_LIST_HEAD( &f.i_hash );
-		INIT_LIST_HEAD( &f.i_list );
-		INIT_LIST_HEAD( &f.i_dentry );
+		memset( &rf, 0, sizeof rf );
+		INIT_LIST_HEAD( &f -> i_hash );
+		INIT_LIST_HEAD( &f -> i_list );
+		INIT_LIST_HEAD( &f -> i_dentry );
 	
-		INIT_LIST_HEAD( &f.i_dirty_buffers );
-		INIT_LIST_HEAD( &f.i_dirty_data_buffers );
+		INIT_LIST_HEAD( &f -> i_dirty_buffers );
+		INIT_LIST_HEAD( &f -> i_dirty_data_buffers );
 
-		f.i_ino = 42;
-		atomic_set( &f.i_count, 0 );
-		f.i_mode = 0;
-		f.i_nlink = 1;
-		f.i_uid = 201;
-		f.i_gid = 201;
-		f.i_size = 1000;
-		f.i_atime = 0;
-		f.i_mtime = 0;
-		f.i_ctime = 0;
-		f.i_blkbits = 12;
-		f.i_blksize = 4096;
-		f.i_blocks = 1;
-		f.i_mapping = &f.i_data;
-		f.i_sb = reiser4_get_current_sb();
-		sema_init( &f.i_sem, 1 );
-		init_inode( &f, &coord );
-		reiser4_get_object_state( &f ) -> hash = hash_plugin_to_plugin (hash_plugin_by_id ( DEGENERATE_HASH_ID ));
-		reiser4_get_object_state( &f ) -> tail = tail_plugin_to_plugin (tail_plugin_by_id ( NEVER_TAIL_ID ));
-		reiser4_get_object_state( &f ) -> perm = perm_plugin_to_plugin (perm_plugin_by_id ( RWX_PERM_ID ));
-		reiser4_get_object_state( &f ) -> locality_id = get_key_locality( &key );
+		f -> i_ino = 42;
+		atomic_set( &f -> i_count, 0 );
+		f -> i_mode = 0;
+		f -> i_nlink = 1;
+		f -> i_uid = 201;
+		f -> i_gid = 201;
+		f -> i_size = 1000;
+		f -> i_atime = 0;
+		f -> i_mtime = 0;
+		f -> i_ctime = 0;
+		f -> i_blkbits = 12;
+		f -> i_blksize = 4096;
+		f -> i_blocks = 1;
+		f -> i_mapping = &f -> i_data;
+		f -> i_sb = reiser4_get_current_sb();
+		sema_init( &f -> i_sem, 1 );
+		init_inode( f, &coord );
+		reiser4_get_object_state( f ) -> hash = hash_plugin_by_id ( DEGENERATE_HASH_ID );
+		reiser4_get_object_state( f ) -> tail = tail_plugin_by_id ( NEVER_TAIL_ID );
+		reiser4_get_object_state( f ) -> perm = perm_plugin_by_id ( RWX_PERM_ID );
+		reiser4_get_object_state( f ) -> locality_id = get_key_locality( &key );
 
-		print_inode( "inode", &f );
+		print_inode( "inode", f );
 
 		old_context = reiser4_get_current_context();
 		SUSPEND_CONTEXT (old_context);
 
 		dentry.d_name.name = ".";
 		dentry.d_name.len = strlen( dentry.d_name.name );
-		ret = f.i_op -> create( &f, &dentry, 0777 );
-		reiser4_init_context( old_context, f.i_sb );
+		ret = f -> i_op -> create( f, &dentry, 0777 );
+		reiser4_init_context( old_context, f -> i_sb );
 
 		// print_tree_rec( "tree", tree, ~0u );
 
 		dentry.d_name.name = "foo";
 		dentry.d_name.len = strlen( dentry.d_name.name );
 		SUSPEND_CONTEXT (old_context);
-		ret = f.i_op -> create( &f, &dentry, 0777 );
+		ret = f -> i_op -> create( f, &dentry, 0777 );
 
-		reiser4_init_context( old_context, f.i_sb );
+		reiser4_init_context( old_context, f -> i_sb );
 		info( "ret: %i\n", ret );
 		SUSPEND_CONTEXT (old_context);
 
 		dentry.d_name.name = "bar";
 		dentry.d_name.len = strlen( dentry.d_name.name );
-		ret = f.i_op -> mkdir( &f, &dentry, S_IFDIR | 0777 );
+		ret = f -> i_op -> mkdir( f, &dentry, S_IFDIR | 0777 );
 
-		reiser4_init_context( old_context, f.i_sb );
+		reiser4_init_context( old_context, f -> i_sb );
 		info( "ret: %i\n", ret );
 		SUSPEND_CONTEXT (old_context);
 
-		f.i_op -> lookup( &f, &dentry );
+		f -> i_op -> lookup( f, &dentry );
 
-		reiser4_init_context( old_context, f.i_sb );
+		reiser4_init_context( old_context, f -> i_sb );
 		
 		spin_lock_init( &lc_rand_guard );
-		info.dir = &f;
+		info.dir = f;
 		info.num = atoi( argv[ 4 ] );
 		info.max = info.num * threads;
 		for( i = 0 ; i < threads ; ++ i )
@@ -1139,12 +1142,12 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		memset( &df, 0, sizeof df );
 		memset( &dd, 0, sizeof dd );
 
-		dd.d_inode = &f;
+		dd.d_inode = f;
 		df.f_dentry = &dd;
 		df.f_op = &reiser4_file_operations;
 		SUSPEND_CONTEXT (old_context);
 		df.f_op -> readdir( &df, NULL, echo_filldir );
-		reiser4_init_context( old_context, f.i_sb );
+		reiser4_init_context( old_context, f -> i_sb );
 
 	} else if( !strcmp( argv[ 2 ], "ibk" ) ) {
 		reiser4_item_data data;
@@ -1447,9 +1450,9 @@ static struct inode * create_root_dir (znode * root)
 	inode->i_sb = reiser4_get_current_sb();
 	sema_init( &inode->i_sem, 1 );
 	init_inode( inode, &coord );
-	reiser4_get_object_state( inode ) -> hash = hash_plugin_to_plugin (hash_plugin_by_id ( DEGENERATE_HASH_ID ));
-	reiser4_get_object_state( inode ) -> tail = tail_plugin_to_plugin (tail_plugin_by_id ( NEVER_TAIL_ID ));
-	reiser4_get_object_state( inode ) -> perm = perm_plugin_to_plugin (perm_plugin_by_id ( RWX_PERM_ID ));
+	reiser4_get_object_state( inode ) -> hash = hash_plugin_by_id ( DEGENERATE_HASH_ID );
+	reiser4_get_object_state( inode ) -> tail = tail_plugin_by_id ( NEVER_TAIL_ID );
+	reiser4_get_object_state( inode ) -> perm = perm_plugin_by_id ( RWX_PERM_ID );
 	reiser4_get_object_state( inode ) -> locality_id = get_key_locality( &key );
 
 	return inode;
@@ -2444,6 +2447,8 @@ static tester team[] = {
 	},
 };
 
+extern int init_inodecache( void );
+
 void funJustBeforeMain()
 {}
 
@@ -2475,6 +2480,7 @@ int real_main( int argc, char **argv )
 		      reiser4_get_current_trace_flags() );
 	}
 
+	init_inodecache();
 	znodes_init();
 	init_plugins();
 	txn_init_static();

@@ -51,7 +51,7 @@ extern int lookup_sd( struct inode *inode, znode_lock_mode lock_mode,
 int lookup_sd_by_key( reiser4_tree *tree, znode_lock_mode lock_mode, 
 		      tree_coord *coord, reiser4_lock_handle *lh, 
 		      reiser4_key *key );
-extern reiser4_plugin *guess_plugin_by_mode( struct inode *inode );
+extern int guess_plugin_by_mode( struct inode *inode );
 extern int common_file_install( struct inode *inode, reiser4_plugin *plug,
 				struct inode *parent, 
 				reiser4_object_create_data *data );

@@ -443,21 +443,19 @@ static int plugin_sd_present( struct inode *inode, char **area, int *len )
 
 static int plugin_sd_absent( struct inode *inode )
 {
-	reiser4_plugin *plugin;
+	int result;
 
 	assert( "nikita-659", inode != NULL );
 
-	plugin = guess_plugin_by_mode( inode );
+	result = guess_plugin_by_mode( inode );
 	/* if mode was wrong, guess_plugin_by_mode() returns "regular file",
 	   but setup_inode_ops() will call make_bad_inode().
 	   Another, more logical but bit more complex solution is to add 
 	   "bad-file plugin". */
-	assert( "nikita-660", plugin != NULL );
-	reiser4_get_object_state( inode ) -> file = &plugin -> u.file ;
 	/*
 	 * FIXME-VS: activate was called here
 	 */
-	return 0;
+	return result;
 }
 
 /** helper function for plugin_sd_save_len(): calculate how much space

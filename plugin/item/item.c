@@ -141,7 +141,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 						.save_len = sd_len,
 						.save = sd_save
 					}
-				}
+				},
+				.utmost_child           = NULL,
 			}
 		}
 	},
@@ -187,7 +188,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 						.rem_entry    = de_rem_entry,
 						.max_name_len = de_max_name_len
 					}
-				}
+				},
+				.utmost_child           = NULL,
 			}
 		}
 	},
@@ -233,7 +235,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 						.rem_entry    = de_rem_entry,
 						.max_name_len  = cde_max_name_len
 					}
-				}
+				},
+				.utmost_child           = NULL,
 			}
 		}
 	},
@@ -276,7 +279,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 						.has_pointer_to = 
 						internal_has_pointer_to
 					}
-				}
+				},
+				.utmost_child           = NULL,
 			}
 		}
 	},
@@ -316,9 +320,11 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.s = {
 					.file = {
 						.write = extent_write,
+						.read  = NULL,
 						.fill_page = extent_fill_page
 					}
-				}
+				},
+				.utmost_child           = NULL,
 			}
 		}
 	},
@@ -358,9 +364,11 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.s = {
 					.file = {
 						.write = NULL,
+						.read  = NULL,
 						.fill_page = NULL
 					}
-				}
+				},
+				.utmost_child           = NULL,
 			}
 		}
 	}

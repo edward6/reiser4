@@ -30,6 +30,391 @@ void reiser4_directory_readahead( struct inode *dir, tree_coord *coord )
 	trace_stamp( TRACE_DIR );
 }
 
+typedef enum { 
+	UNLINK_BY_DELETE, 
+	UNLINK_BY_PLUGIN, 
+	UNLINK_BY_NLINK 
+} unlink_f_type;
+
+/** 
+ * add link from @parent directory to @existing object.
+ *
+ *     . get plugins
+ *     . check permissions
+ *     . check that "existing" can hold yet another link
+ *     . start transaction
+ *     . add link to "existing"
+ *     . add entry to "parent"
+ *     . if last step fails, remove link from "existing"
+ *     . close transaction
+ *
+ *    Less bread, more taxes!
+ */
+static int common_link( struct inode *parent, struct dentry *existing, 
+			struct dentry *where )
+{
+	int                        result;
+	struct inode              *object;
+	file_plugin               *fplug;
+	dir_plugin                *parent_dplug;
+	reiser4_dir_entry_desc              entry;
+	reiser4_object_create_data data;
+
+	assert( "nikita-1431", existing != NULL );
+	assert( "nikita-1432", parent != NULL );
+	assert( "nikita-1433", where != NULL );
+
+	object = existing -> d_inode;
+	assert( "nikita-1434", object != NULL );
+
+	fplug = reiser4_get_file_plugin( object );
+
+	/* check for race with create_object() */
+	if( *reiser4_inode_flags( object ) & REISER4_IMMUTABLE )
+		return -EAGAIN;
+
+	/* links to directories are not allowed if file-system
+	   logical name-space should be ADG */
+	if( reiser4_adg( parent -> i_sb ) && S_ISDIR( object -> i_mode ) )
+		return -EPERM;
+
+	/* check permissions */
+	if( perm_chk( parent, link, existing, parent, where ) )
+		return -EPERM;
+
+	parent_dplug = reiser4_get_dir_plugin( parent );
+
+	memset( &entry, 0, sizeof entry );
+
+	data.mode = object -> i_mode;
+	data.id   = file_plugin_to_plugin( reiser4_get_object_state( object ) -> file ) -> h.id;
+
+	result = reiser4_add_nlink( object );
+	if( result == 0 ) {
+		/* add entry to the parent */
+		result = parent_dplug -> add_entry( parent, 
+						    where, &data, &entry );
+		if( result != 0 ) {
+			/* failure to add entry to the parent, remove
+			   link from "existing" */
+			result = reiser4_del_nlink( object );
+			/* now, if this fails, we have a file with too
+			   big nlink---space leak, much better than
+			   directory entry pointing to nowhere */
+			/* may be it should be recorded somewhere, but
+			   if addition of link to parent and update of
+			   object's stat data both failed, chances are
+			   that something is going really wrong */
+		}
+	}
+	if( result == 0 ) {
+		atomic_inc( &object -> i_count );
+		d_instantiate( where, object );
+	}
+	return result;
+}
+
+/** 
+ * remove link from @parent directory to @victim object.
+ *
+ *     . get plugins
+ *     . find entry in @parent
+ *     . check permissions
+ *     . decrement nlink on @victim
+ *     . if nlink drops to 0, delete object
+ *     . close transaction
+ */
+static int common_unlink( struct inode *parent, struct dentry *victim )
+{
+	int                        result;
+	struct inode              *object;
+	file_plugin               *fplug;
+	dir_plugin                *parent_dplug;
+	reiser4_dir_entry_desc              entry;
+	unlink_f_type              uf_type;
+
+	assert( "nikita-864", parent != NULL );
+	assert( "nikita-865", victim != NULL );
+
+	object = victim -> d_inode;
+	assert( "nikita-1239", object != NULL );
+
+	fplug = reiser4_get_file_plugin( object );
+
+	/* check for race with create_object() */
+	if( *reiser4_inode_flags( object ) & REISER4_IMMUTABLE )
+		return -EAGAIN;
+
+	/* check permissions */
+	if( perm_chk( parent, unlink, parent, victim ) )
+		return -EPERM;
+
+	parent_dplug = reiser4_get_dir_plugin( parent );
+
+	memset( &entry, 0, sizeof entry );
+
+	/* removing last reference. Check that this is allowed.  This is
+	 * optimization for common case when file having only one name
+	 * is unlinked and is not opened by any process. */
+	if( ( object -> i_nlink == 1 ) && 
+	    ( atomic_read( &object -> i_count ) == 1 ) ) {
+		if( perm_chk( object, delete, parent, victim ) )
+			return -EPERM;
+		/* remove file body. This is probably done in a whole
+		 * lot of transactions and takes a lot of time. We keep
+		 * @object locked. So, nlink shouldn't change. */
+		result = truncate_object( object, ( loff_t ) 0 );
+		if( result != 0 )
+			return result;
+		assert( "nikita-871", object -> i_nlink == 1 );
+		assert( "nikita-873", atomic_read( &object -> i_count ) == 1 );
+		assert( "nikita-872", object -> i_size == 0 );
+
+		uf_type = UNLINK_BY_DELETE;
+	} else if( fplug -> add_link ) {
+		/* call plugin to do actual removal of link */
+		uf_type = UNLINK_BY_PLUGIN;
+	} else {
+		/* do reasonable default stuff */
+		uf_type = UNLINK_BY_NLINK;
+	}
+
+	/* first, delete directory entry */
+	result = parent_dplug -> rem_entry( parent, victim, &entry );
+	if( result == 0 ) {
+		switch( uf_type ) {
+		case UNLINK_BY_DELETE:
+			result = fplug -> destroy_stat_data( object, parent );
+			break;
+		case UNLINK_BY_PLUGIN:
+			result = fplug -> rem_link( object );
+			break;
+		case UNLINK_BY_NLINK:
+			-- object -> i_nlink;
+			object -> i_ctime = CURRENT_TIME;
+			result = fplug -> write_inode( object );
+		default:
+			wrong_return_value( "nikita-1478", "uf_type" );
+		}
+	}
+	return result;
+}
+
+/**
+ * Create child in directory.
+ *
+ * . get object's plugin
+ * . get fresh inode
+ * . initialize inode
+ * . start transaction 
+ * . add object's stat-data
+ * . add entry to the parent
+ * . end transaction
+ * . instantiate dentry
+ *
+ */
+static int common_create_child( struct inode *parent, struct dentry *dentry, 
+				reiser4_object_create_data *data )
+{
+        int result;
+
+        dir_plugin          *dplug;
+	file_plugin         *fplug;
+	struct inode        *object;
+	reiser4_dir_entry_desc        entry;
+
+	assert( "nikita-1418", parent != NULL );
+	assert( "nikita-1419", dentry != NULL );
+	assert( "nikita-1420", data   != NULL );
+
+	dplug = reiser4_get_dir_plugin( parent );
+	/* check permissions */
+	if( perm_chk( parent, create, parent, dentry, data ) ) {
+		return -EPERM;
+	}
+
+	/* check, that name is acceptable for parent */
+	if( dplug -> is_name_acceptable && 
+	    !dplug -> is_name_acceptable( parent, 
+					  dentry -> d_name.name, 
+					  (int) dentry -> d_name.len ) ) {
+		return -ENAMETOOLONG;
+	}
+
+	result = 0;
+	fplug = file_plugin_by_id( ( int ) data -> id );
+	if( fplug == NULL ) {
+		warning( "nikita-430", "Cannot find plugin %i", data -> id );
+		return -ENOENT;
+	}
+	object = new_inode( parent -> i_sb );
+	if( object == NULL )
+		return -ENOMEM;
+	memset( &entry, 0, sizeof entry );
+	entry.obj = object;
+
+#ifndef INSTALL_EXISTS
+	/*
+	 * this does what did removed install method do: namelly, inialization
+	 * of newly created inode's fields
+	 */
+	object -> i_mode = data -> mode;
+	object -> i_generation = reiser4_new_inode_generation( object -> i_sb );
+	/* this should be plugin decision */
+	object -> i_uid = current -> fsuid;
+	object -> i_mtime = object -> i_atime = object -> i_ctime = CURRENT_TIME;
+	
+	if( parent -> i_mode & S_ISGID )
+		object -> i_gid = parent -> i_gid;
+	else
+		object -> i_gid = current -> fsgid;
+
+	reiser4_get_object_state( object ) -> file = fplug;
+
+	/* this object doesn't have stat-data yet */
+	*reiser4_inode_flags( object ) |= REISER4_NO_STAT_DATA;
+	/* setup inode and file-operations for this inode */
+	setup_inode_ops( object );
+	/* i_nlink is left 0 here. It'll be increased by ->add_link() */
+
+#else
+	result = fplug -> install( object, fplug, parent, data );
+	if( result ) {
+		warning( "nikita-431", "Cannot install plugin %i on %lx", 
+			 data -> id, ( long ) object -> i_ino );
+		return result;
+	}
+#endif /* install */
+
+#ifndef INHERIT_EXISTS
+	/*
+	 * set hash, tail and permission plugins for newly created inode if
+	 * they were not set yet
+	 */
+	{
+		reiser4_plugin_ref *self;
+		reiser4_plugin_ref *ancestor;
+
+		self = reiser4_get_object_state( object );
+		ancestor = reiser4_get_object_state( parent ? parent :
+						     object -> i_sb -> s_root -> d_inode );
+		if ( self -> dir == NULL )
+			self -> dir = ancestor -> dir;
+		if ( self -> sd == NULL )
+			self -> sd = ancestor -> sd;
+		if ( self -> hash == NULL )
+			self -> hash = ancestor -> hash;
+		if ( self -> tail == NULL )
+			self -> tail = ancestor -> tail;
+		if ( self -> perm == NULL )
+			self -> perm = ancestor -> perm;
+	}
+#else
+	result = fplug -> inherit
+		( object, parent, object -> i_sb -> s_root -> d_inode );
+	if( result < 0 ) {
+		warning( "nikita-432", "Cannot inherit from %lx to %lx", 
+			 ( long ) parent -> i_ino, ( long ) object -> i_ino );
+		return result;
+	}
+#endif /* inherit */
+
+	/* reget plugin after installation */
+	fplug = reiser4_get_object_state( object ) -> file;
+	reiser4_get_object_state( object ) -> locality_id = parent -> i_ino;
+
+	/* mark inode immutable. We disable changes to the file
+	   being created until valid directory entry for it is
+	   inserted. Otherwise, if file were expanded and
+	   insertion of directory entry fails, we have to remove
+	   file, but we only alloted enough space in transaction
+	   to remove _empty_ file. 3.x code used to remove stat
+	   data in different transaction thus possibly leaking
+	   disk space on crash. This all only matters if it's
+	   possible to access file without name, for example, by
+	   inode number */
+	*reiser4_inode_flags( object ) |= REISER4_IMMUTABLE;
+	/* create stat-data, this includes allocation of new
+	   objectid (if we support objectid reuse). For
+	   directories this implies creation of dot and
+	   dotdot */
+	result = fplug -> create( object, parent, data );
+	if( result == 0 ) {
+		assert( "nikita-434", !( *reiser4_inode_flags( object ) & 
+					 REISER4_NO_STAT_DATA ) );
+		/* insert inode into VFS hash table */
+		insert_inode_hash( object );
+		/* create entry */
+		result = dplug -> add_entry( parent, dentry,
+					     data, &entry );
+		if( result != 0 ) {
+			if( fplug -> destroy_stat_data != NULL ) {
+				/*
+				 * failure to create entry,
+				 * remove object
+				 */
+				fplug -> destroy_stat_data( object, parent );
+			} else {
+				warning( "nikita-1164",
+					 "Cannot cleanup failed create: %i"
+					 " Possible disk space leak.",
+					 result );
+			}
+		}
+	}
+	/* file has name now, clear immutable flag */
+	*reiser4_inode_flags( object ) &= ~REISER4_IMMUTABLE;
+
+	if( result != 0 ) {
+		/* iput() will call ->delete_inode(). We should keep
+		   track of the existence of stat-data for this inode
+		   and avoid attempt to remove it in
+		   reiser4_delete_inode(). This is accomplished through
+		   REISER4_NO_STAT_DATA bit in
+		   inode.u.reiser4_i.plugin.flags */
+		iput( object );
+	} else {
+		d_instantiate( dentry, object );
+	}
+	return result;
+}
+
+int is_name_acceptable( const struct inode *inode, const char *name UNUSED_ARG, 
+			int len )
+{
+	assert( "nikita-733", inode != NULL );
+	assert( "nikita-734", name != NULL );
+	assert( "nikita-735", len > 0 );
+	
+	return len <= reiser4_max_filename_len( inode );
+}
+
+reiser4_plugin dir_plugins[ LAST_DIR_ID ] = {
+	[ HASHED_DIR_PLUGIN_ID ] = {
+		.h = {
+			.type_id = REISER4_DIR_PLUGIN_TYPE,
+			.id      = HASHED_DIR_PLUGIN_ID,
+			.pops    = NULL,
+			.label   = "dir",
+			.desc    = "hashed directory",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.u = {
+			.dir = {
+				.is_built_in         = NULL,
+				.unlink              = common_unlink,
+				.link                = common_link,
+				.lookup              = hashed_lookup,
+				.is_name_acceptable  = is_name_acceptable,
+				.add_entry           = hashed_add_entry,
+				.rem_entry           = hashed_rem_entry,
+				.create              = hashed_create,
+				.create_child        = common_create_child
+			}
+		}
+	}
+};
+
 /* 
  * Make Linus happy.
  * Local variables:

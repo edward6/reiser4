@@ -613,11 +613,10 @@ int reiser4_add_nlink( struct inode *object )
 		/* call plugin to do actual addition of link */
 		return fplug -> add_link( object );
 	} else {
-		reiser4_plugin *plugin = file_plugin_to_plugin (fplug);
 		/* do reasonable default stuff */
 		++ object -> i_nlink;
 		object -> i_ctime = CURRENT_TIME;
-		return plugin -> h.pops->save( object, plugin, NULL /* FIXME-HANS what's this? */ );
+		return fplug -> write_inode( object );
 	}
 }
 
@@ -642,11 +641,10 @@ int reiser4_del_nlink( struct inode *object )
 		/* call plugin to do actual addition of link */
 		return fplug -> rem_link( object );
 	} else {
-		reiser4_plugin *plugin = file_plugin_to_plugin (fplug);
 		/* do reasonable default stuff */
 		-- object -> i_nlink;
 		object -> i_ctime = CURRENT_TIME;
-		return plugin -> h.pops->save( object, plugin, NULL /* FIXME-HANS what's this? */ );
+		return fplug -> write_inode( object );
 	}
 }
 
@@ -827,7 +825,7 @@ static int create_object( struct inode *parent, struct dentry *dentry,
 
 	dplug = reiser4_get_dir_plugin( parent );
 	assert( "nikita-429", dplug != NULL );
-	if( dplug -> create != NULL ) {
+	if( dplug -> create_child != NULL ) {
 		result = dplug -> create_child( parent, dentry, data );
 	} else {
 		result = -EPERM;
@@ -876,7 +874,8 @@ static void init_once( void *obj, kmem_cache_t *cache UNUSED_ARG,
 /**
  * initialise slab cache where reiser4 inodes will live
  */
-static int init_inodecache()
+/* static */
+int init_inodecache()
 {
 	inode_cache = kmem_cache_create( "reiser4_inode_cache", 
 					 sizeof( reiser4_inode_info ), 0, 
@@ -948,6 +947,7 @@ static struct file_system_type reiser4_fs_type = {
 	 * FIXME-NIKITA something more?
 	 */
 	.fs_flags  = FS_REQUIRES_DEV,
+	.next      = NULL
 };
 
 /**
