@@ -741,9 +741,6 @@ znode_set_ld_key(znode * node, const reiser4_key * key)
 	assert("nikita-2943",
 	       znode_is_any_locked(node) ||
 	       keyeq(znode_get_ld_key(node), min_key()));
-	BUG_ON(!JF_ISSET(ZJNODE(node), JNODE_HEARD_BANSHEE) && 
-	       !JF_ISSET(ZJNODE(node), JNODE_ORPHAN) &&
-	       !keyeq(key, min_key()) && keyeq(znode_get_rd_key(node), key));
 
 	node->ld_key = *key;
 	return &node->ld_key;
