@@ -128,10 +128,7 @@ static int init_journal_info (struct super_block * s)
 	private->journal_footer->blocknr = FORMAT_40_JOURNAL_FOOTER_BLOCKNR;
 
 	if ((ret = jload (private->journal_header)) < 0) goto fail;
-	jrelse (private->journal_header);
-	
 	if ((ret = jload (private->journal_footer)) < 0) goto fail;
-	jrelse (private->journal_footer);
 
 	return 0;
  fail:

@@ -433,7 +433,7 @@ static int submit_write (jnode * first, int nr,
 			 const reiser4_block_nr  * block,
 			 struct io_handle * io_hdl)
 {
-	struct super_block * super;
+	struct super_block * super = reiser4_get_current_sb();
 	jnode * cur = first;
 
 	struct bio * bio;
@@ -442,13 +442,11 @@ static int submit_write (jnode * first, int nr,
 	assert ("zam-571", first != NULL);
 	assert ("zam-572", block != NULL);
 	assert ("zam-570", nr > 0);
-	assert ("zam-576", io_hdl != NULL);
 
 	bio = bio_alloc(GFP_NOIO, nr);
 	if (!bio) return -ENOMEM;
 
 	assert ("zam-574", jnode_page (first) != NULL);
-	super = jnode_page(cur)->mapping->host->i_sb;
 
 	bio->bi_sector = *block * (super->s_blocksize >>9);
 	bio->bi_bdev   = super->s_bdev;
@@ -456,7 +454,8 @@ static int submit_write (jnode * first, int nr,
 	bio->bi_size   = super->s_blocksize * nr;
 	bio->bi_end_io = wander_end_io;
 
-	atomic_add(nr, &io_hdl->nr_submitted);
+	if (io_hdl) atomic_add(nr, &io_hdl->nr_submitted);
+
 	bio->bi_private = io_hdl;
 
 	for (i = 0; i < nr; i++) {
@@ -494,8 +493,8 @@ static int submit_batched_write (capture_list_head * head, struct io_handle * io
 
 	while (!capture_list_end(head, cur)) {
 		ret = submit_write(cur, 1, jnode_get_block(cur), io_hdl);
-
 		if (ret) return ret;
+		cur = capture_list_next (cur);
 	}
 
 	return 0;
@@ -508,7 +507,6 @@ static int alloc_tx (int nr, capture_list_head * tx_list, struct io_handle * io_
 	reiser4_blocknr_hint  hint;
 
 	reiser4_block_nr allocated = 0;
-	reiser4_block_nr prev;
 
 	jnode * cur;
 	jnode *txhead;
@@ -558,21 +556,25 @@ static int alloc_tx (int nr, capture_list_head * tx_list, struct io_handle * io_
 		}
 	}
 
-	txhead = capture_list_front(tx_list);
-	cur    = capture_list_next(txhead);
+	{ /* format a on-disk linked list of log records */
+		jnode * next;
 
-	assert ("zam-467", !capture_list_end(tx_list, cur));
+		txhead = capture_list_front(tx_list);
+		cur    = capture_list_back(tx_list);
 
-	prev = *jnode_get_block(txhead);
+		assert ("zam-467", !capture_list_end(tx_list, cur));
 
-	/* iterate over all list members except first one */
-	while (cur != txhead) {
-		format_log_record (cur, nr, --serial, &prev);
-		prev = *jnode_get_block(cur);
-		cur = capture_list_next(cur);
+		next = txhead;
+
+		/* iterate over all list members except first one */
+		while (cur != txhead) {
+			format_log_record (cur, nr, --serial, jnode_get_block(next));
+			next = cur;
+			cur = capture_list_prev(cur);
+		}
+
+		format_tx_head(txhead, nr, jnode_get_block(next));
 	}
-
-	format_tx_head(txhead, nr, &prev);
 
 	{ /* Fill log records with Wandered Set */
 		struct store_wmap_params params;
@@ -668,19 +670,17 @@ int alloc_wandered_blocks (int set_size, capture_list_head * set, struct io_hand
 
 	cur = capture_list_front(set);
 	while (!capture_list_end(set, cur)) {
+		jnode * tmp = cur;
 
 		assert ("zam-567", JF_ISSET(cur, ZNODE_WANDER));
 
 		ret = get_more_wandered_blocks (rest, &block, &len); 
-
 		if (ret) goto free_blocks;
 
 		ret = add_region_to_wmap(&cur, &len, &block);
-
 		if (ret) goto free_blocks;
 
-		ret = submit_write (cur, (int)len, &block, io_hdl);
-
+		ret = submit_write (tmp, (int)len, &block, io_hdl);
 		if (ret) goto free_blocks;
 	}
 
@@ -714,7 +714,16 @@ int reiser4_write_logs (void)
 	capture_list_init (&overwrite_set);
 	capture_list_init (&tx_list);
 
+
+	/* isolate critical code path which should be executed by only one
+ 	 * thread using tmgr semaphore */
+	down (&private->tmgr.commit_semaphore);
+
+	/* block allocator may add j-nodes to the clean_list */
+	pre_commit_hook();
+
 	atom = get_current_atom_locked();
+	/* count overwrite set and place it in a separate list */
 	overwrite_set_size = get_overwrite_set (atom, &overwrite_set);
 	spin_unlock_atom(atom);
 
@@ -722,18 +731,12 @@ int reiser4_write_logs (void)
 	tx_size = get_tx_size (super, overwrite_set_size);
 
 	if ((ret = reiser4_grab_space1((__u64)(overwrite_set_size + tx_size))))
-		return ret;
+		goto up_and_ret;
 
 	init_io_handle (&io_hdl);
 
 	if ((ret = alloc_wandered_blocks (overwrite_set_size, &overwrite_set, &io_hdl)))
-		return ret;
-
-	/* isolate critical code path which should be executed by only one
- 	 * thread using tmgr semaphore */
-	down (&private->tmgr.commit_semaphore);
-
-	pre_commit_hook();
+		goto up_and_ret;
 
 	if ((ret = alloc_tx (tx_size, &tx_list, &io_hdl)))
 		goto up_and_ret;
