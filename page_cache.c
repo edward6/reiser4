@@ -233,6 +233,7 @@ done_formatted_fake(struct super_block *super)
 
 	fake = get_super_private_nocheck(super)->fake;
 	iput(fake);
+	get_super_private_nocheck(super)->fake = NULL;
 	return 0;
 }
 
