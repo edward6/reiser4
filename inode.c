@@ -9,15 +9,10 @@
 #include "reiser4.h"
 
 /** return pointer to reiser4-specific part of inode */
-reiser4_inode_info_data *reiser4_inode_data( const struct inode *inode )
+reiser4_inode_info *reiser4_inode_data( const struct inode *inode )
 {
 	assert( "nikita-254", inode != NULL );
-	/* If you got compilation error at this point, go to the
-	   include/linux/reiser4_i.h and increase
-	   REISER4_STUB_INODE_INFO_LENGTH */
-	cassert( sizeof( reiser4_inode_info_data ) <= 
-		 sizeof( struct reiser4_inode_info ) );
-	return ( reiser4_inode_info_data * )&inode -> u.reiser4_i;
+	return list_entry( inode, reiser4_inode_info, vfs_inode );
 }
 
 /** return reiser4 internal tree which inode belongs to */
