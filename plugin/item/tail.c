@@ -466,6 +466,7 @@ static int create_hole (tree_coord * coord, lock_handle * lh, flow_t * f)
 	set_key_offset (&hole_key, 0ull);
 
 	assert ("vs-384", get_key_offset (&f->key) <= INT_MAX);
+	assert ("vs-575", f->what == USER_BUF);
 	make_item_data (coord, &item, 0, 0/*user*/,
 			(unsigned)get_key_offset (&f->key));
 	result = insert_by_coord (coord, &item, &hole_key, lh, 0, 0, 0/*flags*/);
@@ -493,6 +494,7 @@ static int append_hole (tree_coord * coord, lock_handle * lh, flow_t * f)
 
 	assert ("vs-384", (get_key_offset (&f->key) - 
 			   get_key_offset (&hole_key)) <= INT_MAX);
+	assert ("vs-576", f->what == USER_BUF);
 	make_item_data (coord, &item, 0, 0/*user*/,
 			(unsigned)(get_key_offset (&f->key) -
 				   get_key_offset (&hole_key)));
@@ -510,7 +512,8 @@ static int append_hole (tree_coord * coord, lock_handle * lh, flow_t * f)
  */
 static void move_flow_forward (flow_t * f, unsigned count)
 {
-	f->data += count;
+	assert ("vs-573", f->what == USER_BUF);
+	f->data.user_buf += count;
 	f->length -= count;
 	set_key_offset (&f->key, get_key_offset (&f->key) + count);
 }
@@ -527,7 +530,10 @@ static int insert_first_item (tree_coord * coord, lock_handle * lh, flow_t * f)
 
 	assert ("vs-383", get_key_offset (&f->key) == 0);
 
-	make_item_data (coord, &item, f->data, f->user, f->length);
+	make_item_data (coord, &item,
+			f->what == USER_BUF ? f->data.user_buf : 
+			                      page_address (f->data.page),
+			f->what == USER_BUF ? 1 : 0, f->length);
 	result = insert_by_coord (coord, &item, &f->key, lh, 0, 0, 0/*flags*/);
 	if (result)
 		return result;
@@ -547,10 +553,11 @@ static int append_tail (tree_coord * coord, lock_handle * lh, flow_t * f)
 	int result;
 
 
-	make_item_data (coord, &item, f->data, f->user, f->length);
-	/*
-	 * FIXME-VS: we must copy data with __copy_from_user
-	 */
+	make_item_data (coord, &item,
+			f->what == USER_BUF ? f->data.user_buf : 
+			                      page_address (f->data.page),
+			f->what == USER_BUF ? 1 : 0, f->length);
+
 	result = resize_item (coord, &item, &f->key, lh, 0/*flags*/);
 	if (result)
 		return result;
@@ -576,8 +583,9 @@ static int overwrite_tail (tree_coord * coord, flow_t * f)
 	/*
 	 * FIXME-ME: mark_znode_dirty ?
 	 */
+	assert ("vs-570", f->what == USER_BUF);
 	result = __copy_from_user ((char *)item_body_by_coord (coord) +
-				   coord->unit_pos, f->data, count);
+				   coord->unit_pos, f->data.user_buf, count);
 	if (result)
 		return result;
 		
@@ -663,8 +671,9 @@ int tail_read (struct inode * inode UNUSED_ARG, tree_coord * coord,
 	if (count > f->length)
 		count = f->length;
 
-	xmemcpy (f->data, (char *)item_body_by_coord (coord) + coord->unit_pos,
-		count);
+	assert ("vs-571", f->what == USER_BUF);
+	xmemcpy (f->data.user_buf, (char *)item_body_by_coord (coord) + coord->unit_pos,
+		 count);
 
 	move_flow_forward (f, count);
 	return 0;

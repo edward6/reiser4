@@ -421,7 +421,7 @@ void iput( struct inode *inode )
 {
 	if( atomic_dec_and_test( & inode -> i_count) ) {
 		spin_lock( &inode_hash_guard );
-		list_del_init( &inode -> i_hash );
+		/*list_del_init( &inode -> i_hash );*/
 		spin_unlock( &inode_hash_guard );
 	}
 }
@@ -2842,6 +2842,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	print_tree_rec ("DONE", tree, REISER4_NODE_PRINT_HEADER |
 			REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS |
 			REISER4_NODE_CHECK);
+	print_pages ();
 	return 0;
 }
 

@@ -714,6 +714,7 @@ struct page {
 	(p)->flags |= PG_locked;\
 }
 #define SetPageUptodate(page) (page)->flags |= PG_uptodate
+#define page_address(page)   ((page)->virtual)
 
 
 /* include/linux/pagemap.h */
@@ -929,7 +930,7 @@ static inline void mark_page_accessed( struct page *page UNUSED_ARG )
 {
 }
 
-#define PAGE_SHIFT	12
+#define PAGE_SHIFT	10
 #define PAGE_SIZE	(1UL << PAGE_SHIFT)
 #define PAGE_MASK	(~(PAGE_SIZE-1))
 

@@ -24,6 +24,16 @@ static reiser4_item_data * init_new_extent (reiser4_item_data * data,
 }
 
 
+static void move_flow_forward (flow_t * f, unsigned count)
+{
+	if (f->what == USER_BUF) {
+		f->data.user_buf += count;
+	}
+	f->length -= count;
+	set_key_offset (&f->key, get_key_offset (&f->key) + count);
+}
+
+
 /* how many bytes are addressed by @nr (or all of @nr == -1) first extents of
  * the extent item.  FIXME: Josh says this (unsigned) business is UGLY.  Make
  * it signed, since there can't be more than INT_MAX units in an extent item,
@@ -285,7 +295,7 @@ lookup_result extent_lookup (const reiser4_key * key, lookup_bias bias,
 	 */
 	coord->unit_pos = nr_units - 1;
 	coord->between = AFTER_UNIT;
-	return  bias == FIND_MAX_NOT_MORE_THAN ? CBK_COORD_FOUND : CBK_COORD_NOTFOUND;
+	return  CBK_COORD_FOUND;/*bias == FIND_MAX_NOT_MORE_THAN ? CBK_COORD_FOUND : CBK_COORD_NOTFOUND;*/
 }
 
 
@@ -1409,17 +1419,26 @@ static extent_write_todo extent_what_todo (tree_coord * coord, reiser4_key * key
 	fbb_offset = get_key_offset (key) & ~(reiser4_get_current_sb ()->s_blocksize - 1);
 
 	if (!znode_contains_key_lock (coord->node, key)) {
-		/* if left neighbor of coord->node is unformatted node of
-		 * another file we can get here even if coord->node does not
-		 * key we are looking for */
-		if (znode_get_level (coord->node) == LEAF_LEVEL &&
-		    coord_is_before_item (coord, 0)) {
-			if (fbb_offset == 0)
-				return EXTENT_FIRST_BLOCK;
-			else
-				return EXTENT_CREATE_HOLE;
+		coord_first_unit (&left, coord->node);
+		item_key_by_coord (&left, &coord_key);
+
+		if (keycmp (key, &coord_key) == LESS_THAN) {
+			/* if left neighbor of coord->node is unformatted node
+			 * of another file we can get here even if coord->node
+			 * does not key we are looking for */
+			if (znode_get_level (coord->node) == LEAF_LEVEL &&
+			    coord_is_before_item (coord, 0)) {
+				if (fbb_offset == 0)
+					return EXTENT_FIRST_BLOCK;
+				else
+					return EXTENT_CREATE_HOLE;
+			}
+			return EXTENT_RESEARCH;
+		} else {
+			/* key we were looking for is greater that right
+			 * delimiting key */
+			return EXTENT_RESEARCH;			
 		}
-		return EXTENT_RESEARCH;
 	}
 
 	if (coord_of_unit (coord))
@@ -1709,51 +1728,58 @@ int extent_write (struct inode * inode, tree_coord * coord,
 	file_off = get_key_offset (&f->key);
 
 	while (f->length) {
-		page = grab_cache_page (inode->i_mapping,
-					(unsigned long)(file_off >> PAGE_SHIFT));
-		if (!page) {
-			return -ENOMEM;
+		if (f->what == USER_BUF) {
+			page = grab_cache_page (inode->i_mapping,
+						(unsigned long)(file_off >> PAGE_SHIFT));
+			if (!page) {
+				return -ENOMEM;
+			}
+			/* Capture the page. */
+/*
+			result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
+			if (result != 0) {
+				goto capture_failed;
+			}
+*/
+			p_data = kmap (page);
+		} else {
+			/* tail2extent is in progress */
+			page = f->data.page;
 		}
 
-		/* Capture the page. */
-		result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
-		if (result != 0) {
-			goto capture_failed;
-		}
-
-		p_data = kmap (page);
 		count = f->length;
 		result = prepare_write (coord, lh, page, &f->key, &count);
 		if (result && result != -EAGAIN) {
 			/* error occurred */
-			kunmap (page);
-		capture_failed:
-			UnlockPage (page);
-			page_cache_release (page);
-			return result;
+			if (f->what == USER_BUF) {
+				kunmap (page);
+			capture_failed:
+				UnlockPage (page);
+				page_cache_release (page);
+				return result;
+			}
 		}
 
 		if (result == -EAGAIN)
 			/* not entire page is prepared for writing into it */
 			research = 1;
 
-		result = __copy_from_user (p_data + (file_off & ~PAGE_MASK),
-					   f->data, count);
-		flush_dcache_page (page);
+		if (f->what == USER_BUF) {
+			result = __copy_from_user (p_data + (file_off & ~PAGE_MASK),
+						   f->data.user_buf, count);
+			flush_dcache_page (page);
+			
+			commit_write (page, file_off, count);
 
-		commit_write (page, file_off, count);
-
-		kunmap (page);
-		UnlockPage (page);
-		page_cache_release (page);
-		if (result)
-			return result;
+			kunmap (page);
+			UnlockPage (page);
+			page_cache_release (page);
+			if (result)
+				return result;
+		}
 
 		file_off += count;
-		f->data += count;
-		f->length -= count;
-		set_key_offset (&f->key, file_off);
-
+		move_flow_forward (f, count);
 		if (research)
 			return -EAGAIN;
 	}
@@ -2148,10 +2174,12 @@ int extent_read (struct inode * inode, tree_coord * coord,
 	}
 
 	/* Capture the page. */
+/*
 	result = txn_try_capture_page (page, ZNODE_READ_LOCK, 0);
 	if (result != 0) {
 		goto capture_failed;
 	}
+*/
 	
 	/* position within the page to read from */
 	page_off = (get_key_offset (&f->key) & ~PAGE_MASK);
@@ -2169,7 +2197,8 @@ int extent_read (struct inode * inode, tree_coord * coord,
 		count = f->length;
 
 	kaddr = kmap (page);
-	result = __copy_to_user (f->data, kaddr + page_off, count);
+	assert ("vs-572", f->what == USER_BUF);
+	result = __copy_to_user (f->data.user_buf, kaddr + page_off, count);
 	kunmap (page);
 
  capture_failed:
@@ -2178,10 +2207,12 @@ int extent_read (struct inode * inode, tree_coord * coord,
 		return result;
 	}
 	
-	f->data += count;
+	move_flow_forward (f, count);
+/*
+	f->data.user_buf += count;
 	f->length -= count;
 	set_key_offset (&f->key, get_key_offset (&f->key) + count);
-
+*/
 	return 0;
 	
 }

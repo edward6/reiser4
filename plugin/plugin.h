@@ -136,8 +136,8 @@ typedef struct file_plugin {
 	 * from a file, so this should either be named flow_by_file or
 	 * its argument should be changed to an inode.
 	 */
-	int ( *flow_by_inode )( struct inode *, char *buf, int user, size_t size,
-				loff_t off, rw_op op, flow_t * );
+	int ( *flow_by_inode )( struct inode *, void *buf, int page_or_buf,
+				size_t size, loff_t off, rw_op op, flow_t * );
 
 	/**
 	 * FIXME: This needs a better comment too, especially since it isn't being used.

@@ -514,9 +514,13 @@ int common_file_owns_item( const struct inode *inode /* object to check
  * data.
  */
 int common_build_flow( struct inode *inode /* file to build flow for */, 
+		       void *data,
+		       buf_or_page what,
+#if 0
 		       char *buf /* user level buffer */,
 		       int user /* 1 if @buf is of user space, 0 - if it is
 				 * kernel space */,
+#endif
 		       size_t size /* buffer size */, 
 		       loff_t off /* offset to start io from */, 
 		       rw_op op UNUSED_ARG /* io operation */, 
@@ -525,8 +529,11 @@ int common_build_flow( struct inode *inode /* file to build flow for */,
 	assert( "nikita-1100", inode != NULL );
 
 	f -> length = size;
-	f -> data   = buf;
-	f -> user   = user;
+	f -> what   = what;
+	if( what == USER_BUF )
+		f -> data.user_buf = ( char * )data;
+	else
+		f -> data.page     = ( struct page * )data;
 	build_sd_key( inode, &f -> key );
 	set_key_type( &f -> key, KEY_BODY_MINOR );
 	set_key_offset( &f -> key, ( __u64 ) off );

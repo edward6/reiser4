@@ -137,7 +137,7 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 	if (!fplug->flow_by_inode)
 		return -EINVAL;
 
-	result = fplug->flow_by_inode (inode, buf, 1/* user space */, size, *off,
+	result = fplug->flow_by_inode (inode, buf, USER_BUF, size, *off,
 				       READ_OP, &f);
 	if (result)
 		return result;
@@ -221,7 +221,7 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 	if (!fplug->flow_by_inode)
 		return -EINVAL;
 
-	result = fplug->flow_by_inode (inode, buf, 1/* user space */, size, *off,
+	result = fplug->flow_by_inode (inode, buf, USER_BUF, size, *off,
 				       WRITE_OP, &f);
 	if (result)
 		return result;
@@ -578,21 +578,23 @@ static int tail2extent (struct inode * inode, tree_coord * coord,
 /* part of tail2extent. It returns true if coord is set to not last item of
  * file and tail2extent must continue */
 static int must_continue (struct inode * inode, reiser4_key * key,
-			  const tree_coord * coord UNUSED_ARG)
+			  const tree_coord * coord)
 {
 	reiser4_key coord_key;
 
-	assert ("vs-567", item_id_by_coord (coord) == TAIL_ID);
-	assert ("vs-566", inode->i_size >= (loff_t)get_key_offset (key));
-	item_key_by_coord (coord, &coord_key);
-	set_key_offset (&coord_key,
-			get_key_offset (&coord_key) +
-			item_length_by_coord (coord));
-	assert ("vs-568", keycmp (key, &coord_key) == EQUAL_TO);
+	if (coord) {
+		assert ("vs-567", item_id_by_coord (coord) == TAIL_ID);
+		assert ("vs-566", inode->i_size >= (loff_t)get_key_offset (key));
+		item_key_by_coord (coord, &coord_key);
+		set_key_offset (&coord_key,
+				get_key_offset (&coord_key) +
+				item_length_by_coord (coord));
+		assert ("vs-568", keycmp (key, &coord_key) == EQUAL_TO);
+	}
 	/*
 	 * FIXME-VS: do we need to try harder?
 	 */
-	return inode->i_size == (loff_t)get_key_offset (key);
+	return inode->i_size > (loff_t)get_key_offset (key);
 		
 }
 
@@ -630,23 +632,24 @@ static int write_page_by_extent (struct inode * inode, struct page * page,
 
 
 	inode_file_plugin (inode)->
-		flow_by_inode (inode, 0/* data */, 0/* kernel space */,
+		flow_by_inode (inode, page, PAGE_PTR,
 			       count, (loff_t)(page->index << PAGE_SHIFT),
 			       WRITE_OP, &f);
 
-	result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
-	if (result != CBK_COORD_NOTFOUND) {
-		assert ("vs-563", result != CBK_COORD_FOUND);
-		page_cache_release (page);
-		return result;
-	}
+	do {
+		result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
+		if (result != CBK_COORD_NOTFOUND && result != CBK_COORD_FOUND) {
+			return result;
+		}
 
-	iplug = item_plugin_by_id (EXTENT_POINTER_ID);
-	assert ("vs-564", iplug && iplug->s.file.write);
-	result = iplug->s.file.write (inode, &coord, &lh, &f);
-	done_lh (&lh);
-	done_coord (&coord);
-	if (result != (int)count) {
+		iplug = item_plugin_by_id (EXTENT_POINTER_ID);
+		assert ("vs-564", iplug && iplug->s.file.write);
+		result = iplug->s.file.write (inode, &coord, &lh, &f);
+		done_lh (&lh);
+		done_coord (&coord);
+	} while (result == -EAGAIN);
+
+	if (result || f.length) {
 		/*
 		 * FIXME-VS: how do we handle this case? Abort
 		 * transaction?
@@ -702,7 +705,7 @@ static int tail2extent (struct inode * inode, tree_coord * coord,
 			copied = 0;
 		}
 
-		page_off = get_key_offset (&key) & PAGE_MASK;
+		page_off = get_key_offset (&key) & ~PAGE_MASK;
 		if (page_off == 0) {
 			/* we start new page */
 			assert ("vs-561", page == 0);
@@ -739,7 +742,7 @@ static int tail2extent (struct inode * inode, tree_coord * coord,
 				 * FIXME-VS: how do we handle this case? Abort
 				 * transaction?
 				 */
-				warning ("vs-565", "tail2extent conversion has eaten data");
+				warning ("vs-578", "tail2extent conversion has eaten data");
 				UnlockPage (page);
 				page_cache_release (page);
 				break;
@@ -751,7 +754,7 @@ static int tail2extent (struct inode * inode, tree_coord * coord,
 			UnlockPage (page);
 			page_cache_release (page);
 
-			if (!must_continue (inode, &key, coord))
+			if (!must_continue (inode, &key, 0))
 				/* conversion is done */
 				break;
 
@@ -763,6 +766,8 @@ static int tail2extent (struct inode * inode, tree_coord * coord,
 		if (copied == (unsigned)item_length_by_coord (coord)) {
 			/* all content of item is copied into page, therefore
 			 * we have to find new one */
+			done_lh (lh);
+			done_coord (coord);
 			item = 0;
 		}
 	}
@@ -805,7 +810,7 @@ static int write_page_by_tail (struct inode * inode, struct page * page,
 
 	p_data = kmap (page);
 	inode_file_plugin (inode)->
-		flow_by_inode (inode, p_data, 0/* kernel space */,
+		flow_by_inode (inode, page, PAGE_PTR,
 			       count, (loff_t)(page->index << PAGE_SHIFT),
 			       WRITE_OP, &f);
 

@@ -14,12 +14,20 @@
    tree will slice the flow into items while storing it into nodes, but all of
    that is hidden from anything outside the tree.  */
 
-/* FIXME-VS: shouldn't this be somewhere else? */
+typedef enum {
+	USER_BUF,
+	PAGE_PTR
+} buf_or_page;
+
+/* FIXME-VS: shouldn't struct flow be somewhere else? */
 struct flow {
 	reiser4_key key;    /* key of start of flow's sequence of bytes */
 	size_t      length; /* length of flow's sequence of bytes */
-	char       *data;   /* start of flow's sequence of bytes */
-	int         user;   /* 1 if data is user space, 0 - otherwise */
+	buf_or_page what;
+	union {   /* start of flow's sequence of bytes */
+		char        *user_buf;
+		struct page *page;
+	} data;
 };
 
 
