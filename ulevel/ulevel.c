@@ -433,7 +433,7 @@ void iput( struct inode *inode )
 			info ("release failed");
 
 		spin_lock( &inode_hash_guard );
-		/*list_del_init( &inode -> i_hash );*/
+		list_del_init( &inode -> i_hash );
 		spin_unlock( &inode_hash_guard );
 	}
 }
@@ -1305,6 +1305,137 @@ const reiser4_key ROOT_DIR_KEY = {
 	.el = { { ( 2 << 4 ) | KEY_SD_MINOR }, { 42ull }, { 0ull } }
 };
 
+TS_LIST_DECLARE( mt_queue );
+
+typedef struct mt_queue_el_s {
+	int                datum;
+	mt_queue_list_link linkage;
+} mt_queue_el_t;
+
+typedef struct mt_queue_s {
+	int capacity;
+	int elements;
+	mt_queue_list_head body;
+	kcond_t not_empty;
+	kcond_t not_full;
+	spinlock_t custodian;
+} mt_queue_t;
+
+TS_LIST_DEFINE( mt_queue, mt_queue_el_t, linkage );
+
+static int mt_queue_init( int cap, mt_queue_t *queue )
+{
+	mt_queue_list_init( &queue -> body );
+	queue -> capacity = cap;
+	queue -> elements = 0;
+	kcond_init( &queue -> not_full );
+	kcond_init( &queue -> not_empty );
+	spin_lock_init( &queue -> custodian );
+	return 0;
+}
+
+static int mt_queue_get( mt_queue_t *queue )
+{
+	int            v;
+	mt_queue_el_t *el;
+
+	spin_lock( &queue -> custodian );
+	while( queue -> elements == 0 )
+		kcond_wait( &queue -> not_empty, &queue -> custodian, 1 );
+	el = mt_queue_list_pop_front( &queue -> body ); 
+	-- queue -> elements;
+	spin_unlock( &queue -> custodian );
+	v = el -> datum;
+	kcond_signal( &queue -> not_full );
+	free( el );
+	return v;
+}
+
+static int mt_queue_put( mt_queue_t *queue, int value )
+{
+	mt_queue_el_t *el;
+
+	el = malloc( sizeof *el );
+	if( el == NULL )
+		return -ENOMEM;
+
+	mt_queue_list_clean( el );
+	el -> datum = value;
+
+	spin_lock( &queue -> custodian );
+	while( queue -> elements == queue -> capacity )
+		kcond_wait( &queue -> not_full, &queue -> custodian, 1 );
+	mt_queue_list_push_back( &queue -> body, el );
+	++ queue -> elements;
+	spin_unlock( &queue -> custodian );
+	kcond_signal( &queue -> not_empty );
+	return 0;
+}
+
+static void mt_queue_info( mt_queue_t *queue )
+{
+	spin_lock( &queue -> custodian );
+	assert( "nikita-1920", 
+		( 0 <= queue -> elements ) &&
+		( queue -> elements <= queue -> capacity ) );
+	info( "queue: %i %i\n", queue -> elements, queue -> capacity );
+	spin_unlock( &queue -> custodian );
+}
+
+typedef enum {
+	any_role = 0,
+	producer = 1,
+	consumer = 2
+} mt_queue_thread_role_t;
+
+typedef struct mt_queue_thread_info {
+	mt_queue_t  *queue;
+	int          ops;
+	struct super_block *sb;
+	mt_queue_thread_role_t role;
+	int stop;
+} mt_queue_thread_info;
+
+void *mt_queue_thread( void *arg )
+{
+	mt_queue_thread_info *info = arg;
+	mt_queue_t  *queue;
+	int i;
+	int v;
+	REISER4_ENTRY_PTR( info -> sb );
+
+	queue = info -> queue;
+	for( i = 0 ; i < info -> ops ; ++ i ) {
+		mt_queue_thread_role_t role;
+
+		if( info -> role != any_role ) {
+			if( info -> stop )
+				break;
+			else
+				i = 0;
+			role = info -> role;
+		} else
+			role = lc_rand_max( 2ull ) + 1;
+		switch( role ) {
+		case consumer:
+			v = mt_queue_get( queue );
+			info( "(%i) %i: got: %i\n", current_pid, i, v );
+			break;
+		case producer:
+			v = lc_rand_max( ( __u64 ) INT_MAX );
+			mt_queue_put( queue, v );
+			info( "(%i) %i: put: %i\n", current_pid, i, v );
+			break;
+		default:
+			impossible( "nikita-1917", "Revolution #9." );
+			break;
+		}
+		mt_queue_info( queue );
+	}
+	info( "(%i): done.\n", current_pid );
+	REISER4_EXIT_PTR( NULL );
+}
+
 int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG, 
 		 reiser4_tree *tree )
 {
@@ -1406,6 +1537,60 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 		call_readdir( f, argv[ 2 ] );
 		print_tree_rec( "tree-dir", tree, REISER4_NODE_CHECK );
+	} else if( !strcmp( argv[ 2 ], "queue" ) ) {
+		/*
+		 * a.out nikita queue T C O | egrep '^queue' | cut -f2 -d' '
+		 *
+		 * and feed output to gnuplot
+		 */
+		mt_queue_thread_info info;
+		mt_queue_thread_info copy1;
+		mt_queue_thread_info copy2;
+		mt_queue_t queue;
+		int        capacity;
+		int        threads;
+		int        ops;
+		pthread_t *tid;
+
+		threads  = atoi( argv[ 3 ] );
+		capacity = atoi( argv[ 4 ] );
+		ops      = atoi( argv[ 5 ] );
+
+		ret = mt_queue_init( capacity, &queue );
+		assert( "nikita-1918", ret == 0 ); /* Civil war */
+
+		tid = malloc( ( threads + 2 ) * sizeof tid[ 0 ] );
+		assert( "nikita-1919", tid != NULL );
+
+		for( i = 0 ; i < capacity / 2 ; ++ i )
+			mt_queue_put( &queue, 
+				      ( int ) lc_rand_max( ( __u64 ) INT_MAX ) );
+
+		info.queue = &queue;
+		info.ops   = ops;
+		info.sb    = reiser4_get_current_sb();
+		info.role  = any_role;
+		info.stop  = 0;
+
+		for( i = 0 ; i < threads ; ++ i )
+			pthread_create( &tid[ i ],
+					NULL, mt_queue_thread, &info );
+		copy1 = info;
+		copy1.role = consumer;
+		pthread_create( &tid[ threads ], 
+				NULL, mt_queue_thread, &copy1 );
+
+		copy2 = info;
+		copy2.role = producer;
+		pthread_create( &tid[ threads + 1 ], 
+				NULL, mt_queue_thread, &copy2 );
+
+		for( i = 0 ; i < threads ; ++ i )
+			pthread_join( tid[ i ], NULL );
+		copy1.stop = 1; 
+		pthread_join( tid[ threads ], NULL );
+		copy2.stop = 1;
+		pthread_join( tid[ threads + 1 ], NULL );
 	} else if( !strcmp( argv[ 2 ], "ibk" ) ) {
 		reiser4_item_data data;
 		struct {
