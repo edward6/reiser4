@@ -2558,6 +2558,10 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 		JF_SET (j, ZNODE_RELOC);
 
 		/* Submit I/O and set the jnode clean. */
+		
+		/* FIXME: JMACD->VS: flush_enqueue_unformatted no longer needs the page
+		 * locked, it will lock it later.  Can we remove unlock_page and use
+		 * find_get_page instead? */
 		unlock_page (page);
 		ret = flush_enqueue_unformatted (j, flush_pos);
 		/* page_detach_jnode (page); */
