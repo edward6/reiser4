@@ -1442,6 +1442,10 @@ static extent_write_todo extent_what_todo (tree_coord * coord, reiser4_key * key
 	__u64 fbb_offset; /* offset of First Byte of Block */
 
 
+	if (ZF_ISSET (coord->node, ZNODE_HEARD_BANSHEE))
+		/* znode is not in tree already */
+		return EXTENT_RESEARCH;
+
 	/* offset of First Byte of Block key->offset falls to */
 	fbb_offset = get_key_offset (key) & ~(reiser4_get_current_sb ()->s_blocksize - 1);
 
