@@ -308,7 +308,7 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 	/*
 	 * release reserved, but unused disk space
 	 */
-	grabbed2free(get_current_context()->grabbed_blocks - grabbed);
+	grabbed2free(grabbed - get_current_context()->grabbed_blocks);
 
 	/* 
 	 * all counters, but x_refs should remain the same. x_refs can change
