@@ -1157,7 +1157,6 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 	ra_info_t ra_info;
 	int (*read_f) (struct file *, flow_t *, uf_coord_t *);
 	unix_file_info_t *uf_info;
-	loff_t cur_offset;
 	PROF_BEGIN(file_read);
 	
 
@@ -1174,12 +1173,13 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 */
 
 	get_nonexclusive_access(uf_info);
-	cur_offset = *off;
-	if (cur_offset >= inode->i_size) {
+	if (*off >= inode->i_size) {
 		/* position to read from is past the end of file */
 		drop_nonexclusive_access(uf_info);
 		return 0;
 	}
+	if (*off + read_amount > inode->i_size)
+		read_amount = inode->i_size - *off;
 
 	needed = unix_file_estimate_read(inode, read_amount); /* FIXME: tree_by_inode(inode)->estimate_one_insert */
 	result = reiser4_grab_space(needed, BA_CAN_COMMIT, "unix_file_read");	
@@ -1224,12 +1224,9 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 		warning("vs-1297", "File (ino %llu) has unknown state: %d\n", get_inode_oid(inode), uf_info->state);
 		return -EIO;
 	}
-	while (f.length) {
 
-		cur_offset = (loff_t) get_key_offset(&f.key);
-		if (cur_offset >= inode->i_size)
-			/* do not read out of file */
-			break;
+	while (f.length) {
+		assert("vs-1354", inode->i_size > get_key_offset(&f.key));
 
 		result = find_file_item(&hint, &f.key, ZNODE_READ_LOCK, CBK_UNIQUE, &ra_info, uf_info);
 		if (result != CBK_COORD_FOUND) {
@@ -1256,7 +1253,7 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 			return result;
 		}
 		if (!hint.coord.valid)
-			validate_extended_coord(&hint.coord, cur_offset);
+			validate_extended_coord(&hint.coord, get_key_offset(&f.key));
 
 		/* call item's read method */
 		if (!read_f)
