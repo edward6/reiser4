@@ -952,15 +952,12 @@ int writeback_queued_jnodes(struct super_block *s, jnode * node, struct writebac
 
 	atom = fq->atom;
 
-	assert ("zam-788", spin_fq_is_locked (fq));
 	assert ("zam-789", spin_atom_is_locked (atom));
 
 	if (atomic_read(&fq->nr_submitted) == 0)
 		scan_fq_sent_list(fq);
 
 	ret = (fq->nr_queued == 0);
-
-	spin_unlock_fq(fq);
 
 	if (ret)
 		steal_queued_nodes (atom, fq, wbc->nr_to_write);
