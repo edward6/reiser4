@@ -67,6 +67,7 @@
 #include "../inode.h"
 #include "../super.h"
 #include "../reiser4.h"
+#include "../prof.h"
 
 #include <linux/types.h>
 #include <linux/fs.h>
@@ -274,6 +275,38 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	return result;
 }
 
+
+#define UPDATE_SD_1 \
+{\
+	PROF_BEGIN(update_sd_load);\
+	result = zload(coord->node);\
+	if (result != 0)\
+		return result;\
+	loaded = coord->node;\
+	PROF_END(update_sd_load, update_sd_load);\
+}
+
+#define UPDATE_SD_2 \
+{\
+	PROF_BEGIN(update_sd_save);\
+	area = item_body_by_coord(coord);\
+	spin_lock_inode(inode);\
+	result = data.iplug->s.sd.save(inode, &area);\
+	znode_make_dirty(coord->node);\
+	PROF_END(update_sd_save, update_sd_save);\
+}
+
+#define UPDATE_SD_3 \
+{\
+	PROF_BEGIN(update_sd_seal);\
+	seal_init(&state->sd_seal, coord, key);\
+	state->sd_coord = *coord;\
+	spin_unlock_inode(inode);\
+	check_inode_seal(inode, coord, key);\
+	zrelse(loaded);\
+	PROF_END(update_sd_seal, update_sd_seal);\
+}
+
 static int
 update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key, 
 	     lock_handle * lh)
@@ -286,10 +319,13 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 
 	state = reiser4_inode_data(inode);
 
+	UPDATE_SD_1;
+/*
 	result = zload(coord->node);
 	if (result != 0)
 		return result;
 	loaded = coord->node;
+*/
 
 	spin_lock_inode(inode);
 	assert("nikita-728", state->pset->sd != NULL);
@@ -329,19 +365,49 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 			loaded = coord->node;
 		}
 	}
+
+	UPDATE_SD_2;
+/*
 	area = item_body_by_coord(coord);
 	spin_lock_inode(inode);
 	result = data.iplug->s.sd.save(inode, &area);
 	znode_make_dirty(coord->node);
+*/
+
 	/* re-initialise stat-data seal */
+
+	UPDATE_SD_3;
+/*
 	seal_init(&state->sd_seal, coord, key);
 	state->sd_coord = *coord;
 	spin_unlock_inode(inode);
 	check_inode_seal(inode, coord, key);
 	zrelse(loaded);
-
+*/
 	return result;
 }
+
+#define SEAL_VALIDATE \
+{\
+	PROF_BEGIN(seal_validate);\
+	if (seal_is_set(&seal)) {\
+		/* first, try to use seal */\
+		build_sd_key(inode, &key);\
+		result = seal_validate(&seal,\
+				       &coord,\
+				       &key,\
+				       LEAF_LEVEL,\
+				       &lh,\
+				       FIND_EXACT,\
+				       ZNODE_WRITE_LOCK,\
+				       ZNODE_LOCK_LOPRI);\
+		if (result == 0)\
+			check_sd_coord(&coord, &key);\
+	} else\
+		result = -EAGAIN;\
+	PROF_END(seal_validate, seal_validate);\
+}
+
 
 /* Update existing stat-data in a tree. Called with inode state locked. Return
    inode state locked. */
@@ -368,21 +434,7 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 	seal = state->sd_seal;
 	spin_unlock_inode(inode);
 
-	if (seal_is_set(&seal)) {
-		/* first, try to use seal */
-		build_sd_key(inode, &key);
-		result = seal_validate(&seal, 
-				       &coord, 
-				       &key, 
-				       LEAF_LEVEL, 
-				       &lh, 
-				       FIND_EXACT, 
-				       ZNODE_WRITE_LOCK, 
-				       ZNODE_LOCK_LOPRI);
-		if (result == 0)
-			check_sd_coord(&coord, &key);
-	} else
-		result = -EAGAIN;
+	SEAL_VALIDATE;
 
 	if (result != 0) {
 		coord_init_zero(&coord);
@@ -680,15 +732,6 @@ common_build_flow(struct inode *inode /* file to build flow for */ ,
 	return fplug->key_by_inode(inode, off, &f->key);
 }
 
-static int
-unix_key_by_inode(struct inode *inode, loff_t off, reiser4_key * key)
-{
-	build_sd_key(inode, key);
-	set_key_type(key, KEY_BODY_MINOR);
-	set_key_offset(key, (__u64) off);
-	return 0;
-}
-
 /* default ->add_link() method of file plugin */
 static int
 common_add_link(struct inode *object, struct inode *parent UNUSED_ARG)
@@ -869,7 +912,7 @@ dir_detach(struct inode *child, struct inode *parent)
 
 /* this common implementation of update estimation function may be used when stat data update does not do more than
    inserting a unit into a stat data item which is probably true for most cases */
-static reiser4_block_nr 
+reiser4_block_nr 
 common_estimate_update(const struct inode *inode)
 {
 	return estimate_one_insert_into_item(tree_by_inode(inode)->height);
@@ -960,8 +1003,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				    .ioctl = unix_file_ioctl,
 				    .mmap = unix_file_mmap,
 				    .get_block = unix_file_get_block,
-				    .flow_by_inode = common_build_flow /*NULL*/,
-				    .key_by_inode = unix_key_by_inode,
+				    .flow_by_inode = common_build_flow,
+				    .key_by_inode = unix_file_key_by_inode,
 				    .set_plug_in_inode = common_set_plug,
 				    .adjust_to_parent = common_adjust_to_parent,
 				    .create = common_file_create,
