@@ -1518,7 +1518,7 @@ static void reiser4_kill_super (struct super_block *s)
 	int ret;
 	__REISER4_ENTRY (s,);
 
-printk("umount_begin\n");
+	trace_on (TRACE_VFS_OPS, "kill_super\n");
 	if ((ret = txn_mgr_force_commit (s))) {
 		warning ("jmacd-7711", "txn_force failed in umount_begin: %u", ret);
 	}
