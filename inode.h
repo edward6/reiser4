@@ -80,19 +80,19 @@ typedef __u32 oid_hi_t;
   
 */
 typedef struct reiser4_inode {
-	plugin_set *pset;
-	/* OFFSETS ARE WRONG BELOW THIS POINT */
+	/* object plugins */
+	/*   0 */ plugin_set *pset;
+	/* high 32 bits of object id */
+	/*   4 */ oid_hi_t oid_hi;
 	/* seal for stat-data */
-	/* 32 */ seal_t sd_seal;
+	/*   8 */ seal_t sd_seal;
 	/* locality id for this file */
-	/* 48 */ oid_t locality_id;
+	/*  24 */ oid_t locality_id;
 	/* coord of stat-data in sealed node */
-	/* 56 */ coord_t sd_coord;
+	/*  28 */ coord_t sd_coord;
 	/* truncate, tail2extent and extent2tail use down_write, read, write,
 	 * readpage - down_read */
 	/* 68 */ struct rw_semaphore sem;
-	/* high 32 bits of object id */
-	/* 84 */ oid_hi_t oid_hi;
 	/* 88 */ scint_t extmask;
 	/* 92 */ int eflushed;
 	/* bitmask of non-default plugins for this inode */
