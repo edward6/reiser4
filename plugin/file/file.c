@@ -47,7 +47,7 @@ static int append_to_this_item (const reiser4_key * key, const coord_t * coord)
 		coord_t next;
 		
 		coord_dup (&next, coord);
-		check_me ("vs-730", coord_set_to_right (&next));
+		check_me ("vs-730", coord_next_item (&next) == 0);
 		item_key_by_coord (&next, &tmp_key);
 	}
 	if (keygt (&tmp_key, key)) {
