@@ -434,8 +434,7 @@ init_once(void *obj /* pointer to new inode */ ,
 		readdir_list_init(get_readdir_list(&info->vfs_inode));
 		init_rwsem(&info->p.coc_sem);
 		sema_init(&info->p.loading, 1);
-		/*INIT_LIST_HEAD(&info->p.eflushed_jnodes);
-		  INIT_LIST_HEAD(&info->p.anon_jnodes);*/
+		info->p.jnodes = 0;
 		INIT_RADIX_TREE(ef_jnode_tree_by_reiser4_inode(&info->p), GFP_ATOMIC);
 		ON_DEBUG(info->p.captured_eflushed = 0);
 		ON_DEBUG(info->p.anonymous_eflushed = 0);
