@@ -731,6 +731,9 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 	xmemset( context, 0, sizeof *context );
 
 	tid = set_current ();
+	if( current -> journal_info ) {
+		BUG ();
+	}
 	sdata = ( reiser4_super_info_data* ) super -> u.generic_sbp;
 	tree  = & sdata -> tree;
 
@@ -777,6 +780,7 @@ void done_context( reiser4_context *context UNUSED_ARG /* context being
 	assert( "jmacd-673", context -> trans == NULL );
 	assert( "jmacd-1002", lock_stack_isclean (& context->stack));
 	assert( "nikita-1936", no_counters_are_held() );
+	assert( "vs-646", current -> journal_info == context );
 	/* add more checks here */
 
 #if REISER4_DEBUG
@@ -784,6 +788,7 @@ void done_context( reiser4_context *context UNUSED_ARG /* context being
 	spin_lock (& active_contexts_lock);
 	context_list_remove (context);
 	spin_unlock (& active_contexts_lock);
+	current -> journal_info = NULL;
 #endif
 }
 
