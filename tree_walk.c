@@ -186,7 +186,7 @@ int lock_side_neighbor( lock_handle * result,
 /*
  * FIXME-VS: this is unstatic-ed to use in tree.c in prepare_twig_cut
  */
-/*static*/ inline void link_left_and_right (znode * left, znode * right)
+/*static*/ /*inline*/ void link_left_and_right (znode * left, znode * right)
 {
 	if (left != NULL) {
 		left->right = right;
