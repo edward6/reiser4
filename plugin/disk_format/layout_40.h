@@ -21,10 +21,11 @@ typedef struct layout_40_disk_super_block {
 	/*  22 */ d16 padd [3];
 	/*  28 */ d64 oid;	   /* smallest free objectid */
 	/*  32 */ d64 file_count;  /* number of files in a filesystem */
-	/*  48 */ d64 sb_flushes;  /* number of times super block was
+	/*  48 */ d64 flushes;  /* number of times super block was
 				    * flushed. Needed if layout 40
 				    * will have few super blocks */
-	/*  56 */ char not_used [424]; /* 88 */
+	/*  56 */ char magic[16]; /* magic string R4Sb-Default */
+	/*  56 */ char not_used [408]; /* 88 */
 } layout_40_disk_super_block;
 
 
@@ -38,3 +39,4 @@ typedef struct layout_40_super_info {
  * layout 40. The functions theirself are in layout_40.c */
 int                 layout_40_get_ready    (struct super_block *, void * data);
 const reiser4_key * layout_40_root_dir_key (const struct super_block *);
+
