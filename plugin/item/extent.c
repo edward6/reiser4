@@ -2138,16 +2138,18 @@ int extent_readpage (void * vp, struct page * page)
 	reiser4_key page_key, unit_key;
 	__u64 pos_in_extent;
 	reiser4_block_nr block;
-	struct readpage_arg *arg;
 	jnode * j;
 
-	arg = vp;
+
 	assert ("vs-761", page && page->mapping && page->mapping->host);
 	inode = page->mapping->host;
 
-	coord = arg->coord;
-	/* no jnode yet */
+	/* there should be no jnode yet */
 	assert ("vs-757", page->private == 0);
+
+	coord = (coord_t *)vp;
+	assert ("vs-859", znode_is_loaded (coord->node));
+	assert ("vs-860", znode_is_rlocked (coord->node));
 	assert ("vs-758", item_is_extent (coord));
 	assert ("vs-759", coord_is_existing_unit (coord));
 	ext = extent_by_coord (coord);
@@ -2196,19 +2198,16 @@ int extent_read (struct inode * inode, coord_t * coord,
 	int result;
 	struct page * page;
 	unsigned long page_nr;
-	struct readpage_arg arg;
 	unsigned page_off, count;
 	char * kaddr;
 
 
 	page_nr = (get_key_offset (&f->key) >> PAGE_CACHE_SHIFT);
-	arg.coord = coord;
-	arg.lh = lh;
 	count = 0;
 
 	/* this will return page if it exists and is uptodate, otherwise it
 	 * will allocate page and call extent_readpage to fill it */
-	page = read_cache_page (inode->i_mapping, page_nr, extent_readpage, coord);
+	page = read_cache_page (inode->i_mapping, page_nr, extent_readpage, (void *)coord);
 
 	if (IS_ERR (page)) {
 		return PTR_ERR (page);
