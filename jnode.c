@@ -913,10 +913,15 @@ mapping_znode(const jnode * node)
 	return get_super_fake(jnode_get_tree(node)->super)->i_mapping;
 }
 
+extern int znode_shift_order;
 static unsigned long
 index_znode(const jnode * node)
 {
-	return JZNODE(node)->zgen;
+	unsigned long addr;
+	assert("nikita-3317", (1 << znode_shift_order) < sizeof(znode));
+
+	addr = (unsigned long)node;
+	return (addr - PAGE_OFFSET) >> znode_shift_order;
 }
 
 static struct address_space *

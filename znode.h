@@ -124,9 +124,6 @@ struct znode {
 	/* version of znode data. This is increased on each modification. */
 	__u64 version;
 
-	/* znode generation. */
-	unsigned long zgen;
-
 	/* left delimiting key. Necessary to efficiently perform
 	   balancing with node-level locking. Kept in memory only. */
 	reiser4_key ld_key;

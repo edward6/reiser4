@@ -269,8 +269,6 @@ DEFINE_SUPER_RO(25, oids_in_use, "%llu", 64);
 DEFINE_SUPER_RO(26, entd.flushers, "%llu", 32);
 DEFINE_SUPER_RO(27, entd.timeout, "%llu", 32);
 
-DEFINE_SUPER_RO(28, tree.zgen, "%llu", 32);
-
 static struct attribute * def_attrs[] = {
 	&kattr_super_ro_01.attr,
 	&kattr_super_ro_02.attr,
@@ -299,7 +297,6 @@ static struct attribute * def_attrs[] = {
 	&kattr_super_ro_25.attr,
 	&kattr_super_ro_26.attr,
 	&kattr_super_ro_27.attr,
-	&kattr_super_ro_28.attr,
 	&compile_options.attr,
 	&device.attr,
 #if REISER4_STATS

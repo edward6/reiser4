@@ -194,6 +194,8 @@ TS_HASH_DEFINE(z, znode, reiser4_block_nr, zjnode.key.z, zjnode.link.z, blknrhas
 /* slab for znodes */
 static kmem_cache_t *znode_slab;
 
+int znode_shift_order;
+
 /* ZNODE INITIALIZATION */
 
 /* call this once on reiser4 initialisation*/
@@ -205,6 +207,11 @@ znodes_init()
 	if (znode_slab == NULL) {
 		return RETERR(-ENOMEM);
 	} else {
+		for (znode_shift_order = 0; 
+		     (1 << znode_shift_order) < sizeof(znode); 
+		     ++ znode_shift_order)
+			;
+		-- znode_shift_order;
 		return 0;
 	}
 }
@@ -330,7 +337,6 @@ zinit(znode * node, const znode * parent, reiser4_tree * tree)
 	jnode_init(&node->zjnode, tree);
 	reiser4_init_lock(&node->lock);
 	init_parent_coord(&node->in_parent, parent);
-	node->zgen = UNDER_SPIN(zgen, tree, tree->zgen ++);
 	ON_DEBUG_MODIFY(node->cksum = 0);
 }
 
