@@ -72,10 +72,10 @@ static reiserfs_plugin_t journal36_plugin = {
     }
 };
 
-reiserfs_plugin_t *journal36_entry(reiserfs_plugin_factory_t *f) {
+static reiserfs_plugin_t *journal36_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &journal36_plugin;
 }
 
-libreiserfs_plugins_register(journal36_entry);
+libreiser4_plugins_register(journal36_entry);
 

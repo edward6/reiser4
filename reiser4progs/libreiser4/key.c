@@ -90,7 +90,7 @@ error_t build_entryid_by_info(reiserfs_entryid_t *entryid,
 	    /* Note in the key that it is hash, not a name */
 	    key.el[1] |= 0x0100000000000000ull;
 /*	    
-	    set_key40_offset(&key, libreiserfs_plugins_call(return, 
+	    set_key40_offset(&key, libreiser4_plugins_call(return, 
 		dir->plugin->dir, hash, info->name + OID_CHARS, len));*/
 	}
     }

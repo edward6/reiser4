@@ -92,7 +92,7 @@ static format40_t *format40_open(aal_device_t *host_device,
 	goto error_free_super;
     }
     
-    if (!(format->alloc = libreiserfs_plugins_call(goto error_free_super, 
+    if (!(format->alloc = libreiser4_plugins_call(goto error_free_super, 
 	alloc_plugin->alloc, open, host_device, 
 	get_sb_block_count((format40_super_t *)format->super->data)))) 
     {
@@ -111,7 +111,7 @@ static format40_t *format40_open(aal_device_t *host_device,
 	    goto error_free_alloc;
 	}
     
-	if (!(format->journal = libreiserfs_plugins_call(goto error_free_alloc, 
+	if (!(format->journal = libreiser4_plugins_call(goto error_free_alloc, 
 	    journal_plugin->journal, open, journal_device))) 
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -130,7 +130,7 @@ static format40_t *format40_open(aal_device_t *host_device,
     }
     
     /* Initializing oid allocator on super block */
-    if (!(format->oid = libreiserfs_plugins_call(goto error_free_journal, 
+    if (!(format->oid = libreiser4_plugins_call(goto error_free_journal, 
 	oid_plugin->oid, open, &((format40_super_t *)format->super->data)->sb_oid, 2))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -142,11 +142,11 @@ static format40_t *format40_open(aal_device_t *host_device,
 
 error_free_journal:
     if (format->journal) {
-	libreiserfs_plugins_call(goto error_free_alloc, 
+	libreiser4_plugins_call(goto error_free_alloc, 
 	    journal_plugin->journal, close, format->journal);
     }
 error_free_alloc:
-    libreiserfs_plugins_call(goto error_free_super, 
+    libreiser4_plugins_call(goto error_free_super, 
 	alloc_plugin->alloc, close, format->alloc);
 error_free_super:
     aal_block_free(format->super);
@@ -207,7 +207,7 @@ static format40_t *format40_create(aal_device_t *host_device,
 	goto error_free_super;
     }
     
-    if (!(format->alloc = libreiserfs_plugins_call(goto error_free_super, 
+    if (!(format->alloc = libreiser4_plugins_call(goto error_free_super, 
 	alloc_plugin->alloc, create, host_device, blocks))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -219,16 +219,16 @@ static format40_t *format40_create(aal_device_t *host_device,
     for (blk = 0; blk < (blk_t)(REISERFS_MASTER_OFFSET / 
 	    aal_device_get_bs(host_device)); blk++)
     {
-	libreiserfs_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
+	libreiser4_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
 	    mark, format->alloc, blk);
     }
     
     /* Marking master super block as used */
-    libreiserfs_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
+    libreiser4_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
 	mark, format->alloc, (REISERFS_MASTER_OFFSET / aal_device_get_bs(host_device)));
     
     /* Marking format-specific super block as used */
-    libreiserfs_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
+    libreiser4_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
 	mark, format->alloc, (REISERFS_FORMAT40_OFFSET / aal_device_get_bs(host_device)));
     
     if (!(journal_plugin = factory->find_by_coords(REISERFS_JOURNAL_PLUGIN, 
@@ -239,7 +239,7 @@ static format40_t *format40_create(aal_device_t *host_device,
 	goto error_free_alloc;
     }
     
-    if (!(format->journal = libreiserfs_plugins_call(goto error_free_alloc, 
+    if (!(format->journal = libreiser4_plugins_call(goto error_free_alloc, 
 	journal_plugin->journal, create, journal_device, journal_params))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -248,11 +248,11 @@ static format40_t *format40_create(aal_device_t *host_device,
     }
 
     /* Marking journal blocks as used */
-    libreiserfs_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
+    libreiser4_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
 	mark, format->alloc, (REISERFS_FORMAT40_JOURNAL_HEADER / 
 	aal_device_get_bs(host_device)));
     
-    libreiserfs_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
+    libreiser4_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
 	mark, format->alloc, (REISERFS_FORMAT40_JOURNAL_FOOTER / 
 	aal_device_get_bs(host_device)));
     
@@ -264,7 +264,7 @@ static format40_t *format40_create(aal_device_t *host_device,
 	goto error_free_journal;
     }
     
-    if (!(format->oid = libreiserfs_plugins_call(goto error_free_journal, 
+    if (!(format->oid = libreiser4_plugins_call(goto error_free_journal, 
 	oid_plugin->oid, open, &((format40_super_t *)format->super->data)->sb_oid, 2))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -272,19 +272,19 @@ static format40_t *format40_create(aal_device_t *host_device,
 	goto error_free_journal;
     }
     
-    set_sb_oid(super, libreiserfs_plugins_call(goto error_free_oid, oid_plugin->oid, 
+    set_sb_oid(super, libreiser4_plugins_call(goto error_free_oid, oid_plugin->oid, 
 	next, format->oid));
     
     return format;
 
 error_free_oid:
-    libreiserfs_plugins_call(goto error_free_journal, oid_plugin->oid, 
+    libreiser4_plugins_call(goto error_free_journal, oid_plugin->oid, 
 	close, format->oid);
 error_free_journal:
-    libreiserfs_plugins_call(goto error_free_journal, journal_plugin->journal, 
+    libreiser4_plugins_call(goto error_free_journal, journal_plugin->journal, 
 	close, format->journal);
 error_free_alloc:
-    libreiserfs_plugins_call(goto error_free_super, alloc_plugin->alloc, 
+    libreiser4_plugins_call(goto error_free_super, alloc_plugin->alloc, 
 	close, format->alloc);
 error_free_super:
     aal_block_free(format->super);
@@ -310,7 +310,7 @@ static error_t format40_sync(format40_t *format) {
 	return -1;
     }
     
-    libreiserfs_plugins_call(return -1, plugin->alloc, sync, 
+    libreiser4_plugins_call(return -1, plugin->alloc, sync, 
 	format->alloc);
     
     if (!(plugin = factory->find_by_coords(REISERFS_JOURNAL_PLUGIN, 
@@ -322,7 +322,7 @@ static error_t format40_sync(format40_t *format) {
 	return -1;
     }
     
-    libreiserfs_plugins_call(return -1, plugin->journal, sync, 
+    libreiser4_plugins_call(return -1, plugin->journal, sync, 
 	format->journal);
     
     if (!(plugin = factory->find_by_coords(REISERFS_OID_PLUGIN, 
@@ -335,10 +335,10 @@ static error_t format40_sync(format40_t *format) {
     }
     
     set_sb_oid((format40_super_t *)format->super->data, 
-	libreiserfs_plugins_call(return -1, plugin->oid, next, format->oid));
+	libreiser4_plugins_call(return -1, plugin->oid, next, format->oid));
     
     set_sb_file_count((format40_super_t *)format->super->data, 
-	libreiserfs_plugins_call(return -1, plugin->oid, used, format->oid));
+	libreiser4_plugins_call(return -1, plugin->oid, used, format->oid));
     
     if (aal_block_write(format->device, format->super)) {
 	offset = aal_block_get_nr(format->super);
@@ -370,7 +370,7 @@ static void format40_close(format40_t *format) {
 	    REISERFS_FORMAT40_ALLOC);
     }
     
-    libreiserfs_plugins_call(goto error_free_journal, plugin->alloc, 
+    libreiser4_plugins_call(goto error_free_journal, plugin->alloc, 
 	close, format->alloc);
 
 error_free_journal:
@@ -383,7 +383,7 @@ error_free_journal:
 		REISERFS_FORMAT40_JOURNAL);
 	}
     
-	libreiserfs_plugins_call(goto error_free_oid, plugin->journal, 
+	libreiser4_plugins_call(goto error_free_oid, plugin->journal, 
 	    close, format->journal);
     }
 
@@ -396,7 +396,7 @@ error_free_oid:
 	    REISERFS_FORMAT40_OID);
     }
     
-    libreiserfs_plugins_call(goto error_free_super, plugin->journal, 
+    libreiser4_plugins_call(goto error_free_super, plugin->journal, 
 	close, format->oid);
 
 error_free_super:
@@ -543,10 +543,10 @@ static reiserfs_plugin_t format40_plugin = {
     }
 };
 
-reiserfs_plugin_t *format40_entry(reiserfs_plugin_factory_t *f) {
+static reiserfs_plugin_t *format40_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &format40_plugin;
 }
 
-libreiserfs_plugins_register(format40_entry);
+libreiser4_plugins_register(format40_entry);
 

@@ -85,10 +85,10 @@ static reiserfs_plugin_t alloc36_plugin = {
     }
 };
 
-reiserfs_plugin_t *alloc36_entry(reiserfs_plugin_factory_t *f) {
+static reiserfs_plugin_t *alloc36_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &alloc36_plugin;
 }
 
-libreiserfs_plugins_register(alloc36_entry);
+libreiser4_plugins_register(alloc36_entry);
 

@@ -13,7 +13,7 @@ static reiserfs_plugin_factory_t *factory = NULL;
     This is helper function. It is used for getting item's key by
     given pos as callback function in reiserfs_misc_bin_search function.
 */
-static void *node40_key_at(aal_block_t *block, uint32_t pos) {
+static void *node40_item_key_at(aal_block_t *block, uint32_t pos) {
     aal_assert("vpf-009", block != NULL, return NULL);
     return &(node40_ih_at(block, pos)->key);
 }
@@ -73,7 +73,7 @@ static uint16_t node40_item_maxnum(aal_block_t *block) {
 		"Can't find item plugin by its id %x.", plugin_id);
 	    return 0;
 	}
-	total_size += libreiserfs_plugins_call(return 0, plugin->item.common, 
+	total_size += libreiser4_plugins_call(return 0, plugin->item.common, 
 	    minsize,) + sizeof(reiserfs_ih40_t);
     }
     return (block->size - sizeof(reiserfs_nh40_t)) / total_size;
@@ -202,7 +202,7 @@ static error_t node40_item_insert(aal_block_t *block,
     nh = reiserfs_nh40(block);
     nh40_set_num_items(nh, nh40_get_num_items(nh) + 1);
     
-    return libreiserfs_plugins_call(return -1, info->plugin->item.common,
+    return libreiser4_plugins_call(return -1, info->plugin->item.common,
 	create, node40_item_at_pos(block, coord->item_pos), info);
 }
 
@@ -216,7 +216,7 @@ static error_t node40_item_paste(aal_block_t *block,
     if (node40_prepare_space(block, coord, key, info))
 	return -1;
 
-    return libreiserfs_plugins_call(return -1, info->plugin->item.common,
+    return libreiser4_plugins_call(return -1, info->plugin->item.common,
 	unit_add, node40_item_at_pos(block, coord->item_pos), coord, info);
 }
 
@@ -305,11 +305,30 @@ static void node40_print(aal_block_t *block,
     aal_assert("umka-457", buff != NULL, return);
 }
 
-static int node40_key_cmp(const void *key1, const void *key2) {
+static void *callback_elem_for_lookup(void *block, uint32_t pos, 
+    void *data)
+{
+    aal_assert("umka-655", block != NULL, return NULL);
+    return (void *)node40_item_key_at(block, pos);
+}
+
+/*
+    Callback function for comparing two keys. It is used
+    by node40_lookup function.
+*/
+static int callback_compare_for_lookup(const void *key1,
+    const void *key2, void *data)
+{
+    reiserfs_plugin_t *plugin;
+    
     aal_assert("umka-566", key1 != NULL, return -2);
     aal_assert("umka-567", key2 != NULL, return -2);
+    aal_assert("umka-656", data != NULL, return -2);
 
-    return reiserfs_key40_cmp((reiserfs_key40_t *)key1, (reiserfs_key40_t *)key2);
+    plugin = (reiserfs_plugin_t *)data;
+
+    return libreiser4_plugins_call(return -2, plugin->key, 
+	compare, key1, key2);
 }
 
 /*
@@ -329,15 +348,21 @@ static int node40_lookup(aal_block_t *block, reiserfs_coord_t *coord,
     reiserfs_key40_t *key) 
 {
     int found; int64_t pos;
+    reiserfs_plugin_t *plugin;
     
-    aal_assert("umka-472", key != NULL, return 0);
-    aal_assert("umka-478", coord != NULL, return 0);
-    aal_assert("umka-470", block != NULL, return 0);
+    aal_assert("umka-472", key != NULL, return -2);
+    aal_assert("umka-478", coord != NULL, return -2);
+    aal_assert("umka-470", block != NULL, return -2);
  
+    if (!(plugin = factory->find_by_coords(REISERFS_KEY_PLUGIN, 0x0))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find key plugin by its id %x.", 0x0);
+	return -2;
+    }
+    
     if ((found = reiserfs_misc_bin_search((void *)block, 
-	    node40_item_count(block), key, 
-	    (void *(*)(void *, uint32_t))node40_key_at, 
-	    node40_key_cmp, &pos)) == -1)
+	    node40_item_count(block), key, callback_elem_for_lookup, 
+	    callback_compare_for_lookup, plugin, &pos)) == -1)
 	return -1;
 
     coord->item_pos = pos;
@@ -346,13 +371,11 @@ static int node40_lookup(aal_block_t *block, reiserfs_coord_t *coord,
     return found;
 }
 
-#define NODE40_ID 0x0
-
 static reiserfs_plugin_t node40_plugin = {
     .node = {
 	.h = {
 	    .handle = NULL,
-	    .id = NODE40_ID,
+	    .id = 0x0,
 	    .type = REISERFS_NODE_PLUGIN,
 	    .label = "node40",
 	    .desc = "Node for reiserfs 4.0, ver. 0.1, "
@@ -405,10 +428,8 @@ static reiserfs_plugin_t node40_plugin = {
 	.item_set_plugin_id = (void (*)(aal_block_t *, int32_t, uint16_t))
 	    node40_item_set_plugin_id,
 	
-	.key_at = (reiserfs_opaque_t *(*)(aal_block_t *, int32_t))
-	    node40_key_at,
-
-	.key_cmp = node40_key_cmp
+	.item_key_at = (reiserfs_opaque_t *(*)(aal_block_t *, int32_t))
+	    node40_item_key_at,
     }
 };
 
@@ -417,5 +438,5 @@ static reiserfs_plugin_t *node40_entry(reiserfs_plugin_factory_t *f) {
     return &node40_plugin;
 }
 
-libreiserfs_plugins_register(node40_entry);
+libreiser4_plugins_register(node40_entry);
 

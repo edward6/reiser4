@@ -100,8 +100,5 @@ extern void *reiserfs_node_item_at(reiserfs_node_t *node, uint32_t pos);
 
 extern void *reiserfs_node_item_key_at(reiserfs_node_t *node, uint32_t pos);
 
-extern int reiserfs_node_item_key_cmp(reiserfs_node_t *node, 
-    const void *key1, const void *key2);
-
 #endif
 

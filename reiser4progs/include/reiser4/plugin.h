@@ -69,8 +69,9 @@ struct reiserfs_key_plugin {
     /* Compares two keys */
     int (*compare) (const void *, const void *);
 
-    /* Creates key by its components */
-    error_t (*init) (void *, uint16_t, oid_t, oid_t, uint64_t);
+    /* Creates/destroys key by its components */
+    void *(*create) (uint16_t, oid_t, oid_t, uint64_t);
+    void (*close) (void *);
 
     /* Gets/sets key type (minor in reiser4 notation) */	
     void (*set_type) (void *, uint16_t);
@@ -245,11 +246,8 @@ struct reiserfs_node_plugin {
     uint16_t (*item_get_plugin_id) (aal_block_t *, int32_t);
     void (*item_set_plugin_id) (aal_block_t *, int32_t, uint16_t);
     
-    /* Compare two keys */
-    int (*key_cmp) (const void *, const void *);
-	
     /* Gets key by pos */
-    void *(*key_at) (aal_block_t *, int32_t);
+    void *(*item_key_at) (aal_block_t *, int32_t);
 };
 
 typedef struct reiserfs_node_plugin reiserfs_node_plugin_t;
@@ -539,7 +537,7 @@ typedef error_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
 
 #ifndef ENABLE_COMPACT
 
-#define libreiserfs_plugins_call(action, ops, method, args...)	    \
+#define libreiser4_plugins_call(action, ops, method, args...)	    \
     ({								    \
 	if (!ops.##method##) {					    \
 	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,	    \
@@ -552,19 +550,19 @@ typedef error_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
 
 #else
 
-#define libreiserfs_plugins_call(action, ops, method, args...)	    \
+#define libreiser4_plugins_call(action, ops, method, args...)	    \
     ({ops.##method##(##args);})					    \
     
 #endif
 
 #if defined(ENABLE_COMPACT) || defined(ENABLE_MONOLITHIC)
     
-#define libreiserfs_plugins_register(entry)			    \
+#define libreiser4_plugins_register(entry)			    \
     static reiserfs_plugin_entry_t __plugin_entry		    \
 	__attribute__((__section__(".plugins"))) = entry
 #else
 
-#define libreiserfs_plugins_register(entry)			    \
+#define libreiser4_plugins_register(entry)			    \
     reiserfs_plugin_entry_t __plugin_entry = entry
     
 #endif

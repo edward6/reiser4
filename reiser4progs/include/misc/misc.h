@@ -10,12 +10,12 @@
 #include <stdint.h>
 #include <aal/aal.h>
 
-typedef void *(*reiserfs_elem_func_t) (void *, uint32_t);
-typedef int (*reiserfs_comp_func_t) (const void *, const void *);
+typedef void *(*reiserfs_elem_func_t) (void *, uint32_t, void *);
+typedef int (*reiserfs_comp_func_t) (const void *, const void *, void *);
 
 extern int reiserfs_misc_bin_search(void *array, uint32_t count, 
     void *needle, reiserfs_elem_func_t elem_func, 
-    reiserfs_comp_func_t comp_func, uint64_t *pos);
+    reiserfs_comp_func_t comp_func, void *, uint64_t *pos);
 
 extern uint64_t reiserfs_misc_pack_string(const char *name, int start);
 

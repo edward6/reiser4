@@ -42,7 +42,7 @@ error_t reiserfs_journal_open(reiserfs_fs_t *fs, int replay) {
     }
 	
     /* Optional replaying the journal */
-    if (replay && libreiserfs_plugins_call(goto error_free_entity, 
+    if (replay && libreiser4_plugins_call(goto error_free_entity, 
 	plugin->journal, replay, fs->journal->entity)) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -53,7 +53,7 @@ error_t reiserfs_journal_open(reiserfs_fs_t *fs, int replay) {
     return 0;
 
 error_free_entity:
-    libreiserfs_plugins_call(goto error_free_journal, plugin->journal, 
+    libreiser4_plugins_call(goto error_free_journal, plugin->journal, 
 	close, fs->journal);
 error_free_journal:
     aal_free(fs->journal);
@@ -68,7 +68,7 @@ error_t reiserfs_journal_sync(reiserfs_fs_t *fs) {
     aal_assert("umka-099", fs != NULL, return -1);
     aal_assert("umka-100", fs->journal != NULL, return -1);
 
-    return libreiserfs_plugins_call(return -1, fs->journal->plugin->journal, 
+    return libreiser4_plugins_call(return -1, fs->journal->plugin->journal, 
 	sync, fs->journal->entity);
 }
 

@@ -277,11 +277,16 @@ void reiserfs_tree_close(reiserfs_fs_t *fs) {
     aal_free(fs->tree);
 }
 
+/*
+    Makes search for specified node in the tree. Caches all
+    nodes, search goes through.
+*/
 static int reiserfs_tree_node_lookup(reiserfs_fs_t *fs, reiserfs_node_t *node, 
-    reiserfs_comp_func_t comp_func, void *key, reiserfs_coord_t *coord) 
+    void *key, reiserfs_coord_t *coord) 
 {
+    uint8_t level;
+    int found = 0;
     reiserfs_node_t *children;
-    uint8_t level, found = 0;
 
     aal_assert("umka-645", node != NULL, return 0);
     
@@ -295,7 +300,10 @@ static int reiserfs_tree_node_lookup(reiserfs_fs_t *fs, reiserfs_node_t *node,
 	    return 0;
 	}
 	
-	found = reiserfs_node_lookup(node, key, coord);
+	if ((found = reiserfs_node_lookup(node, key, coord)) == -1)
+	    return -1;
+	
+	coord->node = node->block;
 	
 	if (level == REISERFS_LEAF_LEVEL)
 	    return found;
@@ -316,8 +324,8 @@ static int reiserfs_tree_node_lookup(reiserfs_fs_t *fs, reiserfs_node_t *node,
     Makes search in the tree by specified key. Fills passed
     coord by coords of found item. 
 */
-int reiserfs_tree_lookup(reiserfs_fs_t *fs, reiserfs_comp_func_t comp_func, 
-    void *key, reiserfs_coord_t *coord) 
+int reiserfs_tree_lookup(reiserfs_fs_t *fs, void *key, 
+    reiserfs_coord_t *coord) 
 {
     aal_assert("umka-642", fs != NULL, return 0);
     aal_assert("umka-643", key != NULL, return 0);
@@ -325,9 +333,9 @@ int reiserfs_tree_lookup(reiserfs_fs_t *fs, reiserfs_comp_func_t comp_func,
     
     if (reiserfs_format_get_height(fs) < 2)
 	return 0;
-	
+
     return reiserfs_tree_node_lookup(fs, fs->tree->root, 
-	comp_func, key, coord);
+	key, coord);
 }
 
 /*
@@ -369,6 +377,18 @@ error_t reiserfs_tree_item_remove(reiserfs_fs_t *fs, void *key) {
     should perform "insert" operation.
 */
 error_t reiserfs_tree_node_insert(reiserfs_fs_t *fs, reiserfs_node_t *node) {
+    void *key;
+    reiserfs_coord_t coord;
+    
+    aal_assert("umka-646", fs != NULL, return -1);
+    aal_assert("umka-647", node != NULL, return -1);
+    
+    /* Getting left delimiting key */
+    key = reiserfs_node_item_key_at(node, 0);
+    
+    if (reiserfs_tree_lookup(fs, key, &coord) == -1)
+	return -1;
+    
     return -1;
 }
 

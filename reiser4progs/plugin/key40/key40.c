@@ -42,12 +42,14 @@ static int key40_confirm(reiserfs_key40_t *key) {
     return 1;
 }
 
-static error_t key40_init(reiserfs_key40_t *key, uint16_t type, oid_t locality, 
+static reiserfs_key40_t *key40_create(uint16_t type, oid_t locality, 
     oid_t objectid, uint64_t offset) 
 {
-    aal_assert("umka-633", key != NULL, return -1);
-	
-    aal_memset(key, 0, sizeof(*key));
+    reiserfs_key40_t *key;
+    
+    if (!(key = aal_calloc(sizeof(*key), 0)))
+	return NULL;
+    
     set_key40_locality(key, locality);
     set_key40_type(key, (reiserfs_key40_minor_t)type);
     set_key40_objectid(key, objectid);
@@ -57,7 +59,11 @@ static error_t key40_init(reiserfs_key40_t *key, uint16_t type, oid_t locality,
     else
 	set_key40_offset(key, offset);
     
-    return 0;
+    return key;
+}
+
+static void key40_close(reiserfs_key40_t *key) {
+    aal_free(key);
 }
 
 static void key40_set_type(reiserfs_key40_t *key, uint16_t type) {
@@ -104,10 +110,10 @@ static uint64_t key40_get_offset(reiserfs_key40_t *key) {
 
     if (get_key40_type(key) == KEY40_FILE_NAME_MINOR)
 	return get_key40_hash(key);
-    else
-	return get_key40_offset(key);
+
+    return get_key40_offset(key);
 }
-    
+
 static reiserfs_plugin_t key40_plugin = {
     .key = {
 	.h = {
@@ -122,7 +128,8 @@ static reiserfs_plugin_t key40_plugin = {
 	.minimal = (const void *(*)(void))key40_minimal,
 	.maximal = (const void *(*)(void))key40_maximal,
 	.compare = (int (*)(const void *, const void *))key40_compare,
-	.init = (error_t (*)(void *, uint16_t, oid_t, oid_t, uint64_t))key40_init,
+	.create = (void *(*)(uint16_t, oid_t, oid_t, uint64_t))key40_create,
+	.close = (void (*)(void *))key40_close,
 
 	.set_type = (void (*)(void *, uint16_t))key40_set_type,
 	.get_type = (uint16_t (*)(void *))key40_get_type,
@@ -138,10 +145,10 @@ static reiserfs_plugin_t key40_plugin = {
     }
 };
 
-reiserfs_plugin_t *key40_entry(reiserfs_plugin_factory_t *f) {
+static reiserfs_plugin_t *key40_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &key40_plugin;
 }
 
-libreiserfs_plugins_register(key40_entry);
+libreiser4_plugins_register(key40_entry);
 

@@ -19,6 +19,7 @@ int reiserfs_misc_bin_search(
     void *needle,		    /* element to be found */
     reiserfs_elem_func_t elem_func, /* function for getting next element from given array */
     reiserfs_comp_func_t comp_func, /* function for comparing needle and a lement from array */
+    void *data,			    /* user-specified data that will be passed to both callbacks */
     uint64_t *pos)		    /* pointer on found pos a result will be stored in */
 {
     void *elem;
@@ -34,12 +35,12 @@ int reiserfs_misc_bin_search(
     rbound = count - 1;
 
     for (j = (rbound + lbound) / 2; lbound <= rbound; j = (rbound + lbound) / 2) {
-	if (!(elem = elem_func(array, j))) {
+	if (!(elem = elem_func(array, j, data))) {
 	    *pos = -1;
 	    return -1;
 	}
 	
-        if ((ret = comp_func(elem, needle)) < 0) { 
+        if ((ret = comp_func(elem, needle, data)) < 0) { 
             lbound = j + 1;
             continue;
         } else if (ret > 0) { 
