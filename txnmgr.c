@@ -1011,7 +1011,7 @@ txn_try_capture_page  (struct page        *pg,
 {
 	int ret;
 	jnode *node = jnode_of_page (pg);
-	ret = txn_try_capture (, lock_mode, non_blocking);
+	ret = txn_try_capture (node, lock_mode, non_blocking);
 	jput (node);
 	return ret;
 }
