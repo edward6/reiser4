@@ -570,8 +570,8 @@ read_ctail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 	return 0;
 }
 
-/* this reads one cluster form disk,
-   attaches buffer with decrypted and decompressed data */
+/* Reads a disk cluster consists of ctail items,
+   attaches a transform stream with plain text */
 reiser4_internal int
 ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 {
@@ -651,10 +651,12 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	
 	/* bytes in the page */
 	pgcnt = off_to_pgcount(i_size_read(inode), page->index);
-#if 0
-	if (pgcnt == 0)
+
+	if (pgcnt == 0) {
+		assert("edward-1290", 0);
 		return RETERR(-EINVAL);
-#endif	
+	}
+
 	assert("edward-119", tfm_cluster_is_uptodate(tc));
 	
 	switch (clust->dstat) {
@@ -734,7 +736,8 @@ reiser4_internal int readpage_ctail(void * vp, struct page * page)
 	return result;
 }
 
-/* only for read methods which don't modify data */
+/* Unconditionally reads a disk cluster.
+   This is used by ->readpages() */
 static int
 ctail_read_page_cluster(reiser4_cluster_t * clust, struct inode * inode)
 {
@@ -794,7 +797,8 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 	struct page *page;
 	struct pagevec lru_pvec;
 	struct inode * inode = mapping->host;
-
+	int progress = 0;
+	
 	assert("edward-214", ergo(!list_empty(pages) &&
 				  pages->next != pages->prev,
 				  list_to_page(pages)->index < list_to_next_page(pages)->index));
@@ -811,7 +815,7 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 	ret = load_file_hint(clust.file, &hint);
 	if (ret) 
 		goto out;
- 	hint.coord.lh = &lh;	
+ 	hint.coord.lh = &lh;
 
 	/* address_space-level file readahead doesn't know about
 	   reiser4 page clustering, so we work around this fact */
@@ -824,11 +828,18 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 			continue;
 		}
 		if (PageUptodate(page)) {
+			if (!pagevec_add(&lru_pvec, page))
+				__pagevec_lru_add(&lru_pvec);
 			unlock_page(page);
 			continue;
 		}
 		unlock_page(page);
 		reset_cluster_params(&clust);
+		
+		if (progress && pg_to_clust(page->index, inode) != clust.index + 1)
+			invalidate_hint_cluster(&clust);
+		progress++;
+
 		clust.index = pg_to_clust(page->index, inode);
 		ret = ctail_read_page_cluster(&clust, inode);
 		if (ret)
