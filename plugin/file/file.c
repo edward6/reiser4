@@ -392,9 +392,9 @@ int unix_file_truncate (struct inode * inode, loff_t size)
 		return result;
 	}
 
-	result = inode_file_plugin (inode)->write_sd_by_inode (inode);
+	result = reiser4_write_sd (inode);
 	if (result)
-		warning ("vs-638", "updating stat data failed\n");
+		warning ("vs-638", "updating stat data failed: %i", result);
 
 	drop_nonexclusive_access (inode);
 	return result;
@@ -609,8 +609,10 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	if( to_read - f.length ) {
 		/* something was read. Update stat data */
 		UPDATE_ATIME (inode);
-		if (inode_file_plugin (inode)->write_sd_by_inode (inode))
-			warning ("vs-676", "updating stat data failed\n");
+		result = reiser4_write_sd (inode);
+		if (result)
+			warning ("vs-676", "updating stat data failed: %i",
+				 result);
 	}
 
 	drop_nonexclusive_access (inode);
@@ -802,8 +804,10 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 	if (written) {
 		/* something was written. Update stat data */
 		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-		if (inode_file_plugin (inode)->write_sd_by_inode (inode))
-			warning ("vs-636", "updating stat data failed\n");
+		result = reiser4_write_sd (inode);
+		if (result)
+			warning ("vs-636", "updating stat data failed: %i",
+				 result);
 	}
 
 	drop_nonexclusive_access (inode);
@@ -1000,7 +1004,7 @@ int unix_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
 		( data -> id == REGULAR_FILE_PLUGIN_ID ) ||
 		( data -> id == SPECIAL_FILE_PLUGIN_ID ) );
 	
-	return inode_file_plugin( object ) -> write_sd_by_inode( object );
+	return reiser4_write_sd( object );
 }
 
 

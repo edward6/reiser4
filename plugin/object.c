@@ -641,9 +641,6 @@ static int common_rem_link( struct inode *object )
 {
 	assert( "nikita-2021", object != NULL );
 	assert( "nikita-2163", object -> i_nlink > 0 );
-	assert( "nikita-2164", 
-		! inode_file_plugin( object ) -> single_link( object ) ||
-		( atomic_read( &object -> i_count ) > 1 ) );
 
 	-- object -> i_nlink;
 	object -> i_ctime = CURRENT_TIME;

@@ -317,7 +317,6 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 
 	carry_node *tracking;
 
-
 	assert( "nikita-890", op != NULL );
 	assert( "nikita-891", todo != NULL );
 	assert( "nikita-892", op -> op == COP_INSERT || op -> op == COP_PASTE ||
