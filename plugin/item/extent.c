@@ -1215,19 +1215,27 @@ assign_jnode_blocknrs(oid_t oid, unsigned long index, reiser4_block_nr first,
 	return 0;
 }
 
-/* Return 1 if @extent unit needs allocation, 0 - otherwise. An allocated extent
-   status may be changed to unallocated if relocation of already allocated
-   blocks look more optimal. Try to update preceder in parent-first order for
-   next block which will be allocated.
+/* Check whether the @extent needs to be allocated.  An allocated extent status
+   may be changed to unallocated if relocation of already allocated blocks look
+   more optimal. Try to update preceder in parent-first order for next block
+   which will be allocated.
+
+   @extent: pointer to on-disk extent.
+   @oid: an id of the object this extent belongs to; 
+   @ind: index of the first jnode in the extent;
+   @pos: pointer to the flush position object needed 
+         to access allocation hints.
+
+   @return: 1 if @extent unit needs allocation, 0 - otherwise. 
 */
 static int
-extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, __u64 count, flush_pos_t * pos)
+extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, flush_pos_t * pos)
 {
 	reiser4_blocknr_hint *preceder;
 	int relocate;
 	int ret;
 	reiser4_tree *tree = current_tree;
-	unsigned long i;
+	__u64 extent_width, i;
 	jnode *j;
 	ON_DEBUG(jnode *check = NULL;) /* this is used to check that all dirty jnodes are of the same atom */
 
@@ -1242,13 +1250,13 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, __
 	}
 
 	assert("jmacd-83112", state_of_extent(extent) == ALLOCATED_EXTENT);
-	assert("jmacd-748", count > 0);
 
 	relocate = 1;
+	extent_width = extent_get_width(extent);
 	preceder = pos_hint(pos);
 
 	/* See if the extent is entirely dirty. */
-	for (i = 0; i < count; i ++) {
+	for (i = 0; i < extent_width; i ++) {
 		j = jlook_lock(tree, oid, ind + i);
 		if (!j) {
 			relocate = 0;
@@ -1307,7 +1315,7 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, __
 		preceder->blk = extent_get_start(extent) + extent_get_width(extent) - 1;
 
 	/* Now scan through again. */
-	for (i = 0; i < count; i ++) {
+	for (i = 0; i < extent_width; i ++) {
 		j = jlook_lock(tree, oid, ind + i);
 		if (!j)
 			continue;
