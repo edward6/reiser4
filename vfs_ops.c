@@ -32,6 +32,7 @@
 #include "entd.h"
 #include "emergency_flush.h"
 #include "prof.h"
+#include "repacker.h"
 #include "init_super.h"
 #include "status_flags.h"
 #include "flush.h"
@@ -1200,6 +1201,7 @@ reiser4_put_super(struct super_block *s)
 	assert("vs-1699", sbinfo);
 
 	init_context(&context, s);
+	done_reiser4_repacker(s);
 	stop_ktxnmgrd(&sbinfo->tmgr);
 	reiser4_sysfs_done(s);
 

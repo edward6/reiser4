@@ -82,6 +82,7 @@ reiser4-objs := \
 		   compress.o\
 		   diskmap.o \
 		   prof.o \
+		   repacker.o \
 		   status_flags.o \
 		   init_super.o \
 		   safe_link.o \
@@ -106,6 +107,7 @@ reiser4-objs := \
 		   plugin/item/extent_item_ops.o \
 		   plugin/item/extent_file_ops.o \
 		   plugin/item/extent_flush_ops.o \
+		   plugin/item/extent_repack_ops.o \
            \
 		   plugin/hash.o \
 		   plugin/fibration.o \

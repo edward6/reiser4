@@ -17,6 +17,7 @@
 #include "entd.h"
 #include "emergency_flush.h"
 #include "prof.h"
+#include "repacker.h"
 #include "safe_link.h"
 #include "plugin/dir/dir.h"
 
@@ -446,6 +447,16 @@ _DONE_(sysfs)
 	reiser4_sysfs_done(s);
 }
 
+_INIT_(repacker)
+{
+	return init_reiser4_repacker(s);
+}
+
+_DONE_(repacker)
+{
+	done_reiser4_repacker(s);
+}
+
 _INIT_(safelink)
 {
 	process_safelinks(s);
@@ -491,6 +502,7 @@ static struct reiser4_subsys subsys_array[] = {
 	_SUBSYS(d_cursor),
 	_SUBSYS(fs_root),
 	_SUBSYS(sysfs),
+	_SUBSYS(repacker),
 	_SUBSYS(safelink),
 	_SUBSYS(exit_context)
 };
