@@ -692,7 +692,8 @@ static int cut_or_kill_units (coord_t * coord,
 			}
 
 			/* (old_width - new_width) blocks of this extent were
-			 * free, update both extent's start and width */
+			 * free, update both extent's start (for allocated
+			 * extent only) and width */
 			if (state_of_extent (ext) == ALLOCATED_EXTENT) {
 				extent_set_start (ext, extent_get_start (ext) + old_width - new_width);
 			}
@@ -2209,9 +2210,17 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 	assert ("vs-779", current_blocksize == PAGE_CACHE_SIZE);
 	assert ("vs-782", intrafile_readahead_amount);
 	/* make sure that unit, @coord is set to, addresses @start page */
-	assert ("vs-786", in_extent (coord, (__u64)start_page << PAGE_CACHE_SHIFT));
+	assert ("vs-795", inode_file_plugin (mapping->host));
+	assert ("vs-796", inode_file_plugin (mapping->host)->key_by_inode);
+	assert ("vs-786",
+		({
+			reiser4_key key;
+			inode_file_plugin (mapping->host)->key_by_inode (mapping->host,
+									 (loff_t)start_page << PAGE_CACHE_SHIFT,
+									 &key);
+			extent_key_in_unit (coord, &key);
+		}));
 
-	
 	nr_units = extent_nr_units (coord);
 	/* position in item matching to @start_page */
 	ext = extent_by_coord (coord);
@@ -2235,6 +2244,7 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 		}
 
 		range = 0;
+		read_lock(&mapping->page_lock);
 		for (j = 0; j < pages; j ++) {
 			page = radix_tree_lookup (&mapping->page_tree,
 						  start_page + j);
@@ -2276,6 +2286,7 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 			list_add (&page->list, &range->pages);
 			range->nr_pages ++;
 		}
+		read_unlock(&mapping->page_lock);
 
 		left -= pages;
 		start_page += j;
@@ -2821,8 +2832,20 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 
 	blocksize = current_blocksize;
 
-	assert ("vs-451", item->unit_pos == 0 && coord_is_existing_unit (item));
 	assert ("vs-773", item_is_extent (item));
+	assert ("vs-451", coord_is_existing_unit (item));
+	if (REISER4_DEBUG) {
+		/*
+		 * FIXME-VS: make sure that there are no unallocated extents in
+		 * this item to the left of coord @item. But, we might also
+		 * check other items to the left of this one
+		 */
+		ext = extent_item (item);
+		for (i = 0; i < item->unit_pos; i ++, ext ++) {
+			assert ("vs-797", state_of_extent (ext) != UNALLOCATED_EXTENT);
+		}
+	}
+
 
 	ext = extent_item (item);
 	for (i = 0; i < coord_num_units (item); i ++, ext ++, item->unit_pos ++) {
