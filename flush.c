@@ -119,6 +119,7 @@ static int           flush_scan_extent            (flush_scan *scan, int skip_fi
 static int           flush_scan_formatted         (flush_scan *scan);
 static int           flush_scan_left              (flush_scan *scan, flush_scan *right, jnode *node, __u32 limit);
 static int           flush_scan_right             (flush_scan *scan, jnode *node, __u32 limit);
+static int           flush_scanning_left          (flush_scan *scan);
 
 static int           flush_query_relocate_dirty    (jnode *node, const coord_t *parent_coord, flush_position *pos);
 
@@ -2118,8 +2119,8 @@ static int flush_scan_goto (flush_scan *scan, jnode *tonode)
 
 	if (! go) {
 		scan->stop = 1;
-		trace_on (TRACE_FLUSH_VERB, "flush scan stop: stop at node %s\n", flush_jnode_tostring (scan->node));
-		trace_on (TRACE_FLUSH_VERB, "flush scan stop: do not cont at %s\n", flush_jnode_tostring (tonode));
+		trace_on (TRACE_FLUSH_VERB, "flush %s scan stop: stop at node %s\n", flush_scanning_left (scan) ? "left" : "right", flush_jnode_tostring (scan->node));
+		trace_on (TRACE_FLUSH_VERB, "flush %s scan stop: do not cont at %s\n", flush_scanning_left (scan) ? "left" : "right", flush_jnode_tostring (tonode));
 		jput (tonode);
 	}
 
