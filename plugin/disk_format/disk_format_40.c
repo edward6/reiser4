@@ -103,7 +103,7 @@ static int get_super_jnode (struct super_block * s)
 
 	if (ret) {drop_io_head (sb_jnode) ; return ret;}
 
-	jref (sb_jnode);
+	pin_jnode_data (sb_jnode);
 	jrelse(sb_jnode);
 
 	private->u.format_40.sb_jnode = sb_jnode;
@@ -117,7 +117,7 @@ static void done_super_jnode (struct super_block * s)
 	jnode * sb_jnode = get_super_private(s)->u.format_40.sb_jnode;
 
 	if (sb_jnode) {
-		jput (sb_jnode);
+		unpin_jnode_data (sb_jnode);
 		drop_io_head(sb_jnode);
 	}
 }

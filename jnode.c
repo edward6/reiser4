@@ -1123,6 +1123,20 @@ void drop_io_head (jnode * node)
 	spin_unlock_tree (tree);
 }
 
+/* protect keep jnode data from reiser4_releasepage()  */
+void pin_jnode_data (jnode * node)
+{
+	assert ("zam-671", jnode_page (node) != NULL);
+	page_cache_get (jnode_page(node));
+}
+
+/* make jnode data free-able again */
+void unpin_jnode_data (jnode * node)
+{
+	assert ("zam-672", jnode_page (node) != NULL);
+	page_cache_release (node);
+}
+
 #if REISER4_DEBUG
 
 const char *jnode_type_name( jnode_type type )

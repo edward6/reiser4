@@ -466,8 +466,8 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 				jrelse(cj);
 			}
 
-			jput (cj);
-			jput(wj);
+			unpin_jnode_data (cj);
+			unpin_jnode_data (wj);
 
 			invalidate_jnode (wj);
 			invalidate_jnode (cj);
@@ -523,8 +523,8 @@ static int load_and_lock_bnode (struct bnode * bnode)
 		/* working bitmap is initialized by on-disk commit bitmap */
 		xmemcpy(bnode_working_data(bnode), bnode_commit_data(bnode), super->s_blocksize);
 
-		jref(bnode->wjnode);
-		jref(bnode->cjnode);
+		pin_jnode_data(bnode->wjnode);
+		pin_jnode_data(bnode->cjnode);
 
 		bnode->loaded = 1;
 	} else {

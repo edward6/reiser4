@@ -1075,12 +1075,12 @@ static int replay_oldest_transaction(struct super_block * s)
 	trace_on(TRACE_REPLAY, "not flushed transaction found (head block %llX, %u log records)\n",
 		 (unsigned long long)(*jnode_get_block(tx_head)), total);
 
-	jref(tx_head);
+	pin_jnode_data(tx_head);
 	jrelse(tx_head);
 
 	ret = replay_transaction(s, tx_head, &log_rec_block, jnode_get_block(tx_head), total - 1);
 
-	jput(tx_head);
+	unpin_jnode_data(tx_head);
 	drop_io_head(tx_head);
 
 	if (ret) return ret;
@@ -1168,7 +1168,7 @@ static int load_journal_control_block (jnode ** node,  const reiser4_block_nr * 
 
 	if (ret) { drop_io_head(*node); *node = NULL; return ret;}
 
-	jref(*node);
+	pin_jnode_data(*node);
 	jrelse(*node);
 
 	return 0;
@@ -1178,7 +1178,7 @@ static int load_journal_control_block (jnode ** node,  const reiser4_block_nr * 
 static void unload_journal_control_block (jnode ** node)
 {
 	if (*node) {
-		jput(*node);
+		unpin_jnode_data(*node);
 		drop_io_head(*node);
 		*node = NULL;
 	}

@@ -359,6 +359,9 @@ static inline void jrelse( jnode *node)
 	spin_unlock_jnode( node );
 }
 
+extern void pin_jnode_data (jnode*);
+extern void unpin_jnode_data (jnode*);
+
 #endif /* __JNODE_H__ */
 
 /*
