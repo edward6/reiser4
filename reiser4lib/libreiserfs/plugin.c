@@ -21,8 +21,8 @@
 
 #define REISERFS_PLUGIN_CASHE_SIZE 255
 
-extern list_t *plugin_cashe;
-extern list_t *plugin_map;
+extern aal_list_t *plugin_cashe;
+extern aal_list_t *plugin_map;
 
 struct run_desc {
 	reiserfs_plugin_type_t type;
@@ -45,7 +45,7 @@ static reiserfs_plugin_t *reiserfs_plugin_from_cashe(reiserfs_plugin_type_t type
 	desc.type = type;
 	desc.id = id;
 	
-	if (!(plugin = (reiserfs_plugin_t *)list_run(plugin_cashe, 
+	if (!(plugin = (reiserfs_plugin_t *)aal_list_run(plugin_cashe, 
 			(int (*)(void *, void *))callback_match_plugin, (void *)&desc)))
 		return NULL;
 	
@@ -125,7 +125,7 @@ reiserfs_plugin_t *reiserfs_plugin_load_by_cords(reiserfs_plugin_type_t type,
 		return NULL;
 	}
 	
-	list_add(plugin_cashe, (void *)plugin);
+	aal_list_add(plugin_cashe, (void *)plugin);
 	
 	return plugin;
 }
@@ -137,6 +137,7 @@ void reiserfs_plugin_unload(reiserfs_plugin_t *plugin) {
 
 	if (!plugin->h.nlink) {
 		dlclose(plugin->h.handle);
-		list_remove(plugin_cashe, (void *)plugin);
+		aal_list_remove(plugin_cashe, (void *)plugin);
 	}	
 }
+

@@ -56,21 +56,28 @@ int aal_vsnprintf(char *buff, size_t n, const char *format, va_list arg_list) {
 		
 		switch (*fmt) {
 			case '%': {
+				char c = *(fmt + 1);
+				
 				if (fmt - format > 0)
 					aal_memcpy(buff + strlen(buff), old, fmt - old);
 				
-				if (*(fmt + 1) == 's') {
-					char *s = va_arg(arg_list, char *);
-					aal_strncat(buff, s, n - strlen(buff));
-				}
-				if (*(fmt + 1) == 'd') {
-					int d;
-					char s[11];
+				switch (c) {
+					case 's': {
+						char *s = va_arg(arg_list, char *);
+						aal_strncat(buff, s, n - strlen(buff));
+						break;
+					}
+					case 'd':
+					case 'x': {
+						int d;
+						char s[11];
 
-					aal_memset(s, 0, sizeof(s));
-					d = va_arg(arg_list, int);
-					aal_ltos(d, sizeof(s), s, 10);
-					aal_strncat(buff, s, n - strlen(buff));
+						aal_memset(s, 0, sizeof(s));
+						
+						d = va_arg(arg_list, int);
+						aal_ltos(d, sizeof(s), s, c == d ? 10 : 16);
+						aal_strncat(buff, s, n - strlen(buff));
+					}
 				}
 				fmt += 2;
 				old = fmt;

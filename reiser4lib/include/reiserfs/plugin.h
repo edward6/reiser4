@@ -92,7 +92,7 @@ typedef void reiserfs_layout_opaque_t;
 
 struct reiserfs_layout_plugin {
 	reiserfs_plugin_header_t h;
-	reiserfs_layout_opaque_t *(*init) (device_t *);
+	reiserfs_layout_opaque_t *(*init) (aal_device_t *);
 	void (*done) (reiserfs_layout_opaque_t *);
 };
 

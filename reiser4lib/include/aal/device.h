@@ -12,43 +12,43 @@
 typedef unsigned long blk_t;
 typedef unsigned long count_t;
 
-struct device_ops;
+struct aal_device_ops;
 
-struct device {
+struct aal_device {
 	int flags;
 	void *data;
 	size_t blocksize;
 	const void *entity;
-	struct device_ops *ops;
+	struct aal_device_ops *ops;
 };
 
-typedef struct device device_t;
+typedef struct aal_device aal_device_t;
 
-struct device_ops {
-	int (*read)(device_t *, void *, blk_t, count_t);
-	int (*write)(device_t *, void *, blk_t, count_t);
-	int (*sync)(device_t *);
-	int (*flags)(device_t *);
-	int (*equals)(device_t *, device_t *);
-	int (*stat)(device_t *, struct stat *);
-	count_t (*len)(device_t *);
+struct aal_device_ops {
+	int (*read)(aal_device_t *, void *, blk_t, count_t);
+	int (*write)(aal_device_t *, void *, blk_t, count_t);
+	int (*sync)(aal_device_t *);
+	int (*flags)(aal_device_t *);
+	int (*equals)(aal_device_t *, aal_device_t *);
+	int (*stat)(aal_device_t *, struct stat *);
+	count_t (*len)(aal_device_t *);
 };
 
-extern device_t *device_open(struct device_ops *ops, const void *entity, size_t blocksize, 
-	int flags, void *data);
+extern aal_device_t *aal_device_open(struct aal_device_ops *ops, const void *entity, 
+	size_t blocksize, int flags, void *data);
 
-extern void device_close(device_t *device);
+extern void aal_device_close(aal_device_t *device);
 
-extern int device_set_block_size(device_t *device, size_t blocksize);
-extern size_t device_block_size(device_t *device);
+extern int aal_device_set_blocksize(aal_device_t *device, size_t blocksize);
+extern size_t aal_device_blocksize(aal_device_t *device);
 
-extern int device_read(device_t *device, void *buff, blk_t block, count_t count);
-extern int device_write(device_t *device, void *buff, blk_t block, count_t count);
-extern int device_sync(device_t *device);
-extern int device_flags(device_t *device);
-extern int device_equals(device_t *device1, device_t *device2);
-extern int device_stat(device_t *device, struct stat *st);
-extern count_t device_len(device_t *device);
+extern int aal_device_read(aal_device_t *device, void *buff, blk_t block, count_t count);
+extern int aal_device_write(aal_device_t *device, void *buff, blk_t block, count_t count);
+extern int aal_device_sync(aal_device_t *device);
+extern int aal_device_flags(aal_device_t *device);
+extern int aal_device_equals(aal_device_t *device1, aal_device_t *device2);
+extern int aal_device_stat(aal_device_t *device, struct stat *st);
+extern count_t aal_device_len(aal_device_t *device);
 
 #endif
 

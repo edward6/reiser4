@@ -24,7 +24,7 @@ struct reiserfs_layout40_super {
 typedef struct reiserfs_layout40_super reiserfs_layout40_super_t;
 
 struct reiserfs_layout40 {
-	device_t *device;
+	aal_device_t *device;
 };
 
 typedef struct reiserfs_layout40 reiserfs_layout40_t;

@@ -19,7 +19,6 @@ extern "C" {
 
 #include "plugin.h"
 #include "tools.h"
-#include "list.h"
 #include "endian.h"
 
 extern int libreiserfs_get_max_interface_version(void);

@@ -10,7 +10,7 @@
 
 #include "layout40.h"
 
-static reiserfs_layout40_t *reiserfs_layout40_init(device_t *device) {
+static reiserfs_layout40_t *reiserfs_layout40_init(aal_device_t *device) {
 	reiserfs_layout40_t *layout;
 	
 	if (!(layout = malloc(sizeof(*layout))))
@@ -39,7 +39,7 @@ reiserfs_plugin_t plugin_info = {
 				"Copyright (C) 1996-2002 Hans Reiser",
 			.nlink = 0
 		},
-		.init = (reiserfs_layout_opaque_t *(*)(device_t *))reiserfs_layout40_init,
+		.init = (reiserfs_layout_opaque_t *(*)(aal_device_t *))reiserfs_layout40_init,
 		.done = (void (*)(reiserfs_layout_opaque_t *))reiserfs_layout40_done
 	}
 };

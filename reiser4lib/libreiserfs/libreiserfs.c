@@ -13,8 +13,8 @@
 #  include <libintl.h>
 #endif
 
-list_t *plugin_cashe = NULL;
-list_t *plugin_map = NULL;
+aal_list_t *plugin_cashe = NULL;
+aal_list_t *plugin_map = NULL;
 
 int libreiserfs_get_max_interface_version(void) {
 	return LIBREISERFS_MAX_INTERFACE_VERSION;
@@ -35,14 +35,14 @@ static void _init(void) {
 	 bindtextdomain(PACKAGE, LOCALEDIR);
 #endif
 	 
-	plugin_cashe = list_create(10);
-	plugin_map = list_create(10);
+	plugin_cashe = aal_list_create(10);
+	plugin_map = aal_list_create(10);
 }
 
 static void _done(void) __attribute__ ((destructor));
 
 static void _done(void) {
-	list_free(plugin_cashe);
-	list_free(plugin_map);
+	aal_list_free(plugin_cashe);
+	aal_list_free(plugin_map);
 }
 
