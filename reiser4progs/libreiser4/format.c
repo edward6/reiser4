@@ -1,5 +1,8 @@
 /*
-    format.c -- format independent code.
+    format.c -- disk format common code. This code is wrapper for disk-format
+    plugin. It is used by filesystem code (filesystem.c) for working with 
+    different disk-format plugins in independent maner.
+    
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -11,22 +14,30 @@
 #include <aal/aal.h>
 #include <reiser4/reiser4.h>
 
-reiserfs_format_t *reiserfs_format_open(aal_device_t *device, 
-    reiserfs_id_t pid) 
-{
+/* 
+    Opens disk-format on specified device. Actually it just calls specified by
+    "pid" disk-format plugin and that plugin makes all dirty work.
+*/
+reiserfs_format_t *reiserfs_format_open(
+    aal_device_t *device,	/* device disk-format instance will be opened on */
+    reiserfs_id_t pid		/* disk-format plugin id to be used */
+) {
     reiserfs_format_t *format;
     reiserfs_plugin_t *plugin;
 	
     aal_assert("umka-104", device != NULL, return NULL);
-	
+    
+    /* Allocating memory for instance of disk-format */
     if (!(format = aal_calloc(sizeof(*format), 0)))
 	return NULL;
-	
+    
+    /* Finding needed plugin by its plugin id */
     if (!(plugin = libreiser4_factory_find(REISERFS_FORMAT_PLUGIN, pid))) 
 	libreiser4_factory_failed(goto error_free_format, find, format, pid);
     
     format->plugin = plugin;
-	
+    
+    /* Initializing disk-format entity by calling plugin */
     if (!(format->entity = libreiser4_plugin_call(goto error_free_format, 
 	plugin->format_ops, open, device)))
     {
@@ -45,24 +56,35 @@ error_free_format:
 
 #ifndef ENABLE_COMPACT
 
-reiserfs_format_t *reiserfs_format_create(aal_device_t *device, 
-    count_t len, uint16_t tail_policy, reiserfs_id_t pid) 
-{
+/* Creates disk-format structures on specified device */
+reiserfs_format_t *reiserfs_format_create(
+    aal_device_t *device,	/* device disk-format will be created on */
+    count_t len,		/* filesystem length in blocks */
+    uint16_t drop_policy,	/* drop policy to be used */
+    reiserfs_id_t pid		/* disk-format plugin id to be used */
+) {
     reiserfs_format_t *format;
     reiserfs_plugin_t *plugin;
 		
     aal_assert("umka-105", device != NULL, return NULL);
 
+    /* Getting needed plugin from plugin factory */
     if (!(plugin = libreiser4_factory_find(REISERFS_FORMAT_PLUGIN, pid))) 
 	libreiser4_factory_failed(return NULL, find, format, pid); 
     
+    /* Allocating memory */
     if (!(format = aal_calloc(sizeof(*format), 0)))
 	return NULL;
     
     format->plugin = plugin;
 	
+    /* 
+	Initializing entity of disk-format by means of calling "create" method 
+	from found plugin. Plugin "create" method will be creating all disk
+	structures, namely, format-specific super block.
+    */
     if (!(format->entity = libreiser4_plugin_call(goto error_free_format, 
-	plugin->format_ops, create, device, len, tail_policy))) 
+	plugin->format_ops, create, device, len, drop_policy))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create disk-format %s on %s.", plugin->h.label, 
@@ -77,14 +99,21 @@ error_free_format:
     return NULL;
 }
 
-errno_t reiserfs_format_sync(reiserfs_format_t *format) {
+/* Saves passed format on its device */
+errno_t reiserfs_format_sync(
+    reiserfs_format_t *format	/* disk-format to be saved */
+) {
     aal_assert("umka-107", format != NULL, return -1);
     
     return libreiser4_plugin_call(return -1, 
 	format->plugin->format_ops, sync, format->entity);
 }
 
-errno_t reiserfs_format_check(reiserfs_format_t *format, int flags) {
+/* Checks passed disk-format for validness */
+errno_t reiserfs_format_check(
+    reiserfs_format_t *format,	/* format to be checked */
+    int flags			/* some flags (not used at the moment) */
+) {
     aal_assert("umka-829", format != NULL, return -1);
 
     return libreiser4_plugin_call(return -1, format->plugin->format_ops, 
@@ -93,9 +122,11 @@ errno_t reiserfs_format_check(reiserfs_format_t *format, int flags) {
 
 #endif
 
-reiserfs_format_t *reiserfs_format_reopen(reiserfs_format_t *format, 
-    aal_device_t *device) 
-{
+/* Reopens disk-format on specified device */
+reiserfs_format_t *reiserfs_format_reopen(
+    reiserfs_format_t *format,	/* format to be reopened */
+    aal_device_t *device	/* device format will be reopened on */
+) {
     reiserfs_plugin_t *plugin;
 
     aal_assert("umka-428", format != NULL, return NULL);
@@ -106,7 +137,10 @@ reiserfs_format_t *reiserfs_format_reopen(reiserfs_format_t *format,
     return reiserfs_format_open(device, plugin->h.id);
 }
 
-void reiserfs_format_close(reiserfs_format_t *format) {
+/* Closes passed disk-format */
+void reiserfs_format_close(
+    reiserfs_format_t *format	/* format to be closed */
+) {
     aal_assert("umka-109", format != NULL, return);
    
     libreiser4_plugin_call(goto error_free_format, 
@@ -116,49 +150,70 @@ error_free_format:
     aal_free(format);
 }
 
-int reiserfs_format_confirm(reiserfs_format_t *format) {
+/* Confirms disk-format (simple check) */
+int reiserfs_format_confirm(
+    reiserfs_format_t *format	/* format to be checked */
+) {
     aal_assert("umka-832", format != NULL, return 0);
 
     return libreiser4_plugin_call(return 0, format->plugin->format_ops, 
 	confirm, format->entity);
 }
 
-const char *reiserfs_format_format(reiserfs_format_t *format) {
+/* Returns string described used disk-format */
+const char *reiserfs_format_format(
+    reiserfs_format_t *format	/* disk-format to be inspected */
+) {
     aal_assert("umka-111", format != NULL, return NULL);
 	
     return libreiser4_plugin_call(return NULL, 
 	format->plugin->format_ops, format, format->entity);
 }
 
-blk_t reiserfs_format_offset(reiserfs_format_t *format) {
+/* Retutns position in blocks where format lies */
+blk_t reiserfs_format_offset(
+    reiserfs_format_t *format	/* disk-format to be used */
+) {
     aal_assert("umka-360", format != NULL, return 0);
     
     return libreiser4_plugin_call(return 0, 
 	format->plugin->format_ops, offset, format->entity);
 }
 
-blk_t reiserfs_format_get_root(reiserfs_format_t *format) {
+/* Returns root block from passed disk-format */
+blk_t reiserfs_format_get_root(
+    reiserfs_format_t *format	/* format to be used */
+) {
     aal_assert("umka-113", format != NULL, return 0);
 
     return libreiser4_plugin_call(return 0, format->plugin->format_ops, 
 	get_root, format->entity);
 }
 
-count_t reiserfs_format_get_blocks(reiserfs_format_t *format) {
+/* Returns filesystem length in blocks from passed disk-format */
+count_t reiserfs_format_get_blocks(
+    reiserfs_format_t *format	/* disk-format to be inspected */
+) {
     aal_assert("umka-360", format != NULL, return 0);
     
     return libreiser4_plugin_call(return 0, format->plugin->format_ops, 
 	get_blocks, format->entity);
 }
 
-count_t reiserfs_format_get_free(reiserfs_format_t *format) {
+/* Returns number of free blocks */
+count_t reiserfs_format_get_free(
+    reiserfs_format_t *format	/* format to be used */
+) {
     aal_assert("umka-426", format != NULL, return 0);
     
     return libreiser4_plugin_call(return 0, format->plugin->format_ops, 
 	get_free, format->entity);
 }
 
-uint16_t reiserfs_format_get_height(reiserfs_format_t *format) {
+/* Returns tree height */
+uint16_t reiserfs_format_get_height(
+    reiserfs_format_t *format	/* format to be inspected */
+) {
     aal_assert("umka-557", format != NULL, return 0);
     
     return libreiser4_plugin_call(return 0, format->plugin->format_ops, 
@@ -167,28 +222,44 @@ uint16_t reiserfs_format_get_height(reiserfs_format_t *format) {
 
 #ifndef ENABLE_COMPACT
 
-void reiserfs_format_set_root(reiserfs_format_t *format, blk_t root) {
+/* Sets new root block */
+void reiserfs_format_set_root(
+    reiserfs_format_t *format,	/* format new root blocks will be set in */
+    blk_t root			/* new root block */
+) {
     aal_assert("umka-420", format != NULL, return);
 
     libreiser4_plugin_call(return, format->plugin->format_ops, 
 	set_root, format->entity, root);
 }
 
-void reiserfs_format_set_blocks(reiserfs_format_t *format, count_t blocks) {
+/* Sets new filesystem length */
+void reiserfs_format_set_blocks(
+    reiserfs_format_t *format,	/* format instance to be used */
+    count_t blocks		/* new length in blocks */
+) {
     aal_assert("umka-422", format != NULL, return);
     
     libreiser4_plugin_call(return, format->plugin->format_ops, 
 	set_blocks, format->entity, blocks);
 }
 
-void reiserfs_format_set_free(reiserfs_format_t *format, count_t blocks) {
+/* Sets free block count */
+void reiserfs_format_set_free(
+    reiserfs_format_t *format,	/* format to be used */
+    count_t blocks		/* new free block count */
+) {
     aal_assert("umka-424", format != NULL, return);
     
     libreiser4_plugin_call(return, format->plugin->format_ops, 
 	set_free, format->entity, blocks);
 }
 
-void reiserfs_format_set_height(reiserfs_format_t *format, uint16_t height) {
+/* Sets new tree height */
+void reiserfs_format_set_height(
+    reiserfs_format_t *format,	/* format to be used */
+    uint16_t height		/* new tree height */
+) {
     aal_assert("umka-559", format != NULL, return);
     
     libreiser4_plugin_call(return, format->plugin->format_ops, 
@@ -197,21 +268,30 @@ void reiserfs_format_set_height(reiserfs_format_t *format, uint16_t height) {
 
 #endif
 
-reiserfs_id_t reiserfs_format_journal_pid(reiserfs_format_t *format) {
+/* Returns jouranl plugin id in use */
+reiserfs_id_t reiserfs_format_journal_pid(
+    reiserfs_format_t *format	/* disk-format journal pid will be obtained from */
+) {
     aal_assert("umka-115", format != NULL, return -1);
 	
     return libreiser4_plugin_call(return -1, format->plugin->format_ops, 
 	journal_pid, format->entity);
 }
 
-reiserfs_id_t reiserfs_format_alloc_pid(reiserfs_format_t *format) {
+/* Returns block allocator plugin id in use */
+reiserfs_id_t reiserfs_format_alloc_pid(
+    reiserfs_format_t *format	/* disk-format allocator pid will be obtained from */
+) {
     aal_assert("umka-117", format != NULL, return -1);
 	
     return libreiser4_plugin_call(return -1, format->plugin->format_ops, 
 	alloc_pid, format->entity);
 }
 
-reiserfs_id_t reiserfs_format_oid_pid(reiserfs_format_t *format) {
+/* Returns oid allocator plugin id in use */
+reiserfs_id_t reiserfs_format_oid_pid(
+    reiserfs_format_t *format	/* disk-format oid allocator pid will be obtained from */
+) {
     aal_assert("umka-491", format != NULL, return -1);
 	
     return libreiser4_plugin_call(return -1, format->plugin->format_ops, 

@@ -12,10 +12,14 @@
 
 #ifndef ENABLE_COMPACT
 
-/* Forms master super blocks */
-static errno_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_id_t format_pid, 
-    unsigned int blocksize, const char *uuid, const char *label) 
-{
+/* Forms master super block disk structure */
+static errno_t reiserfs_master_create(
+    reiserfs_fs_t *fs,		    /* filesystem instance */
+    reiserfs_id_t format_pid,	    /* disk format plugin id to be used */
+    unsigned int blocksize,	    /* blocksize to be used */
+    const char *uuid,		    /* uuid to be used */
+    const char *label		    /* filesystem label to be used */
+) {
     aal_assert("umka-142", fs != NULL, return -1);
     
     /* Allocating the memory */
@@ -45,7 +49,9 @@ static errno_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_id_t format_pi
 #endif
 
 /* Reads master super block from disk */
-static errno_t reiserfs_master_open(reiserfs_fs_t *fs) {
+static errno_t reiserfs_master_open(
+    reiserfs_fs_t *fs		    /* filesystem for working with */
+) {
     blk_t master_offset;
     aal_block_t *block;
     reiserfs_master_t *master;
@@ -114,7 +120,9 @@ error:
 #ifndef ENABLE_COMPACT
 
 /* Saves master super block to device. */
-static errno_t reiserfs_master_sync(reiserfs_fs_t *fs) {
+static errno_t reiserfs_master_sync(
+    reiserfs_fs_t *fs		/* filesystem master will be saved from */
+) {
     blk_t master_offset;	
     aal_block_t *block;
 	
@@ -143,7 +151,9 @@ static errno_t reiserfs_master_sync(reiserfs_fs_t *fs) {
 #endif
 
 /* Frees master super block occupied memory */
-static void reiserfs_master_close(reiserfs_fs_t *fs) {
+static void reiserfs_master_close(
+    reiserfs_fs_t *fs		/* filesystem master will be freed in */
+) {
     aal_assert("umka-146", fs != NULL, return);
     aal_assert("umka-147", fs->master != NULL, return);
 
@@ -151,13 +161,14 @@ static void reiserfs_master_close(reiserfs_fs_t *fs) {
 }
 
 /*
-    Builds root directory key. It is used for any lookups and other. This method id 
-    needed because of root key in reiser3 and reiser4 has a diffrent locality and object
-    id values.
+    Builds root directory key. It is used for lookups and other as init key. This 
+    method id needed because of root key in reiser3 and reiser4 has a diffrent 
+    locality and object id values.
 */
-static errno_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs, 
-    reiserfs_id_t pid) 
-{
+static errno_t reiserfs_fs_build_root_key(
+    reiserfs_fs_t *fs,		/* filesystem to be used */
+    reiserfs_id_t pid		/* key plugin id to be used */
+) {
     oid_t objectid;
     oid_t parent_objectid;
     reiserfs_plugin_t *plugin;
@@ -187,9 +198,11 @@ static errno_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs,
     Opens filesysetm on specified host device and journal device. Replays the 
     journal if "replay" flag is specified.
 */
-reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, 
-    aal_device_t *journal_device, int replay) 
-{
+reiserfs_fs_t *reiserfs_fs_open(
+    aal_device_t *host_device,	    /* device filesystem will lie on */
+    aal_device_t *journal_device,   /* device journal will lie on */
+    int replay			    /* flag that specify whether replaying is needed */
+) {
     count_t len;
     reiserfs_fs_t *fs;
 
@@ -202,6 +215,7 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 	
     aal_assert("umka-148", host_device != NULL, return NULL);
 
+    /* Allocating memory and initializing fields */
     if (!(fs = aal_calloc(sizeof(*fs), 0)))
 	return NULL;
 
@@ -217,7 +231,7 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     if (!(fs->format = reiserfs_format_open(host_device, format_pid)))
 	goto error_free_master;
 
-    /* Getting plugins in use from disk format object */
+    /* Getting plugins which are in use from disk format object */
     alloc_pid = reiserfs_format_alloc_pid(fs->format);
     journal_pid = reiserfs_format_journal_pid(fs->format);
     oid_pid = reiserfs_format_oid_pid(fs->format);
@@ -271,6 +285,7 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     if (!(fs->tree = reiserfs_tree_open(fs)))
 	goto error_free_oid;
     
+    /* Opens root firectory */
     if (!(fs->dir = reiserfs_dir_open(fs, "/")))
 	goto error_free_tree;
     
@@ -299,12 +314,17 @@ error:
 
 #define REISERFS_MIN_SIZE (23 + 100)
 
-/* Creates filesystem on specified host and journal device */
-reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile, 
-    aal_device_t *host_device, size_t blocksize, const char *uuid, 
-    const char *label, count_t len, aal_device_t *journal_device, 
-    void *journal_params)
-{
+/* Creates filesystem on specified host and journal devices */
+reiserfs_fs_t *reiserfs_fs_create(
+    reiserfs_profile_t *profile,    /* profile to be used for new filesystem */
+    aal_device_t *host_device,	    /* device filesystem will be lie on */
+    size_t blocksize,		    /* blocksize to be used in new filesystem */
+    const char *uuid,		    /* uuid to be used */
+    const char *label,		    /* label to be used */
+    count_t len,		    /* filesystem length in blocks */
+    aal_device_t *journal_device,   /* device journal will be lie on */
+    void *journal_params	    /* journal params (most probably will be used for r3) */
+) {
     reiserfs_fs_t *fs;
     blk_t blk, master_blk;
     void *oid_area_start, *oid_area_end;
@@ -329,7 +349,8 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
 	    aal_device_name(host_device), aal_device_len(host_device), REISERFS_MIN_SIZE);
 	return NULL;
     }
-	    
+    
+    /* Allocating memory and initializing fileds */
     if (!(fs = aal_calloc(sizeof(*fs), 0)))
 	return NULL;
 	
@@ -342,7 +363,7 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
 
     /* Creates disk format */
     if (!(fs->format = reiserfs_format_create(host_device, len, 
-	    profile->tail_policy, profile->format)))
+	    profile->drop_policy, profile->format)))
 	goto error_free_master;
 
     /* Creates block allocator */
@@ -439,32 +460,46 @@ error:
     return NULL;
 }
 
-/* Synchronizes all filesystem objects to device */
-errno_t reiserfs_fs_sync(reiserfs_fs_t *fs) {
+/* 
+    Synchronizes all filesystem objects to corresponding devices (all filesystem
+    objects except journal - to host device and journal - to journal device).
+*/
+errno_t reiserfs_fs_sync(
+    reiserfs_fs_t *fs		/* filesystem instance to be synchronized */
+) {
     aal_assert("umka-231", fs != NULL, return -1);
    
+    /* Synchronizing the master super block */
     if (reiserfs_master_sync(fs))
 	return -1;
     
+    /* Synchronizing block allocator */
     if (reiserfs_alloc_sync(fs->alloc))
 	return -1;
     
+    /* Synchronizing the journal */
     if (reiserfs_journal_sync(fs->journal))
 	return -1;
     
+    /* Synchronizing the object allocator */
     if (reiserfs_oid_sync(fs->oid))
 	return -1;
     
+    /* Synchronizing the disk format */
     if (reiserfs_format_sync(fs->format))
 	return -1;
 
+    /* Synchronizing the tree */
     if (reiserfs_tree_sync(fs->tree))
 	return -1;
     
     return 0;
 }
 
-errno_t reiserfs_fs_check(reiserfs_fs_t *fs) {
+/* Makes filesystem check */
+errno_t reiserfs_fs_check(
+    reiserfs_fs_t *fs		/* filesystem to be checked */
+) {
     return 0;
 }
 
@@ -474,10 +509,13 @@ errno_t reiserfs_fs_check(reiserfs_fs_t *fs) {
     Closes all filesystem's entities. Calls plugins' "done" routine for every 
     plugin and frees all assosiated memory. 
 */
-void reiserfs_fs_close(reiserfs_fs_t *fs) {
+void reiserfs_fs_close(
+    reiserfs_fs_t *fs		/* filesystem to be closed */
+) {
     
     aal_assert("umka-230", fs != NULL, return);
     
+    /* Closong the all filesystem objects */
     reiserfs_object_close(fs->dir);
     reiserfs_tree_close(fs->tree);
     reiserfs_oid_close(fs->oid);
@@ -488,16 +526,22 @@ void reiserfs_fs_close(reiserfs_fs_t *fs) {
     reiserfs_alloc_close(fs->alloc);
     reiserfs_format_close(fs->format);
     reiserfs_master_close(fs);
+
+    /* Freeing memory occupied by fs instance */
     aal_free(fs);
 }
 
 /* Returns format string from disk format object (for instance, reiserfs 4.0) */
-const char *reiserfs_fs_format(reiserfs_fs_t *fs) {
+const char *reiserfs_fs_format(
+    reiserfs_fs_t *fs		/* filesystem format name will be obtained from */
+) {
     return reiserfs_format_format(fs->format);
 }
 
 /* Returns disk format plugin in use */
-reiserfs_id_t reiserfs_fs_format_pid(reiserfs_fs_t *fs) {
+reiserfs_id_t reiserfs_fs_format_pid(
+    reiserfs_fs_t *fs		/* filesystem disk format pid will be obtained from */
+) {
     aal_assert("umka-151", fs != NULL, return -1);
     aal_assert("umka-152", fs->master != NULL, return -1);
 
@@ -505,7 +549,9 @@ reiserfs_id_t reiserfs_fs_format_pid(reiserfs_fs_t *fs) {
 }
 
 /* Returns filesystem block size value */
-uint16_t reiserfs_fs_blocksize(reiserfs_fs_t *fs) {
+uint16_t reiserfs_fs_blocksize(
+    reiserfs_fs_t *fs		/* filesystem blocksize will be obtained from */
+) {
     aal_assert("umka-153", fs != NULL, return 0);
     aal_assert("umka-154", fs->master != NULL, return 0);
     

@@ -1,5 +1,7 @@
 /*
-    dir.c -- directory specific code.
+    dir.c -- directory specific code. It uses common object code, that stored
+    in object.c. See it for details.
+    
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -10,38 +12,43 @@
 
 #include <reiser4/reiser4.h>
 
-reiserfs_object_t *reiserfs_dir_open(reiserfs_fs_t *fs, 
-    const char *name) 
-{
-    reiserfs_object_t *dir;
-
-    if (!(dir = aal_calloc(sizeof(*dir), 0)))
-	return NULL;
-
+/* This function opens specified dir on specified opened filesystem */
+reiserfs_object_t *reiserfs_dir_open(
+    reiserfs_fs_t *fs,		    /* filesystem instance dir will be opened on */
+    const char *name		    /* name of directory to be opened */
+) {
+    /* Calling reiserfs_object corresponding function */
     return reiserfs_object_open(fs, name);
 }
 
-void reiserfs_dir_close(reiserfs_object_t *object) {
+/* Closes passed reiserfs object (directory in this case) */
+void reiserfs_dir_close(
+    reiserfs_object_t *object	    /* directory to be closed */
+) {
     reiserfs_object_close(object);
 }
 
 #ifndef ENABLE_COMPACT
 
-reiserfs_object_t *reiserfs_dir_create(reiserfs_fs_t *fs,
-    reiserfs_object_hint_t *hint, reiserfs_plugin_t *plugin,
-    reiserfs_object_t *parent, const char *name) 
-{
-    reiserfs_object_t *dir;
-    
-    if (!(dir = aal_calloc(sizeof(*dir), 0)))
-	return NULL;
-
+/* 
+    Creates directory on specified filesystem of specified kind dictated by
+    passed plugin, hint in speficied by name place.
+*/
+reiserfs_object_t *reiserfs_dir_create(
+    reiserfs_fs_t *fs,		    /* filesystem dir will be created on */
+    reiserfs_object_hint_t *hint,   /* directory hint */
+    reiserfs_plugin_t *plugin,	    /* plugin to be used */
+    reiserfs_object_t *parent,	    /* parent object */
+    const char *name		    /* name of entry */
+) {
     return reiserfs_object_create(fs, hint, plugin, parent, name);
 }
 
-errno_t reiserfs_dir_add(reiserfs_object_t *object, 
-    reiserfs_entry_hint_t *hint) 
-{
+/* Adds speficied entry into passed opened dir */
+errno_t reiserfs_dir_add(
+    reiserfs_object_t *object,	    /* dir new entry will be add in */
+    reiserfs_entry_hint_t *hint	    /* new entry hint */
+) {
     aal_assert("umka-862", object != NULL, return -1);
     aal_assert("umka-863", object->entity != NULL, return -1);
 
@@ -51,7 +58,10 @@ errno_t reiserfs_dir_add(reiserfs_object_t *object,
 
 #endif
 
-errno_t reiserfs_dir_rewind(reiserfs_object_t *object) {
+/* Resets directory position */
+errno_t reiserfs_dir_rewind(
+    reiserfs_object_t *object	    /* dir to be rewinded */
+) {
     aal_assert("umka-842", object != NULL, return -1);
     aal_assert("umka-843", object->entity != NULL, return -1);
 
@@ -59,9 +69,11 @@ errno_t reiserfs_dir_rewind(reiserfs_object_t *object) {
 	rewind, object->entity);
 }
 
-errno_t reiserfs_dir_read(reiserfs_object_t *object, 
-    reiserfs_entry_hint_t *hint) 
-{
+/* Reads one entry from directory, current position points on */
+errno_t reiserfs_dir_read(
+    reiserfs_object_t *object,	    /* dir entry will be read from */
+    reiserfs_entry_hint_t *hint	    /* entry pointer result will be stored in */
+) {
     aal_assert("umka-860", object != NULL, return -1);
     aal_assert("umka-861", object->entity != NULL, return -1);
 
@@ -69,7 +81,10 @@ errno_t reiserfs_dir_read(reiserfs_object_t *object,
         read, object->entity, hint);
 }
 
-uint32_t reiserfs_dir_tell(reiserfs_object_t *object) {
+/* Retutns current position in directory */
+uint32_t reiserfs_dir_tell(
+    reiserfs_object_t *object	    /* dir position will be obtained from */
+) {
     aal_assert("umka-875", object != NULL, return -1);
     aal_assert("umka-876", object->entity != NULL, return -1);
 

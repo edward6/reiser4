@@ -52,7 +52,7 @@ struct reiserfs_profile {
 	reiserfs_id_t internal;
 	reiserfs_id_t statdata;
 	reiserfs_id_t direntry;
-	reiserfs_id_t tail;
+	reiserfs_id_t drop;
 	reiserfs_id_t extent;
     } item;
     
@@ -62,7 +62,7 @@ struct reiserfs_profile {
     } object;
     
     reiserfs_id_t hash;
-    reiserfs_id_t tail_policy;
+    reiserfs_id_t drop_policy;
     reiserfs_id_t hook;
     reiserfs_id_t perm;
     reiserfs_id_t format;

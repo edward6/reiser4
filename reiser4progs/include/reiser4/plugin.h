@@ -21,7 +21,7 @@ enum reiserfs_plugin_type {
     REISERFS_ITEM_PLUGIN,
     REISERFS_NODE_PLUGIN,
     REISERFS_HASH_PLUGIN,
-    REISERFS_TAIL_POLICY_PLUGIN,
+    REISERFS_DROP_POLICY_PLUGIN,
     REISERFS_HOOK_PLUGIN,
     REISERFS_PERM_PLUGIN,
     REISERFS_SD_EXT_PLUGIN,
@@ -41,20 +41,20 @@ enum reiserfs_item_type {
     REISERFS_INTERNAL_ITEM,
     REISERFS_ACL_ITEM,
     REISERFS_EXTENT_ITEM,
-    REISERFS_TAIL_ITEM
+    REISERFS_DROP_ITEM
 };
 
 typedef enum reiserfs_item_type reiserfs_item_type_t;
 
-enum reiserfs_tail_policy {
-    REISERFS_NEVER_TAIL,
-    REISERFS_SUPPOLD_TAIL,
-    REISERFS_FOURK_TAIL,
-    REISERFS_ALWAYS_TAIL,
-    REISERFS_SMART_TAIL
+enum reiserfs_drop_policy {
+    REISERFS_NEVER_DROP,
+    REISERFS_SUPPOLD_DROP,
+    REISERFS_FOURK_DROP,
+    REISERFS_ALWAYS_DROP,
+    REISERFS_SMART_DROP
 };
 
-typedef enum reiserfs_tail_policy reiserfs_tail_policy_t;
+typedef enum reiserfs_drop_policy reiserfs_drop_policy_t;
 
 enum reiserfs_hash {
     REISERFS_RUPASOV_HASH,
@@ -91,7 +91,7 @@ typedef enum {
     KEY40_ATTRNAME_MINOR = 2,
     /* File attribute value */
     KEY40_ATTRBODY_MINOR = 3,
-    /* File body (tail or extent) */
+    /* File body (drop or extent) */
     KEY40_BODY_MINOR	 = 4
 } reiserfs_key40_minor_t;
 
@@ -171,7 +171,7 @@ typedef struct reiserfs_direntry_hint reiserfs_direntry_hint_t;
 struct reiserfs_object_hint {
     reiserfs_id_t statdata_pid;
     reiserfs_id_t direntry_pid;
-    reiserfs_id_t tail_pid;
+    reiserfs_id_t drop_pid;
     reiserfs_id_t extent_pid;
     reiserfs_id_t hash_pid;
 };
@@ -523,11 +523,11 @@ struct reiserfs_hash_ops {
 
 typedef struct reiserfs_hash_ops reiserfs_hash_ops_t;
 
-struct reiserfs_tail_ops {
+struct reiserfs_drop_ops {
     reiserfs_plugin_header_t h;
 };
 
-typedef struct reiserfs_tail_ops reiserfs_tail_ops_t;
+typedef struct reiserfs_drop_ops reiserfs_drop_ops_t;
 
 struct reiserfs_hook_ops {
     reiserfs_plugin_header_t h;
@@ -699,7 +699,7 @@ union reiserfs_plugin {
     reiserfs_item_ops_t item_ops;
     reiserfs_node_ops_t node_ops;
     reiserfs_hash_ops_t hash_ops;
-    reiserfs_tail_ops_t tail_ops;
+    reiserfs_drop_ops_t drop_ops;
     reiserfs_hook_ops_t hook_ops;
     reiserfs_perm_ops_t perm_ops;
     reiserfs_format_ops_t format_ops;

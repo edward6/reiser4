@@ -246,6 +246,10 @@ errno_t reiserfs_cache_register(
     
     limit = &cache->tree->limit;
     
+    /* 
+	Checking for limit exceeding. If limit has exceeded, flushing should be
+	performed.
+    */
     if (limit->enabled) {
 	if ((uint32_t)(limit->cur + 1) > limit->max) {
 	    aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
@@ -255,6 +259,7 @@ errno_t reiserfs_cache_register(
 	limit->cur++;
     }
     
+    /* Inserting passed cache into right position */
     cache->list = aal_list_insert_sorted(cache->list ? aal_list_first(cache->list) : NULL, 
 	child, (int (*)(const void *, const void *, void *))
 	callback_comp_for_register, NULL);
@@ -297,9 +302,10 @@ errno_t reiserfs_cache_register(
     Remove specified childern from the node. Updates all neighbour pointers and 
     parent pointer.
 */
-void reiserfs_cache_unregister(reiserfs_cache_t *cache, 
-    reiserfs_cache_t *child)
-{
+void reiserfs_cache_unregister(
+    reiserfs_cache_t *cache,	/* cache child will be deleted from */
+    reiserfs_cache_t *child	/* pointer to child to be deleted */
+) {
     reiserfs_cache_limit_t *limit;
     
     aal_assert("umka-562", cache != NULL, return);
@@ -307,11 +313,10 @@ void reiserfs_cache_unregister(reiserfs_cache_t *cache,
 
     limit = &cache->tree->limit;
 
-    if (limit->enabled) {
-	/* Current number of blocks should be always positive or equal zero */
+    if (limit->enabled)
 	aal_assert("umka-858", limit->cur > 0, return);
-    }
 
+    /* Deleteing passed child from children list of specified cache */
     if (cache->list) {
 	if (aal_list_length(aal_list_first(cache->list)) == 1) {
 	    aal_list_remove(cache->list, child);
@@ -320,6 +325,7 @@ void reiserfs_cache_unregister(reiserfs_cache_t *cache,
 	    aal_list_remove(cache->list, child);
     }
     
+    /* Deinitialization of pointers to both neighbors */
     if (limit->enabled)
 	limit->cur--;
 
@@ -335,9 +341,21 @@ void reiserfs_cache_unregister(reiserfs_cache_t *cache,
     child->tree = NULL;
 }
 
-errno_t reiserfs_cache_sync(reiserfs_cache_t *cache) {
+/*
+    Synchronizes passed cache by using resursive pass though all childrens. This
+    method will be used when memory pressure occurs. There is possible to pass
+    as parameter of this function the root cache pointer. In this case the whole
+    tree cache will be flushed onto device, tree lies on.
+*/
+errno_t reiserfs_cache_sync(
+    reiserfs_cache_t *cache	/* cache to be synchronized */
+) {
     aal_assert("umka-124", cache != NULL, return 0);
     
+    /* 
+	Walking through the list of childrens and calling reiserfs_cache_sync
+	function for each element.
+    */
     if (cache->list) {
 	aal_list_t *walk;
 	
@@ -347,6 +365,7 @@ errno_t reiserfs_cache_sync(reiserfs_cache_t *cache) {
 	}
     }
     
+    /* Synchronizing cache itself */
     if (reiserfs_node_sync(cache->node)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't synchronize node %llu to device. %s.", 

@@ -142,7 +142,7 @@ static errno_t format36_sync(reiserfs_format36_t *format) {
 }
 
 static reiserfs_format36_t *format36_create(aal_device_t *device, 
-    count_t blocks, uint16_t tail_policy)
+    count_t blocks, uint16_t drop_policy)
 {
     return NULL;
 }

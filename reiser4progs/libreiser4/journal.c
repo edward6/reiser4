@@ -10,22 +10,33 @@
 
 #include <reiser4/reiser4.h>
 
-reiserfs_journal_t *reiserfs_journal_open(aal_device_t *device, 
-    reiserfs_id_t pid) 
-{
+/* 
+    This function opens journal on specified device and returns instance of 
+    opened journal.
+*/
+reiserfs_journal_t *reiserfs_journal_open(
+    aal_device_t *device,	/* device journal weill be opened on */
+    reiserfs_id_t pid		/* jouranl plugin id to be used */
+) {
     reiserfs_plugin_t *plugin;
     reiserfs_journal_t *journal;
 	
     aal_assert("umka-095", device != NULL, return NULL);
 	
+    /* Allocating memory for jouranl instance */
     if (!(journal = aal_calloc(sizeof(*journal), 0)))
 	return NULL;
 	
+    /* Getting plugin by its id from plugin factory */
     if (!(plugin = libreiser4_factory_find(REISERFS_JOURNAL_PLUGIN, pid)))
 	libreiser4_factory_failed(goto error_free_journal, find, journal, pid);
 	
     journal->plugin = plugin;
-	
+
+    /* 
+	Initializing journal entity by means of calling "open" method from found 
+	journal plugin.
+    */
     if (!(journal->entity = libreiser4_plugin_call(goto error_free_journal, 
 	plugin->journal_ops, open, device))) 
     {
@@ -44,14 +55,18 @@ error_free_journal:
 
 #ifndef ENABLE_COMPACT
 
-reiserfs_journal_t *reiserfs_journal_create(aal_device_t *device, 
-    void *params, reiserfs_id_t pid) 
-{
+/* Creates journal on specified jopurnal. Returns initialized instance */
+reiserfs_journal_t *reiserfs_journal_create(
+    aal_device_t *device,	/* device journal will be created on */
+    void *params,		/* journal params (opaque pointer) */
+    reiserfs_id_t pid		/* jouranl plugin to be used */
+) {
     reiserfs_plugin_t *plugin;
     reiserfs_journal_t *journal;
 	
     aal_assert("umka-095", device != NULL, return NULL);
 	
+    /* Allocating memory and finding plugin */
     if (!(journal = aal_calloc(sizeof(*journal), 0)))
 	return NULL;
 	
@@ -60,6 +75,7 @@ reiserfs_journal_t *reiserfs_journal_create(aal_device_t *device,
 
     journal->plugin = plugin;
 	
+    /* Initializing journal entity */
     if (!(journal->entity = libreiser4_plugin_call(goto error_free_journal, 
 	plugin->journal_ops, create, device, params))) 
     {
@@ -76,9 +92,13 @@ error_free_journal:
     return NULL;
 }
 
-errno_t reiserfs_journal_replay(reiserfs_journal_t *journal) {
+/* Replays specified journal. Returns error code */
+errno_t reiserfs_journal_replay(
+    reiserfs_journal_t *journal	/* journal to be replayed */
+) {
     aal_assert("umka-727", journal != NULL, return -1);
     
+    /* Calling plugin for actual replaying */
     if (libreiser4_plugin_call(return -1, journal->plugin->journal_ops, 
 	replay, journal->entity)) 
     {
@@ -89,14 +109,21 @@ errno_t reiserfs_journal_replay(reiserfs_journal_t *journal) {
     return 0;
 }
 
-errno_t reiserfs_journal_sync(reiserfs_journal_t *journal) {
+/* Saves journal strucres on jouranl's device */
+errno_t reiserfs_journal_sync(
+    reiserfs_journal_t *journal	/* journal to be saved */
+) {
     aal_assert("umka-100", journal != NULL, return -1);
 
     return libreiser4_plugin_call(return -1, journal->plugin->journal_ops, 
 	sync, journal->entity);
 }
 
-errno_t reiserfs_journal_check(reiserfs_journal_t *journal, int flags) {
+/* Checks jouranl structure for validness */
+errno_t reiserfs_journal_check(
+    reiserfs_journal_t *journal, /* jouranl to eb checked */
+    int flags			 /* some flags to be used */
+) {
     aal_assert("umka-830", journal != NULL, return -1);
 
     return libreiser4_plugin_call(return -1, journal->plugin->journal_ops, 
@@ -105,14 +132,20 @@ errno_t reiserfs_journal_check(reiserfs_journal_t *journal, int flags) {
 
 #endif
 
-int reiserfs_journal_confirm(reiserfs_journal_t *journal) {
+/* Peforms small check of journal structures */
+int reiserfs_journal_confirm(
+    reiserfs_journal_t *journal	/* journal to be checked */
+) {
     aal_assert("umka-831", journal != NULL, return 0);
 
     return libreiser4_plugin_call(return 0, journal->plugin->journal_ops, 
 	confirm, journal->entity);
 }
 
-void reiserfs_journal_close(reiserfs_journal_t *journal) {
+/* Closes journal by means of freeing all assosiated memory */
+void reiserfs_journal_close(
+    reiserfs_journal_t *journal	/* Jouranl to be closed */
+) {
     aal_assert("umka-102", journal != NULL, return);
     
     libreiser4_plugin_call(return, journal->plugin->journal_ops, 

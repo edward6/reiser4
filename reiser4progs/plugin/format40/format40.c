@@ -93,7 +93,7 @@ error:
 
 /* This function should create super block and update all copies */
 static reiserfs_format40_t *format40_create(aal_device_t *device, 
-    count_t blocks, uint16_t tail_policy)
+    count_t blocks, uint16_t drop_policy)
 {
     blk_t blk;
     reiserfs_format40_t *format;
@@ -121,7 +121,7 @@ static reiserfs_format40_t *format40_create(aal_device_t *device,
     set_sb_block_count(super, blocks);
     set_sb_tree_height(super, 2);
     set_sb_flushes(super, 0);
-    set_sb_tail_policy(super, tail_policy);
+    set_sb_drop_policy(super, drop_policy);
 
     return format;
 

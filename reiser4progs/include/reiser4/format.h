@@ -34,7 +34,7 @@ extern errno_t reiserfs_format_sync(reiserfs_format_t *format);
 extern errno_t reiserfs_format_check(reiserfs_format_t *format, int flags);
 
 extern reiserfs_format_t *reiserfs_format_create(aal_device_t *device,
-    count_t len, uint16_t tail_policy, reiserfs_id_t pid);
+    count_t len, uint16_t drop_policy, reiserfs_id_t pid);
 
 extern void reiserfs_format_set_root(reiserfs_format_t *format, blk_t root);
 extern void reiserfs_format_set_blocks(reiserfs_format_t *format, count_t blocks);
