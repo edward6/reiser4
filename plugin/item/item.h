@@ -323,6 +323,7 @@ extern int are_items_mergeable(const coord_t * i1, const coord_t * i2);
 extern int item_is_extent(const coord_t *);
 extern int item_is_tail(const coord_t *);
 extern int item_is_statdata(const coord_t * item);
+extern int item_is_ctail(const coord_t *);
 
 extern pos_in_node_t item_length_by_coord(const coord_t * coord);
 extern item_type_id item_type_by_coord(const coord_t * coord);
