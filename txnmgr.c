@@ -526,7 +526,7 @@ txn_end(reiser4_context * context)
    is not NULL.  This performs the necessary spin_trylock to break the lock-ordering cycle.  May
    return NULL. */
 txn_atom *
-atom_get_locked_with_txnh_locked_nocheck(txn_handle * txnh)
+atom_locked_by_txnh_nocheck(txn_handle * txnh)
 {
 	txn_atom *atom;
 
@@ -575,7 +575,7 @@ get_current_atom_locked_nocheck(void)
 	txnh = cx->trans;
 	assert("zam-435", txnh != NULL);
 
-	atom = atom_get_locked_with_txnh_locked_nocheck(txnh);
+	atom = atom_locked_by_txnh_nocheck(txnh);
 
 	UNLOCK_TXNH(txnh);
 	return atom;
@@ -1210,7 +1210,7 @@ int txnmgr_force_commit_current_atom (void)
 	txn_handle * txnh = get_current_context()->trans;
 	txn_atom * atom;
 
-	atom = atom_get_locked_with_txnh_locked_nocheck(txnh);
+	atom = atom_locked_by_txnh_nocheck(txnh);
 
 	if (atom == NULL) {
 		UNLOCK_TXNH(txnh);
@@ -1521,7 +1521,7 @@ try_commit_txnh(commit_data *cd)
 	assert("nikita-2968", lock_stack_isclean(get_current_lock_stack()));
 
 	/* Get the atom and txnh locked. */
-	cd->atom = atom_get_locked_with_txnh_locked(cd->txnh);
+	cd->atom = atom_locked_by_txnh(cd->txnh);
 	UNLOCK_TXNH(cd->txnh);
 
 	if (cd->wait) {
@@ -2036,7 +2036,7 @@ fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 	assert("zam-691", spin_txnh_is_locked(txnh));
 	assert("zam-692", atomh != NULL);
 
-	LOCK_ZLOCK(&node->lock);
+	WLOCK_ZLOCK(&node->lock);
 
 	if (!spin_trylock_atom(atomh)) {
 		repeat = 1;
@@ -2090,7 +2090,7 @@ fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 		reiser4_wake_up(lh->owner);
 
 		UNLOCK_TXNH(txnh);
-		UNLOCK_ZLOCK(&node->lock);
+		WUNLOCK_ZLOCK(&node->lock);
 		spin_unlock_znode(node);
 
 		/* @atomf is "small" and @atomh is "large", by
@@ -2108,13 +2108,13 @@ fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 	if (repeat) {
 fail:
 		UNLOCK_TXNH(txnh);
-		UNLOCK_ZLOCK(&node->lock);
+		WUNLOCK_ZLOCK(&node->lock);
 		spin_unlock_znode(node);
 		reiser4_stat_inc(txnmgr.restart.fuse_lock_owners);
 		return RETERR(-E_REPEAT);
 	}
 
-	UNLOCK_ZLOCK(&node->lock);
+	WUNLOCK_ZLOCK(&node->lock);
 	return 0;
 }
 

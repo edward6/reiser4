@@ -1066,8 +1066,8 @@ DEFINE_SPIN_PROFREGIONS(ktxnmgrd);
 DEFINE_SPIN_PROFREGIONS(inode_object);
 DEFINE_SPIN_PROFREGIONS(fq);
 DEFINE_SPIN_PROFREGIONS(super_eflush);
-DEFINE_SPIN_PROFREGIONS(zlock);
 
+DEFINE_RW_PROFREGIONS(zlock);
 DEFINE_RW_PROFREGIONS(dk);
 DEFINE_RW_PROFREGIONS(tree);
 DEFINE_RW_PROFREGIONS(cbk_cache);
@@ -1122,7 +1122,6 @@ static int register_profregions(void)
 	pregion_spin_zlock_held.champion = zlock_most_held;
 	pregion_spin_zlock_trying.champion = zlock_most_wanted;
 #endif
-	register_zlock_profregion();
 	register_super_eflush_profregion();
 	register_epoch_profregion();
 	register_jnode_profregion();
@@ -1136,6 +1135,7 @@ static int register_profregions(void)
 	register_inode_object_profregion();
 	register_fq_profregion();
 
+	register_zlock_profregion();
 	register_cbk_cache_profregion();
 	register_dk_profregion();
 	register_tree_profregion();
@@ -1145,7 +1145,6 @@ static int register_profregions(void)
 
 static void unregister_profregions(void)
 {
-	unregister_zlock_profregion();
 	unregister_super_eflush_profregion();
 	unregister_epoch_profregion();
 	unregister_jload_profregion();
@@ -1159,6 +1158,7 @@ static void unregister_profregions(void)
 	unregister_inode_object_profregion();
 	unregister_fq_profregion();
 
+	unregister_zlock_profregion();
 	unregister_cbk_cache_profregion();
 	unregister_dk_profregion();
 	unregister_tree_profregion();

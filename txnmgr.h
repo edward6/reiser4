@@ -455,7 +455,7 @@ extern void uncapture_jnode(jnode *);
 extern int capture_inode(struct inode *);
 extern int uncapture_inode(struct inode *);
 
-extern txn_atom *atom_get_locked_with_txnh_locked_nocheck(txn_handle * txnh);
+extern txn_atom *atom_locked_by_txnh_nocheck(txn_handle * txnh);
 extern txn_atom *get_current_atom_locked_nocheck(void);
 
 #define atom_is_protected(atom) (spin_atom_is_locked(atom) || (atom)->stage >= ASTAGE_PRE_COMMIT)
@@ -472,13 +472,13 @@ get_current_atom_locked(void)
 	return atom;
 }
 
- /* Same as atom_get_locked_with_txnh_locked_nocheck, by may not return NULL */
+ /* Same as atom_locked_by_txnh_nocheck, by may not return NULL */
 static inline txn_atom *
-atom_get_locked_with_txnh_locked(txn_handle * txnh)
+atom_locked_by_txnh(txn_handle * txnh)
 {
 	txn_atom *atom;
 
-	atom = atom_get_locked_with_txnh_locked_nocheck(txnh);
+	atom = atom_locked_by_txnh_nocheck(txnh);
 
 	assert("jmacd-309", atom != NULL);
 	return atom;
@@ -522,20 +522,20 @@ extern void flush_fuse_queues(txn_atom * large, txn_atom * small);
 #define spin_ordering_pred_atom(atom)				\
 	( ( lock_counters() -> spin_locked_txnh == 0 ) &&	\
 	  ( lock_counters() -> spin_locked_jnode == 0 ) &&	\
-	  ( lock_counters() -> spin_locked_zlock == 0 ) &&	\
+	  ( lock_counters() -> rw_locked_zlock == 0 ) &&	\
 	  ( lock_counters() -> rw_locked_dk == 0 ) &&		\
 	  ( lock_counters() -> rw_locked_tree == 0 ) )
 
 #define spin_ordering_pred_txnh(txnh)				\
 	( ( lock_counters() -> rw_locked_dk == 0 ) &&		\
-	  ( lock_counters() -> spin_locked_zlock == 0 ) &&	\
+	  ( lock_counters() -> rw_locked_zlock == 0 ) &&	\
 	  ( lock_counters() -> rw_locked_tree == 0 ) )
 
 #define spin_ordering_pred_txnmgr(tmgr) 			\
 	( ( lock_counters() -> spin_locked_atom == 0 ) &&	\
 	  ( lock_counters() -> spin_locked_txnh == 0 ) &&	\
 	  ( lock_counters() -> spin_locked_jnode == 0 ) &&	\
-	  ( lock_counters() -> spin_locked_zlock == 0 ) &&	\
+	  ( lock_counters() -> rw_locked_zlock == 0 ) &&	\
 	  ( lock_counters() -> rw_locked_dk == 0 ) &&		\
 	  ( lock_counters() -> rw_locked_tree == 0 ) )
 

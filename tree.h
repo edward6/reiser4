@@ -499,7 +499,7 @@ RW_LOCK_FUNCTIONS(tree, reiser4_tree, tree_lock);
 #define rw_ordering_pred_dk( tree )			\
 	(lock_counters()->rw_locked_tree == 0) &&	\
 	(lock_counters()->spin_locked_jnode == 0) &&	\
-	(lock_counters()->spin_locked_zlock == 0) &&	\
+	(lock_counters()->rw_locked_zlock == 0) &&	\
 	(lock_counters()->spin_locked_txnh == 0) &&	\
 	(lock_counters()->spin_locked_atom == 0) &&	\
 	(lock_counters()->spin_locked_inode_object == 0) &&	\

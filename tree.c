@@ -599,7 +599,7 @@ forget_znode(lock_handle * handle)
 
 	assert("vs-164", znode_is_write_locked(node));
 	assert("nikita-1280", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
-	assert("nikita-3337", spin_zlock_is_locked(&node->lock));
+	assert("nikita-3337", rw_zlock_is_locked(&node->lock));
 
 	WLOCK_TREE(tree);
 	sibling_list_remove(node);

@@ -739,14 +739,6 @@ typedef struct { int foo; } NAME ## _rw_dummy
 	spin_lock_txnh_at(txnh, &__hits_t, &__hits_h);	\
 })
 
-#define LOCK_ZLOCK(lock)				\
-({							\
-	LOCKSITE_INIT(__hits_t);			\
-	LOCKSITE_INIT(__hits_h);			\
-							\
-	spin_lock_zlock_at(lock, &__hits_t, &__hits_h);	\
-})
-
 #define LOCK_INODE(inode)					\
 ({								\
 	LOCKSITE_INIT(__hits_t);				\
@@ -787,30 +779,48 @@ typedef struct { int foo; } NAME ## _rw_dummy
 	write_lock_dk_at(tree, &__hits_t, &__hits_h);	\
 })
 
+#define RLOCK_ZLOCK(lock)				\
+({							\
+	LOCKSITE_INIT(__hits_t);			\
+	LOCKSITE_INIT(__hits_h);			\
+							\
+	read_lock_zlock_at(lock, &__hits_t, &__hits_h);	\
+})
+
+#define WLOCK_ZLOCK(lock)				\
+({							\
+	LOCKSITE_INIT(__hits_t);			\
+	LOCKSITE_INIT(__hits_h);			\
+							\
+	write_lock_zlock_at(lock, &__hits_t, &__hits_h);	\
+})
+
 
 #else
 #define LOCK_JNODE(node) spin_lock_jnode(node)
 #define LOCK_JLOAD(node) spin_lock_jload(node)
 #define LOCK_ATOM(atom) spin_lock_atom(atom)
 #define LOCK_TXNH(txnh) spin_lock_txnh(txnh)
-#define LOCK_ZLOCK(lock) spin_lock_zlock(lock)
 #define LOCK_INODE(inode) spin_lock_inode_object(inode)
 #define RLOCK_TREE(tree) read_lock_tree(tree)
 #define WLOCK_TREE(tree) write_lock_tree(tree)
 #define RLOCK_DK(tree) read_lock_dk(tree)
 #define WLOCK_DK(tree) write_lock_dk(tree)
+#define RLOCK_ZLOCK(lock) read_lock_zlock(lock)
+#define WLOCK_ZLOCK(lock) write_lock_zlock(lock)
 #endif
 
 #define UNLOCK_JNODE(node) spin_unlock_jnode(node)
 #define UNLOCK_JLOAD(node) spin_unlock_jload(node)
 #define UNLOCK_ATOM(atom) spin_unlock_atom(atom)
 #define UNLOCK_TXNH(txnh) spin_unlock_txnh(txnh)
-#define UNLOCK_ZLOCK(lock) spin_unlock_zlock(lock)
 #define UNLOCK_INODE(inode) spin_unlock_inode_object(inode)
 #define RUNLOCK_TREE(tree) read_unlock_tree(tree)
 #define WUNLOCK_TREE(tree) write_unlock_tree(tree)
 #define RUNLOCK_DK(tree) read_unlock_dk(tree)
 #define WUNLOCK_DK(tree) write_unlock_dk(tree)
+#define RUNLOCK_ZLOCK(lock) read_unlock_zlock(lock)
+#define WUNLOCK_ZLOCK(lock) write_unlock_zlock(lock)
 
 /* __SPIN_MACROS_H__ */
 #endif

@@ -153,7 +153,7 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 	       "inode: %i, "
 	       "cbk_cache: %i (r:%i,w%i), "
 	       "epoch: %i, eflush: %i, "
-	       "zlock: %i\n"
+	       "zlock: %i (r:%i, w:%i)\n"
 	       "spin: %i, long: %i inode_sem: (r:%i,w:%i)\n"
 	       "d: %i, x: %i, t: %i\n", prefix,
 	       info->spin_locked_jnode,
@@ -175,7 +175,11 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 
 	       info->spin_locked_epoch,
 	       info->spin_locked_super_eflush,
-	       info->spin_locked_zlock,
+
+	       info->rw_locked_zlock,
+	       info->read_locked_zlock,
+	       info->write_locked_zlock,
+
 	       info->spin_locked,
 	       info->long_term_locked_znode,
 	       info->inode_sem_r, info->inode_sem_w,
@@ -294,7 +298,9 @@ no_counters_are_held()
 
 	counters = lock_counters();
 	return
-		(counters->spin_locked_zlock == 0) &&
+		(counters->rw_locked_zlock == 0) &&
+		(counters->read_locked_zlock == 0) &&
+		(counters->write_locked_zlock == 0) &&
 		(counters->spin_locked_jnode == 0) &&
 		(counters->rw_locked_tree == 0) &&
 		(counters->read_locked_tree == 0) &&
