@@ -37,6 +37,11 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /* we use rapid flush mode, see flush.c for comments.  */
 #define REISER4_USE_RAPID_FLUSH (1)
 
+/*
+ * set this to 0 if you don't want to use wait-for-flush in ->writepage().
+ */
+#define REISER4_USE_ENTD (1)
+
 /* key allocation is Plan-A */
 #define REISER4_PLANA_KEY_ALLOCATION (1)
 /* key allocation follows good old 3.x scheme */
