@@ -150,19 +150,26 @@ error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
     passed coord by coords of found item and unit. This function
     is used by reiserfs_tree_lookup function.
 */
-int reiserfs_node_lookup(reiserfs_node_t *node, void *key, 
-    reiserfs_coord_t *coord) 
+int reiserfs_node_lookup(reiserfs_node_t *node, void *key, reiserfs_coord_t *coord) 
 {
     int found; 
     void *body;
     reiserfs_plugin_t *item_plugin;
+    uint8_t max_key_inside[MAX_KEY_SIZE];
+    reiserfs_plugin_t *key_plugin;
     
     aal_assert("umka-475", coord != NULL, return -1);
     aal_assert("umka-476", key != NULL, return -1);
     aal_assert("vpf-048", node != NULL, return -1);
 
+    if (!(key_plugin = libreiser4_plugins_find_by_coords(REISERFS_KEY_PLUGIN, 0x0))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find key plugin by its id %x.", 0x0);
+	return -2;
+    }
+    
     if ((found = libreiser4_plugins_call(return -1, node->plugin->node, 
-	lookup, node->block, coord, key)) == -1) 
+	lookup, node->block, coord, key, key_plugin)) == -1) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Lookup in the node %llu failed.", 
@@ -172,7 +179,10 @@ int reiserfs_node_lookup(reiserfs_node_t *node, void *key,
 
     if (found == 1)
 	return 1;
-    
+   
+    if (coord->item_pos == -1) 
+	goto after_item;
+	
     if (!(item_plugin = reiserfs_node_item_get_plugin(node, coord->item_pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item plugin at node %llu and pos %u.", 
@@ -189,15 +199,41 @@ int reiserfs_node_lookup(reiserfs_node_t *node, void *key,
 	return -1;
     }
     
+    /* 
+	We are on the position where key is less then wanted. Key could lies within
+	the item or after the item.
+    */
+    memcpy (max_key_inside, reiserfs_node_item_key_at(node, coord->item_pos), 
+	key_plugin->key.size());
+
+    if (item_plugin->item.common.max_key_inside) {
+	if (item_plugin->item.common.max_key_inside(max_key_inside, key_plugin) == -1) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Getting max key of the item %d in the node %llu failed.", 
+		coord->item_pos, aal_block_get_nr(node->block));
+	    return -1;
+	}
+	
+	if (libreiser4_plugins_call(return -1, key_plugin->key, compare, 
+	    key, max_key_inside) > 0)
+	    goto after_item;
+    }
+
     if (item_plugin->item.common.lookup) {
 	if ((found = item_plugin->item.common.lookup(body, key, coord)) == -1) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Lookup in the item %d in the node %llu failed.", coord->item_pos,	    
+		"Lookup in the item %d in the node %llu failed.", coord->item_pos,
 		aal_block_get_nr(node->block));
 	    return -1;
 	}
-    }
+    } else 
+	goto after_item;
+    
+    return found;
 
+after_item:
+    coord->item_pos++;
+    coord->unit_pos = -1;
     return found;
 }
 

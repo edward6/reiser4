@@ -4,6 +4,7 @@
     Author Vitaly Fertman.
 */  
 
+/*
 #include <reiser4/reiser4.h>
 #include <misc/misc.h>
 
@@ -38,8 +39,9 @@ inline int reiserfs_key40_cmp(reiserfs_key40_t *key1, reiserfs_key40_t *key2) {
 
     return result;
 }
-
+*/
 /* Build the entry key */
+/*
 static void build_key_by_entryid(reiserfs_key40_t *key, 
     reiserfs_entryid_t *entryid)
 {
@@ -59,7 +61,7 @@ static void build_entryid_by_key(reiserfs_entryid_t *entryid,
     aal_memcpy(entryid, &key->el[1], sizeof *entryid);
 }
 
-error_t build_entryid_by_info(reiserfs_entryid_t *entryid, 
+error_t build_entryid_by_info_old(reiserfs_entryid_t *entryid, 
     reiserfs_entry_info_t *info) 
 {
     uint16_t len; 
@@ -73,29 +75,27 @@ error_t build_entryid_by_info(reiserfs_entryid_t *entryid,
     
     len = aal_strlen(info->name);
     if (len != 1 || aal_strncmp(info->name, ".", 1)) {
-	/* 
-	    Not dot, pack the first part of the name into 
-	    objectid. 
-	*/
+	// Not dot, pack the first part of the name into objectid. 
+	
 	set_key40_objectid(&key, reiserfs_misc_pack_string(info->name, 1));
 	if (len <= OID_CHARS + sizeof(uint64_t)) {
-	    /* Fits into objectid + hash. */
+	    // Fits into objectid + hash. 
 	    if (len > OID_CHARS)
-		/* 
-		    Does not fit into objectid, pack the second part of 
-		    the name into offset. 
-		*/
+		// 
+		//    Does not fit into objectid, pack the second part of 
+		//    the name into offset. 
+		//
 		set_key40_offset(&key, reiserfs_misc_pack_string(info->name, 0));			
 	} else {
-	    /* Note in the key that it is hash, not a name */
+	    // Note in the key that it is hash, not a name 
 	    key.el[1] |= 0x0100000000000000ull;
-/*	    
-	    set_key40_offset(&key, libreiser4_plugins_call(return, 
-		dir->plugin->dir, hash, info->name + OID_CHARS, len));*/
+//	    set_key40_offset(&key, libreiser4_plugins_call(return, 
+//		dir->plugin->dir, hash, info->name + OID_CHARS, len));
 	}
     }
 
-    build_entryid_by_key(entryid, &key);
+    aal_memcpy(entryid, &key.el[1], sizeof *entryid);
+
     return 0;
 }
-
+*/

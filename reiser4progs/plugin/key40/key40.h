@@ -18,7 +18,7 @@ typedef enum {
     KEY40_ATTR_BODY_MINOR = 3,
     /* File body (tail or extent) */
     KEY40_BODY_MINOR	  = 4
-} reiserfs_key40_minor_t;
+} key40_minor_t;
 
 typedef enum {
     /* Major "locale", aka dirid. Sits in 1st element */
@@ -34,7 +34,7 @@ typedef enum {
     /* Name hash. Sits in 3rd element */
     KEY40_HASH_INDEX	  = 2,
     KEY40_LAST_INDEX	  = 3
-} reiserfs_key40_field_t;
+} key40_field_t;
 
 union reiserfs_key40 {
     uint64_t el[KEY40_LAST_INDEX];
@@ -76,7 +76,7 @@ typedef enum {
 	3rd element.
     */
     KEY40_GEN_MASK         = 0xffull,
-} reiserfs_key40_mask_t;
+} key40_mask_t;
 
 #define OID_CHARS (sizeof(uint64_t) - 1)
 
@@ -88,7 +88,7 @@ typedef enum {
     KEY40_OFFSET_SHIFT     = 0,
     KEY40_HASH_SHIFT       = 8,
     KEY40_GEN_SHIFT        = 0,
-} reiserfs_key40_shift_t;
+} key40_shift_t;
 
 #define KEY40_COMP_ELEMENT(k1, k2, off)	    \
     ({					    \
@@ -102,7 +102,7 @@ typedef enum {
     })
 
 static inline uint64_t get_key40_el(const reiserfs_key40_t *key,
-    reiserfs_key40_field_t off)
+    key40_field_t off)
 {
     aal_assert("vpf-029", key != NULL,  return 0);
     aal_assert("vpf-030", off < KEY40_LAST_INDEX, return 0);
@@ -110,7 +110,7 @@ static inline uint64_t get_key40_el(const reiserfs_key40_t *key,
 }
 
 static inline void set_key40_el(reiserfs_key40_t *key,
-    reiserfs_key40_field_t off, uint64_t value)
+    key40_field_t off, uint64_t value)
 {
     aal_assert("vpf-031", key != NULL, return);
     aal_assert("vpf-032", off < KEY40_LAST_INDEX, return);
@@ -148,7 +148,7 @@ static inline void set_key40_##L(reiserfs_key40_t *key, T loc) {    \
 DEFINE_KEY40_FIELD(locality, LOCALITY, uint64_t);
 
 /* Define get_key40_type(), set_key40_type() */
-DEFINE_KEY40_FIELD(type, TYPE, reiserfs_key40_minor_t);
+DEFINE_KEY40_FIELD(type, TYPE, key40_minor_t);
 
 /* Define get_key40_band(), set_key40_band() */
 DEFINE_KEY40_FIELD(band, BAND, uint64_t);
