@@ -71,7 +71,7 @@ typedef struct unix_file_info {
 #endif
 } unix_file_info_t;
 
-inline struct unix_file_info *unix_file_inode_data(const struct inode * inode);
+struct unix_file_info *unix_file_inode_data(const struct inode * inode);
 
 #include "../../coord.h"
 #include "../item/extent.h"
