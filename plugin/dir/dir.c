@@ -239,11 +239,11 @@ common_unlink(struct inode *parent /* parent object */ ,
 	if ((reserve = common_estimate_unlink(parent, victim->d_inode)) < 0)
 		return reserve;
 
-	if (reiser4_grab_space_exact(reserve, BA_CAN_COMMIT, "common_unlink")) {
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "common_unlink")) {
 		down(&private->delete_sema);
 		delete_semaphore_taken = 1;
 
-		if(reiser4_grab_space_exact(reserve, BA_RESERVED | BA_CAN_COMMIT, "common_unlink(from reserved)")) {
+		if(reiser4_grab_space(reserve, BA_RESERVED | BA_CAN_COMMIT, "common_unlink(from reserved)")) {
 			warning("zam-833", "reserved space is not enough to perform object unlinking\n");
 			return -ENOSPC;
 		}
