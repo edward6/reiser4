@@ -931,18 +931,21 @@ move_load_count(load_count * new, load_count * old)
 	old->d_ref = 0;
 }
 
+#if REISER4_DEBUG
+extern int jnode_invariant_f(const znode * node, char const **msg);
+
 /* debugging aid: znode invariant */
 static int
 znode_invariant_f(const znode * node /* znode to check */ ,
 		  char const **msg	/* where to store error
 					 * message, if any */ )
 {
-#define _ergo( ant, con ) ( (*msg) = "{" #ant "} ergo {" #con "}", ergo( ( ant ), ( con ) ) )
-#define _equi( p1, p2 )   ( (*msg) = "{" #p1  "} equi {" #p2  "}", equi( ( p1 ),  ( p2 )  ) )
-#define zergo( state, p ) _ergo( ZF_ISSET( node, ( state ) ), p )
+#define _ergo(ant, con) 						\
+	((*msg) = "{" #ant "} ergo {" #con "}", ergo((ant), (con)))
+#define _check(exp) ((*msg) = #exp, (exp))
 
-	return REISER4_DEBUG &&
-		((*msg) = "node is NULL", node != NULL) &&
+	return
+		jnode_invariant_f(node, msg) &&
 
 		/* [znode-fake] invariant */
 
@@ -985,20 +988,16 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 		_ergo(znode_get_level(node) == LEAF_LEVEL,
 		      atomic_read(&node->c_count) == 0) &&
 
-#if REISER4_DEBUG
-		((*msg) = "jnodes.prev", node->zjnode.jnodes.prev != NULL) &&
-		((*msg) = "jnodes.next", node->zjnode.jnodes.next != NULL) &&
-#endif
+		_check(node->zjnode.jnodes.prev != NULL) &&
+		_check(node->zjnode.jnodes.next != NULL) &&
 		/* orphan doesn't have a parent */
-		zergo(JNODE_ORPHAN, znode_parent(node) == NULL) &&
+		_ergo(ZF_ISSET(node, JNODE_ORPHAN), znode_parent(node) == 0) &&
 
 		/* [znode-refs] invariant */
 
-		/* only referenced znode can be long-term locked, and */
+		/* only referenced znode can be long-term locked */
 		_ergo(znode_is_locked(node),
-		      atomic_read(&ZJNODE(node)->x_count) != 0) &&
-		/* only referenced znode can be loaded */
-		((*msg) = "x_count >= d_count", atomic_read(&ZJNODE(node)->x_count) >= atomic_read(&ZJNODE(node)->d_count));
+		      atomic_read(&ZJNODE(node)->x_count) != 0);
 }
 
 /* debugging aid: check znode invariant and panic if it doesn't hold */
@@ -1022,6 +1021,7 @@ znode_invariant(const znode * node /* znode to check */ )
 	spin_unlock_znode((znode *) node);
 	return result;
 }
+#endif
 
 #if REISER4_DEBUG_MODIFY
 __u32 znode_checksum(const znode * node)

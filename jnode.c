@@ -241,9 +241,11 @@ jlook(reiser4_tree * tree, oid_t objectid, unsigned long index)
 	jkey.objectid = objectid;
 	jkey.index = index;
 	node = j_hash_find(&tree->jhash_table, &jkey);
-	if (node != NULL)
+	if (node != NULL) {
 		/* protect @node from recycling */
 		jref(node);
+		assert("nikita-2955", jnode_invariant(node, 1, 0));
+	}
 	return node;
 }
 
@@ -313,6 +315,7 @@ again:
 	assert("nikita-2367", jprivate(pg)->key.j.mapping == pg->mapping);
 	assert("nikita-2365", jprivate(pg)->key.j.objectid == oid);
 	assert("nikita-2356", jnode_get_type(jnode_by_page(pg)) == JNODE_UNFORMATTED_BLOCK);
+	assert("nikita-2956", jnode_invariant(jprivate(pg), 0, 0));
 
 	if (jal != NULL) {
 		jfree(jal);
@@ -1224,6 +1227,66 @@ int jnode_io_hook(jnode *node, struct page *page, int rw)
 	/* prepare node to being written */
 	return jnode_ops(node)->io_hook(node, page, rw);
 }
+
+
+#if REISER4_DEBUG
+/* debugging aid: jnode invariant */
+int
+jnode_invariant_f(const jnode * node,
+		  char const **msg)
+{
+#define _ergo(ant, con) 						\
+	((*msg) = "{" #ant "} ergo {" #con "}", ergo((ant), (con)))
+#define _check(exp) ((*msg) = #exp, (exp))
+
+	return
+		_check(node != NULL) &&
+
+		/* only relocated node can be queued, except that when znode
+		 * is being deleted, its JNODE_RELOC bit is cleared */
+		_ergo(JF_ISSET(node, JNODE_FLUSH_QUEUED),
+		      JF_ISSET(node, JNODE_RELOC) || 
+		      JF_ISSET(node, JNODE_HEARD_BANSHEE)) &&
+
+		_check(node->jnodes.prev != NULL) &&
+		_check(node->jnodes.next != NULL) &&
+
+		/* [jnode-refs] invariant */
+
+		/* only referenced jnode can be loaded */
+		_check(atomic_read(&node->x_count) >= atomic_read(&node->d_count));
+
+}
+
+/* debugging aid: check znode invariant and panic if it doesn't hold */
+int
+jnode_invariant(const jnode * node, int tlocked, int jlocked)
+{
+	char const *failed_msg;
+	int result;
+	reiser4_tree *tree;
+
+	tree = jnode_get_tree(node);
+
+	assert("umka-063312", node != NULL);
+	assert("umka-064321", tree != NULL);
+
+	if (!jlocked && !tlocked)
+		spin_lock_jnode((jnode *) node);
+	if (!tlocked)
+		spin_lock_tree(jnode_get_tree(node));
+	result = jnode_invariant_f(node, &failed_msg);
+	if (!result) {
+		info_jnode("corrupted node", node);
+		warning("jmacd-555", "Condition %s failed", failed_msg);
+	}
+	if (!tlocked)
+		spin_unlock_tree(jnode_get_tree(node));
+	if (!jlocked && !tlocked)
+		spin_unlock_jnode((jnode *) node);
+	return result;
+}
+#endif
 
 #if REISER4_DEBUG_OUTPUT
 

@@ -86,6 +86,9 @@ typedef struct {
    spin_lock_znode_pair() and spin_lock_znode_triple() functions, NOTE-NIKITA
    TDB)
   
+   Invariants involving this data-type:
+
+      [jnode-refs]
 */
 struct jnode {
 	/* jnode's state: bitwise flags from the reiser4_znode_state enum. */
@@ -336,6 +339,7 @@ extern int jnodes_tree_done(reiser4_tree * tree);
 
 #if REISER4_DEBUG
 extern int znode_is_any_locked(const znode * node);
+extern int jnode_invariant(const jnode * node, int tlocked, int jlocked);
 #endif
 
 #if REISER4_DEBUG_OUTPUT

@@ -100,6 +100,7 @@ struct zlock {
       [znode-level]
       [znode-c_count]
       [znode-refs]
+      [jnode-refs]
 */
 struct znode {
 	/* Embedded jnode. */
