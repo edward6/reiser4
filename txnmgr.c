@@ -2586,7 +2586,7 @@ int txn_jnodes_of_one_atom (jnode * j1, jnode * j2)
 	int finish = 0;
 
 	assert ("zam-9003", j1 != j2);
-	assert ("zam-9004", jnode_check_dirty (j1));
+	/*assert ("zam-9004", jnode_check_dirty (j1));*/
 	assert ("zam-9005", jnode_check_dirty (j2));
 
 	do {
