@@ -2148,6 +2148,25 @@ static coord_t * adjust_coord2 (const struct shift_params * shift,
 {
 	new->iplug = 0;
 	new->between = old->between;
+
+
+	if (old->node == shift->target) {
+		if (shift->pend == SHIFT_LEFT) {
+			/* coord which is set inside of left neighbor does not
+			 * change during shift to left */
+			coord_dup (new, old);
+			return new;
+		}
+		new->node = old->node;
+		new->item_pos = old->item_pos + shift->entire + (shift->part_units ? 1 : 0);
+		new->unit_pos = old->unit_pos;
+		if (old->item_pos == 0 && shift->merging_units)
+			new->unit_pos += shift->merging_units;
+		return new;
+	}
+
+
+	assert ("vs-977", old->node == shift->wish_stop.node);
 	if (shift->pend == SHIFT_LEFT) {
 		if (unit_moved_left (shift, old)) {
 			/*
