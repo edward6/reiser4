@@ -660,7 +660,7 @@ find_first_item(struct inode *inode)
 					result = RETERR(-EIO);
 			}
 		} else
-			result = RETERR(-ENOENT);
+			result = RETERR(-EIO);
 	}
 	done_lh(&lh);
 	return result;	
