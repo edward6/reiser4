@@ -198,19 +198,19 @@ paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info 
 	if (coord->unit_pos == 0) {
 		/* paste at the beginning, length contains item data overhead */
 		
-		assert("edward-xxx", item_length_by_coord(coord) == data->length);
-		assert("edward-xxx", coord->between == AT_UNIT);
+		assert("edward-450", item_length_by_coord(coord) == data->length);
+		assert("edward-451", coord->between == AT_UNIT);
 		
 		to_paste = data->length - sizeof(ctail_item_format);
 	}
 	else if (coord->unit_pos == (nr_units_ctail(coord) - data->length - 1)) {
 		/* paste at the end, length doesn't contain item data overhead */
-		assert("edward-xxx", coord->between == AFTER_UNIT);
+		assert("edward-452", coord->between == AFTER_UNIT);
 		
 		to_paste = data->length;
 	}
 	else
-		impossible("edward-xxx", "bad paste position");
+		impossible("edward-453", "bad paste position");
 	
 	xmemcpy(first_unit(coord) + coord->unit_pos, data->data, to_paste);
 	return 0;
@@ -346,8 +346,7 @@ read_ctail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 	/* start read only from the beginning of ctail */
 	assert("edward-133", coord->unit_pos == 0);
 	/* read only whole ctails */
-	assert("edward-134", nr_units_ctail(coord) >= CTAIL_MIN_BODY_SIZE);
-	assert("edward-135", item_length_by_coord(coord) <= f->length);
+	assert("edward-135", nr_units_ctail(coord) <= f->length);
 	
 	assert("edward-136", schedulable());
 	
