@@ -187,7 +187,7 @@ dep .dependencies:
 	makedepend -Y -w 8000 $(INCS) $(SRC) $(DEFINES) -f .dependencies
 
 tags: 
-	etags `$(FIND_NON_SCCS)`
+	etags --declarations -I `$(FIND_NON_SCCS)`
 
 gtags: 
 	gtags
