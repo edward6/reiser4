@@ -19,8 +19,8 @@
  */
 
 typedef struct flush_stamp {
-	d32 mk_fs_id;
-	d64 flush_time;
+	d32 mkfs_id;
+	d64 flush_id;
 } flush_stamp_t;
 
 /** format of node header for 40 node layouts. Keep bloat out of this struct.  */

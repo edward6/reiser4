@@ -36,6 +36,9 @@ typedef struct format40_super format40_super_t;
 
 #define format40_super(block) ((format40_super_t *)block->data)
 
+#define get_sb_mkfs_id(sb)			aal_get_le32(sb, sb_mkfs_id)
+#define set_sb_mkfs_id(sb, val)			aal_set_le32(sb, sb_mkfs_id, val)
+
 #define get_sb_block_count(sb)			aal_get_le64(sb, sb_block_count)
 #define set_sb_block_count(sb, val)		aal_set_le64(sb, sb_block_count, val)
 

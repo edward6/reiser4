@@ -25,12 +25,12 @@ struct node40 {
 
 typedef struct node40 node40_t;
 
-struct node40_stamp {
+struct node40_flush {
     uint32_t mkfs_id;
     uint64_t flush_id;
 };
 
-typedef struct node40_stamp node40_stamp_t;
+typedef struct node40_flush node40_flush_t;
 
 /* Format of node header for node40 */
 struct node40_header {
@@ -51,7 +51,7 @@ struct node40_header {
     uint32_t magic;
     
     /* Node flush stamp */
-    node40_stamp_t stamp;
+    node40_flush_t flush;
     
     /* Node level (is not used in libreiser4) */
     uint8_t level;
