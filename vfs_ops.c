@@ -1285,6 +1285,17 @@ static void reiser4_dirty_inode( struct inode *inode )
 	int result;
 	__REISER4_ENTRY( inode -> i_sb, );
 
+	/*
+	 * FIXME-NIKITA: VFS expects ->dirty_inode() to be relatively
+	 * cheap. For example, each quota call invokes it. Our dirty inode
+	 * updates stat-data in the tree. Per-inode seals probably alleviate
+	 * this significantly, but still.
+	 *
+	 * One possible solution is to attach inodes to the transaction atoms
+	 * and only update them just before transaction commit. This, as a
+	 * byproduct will amortize multiple inode updates per transaction.
+	 */
+
 	assert( "nikita-2523", inode != NULL );
 
 	result = reiser4_write_sd( inode );
