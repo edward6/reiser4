@@ -31,13 +31,13 @@ typedef struct reiser4_inode_info {
 	hash_plugin            *hash;
 	/** plugin of stat-data */
 	item_plugin            *sd;
+	/** plugin of items a directory is built of */
+	item_plugin            *dir_item;
 	spinlock_t              guard;
 	/** seal for stat-data */
 	seal_t                    sd_seal;
 	/** coord of stat-data in sealed node */
 	coord_t                sd_coord;
-	/** plugin of items a directory is built of */
-	item_plugin            *dir_item;
 	/** reiser4-specific inode flags. They are "transient" and 
 	    are not supposed to be stored on a disk. Used to trace
 	    "state" of inode. Bitmasks for this field are defined in 

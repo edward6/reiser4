@@ -1310,6 +1310,11 @@ struct kstat {
 #define to_kdev_t( x ) ( x )
 #define kdev_t_to_nr( x ) ( x )
 
+static inline void init_rwsem( struct rw_semaphore *rwsem )
+{
+	sema_init( &rwsem -> sem, 1 );
+}
+
 /* __REISER4_ULEVEL_H__ */
 #endif
 
