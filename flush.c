@@ -15,7 +15,7 @@
  *   JNODE_DIRTY: If a node is dirty, it must be flushed.  But in order to be flushed it
  *   must be allocated first.  In order to be considered allocated, the jnode must have
  *   exactly one of { JNODE_WANDER, JNODE_RELOC } set.  These two bits are exclusive, and
- *   all dirtied jnodes eventually have one of these bits set.
+ *   all dirtied jnodes eventually have one of these bits set during each transaction.
  *
  *   JNODE_CREATED: The node was freshly created in its transaction and has no previous
  *   block address, so it is unconditionally assigned to be relocated, although this is
@@ -27,7 +27,8 @@
  *   have no previous location to preserve have (JNODE_RELOC | JNODE_CREATED) set.
  *
  *   JNODE_WANDER: The flush algorithm made the decision to maintain the pre-existing
- *   location for this node and it will be written to the wandered-log.  NOTE: In this
+ *   location for this node and it will be written to the wandered-log.  FIXME(H): The
+ *   following NOTE needs to be fixed by adding a wander_list to the atom.  NOTE: In this
  *   case, flush sets the node to be clean!  By returning the node to the clean list,
  *   where the log-writer expects to find it, flush simply pretends it was written even
  *   though it has not been.  Clean nodes with JNODE_WANDER set cannot be released from
@@ -36,15 +37,16 @@
  *   JNODE_RELOC: The flush algorithm made the decision to relocate this block (if it was
  *   not created, see note above).  A block with JNODE_RELOC set is elligible for
  *   early-flushing and may be submitted during flush_empty_queues.  When the JNODE_RELOC
- *   bit is set the parent node is modified and the jnode is rehashed.
+ *   bit is set on a znode, the parent node's internal item is modified and the znode is
+ *   rehashed.
  *
  *   JNODE_FLUSH_QUEUED: This bit is set when a call to flush enters the jnode into its
- *   flush queue.  This means the jnode is not on any clear or dirty list, instead it is
+ *   flush queue.  This means the jnode is not on any clean or dirty list, instead it is
  *   on a flush_position->capture_list indicating that it is in a queue that will be
  *   submitted for writing when the flush finishes.  This prevents multiple concurrent
  *   flushes from attempting to flush the same node.
  *
- *   DEAD STATE BIT: JNODE_FLUSH_BUSY: This bit was set during the bottom-up
+ *   (DEAD STATE BIT) JNODE_FLUSH_BUSY: This bit was set during the bottom-up
  *   squeeze-and-allocate on a node while its children are actively being squeezed and
  *   allocated.  This flag was created to avoid submitting a write request for a node
  *   while its children are still being allocated and squeezed.  However, this flag is no
@@ -116,9 +118,9 @@
  * extra I/O because the node will have to be written again when the child is finally
  * allocated.
  *
- * WE HAVE NOT YET ELIMINATED THE UNALLOCATED CHILDREN PROBLEM.  Except for bugs, this should
- * not cause any file system corruption, it only degrades I/O performance because a node
- * may be written when it is sure to be written at least one more time in the same
+ * WE HAVE NOT YET ELIMINATED THE UNALLOCATED CHILDREN PROBLEM.  Except for bugs, this
+ * should not cause any file system corruption, it only degrades I/O performance because a
+ * node may be written when it is sure to be written at least one more time in the same
  * transaction when the remaining children are allocated.  What follows is a description
  * of how we will solve the problem.
  */
@@ -127,26 +129,50 @@
  * proceeding in parent first order, allocate some of its left-children, then encounter a
  * clean child in the middle of the parent.  We do not allocate the clean child, but there
  * may remain unallocated (dirty) children to the right of the clean child.  If we were to
- * stop flushing at this moment and write everything to disk, the parent may still contain
- * unallocated children.
+ * stop flushing at this moment and write everything to disk, the parent might still
+ * contain unallocated children.
+
+FIXME: rewrite next paragraph, in particular, draw a distinction between allocation and flushing
+REWRITTEN:
+
+ * We could try to allocate all the descendents of every node that we allocate, but this
+ * is not necessary.  Doing so could result in allocating the entire tree: if the root
+ * node is allocated then every unallocated node would have to be allocated before
+ * flushing.  Actually, we do not have to write a node just because we allocate it.  It is
+ * possible to allocate but not write a node during flush, when it still has unallocated
+ * children.  However, this approach is probably not optimal for the following reason.
  *
- * FIXME: rewrite next paragraph, in particular, draw a distinction between allocation and flushing
-
- * It may be undesirable to try and allocate all the children of every node before
- * flushing, since it could require allocating many more nodes.  For example, suppose a
- * grandparent of the leaf level (i.e., level 3) still has unallocated children when flush
- * reaches a clean node.  This may involve allocating a number of twigs, which may require
- * allocating many leaves as well.  Instead, we adopt a solution that treats twigs and
- * leaves as a special case.  The idea is for the squeeze-and-allocate pass to ensure that
- * for any twigs that it allocates, the children of those twigs are fully allocated.
-
-We do not try to allocate all the descendents of every node we process, as this could result in allocating the entire
-tree if the the root node was among the nodes processed.  We choose to be moderately conservative in how much we flush
-to disk as a result of memory pressure on a slum member, and so we adopt a poicy of allocating all the children of every
-twig node we process.
-
+ * The flush algorithm is designed to allocate nodes in parent-first order in an attempt
+ * to optimize reads that occur in the same order.  Thus we are read-optimizing for a
+ * left-to-right scan through all the leaves in the system, and we are hoping to
+ * write-optimize at the same time because those nodes will be written together in batch.
+ * What happens, however, if we assign a block number to a node in its read-optimized
+ * order but then avoid writing it because it has unallocated children?  In that
+ * situation, we lose out on the write-optimization aspect because a node will have to be
+ * written again to the its location on the device, later, which likely means seeking back
+ * to that location.
  *
- * There are several parts to this solution:
+ * So there are tradeoffs. We can choose either:
+ *
+ * A. Allocate all unallocated children to preserve both write-optimization and
+ * read-optimization, but this is not always desireable because it may mean having to
+ * allocate and flush very many nodes at once.
+ *
+ * B. Defer writing nodes with unallocated children, keep their read-optimized locations,
+ * but sacrifice write-optimization because those nodes will be written again.
+ *
+ * C. Defer writing nodes with unallocated children, but do not keep their read-optimized
+ * locations.  Instead, choose to write-optimize them later, when they are written.  To
+ * facilitate this, we "undo" the read-optimized allocation that was given to the node so
+ * that later it can be write-optimized.  This is a case where we disturb the
+ * ALLOCATE_ONCE_PER_TRANSACTION rule described above.
+ *
+ * We will take the following approach in v4.0: for twig nodes we will always finish
+ * allocating unallocated children (A).  For nodes with (level > TWIG) with will defer
+ * writing and choose write-optimization (C).
+ *
+ * To summarize, there are several parts to a solution that avoids the problem with
+ * unallocated children:
  *
  * 1. When flush reaches a stopping point (e.g., a clean node), it should continue calling
  * squeeze-and-allocate on any remaining unallocated children.  FIXME: Difficulty to
@@ -157,18 +183,12 @@ twig node we process.
  * have unallocated children.  If the twig level has unallocated children it is an
  * assertion failure.  If a higher-level node has unallocated children, then it should be
  * explicitely de-allocated.  This is a case where we disturb the
- * ALLOCATE_ONCE_PER_TRANSACTION rule described above.  The allocated position for the
- * node is read-optimized, in that it appears in parent-first order with its surrounding
- * nodes.  However, since the node still has unallocated children (to the right), it will
- * have to be allocated again.  If we kept the read-optimized position we will hurt write
- * performance; it probably makes more sense to write-optimize (level > TWIG) nodes.
- * Therefore, when a (level > TWIG) node with unallocated children is encountered in
- * flush_empty_queue(), the relocated position is de-allocated and the node is returned to
- * an unallocated (i.e., CREATED) state.  Note: If the node is being wandered then it does
- * not appear in the flush queue at all, and returning it to a CREATED state makes sense
- * even if the node had an allocation prior to the transaction--its prior location has
- * already been deallocated with the block allocator (deferred).  FIXME: Difficulty to
- * implement: should be simple.
+ * ALLOCATE_ONCE_PER_TRANSACTION rule described above.  When a (level > TWIG) node with
+ * unallocated children is encountered in flush_empty_queue(), the relocated position is
+ * de-allocated and the node is returned to an unallocated (i.e., CREATED) state.  Note:
+ * Returning it to a CREATED state makes sense even if the node had an allocation prior to
+ * the transaction because its prior location has already been deallocated with the block
+ * allocator (deferred).  FIXME: Difficulty to implement: should be simple.
  *
  * 3. (CPU-Optimization) Checking whether a node has unallocated children may consume more
  * CPU cycles than we would like, and it is possible (but medium complexity) to optimize
@@ -200,9 +220,9 @@ twig node we process.
  * leftmost child of a twig is dirty, check its left neighbor (the rightmost child of the
  * twig to the left).  If the left neighbor of the leftmost child is also dirty, then
  * continue the scan at the left twig and repeat.  This option will cause flush to
- * allocate more twigs in a single pass, but it also has the potential to "precipitate"
- * and write many more nodes than would otherwise be written without the RAPID_SCAN
- * option.  FIXME: RAPID_SCAN is partially implemented.
+ * allocate more twigs in a single pass, but it also has the potential to write many more
+ * nodes than would otherwise be written without the RAPID_SCAN option.  FIXME: RAPID_SCAN
+ * is partially implemented.
  */
 
 /* FLUSH CALLED ON NON-LEAF LEVEL.  Most of our design considerations assume that the
@@ -226,6 +246,9 @@ twig node we process.
  * significantly fragmented (using some criterion) it will dirty those nodes and depend on
  * flush to relocate them to a contiguous location on disk.  Most of the details are in
  * defining the criteria used to select blocks for repacking.
+
+Restate this.
+
  */
 
 /********************************************************************************
@@ -269,8 +292,8 @@ struct flush_scan {
 	 * node belonging to another atom). */
 	int       stop;
 
-	/* The current scan position.  If @node is non-NULL then it is referenced by
-	 * jref(). */
+	/* The current scan position.  If @node is non-NULL then its reference count has
+	 * been incremented to reflect this reference. */
 	jnode    *node;
 
 	/* A handle for zload/zrelse of current scan position node. */
@@ -444,6 +467,10 @@ ON_DEBUG (atomic_t flush_cnt;)
 /* G. Unallocated children. */
 
 /* H. Add a WANDERED_LIST to the atom to clarify the placement of wandered blocks. */
+
+
+/* NEW STUFF: */
+/* FIXME: Rename flush-scan to scan-point, (flush-pos to flush-point?) */
 
 /********************************************************************************
  * JNODE_FLUSH: MAIN ENTRY POINT
