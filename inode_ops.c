@@ -580,6 +580,56 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 	return result;
 }
 
+#define FP_OP(_inode, _method, _errcode, ...)			\
+({								\
+	reiser4_context ctx;					\
+	file_plugin    *fplug;					\
+	int             result;					\
+								\
+	init_context(&ctx, (_inode)->i_sb);			\
+	context_set_commit_async(&ctx);				\
+								\
+	fplug = inode_file_plugin(_inode);			\
+	if (fplug->_method != NULL)				\
+		result = fplug->_method( ## __VA_ARGS__);	\
+	else							\
+		result = RETERR(_errcode);			\
+	reiser4_exit_context(&ctx);				\
+	result;							\
+})
+
+static int
+reiser4_setxattr(struct dentry *dentry, const char *name,
+		 const void *value, size_t size, int flags)
+{
+	return FP_OP(dentry->d_inode, xattr.set, -EOPNOTSUPP,
+		     dentry, name, value, size, flags);
+}
+
+static ssize_t
+reiser4_getxattr(struct dentry *dentry, const char *name,
+		 void *buffer, size_t size)
+{
+	return FP_OP(dentry->d_inode, xattr.get, -EOPNOTSUPP,
+		     dentry, name, buffer, size);
+}
+
+static ssize_t
+reiser4_listxattr(struct dentry *dentry, char *buffer, size_t size)
+{
+	return FP_OP(dentry->d_inode, xattr.list, -EOPNOTSUPP,
+		     dentry, buffer, size);
+}
+
+static int
+reiser4_removexattr(struct dentry *dentry, const char *name)
+{
+	return FP_OP(dentry->d_inode, xattr.remove, -EOPNOTSUPP,
+		     dentry, name);
+}
+
+#undef FP_OP
+
 struct inode_operations reiser4_inode_operations = {
 	.create = reiser4_create,	/* d */
 	.lookup = reiser4_lookup,	/* d */
@@ -596,10 +646,10 @@ struct inode_operations reiser4_inode_operations = {
 	.permission = reiser4_permission,	/* d */
 	.setattr = reiser4_setattr,	/* d */
 	.getattr = reiser4_getattr,	/* d */
-/*	.setxattr    = reiser4_setxattr, */
-/* 	.getxattr    = reiser4_getxattr, */
-/* 	.listxattr   = reiser4_listxattr, */
-/* 	.removexattr = reiser4_removexattr */
+	.setxattr    = reiser4_setxattr, /* d */
+ 	.getxattr    = reiser4_getxattr, /* d */
+ 	.listxattr   = reiser4_listxattr, /* d */
+ 	.removexattr = reiser4_removexattr /* d */
 };
 
 struct inode_operations reiser4_symlink_inode_operations = {

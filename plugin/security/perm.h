@@ -58,6 +58,9 @@ typedef struct perm_plugin {
 	/* check whether rename(2) is allowed */
 	int (*rename_ok) (struct inode * old_dir, struct dentry * old,
 			  struct inode * new_dir, struct dentry * new);
+	/* called when inode is thrown out of memory (by
+	 * reiser4_clear_inode()->clear_inode_common() */
+	void (*clear) (struct inode * inode);
 } perm_plugin;
 
 /* call ->check_ok method of perm plugin for inode */
@@ -71,7 +74,7 @@ typedef struct perm_plugin {
 		perm->check ## _ok(__VA_ARGS__);	\
 })
 
-typedef enum { RWX_PERM_ID, LAST_PERM_ID } reiser4_perm_id;
+typedef enum { RWX_PERM_ID, ACL_PERM_ID, LAST_PERM_ID } reiser4_perm_id;
 
 /* __REISER4_PERM_H__ */
 #endif

@@ -6,6 +6,8 @@
 #include "../plugin_header.h"
 #include "../../debug.h"
 
+#include "acl.h"
+
 #include <linux/fs.h>
 #include <linux/dcache.h>	/* for struct dentry */
 #include <linux/quotaops.h>
@@ -57,11 +59,33 @@ perm_plugin perm_plugins[LAST_PERM_ID] = {
 			 .link_ok = NULL,
 			 .unlink_ok = NULL,
 			 .delete_ok = NULL,
-			 /* smart thing */
 			 .mask_ok = mask_ok_common,
 			 .setattr_ok = setattr_ok_common,
 			 .getattr_ok = NULL,
-			 .rename_ok = NULL
+			 .rename_ok = NULL,
+			 .clear = NULL
+	},
+	[ACL_PERM_ID] = {
+			 .h = {
+			       .type_id = REISER4_PERM_PLUGIN_TYPE,
+			       .id = ACL_PERM_ID,
+			       .pops = &acl_plugin_ops,
+			       .label = "acl",
+			       .desc = "POSIX acls",
+			       .linkage = TYPE_SAFE_LIST_LINK_ZERO
+			 },
+			 .read_ok = NULL,
+			 .write_ok = NULL,
+			 .lookup_ok = NULL,
+			 .create_ok = NULL,
+			 .link_ok = NULL,
+			 .unlink_ok = NULL,
+			 .delete_ok = NULL,
+			 .mask_ok = mask_ok_acl,
+			 .setattr_ok = setattr_ok_common,
+			 .getattr_ok = NULL,
+			 .rename_ok = NULL,
+			 .clear = clear_acl
 	}
 };
 

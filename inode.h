@@ -16,7 +16,9 @@
 #include "plugin/cryptcompress.h"
 #include "plugin/plugin_set.h"
 #include "plugin/security/perm.h"
+#include "plugin/security/acl.h"
 #include "plugin/pseudo/pseudo.h"
+#include "plugin/xattr.h"
 #include "vfs_ops.h"
 #include "jnode.h"
 
@@ -141,6 +143,12 @@ struct reiser4_inode {
 		/* fields specific to pseudo file plugin */
 		pseudo_info_t pseudo_info;
 	} file_plugin_data;
+	union {
+		acl_perm_info_t acl_perm_info;
+	} perm_plugin_data;
+
+	/* list of object specific xattr namespaces */
+	xattr_list_head xattr_namespaces;
 
 	/* list of unformatted jnodes eflushed from this object */
 	struct list_head eflushed_jnodes;

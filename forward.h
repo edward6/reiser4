@@ -55,8 +55,9 @@ typedef struct reiser4_blocknr_hint reiser4_blocknr_hint;
 typedef struct uf_coord uf_coord_t;
 typedef struct hint hint_t;
 
-
 typedef struct ktxnmgrd_context ktxnmgrd_context;
+
+typedef struct reiser4_xattr_plugin reiser4_xattr_plugin;
 
 struct inode;
 struct page;

@@ -61,6 +61,7 @@
 #include "item/item.h"
 #include "plugin.h"
 #include "object.h"
+#include "xattr.h"
 #include "../znode.h"
 #include "../tap.h"
 #include "../tree.h"
@@ -77,6 +78,8 @@
 #include <linux/quotaops.h>
 #include <linux/security.h> /* security_inode_delete() */
 #include <linux/writeback.h> /* wake_up_inode() */
+#include <linux/xattr_acl.h>
+#include <linux/xattr.h>
 
 /* helper function to print errors */
 static void
@@ -131,8 +134,6 @@ check_sd_coord(coord_t *coord, const reiser4_key *key)
 #define check_inode_seal(inode, coord, key) noop
 #define check_sd_coord(coord, key) noop
 #endif
-
-
 
 /* find sd of inode in a tree, deal with errors */
 reiser4_internal int
@@ -1123,6 +1124,20 @@ safelink_common(struct inode *object, reiser4_safe_link_t link, __u64 value)
 	return result;
 }
 
+static void
+clear_inode_common(struct inode *inode)
+{
+	perm_plugin *pplug;
+
+	/*
+	 * for now, only ACLs want to do something in ->clear_inode
+	 */
+
+	pplug = inode_perm_plugin(inode);
+	if (pplug != NULL && pplug->clear != NULL)
+		pplug->clear(inode);
+}
+
 /*
  * Definitions of object plugins.
  */
@@ -1137,7 +1152,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.desc = "regular file",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		/* FIXME: check which of these are relly needed */
 		.open = NULL,
 		.truncate = truncate_unix_file,
 		.write_sd_by_inode = write_sd_by_inode_common,
@@ -1172,12 +1186,20 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.update = estimate_update_common,
 			.unlink = estimate_unlink_common
 		},
+		.xattr = {
+			.set    = xattr_set_common,
+			.get    = xattr_get_common,
+			.list   = xattr_list_common,
+			.remove = xattr_remove_common,
+			.handlers = xattr_handlers_common
+		},
 		.readpages = readpages_unix_file,
 		.init_inode_data = init_inode_data_unix_file,
 		.pre_delete = pre_delete_unix_file,
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
-		.forget_inode = forget_inode_common
+		.forget_inode = forget_inode_common,
+		.clear_inode  = clear_inode_common
 	},
 	[DIRECTORY_FILE_PLUGIN_ID] = {
 		.h = {
@@ -1189,7 +1211,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO},
 		.open = NULL,
 		.truncate = eisdir,
-		.write_sd_by_inode = write_sd_by_inode_common,/*common_file_save,*/
+		.write_sd_by_inode = write_sd_by_inode_common,
 		.readpage = eisdir,
 		.capture = NULL,
 		.read = eisdir,
@@ -1200,7 +1222,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.get_block = NULL,
 		.flow_by_inode = NULL,
 		.key_by_inode = NULL,
-		.set_plug_in_inode = set_plug_in_inode_common,/*common_set_plug,*/
+		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_dir,
 		.create = create_common,
 		.delete = delete_directory_common,
@@ -1221,12 +1243,20 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.update = estimate_update_common,
 			.unlink = estimate_unlink_dir_common
 		},
+		.xattr = {
+			.set    = xattr_set_common,
+			.get    = xattr_get_common,
+			.list   = xattr_list_common,
+			.remove = xattr_remove_common,
+			.handlers = xattr_handlers_common
+		},
 		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
-		.forget_inode = forget_inode_common
+		.forget_inode = forget_inode_common,
+		.clear_inode  = clear_inode_common
 	},
 	[SYMLINK_FILE_PLUGIN_ID] = {
 		.h = {
@@ -1235,8 +1265,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.pops = NULL,
 			.label = "symlink",
 			.desc = "symbolic link",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
-		,
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+		},
 		.open = NULL,
 		.truncate = eperm,
 		.write_sd_by_inode = write_sd_by_inode_common,
@@ -1250,10 +1280,11 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.get_block = NULL,
 		.flow_by_inode = NULL,
 		.key_by_inode = NULL,
-		.set_plug_in_inode = set_plug_in_inode_common,/*common_set_plug,*/
+		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common,
 		.create = create_symlink,
-		/* FIXME-VS: symlink should probably have its own destroy method */
+		/* FIXME-VS: symlink should probably have its own destroy
+		 * method */
 		.delete = delete_file_common,
 		.add_link = add_link_common,
 		.rem_link = rem_link_common,
@@ -1272,12 +1303,20 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.update = estimate_update_common,
 			.unlink = estimate_unlink_common
 		},
+		.xattr = {
+			.set    = xattr_set_common,
+			.get    = xattr_get_common,
+			.list   = xattr_list_common,
+			.remove = xattr_remove_common,
+			.handlers = xattr_handlers_common
+		},
 		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
-		.forget_inode = forget_inode_common
+		.forget_inode = forget_inode_common,
+		.clear_inode  = clear_inode_common
 	},
 	[SPECIAL_FILE_PLUGIN_ID] = {
 		.h = {
@@ -1322,12 +1361,20 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.update = estimate_update_common,
 			.unlink = estimate_unlink_common
 		},
+		.xattr = {
+			.set    = xattr_set_common,
+			.get    = xattr_get_common,
+			.list   = xattr_list_common,
+			.remove = xattr_remove_common,
+			.handlers = xattr_handlers_common
+		},
 		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
-		.forget_inode = forget_inode_common	
+		.forget_inode = forget_inode_common,
+		.clear_inode  = clear_inode_common
 	},
 	[PSEUDO_FILE_PLUGIN_ID] = {
 		.h = {
@@ -1372,12 +1419,20 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.update = NULL,
 			.unlink = NULL
 		},
+		.xattr = {
+			.set    = NULL,
+			.get    = NULL,
+			.list   = NULL,
+			.remove = NULL,
+			.handlers = NULL
+		},
 		.readpages = NULL,
 		.init_inode_data = NULL,
 		.pre_delete = NULL,
 		.drop = drop_pseudo,
 		.delete_inode = NULL,
-		.forget_inode = NULL
+		.forget_inode = NULL,
+		.clear_inode  = NULL
 	},
 	[CRC_FILE_PLUGIN_ID] = {
 		.h = {
@@ -1423,12 +1478,20 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.update = estimate_update_common,
 			.unlink = estimate_unlink_common
 		},
+		.xattr = {
+			.set    = xattr_set_common,
+			.get    = xattr_get_common,
+			.list   = xattr_list_common,
+			.remove = xattr_remove_common,
+			.handlers = xattr_handlers_common
+		},
 		.readpages = readpages_cryptcompress,
 		.init_inode_data = NULL,
 		.pre_delete = pre_delete_cryptcompress,
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
-		.forget_inode = forget_inode_common
+		.forget_inode = forget_inode_common,
+		.clear_inode  = clear_inode_common
 	}
 };
 

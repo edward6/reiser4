@@ -147,6 +147,7 @@ SRC		:= \
 		   plugin/plugin_hash.c \
 		   plugin/node/node.c \
 		   plugin/node/node40.c \
+		   plugin/xattr.c \
 		   plugin/object.c \
 		   plugin/symlink.c \
 		   plugin/item/static_stat.c \

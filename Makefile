@@ -94,6 +94,7 @@ reiser4-objs := \
 		   plugin/plugin_hash.o \
 		   plugin/node/node.o \
 		   plugin/object.o \
+		   plugin/xattr.o \
 		   plugin/symlink.o \
 		   plugin/cryptcompress.o \
 		   plugin/digest.o \
