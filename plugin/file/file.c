@@ -553,11 +553,11 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 
 				ctx = get_current_context();
 				long_ret = txn_end(ctx);
+				txn_begin(ctx);
 				if (long_ret < 0) {
 					result = (int)long_ret;
 					break;
 				}
-				txn_begin(ctx);
 			}				
 			continue;
 		}

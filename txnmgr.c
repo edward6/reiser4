@@ -500,7 +500,7 @@ txn_begin(reiser4_context * context)
 long
 txn_end(reiser4_context * context)
 {
-	int ret = 0;
+	long ret = 0;
 	txn_handle *txnh;
 
 	assert("umka-283", context != NULL);
