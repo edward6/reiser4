@@ -8,6 +8,7 @@
 
 #include <linux/types.h>
 #include <linux/sysfs.h>
+#include <linux/fs.h>
 
 #define REISER4_USE_SYSFS (1)
 
@@ -24,13 +25,8 @@ struct reiser4_kattr;
 typedef struct reiser4_kattr reiser4_kattr;
 
 struct reiser4_kattr {
-	struct attribute attr;
+	struct fs_kattr attr;
 	void  *cookie;
-	ssize_t (*show) (struct super_block * s,
-			 reiser4_kattr *, void *opaque, char *buf);
-	ssize_t (*store) (struct super_block * s,
-			  reiser4_kattr *, void *opaque, const char *buf,
-			  size_t size);
 };
 
 extern int reiser4_sysfs_init_once(void);

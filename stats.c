@@ -55,34 +55,39 @@ typedef struct reiser4_stats_cnt {
 #define getptrat(type, ptr, offset) ((type *)(((char *)(ptr)) + (offset)))
 
 #define DEFINE_STATCNT_0(aname, afield, atype, afmt, ashow, astore)	\
-{							\
-	.kattr = {					\
-		.attr = {				\
-			.name = (char *)aname,		\
-			.mode = 0666 /* rw-rw-rw- */	\
-		},					\
-		.cookie = 0,				\
-		.show   = ashow,			\
-		.store  = astore			\
-	},						\
-	.format = afmt "\n",				\
-	.offset = offsetof(atype, afield),		\
-	.size   = sizeof(((atype *)0)->afield)		\
+{									\
+	.kattr = {							\
+		.attr = {						\
+			.kattr = {					\
+				.name = (char *)aname,			\
+				.mode = 0666 /* rw-rw-rw- */		\
+			},						\
+			.show   = ashow,				\
+			.store  = astore				\
+		},							\
+		.cookie = 0,						\
+	},								\
+	.format = afmt "\n",						\
+	.offset = offsetof(atype, afield),				\
+	.size   = sizeof(((atype *)0)->afield)				\
 }
 
 #if REISER4_STATS
 
+static inline reiser4_stats_cnt *getcnt(struct fs_kattr * fskattr)
+{
+	return container_of(fskattr, reiser4_stats_cnt, kattr.attr);
+}
+
 static ssize_t
-show_stat_attr(struct super_block * s, reiser4_kattr * kattr,
-	       void * opaque, char * buf)
+show_stat_attr(struct super_block * s, struct fs_kobject * fskobj,
+	       struct fs_kattr * fskattr, char * buf)
 {
 	char *p;
 	reiser4_stats_cnt *cnt;
 	statcnt_t *val;
 
-	(void)opaque;
-
-	cnt = container_of(kattr, reiser4_stats_cnt, kattr);
+	cnt = getcnt(fskattr);
 	val = getptrat(statcnt_t, get_super_private(s)->stats, cnt->offset);
 	p = buf;
 	KATTR_PRINT(p, buf, cnt->format, statcnt_get(val));
@@ -90,29 +95,29 @@ show_stat_attr(struct super_block * s, reiser4_kattr * kattr,
 }
 
 static ssize_t
-store_stat_attr(struct super_block * s, reiser4_kattr * kattr,
-		void *opaq UNUSED_ARG, const char * buf UNUSED_ARG, size_t size)
+store_stat_attr(struct super_block * s, struct fs_kobject * fskobj,
+		struct fs_kattr * fskattr, const char * buf, size_t size)
 {
 	reiser4_stats_cnt *cnt;
 	statcnt_t *val;
 
-	cnt = container_of(kattr, reiser4_stats_cnt, kattr);
+	cnt = getcnt(fskattr);
 	val = getptrat(statcnt_t, get_super_private(s)->stats, cnt->offset);
 	statcnt_reset(val);
 	return size;
 }
 
 static ssize_t
-show_stat_level_attr(struct super_block * s, reiser4_kattr * kattr,
-		     void *da, char * buf)
+show_stat_level_attr(struct super_block * s, struct fs_kobject * fskobj,
+		     struct fs_kattr * fskattr, char * buf)
 {
 	char *p;
 	reiser4_stats_cnt *cnt;
 	statcnt_t *val;
 	int level;
 
-	level = *(int *)da;
-	cnt = container_of(kattr, reiser4_stats_cnt, kattr);
+	level = container_of(fskobj, reiser4_level_stats_kobj, kobj)->level;
+	cnt = getcnt(fskattr);
 	val = getptrat(statcnt_t, &get_super_private(s)->stats->level[level],
 		       cnt->offset);
 	p = buf;
@@ -121,15 +126,15 @@ show_stat_level_attr(struct super_block * s, reiser4_kattr * kattr,
 }
 
 static ssize_t
-store_stat_level_attr(struct super_block * s, reiser4_kattr * kattr,
-		      void *da, const char * buf UNUSED_ARG, size_t size)
+store_stat_level_attr(struct super_block * s, struct fs_kobject * fskobj,
+		      struct fs_kattr * fskattr, const char * buf, size_t size)
 {
 	reiser4_stats_cnt *cnt;
 	statcnt_t *val;
 	int level;
 
-	level = *(int *)da;
-	cnt = container_of(kattr, reiser4_stats_cnt, kattr);
+	level = container_of(fskobj, reiser4_level_stats_kobj, kobj)->level;
+	cnt = getcnt(fskattr);
 	val = getptrat(statcnt_t, &get_super_private(s)->stats->level[level],
 		       cnt->offset);
 	statcnt_reset(val);
@@ -441,7 +446,7 @@ reiser4_stats_cnt reiser4_stat_level_defs[] = {
 static void
 print_cnt(reiser4_stats_cnt * cnt, const char * prefix, void * base)
 {
-	printk("%s%s:\t ", prefix, cnt->kattr.attr.name);
+	printk("%s%s:\t ", prefix, cnt->kattr.attr.kattr.name);
 	printk(cnt->format,
 	       statcnt_get(getptrat(statcnt_t, base, cnt->offset)));
 }
@@ -475,9 +480,12 @@ reiser4_populate_kattr_level_dir(struct kobject * kobj)
 	int i;
 
 	result = 0;
-	for(i = 0 ; i < sizeof_array(reiser4_stat_level_defs) && !result ; ++ i)
-		result = sysfs_create_file(kobj,
-					   &reiser4_stat_level_defs[i].kattr.attr);
+	for(i = 0 ; i < sizeof_array(reiser4_stat_level_defs) && !result ; ++ i){
+		struct attribute *a;
+
+		a = &reiser4_stat_level_defs[i].kattr.attr.kattr;
+		result = sysfs_create_file(kobj, a);
+	}
 	if (result != 0)
 		warning("nikita-2921", "Failed to add sysfs level attr: %i, %i",
 			result, i);
@@ -526,14 +534,16 @@ reiser4_populate_kattr_dir(struct kobject * kobj UNUSED_ARG)
 
 	result = 0;
 #if REISER4_STATS
-	for(i = 0 ; i < sizeof_array(reiser4_stat_defs) && !result ; ++ i)
-		result = sysfs_create_file(kobj,
-					  &reiser4_stat_defs[i].kattr.attr);
+	for(i = 0 ; i < sizeof_array(reiser4_stat_defs) && !result ; ++ i) {
+		struct attribute *a;
 
-#endif
+		a = &reiser4_stat_defs[i].kattr.attr.kattr;
+		result = sysfs_create_file(kobj, a);
+	}
 	if (result != 0)
 		warning("nikita-2920", "Failed to add sysfs attr: %i, %i",
 			result, i);
+#endif
 	return result;
 }
 
