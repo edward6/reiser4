@@ -263,6 +263,10 @@ extern reiser4_key *leftmost_key_in_node( const znode *node, reiser4_key *key );
 #if REISER4_DEBUG_OUTPUT
 extern void print_node_content( const char *prefix, 
 				const znode *node, __u32 flags );
+extern void print_node_items( const char *prefix /* output prefix */, 
+			      const znode *node /* node to print */, 
+			      __u32 flags /* print flags */,
+			      unsigned from, unsigned count );
 #else
 #define print_node_content(p,n,f) noop
 #endif

@@ -196,6 +196,108 @@ void print_node_content( const char *prefix /* output prefix */,
 	}
 	info( "\n" );
 }
+/**
+ * debugging aid: output human readable information about @node
+ * the same as the above, but items to be printed must be specified
+ */
+void print_node_items( const char *prefix /* output prefix */, 
+		       const znode *node /* node to print */, 
+		       __u32 flags /* print flags */,
+		       unsigned from, unsigned count )
+{
+	unsigned i;
+	coord_t coord;
+	item_plugin *iplug;
+	reiser4_key key;
+
+
+	if( !znode_is_loaded( node ) ) {
+		print_znode( "znode is not loaded\n", node );
+		return;
+	}
+	if( ( flags & REISER4_NODE_PRINT_HEADER ) &&
+	    ( node_plugin_by_node( node ) -> print != NULL ) ) {
+		indent_znode (node);
+		node_plugin_by_node( node ) -> print( prefix, node, flags );
+
+		indent_znode (node);
+		print_key ("LDKEY", &node->ld_key);
+
+		indent_znode (node);
+		print_key ("RDKEY", &node->rd_key);
+	}
+
+	/*if( flags & REISER4_NODE_SILENT ) {return;}*/
+
+	coord.node = ( znode * ) node;
+	coord.unit_pos = 0;
+	coord.between = AT_UNIT;
+	/*indent_znode (node);*/
+	if( from >= node_num_items( node ) ||
+	    from + count > node_num_items( node ) ) {
+		info( "there are no those items (%u-%u) in the node (%u)\n",
+		      from, from + count - 1, node_num_items( node ) );
+		return;
+	}
+
+	for( i = from; i < from + count; i ++ ) {
+		indent_znode (node);info( "%d: ", i );
+
+		coord_set_item_pos (&coord, i);
+		
+		iplug = item_plugin_by_coord( &coord );
+		if( flags & REISER4_NODE_PRINT_PLUGINS ) {
+			print_plugin( "\titem plugin", item_plugin_to_plugin (iplug) ); indent_znode (node);
+		}
+		if( flags & REISER4_NODE_PRINT_KEYS ) {
+			item_key_by_coord( &coord, &key );
+			print_key( "\titem key", &key );
+		}
+
+		if( ( flags & REISER4_NODE_PRINT_ITEMS ) &&
+		    ( iplug -> b.print ) ) {
+			indent_znode (node);
+			info ("\tlength %d\n", item_length_by_coord( &coord ) );
+			indent_znode (node); 
+			iplug -> b.print( "\titem", &coord );
+		}
+		if( flags & REISER4_NODE_PRINT_DATA ) {
+			int   j;
+			int   length;
+			char *data;
+
+			data = item_body_by_coord( &coord );
+			length = item_length_by_coord( &coord );
+			indent_znode( node );
+			info( "\titem length: %i, offset: %i\n",
+			      length, data - zdata( node ) );
+			for( j = 0 ; j < length ; ++j ) {
+				char datum;
+				
+				if( ( j % 16 ) == 0 ) {
+					/*
+					 * next 16 bytes
+					 */					
+					if( j == 0 ) {
+						indent_znode( node );
+						info( "\tdata % .2i: ", j );
+					} else {
+						info( "\n" );
+						indent_znode( node );
+						info( "\t     % .2i: ", j );
+					}
+				}
+				datum = data[ j ];
+				info( "%c", 
+				      hex_to_ascii( ( datum & 0xf0 ) >> 4 ) );
+				info( "%c ", hex_to_ascii( datum & 0xf ) );
+			}
+			info( "\n" ); indent_znode (node);
+		}
+		info( "======================\n" );
+	}
+	info( "\n" );
+}
 #endif
 
 #if REISER4_DEBUG_NODE
