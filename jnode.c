@@ -487,8 +487,6 @@ jnode_lock_page(jnode * node)
 static inline int
 jparse(jnode * node)
 {
-	int result;
-
 	assert("nikita-2466", node != NULL);
 
 	return jnode_ops(node)->parse(node);
