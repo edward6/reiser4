@@ -424,11 +424,11 @@ lock_object(lock_stack * owner)
 {
 	lock_request *request;
 	znode        *node;
-	assert("nikita-1834", spin_znode_is_locked(node));
 	assert("nikita-1839", owner == get_current_lock_stack());
 
 	request = &owner->request;
 	node    = request->node;
+	assert("nikita-1834", spin_znode_is_locked(node));
 	if (request->mode == ZNODE_READ_LOCK) {
 		node->lock.nr_readers++;
 	} else {

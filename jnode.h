@@ -101,7 +101,7 @@ struct jnode {
 	   memory while this is greater than 0. Increased on jload().
 	   Decreased on jrelse().
 	*/
-	/*   8 */ atomic_t d_count;
+	/*   8 */ int d_count;
 
 	/* counter of references to jnode itself. Increased on jref().
 	   Decreased on jput().
@@ -444,7 +444,7 @@ static inline void add_d_ref(jnode * node /* node to increase d_count of */ )
 {
 	assert("nikita-1962", node != NULL);
 
-	atomic_inc(&node->d_count);
+	++ node->d_count;
 	ON_DEBUG_CONTEXT(++lock_counters()->d_refs);
 }
 
@@ -611,7 +611,6 @@ jput(jnode * node)
 
 	assert("jmacd-509", node != NULL);
 	assert("jmacd-510", atomic_read(&node->x_count) > 0);
-	assert("jmacd-511", atomic_read(&node->d_count) >= 0);
 	assert("nikita-3065", spin_jnode_is_not_locked(node));
 	ON_DEBUG_CONTEXT(--lock_counters()->x_refs);
 
