@@ -199,9 +199,26 @@ kattr_stats_show(struct kobject *kobj, struct attribute *attr,  char *buf)
 		return 0;
 }
 
+static ssize_t
+kattr_stats_store(struct kobject *kobj, struct attribute *attr, 
+		  const char *buf, size_t size)
+{
+	reiser4_super_info_data *sbinfo;
+	reiser4_kattr *kattr;
+
+	sbinfo = container_of(kobj, reiser4_super_info_data, stats_kobj);
+	kattr = to_kattr(attr);
+
+	if (kattr->store != NULL)
+		return kattr->store(sbinfo->tree.super, kattr, 0, buf, size);
+	else
+		return 0;
+}
+
+
 static struct sysfs_ops stats_attr_ops = {
 	.show  = kattr_stats_show,
-	.store = NULL
+	.store = kattr_stats_store
 };
 
 static struct kobj_type ktype_noattr = {
@@ -230,9 +247,30 @@ kattr_level_show(struct kobject *kobj, struct attribute *attr,  char *buf)
 		return 0;
 }
 
+static ssize_t
+kattr_level_store(struct kobject *kobj, struct attribute *attr, 
+		  const char *buf, size_t size)
+{
+	reiser4_super_info_data *sbinfo;
+	reiser4_level_stats_kobj *level_kobj;
+	int level;
+	reiser4_kattr *kattr;
+
+	level_kobj = container_of(kobj, reiser4_level_stats_kobj, kobj);
+	level = level_kobj->level;
+	level_kobj -= level;
+	sbinfo = container_of(level_kobj, reiser4_super_info_data, level[0]);
+	kattr = to_kattr(attr);
+
+	if (kattr->store != NULL)
+		return kattr->store(sbinfo->tree.super, kattr, &level, buf, size);
+	else
+		return 0;
+}
+
 static struct sysfs_ops attr_level_ops = {
 	.show  = kattr_level_show,
-	.store = NULL
+	.store = kattr_level_store
 };
 
 static struct kobj_type ktype_level_reiser4 = {

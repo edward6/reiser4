@@ -26,6 +26,9 @@ struct reiser4_kattr {
 	void  *cookie;
 	ssize_t (*show) (struct super_block * s, 
 			 reiser4_kattr *, void *opaque, char *buf);
+	ssize_t (*store) (struct super_block * s, 
+			  reiser4_kattr *, void *opaque, const char *buf, 
+			  size_t size);
 };
 
 extern int reiser4_sysfs_init_all(void);
