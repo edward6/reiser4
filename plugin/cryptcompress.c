@@ -33,7 +33,7 @@ int reserve_cut_iteration(reiser4_tree *, const char *);
 int writepage_ctail(struct page *);
 
 /* get cryptcompress specific portion of inode */
-inline cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode)
+cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode)
 {
 	return &reiser4_inode_data(inode)->file_plugin_data.cryptcompress_info;
 }

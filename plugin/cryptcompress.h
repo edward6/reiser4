@@ -41,7 +41,18 @@ typedef struct reiser4_cluster{
 	unsigned delta;  /* bytes of user's data to append to the hole */
 } reiser4_cluster_t;
 
-inline struct cryptcompress_info *cryptcompress_inode_data(const struct inode * inode);
+/* secret key params supposed to be stored on disk */
+typedef struct crypto_stat {
+	__u8 * keyid;  /* key public id */
+	__u16 keysize; /* key size, bits */
+} crypto_stat_t; 
+
+typedef struct cryptcompress_info {
+	/* cpu-key words */
+	__u32 * expkey;
+} cryptcompress_info_t;
+
+cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode);
 int equal_to_rdk(znode *, const reiser4_key *);
 int equal_to_ldk(znode *, const reiser4_key *);
 int goto_right_neighbor(coord_t *, lock_handle *);
@@ -66,17 +77,6 @@ void readpages_cryptcompress(struct file *, struct address_space *, struct list_
 void init_inode_data_cryptcompress(struct inode *, reiser4_object_create_data *, int create);
 int pre_delete_cryptcompress(struct inode *);
 void hint_init_zero(hint_t *, lock_handle *);
-
-/* secret key params supposed to be stored on disk */
-typedef struct crypto_stat {
-	__u8 * keyid;  /* key public id */
-	__u16 keysize; /* key size, bits */
-} crypto_stat_t; 
-
-typedef struct cryptcompress_info {
-	/* cpu-key words */
-	__u32 * expkey;
-} cryptcompress_info_t;
 
 #endif /* __FS_REISER4_CRYPTCOMPRESS_H__ */
 
