@@ -91,14 +91,13 @@ sys_reiser4(char *p_string)
 
 #else
 
-#if 0
+#if 1
 asmlinkage long
 sys_reiser4(void *p_string)
 {
 	return -ENOSYS;
 }
-#endif
-
+#else
 
 /*
  * Below is an implementation of hand crafted "recursive descent" parser. It
@@ -1275,7 +1274,7 @@ asmlinkage long sys_reiser4(const char __user * command)
 		result = PTR_ERR(inkernel);
 	return result;
 }
-
+#endif
 #endif
 
 /* Make Linus happy.

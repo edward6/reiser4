@@ -166,11 +166,13 @@ static int reiser4_pars_free(struct reiser4_syscall_w_space * ws)
 static freeSpace_t * freeSpaceAlloc()
 {
 	freeSpace_t * fs;
-	if ( ( fs = ( freeSpace_t * ) kmalloc( sizeof( freeSpace_t ),GFP_KERNEL ) ) != NULL )
-		{
-			memset( fs , 0, sizeof( freeSpace_t ));
-			initNextFreeSpace(fs);
-		}
+	fs = ( freeSpace_t * ) kmalloc( sizeof( freeSpace_t ),GFP_KERNEL ) ;
+	assert("VD",fs!=NULL);
+	memset( fs , 0, sizeof( freeSpace_t ));
+	initNextFreeSpace(fs);
+
+
+
 	return fs;
 }
 
@@ -187,22 +189,16 @@ static freeSpace_t * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws)
 			curr = next;
 			next = get_next_freeSpHead(curr);
 		}
-	if ((next = freeSpaceAlloc())!=NULL)
+	next = freeSpaceAlloc();
+	if(curr==NULL)
 		{
-			if(curr==NULL)
-				{
-					ws->freeSpHead=next;
-				}
-			else
-				{
-					curr->freeSpace_next=next;
-				}
-			next->freeSpace_next=NULL;
+			ws->freeSpHead=next;
 		}
 	else
 		{
-			PTRACE(ws,"%s", "else");
+			curr->freeSpace_next=next;
 		}
+	next->freeSpace_next=NULL;
 	return next;
 }
 
@@ -212,8 +208,6 @@ static char* list_alloc(struct reiser4_syscall_w_space * ws, int len)
 	if( (ws->freeSpCur->freeSpace+len) > (ws->freeSpCur->freeSpaceMax) )
 		{
 			ws->freeSpCur = freeSpaceNextAlloc(ws);
-			PTRACE(ws, "new2, space=%p, free=%p", ws->freeSpCur,ws->freeSpCur->freeSpace);
-			assert("VD-LIST_ALLOC",ws->freeSpCur!=NULL);
 		}
 	rez = ws->freeSpCur->freeSpace;
 	ws->freeSpCur->freeSpace += ROUND_UP(len);
@@ -230,73 +224,55 @@ static vnode_t * alloc_vnode(struct reiser4_syscall_w_space * ws, vnode_t * last
 {
 	vnode_t * vnode;
 	PTRACE(ws, "begin ws->Head_vnode =%p last_vnode=%p",ws->Head_vnode, last_vnode);
-
 	vnode = (vnode_t *)list_alloc(ws,sizeof(vnode_t));
-
 	if ( last_vnode == NULL )
 		{
-			ws->Head_vnode=vnode;
+			ws->Head_vnode = vnode;
 		}
 	else
 		{
-			last_vnode->next=vnode;
+			last_vnode->next = vnode;
 		}
-	vnode->next=NULL;
+	vnode->next = NULL;
 	PTRACE(ws, "return vnode =%p ",vnode);
 	return vnode;
 }
-
-
-
-
 
 
 //ln->inode.inode->i_op->lookup(struct inode *,struct dentry *);
 //current->fs->pwd->d_inode->i_op->lookup(struct inode *,struct dentry *);
 
 
-
-
 static lnode * alloc_lnode(struct reiser4_syscall_w_space * ws)
 {
 	lnode * ln;
-
-	if ( ( ln = ( lnode * ) kmalloc( sizeof( lnode ), GFP_KERNEL) ) != NULL )
-		{
-			memset( ln , 0, sizeof( lnode ));
-			return ln;
-		}
-	else 
-		{
-			return NULL;
-		}
+	ln = ( lnode * ) kmalloc( sizeof( lnode ), GFP_KERNEL);
+	assert("VD", ln != NULL );
+	memset( ln , 0, sizeof( lnode ));
+	return ln;
 }
 
 static lnode * get_lnode(struct reiser4_syscall_w_space * ws, struct inode * inode)
 {
-	lnode * ln,* l_rez;
-	reiser4_key * k_rez;
+	lnode * ln;
+	reiser4_key * k_rez,* l_rez;
 	PTRACE( ws, " inode=%p", inode );
-
-	if ( ( ln = alloc_lnode(ws)) != NULL )
+	ln = alloc_lnode( ws );
+	if ( is_reiser4_inode( inode ) )
 		{
-			if (is_reiser4_inode(inode))
-				{
-					ln->h.type = LNODE_LW;
-					k_rez = build_sd_key( inode, &ln->lw.key);
-					l_rez = lget( ln, LNODE_LW, get_key_objectid(&ln->lw.key ) );
-					PTRACE( ws, "r4: lnode=%p", ln );
-				}
-			else
-				{
-					ln->h.type = LNODE_DENTRY;
-					ln->dentry.dentry = d_alloc_anon(inode);
-//					ln->inode.inode = inode;
-					PTRACE( ws, "no r4 lnode=%p,dentry=%p", ln, ln->dentry.dentry);
-				}
+			ln->h.type = LNODE_LW;
+			k_rez      = build_sd_key( inode, &ln->lw.key);
+			l_rez      = lget( ln, LNODE_LW, get_key_objectid(&ln->lw.key ) );
+			PTRACE( ws, "r4: lnode=%p", ln );
+		}
+	else
+		{
+			ln->h.type = LNODE_DENTRY;
+			ln->dentry.dentry = d_alloc_anon(inode);
+//			ln->inode.inode = inode;
+			PTRACE( ws, "no r4 lnode=%p,dentry=%p", ln, ln->dentry.dentry);
 		}
 	PTRACE( ws, " lnode=%p", ln );
-
 	return ln;
 }
 
@@ -305,16 +281,11 @@ static struct reiser4_syscall_w_space * reiser4_pars_init()
 	struct reiser4_syscall_w_space * ws;
                                                             /* allocate work space for parser 
 							       working variables, attached to this call */
-	if ( ( ws = kmalloc( sizeof( struct reiser4_syscall_w_space ), GFP_KERNEL ) )==NULL )
-		{
-		  return NULL; /*-ENOMEM;*/
-		}
+	ws = kmalloc( sizeof( struct reiser4_syscall_w_space ), GFP_KERNEL );
+	assert("VD", ws != NULL);
 	memset( ws, 0, sizeof( struct reiser4_syscall_w_space ));
-
 	ws->ws_yystacksize = MAXLEVELCO; /* must be 500 by default */
 	ws->ws_yymaxdepth  = MAXLEVELCO; /* must be 500 by default */
-	
-
 	                                                    /* allocate first part of working tables
 							       and initialise headers */
 	ws->freeSpHead          = freeSpaceAlloc();
@@ -353,8 +324,12 @@ static void level_up(struct reiser4_syscall_w_space *ws, long type)
 static  void  level_down(struct reiser4_syscall_w_space * ws, long type1, long type2)
 {
 	PTRACE(ws, "%s", "begin");
-	assert("VD-level_down, type mithmatch",type1==type2);
-	assert("VD-level_down, type level mithmatch",type2==ws->cur_level->stype);
+	if (type1!=type2) 
+		warning("VD","level_down=%d, type %d mithmatch",
+			type1,type2);
+	if (type1!=ws->cur_level->stype) 
+		warning("VD","level_down=%d, type level %d mithmatch",
+			type1==ws->cur_level->stype);
 //	path_release(ws->cur_level->path_walk->nd); ??????
 // this is wrong ????	ws->cur_level->prev->wrk_exp = ws->cur_level->wrk_exp ;           /* current wrk for new level */
 	ws->cur_level                = ws->cur_level->prev;
@@ -435,7 +410,7 @@ static void move_selected_word(struct reiser4_syscall_w_space * ws, int exclude 
 	                if( ws->tmpWrdEnd > (ws->freeSpCur->freeSpaceMax - sizeof(wrd_t)) )
 		                {
 					
-					assert ("sys_reiser4. selectet_word:Internal space buffer overflow: input token exceed size of bufer",
+					assert ("VD sys_reiser4. selectet_word:Internal space buffer overflow: input token exceed size of bufer",
 						ws->freeSpCur->freeSpace > ws->freeSpCur->freeSpaceBase);
 						/* we can reallocate new space and copy all
 						   symbols of current token inside it */
@@ -443,7 +418,7 @@ static void move_selected_word(struct reiser4_syscall_w_space * ws, int exclude 
 						freeSpace_t * tmp;
 						tmp=ws->freeSpCur;
 						ws->freeSpCur = freeSpaceNextAlloc(ws);
-						assert ("sys_reiser4:Internal text buffer overflow: no enouse mem", ws->freeSpCur !=NULL);
+						assert ("VD sys_reiser4:Internal text buffer overflow: no enouse mem", ws->freeSpCur !=NULL);
 						{
 							int i;
 							i = ws->tmpWrdEnd - tmp->freeSpace;
@@ -641,7 +616,7 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 static expr_v4_t * alloc_new_expr(struct reiser4_syscall_w_space * ws, int type)
 {
 	expr_v4_t * e;
-	assert("alloc_new_expr: bad ws",ws!=NULL);
+//	assert("alloc_new_expr: bad ws",ws!=NULL);
 	e         = ( expr_v4_t *)  list_alloc( ws, sizeof(expr_v4_t));
 	e->h.type = type;
 	return e;
@@ -671,7 +646,11 @@ static expr_v4_t *  init_pwd(struct reiser4_syscall_w_space * ws)
 	expr_v4_t * e;
 	e                  = alloc_new_expr(ws,EXPR_VNODE);
 	e->vnode.v         = alloc_vnode(ws,ws->root_e->vnode.v);
+
+
 	e->vnode.v->w      = nullname(ws) ;  /* better if it will point to full pathname for pwd */
+
+
 	e->vnode.v->ln     = get_lnode(ws,current->fs->pwd->d_inode) ; 
 	e->vnode.v->parent = ws->root_e->vnode.v;
 	return e;
