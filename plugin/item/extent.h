@@ -66,9 +66,6 @@ static inline void extent_set_width(reiser4_extent *ext, reiser4_block_nr width)
 #define extent_by_coord(coord) (extent_item (coord) + (coord)->unit_pos)
 #define width_by_coord(coord) extent_get_width (extent_by_coord(coord))
 
-/* FIXME: hmm */
-/*#define extent_item_is_dirty(item) 1*/
-
 
 /*
  * plugin->item.common.*

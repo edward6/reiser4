@@ -8,10 +8,8 @@
 #include "../../key.h"
 #include "../../kassign.h"
 #include "../../coord.h"
-#include "../file/file.h"
 #include "item.h"
 #include "extent.h"
-#include "../node/node.h"
 #include "../plugin.h"
 #include "../../txnmgr.h"
 #include "../../jnode.h"
@@ -22,18 +20,14 @@
 #include "../../super.h"
 #include "../../page_cache.h"
 #include "../../tree.h"
-#include "../../vfs_ops.h"
 #include "../../inode.h"
 
 #include <asm/uaccess.h>
 #include <linux/pagemap.h>
-#include <linux/slab.h>
 #include <linux/writeback.h>
-#include <linux/bio.h>
 #include <linux/quotaops.h>
-#include <linux/types.h>
 #include <linux/fs.h> /* for struct address_space  */
-#include <linux/list.h> /* for struct list_head */
+
 
 static const reiser4_block_nr null_block_nr = (__u64)0;
 
