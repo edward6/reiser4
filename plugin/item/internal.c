@@ -81,8 +81,7 @@ void internal_down_link( const tree_coord *coord /* coord of item */,
 	assert( "nikita-612", ( key == NULL ) || 
 		/* twig horrors */
 		( znode_get_level( coord -> node ) == TWIG_LEVEL ) ||
-		keycmp( item_key_by_coord( coord, 
-					   &item_key ), key ) != GREATER_THAN );
+		keyle( item_key_by_coord( coord, &item_key ), key ) );
 
 	*block = pointer_at( coord );
 }
@@ -211,7 +210,7 @@ int internal_create_hook( const tree_coord *item /* coord of item */,
 			rd = znode_get_rd_key( arg );
 			if( !keyeq( rd, znode_get_ld_key( child ) ) ) {
 				assert( "nikita-1806", 
-					keycmp( rd, znode_get_ld_key( child ) ) == GREATER_THAN );
+					keygt( rd, znode_get_ld_key( child ) ) );
 				reiser4_stat_add_at_level
 					( znode_get_level( child ), 
 					  dk_vs_create_race );

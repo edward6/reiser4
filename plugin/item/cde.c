@@ -522,8 +522,7 @@ lookup_result cde_lookup( const reiser4_key *key /* key to search for */,
 	assert( "nikita-1293", coord != NULL );
 	assert( "nikita-1294", key != NULL );
 
-	if( keycmp( key, cde_max_key_inside( coord, 
-					     &utmost_key ) ) == GREATER_THAN ) {
+	if( keygt( key, cde_max_key_inside( coord, &utmost_key ) ) ) {
 		/*
 		 * @key is from another directory item
 		 */
@@ -531,8 +530,7 @@ lookup_result cde_lookup( const reiser4_key *key /* key to search for */,
 		coord -> between = AFTER_UNIT;
 		return CBK_COORD_NOTFOUND;
 	}
-	if( keycmp( item_key_by_coord( coord, &utmost_key ), 
-		    key ) == GREATER_THAN ) {
+	if( keygt( item_key_by_coord( coord, &utmost_key ), key ) ) {
 		coord -> unit_pos = 0;
 		coord -> between = BEFORE_UNIT;
 		return CBK_COORD_NOTFOUND;

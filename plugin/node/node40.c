@@ -236,8 +236,8 @@ node_search_result node40_lookup( znode *node /* node to query */,
 				if( REISER4_NON_UNIQUE_KEYS && found ) {
 					assert( "nikita-1257", left < right );
 					++ left;
-					assert( "nikita-1258", keycmp
-						( __get_key( left ), key ) == EQUAL_TO );
+					assert( "nikita-1258", keyeq
+						( __get_key( left ), key ) );
 				}
 				break;
 			}
@@ -267,7 +267,7 @@ node_search_result node40_lookup( znode *node /* node to query */,
 			break;
 		}
 		if( abs( left - right ) < 2 ) {
-			if( keycmp( __get_key( right ), key ) != GREATER_THAN )
+			if( keyle( __get_key( right ), key ) )
 				left = right;
 			found = keyeq( key, __get_key( left ) );
 			break;
@@ -333,8 +333,8 @@ node_search_result node40_lookup( znode *node /* node to query */,
 		reiser4_key max_item_key;
 
 		/* key > max_item_key --- outside of an item */
-		if( keycmp( key, iplug -> b.max_key_inside
-			    ( coord, &max_item_key ) ) == GREATER_THAN ) {
+		if( keygt( key, iplug -> b.max_key_inside( coord, 
+							   &max_item_key ) ) ) {
 			/*
 			 * FIXME-NIKITA nikita: should be AFTER_ITEM
 			 */
@@ -513,7 +513,7 @@ int node40_check( const znode *node /* node to check */,
 		}
 		old_offset = ih_40_get_offset( ih );
 
-		if ( keycmp ( &prev, &ih -> key ) == GREATER_THAN ) {
+		if ( keygt( &prev, &ih -> key ) ) {
 			*error = "Keys are in wrong order";
 			return -1;
 		}
@@ -526,7 +526,7 @@ int node40_check( const znode *node /* node to check */,
 		for( j = 0 ; j < coord_num_units( &coord ) ; ++ j ) {
 			coord.unit_pos = j;
 			unit_key_by_coord( &coord, &unit_key );
-			if( keycmp ( &prev, &unit_key ) == GREATER_THAN ) {
+			if( keygt( &prev, &unit_key ) ) {
 				*error = "Unit keys are in wrong order";
 				return -1;
 			}
@@ -552,14 +552,14 @@ int node40_check( const znode *node /* node to check */,
 	}
 
 	if( flags & REISER4_NODE_DKEYS ) {
-		if ( keycmp ( &prev, &node -> rd_key ) == GREATER_THAN ) {
+		if ( keygt( &prev, &node -> rd_key ) ) {
 			reiser4_stat_tree_add( rd_key_skew );
 			if( flags & REISER4_NODE_TREE_STABLE ) {
 				*error = "Last key is greater than rdkey"; 
 				return -1;
 			}
 		} 
-		if( keycmp( &node -> ld_key, &node -> rd_key ) == GREATER_THAN ) {
+		if( keygt( &node -> ld_key, &node -> rd_key ) ) {
 			*error = "ldkey is greater than rdkey"; 
 			return -1;
 		}
@@ -570,8 +570,7 @@ int node40_check( const znode *node /* node to check */,
 		    ergo( flags & REISER4_NODE_TREE_STABLE,
 			  !keyeq( &node -> left -> rd_key, &node -> ld_key ) ) &&
 		    ergo( ! ( flags & REISER4_NODE_TREE_STABLE ),
-			  ( keycmp( &node -> left -> rd_key, 
-				    &node -> ld_key ) == GREATER_THAN ) ) )
+			  keygt( &node -> left -> rd_key, &node -> ld_key ) ) )
 		{
 			*error = "left rdkey or ldkey is wrong"; 
 			return -1;
@@ -583,8 +582,7 @@ int node40_check( const znode *node /* node to check */,
 		    ergo( flags & REISER4_NODE_TREE_STABLE,
 			  !keyeq( &node -> rd_key, &node -> right -> ld_key ) ) &&
 		    ergo( ! ( flags & REISER4_NODE_TREE_STABLE ),
-			  ( keycmp( &node -> rd_key, 
-				    &node -> right -> ld_key ) == GREATER_THAN ) ) )
+			  keygt( &node -> rd_key, &node -> right -> ld_key ) ) )
 		{
 			*error = "rdkey or right ldkey is wrong"; 
 			return -1;

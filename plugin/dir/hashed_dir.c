@@ -471,9 +471,8 @@ static int entry_actor( reiser4_tree *tree UNUSED_ARG /* tree being scanned */,
 #endif
 	if( !keyeq( args -> key, unit_key_by_coord( coord, &unit_key ) ) ) {
 		assert( "nikita-1791", 
-			keycmp( args -> key, 
-				unit_key_by_coord( coord, 
-						   &unit_key ) ) == LESS_THAN );
+			keylt( args -> key, 
+			       unit_key_by_coord( coord, &unit_key ) ) );
 		args -> not_found = 1;
 		args -> last_coord.between = AFTER_UNIT;
 		return 0;

@@ -60,8 +60,8 @@ int item_can_contain_key( const tree_coord *item /* coord of item */,
 		 *    key <= max_key_in_item
 		 */
 		return 
-			( keycmp( &min_key_in_item, key ) != GREATER_THAN ) &&
-			( keycmp( key, &max_key_in_item ) != GREATER_THAN );
+			keyle( &min_key_in_item, key ) &&
+			keyle( key, &max_key_in_item );
 	}
 }
 
@@ -87,8 +87,8 @@ int are_items_mergeable( const tree_coord *i1 /* coord of first item */,
 	 * shifting code when nodes are in "suspended" state.
 	 */
 	assert( "nikita-1663", 
-		keycmp( item_key_by_coord( i1, &k1 ),
-			item_key_by_coord( i2, &k2 ) ) != GREATER_THAN );
+		keyle( item_key_by_coord( i1, &k1 ), 
+		       item_key_by_coord( i2, &k2 ) ) );
 
 	if( iplug -> common.mergeable != NULL ) {
 		return iplug -> common.mergeable( i1, i2 );
@@ -99,8 +99,8 @@ int are_items_mergeable( const tree_coord *i1 /* coord of first item */,
 		/*
 		 * mergeable if ->max_key_inside() >= key of i2;
 		 */
-		return keycmp( iplug -> common.max_key_inside( i1, &k1 ), 
-			       item_key_by_coord( i2, &k2 ) ) != LESS_THAN;
+		return keyge( iplug -> common.max_key_inside( i1, &k1 ), 
+			      item_key_by_coord( i2, &k2 ) );
 	} else {
 		item_key_by_coord( i1, &k1 );
 		item_key_by_coord( i2, &k2 );

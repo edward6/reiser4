@@ -117,6 +117,7 @@ cmp_t keycmp( const reiser4_key *k1 /* first key to compare */,
 	return result;
 }
 
+/** true if @k1 equals @k2 */
 int keyeq( const reiser4_key *k1 /* first key to compare */, 
 	   const reiser4_key *k2 /* second key to compare */ )
 {
@@ -124,6 +125,44 @@ int keyeq( const reiser4_key *k1 /* first key to compare */,
 	assert( "nikita-1880", k2 != NULL );
 	return !memcmp( k1, k2, sizeof *k1 );
 }
+
+/** true if @k1 is less than @k2 */
+int keylt( const reiser4_key *k1 /* first key to compare */, 
+	   const reiser4_key *k2 /* second key to compare */ )
+{
+	assert( "nikita-1952", k1 != NULL );
+	assert( "nikita-1953", k2 != NULL );
+	return keycmp( k1, k2 ) == LESS_THAN;
+}
+
+/** true if @k1 is less than or equal to @k2 */
+int keyle( const reiser4_key *k1 /* first key to compare */, 
+	   const reiser4_key *k2 /* second key to compare */ )
+{
+	assert( "nikita-1954", k1 != NULL );
+	assert( "nikita-1955", k2 != NULL );
+	return keycmp( k1, k2 ) != GREATER_THAN;
+}
+
+/** true if @k1 is greater than @k2 */
+int keygt( const reiser4_key *k1 /* first key to compare */, 
+	   const reiser4_key *k2 /* second key to compare */ )
+{
+	assert( "nikita-1954", k1 != NULL );
+	assert( "nikita-1955", k2 != NULL );
+	return keycmp( k1, k2 ) == GREATER_THAN;
+}
+
+/** true if @k1 is greater than or equal to @k2 */
+int keyge( const reiser4_key *k1 /* first key to compare */, 
+	   const reiser4_key *k2 /* second key to compare */ )
+{
+	assert( "nikita-1956", k1 != NULL );
+	assert( "nikita-1957", k2 != NULL ); /* October  4: sputnik launched
+					      * November 3: Laika */
+	return keycmp( k1, k2 ) != LESS_THAN;
+}
+
 
 /** debugging aid: print symbolic name of key type */
 static const char *type_name( unsigned int key_type /* key type */ )

@@ -133,10 +133,9 @@ lookup_result tail_lookup (const reiser4_key * key, lookup_bias bias,
 	/*
 	 * key we are looking for must be greater than key of item @coord
 	 */
-	assert ("vs-416", keycmp (key, &item_key) == GREATER_THAN);
+	assert ("vs-416", keygt (key, &item_key));
 
-	if (keycmp (key, tail_max_key_inside (coord, &item_key)) ==
-	    GREATER_THAN) {
+	if (keygt (key, tail_max_key_inside (coord, &item_key))) {
 		/*
 		 * @key is key of another file
 		 */

@@ -822,8 +822,8 @@ int znode_contains_key( znode *node /* znode to look in */,
 
 	/* left_delimiting_key <= key <= right_delimiting_key */
 	return 
-		( keycmp( znode_get_ld_key( node ), key ) != GREATER_THAN ) &&
-		( keycmp( key, znode_get_rd_key( node ) ) != GREATER_THAN );
+		keyle( znode_get_ld_key( node ), key ) &&
+		keyle( key, znode_get_rd_key( node ) );
 }
 
 /** same as znode_contains_key(), but lock dk lock */
