@@ -1663,7 +1663,9 @@ reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent
 		if (need_parent)
 			addr = encode_inode(parent, addr);
 
-		*lenp = need / sizeof(__u32);
+		/* store in lenp number of 32bit words required for file
+		 * handle. */
+		*lenp = (need + sizeof(__u32) - 1) >> 2;
 		result = need_parent ? FH_WITH_PARENT : FH_WITHOUT_PARENT;
 	} else
 		/* no enough space in file handle */
