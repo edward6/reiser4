@@ -935,7 +935,8 @@ static void optimize_extent (coord_t * item)
 		int result;
 		coord_t from, to;
 
-		/*coord_dup (&from, item);*/
+		assert ("vs-952", new_num < old_num);
+
 		from.node = item->node;
 		from.item_pos = item->item_pos;
 		from.iplug = item->iplug;
@@ -945,6 +946,12 @@ static void optimize_extent (coord_t * item)
 		coord_dup (&to, &from);
 		to.unit_pos = old_num - 1;
 
+		/*
+		 * wipe part of item which is going to be cut, so that
+		 * node_check will not be confused by extent overlapping
+		 */
+		memset (extent_by_coord (&from), 0,
+			sizeof (reiser4_extent) * (old_num - new_num));
 		result = cut_node (&from, &to, 0, 0, 0, DELETE_DONT_COMPACT, 0);
 
 		/*
@@ -1105,6 +1112,13 @@ static int add_extents (coord_t * coord,
 		to = *coord;
 		to.unit_pos = old_num - 1;
 		to.between = AT_UNIT;
+
+		/*
+		 * wipe part of item which is going to be cut, so that
+		 * node_check will not be confused by extent overlapping
+		 */
+		memset (extent_by_coord (&from), 0,
+			sizeof (reiser4_extent) * (old_num - new_num - count));
 		return cut_node (&from, &to, 0, 0, 0, 0/*flags*/, 0);
 	}
 }
