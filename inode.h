@@ -142,7 +142,7 @@ struct reiser4_inode {
 	struct list_head  moved_pages;
 	union {
 		readdir_list_head readdir_list;
-		struct list_head mmaped;
+		struct list_head not_used;
 	} lists;
 	/* per-inode flags. Filled by values of reiser4_file_plugin_flags */
 	unsigned long flags;
