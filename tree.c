@@ -1214,6 +1214,7 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 	lock_handle lock_handle;
 	int result;
 	znode *loaded;
+	int err = 0;
 	STORE_COUNTERS;
 
 	assert("umka-329", tree != NULL);
@@ -1235,6 +1236,7 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 		coord_init_zero(&intranode_to);
 		coord_init_zero(&intranode_from);
 		init_lh(&lock_handle);
+		err = 1;
 		/* look for @to_key in the tree or use @to_coord if it is set
 		   properly */
 		result = find_next_item(0, to_key, &intranode_to,	/* was set as hint in
@@ -1247,6 +1249,7 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 			break;
 
 		loaded = intranode_to.node;
+		err = 2;
 		result = zload(loaded);
 		if (result) {
 			done_lh(&lock_handle);
@@ -1256,6 +1259,7 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 		/* lookup for @from_key in current node */
 		assert("vs-686", intranode_to.node->nplug);
 		assert("vs-687", intranode_to.node->nplug->lookup);
+		err = 3;
 		result = intranode_to.node->nplug->lookup(intranode_to.node,
 							  from_key, FIND_MAX_NOT_MORE_THAN, &intranode_from);
 
@@ -1275,6 +1279,7 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 		}
 		/* cut data from one node */
 		smallest_removed = *min_key();
+		err = 4;
 		result = cut_node(&intranode_from, &intranode_to,  /* is used as an input and an output, with output
 								      being a hint used by next loop iteration */
 				  from_key, to_key, &smallest_removed, DELETE_KILL, /*flags */
@@ -1290,10 +1295,12 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 				continue;
 			break;
 		}
-
+		err = 0;
 		assert("vs-301", !keyeq(&smallest_removed, min_key()));
 	} while (keygt(&smallest_removed, from_key));
 
+	if (result != 0)
+		warning("nikita-2861", "failure: %i/%i", result, err);
 	CHECK_COUNTERS;
 	return result;
 }
