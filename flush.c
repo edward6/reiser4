@@ -191,6 +191,30 @@ static void slum_scan_set_current (slum_scan *scan, jnode *node)
 	scan->node  = node;
 }
 
+/* Gets the sibling of an unformatted jnode using its index, only if it is in memory, and
+ * reference it. */
+static jnode*
+jnode_get_neighbor_in_memory (jnode *node, unsigned long node_index)
+{
+	/* FIXME_JMACD: jref (), consult with vs. */
+	return NULL;
+}
+
+/* Get the parent znode and coordinate of a jnode, with parent read-locked. */
+static int
+jnode_get_parent_coord_locked (jnode *node, reiser4_lock_handle *lh, tree_coord *coord)
+{
+	/* FIXME_JMACD: how do we do this? */
+	return 0;
+}
+
+/* Get the index of a block. */
+static unsigned long
+jnode_get_index (jnode *node)
+{
+	return node->pg->index;
+}
+
 /* Perform a single leftward step using the parent, finding the next-left item, and
  * descending.  Only used at the left-boundary of an extent or range of znodes. */
 static int slum_scan_left_using_parent (slum_scan *scan)
@@ -210,9 +234,12 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 
 	if (jnode_is_unformatted (scan->node)) {
 
-		/* FIXME_JMACD: Don't know how to do this. */
+		jnode *node = scan->node;
 
-		ret = 0;
+		/* Get the parent. */
+		if ((ret = jnode_get_parent_coord_locked (node, & parent_lh, & coord))) {
+			goto done;
+		}
 
 	} else {
 		/* Formatted node case: */
@@ -228,44 +255,45 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 			goto done;
 		}
 
-		/* FIXME_JMACD: Do we still need the node lock? */
+		/* Finished with the node lock. */
+		reiser4_done_lh (& node_lh);
 
 		/* Make the child's position "hint" up-to-date. */
 		if ((ret = find_child_ptr (parent_lh.node, node, & coord))) {
 			goto done;
 		}
+	}
 
-		/* Shift the coord to the left. */
-		if ((ret = coord_prev (& coord)) != 0) {
-			/* If coord_prev returns 1, coord is already leftmost of its node. */
+	/* Shift the coord to the left. */
+	if ((ret = coord_prev (& coord)) != 0) {
+		/* If coord_prev returns 1, coord is already leftmost of its node. */
 
-			/* Lock the left-of-parent node, but don't read into memory. */
-			if ((ret = reiser4_get_left_neighbor (& left_parent_lh, parent_lh.node, ZNODE_READ_LOCK, 0))) {
-				goto done;
-			}
-
-			/* Release parent lock -- don't need it any more. */
-			reiser4_done_lh (& parent_lh);
-
-			/* Set coord to the rightmost position of the left-of-parent node. */
-			coord.node = left_parent_lh.node;
-			coord_last_unit (& coord);
-		}
-
-		iplug = item_plugin_by_coord (& coord);
-		child_left = NULL;
-
-		/* If the item has no utmost_child routine (odd), or if the child is not in memory, stop. */
-		if (iplug->utmost_child == NULL || (child_left = iplug->utmost_child (& coord, RIGHT_SIDE)) == NULL) {
-			scan->stop = 1;
-			ret = 0;
+		/* Lock the left-of-parent node, but don't read into memory. */
+		if ((ret = reiser4_get_left_neighbor (& left_parent_lh, parent_lh.node, ZNODE_READ_LOCK, 0))) {
 			goto done;
 		}
+		
+		/* Release parent lock -- don't need it any more. */
+		reiser4_done_lh (& parent_lh);
+		
+		/* Set coord to the rightmost position of the left-of-parent node. */
+		coord.node = left_parent_lh.node;
+		coord_last_unit (& coord);
+	}
 
-		if (IS_ERR (child_left)) {
-			ret = PTR_ERR (child_left);
-			goto done;
-		}
+	/* Get the item plugin. */
+	iplug = item_plugin_by_coord (& coord);
+
+	/* If the item has no utmost_child routine (odd), or if the child is not in memory, stop. */
+	if (iplug->utmost_child == NULL || (child_left = iplug->utmost_child (& coord, RIGHT_SIDE)) == NULL) {
+		scan->stop = 1;
+		ret = 0;
+		goto done;
+	}
+	
+	if (IS_ERR (child_left)) {
+		ret = PTR_ERR (child_left);
+		goto done;
 	}
 
 	/* We've found a child to the left, now see if we should continue the scan.  If not then scan->stop is set. */
@@ -280,22 +308,6 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 	reiser4_done_lh (& left_parent_lh);
 
 	return ret;
-}
-
-/* Gets the sibling of an unformatted jnode using its index, only if it is in memory, and
- * reference it. */
-static jnode*
-jnode_get_neighbor_in_memory (jnode *node, unsigned long node_index)
-{
-	/* FIXME_JMACD: jref () */
-	return NULL;
-}
-
-static unsigned long
-jnode_get_index (jnode *node)
-{
-	/* FIXME_JMACD: */
-	return 0;
 }
 
 /* Performs leftward scanning starting from a formatted node */
