@@ -11,8 +11,9 @@
 #include <linux/sysfs.h>
 #include <linux/fs.h>
 
-/* fixme: access to sysfs files may cause deadlock. Do not turn for now */
-#define REISER4_USE_SYSFS (1)
+/* fixme: access to sysfs files may cause deadlock. Do not turn for now.
+   this requires reiser4-kobject-umount-race.patch */
+#define REISER4_USE_SYSFS (0)
 
 #if REISER4_USE_SYSFS
 

@@ -139,7 +139,8 @@
  *
  * Note: this option consumes quite a bit of kernel memory.
  */
-#define REISER4_STATS (1)
+/* to turn this on reiser4-kobject-umount-race.patch is needed */
+#define REISER4_STATS (0)
 #else
 #define REISER4_STATS (0)
 #endif
