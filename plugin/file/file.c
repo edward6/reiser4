@@ -539,8 +539,8 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 					 &smallest_removed, inode, mode);
 		if (result == -E_REPEAT) {
 			/* -E_REPEAT is a signal to interrupt a long file truncation process */
+			INODE_SET_FIELD(inode, i_size, get_key_offset(&smallest_removed));
 			if (update_sd) {
-				INODE_SET_FIELD(inode, i_size, get_key_offset(&smallest_removed));
 				inode->i_ctime = inode->i_mtime = CURRENT_TIME;
 				result = reiser4_update_sd(inode);
 				if (result)
