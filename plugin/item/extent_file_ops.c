@@ -760,15 +760,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		file_off += count;
 		set_key_offset(&page_key, (loff_t)page_nr << PAGE_CACHE_SHIFT);
 
-		if (flow->length) {
-			/* read in next portion of user buffer */
-			size_t bytes;
-
-			bytes = PAGE_CACHE_SIZE;
-			if (bytes > flow->length)
-				bytes = flow->length;
-			fault_in_pages_readable(flow->data, bytes);
-		}
 		continue;
 
 	exit3:
@@ -789,11 +780,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		   leaf level
 		*/
 	} while (flow->length && uf_coord->valid == 1);
-
-/*
-	if (flow->length)
-		DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
-*/
 
 	return result;
 }
