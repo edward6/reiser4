@@ -595,6 +595,7 @@ int node40_check( const znode *node /* node to check */,
 		}
 	}
 
+	spin_lock_dk( current_tree );
 	if( ( flags & REISER4_NODE_DKEYS ) && !node_is_empty( node ) ) {
 		coord_t coord;
 		item_plugin *iplug;
@@ -613,7 +614,6 @@ int node40_check( const znode *node /* node to check */,
 		}
 	}
 	if( flags & REISER4_NODE_DKEYS ) {
-		spin_lock_dk( current_tree );
 		spin_lock_tree( current_tree );
 
 		if ( keygt( &prev, &node -> rd_key ) ) {
@@ -651,8 +651,8 @@ int node40_check( const znode *node /* node to check */,
 		}
 
 		spin_unlock_tree( current_tree );
-		spin_unlock_dk( current_tree );
 	}
+	spin_unlock_dk( current_tree );
 
 	zrelse( ( znode *) node );
 	return 0;

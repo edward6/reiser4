@@ -199,20 +199,28 @@ void print_node_content( const char *prefix /* output prefix */,
 
 #if REISER4_DEBUG_NODE
 /** debugging aid: check consistency of @node content */
-void node_check( const znode *node /* node to check */, 
+void node_check( znode *node /* node to check */, 
 		 __u32 flags /* check flags */ )
 {
 	const char * mes;
-	
-	if( znode_is_loaded( node ) &&
-	    !get_current_context() -> disable_node_check &&
-	    ( node_plugin_by_node( node ) -> check ) &&
-	    node_plugin_by_node( node ) -> check( node, flags, &mes ) ) {
+	int result;
+
+	if( get_current_context() -> disable_node_check )
+		return;
+	if( znode_above_root( node ) )
+		return;
+	if( znode_just_created( node ) )
+		return;
+
+	zload( node );
+	result = node_plugin_by_node( node ) -> check( node, flags, &mes );
+	if( result != 0 ) {
 		info( "%s\n", mes );
 		print_node_content( "check", node, ~0u );
 		if( flags & REISER4_NODE_PANIC )
 			rpanic( "vs-273", "node corrupted" );
 	}
+	zrelse( node );
 }
 #endif
 
