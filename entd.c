@@ -61,6 +61,7 @@ init_entd_context(struct super_block *super)
 #if REISER4_DEBUG
 	flushers_list_init(&ctx->flushers_list);
 #endif
+	wbq_list_init(&ctx->wbq_list);
 }
 
 static int
