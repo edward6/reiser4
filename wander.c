@@ -595,7 +595,9 @@ static int get_overwrite_set (struct commit_handle * ch)
 }
 
 /* overwrite set nodes IO completion handler */
-static int wander_end_io (struct bio * bio, unsigned int bytes_done, int err)
+static int wander_end_io (struct bio *bio, 
+			  unsigned int bytes_done UNUSED_ARG, 
+			  int err UNUSED_ARG)
 {
 	int i;
 

@@ -378,6 +378,7 @@ txnh_init (txn_handle *txnh,
 	txnh_list_clean (txnh);
 }
 
+#if REISER4_DEBUG
 /* Check if a transaction handle is clean. */
 /* Audited by: umka (2002.06.13) */
 static int
@@ -386,6 +387,7 @@ txnh_isclean (txn_handle *txnh)
 	assert("umka-172", txnh != NULL);
 	return ((txnh->atom == NULL) && spin_txnh_is_not_locked (txnh));
 }
+#endif
 
 /* Initialize an atom. */
 /* Audited by: umka (2002.06.13) */
@@ -646,6 +648,7 @@ txn_same_atom_dirty (jnode *node, jnode *check, int alloc_check, int alloc_value
 	return compat;
 }
 
+#if REISER4_DEBUG
 /* Return true if an atom is currently "open". */
 /* Audited by: umka (2002.06.13) */
 static int
@@ -655,6 +658,8 @@ atom_isopen (const txn_atom *atom)
 	
 	return atom->stage & (ASTAGE_CAPTURE_FUSE | ASTAGE_CAPTURE_WAIT);
 }
+#endif
+
 
 /* Decrement the atom's reference count and if it falls to zero, free it. */ 
 /* Audited by: umka (2002.06.13) */

@@ -240,306 +240,294 @@ int item_is_statdata (const coord_t *item)
 	return item_type_by_coord (item) == STAT_DATA_ITEM_TYPE;
 }
 
-reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
+item_plugin item_plugins[ LAST_ITEM_ID ] = {
 	[ STATIC_STAT_DATA_ID ] = {
-		.item = {
-			.h = {
-				.type_id   = REISER4_ITEM_PLUGIN_TYPE,
-				.id        = STATIC_STAT_DATA_ID,
-				.pops      = NULL,
-				.label     = "sd",
-				.desc      = "stat-data",
-				.linkage   = TS_LIST_LINK_ZERO
-			},
-			.common = {
-				.item_type               = STAT_DATA_ITEM_TYPE,
-				.max_key_inside          = single_key,
-				.can_contain_key         = NULL,
-				.mergeable               = NULL,
-				.print                   = sd_print,
-				.check                   = NULL,
-				.nr_units                = single_unit,
-				/* to need for ->lookup method */
-				.lookup                  = NULL,
-				.init                    = NULL,
-				.paste                   = NULL,
-				.fast_paste              = NULL,
-				.can_shift               = NULL,
-				.copy_units              = NULL,
-				.create_hook             = NULL,
-				.kill_hook               = NULL,
-				.shift_hook              = NULL,
-				.cut_units               = NULL,
-				.kill_units              = NULL,
-				.unit_key                = NULL,
-				.estimate                = NULL,
-				.item_data_by_flow       = NULL,
-				.utmost_child            = NULL,
-				.utmost_child_real_block = NULL,
-				.real_max_key_inside     = NULL,
-				.key_in_item             = NULL,
-				.key_in_unit             = NULL,
-				.item_stat               = sd_item_stat
-			},
-			.s = {
-				.sd = {
-					.init_inode = sd_load,
-					.save_len   = sd_len,
-					.save       = sd_save
-				}
+		.h = {
+			.type_id   = REISER4_ITEM_PLUGIN_TYPE,
+			.id        = STATIC_STAT_DATA_ID,
+			.pops      = NULL,
+			.label     = "sd",
+			.desc      = "stat-data",
+			.linkage   = TS_LIST_LINK_ZERO
+		},
+		.common = {
+			.item_type               = STAT_DATA_ITEM_TYPE,
+			.max_key_inside          = single_key,
+			.can_contain_key         = NULL,
+			.mergeable               = NULL,
+			.print                   = sd_print,
+			.check                   = NULL,
+			.nr_units                = single_unit,
+			/* to need for ->lookup method */
+			.lookup                  = NULL,
+			.init                    = NULL,
+			.paste                   = NULL,
+			.fast_paste              = NULL,
+			.can_shift               = NULL,
+			.copy_units              = NULL,
+			.create_hook             = NULL,
+			.kill_hook               = NULL,
+			.shift_hook              = NULL,
+			.cut_units               = NULL,
+			.kill_units              = NULL,
+			.unit_key                = NULL,
+			.estimate                = NULL,
+			.item_data_by_flow       = NULL,
+			.utmost_child            = NULL,
+			.utmost_child_real_block = NULL,
+			.real_max_key_inside     = NULL,
+			.key_in_item             = NULL,
+			.key_in_unit             = NULL,
+			.item_stat               = sd_item_stat
+		},
+		.s = {
+			.sd = {
+				.init_inode = sd_load,
+				.save_len   = sd_len,
+				.save       = sd_save
 			}
 		}
 	},
 	[ SIMPLE_DIR_ENTRY_ID ] = {
-		.item = {
-			.h = {
-				.type_id = REISER4_ITEM_PLUGIN_TYPE,
-				.id      = SIMPLE_DIR_ENTRY_ID,
-				.pops    = NULL,
-				.label   = "de",
-				.desc    = "directory entry",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.common = {
-				.item_type               = DIR_ENTRY_ITEM_TYPE,
-				.max_key_inside          = single_key,
-				.can_contain_key         = NULL,
-				.mergeable               = NULL,
-				.print                   = de_print,
-				.check                   = NULL,
-				.nr_units                = single_unit,
-				/* to need for ->lookup method */
-				.lookup                  = NULL,
-				.init                    = NULL,
-				.paste                   = NULL,
-				.fast_paste              = NULL,
-				.can_shift               = NULL,
-				.copy_units              = NULL,
-				.create_hook             = NULL,
-				.kill_hook               = NULL,
-				.shift_hook              = NULL,
-				.cut_units               = NULL,
-				.kill_units              = NULL,
-				.unit_key                = NULL,
-				.estimate                = NULL,
-				.item_data_by_flow       = NULL,
-				.utmost_child            = NULL,
-				.utmost_child_real_block = NULL,
-				.real_max_key_inside     = NULL,
-				.key_in_item             = NULL,
-				.key_in_unit             = NULL,
-				.item_stat               = NULL
-			},
-			.s = {
-				.dir = {
-					.extract_key       = de_extract_key,
-					.update_key        = de_update_key,
-					.extract_name      = de_extract_name,
-					.extract_file_type = de_extract_file_type,
-					.add_entry         = de_add_entry,
-					.rem_entry         = de_rem_entry,
-					.max_name_len      = de_max_name_len
-				}
+		.h = {
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
+			.id      = SIMPLE_DIR_ENTRY_ID,
+			.pops    = NULL,
+			.label   = "de",
+			.desc    = "directory entry",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.common = {
+			.item_type               = DIR_ENTRY_ITEM_TYPE,
+			.max_key_inside          = single_key,
+			.can_contain_key         = NULL,
+			.mergeable               = NULL,
+			.print                   = de_print,
+			.check                   = NULL,
+			.nr_units                = single_unit,
+			/* to need for ->lookup method */
+			.lookup                  = NULL,
+			.init                    = NULL,
+			.paste                   = NULL,
+			.fast_paste              = NULL,
+			.can_shift               = NULL,
+			.copy_units              = NULL,
+			.create_hook             = NULL,
+			.kill_hook               = NULL,
+			.shift_hook              = NULL,
+			.cut_units               = NULL,
+			.kill_units              = NULL,
+			.unit_key                = NULL,
+			.estimate                = NULL,
+			.item_data_by_flow       = NULL,
+			.utmost_child            = NULL,
+			.utmost_child_real_block = NULL,
+			.real_max_key_inside     = NULL,
+			.key_in_item             = NULL,
+			.key_in_unit             = NULL,
+			.item_stat               = NULL
+		},
+		.s = {
+			.dir = {
+				.extract_key       = de_extract_key,
+				.update_key        = de_update_key,
+				.extract_name      = de_extract_name,
+				.extract_file_type = de_extract_file_type,
+				.add_entry         = de_add_entry,
+				.rem_entry         = de_rem_entry,
+				.max_name_len      = de_max_name_len
 			}
 		}
 	},
 	[ COMPOUND_DIR_ID ] = {
-		.item = {
-			.h = {
-				.type_id = REISER4_ITEM_PLUGIN_TYPE,
-				.id      = COMPOUND_DIR_ID,
-				.pops    = NULL,
-				.label   = "cde",
-				.desc    = "compressed directory entry",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.common = {
-				.item_type               = DIR_ENTRY_ITEM_TYPE,
-				.max_key_inside          = cde_max_key_inside,
-				.can_contain_key         = cde_can_contain_key,
-				.mergeable               = cde_mergeable,
-				.print                   = cde_print,
-				.check                   = cde_check,
-				.nr_units                = cde_nr_units,
-				.lookup                  = cde_lookup,
-				.init                    = cde_init,
-				.paste                   = cde_paste,
-				.fast_paste              = agree_to_fast_op,
-				.can_shift               = cde_can_shift,
-				.copy_units              = cde_copy_units,
-				.create_hook             = NULL,
-				.kill_hook               = NULL,
-				.shift_hook              = NULL,
-				.cut_units               = cde_cut_units,
-				.kill_units              = cde_cut_units,
-				.unit_key                = cde_unit_key,
-				.estimate                = cde_estimate,
-				.item_data_by_flow       = NULL,
-				.utmost_child            = NULL,
-				.utmost_child_real_block = NULL,
-				.real_max_key_inside     = NULL,
-				.key_in_item             = NULL,
-				.key_in_unit             = NULL,
-				.item_stat               = NULL
-			},
-			.s = {
-				.dir = {
-					.extract_key       = cde_extract_key,
-					.update_key        = cde_update_key,
-					.extract_name      = cde_extract_name,
-					.extract_file_type = de_extract_file_type,
-					.add_entry         = cde_add_entry,
-					.rem_entry         = cde_rem_entry,
-					.max_name_len      = cde_max_name_len
-				}
+		.h = {
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
+			.id      = COMPOUND_DIR_ID,
+			.pops    = NULL,
+			.label   = "cde",
+			.desc    = "compressed directory entry",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.common = {
+			.item_type               = DIR_ENTRY_ITEM_TYPE,
+			.max_key_inside          = cde_max_key_inside,
+			.can_contain_key         = cde_can_contain_key,
+			.mergeable               = cde_mergeable,
+			.print                   = cde_print,
+			.check                   = cde_check,
+			.nr_units                = cde_nr_units,
+			.lookup                  = cde_lookup,
+			.init                    = cde_init,
+			.paste                   = cde_paste,
+			.fast_paste              = agree_to_fast_op,
+			.can_shift               = cde_can_shift,
+			.copy_units              = cde_copy_units,
+			.create_hook             = NULL,
+			.kill_hook               = NULL,
+			.shift_hook              = NULL,
+			.cut_units               = cde_cut_units,
+			.kill_units              = cde_cut_units,
+			.unit_key                = cde_unit_key,
+			.estimate                = cde_estimate,
+			.item_data_by_flow       = NULL,
+			.utmost_child            = NULL,
+			.utmost_child_real_block = NULL,
+			.real_max_key_inside     = NULL,
+			.key_in_item             = NULL,
+			.key_in_unit             = NULL,
+			.item_stat               = NULL
+		},
+		.s = {
+			.dir = {
+				.extract_key       = cde_extract_key,
+				.update_key        = cde_update_key,
+				.extract_name      = cde_extract_name,
+				.extract_file_type = de_extract_file_type,
+				.add_entry         = cde_add_entry,
+				.rem_entry         = cde_rem_entry,
+				.max_name_len      = cde_max_name_len
 			}
 		}
 	},
 	[ NODE_POINTER_ID ] = {
-		.item = {
-			.h = {
-				.type_id = REISER4_ITEM_PLUGIN_TYPE,
-				.id      = NODE_POINTER_ID,
-				.pops    = NULL,
-				.label   = "internal",
-				.desc    = "internal item",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.common = {
-				.item_type               = INTERNAL_ITEM_TYPE,
-				.max_key_inside          = NULL,
-				.can_contain_key         = NULL,
-				.mergeable               = internal_mergeable,
-				.print                   = internal_print,
-				.check                   = NULL,
-				.nr_units                = single_unit,
-				.lookup                  = internal_lookup,
-				.init                    = NULL,
-				.paste                   = NULL,
-				.fast_paste              = NULL,
-				.can_shift               = NULL,
-				.copy_units              = NULL,
-				.create_hook             = internal_create_hook,
-				.kill_hook               = internal_kill_hook,
-				.shift_hook              = internal_shift_hook,
-				.cut_units               = NULL,
-				.kill_units              = NULL,
-				.unit_key                = NULL,
-				.estimate                = NULL,
-				.item_data_by_flow       = NULL,
-				.utmost_child            = internal_utmost_child,
-				.utmost_child_real_block = internal_utmost_child_real_block,
-				.real_max_key_inside     = NULL,
-				.key_in_item             = NULL,
-				.key_in_unit             = NULL,
-				.item_stat               = NULL
-			},
-			.s = {
-				.internal = {
-					.down_link      = internal_down_link,
-					.has_pointer_to = internal_has_pointer_to
-				}
+		.h = {
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
+			.id      = NODE_POINTER_ID,
+			.pops    = NULL,
+			.label   = "internal",
+			.desc    = "internal item",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.common = {
+			.item_type               = INTERNAL_ITEM_TYPE,
+			.max_key_inside          = NULL,
+			.can_contain_key         = NULL,
+			.mergeable               = internal_mergeable,
+			.print                   = internal_print,
+			.check                   = NULL,
+			.nr_units                = single_unit,
+			.lookup                  = internal_lookup,
+			.init                    = NULL,
+			.paste                   = NULL,
+			.fast_paste              = NULL,
+			.can_shift               = NULL,
+			.copy_units              = NULL,
+			.create_hook             = internal_create_hook,
+			.kill_hook               = internal_kill_hook,
+			.shift_hook              = internal_shift_hook,
+			.cut_units               = NULL,
+			.kill_units              = NULL,
+			.unit_key                = NULL,
+			.estimate                = NULL,
+			.item_data_by_flow       = NULL,
+			.utmost_child            = internal_utmost_child,
+			.utmost_child_real_block = internal_utmost_child_real_block,
+			.real_max_key_inside     = NULL,
+			.key_in_item             = NULL,
+			.key_in_unit             = NULL,
+			.item_stat               = NULL
+		},
+		.s = {
+			.internal = {
+				.down_link      = internal_down_link,
+				.has_pointer_to = internal_has_pointer_to
 			}
 		}
 	},
 	[ EXTENT_POINTER_ID ] = {
-		.item = {
-			.h = {
-				.type_id = REISER4_ITEM_PLUGIN_TYPE,
-				.id      = EXTENT_POINTER_ID,
-				.pops    = NULL,
-				.label   = "extent",
-				.desc    = "extent item",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.common = {
-				.item_type               = ORDINARY_FILE_METADATA_TYPE,
-				.max_key_inside          = extent_max_key_inside,
-				.can_contain_key         = extent_can_contain_key,
-				.mergeable               = extent_mergeable,
-				.print                   = extent_print,
-				.check                   = extent_check,
-				.nr_units                = extent_nr_units,
-				.lookup                  = extent_lookup,
-				.init                    = NULL,
-				.paste                   = extent_paste,
-				.fast_paste              = agree_to_fast_op,
-				.can_shift               = extent_can_shift,
-				.create_hook             = extent_create_hook,
-				.copy_units              = extent_copy_units,
-				.kill_hook               = extent_kill_item_hook,
-				.shift_hook              = NULL,
-				.cut_units               = extent_cut_units,
-				.kill_units              = extent_kill_units,
-				.unit_key                = extent_unit_key,
-				.estimate                = NULL,
-				.item_data_by_flow       = NULL,
-				.utmost_child            = extent_utmost_child,
-				.utmost_child_real_block = extent_utmost_child_real_block,
-				.real_max_key_inside     = extent_max_key,
-				.key_in_item             = extent_key_in_item,
-				.key_in_unit             = extent_key_in_unit,
-				.item_stat               = extent_item_stat
+		.h = {
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
+			.id      = EXTENT_POINTER_ID,
+			.pops    = NULL,
+			.label   = "extent",
+			.desc    = "extent item",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.common = {
+			.item_type               = ORDINARY_FILE_METADATA_TYPE,
+			.max_key_inside          = extent_max_key_inside,
+			.can_contain_key         = extent_can_contain_key,
+			.mergeable               = extent_mergeable,
+			.print                   = extent_print,
+			.check                   = extent_check,
+			.nr_units                = extent_nr_units,
+			.lookup                  = extent_lookup,
+			.init                    = NULL,
+			.paste                   = extent_paste,
+			.fast_paste              = agree_to_fast_op,
+			.can_shift               = extent_can_shift,
+			.create_hook             = extent_create_hook,
+			.copy_units              = extent_copy_units,
+			.kill_hook               = extent_kill_item_hook,
+			.shift_hook              = NULL,
+			.cut_units               = extent_cut_units,
+			.kill_units              = extent_kill_units,
+			.unit_key                = extent_unit_key,
+			.estimate                = NULL,
+			.item_data_by_flow       = NULL,
+			.utmost_child            = extent_utmost_child,
+			.utmost_child_real_block = extent_utmost_child_real_block,
+			.real_max_key_inside     = extent_max_key,
+			.key_in_item             = extent_key_in_item,
+			.key_in_unit             = extent_key_in_unit,
+			.item_stat               = extent_item_stat
 
-			},
-			.s = {
-				.file = {
-					.write     = extent_write,
-					.read      = extent_read,
-					.readpage  = extent_readpage,
-					.writepage = extent_writepage,
-					.page_cache_readahead = extent_page_cache_readahead,
-				}
+		},
+		.s = {
+			.file = {
+				.write     = extent_write,
+				.read      = extent_read,
+				.readpage  = extent_readpage,
+				.writepage = extent_writepage,
+				.page_cache_readahead = extent_page_cache_readahead,
 			}
 		}
 	},
 	[ TAIL_ID ] = {
-		.item = {
-			.h = {
-				.type_id = REISER4_ITEM_PLUGIN_TYPE,
-				.id      = TAIL_ID,
-				.pops    = NULL,
-				.label   = "body",
-				.desc    = "body (or tail?) item",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.common = {
-				.item_type               = ORDINARY_FILE_METADATA_TYPE,
-				.max_key_inside          = tail_max_key_inside,
-				.can_contain_key         = tail_can_contain_key,
-				.mergeable               = tail_mergeable,
-				.print                   = NULL,
-				.check                   = NULL,
-				.nr_units                = tail_nr_units,
-				.lookup                  = tail_lookup,
-				.init                    = NULL,
-				.paste                   = tail_paste,
-				.fast_paste              = agree_to_fast_op,
-				.can_shift               = tail_can_shift,
-				.create_hook             = NULL,
-				.copy_units              = tail_copy_units,
-				.kill_hook               = NULL,
-				.shift_hook              = NULL,
-				.cut_units               = tail_cut_units,
-				.kill_units              = tail_cut_units,
-				.unit_key                = tail_unit_key,
-				.estimate                = NULL,
-				.item_data_by_flow       = NULL,
-				.utmost_child            = NULL,
-				.utmost_child_real_block = NULL,
-				.real_max_key_inside     = tail_max_key,
-				.key_in_item             = tail_key_in_item,
-				.key_in_unit             = NULL,
-				.item_stat               = NULL
-			},
-			.s = {
-				.file = {
-					.write     = tail_write,
-					.read      = tail_read,
-					.readpage  = NULL,
-					.writepage = NULL,
-					.page_cache_readahead = NULL
-				}
+		.h = {
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
+			.id      = TAIL_ID,
+			.pops    = NULL,
+			.label   = "body",
+			.desc    = "body (or tail?) item",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.common = {
+			.item_type               = ORDINARY_FILE_METADATA_TYPE,
+			.max_key_inside          = tail_max_key_inside,
+			.can_contain_key         = tail_can_contain_key,
+			.mergeable               = tail_mergeable,
+			.print                   = NULL,
+			.check                   = NULL,
+			.nr_units                = tail_nr_units,
+			.lookup                  = tail_lookup,
+			.init                    = NULL,
+			.paste                   = tail_paste,
+			.fast_paste              = agree_to_fast_op,
+			.can_shift               = tail_can_shift,
+			.create_hook             = NULL,
+			.copy_units              = tail_copy_units,
+			.kill_hook               = NULL,
+			.shift_hook              = NULL,
+			.cut_units               = tail_cut_units,
+			.kill_units              = tail_cut_units,
+			.unit_key                = tail_unit_key,
+			.estimate                = NULL,
+			.item_data_by_flow       = NULL,
+			.utmost_child            = NULL,
+			.utmost_child_real_block = NULL,
+			.real_max_key_inside     = tail_max_key,
+			.key_in_item             = tail_key_in_item,
+			.key_in_unit             = NULL,
+			.item_stat               = NULL
+		},
+		.s = {
+			.file = {
+				.write     = tail_write,
+				.read      = tail_read,
+				.readpage  = NULL,
+				.writepage = NULL,
+				.page_cache_readahead = NULL
 			}
 		}
 	}

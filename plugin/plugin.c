@@ -189,8 +189,9 @@ typedef struct reiser4_plugin_type_data {
 	/** number of built-in plugin instances of this type */
 	int                   builtin_num;
 	/** array of built-in plugins */
-	reiser4_plugin       *builtin;
+	void                 *builtin;
 	plugin_list_head      plugins_list;
+	size_t                size;
 } reiser4_plugin_type_data;
 
 /* public interface */
@@ -214,6 +215,14 @@ static reiser4_plugin *find_plugin( reiser4_plugin_type_data *ptype,
 static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ];
 static reiser4_plugin_id max_id = 0;
 
+static inline reiser4_plugin *plugin_at( reiser4_plugin_type_data *ptype, int i )
+{
+	char *builtin;
+
+	builtin = ptype -> builtin;
+	return ( reiser4_plugin * ) ( builtin + i * ptype -> size );
+}
+
 /** initialise plugin sub-system. Just call this once on reiser4 startup. */
 int init_plugins( void )
 {
@@ -231,7 +240,7 @@ int init_plugins( void )
 		for( i = 0 ; i < ptype -> builtin_num ; ++ i ) {
 			reiser4_plugin *plugin;
 
-			plugin = &ptype -> builtin[ i ];
+			plugin = plugin_at( ptype, i );
 				
 			if( plugin -> h.label == NULL )
 				/* uninitialized slot encountered */
@@ -393,7 +402,7 @@ reiser4_plugin *plugin_by_unsafe_id( reiser4_plugin_type type_id /* plugin
 {
 	if( is_type_id_valid( type_id ) ) {
 		if( is_plugin_id_valid( type_id, id ) )
-			return &plugins[ type_id ].builtin[ id ];
+			return plugin_at( &plugins[ type_id ], id );
 		else
 			/* id out of bounds */
 			dinfo( "Invalid plugin id: [%i:%i]", type_id, id );
@@ -409,7 +418,7 @@ reiser4_plugin *plugin_by_id( reiser4_plugin_type type_id /* plugin type id */,
 {
 	assert( "nikita-1651", is_type_id_valid( type_id ) );
 	assert( "nikita-1652", is_plugin_id_valid( type_id, id ) );
-	return &plugins[ type_id ].builtin[ id ];
+	return plugin_at( &plugins[ type_id ], id );
 }
 
 /** get plugin whose id is stored in disk format */
@@ -477,13 +486,6 @@ void print_plugin( const char *prefix /* prefix to print */,
 		info( "%s: (nil)\n", prefix );
 }
 
-/** debugging. Hook plugin */
-static int dump_hook( struct super_block *super UNUSED_ARG, ... )
-{
-	dinfo( "dump hook called for %p\n", super );
-	return 0;
-}
-
 #endif
 
 /** find plugin type by label */
@@ -518,7 +520,7 @@ static reiser4_plugin *find_plugin( reiser4_plugin_type_data *ptype /* plugin
 	assert( "nikita-552", label != NULL );
 
 	for( i = 0 ; i < ptype -> builtin_num ; ++ i ) {
-		result = &ptype -> builtin[ i ];
+		result = plugin_at( ptype, i );
 		if( ! strcmp( result -> h.label, label ) )
 			return result;
 	}
@@ -526,47 +528,27 @@ static reiser4_plugin *find_plugin( reiser4_plugin_type_data *ptype /* plugin
 }
 
 /* defined in fs/reiser4/plugin/dir.c */
-extern reiser4_plugin dir_plugins[ LAST_DIR_ID ];
+extern dir_plugin dir_plugins[ LAST_DIR_ID ];
 /* defined in fs/reiser4/plugin/item/static_stat.c */
-extern reiser4_plugin sd_ext_plugins[ LAST_SD_EXTENSION ];
+extern sd_ext_plugin sd_ext_plugins[ LAST_SD_EXTENSION ];
 /* defined in fs/reiser4/plugin/hash.c */
-extern reiser4_plugin hash_plugins[ LAST_HASH_ID ];
+extern hash_plugin hash_plugins[ LAST_HASH_ID ];
 /* defined in fs/reiser4/plugin/tail.c */
-extern reiser4_plugin tail_plugins[ LAST_TAIL_ID ];
-/* defined in fs/reiser4/plugin/plugin.c */
-extern reiser4_plugin hook_plugins[ DUMP_HOOK_ID + 1 ];
+extern tail_plugin tail_plugins[ LAST_TAIL_ID ];
 /* defined in fs/reiser4/plugin/security/security.c */
-extern reiser4_plugin perm_plugins[ LAST_PERM_ID ];
+extern perm_plugin perm_plugins[ LAST_PERM_ID ];
 /* defined in fs/reiser4/plugin/item/item.c */
-extern reiser4_plugin item_plugins[ LAST_ITEM_ID ];
+extern item_plugin item_plugins[ LAST_ITEM_ID ];
 /* defined in fs/reiser4/plugin/node/node.c */
-extern reiser4_plugin node_plugins[ LAST_NODE_ID ];
+extern node_plugin node_plugins[ LAST_NODE_ID ];
 /* defined in fs/reiser4/dformat.c */
-extern reiser4_plugin oid_plugins[ LAST_OID_ALLOCATOR_ID ];
+extern oid_allocator_plugin oid_plugins[ LAST_OID_ALLOCATOR_ID ];
 /* defined in fs/reiser4/dformat.c */
-extern reiser4_plugin space_plugins[ LAST_SPACE_ALLOCATOR_ID ];
+extern space_allocator_plugin space_plugins[ LAST_SPACE_ALLOCATOR_ID ];
 /* defined in fs/reiser4/dformat.c */
-extern reiser4_plugin format_plugins[ LAST_FORMAT_ID ];
+extern disk_format_plugin format_plugins[ LAST_FORMAT_ID ];
 /* defined in jnode.c */
-extern reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ];
-
-#if REISER4_DEBUG
-reiser4_plugin hook_plugins[] = {
-	[ DUMP_HOOK_ID ] = {
-		.hook = {
-			.h = {
-				.type_id = REISER4_HOOK_PLUGIN_TYPE,
-				.id      = DUMP_HOOK_ID,
-				.pops    = NULL,
-				.label   = "dump",
-				.desc    = "dump hook",
-				.linkage = TS_LIST_LINK_ZERO,
-			},
-			.hook = dump_hook
-		}
-	}
-};
-#endif
+extern jnode_plugin jnode_plugins[ LAST_JNODE_TYPE ];
 
 static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 	/* C90 initializers */
@@ -576,7 +558,8 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.desc          = "Object plugins",
 		.builtin_num   = sizeof_array( file_plugins ),
 		.builtin       = file_plugins,
-		.plugins_list  = TS_LIST_HEAD_ZERO
+		.plugins_list  = TS_LIST_HEAD_ZERO,
+		.size          = sizeof( file_plugin )
 	},
 	[ REISER4_DIR_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_DIR_PLUGIN_TYPE,
@@ -584,7 +567,8 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.desc          = "Directory plugins",
 		.builtin_num   = sizeof_array( dir_plugins ),
 		.builtin       = dir_plugins,
-		.plugins_list  = TS_LIST_HEAD_ZERO
+		.plugins_list  = TS_LIST_HEAD_ZERO,
+		.size          = sizeof( dir_plugin )
 	},
 	[ REISER4_HASH_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_HASH_PLUGIN_TYPE,
@@ -592,7 +576,8 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.desc          = "Directory hashes",
 		.builtin_num   = sizeof_array( hash_plugins ),
 		.builtin       = hash_plugins,
-		.plugins_list  = TS_LIST_HEAD_ZERO
+		.plugins_list  = TS_LIST_HEAD_ZERO,
+		.size          = sizeof( hash_plugin )
 	},
 	[ REISER4_TAIL_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_TAIL_PLUGIN_TYPE,
@@ -600,25 +585,17 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.desc          = "Tail inlining policies",
 		.builtin_num   = sizeof_array( tail_plugins ),
 		.builtin       = tail_plugins,
-		.plugins_list  = TS_LIST_HEAD_ZERO
+		.plugins_list  = TS_LIST_HEAD_ZERO,
+		.size          = sizeof( tail_plugin )
 	},
-#if REISER4_DEBUG
-	[ REISER4_HOOK_PLUGIN_TYPE ] = {
-		.type_id       = REISER4_HOOK_PLUGIN_TYPE,
-		.label         = "hook",
-		.desc          = "Generic loadable hooks",
-		.builtin_num   = sizeof_array( hook_plugins ),
-		.builtin       = hook_plugins,
-		.plugins_list  = TS_LIST_HEAD_ZERO
-	},
-#endif
 	[ REISER4_PERM_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_PERM_PLUGIN_TYPE,
 		.label         = "perm",
 		.desc          = "Permission checks",
 		.builtin_num   = sizeof_array( perm_plugins ),
 		.builtin       = perm_plugins,
-		.plugins_list  = TS_LIST_HEAD_ZERO
+		.plugins_list  = TS_LIST_HEAD_ZERO,
+		.size          = sizeof( perm_plugin )
 	},
 	[ REISER4_ITEM_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_ITEM_PLUGIN_TYPE,
@@ -626,7 +603,8 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.desc          = "Item handlers",
 		.builtin_num   = sizeof_array( item_plugins ),
 		.builtin       = item_plugins,
-		.plugins_list  = TS_LIST_HEAD_ZERO
+		.plugins_list  = TS_LIST_HEAD_ZERO,
+		.size          = sizeof( item_plugin )
 	},
 	[ REISER4_NODE_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_NODE_PLUGIN_TYPE,
@@ -634,7 +612,8 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.desc          = "node layout handlers",
 		.builtin_num   = sizeof_array( node_plugins ),
 		.builtin       = node_plugins,
-		.plugins_list  = TS_LIST_HEAD_ZERO
+		.plugins_list  = TS_LIST_HEAD_ZERO,
+		.size          = sizeof( node_plugin )
 	},
 	[ REISER4_SD_EXT_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_SD_EXT_PLUGIN_TYPE,
@@ -642,7 +621,8 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.desc          = "Parts of stat-data",
 		.builtin_num   = sizeof_array( sd_ext_plugins ),
 		.builtin       = sd_ext_plugins,
-		.plugins_list  = TS_LIST_HEAD_ZERO
+		.plugins_list  = TS_LIST_HEAD_ZERO,
+		.size          = sizeof( sd_ext_plugin )
 	},
 	[ REISER4_OID_ALLOCATOR_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
@@ -650,7 +630,8 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.desc          = "allocate/deallocate oids",
 		.builtin_num   = sizeof_array( oid_plugins ),
 		.builtin       = oid_plugins,
-		.plugins_list  = TS_LIST_HEAD_ZERO
+		.plugins_list  = TS_LIST_HEAD_ZERO,
+		.size          = sizeof( oid_allocator_plugin )
 	},
 	[ REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,
@@ -658,7 +639,8 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.desc          = "allocate/deallocate disk free space",
 		.builtin_num   = sizeof_array( space_plugins ),
 		.builtin       = space_plugins,
-		.plugins_list  = TS_LIST_HEAD_ZERO
+		.plugins_list  = TS_LIST_HEAD_ZERO,
+		.size          = sizeof( space_allocator_plugin )
 	},
 	[ REISER4_FORMAT_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_FORMAT_PLUGIN_TYPE,
@@ -666,7 +648,8 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.desc          = "defines filesystem on disk layout",
 		.builtin_num   = sizeof_array( format_plugins ),
 		.builtin       = format_plugins,
-		.plugins_list  = TS_LIST_HEAD_ZERO
+		.plugins_list  = TS_LIST_HEAD_ZERO,
+		.size          = sizeof( disk_format_plugin )
 	},
 	[ REISER4_JNODE_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_JNODE_PLUGIN_TYPE,
@@ -674,7 +657,8 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.desc          = "defined kind of jnode",
 		.builtin_num   = sizeof_array( jnode_plugins ),
 		.builtin       = jnode_plugins,
-		.plugins_list  = TS_LIST_HEAD_ZERO
+		.plugins_list  = TS_LIST_HEAD_ZERO,
+		.size          = sizeof( jnode_plugin )
 	}
 };
 

@@ -258,8 +258,6 @@ typedef enum {
 	LAST_NODE_ID
 } reiser4_node_id;
 
-extern reiser4_plugin node_plugins [];
-
 extern reiser4_key *leftmost_key_in_node( const znode *node, reiser4_key *key );
 extern void print_node_content( const char *prefix, 
 				const znode *node, __u32 flags );

@@ -18,5 +18,3 @@ struct reiser4_space_allocator {
 		void * generic;
 	} u;
 };
-
-extern reiser4_plugin space_plugins [LAST_SPACE_ALLOCATOR_ID];

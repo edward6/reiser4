@@ -282,71 +282,61 @@ static __u64 deg_hash( const unsigned char *name UNUSED_ARG /* name to hash */,
 /**
  * hash plugins
  */
-reiser4_plugin hash_plugins[ LAST_HASH_ID ] = {
+hash_plugin hash_plugins[ LAST_HASH_ID ] = {
 	[ RUPASOV_HASH_ID ] = {
-		.hash = {
-			.h = {
-				.type_id = REISER4_HASH_PLUGIN_TYPE,
-				.id      = RUPASOV_HASH_ID,
-				.pops    = NULL,
-				.label   = "rupasov",
-				.desc    = "Original Yura's hash",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.hash = rupasov_hash
-		}
+		.h = {
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
+			.id      = RUPASOV_HASH_ID,
+			.pops    = NULL,
+			.label   = "rupasov",
+			.desc    = "Original Yura's hash",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.hash = rupasov_hash
 	},
 	[ R5_HASH_ID ] = {
-		.hash = {
-			.h = {
-				.type_id = REISER4_HASH_PLUGIN_TYPE,
-				.id      = R5_HASH_ID,
-				.pops    = NULL,
-				.label   = "r5",
-				.desc    = "r5 hash",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.hash = r5_hash
-		}
+		.h = {
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
+			.id      = R5_HASH_ID,
+			.pops    = NULL,
+			.label   = "r5",
+			.desc    = "r5 hash",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.hash = r5_hash
 	},
 	[ TEA_HASH_ID ] = {
-		.hash = {
-			.h = {
-				.type_id = REISER4_HASH_PLUGIN_TYPE,
-				.id      = TEA_HASH_ID,
-				.pops    = NULL,
-				.label   = "tea",
-				.desc    = "tea hash",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.hash = tea_hash
-		}
+		.h = {
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
+			.id      = TEA_HASH_ID,
+			.pops    = NULL,
+			.label   = "tea",
+			.desc    = "tea hash",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.hash = tea_hash
 	},
 	[ FNV1_HASH_ID ] = {
-		.hash = {
-			.h = {
-				.type_id = REISER4_HASH_PLUGIN_TYPE,
-				.id      = FNV1_HASH_ID,
-				.pops    = NULL,
-				.label   = "fnv1",
-				.desc    = "fnv1 hash",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.hash = fnv1_hash
-		}
+		.h = {
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
+			.id      = FNV1_HASH_ID,
+			.pops    = NULL,
+			.label   = "fnv1",
+			.desc    = "fnv1 hash",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.hash = fnv1_hash
 	},
 	[ DEGENERATE_HASH_ID ] = {
-		.hash = {
-			.h = {
-				.type_id = REISER4_HASH_PLUGIN_TYPE,
-				.id      = DEGENERATE_HASH_ID,
-				.pops    = NULL,
-				.label   = "degenerate hash",
-				.desc    = "Degenerate hash: only for testing",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.hash = deg_hash
-		}
+		.h = {
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
+			.id      = DEGENERATE_HASH_ID,
+			.pops    = NULL,
+			.label   = "degenerate hash",
+			.desc    = "Degenerate hash: only for testing",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.hash = deg_hash
 	}
 };
 

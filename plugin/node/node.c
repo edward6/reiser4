@@ -217,49 +217,47 @@ void node_check( const znode *node /* node to check */,
 #endif
 
 
-reiser4_plugin node_plugins[ LAST_NODE_ID ] = {
+node_plugin node_plugins[ LAST_NODE_ID ] = {
 	[ NODE40_ID ] = {
-		.node = {
-			.h = {
-				.type_id = REISER4_NODE_PLUGIN_TYPE,
-				.id      = NODE40_ID,
-				.pops    = NULL,
-				.label   = "unified",
-				.desc    = "unified node layout",
-				.linkage = TS_LIST_LINK_ZERO,
-			},
-			.item_overhead    = node40_item_overhead,
-			.free_space       = node40_free_space,
-			.lookup           = node40_lookup,
-			.num_of_items     = node40_num_of_items,
-			.item_by_coord	  = node40_item_by_coord,
-			.length_by_coord  = node40_length_by_coord,
-			.plugin_by_coord  = node40_plugin_by_coord,
-			.key_at           = node40_key_at,
-			.estimate         = node40_estimate,
-			.check            = node40_check,
-			.parse            = node40_parse,
-			.init             = node40_init,
+		.h = {
+			.type_id = REISER4_NODE_PLUGIN_TYPE,
+			.id      = NODE40_ID,
+			.pops    = NULL,
+			.label   = "unified",
+			.desc    = "unified node layout",
+			.linkage = TS_LIST_LINK_ZERO,
+		},
+		.item_overhead    = node40_item_overhead,
+		.free_space       = node40_free_space,
+		.lookup           = node40_lookup,
+		.num_of_items     = node40_num_of_items,
+		.item_by_coord	  = node40_item_by_coord,
+		.length_by_coord  = node40_length_by_coord,
+		.plugin_by_coord  = node40_plugin_by_coord,
+		.key_at           = node40_key_at,
+		.estimate         = node40_estimate,
+		.check            = node40_check,
+		.parse            = node40_parse,
+		.init             = node40_init,
 #ifdef GUESS_EXISTS
-			.guess            = node40_guess,
+		.guess            = node40_guess,
 #endif
-			.print            = node40_print,
-			.change_item_size = node40_change_item_size,
-			.create_item      = node40_create_item,
-			.update_item_key  = node40_update_item_key, 
-			.cut_and_kill     = node40_cut_and_kill,
-			.cut              = node40_cut, 
-			.shift            = node40_shift,
-			.fast_insert      = node40_fast_insert,
-			.fast_paste       = node40_fast_paste,
-			.fast_cut         = node40_fast_cut,
+		.print            = node40_print,
+		.change_item_size = node40_change_item_size,
+		.create_item      = node40_create_item,
+		.update_item_key  = node40_update_item_key, 
+		.cut_and_kill     = node40_cut_and_kill,
+		.cut              = node40_cut, 
+		.shift            = node40_shift,
+		.fast_insert      = node40_fast_insert,
+		.fast_paste       = node40_fast_paste,
+		.fast_cut         = node40_fast_cut,
 #ifdef MODIFY_EXISTS
-			.modify           = NULL,
+		.modify           = NULL,
 #endif
-			.max_item_size    = node40_max_item_size,
-			.prepare_removal  = node40_prepare_for_removal
-		}
-	},
+		.max_item_size    = node40_max_item_size,
+		.prepare_removal  = node40_prepare_for_removal
+	}
 };
 
 

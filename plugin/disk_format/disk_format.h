@@ -11,4 +11,3 @@ typedef enum {
 	LAST_FORMAT_ID
 } disk_format_id;
 
-extern reiser4_plugin format_plugins [ LAST_FORMAT_ID ];

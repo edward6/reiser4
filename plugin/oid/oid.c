@@ -107,26 +107,24 @@ void oid_print_allocator(const char * prefix, const struct super_block *s)
 }
 
 /* initialization of objectid management plugins */
-reiser4_plugin oid_plugins[ LAST_OID_ALLOCATOR_ID ] = {
+oid_allocator_plugin oid_plugins[ LAST_OID_ALLOCATOR_ID ] = {
 	[ OID40_ALLOCATOR_ID ] = {
-		.oid_allocator = {
-			.h = {
-				.type_id = REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
-				.id      = OID40_ALLOCATOR_ID,
-				.pops    = NULL,
-				.label   = "reiser40 default oid manager",
-				.desc    = "no reusing objectids",
-				.linkage = TS_LIST_LINK_ZERO,
-			},
-			.init_oid_allocator   = oid40_read_allocator,
-			.oids_used            = oid40_used,
-			.next_oid             = oid40_next_oid,
-			.oids_free            = oid40_free,
-			.allocate_oid         = oid40_allocate,
-			.release_oid          = oid40_release,
-			.oid_reserve_allocate = oid40_reserve_allocate,
-			.oid_reserve_release  = oid40_reserve_release,
-			.print_info           = oid40_print_info
-		}
+		.h = {
+			.type_id = REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
+			.id      = OID40_ALLOCATOR_ID,
+			.pops    = NULL,
+			.label   = "reiser40 default oid manager",
+			.desc    = "no reusing objectids",
+			.linkage = TS_LIST_LINK_ZERO,
+		},
+		.init_oid_allocator   = oid40_read_allocator,
+		.oids_used            = oid40_used,
+		.next_oid             = oid40_next_oid,
+		.oids_free            = oid40_free,
+		.allocate_oid         = oid40_allocate,
+		.release_oid          = oid40_release,
+		.oid_reserve_allocate = oid40_reserve_allocate,
+		.oid_reserve_release  = oid40_reserve_release,
+		.print_info           = oid40_print_info
 	}
 };

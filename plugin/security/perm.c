@@ -31,29 +31,27 @@ static int common_setattr_ok( struct dentry *dentry, struct iattr *attr )
 	return result;
 }
 
-reiser4_plugin perm_plugins[] = {
+perm_plugin perm_plugins[ LAST_PERM_ID ] = {
 	[ RWX_PERM_ID ] = {
-		.perm = {
-			.h = {
-				.type_id = REISER4_PERM_PLUGIN_TYPE,
-				.id      = RWX_PERM_ID,
-				.pops    = NULL,
-				.label   = "rwx",
-				.desc    = "standard UNIX permissions",
-				.linkage = TS_LIST_LINK_ZERO,
-			},
-			.rw_ok      = NULL,
-			.lookup_ok  = NULL,
-			.create_ok  = NULL,
-			.link_ok    = NULL,
-			.unlink_ok  = NULL,
-			.delete_ok  = NULL,
-			/* smart thing */
-			.mask_ok    = vfs_permission,
-			.setattr_ok = common_setattr_ok,
-			.getattr_ok = NULL,
-			.rename_ok  = NULL
-		}
+		.h = {
+			.type_id = REISER4_PERM_PLUGIN_TYPE,
+			.id      = RWX_PERM_ID,
+			.pops    = NULL,
+			.label   = "rwx",
+			.desc    = "standard UNIX permissions",
+			.linkage = TS_LIST_LINK_ZERO,
+		},
+		.rw_ok      = NULL,
+		.lookup_ok  = NULL,
+		.create_ok  = NULL,
+		.link_ok    = NULL,
+		.unlink_ok  = NULL,
+		.delete_ok  = NULL,
+		/* smart thing */
+		.mask_ok    = vfs_permission,
+		.setattr_ok = common_setattr_ok,
+		.getattr_ok = NULL,
+		.rename_ok  = NULL
 	}
 };
 

@@ -941,60 +941,56 @@ static int common_attach( struct inode *child, struct inode *parent )
 	return 0;
 }
 
-reiser4_plugin dir_plugins[ LAST_DIR_ID ] = {
+dir_plugin dir_plugins[ LAST_DIR_ID ] = {
 	[ HASHED_DIR_PLUGIN_ID ] = {
-		.dir = {
-			.h = {
-				.type_id = REISER4_DIR_PLUGIN_TYPE,
-				.id      = HASHED_DIR_PLUGIN_ID,
-				.pops    = NULL,
-				.label   = "dir",
-				.desc    = "hashed directory",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.resolve             = NULL,
-			.resolve_into_inode  = hashed_lookup,
-			.unlink              = common_unlink,
-			.link                = common_link,
-			.is_name_acceptable  = is_name_acceptable,
-			.entry_key           = build_entry_key,
-			.readdir_key         = build_readdir_key,
-			.add_entry           = hashed_add_entry,
-			.rem_entry           = hashed_rem_entry,
-			.create_child        = common_create_child,
-			.rename              = hashed_rename,
-			.readdir             = common_readdir,
-			.init                = hashed_init,
-			.done                = hashed_done,
-			.attach              = common_attach
-		}
+		.h = {
+			.type_id = REISER4_DIR_PLUGIN_TYPE,
+			.id      = HASHED_DIR_PLUGIN_ID,
+			.pops    = NULL,
+			.label   = "dir",
+			.desc    = "hashed directory",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.resolve             = NULL,
+		.resolve_into_inode  = hashed_lookup,
+		.unlink              = common_unlink,
+		.link                = common_link,
+		.is_name_acceptable  = is_name_acceptable,
+		.entry_key           = build_entry_key,
+		.readdir_key         = build_readdir_key,
+		.add_entry           = hashed_add_entry,
+		.rem_entry           = hashed_rem_entry,
+		.create_child        = common_create_child,
+		.rename              = hashed_rename,
+		.readdir             = common_readdir,
+		.init                = hashed_init,
+		.done                = hashed_done,
+		.attach              = common_attach
 	},
 	[ SEEKABLE_HASHED_DIR_PLUGIN_ID ] = {
-		.dir = {
-			.h = {
-				.type_id = REISER4_DIR_PLUGIN_TYPE,
-				.id      = HASHED_DIR_PLUGIN_ID,
-				.pops    = NULL,
-				.label   = "dir",
-				.desc    = "hashed directory",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.resolve             = NULL,
-			.resolve_into_inode  = hashed_lookup,
-			.unlink              = common_unlink,
-			.link                = common_link,
-			.is_name_acceptable  = is_name_acceptable,
-			.entry_key           = build_readdir_stable_entry_key,
-			.readdir_key         = build_readdir_key,
-			.add_entry           = hashed_add_entry,
-			.rem_entry           = hashed_rem_entry,
-			.create_child        = common_create_child,
-			.rename              = hashed_rename,
-			.readdir             = common_readdir,
-			.init                = hashed_init,
-			.done                = hashed_done,
-			.attach              = common_attach
-		}
+		.h = {
+			.type_id = REISER4_DIR_PLUGIN_TYPE,
+			.id      = HASHED_DIR_PLUGIN_ID,
+			.pops    = NULL,
+			.label   = "dir",
+			.desc    = "hashed directory",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.resolve             = NULL,
+		.resolve_into_inode  = hashed_lookup,
+		.unlink              = common_unlink,
+		.link                = common_link,
+		.is_name_acceptable  = is_name_acceptable,
+		.entry_key           = build_readdir_stable_entry_key,
+		.readdir_key         = build_readdir_key,
+		.add_entry           = hashed_add_entry,
+		.rem_entry           = hashed_rem_entry,
+		.create_child        = common_create_child,
+		.rename              = hashed_rename,
+		.readdir             = common_readdir,
+		.init                = hashed_init,
+		.done                = hashed_done,
+		.attach              = common_attach
 	},
 };
 

@@ -612,21 +612,9 @@ int node40_check( const znode *node /* node to check */,
 			}
 		}
 	}
-	if( 0 && ( flags & REISER4_NODE_DKEYS ) ) {
+	if( flags & REISER4_NODE_DKEYS ) {
 		spin_lock_dk( current_tree );
 		spin_lock_tree( current_tree );
-		if( node -> left != NULL ) {
-			zref( node -> left );
-			spin_unlock_tree( current_tree );
-			zload( node -> left );
-			spin_lock_tree( current_tree );
-		}
-		if( node -> right != NULL ) {
-			zref( node -> right );
-			spin_unlock_tree( current_tree );
-			zload( node -> right );
-			spin_lock_tree( current_tree );
-		}
 
 		if ( keygt( &prev, &node -> rd_key ) ) {
 			reiser4_stat_tree_add( rd_key_skew );
@@ -642,7 +630,6 @@ int node40_check( const znode *node /* node to check */,
 		if( ZF_ISSET( node, JNODE_LEFT_CONNECTED ) && 
 		    ( node -> left != NULL ) && 
 		    ! ZF_ISSET( node -> left, JNODE_HEARD_BANSHEE )  &&
-		    ! node_is_empty( node -> left ) && 
 		    ergo( flags & REISER4_NODE_TREE_STABLE,
 			  !keyeq( &node -> left -> rd_key, &node -> ld_key ) ) &&
 		    ergo( ! ( flags & REISER4_NODE_TREE_STABLE ),
@@ -654,7 +641,6 @@ int node40_check( const znode *node /* node to check */,
 		if( ZF_ISSET( node, JNODE_RIGHT_CONNECTED ) && 
 		    ( node -> right != NULL ) && 
 		    ! ZF_ISSET( node -> right, JNODE_HEARD_BANSHEE )  &&
-		    ! node_is_empty( node -> right ) && 
 		    ergo( flags & REISER4_NODE_TREE_STABLE,
 			  !keyeq( &node -> rd_key, &node -> right -> ld_key ) ) &&
 		    ergo( ! ( flags & REISER4_NODE_TREE_STABLE ),
@@ -664,14 +650,6 @@ int node40_check( const znode *node /* node to check */,
 			return -1;
 		}
 
-		if( node -> right != NULL ) {
-			zrelse( node -> right );
-			zput( node -> right );
-		}
-		if( node -> left != NULL ) {
-			zrelse( node -> left );
-			zput( node -> left );
-		}
 		spin_unlock_tree( current_tree );
 		spin_unlock_dk( current_tree );
 	}

@@ -28,5 +28,3 @@ struct reiser4_oid_allocator {
 		oid40_allocator oid40;
 	} u;
 };
-
-extern reiser4_plugin oid_plugins[ LAST_OID_ALLOCATOR_ID ];

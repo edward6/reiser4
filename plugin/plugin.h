@@ -333,14 +333,6 @@ typedef struct hash_plugin {
 	__u64 ( *hash ) ( const unsigned char *name, int len );
 } hash_plugin;
 
-/* hook plugins exist for debugging only? */
-typedef struct hook_plugin {
-	/** generic fields */
-	plugin_header h;
-	/** abstract hook function */
-	int ( *hook ) ( struct super_block *super, ... );
-} hook_plugin;
-
 typedef struct sd_ext_plugin {
 	/** generic fields */
 	plugin_header h;
@@ -438,7 +430,7 @@ typedef enum {
 	JNODE_FORMATTED_BLOCK,
 	JNODE_BITMAP,
 	JNODE_IO_HEAD,
-	JNODE_LAST_TYPE
+	LAST_JNODE_TYPE
 } jnode_type;
 
 /* plugin instance.                                                         */
@@ -465,8 +457,6 @@ union reiser4_plugin {
 	hash_plugin             hash;
 	/** tail plugin, used by file plugin */
 	tail_plugin             tail;
-	/** hook plugin. For debugging */
-	hook_plugin             hook;
 	/** permission plugin */
 	perm_plugin             perm;
 	/** node plugin */
@@ -560,9 +550,6 @@ typedef enum {
 	LAST_DIR_ID
 } reiser4_dir_id;
 
-/* defined in fs/reiser4/plugin/object.c */
-extern reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ];
-
 /** data type used to pack parameters that we pass to vfs
     object creation function create_object() */
 struct reiser4_object_create_data {
@@ -600,8 +587,6 @@ typedef enum {
 	TEST_TAIL_ID,
 	LAST_TAIL_ID
 } reiser4_tail_id;
-
-typedef enum { DUMP_HOOK_ID } reiser4_hook_id;
 
 #define MAX_PLUGIN_TYPE_LABEL_LEN  32
 #define MAX_PLUGIN_PLUG_LABEL_LEN  32
