@@ -57,8 +57,17 @@ void reiser4_panic( const char *format /* format string */, ... /* rest */ )
  */
 void preempt_point( void )
 {
-	if (REISER4_DEBUG == 3)
-		cond_resched();
+	cond_resched();
+}
+
+/**
+ * conditionally call preempt_point() when debugging is on. Used to test MT
+ * stuff with better thread interfusion.
+ */
+void check_preempt( void )
+{
+	if( REISER4_DEBUG == 3 )
+		preempt_point();
 }
 
 #if REISER4_DEBUG
