@@ -427,12 +427,6 @@ places restrictions on modifications to the lock ordering above and enumerates
 pieces of the code that should be revised if modification of the lock ordering
 is necessary.
 
-inode_guard->&inode_lock: eflush_add(). 
-
-    eflush_add()
-
-        while holding calls __iget() that requires &inode_lock
-
 flush_sema
 
     jnode_flush()
@@ -473,10 +467,6 @@ kalloc->jnode_lock
 jnode_lock->(mapping->page_lock)
 
     jnode_set_dirty()->__set_page_dirty_nobuffers()
-
-jnode_lock->&inode_lock
-
-    jnode_set_dirty()->__set_page_dirty_nobuffers()->mark_inode_dirty()
 
 jnode_lock->(zone->lru_lock)
 

@@ -149,7 +149,6 @@ subgraph spin {
 
 /* dependencies */
 
-ARC(inode_guard, inode_lock, "eflush_add()");
 ARC(inode_guard, tree_lock, "update_sd_at()");
 ARC(inode_guard, jnode_lock, "update_sd_at()");
 ARC(inode_guard, atom_lock, "update_sd_at()");
@@ -241,7 +240,6 @@ ARC(tree_lock, zgen_lock, "zget()");
 ARC(bkl, inode_lock, "iget()");
 
 ARC(jnode_lock, mapping_page_lock, "jnode_set_dirty()");
-ARC(jnode_lock, inode_lock, "jnode_set_dirty()");
 ARC(jnode_lock, zone_lru_lock, "jnode_set_dirty()");
 
 ARC(I_LOCK, longterm_lock, "reiser4_iget()");
