@@ -21,8 +21,8 @@
 typedef enum {
 	DATA_CLUSTER = 0, /* default value */
 	HOLE_CLUSTER = 1, /* this is set when we wanna write a hole */
-	FAKE_CLUSTER = 2  /* disk cluster is absent, so unprepped one should
-			     be created */
+	FAKE_CLUSTER = 2  /* disk cluster is absent within a file, 
+			     so unprepped one should be created */
 } reiser4_cluster_state;
 
 /* Set of transform id supported by reiser4, 
@@ -33,6 +33,8 @@ typedef enum {
 	COMPRESS_TFM,     /* compression plugin */
 	LAST_TFM
 } reiser4_tfm;
+
+
 
 typedef struct tfm_stream {
 	__u8 * data;
@@ -123,6 +125,12 @@ typedef enum {
 	CRC_CUT_ITEM = 4
 } crc_write_mode_t;
 
+/* Reiser4 file write/read transforms page cluster into disk cluster (and back)
+   using crypto/compression transforms implemented by reiser4 transform plugins.
+   Before each transform we allocate a pair of streams (tfm_unit) and assemble
+   page cluster into the input one. After transform we split output stream into
+   a set of items (disk cluster).
+*/
 typedef struct tfm_cluster{
 	coa_set coa;
 	tfm_unit tun;
@@ -310,32 +318,53 @@ alternate_streams(tfm_cluster_t * tc)
 	set_tfm_stream(tc, OUTPUT_STREAM, tmp);
 }
 
-/* reiser4 cluster manager transforms page cluster into disk cluster (and back) via
-   input/output stream of crypto/compression algorithms using copy on clustering.
-   COC means that page cluster will be assembled into united stream before compression,
+/* Sliding window of cluster size which should be set to the approprite position 
+   (defined by cluster index) in a file before page cluster modification by 
+   file_write. Then we translate file size, offset to write from, number of
+   bytes to write, etc.. to the following configuration needed to estimate
+   number of pages to read before write, etc...
+*/
+typedef struct reiser4_slide {
+	unsigned off;    /* offset we start to write/truncate from */
+	unsigned count;  /* number of bytes (zeroes) to write/truncate */
+	unsigned delta;  /* number of bytes to append to the hole */
+} reiser4_slide_t;
 
-EDWARD-FIXME-HANS: discuss with vs whether coc is already taken as an acronym, and resolve the issue
-
-   and output stream of decompression algorithm will be split into pages.
-   This manager consists mostly of operations on the following object which represents
-   one cluster:
+/* 
+   While implementing all transforms (from page to disk cluster, and back)
+   reiser4 cluster manager fills the following structure incapsulating pointers
+   to all the clusters for the same index including the sliding window above
 */
 typedef struct reiser4_cluster{
-	tfm_cluster_t tc; /* transform cluster */
-	int nr_pages;    /* number of attached pages */
-	struct page ** pages; /* page cluster */
+	tfm_cluster_t tc;             /* transform cluster */
+	int nr_pages;                 /* number of pages */
+	struct page ** pages;         /* page cluster */
 	struct file * file;
-	hint_t * hint;        /* disk cluster */
+	hint_t * hint;                /* disk cluster item for traversal */
 	reiser4_cluster_state stat;
-	/* the following index, off, count and delta represent so called "sliding window"
-	   (file cluster) to translate file size, offset to write from, etc.. into number
-	   of cluster pages, cluster state, etc.. */
-	unsigned long index; /* cluster index, coord of the frame */
-	unsigned off;    /* offset we want to read/write/truncate from */
-	unsigned count;  /* bytes to read/write/truncate */
-	unsigned delta;  /* bytes of user's data to append to the hole */
-	int reserved;    /* indicates that space for disk cluster insertion is reserved */
+	unsigned long index;          /* cluster index */
+	reiser4_slide_t * win;        /* sliding window of cluster size */
+	int reserved;                 /* this indicates that space for disk
+					 cluster modification is reserved */
 } reiser4_cluster_t;
+
+static inline disk_cluster_stat
+get_disk_cluster_stat(reiser4_cluster_t * clust)
+{
+	assert("edward-1080", clust != NULL);
+	assert("edward-1081", clust->hint != NULL);
+
+	return clust->hint->coord.extension.ctail.stat;
+}
+
+static inline void
+set_disk_cluster_stat(reiser4_cluster_t * clust, disk_cluster_stat stat)
+{
+	assert("edward-1082", clust != NULL);
+	assert("edward-1083", clust->hint != NULL);
+
+	clust->hint->coord.extension.ctail.stat = stat;
+}
 
 static inline void
 reset_cluster_pgset(reiser4_cluster_t * clust, int nrpages)
