@@ -10,12 +10,15 @@
 #include "kcond.h"
 #include "tshash.h"
 #include "plugin/plugin_header.h"
+#include "plugin/plugin_set.h"
 #include "key.h"
 
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block, etc.  */
+#include <linux/dcache.h>	/* for struct super_block, etc.  */
 
 typedef enum {
+	LNODE_DENTRY,
 	LNODE_INODE,
 	LNODE_PSEUDO,
 	LNODE_LW,
@@ -45,6 +48,11 @@ typedef struct lnode_header {
 	int ref;
 } lnode_header;
 
+typedef struct lnode_dentry {
+	lnode_header h;
+	struct dentry *dentry;
+} lnode_dentry;
+
 typedef struct lnode_inode {
 	lnode_header h;
 	struct inode *inode;
@@ -63,21 +71,25 @@ typedef struct lnode_pseudo {
 
 union lnode {
 	lnode_header h;
+	lnode_dentry dentry;
 	lnode_inode inode;
 	lnode_lw lw;
 	lnode_pseudo pseudo;
 };
 
-extern int lnodes_init(struct super_block *super);
+extern int lnodes_init(void);
+extern int lnodes_done(void);
+
 extern lnode *lget(lnode * node, lnode_type type, oid_t oid);
 extern void lput(lnode * node);
 extern int lnode_eq(const lnode * node1, const lnode * node2);
+extern lnode *lref(lnode * node);
 
 extern struct inode *inode_by_lnode(const lnode * node);
 extern reiser4_key *lnode_key(const lnode * node, reiser4_key * result);
 
-extern int get_lnode_plugins(const lnode * node, reiser4_plugin_ref * area);
-extern int set_lnode_plugins(lnode * node, const reiser4_plugin_ref * area);
+extern int get_lnode_plugins(const lnode * node, plugin_set * area);
+extern int set_lnode_plugins(lnode * node, const plugin_set * area);
 
 /* __LNODE_H__ */
 #endif

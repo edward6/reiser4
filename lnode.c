@@ -81,6 +81,7 @@
 #include "key.h"
 #include "kassign.h"
 #include "plugin/plugin_header.h"
+#include "plugin/plugin_set.h"
 #include "lnode.h"
 #include "super.h"
 #include "reiser4.h"
@@ -104,16 +105,37 @@ static struct {
 	/* get a key of the corresponding file system object */
 	reiser4_key *(*key) (const lnode * node, reiser4_key * result);
 	/* get a plugin suitable for the corresponding file system object */
-	int (*get_plugins) (const lnode * node, reiser4_plugin_ref * area);
+	int (*get_plugins) (const lnode * node, plugin_set * area);
 	/* set a plugin suitable for the corresponding file system object */
-	int (*set_plugins) (lnode * node, const reiser4_plugin_ref * area);
+	int (*set_plugins) (lnode * node, const plugin_set * area);
 	/* true if @node1 and @node2 refer to the same object */
 	int (*eq) (const lnode * node1, const lnode * node2);
 } lnode_ops[LNODE_NR_TYPES] = {
+	[LNODE_DENTRY] = {
+		.key = NULL,
+		.get_plugins = NULL,
+		.set_plugins = NULL,
+		.eq = NULL
+	},
 	[LNODE_INODE] = {
-	.key = lnode_inode_key,.get_plugins = NULL,.set_plugins = NULL,.eq = lnode_inode_eq},[LNODE_PSEUDO] = {
-	.key = NULL,.get_plugins = NULL,.set_plugins = NULL,.eq = NULL},[LNODE_LW] = {
-.key = lnode_lw_key,.get_plugins = NULL,.set_plugins = NULL,.eq = lnode_lw_eq},};
+		.key = lnode_inode_key,
+		.get_plugins = NULL,
+		.set_plugins = NULL,
+		.eq = lnode_inode_eq
+	},
+	[LNODE_PSEUDO] = {
+		.key = NULL,
+		.get_plugins = NULL,
+		.set_plugins = NULL,
+		.eq = NULL
+	},
+	[LNODE_LW] = {
+		.key = lnode_lw_key,
+		.get_plugins = NULL,
+		.set_plugins = NULL,
+		.eq = lnode_lw_eq
+	}
+};
 
 /* hash table support */
 
@@ -135,11 +157,15 @@ oid_hash(const oid_t * o /* oid to hash */ )
 }
 
 /* The hash table definition */
-#define KMALLOC( size ) reiser4_kmalloc( ( size ), GFP_KERNEL )
-#define KFREE( ptr, size ) reiser4_kfree( ptr, size )
+#define KMALLOC(size) kmalloc((size), GFP_KERNEL)
+#define KFREE(ptr, size) kfree(ptr)
 TS_HASH_DEFINE(ln, lnode, oid_t, h.oid, h.link, oid_hash, oid_eq);
 #undef KFREE
 #undef KMALLOC
+
+ln_hash_table lnode_htable;
+spinlock_t    lnode_guard = SPIN_LOCK_UNLOCKED;
+
 
 /* true if @required lnode type is @compatible with @set lnode type. If lnode
    types are incompatible, then thread trying to obtain @required type of
@@ -162,25 +188,18 @@ lnode_compatible_type(lnode_type required /* required lnode type */ ,
 /* initialise lnode module for @super. */
 /* Audited by: green(2002.06.15) */
 int
-lnodes_init(struct super_block *super	/* super block to initialise lnodes
-					 * for */ )
+lnodes_init(void)
 {
-	assert("nikita-1861", super != NULL);	/* slavery forbidden in Russia */
-	ln_hash_init(&get_super_private(super)->lnode_htable, 
-		     LNODE_HTABLE_BUCKETS, 
-		     reiser4_stat(super, hashes.lnode));
-	spin_lock_init(&get_super_private(super)->lnode_guard);
+	ln_hash_init(&lnode_htable, LNODE_HTABLE_BUCKETS, NULL);
 	return 0;
 }
 
 /* free lnode resources associated with @super. */
 /* Audited by: green(2002.06.15) */
 int
-lnodes_done(struct super_block *super	/* super block to destroy lnodes
-					 * for */ )
+lnodes_done(void)
 {
-	assert("nikita-1863", super != NULL);
-	ln_hash_done(&get_super_private(super)->lnode_htable);
+	ln_hash_done(&lnode_htable);
 	return 0;
 }
 
@@ -202,17 +221,13 @@ lget(lnode * node /* lnode to add to the hash table */ ,
      lnode_type type /* lnode type */ , oid_t oid /* objectid */ )
 {
 	lnode *result;
-	ln_hash_table *htable;
-	spinlock_t *guard;
 
 	assert("nikita-1862", node != NULL);
 	assert("nikita-1866", lnode_valid_type(type));
 
-	htable = &get_current_super_private()->lnode_htable;
-	guard = &get_current_super_private()->lnode_guard;
-	spin_lock(guard);
+	spin_lock(&lnode_guard);
 	/* check hash table */
-	while ((result = ln_hash_find(htable, &oid)) != 0) {
+	while ((result = ln_hash_find(&lnode_htable, &oid)) != 0) {
 		if (!lnode_compatible_type(type, result->h.type)) {
 			int ret;
 
@@ -222,7 +237,7 @@ lget(lnode * node /* lnode to add to the hash table */ ,
 			   LNODE_INODE), wait until all reiser4() system call
 			   manipulations with this object finish.
 			*/
-			ret = kcond_wait(&result->h.cvar, guard, 1);
+			ret = kcond_wait(&result->h.cvar, &lnode_guard, 1);
 			if (ret != 0) {
 				result = ERR_PTR(ret);
 				break;
@@ -242,10 +257,10 @@ lget(lnode * node /* lnode to add to the hash table */ ,
 		node->h.oid = oid;
 		kcond_init(&node->h.cvar);
 		node->h.ref = 1;
-		ln_hash_insert(htable, node);
+		ln_hash_insert(&lnode_htable, node);
 		result = node;
 	}
-	spin_unlock(guard);
+	spin_unlock(&lnode_guard);
 	return result;
 }
 
@@ -254,20 +269,29 @@ lget(lnode * node /* lnode to add to the hash table */ ,
 void
 lput(lnode * node /* lnode to release */ )
 {
-	reiser4_super_info_data *sbinfo;
-
 	assert("nikita-1864", node != NULL);
 	assert("nikita-1961", lnode_valid_type(node->h.type));	/* man in
 								 * a
 								 * space */
-	sbinfo = get_current_super_private();
-	spin_lock(&sbinfo->lnode_guard);
-	assert("nikita-1878", ln_hash_find(&sbinfo->lnode_htable, &node->h.oid) == node);
+	spin_lock(&lnode_guard);
+	assert("nikita-1878", ln_hash_find(&lnode_htable, &node->h.oid) == node);
 	if (--node->h.ref == 0) {
-		ln_hash_remove(&sbinfo->lnode_htable, node);
+		ln_hash_remove(&lnode_htable, node);
 		kcond_broadcast(&node->h.cvar);
 	}
-	spin_unlock(&sbinfo->lnode_guard);
+	spin_unlock(&lnode_guard);
+}
+
+lnode *
+lref(lnode * node)
+{
+	assert("nikita-3241", node != NULL);
+	assert("nikita-3242", lnode_valid_type(node->h.type));
+
+	spin_lock(&lnode_guard);
+	++ node->h.ref;
+	spin_unlock(&lnode_guard);
+	return node;
 }
 
 /* true if @node1 and @node2 refer to the same object */
@@ -302,7 +326,7 @@ lnode_key(const lnode * node /* lnode to query */ ,
 /* Audited by: green(2002.06.15) */
 int
 get_lnode_plugins(const lnode * node /* lnode to query */ ,
-		  reiser4_plugin_ref * area /* result */ )
+		  plugin_set * area /* result */ )
 {
 	assert("nikita-1853", node != NULL);
 	assert("nikita-1858", lnode_valid_type(node->h.type));
@@ -313,7 +337,7 @@ get_lnode_plugins(const lnode * node /* lnode to query */ ,
 /* Audited by: green(2002.06.15) */
 int
 set_lnode_plugins(lnode * node /* lnode to modify */ ,
-		  const reiser4_plugin_ref * area /* plugins to install */ )
+		  const plugin_set * area /* plugins to install */ )
 {
 	assert("nikita-1859", node != NULL);
 	assert("nikita-1860", lnode_valid_type(node->h.type));

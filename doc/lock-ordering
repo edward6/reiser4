@@ -43,7 +43,7 @@ Reiser4 introduces following locks:
 
 12. Per-flushing-thread spin lock                               (ktxnmgrd_lock)
 
-13. Per-super-block lnode hash table lock                       (lnode_guard+)
+13. Global lnode hash table lock                                (lnode_guard+)
 
 14. Per-super-block cbk cache spin lock                         (cbk_guard)
 
