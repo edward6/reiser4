@@ -56,8 +56,8 @@
 
    Each cluster is defined (like pages are) by its index (e.g. offset,
    but the unit is cluster size instead of PAGE_SIZE). Key offset of
-   the first unit of the first item of each disk cluster is a multiple
-   of the cluster index.
+   the first unit of the first item of each disk cluster (we call this a
+   "key of disk cluster") is a multiple of the cluster index.
    
    All read/write/truncate operations are performed upon clusters.
    For example, if we wanna read 40K of a cryptcompress file with cluster size 16K
