@@ -133,6 +133,88 @@ static reiser4_kattr compile_options = {
 	.show = show_options
 };
 
+#if REISER4_STATS
+static const char *txn_stage_name(txn_stage stage)
+{
+	const char *name;
+
+#define STAGE(stage)				\
+	case stage:				\
+		name = #stage;			\
+		break
+
+	name = "unknown";
+	switch(stage) {
+		STAGE(ASTAGE_FREE);
+		STAGE(ASTAGE_CAPTURE_FUSE);
+		STAGE(ASTAGE_CAPTURE_WAIT);
+		STAGE(ASTAGE_PRE_COMMIT);
+		STAGE(ASTAGE_POST_COMMIT);
+		STAGE(ASTAGE_DONE);
+		STAGE(ASTAGE_INVALID);
+	}
+#undef STAGE
+	return name;
+}
+
+TS_LIST_DEFINE(atom, txn_atom, atom_link);
+
+static ssize_t 
+show_atoms(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
+{
+	char     *p;
+	txn_mgr  *tmgr;
+	txn_atom *atom;
+
+	(void)o;
+	p = buf;
+
+	tmgr = &get_super_private(s)->tmgr;
+
+	spin_lock_txnmgr(tmgr);
+	/* traverse the list of all atoms */
+	for_all_tslist(atom, &tmgr->atoms_list, atom) {
+		LOCK_ATOM(atom);
+		KATTR_PRINT(p, buf, 
+			    "refcount: %i id: %i flags: %#x txnh_count: %i"
+			    " capture_count: %i stage: %s (%#x) start: %lu"
+			    " objects_deleted: %i objects_created: %i"
+			    " blocks_allocated: %llu queued: %i waiters: %i"
+			    " flushers: %i running_queues: %i"
+			    " flush_reserved: %llu"
+			    "\n",
+			    atomic_read(&atom->refcount), 
+			    atom->atom_id, 
+			    atom->flags, 
+			    atom->txnh_count,
+			    atom->capture_count, 
+			    txn_stage_name(atom->stage), atom->stage,
+			    atom->start_time,
+			    atom->nr_objects_deleted,
+			    atom->nr_objects_created,
+			    atom->nr_blocks_allocated,
+			    atom->num_queued,
+			    atom->nr_waiters,
+			    atom->nr_flushers,
+			    atom->nr_running_queues,
+			    atom->flush_reserved);
+		UNLOCK_ATOM(atom);
+	}
+	spin_unlock_txnmgr(tmgr);
+
+	return (p - buf);
+}
+
+static reiser4_kattr atoms = {
+	.attr = {
+		.name = (char *) "tmgr.atoms",
+		.mode = 0444   /* r--r--r-- */
+	},
+	.cookie = NULL,
+	.show = show_atoms
+};
+#endif
+
 DEFINE_SUPER_RO(01, mkfs_id, "%llx", 32);
 DEFINE_SUPER_RO(02, block_count, "%llu", 64);
 DEFINE_SUPER_RO(03, blocks_used, "%llu", 64);
@@ -166,6 +248,8 @@ DEFINE_SUPER_RO(25, oids_in_use, "%llu", 64);
 DEFINE_SUPER_RO(26, entd.flushers, "%llu", 32);
 DEFINE_SUPER_RO(27, entd.timeout, "%llu", 32);
 
+DEFINE_SUPER_RO(28, tree.zgen, "%llu", 32);
+
 static struct attribute * def_attrs[] = {
 	&kattr_super_ro_01.attr,
 	&kattr_super_ro_02.attr,
@@ -194,7 +278,11 @@ static struct attribute * def_attrs[] = {
 	&kattr_super_ro_25.attr,
 	&kattr_super_ro_26.attr,
 	&kattr_super_ro_27.attr,
+	&kattr_super_ro_28.attr,
 	&compile_options.attr,
+#if REISER4_STATS
+	&atoms.attr,
+#endif
 	NULL
 };
 
