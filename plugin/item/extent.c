@@ -390,26 +390,25 @@ static int replace_end_of_extent (coord_t * coord, reiser4_block_nr end_part_sta
 	{
 		reiser4_context * ctx = get_current_context();
 		reiser4_super_info_data * sinfo = get_super_private(ctx->super);
-		__u64 grabbed;
+		__u64 estimated;
+		__u64 were_grabbed;
+
+		were_grabbed = ctx->grabbed_blocks;
+		estimated = estimate_one_insert_item(&get_super_private(ctx->super)->tree);
 
 		/* grab space for operations on internal levels. */
-		ret = reiser4_grab_space((__u64)1, BA_FORCE | BA_RESERVED | BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
-
+		ret = reiser4_grab_space(
+			estimated, BA_FORCE | BA_RESERVED | BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
 		if (ret)
 			return ret;
-
-		grabbed = ctx->grabbed_blocks;
 
 		ret =  replace_extent(
 			coord, znode_lh(coord->node, ZNODE_WRITE_LOCK), &key,
 			init_new_extent(&item, &new_ext, 1), &replace_ext, COPI_DONT_SHIFT_LEFT);
 
 		/* release grabbed space if it was not used. */
-		if (grabbed == ctx->grabbed_blocks)
-			grabbed2free(ctx, sinfo, (__u64)1, __FUNCTION__);
-		else
-			assert("zam-979", ctx->grabbed_blocks + 1 == grabbed);
-		
+		assert ("zam-988", ctx->grabbed_blocks >= were_grabbed);
+		grabbed2free(ctx, sinfo, ctx->grabbed_blocks - were_grabbed, __FUNCTION__);
 	}
 
 	return ret;
