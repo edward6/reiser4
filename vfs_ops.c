@@ -2403,23 +2403,21 @@ int reiser4_writepages( struct address_space *mapping, struct writeback_control 
 		 * call begin jnode_flush right from there having no deadlocks between the
 		 * caller of balance_dirty_pages() and jnode_flush(). */
 
-		long nr_submitted = 0;
-		int  flush_count = 0;
-		txn_mgr * tmgr = &get_super_private(s)->tmgr;
-
-		while (nr_submitted < wbc->nr_to_write && flush_count < wbc->nr_to_write ) {
-
+		while (wbc->nr_to_write > 0) {
+			long nr_submitted = 0;
+			
 			if (wbc->nonblocking && bdi_write_congested(bdi)) {
 				blk_run_queues();
 				wbc->encountered_congestion = 1;
 				break;
 			}
 
-			ret = txn_flush_one (tmgr, &nr_submitted, JNODE_FLUSH_WRITE_BLOCKS);
-			wbc->nr_to_write -= nr_submitted;
+			ret = txn_flush_some_atom (&nr_submitted, JNODE_FLUSH_WRITE_BLOCKS);
 
-			/* endless loop prevention */
-			flush_count ++;
+			if (!nr_submitted)
+				break;
+
+			wbc->nr_to_write -= nr_submitted;
 		}
 	} else {
 		ret = generic_writepages (mapping, wbc);
