@@ -17,6 +17,8 @@
 #define DC_CHECKSUM_SIZE 4
 #define MIN_CRYPTO_BLOCKSIZE 8
 
+typedef unsigned long cloff_t;
+
 /* Set of transform id's supported by reiser4, 
    each transform is implemented by appropriate transform plugin: */
 typedef enum {
@@ -356,7 +358,7 @@ typedef struct reiser4_cluster{
 	struct file * file;
 	hint_t * hint;                /* disk cluster item for traversal */
 	disk_cluster_stat dstat;      /* state of the current disk cluster */
-	unsigned long index;          /* cluster index */
+	cloff_t index;                /* offset in the units of cluster size */
 	reiser4_slide_t * win;        /* sliding window of cluster size */
 	int reserved;                 /* this indicates that space for disk
 					 cluster modification is reserved */
