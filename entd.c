@@ -22,7 +22,7 @@
  * set this to 0 if you don't want to use wait-for-flush in ->writepage(). This
  * is useful for debugging emergency flush, for example.
  */
-#define USE_ENTD (1)
+#define USE_ENTD (0)
 
 #define DEF_PRIORITY 12
 
