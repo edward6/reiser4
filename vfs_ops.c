@@ -783,15 +783,21 @@ reiser4_file_fsdata *reiser4_get_file_fsdata( struct file *f /* file
 	return f -> private_data;
 }
 
-/** Release reiser4 file. This is f_op->release() method. */
-static int reiser4_release( struct inode *i UNUSED_ARG /* inode released */, 
+/** Release reiser4 file. This is f_op->release() method. Called when last
+ * holder closes a file */
+static int reiser4_release( struct inode *i /* inode released */,
 			    struct file *f /* file released */ )
 {
+	file_plugin *fplug;
+
 	assert( "nikita-1447", f != NULL );
 
 	if( f -> private_data != NULL )
 		reiser4_kfree( f -> private_data, 
 			       sizeof( reiser4_file_fsdata ) );
+	fplug = inode_file_plugin( i );
+	if( fplug -> release )
+		return fplug -> release( f );
 	return 0;
 }
 
