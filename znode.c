@@ -46,36 +46,36 @@
   
    2. His childhood
   
-   Each node is either brought into memory as a result of tree
-   traversal, or created afresh, creation of the root being a special
-   case of the latter. In either case it's inserted into sibling
-   list. This will typically require some ancillary tree traversing,
-   but ultimately both sibling pointers will exist and
-   JNODE_LEFT_CONNECTED and JNODE_RIGHT_CONNECTED will be true in zstate.
+   Each node is either brought into memory as a result of tree traversal, or
+   created afresh, creation of the root being a special case of the latter. In
+   either case it's inserted into sibling list. This will typically require
+   some ancillary tree traversing, but ultimately both sibling pointers will
+   exist and JNODE_LEFT_CONNECTED and JNODE_RIGHT_CONNECTED will be true in
+   zjnode.state.
   
    3. His youth.
   
    If znode is bound to already existing node in a tree, its content is read
    from the disk by call to zload(). At that moment, JNODE_LOADED bit is set
-   in zstate and zdata() function starts to return non null for this
+   in zjnode.state and zdata() function starts to return non null for this
    znode. zload() further calls zparse() that determines which node layout
    this node is rendered in, and sets ->nplug on success.
   
-   If znode is for new node just created, memory for it is allocated
-   [this is not done yet] and zinit_new() function is called to
-   initialise data, according to selected node layout.
+   If znode is for new node just created, memory for it is allocated and
+   zinit_new() function is called to initialise data, according to selected
+   node layout.
   
    4. His maturity.
   
    After this point, znode lingers in memory for some time. Threads can
    acquire references to znode either by blocknr through call to zget(), or by
-   following a pointer to unallocated znode from internal item [not
-   implemented yet]. Each time reference to znode is obtained, x_count is
-   increased. Thread can read/write lock znode. Znode data can be loaded
-   through calls to zload(), d_count will be increased appropriately. If all
-   references to znode are released (x_count drops to 0), znode is not
-   recycled immediately. Rather, it is still cached in the hash table in the
-   hope that it will be accessed shortly.
+   following a pointer to unallocated znode from internal item. Each time
+   reference to znode is obtained, x_count is increased. Thread can read/write
+   lock znode. Znode data can be loaded through calls to zload(), d_count will
+   be increased appropriately. If all references to znode are released
+   (x_count drops to 0), znode is not recycled immediately. Rather, it is
+   still cached in the hash table in the hope that it will be accessed
+   shortly.
   
    There are two ways in which znode existence can be terminated: 
   
@@ -86,8 +86,8 @@
   
    Death is complex process.
   
-   When we irrevocably commit ourselves to decision to remove node from
-   the tree, JNODE_HEARD_BANSHEE bit is set in zstate of corresponding
+   When we irrevocably commit ourselves to decision to remove node from the
+   tree, JNODE_HEARD_BANSHEE bit is set in zjnode.state of corresponding
    znode. This is done either in ->kill_hook() of internal item or in
    kill_root() function when tree root is removed.
   
@@ -124,18 +124,6 @@
    table when last lock is released. This will result in having
    referenced but completely orphaned znode]
 
- # Surely an attempt to access a node raises it from the dead (though
- # does not necessarily prevent death if it is in progress)....  surely
- # such an attempt at access blocks but does not return failure... yes? -Hans
- #
- # No, there is no way to get new reference on that znode because he is not on
- # sibling list, he has no children and he is not in hash table so he is not
- # accessible by its block number. -zam
-
- # So attempting to get a znode by blocknr does not create the znode
- # and perform IO for the case where no such znode exists?
-
-  
    6. Limbo
   
    As have been mentioned above znodes with reference counter 0 are
