@@ -119,10 +119,7 @@ typedef enum {
 	/* don't kill node even if it became completely empty as results of
 	 * cut. This is needed for eottl handling. See carry_extent() for
 	 * details. */
-	DELETE_RETAIN_EMPTY = (1 << 0),
-	/* kill items as opposed to just cut them. Killing implies that items
-	 * are really removed from the tree, ->kill_hook method is called. */
-	DELETE_KILL = (1 << 1)
+	DELETE_RETAIN_EMPTY = (1 << 0)
 } cop_delete_flag;
 
 /*
