@@ -1096,7 +1096,7 @@ carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
 
 		/* compose item data for insertion/pasting */
 		flow_insert_data(op)->data = f->data;
-		flow_insert_data(op)->length = what_can_fit_into_node(op) + item_data_overhead(op);
+		flow_insert_data(op)->length = what_can_fit_into_node(op);
 
 		if (can_paste(insert_point, &f->key, flow_insert_data(op))) {
 			/* insert point is set to item of file we are writing to and we have to append to it */
@@ -1107,7 +1107,8 @@ carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
 		} else {
 			/* new item must be inserted */
 			pos_in_node_t new_pos;
-
+			flow_insert_data(op)->length += item_data_overhead(op);
+			
 			/* FIXME-VS: this is because node40_create_item changes
 			   insert_point for obscure reasons */
 			switch (insert_point->between) {
@@ -1134,7 +1135,7 @@ carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
 		doing->restartable = 0;
 		znode_make_dirty(insert_point->node);
 
-		move_flow_forward(f, (unsigned) flow_insert_data(op)->length - item_data_overhead(op));
+		move_flow_forward(f, (unsigned) flow_insert_data(op)->length);
 		something_written = 1;
 	}
 

@@ -665,6 +665,13 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	scan_init(&right_scan);
 	scan_init(&left_scan);
 
+	/* init linkage status of the node */
+	if (jnode_is_znode(node)) {
+		/* if jnode is unformatted this status will be set in scan_unformatted */
+		set_flush_scan_nstat(&left_scan, LINKED);
+		set_flush_scan_nstat(&right_scan, LINKED);
+	}
+	
 	/*IF_TRACE (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF)); */
 	/*IF_TRACE (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK)); */
 
@@ -698,7 +705,7 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	todo = sbinfo->flush.relocate_threshold - left_scan.count;
 	/* scan right is inherently deadlock prone, because we are
 	 * (potentially) holding a lock on the twig node at this moment. */
-	if (todo > 0) {
+	if (todo > 0 && (get_flush_scan_nstat(&right_scan) == LINKED)) {
 		ret = scan_right(&right_scan, node, (unsigned)todo);
 		if (ret != 0)
 			goto failed;
@@ -1544,8 +1551,10 @@ out:
 	return ret;
 }
 
-
-/* Scan @node items and try to squeeze each one. */
+/* This is special node method which scans node items and check for each
+   one, if we need to apply flush squeeze item method. This item method
+   may resize/kill the item, and also may change its content.
+*/
 static int squeeze_node(flush_pos_t * pos, znode * node)
 {
 	int ret = 0;
@@ -1556,7 +1565,7 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 
 	assert("edward-304", pos != NULL);
 	assert("edward-305", pos->child == NULL);
-
+	
 	if (znode_get_level(node) != LEAF_LEVEL)
 		/* do not squeeze this node */
 		return 0;
@@ -1567,23 +1576,66 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 		if (node_is_empty(node))
 			/* nothing to squeeze */
 			return 0;
-		iplug = item_plugin_by_coord(&pos->coord);
-
+		if (pos->idata) {
+			iplug = pos->idata->iplug;
+			assert("edward-xxx", iplug->f.squeeze != NULL);
+		}
+		else if (!coord_is_existing_item(&pos->coord))
+			/* finished */
+			break;
+		else
+			iplug = item_plugin_by_coord(&pos->coord);
+		
 		if (iplug->f.squeeze == NULL)
-			/* do not squeeze this item */
+			/* unsqueezable */
 			goto next;
+
 		ret = iplug->f.squeeze(pos);
+
+		if (ret == -E_REPEAT)
+			continue;
 		if (ret)
 			return ret;
-
+		
 		assert("edward-307", pos->child == NULL);
-
+		
+		/* now we should check if (pos->idata != NULL), and if so,
+		   call previous method again, BUT if current item is last
+		   and mergeable with the first item of slum right neighbor,
+		   we set idata->mergeable = 1, go to slum right neighbor
+		   and continue squeezing using this info
+		*/
 	next:
-		if (coord_next_item(&pos->coord))
+		if (coord_next_item(&pos->coord)) {
 			/* node is over */
-			break;
-	}
+			int res;
+			lock_handle right_lock;
+			coord_t coord;
+			
+			init_lh(&right_lock);
+			
+			if (pos->idata == NULL)
+				break;
+			/* check for slum right neighbor */
+			res = neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
+			if (res)
+				/* no neighbor, repeat on this node */
+				continue;
 
+			coord_init_after_item_end(&pos->coord);
+			coord_init_before_first_item(&coord, right_lock.node);
+			
+			if (iplug->b.mergeable(&pos->coord, &coord)) {
+				/* go to slum right neighbor */
+				pos->idata->mergeable = 1;
+				done_lh(&right_lock);
+				break;
+			}
+			/* first item of right neighbor is not mergeable,
+			   repeat this node */
+			done_lh(&right_lock);
+		}
+	}
 #endif	/* SQUEEZE_NODE_SUPPORT */
 	return ret;
 }
@@ -2713,10 +2765,9 @@ jnode_lock_parent_coord(jnode         * node,
 
 		jnode_build_key(node, &key);
 
-		if (jnode_is_cluster_page(node)) {
+		if (jnode_is_cluster_page(node)) 
 			stop_level = LEAF_LEVEL;
-			bias = FIND_MAX_NOT_MORE_THAN;
-		}
+		
 		assert("jmacd-1812", coord != NULL);
 
 		ret = coord_by_key(jnode_get_tree(node), &key, coord, parent_lh,
@@ -2729,11 +2780,11 @@ jnode_lock_parent_coord(jnode         * node,
 				assert("edward-165", jnode_page(node)->mapping != NULL);
 				assert("edward-166", jnode_page(node)->mapping->host != NULL);
 				assert("edward-167", inode_get_flag(jnode_page(node)->mapping->host, REISER4_CLUSTER_KNOWN));
-				/* file was just created or cluster doesn't have
-				 * appropriate items in the tree. */
+                                /* jnode of a new cluster which is not represented by any items in the tree. */
 				result = incr_load_count_znode(parent_zh, parent_lh->node);
 				if (result != 0)
 					return result;
+				coord->between = AFTER_ITEM;
 			} else if (!JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
 				warning("nikita-3177", "Parent not found");
 				print_jnode("node", node);
@@ -3067,7 +3118,7 @@ scan_common(flush_scan * scan, flush_scan * other)
    returns COORD_NOT_FOUND.
 */
 static int
-should_set_scan_istat(flush_scan * scan)
+scan_should_link_node(flush_scan * scan)
 {
 	assert("edward-311", scan->node != NULL);
 	if (jnode_is_cluster_page(scan->node)) {
@@ -3076,12 +3127,6 @@ should_set_scan_istat(flush_scan * scan)
 		return 1;
 	}
 	return 0;
-}
-
-static void
-set_scan_istat(flush_scan * scan)
-{
-	set_flush_scan_istat(scan, NEED_CREATE);
 }
 
 static int
@@ -3136,20 +3181,22 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
 			/* FIXME(C): check EINVAL, E_DEADLOCK */
 			ON_TRACE(TRACE_FLUSH,
 				 "flush_scan_common: jnode_lock_parent_coord returned %d\n", ret);
-			if (should_set_scan_istat(scan))
-				set_scan_istat(scan);
-			else
-				return ret;
+			if (!scan_should_link_node(scan))
+			return ret;
 		}
-		/* parent was found */
-		ON_TRACE(TRACE_FLUSH,
-			 "flush_scan_common: jnode_lock_parent_coord returned 0\n");
-		assert("jmacd-8661", other != NULL);
-
+		else {
+			/* parent was found */
+			set_flush_scan_nstat(scan, LINKED);
+			ON_TRACE(TRACE_FLUSH,
+				 "flush_scan_common: jnode_lock_parent_coord returned 0\n");
+			assert("jmacd-8661", other != NULL);
+		}
+		
 		/* Duplicate the reference into the other flush_scan. */
 		coord_dup(&other->parent_coord, &scan->parent_coord);
 		copy_lh(&other->parent_lock, &scan->parent_lock);
 		copy_load_count(&other->parent_load, &scan->parent_load);
+		set_flush_scan_nstat(other, scan->nstat);
 	}
  scan:
 	return scan_by_coord(scan);
@@ -3254,7 +3301,7 @@ scan_by_coord(flush_scan * scan)
 	scan_this_coord = (jnode_is_unformatted(scan->node) ? 1 : 0);
 
         /* set initial item id */
-	if (get_flush_scan_istat(scan) == NEED_CREATE)
+	if (get_flush_scan_nstat(scan) == UNLINKED)
 		iplug = item_plugin_by_jnode(scan->node);
 	else
 		iplug = item_plugin_by_coord(&scan->parent_coord);
@@ -3269,7 +3316,7 @@ scan_by_coord(flush_scan * scan)
 				goto exit;
 			}
 
-			ret = iplug->f.scan(scan, &scan->parent_coord);
+			ret = iplug->f.scan(scan);
 			if (ret != 0)
 				goto exit;
 

@@ -90,6 +90,7 @@ reiser4_create(struct inode *parent	/* inode of parent
 	       struct nameidata *nameidata)
 {
 	reiser4_object_create_data data;
+	xmemset(&data, 0, sizeof data);
 
 	reiser4_stat_inc_at(parent->i_sb, vfs_calls.create);
 

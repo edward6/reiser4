@@ -5,9 +5,9 @@
 #include "plugin/item/ctail.h" /* for ctail scan/squeeze info */
 
 typedef enum {
-	EXISTING_ITEM = 0,
-	NEED_CREATE   = 1
-} flush_scan_item_stat_t;
+	UNLINKED = 0,
+	LINKED   = 1
+} flush_scan_node_stat_t;
 
 /* The flush_scan data structure maintains the state of an in-progress flush-scan on a
    single level of the tree.  A flush-scan is used for counting the number of adjacent
@@ -38,10 +38,13 @@ struct flush_scan {
 	   been incremented to reflect this reference. */
 	jnode *node;
 	
-	/* item specific data, can be used when child is not linked yet by any items on
-	 * parent level (e.g. when we create new cryptcompress object */
-	flush_scan_item_stat_t istat;
-
+	/* node specific linkage status. This indicates if the node that flush
+	 * started from is linked to the tree (like formatted nodes, extent's jnodes),
+	 * or not (like jnodes of newly created cluster of cryptcompressed file.
+	 * If (nstat == UNLINKED) we don't do right scan. Also we use this status in
+	 * scan_by_coord() to assign item plugin */
+	flush_scan_node_stat_t nstat;
+	
 	/* A handle for zload/zrelse of current scan position node. */
 	load_count node_load;
 
@@ -62,20 +65,25 @@ struct flush_scan {
 	reiser4_block_nr preceder_blk;
 };
 
-static inline flush_scan_item_stat_t
-get_flush_scan_istat(flush_scan * scan)
+static inline flush_scan_node_stat_t
+get_flush_scan_nstat(flush_scan * scan)
+
 {
-	return scan->istat;
+	return scan->nstat;
 }
 
 static inline void
-set_flush_scan_istat(flush_scan * scan, flush_scan_item_stat_t istat)
+set_flush_scan_nstat(flush_scan * scan, flush_scan_node_stat_t nstat)
 {
-	scan->istat = istat;
+	scan->nstat = nstat;
 }
 
-typedef union flush_squeeze_item_data {
-	ctail_squeeze_info_t ctail_info;
+typedef struct flush_squeeze_item_data {
+	item_plugin * iplug;
+	int mergeable;
+	union {
+		ctail_squeeze_info_t ctail_info;
+	} u;
 } flush_squeeze_item_data_t;
 
 typedef enum flush_position_state {
