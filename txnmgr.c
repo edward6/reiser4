@@ -1,10 +1,10 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
-/* As of 2002 the code in this file was primarily designed by Joshua MacDonald, with aspects relating to ensuring high
- * performance, and flexibility in the amount of isolation for reasons of high performance, being heavily influenced by
- * Hans Reiser.  Alexander Zarochentcev became the maintainer when Josh left.  Hans would like to commend Josh for
- * leaving his code in a well commmented and well structured condition, and to recommend him to any prospective future
- * employers he might have.  */
+/* The locking in this file is badly designed, and a filesystem scales only as well as its worst locking
+ * design. -Hans */
+
+
+/* Joshua MacDonald wrote the first draft of this code. */
 
 /* The txnmgr is a set of interfaces that keep track of atoms and transcrash handles.  The
    txnmgr processes capture_block requests and manages the relationship between jnodes and
@@ -264,7 +264,7 @@ TS_LIST_DEFINE(fwaiting, txn_wait_links, _fwaiting_link);
 /* FIXME: In theory, we should be using the slab cache init & destructor
    methods instead of, e.g., jnode_init, etc. */
 static kmem_cache_t *_atom_slab = NULL;
-static kmem_cache_t *_txnh_slab = NULL;	/* FIXME_LATER_JMACD Will it be used? */
+static kmem_cache_t *_txnh_slab = NULL;	/* FIXME_LATER_JMACD (now NIKITA-FIXME-HANS:) Will it be used? */
 
 ON_DEBUG(extern atomic_t flush_cnt;)
 
@@ -582,8 +582,7 @@ atom_locked_by_jnode(jnode * node)
 		if (atom == NULL)
 			break;
 
-		/* there could be not contention for the atom spin lock at this
-		 * moment and trylock can succeed. */
+		/* If atom is not locked, grab the lock and return */
 		if (spin_trylock_atom(atom))
 			break;
 
@@ -830,7 +829,7 @@ atom_free(txn_atom * atom)
 	atom_list_remove_clean(atom);
 
 	/* Clean the atom */
-	assert("jmacd-16", (atom->stage == ASTAGE_FUSED || atom->stage == ASTAGE_DONE));
+	assert("jmacd-16", (atom->stage == ASTAGE_INVALID || atom->stage == ASTAGE_DONE));
 	atom->stage = ASTAGE_FREE;
 
 	blocknr_set_destroy(&atom->delete_set);
@@ -857,9 +856,8 @@ static int atom_can_be_committed (txn_atom * atom)
 	return atom->txnh_count == atom->nr_waiters + 1;
 }
 
-/* Return true if an atom should commit now.  This will be determined by aging.  For now
-   this says to commit after the atom has 20 captured nodes.  The routine is only called
-   when the txnh_count drops to 0. */
+/* Return true if an atom should commit now.  This is determined by aging, atom
+   size or atom flags. */
 static int
 atom_should_commit(const txn_atom * atom)
 {
@@ -869,22 +867,6 @@ atom_should_commit(const txn_atom * atom)
 		((unsigned) atom_pointer_count(atom) > get_current_super_private()->tmgr.atom_max_size) ||
 		atom_is_dotard(atom);
 }
-
-#if 0
-/* FIXME: JMACD->ZAM: This should be removed after a transaction can wait on all its
-   active io_handles here. */
-static void
-txn_wait_on_io(txn_atom * atom)
-{
-	jnode *scan;
-
-	for_all_tslist(capture, &atom->clean_nodes, scan) {
-		if (scan->pg && PageWriteback(scan->pg)) {
-			wait_on_page_writeback(scan->pg);
-		}
-	}
-}
-#endif
 
 /* Get first dirty node from the atom's dirty_nodes[n] lists; return NULL if atom has no dirty
    nodes on atom's lists */
@@ -1471,6 +1453,8 @@ typedef struct commit_data {
 	int          failed;
 } commit_data;
 
+/* NIKITA-FIXME-HANS: comment this, including explaining why we only "try".  Advise on whether more "unlikely"'s should be included here. */
+
 static int
 try_commit_txnh(commit_data *cd)
 {
@@ -1579,7 +1563,7 @@ commit_txnh(txn_handle * txnh)
 	UNLOCK_TXNH(txnh);
 	atom_dec_and_unlock(cd.atom);
 
-	/* Note: We are ignoring the failure code.  Can't change the result of the caller.
+	/* VS-FIXME-ANONYMOUS-BUT-ASSIGNED-TO-VS-BY-HANS: Note: We are ignoring the failure code.  Can't change the result of the caller.
 	   E.g., in write():
 	  
 	     result = 512;
@@ -2161,7 +2145,6 @@ uncapture_page(struct page *pg)
 {
 	jnode *node;
 	txn_atom *atom;
-	blocknr_set_entry *blocknr_entry = NULL;
 
 	assert("umka-199", pg != NULL);
 	assert("nikita-3155", PageLocked(pg));
@@ -2191,8 +2174,6 @@ uncapture_page(struct page *pg)
 		assert("jmacd-7111", !jnode_check_dirty(node));
 		return;
 	}
-
-	assert("jmacd-5177", blocknr_entry == NULL);
 
 	LOCK_JNODE(node);
 	/* We can remove jnode from transaction even if it is on flush queue
@@ -2332,9 +2313,8 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 	   relocate set nor overwrite one. If node is in overwrite or
 	   relocate set we assume that atom's flush reserved counter was
 	   already adjusted. */
-	if (!JF_ISSET(node, JNODE_CREATED)
-	    && !JF_ISSET(node, JNODE_RELOC) 
-	    && !JF_ISSET(node, JNODE_OVRWR))
+	if (!JF_ISSET(node, JNODE_CREATED) && !JF_ISSET(node, JNODE_RELOC) 
+	    && !JF_ISSET(node, JNODE_OVRWR) && jnode_is_leaf(node))
 	{
 		assert("vs-1093", !blocknr_is_fake(&node->blocknr));
 		grabbed2flush_reserved_nolock(atom, (__u64)1, "jnode_set_dirty: for clean, !created, !reloc and !ovrwr");
@@ -3136,7 +3116,7 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 		wakeup_atom_waiting_list(large);
 	}
 
-	small->stage = ASTAGE_FUSED;
+	small->stage = ASTAGE_INVALID;
 
 	/* Unlock atoms */
 	UNLOCK_ATOM(large);
