@@ -92,7 +92,7 @@ reiser4_llseek(struct file *file, loff_t off, int origin)
 
 	fplug = inode_file_plugin(inode);
 	assert("nikita-2291", fplug != NULL);
-	seek_fn = fplug->seek ? : default_llseek;
+	seek_fn = fplug->seek ? : generic_file_llseek;
 	result = seek_fn(file, off, origin);
 	reiser4_exit_context(&ctx);
 	return result;
