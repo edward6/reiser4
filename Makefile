@@ -78,6 +78,7 @@ reiser4-objs := \
 		   entd.o\
 		   readahead.o \
 		   crypt.o \
+		   minilzo.o\
 		   compress.o\
 		   diskmap.o \
 		   prof.o \
