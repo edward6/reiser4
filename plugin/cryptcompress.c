@@ -2716,7 +2716,7 @@ adjust_left_coord(coord_t * left_coord)
 reiser4_internal int
 cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
 			      const reiser4_key * to_key, reiser4_key * smallest_removed,
-			      struct inode * object)
+			      struct inode * object, int truncate)
 {
 	lock_handle next_node_lock;
 	coord_t left_coord;
@@ -2788,7 +2788,7 @@ cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
 					   to_key,
 					   smallest_removed,
 					   next_node_lock.node,
-					   object);
+					   object, truncate);
 #if REISER4_DEBUG
 		/*node_check(node, ~0U);*/
 #endif

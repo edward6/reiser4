@@ -528,7 +528,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 			break;
 
 		result = cut_tree_object(current_tree, &from_key, &to_key,
-					 &smallest_removed, inode);
+					 &smallest_removed, inode, 1);
 		if (result == -E_REPEAT) {
 			/* -E_REPEAT is a signal to interrupt a long file truncation process */
 			INODE_SET_FIELD(inode, i_size, get_key_offset(&smallest_removed));
@@ -2019,7 +2019,7 @@ static int
 check_pages_unix_file(struct inode *inode)
 {
 	reiser4_invalidate_pages(inode->i_mapping, 0,
-				 (inode->i_size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT);
+				 (inode->i_size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT, 0);
 	return unpack(inode, 0 /* not forever */);
 }
 
