@@ -562,6 +562,7 @@ static inline int jnode_is_in_deleteset( const jnode *node )
 	return JF_ISSET( node, ZNODE_RELOC )  /*|| JF_ISSET( node, ZNODE_DELETED )*/;
 }
 
+extern int znode_rehash( znode *node, const reiser4_block_nr *new_block_nr );
 extern znode *znode_parent( const znode *node );
 extern znode *znode_parent_nolock( const znode *node );
 extern int znode_above_root (const znode *node);
@@ -601,6 +602,7 @@ extern void   jnode_init      (jnode *node);
 extern void   jnode_set_dirty (jnode *node);
 extern void   jnode_set_clean (jnode *node);
 extern const reiser4_block_nr* jnode_get_block( const jnode *node );
+extern void   jnode_set_block (jnode *node, const reiser4_block_nr *blocknr);
 extern int    jnode_flush     (jnode *node, int flags);
 
 #if REISER4_DEBUG
@@ -623,6 +625,7 @@ extern void   jput( jnode *node );
 #define znode_check_dirty(x)        jnode_check_dirty ( ZJNODE(x) )
 #define znode_set_dirty(x)          jnode_set_dirty   ( ZJNODE(x) )
 #define znode_set_clean(x)          jnode_set_clean   ( ZJNODE(x) )
+#define znode_set_block(x, b)       jnode_set_block ( ZJNODE(x), (b) )
 
 #define spin_lock_znode(x)          spin_lock_jnode ( ZJNODE(x) )
 #define spin_unlock_znode(x)        spin_unlock_jnode ( ZJNODE(x) )

@@ -316,6 +316,31 @@ void zdestroy( znode *node /* znode to finish with */ )
 	zfree( node );
 }
 
+/** put znode into right place in the hash table */
+int znode_rehash( znode *node /* node to rehash */, 
+		  const reiser4_block_nr *new_block_nr /* new block number */ )
+{
+	z_hash_table *htable;
+
+	assert( "nikita-2018", node != NULL );
+
+	htable  = &current_tree -> hash_table;
+
+	spin_lock_tree( current_tree );
+	/* remove znode from hash-table */
+	z_hash_remove( htable, node );
+
+	assert( "nikita-2019", z_hash_find( htable, new_block_nr ) == NULL );
+
+	/* update blocknr */
+	znode_set_block( node, new_block_nr );
+	/* insert it into hash */
+	z_hash_insert( htable, node );
+	spin_unlock_tree( current_tree );
+	return 0;
+}
+
+
 /****************************************************************************************
 				   ZNODE LOOKUP, GET, PUT
  ****************************************************************************************/
@@ -802,6 +827,13 @@ const reiser4_block_nr *jnode_get_block( const jnode *node /* jnode to
    the block: likely we already have that.
 */
 	return & node -> blocknr;
+}
+
+void jnode_set_block( jnode *node /* jnode to update */,
+		      const reiser4_block_nr *blocknr /* new block nr */ )
+{
+	assert( "nikita-2020", node  != NULL );
+	node -> blocknr = *blocknr;
 }
 
 /** left delimiting key of znode */
