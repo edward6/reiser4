@@ -436,6 +436,7 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "carry.h"
 #include "carry_ops.h"
 #include "tree.h"
+#include "tap.h"
 
 #include "trace.h"
 

@@ -996,7 +996,6 @@ int unix_file_release (struct file * file)
 	return extent2tail (file);
 }
 
-
 /* plugin->u.file.mmap
  * make sure that file is built of extent blocks
  */
