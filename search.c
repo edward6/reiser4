@@ -952,6 +952,16 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 
 	assert( "vs-361", h -> level > h -> slevel );
 
+	/* FIXME-VS: remove this after debugging is done */
+	if (get_key_objectid (h -> key) == 0x100c6 &&
+	    znode_get_level (h -> coord -> node) == TWIG_LEVEL) {
+		int i;
+		for (i = 0; i < 2; i ++)
+			i ++;
+	}
+	/* FIXME-VS: remove this after debuggin is done */
+		
+
 	iplug = item_plugin_by_coord( h -> coord );
 	if( iplug -> item_plugin_id != NODE_POINTER_IT ) {
 		/* strange item type found on non-stop level?!  Twig
@@ -1012,10 +1022,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 				keycmp( h -> key,
 					item_key_by_coord( h -> coord,
 							   &key)) == EQUAL_TO );
-			assert( "vs-362", item_plugin_id_by_coord( h -> coord ) ==
-				NODE_POINTER_IT );
-			iplug = item_plugin_by_coord( h -> coord );
-		} else
+		} else {
 			/* 
 			 * this is special case mentioned in the comment on
 			 * tree.h:cbk_flags. We have found internal item
@@ -1027,6 +1034,10 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 			 * place).
 			 */
 			h -> flags &= ~CBK_TRUST_DK;
+		}
+		assert( "vs-362", item_type_by_coord( h -> coord ) ==
+                        NODE_POINTER_ITE );
+		iplug = item_plugin_by_coord( h -> coord );
 	}
 	/*
 	 * prepare delimiting keys for the next node
@@ -1036,6 +1047,14 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 		h -> result = CBK_IO_ERROR;
 		return LLR_DONE;
 	}
+	/* FIXME-VS: remove this after debuggin is done */
+
+	if (item_plugin_id (iplug) != INTERNAL_ITEM_ID) {
+		*(int *)0 = 0;
+	}
+	/* FIXME-VS: remove this after debuggin is done */
+
+
 	/* go down to next level */
 	iplug -> s.internal.down_link( h -> coord, h -> key,
 				       &h -> block );
