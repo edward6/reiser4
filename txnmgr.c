@@ -391,7 +391,7 @@ jnode_of_page (struct page* pg)
 jnode * nth_jnode (struct page * page, int block)
 {
 	assert ("vs-695", PagePrivate (page) && page->private);
-	assert ("vs-696", current_blocksize == PAGE_CACHE_SIZE);
+	assert ("vs-696", current_blocksize == (unsigned)PAGE_CACHE_SIZE);
 	assert ("vs-697", block == 0);
 	return (jnode *)page->private;
 }
