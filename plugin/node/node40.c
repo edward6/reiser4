@@ -1470,20 +1470,6 @@ void node40_copy (struct shift_params * shift)
 				    SHIFT_PREPEND, shift->part_bytes);
 		}
 	}
-
-#ifdef DEBUGGING_SHIFT
-	if (shift->pend == SHIFT_APPEND) {
-		printf ("SHIFT TO LEFT: merging %d, entire %d, part %d, size %d\n",
-			shift->merging_units, shift->entire, shift->part_units,
-			shift->shift_bytes);
-		info ("TARGET:\n");
-		print_znode_content (to.node, REISER4_NODE_PRINT_HEADER | REISER4_NODE_PRINT_KEYS |
-				    REISER4_NODE_PRINT_ITEMS | REISER4_NODE_PRINT_DATA);
-		info ("SOURCE:\n");
-		print_znode_content (from.node, REISER4_NODE_PRINT_HEADER | REISER4_NODE_PRINT_KEYS |
-				    REISER4_NODE_PRINT_ITEMS | REISER4_NODE_PRINT_DATA);
-	}
-#endif
 }
 
 
@@ -1889,6 +1875,11 @@ int node40_shift (tree_coord * from, znode * to,
 		shift.merging_units, shift.entire, shift.part_units,
 		shift.shift_bytes);
 #endif	
+	trace_on (TRACE_SHIFT, "shift: [%Li] %s--%s [%Li]: %i\n",
+		  znode_get_block (left) -> blk, 
+		  (shift.pend == SHIFT_APPEND) ? "<" : "",
+		  (shift.pend == SHIFT_APPEND) ? "" : ">",
+		  znode_get_block (right) -> blk, shift.shift_bytes);
 
 	node_check (source, REISER4_NODE_PANIC);
 	node_check (to, REISER4_NODE_PANIC);
