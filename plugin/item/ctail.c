@@ -393,6 +393,7 @@ ctail_cluster_by_page (reiser4_cluster_t * clust, struct page * page, struct ino
 		case CBK_COORD_FOUND:
 			assert("edward-147", item_plugin_by_coord(&uf_coord.base_coord) == iplug);
 			assert("edward-148", uf_coord.base_coord.between != AT_UNIT);
+			coord_clear_iplug(&uf_coord.base_coord);
 			res = zload_ra(uf_coord.base_coord.node, &ra_info);
 			if (unlikely(res))
 				goto out;

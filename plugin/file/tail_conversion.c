@@ -423,6 +423,7 @@ tail2extent(unix_file_info_t *uf_info)
 					kunmap_atomic(p_data, KM_USER0);
 					break;
 				}
+				coord_clear_iplug(coord);
 				result = zload(coord->node);
 				if (result) {
 					done_lh(&lh);
@@ -548,6 +549,7 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 		assert("vs-958", ergo(result == CBK_COORD_FOUND, get_key_offset(&f.key) != 0));
 
 		coord = &hint.coord.base_coord;
+		coord_clear_iplug(coord);
 		result = zload(coord->node);
 		if (result)
 			break;

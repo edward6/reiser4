@@ -371,6 +371,7 @@ iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 	assert("nikita-1147", actor != NULL);
 
 	result = zload(coord->node);
+	coord_clear_iplug(coord);
 	if (result != 0)
 		return result;
 	if (!coord_is_existing_unit(coord)) {

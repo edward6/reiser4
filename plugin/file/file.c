@@ -441,6 +441,7 @@ find_file_size(struct inode *inode, loff_t *file_size)
 	coord = &hint.coord.base_coord;
 
 	/* there are items of this file (at least one) */
+	coord_clear_iplug(coord);
 	result = zload(coord->node);
 	if (unlikely(result)) {
 		done_lh(&lh);
@@ -968,6 +969,7 @@ readpage_unix_file(void *vp, struct page *page)
 	}
 	
 	coord = &hint.coord.base_coord;
+	coord_clear_iplug(coord);
 	result = zload(coord->node);
 	if (result) {
 		done_lh(&lh);
@@ -1247,6 +1249,7 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 			break;
 		}
 
+		coord_clear_iplug(coord);
 		result = zload_ra(coord->node, &ra_info);
 		if (unlikely(result)) {
 			longterm_unlock_znode(&lh);
@@ -1677,6 +1680,7 @@ get_block_unix_file(struct inode *inode,
 		done_lh(&lh);
 		return result;
 	}
+	coord_clear_iplug(&hint.coord.base_coord);
 	result = zload(hint.coord.base_coord.node);
 	if (result) {
 		done_lh(&lh);

@@ -39,6 +39,7 @@ tap_load(tap_t * tap)
 		result = zload_ra(tap->lh->node, &tap->ra_info);
 		if (result != 0)
 			return result;
+		coord_clear_iplug(tap->coord);
 	}
 	++tap->loaded;
 	tap_check(tap);
@@ -52,7 +53,6 @@ tap_relse(tap_t * tap)
 	tap_check(tap);
 	--tap->loaded;
 	if (tap->loaded == 0) {
-		coord_clear_iplug(tap->coord);
 		zrelse(tap->lh->node);
 	}
 	tap_check(tap);
@@ -137,6 +137,7 @@ tap_move(tap_t * tap, lock_handle * target)
 		done_lh(tap->lh);
 		copy_lh(tap->lh, target);
 		tap->coord->node = target->node;
+		coord_clear_iplug(tap->coord);
 	}
 	tap_check(tap);
 	return result;

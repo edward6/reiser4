@@ -99,10 +99,11 @@ check_inode_seal(const struct inode *inode,
 }
 
 static void
-check_sd_coord(const coord_t *coord, const reiser4_key *key)
+check_sd_coord(coord_t *coord, const reiser4_key *key)
 {
 	reiser4_key ukey;
 
+	coord_clear_iplug(coord);
 	if (zload(coord->node))
 		return;
 
@@ -234,6 +235,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	*/
 
 	if (result == IBK_INSERT_OK) {
+		coord_clear_iplug(&coord);
 		result = zload(coord.node);
 		if (result == 0) {
 			/* have we really inserted stat data? */
@@ -277,6 +279,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 #define UPDATE_SD_1 \
 {\
 	PROF_BEGIN(update_sd_load);\
+	coord_clear_iplug(coord);\
 	result = zload(coord->node);\
 	if (result != 0)\
 		return result;\
@@ -317,6 +320,7 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 
 	state = reiser4_inode_data(inode);
 
+	coord_clear_iplug(coord);
 	result = zload(coord->node);
 	if (result != 0)
 		return result;
@@ -354,6 +358,7 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 		if (loaded != coord->node) {
 			/* resize_item moved coord to another node. Zload it */
 			zrelse(loaded);
+			coord_clear_iplug(coord);
 			result = zload(coord->node);
 			if (result != 0)
 				return result;

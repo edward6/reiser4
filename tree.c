@@ -306,6 +306,7 @@ insert_result insert_by_coord(coord_t * coord	/* coord where to
 	write_tree_trace(znode_get_tree(coord->node), tree_insert, key, data, coord, flags);
 
 	node = coord->node;
+	coord_clear_iplug(coord);
 	result = zload(node);
 	if (result != 0)
 		return result;
@@ -468,6 +469,7 @@ resize_result resize_item(coord_t * coord /* coord of item being resized */ ,
 	assert("vs-245", data->length != 0);
 
 	node = coord->node;
+	coord_clear_iplug(coord);
 	result = zload(node);
 	if (result != 0)
 		return result;

@@ -1073,6 +1073,7 @@ add_hole(coord_t *coord, lock_handle *lh, const reiser4_key *key /* key of posit
 	reiser4_item_data item;
 	reiser4_key hole_key;
 
+	coord_clear_iplug(coord);
 	result = zload(coord->node);
 	if (result)
 		return result;
@@ -1753,8 +1754,10 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 	if (!result) {
 		reiser4_extent *ext;
 
-		if (coord_after.node != orig_znode)
+		if (coord_after.node != orig_znode) {
+			coord_clear_iplug(&coord_after);
 			result = zload(coord_after.node);
+		}
 
 		if (likely(!result)) {
 			ext = extent_by_coord(&coord_after);

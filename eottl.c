@@ -237,6 +237,7 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 		if (parent_node != insert_coord->node) {
 			zrelse(parent_node);
 			result = zload(insert_coord->node);
+			coord_clear_iplug(insert_coord);
 		}
 		if (result == 0) {
 			WLOCK_TREE(tree);

@@ -418,6 +418,7 @@ connect_znode(coord_t * coord, znode * node)
 	}
 
 	/* load parent node */
+	coord_clear_iplug(coord);
 	ret = zload(coord->node);
 
 	if (ret != 0)

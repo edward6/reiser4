@@ -247,6 +247,7 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 	assert("nikita-1946", inode->i_state & I_NEW);
 	assert("nikita-2378", inode->i_state & I_LOCK);
 
+	coord_clear_iplug(coord);
 	result = zload(coord->node);
 	if (result)
 		return result;
