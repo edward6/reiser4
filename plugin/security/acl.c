@@ -1,5 +1,7 @@
 /* Copyright 2003 by Hans Reiser, licensing governed by reiser4/README */
 
+/* NIKITA-FIXME-HANS: after reiser4 is released, rewrite to use v4 semantics to change and adjust.  */
+
 #include "acl.h"
 
 #include "../../debug.h"
@@ -7,7 +9,6 @@
 #include "../../inode.h"
 
 #include <linux/posix_acl.h>
-#include <linux/xattr_acl.h>
 
 static int
 check_write(struct inode *inode, umode_t mode, int mask)
@@ -197,20 +198,6 @@ read_ace(struct posix_acl *acl, int no, char **area, int *len)
 	return 0;
 }
 
-static reiser4_xattr_plugin xattr_acl_handlers[];
-static reiser4_xattr_plugin xattr_acl_trigger_handlers[];
-
-static xattr_namespace acl_trigger_namespace = {
-	.linkage = TYPE_SAFE_LIST_HEAD_INIT(acl_trigger_namespace.linkage),
-	.plug    = xattr_acl_trigger_handlers
-};
-
-static int init_acl(reiser4_plugin *plugin)
-{
-	xattr_add_common_namespace(&acl_trigger_namespace);
-	return 0;
-}
-
 /* this is called by ->present method of static_stat_data plugin when plugin
  * extension is present that contains ACL plugin. */
 static int
@@ -329,7 +316,6 @@ set_acl_plugin(struct inode *inode)
 		acl_plug = perm_plugin_by_id(ACL_PERM_ID);
 		result = plugin_set_perm(&info->pset, acl_plug);
 		if (result == 0) {
-			result = xattr_add_namespace(inode, xattr_acl_handlers);
 			if (result == 0)
 				inode_set_plugin(inode,
 						 perm_plugin_to_plugin(acl_plug),
@@ -376,172 +362,6 @@ reiser4_set_acl(struct inode *inode, int type, struct posix_acl *acl)
 		result = RETERR(-EOPNOTSUPP);
 	return result;
 }
-
-/* below is an interface to the xattr API */
-
-static int
-xattr_get_acl(struct inode *inode, int type, void *buffer, size_t size)
-{
-	struct posix_acl *acl;
-	int result;
-
-	acl = get_acl(inode, type);
-	if (!IS_ERR(acl)) {
-		if (acl != NULL)
-			result = posix_acl_to_xattr(acl, buffer, size);
-		else
-			result = RETERR(-ENODATA);
-	} else
-		result = RETERR(PTR_ERR(acl));
-	return result;
-}
-
-static int
-xattr_set_acl(struct inode *inode, int type, const void *value, size_t size)
-{
-	struct posix_acl *acl;
-	int result;
-
-	result = 0;
-	if (current->fsuid == inode->i_uid || capable(CAP_FOWNER)) {
-		if (value != NULL) {
-			acl = posix_acl_from_xattr(value, size);
-			if (IS_ERR(acl))
-				return RETERR(PTR_ERR(acl));
-			else if (acl != NULL) {
-				result = posix_acl_valid(acl);
-			}
-		} else
-			acl = NULL;
-		if (result == 0) {
-			result = reiser4_set_acl(inode, type, acl);
-			if (result == 0) {
-				file_plugin *fplug;
-				__u64 tograb;
-
-				fplug = inode_file_plugin(inode);
-				tograb = fplug->estimate.update(inode);
-				result = reiser4_grab_space(tograb,
-							    BA_CAN_COMMIT);
-				if (result == 0)
-					result = reiser4_update_sd(inode);
-			}
-		}
-	} else
-		result = RETERR(-EPERM);
-	return result;
-}
-
-
-static
-size_t reiser4_xattr_list_acl_access(char *list, struct inode *inode,
-				     const char *name, int name_len)
-{
-	const size_t size = sizeof(XATTR_NAME_ACL_ACCESS);
-
-	if (list != NULL)
-		memcpy(list, XATTR_NAME_ACL_ACCESS, size);
-	return size;
-}
-
-static
-int reiser4_xattr_get_acl_access(struct inode *inode, const char *name,
-				 void *buffer, size_t size)
-{
-	if (strcmp(name, "") == 0)
-		return xattr_get_acl(inode, ACL_TYPE_ACCESS, buffer, size);
-	else
-		return RETERR(-EINVAL);
-}
-
-static
-int reiser4_xattr_set_acl_access(struct inode *inode, const char *name,
-				 const void *value, size_t size, int flags)
-{
-	if (strcmp(name, "") == 0)
-		return xattr_set_acl(inode, ACL_TYPE_ACCESS, value, size);
-	else
-		return RETERR(-EINVAL);
-}
-
-static
-size_t reiser4_xattr_list_acl_default(char *list, struct inode *inode,
-				      const char *name, int name_len)
-{
-	const size_t size = sizeof(XATTR_NAME_ACL_DEFAULT);
-
-	if (list != NULL)
-		memcpy(list, XATTR_NAME_ACL_DEFAULT, size);
-	return size;
-}
-
-static
-int reiser4_xattr_get_acl_default(struct inode *inode, const char *name,
-				 void *buffer, size_t size)
-{
-	if (strcmp(name, "") == 0)
-		return xattr_get_acl(inode, ACL_TYPE_DEFAULT, buffer, size);
-	else
-		return RETERR(-EINVAL);
-}
-
-static
-int reiser4_xattr_set_acl_default(struct inode *inode, const char *name,
-				 const void *value, size_t size, int flags)
-{
-	if (strcmp(name, "") == 0)
-		return xattr_set_acl(inode, ACL_TYPE_DEFAULT, value, size);
-	else
-		return RETERR(-EINVAL);
-}
-
-static reiser4_xattr_plugin xattr_acl_handlers[] = {
-	[0] = {
-		.prefix	= XATTR_NAME_ACL_ACCESS,
-		.list	= reiser4_xattr_list_acl_access,
-		.get	= reiser4_xattr_get_acl_access,
-		.set	= reiser4_xattr_set_acl_access
-	},
-	[1] = {
-		.prefix	= XATTR_NAME_ACL_DEFAULT,
-		.list	= reiser4_xattr_list_acl_default,
-		.get	= reiser4_xattr_get_acl_default,
-		.set	= reiser4_xattr_set_acl_default
-	},
-	[2] = {
-		.prefix	= NULL,
-		.list	= NULL,
-		.get	= NULL,
-		.set	= NULL
-	}
-};
-
-static int eopnotsupp(void)
-{
-	return RETERR(-EOPNOTSUPP);
-}
-
-static reiser4_xattr_plugin xattr_acl_trigger_handlers[] = {
-	[0] = {
-		.prefix	= XATTR_NAME_ACL_ACCESS,
-		.list	= (void *)eopnotsupp,
-		.get	= (void *)eopnotsupp,
-		.set	= reiser4_xattr_set_acl_access
-	},
-	[1] = {
-		.prefix	= XATTR_NAME_ACL_DEFAULT,
-		.list	= (void *)eopnotsupp,
-		.get	= (void *)eopnotsupp,
-		.set	= reiser4_xattr_set_acl_default
-	},
-	[2] = {
-		.prefix	= NULL,
-		.list	= NULL,
-		.get	= NULL,
-		.set	= NULL
-	}
-};
-
 
 /* Make Linus happy.
    Local variables:

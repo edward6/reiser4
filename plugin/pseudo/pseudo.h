@@ -12,7 +12,7 @@
 
 #include <linux/fs.h>
 #include <linux/seq_file.h>
-
+/* NIKITA-FIXME-HANS: comment */
 typedef enum {
 	PSEUDO_READ_NONE,
 	PSEUDO_READ_SEQ,
@@ -20,6 +20,7 @@ typedef enum {
 	PSEUDO_READ_FORWARD
 } pseudo_read_type;
 
+/* NIKITA-FIXME-HANS: comment */
 typedef enum {
 	PSEUDO_WRITE_NONE,
 	PSEUDO_WRITE_STRING,
@@ -32,7 +33,7 @@ typedef enum {
 
    This operation structure looks suspiciously like yet another plugin
    type. Doing so would simplify some things. For example, there are already
-   functions to look up plugin by name, dynamic loading is planned, etc.
+   functions to look up plugin by name, etc.
 
 */
 struct pseudo_plugin;

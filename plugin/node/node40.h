@@ -19,6 +19,9 @@ typedef struct node40_header {
 	   because we haven't yet finally decided whether it shouldn't go into
 	   common_header.
 	*/
+/* NIKITA-FIXME-HANS: Create a macro such that if there is only one
+ * node format at compile time, and it is this one, accesses do not function dereference when
+ * accessing these fields (and otherwise they do).  Probably 80% of users will only have one node format at a time throughout the life of reiser4.  */
 	d16 nr_items;
 	/* free space in node measured in bytes */
 	d16 free_space;
@@ -33,18 +36,18 @@ typedef struct node40_header {
 	    delete the wrong files and send us desperate emails
 	    offering $25 for them back.  */
 	
-	/* magic field we need to tell formatted nodes */
+	/* magic field we need to tell formatted nodes NIKITA-FIXME-HANS: improve this comment*/
 	d32 magic;
 	/* flushstamp is made of mk_id and write_counter. mk_id is an
 	   id generated randomly at mkreiserfs time. So we can just
 	   skip all nodes with different mk_id. write_counter is d64
 	   incrementing counter of writes on disk. It is used for
-	   choosing the newest data at fsck time. */
+	   choosing the newest data at fsck time. NIKITA-FIXME-HANS: why was field name changed but not comment? */
 	
 	d32 mkfs_id;
 	d64 flush_id;
 	/* node flags to be used by fsck (reiser4ck or reiser4fsck?)
-	   and repacker */
+	   and repacker NIKITA-FIXME-HANS: say more or reference elsewhere that says more */
 	d16 flags;
 	
 	/* 1 is leaf level, 2 is twig level, root is the numerically

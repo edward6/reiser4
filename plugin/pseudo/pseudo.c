@@ -21,6 +21,7 @@
  *     file system, and are more tightly integrated with it. In particular,
  *     some pseudo files are "attached" to other files (either "real" or also
  *     pseudo), by being accessible through path names of the form
+NIKITA-FIXME-HANS: update this to a/b/c/metas/something, and a/b/c/methods/something here and in the code and in the comments and in the documentation
  *
  *         "a/b/c/..something"
  *
