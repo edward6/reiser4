@@ -9,6 +9,7 @@
 #include "page_cache.h"
 #include "wander.h"
 #include "vfs_ops.h"
+#include "writeout.h"
 
 #include <linux/bio.h>
 #include <linux/mm.h>
@@ -505,7 +506,7 @@ static void release_prepped_list(flush_queue_t * fq)
    @return: number of submitted blocks (>=0) if success, otherwise -- an error
             code (<0). */
 reiser4_internal int
-write_fq(flush_queue_t * fq, long * nr_submitted, int wait)
+write_fq(flush_queue_t * fq, long * nr_submitted, int flags)
 {
 	int ret;
 	txn_atom * atom;
@@ -514,7 +515,7 @@ write_fq(flush_queue_t * fq, long * nr_submitted, int wait)
 		atom = UNDER_SPIN(fq, fq, atom_get_locked_by_fq(fq));
 		assert ("zam-924", atom);
 		/* do not write fq in parallel. */
-		if (atom->nr_running_queues == 0 || !wait)
+		if (atom->nr_running_queues == 0 || !(flags & WRITEOUT_SINGLE_STREAM))
 			break;
 		atom_wait_event(atom);
 	}
@@ -522,7 +523,7 @@ write_fq(flush_queue_t * fq, long * nr_submitted, int wait)
 	atom->nr_running_queues ++;
 	UNLOCK_ATOM(atom);
 	
-	ret = write_jnode_list(ATOM_FQ_LIST(fq), fq, nr_submitted);
+	ret = write_jnode_list(ATOM_FQ_LIST(fq), fq, nr_submitted, flags);
 	release_prepped_list(fq);
 
 	return ret;
