@@ -222,6 +222,8 @@ typedef enum {
 	/* znode lock is being invalidated */
 	JNODE_IS_DYING = 9,
 
+	/* THIS PLACE IS INTENTIONALLY LEFT BLANK */
+
 	JNODE_EFLUSH = 11,
 
 	/* jnode is queued for flushing. */
