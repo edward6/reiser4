@@ -418,22 +418,31 @@ struct inode * find_get_inode(struct super_block * sb, unsigned long ino, int (*
 	return result;
 }
 
-
+static void truncate_inode_pages (struct address_space * mapping,
+				  loff_t from);
 /* remove all inodes from their list */
-static void invalidate_inodes (void)
+int invalidate_inodes (struct super_block *sb)
 {
 	struct list_head * cur, * tmp;
 	struct inode * inode;
+	int busy;
 
+	busy = 0;
 	list_for_each_safe (cur, tmp, &inode_hash_list) {
 		inode = list_entry (cur, struct inode, i_hash);
-		if (atomic_read (&inode->i_count) || (inode->i_state & I_DIRTY))
+		if (inode->i_sb != sb)
+			continue;
+		truncate_inode_pages (inode->i_mapping, (loff_t)0);
+		if (atomic_read (&inode->i_count) || (inode->i_state & I_DIRTY)){
 			print_inode ("invalidate_inodes", inode);
-		spin_lock( &inode_hash_guard );
-		list_del_init( &inode -> i_hash );
-		inode -> i_sb -> s_op -> destroy_inode( inode );
-		spin_unlock( &inode_hash_guard );
+			++ busy;
+		}
+		spin_lock (&inode_hash_guard);
+		list_del_init (&inode->i_hash);
+		inode->i_sb->s_op->destroy_inode (inode);
+		spin_unlock (&inode_hash_guard);
 	}
+	return busy;
 }
 
 
@@ -1621,10 +1630,6 @@ static void call_umount (struct super_block * sb)
 
 	fs->kill_sb(sb);
 
-	if (sb->s_op->put_super)
-		sb->s_op->put_super (sb);
-
-	iput (sb->s_root->d_inode);
 	fsync_bdev (sb->s_bdev);
 }
 
@@ -2979,7 +2984,7 @@ static void bash_umount (struct super_block * sb/*reiser4_context * context*/)
 
 	/* free all pages and inodes, make sure that there are no dirty/used
 	 * pages/inodes */
-	invalidate_inodes ();
+	invalidate_inodes (sb);
 	invalidate_pages ();
 
 	/* REISER4_EXIT */
@@ -3249,7 +3254,6 @@ static int bash_mkfs (const char * file_name)
 			brelse (bh);
 
 			call_umount (&super);
-			invalidate_inodes ();
 			invalidate_pages ();
 		}
 
@@ -4413,7 +4417,7 @@ int real_main( int argc, char **argv )
 		
 		/* free all pages and inodes, make sure that there are no dirty/used
 		 * pages/inodes */
-		invalidate_inodes ();
+		invalidate_inodes (s);
 		invalidate_pages ();
 
 		/*bash_umount ( &__context );*/

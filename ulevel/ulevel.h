@@ -1137,9 +1137,36 @@ struct super_block *get_sb_bdev(struct file_system_type *fs_type,
         int (*fill_super)(struct super_block *, void *, int));
 
 
+int invalidate_inodes (struct super_block *sb);
+
+static inline void generic_shutdown_super(struct super_block *sb)
+{
+	struct dentry *root = sb->s_root;
+	struct super_operations *sop = sb->s_op;
+
+	if (root) {
+		iput(root->d_inode);
+		sb->s_root = NULL;
+		/* bad name - it should be evict_inodes() */
+		invalidate_inodes(sb);
+		if (sop) {
+			if (sop->write_super && sb->s_dirt)
+				sop->write_super(sb);
+			if (sop->put_super)
+				sop->put_super(sb);
+		}
+
+		/* Forget any remaining inodes */
+		if (invalidate_inodes(sb)) {
+			printk("VFS: Busy inodes after unmount. "
+			   "Self-destruct in 5 seconds.  Have a nice day...\n");
+		}
+	}
+}
+
 static inline void kill_block_super(struct super_block *sb UNUSED_ARG)
 {
-
+	generic_shutdown_super(sb);
 }
 
 extern int register_filesystem(struct file_system_type *);
