@@ -3674,6 +3674,10 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 		
 		reiser4_stat_inc(coc.nopage_eflush);
 		ON_TRACE(TRACE_CAPTURE_COPY, "eflushed\n");
+		result = jload(node);
+		if (result)
+			return RETERR(result);
+		jrelse(node);
 		return RETERR(-E_REPEAT);
 	}
 
