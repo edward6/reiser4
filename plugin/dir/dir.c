@@ -60,17 +60,17 @@ static int common_link( struct inode *parent /* parent directory */,
 	struct inode              *object;
 	file_plugin               *fplug;
 	dir_plugin                *parent_dplug;
-	reiser4_dir_entry_desc              entry;
+	reiser4_dir_entry_desc     entry;
 	reiser4_object_create_data data;
 
 	assert( "nikita-1431", existing != NULL );
-l	assert( "nikita-1432", parent != NULL );
+	assert( "nikita-1432", parent != NULL );
 	assert( "nikita-1433", where != NULL );
 
 	object = existing -> d_inode;
 	assert( "nikita-1434", object != NULL );
 
-	fplug = get_file_plugin( object );
+	fplug = inode_file_plugin( object );
 
 	/* check for race with create_object() */
 	if( *reiser4_inode_flags( object ) & REISER4_IMMUTABLE )
@@ -85,13 +85,13 @@ l	assert( "nikita-1432", parent != NULL );
 	if( perm_chk( parent, link, existing, parent, where ) )
 		return -EPERM;
 
-	parent_dplug = get_dir_plugin( parent );
+	parent_dplug = inode_dir_plugin( parent );
 
 	xmemset( &entry, 0, sizeof entry );
 	entry.obj = object;
 
 	data.mode = object -> i_mode;
-	data.id   = file_plugin_to_plugin( get_inode_plugin_data( object ) -> file ) -> h.id;
+	data.id   = inode_file_plugin( object ) -> h.id;
 
 	result = reiser4_add_nlink( object );
 	if( result == 0 ) {
@@ -145,7 +145,7 @@ static int common_unlink( struct inode *parent /* parent object */,
 	object = victim -> d_inode;
 	assert( "nikita-1239", object != NULL );
 
-	fplug = get_file_plugin( object );
+	fplug = inode_file_plugin( object );
 
 	/* check for race with create_object() */
 	if( *reiser4_inode_flags( object ) & REISER4_IMMUTABLE )
@@ -155,7 +155,7 @@ static int common_unlink( struct inode *parent /* parent object */,
 	if( perm_chk( parent, unlink, parent, victim ) )
 		return -EPERM;
 
-	parent_dplug = get_dir_plugin( parent );
+	parent_dplug = inode_dir_plugin( parent );
 
 	xmemset( &entry, 0, sizeof entry );
 
@@ -243,7 +243,7 @@ static int common_create_child( struct inode *parent /* parent object */,
 	assert( "nikita-1419", dentry != NULL );
 	assert( "nikita-1420", data   != NULL );
 
-	dplug = get_dir_plugin( parent );
+	dplug = inode_dir_plugin( parent );
 	/* check permissions */
 	if( perm_chk( parent, create, parent, dentry, data ) ) {
 		return -EPERM;
@@ -285,7 +285,7 @@ static int common_create_child( struct inode *parent /* parent object */,
 	else
 		object -> i_gid = current -> fsgid;
 
-	get_object_state( object ) -> file = fplug;
+	reiser4_inode_data( object ) -> file = fplug;
 
 	/* this object doesn't have stat-data yet */
 	*reiser4_inode_flags( object ) |= REISER4_NO_STAT_DATA;
@@ -309,12 +309,12 @@ static int common_create_child( struct inode *parent /* parent object */,
 	 * directory
 	 */
 	{
-		inodes_plugins *self;
-		inodes_plugins *ancestor;
+		reiser4_inode_info *self;
+		reiser4_inode_info *ancestor;
 
-		self = get_object_state( object );
-		ancestor = get_object_state( parent ? parent :
-						     object -> i_sb -> s_root -> d_inode );
+		self     = reiser4_inode_data( object );
+		ancestor = reiser4_inode_data
+			( parent ? : object -> i_sb -> s_root -> d_inode );
 		if ( self -> dir == NULL )
 			self -> dir = ancestor -> dir;
 		if ( self -> sd == NULL )
@@ -337,8 +337,8 @@ static int common_create_child( struct inode *parent /* parent object */,
 #endif /* inherit */
 
 	/* reget plugin after installation */
-	fplug = get_object_state( object ) -> file;
-	get_object_state( object ) -> locality_id = parent -> i_ino;
+	fplug = inode_file_plugin( object );
+	reiser4_inode_data( object ) -> locality_id = parent -> i_ino;
 
 	/* mark inode immutable. We disable changes to the file
 	   being created until valid directory entry for it is
