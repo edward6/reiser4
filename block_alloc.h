@@ -54,6 +54,10 @@ static inline void reiser4_dealloc_block (const reiser4_block_nr *block, int def
 extern int assign_fake_blocknr (reiser4_block_nr *);
 extern void release_blocknr (reiser4_block_nr *);
 
+extern void pre_commit_hook      (void);
+extern void post_commit_hook     (void);
+extern void post_write_back_hook (void);
+
 #endif /* __FS_REISER4_BLOCK_ALLOC_H__ */
 
 /*
