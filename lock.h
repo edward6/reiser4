@@ -195,8 +195,10 @@ extern int prepare_to_sleep(lock_stack * owner);
 #define ADD_TO_SLEPT_IN_WAIT_EVENT (-1)
 #define ADD_TO_SLEPT_IN_WAIT_ATOM  (-2)
 
+/* if REISER4_STATS __go_to_sleep() accepts additional parameter @level for
+ * gathering per-level sleep statistics. The go_to_sleep wrapper hides the
+ * __go_to_sleep() function prototypes difference. */
 void __go_to_sleep(lock_stack*, int);
-/* NIKITA-FIXME-HANS: comment on why this wrapper exists. */
 #define go_to_sleep(owner, level) __go_to_sleep(owner, level);
 
 #else
