@@ -419,14 +419,6 @@ jnode_hfn(jnode * const * j)
 	return (((unsigned long)*j) / sizeof(**j)) & (REISER4_EF_HASH_SIZE - 1);
 }
 
-struct eflush_node {
-	jnode           *node;
-	reiser4_block_nr blocknr;
-	ef_hash_link     linkage;
-#if REISER4_DEBUG
-	block_stage_t    initial_stage;
-#endif
-};
 
 /* The hash table definition */
 #define KMALLOC(size) reiser4_kmalloc((size), GFP_KERNEL)
@@ -502,10 +494,12 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		info = reiser4_inode_data(inode);
 		spin_lock(&eflushed_guard);
 		++ info->eflushed;
-		spin_unlock(&eflushed_guard);
 
 		/* this is to make inode not freeable */
 		inode->i_state |= I_EFLUSH;
+		/* add eflush node to inode's list */
+		list_add(&ef->inode_link, &info->eflushed_jnodes);			
+		spin_unlock(&eflushed_guard);
 	}
 
 	ef->node = node;
@@ -610,23 +604,19 @@ eflush_del(jnode *node, int page_locked)
 
 		if (jnode_is_unformatted(node)) {
 			reiser4_inode *info;
-			int despatchhim = 0;
 
 			inode = jnode_mapping(node)->host;
 			info = reiser4_inode_data(inode);
 			spin_lock(&eflushed_guard);
 			assert("vs-1194", info->eflushed > 0);
 			-- info->eflushed;
+			/* remove eflush node from inode's list of eflush nodes */
+			list_del(&ef->inode_link);
 			if (info->eflushed == 0) {
-				if (inode->i_state & I_GHOST)
-					despatchhim = 1;
 				if (inode->i_state & I_EFLUSH)
 					inode->i_state &= ~I_EFLUSH;
 			}
-
 			spin_unlock(&eflushed_guard);
-			if (despatchhim)
-				inode->i_sb->s_op->destroy_inode(inode);
 		}
 
 #if REISER4_DEBUG
