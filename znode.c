@@ -1136,24 +1136,6 @@ znode_post_write(znode * node)
 }
 #endif
 
-/* return pointer to static storage with name of lock_mode. For
-    debugging */
-/* Audited by: umka (2002.06.11) */
-const char *
-lock_mode_name(znode_lock_mode lock /* lock mode to get name of */ )
-{
-	if (lock == ZNODE_READ_LOCK)
-		return "read";
-	else if (lock == ZNODE_WRITE_LOCK)
-		return "write";
-	else {
-		static char buf[30];
-
-		sprintf(buf, "unknown: %i", lock);
-		return buf;
-	}
-}
-
 #if REISER4_DEBUG_OUTPUT
 
 /* debugging aid: output more human readable information about @node that
