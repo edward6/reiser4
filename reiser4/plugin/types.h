@@ -144,12 +144,17 @@ typedef struct reiser4_file_plugin {
 		    object of this type */
 		int ( *create )( reiser4_object_create_data *data );
 
-		/** how much space to reserve in transcrash to delete empty
-		    (fresh) object of this type */
-		int ( *delete )( const struct inode *inode );
+		/** 
+		 * how much space to reserve in transcrash to delete empty
+		 * (fresh) object of this type
+		 *
+		 */
+		int ( *destroy )( const struct inode *inode );
 
-		/** how much space to reserve in transcrash to add link to
-		    this object */
+		/** 
+		 * how much space to reserve in transcrash to add link to this
+		 * object.
+		 */
 		int ( *add_link )( const struct inode *inode );
 
 		/** how much space to reserve in transcrash to remvoe link
@@ -171,9 +176,12 @@ typedef struct reiser4_file_plugin {
 	int ( *create )( struct inode *object, struct inode *parent, 
 			 reiser4_object_create_data *data );
 
-	/** delete this object's stat-data if REISER4_NO_STAT_DATA is
-	    cleared and set REISER4_NO_STAT_DATA */
-	int ( *delete )( struct inode *object, struct inode *parent );
+	/** 
+	 * delete this object's stat-data if REISER4_NO_STAT_DATA is cleared
+	 * and set REISER4_NO_STAT_DATA 
+	 *
+	 */
+	int ( *destroy )( struct inode *object, struct inode *parent );
 
 	int ( *add_entry )( struct inode *object, struct dentry *where, 
 			    reiser4_object_create_data *data, 
