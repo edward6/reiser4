@@ -490,18 +490,29 @@ atom_get_locked_with_txnh_locked_nocheck(txn_handle * txnh)
 	assert("umka-180", txnh != NULL);
 	assert("jmacd-5108", spin_txnh_is_not_locked(txnh));
 
-try_again:
+	while (1) {
+		LOCK_TXNH(txnh);
+		atom = txnh->atom;
 
-	LOCK_TXNH(txnh);
-	atom = txnh->atom;
+		if (atom == NULL)
+			break;
 
-	if (atom && !spin_trylock_atom(atom)) {
-		/* If the atom lock fails then it could be in the middle of fusion, which
-		   means that txnh->atom pointer might be updated. */
+		if (spin_trylock_atom(atom))
+			break;
+
+		atomic_inc(&atom->refcount);
+
 		UNLOCK_TXNH(txnh);
+		LOCK_ATOM(atom);
+		LOCK_TXNH(txnh);
 
-		/* Busy loop. */
-		goto try_again;
+		if (txnh->atom == atom) {
+			atomic_dec(&atom->refcount);
+			break;
+		}
+
+		UNLOCK_TXNH(txnh);
+		atom_dec_and_unlock(atom);
 	}
 
 	return atom;
