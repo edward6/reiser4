@@ -2369,8 +2369,9 @@ int alloc_extent (reiser4_tree *, tree_coord *,
 
 /* this copies normal file @oldname to reiser4 filesystem (in directory @dir
    with name @newname) */
-int copy_file (const char * oldname, 
-	       struct inode * dir, const char * newname, struct stat * st)
+static int copy_file (const char * oldname, struct inode * dir,
+		      const char * newname, struct stat * st,
+		      int silent)
 {
 	int fd;
 	char * buf;
@@ -2422,34 +2423,37 @@ int copy_file (const char * oldname,
 			iput (inode);
 			return 1;
 		}
-		switch (off % (BUFSIZE * 8)) {
-		case 0:
-			if (off)
-				printf ("\b");
-			printf ("-");
-			break;
-		case BUFSIZE * 4:
-			printf ("\b-");
-			break;
-		case BUFSIZE * 1:
-		case BUFSIZE * 5:
-			printf ("\b\\");
-			break;
-		case BUFSIZE * 2:
-		case BUFSIZE * 6:
-			printf ("\b|");
-			break;
-		case BUFSIZE * 3:
-		case BUFSIZE * 7:
- 			printf ("\b/");
-			break;
+		if (!silent) {
+			switch (off % (BUFSIZE * 8)) {
+			case 0:
+				if (off)
+					printf ("\b");
+				printf ("-");
+				break;
+			case BUFSIZE * 4:
+				printf ("\b-");
+				break;
+			case BUFSIZE * 1:
+			case BUFSIZE * 5:
+				printf ("\b\\");
+				break;
+			case BUFSIZE * 2:
+			case BUFSIZE * 6:
+				printf ("\b|");
+				break;
+			case BUFSIZE * 3:
+			case BUFSIZE * 7:
+				printf ("\b/");
+				break;
+			}
+			fflush (stdout);
 		}
-		fflush (stdout);
 		st->st_size -= count;
 		off += count;
 	}
 
-	printf ("\b");
+	if (!silent)
+		printf ("\b");
 	iput (inode);
 	close (fd);
 	free (buf);
@@ -2476,6 +2480,8 @@ static const char * last_name (const char * full_name)
 	return name ? (name + 1) : full_name;
 }
 
+
+#if 0
 
 static int copy_dir (struct inode * dir)
 {
@@ -2615,12 +2621,13 @@ static int copy_dir (struct inode * dir)
 
 	return 0;
 }
+#endif /* old copy_dir*/
 
 
 #include <dirent.h>
 
 static int bash_cp (char * real_file, struct inode * cwd, const char * name);
-static int copy_dir2 (struct inode * dir, const char * source)
+static int bash_cpr (struct inode * dir, const char * source)
 {
 	int result;
 	DIR * d;
@@ -2637,7 +2644,7 @@ static int copy_dir2 (struct inode * dir, const char * source)
 	if (result == -1)
 		return errno;
 
-	d = opendir (source);
+	d = opendir (".");
 	if (d == 0)
 		return errno;
 
@@ -2650,6 +2657,12 @@ static int copy_dir2 (struct inode * dir, const char * source)
 			result = errno;
 			break;
 		}
+		{
+			char * tmp;
+			tmp = getcwd (0, 0);
+			info ("%s/%s\n", tmp, dirent->d_name);
+			free (tmp);
+		}
 		if (S_ISDIR (st.st_mode)) {
 			result = call_mkdir (dir, dirent->d_name);
 			if (result)
@@ -2659,7 +2672,7 @@ static int copy_dir2 (struct inode * dir, const char * source)
 				result = PTR_ERR (subdir);
 				break;
 			}
-			result = copy_dir2 (subdir, dirent->d_name);
+			result = bash_cpr (subdir, dirent->d_name);
 			if (result) {
 				closedir (d);
 				return result;
@@ -3041,12 +3054,14 @@ static int bash_diff (char * real_file, struct inode * cwd, const char * name)
 static int bash_cp (char * real_file, struct inode * cwd, const char * name)
 {
 	struct stat st;
-
+	int silent;
+	
 	if (stat (real_file, &st) || !S_ISREG (st.st_mode)) {
 		errno ? perror ("stat failed") : 
 			info ("%s is not regular file\n", real_file);
 	}
-	if (copy_file (real_file, cwd, name, &st)) {
+	silent = 1;
+	if (copy_file (real_file, cwd, name, &st, silent)) {
 		info ("cp: copy_file failed\n");
 	}
 	return 0;
@@ -3353,6 +3368,7 @@ static void squeeze_twig_level (reiser4_tree * tree)
 	      "\tcd             - change directory\n"\
 	      "\tmkdir dirname  - create new directory\n"\
 	      "\tcp filename    - copy file to current directory\n"\
+              "\tcp-r dir       - copy directory recursively"\
 	      "\tdiff filename  - compare files\n"\
 	      "\ttrunc filename size - truncate file\n"\
 	      "\ttouch          - create empty file\n"\
@@ -3494,6 +3510,7 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		BASH_CMD ("read ", bash_read);
 		BASH_CMD ("write ", bash_write);
 		BASH_CMD ("trunc ", bash_trunc);
+		BASH_CMD ("cp-r ", bash_cpr);
 
 		BASH_CMD3 ("cp ", bash_cp);
 		BASH_CMD3 ("diff ", bash_diff);
