@@ -951,7 +951,7 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 		result = fplug->detach(new_inode, new_dir);
 		if (result != 0)
 			warning("nikita-2330", "Cannot detach %lli: %i. %s",
-				(unsigned long long)get_inode_oid(new_inode), 
+				(unsigned long long)get_inode_oid(new_inode),
 				result, possible_leak);
 	}
 

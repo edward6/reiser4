@@ -1620,7 +1620,7 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 
 	case UF_CONTAINER_EMPTY:
 	default:
-		warning("vs-1297", "File (ino %llu) has unexpected state: %d\n", 
+		warning("vs-1297", "File (ino %llu) has unexpected state: %d\n",
 			(unsigned long long)get_inode_oid(inode), uf_info->container);
 		drop_access(uf_info);
 		return RETERR(-EIO);
@@ -2300,7 +2300,7 @@ setattr_truncate(struct inode *inode, struct iattr *attr)
 	if (result)
 		warning("vs-1588", "truncate_file failed: oid %lli, "
 			"old size %lld, new size %lld, retval %d",
-			(unsigned long long)get_inode_oid(inode), 
+			(unsigned long long)get_inode_oid(inode),
 			old_size, attr->ia_size, result);
 
 	s_result = safe_link_grab(tree, BA_CAN_COMMIT);

@@ -276,7 +276,7 @@ reiser4_write(struct file *file /* file to write on */ ,
 	reiser4_stat_inc(vfs_calls.write);
 
 	ON_TRACE(TRACE_VFS_OPS,
-		 "WRITE: (i_ino %li, size %lld): %u bytes to pos %lli\n", 
+		 "WRITE: (i_ino %li, size %lld): %u bytes to pos %lli\n",
 		 inode->i_ino, inode->i_size, (unsigned int)size, *off);
 
 	result = perm_chk(inode, write, file, buf, size, off);

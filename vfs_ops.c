@@ -793,7 +793,7 @@ parse_option(char *opt_string /* starting point of parsing */ ,
 	case OPT_ONEOF:
 	{
 		int i = 0;
-		
+
 		if (val_start == NULL) {
 			err_msg = "Value is missing";
 			result = RETERR(-EINVAL);
@@ -919,9 +919,9 @@ do {						\
 	 opt_desc_t o = __VA_ARGS__;		\
 	 OPT_ARRAY_CHECK;			\
 	 *p ++ = o;				\
-} while (0)	
+} while (0)
 
-#define PUSH_SB_FIELD_OPT(field, format) PUSH_OPT(SB_FIELD_OPT(field, format)) 
+#define PUSH_SB_FIELD_OPT(field, format) PUSH_OPT(SB_FIELD_OPT(field, format))
 #define PUSH_BIT_OPT(name, bit) PUSH_OPT(BIT_OPT(name, bit))
 
 	/* trace_flags=N

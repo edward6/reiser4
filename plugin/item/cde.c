@@ -1035,10 +1035,10 @@ rem_entry_cde(struct inode *dir /* directory of item */ ,
 		length += name->len + 1;
 
 	if (inode_get_bytes(dir) < length) {
-		warning("nikita-2628", "Dir is broke: %llu: %llu", 
-			(unsigned long long)get_inode_oid(dir), 
+		warning("nikita-2628", "Dir is broke: %llu: %llu",
+			(unsigned long long)get_inode_oid(dir),
 			inode_get_bytes(dir));
-		
+
 		return RETERR(-EIO);
 	}
 

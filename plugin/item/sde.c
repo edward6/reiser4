@@ -178,8 +178,8 @@ rem_entry_de(struct inode *dir /* directory of item */ ,
 
 	length = item_length_by_coord(coord);
 	if (inode_get_bytes(dir) < length) {
-		warning("nikita-2627", "Dir is broke: %llu: %llu", 
-			(unsigned long long)get_inode_oid(dir), 
+		warning("nikita-2627", "Dir is broke: %llu: %llu",
+			(unsigned long long)get_inode_oid(dir),
 			inode_get_bytes(dir));
 
 		return RETERR(-EIO);

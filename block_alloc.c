@@ -243,7 +243,7 @@ check_block_counters(const struct super_block *super)
 		       (unsigned long long)reiser4_fake_allocated_unformatted(super),
 		       (unsigned long long)flush_reserved(super),
 		       (unsigned long long)reiser4_clustered_blocks(super),
-		       (unsigned long long)sum, 
+		       (unsigned long long)sum,
 		       (unsigned long long)reiser4_block_count(super));
 		return 0;
 	}

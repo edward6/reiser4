@@ -371,7 +371,7 @@ truncate_object(struct inode *inode /* object to truncate */ ,
 	assert("nikita-2933", fplug->truncate != NULL);
 	result = fplug->truncate(inode, size);
 	if (result != 0)
-		warning("nikita-1602", "Truncate error: %i for %lli", result, 
+		warning("nikita-1602", "Truncate error: %i for %lli", result,
 			(unsigned long long)get_inode_oid(inode));
 
 	write_syscall_log("ex");

@@ -651,7 +651,7 @@ extent2tail(unix_file_info_t *uf_info)
 		 * iteration of the loop above. */
 		warning("nikita-2282",
 			"Partial conversion of %llu: %lu of %lu: %i",
-			(unsigned long long)get_inode_oid(inode), i, 
+			(unsigned long long)get_inode_oid(inode), i,
 			num_pages, result);
 		print_inode("inode", inode);
 	}

@@ -298,7 +298,7 @@ unlink_common(struct inode *parent /* parent object */ ,
 	if (unlikely(result != 0)) {
 		if (result != -ENOMEM)
 			warning("nikita-3398", "Cannot unlink %llu (%i)",
-				(unsigned long long)get_inode_oid(object), 
+				(unsigned long long)get_inode_oid(object),
 				result);
 		/* if operation failed commit pending inode modifications to
 		 * the stat-data */
@@ -444,7 +444,7 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 					    object->i_sb->s_root->d_inode);
 	if (result != 0) {
 		warning("nikita-432", "Cannot inherit from %llx to %llx",
-			(unsigned long long)get_inode_oid(parent), 
+			(unsigned long long)get_inode_oid(parent),
 			(unsigned long long)get_inode_oid(object));
 		DQUOT_FREE_INODE(object);
 		object->i_flags |= S_NOQUOTA;

@@ -421,7 +421,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 #define FLUSH_SCAN_MAXNODES 10000
 
 /* per-atom limit of flushers */
-#define ATOM_MAX_FLUSHERS (1) 
+#define ATOM_MAX_FLUSHERS (1)
 
 /* default tracing buffer size */
 #define REISER4_TRACE_BUF_SIZE (1 << 15)
