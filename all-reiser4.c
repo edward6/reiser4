@@ -10,7 +10,6 @@
 #include "lock.c"
 #include "tree.c"
 #include "coords.c"
-#include "bitmap.c"
 #include "block_alloc.c"
 #include "dformat.c"
 #include "txnmgr.c"
