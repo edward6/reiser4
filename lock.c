@@ -1133,6 +1133,8 @@ init_lock_stack(lock_stack * owner	/* pointer to
 					   * allocated
 					   * structure. */ )
 {
+	/* ZAM-FIXME-HANS: it is called from init_context when context is memset()-ed already. Can we avoid memset
+	 * here? */
 	xmemset(owner, 0, sizeof (lock_stack));
 	locks_list_init(&owner->locks);
 	requestors_list_clean(owner);
