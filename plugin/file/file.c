@@ -2008,9 +2008,13 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 			left = size - *off;
 
 		if (user_space) {
+			int i;
+
 			nr_pages = reiser4_get_user_pages(pages, (unsigned long)buf, left, READ, &to_read);
 			if (nr_pages < 0)
 				return nr_pages;
+			for (i = 0; i < nr_pages; i ++)
+				assert("vs-1735", page_mapped(pages[i]));
 		} else
 			to_read = left;
 
