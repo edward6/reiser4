@@ -1281,7 +1281,11 @@ void txn_delete_page (struct page *pg)
 	blocknr_set_entry *blocknr_entry = NULL;
 	
 	assert("umka-199", pg != NULL);
+
 	node = (jnode *)(pg->private);
+
+	assert ("jmacd-7192", node != NULL);
+
 	spin_lock_jnode (node);
 
  repeat:
@@ -1994,6 +1998,7 @@ uncapture_block (txn_atom *atom,
 
 	JF_CLR (node, ZNODE_RELOC);
 	JF_CLR (node, ZNODE_WANDER);
+	JF_CLR (node, ZNODE_DIRTY);
 
 	spin_unlock_jnode (node);
 

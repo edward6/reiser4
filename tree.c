@@ -761,7 +761,6 @@ void forget_znode (lock_handle *handle)
 	/*
 	 * and remove node from transaction. FIXME-NIKITA Locking?
 	 */
-	znode_set_clean (node);
 	txn_delete_page (znode_page (node));
 }
 

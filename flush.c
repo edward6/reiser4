@@ -554,6 +554,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	case SQUEEZE_SOURCE_EMPTY:
 		/* Emptied the right node, repeat. */
+		done_zh (& right_load);
 		done_lh (& right_lock);
 		any_shifted = 1;
 		goto RIGHT_AGAIN;
@@ -1506,12 +1507,14 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 						goto stop_same_parent;
 					}
 
-					if ((neighbor = jnode_of_page (pg)) == NULL) {
+					neighbor = jnode_of_page (pg);
+
+					page_cache_release (pg);
+
+					if (neighbor == NULL) {
 						ret = -ENOMEM;
 						goto exit;
 					}
-
-					page_cache_release (pg);
 
 					info ("scan index %lu: node %p(atom=%p,dirty=%u,allocated=%u) neighbor %p(atom=%p,dirty=%u,allocated=%u)\n",
 					      scan_index+incr,
@@ -1542,12 +1545,14 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 					goto exit;
 				}
 
-				if ((neighbor = jnode_of_page (pg)) == NULL) {
+				neighbor = jnode_of_page (pg);
+
+				page_cache_release (pg);
+
+				if (neighbor == NULL) {
 					ret = -ENOMEM;
 					goto exit;
 				}
-
-				page_cache_release (pg);
 
 				assert ("jmacd-3551", ! jnode_is_allocated (neighbor) && txn_same_atom_dirty (neighbor, scan->node));
 

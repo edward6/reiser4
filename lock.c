@@ -679,9 +679,6 @@ void longterm_unlock_znode (lock_handle *handle)
 			 * invalidation includes waking up all threads
 			 * still waiting on this node and notifying them
 			 * that node is dying.
-			 *
-			 * FIXME_JMACD: Can we not call invalidate_lock from
-			 * forget_znode()?  Its confusing.
 			 */
 			spin_unlock_znode(node);
 			forget_znode(handle);
