@@ -184,67 +184,17 @@ znode_lh(znode *node, znode_lock_mode mode)
 
 static int get_reiser4_inode_by_tap (struct inode ** result, tap_t * tap)
 {
-	/* We cannot read unformatted data if corresponding inode is
-	 * unknown or not in cache. Here we build stat data key and
-	 * search in the inode cache. */
-
-	/* FIXME(Zam). We have a problem because a reiser4 inode
-	 * initialization cannot be completed.  Some inode properties
-	 * are inherited from a parent directory, unlike
-	 * reiser4_lookup() a parent directory is unknown here.
-
-	 * The reiser4 file inheritance may be fixed by implementing a
-	 * copying of parent directory properties at the moment of new
-	 * file creation. But, still we do not know what to do with
-	 * light-weight files which have no stat data and all their
-	 * properties are inherited from parent directory.
-
-	 * I think this problem is from bad layering of reiser4 tree
-	 * access. The repacker is for dealing with reiser4 tree, not
-	 * with files, but it has to take care about reading reiser4
-	 * inodes and proper initialization of their fields.  A layer of
-	 * accessing only tree nodes is just missing in reiser4.
-
-	 * The solution could be in to allow read of unformatted data
-	 * without having fully initialized inode. Actually no
-	 * reiser4-specific fields are needed for accessing of
-	 * unformatted data and repacking them.  The repacker may use
-	 * not-initialized inode for its needs until somebody else
-	 * completes inode initialization in reiser4_lookup().
-
-	 * Another problem is that we cannot construct SD key from a key
-	 * of arbitrary file item.  The key transformation which is done
-	 * here (type := KEY_SD_MINOR, offset := 0). It is OK for
-	 * current key assignment scheme but it is not valid in general
-	 * case.  Using of not-initialized reiser4 inodes can solve this
-	 * problem too. */
-
-	reiser4_key sd_key;
+	reiser4_key ext_key;
 	struct super_block * super = reiser4_get_current_sb();
-	const coord_t * coord = tap->coord;
 	struct inode * inode;
 
-	unit_key_by_coord(coord, &sd_key);
-	set_key_type(&sd_key, KEY_SD_MINOR);
-	set_key_offset(&sd_key, (__u64) 0);
+	unit_key_by_coord(tap->coord, &ext_key);
 
-	inode = ilookup5(super, (unsigned long)get_key_objectid(&sd_key),
-			 reiser4_inode_find_actor, &sd_key);
-	if (inode == NULL) {
-		/* Inode was not found in cache. We have to release all
-		 * locks before CBK. */
-		tap_done(tap);
-		inode = reiser4_iget(super, &sd_key);
-		if (IS_ERR(inode))
-			return PTR_ERR(inode);
-		if (inode->i_state & I_NEW)
-			unlock_new_inode(inode);
-		iput(inode);
-		/* Expect the inode to be in cache when we come here
-		 * next time. */
-		return -E_REPEAT;
-	}
-
+	/* We do not need to read reiser4 inode from disk and initialize all
+	 * reiser4 inode fields. */
+	inode = iget(super, (unsigned long)get_key_objectid(&ext_key));
+	if (inode == NULL) 
+		return -ENOMEM;
 	if (is_bad_inode(inode)) {
 		iput(inode);
 		return -EIO;
