@@ -947,6 +947,58 @@ atom_try_commit_locked(txn_atom * atom)
 
 /* TXN_TXNH */
 
+/* commit current atom and wait commit completion; atom and txn_handle should be
+ * locked before call, this function unlocks them on exit. */
+static int force_commit_atom_nolock (txn_handle * txnh)
+{
+	int ret;
+	txn_atom * atom;
+	reiser4_context * ctx = get_current_context();
+
+	assert ("zam-837", txnh != NULL);
+	assert ("zam-835", spin_txnh_is_locked(txnh));
+
+	atom = txnh->atom;
+
+	assert ("zam-834", atom != NULL);
+	assert ("zam-836", spin_atom_is_locked(atom));
+
+	/* Set flags for atom and txnh: forcing atom commit and waiting for
+	 * commit completion */
+	txnh->flags |= TXNH_WAIT_COMMIT;
+	atom->flags |= ATOM_FORCE_COMMIT;
+
+	spin_unlock_txnh(txnh);
+	spin_unlock_atom(atom);
+
+	if ((ret = txn_end(ctx)) < 0) {
+		return ret;
+	}
+
+	preempt_point();
+
+	txn_begin(ctx);
+
+	return 0;
+}
+
+/* externally visible function which takes all necessary locks and commits
+ * current atom */
+int txnmgr_force_commit_current_atom (void)
+{
+	txn_handle * txnh = get_current_context()->trans;
+	txn_atom * atom;
+
+	atom = atom_get_locked_with_txnh_locked_nocheck(txnh);
+
+	if (atom == NULL) {
+		spin_unlock_txnh(txnh);
+		return 0;
+	}
+	
+	return force_commit_atom_nolock(txnh);
+} 
+
 /* Called to force commit of any outstanding atoms.  Later this should be
    improved to not to wait indefinitely if new atoms are created. */
 int txnmgr_force_commit_all (struct super_block *super)
@@ -981,24 +1033,10 @@ again:
 			spin_unlock_txnmgr(mgr);
 			spin_lock_txnh(txnh);
 
-			/* Set flags for atom and txnh: forcing atom commit and waiting for commit
-			   completion */
-			txnh->flags |= TXNH_WAIT_COMMIT;
-			atom->flags |= ATOM_FORCE_COMMIT;
+			ret = force_commit_atom_nolock(txnh);
 
-			/* Add force-context txnh */
-			capture_assign_txnh_nolock(atom, txnh);
-
-			spin_unlock_txnh(txnh);
-			spin_unlock_atom(atom);
-
-			if ((ret = txn_end(ctx)) < 0) {
+			if(ret)
 				return ret;
-			}
-
-			preempt_point();
-
-			txn_begin(ctx);
 
 			goto again;
 		}

@@ -220,6 +220,8 @@ common_unlink(struct inode *parent /* parent object */ ,
 					 * @parent */ )
 {
 	int result;
+	reiser4_super_info_data * private = get_current_super_private();
+	int delete_semaphore_taken = 0;
 	struct inode *object;
 	file_plugin *fplug;
 	dir_plugin *parent_dplug;
@@ -239,8 +241,15 @@ common_unlink(struct inode *parent /* parent object */ ,
 	if ((reserve = common_estimate_unlink(parent, victim->d_inode)) < 0)
 		return reserve;
 
-	if (reiser4_grab_space_exact(reserve, BA_RESERVED | BA_CAN_COMMIT))
-		return -ENOSPC;
+	if (reiser4_grab_space_exact(reserve, BA_CAN_COMMIT)) {
+		down(&private->delete_sema);
+		delete_semaphore_taken = 1;
+
+		if(reiser4_grab_space_exact(reserve, BA_RESERVED | BA_CAN_COMMIT)) {
+			warning("zam-833", "reserved space is not enough to perform object unlinking\n");
+			return -ENOSPC;
+		}
+	}
 	
 	trace_on(TRACE_RESERVE, "unlink grabs %llu blocks.\n", reserve);
 
@@ -321,6 +330,15 @@ common_unlink(struct inode *parent /* parent object */ ,
 	*/
 	if (result == 0)
 		result = update_dir(parent);
+
+	if (delete_semaphore_taken) {
+		/* we have to commit transaction here because we need to get reserved free
+		   space back before delete semaphore is up again */
+		txnmgr_force_commit_current_atom();
+
+		up(&private->delete_sema);
+	}
+
 	/* @object's i_ctime was updated by ->rem_link() method(). */
 	return result;
 }

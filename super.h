@@ -209,6 +209,10 @@ struct reiser4_super_info_data {
 #if REISER4_TRACE_TREE
 	reiser4_block_nr last_touched;
 #endif
+	/* A semaphore for serializing cut tree operation if out-of-free-space: the only
+	   one cut_tree tread is allowed to grab space from reserved area (it is 5% of
+	   disk space(2002.11.09)) */
+	struct semaphore delete_sema;
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct

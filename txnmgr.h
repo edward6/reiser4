@@ -314,6 +314,7 @@ extern int txn_reserve(int reserved);
 extern void txn_begin(reiser4_context * context);
 extern long txn_end(reiser4_context * context);
 
+extern int txnmgr_force_commit_current_atom(void);
 extern int txnmgr_force_commit_all(struct super_block *super);
 
 extern int commit_some_atoms(txn_mgr *);

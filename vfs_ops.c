@@ -1921,6 +1921,8 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 	memset(info, 0, sizeof (*info));
 	ON_DEBUG(INIT_LIST_HEAD(&info->all_jnodes));
 
+	sema_init(&info->delete_sema, 1);
+
 	result = init_context(&__context, s);
 	if (result) {
 		kfree(info);
