@@ -99,7 +99,7 @@ typedef struct lock_counters_info {
 	int                   d_refs;
 } lock_counters_info;
 
-extern lock_counters_info *lock_counters();
+extern lock_counters_info *lock_counters(void);
 
 #else
 
@@ -681,7 +681,7 @@ extern void  reiser4_kfree( void *area, size_t size );
 extern __u32 get_current_trace_flags( void );
 
 #if REISER4_DEBUG
-extern int no_counters_are_held();
+extern int no_counters_are_held(void);
 extern void check_stack( void );
 #endif
 
