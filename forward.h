@@ -120,11 +120,6 @@ typedef enum {
 } lookup_bias;
 
 typedef enum {
-	/* FIXME_NIKITA: I (Josh) changed this from an unsigned type, and I
-	 * think this is just as good.  Let me know if there was some deep
-	 * reason for it to be unsigned.  The "const unsigned" type would not
-	 * let me use it to declare per-level arrays offset by LEAF_LEVEL, so
-	 * it needs to be statically known. */
 	/**
 	 * number of leaf level of the tree
 	 * The fake root has (tree_level=0).
@@ -135,7 +130,9 @@ typedef enum {
 	 * number of level one above leaf level of the tree: a #define because
 	 * LEAF_LEVEL is, thought not used in per-level arrays.
 	 *
-	 * what about trees of height 1? 
+	 * It is supposed that internal tree used by reiser4 to store file
+	 * system data and meta data will have height 2 initially (when
+	 * created by mkfs).
 	 */
 	TWIG_LEVEL = 2,
 } tree_level;
