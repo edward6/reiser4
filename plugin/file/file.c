@@ -232,7 +232,7 @@ int find_next_item (struct file * file,
 					       * on returned node */)
 {
 	int result;
-
+	__u32 flags;
 
 	/* collect statistics on the number of calls to this function */
 	reiser4_stat_file_add (find_items);
@@ -280,9 +280,12 @@ int find_next_item (struct file * file,
 	/* collect statistics on the number of calls to this function which did
 	 * not get optimized */
 	reiser4_stat_file_add (full_find_items);
+	flags = CBK_UNIQUE;
+	if (lock_mode == ZNODE_WRITE_LOCK)
+		flags |= CBK_FOR_INSERT;
 	return coord_by_key (current_tree, key, coord, lh,
 			     lock_mode, SEARCH_BIAS,
-			     TWIG_LEVEL, LEAF_LEVEL, CBK_UNIQUE | CBK_FOR_INSERT);
+			     TWIG_LEVEL, LEAF_LEVEL, flags);
 }
 
 
