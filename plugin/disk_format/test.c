@@ -46,8 +46,7 @@ test_format_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	if (!super_bh)
 		return -EIO;
 
-	disk_sb = (test_disk_super_block *) (super_bh->b_data +
-					     sizeof (struct reiser4_master_sb));
+	disk_sb = (test_disk_super_block *) (super_bh->b_data + sizeof (struct reiser4_master_sb));
 
 	if (strcmp(disk_sb->magic, TEST_MAGIC)) {
 		brelse(super_bh);
@@ -75,29 +74,21 @@ test_format_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	reiser4_set_block_count(s, d64tocpu(&disk_sb->block_count));
 	/* number of used blocks */
 	reiser4_set_data_blocks(s, d64tocpu(&disk_sb->next_free_block));
-	reiser4_set_free_blocks(s, (d64tocpu(&disk_sb->block_count) -
-				    d64tocpu(&disk_sb->next_free_block)));
+	reiser4_set_free_blocks(s, (d64tocpu(&disk_sb->block_count) - d64tocpu(&disk_sb->next_free_block)));
 	/* set tail policy plugin */
 	private->plug.t = tail_plugin_by_id(d16tocpu(&disk_sb->tail_policy));
 
 	/* init oid allocator */
 	private->oid_plug = oid_allocator_plugin_by_id(OID40_ALLOCATOR_ID);
-	assert("vs-627", (private->oid_plug &&
-			  private->oid_plug->init_oid_allocator));
+	assert("vs-627", (private->oid_plug && private->oid_plug->init_oid_allocator));
 	result = private->oid_plug->init_oid_allocator(get_oid_allocator(s),
-						       d64tocpu(&disk_sb->
-								next_free_oid),
-						       d64tocpu(&disk_sb->
-								next_free_oid));
+						       d64tocpu(&disk_sb->next_free_oid),
+						       d64tocpu(&disk_sb->next_free_oid));
 
 	/* init space allocator */
-	private->space_plug =
-	    space_allocator_plugin_by_id(TEST_SPACE_ALLOCATOR_ID);
-	assert("vs-628",
-	       (private->space_plug && private->space_plug->init_allocator));
-	result =
-	    private->space_plug->init_allocator(get_space_allocator(s), s,
-						&disk_sb->next_free_block);
+	private->space_plug = space_allocator_plugin_by_id(TEST_SPACE_ALLOCATOR_ID);
+	assert("vs-628", (private->space_plug && private->space_plug->init_allocator));
+	result = private->space_plug->init_allocator(get_space_allocator(s), s, &disk_sb->next_free_block);
 	if (result) {
 		brelse(super_bh);
 		return result;
@@ -109,8 +100,7 @@ test_format_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	assert("vs-642", d16tocpu(&disk_sb->node_plugin) == NODE40_ID);
 
 	private->tree.super = s;
-	result = init_tree(&private->tree, &root_block, height,
-			   node_plugin_by_id(NODE40_ID));
+	result = init_tree(&private->tree, &root_block, height, node_plugin_by_id(NODE40_ID));
 	if (result) {
 		brelse(super_bh);
 		return result;
@@ -136,12 +126,12 @@ test_format_release(struct super_block *s)
 	int ret;
 
 	/* FIXME: JMACD->NIKITA: Are we sure this is right?  I don't remember writing this. */
-	if ((ret = mgr_force_commit_all(s))) {
+	if ((ret = txnmgr_force_commit_all(s))) {
 		warning("jmacd-7711", "txn_force failed in umount: %d", ret);
 	}
 
 	/*
-	 * FIXME-VS: txn_mgr_force_commit_all and done_tree cound be
+	 * FIXME-VS: txnmgr_force_commit_all and done_tree cound be
 	 * called by reiser4_kill_super
 	 */
 	print_fs_info("umount ok", s);
@@ -158,8 +148,7 @@ test_format_release(struct super_block *s)
 		warning("vs-630", "could not read super block");
 		return -EIO;
 	}
-	disk_sb = (test_disk_super_block *) (super_bh->b_data +
-					     sizeof (struct reiser4_master_sb));
+	disk_sb = (test_disk_super_block *) (super_bh->b_data + sizeof (struct reiser4_master_sb));
 	if (strcmp(disk_sb->magic, TEST_MAGIC)) {
 		warning("vs-631", "no test format found");
 		brelse(super_bh);
@@ -176,12 +165,10 @@ test_format_release(struct super_block *s)
 	cputod16(get_super_private(s)->tree.height, &disk_sb->tree_height);
 
 	/* number of next free block */
-	cputod64(get_space_allocator(s)->u.test.new_block_nr,
-		 &disk_sb->next_free_block);
+	cputod64(get_space_allocator(s)->u.test.new_block_nr, &disk_sb->next_free_block);
 
 	/* next free objectid */
-	cputod64(get_oid_allocator(s)->u.oid40.next_to_use,
-		 &disk_sb->next_free_oid);
+	cputod64(get_oid_allocator(s)->u.oid40.next_to_use, &disk_sb->next_free_oid);
 
 	/* FIXME-VS: remove this debugging info */
 	print_test_disk_sb("release:\n", disk_sb);
