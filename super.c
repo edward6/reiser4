@@ -152,6 +152,23 @@ void reiser4_inc_free_blocks( const struct super_block *super )
 	get_super_private( super ) -> blocks_free ++;
 }
 
+/* get mkfs unique identifier */
+__u32 reiser4_mkfs_id( const struct super_block *super /* super block
+							      queried */ )
+{
+	assert( "vpf-221", super != NULL );
+	assert( "vpf-222", is_reiser4_super( super ) );
+	return get_super_private( super ) -> mkfs_id;
+}
+
+/* set mkfs unique identifier */
+void reiser4_set_mkfs_id( const struct super_block *super, __u32 id )
+{
+	assert( "vpf-223", super != NULL );
+	assert( "vpf-224", is_reiser4_super( super ) );
+	get_super_private( super ) -> mkfs_id = id;
+}
+
 /**
  * amount of free blocks in file system
  */

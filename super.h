@@ -100,6 +100,10 @@ struct reiser4_super_info_data {
 	 */
 	gid_t              default_gid;
 
+	/** 
+	 * mkfs identifier generated at mkfs time.
+	 */
+	__u32    mkfs_id;
 	/**
 	 * amount of blocks in a file system
 	 */
@@ -262,6 +266,8 @@ extern void reiser4_set_data_blocks( const struct super_block *super, __u64 nr )
 extern __u64 reiser4_free_blocks( const struct super_block *super );
 extern void reiser4_set_free_blocks( const struct super_block *super, __u64 nr );
 extern void reiser4_inc_free_blocks( const struct super_block *super );
+extern __u32 reiser4_mkfs_id( const struct super_block *super );
+extern void reiser4_set_mkfs_id( const struct super_block *super, __u32 id );
 
 extern __u64 reiser4_free_committed_blocks( const struct super_block *super );
 extern void reiser4_set_free_committed_blocks( const struct super_block *super,
