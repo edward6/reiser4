@@ -29,8 +29,10 @@ typedef enum {
    assembling/splitting contunuous regions where crypto/compression algorithm live.
    This manager contains mostly operations with the following object: */
 typedef struct reiser4_cluster{
-	__u8 * buf;      /* pointer to the contiguous region where crypto/compression algorithms live */
-	size_t len;      /* size of the region above */
+	__u8 * buf;      /* pointer to the beginning of region where crypto/compression
+			    algorithms live; this region contains only one cluster */
+	size_t bsize;    /* the length of this region */
+	size_t len;      /* current length of the processed cluster */
 	int nr_pages;    /* number of attached pages */
 	struct page ** pages; /* attached pages */
 	struct file * file;
