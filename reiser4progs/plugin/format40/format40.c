@@ -1,5 +1,5 @@
 /*
-    format40.c -- default disk-layout plugin for reiserfs 4.0.
+    format40.c -- default disk-layout plugin for reiser4.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -13,11 +13,11 @@
 
 #include "format40.h"
 
-#define format40_super(block) ((reiserfs_format40_super_t *)block->data)
+#define format40_super(block) ((format40_super_t *)block->data)
 
-static reiserfs_core_t *core = NULL;
+static reiser4_core_t *core = NULL;
 
-static errno_t format40_super_check(reiserfs_format40_super_t *super, 
+static errno_t format40_super_check(format40_super_t *super, 
     aal_device_t *device) 
 {
     blk_t offset;
@@ -30,7 +30,7 @@ static errno_t format40_super_check(reiserfs_format40_super_t *super,
 	return -1;
     }
     
-    offset = (REISERFS_FORMAT40_OFFSET / aal_device_get_bs(device));
+    offset = (FORMAT40_OFFSET / aal_device_get_bs(device));
     if (get_sb_root_block(super) < offset || get_sb_root_block(super) > dev_len) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Superblock has an invalid root block %llu for device "
@@ -40,16 +40,16 @@ static errno_t format40_super_check(reiserfs_format40_super_t *super,
     return 0;
 }
 
-static int format40_signature(reiserfs_format40_super_t *super) {
-    return aal_strncmp(super->sb_magic, 
-	REISERFS_FORMAT40_MAGIC, aal_strlen(REISERFS_FORMAT40_MAGIC)) == 0;
+static int format40_signature(format40_super_t *super) {
+    return aal_strncmp(super->sb_magic, FORMAT40_MAGIC, 
+	aal_strlen(FORMAT40_MAGIC)) == 0;
 }
 
 static aal_block_t *format40_super_open(aal_device_t *device) {
     blk_t offset;
     aal_block_t *block;
     
-    offset = (REISERFS_FORMAT40_OFFSET / aal_device_get_bs(device));
+    offset = (FORMAT40_OFFSET / aal_device_get_bs(device));
 	
     if (!(block = aal_block_read(device, offset))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -58,14 +58,14 @@ static aal_block_t *format40_super_open(aal_device_t *device) {
 	return NULL;
     }
 
-    if (!format40_signature((reiserfs_format40_super_t *)block->data))
+    if (!format40_signature((format40_super_t *)block->data))
 	return NULL;
     
     return block;
 }
 
-static reiserfs_entity_t *format40_open(aal_device_t *device) {
-    reiserfs_format40_t *format;
+static reiser4_entity_t *format40_open(aal_device_t *device) {
+    format40_t *format;
 
     aal_assert("umka-393", device != NULL, return NULL);
 
@@ -77,7 +77,7 @@ static reiserfs_entity_t *format40_open(aal_device_t *device) {
     if (!(format->block = format40_super_open(device)))
 	goto error_free_format;
 		
-    return (reiserfs_entity_t *)format;
+    return (reiser4_entity_t *)format;
 
 error_free_format:
     aal_free(format);
@@ -88,12 +88,12 @@ error:
 #ifndef ENABLE_COMPACT
 
 /* This function should create super block and update all copies */
-static reiserfs_entity_t *format40_create(aal_device_t *device, 
+static reiser4_entity_t *format40_create(aal_device_t *device, 
     count_t blocks, uint16_t drop_policy)
 {
     blk_t blk;
-    reiserfs_format40_t *format;
-    reiserfs_format40_super_t *super;
+    format40_t *format;
+    format40_super_t *super;
     
     aal_assert("umka-395", device != NULL, return NULL);
     
@@ -102,7 +102,7 @@ static reiserfs_entity_t *format40_create(aal_device_t *device,
     
     format->device = device;
 
-    if (!(format->block = aal_block_alloc(device, (REISERFS_FORMAT40_OFFSET / 
+    if (!(format->block = aal_block_alloc(device, (FORMAT40_OFFSET / 
 	aal_device_get_bs(device)), 0))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -110,16 +110,16 @@ static reiserfs_entity_t *format40_create(aal_device_t *device,
 	goto error_free_format;
     }
     
-    super = (reiserfs_format40_super_t *)format->block->data;
-    aal_memcpy(super->sb_magic, REISERFS_FORMAT40_MAGIC, 
-	aal_strlen(REISERFS_FORMAT40_MAGIC));
+    super = (format40_super_t *)format->block->data;
+    aal_memcpy(super->sb_magic, FORMAT40_MAGIC, 
+	aal_strlen(FORMAT40_MAGIC));
 
     set_sb_block_count(super, blocks);
     set_sb_tree_height(super, 2);
     set_sb_flushes(super, 0);
     set_sb_drop_policy(super, drop_policy);
 
-    return (reiserfs_entity_t *)format;
+    return (reiser4_entity_t *)format;
 
 error_free_format:
     aal_free(format);
@@ -128,12 +128,12 @@ error:
 }
 
 /* This function should update all copies of the super block */
-static errno_t format40_sync(reiserfs_entity_t *entity) {
-    reiserfs_format40_t *format;
+static errno_t format40_sync(reiser4_entity_t *entity) {
+    format40_t *format;
     
     aal_assert("umka-394", entity != NULL, return -1); 
    
-    format = (reiserfs_format40_t *)entity;
+    format = (format40_t *)entity;
     
     if (aal_block_write(format->block)) {
 	blk_t offset = aal_block_get_nr(format->block);
@@ -150,23 +150,23 @@ static errno_t format40_sync(reiserfs_entity_t *entity) {
 
 #endif
 
-static errno_t format40_valid(reiserfs_entity_t *entity, 
+static errno_t format40_valid(reiser4_entity_t *entity, 
     int flags) 
 {
-    reiserfs_format40_t *format;
+    format40_t *format;
     
     aal_assert("umka-397", entity != NULL, return -1);
     
-    format = (reiserfs_format40_t *)entity;
+    format = (format40_t *)entity;
     
     return format40_super_check(format40_super(format->block), 
 	format->device);
 }
 
-static void format40_close(reiserfs_entity_t *entity) {
+static void format40_close(reiser4_entity_t *entity) {
     aal_assert("umka-398", entity != NULL, return);
     
-    aal_block_free(((reiserfs_format40_t *)entity)->block);
+    aal_block_free(((format40_t *)entity)->block);
     aal_free(entity);
 }
 
@@ -182,143 +182,143 @@ static int format40_confirm(aal_device_t *device) {
     return 1;
 }
 
-static void format40_oid_area(reiserfs_entity_t *entity, 
+static void format40_oid_area(reiser4_entity_t *entity, 
     void **oid_start, uint32_t *oid_len) 
 {
-    reiserfs_format40_super_t *super;
+    format40_super_t *super;
     
     aal_assert("umka-732", entity != NULL, return);
     
-    super = format40_super(((reiserfs_format40_t *)entity)->block);
+    super = format40_super(((format40_t *)entity)->block);
     
     *oid_start = &super->sb_oid;
     *oid_len = &super->sb_file_count - &super->sb_oid;
 }
 
-static void format40_journal_area(reiserfs_entity_t *entity, 
+static void format40_journal_area(reiser4_entity_t *entity, 
     blk_t *start, blk_t *end) 
 {
     aal_assert("umka-734", entity != NULL, return);
     aal_assert("umka-978", start != NULL, return);
     aal_assert("umka-979", end != NULL, return);
     
-    *start = (REISERFS_FORMAT40_JHEADER / 
-	aal_device_get_bs(((reiserfs_format40_t *)entity)->device));
+    *start = (FORMAT40_JHEADER / 
+	aal_device_get_bs(((format40_t *)entity)->device));
     
-    *end = (REISERFS_FORMAT40_JFOOTER / 
-	aal_device_get_bs(((reiserfs_format40_t *)entity)->device));
+    *end = (FORMAT40_JFOOTER / 
+	aal_device_get_bs(((format40_t *)entity)->device));
 }
 
 static const char *formats[] = {"4.0"};
 
-static const char *format40_name(reiserfs_entity_t *entity) {
+static const char *format40_name(reiser4_entity_t *entity) {
     return formats[0];
 }
 
-static reiserfs_id_t format40_journal_pid(reiserfs_entity_t *entity) {
+static reiser4_id_t format40_journal_pid(reiser4_entity_t *entity) {
     return JOURNAL_REISER40_ID;
 }
 
-static reiserfs_id_t format40_alloc_pid(reiserfs_entity_t *entity) {
+static reiser4_id_t format40_alloc_pid(reiser4_entity_t *entity) {
     return ALLOC_REISER40_ID;
 }
 
-static reiserfs_id_t format40_oid_pid(reiserfs_entity_t *entity) {
+static reiser4_id_t format40_oid_pid(reiser4_entity_t *entity) {
     return OID_REISER40_ID;
 }
 
-static blk_t format40_offset(reiserfs_entity_t *entity) {
+static blk_t format40_offset(reiser4_entity_t *entity) {
     aal_assert("umka-399", entity != NULL, return 0);
 
-    return (REISERFS_FORMAT40_OFFSET / 
-	aal_device_get_bs(((reiserfs_format40_t *)entity)->device));
+    return (FORMAT40_OFFSET / 
+	aal_device_get_bs(((format40_t *)entity)->device));
 }
 
-static blk_t format40_get_root(reiserfs_entity_t *entity) {
-    reiserfs_format40_super_t *super;
+static blk_t format40_get_root(reiser4_entity_t *entity) {
+    format40_super_t *super;
     
     aal_assert("umka-400", entity != NULL, return 0);
     
-    super = format40_super(((reiserfs_format40_t *)entity)->block);
+    super = format40_super(((format40_t *)entity)->block);
     return get_sb_root_block(super);
 }
 
-static count_t format40_get_len(reiserfs_entity_t *entity) {
-    reiserfs_format40_super_t *super;
+static count_t format40_get_len(reiser4_entity_t *entity) {
+    format40_super_t *super;
     
     aal_assert("umka-401", entity != NULL, return 0);
     
-    super = format40_super(((reiserfs_format40_t *)entity)->block);
+    super = format40_super(((format40_t *)entity)->block);
     return get_sb_block_count(super);
 }
 
-static count_t format40_get_free(reiserfs_entity_t *entity) {
-    reiserfs_format40_super_t *super;
+static count_t format40_get_free(reiser4_entity_t *entity) {
+    format40_super_t *super;
     
     aal_assert("umka-402", entity != NULL, return 0);
     
-    super = format40_super(((reiserfs_format40_t *)entity)->block);
+    super = format40_super(((format40_t *)entity)->block);
     return get_sb_free_blocks(super);
 }
 
-static uint16_t format40_get_height(reiserfs_entity_t *entity) {
-    reiserfs_format40_super_t *super;
+static uint16_t format40_get_height(reiser4_entity_t *entity) {
+    format40_super_t *super;
     
     aal_assert("umka-555", entity != NULL, return 0);
     
-    super = format40_super(((reiserfs_format40_t *)entity)->block);
+    super = format40_super(((format40_t *)entity)->block);
     return get_sb_tree_height(super);
 }
 
 #ifndef ENABLE_COMPACT
 
-static void format40_set_root(reiserfs_entity_t *entity, 
+static void format40_set_root(reiser4_entity_t *entity, 
     blk_t root) 
 {
-    reiserfs_format40_super_t *super;
+    format40_super_t *super;
     
     aal_assert("umka-403", entity != NULL, return);
     
-    super = format40_super(((reiserfs_format40_t *)entity)->block);
+    super = format40_super(((format40_t *)entity)->block);
     set_sb_root_block(super, root);
 }
 
-static void format40_set_len(reiserfs_entity_t *entity, 
+static void format40_set_len(reiser4_entity_t *entity, 
     count_t blocks) 
 {
-    reiserfs_format40_super_t *super;
+    format40_super_t *super;
     
     aal_assert("umka-404", entity != NULL, return);
     
-    super = format40_super(((reiserfs_format40_t *)entity)->block);
+    super = format40_super(((format40_t *)entity)->block);
     set_sb_block_count(super, blocks);
 }
 
-static void format40_set_free(reiserfs_entity_t *entity, 
+static void format40_set_free(reiser4_entity_t *entity, 
     count_t blocks) 
 {
-    reiserfs_format40_super_t *super;
+    format40_super_t *super;
     
     aal_assert("umka-405", entity != NULL, return);
     
-    super = format40_super(((reiserfs_format40_t *)entity)->block);
+    super = format40_super(((format40_t *)entity)->block);
     set_sb_free_blocks(super, blocks);
 }
 
-static void format40_set_height(reiserfs_entity_t *entity, 
+static void format40_set_height(reiser4_entity_t *entity, 
     uint16_t height) 
 {
-    reiserfs_format40_super_t *super;
+    format40_super_t *super;
     
     aal_assert("umka-555", entity != NULL, return);
 
-    super = format40_super(((reiserfs_format40_t *)entity)->block);
+    super = format40_super(((format40_t *)entity)->block);
     set_sb_tree_height(super, height);
 }
 
 #endif
 
-static reiserfs_plugin_t format40_plugin = {
+static reiser4_plugin_t format40_plugin = {
     .format_ops = {
 	.h = {
 	    .handle = NULL,
@@ -365,7 +365,7 @@ static reiserfs_plugin_t format40_plugin = {
     }
 };
 
-static reiserfs_plugin_t *format40_start(reiserfs_core_t *c) {
+static reiser4_plugin_t *format40_start(reiser4_core_t *c) {
     core = c;
     return &format40_plugin;
 }

@@ -11,17 +11,17 @@
 
 #include "sdext_unix.h"
 
-static reiserfs_core_t *core = NULL;
+static reiser4_core_t *core = NULL;
 
-static errno_t sdext_unix_init(reiserfs_body_t *body, 
-    reiserfs_sdext_unix_hint_t *hint) 
+static errno_t sdext_unix_init(reiser4_body_t *body, 
+    reiser4_sdext_unix_hint_t *hint) 
 {
-    reiserfs_sdext_unix_t *ext;
+    sdext_unix_t *ext;
     
     aal_assert("umka-884", body != NULL, return -1);
     aal_assert("umka-885", hint != NULL, return -1);
 	
-    ext = (reiserfs_sdext_unix_t *)body;
+    ext = (sdext_unix_t *)body;
     
     sdext_unix_set_uid(ext, hint->uid);
     sdext_unix_set_gid(ext, hint->gid);
@@ -34,15 +34,15 @@ static errno_t sdext_unix_init(reiserfs_body_t *body,
     return 0;
 }
 
-static errno_t sdext_unix_open(reiserfs_body_t *body, 
-    reiserfs_sdext_unix_hint_t *hint) 
+static errno_t sdext_unix_open(reiser4_body_t *body, 
+    reiser4_sdext_unix_hint_t *hint) 
 {
-    reiserfs_sdext_unix_t *ext;
+    sdext_unix_t *ext;
     
     aal_assert("umka-886", body != NULL, return -1);
     aal_assert("umka-887", hint != NULL, return -1);
 
-    ext = (reiserfs_sdext_unix_t *)body;
+    ext = (sdext_unix_t *)body;
     
     hint->uid = sdext_unix_get_uid(ext);
     hint->gid = sdext_unix_get_gid(ext);
@@ -55,16 +55,16 @@ static errno_t sdext_unix_open(reiserfs_body_t *body,
     return 0;
 }
 
-static int sdext_unix_confirm(reiserfs_body_t *body) {
+static int sdext_unix_confirm(reiser4_body_t *body) {
     aal_assert("umka-1009", body != NULL, return -1);
     return 0;
 }
 
 static uint32_t sdext_unix_length(void) {
-    return sizeof(reiserfs_sdext_unix_t);
+    return sizeof(sdext_unix_t);
 }
 
-static reiserfs_plugin_t sdext_unix_plugin = {
+static reiser4_plugin_t sdext_unix_plugin = {
     .sdext_ops = {
 	.h = {
 	    .handle = NULL,
@@ -80,7 +80,7 @@ static reiserfs_plugin_t sdext_unix_plugin = {
     }
 };
 
-static reiserfs_plugin_t *sdext_unix_start(reiserfs_core_t *c) {
+static reiser4_plugin_t *sdext_unix_start(reiser4_core_t *c) {
     core = c;
     return &sdext_unix_plugin;
 }

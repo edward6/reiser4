@@ -29,10 +29,10 @@ static void ls_setup_streams(void) {
 }
 
 int main(int argc, char *argv[]) {
-    reiserfs_fs_t *fs;
+    reiser4_fs_t *fs;
     aal_device_t *device;
-    reiserfs_object_t *object;
-    reiserfs_entry_hint_t entry;
+    reiser4_object_t *object;
+    reiser4_entry_hint_t entry;
 
 #ifndef ENABLE_COMPACT    
     
@@ -50,27 +50,27 @@ int main(int argc, char *argv[]) {
 	return 0xff;
     }
     
-    if (!(device = aal_file_open(argv[1], REISERFS_DEFAULT_BLOCKSIZE, O_RDWR))) {
+    if (!(device = aal_file_open(argv[1], REISER4_DEFAULT_BLOCKSIZE, O_RDWR))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't open device %s.", argv[1]);
 	goto error_free_libreiser4;
     }
     
-    if (!(fs = reiserfs_fs_open(device, device, 0))) {
+    if (!(fs = reiser4_fs_open(device, device, 0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't open filesystem on %s.", aal_device_name(device));
 	goto error_free_device;
     }
     
-    if (!(object = reiserfs_dir_open(fs, argv[2]))) {
+    if (!(object = reiser4_dir_open(fs, argv[2]))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't open dir \"%s\".", argv[2]);
 	goto error_free_fs;
     }
     
     {
-	reiserfs_plugin_t *dir_plugin;
-	reiserfs_object_hint_t dir_hint;
+	reiser4_plugin_t *dir_plugin;
+	reiser4_object_hint_t dir_hint;
 	
 	if (!(dir_plugin = libreiser4_factory_find_by_id(DIR_PLUGIN_TYPE, DIR_DIR40_ID)))
 	    libreiser4_factory_failed(goto error_free_object, find, dir, DIR_DIR40_ID);
@@ -88,36 +88,36 @@ int main(int argc, char *argv[]) {
 	    for (i = 0; i < 100; i++) {
 		aal_memset(name, 0, sizeof(name));
 		aal_snprintf(name, 256, "testdir%d", i);
-		reiserfs_dir_close(reiserfs_dir_create(fs, 
+		reiser4_dir_close(reiser4_dir_create(fs, 
 		    &dir_hint, dir_plugin, object, name));
 	    }
 	}
     }
     
-    if (reiserfs_dir_rewind(object)) {
+    if (reiser4_dir_rewind(object)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't rewind dir \"%s\".", argv[2]);
 	goto error_free_object;
     }
 
-    while (!reiserfs_dir_read(object, &entry)) {
+    while (!reiser4_dir_read(object, &entry)) {
 	fprintf(stdout, "[%llx:%llx] %s\n", (entry.objid.locality >> 4), 
 	    entry.objid.objectid, entry.name);
     }
     
-    reiserfs_dir_close(object);
-//    reiserfs_fs_sync(fs);
+    reiser4_dir_close(object);
+//    reiser4_fs_sync(fs);
 
-    reiserfs_fs_close(fs);
+    reiser4_fs_close(fs);
     libreiser4_done();
     aal_file_close(device);
 
     return 0;
 
 error_free_object:
-    reiserfs_dir_close(object);
+    reiser4_dir_close(object);
 error_free_fs:
-    reiserfs_fs_close(fs);
+    reiser4_fs_close(fs);
 error_free_device:
     aal_file_close(device);
 error_free_libreiser4:

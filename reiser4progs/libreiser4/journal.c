@@ -1,5 +1,5 @@
 /*
-    journal.c -- reiserfs filesystem journal common code.
+    journal.c -- reiser4 filesystem journal common code.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -14,13 +14,13 @@
     This function opens journal on specified device and returns instance of 
     opened journal.
 */
-reiserfs_journal_t *reiserfs_journal_open(
-    reiserfs_format_t *format,	/* format journal is going to be opened on */
+reiser4_journal_t *reiser4_journal_open(
+    reiser4_format_t *format,	/* format journal is going to be opened on */
     aal_device_t *device	/* device journal weill be opened on */
 ) {
-    reiserfs_id_t pid;
-    reiserfs_plugin_t *plugin;
-    reiserfs_journal_t *journal;
+    reiser4_id_t pid;
+    reiser4_plugin_t *plugin;
+    reiser4_journal_t *journal;
 	
     aal_assert("umka-095", format != NULL, return NULL);
 	
@@ -28,7 +28,7 @@ reiserfs_journal_t *reiserfs_journal_open(
     if (!(journal = aal_calloc(sizeof(*journal), 0)))
 	return NULL;
 
-    if ((pid = reiserfs_format_journal_pid(format)) == INVALID_PLUGIN_ID) {
+    if ((pid = reiser4_format_journal_pid(format)) == INVALID_PLUGIN_ID) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Invalid journal plugin id has been found.");
 	goto error_free_journal;
@@ -64,14 +64,14 @@ error_free_journal:
 #ifndef ENABLE_COMPACT
 
 /* Creates journal on specified jopurnal. Returns initialized instance */
-reiserfs_journal_t *reiserfs_journal_create(
-    reiserfs_format_t *format,	/* format journal will be opened on */
+reiser4_journal_t *reiser4_journal_create(
+    reiser4_format_t *format,	/* format journal will be opened on */
     aal_device_t *device,	/* device journal will be created on */
     void *params		/* journal params (opaque pointer) */
 ) {
-    reiserfs_id_t pid;
-    reiserfs_plugin_t *plugin;
-    reiserfs_journal_t *journal;
+    reiser4_id_t pid;
+    reiser4_plugin_t *plugin;
+    reiser4_journal_t *journal;
 	
     aal_assert("umka-095", format != NULL, return NULL);
 	
@@ -79,7 +79,7 @@ reiserfs_journal_t *reiserfs_journal_create(
     if (!(journal = aal_calloc(sizeof(*journal), 0)))
 	return NULL;
 
-    if ((pid = reiserfs_format_journal_pid(format)) == INVALID_PLUGIN_ID) {
+    if ((pid = reiser4_format_journal_pid(format)) == INVALID_PLUGIN_ID) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Invalid journal plugin id has been found.");
 	goto error_free_journal;
@@ -109,8 +109,8 @@ error_free_journal:
 }
 
 /* Replays specified journal. Returns error code */
-errno_t reiserfs_journal_replay(
-    reiserfs_journal_t *journal	/* journal to be replayed */
+errno_t reiser4_journal_replay(
+    reiser4_journal_t *journal	/* journal to be replayed */
 ) {
     aal_assert("umka-727", journal != NULL, return -1);
     
@@ -126,8 +126,8 @@ errno_t reiserfs_journal_replay(
 }
 
 /* Saves journal strucres on jouranl's device */
-errno_t reiserfs_journal_sync(
-    reiserfs_journal_t *journal	/* journal to be saved */
+errno_t reiser4_journal_sync(
+    reiser4_journal_t *journal	/* journal to be saved */
 ) {
     aal_assert("umka-100", journal != NULL, return -1);
 
@@ -136,8 +136,8 @@ errno_t reiserfs_journal_sync(
 }
 
 /* Checks jouranl structure for validness */
-errno_t reiserfs_journal_valid(
-    reiserfs_journal_t *journal, /* jouranl to eb checked */
+errno_t reiser4_journal_valid(
+    reiser4_journal_t *journal, /* jouranl to eb checked */
     int flags			 /* some flags to be used */
 ) {
     aal_assert("umka-830", journal != NULL, return -1);
@@ -149,8 +149,8 @@ errno_t reiserfs_journal_valid(
 #endif
 
 /* Closes journal by means of freeing all assosiated memory */
-void reiserfs_journal_close(
-    reiserfs_journal_t *journal	/* Jouranl to be closed */
+void reiser4_journal_close(
+    reiser4_journal_t *journal	/* Jouranl to be closed */
 ) {
     aal_assert("umka-102", journal != NULL, return);
     

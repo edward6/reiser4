@@ -1,5 +1,5 @@
 /*
-    format36.c -- Disk-layout plugin for reiserfs 3.6.x.
+    format36.c -- Disk-layout plugin for reiser3.6.x.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -13,42 +13,38 @@
 
 #include "format36.h"
 
-static reiserfs_core_t *core = NULL;
+static reiser4_core_t *core = NULL;
 
-static int format36_3_5_signature(const char *signature) {
-    return(!aal_strncmp(signature, REISERFS_3_5_SUPER_SIGNATURE,
-	aal_strlen(REISERFS_3_5_SUPER_SIGNATURE)));
+static int format36_35_magic(const char *magic) {
+    return (!aal_strncmp(magic, FORMAT36_35_MAGIC, aal_strlen(FORMAT36_35_MAGIC)));
 }
 
-static int format36_3_6_signature(const char *signature) {
-    return(!aal_strncmp(signature, REISERFS_3_6_SUPER_SIGNATURE,
-	aal_strlen(REISERFS_3_6_SUPER_SIGNATURE)));
+static int format36_36_magic(const char *magic) {
+    return (!aal_strncmp(magic, FORMAT36_36_MAGIC, aal_strlen(FORMAT36_36_MAGIC)));
 }
 
-static int format36_journal_signature(const char *signature) {
-    return(!aal_strncmp(signature, REISERFS_JR_SUPER_SIGNATURE,
-	aal_strlen(REISERFS_JR_SUPER_SIGNATURE)));
+static int format36_jr_magic(const char *magic) {
+    return (!aal_strncmp(magic, FORMAT36_JR_MAGIC, aal_strlen(FORMAT36_JR_MAGIC)));
 }
 
-static int format36_signature(reiserfs_format36_super_t *super) {
-    const char *signature = (const char *)super->s_v1.sb_magic;
+static int format36_magic(format36_super_t *super) {
+    const char *magic = (const char *)super->s_v1.sb_magic;
 
-    if (format36_3_5_signature(signature) ||
-	    format36_3_6_signature(signature) ||
-	    format36_journal_signature(signature))
+    if (format36_35_magic(magic) || format36_36_magic(magic) || 
+	    format36_jr_magic(magic))
 	return 1;
     
     return 0;
 }
 
-static errno_t format36_super_check(reiserfs_format36_super_t *super, 
+static errno_t format36_super_check(format36_super_t *super, 
     aal_device_t *device) 
 {
     blk_t dev_len;
     int is_journal_dev, is_journal_magic;
 
     is_journal_dev = (get_jp_dev(get_sb_jp(super)) ? 1 : 0);
-    is_journal_magic = format36_journal_signature(super->s_v1.sb_magic);
+    is_journal_magic = format36_jr_magic(super->s_v1.sb_magic);
 
     if (is_journal_dev != is_journal_magic) {
 	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
@@ -70,17 +66,17 @@ static errno_t format36_super_check(reiserfs_format36_super_t *super,
 static aal_block_t *format36_super_open(aal_device_t *device) {
     aal_block_t *block;
     uint16_t blocksize;
-    reiserfs_format36_super_t *super;
+    format36_super_t *super;
     int i, super_offset[] = {16, 2, -1};
 
     blocksize = aal_device_get_bs(device);
-    aal_device_set_bs(device, REISERFS_DEFAULT_BLOCKSIZE);
+    aal_device_set_bs(device, REISER4_DEFAULT_BLOCKSIZE);
     
     for (i = 0; super_offset[i] != -1; i++) {
 	if ((block = aal_block_read(device, super_offset[i]))) {
-	    super = (reiserfs_format36_super_t *)block->data;
+	    super = (format36_super_t *)block->data;
 			
-	    if (format36_signature(super)) {
+	    if (format36_magic(super)) {
 		if (aal_device_set_bs(device, get_sb_block_size(super))) {
 		    aal_block_free(block);
 		    continue;
@@ -105,8 +101,8 @@ static aal_block_t *format36_super_open(aal_device_t *device) {
     return NULL;
 }
 
-static reiserfs_entity_t *format36_open(aal_device_t *device) {
-    reiserfs_format36_t *format;
+static reiser4_entity_t *format36_open(aal_device_t *device) {
+    format36_t *format;
 
     aal_assert("umka-380", device != NULL, return NULL);    
 	
@@ -117,7 +113,7 @@ static reiserfs_entity_t *format36_open(aal_device_t *device) {
 	goto error_free_format;
 	
     format->device = device;
-    return (reiserfs_entity_t *)format;
+    return (reiser4_entity_t *)format;
 
 error_free_format:
     aal_free(format);
@@ -127,12 +123,12 @@ error:
 
 #ifndef ENABLE_COMPACT
 
-static errno_t format36_sync(reiserfs_entity_t *entity) {
-    reiserfs_format36_t *format;
+static errno_t format36_sync(reiser4_entity_t *entity) {
+    format36_t *format;
     
     aal_assert("umka-381", entity != NULL, return -1);
     
-    format = (reiserfs_format36_t *)entity;
+    format = (format36_t *)entity;
     aal_assert("umka-382", format->block != NULL, return -1);    
     
     if (aal_block_write(format->block)) {
@@ -145,7 +141,7 @@ static errno_t format36_sync(reiserfs_entity_t *entity) {
     return 0;
 }
 
-static reiserfs_entity_t *format36_create(aal_device_t *device, 
+static reiser4_entity_t *format36_create(aal_device_t *device, 
     count_t blocks, uint16_t drop_policy)
 {
     return NULL;
@@ -153,20 +149,20 @@ static reiserfs_entity_t *format36_create(aal_device_t *device,
 
 #endif
 
-static errno_t format36_valid(reiserfs_entity_t *entity, 
+static errno_t format36_valid(reiser4_entity_t *entity, 
     int flags) 
 {
-    reiserfs_format36_super_t *super;
+    format36_super_t *super;
     
     aal_assert("umka-383", entity != NULL, return -1);
     
-    super = format36_super(((reiserfs_format36_t *)entity)->block);
-    return format36_super_check(super, ((reiserfs_format36_t *)entity)->device);
+    super = format36_super(((format36_t *)entity)->block);
+    return format36_super_check(super, ((format36_t *)entity)->device);
 }
 
-static void format36_close(reiserfs_entity_t *entity) {
+static void format36_close(reiser4_entity_t *entity) {
     aal_assert("umka-384", entity != NULL, return);
-    aal_block_free(((reiserfs_format36_t *)entity)->block);
+    aal_block_free(((format36_t *)entity)->block);
     aal_free(entity);
 }
 
@@ -184,100 +180,98 @@ static int format36_confirm(aal_device_t *device) {
 
 static const char *formats[] = {"3.5", "unknown", "3.6"};
 
-static const char *format36_name(reiserfs_entity_t *entity) {
+static const char *format36_name(reiser4_entity_t *entity) {
     int version;
-    reiserfs_format36_super_t *super;
+    format36_super_t *super;
 
     aal_assert("umka-1015", entity != NULL, return NULL);
     
-    super = format36_super(((reiserfs_format36_t *)entity)->block);
+    super = format36_super(((format36_t *)entity)->block);
     version = get_sb_format(super);
     
     return formats[version >= 0 && version < 3 ? version : 1];
 }
 
-static reiserfs_id_t format36_journal_pid(reiserfs_entity_t *entity) {
+static reiser4_id_t format36_journal_pid(reiser4_entity_t *entity) {
     return JOURNAL_REISER36_ID;
 }
 
-static reiserfs_id_t format36_alloc_pid(reiserfs_entity_t *entity) {
+static reiser4_id_t format36_alloc_pid(reiser4_entity_t *entity) {
     return ALLOC_REISER36_ID;
 }
 
-static reiserfs_id_t format36_oid_pid(reiserfs_entity_t *entity) {
+static reiser4_id_t format36_oid_pid(reiser4_entity_t *entity) {
     return OID_REISER36_ID;
 }
 
-static blk_t format36_offset(reiserfs_entity_t *entity) {
+static blk_t format36_offset(reiser4_entity_t *entity) {
     aal_assert("umka-386", entity != NULL, return 0);
-    
-    return (REISERFS_FORMAT36_OFFSET / 
-	aal_device_get_bs(((reiserfs_format36_t *)entity)->device));
+    return (FORMAT36_OFFSET / aal_device_get_bs(((format36_t *)entity)->device));
 }
 
-static blk_t format36_get_root(reiserfs_entity_t *entity) {
-    reiserfs_format36_super_t *super;
+static blk_t format36_get_root(reiser4_entity_t *entity) {
+    format36_super_t *super;
     
     aal_assert("umka-387", entity != NULL, return 0);
     
-    super = format36_super(((reiserfs_format36_t *)entity)->block);
+    super = format36_super(((format36_t *)entity)->block);
     return get_sb_root_block(super);
 }
 
-static count_t format36_get_len(reiserfs_entity_t *entity) {
-    reiserfs_format36_super_t *super;
+static count_t format36_get_len(reiser4_entity_t *entity) {
+    format36_super_t *super;
     
     aal_assert("umka-388", entity != NULL, return 0);
     
-    super = format36_super(((reiserfs_format36_t *)entity)->block);
+    super = format36_super(((format36_t *)entity)->block);
     return get_sb_block_count(super);
 }
 
-static count_t format36_get_free(reiserfs_entity_t *entity) {
-    reiserfs_format36_super_t *super;
+static count_t format36_get_free(reiser4_entity_t *entity) {
+    format36_super_t *super;
     
     aal_assert("umka-389", entity != NULL, return 0);
     
-    super = format36_super(((reiserfs_format36_t *)entity)->block);
+    super = format36_super(((format36_t *)entity)->block);
     return get_sb_free_blocks(super);
 }
 
 #ifndef ENABLE_COMPACT
 
-static void format36_set_root(reiserfs_entity_t *entity, blk_t root) {
-    reiserfs_format36_super_t *super;
+static void format36_set_root(reiser4_entity_t *entity, blk_t root) {
+    format36_super_t *super;
     
     aal_assert("umka-390", entity != NULL, return);
     
-    super = format36_super(((reiserfs_format36_t *)entity)->block);
+    super = format36_super(((format36_t *)entity)->block);
     set_sb_root_block(super, root);
 }
 
-static void format36_set_len(reiserfs_entity_t *entity, 
+static void format36_set_len(reiser4_entity_t *entity, 
     count_t blocks)
 {
-    reiserfs_format36_super_t *super;
+    format36_super_t *super;
     
     aal_assert("umka-391", entity != NULL, return);
     
-    super = format36_super(((reiserfs_format36_t *)entity)->block);
+    super = format36_super(((format36_t *)entity)->block);
     set_sb_block_count(super, blocks);
 }
 
-static void format36_set_free(reiserfs_entity_t *entity, 
+static void format36_set_free(reiser4_entity_t *entity, 
     count_t blocks) 
 {
-    reiserfs_format36_super_t *super;
+    format36_super_t *super;
     
     aal_assert("umka-392", entity != NULL, return);
 
-    super = format36_super(((reiserfs_format36_t *)entity)->block);
+    super = format36_super(((format36_t *)entity)->block);
     set_sb_free_blocks(super, blocks);
 }
 
 #endif
 
-static reiserfs_plugin_t format36_plugin = {
+static reiser4_plugin_t format36_plugin = {
     .format_ops = {
 	.h = {
 	    .handle = NULL,
@@ -322,7 +316,7 @@ static reiserfs_plugin_t format36_plugin = {
     }
 };
 
-static reiserfs_plugin_t *format36_start(reiserfs_core_t *c) {
+static reiser4_plugin_t *format36_start(reiser4_core_t *c) {
     core = c;
     return &format36_plugin;
 }

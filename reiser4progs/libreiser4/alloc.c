@@ -1,5 +1,5 @@
 /*
-    alloc.c -- reiserfs block allocator common code.
+    alloc.c -- reiser4 block allocator common code.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -15,13 +15,13 @@
     for opening. Returns initialized instance of block allocator, which may be 
     used in all further operations.
 */
-reiserfs_alloc_t *reiserfs_alloc_open(
-    reiserfs_format_t *format	/* disk-format allocator is going to be opened on */
+reiser4_alloc_t *reiser4_alloc_open(
+    reiser4_format_t *format	/* disk-format allocator is going to be opened on */
 ) {
     count_t len;
-    reiserfs_id_t pid;
-    reiserfs_alloc_t *alloc;
-    reiserfs_plugin_t *plugin;
+    reiser4_id_t pid;
+    reiser4_alloc_t *alloc;
+    reiser4_plugin_t *plugin;
 	
     aal_assert("umka-135", format != NULL, return NULL);
 
@@ -29,7 +29,7 @@ reiserfs_alloc_t *reiserfs_alloc_open(
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
     
-    if ((pid = reiserfs_format_alloc_pid(format)) == INVALID_PLUGIN_ID) {
+    if ((pid = reiser4_format_alloc_pid(format)) == INVALID_PLUGIN_ID) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Invalid block allocator plugin id has been found.");
 	goto error_free_alloc;
@@ -41,7 +41,7 @@ reiserfs_alloc_t *reiserfs_alloc_open(
 
     alloc->plugin = plugin;
 
-    if (!(len = reiserfs_format_get_len(format))) {
+    if (!(len = reiser4_format_get_len(format))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Invalid filesystem size has been found.");
 	goto error_free_alloc;
@@ -69,13 +69,13 @@ error_free_alloc:
     Creates new block allocator. Initializes all structures, calles block allocator 
     plugin in order to initialize allocator instance and returns instance to caller.
 */
-reiserfs_alloc_t *reiserfs_alloc_create(
-    reiserfs_format_t *format	    /* disk-format block allocator is going to be created on */
+reiser4_alloc_t *reiser4_alloc_create(
+    reiser4_format_t *format	    /* disk-format block allocator is going to be created on */
 ) {
     count_t len;
-    reiserfs_id_t pid;
-    reiserfs_alloc_t *alloc;
-    reiserfs_plugin_t *plugin;
+    reiser4_id_t pid;
+    reiser4_alloc_t *alloc;
+    reiser4_plugin_t *plugin;
 	
     aal_assert("umka-726", format != NULL, return NULL);
 
@@ -83,7 +83,7 @@ reiserfs_alloc_t *reiserfs_alloc_create(
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
 
-    if ((pid = reiserfs_format_alloc_pid(format)) == INVALID_PLUGIN_ID) {
+    if ((pid = reiser4_format_alloc_pid(format)) == INVALID_PLUGIN_ID) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Invalid block allocator plugin id has been found.");
 	goto error_free_alloc;
@@ -95,7 +95,7 @@ reiserfs_alloc_t *reiserfs_alloc_create(
 
     alloc->plugin = plugin;
 
-    if (!(len = reiserfs_format_get_len(format))) {
+    if (!(len = reiser4_format_get_len(format))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Invalid filesystem size has been found.");
 	goto error_free_alloc;
@@ -118,8 +118,8 @@ error_free_alloc:
 }
 
 /* Make request to allocator plugin in order to save its data to device */
-errno_t reiserfs_alloc_sync(
-    reiserfs_alloc_t *alloc	/* allocator to be syncked */
+errno_t reiser4_alloc_sync(
+    reiser4_alloc_t *alloc	/* allocator to be syncked */
 ) {
     aal_assert("umka-139", alloc != NULL, return -1);
 
@@ -130,8 +130,8 @@ errno_t reiserfs_alloc_sync(
 #endif
 
 /* Close passed allocator instance */
-void reiserfs_alloc_close(
-    reiserfs_alloc_t *alloc	/* allocator to be closed */
+void reiser4_alloc_close(
+    reiser4_alloc_t *alloc	/* allocator to be closed */
 ) {
     aal_assert("umka-141", alloc != NULL, return);
 
@@ -143,8 +143,8 @@ void reiserfs_alloc_close(
 }
 
 /* Returns the number of free blocks in allocator */
-count_t reiserfs_alloc_free(
-    reiserfs_alloc_t *alloc	/* allocator to be realeased */
+count_t reiser4_alloc_free(
+    reiser4_alloc_t *alloc	/* allocator to be realeased */
 ) {
     aal_assert("umka-362", alloc != NULL, return 0);
 
@@ -153,8 +153,8 @@ count_t reiserfs_alloc_free(
 }
 
 /* Returns the number of used blocks in allocator */
-count_t reiserfs_alloc_used(
-    reiserfs_alloc_t *alloc	/* allocator used blocks will be obtained from */
+count_t reiser4_alloc_used(
+    reiser4_alloc_t *alloc	/* allocator used blocks will be obtained from */
 ) {
     aal_assert("umka-499", alloc != NULL, return 0);
 
@@ -165,8 +165,8 @@ count_t reiserfs_alloc_used(
 #ifndef ENABLE_COMPACT
 
 /* Marks specified block as used */
-void reiserfs_alloc_mark(
-    reiserfs_alloc_t *alloc,	/* allocator for working with */
+void reiser4_alloc_mark(
+    reiser4_alloc_t *alloc,	/* allocator for working with */
     blk_t blk			/* block to be marked */
 ) {
     aal_assert("umka-501", alloc != NULL, return);
@@ -176,8 +176,8 @@ void reiserfs_alloc_mark(
 }
 
 /* Deallocs specified block */
-void reiserfs_alloc_dealloc(
-    reiserfs_alloc_t *alloc,	/* allocator for wiorking with */
+void reiser4_alloc_dealloc(
+    reiser4_alloc_t *alloc,	/* allocator for wiorking with */
     blk_t blk			/* block to be deallocated */
 ) {
     aal_assert("umka-503", alloc != NULL, return);
@@ -187,8 +187,8 @@ void reiserfs_alloc_dealloc(
 }
 
 /* Makes request to plugin for allocating block */
-blk_t reiserfs_alloc_alloc(
-    reiserfs_alloc_t *alloc	/* allocator for working with */
+blk_t reiser4_alloc_alloc(
+    reiser4_alloc_t *alloc	/* allocator for working with */
 ) {
     aal_assert("umka-505", alloc != NULL, return 0);
 
@@ -196,8 +196,8 @@ blk_t reiserfs_alloc_alloc(
 	alloc, alloc->entity);
 }
 
-errno_t reiserfs_alloc_valid(
-    reiserfs_alloc_t *alloc,	/* allocator to be checked */
+errno_t reiser4_alloc_valid(
+    reiser4_alloc_t *alloc,	/* allocator to be checked */
     int flags			/* some flags will be used by plugin in the future */
 ) {
     aal_assert("umka-833", alloc != NULL, return -1);
@@ -212,8 +212,8 @@ errno_t reiserfs_alloc_valid(
     Checks whether specified block used or not. Returns TRUE for used and FALSE 
     otherwise.
 */
-int reiserfs_alloc_test(
-    reiserfs_alloc_t *alloc,	/* allocator for working with */
+int reiser4_alloc_test(
+    reiser4_alloc_t *alloc,	/* allocator for working with */
     blk_t blk			/* block to be tested (used or not ) */
 ) {
     aal_assert("umka-662", alloc != NULL, return 0);

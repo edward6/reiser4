@@ -7,7 +7,7 @@
 
 #include <repair/filesystem.h>
 
-errno_t repair_fs_check(reiserfs_fs_t *fs) {
+errno_t repair_fs_check(reiser4_fs_t *fs) {
     return 0;
 }
 

@@ -239,7 +239,7 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[],
     return fsck_warn_what_will_be_done(data, argv[optind]);
 }
 
-int fsck_check_fs(repair_data_t *data, reiserfs_fs_t *fs) {
+int fsck_check_fs(repair_data_t *data, reiser4_fs_t *fs) {
     int retval;
     time_t t;
     
@@ -271,7 +271,7 @@ int main(int argc, char *argv[]) {
     aal_device_t *host_device = NULL;
     
     char *host_name;
-    reiserfs_fs_t *fs;
+    reiser4_fs_t *fs;
     
     memset(&data, 0, sizeof(data));
     memset(&fs, 0, sizeof(fs));
@@ -287,7 +287,7 @@ int main(int argc, char *argv[]) {
 	goto free_device;
     }
 
-    if (!(host_device = aal_file_open(host_name, REISERFS_DEFAULT_BLOCKSIZE, 
+    if (!(host_device = aal_file_open(host_name, REISER4_DEFAULT_BLOCKSIZE, 
 	O_RDWR))) 
     {
 	progs_fatal("Can't open the partition %s: %s\n", host_name, 
@@ -296,7 +296,7 @@ int main(int argc, char *argv[]) {
 	goto free_libreiser4;
     }
  
-    if (!(fs = reiserfs_fs_open(host_device, host_device, 1))) {
+    if (!(fs = reiser4_fs_open(host_device, host_device, 1))) {
 	progs_fatal("Can't open filesystem on %s.\n", host_name);
 	goto free_device;
     }
@@ -317,7 +317,7 @@ int main(int argc, char *argv[]) {
 	
     fprintf(stderr, "Synchronizing...");
     
-    if (reiserfs_fs_sync(fs)) {
+    if (reiser4_fs_sync(fs)) {
 	progs_fatal("Can't synchronize the filesystem.\n");
 	goto free_fs;
     }
@@ -331,7 +331,7 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "done\n");
 
 free_fs:
-    reiserfs_fs_close(fs);
+    reiser4_fs_close(fs);
 free_device:
     aal_file_close(host_device);
 free_libreiser4:

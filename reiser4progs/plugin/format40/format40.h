@@ -1,5 +1,5 @@
 /*
-    format40.h -- default disk-layout plugin implementation for reiserfs 4.0.
+    format40.h -- default disk-layout plugin implementation for reiser4.
     Copyright (C) 1996 - 2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -9,13 +9,13 @@
 
 #include <aal/aal.h>
 
-#define REISERFS_FORMAT40_MAGIC		    "R4Sb-Default"
-#define REISERFS_FORMAT40_OFFSET	    (65536 + 4096)
-#define REISERFS_FORMAT40_JHEADER	    (4096 * 19)
-#define REISERFS_FORMAT40_JFOOTER	    (4096 * 20)
+#define FORMAT40_MAGIC	    "R4Sb-Default"
+#define FORMAT40_OFFSET	    (65536 + 4096)
+#define FORMAT40_JHEADER    (4096 * 19)
+#define FORMAT40_JFOOTER    (4096 * 20)
 
 
-struct reiserfs_format40_super {
+struct format40_super {
     uint64_t sb_block_count;
     uint64_t sb_free_blocks;
     uint64_t sb_root_block;
@@ -30,7 +30,7 @@ struct reiserfs_format40_super {
     char sb_unused[420];
 };
 
-typedef struct reiserfs_format40_super reiserfs_format40_super_t;
+typedef struct format40_super format40_super_t;
 
 #define get_sb_block_count(sb)			aal_get_le64(sb, sb_block_count)
 #define set_sb_block_count(sb, val)		aal_set_le64(sb, sb_block_count, val)
@@ -56,12 +56,12 @@ typedef struct reiserfs_format40_super reiserfs_format40_super_t;
 #define get_sb_drop_policy(sb)			aal_get_le16(sb, sb_drop_policy)
 #define set_sb_drop_policy(sb, val)		aal_set_le16(sb, sb_drop_policy, val)
 
-struct reiserfs_format40 {
+struct format40 {
     aal_device_t *device;
     aal_block_t *block;
 };
 
-typedef struct reiserfs_format40 reiserfs_format40_t;
+typedef struct format40 format40_t;
 
 #endif
 

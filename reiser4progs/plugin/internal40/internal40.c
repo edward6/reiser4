@@ -11,28 +11,28 @@
 #include <reiser4/reiser4.h>
 #include "internal40.h"
 
-static reiserfs_core_t *core = NULL;
+static reiser4_core_t *core = NULL;
 
 #ifndef ENABLE_COMPACT
 
-static errno_t internal40_init(reiserfs_body_t *body, 
-    reiserfs_item_hint_t *hint)
+static errno_t internal40_init(reiser4_body_t *body, 
+    reiser4_item_hint_t *hint)
 {
     aal_assert("vpf-063", body != NULL, return -1); 
     aal_assert("vpf-064", hint != NULL, return -1);
 
-    it40_set_pointer((reiserfs_internal40_t *)body, 
-	((reiserfs_internal_hint_t *)hint->hint)->pointer);
+    it40_set_pointer((internal40_t *)body, 
+	((reiser4_internal_hint_t *)hint->hint)->pointer);
 	    
     return 0;
 }
 
 static errno_t internal40_estimate(uint32_t pos, 
-    reiserfs_item_hint_t *hint) 
+    reiser4_item_hint_t *hint) 
 {
     aal_assert("vpf-068", hint != NULL, return -1);
     
-    hint->len = sizeof(reiserfs_internal40_t);
+    hint->len = sizeof(internal40_t);
     return 0;
 }
 
@@ -46,7 +46,7 @@ static int internal40_compound(void) {
     return 0;
 }
 
-static errno_t internal40_print(reiserfs_body_t *body, 
+static errno_t internal40_print(reiser4_body_t *body, 
     char *buff, uint32_t n) 
 {
     aal_assert("umka-544", body != NULL, return -1);
@@ -57,30 +57,30 @@ static errno_t internal40_print(reiserfs_body_t *body,
 
 #ifndef ENABLE_COMPACT
 
-static errno_t internal40_set_pointer(reiserfs_body_t *body, 
+static errno_t internal40_set_pointer(reiser4_body_t *body, 
     blk_t blk)
 {
     aal_assert("umka-605", body != NULL, return -1);
-    it40_set_pointer((reiserfs_internal40_t *)body, blk);
+    it40_set_pointer((internal40_t *)body, blk);
 
     return 0;
 }
 
 #endif
 
-static blk_t internal40_get_pointer(reiserfs_body_t *body) {
+static blk_t internal40_get_pointer(reiser4_body_t *body) {
     aal_assert("umka-606", body != NULL, return 0);
-    return it40_get_pointer((reiserfs_internal40_t *)body);
+    return it40_get_pointer((internal40_t *)body);
 }
 
-static int internal40_has_pointer(reiserfs_body_t *body, 
+static int internal40_has_pointer(reiser4_body_t *body, 
     blk_t blk)
 {
     aal_assert("umka-628", body != NULL, return 0);
-    return (blk == it40_get_pointer((reiserfs_internal40_t *)body));
+    return (blk == it40_get_pointer((internal40_t *)body));
 }
 
-static reiserfs_plugin_t internal40_plugin = {
+static reiser4_plugin_t internal40_plugin = {
     .item_ops = {
 	.h = {
     	    .handle = NULL,
@@ -125,7 +125,7 @@ static reiserfs_plugin_t internal40_plugin = {
     }
 };
 
-static reiserfs_plugin_t *internal40_start(reiserfs_core_t *c) {
+static reiser4_plugin_t *internal40_start(reiser4_core_t *c) {
     core = c;
     return &internal40_plugin;
 }

@@ -1,5 +1,5 @@
 /*
-    cache.c -- reiserfs balanced tree cache functions.
+    cache.c -- reiser4 balanced tree cache functions.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -11,10 +11,10 @@
 #define RIGHT (0)
 
 /* Function for creating cache instance */
-reiserfs_cache_t *reiserfs_cache_create(
-    reiserfs_node_t *node	/* node to be cached */
+reiser4_cache_t *reiser4_cache_create(
+    reiser4_node_t *node	/* node to be cached */
 ) {
-    reiserfs_cache_t *cache;
+    reiser4_cache_t *cache;
 
     aal_assert("umka-797", node != NULL, return NULL);
     
@@ -26,8 +26,8 @@ reiserfs_cache_t *reiserfs_cache_create(
 }
 
 /* Frees pased cache instance */
-void reiserfs_cache_close(
-    reiserfs_cache_t *cache	/* cache instance to be closed */
+void reiser4_cache_close(
+    reiser4_cache_t *cache	/* cache instance to be closed */
 ) {
     aal_assert("umka-122", cache != NULL, return);
     
@@ -36,7 +36,7 @@ void reiserfs_cache_close(
 	aal_list_t *walk;
 	
 	aal_list_foreach_forward(walk, cache->list)
-	    reiserfs_cache_close((reiserfs_cache_t *)walk->item);
+	    reiser4_cache_close((reiser4_cache_t *)walk->item);
 
 	aal_list_free(aal_list_first(cache->list));
 	cache->list = NULL;
@@ -53,26 +53,26 @@ void reiserfs_cache_close(
     cache->right = NULL;
     cache->parent = NULL;
     
-    reiserfs_node_close(cache->node);
+    reiser4_node_close(cache->node);
     aal_free(cache);
 }
 
 /* Helper for comparing during finding in the cashe */
 static int callback_comp_for_find(
-    reiserfs_cache_t *cache,	/* cache find should be operate on */
-    reiserfs_key_t *key,	/* key to be find */
+    reiser4_cache_t *cache,	/* cache find should be operate on */
+    reiser4_key_t *key,	/* key to be find */
     void *data			/* user-specified data */
 ) {
-    reiserfs_key_t ldkey;
+    reiser4_key_t ldkey;
     
-    reiserfs_node_ldkey(cache->node, &ldkey);
-    return reiserfs_key_compare(&ldkey, key) == 0;
+    reiser4_node_ldkey(cache->node, &ldkey);
+    return reiser4_key_compare(&ldkey, key) == 0;
 }
 
 /* Finds children by its left delimiting key */
-reiserfs_cache_t *reiserfs_cache_find(
-    reiserfs_cache_t *cache,	/* cache to  be greped */
-    reiserfs_key_t *key)	/* left delimiting key */
+reiser4_cache_t *reiser4_cache_find(
+    reiser4_cache_t *cache,	/* cache to  be greped */
+    reiser4_key_t *key)	/* left delimiting key */
 {
     aal_list_t *item;
     
@@ -85,21 +85,21 @@ reiserfs_cache_t *reiserfs_cache_find(
 	    callback_comp_for_find, NULL)))
 	return NULL;
 
-    return (reiserfs_cache_t *)item->item;
+    return (reiser4_cache_t *)item->item;
 }
 
 /* Returns left or right neighbor key for passed cache */
-static errno_t reiserfs_cache_nkey(
-    reiserfs_cache_t *cache,	/* cahce for working with */
+static errno_t reiser4_cache_nkey(
+    reiser4_cache_t *cache,	/* cahce for working with */
     int direction,		/* direction (left or right) */
-    reiserfs_key_t *key		/* key pointer result should be stored */
+    reiser4_key_t *key		/* key pointer result should be stored */
 ) {
-    reiserfs_pos_t pos;
+    reiser4_pos_t pos;
     
     aal_assert("umka-770", cache != NULL, return -1);
     aal_assert("umka-771", key != NULL, return -1);
     
-    if (reiserfs_cache_pos(cache, &pos))
+    if (reiser4_cache_pos(cache, &pos))
 	return -1;
     
     /* Checking for position */
@@ -108,54 +108,54 @@ static errno_t reiserfs_cache_nkey(
 	    return -1;
     } else {
 	/* Checking and proceccing the special case called "shaft" */
-	if (pos.item == reiserfs_node_count(cache->parent->node) - 1) {
+	if (pos.item == reiser4_node_count(cache->parent->node) - 1) {
 
 	    /* Here we are checking for the case called "shaft" */
     	    if (!cache->parent->parent)
 		return -1;
 		
-	    return reiserfs_cache_nkey(cache->parent->parent, 
+	    return reiser4_cache_nkey(cache->parent->parent, 
 		direction, key);
 	}
     }
     
     pos.item += (direction == RIGHT ? 1 : -1);
-    reiserfs_node_get_key(cache->parent->node, &pos, key);
+    reiser4_node_get_key(cache->parent->node, &pos, key);
     
     return 0;
 }
 
 /* Wrapper for previous function. Returns left delimiting key for specified cache */
-errno_t reiserfs_cache_lnkey(
-    reiserfs_cache_t *cache,	/* cache for working with */
-    reiserfs_key_t *key		/* pointer result will be stored in */
+errno_t reiser4_cache_lnkey(
+    reiser4_cache_t *cache,	/* cache for working with */
+    reiser4_key_t *key		/* pointer result will be stored in */
 ) {
-    return reiserfs_cache_nkey(cache, LEFT, key);
+    return reiser4_cache_nkey(cache, LEFT, key);
 }
 
 /* The same as previous one */
-errno_t reiserfs_cache_rnkey(
-    reiserfs_cache_t *cache, 
-    reiserfs_key_t *key
+errno_t reiser4_cache_rnkey(
+    reiser4_cache_t *cache, 
+    reiser4_key_t *key
 ) {
-    return reiserfs_cache_nkey(cache, RIGHT, key);
+    return reiser4_cache_nkey(cache, RIGHT, key);
 }
 
 /* Returns position of passed cache in parent node */
-errno_t reiserfs_cache_pos(
-    reiserfs_cache_t *cache,	/* cache position will be obtained for */
-    reiserfs_pos_t *pos		/* pointer result will be stored in */
+errno_t reiser4_cache_pos(
+    reiser4_cache_t *cache,	/* cache position will be obtained for */
+    reiser4_pos_t *pos		/* pointer result will be stored in */
 ) {
-    reiserfs_key_t ldkey;
+    reiser4_key_t ldkey;
     
     aal_assert("umka-869", cache != NULL, return -1);
     
     if (!cache->parent)
 	return -1;
     
-    reiserfs_node_ldkey(cache->node, &ldkey);
+    reiser4_node_ldkey(cache->node, &ldkey);
     
-    if (reiserfs_node_lookup(cache->parent->node, &ldkey, pos) != 1) {
+    if (reiser4_node_lookup(cache->parent->node, &ldkey, pos) != 1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find left delimiting key of node %llu in its parent.", 
 	    aal_block_get_nr(cache->node->block));
@@ -169,12 +169,12 @@ errno_t reiserfs_cache_pos(
     This function raises up both neighbours of the passed cache. This is used
     by shifting code in tree.c
 */
-errno_t reiserfs_cache_raise(
-    reiserfs_cache_t *cache	/* cache for working with */
+errno_t reiser4_cache_raise(
+    reiser4_cache_t *cache	/* cache for working with */
 ) {
     uint32_t level;
-    reiserfs_key_t key;
-    reiserfs_coord_t coord;
+    reiser4_key_t key;
+    reiser4_coord_t coord;
     
     aal_assert("umka-776", cache != NULL, return -1);
 
@@ -189,12 +189,12 @@ errno_t reiserfs_cache_raise(
 	sure, that needed neighbour will be mapped into cache and will be accesible by
 	cache->left or cache->right pointers.
     */
-    level = reiserfs_node_get_level(cache->node);
+    level = reiser4_node_get_level(cache->node);
     
     /* Rasing the right neighbour */
     if (!cache->left) {
-	if (!reiserfs_cache_lnkey(cache, &key)) {
-	    if (reiserfs_tree_lookup(cache->tree, level, &key, &coord) != 1) {
+	if (!reiser4_cache_lnkey(cache, &key)) {
+	    if (reiser4_tree_lookup(cache->tree, level, &key, &coord) != 1) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't find left neighbour key when raising left neigbour.");
 		return -1;
@@ -204,8 +204,8 @@ errno_t reiserfs_cache_raise(
 
     /* Raising the right neighbour */
     if (!cache->right) {
-	if (!reiserfs_cache_rnkey(cache, &key)) {
-	    if (reiserfs_tree_lookup(cache->tree, level, &key, &coord) != 1) {
+	if (!reiser4_cache_rnkey(cache, &key)) {
+	    if (reiser4_tree_lookup(cache->tree, level, &key, &coord) != 1) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't find right neighbour key when raising right neigbour.");
 		return -1;
@@ -218,30 +218,30 @@ errno_t reiserfs_cache_raise(
 
 /* Helper function for registering in cache */
 static int callback_comp_for_register(
-    reiserfs_cache_t *cache1,	/* the first cache inetance for comparing */
-    reiserfs_cache_t *cache2,	/* the second one */
+    reiser4_cache_t *cache1,	/* the first cache inetance for comparing */
+    reiser4_cache_t *cache2,	/* the second one */
     void *data			/* user-specified data */
 ) {
-    reiserfs_key_t ldkey1, ldkey2;
+    reiser4_key_t ldkey1, ldkey2;
     
-    reiserfs_node_ldkey(cache1->node, &ldkey1);
-    reiserfs_node_ldkey(cache2->node, &ldkey2);
+    reiser4_node_ldkey(cache1->node, &ldkey1);
+    reiser4_node_ldkey(cache2->node, &ldkey2);
     
-    return reiserfs_key_compare(&ldkey1, &ldkey2);
+    return reiser4_key_compare(&ldkey1, &ldkey2);
 }
 
 /*
     Connects children into sorted children list of specified node. Sets up both
     neighbours and parent pointer.
 */
-errno_t reiserfs_cache_register(
-    reiserfs_cache_t *cache,	/* cache child will be connected to */
-    reiserfs_cache_t *child	/* child cache for registering */
+errno_t reiser4_cache_register(
+    reiser4_cache_t *cache,	/* cache child will be connected to */
+    reiser4_cache_t *child	/* child cache for registering */
 ) {
-    reiserfs_key_t ldkey;
-    reiserfs_key_t lnkey, rnkey;
-    reiserfs_cache_t *left, *right;
-    reiserfs_cache_limit_t *limit;
+    reiser4_key_t ldkey;
+    reiser4_key_t lnkey, rnkey;
+    reiser4_cache_t *left, *right;
+    reiser4_cache_limit_t *limit;
     
     aal_assert("umka-561", cache != NULL, return -1);
     aal_assert("umka-564", child != NULL, return -1);
@@ -274,24 +274,24 @@ errno_t reiserfs_cache_register(
     
     /* Setting up neighbours */
     if (left) {
-	if (reiserfs_node_ldkey(left->node, &ldkey))
+	if (reiser4_node_ldkey(left->node, &ldkey))
 	    return -1;
 	
 	/* Getting left neighbour key */
-	if (!reiserfs_cache_lnkey(child, &lnkey))
-	    child->left = (reiserfs_key_compare(&lnkey, &ldkey) == 0 ? left : NULL);
+	if (!reiser4_cache_lnkey(child, &lnkey))
+	    child->left = (reiser4_key_compare(&lnkey, &ldkey) == 0 ? left : NULL);
     
 	if (child->left)
 	    child->left->right = child;
     }
    
     if (right) {
-	if (reiserfs_node_ldkey(right->node, &ldkey))
+	if (reiser4_node_ldkey(right->node, &ldkey))
 	    return -1;
 	
 	/* Getting right neighbour key */
-	if (!reiserfs_cache_rnkey(child, &rnkey))
-	    child->right = (reiserfs_key_compare(&rnkey, &ldkey) == 0 ? right : NULL);
+	if (!reiser4_cache_rnkey(child, &rnkey))
+	    child->right = (reiser4_key_compare(&rnkey, &ldkey) == 0 ? right : NULL);
 
 	if (child->right)
 	    child->right->left = child;
@@ -304,11 +304,11 @@ errno_t reiserfs_cache_register(
     Remove specified childern from the node. Updates all neighbour pointers and 
     parent pointer.
 */
-void reiserfs_cache_unregister(
-    reiserfs_cache_t *cache,	/* cache child will be deleted from */
-    reiserfs_cache_t *child	/* pointer to child to be deleted */
+void reiser4_cache_unregister(
+    reiser4_cache_t *cache,	/* cache child will be deleted from */
+    reiser4_cache_t *child	/* pointer to child to be deleted */
 ) {
-    reiserfs_cache_limit_t *limit;
+    reiser4_cache_limit_t *limit;
     
     aal_assert("umka-562", cache != NULL, return);
     aal_assert("umka-563", child != NULL, return);
@@ -351,26 +351,26 @@ void reiserfs_cache_unregister(
     as parameter of this function the root cache pointer. In this case the whole
     tree cache will be flushed onto device, tree lies on.
 */
-errno_t reiserfs_cache_sync(
-    reiserfs_cache_t *cache	/* cache to be synchronized */
+errno_t reiser4_cache_sync(
+    reiser4_cache_t *cache	/* cache to be synchronized */
 ) {
     aal_assert("umka-124", cache != NULL, return 0);
     
     /* 
-	Walking through the list of childrens and calling reiserfs_cache_sync
+	Walking through the list of childrens and calling reiser4_cache_sync
 	function for each element.
     */
     if (cache->list) {
 	aal_list_t *walk;
 	
 	aal_list_foreach_forward(walk, cache->list) {
-	    if (reiserfs_cache_sync((reiserfs_cache_t *)walk->item))
+	    if (reiser4_cache_sync((reiser4_cache_t *)walk->item))
 		return -1;
 	}
     }
     
     /* Synchronizing cache itself */
-    if (reiserfs_node_sync(cache->node)) {
+    if (reiser4_node_sync(cache->node)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't synchronize node %llu to device. %s.", 
 	    aal_block_get_nr(cache->node->block), 
@@ -381,28 +381,28 @@ errno_t reiserfs_cache_sync(
     return 0;
 }
 
-errno_t reiserfs_cache_set_key(reiserfs_cache_t *cache, 
-    reiserfs_pos_t *pos, reiserfs_key_t *key)
+errno_t reiser4_cache_set_key(reiser4_cache_t *cache, 
+    reiser4_pos_t *pos, reiser4_key_t *key)
 {
     aal_assert("umka-999", cache != NULL, return -1);
     aal_assert("umka-1000", pos != NULL, return -1);
     aal_assert("umka-1001", key != NULL, return -1);
     
     aal_assert("umka-1002", 
-	reiserfs_node_count(cache->node) > 0, return -1);
+	reiser4_node_count(cache->node) > 0, return -1);
     
-    if (reiserfs_node_set_key(cache->node, pos, key))
+    if (reiser4_node_set_key(cache->node, pos, key))
         return -1;
     
     if (cache->parent && pos->item == 0 && 
 	(pos->unit == ~0ul || pos->unit == 0)) 
     {
-	reiserfs_pos_t p;
+	reiser4_pos_t p;
 
-	if (reiserfs_cache_pos(cache, &p))
+	if (reiser4_cache_pos(cache, &p))
 	    return -1;
 
-	return reiserfs_cache_set_key(cache->parent, &p, key);
+	return reiser4_cache_set_key(cache->parent, &p, key);
     }
     
     return 0;
@@ -412,35 +412,35 @@ errno_t reiserfs_cache_set_key(reiserfs_cache_t *cache,
     Inserts item or unit into cached node. Keeps track of changes of the left
     delimiting key.
 */
-errno_t reiserfs_cache_insert(
-    reiserfs_cache_t *cache,	    /* cache item will be inserted in */
-    reiserfs_pos_t *pos,	    /* pos item will be inserted at */
-    reiserfs_item_hint_t *item	    /* item hint to be inserted */
+errno_t reiser4_cache_insert(
+    reiser4_cache_t *cache,	    /* cache item will be inserted in */
+    reiser4_pos_t *pos,	    /* pos item will be inserted at */
+    reiser4_item_hint_t *item	    /* item hint to be inserted */
 ) {
     aal_assert("umka-990", cache != NULL, return -1);
     aal_assert("umka-991", pos != NULL, return -1);
     aal_assert("umka-992", item != NULL, return -1);
 
     /* Check if we need to update ldkey in parent cache */
-    if (reiserfs_node_count(cache->node) > 0 && cache->parent && 
+    if (reiser4_node_count(cache->node) > 0 && cache->parent && 
 	pos->item == 0 && (pos->unit == 0 || pos->unit == ~0ul)) 
     {
-	reiserfs_pos_t p;
+	reiser4_pos_t p;
 	
-	if (reiserfs_cache_pos(cache, &p))
+	if (reiser4_cache_pos(cache, &p))
 	    return -1;
 	
-	if (reiserfs_cache_set_key(cache->parent, &p, &item->key))
+	if (reiser4_cache_set_key(cache->parent, &p, &item->key))
 	    return -1;
     }
 
     /* Inserting item */
-    if (reiserfs_node_insert(cache->node, pos, item))
+    if (reiser4_node_insert(cache->node, pos, item))
 	return -1;
 
     /* Updating ldkey in parent cache */
     if (pos->item == 0 && (pos->unit == 0 || pos->unit == ~0ul)) {
-	if (reiserfs_node_set_key(cache->node, pos, &item->key))
+	if (reiser4_node_set_key(cache->node, pos, &item->key))
 	    return -1;
     }
     
@@ -451,12 +451,12 @@ errno_t reiserfs_cache_insert(
     Deletes item or unit from cached node. Keeps track of changes of the left
     delimiting key.
 */
-errno_t reiserfs_cache_remove(
-    reiserfs_cache_t *cache,	    /* cache item will be inserted in */
-    reiserfs_pos_t *pos		    /* pos item will be inserted at */
+errno_t reiser4_cache_remove(
+    reiser4_cache_t *cache,	    /* cache item will be inserted in */
+    reiser4_pos_t *pos		    /* pos item will be inserted at */
 ) {
     int update;
-    reiserfs_pos_t p;
+    reiser4_pos_t p;
     
     aal_assert("umka-993", cache != NULL, return -1);
     aal_assert("umka-994", pos != NULL, return -1);
@@ -468,40 +468,40 @@ errno_t reiserfs_cache_remove(
     if ((update = (cache->parent && pos->item == 0 && 
 	(pos->unit == 0 || pos->unit == ~0ul)))) 
     {
-	if (reiserfs_cache_pos(cache, &p))
+	if (reiser4_cache_pos(cache, &p))
 	    return -1;
     }
     
     /* Removing item or unit */
-    if (reiserfs_node_remove(cache->node, pos))
+    if (reiser4_node_remove(cache->node, pos))
 	return -1;
     
     /* 
 	Updating list of childrens of modified node in the case we modifying an 
 	internal node.
     */
-    if (reiserfs_node_get_level(cache->node) > 
-	REISERFS_LEAF_LEVEL) 
+    if (reiser4_node_get_level(cache->node) > 
+	REISER4_LEAF_LEVEL) 
     {
-        reiserfs_key_t key;
-        reiserfs_cache_t *child;
+        reiser4_key_t key;
+        reiser4_cache_t *child;
 
-        reiserfs_node_get_key(cache->node, pos, &key);
+        reiser4_node_get_key(cache->node, pos, &key);
 	
-        if ((child = reiserfs_cache_find(cache, &key))) {
-	    reiserfs_cache_unregister(cache, child);
-	    reiserfs_cache_close(child);
+        if ((child = reiser4_cache_find(cache, &key))) {
+	    reiser4_cache_unregister(cache, child);
+	    reiser4_cache_close(child);
 	}
     }
     
     /* Updating left deleimiting key in all parent nodes */
     if (update) {
-	if (reiserfs_node_count(cache->node) > 0) {
-	    reiserfs_key_t ldkey;
+	if (reiser4_node_count(cache->node) > 0) {
+	    reiser4_key_t ldkey;
 	    
-	    reiserfs_node_ldkey(cache->node, &ldkey);
+	    reiser4_node_ldkey(cache->node, &ldkey);
 	    
-	    if (reiserfs_cache_set_key(cache->parent, &p, &ldkey))
+	    if (reiser4_cache_set_key(cache->parent, &p, &ldkey))
 		return -1;
 	    
 	} else {
@@ -510,14 +510,14 @@ errno_t reiserfs_cache_remove(
 		Removing cached node from the tree in the case it has not items 
 		anymore.
 	    */
-	    if (reiserfs_cache_remove(cache->parent, &p))
+	    if (reiser4_cache_remove(cache->parent, &p))
 		return -1;
 
-	    reiserfs_alloc_dealloc(cache->tree->fs->alloc,
+	    reiser4_alloc_dealloc(cache->tree->fs->alloc,
 		aal_block_get_nr(cache->node->block));
 	    
-	    reiserfs_cache_unregister(cache->parent, cache);
-	    reiserfs_cache_close(cache);
+	    reiser4_cache_unregister(cache->parent, cache);
+	    reiser4_cache_close(cache);
 	}
     }
 
@@ -525,14 +525,14 @@ errno_t reiserfs_cache_remove(
 }
 
 /* Moves item or unit from src cached node to dst one */
-errno_t reiserfs_cache_move(
-    reiserfs_cache_t *dst_cache,	/* destination cached node */
-    reiserfs_pos_t *dst_pos,		/* destination pos */
-    reiserfs_cache_t *src_cache,	/* source cached node */
-    reiserfs_pos_t *src_pos		/* source pos */
+errno_t reiser4_cache_move(
+    reiser4_cache_t *dst_cache,	/* destination cached node */
+    reiser4_pos_t *dst_pos,		/* destination pos */
+    reiser4_cache_t *src_cache,	/* source cached node */
+    reiser4_pos_t *src_pos		/* source pos */
 ) {
-    reiserfs_pos_t sp;
-    reiserfs_pos_t dp;
+    reiser4_pos_t sp;
+    reiser4_pos_t dp;
     
     aal_assert("umka-995", dst_cache != NULL, return -1);
     aal_assert("umka-996", dst_pos != NULL, return -1);
@@ -543,36 +543,36 @@ errno_t reiserfs_cache_move(
     if (src_cache->parent && src_pos->item == 0 && 
 	(src_pos->unit == 0 || src_pos->unit == ~0ul))
     {
-	if (reiserfs_cache_pos(src_cache, &sp))
+	if (reiser4_cache_pos(src_cache, &sp))
 	    return -1;
     }
     
     /* Saving pos of ldkey in parent node for dst node */
     if (dst_cache->parent && dst_pos->item == 0 && 
 	(dst_pos->unit == ~0ul || dst_pos->unit == 0) &&
-	reiserfs_node_count(dst_cache->node) > 0)
+	reiser4_node_count(dst_cache->node) > 0)
     {
-	if (reiserfs_cache_pos(dst_cache, &dp))
+	if (reiser4_cache_pos(dst_cache, &dp))
 	    return -1;
     }
     
     /* Updating cache pointers in the case of moving items on leaves level */
-    if (reiserfs_node_get_level(src_cache->node) > 
-	REISERFS_LEAF_LEVEL)
+    if (reiser4_node_get_level(src_cache->node) > 
+	REISER4_LEAF_LEVEL)
     {
-        reiserfs_key_t key;
-        reiserfs_cache_t *child;
+        reiser4_key_t key;
+        reiser4_cache_t *child;
 
-        reiserfs_node_get_key(src_cache->node, src_pos, &key);
+        reiser4_node_get_key(src_cache->node, src_pos, &key);
 	
-        if ((child = reiserfs_cache_find(src_cache, &key))) {
-	    reiserfs_cache_unregister(src_cache, child);
-	    reiserfs_cache_register(dst_cache, child);
+        if ((child = reiser4_cache_find(src_cache, &key))) {
+	    reiser4_cache_unregister(src_cache, child);
+	    reiser4_cache_register(dst_cache, child);
 	}
     }
     
     /* Moving items */
-    if (reiserfs_node_move(dst_cache->node, dst_pos, 
+    if (reiser4_node_move(dst_cache->node, dst_pos, 
 	    src_cache->node, src_pos))
 	return -1;
     
@@ -580,44 +580,44 @@ errno_t reiserfs_cache_move(
     if (dst_cache->parent && dst_pos->item == 0 && 
 	(dst_pos->unit == ~0ul || dst_pos->unit == 0))
     {
-	reiserfs_key_t ldkey;
+	reiser4_key_t ldkey;
 	
-	reiserfs_node_ldkey(dst_cache->node, &ldkey);
+	reiser4_node_ldkey(dst_cache->node, &ldkey);
 	
-	if (reiserfs_node_count(dst_cache->node) > 1) {
+	if (reiser4_node_count(dst_cache->node) > 1) {
 		
-	    if (reiserfs_cache_set_key(dst_cache->parent, &dp, &ldkey))
+	    if (reiser4_cache_set_key(dst_cache->parent, &dp, &ldkey))
 		return -1;
 	    
 	} else {
-	    if (reiserfs_node_lookup(dst_cache->parent->node, &ldkey, &dp) == -1)
+	    if (reiser4_node_lookup(dst_cache->parent->node, &ldkey, &dp) == -1)
 	        return -1;
 
 	    dp.item--;
 	    
-	    if (reiserfs_cache_set_key(dst_cache->parent, &dp, &ldkey))
+	    if (reiser4_cache_set_key(dst_cache->parent, &dp, &ldkey))
 	        return -1;
 	}
     }
 
     /* Updating ldkey in parent node for src node */
-    if (reiserfs_node_count(src_cache->node) > 0) {
+    if (reiser4_node_count(src_cache->node) > 0) {
 	if (src_cache->parent && src_pos->item == 0 && 
 	    (src_pos->unit == ~0ul || src_pos->unit == 0))
 	{
-	    reiserfs_key_t ldkey;
+	    reiser4_key_t ldkey;
 	
-	    reiserfs_node_ldkey(src_cache->node, &ldkey);
+	    reiser4_node_ldkey(src_cache->node, &ldkey);
 	
-	    if (reiserfs_cache_set_key(src_cache->parent, &sp, &ldkey))
+	    if (reiser4_cache_set_key(src_cache->parent, &sp, &ldkey))
 		return -1;
 	}
     } else {
 	
-	if (reiserfs_cache_remove(src_cache->parent, &sp))
+	if (reiser4_cache_remove(src_cache->parent, &sp))
 	    return -1;
 
-	reiserfs_cache_unregister(src_cache->parent, src_cache);
+	reiser4_cache_unregister(src_cache->parent, src_cache);
     }
     
     return 0;

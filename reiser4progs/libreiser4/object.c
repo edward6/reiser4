@@ -15,12 +15,12 @@
     Tries to guess object plugin type passed first item plugin and item body. Most
     possible that passed item body is stat data body.
 */
-reiserfs_plugin_t *reiserfs_object_guess(reiserfs_object_t *object) {
+reiser4_plugin_t *reiser4_object_guess(reiser4_object_t *object) {
     void *item_body;
-    reiserfs_plugin_t *item_plugin;
+    reiser4_plugin_t *item_plugin;
     
     /* Getting plugin for the first object item (most probably stat data item) */
-    if (!(item_plugin = reiserfs_node_item_plugin(object->coord.cache->node, 
+    if (!(item_plugin = reiser4_node_item_plugin(object->coord.cache->node, 
 	&object->coord.pos)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -29,7 +29,7 @@ reiserfs_plugin_t *reiserfs_object_guess(reiserfs_object_t *object) {
     }
     
     /* Getting first item body */
-    if (!(item_body = reiserfs_node_item_body(object->coord.cache->node, 
+    if (!(item_body = reiser4_node_item_body(object->coord.cache->node, 
 	&object->coord.pos)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -47,13 +47,13 @@ reiserfs_plugin_t *reiserfs_object_guess(reiserfs_object_t *object) {
     This function also supports symlinks and it rather might be called "stat", by
     means of work it performs.
 */
-static errno_t reiserfs_object_lookup(
-    reiserfs_object_t *object,	    /* object lookup will be performed for */
+static errno_t reiser4_object_lookup(
+    reiser4_object_t *object,	    /* object lookup will be performed for */
     const char *name,		    /* name to be parsed */
-    reiserfs_key_t *parent	    /* key of parent stat data */
+    reiser4_key_t *parent	    /* key of parent stat data */
 ) {
     void *object_entity;
-    reiserfs_plugin_t *object_plugin;
+    reiser4_plugin_t *object_plugin;
     
     char track[4096], path[4096];
     char *pointer = NULL, *dirname = NULL;
@@ -79,13 +79,13 @@ static errno_t reiserfs_object_lookup(
     while (1) {
 	uint16_t mode;
 	void *item_body;
-	reiserfs_plugin_t *item_plugin;
+	reiser4_plugin_t *item_plugin;
 
 	/* FIXME-UMKA: Hardcoded key40 key type */
-	reiserfs_key_set_type(&object->key, KEY40_STATDATA_MINOR);
-	reiserfs_key_set_offset(&object->key, 0);
+	reiser4_key_set_type(&object->key, KEY40_STATDATA_MINOR);
+	reiser4_key_set_offset(&object->key, 0);
 	
-	if (reiserfs_tree_lookup(object->fs->tree, REISERFS_LEAF_LEVEL, 
+	if (reiser4_tree_lookup(object->fs->tree, REISER4_LEAF_LEVEL, 
 	    &object->key, &object->coord) != 1) 
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -93,7 +93,7 @@ static errno_t reiserfs_object_lookup(
 	    return -1;
 	}
 	
-	if (!(item_body = reiserfs_node_item_body(object->coord.cache->node, 
+	if (!(item_body = reiser4_node_item_body(object->coord.cache->node, 
 	    &object->coord.pos))) 
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -103,7 +103,7 @@ static errno_t reiserfs_object_lookup(
 	    return -1;
 	}
 	
-	if (!(item_plugin = reiserfs_node_item_plugin(object->coord.cache->node, 
+	if (!(item_plugin = reiser4_node_item_plugin(object->coord.cache->node, 
 	    &object->coord.pos)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -133,8 +133,8 @@ static errno_t reiserfs_object_lookup(
 	}
 
 	/* It will be useful when symlinks ready */
-	reiserfs_key_set_locality(parent, reiserfs_key_get_locality(&object->key));
-	reiserfs_key_set_objectid(parent, reiserfs_key_get_objectid(&object->key));
+	reiser4_key_set_locality(parent, reiser4_key_get_locality(&object->key));
+	reiser4_key_set_objectid(parent, reiser4_key_get_objectid(&object->key));
 
 	if (!(dirname = aal_strsep(&pointer, "/")))
 	    break;
@@ -148,7 +148,7 @@ static errno_t reiserfs_object_lookup(
 	    Here we should get dir plugin id from the statdata and using it try find 
 	    needed entry inside it.
 	*/
-	if (!(object_plugin = reiserfs_object_guess(object))) {
+	if (!(object_plugin = reiser4_object_guess(object))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't guess object plugin for parent of %s.", track);
 	    return -1;
@@ -166,7 +166,7 @@ static errno_t reiserfs_object_lookup(
 	    what object type realy is.
 	*/
 	if (object_plugin->h.type == DIR_PLUGIN_TYPE) {
-	    reiserfs_entry_hint_t entry;
+	    reiser4_entry_hint_t entry;
 	    
 	    if (!(object_entity = libreiser4_plugin_call(return -1, 
 		object_plugin->dir_ops, open, object->fs->tree, &object->key)))
@@ -190,8 +190,8 @@ static errno_t reiserfs_object_lookup(
 		close, object_entity);
 
 	    /* Updating object key by found objectid and locality */
-	    reiserfs_key_set_objectid(&object->key, entry.objid.objectid);
-	    reiserfs_key_set_locality(&object->key, entry.objid.locality);
+	    reiser4_key_set_objectid(&object->key, entry.objid.objectid);
+	    reiser4_key_set_locality(&object->key, entry.objid.locality);
 	} else {
 
 	    /* 
@@ -210,12 +210,12 @@ static errno_t reiserfs_object_lookup(
 }
 
 /* This function opens object by its name */
-reiserfs_object_t *reiserfs_object_open(
-    reiserfs_fs_t *fs,		/* filesystem object (file/dir/else) will be opened on */
+reiser4_object_t *reiser4_object_open(
+    reiser4_fs_t *fs,		/* filesystem object (file/dir/else) will be opened on */
     const char *name		/* name of object (file/dir/else) */
 ) {
-    reiserfs_key_t parent_key;
-    reiserfs_object_t *object;
+    reiser4_key_t parent_key;
+    reiser4_object_t *object;
     
     aal_assert("umka-678", fs != NULL, return NULL);
     aal_assert("umka-789", name != NULL, return NULL);
@@ -224,23 +224,23 @@ reiserfs_object_t *reiserfs_object_open(
 	return NULL;
 
     object->fs = fs;
-    reiserfs_key_init(&object->key, fs->key.plugin, fs->key.body);
+    reiser4_key_init(&object->key, fs->key.plugin, fs->key.body);
     
     /* 
 	I assume that name is absolute name. So, user, who will call this method 
 	should convert name previously into absolute one by getcwd function.
     */
 
-    reiserfs_key_init(&parent_key, fs->key.plugin, fs->key.body);
+    reiser4_key_init(&parent_key, fs->key.plugin, fs->key.body);
     
-    if (reiserfs_object_lookup(object, name, &parent_key)) {
+    if (reiser4_object_lookup(object, name, &parent_key)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find object \"%s\".", name);
 	goto error_free_object;
     }
     
     /* Guessing object plugin from its first item */
-    if (!(object->plugin = reiserfs_object_guess(object))) {
+    if (!(object->plugin = reiser4_object_guess(object))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't guess object plugin.");
 	goto error_free_object;
@@ -256,11 +256,11 @@ error_free_object:
 #ifndef ENABLE_COMPACT
 
 /* Creates new object on specified filesystem */
-reiserfs_object_t *reiserfs_object_create(
-    reiserfs_fs_t *fs,		    /* filesystem new object will be created on */
-    reiserfs_plugin_t *plugin	    /* plugin to be used */
+reiser4_object_t *reiser4_object_create(
+    reiser4_fs_t *fs,		    /* filesystem new object will be created on */
+    reiser4_plugin_t *plugin	    /* plugin to be used */
 ) {
-    reiserfs_object_t *object;
+    reiser4_object_t *object;
     
     aal_assert("umka-790", fs != NULL, return NULL);
     aal_assert("umka-785", plugin != NULL, return NULL);
@@ -283,8 +283,8 @@ error_free_object:
 #endif
 
 /* Closes specified object */
-void reiserfs_object_close(
-    reiserfs_object_t *object	    /* object to be closed */
+void reiser4_object_close(
+    reiser4_object_t *object	    /* object to be closed */
 ) {
     aal_assert("umka-680", object != NULL, return);
     aal_free(object);

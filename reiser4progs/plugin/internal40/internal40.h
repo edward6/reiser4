@@ -9,11 +9,11 @@
 
 #include <aal/aal.h>
 
-struct reiserfs_internal40 {
+struct internal40 {
     blk_t pointer;
 };
 
-typedef struct reiserfs_internal40 reiserfs_internal40_t;
+typedef struct internal40 internal40_t;
 
 #define it40_get_pointer(it)		aal_get_le64(it, pointer)
 #define it40_set_pointer(it, val)	aal_set_le64(it, pointer, val)

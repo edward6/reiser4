@@ -1,5 +1,5 @@
 /*
-    journal36.c -- journal plugin for reiserfs 3.6.x.
+    journal36.c -- journal plugin for reiser3.6.x.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -9,16 +9,16 @@
 
 #include "journal36.h"
 
-static reiserfs_core_t *core = NULL;
+static reiser4_core_t *core = NULL;
 
-static errno_t journal36_header_check(reiserfs_journal36_header_t *header, 
+static errno_t journal36_header_check(journal36_header_t *header, 
     aal_device_t *device) 
 {
     return 0;
 }
 
-static reiserfs_entity_t *journal36_open(aal_device_t *device) {
-    reiserfs_journal36_t *journal;
+static reiser4_entity_t *journal36_open(aal_device_t *device) {
+    journal36_t *journal;
 
     aal_assert("umka-406", device != NULL, return NULL);
     
@@ -29,15 +29,15 @@ static reiserfs_entity_t *journal36_open(aal_device_t *device) {
     
     journal->device = device;
 	
-    return (reiserfs_entity_t *)journal;
+    return (reiser4_entity_t *)journal;
 }
 
-static errno_t journal36_sync(reiserfs_entity_t *entity) {
-    reiserfs_journal36_t *journal;
+static errno_t journal36_sync(reiser4_entity_t *entity) {
+    journal36_t *journal;
     
     aal_assert("umka-407", entity != NULL, return -1);
     
-    journal = (reiserfs_journal36_t *)entity;
+    journal = (journal36_t *)entity;
     
     if (aal_block_write(journal->header)) {
 	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
@@ -49,16 +49,16 @@ static errno_t journal36_sync(reiserfs_entity_t *entity) {
     return 0;
 }
 
-static void journal36_close(reiserfs_entity_t *entity) {
+static void journal36_close(reiser4_entity_t *entity) {
     aal_assert("umka-408", entity != NULL, return);
     aal_free(entity);
 }
 
-static errno_t journal36_replay(reiserfs_entity_t *entity) {
+static errno_t journal36_replay(reiser4_entity_t *entity) {
     return 0;
 }
 
-static reiserfs_plugin_t journal36_plugin = {
+static reiser4_plugin_t journal36_plugin = {
     .journal_ops = {
 	.h = {
 	    .handle = NULL,
@@ -76,7 +76,7 @@ static reiserfs_plugin_t journal36_plugin = {
     }
 };
 
-static reiserfs_plugin_t *journal36_start(reiserfs_core_t *c) {
+static reiser4_plugin_t *journal36_start(reiser4_core_t *c) {
     core = c;
     return &journal36_plugin;
 }

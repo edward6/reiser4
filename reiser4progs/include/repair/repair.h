@@ -12,7 +12,7 @@
 #include <stdio.h>
 
 struct repair_data {
-    reiserfs_profile_t *profile;
+    reiser4_profile_t *profile;
     uint16_t mode;
     uint16_t options;
 

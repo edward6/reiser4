@@ -13,47 +13,47 @@
 
 #include <reiser4/filesystem.h>
 
-extern reiserfs_cache_t *reiserfs_cache_create(reiserfs_node_t *node);
-extern void reiserfs_cache_close(reiserfs_cache_t *cache);
+extern reiser4_cache_t *reiser4_cache_create(reiser4_node_t *node);
+extern void reiser4_cache_close(reiser4_cache_t *cache);
 
-extern errno_t reiserfs_cache_pos(reiserfs_cache_t *cache, 
-    reiserfs_pos_t *pos);
+extern errno_t reiser4_cache_pos(reiser4_cache_t *cache, 
+    reiser4_pos_t *pos);
 
-extern reiserfs_cache_t *reiserfs_cache_find(reiserfs_cache_t *cache, 
-    reiserfs_key_t *key);
+extern reiser4_cache_t *reiser4_cache_find(reiser4_cache_t *cache, 
+    reiser4_key_t *key);
 
-extern errno_t reiserfs_cache_register(reiserfs_cache_t *cache, 
-    reiserfs_cache_t *child);
+extern errno_t reiser4_cache_register(reiser4_cache_t *cache, 
+    reiser4_cache_t *child);
 
-extern void reiserfs_cache_unregister(reiserfs_cache_t *cache, 
-    reiserfs_cache_t *child);
+extern void reiser4_cache_unregister(reiser4_cache_t *cache, 
+    reiser4_cache_t *child);
 
 #ifndef ENABLE_COMPACT
 
-extern errno_t reiserfs_cache_sync(reiserfs_cache_t *cache);
+extern errno_t reiser4_cache_sync(reiser4_cache_t *cache);
 
-extern errno_t reiserfs_cache_insert(reiserfs_cache_t *cache,
-    reiserfs_pos_t *pos, reiserfs_item_hint_t *item);
+extern errno_t reiser4_cache_insert(reiser4_cache_t *cache,
+    reiser4_pos_t *pos, reiser4_item_hint_t *item);
 
-extern errno_t reiserfs_cache_remove(reiserfs_cache_t *cache,
-    reiserfs_pos_t *pos);
+extern errno_t reiser4_cache_remove(reiser4_cache_t *cache,
+    reiser4_pos_t *pos);
 
-extern errno_t reiserfs_cache_move(reiserfs_cache_t *dst_cache,
-    reiserfs_pos_t *dst_pos, reiserfs_cache_t *src_cache,
-    reiserfs_pos_t *src_pos);
+extern errno_t reiser4_cache_move(reiser4_cache_t *dst_cache,
+    reiser4_pos_t *dst_pos, reiser4_cache_t *src_cache,
+    reiser4_pos_t *src_pos);
 
-extern errno_t reiserfs_cache_set_key(reiserfs_cache_t *cache, 
-    reiserfs_pos_t *pos, reiserfs_key_t *key);
+extern errno_t reiser4_cache_set_key(reiser4_cache_t *cache, 
+    reiser4_pos_t *pos, reiser4_key_t *key);
 
 #endif
 
-extern errno_t reiserfs_cache_lnkey(reiserfs_cache_t *cache, 
-    reiserfs_key_t *key);
+extern errno_t reiser4_cache_lnkey(reiser4_cache_t *cache, 
+    reiser4_key_t *key);
 
-extern errno_t reiserfs_cache_rnkey(reiserfs_cache_t *cache, 
-    reiserfs_key_t *key);
+extern errno_t reiser4_cache_rnkey(reiser4_cache_t *cache, 
+    reiser4_key_t *key);
 
-extern errno_t reiserfs_cache_raise(reiserfs_cache_t *cache);
+extern errno_t reiser4_cache_raise(reiser4_cache_t *cache);
 
 #endif
 

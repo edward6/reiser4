@@ -11,27 +11,27 @@
 #  include <config.h>
 #endif
 
-extern reiserfs_object_t *reiserfs_dir_open(reiserfs_fs_t *fs, 
+extern reiser4_object_t *reiser4_dir_open(reiser4_fs_t *fs, 
     const char *name);
 
-extern void reiserfs_dir_close(reiserfs_object_t *object);
+extern void reiser4_dir_close(reiser4_object_t *object);
 
 #ifndef ENABLE_COMPACT
 
-extern reiserfs_object_t *reiserfs_dir_create(reiserfs_fs_t *fs,
-    reiserfs_object_hint_t *hint, reiserfs_plugin_t *plugin,
-    reiserfs_object_t *parent, const char *name);
+extern reiser4_object_t *reiser4_dir_create(reiser4_fs_t *fs,
+    reiser4_object_hint_t *hint, reiser4_plugin_t *plugin,
+    reiser4_object_t *parent, const char *name);
 
-extern errno_t reiserfs_dir_add(reiserfs_object_t *object, 
-    reiserfs_entry_hint_t *hint);
+extern errno_t reiser4_dir_add(reiser4_object_t *object, 
+    reiser4_entry_hint_t *hint);
 
 #endif
 
-extern errno_t reiserfs_dir_rewind(reiserfs_object_t *object);
+extern errno_t reiser4_dir_rewind(reiser4_object_t *object);
 
-extern errno_t reiserfs_dir_read(reiserfs_object_t *object, 
-    reiserfs_entry_hint_t *hint);
+extern errno_t reiser4_dir_read(reiser4_object_t *object, 
+    reiser4_entry_hint_t *hint);
 
-extern uint32_t reiserfs_dir_tell(reiserfs_object_t *object);
+extern uint32_t reiser4_dir_tell(reiser4_object_t *object);
 
 #endif

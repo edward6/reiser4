@@ -7,4 +7,4 @@
 #include <reiser4/reiser4.h>
 #include "repair.h"
 
-extern errno_t repair_fs_check(reiserfs_fs_t *fs);
+extern errno_t repair_fs_check(reiser4_fs_t *fs);

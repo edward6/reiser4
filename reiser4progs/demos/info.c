@@ -22,17 +22,17 @@ static void info_print_usage(void) {
     fprintf(stderr, "Usage: info FILE\n");
 }
 
-static void info_print_plugin(reiserfs_plugin_t *plugin) {
+static void info_print_plugin(reiser4_plugin_t *plugin) {
     fprintf(stderr, "%x:%x:%s\n(%s)\n\n", plugin->h.type, plugin->h.id, plugin->h.label, plugin->h.desc);
 }
 
-static void info_print_fs(reiserfs_fs_t *fs) {
-    reiserfs_plugin_t *plugin;
+static void info_print_fs(reiser4_fs_t *fs) {
+    reiser4_plugin_t *plugin;
 
     fprintf(stderr, "\nreiserfs %s, block size %u, blocks: %llu, used: %llu, free: %llu.\n\n", 
-	reiserfs_fs_name(fs), reiserfs_fs_blocksize(fs), 
-	reiserfs_format_get_len(fs->format), reiserfs_alloc_used(fs->alloc), 
-	reiserfs_alloc_free(fs->alloc));
+	reiser4_fs_name(fs), reiser4_fs_blocksize(fs), 
+	reiser4_format_get_len(fs->format), reiser4_alloc_used(fs->alloc), 
+	reiser4_alloc_free(fs->alloc));
 
     fprintf(stderr, "Used plugins:\n-------------\n");
 
@@ -61,7 +61,7 @@ static void info_print_fs(reiserfs_fs_t *fs) {
 }
 
 int main(int argc, char *argv[]) {
-    reiserfs_fs_t *fs;
+    reiser4_fs_t *fs;
     aal_device_t *device;
 
 #ifndef ENABLE_COMPACT    
@@ -85,20 +85,20 @@ int main(int argc, char *argv[]) {
 	aal_exception_set_handler(progs_exception_handler);
     }
     
-    if (!(device = aal_file_open(argv[1], REISERFS_DEFAULT_BLOCKSIZE, O_RDONLY))) {
+    if (!(device = aal_file_open(argv[1], REISER4_DEFAULT_BLOCKSIZE, O_RDONLY))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't open device %s.", argv[1]);
 	goto error_free_libreiser4;
     }
     
-    if (!(fs = reiserfs_fs_open(device, device, 0))) {
+    if (!(fs = reiser4_fs_open(device, device, 0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't open filesystem on %s.", aal_device_name(device));
 	goto error_free_device;
     }
     info_print_fs(fs);
     
-    reiserfs_fs_close(fs);
+    reiser4_fs_close(fs);
     libreiser4_done();
     aal_file_close(device);
 

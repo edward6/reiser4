@@ -1,5 +1,5 @@
 /*
-    alloc40.c -- Default block allocator plugin for reiserfs 4.0.
+    alloc40.c -- Default block allocator plugin for reiser4.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -13,18 +13,18 @@
 
 #include "alloc40.h"
 
-static reiserfs_core_t *core = NULL;
+static reiser4_core_t *core = NULL;
 
 /* 
     Performs actual opening of the alloc40 allocator. As alloc40 is the bitmap-based
-    block allocator, this function calles reiserfs_bitmap_open function in order to 
+    block allocator, this function calles reiser4_bitmap_open function in order to 
     load it from device.
 */
-static reiserfs_entity_t *alloc40_open(aal_device_t *device, 
+static reiser4_entity_t *alloc40_open(aal_device_t *device, 
     count_t len) 
 {
     blk_t offset;
-    reiserfs_alloc40_t *alloc;
+    alloc40_t *alloc;
     
     aal_assert("umka-364", device != NULL, return NULL);
 
@@ -32,11 +32,11 @@ static reiserfs_entity_t *alloc40_open(aal_device_t *device,
 	return NULL;
     
     /* Addres of first bitmap block */
-    offset = (REISERFS_MASTER_OFFSET + (2 * aal_device_get_bs(device))) / 
+    offset = (REISER4_MASTER_OFFSET + (2 * aal_device_get_bs(device))) / 
 	aal_device_get_bs(device);
 
     /* Opening bitmap */
-    if (!(alloc->bitmap = reiserfs_bitmap_open(device, offset, len))) {
+    if (!(alloc->bitmap = reiser4_bitmap_open(device, offset, len))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't open bitmap.");
 	goto error_free_alloc;
@@ -44,7 +44,7 @@ static reiserfs_entity_t *alloc40_open(aal_device_t *device,
   
     alloc->device = device;
     
-    return (reiserfs_entity_t *)alloc;
+    return (reiser4_entity_t *)alloc;
 
 error_free_alloc:
     aal_free(alloc);
@@ -58,21 +58,21 @@ error:
     Initializes new alloc40 instance, creates bitmap and return new instance to 
     caller (block allocator in libreiser4).
 */
-static reiserfs_entity_t *alloc40_create(aal_device_t *device, 
+static reiser4_entity_t *alloc40_create(aal_device_t *device, 
     count_t len)
 {
     blk_t offset;
-    reiserfs_alloc40_t *alloc;
+    alloc40_t *alloc;
 
     aal_assert("umka-365", device != NULL, return NULL);
 	
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
 
-    offset = (REISERFS_MASTER_OFFSET + (2 * aal_device_get_bs(device))) / 
+    offset = (REISER4_MASTER_OFFSET + (2 * aal_device_get_bs(device))) / 
 	aal_device_get_bs(device);
     
-    if (!(alloc->bitmap = reiserfs_bitmap_create(device, offset, len))) {
+    if (!(alloc->bitmap = reiser4_bitmap_create(device, offset, len))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create bitmap.");
 	goto error_free_alloc;
@@ -80,7 +80,7 @@ static reiserfs_entity_t *alloc40_create(aal_device_t *device,
 
     alloc->device = device;
     
-    return (reiserfs_entity_t *)alloc;
+    return (reiser4_entity_t *)alloc;
 
 error_free_alloc:
     aal_free(alloc);
@@ -89,57 +89,57 @@ error:
 }
 
 /* Saves alloc40 data (bitmap in fact) to device */
-static errno_t alloc40_sync(reiserfs_entity_t *entity) {
+static errno_t alloc40_sync(reiser4_entity_t *entity) {
     
-    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
+    alloc40_t *alloc = (alloc40_t *)entity;
 	
     aal_assert("umka-366", alloc != NULL, return -1);
     aal_assert("umka-367", alloc->bitmap != NULL, return -1);
     
-    return reiserfs_bitmap_sync(alloc->bitmap);
+    return reiser4_bitmap_sync(alloc->bitmap);
 }
 
 #endif
 
 /* Frees alloc40 instance */
-static void alloc40_close(reiserfs_entity_t *entity) {
+static void alloc40_close(reiser4_entity_t *entity) {
     
-    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
+    alloc40_t *alloc = (alloc40_t *)entity;
     
     aal_assert("umka-368", alloc != NULL, return);
     aal_assert("umka-369", alloc->bitmap != NULL, return);
 
-    reiserfs_bitmap_close(alloc->bitmap);
+    reiser4_bitmap_close(alloc->bitmap);
     aal_free(alloc);
 }
 
 #ifndef ENABLE_COMPACT
 
 /* Marks specified block as used in its own bitmap */
-static void alloc40_mark(reiserfs_entity_t *entity, blk_t blk) {
+static void alloc40_mark(reiser4_entity_t *entity, blk_t blk) {
     
-    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
+    alloc40_t *alloc = (alloc40_t *)entity;
     
     aal_assert("umka-370", alloc != NULL, return);
     aal_assert("umka-371", alloc->bitmap != NULL, return);
     
-    reiserfs_bitmap_use(alloc->bitmap, blk);
+    reiser4_bitmap_use(alloc->bitmap, blk);
 }
 
 /* Marks "blk" as free */
-static void alloc40_dealloc(reiserfs_entity_t *entity, blk_t blk) {
-    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
+static void alloc40_dealloc(reiser4_entity_t *entity, blk_t blk) {
+    alloc40_t *alloc = (alloc40_t *)entity;
     
     aal_assert("umka-372", alloc != NULL, return);
     aal_assert("umka-373", alloc->bitmap != NULL, return);
     
-    reiserfs_bitmap_unuse(alloc->bitmap, blk);
+    reiser4_bitmap_unuse(alloc->bitmap, blk);
 }
 
 /* Finds first free block in bitmap and returns it to caller */
-static blk_t alloc40_alloc(reiserfs_entity_t *entity) {
+static blk_t alloc40_alloc(reiser4_entity_t *entity) {
     blk_t blk;
-    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
+    alloc40_t *alloc = (alloc40_t *)entity;
     
     aal_assert("umka-374", alloc != NULL, return 0);
     aal_assert("umka-375", alloc->bitmap != NULL, return 0);
@@ -148,57 +148,57 @@ static blk_t alloc40_alloc(reiserfs_entity_t *entity) {
 	It is possible to implement here more smart allocation algorithm. For
 	instance, it may look for contiguous areas.
     */
-    if (!(blk = reiserfs_bitmap_find(alloc->bitmap, 0)))
+    if (!(blk = reiser4_bitmap_find(alloc->bitmap, 0)))
 	return 0;
     
-    reiserfs_bitmap_use(alloc->bitmap, blk);
+    reiser4_bitmap_use(alloc->bitmap, blk);
     return blk;
 }
 
 #endif
 
 /* Returns free blcoks count */
-count_t alloc40_free(reiserfs_entity_t *entity) {
-    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
+count_t alloc40_free(reiser4_entity_t *entity) {
+    alloc40_t *alloc = (alloc40_t *)entity;
 
     aal_assert("umka-376", alloc != NULL, return 0);
     aal_assert("umka-377", alloc->bitmap != NULL, return 0);
     
-    return reiserfs_bitmap_unused(alloc->bitmap);
+    return reiser4_bitmap_unused(alloc->bitmap);
 }
 
 /* Returns used blocks count */
-count_t alloc40_used(reiserfs_entity_t *entity) {
-    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
+count_t alloc40_used(reiser4_entity_t *entity) {
+    alloc40_t *alloc = (alloc40_t *)entity;
     
     aal_assert("umka-378", alloc != NULL, return 0);
     aal_assert("umka-379", alloc->bitmap != NULL, return 0);
 
-    return reiserfs_bitmap_used(alloc->bitmap);
+    return reiser4_bitmap_used(alloc->bitmap);
 }
 
 /* Checks whether specified block is used or not */
-int alloc40_test(reiserfs_entity_t *entity, blk_t blk) {
-    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
+int alloc40_test(reiser4_entity_t *entity, blk_t blk) {
+    alloc40_t *alloc = (alloc40_t *)entity;
     
     aal_assert("umka-663", alloc != NULL, return 0);
     aal_assert("umka-664", alloc->bitmap != NULL, return 0);
 
-    return reiserfs_bitmap_test(alloc->bitmap, blk);
+    return reiser4_bitmap_test(alloc->bitmap, blk);
 }
 
 /* Checks allocator on validness */
-errno_t alloc40_valid(reiserfs_entity_t *entity, int flags) {
-    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
+errno_t alloc40_valid(reiser4_entity_t *entity, int flags) {
+    alloc40_t *alloc = (alloc40_t *)entity;
     
     aal_assert("umka-963", alloc != NULL, return -1);
     aal_assert("umka-964", alloc->bitmap != NULL, return -1);
 
-    return reiserfs_bitmap_check(alloc->bitmap);
+    return reiser4_bitmap_check(alloc->bitmap);
 }
 
 /* Filling the alloc40 structure by methods */
-static reiserfs_plugin_t alloc40_plugin = {
+static reiser4_plugin_t alloc40_plugin = {
     .alloc_ops = {
 	.h = {
 	    .handle = NULL,
@@ -230,7 +230,7 @@ static reiserfs_plugin_t alloc40_plugin = {
     }
 };
 
-static reiserfs_plugin_t *alloc40_start(reiserfs_core_t *c) {
+static reiser4_plugin_t *alloc40_start(reiser4_core_t *c) {
     core = c;
     return &alloc40_plugin;
 }

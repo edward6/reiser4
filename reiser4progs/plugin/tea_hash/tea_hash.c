@@ -139,7 +139,7 @@ uint64_t tea_hash_build(const unsigned char *name, uint32_t len) {
 
     return h0 ^ h1;
 }
-static reiserfs_plugin_t tea_hash_plugin = {
+static reiser4_plugin_t tea_hash_plugin = {
     .hash_ops = {
 	.h = {
 	    .handle = NULL,
@@ -152,7 +152,7 @@ static reiserfs_plugin_t tea_hash_plugin = {
     }
 };
 
-static reiserfs_plugin_t *tea_hash_start(reiserfs_core_t *c) {
+static reiser4_plugin_t *tea_hash_start(reiser4_core_t *c) {
     return &tea_hash_plugin;
 }
 

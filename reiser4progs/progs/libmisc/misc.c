@@ -365,7 +365,7 @@ void progs_gauge_handler(aal_gauge_t *gauge) {
     fflush(stderr);
 }
 
-errno_t callback_print_plugin(reiserfs_plugin_t *plugin, void *data) {
+errno_t callback_print_plugin(reiser4_plugin_t *plugin, void *data) {
     printf("%s: %s.\n", plugin->h.label, plugin->h.desc);
     return 0;
 }

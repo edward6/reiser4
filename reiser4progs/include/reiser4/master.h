@@ -15,26 +15,26 @@
 
 #ifndef ENABLE_COMPACT
 
-extern reiserfs_master_t *reiserfs_master_create(aal_device_t *device, 
-    reiserfs_id_t format_pid, unsigned int blocksize, const char *uuid, 
+extern reiser4_master_t *reiser4_master_create(aal_device_t *device, 
+    reiser4_id_t format_pid, unsigned int blocksize, const char *uuid, 
     const char *label);
 
-extern errno_t reiserfs_master_sync(reiserfs_master_t *master);
+extern errno_t reiser4_master_sync(reiser4_master_t *master);
 
-extern reiserfs_plugin_t *reiserfs_master_guess(aal_device_t *device);
+extern reiser4_plugin_t *reiser4_master_guess(aal_device_t *device);
 
 #endif
 
-extern errno_t reiserfs_master_valid(reiserfs_master_t *master);
-extern reiserfs_master_t *reiserfs_master_open(aal_device_t *device);
-extern int reiserfs_master_confirm(aal_device_t *device);
-extern void reiserfs_master_close(reiserfs_master_t *master);
+extern errno_t reiser4_master_valid(reiser4_master_t *master);
+extern reiser4_master_t *reiser4_master_open(aal_device_t *device);
+extern int reiser4_master_confirm(aal_device_t *device);
+extern void reiser4_master_close(reiser4_master_t *master);
 
-extern char *reiserfs_master_magic(reiserfs_master_t *master);
-extern reiserfs_id_t reiserfs_master_format(reiserfs_master_t *master);
-extern uint32_t reiserfs_master_blocksize(reiserfs_master_t *master);
-extern char *reiserfs_master_uuid(reiserfs_master_t *master);
-extern char *reiserfs_master_label(reiserfs_master_t *master);
+extern char *reiser4_master_magic(reiser4_master_t *master);
+extern reiser4_id_t reiser4_master_format(reiser4_master_t *master);
+extern uint32_t reiser4_master_blocksize(reiser4_master_t *master);
+extern char *reiser4_master_uuid(reiser4_master_t *master);
+extern char *reiser4_master_label(reiser4_master_t *master);
 
 #endif
 

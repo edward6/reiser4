@@ -1,5 +1,5 @@
 /*
-    filesystem.h -- reiserfs filesystem structures and macros.
+    filesystem.h -- reiser4 filesystem structures and macros.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -15,14 +15,14 @@
 #include <reiser4/plugin.h>
 #include <reiser4/key.h>
 
-#define REISERFS_DEFAULT_BLOCKSIZE	(4096)
-#define REISERFS_MASTER_OFFSET		(65536)
-#define REISERFS_MASTER_MAGIC		("R4Sb")
+#define REISER4_DEFAULT_BLOCKSIZE	(4096)
+#define REISER4_MASTER_OFFSET		(65536)
+#define REISER4_MASTER_MAGIC		("R4Sb")
 
-#define REISERFS_LEGACY_FORMAT		(0x0)
+#define REISER4_LEGACY_FORMAT		(0x0)
 
 /* Master super block structure and macros */
-struct reiserfs_master_super {
+struct reiser4_master_super {
 
     /* Reiser4 magic R4Sb */
     char mr_magic[4];
@@ -40,7 +40,7 @@ struct reiserfs_master_super {
     char mr_label[16];
 };
 
-typedef struct reiserfs_master_super reiserfs_master_super_t;
+typedef struct reiser4_master_super reiser4_master_super_t;
 
 #define get_mr_format_id(mr)		aal_get_le16(mr, mr_format_id)
 #define set_mr_format_id(mr, val)	aal_set_le16(mr, mr_format_id, val)
@@ -48,112 +48,112 @@ typedef struct reiserfs_master_super reiserfs_master_super_t;
 #define get_mr_blocksize(mr)		aal_get_le16(mr, mr_blocksize)
 #define set_mr_blocksize(mr, val)	aal_set_le16(mr, mr_blocksize, val)
 
-struct reiserfs_master {
+struct reiser4_master {
     aal_block_t *block;
     aal_device_t *device;
 
-    reiserfs_master_super_t *super;
+    reiser4_master_super_t *super;
 };
 
-typedef struct reiserfs_master reiserfs_master_t;
+typedef struct reiser4_master reiser4_master_t;
 
-typedef struct reiserfs_fs reiserfs_fs_t;
+typedef struct reiser4_fs reiser4_fs_t;
 
 /* 
     Profile structure. It describes what plugins will be used for every part
     of the filesystem.
 */
-struct reiserfs_profile {
+struct reiser4_profile {
     char label[255];
     char desc[255];
     
-    reiserfs_id_t node;
+    reiser4_id_t node;
 
     struct {
-	reiserfs_id_t dir;
+	reiser4_id_t dir;
     } dir;
     
     struct {
-	reiserfs_id_t reg;
-	reiserfs_id_t symlink;
-	reiserfs_id_t special;      
+	reiser4_id_t reg;
+	reiser4_id_t symlink;
+	reiser4_id_t special;      
     } file;
     
     struct {	    
-	reiserfs_id_t statdata;
-	reiserfs_id_t internal;
-	reiserfs_id_t direntry;
+	reiser4_id_t statdata;
+	reiser4_id_t internal;
+	reiser4_id_t direntry;
 	struct {
-	    reiserfs_id_t drop;
-	    reiserfs_id_t extent;
+	    reiser4_id_t drop;
+	    reiser4_id_t extent;
 	} file_body;
-	reiserfs_id_t acl;
+	reiser4_id_t acl;
     } item;
     
-    reiserfs_id_t hash;
-    reiserfs_id_t drop_policy;
-    reiserfs_id_t perm;
-    reiserfs_id_t format;
-    reiserfs_id_t oid;
-    reiserfs_id_t alloc;
-    reiserfs_id_t journal;
-    reiserfs_id_t key;
+    reiser4_id_t hash;
+    reiser4_id_t drop_policy;
+    reiser4_id_t perm;
+    reiser4_id_t format;
+    reiser4_id_t oid;
+    reiser4_id_t alloc;
+    reiser4_id_t journal;
+    reiser4_id_t key;
     uint64_t sdext;
 };
 
-typedef struct reiserfs_profile reiserfs_profile_t;
+typedef struct reiser4_profile reiser4_profile_t;
 
-typedef struct reiserfs_tree reiserfs_tree_t;
-typedef struct reiserfs_cache reiserfs_cache_t;
-typedef struct reiserfs_node reiserfs_node_t;
+typedef struct reiser4_tree reiser4_tree_t;
+typedef struct reiser4_cache reiser4_cache_t;
+typedef struct reiser4_node reiser4_node_t;
 
 /* Coord inside reiser4 tree */
-struct reiserfs_coord {
+struct reiser4_coord {
     /* Pointer to the cached node */
-    reiserfs_cache_t *cache;
+    reiser4_cache_t *cache;
 
     /* Position inside the cached node */
-    reiserfs_pos_t pos;
+    reiser4_pos_t pos;
 };
 
-typedef struct reiserfs_coord reiserfs_coord_t;
+typedef struct reiser4_coord reiser4_coord_t;
 
 /* Reiser4 in-memory node structure */
-struct reiserfs_node {
+struct reiser4_node {
 
     /* Block node lies in */
     aal_block_t *block;
 
     /* Node entity. This field is uinitializied by node plugin */
-    reiserfs_entity_t *entity;
+    reiser4_entity_t *entity;
     
     /* Node plugin is use */
-    reiserfs_plugin_t *plugin;
+    reiser4_plugin_t *plugin;
 };
 
 /* Reiserfs object structure (file, dir) */
-struct reiserfs_object {
+struct reiser4_object {
 
     /* Referrence to the filesystem object opened on */
-    reiserfs_fs_t *fs;
+    reiser4_fs_t *fs;
     
     /* Object entity. It is initialized by object plugin */
-    reiserfs_entity_t *entity;
+    reiser4_entity_t *entity;
 
     /* Object plugin in use */
-    reiserfs_plugin_t *plugin;
+    reiser4_plugin_t *plugin;
     
     /* Object key of first item (most probably stat data item) */
-    reiserfs_key_t key;
+    reiser4_key_t key;
 
     /* Current coord */
-    reiserfs_coord_t coord;
+    reiser4_coord_t coord;
 };
 
-typedef struct reiserfs_object reiserfs_object_t;
+typedef struct reiser4_object reiser4_object_t;
 
 /* Reiser4 disk-format in-memory structure */
-struct reiserfs_format {
+struct reiser4_format {
 
     /* Device filesystem opended on */
     aal_device_t *device;
@@ -162,16 +162,16 @@ struct reiserfs_format {
 	Disk-format entity. It is initialized by disk-format plugin durring
 	initialization.
     */
-    reiserfs_entity_t *entity;
+    reiser4_entity_t *entity;
 
     /* Disk-format plugin in use */
-    reiserfs_plugin_t *plugin;
+    reiser4_plugin_t *plugin;
 };
 
-typedef struct reiserfs_format reiserfs_format_t;
+typedef struct reiser4_format reiser4_format_t;
 
 /* Journal structure */
-struct reiserfs_journal {
+struct reiser4_journal {
     
     /* 
 	Device journal opened on. In the case of standard journal this field will
@@ -182,60 +182,60 @@ struct reiserfs_journal {
     aal_device_t *device;
 
     /* Journal entity. Initializied by plugin */
-    reiserfs_entity_t *entity;
+    reiser4_entity_t *entity;
 
     /* Plugin for working with journal by */
-    reiserfs_plugin_t *plugin;
+    reiser4_plugin_t *plugin;
 };
 
-typedef struct reiserfs_journal reiserfs_journal_t;
+typedef struct reiser4_journal reiser4_journal_t;
 
 /* Block allocator structure */
-struct reiserfs_alloc {
-    reiserfs_entity_t *entity;
-    reiserfs_plugin_t *plugin;
+struct reiser4_alloc {
+    reiser4_entity_t *entity;
+    reiser4_plugin_t *plugin;
 };
 
-typedef struct reiserfs_alloc reiserfs_alloc_t;
+typedef struct reiser4_alloc reiser4_alloc_t;
 
 /* Oid allocator structure */
-struct reiserfs_oid {
+struct reiser4_oid {
     
     /* Oid allocator entity */
-    reiserfs_entity_t *entity;
+    reiser4_entity_t *entity;
 
     /* Oid allocator plugin in use */
-    reiserfs_plugin_t *plugin;
+    reiser4_plugin_t *plugin;
 };
 
-typedef struct reiserfs_oid reiserfs_oid_t;
+typedef struct reiser4_oid reiser4_oid_t;
 
 /* Structure of one cached node in the internal libreiser4 tree */
-struct reiserfs_cache {
+struct reiser4_cache {
     
     /* Reference to tree instance cache lies in */
-    reiserfs_tree_t *tree;
+    reiser4_tree_t *tree;
        	
     /* Reference to the node assosiated with this cache node */
-    reiserfs_node_t *node;
+    reiser4_node_t *node;
     
     /* 
 	Reference to the parent node. It is used for accessing parent durring 
 	balancing.
     */
-    reiserfs_cache_t *parent;
+    reiser4_cache_t *parent;
 
     /* Reference to left neighbour */
-    reiserfs_cache_t *left;
+    reiser4_cache_t *left;
 
     /* Reference to right neighbour */
-    reiserfs_cache_t *right;
+    reiser4_cache_t *right;
     
     /* List of children nodes */
     aal_list_t *list;
 };
 
-struct reiserfs_cache_limit {
+struct reiser4_cache_limit {
     /* Current size of cache in blocks */
     int32_t cur;
 
@@ -246,66 +246,66 @@ struct reiserfs_cache_limit {
     int enabled;
 };
 
-typedef struct reiserfs_cache_limit reiserfs_cache_limit_t;
+typedef struct reiser4_cache_limit reiser4_cache_limit_t;
 
 /* Tree structure */
-struct reiserfs_tree {
+struct reiser4_tree {
 
     /* Reference to filesystem instance tree opened on */
-    reiserfs_fs_t *fs;
+    reiser4_fs_t *fs;
 
     /* 
 	Reference to root cacheed node. It is created by tree initialization routines 
 	and always exists. All other cached nodes are loaded on demand and flushed at
 	memory presure event.
     */
-    reiserfs_cache_t *cache;
+    reiser4_cache_t *cache;
 
     /* 
 	Limit for number of blocks allowed to be cached. If this value will be exceeded, 
 	tree will perform flush operation until this value reach allowed value minus some
 	customizable and reasonable number of blocks.
     */
-    reiserfs_cache_limit_t limit;
+    reiser4_cache_limit_t limit;
 };
 
 /* Filesystem compound structure */
-struct reiserfs_fs {
-    reiserfs_master_t *master;
-    reiserfs_format_t *format;
-    reiserfs_journal_t *journal;
-    reiserfs_alloc_t *alloc;
-    reiserfs_oid_t *oid;
-    reiserfs_tree_t *tree;
-    reiserfs_object_t *dir;
+struct reiser4_fs {
+    reiser4_master_t *master;
+    reiser4_format_t *format;
+    reiser4_journal_t *journal;
+    reiser4_alloc_t *alloc;
+    reiser4_oid_t *oid;
+    reiser4_tree_t *tree;
+    reiser4_object_t *dir;
 
-    reiserfs_key_t key;
+    reiser4_key_t key;
     void *data;
 };
 
 /* Public functions */
-extern reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, 
+extern reiser4_fs_t *reiser4_fs_open(aal_device_t *host_device, 
     aal_device_t *journal_device, int replay);
 
-extern void reiserfs_fs_close(reiserfs_fs_t *fs);
+extern void reiser4_fs_close(reiser4_fs_t *fs);
 
 #ifndef ENABLE_COMPACT
 
-extern reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile, 
+extern reiser4_fs_t *reiser4_fs_create(reiser4_profile_t *profile, 
     aal_device_t *host_device, size_t blocksize, const char *uuid, 
     const char *label, count_t len, aal_device_t *journal_device, 
     void *journal_params);
 
-extern errno_t reiserfs_fs_sync(reiserfs_fs_t *fs);
+extern errno_t reiser4_fs_sync(reiser4_fs_t *fs);
 
 #endif
 
-extern const char *reiserfs_fs_name(reiserfs_fs_t *fs);
-extern uint16_t reiserfs_fs_blocksize(reiserfs_fs_t *fs);
+extern const char *reiser4_fs_name(reiser4_fs_t *fs);
+extern uint16_t reiser4_fs_blocksize(reiser4_fs_t *fs);
 
-extern reiserfs_id_t reiserfs_fs_format_pid(reiserfs_fs_t *fs);
-extern aal_device_t *reiserfs_fs_host_device(reiserfs_fs_t *fs);
-extern aal_device_t *reiserfs_fs_journal_device(reiserfs_fs_t *fs);
+extern reiser4_id_t reiser4_fs_format_pid(reiser4_fs_t *fs);
+extern aal_device_t *reiser4_fs_host_device(reiser4_fs_t *fs);
+extern aal_device_t *reiser4_fs_journal_device(reiser4_fs_t *fs);
 
 #endif
 

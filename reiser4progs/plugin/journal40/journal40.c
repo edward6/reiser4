@@ -13,20 +13,21 @@
 
 #include "journal40.h"
 
-static reiserfs_core_t *core = NULL;
+static reiser4_core_t *core = NULL;
 
-#define REISERFS_JOURNAL40_HEADER   (4096 * 19)
-#define REISERFS_JOURNAL40_FOOTER   (4096 * 20)
+#define JOURNAL40_HEADER   (4096 * 19)
+#define JOURNAL40_FOOTER   (4096 * 20)
 
-static errno_t journal40_check_header(reiserfs_journal40_header_t *header, 
+static errno_t journal40_hcheck(journal40_header_t *header, 
     aal_device_t *device) 
 {
     aal_assert("umka-515", header != NULL, return -1);
     aal_assert("umka-517", device != NULL, return -1);
     
     if (get_jh_last_commited(header) > aal_device_len(device)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Invalid journal header has detected. "
-	    "Last commited transaction (%llu) lies out of the device (0-%llu).", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid journal header has detected. Last commited "
+	    "transaction (%llu) lies out of the device (0-%llu).", 
 	    get_jh_last_commited(header), aal_device_len(device));
 	return -1;
     }
@@ -34,23 +35,24 @@ static errno_t journal40_check_header(reiserfs_journal40_header_t *header,
     return 0;
 }
 
-static errno_t journal40_check_footer(reiserfs_journal40_footer_t *footer, 
+static errno_t journal40_fcheck(journal40_footer_t *footer, 
     aal_device_t *device) 
 {
     aal_assert("umka-516", footer != NULL, return -1);
     aal_assert("umka-517", device != NULL, return -1);
     
     if (get_jf_last_flushed(footer) > aal_device_len(device)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Invalid journal footer has detected. "
-	    "Last flushed transaction (%llu) lies out of the device (0-%llu).", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid journal footer has detected. Last flushed "
+	    "transaction (%llu) lies out of the device (0-%llu).", 
 	    get_jf_last_flushed(footer), aal_device_len(device));
 	return -1;
     }
     return 0;
 }
 
-static reiserfs_entity_t *journal40_open(aal_device_t *device) {
-    reiserfs_journal40_t *journal;
+static reiser4_entity_t *journal40_open(aal_device_t *device) {
+    journal40_t *journal;
 
     aal_assert("umka-409", device != NULL, return NULL);
     
@@ -59,7 +61,7 @@ static reiserfs_entity_t *journal40_open(aal_device_t *device) {
 
     /* Reading and chanking journal header */
     if (!(journal->header = aal_block_read(device, 
-	(blk_t)(REISERFS_JOURNAL40_HEADER / aal_device_get_bs(device)))))
+	(blk_t)(JOURNAL40_HEADER / aal_device_get_bs(device)))))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't read journal header. %s.", aal_device_error(device));
@@ -68,7 +70,7 @@ static reiserfs_entity_t *journal40_open(aal_device_t *device) {
 	
     /* Reading and checking journal footer */
     if (!(journal->footer = aal_block_read(device, 
-	(blk_t)(REISERFS_JOURNAL40_FOOTER / aal_device_get_bs(device)))))
+	(blk_t)(JOURNAL40_FOOTER / aal_device_get_bs(device)))))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't read journal footer. %s.", aal_device_error(device));
@@ -77,7 +79,7 @@ static reiserfs_entity_t *journal40_open(aal_device_t *device) {
 	
     journal->device = device;
     
-    return (reiserfs_entity_t *)journal;
+    return (reiser4_entity_t *)journal;
 
 error_free_footer:
     aal_block_free(journal->footer);    
@@ -91,10 +93,10 @@ error:
 
 #ifndef ENABLE_COMPACT
 
-static reiserfs_entity_t *journal40_create(aal_device_t *device, 
+static reiser4_entity_t *journal40_create(aal_device_t *device, 
     void *params) 
 {
-    reiserfs_journal40_t *journal;
+    journal40_t *journal;
     
     aal_assert("umka-417", device != NULL, return NULL);
     
@@ -104,18 +106,18 @@ static reiserfs_entity_t *journal40_create(aal_device_t *device,
     journal->device = device;
 
     if (!(journal->header = aal_block_alloc(device, 
-	    (REISERFS_JOURNAL40_HEADER / aal_device_get_bs(device)), 0)))
+	    (JOURNAL40_HEADER / aal_device_get_bs(device)), 0)))
 	goto error_free_journal;
    
     /* Forming journal header basing on passed params */
     
     if (!(journal->footer = aal_block_alloc(device, 
-	    (REISERFS_JOURNAL40_FOOTER / aal_device_get_bs(device)), 0)))
+	    (JOURNAL40_FOOTER / aal_device_get_bs(device)), 0)))
 	goto error_free_header;
     
     /* Forming journal footer basing on passed params */
     
-    return (reiserfs_entity_t *)journal;
+    return (reiser4_entity_t *)journal;
 
 error_free_header:
     aal_block_free(journal->header);
@@ -125,24 +127,24 @@ error:
     return NULL;
 }
 
-static errno_t journal40_valid(reiserfs_entity_t *entity, 
+static errno_t journal40_valid(reiser4_entity_t *entity, 
     int flags) 
 {
-    reiserfs_journal40_t *journal = (reiserfs_journal40_t *)entity;
+    journal40_t *journal = (journal40_t *)entity;
     
     aal_assert("umka-965", journal != NULL, return -1);
     
-    if (journal40_check_header(journal->header->data, journal->device))
+    if (journal40_hcheck(journal->header->data, journal->device))
 	return -1;
 	
-    if (journal40_check_footer(journal->footer->data, journal->device))
+    if (journal40_fcheck(journal->footer->data, journal->device))
 	return -1;
     
     return 0;
 }
 
-static errno_t journal40_sync(reiserfs_entity_t *entity) {
-    reiserfs_journal40_t *journal = (reiserfs_journal40_t *)entity;
+static errno_t journal40_sync(reiser4_entity_t *entity) {
+    journal40_t *journal = (journal40_t *)entity;
 
     aal_assert("umka-410", journal != NULL, return -1);
     
@@ -166,8 +168,8 @@ static errno_t journal40_sync(reiserfs_entity_t *entity) {
 
 #endif
 
-static void journal40_close(reiserfs_entity_t *entity) {
-    reiserfs_journal40_t *journal = (reiserfs_journal40_t *)entity;
+static void journal40_close(reiser4_entity_t *entity) {
+    journal40_t *journal = (journal40_t *)entity;
     
     aal_assert("umka-411", entity != NULL, return);
 
@@ -176,12 +178,12 @@ static void journal40_close(reiserfs_entity_t *entity) {
     aal_free(journal);
 }
 
-static errno_t journal40_replay(reiserfs_entity_t *entity) {
+static errno_t journal40_replay(reiser4_entity_t *entity) {
     aal_assert("umka-412", entity != NULL, return -1);
     return 0;
 }
 
-static reiserfs_plugin_t journal40_plugin = {
+static reiser4_plugin_t journal40_plugin = {
     .journal_ops = {
 	.h = {
 	    .handle = NULL,
@@ -205,7 +207,7 @@ static reiserfs_plugin_t journal40_plugin = {
     }
 };
 
-static reiserfs_plugin_t *journal40_start(reiserfs_core_t *c) {
+static reiser4_plugin_t *journal40_start(reiser4_core_t *c) {
     core = c;
     return &journal40_plugin;
 }

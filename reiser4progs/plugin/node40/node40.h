@@ -12,21 +12,23 @@
 #include <reiser4/reiser4.h>
 
 /* (*(__u32 *)"R4FS") */
-#define REISERFS_NODE40_MAGIC 0x52344653
+#define NODE40_MAGIC 0x52344653
 
-struct reiserfs_node40 {
+struct node40 {
     aal_block_t *block;
 };
 
-typedef struct reiserfs_node40 reiserfs_node40_t;
+typedef struct node40 node40_t;
 
-typedef struct reiserfs_flush_stamp {
+struct flush_stamp {
     uint32_t mkfs_id;
     uint64_t flush_time;
-} reiserfs_flush_stamp_t;
+};
+
+typedef struct flush_stamp flush_stamp_t;
 
 /* Format of node header for node40 */
-struct reiserfs_node40_header {
+struct node40_header {
     uint16_t pid; 
     uint16_t free_space;
     uint16_t free_space_start;
@@ -34,12 +36,12 @@ struct reiserfs_node40_header {
     uint32_t magic;
     uint16_t num_items;
     
-    reiserfs_flush_stamp_t flush_stamp;
+    flush_stamp_t flush_stamp;
 };
 
-typedef struct reiserfs_node40_header reiserfs_node40_header_t;  
+typedef struct node40_header node40_header_t;  
 
-#define reiserfs_nh40(block)			((reiserfs_node40_header_t *)block->data)
+#define	nh40(block)				((node40_header_t *)block->data)
 
 #define nh40_get_pid(header)			aal_get_le16(header, pid)
 #define nh40_set_pid(header, val)		aal_set_le16(header, pid, val)
@@ -64,22 +66,22 @@ typedef struct reiserfs_node40_header reiserfs_node40_header_t;
     pos_in_node to functions instead.
 */
 
-union reiserfs_key40 {
+union key40 {
     uint64_t el[3];
     int pad;
 };
 
-typedef union reiserfs_key40 reiserfs_key40_t;
+typedef union key40 key40_t;
 
-struct reiserfs_item40_header {
-    reiserfs_key40_t key;
+struct item40_header {
+    key40_t key;
     
     uint16_t offset;
     uint16_t len;
     uint16_t pid;
 };
 
-typedef struct reiserfs_item40_header reiserfs_item40_header_t;
+typedef struct item40_header item40_header_t;
 
 #define ih40_get_offset(ih)			aal_get_le16(ih, offset)
 #define ih40_set_offset(ih, val)		aal_set_le16(ih, offset, val)
@@ -91,8 +93,8 @@ typedef struct reiserfs_item40_header reiserfs_item40_header_t;
 #define ih40_set_pid(ih, val)			aal_set_le16(ih, pid, val)
 
 /* Returns item header by pos */
-inline reiserfs_item40_header_t *node40_ih_at(aal_block_t *block, uint32_t pos) {
-    return ((reiserfs_item40_header_t *)(block->data + block->size)) - pos - 1;
+inline item40_header_t *node40_ih_at(aal_block_t *block, uint32_t pos) {
+    return ((item40_header_t *)(block->data + block->size)) - pos - 1;
 }
 
 /* Retutrns item body by pos */

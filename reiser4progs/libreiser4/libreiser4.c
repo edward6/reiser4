@@ -13,9 +13,9 @@
 */
 
 /* Handler for plugin finding requests from all plugins */
-static inline reiserfs_plugin_t *__plugin_find(
-    reiserfs_plugin_type_t type,    /* needed type of plugin*/
-    reiserfs_id_t id		    /* needed plugin id */
+static inline reiser4_plugin_t *__plugin_find(
+    reiser4_plugin_type_t type,    /* needed type of plugin*/
+    reiser4_id_t id		    /* needed plugin id */
 ) {
     return libreiser4_factory_find_by_id(type, id);
 }
@@ -25,25 +25,25 @@ static inline reiserfs_plugin_t *__plugin_find(
 /* Handler for item insert requests from the all plugins */
 static inline errno_t __item_insert(
     const void *tree,		    /* opaque pointer to the tree */
-    reiserfs_item_hint_t *item	    /* item hint to be inserted into tree */
+    reiser4_item_hint_t *item	    /* item hint to be inserted into tree */
 ) {
-    reiserfs_coord_t coord;
+    reiser4_coord_t coord;
 
     aal_assert("umka-846", tree != NULL, return -1);
     aal_assert("umka-847", item != NULL, return -1);
     
-    return reiserfs_tree_insert((reiserfs_tree_t *)tree, item, &coord);
+    return reiser4_tree_insert((reiser4_tree_t *)tree, item, &coord);
 }
 
 /* Handler for item removing requests from the all plugins */
 static inline errno_t __item_remove(
     const void *tree,		    /* opaque pointer to the tree */
-    reiserfs_key_t *key		    /* key of the item to be removerd */
+    reiser4_key_t *key		    /* key of the item to be removerd */
 ) {
     aal_assert("umka-848", tree != NULL, return -1);
     aal_assert("umka-849", key != NULL, return -1);
     
-    return reiserfs_tree_remove((reiserfs_tree_t *)tree, key);
+    return reiser4_tree_remove((reiser4_tree_t *)tree, key);
 }
 
 #endif
@@ -51,31 +51,31 @@ static inline errno_t __item_remove(
 /* Handler for lookup reqiests from the all plugin can arrive */
 static inline int __lookup(
     const void *tree,		    /* opaque pointer to the tree */
-    reiserfs_key_t *key,	    /* key to be found */
-    reiserfs_place_t *place	    /* the same as reiserfs_coord_t;result will be stored in */
+    reiser4_key_t *key,	    /* key to be found */
+    reiser4_place_t *place	    /* the same as reiser4_coord_t;result will be stored in */
 ) {
     aal_assert("umka-851", key != NULL, return -1);
     aal_assert("umka-850", tree != NULL, return -1);
     aal_assert("umka-852", place != NULL, return -1);
     
-    return reiserfs_tree_lookup((reiserfs_tree_t *)tree, 
-	REISERFS_LEAF_LEVEL, key, (reiserfs_coord_t *)place);
+    return reiser4_tree_lookup((reiser4_tree_t *)tree, 
+	REISER4_LEAF_LEVEL, key, (reiser4_coord_t *)place);
 }
 
 /* Hanlder for item body requests arrive from the all plugins */
 static inline errno_t __item_body(
     const void *tree,		    /* opaque pointer to the tree */
-    reiserfs_place_t *place,	    /* coords of the item */
+    reiser4_place_t *place,	    /* coords of the item */
     void **item,		    /* address where item body should be saved */
     uint32_t *len		    /* address where item length should be saved */
 ) {
-    reiserfs_node_t *node;
+    reiser4_node_t *node;
     
     aal_assert("umka-853", tree != NULL, return -1);
     aal_assert("umka-855", place != NULL, return -1);
     aal_assert("umka-856", item != NULL, return -1);
     
-    node = ((reiserfs_cache_t *)place->cache)->node;
+    node = ((reiser4_cache_t *)place->cache)->node;
     
     /* Getting item from the node */
     *item = libreiser4_plugin_call(return -1, node->plugin->node_ops, 
@@ -93,17 +93,17 @@ static inline errno_t __item_body(
 /* Handler for requests for right neighbor */
 static inline errno_t __item_right(
     const void *tree,		    /* opaque pointer to the tree */
-    reiserfs_place_t *place	    /* coord of node right neighbor will be obtained for */
+    reiser4_place_t *place	    /* coord of node right neighbor will be obtained for */
 ) {
-    reiserfs_cache_t *cache;
+    reiser4_cache_t *cache;
     
     aal_assert("umka-867", tree != NULL, return -1);
     aal_assert("umka-868", place != NULL, return -1);
     
-    cache = (reiserfs_cache_t *)place->cache; 
+    cache = (reiser4_cache_t *)place->cache; 
     
     /* Rasing from the device tree lies on both neighbors */
-    if (reiserfs_cache_raise(cache) || !cache->right)
+    if (reiser4_cache_raise(cache) || !cache->right)
 	return -1;
 
     /* Filling passed coord by right neighbor coords */
@@ -117,17 +117,17 @@ static inline errno_t __item_right(
 /* Handler for requests for left neighbor */
 static inline errno_t __item_left(
     const void *tree,		    /* opaque pointer to the tree */
-    reiserfs_place_t *place	    /* coord of node left neighbor will be obtained for */
+    reiser4_place_t *place	    /* coord of node left neighbor will be obtained for */
 ) {
-    reiserfs_cache_t *cache;
+    reiser4_cache_t *cache;
     
     aal_assert("umka-867", tree != NULL, return -1);
     aal_assert("umka-868", place != NULL, return -1);
     
-    cache = (reiserfs_cache_t *)place->cache; 
+    cache = (reiser4_cache_t *)place->cache; 
     
     /* Rasing from the device tree lies on both neighbors */
-    if (reiserfs_cache_raise(cache) || !cache->left)
+    if (reiser4_cache_raise(cache) || !cache->left)
 	return -1;
 
     /* Filling passed coord by left neighbor coords */
@@ -141,32 +141,32 @@ static inline errno_t __item_left(
 /* Hanlder for returning item key */
 static inline errno_t __item_key(
     const void *tree,		    /* opaque pointer to the tree */
-    reiserfs_place_t *place,	    /* coord of item key should be obtained from */
-    reiserfs_key_t *key		    /* place key should be stored in */
+    reiser4_place_t *place,	    /* coord of item key should be obtained from */
+    reiser4_key_t *key		    /* place key should be stored in */
 ) {
     aal_assert("umka-870", tree != NULL, return -1);
     aal_assert("umka-871", place != NULL, return -1);
 
-    return reiserfs_node_get_key(((reiserfs_cache_t *)place->cache)->node, 
+    return reiser4_node_get_key(((reiser4_cache_t *)place->cache)->node, 
 	&place->pos, key);
 }
 
 /* Handler for plugin id requests */
-static inline reiserfs_id_t __item_pid(
+static inline reiser4_id_t __item_pid(
     const void *tree,		    /* opaque pointer to the tree */
-    reiserfs_place_t *place,	    /* coord of item pid will be obtained from */
-    reiserfs_plugin_type_t type	    /* requested plugin type */
+    reiser4_place_t *place,	    /* coord of item pid will be obtained from */
+    reiser4_plugin_type_t type	    /* requested plugin type */
 ) {
     aal_assert("umka-872", tree != NULL, return -1);
     aal_assert("umka-873", place != NULL, return -1);
     
     switch (type) {
 	case ITEM_PLUGIN_TYPE:
-	    return reiserfs_node_item_get_pid(((reiserfs_cache_t *)place->cache)->node, 
+	    return reiser4_node_item_get_pid(((reiser4_cache_t *)place->cache)->node, 
 		&place->pos);
 	    
 	case NODE_PLUGIN_TYPE:
-	    return reiserfs_node_get_pid(((reiserfs_cache_t *)place->cache)->node);
+	    return reiser4_node_get_pid(((reiser4_cache_t *)place->cache)->node);
 	    
 	default:
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -175,7 +175,7 @@ static inline reiserfs_id_t __item_pid(
     }
 }
 
-reiserfs_core_t core = {
+reiser4_core_t core = {
     .factory_ops = {
 	/* Installing callback for make search for a plugin by its attributes */
 	.plugin_find = __plugin_find

@@ -1,5 +1,5 @@
 /*
-    node.h -- reiserfs formated node functions.
+    node.h -- reiser4 formated node functions.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */ 
@@ -15,114 +15,114 @@
 #include <reiser4/key.h>
 #include <reiser4/plugin.h>
 
-extern reiserfs_node_t *reiserfs_node_open(aal_device_t *device, 
+extern reiser4_node_t *reiser4_node_open(aal_device_t *device, 
     blk_t blk);
 
-extern errno_t reiserfs_node_close(reiserfs_node_t *node);
+extern errno_t reiser4_node_close(reiser4_node_t *node);
 
-extern errno_t reiserfs_node_valid(reiserfs_node_t *node,
+extern errno_t reiser4_node_valid(reiser4_node_t *node,
     int flags);
 
 #ifndef ENABLE_COMPACT
 
-extern errno_t reiserfs_node_split(reiserfs_node_t *node, 
-    reiserfs_node_t *right);
+extern errno_t reiser4_node_split(reiser4_node_t *node, 
+    reiser4_node_t *right);
 
-extern errno_t reiserfs_node_remove(reiserfs_node_t *node, 
-    reiserfs_pos_t *pos);
+extern errno_t reiser4_node_remove(reiser4_node_t *node, 
+    reiser4_pos_t *pos);
 
-extern errno_t reiserfs_node_copy(reiserfs_node_t *dst_node, 
-    reiserfs_pos_t *dst_pos, reiserfs_node_t *src_node, 
-    reiserfs_pos_t *src_pos);
+extern errno_t reiser4_node_copy(reiser4_node_t *dst_node, 
+    reiser4_pos_t *dst_pos, reiser4_node_t *src_node, 
+    reiser4_pos_t *src_pos);
 
-extern errno_t reiserfs_node_move(reiserfs_node_t *dst_node, 
-    reiserfs_pos_t *dst_pos, reiserfs_node_t *src_node, 
-    reiserfs_pos_t *src_pos);
-
-#endif
-
-extern errno_t reiserfs_node_rdkey(reiserfs_node_t *node, 
-    reiserfs_key_t *key);
-
-extern errno_t reiserfs_node_ldkey(reiserfs_node_t *node, 
-    reiserfs_key_t *key);
-
-extern uint32_t reiserfs_node_count(reiserfs_node_t *node);
-
-extern int reiserfs_node_lookup(reiserfs_node_t *node, 
-    reiserfs_key_t *key, reiserfs_pos_t *pos);
-
-extern int reiserfs_node_confirm(reiserfs_node_t *node);
-
-extern blk_t reiserfs_node_get_pointer(reiserfs_node_t *node, 
-    reiserfs_pos_t *pos);
-
-extern int reiserfs_node_has_pointer(reiserfs_node_t *node, 
-    reiserfs_pos_t *pos, blk_t blk);
-
-extern int reiserfs_node_item_internal(reiserfs_node_t *node, 
-    reiserfs_pos_t *pos);
-
-#ifndef ENABLE_COMPACT
-
-extern reiserfs_node_t *reiserfs_node_create(aal_device_t *device, 
-    blk_t blk, reiserfs_id_t pid, uint8_t level);
-
-extern errno_t reiserfs_node_sync(reiserfs_node_t *node);
-extern errno_t reiserfs_node_flush(reiserfs_node_t *node);
-
-extern errno_t reiserfs_node_insert(reiserfs_node_t *node, 
-    reiserfs_pos_t *pos, reiserfs_item_hint_t *item);
-
-extern errno_t reiserfs_node_set_key(reiserfs_node_t *node, 
-    reiserfs_pos_t *pos, reiserfs_key_t *key);
-
-extern errno_t reiserfs_node_set_pointer(reiserfs_node_t *node, 
-    reiserfs_pos_t *pos, blk_t blk); 
+extern errno_t reiser4_node_move(reiser4_node_t *dst_node, 
+    reiser4_pos_t *dst_pos, reiser4_node_t *src_node, 
+    reiser4_pos_t *src_pos);
 
 #endif
 
-extern errno_t reiserfs_node_get_key(reiserfs_node_t *node, 
-    reiserfs_pos_t *pos, reiserfs_key_t *key);
+extern errno_t reiser4_node_rdkey(reiser4_node_t *node, 
+    reiser4_key_t *key);
 
-extern uint32_t reiserfs_node_get_pid(reiserfs_node_t *node);
+extern errno_t reiser4_node_ldkey(reiser4_node_t *node, 
+    reiser4_key_t *key);
 
-extern uint8_t reiserfs_node_get_level(reiserfs_node_t *node);
-extern uint32_t reiserfs_node_get_space(reiserfs_node_t *node);
+extern uint32_t reiser4_node_count(reiser4_node_t *node);
+
+extern int reiser4_node_lookup(reiser4_node_t *node, 
+    reiser4_key_t *key, reiser4_pos_t *pos);
+
+extern int reiser4_node_confirm(reiser4_node_t *node);
+
+extern blk_t reiser4_node_get_pointer(reiser4_node_t *node, 
+    reiser4_pos_t *pos);
+
+extern int reiser4_node_has_pointer(reiser4_node_t *node, 
+    reiser4_pos_t *pos, blk_t blk);
+
+extern int reiser4_node_item_internal(reiser4_node_t *node, 
+    reiser4_pos_t *pos);
 
 #ifndef ENABLE_COMPACT
 
-extern errno_t reiserfs_node_set_pid(reiserfs_node_t *node, 
+extern reiser4_node_t *reiser4_node_create(aal_device_t *device, 
+    blk_t blk, reiser4_id_t pid, uint8_t level);
+
+extern errno_t reiser4_node_sync(reiser4_node_t *node);
+extern errno_t reiser4_node_flush(reiser4_node_t *node);
+
+extern errno_t reiser4_node_insert(reiser4_node_t *node, 
+    reiser4_pos_t *pos, reiser4_item_hint_t *item);
+
+extern errno_t reiser4_node_set_key(reiser4_node_t *node, 
+    reiser4_pos_t *pos, reiser4_key_t *key);
+
+extern errno_t reiser4_node_set_pointer(reiser4_node_t *node, 
+    reiser4_pos_t *pos, blk_t blk); 
+
+#endif
+
+extern errno_t reiser4_node_get_key(reiser4_node_t *node, 
+    reiser4_pos_t *pos, reiser4_key_t *key);
+
+extern uint32_t reiser4_node_get_pid(reiser4_node_t *node);
+
+extern uint8_t reiser4_node_get_level(reiser4_node_t *node);
+extern uint32_t reiser4_node_get_space(reiser4_node_t *node);
+
+#ifndef ENABLE_COMPACT
+
+extern errno_t reiser4_node_set_pid(reiser4_node_t *node, 
     uint32_t pid);
 
-extern errno_t reiserfs_node_set_level(reiserfs_node_t *node, 
+extern errno_t reiser4_node_set_level(reiser4_node_t *node, 
     uint8_t level);
 
-extern errno_t reiserfs_node_set_space(reiserfs_node_t *node, 
+extern errno_t reiser4_node_set_space(reiser4_node_t *node, 
     uint32_t value);
 
-extern errno_t reiserfs_node_item_set_pid(reiserfs_node_t *node, 
-    reiserfs_pos_t *pos, reiserfs_id_t pid);
+extern errno_t reiser4_node_item_set_pid(reiser4_node_t *node, 
+    reiser4_pos_t *pos, reiser4_id_t pid);
 
-extern errno_t reiserfs_node_item_estimate(reiserfs_node_t *node, 
-    reiserfs_pos_t *pos, reiserfs_item_hint_t *item);
+extern errno_t reiser4_node_item_estimate(reiser4_node_t *node, 
+    reiser4_pos_t *pos, reiser4_item_hint_t *item);
 
 #endif
 
-extern reiserfs_id_t reiserfs_node_item_get_pid(reiserfs_node_t *node, 
-    reiserfs_pos_t *pos);
+extern reiser4_id_t reiser4_node_item_get_pid(reiser4_node_t *node, 
+    reiser4_pos_t *pos);
 
-extern reiserfs_plugin_t *reiserfs_node_item_plugin(reiserfs_node_t *node, 
-    reiserfs_pos_t *pos);
+extern reiser4_plugin_t *reiser4_node_item_plugin(reiser4_node_t *node, 
+    reiser4_pos_t *pos);
 
-extern uint32_t reiserfs_node_item_overhead(reiserfs_node_t *node);
-extern uint32_t reiserfs_node_item_maxsize(reiserfs_node_t *node);
+extern uint32_t reiser4_node_item_overhead(reiser4_node_t *node);
+extern uint32_t reiser4_node_item_maxsize(reiser4_node_t *node);
 
-extern uint32_t reiserfs_node_item_len(reiserfs_node_t *node, 
-    reiserfs_pos_t *pos);
+extern uint32_t reiser4_node_item_len(reiser4_node_t *node, 
+    reiser4_pos_t *pos);
 
-extern reiserfs_body_t *reiserfs_node_item_body(reiserfs_node_t *node, 
-    reiserfs_pos_t *pos);
+extern reiser4_body_t *reiser4_node_item_body(reiser4_node_t *node, 
+    reiser4_pos_t *pos);
 
 #endif
 

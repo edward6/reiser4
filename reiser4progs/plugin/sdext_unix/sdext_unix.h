@@ -9,7 +9,7 @@
 #ifndef SDEXT_UNIX_H
 #define SDEXT_UNIX_H
 
-struct reiserfs_sdext_unix {
+struct sdext_unix {
     uint32_t uid;
     uint32_t gid;
     uint32_t atime;
@@ -19,7 +19,7 @@ struct reiserfs_sdext_unix {
     uint64_t bytes;
 };
 
-typedef struct reiserfs_sdext_unix reiserfs_sdext_unix_t;
+typedef struct sdext_unix sdext_unix_t;
 
 #define sdext_unix_get_uid(ext)		aal_get_le32(ext, uid)
 #define sdext_unix_set_uid(ext, val)	aal_set_le32(ext, uid, val)

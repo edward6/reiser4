@@ -9,14 +9,13 @@
 
 #include <aal/aal.h>
 
-#define REISERFS_OID40_ROOT_PARENT_LOCALITY	0x26
+#define OID40_ROOT_PARENT_LOCALITY	0x26
+#define OID40_ROOT_LOCALITY		0x29
+#define OID40_ROOT_OBJECTID		0x2a
 
-#define REISERFS_OID40_ROOT_LOCALITY		0x29
-#define REISERFS_OID40_ROOT_OBJECTID		0x2a
+#define OID40_RESERVED			(1 << 16)
 
-#define REISERFS_OID40_RESERVED			(1 << 16)
-
-struct reiserfs_oid40 {
+struct oid40 {
     const void *start;
     uint32_t len;
 
@@ -24,7 +23,7 @@ struct reiserfs_oid40 {
     uint64_t used;
 };
 
-typedef struct reiserfs_oid40 reiserfs_oid40_t;
+typedef struct oid40 oid40_t;
 
 #define oid40_get_next(area)			LE64_TO_CPU(*((uint64_t *)area))
 #define oid40_set_next(area, val)		(*((uint64_t *)area) = CPU_TO_LE64(val))

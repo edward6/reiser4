@@ -14,14 +14,14 @@
 #ifndef ENABLE_COMPACT
 
 /* Forms master super block disk structure */
-reiserfs_master_t *reiserfs_master_create(
+reiser4_master_t *reiser4_master_create(
     aal_device_t *device,	    /* device master will be created on */
-    reiserfs_id_t format_pid,	    /* disk format plugin id to be used */
+    reiser4_id_t format_pid,	    /* disk format plugin id to be used */
     unsigned int blocksize,	    /* blocksize to be used */
     const char *uuid,		    /* uuid to be used */
     const char *label		    /* filesystem label to be used */
 ) {
-    reiserfs_master_t *master;
+    reiser4_master_t *master;
     
     aal_assert("umka-981", device != NULL, return NULL);
     
@@ -32,14 +32,14 @@ reiserfs_master_t *reiserfs_master_create(
     master->device = device;
     
     if (!(master->block = aal_block_alloc(device, 
-	    REISERFS_MASTER_OFFSET / blocksize, 0)))
+	    REISER4_MASTER_OFFSET / blocksize, 0)))
 	goto error_free_master;
     
-    master->super = (reiserfs_master_super_t *)master->block->data;
+    master->super = (reiser4_master_super_t *)master->block->data;
     
     /* Setting up magic */
-    aal_strncpy(master->super->mr_magic, REISERFS_MASTER_MAGIC,
-	aal_strlen(REISERFS_MASTER_MAGIC));
+    aal_strncpy(master->super->mr_magic, REISER4_MASTER_MAGIC,
+	aal_strlen(REISER4_MASTER_MAGIC));
     
     /* Setting up uuid and label */
     if (uuid) {
@@ -66,14 +66,14 @@ error_free_master:
 }
 
 /* This function checks master super block for validness */
-errno_t reiserfs_master_valid(reiserfs_master_t *master) {
+errno_t reiser4_master_valid(reiser4_master_t *master) {
     aal_assert("umka-898", master != NULL, return -1);
     return 0;
 }
 
 /* Callback function for comparing plugins */
 static errno_t callback_try_for_guess(
-    reiserfs_plugin_t *plugin,	    /* plugin to be checked */
+    reiser4_plugin_t *plugin,	    /* plugin to be checked */
     void *data			    /* needed plugin type */
 ) {
     if (plugin->h.type == FORMAT_PLUGIN_TYPE) {
@@ -87,25 +87,25 @@ static errno_t callback_try_for_guess(
     return 0;
 }
 
-reiserfs_plugin_t *reiserfs_master_guess(aal_device_t *device) {
+reiser4_plugin_t *reiser4_master_guess(aal_device_t *device) {
     return libreiser4_factory_suitable(callback_try_for_guess, device);
 }
 
 #endif
 
 /* Makes probing of reiser4 master super block on given device */
-int reiserfs_master_confirm(aal_device_t *device) {
+int reiser4_master_confirm(aal_device_t *device) {
     blk_t offset;
     aal_block_t *block;
-    reiserfs_master_super_t *super;
+    reiser4_master_super_t *super;
     
     aal_assert("umka-901", device != NULL, return 0);
     
-    offset = (blk_t)(REISERFS_MASTER_OFFSET / 
-	REISERFS_DEFAULT_BLOCKSIZE);
+    offset = (blk_t)(REISER4_MASTER_OFFSET / 
+	REISER4_DEFAULT_BLOCKSIZE);
 
     /* Setting up default block size (4096) to used device */
-    aal_device_set_bs(device, REISERFS_DEFAULT_BLOCKSIZE);
+    aal_device_set_bs(device, REISER4_DEFAULT_BLOCKSIZE);
     
     /* Reading the block where master super block lies */
     if (!(block = aal_block_read(device, offset))) {
@@ -114,9 +114,9 @@ int reiserfs_master_confirm(aal_device_t *device) {
 	return 0;
     }
     
-    super = (reiserfs_master_super_t *)block->data;
+    super = (reiser4_master_super_t *)block->data;
 
-    if (aal_strncmp(super->mr_magic, REISERFS_MASTER_MAGIC, 4) == 0) {
+    if (aal_strncmp(super->mr_magic, REISER4_MASTER_MAGIC, 4) == 0) {
 
 	if (aal_device_set_bs(device, get_mr_blocksize(super))) {
 	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
@@ -138,20 +138,20 @@ error_free_block:
 }
 
 /* Reads master super block from disk */
-reiserfs_master_t *reiserfs_master_open(aal_device_t *device) {
+reiser4_master_t *reiser4_master_open(aal_device_t *device) {
     blk_t offset;
-    reiserfs_master_t *master;
+    reiser4_master_t *master;
     
     aal_assert("umka-143", device != NULL, return NULL);
     
     if (!(master = aal_calloc(sizeof(*master), 0)))
 	return NULL;
     
-    offset = (blk_t)(REISERFS_MASTER_OFFSET / 
-	REISERFS_DEFAULT_BLOCKSIZE);
+    offset = (blk_t)(REISER4_MASTER_OFFSET / 
+	REISER4_DEFAULT_BLOCKSIZE);
 
     /* Setting up default block size (4096) to used device */
-    aal_device_set_bs(device, REISERFS_DEFAULT_BLOCKSIZE);
+    aal_device_set_bs(device, REISER4_DEFAULT_BLOCKSIZE);
     
     /* Reading the block where master super block lies */
     if (!(master->block = aal_block_read(device, offset))) {
@@ -161,24 +161,24 @@ reiserfs_master_t *reiserfs_master_open(aal_device_t *device) {
     }
     
     master->device = device;
-    master->super = (reiserfs_master_super_t *)master->block->data;
+    master->super = (reiser4_master_super_t *)master->block->data;
 
     /* Checking for reiser3 disk-format */
-    if (aal_strncmp(master->super->mr_magic, REISERFS_MASTER_MAGIC, 4) != 0) {
+    if (aal_strncmp(master->super->mr_magic, REISER4_MASTER_MAGIC, 4) != 0) {
 	/* 
 	    Reiser4 doesn't found on passed device. In this point should be 
 	    called function which detectes used format on th device.
 	*/
 #ifndef ENABLE_COMPACT
 	{
-	    reiserfs_plugin_t *plugin;
+	    reiser4_plugin_t *plugin;
 	    
-	    if (!(plugin = reiserfs_master_guess(device)))
+	    if (!(plugin = reiser4_master_guess(device)))
 		goto error_free_block;
 	    
 	    /* Creating in-memory master super block */
-	    if (!(master = reiserfs_master_create(device, plugin->h.id, 
-		REISERFS_DEFAULT_BLOCKSIZE, NULL, NULL)))
+	    if (!(master = reiser4_master_create(device, plugin->h.id, 
+		REISER4_DEFAULT_BLOCKSIZE, NULL, NULL)))
 	    {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't find reiser4 nor reiser3 filesystem.");
@@ -205,8 +205,8 @@ error_free_master:
 #ifndef ENABLE_COMPACT
 
 /* Saves master super block to device. */
-errno_t reiserfs_master_sync(
-    reiserfs_master_t *master	    /* master to be saved */
+errno_t reiser4_master_sync(
+    reiser4_master_t *master	    /* master to be saved */
 ) {
     aal_assert("umka-145", master != NULL, return -1);
     aal_assert("umka-900", master->device != NULL, return -1);
@@ -228,8 +228,8 @@ errno_t reiserfs_master_sync(
 #endif
 
 /* Frees master super block occupied memory */
-void reiserfs_master_close(
-    reiserfs_master_t *master		/* master to be closed */
+void reiser4_master_close(
+    reiser4_master_t *master		/* master to be closed */
 ) {
     aal_assert("umka-147", master != NULL, return);
 
@@ -237,28 +237,28 @@ void reiserfs_master_close(
     aal_free(master);
 }
 
-char *reiserfs_master_magic(reiserfs_master_t *master) {
+char *reiser4_master_magic(reiser4_master_t *master) {
     aal_assert("umka-982", master != NULL, return NULL);
 
     return master->super->mr_magic;
 }
 
-reiserfs_id_t reiserfs_master_format(reiserfs_master_t *master) {
+reiser4_id_t reiser4_master_format(reiser4_master_t *master) {
     aal_assert("umka-982", master != NULL, return INVALID_PLUGIN_ID);
     return get_mr_format_id(master->super);
 }
 
-uint32_t reiserfs_master_blocksize(reiserfs_master_t *master) {
+uint32_t reiser4_master_blocksize(reiser4_master_t *master) {
     aal_assert("umka-983", master != NULL, return 0);
     return get_mr_blocksize(master->super);
 }
 
-char *reiserfs_master_uuid(reiserfs_master_t *master) {
+char *reiser4_master_uuid(reiser4_master_t *master) {
     aal_assert("umka-984", master != NULL, return 0);
     return master->super->mr_uuid;
 }
 
-char *reiserfs_master_label(reiserfs_master_t *master) {
+char *reiser4_master_label(reiser4_master_t *master) {
     aal_assert("umka-985", master != NULL, return 0);
     return master->super->mr_label;
 }

@@ -1,4 +1,4 @@
-This is a library for reiserfs filesystem access and manipulations.
+This is a library for reiser4 filesystem access and manipulations.
 
 Send reiser4progs bug reports, requests for help, feature requests, 
 comments, etc. to reiserfs-list@namesys.com, vitaly@namesys.com,

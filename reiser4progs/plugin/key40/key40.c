@@ -8,26 +8,26 @@
 #include <reiser4/plugin.h>
 #include "key40.h"
 
-static reiserfs_core_t *core = NULL;
+static reiser4_core_t *core = NULL;
 
-static const reiserfs_key40_t MINIMAL_KEY = {
+static const key40_t MINIMAL_KEY = {
     .el = { 0ull, 0ull, 0ull }
 };
 
-static const reiserfs_key40_t MAXIMAL_KEY = {
+static const key40_t MAXIMAL_KEY = {
     .el = { ~0ull, ~0ull, ~0ull }
 };
 
-static reiserfs_body_t *key40_minimal(void) {
-    return (reiserfs_key40_t *)&MINIMAL_KEY;
+static reiser4_body_t *key40_minimal(void) {
+    return (key40_t *)&MINIMAL_KEY;
 }
 
-static reiserfs_body_t *key40_maximal(void) {
-    return (reiserfs_key40_t *)&MAXIMAL_KEY;
+static reiser4_body_t *key40_maximal(void) {
+    return (key40_t *)&MAXIMAL_KEY;
 }
 
-static int key40_compare_short(reiserfs_key40_t *key1, 
-    reiserfs_key40_t *key2) 
+static int key40_compare_short(key40_t *key1, 
+    key40_t *key2) 
 {
     int result;
 
@@ -37,17 +37,17 @@ static int key40_compare_short(reiserfs_key40_t *key1,
     return k40_comp_el(key1, key2, 1);
 }
 
-static int key40_compare(reiserfs_body_t *body1, 
-    reiserfs_body_t *body2) 
+static int key40_compare(reiser4_body_t *body1, 
+    reiser4_body_t *body2) 
 {
     int result;
-    reiserfs_key40_t *key1, *key2;
+    key40_t *key1, *key2;
 
     aal_assert("vpf-135", body1 != NULL, return -1);
     aal_assert("vpf-136", body2 != NULL, return -1);
     
-    key1 = (reiserfs_key40_t *)body1;
-    key2 = (reiserfs_key40_t *)body2;
+    key1 = (key40_t *)body1;
+    key2 = (key40_t *)body2;
     
     if ((result = key40_compare_short(key1, key2)) != 0)
 	return result;
@@ -55,83 +55,83 @@ static int key40_compare(reiserfs_body_t *body1,
     return k40_comp_el(key1, key2, 2);
 }
 
-static int key40_confirm(reiserfs_body_t *body) {
+static int key40_confirm(reiser4_body_t *body) {
     aal_assert("vpf-137", body != NULL, return -1);
     return 1;
 }
 
-static errno_t key40_valid(reiserfs_body_t *body, 
+static errno_t key40_valid(reiser4_body_t *body, 
     int flags) 
 {
     aal_assert("vpf-137", body != NULL, return -1);
     return -1;
 }
 
-static void key40_set_type(reiserfs_body_t *body, 
+static void key40_set_type(reiser4_body_t *body, 
     uint32_t type)
 {
     aal_assert("umka-634", body != NULL, return);
-    k40_set_type((reiserfs_key40_t *)body, (reiserfs_key40_minor_t)type);
+    k40_set_type((key40_t *)body, (reiser4_key40_minor_t)type);
 }
 
-static uint32_t key40_get_type(reiserfs_body_t *body) {
+static uint32_t key40_get_type(reiser4_body_t *body) {
     aal_assert("umka-635", body != NULL, return 0);
-    return (uint32_t)k40_get_type((reiserfs_key40_t *)body);
+    return (uint32_t)k40_get_type((key40_t *)body);
 }
 
-static void key40_set_locality(reiserfs_body_t *body, 
+static void key40_set_locality(reiser4_body_t *body, 
     oid_t locality) 
 {
     aal_assert("umka-636", body != NULL, return);
-    k40_set_locality((reiserfs_key40_t *)body, (uint64_t)locality);
+    k40_set_locality((key40_t *)body, (uint64_t)locality);
 }
 
-static oid_t key40_get_locality(reiserfs_body_t *body) {
+static oid_t key40_get_locality(reiser4_body_t *body) {
     aal_assert("umka-637", body != NULL, return 0);
-    return (oid_t)k40_get_locality((reiserfs_key40_t *)body);
+    return (oid_t)k40_get_locality((key40_t *)body);
 }
     
-static void key40_set_objectid(reiserfs_body_t *body, 
+static void key40_set_objectid(reiser4_body_t *body, 
     oid_t objectid) 
 {
     aal_assert("umka-638", body != NULL, return);
-    k40_set_objectid((reiserfs_key40_t *)body, (uint64_t)objectid);
+    k40_set_objectid((key40_t *)body, (uint64_t)objectid);
 }
 
-static oid_t key40_get_objectid(reiserfs_body_t *body) {
+static oid_t key40_get_objectid(reiser4_body_t *body) {
     aal_assert("umka-639", body != NULL, return 0);
-    return (oid_t)k40_get_objectid((reiserfs_key40_t *)body);
+    return (oid_t)k40_get_objectid((key40_t *)body);
 }
 
-static void key40_set_offset(reiserfs_body_t *body, 
+static void key40_set_offset(reiser4_body_t *body, 
     uint64_t offset)
 {
     aal_assert("umka-640", body != NULL, return);
-    k40_set_offset((reiserfs_key40_t *)body, offset);
+    k40_set_offset((key40_t *)body, offset);
 }
 
-static uint64_t key40_get_offset(reiserfs_body_t *body) {
+static uint64_t key40_get_offset(reiser4_body_t *body) {
     aal_assert("umka-641", body != NULL, return 0);
-    return k40_get_offset((reiserfs_key40_t *)body);
+    return k40_get_offset((key40_t *)body);
 }
 
-static void key40_set_hash(reiserfs_body_t *body, 
+static void key40_set_hash(reiser4_body_t *body, 
     uint64_t hash)
 {
     aal_assert("vpf-129", body != NULL, return);
-    k40_set_hash((reiserfs_key40_t *)body, hash);
+    k40_set_hash((key40_t *)body, hash);
 }
 
-static uint64_t key40_get_hash(reiserfs_body_t *body) {
+static uint64_t key40_get_hash(reiser4_body_t *body) {
     aal_assert("vpf-130", body != NULL, return 0);
-    return k40_get_hash((reiserfs_key40_t *)body);
+    return k40_get_hash((key40_t *)body);
 }
 
 static uint8_t key40_size(void) {
-    return sizeof(reiserfs_key40_t);
+    return sizeof(key40_t);
 }
 
-static void key40_clean(reiserfs_body_t *body) {
+static void key40_clean(reiser4_body_t *body) {
     aal_assert("vpf-139", body != NULL, return);
     aal_memset(body, 0, key40_size());
 }
@@ -154,8 +154,8 @@ static uint64_t key40_pack_string(const char *name,
     return str;
 }
 
-static errno_t key40_build_hash(reiserfs_key40_t *key,
-    reiserfs_plugin_t *hash_plugin, const char *name) 
+static errno_t key40_build_hash(key40_t *key,
+    reiser4_plugin_t *hash_plugin, const char *name) 
 {
     uint16_t len;
     
@@ -189,11 +189,11 @@ static errno_t key40_build_hash(reiserfs_key40_t *key,
     return 0;
 }
 
-static errno_t key40_build_direntry(reiserfs_body_t *body, 
-    reiserfs_plugin_t *hash_plugin, oid_t locality, 
+static errno_t key40_build_direntry(reiser4_body_t *body, 
+    reiser4_plugin_t *hash_plugin, oid_t locality, 
     oid_t objectid, const char *name) 
 {
-    reiserfs_key40_t *key = (reiserfs_key40_t *)body;
+    key40_t *key = (key40_t *)body;
     
     aal_assert("vpf-140", body != NULL, return -1);
     aal_assert("umka-667", name != NULL, return -1);
@@ -209,10 +209,10 @@ static errno_t key40_build_direntry(reiserfs_body_t *body,
     return 0;
 }
 
-static errno_t key40_build_entryid(reiserfs_body_t *body, 
-    reiserfs_plugin_t *hash_plugin, const char *name) 
+static errno_t key40_build_entryid(reiser4_body_t *body, 
+    reiser4_plugin_t *hash_plugin, const char *name) 
 {
-    reiserfs_key40_t key;    
+    key40_t key;    
     
     aal_assert("vpf-142", body != NULL, return -1);
     
@@ -225,34 +225,34 @@ static errno_t key40_build_entryid(reiserfs_body_t *body,
     return 0;
 }
 
-static errno_t key40_build_generic(reiserfs_body_t *body, 
+static errno_t key40_build_generic(reiser4_body_t *body, 
     uint32_t type, oid_t locality, oid_t objectid, uint64_t offset) 
 {
-    reiserfs_key40_t *key = (reiserfs_key40_t *)body;
+    key40_t *key = (key40_t *)body;
     
     aal_assert("vpf-141", body != NULL, return -1);
 
     key40_clean(key);
     
     k40_set_locality(key, locality);
-    k40_set_type(key, (reiserfs_key40_minor_t)type);
+    k40_set_type(key, (reiser4_key40_minor_t)type);
     k40_set_objectid(key, objectid);
     k40_set_offset(key, offset);
 
     return 0;
 }
 
-static errno_t key40_build_objid(reiserfs_body_t *body, uint32_t type, 
+static errno_t key40_build_objid(reiser4_body_t *body, uint32_t type, 
     oid_t locality, oid_t objectid)
 {
-    reiserfs_key40_t key;
+    key40_t key;
     
     aal_assert("vpf-143", body != NULL, return -1);
     
     key40_clean(&key);
 
     k40_set_locality(&key, locality);
-    k40_set_type(&key, (reiserfs_key40_minor_t)type);
+    k40_set_type(&key, (reiser4_key40_minor_t)type);
     k40_set_objectid(&key, objectid);
     
     aal_memset(body, 0, sizeof(uint64_t)*2);
@@ -261,10 +261,10 @@ static errno_t key40_build_objid(reiserfs_body_t *body, uint32_t type,
     return 0;
 }
 
-static errno_t key40_build_by_entry(reiserfs_body_t *body, 
+static errno_t key40_build_by_entry(reiser4_body_t *body, 
     void *data)
 {
-    reiserfs_key40_t *key = (reiserfs_key40_t *)body;
+    key40_t *key = (key40_t *)body;
     
     aal_assert("umka-877", body != NULL, return -1);
     aal_assert("umka-878", data != NULL, return -1);
@@ -275,7 +275,7 @@ static errno_t key40_build_by_entry(reiserfs_body_t *body,
     return 0;
 }
 
-static reiserfs_plugin_t key40_plugin = {
+static reiser4_plugin_t key40_plugin = {
     .key_ops = {
 	.h = {
 	    .handle = NULL,
@@ -318,7 +318,7 @@ static reiserfs_plugin_t key40_plugin = {
     }
 };
 
-static reiserfs_plugin_t *key40_start(reiserfs_core_t *c) {
+static reiser4_plugin_t *key40_start(reiser4_core_t *c) {
     core = c;
     return &key40_plugin;
 }

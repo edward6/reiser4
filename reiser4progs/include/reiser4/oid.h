@@ -14,27 +14,27 @@
 #include <aal/aal.h>
 #include <reiser4/filesystem.h>
 
-extern reiserfs_oid_t *reiserfs_oid_open(reiserfs_format_t *format);
-extern void reiserfs_oid_close(reiserfs_oid_t *oid);
-extern errno_t reiserfs_oid_valid(reiserfs_oid_t *oid, int flags);
+extern reiser4_oid_t *reiser4_oid_open(reiser4_format_t *format);
+extern void reiser4_oid_close(reiser4_oid_t *oid);
+extern errno_t reiser4_oid_valid(reiser4_oid_t *oid, int flags);
 
 #ifndef ENABLE_COMPACT
 
-extern reiserfs_oid_t *reiserfs_oid_create(reiserfs_format_t *format);
+extern reiser4_oid_t *reiser4_oid_create(reiser4_format_t *format);
 
-extern errno_t reiserfs_oid_sync(reiserfs_oid_t *oid);
+extern errno_t reiser4_oid_sync(reiser4_oid_t *oid);
 
-extern uint64_t reiserfs_oid_alloc(reiserfs_oid_t *oid);
-extern void reiserfs_oid_dealloc(reiserfs_oid_t *oid, uint64_t id);
+extern uint64_t reiser4_oid_alloc(reiser4_oid_t *oid);
+extern void reiser4_oid_dealloc(reiser4_oid_t *oid, uint64_t id);
 
 #endif
 
-extern uint64_t reiserfs_oid_free(reiserfs_oid_t *oid);
-extern uint64_t reiserfs_oid_used(reiserfs_oid_t *oid);
+extern uint64_t reiser4_oid_free(reiser4_oid_t *oid);
+extern uint64_t reiser4_oid_used(reiser4_oid_t *oid);
 
-extern oid_t reiserfs_oid_root_locality(reiserfs_oid_t *oid);
-extern oid_t reiserfs_oid_root_objectid(reiserfs_oid_t *oid);
-extern oid_t reiserfs_oid_root_parent_locality(reiserfs_oid_t *oid);
+extern oid_t reiser4_oid_root_locality(reiser4_oid_t *oid);
+extern oid_t reiser4_oid_root_objectid(reiser4_oid_t *oid);
+extern oid_t reiser4_oid_root_parent_locality(reiser4_oid_t *oid);
 
 #endif
 

@@ -1,5 +1,5 @@
 /*
-    alloc36.h -- Space allocator plugin for reiserfs 3.6.x.
+    alloc36.h -- Space allocator plugin for reiser3.6.x.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -9,11 +9,11 @@
 
 #include <aal/aal.h>
 
-struct reiserfs_alloc36 {
+struct reiser4_alloc36 {
     aal_device_t *device;
 };
 
-typedef struct reiserfs_alloc36 reiserfs_alloc36_t;
+typedef struct reiser4_alloc36 reiser4_alloc36_t;
 
 #endif
 

@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <reiser4/reiser4.h>
 
-static reiserfs_profile_t reiser4profiles[] = {
+static reiser4_profile_t reiser4profiles[] = {
     [0] = {
 	.label = "default40",
         .desc = "Profile for reiser4 with smart drop policy",
@@ -107,14 +107,14 @@ static reiserfs_profile_t reiser4profiles[] = {
 };
 
 /* Finds profile by its name */
-reiserfs_profile_t *progs_profile_find(
+reiser4_profile_t *progs_profile_find(
     const char *profile		    /* needed profile name */
 ) {
     unsigned i;
     
     aal_assert("vpf-104", profile != NULL, return NULL);
     
-    for (i = 0; i < (sizeof(reiser4profiles) / sizeof(reiserfs_profile_t)); i++) {
+    for (i = 0; i < (sizeof(reiser4profiles) / sizeof(reiser4_profile_t)); i++) {
 	if (!aal_strncmp(reiser4profiles[i].label, profile, strlen(reiser4profiles[i].label)))
 	    return &reiser4profiles[i];
     }
@@ -127,13 +127,13 @@ void progs_profile_list(void) {
     unsigned i;
     
     printf("\nKnown profiles are:\n");
-    for (i = 0; i < (sizeof(reiser4profiles) / sizeof(reiserfs_profile_t)); i++)
+    for (i = 0; i < (sizeof(reiser4profiles) / sizeof(reiser4_profile_t)); i++)
 	printf("%s: %s.\n", reiser4profiles[i].label, reiser4profiles[i].desc);
     printf("\n");
 }
 
 /* 0 profile is the default one. */
-reiserfs_profile_t *progs_profile_default() {
+reiser4_profile_t *progs_profile_default() {
     return &reiser4profiles[0];
 }
 
@@ -184,7 +184,7 @@ static char *progs_plugin_name[] = {
     "KEY"
 };
 
-static reiserfs_id_t *progs_profile_field(reiserfs_profile_t *profile, 
+static reiser4_id_t *progs_profile_field(reiser4_profile_t *profile, 
     progs_plugin_type_t type) 
 {
     aal_assert("umka-920", profile != NULL, return NULL);
@@ -238,7 +238,7 @@ static reiserfs_id_t *progs_profile_field(reiserfs_profile_t *profile,
     return NULL;
 }
 
-static reiserfs_plugin_type_t progs_profile_it2pt(progs_plugin_type_t type) {
+static reiser4_plugin_type_t progs_profile_it2pt(progs_plugin_type_t type) {
 
     if (type >= PROGS_LAST_PLUGIN) 
 	return 0xffff;
@@ -337,13 +337,13 @@ static char *progs_profile_it2name(progs_plugin_type_t type) {
     return (type >= PROGS_LAST_PLUGIN) ? NULL : progs_plugin_name[type];
 }
 
-errno_t progs_profile_override(reiserfs_profile_t *profile, 
+errno_t progs_profile_override(reiser4_profile_t *profile, 
     const char *type, const char *name) 
 {
-    reiserfs_id_t *field;
+    reiser4_id_t *field;
     progs_plugin_type_t it;
-    reiserfs_plugin_type_t pt;
-    reiserfs_plugin_t *plugin;
+    reiser4_plugin_type_t pt;
+    reiser4_plugin_t *plugin;
 
     aal_assert("umka-922", profile != NULL, return -1);
     aal_assert("umka-923", type != NULL, return -1);
@@ -375,9 +375,9 @@ errno_t progs_profile_override(reiserfs_profile_t *profile,
     return 0;
 }
 
-void progs_profile_print(reiserfs_profile_t *profile) {
+void progs_profile_print(reiser4_profile_t *profile) {
     int i;
-    reiserfs_plugin_t *plugin;
+    reiser4_plugin_t *plugin;
 
     aal_assert("umka-925", profile != NULL, return);
 	

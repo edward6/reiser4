@@ -18,12 +18,12 @@
     Opens disk-format on specified device. Actually it just calls specified by
     "pid" disk-format plugin and that plugin makes all dirty work.
 */
-reiserfs_format_t *reiserfs_format_open(
+reiser4_format_t *reiser4_format_open(
     aal_device_t *device,	/* device disk-format instance will be opened on */
-    reiserfs_id_t pid		/* disk-format plugin id to be used */
+    reiser4_id_t pid		/* disk-format plugin id to be used */
 ) {
-    reiserfs_format_t *format;
-    reiserfs_plugin_t *plugin;
+    reiser4_format_t *format;
+    reiser4_plugin_t *plugin;
 	
     aal_assert("umka-104", device != NULL, return NULL);
     
@@ -59,14 +59,14 @@ error_free_format:
 #ifndef ENABLE_COMPACT
 
 /* Creates disk-format structures on specified device */
-reiserfs_format_t *reiserfs_format_create(
+reiser4_format_t *reiser4_format_create(
     aal_device_t *device,	/* device disk-format will be created on */
     count_t len,		/* filesystem length in blocks */
     uint16_t drop_policy,	/* drop policy to be used */
-    reiserfs_id_t pid		/* disk-format plugin id to be used */
+    reiser4_id_t pid		/* disk-format plugin id to be used */
 ) {
-    reiserfs_format_t *format;
-    reiserfs_plugin_t *plugin;
+    reiser4_format_t *format;
+    reiser4_plugin_t *plugin;
 		
     aal_assert("umka-105", device != NULL, return NULL);
 
@@ -103,8 +103,8 @@ error_free_format:
 }
 
 /* Saves passed format on its device */
-errno_t reiserfs_format_sync(
-    reiserfs_format_t *format	/* disk-format to be saved */
+errno_t reiser4_format_sync(
+    reiser4_format_t *format	/* disk-format to be saved */
 ) {
     aal_assert("umka-107", format != NULL, return -1);
     
@@ -113,8 +113,8 @@ errno_t reiserfs_format_sync(
 }
 
 /* Checks passed disk-format for validness */
-errno_t reiserfs_format_valid(
-    reiserfs_format_t *format,	/* format to be checked */
+errno_t reiser4_format_valid(
+    reiser4_format_t *format,	/* format to be checked */
     int flags			/* some flags (not used at the moment) */
 ) {
     aal_assert("umka-829", format != NULL, return -1);
@@ -124,9 +124,9 @@ errno_t reiserfs_format_valid(
 }
 
 /* Marks format area as used */
-errno_t reiserfs_format_mark(
-    reiserfs_format_t *format,	    /* format function works with */
-    reiserfs_alloc_t *alloc	    /* block allocator */
+errno_t reiser4_format_mark(
+    reiser4_format_t *format,	    /* format function works with */
+    reiser4_alloc_t *alloc	    /* block allocator */
 ) {
     blk_t blk;
     blk_t master_offset;
@@ -136,11 +136,11 @@ errno_t reiserfs_format_mark(
     aal_assert("umka-975", alloc != NULL, return -1);
     
     /* Getting master super block offset */
-    master_offset = (blk_t)(REISERFS_MASTER_OFFSET / 
+    master_offset = (blk_t)(REISER4_MASTER_OFFSET / 
 	aal_device_get_bs(format->device));
     
     /* Getting format-specific super block offset */
-    format_offset = reiserfs_format_offset(format);
+    format_offset = reiser4_format_offset(format);
 
     if (format_offset < master_offset) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -151,15 +151,15 @@ errno_t reiserfs_format_mark(
     }
     
     for (blk = 0; blk <= format_offset; blk++)
-	reiserfs_alloc_mark(alloc, blk);
+	reiser4_alloc_mark(alloc, blk);
 
     return 0;
 }
 
 /* Marks journal area as used */
-errno_t reiserfs_format_mark_journal(
-    reiserfs_format_t *format,	    /* format we will working with */
-    reiserfs_alloc_t *alloc	    /* block allocator */
+errno_t reiser4_format_mark_journal(
+    reiser4_format_t *format,	    /* format we will working with */
+    reiser4_alloc_t *alloc	    /* block allocator */
 ) {
     blk_t blk;
     blk_t journal_start;
@@ -172,7 +172,7 @@ errno_t reiserfs_format_mark_journal(
 	journal_area, format->entity, &journal_start, &journal_end);
     
     for (blk = journal_start; blk <= journal_end; blk++)
-	reiserfs_alloc_mark(alloc, blk);
+	reiser4_alloc_mark(alloc, blk);
     
     return 0;
 }
@@ -180,23 +180,23 @@ errno_t reiserfs_format_mark_journal(
 #endif
 
 /* Reopens disk-format on specified device */
-reiserfs_format_t *reiserfs_format_reopen(
-    reiserfs_format_t *format,	/* format to be reopened */
+reiser4_format_t *reiser4_format_reopen(
+    reiser4_format_t *format,	/* format to be reopened */
     aal_device_t *device	/* device format will be reopened on */
 ) {
-    reiserfs_plugin_t *plugin;
+    reiser4_plugin_t *plugin;
 
     aal_assert("umka-428", format != NULL, return NULL);
 
     plugin = format->plugin;
     
-    reiserfs_format_close(format);
-    return reiserfs_format_open(device, plugin->h.id);
+    reiser4_format_close(format);
+    return reiser4_format_open(device, plugin->h.id);
 }
 
 /* Closes passed disk-format */
-void reiserfs_format_close(
-    reiserfs_format_t *format	/* format to be closed */
+void reiser4_format_close(
+    reiser4_format_t *format	/* format to be closed */
 ) {
     aal_assert("umka-109", format != NULL, return);
    
@@ -208,8 +208,8 @@ error_free_format:
 }
 
 /* Confirms disk-format (simple check) */
-int reiserfs_format_confirm(
-    reiserfs_format_t *format	/* format to be checked */
+int reiser4_format_confirm(
+    reiser4_format_t *format	/* format to be checked */
 ) {
     aal_assert("umka-832", format != NULL, return 0);
 
@@ -218,8 +218,8 @@ int reiserfs_format_confirm(
 }
 
 /* Returns string described used disk-format */
-const char *reiserfs_format_name(
-    reiserfs_format_t *format	/* disk-format to be inspected */
+const char *reiser4_format_name(
+    reiser4_format_t *format	/* disk-format to be inspected */
 ) {
     aal_assert("umka-111", format != NULL, return NULL);
 	
@@ -228,8 +228,8 @@ const char *reiserfs_format_name(
 }
 
 /* Retutns position in blocks where format lies */
-blk_t reiserfs_format_offset(
-    reiserfs_format_t *format	/* disk-format to be used */
+blk_t reiser4_format_offset(
+    reiser4_format_t *format	/* disk-format to be used */
 ) {
     aal_assert("umka-360", format != NULL, return 0);
     
@@ -238,8 +238,8 @@ blk_t reiserfs_format_offset(
 }
 
 /* Returns root block from passed disk-format */
-blk_t reiserfs_format_get_root(
-    reiserfs_format_t *format	/* format to be used */
+blk_t reiser4_format_get_root(
+    reiser4_format_t *format	/* format to be used */
 ) {
     aal_assert("umka-113", format != NULL, return 0);
 
@@ -248,8 +248,8 @@ blk_t reiserfs_format_get_root(
 }
 
 /* Returns filesystem length in blocks from passed disk-format */
-count_t reiserfs_format_get_len(
-    reiserfs_format_t *format	/* disk-format to be inspected */
+count_t reiser4_format_get_len(
+    reiser4_format_t *format	/* disk-format to be inspected */
 ) {
     aal_assert("umka-360", format != NULL, return 0);
     
@@ -258,8 +258,8 @@ count_t reiserfs_format_get_len(
 }
 
 /* Returns number of free blocks */
-count_t reiserfs_format_get_free(
-    reiserfs_format_t *format	/* format to be used */
+count_t reiser4_format_get_free(
+    reiser4_format_t *format	/* format to be used */
 ) {
     aal_assert("umka-426", format != NULL, return 0);
     
@@ -268,8 +268,8 @@ count_t reiserfs_format_get_free(
 }
 
 /* Returns tree height */
-uint16_t reiserfs_format_get_height(
-    reiserfs_format_t *format	/* format to be inspected */
+uint16_t reiser4_format_get_height(
+    reiser4_format_t *format	/* format to be inspected */
 ) {
     aal_assert("umka-557", format != NULL, return 0);
     
@@ -280,8 +280,8 @@ uint16_t reiserfs_format_get_height(
 #ifndef ENABLE_COMPACT
 
 /* Sets new root block */
-void reiserfs_format_set_root(
-    reiserfs_format_t *format,	/* format new root blocks will be set in */
+void reiser4_format_set_root(
+    reiser4_format_t *format,	/* format new root blocks will be set in */
     blk_t root			/* new root block */
 ) {
     aal_assert("umka-420", format != NULL, return);
@@ -291,8 +291,8 @@ void reiserfs_format_set_root(
 }
 
 /* Sets new filesystem length */
-void reiserfs_format_set_len(
-    reiserfs_format_t *format,	/* format instance to be used */
+void reiser4_format_set_len(
+    reiser4_format_t *format,	/* format instance to be used */
     count_t blocks		/* new length in blocks */
 ) {
     aal_assert("umka-422", format != NULL, return);
@@ -302,8 +302,8 @@ void reiserfs_format_set_len(
 }
 
 /* Sets free block count */
-void reiserfs_format_set_free(
-    reiserfs_format_t *format,	/* format to be used */
+void reiser4_format_set_free(
+    reiser4_format_t *format,	/* format to be used */
     count_t blocks		/* new free block count */
 ) {
     aal_assert("umka-424", format != NULL, return);
@@ -313,8 +313,8 @@ void reiserfs_format_set_free(
 }
 
 /* Sets new tree height */
-void reiserfs_format_set_height(
-    reiserfs_format_t *format,	/* format to be used */
+void reiser4_format_set_height(
+    reiser4_format_t *format,	/* format to be used */
     uint8_t height		/* new tree height */
 ) {
     aal_assert("umka-559", format != NULL, return);
@@ -326,8 +326,8 @@ void reiserfs_format_set_height(
 #endif
 
 /* Returns jouranl plugin id in use */
-reiserfs_id_t reiserfs_format_journal_pid(
-    reiserfs_format_t *format	/* disk-format journal pid will be obtained from */
+reiser4_id_t reiser4_format_journal_pid(
+    reiser4_format_t *format	/* disk-format journal pid will be obtained from */
 ) {
     aal_assert("umka-115", format != NULL, return -1);
 	
@@ -336,8 +336,8 @@ reiserfs_id_t reiserfs_format_journal_pid(
 }
 
 /* Returns block allocator plugin id in use */
-reiserfs_id_t reiserfs_format_alloc_pid(
-    reiserfs_format_t *format	/* disk-format allocator pid will be obtained from */
+reiser4_id_t reiser4_format_alloc_pid(
+    reiser4_format_t *format	/* disk-format allocator pid will be obtained from */
 ) {
     aal_assert("umka-117", format != NULL, return -1);
 	
@@ -346,8 +346,8 @@ reiserfs_id_t reiserfs_format_alloc_pid(
 }
 
 /* Returns oid allocator plugin id in use */
-reiserfs_id_t reiserfs_format_oid_pid(
-    reiserfs_format_t *format	/* disk-format oid allocator pid will be obtained from */
+reiser4_id_t reiser4_format_oid_pid(
+    reiser4_format_t *format	/* disk-format oid allocator pid will be obtained from */
 ) {
     aal_assert("umka-491", format != NULL, return -1);
 	

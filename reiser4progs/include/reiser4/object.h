@@ -1,5 +1,5 @@
 /*
-    object.h -- reiserfs object functions.
+    object.h -- reiser4 object functions.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -11,17 +11,17 @@
 #  include <config.h>
 #endif
 
-extern reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, 
+extern reiser4_object_t *reiser4_object_open(reiser4_fs_t *fs, 
     const char *name);
 
-extern void reiserfs_object_close(reiserfs_object_t *object);
+extern void reiser4_object_close(reiser4_object_t *object);
 
-extern reiserfs_plugin_t *reiserfs_object_guess(reiserfs_object_t *object);
+extern reiser4_plugin_t *reiser4_object_guess(reiser4_object_t *object);
 
 #ifndef ENABLE_COMPACT
 
-extern reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, 
-    reiserfs_plugin_t *plugin);
+extern reiser4_object_t *reiser4_object_create(reiser4_fs_t *fs, 
+    reiser4_plugin_t *plugin);
 
 #endif
 

@@ -1,4 +1,3 @@
 * all functions which return errno_t should return real errno, not just -1.
-* it is not necessary to allocate block for the tree node immediately, it might be done in flush time.
-* let key plugin work with reiserfs_key_t structure, not just with void *
+* is it necessary to allocate block for the tree node immediately? it might be done in flush time.
 

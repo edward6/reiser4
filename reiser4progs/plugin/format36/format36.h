@@ -1,5 +1,5 @@
 /*
-    format36.h -- disk-layout plugin for reiserfs 3.6.x.
+    format36.h -- disk-layout plugin for reiser3.6.x.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -9,13 +9,13 @@
 
 #include <aal/aal.h>
 
-#define REISERFS_3_5_SUPER_SIGNATURE "ReIsErFs"
-#define REISERFS_3_6_SUPER_SIGNATURE "ReIsEr2Fs"
-#define REISERFS_JR_SUPER_SIGNATURE  "ReIsEr3Fs"
+#define FORMAT36_35_MAGIC  "ReIsErFs"
+#define FORMAT36_36_MAGIC  "ReIsEr2Fs"
+#define FORMAT36_JR_MAGIC  "ReIsEr3Fs"
 
-#define REISERFS_FORMAT36_OFFSET     (65536)
+#define FORMAT36_OFFSET     (65536)
 
-struct reiserfs_journal_params {
+struct format36_journal_params {
     uint32_t jp_start;
     uint32_t jp_dev;
     uint32_t jp_len;
@@ -26,13 +26,13 @@ struct reiserfs_journal_params {
     uint32_t jp_max_trans_age;
 };
 
-typedef struct reiserfs_journal_params reiserfs_journal_params_t;
+typedef struct format36_journal_params format36_journal_params_t;
 
-struct reiserfs_super_v1 {
+struct format36_super_v1 {
     uint32_t sb_block_count;
     uint32_t sb_free_blocks;
     uint32_t sb_root_block;
-    reiserfs_journal_params_t sb_journal;
+    format36_journal_params_t sb_journal;
     uint16_t sb_block_size;
     uint16_t sb_oid_max_size;
     uint16_t sb_oid_cur_size;
@@ -46,10 +46,10 @@ struct reiserfs_super_v1 {
     uint16_t sb_reserved_for_journal;
 } __attribute__ ((__packed__));
 
-typedef struct reiserfs_super_v1 reiserfs_super_v1_t;
+typedef struct format36_super_v1 format36_super_v1_t;
 
-struct reiserfs_format36_super {
-    reiserfs_super_v1_t s_v1;
+struct format36_super {
+    format36_super_v1_t s_v1;
     uint32_t s_inode_generation;
     uint32_t s_flags;
     char s_uuid[16];
@@ -57,19 +57,19 @@ struct reiserfs_format36_super {
     char s_unused[88];
 };
 
-typedef struct reiserfs_format36_super reiserfs_format36_super_t;
+typedef struct format36_super format36_super_t;
 
-struct reiserfs_format36 {
+struct format36 {
     aal_device_t *device;
     aal_block_t *block;
 };
 
-typedef struct reiserfs_format36 reiserfs_format36_t;
+typedef struct format36 format36_t;
 
-#define format36_super(block)			((reiserfs_format36_super_t *)block->data)
+#define format36_super(block)			((format36_super_t *)block->data)
 
-#define SUPER_V1_SIZE				(sizeof(reiserfs_super_v1_t))
-#define SUPER_V2_SIZE				(sizeof(reiserfs_super_t))
+#define SUPER_V1_SIZE				(sizeof(format36_super_v1_t))
+#define SUPER_V2_SIZE				(sizeof(format36_super_t))
 
 #define get_sb_jp(sb)				(&((sb)->s_v1.sb_journal))
 

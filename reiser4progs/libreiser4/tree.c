@@ -1,5 +1,5 @@
 /*
-    tree.c -- reiserfs balanced tree code.
+    tree.c -- reiser4 balanced tree code.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -18,30 +18,30 @@
 #ifndef ENABLE_COMPACT
 
 /* Requests block allocator for new block and creates empty node in it */
-static reiserfs_cache_t *reiserfs_tree_alloc(
-    reiserfs_tree_t *tree,	    /* tree for operating on */
+static reiser4_cache_t *reiser4_tree_alloc(
+    reiser4_tree_t *tree,	    /* tree for operating on */
     uint8_t level		    /* level of new node */
 ) {
     blk_t blk;
-    reiserfs_node_t *node;
-    reiserfs_cache_t *cache;
+    reiser4_node_t *node;
+    reiser4_cache_t *cache;
     
     aal_assert("umka-756", tree != NULL, return NULL);
     
     /* Allocating the block */
-    if (!(blk = reiserfs_alloc_alloc(tree->fs->alloc))) {
+    if (!(blk = reiser4_alloc_alloc(tree->fs->alloc))) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	   "Can't allocate block for a node.");
 	return NULL;
     }
 
     /* Creating new node */
-    if (!(node = reiserfs_node_create(tree->fs->format->device, blk,
-	    reiserfs_node_get_pid(tree->cache->node), level)))
+    if (!(node = reiser4_node_create(tree->fs->format->device, blk,
+	    reiser4_node_get_pid(tree->cache->node), level)))
 	return NULL;
 
-    if (!(cache = reiserfs_cache_create(node))) {
-	reiserfs_node_close(node);
+    if (!(cache = reiser4_cache_create(node))) {
+	reiser4_node_close(node);
 	return NULL;
     }
     
@@ -50,29 +50,29 @@ static reiserfs_cache_t *reiserfs_tree_alloc(
 
 #endif
 
-static void reiserfs_tree_dealloc(reiserfs_tree_t *tree, 
-    reiserfs_cache_t *cache) 
+static void reiser4_tree_dealloc(reiser4_tree_t *tree, 
+    reiser4_cache_t *cache) 
 {
     aal_assert("umka-917", cache != NULL, return);
     aal_assert("umka-918", cache->node != NULL, return);
 
-    reiserfs_alloc_dealloc(tree->fs->alloc, 
+    reiser4_alloc_dealloc(tree->fs->alloc, 
 	aal_block_get_nr(cache->node->block));
     
-    reiserfs_cache_close(cache);
+    reiser4_cache_close(cache);
 }
 
-static reiserfs_cache_t *reiserfs_tree_load(reiserfs_tree_t *tree, 
+static reiser4_cache_t *reiser4_tree_load(reiser4_tree_t *tree, 
     blk_t blk) 
 {
-    reiserfs_node_t *node;
-    reiserfs_cache_t *cache;
+    reiser4_node_t *node;
+    reiser4_cache_t *cache;
     
-    if (!(node = reiserfs_node_open(tree->fs->format->device, blk))) 
+    if (!(node = reiser4_node_open(tree->fs->format->device, blk))) 
 	return NULL;
 	    
-    if (!(cache = reiserfs_cache_create(node))) {
-	reiserfs_node_close(node);
+    if (!(cache = reiser4_cache_create(node))) {
+	reiser4_node_close(node);
 	return NULL;
     }
     
@@ -80,7 +80,7 @@ static reiserfs_cache_t *reiserfs_tree_load(reiserfs_tree_t *tree,
 }
 
 /* Setting up the tree cache limit */
-static errno_t reiserfs_tree_setup(reiserfs_tree_t *tree) {
+static errno_t reiser4_tree_setup(reiser4_tree_t *tree) {
     aal_assert("umka-859", tree != NULL, return -1);
 
     tree->limit.cur = 0;
@@ -98,8 +98,8 @@ static errno_t reiserfs_tree_setup(reiserfs_tree_t *tree) {
 }
 
 /* Opens balanced tree (that is tree cache) on specified filesystem */
-reiserfs_tree_t *reiserfs_tree_open(reiserfs_fs_t *fs) {
-    reiserfs_tree_t *tree;
+reiser4_tree_t *reiser4_tree_open(reiser4_fs_t *fs) {
+    reiser4_tree_t *tree;
 
     aal_assert("umka-737", fs != NULL, return NULL);
 
@@ -110,14 +110,14 @@ reiserfs_tree_t *reiserfs_tree_open(reiserfs_fs_t *fs) {
     tree->fs = fs;
     
     /* Opening root node */
-    if (!(tree->cache = reiserfs_tree_load(tree, 
-	    reiserfs_format_get_root(fs->format))))
+    if (!(tree->cache = reiser4_tree_load(tree, 
+	    reiser4_format_get_root(fs->format))))
 	goto error_free_tree;
     
     tree->cache->tree = tree;
     
     /* Setting up tree cache limits */
-    if (reiserfs_tree_setup(tree)) {
+    if (reiser4_tree_setup(tree)) {
 	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
 	    "Can't initialize cache limits. Cache limit spying will be disables.");
 	tree->limit.enabled = 0;
@@ -131,7 +131,7 @@ error_free_tree:
 }
 
 /* Returns tree root cache */
-reiserfs_cache_t *reiserfs_tree_root(reiserfs_tree_t *tree) {
+reiser4_cache_t *reiser4_tree_root(reiser4_tree_t *tree) {
     aal_assert("umka-738", tree != NULL, return NULL);
     return tree->cache;
 }
@@ -139,13 +139,13 @@ reiserfs_cache_t *reiserfs_tree_root(reiserfs_tree_t *tree) {
 #ifndef ENABLE_COMPACT
 
 /* Creates new balanced tree on specified filesystem */
-reiserfs_tree_t *reiserfs_tree_create(
-    reiserfs_fs_t *fs,		    /* filesystem new tree will be created on */
-    reiserfs_profile_t *profile	    /* profile to be used */
+reiser4_tree_t *reiser4_tree_create(
+    reiser4_fs_t *fs,		    /* filesystem new tree will be created on */
+    reiser4_profile_t *profile	    /* profile to be used */
 ) {
     blk_t block_nr;
-    reiserfs_node_t *node;
-    reiserfs_tree_t *tree;
+    reiser4_node_t *node;
+    reiser4_tree_t *tree;
 
     aal_assert("umka-741", fs != NULL, return NULL);
     aal_assert("umka-749", profile != NULL, return NULL);
@@ -157,15 +157,15 @@ reiserfs_tree_t *reiserfs_tree_create(
     tree->fs = fs;
 
     /* Getting free block from block allocator for place root block in it */
-    if (!(block_nr = reiserfs_alloc_alloc(fs->alloc))) {
+    if (!(block_nr = reiser4_alloc_alloc(fs->alloc))) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	   "Can't allocate block for the root node.");
 	goto error_free_tree;
     }
 
     /* Creating root node */
-    if (!(node = reiserfs_node_create(fs->format->device, block_nr,
-        profile->node, reiserfs_format_get_height(fs->format))))
+    if (!(node = reiser4_node_create(fs->format->device, block_nr,
+        profile->node, reiser4_format_get_height(fs->format))))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create root node.");
@@ -173,13 +173,13 @@ reiserfs_tree_t *reiserfs_tree_create(
     }
 
     /* Creating cache for root node */
-    if (!(tree->cache = reiserfs_cache_create(node)))
+    if (!(tree->cache = reiser4_cache_create(node)))
 	goto error_free_node;
     
     tree->cache->tree = tree;
     
     /* Setting up tree cahce limits */
-    if (reiserfs_tree_setup(tree)) {
+    if (reiser4_tree_setup(tree)) {
 	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
 	    "Can't initialize cache limits. Cache limit spying will be disables.");
 	tree->limit.enabled = 0;
@@ -188,7 +188,7 @@ reiserfs_tree_t *reiserfs_tree_create(
     return tree;
 
 error_free_node:
-    reiserfs_node_close(node);
+    reiser4_node_close(node);
 error_free_tree:
     aal_free(tree);
     return NULL;
@@ -198,17 +198,15 @@ error_free_tree:
     Syncs whole tree cache and removes all nodes except root node from the 
     cache.
 */
-errno_t reiserfs_tree_flush(reiserfs_tree_t *tree) {
+errno_t reiser4_tree_flush(reiser4_tree_t *tree) {
 
     aal_assert("umka-573", tree != NULL, return -1);
-    
-    reiserfs_tree_sync(tree);
-    
+
     if (tree->cache->list) {
 	aal_list_t *walk;
 	
 	aal_list_foreach_forward(walk, tree->cache->list)
-	    reiserfs_cache_close((reiserfs_cache_t *)walk->item);
+	    reiser4_cache_close((reiser4_cache_t *)walk->item);
 	
 	tree->cache->list = NULL;
     }
@@ -217,19 +215,19 @@ errno_t reiserfs_tree_flush(reiserfs_tree_t *tree) {
 }
 
 /* Syncs whole tree cache */
-errno_t reiserfs_tree_sync(reiserfs_tree_t *tree) {
+errno_t reiser4_tree_sync(reiser4_tree_t *tree) {
     aal_assert("umka-560", tree != NULL, return -1);
     
-    return reiserfs_cache_sync(tree->cache);
+    return reiser4_cache_sync(tree->cache);
 }
 
 #endif
 
 /* Closes specified tree (frees all assosiated memory) */
-void reiserfs_tree_close(reiserfs_tree_t *tree) {
+void reiser4_tree_close(reiser4_tree_t *tree) {
     aal_assert("umka-134", tree != NULL, return);
     
-    reiserfs_cache_close(tree->cache);
+    reiser4_cache_close(tree->cache);
     aal_free(tree);
 }
 
@@ -237,32 +235,32 @@ void reiserfs_tree_close(reiserfs_tree_t *tree) {
     Makes search in the tree by specified key. Fills passed coord by coords of 
     found item. 
 */
-int reiserfs_tree_lookup(
-    reiserfs_tree_t *tree,	/* tree to be grepped */
+int reiser4_tree_lookup(
+    reiser4_tree_t *tree,	/* tree to be grepped */
     uint8_t level,		/* stop level for search */
-    reiserfs_key_t *key,	/* key to be find */
-    reiserfs_coord_t *coord	/* coord of found item */
+    reiser4_key_t *key,	/* key to be find */
+    reiser4_coord_t *coord	/* coord of found item */
 ) {
     blk_t blk;
     int lookup;
-    reiserfs_key_t ikey;
-    reiserfs_cache_t *parent;
+    reiser4_key_t ikey;
+    reiser4_cache_t *parent;
 
     aal_assert("umka-742", key != NULL, return -1);
     aal_assert("umka-742", coord != NULL, return -1);
   
-    reiserfs_coord_init(coord, tree->cache, 0, ~0ul);
+    reiser4_coord_init(coord, tree->cache, 0, ~0ul);
     while (1) {
 	/* 
 	    Looking up for key inside node. Result of lookuping will be stored
 	    in &coord->pos.
 	*/
-	if ((lookup = reiserfs_node_lookup(coord->cache->node, 
+	if ((lookup = reiser4_node_lookup(coord->cache->node, 
 		key, &coord->pos)) == -1)
 	    return -1;
 
 	/* Checking for level */
-	if (reiserfs_node_get_level(coord->cache->node) <= level)
+	if (reiser4_node_get_level(coord->cache->node) <= level)
 	    return lookup;
        	
 	/* 
@@ -278,7 +276,7 @@ int reiserfs_tree_lookup(
 	    coord->pos.item--;
 	}
 
-	if (!reiserfs_node_item_internal(coord->cache->node, &coord->pos)) {
+	if (!reiser4_node_item_internal(coord->cache->node, &coord->pos)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Not internal item was found on the twig level. "
 		"Sorry, drilling doesn't supported yet!");
@@ -286,7 +284,7 @@ int reiserfs_tree_lookup(
 	}
 
 	/* Getting the node pointer from internal item */
-	if (!(blk = reiserfs_node_get_pointer(coord->cache->node, 
+	if (!(blk = reiser4_node_get_pointer(coord->cache->node, 
 	    &coord->pos)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -301,24 +299,24 @@ int reiserfs_tree_lookup(
 	    Check whether specified node already in cache. If so, we use node
 	    from the cache.
 	*/
-	reiserfs_node_get_key(coord->cache->node, &coord->pos, &ikey);
+	reiser4_node_get_key(coord->cache->node, &coord->pos, &ikey);
 
-	if (!(coord->cache = reiserfs_cache_find(parent, &ikey))) {
+	if (!(coord->cache = reiser4_cache_find(parent, &ikey))) {
 	    /* 
 		Node was not found in the cache, we open it and register in the 
 		cache.
 	    */
-	    if (!(coord->cache = reiserfs_tree_load(tree, blk))) {
+	    if (!(coord->cache = reiser4_tree_load(tree, blk))) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't load node %llu durring lookup.", blk);
 		return -1;
 	    }
 	    
 	    /* Registering node in tree cache */
-	    if (reiserfs_cache_register(parent, coord->cache)) {
+	    if (reiser4_cache_register(parent, coord->cache)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't register node %llu in the tree.", blk);
-		reiserfs_tree_dealloc(tree, coord->cache);
+		reiser4_tree_dealloc(tree, coord->cache);
 		return -1;
 	    }
 	}
@@ -329,23 +327,23 @@ int reiserfs_tree_lookup(
 
 #ifndef ENABLE_COMPACT
 
-/*static errno_t reiserfs_tree_unit_move(reiserfs_coord_t *dst, 
-    reiserfs_coord_t *src) 
+/*static errno_t reiser4_tree_unit_move(reiser4_coord_t *dst, 
+    reiser4_coord_t *src) 
 {
-    reiserfs_body_t *body;
+    reiser4_body_t *body;
 	
-    reiserfs_plugin_t *plugin;
-    reiserfs_entry_hint_t entry;
-    reiserfs_direntry_hint_t direntry;
-    reiserfs_item_hint_t direntry_item;
+    reiser4_plugin_t *plugin;
+    reiser4_entry_hint_t entry;
+    reiser4_direntry_hint_t direntry;
+    reiser4_item_hint_t direntry_item;
 	
-    reiserfs_key_t item_key;
-    reiserfs_plugin_t *key_plugin;
+    reiser4_key_t item_key;
+    reiser4_plugin_t *key_plugin;
     	
-    if (!(body = reiserfs_node_item_body(src->cache->node, &src->pos)))
+    if (!(body = reiser4_node_item_body(src->cache->node, &src->pos)))
         return -1;
 	
-    if (!(plugin = reiserfs_node_item_plugin(src->cache->node, &src->pos)))
+    if (!(plugin = reiser4_node_item_plugin(src->cache->node, &src->pos)))
         return -1;
     
     if ((libreiser4_plugin_call(return -1, plugin->item_ops.specific.direntry, 
@@ -361,11 +359,11 @@ int reiserfs_tree_lookup(
     if (!(key_plugin = libreiser4_factory_find_by_id(KEY_PLUGIN_TYPE, KEY_REISER40_ID)))
         return -1;
 
-    if (reiserfs_node_get_key(src->cache->node, &src->pos, &item_key))
+    if (reiser4_node_get_key(src->cache->node, &src->pos, &item_key))
         return -1;
 	
-    reiserfs_key_init(&direntry_item.key, key_plugin, item_key.body);
-    reiserfs_key_build_by_entry(&direntry_item.key, &entry.entryid);
+    reiser4_key_init(&direntry_item.key, key_plugin, item_key.body);
+    reiser4_key_build_by_entry(&direntry_item.key, &entry.entryid);
 	    
     if (!(direntry.entry = aal_calloc(sizeof(entry), 0)))
         return -1;
@@ -373,35 +371,35 @@ int reiserfs_tree_lookup(
     direntry.entry[0] = entry;
     direntry_item.hint = &direntry;
     
-    if (reiserfs_node_item_estimate(dst->cache->node, &dst->pos, &direntry_item))
+    if (reiser4_node_item_estimate(dst->cache->node, &dst->pos, &direntry_item))
 	return -1;
 
-    if (direntry_item.len > reiserfs_node_get_space(dst->cache->node))
+    if (direntry_item.len > reiser4_node_get_space(dst->cache->node))
 	return -1;
     
-    if (reiserfs_cache_insert(dst->cache, &dst->pos, &direntry_item))
+    if (reiser4_cache_insert(dst->cache, &dst->pos, &direntry_item))
         return -1;
     
-    if (reiserfs_cache_remove(src->cache, &src->pos))
+    if (reiser4_cache_remove(src->cache, &src->pos))
         return -1;
 
     return 0;
 }*/
 
 /* This function inserts internal item to the tree */
-static errno_t reiserfs_tree_attach(
-    reiserfs_tree_t *tree,	    /* tree we will attach node to */
-    reiserfs_cache_t *cache	    /* child to attached */
+static errno_t reiser4_tree_attach(
+    reiser4_tree_t *tree,	    /* tree we will attach node to */
+    reiser4_cache_t *cache	    /* child to attached */
 ) {
     int lookup, level;
-    reiserfs_key_t ldkey;
-    reiserfs_coord_t coord;
-    reiserfs_internal_hint_t internal;
-    reiserfs_item_hint_t internal_item;
+    reiser4_key_t ldkey;
+    reiser4_coord_t coord;
+    reiser4_internal_hint_t internal;
+    reiser4_item_hint_t internal_item;
 
     aal_assert("umka-913", tree != NULL, return -1);
     aal_assert("umka-916", cache != NULL, return -1);
-    aal_assert("umka-919", reiserfs_node_count(cache->node) > 0, return -1);
+    aal_assert("umka-919", reiser4_node_count(cache->node) > 0, return -1);
     
     /* Preparing internal item hint */
     aal_memset(&internal_item, 0, sizeof(internal_item));
@@ -419,31 +417,31 @@ static errno_t reiserfs_tree_attach(
 
     aal_memset(&internal, 0, sizeof(internal));
     
-    reiserfs_node_ldkey(cache->node, &ldkey);
+    reiser4_node_ldkey(cache->node, &ldkey);
     internal.pointer = aal_block_get_nr(cache->node->block);
-    reiserfs_key_init(&internal_item.key, ldkey.plugin, ldkey.body);
+    reiser4_key_init(&internal_item.key, ldkey.plugin, ldkey.body);
 
     internal_item.hint = &internal;
 
-    level = REISERFS_LEAF_LEVEL + 1;
-    if ((lookup = reiserfs_tree_lookup(tree, level, &ldkey, &coord)) == -1)
+    level = REISER4_LEAF_LEVEL + 1;
+    if ((lookup = reiser4_tree_lookup(tree, level, &ldkey, &coord)) == -1)
 	return -1;
     
     if (lookup == 1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Key (%llx:%x:%llx:%llx) already exists in tree.", 
-	    reiserfs_key_get_locality(&ldkey), reiserfs_key_get_type(&ldkey),
-	    reiserfs_key_get_objectid(&ldkey), reiserfs_key_get_offset(&ldkey));
+	    reiser4_key_get_locality(&ldkey), reiser4_key_get_type(&ldkey),
+	    reiser4_key_get_objectid(&ldkey), reiser4_key_get_offset(&ldkey));
 	return -1;
     }
     
-    if (reiserfs_cache_insert(coord.cache, &coord.pos, &internal_item)) {
+    if (reiser4_cache_insert(coord.cache, &coord.pos, &internal_item)) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	   "Can't insert internal item to the tree.");
 	return -1;
     }
     
-    if (reiserfs_cache_register(coord.cache, cache)) {
+    if (reiser4_cache_register(coord.cache, cache)) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	   "Can't register node %llu in tree cache.", 
 	    aal_block_get_nr(cache->node->block));
@@ -454,52 +452,52 @@ static errno_t reiserfs_tree_attach(
 }
 
 /* This function grows and sets up tree after the growing */
-static errno_t reiserfs_tree_grow(
-    reiserfs_tree_t *tree,	/* tree to be growed */
-    reiserfs_cache_t *cache	/* old root cached node */
+static errno_t reiser4_tree_grow(
+    reiser4_tree_t *tree,	/* tree to be growed */
+    reiser4_cache_t *cache	/* old root cached node */
 ) {
     /* Allocating new root node */
-    if (!(tree->cache = reiserfs_tree_alloc(tree,
-	reiserfs_format_get_height(tree->fs->format) + 1))) 
+    if (!(tree->cache = reiser4_tree_alloc(tree,
+	reiser4_format_get_height(tree->fs->format) + 1))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't allocate root node.");
 	return -1;
     }
 
-    if (reiserfs_tree_attach(tree, cache)) {
+    if (reiser4_tree_attach(tree, cache)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't attach node to the tree.");
 	goto error_free_cache;
     }
 	    
     /* Updating the tree height and tree root values in disk format */
-    reiserfs_format_set_height(tree->fs->format, 
-	reiserfs_node_get_level(tree->cache->node));
+    reiser4_format_set_height(tree->fs->format, 
+	reiser4_node_get_level(tree->cache->node));
 			
-    reiserfs_format_set_root(tree->fs->format, 
+    reiser4_format_set_root(tree->fs->format, 
         aal_block_get_nr(tree->cache->node->block));
 
     return 0;
 
 error_free_cache:
-    reiserfs_tree_dealloc(tree, tree->cache);
+    reiser4_tree_dealloc(tree, tree->cache);
     tree->cache = cache;
     return -1;
 }
 
 /* Pefroms left shifting of items */
-errno_t reiserfs_tree_lshift(
-    reiserfs_tree_t *tree,	    /* tree pointer function operates on */
-    reiserfs_coord_t *old,	    /* old coord of insertion point */
-    reiserfs_coord_t *new,	    /* new coord will be stored here */
+errno_t reiser4_tree_lshift(
+    reiser4_tree_t *tree,	    /* tree pointer function operates on */
+    reiser4_coord_t *old,	    /* old coord of insertion point */
+    reiser4_coord_t *new,	    /* new coord will be stored here */
     uint32_t needed,		    /* amount of space that should be freed */
     int allocate		    /* to do allocation of new blocks or not */
 ) {
-    reiserfs_cache_t *left;
-    reiserfs_cache_t *parent;
+    reiser4_cache_t *left;
+    reiser4_cache_t *parent;
     
-    reiserfs_coord_t src, dst;
+    reiser4_coord_t src, dst;
 
     uint32_t item_len;
     uint32_t item_overhead;
@@ -517,7 +515,7 @@ errno_t reiserfs_tree_lshift(
 	Checking both neighbours and loading them if needed in order to perform
 	the shifting of items from target node into neighbours.
     */
-    if (reiserfs_cache_raise(old->cache)) {
+    if (reiser4_cache_raise(old->cache)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't raise up neighbours of node %llu.", 
 	    aal_block_get_nr(old->cache->node->block));
@@ -527,27 +525,27 @@ errno_t reiserfs_tree_lshift(
     if (!(left = old->cache->left))
 	return 0;
 
-    item_overhead = reiserfs_node_item_overhead(old->cache->node);
+    item_overhead = reiser4_node_item_overhead(old->cache->node);
     
     /* Trying to move items into the left neighbour */
-    if (reiserfs_node_count(old->cache->node) > 0) {
-	reiserfs_pos_t mpos;
+    if (reiser4_node_count(old->cache->node) > 0) {
+	reiser4_pos_t mpos;
 
-	reiserfs_pos_init(&mpos, 0, ~0ul);
+	reiser4_pos_init(&mpos, 0, ~0ul);
 
         /* Initializing item_len by length of the first item from shifted node */
-	item_len = reiserfs_node_item_len(old->cache->node, &mpos) + item_overhead;
+	item_len = reiser4_node_item_len(old->cache->node, &mpos) + item_overhead;
 	
 	/* Moving items until insertion point reach first position in node */
-	while (reiserfs_node_count(old->cache->node) > 0 && 
-	    reiserfs_node_get_space(new->cache->node) < needed)
+	while (reiser4_node_count(old->cache->node) > 0 && 
+	    reiser4_node_get_space(new->cache->node) < needed)
 	{
-	    if (allocate && (reiserfs_node_get_space(left->node) < item_len ||
+	    if (allocate && (reiser4_node_get_space(left->node) < item_len ||
 		(new->cache == old->cache && new->pos.item == 0 &&
-		reiserfs_node_get_space(left->node) - item_len < needed)))
+		reiser4_node_get_space(left->node) - item_len < needed)))
 	    {
-		if (!(left = reiserfs_tree_alloc(tree, 
-		    reiserfs_node_get_level(left->node)))) 
+		if (!(left = reiser4_tree_alloc(tree, 
+		    reiser4_node_get_level(left->node)))) 
 		{
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		        "Can't allocate new leaf node durring left shift.");
@@ -559,27 +557,27 @@ errno_t reiserfs_tree_lshift(
 	    if (new->cache == old->cache) {
 		if (new->pos.item == 0) {
 		    new->cache = left;
-		    new->pos.item = reiserfs_node_count(left->node);
+		    new->pos.item = reiser4_node_count(left->node);
 		} else 
 		    new->pos.item--;
 	    } else
 	        new->pos.item--;
 	    
 	    /* Preparing coord for moving items */
-	    reiserfs_coord_init(&src, old->cache, 0, ~0ul);
+	    reiser4_coord_init(&src, old->cache, 0, ~0ul);
 	    
-	    reiserfs_coord_init(&dst, left, 
-		reiserfs_node_count(left->node), ~0ul);
+	    reiser4_coord_init(&dst, left, 
+		reiser4_node_count(left->node), ~0ul);
 	    
 	    /* Moving item into left neighbor */
-	    if (reiserfs_tree_move(tree, &dst, &src)) {
+	    if (reiser4_tree_move(tree, &dst, &src)) {
 	        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		   "Left shifting failed. Can't move item.");
 		return -1;
 	    }
 	    
-	    if (reiserfs_node_count(old->cache->node) > 0) {
-		item_len = reiserfs_node_item_len(old->cache->node, &mpos) + 
+	    if (reiser4_node_count(old->cache->node) > 0) {
+		item_len = reiser4_node_item_len(old->cache->node, &mpos) + 
 		    item_overhead;
 	    }
 	}
@@ -590,14 +588,14 @@ errno_t reiserfs_tree_lshift(
 		    Tree growing is occured in the case insertion point hasn't
 		    parent.
 		*/
-		if (reiserfs_tree_grow(tree, old->cache)) {
+		if (reiser4_tree_grow(tree, old->cache)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 			"Can't grow tree durring right shift.");
 		    return -1;
 		}
 	    }
 	    
-	    if (reiserfs_tree_attach(tree, left)) {
+	    if (reiser4_tree_attach(tree, left)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't attach new left neighbour block to the tree "
 		    "durring left shift.");
@@ -610,16 +608,16 @@ errno_t reiserfs_tree_lshift(
 }
 
 /* Performs shift of items into right neighbor */
-errno_t reiserfs_tree_rshift(
-    reiserfs_tree_t *tree,	    /* tree pointer function operates on */
-    reiserfs_coord_t *old,	    /* old coord of insertion point */
-    reiserfs_coord_t *new,	    /* new coord will be stored here */
+errno_t reiser4_tree_rshift(
+    reiser4_tree_t *tree,	    /* tree pointer function operates on */
+    reiser4_coord_t *old,	    /* old coord of insertion point */
+    reiser4_coord_t *new,	    /* new coord will be stored here */
     uint32_t needed,		    /* amount of space that should be freed */
     int allocate		    /* to do allocation of new blocks or not */
 ) {
-    reiserfs_cache_t *right;
-    reiserfs_cache_t *parent;
-    reiserfs_coord_t src, dst;
+    reiser4_cache_t *right;
+    reiser4_cache_t *parent;
+    reiser4_coord_t src, dst;
 
     uint32_t item_len;
     uint32_t item_overhead;
@@ -638,7 +636,7 @@ errno_t reiserfs_tree_rshift(
 	Checking both neighbours and loading them if needed in order to perform
 	the shifting of items from target node into neighbours.
     */
-    if (reiserfs_cache_raise(old->cache)) {
+    if (reiser4_cache_raise(old->cache)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't raise up neighbours of node %llu.", 
 	    aal_block_get_nr(old->cache->node->block));
@@ -649,8 +647,8 @@ errno_t reiserfs_tree_rshift(
 
 	if (!allocate) return 0;
 	
-	if (!(right = reiserfs_tree_alloc(tree, 
-	    reiserfs_node_get_level(old->cache->node)))) 
+	if (!(right = reiser4_tree_alloc(tree, 
+	    reiser4_node_get_level(old->cache->node)))) 
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't allocate new leaf node durring right shift.");
@@ -658,30 +656,30 @@ errno_t reiserfs_tree_rshift(
 	}
     }
     
-    item_overhead = reiserfs_node_item_overhead(old->cache->node);
+    item_overhead = reiser4_node_item_overhead(old->cache->node);
     
     /* Trying to move items into the right neighbour */
-    if (reiserfs_node_count(old->cache->node) > 0) {
-	reiserfs_pos_t mpos;
+    if (reiser4_node_count(old->cache->node) > 0) {
+	reiser4_pos_t mpos;
 	
-	reiserfs_pos_init(&mpos, 
-	    reiserfs_node_count(old->cache->node) - 1, ~0ul);
+	reiser4_pos_init(&mpos, 
+	    reiser4_node_count(old->cache->node) - 1, ~0ul);
 	
-	item_len = reiserfs_node_item_len(old->cache->node, &mpos) + 
+	item_len = reiser4_node_item_len(old->cache->node, &mpos) + 
 	    item_overhead;
 	    
-	while (reiserfs_node_count(old->cache->node) > 0 && 
-	    reiserfs_node_get_space(new->cache->node) < needed)
+	while (reiser4_node_count(old->cache->node) > 0 && 
+	    reiser4_node_get_space(new->cache->node) < needed)
 	{
-	    uint32_t count = reiserfs_node_count(new->cache->node);
+	    uint32_t count = reiser4_node_count(new->cache->node);
 	    
 	    /* Allocating new block */
-	    if (allocate && (reiserfs_node_get_space(right->node) < item_len ||
+	    if (allocate && (reiser4_node_get_space(right->node) < item_len ||
 		(new->cache == old->cache && new->pos.item >= count - 1 &&
-		(reiserfs_node_get_space(right->node) -	item_len) < needed)))
+		(reiser4_node_get_space(right->node) -	item_len) < needed)))
 	    {
-		if (!(right = reiserfs_tree_alloc(tree, 
-		    reiserfs_node_get_level(right->node)))) 
+		if (!(right = reiser4_tree_alloc(tree, 
+		    reiser4_node_get_level(right->node)))) 
 		{
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 			"Can't allocate new leaf node durring right shift.");
@@ -697,21 +695,21 @@ errno_t reiserfs_tree_rshift(
 	    } else
 		new->pos.item++;
 	    
-	    reiserfs_coord_init(&src, old->cache, 
-		reiserfs_node_count(old->cache->node) - 1, ~0ul);
+	    reiser4_coord_init(&src, old->cache, 
+		reiser4_node_count(old->cache->node) - 1, ~0ul);
 
-	    reiserfs_coord_init(&dst, right, 0, ~0ul);
+	    reiser4_coord_init(&dst, right, 0, ~0ul);
 	
-	    if (reiserfs_tree_move(tree, &dst, &src)) {
+	    if (reiser4_tree_move(tree, &dst, &src)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Right shifting of an item failed.");
 		return -1;
 	    }
 	    
 	    /* Updating item_len for next item to be moved */
-	    if (reiserfs_node_count(old->cache->node) > 0) {
-		mpos.item = reiserfs_node_count(old->cache->node) - 1;
-		item_len = reiserfs_node_item_len(old->cache->node, &mpos) + 
+	    if (reiser4_node_count(old->cache->node) > 0) {
+		mpos.item = reiser4_node_count(old->cache->node) - 1;
+		item_len = reiser4_node_item_len(old->cache->node, &mpos) + 
 		    item_overhead;
 	    }
 	}
@@ -722,14 +720,14 @@ errno_t reiserfs_tree_rshift(
 		    Tree growing is occured in the case insertion point hasn't
 		    parent.
 		*/
-		if (reiserfs_tree_grow(tree, old->cache)) {
+		if (reiser4_tree_grow(tree, old->cache)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 			"Can't grow tree durring right shift.");
 		    return -1;
 		}
 	    }
 
-	    if (reiserfs_tree_attach(tree, right)) {
+	    if (reiser4_tree_attach(tree, right)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't attach new right neighbour block to the tree "
 		    "durring right shift.");
@@ -747,13 +745,13 @@ errno_t reiserfs_tree_rshift(
     node. As insertion point may be shifted to one of neighbors, new insertion 
     point position is stored in "new" coord.
 */
-errno_t reiserfs_tree_mkspace(
-    reiserfs_tree_t *tree,	    /* tree pointer function operates on */
-    reiserfs_coord_t *old,	    /* old coord of insertion point */
-    reiserfs_coord_t *new,	    /* new coord will be stored here */
+errno_t reiser4_tree_mkspace(
+    reiser4_tree_t *tree,	    /* tree pointer function operates on */
+    reiser4_coord_t *old,	    /* old coord of insertion point */
+    reiser4_coord_t *new,	    /* new coord will be stored here */
     uint32_t needed		    /* amount of space that should be freed */
 ) {
-    reiserfs_cache_t *parent;
+    reiser4_cache_t *parent;
 
     aal_assert("umka-759", old != NULL, return -1);
     aal_assert("umka-766", new != NULL, return -1);
@@ -763,21 +761,21 @@ errno_t reiserfs_tree_mkspace(
 	return 0;
     
     /* Trying to shift items into left neighbour */
-    if (reiserfs_tree_lshift(tree, old, new, needed, 1))
+    if (reiser4_tree_lshift(tree, old, new, needed, 1))
 	return -1;
 
     /* Trying to shift items into right neighbour */
-    if (reiserfs_node_get_space(new->cache->node) < needed && 
-	reiserfs_node_count(old->cache->node) > 0) 
+    if (reiser4_node_get_space(new->cache->node) < needed && 
+	reiser4_node_count(old->cache->node) > 0) 
     {
-	reiserfs_coord_t coord = *new;
+	reiser4_coord_t coord = *new;
 	
-	if (reiserfs_tree_rshift(tree, &coord, new, needed, 1))
+	if (reiser4_tree_rshift(tree, &coord, new, needed, 1))
 	    return -1;
     }
 
-    if (reiserfs_node_count(old->cache->node) == 0) {
-	reiserfs_cache_close(old->cache);
+    if (reiser4_node_count(old->cache->node) == 0) {
+	reiser4_cache_close(old->cache);
 	old->cache = NULL;
     }
 
@@ -788,14 +786,14 @@ errno_t reiserfs_tree_mkspace(
     Performs shifting of units of item pointed by old coord into its right 
     neighbour.
 */
-/*errno_t reiserfs_tree_ishift(
-    reiserfs_coord_t *old,
-    reiserfs_coord_t *new,
+/*errno_t reiser4_tree_ishift(
+    reiser4_coord_t *old,
+    reiser4_coord_t *new,
     uint32_t needed
 ) {
     uint32_t item_len;
-    reiserfs_cache_t *right;	
-    reiserfs_coord_t src, dst;
+    reiser4_cache_t *right;	
+    reiser4_coord_t src, dst;
 
     if (reisersf_cache_raise(old->cache))
 	return -1;
@@ -803,28 +801,28 @@ errno_t reiserfs_tree_mkspace(
     if (!(right = old->cache->right))
 	return 0;
     
-    while (reiserfs_node_count(old->cache->node) > 0 && 
-	reiserfs_node_get_space(right->node) >= item_len &&
-        reiserfs_node_get_space(new->cache->node) < needed)
+    while (reiser4_node_count(old->cache->node) > 0 && 
+	reiser4_node_get_space(right->node) >= item_len &&
+        reiser4_node_get_space(new->cache->node) < needed)
     {
-	reiserfs_pos_t p;
-	reiserfs_plugin_t *lp, *rp;
+	reiser4_pos_t p;
+	reiser4_plugin_t *lp, *rp;
 
-	reiserfs_pos_init(&p, reiserfs_node_count(old->cache->node) - 1, ~0ul);
+	reiser4_pos_init(&p, reiser4_node_count(old->cache->node) - 1, ~0ul);
 
-	if (!(lp = reiserfs_node_item_plugin(old->cache->node, &p))) {
+	if (!(lp = reiser4_node_item_plugin(old->cache->node, &p))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't find item plugin.");
 	    return -1;
 	}
 
 	if (libreiser4_plugin_call(return -1, lp->item_ops.common, compound,)) {
-	    reiserfs_body_t *lbody, *rbody;
+	    reiser4_body_t *lbody, *rbody;
 	    uint32_t lcount, rcount;
 		    
-	    reiserfs_entry_hint_t lentry, rentry;
+	    reiser4_entry_hint_t lentry, rentry;
 		    
-	    if (!(lbody = reiserfs_node_item_body(old->cache->node, &old->pos)))
+	    if (!(lbody = reiser4_node_item_body(old->cache->node, &old->pos)))
 		return -1;
 		    
 	    if (!(lcount = libreiser4_plugin_call(return -1, lp->item_ops.common, 
@@ -843,13 +841,13 @@ errno_t reiserfs_tree_mkspace(
 		return -1;
 	    }
 		    
-	    reiserfs_coord_init(&src, old->cache, 
+	    reiser4_coord_init(&src, old->cache, 
 		old->pos.item, lcount - 1);
 		    
-    	    reiserfs_coord_init(&dst, right, 0, ~0ul);
+    	    reiser4_coord_init(&dst, right, 0, ~0ul);
 		    
-	    reiserfs_pos_init(&p, 0, ~0ul);
-	    if (!(rp = reiserfs_node_item_plugin(right->node, &p))) {
+	    reiser4_pos_init(&p, 0, ~0ul);
+	    if (!(rp = reiser4_node_item_plugin(right->node, &p))) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't find item plugin.");
 		return -1;
@@ -858,27 +856,27 @@ errno_t reiserfs_tree_mkspace(
 	    if (libreiser4_plugin_call(return -1, rp->item_ops.common, 
 		compound,) && lp->h.id == rp->h.id)
 	    {
-		reiserfs_key_t lkey, rkey;
+		reiser4_key_t lkey, rkey;
 
-		reiserfs_node_get_key(old->cache->node, &old->pos, &lkey);
-		reiserfs_node_get_key(right->node, &dst.pos, &rkey);
+		reiser4_node_get_key(old->cache->node, &old->pos, &lkey);
+		reiser4_node_get_key(right->node, &dst.pos, &rkey);
 			    
-		if (reiserfs_key_get_locality(&lkey) == reiserfs_key_get_locality(&rkey))
+		if (reiser4_key_get_locality(&lkey) == reiser4_key_get_locality(&rkey))
 		    dst.pos.unit = 0;
 	    }
 		   
 	    if (new->cache == old->cache && new->pos.unit < lcount) {
 			    
-		if (reiserfs_tree_unit_move(&dst, &src)) {
+		if (reiser4_tree_unit_move(&dst, &src)) {
 		    new->pos.unit = ~0ul;
 		    break;
 		}
 			
 		if (new->pos.unit == lcount - 1)
-		    reiserfs_coord_init(new, right, 0, 0);
+		    reiser4_coord_init(new, right, 0, 0);
 
 	    } else
-		reiserfs_coord_init(new, right, 0, 0);
+		reiser4_coord_init(new, right, 0, 0);
 		    
 	    continue;
 		    
@@ -888,37 +886,37 @@ errno_t reiserfs_tree_mkspace(
 }*/
 
 /* Inserts new item described by item hint into the tree */
-errno_t reiserfs_tree_insert(
-    reiserfs_tree_t *tree,	    /* tree new item will be inserted in */
-    reiserfs_item_hint_t *item,	    /* item hint to be inserted */
-    reiserfs_coord_t *coord	    /* coord item or unit inserted at */
+errno_t reiser4_tree_insert(
+    reiser4_tree_t *tree,	    /* tree new item will be inserted in */
+    reiser4_item_hint_t *item,	    /* item hint to be inserted */
+    reiser4_coord_t *coord	    /* coord item or unit inserted at */
 ) {
     uint32_t needed;
     int lookup, level;
-    reiserfs_key_t *key;
+    reiser4_key_t *key;
 
     aal_assert("umka-779", tree != NULL, return -1);
     aal_assert("umka-779", item != NULL, return -1);
     aal_assert("umka-909", coord != NULL, return -1);
     
-    key = (reiserfs_key_t *)&item->key;
+    key = (reiser4_key_t *)&item->key;
 
     /* Looking up for target node */
-    level = REISERFS_LEAF_LEVEL;
+    level = REISER4_LEAF_LEVEL;
     
-    if ((lookup = reiserfs_tree_lookup(tree, level, key, coord)) == -1)
+    if ((lookup = reiser4_tree_lookup(tree, level, key, coord)) == -1)
 	return -1;
 
     if (lookup == 1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Key (%llx:%x:%llx:%llx) already exists in tree.", 
-	    reiserfs_key_get_locality(key), reiserfs_key_get_type(key),
-	    reiserfs_key_get_objectid(key), reiserfs_key_get_offset(key));
+	    reiser4_key_get_locality(key), reiser4_key_get_type(key),
+	    reiser4_key_get_objectid(key), reiser4_key_get_offset(key));
 	return -1;
     }
     
-    if ((level = reiserfs_node_get_level(coord->cache->node)) > 
-	REISERFS_LEAF_LEVEL + 1) 
+    if ((level = reiser4_node_get_level(coord->cache->node)) > 
+	REISER4_LEAF_LEVEL + 1) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Lookup stoped on invalid level %d.", level);
@@ -932,42 +930,42 @@ errno_t reiserfs_tree_insert(
     coord->pos.unit += (coord->pos.unit != ~0ul ? 1 : 0);
     
     /* Estimating item in order to insert it into found node */
-    if (reiserfs_node_item_estimate(coord->cache->node, &coord->pos, item))
+    if (reiser4_node_item_estimate(coord->cache->node, &coord->pos, item))
         return -1;
  
     /* Needed space is estimated space plugs item overhead */
     needed = item->len + (coord->pos.unit == ~0ul ? 
-	reiserfs_node_item_overhead(coord->cache->node) : 0);
+	reiser4_node_item_overhead(coord->cache->node) : 0);
     
     /* 
-	The all functions which are using reiserfs_tree_insert function, are able
+	The all functions which are using reiser4_tree_insert function, are able
 	to insert just object items (the all except internals). In this case, tree
 	balancing algorithm should serve that calls itself. This is the special case.
     */
-    if (level > REISERFS_LEAF_LEVEL) {
-	reiserfs_cache_t *cache;
+    if (level > REISER4_LEAF_LEVEL) {
+	reiser4_cache_t *cache;
 	
-	if (!(cache = reiserfs_tree_alloc(tree, REISERFS_LEAF_LEVEL))) {
+	if (!(cache = reiser4_tree_alloc(tree, REISER4_LEAF_LEVEL))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't allocate new leaf node.");
 	    return -1;
 	}
 
 	/* Updating coord by just allocated leaf */
-	reiserfs_coord_init(coord, cache, 0, ~0ul);
+	reiser4_coord_init(coord, cache, 0, ~0ul);
 	
-        if (reiserfs_cache_insert(coord->cache, &coord->pos, item)) {
+        if (reiser4_cache_insert(coord->cache, &coord->pos, item)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't insert an item into the node %llu.", 
 		aal_block_get_nr(coord->cache->node->block));
-	    reiserfs_tree_dealloc(tree, cache);
+	    reiser4_tree_dealloc(tree, cache);
 	    return -1;
 	}
 	
-	if (reiserfs_tree_attach(tree, cache)) {
+	if (reiser4_tree_attach(tree, cache)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't attach node to the tree.");
-	    reiserfs_tree_dealloc(tree, cache);
+	    reiser4_tree_dealloc(tree, cache);
 	    return -1;
 	}
 
@@ -975,16 +973,16 @@ errno_t reiserfs_tree_insert(
     }
     
     /* Inserting item at coord if there is enough free space */
-    if (reiserfs_node_get_space(coord->cache->node) < needed) {
-	reiserfs_coord_t insert;
+    if (reiser4_node_get_space(coord->cache->node) < needed) {
+	reiser4_coord_t insert;
 		
-	if (reiserfs_tree_mkspace(tree, coord, &insert, needed))
+	if (reiser4_tree_mkspace(tree, coord, &insert, needed))
 	    return -1;
 
 	*coord = insert;
     }
     
-    if (reiserfs_cache_insert(coord->cache, &coord->pos, item)) {
+    if (reiser4_cache_insert(coord->cache, &coord->pos, item)) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	   "Can't insert an %s into the node %llu.", 
 	    (coord->pos.unit == ~0ul ? "item" : "unit"),
@@ -996,39 +994,39 @@ errno_t reiserfs_tree_insert(
 }
 
 /* Removes item by specified key */
-errno_t reiserfs_tree_remove(
-    reiserfs_tree_t *tree,	/* tree item will be removed from */
-    reiserfs_key_t *key		/* key item will be found by */
+errno_t reiser4_tree_remove(
+    reiser4_tree_t *tree,	/* tree item will be removed from */
+    reiser4_key_t *key		/* key item will be found by */
 ) {
     int lookup, level;
-    reiserfs_coord_t coord;
+    reiser4_coord_t coord;
     
     aal_assert("umka-1018", tree != NULL, return -1);
     aal_assert("umka-1019", key != NULL, return -1);
     
     /* Looking up for target */
-    level = REISERFS_LEAF_LEVEL;
+    level = REISER4_LEAF_LEVEL;
     
-    if ((lookup = reiserfs_tree_lookup(tree, level, key, &coord)) == -1)
+    if ((lookup = reiser4_tree_lookup(tree, level, key, &coord)) == -1)
 	return -1;
 
     if (lookup == 0) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Key (%llx:%x:%llx:%llx) doesn't found in tree.", 
-	    reiserfs_key_get_locality(key), reiserfs_key_get_type(key),
-	    reiserfs_key_get_objectid(key), reiserfs_key_get_offset(key));
+	    reiser4_key_get_locality(key), reiser4_key_get_type(key),
+	    reiser4_key_get_objectid(key), reiser4_key_get_offset(key));
 	return -1;
     }
     
-    if ((level = reiserfs_node_get_level(coord.cache->node)) > 
-	REISERFS_LEAF_LEVEL + 1) 
+    if ((level = reiser4_node_get_level(coord.cache->node)) > 
+	REISER4_LEAF_LEVEL + 1) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Lookup stoped on invalid level %d.", level);
 	return -1;
     }
    
-    if (reiserfs_cache_remove(coord.cache, &coord.pos))
+    if (reiser4_cache_remove(coord.cache, &coord.pos))
 	return -1;
 
     /*
@@ -1043,17 +1041,17 @@ errno_t reiserfs_tree_remove(
     Moves item or unit from src coord to dst. Also it keeps track of change
     of root node in the tree.
 */
-errno_t reiserfs_tree_move(
-    reiserfs_tree_t *tree,	    /* tree we are operating on */
-    reiserfs_coord_t *dst,	    /* dst coord */
-    reiserfs_coord_t *src	    /* src coord */
+errno_t reiser4_tree_move(
+    reiser4_tree_t *tree,	    /* tree we are operating on */
+    reiser4_coord_t *dst,	    /* dst coord */
+    reiser4_coord_t *src	    /* src coord */
 ) {
     aal_assert("umka-1020", tree != NULL, return -1);
     aal_assert("umka-1020", dst != NULL, return -1);
     aal_assert("umka-1020", src != NULL, return -1);
     
 
-    if (reiserfs_cache_move(dst->cache, &dst->pos, 
+    if (reiser4_cache_move(dst->cache, &dst->pos, 
 	    src->cache, &src->pos))
 	return -1;
 	    

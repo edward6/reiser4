@@ -54,11 +54,11 @@ static void mkfs_setup_streams(void) {
 }
 
 /* Crates lost+found directory */
-static reiserfs_object_t *mkfs_create_lost_found(reiserfs_fs_t *fs, 
-    reiserfs_profile_t *profile) 
+static reiser4_object_t *mkfs_create_lost_found(reiser4_fs_t *fs, 
+    reiser4_profile_t *profile) 
 {
-    reiserfs_plugin_t *plugin;
-    reiserfs_object_hint_t hint;
+    reiser4_plugin_t *plugin;
+    reiser4_object_hint_t hint;
 
     /* Getting needed object plugin */
     if (!(plugin = libreiser4_factory_find_by_id(DIR_PLUGIN_TYPE, profile->dir.dir)))
@@ -72,7 +72,7 @@ static reiserfs_object_t *mkfs_create_lost_found(reiserfs_fs_t *fs,
     hint.hash_pid = profile->hash;
 	
     /* Creating lost+found */
-    return reiserfs_dir_create(fs, &hint, plugin, fs->dir, "lost+found");
+    return reiser4_dir_create(fs, &hint, plugin, fs->dir, "lost+found");
 }
 
 int main(int argc, char *argv[]) {
@@ -81,12 +81,12 @@ int main(int argc, char *argv[]) {
     char uuid[17], label[17];
     count_t fs_len = 0, dev_len = 0;
     char *host_dev, *profile_label = "default40";
-    uint16_t blocksize = REISERFS_DEFAULT_BLOCKSIZE;
+    uint16_t blocksize = REISER4_DEFAULT_BLOCKSIZE;
     int c, error, force = 0, quiet = 0, lost_found = 0;
     
-    reiserfs_fs_t *fs;
+    reiser4_fs_t *fs;
     aal_device_t *device;
-    reiserfs_profile_t *profile;
+    reiser4_profile_t *profile;
 
     aal_list_t *walk = NULL;
     aal_list_t *devices = NULL;
@@ -317,7 +317,7 @@ int main(int argc, char *argv[]) {
 	aal_gauge_start();
 
 	/* Creating filesystem */
-	if (!(fs = reiserfs_fs_create(profile, device, blocksize, 
+	if (!(fs = reiser4_fs_create(profile, device, blocksize, 
 	    (const char *)uuid, (const char *)label, fs_len, device, NULL))) 
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -327,7 +327,7 @@ int main(int argc, char *argv[]) {
 
 	/* Creating lost+found directory */
 	if (lost_found) {
-	    reiserfs_object_t *object;
+	    reiser4_object_t *object;
 	    
 	    if (!(object = mkfs_create_lost_found(fs, profile))) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -335,11 +335,11 @@ int main(int argc, char *argv[]) {
 		goto error_free_device;
 	    }
 	    
-	    reiserfs_object_close(object);
+	    reiser4_object_close(object);
 	}
 	
 	/* Flushing all filesystem buffers onto the device */
-	if (reiserfs_fs_sync(fs)) {
+	if (reiser4_fs_sync(fs)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't synchronize created filesystem.");
 	    goto error_free_fs;
@@ -358,7 +358,7 @@ int main(int argc, char *argv[]) {
 	*/
 	aal_memset(uuid, 0, sizeof(uuid));
 	
-	reiserfs_fs_close(fs);
+	reiser4_fs_close(fs);
 	aal_file_close(device);
 	
 	aal_gauge_done();
@@ -372,7 +372,7 @@ int main(int argc, char *argv[]) {
     return NO_ERROR;
 
 error_free_fs:
-    reiserfs_fs_close(fs);
+    reiser4_fs_close(fs);
 error_free_device:
     aal_file_close(device);
 error_free_libreiser4:

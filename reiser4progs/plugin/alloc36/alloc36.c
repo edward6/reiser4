@@ -1,5 +1,5 @@
 /*
-    alloc36.c -- Space allocator plugin for reiserfs 3.6.x.
+    alloc36.c -- Space allocator plugin for reiser3.6.x.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -13,10 +13,10 @@
 
 #include "alloc36.h"
 
-static reiserfs_core_t *core = NULL;
+static reiser4_core_t *core = NULL;
 
-static reiserfs_entity_t *alloc36_open(aal_device_t *device, count_t len) {
-    reiserfs_alloc36_t *alloc;
+static reiser4_entity_t *alloc36_open(aal_device_t *device, count_t len) {
+    reiser4_alloc36_t *alloc;
 
     aal_assert("umka-413", device != NULL, return NULL);
 
@@ -27,7 +27,7 @@ static reiserfs_entity_t *alloc36_open(aal_device_t *device, count_t len) {
 	
     alloc->device = device;
     
-    return (reiserfs_entity_t *)alloc;
+    return (reiser4_entity_t *)alloc;
 
 error_free_alloc:
     aal_free(alloc);
@@ -37,8 +37,8 @@ error:
 
 #ifndef ENABLE_COMPACT
 
-static reiserfs_entity_t *alloc36_create(aal_device_t *device, count_t len) {
-    reiserfs_alloc36_t *alloc;
+static reiser4_entity_t *alloc36_create(aal_device_t *device, count_t len) {
+    reiser4_alloc36_t *alloc;
 
     aal_assert("umka-414", device != NULL, return NULL);
 	
@@ -49,7 +49,7 @@ static reiserfs_entity_t *alloc36_create(aal_device_t *device, count_t len) {
 	
     alloc->device = device;
     
-    return (reiserfs_entity_t *)alloc;
+    return (reiser4_entity_t *)alloc;
 
 error_free_alloc:
     aal_free(alloc);
@@ -57,19 +57,19 @@ error:
     return NULL;
 }
 
-static errno_t alloc36_sync(reiserfs_entity_t *entity) {
+static errno_t alloc36_sync(reiser4_entity_t *entity) {
     aal_assert("umka-415", entity != NULL, return -1);
     return -1;
 }
 
 #endif
 
-static void alloc36_close(reiserfs_entity_t *entity) {
+static void alloc36_close(reiser4_entity_t *entity) {
     aal_assert("umka-416", entity != NULL, return);
     aal_free(entity);
 }
 
-static reiserfs_plugin_t alloc36_plugin = {
+static reiser4_plugin_t alloc36_plugin = {
     .alloc_ops = {
 	.h = {
 	    .handle = NULL,
@@ -102,7 +102,7 @@ static reiserfs_plugin_t alloc36_plugin = {
     }
 };
 
-static reiserfs_plugin_t *alloc36_start(reiserfs_core_t *c) {
+static reiser4_plugin_t *alloc36_start(reiser4_core_t *c) {
     core = c;
     return &alloc36_plugin;
 }

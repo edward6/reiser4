@@ -1,5 +1,5 @@
 /*
-    node.c -- reiserfs formated node code.
+    node.c -- reiser4 formated node code.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */  
@@ -13,13 +13,13 @@
 #ifndef ENABLE_COMPACT
 
 /* Creates node on specified device and block and with spcified key plugin */
-reiserfs_node_t *reiserfs_node_create(
+reiser4_node_t *reiser4_node_create(
     aal_device_t *device,	/* device new node will be created on */
     blk_t blk,			/* block number node will be created in */
-    reiserfs_id_t pid,		/* node plugin id to be used */
+    reiser4_id_t pid,		/* node plugin id to be used */
     uint8_t level		/* node level */
 ) {
-    reiserfs_node_t *node;
+    reiser4_node_t *node;
     
     aal_assert("umka-121", device != NULL, return NULL);
 
@@ -57,18 +57,18 @@ error_free_node:
 }
 
 /* Saves specified node to its device */
-errno_t reiserfs_node_sync(
-    reiserfs_node_t *node	/* node to be save */
+errno_t reiser4_node_sync(
+    reiser4_node_t *node	/* node to be save */
 ) {
     aal_assert("umka-798", node != NULL, return -1);
     return aal_block_write(node->block);
 }
 
 /* Updates key in specified position */
-errno_t reiserfs_node_set_key(
-    reiserfs_node_t *node,	/* node to be updated */
-    reiserfs_pos_t *pos,	/* pos key will be updated in */
-    reiserfs_key_t *key		/* key to be used */
+errno_t reiser4_node_set_key(
+    reiser4_node_t *node,	/* node to be updated */
+    reiser4_pos_t *pos,	/* pos key will be updated in */
+    reiser4_key_t *key		/* key to be used */
 ) {
     aal_assert("umka-804", node != NULL, return -1);
     aal_assert("umka-805", key != NULL, return -1);
@@ -83,11 +83,11 @@ errno_t reiserfs_node_set_key(
 #endif
 
 /* This function is trying to detect node plugin */
-static reiserfs_plugin_t *reiserfs_node_guess(
+static reiser4_plugin_t *reiser4_node_guess(
     aal_block_t *block		/* block node lies in */
 ) {
-    reiserfs_id_t pid;
-    reiserfs_plugin_t *plugin;
+    reiser4_id_t pid;
+    reiser4_plugin_t *plugin;
     
     aal_assert("umka-902", block != NULL, return NULL);
     
@@ -102,11 +102,11 @@ static reiserfs_plugin_t *reiserfs_node_guess(
 }
 
 /* Opens node on specified device and block number */
-reiserfs_node_t *reiserfs_node_open(
+reiser4_node_t *reiser4_node_open(
     aal_device_t *device,	/* device node will be opened on */
     blk_t blk			/* block number node will be opened in */
 ) {
-    reiserfs_node_t *node;
+    reiser4_node_t *node;
 
     aal_assert("umka-160", device != NULL, return NULL);
    
@@ -121,7 +121,7 @@ reiserfs_node_t *reiserfs_node_open(
     }
     
     /* Finding the node plugin by its id */
-    if (!(node->plugin = reiserfs_node_guess(node->block))) {
+    if (!(node->plugin = reiser4_node_guess(node->block))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't guess node plugin for node %llu.", blk);
 	goto error_free_block;
@@ -149,7 +149,7 @@ error_free_node:
 }
 
 /* Closes specified node */
-errno_t reiserfs_node_close(reiserfs_node_t *node) {
+errno_t reiser4_node_close(reiser4_node_t *node) {
     aal_assert("umka-824", node != NULL, return -1);
     aal_assert("umka-903", node->entity != NULL, return -1);
     
@@ -163,33 +163,33 @@ errno_t reiserfs_node_close(reiserfs_node_t *node) {
 }
 
 /* Gets right delimiting key from the specified node */
-errno_t reiserfs_node_rdkey(
-    reiserfs_node_t *node,	/* node the rdkey will be obtained from */
-    reiserfs_key_t *key		/* key pointer to store the found rdkey */
+errno_t reiser4_node_rdkey(
+    reiser4_node_t *node,	/* node the rdkey will be obtained from */
+    reiser4_key_t *key		/* key pointer to store the found rdkey */
 ) {
-    reiserfs_pos_t pos;
+    reiser4_pos_t pos;
     
     aal_assert("umka-753", node != NULL, return -1);
     aal_assert("umka-754", key != NULL, return -1);
     
-    reiserfs_pos_init(&pos, reiserfs_node_count(node) - 1, ~0ul);
-    reiserfs_node_get_key(node, &pos, key);
+    reiser4_pos_init(&pos, reiser4_node_count(node) - 1, ~0ul);
+    reiser4_node_get_key(node, &pos, key);
     
     return 0;
 }
 
 /* Gets left delemiting key from the specified node */
-errno_t reiserfs_node_ldkey(
-    reiserfs_node_t *node,	/* node the ldkey will be obtained from */
-    reiserfs_key_t *key		/* key pointer found key will be stored in */
+errno_t reiser4_node_ldkey(
+    reiser4_node_t *node,	/* node the ldkey will be obtained from */
+    reiser4_key_t *key		/* key pointer found key will be stored in */
 ) {
-    reiserfs_pos_t pos;
+    reiser4_pos_t pos;
     
     aal_assert("umka-753", node != NULL, return -1);
     aal_assert("umka-754", key != NULL, return -1);
 
-    reiserfs_pos_init(&pos, 0, ~0ul);
-    reiserfs_node_get_key(node, &pos, key);
+    reiser4_pos_init(&pos, 0, ~0ul);
+    reiser4_node_get_key(node, &pos, key);
     
     return 0;
 }
@@ -201,64 +201,64 @@ errno_t reiserfs_node_ldkey(
     dst_pos params. This function is used for cpying and moving items by balancing 
     code.
 */
-static errno_t reiserfs_node_relocate(
-    reiserfs_node_t *dst_node,	/* destination node */
-    reiserfs_pos_t *dst_pos,	/* destination pos in destination node */
-    reiserfs_node_t *src_node,	/* source node */
-    reiserfs_pos_t *src_pos,	/* source position in source node */
+static errno_t reiser4_node_relocate(
+    reiser4_node_t *dst_node,	/* destination node */
+    reiser4_pos_t *dst_pos,	/* destination pos in destination node */
+    reiser4_node_t *src_node,	/* source node */
+    reiser4_pos_t *src_pos,	/* source position in source node */
     int remove			/* whether moved ite mshould be removed in src node */
 ) {
-    reiserfs_id_t pid;
-    reiserfs_item_hint_t item;
+    reiser4_id_t pid;
+    reiser4_item_hint_t item;
 
     aal_assert("umka-799", src_node != NULL, return -1);
     aal_assert("umka-800", dst_node != NULL, return -1);
 
-    item.data = reiserfs_node_item_body(src_node, src_pos);
-    item.len = reiserfs_node_item_len(src_node, src_pos);
+    item.data = reiser4_node_item_body(src_node, src_pos);
+    item.len = reiser4_node_item_len(src_node, src_pos);
     
     /* Getting the key of item that is going to be copied */
-    reiserfs_node_get_key(src_node, src_pos, (reiserfs_key_t *)&item.key);
+    reiser4_node_get_key(src_node, src_pos, (reiser4_key_t *)&item.key);
     
-    pid = reiserfs_node_item_get_pid(src_node, src_pos);
+    pid = reiser4_node_item_get_pid(src_node, src_pos);
 	
     if (!(item.plugin = libreiser4_factory_find_by_id(ITEM_PLUGIN_TYPE, pid)))
         libreiser4_factory_failed(return -1, find, item, pid);
 
     /* Insering the item into new location */
-    if (reiserfs_node_insert(dst_node, dst_pos, &item))
+    if (reiser4_node_insert(dst_node, dst_pos, &item))
         return -1;
     
     /* Remove src item if remove flag is turned on */
-    if (remove && reiserfs_node_remove(src_node, src_pos))
+    if (remove && reiser4_node_remove(src_node, src_pos))
         return -1;
     
     return 0;
 }
 
 /* 
-    Wrapper for reiserfs_node_relocate function. This function actually copies
+    Wrapper for reiser4_node_relocate function. This function actually copies
     item specified by src* params to dst* location. Parametrs meaning the same 
-    as in reiserfs_node_relocate.
+    as in reiser4_node_relocate.
 */
-errno_t reiserfs_node_copy(reiserfs_node_t *dst_node, 
-    reiserfs_pos_t *dst_pos, reiserfs_node_t *src_node, 
-    reiserfs_pos_t *src_pos) 
+errno_t reiser4_node_copy(reiser4_node_t *dst_node, 
+    reiser4_pos_t *dst_pos, reiser4_node_t *src_node, 
+    reiser4_pos_t *src_pos) 
 {
-    return reiserfs_node_relocate(dst_node, dst_pos, 
+    return reiser4_node_relocate(dst_node, dst_pos, 
 	src_node, src_pos, 0);
 }
 
 /* 
-    Wrapper for reiserfs_node_relocate function. This function actually moves
+    Wrapper for reiser4_node_relocate function. This function actually moves
     item specified by src* params to dst* location. Parameters meaning the same 
     as in previous one case.
 */
-errno_t reiserfs_node_move(reiserfs_node_t *dst_node, 
-    reiserfs_pos_t *dst_pos, reiserfs_node_t *src_node, 
-    reiserfs_pos_t *src_pos) 
+errno_t reiser4_node_move(reiser4_node_t *dst_node, 
+    reiser4_pos_t *dst_pos, reiser4_node_t *src_node, 
+    reiser4_pos_t *src_pos) 
 {
-    return reiserfs_node_relocate(dst_node, dst_pos, 
+    return reiser4_node_relocate(dst_node, dst_pos, 
 	src_node, src_pos, 1);
 }
 
@@ -267,23 +267,23 @@ errno_t reiserfs_node_move(reiserfs_node_t *dst_node,
     This function is used by balancing code for splitting the internal nodes in 
     the case target internal node doesn't has enought free space for new node pointer.
 */
-errno_t reiserfs_node_split(
-    reiserfs_node_t *node,	/* node to be splitted */
-    reiserfs_node_t *right	/* node right half of splitted node will be stored */
+errno_t reiser4_node_split(
+    reiser4_node_t *node,	/* node to be splitted */
+    reiser4_node_t *right	/* node right half of splitted node will be stored */
 ) {
     uint32_t median;
-    reiserfs_pos_t dst_pos, src_pos;
+    reiser4_pos_t dst_pos, src_pos;
     
     aal_assert("umka-780", node != NULL, return -1);
     aal_assert("umka-781", right != NULL, return -1);
 
-    median = reiserfs_node_count(node) / 2;
-    while (reiserfs_node_count(node) > median) {
+    median = reiser4_node_count(node) / 2;
+    while (reiser4_node_count(node) > median) {
 
-	reiserfs_pos_init(&dst_pos, 0, ~0ul);
-        reiserfs_pos_init(&src_pos, reiserfs_node_count(node) - 1, ~0ul);
+	reiser4_pos_init(&dst_pos, 0, ~0ul);
+        reiser4_pos_init(&src_pos, reiser4_node_count(node) - 1, ~0ul);
 	
-	if (reiserfs_node_move(right, &dst_pos, node, &src_pos))
+	if (reiser4_node_move(right, &dst_pos, node, &src_pos))
 	    return -1;
     }
     
@@ -291,8 +291,8 @@ errno_t reiserfs_node_split(
 }
 
 /* Checks node for validness */
-errno_t reiserfs_node_valid(
-    reiserfs_node_t *node,	/* node to be checked */
+errno_t reiser4_node_valid(
+    reiser4_node_t *node,	/* node to be checked */
     int flags			/* some flags (not used at the moment) */
 ) {
     aal_assert("umka-123", node != NULL, return -1);
@@ -303,7 +303,7 @@ errno_t reiserfs_node_valid(
 
 #endif
 
-int reiserfs_node_confirm(reiserfs_node_t *node) {
+int reiser4_node_confirm(reiser4_node_t *node) {
     aal_assert("umka-123", node != NULL, return 0);
     
     return libreiser4_plugin_call(return 0, node->plugin->node_ops, 
@@ -314,23 +314,23 @@ int reiserfs_node_confirm(reiserfs_node_t *node) {
     This function makes lookup inside specified node in order to find item/unit 
     stored in it.
 */
-int reiserfs_node_lookup(
-    reiserfs_node_t *node,	/* node to be grepped */
-    reiserfs_key_t *key,	/* key to be find */
-    reiserfs_pos_t *pos		/* found pos will be stored here */
+int reiser4_node_lookup(
+    reiser4_node_t *node,	/* node to be grepped */
+    reiser4_key_t *key,	/* key to be find */
+    reiser4_pos_t *pos		/* found pos will be stored here */
 ) {
     int lookup; 
-    reiserfs_key_t maxkey;
-    reiserfs_body_t *body;
-    reiserfs_plugin_t *plugin;
+    reiser4_key_t maxkey;
+    reiser4_body_t *body;
+    reiser4_plugin_t *plugin;
     
     aal_assert("umka-475", pos != NULL, return -1);
     aal_assert("vpf-048", node != NULL, return -1);
     aal_assert("umka-476", key != NULL, return -1);
 
-    reiserfs_pos_init(pos, 0, ~0ul);
+    reiser4_pos_init(pos, 0, ~0ul);
 
-    if (reiserfs_node_count(node) == 0)
+    if (reiser4_node_count(node) == 0)
 	return 0;
    
     /* Calling node plugin */
@@ -345,7 +345,7 @@ int reiserfs_node_lookup(
 
     if (lookup == 1) return 1;
 
-    if (!(plugin = reiserfs_node_item_plugin(node, pos))) {
+    if (!(plugin = reiser4_node_item_plugin(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item plugin at node %llu and pos %u.", 
 	    aal_block_get_nr(node->block), pos->item);
@@ -356,7 +356,7 @@ int reiserfs_node_lookup(
 	We are on the position where key is less then wanted. Key could lies 
 	within the item or after the item.
     */
-    reiserfs_node_get_key(node, pos, &maxkey);
+    reiser4_node_get_key(node, pos, &maxkey);
     
     if (plugin->item_ops.common.maxkey) {
 	    
@@ -369,7 +369,7 @@ int reiserfs_node_lookup(
 	
     }
 
-    if (reiserfs_key_compare(key, &maxkey) > 0) {
+    if (reiser4_key_compare(key, &maxkey) > 0) {
         pos->item++;
         return 0;
     }
@@ -378,7 +378,7 @@ int reiserfs_node_lookup(
     if (!plugin->item_ops.common.lookup)
 	return 0;
 	    
-    if (!(body = reiserfs_node_item_body(node, pos))) {
+    if (!(body = reiser4_node_item_body(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item at node %llu and pos %u.", 
 	    aal_block_get_nr(node->block), pos->item);
@@ -398,7 +398,7 @@ int reiserfs_node_lookup(
 }
 
 /* Returns real item count in specified node */
-uint32_t reiserfs_node_count(reiserfs_node_t *node) {
+uint32_t reiser4_node_count(reiser4_node_t *node) {
     aal_assert("umka-453", node != NULL, return 0);
     
     return libreiser4_plugin_call(return 0, node->plugin->node_ops, 
@@ -408,9 +408,9 @@ uint32_t reiserfs_node_count(reiserfs_node_t *node) {
 #ifndef ENABLE_COMPACT
 
 /* Removes specified by pos item from node */
-errno_t reiserfs_node_remove(
-    reiserfs_node_t *node,	/* node item will be removed from */
-    reiserfs_pos_t *pos		/* position item will be removed at */
+errno_t reiser4_node_remove(
+    reiser4_node_t *node,	/* node item will be removed from */
+    reiser4_pos_t *pos		/* position item will be removed at */
 ) {
     aal_assert("umka-767", node != NULL, return -1);
     aal_assert("umka-768", pos != NULL, return -1);
@@ -424,10 +424,10 @@ errno_t reiserfs_node_remove(
 }
 
 /* Inserts item described by item hint into specified node at specified pos */
-errno_t reiserfs_node_insert(
-    reiserfs_node_t *node,	/* node new item will be inserted in */
-    reiserfs_pos_t *pos,	/* position new item will be inserted at */
-    reiserfs_item_hint_t *item	/* item hint */
+errno_t reiser4_node_insert(
+    reiser4_node_t *node,	/* node new item will be inserted in */
+    reiser4_pos_t *pos,	/* position new item will be inserted at */
+    reiser4_item_hint_t *item	/* item hint */
 ) {
     errno_t ret;
     
@@ -440,7 +440,7 @@ errno_t reiserfs_node_insert(
 	    Estimate the size that will be spent for item. This should be done
 	    if item->data not installed.
 	*/
-	if (item->len == 0 && reiserfs_node_item_estimate(node, pos, item)) {
+	if (item->len == 0 && reiser4_node_item_estimate(node, pos, item)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't estimate space that item being inserted will consume.");
 	    return -1;
@@ -451,8 +451,8 @@ errno_t reiserfs_node_insert(
     }
     
     /* Checking if item length is gretter then free space in node */
-    if (item->len + (pos->unit == ~0ul ? reiserfs_node_item_overhead(node) : 0) >
-        reiserfs_node_get_space(node))
+    if (item->len + (pos->unit == ~0ul ? reiser4_node_item_overhead(node) : 0) >
+        reiser4_node_get_space(node))
     {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
             "There is no space to insert the %s of (%u) size in the node (%llu).",
@@ -479,8 +479,8 @@ errno_t reiserfs_node_insert(
 }
 
 /* Updates node plugin id */
-errno_t reiserfs_node_set_pid(
-    reiserfs_node_t *node,	/* node to be updated */
+errno_t reiser4_node_set_pid(
+    reiser4_node_t *node,	/* node to be updated */
     uint32_t pid		/* node plugin id to be used */
 ) {
     aal_assert("umka-828", node != NULL, return -1);
@@ -490,8 +490,8 @@ errno_t reiserfs_node_set_pid(
 }
 
 /* Sets node's level */
-errno_t reiserfs_node_set_level(
-    reiserfs_node_t *node,	/* node new level will be set */
+errno_t reiser4_node_set_level(
+    reiser4_node_t *node,	/* node new level will be set */
     uint8_t level		/* level will be used */
 ) {
     aal_assert("umka-454", node != NULL, return -1);
@@ -503,8 +503,8 @@ errno_t reiserfs_node_set_level(
 }
 
 /* Sets node free space */
-errno_t reiserfs_node_set_space(
-    reiserfs_node_t *node,	/* node to be updated */
+errno_t reiser4_node_set_space(
+    reiser4_node_t *node,	/* node to be updated */
     uint32_t value		/* free space to be set */
 ) {
     aal_assert("umka-456", node != NULL, return -1);
@@ -516,8 +516,8 @@ errno_t reiserfs_node_set_space(
 #endif
 
 /* Returns node plugin id in use */
-uint32_t reiserfs_node_get_pid(
-    reiserfs_node_t *node	/* node pid to be obtained */
+uint32_t reiser4_node_get_pid(
+    reiser4_node_t *node	/* node pid to be obtained */
 ) {
     aal_assert("umka-828", node != NULL, return 0);
     
@@ -526,7 +526,7 @@ uint32_t reiserfs_node_get_pid(
 }
 
 /* Returns level of specified node */
-uint8_t reiserfs_node_get_level(reiserfs_node_t *node) {
+uint8_t reiser4_node_get_level(reiser4_node_t *node) {
     aal_assert("umka-539", node != NULL, return 0);
     
     if (node->plugin->node_ops.get_level == NULL)
@@ -536,7 +536,7 @@ uint8_t reiserfs_node_get_level(reiserfs_node_t *node) {
 }
 
 /* Returns free space of specified node */
-uint32_t reiserfs_node_get_space(reiserfs_node_t *node) {
+uint32_t reiser4_node_get_space(reiser4_node_t *node) {
     aal_assert("umka-455", node != NULL, return 0);
     
     return libreiser4_plugin_call(return 0, node->plugin->node_ops, 
@@ -544,7 +544,7 @@ uint32_t reiserfs_node_get_space(reiserfs_node_t *node) {
 }
 
 /* Returns overhead of specified node */
-uint32_t reiserfs_node_item_overhead(reiserfs_node_t *node) {
+uint32_t reiser4_node_item_overhead(reiser4_node_t *node) {
     aal_assert("vpf-066", node != NULL, return 0);
 
     return libreiser4_plugin_call(return 0, node->plugin->node_ops, 
@@ -552,7 +552,7 @@ uint32_t reiserfs_node_item_overhead(reiserfs_node_t *node) {
 }
 
 /* Returns item max size from in specified node */
-uint32_t reiserfs_node_item_maxsize(reiserfs_node_t *node) {
+uint32_t reiser4_node_item_maxsize(reiser4_node_t *node) {
     aal_assert("umka-125", node != NULL, return 0);
     
     return libreiser4_plugin_call(return 0, node->plugin->node_ops, 
@@ -560,9 +560,9 @@ uint32_t reiserfs_node_item_maxsize(reiserfs_node_t *node) {
 }
 
 /* Returns length of specified item */
-uint32_t reiserfs_node_item_len(
-    reiserfs_node_t *node,	/* node length of specified item wuill be obtained from */
-    reiserfs_pos_t *pos		/* item position */
+uint32_t reiser4_node_item_len(
+    reiser4_node_t *node,	/* node length of specified item wuill be obtained from */
+    reiser4_pos_t *pos		/* item position */
 ) {
     aal_assert("umka-760", node != NULL, return 0);
     aal_assert("umka-945", pos != NULL, return 0);
@@ -572,9 +572,9 @@ uint32_t reiserfs_node_item_len(
 }
 
 /* Returns body pointer of speficied item */
-reiserfs_body_t *reiserfs_node_item_body(
-    reiserfs_node_t *node,	/* node item body will be obtained from */
-    reiserfs_pos_t *pos		/* item pos body will be obtained at */
+reiser4_body_t *reiser4_node_item_body(
+    reiser4_node_t *node,	/* node item body will be obtained from */
+    reiser4_pos_t *pos		/* item pos body will be obtained at */
 ) {
     aal_assert("umka-554", node != NULL, return NULL);
     aal_assert("umka-946", pos != NULL, return NULL);
@@ -584,10 +584,10 @@ reiserfs_body_t *reiserfs_node_item_body(
 }
 
 /* Returns key from specified node at sepcified pos */
-errno_t reiserfs_node_get_key(
-    reiserfs_node_t *node,	/* node key will be got from */
-    reiserfs_pos_t *pos,	/* pos key will be got at */
-    reiserfs_key_t *key		/* place found key will be stored in */
+errno_t reiser4_node_get_key(
+    reiser4_node_t *node,	/* node key will be got from */
+    reiser4_pos_t *pos,	/* pos key will be got at */
+    reiser4_key_t *key		/* place found key will be stored in */
 ) {
     errno_t res;
     
@@ -599,50 +599,50 @@ errno_t reiserfs_node_get_key(
 	    get_key, node->entity, pos, key)))
 	return res;
 
-    return -((key->plugin = reiserfs_key_guess(&key->body)) == NULL);
+    return -((key->plugin = reiser4_key_guess(&key->body)) == NULL);
 }
 
 /* Returns item plugin id */
-reiserfs_id_t reiserfs_node_item_get_pid(
-    reiserfs_node_t *node,	/* node to be inspected */
-    reiserfs_pos_t *pos		/* item pos plugin id will be obtained from */
+reiser4_id_t reiser4_node_item_get_pid(
+    reiser4_node_t *node,	/* node to be inspected */
+    reiser4_pos_t *pos		/* item pos plugin id will be obtained from */
 ) {
     aal_assert("vpf-047", node != NULL, return 0);
     aal_assert("umka-948", pos != NULL, return 0);
     
-    aal_assert("umka-904", pos->item < reiserfs_node_count(node), return 0);
+    aal_assert("umka-904", pos->item < reiser4_node_count(node), return 0);
 
     return libreiser4_plugin_call(return 0, node->plugin->node_ops, 
 	item_get_pid, node->entity, pos);
 }
 
 /* Returns item plugin by item pos */
-reiserfs_plugin_t *reiserfs_node_item_plugin(
-    reiserfs_node_t *node,	/* node plugin will be got from */
-    reiserfs_pos_t *pos		/* item pos plugin will be obtained at */
+reiser4_plugin_t *reiser4_node_item_plugin(
+    reiser4_node_t *node,	/* node plugin will be got from */
+    reiser4_pos_t *pos		/* item pos plugin will be obtained at */
 ) {
     aal_assert("umka-755", node != NULL, return NULL);
     aal_assert("umka-949", pos != NULL, return NULL);
     
     return libreiser4_factory_find_by_id(ITEM_PLUGIN_TYPE, 
-	reiserfs_node_item_get_pid(node, pos));
+	reiser4_node_item_get_pid(node, pos));
 }
 
 /* Returns node pointer from internal node */
-blk_t reiserfs_node_get_pointer(
-    reiserfs_node_t *node,	/* node pointer will be obtained from */
-    reiserfs_pos_t *pos		/* item position to be used */
+blk_t reiser4_node_get_pointer(
+    reiser4_node_t *node,	/* node pointer will be obtained from */
+    reiser4_pos_t *pos		/* item position to be used */
 ) {
-    reiserfs_body_t *body;
-    reiserfs_plugin_t *plugin;
+    reiser4_body_t *body;
+    reiser4_plugin_t *plugin;
     
     aal_assert("vpf-041", node != NULL, return 0);
     aal_assert("umka-950", pos != NULL, return 0);
     
-    aal_assert("umka-778", pos->item < reiserfs_node_count(node), return 0);
+    aal_assert("umka-778", pos->item < reiser4_node_count(node), return 0);
 
     /* Checking if specified item isn't an internal item */
-    if (!reiserfs_node_item_internal(node, pos)) {
+    if (!reiser4_node_item_internal(node, pos)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "An attempt to get the node pointer from non-internal item.");
 	return 0;
@@ -652,14 +652,14 @@ blk_t reiserfs_node_get_pointer(
 	Getting item's plugin in order to access item body, pointer stored 
 	somewhere in.
     */
-    if (!(plugin = reiserfs_node_item_plugin(node, pos))) {
+    if (!(plugin = reiser4_node_item_plugin(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find internal item plugin.");
 	return 0;
     }
 
     /* Getting internal item body */
-    if (!(body = reiserfs_node_item_body(node, pos))) {
+    if (!(body = reiser4_node_item_body(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't find item at node %llu and pos %u",
 	    aal_block_get_nr(node->block), pos->item);
@@ -672,33 +672,33 @@ blk_t reiserfs_node_get_pointer(
 }
 
 /* Checks is specifid item has passed node pointer */
-int reiserfs_node_has_pointer(
-    reiserfs_node_t *node,	/* node to be inspected */
-    reiserfs_pos_t *pos,	/* pos internal item lies */
+int reiser4_node_has_pointer(
+    reiser4_node_t *node,	/* node to be inspected */
+    reiser4_pos_t *pos,	/* pos internal item lies */
     blk_t blk			/* pointer to be checked */
 ) {
-    reiserfs_body_t *body;
-    reiserfs_plugin_t *plugin;
+    reiser4_body_t *body;
+    reiser4_plugin_t *plugin;
   
     aal_assert("umka-607", node != NULL, return 0);
     aal_assert("umka-951", pos != NULL, return 0);
 
     /* Checking if specified item isn't an internal item */
-    if (!reiserfs_node_item_internal(node, pos))
+    if (!reiser4_node_item_internal(node, pos))
 	return 0;
 
     /* 
 	Getting item's plugin in order to access item body, pointer stored 
 	somewhere in.
     */
-    if (!(plugin = reiserfs_node_item_plugin(node, pos))) {
+    if (!(plugin = reiser4_node_item_plugin(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item plugin.");
 	return 0;
     }
    
     /* Getting item body */
-    if (!(body = reiserfs_node_item_body(node, pos))) {
+    if (!(body = reiser4_node_item_body(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't find item at node %llu and pos %u",
 	    aal_block_get_nr(node->block), pos->item);
@@ -711,16 +711,16 @@ int reiserfs_node_has_pointer(
 }
 
 /* Checks whether item at passed pos is an internal item */
-int reiserfs_node_item_internal(
-    reiserfs_node_t *node,	/* node to be inspected */
-    reiserfs_pos_t *pos		/* item pos to be checked */
+int reiser4_node_item_internal(
+    reiser4_node_t *node,	/* node to be inspected */
+    reiser4_pos_t *pos		/* item pos to be checked */
 ) {
-    reiserfs_plugin_t *plugin;
+    reiser4_plugin_t *plugin;
     
     aal_assert("vpf-042", node != NULL, return 0);
     aal_assert("umka-952", pos != NULL, return 0);
 
-    if (!(plugin = reiserfs_node_item_plugin(node, pos))) {
+    if (!(plugin = reiser4_node_item_plugin(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item plugin.");
 	return 0;
@@ -733,10 +733,10 @@ int reiserfs_node_item_internal(
 #ifndef ENABLE_COMPACT
 
 /* Updates item plugin id */
-errno_t reiserfs_node_item_set_pid(
-    reiserfs_node_t *node,	/* node to be used */
-    reiserfs_pos_t *pos,	/* item pos pid will be updated in */
-    reiserfs_id_t pid		/* new plugin id */
+errno_t reiser4_node_item_set_pid(
+    reiser4_node_t *node,	/* node to be used */
+    reiser4_pos_t *pos,	/* item pos pid will be updated in */
+    reiser4_id_t pid		/* new plugin id */
 ) {
     aal_assert("umka-551", node != NULL, return -1);
     aal_assert("umka-953", pos != NULL, return -1);
@@ -746,33 +746,33 @@ errno_t reiserfs_node_item_set_pid(
 }
 
 /* Updates node pointer in internal item specified by "pos" */
-errno_t reiserfs_node_set_pointer(
-    reiserfs_node_t *node,	/* node to be used for working with */
-    reiserfs_pos_t *pos,	/* internal item pos */
+errno_t reiser4_node_set_pointer(
+    reiser4_node_t *node,	/* node to be used for working with */
+    reiser4_pos_t *pos,	/* internal item pos */
     blk_t blk			/* new pointer */
 ) {
-    reiserfs_body_t *body;
-    reiserfs_plugin_t *plugin;
+    reiser4_body_t *body;
+    reiser4_plugin_t *plugin;
     
     aal_assert("umka-607", node != NULL, return -1);
     aal_assert("umka-954", pos != NULL, return -1);
 
     /* Checking if specified item is an internal item */
-    if (!reiserfs_node_item_internal(node, pos)) {
+    if (!reiser4_node_item_internal(node, pos)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "An attempt to set the node pointer inside non-internal item.");
 	return -1;
     }
     
     /* Getting needed plugin */
-    if (!(plugin = reiserfs_node_item_plugin(node, pos))) {
+    if (!(plugin = reiser4_node_item_plugin(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item plugin.");
 	return -1;
     }
     
     /* Getting item body for using it with plugin */
-    if (!(body = reiserfs_node_item_body(node, pos))) {
+    if (!(body = reiser4_node_item_body(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't find item at node %llu and pos %u",
 	    aal_block_get_nr(node->block), pos->item);
@@ -809,10 +809,10 @@ errno_t reiserfs_node_set_pointer(
     c) get hint->plugin on the base of pos.
 */
 
-errno_t reiserfs_node_item_estimate(
-    reiserfs_node_t *node,	/* node to be used for working with */
-    reiserfs_pos_t *pos,	/* pos of item/unit to be estimated */
-    reiserfs_item_hint_t *item	/* item hint to be estimated */
+errno_t reiser4_node_item_estimate(
+    reiser4_node_t *node,	/* node to be used for working with */
+    reiser4_pos_t *pos,	/* pos of item/unit to be estimated */
+    reiser4_item_hint_t *item	/* item hint to be estimated */
 ) {
     aal_assert("vpf-106", item != NULL, return -1);
     aal_assert("umka-541", node != NULL, return -1);
@@ -822,7 +822,7 @@ errno_t reiserfs_node_item_estimate(
     aal_assert("vpf-118", pos->unit != ~0ul || 
 	item->plugin != NULL, return -1);
    
-    if (!item->plugin && !(item->plugin = reiserfs_node_item_plugin(node, pos))) {
+    if (!item->plugin && !(item->plugin = reiser4_node_item_plugin(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item plugin.");
 	return -1;
