@@ -1687,9 +1687,12 @@ static void reiser4_kill_super (struct super_block *s)
 {
 	__REISER4_ENTRY (s,);
 
-	if (!s->u.generic_sbp)
+	if (!s->u.generic_sbp) {
 		/* mount failed */
+		s->s_op = 0;
+		kill_block_super(s);
 		return;
+	}
 
 	trace_on (TRACE_VFS_OPS, "kill_super\n");
 
