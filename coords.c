@@ -155,8 +155,6 @@ int coord_prev_unit (tree_coord * coord)
 }
 
 
-
-
 /*
  * set coord to first unit of an item
  */
