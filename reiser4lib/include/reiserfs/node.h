@@ -19,12 +19,12 @@ typedef struct reiserfs_node_common_header reiserfs_node_common_header_t;
 struct reiserfs_node {
     aal_device_t *device;
     aal_block_t *block;
+    reiserfs_node_opaque_t *entity;
     
     reiserfs_plugin_t *plugin;
 };
 
 typedef struct reiserfs_node reiserfs_node_t;
-
 
 extern reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk);
 
