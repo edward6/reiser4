@@ -1470,13 +1470,13 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 			goto exit;
 		}
 
-		zput (fake);
-
 		spin_lock_tree (current_tree);
 		current_tree->root_block = blk;
 		spin_unlock_tree (current_tree);
 
-		znode_set_dirty(node);
+		znode_set_dirty(fake);
+
+		zput (fake);
 	}
 
 	ret = znode_rehash (node, & blk);
