@@ -1342,15 +1342,23 @@ check_deadlock(void)
 	return atomic_read(&owner->nr_signaled) != 0;
 }
 
-/* Reset the semaphore (under protection of lock_stack spinlock) to avoid lost
-   wake-up. */
+/* Before going to sleep we re-check "release lock" requests which might come from threads with hi-pri lock
+   priorities. */
 int
 prepare_to_sleep(lock_stack * owner)
 {
 	assert("nikita-1847", owner == get_current_lock_stack());
-/* NIKITA-FIXME-HANS: ZAM-FIXME-HANS: resolve this experiment */
+	/* NOTE(Zam): We cannot reset the lock semaphore here because it may
+	   clear wake-up signal. The initial design was to re-check all
+	   conditions under which we continue locking, release locks or sleep
+	   until conditions are changed. However, even lock.c does not follow
+	   that design.  So, wake-up signal which is stored semaphore state
+	   could we loosen by semaphore reset.  The less complex scheme without
+	   resetting the semaphore is enough to not to loose wake-ups.
+
 	if (0) {
-		/* NOTE-NIKITA: I commented call to sema_init() out hoping
+
+	           NOTE-NIKITA: I commented call to sema_init() out hoping
 		   that it is the reason or thread sleeping in
 		   down(&owner->sema) without any other thread running.
 		  
@@ -1358,11 +1366,11 @@ prepare_to_sleep(lock_stack * owner)
 		   reinitialised at this point, in the worst case
 		   longterm_lock_znode() would have to iterate its loop once
 		   more.
-		*/
 		spin_lock_stack(owner);
 		sema_init(&owner->sema, 0);
 		spin_unlock_stack(owner);
 	}
+	*/
 
 	/* We return -EDEADLK if one or more "give me the lock" messages are
 	 * counted in nr_signaled */
