@@ -1301,7 +1301,7 @@ sync_page_list(struct inode *inode)
 	mapping = inode->i_mapping;
 	from = 0;
 	result = 0;
-	spin_lock_irq(&mapping->tree_lock);
+	read_lock_irq(&mapping->tree_lock);
 	while (result == 0) {
 		struct page *page;
 
@@ -1313,17 +1313,17 @@ sync_page_list(struct inode *inode)
 		/* page may not leave radix tree because it is protected from truncating by inode->i_sem downed by
 		   sys_fsync */
 		page_cache_get(page);
-		spin_unlock_irq(&mapping->tree_lock);
+		read_unlock_irq(&mapping->tree_lock);
 
 		from = page->index + 1;
 
 		result = sync_page(page);
 
 		page_cache_release(page);
-		spin_lock_irq(&mapping->tree_lock);
+		read_lock_irq(&mapping->tree_lock);
 	}
 
-	spin_unlock_irq(&mapping->tree_lock);
+	read_unlock_irq(&mapping->tree_lock);
 	return result;
 }
 

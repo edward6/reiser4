@@ -46,7 +46,7 @@ static inline int set_page_dirty_internal (struct page * page)
 		struct address_space *mapping = page->mapping;
 
 		if (mapping) {
-			spin_lock_irq(&mapping->tree_lock);
+			read_lock_irq(&mapping->tree_lock);
 			if (page->mapping) {	/* Race with truncate? */
 				BUG_ON(page->mapping != mapping);
 				if (!mapping->backing_dev_info->memory_backed)
@@ -56,7 +56,7 @@ static inline int set_page_dirty_internal (struct page * page)
 				radix_tree_tag_clear(&mapping->page_tree,
 					page->index, PAGECACHE_TAG_REISER4_MOVED);
 			}
-			spin_unlock_irq(&mapping->tree_lock);
+			read_unlock_irq(&mapping->tree_lock);
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 		}
 	}

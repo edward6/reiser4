@@ -217,9 +217,8 @@ void get_context_ok(reiser4_context *);
 static inline reiser4_context *
 get_context(const struct task_struct *tsk)
 {
-	assert("", ((reiser4_context *) tsk->fs_context)->magic == context_magic);
-	/* get_context_ok((reiser4_context *)(tsk->fs_context)); */
-	return (reiser4_context *) tsk->fs_context;
+	assert("vs-1682", ((reiser4_context *) tsk->journal_info)->magic == context_magic);
+	return (reiser4_context *) tsk->journal_info;
 }
 
 /*

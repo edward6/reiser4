@@ -557,13 +557,13 @@ reiser4_internal void capture_reiser4_inodes (
 			struct address_space * mapping = inode->i_mapping;
 			unsigned long flags;
 
-			spin_lock_irqsave(&mapping->tree_lock, flags);
+			read_lock_irqsave(&mapping->tree_lock, flags);
 			if (!radix_tree_tagged(&mapping->page_tree, PAGECACHE_TAG_DIRTY) &&
 			    !radix_tree_tagged(&mapping->page_tree, PAGECACHE_TAG_REISER4_MOVED)) 
 			{
 				inode->i_state &= ~(I_DIRTY);
 			}
-			spin_unlock_irqrestore(&mapping->tree_lock, flags);
+			read_unlock_irqrestore(&mapping->tree_lock, flags);
 		}
 		spin_unlock(&inode_lock);
 

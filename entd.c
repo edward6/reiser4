@@ -119,7 +119,7 @@ entd(void *arg)
 	   thread. ->fs_context shouldn't be copied of course. This shouldn't
 	   be a problem for the rest of the code though.
 	*/
-	me->fs_context = NULL;
+	me->journal_info = NULL;
 
 	ctx = get_entd_context(super);
 

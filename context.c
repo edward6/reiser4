@@ -132,7 +132,7 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	if (is_in_reiser4_context()) {
 		reiser4_context *parent;
 
-		parent = (reiser4_context *) current->fs_context;
+		parent = (reiser4_context *) current->journal_info;
 		/* NOTE-NIKITA this is dubious */
 		if (parent->super == super) {
 			context->parent = parent;
@@ -145,8 +145,8 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 
 	context->super = super;
 	context->magic = context_magic;
-	context->outer = current->fs_context;
-	current->fs_context = (struct fs_activation *) context;
+	context->outer = current->journal_info;
+	current->journal_info = (void *) context;
 
 	init_lock_stack(&context->stack);
 
@@ -180,9 +180,12 @@ get_context_by_lock_stack(lock_stack * owner)
 reiser4_internal int
 is_in_reiser4_context(void)
 {
+	reiser4_context *ctx;
+
+	ctx = current->journal_info;
 	return
-		current->fs_context != NULL &&
-		((unsigned long) current->fs_context->owner) == context_magic;
+		ctx != NULL &&
+		((unsigned long) ctx->magic) == context_magic;
 }
 
 /*
@@ -299,7 +302,7 @@ done_context(reiser4_context * context /* context being released */)
 #endif
 		assert("zam-684", context->nr_children == 0);
 		/* restore original ->fs_context value */
-		current->fs_context = context->outer;
+		current->journal_info = context->outer;
 	} else {
 #if REISER4_DEBUG
 		parent->nr_children--;

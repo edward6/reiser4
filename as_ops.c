@@ -75,7 +75,7 @@ reiser4_clear_page_dirty(struct page *page)
 	mapping = page_mapping(page);
 	BUG_ON(mapping == NULL);
 
-	spin_lock_irqsave(&mapping->tree_lock, flags);
+	read_lock_irqsave(&mapping->tree_lock, flags);
 	if (TestClearPageDirty(page)) {
 		/* clear dirty tag of page in address space radix tree */
 		radix_tree_tag_clear(&mapping->page_tree, page->index,
@@ -83,28 +83,13 @@ reiser4_clear_page_dirty(struct page *page)
 		/* FIXME: remove this when reiser4_set_page_dirty will skip setting this tag for captured pages */
 		radix_tree_tag_clear(&mapping->page_tree, page->index,
 				     PAGECACHE_TAG_REISER4_MOVED);
-#if 0 /* FIXME: uncomment this debugging code when reiser4_set_page_dirty will skip setting this tag for captured
-	 pages */
-#if REISER4_DEBUG
-		{
-			/* tag PAGECACHE_TAG_REISER4_MOVED should not be be set here */
-			struct page *tmp;
-			unsigned int found;
-			
-			found = radix_tree_gang_lookup_tag(&mapping->page_tree, (void **)&tmp, page->index, 1,
-							   PAGECACHE_TAG_REISER4_MOVED);
-			if (found == 1)
-				assert("vs-1653", tmp->index != page->index);
-		}
-#endif
-#endif /* 0 */
 		
-		spin_unlock_irqrestore(&mapping->tree_lock, flags);
+		read_unlock_irqrestore(&mapping->tree_lock, flags);
 		if (!mapping->backing_dev_info->memory_backed)
 			dec_page_state(nr_dirty);
 		return;
 	}
-	spin_unlock_irqrestore(&mapping->tree_lock, flags);
+	read_unlock_irqrestore(&mapping->tree_lock, flags);
 }
 
 /* as_ops->set_page_dirty() VFS method in reiser4_address_space_operations.
@@ -123,7 +108,7 @@ static int reiser4_set_page_dirty(struct page *page /* page to mark dirty */)
 		struct address_space *mapping = page->mapping;
 
 		if (mapping) {
-			spin_lock_irq(&mapping->tree_lock);
+			read_lock_irq(&mapping->tree_lock);
 			/* check for race with truncate */
 			if (page->mapping) {
 				assert("vs-1652", page->mapping == mapping);
@@ -135,7 +120,7 @@ static int reiser4_set_page_dirty(struct page *page /* page to mark dirty */)
 				radix_tree_tag_set(&mapping->page_tree,
 						   page->index, PAGECACHE_TAG_REISER4_MOVED);
 			}			
-			spin_unlock_irq(&mapping->tree_lock);
+			read_unlock_irq(&mapping->tree_lock);
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 		}
 	}
@@ -582,13 +567,13 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 		/* we are under memory pressure so release jnode also. */
 		jput(node);
-		spin_lock_irq(&mapping->tree_lock);
+		read_lock_irq(&mapping->tree_lock);
 		/* shrink_list() + radix-tree */
 		if (page_count(page) == 2) {
 			__remove_from_page_cache(page);
 			__put_page(page);
 		}
-		spin_unlock_irq(&mapping->tree_lock);
+		read_unlock_irq(&mapping->tree_lock);
 
 		return 1;
 	} else {
