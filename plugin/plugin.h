@@ -11,7 +11,7 @@
 #include "../dformat.h"
 #include "../key.h"
 #include "../type_safe_list.h"
-#include "../compress.h"
+#include "compress/compress.h"
 #include "plugin_header.h"
 #include "item/static_stat.h"
 #include "item/internal.h"
