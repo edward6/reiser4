@@ -229,6 +229,8 @@ typedef struct file_plugin {
 	/* seek */
 	 loff_t(*seek) (struct file * f, loff_t offset, int origin);
 
+	int (*detach)(struct inode *child, struct inode *parent);
+
 	/* called when @child was just looked up in the @parent */
 	int (*bind) (struct inode * child, struct inode * parent);
 
@@ -236,20 +238,8 @@ typedef struct file_plugin {
 	struct {
 		reiser4_block_nr (*create) (struct inode *);
 		reiser4_block_nr (*update) (const struct inode *);
+		reiser4_block_nr (*unlink) (struct inode *, struct inode *);
 	} estimate;
-#if 0
-	/* The couple of estimate methods for all file operations */
-	struct {
-		reiser4_block_nr (*create) (struct inode *);
-		reiser4_block_nr (*update) (const struct inode *);
-		reiser4_block_nr (*write) (struct inode *, loff_t, loff_t *);
-		reiser4_block_nr (*read) (struct inode *, loff_t);
-		/*reiser4_block_nr (*truncate) (struct inode *, loff_t);*/
-		reiser4_block_nr (*mmap) (struct inode *, loff_t);
-		reiser4_block_nr (*release) (struct inode *);
-		reiser4_block_nr (*delete) (struct inode *);
-	} estimate;
-#endif
 } file_plugin;
 
 typedef struct dir_plugin {
@@ -304,24 +294,13 @@ typedef struct dir_plugin {
 
 	/* called when @subdir was just looked up in the @dir */
 	int (*attach) (struct inode * subdir, struct inode * dir);
+	int (*detach)(struct inode * subdir, struct inode * dir);
 
 	struct {
 		reiser4_block_nr (*add_entry) (struct inode *node);
 		reiser4_block_nr (*rem_entry) (struct inode *node);
+		reiser4_block_nr (*unlink) (struct inode *, struct inode *);
 	} estimate;
-#if 0
-	struct {
-		/*reiser4_block_nr (*create) (struct inode *parent, struct inode *object);*/
-		reiser4_block_nr (*rename) (struct inode *old_dir, struct dentry *old,
-					    struct inode *new_dir, struct dentry *new);
-		reiser4_block_nr (*add_entry) (struct inode *node);
-		reiser4_block_nr (*rem_entry) (struct inode *node);
-		reiser4_block_nr (*link) (struct inode *, struct inode *);
-		reiser4_block_nr (*unlink) (struct inode *,struct inode *);
-		/*reiser4_block_nr (*init) (struct inode *, struct inode *);*/
-		reiser4_block_nr (*done) (struct inode *, struct inode *);
-	} estimate;
-#endif
 } dir_plugin;
 
 typedef struct tail_plugin {

@@ -411,12 +411,6 @@ common_file_save(struct inode *inode /* object to save */ )
 	return result;
 }
 
-int
-common_write_inode(struct inode *inode UNUSED_ARG)
-{
-	return -EINVAL;
-}
-
 /* checks whether yet another hard links to this object can be added */
 int
 common_file_can_add_link(const struct inode *object /* object to check */ )
@@ -856,14 +850,44 @@ common_bind(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)
 	return 0;
 }
 
+#define common_detach common_bind
+
+static int
+dir_detach(struct inode *child, struct inode *parent)
+{
+	dir_plugin *dplug;
+
+	dplug = inode_dir_plugin(child);
+	assert("nikita-2883", dplug != NULL);
+	assert("nikita-2884", dplug->detach != NULL);
+	return dplug->detach(child, parent);
+}
+
+
 /* this common implementation of update estimation function may be used when stat data update does not do more than
    inserting a unit into a stat data item which is probably true for most cases */
-reiser4_block_nr 
+static reiser4_block_nr 
 common_estimate_update(const struct inode *inode)
 {
 	return estimate_one_insert_into_item(tree_by_inode(inode)->height);
 }
 
+static reiser4_block_nr 
+common_estimate_unlink(struct inode *object, struct inode *parent)
+{
+	return 0;
+}
+
+static reiser4_block_nr 
+dir_estimate_unlink(struct inode *object, struct inode *parent)
+{
+	dir_plugin *dplug;
+
+	dplug = inode_dir_plugin(object);
+	assert("nikita-2888", dplug != NULL);
+	assert("nikita-2887", dplug->estimate.unlink != NULL);
+	return dplug->estimate.unlink(object, parent);
+}
 
 /* implementation of ->bind() method for file plugin of directory file */
 static int
@@ -910,18 +934,12 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				    .setattr = unix_file_setattr,
 				    .getattr = common_getattr,
 				    .seek = NULL,
+				    .detach = common_detach,
 				    .bind = common_bind,
 				    .estimate = {
 					    .create = common_estimate_create,
-					    .update = common_estimate_update
-#if 0 
-					    .read = unix_file_estimate_read,
-					    .write = unix_file_estimate_write,
-					    /*.truncate = unix_file_estimate_truncate,*/
-					    .release = unix_file_estimate_release,
-					    .mmap = unix_file_estimate_mmap,
-					    .delete = common_estimate_file_delete
-#endif
+					    .update = common_estimate_update,
+					    .unlink = common_estimate_unlink
 				    }
 	},
 	[DIRECTORY_FILE_PLUGIN_ID] = {
@@ -956,13 +974,12 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				      .setattr = inode_setattr,
 				      .getattr = common_getattr,
 				      .seek = dir_seek,
+				      .detach = dir_detach,
 				      .bind = dir_bind,
 				      .estimate = {
 					    .create = common_estimate_create_dir,
-					    .update = common_estimate_update
-#if 0
-					    .delete = common_estimate_file_delete
-#endif
+					    .update = common_estimate_update,
+					    .unlink = dir_estimate_unlink
 				      }
 	},
 	[SYMLINK_FILE_PLUGIN_ID] = {
@@ -999,13 +1016,12 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				    .setattr = inode_setattr,
 				    .getattr = common_getattr,
 				    .seek = NULL,
+				    .detach = common_detach,
 				    .bind = common_bind,
 				    .estimate = {
 					    .create = common_estimate_create,
-					    .update = common_estimate_update
-#if 0
-					    .delete = common_estimate_file_delete
-#endif
+					    .update = common_estimate_update,
+					    .unlink = common_estimate_unlink
 				    }
 	},
 	[SPECIAL_FILE_PLUGIN_ID] = {
@@ -1041,13 +1057,12 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				    .setattr = inode_setattr,
 				    .getattr = common_getattr,
 				    .seek = NULL,
+				    .detach = common_detach,
 				    .bind = common_bind,
 				    .estimate = {
 					    .create = common_estimate_create,
-					    .update = common_estimate_update
-#if 0
-					    .delete = common_estimate_file_delete
-#endif
+					    .update = common_estimate_update,
+					    .unlink = common_estimate_unlink
 				    }
 	}
 };
