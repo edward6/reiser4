@@ -218,7 +218,7 @@ scan_mgr(txn_mgr * mgr)
 	assert("nikita-2456", tree->super != NULL);
 
 	{
-		REISER4_ENTRY(tree->super);
+		REISER4_ENTRY(tree->super, SCAN_MGR_OP);
 
 		/* Count a spinlock taken without context */
 		spin_ktxnmgrd_inc();
