@@ -89,10 +89,12 @@ key_warning(const reiser4_key * key /* key to print */,
 {
 	assert("nikita-716", key != NULL);
 
-	warning("nikita-717", "Error for inode %llu (%i)",
-		get_key_objectid(key), code);
-	print_key("for key", key);
-	print_inode("inode", inode);
+	if (code != -ENOMEM) {
+		warning("nikita-717", "Error for inode %llu (%i)",
+			get_key_objectid(key), code);
+		print_key("for key", key);
+		print_inode("inode", inode);
+	}
 }
 
 #if REISER4_DEBUG
@@ -276,7 +278,12 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 				seal_init(&ref->sd_seal, &coord, &key);
 				ref->sd_coord = coord;
 				check_inode_seal(inode, &coord, &key);
-			} else
+			} else if (result != -ENOMEM)
+				/*
+				 * convert any other error code to -EIO to
+				 * avoid confusing user level with unexpected
+				 * errors.
+				 */
 				result = RETERR(-EIO);
 			zrelse(coord.node);
 		}
@@ -449,7 +456,7 @@ write_sd_by_inode_common(struct inode *inode /* object to save */)
 		result = insert_new_sd(inode);
 	else
 		result = update_sd(inode);
-	if (result != 0 && result != -ENAMETOOLONG)
+	if (result != 0 && result != -ENAMETOOLONG && result != -ENOMEM)
 		/* Don't issue warnings about "name is too long" */
 		warning("nikita-2221", "Failed to save sd for %llu: %i",
 			get_inode_oid(inode), result);
@@ -492,10 +499,6 @@ common_file_delete_no_reserve(struct inode *inode /* object to remove */ )
 				oid_count_released();
 
 				result = safe_link_del(inode, SAFE_UNLINK);
-				if (result != 0)
-					warning("nikita-3416",
-						"Cannot kill safelink %lli: %i",
-						get_inode_oid(inode), result);
 			}
 		}
 	} else
@@ -582,7 +585,7 @@ set_plug_in_inode_common(struct inode *object /* inode to set plugin on */ ,
 	inode_set_flag(object, REISER4_NO_SD);
 	/* setup inode and file-operations for this inode */
 	setup_inode_ops(object, data);
-	/* i_nlink is left 1 here as set by new_inode() */
+	object->i_nlink = 0;
 	seal_init(&reiser4_inode_data(object)->sd_seal, NULL, NULL);
 	mask = (1 << UNIX_STAT) | (1 << LIGHT_WEIGHT_STAT);
 	if (!reiser4_is_set(object->i_sb, REISER4_32_BIT_TIMES))
