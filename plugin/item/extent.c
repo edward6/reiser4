@@ -135,7 +135,7 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 			assert("vs-987", znode_is_loaded(coord_after.node));
 			assert("vs-988", !memcmp(ext, &orig_ext, sizeof (*ext)));
 
-			*ext = *replace;
+			memcpy(ext, replace, sizeof(*ext));
 			znode_make_dirty(coord_after.node);
 
 			if (coord_after.node != orig_znode)
