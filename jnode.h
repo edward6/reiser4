@@ -281,7 +281,6 @@ static inline const reiser4_block_nr *
 jnode_get_block(const jnode * node /* jnode to query */)
 {
 	assert("nikita-528", node != NULL);
-	assert("nikita-2919", spin_jnode_is_locked(node));
 
 	return &node->blocknr;
 }

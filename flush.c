@@ -2470,7 +2470,7 @@ jnode_set_block(jnode * node /* jnode to update */ ,
 	assert("nikita-2020", node != NULL);
 	assert("umka-055", blocknr != NULL);
 	assert("zam-819", !JF_ISSET(node, JNODE_EFLUSH));
-	UNDER_SPIN(jnode, node, node->blocknr = *blocknr);
+	node->blocknr = *blocknr;
 }
 
 /* Make the final relocate/wander decision during forward parent-first squalloc for a
