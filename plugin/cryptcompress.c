@@ -198,8 +198,7 @@ create_cryptcompress(struct inode *object, struct inode *parent, reiser4_object_
 	result = write_sd_by_inode_common(object);
 	if (!result)
 		return 0;
-	
-        /* save() method failed, release attached crypto info */
+	/* save() method failed, release attached crypto info */
 	inode_clr_flag(object, REISER4_CRYPTO_STAT_LOADED);
 	inode_clr_flag(object, REISER4_CLUSTER_KNOWN);
 	
@@ -1128,6 +1127,31 @@ free_reserved4cluster(struct inode * inode, reiser4_cluster_t * clust)
 	UNLOCK_JNODE(j);
 }
 
+int
+update_inode_cryptcompress(struct inode *inode,
+			      loff_t new_size,
+			      int update_i_size, int update_times,
+			      int do_update)
+{
+	int result = 0;
+	int old_grabbed;
+	reiser4_context *ctx = get_current_context();
+	reiser4_super_info_data * sbinfo = get_super_private(ctx->super);
+	
+	old_grabbed = ctx->grabbed_blocks;
+	
+	grab_space_enable();
+
+	result = reiser4_grab_space(/* one for stat data update */
+		estimate_update_common(inode),
+		0/* flags */);
+	if (result)
+		return result;
+	result = update_inode_and_sd_if_necessary(inode, new_size, update_i_size, update_times, do_update);
+	grabbed2free(ctx, sbinfo, ctx->grabbed_blocks - old_grabbed);
+	return result;
+}
+
 /* stick pages into united flow, then release the ones */
 int
 flush_cluster_pages(reiser4_cluster_t * clust, struct inode * inode)
@@ -1221,7 +1245,7 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
 		if (result)
 			return result;
 		make_cluster_jnodes_dirty(clust, NULL);
-		result = update_inode_and_sd_if_necessary(inode, clust_to_off(clust->index, inode) + clust->off + clust->count, 1, 1, 1);
+		result = update_inode_cryptcompress(inode, clust_to_off(clust->index, inode) + clust->off + clust->count, 1, 1, 1);
 		if (result)
 			return result;
 		balance_dirty_pages_ratelimited(inode->i_mapping);
@@ -1530,6 +1554,9 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 	loff_t file_off;
 	reiser4_cluster_t clust;
 	struct page ** pages;
+	static int cnt = 0;
+
+	cnt++; /* FIXME-EDWARD: Remove me */
 	
 	assert("edward-159", current_blocksize == PAGE_CACHE_SIZE);
 
@@ -1593,11 +1620,11 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 		
 		make_cluster_jnodes_dirty(&clust, NULL);                              /* j- */
 		
-		result = update_inode_and_sd_if_necessary(inode,
-							  clust_to_off(clust.index, inode) + clust.off + clust.count /* new_size */,
-							  (clust_to_off(clust.index, inode) + clust.off + clust.count > inode->i_size) ? 1 : 0,
-							  1,
-							  1/* update stat data */);
+		result = update_inode_cryptcompress(inode,
+						    clust_to_off(clust.index, inode) + clust.off + clust.count /* new_size */,
+						    (clust_to_off(clust.index, inode) + clust.off + clust.count > inode->i_size) ? 1 : 0,
+						    1,
+						    1/* update stat data */);
 		if (result) 
 			goto exit1;
 		balance_dirty_pages_ratelimited(inode->i_mapping);
@@ -1757,7 +1784,7 @@ cut_items_cryptcompress(struct inode *inode, loff_t new_size, int update_sd)
 		if (result == -E_REPEAT) {
 			/* -E_REPEAT is a signal to interrupt a long file truncation process */
 			/* FIXME(Zam) cut_tree does not support that signaling.*/
-			result = update_inode_and_sd_if_necessary
+			result = update_inode_cryptcompress
 				(inode, get_key_offset(&smallest_removed), 1, 1, update_sd);
 			if (result)
 				break;
@@ -1851,7 +1878,7 @@ shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd)
 		goto exit;
 	make_cluster_jnodes_dirty(&clust, &nrpages);
 
-	result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1, update_sd);
+	result = update_inode_cryptcompress(inode, new_size, 1, 1, update_sd);
 	if(!result)
 		goto exit2;	
  exit:
@@ -1891,7 +1918,7 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 		if (update_sd) {
 			result = setattr_reserve(tree_by_inode(inode));
 			if (!result)
-				result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1, 1);
+				result = update_inode_cryptcompress(inode, new_size, 1, 1, 1);
 			all_grabbed2free();	
 		}
 		return result;
