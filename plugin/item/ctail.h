@@ -15,7 +15,7 @@ typedef struct ctail_item_format {
 /* Disk cluster is a set of items whose keys belong to the interval
    [cluster_key , cluster_key + disk_cluster_size - 1] */
 typedef enum {
-	INVALID_CLUSTER,
+	STAT_INVALID,
 	AT_CLUSTER,
 	AFTER_CLUSTER,
 	BEFORE_CLUSTER
