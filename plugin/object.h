@@ -19,9 +19,7 @@ extern int lookup_sd(struct inode *inode, znode_lock_mode lock_mode,
 extern int lookup_sd_by_key(reiser4_tree * tree, znode_lock_mode lock_mode,
 			    coord_t * coord, lock_handle * lh,
 			    const reiser4_key * key);
-
 extern int guess_plugin_by_mode(struct inode *inode);
-
 extern int common_file_delete(struct inode *inode);
 extern int common_file_save(struct inode *inode);
 extern int common_build_flow(struct inode *, char *buf, int user,
@@ -29,6 +27,7 @@ extern int common_build_flow(struct inode *, char *buf, int user,
 extern int common_write_inode(struct inode *inode);
 extern int common_file_owns_item(const struct inode *inode,
 				 const coord_t * coord);
+extern reiser4_block_nr estimate_internal_amount(reiser4_block_nr childs, __u32 tree_height);
 
 /* __FS_REISER4_PLUGIN_OBJECT_H__ */
 #endif
