@@ -286,6 +286,7 @@ int sd_save( struct inode *inode /* object being processed */,
 	return result;
 }
 
+
 /* stat-data extension handling functions. */
 
 /* Audited by: green(2002.06.14) */
@@ -359,6 +360,90 @@ static int unix_sd_save( struct inode *inode /* object being processed */,
 	*area += sizeof *sd;
 	return 0;
 }
+
+
+/*
+ * symlink stat data extention
+ */
+
+/* allocate memory for symlink target and attach it to inode->u.generic_ip */
+static int symlink_target_to_inode( struct inode *inode, const char *target, int len )
+{
+	assert( "vs-845", inode -> u.generic_ip == 0 );
+	assert( "vs-846", !inode_get_flag( inode, REISER4_GENERIC_VP_USED ));
+
+	/*
+	 * FIXME-VS: this is prone to deadlock. Not more than other similar
+	 * places, though
+	 */
+	inode -> u.generic_ip = kmalloc( len + 1, GFP_KERNEL );
+	if( !inode -> u.generic_ip )
+		return -ENOMEM;
+
+	memcpy( ( char * )( inode -> u.generic_ip ), target, len );
+	( ( char * )( inode -> u.generic_ip ) ) [ len ] = 0;
+	inode_set_flag( inode, REISER4_GENERIC_VP_USED );
+	return 0;
+}
+
+/* this is called on read_inode. There is nothing to do actually, but some
+ * sanity checks */
+static int symlink_sd_present( struct inode *inode,
+			       char **area, int *len )
+{
+	int result;
+
+	/* *len is number of bytes in stat data item from *area to the end of
+	 * item. It must be not less than size of symlink + 1 for ending 0 */
+	assert( "vs-839", inode -> i_size + 1 <= *len );
+	assert( "vs-840", *( *area + inode->i_size ) == 0 );
+
+	result = symlink_target_to_inode( inode, *area, inode -> i_size );
+
+	move_on( len, area, inode -> i_size + 1 );
+	return result;
+}
+
+/* symlink_sd_absent */
+
+static int symlink_sd_save_len( struct inode *inode)
+{
+	/*
+	 * FIXME-VS: no alignment
+	 */
+	return inode->i_size + 1;
+}
+
+/* this is called on create and update stat data. Do nothing on update but
+ * update area */
+static int symlink_sd_save( struct inode *inode, char **area )
+{
+	int result;
+	const char *target;
+
+	/* inode->i_size must be set already */
+	assert( "vs-841", inode -> i_size );
+
+	if( inode_get_flag( inode, REISER4_GENERIC_VP_USED ) ) {
+		/* there is nothing to do in update but move area */
+		assert( "vs-844", !memcmp( inode -> u.generic_ip,
+					   *area, inode -> i_size + 1 ) );
+		*area += ( inode -> i_size + 1 );
+		return 0;
+	}
+
+	target = ( const char * )( inode -> u.generic_ip );
+	inode -> u.generic_ip = 0;
+
+	result = symlink_target_to_inode( inode, target, inode -> i_size );
+
+	/* coopy symlink to stat data */
+	memcpy( *area, target, inode -> i_size );
+	( *area )[ inode -> i_size ] = 0;
+	*area += ( inode -> i_size + 1 );
+	return result;
+}
+
 
 /* Audited by: green(2002.06.14) */
 static int gaf_sd_present( struct inode *inode /* object being processed */, 
@@ -634,6 +719,24 @@ reiser4_plugin sd_ext_plugins[ LAST_SD_EXTENSION ] = {
 			.absent    = unix_sd_absent,
 			.save_len  = unix_sd_save_len,
 			.save      = unix_sd_save,
+			.alignment = 8
+		}
+	},
+	[ SYMLINK_STAT ] = {
+		/* stat data of symlink has this extension */
+		.sd_ext = {
+			.h = {
+				.type_id = REISER4_SD_EXT_PLUGIN_TYPE,
+				.id      = SYMLINK_STAT,
+				.pops    = NULL,
+				.label   = "symlink-sd",
+				.desc    = "stat data is appended with symlink name",
+				.linkage = TS_LIST_LINK_ZERO
+			},
+			.present   = symlink_sd_present,
+			.absent    = NULL,
+			.save_len  = symlink_sd_save_len,
+			.save      = symlink_sd_save,
 			.alignment = 8
 		}
 	},

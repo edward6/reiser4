@@ -70,6 +70,8 @@ typedef enum {
 	/** data required to implement unix stat(2) call. Layout is in
 	    reiser4_unix_stat. If this is not present, file is light-weight */
 	UNIX_STAT, 
+	/* stat data has link name included */
+	SYMLINK_STAT,
 	/** if this is present, file is controlled by non-standard
 	    plugin (that is, plugin that cannot be deduced from file
 	    mode bits), for example, aggregation, interpolation etc. */
