@@ -28,9 +28,11 @@ static void fsck_print_usage(void) {
 	"                                 warning message.\n"
 	"  -p | --profile                 profile to be used for recovering.\n"
 	"  -k | --known-profiles          prints known profiles.\n"
-	"  -w | --without-replaying       do not replay the journal.\n"
-	"  -c | --check                   check the filesystem (default).\n"
-	"  -r | --rebuild                 rebuild internal tree.\n");
+	"  -n | --no-journal              do not replay the journal.\n"
+	"  -l | --cache-limit             tree-cache limit in form -l 256M.\n"
+	"  -r                             ignored.\n"
+	"  -c | --check                   consistency check (default).\n"
+	"  -b | --rebuild                 rebuild internal tree.\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -49,31 +51,33 @@ int main(int argc, char *argv[]) {
 	{"quiet", no_argument, NULL, 'q'},
 	{"profile", no_argument, NULL, 'p'},
 	{"known-profiles", no_argument, NULL, 'k'},
-	{"without-replaying", no_argument, NULL, 'w'},
+	{"no-journal", no_argument, NULL, 'n'},
 	{"check", no_argument, NULL, 'c'},
-	{"rebuild", no_argument, NULL, 'r'},
+	{"rebuild", no_argument, NULL, 'b'},
+	{"ignored", no_argument, NULL, 'r'},
+	{"cache-limit", no_argument, NULL, 'l'},
 	{0, 0, 0, 0}
     };
     
     if (argc < 2) {
 	fsck_print_usage();
-	return 0xfe;
+	return ERROR_USER;
     }
 
     aal_exception_set_handler(__progs_exception_handler);
     
-    while ((c = getopt_long_only(argc, argv, "uhvp:kqcr", long_options, 
+    while ((c = getopt_long_only(argc, argv, "uhvp:kqcnbrl:", long_options, 
 	(int *)0)) != EOF) 
     {
 	switch (c) {
 	    case 'u': 
 	    case 'h': {
 		fsck_print_usage();
-		return 0;
+		return ERROR_NONE;
 	    }
 	    case 'v': {
 		printf("%s %s\n", argv[0], VERSION);
-		return 0;
+		return ERROR_NONE;
 	    }
 	    case 'q': {
 		quiet = 1;
@@ -85,9 +89,9 @@ int main(int argc, char *argv[]) {
 	    }
 	    case 'k': {
 		progs_misc_profile_list();
-		return 0;
+		return ERROR_NONE;
 	    }
-	    case 'w': {
+	    case 'n': {
 		replay = 0;
 	        break;
 	    }
@@ -95,26 +99,27 @@ int main(int argc, char *argv[]) {
 		check = 1;
 	        break;
 	    }
-	    case 'r': {
+	    case 'b': {
 		rebuild = 1;
 	        break;
 	    }
+	    case 'r': break;
 	    case '?': {
 	        fsck_print_usage();
-	        return 0xfe;
+	        return ERROR_USER;
 	    }
 	}
     }
 
     if (optind >= argc) {
 	fsck_print_usage();
-	return 0xfe;
+	return ERROR_USER;
     }
     
     if (!(profile = progs_misc_profile_find(profile_label))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find profile by its label \"%s\".", profile_label);
-	return 0xff;
+	return ERROR_PROG;
     }
     
     if (!check && !rebuild)
@@ -205,7 +210,7 @@ int main(int argc, char *argv[]) {
     libreiser4_done();
     aal_file_close(device);
     
-    return 0;
+    return ERROR_NONE;
 
 error_free_fs:
     reiserfs_fs_close(fs);
@@ -214,6 +219,6 @@ error_free_libreiser4:
 error_free_device:
     aal_file_close(device);
 error:
-    return 0xff;
+    return ERROR_PROG;
 }
 

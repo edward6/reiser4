@@ -86,11 +86,11 @@ int main(int argc, char *argv[]) {
 	    case 'u': 
 	    case 'h': {
 		mkfs_print_usage();
-		return 0;
+		return ERROR_NONE;
 	    }
 	    case 'v': {
 		printf("%s %s\n", argv[0], VERSION);
-		return 0;
+		return ERROR_NONE;
 	    }
 	    case 'p': {
 		profile_label = optarg;
@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
 	    }
 	    case 'k': {
 		progs_misc_profile_list();
-		return 0;
+		return ERROR_NONE;
 	    }
 	    case 'b': {
 		
