@@ -51,20 +51,25 @@ typedef enum {
 	REISER4_GENERIC_PTR_USED = 4,
 	/* set if size of stat-data item for this inode is known. If this is
 	 * set we can avoid recalculating size of stat-data on each update. */
-	REISER4_SDLEN_KNOWN   = 6,
+	REISER4_SDLEN_KNOWN   = 5,
 	/* reiser4_inode->crypt points to the crypto stat */
-	REISER4_CRYPTO_STAT_LOADED = 7,
+	REISER4_CRYPTO_STAT_LOADED = 6,
 	/* reiser4_inode->cluster_shift makes sense */
-	REISER4_CLUSTER_KNOWN = 8,
+	REISER4_CLUSTER_KNOWN = 7,
 	/* cryptcompress_inode_data points to the secret key */
-	REISER4_SECRET_KEY_INSTALLED = 9,
+	REISER4_SECRET_KEY_INSTALLED = 8,
 	/* File (possibly) has pages corresponding to the tail items, that
 	 * were created by ->readpage. It is set by mmap_unix_file() and
 	 * sendfile_unix_file(). This bit is inspected by write_unix_file and
 	 * kill-hook of tail items. It is never cleared once set. This bit is
 	 * modified and inspected under i_sem. */
-	REISER4_HAS_MMAP = 10,
-	REISER4_PART_CONV = 11
+	REISER4_HAS_MMAP = 9,
+	/* file was partially converted. It's body consists of a mix of tail
+	 * and extent items. */
+	REISER4_PART_CONV = 10,
+	/* inode was created through NFS request. Disconnected file state may
+	 * exist. */
+	REISER4_STATELESS = 11
 } reiser4_file_plugin_flags;
 
 /* state associated with each inode.
