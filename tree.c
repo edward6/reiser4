@@ -1240,9 +1240,11 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 		   properly */
 		result = coord_by_key(current_tree, to_key, &intranode_to, &lock_handle, ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN,
 				      TWIG_LEVEL, LEAF_LEVEL, CBK_UNIQUE, 0/*ra_info*/);
-		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
+		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/* -EIO, or something like that */
+			done_lh(&lock_handle);
 			break;
+		}
 
 		loaded = intranode_to.node;
 		result = zload(loaded);
