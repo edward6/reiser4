@@ -96,10 +96,6 @@ create_fq(void)
 static void
 count_enqueued_node(flush_queue_t * fq)
 {
-	txn_mgr *tmgr = &get_current_super_private()->tmgr;
-
-	txn_mgr_stat_inc(tmgr, nr_queued);
-
 	fq->nr_queued++;
 	fq->atom->num_queued++;
 }
@@ -107,10 +103,6 @@ count_enqueued_node(flush_queue_t * fq)
 static void
 count_dequeued_node(flush_queue_t * fq)
 {
-	txn_mgr *tmgr = &get_current_super_private()->tmgr;
-
-	txn_mgr_stat_dec(tmgr, nr_queued);
-
 	fq->nr_queued--;
 	fq->atom->num_queued--;
 }
