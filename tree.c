@@ -1102,7 +1102,7 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 	assert ("vs-591", item_is_extent (from));
 	assert ("vs-592", from->item_pos == to->item_pos);
 
-	if (keygt (from_key, item_key_by_coord (from, &key))) {
+	if (from_key && keygt (from_key, item_key_by_coord (from, &key))) {
 		/* head of item @from is not removed, there is nothing to
 		 * worry about */
 		return 0;
