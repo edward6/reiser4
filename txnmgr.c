@@ -1917,7 +1917,7 @@ repeat:
 		return;
 	}
 
-	if (!jnode_is_unformatted) {
+	if (jnode_is_znode(node)) {
 		if ( /**jnode_get_block(node) &&*/
 			   !blocknr_is_fake(jnode_get_block(node))) {
 			/* jnode has assigned real disk block. Put it into
@@ -2602,12 +2602,14 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 
 	/* sum numbers of waiters threads */
 	large->nr_waiters += small->nr_waiters;
+	small->nr_waiters = 0;
 
 	/* splice flush queues */
 	fuse_fq(large, small);
 
 	/* count flushers in result atom */
 	large->nr_flushers += small->nr_flushers;
+	small->nr_flushers = 0;
 
 	/* Transfer list counts to large. */
 	large->txnh_count += small->txnh_count;
@@ -2638,6 +2640,7 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 
 	/* Merge blocks reserved for overwrite set. */
 	large->flush_reserved += small->flush_reserved;
+	small->flush_reserved = 0;
 	    
 	/* Notify any waiters--small needs to unload its wait lists.  Waiters actually remove
 	   themselves from the list before returning from the fuse_wait function. */
