@@ -2650,29 +2650,61 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 
 
 /*
- * helper for allocate_extent_item_in_place.
- * paste new unallocated extent of @width after unit @coord is set to. Ask
- * insert_into_item to not try to shift anything to left
+ * helper for allocate_extent_item_in_place.  replace unallocated extent
+ * (@un_extent) with allocated (@star, @alloc_width) and unallocated
+ * (@unalloc_width). Have insert_into_item to not try to shift anything to
+ * left.
  */
-/* Audited by: green(2002.06.13) */
-static int paste_unallocated_extent (coord_t * item, reiser4_key * key,
-				     reiser4_block_nr width)
+static int paste_unallocated_extent (const coord_t * un_extent, lock_handle * lh,
+				     reiser4_key * key,
+				     reiser4_block_nr unalloc_width,
+				     reiser4_block_nr start,
+				     reiser4_block_nr alloc_width)
 {
+	int result;
 	coord_t coord;
 	reiser4_item_data data;
 	reiser4_extent new_ext;
 
+	coord_t coord_after;
+	lock_handle lh_after;
+	tap_t watch;
 
-	set_extent (&new_ext, UNALLOCATED_EXTENT, width);
 
-	coord_dup (&coord, item);
+	assert ("vs-990", coord_is_existing_unit (un_extent));
+
+	set_extent (&new_ext, UNALLOCATED_EXTENT, unalloc_width);
+
+	coord_dup (&coord, un_extent);
 	coord.between = AFTER_UNIT;
-	/*
-	 * have insert_into_item to not shift anything to left
-	 */
-	return insert_into_item (&coord, 0/*lh*/, key,
-				 init_new_extent (&data, &new_ext, 1),
-				 COPI_DONT_SHIFT_LEFT);
+
+	/* we did not change initial unallocated extent unit, set tap to it so
+	 * that we will be able to update it to shorter allocated extent after
+	 * new unallocated extent unit is added */
+	coord_dup (&coord_after, &coord);
+	init_lh (&lh_after);
+	copy_lh (&lh_after, lh);
+	tap_init (&watch, &coord_after, &lh_after, ZNODE_WRITE_LOCK);
+	tap_monitor (&watch);
+
+	result = insert_into_item (&coord, 0/*lh*/, key,
+				   init_new_extent (&data, &new_ext, 1),
+				   COPI_DONT_SHIFT_LEFT);
+	if (!result) {
+		reiser4_extent * ext;
+
+		ext = extent_by_coord (&coord_after);
+		assert ("vs-986", coord_after.node == un_extent->node);
+		assert ("vs-987", znode_is_loaded (coord_after.node));
+		assert ("vs-988", state_of_extent (ext) == UNALLOCATED_EXTENT);
+		assert ("vs-989", (extent_get_width (ext) ==
+				   alloc_width + unalloc_width));
+		extent_set_start (ext, start);
+		extent_set_width (ext, alloc_width);
+		znode_set_dirty (coord_after.node);
+	}
+	tap_done (&watch);
+	return result;
 }
 
 
@@ -2684,7 +2716,7 @@ static int paste_unallocated_extent (coord_t * item, reiser4_key * key,
  * to right
  */
 /* Audited by: green(2002.06.13) */
-int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
+int allocate_extent_item_in_place (coord_t * item, lock_handle * lh, flush_position *flush_pos)
 {
 	int result;
 	unsigned i;
@@ -2696,58 +2728,6 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 
 
 	blocksize = current_blocksize;
-
-#if 0
-	if (0) {
-		reiser4_key unit_key;
-
-		assert ("vs-773", item_is_extent (item));
-		assert ("vs-451", coord_is_existing_unit (item));
-		/*assert ("vs-901", jnode_is_unformatted (flush_pos->point));*/
-		/*
-		 * FIXME-VS: make sure that there are no unallocated extents in
-		 * this item to the left of coord @item. But, we might also
-		 * check other items to the left of this one
-		 */
-		ext = extent_item (item);
-
-#if 0	       
-               /* FIXME-ZAM: I think it is possible to allocate an extent when
-		* it left neighbors are not allocated yet. It could happen
-		* when flush code was called to flush limited number of dirty
-		* pages (in case of memory pressure) */
-		for (i = 0; i < item->unit_pos; i ++, ext ++) {
-			assert ("vs-797", state_of_extent (ext) != UNALLOCATED_EXTENT);
-		}
-#endif
-		/*
-		 * @item is set to unit which flush_pos->point falls to. Check
-		 * that
-		 */
-		ext = extent_by_coord (item);
-		unit_key_by_coord (item, &unit_key);
-
-		assert ("nikita-2652", jnode_get_level (node) == LEAF_LEVEL);
-		assert ("nikita-2653", jnode_get_type (node) == JNODE_UNFORMATTED_BLOCK);
-		assert ("nikita-2650", 
-			get_inode_oid (node->key.j.mapping->host) ==
-			get_key_objectid (&unit_key));
-		assert ("vs-898", state_of_extent (ext) != HOLE_EXTENT);
-
-		assert ("vs-899", get_key_offset (&unit_key) <= 
-			(__u64)node->pg->index << PAGE_CACHE_SHIFT);
-		set_key_offset (&unit_key, (get_key_offset (&unit_key) +
-					   extent_get_width (ext) * blocksize));
-		assert ("", get_key_offset (&unit_key) - blocksize >= 
-			(__u64)node->pg->index << PAGE_CACHE_SHIFT);
-
-#if 0
-		assert ("vs-900",
-			ergo (*jnode_get_block (flush_pos->point) == 0,
-			      state_of_extent (ext) == UNALLOCATED_EXTENT));
-#endif
-	}
-#endif
 
 
 	ext = extent_by_coord (item);
@@ -2778,14 +2758,9 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 			return result;
 
 		assert ("vs-440", allocated > 0);
-
-		/*
-		 * update extent's start, width and recalculate preceder
-		 */
-		extent_set_start (ext, first_allocated);
-		extent_set_width (ext, allocated);
-		znode_set_dirty (item->node);
+		/* update flush_pos's preceder to last allocated block number */
 		flush_pos_hint (flush_pos)->blk = first_allocated + allocated - 1;
+
 
 		unit_key_by_coord (item, &key);
 		/*
@@ -2796,19 +2771,25 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 			return result;
 		}
 
-		if (allocated == initial_width)
+		if (allocated == initial_width) {
 			/*
 			 * whole extent is allocated
 			 */
+			extent_set_start (ext, first_allocated);
+			extent_set_width (ext, allocated);
+			znode_set_dirty (item->node);
 			continue;
-		/* set @key to key of first byte of part of extent whihc left
+		}
+
+		/* set @key to key of first byte of part of extent which left
 		 * unallocated */
 		set_key_offset (&key, get_key_offset (&key) + allocated * blocksize);
 
-		/* put remaining unallocated extent into tree right after newly
-		 * overwritten one */
-		result = paste_unallocated_extent (item, &key,
-						   initial_width - allocated);
+		/* [u/initial_width] ->
+		   [first_allocated/allocated][u/initial_width - allocated] */
+		result = paste_unallocated_extent (item, lh, &key,
+						   initial_width - allocated,
+						   first_allocated, allocated);
 		if (result)
 			return result;
 		/*
@@ -3305,7 +3286,7 @@ static int make_node_extent (struct inode * inode, jnode * j,
 	}
 
 	move_flow_forward (f, to_page);
-	if (coord.node)
+	if (coord.node && coord_set_properly (&f->key, &coord))
 		/*
 		 * seal current coord and keep hint for future accesses
 		 */
