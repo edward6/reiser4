@@ -19,7 +19,7 @@ int delete_unix_file(struct inode *);
 int owns_item_unix_file(const struct inode *, const coord_t *);
 int setattr_unix_file(struct inode *, struct iattr *);
 void readpages_unix_file(struct file *, struct address_space *, struct list_head *pages);
-void init_inode_data_unix_file(struct inode *, int create);
+void init_inode_data_unix_file(struct inode *, reiser4_object_create_data *, int create);
 int pre_delete_unix_file(struct inode *);
 
 /* these are used by item methods */
@@ -53,6 +53,9 @@ typedef struct unix_file_info {
 #if REISER4_DEBUG
 	/* pointer to task struct of thread owning exclusive access to file */
 	void *ea_owner;
+#endif
+#if REISER4_LARGE_KEY
+	__u64 ordering;
 #endif
 } unix_file_info_t;
 
@@ -88,6 +91,23 @@ void unset_hint(hint_t *);
 int hint_validate(hint_t *, const reiser4_key *, int check_key, znode_lock_mode);
 int update_inode_and_sd_if_necessary(struct inode *, loff_t new_size, int update_i_size, int update_sd);
 
+#if REISER4_LARGE_KEY
+static inline __u64 get_inode_ordering(const struct inode *inode)
+{
+	return unix_file_inode_data(inode)->ordering;
+}
+
+static inline void set_inode_ordering(const struct inode *inode, __u64 ordering)
+{
+	unix_file_inode_data(inode)->ordering = ordering;
+}
+
+#else
+
+#define get_inode_ordering(inode) (0)
+#define set_inode_ordering(inode, val) noop
+
+#endif
 
 /* __REISER4_FILE_H__ */
 #endif

@@ -83,16 +83,17 @@ typedef enum {
 	KEY_LOCALITY_INDEX = 0,
 	/* minor "locale", aka item type. Sits in 1st element */
 	KEY_TYPE_INDEX = 0,
+	ON_LARGE_KEY(KEY_ORDERING_INDEX,)
 	/* "object band". Sits in 2nd element */
-	KEY_BAND_INDEX = 1,
+	KEY_BAND_INDEX,
 	/* objectid. Sits in 2nd element */
-	KEY_OBJECTID_INDEX = 1,
+	KEY_OBJECTID_INDEX = KEY_BAND_INDEX,
 	/* Offset. Sits in 3rd element */
-	KEY_OFFSET_INDEX = 2,
+	KEY_OFFSET_INDEX,
 	/* Name hash. Sits in 3rd element */
-	KEY_HASH_INDEX = 2,
-	KEY_CACHELINE_END = 2,
-	KEY_LAST_INDEX = 3
+	KEY_HASH_INDEX = KEY_OFFSET_INDEX,
+	KEY_CACHELINE_END = KEY_OFFSET_INDEX,
+	KEY_LAST_INDEX
 } reiser4_key_field_index;
 
 /* key in reiser4 internal "balanced" tree. It is just array of three
@@ -121,10 +122,8 @@ typedef enum {
 	KEY_OBJECTID_MASK = 0x0fffffffffffffffull,
 	/* offset is just 3rd L.M.Nt itself */
 	KEY_OFFSET_MASK = 0xffffffffffffffffull,
-	/* hash occupies 56 higher bits of 3rd element */
-	KEY_HASH_MASK = 0xffffffffffffff00ull,
-	/* generation counter occupies lower 8 bits of 3rd element */
-	KEY_GEN_MASK = 0xffull,
+	/* ordering is whole second element */
+	KEY_ORDERING_MASK = 0xffffffffffffffffull,
 } reiser4_key_field_mask;
 
 /* how many bits key element should be shifted to left to get particular field */
@@ -134,8 +133,7 @@ typedef enum {
 	KEY_BAND_SHIFT = 60,
 	KEY_OBJECTID_SHIFT = 0,
 	KEY_OFFSET_SHIFT = 0,
-	KEY_HASH_SHIFT = 8,
-	KEY_GEN_SHIFT = 0,
+	KEY_ORDERING_SHIFT = 0,
 } reiser4_key_field_shift;
 
 static inline __u64
@@ -198,8 +196,19 @@ DEFINE_KEY_FIELD(band, BAND, __u64);
 DEFINE_KEY_FIELD(objectid, OBJECTID, oid_t);
 /* define get_key_offset(), set_key_offset() */
 DEFINE_KEY_FIELD(offset, OFFSET, __u64);
-/* define get_key_hash(), set_key_hash() */
-DEFINE_KEY_FIELD(hash, HASH, __u64);
+#if (REISER4_LARGE_KEY)
+/* define get_key_ordering(), set_key_ordering() */
+DEFINE_KEY_FIELD(ordering, ORDERING, __u64);
+#else
+static inline __u64 get_key_ordering(const reiser4_key *key)
+{
+	return 0;
+}
+
+static inline void set_key_ordering(reiser4_key *key, __u64 val)
+{
+}
+#endif
 
 /* key comparison result */
 typedef enum { LESS_THAN = -1,	/* if first key is less than second */
@@ -263,6 +272,9 @@ keycmp(const reiser4_key * k1 /* first key to compare */ ,
 			/* compare offset */
 			if (result == EQUAL_TO) {
 				result = KEY_DIFF_EL(k1, k2, 2);
+				if (REISER4_LARGE_KEY && result == EQUAL_TO) {
+					result = KEY_DIFF_EL(k1, k2, 3);
+				}
 			}
 		}
 	} else if (REISER4_3_5_KEY_ALLOCATION) {

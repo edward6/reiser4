@@ -250,7 +250,7 @@ typedef struct file_plugin {
 	/* reiser4 specific part of inode has a union of structures which are specific to a plugin. This method is
 	   called when inode is read (read_inode) and when file is created (common_create_child) so that file plugin
 	   could initialize its inode data */
-	void (*init_inode_data)(struct inode *, int create);
+	void (*init_inode_data)(struct inode *, reiser4_object_create_data *, int);
 
 	/* truncate file to zero size. called by reiser4_drop_inode before truncate_inode_pages */
 	int (*pre_delete)(struct inode *);
@@ -278,9 +278,7 @@ typedef struct dir_plugin {
 
 	/* create new object described by @data and add it to the @parent
 	   directory under the name described by @dentry */
-	int (*create_child) (struct inode * parent, 
-			     struct dentry * dentry, 
-			     reiser4_object_create_data * data,
+	int (*create_child) (reiser4_object_create_data * data,
 			     struct inode ** retobj);
 
 	/* readdir implementation */
@@ -656,7 +654,7 @@ typedef struct cryptcompress_data {
 	__u16 keysize;              /* key size, bits */
 	__u8 * keyid;               /* keyid */
 	__u16 keyid_size;           /* keyid size, bytes */
-}cryptcompress_data_t;
+} cryptcompress_data_t;
 
 /* data type used to pack parameters that we pass to vfs
     object creation function create_object() */
@@ -674,6 +672,9 @@ struct reiser4_object_create_data {
 	   query for interpolation file etc. */
 	/* cryptcompress objects create data */
 	cryptcompress_data_t * crc;
+
+	struct inode  *parent;
+	struct dentry *dentry;
 };
 
 #define MAX_PLUGIN_TYPE_LABEL_LEN  32

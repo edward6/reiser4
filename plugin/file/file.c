@@ -1727,6 +1727,7 @@ key_by_inode_unix_file(struct inode *inode, loff_t off, reiser4_key *key)
 {
 	key_init(key);
 	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
+	set_key_ordering(key, get_inode_ordering(inode));
 	set_key_objectid(key, get_inode_oid(inode));/*FIXME: inode->i_ino */
 	set_key_type(key, KEY_BODY_MINOR);
 	set_key_offset(key, (__u64) off);
@@ -1855,9 +1856,12 @@ readpages_unix_file(struct file *file, struct address_space *mapping,
 
 /* plugin->u.file.init_inode_data */
 void
-init_inode_data_unix_file(struct inode *inode, int create)
+init_inode_data_unix_file(struct inode *inode, 
+			  reiser4_object_create_data *crd, int create)
 {
 	unix_file_info_t *data;
+	struct inode     *parent;
+	reiser4_key       key;
 
 	data = unix_file_inode_data(inode);
 	data->state = create ? UNIX_FILE_EMPTY : UNIX_FILE_STATE_UNKNOWN;
@@ -1868,6 +1872,19 @@ init_inode_data_unix_file(struct inode *inode, int create)
 #if REISER4_DEBUG
 	data->ea_owner = 0;
 #endif
+	if (create) {
+		parent = crd->parent;
+		assert("nikita-3224", inode_dir_plugin(parent) != NULL);
+		inode_dir_plugin(parent)->build_entry_key(parent, 
+							  &crd->dentry->d_name, 
+							  &key);
+		set_inode_ordering(inode, get_key_objectid(&key));
+	} else {
+		/* safe to use ->sd_coord, because node is under long term
+		 * lock */
+		item_key_by_coord(&reiser4_inode_data(inode)->sd_coord, &key);
+		set_inode_ordering(inode, get_key_ordering(&key));
+	}
 }
 
 /* plugin->u.file.pre_delete */

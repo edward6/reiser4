@@ -545,7 +545,11 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 		struct inode *child;
 
 		child = NULL;
-		result = dplug->create_child(parent, dentry, data, &child);
+
+		data->parent = parent;
+		data->dentry = dentry;
+
+		result = dplug->create_child(data, &child);
 		if (unlikely(result != 0)) {
 			if (child != NULL) {
 				assert("nikita-3140", child->i_size == 0);

@@ -333,7 +333,7 @@ read_inode(struct inode *inode /* inode to read from disk */ ,
 
 			/* call file plugin's method to initialize plugin specific part of inode */
 			if (inode_file_plugin(inode)->init_inode_data)
-				inode_file_plugin(inode)->init_inode_data(inode, 0/*not create*/);
+				inode_file_plugin(inode)->init_inode_data(inode, NULL, 0/*not create*/);
 		}
 	}
 	/* lookup_sd() doesn't release coord because we want znode

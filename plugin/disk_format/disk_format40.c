@@ -364,6 +364,9 @@ root_dir_key_format40(const struct super_block *super UNUSED_ARG)
 {
 	static const reiser4_key FORMAT40_ROOT_DIR_KEY = {
 		.el = {{(FORMAT40_ROOT_LOCALITY << 4) | KEY_SD_MINOR},
+#if REISER4_LARGE_KEY
+		       {0ull},
+#endif
 		       {FORMAT40_ROOT_OBJECTID}, {0ull}}
 	};
 

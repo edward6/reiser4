@@ -329,14 +329,15 @@ static reiser4_block_nr common_estimate_create_child(
 */
 /* ->create_child method of directory plugin */
 static int
-create_child_common(struct inode *parent /* parent object */ ,
-		    struct dentry *dentry /* new name */ ,
-		    reiser4_object_create_data * data	/* parameters
+create_child_common(reiser4_object_create_data * data	/* parameters
 							 * of new
 							 * object */,
 		    struct inode ** retobj)
 {
 	int result;
+
+	struct dentry *dentry;	/* parent object */
+	struct inode *parent;	/* new name */
 
 	dir_plugin *par_dir;	/* directory plugin on the parent */
 	dir_plugin *obj_dir;	/* directory plugin on the new object */
@@ -346,9 +347,12 @@ create_child_common(struct inode *parent /* parent object */ ,
 
 	reiser4_dir_entry_desc entry;	/* new directory entry */
 
+	assert("nikita-1420", data != NULL);
+	parent = data->parent;
+	dentry = data->dentry;
+
 	assert("nikita-1418", parent != NULL);
 	assert("nikita-1419", dentry != NULL);
-	assert("nikita-1420", data != NULL);
 	par_dir = inode_dir_plugin(parent);
 	/* check permissions */
 	if (perm_chk(parent, create, parent, dentry, data))
@@ -415,7 +419,7 @@ create_child_common(struct inode *parent /* parent object */ ,
 
 	/* call file plugin's method to initialize plugin specific part of inode */
 	if (obj_plug->init_inode_data)
-		obj_plug->init_inode_data(object, 1/*create*/);
+		obj_plug->init_inode_data(object, data, 1/*create*/);
 
 	/* obtain directory plugin (if any) for new object. */
 	obj_dir = inode_dir_plugin(object);

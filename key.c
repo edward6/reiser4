@@ -12,13 +12,23 @@
 /* Minimal possible key: all components are zero. It is presumed that this is
    independent of key scheme. */
 static const reiser4_key MINIMAL_KEY = {
-	.el = {{0ull}, {0ull}, {0ull}}
+	.el = {
+		{0ull}, 
+		ON_LARGE_KEY({0ull},)
+		{0ull}, 
+		{0ull}
+	}
 };
 
 /* Maximal possible key: all components are ~0. It is presumed that this is
    independent of key scheme. */
 static const reiser4_key MAXIMAL_KEY = {
-	.el = {{~0ull}, {~0ull}, {~0ull}}
+	.el = {
+		{~0ull}, 
+		ON_LARGE_KEY({~0ull},)
+		{~0ull}, 
+		{~0ull}
+	}
 };
 
 /* Initialise key. */
@@ -76,9 +86,21 @@ print_key(const char *prefix /* prefix to print */ ,
 	if (key == NULL)
 		printk("%s: null key\n", prefix);
 	else {
-		printk("%s: (%Lx:%x:%Lx:%Lx:%Lx)", prefix,
-		       get_key_locality(key), get_key_type(key),
-		       get_key_band(key), get_key_objectid(key), get_key_offset(key));
+		if (REISER4_LARGE_KEY)
+			printk("%s: (%Lx:%x:%Lx:%Lx:%Lx:%Lx)", prefix,
+			       get_key_locality(key), 
+			       get_key_type(key),
+			       get_key_ordering(key),
+			       get_key_band(key), 
+			       get_key_objectid(key), 
+			       get_key_offset(key));
+		else
+			printk("%s: (%Lx:%x:%Lx:%Lx:%Lx)", prefix,
+			       get_key_locality(key), 
+			       get_key_type(key),
+			       get_key_band(key), 
+			       get_key_objectid(key), 
+			       get_key_offset(key));
 		if (get_key_type(key) == KEY_FILE_NAME_MINOR) {
 			char buf[DE_NAME_BUF_LEN];
 
@@ -104,9 +126,21 @@ int
 sprintf_key(char *buffer /* buffer to print key into */ ,
 	    const reiser4_key * key /* key to print */ )
 {
-	return sprintf(buffer, "(%Lx:%x:%Lx:%Lx:%Lx)",
-		       get_key_locality(key), get_key_type(key),
-		       get_key_band(key), get_key_objectid(key), get_key_offset(key));
+	if (REISER4_LARGE_KEY)
+		return sprintf(buffer, "(%Lx:%x:%Lx:%Lx:%Lx:%Lx)",
+			       get_key_locality(key), 
+			       get_key_type(key),
+			       get_key_ordering(key),
+			       get_key_band(key), 
+			       get_key_objectid(key), 
+			       get_key_offset(key));
+	else
+		return sprintf(buffer, "(%Lx:%x:%Lx:%Lx:%Lx)",
+			       get_key_locality(key), 
+			       get_key_type(key),
+			       get_key_band(key), 
+			       get_key_objectid(key), 
+			       get_key_offset(key));
 }
 
 /* Make Linus happy.

@@ -261,6 +261,7 @@ build_sd_key(const struct inode * target /* inode of an object */ ,
 
 	key_init(result);
 	set_key_locality(result, reiser4_inode_data(target)->locality_id);
+	set_key_ordering(result, get_inode_ordering(target));
 	set_key_objectid(result, get_inode_oid(target));
 	set_key_type(result, KEY_SD_MINOR);
 	set_key_offset(result, (__u64) 0);
@@ -436,8 +437,12 @@ cmp_t de_id_key_cmp(const de_id * id /* directory entry id to compare */ ,
 
 	k1 = (reiser4_key *)(((unsigned long)id) - sizeof key->el[0]);
 	result = KEY_DIFF_EL(k1, key, 1);
-	if (result == EQUAL_TO)
+	if (result == EQUAL_TO) {
 		result = KEY_DIFF_EL(k1, key, 2);
+		if (REISER4_LARGE_KEY && result == EQUAL_TO) {
+			result = KEY_DIFF_EL(k1, key, 3);
+		}
+	}
 	return result;
 }
 

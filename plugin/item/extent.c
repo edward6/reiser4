@@ -94,7 +94,8 @@ can_contain_key_extent(const coord_t *coord, const reiser4_key *key, const reise
 
 	item_key_by_coord(coord, &item_key);
 	if (get_key_locality(key) != get_key_locality(&item_key) ||
-	    get_key_objectid(key) != get_key_objectid(&item_key)) return 0;
+	    get_key_objectid(key) != get_key_objectid(&item_key) ||
+	    get_key_ordering(key) != get_key_ordering(&item_key)) return 0;
 
 	return 1;
 }
@@ -116,7 +117,9 @@ mergeable_extent(const coord_t *p1, const coord_t *p2)
 	item_key_by_coord(p1, &key1);
 	item_key_by_coord(p2, &key2);
 	if (get_key_locality(&key1) != get_key_locality(&key2) ||
-	    get_key_objectid(&key1) != get_key_objectid(&key2) || get_key_type(&key1) != get_key_type(&key2))
+	    get_key_objectid(&key1) != get_key_objectid(&key2) || 
+	    get_key_ordering(&key1) != get_key_ordering(&key2) || 
+	    get_key_type(&key1) != get_key_type(&key2))
 		return 0;
 	if (get_key_offset(&key1) + extent_size(p1, nr_units_extent(p1)) != get_key_offset(&key2))
 		return 0;

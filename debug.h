@@ -133,6 +133,12 @@
 #define REISER4_LOCKPROF (0)
 #endif
 
+#if defined(CONFIG_REISER4_LARGE_KEY)
+#define REISER4_LARGE_KEY (1)
+#else
+#define REISER4_LARGE_KEY (0)
+#endif
+
 #define noop   do {;} while(0)
 
 #if REISER4_DEBUG
@@ -435,6 +441,12 @@ extern void report_err(void);
 typedef struct err_site {} err_site;
 #define RETERR(code) code
 #define report_err() noop
+#endif
+
+#if REISER4_LARGE_KEY
+#define ON_LARGE_KEY(...) __VA_ARGS__
+#else
+#define ON_LARGE_KEY(...)
 #endif
 
 /* __FS_REISER4_DEBUG_H__ */
