@@ -1,0 +1,1464 @@
+/* This code is complex to the point that its desirability compared to not
+   batching operations on the parent is questionable. */
+
+/* Let's talk more about why it is being written.  As I understand it, the
+   desire is to perform all needed operations on the parent node as a batch,
+   before going on to perform those of them that propagate upwards on the
+   grandparent node.  So when do we get batches of operations on parent
+   nodes?  I see the following situations:
+
+# Nikita's answer:
+
+#   Carry exists for other purposes beyond optimization that we call
+#   "batching". Main reason is locking and resource tracking:
+
+#     (1) suppose item is added at the leaf level, this requires shifting data
+#     to neighbors in insertion node and allocation of new node.
+     
+#     (2) next, pointer has to be inserted, and delimiting keys have to be
+#     updated, at the parent level. This requires locking of several nodes,
+#     addition of new nodes.
+
+#     (3) and so on, at each level there are locked nodes and new nodes that
+#     were allocated, but not yet inserted into parent.
+
+#   Point is that, no matter how balancing is implemented, one *has* to keep
+#   track of all locks taken and nodes allocated. This is complexity inherent
+#   to the task rather than artefact of an implementation. Look at the 3.x
+#   balancing code,---is it simple? 
+
+The 3.x code was written by persons who wrote quickly and did not spend a few
+months extra on it simplifying before leaving me and Monstr to the debugging
+of it.  The result of not spending those few months extra simplifying was that
+it took us 2 years longer to debug it than it would have taken otherwise.  You
+don't get to spend my money making that mistake again.
+
+Write less code.  Write code that is simple.  It is more work and requires
+more skill to write simple code.  You are too young to understand this, sigh.
+
+## Nikita's answer:
+
+## Argumenting ad hominem, are we? So, it probably was me who rejected simple,
+## effective, and proven b-link tree algorithm in favor of never ever fully
+## specified, or even more or less desribed "dancing" or some other cool term
+## tree?
+
+## Or may be it was me who rejected simple locking protocols in favor of
+## unmaintainable and error-prone "priorities"?
+
+## Or may be it was me who forced extents to go on the level above leaf, after
+## losing an argument on this subject with everyone else, and without even
+## considering arising complications.
+
+## Or may be it was me who decided to add "slum squeezing", (re-)allocate on 
+## flush and other things, and refused to listen to others when they told me 
+## that this is way too complex?
+
+## I am sorry, but to me it looks like that there is another source of
+## complexity in this project beyond me.
+
+## And more on this. If person thinks that there is some magic way to make
+## complex task simpler by "writing less code", this person is mistaken. If
+## person thinks that by removing field (->tree, ->free_space) from data
+## structure code is somehow simplified, this person is grossly
+## mistaken---this field was declared on purpose, and removing it ("because it
+## makes less code") only forces developers to resort to all sorts of ugly
+## work-arounds---because functionality still has to be provided--resulting in
+## more code, more obscure code, and more complexity.
+
+## Of course, blaming someone else for "complexity" and "bloat" is always
+## simpler, especially is there is no need to back claims by anything more
+## detailed than vague verbal "alternative" never tested, and never thought
+## out thoroughly.
+
+
+# Look at any B-tree implementation:
+#   balancing is complex algorithm by itself and concurrent balancing required
+#   a lot of research during many years to get it right.
+
+#   I would go further and claim this this implementation is remarkably simple
+#   and uniform in dealing with resource and lock tracking. Carry operations
+#   and nodes are objects to which locks and tree nodes are attached and
+#   simple and clear 3-queue algorithm in carry() archives two
+#   important goals at the same time:
+
+#    (1) it is framework by which operations are propagated through the tree
+#    (2) it is resource manager
+
+#  This file is large, but this is not because of carry complexity. Look at
+#  the sections "DIFFICULTIES AND SUBTLE POINTS", and "FUNCTION PLACEMENT"
+#  below: carry.c contains a lot more than carry implementation.
+
+#  That said, think of this: carry was debugged in less than week to the state
+#  when tree of height 10 can be created by random insertions and deletions of
+#  complex multi-unit items. Isn't hardness to correct errors is the best
+#  (empirical and almost objective) meausre of code complexity?
+
+   1) cut_tree cutting multiple formatted nodes (does this ever happen?)
+
+# Nikita: We hope that this will happen during balance_slum().
+
+   2) massive insertions
+   3) insertions that modify delimiting keys and insert nodes
+   4) squeezes that change lots of delimiting keys
+
+It is significant that I don't see:
+
+   5) mixture of lots of operations of different types on the same parent.
+
+# Nikita: huh? when you shift data and allocate new node on one level, you
+# have to both insert pointer and update delimiting keys at the parent level.
+
+   6) high propagation rate of changes to parents, and to parents of parents
+
+# Nikita: this will take place in a sparse tree. But this is what we want to
+# avoid, aren't we?
+
+If we need to cut multiple formatted nodes from a parent, should we simply
+have a cut range function?
+
+If we need to insert a batch of formatted nodes into a parent, should we
+simply have an insert_nodes function that inserts multiple nodes?
+
+If we need to update multiple delimiting keys at a time as a result of
+squeeze_left, should we just write a function that does exactly that?
+
+Is the point of this code solely that it allows both modifying compressed
+delimiting keys and inserting nodes in a batch?  Does it really optimize that?
+Or does it just allow us to someday write something really complicated that
+might do that?  I think I don't find this motivation compelling.
+
+Or is the whole point that it allows us to minimize locking and then relocking
+of parents?  If so, is the code complexity and overhead it creates greater
+than the disease it cures?  Is assembling this set of carry operations more
+work than repeatedly locking parents?  I fear it is so.
+
+
+Things that add to its complexity:
+
+    A) code for maintaining pools of carry ops and carry nodes
+
+    B) tracking which nodes are affected by an op (note, I don't really understand
+    how this is done, so my discomfort may be in error here)
+
+    C) genericizing the carry ops so that they fit into a consistent structure and interface
+
+    D) carry_level_queue and all of its supporting functions (queue
+    navigation, etc.) are a significant amount of code
+
+This code complexity must necessarily harm performance.
+
+I think that we could write some sort of generic items operations interface
+that takes a batch of operations, performs space changing estimates for each
+operation prior to performing any of the operations, efficiently implements
+them without unnecessary memmoves, and is used by the item shifting code as
+well as the carry code.  IFF we do this, carry.c maybe makes sense.
+
+I would feel more supportive of the use of the carry code if a way to
+dramatically simplify its implementation is found.  Let's pick a few clients
+of this code, and in seminar step through everything they need to do.
+
+In particular, I think that if we can make the caller responsible for tracking
+what operations need to be performed, then all of this code becomes DRAMATICALLY simpler.
+
+Whether the caller code can in practice track what needs to be done more
+simply and easily than this code can, is a pivotal question.
+
+What does the caller need to do if it does its own tracking?  It needs to
+iterate through its tasks first estimating the preparation work (that means
+estimating how much space is needed), then it needs to perform them, then it
+needs to cleanup.  Let us outline what is required by inserting a new file,
+squeeze_left, and cut_tree in seminar, and get an idea of how complex that is
+without the level_queue infrastructure to track it for us.
+
+Let us also review the item shifting code to see if we can abstract it to our
+needs without slowing it.
+
+ */
+
+/*
+ * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
+ */
+/*
+ * Functions to "carry" tree modification(s) upward.
+ */
+/*
+ *
+ * Tree is modified one level at a time. As we modify a level we accumulate a
+ * set of changes that need to be propagated to the next level.  We manage
+ * node locking such that any searches that collide with carrying are
+ * restarted, from the root if necessary.
+ *
+ * Insertion of a new item may result in items being moved among nodes and
+ * this requires the delimiting key to be updated at the least common parent
+ * of the nodes modified to preserve search tree invariants. Also, insertion
+ * may require allocation of a new node. A pointer to the new node has to be
+ * inserted into some node on the parent level, etc.
+ * 
+ * Tree carrying is meant to be analogous to arithmetic carrying.
+ * 
+ * A carry operation is always associated with some node (&carry_node).
+ *
+ * Carry process starts with some initial set of operations to be performed
+ * and an initial set of already locked nodes.  Operations are performed one
+ * by one. Performing each single operation has following possible effects:
+ *
+ *  - content of carry node associated with operation is modified
+ *  - new carry nodes are locked and involved into carry process on this level
+ *  - new carry operations are posted to the next level
+ *
+ * After all carry operations on this level are done, process is repeated for
+ * the accumulated sequence on carry operations for the next level. This
+ * starts by trying to lock (in left to right order) all carry nodes
+ * associated with carry operations on the parent level. After this, we decide
+ * whether more nodes are required on the left of already locked set. If so,
+ * all locks taken on the parent level are released, new carry nodes are
+ * added, and locking process repeats.
+ *
+ * It may happen that balancing process fails owing to unrecoverable error on
+ * some of upper levels of a tree (possible causes are io error, failure to
+ * allocate new node, etc.). In this case we should unmount the filesystem,
+ * rebooting if it is the root, and possibly advise the use of fsck.
+ *
+ * USAGE:
+ *
+ *
+ *  int some_tree_operation( znode *node, ... )
+ *  {
+ *     // Allocate on a stack pool of carry objects: operations and nodes.
+ *     // Most carry processes will only take objects from here, without
+ *     // dynamic allocation.
+
+I feel uneasy about this pool.  It adds to code complexity, I understand why it exists, but.... -Hans
+
+ *     carry_pool  pool;
+ *     carry_level lowest_level;
+ *     carry_op   *op;
+ *
+ *     reiser4_init_carry_pool( &pool );
+ *     reiser4_init_carry_level( &lowest_level, &pool );
+ *
+ *     // operation may be one of:
+ *     //   COP_INSERT    --- insert new item into node
+ *     //   COP_CUT       --- remove part of or whole node
+ *     //   COP_PASTE     --- increase size of item
+ *     //   COP_DELETE    --- delete pointer from parent node
+ *     //   COP_UPDATE    --- update delimiting key in least
+ *     //                     common ancestor of two
+ *     //   COP_MODIFY    --- update parent to reflect changes in
+ *     //                     the child
+ *
+ *     op = reiser4_post_carry( &lowest_level, operation, node, 0 );
+ *     if( IS_ERR( op ) || ( op == NULL ) ) {
+ *         handle error
+ *     } else {
+ *         // fill in remaining fields in @op, according to carry.h:carry_op
+ *         result = carry( &lowest_level, NULL );
+ *     }
+ *     reiser4_done_carry_pool( &pool );
+ *  }
+ *
+ * When you are implementing node plugin method that participates in carry
+ * (shifting, insertion, deletion, etc.), do the following:
+ *
+ * int foo_node_method( znode *node, ..., carry_level *todo )
+ * {
+ *     carry_op   *op;
+ *
+ *     ....
+ *
+ *     // note, that last argument to reiser4_post_carry() is non-null
+ *     // here, because @op is to be applied to the parent of @node, rather
+ *     // than to the @node itself as in the previous case.
+ *
+ *     op = reiser4_post_carry( todo, operation, node, 1 );
+ *     // fill in remaining fields in @op, according to carry.h:carry_op
+ *
+ *     ....
+ *
+ * }
+ *
+ * BATCHING:
+ *
+ * One of the main advantages of level-by-level balancing implemented here is
+ * ability to batch updates on a parent level and to peform them more
+ * efficiently as a result.
+ *
+ * Description To Be Done (TBD).
+ *
+ * DIFFICULTIES AND SUBTLE POINTS:
+ *
+ * 1. complex plumbing is required, because:
+ *
+ *     a. effective allocation through pools is needed
+ *
+ *     b. target of operation is not exactly known when operation is
+ *     posted. This is worked around through bitfields in &carry_node and
+ *     logic in lock_carry_node()
+ *
+ *     c. of interaction with locking code: node should be added into sibling
+ *     list when pointer to it is inserted into its parent, which is some time
+ *     after node was created. Between these moments, node is somewhat in
+ *     suspended state and is only registered in the carry lists
+ *
+ *  2. whole balancing logic is implemented here, in particular, insertion
+ *  logic is coded in make_space().
+ *
+ *  3. special cases like insertion (add_tree_root()) or deletion
+ *  (kill_tree_root()) of tree root and morphing of paste into insert
+ *  (insert_paste()) have to be handled.
+ *
+ *  4. there is non-trivial interdependency between allocation of new nodes
+ *  and almost everything else. This is mainly due to the (1.c) above. I shall
+ *  write about this later.
+ *
+ * FUNCTION PLACEMENT:
+ *
+ * There are some functions in this file that doesn't logically belong to
+ * carry implementation. Data shifting, root creation and killing, new node
+ * allocation. Problem is that since carry is our only balancing mechanism,
+ * such functionality belongs to nowhere else also.
+ *
+ * It can be argued that special file should be created and said functions
+ * moved there.
+ *
+ */
+
+#include "reiser4.h"
+
+/*
+ * level locking/unlocking
+ */
+static int lock_carry_level( carry_level *level );
+static void unlock_carry_level( carry_level *level, int failure );
+static void done_carry_level( carry_level *level );
+static void unlock_carry_node( carry_node *node, int failure );
+
+int lock_carry_node( carry_level *level, carry_node *node );
+int lock_carry_node_tail( carry_node *node );
+
+/*
+ * carry processing proper
+ */
+static int carry_on_level( carry_level *doing, carry_level *todo );
+
+/* handlers for carry operations. */
+
+static void fatal_carry_error( carry_level *doing, int ecode );
+static int add_new_root( carry_level *level, carry_node *node, znode *fake );
+
+
+/**
+ * main entry point for tree balancing.
+ *
+ * Tree carry performs operations from @doing and while doing so accumulates
+ * information about operations to be performed on the next level ("carried"
+ * to the parent level). Carried operations are performed, causing possibly
+ * more operations to be carried upward etc. carry() takes care about
+ * locking and pinning znodes while operating on them.
+ *
+ * For usage, see comment at the top of fs/reiser4/carry.c
+ *
+ **/
+int carry( carry_level *doing /* set of carry operations to be performed */, 
+	      carry_level *done  /* set of nodes, already performed at the *
+				  * previous level. NULL in most cases */ )
+{
+	int             result;
+	carry_level     done_area;
+	carry_level     todo_area;
+	/** queue of new requests */
+	carry_level    *todo;
+
+	assert( "nikita-888", doing != NULL );
+
+	trace_stamp( TRACE_CARRY );
+
+	todo = &todo_area;
+	reiser4_init_carry_level( todo, doing -> pool );
+	if( done == NULL ) {
+		/* queue of requests performed on the previous level */
+		done = &done_area;
+		reiser4_init_carry_level( done, doing -> pool );
+	}
+
+	result = 0;
+	/* FIXME-NIKITA before embarking into this we should assure ourselves that
+	 * there are enough free blocks. This should be done through some
+	 * per-super block semaphore. */
+	/*
+	 * FIXME-NIKITA also, enough free memory have to be reserved.
+	 */
+	/* iterate until there is nothing more to do */
+	while( ( result == 0 ) && ( reiser4_carry_op_num( doing ) > 0 ) ) {
+		carry_level *tmp;
+		
+		ON_STATS( todo -> level_no = ++ doing -> level_no );
+
+		/* at this point @done is locked. */
+		/* repeat lock/do/unlock while
+		 *
+		 * (1) lock_carry_level() fails due to deadlock avoidance, or
+		 *
+		 * (2) carry_on_level() decides that more nodes have to
+		 * be involved.
+		 *
+		 * (3) some unexpected error occured while balancing on the
+ 		 * upper levels. In this case all changes are rolled back.
+		 *
+		 */
+		while( 1 ) {
+			result = lock_carry_level( doing );
+			if( result == 0 ) {
+				/*
+				 * perform operations from @doing and
+				 * accumulate new requests in @todo
+				 */
+				result = carry_on_level( doing, todo );
+				if( result == 0 )
+					break;
+				else if( ( result != -EAGAIN ) ||
+					 ! doing -> restartable ) {
+					warning( "nikita-1043",
+						 "Fatal error during carry: %i",
+						 result );
+					print_level( "done", done );
+					print_level( "doing", doing );
+					print_level( "todo", todo );
+					/*
+					 * do some rough stuff like aborting
+					 * all pending transcrashes and thus
+					 * pushing tree back to the consistent
+					 * state. Alternatvely, just panic.
+					 */
+					fatal_carry_error( doing, result );
+					return result;
+				}
+			} else if( result != -EAGAIN )
+				break;
+			reiser4_stat_level_add( doing, carry_restart );
+			unlock_carry_level( doing, 1 );
+		}
+		/* at this point @done can be safely unlocked */
+		done_carry_level( done );
+		reiser4_stat_level_add( doing, carry_done );
+		/*
+		 * cyclically shift queues
+		 */
+		tmp   = done;
+		done  = doing;
+		doing = todo;
+		todo  = tmp;
+		reiser4_init_carry_level( todo, doing -> pool );
+
+		/* give other threads chance to run */
+		reiser4_preempt_point();
+	}
+	done_carry_level( done );
+	return result;
+}
+
+/**
+ * macro to iterate over all operations in a @level
+ */
+#define for_all_ops( level /* carry level (of type carry_level *) */, 		\
+		     op    /* pointer to carry operation, modified by loop (of	\
+			    * type carry_op *) */, 				\
+		     tmp   /* pointer to carry operation (of type carry_op *),	\
+			    * used to make iterator stable in the face of	\
+			    * deletions from the level */ )			\
+for( op = ( carry_op * ) pool_level_list_front( &level -> ops ),		\
+     tmp = ( carry_op * ) pool_level_list_next( &op -> header ) ;		\
+     ! pool_level_list_end( &level -> ops, &op -> header ) ;			\
+     op = tmp, tmp = ( carry_op * ) pool_level_list_next( &op -> header ) )
+
+/**
+ * macro to iterate over all nodes in a @level
+ */
+#define for_all_nodes( level /* carry level (of type carry_level *) */,		\
+		       node  /* pointer to carry node, modified by loop (of	\
+			      * type carry_node *) */, 				\
+		       tmp   /* pointer to carry node (of type carry_node *),	\
+			      * used to make iterator stable in the face of *	\
+			      * deletions from the level */ )			\
+for( node = ( carry_node * ) pool_level_list_front( &level -> nodes ),  	\
+     tmp = ( carry_node * ) pool_level_list_next( &node -> header ) ; 		\
+     ! pool_level_list_end( &level -> nodes, &node -> header ) ; 		\
+     node = tmp, tmp = ( carry_node * ) pool_level_list_next( &node -> header ) )
+
+/**
+ * macro to iterate over all nodes in a @level in reverse order
+ *
+ * This is used, because nodes are unlocked in reversed order of locking
+ */
+#define for_all_nodes_back( level /* carry level (of type carry_level *) */,	\
+		            node  /* pointer to carry node, modified by loop	\
+				   * (of type carry_node *) */,			\
+		            tmp   /* pointer to carry node (of type carry_node	\
+				   * *), used to make iterator stable in the	\
+				   * face of deletions from the level */ )	\
+for( node = ( carry_node * ) pool_level_list_back( &level -> nodes ),		\
+     tmp = ( carry_node * ) pool_level_list_prev( &node -> header ) ;		\
+     ! pool_level_list_end( &level -> nodes, &node -> header ) ;		\
+     node = tmp, tmp = ( carry_node * ) pool_level_list_prev( &node -> header ) )
+
+/**
+ * perform carry operations on given level.
+ *
+ * Optimizations proposed by pooh:
+ *
+ * (1) don't lock all nodes from queue at the same time. Lock nodes lazily as
+ * required;
+ *
+ * (2) unlock node if there are no more operations to be performed upon it and
+ * node didn't add any operation to @todo. This can be implemented by
+ * attaching to each node two counters: counter of operaions working on this
+ * node and counter and operations carried upward from this node.
+ *
+ **/
+static int carry_on_level( carry_level *doing /* queue of carry operations to
+					       * do on this level */, 
+			   carry_level *todo  /* queue where new carry
+					       * operations to be performed on
+					       * the * parent level are
+					       * accumulated during @doing
+					       * processing. */ )
+{
+	int result;
+	int ( *f )( carry_op *, carry_level *, carry_level * );
+	carry_op *op;
+	carry_op *tmp_op;
+
+	assert( "nikita-1034", doing != NULL );
+	assert( "nikita-1035", todo != NULL );
+
+	trace_stamp( TRACE_CARRY );
+
+	/* @doing->nodes are locked. */
+
+	/*
+	 * This function can be split into two phases: analysis and modification.
+	 *
+	 * Analysis calculates precisely what items should be moved between
+	 * nodes. This information is gathered in some structures attached to
+	 * each carry_node in a @doing queue. Analysis also determines whether
+	 * new nodes are to be allocated etc.
+	 *
+	 * After analysis is completed, actual modification is performed. Here
+	 * we can take advantage of "batch modification": if there are several
+	 * operations acting on the same node, modifications can be performed
+	 * more efficiently when batched together.
+	 *
+	 * Above is an optimization left for the future.
+	 */
+	/*
+	 * Important, but delayed optimization: it's possible to batch
+	 * operations together and perform them more efficiently as a
+	 * result. For example, deletion of several neighboring items from a
+	 * node can be converted to a single ->cut() operation.
+	 *
+	 * Before processing queue, it should be scanned and "mergeable"
+	 * operations merged.
+	 */
+	result = 0;
+	for_all_ops( doing, op, tmp_op ) {
+		carry_opcode opcode;
+
+		assert( "nikita-1041", op != NULL );
+		opcode = op -> op;
+		assert( "nikita-1042", op -> op < COP_LAST_OP );
+		f = op_dispatch_table[ op -> op ];
+		/*
+		 * As we are going to generalize single predefined set of
+		 * carry operations stored in @op_dispatch_table into
+		 * "balancing plugin" of some kind, case of @f == NULL should
+		 * be handled.
+		 */
+		if( f != NULL ) {
+			result = f( op, doing, todo );
+			/*
+			 * locking can fail with -EAGAIN. Any different error
+			 * is fatal and will be handled by fatal_carry_error()
+			 * sledgehammer.
+			 */
+			if( result )
+				break;
+		}
+	}
+	return result;
+}
+
+/**
+ * post carry operation
+ *
+ * This is main function used by external carry clients: node layout plugins
+ * and tree operations to create new carry operation to be performed on some
+ * level.
+ *
+ * New operation will be included in the @level queue. To actually perform it,
+ * call carry( level, ... ). This function takes write lock on @node. Carry
+ * manages all its locks by itself, don't worry about this.
+ * 
+ */
+carry_op *reiser4_post_carry( carry_level *level    /* queue where new
+						     * operation is to be
+						     * posted * at */, 
+			      carry_opcode op       /* opcode of operation */,
+			      znode *node           /* node on which this
+						     * operation will
+						     * operate */, 
+			      int apply_to_parent_p /* whether operation will
+						     * operate directly on
+						     * @node or on it
+						     * parent. */ )
+{
+	carry_op   *result;
+	carry_node *child;
+
+	assert( "nikita-1046", level != NULL );
+
+	result = reiser4_add_op( level, POOLO_LAST, NULL );
+	if( IS_ERR( result ) )
+		return result;
+	child = reiser4_add_carry( level, POOLO_LAST, NULL );
+	if( IS_ERR( child ) ) {
+		reiser4_pool_free( &result -> header );
+		return ( carry_op * ) child;
+	}
+	result -> node = child;
+	result -> op = op;
+	child  -> parent = apply_to_parent_p;
+	if( ZF_ISSET( node, ZNODE_NEW ) )
+		child -> left_before = 1;
+	child  -> node = node;
+	return result;
+}
+
+/**
+ * add new node to the carry queue
+ *
+ * Allocate new carry node from pool and add it to the @queue.  Normal carry
+ * users should use reiser4_post_carry() instead. This function is only useful
+ * for batching, nodes on the "base" level have to kept locked while
+ * operations sre batched for the parent level. Such nodes are supplied to
+ * reiser4_add_to_carry() so that carry will unlock all these nodes after
+ * batched operations performed.
+ *
+ */
+carry_node *reiser4_add_to_carry( znode *node         /* node to be added */, 
+				  carry_level *queue  /* queue where node to
+						       * be added to */ )
+{
+	carry_node *result;
+	int lock_result;
+
+	assert( "nikita-1063", node != NULL );
+	assert( "nikita-1064", queue != NULL );
+
+	result = reiser4_add_carry( queue, POOLO_LAST, NULL );
+	if( IS_ERR( result ) )
+		return result;
+	result -> node = node;
+	lock_result = lock_carry_node( queue, result );
+	if( lock_result != 0 )
+		result = ERR_PTR( lock_result );
+	return result;
+}
+
+/**
+ * number of carry operations in a @level
+ */
+int reiser4_carry_op_num( const carry_level *level )
+{
+	return level -> ops_num;
+}
+
+/**
+ * number of carry nodes in a @level
+ */
+int reiser4_carry_node_num( const carry_level *level )
+{
+	return level -> nodes_num;
+}
+
+/**
+ * initialise carry queue
+ */
+void reiser4_init_carry_level( carry_level *level, carry_pool *pool )
+{
+	assert( "nikita-1045", level != NULL );
+	assert( "nikita-967", pool != NULL );
+
+	memset( level, 0, sizeof *level );
+	level -> pool = pool;
+
+	pool_level_list_init( &level -> nodes );
+	pool_level_list_init( &level -> ops );
+}
+
+/**
+ * initialise pools within queue
+ */
+void reiser4_init_carry_pool( carry_pool *pool )
+{
+	assert( "nikita-945", pool != NULL );
+
+	reiser4_init_pool( &pool -> op_pool, sizeof( carry_op ),
+			   CARRIES_POOL_SIZE, ( char * ) pool -> op );
+	reiser4_init_pool( &pool -> node_pool, sizeof( carry_node ),
+			   NODES_LOCKED_POOL_SIZE, ( char * ) pool -> node );
+}
+
+/**
+ * finish with queue pools
+ */
+void reiser4_done_carry_pool( carry_pool *pool UNUSED_ARG )
+{
+	reiser4_done_pool( &pool -> op_pool );
+	reiser4_done_pool( &pool -> node_pool );
+}
+
+/**
+ * add new carry node to the @level.
+ *
+ * Returns pointer to the new carry node allocated from pool.  It's up to
+ * callers to maintain proper order in the @level. Assumption is that if carry
+ * nodes on one level are already sorted and modifications are peroformed from
+ * left to right, carry nodes added on the parent level will be ordered
+ * automatically. To control ordering use @order and @reference parameters.
+ *
+ */
+carry_node *reiser4_add_carry( carry_level *level     /* &carry_level to add
+						       * node to */, 
+			       pool_ordering order    /* where to insert: at
+						       * the beginning of
+						       * @level, before
+						       * @reference, after
+						       * @reference, at the
+						       * end of @level */,
+			       carry_node  *reference /* reference node for
+						       * insertion */ )
+{
+	carry_node *result;
+
+	trace_stamp( TRACE_CARRY );
+	result =  ( carry_node * ) add_obj( &level -> pool -> node_pool,
+					    &level -> nodes, order,
+					    &reference -> header );
+	if( !IS_ERR( result ) && ( result != NULL ) )
+		/*
+		 * FIXME-NIKITA this is never decreased
+		 */
+		++ level -> nodes_num;
+	return result;
+}
+
+/**
+ * add new carry operation to the @level.
+ *
+ * Returns pointer to the new carry operations allocated from pool. It's up to
+ * callers to maintain proper order in the @level. To control ordering use
+ * @order and @reference parameters.
+ *
+ */
+carry_op *reiser4_add_op( carry_level *level  /* &carry_level to add node
+					       * to */, 
+			  pool_ordering order /* where to insert: at the
+					       * beginning of @level, before
+					       * @reference, after @reference,
+					       * at the end of @level */,
+			  carry_op *reference /* reference node for
+					       * insertion */ )
+{
+	carry_op *result;
+
+	trace_stamp( TRACE_CARRY );
+	result = ( carry_op * ) add_obj( &level -> pool -> op_pool,
+					 &level -> ops, order,
+					 &reference -> header );
+	if( !IS_ERR( result ) && ( result != NULL ) )
+		/*
+		 * FIXME-NIKITA this is never decreased
+		 */
+		++ level -> ops_num;
+	return result;
+}
+
+
+/**
+ * Return node on the right of which @node was created.
+ *
+ * Each node is created on the right of some existing node (or it is new root,
+ * which is special case not handled here).
+ *
+ * @node is new node created on some level, but not yet inserted into its
+ * parent, it has corresponding bit (ZNODE_NEW) set in zstate.
+ *
+ */
+carry_node *find_begetting_brother( carry_node *node, carry_level *kin )
+{
+	carry_node *scan;
+	
+	assert( "nikita-1614", node != NULL );
+	assert( "nikita-1615", kin != NULL );
+	assert( "nikita-1616", lock_counters() -> spin_locked_tree > 0 );
+	assert( "nikita-1619", ergo( node -> real_node != NULL, 
+				     ZF_ISSET( node -> real_node, ZNODE_NEW ) ) );
+
+	for( scan = node ; ; 
+	     scan = ( carry_node * ) pool_level_list_prev( &scan -> header ) ) {
+		assert( "nikita-1617", 
+			!pool_level_list_end( &kin -> nodes, &scan -> header ) );
+		if( ( scan -> node != node -> node ) && 
+		    ! ZF_ISSET( scan -> node, ZNODE_NEW ) ) {
+			assert( "nikita-1618", scan -> real_node != NULL );
+			break;
+		}
+	}
+	return scan;
+}
+
+/**
+ * lock all carry nodes in @level
+ */
+static int lock_carry_level( carry_level *level )
+{
+	int         result;
+	carry_node *node;
+	carry_node *tmp_node;
+
+	assert( "nikita-881", level != NULL );
+
+	trace_stamp( TRACE_CARRY );
+
+	/* lock nodes from left to right */
+	result = 0;
+	for_all_nodes( level, node, tmp_node ) {
+		result = lock_carry_node( level, node );
+		if( result != 0 )
+			break;
+	}
+	return result;
+}
+
+/**
+ * Synchronize delimiting keys between @node and its left neighbor.
+ *
+ * To reduce contention on dk key and simplify carry code, we synchronize
+ * delimiting keys only when carry ultimately leaves tree level (carrying
+ * changes upward) and unlocks nodes at this level.
+ *
+ * This function first finds left neighbor of @node and then updates left
+ * neighbor's right delimiting key to conincide with least key in @node.
+ *
+ */
+static void sync_dkeys( carry_node *node, carry_level *doing )
+{
+	znode *left;
+	znode *right;
+
+	assert( "nikita-1610", node != NULL );
+	assert( "nikita-1611", doing != NULL );
+	assert( "nikita-1612", lock_counters() -> spin_locked_dk == 0 );
+
+	spin_lock_dk( current_tree );
+	right = node -> real_node;
+	spin_lock_tree( current_tree );
+
+	left = right;
+
+	/*
+	 * skip all nodes pending deletion
+	 */
+	do {
+		if( ZF_ISSET( left, ZNODE_LEFT_CONNECTED ) )
+			left = left -> left;
+		else
+			left = NULL;
+	} while( left && ZF_ISSET( left, ZNODE_HEARD_BANSHEE ) );
+	
+	if( left != NULL )
+		update_znode_dkeys( left, right );
+
+	spin_unlock_tree( current_tree );
+	spin_unlock_dk( current_tree );
+}
+
+/**
+ * unlock all carry nodes in @level
+ */
+static void unlock_carry_level( carry_level *level, int failure )
+{
+	carry_node *node;
+ 	carry_node *tmp_node;
+
+	assert( "nikita-889", level != NULL );
+
+	trace_stamp( TRACE_CARRY );
+
+	if( ! failure ) {
+		/*
+		 * update delimiting keys
+		 */
+		
+		for_all_nodes( level, node, tmp_node )
+			sync_dkeys( node, level );
+	}
+
+	/*
+	 * nodes can be unlocked in arbitrary order.  In preemptible
+	 * environment it's better to unlock in reverse order of locking,
+	 * though.
+	 */
+	for_all_nodes_back( level, node, tmp_node ) {
+		/*
+		 * all allocated nodes should be already linked to their
+		 * parents at this moment.
+		 */
+		assert( "nikita-1631", 
+			ergo( ! failure,
+			      ! ZF_ISSET( node -> real_node, ZNODE_NEW ) ) );
+		if( ! failure )
+			node_check( node -> real_node, 
+				    REISER4_NODE_DKEYS | REISER4_NODE_PANIC );
+		unlock_carry_node( node, failure );
+	}
+	level -> new_root = NULL;
+}
+
+/**
+ * finish with @level
+ *
+ * Unlock nodes and release all allocated resources
+ */
+static void done_carry_level( carry_level *level )
+{
+	carry_node *node;
+	carry_node *tmp_node;
+	carry_op   *op;
+	carry_op   *tmp_op;
+
+	assert( "nikita-1076", level != NULL );
+
+	trace_stamp( TRACE_CARRY );
+
+	unlock_carry_level( level, 0 );
+	for_all_nodes( level, node, tmp_node )
+		reiser4_pool_free( &node -> header );
+	for_all_ops( level, op, tmp_op )
+		reiser4_pool_free( &op -> header );
+}
+
+/**
+ * helper function to complete locking of carry node
+ *
+ * Finish locking of carry node. There are several ways in which new carry
+ * node can be added into carry level and locked. Normal is through
+ * lock_carry_node(), but also from find_{left|right}_neighbor(). This
+ * function factors out common final part of all locking scenarios. It
+ * supposes that @node -> lock_handle is lock handle for lock just taken and
+ * fills ->real_node from this lock handle.
+ *
+ */
+int lock_carry_node_tail( carry_node *node /* node to complete locking of */ )
+{
+	assert( "nikita-1052", node != NULL );
+	assert( "nikita-1187", node -> real_node == NULL );
+	assert( "nikita-1188", ! node -> unlock );
+
+	node -> unlock = 1;
+	node -> real_node = node -> lock_handle.node;
+	/*
+	 * Load node content into memory and install node plugin by
+	 * looking at the node header.
+	 *
+	 * Most of the time this call is cheap because the node is
+	 * already in memory.
+	 */
+	return zparse( node -> real_node );
+}
+
+/**
+ * lock carry node
+ *
+ * "Resolve" node to real znode, lock it and mark as locked.
+ * This requires recursive locking of znodes.
+ *
+ * When operation is posted to the parent level, node it will be applied to is
+ * not yet known. For example, when shifting data between two nodes,
+ * delimiting has to be updated in parent or parents of nodes involved. But
+ * their parents is not yet locked and, moreover said nodes can be reparented
+ * by concurrent balancing.
+ *
+ * To work around this, carry operation is applied to special "carry node"
+ * rather than to the znode itself. Carry node consists of some "base" or
+ * "reference" znode and flags indicating how to get to the target of carry
+ * operation (->real_node field of carry_node) from base.
+ *
+ **/
+int lock_carry_node( carry_level *level /* level @node is in */, 
+		     carry_node  *node  /* node to lock */ )
+{
+	int    result;
+	znode *reference_point;
+	reiser4_lock_handle lh;
+	reiser4_lock_handle tmp_lh;
+
+	assert( "nikita-887", level != NULL );
+	assert( "nikita-882", node != NULL );
+
+	trace_stamp( TRACE_CARRY );
+
+	result = 0;
+	reference_point = node -> node;
+	reiser4_init_lh( &lh );
+	reiser4_init_lh( &tmp_lh );
+	if( node -> left_before ) {
+		/*
+		 * handling of new nodes, allocated on the previous level:
+		 *
+		 * some carry ops were propably posted from the new node, but
+		 * this node neither has parent pointer set, nor is
+		 * connected. This will be done in ->create_hook() for
+		 * internal item.
+		 *
+		 * No then less, parent of new node has to be locked. To do
+		 * this, first go to the "left" in the carry order. This
+		 * depends on the decision to always allocate new node on the
+		 * right of existing one.
+		 *
+		 * Loop handles case when multiple nodes, all orphans, were
+		 * inserted.
+		 *
+		 * Strictly speaking, taking tree lock is not necessary here,
+		 * because all nodes scanned by loop in
+		 * find_begetting_brother() are write-locked by this thread,
+		 * and thus, their sibling linkage cannot change.
+		 *
+		 */
+		spin_lock_tree( current_tree );
+		reference_point = find_begetting_brother( node, level ) -> node;
+		spin_unlock_tree( current_tree );
+		assert( "nikita-1186", reference_point != NULL );
+	}
+	if( node -> parent && ( result == 0 ) ) {
+		result = reiser4_get_parent( &tmp_lh, reference_point, 
+					     ZNODE_WRITE_LOCK, 0 );
+		if( result != 0 ) {
+		; /* nothing */
+		} else if( znode_get_level( tmp_lh.node ) == 0 ) {
+			assert( "nikita-1347", znode_above_root( tmp_lh.node ) );
+			result = add_new_root( level, node, tmp_lh.node );
+			if( result == 0 ) {
+				reference_point = level -> new_root;
+				reiser4_move_lh( &lh, &node -> lock_handle );
+			}
+		} else if( ( level -> new_root != NULL ) && 
+			   ( level -> new_root != 
+			     znode_parent_nolock( reference_point ) ) ) {
+			/*
+			 * parent of node exists, but this level aready
+			 * created different new root, so
+			 */
+			warning( "nikita-1109", 
+				 /* it should be "radicis", but tradition is
+				  * tradition.  do banshees read latin? */
+				 "hodie natus est radici frater" );
+			result = -EIO;
+		} else {
+			reiser4_move_lh( &lh, &tmp_lh );
+			reference_point = lh.node;
+		}
+	} 
+	if( node -> left && ( result == 0 ) ) {
+		assert( "nikita-1183", node -> parent );
+		assert( "nikita-883", reference_point != NULL );
+		result = reiser4_get_left_neighbor( &tmp_lh, reference_point, 
+						    ZNODE_WRITE_LOCK, 
+						    GN_DO_READ );
+		if( result == 0 ) {
+			reiser4_done_lh( &lh );
+			reiser4_move_lh( &lh, &tmp_lh );
+			reference_point = lh.node;
+		}
+	} 
+	if( ! node -> parent && ! node -> left && ! node -> left_before ) {
+		result = reiser4_lock_znode( &lh, reference_point,
+					     ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI );
+	}
+	if( result == 0 ) {
+		reiser4_move_lh( &node -> lock_handle, &lh );
+		result = lock_carry_node_tail( node );
+	}
+	reiser4_done_lh( &tmp_lh );
+	reiser4_done_lh( &lh );
+	return result;
+}
+
+/**
+ * release a lock on &carry_node.
+ *
+ * Release if necessary lock on @node. This opearion is pair of
+ * lock_carry_node() and is idempotent: you can call it more than once on the
+ * same node.
+ *
+ **/
+static void unlock_carry_node( carry_node *node /* node to be released */, 
+			       int failure      /* 0 if node is unlocked due
+						 * to some error */ )
+{
+	assert( "nikita-884", node != NULL );
+
+	trace_stamp( TRACE_CARRY );
+
+	if( node -> unlock && ( node -> real_node != NULL ) ) {
+		assert( "nikita-899", node -> real_node ==
+			node -> lock_handle.node );
+		reiser4_unlock_znode( &node -> lock_handle );
+		node -> real_node = NULL;
+	}
+	if( failure ) {
+		if( node -> deallocate && ( node -> real_node != NULL ) ) {
+			/*
+			 * free node in bitmap
+			 *
+			 * FIXME-NIKITA deallocate_znode() is wrong call
+			 * here. We only want to release bit in bitmap and
+			 * nothing more.
+			 *
+			 * FIXME_JMACD Deallocate_znode calls zdestroy
+			 * without checking refcounts?  Why not set HEARD_BANSHEE
+			 * bit here and zput later?
+			 */
+			deallocate_znode( node -> real_node );
+		}
+		node -> real_node = NULL;
+		if( node -> free )
+			reiser4_pool_free( &node -> header );
+	}
+}
+
+/**
+ * fatal_carry_error() - all-catching error handling function
+ *
+ * It is possible that carry faces unrecoverable error, like unability to
+ * insert pointer at the internal level. Our simple solution is just panic in
+ * this situation. More sophisticated things like attempt to remount
+ * file-system as read-only can be implemented without much difficlties.
+ *
+ * It is believed, that:
+ *
+ * 1. in stead of panicking, all current transactions can be aborted rolling
+ * system back to the consistent state.
+
+Umm, if you simply panic without doing anything more at all, then all current
+transactions are aborted and the system is rolled back to a consistent state,
+by virtue of the design of the transactional mechanism. Well, wait, let's be
+precise.  If an internal node is corrupted on disk due to hardware failure,
+then there may be no consistent state that can be rolled back to, so instead
+we should say that it will rollback the transactions, which barring other
+factors means rolling back to a consistent state.  
+
+# Nikita: there is a subtle difference between panic and aborting
+# transactions: machine doesn't reboot. Processes aren't killed. Processes
+# don't using reiser4 (not that we care about such processes), or using other
+# reiser4 mounts (about them we do care) will simply continue to run. With
+# some luck, even application using aborted file system can survive: it will
+# get some error, like EBADF, from each file descriptor on failed file system,
+# but applications that do care about tolerance will cope with this (squid
+# will).
+
+It would be a nice feature though to support rollback without rebooting
+followed by remount, but this can wait for later versions.
+
+ *
+ * 2. once isolated transactions will be implemented it will be possible to
+ * roll back offending transaction.
+
+2. is additional code complexity of inconsistent value (it implies that a broken tree should be kept in operation), so we must think about
+it more before deciding if it should be done.  -Hans
+ *
+ */
+static void fatal_carry_error( carry_level *doing UNUSED_ARG /* carry level
+							      * where
+							      * unrecoverable
+							      * error
+							      * occured */, 
+			       int ecode /* error code */ )
+{
+	assert( "nikita-1230", doing != NULL );
+	assert( "nikita-1231", ecode < 0 );
+
+	rpanic( "nikita-1232", "Carry failed: %i", ecode );
+}
+
+/**
+ * add new root to the tree
+ *
+ * This function itself only manages changes in carry structures and delegates
+ * all hard work (allocation of znode for new root, changes of parent and
+ * sibling pointers to the add_tree_root().
+ *
+ * Locking: old tree root is locked by carry at this point. Fake znode is also
+ * locked.
+ *
+ */
+static int add_new_root( carry_level *level /* carry level in context of which
+					     * operation is performed */, 
+			 carry_node *node   /* carry node for existing root */, 
+			 znode *fake        /* "fake" znode already locked by
+					     * us */ )
+{
+	int result;
+
+	assert( "nikita-1104", level != NULL );
+	assert( "nikita-1105", node != NULL );
+
+	assert( "nikita-1403", znode_is_write_locked( node -> node ) );
+	assert( "nikita-1404", znode_is_write_locked( fake ) );
+
+	/*
+	 * trying to create new root.
+	 */
+	/*
+	 * @node is root and it's already locked by us. This
+	 * means that nobody else can be trying to add/remove
+	 * tree root right now.
+	 */
+	if( level -> new_root == NULL )
+		level -> new_root = add_tree_root( node -> node, fake );
+	if( !IS_ERR( level -> new_root ) ) {
+		assert( "nikita-1210", znode_is_root( level -> new_root ) );
+		node -> deallocate = 1;
+		result = reiser4_lock_znode( &node -> lock_handle, 
+					     level -> new_root, 
+					     ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI );
+		if( result == 0 )
+			zput( level -> new_root );
+	} else {
+		result = PTR_ERR( level -> new_root );
+		level -> new_root = NULL;
+	}
+	return result;
+}
+
+/**
+ * allocate new znode and add the operation that inserts the
+ * pointer to it into the parent node into the todo level
+ *
+ * Allocate new znode, add it into carry queue and post into @todo queue
+ * request to add pointer to new node into its parent.
+ *
+ * This is carry related routing that calls new_node() to allocate new
+ * node.
+ */
+carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
+					      * node */, 
+			   carry_node *ref   /* carry node after which new
+					      * carry node is to be inserted
+					      * into queue. This affects
+					      * locking. */,
+			   carry_level *doing /* carry queue where new node is
+					       * to be added */, 
+			   carry_level *todo  /* carry queue where COP_INSERT
+					       * operation to add pointer to
+					       * new node will ne added */)
+{
+	carry_node *fresh;
+	znode      *new_znode;
+	carry_op   *add_pointer;
+
+	assert( "nikita-1048", brother != NULL );
+	assert( "nikita-1049", todo != NULL );
+
+	/*
+	 * There is a lot of possible variations here: to what parent
+	 * new node will be attached and where. For simplicity, always
+	 * do the following:
+	 *
+	 * (1) new node and @brother will have the same parent.
+	 *
+	 * (2) new node is added on the right of @brother
+	 *
+	 */
+
+	fresh = reiser4_add_carry( doing, ref ? POOLO_AFTER : POOLO_LAST, ref );
+	if( IS_ERR( fresh ) )
+		return fresh;
+
+	fresh -> deallocate = 1;
+	fresh -> free = 1;
+
+	new_znode = new_node( brother, znode_get_level( brother ) );
+	if( IS_ERR( new_znode ) )
+		/*
+		 * @fresh will be deallocated automatically by error
+		 * handling code in the caller.
+		 */
+		return ( carry_node * ) new_znode;
+
+	ZF_SET( new_znode, ZNODE_NEW );
+	fresh -> node = new_znode;
+
+	while( ZF_ISSET( ref -> real_node, ZNODE_NEW ) ) {
+		ref = ( carry_node * ) pool_level_list_prev( &ref -> header );
+		assert( "nikita-1606", !pool_level_list_end( &doing -> nodes, 
+							     &ref -> header ) );
+	}
+
+	add_pointer = reiser4_post_carry( todo, COP_INSERT, 
+					  ref -> real_node, 1 );
+	if( IS_ERR( add_pointer ) ) {
+		/*
+		 * no need to deallocate @new_znode here: it will be
+		 * deallocated during carry error handling.
+		 */
+		return ( carry_node * ) add_pointer;
+	}
+
+	add_pointer -> u.insert.type = COPT_CHILD;
+	add_pointer -> u.insert.child = fresh;
+	add_pointer -> u.insert.brother = brother;
+	/*
+	 * initially new node spawns empty key range
+	 */
+	spin_lock_dk( current_tree );
+	*znode_get_ld_key( new_znode ) = *znode_get_rd_key( new_znode ) = 
+		*znode_get_rd_key( brother );
+	spin_unlock_dk( current_tree );
+	return fresh;
+}
+
+
+/* 
+ * DEBUGGING FUNCTIONS. 
+ *
+ * Probably we also should leave them on even when
+ * debugging is turned off to print dumps at errors.
+ */
+
+/**
+ * get symbolic name for boolean
+ */
+static const char *tf( int boolean )
+{
+	return boolean ? "t" : "f";
+}
+
+/**
+ * symbolic name for carry operation
+ */
+static const char *carry_op_name( carry_opcode op )
+{
+	switch( op ) {
+	case COP_INSERT:
+		return "COP_INSERT";
+	case COP_DELETE:
+		return "COP_DELETE";
+	case COP_CUT:
+		return "COP_CUT";
+	case COP_PASTE:
+		return "COP_PASTE";
+	case COP_UPDATE:
+		return "COP_UPDATE";
+	case COP_MODIFY:
+		return "COP_MODIFY";
+	default: {
+		/* not mt safe, but who cares? */
+		static char buf[ 20 ];
+
+		sprintf( buf, "unknown op: %x", op );
+		return buf;
+	}
+	}
+}
+
+/**
+ * dump information about carry node
+ */
+void print_carry( const char *prefix, carry_node *node )
+{
+	if( node == NULL ) {
+		info( "%s: null\n", prefix );
+		return;
+	}
+	info( "%s: %p parent: %s, left: %s, unlock: %s, free: %s, dealloc: %s\n",
+	      prefix, node, tf( node -> parent ), tf( node -> left ),
+	      tf( node -> unlock ),
+	      tf( node -> free ), tf( node -> deallocate ) );
+	print_znode( "\tnode", node -> node );
+	print_znode( "\treal_node", node -> real_node );
+}
+
+/**
+ * dump information about carry operation
+ */
+void print_op( const char *prefix, carry_op *op )
+{
+	if( op == NULL ) {
+		info( "%s: null\n", prefix );
+		return;
+	}
+	info( "%s: %p carry_opcode: %s\n", prefix, op,
+	      carry_op_name( op -> op ) );
+	print_carry( "\tnode", op -> node );
+	switch( op -> op ) {
+	case COP_INSERT:
+	case COP_PASTE:
+		print_coord_content( "\tcoord", op -> u.insert.coord );
+		print_key( "\tkey", op -> u.insert.key );
+		print_carry( "\tchild", op -> u.insert.child );
+		break;
+	case COP_DELETE:
+		print_carry( "\tchild", op -> u.delete.child );
+		break;
+	case COP_CUT:
+		print_coord_content( "\tfrom", op -> u.cut.from );
+		print_coord_content( "\tto", op -> u.cut.to );
+		break;
+	case COP_UPDATE:
+		print_carry( "\tleft", op -> u.update.left );
+		break;
+	case COP_MODIFY:
+		print_carry( "\tchild", op -> u.modify.child );
+		info( "\tflag: %x\n", op -> u.modify.flag );
+		break;
+	default:
+		/* do nothing */
+	}
+}
+
+/**
+ * dump information about all nodes and operations in a @level
+ */
+void print_level( const char *prefix, carry_level *level )
+{
+	carry_node *node;
+	carry_node *tmp_node;
+	carry_op *op;
+	carry_op *tmp_op;
+
+	if( level == NULL ) {
+		info( "%s: null\n", prefix );
+		return;
+	}
+	info( "%s: %p, restartable: %s\n", prefix, level,
+	      tf( level -> restartable ) );
+
+	for_all_nodes( level, node, tmp_node )
+		print_carry( "\tcarry node", node );
+	for_all_ops( level, op, tmp_op )
+		print_op( "\tcarry op", op );
+}
+
+/*
+ * Make Linus happy.
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 120
+ * scroll-step: 1
+ * End:
+ */
