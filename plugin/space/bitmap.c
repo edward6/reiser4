@@ -1478,7 +1478,8 @@ init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *s
 		struct bitmap_node * bnode;
 		int ret;
 
-		printk(KERN_INFO "loading reiser4 bitmap...");
+		if (REISER4_DEBUG)
+			printk(KERN_INFO "loading reiser4 bitmap...");
 		start_time = jiffies;
 
 		for (i = 0; i < bitmap_blocks_nr; i++) {
@@ -1492,7 +1493,9 @@ init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *s
 		}
 
 		elapsed_time = jiffies - start_time;
-		printk("...done (%llu jiffies)\n", (unsigned long long)elapsed_time);
+		if (REISER4_DEBUG)
+			printk("...done (%llu jiffies)\n",
+			       (unsigned long long)elapsed_time);
 	}
 
 	return 0;
