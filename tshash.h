@@ -2,7 +2,7 @@
 
 /* TS stands for TYPE SAFETY */
 
-/* Modify the header to make this clear and remove my comments. */
+/* NIKITA-FIXME-HANS: Modify the header to make this clear and remove my comments. */
 /* A hash table class that uses hash chains (singly-linked) and is parametrized to
    provide type safety.  */
 
@@ -12,10 +12,10 @@
 #include "debug.h"
 #include "stats.h"
 
-/* FIXME_JMACD Nikita says this should use doubly linked list. -josh */
+/* FIXME-NIKITA-HANS: Nikita says this should use doubly linked list. -josh */
 
 #include <asm/errno.h>
-/* what are table and link objects? -Hans */
+/* NIKITA-FIXME-HANS: what are table and link objects? -Hans */
 /* Step 1: Use TS_HASH_DECLARE() to define the TABLE and LINK objects
    based on the object type.  You need to declare the item type before
    this definition, define it after this definition. */

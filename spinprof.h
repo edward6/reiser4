@@ -1,5 +1,5 @@
 /* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
-
+/* NIKITA-FIXME-HANS: comment this file */
 /* spin lock profiling */
 
 #ifndef __SPINPROF_H__
