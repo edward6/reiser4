@@ -68,7 +68,8 @@ void sd_print( const char *prefix /* prefix to print */,
 		return;
 	}
 
-	info( "%s: extmask: %x\n", prefix, d16tocpu( &sd_base -> extmask ) );
+	mask = d16tocpu( &sd_base -> extmask );
+	info( "%s: extmask: %x\n", prefix, mask );
 
 	next_stat( &len, &sd, sizeof *sd_base );
 
