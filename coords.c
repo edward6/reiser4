@@ -439,7 +439,7 @@ int coord_is_after_item (const tree_coord * coord)
 }
 
 
-int coord_is_before_item (const tree_coord * coord, unsigned item_pos)
+int coord_is_before_item (const tree_coord * coord, unsigned item_pos UNUSED_ARG)
 {
 	/*
 	 * it is not ready yet for other item_pos than 0
