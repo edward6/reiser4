@@ -903,7 +903,6 @@ feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 
 	unit_key_by_coord(coord, &entry_key);
 	seal_init(&seal, coord, &entry_key);
-	tap_relse(tap);
 	longterm_unlock_znode(tap->lh);
 
 	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "readdir: %s, %llu, %llu\n",
@@ -922,9 +921,6 @@ feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 	} else {
 		result = seal_validate(&seal, coord, &entry_key, LEAF_LEVEL, tap->lh, FIND_EXACT,
 				       tap->mode, ZNODE_LOCK_HIPRI);
-		if (result == 0) {
-			check_me("vs-1485", tap_load(tap) == 0);
-		}
 	}
 	return result;
 }
@@ -1083,14 +1079,14 @@ readdir_common(struct file *f /* directory file being read */ ,
 						break;
 				}
 			} else if (result == -EAGAIN) {
+				tap_relse(&tap);
 				goto repeat;
 			}
 		}
+		tap_relse(&tap);
 
-		if (result >= 0) {
-			tap_relse(&tap);
+		if (result >= 0)
 			f->f_version = inode->i_version;
-		}
 	} else if (result == -E_NO_NEIGHBOR || result == -ENOENT)
 		result = 0;
 	tap_done(&tap);
