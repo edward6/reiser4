@@ -44,6 +44,11 @@ int sema_init( semaphore *sem, int value )
 	return 0;
 }
 
+int init_MUTEX( semaphore *sem )
+{
+	return sema_init( sem, 1 );
+}
+
 int init_MUTEX_LOCKED( semaphore *sem )
 {
 	return sema_init( sem, 0 );
@@ -3584,10 +3589,10 @@ static int bash_mkfs (char * file_name)
 		tree -> super = &super;
 		result = init_tree( tree, &root_block,
 				    1/*tree_height*/, node_plugin_by_id( NODE40_ID ));
-		assert ("", result == 0);
-		result = cbk_cache_init (&tree->cbk_cache);
-		assert ("", result == 0);
+		tree -> cbk_cache.nr_slots = getenv( "REISER4_CBK_SLOTS" ) ? 
+			atoi( getenv( "REISER4_CBK_SLOTS" ) ) : CBK_CACHE_SLOTS;
 
+		result = cbk_cache_init( &tree -> cbk_cache );
 		fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR );
 		root = allocate_znode( tree, fake, tree->height, &tree->root_block);
 		root -> rd_key = *max_key();
@@ -4699,7 +4704,7 @@ static int shrink_cache (void)
 
 	spin_lock (&page_list_guard);
 
-	for (i = 0; i < nr_pages; ++ i) {
+	for (i = 0; i < (int)nr_pages; ++ i) {
 		struct list_head * tmp;
 
 		tmp = page_lru_list.prev;
@@ -5257,6 +5262,27 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags UNUSED_ARG)
 				  kernel_thread_helper, args ) == 0 );
 	pthread_attr_destroy( &kattr );
 	return id;
+}
+
+struct file *filp_open(const char * filename, int flags, int mode)
+{
+	int fd;
+	struct file *result;
+
+	fd = open( filename, flags, mode );
+	if( fd == -1 )
+		return ERR_PTR( -errno );
+
+	result = kmalloc( sizeof *result, GFP_KERNEL );
+	check_me( "nikita-2508", result == 0 );
+	xmemset( result, 0, sizeof *result );
+	result -> f_ufd = fd;
+	return result;
+}
+
+int filp_close(struct file *filp, fl_owner_t id UNUSED_ARG)
+{
+	return close( filp -> f_ufd );
 }
 
 /*
