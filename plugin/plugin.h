@@ -402,6 +402,22 @@ typedef struct layout_plugin {
 	void ( *print_info )( struct super_block * );
 } layout_plugin;
 
+typedef struct jnode_plugin {
+	/** generic fields */
+	plugin_header h;
+	int                   ( *parse )  ( jnode *node );
+	struct address_space *( *mapping )( const jnode *node );
+	unsigned long         ( *index )  ( const jnode *node );
+} jnode_plugin;
+
+typedef enum {
+	JNODE_UNFORMATTED_BLOCK,
+	JNODE_FORMATTED_BLOCK,
+	JNODE_BITMAP,
+	JNODE_JOURNAL_RECORD,
+	JNODE_IO_HEAD,
+	JNODE_LAST_TYPE
+} jnode_type;
 
 /* plugin instance.                                                         */
 /*                                                                          */
@@ -443,6 +459,8 @@ union reiser4_plugin {
 	oid_allocator_plugin    oid_allocator;
 	/** disk space allocator plugin */
 	space_allocator_plugin  space_allocator;
+	/** plugin for different jnode types */
+	jnode_plugin            jnode;
 	/** 
 	 * place-holder for new plugin types that can be registered
 	 * dynamically, and used by other dynamically loaded plugins. 
@@ -624,6 +642,7 @@ PLUGIN_BY_ID(oid_allocator_plugin,REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
 	     oid_allocator);
 PLUGIN_BY_ID(space_allocator_plugin,REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,
 	     space_allocator);
+PLUGIN_BY_ID(jnode_plugin,REISER4_JNODE_PLUGIN_TYPE, jnode);
 
 extern int save_plugin_id( reiser4_plugin *plugin, d16 *area );
 
