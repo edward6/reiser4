@@ -213,10 +213,14 @@ typedef enum {
 	 */
 	TRACE_SHIFT      =     (1 << 12),     /* 0x00001000 */
 	/*
+	 * trace page cache
+	 */
+	TRACE_PCACHE      =    (1 << 13),     /* 0x00002000 */
+	/*
 	 * vague section: used to trace bugs. Use it to issue optional prints
 	 * at arbitrary points of code.
 	 */
-	TRACE_BUG        =     (1 << 13),     /* 0x00002000 */
+	TRACE_BUG        =     (1 << 14),     /* 0x00004000 */
 	/*
 	 * trace everything above
 	 */

@@ -141,6 +141,8 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 	assert( "nikita-2037", node != NULL );
 	assert( "nikita-2038", tree != NULL );
 
+	trace_on( TRACE_PCACHE, "read node: %p", node );
+
 	/*
 	 * FIXME-NIKITA: consider using read_cache_page() here.
 	 */
@@ -180,6 +182,8 @@ static int page_cache_allocate_node( reiser4_tree *tree, jnode *node )
 	assert( "nikita-2040", tree != NULL );
 	assert( "nikita-2041", node != NULL );
 
+	trace_on( TRACE_PCACHE, "allocate node: %p", node );
+
 	page = add_page( tree -> super, node );
 	if( page != NULL ) {
 		/*
@@ -197,6 +201,7 @@ static int page_cache_allocate_node( reiser4_tree *tree, jnode *node )
 /** ->release_node method of page-cache based tree operations */
 static int page_cache_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
+	trace_on( TRACE_PCACHE, "release node: %p", node );
 	kunmap( jnode_page( node ) );
 	assert( "nikita-2072", JF_ISSET( node, ZNODE_KMAPPED ) );
 	JF_CLR( node, ZNODE_KMAPPED );
@@ -208,6 +213,7 @@ static int page_cache_delete_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
 	struct page *page;
 
+	trace_on( TRACE_PCACHE, "delete node: %p", node );
 	page = jnode_page( node );
 
 	/* FIXME-NIKITA locking? */
@@ -221,6 +227,7 @@ static int page_cache_delete_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 /** ->drop_node method of page-cache based tree operations */
 static int page_cache_drop_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
+	trace_on( TRACE_PCACHE, "drop node: %p", node );
  	jnode_detach_page( node );
 	return 0;
 }
@@ -229,6 +236,7 @@ static int page_cache_drop_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 static int page_cache_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
 	assert( "nikita-2045", JF_ISSET( node, ZNODE_LOADED ) );
+	trace_on( TRACE_PCACHE, "dirty node: %p", node );
 	set_page_dirty( jnode_page( node ) );
 	return 0;
 }
@@ -399,7 +407,8 @@ void __tmp_print_page( struct page *page )
 		info( "null page\n" );
 		return;
 	}
-	info( "page index: %lu virtual: %p mapping: %p private: %lx\n",
+	info( "page: %p index: %lu virtual: %p mapping: %p private: %lx\n",
+	      page,
 	      page -> index, page -> virtual, page -> mapping, page -> private );
 	info( "flags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s\n",
 	      page_flag_name( page,  PG_locked ),
