@@ -14,10 +14,8 @@
 
 static reiserfs_profile_t profiles[] = {
     [0] = {
-	.label = "default40",
-	.desc = "Default profile for reiser4 filesystem. "
-	    "It consists of format40, journal40, alloc40, etc",
-    
+	.label = "extent40",
+	.desc = "Profile for reiser4 with extents turned on",
 	.node = 0x0,
 	.item = {
 	    .internal = 0x3,
@@ -29,6 +27,29 @@ static reiserfs_profile_t profiles[] = {
 	.dir = 0x0,
 	.hash = 0x0,
 	.tail = 0x0,
+	.hook = 0x0,
+	.perm = 0x0,
+	.format = 0x0,
+	.oid = 0x0,
+	.alloc = 0x0,
+	.journal = 0x0,
+	.key = 0x0
+    },
+    [1] = {
+	.label = "tail40",
+	.desc = "Profile for reiser4 with tail only turned on",
+    
+	.node = 0x0,
+	.item = {
+	    .internal = 0x3,
+	    .statdata = 0x0,
+	    .direntry = 0x2,
+	    .fileentry = 0x0
+	},
+	.file = 0x0,
+	.dir = 0x0,
+	.hash = 0x0,
+	.tail = 0x3,
 	.hook = 0x0,
 	.perm = 0x0,
 	.format = 0x0,
@@ -63,32 +84,36 @@ static void mkfs_print_usage(void) {
     fprintf(stderr, "Usage: mkfs.reiser4 [ options ] device [ size[K|M|G] ]\n");
     
     fprintf(stderr, "Options:\n"
-	"  -v | --version                  prints current version\n"
-	"  -u | --usage                    prints program usage\n"
-	"  -p | --profile                  profile to be used\n"
-	"  -f | --force                    force creating filesystem without warning message\n"
-	"  -k | --known-profiles           prints known profiles\n"
-	"  -b N | --block-size=N           block size (1024, 2048, 4096...)\n"
-	"  -l LABEL | --label=LABEL        volume label\n"
-	"  -d UUID | --uuid=UUID           sets universally unique identifier\n");
+	"  -v | --version                 prints current version.\n"
+	"  -u | -h | --usage | --help     prints program usage.\n"
+	"  -p | --profile                 profile to be used.\n"
+	"  -q | --quiet                   forces creating filesystem without\n"
+	"                                 warning message.\n"
+	"  -k | --known-profiles          prints known profiles.\n"
+	"  -b N | --block-size=N          block size, 4096 by default,\n"
+	"                                 other are not supported for awhile.\n"
+	"  -l LABEL | --label=LABEL       volume label lets to mount\n"
+	"                                 filesystem by its label.\n"
+	"  -d UUID | --uuid=UUID          universally unique identifier.\n");
 }
 
 int main(int argc, char *argv[]) {
     int c, error, force = 0;
     char uuid[17], label[17];
     count_t fs_len = 0, dev_len = 0;
-    char *host_dev, *profile_label = "default40";
+    char *host_dev, *profile_label = "extent40";
     uint16_t blocksize = REISERFS_DEFAULT_BLOCKSIZE;
     
     reiserfs_fs_t *fs;
     aal_device_t *device;
     reiserfs_profile_t *profile;
-    
+
     static struct option long_options[] = {
 	{"version", no_argument, NULL, 'v'},
 	{"usage", no_argument, NULL, 'u'},
+	{"help", no_argument, NULL, 'h'},
 	{"profile", no_argument, NULL, 'p'},
-	{"force", no_argument, NULL, 'f'},
+	{"force", no_argument, NULL, 'q'},
 	{"block-size", required_argument, NULL, 'b'},
 	{"label", required_argument, NULL, 'l'},
 	{"uuid", required_argument, NULL, 'i'},
@@ -103,11 +128,12 @@ int main(int argc, char *argv[]) {
     memset(uuid, 0, sizeof(uuid));
     memset(label, 0, sizeof(label));
     
-    while ((c = getopt_long_only(argc, argv, "uvp:fkb:i:l:", long_options, 
+    while ((c = getopt_long_only(argc, argv, "uhvp:qkb:i:l:", long_options, 
 	(int *)0)) != EOF) 
     {
 	switch (c) {
-	    case 'u': {
+	    case 'u': 
+	    case 'h': {
 		mkfs_print_usage();
 		return 0;
 	    }
@@ -119,7 +145,7 @@ int main(int argc, char *argv[]) {
 		profile_label = optarg;
 		break;
 	    }
-	    case 'f': {
+	    case 'q': {
 		force = 1;
 		break;
 	    }
