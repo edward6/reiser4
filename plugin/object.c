@@ -836,7 +836,7 @@ getattr_common(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct ks
 	stat->nlink = min(obj->i_nlink, (typeof(obj->i_nlink))0x7fff);
 	stat->uid = obj->i_uid;
 	stat->gid = obj->i_gid;
-	stat->rdev = kdev_t_to_nr(obj->i_rdev);
+	stat->rdev = obj->i_rdev;
 	stat->atime = obj->i_atime;
 	stat->mtime = obj->i_mtime;
 	stat->ctime = obj->i_ctime;
