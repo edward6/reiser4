@@ -49,7 +49,6 @@ void aal_printf(const char *format, ...) {
 #define MOD_LONG 0x1
 #define MOD_LONG_LONG 0x2
 
-#include <stdio.h>
 int aal_vsnprintf(char *buff, size_t n, const char *format, va_list arg_list) {
     int i;
     long int li;
@@ -88,6 +87,16 @@ repeat:
 			
 			s = va_arg(arg_list, char *);
 			aal_strncat(buff, s, n - aal_strlen(buff));
+			fmt++;
+			break;
+		    }
+		    case 'c' : {
+			char c = va_arg(arg_list, char);
+			*buff = c; fmt++;
+			break;
+		    }
+		    case '%' : {
+			aal_strncat(buff, "% ", n - aal_strlen(buff));
 			fmt++;
 			break;
 		    }
