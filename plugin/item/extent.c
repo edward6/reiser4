@@ -1379,8 +1379,6 @@ extent_page_cache_readahead(struct file *file, coord_t * coord,
 		left -= pages;
 		start_page += j;
 	}
-	/* FIXME-VS: remove after debugging */
-	print_range_list(&range_list);
 
 	/* submit bio for all ranges */
 	{

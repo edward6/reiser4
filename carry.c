@@ -856,6 +856,7 @@ sync_dkeys(carry_node * node /* node to update */ ,
 
 void
 check_dkeys(const znode *node);
+
 /* unlock all carry nodes in @level */
 static void
 unlock_carry_level(carry_level * level /* level to unlock */ ,
@@ -886,8 +887,8 @@ unlock_carry_level(carry_level * level /* level to unlock */ ,
 							       JNODE_ORPHAN)));
 		if (!failure)
 			node_check(carry_real(node), REISER4_NODE_DKEYS);
-		/* FIXME: remove after debugging */
-		check_dkeys(carry_real(node));
+		if (REISER4_DEBUG)
+			check_dkeys(carry_real(node));
 		unlock_carry_node(level, node, failure);
 	}
 	level->new_root = NULL;

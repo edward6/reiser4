@@ -2004,11 +2004,6 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		sbinfo->trace_file.type = log_to_bucket;
 #endif
 
-	/*
-	 * FIXME-VS: remove after debugging readahead mount option
-	 */
-	printk("readahead options: max=%lu, flags=0x%x\n", sbinfo->ra_params.max, sbinfo->ra_params.flags);
-
 	/* disable single-threaded flush as it leads to deadlock */
 	sbinfo->fs_flags |= (1 << REISER4_MTFLUSH);
 	return result;
@@ -2522,12 +2517,6 @@ try_to_lock:
 					goto try_to_lock;
 				}
 			} else {
-				/* FIXME-VS: remove after debugging */
-				if (jnode_is_loaded(node)) {
-					info_jnode("invalidate_page: loaded jnode", node);
-					printk("\n");
-				}
-				/* FIXME-VS: remove after debugging */
 				uncapture_page(page);
 
 				UNDER_SPIN_VOID(jnode, node, page_clear_jnode(page, node));

@@ -345,15 +345,6 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 			return 1;
 		}
 		assert("vs-358", keyeq(h->key, item_key_by_coord(coord, &key)));
-#if 0
-		{
-			/* FIXME-VS: remove after debugging */
-			reiser4_block_nr block;
-
-			item_plugin_by_coord(coord)->s.internal.down_link(coord, h->key, &block);
-			printk("empty leaf added: %llx (pid %i)\n", block, current->pid);
-		}
-#endif
 	} else {
 		/* this is special case mentioned in the comment on
 		   tree.h:cbk_flags. We have found internal item immediately

@@ -709,13 +709,7 @@ truncate_file(struct inode *inode, loff_t new_size)
 {
 	int result;
 	loff_t cur_size;
-	loff_t old_i_size;
 
-	/* FIXME-VS: remove after debugging */
-	/*printk("truncate_file: ino %llu, size %llu (%s)\n", get_inode_oid(inode), inode->i_size,
-	  file_state(inode));*/
-
-	old_i_size = inode->i_size;
 	INODE_SET_FIELD(inode, i_size, new_size);
 
 	result = find_file_size(inode, &cur_size);
@@ -1668,10 +1662,6 @@ int
 unix_file_delete(struct inode *inode)
 {
 	int result;
-
-	/* FIXME-VS: remove after debugging */
-	/*printk("unix_file_delete: ino %llu, size %llu, (%s)\n", get_inode_oid(inode), inode->i_size,
-	  file_state(inode));*/
 
 	assert("vs-1099", inode->i_nlink == 0);
 	if (inode->i_size) {
