@@ -136,14 +136,17 @@ reiserfs_node_t *reiserfs_node_open(
 	goto error_free_block;
     }
     
-    /* Initializing node's entity by means of calling "open" method of node plugin */
+    /* 
+	Initializing node's entity by means of calling "open" method of node
+       	plugin.
+    */
     if (!(node->entity = libreiser4_plugin_call(goto error_free_block, 
 	node->node_plugin->node_ops, open, node->block)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't initialize node entity.");
 	goto error_free_block;
-    }    
+    }
 	    
     return node;
     
@@ -157,6 +160,7 @@ error_free_node:
 /* Closes specified node */
 errno_t reiserfs_node_close(reiserfs_node_t *node) {
     aal_assert("umka-824", node != NULL, return -1);
+    aal_assert("umka-903", node->entity != NULL, return -1);
     
     return libreiser4_plugin_call(return -1, node->node_plugin->node_ops,
 	close, node->entity);
