@@ -430,8 +430,10 @@ int carry( carry_level *doing /* set of carry operations to be performed */,
 					fatal_carry_error( doing, result );
 					return result;
 				}
-			} else if( result != -EAGAIN )
-				break;
+			} else if( result != -EAGAIN ) {
+				fatal_carry_error( doing, result );
+				return result;
+			}
 			reiser4_stat_level_add( doing, carry_restart );
 			unlock_carry_level( doing, 1 );
 		}
