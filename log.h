@@ -86,9 +86,9 @@ typedef struct {
 										\
 	super = reiser4_get_current_sb();					\
 	IF_LOG(log_flag, write_log(&get_super_private(super)->log_file,		\
-                                   "%i %s %s %lu " format "\n",			\
-				   current->pid, current->comm,			\
-				   super->s_id, jiffies, ## __VA_ARGS__));	\
+                                   "%s %s %s " format "\n",			\
+				   current->comm,				\
+				   super->s_id, __FUNCTION__, ## __VA_ARGS__));	\
 })
 
 /* __REISER4_LOG_H__ */
