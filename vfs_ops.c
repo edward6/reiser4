@@ -2124,16 +2124,20 @@ static int rwsem_thread(void *arg)
 	int no;
 
 	no = (int)arg;
-	daemonize(__FUNCTION__);
+	daemonize("%s-%i", __FUNCTION__, no);
 	while (1) {
 		printk("loop: %i\n", no);
 		down_write(&rwsem);
 		BUG_ON(access != 0);
 		access = -1;
+		barrier();
+		access = 0;
 		up_write(&rwsem);
 		down_read(&rwsem);
 		BUG_ON(access < 0);
 		access ++;
+		barrier();
+		access --;
 		up_read(&rwsem);
 	}
 	return 0;
