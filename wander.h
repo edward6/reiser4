@@ -92,7 +92,5 @@ struct log_entry {
  *****************************************************************************************/
 
 extern int reiser4_write_logs    (void);
-extern int reiser4_flush_logs    (void);
-extern int alloc_wandered_blocks (void);
 
 #endif /* __FS_REISER4_WANDER_H__ */
