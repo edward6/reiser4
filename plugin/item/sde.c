@@ -8,6 +8,7 @@
 
 #include "../../reiser4.h"
 
+/* Audited by: green(2002.06.14) */
 void de_print( const char *prefix /* prefix to print */, 
 	       new_coord *coord /* item to print */ )
 {
@@ -33,6 +34,7 @@ void de_print( const char *prefix /* prefix to print */,
 /**
  * ->extract_key() method of simple directory item plugin.
  */
+/* Audited by: green(2002.06.14) */
 int de_extract_key( const new_coord *coord /* coord of item */,
 		    reiser4_key *key /* resulting key */ )
 {
@@ -50,6 +52,7 @@ int de_extract_key( const new_coord *coord /* coord of item */,
 /**
  * ->extract_name() method of simple directory item plugin.
  */
+/* Audited by: green(2002.06.14) */
 char *de_extract_name( const new_coord *coord /* coord of item */ )
 {
 	directory_entry_format *dent;
@@ -77,6 +80,7 @@ unsigned de_extract_file_type( const new_coord *coord UNUSED_ARG /* coord of
 	return DT_UNKNOWN;
 }
 
+/* Audited by: green(2002.06.14) */
 int de_add_entry( const struct inode *dir /* directory of item */, 
 		  new_coord *coord /* coord of item */, 
 		  lock_handle *lh /* insertion lock handle */, 
@@ -99,11 +103,14 @@ int de_add_entry( const struct inode *dir /* directory of item */,
 	build_inode_key_id( entry -> obj, &dent -> id );
 	assert( "nikita-1163", 
 		strlen( name -> d_name.name ) == name -> d_name.len );
+	/* AUDIT: The lenght of source is known, so using of memcpy
+	   would be much cheaper here */
 	strcpy( ( char * ) dent -> name, name -> d_name.name );
 	cputod8( 0, &dent -> name[ name -> d_name.len ] );
 	return 0;
 }
 
+/* Audited by: green(2002.06.14) */
 int de_rem_entry( const struct inode *dir UNUSED_ARG /* directory of item */, 
 		  new_coord *coord /* coord of item */,
 		  lock_handle *lh UNUSED_ARG /* lock handle for
@@ -128,6 +135,7 @@ int de_rem_entry( const struct inode *dir UNUSED_ARG /* directory of item */,
 	return result;
 }
 
+/* Audited by: green(2002.06.14) */
 int de_max_name_len( int block_size /* block size */ )
 {
 	return block_size - REISER4_NODE_MAX_OVERHEAD - 
