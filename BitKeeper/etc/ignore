@@ -1409,3 +1409,7 @@ yet_unneeded_abstractions/oid/.oid40.o.cmd
 znode.bb
 znode.bbg
 as_ops.c.orig
+.reiser4_status_flags.o.cmd
+.crab_lock.o.cmd
+.init_super.o.cmd
+version
