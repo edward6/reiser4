@@ -141,6 +141,8 @@ case "$host" in
     ;;
 esac
 
+AM_CONDITIONAL(ENABLE_MONOLITIC, test x$enable_monolitic = xyes)
+
 AC_OUTPUT([
     Makefile
     include/Makefile
