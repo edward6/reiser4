@@ -1278,34 +1278,23 @@ init_wlinks(txn_wait_links * wlinks)
 	fwaiting_list_clean(wlinks);
 }
 
-/* Add and atom to the atom's waitfor list and wait somebody who is pleased to wake us up;
- * reacquire atom lock after sleep using given txn_handle object, return spin locked atom. */
-txn_atom *
-atom_wait_event(txn_handle * h)
+/* Add and atom to the atom's waitfor list and wait somebody who is pleased to wake us up; */
+void atom_wait_event(txn_atom * atom)
 {
-	txn_atom *atom = h->atom;
 	txn_wait_links _wlinks;
 
 	assert("zam-744", spin_atom_is_locked(atom));
-
 	init_wlinks(&_wlinks);
-
 	fwaitfor_list_push_back(&atom->fwaitfor_list, &_wlinks);
 	atom->refcount++;
-
 	spin_unlock_atom(atom);
 
 	prepare_to_sleep(_wlinks._lock_stack);
 	go_to_sleep(_wlinks._lock_stack);
 
-	atom = atom_get_locked_with_txnh_locked(h);
-
+	spin_lock_atom (atom);
 	fwaitfor_list_remove(&_wlinks);
-	atom->refcount--;
-
-	spin_unlock_txnh(h);
-
-	return atom;
+	atom_dec_and_unlock (atom);
 }
 
 /* wake all threads which wait for an event */
@@ -1343,6 +1332,7 @@ commit_txnh(txn_handle * txnh)
 	int ret = 0;
 	txn_atom *atom;
 	int failed = 0;
+	int wait = 0;
 	long nr_written = 0;
 
 	assert("umka-192", txnh != NULL);
@@ -1355,7 +1345,10 @@ again:
 	 * we don't need the txnh lock while trying to commit. */
 	spin_unlock_txnh(txnh);
 
-again_locked:
+	if (wait) {
+		atom->nr_waiters --;
+		wait = 0;
+	}
 
 	trace_on(TRACE_TXN,
 		 "commit_txnh: atom %u failed %u; txnh_count %u; should_commit %u\n",
@@ -1374,10 +1367,9 @@ again_locked:
 		if (atom->txnh_count > atom->nr_waiters + 1) {
 			if (should_wait_commit(txnh)) {
 				atom->nr_waiters++;
-				atom = atom_wait_event(txnh);
-				atom->nr_waiters--;
-
-				goto again_locked;
+				wait = 1;
+				atom_wait_event(atom);
+				goto again;
 			}
 
 			goto done;
@@ -1398,9 +1390,9 @@ again_locked:
 				/* -EBUSY means that another thread took fq object in exclusive use
 				 * for submitting an I/O or so and we cannot find any fq object
 				 * which is ready to write to disk; we just wait that thread. */
-				atom = atom_wait_event(txnh);
+				atom_wait_event(atom);
 
-				goto again_locked;
+				goto again;
 			}
 
 			/* This place have a potential to become CPU-eating dead-loop, so I've
