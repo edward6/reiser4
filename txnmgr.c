@@ -633,7 +633,7 @@ atom_isopen(const txn_atom * atom)
 {
 	assert("umka-185", atom != NULL);
 
-	return atom->stage & (ASTAGE_CAPTURE_FUSE | ASTAGE_CAPTURE_WAIT);
+	return atom->stage > 0 && atom->stage < ASTAGE_PRE_COMMIT;
 }
 #endif
 
@@ -804,8 +804,9 @@ static int
 atom_should_commit(const txn_atom * atom)
 {
 	assert("umka-189", atom != NULL);
-	return ((unsigned) atom_pointer_count(atom) > get_current_super_private()->txnmgr.atom_max_size)
-	    || atom_is_dotard(atom) || (atom->flags & ATOM_FORCE_COMMIT);
+	return (atom->flags & ATOM_FORCE_COMMIT)
+		|| ((unsigned) atom_pointer_count(atom) > get_current_super_private()->txnmgr.atom_max_size)
+		|| atom_is_dotard(atom);
 }
 
 #if 0
