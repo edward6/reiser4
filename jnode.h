@@ -180,6 +180,8 @@ extern void   jnode_set_clean (jnode *node);
 extern const reiser4_block_nr* jnode_get_block( const jnode *node );
 extern void   jnode_set_block (jnode *node, const reiser4_block_nr *blocknr);
 
+extern struct page *jnode_lock_page (jnode *);
+
 /**
  * Jnode flush interface.
  */
