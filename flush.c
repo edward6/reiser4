@@ -23,7 +23,7 @@ static inline int  load_zh_common (load_handle *zh, znode *node) { int ret; if (
 static inline int  load_zh (load_handle *zh, znode *node) { done_zh (zh); return load_zh_common (zh, node); }
 static inline int  load_jh (load_handle *zh, jnode *node) { done_zh (zh); return jnode_is_formatted (node) ? load_zh_common (zh, JZNODE (node)) : 0; }
 static inline void move_zh (load_handle *new, load_handle *old) { done_zh (new); new->node = old->node; old->node = NULL; }
-static inline void copy_zh (load_handle *new, load_handle *old) { done_zh (new); new->node = old->node; atomic_inc (& old->node->d_count); }
+static inline void copy_zh (load_handle *new, load_handle *old) { done_zh (new); new->node = old->node; atomic_inc (& ZJNODE(old->node)->d_count); }
 
 #define jnode_check_allocated(node) (JF_ISSET (node, ZNODE_RELOC) || JF_ISSET (node, ZNODE_WANDER))
 
@@ -697,9 +697,15 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	/* If anything is shifted at an upper level, we should not allocate any further
 	 * because the child is no longer rightmost. */
-	if (any_shifted && call_depth > 0 /*FIXME: This doesn't work for flush at non-leaf level: znode_get_level (node) != LEAF_LEVEL*/) {
+	if (any_shifted && call_depth > 0) {
 		ret = 0;
 		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] shifted & not leaf: %s\n", call_depth, flush_pos_tostring (pos));
+		goto exit;
+	}
+
+	if (node_is_empty (right_lock.node)) {
+		ret = 0;
+		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] right node empty: %s\n", call_depth, flush_pos_tostring (pos));
 		goto exit;
 	}
 
