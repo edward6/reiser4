@@ -408,19 +408,27 @@ static int capture_anonymous_pages (struct address_space * mapping)
 	while (!list_empty (mpages)) {
 		struct page *pg = list_entry(mpages->prev, struct page, list);
 
-		list_move(&pg->list, &mapping->io_pages);
-		page_cache_get (pg);
+		if (PageWriteback(pg)) {
+			if (PageDirty(pg))
+				list_add(&pg->list, &mapping->dirty_pages);
+			else
+				list_add(&pg->list, &mapping->locked_pages);
+		} else if (!PageDirty(pg))
+			list_add(&pg->list, &mapping->clean_pages);
+		else {
+			list_move(&pg->list, &mapping->io_pages);
+			page_cache_get (pg);
 
-		spin_unlock (&mapping->page_lock);
+			spin_unlock (&mapping->page_lock);
 
-		lock_page (pg);
-		assert("vs-1244", PageDirty(pg));
-		capture_page_and_create_extent (pg);
+			lock_page (pg);
+			capture_page_and_create_extent (pg);
 		
-		unlock_page (pg);
+			unlock_page (pg);
 
-		page_cache_release (pg);
-		spin_lock (&mapping->page_lock);
+			page_cache_release (pg);
+			spin_lock (&mapping->page_lock);
+		}
 	}
 
 	spin_unlock(&mapping->page_lock);
