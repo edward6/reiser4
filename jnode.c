@@ -922,18 +922,21 @@ jload_gfp (jnode * node /* node to load */,
 			goto failed;
 		}
 
-		node->data = kmap(page);
+		if (do_kmap)
+			node->data = kmap(page);
 
 		result = jparse(node);
 		if (unlikely(result != 0)) {
-			kunmap(page);
+			if (do_kmap)
+				kunmap(page);
 			goto failed;
 		}
 		check_jload(node, page);
 	} else {
 		page = jnode_page(node);
 		check_jload(node, page);
-		node->data = kmap(page);
+		if (do_kmap)
+			node->data = kmap(page);
 		reiser4_stat_inc_at_level(jnode_get_level(node),
 					  jnode.jload_already);
 	}
@@ -954,7 +957,7 @@ jload_gfp (jnode * node /* node to load */,
 	return 0;
 
  failed:
-	jrelse(node);
+	jrelse_tail(node);
 	return result;
 	
 }
@@ -1017,6 +1020,7 @@ jrelse_tail(jnode * node /* jnode to release references to */)
 	atomic_dec(&node->d_count);
 	/* release reference acquired in jload_gfp() or jinit_new() */
 	jput(node);
+	LOCK_CNT_DEC(d_refs);
 }
 
 /* drop reference to node data. When last reference is dropped, data are
@@ -1028,8 +1032,6 @@ jrelse(jnode * node /* jnode to release references to */)
 
 	assert("nikita-487", node != NULL);
 	assert("nikita-1906", spin_jnode_is_not_locked(node));
-
-	LOCK_CNT_DEC(d_refs);
 
 	ON_TRACE(TRACE_PCACHE, "release node: %p\n", node);
 
