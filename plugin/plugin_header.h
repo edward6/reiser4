@@ -36,7 +36,7 @@ typedef struct reiser4_plugin_ops reiser4_plugin_ops;
 
 TYPE_SAFE_LIST_DECLARE(plugin);
 
-/* common part of each plugin instance. */
+/* the common part of all plugin instances. */
 typedef struct plugin_header {
 	/* plugin type */
 	reiser4_plugin_type type_id;
@@ -44,9 +44,10 @@ typedef struct plugin_header {
 	reiser4_plugin_id id;
 	/* plugin operations */
 	reiser4_plugin_ops *pops;
+/* NIKITA-FIXME-HANS: usage of and access to label and desc is not commented and defined. */
 	/* short label of this plugin */
 	const char *label;
-	/* descriptive string. Put your copyright message here. */
+	/* descriptive string.. */
 	const char *desc;
 	/* list linkage */
 	plugin_list_link linkage;
@@ -54,7 +55,7 @@ typedef struct plugin_header {
 
 
 /* PRIVATE INTERFACES */
-
+/* NIKITA-FIXME-HANS: what is this for and why does it duplicate what is in plugin_header? */
 /* plugin type representation. */
 typedef struct reiser4_plugin_type_data {
 	/* internal plugin type identifier. Should coincide with
@@ -65,6 +66,8 @@ typedef struct reiser4_plugin_type_data {
 	const char *label;
 	/* plugin type description longer than .label */
 	const char *desc;
+
+/* NIKITA-FIXME-HANS: define built-in */
 	/* number of built-in plugin instances of this type */
 	int builtin_num;
 	/* array of built-in plugins */

@@ -1,6 +1,6 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
  * reiser4/README */
-
+/* NIKITA-FIXME-HANS: you didn't discuss this with me before coding it did you?  Remove plugin-sets from code by March 15th, 2004 */
 /* plugin-sets */
 
 /*

@@ -52,7 +52,7 @@ struct flow {
 	loff_t length;		/* length of flow's sequence of bytes */
 	char *data;		/* start of flow's sequence of bytes */
 	int user;		/* if 1 data is user space, 0 - kernel space */
-	rw_op op;               /* */
+	rw_op op;               /* NIKITA-FIXME-HANS: comment is where?  */
 };
 
 typedef ssize_t(*rw_f_type) (struct file * file, flow_t * a_flow, loff_t * off);
@@ -79,7 +79,7 @@ typedef struct reiser4_object_on_wire reiser4_object_on_wire;
  perhaps static length, file whose parent has a uni-count-intra-link to it, which might be grandparent-major-packed, and
  whose parent has a deletion method that deletes it.
 
- File plugins implement constraints.
+ File plugins can implement constraints.
 
  Files can be of variable length (e.g. regular unix files), or of static length (e.g. static sized attributes).
 
@@ -149,7 +149,7 @@ typedef struct file_plugin {
 
 	/* file_operations->open is dispatched here */
 	int (*open) (struct inode * inode, struct file * file);
-	
+				/* NIKITA-FIXME-HANS: comment all fields, even the ones every non-beginner FS developer knows.... */
 	int (*truncate) (struct inode * inode, loff_t size);
 
 	/* save inode cached stat-data onto disk. It was called
@@ -159,7 +159,9 @@ typedef struct file_plugin {
 	int (*prepare_write) (struct file *, struct page *, unsigned, unsigned);
 
 	/* captures passed page to current atom and takes care about extents handling.
-	   This is needed for loop back devices support and used from ->commit_write() */
+	   This is needed for loop back devices support and used from ->commit_write() 
+
+*/				/* ZAM-FIXME-HANS: are you writing to yourself or the reader?  Bigger comment please. */
 	int (*capturepage) (struct page *);
 	/*
 	 * add pages created through mmap into object.
@@ -184,6 +186,10 @@ typedef struct file_plugin {
 	   write/read. ->flow_by_inode() is plugin method, rather than single
 	   global implemenation, because key in a flow used by plugin may
 	   depend on data in a @buf.
+
+NIKITA-FIXME-HANS: please create statistics on what functions are
+dereferenced how often for the mongo benchmark.  You can supervise
+Elena doing this for you if that helps.  Email me the list of the top 10, with their counts, and an estimate of the total number of CPU cycles spent dereferencing as a percentage of CPU cycles spent processing (non-idle processing).  If the total percent is, say, less than 1%, it will make our coding discussions much easier, and keep me from questioning whether functions like the below are too frequently called to be dereferenced.  If the total percent is more than 1%, perhaps private methods should be listed in a "required" comment at the top of each plugin (with stern language about how if the comment is missing it will not be accepted by the maintainer), and implemented using macros not dereferenced functions.  How about replacing this whole private methods part of the struct with a thorough documentation of what the standard helper functions are for use in constructing plugins?  I think users have been asking for that, though not in so many words.
 	*/
 	int (*flow_by_inode) (struct inode *, char *buf, int user, loff_t size, loff_t off, rw_op op, flow_t *);
 
@@ -194,15 +200,17 @@ typedef struct file_plugin {
 	*/
 	int (*key_by_inode) (struct inode * inode, loff_t off, reiser4_key * key);
 
+/* NIKITA-FIXME-HANS: this comment is not as clear to others as you think.... */
 	/* set the plugin for a file.  Called during file creation in creat()
 	   but not reiser4() unless an inode already exists for the file. */
 	int (*set_plug_in_inode) (struct inode * inode, struct inode * parent, reiser4_object_create_data * data);
 
+/* NIKITA-FIXME-HANS: comment and name seem to say different things, are you setting up the object itself also or just adjusting the parent?.... */
 	/* set up plugins for new @object created in @parent. @root is root
 	   directory. */
 	int (*adjust_to_parent) (struct inode * object, struct inode * parent, struct inode * root);
 	/* this does whatever is necessary to do when object is created. For
-	   instance, for ordinary files stat data is inserted */
+	   instance, for unix files stat data is inserted */
 	int (*create) (struct inode * object, struct inode * parent,
 		       reiser4_object_create_data * data);
 	/* delete empty object. This method should check REISER4_NO_SD
