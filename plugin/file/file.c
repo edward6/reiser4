@@ -2946,7 +2946,7 @@ reiser4_internal ssize_t sendfile_common (
 		index = *ppos >> PAGE_CACHE_SHIFT;
 		offset = *ppos & ~PAGE_CACHE_MASK;
 
-		page_cache_readahead(inode->i_mapping, &file->f_ra, file, offset);
+		page_cache_readahead(inode->i_mapping, &file->f_ra, file, offset, 0);
 
 		/* determine valid read request size. */
 		read_request_size = PAGE_CACHE_SIZE - offset;

@@ -1135,7 +1135,7 @@ call_page_cache_readahead(struct address_space *mapping, struct file *file, unsi
 	fsdata->ra2.data = &ra_coord;
 	fsdata->ra2.readpages = read_readpages;
 
-	page_cache_readahead(mapping, &file->f_ra, file, page_nr);
+	page_cache_readahead(mapping, &file->f_ra, file, page_nr, 0);
 	fsdata->ra2.readpages = NULL;
 }
 
