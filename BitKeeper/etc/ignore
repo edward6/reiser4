@@ -356,3 +356,4 @@ reiser4lib/plugin/stat40/libstat40.la
 reiser4lib/plugin/stat40/stat40.lo
 reiser4lib/stamp-h
 reiser4lib/stamp-h.in
+bash.rc3
