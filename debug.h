@@ -326,7 +326,7 @@ typedef enum {
 	TRACE_EFLUSH  = (1 << 23),	/* 0x00800000 */
 
 	/* trace ctails */
-	TRACE_CTAILS = (1 << 24),       /* 0x01000000 */   
+	TRACE_CTAIL = (1 << 24),       /* 0x01000000 */   
 
 	/* vague section: used to trace bugs. Use it to issue optional prints
 	   at arbitrary points of code. */
