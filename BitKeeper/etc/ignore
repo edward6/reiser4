@@ -1415,3 +1415,4 @@ yet_unneeded_abstractions/oid/.oid40.o.cmd
 znode.bb
 znode.bbg
 plugin/item/.extent_repack_ops.o.cmd
+.status_flags.o.cmd
