@@ -1,12 +1,24 @@
 /* Copyright 2002 by Hans Reiser */
 
 /*
- * The Reiser4 log writer is here 
+ * Reiser4 Wandering Log
  */
 
-/* The Reiser4 log writer takes care about safe writing of nodes modified
- * during a transaction.  This safe writing means blocks should be written
- * twice, once to specially allocated "wandered" locations, then in place.
+/*
+
+You should read www.namesys.com/txn-mgr.html before trying to read this file.
+
+That describes how filesystem operations are performed as atomic transactions,
+and how we try to arrange it so that we can write most of the data only once
+while performing the operation atomically.
+
+For the purposes of this code, it is enough for it to understand that it has
+been told a given block should be written once, or that it should be written
+twice (once to the wandered location and once to the real location).
+
+This code guarantees that those blocks that are defined to be part of an atom
+either all take effect or none of them take effect.
+
  * This gives a possibility to accept all modified blocks or discard all
  * modified blocks also.  The log writer allocates and writes "wandered"
  * blocks and maintains additional atom's on-disk structures as log records
@@ -14,33 +26,29 @@
  * which contains a relation between wandered and real block numbers) and
  * other information might be needed at transaction recovery time.
  * 
- * NOTE: More exactly not all modified blocks are written twice.  There is an
- * optimization performed by the reiser4 flush code (see flush.c) which allows
- * not to write most blocks twice but only blocks from atom's 'overwrite set'.
- * 
- * The log records are linked into a circle: each log record contains a block
- * number of the next log record, the last log records points to the first
- * one.
+ * The log records are unidirectionally linked into a circle: each log record
+ * contains a block number of the next log record, the last log records points
+ * to the first one.
  *
- * One log record (named "tx head" in this file) has format which is different
- * from other log records. The "tx head" has a reference to the "tx head"
- * block of the previously committed atom.  Also, "tx head" contains an fs
- * information which is logged special way (free blocks counter, oid allocator
- * state).
+ * One log record (named "tx head" in this file) has a format which is
+ * different from the other log records. The "tx head" has a reference to the
+ * "tx head" block of the previously committed atom.  Also, "tx head" contains
+ * fs information (the free blocks counter, and the oid allocator state) which
+ * is logged in a special way .
  * 
  * There are two journal control blocks, named journal header and journal
  * footer which have fixed on-disk locations.  The journal header has a
  * reference to the "tx head" block of the last committed atom.  The journal
  * footer points to the "tx head" of the last flushed atom.  The atom is
- * flushed when all blocks from its overwrite set are written to disk second
- * time (i.e. written in place).
+ * "played" when all blocks from its overwrite set are written to disk the
+ * second time (i.e. written to their real locations).
  *
  * The atom commit process is the following: 
  *
- * 1. The overwrite set is taken from atom's clean list, its size is counted.
+ * 1. The overwrite set is taken from atom's clean list, and its size is counted.
  *
  * 2. The number of necessary log records (including tx head) is calculated,
- *    log record blocks are allocated.
+ *    and the log record blocks are allocated.
  *
  * 3. Allocate wandered blocks and populate log records by wandered map.
  * 
