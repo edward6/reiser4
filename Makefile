@@ -119,6 +119,17 @@ reiser4-objs := \
 		   plugin/file/file.o \
            	   plugin/file/tail_conversion.o
 
-#$parser/tmp: $/parser/*.[chy]
-#	$(MAKE) -C parser
+reiser4-objs += sys_reiser4.o 
+ifeq ($(CONFIG_REISER4_FS_SYSCALL),y)
+YFLAGS= -d -v -r -b $(obj)/parser/parser
+sys_reiser4.o: $/parser/parser.code.c $/parser/lib.c $/parser/pars.cls.h $/parser/parser.h $/parser/parser.y
+$(addprefix $(obj)/,$(reiser4-objs)): $(obj)/parser/parser.code.c
+$(obj)/parser/parser.code.c: $(obj)/parser/parser.y
+	$(YACC) $(YFLAGS) $(obj)/parser/parser.y
+
+#	$(MAKE)  $(obj)/parser/parser
+#clean-files := parser/parser.code.c
+##clean-rule =@$(MAKE) -C $/parser clean
+#clean-rule =@$(MAKE) $(obj)/parser/parser.code.c
+endif
 
