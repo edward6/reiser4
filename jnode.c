@@ -506,7 +506,7 @@ void info_jnode( const char *prefix /* prefix to print */,
 		return;
 	}
 
-	info( "%s: %p: state: %lu: [%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, pg: %p, ",
+	info( "%s: %p: state: %lu: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, pg: %p, ",
 	      prefix, node, node -> state, 
 
 	      jnode_state_name( node, ZNODE_LOADED ),
@@ -514,13 +514,15 @@ void info_jnode( const char *prefix /* prefix to print */,
 	      jnode_state_name( node, ZNODE_LEFT_CONNECTED ),
 	      jnode_state_name( node, ZNODE_RIGHT_CONNECTED ),
 	      jnode_state_name( node, ZNODE_ORPHAN ),
+	      jnode_state_name( node, ZNODE_UNFORMATTED ),
 	      jnode_state_name( node, ZNODE_CREATED ),
 	      jnode_state_name( node, ZNODE_RELOC ),
 	      jnode_state_name( node, ZNODE_WANDER ),
 	      jnode_state_name( node, ZNODE_DIRTY ),
-	      jnode_state_name( node, ZNODE_WRITEOUT ),
 	      jnode_state_name( node, ZNODE_IS_DYING ),
-	      jnode_state_name( node, ZNODE_UNFORMATTED ),
+	      jnode_state_name( node, ZNODE_KMAPPED ),
+	      jnode_state_name( node, ZNODE_MAPPED ),
+	      jnode_state_name( node, ZNODE_FLUSH_BUSY ),
 	      
 	      jnode_get_level( node ), jnode_page( node ) );
 }

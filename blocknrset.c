@@ -336,7 +336,8 @@ int blocknr_set_iterator (txn_atom * atom,
 		unsigned int i;
 		int ret;
 
-		assert ("zam-565", bse_avail(entry) >= 0);
+		/* FIXME: unsigned >= 0 */
+		/*assert ("zam-565", bse_avail(entry) >= 0);*/
 
 		for (i = 0; i < entry->nr_singles; i++) {
 			ret = actor (atom, &entry->ents[i], NULL, data);

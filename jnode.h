@@ -18,16 +18,6 @@ struct jnode
 	__u16        level;
 
 	/* lock, protecting jnode's fields. */
-	/* 
-	 * FIXME_JMACD: Can be probably combined with spinning atomic ops on
-	 * STATE. 
-	 *
-	 * FIXME-NIKITA This means what? Reusing spare bits in spinlock_t for
-	 * state? This is unportable.
-	 *
-	 * FIXME_JMACD: Yes, that's what we mean.  Surely it can be made
-	 * portable?
-	 */
 	spinlock_t   guard;
 
 	/**
@@ -94,19 +84,22 @@ typedef enum {
        ZNODE_RELOC             = 7,
        /** this node is currently wandered */
        ZNODE_WANDER            = 8,
-	   
+
        /** this znode has been modified */
        ZNODE_DIRTY             = 9,
-       /** this znode has been modified */
-       ZNODE_WRITEOUT          = 10,
 
        /* znode lock is being invalidated */
-       ZNODE_IS_DYING          = 11,
+       ZNODE_IS_DYING          = 10,
        /* znode data are mapped into memory */
-       ZNODE_KMAPPED           = 12,
+       ZNODE_KMAPPED           = 11,
        /* jnode of block which has pointer (allocated or unallocated) from
 	* extent or something similar (indirect item, for example) */
-       ZNODE_MAPPED            = 13
+       ZNODE_MAPPED            = 12,
+
+       /* jnode is being flushed.  this implies that the node or its children are being
+	* squeezed and allocated. */
+       ZNODE_FLUSH_BUSY        = 14,
+
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
@@ -131,8 +124,7 @@ SPIN_LOCK_FUNCTIONS(jnode,jnode,guard);
 
 static inline int jnode_is_in_deleteset( const jnode *node )
 {
-	/* FIXME: Zam, this needs to actually do a lookup in the delete set, right? */
-	return JF_ISSET( node, ZNODE_RELOC )  /*|| JF_ISSET( node, ZNODE_DELETED )*/;
+	return JF_ISSET( node, ZNODE_RELOC );
 }
 
 extern int jnode_init_static (void);
@@ -158,7 +150,7 @@ extern void   jnode_set_block (jnode *node, const reiser4_block_nr *blocknr);
  * Jnode flush interface.
  */
 extern int    jnode_flush     (jnode *node, int *nr_to_flush, int flags);
-extern int    flush_enqueue_jnode_page_locked (jnode *node, flush_position *pos, struct page *pg);
+extern int    flush_enqueue_unformatted_page_locked (jnode *node, flush_position *pos, struct page *pg);
 extern reiser4_blocknr_hint* flush_pos_hint (flush_position *pos);
 
 extern spinlock_t *jnode_to_page_lock( const jnode *node );

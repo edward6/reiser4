@@ -8,13 +8,10 @@
 
 /* FIXME: Comments are out of date and missing in this file. */
 
-/* FIXME: */
-#define NEW_ENQUEUE 1
-
 /* FIXME: Make these mount options. */
 #define FLUSH_RELOCATE_THRESHOLD 64
 #define FLUSH_RELOCATE_DISTANCE  64
-#define FLUSH_BIO_SIZE           256
+#define FLUSH_QUEUE_SIZE         256
 
 /* FIXME: Nikita has written similar functions to these, should replace them with his. */
 typedef struct load_handle load_handle;
@@ -51,7 +48,7 @@ struct flush_scan {
 	jnode    *node;
 
 	/* A handle for zload/zrelse of current scan position node. */
-	load_handle node_load; 
+	load_handle node_load;
 
 	/* When the position is unformatted, its parent, coordinate, and parent
 	 * zload/zrelse handle. */
@@ -77,7 +74,12 @@ struct flush_position {
 	int                  *nr_to_flush;
 	int                   alloc_cnt;
 	int                   enqueue_cnt;
-	struct bio           *bio;
+	jnode               **queue;
+ 	int                   queue_num;
+
+	/* FIXME: Add a per-level bitmask, I think, or something to detect the first set
+	 * of nodes that needs to be checked for having still-unallocated children?  How
+	 * about the last set? */
 };
 
 typedef enum {
@@ -99,10 +101,12 @@ static int           flush_scan_right             (flush_scan *scan, jnode *node
 static int           flush_left_relocate_dirty    (jnode *node, const coord_t *parent_coord, flush_position *pos);
 
 static int           flush_allocate_znode         (znode *node, coord_t *parent_coord, flush_position *pos);
-static int           flush_enqueue_jnode          (jnode *node, flush_position *pos);
-static int           flush_enqueue_ancestors      (znode *node, flush_position *pos);
+static int           flush_release_znode          (znode *node);
+static int           flush_rewrite_jnode          (jnode *node);
+static int           flush_release_ancestors      (znode *node);
+static int           flush_queue_jnode            (jnode *node, flush_position *pos);
 
-static int           flush_finish                 (flush_position *pos);
+static int           flush_finish                 (flush_position *pos, int nobusy);
 /*static*/ int       squalloc_right_neighbor      (znode *left, znode *right, flush_position *pos);
 static int           squalloc_right_twig          (znode *left, znode *right, flush_position *pos);
 static int           squalloc_right_twig_cut      (coord_t * to, reiser4_key * to_key, znode *left);
@@ -163,21 +167,12 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 	flush_scan right_scan;
 	flush_scan left_scan;
 
-	if (0) {
-		/*
-		 * FIXME-VS: disable flush
-		 */
+	if (0 /* To disable flush and keep the txnmgr happy, just set node clean. */) {
 		jnode_set_clean (node);
 		return 0;
 	}
 
-	flush_scan_init (& right_scan);
-	flush_scan_init (& left_scan);
-
 	trace_on (TRACE_FLUSH, "flush_jnode %s\n", flush_jnode_tostring (node));
-	
-	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF));*/
-	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK));*/
 
 	/* A race is possible where node is not dirty at this point. */
 	if (! jnode_check_dirty_and_connected (node)) {
@@ -188,84 +183,92 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 		return 0;
 	}
 
+	if (jnode_check_allocated (node)) {
+		/* Already has been assigned a block number, just write it again?  FIXME: Hans? */
+		if ((ret = flush_rewrite_jnode (node))) {
+			return ret;
+		}
+
+		if (nr_to_flush != NULL) {
+			(*nr_to_flush) = 1;
+		}
+
+		return 0;
+	}
+
 	if ((ret = flush_pos_init (& flush_pos, nr_to_flush))) {
 		return ret;
 	}
 
-	if (jnode_check_allocated (node)) {
-		/* If the node has already been through the allocate process, we have
-		 * decided whether it is to be relocated or overwritten (or if it is a new
-		 * block, it has an initial allocation). */
-		if ((ret = flush_enqueue_jnode (node, & flush_pos))) {
-			goto failed;
-		}
+	flush_scan_init (& right_scan);
+	flush_scan_init (& left_scan);
 
+	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF));*/
+	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK));*/
+
+	/* First scan left and remember the leftmost position (and, if
+	 * unformatted, its parent_coord). */
+	if ((ret = flush_scan_left (& left_scan, & right_scan, node, REISER4_FLUSH_SCAN_MAXNODES))) {
+		goto failed;
+	}
+
+	/* Then possibly go right to decide if we will relocate everything possible. */
+	if ((left_scan.size < FLUSH_RELOCATE_THRESHOLD) &&
+	    (ret = flush_scan_right (& right_scan, node, FLUSH_RELOCATE_THRESHOLD - left_scan.size))) {
+		goto failed;
+	}
+
+	/* Only the count is needed, release right away. */
+	flush_scan_done (& right_scan);
+
+	/* ... and the answer is: */
+	flush_pos.leaf_relocate = (left_scan.size + right_scan.size >= FLUSH_RELOCATE_THRESHOLD);
+
+	assert ("jmacd-6218", jnode_check_dirty (left_scan.node));
+
+	/* FIXME: Funny business here.  We set an unformatted point at the
+	 * left-end of the scan, but after that an unformatted flush position sets
+	 * pos->point to NULL.  This is awkward and may cause problems later.
+	 * Think about it. */
+	if ((ret = flush_pos_set_point (& flush_pos, left_scan.node))) {
+		goto failed;
+	}
+
+	/* Now setup flush_pos using scan_left's endpoint. */
+	if (jnode_is_unformatted (left_scan.node)) {
+		coord_dup (& flush_pos.parent_coord, & left_scan.parent_coord);
+		move_lh (& flush_pos.parent_lock, & left_scan.parent_lock);
+		move_zh (& flush_pos.parent_load, & left_scan.parent_load);
 	} else {
-
-		/* First scan left and remember the leftmost position (and, if
-		 * unformatted, its parent_coord). */
-		if ((ret = flush_scan_left (& left_scan, & right_scan, node, REISER4_FLUSH_SCAN_MAXNODES))) {
-			goto failed;
-		}
-
-		/* Then possibly go right to decide if we will relocate everything possible. */
-		if ((left_scan.size < FLUSH_RELOCATE_THRESHOLD) &&
-		    (ret = flush_scan_right (& right_scan, node, FLUSH_RELOCATE_THRESHOLD - left_scan.size))) {
-			goto failed;
-		}
-
-		/* Only the count is needed, release right away. */
-		flush_scan_done (& right_scan);
-
-		/* ... and the answer is: */
-		flush_pos.leaf_relocate = (left_scan.size + right_scan.size >= FLUSH_RELOCATE_THRESHOLD);
-
-		assert ("jmacd-6218", jnode_check_dirty (left_scan.node));
-
-		/* FIXME: Funny business here.  We set an unformatted point at the
-		 * left-end of the scan, but after that an unformatted flush position sets
-		 * pos->point to NULL.  This is awkward and may cause problems later.
-		 * Think about it. */
-		if ((ret = flush_pos_set_point (& flush_pos, left_scan.node))) {
-			goto failed;
-		}
-
-		/* Now setup flush_pos using scan_left's endpoint. */
-		if (jnode_is_unformatted (left_scan.node)) {
-			coord_dup (& flush_pos.parent_coord, & left_scan.parent_coord);
-			move_lh (& flush_pos.parent_lock, & left_scan.parent_lock);
-			move_zh (& flush_pos.parent_load, & left_scan.parent_load);
-		} else {
-			if ((ret = longterm_lock_znode (& flush_pos.point_lock, JZNODE (left_scan.node), ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
-				/* EINVAL means the node was deleted, DEADLK should be impossible here. */
-				assert ("jmacd-34113", ret != -EDEADLK);
-				if (ret == -EINVAL) {
-					ret = 0;
-				}
-				goto failed;
+		if ((ret = longterm_lock_znode (& flush_pos.point_lock, JZNODE (left_scan.node), ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
+			/* EINVAL means the node was deleted, DEADLK should be impossible here. */
+			assert ("jmacd-34113", ret != -EDEADLK);
+			if (ret == -EINVAL) {
+				ret = 0;
 			}
-		}
-
-		/* In some cases, we discover the parent-first preceder during the
-		 * leftward scan.  Copy it. */
-		flush_pos.preceder.blk = left_scan.preceder_blk;
-		flush_scan_done (& left_scan);
-
-		/* At this point, try squeezing at the "left edge", meaning to possibly
-		 * change the parent of the left end of the scan.  NOT IMPLEMENTED FUTURE
-		 * OPTIMIZATION. */
-		if ((ret = flush_squeeze_left_edge (& flush_pos))) {
-			goto failed;
-		}
-
-		/* Do the rightward-bottom-up pass. */
-		if ((ret = flush_squalloc_right (& flush_pos))) {
 			goto failed;
 		}
 	}
 
-	/* Perform batch write. FIXME: Not here, somewhere in the caller... */
-	ret = flush_finish (& flush_pos);
+	/* In some cases, we discover the parent-first preceder during the
+	 * leftward scan.  Copy it. */
+	flush_pos.preceder.blk = left_scan.preceder_blk;
+	flush_scan_done (& left_scan);
+
+	/* At this point, try squeezing at the "left edge", meaning to possibly
+	 * change the parent of the left end of the scan.  NOT IMPLEMENTED FUTURE
+	 * OPTIMIZATION. */
+	if ((ret = flush_squeeze_left_edge (& flush_pos))) {
+		goto failed;
+	}
+
+	/* Do the rightward-bottom-up pass. */
+	if ((ret = flush_squalloc_right (& flush_pos))) {
+		goto failed;
+	}
+
+	/* Write anything left in the queue. */
+	ret = flush_finish (& flush_pos, 1);
 
 	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK));*/
    failed:
@@ -288,7 +291,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 	if (ret != 0) {
 		warning ("jmacd-16739", "flush failed: %d\n", ret);
 	}
-	
+
 	flush_pos_done (& flush_pos);
 	flush_scan_done (& left_scan);
 	flush_scan_done (& right_scan);
@@ -402,7 +405,7 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 
 			/* Now finished with twig node (enqueue if dirty). */
 			if (znode_check_dirty (pos->parent_lock.node)) {
-				ret = flush_enqueue_ancestors (pos->parent_lock.node, pos);
+				ret = flush_release_ancestors (pos->parent_lock.node);
 			} else {
 				ret = 0;
 			}
@@ -421,7 +424,7 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 	if ((ret = load_zh (& right_load, right_lock.node))) {
 		goto exit;
 	}
-	
+
 	/* Then if the child is not dirty, we have nothing to do. */
 	coord_init_first_unit (& right_coord, right_lock.node);
 
@@ -467,7 +470,7 @@ static int flush_set_preceder (const coord_t *coord_in, flush_position *pos)
 	int ret;
 	coord_t coord;
 	lock_handle left_lock;
-	
+
 	coord_dup (& coord, coord_in);
 
 	init_lh (& left_lock);
@@ -668,7 +671,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 		assert ("jmacd-1732", ! coord_is_after_rightmost (& pos->parent_coord));
 
-		trace_on (TRACE_FLUSH_VERB, "sq1_changed_ancestor[%u] before (shifted & unformatted): %s\n", call_depth, flush_pos_tostring (pos));
+		trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] before (shifted & unformatted): %s\n", call_depth, flush_pos_tostring (pos));
 		/*trace_if (TRACE_FLUSH_VERB, print_coord ("present coord", & pos->parent_coord, 0));*/
 
 		/* We reached this point because we were at the end of a twig, and now we
@@ -704,7 +707,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	/* If anything is shifted at an upper level, we should not allocate any further
 	 * because the child is no longer rightmost. */
-	if (any_shifted && call_depth > 0) {
+	if (any_shifted && /*call_depth > 0*/znode_get_level (node) > LEAF_LEVEL) {
 		ret = 0;
 		trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] shifted & not leaf: %s\n", call_depth, flush_pos_tostring (pos));
 		goto exit;
@@ -739,8 +742,8 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] ready to enqueue node %p: %s\n", call_depth, node, flush_pos_tostring (pos));
 
 	/* Now finished with node. */
-	if (znode_check_dirty (node) && znode_check_allocated (node) && (ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
-		warning ("jmacd-61440", "flush_enqueue_jnode failed: %d", ret);
+	if (znode_check_dirty (node) && znode_check_allocated (node) && (ret = flush_release_znode (node))) {
+		warning ("jmacd-61440", "flush_release_znode failed: %d", ret);
 		goto exit;
 	}
 
@@ -839,7 +842,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		/* Unless we get ENAVAIL at the leaf level, it means to stop. */
 		if (ret != -ENAVAIL || znode_get_level (node) != LEAF_LEVEL) {
 			if (ret == -ENAVAIL) {
-				ret = flush_enqueue_ancestors (node, pos);
+				ret = flush_release_ancestors (node);
 				trace_on (TRACE_FLUSH_VERB, "sq_rca: STOP (ENAVAIL, ancestors allocated): %s\n", flush_pos_tostring (pos));
 				flush_pos_stop (pos);
 			} else {
@@ -848,14 +851,14 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 			goto exit;
 		}
 
-		trace_on (TRACE_FLUSH_VERB, "sq_rca no right: %s\n", flush_pos_tostring (pos));
-		
+		trace_on (TRACE_FLUSH_VERB, "sq_rca no right at leaf, to parent: %s\n", flush_pos_tostring (pos));
+
 		/* We are leaving node now, enqueue it. */
-		if ((ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
-			warning ("jmacd-61434", "flush_enqueue_jnode failed: %d", ret);
+		if ((ret = flush_release_znode (node))) {
+			warning ("jmacd-61434", "flush_release_znode failed: %d", ret);
 			goto exit;
 		}
-		
+
 		/* We may have a unformatted node to the right. */
 		if ((ret = flush_pos_to_parent (pos))) {
 			warning ("jmacd-61435", "flush_pos_to_parent failed: %d", ret);
@@ -872,7 +875,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 
 		/* Now maybe try the twig to the right... */
 		if (coord_is_after_rightmost (& pos->parent_coord)) {
-			trace_on (TRACE_FLUSH_VERB, "sq_rca right again: %s\n", flush_pos_tostring (pos));
+			trace_on (TRACE_FLUSH_VERB, "sq_rca to right twig: %s\n", flush_pos_tostring (pos));
 
 			if (znode_check_dirty (node)) {
 				goto repeat;
@@ -889,11 +892,11 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 			trace_on (TRACE_FLUSH_VERB, "sq_rca stop at twig, next is internal: %s\n", flush_pos_tostring (pos));
 		stop_at_twig:
 			/* We are leaving twig now, enqueue it if allocated. */
-			if ((ret = flush_enqueue_ancestors (node, pos))) {
-				warning ("jmacd-61436", "flush_enqueue_ancestors failed: %d", ret);
+			if ((ret = flush_release_ancestors (node))) {
+				warning ("jmacd-61436", "flush_release_ancestors failed: %d", ret);
 				goto exit;
 			}
-			
+
 			trace_on (TRACE_FLUSH_VERB, "sq_rca: STOP (at twig): %s\n", flush_pos_tostring (pos));
 			ret = flush_pos_stop (pos);
 			goto exit;
@@ -966,7 +969,7 @@ static int flush_squalloc_right (flush_position *pos)
 	}
 
  STEP_2:/* Step 2: Handle extents. */
-	if (flush_pos_unformatted (pos)) {
+	if (flush_pos_valid (pos) && flush_pos_unformatted (pos)) {
 
 		int is_dirty;
 
@@ -1005,7 +1008,7 @@ static int flush_squalloc_right (flush_position *pos)
 				goto STEP_2;
 			} else {
 				/* We are finished at this level. */
-				ret = flush_enqueue_ancestors (pos->parent_coord.node, pos);
+				ret = flush_release_ancestors (pos->parent_coord.node);
 				goto exit;
 			}
 		}
@@ -1351,7 +1354,7 @@ void jnode_set_block( jnode *node /* jnode to update */,
 	node -> blocknr = *blocknr;
 }
 
-/* return true if jnode has real blocknr */
+/* return true if jnode has real blocknr */ /* FIXME: JMACD->?? Who wrote this, who uses it?  Looks funny to me. */
 int jnode_has_block (jnode * node)
 {
 	assert ("vs-673", node);
@@ -1371,15 +1374,11 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 		return ret;
 	}
 
-	if (!ZF_ISSET(node, ZNODE_CREATED)) {
-		ret = reiser4_dealloc_block(znode_get_block(node), 1, 0);
-
-		if (ret) return ret;
+	if (! ZF_ISSET (node, ZNODE_CREATED) && (ret = reiser4_dealloc_block (znode_get_block (node), 1, 0))) {
+		return ret;
 	}
 
 	init_lh (& fake_lock);
-
-	/* FIXME: free old location if not fake? */
 
 	if (! znode_is_root (node)) {
 
@@ -1391,8 +1390,9 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 		if (IS_ERR (fake)) { ret = PTR_ERR(fake); goto exit; }
 
 		if ((ret = longterm_lock_znode (& fake_lock, fake, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI))) {
-			/* The fake node cannot be deleted, and we must have priority here. */
-			assert ("jmacd-74412", ret != -EINVAL && ret != -EDEADLK);
+			/* The fake node cannot be deleted, and we must have priority
+			 * here, and may not be confused with ENOSPC. */
+			assert ("jmacd-74412", ret != -EINVAL && ret != -EDEADLK && ret != -ENOSPC);
 			zput (fake);
 			goto exit;
 		}
@@ -1447,7 +1447,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 		} else {
 
 			dist = (nblk < pos->preceder.blk) ? (pos->preceder.blk - nblk) : (nblk - pos->preceder.blk);
-			
+
 			/* See if we can find a closer block (forward direction only). */
 			pos->preceder.max_dist = dist;
 			pos->preceder.level    = znode_get_level (node);
@@ -1473,31 +1473,137 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 			}
 		}
 	}
-	
+
 	/* This is the new preceder. */
 	pos->preceder.blk = *znode_get_block (node);
 	pos->alloc_cnt += 1;
 
 	assert ("jmacd-4277", ! blocknr_is_fake (& pos->preceder.blk));
+	assert ("jmacd-4278", ! JF_ISSET (node, ZNODE_FLUSH_BUSY));
 
-	trace_on (TRACE_FLUSH, "allocte: %s\n", flush_znode_tostring (node));
-	return 0;
+	JF_SET (node, ZNODE_FLUSH_BUSY);
+	trace_on (TRACE_FLUSH, "alloc: %s\n", flush_znode_tostring (node));
+
+	/* Queue it now, node is busy until release_znode is called. */
+	return flush_queue_jnode (ZJNODE (node), pos);
 }
 
-#if NEW_ENQUEUE
-/* These are no-ops under the new enqueueing strategy. */
-static int flush_enqueue_ancestors (znode *node UNUSED_ARG, flush_position *pos UNUSED_ARG)
-{
-	return 0;
-}
-
-static int flush_enqueue_jnode (jnode *node UNUSED_ARG, flush_position *pos UNUSED_ARG)
-{
-	return 0;
-}
-#else
 /* FIXME: comment */
-static int flush_enqueue_ancestors (znode *node, flush_position *pos)
+static int flush_queue_jnode (jnode *node, flush_position *pos)
+{
+	/* FIXME: The main source of problems for this approach is likely to be that the
+	 * queue retains a reference to each node.  While a node is referenced it can
+	 * still be reached through the sibling list, which can confuse flush code.
+	 * However, this should only be able to confuse a concurrent flush process.  We
+	 * shall see. */
+
+	/* FIXME: See comment in flush_rewrite_jnode. */
+	if (! jnode_check_dirty (node) || JF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
+		return 0;
+	}
+
+	assert ("jmacd-4279", pos->queue_num < FLUSH_QUEUE_SIZE);
+	assert ("jmacd-1771", jnode_check_allocated (node));
+
+	pos->queue[pos->queue_num++] = jref (node);
+
+	trace_if (TRACE_FLUSH, if (jnode_is_unformatted (node)) { info ("queue: %s\n", flush_jnode_tostring (node)); });
+
+	if (pos->queue_num == FLUSH_QUEUE_SIZE) {
+		return flush_finish (pos, 0);
+	}
+
+	return 0;
+}
+
+/* This enqueues the node into the developing "struct bio" queue. */
+static int flush_release_znode (znode *node)
+{
+	trace_on (TRACE_FLUSH_VERB, "relse: %s\n", flush_znode_tostring (node));
+	ZF_CLR (node, ZNODE_FLUSH_BUSY);
+	return 0;
+}
+
+/* FIXME: comment */
+int flush_enqueue_unformatted_page_locked (jnode *node, flush_position *pos, struct page *pg)
+{
+	/* FIXME: not sure about this.  release the lock because it will be queued. */
+	unlock_page (pg);
+
+	return flush_queue_jnode (node, pos);
+}
+
+/* FIXME: comment */
+static int flush_finish (flush_position *pos, int nobusy)
+{
+	int i;
+	int refill = 0;
+	int ret = 0;
+	jnode *ready_to_go = NULL;
+
+	for (i = 0; ret == 0 && i < pos->queue_num; i += 1) {
+
+		jnode *node;
+
+		node = pos->queue[i];
+		pos->queue[i] = NULL;
+
+		assert ("jmacd-71235", node != NULL);
+
+		/* FIXME: See the comment in flush_rewrite_jnode. */
+		if (! jnode_check_dirty (node) || JF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
+			jput (node);
+			continue;
+		}
+
+		assert ("jmacd-71236", jnode_check_allocated (node));
+
+		/* Skip if the node is still busy (i.e., its children are being squalloced). */
+		if (JF_ISSET (node, ZNODE_FLUSH_BUSY)) {
+			assert ("jmacd-71237", pos->queue[refill] == NULL);
+			assert ("jmacd-71238", nobusy == 0);
+			pos->queue[refill++] = node;
+			continue;
+		}
+
+		/* Keep track of one node (jref'd) that is ready to flush. */
+		if (ready_to_go == NULL) {
+			ready_to_go = node;
+			continue;
+		}
+
+		/* Now we have at least two nodes to flush, see if they are adjacent. */
+		if (*jnode_get_block (ready_to_go) + 1 != *jnode_get_block (node)) {
+			/* Not adjacent, write one page. */
+			ret = flush_rewrite_jnode (ready_to_go);
+			jput (ready_to_go);
+			ready_to_go = node;
+			continue;
+		}
+
+		/* FIXME: @@@ quick hack.  build a struct bio.  get rid of the ready_to_go
+		 * variable, it only makes this worse. */
+		ret = flush_rewrite_jnode (ready_to_go);
+		ret = flush_rewrite_jnode (node);
+		jput (ready_to_go);
+		jput (node);
+		ready_to_go = NULL;
+	}
+
+	if (ready_to_go != NULL) {
+		/* FIXME: @@@ quick hack.  build a struct bio. */
+		ret = flush_rewrite_jnode (ready_to_go);
+		jput (ready_to_go);
+	}
+
+	trace_on (TRACE_FLUSH, "flush_finish wrote %u leaving %u queued\n", pos->queue_num - refill, refill);
+	pos->queue_num = refill;
+
+	return ret;
+}
+
+/* FIXME: comment */
+static int flush_release_ancestors (znode *node)
 {
 	int ret;
 	lock_handle parent_lock;
@@ -1510,7 +1616,7 @@ static int flush_enqueue_ancestors (znode *node, flush_position *pos)
 
 	assert ("jmacd-7443", znode_check_allocated (node));
 
-	if ((ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
+	if ((ret = flush_release_znode (node))) {
 		return ret;
 	}
 
@@ -1520,12 +1626,13 @@ static int flush_enqueue_ancestors (znode *node, flush_position *pos)
 
 	init_lh (& parent_lock);
 
+	/* FIXME: Don't really need a longterm lock here, just climbing the tree, right? */
 	if ((ret = reiser4_get_parent (& parent_lock, node, ZNODE_READ_LOCK, 1))) {
 		/* FIXME: check ENAVAIL, EINVAL, EDEADLK */
 		goto exit;
 	}
 
-	if ((ret = flush_enqueue_ancestors (parent_lock.node, pos))) {
+	if ((ret = flush_release_ancestors (parent_lock.node))) {
 		goto exit;
 	}
 
@@ -1534,11 +1641,19 @@ static int flush_enqueue_ancestors (znode *node, flush_position *pos)
 	return ret;
 }
 
-/* This enqueues the current flush point into the developing "struct bio" queue. */
-static int flush_enqueue_jnode (jnode *node, flush_position *pos)
+/* This writes a single page when it is flushed after an earlier allocation within the
+ * same txn. */
+static int flush_rewrite_jnode (jnode *node)
 {
 	struct page *pg;
 	int ret;
+
+	/* FIXME: Have to be absolutely sure that HEARD_BANSHEE isn't set when we write,
+	 * otherwise if the page was a fresh allocation the dealloc of that block might
+	 * have been non-deferred, and then we could trash otherwise-allocated data? */
+	if (! jnode_check_dirty (node) || JF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
+		return 0;
+	}
 
 	if ((pg = jnode_page (node)) == NULL) {
 		return -ENOMEM;
@@ -1546,47 +1661,12 @@ static int flush_enqueue_jnode (jnode *node, flush_position *pos)
 
 	lock_page (pg);
 
-	ret = flush_enqueue_jnode_page_locked (node, pos, pg);
-	pos->enqueue_cnt += 1;
+	ret = write_one_page (pg, 0 /* no wait */);
+
+	jnode_set_clean (node);
+
+	trace_on (TRACE_FLUSH, "rewrite: %s\n", flush_jnode_tostring (node));
 	return ret;
-}
-#endif
-
-/* FIXME: comment */
-int flush_enqueue_jnode_page_locked (jnode *node, flush_position *pos UNUSED_ARG, struct page *pg)
-{
-	int ret;
-
-	if (! jnode_check_dirty (node) || JF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
-		unlock_page (pg);
-		return 0;
-	}
-	    
-	assert ("jmacd-1771", jnode_check_allocated (node));
-
-	if (1) {
-		/* Real code */
-		ret = write_one_page (pg, 0);
-		jnode_set_clean (node);		
-		trace_on (TRACE_FLUSH, "enqueue: %s\n", flush_jnode_tostring (node));
-	} else {
-		/* Stub code */
-		ret = 0;
-		unlock_page (pg);
-		jnode_set_clean (node);
-	}
-	
-	if (ret != 0) {
-		warning ("jmacd-61449", "write_one_page failed: %d", ret);
-	}
-
-	return ret;
-}
-
-/* FIXME: comment */
-static int flush_finish (flush_position *pos UNUSED_ARG)
-{
-	return 0;
 }
 
 /********************************************************************************
@@ -1783,7 +1863,7 @@ static int flush_scan_goto (flush_scan *scan, jnode *tonode)
 static int flush_scan_set_current (flush_scan *scan, jnode *node, unsigned add_size, const coord_t *parent)
 {
 	int ret;
-	
+
 	if ((ret = load_jh (& scan->node_load, node))) {
 		return ret;
 	}
@@ -2074,7 +2154,7 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 		done_lh (& scan->parent_lock);
 		done_zh (& scan->parent_load);
 	}
-	
+
 	done_zh (& next_load);
 	done_lh (& next_lock);
 	return ret;
@@ -2118,8 +2198,8 @@ static int flush_scan_formatted (flush_scan *scan)
 			break;
 		}
 
-		trace_on (TRACE_FLUSH_VERB, "format scan %s %s\n", 
-			  flush_scanning_left (scan) ? "left" : "right", 
+		trace_on (TRACE_FLUSH_VERB, "format scan %s %s\n",
+			  flush_scanning_left (scan) ? "left" : "right",
 			  flush_znode_tostring (neighbor));
 
 		/* Check the condition for going left, break if it is not met,
@@ -2252,10 +2332,11 @@ static int flush_scan_common (flush_scan *scan, flush_scan *other)
 /* Initialize the fields of a flush_position. */
 static int flush_pos_init (flush_position *pos, int *nr_to_flush)
 {
-	if ((pos->bio = bio_alloc (GFP_NOFS, FLUSH_BIO_SIZE)) == NULL) {
+	if ((pos->queue = kmalloc (FLUSH_QUEUE_SIZE * sizeof (jnode*), GFP_NOFS)) == NULL) {
 		return -ENOMEM;
 	}
 
+	pos->queue_num = 0;
 	pos->point = NULL;
 	pos->leaf_relocate = 0;
 	pos->alloc_cnt = 0;
@@ -2287,15 +2368,15 @@ static void flush_pos_done (flush_position *pos)
 {
 	flush_pos_stop (pos);
 	blocknr_hint_done (& pos->preceder);
+	if (pos->queue != NULL) {
+		kfree (pos->queue);
+		pos->queue = NULL;
+	}
 }
 
 /* Reset the point and parent. */
 static int flush_pos_stop (flush_position *pos)
 {
-	if (pos->bio != NULL) {
-		bio_put (pos->bio);
-		pos->bio = NULL;
-	}
 	done_zh (& pos->parent_load);
 	done_zh (& pos->point_load);
 	if (pos->point != NULL) {
@@ -2327,13 +2408,13 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 
 	if (child == NULL) {
 		trace_on (TRACE_FLUSH_VERB, "fpos_to_child_alloc: STOP (no child): %s\n", flush_pos_tostring (pos));
-		return flush_pos_stop (pos);
+		goto stop;
 	}
 
 	if (! jnode_check_dirty (child)) {
 		trace_on (TRACE_FLUSH_VERB, "fpos_to_child_alloc: STOP (not dirty): %s\n", flush_pos_tostring (pos));
 		jput (child);
-		return flush_pos_stop (pos);
+		goto stop;
 	}
 
 	assert ("jmacd-8861", jnode_is_formatted (child));
@@ -2341,7 +2422,7 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 	if (pos->point != NULL) {
 		jput (pos->point);
 		pos->point = NULL;
-	}	
+	}
 
 	pos->point = child;
 
@@ -2351,6 +2432,14 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 
 	if (! jnode_check_allocated (child) && (ret = flush_allocate_znode (JZNODE (child), & pos->parent_coord, pos))) {
 		return ret;
+	}
+
+	if (0) {
+	stop:
+		if ((ret = flush_release_ancestors (pos->parent_lock.node))) {
+			return ret;
+		}
+		return flush_pos_stop (pos);
 	}
 
 	/* And keep going... */
@@ -2378,8 +2467,7 @@ static int flush_pos_to_parent (flush_position *pos)
 	done_lh (& pos->point_lock);
 
 	/* Note: we leave the point set, but unlocked/unloaded. */
-	/* FIXME: This is a bad idea if the child can be deleted, but it helps for some
-	 * reason I forgot.  Why? */
+	/* FIXME: This is a bad idea if the child can be deleted.... but it helps the call to left_relocate.  Needs a better solution. */
 	return 0;
 }
 
@@ -2470,24 +2558,26 @@ static void flush_jnode_tostring_internal (jnode *node, char *buf)
 	}
 
 	if (fmttd) {
-		if (znode_is_loaded (JZNODE (node))) {
+		load_handle zh;
+		init_zh (& zh);
+		if (load_zh (& zh, JZNODE (node)) == 0) {
 			sprintf (items, " items=%u", node_num_items (JZNODE (node)));
-		} else {
-			sprintf (items, " unloaded");
 		}
+		done_zh (& zh);
 	} else {
 		items[0] = 0;
 	}
-		
+
 	sprintf (buf+strlen(buf),
-		 "%s=%p [%s%s%s level=%u%s]",
+		 "%s=%p [%s%s%s level=%u%s%s]",
 		 fmttd ? "z" : "j",
 		 node,
 		 state,
 		 atom,
 		 block,
 		 jnode_get_level (node),
-		 items);
+		 items,
+		 JF_ISSET (node, ZNODE_FLUSH_BUSY) ? " fbusy" : "");
 }
 
 static const char* flush_znode_tostring (znode *node)
@@ -2535,7 +2625,7 @@ static const char* flush_pos_tostring (flush_position *pos)
 			if (! coord_is_existing_item (& pos->parent_coord)) {
 				sprintf (fmtbuf+strlen(fmtbuf), "]");
 			} else {
-				
+
 				sprintf (fmtbuf+strlen(fmtbuf), ",u=%u/%u %s]",
 					 pos->parent_coord.unit_pos,
 					 coord_num_units (& pos->parent_coord),
@@ -2545,7 +2635,7 @@ static const char* flush_pos_tostring (flush_position *pos)
 					  (item_is_internal (& pos->parent_coord) ? "int" : "other")) :
 					 "tween");
 			}
-		}			
+		}
 	} else if (pos->point != NULL) {
 		strcat (fmtbuf, "pt:");
 		flush_jnode_tostring_internal (pos->point, fmtbuf);
