@@ -260,10 +260,12 @@ static reiser4_entity_t *dir40_create(const void *tree,
     reiser4_key_t *parent, reiser4_key_t *object, 
     reiser4_object_hint_t *hint) 
 {
-    uint32_t key_size;
     dir40_t *dir;
-    reiser4_stat_hint_t stat;
+    uint32_t key_size;
+    
     reiser4_item_hint_t stat_hint;
+    reiser4_statdata_hint_t stat;
+    
     reiser4_item_hint_t direntry_hint;
     reiser4_direntry_hint_t direntry;
    
@@ -389,8 +391,8 @@ static reiser4_entity_t *dir40_create(const void *tree,
 	dir->direntry_plugin->item_ops.common, estimate, ~0ul, 
 	&direntry_hint);
 
-    stat.ext.count = 1;
-    stat.ext.hint[0] = &unix_ext;
+    stat.extentions.count = 1;
+    stat.extentions.hint[0] = &unix_ext;
 
     stat_hint.hint = &stat;
     

@@ -17,12 +17,16 @@ static errno_t stat40_confirm(reiser4_body_t *body) {
     return 0;
 }
 
-static aal_list_t *stat40_extinit(uint64_t extmask) {
-    int i;
+static aal_list_t *stat40_extentions_init(uint64_t extmask) {
+    uint8_t i;
     aal_list_t *plugins = NULL;
     
-    for (i = 0; i < SDEXT_LAST_ID; i++) {
-	if ((1 << i) & extmask) {
+    /* 
+	Going through the all stat data extention bits in order to check if 
+	particular stat data extention is in use.
+    */
+    for (i = 0; i < (sizeof(extmask) * 8); i++) {
+	if (((uint64_t)1 << i) & extmask) {
 	    reiser4_plugin_t *plugin;
 
 	    if (!(plugin = core->factory_ops.plugin_ifind(SDEXT_PLUGIN_TYPE, i))) {
@@ -30,13 +34,15 @@ static aal_list_t *stat40_extinit(uint64_t extmask) {
 		    "Can't find stat data extention plugin by its id 0x%x.", i);
 		continue;
 	    }
+	    
 	    plugins = aal_list_append(plugins, plugin);
 	}
     }
+    
     return aal_list_first(plugins);
 }
 
-static void stat40_extdone(aal_list_t *list) {
+static void stat40_extentions_done(aal_list_t *list) {
     aal_assert("umka-888", list != NULL, return);
     aal_list_free(list);
 }
@@ -46,16 +52,17 @@ static void stat40_extdone(aal_list_t *list) {
 static errno_t stat40_init(reiser4_body_t *body, 
     reiser4_item_hint_t *hint)
 {
-    void *ext;
     reiser4_stat40_t *stat;
-    aal_list_t *extplugins;
-    reiser4_stat_hint_t *stat_hint;
+    aal_list_t *extentions;
+    
+    reiser4_body_t *extention;
+    reiser4_statdata_hint_t *stat_hint;
     
     aal_assert("vpf-076", body != NULL, return -1); 
     aal_assert("vpf-075", hint != NULL, return -1);
     
     stat = (reiser4_stat40_t *)body;
-    stat_hint = (reiser4_stat_hint_t *)hint->hint;
+    stat_hint = (reiser4_statdata_hint_t *)hint->hint;
     
     st40_set_mode(stat, stat_hint->mode);
     st40_set_extmask(stat, stat_hint->extmask);
@@ -63,37 +70,36 @@ static errno_t stat40_init(reiser4_body_t *body,
     st40_set_size(stat, stat_hint->size);
  
     if (stat_hint->extmask) {
-	int i = 0;
+	uint8_t i = 0;
 	aal_list_t *walk = NULL;
 	
-	if (!(extplugins = stat40_extinit(stat_hint->extmask))) {
+	if (!(extentions = stat40_extentions_init(stat_hint->extmask))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't initialize stat data extention plugins.");
 	    return -1;
 	}
 
-	if (aal_list_length(extplugins) != stat_hint->ext.count) {
+	if (aal_list_length(extentions) != stat_hint->extentions.count) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Invalid extmask or stat data hint detected.");
 	    return -1;
 	}
     
-	ext = ((void *)stat) + sizeof(reiser4_stat40_t);
-	aal_list_foreach_forward(walk, extplugins) {
+	extention = ((void *)stat) + sizeof(reiser4_stat40_t);
+	aal_list_foreach_forward(walk, extentions) {
 	    reiser4_plugin_t *plugin = (reiser4_plugin_t *)walk->item;
 	
 	    plugin_call(return -1, plugin->sdext_ops, init, 
-		ext, stat_hint->ext.hint[i++]);
+		extention, stat_hint->extentions.hint[i++]);
 	
 	    /* 
 		Getting pointer to the next extention. It is evaluating as previous 
 		pointer plus its size.
 	    */
-	    ext += plugin_call(return -1, plugin->sdext_ops, length,);
-
-	    /* FIXME-UMKA: Here also should be support for more then 16 extentions */
+	    extention += plugin_call(return -1, plugin->sdext_ops, length,);
 	}
-	stat40_extdone(extplugins);
+	
+	stat40_extentions_done(extentions);
     }
     
     return 0;
@@ -102,31 +108,31 @@ static errno_t stat40_init(reiser4_body_t *body,
 static errno_t stat40_estimate(uint32_t pos, 
     reiser4_item_hint_t *hint) 
 {
-    aal_list_t *extplugins = NULL;
-    reiser4_stat_hint_t *stat_hint;
+    aal_list_t *extentions = NULL;
+    reiser4_statdata_hint_t *stat_hint;
     
     aal_assert("vpf-074", hint != NULL, return -1);
 
     hint->len = sizeof(reiser4_stat40_t);
-    stat_hint = (reiser4_stat_hint_t *)hint->hint;
+    stat_hint = (reiser4_statdata_hint_t *)hint->hint;
     
     if (stat_hint->extmask) {
 	aal_list_t *walk = NULL;
 	
-	if (!(extplugins = stat40_extinit(stat_hint->extmask))) {
+	if (!(extentions = stat40_extentions_init(stat_hint->extmask))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't initialize stat data extention plugins.");
 	    return -1;
 	}
 
 	/* Estimating the all stat data extentions */
-	aal_list_foreach_forward(walk, extplugins) {
+	aal_list_foreach_forward(walk, extentions) {
 	    reiser4_plugin_t *plugin = (reiser4_plugin_t *)walk->item;
 	    
 	    hint->len += plugin_call(return -1, plugin->sdext_ops, 
 		length,);
 	}
-	stat40_extdone(extplugins);
+	stat40_extentions_done(extentions);
     }
     
     return 0;

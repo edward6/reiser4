@@ -99,8 +99,7 @@ enum reiser4_sdext_plugin_id {
     SDEXT_PLUGIN_ID		= 0x2,
     SDEXT_GEN_AND_FLAGS_ID	= 0x3,
     SDEXT_CAPABILITIES_ID	= 0x4,
-    SDEXT_LARGE_TIMES_ID	= 0x5,
-    SDEXT_LAST_ID
+    SDEXT_LARGE_TIMES_ID	= 0x5
 };
 
 enum reiser4_format_plugin_id {
@@ -214,22 +213,23 @@ struct reiser4_sdext_unix_hint {
 typedef struct reiser4_sdext_unix_hint reiser4_sdext_unix_hint_t;
 
 /* These fields should be changed to what proper description of needed extentions */
-struct reiser4_stat_hint {
+struct reiser4_statdata_hint {
     uint16_t mode;
-    uint16_t extmask;
     uint32_t nlink;
     uint64_t size;
+    uint64_t extmask;
     
     /* Stat data extention hints */
     struct {
-	uint32_t count;
-	void *hint[16];
-    } ext;
+	uint8_t count;
+	void *hint[64];
+    } extentions;
 };
 
-typedef struct reiser4_stat_hint reiser4_stat_hint_t;
+typedef struct reiser4_statdata_hint reiser4_statdata_hint_t;
 
 struct reiser4_entry_hint {
+
     /* Locality and objectid of object pointed by entry */
     struct {
 	uint64_t locality;
