@@ -172,7 +172,7 @@ SRC		:= \
 		   lnode.c \
 		   kcond.c \
 		   seal.c \
-		   io_handle.c
+		   io_handle.c \
 		   ktxnmgrd.c
 
 OBJ		:= $(SRC:.c=.o)
