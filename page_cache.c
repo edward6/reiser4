@@ -5,6 +5,8 @@
  * Memory pressure hooks. Fake inodes handling.
  */
 /*
+ * COMMENT BELOW IS OBSOLETE. Will be updated when design stabilizes.
+ *
  * We store all file system meta data (and data, of course) in the page cache.
  *
  * What does this mean? In stead of using bread/brelse we create special
@@ -35,43 +37,19 @@
 
 #include "reiser4.h"
 
-typedef struct formatted_fake {
-	struct inode vfs_inode;
-} formatted_fake;
+static struct page *add_page( struct super_block *super, const jnode *node );
 
-static struct inode *allocate_formatted_fake( struct super_block *sb );
-static void destroy_formatted_fake( struct inode *inode );
-static struct inode *fake_to_vfs( formatted_fake *fake );
-static formatted_fake *vfs_to_fake( struct inode *inode );
-static int fake_get_block( struct inode *inode, 
-			   sector_t block, struct buffer_head *bh, int create );
-
-static struct super_block dummy;
-static struct super_operations dummy_ops;
 static struct address_space_operations formatted_fake_as_ops;
+
+#define jprivate( page ) ( ( jnode * ) ( page ) -> private )
+
+static const __u64 fake_ino = 0x1;
 
 /**
  * one-time initialisation of fake inodes handling functions.
  */
 int init_fakes()
 {
-	xmemset( &dummy, 0, sizeof dummy );
-	xmemset( &dummy_ops, 0, sizeof dummy_ops );
-
-	/*
-	 * FIXME-NIKITA This is remarkably clumsy, but new_inode() relies on
-	 * s_ops->alloc_inode(), so we build up dummy super block and super
-	 * ops. Having init_inode() function separated from new_inode() would
-	 * be better.
-	 *
-	 * Another possible solution is to add some private field into super
-	 * block telling ->alloc_inode() what to do, but this is also
-	 * ugly. Let's confine this stupidity in one place and try to talk
-	 * Viro into splitting new_inode().
-	 */
-	dummy_ops.alloc_inode = allocate_formatted_fake;
-	dummy_ops.destroy_inode = destroy_formatted_fake;
-	dummy.s_op = &dummy_ops;
 	return 0;
 }
 
@@ -84,8 +62,10 @@ int init_formatted_fake( struct super_block *super )
 
 	assert( "nikita-1703", super != NULL );
 
-	fake = new_inode( &dummy );
-	if( fake != NULL ) {
+	fake = iget_locked( super, fake_ino );
+
+	if( fake ) {
+		assert( "nikita-2021", fake -> i_state & I_NEW );
 		fake -> i_mapping -> a_ops = &formatted_fake_as_ops;
 		fake -> i_blkbits = super -> s_blocksize_bits;
 		fake -> i_size    = ~0ull;
@@ -95,11 +75,13 @@ int init_formatted_fake( struct super_block *super )
 		/*
 		 * FIXME-NIKITA something else?
 		 */
+		unlock_new_inode( fake );
 		return 0;
 	} else
 		return -ENOMEM;
 }
 
+/** release fake inode */
 int done_formatted_fake( struct super_block *super )
 {
 	struct inode *fake;
@@ -109,143 +91,156 @@ int done_formatted_fake( struct super_block *super )
 	return 0;
 }
 
+/**
+ * grab page to back up new jnode.
+ */
+void *alloc_jnode_data( struct super_block *super, const jnode *node )
+{
+	struct page *page;
+
+	page = add_page( super, node );
+	if( page != NULL ) {
+		kmap( page );
+		unlock_page( page );
+		return page_address( page );
+	} else
+		return ERR_PTR( -ENOMEM );
+}
 
 /**
  * read @block into page cache and bind it to the formatted fake inode of
  * @super. Kmap the page. Return pointer to the data in @data.
  */
-int read_in_formatted( struct super_block *super, sector_t block, char **area )
+void *read_in_jnode_data( struct super_block *super, const jnode *node )
+{
+	struct page *page;
+
+	/*
+	 * FIXME-NIKITA: consider using read_cache_page() here.
+	 */
+	page = add_page( super, node );
+	if( page != NULL ) {
+		int result;
+
+		if( !PageUptodate( page ) ) {
+			result = page -> mapping -> a_ops -> readpage( NULL, 
+								       page );
+			if( result == 0 ) {
+				wait_on_page_locked( page );
+				if( PageUptodate( page ) )
+					mark_page_accessed( page );
+				else
+					result = -EIO;
+			}
+		} else {
+			result = 0;
+			unlock_page( page );
+		}
+		if( result == 0 ) {
+			return kmap( page );
+		} else
+			return ERR_PTR( result );
+	} else
+		return ERR_PTR( -ENOMEM );
+}
+
+/** ->read_node method of page-cache based tree operations */
+int page_cache_read_node( reiser4_tree *tree, jnode *node, void **data )
+{
+	void *area;
+
+	assert( "nikita-2037", node != NULL );
+	assert( "nikita-2038", tree != NULL );
+	assert( "nikita-2039", data != NULL );
+
+	area = read_in_jnode_data( tree -> super, node );
+	if( !IS_ERR( area ) ) {
+		*data = area;
+		return 0;
+	} else
+		return PTR_ERR( area );
+}
+
+/** ->allocate_node method of page-cache based tree operations */
+int page_cache_allocate_node( reiser4_tree *tree, jnode *node, char **data )
+{
+	void *area;
+
+	assert( "nikita-2040", tree != NULL );
+	assert( "nikita-2041", node != NULL );
+	assert( "nikita-2042", data != NULL );
+
+	area = alloc_jnode_data( tree -> super, node );
+	if( !IS_ERR( area ) ) {
+		*data = area;
+		return 0;
+	} else
+		return PTR_ERR( area );
+}
+
+/** ->delete_node method of page-cache based tree operations */
+int page_cache_delete_node( reiser4_tree *tree, jnode *node )
+{
+}
+
+/** ->release_node method of page-cache based tree operations */
+int page_cache_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
+{
+	kunmap( jnode_page( node ) );
+	page_cache_release( jnode_page( node ) );
+	return 0;
+}
+
+/** ->dirty_node method of page-cache based tree operations */
+int page_cache_dirty_node( reiser4_tree *tree, jnode *node )
+{
+	assert( "nikita-2045", JF_ISSET( node, ZNODE_LOADED ) );
+	SetPageDirty( jnode_page( node ) );
+	return 0;
+}
+
+/** 
+ * add or fetch page corresponding to jnode to/from the page cache.  Return
+ * page locked.
+ */
+static struct page *add_page( struct super_block *super, const jnode *node )
 {
 	unsigned long page_idx;
 	struct page  *page;
-	int           result;
 	int           blksizebits;
-	char         *addr;
 
-	assert( "nikita-1771", super != NULL );
-	assert( "nikita-1772", area != NULL );
-	assert( "vs-663", super -> s_blocksize == PAGE_CACHE_SIZE );
+	assert( "nikita-2023", super != NULL );
 
 	blksizebits = super -> s_blocksize_bits;
 	/*
 	 * only blocks smaller or equal to page size are supported
 	 */
 	assert( "nikita-1773", PAGE_CACHE_SHIFT >= blksizebits );
-	page_idx = block >> ( PAGE_CACHE_SHIFT - blksizebits );
-	page = grab_cache_page( get_super_fake( super ) -> i_mapping, 
-				page_idx );
-	if( page == NULL ) {
-		return -ENOMEM;
-	}
-	if( !PageUptodate( page ) ) {
-		/*
-		 * we have page locked and referenced.
-		 */
-		assert( "nikita-1774", PageLocked( page ) );
+	page_idx = *jnode_get_block( node ) >> ( PAGE_CACHE_SHIFT - blksizebits );
+	page = grab_cache_page( get_super_fake( super ) -> i_mapping, page_idx );
+	if( unlikely( page == NULL ) )
+		return NULL;
 
-		/*
-		 * FIXME-NIKITA add reiser4 decorations to the page, if they
-		 * aren't in place: pointer to jnode, whatever. 
-		 * 
-		 * We are under page lock now, so it can be used as
-		 * synchronization.
-		 *
-		 */
-
-		/*
-		 * start io for all blocks on this page. They are close to
-		 * each other on the disk, so this is cheap.
-		 */
-		result = block_read_full_page( page, fake_get_block );
-		if (result) {
-			page_cache_release( page );
-			return result;
-		}
-	}
-	wait_on_page_locked( page );
-	if( !PageUptodate( page ) ) {
-		page_cache_release( page );
-		return -EIO;
-	}
 	/*
-	 * FIXME-VS: to return pointer inside of page via @area we have to kmap
-	 * it (page) first
+	 * we have page locked and referenced.
 	 */
-	addr = kmap( page );
-	*area = addr + ((block % (PAGE_CACHE_SIZE / super->s_blocksize)) * super->s_blocksize);
+	assert( "nikita-1774", PageLocked( page ) );
 
-#ifdef USE_BUFFER_HEADS
-		struct buffer_head *bh;
-		assert( "nikita-1775", page_has_buffers (page) );
+	/*
+	 * add reiser4 decorations to the page, if they aren't in place:
+	 * pointer to jnode, whatever.
+	 * 
+	 * We are under page lock now, so it can be used as synchronization.
+	 *
+	 */
 
-		/*
-		 * find buffer head for @block
-		 */
-		bh = page_buffers( page );
-		while( bh -> b_blocknr != block ) {
-			bh = bh -> b_this_page;
-			assert( "nikita-1776", bh != page_buffers( page ) );
-		}
-
-		if( REISER4_FORMATTED_CLUSTER_READ )
-			/*
-			 * wait until all buffers on this page are read in.
-			 */
-			wait_on_page_locked( page );
-		else
-			/*
-			 * wait on the buffer we are really interested in. io
-			 * on other blocks was started, but we don't wait
-			 * until it finishes.
-			 */
-			wait_on_buffer( bh );
-
-		/*
-		 * check that buffer containing @block was read in
-		 * successfully. We don't care if other blocks on this page
-		 * got io error.
-		 */
-		if( buffer_uptodate( bh ) ) {
-			*area = bh -> b_data;
-			mark_page_accessed( page );
-			result = 0;
-		} else
-			result = -EIO;
-		/*
-		 * it is possible that page is still locked. It will be
-		 * unlocked by async io completion handler, when last buffer
-		 * io finishes.
-		 */
-#endif
-
-	return 0;
+	spin_lock( &_jnode_ptr_lock );
+	assert( "nikita-2022", 
+		( jprivate( page ) == NULL ) || ( jprivate( page ) == node ) );
+	jprivate( page ) = node;
+	spin_unlock( &_jnode_ptr_lock );
+	return page;
 }
-
-
-static struct page * page_by_znode (znode * node)
-{
-	char * virt;
-	int block_per_page;	
-
-	block_per_page = PAGE_CACHE_SIZE / reiser4_get_current_sb ()->s_blocksize;
-	assert ("vs-691", block_per_page == 1);
-	virt = zdata( node );
-	return virt_to_page (virt);
-}
-
-
-/* @area is pointer within a kmaped page. Calculate that page, kunmap it and
- * release */
-void unread_formatted( znode *node )
-{
-	struct page * page;
-
-	page = page_by_znode( node );
-	assert( "vs-661", page );
-	kunmap( page );
-	page_cache_release( page );
-}
-
 
 #if REISER4_DEBUG
 void *xmemcpy( void *dest, const void *src, size_t n )
@@ -264,92 +259,132 @@ void *xmemset( void *s, int c, size_t n )
 }
 #endif
 
-/**
- * Our memory pressure hook attached to the ->releasepage() method of fake
- * address space.
+
+#if 1
+/** 
+ * completion handler for single page bio-based io. 
  *
- * Look carefully at the comments on the top of
- * fs/jbd/transaction.c:journal_try_to_free_buffers() which is ->releasepage()
- * method for ext3.
- *
- * This is called by try_to_release_page() either when we are short of memory
- * or by background memory scanning (kswapd).
+ * mpage_end_io_read() would also do. But it's static.
  *
  */
-static int formatted_fake_pressure_handler( struct page *page, int gfp )
+static void end_bio_single_page_io_sync( struct bio *bio )
+{
+	struct page *page;
+
+	page = bio -> bi_io_vec[ 0 ].bv_page;
+
+	if( test_bit( BIO_UPTODATE, &bio -> bi_flags ) )
+		SetPageUptodate( page );
+	else {
+		ClearPageUptodate( page );
+		SetPageError( page );
+	}
+	unlock_page( page );
+	bio_put( bio );
+}
+#else
+static int formatted_get_block( struct inode *inode, sector_t iblock,
+				struct buffer_head *bh, int create UNUSED_ARG )
+{
+	unsigned long         page_idx;
+	struct page          *page;
+	struct address_space *mapping;
+	jnode                *node;
+
+	assert( "nikita-2032", !create );
+	assert( "nikita-2033", inode != NULL );
+	assert( "nikita-2034", bh != NULL );
+
+	mapping = inode -> i_mapping;
+	page_idx = iblock >> ( PAGE_CACHE_SHIFT - inode -> i_blkbits );
+
+	read_lock( &mapping -> page_lock );
+	page = radix_tree_lookup( & mapping -> page_tree, page_idx );
+	read_unlock( & mapping -> page_lock );
+
+	assert( "nikita-2030", page != NULL );
+	assert( "nikita-2031", PageLocked( page ) );
+	assert( "nikita-2035", jprivate( page ) != NULL );
+
+	node = jnode_of_page( page );
+	assert( "nikita-2036", jnode_is_formatted( node ) );
+	map_bh( bh, inode -> i_sb, jnode_get_block( node ) );
+	/*
+	 * FIXME-NIKITA BH_Boundary optimizations should go here.
+	 */
+	return 0;
+}
+#endif
+
+/** ->readpage() method for formatted nodes */
+static int formatted_readpage( struct file *f UNUSED_ARG, 
+			       struct page *page /* page to read */ )
+{
+	struct bio         *bio;
+
+	/*
+	 * Simple implemenation in the assumption that blocksize == pagesize.
+	 *
+	 * We only have to submit one block, but submit_bh() will allocate bio
+	 * anyway, so lets use all the bells-and-whistles of bio code.
+	 *
+	 * This is roughly equivalent to mpage_readpage() for one
+	 * page. mpage_readpage() is not used, because it depends on
+	 * get_block() to obtain block number and get_block() gets everything,
+	 * but page---and we need page to obtain block number from jnode. One
+	 * line change to mpage_readpage() (bh.b_page = page;) and it can be
+	 * used. Other problem is the do_mpage_readpage() checks
+	 * page_has_buffers().
+	 *
+	 */
+
+#if 1
+	assert( "nikita-2025", page != NULL );
+	bio = bio_alloc( GFP_NOIO, 1 );
+	if( bio != NULL ) {
+		jnode              *node;
+		int                 blksz;
+		struct super_block *super;
+
+		assert( "nikita-2026", jprivate( page ) != NULL );
+		node = jprivate( page );
+		assert( "nikita-2027", jnode_is_formatted( node ) );
+		super = page -> mapping -> host -> i_sb;
+		assert( "nikita-2029", super != NULL );
+		blksz = super -> s_blocksize;
+		assert( "nikita-2028", blksz == PAGE_CACHE_SIZE );
+
+		bio -> bi_sector = *jnode_get_block( node ) * ( blksz >> 9 );
+		bio -> bi_bdev   = super -> s_bdev;
+		bio -> bi_io_vec[ 0 ].bv_page   = page;
+		bio -> bi_io_vec[ 0 ].bv_len    = blksz;
+		bio -> bi_io_vec[ 0 ].bv_offset = 0;
+
+		bio -> bi_vcnt = 1;
+		bio -> bi_idx  = 0;
+		bio -> bi_size = blksz;
+
+		bio -> bi_end_io = end_bio_single_page_io_sync;
+
+		/*
+		 * submit_bio() is int. But what does return value mean?
+		 */
+		submit_bio( READ, bio );
+		return 0;
+	} else
+		return -ENOMEM;
+#else
+	return mpage_readpage( page, formatted_get_block );
+#endif
+}
+
+/**
+ *
+ */
+static int formatted_fake_pressure_handler( struct page *page UNUSED_ARG, 
+					    int *nr_to_write UNUSED_ARG )
 {
 	return -ENOSYS;
-}
-
-/**
- * helper function to allocate fake inode.
- */
-static struct inode *allocate_formatted_fake( struct super_block *sb UNUSED_ARG )
-{
-	formatted_fake *result;
-
-	assert( "nikita-1704", sb != NULL );
-	/*
-	 * don't bother to create slab. There is only one per file system.
-	 *
-	 * Cannot use reiser4_kmalloc(), because there is no context yet.
-	 */
-	result = kmalloc( sizeof( formatted_fake ), GFP_KERNEL );
-	if( result != NULL ) {
-		inode_init_once( fake_to_vfs( result ) );
-		return fake_to_vfs( result );
-	} else
-		return NULL;
-}
-
-/**
- * ->destroy_inode() method for dummy super block
- */
-static void destroy_formatted_fake( struct inode *inode )
-{
-	assert( "nikita-1707", inode != NULL );
-	kfree( vfs_to_fake( inode ) );
-}
-
-/**
- * convert fake inode to vfs inode
- */
-static struct inode *fake_to_vfs( formatted_fake *fake )
-{
-	assert( "nikita-1705", fake != NULL );
-	return &fake -> vfs_inode;
-}
-
-/**
- * convert vfs inode to fake inode
- */
-static formatted_fake *vfs_to_fake( struct inode *inode )
-{
-	assert( "nikita-1706", inode != NULL );
-	return list_entry( inode, formatted_fake, vfs_inode );
-}
-
-/**
- * get_block for fake inode. 
- */
-static int fake_get_block( struct inode *inode, 
-			   sector_t block, struct buffer_head *bh, 
-			   int create UNUSED_ARG )
-{
-	assert( "nikita-1777", inode != NULL );
-	assert( "nikita-1778", bh != NULL );
-	assert( "nikita-1779", !create );
-
-	/*
-	 * FIXME-NIKITA check that block < max_block( inode -> i_rdev ).
-	 * But max_block is static in fs/block_dev.c
-	 */
-
-	bh -> b_bdev    = inode -> i_bdev;
-	bh -> b_blocknr = block;
-	bh -> b_state  |= 1UL << BH_Mapped;
-
-	return 0;
 }
 
 /**
@@ -369,18 +404,31 @@ int never_ever(void)
  */
 static struct address_space_operations formatted_fake_as_ops = {
 	.writepage      = NULL,
-	.readpage       = NO_SUCH_OP,
+	/* this is called to read formatted node */
+	.readpage       = formatted_readpage,
 	.sync_page      = NO_SUCH_OP,
+	/* Write back some dirty pages from this mapping. Called from sync. */
 	.writepages     = NO_SUCH_OP,
-	.vm_writeback   = NO_SUCH_OP,
-	.set_page_dirty = NO_SUCH_OP,
+	/* Perform a writeback as a memory-freeing operation. */
+	.vm_writeback   = formatted_fake_pressure_handler,
+	/* Set a page dirty */
+	.set_page_dirty = NULL,
+	/* used for read-ahead. Not applicable */
 	.readpages      = NO_SUCH_OP,
 	.prepare_write  = NO_SUCH_OP,
 	.commit_write   = NO_SUCH_OP,
 	.bmap           = NO_SUCH_OP,
 	.invalidatepage = NO_SUCH_OP,
-	.releasepage    = formatted_fake_pressure_handler,
+	.releasepage    = NULL,
 	.direct_IO      = NO_SUCH_OP
+};
+
+tree_operations page_cache_tops = {
+	.read_node     = page_cache_read_node,
+	.allocate_node = page_cache_allocate_node,
+	.delete_node   = NULL,
+	.release_node  = page_cache_release_node,
+	.dirty_node    = page_cache_dirty_node
 };
 
 
