@@ -2379,6 +2379,8 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 			continue;
 		}
 
+		result = 0;
+
 		assert("vs-439", state_of_extent(ext) == UNALLOCATED_EXTENT);
 
 		/*
