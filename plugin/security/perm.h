@@ -60,14 +60,14 @@ typedef struct perm_plugin {
 } perm_plugin;
 
 /* call ->check_ok method of perm plugin for inode */
-#define perm_chk( inode, check, ... )			\
+#define perm_chk(inode, check, ...)			\
 ({							\
 	perm_plugin *perm;				\
 							\
-	perm = inode_perm_plugin( inode );		\
-	( ( perm != NULL ) &&				\
-	  ( perm -> check ## _ok != NULL ) &&		\
-	    perm -> check ## _ok( __VA_ARGS__ ) );	\
+	perm = inode_perm_plugin(inode);		\
+	(perm == NULL || perm->check ## _ok == NULL) ?	\
+		0 :					\
+		perm->check ## _ok(__VA_ARGS__);	\
 })
 
 typedef enum { RWX_PERM_ID, LAST_PERM_ID } reiser4_perm_id;
