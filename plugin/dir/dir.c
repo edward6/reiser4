@@ -27,6 +27,9 @@
 #include "../../super.h"
 #include "../object.h"
 
+#include "hashed_dir.h"
+#include "pseudo_dir.h"
+
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct file  */
 #include <linux/quotaops.h>
@@ -1086,6 +1089,22 @@ estimate_rem_entry_common(struct inode *inode)
 	return estimate_one_item_removal(tree_by_inode(inode));
 }
 
+static ssize_t
+perm(void)
+{
+	return RETERR(-EPERM);
+}
+
+#define eperm ((void *)perm)
+
+static int
+_noop(void)
+{
+	return 0;
+}
+
+#define enoop ((void *)_noop)
+
 dir_plugin dir_plugins[LAST_DIR_ID] = {
 	[HASHED_DIR_PLUGIN_ID] = {
 		.h = {
@@ -1120,13 +1139,13 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 	[SEEKABLE_HASHED_DIR_PLUGIN_ID] = {
 		.h = {
 			.type_id = REISER4_DIR_PLUGIN_TYPE,
-			.id = HASHED_DIR_PLUGIN_ID,
+			.id = SEEKABLE_HASHED_DIR_PLUGIN_ID,
 			.pops = NULL,
 			.label = "dir",
 			.desc = "hashed directory",
 			.linkage = TS_LIST_LINK_ZERO
 		},
-		.lookup = lookup_hashed,
+		.lookup = lookup_pseudo,
 		.unlink = unlink_common,
 		.link = link_common,
 		.is_name_acceptable = is_name_acceptable,
@@ -1145,6 +1164,36 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.add_entry = estimate_add_entry_common,
 			.rem_entry = estimate_rem_entry_common,
 			.unlink    = estimate_unlink_hashed
+		}
+	},
+	[PSEUDO_DIR_PLUGIN_ID] = {
+		.h = {
+			.type_id = REISER4_DIR_PLUGIN_TYPE,
+			.id = PSEUDO_DIR_PLUGIN_ID,
+			.pops = NULL,
+			.label = "pseudo",
+			.desc = "pseudo directory",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.lookup = lookup_pseudo,
+		.unlink = eperm,
+		.link = eperm,
+		.is_name_acceptable = NULL,
+		.build_entry_key = NULL,
+		.build_readdir_key = NULL,
+		.add_entry = eperm,
+		.rem_entry = eperm,
+		.create_child = NULL,
+		.rename = eperm,
+		.readdir = readdir_pseudo,
+		.init = enoop,
+		.done = enoop,
+		.attach = enoop,
+		.detach = enoop,
+		.estimate = {
+			.add_entry = NULL,
+			.rem_entry = NULL,
+			.unlink    = NULL
 		}
 	}
 };

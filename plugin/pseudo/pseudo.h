@@ -49,7 +49,7 @@ struct pseudo_plugin {
 	   ->lookup( "dup" ) can be called to get operation.
 	  
 	*/
-	int (*lookup) (const char *name);
+	int (*lookup)(struct inode *parent, struct dentry * dentry);
 
 	oid_t (*makeid)(void);
 
@@ -72,14 +72,16 @@ struct pseudo_plugin {
 		ssize_t (*write)(struct file *, 
 				 const char __user *, size_t , loff_t *);
 	} write;
+	int (*readdir)(struct file *f, void *dirent, filldir_t filld);
 };
 
 typedef struct pseudo_info {
 	pseudo_plugin *plugin;
 	struct inode  *host;
+	unsigned long  datum;
 } pseudo_info_t;
 
-extern int lookup_pseudo(struct inode *parent, struct dentry *dentry);
+extern int lookup_pseudo_file(struct inode *parent, struct dentry *dentry);
 
 typedef enum { 
 	PSEUDO_UID_ID,
@@ -93,6 +95,8 @@ typedef enum {
 	PSEUDO_PSEUDOS_ID,
 	PSEUDO_BMAP_ID,
 	PSEUDO_READDIR_ID,
+	PSEUDO_PLUGIN_ID,
+	PSEUDO_PLUGINS_ID,
 	LAST_PSEUDO_ID
 } reiser4_pseudo_id;
 

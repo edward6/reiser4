@@ -102,6 +102,7 @@ reiser4-objs := \
 		   plugin/item/item.o \
            \
 		   plugin/dir/hashed_dir.o \
+		   plugin/dir/pseudo_dir.o \
 		   plugin/dir/dir.o \
            \
 		   plugin/security/perm.o \

@@ -599,6 +599,7 @@ typedef enum {
 typedef enum {
 	HASHED_DIR_PLUGIN_ID,
 	SEEKABLE_HASHED_DIR_PLUGIN_ID,
+	PSEUDO_DIR_PLUGIN_ID,
 	LAST_DIR_ID
 } reiser4_dir_id;
 

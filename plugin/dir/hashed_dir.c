@@ -329,7 +329,7 @@ int lookup_hashed(struct inode * parent	/* inode of directory to
 		} else
 			result = PTR_ERR(inode);
 	} else if (result == -ENOENT) {
-		result = lookup_pseudo(parent, dentry);
+		result = lookup_pseudo_file(parent, dentry);
 	}
 	return result;
 }

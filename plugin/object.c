@@ -533,7 +533,8 @@ delete_file_common(struct inode *inode /* object to remove */ )
 		reiser4_block_nr reserve;
 
 		/* grab space which is needed to remove one item from the tree */
-		if (reiser4_grab_space_force(reserve = estimate_one_item_removal(tree_by_inode(inode)),
+		reserve = estimate_one_item_removal(tree_by_inode(inode));
+		if (reiser4_grab_space_force(reserve,
 					     BA_RESERVED | BA_CAN_COMMIT, "common_file_delete")) {
 			warning("nikita-2847", 
 				"Cannot delete unnamed sd of %lli. Run fsck", 

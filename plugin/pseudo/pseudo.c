@@ -98,7 +98,7 @@ static int init_pseudo(struct inode *parent, struct inode *pseudo,
 		       pseudo_plugin *pplug, const char *name);
 
 int
-lookup_pseudo(struct inode *parent, struct dentry * dentry)
+lookup_pseudo_file(struct inode *parent, struct dentry * dentry)
 {
 	reiser4_plugin *plugin;
 	const char     *name;
@@ -117,9 +117,7 @@ lookup_pseudo(struct inode *parent, struct dentry * dentry)
 		pseudo_plugin *pplug;
 
 		pplug = &plugin->pseudo;
-		assert("nikita-3001", pplug->try != NULL);
-
-		if (pplug->try(pplug, parent, name)) {
+		if (pplug->try != NULL && pplug->try(pplug, parent, name)) {
 			pseudo = new_inode(parent->i_sb);
 			if (pseudo != NULL) {
 				result = init_pseudo(parent, 
@@ -159,6 +157,9 @@ init_pseudo(struct inode *parent, struct inode *pseudo,
 	data.mode = pplug->lookup_mode;
 
 	plugin_set_file(&idata->pset, file_plugin_by_id(PSEUDO_FILE_PLUGIN_ID));
+	if (pplug->lookup != NULL)
+		plugin_set_dir(&idata->pset, 
+			       dir_plugin_by_id(PSEUDO_DIR_PLUGIN_ID));
 
 	result = inode_file_plugin(pseudo)->set_plug_in_inode(pseudo, 
 							      parent, &data);
@@ -168,10 +169,17 @@ init_pseudo(struct inode *parent, struct inode *pseudo,
 		return result;
 	}
 
+	grab_plugin(idata, reiser4_inode_data(parent), perm);
+
 	pseudo->i_nlink = 1;
 	/* insert inode into VFS hash table */
 	insert_inode_hash(pseudo);
 	return 0;
+}
+
+static struct inode *get_inode_host(struct inode *inode)
+{
+	return reiser4_inode_data(inode)->file_plugin_data.pseudo_info.host;
 }
 
 static struct inode *get_pseudo_host(struct file *file)
@@ -179,7 +187,7 @@ static struct inode *get_pseudo_host(struct file *file)
 	struct inode *inode;
 
 	inode = file->f_dentry->d_inode;
-	return reiser4_inode_data(inode)->file_plugin_data.pseudo_info.host;
+	return get_inode_host(inode);
 }
 
 static struct inode *get_seq_pseudo_host(struct seq_file *seq)
@@ -195,11 +203,6 @@ static int try_by_label(pseudo_plugin *pplug,
 			const struct inode *parent, const char *name)
 {
 	return !strcmp(name, pplug->h.label);
-}
-
-static int lookup_none(const char *name)
-{
-	return RETERR(-ENOENT);
 }
 
 static int show_uid(struct seq_file *seq, void *cookie)
@@ -255,8 +258,6 @@ static int get_uid(struct file *file, const char *buf)
 
 		host = get_pseudo_host(file);
 		result = update_ugid(file->f_dentry->d_parent, host, uid, -1);
-		if (result == 0)
-			result = strlen(buf) + 1;
 	} else
 		result = RETERR(-EINVAL);
 	return result;
@@ -278,8 +279,6 @@ static int get_gid(struct file *file, const char *buf)
 
 		host = get_pseudo_host(file);
 		result = update_ugid(file->f_dentry->d_parent, host, -1, gid);
-		if (result == 0)
-			result = strlen(buf) + 1;
 	} else
 		result = RETERR(-EINVAL);
 	return result;
@@ -373,8 +372,6 @@ static int get_rwx(struct file *file, const char *buf)
 			result = notify_change(file->f_dentry->d_parent, 
 					       &newattrs);
 			up(&host->i_sem);
-			if (result == 0)
-				result = strlen(buf) + 1;
 		}
 	} else
 		result = RETERR(-EINVAL);
@@ -401,7 +398,11 @@ static void * pseudos_next(struct seq_file *m, void *v, loff_t *pos)
 
 static int pseudos_show(struct seq_file *m, void *v)
 {
-	seq_printf(m, "%s\n", ((pseudo_plugin *)v)->h.label);
+	pseudo_plugin *pplug;
+
+	pplug = v;
+	if (pplug->try != NULL)
+		seq_printf(m, "%s\n", pplug->h.label);
 	return 0;
 }
 
@@ -437,9 +438,9 @@ static int bmap_show(struct seq_file *m, void *v)
 	sector = reiser4_bmap(get_seq_pseudo_host(m)->i_mapping, lblock);
 	if (sector >= 0) {
 		if (blocknr_is_fake(&sector))
-			seq_printf(m, "%llx ", sector);
+			seq_printf(m, "%#llx\n", sector);
 		else
-			seq_printf(m, "%llu ", sector);
+			seq_printf(m, "%llu\n", sector);
 		return 0;
 	} else
 		return sector;
@@ -575,6 +576,105 @@ static int readdir_show(struct seq_file *m, void *v)
 	return 0;
 }
 
+typedef struct plugin_entry {
+	const char *name;
+	int         offset;
+} plugin_entry;
+
+#define PLUGIN_ENTRY(field)			\
+{						\
+	.name = #field,				\
+	.offset = offsetof(plugin_set, field)	\
+}
+
+static plugin_entry pentry[] = {
+	PLUGIN_ENTRY(file),
+	PLUGIN_ENTRY(dir),
+	PLUGIN_ENTRY(perm),
+	PLUGIN_ENTRY(tail),
+	PLUGIN_ENTRY(hash),
+	PLUGIN_ENTRY(sd),
+	PLUGIN_ENTRY(dir_item),
+	PLUGIN_ENTRY(crypto),
+	PLUGIN_ENTRY(digest),
+	PLUGIN_ENTRY(compression),
+	{
+		.name = NULL,
+		.offset = 0
+	}
+};
+
+static int show_plugin(struct seq_file *seq, void *cookie)
+{
+	struct inode   *host;
+	struct file    *file;
+	struct inode   *inode;
+	reiser4_plugin *plug;
+	plugin_entry   *entry;
+	int             idx;
+	plugin_set     *pset;
+
+	file  = seq->private;
+	inode = file->f_dentry->d_inode;
+
+	/* foo is grandparent of foo/..plugin/file  */
+	host  = get_inode_host(get_inode_host(inode));
+	idx   = reiser4_inode_data(inode)->file_plugin_data.pseudo_info.datum;
+	entry = &pentry[idx];
+	pset  = reiser4_inode_data(host)->pset;
+	plug  = *(reiser4_plugin **)(((char *)pset) + entry->offset);
+
+	if (plug != NULL)
+		seq_printf(seq, "%i %s %s", 
+			   plug->h.id, plug->h.label, plug->h.desc);
+	return 0;
+}
+
+static int lookup_plugins(struct inode *parent, struct dentry * dentry)
+{
+	int result;
+	int idx;
+
+	pseudo_plugin *pplug;
+
+	result = -ENOENT;
+	pplug  = pseudo_plugin_by_id(PSEUDO_PLUGIN_ID);
+	for (idx = 0; pentry[idx].name != NULL; ++ idx) {
+		if (!strcmp(dentry->d_name.name, pentry[idx].name)) {
+			struct inode *pseudo;
+
+			pseudo = new_inode(parent->i_sb);
+			if (pseudo != NULL) {
+				result = init_pseudo(parent, pseudo, pplug,
+						     dentry->d_name.name);
+				if (result == 0) {
+					reiser4_inode_data(pseudo)->file_plugin_data.pseudo_info.datum = idx;
+					d_add(dentry, pseudo);
+				}
+			} else
+				result = RETERR(-ENOMEM);
+			break;
+		}
+	}
+	return result;
+}
+
+static int readdir_plugins(struct file *f, void *dirent, filldir_t filld)
+{
+	loff_t off;
+	for (off = f->f_pos; off < sizeof_array(pentry) - 1; ++ off) {
+		const char *name;
+
+		name = pentry[off].name;
+
+		if (filld(dirent, name, strlen(name), off, off + 10, DT_REG) < 0)
+			break;
+	}
+	f->f_pos = off;
+	return 0;
+}
+
+
 pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 	[PSEUDO_UID_ID] = {
 			 .h = {
@@ -586,7 +686,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			       .linkage = TS_LIST_LINK_ZERO
 			 },
 			 .try         = try_by_label,
-			 .lookup      = lookup_none,
+			 .lookup      = NULL,
 			 .lookup_mode = S_IFREG | S_IRUGO | S_IWUSR,
 			 .read_type   = PSEUDO_READ_SINGLE,
 			 .read        = {
@@ -607,7 +707,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			       .linkage = TS_LIST_LINK_ZERO
 			 },
 			 .try         = try_by_label,
-			 .lookup      = lookup_none,
+			 .lookup      = NULL,
 			 .lookup_mode = S_IFREG | S_IRUGO | S_IWUSR,
 			 .read_type   = PSEUDO_READ_SINGLE,
 			 .read        = {
@@ -628,7 +728,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			       .linkage = TS_LIST_LINK_ZERO
 			 },
 			 .try         = try_by_label,
-			 .lookup      = lookup_none,
+			 .lookup      = NULL,
 			 .lookup_mode = S_IFREG | S_IRUGO | S_IWUSR,
 			 .read_type   = PSEUDO_READ_SINGLE,
 			 .read        = {
@@ -649,7 +749,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			       .linkage = TS_LIST_LINK_ZERO
 			 },
 			 .try         = try_by_label,
-			 .lookup      = lookup_none,
+			 .lookup      = NULL,
 			 .lookup_mode = S_IFREG | S_IRUGO,
 			 .read_type   = PSEUDO_READ_SINGLE,
 			 .read        = {
@@ -667,7 +767,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			       .linkage = TS_LIST_LINK_ZERO
 			 },
 			 .try         = try_by_label,
-			 .lookup      = lookup_none,
+			 .lookup      = NULL,
 			 .lookup_mode = S_IFREG | S_IRUGO,
 			 .read_type   = PSEUDO_READ_SINGLE,
 			 .read        = {
@@ -685,7 +785,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			       .linkage = TS_LIST_LINK_ZERO
 			 },
 			 .try         = try_by_label,
-			 .lookup      = lookup_none,
+			 .lookup      = NULL,
 			 .lookup_mode = S_IFREG | S_IRUGO,
 			 .read_type   = PSEUDO_READ_SINGLE,
 			 .read        = {
@@ -703,7 +803,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			       .linkage = TS_LIST_LINK_ZERO
 			 },
 			 .try         = try_by_label,
-			 .lookup      = lookup_none,
+			 .lookup      = NULL,
 			 .lookup_mode = S_IFREG | S_IRUGO,
 			 .read_type   = PSEUDO_READ_SINGLE,
 			 .read        = {
@@ -721,7 +821,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			       .linkage = TS_LIST_LINK_ZERO
 			 },
 			 .try         = try_by_label,
-			 .lookup      = lookup_none,
+			 .lookup      = NULL,
 			 .lookup_mode = S_IFREG | S_IRUGO,
 			 .read_type   = PSEUDO_READ_SINGLE,
 			 .read        = {
@@ -739,7 +839,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			       .linkage = TS_LIST_LINK_ZERO
 			 },
 			 .try         = try_by_label,
-			 .lookup      = lookup_none,
+			 .lookup      = NULL,
 			 .lookup_mode = S_IFREG | S_IRUGO,
 			 .read_type   = PSEUDO_READ_SEQ,
 			 .read        = {
@@ -762,7 +862,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			       .linkage = TS_LIST_LINK_ZERO
 			 },
 			 .try         = try_by_label,
-			 .lookup      = lookup_none,
+			 .lookup      = NULL,
 			 .lookup_mode = S_IFREG | S_IRUGO,
 			 .read_type   = PSEUDO_READ_SEQ,
 			 .read        = {
@@ -785,7 +885,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			       .linkage = TS_LIST_LINK_ZERO
 			 },
 			 .try         = try_by_label,
-			 .lookup      = lookup_none,
+			 .lookup      = NULL,
 			 .lookup_mode = S_IFREG | S_IRUGO,
 			 .read_type   = PSEUDO_READ_SEQ,
 			 .read        = {
@@ -797,6 +897,40 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 				 }
 			 },
 			 .write_type  = PSEUDO_WRITE_NONE
+	},
+	[PSEUDO_PLUGIN_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_PLUGIN_ID,
+			       .pops = NULL,
+			       .label = "plugin",
+			       .desc = "plugin",
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
+			 .try         = NULL,
+			 .lookup      = NULL,
+			 .lookup_mode = S_IFREG | S_IRUGO,
+			 .read_type   = PSEUDO_READ_SINGLE,
+			 .read        = {
+				 .single_show = show_plugin
+			 },
+			 .write_type  = PSEUDO_WRITE_NONE
+	},
+	[PSEUDO_PLUGINS_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_PLUGINS_ID,
+			       .pops = NULL,
+			       .label = "..plugin",
+			       .desc = "list of plugins",
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
+			 .try         = try_by_label,
+			 .lookup      = lookup_plugins,
+			 .lookup_mode = S_IFREG | S_IRUGO | S_IXUGO,
+			 .read_type   = PSEUDO_READ_NONE,
+			 .write_type  = PSEUDO_WRITE_NONE,
+			 .readdir     = readdir_plugins
 	}
 };
 

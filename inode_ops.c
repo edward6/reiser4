@@ -212,7 +212,7 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to look fo
 	if (dplug != NULL && dplug->lookup != NULL)
 		lookup = dplug->lookup;
 	else if (1)
-		lookup = lookup_pseudo;
+		lookup = lookup_pseudo_file;
 	if (lookup != NULL) {
 		/* call its lookup method */
 		retval = lookup(parent, dentry);

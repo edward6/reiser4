@@ -104,6 +104,8 @@ ssize_t write_pseudo(struct file *file,
 		if (!IS_ERR(inkernel)) {
 			result = get_pplug(file)->write.gets(file, inkernel);
 			putname(inkernel);
+			if (result == 0)
+				result = size;
 		} else
 			result = PTR_ERR(inkernel);
 		break;
@@ -116,7 +118,6 @@ ssize_t write_pseudo(struct file *file,
 	}
 	return result;
 }
-
 
 /* Make Linus happy.
    Local variables:
