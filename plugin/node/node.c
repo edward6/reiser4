@@ -318,6 +318,9 @@ void node_check( znode *node /* node to check */,
 	int result;
 	reiser4_tree *tree;
 
+	if( !reiser4_is_debugged( reiser4_get_current_sb(), REISER4_CHECK_NODE ) )
+		return;
+
 	if( get_current_context() -> disable_node_check )
 		return;
 	tree = znode_get_tree( node );
