@@ -891,8 +891,8 @@ static void invalidate_pages (void)
 		assert ("vs-667", atomic_read (&page->count) == 0);
 		assert ("vs-668", !page->kmap_count);
 		pc_hash_remove( &page_htable, page );
-		free (page);
 		spin_unlock (&page->lock2);
+		free (page);
 	}
 	spin_unlock( &page_list_guard );
 }
