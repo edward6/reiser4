@@ -603,7 +603,7 @@ static int readdir_show(struct seq_file *m, void *v)
 
 	name = iplug->s.dir.extract_name(&c->coord, buf);
 	assert("nikita-3221", name != NULL);
-	seq_printf(m, "%s\n", name);
+	seq_printf(m, "%s/", name);
 	return 0;
 }
 
