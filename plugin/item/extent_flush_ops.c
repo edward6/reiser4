@@ -961,6 +961,11 @@ squalloc_extent(znode *left, const coord_t *coord, flush_pos_t *flush_pos, reise
 			else
 				reiser4_dealloc_blocks(&first_allocated, &allocated, BLOCK_UNALLOCATED, 0);
 			unprotect_extent_nodes(oid, index, allocated);
+
+			/* rewind the preceder. */
+			flush_pos->preceder.blk = first_allocated;
+			check_preceder(flush_pos->preceder.blk);
+
 			return SQUEEZE_TARGET_FULL;
 		}
 
