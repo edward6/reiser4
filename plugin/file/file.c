@@ -648,7 +648,7 @@ append_hole(unix_file_info_t *uf_info, loff_t new_size)
 	return result;
 }
 
-static int
+int
 setattr_reserve(reiser4_tree *tree)
 {
 	assert("vs-1096", is_grab_enabled(get_current_context()));
