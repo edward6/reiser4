@@ -550,6 +550,8 @@ static int common_build_flow( struct inode *inode /* file to build flow for */,
 			      rw_op op UNUSED_ARG /* io operation */, 
 			      flow_t *f /* resulting flow */ )
 {
+	file_plugin *fplug;
+
 	assert( "nikita-1100", inode != NULL );
 
 	f -> length = size;
@@ -558,10 +560,10 @@ static int common_build_flow( struct inode *inode /* file to build flow for */,
 		f -> data.user_buf = ( char * )data;
 	else
 		f -> data.page     = ( struct page * )data;
-	build_sd_key( inode, &f -> key );
-	set_key_type( &f -> key, KEY_BODY_MINOR );
-	set_key_offset( &f -> key, ( __u64 ) off );
-	return 0;
+	fplug = inode_file_plugin( inode );
+	assert( "nikita-1931", fplug != NULL );
+	assert( "nikita-1932", fplug -> key_by_inode != NULL );
+	return fplug -> key_by_inode( inode, off, &f -> key );
 }
 
 static int ordinary_key_by_inode ( struct inode *inode, loff_t off, reiser4_key *key )
@@ -592,7 +594,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.write               = ordinary_file_write,
 			.release             = ordinary_file_release,
 			.flow_by_inode       = common_build_flow/*NULL*/,
-			.flow_by_key         = NULL,
 			.key_by_inode        = ordinary_key_by_inode,
 			.set_plug_in_sd      = NULL,
 			.set_plug_in_inode   = NULL,
@@ -624,7 +625,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.write               = NULL, /* EISDIR */
 			.release             = NULL,
 			.flow_by_inode       = NULL,
-			.flow_by_key         = NULL,
 			.key_by_inode        = NULL,
 			.set_plug_in_sd      = NULL,
 			.set_plug_in_inode   = NULL,
@@ -656,7 +656,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.write               = NULL,
 			.release             = NULL,
 			.flow_by_inode       = NULL,
-			.flow_by_key         = NULL,
 			.key_by_inode        = NULL,
 			.set_plug_in_sd      = NULL,
 			.set_plug_in_inode   = NULL,
@@ -692,7 +691,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.write               = NULL,
 			.release             = NULL,
 			.flow_by_inode       = NULL,
-			.flow_by_key         = NULL,
 			.key_by_inode        = NULL,
 			.set_plug_in_sd      = NULL,
 			.set_plug_in_inode   = NULL,

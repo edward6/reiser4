@@ -152,20 +152,20 @@ typedef struct file_plugin {
 
 	/**
 	 * Construct flow into @flow according to user-supplied data.
-	 * FIXME: needs better comment, further, you can't get an inode
-	 * from a file, so this should either be named flow_by_file or
-	 * its argument should be changed to an inode.
+	 *
+	 * This is used by read/write methods to construct a flow to
+	 * write/read. ->flow_by_inode() is plugin method, rather than single
+	 * global implemenation, because key in a flow used by plugin may
+	 * depend on data in a @buf.
 	 */
 	int ( *flow_by_inode )( struct inode *, void *buf, int page_or_buf,
 				size_t size, loff_t off, rw_op op, flow_t * );
 
 	/**
-	 * FIXME: This needs a better comment too, especially since it isn't being used.
-	 */
-	int ( *flow_by_key )( reiser4_key *key, flow_t * );
-
-	/**
-	 * Return the key used to retrieve an offset of a file.
+	 * Return the key used to retrieve an offset of a file. It is used by
+	 * default implemenation of ->flow_by_inode() method
+	 * (common_build_flow()) and, among other things, to get to the extent
+	 * from jnode of unformatted node.
 	 */
 	int ( *key_by_inode )( struct inode *inode, loff_t off, reiser4_key *key );
 
