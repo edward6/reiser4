@@ -55,6 +55,7 @@ typedef struct reiser4_super_info_data {
 	__u32    inode_generation;
 
 	/** unique file-system identifier */
+	/* does this conform to Andreas Dilger UUID stuff? */
 	__u32    fsuid;
 
 	/**
