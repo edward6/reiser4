@@ -746,7 +746,7 @@ void show_context (int show_tree)
 	}
 	
 	if (show_tree && (tree != NULL)) {
-		/*print_tree_rec ("", tree, REISER4_NODE_PRINT_HEADER);*/
+		/*print_tree_rec ("", tree, REISER4_TREE_BRIEF);*/
 	}
 
 	spin_unlock (& active_contexts_lock);
@@ -1014,14 +1014,17 @@ int shift_everything_left (znode * right, znode * left, carry_level *todo)
 	int result;
 	coord_t from;
 	node_plugin * nplug;
+	carry_plugin_info info;
 
 	coord_init_after_last_item (&from, right);
 
 	nplug = node_plugin_by_node (right);
+	info.doing = NULL;
+	info.todo  = todo;
 	result = nplug->shift (&from, left, SHIFT_LEFT,
 			    1/* delete node @right if all its contents was moved to @left */,
 			    1/* @from will be set to @left node */,
-			    todo);
+			    &info);
 	znode_set_dirty( right );
 	znode_set_dirty( left );
 	return result;
@@ -1541,7 +1544,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 		 * print the parent-first znode order. */
 		info( "[node %p block %llu level %u dirty %u xcnt %u]\n", node, *znode_get_block( node ), znode_get_level( node ), znode_check_dirty( node ), atomic_read( &node -> x_count ) );
 	} else {
-		print_znode_content( node, flags );
+		print_node_content( "", node, flags );
 	}
 
 	if( node_is_empty( node ) ) {

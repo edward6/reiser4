@@ -117,6 +117,10 @@ typedef enum {
 	REISER4_NODE_PRINT_ALL     = ~0u
 } reiser4_node_print_flag;
 
+#define REISER4_TREE_CHECK ( REISER4_NODE_CHECK | REISER4_NODE_ONLY_INCORE | REISER4_NODE_SILENT )
+#define REISER4_TREE_VERBOSE ( REISER4_NODE_PRINT_ALL & ~REISER4_NODE_SILENT )
+#define REISER4_TREE_BRIEF ( REISER4_NODE_PRINT_ZADDR )
+
 /**
    The responsibility of the node layout is to store and give access
    to the sequence of items within the node.  */
@@ -180,7 +184,7 @@ typedef struct node_plugin {
 	 * Uncomment after 4.0 only.
 	 */
 	/* 	int ( *guess )( const znode *node ); */
-	void ( *print )( const znode *node, __u32 flags );
+	void ( *print )( const char *prefix, const znode *node, __u32 flags );
 
 	/* change size of @item by @by bytes. @item->node has enough free
 	   space. When @by > 0 - free space is appended to end of item. When
@@ -190,20 +194,20 @@ typedef struct node_plugin {
 
 	/* create new item @length bytes long in coord @target */
 	int ( *create_item )( coord_t *target, const reiser4_key *key,
-				  reiser4_item_data *data, carry_level *todo );
+			      reiser4_item_data *data, carry_plugin_info *info );
 
 	/**
 	 * update key of item.
 	 */
 	void ( *update_item_key )( coord_t *target, reiser4_key *key,
-				   carry_level *todo );
+				   carry_plugin_info *info );
 
 	/* remove data between @from and @to from the tree */
 	int ( *cut_and_kill )( coord_t *from, coord_t *to,
 			       const reiser4_key *from_key,
 			       const reiser4_key *to_key,
 			       reiser4_key *smallest_removed,
-			       carry_level *todo, void *kill_params,
+			       carry_plugin_info *info, void *kill_params,
 			       __u32 flags );
 
 	/* remove data between @from and @to from a node (when shifting from
@@ -212,7 +216,7 @@ typedef struct node_plugin {
 	int ( *cut )( coord_t *from, coord_t *to,
 		      const reiser4_key *from_key, const reiser4_key *to_key,
 		      reiser4_key *smallest_removed,
-		      carry_level *todo, __u32 flags );
+		      carry_plugin_info *info, __u32 flags );
 	
 	/* copy as much as possible but not more than up to @stop from
 	   @stop->node to @target. If (pend == append) then data from beginning of
@@ -222,7 +226,7 @@ typedef struct node_plugin {
 	   about what to do on upper level is stored in @todo */
 	int ( *shift ) ( coord_t *stop, znode *target, shift_direction pend, 
 			 int delete_node, int including_insert_coord,
-			 carry_level *todo );
+			 carry_plugin_info *info );
 	/*
 	 * return true if this node allows skip carry() in some situations
 	 * (see fs/reiser4/tree.c:insert_by_coord()). Reiser3.x format
@@ -254,7 +258,8 @@ typedef enum {
 extern reiser4_plugin node_plugins [];
 
 extern reiser4_key *leftmost_key_in_node( const znode *node, reiser4_key *key );
-extern void print_znode_content( const znode *node, __u32 flags );
+extern void print_node_content( const char *prefix, 
+				const znode *node, __u32 flags );
 extern void indent( unsigned indentation );
 extern void indent_znode( const znode *node );
 
