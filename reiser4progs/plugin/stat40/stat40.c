@@ -129,6 +129,20 @@ static errno_t stat40_estimate(uint32_t pos,
     return 0;
 }
 
+/* This method inserts the stat data extentions */
+static errno_t stat40_insert(reiser4_body_t *body, 
+    uint32_t pos, reiser4_item_hint_t *hint)
+{
+    return -1;
+}
+
+/* This method deletes the stat data extentions */
+static uint16_t stat40_remove(reiser4_body_t *body, 
+    uint32_t pos)
+{
+    return -1;
+}
+
 extern errno_t stat40_check(reiser4_body_t *, uint16_t);
 
 #endif
@@ -144,20 +158,6 @@ static errno_t stat40_print(reiser4_body_t *body,
     aal_assert("umka-546", body != NULL, return -1);
     aal_assert("umka-547", buff != NULL, return -1);
 
-    return -1;
-}
-
-/* This method inserts the stat data extentions */
-static errno_t stat40_insert(reiser4_body_t *body, 
-    uint32_t pos, reiser4_item_hint_t *hint)
-{
-    return -1;
-}
-
-/* This method deletes the stat data extentions */
-static uint16_t stat40_remove(reiser4_body_t *body, 
-    uint32_t pos)
-{
     return -1;
 }
 
@@ -179,6 +179,8 @@ static uint16_t stat40_get_mode(reiser4_body_t *body) {
     return st40_get_mode((stat40_t *)body);
 }
 
+#ifndef ENABLE_COMPACT
+
 static errno_t stat40_set_mode(reiser4_body_t *body, 
     uint16_t mode)
 {
@@ -187,6 +189,8 @@ static errno_t stat40_set_mode(reiser4_body_t *body,
 
     return 0;
 }
+
+#endif
 
 static reiser4_plugin_t stat40_plugin = {
     .item_ops = {
@@ -223,7 +227,11 @@ static reiser4_plugin_t stat40_plugin = {
 	.specific = {
 	    .statdata = {
 		.get_mode = stat40_get_mode,
+#ifndef ENABLE_COMPACT
 		.set_mode = stat40_set_mode
+#else
+		.set_mode = NULL
+#endif
 	    }
 	}
     }

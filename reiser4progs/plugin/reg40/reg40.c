@@ -41,7 +41,7 @@ static errno_t reg40_reset(reiser4_entity_t *entity) {
     
     reg40_t *reg = (reg40_t *)entity;
     
-    aal_assert("umka-864", reg != NULL, return -1);
+    aal_assert("umka-1161", reg != NULL, return -1);
     
     key.plugin = reg->key.plugin;
     plugin_call(return -1, key.plugin->key_ops, build_generic, 
@@ -88,7 +88,7 @@ static errno_t reg40_reset(reiser4_entity_t *entity) {
 static errno_t reg40_realize(reg40_t *reg) {
     rpid_t pid;
     
-    aal_assert("umka-857", reg != NULL, return -1);	
+    aal_assert("umka-1162", reg != NULL, return -1);	
 
     plugin_call(return -1, reg->key.plugin->key_ops, build_generic, 
 	reg->key.body, KEY_STATDATA_TYPE, reg40_locality(reg), 
@@ -146,9 +146,9 @@ static reiser4_entity_t *reg40_open(const void *tree,
 {
     reg40_t *reg;
 
-    aal_assert("umka-836", tree != NULL, return NULL);
-    aal_assert("umka-837", object != NULL, return NULL);
-    aal_assert("umka-838", object->plugin != NULL, return NULL);
+    aal_assert("umka-1163", tree != NULL, return NULL);
+    aal_assert("umka-1164", object != NULL, return NULL);
+    aal_assert("umka-1165", object->plugin != NULL, return NULL);
     
     if (!(reg = aal_calloc(sizeof(*reg), 0)))
 	return NULL;
@@ -167,12 +167,8 @@ static reiser4_entity_t *reg40_open(const void *tree,
 	goto error_free_reg;
     }
     
-    /* Positioning to the first directory unit */
     if (reg40_reset((reiser4_entity_t *)reg)) {
-
-	aal_exception_error("Can't rewind directory with oid 0x%llx.", 
-	    reg40_objectid(reg));
-	
+	aal_exception_error("Can't reset file 0x%llx.", reg40_objectid(reg));
 	goto error_free_reg;
     }
     
@@ -200,10 +196,10 @@ static reiser4_entity_t *reg40_create(const void *tree,
     roid_t locality;
     roid_t parent_locality;
 
-    aal_assert("umka-743", parent != NULL, return NULL);
-    aal_assert("umka-744", object != NULL, return NULL);
-    aal_assert("umka-881", object->plugin != NULL, return NULL);
-    aal_assert("umka-835", tree != NULL, return NULL);
+    aal_assert("umka-1166", parent != NULL, return NULL);
+    aal_assert("umka-1167", object != NULL, return NULL);
+    aal_assert("umka-1168", object->plugin != NULL, return NULL);
+    aal_assert("umka-1169", tree != NULL, return NULL);
 
     if (!(reg = aal_calloc(sizeof(*reg), 0)))
 	return NULL;
@@ -289,19 +285,15 @@ static reiser4_entity_t *reg40_create(const void *tree,
     
     /* Grabbing the stat data item */
     if (reg40_realize(reg)) {
-
-        aal_exception_error("Can't grab stat data of  directory with "
-	    "oid 0x%llx.", reg40_objectid(reg));
+      
+	aal_exception_error("Can't grab stat data of file 0x%llx.", 
+	    reg40_objectid(reg));
 	
 	goto error_free_reg;
     }
 
-    /* Positioning onto first directory unit */
     if (reg40_reset((reiser4_entity_t *)reg)) {
-	    
-	aal_exception_error("Can't rewind directory with oid 0x%llx.", 
-	    reg40_objectid(reg));
-	
+	aal_exception_error("Can't reset file 0x%llx.", reg40_objectid(reg));
 	goto error_free_reg;
     }
     
@@ -329,7 +321,7 @@ static uint64_t reg40_write(reiser4_entity_t *entity,
 #endif
 
 static void reg40_close(reiser4_entity_t *entity) {
-    aal_assert("umka-1158", entity != NULL, return);
+    aal_assert("umka-1170", entity != NULL, return);
     aal_free(entity);
 }
 
@@ -343,7 +335,7 @@ static errno_t reg40_seek(reiser4_entity_t *entity,
 {
     reg40_t *reg = (reg40_t *)entity;
     
-    aal_assert("umka-1130", entity != NULL, return 0);
+    aal_assert("umka-1171", entity != NULL, return 0);
 
     /* FIXME-UMKA: Not implemented yet! */
 
