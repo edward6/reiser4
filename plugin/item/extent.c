@@ -500,8 +500,9 @@ static int relocate_extent (struct inode * inode, coord_t * coord, reiser4_block
 	if (!unallocated_flg) {
 		reiser4_block_nr dealloc_ext_start;
 
-		dealloc_ext_start = ext_start + ext_width - *len;
-		ret = reiser4_dealloc_blocks(&dealloc_ext_start, len, 0, BA_DEFER | BA_PERMANENT, __FUNCTION__);
+		dealloc_ext_start = ext_start + ext_width - new_ext_width;
+		ret = reiser4_dealloc_blocks(&dealloc_ext_start, &new_ext_width, 0,
+					     BA_DEFER | BA_PERMANENT, __FUNCTION__);
 		if (ret)
 			return ret;
 	}
@@ -510,6 +511,7 @@ static int relocate_extent (struct inode * inode, coord_t * coord, reiser4_block
 	for (reloc_ind = ext_width - new_ext_width; reloc_ind < ext_width; reloc_ind ++)
 	{
 		jnode * check;
+
 		check = get_jnode_by_mapping(inode, ext_index + reloc_ind);
 		if (IS_ERR(check))
 			return PTR_ERR(check);
@@ -525,7 +527,7 @@ static int relocate_extent (struct inode * inode, coord_t * coord, reiser4_block
 
 	ret = replace_end_of_extent(coord, new_ext_start, new_ext_width, done);
 	*len = new_ext_width;
-	return 0;
+	return ret;
 }
 
 static int find_relocatable_extent (struct inode * inode, coord_t * coord,
