@@ -202,7 +202,9 @@ print_context(const char *prefix, reiser4_context * context)
 		printk("%s: null context\n", prefix);
 		return;
 	}
+#if REISER4_CONTEXT
 	printk("%s: trace_flags: %x\n", prefix, context->trace_flags);
+#endif
 #if REISER4_DEBUG
 	printk("\ttid: %i\n", context->tid);
 	print_lock_counters("\tlocks", &context->locks);
