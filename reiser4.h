@@ -336,7 +336,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /* some ridiculously high maximal limit on height of znode tree. This
     is used in declaration of various per level arrays and
     to allocate stattistics gathering array for per-level stats. */
-#define REISER4_MAX_ZTREE_HEIGHT     (6)
+#define REISER4_MAX_ZTREE_HEIGHT     (8)
 
 #define REISER4_PANIC_MSG_BUFFER_SIZE (1024)
 
