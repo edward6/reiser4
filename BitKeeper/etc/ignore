@@ -1484,3 +1484,4 @@ plugin/node/.node.o.d
 plugin/pseudo/.pseudo.o.d
 plugin/security/.perm.o.d
 ulevel/plot.sh
+plugin/.xattr.o.cmd
