@@ -635,7 +635,8 @@ typedef struct {
 	int id;
 	pid_t pid;
 	int op;
-	void *data;
+	void *data1;
+	void *data2;
 } clog_t;
 
 clog_t clog[CLOG_LENGTH];
@@ -645,39 +646,47 @@ int clog_length = 0;
 int clog_id = 0;
 
 void
-clog_op(int op, void *data)
+clog_op(int op, void *data1, void *data2)
 {
-	if (!strcmp("mmap", current->comm)) {
-		spin_lock(&clog_lock);
-		
-		if (clog_length == CLOG_LENGTH) {
-			clog[clog_start].id = clog_id ++;
-			clog[clog_start].op = op;
-			clog[clog_start].data = data;
-			clog[clog_start].pid = current->pid;
-			clog_start ++;
-			clog_start %= CLOG_LENGTH;
-		} else {
-			assert("vs-1672", clog_start == 0);
-			clog[clog_length].id = clog_id ++;
-			clog[clog_length].op = op;
-			clog[clog_length].data = data;
-			clog[clog_length].pid = current->pid;
-			clog_length ++;		
-		}
-		
-		spin_unlock(&clog_lock);
+	spin_lock(&clog_lock);
+	
+	if (clog_length == CLOG_LENGTH) {
+		clog[clog_start].id = clog_id ++;
+		clog[clog_start].op = op;
+		clog[clog_start].pid = current->pid;
+		clog[clog_start].data1 = data1;
+		clog[clog_start].data2 = data2;
+		clog_start ++;
+		clog_start %= CLOG_LENGTH;
+	} else {
+		assert("vs-1672", clog_start == 0);
+		clog[clog_length].id = clog_id ++;
+		clog[clog_length].op = op;
+		clog[clog_length].pid = current->pid;
+		clog[clog_length].data1 = data1;
+		clog[clog_length].data2 = data2;
+		clog_length ++;		
 	}
+		
+	spin_unlock(&clog_lock);
 }
 
 static const char *
 op2str(int op)
 {
 	static const char *op_names[OP_NUM] = {
-		"t2e-reserve",
-		"e2t-reserve",
-		"all-grabbed2free",
-		"all-grabbed2free-commit",
+		"get-user-page",
+		"put_user-page",
+		"ex-write-in",
+		"ex-write-out",
+		"tail-write-in",
+		"tail-write-out",
+		"readp-in",
+		"readp-out",
+		"readp-error",
+		"releasep-in",
+		"releasep-1",
+		"releasep-0"
 	};
 	assert("vs-1673", op < OP_NUM);
 	return op_names[op];
@@ -690,8 +699,8 @@ print_clog(void)
 
 	j = clog_start;
 	for (i = 0; i < clog_length; i ++) {
-		printk("%d(%d): id %d: pid %d, op %s, data %p\n",
-		       i, j, clog[j].id, clog[j].pid, op2str(clog[j].op), clog[j].data);
+		printk("%d(%d): id %d: pid %d, op %s, data1 %p, data2 %p\n",
+		       i, j, clog[j].id, clog[j].pid, op2str(clog[j].op), clog[j].data1, clog[j].data2);
 		j ++;
 		j %= CLOG_LENGTH;
 	}
