@@ -408,13 +408,11 @@ insert_result insert_extent_by_coord( coord_t  *coord /* coord where to
  */
 /* paste_into_item */
 /* Audited by: umka (2002.06.16) */
-static int insert_into_item( coord_t *coord /* coord of pasting */,
-			    lock_handle *lh /* lock handle on node
-						     * involved */,
-			    reiser4_key *key /* key of unit being pasted*/, 
-			    reiser4_item_data *data /* parameters for new
-						     * unit */,
-			    unsigned flags /* insert/paste flags */ )
+int insert_into_item( coord_t *coord /* coord of pasting */,
+		      lock_handle *lh /* lock handle on node involved */,
+		      reiser4_key *key /* key of unit being pasted*/, 
+		      reiser4_item_data *data /* parameters for new unit */,
+		      unsigned flags /* insert/paste flags */ )
 {
 	int result;
 	int size_change;
@@ -534,6 +532,35 @@ resize_result resize_item( coord_t *coord /* coord of item being resized */,
 	zrelse( node );
 	return result;
 }
+
+
+int insert_flow( coord_t *coord, flow_t *f)
+{
+	int result;
+	carry_pool pool;
+	carry_level lowest_level;
+	carry_op *op;
+
+
+	init_carry_pool( &pool );
+	init_carry_level( &lowest_level, &pool );
+
+	op = post_carry( &lowest_level, COP_INSERT_FLOW, coord -> node,
+			 0 /* operate directly on coord -> node */ );
+	if( IS_ERR( op ) || ( op == NULL ) )
+		return op ? PTR_ERR (op) : -EIO;
+
+	op -> u.insert_flow.insert_point = coord;
+	op -> u.insert_flow.flow = f;
+	op -> u.insert_flow.new_nodes = 0;
+
+	ON_STATS( lowest_level.level_no = znode_get_level( coord -> node ) );
+	result = carry( &lowest_level, 0 );
+	done_carry_pool( &pool );
+
+	return result;
+}
+
 
 /**
  * Given a coord in parent node, obtain a znode for the corresponding child
