@@ -942,6 +942,7 @@ static int reiser4_release( struct inode *i /* inode released */,
 			    struct file *f /* file released */ )
 {
 	file_plugin *fplug;
+	REISER4_ENTRY( i -> i_sb );
 	
 	assert( "umka-081", i != NULL );
 	assert( "nikita-1447", f != NULL );
@@ -954,7 +955,7 @@ static int reiser4_release( struct inode *i /* inode released */,
 	
 	if( fplug -> release )
 		return fplug -> release( f );
-	return 0;
+	REISER4_EXIT( 0 );
 }
 
 /**
