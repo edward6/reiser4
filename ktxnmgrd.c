@@ -106,6 +106,7 @@ ktxnmgrd(void *arg)
 				scan_mgr(mgr);
 				ktxnmgrd_trace("\tscan mgr\n");
 
+				spin_lock_ktxnmgrd(ctx);
 				if (ctx->rescan) {
 					/* the list could be modified while ctx
 					   spinlock was released, we have to
@@ -152,6 +153,7 @@ ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr)
 
 	first_mgr = !ctx->started;
 	ctx->started = 1;
+	ctx->rescan = 1;
 
 	/* attach @mgr to daemon. Not taking spin-locks, because this is early
 	   during @mgr initialization. */
@@ -196,6 +198,7 @@ ktxnmgrd_detach(txn_mgr * mgr)
 	spin_lock_ktxnmgrd(ctx);
 	txn_mgrs_list_remove(mgr);
 	mgr->daemon = NULL;
+	ctx->rescan = 1;
 
 	/* removing last mgr, stop daemon */
 	if (txn_mgrs_list_empty(&ctx->queue)) {
@@ -227,7 +230,8 @@ ktxnmgrd_kick(ktxnmgrd_context * ctx, ktxnmgrd_wake reason)
 	}
 }
 
-/* scan one transaction manager for old atoms */
+/* scan one transaction manager for old atoms; should be called with ktxnmgrd
+ * spinlock, releases this spin lock at exit */
 static int
 scan_mgr(txn_mgr * mgr)
 {
@@ -248,8 +252,6 @@ scan_mgr(txn_mgr * mgr)
 		spin_ktxnmgrd_inc();
 
 		ret = commit_some_atoms(mgr);
-
-		spin_ktxnmgrd_dec();
 
 		REISER4_EXIT(ret);
 	}

@@ -1062,7 +1062,8 @@ again:
 	return 0;
 }
 
-/* called periodically from ktxnmgrd to commit old atoms. */
+/* called periodically from ktxnmgrd to commit old atoms. Releases ktxnmgrd spin
+ * lock at exit */
 int
 commit_some_atoms(txn_mgr * mgr)
 {
@@ -1078,55 +1079,46 @@ commit_some_atoms(txn_mgr * mgr)
 	txnh = ctx->trans;
 	spin_lock_txnmgr(mgr);
 
-	while (ret == 0) {
+	/* look for atom to commit */
+	for (atom = atom_list_front(&mgr->atoms_list);
+	     /**/ !atom_list_end(&mgr->atoms_list, atom); atom = atom_list_next(atom)) {
 
-		/* look for atom to commit */
-		for (atom = atom_list_front(&mgr->atoms_list);
-		     /**/ !atom_list_end(&mgr->atoms_list, atom); atom = atom_list_next(atom)) {
+		spin_lock_atom(atom);
 
-			spin_lock_atom(atom);
-
-			if ((atom->stage < ASTAGE_PRE_COMMIT) && (atom->txnh_count == 0) && atom_should_commit(atom))
-				break;
-
-			spin_unlock_atom(atom);
-		}
-
-		if (atom_list_end(&mgr->atoms_list, atom))
-			/* nothing found */
+		if ((atom->stage < ASTAGE_PRE_COMMIT) && (atom->txnh_count == 0) && atom_should_commit(atom))
 			break;
 
-		spin_unlock_txnmgr(mgr);
-		spin_lock_txnh(txnh);
-
-		/* Set the atom to force committing */
-		atom->flags |= ATOM_FORCE_COMMIT;
-
-		/* Add force-context txnh */
-		capture_assign_txnh_nolock(atom, txnh);
-
-		spin_unlock_txnh(txnh);
 		spin_unlock_atom(atom);
+	}
 
-		/* we are about to release daemon spin lock, notify daemon it
-		   has to rescan atoms */
-		mgr->daemon->rescan = 1;
+	if (atom_list_end(&mgr->atoms_list, atom)) {
+		/* nothing found */
 		spin_unlock_ktxnmgrd(mgr->daemon);
-		ret = txn_end(ctx);
-
-		if (ret >= 0) {
-			txn_begin(ctx);
-			ret = 0;
-		}
-
-		spin_lock_ktxnmgrd(mgr->daemon);
-		spin_lock_txnmgr(mgr);
-		/* repeat search again */
+		return 0;
 	}
 
 	spin_unlock_txnmgr(mgr);
+	spin_lock_txnh(txnh);
 
-	assert("nikita-2447", spin_ktxnmgrd_is_locked(mgr->daemon));
+	/* Set the atom to force committing */
+	atom->flags |= ATOM_FORCE_COMMIT;
+
+	/* Add force-context txnh */
+	capture_assign_txnh_nolock(atom, txnh);
+
+	spin_unlock_txnh(txnh);
+	spin_unlock_atom(atom);
+
+	/* we are about to release daemon spin lock, notify daemon it
+	   has to rescan atoms */
+	mgr->daemon->rescan = 1;
+	spin_unlock_ktxnmgrd(mgr->daemon);
+	ret = txn_end(ctx);
+
+	if (ret >= 0) {
+		txn_begin(ctx);
+		ret = 0;
+	}
 
 	return ret;
 }
