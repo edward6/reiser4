@@ -316,7 +316,7 @@ extern __u32 reiser4_current_trace_flags;
 #define trace_on( f, ... )   trace_if( f, info( __VA_ARGS__ ) )
 
 /* profiling. This is i386, rdtsc-based profiling. */
-#if (defined(__i386__) || defined(CONFIG_USERMODE))
+#if 0 && (defined(__i386__) || defined(CONFIG_USERMODE))
 #define REISER4_PROF (1)
 #else
 #define REISER4_PROF (0)
