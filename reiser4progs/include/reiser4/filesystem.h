@@ -74,7 +74,7 @@ typedef struct reiserfs_node reiserfs_node_t;
 
 struct reiserfs_node {
     aal_block_t *block;
-    aal_list_t *children;
+    aal_list_t *cache;
     
     reiserfs_plugin_t *key_plugin;
     reiserfs_plugin_t *node_plugin;
@@ -98,8 +98,12 @@ typedef struct reiserfs_node_header reiserfs_node_header_t;
 
 struct reiserfs_object {
     reiserfs_fs_t *fs;
+    
     reiserfs_key_t key;
     reiserfs_coord_t coord;
+    reiserfs_plugin_t *plugin;
+
+    reiserfs_object_hint_t *hint;
 };
 
 typedef struct reiserfs_object reiserfs_object_t;
@@ -138,11 +142,8 @@ struct reiserfs_oid {
 typedef struct reiserfs_oid reiserfs_oid_t;
 
 struct reiserfs_tree {
-    reiserfs_key_t root_key;
-    reiserfs_node_t *root_node;
-
-    reiserfs_alloc_t *alloc;
-    aal_device_t *device;
+    reiserfs_fs_t *fs;
+    reiserfs_node_t *root;
 };
 
 typedef struct reiserfs_tree reiserfs_tree_t;
@@ -158,6 +159,9 @@ struct reiserfs_fs {
     reiserfs_alloc_t *alloc;
     reiserfs_oid_t *oid;
     reiserfs_tree_t *tree;
+    reiserfs_object_t *dir;
+
+    reiserfs_key_t key;
 };
 
 /* Public functions */
@@ -165,9 +169,6 @@ extern reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     aal_device_t *journal_device, int replay);
 
 extern void reiserfs_fs_close(reiserfs_fs_t *fs);
-
-extern errno_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs, 
-    reiserfs_key_t *key, reiserfs_id_t key_plugin_id);
 
 #ifndef ENABLE_COMPACT
 

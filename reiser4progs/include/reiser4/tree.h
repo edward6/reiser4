@@ -16,15 +16,12 @@
 
 #define REISERFS_LEAF_LEVEL 1
 
-extern reiserfs_tree_t *reiserfs_tree_open(aal_device_t *device, 
-    reiserfs_alloc_t *alloc, blk_t root_blk, reiserfs_key_t *root_key);
-
+extern reiserfs_tree_t *reiserfs_tree_open(reiserfs_fs_t *fs);
 extern void reiserfs_tree_close(reiserfs_tree_t *tree);
 
 #ifndef ENABLE_COMPACT
 
-extern reiserfs_tree_t *reiserfs_tree_create(aal_device_t *device, 
-    reiserfs_alloc_t *alloc, reiserfs_key_t *root_key, 
+extern reiserfs_tree_t *reiserfs_tree_create(reiserfs_fs_t *fs, 
     reiserfs_profile_t *profile);
 
 extern errno_t reiserfs_tree_sync(reiserfs_tree_t *tree);

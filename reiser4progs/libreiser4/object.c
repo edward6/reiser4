@@ -146,32 +146,30 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object, const char *nam
 reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
     reiserfs_key_t parent_key;
     reiserfs_object_t *object;
-    reiserfs_plugin_t *key_plugin;
     
     aal_assert("umka-678", fs != NULL, return NULL);
-    aal_assert("umka-679", name != NULL, return NULL);
 
     if (!(object = aal_calloc(sizeof(*object), 0)))
 	return NULL;
 
     object->fs = fs;
+    object->key = fs->key;
     
-    /* FIXME-UMKA: Hardcoded key plugin id */
-    if (!(key_plugin = libreiser4_factory_find(REISERFS_KEY_PLUGIN, 0x0)))
-	libreiser4_factory_failed(return NULL, find, key, 0x0);
-   
-    reiserfs_fs_build_root_key(fs, &object->key, 0x0);
-    reiserfs_fs_build_root_key(fs, &parent_key, 0x0);
+    /* FIXME */
+//    object->plugin = 
     
     /* 
-	I assume that name is absolute name. So, user, who will 
-	call this method should convert name previously into absolute
-	one by getcwd function.
+	I assume that name is absolute name. So, user, who will call this method 
+	should convert name previously into absolute one by getcwd function.
     */
-    if (reiserfs_object_lookup(object, name, &parent_key)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find %s.", name);
-	return NULL;
+    parent_key = fs->key;
+    
+    if (name) {
+	if (reiserfs_object_lookup(object, name, &parent_key)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't find %s.", name);
+	    return NULL;
+	}
     }
 
     return object;
@@ -179,49 +177,65 @@ reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
 
 #ifndef ENABLE_COMPACT
 
-/*
-    In the future this function will accept char *name of new object
-    and won't accept parent, since it will be created by 
-    reiserfs_object_open call for semantic parent of new object.
-*/
 reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, 
-    reiserfs_object_t *parent, reiserfs_plugin_t *plugin, 
-    reiserfs_profile_t *profile)
+    const char *name, reiserfs_plugin_t *plugin, reiserfs_profile_t *profile)
 {
     int i;
     reiserfs_object_t *object;
-    reiserfs_object_hint_t *hint;
-    reiserfs_plugin_t *key_plugin;
     oid_t objectid, parent_objectid;
     reiserfs_key_t parent_key, object_key;
     
-    aal_assert("umka-740", fs != NULL, return NULL);
-
+    aal_assert("umka-784", fs != NULL, return NULL);
+    aal_assert("umka-785", plugin != NULL, return NULL);
+    aal_assert("umka-786", profile != NULL, return NULL);
+    
     if (!(object = aal_calloc(sizeof(*object), 0)))
 	return NULL;
+
+    object->fs = fs;
+    object->key = fs->key;
     
-    if (!(key_plugin = libreiser4_factory_find(REISERFS_KEY_PLUGIN, profile->key))) 
-	libreiser4_factory_failed(goto error_free_object, find, key, profile->key);
-	    
-    if (!parent) {
-	parent_key.plugin = key_plugin;
-	reiserfs_key_build_file_key(&parent_key, KEY40_STATDATA_MINOR,
+    /* 
+	I assume that name is absolute name. So, user, who will call this method 
+	should convert name previously into absolute one by getcwd function.
+    */
+    if (name) {
+	char *ptr;
+	char parent_name[256];
+	reiserfs_object_t *parent;
+	
+	if (!(ptr = aal_strrchr(name, '/'))) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Invalid name %s.", name);
+	    goto error_free_object;
+	}
+	
+	aal_memset(parent_name, 0, sizeof(parent_name));
+	aal_strncpy(parent_name, name, ptr - name);
+	
+	if (!(parent = reiserfs_object_open(fs, parent_name)))
+	    goto error_free_object;
+	
+	parent_key = parent->key;
+	objectid = reiserfs_oid_alloc(fs->oid);
+
+	reiserfs_object_close(parent);
+    } else {
+	parent_key.plugin = fs->key.plugin;
+	reiserfs_key_build_file_key(&parent_key, KEY40_STATDATA_MINOR, 
 	    reiserfs_oid_root_parent_locality(fs->oid), 
 	    reiserfs_oid_root_parent_objectid(fs->oid), 0);
 
 	objectid = reiserfs_oid_root_objectid(fs->oid);
-    } else {
-	parent_key = parent->key;
-	objectid = reiserfs_oid_alloc(fs->oid);
     }
     parent_objectid = reiserfs_key_get_objectid(&parent_key);
-	
-    object_key.plugin = key_plugin;
+    
+    object_key.plugin = parent_key.plugin;
     reiserfs_key_build_file_key(&object_key, KEY40_STATDATA_MINOR,
 	parent_objectid, objectid, 0);
 	
     if (plugin->h.type == REISERFS_DIR_PLUGIN) {
-	if (!(hint = libreiser4_plugin_call(goto error_free_object, plugin->dir, 
+	if (!(object->hint = libreiser4_plugin_call(goto error_free_object, plugin->dir, 
 	    build, &parent_key, &object_key, profile->item.statdata, profile->item.direntry)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -229,7 +243,7 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs,
 	    goto error_free_object;
 	}
     } else {
-	if (!(hint = libreiser4_plugin_call(goto error_free_object, plugin->file, 
+	if (!(object->hint = libreiser4_plugin_call(goto error_free_object, plugin->file, 
 	    build, &parent_key, &object_key, profile->item.statdata, profile->item.fileentry)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -238,33 +252,31 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs,
 	}
     }
     
-    if (hint->count == 0) {
+    if (object->hint->count == 0) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Empty object hint has been received.");
 	goto error_free_object;
     }
     
     /* Inserting all items into tree */
-    for (i = 0; i < hint->count; i++) {
-	if (reiserfs_tree_insert(fs->tree, &hint->item[i])) {
+    for (i = 0; i < object->hint->count; i++) {
+	if (reiserfs_tree_insert(fs->tree, &object->hint->item[i])) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't insert \"%s\" item of object %llx into the tree.", 
-		reiserfs_item_name[hint->item[i].type], 
+		reiserfs_item_name[object->hint->item[i].type], 
 		reiserfs_key_get_objectid(&object_key));
 	    goto error_free_hint;
 	}
     }
 
     object->key = object_key;
-
-    libreiser4_plugin_call(goto error_free_object, plugin->dir, 
-	destroy, hint);
-    	
-    return object;
+    object->plugin = plugin;
     
+    return object;
+
 error_free_hint:
     libreiser4_plugin_call(goto error_free_object, plugin->dir, 
-	destroy, hint);
+	destroy, object->hint);
 error_free_object:
     aal_free(object);
     return NULL;
@@ -274,6 +286,10 @@ error_free_object:
 
 void reiserfs_object_close(reiserfs_object_t *object) {
     aal_assert("umka-680", object != NULL, return);
+    
+    libreiser4_plugin_call(return, object->plugin->dir, 
+	destroy, object->hint);
+
     aal_free(object);
 }
 

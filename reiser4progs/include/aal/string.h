@@ -24,6 +24,7 @@ extern size_t aal_strlen(const char *s);
 
 extern char *aal_strpbrk(const char *s, const char *accept);
 extern char *aal_strchr(const char *s, int c);
+extern char *aal_strrchr(const char *s, int c);
 extern char *aal_strsep(char **stringp, const char *delim);
 
 extern int aal_utoa(unsigned int d, size_t n, char *a, int base, int flags);

@@ -112,6 +112,16 @@ char *aal_strchr(const char *s, int c) {
     return NULL;
 }
 
+char *aal_strrchr(const char *s, int c) {
+    char *p_s = ((char *)s + aal_strlen(s) - 1);
+    while (p_s != s) {
+	if (*p_s == c)
+	    return p_s;
+	p_s--;
+    }
+    return NULL;
+}
+
 char *aal_strsep(char **stringp, const char *delim) {
     char *begin, *end;
 

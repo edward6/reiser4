@@ -155,30 +155,30 @@ static void reiserfs_master_close(reiserfs_fs_t *fs) {
     needed because of root key in reiser3 and reiser4 has a diffrent locality and object
     id values.
 */
-errno_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs, 
-    reiserfs_key_t *key, reiserfs_id_t key_plugin_id) 
+static errno_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs, 
+    reiserfs_id_t plugin_id) 
 {
-    oid_t root_objectid;
-    oid_t root_parent_objectid;
-    reiserfs_plugin_t *key_plugin;
+    oid_t objectid;
+    oid_t parent_objectid;
+    reiserfs_plugin_t *plugin;
     
     /* Finding needed key plugin by its identifier */
-    if (!(key_plugin = libreiser4_factory_find(REISERFS_KEY_PLUGIN, key_plugin_id)))
-	libreiser4_factory_failed(return -1, find, key, key_plugin_id);
+    if (!(plugin = libreiser4_factory_find(REISERFS_KEY_PLUGIN, plugin_id)))
+	libreiser4_factory_failed(return -1, find, key, plugin_id);
 
     /* Getting root directory attributes from oid allocator */
-    root_parent_objectid = libreiser4_plugin_call(return -1,
+    parent_objectid = libreiser4_plugin_call(return -1,
 	fs->oid->plugin->oid, root_parent_objectid,);
 
-    root_objectid = libreiser4_plugin_call(return -1,
+    objectid = libreiser4_plugin_call(return -1,
 	fs->oid->plugin->oid, root_objectid,);
 
     /* Initializing the key by found plugin */
-    key->plugin = key_plugin;
+    fs->key.plugin = plugin;
 
     /* Building the key */
-    reiserfs_key_build_file_key(key, KEY40_STATDATA_MINOR,
-	root_parent_objectid, root_objectid, 0);
+    reiserfs_key_build_file_key(&fs->key, KEY40_STATDATA_MINOR,
+	parent_objectid, objectid, 0);
 
     return 0;
 }
@@ -192,7 +192,6 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 {
     count_t len;
     reiserfs_fs_t *fs;
-    reiserfs_key_t root_key;
 
     reiserfs_id_t oid_plugin_id;
     reiserfs_id_t format_plugin_id;
@@ -265,16 +264,20 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 	Initilaizes root directory key.
 	FIXME-UMKA: Here should be not hardcoded key id.
     */
-    if (reiserfs_fs_build_root_key(fs, &root_key, 0x0))
+    if (reiserfs_fs_build_root_key(fs, 0x0))
 	goto error_free_oid;
     
     /* Opens the tree starting from root block */
-    if (!(fs->tree = reiserfs_tree_open(host_device, fs->alloc, 
-	    reiserfs_format_get_root(fs->format), &root_key)))
+    if (!(fs->tree = reiserfs_tree_open(fs)))
 	goto error_free_oid;
-	
+    
+    if (!(fs->dir = reiserfs_object_open(fs, NULL)))
+	goto error_free_tree;
+    
     return fs;
 
+error_free_tree:
+    reiserfs_tree_close(fs->tree);
 error_free_oid:
     reiserfs_oid_close(fs->oid);
 error_free_journal:
@@ -304,12 +307,8 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
 {
     reiserfs_fs_t *fs;
     blk_t blk, master_blk;
-    reiserfs_node_t *root_node;
-    reiserfs_object_t *root_dir;
     void *oid_area_start, *oid_area_end;
     blk_t journal_area_start, journal_area_end;
-
-    reiserfs_key_t root_key;
 
     aal_assert("umka-149", host_device != NULL, return NULL);
     aal_assert("umka-150", journal_device != NULL, return NULL);
@@ -384,21 +383,19 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
 	goto error_free_journal;
 
     /* Initializes root key */
-    if (reiserfs_fs_build_root_key(fs, &root_key, profile->key))
+    if (reiserfs_fs_build_root_key(fs, profile->key))
 	goto error_free_oid;
     
     /* Creates tree */
-    if (!(fs->tree = reiserfs_tree_create(host_device, fs->alloc, 
-	    &root_key, profile)))
+    if (!(fs->tree = reiserfs_tree_create(fs, profile)))
 	goto error_free_oid;
     
     /* Setts up root block */
-    root_node = reiserfs_tree_root_node(fs->tree);
-    reiserfs_format_set_root(fs->format, aal_block_get_nr(root_node->block));
+    reiserfs_format_set_root(fs->format, 
+	aal_block_get_nr(fs->tree->root->block));
 
     /* Creates root directory */
     {
-	reiserfs_key_t *root_key;
 	reiserfs_plugin_t *dir_plugin;
 	
 	/* Finding directroy plugin */
@@ -406,13 +403,11 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
 	    libreiser4_factory_failed(goto error_free_tree, find, dir, profile->dir);
 
 	/* Creating object "dir40". See object.c for details */
-	if (!(root_dir = reiserfs_object_create(fs, NULL, dir_plugin, profile))) {
+	if (!(fs->dir = reiserfs_object_create(fs, NULL, dir_plugin, profile))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't create root directory.");
 	    goto error_free_tree;
 	}
-	
-	reiserfs_object_close(root_dir);
     }
     
     /* Setts up free blocks in block allocator */
@@ -477,8 +472,8 @@ void reiserfs_fs_close(reiserfs_fs_t *fs) {
     
     aal_assert("umka-230", fs != NULL, return);
     
+    reiserfs_object_close(fs->dir);
     reiserfs_tree_close(fs->tree);
-    
     reiserfs_oid_close(fs->oid);
     
     if (fs->journal)

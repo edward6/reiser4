@@ -27,6 +27,15 @@ extern errno_t reiserfs_node_reopen(reiserfs_node_t *node,
 
 extern errno_t reiserfs_node_close(reiserfs_node_t *node);
 
+extern errno_t reiserfs_node_move_item(reiserfs_coord_t *dst, 
+    reiserfs_coord_t *src, reiserfs_plugin_t *key_plugin);
+
+extern errno_t reiserfs_node_copy_item(reiserfs_coord_t *dst, 
+    reiserfs_coord_t *src, reiserfs_plugin_t *key_plugin);
+
+extern errno_t reiserfs_node_split(reiserfs_node_t *node, 
+    reiserfs_node_t *right);
+
 extern errno_t reiserfs_node_embed_key(reiserfs_node_t *node, 
     uint32_t pos, reiserfs_key_t *key);
 

@@ -4,6 +4,10 @@
     Some parts of this code stolen somewhere from linux.
 */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #if defined(__sparc__) || defined(__sparcv9)
 #  include <sys/int_types.h>
 #else
@@ -12,6 +16,8 @@
 
 #include <aal/endian.h>
 #include <misc/bitops.h>
+
+#ifndef WORDS_BIGENDIAN
 
 static inline int reiserfs_misc_le_set_bit(int nr, void *addr) {
     uint8_t * p, mask;
@@ -92,6 +98,8 @@ static inline int reiserfs_misc_le_find_next_zero_bit(const void *vaddr,
     res = reiserfs_misc_find_first_zero_bit (p, size - 8 * (p - addr));
     return (p - addr) * 8 + res;
 }
+
+#else
 
 static inline int reiserfs_misc_be_set_bit(int nr, void *addr) {
     uint8_t mask = 1 << (nr & 0x7);
@@ -174,6 +182,8 @@ found_first:
 found_middle:
     return result + reiserfs_misc_ffz(aal_swap32(tmp));
 }
+
+#endif
 
 inline int reiserfs_misc_set_bit(int nr, void *addr) {
 #ifndef WORDS_BIGENDIAN    

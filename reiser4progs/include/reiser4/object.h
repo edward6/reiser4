@@ -12,16 +12,14 @@
 #endif
 
 extern reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name);
+extern void reiserfs_object_close(reiserfs_object_t *object);
 
 #ifndef ENABLE_COMPACT
 
 extern reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, 
-    reiserfs_object_t *parent, reiserfs_plugin_t *plugin, 
-    reiserfs_profile_t *profile);
+    const char *name, reiserfs_plugin_t *plugin, reiserfs_profile_t *profile);
 
 #endif
-
-extern void reiserfs_object_close(reiserfs_object_t *object);
 
 #endif
 

@@ -80,23 +80,22 @@ int reiserfs_misc_bin_search(void *array, uint32_t count, void *needle,
 	if (!(elem = elem_func(array, i, data)))
 	    return -1;
 	
-        switch ((res = comp_func(elem, needle, data))) { 
-	    case -1: {
-		left = i + 1;
-		continue;
-	    }
-	    case 1: {
-		if (i == 0)
-		    break;
-		right = i - 1;
-		continue;
-	    }
-	    case 0: {
-		*pos = i;
-		return 1;
-	    }	
-	}
+	res = comp_func(elem, needle, data);
+	if (res == -1) {
+	    left = i + 1;
+	    continue;
+	} else if (res == 1) {
+	    if (i == 0)
+		break;
+	    
+	    right = i - 1;
+	    continue;
+	} else {
+	    *pos = i;
+	    return 1;
+	}	
     }
+
     *pos = left;
     return 0;
 }

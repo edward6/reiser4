@@ -15,25 +15,40 @@
 #include <misc/misc.h>
 #include <reiser4/reiser4.h>
 
-reiserfs_tree_t *reiserfs_tree_open(aal_device_t *device, 
-    reiserfs_alloc_t *alloc, blk_t root_blk, reiserfs_key_t *root_key) 
+/* Requests block allocator for new blockand creates empty node on it */
+static reiserfs_node_t *reiserfs_tree_alloc_node(reiserfs_tree_t *tree, 
+    uint8_t level) 
 {
+    blk_t block_nr;
+    
+    aal_assert("umka-756", tree != NULL, return NULL);
+    
+    /* Allocating the block */
+    if (!(block_nr = reiserfs_alloc_alloc(tree->fs->alloc))) {
+        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	   "Can't allocate block for a node.");
+	return NULL;
+    }
+
+    return reiserfs_node_create(tree->fs->host_device, block_nr,
+        reiserfs_node_get_plugin_id(tree->root), 
+        tree->root->key_plugin->h.id, level);
+}
+
+reiserfs_tree_t *reiserfs_tree_open(reiserfs_fs_t *fs) {
     reiserfs_tree_t *tree;
     reiserfs_coord_t coord;
 
-    aal_assert("umka-128", device != NULL, return NULL);
-    aal_assert("umka-737", alloc != NULL, return NULL);
-    aal_assert("umka-748", root_key != NULL, return NULL);
+    aal_assert("umka-737", fs != NULL, return NULL);
 
     if (!(tree = aal_calloc(sizeof(*tree), 0)))
 	return NULL;
     
-    tree->alloc = alloc;
-    tree->device = device;
-    tree->root_key = *root_key;
+    tree->fs = fs;
     
-    if (!(tree->root_node = reiserfs_node_open(device, root_blk, 
-	    REISERFS_GUESS_PLUGIN_ID, root_key->plugin->h.id)))
+    if (!(tree->root = reiserfs_node_open(fs->host_device, 
+	    reiserfs_format_get_root(fs->format), 
+	    REISERFS_GUESS_PLUGIN_ID, fs->key.plugin->h.id)))
 	goto error_free_tree;
     
     return tree;
@@ -45,44 +60,39 @@ error_free_tree:
 
 reiserfs_node_t *reiserfs_tree_root_node(reiserfs_tree_t *tree) {
     aal_assert("umka-738", tree != NULL, return NULL);
-    return tree->root_node;
+    return tree->root;
 }
 
 #ifndef ENABLE_COMPACT
 
-reiserfs_tree_t *reiserfs_tree_create(aal_device_t *device, 
-    reiserfs_alloc_t *alloc, reiserfs_key_t *root_key, 
+reiserfs_tree_t *reiserfs_tree_create(reiserfs_fs_t *fs, 
     reiserfs_profile_t *profile) 
 {
     blk_t block_nr;
     reiserfs_tree_t *tree;
 
-    aal_assert("umka-129", device != NULL, return NULL);
-    aal_assert("umka-741", alloc != NULL, return NULL);
-    aal_assert("umka-749", root_key != NULL, return NULL);
+    aal_assert("umka-741", fs != NULL, return NULL);
+    aal_assert("umka-749", profile != NULL, return NULL);
 
     if (!(tree = aal_calloc(sizeof(*tree), 0)))
 	return NULL;
 
-    tree->root_key = *root_key;
-    tree->alloc = alloc;
-    tree->device = device;
+    tree->fs = fs;
 
-    /* Create a root node */
-    if (!(block_nr = reiserfs_alloc_alloc(alloc))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't allocate block for root node.");
+    if (!(block_nr = reiserfs_alloc_alloc(fs->alloc))) {
+        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	   "Can't allocate block for the root node.");
 	goto error_free_tree;
     }
-  
-    if (!(tree->root_node = reiserfs_node_create(device, block_nr,
-	profile->node, profile->key, REISERFS_LEAF_LEVEL + 1)))
+
+    if (!(tree->root = reiserfs_node_create(fs->host_device, block_nr,
+        profile->node, profile->key, reiserfs_format_get_height(fs->format))))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't create a root node at block %llu.", block_nr);
+	    "Can't create root node.");
 	goto error_free_tree;
     }
-
+    
     return tree;
 
 error_free_tree:
@@ -97,15 +107,15 @@ error_free_tree:
 errno_t reiserfs_tree_flush(reiserfs_tree_t *tree) {
     aal_assert("umka-573", tree != NULL, return -1);
     
-    if (tree->root_node->children) {
+    if (tree->root->cache) {
 	aal_list_t *walk;
 	
-	aal_list_foreach_forward(walk, tree->root_node->children) {
+	aal_list_foreach_forward(walk, tree->root->cache) {
 	    if (reiserfs_node_flush((reiserfs_node_t *)walk->item))
 		return -1;
 	}
-	aal_list_free(tree->root_node->children);
-	tree->root_node->children = NULL;
+	aal_list_free(tree->root->cache);
+	tree->root->cache = NULL;
     }
 
     return 0;
@@ -114,14 +124,14 @@ errno_t reiserfs_tree_flush(reiserfs_tree_t *tree) {
 /* Syncs whole the tree-cache */
 errno_t reiserfs_tree_sync(reiserfs_tree_t *tree) {
     aal_assert("umka-560", tree != NULL, return -1);
-    return reiserfs_node_sync(tree->root_node);
+    return reiserfs_node_sync(tree->root);
 }
 
 #endif
 
 void reiserfs_tree_close(reiserfs_tree_t *tree) {
     aal_assert("umka-134", tree != NULL, return);
-    reiserfs_node_close(tree->root_node);
+    reiserfs_node_close(tree->root);
     aal_free(tree);
 }
 
@@ -142,7 +152,7 @@ int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t stop,
    
     coord->pos.item = 0;
     coord->pos.unit = -1;
-    coord->node = tree->root_node;
+    coord->node = tree->root;
 
     while (1) {
 	/* 
@@ -169,34 +179,33 @@ int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t stop,
 	    coord->pos.item--;
 	}
 	
-	if (!(block_nr = reiserfs_node_get_pointer(coord->node, coord->pos.item))) {
+	/* Getting the node pointer from internal item */
+	if (!(block_nr = reiserfs_node_get_pointer(coord->node, 
+	    coord->pos.item))) 
+	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get pointer from internal item %u, node %llu.", 
 		coord->pos.item, aal_block_get_nr(coord->node->block));
 	    return -1;
 	}
 	
-	/*
-	    Checking whether node at "pointer" already exists 
-	    in tree cache.
-	*/
-	reiserfs_key_init(&internal_key, reiserfs_node_item_key(coord->node, 
-	    coord->pos.item), key->plugin);
-	
 	parent = coord->node;
-
+	
 	/* 
 	    Check whether specified node already in cache. If so, we use node
 	    from the cache.
 	*/
+	reiserfs_key_init(&internal_key, reiserfs_node_item_key(coord->node, 
+	    coord->pos.item), key->plugin);
+
 	if (!(coord->node = reiserfs_node_find(parent, &internal_key))) {
 
 	    /* 
 		Node was not found in the cache, we open it and register in the 
 		cache.
 	    */
-	    if (!(coord->node = reiserfs_node_open(tree->device, block_nr, 
-		    REISERFS_GUESS_PLUGIN_ID, parent->key_plugin->h.id))) 
+	    if (!(coord->node = reiserfs_node_open(parent->block->device, 
+		    block_nr, REISERFS_GUESS_PLUGIN_ID, parent->key_plugin->h.id))) 
 		return -1;
 	
 	    /* Registering node in tree cache */
@@ -207,28 +216,9 @@ int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t stop,
     return 0;
 }
 
-reiserfs_node_t *reiserfs_tree_alloc_node(reiserfs_tree_t *tree, 
-    uint8_t level) 
-{
-    blk_t block_nr;
-    
-    aal_assert("umka-756", tree != NULL, return NULL);
-    
-    /* Allocating the block */
-    if (!(block_nr = reiserfs_alloc_alloc(tree->alloc))) {
-        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Can't allocate block for a node.");
-	return NULL;
-    }
-
-    return reiserfs_node_create(tree->device, block_nr,
-        reiserfs_node_get_plugin_id(tree->root_node), 
-        tree->root_node->key_plugin->h.id, level);
-}
-
 /* Inserts a node into the tree */
-static errno_t reiserfs_tree_insert_node(reiserfs_node_t *parent, 
-    reiserfs_node_t *node)
+static errno_t reiserfs_tree_insert_node(reiserfs_tree_t *tree, 
+    reiserfs_node_t *parent, reiserfs_node_t *node)
 {
     int lookup;
     reiserfs_key_t ldkey;
@@ -237,12 +227,22 @@ static errno_t reiserfs_tree_insert_node(reiserfs_node_t *parent,
     reiserfs_item_hint_t item;
     reiserfs_internal_hint_t internal;
     
-    aal_assert("umka-646", parent != NULL, return -1);
+    aal_assert("umka-646", tree != NULL, return -1);
     aal_assert("umka-647", node != NULL, return -1);
 
+    if (!parent) {
+	reiserfs_node_t *root_node;
+	
+	/* There is the case when the tree growing is needed */
+	
+	return -1;
+    }
+    
     if (reiserfs_node_ldkey(node, &ldkey))
 	return -1;
-
+    
+    coord.node = parent;
+    
     if ((lookup = reiserfs_node_lookup(parent, &ldkey, &coord.pos)) == -1)
 	return -1;
     
@@ -278,29 +278,56 @@ static errno_t reiserfs_tree_insert_node(reiserfs_node_t *parent,
 	reach the root node.
     */
     if (reiserfs_node_get_free_space(parent) < item.length) {
-	reiserfs_node_t *left, *right;
-	/* 
-	    Splitting and calling reiserfs_tree_insert_node for new block will 
-	    be here.
-	*/
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Sorry, splitting and tree growing doesn't supported yet!");
-	return -1;
+	reiserfs_coord_t insert;
+	
+	/* Shift target node */
+	aal_memset(&insert, 0, sizeof(insert));
+	    
+	if (reiserfs_node_shift(&coord, &insert) ||
+	    reiserfs_node_get_free_space(insert.node) < item.length)
+	{
+	    reiserfs_node_t *right;
+	    
+	    if (!(right = reiserfs_tree_alloc_node(tree, REISERFS_LEAF_LEVEL + 1))) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		    "Can't allocate new internal node.");
+		return -1;
+	    }
+
+	    if (reiserfs_node_split(insert.node, right)) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		    "Can't split node %llu.", aal_block_get_nr(insert.node->block));
+		return -1;
+	    }
+
+	    if (reiserfs_tree_insert_node(tree, insert.node->parent, right)) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		    "Can't insert node %llu into the tree.", aal_block_get_nr(right->block));
+		return -1;
+	    }
+	} else {
+	    if (reiserfs_node_insert(parent, &coord.pos, &ldkey, &item)) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		    "Can't insert an internal item into the node %llu.", 
+		    aal_block_get_nr(parent->block));
+		return -1;
+	    }
+	}
+    } else {
+    
+	coord.pos.unit = -1;
+
+	/* Inserting item */
+	if (reiserfs_node_insert(parent, &coord.pos, &ldkey, &item)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Can't insert an internal item into the node %llu.", 
+		aal_block_get_nr(parent->block));
+	    return -1;
+	}
     }
     
-    coord.pos.unit = -1;
-
-    /* Inserting item */
-    if (reiserfs_node_insert(parent, &coord.pos, &ldkey, &item)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't insert an internal item into the node %llu.", 
-	    aal_block_get_nr(parent->block));
-	return -1;
-    }
-
     /* Adding node to the tree cache */
-    if (!reiserfs_node_find(parent, &ldkey))
-	reiserfs_node_register(parent, node);
+    reiserfs_node_register(parent, node);
     
     return 0;
 }
@@ -376,7 +403,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 	    }
 	
 	    /* Inserting new leaf into the tree */
-	    if (reiserfs_tree_insert_node(coord.node, leaf)) {
+	    if (reiserfs_tree_insert_node(tree, coord.node, leaf)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		    "Can't insert node %llu into the thee.", 
 		    aal_block_get_nr(leaf->block));
@@ -423,7 +450,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 		}
 	
 		/* Inserting new leaf into the tree */
-		if (reiserfs_tree_insert_node(coord.node->parent, leaf)) {
+		if (reiserfs_tree_insert_node(tree, coord.node->parent, leaf)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 			"Can't insert node %llu into the thee.", 
 			aal_block_get_nr(leaf->block));
