@@ -27,7 +27,7 @@ reiserfs_journal_t *reiserfs_journal_open(aal_device_t *device,
     journal->plugin = plugin;
 	
     if (!(journal->entity = libreiser4_plugin_call(goto error_free_journal, 
-	plugin->journal, open, device))) 
+	plugin->journal_ops, open, device))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't open journal %s on %s.", plugin->h.label, 
@@ -61,7 +61,7 @@ reiserfs_journal_t *reiserfs_journal_create(aal_device_t *device,
     journal->plugin = plugin;
 	
     if (!(journal->entity = libreiser4_plugin_call(goto error_free_journal, 
-	plugin->journal, create, device, params))) 
+	plugin->journal_ops, create, device, params))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create journal %s on %s.", plugin->h.label, 
@@ -79,7 +79,7 @@ error_free_journal:
 errno_t reiserfs_journal_replay(reiserfs_journal_t *journal) {
     aal_assert("umka-727", journal != NULL, return -1);
     
-    if (libreiser4_plugin_call(return -1, journal->plugin->journal, 
+    if (libreiser4_plugin_call(return -1, journal->plugin->journal_ops, 
 	replay, journal->entity)) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -92,7 +92,7 @@ errno_t reiserfs_journal_replay(reiserfs_journal_t *journal) {
 errno_t reiserfs_journal_sync(reiserfs_journal_t *journal) {
     aal_assert("umka-100", journal != NULL, return -1);
 
-    return libreiser4_plugin_call(return -1, journal->plugin->journal, 
+    return libreiser4_plugin_call(return -1, journal->plugin->journal_ops, 
 	sync, journal->entity);
 }
 
@@ -101,7 +101,7 @@ errno_t reiserfs_journal_sync(reiserfs_journal_t *journal) {
 void reiserfs_journal_close(reiserfs_journal_t *journal) {
     aal_assert("umka-102", journal != NULL, return);
     
-    libreiser4_plugin_call(return, journal->plugin->journal, 
+    libreiser4_plugin_call(return, journal->plugin->journal_ops, 
 	close, journal->entity);
     
     aal_free(journal);

@@ -252,7 +252,7 @@ static void format40_set_height(reiserfs_format40_t *format, uint16_t height) {
 #endif
 
 static reiserfs_plugin_t format40_plugin = {
-    .format = {
+    .format_ops = {
 	.h = {
 	    .handle = NULL,
 	    .id = 0x0,

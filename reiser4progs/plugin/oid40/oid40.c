@@ -98,7 +98,7 @@ static oid_t oid40_root_objectid(void) {
 }
 
 static reiserfs_plugin_t oid40_plugin = {
-    .oid = {
+    .oid_ops = {
 	.h = {
 	    .handle = NULL,
 	    .id = 0x0,

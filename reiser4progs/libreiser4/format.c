@@ -28,7 +28,7 @@ reiserfs_format_t *reiserfs_format_open(aal_device_t *device,
     format->plugin = plugin;
 	
     if (!(format->entity = libreiser4_plugin_call(goto error_free_format, 
-	plugin->format, open, device)))
+	plugin->format_ops, open, device)))
     {
 	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
 	    "Can't open disk-format %s on %s.", plugin->h.label, 
@@ -62,7 +62,7 @@ reiserfs_format_t *reiserfs_format_create(aal_device_t *device,
     format->plugin = plugin;
 	
     if (!(format->entity = libreiser4_plugin_call(goto error_free_format, 
-	plugin->format, create, device, len, tail_policy))) 
+	plugin->format_ops, create, device, len, tail_policy))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create disk-format %s on %s.", plugin->h.label, 
@@ -81,7 +81,7 @@ errno_t reiserfs_format_sync(reiserfs_format_t *format) {
     aal_assert("umka-107", format != NULL, return -1);
     
     return libreiser4_plugin_call(return -1, 
-	format->plugin->format, sync, format->entity);
+	format->plugin->format_ops, sync, format->entity);
 }
 
 #endif
@@ -103,7 +103,7 @@ void reiserfs_format_close(reiserfs_format_t *format) {
     aal_assert("umka-109", format != NULL, return);
    
     libreiser4_plugin_call(goto error_free_format, 
-	format->plugin->format, close, format->entity);
+	format->plugin->format_ops, close, format->entity);
     
 error_free_format:    
     aal_free(format);
@@ -113,41 +113,41 @@ const char *reiserfs_format_format(reiserfs_format_t *format) {
     aal_assert("umka-111", format != NULL, return NULL);
 	
     return libreiser4_plugin_call(return NULL, 
-	format->plugin->format, format, format->entity);
+	format->plugin->format_ops, format, format->entity);
 }
 
 blk_t reiserfs_format_offset(reiserfs_format_t *format) {
     aal_assert("umka-360", format != NULL, return 0);
     
     return libreiser4_plugin_call(return 0, 
-	format->plugin->format, offset, format->entity);
+	format->plugin->format_ops, offset, format->entity);
 }
 
 blk_t reiserfs_format_get_root(reiserfs_format_t *format) {
     aal_assert("umka-113", format != NULL, return 0);
 
-    return libreiser4_plugin_call(return 0, format->plugin->format, 
+    return libreiser4_plugin_call(return 0, format->plugin->format_ops, 
 	get_root, format->entity);
 }
 
 count_t reiserfs_format_get_blocks(reiserfs_format_t *format) {
     aal_assert("umka-360", format != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, format->plugin->format, 
+    return libreiser4_plugin_call(return 0, format->plugin->format_ops, 
 	get_blocks, format->entity);
 }
 
 count_t reiserfs_format_get_free(reiserfs_format_t *format) {
     aal_assert("umka-426", format != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, format->plugin->format, 
+    return libreiser4_plugin_call(return 0, format->plugin->format_ops, 
 	get_free, format->entity);
 }
 
 uint16_t reiserfs_format_get_height(reiserfs_format_t *format) {
     aal_assert("umka-557", format != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, format->plugin->format, 
+    return libreiser4_plugin_call(return 0, format->plugin->format_ops, 
 	get_height, format->entity);
 }
 
@@ -156,28 +156,28 @@ uint16_t reiserfs_format_get_height(reiserfs_format_t *format) {
 void reiserfs_format_set_root(reiserfs_format_t *format, blk_t root) {
     aal_assert("umka-420", format != NULL, return);
 
-    libreiser4_plugin_call(return, format->plugin->format, 
+    libreiser4_plugin_call(return, format->plugin->format_ops, 
 	set_root, format->entity, root);
 }
 
 void reiserfs_format_set_blocks(reiserfs_format_t *format, count_t blocks) {
     aal_assert("umka-422", format != NULL, return);
     
-    libreiser4_plugin_call(return, format->plugin->format, 
+    libreiser4_plugin_call(return, format->plugin->format_ops, 
 	set_blocks, format->entity, blocks);
 }
 
 void reiserfs_format_set_free(reiserfs_format_t *format, count_t blocks) {
     aal_assert("umka-424", format != NULL, return);
     
-    libreiser4_plugin_call(return, format->plugin->format, 
+    libreiser4_plugin_call(return, format->plugin->format_ops, 
 	set_free, format->entity, blocks);
 }
 
 void reiserfs_format_set_height(reiserfs_format_t *format, uint16_t height) {
     aal_assert("umka-559", format != NULL, return);
     
-    libreiser4_plugin_call(return, format->plugin->format, 
+    libreiser4_plugin_call(return, format->plugin->format_ops, 
 	set_height, format->entity, height);
 }
 
@@ -186,21 +186,21 @@ void reiserfs_format_set_height(reiserfs_format_t *format, uint16_t height) {
 reiserfs_id_t reiserfs_format_journal_pid(reiserfs_format_t *format) {
     aal_assert("umka-115", format != NULL, return -1);
 	
-    return libreiser4_plugin_call(return -1, format->plugin->format, 
+    return libreiser4_plugin_call(return -1, format->plugin->format_ops, 
 	journal_pid, format->entity);
 }
 
 reiserfs_id_t reiserfs_format_alloc_pid(reiserfs_format_t *format) {
     aal_assert("umka-117", format != NULL, return -1);
 	
-    return libreiser4_plugin_call(return -1, format->plugin->format, 
+    return libreiser4_plugin_call(return -1, format->plugin->format_ops, 
 	alloc_pid, format->entity);
 }
 
 reiserfs_id_t reiserfs_format_oid_pid(reiserfs_format_t *format) {
     aal_assert("umka-491", format != NULL, return -1);
 	
-    return libreiser4_plugin_call(return -1, format->plugin->format, 
+    return libreiser4_plugin_call(return -1, format->plugin->format_ops, 
 	oid_pid, format->entity);
 }
 

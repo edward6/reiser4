@@ -174,7 +174,7 @@ static void journal40_area(reiserfs_journal40_t *journal,
 }
 
 static reiserfs_plugin_t journal40_plugin = {
-    .journal = {
+    .journal_ops = {
 	.h = {
 	    .handle = NULL,
 	    .id = 0x0,

@@ -38,18 +38,19 @@ static errno_t direntry40_create(reiserfs_direntry40_t *direntry,
     for (i = 0; i < direntry_hint->count; i++) {	
 	en40_set_offset(&direntry->entry[i], offset);
 
-	libreiser4_plugin_call(return -1, key_plugin->key, build_entry_short, 
+	libreiser4_plugin_call(return -1, key_plugin->key_ops, build_entry_short, 
 	    &direntry->entry[i].entryid, direntry_hint->hash_plugin, 
 	    direntry_hint->entry[i].name);
 
-	libreiser4_plugin_call(return -1, key_plugin->key, build_generic_short, 
+	libreiser4_plugin_call(return -1, key_plugin->key_ops, build_generic_short, 
 	    (reiserfs_objid_t *)((char *)direntry + offset), KEY40_STATDATA_MINOR, 
 	    direntry_hint->entry[i].locality, direntry_hint->entry[i].objectid);
 	
 	len = aal_strlen(direntry_hint->entry[i].name);
 	offset += sizeof(reiserfs_objid_t);
 	
-	aal_memcpy((char *)(direntry) + offset, direntry_hint->entry[i].name, len);
+	aal_memcpy((char *)(direntry) + offset, 
+	    direntry_hint->entry[i].name, len);
 	
 	offset += len;
 	
@@ -133,16 +134,16 @@ static int callback_comp_for_lookup(const void *key1,
     
     plugin = (reiserfs_plugin_t *)data;
     
-    locality = libreiser4_plugin_call(return -1, plugin->key, 
+    locality = libreiser4_plugin_call(return -1, plugin->key_ops, 
 	get_locality, (void *)key2);
    
     objectid = entryid_get_objectid(((reiserfs_entryid_t *)key1));
     offset = entryid_get_offset(((reiserfs_entryid_t *)key1));
     
-    libreiser4_plugin_call(return -1, plugin->key, build_generic_full, 
+    libreiser4_plugin_call(return -1, plugin->key_ops, build_generic_full, 
 	&key, KEY40_STATDATA_MINOR, locality, objectid, offset);
     
-    return libreiser4_plugin_call(return -1, plugin->key, 
+    return libreiser4_plugin_call(return -1, plugin->key_ops, 
 	compare, &key, key2);
 }
 
@@ -168,21 +169,22 @@ static int direntry40_lookup(reiserfs_direntry40_t *direntry,
 
 static errno_t direntry40_maxkey(reiserfs_key_t *key) {
     aal_assert("umka-716", key->plugin != NULL, return -1);
-    aal_assert("vpf-121", key->plugin->key.set_objectid != NULL, return -1);
-    aal_assert("vpf-122", key->plugin->key.get_objectid != NULL, return -1);
-    aal_assert("vpf-123", key->plugin->key.maximal != NULL, return -1);
+
+    aal_assert("vpf-121", key->plugin->key_ops.set_objectid != NULL, return -1);
+    aal_assert("vpf-122", key->plugin->key_ops.get_objectid != NULL, return -1);
+    aal_assert("vpf-123", key->plugin->key_ops.maximal != NULL, return -1);
     
-    key->plugin->key.set_objectid(key->body, 
-	key->plugin->key.get_objectid(key->plugin->key.maximal()));
+    key->plugin->key_ops.set_objectid(key->body, 
+	key->plugin->key_ops.get_objectid(key->plugin->key_ops.maximal()));
     
-    key->plugin->key.set_offset(key->body, 
-	key->plugin->key.get_offset(key->plugin->key.maximal()));
+    key->plugin->key_ops.set_offset(key->body, 
+	key->plugin->key_ops.get_offset(key->plugin->key_ops.maximal()));
     
     return 0;
 }
 
 static reiserfs_plugin_t direntry40_plugin = {
-    .item = {
+    .item_ops = {
 	.h = {
 	    .handle = NULL,
 	    .id = REISERFS_CDE_ITEM,

@@ -472,19 +472,19 @@ typedef struct reiserfs_journal_ops reiserfs_journal_ops_t;
 union reiserfs_plugin {
     reiserfs_plugin_header_t h;
 	
-    reiserfs_file_ops_t file;
-    reiserfs_dir_ops_t dir;
-    reiserfs_item_ops_t item;
-    reiserfs_node_ops_t node;
-    reiserfs_hash_ops_t hash;
-    reiserfs_tail_ops_t tail;
-    reiserfs_hook_ops_t hook;
-    reiserfs_perm_ops_t perm;
-    reiserfs_format_ops_t format;
-    reiserfs_oid_ops_t oid;
-    reiserfs_alloc_ops_t alloc;
-    reiserfs_journal_ops_t journal;
-    reiserfs_key_ops_t key;
+    reiserfs_file_ops_t file_ops;
+    reiserfs_dir_ops_t dir_ops;
+    reiserfs_item_ops_t item_ops;
+    reiserfs_node_ops_t node_ops;
+    reiserfs_hash_ops_t hash_ops;
+    reiserfs_tail_ops_t tail_ops;
+    reiserfs_hook_ops_t hook_ops;
+    reiserfs_perm_ops_t perm_ops;
+    reiserfs_format_ops_t format_ops;
+    reiserfs_oid_ops_t oid_ops;
+    reiserfs_alloc_ops_t alloc_ops;
+    reiserfs_journal_ops_t journal_ops;
+    reiserfs_key_ops_t key_ops;
 };
 
 typedef union reiserfs_plugin reiserfs_plugin_t;

@@ -69,7 +69,7 @@ static void alloc36_close(reiserfs_alloc36_t *alloc) {
 }
 
 static reiserfs_plugin_t alloc36_plugin = {
-    .alloc = {
+    .alloc_ops = {
 	.h = {
 	    .handle = NULL,
 	    .id = 0x1,

@@ -55,7 +55,7 @@ static errno_t journal36_replay(reiserfs_journal36_t *journal) {
 }
 
 static reiserfs_plugin_t journal36_plugin = {
-    .journal = {
+    .journal_ops = {
 	.h = {
 	    .handle = NULL,
 	    .id = 0x1,

@@ -86,7 +86,7 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object, const char *nam
 	}
 	
 	mode = libreiser4_plugin_call(return -1, 
-	    plugin->item.specific.stat, get_mode, body);
+	    plugin->item_ops.specific.stat, get_mode, body);
 
 	if (!S_ISLNK(LE16_TO_CPU(mode)) && !S_ISDIR(LE16_TO_CPU(mode)) && 
 	    !S_ISREG(LE16_TO_CPU(mode))) 
@@ -158,7 +158,9 @@ reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
 	return NULL;
 
     object->fs = fs;
-    reiserfs_key_init(&object->key, fs->key.body, fs->key.plugin);
+
+    object->key.plugin = fs->key.plugin;
+    reiserfs_key_init(&object->key, fs->key.body);
     
     /* FIXME-UMKA: Hardcoded plugin id */
     if (!(object->plugin = libreiser4_factory_find(REISERFS_DIR_PLUGIN, 0x0)))
@@ -168,7 +170,9 @@ reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
 	I assume that name is absolute name. So, user, who will call this method 
 	should convert name previously into absolute one by getcwd function.
     */
-    reiserfs_key_init(&parent_key, fs->key.body, fs->key.plugin);
+
+    parent_key.plugin = fs->key.plugin;
+    reiserfs_key_init(&parent_key, fs->key.body);
     
     if (reiserfs_object_lookup(object, name, &parent_key)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -200,14 +204,17 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, reiserfs_object_t *
 	return NULL;
 
     object->fs = fs;
-    reiserfs_key_init(&object->key, fs->key.body, fs->key.plugin);
+
+    object->key.plugin = fs->key.plugin;
+    reiserfs_key_init(&object->key, fs->key.body);
     
     /* 
 	I assume that name is absolute name. So, user, who will call this method 
 	should convert name previously into absolute one by getcwd function.
     */
     if (parent) {
-	reiserfs_key_init(&parent_key, parent->key.body, parent->key.plugin);
+	parent_key.plugin = parent->key.plugin;
+	reiserfs_key_init(&parent_key, parent->key.body);
 	objectid = reiserfs_oid_alloc(parent->fs->oid);
     } else {
 	parent_key.plugin = fs->key.plugin;
@@ -224,21 +231,18 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, reiserfs_object_t *
 	parent_objectid, objectid, 0);
 	
     if (plugin->h.type == REISERFS_DIR_PLUGIN) {
-	if (!(object->hint = libreiser4_plugin_call(goto error_free_object, plugin->dir, 
-	    create, &parent_key, &object_key, profile->item.statdata, profile->item.direntry)))
+	if (!(object->hint = libreiser4_plugin_call(goto error_free_object, 
+	    plugin->dir_ops, create, &parent_key, &object_key, 
+	    profile->item.statdata, profile->item.direntry)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't create directory hint.");
 	    goto error_free_object;
 	}
     } else {
-	if (!(object->hint = libreiser4_plugin_call(goto error_free_object, plugin->file, 
-	    create, &parent_key, &object_key, profile->item.statdata, profile->item.fileentry)))
-	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't create file hint.");
-	    goto error_free_object;
-	}
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Sorry, file are not supported now!");
+	goto error_free_object;
     }
     
     if (object->hint->count == 0) {
@@ -266,7 +270,7 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, reiserfs_object_t *
     return object;
 
 error_free_hint:
-    libreiser4_plugin_call(goto error_free_object, plugin->dir, 
+    libreiser4_plugin_call(goto error_free_object, plugin->dir_ops, 
 	close, object->hint);
 error_free_object:
     aal_free(object);
@@ -279,7 +283,7 @@ void reiserfs_object_close(reiserfs_object_t *object) {
     aal_assert("umka-680", object != NULL, return);
     
     if (object->hint) {
-	libreiser4_plugin_call(return, object->plugin->dir, 
+	libreiser4_plugin_call(return, object->plugin->dir_ops, 
 	    close, object->hint);
     }
     aal_free(object);

@@ -43,13 +43,13 @@ static reiserfs_object_hint_t *dir40_create(reiserfs_key_t *parent,
 
     key_plugin = object->plugin;
     
-    parent_objectid = libreiser4_plugin_call(return NULL, key_plugin->key, 
+    parent_objectid = libreiser4_plugin_call(return NULL, key_plugin->key_ops, 
 	get_objectid, parent->body);
     
-    parent_locality = libreiser4_plugin_call(return NULL, key_plugin->key, 
+    parent_locality = libreiser4_plugin_call(return NULL, key_plugin->key_ops, 
 	get_locality, parent->body);
     
-    objectid = libreiser4_plugin_call(return NULL, key_plugin->key, 
+    objectid = libreiser4_plugin_call(return NULL, key_plugin->key_ops, 
 	get_objectid, object->body);
     
     if (!(hint = aal_calloc(sizeof(*hint), 0)))
@@ -105,7 +105,7 @@ static reiserfs_object_hint_t *dir40_create(reiserfs_key_t *parent,
     direntry_hint->key_plugin = key_plugin;
     direntry_hint->hash_plugin = NULL;
    
-    libreiser4_plugin_call(goto error_free_hint1, key_plugin->key, 
+    libreiser4_plugin_call(goto error_free_hint1, key_plugin->key_ops, 
 	build_entry_full, &hint->item[1].key.body, direntry_hint->hash_plugin, 
 	parent_objectid, objectid, ".");
     
@@ -156,7 +156,7 @@ static void dir40_close(reiserfs_object_hint_t *hint) {
 #endif
 
 static reiserfs_plugin_t dir40_plugin = {
-    .dir = {
+    .dir_ops = {
 	.h = {
 	    .handle = NULL,
 	    .id = 0x0,

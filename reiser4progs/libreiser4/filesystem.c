@@ -75,7 +75,7 @@ static errno_t reiserfs_master_open(reiserfs_fs_t *fs) {
     	    libreiser4_factory_failed(goto error_free_block, find, format, 0x1);
 	
 	if (!libreiser4_plugin_call(goto error_free_block, 
-		format36->format, confirm, fs->host_device))
+		format36->format_ops, confirm, fs->host_device))
 	    goto error_free_block;
 		
 	/* Forming in memory master super block for reiser3 */
@@ -168,10 +168,10 @@ static errno_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs,
 
     /* Getting root directory attributes from oid allocator */
     parent_objectid = libreiser4_plugin_call(return -1,
-	fs->oid->plugin->oid, root_parent_objectid,);
+	fs->oid->plugin->oid_ops, root_parent_objectid,);
 
     objectid = libreiser4_plugin_call(return -1,
-	fs->oid->plugin->oid, root_objectid,);
+	fs->oid->plugin->oid_ops, root_objectid,);
 
     /* Initializing the key by found plugin */
     fs->key.plugin = plugin;
@@ -254,7 +254,7 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     }
     
     /* Initializes oid allocator */
-    libreiser4_plugin_call(goto error_free_journal, fs->format->plugin->format, 
+    libreiser4_plugin_call(goto error_free_journal, fs->format->plugin->format_ops, 
 	oid, fs->format->entity, &oid_area_start, &oid_area_end);
     
     if (!(fs->oid = reiserfs_oid_open(oid_area_start, oid_area_end, oid_pid)))
@@ -364,7 +364,7 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
 	    journal_params, profile->journal)))
 	goto error_free_alloc;
    
-    libreiser4_plugin_call(goto error_free_journal, fs->journal->plugin->journal, 
+    libreiser4_plugin_call(goto error_free_journal, fs->journal->plugin->journal_ops, 
 	area, fs->journal->entity, &journal_area_start, &journal_area_end);
     
     /* Setts up journal blocks in block allocator */
@@ -375,7 +375,7 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
 	Initializes oid allocator on got from disk format oid area of disk format 
 	specific super block.
     */
-    libreiser4_plugin_call(goto error_free_journal, fs->format->plugin->format, 
+    libreiser4_plugin_call(goto error_free_journal, fs->format->plugin->format_ops, 
 	oid, fs->format->entity, &oid_area_start, &oid_area_end);
     
     if (!(fs->oid = reiserfs_oid_create(oid_area_start, oid_area_end, 

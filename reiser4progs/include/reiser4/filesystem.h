@@ -52,7 +52,8 @@ struct reiserfs_profile {
 	reiserfs_id_t internal;
 	reiserfs_id_t statdata;
 	reiserfs_id_t direntry;
-	reiserfs_id_t fileentry;
+	reiserfs_id_t tail;
+	reiserfs_id_t extent;
     } item;
     
     reiserfs_id_t file;

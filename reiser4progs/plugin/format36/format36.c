@@ -237,7 +237,7 @@ static void format36_set_free(reiserfs_format36_t *format, count_t blocks) {
 #endif
 
 static reiserfs_plugin_t format36_plugin = {
-    .format = {
+    .format_ops = {
 	.h = {
 	    .handle = NULL,
 	    .id = 0x1,

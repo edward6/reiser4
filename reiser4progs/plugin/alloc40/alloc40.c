@@ -179,7 +179,7 @@ int alloc40_test(reiserfs_alloc40_t *alloc, blk_t blk) {
 
 /* Filling the alloc40 structure by methods */
 static reiserfs_plugin_t alloc40_plugin = {
-    .alloc = {
+    .alloc_ops = {
 	.h = {
 	    .handle = NULL,
 	    .id = 0x0,

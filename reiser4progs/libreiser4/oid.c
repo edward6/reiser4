@@ -28,8 +28,8 @@ reiserfs_oid_t *reiserfs_oid_open(void *area_start, void *area_end,
     
     oid->plugin = plugin;
     
-    if (!(oid->entity = libreiser4_plugin_call(goto error_free_oid, plugin->oid, 
-	open, area_start, area_end))) 
+    if (!(oid->entity = libreiser4_plugin_call(goto error_free_oid, 
+	plugin->oid_ops, open, area_start, area_end))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't open oid allocator %s.", plugin->h.label);
@@ -46,7 +46,7 @@ error_free_oid:
 void reiserfs_oid_close(reiserfs_oid_t *oid) {
     aal_assert("umka-523", oid != NULL, return);
 
-    libreiser4_plugin_call(return, oid->plugin->oid, 
+    libreiser4_plugin_call(return, oid->plugin->oid_ops, 
 	close, oid->entity);
     
     aal_free(oid);
@@ -72,7 +72,7 @@ reiserfs_oid_t *reiserfs_oid_create(void *area_start, void *area_end,
     oid->plugin = plugin;
     
     if (!(oid->entity = libreiser4_plugin_call(goto error_free_oid, 
-	plugin->oid, create, area_start, area_end)))
+	plugin->oid_ops, create, area_start, area_end)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create oid allocator %s.", plugin->h.label);
@@ -89,20 +89,20 @@ error_free_oid:
 uint64_t reiserfs_oid_alloc(reiserfs_oid_t *oid) {
     aal_assert("umka-522", oid != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, oid->plugin->oid, 
+    return libreiser4_plugin_call(return 0, oid->plugin->oid_ops, 
 	alloc, oid->entity);
 }
 
 void reiserfs_oid_dealloc(reiserfs_oid_t *oid, uint64_t id) {
     aal_assert("umka-525", oid != NULL, return);
     
-    libreiser4_plugin_call(return, oid->plugin->oid, 
+    libreiser4_plugin_call(return, oid->plugin->oid_ops, 
 	dealloc, oid->entity, id);
 }
 
 errno_t reiserfs_oid_sync(reiserfs_oid_t *oid) {
     aal_assert("umka-735", oid != NULL, return -1);
-    return libreiser4_plugin_call(return -1, oid->plugin->oid, 
+    return libreiser4_plugin_call(return -1, oid->plugin->oid_ops, 
 	sync, oid->entity);
 }
 
@@ -111,35 +111,35 @@ errno_t reiserfs_oid_sync(reiserfs_oid_t *oid) {
 uint64_t reiserfs_oid_next(reiserfs_oid_t *oid) {
     aal_assert("umka-527", oid != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, oid->plugin->oid, 
+    return libreiser4_plugin_call(return 0, oid->plugin->oid_ops, 
 	next, oid->entity);
 }
 
 uint64_t reiserfs_oid_used(reiserfs_oid_t *oid) {
     aal_assert("umka-527", oid != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, oid->plugin->oid, 
+    return libreiser4_plugin_call(return 0, oid->plugin->oid_ops, 
 	used, oid->entity);
 }
 
 oid_t reiserfs_oid_root_parent_locality(reiserfs_oid_t *oid) {
     aal_assert("umka-745", oid != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, oid->plugin->oid, 
+    return libreiser4_plugin_call(return 0, oid->plugin->oid_ops, 
 	root_parent_locality,);
 }
 
 oid_t reiserfs_oid_root_parent_objectid(reiserfs_oid_t *oid) {
     aal_assert("umka-746", oid != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, oid->plugin->oid, 
+    return libreiser4_plugin_call(return 0, oid->plugin->oid_ops, 
 	root_parent_objectid,);
 }
 
 oid_t reiserfs_oid_root_objectid(reiserfs_oid_t *oid) {
     aal_assert("umka-747", oid != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, oid->plugin->oid, 
+    return libreiser4_plugin_call(return 0, oid->plugin->oid_ops, 
 	root_objectid,);
 }
 

@@ -34,7 +34,7 @@ reiserfs_alloc_t *reiserfs_alloc_open(aal_device_t *device,
 
     /* Calling "open" method from block allocator plugin */
     if (!(alloc->entity = libreiser4_plugin_call(goto error_free_alloc, 
-	plugin->alloc, open, device, len)))
+	plugin->alloc_ops, open, device, len)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't initialize block allocator.");
@@ -72,7 +72,7 @@ reiserfs_alloc_t *reiserfs_alloc_create(aal_device_t *device,
 
     /* Query the block allocator plugin */
     if (!(alloc->entity = libreiser4_plugin_call(goto error_free_alloc, 
-	plugin->alloc, create, device, len)))
+	plugin->alloc_ops, create, device, len)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't create block allocator.");
@@ -90,7 +90,7 @@ error_free_alloc:
 errno_t reiserfs_alloc_sync(reiserfs_alloc_t *alloc) {
     aal_assert("umka-139", alloc != NULL, return -1);
 
-    return libreiser4_plugin_call(return -1, alloc->plugin->alloc, 
+    return libreiser4_plugin_call(return -1, alloc->plugin->alloc_ops, 
 	sync, alloc->entity);
 }
 
@@ -101,7 +101,7 @@ void reiserfs_alloc_close(reiserfs_alloc_t *alloc) {
     aal_assert("umka-141", alloc != NULL, return);
 
     /* Calling the plugin for close its internal instance properly */
-    libreiser4_plugin_call(return, alloc->plugin->alloc, 
+    libreiser4_plugin_call(return, alloc->plugin->alloc_ops, 
 	close, alloc->entity);
     
     aal_free(alloc);
@@ -111,7 +111,7 @@ void reiserfs_alloc_close(reiserfs_alloc_t *alloc) {
 count_t reiserfs_alloc_free(reiserfs_alloc_t *alloc) {
     aal_assert("umka-362", alloc != NULL, return 0);
 
-    return libreiser4_plugin_call(return 0, alloc->plugin->alloc, 
+    return libreiser4_plugin_call(return 0, alloc->plugin->alloc_ops, 
 	free, alloc->entity);
 }
 
@@ -119,7 +119,7 @@ count_t reiserfs_alloc_free(reiserfs_alloc_t *alloc) {
 count_t reiserfs_alloc_used(reiserfs_alloc_t *alloc) {
     aal_assert("umka-499", alloc != NULL, return 0);
 
-    return libreiser4_plugin_call(return 0, alloc->plugin->alloc, 
+    return libreiser4_plugin_call(return 0, alloc->plugin->alloc_ops, 
 	used, alloc->entity);
 }
 
@@ -129,7 +129,7 @@ count_t reiserfs_alloc_used(reiserfs_alloc_t *alloc) {
 void reiserfs_alloc_mark(reiserfs_alloc_t *alloc, blk_t blk) {
     aal_assert("umka-501", alloc != NULL, return);
 
-    libreiser4_plugin_call(return, alloc->plugin->alloc, 
+    libreiser4_plugin_call(return, alloc->plugin->alloc_ops, 
 	mark, alloc->entity, blk);
 }
 
@@ -137,7 +137,7 @@ void reiserfs_alloc_mark(reiserfs_alloc_t *alloc, blk_t blk) {
 void reiserfs_alloc_dealloc(reiserfs_alloc_t *alloc, blk_t blk) {
     aal_assert("umka-503", alloc != NULL, return);
 
-    libreiser4_plugin_call(return, alloc->plugin->alloc, 
+    libreiser4_plugin_call(return, alloc->plugin->alloc_ops, 
 	dealloc, alloc->entity, blk);
 }
 
@@ -145,7 +145,7 @@ void reiserfs_alloc_dealloc(reiserfs_alloc_t *alloc, blk_t blk) {
 blk_t reiserfs_alloc_alloc(reiserfs_alloc_t *alloc) {
     aal_assert("umka-505", alloc != NULL, return 0);
 
-    return libreiser4_plugin_call(return 0, alloc->plugin->alloc, 
+    return libreiser4_plugin_call(return 0, alloc->plugin->alloc_ops, 
 	alloc, alloc->entity);
 }
 
@@ -158,7 +158,7 @@ blk_t reiserfs_alloc_alloc(reiserfs_alloc_t *alloc) {
 int reiserfs_alloc_test(reiserfs_alloc_t *alloc, blk_t blk) {
     aal_assert("umka-662", alloc != NULL, return 0);
 
-    return libreiser4_plugin_call(return 0, alloc->plugin->alloc, 
+    return libreiser4_plugin_call(return 0, alloc->plugin->alloc_ops, 
 	test, alloc->entity, blk);
 }
 

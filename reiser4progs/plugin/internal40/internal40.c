@@ -73,7 +73,7 @@ static int internal40_has_pointer(reiserfs_internal40_t *internal,
 }
 
 static reiserfs_plugin_t internal40_plugin = {
-    .item = {
+    .item_ops = {
 	.h = {
     	    .handle = NULL,
 	    .id = REISERFS_INTERNAL_ITEM,

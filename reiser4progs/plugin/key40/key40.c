@@ -234,7 +234,7 @@ static errno_t key40_build_generic_short(void *ptr, uint32_t type,
 }
 
 static reiserfs_plugin_t key40_plugin = {
-    .key = {
+    .key_ops = {
 	.h = {
 	    .handle = NULL,
 	    .id = 0x0,

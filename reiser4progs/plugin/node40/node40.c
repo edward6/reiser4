@@ -147,7 +147,7 @@ static errno_t node40_prepare(aal_block_t *block, reiserfs_pos_t *pos,
     
     /* Create a new item header */
     aal_memcpy(&ih->key, key->body, libreiser4_plugin_call(return -1, 
-	key->plugin->key, size,));
+	key->plugin->key_ops, size,));
     
     ih40_set_offset(ih, offset);
     ih40_set_pid(ih, item->plugin->h.id);
@@ -177,7 +177,7 @@ static errno_t node40_insert(aal_block_t *block, reiserfs_pos_t *pos,
 
 	return 0;
     } else {
-	return libreiser4_plugin_call(return -1, item->plugin->item.common,
+	return libreiser4_plugin_call(return -1, item->plugin->item_ops.common,
 	    create, node40_ib_at(block, pos->item), item);
     }
 }
@@ -255,7 +255,7 @@ static errno_t node40_paste(aal_block_t *block, reiserfs_pos_t *pos,
     if (node40_prepare(block, pos, key, item))
 	return -1;
 
-    return libreiser4_plugin_call(return -1, item->plugin->item.common,
+    return libreiser4_plugin_call(return -1, item->plugin->item_ops.common,
 	insert, node40_ib_at(block, pos->item), pos->unit, item);
 }
 
@@ -298,7 +298,7 @@ static uint16_t node40_maxnum(aal_block_t *block) {
 	if (!(plugin = factory->find(REISERFS_ITEM_PLUGIN, pid)))
 	    libreiser4_factory_failed(return 0, find, item, pid);
 	
-	total_size += libreiser4_plugin_call(return 0, plugin->item.common, 
+	total_size += libreiser4_plugin_call(return 0, plugin->item_ops.common, 
 	    minsize,) + sizeof(reiserfs_ih40_t);
     }
     return (block->size - sizeof(reiserfs_nh40_t)) / total_size;
@@ -388,7 +388,7 @@ static int callback_compare_for_lookup(const void *key1,
     aal_assert("umka-567", key2 != NULL, return -1);
     aal_assert("umka-656", data != NULL, return -1);
 
-    return libreiser4_plugin_call(return -1, ((reiserfs_plugin_t *)data)->key, 
+    return libreiser4_plugin_call(return -1, ((reiserfs_plugin_t *)data)->key_ops, 
 	compare, key1, key2);
 }
 
@@ -412,7 +412,7 @@ static int node40_lookup(aal_block_t *block, reiserfs_pos_t *pos,
 }
 
 static reiserfs_plugin_t node40_plugin = {
-    .node = {
+    .node_ops = {
 	.h = {
 	    .handle = NULL,
 	    .id = 0x0,

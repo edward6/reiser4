@@ -155,10 +155,9 @@ static reiserfs_profile_t reiser4profiles[] = {
     
 	.node = 0x0,
 	.item = {
-	    .internal = 0x3,
-	    .statdata = 0x0,
-	    .direntry = 0x2,
-	    .fileentry = 0x0
+	    .internal = REISERFS_INTERNAL_ITEM,
+	    .statdata = REISERFS_STATDATA_ITEM,
+	    .direntry = REISERFS_CDE_ITEM,
 	},
 	.file = 0x0,
 	.dir = 0x0,
@@ -177,10 +176,9 @@ static reiserfs_profile_t reiser4profiles[] = {
 	.desc = "Profile for reiser4 with extents turned on",
 	.node = 0x0,
 	.item = {
-	    .internal = 0x3,
-	    .statdata = 0x0,
-	    .direntry = 0x2,
-	    .fileentry = 0x0
+	    .internal = REISERFS_INTERNAL_ITEM,
+	    .statdata = REISERFS_STATDATA_ITEM,
+	    .direntry = REISERFS_CDE_ITEM,
 	},
 	.file = 0x0,
 	.dir = 0x0,
@@ -200,10 +198,9 @@ static reiserfs_profile_t reiser4profiles[] = {
     
 	.node = 0x0,
 	.item = {
-	    .internal = 0x3,
-	    .statdata = 0x0,
-	    .direntry = 0x2,
-	    .fileentry = 0x0
+	    .internal = REISERFS_INTERNAL_ITEM,
+	    .statdata = REISERFS_STATDATA_ITEM,
+	    .direntry = REISERFS_CDE_ITEM,
 	},
 	.file = 0x0,
 	.dir = 0x0,

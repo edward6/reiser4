@@ -74,7 +74,7 @@ static void stat40_set_mode(reiserfs_stat40_base_t *stat, uint16_t mode) {
 }
 
 static reiserfs_plugin_t stat40_plugin = {
-    .item = {
+    .item_ops = {
 	.h = {
 	    .handle = NULL,
 	    .id = REISERFS_STATDATA_ITEM,
