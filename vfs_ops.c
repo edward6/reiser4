@@ -136,7 +136,7 @@ static struct dentry *reiser4_lookup( struct inode *parent, /* directory within 
 	 * method */
 	dplug = inode_dir_plugin( parent );
 	if( dplug == NULL || !dplug -> resolve_into_inode/*lookup*/ ) {
-		return ERR_PTR( -ENOTDIR );
+		REISER4_EXIT_PTR( ERR_PTR( -ENOTDIR ));
 	}
 
 	/* call its lookup method */
@@ -747,9 +747,12 @@ static int reiser4_permission( struct inode *inode /* object */,
 			       int mask /* mode bits to check permissions
 					 * for */ )
 {
+	int result;
+	REISER4_ENTRY( inode -> i_sb );
 	assert( "nikita-1687", inode != NULL );
 
-	return perm_chk( inode, mask, inode, mask ) ? -EACCES : 0;
+	result = perm_chk( inode, mask, inode, mask ) ? -EACCES : 0;
+	REISER4_EXIT( result );
 }
 
 /**
@@ -961,7 +964,7 @@ static int reiser4_release( struct inode *i /* inode released */,
 	assert( "umka-082", fplug != NULL );
 	
 	if( fplug -> release )
-		return fplug -> release( f );
+		REISER4_EXIT( fplug -> release( f ) );
 	REISER4_EXIT( 0 );
 }
 
