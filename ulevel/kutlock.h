@@ -33,6 +33,8 @@ spin_is_not_locked (spinlock_t *s)
 
 typedef pthread_mutex_t spinlock_t;
 
+#define SPIN_LOCK_UNLOCKED ( ( spinlock_t ) PTHREAD_MUTEX_INITIALIZER )
+
 static __inline__ void
 spin_lock_init (spinlock_t *s)
 {
@@ -74,6 +76,15 @@ spin_is_not_locked (spinlock_t *s)
 	/* Use the error checking locks */
 	(void) s;
 	return 1;
+}
+
+static inline int atomic_dec_and_lock(atomic_t *atomic, spinlock_t *lock)
+{
+	spin_lock(lock);
+	if (atomic_dec_and_test(atomic))
+		return 1;
+	spin_unlock(lock);
+	return 0;
 }
 
 #elif defined (KUT_LOCK_ERRORCHECK)
