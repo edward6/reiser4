@@ -170,7 +170,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 
 	/* A race is possible where node is not dirty or worse, not connected, by this point. */
 	if (! jnode_is_dirty (node) ||
-	    ! (jnode_is_unformatted (node) || znode_is_connected (JZNODE (node))) ||
+	    (jnode_is_formatted (node) && !znode_is_connected (JZNODE (node))) ||
 	    JF_ISSET (node, ZNODE_HEARD_BANSHEE) ||
 	    JF_ISSET (node, ZNODE_FLUSH_QUEUED)) {
 		if (nr_to_flush != NULL) {
@@ -1503,7 +1503,7 @@ static int flush_queue_jnode (jnode *node, flush_position *pos)
 	assert ("jmacd-65551", spin_jnode_is_locked (node));
 
 	/* FIXME: See comment in flush_rewrite_jnode. */
-	if (! jnode_is_dirty (node) || JF_ISSET (node, ZNODE_HEARD_BANSHEE) || JF_ISSET (node, ZNODE_FLUSH_BUSY) || JF_ISSET (node, ZNODE_FLUSH_QUEUED)) {
+	if (! jnode_is_dirty (node) || JF_ISSET (node, ZNODE_HEARD_BANSHEE) || JF_ISSET (node, ZNODE_FLUSH_QUEUED)) {
 		spin_unlock_jnode (node);
 		return 0;
 	}
@@ -1511,7 +1511,7 @@ static int flush_queue_jnode (jnode *node, flush_position *pos)
 	JF_SET (node, ZNODE_FLUSH_QUEUED);
 
 	assert ("jmacd-4279", pos->queue_num < FLUSH_QUEUE_SIZE);
-	assert ("jmacd-1771", jnode_check_allocated (node));
+	assert ("jmacd-1771", jnode_is_allocated (node));
 
 	pos->queue[pos->queue_num++] = jref (node);
 
@@ -1703,6 +1703,7 @@ static int flush_finish (flush_position *pos, int none_busy)
 
 			/* FIXME: What GFP flag? */
 			if ((bio = bio_alloc (GFP_NOIO, nr)) == NULL) {
+				/* FIXME: EEEEK, Pages are all locked right now. */
 				ret = -ENOMEM;
 				break;
 			}
@@ -1731,8 +1732,10 @@ static int flush_finish (flush_position *pos, int none_busy)
 
 				jnode_set_clean (node);
 
+				/* FIXME: Use TestClearPageDirty */
 				assert ("jmacd-74233", !PageWriteback (pg));
-				assert ("jmacd-74234", !PageDirty (pg));
+				assert ("jmacd-74234", PageDirty (pg));
+				ClearPageDirty (pg);
 				SetPageWriteback (pg);
 				unlock_page (pg);
 
@@ -2720,8 +2723,9 @@ static void flush_jnode_tostring_internal (jnode *node, char *buf)
 	char items[32];
 	int fmttd;
 	int dirty;
+	int lockit;
 
-	spin_lock_jnode (node);
+	lockit = spin_trylock_jnode (node);
 
 	fmttd = !JF_ISSET (node, ZNODE_UNFORMATTED);
 	dirty = JF_ISSET (node, ZNODE_DIRTY);
@@ -2764,7 +2768,7 @@ static void flush_jnode_tostring_internal (jnode *node, char *buf)
 		 items,
 		 JF_ISSET (node, ZNODE_FLUSH_BUSY) ? " fbusy" : "");
 
-	spin_unlock_jnode (node);
+	if (lockit == 1) { spin_unlock_jnode (node); }
 }
 
 static const char* flush_znode_tostring (znode *node)
