@@ -372,7 +372,7 @@ emergency_flush(struct page *page)
 			UNLOCK_JNODE(node);
 			UNLOCK_ATOM(atom);
 
-			result = write_fq(fq);
+			result = write_fq(fq, NULL);
 			ON_TRACE(TRACE_EFLUSH, "flushed %d blocks\n", result);
 			/* Even if we wrote nothing, We unlocked the page, so let know to the caller that page should
 			   not be unlocked again */

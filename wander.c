@@ -743,7 +743,7 @@ jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flus
 /* This is a procedure which recovers a contiguous sequences of disk block
    numbers in the given list of j-nodes and submits write requests on this
    per-sequence basis */
-int write_jnode_list (capture_list_head * head, flush_queue_t * fq)
+int write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_submitted)
 {
 	int ret;
 	jnode *beg = capture_list_front(head);
@@ -762,6 +762,9 @@ int write_jnode_list (capture_list_head * head, flush_queue_t * fq)
 		ret = jnode_extent_write(beg, nr, jnode_get_block(beg), fq);
 		if (ret)
 			return ret;
+
+		if (nr_submitted)
+			*nr_submitted += nr;
 
 		beg = cur;
 	}
@@ -868,7 +871,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		}
 	}
 
-	ret = write_jnode_list(&ch->tx_list, fq);
+	ret = write_jnode_list(&ch->tx_list, fq, NULL);
 
 	return ret;
 
@@ -1109,7 +1112,7 @@ int reiser4_write_logs(long * nr_submitted)
 
 		UNLOCK_ATOM(fq->atom);
 
-		ret = write_jnode_list(ch.overwrite_set, fq);
+		ret = write_jnode_list(ch.overwrite_set, fq, NULL);
 
 		fq_put(fq);
 
@@ -1360,7 +1363,7 @@ replay_transaction(const struct super_block *s,
 	}
 
 	{			/* write wandered set in place */
-		write_jnode_list(ch.overwrite_set, 0);
+		write_jnode_list(ch.overwrite_set, 0, NULL);
 		ret = wait_on_jnode_list(ch.overwrite_set);
 
 		if (ret) {

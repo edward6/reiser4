@@ -576,12 +576,8 @@ static int write_prepped_nodes (flush_pos_t * pos, int dont_check_congestion)
 		return 0;
 #endif /* FLUSH_CHECKS_CONGESTION */
 	trace_mark(flush);
-	ret = write_fq(pos->fq);
-	if (ret > 0) {
-		*pos->nr_written += ret;
-		set_rapid_flush_mode(0);
-		ret = 0;
-	}
+	ret = write_fq(pos->fq, pos->nr_written);
+	set_rapid_flush_mode(0);
 	flush_started_io();
 	return ret;
 }
@@ -1138,11 +1134,8 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 
 		flush_started_io();
 		trace_mark(flush);
-		ret1 = write_fq(fq);
-		if (ret1 > 0) {
-			set_rapid_flush_mode(0);
-			*nr_submitted += ret1;
-		}
+		ret1 = write_fq(fq, nr_submitted);
+		set_rapid_flush_mode(0);
 	}
 
 	fq_put(fq);
