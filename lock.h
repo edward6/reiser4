@@ -214,21 +214,27 @@ extern int lock_stack_isclean(lock_stack * owner);
    lock is held by the current thread. */
 extern int znode_is_write_locked(const znode * node);
 
+#if REISER4_DEBUG
+#define spin_ordering_pred_stack_addendum (1)
+#else
+#define spin_ordering_pred_stack_addendum		\
+	 ((lock_counters()->rw_locked_dk == 0) &&	\
+	  (lock_counters()->rw_locked_tree == 0))
+#endif
 /* lock ordering is: first take zlock spin lock, then lock stack spin lock */
 #define spin_ordering_pred_stack(stack)				\
 	((lock_counters()->spin_locked_atom == 0) &&		\
 	 (lock_counters()->spin_locked_txnh == 0) &&		\
 	 (lock_counters()->spin_locked_jnode == 0) &&		\
 	 (lock_counters()->spin_locked_stack == 0) &&		\
-	 (lock_counters()->spin_locked_ktxnmgrd == 0) &&	\
+	 (lock_counters()->spin_locked_txnmgr == 0) &&		\
 	 (lock_counters()->spin_locked_fq == 0) &&		\
 	 (lock_counters()->spin_locked_super == 0) &&		\
 	 (lock_counters()->spin_locked_inode_object == 0) &&	\
 	 (lock_counters()->spin_locked_cbk_cache == 0) &&	\
 	 (lock_counters()->spin_locked_epoch == 0) &&		\
 	 (lock_counters()->spin_locked_super_eflush == 0) &&	\
-	 (lock_counters()->rw_locked_dk == 0) &&		\
-	 (lock_counters()->rw_locked_tree == 0))
+	 spin_ordering_pred_stack_addendum)
 
 /* Same for lock_stack */
 SPIN_LOCK_FUNCTIONS(stack, lock_stack, sguard);
