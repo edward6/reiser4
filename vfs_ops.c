@@ -1589,7 +1589,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 
 #ifdef CONFIG_DEBUG_SPINLOCK
 	info( "j_to_p spinlocks initialised, %u %u\n",
-	      j_to_p[ 8 ] -> magic, SPINLOCK_MAGIC );
+	      info -> j_to_p[ 8 ].magic, SPINLOCK_MAGIC );
 #endif
 
 	/* init layout plugin */
