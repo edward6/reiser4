@@ -881,7 +881,7 @@ hashed_rem_entry(struct inode *object	/* directory from which entry
 	assert("nikita-1124", object != NULL);
 	assert("nikita-1125", where != NULL);
 
-	if (reiser4_grab_space(inode_dir_plugin(object)->estimate.rem_entry(object), BA_CAN_COMMIT | BA_RESERVED, "hashed_rem_entry"))
+	if (reiser4_grab_space(inode_dir_plugin(object)->estimate.rem_entry(object), BA_CAN_COMMIT | BA_RESERVED, __FUNCTION__))
 		return -ENOSPC;
 	
 	init_lh(&lh);
