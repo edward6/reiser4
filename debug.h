@@ -373,16 +373,13 @@ typedef struct reiser4_prof {
 	reiser4_prof_cnt atom_wait_event;
 	reiser4_prof_cnt set_child_delimiting_keys;
 	reiser4_prof_cnt zget;
+/* FIXME: remove the below */
 	reiser4_prof_cnt extent_write;
-	reiser4_prof_cnt reserve;
-	reiser4_prof_cnt grab_cache_page;
-	reiser4_prof_cnt make_extent;
-	reiser4_prof_cnt prepare;
-	reiser4_prof_cnt copy;
-	reiser4_prof_cnt try_capture;
+	reiser4_prof_cnt extent_bdp;
 	reiser4_prof_cnt bdp;
-	reiser4_prof_cnt real_write;
-	reiser4_prof_cnt real_bdp;
+	reiser4_prof_cnt validate;
+	reiser4_prof_cnt update_sd;
+/* FIXME: remove the above */
 } reiser4_prof;
 
 extern unsigned long nr_context_switches(void);

@@ -353,16 +353,13 @@ reiser4_stats_cnt reiser4_prof_defs[] = {
 	DEFINE_PROF_CNT(forward_squalloc),
 	DEFINE_PROF_CNT(atom_wait_event),
 	DEFINE_PROF_CNT(set_child_delimiting_keys),
+/* FIXME: remove the below */
 	DEFINE_PROF_CNT(extent_write),
-	DEFINE_PROF_CNT(reserve),
-	DEFINE_PROF_CNT(grab_cache_page),
-	DEFINE_PROF_CNT(make_extent),
-	DEFINE_PROF_CNT(prepare),
-	DEFINE_PROF_CNT(copy),
-	DEFINE_PROF_CNT(try_capture),
+	DEFINE_PROF_CNT(extent_bdp),
 	DEFINE_PROF_CNT(bdp),
-	DEFINE_PROF_CNT(real_write),
-	DEFINE_PROF_CNT(real_bdp),
+	DEFINE_PROF_CNT(validate),
+	DEFINE_PROF_CNT(update_sd),
+/* FIXME: remove the above */
 	DEFINE_PROF_CNT(zget)
 };
 
