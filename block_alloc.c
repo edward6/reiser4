@@ -920,6 +920,25 @@ void flush_reserved2grabbed(txn_atom * atom, __u64 count)
 	reiser4_spin_unlock_sb (sbinfo);	
 }
 
+void grabbed2unallocated_unformatted(txn_atom *atom, __u64 count)
+{
+	reiser4_context *ctx;
+	reiser4_super_info_data *sbinfo;
+
+	ctx = get_current_context();
+	sub_from_ctx_grabbed(ctx, count);
+
+	sbinfo = get_super_private(ctx->super);
+	reiser4_spin_lock_sb(sbinfo);
+
+	sub_from_sb_grabbed(sbinfo, count);
+	sbinfo->blocks_fake_allocated_unformatted += count;
+
+	assert("vs-922", check_block_counters(ctx->super));
+
+	reiser4_spin_unlock_sb(sbinfo);
+}
+
 __u64 atom_flush_reserved(void)
 {
 	__u32 count;
