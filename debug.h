@@ -526,6 +526,11 @@ typedef struct reiser4_statistics {
 		stat_cnt carry_left_in_cache;
 		/*
 		 * how many times carry, trying to find left neighbor of
+		 * a given node, found it is not in a memory.
+		 */
+		stat_cnt carry_left_missed;
+		/*
+		 * how many times carry, trying to find left neighbor of
 		 * a given node, found that left neighbor either doesn't
 		 * exist (we are at the left border of the tree
 		 * already), or that there is extent on the left.
@@ -546,6 +551,11 @@ typedef struct reiser4_statistics {
 		 * a given node, found it already in a memory.
 		 */
 		stat_cnt carry_right_in_cache;
+		/*
+		 * how many times carry, trying to find right neighbor of
+		 * a given node, found it is not in a memory.
+		 */
+		stat_cnt carry_right_missed;
 		/*
 		 * how many times carry, trying to find right neighbor
 		 * of a given node, found that right neighbor either
