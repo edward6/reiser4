@@ -1,5 +1,5 @@
 /*
-    oid.c -- oid allocator common code and API functions.
+    oid.c -- oid allocator common code.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -11,23 +11,29 @@
 #include <aal/aal.h>
 #include <reiser4/reiser4.h>
 
-reiserfs_oid_t *reiserfs_oid_open(void *area_start, void *area_end, 
-    reiserfs_id_t oid_pid) 
-{
+/* Opens object allocator using start and end pointers */
+reiserfs_oid_t *reiserfs_oid_open(
+    void *area_start,		/* pointer to the area oid allocator lies in superblock*/
+    void *area_end,		/* pointer to oid allocator area end */
+    reiserfs_id_t oid_pid	/* oid allocator plugin */
+) {
     reiserfs_oid_t *oid;
     reiserfs_plugin_t *plugin;
 
     aal_assert("umka-519", area_start != NULL, return NULL);
     aal_assert("umka-730", area_end != NULL, return NULL);
 
+    /* Allocating memory needed for instance */
     if (!(oid = aal_calloc(sizeof(*oid), 0)))
 	return NULL;
    
+    /* Getting oid allocator plugin */
     if (!(plugin = libreiser4_factory_find(REISERFS_OID_PLUGIN, oid_pid))) 
 	libreiser4_factory_failed(goto error_free_oid, find, oid, oid_pid);
     
     oid->plugin = plugin;
     
+    /* Initializing entity */
     if (!(oid->entity = libreiser4_plugin_call(goto error_free_oid, 
 	plugin->oid_ops, open, area_start, area_end))) 
     {
@@ -43,7 +49,10 @@ error_free_oid:
     return NULL;
 }
 
-void reiserfs_oid_close(reiserfs_oid_t *oid) {
+/* Closes oid allocator */
+void reiserfs_oid_close(
+    reiserfs_oid_t *oid		/* oid allocator instance to be closed */
+) {
     aal_assert("umka-523", oid != NULL, return);
 
     libreiser4_plugin_call(return, oid->plugin->oid_ops, 
@@ -54,23 +63,29 @@ void reiserfs_oid_close(reiserfs_oid_t *oid) {
 
 #ifndef ENABLE_COMPACT
 
-reiserfs_oid_t *reiserfs_oid_create(void *area_start, void *area_end, 
-    reiserfs_id_t oid_pid) 
-{
+/* Creates oid allocator in specified area */
+reiserfs_oid_t *reiserfs_oid_create(
+    void *area_start,		/* pointer to the area oid allocator lies */
+    void *area_end,		/* oid allocator area end */
+    reiserfs_id_t oid_pid	/* plugin id for oid allocator */
+) {
     reiserfs_oid_t *oid;
     reiserfs_plugin_t *plugin;
 	
     aal_assert("umka-729", area_start != NULL, return NULL);
     aal_assert("umka-731", area_end != NULL, return NULL);
 
+    /* Initializing instance */
     if (!(oid = aal_calloc(sizeof(*oid), 0)))
 	return NULL;
    
+    /* Getting plugin from plugin id */
     if (!(plugin = libreiser4_factory_find(REISERFS_OID_PLUGIN, oid_pid)))
 	libreiser4_factory_failed(goto error_free_oid, find, oid, oid_pid);
     
     oid->plugin = plugin;
     
+    /* Initializing entity */
     if (!(oid->entity = libreiser4_plugin_call(goto error_free_oid, 
 	plugin->oid_ops, create, area_start, area_end)))
     {
@@ -86,6 +101,7 @@ error_free_oid:
     return NULL;
 }
 
+/* Returns free object id from specified oid allocator */
 uint64_t reiserfs_oid_alloc(reiserfs_oid_t *oid) {
     aal_assert("umka-522", oid != NULL, return 0);
     
@@ -93,13 +109,18 @@ uint64_t reiserfs_oid_alloc(reiserfs_oid_t *oid) {
 	alloc, oid->entity);
 }
 
-void reiserfs_oid_dealloc(reiserfs_oid_t *oid, uint64_t id) {
+/* Releases passed objectid */
+void reiserfs_oid_dealloc(
+    reiserfs_oid_t *oid,	/* oid allocator to be used */
+    uint64_t id			/* object id to be released */
+) {
     aal_assert("umka-525", oid != NULL, return);
     
     libreiser4_plugin_call(return, oid->plugin->oid_ops, 
 	dealloc, oid->entity, id);
 }
 
+/* Synchronizes specified oid allocator */
 errno_t reiserfs_oid_sync(reiserfs_oid_t *oid) {
     aal_assert("umka-735", oid != NULL, return -1);
     return libreiser4_plugin_call(return -1, oid->plugin->oid_ops, 
@@ -108,6 +129,7 @@ errno_t reiserfs_oid_sync(reiserfs_oid_t *oid) {
 
 #endif
 
+/* Returns next objectid from passed oid allocator */
 uint64_t reiserfs_oid_next(reiserfs_oid_t *oid) {
     aal_assert("umka-527", oid != NULL, return 0);
     
@@ -115,6 +137,7 @@ uint64_t reiserfs_oid_next(reiserfs_oid_t *oid) {
 	next, oid->entity);
 }
 
+/* Returns number of used oids from passed oid allocator */
 uint64_t reiserfs_oid_used(reiserfs_oid_t *oid) {
     aal_assert("umka-527", oid != NULL, return 0);
     
@@ -122,6 +145,7 @@ uint64_t reiserfs_oid_used(reiserfs_oid_t *oid) {
 	used, oid->entity);
 }
 
+/* Returns root parent locality from specified oid allocator */
 oid_t reiserfs_oid_root_parent_locality(reiserfs_oid_t *oid) {
     aal_assert("umka-745", oid != NULL, return 0);
     
@@ -129,6 +153,7 @@ oid_t reiserfs_oid_root_parent_locality(reiserfs_oid_t *oid) {
 	root_parent_locality,);
 }
 
+/* Returns root parent objectid from specified oid allocator */
 oid_t reiserfs_oid_root_parent_objectid(reiserfs_oid_t *oid) {
     aal_assert("umka-746", oid != NULL, return 0);
     
@@ -136,6 +161,7 @@ oid_t reiserfs_oid_root_parent_objectid(reiserfs_oid_t *oid) {
 	root_parent_objectid,);
 }
 
+/* Returns root objectid from specified oid allocator */
 oid_t reiserfs_oid_root_objectid(reiserfs_oid_t *oid) {
     aal_assert("umka-747", oid != NULL, return 0);
     
