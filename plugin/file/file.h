@@ -14,9 +14,9 @@
 #include "../../seal.h"
 
 #include <linux/types.h>
-#include <linux/fs.h>		/* for struct file  */
-#include <linux/mm.h>		/* for struct page */
-#include <linux/buffer_head.h>	/* for struct buffer_head */
+#include <linux/fs.h> /* for struct file  */
+#include <linux/mm.h> /* for struct page */
+#include <linux/buffer_head.h> /* for struct buffer_head */
 
 void get_exclusive_access(struct inode *inode);
 void drop_exclusive_access(struct inode *inode);
@@ -24,8 +24,7 @@ void get_nonexclusive_access(struct inode *inode);
 void drop_nonexclusive_access(struct inode *inode);
 int tail2extent(struct inode *inode);
 int extent2tail(struct file *file);
-int unix_file_readpage_nolock(void *file, struct page *page);
-int unix_file_writepage_nolock(struct page *page);
+int unix_file_writepage_nolock_locked_page(struct page *page);
 int find_next_item(struct sealed_coord *, const reiser4_key *, coord_t *,
 		   lock_handle *, znode_lock_mode, __u32 cbk_flags);
 void set_hint(struct sealed_coord *, const reiser4_key *, const coord_t *);
@@ -36,8 +35,7 @@ int hint_validate(struct sealed_coord *,
 int coord_set_properly(const reiser4_key * key, coord_t * coord);
 reiser4_key *get_next_item_key(const coord_t *, reiser4_key *);
 void check_coord(const coord_t *, const reiser4_key *);
-int no_left_neighbor(const
-		     znode * node);
+int no_left_neighbor(const znode * node);
 int znode_contains_key_lock_unique(znode * node /* znode to look in */ ,
 				   const reiser4_key *
 				   key /* key to look for */ );
