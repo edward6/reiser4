@@ -321,6 +321,7 @@ node_search_result node40_lookup( znode *node, const reiser4_key *key,
 		assert( "nikita-1259", order == EQUAL_TO );
 		return NS_FOUND;
 	}
+#if 0
 	/*
 	 * FIXME-NIKITA probably this should be dropped. It can cause false
 	 * CBK_FOUND
@@ -339,6 +340,7 @@ node_search_result node40_lookup( znode *node, const reiser4_key *key,
 			return ( bias == FIND_EXACT ) ? NS_NOT_FOUND : NS_FOUND;
 		}
 	}
+#endif
 	if( iplug -> b.lookup != NULL ) {
 		return iplug -> b.lookup( key, bias, coord );
 	} else {
