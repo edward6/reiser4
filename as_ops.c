@@ -403,26 +403,6 @@ reiser4_writepages(struct address_space *mapping,
 
 int reiser4_sync_page(struct page *page)
 {
-	if (REISER4_TRACE_TREE) {
-		jnode *j;
-
-		assert("vs-1111", page->mapping && page->mapping->host);
-
-		j = jprivate(page);
-		if (j != NULL) {
-			reiser4_block_nr block;
-			struct super_block *s;
-			char jbuf[100];
-
-			block = *jnode_get_block(j);
-			s = page->mapping->host->i_sb;
-			(void)jnode_short_info(j, jbuf);
-			write_tracef(&get_super_private(s)->trace_file, s,
-				     "wait_on_page: %llu %s\n", block, jbuf);
-			/* VS-FIXME-HANS: this does what?  Comment this function. */
-			(void)jbuf; /* ohoho */
-		}
-	}
 	block_sync_page(page);
 	return 0;
 }
