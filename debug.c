@@ -119,7 +119,6 @@ int schedulable (void)
 	might_sleep();
 	return 1;
 }
-
 #endif
 
 #if REISER4_DEBUG_OUTPUT && REISER4_DEBUG

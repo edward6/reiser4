@@ -198,7 +198,11 @@ typedef struct lock_counters_info {
 	int t_refs;
 } lock_counters_info;
 
+#if REISER4_DEBUG
 extern lock_counters_info *lock_counters(void);
+#else
+#define lock_counters() ((lock_counters_info *)NULL)
+#endif
 
 /* flags controlling debugging behavior. Are set through debug_flags=N mount
    option. */
