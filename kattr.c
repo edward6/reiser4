@@ -11,16 +11,6 @@
 
 #if REISER4_USE_SYSFS
 
-#define DEFINE_REISER4_KATTR(aname, amode, acookie)	\
-static reiser4_kattr kattr_ ## aname = {		\
-	.attr = {					\
-		.name = #aname,				\
-		.mode = (amode)				\
-	},						\
-	.cookie = acookie,				\
-	.show	= show_ ## aname			\
-}
-
 static inline reiser4_kattr *
 to_kattr(struct attribute *attr)
 {
