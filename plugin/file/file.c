@@ -1913,7 +1913,8 @@ release_unix_file(struct inode *object, struct file *file)
 	get_exclusive_access(uf_info);
 	if (atomic_read(&file->f_dentry->d_count) == 1 &&
 	    uf_info->container == UF_CONTAINER_EXTENTS &&
-	    !should_have_notail(uf_info, object->i_size)) {
+	    !should_have_notail(uf_info, object->i_size) &&
+	    !rofs_inode(object)) {
 		result = extent2tail(uf_info);
 		if (result != 0) {
 			warning("nikita-3233", "Failed to convert in %s (%llu)",
