@@ -19,17 +19,6 @@ static reiser4_key *single_key( const tree_coord *coord, reiser4_key *result )
 	return unit_key_by_coord( coord, result );
 }
 
-/** ->max_key_inside() method for items that can grow idefinitely (like extent
-    or directory item) */
-static reiser4_key *many_keys( const tree_coord *coord, reiser4_key *result )
-{
-	assert( "nikita-762", coord != NULL );
-
-	item_key_by_coord( coord, result );
-	set_key_offset( result, get_key_offset( max_key() ) );
-	return result;
-}
-
 /** ->nr_units() method for items consisting of exactly one unit always */
 static unsigned int single_unit( const tree_coord *coord UNUSED_ARG )
 {
