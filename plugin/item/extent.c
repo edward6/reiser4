@@ -83,7 +83,9 @@ int extent_can_contain_key (const coord_t * coord, const reiser4_key * key,
 		return 0;
 
 	assert ("vs-458", coord->between == AFTER_UNIT);
-	set_key_offset (&item_key, extent_size (coord, coord->unit_pos + 1));
+	set_key_offset (&item_key,
+			get_key_offset (&item_key) +
+			extent_size (coord, coord->unit_pos + 1));
 	if (!keyeq (&item_key, key)) {
 		info ("could not merge extent items of one file\n");
 		return 0;
