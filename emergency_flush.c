@@ -718,14 +718,19 @@ static int ef_free_block_with_stage(jnode *node, const reiser4_block_nr *blk, bl
 	if (result == 0 && stage == BLOCK_GRABBED) {
 		txn_atom *atom;
 
-		/* further, transfer block from grabbed into flush reserved
-		 * space. */
-		LOCK_JNODE(node);
-		atom = atom_locked_by_jnode(node);
-		assert("nikita-2785", atom != NULL);
-		grabbed2flush_reserved_nolock(atom, 1, "ef_free_block_with_stage");
-		UNLOCK_ATOM(atom);
-		UNLOCK_JNODE(node);
+		if (jnode_is_leaf(node)) {
+			/* further, transfer block from grabbed into flush
+			 * reserved space. */
+			LOCK_JNODE(node);
+			atom = atom_locked_by_jnode(node);
+			assert("nikita-2785", atom != NULL);
+			grabbed2flush_reserved_nolock(atom, 1, "ef_free_block_with_stage");
+			UNLOCK_ATOM(atom);
+			UNLOCK_JNODE(node);
+		} else {
+			reiser4_context * ctx = get_current_context();
+			grabbed2free(ctx, get_super_private(ctx->super), __FUNCTION__);
+		}
 	}
 	return result;
 }
@@ -757,15 +762,23 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 	if (blocknr_is_fake(jnode_get_block(node)))
 		hint->block_stage = BLOCK_UNALLOCATED;
 	else {
-		txn_atom *atom;
+		if (jnode_is_leaf(node)) {
+			txn_atom *atom;
 
-		/* We cannot just ask block allocator to take block from flush
-		 * reserved space, because there is no current atom at this
-		 * point. */
-		atom = atom_locked_by_jnode(node);
-		assert("nikita-2785", atom != NULL);
-		flush_reserved2grabbed(atom, 1);
-		UNLOCK_ATOM(atom);
+			/* We cannot just ask block allocator to take block from
+			 * flush reserved space, because there is no current
+			 * atom at this point. */
+			atom = atom_locked_by_jnode(node);
+			assert("nikita-2785", atom != NULL);
+			flush_reserved2grabbed(atom, 1);
+			UNLOCK_ATOM(atom);
+		} else {
+			result = reiser4_grab_space_force((__u64)1, BA_RESERVED, 
+							  "eflush takes 1 block reserved area");
+			if (result)
+				return result;
+		}
+
 		hint->block_stage = BLOCK_GRABBED;
 	}
 
