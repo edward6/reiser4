@@ -90,6 +90,7 @@ reiser4-objs := \
 		   plugin/object.o \
 		   plugin/symlink.o \
 		   plugin/cryptcompress.o \
+		   plugin/digest.o \
            \
 		   plugin/item/static_stat.o \
 		   plugin/item/sde.o \
