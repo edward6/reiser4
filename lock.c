@@ -976,7 +976,7 @@ longterm_lock_znode(
 			UNLOCK_ZLOCK(lock);
 			spin_lock_znode(node);
 			ret = try_capture_args(ZJNODE(node), txnh, mode,
-					       cap_flags, non_blocking, 
+					       cap_flags | TXN_CAPTURE_CAN_COC, non_blocking, 
 					       cap_mode);
 			spin_unlock_znode(node);
 			LOCK_ZLOCK(lock);
