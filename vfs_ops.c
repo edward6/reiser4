@@ -2649,7 +2649,6 @@ typedef enum {
 	INIT_JNODES,
 	INIT_EFLUSH,
 	INIT_SCINT,
-	INIT_SYSFS,
 	INIT_FS_REGISTERED
 } reiser4_init_stage;
 
@@ -2666,7 +2665,6 @@ shutdown_reiser4(void)
 	}
 
 	DONE_IF(INIT_FS_REGISTERED, unregister_filesystem(&reiser4_fs_type));
-	DONE_IF(INIT_SYSFS, reiser4_sysfs_done_all());
 	DONE_IF(INIT_SCINT, scint_done_once());
 	DONE_IF(INIT_EFLUSH, eflush_done());
 	DONE_IF(INIT_JNODES, jnode_done_static());
@@ -2712,8 +2710,9 @@ init_reiser4(void)
 	CHECK_INIT_RESULT(jnode_init_static());
 	CHECK_INIT_RESULT(eflush_init());
 	CHECK_INIT_RESULT(scint_init_once());
-	CHECK_INIT_RESULT(reiser4_sysfs_init_all());
 	CHECK_INIT_RESULT(register_filesystem(&reiser4_fs_type));
+
+	calibrate_prof();
 
 	assert("nikita-2515", init_stage == INIT_FS_REGISTERED);
 	return 0;
@@ -2738,16 +2737,20 @@ MODULE_LICENSE("GPL");
 static struct file_system_type reiser4_fs_type = {
 	.owner = THIS_MODULE,
 	.name = "reiser4",
+#if REISER4_USE_SYSFS
 	.subsys = {
 		.kset = {
 			.ktype = &ktype_reiser4
 		}
 	},
+	.fs_flags = FS_REQUIRES_DEV | FS_REGISTER_WITH_SYSFS,
+#else
+	.fs_flags = FS_REQUIRES_DEV,
+#endif
 	.get_sb = reiser4_get_sb,
 	.kill_sb = reiser4_kill_super,
 
 	/* NOTE-NIKITA something more? */
-	.fs_flags = FS_REQUIRES_DEV | FS_REGISTER_WITH_SYSFS,
 	.next = NULL
 };
 

@@ -8,6 +8,9 @@
 #include <linux/types.h>
 #include <linux/sysfs.h>
 
+/* XXX make this CONFIG option */
+#define REISER4_USE_SYSFS (1)
+
 struct super_block;
 struct reiser4_kattr;
 typedef struct reiser4_kattr reiser4_kattr;

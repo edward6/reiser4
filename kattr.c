@@ -9,6 +9,8 @@
 #include <linux/kobject.h>     /* struct kobject */
 #include <linux/fs.h>          /* struct super_block */
 
+#if REISER4_USE_SYSFS
+
 #define DEFINE_REISER4_KATTR(aname, amode, acookie)	\
 static reiser4_kattr kattr_ ## aname = {		\
 	.attr = {					\
@@ -266,14 +268,18 @@ void reiser4_sysfs_done(struct super_block *super)
 	kobject_unregister(&super->kobj);
 }
 
-int reiser4_sysfs_init_all(void)
+/* REISER4_USE_SYSFS */
+#else
+
+int reiser4_sysfs_init(struct super_block *super)
 {
 	return 0;
 }
 
-void reiser4_sysfs_done_all(void)
-{
-}
+void reiser4_sysfs_done(struct super_block *super)
+{}
+
+#endif
 
 /* Make Linus happy.
    Local variables:
