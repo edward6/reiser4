@@ -136,7 +136,7 @@ reiser4_update_sd(struct inode *object)
 
 /* helper function: increase inode nlink count and call plugin method to save
    updated stat-data.
-  
+
    Used by link/create and during creation of dot and dotdot in mkdir
 */
 int
@@ -171,7 +171,7 @@ reiser4_add_nlink(struct inode *object /* object to which link is added */ ,
 
 /* helper function: decrease inode nlink count and call plugin method to save
    updated stat-data.
-  
+
    Used by unlink/create
 */
 int
@@ -200,7 +200,7 @@ reiser4_del_nlink(struct inode *object	/* object from which link is
 }
 
 /* initial prefix of names of pseudo-files like ..plugin, ..acl,
-    ..whatnot, ..and, ..his, ..dog 
+    ..whatnot, ..and, ..his, ..dog
 
     Reminder: This is an optional style convention, not a requirement.
     If anyone builds in any dependence in the parser or elsewhere on a
@@ -221,7 +221,7 @@ reiser4_get_dentry_fsdata(struct dentry *dentry	/* dentry
 	if (dentry->d_fsdata == NULL) {
 		reiser4_stat_inc(vfs_calls.private_data_alloc);
 		/* NOTE-NIKITA use slab in stead */
-		dentry->d_fsdata = kmalloc(sizeof (reiser4_dentry_fsdata), 
+		dentry->d_fsdata = kmalloc(sizeof (reiser4_dentry_fsdata),
 					   GFP_KERNEL);
 		if (dentry->d_fsdata == NULL)
 			return ERR_PTR(RETERR(-ENOMEM));
@@ -491,7 +491,7 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 
 			mapping = fake->i_mapping;
 			/* do not put more requests to overload write queue */
-			if (wbc->nonblocking && 
+			if (wbc->nonblocking &&
 			    bdi_write_congested(mapping->backing_dev_info)) {
 				blk_run_queues();
 				wbc->encountered_congestion = 1;
@@ -509,7 +509,7 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 	} while (wbc->nr_to_write > 0);
 
 	if (DEBUG_WRITEOUT)
-		printk("%s: to write %ld, written %ld\n", 
+		printk("%s: to write %ld, written %ld\n",
 		       current->comm, to_write, written);
 }
 
@@ -519,6 +519,13 @@ reiser4_sync_inodes(struct super_block * sb, struct writeback_control * wbc)
 	reiser4_context ctx;
 
 	init_context(&ctx, sb);
+	/* avoid recursive calls to ->sync_inodes */
+	ctx.nobalance = 1;
+	wbc->older_than_this = NULL;
+
+	/*
+	 * What we are trying to do here is to capture all "anonymous" pages.
+	 */
 	generic_sync_sb_inodes(sb, wbc);
 	spin_unlock(&inode_lock);
 	writeout(sb, wbc);
@@ -573,7 +580,7 @@ typedef struct opt_bitmask_bit {
 /* description of option parseable by parse_option() */
 typedef struct opt_desc {
 	/* option name.
-	   
+	
 	   parsed portion of string has a form "name=value".
 	*/
 	const char *name;
@@ -619,7 +626,7 @@ static int
 parse_option(char *opt_string /* starting point of parsing */ ,
 	     opt_desc_t * opt /* option description */ )
 {
-	/* foo=bar, 
+	/* foo=bar,
 	   ^   ^  ^
 	   |   |  +-- replaced to '\0'
 	   |   +-- val_start
@@ -795,7 +802,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 
 	opt_desc_t opts[] = {
 		/* trace_flags=N
-		  
+		
 		   set trace flags to be N for this mount. N can be C numeric
 		   literal recognized by %i scanf specifier.  It is treated as
 		   bitfield filled by values of debug.h:reiser4_trace_flags
@@ -803,7 +810,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		*/
 		SB_FIELD_OPT(trace_flags, "%i"),
 		/* debug_flags=N
-		  
+		
 		   set debug flags to be N for this mount. N can be C numeric
 		   literal recognized by %i scanf specifier.  It is treated as
 		   bitfield filled by values of debug.h:reiser4_debug_flags
@@ -811,19 +818,19 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		*/
 		SB_FIELD_OPT(debug_flags, "%i"),
 		/* txnmgr.atom_max_size=N
-		  
+		
 		   Atoms containing more than N blocks will be forced to
 		   commit. N is decimal.
 		*/
 		SB_FIELD_OPT(tmgr.atom_max_size, "%u"),
 		/* txnmgr.atom_max_age=N
-		  
+		
 		   Atoms older than N seconds will be forced to commit. N is
 		   decimal.
 		*/
 		SB_FIELD_OPT(tmgr.atom_max_age, "%u"),
 		/* tree.cbk_cache_slots=N
-		  
+		
 		   Number of slots in the cbk cache.
 		*/
 		SB_FIELD_OPT(tree.cbk_cache.nr_slots, "%u"),
@@ -1154,7 +1161,7 @@ static void unregister_profregions(void)
 }
 
 /* read super block from device and fill remaining fields in @s.
-  
+
    This is read_super() of the past.   */
 
 extern int first_read_started;
@@ -1190,6 +1197,11 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 
 	first_read_started = second_read_started = 0;
 	assert("umka-085", s != NULL);
+
+	if (bdev_read_only(s->s_bdev) || (s->s_flags & MS_RDONLY)) {
+		warning("nikita-3322", "Readonly reiser4 is not yet supported");
+		return RETERR(-EROFS);
+	}
 
 	/* this is common for every disk layout. It has a pointer where layout
 	   specific part of info can be attached to, though */
@@ -1371,14 +1383,14 @@ read_super_block:
 
 	if (!silent) {
 		print_fs_info("mount ok", s);
-		if (REISER4_DEBUG || 
-		    REISER4_DEBUG_MODIFY || 
+		if (REISER4_DEBUG ||
+		    REISER4_DEBUG_MODIFY ||
 		    REISER4_TRACE ||
-		    REISER4_STATS || 
-		    REISER4_DEBUG_MEMCPY || 
-		    REISER4_ZERO_NEW_NODE || 
-		    REISER4_TRACE_TREE || 
-		    REISER4_PROF || 
+		    REISER4_STATS ||
+		    REISER4_DEBUG_MEMCPY ||
+		    REISER4_ZERO_NEW_NODE ||
+		    REISER4_TRACE_TREE ||
+		    REISER4_PROF ||
 		    REISER4_LOCKPROF)
 			reiser4_log("nikita-2372",
 				    "Debugging is on. Benchmarking is invalid.");
@@ -1443,8 +1455,8 @@ reiser4_kill_super(struct super_block *s)
 		get_current_context()->trace_flags |= (TRACE_PCACHE |
 						       TRACE_TXN    |
 						       TRACE_FLUSH  |
-						       TRACE_ZNODES | 
-						       TRACE_IO_R   | 
+						       TRACE_ZNODES |
+						       TRACE_IO_R   |
 						       TRACE_IO_W);
 #endif
 
@@ -1492,7 +1504,7 @@ reiser4_kill_super(struct super_block *s)
 	/* sbinfo->stats is not allocated by reiser4_kmalloc, because it's too
 	 * large (vmalloc() is used). */
 	if (sbinfo->kmalloc_allocated > 0)
-		warning("nikita-2622", 
+		warning("nikita-2622",
 			"%i bytes still allocated", sbinfo->kmalloc_allocated);
 #endif
 
@@ -1519,7 +1531,7 @@ reiser4_write_super(struct super_block *s)
 	reiser4_stat_inc(vfs_calls.write_super);
 	ret = txnmgr_force_commit_all(s, 1);
 	if (ret != 0)
-		warning("jmacd-77113", 
+		warning("jmacd-77113",
 			"txn_force failed in write_super: %d", ret);
 
 	/* Oleg says do this: */
@@ -1562,7 +1574,7 @@ typedef enum {
 static reiser4_init_stage init_stage;
 
 /* finish with reiser4: this is called either at shutdown or at module unload. */
-static void 
+static void
 shutdown_reiser4(void)
 {
 #define DONE_IF( stage, exp )			\
@@ -1608,8 +1620,8 @@ init_reiser4(void)
 
 	int result;
 
-	printk(KERN_INFO 
-	       "Loading Reiser4. " 
+	printk(KERN_INFO
+	       "Loading Reiser4. "
 	       "See www.namesys.com for a description of Reiser4.\n");
 	init_stage = INIT_NONE;
 
