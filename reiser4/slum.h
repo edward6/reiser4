@@ -14,7 +14,16 @@
 /* The slum_scan data structure maintains the state of an in-progress slum scan. */
 struct slum_scan {
 	/* The number of nodes currently in the slum. */
-	unsigned size;
+	unsigned  size;
+
+	/* True if we found the leftmost node before reaching max size. */
+	int       stop;
+
+	/* The current scan position. */
+	jnode    *node;
+
+	/* The current scan atom. */
+	txn_atom *atom;
 };
 
 extern int flush_jnode_slum ( jnode *node );
