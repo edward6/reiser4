@@ -110,11 +110,11 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     
     nh40_set_free_space_start(node, sizeof(reiserfs_nh40_t) + 
 	sizeof(reiserfs_stat40_base_t) + sizeof(reiserfs_direntry40_t) + 
-	2*sizeof(reiserfs_direntry40_t) + 2*sizeof(reiserfs_objid_t) + 2 + 3);
+	2*sizeof(reiserfs_entry40_t) + 2*sizeof(reiserfs_objid_t) + 2 + 3);
     
     nh40_set_free_space(node, block->size - (sizeof(reiserfs_nh40_t) + 
 	(2*sizeof(reiserfs_ih40_t)) + sizeof(reiserfs_stat40_base_t) + 
-	sizeof(reiserfs_direntry40_t) + 2*sizeof(reiserfs_direntry40_t) + 2 + 3 + 
+	sizeof(reiserfs_direntry40_t) + 2*sizeof(reiserfs_entry40_t) + 2 + 3 + 
 	2*sizeof(reiserfs_objid_t)));
 
     /* Forming stat data item and body */
@@ -144,7 +144,7 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     
     ih40_set_plugin_id(item, 0x2);
     ih40_set_length(item, sizeof(reiserfs_direntry40_t) + 
-	2*sizeof(reiserfs_direntry40_t) + 2*sizeof(reiserfs_objid_t) + 
+	2*sizeof(reiserfs_entry40_t) + 2*sizeof(reiserfs_objid_t) + 
 	2 + 3);
     
     ih40_set_offset(item, sizeof(reiserfs_nh40_t) + sizeof(reiserfs_stat40_base_t));
@@ -169,7 +169,7 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     }
     
     /* Offset of the first name in directory */
-    direntry_body->entry[0].offset = 2*sizeof(reiserfs_direntry40_t) + 
+    direntry_body->entry[0].offset = 2*sizeof(reiserfs_entry40_t) + 
 	sizeof(reiserfs_direntry40_t);
     
     {
@@ -199,7 +199,7 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
 	size of dir units array + key for first name + size of first 
 	name (".") + zero for terminating first name.
     */
-    direntry_body->entry[1].offset = 2*sizeof(reiserfs_direntry40_t) + 
+    direntry_body->entry[1].offset = 2*sizeof(reiserfs_entry40_t) + 
 	2 + sizeof(reiserfs_objid_t) + sizeof(reiserfs_direntry40_t);
 
     {
