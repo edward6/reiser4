@@ -141,6 +141,7 @@ SRC		:= \
 		   plugin/node/node.c \
 		   plugin/node/node40.c \
 		   plugin/object.c \
+		   plugin/symlink.c \
 		   plugin/item/static_stat.c \
 		   plugin/item/sde.c \
 		   plugin/item/cde.c \

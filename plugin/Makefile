@@ -1,7 +1,7 @@
 #
 # reiser4/plugin/Makefile
 #
-obj-y	+= object.o hash.o tail_policy.o plugin.o
+obj-y	+= object.o hash.o tail_policy.o plugin.o symlink.o
 
 obj-y	+= node/
 obj-y	+= item/
