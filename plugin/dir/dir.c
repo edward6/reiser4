@@ -312,10 +312,11 @@ static int common_create_child( struct inode *parent /* parent object */,
 	   possible to access file without name, for example, by
 	   inode number */
 	inode_set_flag( object, REISER4_IMMUTABLE );
-	/* create stat-data, this includes allocation of new
-	   objectid (if we support objectid reuse). For
-	   directories this implies creation of dot and
-	   dotdot */
+
+	/* create empty object, this includes allocation of new objectid. For
+	   directories this implies creation of dot and dotdot */
+	assert( "nikita-2265", inode_get_flag( object, REISER4_NO_STAT_DATA ) );
+
 	result = fplug -> create( object, parent, data );
 	if( result == 0 ) {
 		assert( "nikita-434", !inode_get_flag( object,
