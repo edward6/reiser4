@@ -1019,6 +1019,7 @@ int txnmgr_force_commit_all (struct super_block *super)
 	reiser4_context * ctx = get_current_context();
 
 	assert("nikita-2965", lock_stack_isclean(get_current_lock_stack()));
+	assert("nikita-3058", no_counters_are_held());
 
 	ret = txn_end(ctx);
 	if (ret)
@@ -1387,6 +1388,7 @@ again:
 
 		if (atom->txnh_count > (unsigned)atom->nr_waiters + 1) {
 			if (should_wait_commit(txnh)) {
+				assert("nikita-3056", no_counters_are_held());
 				atom->nr_waiters++;
 				wait = 1;
 				atom_wait_event(atom);
