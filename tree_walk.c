@@ -430,7 +430,11 @@ int connect_znode (coord_t * coord, znode * node)
 
 	if (!ret) {
 		ret = connect_one_side(coord, node, GN_NO_ALLOC | GN_GO_LEFT);
-	}
+	} else
+		/*
+		 * FIXME:NIKITA->ZAM return success here?
+		 */
+		ret = 0;
 
  zrelse_and_ret:
 	zrelse (coord -> node);

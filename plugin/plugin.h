@@ -408,6 +408,7 @@ typedef struct jnode_plugin {
 	int                   ( *init )   ( jnode *node );
 	int                   ( *parse )  ( jnode *node );
 	int                   ( *remove ) ( jnode *node );
+	int                   ( *delete ) ( jnode *node );
 	struct address_space *( *mapping )( const jnode *node );
 	unsigned long         ( *index )  ( const jnode *node );
 } jnode_plugin;

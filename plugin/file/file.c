@@ -91,6 +91,9 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 
 	if (node_is_empty (coord->node)) {
 		spin_lock_dk (current_tree);
+		/*
+		 * FIXME:NIKITA->VS can reproducible fail this
+		 */
 		assert ("vs-751", keyeq (key, znode_get_ld_key (coord->node)));
 		spin_unlock_dk (current_tree);
 

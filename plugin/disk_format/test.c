@@ -83,8 +83,7 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	height = d16tocpu (&disk_sb->tree_height);
 	assert ("vs-642", d16tocpu (&disk_sb->node_plugin) == NODE40_ID);
 
-	init_tree_ops (&private->tree, s, &page_cache_tops);
-
+	private->tree.super = s;
 	result = init_tree (&private->tree,  &root_block, height, 
 			    node_plugin_by_id (NODE40_ID));
 	if (result) {

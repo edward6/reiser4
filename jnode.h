@@ -228,7 +228,7 @@ extern int znode_is_root( const znode *node );
 /* Similar to zref() and zput() for jnodes, calls those routines if the node is formatted. */
 extern jnode *jref( jnode *node );
 extern void   jput( jnode *node );
-extern void jdelete( jnode *node );
+extern int    jdelete( jnode *node );
 
 /** get the page of jnode */
 static inline char *jdata (const jnode *node)
@@ -307,17 +307,6 @@ static inline int jnode_is_root (const jnode *node)
 {
 	return jnode_is_formatted (node) && znode_is_root (JZNODE (node));
 }
-
-/** operations to access jnodes */
-typedef struct node_operations {
-	/** called when node is deleted from the tree. This is called from
-	 * zdestroy(). */
-	int ( *delete_node )( reiser4_tree *tree, jnode *node );
-	/** mark node dirty. This is called from jnode_set_dirty(). */
-	int ( *dirty_node )( reiser4_tree *tree, jnode *node );
-	/** mark node clean. This is called from jnode_set_clean(). */
-	int ( *clean_node )( reiser4_tree *tree, jnode *node );
-} node_operations;
 
 extern void add_d_ref( jnode *node );
 

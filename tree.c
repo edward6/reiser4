@@ -1508,20 +1508,6 @@ int cut_tree (reiser4_tree * tree,
 	return result;
 }
 
-/* a first stage of reiser4 tree initialization which makes jload/jrelse
- * functions working (it is needed for journal replaying ) */
-void init_tree_ops( reiser4_tree *tree, 
-		    struct super_block *super,
-		    node_operations *tops )
-{
-	assert ("zam-585", tree != NULL);
-	assert( "nikita-2037", tops != NULL );
-	assert( "nikita-2043", super != NULL );
-
-	tree->super = super;
-	tree->ops = tops;
-}
-
 /* finishing reiser4 initialization */
 int init_tree( reiser4_tree *tree /* pointer to structure being
 				   * initialized */, 
@@ -1537,7 +1523,6 @@ int init_tree( reiser4_tree *tree /* pointer to structure being
 	assert( "nikita-308", height > 0 );
 	assert( "nikita-309", nplug != NULL );
 	assert( "zam-587", tree->super != NULL );
-	assert( "zam-588", tree->ops != NULL );
 
 	tree -> root_block = *root_block;
 	tree -> height = height;

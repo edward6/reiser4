@@ -1297,10 +1297,8 @@ void txn_delete_page (struct page *pg)
 	
 	assert("umka-199", pg != NULL);
 
-	/* FIXME: JMACD->NIKITA: What do you think of this? */
 	ClearPageDirty (pg);
-	/* current_tree->ops->clean_node (current_tree, node);*/
-	
+
 	node = (jnode *)(pg->private);
 
 	if (node == NULL)
@@ -1458,8 +1456,8 @@ void jnode_set_dirty( jnode *node )
 		assert ("jmacd-9777", node->atom != NULL && znode_is_any_locked (JZNODE (node)));
 	}
 
-	if (node->pg)
-		current_tree->ops->dirty_node (current_tree, node);
+	if (jnode_page (node) != NULL)
+		set_page_dirty (jnode_page (node));
 	else
 		assert ("zam-596", znode_above_root(JZNODE(node)));
 
@@ -1509,12 +1507,6 @@ void jnode_set_clean( jnode *node )
 	}
 
 	spin_unlock_jnode (node);
-
-	/* FIXME: JMACD->NIKITA: Shouldn't we rely on the flush/writeback method to set
-	 * the page clean?  I do not think we should call clean_node here. */ 
-	/*if (! JF_ISSET (node, ZNODE_UNFORMATTED)) {
-		current_tree->ops->clean_node (current_tree, node);
-	}*/
 }
 
 /* This function assigns a block to an atom, but first it must obtain the atom lock.  If

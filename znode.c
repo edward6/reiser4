@@ -369,68 +369,6 @@ void znode_remove( znode *node /* znode to remove */ )
 	z_hash_remove( & current_tree -> zhash_table, node );
 }
 
-static int znode_lock_remove( reiser4_tree *tree, znode *node )
-{
-	assert( "nikita-2121", node != NULL );
-	assert( "nikita-2122", tree != NULL );
-
-	spin_lock_tree( tree );
-
-	if( atomic_read( &ZJNODE(node) -> x_count ) > 0 ) {
-		spin_unlock_tree( tree );
-		return -EAGAIN;
-	}
-
-	znode_remove( node );
-	spin_unlock_tree( tree );
-	return 0;
-}
-
-/** jdelete() -- Remove znode from the tree
- *
- * This is called from zdrop() when last reference to the znode removed from the tree is
- * release.  Also for some unexplained reason, this is called from carry.
- */
-void jdelete( jnode *node /* znode to finish with */ )
-{
-	reiser4_tree *tree;
-
-	trace_stamp( TRACE_ZNODES );
-	assert( "nikita-467", node != NULL );
-	assert( "nikita-1443", current_tree != NULL );
-	assert( "nikita-2123", JF_ISSET( node, ZNODE_HEARD_BANSHEE ) );
-
-	tree = current_tree;
-
-	if( jnode_is_formatted( node )) {
-		assert( "nikita-2306", !znode_is_locked( JZNODE( node ) ) );
-
-		/* FIXME: JMACD->NIKITA: I think this should be done in
-		 * tree->ops->delete_node(), since we need to extend it to unformatted
-		 * nodes.  If those nodes are only deleted by invalidatepage(), which only
-		 * calls delete_node(), right? */
-		if( znode_lock_remove( tree, JZNODE( node ) ) ) {
-			return;
-		}
-	}
-
-	assert( "nikita-2057", tree -> ops -> delete_node != NULL );
-
-	/*
-	 * remove node backing store (page).
-	 */
-	if( tree -> ops -> delete_node( tree, node ) != 0 ) {
-		warning( "nikita-2058", "Failed to delete node: %llx",
-			 *jnode_get_block( node ) );
-	}
-
-	if( jnode_is_formatted( node ) ) {
-		zfree( JZNODE( node ) );
-	} else {
-		jfree( node );
-	}
-}
-
 /** zdrop() -- Remove znode from the tree.
  *
  * This is called when znode is removed from the memory.

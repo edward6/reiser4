@@ -205,10 +205,6 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	/* initialize reiser4_super_info_data */
 	private = get_super_private (s);
 
-	init_tree_ops (&private->tree, s, &page_cache_tops);
-	
-
-
 	super_bh = find_a_disk_format_40_super_block (s);
 	if (IS_ERR (super_bh))
 		return PTR_ERR (super_bh);
@@ -268,6 +264,7 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	height = get_format_40_tree_height (sb_copy);
 	nplug = node_plugin_by_id (NODE40_ID);
 
+	private->tree.super = s;
 	/* init reiser4_tree for the filesystem */
 	result = init_tree (&private->tree, &root_block, height, nplug);
 

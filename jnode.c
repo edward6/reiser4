@@ -667,6 +667,56 @@ void jrelse_nolock( jnode *node /* jnode to release references to */ )
 }
 
 
+/** 
+ * jdelete() -- Remove znode from the tree
+ *
+ * This is called from zdrop() when last reference to the znode removed from
+ * the tree is release.
+ */
+int jdelete( jnode *node /* jnode to finish with */ )
+{
+	spinlock_t   *lock;
+	struct page  *page;
+	int           result;
+	reiser4_tree *tree;
+
+	trace_stamp( TRACE_ZNODES );
+	assert( "nikita-467", node != NULL );
+	assert( "nikita-2123", JF_ISSET( node, ZNODE_HEARD_BANSHEE ) );
+
+	trace_on( TRACE_PCACHE, "delete node: %p\n", node );
+
+	lock = jnode_to_page_lock( node );
+	spin_lock( lock );
+	page = jnode_page( node );
+	if( page != NULL ) {
+		assert( "nikita-2181", lock == page_to_jnode_lock( page ) );
+		lock_page( page );
+		ClearPageDirty( page );
+		ClearPageUptodate( page );
+		remove_inode_page( page );
+		unlock_page( page );
+		break_page_jnode_linkage( page, node );
+		spin_unlock( lock );
+		page_cache_release( page );
+	} else
+		spin_unlock( lock );
+
+	tree = current_tree;
+
+	spin_lock_tree( tree );
+	if( atomic_read( &node -> x_count ) > 0 ) {
+		spin_unlock_tree( tree );
+		return -EAGAIN;
+	}
+	result = jnode_ops( node ) -> delete( node );
+	spin_unlock_tree( tree );
+	if( result != 0 )
+		warning( "nikita-2363", "Failed to delete jnode: %llx: %i",
+			 *jnode_get_block( node ), result );
+	return result;
+}
+
 /* drop jnode on the floor */
 void jdrop (jnode * node)
 {
@@ -840,6 +890,7 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 			.init    = noparse,
 			.parse   = noparse,
 			.remove  = jnode_remove_op,
+			.delete  = jnode_remove_op,
 			.mapping = jnode_mapping,
 			.index   = jnode_index
 		}
@@ -857,6 +908,7 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 			.init    = znode_init,
 			.parse   = znode_parse,
 			.remove  = znode_remove_op,
+			.delete  = znode_remove_op,
 			.mapping = znode_mapping,
 			.index   = znode_index
 		}

@@ -182,52 +182,6 @@ int done_formatted_fake( struct super_block *super )
 	return 0;
 }
 
-/** ->delete_node method of page-cache based tree operations */
-static int page_cache_delete_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
-{
-	spinlock_t  *lock;
-	struct page *page;
-
-	trace_on( TRACE_PCACHE, "delete node: %p\n", node );
-
-	lock = jnode_to_page_lock( node );
-	spin_lock( lock );
-	page = jnode_page( node );
-	if( page != NULL ) {
-		assert( "nikita-2181", lock == page_to_jnode_lock( page ) );
-		lock_page( page );
-		/* FIXME-NIKITA locking? */
-		ClearPageDirty( page );
-		ClearPageUptodate( page );
-		remove_inode_page( page );
-		unlock_page( page );
-		break_page_jnode_linkage( page, node );
-		spin_unlock( lock );
-		page_cache_release( page );
-		return 0;
-	}
-	spin_unlock( lock );
-	return 0;
-}
-
-/** ->dirty_node method of page-cache based tree operations */
-static int page_cache_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
-{
-	assert( "nikita-2045", JF_ISSET( node, ZNODE_LOADED ) );
-	trace_on( TRACE_PCACHE, "dirty node: %p\n", node );
-	set_page_dirty( jnode_page( node ) );
-	return 0;
-}
-
-/** ->clean_node method of page-cache based tree operations */
-static int page_cache_clean_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
-{
-	assert( "nikita-2170", jnode_page( node ) != NULL );
-	trace_on( TRACE_PCACHE, "clean node: %p\n", node );
-	ClearPageDirty( jnode_page( node ) );
-	return 0;
-}
-
 #if REISER4_DEBUG
 void *xmemcpy( void *dest, const void *src, size_t n )
 {
@@ -496,12 +450,6 @@ static struct address_space_operations formatted_fake_as_ops = {
 	 */
 	.releasepage    = reiser4_releasepage,
 	.direct_IO      = V( never_ever_direct_IO )
-};
-
-node_operations page_cache_tops = {
-	.delete_node   = page_cache_delete_node,
-	.dirty_node    = page_cache_dirty_node,
-	.clean_node    = page_cache_clean_node
 };
 
 #if REISER4_DEBUG

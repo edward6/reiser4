@@ -125,13 +125,9 @@ struct reiser4_tree {
 
 	/** default plugin used to create new nodes in a tree. */
 	node_plugin         *nplug;
-	node_operations     *ops;
 	struct super_block  *super;
 };
 
-extern void init_tree_ops( reiser4_tree *,
-			   struct super_block *,
-			   node_operations * );
 extern int init_tree( reiser4_tree *tree,
 		      const reiser4_block_nr *root_block,
 		      tree_level height, node_plugin *default_plugin);
