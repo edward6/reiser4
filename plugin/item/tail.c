@@ -294,6 +294,7 @@ int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
 	struct inode *inode;
 
 	/* saving passed coord in order to do not move it by tap. */
+	init_lh(&lh);
 	copy_lh(&lh, uf_coord->lh);
 	inode = page->mapping->host;
 	coord_dup(&coord, &uf_coord->base_coord);
