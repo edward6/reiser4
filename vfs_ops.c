@@ -1,8 +1,8 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
  * reiser4/README */
 
-/* Interface to VFS. Reiser4 {file|inode|address_space|dentry}_operations
-   are defined here. */
+/* Interface to VFS. Reiser4 {super|export|dentry}_operations are defined
+   here. */
 
 #include "forward.h"
 #include "debug.h"
@@ -243,6 +243,9 @@ reiser4_del_nlink(struct inode *object	/* object from which link is
 /* slab for reiser4_dentry_fsdata */
 static kmem_cache_t *dentry_fsdata_slab;
 
+/*
+ * initializer for dentry_fsdata_slab called during boot or module load.
+ */
 reiser4_internal int init_dentry_fsdata(void)
 {
 	dentry_fsdata_slab = kmem_cache_create("dentry_fsdata",
@@ -254,6 +257,9 @@ reiser4_internal int init_dentry_fsdata(void)
 	return (dentry_fsdata_slab == NULL) ? RETERR(-ENOMEM) : 0;
 }
 
+/*
+ * dual to init_dentry_fsdata(). Called on module unload.
+ */
 reiser4_internal void done_dentry_fsdata(void)
 {
 	kmem_cache_destroy(dentry_fsdata_slab);
@@ -300,6 +306,9 @@ reiser4_d_release(struct dentry *dentry /* dentry released */ )
 /* slab for reiser4_dentry_fsdata */
 static kmem_cache_t *file_fsdata_slab;
 
+/*
+ * initialize file_fsdata_slab. This is called during boot or module load.
+ */
 reiser4_internal int init_file_fsdata(void)
 {
 	file_fsdata_slab = kmem_cache_create("file_fsdata",
@@ -311,11 +320,17 @@ reiser4_internal int init_file_fsdata(void)
 	return (file_fsdata_slab == NULL) ? RETERR(-ENOMEM) : 0;
 }
 
+/*
+ * dual to init_file_fsdata(). Called during module unload.
+ */
 reiser4_internal void done_file_fsdata(void)
 {
 	kmem_cache_destroy(file_fsdata_slab);
 }
 
+/*
+ * Create reiser4 specific per-file data: reiser4_file_fsdata.
+ */
 reiser4_internal reiser4_file_fsdata *
 create_fsdata(struct file *file, int gfp)
 {
@@ -363,6 +378,9 @@ reiser4_get_file_fsdata(struct file *f	/* file
 	return f->private_data;
 }
 
+/*
+ * Dual to create_fsdata(). Free reiser4_file_fsdata.
+ */
 reiser4_internal void
 reiser4_free_fsdata(reiser4_file_fsdata *fsdata)
 {
@@ -370,6 +388,9 @@ reiser4_free_fsdata(reiser4_file_fsdata *fsdata)
 		kmem_cache_free(file_fsdata_slab, fsdata);
 }
 
+/*
+ * Dual to reiser4_get_file_fsdata().
+ */
 reiser4_internal void
 reiser4_free_file_fsdata(struct file *f)
 {
@@ -571,11 +592,20 @@ reiser4_drop_inode(struct inode *object)
 
 #define DEBUG_WRITEOUT (0)
 
+/*
+ * Called by reiser4_sync_inodes(), during speculative write-back (through
+ * pdflush, or balance_dirty_pages()).
+ */
 static void
 writeout(struct super_block *sb, struct writeback_control *wbc)
 {
 	long written = 0;
 	long to_write = wbc->nr_to_write;
+
+	/*
+	 * Performs early flushing, trying to free some memory. If there is
+	 * nothing to flush, commits some atoms.
+	 */
 
 	/* reiser4 has its own means of periodical write-out */
 	if (wbc->for_kupdate)
@@ -583,9 +613,6 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 
 	/* Commit all atoms if reiser4_writepages() is called from sys_sync() or
 	   sys_fsync(). */
-	/* FIXME: This way to support fsync is too expensive. Proper solution
-	   support is to commit only atoms which contain dirty pages from given
-	   address space. */
 	if (wbc->sync_mode != WB_SYNC_NONE) {
 		txnmgr_force_commit_all(sb, 1);
 		return;
@@ -1174,62 +1201,9 @@ DEFINE_RW_PROFREGIONS(dk);
 DEFINE_RW_PROFREGIONS(tree);
 DEFINE_RW_PROFREGIONS(cbk_cache);
 
-#if 0 && REISER4_LOCKPROF
-
-/*
- * functions used to report jnode whose spin lock (or zlock) is most wanted or
- * most held
- */
-
-static void echo_jnode(const char *prefix, const jnode *j)
-{
-	printk("%s %llx %i\n", prefix, *jnode_get_block(j), jnode_get_level(j));
-}
-
-static void jnode_most_wanted(struct profregion * preg)
-{
-	jnode *node;
-
-	node = container_of(preg->obj, jnode, guard.trying);
-	echo_jnode("jnode wanted", node);
-}
-
-static void jnode_most_held(struct profregion * preg)
-{
-	jnode *node;
-
-	node = container_of(preg->obj, jnode, guard.held);
-	echo_jnode("jnode held", node);
-}
-
-static void zlock_most_wanted(struct profregion * preg)
-{
-	znode *node;
-
-	node = container_of(preg->obj, znode, lock.guard.trying);
-	echo_jnode("zlock wanted", ZJNODE(node));
-}
-
-static void zlock_most_held(struct profregion * preg)
-{
-	znode *node;
-
-	node = container_of(preg->obj, znode, lock.guard.held);
-	echo_jnode("zlock held", ZJNODE(node));
-}
-
-#endif
-
 /* register profiling regions defined above */
 static int register_profregions(void)
 {
-#if 0 && REISER4_LOCKPROF
-	pregion_spin_jnode_held.champion = jnode_most_held;
-	pregion_spin_jnode_trying.champion = jnode_most_wanted;
-
-	pregion_spin_zlock_held.champion = zlock_most_held;
-	pregion_spin_zlock_trying.champion = zlock_most_wanted;
-#endif
 	register_super_eflush_profregion();
 	register_epoch_profregion();
 	register_jnode_profregion();
@@ -1406,26 +1380,41 @@ reiser4_get_sb(struct file_system_type *fs_type	/* file
 int d_cursor_init(void);
 void d_cursor_done(void);
 
-/* initialization stages for reiser4 */
+/*
+ * Reiser4 initialization/shutdown.
+ *
+ * Code below performs global reiser4 initialization that is done either as
+ * part of kernel initialization (when reiser4 is statically built-in), or
+ * during reiser4 module load (when compiled as module).
+ */
+
+/*
+ * Initialization stages for reiser4.
+ *
+ * These enumerate various things that have to be done during reiser4
+ * startup. Initialization code (init_reiser4()) keeps track of what stage was
+ * reached, so that proper undo can be done if error occurs during
+ * initialization.
+ */
 typedef enum {
-	INIT_NONE,
-	INIT_INODECACHE,
-	INIT_CONTEXT_MGR,
-	INIT_ZNODES,
-	INIT_PLUGINS,
-	INIT_PLUGIN_SET,
-	INIT_TXN,
-	INIT_FAKES,
-	INIT_JNODES,
-	INIT_EFLUSH,
-	INIT_SPINPROF,
-	INIT_SYSFS,
-	INIT_LNODES,
-	INIT_FQS,
-	INIT_DENTRY_FSDATA,
-	INIT_FILE_FSDATA,
-	INIT_D_CURSOR,
-	INIT_FS_REGISTERED,
+	INIT_NONE,               /* nothing is initialized yet */
+	INIT_INODECACHE,         /* inode cache created */
+	INIT_CONTEXT_MGR,        /* list of active contexts created */
+	INIT_ZNODES,             /* znode slab created */
+	INIT_PLUGINS,            /* plugins initialized */
+	INIT_PLUGIN_SET,         /* psets initialized */
+	INIT_TXN,                /* transaction manager initialized */
+	INIT_FAKES,              /* fake inode initialized */
+	INIT_JNODES,             /* jnode slab initialized */
+	INIT_EFLUSH,             /* emergency flush initialized */
+	INIT_SPINPROF,           /* spin lock profiling initialized */
+	INIT_SYSFS,              /* sysfs exports initialized */
+	INIT_LNODES,             /* lnodes initialized */
+	INIT_FQS,                /* flush queues initialized */
+	INIT_DENTRY_FSDATA,      /* dentry_fsdata slab initialized */
+	INIT_FILE_FSDATA,        /* file_fsdata slab initialized */
+	INIT_D_CURSOR,           /* d_cursor suport initialized */
+	INIT_FS_REGISTERED,      /* reiser4 file system type registered */
 } reiser4_init_stage;
 
 static reiser4_init_stage init_stage;
@@ -1439,6 +1428,10 @@ shutdown_reiser4(void)
 		exp;				\
 		-- init_stage;			\
 	}
+
+	/*
+	 * undo initializations already done by init_reiser4().
+	 */
 
 	DONE_IF(INIT_FS_REGISTERED, unregister_filesystem(&reiser4_fs_type));
 	DONE_IF(INIT_D_CURSOR, d_cursor_done());
@@ -1551,8 +1544,6 @@ struct file_system_type reiser4_fs_type = {
 	.fs_flags = FS_REQUIRES_DEV,
 	.get_sb = reiser4_get_sb,
 	.kill_sb = reiser4_kill_super,
-
-	/* NOTE-NIKITA something more? */
 	.next = NULL
 };
 
@@ -1626,9 +1617,12 @@ encode_inode(struct inode *inode, char *start)
 	return inode_file_plugin(inode)->wire.write(inode, start);
 }
 
+/*
+ * Supported file-handle types
+ */
 typedef enum {
-	FH_WITH_PARENT    = 0x10,
-	FH_WITHOUT_PARENT = 0x11
+	FH_WITH_PARENT    = 0x10,  /* file handle with parent */
+	FH_WITHOUT_PARENT = 0x11   /* file handle without parent */
 } reiser4_fhtype;
 
 #define NFSERROR (255)

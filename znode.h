@@ -1,7 +1,7 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+/* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
  * reiser4/README */
 
-/* Declaration of znode (Zam's node). */
+/* Declaration of znode (Zam's node). See znode.c for more details. */
 
 #ifndef __ZNODE_H__
 #define __ZNODE_H__
@@ -117,10 +117,6 @@ struct znode {
 	   removing it from memory you must decrease the c_count.  This makes
 	   the code simpler, and the cases where it is suboptimal are truly
 	   obscure.
-	
-	   All three znode reference counters ([cdx]_count) are atomic_t
-	   because we don't want to take and release spinlock for each
-	   reference addition/drop.
 	*/
 	int c_count;
 
@@ -128,7 +124,8 @@ struct znode {
 	   loaded. */
 	node_plugin *nplug;
 
-	/* version of znode data. This is increased on each modification. */
+	/* version of znode data. This is increased on each modification. This
+	 * is necessary to implement seals (see seal.[ch]) efficiently. */
 	__u64 version;
 
 	/* left delimiting key. Necessary to efficiently perform
@@ -139,6 +136,8 @@ struct znode {
 
 	/* znode's tree level */
 	__u16 level;
+	/* number of items in this node. This field is modified by node
+	 * plugin. */
 	__u16 nr_items;
 #if REISER4_DEBUG_MODIFY
 	/* In debugging mode, used to detect loss of znode_set_dirty()

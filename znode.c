@@ -831,6 +831,10 @@ znode_build_version(reiser4_tree * tree)
 	return UNDER_SPIN(epoch, tree, ++tree->znode_epoch);
 }
 
+/*
+ * relocate znode to the new block number @blk. Caller keeps @node and @parent
+ * long-term locked, and loaded.
+ */
 static int
 relocate_locked(znode * node, znode * parent, reiser4_block_nr * blk)
 {
