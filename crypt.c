@@ -19,6 +19,9 @@ encrypt_slum_crypto_items(reiser4_key * current_slum_key)
 
 #endif
 
+#include "debug.h"
+#include "plugin/plugin.h"
+#include <linux/types.h>
 #include <linux/random.h>
 #define MAX_CRYPTO_BLOCKSIZE 256
 #define NONE_BLOCKSIZE 8
@@ -40,7 +43,7 @@ static int common_align_cluster (__u8 *tail, int clust_size, int blocksize)
 	assert("edward-02", clust_size != 0);
 	assert("edward-03", blocksize != 0 || blocksize <= MAX_CRYPTO_BLOCKSIZE);
 	
-	tail_size = blocksize - (clust_size % block_size);
+	tail_size = blocksize - (clust_size % blocksize);
 	get_random_bytes (tail, tail_size);
 	return tail_size;
 }
