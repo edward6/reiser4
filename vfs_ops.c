@@ -620,8 +620,6 @@ reiser4_sync_inodes(struct super_block * sb, struct writeback_control * wbc)
 	reiser4_context ctx;
 
 	init_context(&ctx, sb);
-	/* avoid recursive calls to ->sync_inodes */
-	context_set_commit_async(&ctx);
 	wbc->older_than_this = NULL;
 
 	/*
@@ -630,6 +628,9 @@ reiser4_sync_inodes(struct super_block * sb, struct writeback_control * wbc)
 	generic_sync_sb_inodes(sb, wbc);
 	spin_unlock(&inode_lock);
 	writeout(sb, wbc);
+
+	/* avoid recursive calls to ->sync_inodes */
+	context_set_commit_async(&ctx);
 	(void)reiser4_exit_context(&ctx);
 	spin_lock(&inode_lock);
 }
