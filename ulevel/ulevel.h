@@ -1737,6 +1737,8 @@ static inline void DQUOT_FREE_SPACE(struct inode *inode, qsize_t nr)
 
 extern void clear_inode(struct inode *);
 
+#define remove_from_page_cache remove_inode_page
+
 /* __REISER4_ULEVEL_H__ */
 #endif
 
