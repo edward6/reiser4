@@ -299,6 +299,7 @@ reiser4_grab_space(__u64 * grabbed, __u64 min_block_count,
 	assert("zam-472", grabbed != NULL);
 	assert("zam-474", max_block_count >= min_block_count);
 	free_blocks = reiser4_free_blocks(super);
+	reserved_blocks = reiser4_fs_reserved_space (super);
 
 	/*trace_if (TRACE_ALLOC, info ("reiser4_grab_space: free_blocks %llu\n",
 	   free_blocks)); */
@@ -491,7 +492,8 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 		switch (stage) {
 		case BLOCK_NOT_COUNTED:
 		case BLOCK_GRABBED:
-			warning("vpf-334", "SPACE: use %s %llu blocks.", stage == BLOCK_GRABBED ? "grabbed" : "not counted", *len)
+			warning("vpf-334", "SPACE: use %s %llu blocks.", 
+				stage == BLOCK_GRABBED ? "grabbed" : "not counted", *len);
 			grabbed2used(*len);
 			break;
 		case BLOCK_UNALLOCATED:
