@@ -530,10 +530,9 @@ int jload( jnode *node )
 		jnode_plugin *jplug;
 
 		/*
-		 * read data from page cache. In any case we rely on proper
-		 * synchronization in the underlying transport. Page reference
-		 * counter is incremented and page is kmapped, it will
-		 * kunmapped in zrelse
+		 * read data from page cache. Page reference counter is
+		 * incremented and page is kmapped, it will kunmapped in
+		 * zrelse
 		 */
 		trace_on( TRACE_PCACHE, "read node: %p\n", node );
 
@@ -564,7 +563,6 @@ int jload( jnode *node )
 		struct page *page;
 
 		page = jnode_page( node );
-		assert( "nikita-2136", atomic_read( &node -> d_count ) > 1 );
 		assert( "nikita-2348", page != NULL );
 		page_cache_get( page );
 		kmap( page );
