@@ -2074,11 +2074,13 @@ int capture_super_block (struct super_block * s)
 
 	init_lh (&lh);
 	result = longterm_lock_znode (&lh, fake, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
-	if (result)
+	if (result) {
+		zput (fake);
 		return result;
-	zput (fake);
+	}
 
 	znode_set_dirty (fake);
+	zput (fake);
 
 	done_lh (&lh);
 	return 0;
