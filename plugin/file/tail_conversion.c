@@ -9,23 +9,6 @@
  * tail2extent and extent2tail
  */
 
-/*
- * look for item of file @inode corresponding to @key
- */
-/* Audited by: green(2002.06.15) */
-/* AUDIT: since some callers already init lock handle and callers are suppsed
-   to clear lock handle anyway, init_lh() should be moved out of here and
-   all non conforming acllers should be modified instead */
-int find_item (reiser4_key * key, coord_t * coord,
-	       lock_handle * lh, znode_lock_mode lock_mode)
-{
-	ncoord_init_zero (coord);
-	init_lh (lh);
-	return coord_by_key (current_tree, key, coord, lh,
-			     lock_mode, FIND_MAX_NOT_MORE_THAN,
-			     TWIG_LEVEL, LEAF_LEVEL, CBK_UNIQUE | CBK_FOR_INSERT);
-}
-
 /* exclusive access to a file is acquired for tail conversion */
 /* Audited by: green(2002.06.15) */
 void get_exclusive_access (struct inode * inode)
@@ -54,28 +37,32 @@ void drop_nonexclusive_access (struct inode * inode)
 
 
 /* part of tail2extent. @count bytes were copied into @page starting from the
- * beginning. mark all modifed buffers dirty and uptodate, mark others
+ * beginning. mark all modifed jnode dirty and loaded, mark others
  * uptodate */
-/* Audited by: green(2002.06.15) */
-static void mark_buffers_dirty (struct page * page, unsigned count)
+static void mark_jnodes_dirty (struct page * page, unsigned count)
 {
-	struct buffer_head * bh;
+	struct jnode * j;
 
-	assert ("vs-525", page_has_buffers (page));
+	/* make sure that page has jnodes */
+	assert ("vs-525", PagePrivate (page));
 	
-	bh = page_buffers (page);
+	j = nth_jnode (page, 0);
 	do {
 		if (count) {
-			mark_buffer_dirty (bh);
-			if (count < bh->b_size)
+			jnode_set_dirty (j);
+			if (count < current_blocksize)
 				count = 0;
 			else
-				count -= bh->b_size;
+				count -= current_blocksize;
 		}
-		set_buffer_uptodate (bh);
-		bh = bh->b_this_page;
-	/* AUDIT Perhaps it worth to add a check for count != 0 here as well to optimise for a case where only few buffers at the beginning of a page were touched */
-	} while (bh != page_buffers (page));
+		jnode_set_loaded (j);
+
+		/* AUDIT Perhaps it worth to add a check for count !=
+		 * 0 here as well to optimise for a case where only
+		 * few buffers at the beginning of a page were
+		 * touched.  ANSWER: we need to iterate all jnodes
+		 * anyway to mark them loaded */
+	} while ((j = next_jnode (j)) != 0);
 }
 
 
@@ -103,7 +90,6 @@ static int cut_tail_items (struct inode * inode, loff_t offset, int count)
 
 /* @page contains file data. tree does not contain items corresponding to those
  * data. Put them in using specified item plugin */
-/* Audited by: green(2002.06.15) */
 static int write_pages_by_item (struct inode * inode, struct page ** pages,
 				int nr_pages, int count, item_plugin * iplug)
 {
@@ -119,44 +105,48 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 	assert ("vs-604", ergo (iplug->h.id == TAIL_ID, nr_pages == 1));
 	assert ("vs-564", iplug && iplug->s.file.write);
 
-	/* This should be PAGE_CACHE_SIZE, no? */
-	to_page = PAGE_SIZE;
+
+	to_page = PAGE_CACHE_SIZE;
 	result = 0;
+
+	ncoord_init_zero (&coord);
+	init_lh (&lh);
+
 	for (i = 0; i < nr_pages; i ++) {
 		p_data = kmap (pages [i]);
 
 		/* build flow */
-		/* This should be PAGE_CACHE_SIZE, no? */
-		if (count > (int)PAGE_SIZE)
-			to_page = (int)PAGE_SIZE;
+		if (count > (int)PAGE_CACHE_SIZE)
+			to_page = (int)PAGE_CACHE_SIZE;
 		else
 			to_page = count;
 			
 		inode_file_plugin (inode)->
-			flow_by_inode (inode, p_data, 0/* not user space */,
+			flow_by_inode (inode, 0/* no data to copy from */,
+				       0/* not user space */,
 				       (unsigned)to_page,
 				       (loff_t)(pages[i]->index << PAGE_CACHE_SHIFT),
 				       WRITE_OP, &f);
 
 		do {
-			/* AUDIT: uninitialised lock handle */
-			result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
+			result = find_next_item (0, &f.key, &coord, &lh, ZNODE_WRITE_LOCK);
 			if (result != CBK_COORD_NOTFOUND && result != CBK_COORD_FOUND) {
 				goto done;
 			}
 
 			result = iplug->s.file.write (inode, &coord, &lh, &f,
 						      pages [i]);
-			done_lh (&lh);
 			/* item's write method may return -EAGAIN */
 		} while (result == -EAGAIN);
-		
+
 		kunmap (pages [i]);
 		/* page is written */
 		count -= to_page;
 	}
 
  done:
+	done_lh (&lh);
+
 	/* result of write is 0 or error */
 	assert ("vs-589", result <= 0);
 	/* if result is 0 - all @count bytes is written completely */
@@ -216,13 +206,11 @@ static int replace (struct inode * inode, struct page ** pages, int nr_pages,
 	
 	/* mark buffers of pages (those only into which removed tail items were
 	 * copied) dirty and all pages - uptodate */
-	/* AUDIT this should be PAGE_CACHE_SIZE */
-	to_page = PAGE_SIZE;
+	to_page = PAGE_CACHE_SIZE;
 	for (i = 0; i < nr_pages; i ++) {
-		/* AUDIT this should became PAGE_CACHE_MASK */
-		if (i == nr_pages - 1 && (count & ~PAGE_MASK))
-			to_page = (count & ~PAGE_MASK);
-		mark_buffers_dirty (pages [i], to_page);
+		if (i == nr_pages - 1 && (count & ~PAGE_CACHE_MASK))
+			to_page = (count & ~PAGE_CACHE_MASK);
+		mark_jnodes_dirty (pages [i], to_page);
 		SetPageUptodate (pages [i]);
 	}
 	return 0;
@@ -236,7 +224,7 @@ static int replace (struct inode * inode, struct page ** pages, int nr_pages,
 static int all_pages_are_full (int nr_pages, int page_off)
 {
 	/* max number of pages is used and last one is full */
-	return nr_pages == TAIL2EXTENT_PAGE_NUM && page_off == PAGE_SIZE;
+	return nr_pages == TAIL2EXTENT_PAGE_NUM && page_off == PAGE_CACHE_SIZE;
 }
 
 
@@ -263,7 +251,6 @@ static int file_is_over (struct inode * inode, reiser4_key * key,
 }
 
 
-/* Audited by: green(2002.06.15) */
 int tail2extent (struct inode * inode)
 {
 	int result;
@@ -299,13 +286,19 @@ int tail2extent (struct inode * inode)
 	page_off = 0;
 	item = 0;
 	copied = 0;
+
+	ncoord_init_zero (&coord);
+	init_lh (&lh);
 	while (1) {
 		if (!item) {
 			/* get next one */
-			/* AUDIT: uninited lock handle */
-			result = find_item (&key, &coord, &lh, ZNODE_READ_LOCK);
+			result = find_next_item (0, &key, &coord, &lh, ZNODE_READ_LOCK);
 			if (result != CBK_COORD_FOUND) {
 				drop_pages (pages, nr_pages);
+				break;
+			}
+			result = zload (coord.node);
+			if (result) {
 				break;
 			}
 			if (item_id_by_coord (&coord) != TAIL_ID) {
@@ -313,6 +306,7 @@ int tail2extent (struct inode * inode)
 				assert ("vs-597", get_key_offset (&key) == 0);
 				assert ("vs-599", nr_pages == 0);
 				result = 0;
+				zrelse (coord.node);
 				break;
 			}
 			item = item_body_by_coord (&coord);
@@ -322,12 +316,13 @@ int tail2extent (struct inode * inode)
 
 		if (!page) {
 			assert ("vs-598",
-				(get_key_offset (&key) & ~PAGE_MASK) == 0);
+				(get_key_offset (&key) & ~PAGE_CACHE_MASK) == 0);
 			page = grab_cache_page (inode->i_mapping,
 						(unsigned long)(get_key_offset (&key) >>
 								PAGE_CACHE_SHIFT));
 			if (!page) {
 				drop_pages (pages, nr_pages);
+				zrelse (coord.node);
 				result = -ENOMEM;
 				break;
 			}
@@ -340,8 +335,8 @@ int tail2extent (struct inode * inode)
 		/* how many bytes to copy */
 		count = item_length_by_coord (&coord) - copied;
 		/* limit length of copy to end of page */
-		if ((unsigned)count > PAGE_SIZE - page_off) {
-			count = PAGE_SIZE - page_off;
+		if ((unsigned)count > PAGE_CACHE_SIZE - page_off) {
+			count = PAGE_CACHE_SIZE - page_off;
 		}
 
 		/* kmap/kunmap are necessary for pages which are not
@@ -358,10 +353,11 @@ int tail2extent (struct inode * inode)
 
 		if ((done = file_is_over (inode, &key, &coord)) ||
 		    all_pages_are_full (nr_pages, page_off)) {
+			zrelse (coord.node);
 			done_lh (&lh);
 			/* replace tail items with extent */
 			result = replace (inode, pages, nr_pages, 
-					  (int)((nr_pages - 1) * PAGE_SIZE +
+					  (int)((nr_pages - 1) * PAGE_CACHE_SIZE +
 						page_off));
 			drop_pages (pages, nr_pages);
 			if (done || result) {
@@ -380,10 +376,9 @@ int tail2extent (struct inode * inode)
 		if (copied == item_length_by_coord (&coord)) {
 			/* item is over, find next one */
 			item = 0;
-			done_lh (&lh);
+			zrelse (coord.node);
 		}
-		/* AUDIT This should be PAGE_CACHE_SIZE */
-		if (page_off == PAGE_SIZE) {
+		if (page_off == PAGE_CACHE_SIZE) {
 			/* page is over */
 			page = 0;
 		}
@@ -422,7 +417,6 @@ static int write_page_by_tail (struct inode * inode, struct page * page,
 
 /* for every page of file: read page, cut part of extent pointing to this page,
  * put data of page tree by tail item */
-/* Audited by: green(2002.06.15) */
 int extent2tail (struct file * file)
 {
 	int result;
@@ -443,8 +437,7 @@ int extent2tail (struct file * file)
 	get_exclusive_access (inode);
 
 	/* number of pages in the file */
-	/* AUDIT that should be PAGE_CACHE_SIZE */
-	num_pages = (inode->i_size + PAGE_SIZE - 1) / PAGE_SIZE;
+	num_pages = (inode->i_size + PAGE_CACHE_SIZE - 1) / PAGE_CACHE_SIZE;
 	if (!num_pages) {
 		drop_exclusive_access (inode);
 		return 0;
@@ -460,12 +453,15 @@ int extent2tail (struct file * file)
 		int do_conversion;
 		
 		do_conversion = 0;
-		/* AUDIT uninited lock handle */
-		result = find_item (&from, &coord, &lh, ZNODE_READ_LOCK);
-		if (result == CBK_COORD_FOUND) {
+
+		ncoord_init_zero (&coord);
+		init_lh (&lh);
+		result = find_next_item (file, &from, &coord, &lh, ZNODE_READ_LOCK);
+		if (result == CBK_COORD_FOUND && (result = zload (coord.node))) {
 			if (item_id_by_coord (&coord) == EXTENT_POINTER_ID) {
 				do_conversion = 1;
 			}
+			zrelse (coord.node);
 		}
 		done_lh (&lh);
 		if (!do_conversion) {
@@ -505,7 +501,7 @@ int extent2tail (struct file * file)
 
 		/* cut part of file we have read */
 		set_key_offset (&from, (__u64)(i << PAGE_CACHE_SHIFT));
-		set_key_offset (&to, (__u64)((i << PAGE_CACHE_SHIFT) + PAGE_SIZE - 1));
+		set_key_offset (&to, (__u64)((i << PAGE_CACHE_SHIFT) + PAGE_CACHE_SIZE - 1));
 		result = cut_tree (tree_by_inode (inode), &from, &to);
 		if (result) {
 			unlock_page (page);
@@ -513,10 +509,9 @@ int extent2tail (struct file * file)
 			break;
 		}
 		/* put page data into tree via tail_write */
-		/* AUDIT that shoule be PAGE_CACHE_SIZE/MASK */
-		count = PAGE_SIZE;
+		count = PAGE_CACHE_SIZE;
 		if (i == num_pages - 1)
-			count = (inode->i_size & ~PAGE_MASK) ? : PAGE_SIZE;
+			count = (inode->i_size & ~PAGE_CACHE_MASK) ? : PAGE_CACHE_SIZE;
 		result = write_page_by_tail (inode, page, count);
 		if (result) {
 			unlock_page (page);
