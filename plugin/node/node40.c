@@ -2130,6 +2130,7 @@ shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,
 	int result;
 	znode *left, *right;
 	znode *source;
+	int target_empty;
 
 	assert("nikita-2161", coord_check(from));
 
@@ -2175,6 +2176,8 @@ shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,
 		return 0;
 	}
 
+	target_empty = node_is_empty(to);
+
 	/* when first node plugin with item body compression is implemented,
 	   this must be changed to call node specific plugin */
 
@@ -2205,6 +2208,12 @@ shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,
 	/* adjust @from pointer in accordance with @including_stop_coord flag
 	   and amount of data which was really shifted */
 	adjust_coord(from, &shift, result, including_stop_coord);
+
+	if (target_empty)
+		/*
+		 * items were shifted into empty node. Update delimiting key.
+		 */
+		result = prepare_for_update(NULL, left, info);
 
 	/* add update operation to @info, which is the list of operations to
 	   be performed on a higher level */

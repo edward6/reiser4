@@ -188,6 +188,7 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	WLOCK_DK(tree);
 	znode_set_ld_key(node, key);
 	znode_set_rd_key(node, rdkey);
+	ZF_SET(node, JNODE_DKSET);
 	ON_DEBUG(node->creator = current);
 	ON_DEBUG(node->first_key = *key);
 	WUNLOCK_DK(tree);
