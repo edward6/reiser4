@@ -6,6 +6,10 @@
 #if !defined( __FS_REISER4_CLUSTER_H__ )
 #define __FS_REISER4_CLUSTER_H__
 
+#ifndef cloff_t
+#define cloff_t unsigned long
+#endif
+
 static inline loff_t min_count(loff_t a, loff_t b)
 {
 	return (a < b ? a : b);
@@ -156,16 +160,23 @@ fsize_to_count(reiser4_cluster_t * clust, struct inode * inode)
 }
 
 static inline void
-reiser4_cluster_init (reiser4_cluster_t * clust){
+reiser4_slide_init (reiser4_slide_t * win){
+	assert("edward-1084", win != NULL);
+	xmemset(win, 0, sizeof *win);
+}
+
+static inline void
+reiser4_cluster_init (reiser4_cluster_t * clust, reiser4_slide_t * window){
 	assert("edward-84", clust != NULL);
 	xmemset(clust, 0, sizeof *clust);
 	clust->stat = DATA_CLUSTER;
+	clust->win = window;
 }
 
 int inflate_cluster(reiser4_cluster_t *, struct inode *);
 int find_cluster_item(hint_t * hint, const reiser4_key *key, int check_key,
 		      znode_lock_mode lock_mode, ra_info_t *ra_info,
-		      lookup_bias bias);
+		      lookup_bias bias, __u32 flags);
 int page_of_cluster(struct page *, reiser4_cluster_t *, struct inode *);
 int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
 void forget_cluster_pages(reiser4_cluster_t *);
@@ -177,12 +188,14 @@ int get_disk_cluster_locked(reiser4_cluster_t * clust, znode_lock_mode lock_mode
 int hint_prev_cluster(reiser4_cluster_t * clust);
 void set_nrpages_by_inode(reiser4_cluster_t * clust, struct inode * inode);
 int grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust);
+int prepare_page_cluster(struct inode *inode, reiser4_cluster_t *clust, int capture);
 void release_cluster_pages(reiser4_cluster_t * clust, int from);
 void put_cluster_handle(reiser4_cluster_t * clust, tfm_action act);
 int grab_tfm_stream(struct inode * inode, tfm_cluster_t * tc, tfm_action act, tfm_stream_id id);
 int tfm_cluster_is_uptodate (tfm_cluster_t * tc);
 void tfm_cluster_set_uptodate (tfm_cluster_t * tc);
 void tfm_cluster_clr_uptodate (tfm_cluster_t * tc);
+int new_cluster(reiser4_cluster_t * clust, struct inode * inode);
 
 static inline int
 alloc_clust_pages(reiser4_cluster_t * clust, struct inode * inode )
