@@ -216,7 +216,7 @@ jnode * jnew (void)
 
 	/* FIXME: not a strictly correct, but should help in avoiding of
 	 * looking to missing znode-only fields */
-	JF_SET (jal, ZNODE_UNFORMATTED);
+	jnode_set_type (jal, JNODE_UNFORMATTED_BLOCK);
 
 	return jal;
 }
@@ -277,8 +277,8 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 		if (in_hash != NULL) {
 			assert ("nikita-2358", jnode_page (in_hash) == NULL);
 			jnode_attach_page_nolock (in_hash, pg);
-			assert ("nikita-2356", JF_ISSET (in_hash, 
-							 ZNODE_UNFORMATTED));
+			assert ("nikita-2356", 
+				jnode_get_type (in_hash) == JNODE_UNFORMATTED_BLOCK);
 		} else {
 			j_hash_table *jtable;
 
@@ -298,8 +298,7 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 			jref (jal);
 
 			jnode_attach_page_nolock (jal, pg);
-
-			JF_SET (jal, ZNODE_UNFORMATTED);
+			jnode_set_type (jal, JNODE_UNFORMATTED_BLOCK);
 
 			jal->key.mapping = pg->mapping;
 			jal->key.index   = pg->index;
@@ -813,7 +812,7 @@ jnode_type jnode_get_type( const jnode *node )
 	return mask_to_type[ ( node -> state & state_mask ) >> ZNODE_UNFORMATTED ];
 }
 
-void jnode_set_type( jnode * node, jnode_type type)
+void jnode_set_type( jnode * node, jnode_type type )
 {
 	static unsigned long type_to_mask[] = {
 		[JNODE_UNFORMATTED_BLOCK] = 1,

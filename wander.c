@@ -368,7 +368,7 @@ static int get_overwrite_set (txn_atom * atom, capture_list_head * overwrite_lis
 	while (!capture_list_end (head, cur)) {
 		jnode * next = capture_list_next(cur);
 
-		if (jnode_is_formatted(cur) && znode_above_root(JZNODE(cur))) {
+		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
 			trace_on (TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, ZNODE_WANDER));
 		}
 
@@ -376,7 +376,7 @@ static int get_overwrite_set (txn_atom * atom, capture_list_head * overwrite_lis
 		if (JF_ISSET(cur, ZNODE_WANDER)) { 
 			capture_list_remove_clean (cur);
 
-			if (jnode_is_formatted(cur) && znode_above_root(JZNODE(cur))) {
+			if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
 				/* we replace fake znode by another (real)
 				 * znode which is suggested by disk_layout
 				 * plugin */
