@@ -91,8 +91,6 @@ typedef enum {
 
        /* znode lock is being invalidated */
        ZNODE_IS_DYING          = 10,
-       /* znode data are mapped into memory */
-       ZNODE_KMAPPED           = 11,
        /* jnode of block which has pointer (allocated or unallocated) from
 	* extent or something similar (indirect item, for example) */
        ZNODE_MAPPED            = 12,

@@ -143,8 +143,11 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 
 /**
  * return -EIO after that many iterations in coord_by_key().
+ *
+ * I have witnessed more than 4000 iterations (in 30 thread test) before cbk
+ * finished. --nikita
  */
-#define REISER4_MAX_CBK_ITERATIONS    (1000)
+#define REISER4_MAX_CBK_ITERATIONS    (100000)
 
 /**
  * read all blocks when one block on the page is read

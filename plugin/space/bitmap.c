@@ -508,20 +508,17 @@ static int load_and_lock_bnode (struct bnode * bnode)
 		{ /* allocate memory for working bitmap block */
 			reiser4_tree * tree = current_tree;
 
-			spin_lock_jnode (bnode->wjnode);
 			add_d_ref (bnode->wjnode);
 
 			assert ("zam-630", tree->ops != NULL && tree->ops->allocate_node != NULL);
 
-			spin_unlock_jnode(bnode->wjnode);
 			ret = tree->ops->allocate_node(tree, bnode->wjnode);
+			spin_unlock_jnode (bnode->wjnode);
 			if (ret < 0) {
-				spin_unlock_jnode(bnode->wjnode);
 				goto fail;
 			}
 
 			JF_SET(bnode->wjnode, ZNODE_LOADED);
-			spin_unlock_jnode(bnode->wjnode);
 		} 
 
 		/* node has been loaded by this jload call  */

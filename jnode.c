@@ -266,11 +266,11 @@ void jnode_attach_page_nolock( jnode *node, struct page *pg )
 		( pg -> private == ( unsigned long ) node ) );
 	if( !PagePrivate( pg ) ) {
 		assert( "nikita-2059", pg -> private == 0ul );
+		page_cache_get( pg );
 		pg -> private = ( unsigned long ) node;
 		node -> pg  = pg;
 		SetPagePrivate( pg );
 		/* add reference to page */
-		page_cache_get( pg );
 	}
 }
 
@@ -385,7 +385,7 @@ int jload_and_lock( jnode *node )
 		 * ->read_node() reads data from page cache. In any case we
 		 * rely on proper synchronization in the underlying
 		 * transport. Page reference counter is incremented and page is
-		 * kmapped, it will kunmapped in zunload
+		 * kmapped, it will kunmapped in zrelse
 		 */
 		result = tree -> ops -> read_node( tree, node );
 		reiser4_stat_znode_add( zload_read );
@@ -398,29 +398,29 @@ int jload_and_lock( jnode *node )
 			jrelse_nolock( node );
 	} else {
 		assert( "nikita-2136", atomic_read( &node -> d_count ) > 1 );
+		assert( "nikita-2348", jnode_page( node ) != NULL );
+		page_cache_get( jnode_page( node ) );
 		result = 1;
 	}
-	assert( "nikita-2135", ergo( result >= 0,
-				     JF_ISSET( node, ZNODE_KMAPPED ) ) );
-
 	return result;
 }
 
 /** just like jrelse, but assume jnode is already spin-locked */
 void jrelse_nolock( jnode *node /* jnode to release references to */ )
 {
+	reiser4_tree *tree;
+
 	assert( "nikita-487", node != NULL );
 	assert( "nikita-489", atomic_read( &node -> d_count ) > 0 );
 	ON_SMP( assert( "nikita-1906", spin_jnode_is_locked( node ) ) );
 
 	ON_DEBUG( -- lock_counters() -> d_refs );
-	if( atomic_dec_and_test( &node -> d_count ) ) {
-		reiser4_tree *tree;
 
-		tree = current_tree;
-		tree -> ops -> release_node( tree, node );
+	tree = current_tree;
+	tree -> ops -> release_node( tree, node );
+
+	if( atomic_dec_and_test( &node -> d_count ) )
 		JF_CLR( node, ZNODE_LOADED );
-	}
 }
 
 
@@ -476,7 +476,7 @@ void info_jnode( const char *prefix /* prefix to print */,
 		return;
 	}
 
-	info( "%s: %p: state: %lu: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, block: %llu, d_count: %d, x_count: %d, pg: %p, ",
+	info( "%s: %p: state: %lu: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, block: %llu, d_count: %d, x_count: %d, pg: %p, ",
 	      prefix, node, node -> state, 
 
 	      jnode_state_name( node, ZNODE_LOADED ),
@@ -490,7 +490,6 @@ void info_jnode( const char *prefix /* prefix to print */,
 	      jnode_state_name( node, ZNODE_WANDER ),
 	      jnode_state_name( node, ZNODE_DIRTY ),
 	      jnode_state_name( node, ZNODE_IS_DYING ),
-	      jnode_state_name( node, ZNODE_KMAPPED ),
 	      jnode_state_name( node, ZNODE_MAPPED ),
 	      jnode_state_name( node, ZNODE_FLUSH_BUSY ),
 	      jnode_state_name( node, ZNODE_FLUSH_QUEUED ),
