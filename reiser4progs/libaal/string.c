@@ -167,6 +167,13 @@ char *aal_strsep(char **stringp, const char *delim) {
     return begin;
 }
 
+char *aal_strndup(const char *s, size_t n) {
+    char *str = (char *)aal_calloc(n + 1, 0);
+    aal_strncpy(str, s, n);
+
+    return str;
+}
+
 #endif
 
 /* Converts string denoted as size into digits */

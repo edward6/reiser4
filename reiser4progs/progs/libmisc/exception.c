@@ -160,10 +160,15 @@ static char *progs_exception_readline(
 	return NULL;
     
     fgets(line, 256, stdin);
-
-    if (line && aal_strlen(line) && str[aal_strlen(line) - 1] == '\n')
-	line[aal_strlen(line) - 1] = '\0';
 #endif
+    
+    if (line) {
+	uint32_t len = aal_strlen(line);
+	if (len) {
+	    if (line[len - 1] == '\n' || line[len - 1] == '\040')
+		line[len - 1] = '\0';
+	}
+    }
 
     return line;
 }
@@ -217,13 +222,20 @@ exit:
 
 #ifdef HAVE_LIBREADLINE
 
-static char *progs_exception_generator(char *text, int state) {
-    aal_list_t *walk = NULL;
+static aal_list_t *list = NULL;
 
-    aal_list_foreach_forward(walk, options) {
-	char *option = (char *)walk->item;
-	if (!aal_strncmp(option, text, aal_strlen(text)))
-	    return option;
+static char *progs_exception_generator(char *text, int state) {
+    char *opt;
+    
+    if (!state)
+	list = options;
+    
+    while (list) {
+	opt = (char *)list->item;
+	list = list->next;
+	
+	if (!aal_strncmp(opt, text, aal_strlen(text)))
+	    return aal_strndup(opt);
     }
     
     return NULL;
@@ -239,33 +251,15 @@ static char **progs_exception_complete(char *text, int start, int end) {
 /* Streams assigned with exception type are stored here */
 static void *streams[10];
 
-void progs_exception_done(void) {
-#ifdef HAVE_LIBREADLINE
-    if (options) {
-	aal_list_free(options);
-	options = NULL;
-    }
-#endif
-}
-
 void progs_exception_init(void) {
 #ifdef HAVE_LIBREADLINE
-    int i;
-    
-    for (i = 1; i < aal_log2(EXCEPTION_LAST); i++) {
-	char *name = aal_exception_option_string(1 << i);
-	options = aal_list_append(options, name);
-    }
-    
-    if (options)
-	options = aal_list_first(options);
-    
     rl_initialize();
-    
     rl_attempted_completion_function = 
 	(CPPFunction *)progs_exception_complete;
 #endif
 }
+
+void progs_exception_done(void) {}
 
 /* This function sets up exception streams */
 void progs_exception_set_stream(
@@ -289,6 +283,7 @@ void *progs_exception_get_stream(
 aal_exception_option_t progs_exception_handler(
     aal_exception_t *exception		/* exception to be processed */
 ) {
+    int i;
     void *stream = stderr;
     aal_exception_option_t opt;
     aal_list_t *list, *walk = NULL;
@@ -327,10 +322,23 @@ aal_exception_option_t progs_exception_handler(
 	return exception->options;
     }
 	    
+    for (i = 1; i < aal_log2(EXCEPTION_LAST); i++) {
+	if ((1 << i) & exception->options) {
+	    char *name = aal_exception_option_string(1 << i);
+	    options = aal_list_append(options, name);
+	}
+    }
+    
+    if (options)
+	options = aal_list_first(options);
+    
     do {
 	opt = progs_exception_prompt(exception->options);
     } while (opt == EXCEPTION_UNHANDLED && isatty(0));
 
+    aal_list_free(options);
+    options = NULL;
+    
     if (exception->type == EXCEPTION_WARNING || 
 	    exception->type == EXCEPTION_INFORMATION)
 	aal_gauge_resume();

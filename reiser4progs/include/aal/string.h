@@ -31,6 +31,7 @@ extern char *aal_strpbrk(const char *s, const char *accept);
 extern char *aal_strchr(const char *s, int c);
 extern char *aal_strrchr(const char *s, int c);
 extern char *aal_strsep(char **stringp, const char *delim);
+extern char *aal_strndup(const char *s, size_t n);
 
 #else
 
@@ -51,6 +52,7 @@ extern char *aal_strsep(char **stringp, const char *delim);
 #define aal_strchr  strchr
 #define aal_strrchr strrchr
 #define aal_strsep  strsep
+#define aal_strndup strndup
 
 #endif
 
