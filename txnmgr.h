@@ -352,7 +352,7 @@ jnode *             next_jnode             (jnode *                 node);
 
 /* flush code takes care about how to fuse flush queues */
 extern void flush_fluse_queues (txn_atom *, txn_atom *); 
-
+extern void flush_init_atom (txn_atom * atom);
 
 /*****************************************************************************************
 				     INLINE FUNCTIONS

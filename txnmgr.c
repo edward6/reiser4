@@ -239,6 +239,8 @@ atom_init (txn_atom     *atom)
 	fwaiting_list_init (& atom->fwaiting_list);
 	blocknr_set_init   (& atom->delete_set);
 	blocknr_set_init   (& atom->wandered_map);
+
+	flush_init_atom (atom);
 }
 
 #if REISER4_DEBUG

@@ -3001,6 +3001,11 @@ void flush_fuse_queues (txn_atom *large, txn_atom *small)
 	small->num_queued = 0;
 }
 
+void flush_init_atom (txn_atom * atom)
+{
+	flushers_list_init (& atom->flushers);
+}
+
 //#if REISER4_DEBUG
 #if 1
 static void flush_jnode_tostring_internal (jnode *node, char *buf)
