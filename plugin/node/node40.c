@@ -1003,6 +1003,8 @@ static int cut_or_kill (new_coord * from, new_coord * to,
 			item_plugin * iplug;
 			
 			tmp.node = node;
+			tmp.unit_pos = 0;
+			tmp.between = AT_UNIT;
 			for (i = 0; i < removed_entirely; i ++) {
 				tmp.item_pos = first_removed + i;
 

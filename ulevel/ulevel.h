@@ -995,7 +995,7 @@ static inline void unlock_new_inode(struct inode *inode)
 
 extern void declare_memory_pressure( void );
 
-#define PAGE_SHIFT	10
+#define PAGE_SHIFT	9
 #define PAGE_SIZE	(1UL << PAGE_SHIFT)
 #define PAGE_MASK	(~(PAGE_SIZE-1))
 
@@ -1037,6 +1037,8 @@ struct bio
 	struct bio_vec *bi_io_vec;	/* the actual vec list */
 	unsigned short  bi_vcnt;	/* how many bio_vec's */
 };
+
+int submit_bio (int rw, struct bio *bio);
 
 static inline struct bio* bio_alloc (int gfp_flag, int vec_size)
 {

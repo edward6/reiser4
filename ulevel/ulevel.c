@@ -902,6 +902,21 @@ static int mmap_back_end_fd = -1;
 static char *mmap_back_end_start = NULL;
 static size_t mmap_back_end_size = 0;
 
+int submit_bio (int rw, struct bio *bio)
+{
+	int i;
+
+	assert ("jmacd-997", rw == WRITE);
+
+	for (i = 0; i < bio->bi_vcnt; i += 1) {
+		struct bio_vec *bvec = & bio->bi_io_vec[i];
+
+		xmemcpy (mmap_back_end_start + bvec->bv_offset, bvec->bv_page->virtual, PAGE_SIZE);
+	}
+
+	return 0;
+}
+
 int ulevel_read_node( const reiser4_block_nr *addr, char **data, size_t blksz )
 {
 	if( mmap_back_end_fd > 0 ) {
@@ -914,7 +929,7 @@ int ulevel_read_node( const reiser4_block_nr *addr, char **data, size_t blksz )
 			return -EIO;
 		} else {
 			++ total_allocations;
-			
+
 			if (total_allocations > MEMORY_PRESSURE_THRESHOLD)
 				declare_memory_pressure();
 
@@ -4251,6 +4266,8 @@ int real_main( int argc, char **argv )
 		super.s_blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
 			atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
 		xmemset( &root_dentry, 0, sizeof root_dentry );
+
+		assert ("jmacd-998", super.s_blocksize == PAGE_SIZE /* don't blame me, otherwise. */);
 
 		init_context( &__context, &super );
 

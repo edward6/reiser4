@@ -1531,9 +1531,17 @@ static int flush_enqueue_point (flush_position *pos)
 
 	bvec = & pos->bio->bi_io_vec[pos->bio->bi_vcnt++];
 
+	/* FIXME: page-cache HACK!!! */
+	if (pos->point->pg == NULL) {
+		pos->point->pg = kmalloc (sizeof (struct page), GFP_NOFS);
+		pos->point->pg->virtual = zdata (JZNODE (pos->point));
+	}
+
+	assert ("jmacd-9921", pos->point->pg != NULL);
+
 	bvec->bv_page   = pos->point->pg;
-	bvec->bv_len    = 0;
-	bvec->bv_offset = 0;
+	bvec->bv_len    = PAGE_SIZE;
+	bvec->bv_offset = PAGE_SIZE * (*jnode_get_block (pos->point));
 
 	jnode_set_clean (pos->point);
 
@@ -1543,12 +1551,16 @@ static int flush_enqueue_point (flush_position *pos)
 /* FIXME: comment */
 static int flush_finish (flush_position *pos)
 {
+	int ret;
+
 	assert ("jmacd-7711", pos->bio != NULL && pos->bio->bi_vcnt != 0);
 
 	/* FIXME: finish this struct bio. */
+	ret = submit_bio (WRITE, pos->bio);
+
 	bio_put (pos->bio);
 	pos->bio = NULL;
-	return 0;
+	return ret;
 }
 
 /* Called with @coord set to an extent that _may_ need to be flushed.  The parent is
