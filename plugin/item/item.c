@@ -188,7 +188,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child_dirty      = NULL,
 				.utmost_child_real_block = NULL,
 				.real_max_key_inside     = NULL,
-				.key_in_coord            = single_key_in_coord
+				.key_in_item             = NULL,
+				.key_in_unit             = NULL
 			},
 			.s = {
 				.sd = {
@@ -236,7 +237,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child_dirty      = NULL,
 				.utmost_child_real_block = NULL,
 				.real_max_key_inside     = NULL,
-				.key_in_coord            = single_key_in_coord
+				.key_in_item             = NULL,
+				.key_in_unit             = NULL
 			},
 			.s = {
 				.dir = {
@@ -286,7 +288,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child_dirty      = NULL,
 				.utmost_child_real_block = NULL,
 				.real_max_key_inside     = NULL,
-				.key_in_coord            = single_key_in_coord
+				.key_in_item             = NULL,
+				.key_in_unit             = NULL
 			},
 			.s = {
 				.dir = {
@@ -336,7 +339,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child_dirty      = internal_utmost_child_dirty,
 				.utmost_child_real_block = internal_utmost_child_real_block,
 				.real_max_key_inside     = NULL,
-				.key_in_coord            = NULL
+				.key_in_item             = NULL,
+				.key_in_unit             = NULL
 			},
 			.s = {
 				.internal = {
@@ -382,7 +386,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child_dirty      = extent_utmost_child_dirty,
 				.utmost_child_real_block = extent_utmost_child_real_block,
 				.real_max_key_inside     = extent_max_key,
-				.key_in_coord            = extent_key_in_coord
+				.key_in_item             = extent_key_in_item,
+				.key_in_unit             = extent_key_in_unit
 			},
 			.s = {
 				.file = {
@@ -429,7 +434,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child_dirty      = NULL,
 				.utmost_child_real_block = NULL,
 				.real_max_key_inside     = NULL,
-				.key_in_coord            = single_key_in_coord
+				.key_in_item             = NULL,
+				.key_in_unit             = NULL
 			},
 			.s = {
 				.file = {
