@@ -44,11 +44,15 @@ struct jnode
 	 */
 	atomic_t               x_count;
 
-	/** the real blocknr (as far as the parent node is concerned) */
+	/** the real blocknr (where io is going to/from) */
 	reiser4_block_nr blocknr;
 
-	/** inode plus offset for unformatted page */
-	jnode_key_t key;
+	union {
+		/* znodes are hashed by block number */
+		reiser4_block_nr  z;
+		/* unformatted nodes are hashed by mapping plus offset */
+		jnode_key_t       j;
+	} key;
 
 	/* 
 	 * pointer to jnode page. 
@@ -118,9 +122,9 @@ typedef enum {
        ZNODE_FLUSH_QUEUED      = 12,
 
        /* The jnode is a unformatted node.  False for all znodes.  */
-       ZNODE_UNFORMATTED       = 13,
-       ZNODE_UNUSED_1          = 14,
-       ZNODE_UNUSED_2          = 15
+       ZNODE_TYPE_1            = 13,
+       ZNODE_TYPE_2            = 14,
+       ZNODE_TYPE_3            = 15
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
@@ -132,9 +136,14 @@ static inline void JF_SET (jnode *j, int f) { set_bit (f, &j->state); }
  * ordering constraint for znode spin lock: znode lock is weaker than 
  * tree lock and dk lock
  */
-#define spin_ordering_pred_jnode( node )			\
-	( ( lock_counters() -> spin_locked_tree == 0 ) &&	\
-	  ( lock_counters() -> spin_locked_dk == 0 ) )
+#define spin_ordering_pred_jnode( node )					\
+	( ( lock_counters() -> spin_locked_tree == 0 ) &&			\
+	  ( lock_counters() -> spin_locked_dk == 0 ) &&				\
+	  /*									\
+	   * in addition you cannot hold more than one jnode spin lock at a	\
+	   * time.								\
+	   */									\
+	  ( lock_counters() -> spin_locked_jnode == 0 ) )
 
 /** 
  * Define spin_lock_znode, spin_unlock_znode, and spin_znode_is_locked.
@@ -160,6 +169,8 @@ extern jnode* jalloc          (void);
 extern void   jfree           (jnode * node);
 extern jnode* jnew            (void);
 extern void   jnode_set_type  (jnode*, jnode_type);
+extern jnode* jget            (reiser4_tree *tree, struct page *pg);
+extern jnode *jfind           (struct page *pg);
 extern jnode* jnode_by_page   (struct page* pg);
 extern jnode* jnode_of_page   (struct page* pg);
 extern jnode* page_next_jnode (jnode *node);

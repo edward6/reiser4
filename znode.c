@@ -184,7 +184,7 @@ static inline __u32 blknrhashfn( const reiser4_block_nr *b )
 #define KMALLOC( size ) reiser4_kmalloc( ( size ), GFP_KERNEL )
 #define KFREE( ptr, size ) reiser4_kfree( ptr, size )
 TS_HASH_DEFINE( z, znode, reiser4_block_nr, 
-		zjnode.blocknr, zjnode.link.z, blknrhashfn, blknreq );
+		zjnode.key.z, zjnode.link.z, blknrhashfn, blknreq );
 #undef KFREE
 #undef KMALLOC
 
@@ -395,6 +395,8 @@ int znode_rehash( znode *node /* node to rehash */,
 
 	/* update blocknr */
 	znode_set_block( node, new_block_nr );
+	node -> zjnode.key.z = *new_block_nr;
+
 	/* insert it into hash */
 	z_hash_insert( htable, node );
 	spin_unlock_tree( current_tree );
@@ -562,6 +564,7 @@ zget (reiser4_tree *tree,
 		zinit (result, parent);
 
 		ZJNODE(result)->blocknr = *blocknr;
+		ZJNODE(result)->key.z   = *blocknr;
 
 		znode_set_level (result, level);
 
@@ -898,11 +901,18 @@ int znode_just_created( const znode *node )
 int znode_io_hook( const jnode *node, struct page *page, int rw )
 {
 	if( REISER4_DEBUG && ( rw == WRITE ) && 
-	    ( jnode_get_level( node ) == TWIG_LEVEL ) ) {
+	    ( jnode_get_level( node ) > LEAF_LEVEL ) ) {
 		/* make sure we don't write unallocated pointers to disk */
 		coord_t coord;
+		int     result;
+		znode  *z;
 
-		for_all_units( &coord, JZNODE( node ) ) {
+		z = JZNODE( node );
+		result = zload( z );
+		if( result != 0 )
+			return result;
+
+		for_all_units( &coord, z ) {
 			reiser4_block_nr block;
 
 			if( !item_is_internal( &coord ) )
@@ -911,6 +921,7 @@ int znode_io_hook( const jnode *node, struct page *page, int rw )
 				s.internal.down_link( &coord, NULL, &block );
 			assert( "nikita-2413", !blocknr_is_fake( &block ) );
 		}
+		zrelse( z );
 	}
 	return 0;
 }

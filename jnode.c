@@ -49,7 +49,7 @@ static inline __u32 jnode_key_hashfn( const jnode_key_t *key )
 /** The hash table definition */
 #define KMALLOC( size ) reiser4_kmalloc( ( size ), GFP_KERNEL )
 #define KFREE( ptr, size ) reiser4_kfree( ptr, size )
-TS_HASH_DEFINE( j, jnode, jnode_key_t, key, 
+TS_HASH_DEFINE( j, jnode, jnode_key_t, key.j,
 		link.j, jnode_key_hashfn, jnode_key_eq );
 #undef KFREE
 #undef KMALLOC
@@ -270,12 +270,12 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 			jnode_init (jal);
 			jref (jal);
 
-			jal->key.mapping = pg->mapping;
-			jal->key.index   = pg->index;
+			jal->key.j.mapping = pg->mapping;
+			jal->key.j.index   = pg->index;
 
 			jtable = &tree->jhash_table;
 			assert ("nikita-2357", 
-				j_hash_find (jtable, &jal->key) == NULL);
+				j_hash_find (jtable, &jal->key.j) == NULL);
 
 			j_hash_insert (jtable, jal);
 			spin_unlock_tree (tree);
@@ -291,8 +291,8 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 		jref (jprivate(pg));
 
 	assert ("nikita-2046", jprivate(pg)->pg == pg);
-	assert ("nikita-2364", jprivate(pg)->key.index == pg -> index);
-	assert ("nikita-2365", jprivate(pg)->key.mapping == pg -> mapping);
+	assert ("nikita-2364", jprivate(pg)->key.j.index == pg -> index);
+	assert ("nikita-2365", jprivate(pg)->key.j.mapping == pg -> mapping);
 
 	/* FIXME: This may be called from page_cache.c, read_in_formatted, which
 	 * does is already synchronized under the page lock, but I imagine
@@ -311,6 +311,26 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 jnode* jnode_of_page (struct page* pg)
 {
 	return jget (&get_super_private (pg->mapping->host->i_sb)->tree, pg);
+}
+
+/** return jnode associated with page, possibly creating it. */
+jnode *jfind( struct page *page )
+{
+	jnode *node;
+
+	assert( "nikita-2417", page != NULL );
+	assert( "nikita-2418", PageLocked( page ) );
+
+	if( PagePrivate( page ) )
+		node = jref( jprivate( page ) );
+	else {
+		/*
+		 * otherwise it can only be unformatted---znode is never
+		 * detached from the page.
+		 */
+		node = jnode_of_page( page );
+	}
+	return node;
 }
 
 /* FIXME-VS: change next two functions switching to support of blocksize !=
@@ -426,6 +446,7 @@ void page_clear_jnode( struct page *page )
 		ClearPagePrivate( page );
 		node -> pg = NULL;
 		spin_unlock_jnode( node );
+		page_cache_release( page );
 	}
 }
 
@@ -537,8 +558,10 @@ static int page_filler( void *arg, struct page *page )
 	/*
 	 * on error, detach jnode from page
 	 */
-	if( unlikely( result != 0 ) )
+	if( unlikely( result != 0 ) ) {
+		warning( "nikita-2416", "->readpage failed: %i", result );
 		page_detach_jnode( page );
+	}
 	return result;
 }
 
@@ -549,6 +572,7 @@ int jload( jnode *node )
 	int          result;
 	struct page *page;
 
+	result = 0;
 	reiser4_stat_znode_add( zload );
 	add_d_ref( node );
 	if( !jnode_is_loaded( node ) ) {
@@ -593,28 +617,43 @@ int jload( jnode *node )
 		 *  smaller (not yet implemented). Pointer to atom?
 		 *
 		 */
-		page = read_cache_page( jplug -> mapping( node ),
-					jplug -> index( node ), 
-					page_filler, node );
-		if( !IS_ERR( page ) ) {
-			wait_on_page_locked( page );
+		spin_lock_jnode( node );
+		page = node -> pg;
+		spin_unlock_jnode( node );
+		/*
+		 * subtle locking point: ->pg pointer is protected by jnode
+		 * spin lock, but it is safe to release spin lock here,
+		 * because page can be detached from jnode only when ->d_count
+		 * is, and ZNODE_LOADED is not set.
+		 */
+		if( page != NULL ) {
+			JF_SET( node, ZNODE_LOADED );
+			page_cache_get( page );
 			kmap( page );
-			if( PageUptodate( page ) ) {
-				spin_lock_jnode( node );
-				if( !jnode_is_loaded( node ) ) {
-					result = jplug -> parse( node );
-					if( result == 0 )
-						JF_SET( node, ZNODE_LOADED );
+		} else {
+			page = read_cache_page( jplug -> mapping( node ),
+						jplug -> index( node ), 
+						page_filler, node );
+			if( !IS_ERR( page ) ) {
+				wait_on_page_locked( page );
+				kmap( page );
+				if( PageUptodate( page ) ) {
+					spin_lock_jnode( node );
+					if( !jnode_is_loaded( node ) ) {
+						result = jplug -> parse( node );
+						if( result == 0 )
+							JF_SET( node, 
+								ZNODE_LOADED );
+					}
+					spin_unlock_jnode( node );
 				} else
-					result = 0;
-				spin_unlock_jnode( node );
+					result = -EIO;
 			} else
-				result = -EIO;
-		} else
-			result = PTR_ERR( page );
+				result = PTR_ERR( page );
 
-		if( unlikely( result != 0 ) )
-			jrelse( node );
+			if( unlikely( result != 0 ) )
+				jrelse( node );
+		}
 	} else {
 		struct page *page;
 
@@ -622,7 +661,6 @@ int jload( jnode *node )
 		assert( "nikita-2348", page != NULL );
 		page_cache_get( page );
 		kmap( page );
-		result = 0;
 	}
 	return result;
 }
@@ -821,11 +859,11 @@ int jwait_io (jnode * node, int rw)
 jnode_type jnode_get_type( const jnode *node )
 {
 	static const unsigned long state_mask = 
-		( 1 << ZNODE_UNFORMATTED ) | 
-		( 1 << ZNODE_UNUSED_1 ) | ( 1 << ZNODE_UNUSED_2 );
+		( 1 << ZNODE_TYPE_1 ) | 
+		( 1 << ZNODE_TYPE_2 ) | ( 1 << ZNODE_TYPE_3 );
 
 	static jnode_type mask_to_type[] = {
-		/*  ZNODE_UNUSED_2 : ZNODE_UNUSED_1 : ZNODE_UNFORMATTED */
+		/*  ZNODE_TYPE_3 : ZNODE_TYPE_2 : ZNODE_TYPE_1 */
 		
 		/* 000 */
 		[ 0 ] = JNODE_FORMATTED_BLOCK,
@@ -848,7 +886,7 @@ jnode_type jnode_get_type( const jnode *node )
 	/*
 	 * FIXME-NIKITA atomicity?
 	 */
-	return mask_to_type[ ( node -> state & state_mask ) >> ZNODE_UNFORMATTED ];
+	return mask_to_type[ ( node -> state & state_mask ) >> ZNODE_TYPE_1 ];
 }
 
 void jnode_set_type( jnode * node, jnode_type type )
@@ -863,8 +901,8 @@ void jnode_set_type( jnode * node, jnode_type type )
 
 	assert ("zam-647", type < JNODE_LAST_TYPE);
 
-	node -> state &= ((1UL << ZNODE_UNFORMATTED) - 1);
-	node -> state |= (type_to_mask[type] << ZNODE_UNFORMATTED);
+	node -> state &= ((1UL << ZNODE_TYPE_1) - 1);
+	node -> state |= (type_to_mask[type] << ZNODE_TYPE_1);
 }
 
 
@@ -875,12 +913,12 @@ static int noparse( jnode *node UNUSED_ARG)
 
 static struct address_space *jnode_mapping( const jnode *node )
 {
-	return node -> key.mapping;
+	return node -> key.j.mapping;
 }
 
 static unsigned long jnode_index( const jnode *node )
 {
-	return node -> key.index;
+	return node -> key.j.index;
 }
 
 static int jnode_remove_op( jnode *node )
@@ -1082,6 +1120,30 @@ void drop_io_head (jnode * node)
 
 #if REISER4_DEBUG
 
+const char *jnode_type_name( jnode_type type )
+{
+	switch( type ) {
+	case JNODE_UNFORMATTED_BLOCK:
+		return "unformatted";
+	case JNODE_FORMATTED_BLOCK:
+		return "formatted";
+	case JNODE_BITMAP:
+		return "bitmap";
+	case JNODE_JOURNAL_RECORD:
+		return "journal record";
+	case JNODE_IO_HEAD:
+		return "io head";
+	case JNODE_LAST_TYPE:
+		return "last";
+	default: {
+		static char unknown[ 30 ];
+
+		sprintf( unknown, "unknown %i", type );
+		return unknown;
+	}
+	}
+}
+
 #define jnode_state_name( node, flag )			\
 	( JF_ISSET( ( node ), ( flag ) ) ? ((#flag ## "|")+6) : "" )
 
@@ -1097,7 +1159,7 @@ void info_jnode( const char *prefix /* prefix to print */,
 		return;
 	}
 
-	info( "%s: %p: state: %lu: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, block: %llu, d_count: %d, x_count: %d, pg: %p, ",
+	info( "%s: %p: state: %lu: [%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, block: %llu, d_count: %d, x_count: %d, pg: %p, type: %s",
 	      prefix, node, node -> state, 
 
 	      jnode_state_name( node, ZNODE_LOADED ),
@@ -1105,7 +1167,6 @@ void info_jnode( const char *prefix /* prefix to print */,
 	      jnode_state_name( node, ZNODE_LEFT_CONNECTED ),
 	      jnode_state_name( node, ZNODE_RIGHT_CONNECTED ),
 	      jnode_state_name( node, ZNODE_ORPHAN ),
-	      jnode_state_name( node, ZNODE_UNFORMATTED ),
 	      jnode_state_name( node, ZNODE_CREATED ),
 	      jnode_state_name( node, ZNODE_RELOC ),
 	      jnode_state_name( node, ZNODE_WANDER ),
@@ -1117,10 +1178,11 @@ void info_jnode( const char *prefix /* prefix to print */,
 
 	      jnode_get_level( node ), *jnode_get_block( node ),
 	      atomic_read( &node -> d_count ), atomic_read( &node -> x_count ),
-	      jnode_page( node ) );
+	      jnode_page( node ), jnode_type_name( jnode_get_type( node ) ) );
 	if( jnode_is_unformatted( node ) ) {
 		info( "inode: %li, index: %lu, ", 
-		      node -> key.mapping -> host -> i_ino, node -> key.index );
+		      node -> key.j.mapping -> host -> i_ino, 
+		      node -> key.j.index );
 	}
 }
 
