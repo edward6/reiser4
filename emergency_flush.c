@@ -43,6 +43,107 @@
      layout. We only want to call emergency flush in desperate situations,
      because it is going to produce sub-optimal disk layouts.
   
+  DETAILED DESCRIPTION
+
+     Emergency flush (eflush) is designed to work as low level mechanism with
+     no or little impact on the rest of (already too complex) code.
+
+     eflush is initiated from ->writepage() method called by VM on memory
+     pressure. It is supposed that ->writepage() is rare call path, because
+     balance_dirty_pages() throttles writes and tries to keep memory in
+     balance.
+
+     eflush main entry point (emergency_flush()) checks whether jnode is
+     eligible for emergency flushing. Check is performed by flushable()
+     function which see for details. After successful check, new block number
+     ("emergency block") is allocated and io is initiated to write jnode
+     content to that block.
+
+     After io is finished, jnode will be cleaned and VM will be able to free
+     page through call to ->releasepage().
+
+     emergency_flush() also contains special case invoked when it is possible
+     to avoid allocation of new node.
+
+     Node selected for eflush is marked (by JNODE_EFLUSH bit in ->flags field)
+     and added to the special hash table of all eflushed nodes. This table
+     doesn't have linkage within each jnode, as this would waste memory in
+     assumption that eflush is rare. In stead new small memory object
+     (eflush_node_t) is allocated that contains pointer to jnode, emergency
+     block number, and is inserted into hash table. Per super block counter of
+     eflushed nodes is incremented. See section [INODE HANDLING] below on
+     more.
+
+     It should be noted that emergency flush may allocate memory and wait for
+     io completion (bitmap read).
+
+     Basically eflushed node has following distinctive characteristics:
+
+      (1) JNODE_EFLUSH bit is set
+
+      (2) no page
+
+      (3) there is an element in hash table, for this node
+
+      (4) node content is stored on disk in block whose number is stored in
+      the hash table element
+
+  UNFLUSH
+
+      Unflush is reverse of eflush, that is process bringing page of eflushed
+      inode back into memory.
+
+      In accordance with the policy that eflush is low level and low impact
+      mechanism, transparent to the rest of the code, unflushing is performed
+      deeply within jload_gfp() which is main function used to load and pin
+      jnode page into memory.
+
+      Specifically, if jload_gfp() determines that it is called on eflushed
+      node it gets emergency block number to start io against from the hash
+      table rather than from jnode itself. This is done in
+      jnode_get_io_block() function. After io completes, hash table element
+      for this node is removed and JNODE_EFLUSH bit is cleared.
+
+  PROBLEMS
+
+  1. INODE HANDLING
+
+      Usually (i.e., without eflush), jnode has a page attached to it. This
+      page pins corresponding struct address_space, and, hence, inode in
+      memory. Once inode has been eflushed, its page is gone and inode can be
+      wiped out of memory by the memory pressure (prune_icache()). This leads
+      to the number of complications:
+
+       (1) jload_gfp() has to attach jnode tho the address space's radix
+       tree. This requires existence if inode.
+
+       (2) normal flush needs jnode's inode to start slum collection from
+       unformatted jnode.
+
+      (1) is really a problem, because it is too late to load inode (which
+      would lead to loading of stat data, etc.) within jload_gfp().
+
+      We, therefore, need some way to protect inode from being recycled while
+      having accessible eflushed nodes.
+
+      I'll describe old solution here so it can be compared with new one.
+
+      Original solution pinned inode by __iget() when first its node was
+      eflushed and released (through iput()) when last was unflushed. This
+      required maintenance of inode->eflushed counter in inode.
+
+      Problem arise if last name of inode is unlinked when it has eflushed
+      nodes. In this case, last iput() that leads to the removal of file is
+      iput() made by unflushing from within jload_gfp(). Obviously, calling
+      truncate, and tree traversals from jload_gfp() is not a good idea.
+
+  DISK SPACE ALLOCATION
+
+      This section will describe how emergency block is allocated and how
+      block counters (allocated, grabbed, etc.) are manipulated. To be done.
+
+   *****HISTORICAL SECTION****************************************************
+  
    DELAYED PARENT UPDATE
   
      Important point of emergency flush is that update of parent is sometimes
@@ -62,8 +163,6 @@
    WHERE TO WRITE PAGE INTO?
   
     
-   *****HISTORICAL SECTION****************************************************
-  
      So, it was decided that flush has to be performed from a separate
      thread. Reiser4 has a thread used to periodically commit old transactions,
      and this thread can be used for the flushing. That is, flushing thread
@@ -270,10 +369,6 @@ flushable(const jnode * node, struct page *page)
 	assert("nikita-2725", node != NULL);
 	assert("nikita-2726", spin_jnode_is_locked(node));
 
-	if (inode_get_flag(page->mapping->host, REISER4_DONT_EFLUSH)) /* file is being either truncated or deleted, it
-								       * is likely the page will be freed soon, so do
-								       * not eflush it */
-		return 0;
 	if (!jnode_is_dirty(node))
 		return 0;
 	if (node->d_count != 0)   /* used */
@@ -324,7 +419,6 @@ struct eflush_node {
 	jnode           *node;
 	reiser4_block_nr blocknr;
 	ef_hash_link     linkage;
-	struct list_head list; /* for per inode list of eflush nodes */
 #if REISER4_DEBUG
 	block_stage_t    initial_stage;
 #endif
@@ -421,12 +515,6 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		/* pin inode containing eflushed pages. Otherwise it
 		 * may get evicted */
 		spin_lock_inode(inode);
-		if (info->eflushed == 0) {
-			spin_lock(&inode_lock);
-			__iget(inode);
-			spin_unlock(&inode_lock);
-		}
-		list_add(&ef->list, &info->eflushed_nodes);			
 		++ info->eflushed;
 		spin_unlock_inode(inode);
 	}
@@ -446,7 +534,7 @@ eflush_get(const jnode *node)
 	assert("nikita-2767", spin_jnode_is_locked(node));
 
 	ef = UNDER_RW(tree, jnode_get_tree(node), read,
-			ef_hash_find(get_jnode_enhash(node), C(node)));
+		      ef_hash_find(get_jnode_enhash(node), C(node)));
 
 	assert("nikita-2742", ef != NULL);
 	return &ef->blocknr;
@@ -466,7 +554,6 @@ eflush_del(jnode *node, int page_locked)
 		reiser4_block_nr blk;
 		struct page *page;
 		struct inode  *inode = NULL;
-		int putit = 0;
 
 		table = get_jnode_enhash(node);
 
@@ -482,6 +569,7 @@ eflush_del(jnode *node, int page_locked)
 
 		if (jnode_is_unformatted(node)) {
 			reiser4_inode *info;
+			int despatchhim = 0;
 
 			inode = jnode_mapping(node)->host;
 			info = reiser4_inode_data(inode);
@@ -490,15 +578,21 @@ eflush_del(jnode *node, int page_locked)
 			spin_lock_inode(inode);
 			assert("vs-1194", info->eflushed > 0);
 			-- info->eflushed;
-			putit = (info->eflushed == 0);
-			/* remove eflush node from inode's list of eflush nodes */
-			list_del(&ef->list);
+			if (info->eflushed == 0 && (inode->i_state & I_GHOST))
+				despatchhim = 1;
 			spin_unlock_inode(inode);
+			if (despatchhim)
+				inode->i_sb->s_op->destroy_inode(inode);
 		}
 
 		JF_CLR(node, JNODE_EFLUSH);
 
 		page = jnode_page(node);
+
+		/* there is no reason to unflush node if it can be flushed
+		 * back immediately */
+		assert("nikita-3083", !flushable(node, page) || page_locked);
+
 		assert("nikita-2806", ergo(page_locked, page != NULL));
 		assert("nikita-2807", ergo(page_locked, PageLocked(page)));
 		if (!page_locked && page != NULL) {
@@ -516,22 +610,6 @@ eflush_del(jnode *node, int page_locked)
 		assert("nikita-2766", atomic_read(&node->x_count) > 1);
 
 		UNLOCK_JNODE(node);
-
-		if (inode != NULL) {
-#if 0
-			reiser4_inode *info;
-
-			info = reiser4_inode_data(inode);
-			/* unpin inode after unflushing last eflushed apge
-			 * from it. Dual to __iget() in eflush_add(). */
-			spin_lock_inode(inode);
-			-- info->eflushed;
-			putit = (info->eflushed == 0);
-			spin_unlock_inode(inode);
-#endif
-			if (putit)
-				iput(inode);
-		}
 
 #if REISER4_DEBUG
 		if (blocknr_is_fake(jnode_get_block(node))) {
@@ -667,79 +745,6 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 	return result;
 }
 
-/* find all eflushed jnodes of this inode and drop them */
-void
-drop_enodes(struct inode *inode, unsigned long index)
-{
-	LIST_HEAD(enodes_to_drop);
-	struct list_head *cur, *next;
-	reiser4_tree *tree;
-	ef_hash_table *table;
-	reiser4_inode *info;
-	struct jnode *j;
-	eflush_node_t *ef_node;
-	int eflushed_orig, dropped;
-
-	info = reiser4_inode_data(inode);
-
-	assert("vs-1177", !inode_get_flag(inode, REISER4_DONT_EFLUSH));
-	inode_set_flag(inode, REISER4_DONT_EFLUSH);
-
-	/* move eflush nodes to separate list */
-	spin_lock_inode(inode);
-	eflushed_orig = info->eflushed;
-	dropped = 0;
-	list_for_each_safe(cur, next, &info->eflushed_nodes) {
-		ef_node = list_entry(cur, eflush_node_t, list);
-		j = ef_node->node;
-		assert("vs-1179", j->key.j.objectid == get_inode_oid(inode));
-		assert("vs-1189", JF_ISSET(j, JNODE_EFLUSH));
-		if (j->key.j.index < index)
-			continue;
-		list_move(cur, &enodes_to_drop);
-		-- info->eflushed;
-		dropped ++;
-	}
-	assert("vs-1180", eflushed_orig == info->eflushed + dropped);
-
-	if (dropped)
-		trace_on(TRACE_EFLUSH, "drop_enodes: ino %llu: %d (of %d) eflush nodes are to be dropped\n",
-			 get_inode_oid(inode), dropped, eflushed_orig);
-	spin_unlock_inode(inode);
-
-	tree = &get_super_private(inode->i_sb)->tree;
-	table = &get_super_private(inode->i_sb)->efhash_table;
-	while (!list_empty(&enodes_to_drop)) {
-		ef_node = list_entry(enodes_to_drop.next, eflush_node_t, list);
-		j = ef_node->node;
-
-		trace_on(TRACE_EFLUSH, "drop_enodes: ino %llu, page %lu...\n", 
-			 get_inode_oid(inode), j->key.j.index);
-
-		LOCK_JNODE(j);
-
-		list_del(&ef_node->list);
-
-		/* remove eflush node from hash table */
-		WLOCK_TREE(tree);
-		assert("vs-1178", ef_hash_find(table, C(ef_node->node)) == ef_node);
-		ef_hash_remove(table, ef_node);
-		-- get_super_private(tree->super)->eflushed;
-		WUNLOCK_TREE(tree);
-
-		JF_CLR(j, JNODE_EFLUSH);
-		UNLOCK_JNODE(j);
-		
-		/* free block which was allocated for emergency flushing */
-		ef_free_block(j, &ef_node->blocknr);
-		kmem_cache_free(eflush_slab, ef_node);
-
-		uncapture_jnode(j);
-		/* jget is in emergency_flush */
-		jput(j);
-	}
-}
-
 #endif
 
 /* Make Linus happy.
@@ -749,5 +754,6 @@ drop_enodes(struct inode *inode, unsigned long index)
    c-basic-offset: 8
    tab-width: 8
    fill-column: 120
+   LocalWords: " unflush eflushed LocalWords eflush writepage VM releasepage unflushing io "
    End:
 */

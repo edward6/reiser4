@@ -7,6 +7,8 @@
 
 #define REISER4_USE_EFLUSH (1)
 
+#define I_GHOST (128)
+
 #if REISER4_USE_EFLUSH
 
 struct eflush_node;
@@ -25,8 +27,6 @@ extern void eflush_del(jnode *node, int page_locked);
 int emergency_flush(struct page *page);
 int emergency_unflush(jnode *node);
 
-extern void drop_enodes(struct inode *inode, unsigned long);
-
 #else
 
 typedef struct {
@@ -42,8 +42,6 @@ typedef struct {
 #define eflush_del(node, pl)       noop
 #define emergency_flush(page) (0)
 #define emergency_unflush(node)    (0)
-
-#define drop_enodes(node,ind)    noop
 
 #endif
 

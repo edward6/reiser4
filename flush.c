@@ -938,6 +938,37 @@ failed:
 	return ret;
 }
 
+/* 
+ * True if flush should *not* be started from @node.  It is possible that
+ * @node is "stale" and is only accessible from atom capture lists (that is,
+ * inaccessible from tree). We don't want to start slum collection from such
+ * node.
+ */
+static int
+skip_jnode(const jnode *node)
+{
+	assert("nikita-3085", node != NULL);
+	assert("nikita-3086", spin_jnode_is_locked(node));
+
+	if (JF_ISSET(node, JNODE_HEARD_BANSHEE))
+		return 1;
+
+	if (jnode_is_unformatted(node)) {
+		struct inode *inode;
+		reiser4_inode *info;
+		int ghost;
+
+		inode = jnode_mapping(node)->host;
+		info = reiser4_inode_data(inode);
+		spin_lock_inode(inode);
+		ghost = (inode->i_state & I_GHOST);
+		spin_unlock_inode(inode);
+		if (ghost)
+			return 1;
+	}
+	return 0;
+}
+
 /* Flush some nodes of current atom, usually slum, return -EAGAIN if there are more nodes
  * to flush, return 0 if atom's dirty lists empty and keep current atom locked, return
  * other errors as they are. */
@@ -983,7 +1014,7 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 	while ((node = find_first_dirty_jnode(*atom))) {
 		LOCK_JNODE(node);
 
-		if (JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
+		if (skip_jnode(node)) {
 			/* ???? move to another list ???? */
 			(*atom)->nr_flushers --;
 			UNLOCK_JNODE(node);
