@@ -295,12 +295,28 @@ item_is_statdata(const coord_t * item)
 	return item_type_by_coord(item) == STAT_DATA_ITEM_TYPE;
 }
 
+static int
+change_item(struct inode * inode, reiser4_plugin * plugin)
+{
+	/* cannot change constituent item (sd, or dir_item) */
+	return RETERR(-EINVAL);
+}
+
+static reiser4_plugin_ops item_plugin_ops = {
+	.init     = NULL,
+	.load     = NULL,
+	.save_len = NULL,
+	.save     = NULL,
+	.change   = change_item
+};
+
+
 item_plugin item_plugins[LAST_ITEM_ID] = {
 	[STATIC_STAT_DATA_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id      = STATIC_STAT_DATA_ID,
-			.pops    = NULL,
+			.pops    = &item_plugin_ops,
 			.label   = "sd",
 			.desc    = "stat-data",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
@@ -353,7 +369,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id      = SIMPLE_DIR_ENTRY_ID,
-			.pops    = NULL,
+			.pops    = &item_plugin_ops,
 			.label   = "de",
 			.desc    = "directory entry",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
@@ -410,7 +426,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id      = COMPOUND_DIR_ID,
-			.pops    = NULL,
+			.pops    = &item_plugin_ops,
 			.label   = "cde",
 			.desc    = "compressed directory entry",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO

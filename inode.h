@@ -105,6 +105,8 @@ struct reiser4_inode {
 	reiser4_spin_data guard;
 	/* object plugins */
 	plugin_set *pset;
+	/* plugins set for inheritance */
+	plugin_set *hset;
 	/* high 32 bits of object id */
 	oid_hi_t oid_hi;
 	/* seal for stat-data */
@@ -363,7 +365,8 @@ extern compression_plugin *inode_compression_plugin(const struct inode *inode);
 extern item_plugin *inode_sd_plugin(const struct inode *inode);
 extern item_plugin *inode_dir_item_plugin(const struct inode *inode);
 
-extern void inode_set_plugin(struct inode *inode, reiser4_plugin * plug);
+extern void inode_set_plugin(struct inode *inode,
+			     reiser4_plugin * plug, pset_member memb);
 extern void reiser4_make_bad_inode(struct inode *inode);
 
 extern void inode_set_extension(struct inode *inode, sd_ext_bits ext);

@@ -616,24 +616,30 @@ hashed_rename_estimate_and_grab(
 /* check whether @old_inode and @new_inode can be moved within file system
  * tree. This singles out attempts to rename pseudo-files, for example. */
 static int
-can_rename(struct inode *old_inode, struct inode *new_inode)
+can_rename(struct inode *old_dir, struct inode *old_inode,
+	   struct inode *new_dir, struct inode *new_inode)
 {
 	file_plugin *fplug;
+	dir_plugin  *dplug;
 
 	assert("nikita-3370", old_inode != NULL);
 
+	dplug = inode_dir_plugin(new_dir);
 	fplug = inode_file_plugin(old_inode);
-	if (fplug->can_add_link(old_inode)) {
-		if (new_inode != NULL) {
-			fplug = inode_file_plugin(new_inode);
-			if (fplug->can_rem_link != NULL &&
-			    !fplug->can_rem_link(new_inode))
-				return RETERR(-EBUSY);
-		}
-		return 0;
-	} else
+
+	if (dplug == NULL)
+		return RETERR(-ENOTDIR);
+	else if (dplug->create_child == NULL)
+		return RETERR(-EPERM);
+	else if (!fplug->can_add_link(old_inode))
 		return RETERR(-EMLINK);
-	
+	else if (new_inode != NULL) {
+		fplug = inode_file_plugin(new_inode);
+		if (fplug->can_rem_link != NULL &&
+		    !fplug->can_rem_link(new_inode))
+			return RETERR(-EBUSY);
+	}
+	return 0;
 }
 
 /* ->rename directory plugin method implementation for hashed directories.
@@ -780,7 +786,7 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 	if (is_dir && new_inode != NULL && is_dir_empty(new_inode) != 0)
 		return RETERR(-ENOTEMPTY);
 
-	result = can_rename(old_inode, new_inode);
+	result = can_rename(old_dir, old_inode, new_dir, new_inode);
 	if (result != 0)
 		return result;
 

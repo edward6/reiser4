@@ -294,10 +294,6 @@ try_init_format40(struct super_block *s, format40_init_stage *stage)
 		return result;
 	*stage = INIT_OID;
 
-	/* initializing tail policy */
-	sbinfo->plug.t = formatting_plugin_by_id(get_format40_formatting_policy(sb_copy));
-	assert("umka-751", sbinfo->plug.t != NULL);
-
 	/* get things necessary to init reiser4_tree */
 	root_block = get_format40_root_block(sb_copy);
 	height = get_format40_tree_height(sb_copy);

@@ -206,6 +206,90 @@ static int plugin_set_field(plugin_set **set, const unsigned long val, const int
 	return 0;
 }
 
+static struct {
+	int                 offset;
+	reiser4_plugin_type type;
+} pset_descr[PSET_LAST] = {
+	[PSET_FILE] = {
+		.offset = offsetof(plugin_set, file),
+		.type   = REISER4_FILE_PLUGIN_TYPE
+	},
+	[PSET_DIR] = {
+		.offset = offsetof(plugin_set, dir),
+		.type   = REISER4_DIR_PLUGIN_TYPE
+	},
+	[PSET_PERM] = {
+		.offset = offsetof(plugin_set, perm),
+		.type   = REISER4_PERM_PLUGIN_TYPE
+	},
+	[PSET_FORMATTING] = {
+		.offset = offsetof(plugin_set, formatting),
+		.type   = REISER4_FORMATTING_PLUGIN_TYPE
+	},
+	[PSET_HASH] = {
+		.offset = offsetof(plugin_set, hash),
+		.type   = REISER4_HASH_PLUGIN_TYPE
+	},
+	[PSET_FIBRATION] = {
+		.offset = offsetof(plugin_set, fibration),
+		.type   = REISER4_FIBRATION_PLUGIN_TYPE
+	},
+	[PSET_SD] = {
+		.offset = offsetof(plugin_set, sd),
+		.type   = REISER4_ITEM_PLUGIN_TYPE
+	},
+	[PSET_DIR_ITEM] = {
+		.offset = offsetof(plugin_set, dir_item),
+		.type   = REISER4_ITEM_PLUGIN_TYPE
+	},
+	[PSET_CRYPTO] = {
+		.offset = offsetof(plugin_set, crypto),
+		.type   = REISER4_CRYPTO_PLUGIN_TYPE
+	},
+	[PSET_DIGEST] = {
+		.offset = offsetof(plugin_set, digest),
+		.type   = REISER4_DIGEST_PLUGIN_TYPE
+	},
+	[PSET_COMPRESSION] = {
+		.offset = offsetof(plugin_set, compression),
+		.type   = REISER4_COMPRESSION_PLUGIN_TYPE
+	}
+};
+
+int pset_set(plugin_set **set, pset_member memb, reiser4_plugin *plugin)
+{
+	assert("nikita-3492", set != NULL);
+	assert("nikita-3493", *set != NULL);
+	assert("nikita-3494", plugin != NULL);
+	assert("nikita-3495", 0 <= memb && memb < PSET_LAST);
+	assert("nikita-3496", plugin->h.type_id == pset_member_to_type(memb));
+
+	return plugin_set_field(set,
+				(unsigned long)plugin, pset_descr[memb].offset);
+}
+
+reiser4_plugin *pset_get(plugin_set *set, pset_member memb)
+{
+	assert("nikita-3497", set != NULL);
+	assert("nikita-3498", 0 <= memb && memb < PSET_LAST);
+
+	return *(reiser4_plugin **)(((char *)set) + pset_descr[memb].offset);
+}
+
+reiser4_plugin_type pset_member_to_type(pset_member memb)
+{
+	assert("nikita-3501", 0 <= memb && memb < PSET_LAST);
+	return pset_descr[memb].type;
+}
+
+reiser4_plugin_type pset_member_to_type_unsafe(pset_member memb)
+{
+	if (0 <= memb && memb < PSET_LAST)
+		return pset_descr[memb].type;
+	else
+		return REISER4_PLUGIN_TYPES;
+}
+
 #define DEFINE_PLUGIN_SET(type, field)					\
 reiser4_internal int plugin_set_ ## field(plugin_set **set, type *val)	\
 {									\

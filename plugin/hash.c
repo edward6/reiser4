@@ -7,6 +7,8 @@
 #include "plugin_header.h"
 #include "plugin.h"
 #include "../super.h"
+#include "../inode.h"
+#include "../plugin/dir/dir.h"
 
 #include <linux/types.h>
 
@@ -242,13 +244,46 @@ hash_deg(const unsigned char *name UNUSED_ARG /* name to hash */ ,
 	return 0xc0c0c0c010101010ull;
 }
 
+static int
+change_hash(struct inode * inode, reiser4_plugin * plugin)
+{
+	int result;
+
+	assert("nikita-3503", inode != NULL);
+	assert("nikita-3504", plugin != NULL);
+
+	assert("nikita-3505", is_reiser4_inode(inode));
+	assert("nikita-3506", inode_dir_plugin(inode) != NULL);
+	assert("nikita-3507", plugin->h.type_id == REISER4_HASH_PLUGIN_TYPE);
+
+	result = 0;
+	if (inode_hash_plugin(inode) == NULL ||
+	    inode_hash_plugin(inode)->h.id != plugin->h.id) {
+		if (is_dir_empty(inode) == 0)
+			result = plugin_set_hash(&reiser4_inode_data(inode)->pset,
+						 &plugin->hash);
+		else
+			result = RETERR(-ENOTEMPTY);
+	
+	}
+	return result;
+}
+
+static reiser4_plugin_ops hash_plugin_ops = {
+	.init     = NULL,
+	.load     = NULL,
+	.save_len = NULL,
+	.save     = NULL,
+	.change   = change_hash
+};
+
 /* hash plugins */
 hash_plugin hash_plugins[LAST_HASH_ID] = {
 	[RUPASOV_HASH_ID] = {
 		.h = {
 			.type_id = REISER4_HASH_PLUGIN_TYPE,
 			.id = RUPASOV_HASH_ID,
-			.pops = NULL,
+			.pops = &hash_plugin_ops,
 			.label = "rupasov",
 			.desc = "Original Yura's hash",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
@@ -259,7 +294,7 @@ hash_plugin hash_plugins[LAST_HASH_ID] = {
 		.h = {
 			.type_id = REISER4_HASH_PLUGIN_TYPE,
 			.id = R5_HASH_ID,
-			.pops = NULL,
+			.pops = &hash_plugin_ops,
 			.label = "r5",
 			.desc = "r5 hash",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
@@ -270,7 +305,7 @@ hash_plugin hash_plugins[LAST_HASH_ID] = {
 		.h = {
 			.type_id = REISER4_HASH_PLUGIN_TYPE,
 			.id = TEA_HASH_ID,
-			.pops = NULL,
+			.pops = &hash_plugin_ops,
 			.label = "tea",
 			.desc = "tea hash",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
@@ -281,7 +316,7 @@ hash_plugin hash_plugins[LAST_HASH_ID] = {
 		.h = {
 			.type_id = REISER4_HASH_PLUGIN_TYPE,
 			.id = FNV1_HASH_ID,
-			.pops = NULL,
+			.pops = &hash_plugin_ops,
 			.label = "fnv1",
 			.desc = "fnv1 hash",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
@@ -292,7 +327,7 @@ hash_plugin hash_plugins[LAST_HASH_ID] = {
 		.h = {
 			.type_id = REISER4_HASH_PLUGIN_TYPE,
 			.id = DEGENERATE_HASH_ID,
-			.pops = NULL,
+			.pops = &hash_plugin_ops,
 			.label = "degenerate hash",
 			.desc = "Degenerate hash: only for testing",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO}

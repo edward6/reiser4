@@ -223,24 +223,17 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 		result = setup_inode_ops(inode, NULL);
 		if (result == 0 &&
 		    inode->i_sb->s_root && inode->i_sb->s_root->d_inode) {
-			reiser4_inode *self;
-			reiser4_inode *root;
+			struct inode *root;
+			pset_member    ind;
 
 			/* take missing plugins from file-system defaults */
-			self = reiser4_inode_data(inode);
-			root = reiser4_inode_data(inode->i_sb->s_root->d_inode);
+			root = inode->i_sb->s_root->d_inode;
 			/* file and directory plugins are already initialised. */
-			result = grab_plugin(self, root, sd);
-			if (result == 0)
-				result = grab_plugin(self, root, hash);
-			if (result == 0)
-				result = grab_plugin(self, root, fibration);
-			if (result == 0)
-				result = grab_plugin(self, root, formatting);
-			if (result == 0)
-				result = grab_plugin(self, root, perm);
-			if (result == 0)
-				result = grab_plugin(self, root, dir_item);
+			for (ind = PSET_DIR + 1; ind < PSET_LAST; ++ind) {
+				result = grab_plugin(inode, root, ind);
+				if (result != 0)
+					break;
+			}
 			if (result != 0) {
 				warning("nikita-3447",
 					"Cannot set up plugins for %lli",
@@ -523,7 +516,6 @@ inode_digest_plugin(const struct inode * inode)
 	return reiser4_inode_data(inode)->pset->digest;
 }
 
-/* Audited by: green(2002.06.17) */
 reiser4_internal item_plugin *
 inode_sd_plugin(const struct inode * inode)
 {
@@ -531,7 +523,6 @@ inode_sd_plugin(const struct inode * inode)
 	return reiser4_inode_data(inode)->pset->sd;
 }
 
-/* Audited by: green(2002.06.17) */
 reiser4_internal item_plugin *
 inode_dir_item_plugin(const struct inode * inode)
 {
@@ -546,26 +537,25 @@ inode_set_extension(struct inode *inode, sd_ext_bits ext)
 
 	assert("nikita-2716", inode != NULL);
 	assert("nikita-2717", ext < LAST_SD_EXTENSION);
+	assert("nikita-3491",
+	       spin_inode_object_is_locked(reiser4_inode_data(inode)));
 
 	state = reiser4_inode_data(inode);
-	spin_lock_inode(inode);
 	/* FIXME: return value of scint_pack is not checked. */
 	scint_pack(&state->extmask,
 		   scint_unpack(&state->extmask) | (1 << ext), GFP_ATOMIC);
 	/* force re-calculation of stat-data length on next call to
 	   update_sd(). */
 	inode_clr_flag(inode, REISER4_SDLEN_KNOWN);
-	spin_unlock_inode(inode);
 }
 
 reiser4_internal void
-inode_set_plugin(struct inode *inode, reiser4_plugin * plug)
+inode_set_plugin(struct inode *inode, reiser4_plugin * plug, pset_member memb)
 {
 	assert("nikita-2718", inode != NULL);
 	assert("nikita-2719", plug != NULL);
 
-	reiser4_inode_data(inode)->plugin_mask |= (1 << plug->h.type_id);
-	inode_set_extension(inode, PLUGIN_STAT);
+	reiser4_inode_data(inode)->plugin_mask |= (1 << memb);
 }
 
 reiser4_internal void

@@ -104,28 +104,9 @@ typedef enum {
 #define REISER4_NODE_MAX_OVERHEAD ( sizeof( reiser4_key ) + 32 )
 
 typedef enum {
-	REISER4_NODE_PRINT_HEADER = (1u << 0),
-	REISER4_NODE_PRINT_KEYS = (1u << 1),
-	REISER4_NODE_PRINT_PLUGINS = (1u << 2),
-	REISER4_NODE_PRINT_ITEMS = (1u << 3),
-	REISER4_NODE_PRINT_DATA = (1u << 4),
-	REISER4_NODE_CHECK = (1u << 5),
-	REISER4_NODE_PANIC = (1u << 6),
-	REISER4_NODE_PRINT_ZNODE = (1u << 7),
-	REISER4_NODE_DKEYS = (1u << 8),
-	REISER4_NODE_TREE_STABLE = (1u << 9),
-	REISER4_NODE_DONT_DOT = (1u << 10),
-	REISER4_NODE_PRINT_BRIEF = (1u << 11),
-	REISER4_NODE_ONLY_INCORE = (1u << 12),
-	REISER4_NODE_SILENT = (1u << 13),
-	REISER4_COLLECT_STAT = (1u << 14),
-	REISER4_NODE_PRINT_ALL = ~0u
-} reiser4_node_print_flag;
-
-#define REISER4_TREE_CHECK ( REISER4_NODE_CHECK | REISER4_NODE_ONLY_INCORE | REISER4_NODE_SILENT | REISER4_NODE_TREE_STABLE )
-#define REISER4_TREE_VERBOSE ( REISER4_NODE_PRINT_ALL & ~REISER4_NODE_SILENT )
-#define REISER4_TREE_BRIEF ( REISER4_NODE_PRINT_BRIEF )
-#define REISER4_TREE_CHECK_ALL ( REISER4_TREE_CHECK & ~REISER4_NODE_ONLY_INCORE )
+	REISER4_NODE_DKEYS       = (1 << 0),
+	REISER4_NODE_TREE_STABLE = (1 << 1)
+} reiser4_node_check_flag;
 
 /* cut and cut_and_kill have too long list of parameters. This structure is just to safe some space on stack */
 struct cut_list {
@@ -214,17 +195,13 @@ typedef struct node_plugin {
 	/* update key of item. */
 	void (*update_item_key) (coord_t * target, const reiser4_key * key, carry_plugin_info * info);
 
-#if 0
-	/* remove data between @from and @to from the tree */
-	int (*cut_and_kill1) (struct cut_list *);
-
-	/* remove data between @from and @to from a node (when shifting from
-	   one node to another, one cuts from a node but does not cut_and_kill
-	   from the tree) */
-	int (*cut1) (struct cut_list *);
-#endif
 	int (*cut_and_kill) (struct carry_kill_data *, carry_plugin_info *);
 	int (*cut) (struct carry_cut_data *, carry_plugin_info *);
+
+	/*
+	 * shrink item pointed to by @coord by @delta bytes.
+	 */
+	int (*shrink_item) (coord_t *coord, int delta);
 
 	/* copy as much as possible but not more than up to @stop from
 	   @stop->node to @target. If (pend == append) then data from beginning of

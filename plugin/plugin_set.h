@@ -61,6 +61,12 @@ extern int plugin_set_compression(plugin_set **set, compression_plugin *file);
 extern int  plugin_set_init(void);
 extern void plugin_set_done(void);
 
+extern int pset_set(plugin_set **set, pset_member memb, reiser4_plugin *plugin);
+extern reiser4_plugin *pset_get(plugin_set *set, pset_member memb);
+
+extern reiser4_plugin_type pset_member_to_type(pset_member memb);
+extern reiser4_plugin_type pset_member_to_type_unsafe(pset_member memb);
+
 /* __PLUGIN_SET_H__ */
 #endif
 

@@ -337,48 +337,48 @@ node_check(znode * node /* node to check */ ,
 
 node_plugin node_plugins[LAST_NODE_ID] = {
 	[NODE40_ID] = {
-		       .h = {
-			     .type_id = REISER4_NODE_PLUGIN_TYPE,
-			     .id = NODE40_ID,
-			     .pops = NULL,
-			     .label = "unified",
-			     .desc = "unified node layout",
-			     .linkage = TYPE_SAFE_LIST_LINK_ZERO,
-			     }
-		       ,
-		       .item_overhead = item_overhead_node40,
-		       .free_space = free_space_node40,
-		       .lookup = lookup_node40,
-		       .num_of_items = num_of_items_node40,
-		       .item_by_coord = item_by_coord_node40,
-		       .length_by_coord = length_by_coord_node40,
-		       .plugin_by_coord = plugin_by_coord_node40,
-		       .key_at = key_at_node40,
-		       .estimate = estimate_node40,
-		       .check = check_node40,
-		       .parse = parse_node40,
-		       .init = init_node40,
+		.h = {
+			.type_id = REISER4_NODE_PLUGIN_TYPE,
+			.id = NODE40_ID,
+			.pops = NULL,
+			.label = "unified",
+			.desc = "unified node layout",
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO,
+		},
+		.item_overhead = item_overhead_node40,
+		.free_space = free_space_node40,
+		.lookup = lookup_node40,
+		.num_of_items = num_of_items_node40,
+		.item_by_coord = item_by_coord_node40,
+		.length_by_coord = length_by_coord_node40,
+		.plugin_by_coord = plugin_by_coord_node40,
+		.key_at = key_at_node40,
+		.estimate = estimate_node40,
+		.check = check_node40,
+		.parse = parse_node40,
+		.init = init_node40,
 #ifdef GUESS_EXISTS
-		       .guess = guess_node40,
+		.guess = guess_node40,
 #endif
 #if REISER4_DEBUG_OUTPUT
-		       .print = print_node40,
+		.print = print_node40,
 #endif
-		       .change_item_size = change_item_size_node40,
-		       .create_item = create_item_node40,
-		       .update_item_key = update_item_key_node40,
-		       .cut_and_kill = kill_node40,
-		       .cut = cut_node40,
-		       .shift = shift_node40,
-		       .fast_insert = fast_insert_node40,
-		       .fast_paste = fast_paste_node40,
-		       .fast_cut = fast_cut_node40,
+		.change_item_size = change_item_size_node40,
+		.create_item = create_item_node40,
+		.update_item_key = update_item_key_node40,
+		.cut_and_kill = kill_node40,
+		.cut = cut_node40,
+		.shift = shift_node40,
+		.shrink_item = shrink_item_node40,
+		.fast_insert = fast_insert_node40,
+		.fast_paste = fast_paste_node40,
+		.fast_cut = fast_cut_node40,
 #ifdef MODIFY_EXISTS
-		       .modify = NULL,
+		.modify = NULL,
 #endif
-		       .max_item_size = max_item_size_node40,
-		       .prepare_removal = prepare_removal_node40,
-		       .set_item_plugin = set_item_plugin_node40
+		.max_item_size = max_item_size_node40,
+		.prepare_removal = prepare_removal_node40,
+		.set_item_plugin = set_item_plugin_node40
 	}
 };
 

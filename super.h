@@ -482,15 +482,6 @@ extern struct inode *get_cc_fake(const struct super_block *super);
 extern reiser4_tree *get_tree(const struct super_block *super);
 extern int is_reiser4_super(const struct super_block *super);
 
-file_plugin *default_file_plugin(const struct super_block *super);
-dir_plugin *default_dir_plugin(const struct super_block *super);
-hash_plugin *default_hash_plugin(const struct super_block *super);
-fibration_plugin *default_fibration_plugin(const struct super_block *super);
-perm_plugin *default_perm_plugin(const struct super_block *super);
-formatting_plugin *default_formatting_plugin(const struct super_block *super);
-item_plugin *default_sd_plugin(const struct super_block *super);
-item_plugin *default_dir_item_plugin(const struct super_block *super);
-
 extern int reiser4_blocknr_is_sane(const reiser4_block_nr *blk);
 extern int reiser4_blocknr_is_sane_for(const struct super_block *super,
 				       const reiser4_block_nr *blk);

@@ -332,7 +332,8 @@ set_acl_plugin(struct inode *inode)
 			result = xattr_add_namespace(inode, xattr_acl_handlers);
 			if (result == 0)
 				inode_set_plugin(inode,
-						 perm_plugin_to_plugin(acl_plug));
+						 perm_plugin_to_plugin(acl_plug),
+						 PSET_PERM);
 		}
 	} else
 		result = 0;

@@ -752,40 +752,42 @@ present_plugin_sd(struct inode *inode /* object being processed */ ,
 	result = 0;
 	for (i = 0; i < num_of_plugins; ++i) {
 		reiser4_plugin_slot *slot;
+		reiser4_plugin_type  type;
+		pset_member          memb;
 
 		slot = (reiser4_plugin_slot *) * area;
 		if (*len < (int) sizeof *slot)
 			return not_enough_space(inode, "additional plugin");
 
+		memb = d16tocpu(&slot->pset_memb);
+		type = pset_member_to_type_unsafe(memb);
+		if (type == REISER4_PLUGIN_TYPES) {
+			warning("nikita-3502", "wrong pset member (%i) for %llu",
+				memb, get_inode_oid(inode));
+			return RETERR(-EINVAL);
+		}
 		plugin = plugin_by_disk_id(tree_by_inode(inode),
-					   d16tocpu(&slot->type_id), &slot->id);
+					   type, &slot->id);
 		if (plugin == NULL)
 			return unknown_plugin(d16tocpu(&slot->id), inode);
 
 		/* plugin is loaded into inode, mark this into inode's
 		   bitmask of loaded non-standard plugins */
-		if (!(mask & (1 << plugin->h.type_id))) {
-			mask |= (1 << plugin->h.type_id);
+		if (!(mask & (1 << memb))) {
+			mask |= (1 << memb);
 		} else {
 			warning("nikita-658", "duplicate plugin for %llu", get_inode_oid(inode));
 			print_plugin("plugin", plugin);
 			return RETERR(-EINVAL);
 		}
 		move_on(len, area, sizeof *slot);
-		if (plugin->h.pops == NULL)
-			continue;
-		/*
-		  align(inode, len, area, plugin->h.pops->alignment);
-		
-		  - commented because alignment policies in len_for() and save_plug()
-		  are incompatible -edward */
-		
 		/* load plugin data, if any */
-		if (plugin->h.pops->load) {
+		if (plugin->h.pops != NULL && plugin->h.pops->load) {
 			result = plugin->h.pops->load(inode, plugin, area, len);
 			if (result != 0)
 				return result;
-		}
+		} else
+			result = grab_plugin_from(inode, memb, plugin);
 	}
 	/* if object plugin wasn't loaded from stat-data, guess it by
 	   mode bits */
@@ -819,14 +821,14 @@ absent_plugin_sd(struct inode *inode /* object being processed */ )
 /* Audited by: green(2002.06.14) */
 static int
 len_for(reiser4_plugin * plugin /* plugin to save */ ,
-	struct inode *inode /* object being processed */ , int len)
+	struct inode *inode /* object being processed */ ,
+	pset_member memb, int len)
 {
 	reiser4_inode *info;
 	assert("nikita-661", inode != NULL);
 
 	info = reiser4_inode_data(inode);
-	if (plugin != NULL &&
-	    (info->plugin_mask & (1 << (plugin->h.type_id)))) {
+	if (plugin != NULL && (info->plugin_mask & (1 << memb))) {
 		len += sizeof (reiser4_plugin_slot);
 		if (plugin->h.pops && plugin->h.pops->save_len != NULL) {
 			/* non-standard plugin, call method */
@@ -846,6 +848,7 @@ save_len_plugin_sd(struct inode *inode /* object being processed */ )
 {
 	int len;
 	reiser4_inode *state;
+	pset_member memb;
 
 	assert("nikita-663", inode != NULL);
 
@@ -854,20 +857,8 @@ save_len_plugin_sd(struct inode *inode /* object being processed */ )
 	if (state->plugin_mask == 0)
 		return 0;
 	len = sizeof (reiser4_plugin_stat);
-	/* AUDIT this looks really ugly. And are you going to add more plugins
-	   here later hardwired???
-	   Why not simply get len_for() to return size of that exact plugin?
-	   Addition can be performed here. Also probably some kind of loop
-	   should be done through all plugins, not blind hardwiring of all
-	   plugins known at compilation time */
-	len = len_for(file_plugin_to_plugin(state->pset->file), inode, len);
-	len = len_for(perm_plugin_to_plugin(state->pset->perm), inode, len);
-	len = len_for(formatting_plugin_to_plugin(state->pset->formatting), inode, len);
-	len = len_for(hash_plugin_to_plugin(state->pset->hash), inode, len);
-	len = len_for(fibration_plugin_to_plugin(state->pset->fibration), inode, len);
-	len = len_for(crypto_plugin_to_plugin(state->pset->crypto), inode, len);
-	len = len_for(digest_plugin_to_plugin(state->pset->digest), inode, len);
-	len = len_for(compression_plugin_to_plugin(state->pset->compression), inode, len);
+	for (memb = 0; memb < PSET_LAST; ++ memb)
+		len = len_for(pset_get(state->pset, memb), inode, memb, len);
 	assert("nikita-664", len > (int) sizeof (reiser4_plugin_stat));
 	return len;
 }
@@ -877,6 +868,7 @@ save_len_plugin_sd(struct inode *inode /* object being processed */ )
 static int
 save_plug(reiser4_plugin * plugin /* plugin to save */ ,
 	  struct inode *inode /* object being processed */ ,
+	  pset_member memb /* what element of pset is saved*/,
 	  char **area /* position in stat-data */ ,
 	  int *count		/* incremented if plugin were actually
 				 * saved. */ )
@@ -891,23 +883,16 @@ save_plug(reiser4_plugin * plugin /* plugin to save */ ,
 
 	if (plugin == NULL)
 		return 0;
-	if (!(reiser4_inode_data(inode)->plugin_mask & (1 << plugin->h.type_id)))
+	if (!(reiser4_inode_data(inode)->plugin_mask & (1 << memb)))
 		return 0;
 	slot = (reiser4_plugin_slot *) * area;
-	cputod16(plugin->h.type_id, &slot->type_id);
+	cputod16(memb, &slot->pset_memb);
 	cputod16((unsigned) plugin->h.id, &slot->id);
 	fake_len = (int) 0xffff;
 	move_on(&fake_len, area, sizeof *slot);
 	++*count;
 	result = 0;
 	if (plugin->h.pops != NULL) {
-#if 0
-		align(inode, &fake_len, area, plugin->h.pops->alignment);
-                /*
-		  commented as it is incompatible with alignment policy
-		  in len_for() -edward
-		*/
-#endif
 		if (plugin->h.pops->save != NULL)
 			result = plugin->h.pops->save(inode, plugin, area);
 	}
@@ -919,11 +904,12 @@ static int
 save_plugin_sd(struct inode *inode /* object being processed */ ,
 	       char **area /* position in stat-data */ )
 {
-	int result;
+	int result = 0;
 	int num_of_plugins;
 	reiser4_plugin_stat *sd;
 	reiser4_inode *state;
 	int fake_len;
+	pset_member memb;
 
 	assert("nikita-669", inode != NULL);
 	assert("nikita-670", area != NULL);
@@ -937,17 +923,12 @@ save_plugin_sd(struct inode *inode /* object being processed */ ,
 	move_on(&fake_len, area, sizeof *sd);
 
 	num_of_plugins = 0;
-	/* for now, use hardcoded list of plugins that can be associated
-	   with inode */
-	/* AUDIT. Hardcoded list of plugins is bad */
-	result = save_plug(file_plugin_to_plugin(state->pset->file), inode, area, &num_of_plugins)
-	    || save_plug(perm_plugin_to_plugin(state->pset->perm), inode, area, &num_of_plugins)
-	    || save_plug(formatting_plugin_to_plugin(state->pset->formatting), inode, area, &num_of_plugins)
-            || save_plug(hash_plugin_to_plugin(state->pset->hash), inode, area, &num_of_plugins)
-            || save_plug(fibration_plugin_to_plugin(state->pset->fibration), inode, area, &num_of_plugins)
-	    || save_plug(crypto_plugin_to_plugin(state->pset->crypto), inode, area, &num_of_plugins)
-	    || save_plug(digest_plugin_to_plugin(state->pset->digest), inode, area, &num_of_plugins)
-	    || save_plug(compression_plugin_to_plugin(state->pset->compression), inode, area, &num_of_plugins);
+	for (memb = 0; memb < PSET_LAST; ++ memb) {
+		result = save_plug(pset_get(state->pset, memb),
+				   inode, memb, area, &num_of_plugins);
+		if (result != 0)
+			break;
+	}
 
 	cputod16((unsigned) num_of_plugins, &sd->plugins_no);
 	return result;

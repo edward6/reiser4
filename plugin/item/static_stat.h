@@ -139,7 +139,7 @@ typedef struct reiser4_symlink_stat {
 } PACKED reiser4_symlink_stat;
 
 typedef struct reiser4_plugin_slot {
-	/*  0 */ d16 type_id;
+	/*  0 */ d16 pset_memb;
 	/*  2 */ d16 id;
 /*  4 *//* here plugin stores its persistent state */
 } PACKED reiser4_plugin_slot;

@@ -1188,6 +1188,21 @@ _noop(void)
 
 #define enoop ((void *)_noop)
 
+static int
+change_dir(struct inode * inode, reiser4_plugin * plugin)
+{
+	/* cannot change dir plugin of already existing object */
+	return RETERR(-EINVAL);
+}
+
+static reiser4_plugin_ops dir_plugin_ops = {
+	.init     = NULL,
+	.load     = NULL,
+	.save_len = NULL,
+	.save     = NULL,
+	.change   = change_dir
+};
+
 /*
  * definition of directory plugins
  */
@@ -1198,7 +1213,7 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 		.h = {
 			.type_id = REISER4_DIR_PLUGIN_TYPE,
 			.id = HASHED_DIR_PLUGIN_ID,
-			.pops = NULL,
+			.pops = &dir_plugin_ops,
 			.label = "dir",
 			.desc = "hashed directory",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
@@ -1231,8 +1246,8 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 		.h = {
 			.type_id = REISER4_DIR_PLUGIN_TYPE,
 			.id = SEEKABLE_HASHED_DIR_PLUGIN_ID,
-			.pops = NULL,
-			.label = "dir",
+			.pops = &dir_plugin_ops,
+			.label = "dir32",
 			.desc = "directory hashed with 31 bit hash",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
@@ -1263,7 +1278,7 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 		.h = {
 			.type_id = REISER4_DIR_PLUGIN_TYPE,
 			.id = PSEUDO_DIR_PLUGIN_ID,
-			.pops = NULL,
+			.pops = &dir_plugin_ops,
 			.label = "pseudo",
 			.desc = "pseudo directory",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO

@@ -47,7 +47,7 @@ typedef struct node40_header {
 	   and repacker */
 	d16 flags;
 	
-	/* 1 is leaf level, 2 is twig level, root is the numerically 
+	/* 1 is leaf level, 2 is twig level, root is the numerically
 	   largest level */
 	d8 level;
 	
@@ -99,6 +99,7 @@ int fast_cut_node40(const coord_t * coord);
 int max_item_size_node40(void);
 int prepare_removal_node40(znode * empty, carry_plugin_info * info);
 int set_item_plugin_node40(coord_t * coord, item_id id);
+int shrink_item_node40(coord_t *coord, int delta);
 
 /* __REISER4_NODE40_H__ */
 #endif

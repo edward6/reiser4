@@ -71,30 +71,6 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /* don't allow tree to be lower than this */
 #define REISER4_MIN_TREE_HEIGHT       (TWIG_LEVEL)
 
-/* default file plugin */
-#define REISER4_FILE_PLUGIN       (UNIX_FILE_PLUGIN_ID)
-
-/* default directory plugin */
-#define REISER4_DIR_PLUGIN        (HASHED_DIR_PLUGIN_ID)
-
-/* default hash plugin */
-#define REISER4_HASH_PLUGIN       (R5_HASH_ID)
-
-/* default fibration plugin */
-#define REISER4_FIBRATION_PLUGIN       (FIBRATION_DOT_O)
-
-/* default perm(ission) plugin */
-#define REISER4_PERM_PLUGIN       (RWX_PERM_ID)
-
-/* default formatting policy plugin */
-#define REISER4_FORMATTING_PLUGIN       (ALWAYS_TAILS_FORMATTING_ID)
-
-/* item plugin used by files by default to store stat data. */
-#define REISER4_SD_PLUGIN         (STATIC_STAT_DATA_ID)
-
-/* item plugin used by directories by default to store directory entries. */
-#define REISER4_DIR_ITEM_PLUGIN       (COMPOUND_DIR_ID)
-
 /* NOTE NIKITA this is no longer used: maximal atom size is auto-adjusted to
  * available memory. */
 /* Default value of maximal atom size. Can be ovewritten by
