@@ -32,7 +32,7 @@
 #include <linux/writeback.h>
 
 /* this file contains file plugin of regular reiser4 files. Those files are either built of tail items only (TAIL_ID) or
- * of extent items only (EXTENT_POINTER_ID) */
+   of extent items only (EXTENT_POINTER_ID) */
 
 int file_is_built_of_tail_items(const struct inode *inode)
 {
