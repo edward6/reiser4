@@ -297,7 +297,12 @@ insert_result insert_by_key( reiser4_tree *tree /* tree to insert new item
 		result = IBK_OOM;
 		break;
 	case CBK_COORD_NOTFOUND:
-		result = insert_by_coord( coord, data, key, lh, ra, ira, 0/*flags*/ );
+		assert( "nikita-2017", coord -> node != NULL );
+		result = zload( coord -> node );
+		if( result != NULL )
+			break;
+		result = insert_by_coord( coord, data, key, lh, ra, ira, 0 );
+		zrelse( node );
 		break;
 	}
 	return result;
