@@ -368,7 +368,6 @@ znode_rehash(znode * node /* node to rehash */ ,
 	reiser4_tree *tree;
 
 	assert("nikita-2018", node != NULL);
-	assert("umka-052", current_tree != NULL);
 
 	tree = znode_get_tree(node);
 	htable = &tree->zhash_table;
@@ -524,7 +523,7 @@ retry_miss_race:
 		ZJNODE(result)->blocknr = *blocknr;
 		ZJNODE(result)->key.z = *blocknr;
 
-		znode_set_level(result, level);
+		result->level = level;
 
 		add_x_ref(ZJNODE(result));
 
@@ -925,39 +924,63 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 #define zergo( state, p ) _ergo( ZF_ISSET( node, ( state ) ), p )
 
 	return REISER4_DEBUG &&
-	    /* Condition 1: */
-	    ((*msg) = "node is NULL", node != NULL) &&
-	    /* Condition 2-3: two checks specific for fake znode  */
-	    _ergo(znode_get_level(node) == 0, znode_parent(node) == NULL) &&
-	    _ergo(znode_get_level(node) == 0,
-		  disk_addr_eq(znode_get_block(node),
-			       &FAKE_TREE_ADDR)) &&
-	    _ergo(znode_is_true_root(node), znode_above_root(znode_parent(node))) &&
-	    /* Condition 4-6: parent linkage */
-	    _ergo(znode_above_root(node),
-		  znode_parent(node) == NULL) &&
-	    _ergo(znode_parent(node) && !znode_above_root(znode_parent(node)),
-		  znode_get_level(znode_parent(node)) ==
-		  znode_get_level(node) + 1) && _ergo(znode_parent(node) != NULL
-						      &&
-						      !znode_above_root
-						      (znode_parent(node)),
-						      atomic_read(&znode_parent(node)->c_count) > 0) &&
+		((*msg) = "node is NULL", node != NULL) &&
+
+		/* [znode-fake] invariant */
+
+		/* fake znode doesn't have a parent, and */
+		_ergo(znode_get_level(node) == 0, znode_parent(node) == NULL) &&
+		/* there is another way to express this very check, and */
+		_ergo(znode_above_root(node),
+		      znode_parent(node) == NULL) &&
+		/* it has special block number, and */
+		_ergo(znode_get_level(node) == 0,
+		      disk_addr_eq(znode_get_block(node),
+				   &FAKE_TREE_ADDR)) &&
+		/* it is the only znode with such block number, and */
+		_ergo(!znode_above_root(node) && znode_is_loaded(node),
+		      !disk_addr_eq(znode_get_block(node), &FAKE_TREE_ADDR)) &&
+		/* it is parent of the tree root node */
+		_ergo(znode_is_true_root(node), znode_above_root(znode_parent(node))) &&
+
+		/* [znode-level] invariant */
+
+		/* level of parent znode is one larger than that of child,
+		   except for the fake znode, and */
+		_ergo(znode_parent(node) && !znode_above_root(znode_parent(node)),
+		      znode_get_level(znode_parent(node)) ==
+		      znode_get_level(node) + 1) && 
+		/* left neighbor is at the same level, and */
+		_ergo(znode_is_left_connected(node) && node->left != NULL,
+		      znode_get_level(node) == znode_get_level(node->left)) &&
+		/* right neighbor is at the same level */
+		_ergo(znode_is_right_connected(node) && node->right != NULL,
+		      znode_get_level(node) == znode_get_level(node->right)) &&
+
+		/* [znode-c_count] invariant */
+
+		/* for any znode, c_count of its parent is greater than 0 */
+		_ergo(znode_parent(node) != NULL &&
+		      !znode_above_root(znode_parent(node)),
+		      atomic_read(&znode_parent(node)->c_count) > 0) &&
+		/* leaves don't have children */
+		_ergo(znode_get_level(node) == LEAF_LEVEL,
+		      atomic_read(&node->c_count) == 0) &&
+
 #if REISER4_DEBUG
-	    ((*msg) = "jnodes.prev", node->zjnode.jnodes.prev != NULL) &&
-	    ((*msg) = "jnodes.next", node->zjnode.jnodes.next != NULL) &&
+		((*msg) = "jnodes.prev", node->zjnode.jnodes.prev != NULL) &&
+		((*msg) = "jnodes.next", node->zjnode.jnodes.next != NULL) &&
 #endif
-	    /* Condition 7+: Flags */
-	    _ergo(!znode_above_root(node) &&
-		  znode_is_loaded(node),
-		  !disk_addr_eq(znode_get_block(node),
-				&FAKE_TREE_ADDR)) &&
-	    _ergo(znode_get_level(node) == LEAF_LEVEL,
-		  atomic_read(&node->c_count) == 0) &&
-	    _ergo(node->lock.nr_readers != 0,
-		  atomic_read(&ZJNODE(node)->x_count) != 0) &&
-	    zergo(JNODE_ORPHAN, znode_parent(node) == NULL) &&
-	    ((*msg) = "x_count >= d_count", atomic_read(&ZJNODE(node)->x_count) >= atomic_read(&ZJNODE(node)->d_count));
+		/* orphan doesn't have a parent */
+		zergo(JNODE_ORPHAN, znode_parent(node) == NULL) &&
+
+		/* [znode-refs] invariant */
+
+		/* only referenced znode can be long-term locked, and */
+		_ergo(znode_is_locked(node),
+		      atomic_read(&ZJNODE(node)->x_count) != 0) &&
+		/* only referenced znode can be loaded */
+		((*msg) = "x_count >= d_count", atomic_read(&ZJNODE(node)->x_count) >= atomic_read(&ZJNODE(node)->d_count));
 }
 
 /* debugging aid: check znode invariant and panic if it doesn't hold */

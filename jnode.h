@@ -35,6 +35,57 @@ typedef struct {
 	struct address_space *mapping;
 } jnode_key_t;
 
+/*
+   Jnode is the "base class" of other nodes in reiser4. It is also happens to
+   be exactly the node we use for unformatted tree nodes.
+
+   Jnode provides following basic functionality:
+
+   . reference counting and indexing.
+
+   . integration with page cache. Jnode has ->pg reference to which page can
+   be attached.
+
+   . interface to transaction manager. It is jnode that is kept in transaction
+   manager lists, attached to atoms, etc. (NOTE-NIKITA one may argue that this
+   means, there should be special type of jnode for inode.)
+
+   Locking: 
+  
+   Spin lock: the following fields are protected by the per-jnode spin lock:
+  
+    ->state
+    ->atom
+    ->capture_link
+
+   Following fields are protected by the global tree lock:
+  
+    ->link
+    ->key.z (content of ->key.z is only changed in znode_rehash())
+    ->key.j
+
+   Atomic counters
+  
+    ->x_count
+    ->d_count 
+
+    ->pg, and ->data are protected by spin lock for unused jnode and are
+    immutable for used jnode (one for which fs/reiser4/vfs_ops.c:releasable()
+    is false).
+
+    ->tree is immutable after creation
+
+   Unclear
+
+    ->blocknr: should be under jnode spin-lock, but current interface is based
+    on passing of block address.
+
+   If you ever need to spin lock two nodes at once, do this in "natural"
+   memory order: lock znode with lower address first. (See
+   spin_lock_znode_pair() and spin_lock_znode_triple() functions, NOTE-NIKITA
+   TDB)
+  
+*/
 struct jnode {
 	/* jnode's state: bitwise flags from the reiser4_znode_state enum. */
 	/*   0 */ unsigned long state;
@@ -227,20 +278,11 @@ extern struct page *jnode_lock_page(jnode *);
 
 /* block number of node */
 static inline const reiser4_block_nr *
-jnode_get_block(const jnode * node	/* jnode to
-					 * query */ )
+jnode_get_block(const jnode * node /* jnode to query */)
 {
 	assert("nikita-528", node != NULL);
+	assert("nikita-2919", spin_jnode_is_locked(node));
 
-/* As soon as we implement accessing nodes not stored on block devices
-   (e.g. distributed reiserfs), then we need to replace this line with
-   a call to a node plugin.
-
-   Josh replies: why not extent the block number to be
-   node_id/device/block_nr.  I don't think the concept of a block number
-   changes in a distributed setting, but you will need a node method to get
-   the block: likely we already have that.
-*/
 	return &node->blocknr;
 }
 

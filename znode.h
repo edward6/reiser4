@@ -55,11 +55,6 @@ struct zlock {
 	/* 28 */
 };
 
-/* This structure is way too large.  Think for a moment.  There is one
-   of these for every 4k formatted node.  That's a lot of bytes.
-   Don't carelessly add bloat here (or anywhere, this is not user
-   space office suite programming we are doing) .  */
-
 /* &znode - node in a reiser4 tree.
   
    NOTE-NIKITA fields in this struct have to be rearranged (later) to reduce
@@ -70,50 +65,41 @@ struct zlock {
    Long term: data in a disk node attached to this znode are protected
    by long term, deadlock aware lock ->lock;
   
-   Spin lock: the following fields are protected by the spin lock:
-  
-    (jnode fields:)
-    ->state
-    ->level
-    ->atom
-    ->blocknr
-    ->pg
-  
-    (znode fields:)
-    ->node_plugin (see below)
-  
    Following fields are protected by the global tree lock:
   
     ->left
     ->right
     ->in_parent
-    ->link
-  
+
    Following fields are protected by the global delimiting key lock (dk_lock):
   
-    ->ld_key
+    ->ld_key (to update ->ld_key long-term lock on the node is also required)
     ->rd_key
   
    Atomic counters
   
-    ->x_count
-    ->d_count 
     ->c_count
   
-   can be accessed and modified without locking
-  
-   If you ever need to spin lock two nodes at once, do this in "natural"
-   memory order: lock znode with lower address first. (See
-   spin_lock_znode_pair() and spin_lock_znode_triple() functions, NOTE-NIKITA
-   TDB)
-  
+   Following fields are protected by the long term lock:
+
+    ->nr_items
+
    ->node_plugin is never changed once set. This means that after code made
    itself sure that field is valid it can be accessed without any additional
    locking.
+
+   ->level is immutable.
+
+   Invariants involving this data-type:
+
+      [znode-fake]
+      [znode-level]
+      [znode-c_count]
+      [znode-refs]
 */
 struct znode {
 	/* Embedded jnode. */
-	/*   0 */ jnode zjnode;
+	jnode zjnode;
 
 	/* position of this node in a parent node. This is cached to
 	   speed up lookups during balancing. Not required to be up to
@@ -124,14 +110,14 @@ struct znode {
 	   Also, parent pointer is stored here.  The parent pointer
 	   stored here is NOT a hint, only the position is.
 	*/
-	/*  56 */ coord_t in_parent;
+	coord_t in_parent;
 
-	/*  76 */ znode *left;
-	/*  80 */ znode *right;
+	znode *left;
+	znode *right;
 	/* long term lock on node content. This lock supports deadlock
 	   detection. See lock.c
 	*/
-	/*  84 */ zlock lock;
+	zlock lock;
 
 	/* You cannot remove from memory a node that has children in
 	   memory. This is because we rely on the fact that parent of given
@@ -145,30 +131,24 @@ struct znode {
 	   because we don't want to take and release spinlock for each
 	   reference addition/drop.
 	*/
-	/* 112 */ atomic_t c_count;
+	atomic_t c_count;
 
 	/* plugin of node attached to this znode. NULL if znode is not
 	   loaded. */
-	/* 116 */ node_plugin *nplug;
+	node_plugin *nplug;
 
 	/* version of znode data. This is increased on each modification. */
-	/* 120 */ __u64 version;
+	__u64 version;
 
-	/* size of node referenced by this znode. This is not necessary
-	   block size, because there znodes for extents. */
 	/* left delimiting key. Necessary to efficiently perform
 	   balancing with node-level locking. Kept in memory only. */
-	/* 128 */ reiser4_key ld_key;
+	reiser4_key ld_key;
 	/* right delimiting key. */
-	/* 152 */ reiser4_key rd_key;
+	reiser4_key rd_key;
 
 	/* znode's tree level */
-	/* 176 */ __u16 level;
-	/* 178 */ __u16 nr_items;
-/* 180 *//* gap --- 4 bytes */
-	/* 184 */
-	/* removed for now. We only support blocksize == PAGE_CACHE_SIZE
-	   unsigned      size; */
+	__u16 level;
+	__u16 nr_items;
 #if REISER4_DEBUG_MODIFY
 	/* In debugging mode, used to detect loss of znode_set_dirty()
 	   notification. */
@@ -447,14 +427,6 @@ static inline tree_level
 znode_get_level(const znode * node)
 {
 	return node->level;
-}
-
-/* set the level field for a znode */
-static inline void
-znode_set_level(znode * node, tree_level level)
-{
-	assert("jmacd-1161", level < REISER4_MAX_ZTREE_HEIGHT);
-	node->level = level;
 }
 
 /* get the level field for a jnode */

@@ -59,7 +59,52 @@ typedef enum {
 	REISER4_MTFLUSH = 4
 } reiser4_fs_flag;
 
-/* reiser4-specific part of super block */
+/* reiser4-specific part of super block 
+
+   Locking
+
+   Fields immutable after mount:
+
+    ->oid*
+    ->space*
+    ->default_[ug]id
+    ->mkfs_id
+    ->trace_flags
+    ->debug_flags
+    ->fs_flags
+    ->df_plug
+    ->optimal_io_size
+    ->plug
+    ->flush
+    ->u (bad name)
+    ->txnmgr
+    ->ra_params
+    ->fsuid
+    ->journal_header
+    ->journal_footer
+
+   Fields protected by ->lnode_guard
+
+    ->lnode_htable
+
+   Fields protected by per-super block spin lock
+
+    ->block_count
+    ->blocks_used
+    ->blocks_free
+    ->blocks_free_committed
+    ->blocks_grabbed
+    ->blocks_fake_allocated_unformatted
+    ->blocks_fake_allocated
+    ->blocks_flush_reserved
+    ->eflushed
+    ->
+    ->
+    ->
+    ->
+    ->
+
+*/
 struct reiser4_super_info_data {
 	/* guard spinlock which protects reiser4 super 
 	   block fields (currently blocks_free, 
@@ -116,7 +161,7 @@ struct reiser4_super_info_data {
 	__u64 blocks_fake_allocated;
 
 	/* number of blocks reserved for flush operations. */
-	__u64     blocks_flush_reserved;
+	__u64 blocks_flush_reserved;
 
 	/* unique file-system identifier */
 	/* does this conform to Andreas Dilger UUID stuff? */
@@ -149,7 +194,7 @@ struct reiser4_super_info_data {
 	struct inode *fake;
 
 	ln_hash_table lnode_htable;
-	spinlock_t lnode_htable_guard;
+	spinlock_t lnode_guard;
 
 	/* disk layout plugin */
 	disk_format_plugin *df_plug;

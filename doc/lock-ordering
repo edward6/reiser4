@@ -15,7 +15,7 @@ here, because hardware errors barred, it will ultimately finish regardless of
 any other threads and locks in the system (This only holds if io completion
 handlers don't acquire locks themselves.).
 
-                               LOCKS IN REISER4
+-------------------------------LOCKS IN REISER4---------------------------------
 
 Reiser4 introduces following locks:
 
@@ -27,7 +27,7 @@ Reiser4 introduces following locks:
 
 4.  Per-znode lock with deadlock detection                      (longterm_lock)
 
-5.  Per-reiser4-inode spin lock                                 (inode_guard*+)
+5.  Per-reiser4-inode spin lock                                 (inode_guard*)
 
 6.  Per-atom spin lock                                          (atom_lock*)
 
@@ -104,7 +104,80 @@ Thread also can block on the following "objects" that are not really locks:
 
 ----------------------------------LOCK SCOPE------------------------------------
 
-Section describing what invariants and data are protected by what locks. TBD.
+Section describing what data are protected by what locks. TBD.
+
+----------------------------------INVARIANTS------------------------------------
+
+Invariants are some (formal or informal) properties of data structures. For
+example, for well-formed doubly linked list, following holds:
+
+item->next->prev == item && item->prev->next == item
+
+In most cases, invariants only hold under proper locks.
+
+LABEL AND DESCRIPTION                                 LOCKS
+
+[inode->eflushed]                                     inode_guard
+
+    inode->eflushed > 0, iff there are emergency flushed jnodes belonging to
+    this inode. Also, each emergency flushed jnode is counted as increase in
+    inode->i_count.
+
+[cbk-cache-invariant]                                 cbk_guard
+
+    If cbk cache is traversed in LRU order, first go all used slots (with
+    slot->node != NULL), then, all unused. All used slots have unique
+    slot->node. (Checked by cbk_cache_invariant().)
+
+[znode-fake]                                          jnode_lock, tree_lock
+
+    /* fake znode doesn't have a parent, and */
+    znode_get_level(node) == 0 => znode_parent(node) == NULL, and
+    /* there is another way to express this very check, and */
+    znode_above_root(node)     => znode_parent(node) == NULL, and
+    /* it has special block number, and */
+    znode_get_level(node) == 0 => *znode_get_block(node) == FAKE_TREE_ADDR, and
+    /* it is the only znode with such block number, and */
+    !znode_above_root(node) && znode_is_loaded(node) => 
+                                  *znode_get_block(node) != FAKE_TREE_ADDR
+    /* it is parent of the tree root node */
+    znode_is_true_root(node)   => znode_above_root(znode_parent(node))
+
+    (Checked by znode_invariant_f().)
+
+[znode-level]                                         jnode_lock, tree_lock
+
+    /* level of parent znode is one larger than that of child, except for the
+       fake znode */
+    znode_parent(node) != NULL && !znode_above_root(znode_parent(node)) =>
+                znode_get_level(znode_parent(node)) == znode_get_level(node) + 1
+    /* left neighbor is at the same level, and */
+    znode_is_left_connected(node) && node->left != NULL =>
+                znode_get_level(node) == znode_get_level(node->left))
+    /* right neighbor is at the same level */
+    znode_is_right_connected(node) && node->right != NULL =>
+                znode_get_level(node) == znode_get_level(node->right)
+
+    (Checked by znode_invariant_f().)
+
+[znode-c_count]                                       jnode_lock, tree_lock
+
+    /* for any znode, c_count of its parent is greater than 0, and */
+    znode_parent(node) != NULL && !znode_above_root(znode_parent(node)) =>
+                atomic_read(&znode_parent(node)->c_count) > 0), and
+    /* leaves don't have children */
+    znode_get_level(node) == LEAF_LEVEL => atomic_read(&node->c_count) == 0
+
+    (Checked by znode_invariant_f().)
+
+[znode-refs]                                          jnode_lock, tree_lock
+
+    /* only referenced znode can be long-term locked, and */
+    znode_is_locked(node) => atomic_read(&ZJNODE(node)->x_count) != 0), and
+    /* only referenced znode can be loaded */
+    atomic_read(&ZJNODE(node)->x_count) >= atomic_read(&ZJNODE(node)->d_count))
+
+    (Checked by znode_invariant_f().)
 
 --------------------------------LOCK ORDERING-----------------------------------
 
@@ -121,6 +194,7 @@ i_sem
 ..........mm->mmap_sem------+-+                   [do_page_fault]
 ............kalloc
 ..............ktxnmgrd_lock
+..............inode_guard
 ................txnmgr_lock
 ..................atom_lock
 ....................jnode_lock            [->vm_writeback()->jget()]
@@ -142,7 +216,7 @@ i_sem
               ^
               +-- spin locks are starting here. Don't schedule rightward.
 
-NO FINISHED.
+NOT FINISHED.
 
 page_dirty
 ....&inode_lock
@@ -170,9 +244,9 @@ of placing it into some shared data structure like hash table or list). There
 is special spin lock macro spin_lock_foo_no_ord() defined in reiser4.h for
 this purpose.
 
-pfault and kalloc are something special: when page fault occurs in the memory
-are mmapped from reiser4 file, reiser4_readpage() is invoked that starts
-taking locks from the very beginning.
+pfault and kalloc are something special: when page fault occurs at the page
+occupied by mmapped from reiser4 file, reiser4_readpage() is invoked that
+starts taking locks from the very beginning.
 
 DEAD1 
 
@@ -197,6 +271,17 @@ When memory allocation tries to free some memory it
    reiser4_vm_writeback().
 
 2. calls reiser4_vm_writeback() synchronously.
+
+----------------------------------LOCK PATTERNS---------------------------------
+
+This section describes where in the code what locks sequences are held. This
+places restrictions on modifications to the lock ordering above and enumerates
+pieces of the code that should be revised if modification of the lock ordering
+is necessary.
+
+inode_guard->&inode_lock: eflush_add(). 
+
+    eflush_add(), while holding calls __iget() that requires &inode_lock
 
 ----------------------------------DEADLOCKS-------------------------------------
 

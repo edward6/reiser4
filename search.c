@@ -122,6 +122,7 @@ print_cbk_cache(const char *prefix /* prefix to print */ ,
 #endif
 
 #if REISER4_DEBUG
+/* this function assures that [cbk-cache-invariant] invariant holds */
 static int
 cbk_cache_invariant(const cbk_cache * cache)
 {

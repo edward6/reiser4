@@ -77,7 +77,12 @@ typedef __u32 oid_hi_t;
    be of the same size. File-system allocates inodes by itself through
    s_op->allocate_inode() method. So, it is possible to adjust size of inode
    at the time of its creation.
-  
+
+
+   Invariants involving parts of this data-type:
+
+      [inode->eflushed]
+
 */
 typedef struct reiser4_inode {
 	/* object plugins */

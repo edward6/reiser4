@@ -56,7 +56,10 @@ typedef struct cbk_cache_slot {
   
    Tree spin lock is used to protect coord cache. If contention for this
    lock proves to be too high, more finer grained locking can be added.
-  
+
+   Invariants involving parts of this data-type:
+
+      [cbk-cache-invariant]
 */
 typedef struct cbk_cache {
 	int nr_slots;
