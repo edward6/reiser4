@@ -3354,29 +3354,6 @@ txnmgr_get_max_atom_size(struct super_block *super UNUSED_ARG)
 	return nr_free_pagecache_pages() / 2;
 }
 
-#ifdef COPY_ON_CAPTURE
-
-/* initialize fake inode */
-static int
-init_commit_fake(txn_atom *atom)
-{
-	assert("", atom->commit_fake == );
-}
-
-/* for all jnodes of overwrite set - create specialdetach page, attach it to commit mapping of atom, uncapture jnode */
-static int
-xxx(txn_atom *atom)
-{
-	jnode *j;
-
-	while(!capture_list_empty(&atom->ovrwr_nodes)) {
-		j = capture_list_front(&atom->ovrwr_nodes);
-		
-	}
-}
-
-#endif
-
 /* DEBUG HELP */
 
 #if REISER4_DEBUG_OUTPUT
