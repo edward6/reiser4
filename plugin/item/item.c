@@ -106,14 +106,15 @@ int are_items_mergeable( const tree_coord *i1, const tree_coord *i2 )
 	}
 }
 
-int item_is_extent   (const tree_coord *item)
+int item_is_extent (const tree_coord *item)
 {
+	assert ("vs-482", coord_of_item (item));
 	return item_plugin_id_by_coord (item) == EXTENT_POINTER_IT;
 }
 
 int item_is_internal (const tree_coord *item)
 {
-	/* FIXME_JMACD: I wonder if these should assert coord_of_item() */
+	assert ("vs-483", coord_of_item (item));
 	return item_plugin_id_by_coord (item) == NODE_POINTER_IT;
 }
 
