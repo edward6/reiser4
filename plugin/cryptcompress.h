@@ -14,8 +14,9 @@
 #define MAX_CLUSTER_SHIFT 4
 #define MAX_CLUSTER_NRPAGES (1 << MAX_CLUSTER_SHIFT)
 #define DEFAULT_CLUSTER_SHIFT 0
+#define DC_CHECKSUM_SIZE 4
 #define MIN_CRYPTO_BLOCKSIZE 8
-#define CLUSTER_MAGIC_SIZE (MIN_CRYPTO_BLOCKSIZE >> 1)
+#define UNPREPPED_DCLUSTER_LEN 2
 
 /* Set of transform id's supported by reiser4, 
    each transform is implemented by appropriate transform plugin: */
@@ -25,8 +26,6 @@ typedef enum {
 	COMPRESS_TFM,     /* compression plugin */
 	LAST_TFM
 } reiser4_tfm;
-
-
 
 typedef struct tfm_stream {
 	__u8 * data;
@@ -301,6 +300,13 @@ tfm_cluster_is_set(tfm_cluster_t * tc)
 	return 1;
 }
 
+static inline int
+disk_cluster_unprepped(tfm_cluster_t * tc)
+{
+	
+	return tc->len == UNPREPPED_DCLUSTER_LEN;
+}
+
 static inline void
 alternate_streams(tfm_cluster_t * tc)
 {
@@ -332,7 +338,8 @@ typedef struct reiser4_slide {
 /* The following is a set of possible disk cluster states */
 typedef enum {
 	INVAL_DISK_CLUSTER,/* unknown state */ 
-	REAL_DISK_CLUSTER, /* disk cluster exists either in memory or on disk */
+	PREP_DISK_CLUSTER, /* disk cluster got converted */
+	UNPR_DISK_CLUSTER, /* disk cluster just created */
 	FAKE_DISK_CLUSTER  /* disk cluster doesn't exist neither in memory nor
 			      on disk */
 } disk_cluster_stat;

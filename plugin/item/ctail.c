@@ -539,9 +539,10 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	reiser4_inode * info;
 	info = reiser4_inode_data(inode);
 #endif
+	reset_cluster_params(clust);
 	
 	assert("edward-671", clust->hint != NULL);
-	assert("edward-140", clust->dstat != FAKE_DISK_CLUSTER);
+	assert("edward-140", clust->dstat == INVAL_DISK_CLUSTER);
 	assert("edward-672", crc_inode_ok(inode));
 	assert("edward-145", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
 	
@@ -562,7 +563,8 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	
 	assert("edward-673", znode_is_any_locked(clust->hint->coord.lh->node));
 	
-	if (clust->dstat == FAKE_DISK_CLUSTER) {
+	if (clust->dstat == FAKE_DISK_CLUSTER ||
+	    clust->dstat == UNPR_DISK_CLUSTER) {
 		tfm_cluster_set_uptodate(&clust->tc);
 		return 0;
 	}
@@ -611,36 +613,49 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	
 	/* bytes in the page */
 	pgcnt = off_to_pgcount(i_size_read(inode), page->index);
+#if 0
 	if (pgcnt == 0)
 		return RETERR(-EINVAL);
-
+#endif	
 	assert("edward-119", tfm_cluster_is_uptodate(tc));
 	
-	if (clust->dstat == FAKE_DISK_CLUSTER) {
+	switch (clust->dstat) {
+	case UNPR_DISK_CLUSTER:
+#if REISER4_DEBUG
+		warning("edward-1168",
+			"page %lu is not uptodate and disk cluster %lu (inode %llu) is unprepped\n",
+			page->index, clust->index, (unsigned long long)get_inode_oid(inode));
+#endif
+	case FAKE_DISK_CLUSTER:
 		/* fill the page by zeroes */
-		char *kaddr = kmap_atomic(page, KM_USER0);
+		data = kmap_atomic(page, KM_USER0);
 		
-		memset(kaddr, 0, PAGE_CACHE_SIZE);
+		memset(data, 0, PAGE_CACHE_SIZE);
 		flush_dcache_page(page);
-		kunmap_atomic(kaddr, KM_USER0);
+		kunmap_atomic(data, KM_USER0);
 		SetPageUptodate(page);
 		
 		ON_TRACE(TRACE_CTAIL, " - hole, OK\n");
-		return 0;
-	}	
-	/* fill the page */
-	assert("edward-1058", !PageUptodate(page));
-	assert("edward-120", tc->len <= inode_cluster_size(inode));
+		break;
+	case PREP_DISK_CLUSTER:
+		/* fill the page by transformed data */
+		assert("edward-1058", !PageUptodate(page));
+		assert("edward-120", tc->len <= inode_cluster_size(inode));
 		
-        /* start page offset in the cluster */
-	cloff = pg_to_off_to_cloff(page->index, inode);
-	
-	data = kmap(page);
-	memcpy(data, tfm_stream_data(tc, OUTPUT_STREAM) + cloff, pgcnt);
-	memset(data + pgcnt, 0, (size_t)PAGE_CACHE_SIZE - pgcnt);
-	flush_dcache_page(page);
-	kunmap(page);
-	SetPageUptodate(page);
+		/* start page offset in the cluster */
+		cloff = pg_to_off_to_cloff(page->index, inode);
+		
+		data = kmap(page);
+		memcpy(data, tfm_stream_data(tc, OUTPUT_STREAM) + cloff, pgcnt);
+		memset(data + pgcnt, 0, (size_t)PAGE_CACHE_SIZE - pgcnt);
+		flush_dcache_page(page);
+		kunmap(page);
+		SetPageUptodate(page);
+		ON_TRACE(TRACE_CTAIL, " - real data, OK\n");
+		break;
+	default:
+		impossible("edward-1169", "bad disk cluster state");
+	}
  exit:
 	return 0;	
 }
