@@ -933,7 +933,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 			}
 		},
 #endif
-		/* Don't load all bitmap blocks at mount time, it is useful for machines 
+		/* Don't load all bitmap blocks at mount time, it is useful for machines
 		   with tiny RAM and large disks. */
 		{
 			.name = "dont_load_bitmap",
@@ -1052,12 +1052,12 @@ DEFINE_SPIN_PROFREGIONS(txnmgr);
 DEFINE_SPIN_PROFREGIONS(ktxnmgrd);
 DEFINE_SPIN_PROFREGIONS(inode_object);
 DEFINE_SPIN_PROFREGIONS(fq);
-DEFINE_SPIN_PROFREGIONS(cbk_cache);
 DEFINE_SPIN_PROFREGIONS(super_eflush);
 DEFINE_SPIN_PROFREGIONS(zlock);
 
 DEFINE_RW_PROFREGIONS(dk);
 DEFINE_RW_PROFREGIONS(tree);
+DEFINE_RW_PROFREGIONS(cbk_cache);
 
 #if 0 && REISER4_LOCKPROF
 
@@ -1122,8 +1122,8 @@ static int register_profregions(void)
 	register_ktxnmgrd_profregion();
 	register_inode_object_profregion();
 	register_fq_profregion();
-	register_cbk_cache_profregion();
 
+	register_cbk_cache_profregion();
 	register_dk_profregion();
 	register_tree_profregion();
 
@@ -1145,8 +1145,8 @@ static void unregister_profregions(void)
 	unregister_ktxnmgrd_profregion();
 	unregister_inode_object_profregion();
 	unregister_fq_profregion();
-	unregister_cbk_cache_profregion();
 
+	unregister_cbk_cache_profregion();
 	unregister_dk_profregion();
 	unregister_tree_profregion();
 }
