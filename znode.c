@@ -264,6 +264,9 @@ static void zinit( znode *node /* znode to initialise */,
 	init_coord( &node -> ptr_in_parent_hint );
 	node -> ptr_in_parent_hint.node = parent;
 	node -> ptr_in_parent_hint.item_pos = ~0u;
+	spin_lock_tree( current_tree );
+	node -> version = ++ current_tree -> znode_epoch;
+	spin_unlock_tree( current_tree );
 }
 
 /** zdestroy() -- Return a znode to the slab allocator.

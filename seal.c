@@ -7,9 +7,9 @@
 /*
  * Seals are "weak" tree pointers. They are analogous to tree coords in
  * allowing to bypass tree traversal. But normal usage of coords implies that
- * node pointer to by coord is locked, whereas seals don't keep a lock (or
+ * node pointed to by coord is locked, whereas seals don't keep a lock (or
  * even a reference) to znode. In stead, each znode contains a version number,
- * increased on each znode modification. This version number is copied into
+ * increased on each znode modification. This version number is copied into a
  * seal when seal is created. Later, one can "validate" seal by calling
  * seal_validate(). If znode is in cache and its version number is still the
  * same, seal is "pristine" and coord associated with it can be re-used
@@ -53,11 +53,8 @@ void seal_init( seal_t      *seal /* seal to initialise */,
 		node = coord -> node;
 		assert( "nikita-1879", node != NULL );
 		spin_lock_znode( node );
-		spin_lock_tree( current_tree );
-		seal -> epoch = current_tree -> znode_epoch;
-		assert( "nikita-1880", seal -> epoch != 0 );
-		spin_unlock_tree( current_tree );
 		seal -> version = node -> version;
+		assert( "nikita-1880", seal -> version != 0 );
 		seal -> block   = *znode_get_block( node );
 		if( REISER4_DEBUG ) {
 			seal -> coord = *coord;
@@ -73,7 +70,7 @@ void seal_done( seal_t *seal )
 {
 	assert( "nikita-1887", seal != NULL );
 	if( REISER4_DEBUG )
-		seal -> epoch = 0;
+		seal -> version = 0;
 }
 
 /**
@@ -145,7 +142,7 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 static int seal_is_set( const seal_t *seal /* seal to query */ )
 {
 	assert( "nikita-1890", seal != NULL );
-	return seal -> epoch != 0;
+	return seal -> version != 0;
 }
 
 /** obtain reference to znode seal points to, if in cache */
@@ -166,23 +163,22 @@ static int seal_matches( const seal_t *seal /* seal to check */,
 
 	spin_lock_znode( node );
 	spin_lock_tree( current_tree );
-	result = 
-		( seal -> version == node -> version ) &&
-		( seal -> epoch == current_tree -> znode_epoch );
+	result = seal -> version == node -> version;
 	spin_unlock_tree( current_tree );
 	spin_unlock_znode( node );
 	return result;
 }
 
 /** intranode search */
-static int seal_search_node( seal_t *seal /* seal to repair */, 
-			     tree_coord *coord /* coord attached to @seal */, 
-			     znode *node /* node to search in */, 
-			     reiser4_key *key /* key attached to @seal */, 
-			     lookup_bias bias /* search bias */,
-			     tree_level level /* node level */ )
+static int seal_search_node( seal_t      *seal  /* seal to repair */, 
+			     tree_coord  *coord /* coord attached to @seal */, 
+			     znode       *node  /* node to search in */, 
+			     reiser4_key *key   /* key attached to @seal */, 
+			     lookup_bias  bias  /* search bias */,
+			     tree_level   level /* node level */ )
 {
-	int result;
+	int         result;
+	reiser4_key unit_key;
 
 	assert( "nikita-1888", seal != NULL );
 	assert( "nikita-1889", coord != NULL );
@@ -198,13 +194,20 @@ static int seal_search_node( seal_t *seal /* seal to repair */,
 	if( result != 0 )
 		return result;
 	
-	result = node_plugin_by_node( node ) -> lookup( node, key, 
-							bias, coord );
-	if( result == NS_FOUND ) {
-		/* renew seal */
-		seal_init( seal, coord, key );
-	} else
-		result = -EAGAIN;
+	if( coord_of_unit( coord ) && 
+	    keyeq( key, unit_key_by_coord( coord, &unit_key ) ) )
+		/* coord is still at the same position in the @node */
+		result = 0;
+	else {
+		result = node_plugin_by_node( node ) -> lookup( node, key, 
+								bias, coord );
+		if( result == NS_FOUND ) {
+			/* renew seal */
+			seal_init( seal, coord, key );
+		} else
+			result = -EAGAIN;
+	}
+	zrelse( node );
 	return result;
 }
 

@@ -238,7 +238,7 @@ struct znode {
 	char                  *data;
 
 	/** version of znode data. This is increased on each modification. */
-	__u32                  version;
+	__u64                  version;
 
 	/** 
 	 * size of node referenced by this znode. This is not necessary

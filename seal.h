@@ -11,10 +11,8 @@
 
 /** seal. See comment at the top of seal.c */
 typedef struct seal_s { 
-	/** epoch recorded at the time of seal creation */
-	__u32            epoch;
 	/** version of znode recorder at the time of seal creation */
-	__u32            version;
+	__u64            version;
 	/** block number of znode attached to this seal */
 	reiser4_block_nr block;
 #if REISER4_DEBUG

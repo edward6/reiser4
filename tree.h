@@ -107,7 +107,7 @@ struct reiser4_tree {
 
 	/** hash table to look up znodes by block number. */
 	z_hash_table         hash_table;
-	__u32                znode_epoch;
+	__u64                znode_epoch;
 
 	/** lock protecting:
 	 *  - parent pointers,

@@ -326,6 +326,7 @@ int init_tree( reiser4_tree *tree /* pointer to structure being
 	if( tree -> cbk_cache == NULL )
 		return -ENOMEM;
 	cbk_cache_init( tree -> cbk_cache );
+	tree -> znode_epoch = 1ull;
 
 	return znodes_tree_init( tree );
 }

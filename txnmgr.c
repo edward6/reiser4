@@ -1128,13 +1128,9 @@ void jnode_set_dirty( jnode *node )
 
 	if (! JF_ISSET (node, ZNODE_UNFORMATTED)) {
 		/* bump version counter in znode */
-		JZNODE (node)->version += 1;
-		if (unlikely (JZNODE (node)->version == 0)) {
-			/* if counter overflowed, bump epoch */
-			spin_lock_tree (current_tree);
-			current_tree->znode_epoch += 1;
-			spin_unlock_tree (current_tree);
-		}
+		spin_lock_tree (current_tree);
+		JZNODE (node)->version = ++ current_tree->znode_epoch;
+		spin_unlock_tree (current_tree);
 	}
 
 	spin_unlock_jnode (node);
