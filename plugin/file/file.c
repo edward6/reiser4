@@ -1189,6 +1189,7 @@ sync_page(struct page *page)
 		unlock_page(page);
 		result = sync_atom(atom);
 	} while (result == -E_REPEAT);
+/* 	ZAM-FIXME-HANS: document the logic of this loop, is it just to handle the case where more pages get added to the atom while we are syncing it? */
 	assert("nikita-3485", ergo(result == 0,
 				   get_current_context()->trans->atom == NULL));
 	return result;
@@ -1360,6 +1361,11 @@ capture_unix_file(struct inode *inode, const struct writeback_control *wbc, long
 		 */
 		if (is_in_reiser4_context()) {
 			if (down_read_trylock(&uf_info->latch) == 0) {
+/* ZAM-FIXME-HANS: please explain this error handling here, grep for
+ * all instances of returning EBUSY, and tell me whether any of them
+ * represent busy loops that we should recode.  Also tell me whether
+ * any of them fail to return EBUSY to user space, and if yes, then
+ * recode them to not use the EBUSY macro.*/
 				result = RETERR(-EBUSY);
 				break;
 			}
