@@ -1842,6 +1842,7 @@ static int flush_rewrite_jnode (jnode *node)
 		return 0;
 	}
 
+	/* FIXME: This spinlock does very little.  Why?  Races everywhere. */
 	spin_unlock_jnode (node);
 
 	if ((pg = jnode_page (node)) == NULL) {
@@ -1854,7 +1855,7 @@ static int flush_rewrite_jnode (jnode *node)
 
 	/*
 	 * FIXME:NIKITA->JMACD I see this failing when called from
-	 * jnode_flush().
+	 * jnode_flush().  Josh says: this is only called from jnode_flush.
 	 */
 	assert ("jmacd-76515", PageDirty (pg));
 
