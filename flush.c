@@ -1383,7 +1383,7 @@ static int alloc_one_ancestor(coord_t * coord, flush_pos_t * pos)
 	}
 
 	/* If the ancestor is clean or already allocated, or if the child is not a
-	   leftmost child, stop going up. */
+	   leftmost child, stop going up, even leaving coord->node not flushprepped. */
 	if (znode_check_flushprepped(coord->node)
 	    || !coord_is_leftmost_unit(coord)) {
 		return 0;
