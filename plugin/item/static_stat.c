@@ -23,9 +23,9 @@
     to/from the stat-data. */
 
 static void
-next_stat(int *length /* space remaining in stat-data */ ,
-	  char **area /* current coord in stat data */ ,
-	  int size_of /* how many bytes to move forward */ )
+move_on(int *length /* space remaining in stat-data */ ,
+	char **area /* current coord in stat data */ ,
+	int size_of /* how many bytes to move forward */ )
 {
 	assert("nikita-615", length != NULL);
 	assert("nikita-616", area != NULL);
@@ -65,7 +65,7 @@ print_sd(const char *prefix /* prefix to print */ ,
 	mask = d16tocpu(&sd_base->extmask);
 	printk("%s: extmask: %x\n", prefix, mask);
 
-	next_stat(&len, &sd, sizeof *sd_base);
+	move_on(&len, &sd, sizeof *sd_base);
 
 	for (bit = 0, chunk = 0; mask != 0; ++bit, mask >>= 1) {
 		if (((bit + 1) % 16) != 0) {
@@ -92,7 +92,7 @@ print_sd(const char *prefix /* prefix to print */ ,
 				break;
 			}
 			mask = d16tocpu((d16 *) sd);
-			next_stat(&len, &sd, sizeof (d16));
+			move_on(&len, &sd, sizeof (d16));
 			++chunk;
 			if (chunk == 3) {
 				if (!(mask & 0x8000)) {
@@ -175,7 +175,7 @@ align(struct inode *inode /* object being processed */ ,
 	if (delta > *length)
 		return not_enough_space(inode, "padding");
 	if (delta > 0)
-		next_stat(length, area, delta);
+		move_on(length, area, delta);
 	return 0;
 }
 
@@ -209,7 +209,7 @@ init_inode_static_sd(struct inode *inode /* object being processed */ ,
 	bigmask = mask;
 	inode_set_flag(inode, REISER4_SDLEN_KNOWN);
 
-	next_stat(&len, &sd, sizeof *sd_base);
+	move_on(&len, &sd, sizeof *sd_base);
 	for (bit = 0, chunk = 0; mask != 0 || bit <= LAST_IMPORTANT_SD_EXTENSION; ++bit, mask >>= 1) {
 		if (((bit + 1) % 16) != 0) {
 			/* handle extension */
@@ -246,7 +246,7 @@ init_inode_static_sd(struct inode *inode /* object being processed */ ,
 			mask = d16tocpu((d16 *) sd);
 			bigmask <<= 16;
 			bigmask |= mask;
-			next_stat(&len, &sd, sizeof (d16));
+			move_on(&len, &sd, sizeof (d16));
 			++chunk;
 			if (chunk == 3) {
 				if (!(mask & 0x8000)) {
@@ -368,7 +368,7 @@ present_lw_sd(struct inode *inode /* object being processed */ ,
 			inode->i_mode &= ~S_IFIFO;
 			inode_set_flag(inode, REISER4_PART_CONV);
 		}
-		next_stat(len, area, sizeof *sd_lw);
+		move_on(len, area, sizeof *sd_lw);
 		return 0;
 	} else
 		return not_enough_space(inode, "lw sd");
@@ -412,7 +412,7 @@ print_lw_sd(const char *prefix, char **area /* position in stat-data */ ,
 	sd = (reiser4_light_weight_stat *) * area;
 	printk("%s: mode: %o, nlink: %i, size: %llu\n", prefix,
 	       d16tocpu(&sd->mode), d32tocpu(&sd->nlink), d64tocpu(&sd->size));
-	next_stat(len, area, sizeof *sd);
+	move_on(len, area, sizeof *sd);
 }
 #endif
 
@@ -441,7 +441,7 @@ present_unix_sd(struct inode *inode /* object being processed */ ,
 			inode->i_rdev = d64tocpu(&sd->u.rdev);
 		else
 			inode_set_bytes(inode, (loff_t) d64tocpu(&sd->u.bytes));
-		next_stat(len, area, sizeof *sd);
+		move_on(len, area, sizeof *sd);
 		return 0;
 	} else
 		return not_enough_space(inode, "unix sd");
@@ -506,7 +506,7 @@ print_unix_sd(const char *prefix, char **area /* position in stat-data */ ,
 	       d32tocpu(&sd->gid),
 	       d32tocpu(&sd->atime),
 	       d32tocpu(&sd->mtime), d32tocpu(&sd->ctime), d64tocpu(&sd->u.rdev), d64tocpu(&sd->u.bytes));
-	next_stat(len, area, sizeof *sd);
+	move_on(len, area, sizeof *sd);
 }
 #endif
 
@@ -524,7 +524,7 @@ present_large_times_sd(struct inode *inode /* object being processed */,
 		inode->i_mtime.tv_nsec = d32tocpu(&sd_lt->mtime);
 		inode->i_ctime.tv_nsec = d32tocpu(&sd_lt->ctime);
 
-		next_stat(len, area, sizeof *sd_lt);
+		move_on(len, area, sizeof *sd_lt);
 		return 0;
 	} else
 		return not_enough_space(inode, "large times sd");
@@ -566,7 +566,7 @@ print_large_times_sd(const char *prefix, char **area /* position in stat-data */
 	sd = (reiser4_large_times_stat *) * area;
 	printk("%s: nanotimes: a: %i, m: %i, c: %i\n", prefix,
 	       d32tocpu(&sd->atime), d32tocpu(&sd->mtime), d32tocpu(&sd->ctime));
-	next_stat(len, area, sizeof *sd);
+	move_on(len, area, sizeof *sd);
 }
 #endif
 
@@ -609,7 +609,7 @@ present_symlink_sd(struct inode *inode, char **area, int *len)
 	sd = (reiser4_symlink_stat *) * area;
 	result = symlink_target_to_inode(inode, sd->body, length);
 
-	next_stat(len, area, length + 1);
+	move_on(len, area, length + 1);
 	return result;
 }
 
@@ -668,7 +668,7 @@ print_symlink_sd(const char *prefix, char **area /* position in stat-data */ ,
 	sd = (reiser4_symlink_stat *) * area;
 	length = strlen(sd->body);
 	printk("%s: \"%s\"\n", prefix, sd->body);
-	next_stat(len, area, length + 1);
+	move_on(len, area, length + 1);
 }
 #endif
 
@@ -688,7 +688,7 @@ present_flags_sd(struct inode *inode /* object being processed */ ,
 
 		sd = (reiser4_flags_stat *) * area;
 		inode->i_flags = d32tocpu(&sd->flags);
-		next_stat(len, area, sizeof *sd);
+		move_on(len, area, sizeof *sd);
 		return 0;
 	} else
 		return not_enough_space(inode, "generation and attrs");
@@ -738,15 +738,14 @@ present_plugin_sd(struct inode *inode /* object being processed */ ,
 	assert("nikita-656", len != NULL);
 	assert("nikita-657", *len > 0);
 
-	if (*len < (int) sizeof (reiser4_plugin_stat)) {
+	if (*len < (int) sizeof (reiser4_plugin_stat))
 		return not_enough_space(inode, "plugin");
-	}
 
 	sd = (reiser4_plugin_stat *) * area;
 
 	mask = 0;
 	num_of_plugins = d16tocpu(&sd->plugins_no);
-	next_stat(len, area, sizeof *sd);
+	move_on(len, area, sizeof *sd);
 	result = 0;
 	for (i = 0; i < num_of_plugins; ++i) {
 		reiser4_plugin_slot *slot;
@@ -754,10 +753,11 @@ present_plugin_sd(struct inode *inode /* object being processed */ ,
 		slot = (reiser4_plugin_slot *) * area;
 		if (*len < (int) sizeof *slot)
 			return not_enough_space(inode, "additional plugin");
-		plugin = plugin_by_id(d16tocpu(&slot->type_id), d16tocpu(&slot->id));
-		if (plugin == NULL) {
+		plugin = plugin_by_id(d16tocpu(&slot->type_id),
+				      d16tocpu(&slot->id));
+		if (plugin == NULL)
 			return unknown_plugin(d16tocpu(&slot->id), inode);
-		}
+
 		/* plugin is loaded into inode, mark this into inode's
 		   bitmask of loaded non-standard plugins */
 		if (!(mask & (1 << plugin->h.type_id))) {
@@ -767,7 +767,7 @@ present_plugin_sd(struct inode *inode /* object being processed */ ,
 			print_plugin("plugin", plugin);
 			return RETERR(-EINVAL);
 		}
-		next_stat(len, area, sizeof *slot);
+		move_on(len, area, sizeof *slot);
 		if (plugin->h.pops == NULL)
 			continue;
 		/*
@@ -779,18 +779,15 @@ present_plugin_sd(struct inode *inode /* object being processed */ ,
 		/* load plugin data, if any */
 		if (plugin->h.pops->load) {
 			result = plugin->h.pops->load(inode, plugin, area, len);
-			if (result != 0) {
+			if (result != 0)
 				return result;
-			}
 		}
 	}
 	/* if object plugin wasn't loaded from stat-data, guess it by
 	   mode bits */
 	plugin = file_plugin_to_plugin(inode_file_plugin(inode));
-	if (plugin == NULL) {
+	if (plugin == NULL)
 		result = absent_plugin_sd(inode);
-	}
-	/* FIXME-VS: activate was called here */
 
 	reiser4_inode_data(inode)->plugin_mask = mask;
 	return result;
@@ -820,19 +817,20 @@ static int
 len_for(reiser4_plugin * plugin /* plugin to save */ ,
 	struct inode *inode /* object being processed */ , int len)
 {
+	reiser4_inode *info;
 	assert("nikita-661", inode != NULL);
 
-	if (plugin && (reiser4_inode_data(inode)->plugin_mask & (1 << (plugin->h.type_id)))) {
+	info = reiser4_inode_data(inode);
+	if (plugin != NULL &&
+	    (info->plugin_mask & (1 << (plugin->h.type_id)))) {
 		len += sizeof (reiser4_plugin_slot);
-#if 0
 		if (plugin->h.pops && plugin->h.pops->save_len != NULL) {
 			/* non-standard plugin, call method */
-			len = round_up(len, plugin->h.pops->alignment);
+			/* commented as it is incompatible with alignment
+			 * policy in save_plug() -edward */
+			/* len = round_up(len, plugin->h.pops->alignment); */
 			len += plugin->h.pops->save_len(inode, plugin);
 		}
-		/* commented as it is incompatible with alignment policy in
-		   save_plug() -edward */
-#endif
 	}
 	return len;
 }
@@ -894,7 +892,7 @@ save_plug(reiser4_plugin * plugin /* plugin to save */ ,
 	cputod16(plugin->h.type_id, &slot->type_id);
 	cputod16((unsigned) plugin->h.id, &slot->id);
 	fake_len = (int) 0xffff;
-	next_stat(&fake_len, area, sizeof *slot);
+	move_on(&fake_len, area, sizeof *slot);
 	++*count;
 	result = 0;
 	if (plugin->h.pops != NULL) {
@@ -931,7 +929,7 @@ save_plugin_sd(struct inode *inode /* object being processed */ ,
 		return 0;
 	sd = (reiser4_plugin_stat *) * area;
 	fake_len = (int) 0xffff;
-	next_stat(&fake_len, area, sizeof *sd);
+	move_on(&fake_len, area, sizeof *sd);
 
 	num_of_plugins = 0;
 	/* for now, use hardcoded list of plugins that can be associated
@@ -1009,7 +1007,7 @@ static int present_crypto_sd(struct inode *inode, char **area, int *len)
 	stat.keyid = (__u8 *)sd->keyid;
 	
 	result = crypto_stat_to_inode(inode, &stat, keyid_size);
-	next_stat(len, area, sizeof(*sd) + keyid_size);
+	move_on(len, area, sizeof(*sd) + keyid_size);
 	return result;
 }
 
@@ -1062,7 +1060,7 @@ print_crypto_sd(const char *prefix, char **area /* position in stat-data */ ,
 	reiser4_crypto_stat *sd = (reiser4_crypto_stat *) * area;
 	
 	printk("%s: keysize: %u keyid: \"%llx\"\n", prefix, d16tocpu(&sd->keysize), *(__u64 *)(sd->keyid));
-	next_stat(len, area, sizeof(*sd) + dplug->digestsize);
+	move_on(len, area, sizeof(*sd) + dplug->digestsize);
 }
 #endif
 
@@ -1087,7 +1085,7 @@ static int present_cluster_sd(struct inode *inode, char **area, int *len)
 		sd = (reiser4_cluster_stat *) * area;
 		info->cluster_shift = d8tocpu(&sd->cluster_shift);
 		inode_set_flag(inode, REISER4_CLUSTER_KNOWN);
-		next_stat(len, area, sizeof *sd);
+		move_on(len, area, sizeof *sd);
 		return 0;
 	}
 	else
@@ -1132,7 +1130,7 @@ print_cluster_sd(const char *prefix, char **area /* position in stat-data */,
 	reiser4_cluster_stat *sd = (reiser4_cluster_stat *) * area;
 
 	printk("%s: %u\n", prefix, d8tocpu(&sd->cluster_shift));
-	next_stat(len, area, sizeof *sd);
+	move_on(len, area, sizeof *sd);
 }
 #endif
 
