@@ -1021,7 +1021,7 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 	/* In this loop we process all already prepped (RELOC or OVRWR) and dirtied again
 	 * nodes. The atom spin lock is not released until all dirty nodes processed or
 	 * not prepped node found in the atom dirty lists. */
-	while ((node = find_first_dirty_jnode(*atom))) {
+	while ((node = find_first_dirty_jnode(*atom, flags))) {
 		LOCK_JNODE(node);
 
 		if (skip_jnode(node)) {
@@ -1038,16 +1038,19 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 		assert ("zam-881", jnode_is_dirty(node));
 		assert ("zam-898", !JF_ISSET(node, JNODE_OVRWR));
 
-		/* A special case for znode-above-root.  The above-root (fake) znode is
-		   captured and dirtied when the tree height changes or when the root node
-		   is relocated.  This causes atoms to fuse so that changes at the root
-		   are serialized.  However, this node is never flushed.  This special
-		   case used to be in lock.c to prevent the above-root node from ever
-		   being captured, but now that it is captured we simply prevent it from
-		   flushing.  The log-writer code relies on this to properly log
-		   superblock modifications of the tree height. */
-		if (jnode_is_znode(node) && znode_above_root(JZNODE(node))) {
-			/* Just pass dirty znode-above-root to overwrite set. */
+		if (JF_ISSET(node, JNODE_WRITEBACK)) {
+			capture_list_remove_clean(node);
+			capture_list_push_back(&(*atom)->writeback_nodes, node);
+		} else if (jnode_is_znode(node) && znode_above_root(JZNODE(node))) {
+			/* A special case for znode-above-root.  The above-root (fake)
+			   znode is captured and dirtied when the tree height changes or
+			   when the root node is relocated.  This causes atoms to fuse so
+			   that changes at the root are serialized.  However, this node is
+			   never flushed.  This special case used to be in lock.c to
+			   prevent the above-root node from ever being captured, but now
+			   that it is captured we simply prevent it from flushing.  The
+			   log-writer code relies on this to properly log superblock
+			   modifications of the tree height. */
 			jnode_set_wander(node);
 		} else if (JF_ISSET(node, JNODE_RELOC)) {
 			queue_jnode(fq, node);

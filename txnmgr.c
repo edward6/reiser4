@@ -371,12 +371,12 @@ atom_init(txn_atom * atom)
 	atom->stage = ASTAGE_FREE;
 	atom->start_time = jiffies;
 
-	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
+	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1)
 		capture_list_init(&atom->dirty_nodes[level]);
-	}
 
 	capture_list_init(&atom->clean_nodes);
 	capture_list_init(&atom->ovrwr_nodes);
+	capture_list_init(&atom->writeback_nodes);
 	spin_atom_init(atom);
 	txnh_list_init(&atom->txnh_list);
 	atom_list_clean(atom);
@@ -410,6 +410,8 @@ atom_isclean(txn_atom * atom)
 		atom_list_is_clean(atom) &&
 		txnh_list_empty(&atom->txnh_list) &&
 		capture_list_empty(&atom->clean_nodes) &&
+		capture_list_empty(&atom->ovrwr_nodes) &&
+		capture_list_empty(&atom->writeback_nodes) &&
 		fwaitfor_list_empty(&atom->fwaitfor_list) && fwaiting_list_empty(&atom->fwaiting_list));
 }
 #endif
@@ -849,7 +851,7 @@ txn_wait_on_io(txn_atom * atom)
 
 /* Get first dirty node from the atom's dirty_nodes[n] lists; return NULL if atom has no dirty
    nodes on atom's lists */
-jnode * find_first_dirty_jnode (txn_atom * atom)
+jnode * find_first_dirty_jnode (txn_atom * atom, int flags)
 {
 	jnode *first_dirty;
 	tree_level level;
@@ -863,15 +865,63 @@ jnode * find_first_dirty_jnode (txn_atom * atom)
 			continue;
 		}
 
-		/* skip jnodes which have "heard banshee" */
 		head = &atom->dirty_nodes[level];
 		for (first_dirty = capture_list_front(head); !capture_list_end(head, first_dirty);
 		     first_dirty = capture_list_next(first_dirty)) {
-			if (!JF_ISSET(first_dirty, JNODE_HEARD_BANSHEE))
-				return first_dirty;
+			if (!(flags & JNODE_FLUSH_COMMIT)) {
+				if (
+					/* skip jnodes which have "heard banshee" */
+					JF_ISSET(first_dirty, JNODE_HEARD_BANSHEE) ||
+					/* and with active I/O */
+					JF_ISSET(first_dirty, JNODE_WRITEBACK))
+					continue;
+			}		
+			return first_dirty;
 		}
 	}
 	return NULL;
+}
+
+static void scan_reloc_list (txn_atom * atom, flush_queue_t * fq)
+{
+	jnode * cur;
+
+	assert("zam-905", atom_is_protected(atom));
+
+	cur = capture_list_front(&atom->writeback_nodes);
+	while (!capture_list_end(&atom->writeback_nodes, cur)) {
+		jnode * next = capture_list_next(cur);
+
+		LOCK_JNODE(cur);
+		if (!JF_ISSET(cur, JNODE_WRITEBACK)) {
+			if (JF_ISSET(cur, JNODE_DIRTY)) {
+				queue_jnode(fq, cur);
+			} else {
+				capture_list_remove(cur);
+				capture_list_push_back(&atom->clean_nodes, cur);
+			}
+		}
+		UNLOCK_JNODE(cur);
+
+		cur = next;
+	}
+}
+
+static int submit_reloc_list (void)
+{
+	int ret;
+	flush_queue_t * fq;
+
+	fq = get_fq_for_current_atom();
+	if (IS_ERR(fq))
+		return PTR_ERR(fq);
+
+	scan_reloc_list(fq->atom, fq);
+	UNLOCK_ATOM(fq->atom);
+	ret = write_fq(fq, 0);
+	fq_put(fq);
+	
+	return ret;
 }
 
 /* Called with the atom locked and no open "active" transaction handlers except
@@ -900,7 +950,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 		 (*atom)->atom_id, current->pid);
 
 	while (1) {
-		ret = flush_current_atom(JNODE_FLUSH_WRITE_BLOCKS, nr_submitted, atom);
+		ret = flush_current_atom(JNODE_FLUSH_WRITE_BLOCKS | JNODE_FLUSH_COMMIT, nr_submitted, atom);
 		if (ret != -EAGAIN)
 			break;
 
@@ -927,10 +977,23 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 
 	UNLOCK_ATOM(*atom);
 
+	ret = submit_reloc_list();
+	if (ret < 0)
+		return ret;
+
 	ret = current_atom_finish_all_fq();
 	if (ret)
 		return ret;
 
+	ret = submit_reloc_list();
+	if(ret < 0)
+		return ret;
+
+	ret = current_atom_finish_all_fq();
+	if (ret)
+		return ret;
+
+	assert ("zam-906", capture_list_empty(&(*atom)->writeback_nodes));
 	trace_on(TRACE_FLUSH, "everything written back atom %u\n", 
 		 (*atom)->atom_id);
 
@@ -938,14 +1001,14 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	 * thread using tmgr semaphore */
 	down(&sbinfo->tmgr.commit_semaphore);
 
-	ret = reiser4_write_logs();
-	if (ret < 0)
+	ret = reiser4_write_logs();	if (ret < 0)
 		reiser4_panic("zam-597", "write log failed (%ld)\n", ret);
 
 	LOCK_ATOM(*atom);
 
 	invalidate_list(&(*atom)->clean_nodes);
 	invalidate_list(&(*atom)->ovrwr_nodes);
+	invalidate_list(&(*atom)->writeback_nodes);
 
 	up(&sbinfo->tmgr.commit_semaphore);
 
@@ -2604,6 +2667,7 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 	/* Splice and update the [clean,dirty] jnode and txnh lists */
 	zcount += capture_fuse_jnode_lists(large, &large->clean_nodes, &small->clean_nodes);
 	zcount += capture_fuse_jnode_lists(large, &large->ovrwr_nodes, &small->ovrwr_nodes);
+	zcount += capture_fuse_jnode_lists(large, &large->writeback_nodes, &small->writeback_nodes);
 	tcount += capture_fuse_txnh_lists(large, &large->txnh_list, &small->txnh_list);
 
 	/* Check our accounting. */
@@ -2724,6 +2788,7 @@ uncapture_block(txn_atom * atom, jnode * node)
 	JF_CLR(node, JNODE_RELOC);
 	JF_CLR(node, JNODE_OVRWR);
 	JF_CLR(node, JNODE_CREATED);
+	JF_CLR(node, JNODE_WRITEBACK);
 #if REISER4_DEBUG
 	node->written = 0;
 #endif
