@@ -276,7 +276,17 @@ typedef enum {
 	 * trace write-IO functions
 	 */
 	TRACE_IO_W        =     (1 << 18),     /* 0x00040000 */
-	
+
+	/*
+	 * trace log writing
+	 */
+	TRACE_LOG         =     (1 << 19),     /* 0x00100000 */
+
+	/*
+	 * trace journal replaying
+	 */
+	TRACE_REPLAY      =     (1 << 20),     /* 0x00200000 */
+
 	/*
 	 * vague section: used to trace bugs. Use it to issue optional prints
 	 * at arbitrary points of code.
