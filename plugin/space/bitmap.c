@@ -868,7 +868,7 @@ search_one_bitmap_backward (bmap_nr_t bmap, bmap_off_t * start_offset, bmap_off_
 				end = end_offset;
 			ret = end - start;
 			*start_offset = start;
-			reiser4_set_bits(data, start, end);
+			reiser4_set_bits(data, end, start);
 			break;
 		}
 		start = end - 1;
