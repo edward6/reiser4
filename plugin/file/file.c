@@ -1,6 +1,4 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "../../forward.h"
 #include "../../debug.h"
@@ -32,12 +30,9 @@
 #include <linux/buffer_head.h>	/* for struct buffer_head */
 
 /* this file contains:
- * - file_plugin methods of reiser4 unix file (REGULAR_FILE_PLUGIN_ID)
- */
+   - file_plugin methods of reiser4 unix file (REGULAR_FILE_PLUGIN_ID) */
 
-/*
- * look for item of file @inode corresponding to @key
- */
+/* look for item of file @inode corresponding to @key */
 
 #ifdef PSEUDO_CODE_CAN_COMPILE
 find_item()
@@ -138,8 +133,8 @@ can_append(const coord_t * coord, const reiser4_key * key)
 }
 
 /* coord->node is locked and loaded. Lock its right neighbor, zload it
- * and zrelse coord->node and unlock it and set coord to first unit
- * in obtained right neighbor */
+   and zrelse coord->node and unlock it and set coord to first unit
+   in obtained right neighbor */
 static int
 goto_right_neighbor(coord_t * coord, lock_handle * lh)
 {
@@ -304,8 +299,7 @@ find_next_item(struct sealed_coord *hint, const reiser4_key * key,	/* key of pos
 }
 
 /* plugin->u.file.write_flowom = NULL
- * plugin->u.file.read_flow = NULL
- */
+   plugin->u.file.read_flow = NULL */
 
 /* find position of last byte of last item of the file plus 1 */
 static int
@@ -366,7 +360,7 @@ filler(void *vp, struct page *page)
 }
 
 /* part of unix_file_truncate: it is called when truncate is used to make
- * file shorter */
+   file shorter */
 static int
 shorten_file(struct inode *inode)
 {
@@ -437,11 +431,11 @@ shorten_file(struct inode *inode)
 }
 
 /* part of unix_file_truncate: it is called when truncate is used to make file
- * longer */
+   longer */
 static loff_t append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f);
 
 /* Add hole to end of file. @cur_size is current file size. Length of hole is new_size - cur_size. This is called with
- * NEA obtained */
+   NEA obtained */
 static int
 expand_file(struct inode *inode, loff_t cur_size, loff_t new_size)
 {
@@ -479,8 +473,8 @@ abs(loff_t v)
 
 
 /* Performs estimate of reserved blocks for truncate operation. Note,
- * that all estimate fundctions do not count the amount of blocks should
- * be reserved for internal blocks */
+   that all estimate fundctions do not count the amount of blocks should
+   be reserved for internal blocks */
 reiser4_block_nr unix_file_estimate_truncate(struct inode *inode, loff_t old_size) {
     tail_plugin *tail_plugin;
     
@@ -495,8 +489,7 @@ reiser4_block_nr unix_file_estimate_truncate(struct inode *inode, loff_t old_siz
 }
 
 /* plugin->u.file.truncate
- * this is called with exclusive access obtained in unix_file_setattr
- */
+   this is called with exclusive access obtained in unix_file_setattr */
 int
 unix_file_truncate(struct inode *inode, loff_t size)
 {
@@ -537,10 +530,8 @@ unix_file_truncate(struct inode *inode, loff_t size)
 
 /* plugin->u.write_sd_by_inode = common_file_save */
 
-/*
- * get access hint (seal, coord, key, level) stored in reiser4 private part of
- * struct file if it was stored in a previous access to the file
- */
+/* get access hint (seal, coord, key, level) stored in reiser4 private part of
+   struct file if it was stored in a previous access to the file */
 static int
 load_file_hint(struct file *file, struct sealed_coord *hint)
 {
@@ -558,10 +549,8 @@ load_file_hint(struct file *file, struct sealed_coord *hint)
 	return 0;
 }
 
-/*
- * this copies hint for future tree accesses back to reiser4 private part of
- * struct file
- */
+/* this copies hint for future tree accesses back to reiser4 private part of
+   struct file */
 static void
 save_file_hint(struct file *file, const struct sealed_coord *hint)
 {
@@ -634,7 +623,7 @@ hint_validate(struct sealed_coord *hint, const reiser4_key * key, coord_t * coor
 }
 
 /* nolock means: do not get EA or NEA on a file the page belongs to (it is obtained already either in
- * unix_file_writepage or in tail2extent). Lock page after long term znode lock is obtained. Return with page locked */
+   unix_file_writepage or in tail2extent). Lock page after long term znode lock is obtained. Return with page locked */
 int
 unix_file_writepage_nolock(struct page *page)
 {
@@ -736,7 +725,7 @@ unix_file_writepage(struct page *page)
 }
 
 /* plugin->u.file.readpage page must be not out of file. This is always called
- * with NEA (reiser4's NonExclusive Access) obtained */
+   with NEA (reiser4's NonExclusive Access) obtained */
 int
 unix_file_readpage(struct file *file, struct page *page)
 {
@@ -836,7 +825,7 @@ static void set_tail_state(struct inode *inode, item_id id)
 }
 
 /* returns 1 if file of that size (@new_size) has to be stored in unformatted
- * nodes */
+   nodes */
 /* Audited by: green(2002.06.15) */
 static int
 should_have_notail(struct inode *inode, loff_t new_size)
@@ -1169,10 +1158,9 @@ unix_file_interfile_readahead_amount(struct file *file, off, read_amount)
 #endif				/* NEW_READ_IS_READY */
 
 
-/*
- * This searches for write position in the tree and calls write method of
- * appropriate item to actually copy user data into filesystem. This loops
- * until all the data from flow @f are written to a file.
+/* This searches for write position in the tree and calls write method of
+   appropriate item to actually copy user data into filesystem. This loops
+   until all the data from flow @f are written to a file.
  */
 static loff_t
 append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
@@ -1383,8 +1371,8 @@ ssize_t unix_file_write(struct file * file,	/* file to write to */
 }
 
 /* Performs estimate of reserved blocks for file release operation. Note,
- * that all estimate functions do not count the amount of blocks should
- * be reserved for internal blocks */
+   that all estimate functions do not count the amount of blocks should
+   be reserved for internal blocks */
 reiser4_block_nr unix_file_estimate_release(struct inode *inode) {
     __u64 file_size;
     tail_plugin *tail_plugin;
@@ -1415,7 +1403,7 @@ reiser4_block_nr unix_file_estimate_release(struct inode *inode) {
 }
 
 /* plugin->u.file.release
- * convert all extent items into tail items if necessary */
+   convert all extent items into tail items if necessary */
 int
 unix_file_release(struct file *file)
 {
@@ -1483,8 +1471,7 @@ reiser4_block_nr unix_file_estimate_mmap(struct inode *inode, loff_t count)
 }
 
 /* plugin->u.file.mmap
- * make sure that file is built of extent blocks
- */
+   make sure that file is built of extent blocks */
 /* Audited by: green(2002.06.15) */
 int
 unix_file_mmap(struct file *file, struct vm_area_struct *vma)
@@ -1581,19 +1568,17 @@ unix_file_key_by_inode(struct inode *inode, loff_t off, reiser4_key *key)
 	return 0;
 }
 
-/*
- * plugin->u.file.set_plug_in_sd = NULL
- * plugin->u.file.set_plug_in_inode = NULL
- * plugin->u.file.create_blank_sd = NULL
+/* plugin->u.file.set_plug_in_sd = NULL
+   plugin->u.file.set_plug_in_inode = NULL
+   plugin->u.file.create_blank_sd = NULL
  */
 
 /* plugin->u.file.delete = NULL
- * plugin->u.file.add_link = NULL
- * plugin->u.file.rem_link = NULL
- */
+   plugin->u.file.add_link = NULL
+   plugin->u.file.rem_link = NULL */
 
 /* plugin->u.file.owns_item 
- * this is common_file_owns_item with assertion */
+   this is common_file_owns_item with assertion */
 /* Audited by: green(2002.06.15) */
 int
 unix_file_owns_item(const struct inode *inode	/* object to check
@@ -1632,16 +1617,14 @@ unix_file_setattr(struct inode *inode,	/* Object to change attributes */
 	return retval;
 }
 
-/* plugin->u.file.can_add_link = common_file_can_add_link
- */
+/* plugin->u.file.can_add_link = common_file_can_add_link */
 
-/* 
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * scroll-step: 1
- * End:
+/* Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
  */
