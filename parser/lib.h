@@ -11,7 +11,6 @@
 
 
 
-static void yy_exit(void);
 static void yyerror( struct reiser4_syscall_w_space *ws, int msgnum , ...);
 static int yywrap(void);
 static void freeList(freeSpace_t * list);

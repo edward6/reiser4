@@ -9,11 +9,6 @@
 
 #include "lib.h"
 
-#ifdef CONFIG_REISER4_FS_SYSCALL_DEBUG
-static void yy_exit()
-{
-}
-#endif
 
 /* FIXME:NIKITA->VOVA this file uses indentation completely different than the
  * rest of reiser4 and kernel. This complicates reading of the code by other
@@ -439,29 +434,23 @@ static void move_selected_word(struct reiser4_syscall_w_space * ws, int exclude 
 			else *ws->tmpWrdEnd++ = *ws->yytext++;
 	                if( ws->tmpWrdEnd > (ws->freeSpCur->freeSpaceMax - sizeof(wrd_t)) )
 		                {
-					if ( ws->freeSpCur->freeSpace > ws->freeSpCur->freeSpaceBase ) /* we can reallocate new space and copy all
-											       symbols of current token inside it */
+					
+					assert ("sys_reiser4. selectet_word:Internal space buffer overflow: input token exceed size of bufer",
+						ws->freeSpCur->freeSpace > ws->freeSpCur->freeSpaceBase);
+						/* we can reallocate new space and copy all
+						   symbols of current token inside it */
+					{
+						freeSpace_t * tmp;
+						tmp=ws->freeSpCur;
+						ws->freeSpCur = freeSpaceNextAlloc(ws);
+						assert ("sys_reiser4:Internal text buffer overflow: no enouse mem", ws->freeSpCur !=NULL);
 						{
-							freeSpace_t * tmp;
-							tmp=ws->freeSpCur;
-							if ( (ws->freeSpCur = freeSpaceNextAlloc(ws))!=NULL)
-								{
-									int i;
-									i = ws->tmpWrdEnd - tmp->freeSpace;
-									memmove( ws->freeSpCur->freeSpace, tmp->freeSpace, i );
-									ws->tmpWrdEnd = ws->freeSpCur->freeSpace + i;
-								}
-							else
-								{
-									yyerror( ws,0 ); /* Internal text buffer overflow: no enouse mem */
-									yy_exit();
-								}
+							int i;
+							i = ws->tmpWrdEnd - tmp->freeSpace;
+							memmove( ws->freeSpCur->freeSpace, tmp->freeSpace, i );
+							ws->tmpWrdEnd = ws->freeSpCur->freeSpace + i;
 						}
-					else
-						{
-							yyerror( ws, 111 ); /* Internal space buffer overflow: input token exceed size of bufer */
-							yy_exit();
-						}
+					}
 		                }
                 }
 #if 0
