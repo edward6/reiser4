@@ -220,10 +220,10 @@ static int page_cache_delete_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 	/* FIXME-NIKITA locking? */
 	ClearPageDirty( page );
 	ClearPageUptodate( page );
-	lock_page(page); /* remove_inode_page needs page locked. May be we
-			    should use __remove_inode_page instead? */
+	lock_page( page ); /* remove_inode_page needs page locked. May be we
+			      should use __remove_inode_page instead? */
 	remove_inode_page( page );
-	unlock_page(page);
+	unlock_page( page );
  	jnode_detach_page( node );
 	return 0;
 }
@@ -398,10 +398,10 @@ static int formatted_writepage( struct page *page /* page to write */ )
 static int formatted_invalidatepage( struct page *page /* page to write */,
 				     unsigned long offset /*  truncate offset */ )
 {
-	assert( "nikita-2109", jprivate( page ) == NULL );
 	assert( "nikita-2110", offset == 0 );
 	assert( "nikita-2111", !PageDirty( page ) );
 	assert( "nikita-2112", PageUptodate( page ) );
+	page_detach_jnode( page );
 }
 
 int page_io( struct page *page, int rw, int gfp )
