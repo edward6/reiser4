@@ -44,6 +44,7 @@
 #include <linux/vmalloc.h>
 #include <linux/ctype.h>
 #include <linux/sysctl.h>
+#include <linux/hardirq.h>
 
 /*
  * global buffer where message given to reiser4_panic is formatted.

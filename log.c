@@ -41,6 +41,7 @@
 #include <linux/slab.h>
 #include <linux/bio.h>
 #include <linux/vmalloc.h>
+#include <linux/hardirq.h>
 
 #if REISER4_LOG
 

@@ -38,6 +38,7 @@
 #include "context.h"
 
 #include <linux/writeback.h> /* balance_dirty_pages() */
+#include <linux/hardirq.h>
 
 #if REISER4_DEBUG_CONTEXTS
 /* List of all currently active contexts, used for debugging purposes.  */
