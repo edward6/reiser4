@@ -229,6 +229,8 @@ atom_init (txn_atom     *atom)
 	blocknr_set_init   (& atom->wandered_map);
 }
 
+#if REISER4_DEBUG
+
 /* Check if an atom is clean. */
 static int
 atom_isclean (txn_atom *atom)
@@ -251,6 +253,7 @@ atom_isclean (txn_atom *atom)
 		fwaitfor_list_empty      (& atom->fwaitfor_list) &&
 		fwaiting_list_empty      (& atom->fwaiting_list));
 }
+#endif
 
 /* Initialize a jnode. */
 void
