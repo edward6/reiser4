@@ -590,8 +590,6 @@ int page_common_writeback( struct page *page /* page to start writeback from */,
 	 */
 	result = txn_attach_txnh_to_node (txnh, node, ATOM_FORCE_COMMIT);
 
-	spin_unlock_txnh (txnh);
-
 	if( 1 ) {
 		/*
 		 * this is for case when all flushing is done outside of
