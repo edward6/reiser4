@@ -707,8 +707,8 @@ adjust_dir_pos(struct file   * dir,
 	ON_TRACE(TRACE_DIR, "adjust: %s/%i", dir->f_dentry->d_name.name, adj);
 	IF_TRACE(TRACE_DIR, print_dir_pos("\n mod", mod_point));
 	IF_TRACE(TRACE_DIR, print_dir_pos("\nspot", &readdir_spot->position));
-	ON_TRACE(TRACE_DIR, "\nadj: %i, spot.entry_no: %llu\n", 
-		 adj, readdir_spot->entry_no);
+	ON_TRACE(TRACE_DIR, "\nf_pos: %llu, spot.entry_no: %llu\n", 
+		 dir->f_pos, readdir_spot->entry_no);
 
 	reiser4_stat_inc(dir.readdir.adjust_pos);
 
@@ -1021,7 +1021,39 @@ dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 	return dir_rewind(f, *pos, f->f_pos, tap);
 }
 
-/* ->readdir method of directory plugin */
+/* 
+ * ->readdir method of directory plugin
+ *
+ * readdir problems:
+ *
+ *     Traditional UNIX API for scanning through directory
+ *     (readdir/seekdir/telldir/opendir/closedir/rewindir/getdents) is based
+ *     on the assumption that directory is structured very much like regular
+ *     file, in particular, it is implied that each name within given
+ *     directory (directory entry) can be uniquely identified by scalar offset
+ *     and that such offset is stable across the life-time of the name is
+ *     identifies.
+ *
+ *     This is manifestly not so for reiser4. In reiser4 the only stable
+ *     unique identifies for the directory entry is its key that doesn't fit
+ *     into seekdir/telldir API.
+ *
+ * solution:
+ *
+ *     Within each file descriptor participating in readdir-ing of directory
+ *     plugin/dir/dir.h:readdir_pos is maintained. This structure keeps track
+ *     of the "current" directory entry that file descriptor looks at. It
+ *     contains a key of directory entry (plus some additional info to deal
+ *     with non-unique keys that we wouldn't dwell onto here) and a logical
+ *     position of this directory entry starting from the beginning of the
+ *     directory, that is ordinal number of this entry in the readdir order.
+ *
+ *     Obviously this logical position is not stable in the face of directory
+ *     modifications. To work around this, on each addition or removal of
+ *     directory entry all file descriptors for directory inode are scanned
+ *     and their readdir_pos are updated accordingly (adjust_dir_pos()).
+ *
+ */
 static int
 readdir_common(struct file *f /* directory file being read */ ,
 	       void *dirent /* opaque data passed to us by VFS */ ,
@@ -1072,18 +1104,20 @@ readdir_common(struct file *f /* directory file being read */ ,
 			assert("nikita-3227", is_valid_dir_coord(inode, coord));
 
 			result = feed_entry(pos, coord, filld, dirent);
+			ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, 
+				 "readdir: entry: offset: %lli\n", f->f_pos);
 			if (result > 0) {
 				break;
 			} else if (result == 0) {
+				++ f->f_pos;
 				result = go_next_unit(&tap);
 				if (result == -E_NO_NEIGHBOR || result == -ENOENT) {
 					result = 0;
 					break;
 				} else if (result == 0) {
-					if (is_valid_dir_coord(inode, coord)) {
+					if (is_valid_dir_coord(inode, coord))
 						move_entry(pos, coord);
-						f->f_pos = pos->entry_no + 1;
-					} else
+					else
 						break;
 				}
 			}
@@ -1095,6 +1129,8 @@ readdir_common(struct file *f /* directory file being read */ ,
 	} else if (result == -E_NO_NEIGHBOR || result == -ENOENT)
 		result = 0;
 	tap_done(&tap);
+	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, 
+		 "readdir_exit: offset: %lli\n", f->f_pos);
 	return result;
 }
 
