@@ -10,31 +10,29 @@
 #define INTERNAL40_ID 0x3
 
 /*
-    All items operate on given memory area "body". The highest
+    All items operate on given memory area. The highest
     level should be concering about validness this memory area.
 */
 
 static reiserfs_plugins_factory_t *factory = NULL;
 
 /* Forms internal item in given memory area */
-static error_t reiserfs_internal40_create(void *body, 
+static error_t reiserfs_internal40_create(reiserfs_internal40_t *internal, 
     reiserfs_item_info_t *info) 
 {
-    reiserfs_internal40_t *inter;
     reiserfs_internal_info_t *inter_info; 
     
-    aal_assert("vpf-063", body != NULL, return -1); 
+    aal_assert("vpf-063", internal != NULL, return -1); 
     aal_assert("vpf-064", info != NULL, return -1);
     aal_assert("vpf-065", info->info != NULL, return -1);
 
     inter_info = info->info; 
-    inter = (reiserfs_internal40_t *)body;
-    int40_set_blk(inter, *inter_info->blk);
+    int40_set_blk(internal, inter_info->blk);
 	    
     return 0;
 }
 
-static uint32_t reiserfs_internal40_minsize(void *body) {
+static uint32_t reiserfs_internal40_minsize(void) {
     return sizeof(reiserfs_internal40_t);
 }
 
@@ -45,13 +43,27 @@ static void reiserfs_internal40_estimate(reiserfs_item_info_t *info,
     info->length = sizeof(reiserfs_internal40_t);
 }
 
-static int reiserfs_internal40_is_internal(void) {
+static int reiserfs_internal40_internal(void) {
     return 1;
 }
 
-static void reiserfs_internal40_print(void *body, char *buff, uint16_t n) {
-    aal_assert("umka-544", body != NULL, return);
+static void reiserfs_internal40_print(reiserfs_internal40_t *internal, 
+    char *buff, uint16_t n) 
+{
+    aal_assert("umka-544", internal != NULL, return);
     aal_assert("umka-545", buff != NULL, return);
+}
+
+static void reiserfs_internal40_set_pointer(reiserfs_internal40_t *internal, 
+    blk_t blk) 
+{
+    aal_assert("umka-605", internal != NULL, return);
+    int40_set_blk(internal, blk);
+}
+
+static blk_t reiserfs_internal40_get_pointer(reiserfs_internal40_t *internal) {
+    aal_assert("umka-606", internal != NULL, return 0);
+    return int40_get_blk(internal);
 }
 
 static reiserfs_plugin_t internal40_plugin = {
@@ -72,22 +84,22 @@ static reiserfs_plugin_t internal40_plugin = {
 	    .estimate = (void (*)(void *, reiserfs_item_coord_t *))
 		reiserfs_internal40_estimate,
 	    
-	    .minsize = (uint32_t (*)(void *))reiserfs_internal40_minsize,
+	    .minsize = (uint32_t (*)(void))reiserfs_internal40_minsize,
 	    .print = (void (*)(void *, char *, uint16_t))reiserfs_internal40_print,
+	    .internal = (int (*)(void))reiserfs_internal40_internal,
 	    
 	    .lookup = NULL,
 	    .confirm = NULL,
 	    .check = NULL,
 	    .unit_add = NULL,
 	    .unit_count = NULL,
-	    .unit_remove = NULL,
-    
-	    .is_internal = NULL
+	    .unit_remove = NULL
 	},
 	.specific = {
 	    .internal = {
-		.down_link = NULL, 
-		.has_pointer_to = NULL
+		.set_pointer = (void (*)(void *, blk_t))reiserfs_internal40_set_pointer,
+		.get_pointer = (blk_t (*)(void *))reiserfs_internal40_get_pointer,
+		.has_pointer = NULL
 	    }
 	}
     }

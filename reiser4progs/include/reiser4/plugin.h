@@ -83,7 +83,7 @@ struct reiserfs_node_coord {
 
 typedef struct reiserfs_node_coord reiserfs_node_coord_t;
 
-struct reiserfs_common_item_plugin {
+struct reiserfs_item_ops {
     reiserfs_item_type_id_t type;
 
     error_t (*create) (void *, void *);
@@ -112,21 +112,25 @@ struct reiserfs_common_item_plugin {
 	not only libreiserfs.
     */
     void (*estimate) (void *, reiserfs_item_coord_t *);
-    uint32_t (*minsize) (void *);
+    uint32_t (*minsize) (void);
     
-    int (*is_internal) (void);
+    int (*internal) (void);
 };
 
-typedef struct reiserfs_common_item_plugin reiserfs_common_item_plugin_t;
+typedef struct reiserfs_item_ops reiserfs_item_ops_t;
 
-struct reiserfs_dir_entry_ops {
+/*
+    What is the sence of this structures? Is it does the same as
+    uset-working functions or not? If so, we should remove its
+    fields and move usit-working functions into it.
+*/
+struct reiserfs_direntry_ops {
     int (*add_entry) (reiserfs_opaque_t *, int32_t, 
 	reiserfs_opaque_t *parent, char *, reiserfs_opaque_t *entry);
-    
     int (*max_name_len) (int blocksize);
 };
 
-typedef struct reiserfs_dir_entry_ops reiserfs_dir_entry_ops_t;
+typedef struct reiserfs_direntry_ops reiserfs_direntry_ops_t;
 
 struct reiserfs_file_ops {
     int (*write) (reiserfs_opaque_t *file, void *buff, uint64_t size);
@@ -141,10 +145,9 @@ struct reiserfs_stat_ops {
 typedef struct reiserfs_stat_ops reiserfs_stat_ops_t;
 
 struct reiserfs_internal_ops {
-    blk_t (*down_link) (void *);
-    
-    /* Check that given internal item contains given pointer. */
-    int (*has_pointer_to) (void *, blk_t);
+    void (*set_pointer) (void *, blk_t);
+    blk_t (*get_pointer) (void *);
+    int (*has_pointer) (void *, blk_t);
 };
 
 typedef struct reiserfs_internal_ops reiserfs_internal_ops_t;
@@ -153,11 +156,14 @@ struct reiserfs_item_plugin {
     reiserfs_plugin_header_t h;
 
     /* Methods common for all item types */
-    reiserfs_common_item_plugin_t common;
+    reiserfs_item_ops_t common;
 
-    /* Methods specific to particular type of item */
+    /* 
+	Methods specific to particular type of item.
+	FIXME-UMKA: 
+    */
     union {
-	reiserfs_dir_entry_ops_t dir;
+	reiserfs_direntry_ops_t dir;
 	reiserfs_file_ops_t file;
 	reiserfs_stat_ops_t stat;
 	reiserfs_internal_ops_t internal;

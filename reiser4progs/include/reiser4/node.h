@@ -73,10 +73,16 @@ extern error_t reiserfs_node_item_insert(reiserfs_node_t *node,
 extern error_t reiserfs_node_item_replace(reiserfs_node_t *node, 
     reiserfs_item_coord_t *coord, void *key, reiserfs_item_info_t *info);
 
-extern blk_t reiserfs_node_item_down_link(reiserfs_node_t *node, 
+extern blk_t reiserfs_node_item_get_pointer(reiserfs_node_t *node, 
     uint32_t pos);
 
-extern int reiserfs_node_item_is_internal(reiserfs_node_t *node, uint32_t pos);
+extern void reiserfs_node_item_set_pointer(reiserfs_node_t *node, 
+    uint32_t pos, blk_t blk); 
+
+extern int reiserfs_node_item_has_pointer(reiserfs_node_t *node, 
+    uint32_t pos, blk_t blk);
+
+extern int reiserfs_node_item_internal(reiserfs_node_t *node, uint32_t pos);
 
 extern error_t reiserfs_node_item_estimate(reiserfs_node_t *node, 
     reiserfs_item_info_t *info, reiserfs_item_coord_t *coord);

@@ -111,7 +111,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     }
 
     /* Initialize internal item. */
-    internal_info.blk = &block_nr;
+    internal_info.blk = block_nr;
    
     reiserfs_key40_init(&key);
     set_key40_type(&key, KEY40_SD_MINOR);

@@ -174,10 +174,6 @@ int reiserfs_node_lookup(reiserfs_node_t *node,
 	return -1;
     }
     
-    /*
-	Apparently we need lookup method in item API. And here we might call
-	them for lookup purposes. It might make all needed checks.
-    */
     if (item_plugin->item.common.lookup) {
 	if ((found = item_plugin->item.common.lookup(body, key)) == -1) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -253,6 +249,10 @@ void reiserfs_node_remove_children(reiserfs_node_t *node,
 
 #ifndef ENABLE_COMPACT
 
+/*
+    Synchronizes node's cache and frees all childrens.
+    My be used when memory presure event will occur.
+*/
 error_t reiserfs_node_flush(reiserfs_node_t *node) {
     aal_assert("umka-575", node != NULL, return 0);
     
@@ -279,6 +279,7 @@ error_t reiserfs_node_flush(reiserfs_node_t *node) {
     return 0;
 }
 
+/* Just synchronuizes node's cache */
 error_t reiserfs_node_sync(reiserfs_node_t *node) {
     aal_assert("umka-124", node != NULL, return 0);
     
@@ -391,10 +392,10 @@ void *reiserfs_node_item_key_at(reiserfs_node_t *node, uint32_t pos) {
     aal_assert("umka-565", node != NULL, return NULL);
     
     return libreiserfs_plugins_call(return NULL, node->plugin->node, 
-	item_at, node->block, pos);
+	key_at, node->block, pos);
 }
 
-blk_t reiserfs_node_item_down_link(reiserfs_node_t *node, uint32_t pos) {
+blk_t reiserfs_node_item_get_pointer(reiserfs_node_t *node, uint32_t pos) {
     void *body;
     reiserfs_plugin_t *plugin;
     
@@ -405,8 +406,56 @@ blk_t reiserfs_node_item_down_link(reiserfs_node_t *node, uint32_t pos) {
 	    "Can't find item plugin.");
 	return 0;
     }
-    if (plugin->item.specific.internal.down_link == NULL)
+
+    if (!(body = reiserfs_node_item_at(node, pos))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't find item at node %llu and pos %u",
+	    aal_device_get_block_nr(node->device, node->block), pos);
 	return 0;
+    }
+    
+    return libreiserfs_plugins_call(return 0, plugin->item.specific.internal, 
+	get_pointer, body);
+}
+
+void reiserfs_node_item_set_pointer(reiserfs_node_t *node, 
+    uint32_t pos, blk_t blk) 
+{
+    void *body;
+    reiserfs_plugin_t *plugin;
+    
+    aal_assert("umka-607", node != NULL, return);
+
+    if (!(plugin = reiserfs_node_item_get_plugin(node, pos))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find item plugin.");
+	return;
+    }
+    
+    if (!(body = reiserfs_node_item_at(node, pos))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't find item at node %llu and pos %u",
+	    aal_device_get_block_nr(node->device, node->block), pos);
+	return;
+    }
+    
+    libreiserfs_plugins_call(return, plugin->item.specific.internal, 
+	set_pointer, body, blk);
+}
+
+int reiserfs_node_item_has_pointer(reiserfs_node_t *node, 
+    uint32_t pos, blk_t blk) 
+{
+    void *body;
+    reiserfs_plugin_t *plugin;
+    
+    aal_assert("umka-607", node != NULL, return 0);
+
+    if (!(plugin = reiserfs_node_item_get_plugin(node, pos))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find item plugin.");
+	return 0;
+    }
     
     if (!(body = reiserfs_node_item_at(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -415,10 +464,11 @@ blk_t reiserfs_node_item_down_link(reiserfs_node_t *node, uint32_t pos) {
 	return 0;
     }
     
-    return plugin->item.specific.internal.down_link(body);
+    return libreiserfs_plugins_call(return 0, plugin->item.specific.internal, 
+	has_pointer, body, blk);
 }
 
-int reiserfs_node_item_is_internal(reiserfs_node_t *node, uint32_t pos) {
+int reiserfs_node_item_internal(reiserfs_node_t *node, uint32_t pos) {
     reiserfs_plugin_t *plugin;
     
     aal_assert("vpf-042", node != NULL, return 0);
@@ -428,7 +478,7 @@ int reiserfs_node_item_is_internal(reiserfs_node_t *node, uint32_t pos) {
 	    "Can't find item plugin.");
 	return 0;
     }
-    return libreiserfs_plugins_call(return 0, plugin->item.common, is_internal,);
+    return libreiserfs_plugins_call(return 0, plugin->item.common, internal,);
 }
 
 error_t reiserfs_node_item_estimate(reiserfs_node_t *node, 
@@ -436,6 +486,7 @@ error_t reiserfs_node_item_estimate(reiserfs_node_t *node,
 {
     aal_assert("vpf-106", info != NULL, return -1);
     aal_assert("umka-541", node != NULL, return -1);
+    aal_assert("umka-604", coord != NULL, return -1);
 
     if (!info->plugin && !(info->plugin = 
 	reiserfs_node_item_get_plugin(node, coord->item_pos))) 

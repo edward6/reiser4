@@ -38,21 +38,19 @@ static void build_objid_by_ids(reiserfs_objid_t *objid,
     aal_memcpy(objid, &sd_key, sizeof(*objid));
 }
 
-static error_t reiserfs_direntry40_create(void *body, 
+static error_t reiserfs_direntry40_create(reiserfs_direntry40_t *direntry, 
     reiserfs_item_info_t *info)
 {
     int i;
     uint16_t len, offset;
     reiserfs_direntry_info_t *direntry_info;
-    reiserfs_direntry40_t *direntry;
     
-    aal_assert("vpf-097", body != NULL, return -1);
+    aal_assert("vpf-097", direntry != NULL, return -1);
     aal_assert("vpf-098", info != NULL, return -1);
     aal_assert("vpf-099", info->info != NULL, return -1);
     
     direntry_info = info->info;
     
-    direntry = (reiserfs_direntry40_t *)body;
     direntry40_set_count(direntry, direntry_info->count);
     
     offset = sizeof(reiserfs_direntry40_t) + 
@@ -88,6 +86,7 @@ static void reiserfs_direntry40_estimate(reiserfs_item_info_t *info,
 	    
     aal_assert("vpf-095", info != NULL, return);
     aal_assert("vpf-096", info->info != NULL, return);
+    aal_assert("umka-608", coord != NULL, return);
     
     direntry_info = info->info;
     info->length = direntry_info->count * sizeof(reiserfs_entry40_t);
@@ -101,14 +100,27 @@ static void reiserfs_direntry40_estimate(reiserfs_item_info_t *info,
 	info->length += sizeof(reiserfs_direntry40_t);
 }
 
-static void reiserfs_direntry40_print(void *body, char *buff, uint16_t n) {
-    aal_assert("umka-548", body != NULL, return);
+static void reiserfs_direntry40_print(reiserfs_direntry40_t *direntry, 
+    char *buff, uint16_t n) 
+{
+    aal_assert("umka-548", direntry != NULL, return);
     aal_assert("umka-549", buff != NULL, return);
 }
 
-static uint32_t reiserfs_direntry40_minsize(void *body) {
-    aal_assert("umka-550", body != NULL, return 0);
+static uint32_t reiserfs_direntry40_minsize(void) {
     return sizeof(reiserfs_direntry40_t);
+}
+
+static error_t reiserfs_direntry40_lookup(reiserfs_direntry40_t *direntry, 
+    reiserfs_key40_t *key) 
+{
+    aal_assert("umka-609", direntry != NULL, return -1);
+    aal_assert("umka-610", key != NULL, return -1);
+    return -1;
+}
+
+static int reiserfs_direntry40_internal(void) {
+    return 0;
 }
 
 static reiserfs_plugin_t direntry40_plugin = {
@@ -129,18 +141,17 @@ static reiserfs_plugin_t direntry40_plugin = {
 	    .estimate = (void (*)(void *, reiserfs_item_coord_t *))
 		reiserfs_direntry40_estimate,
 	    
-	    .minsize = (uint32_t (*)(void *))reiserfs_direntry40_minsize,
+	    .minsize = (uint32_t (*)(void))reiserfs_direntry40_minsize,
 	    .print = (void (*)(void *, char *, uint16_t))reiserfs_direntry40_print,
+	    .lookup = (error_t (*) (void *, void *))reiserfs_direntry40_lookup,
+	    .internal = (int (*)(void))reiserfs_direntry40_internal,
 	    
-	    .lookup = NULL,
 	    .confirm = NULL,
 	    .check = NULL,
 
 	    .unit_add = NULL,
 	    .unit_count = NULL,
-	    .unit_remove = NULL,
-	    
-	    .is_internal = NULL
+	    .unit_remove = NULL
 	},
 	.specific = {
 	    .dir = { 

@@ -142,7 +142,7 @@ struct reiserfs_item_info {
 typedef struct reiserfs_item_info reiserfs_item_info_t;
 
 struct reiserfs_internal_info {    
-    blk_t *blk;
+    blk_t blk;
 };
 
 typedef struct reiserfs_internal_info reiserfs_internal_info_t;

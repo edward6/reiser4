@@ -8,7 +8,7 @@
 #define STAT40_H
 
 /* 
-    This is enen not minimal stat data. Object can live without 
+    This is even not minimal stat data. Object can live without 
     stat data at all, just do not allow to link to it. Or size
     could be stored in the container if there are objects of 
     the same size only. 
@@ -35,31 +35,34 @@ typedef struct reiserfs_stat40_base reiserfs_stat40_base_t;
 #define stat40_set_size(stat, val)	set_le64(stat, size, val)
 
 
-/* stat-data extension. Please order this by presumed frequency of use */
+/* 
+    Stat-data extension. Please order this by presumed 
+    frequency of use.
+*/
 typedef enum {
     /* 
-	data required to implement unix stat(2) call. Layout is in
+	Data required to implement unix stat(2) call. Layout is in
 	reiserfs_unix_stat. If this is not present, file is light-weight 
     */
     UNIX_STAT,
     /* 
-	if this is present, file is controlled by non-standard
+	If this is present, file is controlled by non-standard
         plugin (that is, plugin that cannot be deduced from file
         mode bits), for example, aggregation, interpolation etc. 
     */
     PLUGIN_STAT,
     /* 
-	this extension contains inode generation and persistent inode
+	This extension contains inode generation and persistent inode
         flags. Layout is in reiserfs_gen_and_flags_stat 
     */
     GEN_AND_FLAGS_STAT,
     /* 
-	this extension contains capabilities sets, associated with this
+	This extension contains capabilities sets, associated with this
         file. Layout is in reiserfs_capabilities_stat
     */
     CAPABILITIES_STAT,
     /* 
-	this contains additional set of 32bit [anc]time fields to
+	This contains additional set of 32bit [anc]time fields to
         implement 64bit times a la BSD. Layout is in reiserfs_large_times_stat 
     */
     LARGE_TIMES_STAT,
@@ -68,48 +71,49 @@ typedef enum {
 } reiserfs_stat_extentions;
 
 struct reiserfs_unix_stat {
-    /*  0 */ uint32_t uid;       /* owner id */
-    /*  4 */ uint32_t gid;       /* group id */
-    /*  8 */ uint32_t atime;     /* access time */
-    /* 12 */ uint32_t mtime;     /* modification time */
-    /* 16 */ uint32_t ctime;     /* change time */
-    /* 20 */ uint32_t rdev;      /* minor:major for device files */
-    /* 24 */ uint64_t bytes;     /* bytes used by file */
-    /* 32 */
+    uint32_t uid;       /* owner id */
+    uint32_t gid;       /* group id */
+    uint32_t atime;     /* access time */
+    uint32_t mtime;     /* modification time */
+    uint32_t ctime;     /* change time */
+    uint32_t rdev;      /* minor:major for device files */
+    uint64_t bytes;     /* bytes used by file */
 };
 
 typedef struct reiserfs_unix_stat reiserfs_unix_stat_t;
 
 struct reiserfs_plugin_slot {
-    /*  0 */ uint16_t type_id;
-    /*  2 */ uint16_t id;
-    /*  4 here plugin stores its persistent state */
+    uint16_t type_id;
+    uint16_t id;
 };
 
 typedef struct reiserfs_plugin_slot reiserfs_plugin_slot_t;
 
-/* stat-data extension for files with non-standard plugin. */
+/* 
+    Stat-data extension for files with non-standard 
+    plugin. 
+*/
 struct reiserfs_plugin_stat {
-    /* number of additional plugins, associated with this object */
-    /*  0 */ uint16_t plugins_no;
-    /*  2 */ reiserfs_plugin_slot_t slot[0];
-    /*  2 */
+    /* 
+	Number of additional plugins, associated with 
+	this object.
+    */
+    uint16_t plugins_no;
+    reiserfs_plugin_slot_t slot[0];
 };
 
 typedef struct reiserfs_plugin_stat reiserfs_plugin_stat_t;
 
 struct reiserfs_gen_and_flags_stat {
-    /*  0 */ uint32_t generation;
-    /*  4 */ uint32_t flags;
-    /*  8 */
+    uint32_t generation;
+    uint32_t flags;
 };
 
 typedef struct reiserfs_gen_and_flags_stat reiserfs_gen_and_flags_stat_t;
 
 struct reiserfs_capabilities_stat {
-    /*  0 */ uint32_t effective;
-    /*  8 */ uint32_t permitted;
-    /* 16 */
+    uint32_t effective;
+    uint32_t permitted;
 };
 
 typedef struct reiserfs_capabilities_stat reiserfs_capabilities_stat_t;

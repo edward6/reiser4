@@ -93,7 +93,7 @@ static uint16_t reiserfs_node40_item_maxnum(aal_block_t *block) {
 	    return 0;
 	}
 	total_size += libreiserfs_plugins_call(return 0, plugin->item.common, 
-	    minsize, node40_item_at(block, i)) + sizeof(reiserfs_ih40_t);
+	    minsize,) + sizeof(reiserfs_ih40_t);
     }
     return (block->size - sizeof(reiserfs_nh40_t)) / total_size;
 }
@@ -321,11 +321,6 @@ static void reiserfs_node40_print(aal_block_t *block,
     aal_assert("umka-457", buff != NULL, return);
 }
 
-/*
-    We need to decide is key is plugin-specific value, or not.
-    But for awhile this function will be using for comparing
-    keys in node40 plugin.
-*/
 static int reiserfs_node40_key_cmp(const void *key1, const void *key2) {
     int result;
     reiserfs_key40_t *k1, *k2;
@@ -372,11 +367,6 @@ static int reiserfs_node40_lookup(aal_block_t *block, reiserfs_item_coord_t *coo
 	    reiserfs_node40_key_cmp, &pos)) == -1)
 	return -1;
 
-    /*
-	FIXME-UMKA: Probably we need to make lookup inside found
-	item (direntry item) for uint_pos.
-    */
-    
     coord->item_pos = pos;
     coord->unit_pos = -1;
 
