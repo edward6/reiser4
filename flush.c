@@ -462,6 +462,7 @@ static int set_preceder(const coord_t * coord_in, flush_position * pos);
 static int squalloc(flush_position * pos);
 static int squalloc_one_changed_ancestor(znode * node, int call_depth, flush_position * pos);
 static int squalloc_changed_ancestors(flush_position * pos);
+static int pos_from_leaf_to_twig_level (flush_position * pos);
 
 /* Flush squeeze implementation. */
 static int squalloc_right_neighbor(znode * left, znode * right,
@@ -1653,15 +1654,14 @@ squalloc_changed_ancestors(flush_position * pos)
 		goto exit;
 	}
 
-	/* Now advance to the right neighbor.  We may repeat at this point when handling the */
+	/* Now advance to the right neighbor.  We may repeat at this point when
+	 * handling the en-of-twig */
  repeat:
 	assert("jmacd-1092", znode_is_write_locked(node));
 
-	if ((ret = znode_get_utmost_if_dirty(node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK))) {
+	ret = znode_get_utmost_if_dirty(node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
 
-		jnode *child;
-		int keep_going;
-
+	if (ret) {
 		/* If we get ENAVAIL it means the right neighbor is not dirty.  If we are
 		   at the leaf level there may be an unformatted node to the right, so we
 		   only break here if there is an error or ENAVAIL not on the leaf
@@ -1677,88 +1677,12 @@ squalloc_changed_ancestors(flush_position * pos)
 			goto exit;
 		}
 
-		trace_on(TRACE_FLUSH_VERB, "sq_rca no right at leaf, to parent: %s\n", pos_tostring(pos));
-
-		/* We are leaving node now. */
-		/*JF_CLR (node, JNODE_FLUSH_BUSY) */
-
-		/* We are on the leaf level and we got ENAVAIL to the right, but we may
-		   have a unformatted node to the right, so go up to the twig level. */
-		if ((ret = pos_to_parent(pos))) {
-			warning("jmacd-61435", "pos_to_parent failed: %d", ret);
-			goto exit;
-		}
-
-		/* Now on the twig level, update local variables. */
-		assert("jmacd-9259", pos_on_twig_level(pos));
-		assert("jmacd-9260", !coord_is_after_rightmost(&pos->parent_coord));
-		on_twig_level = 1;
-		node = pos->parent_lock.node;
-
-		/* We are interested in the next item. */
-		coord_next_item(&pos->parent_coord);
-
-		/* ... but we may be at the end of a twig. */
-		if (coord_is_after_rightmost(&pos->parent_coord)) {
-			trace_on(TRACE_FLUSH_VERB, "sq_rca to right twig: %s\n", pos_tostring(pos));
-
-			/* Otherwise, we may want to dirty the right twig if its
-			   leftmost child (an extent) is dirty. */
-			if ((ret = reverse_relocate_end_of_twig(pos))) {
-				goto exit;
-			}
-
-			/* If end_of_twig stops the flush, we are finished. */
-			if (!pos_valid(pos)) {
-				goto exit;
-			}
-
-			/* Now repeat the get_right_if_dirty step locally. */
+		if((ret = pos_from_leaf_to_twig_level(pos)) > 0) {
+			on_twig_level = 1;
+			node = pos->parent_lock.node;
 			goto repeat;
 		}
 
-		/* If positioned over a formatted node, then the preceding
-		   get_right_if_dirty would have succeeded if the formatted neighbor was
-		   in memory.  Therefore it must not be, so we are finished. */
-		if (item_is_internal(&pos->parent_coord)) {
-			trace_on(TRACE_FLUSH_VERB,
-				 "sq_rca stop at twig, next is internal: %s\n", pos_tostring(pos));
-			ret = pos_stop(pos);
-			goto exit;
-		}
-
-		trace_on(TRACE_FLUSH_VERB, "sq_rca check right twig child: %s\n", pos_tostring(pos));
-
-		/* Finally, we must now be positioned over an extent, but does it need flushprep? */
-		if ((ret = item_utmost_child(&pos->parent_coord, LEFT_SIDE, &child))) {
-			goto exit;
-		}
-
-		if (IS_ERR(child)) {
-			pos_stop(pos);
-			ret = -EINVAL;
-			goto exit;
-		}
-
-		if (child == NULL) {
-			ret = pos_stop(pos);
-			goto exit;
-		}
-
-		keep_going = !jnode_check_flushprepped(child);
-
-		jput(child);
-
-		/* If it doesn't need flushprep, stop now. */
-		if (!keep_going) {
-			trace_on(TRACE_FLUSH_VERB,
-				 "sq_rca stop at twig, child already flushprepped: %s\n", pos_tostring(pos));
-			ret = pos_stop(pos);
-			goto exit;
-		}
-
-		/* In this case, continue the outer squalloc loop. */
-		ret = 0;
 		goto exit;
 	}
 
@@ -1809,12 +1733,103 @@ exit:
 	return ret;
 }
 
-/* This implements the recursive part of step 5 described in squalloc,
-   including squeezing on the way up, as long as the node and its right neighbor have
-   different parents, then allocating the right side on the way back down.  This is a
-   complicated beast.  The call_depth paramter tells us how high in the recursion we are.
-   Note that the greater (recursive) call_depth, the higher tree level.  When the comments
-   below discuss "lower-level", it means lower smaller call_depth as well.  */
+/* Shift flush position to twig level and handle the end-of-twig situation */
+static int pos_from_leaf_to_twig_level (flush_position * pos)
+{
+	jnode *child;
+	int ret;
+
+	trace_on(TRACE_FLUSH_VERB, "sq_rca no right at leaf, to parent: %s\n", pos_tostring(pos));
+
+	/* We are leaving node now. */
+	/*JF_CLR (node, JNODE_FLUSH_BUSY) */
+
+	/* We are on the leaf level and we got ENAVAIL to the right, but we may
+	   have a unformatted node to the right, so go up to the twig level. */
+	if ((ret = pos_to_parent(pos))) {
+		warning("jmacd-61435", "pos_to_parent failed: %d", ret);
+		return ret;
+	}
+
+	/* Now on the twig level, update local variables. */
+	assert("jmacd-9259", pos_on_twig_level(pos));
+	assert("jmacd-9260", !coord_is_after_rightmost(&pos->parent_coord));
+
+	/* We are interested in the next item... */
+	coord_next_item(&pos->parent_coord);
+
+	/* ... but we may be at the end of a twig. */
+	if (coord_is_after_rightmost(&pos->parent_coord)) {
+		trace_on(TRACE_FLUSH_VERB, "sq_rca to right twig: %s\n", pos_tostring(pos));
+
+		/* Otherwise, we may want to dirty the right twig if its
+		   leftmost child (an extent) is dirty. */
+		if ((ret = reverse_relocate_end_of_twig(pos))) {
+			return ret;
+		}
+
+		/* If end_of_twig stops the flush, we are finished. */
+		if (!pos_valid(pos)) {
+			return 0;
+		}
+
+		/* Now repeat the get_right_if_dirty step locally. it is enough
+		 * to return any positive value */
+		return 1;
+	}
+
+	/* If positioned over a formatted node, then the preceding
+	   get_right_if_dirty would have succeeded if the formatted neighbor was
+	   in memory.  Therefore it must not be, so we are finished. */
+	if (item_is_internal(&pos->parent_coord)) {
+		trace_on(TRACE_FLUSH_VERB,
+			 "sq_rca stop at twig, next is internal: %s\n", pos_tostring(pos));
+		return pos_stop(pos);
+	}
+
+	trace_on(TRACE_FLUSH_VERB, "sq_rca check right twig child: %s\n", pos_tostring(pos));
+
+	/* Finally, we must now be positioned over an extent, but does it need flushprep? */
+	if ((ret = item_utmost_child(&pos->parent_coord, LEFT_SIDE, &child))) {
+		return ret;
+	}
+
+	if (IS_ERR(child)) {
+		pos_stop(pos);
+		return -EINVAL;
+	}
+
+	if (child == NULL) {
+		ret = pos_stop(pos);
+		return ret;
+	}
+
+	/* If it doesn't need flushprep, stop now. */
+	if(jnode_check_flushprepped(child)) {
+		trace_on(TRACE_FLUSH_VERB,
+			 "sq_rca stop at twig, child already flushprepped: %s\n", pos_tostring(pos));
+		ret = pos_stop(pos);
+	}
+
+	jput(child);
+
+	/* In this case, continue the outer squalloc loop. */
+	return ret;
+}
+
+/* This implements the recursive part of step 5 described in squalloc, including
+   squeezing on the way up, as long as the node and its right neighbor have
+   different parents, then allocating the right side on the way back down.
+
+   Simply this function attempts to squeeze @node's right neighbor and
+   (re)allocate it.  If @node and it right neighbor have different parents, we
+   have to allocate the parent of right neighbor prior to allocation of its
+   child. It is done by recursive call to this function.
+ 
+   The call_depth parameter tells us how high in the recursion we are.  Note
+   that the greater (recursive) call_depth, the higher tree level.  When the
+   comments below discuss "lower-level", it means lower smaller call_depth as
+   well.  */
 static int
 squalloc_one_changed_ancestor(znode * node, int call_depth, flush_position * pos)
 {
