@@ -2010,8 +2010,9 @@ jnode_set_dirty(jnode * node)
 
 		/* Make if flush_reserved if either leaf or unformatted for not FAKE_BLOCKNR. */
 		if (!JF_ISSET(node, JNODE_CREATED)/* && !is_flush_mode()*/) {
-			trace_on(TRACE_RESERVE, 
-				 "moving 1 grabbed block to flush reserved.\n");
+			assert("vs-1093", !blocknr_is_fake(&node->blocknr));
+			trace_on(TRACE_RESERVE1, 
+				 "jnode_set_dirty: moving 1 grabbed block to flush reserved. Atom %u: block %llu\n", atom ? atom->atom_id : 0, node->blocknr);
 			grabbed2flush_reserved_nolock(atom, 1);
 		}
 		
