@@ -112,7 +112,8 @@ extern void coord_init_zero (coord_t *coord);
 /*				      COORD METHODS                                      */
 /*****************************************************************************************/
 
-/* FIXME: JMACD->? What's this do? */
+/* after shifting of node content, coord previously set properly may become
+ * invalid, try to "normalize" it. */
 void coord_normalize (coord_t * coord);
 
 /* Copy a coordinate. */

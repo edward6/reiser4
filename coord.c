@@ -20,7 +20,8 @@ static inline void coord_init_values (coord_t  *coord,
 	/*trace_on (TRACE_COORDS, "init coord %p node %p: %u %u %s\n", coord, node, item_pos, unit_pos, coord_tween_tostring (between));*/
 }
 
-/* after shifting coord previously set properly may become invalid. */
+/* after shifting of node content, coord previously set properly may become
+ * invalid, try to "normalize" it. */
 /* Audited by: green(2002.06.15) */
 void coord_normalize (coord_t * coord)
 {
