@@ -249,6 +249,8 @@ reiser4_lock_page(struct page *page)
 	lock_page(page);
 }
 
+/* NIKITA-FIXME-HANS: at the moment this looks like dead code that should be killed....  invent some more assertions or
+ * kill the wrapper;-) */
 void
 reiser4_unlock_page(struct page *page)
 {
