@@ -1287,6 +1287,11 @@ int jnode_io_hook(jnode *node, struct page *page, int rw)
 	return jnode_ops(node)->io_hook(node, page, rw);
 }
 
+struct address_space *
+jnode_get_mapping(const jnode * node)
+{
+	return jnode_ops(node)->mapping(node);
+}
 
 #if REISER4_DEBUG
 /* debugging aid: jnode invariant */
