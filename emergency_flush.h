@@ -23,8 +23,9 @@ struct eflush_node {
 	reiser4_block_nr blocknr;
 	ef_hash_link     linkage;
 	struct list_head inode_link; /* for per inode list of eflush nodes */
-	int              hadatom;
-	int              incatom;
+	int              hadatom :1;
+	int              incatom :1;
+	int              reserve :1;
 #if REISER4_DEBUG
 	block_stage_t    initial_stage;
 #endif

@@ -241,8 +241,7 @@ static int flushable(const jnode * node, struct page *page);
 static int needs_allocation(const jnode * node);
 static eflush_node_t *ef_alloc(int flags);
 static reiser4_ba_flags_t ef_block_flags(const jnode *node);
-static int ef_free_block(jnode *node, const reiser4_block_nr *blk, int hadatom);
-static int ef_free_block_with_stage(jnode *node, const reiser4_block_nr *blk, block_stage_t stage, int hadatom);
+static int ef_free_block(jnode *node, const reiser4_block_nr *blk, block_stage_t stage, eflush_node_t *ef);
 static int ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **enode, reiser4_blocknr_hint *hint);
 static int eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef);
 
@@ -320,7 +319,8 @@ emergency_flush(struct page *page)
 				UNLOCK_JLOAD(node);
 				UNLOCK_JNODE(node);
 				if (blk != 0ull)
-					ef_free_block_with_stage(node, &blk, hint.block_stage, efnode->hadatom);
+					ef_free_block(node, &blk,
+						      hint.block_stage, efnode);
 				if (efnode != NULL)
 					kmem_cache_free(eflush_slab, efnode);
 				ON_TRACE(TRACE_EFLUSH, "failure-2\n");
@@ -734,7 +734,10 @@ eflush_del(jnode *node, int page_locked)
 
 		jput(node);
 
-		ef_free_block(node, &blk, ef->hadatom);
+		ef_free_block(node, &blk,
+			      blocknr_is_fake(jnode_get_block(node)) ?
+			      BLOCK_UNALLOCATED : BLOCK_GRABBED, ef);
+
 		kmem_cache_free(eflush_slab, ef);
 
 		if (page != NULL) {
@@ -778,9 +781,9 @@ ef_block_flags(const jnode *node)
 	return jnode_is_znode(node) ? BA_FORMATTED : 0;
 }
 
-static int ef_free_block_with_stage(jnode *node,
-				    const reiser4_block_nr *blk,
-				    block_stage_t stage, int hadatom)
+static int ef_free_block(jnode *node,
+			 const reiser4_block_nr *blk,
+			 block_stage_t stage, eflush_node_t *ef)
 {
 	int result = 0;
 	reiser4_block_nr one;
@@ -792,7 +795,7 @@ static int ef_free_block_with_stage(jnode *node,
 	if (result == 0 && stage == BLOCK_GRABBED) {
 		txn_atom *atom;
 
-		if (jnode_is_leaf(node) && hadatom) {
+		if (ef->reserve) {
 			/* further, transfer block from grabbed into flush
 			 * reserved space. */
 			LOCK_JNODE(node);
@@ -800,6 +803,7 @@ static int ef_free_block_with_stage(jnode *node,
 			assert("nikita-2785", atom != NULL);
 			grabbed2flush_reserved_nolock(atom, 1);
 			UNLOCK_ATOM(atom);
+			JF_SET(node, JNODE_FLUSH_RESERVED);
 			UNLOCK_JNODE(node);
 		} else {
 			reiser4_context * ctx = get_current_context();
@@ -810,21 +814,12 @@ static int ef_free_block_with_stage(jnode *node,
 	return result;
 }
 
-static int ef_free_block(jnode *node, const reiser4_block_nr *blk, int hadatom)
-{
-	block_stage_t stage;
-
-	stage = blocknr_is_fake(jnode_get_block(node)) ?
-		BLOCK_UNALLOCATED : BLOCK_GRABBED;
-
-	return ef_free_block_with_stage(node, blk, stage, hadatom);
-}
-
 static int
 ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_blocknr_hint * hint)
 {
 	int result;
 	reiser4_block_nr one;
+	int usedreserve;
 
 	assert("nikita-2760", node != NULL);
 	assert("nikita-2761", blk != NULL);
@@ -835,6 +830,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 	hint->blk         = EFLUSH_START_BLOCK;
 	hint->max_dist    = 0;
 	hint->level       = jnode_get_level(node);
+	usedreserve = 0;
 	if (blocknr_is_fake(jnode_get_block(node)))
 		hint->block_stage = BLOCK_UNALLOCATED;
 	else {
@@ -846,9 +842,14 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 			 * atom at this point. */
 			atom = jnode_get_atom(node);
 			if (atom != NULL) {
-				flush_reserved2grabbed(atom, 1);
-				UNLOCK_ATOM(atom);
-				break;
+				if (JF_ISSET(node, JNODE_FLUSH_RESERVED)) {
+					usedreserve = 1;
+					flush_reserved2grabbed(atom, 1);
+					JF_CLR(node, JNODE_FLUSH_RESERVED);
+					UNLOCK_ATOM(atom);
+					break;
+				} else
+					UNLOCK_ATOM(atom);
 			}
 			/* fall through */
 			/* node->atom == NULL if page was dirtied through
@@ -881,6 +882,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 #if REISER4_DEBUG
 			(*efnode)->initial_stage = hint->block_stage;
 #endif
+			(*efnode)->reserve = usedreserve;
 		}
 	}
 	LOCK_JNODE(node);
