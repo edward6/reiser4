@@ -65,18 +65,7 @@ typedef struct reiser4_file_fsdata {
 		readdir_list_link linkage;
 	} dir;
 	struct {
-		/*
-		 * store a seal for last accessed piece of meta-data: either
-		 * tail or extent item. This can be used to avoid tree
-		 * traversals.
-		 */
-		seal_t last_access;
-		/*
-		 * FIXME-VS: without coord seal is more or less
-		 * useless. Shouldn't therefore coord be included into seal?
-		 */
-		coord_t coord;
-		tree_level level;
+		struct sealed_coord hint;
 	} reg;
 } reiser4_file_fsdata;
 
