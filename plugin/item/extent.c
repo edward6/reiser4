@@ -3129,6 +3129,13 @@ static extent_write_todo extent_what_todo2 (coord_t * coord,
 		reiser4_key first_key;
 
 
+		/*
+		 * FIXME:NIKITA->VS In multi-thread test I see here
+		 * @coord->node being twig level node and @key being larger
+		 * than right delimiting key. @key falls into right neighbor
+		 * of @coord->node and delimiting keys in parent are correct.
+		 */
+
 		assert ("vs-874", znode_get_level (coord->node) == LEAF_LEVEL);
 		assert ("vs-875", no_left_neighbor (coord->node));
 		assert ("vs-602", !node_is_empty (coord->node));
