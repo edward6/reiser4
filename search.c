@@ -239,6 +239,9 @@ static int sanity_check(cbk_handle * h);
 /* release resources in handle */
 static void hput(cbk_handle * h);
 
+/* if necessary, perform read ahead of formatted nodes */
+static int handle_ra(cbk_handle * h);
+
 static void setup_delimiting_keys(cbk_handle * h);
 static int prepare_delimiting_keys(cbk_handle * h);
 static level_lookup_result search_to_left(cbk_handle * h);
@@ -727,6 +730,10 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 	assert("vs-361", h->level > h->stop_level);
 
 	if (handle_eottl(h, &result))
+		return result;
+
+	result = handle_ra(h);
+	if (result != 0)
 		return result;
 
 	assert("nikita-2116", item_is_internal(h->coord));
@@ -1283,6 +1290,77 @@ search_to_left(cbk_handle * h /* search handle */ )
 		}
 	}
 	done_lh(&lh);
+	return result;
+}
+
+#define MAX_RA (16)
+
+static int start_ra(coord_t *item);
+
+static int handle_ra(cbk_handle * h)
+{
+	coord_t scan;
+	int     i;
+	oid_t   oid;
+	int     result;
+
+	assert("nikita-2853", h != NULL);
+	assert("nikita-2855", item_is_internal(h->coord));
+
+	if (h->level != TWIG_LEVEL)
+		return 0; /* only do read ahead for leaves */
+	if (!(h->flags & CBK_READA))
+		return 0; /* only do read ahead when asked to */
+
+	coord_dup(&scan, h->coord);
+	scan.between = AT_UNIT;
+	oid = get_key_objectid(h->key);
+	result = 0;
+	for (i = 0 ; i < MAX_RA && !coord_next_unit(&scan) && !result ; ++i) {
+		reiser4_key childkey;
+
+		if (!item_is_internal(&scan))
+			break;
+		if (get_key_objectid(unit_key_by_coord(&scan, &childkey)) != oid)
+			break;
+		result = start_ra(&scan);
+	}
+	return result;
+}
+
+static int
+start_ra(coord_t *item)
+{
+	reiser4_block_nr  blk;
+	znode            *parent;
+	znode            *child;
+	reiser4_tree     *tree;
+	int result;
+
+	assert("nikita-2856", item_is_internal(item));
+
+	item_plugin_by_coord(item)->s.internal.down_link(item, NULL, &blk);
+
+	parent = item->node;
+	tree = znode_get_tree(parent);
+	child = zget(tree, &blk, parent, znode_get_level(parent) - 1, GFP_KERNEL);
+
+	if (IS_ERR(child))
+		return PTR_ERR(child);
+
+	if (znode_just_created(child)) {
+
+		spin_lock_dk(tree);
+		result = find_child_delimiting_keys(parent, item, 
+						    znode_get_ld_key(child),
+						    znode_get_rd_key(child));
+		spin_unlock_dk(tree);
+		if (result != 0)
+			return result;
+		result = jstartio(ZJNODE(child));
+	} else
+		result = 0;
+	zput(child);
 	return result;
 }
 

@@ -220,7 +220,8 @@ typedef enum {
 	   located at the twig level. For explanation, see comment just above
 	   is_next_item_internal().
 	*/
-	CBK_TRUST_DK = (1 << 2)
+	CBK_TRUST_DK = (1 << 2),
+	CBK_READA    = (1 << 3)
 } cbk_flags;
 
 /* insertion outcome. IBK = insert by key */
