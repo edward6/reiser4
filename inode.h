@@ -111,8 +111,8 @@ SPIN_LOCK_FUNCTIONS( inode, reiser4_inode, guard );
 
 extern oid_t get_inode_oid( const struct inode *inode );
 extern void  set_inode_oid( struct inode *inode, oid_t oid );
-extern ino_t oid_to_ino( oid_t oid );
-extern ino_t oid_to_uino( oid_t oid );
+extern ino_t oid_to_ino( oid_t oid ) __attribute__( ( const ) );
+extern ino_t oid_to_uino( oid_t oid ) __attribute__( ( const ) );
 
 extern reiser4_tree  *tree_by_inode           ( const struct inode *inode );
 extern reiser4_inode *reiser4_inode_data      ( const struct inode *inode );
