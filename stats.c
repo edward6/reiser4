@@ -28,7 +28,7 @@ typedef struct reiser4_stats_cnt {
 	.kattr = {					\
 		.attr = {				\
 			.name = (char *)aname,		\
-			.mode = 0666 /* r--r--r-- */	\
+			.mode = 0666 /* rw-rw-rw- */	\
 		},					\
 		.cookie = 0,				\
 		.show   = ashow,			\
@@ -52,7 +52,7 @@ show_stat_attr(struct super_block * s, reiser4_kattr * kattr,
 	(void)opaque;
 
 	cnt = container_of(kattr, reiser4_stats_cnt, kattr);
-	val = getptrat(statcnt_t, &get_super_private(s)->stats, cnt->offset);
+	val = getptrat(statcnt_t, get_super_private(s)->stats, cnt->offset);
 	p = buf;
 	KATTR_PRINT(p, buf, cnt->format, statcnt_get(val));
 	return (p - buf);
@@ -66,7 +66,7 @@ store_stat_attr(struct super_block * s, reiser4_kattr * kattr,
 	statcnt_t *val;
 
 	cnt = container_of(kattr, reiser4_stats_cnt, kattr);
-	val = getptrat(statcnt_t, &get_super_private(s)->stats, cnt->offset);
+	val = getptrat(statcnt_t, get_super_private(s)->stats, cnt->offset);
 	statcnt_reset(val);
 	return size;
 }
