@@ -1275,3 +1275,9 @@ write-test.2
 znode.bb
 znode.bbg
 plugin/dir/.props/dir.c
+.inode.o.d
+.ioctl.o.d
+.vfs_ops.o.d
+plugin/.object.o.d
+plugin/dir/.dir.o.d
+plugin/item/.static_stat.o.d
