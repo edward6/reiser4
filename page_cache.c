@@ -274,6 +274,7 @@ void reiser4_check_mem( reiser4_context *ctx )
 	}
 }
 
+#if 0
 /** 
  * helper function to find-and-lock page in a page cache and do additional
  * checks 
@@ -294,6 +295,7 @@ struct page *reiser4_lock_page( struct address_space *mapping,
 	}
 	return page;
 }
+#endif
 
 /** return tree @page is in */
 reiser4_tree *tree_by_page( const struct page *page /* page to query */ )
