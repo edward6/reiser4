@@ -95,3 +95,6 @@ license:
 # If you want no compression, set this to "none".
 # 
 compression: gzip
+
+# Make Josh always have editable files
+[jmacd@]checkout:edit
