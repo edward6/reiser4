@@ -178,6 +178,7 @@ AC_OUTPUT([
     plugin/alloc36/Makefile
     demos/Makefile
     reiser4progs/Makefile
+    reiser4progs/libmisc/Makefile
     reiser4progs/mkfs/Makefile
     debug/Makefile
     doc/Makefile

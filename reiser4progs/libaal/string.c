@@ -91,9 +91,9 @@ char *aal_strncat(char *dest, const char *src, size_t n) {
 #define CONV_HEX_RANGE 0x10000000
 #define CONV_OCT_RANGE 01000000000
 
-#undef DEFINE_CONVERTOR
+#undef DEF_CONVERTOR
 
-#define DEFINE_CONVERTOR(name, type)				\
+#define DEF_CONVERTOR(name, type)				\
 int name(type d, size_t n, char *a, int base, int flags) {	\
     char *p = a;						\
     type s;							\
@@ -144,10 +144,10 @@ int name(type d, size_t n, char *a, int base, int flags) {	\
     return p - a;						\
 }								\
 
-DEFINE_CONVERTOR(aal_utoa, unsigned int);
-DEFINE_CONVERTOR(aal_lutoa, unsigned long int);
-DEFINE_CONVERTOR(aal_llutoa, unsigned long long);
-DEFINE_CONVERTOR(aal_stoa, int);
-DEFINE_CONVERTOR(aal_lstoa, long int);
-DEFINE_CONVERTOR(aal_llstoa, long long);
+DEF_CONVERTOR(aal_utoa, unsigned int);
+DEF_CONVERTOR(aal_lutoa, unsigned long int);
+DEF_CONVERTOR(aal_llutoa, unsigned long long);
+DEF_CONVERTOR(aal_stoa, int);
+DEF_CONVERTOR(aal_lstoa, long int);
+DEF_CONVERTOR(aal_llstoa, long long);
 

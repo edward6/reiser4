@@ -1,5 +1,5 @@
 if ENABLE_COMPACT
 SUBDIRS = 
 else
-SUBDIRS = mkfs
+SUBDIRS = libmisc mkfs
 endif
