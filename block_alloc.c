@@ -4,97 +4,112 @@
 
 #include "reiser4.h"
 
+#define REISER4_FAKE_BLOCKNR_BIT_MASK   0x8000000000000000ULL;
+#define REISER4_BLOCKNR_STATUS_BIT_MASK 0xF000000000000000ULL;
+#define REISER4_UNALLOCATED_BIT_MASK    0xF000000000000000ULL;
+#define REISER4_BITMAP_BLOCKS_BIT_MASK  0x9000000000000000ULL;
 
-int reiser4_free_block (block_nr block UNUSED_ARG)
+/** is it a real block number from real block device or fake block number for
+ * not-yet-mapped object? */
+int reiser4_blocknr_is_fake(const reiser4_disk_addr * da)
 {
-  	return 0;
+	return da->blk & REISER4_FAKE_BLOCKNR_BIT_MASK;
 }
 
-
+/** a generator for tree nodes fake block numbers */
+static block_nr get_next_fake_blocknr ()
 int allocate_new_blocks (block_nr * hint,
 			 block_nr * count)
 {
-	static block_nr block = 10000;
-	*hint = block ++;
-	*count = 1;
-	return 0;
-}
+	static block_nr gen = 0;
 
-int free_blocks (block_nr hint UNUSED_ARG, block_nr count UNUSED_ARG)
-{
-	return 0;
-}
+	++ gen;
 
+	gen &= ~REISER4_BLOCKNR_STATUS_BIT_MASK;
+	gen |= REISER4_UNALLOCATED_BIT_MASK;
 
-#if YOU_CAN_COMPILE_PSEUDO_CODE
-
-/* for every node in the slum @sl */
-int allocate_blocks_in_slum (reiser4_tree * tree UNUSED_ARG, slum * sl UNUSED_ARG)
-{
-	return 0;
-}
-
-/* we need to allocate node to the left of an extent before allocating the extent */
-
-/* this code is simpler if we order nodes with level in tree being
-most determinant of order and then within a level ordering from left
-to right rather than putting each parent just before its children in
-order.  Putting each parent just before its children will work better
-with current generic readahead code though.  How does current code
-order internal nodes relative to leaf nodes?  */
-
-allocate_blocks_in_slum(struct key slum_key)
-{
-  slum = lock_slum(slum_key);
-  current_node = left_node(slum);
-  node_count = count_nodes(slum);
-  reallocatable = make_list_blocknrs_in_slum(zn, actual_slum_size);
-  blocknrs = allocate_block_numbers(node_count, reallocatable, left_neighbor(left_node));
-
-
-/* this code doesn't handle having to dirty a parent (and thus add it
-   to the slum) after changing an allocation.  That needs to be
-   fixed.  */
-  do 
-    {
-      if(parent_is_unallocated_extent(current_node))
+#if REISER4_DEBUG
 	{
-	  required_multiple_extents = allocate_extent_and_slum_so_far(non_extent, parent(current_node), blocknrs);
-	  /*  */
-	  non_extent = 0;
-	  if (required_multiple_extents)
-	    new_node_count = count_nodes(slum);
-	  if (new_node_count != node_count)
-	    {
-	      node_count = new_node_count;
-	      blocknrs = allocate_block_numbers(node_count);
-	    }
+		reiser4_disk_addr da = {.blk = gen};
+		znode * node;
+
+		node = zlook(current_tree, &da, 0);
+		assert ("zam-394", node == NULL);
 	}
-      else
-	push(current_node, non_extent);
-      get_right_neighbor(current_node);
-    } while (slum not finished);
-  allocate_extent_and_slum_so_far(non_extent, NULL_EXTENT);
-}
-
-/* take a look at struct znode  */
-
-assign_blocknr(struct znode * target_zn, blocknr_t * cur_reallocatable, blocknr_t * reallocatable, int actual_slum_size, blocknr_t * search_start)
-
-{
-				/* find most optimal block which is either used or reallocatable */
-  target_zn->true_blocknr = reiserfs_new_blocknr(search_start, blocknr_t * cur_reallocatable);
-				/* if we must preserve this block
-                                   because it is a new version of a
-                                   node that has been written to disk
-                                   in the past and it may contain
-                                   contents that should only be
-                                   changed transactionally. */
-  if (preserve(target_zn->state))
-    assign_wandered_blocknr(target_zn);
-}
-
 #endif
+
+	return gen;
+}
+
+/* There are two kinds of block allocation functions: first kind which
+ * allocates fake blocks or just count disk space (in case of new unformatted
+ * nodes allocation), and another kind which does search in disk bitmap for
+ * real disk block numbers. 
+ * 
+ * FIXME_ZAM: There would be nice to hide all this fake/real block allocation
+ * details from caller code. */
+
+/** Count disk space allocated for unformatted nodes. Because unformatted
+ * nodes do not need block numbers (even fake ones) we do not call
+ * get_next_fake_blocknr()  */
+int reiser4_allocate_new_unf_blocks (block_nr count) 
+{
+	reiser4_super_info_data * info_data = reiser4_get_current_super_private();
+	int ret = 0;
+
+	spin_lock (&info_data->guard);
+
+	if (count > info_data->blocks_free) 
+		ret = -ENOSPC; 
+
+	info_data->blocks_free -= count;
+
+	spin_unlock (&info_data->guard);
+
+	return ret;
+}
+
+/** take one allocate one block for formatted node */
+int reiser4_allocate_new_block (block_nr * block)
+{
+	reiser4_super_info_data * info_data = reiser4_get_current_super_private();
+	int ret = 0;
+
+	spin_lock (&info_data->guard);
+
+	if (info_data->blocks_free == 0)
+		ret = -ENOSPC;
+
+	-- info_data->blocks_free;
+	*block = get_next_fake_blocknr();
+
+	spin_unlock (&info_data->guard);
+
+	return ret;
+}
+
+void reiser4_dealloc_new_blocks (int count)
+{
+	reiser4_super_info_data * info_data = reiser4_get_current_super_private();
+
+	spin_lock (&info_data->guard);
+
+	info_data->blocks_free += count;
+
+	assert ("zam-395", info_data->blocks_free >= info_data->used_blocks);
+
+	spin_unlock (&info_data->guard);
+}
+
+/* real blocks allocation */
+
+/** */
+int reiser4_allocate_blocks (struct reiser4_blocknr_hint * hint, block_nr *start, block_nr *len)
+{
+	reiser4_super_info_data * info_data = reiser4_get_current_super_private();
+	
+}
+
 
 /* 
  * Local variables:
