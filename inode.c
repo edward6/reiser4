@@ -41,7 +41,7 @@ __u32 *reiser4_inode_flags( const struct inode *inode )
 }
 
 /** file plugin for @inode */
-file_plugin *reiser4_get_file_plugin( const struct inode *inode )
+file_plugin *get_file_plugin( const struct inode *inode )
 {
 	assert( "nikita-269", inode != NULL );
 	assert( "nikita-270", is_reiser4_inode( inode ) );
@@ -50,7 +50,7 @@ file_plugin *reiser4_get_file_plugin( const struct inode *inode )
 }
 
 /** dir plugin for @inode */
-dir_plugin *reiser4_get_dir_plugin( const struct inode *inode )
+dir_plugin *get_dir_plugin( const struct inode *inode )
 {
 	assert( "vs-385", inode != NULL );
 	assert( "vs-386", is_reiser4_inode( inode ) );
@@ -136,7 +136,7 @@ int reiser4_max_filename_len( const struct inode *inode )
 /**
  * Maximal number of hash collisions for this directory.
  */
-int reiser4_max_hash_collisions( const struct inode *dir )
+int max_hash_collisions( const struct inode *dir )
 {
 	assert( "nikita-1711", dir != NULL );
 #if REISER4_USE_COLLISION_LIMIT
@@ -148,7 +148,7 @@ int reiser4_max_hash_collisions( const struct inode *dir )
 
 /** return plugin that should be used to create stat-data for this
     file */
-item_plugin *reiser4_get_sd_plugin( const struct inode *inode UNUSED_ARG )
+item_plugin *get_sd_plugin( const struct inode *inode UNUSED_ARG )
 {
 	assert( "nikita-288", is_reiser4_inode( inode ) );
 	return item_plugin_by_id( SD_ITEM_ID );
@@ -156,7 +156,7 @@ item_plugin *reiser4_get_sd_plugin( const struct inode *inode UNUSED_ARG )
 
 /** return information about "repetitive access" (ra) patterns,
     accumulated in inode. */
-inter_syscall_ra_hint *reiser4_inter_syscall_ra( const struct inode *inode )
+inter_syscall_ra_hint *inter_syscall_ra( const struct inode *inode )
 {
 	assert( "nikita-289", is_reiser4_inode( inode ) );
 	return &get_object_state( inode ) -> ra;
@@ -261,8 +261,8 @@ static int read_inode( struct inode * inode )
 
 	/* Release inode lock during io. */
 	reiser4_unlock_inode( inode );
-	reiser4_init_coord( &coord );
-	reiser4_init_lh( &lh );
+	init_coord( &coord );
+	init_lh( &lh );
 	/* locate stat-data in a tree and return znode locked */
 	result = lookup_sd( inode, ZNODE_READ_LOCK, &coord, &lh, &key );
 	reiser4_lock_inode( inode );
@@ -284,8 +284,8 @@ static int read_inode( struct inode * inode )
 	/* lookup_sd() doesn't release coord because we want znode
 	   stay read-locked while stat-data fields are accessed in
 	   init_inode() */
-	reiser4_done_lh( &lh );
-	reiser4_done_coord( &coord );
+	done_lh( &lh );
+	done_coord( &coord );
 	if( result != 0 ) {
 		if( inode != NULL )
 			make_bad_inode( inode );
@@ -361,13 +361,13 @@ struct inode * reiser4_iget( struct super_block *super,
 			/* install remaining plugins */
 			reiser4_plugin_ref *self;
 
-			self = reiser4_get_object_state( inode );
+			self = get_object_state( inode );
 			if( ! is_root_dir_key( inode -> i_sb, key ) ) {
 				reiser4_plugin_ref *root;
 
 				/* take missing plugins from file-system
 				 * defaults */
-				root = reiser4_get_object_state
+				root = get_object_state
 					( inode -> i_sb -> s_root -> d_inode );
 				if( self -> dir == NULL )
 					self -> dir = root -> dir;

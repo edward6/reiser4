@@ -745,8 +745,8 @@ static void optimize_extent (tree_coord * item)
 		to.unit_pos = old_num - 1;
 
 		result = cut_node (&from, &to, 0, 0, 0, DELETE_DONT_COMPACT);
-		reiser4_done_coord (&from);
-		reiser4_done_coord (&to);
+		done_coord (&from);
+		done_coord (&to);
 		/*
 		 * nothing should happen cutting
 		 */
@@ -1697,7 +1697,7 @@ static int map_extent (reiser4_tree * tree UNUSED_ARG,
 	inode = page->mapping->host;
 	
 	if (!item_is_extent (coord) ||
-	    !reiser4_get_file_plugin (inode)->owns_item (inode, coord)) {
+	    !get_file_plugin (inode)->owns_item (inode, coord)) {
 		warning ("vs-283", "there should be more items of file\n");
 		return -EIO;
 	}
@@ -1804,11 +1804,11 @@ static int reset_coord (struct page * page,
 		 * corresponding to the beginning of page being read
 		 */
 		assert ("vs-389", coord->item_pos == 0);
-		reiser4_done_lh (lh);
-		reiser4_done_coord (coord);
+		done_lh (lh);
+		done_coord (coord);
 
-		reiser4_init_coord (coord);
-		reiser4_init_lh (lh);
+		init_coord (coord);
+		init_lh (lh);
 		result = coord_by_key (current_tree, &key, coord, lh,
 				       ZNODE_READ_LOCK, FIND_EXACT,
 				       LEAF_LEVEL, LEAF_LEVEL, CBK_UNIQUE);
@@ -1933,7 +1933,7 @@ static void read_ahead (struct page * page, tree_coord * coord)
 	assert ("vs-392", ({
 		struct inode * inode;
 		inode = page->mapping->host;
-		reiser4_get_file_plugin (inode)->owns_item (inode, coord);
+		get_file_plugin (inode)->owns_item (inode, coord);
 	}));
 	
 	ext = extent_by_coord (coord);
@@ -2309,7 +2309,7 @@ static int put_unit_to_end (znode * node, reiser4_key * key,
 	cop_insert_flag flags;
 
 
-	reiser4_init_coord (&coord);
+	init_coord (&coord);
 	coord_last_unit (&coord, node);
 	coord.between = AFTER_UNIT;
 
@@ -2321,7 +2321,7 @@ static int put_unit_to_end (znode * node, reiser4_key * key,
 	} else {
 		result = resize_item (&coord, data, key, 0/*lh*/, flags);
 	}
-	reiser4_done_coord (&coord);
+	done_coord (&coord);
 	assert ("vs-438", result == 0 || result == -ENOSPC);
 	return result;
 }
@@ -2344,7 +2344,7 @@ static int try_to_glue (znode * left, tree_coord * right,
 	if (right->unit_pos != 0)
 		return 0;
 
-	reiser4_init_coord (&last);
+	init_coord (&last);
 	coord_last_unit (&last, left);
 	ext = extent_by_coord (&last);
 
@@ -2363,7 +2363,7 @@ static int try_to_glue (znode * left, tree_coord * right,
 		extent_set_width (ext, extent_get_width (ext) + allocated);
 		result = 1;
 	}
-	reiser4_done_coord (&last);
+	done_coord (&last);
 	return result;
 }
 
@@ -2535,7 +2535,7 @@ static int paste_unallocated_extent (tree_coord * item, reiser4_key * key,
 	 */
 	result = resize_item (&coord, init_new_extent (&data, &new_ext), key,
 			      0/*lh*/, COPI_DONT_SHIFT_LEFT);
-	reiser4_done_coord (&coord);
+	done_coord (&coord);
 	return result;
 }
 
@@ -2671,7 +2671,7 @@ int alloc_extent (reiser4_tree * tree UNUSED_ARG, tree_coord * coord,
 			preceder.blk = extent_get_start (ext) + extent_get_width (ext);
 		} else
 			impossible ("vs-454", "unknown item type");
-		reiser4_done_coord (&prev);
+		done_coord (&prev);
 	}
 
 	/* FIXME: used only by ulevel, but what about this return value? */

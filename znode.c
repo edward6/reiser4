@@ -120,7 +120,7 @@
  * from parent node due to its nonexistence or proper parent node locking and
  * nobody uses parent pointers from children due to absence of them. Second we
  * invalidate all pending lock requests which still are on znode's lock
- * request queue, this is done by reiser4_invalidate_lock(). Another
+ * request queue, this is done by invalidate_lock(). Another
  * ZNODE_IS_DYING znode status bit is used to invalidate pending lock
  * requests. Once it set all requesters are forced to return -EINVAL from
  * longterm_lock_znode(). Future locking attempts are not possible because all
@@ -260,7 +260,7 @@ static void zinit( znode *node, znode *parent )
 	xmemset( node, 0, sizeof *node );
 	jnode_init( &node -> zjnode );
 	reiser4_init_lock( &node -> lock );
-	reiser4_init_coord( &node -> ptr_in_parent_hint );
+	init_coord( &node -> ptr_in_parent_hint );
 	node -> ptr_in_parent_hint.node = parent;
 	node -> ptr_in_parent_hint.item_pos = ~0u;
 }

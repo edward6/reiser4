@@ -1519,7 +1519,7 @@ static int fill_page_actor (reiser4_tree * tree UNUSED_ARG,
 	inode = page->mapping->host;
 
 	if (item_type_by_coord (coord) != EXTENT_ITEM_TYPE ||
-	    !reiser4_get_file_plugin (inode)->owns_item (inode, coord)) {
+	    !get_file_plugin (inode)->owns_item (inode, coord)) {
 		warning ("vs-283", "there should be more items of file\n");
 		return -EIO;
 	}
@@ -1759,11 +1759,11 @@ int alloc_extent (reiser4_tree * tree, tree_coord * coord,
 		reiser4_key last_key;
 
 		/* extent is not done yet */
-		reiser4_done_lh (lh);
-		reiser4_done_coord (coord);
+		done_lh (lh);
+		done_coord (coord);
 
-		reiser4_init_coord (coord);
-		reiser4_init_lh (lh);
+		init_coord (coord);
+		init_lh (lh);
 		if (coord_by_key (tree, &key, coord, lh,
 				  ZNODE_WRITE_LOCK, FIND_EXACT,
 				  TWIG_LEVEL, TWIG_LEVEL) != CBK_COORD_FOUND) {

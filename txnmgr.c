@@ -1280,7 +1280,7 @@ capture_fuse_wait (jnode *node, txn_handle *txnh, txn_atom *atomf, txn_atom *ato
 		return -EAGAIN;
 	}
 	
-	wlinks._lock_stack = reiser4_get_current_lock_stack ();
+	wlinks._lock_stack = get_current_lock_stack ();
 
 	fwaitfor_list_clean (& wlinks);
 	fwaiting_list_clean (& wlinks);

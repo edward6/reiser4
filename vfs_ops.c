@@ -131,7 +131,7 @@ static struct dentry *reiser4_lookup( struct inode *parent, /* directory within 
 
 	/* find @parent directory plugin and make sure that it has lookup
 	 * method */
-	dplug = reiser4_get_dir_plugin( parent );
+	dplug = get_dir_plugin( parent );
 	if( dplug == NULL || !dplug -> resolve_into_inode/*lookup*/ ) {
 		return ERR_PTR( -ENOTDIR );
 	}
@@ -161,7 +161,7 @@ static struct dentry *invloke_lookup_method( struct inode *parent,
 	assert( "nikita-403", parent != NULL );
 	assert( "nikita-404", dentry != NULL );
 
-	dplug = reiser4_get_dir_plugin( parent );
+	dplug = get_dir_plugin( parent );
 
 	/* FIXME-HANS: is this okay? */
 	if( dplug == NULL || !dplug -> resolve_into_inode/*lookup*/ ) {
@@ -292,7 +292,7 @@ static ssize_t reiser4_read( struct file *file,
 	ssize_t result;
 	
 	REISER4_ENTRY( file -> f_dentry -> d_inode -> i_sb );
-	fplug = reiser4_get_file_plugin( file -> f_dentry -> d_inode );
+	fplug = get_file_plugin( file -> f_dentry -> d_inode );
 	assert( "nikita-417", fplug != NULL );
 
 	if( fplug->read == NULL ) {
@@ -319,7 +319,7 @@ static ssize_t reiser4_write( struct file *file, char *buf,
 	assert( "nikita-1422", buf != NULL );
 	assert( "nikita-1424", off != NULL );
 
-	fplug = reiser4_get_file_plugin( file -> f_dentry -> d_inode );
+	fplug = get_file_plugin( file -> f_dentry -> d_inode );
 
 	if( fplug -> write != NULL ) {
 		result = fplug -> write( file, buf, size, off );
@@ -406,7 +406,7 @@ static int reiser4_readpage( struct file *f, struct page *page )
 		f -> f_dentry -> d_inode == page -> mapping -> host );
 
 	inode = page -> mapping -> host;
-	fplug = reiser4_get_file_plugin( inode );
+	fplug = get_file_plugin( inode );
 	if( !fplug -> readpage ) {
 		return -EINVAL;
 	}
@@ -439,7 +439,7 @@ static int reiser4_link( struct dentry *existing,
 		REISER4_EXIT( -EINTR );
 	}
 	unlock_kernel();
-	dplug = reiser4_get_dir_plugin( parent );
+	dplug = get_dir_plugin( parent );
 	assert( "nikita-1430", dplug != NULL );
 	if( dplug -> link != NULL ) {
 		result = dplug -> link( parent, existing, where );
@@ -514,8 +514,8 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 	if( ! S_ISDIR( inode -> i_mode ) )
 		REISER4_EXIT( -ENOTDIR );
 
-	reiser4_init_coord( &coord );
-	reiser4_init_lh( &lh );
+	init_coord( &coord );
+	init_lh( &lh );
 
 	result = build_readdir_key( f, &arg.key );
 	if( result == 0 ) {
@@ -551,8 +551,8 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 	}
 
 	UPDATE_ATIME( inode );
-	reiser4_done_lh( &lh );
-	reiser4_done_coord( &coord );
+	done_lh( &lh );
+	done_coord( &coord );
 
 	REISER4_EXIT( result );
 }
@@ -581,7 +581,7 @@ static int reiser4_unlink( struct inode *parent, struct dentry *victim )
 		REISER4_EXIT( -EINTR );
 	}
 	unlock_kernel();
-	dplug = reiser4_get_dir_plugin( parent );
+	dplug = get_dir_plugin( parent );
 	assert( "nikita-1429", dplug != NULL );
 	if( dplug -> unlink != NULL ) {
 		result = dplug -> unlink( parent, victim );
@@ -622,7 +622,7 @@ int reiser4_add_nlink( struct inode *object )
 
 	assert( "nikita-1351", object != NULL );
 
-	fplug = reiser4_get_file_plugin( object );
+	fplug = get_file_plugin( object );
 	assert( "nikita-1445", fplug != NULL );
 
 	/* ask plugin whether it can add yet another link to this
@@ -654,7 +654,7 @@ int reiser4_del_nlink( struct inode *object )
 
 	assert( "nikita-1349", object != NULL );
 
-	fplug = reiser4_get_file_plugin( object );
+	fplug = get_file_plugin( object );
 	assert( "nikita-1350", fplug != NULL );
 
 	assert( "nikita-1446", object -> i_nlink > 0 );
@@ -684,7 +684,7 @@ static int invoke_create_method( struct inode *parent, struct dentry *dentry,
 	assert( "nikita-427", dentry != NULL );
 	assert( "nikita-428", data != NULL );
 
-	dplug = reiser4_get_dir_plugin( parent );
+	dplug = get_dir_plugin( parent );
 	assert( "nikita-429", dplug != NULL );
 	if( dplug -> create_child != NULL ) {
 		result = dplug -> create_child( parent, dentry, data );
@@ -705,7 +705,7 @@ int truncate_object( struct inode *inode, loff_t size )
 	assert( "nikita-1027", is_reiser4_inode( inode ) );
 	assert( "nikita-1028", inode -> i_sb != NULL );
 
-	fplug = reiser4_get_file_plugin( inode );
+	fplug = get_file_plugin( inode );
 	assert( "vs-142", fplug != NULL );
 
 	if( fplug -> truncate != NULL ) {
@@ -829,7 +829,7 @@ static int readdir_actor( reiser4_tree *tree UNUSED_ARG,
 	args = arg;
 	inode = args -> dir -> f_dentry -> d_inode;
 	assert( "nikita-1370", inode != NULL );
-	fplug = reiser4_get_file_plugin( inode );
+	fplug = get_file_plugin( inode );
 	if( ! fplug -> owns_item( inode, coord ) ) {
 		return 0;
 	}

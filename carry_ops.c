@@ -111,7 +111,7 @@ static carry_node *find_right_neighbor( carry_node *node, carry_level *doing )
 	carry_node *right;
 	reiser4_lock_handle lh;
 
-	reiser4_init_lh( &lh );
+	init_lh( &lh );
 
 	/*
 	 * first, check whether right neighbor is already in a @doing
@@ -137,7 +137,7 @@ static carry_node *find_right_neighbor( carry_node *node, carry_level *doing )
 	/*
 	 * then, try to lock right neighbor
 	 */
-	reiser4_init_lh( &lh );
+	init_lh( &lh );
 	result = reiser4_get_right_neighbor( &lh, node -> real_node,
 					     ZNODE_WRITE_LOCK, GN_DO_READ );
 	if( result == 0 ) {
@@ -152,7 +152,7 @@ static carry_node *find_right_neighbor( carry_node *node, carry_level *doing )
 			if( result != 0 )
 				right = ERR_PTR( result );
 		} else
-			reiser4_done_lh( &lh );
+			done_lh( &lh );
 	} else if( result == -ENAVAIL ) {
 			/*
 			 * node is rightmost node in a tree, or there is an
@@ -162,7 +162,7 @@ static carry_node *find_right_neighbor( carry_node *node, carry_level *doing )
 			reiser4_stat_level_add( doing, carry_right_not_avail );
 	} else
 			right = ERR_PTR( result );
-	reiser4_done_lh( &lh );
+	done_lh( &lh );
 	return right;
 }
 
@@ -493,14 +493,14 @@ static int make_space( carry_op *op /* carry operation, insert or
 			 * still no enough space?! May be there is enough
 			 * space in the source node now.
 			 */
-			reiser4_done_coord( op -> u.insert.d -> coord );
+			done_coord( op -> u.insert.d -> coord );
 			reiser4_dup_coord( op -> u.insert.d -> coord, 
 					   &coord_shadow );
 			node = op -> u.insert.d -> coord -> node;
 			op -> node = node_shadow;
 			not_enough_space = free_space_shortage( node, op );
 		}
-		reiser4_done_coord( &coord_shadow );
+		done_coord( &coord_shadow );
 	}
 	if( not_enough_space > 0 ) {
 		if( !( op -> u.insert.flags & COPI_DONT_ALLOCATE ) )
@@ -513,8 +513,8 @@ static int make_space( carry_op *op /* carry operation, insert or
 		 * original. Update lock handle supplied by caller.
 		 */
 		assert( "nikita-1417", tracking -> tracked != NULL );
-		reiser4_done_lh( tracking -> tracked );
-		reiser4_init_lh( tracking -> tracked );
+		done_lh( tracking -> tracked );
+		init_lh( tracking -> tracked );
 		result = longterm_lock_znode( tracking -> tracked, node, 
 					      ZNODE_WRITE_LOCK, 
 					      ZNODE_LOCK_HIPRI );
@@ -709,7 +709,7 @@ static int carry_insert( carry_op *op /* operation to perform */,
 	trace_stamp( TRACE_CARRY );
 	reiser4_stat_level_add( doing, insert );
 
-	reiser4_init_coord( &coord );
+	init_coord( &coord );
 
 	/*
 	 * perform common functionality of insert and paste.
@@ -733,7 +733,7 @@ static int carry_insert( carry_op *op /* operation to perform */,
 		  op -> u.insert.d -> data, todo );
 	doing -> restartable = 0;
 	znode_set_dirty( node );
-	reiser4_done_coord( &coord );
+	done_coord( &coord );
 	return result;
 }
 
@@ -764,8 +764,8 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 	trace_stamp( TRACE_CARRY );
 	reiser4_stat_level_add( doing, delete );
 
-	reiser4_init_coord( &coord );
-	reiser4_init_coord( &coord2 );
+	init_coord( &coord );
+	init_coord( &coord2 );
 
 	parent = op -> node -> real_node;
 	child  = op -> u.delete.child ?
@@ -824,8 +824,8 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 	    ( node_num_items( parent ) == 1 ) ) {
 		result = kill_tree_root( coord.node );
 	}
-	reiser4_done_coord( &coord2 );
-	reiser4_done_coord( &coord );
+	done_coord( &coord2 );
+	done_coord( &coord );
 	return result < 0 ? : 0 ;
 }
 
@@ -890,7 +890,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	trace_stamp( TRACE_CARRY );
 	reiser4_stat_level_add( doing, paste );
 
-	reiser4_init_coord( &coord );
+	init_coord( &coord );
 
 	result = insert_paste_common( op, doing, todo, &cdata, &coord, &data );
 	if( result != 0 )
@@ -915,7 +915,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 		op -> u.insert.type = COPT_PASTE_RESTARTED;
 		reiser4_stat_level_add( doing, paste_restarted );
 		result = op_dispatch_table[ COP_INSERT ]( op, doing, todo );
-		reiser4_done_coord( &coord );
+		done_coord( &coord );
 		return result;
 	}
 
@@ -954,7 +954,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 			( op -> u.insert.d -> coord, &item_key, todo );
 	}
 
-	reiser4_done_coord( &coord );
+	done_coord( &coord );
 	return result;
 }
 

@@ -166,16 +166,16 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 
 	to_write = f.length;
 	while (f.length) {
-		reiser4_init_coord (&coord);
-		reiser4_init_lh (&lh);
+		init_coord (&coord);
+		init_lh (&lh);
 
 		result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/*
 			 * error occured
 			 */
-			reiser4_done_lh (&lh);
-			reiser4_done_coord (&coord);
+			done_lh (&lh);
+			done_coord (&coord);
 			break;
 		}
 		switch (what_todo (inode, &f, &coord)) {
@@ -201,8 +201,8 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 			impossible ("vs-293", "unknown write mode");
 		}
 
-		reiser4_done_lh (&lh);
-		reiser4_done_coord (&coord);
+		done_lh (&lh);
+		done_coord (&coord);
 		if (!result || result == -EAGAIN)
 			continue;
 		break;
@@ -237,14 +237,14 @@ int ordinary_readpage (struct file * file UNUSED_ARG, struct page * page)
 	set_key_type (&key, KEY_BODY_MINOR);
 	set_key_offset (&key, (unsigned long long)page->index << PAGE_SHIFT);
 
-	reiser4_init_coord (&coord);
-	reiser4_init_lh (&lh);
+	init_coord (&coord);
+	init_lh (&lh);
 
 	result = find_item (&key, &coord, &lh, ZNODE_READ_LOCK);
 	if (result != CBK_COORD_FOUND) {
 		warning ("vs-280", "No file items found\n");
-		reiser4_done_lh (&lh);
-		reiser4_done_coord (&coord);
+		done_lh (&lh);
+		done_coord (&coord);
 		return result;
 	}
 
@@ -253,8 +253,8 @@ int ordinary_readpage (struct file * file UNUSED_ARG, struct page * page)
 	 */
 	iplug = item_plugin_by_coord (&coord);
 	if (!iplug->s.file.readpage) {
-		reiser4_done_lh (&lh);
-		reiser4_done_coord (&coord);
+		done_lh (&lh);
+		done_coord (&coord);
 		return -EINVAL;
 	}
 
@@ -262,8 +262,8 @@ int ordinary_readpage (struct file * file UNUSED_ARG, struct page * page)
 	arg.lh = &lh;
 	result = iplug->s.file.readpage (&arg, page);
 
-	reiser4_done_lh (&lh);
-	reiser4_done_coord (&coord);
+	done_lh (&lh);
+	done_coord (&coord);
 	return result;
 }
 
@@ -325,8 +325,8 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 			 * do not read out of file
 			 */
 			break;
-		reiser4_init_coord (&coord);
-		reiser4_init_lh (&lh);
+		init_coord (&coord);
+		init_lh (&lh);
 		
 		result = find_item (&f.key, &coord, &lh,
 				    ZNODE_READ_LOCK);
@@ -348,8 +348,8 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 		default:
 			break;
 		}
-		reiser4_done_lh (&lh);
-		reiser4_done_coord (&coord);
+		done_lh (&lh);
+		done_coord (&coord);
 		if (!result)
 			continue;
 		break;

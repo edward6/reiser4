@@ -500,7 +500,7 @@ int cde_check( tree_coord *coord, const char **error )
 			break;
 		}
 	}
-	reiser4_done_coord( &c );
+	done_coord( &c );
 	return result;
 }
 
@@ -901,7 +901,7 @@ int cde_add_entry( const struct inode *dir, tree_coord *coord,
 	if( is_dot_key( &dir_entry -> key ) ) {
 		data.length = cde_estimate( NULL, &data );
 		result = insert_by_coord( coord, &data, &dir_entry -> key, lh,
-					  reiser4_inter_syscall_ra( dir ), 
+					  inter_syscall_ra( dir ), 
 					  NO_RA, 0/*flags*/ );
 	} else {
 		data.length = cde_estimate( coord, &data );

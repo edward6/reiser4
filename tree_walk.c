@@ -223,8 +223,8 @@ static int far_next_coord (tree_coord * coord, reiser4_lock_handle * handle, int
 
 	spin_unlock_tree(current_tree);
 
-	reiser4_done_coord(coord);
-	reiser4_init_coord(coord);
+	done_coord(coord);
+	init_coord(coord);
 
 	node = handle->node;
 
@@ -341,12 +341,12 @@ static int connect_one_side (tree_coord * coord, znode * node, int flags)
 	int ret;
 
 	reiser4_dup_coord(&local, coord);
-	reiser4_init_lh(&handle);
+	init_lh(&handle);
 
 	ret = renew_sibling_link(&local, &handle, node, znode_get_level( node ),
 				 flags | GN_NO_ALLOC, &nr_locked);
 
-	reiser4_done_coord(&local);
+	done_coord(&local);
 
 	if (handle.owner != NULL) {
 		/* complementary operations for zload() and lock() in far_next_coord() */
@@ -442,7 +442,7 @@ static int renew_neighbor (tree_coord * coord, znode * node, tree_level level, i
 		ret = 0;
 
  out:
-	reiser4_done_coord(&local);
+	done_coord(&local);
 
 	while (nr_locked) {
 		zrelse(empty[nr_locked].node, 1);
@@ -491,7 +491,7 @@ int reiser4_get_neighbor (reiser4_lock_handle * neighbor /* lock handle that
 	tree_level h = 0;
 	int ret;
 
-	reiser4_init_coord(&coord);
+	init_coord(&coord);
 
  again:
 	/* first, we try to use simple lock_neighbor() which requires sibling
@@ -513,7 +513,7 @@ int reiser4_get_neighbor (reiser4_lock_handle * neighbor /* lock handle that
 
 	/* before establishing of sibling link we lock parent node; it is
 	 * required by renew_neighbor() to work.  */
-	reiser4_init_lh(&path[0]);
+	init_lh(&path[0]);
 	ret = reiser4_get_parent(&path[0], node, ZNODE_READ_LOCK, 1);
 	if (ret) return ret;
 	if (znode_above_root(path[0].node)) {
@@ -544,7 +544,7 @@ int reiser4_get_neighbor (reiser4_lock_handle * neighbor /* lock handle that
 		    case 0:
 			    /* unlocking of parent znode prevents simple
 			     * deadlock situation */
-			    reiser4_done_lh(&path[h]);
+			    done_lh(&path[h]);
 
 			    /* depend on tree level we stay on we repeat first
 			     * locking attempt ...  */
@@ -558,7 +558,7 @@ int reiser4_get_neighbor (reiser4_lock_handle * neighbor /* lock handle that
 		    case -ENOENT:
 			    /* sibling link is not available -- we go
 			     * upward. */
-			    reiser4_init_lh(&path[h + 1]);
+			    init_lh(&path[h + 1]);
 			    ret = reiser4_get_parent(&path[h + 1], parent, ZNODE_READ_LOCK, 1);
 			    if (ret) goto fail;
 			    ++ h;
@@ -575,7 +575,7 @@ int reiser4_get_neighbor (reiser4_lock_handle * neighbor /* lock handle that
 			    while (reiser4_check_deadlock()) {
 				    if (h == 0) goto fail;
 
-				    reiser4_done_lh(&path[--h]);
+				    done_lh(&path[--h]);
 			    }
 
 			    break;

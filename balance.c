@@ -67,7 +67,7 @@ int balance_level_slum (slum_scan *scan)
 
 	/* initialize data structures */
 	for( i = 0 ; i < sizeof_array( lh_area ) ; i += 1 ) {
-		reiser4_init_lh( &lh_area[ i ] );
+		init_lh( &lh_area[ i ] );
 	}
 
 	target_lh = &lh_area[ 0 ];
@@ -250,7 +250,7 @@ int balance_level_slum (slum_scan *scan)
 	 * unlock on reverse order
 	 */
 	for( i = sizeof_array( lh_area ) - 1 ; i >= 0 ; i -= 1 ) {
-		reiser4_done_lh( &lh_area[ i ] );
+		done_lh( &lh_area[ i ] );
 	}
 
 	/* pick up operations still in @todo queue and perform them. */

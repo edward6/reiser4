@@ -237,7 +237,7 @@ static int insert_new_sd( struct inode *inode )
 
 	data.plugin = ref -> sd;
 	if( data.plugin == NULL ) {
-		data.plugin = reiser4_get_sd_plugin( inode );
+		data.plugin = get_sd_plugin( inode );
 		ref -> sd = data.plugin;
 	}
 	data.length = ref -> sd_len;
@@ -256,14 +256,14 @@ static int insert_new_sd( struct inode *inode )
 
 	inode -> i_ino = oid;
 
-	reiser4_init_coord( &coord );
-	reiser4_init_lh( &lh );
+	init_coord( &coord );
+	init_lh( &lh );
 
 	result = insert_by_key( tree_by_inode( inode ),
 				build_sd_key( inode, &key ), &data, &coord, &lh,
 				/* stat data lives on a leaf level */
 				LEAF_LEVEL, 
-				reiser4_inter_syscall_ra( inode ), NO_RA );
+				inter_syscall_ra( inode ), NO_RA );
 	/* we don't want to re-check that somebody didn't insert
 	   stat-data while we were doing io, because if it did,
 	   insert_by_key() returned error. */
@@ -304,11 +304,11 @@ static int insert_new_sd( struct inode *inode )
 			result = -EIO;
 		}
 	}
-	reiser4_done_lh( &lh );
-	reiser4_done_coord( &coord );
+	done_lh( &lh );
+	done_coord( &coord );
 	if( result != 0 )
 		key_warning( error_message, &key, result );
-	reiser4_done_lh(&lh);
+	done_lh(&lh);
 	return result;
 }
 
@@ -330,8 +330,8 @@ static int update_sd( struct inode *inode )
 	if( *reiser4_inode_flags( inode ) & REISER4_NO_STAT_DATA )
 		return -ENOENT;
 
-	reiser4_init_coord( &coord );
-	reiser4_init_lh( &lh );
+	init_coord( &coord );
+	init_lh( &lh );
 
 	result = lookup_sd( inode, ZNODE_WRITE_LOCK, &coord, &lh, &key );
 	error_message = NULL;
@@ -387,8 +387,8 @@ static int update_sd( struct inode *inode )
 		} else
 			key_warning( error_message, &key, result );
 	}
-	reiser4_done_lh( &lh );
-	reiser4_done_coord( &coord );
+	done_lh( &lh );
+	done_coord( &coord );
 	return result;
 }
 
@@ -595,7 +595,7 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 	assert( "nikita-1419", dentry != NULL );
 	assert( "nikita-1420", data   != NULL );
 
-	fplug = reiser4_get_file_plugin( parent );
+	fplug = get_file_plugin( parent );
 	/* check permissions */
 	if( perm_chk( parent, create, parent, dentry, data ) )
 		return -EPERM;
@@ -735,7 +735,7 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 	object = victim -> d_inode;
 	assert( "nikita-1239", object != NULL );
 
-	fplug = reiser4_get_file_plugin( object );
+	fplug = get_file_plugin( object );
 
 	/* check for race with create_object() */
 	if( *reiser4_inode_flags( object ) & REISER4_IMMUTABLE )
@@ -745,7 +745,7 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 	if( perm_chk( parent, unlink, parent, victim ) )
 		return -EPERM;
 
-	parent_fplug = reiser4_get_file_plugin( parent );
+	parent_fplug = get_file_plugin( parent );
 
 	memset( &entry, 0, sizeof entry );
 
@@ -834,7 +834,7 @@ static int common_link( struct inode *parent, struct dentry *existing,
 	object = existing -> d_inode;
 	assert( "nikita-1434", object != NULL );
 
-	fplug = reiser4_get_file_plugin( object );
+	fplug = get_file_plugin( object );
 
 	/* check for race with create_object() */
 	if( *reiser4_inode_flags( object ) & REISER4_IMMUTABLE )
@@ -849,7 +849,7 @@ static int common_link( struct inode *parent, struct dentry *existing,
 	if( perm_chk( parent, link, existing, parent, where ) )
 		return -EPERM;
 
-	parent_fplug = reiser4_get_file_plugin( parent );
+	parent_fplug = get_file_plugin( parent );
 
 	memset( &entry, 0, sizeof entry );
 

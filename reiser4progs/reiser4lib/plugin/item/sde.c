@@ -67,7 +67,7 @@ int de_add_entry( const struct inode *dir, tree_coord *coord,
 	data.plugin = plugin_by_id( REISER4_ITEM_PLUGIN_ID, SIMPLE_DIR_ITEM_ID );
 	
 	result = insert_by_coord( coord, &data, &entry -> key, lh,
-				  reiser4_inter_syscall_ra( dir ), NO_RA );
+				  inter_syscall_ra( dir ), NO_RA );
 	dent = ( directory_entry_format * ) item_body_by_coord( coord );
 	build_inode_key_id( entry -> obj, &dent -> id );
 	assert( "nikita-1163", 
@@ -92,7 +92,7 @@ int de_rem_entry( const struct inode *dir UNUSED_ARG, tree_coord *coord,
 	 */
 	reiser4_dup_coord( &coord_shadow, coord );
 	result = cut_node( coord, coord, NULL, NULL, NULL );
-	reiser4_done_coord( &coord_shadow );
+	done_coord( &coord_shadow );
 	return result;
 }
 

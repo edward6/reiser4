@@ -480,7 +480,7 @@ int cde_check( tree_coord *coord, const char **error )
 			break;
 		}
 	}
-	reiser4_done_coord( &c );
+	done_coord( &c );
 	return result;
 }
 
@@ -827,13 +827,13 @@ static int can_glue_to( tree_coord *coord, const struct inode *dir,
 			const reiser4_plugin *plugin )
 {
 	assert( "nikita-1327", dir != NULL );
-	assert( "nikita-1328", reiser4_get_file_plugin( dir ) -> owns_item );
+	assert( "nikita-1328", get_file_plugin( dir ) -> owns_item );
 	assert( "nikita-1329", coord != NULL );
 	assert( "nikita-1330", plugin != NULL );
 
 	return( coord_of_item( coord ) && 
 		( item_plugin_by_coord( coord ) -> h.id == plugin -> h.id ) &&
-		( reiser4_get_file_plugin( dir ) -> owns_item( dir, coord ) ) );
+		( get_file_plugin( dir ) -> owns_item( dir, coord ) ) );
 }
 
 /**
@@ -875,7 +875,7 @@ static int try_to_glue_to( tree_coord *coord, const struct inode *dir,
 			move_to_neighbor( coord );
 			result = 1;
 		}
-		reiser4_done_coord( &neighbor );
+		done_coord( &neighbor );
 	}
 	return result;
 }
@@ -910,7 +910,7 @@ int cde_add_entry( const struct inode *dir, tree_coord *coord,
 	if( ! try_to_glue_to( coord, dir, data.plugin ) ) {
 		data.length = cde_estimate( NULL, &data );
 		result = insert_by_coord( coord, &data, &dir_entry -> key, lh,
-					  reiser4_inter_syscall_ra( dir ), 
+					  inter_syscall_ra( dir ), 
 					  NO_RA );
 	} else {
 		data.length = cde_estimate( coord, &data );

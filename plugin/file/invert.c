@@ -417,15 +417,15 @@ int get_inv_entry (struct inode * invert_inode, /* inode of invert's body */
 		
 		assert ("edward-108", key != NULL);
 		
-		reiser4_init_coord (&coord);
-		reiser4_init_lh (&lh);
+		init_coord (&coord);
+		init_lh (&lh);
 		result = lookup_sd_by_key (tree_by_inode(invert_inode),
 					   ZNODE_READ_LOCK, &coord, &lh, key);
 		if (result == 0) 
 			init_incore_sd_base (ientry, coord);
 
-		reiser4_done_lh (&lh);
-		reiser4_done_coord (&coord);
+		done_lh (&lh);
+		done_coord (&coord);
 		return (result);
 	} else {
 		struct file * file = filp_open (filename, flags, mode);

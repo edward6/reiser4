@@ -341,7 +341,7 @@ TS_LIST_DEFINE(locks, reiser4_lock_handle, locks_link);
 /**
  * Returns a lock owner associated with current thread
  */
-reiser4_lock_stack* reiser4_get_current_lock_stack ( void )
+reiser4_lock_stack* get_current_lock_stack ( void )
 {
 	return &reiser4_get_current_context()->stack;
 }
@@ -459,7 +459,7 @@ int znode_is_any_locked( const znode *node )
 		return 0;
 	}
 
-	stack = reiser4_get_current_lock_stack ();
+	stack = get_current_lock_stack ();
 
 	spin_lock_stack (stack);
 
@@ -490,7 +490,7 @@ int znode_is_write_locked( const znode *node )
 		return 0;
 	}
 
-	stack = reiser4_get_current_lock_stack();	
+	stack = get_current_lock_stack();	
 
 	/* If it is write locked, then all owner handles must equal the current stack. */
 	handle = owners_list_front( &node -> lock.owners );
@@ -615,7 +615,7 @@ void longterm_unlock_znode (reiser4_lock_handle *handle)
 	assert ("jmacd-1022", handle->owner != NULL);
 	assert ("nikita-1392", lock_counters()->long_term_locked_znode > 0);
 
-	assert("zam-130", oldowner == reiser4_get_current_lock_stack());
+	assert("zam-130", oldowner == get_current_lock_stack());
 
 	spin_lock_znode(node);
 
@@ -708,7 +708,7 @@ int longterm_lock_znode (
 	int wake_up_next = 0;
 
 	/* Get current process context */
-	reiser4_lock_stack *owner = reiser4_get_current_lock_stack();
+	reiser4_lock_stack *owner = get_current_lock_stack();
 
 	/* Check that the lock handle is initialized and isn't already being used. */
 	assert ("jmacd-808", handle->owner == NULL);
@@ -864,7 +864,7 @@ int longterm_lock_znode (
  * lock object invalidation means changing of lock object state to `INVALID'
  * and waiting for all other processes to cancel theirs lock requests.
  */
-void reiser4_invalidate_lock (reiser4_lock_handle *handle /* path to lock
+void invalidate_lock (reiser4_lock_handle *handle /* path to lock
 							   * owner and lock
 							   * object is being
 							   * invalidated. */ )
@@ -873,7 +873,7 @@ void reiser4_invalidate_lock (reiser4_lock_handle *handle /* path to lock
 	reiser4_lock_stack *owner = handle->owner;
 	reiser4_lock_stack *rq;
 
-	assert("zam-325", owner == reiser4_get_current_lock_stack());
+	assert("zam-325", owner == get_current_lock_stack());
 
 	spin_lock_znode(node);
 
@@ -960,7 +960,7 @@ void reiser4_unlock_znode (reiser4_lock_handle *handle)
 /**
  * Initializes lock_stack.
  */
-void reiser4_init_lock_stack (reiser4_lock_stack *owner /* pointer to
+void init_lock_stack (reiser4_lock_stack *owner /* pointer to
 							 * allocated
 							 * structure. */)
 {
@@ -985,7 +985,7 @@ void reiser4_init_lock (reiser4_zlock *lock /* pointer on allocated
 }
 
 /* lock handle initialization */
-void reiser4_init_lh (reiser4_lock_handle *handle)
+void init_lh (reiser4_lock_handle *handle)
 {
 	xmemset(handle, 0, sizeof *handle);
 	locks_list_clean(handle);
@@ -993,7 +993,7 @@ void reiser4_init_lh (reiser4_lock_handle *handle)
 }
 
 /* freeing of lock handle resources */
-void reiser4_done_lh (reiser4_lock_handle *handle)
+void done_lh (reiser4_lock_handle *handle)
 {
 	assert ("zam-342", handle != NULL);
 	if (handle->owner != NULL)
@@ -1026,7 +1026,7 @@ void reiser4_move_lh (reiser4_lock_handle * new, reiser4_lock_handle * old)
 /* after getting -EDEADLK we unlock znodes until this function returns false */
 int reiser4_check_deadlock ( void )
 {
-	reiser4_lock_stack * owner = reiser4_get_current_lock_stack();
+	reiser4_lock_stack * owner = get_current_lock_stack();
 	return atomic_read(&owner->nr_signaled) != 0;
 }
 

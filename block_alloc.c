@@ -637,7 +637,7 @@ int block_alloc_pre_commit_hook (txn_atom * atom)
 			   longterm_lock_znode() ? */
 			reiser4_lock_handle lh;
 
-			reiser4_init_lh(&lh);
+			init_lh(&lh);
 
 			ret = longterm_lock_znode(&lh, bnode->commit, 
 						  ZNODE_WRITE_LOCK, 

@@ -702,7 +702,7 @@ int reiser4_init_context( reiser4_context *context /* pointer to the reiser4
 	tree  = & sdata -> tree;
 
 	xmemset( context, 0, sizeof *context );
-	reiser4_init_lock_stack( &context -> stack );
+	init_lock_stack( &context -> stack );
 
 	context -> super = super;
 	context -> tid   = tid;
@@ -712,7 +712,7 @@ int reiser4_init_context( reiser4_context *context /* pointer to the reiser4
 
 	current -> journal_info = context;
 
-	reiser4_init_lock_stack( &context -> stack );
+	init_lock_stack( &context -> stack );
 
 	txn_begin (context);
 
@@ -808,7 +808,7 @@ void forget_znode (reiser4_lock_handle *handle)
 	assert ("nikita-1280", ZF_ISSET (node, ZNODE_HEARD_BANSHEE));
 
 	reiser4_sibling_list_remove (node);
-	reiser4_invalidate_lock (handle);
+	invalidate_lock (handle);
 
 	/* make sure that we are the only owner of this znode FIXME-NIKITA huh? This is
 	   supposed to be called on the last _unlock_ rather than last zput().
@@ -919,7 +919,7 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 	assert( "nikita-936", result != NULL );
 	assert( "zam-356", znode_is_loaded(parent)); 
 
-	reiser4_init_coord( result );
+	init_coord( result );
 	result -> node = parent;
 
 	nplug = parent -> nplug;
@@ -1192,8 +1192,8 @@ int cut_tree (reiser4_tree * tree,
 	int result;
 
 
-	reiser4_init_coord (&intranode_to);
-	reiser4_init_lh(&lock_handle);
+	init_coord (&intranode_to);
+	init_lh(&lock_handle);
 
 #define WE_HAVE_READAHEAD (0)
 #if WE_HAVE_READAHEAD
@@ -1243,8 +1243,8 @@ int cut_tree (reiser4_tree * tree,
 					  min_key ()) != EQUAL_TO);
 	} while (keycmp (&smallest_removed, from_key) == GREATER_THAN);
 
-	reiser4_done_coord (&intranode_to);
-	reiser4_done_lh(&lock_handle);
+	done_coord (&intranode_to);
+	done_lh(&lock_handle);
 
 	return result;
 }

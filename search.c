@@ -14,7 +14,7 @@
    plugin/nodes/* */
 
 /** clear coord content */
-int reiser4_init_coord( tree_coord *coord )
+int init_coord( tree_coord *coord )
 {
 	assert( "nikita-312", coord != NULL );
 	trace_stamp( TRACE_TREE );
@@ -28,7 +28,7 @@ void reiser4_dup_coord (tree_coord * new, const tree_coord * old)
 {
 	xmemcpy (new, old, sizeof (tree_coord));
 	if (old->node != NULL) {
-		/* FIXME-NIKITA nikita: reiser4_done_coord() do nothing
+		/* FIXME-NIKITA nikita: done_coord() do nothing
 		   zref(old->node); */
 	}
 	/* FIXME-NIKITA: d_count ? */
@@ -41,7 +41,7 @@ void reiser4_dup_coord (tree_coord * new, const tree_coord * old)
  * there is a good reason to ref coord->node (i.e., dcount), then implement it
  * NOW.  My code doesn't call done_coord because I didn't know there was such
  * a method. */
-int reiser4_done_coord( tree_coord *coord UNUSED_ARG )
+int done_coord( tree_coord *coord UNUSED_ARG )
 {
 	assert( "nikita-313", coord != NULL );
 	trace_stamp( TRACE_TREE );
@@ -384,8 +384,8 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 	cbk_handle          handle;
 	reiser4_lock_handle parent_lh;
 
-	reiser4_init_lh(lh);
-	reiser4_init_lh(&parent_lh);
+	init_lh(lh);
+	init_lh(&parent_lh);
 
 	assert( "nikita-353", tree != NULL );
 	assert( "nikita-354", key != NULL );
@@ -430,11 +430,11 @@ int coord_by_hint_and_key (reiser4_tree * tree, const reiser4_key * key,
 	int result;
 
 /* so where do we check to see if @coord is already set? -Hans */
-	reiser4_done_lh (lh);
-	reiser4_done_coord (coord);
+	done_lh (lh);
+	done_coord (coord);
 
-	reiser4_init_coord (coord);
-	reiser4_init_lh (lh);
+	init_coord (coord);
+	init_lh (lh);
 	result = coord_by_key (tree, key, coord, lh,
 			       ZNODE_WRITE_LOCK, bias,
 			       lock_level, stop_level, 0);
@@ -482,13 +482,13 @@ int reiser4_iterate_tree( reiser4_tree *tree, tree_coord *coord,
 				/* 
 				 * move to the next node 
 				 */
-				reiser4_init_lh( &couple );
+				init_lh( &couple );
 				result = reiser4_get_right_neighbor
 					( &couple, coord -> node, ( int ) mode, 
 					  GN_DO_READ );
 				if( result == 0 ) {
-					reiser4_done_lh( lh );
-					reiser4_done_coord( coord );
+					done_lh( lh );
+					done_coord( coord );
 
 					coord_first_unit( coord, couple.node );
 					reiser4_move_lh( lh, &couple );
@@ -536,7 +536,7 @@ static lookup_result cbk( cbk_handle *h )
 		znode *fake;
 
 		assert ("zam-355", reiser4_lock_stack_isclean(
-				reiser4_get_current_lock_stack()));
+				get_current_lock_stack()));
 /* ewww, ugly, why not just follow the super block pointer to the root
    of the tree. Or even better, have some nice little
    get_tree_root_node macro.  -Hans */
@@ -748,14 +748,14 @@ static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
 		tree_coord right;
 
 
-		reiser4_init_lh( &right_lh );
+		init_lh( &right_lh );
 		result = reiser4_get_right_neighbor( &right_lh,
 						     coord -> node,
 						     ZNODE_READ_LOCK,
 						     GN_DO_READ);
 		if( result && result != -ENAVAIL ) {
 			/* error occured */
-			reiser4_done_lh( &right_lh );
+			done_lh( &right_lh );
 			return result;
 		}
 		if( !result ) {
@@ -765,21 +765,21 @@ static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
 				/*
 				 * switch to right neighbor
 				 */
-				reiser4_done_lh( lh );
-				reiser4_done_coord( coord );
+				done_lh( lh );
+				done_coord( coord );
 
-				reiser4_init_coord( coord );
+				init_coord( coord );
 				reiser4_dup_coord( coord, &right );
 				reiser4_move_lh( lh, &right_lh );
 
-				reiser4_done_coord( &right );
+				done_coord( &right );
 				return 1;
 			}
 		}
 		/* item to the right of @coord either does not exist or is not
 		   of internal type */
-		reiser4_done_coord( &right );
-		reiser4_done_lh( &right_lh );
+		done_coord( &right );
+		done_lh( &right_lh );
 		return 0;
 	}
 }
@@ -800,7 +800,7 @@ static reiser4_key *rd_key( tree_coord *coord, reiser4_key *key )
 		reiser4_dup_coord( &tmp, coord );
 		tmp.item_pos ++;
 		item_key_by_coord( &tmp, key );
-		reiser4_done_coord( &tmp );
+		done_coord( &tmp );
 	} else {
 		/*
 		 * use right delimiting key of znode we insert new pointer to
@@ -1198,8 +1198,8 @@ static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 
 	result = cbk_cache_scan_slots( h );
 	if( result != 0 ) {
-		reiser4_done_lh( h -> active_lh );
-		reiser4_done_lh( h -> parent_lh );
+		done_lh( h -> active_lh );
+		done_lh( h -> parent_lh );
 		reiser4_stat_tree_add( cbk_cache_miss );
 	} else {
 		assert( "nikita-1319", 
@@ -1255,7 +1255,7 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
 		unit_key_by_coord( &neighbor, ld );
 	else
 		*ld = *znode_get_ld_key( parent );
-	reiser4_done_coord( &neighbor );
+	done_coord( &neighbor );
 
 	reiser4_dup_coord( &neighbor, parent_coord );
 	if( neighbor.between == AT_UNIT )
@@ -1264,7 +1264,7 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
 		unit_key_by_coord( &neighbor, rd );
 	else
 		*rd = *znode_get_rd_key( parent );
-	reiser4_done_coord( &neighbor );
+	done_coord( &neighbor );
 
 	return 0;
 }
@@ -1298,7 +1298,7 @@ static level_lookup_result search_to_left( cbk_handle *h )
 	assert( "nikita-1761", h != NULL );
 	assert( "nikita-1762", h -> level == h -> slevel );
 
-	reiser4_init_lh( &lh );
+	init_lh( &lh );
 	coord = h -> coord;
 	node  = h -> active_lh -> node;
 	assert( "nikita-1763", coord_is_leftmost( coord ) );
@@ -1325,13 +1325,13 @@ static level_lookup_result search_to_left( cbk_handle *h )
 
 		nplug = neighbor -> nplug;
 
-		reiser4_init_coord( &crd );
+		init_coord( &crd );
 		bias = h -> bias;
 		h -> bias = FIND_EXACT;
 		h -> result = nplug -> lookup( neighbor, h -> key,
 					       h -> bias, &crd );
 		h -> bias = bias;
-		reiser4_done_coord( &crd );
+		done_coord( &crd );
 
 		if( h -> result == NS_NOT_FOUND ) {
 	case -ENAVAIL:
@@ -1355,7 +1355,7 @@ static level_lookup_result search_to_left( cbk_handle *h )
 			zrelse( neighbor, 1 );
 	}
 	}
-	reiser4_done_lh( &lh );
+	done_lh( &lh );
 	return result;
 }
 
@@ -1421,8 +1421,8 @@ static void put_parent( cbk_handle *h )
 static void hput( cbk_handle *h )
 {
 	assert( "nikita-385", h != NULL );
-	reiser4_done_lh(h->parent_lh);
-	reiser4_done_lh(h->active_lh);
+	done_lh(h->parent_lh);
+	done_lh(h->active_lh);
 }
 
 /**

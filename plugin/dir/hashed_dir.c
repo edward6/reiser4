@@ -192,8 +192,8 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 	 */
 	dentry -> d_op = &reiser4_dentry_operation;
 
-	reiser4_init_coord( &coord );
-	reiser4_init_lh( &lh );
+	init_coord( &coord );
+	init_lh( &lh );
 
 	/*
 	 * find entry in a directory. This is plugin method.
@@ -205,8 +205,8 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 		result = item_plugin_by_coord( &coord ) -> 
 			s.dir.extract_key( &coord, &entry.key );
 	}
-	reiser4_done_lh( &lh );
-	reiser4_done_coord( &coord );
+	done_lh( &lh );
+	done_coord( &coord );
 	
 	if( result == 0 ) {
 		struct inode *inode;
@@ -250,8 +250,8 @@ int hashed_add_entry( struct inode *object, struct dentry *where,
 	assert( "nikita-1114", object != NULL );
 	assert( "nikita-1250", where != NULL );
 
-	reiser4_init_coord( &coord );
-	reiser4_init_lh( &lh );
+	init_coord( &coord );
+	init_lh( &lh );
 
 	trace_on( TRACE_DIR, "[%i]: creating \"%s\" in %lx\n", current_pid,
 		  where -> d_name.name, object -> i_ino );
@@ -278,8 +278,8 @@ int hashed_add_entry( struct inode *object, struct dentry *where,
 					 &coord, &lh, where, entry );
 	} else if( result == 0 )
 		result = -EEXIST;
-	reiser4_done_lh( &lh );
-	reiser4_done_coord( &coord );
+	done_lh( &lh );
+	done_coord( &coord );
 	return result;
 }
 
@@ -300,8 +300,8 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 	assert( "nikita-1124", object != NULL );
 	assert( "nikita-1125", where != NULL );
 
-	reiser4_init_coord( &coord );
-	reiser4_init_lh( &lh );
+	init_coord( &coord );
+	init_lh( &lh );
 
 	/*
 	 * check for this entry in a directory. This is plugin method.
@@ -324,8 +324,8 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 				s.dir.rem_entry( object, 
 							&coord, &lh, entry );
 	}
-	reiser4_done_lh( &lh );
-	reiser4_done_coord( &coord );
+	done_lh( &lh );
+	done_coord( &coord );
 	return result;
 }
 
@@ -392,11 +392,11 @@ static int find_entry( const struct inode *dir, const struct qstr *name,
 		arg.not_found = 0;
 #if REISER4_USE_COLLISION_LIMIT
 		arg.non_uniq = 0;
-		arg.max_non_uniq = reiser4_max_hash_collisions( dir );
+		arg.max_non_uniq = max_hash_collisions( dir );
 #endif
 		arg.mode = mode;
-		reiser4_init_coord( &arg.last_coord );
-		reiser4_init_lh( &arg.last_lh );
+		init_coord( &arg.last_coord );
+		init_lh( &arg.last_lh );
 
 		result = reiser4_iterate_tree( tree_by_inode( dir ), 
 					       coord, lh, entry_actor, &arg, 
@@ -409,8 +409,8 @@ static int find_entry( const struct inode *dir, const struct qstr *name,
 			/*
 			 * step back
 			 */
-			reiser4_done_lh( lh );
-			reiser4_done_coord( coord );
+			done_lh( lh );
+			done_coord( coord );
 
 			reiser4_dup_coord( coord, &arg.last_coord );
 			reiser4_move_lh( lh, &arg.last_lh );
@@ -418,8 +418,8 @@ static int find_entry( const struct inode *dir, const struct qstr *name,
 			result = -ENOENT;
 		}
 
-		reiser4_done_lh( &arg.last_lh );
-		reiser4_done_coord( &arg.last_coord );
+		done_lh( &arg.last_lh );
+		done_coord( &arg.last_coord );
 	}
 	return result;
 }
@@ -474,12 +474,12 @@ static int entry_actor( reiser4_tree *tree UNUSED_ARG, tree_coord *coord,
 	}
 	assert( "nikita-1137", iplug -> s.dir.extract_name );
 
-	reiser4_done_coord( &args -> last_coord );
+	done_coord( &args -> last_coord );
 	reiser4_dup_coord( &args -> last_coord, coord );
 	if( args -> last_lh.node != lh -> node ) {
 		int lock_result;
 
-		reiser4_done_lh( &args -> last_lh );
+		done_lh( &args -> last_lh );
 		assert( "", znode_is_any_locked( lh -> node ) );
 		lock_result = longterm_lock_znode( &args -> last_lh, lh -> node,
 						  args -> mode, 

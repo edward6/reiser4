@@ -1284,8 +1284,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
 			reiser4_lock_handle lh;
 
-			reiser4_init_coord( &coord );
-			reiser4_init_lh( &lh );
+			init_coord( &coord );
+			init_lh( &lh );
 
 			info( "_____________%i_____________\n", i );
 			key_init( &key );
@@ -1316,8 +1316,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			/* print_tree( "tree", tree ); */
 			info( "____end______%i_____________\n", i );
 
-			reiser4_done_lh( &lh );
-			reiser4_done_coord( &coord );
+			done_lh( &lh );
+			done_coord( &coord );
 
 		}
 		print_tree_rec( "tree:ibk", tree, REISER4_NODE_CHECK );
@@ -1413,8 +1413,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
 			reiser4_lock_handle lh;
 
-			reiser4_init_coord( &coord );
-			reiser4_init_lh( &lh );
+			init_coord( &coord );
+			init_lh( &lh );
 
 			info( "_____________%i_____________\n", i );
 			key_init( &key );
@@ -1445,8 +1445,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			/* print_tree( "tree", tree ); */
 			info( "____end______%i_____________\n", i );
 
-			reiser4_done_lh( &lh );
-			reiser4_done_coord( &coord );
+			done_lh( &lh );
+			done_coord( &coord );
 		}
 		ret = cut_tree( tree, min_key(), max_key() );
 		printf( "result: %i\n", ret );
@@ -1527,14 +1527,14 @@ static struct inode * create_root_dir (znode * root)
 	init_carry_pool( &pool );
 	init_carry_level( &lowest_level, &pool );
 
-	reiser4_init_lh( &lh );
+	init_lh( &lh );
 	ret = longterm_lock_znode( &lh, root, 
 				   ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI );
 	assert( "nikita-1792", ret == 0 );
 	op = post_carry( &lowest_level,
 				 COP_INSERT, root, 0 );
 
-	reiser4_done_lh( &lh );
+	done_lh( &lh );
 	assert( "nikita-1269", !IS_ERR( op ) && ( op != NULL ) );
 	// fill in remaining fields in @op, according to
 	// carry.h:carry_op
@@ -1616,16 +1616,16 @@ int insert_item (struct inode *inode,
 	int result;
 
 
-	reiser4_init_coord (&coord);
-	reiser4_init_lh (&lh);
+	init_coord (&coord);
+	init_lh (&lh);
 
 	level = (item_plugin_id (data->iplug) == EXTENT_ITEM_ID) ? TWIG_LEVEL : LEAF_LEVEL;
 	result = insert_by_key (tree_by_inode (inode), key, data, &coord, &lh,
-				level, reiser4_inter_syscall_ra (inode), 0, 
+				level, inter_syscall_ra (inode), 0, 
 				CBK_UNIQUE);
 
-	reiser4_done_lh (&lh);
-	reiser4_done_coord (&coord);
+	done_lh (&lh);
+	done_coord (&coord);
 	return result;
 }
 
@@ -2111,8 +2111,8 @@ static void allocate_unallocated (reiser4_tree * tree)
 	int result;
 
 
-	reiser4_init_coord (&coord);
-	reiser4_init_lh (&lh);
+	init_coord (&coord);
+	init_lh (&lh);
 
 	key_init (&key);
 	set_key_locality (&key, 2ull);
@@ -2127,8 +2127,8 @@ static void allocate_unallocated (reiser4_tree * tree)
 	result = reiser4_iterate_tree (tree, &coord, &lh, 
 				       alloc_extent, 0, ZNODE_WRITE_LOCK, 0);
 
-	reiser4_done_lh (&lh);
-	reiser4_done_coord (&coord);
+	done_lh (&lh);
+	done_coord (&coord);
 
 	print_tree_rec ("AFTER ALLOCATION", tree, REISER4_NODE_PRINT_HEADER |
 			REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
@@ -2179,7 +2179,7 @@ static int do_twig_squeeze (reiser4_tree * tree, tree_coord * coord,
 	/*
 	 * squeeze right neighbor
 	 */
-	reiser4_init_lh (&right_lock);
+	init_lh (&right_lock);
 	result = reiser4_get_right_neighbor (&right_lock, coord->node,
 					     ZNODE_WRITE_LOCK, GN_DO_READ);
 	if (result) {
@@ -2188,7 +2188,7 @@ static int do_twig_squeeze (reiser4_tree * tree, tree_coord * coord,
 
 	while ((result = squalloc_right_neighbor (coord->node, right_lock.node,
 						  &preceder)) == SUBTREE_MOVED);
-	reiser4_done_lh (&right_lock);
+	done_lh (&right_lock);
 	if (result == SQUEEZE_SOURCE_EMPTY) {
 		/*
 		 * get next right neighbor
@@ -2214,8 +2214,8 @@ static void squeeze_twig_level (reiser4_tree * tree)
 	int result;
 
 
-	reiser4_init_coord (&coord);
-	reiser4_init_lh (&lh);
+	init_coord (&coord);
+	init_lh (&lh);
 
 	key_init (&key);
 	set_key_locality (&key, 2ull);
@@ -2230,8 +2230,8 @@ static void squeeze_twig_level (reiser4_tree * tree)
 	result = reiser4_iterate_tree (tree, &coord, &lh, 
 				       do_twig_squeeze, 0, ZNODE_WRITE_LOCK, 0/* through items */);
 
-	reiser4_done_lh (&lh);
-	reiser4_done_coord (&coord);
+	done_lh (&lh);
+	done_coord (&coord);
 
 	print_tree_rec ("AFTER SQUEEZING TWIG", tree, REISER4_NODE_PRINT_HEADER |
 			REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
@@ -2700,17 +2700,17 @@ void* build_test_handler (void* arg)
 			info ("_____________%u_____________ thread %u\n", count, (unsigned) pthread_self ());
 		/*}*/
 
-		reiser4_init_coord (& coord);
+		init_coord (& coord);
 		jmacd_key_no (& key, NULL, & sd, & data, (__u64) count);
 
 	deadlk:
-		reiser4_init_lh    (& lock);
+		init_lh    (& lock);
 		
 		ret = insert_by_key( tree, &key, &data, &coord, &lock, 
 				     LEAF_LEVEL,
 				     ( inter_syscall_ra_hint * )1, 0, CBK_UNIQUE );
 
-		reiser4_done_lh (& lock);
+		done_lh (& lock);
 
 		/* least-key issues... first insert must be serialized. */
 		if (count == 0) {
@@ -2778,19 +2778,19 @@ void* drive_test_handler (void* arg)
 			info ("_____________%u_____________ %s thread %u\n", opc, exists ? "delete" : "insert", (unsigned) pthread_self ());
 		/*}*/
 
-		reiser4_init_coord (& coord);
+		init_coord (& coord);
 		jmacd_key_no       (& key, & next_key, & sd, & data, (__u64) item);
 
 	deadlk:
 		if (exists == 0) {
 
-			reiser4_init_lh (& lock);
+			init_lh (& lock);
 
 			ret = insert_by_key( tree, &key, &data, &coord, &lock, 
 					     LEAF_LEVEL,
 					     ( inter_syscall_ra_hint * )1, 0, CBK_UNIQUE );
 
-			reiser4_done_lh (& lock);
+			done_lh (& lock);
 
 		} else {
 

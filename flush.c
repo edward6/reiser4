@@ -147,7 +147,7 @@ int flush_jnode_slum (jnode *node)
 	reiser4_lock_handle gda_lock;
 	reiser4_blocknr_hint preceder;
 
-	reiser4_init_lh (& gda_lock);
+	init_lh (& gda_lock);
 
 	/* First, locate the greatest dirty ancestor of the node to flush,
 	 * which found by recursing upward as long as the parent is dirty and
@@ -178,7 +178,7 @@ int flush_jnode_slum (jnode *node)
 	if (gda != NULL) {
 		jput (gda);
 	}
-	reiser4_done_lh (& gda_lock);
+	done_lh (& gda_lock);
 	return ret;
 }
 
@@ -214,8 +214,8 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node,
 	slum_scan           level_scan;
 
 	slum_scan_init  (& level_scan);
-	reiser4_init_lh (& parent_lock);
-	reiser4_init_lh (& end_lock);
+	init_lh (& parent_lock);
+	init_lh (& end_lock);
 
 	/* Scan parent level for the leftmost dirty */
 	if ((ret = slum_scan_left (& level_scan, start_node))) {
@@ -231,7 +231,7 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node,
 	 * to that effect in reiser4_get_parent. */
 	if (end_node != start_node) {
 
-		reiser4_done_lh (start_lock);
+		done_lh (start_lock);
 		
 		if (jnode_is_formatted (end_node) &&
 		    (ret = longterm_lock_znode (& end_lock, JZNODE (end_node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
@@ -274,8 +274,8 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node,
 		 * these two is actually locked, since if the two nodes are
 		 * different start_lock was released before end_lock was
 		 * aquired. */
-		reiser4_done_lh (start_lock);
-		reiser4_done_lh (& end_lock);
+		done_lh (start_lock);
+		done_lh (& end_lock);
  
 		/* Recurse upwards. */
 		if ((ret = slum_lock_greatest_dirty_ancestor (ZJNODE (parent_node), & parent_lock, gda, gda_lock, preceder))) {
@@ -297,9 +297,9 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node,
 
 		/* Release any locks we might hold first, they are all read
 		 * locks on this level, and parent lock is not needed.  */
-		reiser4_done_lh (& parent_lock);
-		reiser4_done_lh (start_lock);
-		reiser4_done_lh (& end_lock);
+		done_lh (& parent_lock);
+		done_lh (start_lock);
+		done_lh (& end_lock);
 
 		if (jnode_is_formatted (end_node) &&
 		    (ret = longterm_lock_znode (gda_lock, JZNODE (end_node), ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
@@ -311,8 +311,8 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node,
 	assert ("jmacd-2030", ret == 0);
  failure:
 	slum_scan_cleanup (& level_scan);
-	reiser4_done_lh   (& parent_lock);
-	reiser4_done_lh   (& end_lock);
+	done_lh   (& parent_lock);
+	done_lh   (& end_lock);
 
 	return ret;
 }
@@ -736,7 +736,7 @@ static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
 	}
 
 	/* Get long term lock on right neighbor. */
-	reiser4_init_lh (& right_lock);
+	init_lh (& right_lock);
 
 	if ((ret = reiser4_get_right_neighbor (& right_lock, JZNODE (node), ZNODE_WRITE_LOCK, 0))) {
 		goto cleanup;
@@ -761,7 +761,7 @@ static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
 		tree_coord crd;
 		znode *child;
 		
-		reiser4_init_coord (& crd);
+		init_coord (& crd);
 		coord_last_unit (& crd, JZNODE (node));
 
 		assert ("vs-442", item_is_internal (& crd));
@@ -791,7 +791,7 @@ static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
 	ret = ((squeeze < 0) ? squeeze : 0);
 
  cleanup:
-	reiser4_done_lh (& right_lock);
+	done_lh (& right_lock);
 	return ret;
 }
 
@@ -855,7 +855,7 @@ jnode_lock_parent_coord (jnode *node,
 
 		struct inode *ino = node->pg->mapping->host;
 		reiser4_key   key;
-		file_plugin  *fplug = reiser4_get_file_plugin (ino);
+		file_plugin  *fplug = get_file_plugin (ino);
 		loff_t        loff = node->pg->index << PAGE_CACHE_SHIFT;
 
 		if ((ret = fplug->key_by_inode (ino, & loff, & key))) {
@@ -891,7 +891,7 @@ jnode_lock_parent_coord (jnode *node,
 static void slum_scan_init (slum_scan *scan)
 {
 	memset (scan, 0, sizeof (*scan));
-	reiser4_init_lh (& scan->node_lock);
+	init_lh (& scan->node_lock);
 }
 
 /* Release any resources held by the slum scan, e.g., release locks, free memory, etc. */
@@ -901,7 +901,7 @@ static void slum_scan_cleanup (slum_scan *scan)
 		jput (scan->node);
 	}
 
-	reiser4_done_lh (& scan->node_lock);
+	done_lh (& scan->node_lock);
 }
 
 /* Returns true if leftward slum scanning is finished. */
@@ -948,10 +948,10 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 
 	assert ("jmacd-1403", ! slum_scan_left_finished (scan));
 
-	reiser4_init_coord (& coord);
-	reiser4_init_lh    (& node_lh);
-	reiser4_init_lh    (& parent_lh);
-	reiser4_init_lh    (& left_parent_lh);
+	init_coord (& coord);
+	init_lh    (& node_lh);
+	init_lh    (& parent_lh);
+	init_lh    (& left_parent_lh);
 
 
 	/* Lock the node itself, (FIXME:) which is necessary for getting its
@@ -966,7 +966,7 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 	}
 
 	/* Finished with the node lock. */
-	reiser4_done_lh (& node_lh);
+	done_lh (& node_lh);
 
 	/* Shift the coord to the left. */
 	if ((ret = coord_prev_unit (& coord)) != 0) {
@@ -979,7 +979,7 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 
 		if (ret == 0) {
 			/* Release parent lock -- don't need it any more. */
-			reiser4_done_lh (& parent_lh);
+			done_lh (& parent_lh);
 
 			/* Set coord to the rightmost position of the left-of-parent node. */
 			coord_last_unit (& coord, left_parent_lh.node);
@@ -1012,9 +1012,9 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 
 	/* Release locks. */
  done:
-	reiser4_done_lh (& node_lh);
-	reiser4_done_lh (& parent_lh);
-	reiser4_done_lh (& left_parent_lh);
+	done_lh (& node_lh);
+	done_lh (& parent_lh);
+	done_lh (& left_parent_lh);
 
 	return ret;
 }

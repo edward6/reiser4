@@ -344,7 +344,7 @@ static void tree_rec_dot( reiser4_tree *tree, znode *node,
 	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL )
 		print_address( "end children of node", znode_get_block( node ) );
 	*/
-	reiser4_done_coord( &coord );
+	done_coord( &coord );
 }
 
 /** helper called by print_tree_rec() */
@@ -394,7 +394,7 @@ static void tree_rec( reiser4_tree *tree, znode *node, __u32 flags )
 	}
 	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL )
 		print_address( "end children of node", znode_get_block( node ) );
-	reiser4_done_coord( &coord );
+	done_coord( &coord );
 }
 
 /**

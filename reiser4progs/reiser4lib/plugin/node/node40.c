@@ -480,7 +480,7 @@ int node40_check( const znode *node, __u32 flags, const char **error )
 	else
 		prev = *min_key();
 	old_offset = 0;
-	reiser4_init_coord( &coord );
+	init_coord( &coord );
 	coord.node = ( znode * ) node;
 	coord.unit_pos = 0;
 	coord.between = AT_UNIT;
@@ -573,7 +573,7 @@ int node40_check( const znode *node, __u32 flags, const char **error )
 			return -1;
 		}
 	}
-	reiser4_done_coord( &coord );
+	done_coord( &coord );
 	return 0;
 }
 

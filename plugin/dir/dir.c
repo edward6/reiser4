@@ -66,7 +66,7 @@ static int common_link( struct inode *parent, struct dentry *existing,
 	object = existing -> d_inode;
 	assert( "nikita-1434", object != NULL );
 
-	fplug = reiser4_get_file_plugin( object );
+	fplug = get_file_plugin( object );
 
 	/* check for race with create_object() */
 	if( *reiser4_inode_flags( object ) & REISER4_IMMUTABLE )
@@ -81,7 +81,7 @@ static int common_link( struct inode *parent, struct dentry *existing,
 	if( perm_chk( parent, link, existing, parent, where ) )
 		return -EPERM;
 
-	parent_dplug = reiser4_get_dir_plugin( parent );
+	parent_dplug = get_dir_plugin( parent );
 
 	xmemset( &entry, 0, sizeof entry );
 	entry.obj = object;
@@ -139,7 +139,7 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 	object = victim -> d_inode;
 	assert( "nikita-1239", object != NULL );
 
-	fplug = reiser4_get_file_plugin( object );
+	fplug = get_file_plugin( object );
 
 	/* check for race with create_object() */
 	if( *reiser4_inode_flags( object ) & REISER4_IMMUTABLE )
@@ -149,7 +149,7 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 	if( perm_chk( parent, unlink, parent, victim ) )
 		return -EPERM;
 
-	parent_dplug = reiser4_get_dir_plugin( parent );
+	parent_dplug = get_dir_plugin( parent );
 
 	xmemset( &entry, 0, sizeof entry );
 
@@ -233,7 +233,7 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 	assert( "nikita-1419", dentry != NULL );
 	assert( "nikita-1420", data   != NULL );
 
-	dplug = reiser4_get_dir_plugin( parent );
+	dplug = get_dir_plugin( parent );
 	/* check permissions */
 	if( perm_chk( parent, create, parent, dentry, data ) ) {
 		return -EPERM;

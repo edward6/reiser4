@@ -434,14 +434,14 @@ extern void longterm_unlock_znode  (reiser4_lock_handle *handle);
 
 extern int reiser4_check_deadlock ( void );
 
-extern reiser4_lock_stack *reiser4_get_current_lock_stack (void);
+extern reiser4_lock_stack *get_current_lock_stack (void);
 
-extern void reiser4_init_lock_stack (reiser4_lock_stack * owner);
+extern void init_lock_stack (reiser4_lock_stack * owner);
 extern void reiser4_init_lock (reiser4_zlock * lock);
 
-extern void reiser4_init_lh (reiser4_lock_handle*);
+extern void init_lh (reiser4_lock_handle*);
 extern void reiser4_move_lh (reiser4_lock_handle *new, reiser4_lock_handle *old);
-extern void reiser4_done_lh (reiser4_lock_handle*);
+extern void done_lh (reiser4_lock_handle*);
 
 extern int  reiser4_prepare_to_sleep (reiser4_lock_stack *owner);
 extern void reiser4_go_to_sleep      (reiser4_lock_stack *owner);

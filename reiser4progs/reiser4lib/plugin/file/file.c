@@ -41,17 +41,17 @@ ssize_t reiser4_ordinary_file_write (struct file * file,
 	to_write = f->length;
 
 	inode = file->f_dentry->d_inode;
-	fplug = reiser4_get_file_plugin (inode);
+	fplug = get_file_plugin (inode);
 
 
 	while (f->length) {
-		reiser4_init_coord (&coord);
-		reiser4_init_lh (&lh);
+		init_coord (&coord);
+		init_lh (&lh);
 
 		result = fplug->find_item (tree_by_inode (inode), &f->key, &coord, &lh);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
-			reiser4_done_lh (&lh);
-			reiser4_done_coord (&coord);
+			done_lh (&lh);
+			done_coord (&coord);
 			break;
 		}
 		switch (what_todo (&coord, &f->key)) {
@@ -61,8 +61,8 @@ ssize_t reiser4_ordinary_file_write (struct file * file,
 
 			result = iplug->s.file.write (inode, &coord, &lh, f);
 			if (!result || result == -EAGAIN) {
-				reiser4_done_lh (&lh);
-				reiser4_done_coord (&coord);
+				done_lh (&lh);
+				done_coord (&coord);
 				continue;
 			}
 			/* error occured */
@@ -71,8 +71,8 @@ ssize_t reiser4_ordinary_file_write (struct file * file,
 			/* CONVERT or WRITE_TAIL */
 			impossible ("vs-293", "nothing but extents are ready yet");
 		}
-		reiser4_done_lh (&lh);
-		reiser4_done_coord (&coord);
+		done_lh (&lh);
+		done_coord (&coord);
 		break;
 	}
 
@@ -107,34 +107,34 @@ int reiser4_ordinary_readpage (struct file * file, struct page * page)
 
 
 	inode = file->f_dentry->d_inode;
-	fplug = reiser4_get_file_plugin (inode);
+	fplug = get_file_plugin (inode);
 
 	build_sd_key (inode, &key);
 	set_key_type (&key, KEY_BODY_MINOR);
 	set_key_offset (&key, page->index * (unsigned long long)PAGE_SIZE);
 
-	reiser4_init_coord (&coord);
-	reiser4_init_lh (&lh);
+	init_coord (&coord);
+	init_lh (&lh);
 
 	result = fplug->find_item (tree_by_inode (inode), &key, &coord, &lh);
 	if (result != CBK_COORD_FOUND) {
 		warning ("vs-280", "No file items found");
-		reiser4_done_lh (&lh);
-		reiser4_done_coord (&coord);
+		done_lh (&lh);
+		done_coord (&coord);
 		return result;
 	}
 
 	iplug = &item_plugin_by_coord (&coord)->u.item;
 	if (!iplug->s.file.fill_page) {
-		reiser4_done_lh (&lh);
-		reiser4_done_coord (&coord);
+		done_lh (&lh);
+		done_coord (&coord);
 		return -EINVAL;
 	}
 
 	result = iplug->s.file.fill_page (page, &coord, &lh);
 
-	reiser4_done_lh (&lh);
-	reiser4_done_coord (&coord);
+	done_lh (&lh);
+	done_coord (&coord);
 	return result;
 }
 

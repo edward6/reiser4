@@ -240,7 +240,7 @@ static int insert_new_sd( struct inode *inode )
 	ref = get_object_state( inode );
 
 	if( ref -> sd == NULL ) {
-		ref -> sd = reiser4_get_sd_plugin( inode );
+		ref -> sd = get_sd_plugin( inode );
 	}
 	data.iplug = ref -> sd;
 	data.length = ref -> sd_len;
@@ -259,14 +259,14 @@ static int insert_new_sd( struct inode *inode )
 
 	inode -> i_ino = oid;
 
-	reiser4_init_coord( &coord );
-	reiser4_init_lh( &lh );
+	init_coord( &coord );
+	init_lh( &lh );
 
 	result = insert_by_key( tree_by_inode( inode ),
 				build_sd_key( inode, &key ), &data, &coord, &lh,
 				/* stat data lives on a leaf level */
 				LEAF_LEVEL, 
-				reiser4_inter_syscall_ra( inode ), NO_RA, 
+				inter_syscall_ra( inode ), NO_RA, 
 				CBK_UNIQUE );
 	/* we don't want to re-check that somebody didn't insert
 	   stat-data while we were doing io, because if it did,
@@ -308,11 +308,11 @@ static int insert_new_sd( struct inode *inode )
 			result = -EIO;
 		}
 	}
-	reiser4_done_lh( &lh );
-	reiser4_done_coord( &coord );
+	done_lh( &lh );
+	done_coord( &coord );
 	if( result != 0 )
 		key_warning( error_message, &key, result );
-	reiser4_done_lh(&lh);
+	done_lh(&lh);
 	return result;
 }
 
@@ -334,8 +334,8 @@ static int update_sd( struct inode *inode )
 	if( *reiser4_inode_flags( inode ) & REISER4_NO_STAT_DATA )
 		return -ENOENT;
 
-	reiser4_init_coord( &coord );
-	reiser4_init_lh( &lh );
+	init_coord( &coord );
+	init_lh( &lh );
 
 	result = lookup_sd( inode, ZNODE_WRITE_LOCK, &coord, &lh, &key );
 	error_message = NULL;
@@ -392,8 +392,8 @@ static int update_sd( struct inode *inode )
 			key_warning( error_message, &key, result );
 		}
 	}
-	reiser4_done_lh( &lh );
-	reiser4_done_coord( &coord );
+	done_lh( &lh );
+	done_coord( &coord );
 	return result;
 }
 

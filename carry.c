@@ -1017,8 +1017,8 @@ int lock_carry_node( carry_level *level /* level @node is in */,
 
 	result = 0;
 	reference_point = node -> node;
-	reiser4_init_lh( &lh );
-	reiser4_init_lh( &tmp_lh );
+	init_lh( &lh );
+	init_lh( &tmp_lh );
 	if( node -> left_before ) {
 		/*
 		 * handling of new nodes, allocated on the previous level:
@@ -1083,7 +1083,7 @@ int lock_carry_node( carry_level *level /* level @node is in */,
 						    ZNODE_WRITE_LOCK, 
 						    GN_DO_READ );
 		if( result == 0 ) {
-			reiser4_done_lh( &lh );
+			done_lh( &lh );
 			reiser4_move_lh( &lh, &tmp_lh );
 			reference_point = lh.node;
 		}
@@ -1096,8 +1096,8 @@ int lock_carry_node( carry_level *level /* level @node is in */,
 		reiser4_move_lh( &node -> lock_handle, &lh );
 		result = lock_carry_node_tail( node );
 	}
-	reiser4_done_lh( &tmp_lh );
-	reiser4_done_lh( &lh );
+	done_lh( &tmp_lh );
+	done_lh( &lh );
 	return result;
 }
 

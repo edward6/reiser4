@@ -176,8 +176,8 @@ file_lookup_result hashed_lookup( struct inode *inode /* inode of
 	assert( "nikita-1123", name -> name != NULL );
 	assert( "nikita-1249", key != NULL );
 
-	reiser4_init_coord( &coord );
-	reiser4_init_lh( &lh );
+	init_coord( &coord );
+	init_lh( &lh );
 
 	/*
 	 * find entry in a directory. This is plugin method.
@@ -189,8 +189,8 @@ file_lookup_result hashed_lookup( struct inode *inode /* inode of
 		 */
 		result = item_plugin_by_coord( &coord ) -> 
 			u.item.s.dir.extract_key( &coord, key );
-	reiser4_done_lh( &lh );
-	reiser4_done_coord( &coord );
+	done_lh( &lh );
+	done_coord( &coord );
 	return result;
 }
 
@@ -208,8 +208,8 @@ int hashed_add_entry( struct inode *object, struct dentry *where,
 	assert( "nikita-1114", object != NULL );
 	assert( "nikita-1250", where != NULL );
 
-	reiser4_init_coord( &coord );
-	reiser4_init_lh( &lh );
+	init_coord( &coord );
+	init_lh( &lh );
 
 	trace_on( TRACE_DIR, "[%i]: creating \"%s\" in %lx\n", current_pid,
 		  where -> d_name.name, object -> i_ino );
@@ -234,8 +234,8 @@ int hashed_add_entry( struct inode *object, struct dentry *where,
 						&coord, &lh, where, entry );
 	} else if( result == 0 )
 		result = -EEXIST;
-	reiser4_done_lh( &lh );
-	reiser4_done_coord( &coord );
+	done_lh( &lh );
+	done_coord( &coord );
 	return result;
 }
 
@@ -256,8 +256,8 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 	assert( "nikita-1124", object != NULL );
 	assert( "nikita-1125", where != NULL );
 
-	reiser4_init_coord( &coord );
-	reiser4_init_lh( &lh );
+	init_coord( &coord );
+	init_lh( &lh );
 
 	/*
 	 * check for this entry in a directory. This is plugin method.
@@ -280,8 +280,8 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 				u.item.s.dir.rem_entry( object, 
 							&coord, &lh, entry );
 	}
-	reiser4_done_lh( &lh );
-	reiser4_done_coord( &coord );
+	done_lh( &lh );
+	done_coord( &coord );
 	return result;
 }
 

@@ -255,7 +255,7 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 	if( !IS_ERR( fake ) ) {
 		reiser4_lock_handle handle_for_fake;
 
-		reiser4_init_lh( &handle_for_fake );
+		init_lh( &handle_for_fake );
 		result = longterm_lock_znode( &handle_for_fake, 
 					      fake, ZNODE_WRITE_LOCK, 
 					      ZNODE_LOCK_HIPRI );
@@ -292,7 +292,7 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 				atomic_set( &old_root -> c_count, 0 );
 			}
 		}
-		reiser4_done_lh( &handle_for_fake );
+		done_lh( &handle_for_fake );
 	} else
 		result = PTR_ERR( fake );
 	return result;
@@ -337,7 +337,7 @@ int kill_tree_root( znode *old_root /* tree root that we are removing */ )
 		zput( new_root );
 	} else
 		result = PTR_ERR( new_root );
-	reiser4_done_coord( &down_link );
+	done_coord( &down_link );
 	return result;
 }
 
