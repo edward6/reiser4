@@ -173,7 +173,7 @@ done_super_jnode(struct super_block *s)
 }
 
 /* plugin->u.format.get_ready */
-int
+reiser4_internal int
 get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 {
 	int result;
@@ -331,7 +331,7 @@ pack_format40_super(const struct super_block *s, char *data)
 /* plugin->u.format.log_super
    return a jnode which should be added to transaction when the super block
    gets logged */
-jnode *
+reiser4_internal jnode *
 log_super_format40(struct super_block *s)
 {
 	jnode *sb_jnode;
@@ -348,7 +348,7 @@ log_super_format40(struct super_block *s)
 }
 
 /* plugin->u.format.release */
-int
+reiser4_internal int
 release_format40(struct super_block *s)
 {
 	int ret;
@@ -392,7 +392,7 @@ release_format40(struct super_block *s)
 #define FORMAT40_ROOT_OBJECTID 42
 
 /* plugin->u.format.root_dir_key */
-const reiser4_key *
+reiser4_internal const reiser4_key *
 root_dir_key_format40(const struct super_block *super UNUSED_ARG)
 {
 	static const reiser4_key FORMAT40_ROOT_DIR_KEY = {
@@ -407,7 +407,7 @@ root_dir_key_format40(const struct super_block *super UNUSED_ARG)
 }
 
 /* plugin->u.format.print_info */
-void
+reiser4_internal void
 print_info_format40(const struct super_block *s)
 {
 #if 0
@@ -430,7 +430,7 @@ print_info_format40(const struct super_block *s)
 #endif
 }
 
-int
+reiser4_internal int
 check_mount_format40(const struct super_block *s) {
 	int res;
 
@@ -446,7 +446,7 @@ check_mount_format40(const struct super_block *s) {
    Check the opened object for validness. For now it checks for the valid oid &
    locality only, can be improved later and it its work may depend on the mount
    options. */
-int
+reiser4_internal int
 check_open_format40(const struct inode *object) {
 	oid_t max, oid;
 	

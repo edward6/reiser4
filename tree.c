@@ -206,7 +206,7 @@ const reiser4_block_nr UBER_TREE_ADDR = 0ull;
 #define CUT_TREE_MIN_ITERATIONS 64
 
 /* return node plugin of coord->node */
-node_plugin *
+reiser4_internal node_plugin *
 node_plugin_by_coord(const coord_t * coord)
 {
 	assert("vs-1", coord != NULL);
@@ -217,7 +217,8 @@ node_plugin_by_coord(const coord_t * coord)
 
 /* insert item into tree. Fields of @coord are updated so that they can be
  * used by consequent insert operation. */
-insert_result insert_by_key(reiser4_tree * tree	/* tree to insert new item
+reiser4_internal insert_result
+insert_by_key(reiser4_tree * tree	/* tree to insert new item
 						 * into */ ,
 			    const reiser4_key * key /* key of new item */ ,
 			    reiser4_item_data * data	/* parameters for item
@@ -357,7 +358,8 @@ paste_with_carry(coord_t * coord /* coord of paste */ ,
    that will do full carry().
 
 */
-insert_result insert_by_coord(coord_t * coord	/* coord where to
+reiser4_internal insert_result
+insert_by_coord(coord_t * coord	/* coord where to
 						   * insert. coord->node has
 						   * to be write locked by
 						   * caller */ ,
@@ -427,7 +429,8 @@ insert_result insert_by_coord(coord_t * coord	/* coord where to
 }
 
 /* @coord is set to leaf level and @data is to be inserted to twig level */
-insert_result insert_extent_by_coord(coord_t * coord	/* coord where to
+reiser4_internal insert_result
+insert_extent_by_coord(coord_t * coord	/* coord where to
 							   * insert. coord->node
 							   * has to be write
 							   * locked by caller */ ,
@@ -457,7 +460,7 @@ insert_result insert_extent_by_coord(coord_t * coord	/* coord where to
 
 */
 /* paste_into_item */
-int
+reiser4_internal int
 insert_into_item(coord_t * coord /* coord of pasting */ ,
 		 lock_handle * lh /* lock handle on node involved */ ,
 		 const reiser4_key * key /* key of unit being pasted */ ,
@@ -522,12 +525,13 @@ insert_into_item(coord_t * coord /* coord of pasting */ ,
 }
 
 /* this either appends or truncates item @coord */
-int resize_item(coord_t * coord /* coord of item being resized */ ,
-		reiser4_item_data * data /* parameters of resize */ ,
-		reiser4_key * key /* key of new unit */ ,
-		lock_handle * lh	/* lock handle of node
-					 * being modified */ ,
-		cop_insert_flag flags /* carry flags */ )
+reiser4_internal int
+resize_item(coord_t * coord /* coord of item being resized */ ,
+	    reiser4_item_data * data /* parameters of resize */ ,
+	    reiser4_key * key /* key of new unit */ ,
+	    lock_handle * lh	/* lock handle of node
+				 * being modified */ ,
+	    cop_insert_flag flags /* carry flags */ )
 {
 	int result;
 	carry_pool pool;
@@ -565,7 +569,7 @@ int resize_item(coord_t * coord /* coord of item being resized */ ,
 }
 
 /* insert flow @f */
-int
+reiser4_internal int
 insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 {
 	int result;
@@ -606,7 +610,7 @@ insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 }
 
 /* Given a coord in parent node, obtain a znode for the corresponding child */
-znode *
+reiser4_internal znode *
 child_znode(const coord_t * parent_coord	/* coord of pointer to
 						 * child */ ,
 	    znode * parent /* parent of child */ ,
@@ -656,7 +660,7 @@ child_znode(const coord_t * parent_coord	/* coord of pointer to
 /* This is called from longterm_unlock_znode() when last lock is released from
    the node that has been removed from the tree. At this point node is removed
    from sibling list and its lock is invalidated. */
-void
+reiser4_internal void
 forget_znode(lock_handle * handle)
 {
 	znode *node;
@@ -765,7 +769,7 @@ forget_znode(lock_handle * handle)
 }
 
 /* Check that internal item at @pointer really contains pointer to @child. */
-int
+reiser4_internal int
 check_tree_pointer(const coord_t * pointer	/* would-be pointer to
 						   * @child */ ,
 		   const znode * child /* child znode */ )
@@ -806,7 +810,7 @@ check_tree_pointer(const coord_t * pointer	/* would-be pointer to
    be in.
 
 */
-int
+reiser4_internal int
 find_new_child_ptr(znode * parent /* parent znode, passed locked */ ,
 		   znode * child UNUSED_ARG /* child znode, passed locked */ ,
 		   znode * left /* left brother of new node */ ,
@@ -833,7 +837,7 @@ find_new_child_ptr(znode * parent /* parent znode, passed locked */ ,
    Find the &coord_t in the @parent where pointer to a given @child is in.
 
 */
-int
+reiser4_internal int
 find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 	       znode * child /* child znode, passed locked */ ,
 	       coord_t * result /* where result is stored in */ )
@@ -907,7 +911,7 @@ find_child_ptr(znode * parent /* parent znode, passed locked */ ,
    numbers in them with that of @child.
 
 */
-int
+reiser4_internal int
 find_child_by_addr(znode * parent /* parent znode, passed locked */ ,
 		   znode * child /* child znode, passed locked */ ,
 		   coord_t * result /* where result is stored in */ )
@@ -934,7 +938,7 @@ find_child_by_addr(znode * parent /* parent znode, passed locked */ ,
 
 /* true, if @addr is "unallocated block number", which is just address, with
    highest bit set. */
-int
+reiser4_internal int
 is_disk_addr_unallocated(const reiser4_block_nr * addr	/* address to
 							 * check */ )
 {
@@ -946,7 +950,7 @@ is_disk_addr_unallocated(const reiser4_block_nr * addr	/* address to
 /* convert unallocated disk address to the memory address
 
    FIXME: This needs a big comment. */
-void *
+reiser4_internal void *
 unallocated_disk_addr_to_ptr(const reiser4_block_nr * addr	/* address to
 								 * convert */ )
 {
@@ -957,7 +961,7 @@ unallocated_disk_addr_to_ptr(const reiser4_block_nr * addr	/* address to
 
 /* try to shift everything from @right to @left. If everything was shifted -
    @right is removed from the tree.  Result is the number of bytes shifted. */
-int
+reiser4_internal int
 shift_everything_left(znode * right, znode * left, carry_level * todo)
 {
 	int result;
@@ -1268,7 +1272,7 @@ prepare_twig_cut(coord_t * from,
 
 */
 /* Audited by: umka (2002.06.16) */
-int
+reiser4_internal int
 cut_node(coord_t * from		/* coord of the first unit/item that will be
 				   * eliminated */ ,
 	 coord_t * to		/* coord of the last unit/item that will be
@@ -1594,7 +1598,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
  * FIXME(Zam): the cut_tree interruption is not implemented.
  */
 
-int
+reiser4_internal int
 cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key,
 		const reiser4_key * to_key, reiser4_key * smallest_removed_p,
 		struct inode * object)
@@ -1658,7 +1662,8 @@ cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key,
 /* repeat cut_tree_object until everything is deleted. unlike cut_file_items, it
  * does not end current transaction if -E_REPEAT is returned by
  * cut_tree_object. */
-int cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to,
+reiser4_internal int
+cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to,
 	     struct inode *inode)
 {
 	int result;
@@ -1671,67 +1676,8 @@ int cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to,
 }
 
 
-/* return number of unallocated children for  @node, or an error code, if result < 0 */
-int
-check_jnode_for_unallocated(jnode * node)
-{
-	int ret = 0;
-
-	if (!REISER4_DEBUG)
-		return 0;
-
-	return 0;
-
-	/* NOTE-NIKITA to properly implement this we need long-term lock on
-	   znode. */
-	if (jnode_is_znode(node) && jnode_get_level(node) >= TWIG_LEVEL) {
-		ret = zload(JZNODE(node));
-		if (ret)
-			return ret;
-
-		ret = check_jnode_for_unallocated_in_core(JZNODE(node));
-		zrelse(JZNODE(node));
-	}
-
-	return ret;
-}
-
-int
-check_jnode_for_unallocated_in_core(znode * z)
-{
-	int nr = 0;		/* number of unallocated children found */
-	coord_t coord;
-
-	if (!REISER4_DEBUG)
-		return 0;
-
-	return 0;
-
-	/* NOTE-NIKITA to properly implement this we need long-term lock on
-	   znode. */
-	for_all_units(&coord, z) {
-		if (item_is_internal(&coord)) {
-			reiser4_block_nr block;
-
-			item_plugin_by_coord(&coord)->s.internal.down_link(&coord, NULL, &block);
-			if (blocknr_is_fake(&block))
-				nr++;
-			continue;
-		}
-
-		if (item_is_extent(&coord)) {
-			assert("zam-675", znode_get_level(z) == TWIG_LEVEL);
-			if (extent_is_unallocated(&coord)) {
-				reiser4_extent *extent = extent_by_coord(&coord);
-				nr += extent_get_width(extent);
-			}
-		}
-	}
-	return nr;
-}
-
 /* first step of reiser4 tree initialization */
-void
+reiser4_internal void
 init_tree_0(reiser4_tree * tree)
 {
 	assert("zam-683", tree != NULL);
@@ -1740,7 +1686,7 @@ init_tree_0(reiser4_tree * tree)
 }
 
 /* finishing reiser4 initialization */
-int
+reiser4_internal int
 init_tree(reiser4_tree * tree	/* pointer to structure being
 				 * initialized */ ,
 	  const reiser4_block_nr * root_block	/* address of a root block
@@ -1783,7 +1729,7 @@ init_tree(reiser4_tree * tree	/* pointer to structure being
 }
 
 /* release resources associated with @tree */
-void
+reiser4_internal void
 done_tree(reiser4_tree * tree /* tree to release */ )
 {
 	assert("nikita-311", tree != NULL);
@@ -2026,7 +1972,7 @@ extern void tree_rec_dot(reiser4_tree *, znode *, __u32, FILE *);
 #endif
 
 /* debugging aid: recursively print content of a @tree. */
-void
+reiser4_internal void
 print_tree_rec(const char *prefix /* prefix to print */ ,
 	       reiser4_tree * tree /* tree to print */ ,
 	       __u32 flags /* print flags */ )

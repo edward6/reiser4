@@ -32,7 +32,7 @@ static const reiser4_key MAXIMAL_KEY = {
 };
 
 /* Initialise key. */
-void
+reiser4_internal void
 key_init(reiser4_key * key /* key to init */ )
 {
 	assert("nikita-1169", key != NULL);
@@ -40,14 +40,14 @@ key_init(reiser4_key * key /* key to init */ )
 }
 
 /* minimal possible key in the tree. Return pointer to the static storage. */
-const reiser4_key *
+reiser4_internal const reiser4_key *
 min_key(void)
 {
 	return &MINIMAL_KEY;
 }
 
 /* maximum possible key in the tree. Return pointer to the static storage. */
-const reiser4_key *
+reiser4_internal const reiser4_key *
 max_key(void)
 {
 	return &MAXIMAL_KEY;
@@ -77,7 +77,7 @@ type_name(unsigned int key_type /* key type */ )
 extern char *unpack_string(__u64 value, char *buf);
 
 /* debugging aid: print human readable information about key */
-void
+reiser4_internal void
 print_key(const char *prefix /* prefix to print */ ,
 	  const reiser4_key * key /* key to print */ )
 {
@@ -125,7 +125,7 @@ print_key(const char *prefix /* prefix to print */ ,
 
 #endif
 
-int
+reiser4_internal int
 sprintf_key(char *buffer /* buffer to print key into */ ,
 	    const reiser4_key * key /* key to print */ )
 {

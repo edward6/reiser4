@@ -349,7 +349,7 @@ paste_entry(const coord_t * coord /* coord of item */ ,
 
 /* estimate how much space is necessary in item to insert/paste set of entries
    described in @data. */
-int
+reiser4_internal int
 estimate_cde(const coord_t * coord /* coord of item */ ,
 	     const reiser4_item_data * data /* parameters for new item */ )
 {
@@ -386,14 +386,14 @@ estimate_cde(const coord_t * coord /* coord of item */ ,
 }
 
 /* ->nr_units() method for this item plugin. */
-pos_in_item_t
+reiser4_internal pos_in_item_t
 nr_units_cde(const coord_t * coord /* coord of item */ )
 {
 	return units(coord);
 }
 
 /* ->unit_key() method for this item plugin. */
-reiser4_key *
+reiser4_internal reiser4_key *
 unit_key_cde(const coord_t * coord /* coord of item */ ,
 	     reiser4_key * key /* resulting key */ )
 {
@@ -412,7 +412,7 @@ unit_key_cde(const coord_t * coord /* coord of item */ ,
    directory. That simple.
 
 */
-int
+reiser4_internal int
 mergeable_cde(const coord_t * p1 /* coord of first item */ ,
 	      const coord_t * p2 /* coord of second item */ )
 {
@@ -430,7 +430,7 @@ mergeable_cde(const coord_t * p1 /* coord of first item */ ,
 }
 
 /* ->max_key_inside() method for this item plugin. */
-reiser4_key *
+reiser4_internal reiser4_key *
 max_key_inside_cde(const coord_t * coord /* coord of item */ ,
 		   reiser4_key * result /* resulting key */)
 {
@@ -444,7 +444,7 @@ max_key_inside_cde(const coord_t * coord /* coord of item */ ,
 }
 
 /* @data contains data which are to be put into tree */
-int
+reiser4_internal int
 can_contain_key_cde(const coord_t * coord /* coord of item */ ,
 		    const reiser4_key * key /* key to check */ ,
 		    const reiser4_item_data * data	/* parameters of new
@@ -465,7 +465,7 @@ can_contain_key_cde(const coord_t * coord /* coord of item */ ,
 
 #if REISER4_DEBUG_OUTPUT
 /* ->print() method for this item plugin. */
-void
+reiser4_internal void
 print_cde(const char *prefix /* prefix to print */ ,
 	  coord_t * coord /* coord of item to print */ )
 {
@@ -523,13 +523,14 @@ print_cde(const char *prefix /* prefix to print */ ,
 }
 #endif
 
+#if REISER4_DEBUG
 /* cde_check ->check() method for compressed directory items
 
    used for debugging, every item should have here the most complete
    possible check of the consistency of the item that the inventor can
    construct
 */
-int
+reiser4_internal int
 check_cde(const coord_t * coord /* coord of item to check */ ,
 	  const char **error /* where to store error message */ )
 {
@@ -577,9 +578,10 @@ check_cde(const coord_t * coord /* coord of item to check */ ,
 
 	return result;
 }
+#endif
 
 /* ->init() method for this item plugin. */
-int
+reiser4_internal int
 init_cde(coord_t * coord /* coord of item */ ,
 	 coord_t * from UNUSED_ARG,
 	 reiser4_item_data * data	/* structure used for insertion */
@@ -590,9 +592,10 @@ init_cde(coord_t * coord /* coord of item */ ,
 }
 
 /* ->lookup() method for this item plugin. */
-lookup_result lookup_cde(const reiser4_key * key /* key to search for */ ,
-			 lookup_bias bias /* search bias */ ,
-			 coord_t * coord /* coord of item to lookup in */ )
+reiser4_internal lookup_result
+lookup_cde(const reiser4_key * key /* key to search for */ ,
+	   lookup_bias bias /* search bias */ ,
+	   coord_t * coord /* coord of item to lookup in */ )
 {
 	cmp_t last_comp;
 	int pos;
@@ -632,7 +635,7 @@ lookup_result lookup_cde(const reiser4_key * key /* key to search for */ ,
 }
 
 /* ->paste() method for this item plugin. */
-int
+reiser4_internal int
 paste_cde(coord_t * coord /* coord of item */ ,
 	  reiser4_item_data * data	/* parameters of new unit being
 					 * inserted */ ,
@@ -684,7 +687,7 @@ part_size(const coord_t * coord /* coord of item */ ,
    "prepend" first item in @target by last units of @source. @target
    node has @free_space bytes of free space. Total size of those units
    are returned via @size */
-int
+reiser4_internal int
 can_shift_cde(unsigned free_space /* free space in item */ ,
 	      coord_t * coord /* coord of source item */ ,
 	      znode * target /* target node */ ,
@@ -732,7 +735,7 @@ can_shift_cde(unsigned free_space /* free space in item */ ,
 }
 
 /* ->copy_units() method for this item plugin. */
-void
+reiser4_internal void
 copy_units_cde(coord_t * target /* coord of target item */ ,
 	       coord_t * source /* coord of source item */ ,
 	       unsigned from /* starting unit */ ,
@@ -805,7 +808,7 @@ copy_units_cde(coord_t * target /* coord of target item */ ,
 }
 
 /* ->cut_units() method for this item plugin. */
-int
+reiser4_internal int
 cut_units_cde(coord_t * coord /* coord of item */ ,
 	      unsigned *from /* start unit pos */ ,
 	      unsigned *to /* stop unit pos */ ,
@@ -890,7 +893,7 @@ cut_units_cde(coord_t * coord /* coord of item */ ,
 }
 
 /* ->s.dir.extract_key() method for this item plugin. */
-int
+reiser4_internal int
 extract_key_cde(const coord_t * coord /* coord of item */ ,
 		reiser4_key * key /* resulting key */ )
 {
@@ -903,7 +906,7 @@ extract_key_cde(const coord_t * coord /* coord of item */ ,
 	return extract_key_from_id(&dent->id, key);
 }
 
-int
+reiser4_internal int
 update_key_cde(const coord_t * coord, const reiser4_key * key, lock_handle * lh UNUSED_ARG)
 {
 	directory_entry_format *dent;
@@ -923,7 +926,7 @@ update_key_cde(const coord_t * coord, const reiser4_key * key, lock_handle * lh 
 }
 
 /* ->s.dir.extract_name() method for this item plugin. */
-char *
+reiser4_internal char *
 extract_name_cde(const coord_t * coord /* coord of item */, char *buf)
 {
 	directory_entry_format *dent;
@@ -946,7 +949,7 @@ cde_bytes(int pasting, const reiser4_item_data * data)
 }
 
 /* ->s.dir.add_entry() method for this item plugin */
-int
+reiser4_internal int
 add_entry_cde(struct inode *dir /* directory object */ ,
 	      coord_t * coord /* coord of item */ ,
 	      lock_handle * lh /* lock handle for insertion */ ,
@@ -990,7 +993,7 @@ add_entry_cde(struct inode *dir /* directory object */ ,
 }
 
 /* ->s.dir.rem_entry() */
-int
+reiser4_internal int
 rem_entry_cde(struct inode *dir /* directory of item */ ,
 	      const struct qstr * name,
 	      coord_t * coord /* coord of item */ ,
@@ -1039,7 +1042,7 @@ rem_entry_cde(struct inode *dir /* directory of item */ ,
 }
 
 /* ->s.dir.max_name_len() method for this item plugin */
-int
+reiser4_internal int
 max_name_len_cde(const struct inode *dir /* directory */ )
 {
 	return

@@ -8,7 +8,7 @@
 /* for nr_free_pagecache_pages(), totalram_pages */
 #include <linux/swap.h>
 
-void init_ra_info(ra_info_t * rai)
+reiser4_internal void init_ra_info(ra_info_t * rai)
 {
 	rai->key_to_stop = *min_key();
 }
@@ -40,7 +40,7 @@ low_on_memory(void)
 }
 
 /* start read for @node and for a few of its right neighbors */
-void
+reiser4_internal void
 formatted_readahead(znode *node, ra_info_t *info)
 {
 	ra_params_t *ra_params;
@@ -101,7 +101,7 @@ formatted_readahead(znode *node, ra_info_t *info)
 		done_lh(&next_lh);
 		if (znode_page(cur) == NULL)
 			jstartio(ZJNODE(cur));
-		else 
+		else
 			/* Do not scan read-ahead window if pages already
 			 * allocated (and i/o already started). */
 			break;

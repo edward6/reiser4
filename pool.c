@@ -62,7 +62,7 @@ reiser4_init_pool_obj(reiser4_pool_header * h	/* pool object to
 }
 
 /* initialise new pool */
-void
+reiser4_internal void
 reiser4_init_pool(reiser4_pool * pool /* pool to initialise */ ,
 		  size_t obj_size /* size of objects in @pool */ ,
 		  int num_of_objs /* number of preallocated objects */ ,
@@ -96,7 +96,7 @@ reiser4_init_pool(reiser4_pool * pool /* pool to initialise */ ,
    allocated objects.
 
 */
-void
+reiser4_internal void
 reiser4_done_pool(reiser4_pool * pool UNUSED_ARG /* pool to destroy */ )
 {
 }
@@ -107,7 +107,7 @@ reiser4_done_pool(reiser4_pool * pool UNUSED_ARG /* pool to destroy */ )
    allocation.
 
 */
-void *
+reiser4_internal void *
 reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 					 * from */ )
 {
@@ -140,7 +140,7 @@ reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 }
 
 /* return object back to the pool */
-void
+reiser4_internal void
 reiser4_pool_free(reiser4_pool * pool,
 		  reiser4_pool_header * h	/* pool to return object back
 						 * into */ )
@@ -178,7 +178,7 @@ reiser4_pool_free(reiser4_pool * pool,
    (that is "right" node).
 
 */
-reiser4_pool_header *
+reiser4_internal reiser4_pool_header *
 add_obj(reiser4_pool * pool	/* pool from which to
 				 * allocate new object */ ,
 	pool_level_list_head * list	/* list where to add

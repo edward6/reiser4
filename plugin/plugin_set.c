@@ -137,16 +137,16 @@ static plugin_set empty_set = {
 	.link               = { NULL }
 };
 
-plugin_set *plugin_set_get_empty(void)
+reiser4_internal plugin_set *plugin_set_get_empty(void)
 {
 	return &empty_set;
 }
 
-void plugin_set_put(plugin_set *set)
+reiser4_internal void plugin_set_put(plugin_set *set)
 {
 }
 
-plugin_set *plugin_set_clone(plugin_set *set)
+reiser4_internal plugin_set *plugin_set_clone(plugin_set *set)
 {
 	return set;
 }
@@ -203,9 +203,9 @@ static int plugin_set_field(plugin_set **set, const unsigned long val, const int
 }
 
 #define DEFINE_PLUGIN_SET(type, field)						\
-int plugin_set_ ## field(plugin_set **set, type *val)				\
+reiser4_internal int plugin_set_ ## field(plugin_set **set, type *val)		\
 {										\
-	cassert(sizeof val == sizeof(unsigned long));					\
+	cassert(sizeof val == sizeof(unsigned long));				\
 	return plugin_set_field(set, (unsigned long)val, offsetof(plugin_set, field));	\
 }
 
@@ -220,7 +220,7 @@ DEFINE_PLUGIN_SET(crypto_plugin, crypto)
 DEFINE_PLUGIN_SET(digest_plugin, digest)
 DEFINE_PLUGIN_SET(compression_plugin, compression)
 
-int plugin_set_init(void)
+reiser4_internal int plugin_set_init(void)
 {
 	int result;
 
@@ -236,7 +236,7 @@ int plugin_set_init(void)
 	return result;
 }
 
-void plugin_set_done(void)
+reiser4_internal void plugin_set_done(void)
 {
 	/* NOTE: scan hash table and recycle all objects. */
 	kmem_cache_destroy(plugin_set_slab);

@@ -168,11 +168,6 @@ void coord_init_after_item(coord_t *);
 /* Calls either coord_init_first_unit or coord_init_last_unit depending on sideof argument. */
 extern void coord_init_sideof_unit(coord_t * coord, const znode * node, sideof dir);
 
-/* Initialize a parent hint pointer. (parent hint pointer is a field in znode,
-   look for comments there)
-   FIXME-VS: added by vs (2002, june, 8) */
-extern void coord_init_parent_hint(coord_t * coord, const znode * node);
-
 /* Initialize a coordinate by 0s. Used in places where init_coord was used and
    it was not clear how actually
    FIXME-VS: added by vs (2002, june, 8) */
@@ -224,8 +219,6 @@ extern int coord_are_neighbors(coord_t * c1, coord_t * c2);
 /* Assuming two coordinates are positioned in the same node, return NCOORD_CMP_ON_RIGHT,
    NCOORD_CMP_ON_LEFT, or NCOORD_CMP_SAME depending on c1's position relative to c2.  */
 extern coord_cmp coord_compare(coord_t * c1, coord_t * c2);
-/* Returns the current item positions.  Asserts non-empty. */
-extern unsigned coord_item_pos(const coord_t * coord);
 
 /* COORD PREDICATES */
 
@@ -252,14 +245,6 @@ extern int coord_is_empty(const coord_t * coord);
    true for empty nodes nor coordinates positioned before the first item. */
 extern int coord_is_leftmost_unit(const coord_t * coord);
 
-/* Returns true if the coordinate is positioned at the last unit of the last item.  Not
-   true for empty nodes nor coordinates positioned after the last item. */
-extern int coord_is_rightmost_unit(const coord_t * coord);
-
-/* Returns true if the coordinate is positioned at any unit of the last item.  Not true
-   for empty nodes nor coordinates positioned after the last item. */
-extern int coord_is_rightmost_item(const coord_t * coord);
-
 /* Returns true if the coordinate is positioned after the last item or after the last unit
    of the last item or it is an empty node. */
 extern int coord_is_after_rightmost(const coord_t * coord);
@@ -271,10 +256,6 @@ extern int coord_is_before_leftmost(const coord_t * coord);
 /* Calls either coord_is_before_leftmost or coord_is_after_rightmost depending on sideof
    argument. */
 extern int coord_is_after_sideof_unit(coord_t * coord, sideof dir);
-
-/* Returns true if coord is set to or before the first (if LEFT_SIDE) unit of the item and
-   to or after the last (if RIGHT_SIDE) unit of the item. */
-extern int coord_is_delimiting(coord_t * coord, sideof dir);
 
 /* COORD MODIFIERS */
 
@@ -305,16 +286,6 @@ extern int coord_set_to_right(coord_t * coord);
 /* If the coordinate is between items, shifts it to the left.  Returns 0 on success and
    non-zero if there is no position to the left. */
 extern int coord_set_to_left(coord_t * coord);
-
-/* return true if coord is set after last unit in an item. 0 - otherwise. It is
-   used mostly to avoid repeated tree traversals writing to a file
-   sequentially */
-int coord_is_after_last_unit(coord_t * coord);
-
-/* If the coordinate is before an item/unit, set to next item/unit.  If the coordinate is
-   after an item/unit, set to the previous item/unit.  Returns 0 on success and non-zero
-   if there is no position (i.e., if the coordinate is empty). */
-extern int coord_set_to_unit(coord_t * coord);
 
 /* If the coordinate is at an existing unit, set to after that unit.  Returns 0 on success
    and non-zero if the unit did not exist. */

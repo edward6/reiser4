@@ -44,7 +44,6 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/writeback.h>
-#include <linux/mpage.h>
 #include <linux/backing-dev.h>
 #include <linux/quotaops.h>
 #include <linux/security.h>
@@ -200,7 +199,7 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
 */
 
 /* ->bmap() VFS method in reiser4 address_space_operations */
-int
+reiser4_internal int
 reiser4_lblock_to_blocknr(struct address_space *mapping,
 			  sector_t lblock, reiser4_block_nr *blocknr)
 {
@@ -249,7 +248,7 @@ reiser4_bmap(struct address_space *mapping, sector_t lblock)
  * completed.
  */
 
-int
+reiser4_internal int
 reiser4_invalidatepage(struct page *page /* page to invalidate */,
 		       unsigned long offset /* starting offset for partial
 					     * invalidation */)
@@ -375,7 +374,7 @@ releasable(const jnode *node /* node to check */)
 		INC_NSTAT(node, vm.release.dirty);
 		return 0;
 	}
-	/* overwrite is only written by log writer. */
+	/* overwrite set is only written by log writer. */
 	if (JF_ISSET(node, JNODE_OVRWR)) {
 		INC_NSTAT(node, vm.release.ovrwr);
 		return 0;
@@ -400,9 +399,9 @@ releasable(const jnode *node /* node to check */)
 }
 
 #if REISER4_DEBUG
-int jnode_is_releasable(const jnode *node)
+int jnode_is_releasable(jnode *node)
 {
-	return releasable(node);
+	return UNDER_SPIN(jload, node, releasable(node));
 }
 #endif
 
@@ -415,7 +414,7 @@ int jnode_is_releasable(const jnode *node)
  *
  * Check for releasability is done by releasable() function.
  */
-int
+reiser4_internal int
 reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 {
 	jnode *node;
@@ -478,11 +477,14 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	}
 }
 
+#undef INC_NSTAT
+#undef INC_STAT
+
 /* reiser4 writepages() address space operation this captures anonymous pages
    and anonymous jnodes. Anonymous pages are pages which are dirtied via
    mmapping. Anonymous jnodes are ones which were created by reiser4_writepage
  */
-int
+reiser4_internal int
 reiser4_writepages(struct address_space *mapping,
 		   struct writeback_control *wbc)
 {
@@ -508,7 +510,7 @@ reiser4_writepages(struct address_space *mapping,
 }
 
 /* start actual IO on @page */
-int reiser4_start_up_io(struct page *page)
+reiser4_internal int reiser4_start_up_io(struct page *page)
 {
 	block_sync_page(page);
 	return 0;

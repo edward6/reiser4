@@ -2,6 +2,9 @@
 
 /* DECLARATIONS: */
 
+#if !defined(__REISER4_FLUSH_H__)
+#define __REISER4_FLUSH_H__
+
 #include "plugin/item/ctail.h" /* for ctail scan/squeeze info */
 
 typedef enum {
@@ -144,7 +147,7 @@ int scan_goto(flush_scan * scan, jnode * tonode);
 txn_atom *atom_locked_by_fq(flush_queue_t * fq);
 
 int init_fqs(void);
-int done_fqs(void);
+void done_fqs(void);
 
 #if REISER4_TRACE
 const char *jnode_tostring(jnode * node);
@@ -158,4 +161,7 @@ assert("nikita-2588", blk < reiser4_block_count(reiser4_get_current_sb()));
 
 #else
 #define check_preceder( b ) noop
+#endif
+
+/* __REISER4_FLUSH_H__ */
 #endif

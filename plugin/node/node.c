@@ -57,7 +57,7 @@
 #include "../../reiser4.h"
 
 /* return starting key of the leftmost item in the @node */
-reiser4_key *
+reiser4_internal reiser4_key *
 leftmost_key_in_node(const znode * node /* node to query */ ,
 		     reiser4_key * key /* resulting key */ )
 {
@@ -90,7 +90,7 @@ hex_to_ascii(const int hex /* hex digit */ )
 
 /* helper function used to indent output during recursive tree printing */
 /* Audited by: green(2002.06.12) */
-void
+reiser4_internal void
 indent(unsigned indentation)
 {
 	unsigned i;
@@ -101,7 +101,7 @@ indent(unsigned indentation)
 
 /* helper function used to indent output for @node during recursive tree
    printing */
-void
+reiser4_internal void
 indent_znode(const znode * node /* current node */ )
 {
 	if (znode_get_tree(node)->height < znode_get_level(node))
@@ -111,7 +111,7 @@ indent_znode(const znode * node /* current node */ )
 }
 
 /* debugging aid: output human readable information about @node */
-void
+reiser4_internal void
 print_node_content(const char *prefix /* output prefix */ ,
 		   const znode * node /* node to print */ ,
 		   __u32 flags /* print flags */ )
@@ -201,7 +201,7 @@ print_node_content(const char *prefix /* output prefix */ ,
 
 /* debugging aid: output human readable information about @node
    the same as the above, but items to be printed must be specified */
-void
+reiser4_internal void
 print_node_items(const char *prefix /* output prefix */ ,
 		 const znode * node /* node to print */ ,
 		 __u32 flags /* print flags */ ,

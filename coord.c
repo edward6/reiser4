@@ -23,7 +23,7 @@ coord_init_values(coord_t *coord, const znode *node, pos_in_node_t item_pos,
 
 /* after shifting of node content, coord previously set properly may become
    invalid, try to "normalize" it. */
-void
+reiser4_internal void
 coord_normalize(coord_t *coord)
 {
 	znode *node;
@@ -51,7 +51,7 @@ coord_normalize(coord_t *coord)
 }
 
 /* Copy a coordinate. */
-void
+reiser4_internal void
 coord_dup(coord_t * coord, const coord_t * old_coord)
 {
 	assert("jmacd-9800", coord_check(old_coord));
@@ -60,7 +60,7 @@ coord_dup(coord_t * coord, const coord_t * old_coord)
 
 /* Copy a coordinate without check. Useful when old_coord->node is not
    loaded. As in cbk_tree_lookup -> connect_znode -> connect_one_side */
-void
+reiser4_internal void
 coord_dup_nocheck(coord_t * coord, const coord_t * old_coord)
 {
 	coord->node = old_coord->node;
@@ -71,13 +71,13 @@ coord_dup_nocheck(coord_t * coord, const coord_t * old_coord)
 }
 
 /* Initialize an invalid coordinate. */
-void
+reiser4_internal void
 coord_init_invalid(coord_t * coord, const znode * node)
 {
 	coord_init_values(coord, node, 0, 0, INVALID_COORD);
 }
 
-void
+reiser4_internal void
 coord_init_first_unit_nocheck(coord_t * coord, const znode * node)
 {
 	coord_init_values(coord, node, 0, 0, AT_UNIT);
@@ -85,7 +85,7 @@ coord_init_first_unit_nocheck(coord_t * coord, const znode * node)
 
 /* Initialize a coordinate to point at the first unit of the first item.  If the node is
    empty, it is positioned at the EMPTY_NODE. */
-void
+reiser4_internal void
 coord_init_first_unit(coord_t * coord, const znode * node)
 {
 	int is_empty = node_is_empty(node);
@@ -97,7 +97,7 @@ coord_init_first_unit(coord_t * coord, const znode * node)
 
 /* Initialize a coordinate to point at the last unit of the last item.  If the node is
    empty, it is positioned at the EMPTY_NODE. */
-void
+reiser4_internal void
 coord_init_last_unit(coord_t * coord, const znode * node)
 {
 	int is_empty = node_is_empty(node);
@@ -110,7 +110,7 @@ coord_init_last_unit(coord_t * coord, const znode * node)
 
 /* Initialize a coordinate to before the first item.  If the node is empty, it is
    positioned at the EMPTY_NODE. */
-void
+reiser4_internal void
 coord_init_before_first_item(coord_t * coord, const znode * node)
 {
 	int is_empty = node_is_empty(node);
@@ -122,7 +122,7 @@ coord_init_before_first_item(coord_t * coord, const znode * node)
 
 /* Initialize a coordinate to after the last item.  If the node is empty, it is positioned
    at the EMPTY_NODE. */
-void
+reiser4_internal void
 coord_init_after_last_item(coord_t * coord, const znode * node)
 {
 	int is_empty = node_is_empty(node);
@@ -135,7 +135,7 @@ coord_init_after_last_item(coord_t * coord, const znode * node)
 
 /* Initialize a coordinate to after last unit in the item. Coord must be set
    already to existing item */
-void
+reiser4_internal void
 coord_init_after_item_end(coord_t * coord)
 {
 	coord->between = AFTER_UNIT;
@@ -143,7 +143,7 @@ coord_init_after_item_end(coord_t * coord)
 }
 
 /* Initialize a coordinate to before the item. Coord must be set already to existing item */
-void
+reiser4_internal void
 coord_init_before_item(coord_t * coord)
 {
 	coord->unit_pos = 0;
@@ -151,32 +151,23 @@ coord_init_before_item(coord_t * coord)
 }
 
 /* Initialize a coordinate to after the item. Coord must be set already to existing item */
-void
+reiser4_internal void
 coord_init_after_item(coord_t * coord)
 {
 	coord->unit_pos = 0;
 	coord->between = AFTER_ITEM;
 }
 
-/* Initialize a parent hint pointer. (parent hint pointer is a field in znode,
-   look for comments there) */
-void
-coord_init_parent_hint(coord_t * coord, const znode * node)
-{
-	coord->node = (znode *) node;
-	coord_invalid_item_pos(coord);
-}
-
 /* Initialize a coordinate by 0s. Used in places where init_coord was used and
    it was not clear how actually */
-void
+reiser4_internal void
 coord_init_zero(coord_t * coord)
 {
 	xmemset(coord, 0, sizeof (*coord));
 }
 
 /* Return the number of units at the present item.  Asserts coord_is_existing_item(). */
-unsigned
+reiser4_internal unsigned
 coord_num_units(const coord_t * coord)
 {
 	assert("jmacd-9806", coord_is_existing_item(coord));
@@ -184,19 +175,9 @@ coord_num_units(const coord_t * coord)
 	return item_plugin_by_coord(coord)->b.nr_units(coord);
 }
 
-/* Returns the current item positions.  Asserts non-empty. */
-/* Audited by: green(2002.06.15) */
-unsigned
-coord_item_pos(const coord_t * coord)
-{
-	assert("jmacd-5512", coord->between != EMPTY_NODE && coord->between != INVALID_COORD);
-	assert("jmacd-5513", node_num_items(coord->node) != 0);
-	return coord->item_pos;
-}
-
 /* Returns true if the coord was initializewd by coord_init_invalid (). */
 /* Audited by: green(2002.06.15) */
-int
+reiser4_internal int
 coord_is_invalid(const coord_t * coord)
 {
 	return coord->between == INVALID_COORD;
@@ -205,7 +186,7 @@ coord_is_invalid(const coord_t * coord)
 /* Returns true if the coordinate is positioned at an existing item, not before or after
    an item.  It may be placed at, before, or after any unit within the item, whether
    existing or not. */
-int
+reiser4_internal int
 coord_is_existing_item(const coord_t * coord)
 {
 	switch (coord->between) {
@@ -229,7 +210,7 @@ coord_is_existing_item(const coord_t * coord)
 /* Returns true if the coordinate is positioned at an existing unit, not before or after a
    unit. */
 /* Audited by: green(2002.06.15) */
-int
+reiser4_internal int
 coord_is_existing_unit(const coord_t * coord)
 {
 	switch (coord->between) {
@@ -252,31 +233,10 @@ coord_is_existing_unit(const coord_t * coord)
 /* Returns true if the coordinate is positioned at the first unit of the first item.  Not
    true for empty nodes nor coordinates positioned before the first item. */
 /* Audited by: green(2002.06.15) */
-int
+reiser4_internal int
 coord_is_leftmost_unit(const coord_t * coord)
 {
 	return (coord->between == AT_UNIT && coord->item_pos == 0 && coord->unit_pos == 0);
-}
-
-/* Returns true if the coordinate is positioned at the last unit of the last item.  Not
-   true for empty nodes nor coordinates positioned after the last item. */
-/* Audited by: green(2002.06.15) */
-int
-coord_is_rightmost_unit(const coord_t * coord)
-{
-	assert("jmacd-9809", coord_is_existing_item(coord));
-	return (coord->between == AT_UNIT &&
-		coord->item_pos == coord_num_units(coord) - 1 && coord->unit_pos == coord_last_unit_pos(coord));
-}
-
-/* Returns true if the coordinate is positioned at any unit of the last item.  Not true
-   for empty nodes nor coordinates positioned after the last item. */
-/* Audited by: green(2002.06.15) */
-int
-coord_is_rightmost_item(const coord_t * coord)
-{
-	assert("jmacd-9820", coord_is_existing_item(coord));
-	return (coord->between == AT_UNIT && coord->item_pos == coord_num_units(coord) - 1);
 }
 
 #if REISER4_DEBUG
@@ -373,7 +333,7 @@ coord_adjust_items(coord_t * coord, unsigned items, int is_next)
 /* Advances the coordinate by one unit to the right.  If empty, no change.  If
    coord_is_rightmost_unit, advances to AFTER THE LAST ITEM.  Returns 0 if new position is an
    existing unit. */
-int
+reiser4_internal int
 coord_next_unit(coord_t * coord)
 {
 	unsigned items = coord_num_items(coord);
@@ -434,7 +394,7 @@ coord_next_unit(coord_t * coord)
 /* Advances the coordinate by one item to the right.  If empty, no change.  If
    coord_is_rightmost_unit, advances to AFTER THE LAST ITEM.  Returns 0 if new position is
    an existing item. */
-int
+reiser4_internal int
 coord_next_item(coord_t * coord)
 {
 	unsigned items = coord_num_items(coord);
@@ -480,7 +440,7 @@ coord_next_item(coord_t * coord)
 /* Advances the coordinate by one unit to the left.  If empty, no change.  If
    coord_is_leftmost_unit, advances to BEFORE THE FIRST ITEM.  Returns 0 if new position
    is an existing unit. */
-int
+reiser4_internal int
 coord_prev_unit(coord_t * coord)
 {
 	unsigned items = coord_num_items(coord);
@@ -539,7 +499,7 @@ coord_prev_unit(coord_t * coord)
 /* Advances the coordinate by one item to the left.  If empty, no change.  If
    coord_is_leftmost_unit, advances to BEFORE THE FIRST ITEM.  Returns 0 if new position
    is an existing item. */
-int
+reiser4_internal int
 coord_prev_item(coord_t * coord)
 {
 	unsigned items = coord_num_items(coord);
@@ -580,7 +540,7 @@ coord_prev_item(coord_t * coord)
 }
 
 /* Calls either coord_init_first_unit or coord_init_last_unit depending on sideof argument. */
-void
+reiser4_internal void
 coord_init_sideof_unit(coord_t * coord, const znode * node, sideof dir)
 {
 	assert("jmacd-9821", dir == LEFT_SIDE || dir == RIGHT_SIDE);
@@ -594,7 +554,7 @@ coord_init_sideof_unit(coord_t * coord, const znode * node, sideof dir)
 /* Calls either coord_is_before_leftmost or coord_is_after_rightmost depending on sideof
    argument. */
 /* Audited by: green(2002.06.15) */
-int
+reiser4_internal int
 coord_is_after_sideof_unit(coord_t * coord, sideof dir)
 {
 	assert("jmacd-9822", dir == LEFT_SIDE || dir == RIGHT_SIDE);
@@ -607,7 +567,7 @@ coord_is_after_sideof_unit(coord_t * coord, sideof dir)
 
 /* Calls either coord_next_unit or coord_prev_unit depending on sideof argument. */
 /* Audited by: green(2002.06.15) */
-int
+reiser4_internal int
 coord_sideof_unit(coord_t * coord, sideof dir)
 {
 	assert("jmacd-9823", dir == LEFT_SIDE || dir == RIGHT_SIDE);
@@ -618,7 +578,7 @@ coord_sideof_unit(coord_t * coord, sideof dir)
 	}
 }
 
-int
+reiser4_internal int
 coords_equal(const coord_t * c1, const coord_t * c2)
 {
 	assert("nikita-2840", c1 != NULL);
@@ -639,7 +599,7 @@ coords_equal(const coord_t * c1, const coord_t * c2)
 /* Returns true if two coordinates are consider equal.  Coordinates that are between units
    or items are considered equal. */
 /* Audited by: green(2002.06.15) */
-int
+reiser4_internal int
 coord_eq(const coord_t * c1, const coord_t * c2)
 {
 	assert("nikita-1807", c1 != NULL);
@@ -682,7 +642,7 @@ coord_eq(const coord_t * c1, const coord_t * c2)
 /* If coord_is_after_rightmost return NCOORD_ON_THE_RIGHT, if coord_is_after_leftmost
    return NCOORD_ON_THE_LEFT, otherwise return NCOORD_INSIDE. */
 /* Audited by: green(2002.06.15) */
-coord_wrt_node coord_wrt(const coord_t * coord)
+reiser4_internal coord_wrt_node coord_wrt(const coord_t * coord)
 {
 	if (coord_is_before_leftmost(coord)) {
 		return COORD_ON_THE_LEFT;
@@ -698,7 +658,7 @@ coord_wrt_node coord_wrt(const coord_t * coord)
 /* Returns true if the coordinate is positioned after the last item or after the last unit
    of the last item or it is an empty node. */
 /* Audited by: green(2002.06.15) */
-int
+reiser4_internal int
 coord_is_after_rightmost(const coord_t * coord)
 {
 	assert("jmacd-7313", coord_check(coord));
@@ -727,7 +687,7 @@ coord_is_after_rightmost(const coord_t * coord)
 
 /* Returns true if the coordinate is positioned before the first item or it is an empty
    node. */
-int
+reiser4_internal int
 coord_is_before_leftmost(const coord_t * coord)
 {
 	/* FIXME-VS: coord_check requires node to be loaded whereas it is not
@@ -755,7 +715,7 @@ coord_is_before_leftmost(const coord_t * coord)
 /* Returns true if the coordinate is positioned after a item, before a item, after the
    last unit of an item, before the first unit of an item, or at an empty node. */
 /* Audited by: green(2002.06.15) */
-int
+reiser4_internal int
 coord_is_between_items(const coord_t * coord)
 {
 	assert("jmacd-7313", coord_check(coord));
@@ -783,7 +743,7 @@ coord_is_between_items(const coord_t * coord)
 
 /* Returns true if the coordinates are positioned at adjacent units, regardless of
    before-after or item boundaries. */
-int
+reiser4_internal int
 coord_are_neighbors(coord_t * c1, coord_t * c2)
 {
 	coord_t *left;
@@ -823,7 +783,7 @@ coord_are_neighbors(coord_t * c1, coord_t * c2)
 /* Assuming two coordinates are positioned in the same node, return COORD_CMP_ON_RIGHT,
    COORD_CMP_ON_LEFT, or COORD_CMP_SAME depending on c1's position relative to c2.  */
 /* Audited by: green(2002.06.15) */
-coord_cmp coord_compare(coord_t * c1, coord_t * c2)
+reiser4_internal coord_cmp coord_compare(coord_t * c1, coord_t * c2)
 {
 	assert("vs-209", c1->node == c2->node);
 	assert("vs-194", coord_is_existing_unit(c1)
@@ -840,53 +800,9 @@ coord_cmp coord_compare(coord_t * c1, coord_t * c2)
 	return COORD_CMP_SAME;
 }
 
-/* Returns true if coord is set to or before the first (if LEFT_SIDE) unit of the item and
-   to or after the last (if RIGHT_SIDE) unit of the item. */
-/* Audited by: green(2002.06.15) */
-int
-coord_is_delimiting(coord_t * coord, sideof dir)
-{
-	assert("jmacd-9824", dir == LEFT_SIDE || dir == RIGHT_SIDE);
-
-	if (dir == LEFT_SIDE) {
-		return coord_is_before_leftmost(coord);
-	} else {
-		return coord_is_after_rightmost(coord);
-	}
-}
-
-/* If the coordinate is before an item/unit, set to next item/unit.  If the coordinate is
-   after an item/unit, set to the previous item/unit.  Returns 0 on success and non-zero
-   if there is no position (i.e., if the coordinate is empty). */
-/* Audited by: green(2002.06.15) */
-int
-coord_set_to_unit(coord_t * coord)
-{
-	assert("jmacd-7316", coord_check(coord));
-
-	switch (coord->between) {
-	case INVALID_COORD:
-	case EMPTY_NODE:
-		return 1;
-
-	case AT_UNIT:
-		return 0;
-
-	case AFTER_ITEM:
-	case BEFORE_ITEM:
-	case BEFORE_UNIT:
-	case AFTER_UNIT:
-		coord->between = AT_UNIT;
-		return 0;
-	}
-
-	impossible("jmacd-9909", "unreachable");
-	return 0;
-}
-
 /* If the coordinate is between items, shifts it to the right.  Returns 0 on success and
    non-zero if there is no position to the right. */
-int
+reiser4_internal int
 coord_set_to_right(coord_t * coord)
 {
 	unsigned items = coord_num_items(coord);
@@ -944,7 +860,7 @@ coord_set_to_right(coord_t * coord)
 
 /* If the coordinate is between items, shifts it to the left.  Returns 0 on success and
    non-zero if there is no position to the left. */
-int
+reiser4_internal int
 coord_set_to_left(coord_t * coord)
 {
 	unsigned items = coord_num_items(coord);
@@ -1003,23 +919,7 @@ coord_set_to_left(coord_t * coord)
 	return 0;
 }
 
-/* return true if coord is set after last unit in an item. 0 - otherwise. It is
-   used mostly to avoid repeated tree traversals writing to a file
-   sequentially */
-int
-coord_is_after_last_unit(coord_t * coord)
-{
-	assert("vs-729", coord_check(coord));
-	if (!coord_is_existing_item(coord))
-		return 0;
-	if (coord->between != AFTER_UNIT)
-		return 0;
-	if (coord->unit_pos != coord_last_unit_pos(coord))
-		return 0;
-	return 1;
-}
-
-const char *
+reiser4_internal const char *
 coord_tween_tostring(between_enum n)
 {
 	switch (n) {
@@ -1046,7 +946,7 @@ coord_tween_tostring(between_enum n)
 	}
 }
 
-void
+reiser4_internal void
 print_coord(const char *mes, const coord_t * coord, int node)
 {
 	if (coord == NULL) {
@@ -1059,13 +959,13 @@ print_coord(const char *mes, const coord_t * coord, int node)
 		print_znode("\tnode", coord->node);
 }
 
-int
+reiser4_internal int
 item_utmost_child_real_block(const coord_t * coord, sideof side, reiser4_block_nr * blk)
 {
 	return item_plugin_by_coord(coord)->f.utmost_child_real_block(coord, side, blk);
 }
 
-int
+reiser4_internal int
 item_utmost_child(const coord_t * coord, sideof side, jnode ** child)
 {
 	return item_plugin_by_coord(coord)->f.utmost_child(coord, side, child);

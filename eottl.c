@@ -259,7 +259,7 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 }
 
 /* handle extent-on-the-twig-level cases in tree traversal */
-inline int
+reiser4_internal int
 handle_eottl(cbk_handle * h /* cbk handle */ ,
 	     int *outcome /* how traversal should proceed */ )
 {

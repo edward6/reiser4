@@ -48,7 +48,7 @@ static int seal_matches(const seal_t * seal, znode * node);
 
 /* initialise seal. This can be called several times on the same seal. @coord
    and @key can be NULL.  */
-void
+reiser4_internal void
 seal_init(seal_t * seal /* seal to initialise */ ,
 	  const coord_t * coord /* coord @seal will be attached to */ ,
 	  const reiser4_key * key UNUSED_ARG	/* key @seal will be
@@ -75,7 +75,7 @@ seal_init(seal_t * seal /* seal to initialise */ ,
 }
 
 /* finish with seal */
-void
+reiser4_internal void
 seal_done(seal_t * seal /* seal to clear */)
 {
 	assert("nikita-1887", seal != NULL);
@@ -83,7 +83,7 @@ seal_done(seal_t * seal /* seal to clear */)
 }
 
 /* true if seal was initialised */
-int
+reiser4_internal int
 seal_is_set(const seal_t * seal /* seal to query */ )
 {
 	assert("nikita-1890", seal != NULL);
@@ -132,7 +132,7 @@ should_repeat(int return_code)
    case, but this would complicate callers logic.
 
 */
-int
+reiser4_internal int
 seal_validate(seal_t * seal /* seal to validate */ ,
 	      coord_t * coord /* coord to validate against */ ,
 	      const reiser4_key * key /* key to validate against */ ,
@@ -206,7 +206,7 @@ seal_matches(const seal_t * seal /* seal to check */ ,
 
 #if REISER4_DEBUG_OUTPUT
 /* debugging function: print human readable form of @seal. */
-void
+reiser4_internal void
 print_seal(const char *prefix, const seal_t * seal)
 {
 	if (seal == NULL) {

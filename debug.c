@@ -28,7 +28,7 @@ static spinlock_t panic_guard = SPIN_LOCK_UNLOCKED;
 
 /* Your best friend. Call it on each occasion.  This is called by
     fs/reiser4/debug.h:reiser4_panic(). */
-void
+reiser4_internal void
 reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 {
 	static int in_panic = 0;
@@ -77,7 +77,7 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 	panic("%s", panic_buf);
 }
 
-void
+reiser4_internal void
 reiser4_print_prefix(const char *level, int reperr, const char *mid,
 		     const char *function, const char *file, int lineno)
 {
@@ -99,7 +99,7 @@ reiser4_print_prefix(const char *level, int reperr, const char *mid,
 
 /* Preemption point: this should be called periodically during long running
    operations (carry, allocate, and squeeze are best examples) */
-int
+reiser4_internal int
 preempt_point(void)
 {
 	assert("nikita-3008", schedulable());
@@ -184,13 +184,13 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 }
 #endif
 
-int
+reiser4_internal int
 reiser4_are_all_debugged(struct super_block *super, __u32 flags)
 {
 	return (get_super_private(super)->debug_flags & flags) == flags;
 }
 
-int
+reiser4_internal int
 reiser4_is_debugged(struct super_block *super, __u32 flag)
 {
 	return get_super_private(super)->debug_flags & flag;
@@ -218,7 +218,7 @@ __u32 get_current_trace_flags(void)
 /* allocate memory. This calls kmalloc(), performs some additional checks, and
    keeps track of how many memory was allocated on behalf of current super
    block. */
-void *
+reiser4_internal void *
 reiser4_kmalloc(size_t size /* number of bytes to allocate */ ,
 		int gfp_flag /* allocation flag */ )
 {
@@ -239,7 +239,7 @@ reiser4_kmalloc(size_t size /* number of bytes to allocate */ ,
 }
 
 /* release memory allocated by reiser4_kmalloc() and update counter. */
-void
+reiser4_internal void
 reiser4_kfree(void *area /* memory to from */,
 	      size_t size UNUSED_ARG /* number of bytes to free */)
 {
@@ -266,7 +266,7 @@ void __you_cannot_kmalloc_that_much(void)
 }
 #endif
 
-void
+reiser4_internal void
 reiser4_kfree_in_sb(void *area /* memory to from */,
 		    size_t size UNUSED_ARG /* number of bytes to free */,
 		    struct super_block *sb)
@@ -394,7 +394,8 @@ static int is_last_frame(void *addr)
 	return 0;
 }
 
-void fill_backtrace(backtrace_path *path, int depth, int shift)
+reiser4_internal void
+fill_backtrace(backtrace_path *path, int depth, int shift)
 {
 	int i;
 	void *addr;
@@ -474,7 +475,7 @@ int atom_isopen(const txn_atom * atom)
 #endif
 
 #if REISER4_DEBUG_OUTPUT
-void
+reiser4_internal void
 info_atom(const char *prefix, const txn_atom * atom)
 {
 	if (atom == NULL) {
@@ -492,7 +493,7 @@ info_atom(const char *prefix, const txn_atom * atom)
 
 const char *coord_tween_tostring(between_enum n);
 
-void
+reiser4_internal void
 jnode_tostring_internal(jnode * node, char *buf)
 {
 	const char *state;
@@ -546,7 +547,7 @@ jnode_tostring_internal(jnode * node, char *buf)
 	}
 }
 
-const char *
+reiser4_internal const char *
 jnode_tostring(jnode * node)
 {
 	static char fmtbuf[256];
@@ -555,13 +556,13 @@ jnode_tostring(jnode * node)
 	return fmtbuf;
 }
 
-const char *
+reiser4_internal const char *
 znode_tostring(znode * node)
 {
 	return jnode_tostring(ZJNODE(node));
 }
 
-const char *
+reiser4_internal const char *
 flags_tostring(int flags)
 {
 	switch (flags) {
@@ -681,7 +682,7 @@ ctl_table sys_fs[] = {
 
 static struct ctl_table_header *reiser4_sysctl_header;
 
-int
+reiser4_internal int
 reiser4_sysctl_init(void)
 {
 	if (!reiser4_sysctl_header)
@@ -689,7 +690,7 @@ reiser4_sysctl_init(void)
 	return 0;
 }
 
-void
+reiser4_internal void
 reiser4_sysctl_done(void)
 {
 	if (reiser4_sysctl_header) {

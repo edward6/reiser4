@@ -9,7 +9,7 @@
    ever will find it useful - look at yet_unneeded_abstractions/oid
 */
 
-int
+reiser4_internal int
 oid_init_allocator(struct super_block *super, oid_t nr_files, oid_t next)
 {
 	reiser4_super_info_data *sbinfo;
@@ -21,7 +21,7 @@ oid_init_allocator(struct super_block *super, oid_t nr_files, oid_t next)
 	return 0;
 }
 
-oid_t
+reiser4_internal oid_t
 oid_allocate(struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
@@ -39,7 +39,7 @@ oid_allocate(struct super_block *super)
 	return oid;
 }
 
-int
+reiser4_internal int
 oid_release(struct super_block *super, oid_t oid UNUSED_ARG)
 {
 	reiser4_super_info_data *sbinfo;
@@ -52,7 +52,7 @@ oid_release(struct super_block *super, oid_t oid UNUSED_ARG)
 	return 0;
 }
 
-oid_t oid_next(const struct super_block *super)
+reiser4_internal oid_t oid_next(const struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 	oid_t oid;
@@ -65,7 +65,7 @@ oid_t oid_next(const struct super_block *super)
 	return oid;
 }
 
-long oids_used(const struct super_block *super)
+reiser4_internal long oids_used(const struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 	oid_t used;
@@ -82,7 +82,7 @@ long oids_used(const struct super_block *super)
 }
 
 
-long oids_free(const struct super_block *super)
+reiser4_internal long oids_free(const struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 	oid_t oids;
@@ -98,7 +98,7 @@ long oids_free(const struct super_block *super)
 		return (long) -1;
 }
 
-void
+reiser4_internal void
 oid_count_allocated(void)
 {
 	txn_atom *atom;
@@ -109,7 +109,7 @@ oid_count_allocated(void)
 }
 
 /* count an object deletion in atom's nr_objects_deleted */
-void
+reiser4_internal void
 oid_count_released(void)
 {
 	txn_atom *atom;

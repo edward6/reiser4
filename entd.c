@@ -28,7 +28,7 @@
 
 static void entd_flush(struct super_block *super);
 
-#define set_comm(state)					\
+#define entd_set_comm(state)					\
 	snprintf(current->comm, sizeof(current->comm),	\
 	         "ent:%s%s", super->s_id, (state))
 
@@ -75,7 +75,7 @@ entd(void *arg)
 		if (me->flags & PF_FREEZE)
 			refrigerator(PF_IOTHREAD);
 
-		set_comm(".");
+		entd_set_comm(".");
 		spin_lock(&ctx->guard);
 		ctx->kicks_pending = 0;
 		result = kcond_wait(&ctx->wait, &ctx->guard, 1);
@@ -87,7 +87,7 @@ entd(void *arg)
 		}
 
 		spin_unlock(&ctx->guard);
-		set_comm("!");
+		entd_set_comm("!");
 		if (result == 0)
 			entd_flush(super);
 		else
@@ -100,7 +100,7 @@ entd(void *arg)
 	return 0;
 }
 
-void
+reiser4_internal void
 init_entd_context(struct super_block *super)
 {
 	entd_context * ctx;
@@ -126,7 +126,7 @@ init_entd_context(struct super_block *super)
 #endif
 }
 
-void
+reiser4_internal void
 done_entd_context(struct super_block *super)
 {
 	entd_context * ctx;
@@ -144,7 +144,8 @@ done_entd_context(struct super_block *super)
 	wait_for_completion(&ctx->finish);
 }
 
-void enter_flush(struct super_block *super)
+reiser4_internal void
+enter_flush(struct super_block *super)
 {
 	entd_context * ctx;
 	reiser4_context * cur;
@@ -169,7 +170,7 @@ void enter_flush(struct super_block *super)
 
 static const int decay = 3;
 
-void flush_started_io(void)
+reiser4_internal void flush_started_io(void)
 {
 	entd_context * ctx;
 	reiser4_context * cur;
@@ -197,7 +198,7 @@ void flush_started_io(void)
 	spin_unlock(&ctx->guard);
 }
 
-void leave_flush(struct super_block *super)
+reiser4_internal void leave_flush(struct super_block *super)
 {
 	entd_context * ctx;
 
@@ -348,7 +349,7 @@ static int dont_wait_for_flush(struct super_block *super)
  *     0 no luck, proceed with emergency flush
  *
  */
-int
+reiser4_internal int
 wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 {
 	struct backing_dev_info *bdi;

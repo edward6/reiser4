@@ -30,7 +30,7 @@ static void tap_check(const tap_t * tap);
 #endif
 
 /** load node tap is pointing to, if not loaded already */
-int
+reiser4_internal int
 tap_load(tap_t * tap)
 {
 	tap_check(tap);
@@ -48,7 +48,7 @@ tap_load(tap_t * tap)
 }
 
 /** release node tap is pointing to. Dual to tap_load() */
-void
+reiser4_internal void
 tap_relse(tap_t * tap)
 {
 	tap_check(tap);
@@ -65,7 +65,7 @@ tap_relse(tap_t * tap)
  * init tap to consist of @coord and @lh. Locks on nodes will be acquired with
  * @mode
  */
-void
+reiser4_internal void
 tap_init(tap_t * tap, coord_t * coord, lock_handle * lh, znode_lock_mode mode)
 {
 	tap->coord  = coord;
@@ -77,7 +77,7 @@ tap_init(tap_t * tap, coord_t * coord, lock_handle * lh, znode_lock_mode mode)
 }
 
 /** add @tap to the per-thread list of all taps */
-void
+reiser4_internal void
 tap_monitor(tap_t * tap)
 {
 	assert("nikita-2623", tap != NULL);
@@ -86,7 +86,7 @@ tap_monitor(tap_t * tap)
 	tap_check(tap);
 }
 
-void
+reiser4_internal void
 tap_copy(tap_t * dst, tap_t * src)
 {
 	assert("nikita-3193", src != NULL);
@@ -102,7 +102,7 @@ tap_copy(tap_t * dst, tap_t * src)
 }
 
 /** finish with @tap */
-void
+reiser4_internal void
 tap_done(tap_t * tap)
 {
 	assert("nikita-2565", tap != NULL);
@@ -119,7 +119,7 @@ tap_done(tap_t * tap)
  * move @tap to the new node, locked with @target. Load @target, if @tap was
  * already loaded.
  */
-int
+reiser4_internal int
 tap_move(tap_t * tap, lock_handle * target)
 {
 	int result = 0;
@@ -149,7 +149,7 @@ tap_move(tap_t * tap, lock_handle * target)
  * move @tap to @target. Acquire lock on @target, if @tap was already
  * loaded.
  */
-int
+reiser4_internal int
 tap_to(tap_t * tap, znode * target)
 {
 	int result;
@@ -177,7 +177,7 @@ tap_to(tap_t * tap, znode * target)
  * move @tap to given @target, loading and locking @target->node if
  * necessary
  */
-int
+reiser4_internal int
 tap_to_coord(tap_t * tap, coord_t * target)
 {
 	int result;
@@ -191,14 +191,14 @@ tap_to_coord(tap_t * tap, coord_t * target)
 }
 
 /** return list of all taps */
-tap_list_head *
+reiser4_internal tap_list_head *
 taps_list(void)
 {
 	return &get_current_context()->taps;
 }
 
 /** helper function for go_{next,prev}_{item,unit,node}() */
-int
+reiser4_internal int
 go_dir_el(tap_t * tap, sideof dir, int units_p)
 {
 	coord_t dup;
@@ -259,7 +259,7 @@ go_dir_el(tap_t * tap, sideof dir, int units_p)
  * move @tap to the next unit, transparently crossing item and node
  * boundaries
  */
-int
+reiser4_internal int
 go_next_unit(tap_t * tap)
 {
 	return go_dir_el(tap, RIGHT_SIDE, 1);
@@ -269,7 +269,7 @@ go_next_unit(tap_t * tap)
  * move @tap to the previous unit, transparently crossing item and node
  * boundaries
  */
-int
+reiser4_internal int
 go_prev_unit(tap_t * tap)
 {
 	return go_dir_el(tap, LEFT_SIDE, 1);
@@ -279,7 +279,7 @@ go_prev_unit(tap_t * tap)
  * @shift times apply @actor to the @tap. This is used to move @tap by
  * @shift units (or items, or nodes) in either direction.
  */
-int
+reiser4_internal int
 rewind_to(tap_t * tap, go_actor_t actor, int shift)
 {
 	int result;
@@ -304,14 +304,14 @@ rewind_to(tap_t * tap, go_actor_t actor, int shift)
 }
 
 /** move @tap @shift units rightward */
-int
+reiser4_internal int
 rewind_right(tap_t * tap, int shift)
 {
 	return rewind_to(tap, go_next_unit, shift);
 }
 
 /** move @tap @shift units leftward */
-int
+reiser4_internal int
 rewind_left(tap_t * tap, int shift)
 {
 	return rewind_to(tap, go_prev_unit, shift);
@@ -319,7 +319,7 @@ rewind_left(tap_t * tap, int shift)
 
 #if REISER4_DEBUG_OUTPUT
 /** debugging function: print @tap content in human readable form */
-void print_tap(const char * prefix, const tap_t * tap)
+reiser4_internal void print_tap(const char * prefix, const tap_t * tap)
 {
 	if (tap == NULL) {
 		printk("%s: null tap\n", prefix);

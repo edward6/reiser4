@@ -246,7 +246,7 @@ space_needed_for_op(znode * node	/* znode data are
 
 /* how much space in @node is required to insert or paste @data at
    @coord. */
-unsigned int
+reiser4_internal unsigned int
 space_needed(const znode * node	/* node data are inserted or
 				 * pasted in */ ,
 	     const coord_t * coord	/* coord where data are
@@ -1866,7 +1866,7 @@ static carry_node *find_dir_carry(carry_node * node, carry_level * level, carry_
    really gives any advantage. More statistics required.
 
 */
-carry_node *
+reiser4_internal carry_node *
 find_left_carry(carry_node * node	/* node to fine left neighbor
 					 * of */ ,
 		carry_level * level /* level to scan */ )
@@ -1881,7 +1881,7 @@ find_left_carry(carry_node * node	/* node to fine left neighbor
    really gives any advantage. More statistics required.
 
 */
-carry_node *
+reiser4_internal carry_node *
 find_right_carry(carry_node * node	/* node to fine right neighbor
 					   * of */ ,
 		 carry_level * level /* level to scan */ )
@@ -1922,7 +1922,7 @@ find_dir_carry(carry_node * node	/* node to start scanning
 /* This is dispatch table for carry operations. It can be trivially
    abstracted into useful plugin: tunable balancing policy is a good
    thing. */
-carry_op_handler op_dispatch_table[COP_LAST_OP] = {
+reiser4_internal carry_op_handler op_dispatch_table[COP_LAST_OP] = {
 	[COP_INSERT] = {
 		.handler = carry_insert
 	},

@@ -146,6 +146,8 @@ static ssize_t show_ro_64(struct super_block * s,
 	return (p - buf);
 }
 
+#undef getat
+
 #define SHOW_OPTION(p, buf, option)			\
 	if (option)					\
 		KATTR_PRINT((p), (buf), #option "\n")
@@ -258,7 +260,7 @@ DEFINE_SUPER_RO(25, oids_in_use, "%llu", 64);
 DEFINE_SUPER_RO(26, entd.flushers, "%llu", 32);
 DEFINE_SUPER_RO(27, entd.timeout, "%llu", 32);
 
-static struct attribute * def_attrs[] = {
+static struct attribute * kattr_def_attrs[] = {
 	&kattr_super_ro_01.attr,
 	&kattr_super_ro_02.attr,
 	&kattr_super_ro_03.attr,
@@ -303,7 +305,7 @@ static struct sysfs_ops attr_ops = {
 
 struct kobj_type ktype_reiser4 = {
 	.sysfs_ops	= &attr_ops,
-	.default_attrs	= def_attrs,
+	.default_attrs	= kattr_def_attrs,
 	.release	= NULL
 };
 
@@ -430,7 +432,8 @@ static int register_level_attrs(reiser4_super_info_data *sbinfo, int i)
 static decl_subsys(fs, NULL, NULL);
 decl_subsys(reiser4, &ktype_reiser4, NULL);
 
-int reiser4_sysfs_init_once(void)
+reiser4_internal int
+reiser4_sysfs_init_once(void)
 {
 	int result;
 
@@ -444,14 +447,16 @@ int reiser4_sysfs_init_once(void)
 	return result;
 }
 
-void reiser4_sysfs_done_once(void)
+reiser4_internal void
+reiser4_sysfs_done_once(void)
 {
 	subsystem_unregister(&reiser4_subsys);
 	subsystem_unregister(&fs_subsys);
 	done_prof_kobject();
 }
 
-int reiser4_sysfs_init(struct super_block *super)
+reiser4_internal int
+reiser4_sysfs_init(struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 	struct kobject *kobj;
@@ -493,7 +498,8 @@ int reiser4_sysfs_init(struct super_block *super)
 	return result;
 }
 
-void reiser4_sysfs_done(struct super_block *super)
+reiser4_internal void
+reiser4_sysfs_done(struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 	ON_STATS(int i);
@@ -510,20 +516,24 @@ void reiser4_sysfs_done(struct super_block *super)
 /* REISER4_USE_SYSFS */
 #else
 
-int reiser4_sysfs_init(struct super_block *super)
+reiser4_internal int
+reiser4_sysfs_init(struct super_block *super)
 {
 	return 0;
 }
 
-void reiser4_sysfs_done(struct super_block *super)
+reiser4_internal void
+reiser4_sysfs_done(struct super_block *super)
 {}
 
-int reiser4_sysfs_init_once(void)
+reiser4_internal int
+reiser4_sysfs_init_once(void)
 {
 	return 0;
 }
 
-void reiser4_sysfs_done_once(void)
+reiser4_internal void
+reiser4_sysfs_done_once(void)
 {}
 
 #endif

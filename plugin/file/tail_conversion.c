@@ -13,7 +13,7 @@
 
 
 /* exclusive access to a file is acquired when file state changes: tail2extent, empty2tail, extent2tail, etc */
-void
+reiser4_internal void
 get_exclusive_access(unix_file_info_t *uf_info)
 {
 	assert("nikita-3028", schedulable());
@@ -29,7 +29,7 @@ get_exclusive_access(unix_file_info_t *uf_info)
 	uf_info->exclusive_use = 1;
 }
 
-void
+reiser4_internal void
 drop_exclusive_access(unix_file_info_t *uf_info)
 {
 	assert("nikita-3060", inode_ea_owner(uf_info) == current);
@@ -43,7 +43,7 @@ drop_exclusive_access(unix_file_info_t *uf_info)
 }
 
 /* nonexclusive access to a file is acquired for read, write, readpage */
-void
+reiser4_internal void
 get_nonexclusive_access(unix_file_info_t *uf_info)
 {
 	assert("nikita-3029", schedulable());
@@ -53,7 +53,7 @@ get_nonexclusive_access(unix_file_info_t *uf_info)
 	assert("vs-1159", !ea_obtained(uf_info));
 }
 
-void
+reiser4_internal void
 drop_nonexclusive_access(unix_file_info_t *uf_info)
 {
 	assert("nikita-3060", inode_ea_owner(uf_info) == NULL);
@@ -231,7 +231,7 @@ find_start(struct inode *object, reiser4_plugin_id id, __u64 *offset)
 	return result;
 }
 
-int
+reiser4_internal int
 tail2extent(unix_file_info_t *uf_info)
 {
 	int result;
@@ -489,7 +489,7 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
    which can be put into tree by one insert_flow is number of bytes contained in CARRY_FLOW_NEW_NODES_LIMIT nodes if
    they all are filled completely by one tail item. Fortunately, there is a one to one mapping between bytes of tail
    items and bytes of flow. If there were not, we would have to have special item plugin */
-int min_bytes_per_flow(void)
+reiser4_internal int min_bytes_per_flow(void)
 {
 	assert("vs-1103", current_tree->nplug && current_tree->nplug->max_item_size);
 	return CARRY_FLOW_NEW_NODES_LIMIT * current_tree->nplug->max_item_size();
@@ -526,7 +526,7 @@ reserve_extent2tail_iteration(struct inode *inode)
 
 /* for every page of file: read page, cut part of extent pointing to this page,
    put data of page tree by tail item */
-int
+reiser4_internal int
 extent2tail(unix_file_info_t *uf_info)
 {
 	int result;
@@ -667,7 +667,7 @@ extent2tail(unix_file_info_t *uf_info)
 	return result ? : s_result;
 }
 
-int
+reiser4_internal int
 finish_conversion(struct inode *inode)
 {
 	int result;

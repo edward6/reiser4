@@ -6,6 +6,8 @@
 /* cryptcompress object item. See ctail.c for description. */
 #include "../cryptcompress.h"
 
+#include <linux/pagevec.h>
+
 typedef struct ctail_item_format {
 	/* cluster shift */
 	d8 cluster_shift;
@@ -85,12 +87,14 @@ inline unsigned long pg_to_clust_to_pg(unsigned long idx, struct inode *);
 unsigned max_crypto_overhead(crypto_plugin *, crypto_stat_t *);
 
 int inflate_cluster(reiser4_cluster_t *, struct inode *);
-int find_cluster_item(const reiser4_key *, coord_t *, lock_handle *, ra_info_t *, lookup_bias);
+int find_cluster_item(hint_t * hint, const reiser4_key *key,
+		      znode_lock_mode lock_mode, ra_info_t *ra_info,
+		      lookup_bias bias);
 int page_of_cluster(struct page *, reiser4_cluster_t *, struct inode *);
 int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
 int flush_cluster_pages(reiser4_cluster_t *, struct inode *);
 int deflate_cluster(reiser4_cluster_t *, struct inode *);
-void truncate_pages_cryptcompress(struct address_space *, loff_t);
+void truncate_pages_cryptcompress(struct address_space * mapping, unsigned long index);
 
 #endif /* __FS_REISER4_CTAIL_H__ */
 

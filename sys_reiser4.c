@@ -18,7 +18,6 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/writeback.h>
-#include <linux/mpage.h>
 #include <linux/backing-dev.h>
 #include <asm-generic/errno.h>
 

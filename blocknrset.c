@@ -200,7 +200,7 @@ blocknr_set_add(txn_atom * atom,
 /* Auditor note: Entire call chain cannot hold any spinlocks, because
    kmalloc might schedule. The only exception is atom spinlock, which is
    properly freed. */
-int
+reiser4_internal int
 blocknr_set_add_extent(txn_atom * atom,
 		       blocknr_set * bset,
 		       blocknr_set_entry ** new_bsep, const reiser4_block_nr * start, const reiser4_block_nr * len)
@@ -209,26 +209,13 @@ blocknr_set_add_extent(txn_atom * atom,
 	return blocknr_set_add(atom, bset, new_bsep, start, *len == 1 ? NULL : len);
 }
 
-/* Add a single block to the block set. */
-/* Audited by: green(2002.06.11) */
-/* Auditor note: Entire call chain cannot hold any spinlocks, because
-   kmalloc might schedule. The only exception is atom spinlock, which is
-   properly freed. */
-int
-blocknr_set_add_block(txn_atom * atom,
-		      blocknr_set * bset, blocknr_set_entry ** new_bsep, const reiser4_block_nr * block)
-{
-	assert("jmacd-5102", block != NULL);
-	return blocknr_set_add(atom, bset, new_bsep, block, NULL);
-}
-
 /* Add a block pair to the block set. It adds exactly a pair, which is checked
  * by an assertion that both arguments are not null.*/
 /* Audited by: green(2002.06.11) */
 /* Auditor note: Entire call chain cannot hold any spinlocks, because
    kmalloc might schedule. The only exception is atom spinlock, which is
    properly freed. */
-int
+reiser4_internal int
 blocknr_set_add_pair(txn_atom * atom,
 		     blocknr_set * bset,
 		     blocknr_set_entry ** new_bsep, const reiser4_block_nr * a, const reiser4_block_nr * b)
@@ -239,7 +226,7 @@ blocknr_set_add_pair(txn_atom * atom,
 
 /* Initialize a blocknr_set. */
 /* Audited by: green(2002.06.11) */
-void
+reiser4_internal void
 blocknr_set_init(blocknr_set * bset)
 {
 	blocknr_set_list_init(&bset->entries);
@@ -247,7 +234,7 @@ blocknr_set_init(blocknr_set * bset)
 
 /* Release the entries of a blocknr_set. */
 /* Audited by: green(2002.06.11) */
-void
+reiser4_internal void
 blocknr_set_destroy(blocknr_set * bset)
 {
 	while (!blocknr_set_list_empty(&bset->entries)) {
@@ -265,7 +252,7 @@ blocknr_set_destroy(blocknr_set * bset)
    actual processing of this set. Testing this kind of stuff right here is
    also complicated by the fact that these sets are not sorted and going
    through whole set on each element addition is going to be CPU-heavy task */
-void
+reiser4_internal void
 blocknr_set_merge(blocknr_set * from, blocknr_set * into)
 {
 	blocknr_set_entry *bse_into = NULL;
@@ -319,7 +306,7 @@ blocknr_set_merge(blocknr_set * from, blocknr_set * into)
 }
 
 /* Iterate over all blocknr set elements. */
-int
+reiser4_internal int
 blocknr_set_iterator(txn_atom * atom, blocknr_set * bset, blocknr_set_actor_f actor, void *data, int delete)
 {
 

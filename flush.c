@@ -966,7 +966,8 @@ skip_jnode(const jnode *node)
 /* Flush some nodes of current atom, usually slum, return -E_REPEAT if there are more nodes
  * to flush, return 0 if atom's dirty lists empty and keep current atom locked, return
  * other errors as they are. */
-int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
+reiser4_internal int
+flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 {
 	reiser4_super_info_data * sinfo = get_current_super_private();
 	flush_queue_t *fq = NULL;
@@ -2562,7 +2563,7 @@ shift_one_internal_unit(znode * left, znode * right)
 
 /* ALLOCATE INTERFACE */
 /* Audited by: umka (2002.06.11) */
-void
+reiser4_internal void
 jnode_set_block(jnode * node /* jnode to update */ ,
 		const reiser4_block_nr * blocknr /* new block nr */ )
 {
@@ -2989,7 +2990,7 @@ scan_done(flush_scan * scan)
 }
 
 /* Returns true if flush scanning is finished. */
-int
+reiser4_internal int
 scan_finished(flush_scan * scan)
 {
 	return scan->stop || (scan->direction == RIGHT_SIDE &&
@@ -2998,7 +2999,7 @@ scan_finished(flush_scan * scan)
 
 /* Return true if the scan should continue to the @tonode.  True if the node meets the
    same_slum_check condition.  If not, deref the "left" node and stop the scan. */
-int
+reiser4_internal int
 scan_goto(flush_scan * scan, jnode * tonode)
 {
 	int go = same_slum_check(scan->node, tonode, 1, 0);
@@ -3020,7 +3021,7 @@ scan_goto(flush_scan * scan, jnode * tonode)
 /* Set the current scan->node, refcount it, increment count by the @add_count (number to
    count, e.g., skipped unallocated nodes), deref previous current, and copy the current
    parent coordinate. */
-int
+reiser4_internal int
 scan_set_current(flush_scan * scan, jnode * node, unsigned add_count, const coord_t * parent)
 {
 	/* Release the old references, take the new reference. */
@@ -3046,7 +3047,7 @@ scan_set_current(flush_scan * scan, jnode * node, unsigned add_count, const coor
 }
 
 /* Return true if scanning in the leftward direction. */
-int
+reiser4_internal int
 scanning_left(flush_scan * scan)
 {
 	return scan->direction == LEFT_SIDE;
@@ -3558,7 +3559,7 @@ pos_stop(flush_pos_t * pos)
 }
 
 /* Return the flush_position's block allocator hint. */
-reiser4_blocknr_hint *
+reiser4_internal reiser4_blocknr_hint *
 pos_hint(flush_pos_t * pos)
 {
 	return &pos->preceder;
@@ -3566,20 +3567,20 @@ pos_hint(flush_pos_t * pos)
 
 /* Return true if we have decided to unconditionally relocate leaf nodes, thus write
    optimizing. */
-int
+reiser4_internal int
 pos_leaf_relocate(flush_pos_t * pos)
 {
 	return pos->leaf_relocate;
 }
 
-flush_queue_t * pos_fq(flush_pos_t * pos)
+reiser4_internal flush_queue_t * pos_fq(flush_pos_t * pos)
 {
 	return pos->fq;
 }
 
 const char *coord_tween_tostring(between_enum n);
 
-const char *
+reiser4_internal const char *
 pos_tostring(flush_pos_t * pos)
 {
 	static char fmtbuf[256];

@@ -25,7 +25,7 @@ get_pplug(struct file * file)
 }
 
 /* common routine to open pseudo file. */
-int open_pseudo(struct inode * inode, struct file * file)
+reiser4_internal int open_pseudo(struct inode * inode, struct file * file)
 {
 	int result;
 	pseudo_plugin *pplug;
@@ -51,8 +51,8 @@ int open_pseudo(struct inode * inode, struct file * file)
 }
 
 /* common read method for pseudo files */
-ssize_t read_pseudo(struct file *file,
-		    char __user *buf, size_t size, loff_t *ppos)
+reiser4_internal ssize_t read_pseudo(struct file *file,
+				     char __user *buf, size_t size, loff_t *ppos)
 {
 	switch (get_pplug(file)->read_type) {
 	case PSEUDO_READ_SEQ:
@@ -68,7 +68,7 @@ ssize_t read_pseudo(struct file *file,
 }
 
 /* common seek method for pseudo files */
-loff_t seek_pseudo(struct file *file, loff_t offset, int origin)
+reiser4_internal loff_t seek_pseudo(struct file *file, loff_t offset, int origin)
 {
 	switch (get_pplug(file)->read_type) {
 	case PSEUDO_READ_SEQ:
@@ -80,7 +80,7 @@ loff_t seek_pseudo(struct file *file, loff_t offset, int origin)
 }
 
 /* common release method for pseudo files */
-int release_pseudo(struct inode *inode, struct file *file)
+reiser4_internal int release_pseudo(struct inode *inode, struct file *file)
 {
 	int result;
 
@@ -98,15 +98,16 @@ int release_pseudo(struct inode *inode, struct file *file)
 
 /* pseudo files need special ->drop() method, because they don't have nlink
  * and only exist while host object does. */
-void drop_pseudo(struct inode * object)
+reiser4_internal void drop_pseudo(struct inode * object)
 {
 	/* pseudo files are not protected from deletion by their ->i_nlink */
 	generic_delete_inode(object);
 }
 
 /* common write method for pseudo files */
-ssize_t write_pseudo(struct file *file,
-		     const char __user *buf, size_t size, loff_t *ppos)
+reiser4_internal ssize_t
+write_pseudo(struct file *file,
+	     const char __user *buf, size_t size, loff_t *ppos)
 {
 	ssize_t result;
 

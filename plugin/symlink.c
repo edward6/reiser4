@@ -14,7 +14,7 @@
 
 /* symlink plugin's specific functions */
 
-int
+reiser4_internal int
 create_symlink(struct inode *symlink,	/* inode of symlink */
 	       struct inode *dir UNUSED_ARG,	/* parent directory */
 	       reiser4_object_create_data * data	/* info passed

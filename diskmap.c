@@ -11,7 +11,8 @@
 /* Looks through chain of diskmap blocks, looking for table entry where label and parameter
    patch passed in "label" and "parameter"
    Returns 0 on success, -1 if nothing was found or error have occured. */
-int reiser4_get_diskmap_value( u32 label, u32 parameter, u64 *value)
+reiser4_internal int
+reiser4_get_diskmap_value( u32 label, u32 parameter, u64 *value)
 {
 	struct super_block *sb = reiser4_get_current_sb();
 	int retval = -1;

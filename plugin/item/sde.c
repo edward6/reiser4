@@ -19,7 +19,7 @@
 #include <linux/quotaops.h>
 
 #if REISER4_DEBUG_OUTPUT
-void
+reiser4_internal void
 print_de(const char *prefix /* prefix to print */ ,
 	 coord_t * coord /* item to print */ )
 {
@@ -42,7 +42,7 @@ print_de(const char *prefix /* prefix to print */ ,
 #endif
 
 /* ->extract_key() method of simple directory item plugin. */
-int
+reiser4_internal int
 extract_key_de(const coord_t * coord /* coord of item */ ,
 	       reiser4_key * key /* resulting key */ )
 {
@@ -56,7 +56,7 @@ extract_key_de(const coord_t * coord /* coord of item */ ,
 	return extract_key_from_id(&dent->id, key);
 }
 
-int
+reiser4_internal int
 update_key_de(const coord_t * coord, const reiser4_key * key, lock_handle * lh UNUSED_ARG)
 {
 	directory_entry_format *dent;
@@ -75,7 +75,7 @@ update_key_de(const coord_t * coord, const reiser4_key * key, lock_handle * lh U
 	return 0;
 }
 
-char *
+reiser4_internal char *
 extract_dent_name(const coord_t * coord, directory_entry_format *dent, char *buf)
 {
 	reiser4_key key;
@@ -91,7 +91,7 @@ extract_dent_name(const coord_t * coord, directory_entry_format *dent, char *buf
 }
 
 /* ->extract_name() method of simple directory item plugin. */
-char *
+reiser4_internal char *
 extract_name_de(const coord_t * coord /* coord of item */, char *buf)
 {
 	directory_entry_format *dent;
@@ -103,7 +103,7 @@ extract_name_de(const coord_t * coord /* coord of item */, char *buf)
 }
 
 /* ->extract_file_type() method of simple directory item plugin. */
-unsigned
+reiser4_internal unsigned
 extract_file_type_de(const coord_t * coord UNUSED_ARG	/* coord of
 							   * item */ )
 {
@@ -115,7 +115,7 @@ extract_file_type_de(const coord_t * coord UNUSED_ARG	/* coord of
 	return DT_UNKNOWN;
 }
 
-int
+reiser4_internal int
 add_entry_de(struct inode *dir /* directory of item */ ,
 	     coord_t * coord /* coord of item */ ,
 	     lock_handle * lh /* insertion lock handle */ ,
@@ -160,7 +160,7 @@ add_entry_de(struct inode *dir /* directory of item */ ,
 	return 0;
 }
 
-int
+reiser4_internal int
 rem_entry_de(struct inode *dir /* directory of item */ ,
 	     const struct qstr * name UNUSED_ARG,
 	     coord_t * coord /* coord of item */ ,
@@ -201,7 +201,7 @@ rem_entry_de(struct inode *dir /* directory of item */ ,
 	return result;
 }
 
-int
+reiser4_internal int
 max_name_len_de(const struct inode *dir)
 {
 	return tree_by_inode(dir)->nplug->max_item_size() - sizeof (directory_entry_format) - 2;

@@ -409,9 +409,6 @@ extern void cbk_cache_done(cbk_cache * cache);
 extern void cbk_cache_invalidate(const znode * node, reiser4_tree * tree);
 extern void cbk_cache_add(const znode * node);
 
-extern int check_jnode_for_unallocated(jnode * node);
-extern int check_jnode_for_unallocated_in_core(znode * z);
-
 extern const char *bias_name(lookup_bias bias);
 extern char *sprint_address(const reiser4_block_nr * block);
 

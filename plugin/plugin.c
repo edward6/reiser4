@@ -201,7 +201,7 @@ static reiser4_plugin *find_plugin(reiser4_plugin_type_data * ptype, const char 
 static reiser4_plugin_id max_id = 0;
 
 /* initialise plugin sub-system. Just call this once on reiser4 startup. */
-int
+reiser4_internal int
 init_plugins(void)
 {
 	reiser4_plugin_type type_id;
@@ -238,7 +238,7 @@ init_plugins(void)
 
 /* parse mount time option and update root-directory plugin
     appropriately. */
-int
+reiser4_internal int
 handle_default_plugin_option(char *option,	/* Option should has form
 						   "type:label", where "type"
 						   is label of plugin type and
@@ -281,7 +281,7 @@ handle_default_plugin_option(char *option,	/* Option should has form
 }
 
 /* lookup plugin name by scanning tables */
-reiser4_plugin *
+reiser4_internal reiser4_plugin *
 lookup_plugin_name(char *plug_label /* label to search for */ )
 {
 	reiser4_plugin_type type_id;
@@ -302,7 +302,7 @@ lookup_plugin_name(char *plug_label /* label to search for */ )
 }
 
 /* true if plugin type id is valid */
-int
+reiser4_internal int
 is_type_id_valid(reiser4_plugin_type type_id /* plugin type id */)
 {
 	/* "type_id" is unsigned, so no comparison with 0 is
@@ -311,7 +311,7 @@ is_type_id_valid(reiser4_plugin_type type_id /* plugin type id */)
 }
 
 /* true if plugin id is valid */
-int
+reiser4_internal int
 is_plugin_id_valid(reiser4_plugin_type type_id /* plugin type id */ ,
 		   reiser4_plugin_id id /* plugin id */)
 {
@@ -320,7 +320,7 @@ is_plugin_id_valid(reiser4_plugin_type type_id /* plugin type id */ ,
 }
 
 /* lookup plugin by scanning tables */
-reiser4_plugin *
+reiser4_internal reiser4_plugin *
 lookup_plugin(const char *type_label /* plugin type label */ ,
 	      const char *plug_label /* plugin label */ )
 {
@@ -387,7 +387,7 @@ locate_plugin(struct inode *inode, plugin_locator * loc)
    Both arguments are checked for validness: this is supposed to be called
    from user-level.
 */
-reiser4_plugin *
+reiser4_internal reiser4_plugin *
 plugin_by_unsafe_id(reiser4_plugin_type type_id	/* plugin
 						 * type id,
 						 * unchecked */ ,
@@ -408,7 +408,7 @@ plugin_by_unsafe_id(reiser4_plugin_type type_id	/* plugin
 }
 
 /* convert plugin id to the disk format */
-int
+reiser4_internal int
 save_plugin_id(reiser4_plugin * plugin /* plugin to convert */ ,
 	       d16 * area /* where to store result */ )
 {
@@ -420,7 +420,7 @@ save_plugin_id(reiser4_plugin * plugin /* plugin to convert */ ,
 }
 
 /* list of all plugins of given type */
-plugin_list_head *
+reiser4_internal plugin_list_head *
 get_plugin_list(reiser4_plugin_type type_id	/* plugin type
 						 * id */ )
 {
@@ -430,7 +430,7 @@ get_plugin_list(reiser4_plugin_type type_id	/* plugin type
 
 #if REISER4_DEBUG_OUTPUT
 /* print human readable plugin information */
-void
+reiser4_internal void
 print_plugin(const char *prefix /* prefix to print */ ,
 	     reiser4_plugin * plugin /* plugin to print */ )
 {
@@ -494,7 +494,7 @@ extern crypto_plugin crypto_plugins[LAST_CRYPTO_ID];
 /* defined in fs/reiser4/plugin/digest.c */
 extern digest_plugin digest_plugins[LAST_DIGEST_ID];
 /* defined in fs/reiser4/plugin/compress.c */
-extern crypto_plugin compression_plugins[LAST_COMPRESSION_ID];
+extern compression_plugin compression_plugins[LAST_COMPRESSION_ID];
 /* defined in fs/reiser4/plugin/tail.c */
 extern formatting_plugin formatting_plugins[LAST_TAIL_FORMATTING_ID];
 /* defined in fs/reiser4/plugin/security/security.c */

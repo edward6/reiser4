@@ -344,7 +344,6 @@ extern carry_op *post_carry(carry_level * level, carry_opcode op, znode * node, 
 extern carry_op *node_post_carry(carry_plugin_info * info, carry_opcode op, znode * node, int apply_to_parent_p);
 
 extern int carry_op_num(const carry_level * level);
-extern int carry_node_num(const carry_level * level);
 
 carry_node *add_new_znode(znode * brother, carry_node * reference, carry_level * doing, carry_level * todo);
 

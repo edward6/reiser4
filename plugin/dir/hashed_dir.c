@@ -22,6 +22,7 @@
 #include "../../vfs_ops.h"
 #include "../../inode.h"
 #include "../../reiser4.h"
+#include "../../safe_link.h"
 
 #include <linux/fs.h>		/* for struct inode */
 #include <linux/dcache.h>	/* for struct dentry */
@@ -33,7 +34,8 @@ static int find_entry(struct inode *dir, struct dentry *name,
 static int check_item(const struct inode *dir,
 		      const coord_t * coord, const char *name);
 
-reiser4_block_nr hashed_estimate_init(struct inode *parent, struct inode *object)
+reiser4_internal reiser4_block_nr
+hashed_estimate_init(struct inode *parent, struct inode *object)
 {
 	reiser4_block_nr res = 0;
 
@@ -54,7 +56,7 @@ reiser4_block_nr hashed_estimate_init(struct inode *parent, struct inode *object
 
 /* plugin->u.dir.init
    create sd for directory file. Create stat-data, dot, and dotdot. */
-int
+reiser4_internal int
 init_hashed(struct inode *object /* new directory */ ,
 	    struct inode *parent /* parent directory */ ,
 	    reiser4_object_create_data * data UNUSED_ARG	/* info passed
@@ -92,7 +94,7 @@ hashed_estimate_done(struct inode *object)
 }
 
 /* plugin->u.dir.estimate.unlink */
-reiser4_block_nr
+reiser4_internal reiser4_block_nr
 estimate_unlink_hashed(struct inode *parent, struct inode *object)
 {
 	reiser4_block_nr res = 0;
@@ -110,7 +112,7 @@ estimate_unlink_hashed(struct inode *parent, struct inode *object)
    Delete dot, and call common_file_delete() to delete stat data.
    FIXME: it does not delete stat data
 */
-int
+reiser4_internal int
 done_hashed(struct inode *object /* object being deleted */)
 {
 	int result;
@@ -153,7 +155,7 @@ done_hashed(struct inode *object /* object being deleted */)
    plugin->u.dir.done
    Delete dotdot, decrease nlink on parent
 */
-int
+reiser4_internal int
 detach_hashed(struct inode *object, struct inode *parent)
 {
 	int result;
@@ -190,7 +192,7 @@ detach_hashed(struct inode *object, struct inode *parent)
 
 
 /* ->owns_item() for hashed directory object plugin. */
-int
+reiser4_internal int
 owns_item_hashed(const struct inode *inode /* object to check against */ ,
 		 const coord_t * coord /* coord of item to check */ )
 {
@@ -270,7 +272,7 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 
    it looks for name specified in @dentry in directory @parent and if name is found - key of object found entry points
    to is stored in @entry->key */
-int
+reiser4_internal int
 lookup_name_hashed(struct inode *parent /* inode of directory to lookup for name in */,
 		   struct dentry *dentry /* name to look for */,
 		   reiser4_key *key /* place to store key */)
@@ -316,9 +318,10 @@ lookup_name_hashed(struct inode *parent /* inode of directory to lookup for name
 }
 
 /* implementation of ->lookup() method for hashed directories. */
-int lookup_hashed(struct inode * parent	/* inode of directory to
+reiser4_internal int
+lookup_hashed(struct inode * parent	/* inode of directory to
 					 * lookup into */ ,
-		  struct dentry * dentry /* name to look for */ )
+	      struct dentry * dentry /* name to look for */ )
 {
 	int result;
 	struct inode *inode;
@@ -627,7 +630,7 @@ can_rename(struct inode *old_inode, struct inode *new_inode)
    re-considered when more than one different directory plugin will be
    implemented.
 */
-int
+reiser4_internal int
 rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 	      struct dentry *old_name /* old name */ ,
 	      struct inode *new_dir /* directory where @new is located */ ,
@@ -902,13 +905,24 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 	reiser4_update_dir(new_dir);
 	reiser4_update_dir(old_dir);
 	reiser4_mark_inode_dirty(old_inode);
+	if (result == 0) {
+		file_plugin *fplug;
+
+		if (new_inode != NULL) {
+			/* add safe-link for target file (in case we removed
+			 * last reference to the poor fellow */
+			fplug = inode_file_plugin(new_inode);
+			if (fplug->not_linked(new_inode))
+				result = safe_link_add(new_inode, SAFE_UNLINK);
+		}
+	}
 	return result;
 }
 
 /* ->add_entry() method for hashed directory object plugin.
    plugin->u.dir.add_entry
 */
-int
+reiser4_internal int
 add_entry_hashed(struct inode *object	/* directory to add new name
 					 * in */ ,
 		 struct dentry *where /* new name */ ,
@@ -965,7 +979,7 @@ add_entry_hashed(struct inode *object	/* directory to add new name
 /* ->rem_entry() method for hashed directory object plugin.
    plugin->u.dir.rem_entry
  */
-int
+reiser4_internal int
 rem_entry_hashed(struct inode *object	/* directory from which entry
 					 * is begin removed */ ,
 		 struct dentry *where	/* name that is being

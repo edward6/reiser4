@@ -15,7 +15,6 @@
 #include <linux/pagemap.h>
 #include <linux/blkdev.h>
 #include <linux/writeback.h>
-#include <linux/pagevec.h>
 
 /* A flush queue object is an accumulator for keeping jnodes prepared
    by the jnode_flush() function for writing to disk. Those "queued" jnodes are
@@ -23,7 +22,6 @@
    flush queues to write some or all from their jnodes. */
 
 TYPE_SAFE_LIST_DEFINE(fq, flush_queue_t, alink);
-TYPE_SAFE_LIST_DEFINE(atom, txn_atom, atom_link);
 
 #if REISER4_DEBUG
 #   define spin_ordering_pred_fq(fq)  (1)
@@ -59,7 +57,7 @@ SPIN_LOCK_FUNCTIONS(fq, flush_queue_t, guard);
 #define mark_fq_ready(fq)      do { (fq)->state &= ~FQ_IN_USE;   } while (0)
 
 /* get lock on atom from locked flush queue object */
-txn_atom *
+reiser4_internal txn_atom *
 atom_get_locked_by_fq(flush_queue_t * fq)
 {
 	/* This code is similar to atom_locked_by_jnode(), look at it for the
@@ -94,7 +92,7 @@ atom_get_locked_by_fq(flush_queue_t * fq)
 	return atom;
 }
 
-txn_atom *
+reiser4_internal txn_atom *
 atom_locked_by_fq(flush_queue_t * fq)
 {
 	return UNDER_SPIN(fq, fq, atom_get_locked_by_fq(fq));
@@ -116,7 +114,7 @@ init_fq(flush_queue_t * fq)
 /* slab for flush queues */
 static kmem_cache_t *fq_slab;
 
-int init_fqs(void)
+reiser4_internal int init_fqs(void)
 {
 	fq_slab = kmem_cache_create("fq",
 				    sizeof (flush_queue_t),
@@ -127,7 +125,7 @@ int init_fqs(void)
 	return (fq_slab == NULL) ? RETERR(-ENOMEM) : 0;
 }
 
-void done_fqs(void)
+reiser4_internal void done_fqs(void)
 {
 	kmem_cache_destroy(fq_slab);
 }
@@ -183,7 +181,7 @@ detach_fq(flush_queue_t * fq)
 }
 
 /* destroy flush queue object */
-void
+reiser4_internal void
 done_fq(flush_queue_t * fq)
 {
 	assert("zam-763", capture_list_empty(&fq->prepped));
@@ -192,7 +190,7 @@ done_fq(flush_queue_t * fq)
 	kmem_cache_free(fq_slab, fq);
 }
 
-void
+reiser4_internal void
 mark_jnode_queued(flush_queue_t *fq, jnode *node)
 {
 	JF_SET(node, JNODE_FLUSH_QUEUED);
@@ -201,7 +199,7 @@ mark_jnode_queued(flush_queue_t *fq, jnode *node)
 
 /* Putting jnode into the flush queue. Both atom and jnode should be
    spin-locked. */
-void
+reiser4_internal void
 queue_jnode(flush_queue_t * fq, jnode * node)
 {
 	assert("zam-711", spin_jnode_is_locked(node));
@@ -315,7 +313,7 @@ finish_all_fq(txn_atom * atom, int *nr_io_errors)
 }
 
 /* wait all i/o for current atom */
-int
+reiser4_internal int
 current_atom_finish_all_fq(void)
 {
 	txn_atom *atom;
@@ -363,7 +361,7 @@ scan_fq_and_update_atom_ref(capture_list_head * list, txn_atom * atom)
 }
 
 /* support for atom fusion operation */
-void
+reiser4_internal void
 fuse_fq(txn_atom * to, txn_atom * from)
 {
 	flush_queue_t *fq;
@@ -453,7 +451,7 @@ end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUS
 
 /* Count I/O requests which will be submitted by @bio in given flush queues
    @fq */
-void
+reiser4_internal void
 add_fq_to_bio(flush_queue_t * fq, struct bio *bio)
 {
 	bio->bi_private = fq;
@@ -504,7 +502,7 @@ static void release_prepped_list(flush_queue_t * fq)
    @fq: flush queue object which contains jnodes we can (and will) write.
    @return: number of submitted blocks (>=0) if success, otherwise -- an error
             code (<0). */
-int
+reiser4_internal int
 write_fq(flush_queue_t * fq, long * nr_submitted)
 {
 	int ret;
@@ -535,7 +533,7 @@ write_fq(flush_queue_t * fq, long * nr_submitted)
    atom lock is obtained by different ways in different parts of reiser4,
    usually it is current atom, but we need a possibility for getting fq for the
    atom of given jnode. */
-int
+reiser4_internal int
 fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
 {
 	flush_queue_t *fq;
@@ -587,7 +585,7 @@ fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
 
 /* A wrapper around fq_by_atom for getting a flush queue object for current
  * atom, if success fq->atom remains locked. */
-flush_queue_t *
+reiser4_internal flush_queue_t *
 get_fq_for_current_atom(void)
 {
 	flush_queue_t *fq = NULL;
@@ -605,7 +603,7 @@ get_fq_for_current_atom(void)
 }
 
 /* Releasing flush queue object after exclusive use */
-void
+reiser4_internal void
 fq_put_nolock(flush_queue_t * fq)
 {
 	assert("zam-747", fq->atom != NULL);
@@ -615,7 +613,7 @@ fq_put_nolock(flush_queue_t * fq)
 	ON_DEBUG(fq->owner = NULL);
 }
 
-void
+reiser4_internal void
 fq_put(flush_queue_t * fq)
 {
 	txn_atom *atom;
@@ -635,7 +633,7 @@ fq_put(flush_queue_t * fq)
 /* A part of atom object initialization related to the embedded flush queue
    list head */
 
-void
+reiser4_internal void
 init_atom_fq_parts(txn_atom * atom)
 {
 	fq_list_init(&atom->flush_queues);
@@ -644,7 +642,7 @@ init_atom_fq_parts(txn_atom * atom)
 /* get a flush queue for an atom pointed by given jnode (spin-locked) ; returns
  * both atom and jnode locked and found and took exclusive access for flush
  * queue object.  */
-int fq_by_jnode (jnode * node, flush_queue_t ** fq)
+reiser4_internal int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 {
 	txn_atom * atom;
 	int ret;

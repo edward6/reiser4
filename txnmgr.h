@@ -366,6 +366,8 @@ typedef struct protected_jnodes {
 
 TYPE_SAFE_LIST_DEFINE(prot, protected_jnodes, inatom);
 
+TYPE_SAFE_LIST_DEFINE(atom, txn_atom, atom_link);
+
 /* A transaction handle: the client obtains and commits this handle which is assigned by
    the system to a txn_atom. */
 struct txn_handle {
@@ -519,8 +521,6 @@ extern int blocknr_set_add_extent(txn_atom * atom,
 				  blocknr_set * bset,
 				  blocknr_set_entry ** new_bsep,
 				  const reiser4_block_nr * start, const reiser4_block_nr * len);
-extern int blocknr_set_add_block(txn_atom * atom,
-				 blocknr_set * bset, blocknr_set_entry ** new_bsep, const reiser4_block_nr * block);
 extern int blocknr_set_add_pair(txn_atom * atom,
 				blocknr_set * bset,
 				blocknr_set_entry ** new_bsep, const reiser4_block_nr * a, const reiser4_block_nr * b);

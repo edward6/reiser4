@@ -179,14 +179,15 @@ ih40_get_offset(item_header40 * ih)
 
 /* plugin->u.node.item_overhead
    look for description of this method in plugin/node/node.h */
-size_t item_overhead_node40(const znode * node UNUSED_ARG, flow_t * f UNUSED_ARG)
+reiser4_internal size_t
+item_overhead_node40(const znode * node UNUSED_ARG, flow_t * f UNUSED_ARG)
 {
 	return sizeof (item_header40);
 }
 
 /* plugin->u.node.free_space
    look for description of this method in plugin/node/node.h */
-size_t free_space_node40(znode * node)
+reiser4_internal size_t free_space_node40(znode * node)
 {
 	assert("nikita-577", node != NULL);
 	assert("nikita-578", znode_is_loaded(node));
@@ -219,7 +220,7 @@ static inline void check_num_items(const znode *node)
 
 /* plugin->u.node.num_of_items
    look for description of this method in plugin/node/node.h */
-int
+reiser4_internal int
 num_of_items_node40(const znode * node)
 {
 	trace_stamp(TRACE_NODES);
@@ -240,7 +241,7 @@ node40_set_num_items(znode * node, node40_header * nh, unsigned value)
 
 /* plugin->u.node.item_by_coord
    look for description of this method in plugin/node/node.h */
-char *
+reiser4_internal char *
 item_by_coord_node40(const coord_t * coord)
 {
 	item_header40 *ih;
@@ -257,7 +258,7 @@ item_by_coord_node40(const coord_t * coord)
 
 /* plugin->u.node.length_by_coord
    look for description of this method in plugin/node/node.h */
-int
+reiser4_internal int
 length_by_coord_node40(const coord_t * coord)
 {
 	item_header40 *ih;
@@ -278,7 +279,7 @@ length_by_coord_node40(const coord_t * coord)
 
 /* plugin->u.node.plugin_by_coord
    look for description of this method in plugin/node/node.h */
-item_plugin *
+reiser4_internal item_plugin *
 plugin_by_coord_node40(const coord_t * coord)
 {
 	item_header40 *ih;
@@ -296,7 +297,7 @@ plugin_by_coord_node40(const coord_t * coord)
 
 /* plugin->u.node.key_at
    look for description of this method in plugin/node/node.h */
-reiser4_key *
+reiser4_internal reiser4_key *
 key_at_node40(const coord_t * coord, reiser4_key * key)
 {
 	item_header40 *ih;
@@ -311,18 +312,19 @@ key_at_node40(const coord_t * coord, reiser4_key * key)
 
 /* VS-FIXME-HANS: please review whether the below are properly disabled when debugging is disabled */
 
-#define INCSTAT(n, counter)							\
+#define NODE_INCSTAT(n, counter)						\
 	reiser4_stat_inc_at_level(znode_get_level(n), node.lookup.counter)
 
-#define ADDSTAT(n, counter, val)						\
+#define NODE_ADDSTAT(n, counter, val)						\
 	reiser4_stat_add_at_level(znode_get_level(n), node.lookup.counter, val)
 
 /* plugin->u.node.lookup
    look for description of this method in plugin/node/node.h */
-node_search_result lookup_node40(znode * node /* node to query */ ,
-				 const reiser4_key * key /* key to look for */ ,
-				 lookup_bias bias /* search bias */ ,
-				 coord_t * coord /* resulting coord */ )
+reiser4_internal node_search_result
+lookup_node40(znode * node /* node to query */ ,
+	      const reiser4_key * key /* key to look for */ ,
+	      lookup_bias bias /* search bias */ ,
+	      coord_t * coord /* resulting coord */ )
 {
 	int left;
 	int right;
@@ -346,8 +348,8 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	trace_stamp(TRACE_NODES);
 
 	items = node_num_items(node);
-	INCSTAT(node, calls);
-	ADDSTAT(node, items, items);
+	NODE_INCSTAT(node, calls);
+	NODE_ADDSTAT(node, items, items);
 
 	node_check(node, REISER4_NODE_DKEYS);
 
@@ -393,7 +395,7 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 
 		assert("nikita-1084", median >= 0);
 		assert("nikita-1085", median < items);
-		INCSTAT(node, binary);
+		NODE_INCSTAT(node, binary);
 		switch (keycmp(key, &medianh->key)) {
 		case LESS_THAN:
 			right = median;
@@ -426,7 +428,7 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 		for (left = right, ih = righth; left >= 0; ++ ih, -- left) {
 			cmp_t comparison;
 
-			INCSTAT(node, seq);
+			NODE_INCSTAT(node, seq);
 			prefetchkey(&(ih + 1)->key);
 			comparison = keycmp(&ih->key, key);
 			if (comparison == GREATER_THAN)
@@ -453,16 +455,16 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	       equi(found, keyeq(&node40_ih_at(node, left)->key, key)));
 
 #if REISER4_STATS
-	ADDSTAT(node, found, !!found);
-	ADDSTAT(node, pos, left);
+	NODE_ADDSTAT(node, found, !!found);
+	NODE_ADDSTAT(node, pos, left);
 	if (items > 1)
-		ADDSTAT(node, posrelative, (left << 10) / (items - 1));
+		NODE_ADDSTAT(node, posrelative, (left << 10) / (items - 1));
 	else
-		ADDSTAT(node, posrelative, 1 << 10);
+		NODE_ADDSTAT(node, posrelative, 1 << 10);
 	if (left == node->last_lookup_pos)
-		INCSTAT(node, samepos);
+		NODE_INCSTAT(node, samepos);
 	if (left == node->last_lookup_pos + 1)
-		INCSTAT(node, nextpos);
+		NODE_INCSTAT(node, nextpos);
 	node->last_lookup_pos = left;
 #endif
 
@@ -535,9 +537,12 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	}
 }
 
+#undef NODE_ADDSTAT
+#undef NODE_INCSTAT
+
 /* plugin->u.node.estimate
    look for description of this method in plugin/node/node.h */
-size_t estimate_node40(znode * node)
+reiser4_internal size_t estimate_node40(znode * node)
 {
 	size_t result;
 
@@ -550,7 +555,7 @@ size_t estimate_node40(znode * node)
 
 /* plugin->u.node.check
    look for description of this method in plugin/node/node.h */
-int
+reiser4_internal int
 check_node40(const znode * node /* node to check */ ,
 	     __u32 flags /* check flags */ ,
 	     const char **error /* where to store error message */ )
@@ -732,7 +737,7 @@ check_node40(const znode * node /* node to check */ ,
 
 /* plugin->u.node.parse
    look for description of this method in plugin/node/node.h */
-int
+reiser4_internal int
 parse_node40(znode * node /* node to parse */ )
 {
 	node40_header *header;
@@ -758,7 +763,7 @@ parse_node40(znode * node /* node to parse */ )
 
 /* plugin->u.node.init
    look for description of this method in plugin/node/node.h */
-int
+reiser4_internal int
 init_node40(znode * node /* node to initialise */ )
 {
 	node40_header *header;
@@ -785,7 +790,7 @@ init_node40(znode * node /* node to initialise */ )
 	return 0;
 }
 
-int
+reiser4_internal int
 guess_node40(const znode * node /* node to guess plugin of */ )
 {
 	node40_header *nethack;
@@ -799,7 +804,7 @@ guess_node40(const znode * node /* node to guess plugin of */ )
 }
 
 #if REISER4_DEBUG_OUTPUT
-void
+reiser4_internal void
 print_node40(const char *prefix, const znode * node /* node to print */ ,
 	     __u32 flags UNUSED_ARG /* print flags */ )
 {
@@ -814,7 +819,7 @@ print_node40(const char *prefix, const znode * node /* node to print */ ,
 
 /* plugin->u.node.chage_item_size
    look for description of this method in plugin/node/node.h */
-void
+reiser4_internal void
 change_item_size_node40(coord_t * coord, int by)
 {
 	node40_header *nh;
@@ -858,7 +863,7 @@ should_notify_parent(const znode * node)
 
 /* plugin->u.node.create_item
    look for description of this method in plugin/node/node.h */
-int
+reiser4_internal int
 create_item_node40(coord_t * target, const reiser4_key * key, reiser4_item_data * data, carry_plugin_info * info)
 {
 	node40_header *nh;
@@ -954,7 +959,7 @@ create_item_node40(coord_t * target, const reiser4_key * key, reiser4_item_data 
 
 /* plugin->u.node.update_item_key
    look for description of this method in plugin/node/node.h */
-void
+reiser4_internal void
 update_item_key_node40(coord_t * target, const reiser4_key * key, carry_plugin_info * info)
 {
 	item_header40 *ih;
@@ -1193,14 +1198,14 @@ cut_or_kill(struct cut_list *params, int cut)
 }
 
 /* plugin->u.node.cut_and_kill */
-int
+reiser4_internal int
 cut_and_kill_node40(struct cut_list *params)
 {
 	return cut_or_kill(params, 0 /* kill (as regards - not cut) */);
 }
 
 /* plugin->u.node.cut */
-int
+reiser4_internal int
 cut_node40(struct cut_list *params)
 {
 	return cut_or_kill(params, 1 /* cut */);
@@ -1697,7 +1702,7 @@ delete_copied(struct shift_params *shift)
 /* znode has left and right delimiting keys. We moved data between nodes,
    therefore we must update delimiting keys of those znodes */
 /* Audited by: green(2002.06.13) */
-void
+reiser4_internal void
 update_znode_dkeys(znode * left, znode * right)
 {
 	reiser4_key key;
@@ -1794,7 +1799,7 @@ prepare_for_update(znode * left, znode * right, carry_plugin_info * info)
 /* plugin->u.node.prepare_removal
    to delete a pointer to @empty from the tree add corresponding carry
    operation (delete) to @info list */
-int
+reiser4_internal int
 prepare_removal_node40(znode * empty, carry_plugin_info * info)
 {
 	carry_op *op;
@@ -2122,7 +2127,7 @@ update_taps(const struct shift_params *shift)
 
 /* plugin->u.node.shift
    look for description of this method in plugin/node/node.h */
-int
+reiser4_internal int
 shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,	/* if @from->node becomes empty - it will
 											   be deleted from the tree if this is set
 											   to 1 */
@@ -2259,7 +2264,7 @@ shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,
 
 /* plugin->u.node.fast_insert()
    look for description of this method in plugin/node/node.h */
-int
+reiser4_internal int
 fast_insert_node40(const coord_t * coord UNUSED_ARG /* node to query */ )
 {
 	return 1;
@@ -2267,7 +2272,7 @@ fast_insert_node40(const coord_t * coord UNUSED_ARG /* node to query */ )
 
 /* plugin->u.node.fast_paste()
    look for description of this method in plugin/node/node.h */
-int
+reiser4_internal int
 fast_paste_node40(const coord_t * coord UNUSED_ARG /* node to query */ )
 {
 	return 1;
@@ -2275,7 +2280,7 @@ fast_paste_node40(const coord_t * coord UNUSED_ARG /* node to query */ )
 
 /* plugin->u.node.fast_cut()
    look for description of this method in plugin/node/node.h */
-int
+reiser4_internal int
 fast_cut_node40(const coord_t * coord UNUSED_ARG /* node to query */ )
 {
 	return 1;
@@ -2284,14 +2289,14 @@ fast_cut_node40(const coord_t * coord UNUSED_ARG /* node to query */ )
 /* plugin->u.node.modify - not defined */
 
 /* plugin->u.node.max_item_size */
-int
+reiser4_internal int
 max_item_size_node40(void)
 {
 	return reiser4_get_current_sb()->s_blocksize - sizeof (node40_header) - sizeof (item_header40);
 }
 
 /* plugin->u.node.set_item_plugin */
-int
+reiser4_internal int
 set_item_plugin_node40(coord_t *coord, item_id id)
 {
 	item_header40 *ih;

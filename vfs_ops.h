@@ -110,6 +110,18 @@ extern void reiser4_free_file_fsdata(struct file *f);
 extern void reiser4_handle_error(void);
 extern int reiser4_parse_options (struct super_block *, char *);
 
+#if REISER4_DEBUG
+static void finish_rcu(reiser4_super_info_data *sbinfo)
+{
+	spin_lock_irq(&sbinfo->all_guard);
+	while (atomic_read(&sbinfo->jnodes_in_flight) > 0)
+		kcond_wait(&sbinfo->rcu_done, &sbinfo->all_guard, 0);
+	spin_unlock_irq(&sbinfo->all_guard);
+}
+#else
+#define finish_rcu(sbinfo) noop
+#endif
+
 /* __FS_REISER4_VFS_OPS_H__ */
 #endif
 

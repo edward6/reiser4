@@ -34,7 +34,7 @@
 
 /* helper function. Standards require than for many file-system operations
    on success ctime and mtime of parent directory is to be updated. */
-int
+reiser4_internal int
 reiser4_update_dir(struct inode *dir)
 {
 	assert("nikita-2525", dir != NULL);
@@ -506,7 +506,7 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 
 /* ->is_name_acceptable() method of directory plugin */
 /* Audited by: green(2002.06.15) */
-int
+reiser4_internal int
 is_name_acceptable(const struct inode *inode /* directory to check */ ,
 		   const char *name UNUSED_ARG /* name to check */ ,
 		   int len /* @name's length */ )
@@ -527,7 +527,7 @@ is_valid_dir_coord(struct inode * inode, coord_t * coord)
 }
 
 /* true if directory is empty (only contains dot and dotdot) */
-int
+reiser4_internal int
 is_dir_empty(const struct inode *dir)
 {
 	assert("nikita-1976", dir != NULL);
@@ -538,7 +538,7 @@ is_dir_empty(const struct inode *dir)
 }
 
 /* compare two logical positions within the same directory */
-cmp_t dir_pos_cmp(const dir_pos * p1, const dir_pos * p2)
+reiser4_internal cmp_t dir_pos_cmp(const dir_pos * p1, const dir_pos * p2)
 {
 	cmp_t result;
 
@@ -687,7 +687,7 @@ adjust_dir_pos(struct file   * dir,
 
 /* scan all file-descriptors for this directory and adjust their positions
    respectively. */
-void
+reiser4_internal void
 adjust_dir_file(struct inode *dir, const struct dentry * de, int offset, int adj)
 {
 	reiser4_file_fsdata *scan;
@@ -977,7 +977,7 @@ move_entry(readdir_pos * pos, coord_t * coord)
 	}
 }
 
-int
+reiser4_internal int
 dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 {
 	struct inode *inode;
@@ -1152,12 +1152,12 @@ estimate_rem_entry_common(struct inode *inode)
 }
 
 static ssize_t
-perm(void)
+noperm(void)
 {
 	return RETERR(-EPERM);
 }
 
-#define eperm ((void *)perm)
+#define dir_eperm ((void *)noperm)
 
 static int
 _noop(void)
@@ -1248,15 +1248,15 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.lookup = lookup_pseudo,
-		.unlink = eperm,
-		.link = eperm,
+		.unlink = dir_eperm,
+		.link = dir_eperm,
 		.is_name_acceptable = NULL,
 		.build_entry_key = NULL,
 		.build_readdir_key = NULL,
-		.add_entry = eperm,
-		.rem_entry = eperm,
+		.add_entry = dir_eperm,
+		.rem_entry = dir_eperm,
 		.create_child = NULL,
-		.rename = eperm,
+		.rename = dir_eperm,
 		.readdir = readdir_pseudo,
 		.init = enoop,
 		.done = enoop,

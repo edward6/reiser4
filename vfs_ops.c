@@ -52,7 +52,6 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/writeback.h>
-#include <linux/mpage.h>
 #include <linux/backing-dev.h>
 #include <linux/quotaops.h>
 #include <linux/security.h>
@@ -143,7 +142,7 @@ reiser4_statfs(struct super_block *super	/* super block of file
 
 /* this is called whenever mark_inode_dirty is to be called. Stat-data are
  * updated in the tree. */
-int
+reiser4_internal int
 reiser4_mark_inode_dirty(struct inode *inode)
 {
 	assert("vs-1207", is_in_reiser4_context());
@@ -151,7 +150,7 @@ reiser4_mark_inode_dirty(struct inode *inode)
 }
 
 /* update inode stat-data by calling plugin */
-int
+reiser4_internal int
 reiser4_update_sd(struct inode *object)
 {
         file_plugin *fplug;
@@ -171,7 +170,7 @@ reiser4_update_sd(struct inode *object)
 
    Used by link/create and during creation of dot and dotdot in mkdir
 */
-int
+reiser4_internal int
 reiser4_add_nlink(struct inode *object /* object to which link is added */ ,
 		  struct inode *parent /* parent where new entry will be */ ,
 		  int write_sd_p	/* true if stat-data has to be
@@ -207,7 +206,7 @@ reiser4_add_nlink(struct inode *object /* object to which link is added */ ,
 
    Used by unlink/create
 */
-int
+reiser4_internal int
 reiser4_del_nlink(struct inode *object	/* object from which link is
 					 * removed */ ,
 		  struct inode *parent /* parent where entry was */ ,
@@ -236,7 +235,7 @@ reiser4_del_nlink(struct inode *object	/* object from which link is
 /* slab for reiser4_dentry_fsdata */
 static kmem_cache_t *dentry_fsdata_slab;
 
-int init_dentry_fsdata(void)
+reiser4_internal int init_dentry_fsdata(void)
 {
 	dentry_fsdata_slab = kmem_cache_create("dentry_fsdata",
 					       sizeof (reiser4_dentry_fsdata),
@@ -247,7 +246,7 @@ int init_dentry_fsdata(void)
 	return (dentry_fsdata_slab == NULL) ? RETERR(-ENOMEM) : 0;
 }
 
-void done_dentry_fsdata(void)
+reiser4_internal void done_dentry_fsdata(void)
 {
 	kmem_cache_destroy(dentry_fsdata_slab);
 }
@@ -255,7 +254,7 @@ void done_dentry_fsdata(void)
 
 /* Return and lazily allocate if necessary per-dentry data that we
    attach to each dentry. */
-reiser4_dentry_fsdata *
+reiser4_internal reiser4_dentry_fsdata *
 reiser4_get_dentry_fsdata(struct dentry *dentry	/* dentry
 						 * queried */ )
 {
@@ -274,7 +273,7 @@ reiser4_get_dentry_fsdata(struct dentry *dentry	/* dentry
 
 /* opposite to reiser4_get_dentry_fsdata(), returns per-dentry data into slab
  * allocator */
-void
+reiser4_internal void
 reiser4_free_dentry_fsdata(struct dentry *dentry /* dentry released */ )
 {
 	if (dentry->d_fsdata != NULL) {
@@ -293,7 +292,7 @@ reiser4_d_release(struct dentry *dentry /* dentry released */ )
 /* slab for reiser4_dentry_fsdata */
 static kmem_cache_t *file_fsdata_slab;
 
-int init_file_fsdata(void)
+reiser4_internal int init_file_fsdata(void)
 {
 	file_fsdata_slab = kmem_cache_create("file_fsdata",
 					     sizeof (reiser4_file_fsdata),
@@ -304,7 +303,7 @@ int init_file_fsdata(void)
 	return (file_fsdata_slab == NULL) ? RETERR(-ENOMEM) : 0;
 }
 
-void done_file_fsdata(void)
+reiser4_internal void done_file_fsdata(void)
 {
 	kmem_cache_destroy(file_fsdata_slab);
 }
@@ -312,7 +311,7 @@ void done_file_fsdata(void)
 
 /* Return and lazily allocate if necessary per-file data that we attach
    to each struct file. */
-reiser4_file_fsdata *
+reiser4_internal reiser4_file_fsdata *
 reiser4_get_file_fsdata(struct file *f	/* file
 					 * queried */ )
 {
@@ -345,7 +344,7 @@ reiser4_get_file_fsdata(struct file *f	/* file
 	return f->private_data;
 }
 
-void
+reiser4_internal void
 reiser4_free_file_fsdata(struct file *f)
 {
 	if (f->private_data != NULL) {
@@ -393,7 +392,7 @@ init_once(void *obj /* pointer to new inode */ ,
 }
 
 /* initialise slab cache where reiser4 inodes will live */
-int
+reiser4_internal int
 init_inodecache(void)
 {
 	inode_cache = kmem_cache_create("reiser4_inode",
@@ -871,7 +870,7 @@ parse_options(char *opt_string /* starting point */ ,
 	}
 
 /* parse options during mount */
-int
+reiser4_internal int
 reiser4_parse_options(struct super_block *s, char *opt_string)
 {
 	int result;
@@ -1242,22 +1241,6 @@ static void unregister_profregions(void)
 	unregister_tree_profregion();
 }
 
-#if REISER4_DEBUG
-/*
- * helper function used during umount. See super.h for more details.
- */
-static void finish_rcu(reiser4_super_info_data *sbinfo)
-{
-	/* wait until all RCU-deferred jnode reclamation finishes */
-	spin_lock_irq(&sbinfo->all_guard);
-	while (atomic_read(&sbinfo->jnodes_in_flight) > 0)
-		kcond_wait(&sbinfo->rcu_done, &sbinfo->all_guard, 0);
-	spin_unlock_irq(&sbinfo->all_guard);
-}
-#else
-#define finish_rcu(sbinfo) noop
-#endif
-
 /* umount. */
 static void
 reiser4_kill_super(struct super_block *s)
@@ -1500,7 +1483,7 @@ done_reiser4(void)
 	shutdown_reiser4();
 }
 
-void reiser4_handle_error(void)
+reiser4_internal void reiser4_handle_error(void)
 {
 	struct super_block *sb = reiser4_get_current_sb();
 
@@ -1613,7 +1596,7 @@ reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent
 	/* encode data necessary to restore stat data key */
 	addr += dscale_write(addr, get_inode_locality(inode));
 	addr += dscale_write(addr, get_inode_oid(inode));
-	TRACE_EXPORT_OPS("locality %llu, oid %llu\n", 
+	TRACE_EXPORT_OPS("locality %llu, oid %llu\n",
 			 get_inode_locality(inode), get_inode_oid(inode));
 	result = 2;
 	ON_LARGE_KEY(addr += dscale_write(addr, get_inode_ordering(inode));
@@ -1627,7 +1610,7 @@ reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent
 		addr += dscale_write(addr, get_inode_locality(parent));
 		addr += dscale_write(addr, get_inode_oid(parent));
 		result += 2;
-		TRACE_EXPORT_OPS("parent locality %llu, parent oid %llu\n", 
+		TRACE_EXPORT_OPS("parent locality %llu, parent oid %llu\n",
 				 get_inode_locality(parent), get_inode_oid(parent));
 		ON_LARGE_KEY(addr += dscale_write(addr, get_inode_ordering(parent));
 			     result ++;
@@ -1719,7 +1702,7 @@ reiser4_get_dentry(struct super_block *sb, void *data)
 }
 
 static struct dentry *
-reiser4_get_parent(struct dentry *child)
+reiser4_get_dentry_parent(struct dentry *child)
 {
 	struct inode *dir, *parent;
 	struct dentry dentry, *parent_dentry;
@@ -1757,7 +1740,7 @@ reiser4_get_parent(struct dentry *child)
 struct export_operations reiser4_export_operations = {
 	.encode_fh = reiser4_encode_fh,
 	.decode_fh = reiser4_decode_fh,
-	.get_parent = reiser4_get_parent,
+	.get_parent = reiser4_get_dentry_parent,
 	.get_dentry = reiser4_get_dentry
 } ;
 

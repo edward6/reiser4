@@ -13,7 +13,7 @@
 #include <linux/writeback.h>
 
 /* plugin->u.item.b.max_key_inside */
-reiser4_key *
+reiser4_internal reiser4_key *
 max_key_inside_tail(const coord_t *coord, reiser4_key *key)
 {
 	item_key_by_coord(coord, key);
@@ -22,7 +22,7 @@ max_key_inside_tail(const coord_t *coord, reiser4_key *key)
 }
 
 /* plugin->u.item.b.can_contain_key */
-int
+reiser4_internal int
 can_contain_key_tail(const coord_t *coord, const reiser4_key *key, const reiser4_item_data *data)
 {
 	reiser4_key item_key;
@@ -40,7 +40,7 @@ can_contain_key_tail(const coord_t *coord, const reiser4_key *key, const reiser4
 /* plugin->u.item.b.mergeable
    first item is of tail type */
 /* Audited by: green(2002.06.14) */
-int
+reiser4_internal int
 mergeable_tail(const coord_t *p1, const coord_t *p2)
 {
 	reiser4_key key1, key2;
@@ -67,7 +67,7 @@ mergeable_tail(const coord_t *p1, const coord_t *p2)
 	return 1;
 }
 
-void show_tail(struct seq_file *m, coord_t *coord)
+reiser4_internal void show_tail(struct seq_file *m, coord_t *coord)
 {
 	seq_printf(m, "length: %i", item_length_by_coord(coord));
 }
@@ -76,14 +76,14 @@ void show_tail(struct seq_file *m, coord_t *coord)
    plugin->u.item.b.check */
 
 /* plugin->u.item.b.nr_units */
-pos_in_item_t
+reiser4_internal pos_in_item_t
 nr_units_tail(const coord_t *coord)
 {
 	return item_length_by_coord(coord);
 }
 
 /* plugin->u.item.b.lookup */
-lookup_result
+reiser4_internal lookup_result
 lookup_tail(const reiser4_key *key, lookup_bias bias, coord_t *coord)
 {
 	reiser4_key item_key;
@@ -114,7 +114,7 @@ lookup_tail(const reiser4_key *key, lookup_bias bias, coord_t *coord)
 }
 
 /* plugin->u.item.b.paste */
-int
+reiser4_internal int
 paste_tail(coord_t *coord, reiser4_item_data *data, carry_plugin_info *info UNUSED_ARG)
 {
 	unsigned old_item_length;
@@ -160,7 +160,7 @@ paste_tail(coord_t *coord, reiser4_item_data *data, carry_plugin_info *info UNUS
 /* plugin->u.item.b.can_shift
    number of units is returned via return value, number of bytes via @size. For
    tail items they coincide */
-int
+reiser4_internal int
 can_shift_tail(unsigned free_space, coord_t *source UNUSED_ARG,
 	       znode *target UNUSED_ARG, shift_direction direction UNUSED_ARG, unsigned *size, unsigned want)
 {
@@ -172,7 +172,7 @@ can_shift_tail(unsigned free_space, coord_t *source UNUSED_ARG,
 }
 
 /* plugin->u.item.b.copy_units */
-void
+reiser4_internal void
 copy_units_tail(coord_t *target, coord_t *source,
 		unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space UNUSED_ARG)
 {
@@ -210,7 +210,7 @@ copy_units_tail(coord_t *target, coord_t *source,
 
 /* plugin->u.item.b.cut_units
    plugin->u.item.b.kill_units */
-int
+reiser4_internal int
 cut_units_tail(coord_t *coord, unsigned *from, unsigned *to,
 	       const reiser4_key *from_key UNUSED_ARG,
 	       const reiser4_key *to_key UNUSED_ARG, reiser4_key *smallest_removed,
@@ -244,7 +244,7 @@ cut_units_tail(coord_t *coord, unsigned *from, unsigned *to,
 }
 
 /* plugin->u.item.b.unit_key */
-reiser4_key *
+reiser4_internal reiser4_key *
 unit_key_tail(const coord_t *coord, reiser4_key *key)
 {
 	assert("vs-375", coord_is_existing_unit(coord));
@@ -284,7 +284,7 @@ overwrite_tail(coord_t *coord, flow_t *f)
 }
 
 /* tail redpage function. It is called from readpage_tail(). */
-int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
+reiser4_internal int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
 	tap_t tap;
 	int result;
 	coord_t coord;
@@ -393,7 +393,7 @@ int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
 
    At the beginning: coord->node is read locked, zloaded, page is locked, coord is set to existing unit inside of tail
    item. */
-int
+reiser4_internal int
 readpage_tail(void *vp, struct page *page)
 {
 	uf_coord_t *uf_coord = vp;
@@ -414,7 +414,8 @@ readpage_tail(void *vp, struct page *page)
 	return do_readpage_tail(uf_coord, page);
 }
 
-int item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
+reiser4_internal int
+item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 			     hint_t *hint, int back_to_dirty, int do_set_hint)
 {
 	int result;
@@ -480,7 +481,7 @@ overwrite_reserve(reiser4_tree *tree)
 
 /* plugin->u.item.s.file.write
    access to data stored in tails goes directly through formatted nodes */
-int
+reiser4_internal int
 write_tail(struct inode *inode, flow_t *f, hint_t *hint,
 	   int grabbed, /* tail's write may be called from plain unix file write and from tail conversion. In first
 			   case (grabbed == 0) space is not reserved forehand, so, it must be done here. When it is
@@ -552,7 +553,7 @@ write_tail(struct inode *inode, flow_t *f, hint_t *hint,
 #if REISER4_DEBUG
 
 static int
-coord_matches_key(const coord_t *coord, const reiser4_key *key)
+coord_matches_key_tail(const coord_t *coord, const reiser4_key *key)
 {
 	reiser4_key item_key;
 
@@ -566,7 +567,7 @@ coord_matches_key(const coord_t *coord, const reiser4_key *key)
 #endif
 
 /* plugin->u.item.s.file.read */
-int
+reiser4_internal int
 read_tail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 {
 	unsigned count;
@@ -584,7 +585,7 @@ read_tail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 	assert("vs-1118", znode_is_loaded(coord->node));
 
 	assert("nikita-3037", schedulable());
-	assert("vs-1357", coord_matches_key(coord, &f->key));
+	assert("vs-1357", coord_matches_key_tail(coord, &f->key));
 
 	/* calculate number of bytes to read off the item */
 	item_length = item_length_by_coord(coord);
@@ -616,7 +617,7 @@ read_tail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
    plugin->u.item.s.file.append_key
    key of first byte which is the next to last byte by addressed by this item
 */
-reiser4_key *
+reiser4_internal reiser4_key *
 append_key_tail(const coord_t *coord, reiser4_key *key)
 {
 	item_key_by_coord(coord, key);
@@ -625,7 +626,7 @@ append_key_tail(const coord_t *coord, reiser4_key *key)
 }
 
 /* plugin->u.item.s.file.init_coord_extension */
-void
+reiser4_internal void
 init_coord_extension_tail(uf_coord_t *uf_coord, loff_t lookuped)
 {
 	uf_coord->valid = 1;	
@@ -634,7 +635,8 @@ init_coord_extension_tail(uf_coord_t *uf_coord, loff_t lookuped)
 /*
   plugin->u.item.s.file.get_block
 */
-int get_block_address_tail(const uf_coord_t *uf_coord, sector_t block, struct buffer_head *bh)
+reiser4_internal int
+get_block_address_tail(const uf_coord_t *uf_coord, sector_t block, struct buffer_head *bh)
 {
 	assert("nikita-3252",
 	       znode_get_level(uf_coord->base_coord.node) == LEAF_LEVEL);

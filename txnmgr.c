@@ -283,7 +283,6 @@ struct _txn_wait_links {
 	int (*waiting_cb)(txn_atom *atom, struct _txn_wait_links *wlinks);
 };
 
-TYPE_SAFE_LIST_DEFINE(atom, txn_atom, atom_link);
 TYPE_SAFE_LIST_DEFINE(txnh, txn_handle, txnh_link);
 
 TYPE_SAFE_LIST_DEFINE(fwaitfor, txn_wait_links, _fwaitfor_link);
@@ -301,7 +300,7 @@ ON_DEBUG(extern atomic_t flush_cnt;)
 ktxnmgrd_context kdaemon;
 
 /* Initialize static variables in this file. */
-int
+reiser4_internal int
 txnmgr_init_static(void)
 {
 	assert("jmacd-600", _atom_slab == NULL);
@@ -339,7 +338,7 @@ error:
 }
 
 /* Un-initialize static variables in this file. */
-int
+reiser4_internal int
 txnmgr_done_static(void)
 {
 	int ret1, ret2, ret3;
@@ -360,7 +359,7 @@ txnmgr_done_static(void)
 }
 
 /* Initialize a new transaction manager.  Called when the super_block is initialized. */
-void
+reiser4_internal void
 txnmgr_init(txn_mgr * mgr)
 {
 	assert("umka-169", mgr != NULL);
@@ -375,7 +374,7 @@ txnmgr_init(txn_mgr * mgr)
 }
 
 /* Free transaction manager. */
-int
+reiser4_internal int
 txnmgr_done(txn_mgr * mgr UNUSED_ARG)
 {
 	assert("umka-170", mgr != NULL);
@@ -404,7 +403,7 @@ static int
 txnh_isclean(txn_handle * txnh)
 {
 	assert("umka-172", txnh != NULL);
-	return ((txnh->atom == NULL) && spin_txnh_is_not_locked(txnh));
+	return txnh->atom == NULL && spin_txnh_is_not_locked(txnh);
 }
 #endif
 
@@ -455,36 +454,28 @@ atom_isclean(txn_atom * atom)
 		}
 	}
 
-	return ((atom->stage == ASTAGE_FREE) &&
-		(atom->txnh_count == 0) &&
-		(atom->capture_count == 0) &&
-		(atomic_read(&atom->refcount) == 0) &&
+	return
+		atom->stage == ASTAGE_FREE &&
+		atom->txnh_count == 0 &&
+		atom->capture_count == 0 &&
+		atomic_read(&atom->refcount) == 0 &&
 		atom_list_is_clean(atom) &&
 		txnh_list_empty(&atom->txnh_list) &&
 		capture_list_empty(&atom->clean_nodes) &&
 		capture_list_empty(&atom->ovrwr_nodes) &&
 		capture_list_empty(&atom->writeback_nodes) &&
 		fwaitfor_list_empty(&atom->fwaitfor_list) &&
-		fwaiting_list_empty(&atom->fwaiting_list)) &&
+		fwaiting_list_empty(&atom->fwaiting_list) &&
 		prot_list_empty(&atom->protected) &&
 		atom_fq_parts_are_clean(atom);
 }
 #endif
 
-/* FIXME_LATER_JMACD Not sure how this is used yet.  The idea is to reserve a number of
-   blocks for use by the current transaction handle. */
-/* Audited by: umka (2002.06.13) */
-int
-txn_reserve(int reserved UNUSED_ARG)
-{
-	return 0;
-}
-
 /* Begin a transaction in this context.  Currently this uses the reiser4_context's
    trans_in_ctx, which means that transaction handles are stack-allocated.  Eventually
    this will be extended to allow transaction handles to span several contexts. */
 /* Audited by: umka (2002.06.13) */
-void
+reiser4_internal void
 txn_begin(reiser4_context * context)
 {
 	assert("jmacd-544", context->trans == NULL);
@@ -500,7 +491,7 @@ txn_begin(reiser4_context * context)
 }
 
 /* Finish a transaction handle context. */
-long
+reiser4_internal long
 txn_end(reiser4_context * context)
 {
 	long ret = 0;
@@ -541,7 +532,7 @@ txn_end(reiser4_context * context)
 /* Get the atom belonging to a txnh, which is not locked.  Return txnh locked. Locks atom, if atom
    is not NULL.  This performs the necessary spin_trylock to break the lock-ordering cycle.  May
    return NULL. */
-txn_atom *
+reiser4_internal txn_atom *
 atom_locked_by_txnh_nocheck(txn_handle * txnh)
 {
 	txn_atom *atom;
@@ -578,7 +569,7 @@ atom_locked_by_txnh_nocheck(txn_handle * txnh)
 }
 
 /* Get the current atom and spinlock it if current atom present. May return NULL  */
-txn_atom *
+reiser4_internal txn_atom *
 get_current_atom_locked_nocheck(void)
 {
 	reiser4_context *cx;
@@ -601,7 +592,7 @@ get_current_atom_locked_nocheck(void)
    both jnode and atom locked.  This performs the necessary spin_trylock to
    break the lock-ordering cycle.  Assumes the jnode is already locked, and
    returns NULL if atom is not set. */
-txn_atom *
+reiser4_internal txn_atom *
 atom_locked_by_jnode(jnode * node)
 {
 	txn_atom *atom;
@@ -655,7 +646,7 @@ atom_locked_by_jnode(jnode * node)
 /* Returns true if @node is dirty and part of the same atom as one of its neighbors.  Used
    by flush code to indicate whether the next node (in some direction) is suitable for
    flushing. */
-int
+reiser4_internal int
 same_slum_check(jnode * node, jnode * check, int alloc_check, int alloc_value)
 {
 	int compat;
@@ -699,20 +690,9 @@ same_slum_check(jnode * node, jnode * check, int alloc_check, int alloc_value)
 	return compat;
 }
 
-/* Like atom_dec_and_unlock(), but txnmgr's spin-lock is already held */
-void atom_dec_and_unlock_locked(txn_atom * atom)
-{
-	assert("nikita-3347", atom != NULL);
-	assert("nikita-3348", spin_atom_is_locked(atom));
-
-	if (atomic_dec_and_test(&atom->refcount))
-		atom_free(atom);
-	else
-		UNLOCK_ATOM(atom);
-}
-
 /* Decrement the atom's reference count and if it falls to zero, free it. */
-void atom_dec_and_unlock(txn_atom * atom)
+reiser4_internal void
+atom_dec_and_unlock(txn_atom * atom)
 {
 	txn_mgr *mgr = &get_super_private(reiser4_get_current_sb())->tmgr;
 
@@ -902,7 +882,7 @@ atom_should_commit(const txn_atom * atom)
 }
 
 /* return 1 if current atom exists and requires commit. */
-int current_atom_should_commit(void)
+reiser4_internal int current_atom_should_commit(void)
 {
 	txn_atom * atom;
 	int result = 0;
@@ -933,7 +913,7 @@ atom_should_commit_asap(const txn_atom * atom)
 
 /* Get first dirty node from the atom's dirty_nodes[n] lists; return NULL if atom has no dirty
    nodes on atom's lists */
-jnode * find_first_dirty_jnode (txn_atom * atom, int flags)
+reiser4_internal jnode * find_first_dirty_jnode (txn_atom * atom, int flags)
 {
 	jnode *first_dirty;
 	tree_level level;
@@ -1303,7 +1283,7 @@ static int force_commit_atom_nolock (txn_handle * txnh)
 
 /* externally visible function which takes all necessary locks and commits
  * current atom */
-int txnmgr_force_commit_current_atom (void)
+reiser4_internal int txnmgr_force_commit_current_atom (void)
 {
 	txn_handle * txnh = get_current_context()->trans;
 	txn_atom * atom;
@@ -1321,7 +1301,8 @@ int txnmgr_force_commit_current_atom (void)
 /* Called to force commit of any outstanding atoms.  @commit_new_atoms controls
  * should we commit new atoms which are created after this functions is
  * called. */
-int txnmgr_force_commit_all (struct super_block *super, int commit_new_atoms)
+reiser4_internal int
+txnmgr_force_commit_all (struct super_block *super, int commit_new_atoms)
 {
 	int ret;
 	txn_atom *atom;
@@ -1388,7 +1369,7 @@ again:
 
 /* called periodically from ktxnmgrd to commit old atoms. Releases ktxnmgrd spin
  * lock at exit */
-int
+reiser4_internal int
 commit_some_atoms(txn_mgr * mgr)
 {
 	int ret = 0;
@@ -1461,7 +1442,8 @@ commit_some_atoms(txn_mgr * mgr)
 
    If atom is too large or too old it is committed also.
 */
-int flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
+reiser4_internal int
+flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 {
 	reiser4_context *ctx = get_current_context();
 	txn_handle *txnh = ctx->trans;
@@ -1592,7 +1574,7 @@ init_wlinks(txn_wait_links * wlinks)
 }
 
 /* Add atom to the atom's waitfor list and wait for somebody to wake us up; */
-void atom_wait_event(txn_atom * atom)
+reiser4_internal void atom_wait_event(txn_atom * atom)
 {
 	txn_wait_links _wlinks;
 
@@ -1616,7 +1598,7 @@ void atom_wait_event(txn_atom * atom)
 }
 
 /* wake all threads which wait for an event */
-void
+reiser4_internal void
 atom_send_event(txn_atom * atom)
 {
 	assert("zam-745", spin_atom_is_locked(atom));
@@ -2025,7 +2007,7 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 	return 0;
 }
 
-txn_capture
+reiser4_internal txn_capture
 build_capture_mode(jnode * node, znode_lock_mode lock_mode, txn_capture flags)
 {
 	txn_capture cap_mode;
@@ -2078,7 +2060,7 @@ build_capture_mode(jnode * node, znode_lock_mode lock_mode, txn_capture flags)
             cannot be processed immediately as it was requested in flags,
 	    < 0 - other errors.
 */
-int
+reiser4_internal int
 try_capture(jnode * node,  znode_lock_mode lock_mode,
 	    txn_capture flags, int can_coc)
 {
@@ -2271,7 +2253,7 @@ fail:
 
 /* This is the interface to capture unformatted nodes via their struct page
    reference. Currently it is only used in reiser4_invalidatepage */
-int
+reiser4_internal int
 try_capture_page_to_invalidate(struct page *pg)
 {
 	int ret;
@@ -2298,13 +2280,14 @@ try_capture_page_to_invalidate(struct page *pg)
 /* this is to prevent captured inodes from being pruned. FIXME: maybe we could use I_DIRTY*/
 #define I_CAPTURED 512
 
+#if 0
 /* VS-FIXME-HANS: explain the concept behind capturing an inode, and all of
  * its principles of operation / guarantees provided. No adding design features
  * without explanations of them!;-), especially when the last thing I vaguely
  * remember you were saying something about how it isn't used to any
  * effect.... */
 /* this is called by reiser4_mark_inode_dirty */
-int capture_inode(struct inode *inode)
+reiser4_internal int capture_inode(struct inode *inode)
 {
 	int result;
 	jnode *j;
@@ -2320,8 +2303,9 @@ int capture_inode(struct inode *inode)
 	UNLOCK_JNODE(j);
 	return result;
 }
+#endif
 
-int uncapture_inode(struct inode *inode)
+reiser4_internal int uncapture_inode(struct inode *inode)
 {
 	txn_atom *atom;
 	jnode *j;
@@ -2353,14 +2337,8 @@ good reason to use it (I have not noticed one so far and I doubt it exists, but 
 move the loop to inside the function.
 
 VS-FIXME-HANS: can this code be at all streamlined?  In particular, can you lock and unlock the jnode fewer times?
-
-Handles the E_REPEAT result from
-   blocknr_set_add_block, which is returned by blocknr_set_add when it releases the atom
-   lock to perform an allocation.  The atom could fuse while this lock is released, which is
-   why the E_REPEAT must be handled by repeating the call to atom_locked_by_jnode.  The
-   second call is guaranteed to provide a pre-allocated blocknr_entry so it can only
-   "repeat" once.  */
-void
+  */
+reiser4_internal void
 uncapture_page(struct page *pg)
 {
 	jnode *node;
@@ -2438,7 +2416,7 @@ uncapture_page(struct page *pg)
 }
 
 /* this is used in extent's kill hook to uncapture and unhash jnodes attached to inode's tree of jnodes */
-void
+reiser4_internal void
 uncapture_jnode(jnode *node)
 {
 	txn_atom *atom;
@@ -2577,7 +2555,7 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 }
 
 /* Set the dirty status for this (spin locked) jnode. */
-void
+reiser4_internal void
 jnode_make_dirty_locked(jnode * node)
 {
 	assert("umka-204", node != NULL);
@@ -2603,7 +2581,7 @@ jnode_make_dirty_locked(jnode * node)
 }
 
 /* Set the dirty status for this znode. */
-void
+reiser4_internal void
 znode_make_dirty(znode * z)
 {
 	jnode *node;
@@ -2650,7 +2628,7 @@ znode_make_dirty(znode * z)
 /* Unset the dirty status for this jnode.  If the jnode is dirty, this
    involves locking the atom (for its capture lists), removing from the
    dirty_nodes list and pushing in to the clean list. */
-void
+reiser4_internal void
 jnode_make_clean(jnode * node)
 {
 	txn_atom *atom;
@@ -2693,7 +2671,7 @@ jnode_make_clean(jnode * node)
 
 /* Make node OVRWR and put it on atom->overwrite_nodes list, atom lock and jnode
  * lock should be taken before calling this function. */
-void jnode_make_wander_nolock (jnode * node)
+reiser4_internal void jnode_make_wander_nolock (jnode * node)
 {
 	txn_atom * atom;
 
@@ -2717,7 +2695,7 @@ void jnode_make_wander_nolock (jnode * node)
 
 /* Same as jnode_make_wander_nolock, but all necessary locks are taken inside
  * this function. */
-void jnode_make_wander (jnode * node)
+reiser4_internal void jnode_make_wander (jnode * node)
 {
 	txn_atom * atom;
 
@@ -2732,7 +2710,7 @@ void jnode_make_wander (jnode * node)
 }
 
 /* Make znode RELOC and put it on flush queue */
-void znode_make_reloc (znode *z, flush_queue_t * fq)
+reiser4_internal void znode_make_reloc (znode *z, flush_queue_t * fq)
 {
 	jnode *node;
 	txn_atom * atom;
@@ -2758,7 +2736,7 @@ void znode_make_reloc (znode *z, flush_queue_t * fq)
 }
 
 /* Make unformatted node RELOC and put it on flush queue */
-void
+reiser4_internal void
 unformatted_make_reloc(jnode *node, flush_queue_t * fq)
 {
 	assert("vs-1479", jnode_is_unformatted(node));
@@ -2980,7 +2958,7 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode, int can_c
 	return 0;
 }
 
-int
+reiser4_internal int
 capture_super_block(struct super_block *s)
 {
 	int result;
@@ -3416,7 +3394,7 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 	atom_dec_and_unlock(small);
 }
 
-void
+reiser4_internal void
 protected_jnodes_init(protected_jnodes *list)
 {
 	txn_atom *atom;
@@ -3429,7 +3407,7 @@ protected_jnodes_init(protected_jnodes *list)
 	UNLOCK_ATOM(atom);
 }
 
-void
+reiser4_internal void
 protected_jnodes_done(protected_jnodes *list)
 {
 	txn_atom *atom;
@@ -3935,7 +3913,7 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
    NOTE: this function does not release a (journal) reference to jnode
    due to locking optimizations, you should call jput() somewhere after
    calling uncapture_block(). */
-void uncapture_block(jnode * node)
+reiser4_internal void uncapture_block(jnode * node)
 {
 	txn_atom * atom;
 
@@ -3979,7 +3957,7 @@ void uncapture_block(jnode * node)
 /* Unconditional insert of jnode into atom's overwrite list. Currently used in
    bitmap-based allocator code for adding modified bitmap blocks the
    transaction. @atom and @node are spin locked */
-void
+reiser4_internal void
 insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node)
 {
 	assert("zam-538", spin_atom_is_locked(atom) || atom->stage >= ASTAGE_PRE_COMMIT);
@@ -3996,7 +3974,7 @@ insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node)
 }
 
 /* return 1 if two dirty jnodes belong to one atom, 0 - otherwise */
-int
+reiser4_internal int
 jnodes_of_one_atom(jnode * j1, jnode * j2)
 {
 	int ret = 0;
@@ -4024,7 +4002,7 @@ jnodes_of_one_atom(jnode * j1, jnode * j2)
 
 /* when atom becomes that big, commit it as soon as possible. This was found
  * to be most effective by testing. */
-unsigned int
+reiser4_internal unsigned int
 txnmgr_get_max_atom_size(struct super_block *super UNUSED_ARG)
 {
 	return nr_free_pagecache_pages() / 2;
@@ -4032,7 +4010,7 @@ txnmgr_get_max_atom_size(struct super_block *super UNUSED_ARG)
 
 
 #if REISER4_DEBUG_OUTPUT
-void
+reiser4_internal void
 print_atom(const char *prefix, txn_atom * atom)
 {
 	jnode *pos_in_atom;

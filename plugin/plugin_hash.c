@@ -67,7 +67,7 @@ static int is_scope_valid(phash_scope scope)
 }
 #endif
 
-int phash_user_register(phash_user *user)
+reiser4_internal int phash_user_register(phash_user *user)
 {
 	assert("nikita-2924", user != NULL);
 	assert("nikita-2925", is_scope_valid(user->scope));
@@ -77,7 +77,7 @@ int phash_user_register(phash_user *user)
 	return 0;
 }
 
-void phash_user_unregister(phash_user *user)
+reiser4_internal void phash_user_unregister(phash_user *user)
 {
 	assert("nikita-2926", user != NULL);
 	assert("nikita-2927", is_scope_valid(user->scope));
@@ -86,7 +86,7 @@ void phash_user_unregister(phash_user *user)
 	spin_unlock(&phash_lock);
 }
 
-phash_header *phash_get(phash_user *user, void *object)
+reiser4_internal phash_header *phash_get(phash_user *user, void *object)
 {
 	phash_header  head;
 	phash_header *found;
@@ -100,7 +100,8 @@ phash_header *phash_get(phash_user *user, void *object)
 	return found;
 }
 
-void phash_set(phash_user *user, void *object, phash_header *value)
+reiser4_internal void
+phash_set(phash_user *user, void *object, phash_header *value)
 {
 	value->user   = user;
 	value->object = object;
@@ -110,7 +111,7 @@ void phash_set(phash_user *user, void *object, phash_header *value)
 	spin_unlock(&phash_lock);
 }
 
-int phash_destroy_hook(phash_scope scope, void *object)
+reiser4_internal int phash_destroy_hook(phash_scope scope, void *object)
 {
 	int result;
 	int called;
@@ -145,7 +146,7 @@ int phash_destroy_hook(phash_scope scope, void *object)
 	return result;
 }
 
-int phash_init(void)
+reiser4_internal int phash_init(void)
 {
 	int i;
 
@@ -155,7 +156,7 @@ int phash_init(void)
 	return phash_hash_init(&phash_table, PHASH_TABLE_SIZE, NULL);
 }
 
-void phash_done(void)
+reiser4_internal void phash_done(void)
 {
 	phash_hash_done(&phash_table);
 }

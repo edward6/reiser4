@@ -23,7 +23,7 @@
 
 /* return reiser4 internal tree which inode belongs to */
 /* Audited by: green(2002.06.17) */
-reiser4_tree *
+reiser4_internal reiser4_tree *
 tree_by_inode(const struct inode * inode /* inode queried */ )
 {
 	assert("nikita-256", inode != NULL);
@@ -40,7 +40,7 @@ inode_flags(const struct inode * const inode)
 }
 
 /* set reiser4-specific flag @f in @inode */
-void
+reiser4_internal void
 inode_set_flag(struct inode * inode, reiser4_file_plugin_flags f)
 {
 	assert("nikita-2248", inode != NULL);
@@ -48,7 +48,7 @@ inode_set_flag(struct inode * inode, reiser4_file_plugin_flags f)
 }
 
 /* clear reiser4-specific flag @f in @inode */
-void
+reiser4_internal void
 inode_clr_flag(struct inode * inode, reiser4_file_plugin_flags f)
 {
 	assert("nikita-2250", inode != NULL);
@@ -56,7 +56,7 @@ inode_clr_flag(struct inode * inode, reiser4_file_plugin_flags f)
 }
 
 /* true if reiser4-specific flag @f is set in @inode */
-int
+reiser4_internal int
 inode_get_flag(const struct inode * inode, reiser4_file_plugin_flags f)
 {
 	assert("nikita-2251", inode != NULL);
@@ -64,13 +64,13 @@ inode_get_flag(const struct inode * inode, reiser4_file_plugin_flags f)
 }
 
 /* convert oid to inode number */
-ino_t oid_to_ino(oid_t oid)
+reiser4_internal ino_t oid_to_ino(oid_t oid)
 {
 	return (ino_t) oid;
 }
 
 /* convert oid to user visible inode number */
-ino_t oid_to_uino(oid_t oid)
+reiser4_internal ino_t oid_to_uino(oid_t oid)
 {
 	/* reiser4 object is uniquely identified by oid which is 64 bit
 	   quantity. Kernel in-memory inode is indexed (in the hash table) by
@@ -96,7 +96,7 @@ ino_t oid_to_uino(oid_t oid)
 }
 
 /* check that "inode" is on reiser4 file-system */
-int
+reiser4_internal int
 is_reiser4_inode(const struct inode *inode /* inode queried */ )
 {
 	return
@@ -109,7 +109,7 @@ is_reiser4_inode(const struct inode *inode /* inode queried */ )
 /* Maximal length of a name that can be stored in directory @inode.
 
    This is used in check during file creation and lookup. */
-int
+reiser4_internal int
 reiser4_max_filename_len(const struct inode *inode /* inode queried */ )
 {
 	assert("nikita-287", is_reiser4_inode(inode));
@@ -121,7 +121,7 @@ reiser4_max_filename_len(const struct inode *inode /* inode queried */ )
 }
 
 /* Maximal number of hash collisions for this directory. */
-int
+reiser4_internal int
 max_hash_collisions(const struct inode *dir /* inode queried */ )
 {
 	assert("nikita-1711", dir != NULL);
@@ -135,7 +135,7 @@ max_hash_collisions(const struct inode *dir /* inode queried */ )
 
 /* Install file, inode, and address_space operation on @inode, depending on
    its mode. */
-int
+reiser4_internal int
 setup_inode_ops(struct inode *inode /* inode to intialise */ ,
 		reiser4_object_create_data * data	/* parameters to create
 							 * object */ )
@@ -319,7 +319,7 @@ init_locked_inode(struct inode *inode /* new inode */ ,
    (objectids) are distinguished by their packing locality.
 
 */
-int
+reiser4_internal int
 reiser4_inode_find_actor(struct inode *inode	/* inode from hash table to
 						 * check */ ,
 			 void *opaque	/* "cookie" passed to
@@ -351,7 +351,7 @@ reiser4_inode_find_actor(struct inode *inode	/* inode from hash table to
  * reiser4_lookup() and reiser4_read_super(). Return inode locked or error
  * encountered.
  */
-struct inode *
+reiser4_internal struct inode *
 reiser4_iget(struct super_block *super /* super block  */ ,
 	     const reiser4_key * key	/* key of inode's
 					 * stat-data */ )
@@ -424,7 +424,7 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 
 /* reiser4_iget() may return not fully initialized inode, this function should
  * be called after one completes reiser4 inode initializing. */
-void reiser4_iget_complete (struct inode * inode)
+reiser4_internal void reiser4_iget_complete (struct inode * inode)
 {
 	assert("zam-988", is_reiser4_inode(inode));
 
@@ -434,7 +434,7 @@ void reiser4_iget_complete (struct inode * inode)
 	}
 }
 
-void
+reiser4_internal void
 reiser4_make_bad_inode(struct inode *inode)
 {
 	assert("nikita-1934", inode != NULL);
@@ -445,56 +445,56 @@ reiser4_make_bad_inode(struct inode *inode)
 	return;
 }
 
-file_plugin *
+reiser4_internal file_plugin *
 inode_file_plugin(const struct inode * inode)
 {
 	assert("nikita-1997", inode != NULL);
 	return reiser4_inode_data(inode)->pset->file;
 }
 
-dir_plugin *
+reiser4_internal dir_plugin *
 inode_dir_plugin(const struct inode * inode)
 {
 	assert("nikita-1998", inode != NULL);
 	return reiser4_inode_data(inode)->pset->dir;
 }
 
-perm_plugin *
+reiser4_internal perm_plugin *
 inode_perm_plugin(const struct inode * inode)
 {
 	assert("nikita-1999", inode != NULL);
 	return reiser4_inode_data(inode)->pset->perm;
 }
 
-formatting_plugin *
+reiser4_internal formatting_plugin *
 inode_formatting_plugin(const struct inode * inode)
 {
 	assert("nikita-2000", inode != NULL);
 	return reiser4_inode_data(inode)->pset->formatting;
 }
 
-hash_plugin *
+reiser4_internal hash_plugin *
 inode_hash_plugin(const struct inode * inode)
 {
 	assert("nikita-2001", inode != NULL);
 	return reiser4_inode_data(inode)->pset->hash;
 }
 
-crypto_plugin *
+reiser4_internal crypto_plugin *
 inode_crypto_plugin(const struct inode * inode)
 {
 	assert("edward-36", inode != NULL);
 	return reiser4_inode_data(inode)->pset->crypto;
 }
 
-compression_plugin *
+reiser4_internal compression_plugin *
 inode_compression_plugin(const struct inode * inode)
 {
 	assert("edward-37", inode != NULL);
 	return reiser4_inode_data(inode)->pset->compression;
 }
 
-digest_plugin *
+reiser4_internal digest_plugin *
 inode_digest_plugin(const struct inode * inode)
 {
 	assert("edward-86", inode != NULL);
@@ -502,7 +502,7 @@ inode_digest_plugin(const struct inode * inode)
 }
 
 /* Audited by: green(2002.06.17) */
-item_plugin *
+reiser4_internal item_plugin *
 inode_sd_plugin(const struct inode * inode)
 {
 	assert("vs-534", inode != NULL);
@@ -510,14 +510,14 @@ inode_sd_plugin(const struct inode * inode)
 }
 
 /* Audited by: green(2002.06.17) */
-item_plugin *
+reiser4_internal item_plugin *
 inode_dir_item_plugin(const struct inode * inode)
 {
 	assert("vs-534", inode != NULL);
 	return reiser4_inode_data(inode)->pset->dir_item;
 }
 
-void
+reiser4_internal void
 inode_set_extension(struct inode *inode, sd_ext_bits ext)
 {
 	reiser4_inode *state;
@@ -536,7 +536,7 @@ inode_set_extension(struct inode *inode, sd_ext_bits ext)
 	spin_unlock_inode(inode);
 }
 
-void
+reiser4_internal void
 inode_set_plugin(struct inode *inode, reiser4_plugin * plug)
 {
 	assert("nikita-2718", inode != NULL);
@@ -546,7 +546,7 @@ inode_set_plugin(struct inode *inode, reiser4_plugin * plug)
 	inode_set_extension(inode, PLUGIN_STAT);
 }
 
-void
+reiser4_internal void
 inode_check_scale(struct inode *inode, __u64 old, __u64 new)
 {
 	assert("nikita-2875", inode != NULL);
@@ -561,7 +561,7 @@ inode_check_scale(struct inode *inode, __u64 old, __u64 new)
  * and body is ordered within a tree with respect to other objects within the
  * same parent directory.
  */
-void
+reiser4_internal void
 init_inode_ordering(struct inode *inode,
 		    reiser4_object_create_data *crd, int create)
 {
@@ -588,7 +588,7 @@ init_inode_ordering(struct inode *inode,
 	set_inode_ordering(inode, get_key_ordering(&key));
 }
 
-znode *
+reiser4_internal znode *
 inode_get_vroot(struct inode *inode)
 {
 	reiser4_block_nr blk;
@@ -606,7 +606,7 @@ inode_get_vroot(struct inode *inode)
 	return result;
 }
 
-void
+reiser4_internal void
 inode_set_vroot(struct inode *inode, znode *vroot)
 {
 	reiser4_inode *info;
@@ -617,7 +617,7 @@ inode_set_vroot(struct inode *inode, znode *vroot)
 	UNLOCK_INODE(info);
 }
 
-void
+reiser4_internal void
 inode_clean_vroot(struct inode *inode)
 {
 	reiser4_inode *info;
@@ -630,7 +630,7 @@ inode_clean_vroot(struct inode *inode)
 
 #if REISER4_DEBUG_OUTPUT
 /* Debugging aid: print information about inode. */
-void
+reiser4_internal void
 print_inode(const char *prefix /* prefix to print */ ,
 	    const struct inode *i /* inode to print */ )
 {

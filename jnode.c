@@ -167,7 +167,7 @@ TYPE_SAFE_HASH_DEFINE(j, jnode, jnode_key_t, key.j, link.j, jnode_key_hashfn, jn
 #undef KMALLOC
 
 /* call this to initialise jnode hash table */
-int
+reiser4_internal int
 jnodes_tree_init(reiser4_tree * tree /* tree to initialise jnodes for */ )
 {
 	int buckets;
@@ -190,7 +190,7 @@ jnodes_tree_init(reiser4_tree * tree /* tree to initialise jnodes for */ )
 }
 
 /* call this to destroy jnode hash table. This is called during umount. */
-int
+reiser4_internal int
 jnodes_tree_done(reiser4_tree * tree /* tree to destroy jnodes for */ )
 {
 	j_hash_table *jtable;
@@ -217,7 +217,7 @@ jnodes_tree_done(reiser4_tree * tree /* tree to destroy jnodes for */ )
 }
 
 /* Initialize static variables in this file. */
-int
+reiser4_internal int
 jnode_init_static(void)
 {
 	assert("umka-168", _jnode_slab == NULL);
@@ -240,7 +240,7 @@ error:
 	return RETERR(-ENOMEM);
 }
 
-int
+reiser4_internal int
 jnode_done_static(void)
 {
 	int ret = 0;
@@ -254,7 +254,7 @@ jnode_done_static(void)
 }
 
 /* Initialize a jnode. */
-void
+reiser4_internal void
 jnode_init(jnode * node, reiser4_tree * tree, jnode_type type)
 {
 	assert("umka-175", node != NULL);
@@ -306,7 +306,7 @@ jnode_done(jnode * node, reiser4_tree * tree)
 #endif
 
 /* return already existing jnode of page */
-jnode *
+reiser4_internal jnode *
 jnode_by_page(struct page *pg)
 {
 	assert("nikita-2066", pg != NULL);
@@ -317,7 +317,7 @@ jnode_by_page(struct page *pg)
 }
 
 /* exported functions to allocate/free jnode objects outside this file */
-jnode *
+reiser4_internal jnode *
 jalloc(void)
 {
 	jnode *jal = kmem_cache_alloc(_jnode_slab, GFP_KERNEL);
@@ -325,7 +325,7 @@ jalloc(void)
 }
 
 /* return jnode back to the slab allocator */
-inline void
+reiser4_internal inline void
 jfree(jnode * node)
 {
 	assert("zam-449", node != NULL);
@@ -343,7 +343,7 @@ jfree(jnode * node)
 }
 
 /* allocate new unformatted jnode */
-jnode *
+reiser4_internal jnode *
 jnew_unformatted(void)
 {
 	jnode *jal;
@@ -360,7 +360,7 @@ jnew_unformatted(void)
 }
 
 /* look for jnode with given mapping and offset within hash table */
-jnode *
+reiser4_internal jnode *
 jlookup(reiser4_tree * tree, oid_t objectid, unsigned long index)
 {
 	jnode_key_t jkey;
@@ -448,7 +448,7 @@ inode_detach_jnode(jnode *node)
 /* put jnode into hash table (where they can be found by flush who does not know mapping) and to inode's tree of jnodes
    (where they can be found (hopefully faster) in places where mapping is known). Currently it is used by
    fs/reiser4/plugin/item/extent_file_ops.c:index_extent_jnode when new jnode is created */
-void
+reiser4_internal void
 hash_unformatted_jnode(jnode *node, struct address_space *mapping, unsigned long index)
 {
 	j_hash_table *jtable;
@@ -500,7 +500,7 @@ unhash_unformatted_node_nolock(jnode *node)
 
 /* remove jnode from hash table and from inode's tree of jnodes. This is used in reiser4_invalidatepage and in
    kill_hook_extent->truncate_inode_jnodes->uncapture_jnode */
-void
+reiser4_internal void
 unhash_unformatted_jnode(jnode *node)
 {
 	assert("vs-1445", jnode_is_unformatted(node));
@@ -556,7 +556,7 @@ do_jget(reiser4_tree * tree, struct page * pg)
 	return jal;
 }
 
-jnode *
+reiser4_internal jnode *
 jnode_of_page(struct page * pg)
 {
 	jnode * result;
@@ -584,7 +584,7 @@ jnode_of_page(struct page * pg)
 	return result;
 }
 
-void
+reiser4_internal void
 jnode_attach_page(jnode * node, struct page *pg)
 {
 	assert("nikita-2060", node != NULL);
@@ -602,7 +602,7 @@ jnode_attach_page(jnode * node, struct page *pg)
 	SetPagePrivate(pg);
 }
 
-void
+reiser4_internal void
 page_clear_jnode(struct page *page, jnode * node)
 {
 	assert("nikita-2424", page != NULL);
@@ -619,7 +619,7 @@ page_clear_jnode(struct page *page, jnode * node)
 }
 
 /* it is only used in one place to handle error */
-void
+reiser4_internal void
 page_detach_jnode(struct page *page, struct address_space *mapping, unsigned long index)
 {
 	assert("nikita-2395", page != NULL);
@@ -642,7 +642,7 @@ page_detach_jnode(struct page *page, struct address_space *mapping, unsigned lon
    the opposite direction. This is done through standard trylock-and-release
    loop.
 */
-struct page *
+reiser4_internal struct page *
 jnode_lock_page(jnode * node)
 {
 	struct page *page;
@@ -701,7 +701,7 @@ jparse(jnode * node)
 }
 
 /* Lock a page attached to jnode, create and attach page to jnode if it had no one. */
-struct page *
+reiser4_internal struct page *
 jnode_get_page_locked(jnode * node, int gfp_flags)
 {
 	struct page * page;
@@ -770,14 +770,15 @@ static void check_jload(jnode * node, struct page * page)
 #define check_jload(node, page) noop
 #endif
 
-void jload_prefetch(const jnode * node)
+reiser4_internal void jload_prefetch(const jnode * node)
 {
 	prefetchw(&node->x_count);
 }
 
 /* load jnode's data into memory */
-int jload_gfp (jnode * node /* node to load */, int gfp_flags /* allocation
-							       * flags*/)
+reiser4_internal int
+jload_gfp (jnode * node /* node to load */, int gfp_flags /* allocation
+							   * flags*/)
 {
 	struct page * page;
 	int result = 0;
@@ -858,7 +859,7 @@ int jload_gfp (jnode * node /* node to load */, int gfp_flags /* allocation
 }
 
 /* start asynchronous reading for given jnode's page. */
-int jstartio (jnode * node)
+reiser4_internal int jstartio (jnode * node)
 {
 	struct page * page;
 
@@ -872,7 +873,7 @@ int jstartio (jnode * node)
 
 /* Initialize a node by calling appropriate plugin instead of reading
  * node from disk as in jload(). */
-int jinit_new (jnode * node)
+reiser4_internal int jinit_new (jnode * node)
 {
 	struct page * page;
 	int result;
@@ -910,7 +911,7 @@ int jinit_new (jnode * node)
 
 /* drop reference to node data. When last reference is dropped, data are
    unloaded. */
-void
+reiser4_internal void
 jrelse(jnode * node /* jnode to release references to */)
 {
 	struct page *page;
@@ -964,7 +965,7 @@ static void jnode_finish_io(jnode * node)
  * separate function, because we want fast path of jput() to be inline and,
  * therefore, small.
  */
-void
+reiser4_internal void
 jput_final(jnode * node)
 {
 	int r_i_p;
@@ -993,7 +994,7 @@ jput_final(jnode * node)
 	/* if !r_i_p some other thread is already killing it */
 }
 
-int
+reiser4_internal int
 jwait_io(jnode * node, int rw)
 {
 	struct page *page;
@@ -1047,7 +1048,7 @@ parse_noparse(jnode * node UNUSED_ARG)
 	return 0;
 }
 
-struct address_space *
+reiser4_internal struct address_space *
 mapping_jnode(const jnode * node)
 {
 	struct address_space *map;
@@ -1061,7 +1062,7 @@ mapping_jnode(const jnode * node)
 	return map;
 }
 
-unsigned long
+reiser4_internal unsigned long
 index_jnode(const jnode * node)
 {
 	assert("vs-1447", !JF_ISSET(node, JNODE_CC));
@@ -1117,7 +1118,7 @@ index_is_address(const jnode * node)
 }
 
 /* resolve race with jput */
-jnode *
+reiser4_internal jnode *
 jnode_rip_sync(reiser4_tree *t, jnode * node)
 {
 	if (unlikely(JF_ISSET(node, JNODE_RIP))) {
@@ -1132,7 +1133,7 @@ jnode_rip_sync(reiser4_tree *t, jnode * node)
 }
 
 
-reiser4_key *
+reiser4_internal reiser4_key *
 jnode_build_key(const jnode * node, reiser4_key * key)
 {
 	struct inode *inode;
@@ -1208,7 +1209,7 @@ init_znode(jnode * node)
 /* jplug->clone for formatted nodes (znodes) */
 znode *zalloc(int gfp_flag);
 void zinit(znode *, const znode * parent, reiser4_tree *);
-jnode *
+reiser4_internal jnode *
 clone_formatted(jnode *node)
 {
 	znode *clone;
@@ -1226,7 +1227,7 @@ clone_formatted(jnode *node)
 }
 
 /* jplug->clone for unformatted nodes */
-jnode *
+reiser4_internal jnode *
 clone_unformatted(jnode *node)
 {
 	jnode *clone;
@@ -1430,7 +1431,7 @@ jnode_free(jnode * node, jnode_type jtype)
 		jnode_list_remove(node);
 }
 
-int
+reiser4_internal int
 jnode_try_drop(jnode * node)
 {
 	int result;
@@ -1475,7 +1476,7 @@ jnode_try_drop(jnode * node)
 }
 
 /* jdelete() -- Remove jnode from the tree */
-int
+reiser4_internal int
 jdelete(jnode * node /* jnode to finish with */)
 {
 	struct page *page;
@@ -1589,7 +1590,7 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 
 /* This function frees jnode "if possible". In particular, [dcx]_count has to
    be 0 (where applicable).  */
-void
+reiser4_internal void
 jdrop(jnode * node)
 {
 	jdrop_in_tree(node, jnode_get_tree(node));
@@ -1600,7 +1601,7 @@ jdrop(jnode * node)
    functionality (these j-nodes are not in any hash table) just for reading
    from and writing to disk. */
 
-jnode *
+reiser4_internal jnode *
 alloc_io_head(const reiser4_block_nr * block)
 {
 	jnode *jal = jalloc();
@@ -1615,7 +1616,7 @@ alloc_io_head(const reiser4_block_nr * block)
 	return jal;
 }
 
-void
+reiser4_internal void
 drop_io_head(jnode * node)
 {
 	assert("zam-648", jnode_get_type(node) == JNODE_IO_HEAD);
@@ -1625,7 +1626,7 @@ drop_io_head(jnode * node)
 }
 
 /* protect keep jnode data from reiser4_releasepage()  */
-void
+reiser4_internal void
 pin_jnode_data(jnode * node)
 {
 	assert("zam-671", jnode_page(node) != NULL);
@@ -1633,14 +1634,14 @@ pin_jnode_data(jnode * node)
 }
 
 /* make jnode data free-able again */
-void
+reiser4_internal void
 unpin_jnode_data(jnode * node)
 {
 	assert("zam-672", jnode_page(node) != NULL);
 	page_cache_release(jnode_page(node));
 }
 
-struct address_space *
+reiser4_internal struct address_space *
 jnode_get_mapping(const jnode * node)
 {
 	assert("nikita-3162", node != NULL);
@@ -1649,7 +1650,7 @@ jnode_get_mapping(const jnode * node)
 
 #if REISER4_DEBUG
 /* debugging aid: jnode invariant */
-int
+reiser4_internal int
 jnode_invariant_f(const jnode * node,
 		  char const **msg)
 {
@@ -1738,7 +1739,7 @@ void reiser4_stat_inc_at_level_jputlast(const jnode * node)
 
 #if REISER4_DEBUG_OUTPUT
 
-const char *
+reiser4_internal const char *
 jnode_type_name(jnode_type type)
 {
 	switch (type) {
@@ -1767,7 +1768,7 @@ jnode_type_name(jnode_type type)
 	( JF_ISSET( ( node ), ( flag ) ) ? ((#flag "|")+6) : "" )
 
 /* debugging aid: output human readable information about @node */
-void
+reiser4_internal void
 info_jnode(const char *prefix /* prefix to print */ ,
 	   const jnode * node /* node to print */ )
 {
@@ -1818,7 +1819,7 @@ info_jnode(const char *prefix /* prefix to print */ ,
 }
 
 /* debugging aid: output human readable information about @node */
-void
+reiser4_internal void
 print_jnode(const char *prefix /* prefix to print */ ,
 	    const jnode * node /* node to print */)
 {
@@ -1829,7 +1830,7 @@ print_jnode(const char *prefix /* prefix to print */ ,
 }
 
 /* this is cut-n-paste replica of print_znodes() */
-void
+reiser4_internal void
 print_jnodes(const char *prefix, reiser4_tree * tree)
 {
 	jnode *node;
@@ -1859,7 +1860,7 @@ print_jnodes(const char *prefix, reiser4_tree * tree)
 #endif
 
 /* this is only used to created jnode during capture copy */
-jnode *jclone(jnode *node)
+reiser4_internal jnode *jclone(jnode *node)
 {
 	jnode *clone;
 

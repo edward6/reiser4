@@ -729,7 +729,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 
 		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
-			ON_DEBUG(int jnode_is_releasable(const jnode *));
+			ON_DEBUG(int jnode_is_releasable(jnode *));
 
 			assert("vs-1423", ergo(jnode_is_znode(cur) || jnode_is_unformatted(cur),  JF_ISSET(cur, JNODE_SCANNED)));
 			pg = jnode_page(cur);
@@ -740,7 +740,6 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 			lock_and_wait_page_writeback(pg);
 
 			LOCK_JNODE(cur);
-			LOCK_JLOAD(cur);
 			assert("nikita-3166",
 			       ergo(!JF_ISSET(cur, JNODE_CC), pg->mapping == jnode_get_mapping(cur)));
 			if (!JF_ISSET(cur, JNODE_WRITEBACK)) {
@@ -748,7 +747,6 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 				assert("nikita-3165", !jnode_is_releasable(cur));
 				JF_SET(cur, JNODE_WRITEBACK);
 				JF_CLR(cur, JNODE_DIRTY);
-				UNLOCK_JLOAD(cur);
 				UNLOCK_JNODE(cur);
 
 				SetPageWriteback(pg);
@@ -779,7 +777,6 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 				   encountered this CC jnode. Do not submit i/o
 				   for it */
 				assert("zam-912", JF_ISSET(cur, JNODE_CC));
-				UNLOCK_JLOAD(cur);
 				UNLOCK_JNODE(cur);				
 			}
 
@@ -833,7 +830,8 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 /* This is a procedure which recovers a contiguous sequences of disk block
    numbers in the given list of j-nodes and submits write requests on this
    per-sequence basis */
-int write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_submitted)
+reiser4_internal int
+write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_submitted)
 {
 	int ret;
 	jnode *beg;
@@ -1155,7 +1153,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 
 		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
-			ON_DEBUG(int jnode_is_releasable(const jnode *));
+			ON_DEBUG(int jnode_is_releasable(jnode *));
 
 			pg = jnode_page(cur);
 			assert("zam-573", pg != NULL);
@@ -1241,7 +1239,8 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 /* This is a procedure which recovers a contiguous sequences of disk block
    numbers in the given list of j-nodes and submits write requests on this
    per-sequence basis */
-int write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_submitted)
+reiser4_internal int
+write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_submitted)
 {
 	int ret;
 	jnode *beg = capture_list_front(head);
@@ -1314,7 +1313,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 /* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
    submit IO for allocated blocks.  We assume that current atom is in a stage
    when any atom fusion is impossible and atom is unlocked and it is safe. */
-int
+reiser4_internal int
 alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 {
 	reiser4_block_nr block;
@@ -1474,7 +1473,7 @@ free_not_assigned:
    are submitted to write.
 */
 
-int reiser4_write_logs(long * nr_submitted)
+reiser4_internal int reiser4_write_logs(long * nr_submitted)
 {
 	txn_atom *atom;
 
@@ -1994,7 +1993,7 @@ replay_oldest_transaction(struct super_block *s)
 */
 
 /* get the information from journal footer in-memory super block */
-int
+reiser4_internal int
 reiser4_journal_recover_sb_data(struct super_block *s)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
@@ -2026,7 +2025,7 @@ out:
 }
 
 /* reiser4 replay journal procedure */
-int
+reiser4_internal int
 reiser4_journal_replay(struct super_block *s)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
@@ -2126,7 +2125,7 @@ unload_journal_control_block(jnode ** node)
 }
 
 /* release journal control blocks */
-void
+reiser4_internal void
 done_journal_info(struct super_block *s)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
@@ -2138,7 +2137,7 @@ done_journal_info(struct super_block *s)
 }
 
 /* load journal control blocks */
-int
+reiser4_internal int
 init_journal_info(struct super_block *s, const reiser4_block_nr * header_block, const reiser4_block_nr * footer_block)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);

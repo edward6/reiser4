@@ -4,13 +4,14 @@
 #include "crab_lock.h"
 #include "znode.h"
 
-void
+#if !REISER4_ALL_IN_ONE
+reiser4_internal void
 crab_init(crab_lock_t *clock)
 {
 	xmemset(clock, 0, sizeof *clock);
 }
 
-int
+reiser4_internal int
 crab_prepare(crab_lock_t *clock, znode *node)
 {
 	int result;
@@ -29,7 +30,7 @@ crab_prepare(crab_lock_t *clock, znode *node)
 	return result;
 }
 
-int
+reiser4_internal int
 crab_lock(crab_lock_t *plock, crab_lock_t *clock, znode *node)
 {
 	int result;
@@ -58,7 +59,7 @@ crab_lock(crab_lock_t *plock, crab_lock_t *clock, znode *node)
 	return result;
 }
 
-void
+reiser4_internal void
 crab_unlock(crab_lock_t *clock)
 {
 	if (clock->locked) {
@@ -67,7 +68,7 @@ crab_unlock(crab_lock_t *clock)
 	}
 }
 
-void
+reiser4_internal void
 crab_done(crab_lock_t *clock)
 {
 	if (clock->node != NULL) {
@@ -76,12 +77,14 @@ crab_done(crab_lock_t *clock)
 	}
 }
 
-void
+reiser4_internal void
 crab_move(crab_lock_t *to, crab_lock_t *from)
 {
 	*to = *from;
 	crab_init(from);
 }
+
+#endif
 
 /* Make Linus happy.
    Local variables:

@@ -137,6 +137,12 @@
 #define REISER4_LARGE_KEY (0)
 #endif
 
+#if defined(CONFIG_REISER4_ALL_IN_ONE)
+#define REISER4_ALL_IN_ONE (1)
+#else
+#define REISER4_ALL_IN_ONE (0)
+#endif
+
 #define noop   do {;} while(0)
 
 #if REISER4_DEBUG
@@ -495,6 +501,12 @@ const char *flags_tostring(int flags);
 
 int reiser4_sysctl_init(void);
 void reiser4_sysctl_done(void);
+
+#if REISER4_ALL_IN_ONE
+#define reiser4_internal static
+#else
+#define reiser4_internal
+#endif
 
 /* __FS_REISER4_DEBUG_H__ */
 #endif

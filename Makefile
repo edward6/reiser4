@@ -26,6 +26,12 @@ else
            -Wuninitialized
 endif
 
+ifeq ($(CONFIG_REISER4_ALL_IN_ONE),y)
+
+reiser4-objs := all-reiser4.o
+
+else
+
 reiser4-objs := \
 		   debug.o \
 		   stats.o \
@@ -128,7 +134,9 @@ reiser4-objs := \
 		   plugin/file/file.o \
 		   plugin/file/tail_conversion.o
 
+
 reiser4-objs += sys_reiser4.o 
+
 ifeq ($(CONFIG_REISER4_FS_SYSCALL),y)
 
   sys_reiser4.o: $/parser/parser.code.c $/parser/lib.c $/parser/pars.cls.h $/parser/parser.h $/parser/parser.y
@@ -148,5 +156,7 @@ ifeq ($(CONFIG_REISER4_FS_SYSCALL),y)
 #clean-files := parser/parser.code.c
 ##clean-rule =@$(MAKE) -C $/parser clean
 #clean-rule =@$(MAKE) $(obj)/parser/parser.code.c
+endif
+
 endif
 

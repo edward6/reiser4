@@ -76,6 +76,7 @@
 #include <linux/dcache.h>
 #include <linux/quotaops.h>
 #include <linux/security.h> /* security_inode_delete() */
+#include <linux/writeback.h> /* wake_up_inode() */
 
 /* helper function to print errors */
 static void
@@ -134,7 +135,7 @@ check_sd_coord(coord_t *coord, const reiser4_key *key)
 
 
 /* find sd of inode in a tree, deal with errors */
-int
+reiser4_internal int
 lookup_sd(struct inode *inode /* inode to look sd for */ ,
 	  znode_lock_mode lock_mode /* lock mode */ ,
 	  coord_t * coord /* resulting coord */ ,
@@ -421,7 +422,7 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 }
 
 /* save object's stat-data to disk */
-int
+reiser4_internal int
 write_sd_by_inode_common(struct inode *inode /* object to save */)
 {
 	int result;
@@ -443,7 +444,7 @@ write_sd_by_inode_common(struct inode *inode /* object to save */)
 }
 
 /* checks whether yet another hard links to this object can be added */
-int
+reiser4_internal int
 can_add_link_common(const struct inode *object /* object to check */ )
 {
 	assert("nikita-732", object != NULL);
@@ -455,7 +456,7 @@ can_add_link_common(const struct inode *object /* object to check */ )
 
 
 /* space for stat data removal is reserved */
-int
+reiser4_internal int
 common_file_delete_no_reserve(struct inode *inode /* object to remove */ )
 {
 	int result;
@@ -490,7 +491,7 @@ common_file_delete_no_reserve(struct inode *inode /* object to remove */ )
 }
 
 /* delete_file_common() - delete object stat-data. This is to be used when file deletion turns into stat data removal */
-int
+reiser4_internal int
 delete_file_common(struct inode *inode /* object to remove */ )
 {
 	int result;
@@ -587,7 +588,7 @@ set_plug_in_inode_common(struct inode *object /* inode to set plugin on */ ,
    data. Rather required plugin is guessed from mode bits, where file "type"
    is encoded (see stat(2)).
 */
-int
+reiser4_internal int
 guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
 						 * for */ )
 {
@@ -661,7 +662,7 @@ create_common(struct inode *object, struct inode *parent UNUSED_ARG,
 
 /* standard implementation of ->owns_item() plugin method: compare objectids
     of keys in inode and coord */
-int
+reiser4_internal int
 owns_item_common(const struct inode *inode	/* object to check
 						 * against */ ,
 		 const coord_t * coord /* coord to check */ )
@@ -679,7 +680,7 @@ owns_item_common(const struct inode *inode	/* object to check
 
 /* @count bytes of flow @f got written, update correspondingly f->length,
    f->data and f->key */
-void
+reiser4_internal void
 move_flow_forward(flow_t * f, unsigned count)
 {
 	if (f->data)
@@ -901,7 +902,7 @@ detach_dir(struct inode *child, struct inode *parent)
 
 /* this common implementation of update estimation function may be used when stat data update does not do more than
    inserting a unit into a stat data item which is probably true for most cases */
-reiser4_block_nr
+reiser4_internal reiser4_block_nr
 estimate_update_common(const struct inode *inode)
 {
 	return estimate_one_insert_into_item(tree_by_inode(inode));
@@ -938,7 +939,7 @@ bind_dir(struct inode *child, struct inode *parent)
 
 /* ->setattr() method. This is called when inode attribute (including
  * ->i_size) is modified. */
-int
+reiser4_internal int
 setattr_common(struct inode *inode /* Object to change attributes */,
 	       struct iattr *attr /* change description */)
 {

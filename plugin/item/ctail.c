@@ -34,11 +34,10 @@ Internal on-disk structure:
 
 #include <linux/swap.h>
 #include <linux/fs.h>
-#include <linux/pagevec.h>
 
 /* return body of ctail item at @coord */
 static ctail_item_format *
-formatted_at(const coord_t * coord)
+ctail_formatted_at(const coord_t * coord)
 {
 	assert("edward-60", coord != NULL);
 	return item_body_by_coord(coord);
@@ -47,7 +46,7 @@ formatted_at(const coord_t * coord)
 static __u8
 cluster_shift_by_coord(const coord_t * coord)
 {
-	return d8tocpu(&formatted_at(coord)->cluster_shift);
+	return d8tocpu(&ctail_formatted_at(coord)->cluster_shift);
 }
 
 static unsigned long
@@ -77,7 +76,7 @@ first_unit(coord_t * coord)
    tail_max_key_inside */
 
 /* plugin->u.item.b.can_contain_key */
-int
+reiser4_internal int
 can_contain_key_ctail(const coord_t *coord, const reiser4_key *key, const reiser4_item_data *data)
 {
 	reiser4_key item_key;
@@ -98,7 +97,7 @@ can_contain_key_ctail(const coord_t *coord, const reiser4_key *key, const reiser
 
 /* plugin->u.item.b.mergeable
    c-tails of different clusters are not mergeable */
-int
+reiser4_internal int
 mergeable_ctail(const coord_t * p1, const coord_t * p2)
 {
 	reiser4_key key1, key2;
@@ -128,16 +127,16 @@ mergeable_ctail(const coord_t * p1, const coord_t * p2)
 }
 
 /* plugin->u.item.b.nr_units */
-pos_in_item_t
+reiser4_internal pos_in_item_t
 nr_units_ctail(const coord_t * coord)
 {
-	return (item_length_by_coord(coord) - sizeof(formatted_at(coord)->cluster_shift));
+	return (item_length_by_coord(coord) - sizeof(ctail_formatted_at(coord)->cluster_shift));
 }
 
 /* plugin->u.item.b.estimate:
    estimate how much space is needed to insert/paste @data->length bytes
    into ctail at @coord */
-int
+reiser4_internal int
 estimate_ctail(const coord_t * coord /* coord of item */,
 	     const reiser4_item_data * data /* parameters for new item */)
 {
@@ -158,7 +157,7 @@ cluster_size_by_coord(const coord_t * coord)
 
 
 /* ->print() method for this item plugin. */
-void
+reiser4_internal void
 print_ctail(const char *prefix /* prefix to print */ ,
 	  coord_t * coord /* coord of item to print */ )
 {
@@ -173,7 +172,7 @@ print_ctail(const char *prefix /* prefix to print */ ,
 #endif
 
 /* ->init() method for this item plugin. */
-int
+reiser4_internal int
 init_ctail(coord_t * to /* coord of item */,
 	   coord_t * from /* old_item */,
 	   reiser4_item_data * data /* structure used for insertion */)
@@ -191,7 +190,7 @@ init_ctail(coord_t * to /* coord of item */,
 		
 		cluster_shift = (int)(cluster_shift_by_coord(from));
 	}
-	cputod8(cluster_shift, &formatted_at(to)->cluster_shift);
+	cputod8(cluster_shift, &ctail_formatted_at(to)->cluster_shift);
 	
 	return 0;
 }
@@ -203,7 +202,7 @@ init_ctail(coord_t * to /* coord of item */,
 /* plugin->u.item.b.check */
 
 /* plugin->u.item.b.paste */
-int
+reiser4_internal int
 paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info UNUSED_ARG)
 {
 	unsigned old_nr_units;
@@ -240,7 +239,7 @@ paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info 
 /* plugin->u.item.b.can_shift
    number of units is returned via return value, number of bytes via @size. For
    ctail items they coincide */
-int
+reiser4_internal int
 can_shift_ctail(unsigned free_space, coord_t * source,
 		znode * target, shift_direction direction UNUSED_ARG, unsigned *size, unsigned want)
 {
@@ -261,7 +260,7 @@ can_shift_ctail(unsigned free_space, coord_t * source,
 }
 
 /* plugin->u.item.b.copy_units */
-void
+reiser4_internal void
 copy_units_ctail(coord_t * target, coord_t * source,
 		unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space UNUSED_ARG)
 {
@@ -300,7 +299,7 @@ copy_units_ctail(coord_t * target, coord_t * source,
 
 /* plugin->u.item.b.create_hook */
 /* plugin->u.item.b.kill_hook */
-int
+reiser4_internal int
 kill_hook_ctail(const coord_t *coord, unsigned from, unsigned count, struct cut_list *p)
 {
 	struct inode *inode;
@@ -347,7 +346,7 @@ ctail_squeezable (const coord_t *coord)
 }
 
 /* plugin->u.item.b.shift_hook */
-int
+reiser4_internal int
 shift_hook_ctail(const coord_t * item /* coord of item */ ,
 		 unsigned from UNUSED_ARG /* start unit */ ,
 		 unsigned count UNUSED_ARG /* stop unit */ ,
@@ -364,7 +363,7 @@ shift_hook_ctail(const coord_t * item /* coord of item */ ,
 }
 
 static int
-cut_or_kill_units(coord_t * coord, unsigned *from, unsigned *to, int cut,
+cut_or_kill_ctail_units(coord_t * coord, unsigned *from, unsigned *to, int cut,
 	       const reiser4_key * from_key UNUSED_ARG,
 	       const reiser4_key * to_key UNUSED_ARG, reiser4_key * smallest_removed,
 	       struct cut_list *p)
@@ -411,25 +410,25 @@ cut_or_kill_units(coord_t * coord, unsigned *from, unsigned *to, int cut,
 }
 
 /* plugin->u.item.b.cut_units */
-int
+reiser4_internal int
 cut_units_ctail(coord_t *item, unsigned *from, unsigned *to,
 		const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed,
 		struct cut_list *p)
 {
-	return cut_or_kill_units(item, from, to, 1, from_key, to_key, smallest_removed, p);
+	return cut_or_kill_ctail_units(item, from, to, 1, from_key, to_key, smallest_removed, p);
 }
 
 /* plugin->u.item.b.kill_units */
-int
+reiser4_internal int
 kill_units_ctail(coord_t *item, unsigned *from, unsigned *to,
 		 const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed,
 		 struct cut_list *p)
 {
-	return cut_or_kill_units(item, from, to, 0, from_key, to_key, smallest_removed, p);
+	return cut_or_kill_ctail_units(item, from, to, 0, from_key, to_key, smallest_removed, p);
 }
 
 /* plugin->u.item.s.file.read */
-int
+reiser4_internal int
 read_ctail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 {
 	uf_coord_t *uf_coord;
@@ -462,7 +461,7 @@ read_ctail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 
 /* this reads one cluster form disk,
    attaches buffer with decrypted and decompressed data */
-int
+reiser4_internal int
 ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 {
 	int result;
@@ -494,7 +493,8 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 }
 
 /* read one locked page */
-int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
+reiser4_internal int
+do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 {
 	int ret;
 	unsigned cloff;
@@ -560,7 +560,7 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 }
 
 /* plugin->u.item.s.file.readpage */
-int readpage_ctail(void * vp, struct page * page)
+reiser4_internal int readpage_ctail(void * vp, struct page * page)
 {
 	int result;
 	reiser4_cluster_t * clust = vp;
@@ -583,7 +583,7 @@ int readpage_ctail(void * vp, struct page * page)
    populate an address space with some pages, and start reads against them.
    FIXME_EDWARD: this function should return errors
 */
-void
+reiser4_internal void
 readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct list_head *pages)
 {
 	reiser4_cluster_t clust;
@@ -647,14 +647,14 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 /*
    plugin->u.item.s.file.append_key
 */
-reiser4_key *
+reiser4_internal reiser4_key *
 append_key_ctail(const coord_t *coord, reiser4_key *key)
 {
 	return NULL;
 }
 
 /* key of the first item of the next cluster */
-reiser4_key *
+reiser4_internal reiser4_key *
 append_cluster_key_ctail(const coord_t *coord, reiser4_key *key)
 {
 	item_key_by_coord(coord, key);
@@ -776,7 +776,7 @@ cut_ctail(coord_t * coord)
 }
 
 /* plugin->u.item.s.file.write ? */
-int
+reiser4_internal int
 write_ctail(flush_pos_t * pos, crc_write_mode_t mode)
 {
 	int result;
@@ -804,7 +804,7 @@ write_ctail(flush_pos_t * pos, crc_write_mode_t mode)
 	return result;
 }
 
-item_plugin *
+reiser4_internal item_plugin *
 item_plugin_by_jnode(jnode * node)
 {
 	assert("edward-302", jnode_is_cluster_page(node));
@@ -817,7 +817,7 @@ item_plugin_by_jnode(jnode * node)
    the tree. Don't care about scan counter since leftward scanning will be
    continued from rightmost dirty node.
 */
-int scan_ctail(flush_scan * scan)
+reiser4_internal int scan_ctail(flush_scan * scan)
 {
 	int result;
 	struct page * page;
@@ -913,7 +913,7 @@ should_attach_squeeze_idata(flush_pos_t * pos)
 	return result;
 }
 
-void
+reiser4_internal void
 init_squeeze_idata_ctail(flush_pos_t * pos)
 {
 	assert("edward-471", pos != NULL);
@@ -1003,7 +1003,7 @@ detach_squeeze_idata(flush_squeeze_item_data_t ** idata)
    if the child exists, and NULL in other cases.
    NOTE-EDWARD: Do not call this for RIGHT_SIDE */
 
-int
+reiser4_internal int
 utmost_child_ctail(const coord_t * coord, sideof side, jnode ** child)
 {	
 	reiser4_key key;
@@ -1024,7 +1024,7 @@ utmost_child_ctail(const coord_t * coord, sideof side, jnode ** child)
 
 /* plugin->u.item.f.squeeze */
 /* write ctail in guessed mode */
-int
+reiser4_internal int
 squeeze_ctail(flush_pos_t * pos)
 {
 	int result;

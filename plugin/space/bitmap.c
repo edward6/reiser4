@@ -615,7 +615,7 @@ adjust_first_zero_bit(struct bnode *bnode, bmap_off_t offset)
 	((REISER4_MASTER_OFFSET / PAGE_CACHE_SIZE) + 2)
 	
 /* Audited by: green(2002.06.12) */
-void
+reiser4_internal void
 get_bitmap_blocknr(struct super_block *super, bmap_nr_t bmap, reiser4_block_nr * bnr)
 {
 
@@ -639,7 +639,7 @@ get_bitmap_blocknr(struct super_block *super, bmap_nr_t bmap, reiser4_block_nr *
 
 /* construct a fake block number for shadow bitmap (WORKING BITMAP) block */
 /* Audited by: green(2002.06.12) */
-void
+reiser4_internal void
 get_working_bitmap_blocknr(bmap_nr_t bmap, reiser4_block_nr * bnr)
 {
 	*bnr = (reiser4_block_nr) ((bmap & ~REISER4_BLOCKNR_STATUS_BIT_MASK) | REISER4_BITMAP_BLOCKS_STATUS_VALUE);
@@ -1039,7 +1039,8 @@ static int bitmap_alloc_backward(reiser4_block_nr * start, const reiser4_block_n
 }
 
 /* plugin->u.space_allocator.alloc_blocks() */
-int alloc_blocks_forward(reiser4_blocknr_hint * hint, int needed,
+reiser4_internal int
+alloc_blocks_forward(reiser4_blocknr_hint * hint, int needed,
 			 reiser4_block_nr * start, reiser4_block_nr * len)
 {
 	struct super_block *super = get_current_context()->super;
@@ -1111,7 +1112,8 @@ static int alloc_blocks_backward (reiser4_blocknr_hint * hint, int needed,
 }
 
 /* plugin->u.space_allocator.alloc_blocks() */
-int alloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
+reiser4_internal int
+alloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
 			reiser4_blocknr_hint * hint, int needed,
 			reiser4_block_nr * start, reiser4_block_nr * len)
 {
@@ -1125,7 +1127,7 @@ int alloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
    nodes deletion is deferred until transaction commit.  However, deallocation
    of temporary objects like wandered blocks and transaction commit records
    requires immediate node deletion from WORKING BITMAP.*/
-void
+reiser4_internal void
 dealloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG, reiser4_block_nr start, reiser4_block_nr len)
 {
 	struct super_block *super = reiser4_get_current_sb();
@@ -1159,7 +1161,7 @@ dealloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG, reiser4_bl
 
 
 /* plugin->u.space_allocator.check_blocks(). */
-void
+reiser4_internal void
 check_blocks_bitmap(const reiser4_block_nr * start, const reiser4_block_nr * len, int desired)
 {
 #if REISER4_DEBUG
@@ -1292,7 +1294,7 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 
 extern spinlock_t scan_lock;
 
-int
+reiser4_internal int
 pre_commit_hook_bitmap(void)
 {
 	struct super_block * super = reiser4_get_current_sb();
@@ -1398,7 +1400,7 @@ pre_commit_hook_bitmap(void)
 
 #else /* ! REISER4_COPY_ON_CAPTURE */
 
-int
+reiser4_internal int
 pre_commit_hook_bitmap(void)
 {
 	struct super_block * super = reiser4_get_current_sb();
@@ -1491,7 +1493,7 @@ pre_commit_hook_bitmap(void)
 
 /* plugin->u.space_allocator.init_allocator
     constructor of reiser4_space_allocator object. It is called on fs mount */
-int
+reiser4_internal int
 init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *super, void *arg UNUSED_ARG)
 {
 	struct bitmap_allocator_data *data = NULL;
@@ -1559,7 +1561,7 @@ init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *s
 
 /* plugin->u.space_allocator.destroy_allocator
    destructor. It is called on fs unmount */
-int
+reiser4_internal int
 destroy_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *super)
 {
 	bmap_nr_t bitmap_blocks_nr;
@@ -1609,7 +1611,7 @@ check_adler32_jnode(jnode *jnode, unsigned long size)
 	return (adler32(jdata(jnode) + CHECKSUM_SIZE, size) != *(__u32 *)jdata(jnode));
 }
 
-int
+reiser4_internal int
 check_struct_allocator_bitmap(reiser4_space_allocator * allocator,
 			      const struct super_block *super)
 {

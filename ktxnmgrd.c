@@ -133,7 +133,9 @@ ktxnmgrd(void *arg)
 	return 0;
 }
 
-void
+#undef set_comm
+
+reiser4_internal void
 init_ktxnmgrd_context(ktxnmgrd_context * ctx)
 {
 	assert("nikita-2442", ctx != NULL);
@@ -147,7 +149,7 @@ init_ktxnmgrd_context(ktxnmgrd_context * ctx)
 	txn_mgrs_list_init(&ctx->queue);
 }
 
-int
+reiser4_internal int
 ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr)
 {
 	int first_mgr;
@@ -187,7 +189,7 @@ ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr)
 	return 0;
 }
 
-void
+reiser4_internal void
 ktxnmgrd_detach(txn_mgr * mgr)
 {
 	ktxnmgrd_context *ctx;
@@ -219,7 +221,7 @@ ktxnmgrd_detach(txn_mgr * mgr)
 		spin_unlock(&ctx->guard);
 }
 
-void
+reiser4_internal void
 ktxnmgrd_kick(txn_mgr * mgr)
 {
 	assert("nikita-3234", mgr != NULL);
@@ -227,7 +229,7 @@ ktxnmgrd_kick(txn_mgr * mgr)
 	kcond_signal(&mgr->daemon->wait);
 }
 
-int
+reiser4_internal int
 is_current_ktxnmgrd(void)
 {
 	return (get_current_super_private()->tmgr.daemon->tsk == current);

@@ -64,7 +64,7 @@ static int dscale_range(__u64 value)
 
 /* restore value stored at @adderss by dscale_write() and return number of
  * bytes consumed */
-int dscale_read(unsigned char *address, __u64 *value)
+reiser4_internal int dscale_read(unsigned char *address, __u64 *value)
 {
 	int tag;
 
@@ -92,7 +92,7 @@ int dscale_read(unsigned char *address, __u64 *value)
 }
 
 /* store @value at @address and return number of bytes consumed */
-int dscale_write(unsigned char *address, __u64 value)
+reiser4_internal int dscale_write(unsigned char *address, __u64 value)
 {
 	int tag;
 	int shift;
@@ -108,7 +108,7 @@ int dscale_write(unsigned char *address, __u64 value)
 }
 
 /* number of bytes required to store @value */
-int dscale_bytes(__u64 value)
+reiser4_internal int dscale_bytes(__u64 value)
 {
 	int bytes;
 
@@ -121,7 +121,7 @@ int dscale_bytes(__u64 value)
 /* returns true if @value and @other require the same number of bytes to be
  * stored. Used by detect when data structure (like stat-data) has to be
  * expanded or contracted. */
-int dscale_fit(__u64 value, __u64 other)
+reiser4_internal int dscale_fit(__u64 value, __u64 other)
 {
 	return dscale_range(value) == dscale_range(other);
 }

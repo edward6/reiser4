@@ -72,18 +72,6 @@ _INIT_(sinfo)
 	return 0;
 }
 
-#if REISER4_DEBUG
-static void finish_rcu(reiser4_super_info_data *sbinfo)
-{
-	spin_lock_irq(&sbinfo->all_guard);
-	while (atomic_read(&sbinfo->jnodes_in_flight) > 0)
-		kcond_wait(&sbinfo->rcu_done, &sbinfo->all_guard, 0);
-	spin_unlock_irq(&sbinfo->all_guard);
-}
-#else
-#define finish_rcu(sbinfo) noop
-#endif
-
 _DONE_(sinfo)
 {
 	assert("zam-990", s->s_fs_info != NULL);
@@ -426,7 +414,8 @@ static void done_super (struct super_block * s, int last_done)
 /* read super block from device and fill remaining fields in @s.
 
    This is read_super() of the past.  */
-int reiser4_fill_super (struct super_block * s, void * data, int silent)
+reiser4_internal int
+reiser4_fill_super (struct super_block * s, void * data, int silent)
 {
 	reiser4_context ctx;
 	int i;

@@ -217,7 +217,7 @@ static int request_is_deadlock_safe(znode *, znode_lock_mode,
 	reiser4_stat_inc_at_level(znode_get_level(node), znode.counter)
 
 /* Returns a lock owner associated with current thread */
-lock_stack *
+reiser4_internal lock_stack *
 get_current_lock_stack(void)
 {
 	return &get_current_context()->stack;
@@ -370,7 +370,7 @@ znode_is_any_locked(const znode * node)
 #endif
 
 /* Returns true if a write lock is held by the calling thread. */
-int
+reiser4_internal int
 znode_is_write_locked(const znode * node)
 {
 	lock_stack *stack;
@@ -643,7 +643,7 @@ wake_up_requestor(znode *node)
 
 #undef MAX_CONVOY_SIZE
 
-void
+reiser4_internal void
 longterm_unlock_znode(lock_handle * handle)
 {
 	znode *node = handle->node;
@@ -807,7 +807,7 @@ longterm_lock_tryfast(lock_stack * owner)
 }
 
 /* locks given lock object */
-int
+reiser4_internal int
 longterm_lock_znode(
 	/* local link object (allocated by lock owner thread, usually on its own
 	 * stack) */
@@ -1066,7 +1066,7 @@ longterm_lock_znode(
 
 /* lock object invalidation means changing of lock object state to `INVALID'
    and waiting for all other processes to cancel theirs lock requests. */
-void
+reiser4_internal void
 invalidate_lock(lock_handle * handle	/* path to lock
 					   * owner and lock
 					   * object is being
@@ -1114,7 +1114,7 @@ invalidate_lock(lock_handle * handle	/* path to lock
 }
 
 /* Initializes lock_stack. */
-void
+reiser4_internal void
 init_lock_stack(lock_stack * owner	/* pointer to
 					   * allocated
 					   * structure. */ )
@@ -1130,7 +1130,7 @@ init_lock_stack(lock_stack * owner	/* pointer to
 }
 
 /* Initializes lock object. */
-void
+reiser4_internal void
 reiser4_init_lock(zlock * lock	/* pointer on allocated
 				   * uninitialized lock object
 				   * structure. */ )
@@ -1142,7 +1142,7 @@ reiser4_init_lock(zlock * lock	/* pointer on allocated
 }
 
 /* lock handle initialization */
-void
+reiser4_internal void
 init_lh(lock_handle * handle)
 {
 	xmemset(handle, 0, sizeof *handle);
@@ -1151,7 +1151,7 @@ init_lh(lock_handle * handle)
 }
 
 /* freeing of lock handle resources */
-void
+reiser4_internal void
 done_lh(lock_handle * handle)
 {
 	assert("zam-342", handle != NULL);
@@ -1160,7 +1160,7 @@ done_lh(lock_handle * handle)
 }
 
 /* What kind of lock? */
-znode_lock_mode lock_mode(lock_handle * handle)
+reiser4_internal znode_lock_mode lock_mode(lock_handle * handle)
 {
 	if (handle->owner == NULL) {
 		return ZNODE_NO_LOCK;
@@ -1216,20 +1216,20 @@ move_lh_internal(lock_handle * new, lock_handle * old, int unlink_old)
 	WUNLOCK_ZLOCK(&node->lock);
 }
 
-void
+reiser4_internal void
 move_lh(lock_handle * new, lock_handle * old)
 {
 	move_lh_internal(new, old, /*unlink_old */ 1);
 }
 
-void
+reiser4_internal void
 copy_lh(lock_handle * new, lock_handle * old)
 {
 	move_lh_internal(new, old, /*unlink_old */ 0);
 }
 
 /* after getting -E_DEADLOCK we unlock znodes until this function returns false */
-int
+reiser4_internal int
 check_deadlock(void)
 {
 	lock_stack *owner = get_current_lock_stack();
@@ -1238,7 +1238,7 @@ check_deadlock(void)
 
 /* Before going to sleep we re-check "release lock" requests which might come from threads with hi-pri lock
    priorities. */
-int
+reiser4_internal int
 prepare_to_sleep(lock_stack * owner)
 {
 	assert("nikita-1847", owner == get_current_lock_stack());
@@ -1276,14 +1276,14 @@ prepare_to_sleep(lock_stack * owner)
 }
 
 /* Wakes up a single thread */
-void
+reiser4_internal void
 __reiser4_wake_up(lock_stack * owner)
 {
 	up(&owner->sema);
 }
 
 /* Puts a thread to sleep */
-void
+reiser4_internal void
 __go_to_sleep(lock_stack * owner
 #if REISER4_STATS
 	    , int node_level
@@ -1312,7 +1312,7 @@ __go_to_sleep(lock_stack * owner
 #endif
 }
 
-int
+reiser4_internal int
 lock_stack_isclean(lock_stack * owner)
 {
 	if (locks_list_empty(&owner->locks)) {
@@ -1325,7 +1325,7 @@ lock_stack_isclean(lock_stack * owner)
 
 #if REISER4_DEBUG_OUTPUT
 /* Debugging help */
-void
+reiser4_internal void
 print_lock_stack(const char *prefix, lock_stack * owner)
 {
 	lock_handle *handle;
@@ -1417,7 +1417,7 @@ request_is_deadlock_safe(znode * node, znode_lock_mode mode,
 
 /* return pointer to static storage with name of lock_mode. For
     debugging */
-const char *
+reiser4_internal const char *
 lock_mode_name(znode_lock_mode lock /* lock mode to get name of */ )
 {
 	if (lock == ZNODE_READ_LOCK)

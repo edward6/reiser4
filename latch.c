@@ -3,7 +3,7 @@
 #include "debug.h"
 #include "latch.h"
 
-void
+reiser4_internal void
 rw_latch_init(rw_latch_t * latch)
 {
 	spin_lock_init(&latch->guard);
@@ -11,14 +11,14 @@ rw_latch_init(rw_latch_t * latch)
 	kcond_init(&latch->cond);
 }
 
-void
+reiser4_internal void
 rw_latch_done(rw_latch_t * latch)
 {
 	assert("nikita-3062", latch->access == 0);
 	kcond_destroy(&latch->cond);
 }
 
-void
+reiser4_internal void
 rw_latch_down_read(rw_latch_t * latch)
 {
 	spin_lock(&latch->guard);
@@ -28,7 +28,7 @@ rw_latch_down_read(rw_latch_t * latch)
 	spin_unlock(&latch->guard);
 }
 
-void
+reiser4_internal void
 rw_latch_down_write(rw_latch_t * latch)
 {
 	spin_lock(&latch->guard);
@@ -38,7 +38,7 @@ rw_latch_down_write(rw_latch_t * latch)
 	spin_unlock(&latch->guard);
 }
 
-void
+reiser4_internal void
 rw_latch_up_read(rw_latch_t * latch)
 {
 	spin_lock(&latch->guard);
@@ -49,7 +49,7 @@ rw_latch_up_read(rw_latch_t * latch)
 	spin_unlock(&latch->guard);
 }
 
-void
+reiser4_internal void
 rw_latch_up_write(rw_latch_t * latch)
 {
 	spin_lock(&latch->guard);
@@ -59,7 +59,7 @@ rw_latch_up_write(rw_latch_t * latch)
 	spin_unlock(&latch->guard);
 }
 
-void
+reiser4_internal void
 rw_latch_downgrade(rw_latch_t * latch)
 {
 	spin_lock(&latch->guard);
@@ -69,7 +69,7 @@ rw_latch_downgrade(rw_latch_t * latch)
 	spin_unlock(&latch->guard);
 }
 
-int
+reiser4_internal int
 rw_latch_try_read(rw_latch_t * latch)
 {
 	int result;
@@ -85,7 +85,7 @@ rw_latch_try_read(rw_latch_t * latch)
 	return result;
 }
 
-int
+reiser4_internal int
 rw_latch_try_write(rw_latch_t * latch)
 {
 	int result;

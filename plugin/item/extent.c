@@ -22,7 +22,7 @@ static const reiser4_block_nr one = 1;*/
 
 /* prepare structure reiser4_item_data. It is used to put one extent unit into tree */
 /* Audited by: green(2002.06.13) */
-reiser4_item_data *
+reiser4_internal reiser4_item_data *
 init_new_extent(reiser4_item_data *data, void *ext_unit, int nr_extents)
 {
 	if (REISER4_ZERO_NEW_NODE)
@@ -38,7 +38,7 @@ init_new_extent(reiser4_item_data *data, void *ext_unit, int nr_extents)
 }
 
 /* how many bytes are addressed by @nr first extents of the extent item */
-reiser4_block_nr
+reiser4_internal reiser4_block_nr
 extent_size(const coord_t *coord, pos_in_item_t nr)
 {
 	pos_in_item_t i;
@@ -56,7 +56,7 @@ extent_size(const coord_t *coord, pos_in_item_t nr)
 	return blocks * current_blocksize;
 }
 
-extent_state
+reiser4_internal extent_state
 state_of_extent(reiser4_extent *ext)
 {
 	switch ((int) extent_get_start(ext)) {
@@ -70,7 +70,7 @@ state_of_extent(reiser4_extent *ext)
 	return ALLOCATED_EXTENT;
 }
 
-int
+reiser4_internal int
 extent_is_unallocated(const coord_t *item)
 {
 	assert("jmacd-5133", item_is_extent(item));
@@ -78,7 +78,7 @@ extent_is_unallocated(const coord_t *item)
 	return state_of_extent(extent_by_coord(item)) == UNALLOCATED_EXTENT;
 }
 
-int
+reiser4_internal int
 extent_is_allocated(const coord_t *item)
 {
 	assert("jmacd-5133", item_is_extent(item));
@@ -87,7 +87,7 @@ extent_is_allocated(const coord_t *item)
 }
 
 /* set extent's start and width */
-void
+reiser4_internal void
 set_extent(reiser4_extent *ext, reiser4_block_nr start, reiser4_block_nr width)
 {
 	extent_set_start(ext, start);
@@ -96,7 +96,7 @@ set_extent(reiser4_extent *ext, reiser4_block_nr start, reiser4_block_nr width)
 
 /* used in split_allocate_extent, allocated2unallocated, extent_handle_relocate_in_place, plug_hole to insert 1 or 2
    extent units after the one @un_extent is set to. @un_extent itself is changed to @new_ext */
-int
+reiser4_internal int
 replace_extent(coord_t *un_extent, lock_handle *lh,
 	       reiser4_key *key, reiser4_item_data *data, const reiser4_extent *new_ext, unsigned flags)
 {
@@ -167,7 +167,7 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 	return result;
 }
 
-lock_handle *
+reiser4_internal lock_handle *
 znode_lh(znode *node, znode_lock_mode mode)
 {
 	if (mode == ZNODE_WRITE_LOCK) {

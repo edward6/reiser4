@@ -26,7 +26,7 @@
 
 static const __u64 longname_mark = 0x0100000000000000ull;
 
-int
+reiser4_internal int
 is_longname_key(const reiser4_key *key)
 {
 	__u64 highpart;
@@ -42,7 +42,7 @@ is_longname_key(const reiser4_key *key)
 	return (highpart & longname_mark) ? 1 : 0;
 }
 
-int
+reiser4_internal int
 is_longname(const char *name UNUSED_ARG, int len)
 {
 	return len > ORDERING_CHARS + OID_CHARS + OFFSET_CHARS;
@@ -77,7 +77,7 @@ static
 #endif
 /* opposite to pack_string(). Takes value produced by pack_string(), restores
  * string encoded in it and stores result in @buf */
-char *
+reiser4_internal char *
 unpack_string(__u64 value, char *buf)
 {
 	do {
@@ -91,7 +91,7 @@ unpack_string(__u64 value, char *buf)
 }
 
 /* obtain name encoded in @key and store it in @buf */
-char *
+reiser4_internal char *
 extract_name_from_key(const reiser4_key *key, char *buf)
 {
 	char *c;
@@ -110,7 +110,7 @@ extract_name_from_key(const reiser4_key *key, char *buf)
 
 /* build key for directory entry.
    ->build_entry_key() for directory plugin */
-void
+reiser4_internal void
 build_entry_key_common(const struct inode *dir	/* directory where entry is
 						 * (or will be) in.*/ ,
 		       const struct qstr *qname	/* name of file referenced
@@ -214,7 +214,7 @@ build_entry_key_common(const struct inode *dir	/* directory where entry is
    This is for directories where we want repeatable and restartable readdir()
    even in case 32bit user level struct dirent (readdir(3)).
 */
-void
+reiser4_internal void
 build_entry_key_stable_entry(const struct inode *dir	/* directory where
 							 * entry is (or
 							 * will be) in. */ ,
@@ -260,7 +260,7 @@ build_entry_key_stable_entry(const struct inode *dir	/* directory where
    See reiser4_readdir() for more detailed comment.
    Common implementation of dir plugin's method build_readdir_key
 */
-int
+reiser4_internal int
 build_readdir_key_common(struct file *dir /* directory being read */ ,
 			 reiser4_key * result /* where to store key */ )
 {
@@ -282,7 +282,7 @@ build_readdir_key_common(struct file *dir /* directory being read */ ,
 }
 
 /* true, if @key is the key of "." */
-int
+reiser4_internal int
 is_dot_key(const reiser4_key * key /* key to check */ )
 {
 	assert("nikita-1717", key != NULL);
@@ -299,7 +299,7 @@ is_dot_key(const reiser4_key * key /* key to check */ )
    method in the future. For now, let it be here.
 
 */
-reiser4_key *
+reiser4_internal reiser4_key *
 build_sd_key(const struct inode * target /* inode of an object */ ,
 	     reiser4_key * result	/* resulting key of @target
 					   stat-data */ )
@@ -322,7 +322,7 @@ build_sd_key(const struct inode * target /* inode of an object */ ,
 
    See &obj_key_id
 */
-int
+reiser4_internal int
 build_obj_key_id(const reiser4_key * key /* key to encode */ ,
 		 obj_key_id * id /* id where key is encoded in */ )
 {
@@ -336,7 +336,7 @@ build_obj_key_id(const reiser4_key * key /* key to encode */ ,
 /* encode reference to @obj in @id.
 
    This is like build_obj_key_id() above, but takes inode as parameter. */
-int
+reiser4_internal int
 build_inode_key_id(const struct inode *obj /* object to build key of */ ,
 		   obj_key_id * id /* result */ )
 {
@@ -355,7 +355,7 @@ build_inode_key_id(const struct inode *obj /* object to build key of */ ,
    Restore key of object stat-data from @id. This is dual to
    build_obj_key_id() above.
 */
-int
+reiser4_internal int
 extract_key_from_id(const obj_key_id * id	/* object key id to extract key
 						 * from */ ,
 		    reiser4_key * key /* result */ )
@@ -371,9 +371,10 @@ extract_key_from_id(const obj_key_id * id	/* object key id to extract key
 /* extract objectid of directory from key of directory entry within said
    directory.
    */
-oid_t extract_dir_id_from_key(const reiser4_key * de_key	/* key of
-								 * directory
-								 * entry */ )
+reiser4_internal oid_t
+extract_dir_id_from_key(const reiser4_key * de_key	/* key of
+							 * directory
+							 * entry */ )
 {
 	assert("nikita-1314", de_key != NULL);
 	return get_key_locality(de_key);
@@ -387,7 +388,7 @@ oid_t extract_dir_id_from_key(const reiser4_key * de_key	/* key of
    to objectid of their directory.
 
 */
-int
+reiser4_internal int
 build_de_id(const struct inode *dir /* inode of directory */ ,
 	    const struct qstr *name	/* name to be given to @obj by
 					 * directory entry being
@@ -412,7 +413,7 @@ build_de_id(const struct inode *dir /* inode of directory */ ,
    to objectid of their directory.
 
 */
-int
+reiser4_internal int
 build_de_id_by_key(const reiser4_key * entry_key	/* full key of directory
 							 * entry */ ,
 		   de_id * id /* short key of directory entry */ )
@@ -427,7 +428,7 @@ build_de_id_by_key(const reiser4_key * entry_key	/* full key of directory
    key of directory entry within directory item.
 
 */
-int
+reiser4_internal int
 extract_key_from_de_id(const oid_t locality	/* locality of directory
 						 * entry */ ,
 		       const de_id * id /* directory entry id */ ,
@@ -441,8 +442,9 @@ extract_key_from_de_id(const oid_t locality	/* locality of directory
 }
 
 /* compare two &obj_key_id */
-cmp_t key_id_cmp(const obj_key_id * i1 /* first object key id to compare */ ,
-		 const obj_key_id * i2 /* second object key id to compare */ )
+reiser4_internal cmp_t
+key_id_cmp(const obj_key_id * i1 /* first object key id to compare */ ,
+	   const obj_key_id * i2 /* second object key id to compare */ )
 {
 	reiser4_key k1;
 	reiser4_key k2;
@@ -453,8 +455,9 @@ cmp_t key_id_cmp(const obj_key_id * i1 /* first object key id to compare */ ,
 }
 
 /* compare &obj_key_id with full key */
-cmp_t key_id_key_cmp(const obj_key_id * id /* object key id to compare */ ,
-		     const reiser4_key * key /* key to compare */ )
+reiser4_internal cmp_t
+key_id_key_cmp(const obj_key_id * id /* object key id to compare */ ,
+	       const reiser4_key * key /* key to compare */ )
 {
 	reiser4_key k1;
 
@@ -463,8 +466,9 @@ cmp_t key_id_key_cmp(const obj_key_id * id /* object key id to compare */ ,
 }
 
 /* compare two &de_id's */
-cmp_t de_id_cmp(const de_id * id1 /* first &de_id to compare */ ,
-		const de_id * id2 /* second &de_id to compare */ )
+reiser4_internal cmp_t
+de_id_cmp(const de_id * id1 /* first &de_id to compare */ ,
+	  const de_id * id2 /* second &de_id to compare */ )
 {
 	/* NOTE-NIKITA ugly implementation */
 	reiser4_key k1;
@@ -476,8 +480,9 @@ cmp_t de_id_cmp(const de_id * id1 /* first &de_id to compare */ ,
 }
 
 /* compare &de_id with key */
-cmp_t de_id_key_cmp(const de_id * id /* directory entry id to compare */ ,
-		    const reiser4_key * key /* key to compare */ )
+reiser4_internal cmp_t
+de_id_key_cmp(const de_id * id /* directory entry id to compare */ ,
+	      const reiser4_key * key /* key to compare */ )
 {
 	cmp_t        result;
 	reiser4_key *k1;
@@ -494,7 +499,7 @@ cmp_t de_id_key_cmp(const de_id * id /* directory entry id to compare */ ,
 }
 
 /* true if key of root directory sd */
-int
+reiser4_internal int
 is_root_dir_key(const struct super_block *super /* super block to check */ ,
 		const reiser4_key * key /* key to check */ )
 {

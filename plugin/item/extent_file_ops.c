@@ -747,7 +747,7 @@ extent_write_hole(struct inode *inode, flow_t *flow, hint_t *hint, int grabbed)
   1. real write - to write data from flow to a file (@flow->data != 0)
   2. expanding truncate (@f->data == 0)
 */
-int
+reiser4_internal int
 write_extent(struct inode *inode, flow_t *flow, hint_t *hint,
 	     int grabbed, /* extent's write may be called from plain unix file write and from tail conversion. In first
 			     case (grabbed == 0) space is not reserved forehand, so, it must be done here. When it is
@@ -842,7 +842,7 @@ offset_is_in_unit(const coord_t *coord, loff_t off)
 }
 
 static int
-coord_matches_key(const coord_t *coord, const reiser4_key *key)
+coord_matches_key_extent(const coord_t *coord, const reiser4_key *key)
 {
 	reiser4_key item_key;
 
@@ -856,7 +856,7 @@ coord_matches_key(const coord_t *coord, const reiser4_key *key)
 #endif /* REISER4_DEBUG */
 
 /* Implements plugin->u.item.s.file.read operation for extent items. */
-int
+reiser4_internal int
 read_extent(struct file *file, flow_t *flow,  hint_t *hint)
 {
 	int result;
@@ -885,7 +885,7 @@ read_extent(struct file *file, flow_t *flow,  hint_t *hint)
 	assert("vs-1351", flow->length > 0);
 	assert("vs-1119", znode_is_rlocked(coord->node));
 	assert("vs-1120", znode_is_loaded(coord->node));
-	assert("vs-1256", coord_matches_key(coord, &flow->key));
+	assert("vs-1256", coord_matches_key_extent(coord, &flow->key));
 	assert("vs-1355", get_key_offset(&flow->key) + flow->length <= inode->i_size);
 
 	/* offset in a file to start read from */
@@ -944,7 +944,7 @@ read_extent(struct file *file, flow_t *flow,  hint_t *hint)
 		if (result)
 			break;
 		assert("vs-1318", coord_extension_is_ok(uf_coord));
-		assert("vs-1263", coord_matches_key(coord, &flow->key));
+		assert("vs-1263", coord_matches_key_extent(coord, &flow->key));
 		page_off = 0;
 		page_nr ++;
 		count = PAGE_CACHE_SIZE;
@@ -1105,7 +1105,7 @@ readahead_readpage_extent(void *vp, struct page *page)
 /*
   plugin->u.item.s.file.readpages
 */
-void
+reiser4_internal void
 readpages_extent(void *vp, struct address_space *mapping, struct list_head *pages)
 {
 	if (vp)
@@ -1121,7 +1121,7 @@ readpages_extent(void *vp, struct address_space *mapping, struct list_head *page
    At the beginning: coord->node is read locked, zloaded, page is
    locked, coord is set to existing unit inside of extent item (it is not necessary that coord matches to page->index)
 */
-int
+reiser4_internal int
 readpage_extent(void *vp, struct page *page)
 {
 	uf_coord_t *uf_coord = vp;
@@ -1148,7 +1148,7 @@ readpage_extent(void *vp, struct page *page)
   At the beginning: coord.node is read locked, zloaded, page is
   locked, coord is set to existing unit inside of extent item
 */
-int
+reiser4_internal int
 writepage_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_mode_t mode)
 {
 	jnode *j;
@@ -1192,7 +1192,8 @@ writepage_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, writ
 /*
   plugin->u.item.s.file.get_block
 */
-int get_block_address_extent(const uf_coord_t *uf_coord, sector_t block, struct buffer_head *bh)
+reiser4_internal int
+get_block_address_extent(const uf_coord_t *uf_coord, sector_t block, struct buffer_head *bh)
 {
 	const extent_coord_extension_t *ext_coord;
 
@@ -1210,7 +1211,7 @@ int get_block_address_extent(const uf_coord_t *uf_coord, sector_t block, struct 
   plugin->u.item.s.file.append_key
   key of first byte which is the next to last byte by addressed by this extent
 */
-reiser4_key *
+reiser4_internal reiser4_key *
 append_key_extent(const coord_t *coord, reiser4_key *key)
 {
 	item_key_by_coord(coord, key);
@@ -1221,7 +1222,7 @@ append_key_extent(const coord_t *coord, reiser4_key *key)
 }
 
 /* plugin->u.item.s.file.init_coord_extension */
-void
+reiser4_internal void
 init_coord_extension_extent(uf_coord_t *uf_coord, loff_t lookuped)
 {
 	coord_t *coord;

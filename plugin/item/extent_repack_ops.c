@@ -72,7 +72,7 @@ static int mark_jnode_for_repacking (jnode * node)
    @max_nr_marked: a maximum number of nodes which can be marked for repacking,
    @return: error code if < 0, number of marked nodes otherwise.
 */
-int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
+reiser4_internal int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 {
 	coord_t * coord = tap->coord;
 	reiser4_extent *ext;
@@ -405,7 +405,8 @@ static int find_and_relocate_end_of_extent (
 }
 
 /* process (relocate) unformatted nodes in backward direction: from the end of extent to the its start.  */
-int process_extent_backward_for_repacking (tap_t * tap, struct repacker_cursor * cursor)
+reiser4_internal int
+process_extent_backward_for_repacking (tap_t * tap, struct repacker_cursor * cursor)
 {
 	coord_t * coord = tap->coord;
 	reiser4_extent *ext;

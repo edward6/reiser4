@@ -32,7 +32,7 @@ build_link_key(struct inode *inode, reiser4_safe_link_t link, reiser4_key *key)
 	return key;
 }
 
-__u64 safe_link_tograb(reiser4_tree *tree)
+reiser4_internal __u64 safe_link_tograb(reiser4_tree *tree)
 {
 	return
 		/* insert safe link */
@@ -40,10 +40,17 @@ __u64 safe_link_tograb(reiser4_tree *tree)
 		/* remove safe link */
 		estimate_one_item_removal(tree) +
 		/* drill to the leaf level during insertion */
-		1 + estimate_one_insert_item(tree);
+		1 + estimate_one_insert_item(tree) +
+		/*
+		 * possible update of existing safe-link. Actually, if
+		 * safe-link existed already (we failed to remove it), then no
+		 * insertion is necessary, so this term is already "covered",
+		 * but for simplicity let's left it.
+		 */
+		1;
 }
 
-int safe_link_grab(reiser4_tree *tree, reiser4_ba_flags_t flags)
+reiser4_internal int safe_link_grab(reiser4_tree *tree, reiser4_ba_flags_t flags)
 {
 	int   result;
 
@@ -53,11 +60,13 @@ int safe_link_grab(reiser4_tree *tree, reiser4_ba_flags_t flags)
 	return result;
 }
 
-int safe_link_add(struct inode *inode, reiser4_safe_link_t link)
+reiser4_internal int safe_link_add(struct inode *inode, reiser4_safe_link_t link)
 {
 	reiser4_key key;
 	safelink_t sl;
 	int length;
+	int result;
+	reiser4_tree *tree;
 
 	build_sd_key(inode, &sl.sdkey);
 	length = sizeof sl.sdkey;
@@ -66,13 +75,16 @@ int safe_link_add(struct inode *inode, reiser4_safe_link_t link)
 		length += sizeof(sl.size);
 		cputod64(inode->i_size, &sl.size);
 	}
+	tree = tree_by_inode(inode);
+	build_link_key(inode, link, &key);
 
-	return store_black_box(tree_by_inode(inode),
-			       build_link_key(inode, link, &key),
-			       &sl, length);
+	result = store_black_box(tree, &key, &sl, length);
+	if (result == -EEXIST)
+		result = update_black_box(tree, &key, &sl, length);
+	return result;
 }
 
-int safe_link_del(struct inode *inode, reiser4_safe_link_t link)
+reiser4_internal int safe_link_del(struct inode *inode, reiser4_safe_link_t link)
 {
 	reiser4_key key;
 
@@ -164,7 +176,7 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 	return result;
 }
 
-int process_safelinks(struct super_block *super)
+reiser4_internal int process_safelinks(struct super_block *super)
 {
 	safe_link_context ctx;
 	int result;

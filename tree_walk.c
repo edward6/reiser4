@@ -130,7 +130,7 @@ lock_neighbor(
 	}
 }
 /* get parent node with longterm lock, accepts GN* flags. */
-int
+reiser4_internal int
 reiser4_get_parent_flags(lock_handle * result	/* resulting lock handle */,
 			 znode * node /* child node */,
 			 znode_lock_mode mode /* type of lock: read or write */,
@@ -142,7 +142,7 @@ reiser4_get_parent_flags(lock_handle * result	/* resulting lock handle */,
 }
 
 /* A wrapper for reiser4_get_parent_flags(). */
-int
+reiser4_internal int
 reiser4_get_parent(lock_handle * result	/* resulting lock
 					   * handle */ ,
 		   znode * node /* child node */ ,
@@ -249,7 +249,7 @@ int check_sibling_list(znode * node)
 
 /* FIXME-VS: this is unstatic-ed to use in tree.c in prepare_twig_cut */
 /* Audited by: umka (2002.06.14) */
-/*static*//*inline */ void
+reiser4_internal void
 link_left_and_right(znode * left, znode * right)
 {
 	assert("nikita-3275", check_sibling_list(left));
@@ -474,7 +474,7 @@ connect_one_side(coord_t * coord, znode * node, int flags)
 /* if node is not in `connected' state, performs hash searches for left and
    right neighbor nodes and establishes horizontal sibling links */
 /* Audited by: umka (2002.06.14), umka (2002.06.15) */
-int
+reiser4_internal int
 connect_znode(coord_t * coord, znode * node)
 {
 	reiser4_tree *tree = znode_get_tree(node);
@@ -610,7 +610,7 @@ out:
 */
 
 /* Audited by: umka (2002.06.14), umka (2002.06.15) */
-int
+reiser4_internal int
 reiser4_get_neighbor(lock_handle * neighbor	/* lock handle that
 						   * points to origin
 						   * node we go to
@@ -755,7 +755,7 @@ fail:
 
 /* remove node from sibling list */
 /* Audited by: umka (2002.06.14) */
-void
+reiser4_internal void
 sibling_list_remove(znode * node)
 {
 	assert("umka-255", node != NULL);
@@ -777,7 +777,7 @@ sibling_list_remove(znode * node)
 }
 
 /* disconnect node from sibling list */
-void
+reiser4_internal void
 sibling_list_drop(znode * node)
 {
 	znode *right;
@@ -804,7 +804,7 @@ sibling_list_drop(znode * node)
 /* Insert new node into sibling list. Regular balancing inserts new node
    after (at right side) existing and locked node (@before), except one case
    of adding new tree root node. @before should be NULL in that case. */
-void
+reiser4_internal void
 sibling_list_insert_nolock(znode * new, znode * before)
 {
 	assert("zam-334", new != NULL);
@@ -1073,7 +1073,8 @@ static int tw_by_handle (struct tw_handle * h)
 }
 
 /* Walk the reiser4 tree in parent-first order */
-int tree_walk (const reiser4_key *start_key, int go_left, struct tree_walk_actor * actor, void * opaque)
+reiser4_internal int
+tree_walk (const reiser4_key *start_key, int go_left, struct tree_walk_actor * actor, void * opaque)
 {
 	coord_t coord;
 	lock_handle lock;

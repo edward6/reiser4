@@ -36,12 +36,12 @@ struct {
 
 
 
-void get_context_ok(reiser4_context *ctx)
+reiser4_internal void get_context_ok(reiser4_context *ctx)
 {
 	int i;
 	void *addr = NULL, *frame = NULL;
 
-#define FRAME(nr)						\
+#define CTX_FRAME(nr)						\
 	case (nr):						\
 		addr  = __builtin_return_address((nr));	 	\
                 frame = __builtin_frame_address(nr);		\
@@ -53,22 +53,22 @@ void get_context_ok(reiser4_context *ctx)
 	context_ok.context = ctx;
 	for (i = 0; i < 16; i ++) {
 		switch(i) {
-			FRAME(0);
-			FRAME(1);
-			FRAME(2);
-			FRAME(3);
-			FRAME(4);
-			FRAME(5);
-			FRAME(6);
-			FRAME(7);
-			FRAME(8);
-			FRAME(9);
-			FRAME(10);
-			FRAME(11);
-			FRAME(12);
-			FRAME(13);
-			FRAME(14);
-			FRAME(15);
+			CTX_FRAME(0);
+			CTX_FRAME(1);
+			CTX_FRAME(2);
+			CTX_FRAME(3);
+			CTX_FRAME(4);
+			CTX_FRAME(5);
+			CTX_FRAME(6);
+			CTX_FRAME(7);
+			CTX_FRAME(8);
+			CTX_FRAME(9);
+			CTX_FRAME(10);
+			CTX_FRAME(11);
+			CTX_FRAME(12);
+			CTX_FRAME(13);
+			CTX_FRAME(14);
+			CTX_FRAME(15);
 		default:
 			impossible("", "");
 		}
@@ -76,6 +76,7 @@ void get_context_ok(reiser4_context *ctx)
 			break;
 		context_ok.path[i] = addr;
 	}
+#undef CTX_FRAME
 }
 
 
@@ -84,7 +85,7 @@ void get_context_ok(reiser4_context *ctx)
    This function should be called at the beginning of reiser4 part of
    syscall.
 */
-int
+reiser4_internal int
 init_context(reiser4_context * context	/* pointer to the reiser4 context
 					 * being initalised */ ,
 	     struct super_block *super	/* super block we are going to
@@ -139,13 +140,13 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	return 0;
 }
 
-reiser4_context *
+reiser4_internal reiser4_context *
 get_context_by_lock_stack(lock_stack * owner)
 {
 	return container_of(owner, reiser4_context, stack);
 }
 
-int
+reiser4_internal int
 is_in_reiser4_context(void)
 {
 	return
@@ -164,7 +165,7 @@ balance_dirty_pages_at(reiser4_context * context)
 	}
 }
 
-int reiser4_exit_context(reiser4_context * context)
+reiser4_internal int reiser4_exit_context(reiser4_context * context)
 {
         int result = 0;
 
@@ -188,7 +189,7 @@ int reiser4_exit_context(reiser4_context * context)
    thread released all locks and closed transcrash etc.
 
 */
-void
+reiser4_internal void
 done_context(reiser4_context * context /* context being released */)
 {
 	reiser4_context *parent;
@@ -249,7 +250,7 @@ done_context(reiser4_context * context /* context being released */)
 }
 
 /* Audited by: umka (2002.06.16) */
-int
+reiser4_internal int
 init_context_mgr(void)
 {
 #if REISER4_DEBUG
@@ -260,7 +261,7 @@ init_context_mgr(void)
 }
 
 #if REISER4_DEBUG_OUTPUT
-void
+reiser4_internal void
 print_context(const char *prefix, reiser4_context * context)
 {
 	if (context == NULL) {

@@ -34,7 +34,7 @@ extent_utmost_ext(const coord_t *coord, sideof side, reiser4_block_nr *pos_in_un
 /* item_plugin->f.utmost_child */
 /* Return the child. Coord is set to extent item. Find jnode corresponding
    either to first or to last unformatted node pointed by the item */
-int
+reiser4_internal int
 utmost_child_extent(const coord_t *coord, sideof side, jnode **childp)
 {
 	reiser4_extent *ext;
@@ -83,7 +83,7 @@ utmost_child_extent(const coord_t *coord, sideof side, jnode **childp)
 
 /* item_plugin->f.utmost_child_real_block */
 /* Return the child's block, if allocated. */
-int
+reiser4_internal int
 utmost_child_real_block_extent(const coord_t *coord, sideof side, reiser4_block_nr *block)
 {
 	reiser4_extent *ext;
@@ -122,7 +122,7 @@ utmost_child_real_block_extent(const coord_t *coord, sideof side, reiser4_block_
    It returns control to scan_extent, handles these terminating conditions, e.g., by
    loading the next twig.
 */
-int scan_extent(flush_scan * scan)
+reiser4_internal int scan_extent(flush_scan * scan)
 {
 	coord_t coord;
 	jnode *neighbor;
@@ -330,7 +330,7 @@ free_replace_reserved(reiser4_block_nr grabbed)
 }
 
 /* Block offset of first block addressed by unit */
-__u64
+reiser4_internal __u64
 extent_unit_index(const coord_t *item)
 {
 	reiser4_key key;
@@ -342,7 +342,7 @@ extent_unit_index(const coord_t *item)
 
 /* AUDIT shouldn't return value be of reiser4_block_nr type?
    Josh's answer: who knows?  Is a "number of blocks" the same type as "block offset"? */
-__u64
+reiser4_internal __u64
 extent_unit_width(const coord_t *item)
 {
 	assert("vs-649", coord_is_existing_unit(item));
@@ -350,7 +350,7 @@ extent_unit_width(const coord_t *item)
 }
 
 /* Starting block location of this unit */
-reiser4_block_nr
+reiser4_internal reiser4_block_nr
 extent_unit_start(const coord_t *item)
 {
 	return extent_get_start(extent_by_coord(item));
@@ -750,7 +750,7 @@ mark_jnodes_overwrite(flush_pos_t *flush_pos, oid_t oid, unsigned long index, re
 /* this is called by handle_pos_on_twig to proceed extent unit flush_pos->coord is set to. It is to prepare for flushing
    sequence of not flushprepped nodes (slum). It supposes that slum starts at flush_pos->pos_in_unit position within the
    extent. Slum gets to relocate set if flush_pos->leaf_relocate is set to 1 and to overwrite set otherwise */
-int
+reiser4_internal int
 alloc_extent(flush_pos_t *flush_pos)
 {
 	coord_t *coord;
@@ -959,7 +959,7 @@ put_unit_to_end(znode *node, const reiser4_key *key, reiser4_extent *copy_ext)
 }
 
 /* @coord is set to extent unit */
-squeeze_result
+reiser4_internal squeeze_result
 squalloc_extent(znode *left, const coord_t *coord, flush_pos_t *flush_pos, reiser4_key *stop_key)
 {
 	reiser4_extent *ext;

@@ -53,7 +53,6 @@ typedef struct reiser4_stats_cnt {
 } reiser4_stats_cnt;
 
 #define getptrat(type, ptr, offset) ((type *)(((char *)(ptr)) + (offset)))
-#define getat(type, ptr, offset) (*getptrat(type, ptr, offset))
 
 #define DEFINE_STATCNT_0(aname, afield, atype, afmt, ashow, astore)	\
 {							\
@@ -439,7 +438,7 @@ print_cnt(reiser4_stats_cnt * cnt, const char * prefix, void * base)
 }
 
 /* Print statistical data accumulated so far. */
-void
+reiser4_internal void
 reiser4_print_stats(void)
 {
 	reiser4_stat *s;
@@ -510,7 +509,7 @@ reiser4_print_stats()
 }
 #endif
 
-int
+reiser4_internal int
 reiser4_populate_kattr_dir(struct kobject * kobj UNUSED_ARG)
 {
 	int result;

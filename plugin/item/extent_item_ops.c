@@ -5,7 +5,7 @@
 #include "../../tree_walk.h" /* check_sibling_list() */
 
 /* item_plugin->b.max_key_inside */
-reiser4_key *
+reiser4_internal reiser4_key *
 max_key_inside_extent(const coord_t *coord, reiser4_key *key)
 {
 	item_key_by_coord(coord, key);
@@ -15,7 +15,7 @@ max_key_inside_extent(const coord_t *coord, reiser4_key *key)
 
 /* item_plugin->b.can_contain_key
    this checks whether @key of @data is matching to position set by @coord */
-int
+reiser4_internal int
 can_contain_key_extent(const coord_t *coord, const reiser4_key *key, const reiser4_item_data *data)
 {
 	reiser4_key item_key;
@@ -34,7 +34,7 @@ can_contain_key_extent(const coord_t *coord, const reiser4_key *key, const reise
 /* item_plugin->b.mergeable
    first item is of extent type */
 /* Audited by: green(2002.06.13) */
-int
+reiser4_internal int
 mergeable_extent(const coord_t *p1, const coord_t *p2)
 {
 	reiser4_key key1, key2;
@@ -58,7 +58,7 @@ mergeable_extent(const coord_t *p1, const coord_t *p2)
 }
 
 /* item_plugin->b.show */
-void
+reiser4_internal void
 show_extent(struct seq_file *m, coord_t *coord)
 {
 	reiser4_extent *ext;
@@ -94,7 +94,7 @@ state2label(extent_state state)
 	return label;
 }
 
-void
+reiser4_internal void
 print_extent(const char *prefix, coord_t *coord)
 {
 	reiser4_extent *ext;
@@ -114,7 +114,7 @@ print_extent(const char *prefix, coord_t *coord)
 }
 
 /* item_plugin->b.item_stat */
-void
+reiser4_internal void
 item_stat_extent(const coord_t *coord, void *vp)
 {
 	reiser4_extent *ext;
@@ -149,7 +149,7 @@ item_stat_extent(const coord_t *coord, void *vp)
 #endif /* REISER4_DEBUG_OUTPUT */
 
 /* item_plugin->b.nr_units */
-pos_in_item_t
+reiser4_internal pos_in_item_t
 nr_units_extent(const coord_t *coord)
 {
 	/* length of extent item has to be multiple of extent size */
@@ -158,7 +158,7 @@ nr_units_extent(const coord_t *coord)
 }
 
 /* item_plugin->b.lookup */
-lookup_result
+reiser4_internal lookup_result
 lookup_extent(const reiser4_key *key, lookup_bias bias UNUSED_ARG, coord_t *coord)
 {				/* znode and item_pos are
 				   set to an extent item to
@@ -212,7 +212,7 @@ lookup_extent(const reiser4_key *key, lookup_bias bias UNUSED_ARG, coord_t *coor
    @coord->in_item.unit_pos. It must fit into that free space.
    @coord must be set between units.
 */
-int
+reiser4_internal int
 paste_extent(coord_t *coord, reiser4_item_data *data, carry_plugin_info *info UNUSED_ARG)
 {
 	unsigned old_nr_units;
@@ -259,7 +259,7 @@ paste_extent(coord_t *coord, reiser4_item_data *data, carry_plugin_info *info UN
 }
 
 /* item_plugin->b.can_shift */
-int
+reiser4_internal int
 can_shift_extent(unsigned free_space, coord_t *source,
 		 znode *target UNUSED_ARG, shift_direction pend UNUSED_ARG, unsigned *size, unsigned want)
 {
@@ -279,7 +279,7 @@ can_shift_extent(unsigned free_space, coord_t *source,
 }
 
 /* item_plugin->b.copy_units */
-void
+reiser4_internal void
 copy_units_extent(coord_t *target, coord_t *source,
 		  unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space)
 {
@@ -321,7 +321,7 @@ copy_units_extent(coord_t *target, coord_t *source,
 
 /* item_plugin->b.create_hook
    @arg is znode of leaf node for which we need to update right delimiting key */
-int
+reiser4_internal int
 create_hook_extent(const coord_t *coord, void *arg)
 {
 	coord_t *child_coord;
@@ -430,7 +430,7 @@ nr_extent_pointers(const coord_t *coord, unsigned from, unsigned count)
 
 /* item_plugin->b.kill_hook
    this is called when @count units starting from @from-th one are going to be removed */
-int
+reiser4_internal int
 kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, struct cut_list *p)
 {
 	reiser4_extent *ext;
@@ -708,7 +708,7 @@ cut_or_kill_units(coord_t *coord,
 }
 
 /* item_plugin->b.cut_units */
-int
+reiser4_internal int
 cut_units_extent(coord_t *item, unsigned *from, unsigned *to,
 		 const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed,
 		 struct cut_list *p)
@@ -717,7 +717,7 @@ cut_units_extent(coord_t *item, unsigned *from, unsigned *to,
 }
 
 /* item_plugin->b.kill_units */
-int
+reiser4_internal int
 kill_units_extent(coord_t *item, unsigned *from, unsigned *to,
 		  const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed,
 		  struct cut_list *p)
@@ -726,7 +726,7 @@ kill_units_extent(coord_t *item, unsigned *from, unsigned *to,
 }
 
 /* item_plugin->b.unit_key */
-reiser4_key *
+reiser4_internal reiser4_key *
 unit_key_extent(const coord_t *coord, reiser4_key *key)
 {
 	assert("vs-300", coord_is_existing_unit(coord));

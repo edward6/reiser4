@@ -50,7 +50,7 @@ static void kcond_remove(kcond_t * cvar, kcond_queue_link_t * link);
 
 /* initialize condition variable. Initializer for global condition variables
    is macro in kcond.h  */
-kcond_t *
+reiser4_internal kcond_t *
 kcond_init(kcond_t * cvar /* cvar to init */ )
 {
 	assert("nikita-1868", cvar != NULL);
@@ -62,7 +62,7 @@ kcond_init(kcond_t * cvar /* cvar to init */ )
 }
 
 /* destroy condition variable. */
-int
+reiser4_internal int
 kcond_destroy(kcond_t * cvar /* cvar to destroy */ )
 {
 	return kcond_are_waiters(cvar) ? -EBUSY : 0;
@@ -98,7 +98,7 @@ kcond_destroy(kcond_t * cvar /* cvar to destroy */ )
    step (5) would return immediately.
 
 */
-int
+reiser4_internal int
 kcond_wait(kcond_t * cvar /* cvar to wait for */ ,
 	   spinlock_t * lock /* lock to use */ ,
 	   int signl /* if 0, ignore signals during sleep */ )
@@ -145,7 +145,7 @@ typedef struct {
 } kcond_timer_arg;
 
 /* like kcond_wait(), but with timeout */
-int
+reiser4_internal int
 kcond_timedwait(kcond_t * cvar /* cvar to wait for */ ,
 		spinlock_t * lock /* lock to use */ ,
 		signed long timeout /* timeout in jiffies */ ,
@@ -209,7 +209,7 @@ kcond_timedwait(kcond_t * cvar /* cvar to wait for */ ,
 }
 
 /* Signal condition variable: wake up one waiter, if any. */
-int
+reiser4_internal int
 kcond_signal(kcond_t * cvar /* cvar to signal */ )
 {
 	kcond_queue_link_t *queue_head;
@@ -228,7 +228,7 @@ kcond_signal(kcond_t * cvar /* cvar to signal */ )
 }
 
 /* Broadcast condition variable: wake up all waiters. */
-int
+reiser4_internal int
 kcond_broadcast(kcond_t * cvar /* cvar to broadcast */ )
 {
 	kcond_queue_link_t *queue_head;
@@ -246,7 +246,7 @@ kcond_broadcast(kcond_t * cvar /* cvar to broadcast */ )
 }
 
 /* true if there are threads sleeping on @cvar */
-int
+reiser4_internal int
 kcond_are_waiters(kcond_t * cvar /* cvar to query */ )
 {
 	assert("nikita-1877", cvar != NULL);

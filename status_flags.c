@@ -33,7 +33,7 @@ static int reiser4_status_endio(struct bio *bio, unsigned int bytes_done, int er
 
 /* Initialise status code. This is expected to be called from the disk format
    code. block paremeter is where status block lives. */
-int reiser4_status_init(reiser4_block_nr block)
+reiser4_internal int reiser4_status_init(reiser4_block_nr block)
 {
 	struct super_block *sb = reiser4_get_current_sb();
 	struct reiser4_status *statuspage;
@@ -89,7 +89,7 @@ int reiser4_status_init(reiser4_block_nr block)
 /* Query the status of fs. Returns if the FS can be safely mounted.
    Also if "status" and "extended" parameters are given, it will fill
    actual parts of statu from disk there. */
-int reiser4_status_query(u64 *status, u64 *extended)
+reiser4_internal int reiser4_status_query(u64 *status, u64 *extended)
 {
 	struct super_block *sb = reiser4_get_current_sb();
 	struct reiser4_status *statuspage;
@@ -127,7 +127,8 @@ int reiser4_status_query(u64 *status, u64 *extended)
 
 /* This function should be called when something bad happens (e.g. from reiser4_panic).
    It fills the status structure and tries to push it to disk. */
-int reiser4_status_write(u64 status, u64 extended_status, char *message)
+reiser4_internal int
+reiser4_status_write(u64 status, u64 extended_status, char *message)
 {
 	struct super_block *sb = reiser4_get_current_sb();
 	struct reiser4_status *statuspage;
@@ -175,7 +176,7 @@ int reiser4_status_write(u64 status, u64 extended_status, char *message)
 }
 
 /* Frees the page with status and bio structure. Should be called by disk format at umount time */
-int reiser4_status_finish(void)
+reiser4_internal int reiser4_status_finish(void)
 {
 	struct super_block *sb = reiser4_get_current_sb();
 

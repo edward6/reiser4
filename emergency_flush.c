@@ -264,7 +264,7 @@ static kmem_cache_t *eflush_slab;
  * Return 0 if page was successfully paged out. 1 if it is busy, error
  * otherwise.
  */
-int
+reiser4_internal int
 emergency_flush(struct page *page)
 {
 	struct super_block *sb;
@@ -432,6 +432,8 @@ flushable(const jnode * node, struct page *page)
 	return 1;
 }
 
+#undef INC_STAT
+
 /* does node need allocation for eflushing? */
 static int
 needs_allocation(const jnode * node)
@@ -481,7 +483,7 @@ TYPE_SAFE_HASH_DEFINE(ef, eflush_node_t, jnode *, node, linkage, jnode_hfn, jnod
 #undef KFREE
 #undef KMALLOC
 
-int
+reiser4_internal int
 eflush_init(void)
 {
 	eflush_slab = kmem_cache_create("eflush", sizeof (eflush_node_t),
@@ -492,13 +494,13 @@ eflush_init(void)
 		return 0;
 }
 
-int
+reiser4_internal int
 eflush_done(void)
 {
 	return kmem_cache_destroy(eflush_slab);
 }
 
-int
+reiser4_internal int
 eflush_init_at(struct super_block *super)
 {
 	int buckets;
@@ -514,7 +516,7 @@ eflush_init_at(struct super_block *super)
 	return result;
 }
 
-void
+reiser4_internal void
 eflush_done_at(struct super_block *super)
 {
 	ef_hash_done(&get_super_private(super)->efhash_table);
@@ -603,7 +605,7 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 /* Arrghh... cast to keep hash table code happy. */
 #define C(node) ((jnode *const *)&(node))
 
-reiser4_block_nr *
+reiser4_internal reiser4_block_nr *
 eflush_get(const jnode *node)
 {
 	eflush_node_t *ef;
@@ -623,7 +625,7 @@ eflush_get(const jnode *node)
 	return &ef->blocknr;
 }
 
-void
+reiser4_internal void
 eflush_del(jnode *node, int page_locked)
 {
 	assert("nikita-2743", node != NULL);
@@ -746,7 +748,7 @@ eflush_del(jnode *node, int page_locked)
 	}
 }
 
-int
+reiser4_internal int
 emergency_unflush(jnode *node)
 {
 	int result;

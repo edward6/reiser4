@@ -178,7 +178,7 @@ spinlock_t    lnode_guard = SPIN_LOCK_UNLOCKED;
 
 */
 /* Audited by: green(2002.06.15) */
-int
+reiser4_internal int
 lnode_compatible_type(lnode_type required /* required lnode type */ ,
 		      lnode_type set /* lnode type already set */ )
 {
@@ -187,7 +187,7 @@ lnode_compatible_type(lnode_type required /* required lnode type */ ,
 
 /* initialise lnode module for @super. */
 /* Audited by: green(2002.06.15) */
-int
+reiser4_internal int
 lnodes_init(void)
 {
 	ln_hash_init(&lnode_htable, LNODE_HTABLE_BUCKETS, NULL);
@@ -196,7 +196,7 @@ lnodes_init(void)
 
 /* free lnode resources associated with @super. */
 /* Audited by: green(2002.06.15) */
-int
+reiser4_internal int
 lnodes_done(void)
 {
 	ln_hash_done(&lnode_htable);
@@ -216,7 +216,7 @@ lnodes_done(void)
 
 */
 /* Audited by: green(2002.06.15) */
-lnode *
+reiser4_internal lnode *
 lget(lnode * node /* lnode to add to the hash table */ ,
      lnode_type type /* lnode type */ , oid_t oid /* objectid */ )
 {
@@ -266,7 +266,7 @@ lget(lnode * node /* lnode to add to the hash table */ ,
 
 /* release reference to file system object */
 /* Audited by: green(2002.06.15) */
-void
+reiser4_internal void
 lput(lnode * node /* lnode to release */ )
 {
 	assert("nikita-1864", node != NULL);
@@ -282,7 +282,7 @@ lput(lnode * node /* lnode to release */ )
 	spin_unlock(&lnode_guard);
 }
 
-lnode *
+reiser4_internal lnode *
 lref(lnode * node)
 {
 	assert("nikita-3241", node != NULL);
@@ -296,7 +296,7 @@ lref(lnode * node)
 
 /* true if @node1 and @node2 refer to the same object */
 /* Audited by: green(2002.06.15) */
-int
+reiser4_internal int
 lnode_eq(const lnode * node1 /* first node to compare */ ,
 	 const lnode * node2 /* second node to compare */ )
 {
@@ -313,7 +313,7 @@ lnode_eq(const lnode * node1 /* first node to compare */ ,
 
 /* return key of object behind @node */
 /* Audited by: green(2002.06.15) */
-reiser4_key *
+reiser4_internal reiser4_key *
 lnode_key(const lnode * node /* lnode to query */ ,
 	  reiser4_key * result /* result */ )
 {
@@ -324,7 +324,7 @@ lnode_key(const lnode * node /* lnode to query */ ,
 
 /* return plugins of object behind @node */
 /* Audited by: green(2002.06.15) */
-int
+reiser4_internal int
 get_lnode_plugins(const lnode * node /* lnode to query */ ,
 		  plugin_set * area /* result */ )
 {
@@ -335,7 +335,7 @@ get_lnode_plugins(const lnode * node /* lnode to query */ ,
 
 /* set plugins of object behind @node */
 /* Audited by: green(2002.06.15) */
-int
+reiser4_internal int
 set_lnode_plugins(lnode * node /* lnode to modify */ ,
 		  const plugin_set * area /* plugins to install */ )
 {

@@ -50,7 +50,7 @@ cbk_cache_init_slot(cbk_cache_slot * slot)
 }
 
 /* Initialise coord cache */
-int
+reiser4_internal int
 cbk_cache_init(cbk_cache * cache /* cache to init */ )
 {
 	int i;
@@ -70,7 +70,7 @@ cbk_cache_init(cbk_cache * cache /* cache to init */ )
 }
 
 /* free cbk cache data */
-void
+reiser4_internal void
 cbk_cache_done(cbk_cache * cache /* cache to release */ )
 {
 	assert("nikita-2493", cache != NULL);
@@ -86,7 +86,7 @@ cbk_cache_done(cbk_cache * cache /* cache to release */ )
 
 #if REISER4_DEBUG_OUTPUT
 /* Debugging aid: print human readable information about @slot */
-void
+reiser4_internal void
 print_cbk_slot(const char *prefix /* prefix to print */ ,
 	       const cbk_cache_slot * slot /* slot to print */ )
 {
@@ -97,7 +97,7 @@ print_cbk_slot(const char *prefix /* prefix to print */ ,
 }
 
 /* Debugging aid: print human readable information about @cache */
-void
+reiser4_internal void
 print_cbk_cache(const char *prefix /* prefix to print */ ,
 		const cbk_cache * cache /* cache to print */ )
 {
@@ -158,7 +158,7 @@ cbk_cache_invariant(const cbk_cache * cache)
 #endif
 
 /* Remove references, if any, to @node from coord cache */
-void
+reiser4_internal void
 cbk_cache_invalidate(const znode * node /* node to remove from cache */ ,
 		     reiser4_tree * tree /* tree to remove node from */ )
 {
@@ -187,7 +187,7 @@ cbk_cache_invalidate(const znode * node /* node to remove from cache */ ,
 
 /* add to the cbk-cache in the "tree" information about "node". This
     can actually be update of existing slot in a cache. */
-void
+reiser4_internal void
 cbk_cache_add(const znode * node /* node to add to the cache */ )
 {
 	cbk_cache *cache;
@@ -243,7 +243,7 @@ static level_lookup_result search_to_left(cbk_handle * h);
 
 /* pack numerous (numberous I should say) arguments of coord_by_key() into
  * cbk_handle */
-cbk_handle *cbk_pack(cbk_handle *handle,
+reiser4_internal cbk_handle *cbk_pack(cbk_handle *handle,
 		     reiser4_tree * tree,
 		     const reiser4_key * key,
 		     coord_t * coord,
@@ -285,7 +285,8 @@ cbk_handle *cbk_pack(cbk_handle *handle,
    Thread cannot keep any reiser4 locks (tree, znode, dk spin-locks, or znode
    long term locks) while calling this.
 */
-lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
+reiser4_internal lookup_result
+coord_by_key(reiser4_tree * tree	/* tree to perform search
 						 * in. Usually this tree is
 						 * part of file-system
 						 * super-block */ ,
@@ -357,7 +358,7 @@ lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 
 /* like coord_by_key(), but starts traversal from vroot of @object rather than
  * from tree root. */
-lookup_result
+reiser4_internal lookup_result
 object_lookup(struct inode *object,
 	      const reiser4_key * key,
 	      coord_t * coord,
@@ -435,7 +436,7 @@ coord_by_handle(cbk_handle * handle)
 
    This is used by readdir() and alikes.
 */
-int
+reiser4_internal int
 iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 	     coord_t * coord /* coord to start from */ ,
 	     lock_handle * lh	/* lock handle to start with and to
@@ -496,7 +497,7 @@ iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 	return result;
 }
 
-int get_uber_znode(reiser4_tree * tree, znode_lock_mode mode,
+reiser4_internal int get_uber_znode(reiser4_tree * tree, znode_lock_mode mode,
 		   znode_lock_request pri, lock_handle *lh)
 {
 	int result;
@@ -1267,7 +1268,7 @@ cbk_cache_search(cbk_handle * h /* cbk handle */ )
 
 /* type of lock we want to obtain during tree traversal. On stop level
     we want type of lock user asked for, on upper levels: read lock. */
-znode_lock_mode cbk_lock_mode(tree_level level, cbk_handle * h)
+reiser4_internal znode_lock_mode cbk_lock_mode(tree_level level, cbk_handle * h)
 {
 	assert("nikita-382", h != NULL);
 
@@ -1334,7 +1335,7 @@ find_child_delimiting_keys(znode * parent	/* parent znode, passed
  *
  * @child child node
  */
-int
+reiser4_internal int
 set_child_delimiting_keys(znode * parent,
 			  const coord_t * coord, znode * child)
 {
@@ -1508,7 +1509,7 @@ search_to_left(cbk_handle * h /* search handle */ )
 }
 
 /* debugging aid: return symbolic name of search bias */
-const char *
+reiser4_internal const char *
 bias_name(lookup_bias bias /* bias to get name of */ )
 {
 	if (bias == FIND_EXACT)
@@ -1527,7 +1528,7 @@ bias_name(lookup_bias bias /* bias to get name of */ )
 
 #if REISER4_DEBUG_OUTPUT
 /* debugging aid: print human readable information about @p */
-void
+reiser4_internal void
 print_coord_content(const char *prefix /* prefix to print */ ,
 		    coord_t * p /* coord to print */ )
 {
@@ -1548,7 +1549,7 @@ print_coord_content(const char *prefix /* prefix to print */ ,
 }
 
 /* debugging aid: print human readable information about @block */
-void
+reiser4_internal void
 print_address(const char *prefix /* prefix to print */ ,
 	      const reiser4_block_nr * block /* block number to print */ )
 {
@@ -1556,7 +1557,7 @@ print_address(const char *prefix /* prefix to print */ ,
 }
 #endif
 
-char *
+reiser4_internal char *
 sprint_address(const reiser4_block_nr * block /* block number to print */ )
 {
 	static char address[30];

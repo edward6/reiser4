@@ -274,7 +274,7 @@ typedef enum {
 	/* this jnode is copy of coced original */
 	JNODE_CCED = 27,
 	/* enable node squeezing */
-	JNODE_SQUEEZABLE = 28, 
+	JNODE_SQUEEZABLE = 28,
 } reiser4_jnode_state;
 
 /* Macros for accessing the jnode state. */
@@ -440,7 +440,7 @@ extern void print_jnodes(const char *prefix, reiser4_tree * tree);
 #define print_jnode(p, n) noop
 #endif
 
-extern int znode_is_root(const znode * node) NONNULL;
+int znode_is_root(const znode * node) NONNULL;
 
 /* bump reference counter on @node */
 static inline void

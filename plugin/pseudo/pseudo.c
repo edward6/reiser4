@@ -110,7 +110,7 @@ static void pseudo_set_datum(struct inode *pseudo, unsigned long datum)
 /*
  * try to look up built-in pseudo file by its name.
  */
-int
+reiser4_internal int
 lookup_pseudo_file(struct inode *parent, struct dentry * dentry)
 {
 	reiser4_plugin *plugin;

@@ -16,8 +16,9 @@
 #include "../plugin.h"
 
 
-int store_black_box(reiser4_tree *tree,
-		    const reiser4_key *key, void *data, int length)
+reiser4_internal int
+store_black_box(reiser4_tree *tree,
+		const reiser4_key *key, void *data, int length)
 {
 	int result;
 	reiser4_item_data idata;
@@ -43,8 +44,9 @@ int store_black_box(reiser4_tree *tree,
 	return result;
 }
 
-int load_black_box(reiser4_tree *tree,
-		   reiser4_key *key, void *data, int length, int exact)
+reiser4_internal int
+load_black_box(reiser4_tree *tree,
+	       reiser4_key *key, void *data, int length, int exact)
 {
 	int result;
 	coord_t coord;
@@ -87,7 +89,43 @@ int load_black_box(reiser4_tree *tree,
 
 }
 
-int kill_black_box(reiser4_tree *tree, const reiser4_key *key)
+reiser4_internal int
+update_black_box(reiser4_tree *tree,
+		 const reiser4_key *key, void *data, int length)
+{
+	int result;
+	coord_t coord;
+	lock_handle lh;
+
+	init_lh(&lh);
+	result = coord_by_key(tree, key,
+			      &coord, &lh, ZNODE_READ_LOCK,
+			      FIND_EXACT,
+			      LEAF_LEVEL, LEAF_LEVEL, CBK_UNIQUE, NULL);
+	if (result == 0) {
+		int ilen;
+
+		result = zload(coord.node);
+		if (result == 0) {
+			ilen = item_length_by_coord(&coord);
+			if (length <= ilen) {
+				xmemcpy(item_body_by_coord(&coord), data, length);
+			} else {
+				warning("nikita-3437",
+					"Wrong black box length: %i < %i",
+					ilen, length);
+				result = RETERR(-EIO);
+			}
+			zrelse(coord.node);
+		}
+	}
+
+	done_lh(&lh);
+	return result;
+
+}
+
+reiser4_internal int kill_black_box(reiser4_tree *tree, const reiser4_key *key)
 {
 	return cut_tree(tree, key, key, NULL);
 }

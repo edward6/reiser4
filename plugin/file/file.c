@@ -19,7 +19,7 @@
 static int unpack(struct inode *inode, int forever, int locked);
 
 /* get unix file plugin specific portion of inode */
-inline unix_file_info_t *
+reiser4_internal inline unix_file_info_t *
 unix_file_inode_data(const struct inode * inode)
 {
 	return &reiser4_inode_data(inode)->file_plugin_data.unix_file_info;
@@ -30,22 +30,23 @@ static int file_is_built_of_tails(const struct inode *inode)
 	return unix_file_inode_data(inode)->container == UF_CONTAINER_TAILS;
 }
 
-int file_is_built_of_extents(const struct inode *inode)
+reiser4_internal int
+file_is_built_of_extents(const struct inode *inode)
 {
 	return unix_file_inode_data(inode)->container == UF_CONTAINER_EXTENTS;
 }
 
-int file_is_empty(const struct inode *inode)
+reiser4_internal int file_is_empty(const struct inode *inode)
 {
 	return unix_file_inode_data(inode)->container == UF_CONTAINER_EMPTY;
 }
 
-void set_file_state_extents(struct inode *inode)
+reiser4_internal void set_file_state_extents(struct inode *inode)
 {
 	unix_file_inode_data(inode)->container = UF_CONTAINER_EXTENTS;
 }
 
-void set_file_state_tails(struct inode *inode)
+reiser4_internal void set_file_state_tails(struct inode *inode)
 {
 	unix_file_inode_data(inode)->container = UF_CONTAINER_TAILS;
 }
@@ -61,7 +62,7 @@ less_than_ldk(znode *node, const reiser4_key *key)
 	return UNDER_RW(dk, current_tree, read, keylt(key, znode_get_ld_key(node)));
 }
 
-int
+reiser4_internal int
 equal_to_rdk(znode *node, const reiser4_key *key)
 {
 	return UNDER_RW(dk, current_tree, read, keyeq(key, znode_get_rd_key(node)));
@@ -143,7 +144,7 @@ validate_extended_coord(uf_coord_t *uf_coord, loff_t offset)
 	item_plugin_by_coord(&uf_coord->base_coord)->s.file.init_coord_extension(uf_coord, offset);
 }
 
-write_mode_t
+reiser4_internal write_mode_t
 how_to_write(uf_coord_t *uf_coord, const reiser4_key *key)
 {
 	write_mode_t result;
@@ -225,7 +226,7 @@ ok:
 }
 
 /* update inode's timestamps and size. If any of these change - update sd as well */
-int
+reiser4_internal int
 update_inode_and_sd_if_necessary(struct inode *inode,
 				 loff_t new_size,
 				 int update_i_size, int update_times,
@@ -293,7 +294,7 @@ find_item()
 #endif
 
 /* obtain lock on right neighbor and drop lock on current node */
-int
+reiser4_internal int
 goto_right_neighbor(coord_t * coord, lock_handle * lh)
 {
 	int result;
@@ -347,7 +348,7 @@ set_file_state(unix_file_info_t *uf_info, int cbk_result, tree_level level)
 	}
 }
 
-int
+reiser4_internal int
 find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 	       const reiser4_key *key, /* key of position in a file of next read/write */
 	       znode_lock_mode lock_mode, /* which lock (read/write) to put on returned node */
@@ -428,7 +429,7 @@ find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 /* plugin->u.file.write_flowom = NULL
    plugin->u.file.read_flow = NULL */
 
-void
+reiser4_internal void
 hint_init_zero(hint_t *hint, lock_handle *lh)
 {
 	xmemset(hint, 0, sizeof (*hint));
@@ -500,7 +501,7 @@ static int reserve_partial_page(reiser4_tree *tree)
 }
 
 /* estimate and reserve space needed to cut one item and update one stat data */
-int reserve_cut_iteration(reiser4_tree *tree)
+reiser4_internal int reserve_cut_iteration(reiser4_tree *tree)
 {
 	__u64 estimate = estimate_one_item_removal(tree)
 		+ estimate_one_insert_into_item(tree);
@@ -691,7 +692,7 @@ append_hole(unix_file_info_t *uf_info, loff_t new_size)
 	return result;
 }
 
-int
+reiser4_internal int
 setattr_reserve(reiser4_tree *tree)
 {
 	assert("vs-1096", is_grab_enabled(get_current_context()));
@@ -748,7 +749,7 @@ truncate_file(struct inode *inode, loff_t new_size, int update_sd)
 /* plugin->u.file.truncate
    all the work is done on reiser4_setattr->unix_file_setattr->truncate_file
 */
-int
+reiser4_internal int
 truncate_unix_file(struct inode *inode, loff_t new_size)
 {
 	return 0;
@@ -758,7 +759,7 @@ truncate_unix_file(struct inode *inode, loff_t new_size)
 
 /* get access hint (seal, coord, key, level) stored in reiser4 private part of
    struct file if it was stored in a previous access to the file */
-int
+reiser4_internal int
 load_file_hint(struct file *file, hint_t *hint, lock_handle *lh)
 {
 	reiser4_file_fsdata *fsdata;
@@ -782,7 +783,7 @@ load_file_hint(struct file *file, hint_t *hint, lock_handle *lh)
 
 /* this copies hint for future tree accesses back to reiser4 private part of
    struct file */
-void
+reiser4_internal void
 save_file_hint(struct file *file, const hint_t *hint)
 {
 	reiser4_file_fsdata *fsdata;
@@ -796,7 +797,7 @@ save_file_hint(struct file *file, const hint_t *hint)
 	return;
 }
 
-void
+reiser4_internal void
 unset_hint(hint_t *hint)
 {
 	assert("vs-1315", hint);
@@ -804,7 +805,7 @@ unset_hint(hint_t *hint)
 }
 
 /* coord must be set properly. So, that set_hint has nothing to do */
-void
+reiser4_internal void
 set_hint(hint_t *hint, const reiser4_key *key, znode_lock_mode mode)
 {
 	ON_DEBUG(coord_t *coord = &hint->coord.base_coord);
@@ -816,7 +817,7 @@ set_hint(hint_t *hint, const reiser4_key *key, znode_lock_mode mode)
 	hint->mode = mode;
 }
 
-int
+reiser4_internal int
 hint_is_set(const hint_t *hint)
 {
 	return seal_is_set(&hint->seal);
@@ -833,7 +834,7 @@ static int all_but_offset_key_eq(const reiser4_key *k1, const reiser4_key *k2)
 }
 #endif
 
-int
+reiser4_internal int
 hint_validate(hint_t *hint, const reiser4_key *key, int check_key, znode_lock_mode lock_mode)
 {
 	if (!hint || !hint_is_set(hint) || hint->mode != lock_mode)
@@ -853,7 +854,7 @@ hint_validate(hint_t *hint, const reiser4_key *key, int check_key, znode_lock_mo
 /* nolock means: do not get EA or NEA on a file the page belongs to (it is obtained already either in
    unix_file_writepage or in tail2extent). Lock page after long term znode lock is obtained. Return with page locked.
    Used in shorten_file, replace, writepage_unix_file */
-int
+reiser4_internal int
 unix_file_writepage_nolock(struct page *page)
 {
 	int result;
@@ -1134,7 +1135,7 @@ static int capture_anonymous_pages(struct address_space * mapping)
  * of them can be emergency flushed. To cope with this list of eflushed jnodes
  * from this inode is scanned.
  */
-int
+reiser4_internal int
 capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 {
 	int               result;
@@ -1184,7 +1185,7 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
    page must be not out of file. This is called either via page fault and in that case vp is struct file *file, or on
    truncate when last page of a file is to be read to perform its partial truncate and in that case vp is 0
 */
-int
+reiser4_internal int
 readpage_unix_file(void *vp, struct page *page)
 {
 	int result;
@@ -1303,7 +1304,8 @@ static reiser4_block_nr unix_file_estimate_read(struct inode *inode,
    the read method for the unix_file plugin
 
 */
-ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
+reiser4_internal ssize_t
+read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 {
 	int result;
 	struct inode *inode;
@@ -1596,7 +1598,7 @@ write_flow(struct file *file, unix_file_info_t *uf_info, const char *buf, loff_t
 	return append_and_or_overwrite(file, uf_info, &flow);
 }
 
-void
+reiser4_internal void
 drop_access(unix_file_info_t *uf_info)
 {
 	if (uf_info->exclusive_use)
@@ -1605,13 +1607,13 @@ drop_access(unix_file_info_t *uf_info)
 		drop_nonexclusive_access(uf_info);
 }
 
-void balance_dirty_page_unix_file(struct inode *object)
+reiser4_internal void balance_dirty_page_unix_file(struct inode *object)
 {
 	/* balance dirty pages periodically */
 	balance_dirty_pages_ratelimited(object->i_mapping);
 }
 
-struct page *
+reiser4_internal struct page *
 unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int unused)
 {
 	struct page *page;
@@ -1675,7 +1677,7 @@ check_pages_unix_file(struct file *file, int vm_flags, int caller_is_write,
 
 /* plugin->u.file.mmap
    make sure that file is built of extent blocks. An estimation is in tail2extent */
-int
+reiser4_internal int
 mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 {
 	int result;
@@ -1742,7 +1744,7 @@ write_file(struct file *file, /* file to write to */
 }
 
 /* plugin->u.file.write */
-ssize_t
+reiser4_internal ssize_t
 write_unix_file(struct file *file, /* file to write to */
 		const char *buf, /* address of user-space buffer */
 		size_t count, /* number of bytes to write */
@@ -1827,7 +1829,7 @@ write_unix_file(struct file *file, /* file to write to */
 
 /* plugin->u.file.release() convert all extent items into tail items if
    necessary */
-int
+reiser4_internal int
 release_unix_file(struct inode *object, struct file *file)
 {
 	unix_file_info_t *uf_info;
@@ -1906,7 +1908,7 @@ unpack(struct inode *inode, int forever, int locked)
 }
 
 /* plugin->u.file.ioctl */
-int
+reiser4_internal int
 ioctl_unix_file(struct inode *inode, struct file *filp UNUSED_ARG, unsigned int cmd, unsigned long arg UNUSED_ARG)
 {
 	int result;
@@ -1924,7 +1926,7 @@ ioctl_unix_file(struct inode *inode, struct file *filp UNUSED_ARG, unsigned int 
 }
 
 /* plugin->u.file.get_block */
-int
+reiser4_internal int
 get_block_unix_file(struct inode *inode,
 		    sector_t block, struct buffer_head *bh_result, int create UNUSED_ARG)
 {
@@ -1965,7 +1967,7 @@ get_block_unix_file(struct inode *inode,
 
 /* plugin->u.file.flow_by_inode
    initialize flow (key, length, buf, etc) */
-int
+reiser4_internal int
 flow_by_inode_unix_file(struct inode *inode /* file to build flow for */ ,
 			char *buf /* user level buffer */ ,
 			int user  /* 1 if @buf is of user space, 0 - if it is kernel space */ ,
@@ -1987,7 +1989,7 @@ flow_by_inode_unix_file(struct inode *inode /* file to build flow for */ ,
 }
 
 /* plugin->u.file.key_by_inode */
-int
+reiser4_internal int
 key_by_inode_unix_file(struct inode *inode, loff_t off, reiser4_key *key)
 {
 	key_init(key);
@@ -2010,7 +2012,7 @@ key_by_inode_unix_file(struct inode *inode, loff_t off, reiser4_key *key)
 /* plugin->u.file.owns_item
    this is common_file_owns_item with assertion */
 /* Audited by: green(2002.06.15) */
-int
+reiser4_internal int
 owns_item_unix_file(const struct inode *inode	/* object to check against */ ,
 		    const coord_t *coord /* coord to check */ )
 {
@@ -2066,7 +2068,7 @@ setattr_truncate(struct inode *inode, struct iattr *attr)
 /* plugin->u.file.setattr method */
 /* This calls inode_setattr and if truncate is in effect it also takes
    exclusive inode access to avoid races */
-int
+reiser4_internal int
 setattr_unix_file(struct inode *inode,	/* Object to change attributes */
 		  struct iattr *attr /* change description */ )
 {
@@ -2100,7 +2102,7 @@ setattr_unix_file(struct inode *inode,	/* Object to change attributes */
 /* plugin->u.file.can_add_link = common_file_can_add_link */
 /* VS-FIXME-HANS: why does this always resolve to extent pointer?  this wrapper serves what purpose?  get rid of it. */
 /* plugin->u.file.readpages method */
-void
+reiser4_internal void
 readpages_unix_file(struct file *file, struct address_space *mapping,
 		    struct list_head *pages)
 {
@@ -2116,7 +2118,7 @@ readpages_unix_file(struct file *file, struct address_space *mapping,
 }
 
 /* plugin->u.file.init_inode_data */
-void
+reiser4_internal void
 init_inode_data_unix_file(struct inode *inode,
 			  reiser4_object_create_data *crd, int create)
 {
@@ -2135,7 +2137,7 @@ init_inode_data_unix_file(struct inode *inode,
 }
 /* VS-FIXME-HANS: what is pre deleting all about? */
 /* plugin->u.file.pre_delete */
-int
+reiser4_internal int
 pre_delete_unix_file(struct inode *inode)
 {
 	return truncate_file(inode, 0/* size */, 0/* no stat data update */);
@@ -2164,8 +2166,9 @@ static int process_truncate(struct inode *inode, __u64 size)
 	return result;
 }
 
-int safelink_unix_file(struct inode *object, reiser4_safe_link_t link,
-		       __u64 value)
+reiser4_internal int
+safelink_unix_file(struct inode *object, reiser4_safe_link_t link,
+		   __u64 value)
 {
 	int result;
 

@@ -20,7 +20,7 @@
 #include "ctail.h"
 
 /* return pointer to item body */
-void
+reiser4_internal void
 item_body_by_coord_hard(coord_t * coord /* coord to query */ )
 {
 	assert("nikita-324", coord != NULL);
@@ -32,7 +32,7 @@ item_body_by_coord_hard(coord_t * coord /* coord to query */ )
 	coord->body = node_plugin_by_node(coord->node)->item_by_coord(coord);
 }
 
-int item_body_is_valid(const coord_t * coord)
+reiser4_internal int item_body_is_valid(const coord_t * coord)
 {
 	return
 		coord->body ==
@@ -43,7 +43,7 @@ int item_body_is_valid(const coord_t * coord)
 /* Audited by: green(2002.06.15) */
 void
 check_contexts(void);
-int
+reiser4_internal int
 item_length_by_coord(const coord_t * coord /* coord to query */ )
 {
 	int len;
@@ -58,7 +58,7 @@ item_length_by_coord(const coord_t * coord /* coord to query */ )
 	return len;
 }
 
-void
+reiser4_internal void
 obtain_item_plugin(const coord_t * coord)
 {
 	assert("nikita-330", coord != NULL);
@@ -73,7 +73,8 @@ obtain_item_plugin(const coord_t * coord)
 }
 
 /* return type of item at @coord */
-item_type_id item_type_by_coord(const coord_t * coord /* coord to query */ )
+reiser4_internal item_type_id
+item_type_by_coord(const coord_t * coord /* coord to query */ )
 {
 	assert("nikita-333", coord != NULL);
 	assert("nikita-334", coord->node != NULL);
@@ -87,7 +88,8 @@ item_type_id item_type_by_coord(const coord_t * coord /* coord to query */ )
 
 /* return id of item */
 /* Audited by: green(2002.06.15) */
-item_id item_id_by_coord(const coord_t * coord /* coord to query */ )
+reiser4_internal item_id
+item_id_by_coord(const coord_t * coord /* coord to query */ )
 {
 	assert("vs-539", coord != NULL);
 	assert("vs-538", coord->node != NULL);
@@ -102,7 +104,7 @@ item_id item_id_by_coord(const coord_t * coord /* coord to query */ )
 
 /* return key of item at @coord */
 /* Audited by: green(2002.06.15) */
-reiser4_key *
+reiser4_internal reiser4_key *
 item_key_by_coord(const coord_t * coord /* coord to query */ ,
 		  reiser4_key * key /* result */ )
 {
@@ -115,7 +117,7 @@ item_key_by_coord(const coord_t * coord /* coord to query */ ,
 }
 
 /* return key of unit at @coord */
-reiser4_key *
+reiser4_internal reiser4_key *
 unit_key_by_coord(const coord_t * coord /* coord to query */ ,
 		  reiser4_key * key /* result */ )
 {
@@ -159,13 +161,13 @@ paste_no_paste(coord_t * coord UNUSED_ARG,
 }
 
 /* default ->fast_paste() method */
-int
+reiser4_internal int
 agree_to_fast_op(const coord_t * coord UNUSED_ARG /* coord of item */ )
 {
 	return 1;
 }
 
-int
+reiser4_internal int
 item_can_contain_key(const coord_t * item /* coord of item */ ,
 		     const reiser4_key * key /* key to check */ ,
 		     const reiser4_item_data * data	/* parameters of item
@@ -195,7 +197,7 @@ item_can_contain_key(const coord_t * item /* coord of item */ ,
 }
 
 /* return 0 if @item1 and @item2 are not mergeable, !0 - otherwise */
-int
+reiser4_internal int
 are_items_mergeable(const coord_t * i1 /* coord of first item */ ,
 		    const coord_t * i2 /* coord of second item */ )
 {
@@ -234,21 +236,21 @@ are_items_mergeable(const coord_t * i1 /* coord of first item */ ,
 	}
 }
 
-int
+reiser4_internal int
 item_is_extent(const coord_t * item)
 {
 	assert("vs-482", coord_is_existing_item(item));
 	return item_id_by_coord(item) == EXTENT_POINTER_ID;
 }
 
-int
+reiser4_internal int
 item_is_tail(const coord_t * item)
 {
 	assert("vs-482", coord_is_existing_item(item));
 	return item_id_by_coord(item) == FORMATTING_ID;
 }
 
-int
+reiser4_internal int
 item_is_statdata(const coord_t * item)
 {
 	assert("vs-516", coord_is_existing_item(item));
@@ -285,13 +287,13 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.kill_units = NULL,
 			.unit_key = NULL,
 			.estimate = NULL,
-			.item_data_by_flow = NULL
+			.item_data_by_flow = NULL,
 #if REISER4_DEBUG_OUTPUT
-			, .print = print_sd,
-			.item_stat = item_stat_static_sd
+			.print = print_sd,
+			.item_stat = item_stat_static_sd,
 #endif
 #if REISER4_DEBUG
-			, .check = NULL
+			.check = NULL
 #endif
 		},
 		.f = {

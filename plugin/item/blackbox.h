@@ -16,6 +16,8 @@ extern int store_black_box(reiser4_tree *tree,
 extern int load_black_box(reiser4_tree *tree,
 			  reiser4_key *key, void *data, int length, int exact);
 extern int kill_black_box(reiser4_tree *tree, const reiser4_key *key);
+extern int update_black_box(reiser4_tree *tree,
+			    const reiser4_key *key, void *data, int length);
 
 /* __FS_REISER4_BLACK_BOX_H__ */
 #endif

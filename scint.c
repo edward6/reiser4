@@ -60,18 +60,18 @@ static int prepare(scint_t *scint, __u64 value, int gfp_mask)
 		return RETERR(-ENOMEM);
 }
 
-void scint_init(scint_t *scint)
+reiser4_internal void scint_init(scint_t *scint)
 {
 	scint->datum = 0;
 }
 
-void scint_done(scint_t *scint)
+reiser4_internal void scint_done(scint_t *scint)
 {
 	if (is_extern(scint))
 		kmem_cache_free(scint_cache, get_extern(scint));
 }
 
-int scint_pack(scint_t *scint, __u64 value, int gfp_mask)
+reiser4_internal int scint_pack(scint_t *scint, __u64 value, int gfp_mask)
 {
 	int result;
 
@@ -92,7 +92,7 @@ int scint_pack(scint_t *scint, __u64 value, int gfp_mask)
 	return 0;
 }
 
-__u64 scint_unpack(const scint_t *scint)
+reiser4_internal __u64 scint_unpack(const scint_t *scint)
 {
 	if (is_extern(scint))
 		return *get_extern(scint);
@@ -102,7 +102,7 @@ __u64 scint_unpack(const scint_t *scint)
 
 static kmem_cache_t *scint_slab;
 
-int scint_init_once(void)
+reiser4_internal int scint_init_once(void)
 {
 	scint_slab = kmem_cache_create("scint", sizeof(__u64), 0,
 				       SLAB_HWCACHE_ALIGN|SLAB_RECLAIM_ACCOUNT,
@@ -110,7 +110,7 @@ int scint_init_once(void)
 	return (scint_slab == NULL) ? RETERR(-ENOMEM) : 0;
 }
 
-void scint_done_once(void)
+reiser4_internal void scint_done_once(void)
 {
 	if (kmem_cache_destroy(scint_slab) != 0)
 		warning("nikita-2844", "not all scalable ints were freed");

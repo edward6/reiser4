@@ -199,7 +199,7 @@ int znode_shift_order;
 /* ZNODE INITIALIZATION */
 
 /* call this once on reiser4 initialisation */
-int
+reiser4_internal int
 znodes_init(void)
 {
 	znode_slab = kmem_cache_create("znode", sizeof (znode), 0,
@@ -218,14 +218,14 @@ znodes_init(void)
 }
 
 /* call this before unloading reiser4 */
-int
+reiser4_internal int
 znodes_done(void)
 {
 	return kmem_cache_destroy(znode_slab);
 }
 
 /* call this to initialise tree of znodes */
-int
+reiser4_internal int
 znodes_tree_init(reiser4_tree * tree /* tree to initialise znodes for */ )
 {
 	int result;
@@ -247,7 +247,7 @@ extern void jnode_done(jnode * node, reiser4_tree * tree);
 #endif
 
 /* free this znode */
-void
+reiser4_internal void
 zfree(znode * node /* znode to free */ )
 {
 	trace_stamp(TRACE_ZNODES);
@@ -272,7 +272,7 @@ zfree(znode * node /* znode to free */ )
 }
 
 /* call this to free tree of znodes */
-void
+reiser4_internal void
 znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 {
 	znode *node;
@@ -313,7 +313,7 @@ znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 /* ZNODE STRUCTURES */
 
 /* allocate fresh znode */
-znode *
+reiser4_internal znode *
 zalloc(int gfp_flag /* allocation flag */ )
 {
 	znode *node;
@@ -327,7 +327,7 @@ zalloc(int gfp_flag /* allocation flag */ )
    @node:    znode to initialize;
    @parent:  parent znode;
    @tree:    tree we are in. */
-void
+reiser4_internal void
 zinit(znode * node, const znode * parent, reiser4_tree * tree)
 {
 	assert("nikita-466", node != NULL);
@@ -347,7 +347,7 @@ zinit(znode * node, const znode * parent, reiser4_tree * tree)
  * remove znode from indices. This is called jput() when last reference on
  * znode is released.
  */
-void
+reiser4_internal void
 znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 {
 	assert("nikita-2108", node != NULL);
@@ -374,7 +374,7 @@ znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 /* zdrop() -- Remove znode from the tree.
 
    This is called when znode is removed from the memory. */
-void
+reiser4_internal void
 zdrop(znode * node /* znode to finish with */ )
 {
 	jdrop(ZJNODE(node));
@@ -384,7 +384,7 @@ zdrop(znode * node /* znode to finish with */ )
  * put znode into right place in the hash table. This is called by relocate
  * code.
  */
-int
+reiser4_internal int
 znode_rehash(znode * node /* node to rehash */ ,
 	     const reiser4_block_nr * new_block_nr /* new block number */ )
 {
@@ -423,7 +423,7 @@ znode_rehash(znode * node /* node to rehash */ ,
    accepts pre-computed hash index.  The hash table is accessed under caller's
    tree->hash_lock.
 */
-znode *
+reiser4_internal znode *
 zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 {
 	znode        *result;
@@ -452,7 +452,7 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 
 /* return hash table where znode with block @blocknr is (or should be)
  * stored */
-z_hash_table *
+reiser4_internal z_hash_table *
 get_htable(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 {
 	z_hash_table *table;
@@ -464,7 +464,7 @@ get_htable(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 }
 
 /* return hash table where znode @node is (or should be) stored */
-z_hash_table *
+reiser4_internal z_hash_table *
 znode_get_htable(const znode *node)
 {
 	return get_htable(znode_get_tree(node), znode_get_block(node));
@@ -479,7 +479,7 @@ znode_get_htable(const znode *node)
    LOCKS TAKEN:   TREE_LOCK, ZNODE_LOCK
    LOCK ORDERING: NONE
 */
-znode *
+reiser4_internal znode *
 zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent, tree_level level, int gfp_flag)
 {
 	znode *result;
@@ -609,7 +609,7 @@ znode_guess_plugin(const znode * node	/* znode to guess
 }
 
 /* parse node header and install ->node_plugin */
-int
+reiser4_internal int
 zparse(znode * node /* znode to parse */ )
 {
 	int result;
@@ -634,7 +634,7 @@ zparse(znode * node /* znode to parse */ )
 }
 
 /* zload with readahead */
-int
+reiser4_internal int
 zload_ra(znode * node /* znode to load */, ra_info_t *info)
 {
 	int result;
@@ -655,13 +655,13 @@ zload_ra(znode * node /* znode to load */, ra_info_t *info)
 }
 
 /* load content of node into memory */
-int zload(znode * node)
+reiser4_internal int zload(znode * node)
 {
 	return zload_ra(node, 0);
 }
 
 /* call node plugin to initialise newly allocated node. */
-int
+reiser4_internal int
 zinit_new(znode * node /* znode to initialise */ )
 {
 	return jinit_new(ZJNODE(node));
@@ -669,7 +669,7 @@ zinit_new(znode * node /* znode to initialise */ )
 
 /* drop reference to node data. When last reference is dropped, data are
    unloaded. */
-void
+reiser4_internal void
 zrelse(znode * node /* znode to release references to */ )
 {
 	assert("nikita-1381", znode_invariant(node));
@@ -678,7 +678,7 @@ zrelse(znode * node /* znode to release references to */ )
 }
 
 /* returns free space in node */
-unsigned
+reiser4_internal unsigned
 znode_free_space(znode * node /* znode to query */ )
 {
 	assert("nikita-852", node != NULL);
@@ -686,7 +686,7 @@ znode_free_space(znode * node /* znode to query */ )
 }
 
 /* left delimiting key of znode */
-reiser4_key *
+reiser4_internal reiser4_key *
 znode_get_rd_key(znode * node /* znode to query */ )
 {
 	assert("nikita-958", node != NULL);
@@ -697,7 +697,7 @@ znode_get_rd_key(znode * node /* znode to query */ )
 }
 
 /* right delimiting key of znode */
-reiser4_key *
+reiser4_internal reiser4_key *
 znode_get_ld_key(znode * node /* znode to query */ )
 {
 	assert("nikita-974", node != NULL);
@@ -708,7 +708,8 @@ znode_get_ld_key(znode * node /* znode to query */ )
 }
 
 /* update right-delimiting key of @node */
-reiser4_key *znode_set_rd_key(znode * node, const reiser4_key * key)
+reiser4_internal reiser4_key *
+znode_set_rd_key(znode * node, const reiser4_key * key)
 {
 	assert("nikita-2937", node != NULL);
 	assert("nikita-2939", key != NULL);
@@ -726,7 +727,8 @@ reiser4_key *znode_set_rd_key(znode * node, const reiser4_key * key)
 }
 
 /* update left-delimiting key of @node */
-reiser4_key *znode_set_ld_key(znode * node, const reiser4_key * key)
+reiser4_internal reiser4_key *
+znode_set_ld_key(znode * node, const reiser4_key * key)
 {
 	assert("nikita-2940", node != NULL);
 	assert("nikita-2941", key != NULL);
@@ -741,7 +743,7 @@ reiser4_key *znode_set_ld_key(znode * node, const reiser4_key * key)
 }
 
 /* true if @key is inside key range for @node */
-int
+reiser4_internal int
 znode_contains_key(znode * node /* znode to look in */ ,
 		   const reiser4_key * key /* key to look for */ )
 {
@@ -753,7 +755,7 @@ znode_contains_key(znode * node /* znode to look in */ ,
 }
 
 /* same as znode_contains_key(), but lock dk lock */
-int
+reiser4_internal int
 znode_contains_key_lock(znode * node /* znode to look in */ ,
 			const reiser4_key * key /* key to look for */ )
 {
@@ -765,7 +767,7 @@ znode_contains_key_lock(znode * node /* znode to look in */ ,
 }
 
 /* get parent pointer, assuming tree is not locked */
-znode *
+reiser4_internal znode *
 znode_parent_nolock(const znode * node /* child znode */ )
 {
 	assert("nikita-1444", node != NULL);
@@ -773,7 +775,7 @@ znode_parent_nolock(const znode * node /* child znode */ )
 }
 
 /* get parent pointer of znode */
-znode *
+reiser4_internal znode *
 znode_parent(const znode * node /* child znode */ )
 {
 	assert("nikita-1226", node != NULL);
@@ -782,7 +784,7 @@ znode_parent(const znode * node /* child znode */ )
 }
 
 /* detect uber znode used to protect in-superblock tree root pointer */
-int
+reiser4_internal int
 znode_above_root(const znode * node /* znode to query */ )
 {
 	assert("umka-059", node != NULL);
@@ -792,7 +794,7 @@ znode_above_root(const znode * node /* znode to query */ )
 
 /* check that @node is root---that its block number is recorder in the tree as
    that of root node */
-int
+reiser4_internal int
 znode_is_true_root(const znode * node /* znode to query */ )
 {
 	assert("umka-060", node != NULL);
@@ -802,7 +804,7 @@ znode_is_true_root(const znode * node /* znode to query */ )
 }
 
 /* check that @node is root */
-int
+reiser4_internal int
 znode_is_root(const znode * node /* znode to query */ )
 {
 	assert("nikita-1206", node != NULL);
@@ -813,7 +815,7 @@ znode_is_root(const znode * node /* znode to query */ )
 /* Returns true is @node was just created by zget() and wasn't ever loaded
    into memory. */
 /* NIKITA-HANS: yes */
-int
+reiser4_internal int
 znode_just_created(const znode * node)
 {
 	assert("nikita-2188", node != NULL);
@@ -821,7 +823,7 @@ znode_just_created(const znode * node)
 }
 
 /* obtain updated ->znode_epoch. See seal.c for description. */
-__u64
+reiser4_internal __u64
 znode_build_version(reiser4_tree * tree)
 {
 	return UNDER_SPIN(epoch, tree, ++tree->znode_epoch);
@@ -867,7 +869,7 @@ relocate_locked(znode * node, znode * parent, reiser4_block_nr * blk)
  * relocate znode to the new block number @blk. Used for speculative
  * relocation of bad blocks.
  */
-int
+reiser4_internal int
 znode_relocate(znode * node, reiser4_block_nr * blk)
 {
 	lock_handle lh;
@@ -906,14 +908,14 @@ znode_relocate(znode * node, reiser4_block_nr * blk)
 	return result;
 }
 
-void
+reiser4_internal void
 init_load_count(load_count * dh)
 {
 	assert("nikita-2105", dh != NULL);
 	xmemset(dh, 0, sizeof *dh);
 }
 
-void
+reiser4_internal void
 done_load_count(load_count * dh)
 {
 	assert("nikita-2106", dh != NULL);
@@ -924,7 +926,7 @@ done_load_count(load_count * dh)
 	}
 }
 
-int
+reiser4_internal int
 incr_load_count_znode(load_count * dh, znode * node)
 {
 	assert("nikita-2107", dh != NULL);
@@ -935,7 +937,7 @@ incr_load_count_znode(load_count * dh, znode * node)
 	return incr_load_count(dh);
 }
 
-int
+reiser4_internal int
 incr_load_count(load_count * dh)
 {
 	int result;
@@ -949,7 +951,7 @@ incr_load_count(load_count * dh)
 	return result;
 }
 
-int
+reiser4_internal int
 incr_load_count_jnode(load_count * dh, jnode * node)
 {
 	if (jnode_is_znode(node)) {
@@ -958,7 +960,7 @@ incr_load_count_jnode(load_count * dh, jnode * node)
 	return 0;
 }
 
-void
+reiser4_internal void
 copy_load_count(load_count * new, load_count * old)
 {
 	int ret = 0;
@@ -972,7 +974,7 @@ copy_load_count(load_count * new, load_count * old)
 	assert("jmacd-87589", ret == 0);
 }
 
-void
+reiser4_internal void
 move_load_count(load_count * new, load_count * old)
 {
 	done_load_count(new);
@@ -983,7 +985,8 @@ move_load_count(load_count * new, load_count * old)
 }
 
 /* convert parent pointer into coord */
-void parent_coord_to_coord(const parent_coord_t * pcoord, coord_t * coord)
+reiser4_internal void
+parent_coord_to_coord(const parent_coord_t * pcoord, coord_t * coord)
 {
 	assert("nikita-3204", pcoord != NULL);
 	assert("nikita-3205", coord != NULL);
@@ -994,7 +997,8 @@ void parent_coord_to_coord(const parent_coord_t * pcoord, coord_t * coord)
 }
 
 /* pack coord into parent_coord_t */
-void coord_to_parent_coord(const coord_t * coord, parent_coord_t * pcoord)
+reiser4_internal void
+coord_to_parent_coord(const coord_t * coord, parent_coord_t * pcoord)
 {
 	assert("nikita-3206", pcoord != NULL);
 	assert("nikita-3207", coord != NULL);
@@ -1005,7 +1009,7 @@ void coord_to_parent_coord(const coord_t * coord, parent_coord_t * pcoord)
 
 /* Initialize a parent hint pointer. (parent hint pointer is a field in znode,
    look for comments there) */
-void
+reiser4_internal void
 init_parent_coord(parent_coord_t * pcoord, const znode * node)
 {
 	pcoord->node = (znode *) node;
@@ -1014,7 +1018,7 @@ init_parent_coord(parent_coord_t * pcoord, const znode * node)
 
 
 #if REISER4_DEBUG
-extern int jnode_invariant_f(const znode * node, char const **msg);
+int jnode_invariant_f(const jnode * node, char const **msg);
 
 /* debugging aid: znode invariant */
 static int
@@ -1214,7 +1218,7 @@ znode_post_write(znode * node)
 
 /* debugging aid: output more human readable information about @node that
    info_znode(). */
-void
+reiser4_internal void
 print_znode(const char *prefix /* prefix to print */ ,
 	    const znode * node /* node to print */ )
 {
@@ -1235,7 +1239,7 @@ print_znode(const char *prefix /* prefix to print */ ,
 }
 
 /* debugging aid: output human readable information about @node */
-void
+reiser4_internal void
 info_znode(const char *prefix /* prefix to print */ ,
 	   const znode * node /* node to print */ )
 {
@@ -1251,7 +1255,7 @@ info_znode(const char *prefix /* prefix to print */ ,
 }
 
 /* print all znodes in @tree */
-void
+reiser4_internal void
 print_znodes(const char *prefix, reiser4_tree * tree)
 {
 	znode *node;
@@ -1286,7 +1290,7 @@ print_znodes(const char *prefix, reiser4_tree * tree)
 #if defined(REISER4_DEBUG) || defined(REISER4_DEBUG_MODIFY) || defined(REISER4_DEBUG_OUTPUT)
 
 /* return non-0 iff data are loaded into znode */
-int
+reiser4_internal int
 znode_is_loaded(const znode * node /* znode to query */ )
 {
 	assert("nikita-497", node != NULL);

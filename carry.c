@@ -188,7 +188,7 @@ static int carry_level_invariant(carry_level * level, carry_queue_state state);
    For usage, see comment at the top of fs/reiser4/carry.c
 
 */
-int
+reiser4_internal int
 carry(carry_level * doing /* set of carry operations to be performed */ ,
       carry_level * done	/* set of nodes, already performed at the
 				 * previous level. NULL in most cases */ )
@@ -393,7 +393,7 @@ carry_on_level(carry_level * doing	/* queue of carry operations to
    caller to guarantee proper ordering of node queue.
 
 */
-carry_op *
+reiser4_internal carry_op *
 post_carry(carry_level * level	/* queue where new operation is to
 				 * be posted at */ ,
 	   carry_opcode op /* opcode of operation */ ,
@@ -427,21 +427,14 @@ post_carry(carry_level * level	/* queue where new operation is to
 }
 
 /* number of carry operations in a @level */
-int
+reiser4_internal int
 carry_op_num(const carry_level * level)
 {
 	return level->ops_num;
 }
 
-/* number of carry nodes in a @level */
-int
-carry_node_num(const carry_level * level)
-{
-	return level->nodes_num;
-}
-
 /* initialise carry queue */
-void
+reiser4_internal void
 init_carry_level(carry_level * level /* level to initialise */ ,
 		 carry_pool * pool	/* pool @level will allocate objects
 					 * from */ )
@@ -457,7 +450,7 @@ init_carry_level(carry_level * level /* level to initialise */ ,
 }
 
 /* initialise pools within queue */
-void
+reiser4_internal void
 init_carry_pool(carry_pool * pool /* pool to initialise */ )
 {
 	assert("nikita-945", pool != NULL);
@@ -467,7 +460,7 @@ init_carry_pool(carry_pool * pool /* pool to initialise */ )
 }
 
 /* finish with queue pools */
-void
+reiser4_internal void
 done_carry_pool(carry_pool * pool UNUSED_ARG /* pool to destroy */ )
 {
 	reiser4_done_pool(&pool->op_pool);
@@ -483,7 +476,7 @@ done_carry_pool(carry_pool * pool UNUSED_ARG /* pool to destroy */ )
    automatically. To control ordering use @order and @reference parameters.
 
 */
-carry_node *
+reiser4_internal carry_node *
 add_carry_skip(carry_level * level	/* &carry_level to add node
 					 * to */ ,
 	       pool_ordering order	/* where to insert: at the
@@ -516,7 +509,7 @@ add_carry_skip(carry_level * level	/* &carry_level to add node
 	return add_carry(level, order, reference);
 }
 
-carry_node *
+reiser4_internal carry_node *
 add_carry(carry_level * level	/* &carry_level to add node
 				 * to */ ,
 	  pool_ordering order	/* where to insert: at the
@@ -541,7 +534,7 @@ add_carry(carry_level * level	/* &carry_level to add node
    @order and @reference parameters.
 
 */
-carry_op *
+reiser4_internal carry_op *
 add_op(carry_level * level /* &carry_level to add node to */ ,
        pool_ordering order	/* where to insert: at the beginning of
 				 * @level, before @reference, after
@@ -566,7 +559,7 @@ add_op(carry_level * level /* &carry_level to add node to */ ,
    parent, it has corresponding bit (JNODE_ORPHAN) set in zstate.
 
 */
-carry_node *
+reiser4_internal carry_node *
 find_begetting_brother(carry_node * node	/* node to start search
 						 * from */ ,
 		       carry_level * kin UNUSED_ARG	/* level to
@@ -608,7 +601,7 @@ carry_node_cmp(carry_level * level, carry_node * n1, carry_node * n2)
 	impossible("nikita-2201", "End of level reached");
 }
 
-carry_node *
+reiser4_internal carry_node *
 find_carry_node(carry_level * level, const znode * node)
 {
 	carry_node *scan;
@@ -624,7 +617,7 @@ find_carry_node(carry_level * level, const znode * node)
 	return NULL;
 }
 
-znode *
+reiser4_internal znode *
 carry_real(const carry_node * node)
 {
 	assert("nikita-3061", node != NULL);
@@ -632,7 +625,7 @@ carry_real(const carry_node * node)
 	return node->lock_handle.node;
 }
 
-carry_node *
+reiser4_internal carry_node *
 insert_carry_node(carry_level * doing, carry_level * todo, const znode * node)
 {
 	carry_node *base;
@@ -652,7 +645,7 @@ insert_carry_node(carry_level * doing, carry_level * todo, const znode * node)
 	return scan;
 }
 
-carry_node *
+reiser4_internal carry_node *
 add_carry_atplace(carry_level *doing, carry_level *todo, znode *node)
 {
 	carry_node *reference;
@@ -670,7 +663,7 @@ add_carry_atplace(carry_level *doing, carry_level *todo, znode *node)
 /* like post_carry(), but designed to be called from node plugin methods.
    This function is different from post_carry() in that it finds proper place
    to insert node in the queue. */
-carry_op *
+reiser4_internal carry_op *
 node_post_carry(carry_plugin_info * info	/* carry parameters
 						 * passed down to node
 						 * plugin */ ,
@@ -880,7 +873,7 @@ done_carry_level(carry_level * level /* level to finish */ )
    fills ->real_node from this lock handle.
 
 */
-int
+reiser4_internal int
 lock_carry_node_tail(carry_node * node /* node to complete locking of */ )
 {
 	assert("nikita-1052", node != NULL);
@@ -916,7 +909,7 @@ lock_carry_node_tail(carry_node * node /* node to complete locking of */ )
    operation (->real_node field of carry_node) from base.
 
 */
-int
+reiser4_internal int
 lock_carry_node(carry_level * level /* level @node is in */ ,
 		carry_node * node /* node to lock */ )
 {
@@ -1159,7 +1152,7 @@ add_new_root(carry_level * level	/* carry level in context of which
    This is carry related routing that calls new_node() to allocate new
    node.
 */
-carry_node *
+reiser4_internal carry_node *
 add_new_znode(znode * brother	/* existing left neighbor of new
 				 * node */ ,
 	      carry_node * ref	/* carry node after which new
@@ -1328,7 +1321,7 @@ carry_op_name(carry_opcode op /* carry opcode */ )
 }
 
 /* dump information about carry node */
-void
+reiser4_internal void
 print_carry(const char *prefix /* prefix to print */ ,
 	    carry_node * node /* node to print */ )
 {
@@ -1343,7 +1336,7 @@ print_carry(const char *prefix /* prefix to print */ ,
 }
 
 /* dump information about carry operation */
-void
+reiser4_internal void
 print_op(const char *prefix /* prefix to print */ ,
 	 carry_op * op /* operation to print */ )
 {
@@ -1380,7 +1373,7 @@ print_op(const char *prefix /* prefix to print */ ,
 }
 
 /* dump information about all nodes and operations in a @level */
-void
+reiser4_internal void
 print_level(const char *prefix /* prefix to print */ ,
 	    carry_level * level /* level to print */ )
 {

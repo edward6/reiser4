@@ -314,7 +314,7 @@ static struct tree_walk_actor backward_actor = {
 };
 
 
-int reiser4_repacker (struct repacker * repacker)
+reiser4_internal int reiser4_repacker (struct repacker * repacker)
 {
 	struct repacker_cursor cursor;
 	int backward;
@@ -335,7 +335,7 @@ int reiser4_repacker (struct repacker * repacker)
 }
 
 /* The repacker kernel thread code. */
-int repacker_d(void *arg)
+reiser4_internal int repacker_d(void *arg)
 {
 	struct repacker * repacker = arg;
 	struct task_struct * me = current;
@@ -599,7 +599,7 @@ static void done_repacker_sysfs_interface (struct super_block * s)
 
 #endif /* REISER4_USE_SYSFS */
 
-int init_reiser4_repacker (struct super_block *super)
+reiser4_internal int init_reiser4_repacker (struct super_block *super)
 {
 	reiser4_super_info_data * sinfo = get_super_private(super);
 
@@ -619,7 +619,7 @@ int init_reiser4_repacker (struct super_block *super)
 	return init_repacker_sysfs_interface(super);
 }
 
-void done_reiser4_repacker (struct super_block *super)
+reiser4_internal void done_reiser4_repacker (struct super_block *super)
 {
 	reiser4_super_info_data * sinfo = get_super_private(super);
 	struct repacker * repacker;

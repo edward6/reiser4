@@ -37,7 +37,7 @@ static int add_child_ptr(znode * parent, znode * child);
 		warning( __VA_ARGS__ )
 
 /* allocate new node on the @level and immediately on the right of @brother. */
-znode *
+reiser4_internal znode *
 new_node(znode * brother /* existing left neighbor of new node */ ,
 	 tree_level level	/* tree level at which new node is to
 				 * be allocated */ )
@@ -95,7 +95,7 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
    This helper function is called by add_new_root().
 
 */
-znode *
+reiser4_internal znode *
 add_tree_root(znode * old_root /* existing tree root */ ,
 	      znode * fake /* "fake" znode */ )
 {
@@ -189,7 +189,7 @@ add_tree_root(znode * old_root /* existing tree root */ ,
    in its parent.
 
 */
-void
+reiser4_internal void
 build_child_ptr_data(znode * child	/* node pointer to which will be
 					 * inserted */ ,
 		     reiser4_item_data * data /* where to store result */ )
@@ -319,7 +319,7 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
    to do the actual job.
 
 */
-int
+reiser4_internal int
 kill_tree_root(znode * old_root /* tree root that we are removing */ )
 {
 	int result;

@@ -190,6 +190,7 @@
 #include <linux/pagemap.h>
 #include <linux/bio.h>
 #include <linux/writeback.h>
+#include <linux/backing-dev.h>
 
 static struct bio *page_bio(struct page *page, jnode * node, int rw, int gfp);
 
@@ -200,7 +201,7 @@ static const oid_t bitmap_ino = 0x2;
 static const oid_t cc_ino = 0x3;
 
 /* one-time initialization of fake inodes handling functions. */
-int
+reiser4_internal int
 init_fakes()
 {
 	return 0;
@@ -221,7 +222,7 @@ init_fake_inode(struct super_block *super, struct inode *fake, struct inode **pf
 }
 
 /* initialize fake inode to which formatted nodes are bound in the page cache. */
-int
+reiser4_internal int
 init_formatted_fake(struct super_block *super)
 {
 	struct inode *fake;
@@ -260,7 +261,7 @@ init_formatted_fake(struct super_block *super)
 }
 
 /* release fake inode for @super */
-int
+reiser4_internal int
 done_formatted_fake(struct super_block *super)
 {
 	reiser4_super_info_data *sinfo;
@@ -296,7 +297,7 @@ int reiser4_submit_bio_helper(const char *moniker, int rw, struct bio *bio)
 }
 #endif
 
-void reiser4_wait_page_writeback (struct page * page)
+reiser4_internal void reiser4_wait_page_writeback (struct page * page)
 {
 	assert ("zam-783", PageLocked(page));
 
@@ -308,7 +309,7 @@ void reiser4_wait_page_writeback (struct page * page)
 }
 
 /* return tree @page is in */
-reiser4_tree *
+reiser4_internal reiser4_tree *
 tree_by_page(const struct page *page /* page to query */ )
 {
 	assert("nikita-2461", page != NULL);
@@ -435,7 +436,7 @@ formatted_readpage(struct file *f UNUSED_ARG, struct page *page /* page to read 
 }
 
 /* submit single-page bio request */
-int
+reiser4_internal int
 page_io(struct page *page /* page to perform io for */ ,
 	jnode * node /* jnode of page */ ,
 	int rw /* read or write */ , int gfp /* GFP mask */ )
@@ -516,7 +517,7 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 }
 
 /* Common memory pressure notification. */
-int
+reiser4_internal int
 reiser4_writepage(struct page *page /* page to start writeback from */,
 		  struct writeback_control *wbc)
 {
@@ -535,6 +536,12 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 	assert("vs-828", PageLocked(page));
 
 	set_rapid_flush_mode(1);
+
+	if (wbc->nonblocking &&
+	    bdi_write_congested(page->mapping->backing_dev_info)) {
+		wbc->encountered_congestion = 1;
+		return 0;
+	}
 
 	tree = &get_super_private(s)->tree;
 	node = jnode_of_page(page);
@@ -642,7 +649,7 @@ static struct address_space_operations formatted_fake_as_ops = {
 
 /* called just before page is released (no longer used by reiser4). Callers:
    jdelete() and extent2tail(). */
-void
+reiser4_internal void
 drop_page(struct page *page)
 {
 	assert("nikita-2181", PageLocked(page));
@@ -665,7 +672,7 @@ drop_page(struct page *page)
 #define page_flag_name( page, flag )			\
 	( test_bit( ( flag ), &( page ) -> flags ) ? ((#flag "|")+3) : "" )
 
-void
+reiser4_internal void
 print_page(const char *prefix, struct page *page)
 {
 	if (page == NULL) {
@@ -694,7 +701,7 @@ print_page(const char *prefix, struct page *page)
 	}
 }
 
-void
+reiser4_internal void
 print_page_state(const char *prefix, struct page_state *ps)
 {
 	printk("%i: %s: "
@@ -751,7 +758,7 @@ print_page_state(const char *prefix, struct page_state *ps)
 		);
 }
 
-void
+reiser4_internal void
 print_page_stats(const char *prefix)
 {
 	struct page_state ps;
