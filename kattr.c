@@ -50,24 +50,36 @@ typedef struct {
 	const char *format;
 } super_field_cookie;
 
-#define DEFINE_SUPER_RO(aname, afield, aformat, asize)		\
-static super_field_cookie __cookie_ ## aname = {		\
-	.offset = offsetof(reiser4_super_info_data, afield),	\
-	.format = aformat "\n"					\
-};								\
-								\
-static reiser4_kattr kattr_super_ro_ ## aname = {		\
-	.attr = {						\
-		.kattr = {					\
-			.name = (char *) #afield,		\
-			.mode = 0440   /* r--r----- */		\
-		},						\
-		.show = show_ro_ ## asize			\
-	},							\
-	.cookie = &__cookie_ ## aname				\
+#define DEFINE_SUPER_F(aname, afield, aformat, asize, ashow, astore, amode) \
+static super_field_cookie __cookie_ ## aname = {			\
+	.offset = offsetof(reiser4_super_info_data, afield),		\
+	.format = aformat "\n"						\
+};									\
+									\
+static reiser4_kattr kattr_super_ ## aname = {			\
+	.attr = {							\
+		.kattr = {						\
+			.name = (char *) #afield,			\
+			.mode = amode					\
+		},							\
+		.show = ashow,						\
+		.store = atore						\
+	},								\
+	.cookie = &__cookie_ ## aname					\
 }
 
+#define DEFINE_SUPER_RO(aname, afield, aformat, asize)			\
+	DEFINE_SUPER_F(aname,						\
+		       afield, aformat, asize, show_ro_ ## asize, NULL, 0440)
+
+#define DEFINE_SUPER_RW(aname, afield, aformat, asize)			\
+	DEFINE_SUPER_F(aname,						\
+		       afield, aformat, asize, show_ro_ ## asize,	\
+		       store_rw_ ## asize, 0660)
+
 #define getat(ptr, offset, type) *(type *)(((char *)(ptr)) + (offset))
+#define setat(ptr, offset, type, val)			\
+	*(type *)(((char *)(ptr)) + (offset)) = (val);
 
 static inline void *
 getcookie(struct fs_kattr *attr)
@@ -90,6 +102,21 @@ show_ro_32(struct super_block * s,
 	return (p - buf);
 }
 
+static ssize_t
+store_rw_32(struct super_block * s,
+	    struct fs_kobject *o, struct fs_kattr * kattr, char * buf)
+{
+	super_field_cookie *cookie;
+	__u32 val;
+
+	cookie = getcookie(kattr);
+	if (sscanf(buf, "%i", &val) == 1)
+		setat(get_super_private(s), cookie->offset, __u32, val);
+	else
+		size = RETERR(-EINVAL);
+	return size;
+}
+
 static ssize_t show_ro_64(struct super_block * s, struct fs_kobject *o,
 			  struct fs_kattr * kattr, char * buf)
 {
@@ -104,7 +131,23 @@ static ssize_t show_ro_64(struct super_block * s, struct fs_kobject *o,
 	return (p - buf);
 }
 
+static ssize_t
+store_rw_64(struct super_block * s,
+	    struct fs_kobject *o, struct fs_kattr * kattr, char * buf)
+{
+	super_field_cookie *cookie;
+	__u64 val;
+
+	cookie = getcookie(kattr);
+	if (sscanf(buf, "%li", &val) == 1)
+		setat(get_super_private(s), cookie->offset, __u64, val);
+	else
+		size = RETERR(-EINVAL);
+	return size;
+}
+
 #undef getat
+#undef setat
 
 #define SHOW_OPTION(p, buf, option)			\
 	if (option)					\
@@ -167,45 +210,6 @@ static reiser4_kattr device = {
 	.cookie = NULL
 };
 
-/* this is used to define similar reiser4_kattr's: log_flags and trace_flags */
-#define DEFINE_KATTR_FLAGS(XXX)						\
-static ssize_t								\
-show_##XXX##_flags(struct super_block * s,				\
-		   struct fs_kobject *o, struct fs_kattr * kattr, char * buf) \
-{									\
-	char *p;							\
-									\
-	p = buf;							\
-	KATTR_PRINT(p, buf, "%#x\n", get_super_private(s)-> XXX##_flags); \
-	return (p - buf);						\
-}									\
-									\
-ssize_t store_##XXX##_flags(struct super_block * s, struct fs_kobject *fsko, \
-			    struct fs_kattr *ka, const char *buf,	\
-			    size_t size)				\
-{									\
-	__u32 flags;							\
-									\
-	if (sscanf(buf, "%i", &flags) == 1)				\
-		get_super_private(s)-> XXX##_flags = flags;		\
-	else								\
-		size = RETERR(-EINVAL);					\
-	return size;							\
-}									\
-									\
-static reiser4_kattr XXX##_flags = {					\
-	.attr = {							\
-		.name = (char *) #XXX "_flags",				\
-		.mode = 0644   /* rw-r--r-- */				\
-	},								\
-	.cookie = NULL,							\
-	.store = store_##XXX##_flags,					\
-	.show  = show_##XXX##_flags					\
-};
-
-DEFINE_KATTR_FLAGS(log);
-DEFINE_KATTR_FLAGS(trace);
-
 #if REISER4_DEBUG
 ssize_t store_bugme(struct super_block * s, struct fs_kobject *o,
 		    struct fs_kattr *ka, const char *buf, size_t size)
@@ -228,7 +232,7 @@ static reiser4_kattr bugme = {
 /* REISER4_DEBUG */
 #endif
 
-DEFINE_SUPER_RO(01, mkfs_id, "%llx", 32);
+DEFINE_SUPER_RO(01, mkfs_id, "%#llx", 32);
 DEFINE_SUPER_RO(02, block_count, "%llu", 64);
 DEFINE_SUPER_RO(03, blocks_used, "%llu", 64);
 DEFINE_SUPER_RO(04, blocks_free_committed, "%llu", 64);
@@ -236,7 +240,7 @@ DEFINE_SUPER_RO(05, blocks_grabbed, "%llu", 64);
 DEFINE_SUPER_RO(06, blocks_fake_allocated_unformatted, "%llu", 64);
 DEFINE_SUPER_RO(07, blocks_fake_allocated, "%llu", 64);
 DEFINE_SUPER_RO(08, blocks_flush_reserved, "%llu", 64);
-DEFINE_SUPER_RO(09, fsuid, "%llx", 32);
+DEFINE_SUPER_RO(09, fsuid, "%#llx", 32);
 #if REISER4_DEBUG
 DEFINE_SUPER_RO(10, eflushed, "%llu", 32);
 #endif
@@ -251,10 +255,10 @@ DEFINE_SUPER_RO(16, tmgr.atom_max_age, "%llu", 32);
 DEFINE_SUPER_RO(17, tree.root_block, "%llu", 64);
 DEFINE_SUPER_RO(18, tree.height, "%llu", 32);
 DEFINE_SUPER_RO(19, tree.znode_epoch, "%llu", 64);
-DEFINE_SUPER_RO(20, tree.carry.new_node_flags, "%llx", 32);
-DEFINE_SUPER_RO(21, tree.carry.new_extent_flags, "%llx", 32);
-DEFINE_SUPER_RO(22, tree.carry.paste_flags, "%llx", 32);
-DEFINE_SUPER_RO(23, tree.carry.insert_flags, "%llx", 32);
+DEFINE_SUPER_RO(20, tree.carry.new_node_flags, "%#llx", 32);
+DEFINE_SUPER_RO(21, tree.carry.new_extent_flags, "%#llx", 32);
+DEFINE_SUPER_RO(22, tree.carry.paste_flags, "%#llx", 32);
+DEFINE_SUPER_RO(23, tree.carry.insert_flags, "%#llx", 32);
 
 /* not very good. Should be done by the plugin in stead */
 DEFINE_SUPER_RO(24, next_to_use, "%llu", 64);
@@ -263,7 +267,10 @@ DEFINE_SUPER_RO(25, oids_in_use, "%llu", 64);
 DEFINE_SUPER_RO(26, entd.flushers, "%llu", 32);
 DEFINE_SUPER_RO(27, entd.timeout, "%llu", 32);
 
-#define ATTR_NO(n) &kattr_super_ro_ ## n .attr.kattr
+DEFINE_SUPER_RW(28, trace_flags, "%#llx", 32);
+DEFINE_SUPER_RW(29, log_flags, "%#llx", 32);
+
+#define ATTR_NO(n) &kattr_super_ ## n .attr.kattr
 
 static struct attribute * kattr_def_attrs[] = {
 	ATTR_NO(01),
@@ -295,10 +302,10 @@ static struct attribute * kattr_def_attrs[] = {
 	ATTR_NO(25),
 	ATTR_NO(26),
 	ATTR_NO(27),
+	ATTR_NO(28),
+	ATTR_NO(29),
 	&compile_options.attr.kattr,
 	&device.attr.kattr,
-	&trace_flags.attr.kattr,
-	&log_flags.attr.kattr,
 #if REISER4_DEBUG
 	&bugme.attr.kattr,
 #endif
