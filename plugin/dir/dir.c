@@ -43,11 +43,6 @@ static int update_dir( struct inode *parent )
 	return reiser4_write_sd( parent );
 }
 
-typedef enum { 
-	UNLINK_BY_DELETE, 
-	UNLINK_BY_PLUGIN
-} unlink_f_type;
-
 /** 
  * add link from @parent directory to @existing object.
  *
@@ -155,7 +150,6 @@ static int common_unlink( struct inode *parent /* parent object */,
 	file_plugin               *fplug;
 	dir_plugin                *parent_dplug;
 	reiser4_dir_entry_desc     entry;
-	unlink_f_type              uf_type;
 
 	assert( "nikita-864", parent != NULL );
 	assert( "nikita-865", victim != NULL );
@@ -184,20 +178,25 @@ static int common_unlink( struct inode *parent /* parent object */,
 
 	xmemset( &entry, 0, sizeof entry );
 
-	/* removing last reference. Check that this is allowed.  This is
-	 * optimization for common case when file having only one name
-	 * is unlinked and is not opened by any process. */
+	/* first, delete directory entry */
+	result = parent_dplug -> rem_entry( parent, victim, &entry );
+	if( result != 0 )
+		return result;
 	/*
-	 * FIXME-NIKITA disable (temporarily): ->i_count is not properly
-	 * locked.
+	 * now that directory entry is removed, update stat-data, but first
+	 * check for special case:
+	 *
+	 * removing last reference. Check that this is allowed. This is
+	 * optimization for common case when file having only one name is
+	 * unlinked and is not opened by any process.
 	 */
-	if( 0 && fplug -> single_link( object ) && 
-	    ( atomic_read( &object -> i_count ) == 1 ) ) {
-		if( perm_chk( object, delete, parent, victim ) )
-			return -EPERM;
+	inode_set_flag( object, REISER4_IMMUTABLE );
+	if( fplug -> single_link( object ) && 
+	    atomic_read( &object -> i_count ) == 1 &&
+	    !perm_chk( object, delete, parent, victim ) ) {
 		/* remove file body. This is probably done in a whole
-		 * lot of transactions and takes a lot of time. We keep
-		 * @object locked. So, nlink shouldn't change. */
+		 * lot of transactions and takes a lot of time. We
+		 * keep @object locked. So, nlink shouldn't change. */
 		if( fplug -> truncate != NULL ) {
 			result = truncate_object( object, ( loff_t ) 0 );
 			if( result != 0 )
@@ -206,28 +205,14 @@ static int common_unlink( struct inode *parent /* parent object */,
 		assert( "nikita-871", fplug -> single_link( object ) );
 		assert( "nikita-873", atomic_read( &object -> i_count ) == 1 );
 
-		uf_type = UNLINK_BY_DELETE;
-	} else if( fplug -> rem_link == 0 )
-		return -EPERM;
-	else
-		uf_type = UNLINK_BY_PLUGIN;
-
-	/* first, delete directory entry */
-	result = parent_dplug -> rem_entry( parent, victim, &entry );
-	if( result == 0 ) {
-		/* and second, remove or update stat data */
-		switch( uf_type ) {
-		case UNLINK_BY_DELETE:
-			-- object -> i_nlink;
+		result = reiser4_del_nlink( object, 0 );
+		if( result == 0 )
 			result = fplug -> destroy_stat_data( object, parent );
-			break;
-		case UNLINK_BY_PLUGIN:
-			result = reiser4_del_nlink( object, 1 );
-			break;
-		default:
-			wrong_return_value( "nikita-1478", "uf_type" );
-		}
-	}
+	} else if( fplug -> rem_link != 0 )
+		result = reiser4_del_nlink( object, 1 );
+	else
+		result = -EPERM;
+	inode_clr_flag( object, REISER4_IMMUTABLE );
 	/*
 	 * Upon successful completion, unlink() shall mark for update the
 	 * st_ctime and st_mtime fields of the parent directory. Also, if the
@@ -367,20 +352,16 @@ static int common_create_child( struct inode *parent /* parent object */,
 			 * @object times are already updated by ->set_plug()
 			 */
 			result = update_dir( parent );
-		} else {
-			if( fplug -> destroy_stat_data != NULL ) {
-				/*
-				 * failure to create entry,
-				 * remove object
-				 */
-				fplug -> destroy_stat_data( object, parent );
-			} else {
-				warning( "nikita-1164",
-					 "Cannot cleanup failed create: %i"
-					 " Possible disk space leak.",
-					 result );
-			}
-		}
+			reiser4_write_sd( object );
+		} else if( fplug -> destroy_stat_data != NULL )
+			/*
+			 * failure to create entry, remove object
+			 */
+			fplug -> destroy_stat_data( object, parent );
+		else
+			warning( "nikita-1164", 
+				 "Cannot cleanup failed create: %i"
+				 " Possible disk space leak.", result );
 	} else {
 		warning( "nikita-2219", "Failed to create sd for %llu (%lx)",
 			 get_inode_oid( object ), 
@@ -461,7 +442,11 @@ int is_dir_empty( const struct inode *dir )
 
 	assert( "nikita-1976", dir != NULL );
 
-	/* Directory has to be empty. */
+	/*
+	 * rely on our method to maintain directory i_size being equal to the
+	 * number of entries.
+	 */
+	return dir -> i_size <= 2 ? 0 : -ENOTEMPTY;
 
 	/*
 	 * FIXME-NIKITA this is not correct if hard links on directories are

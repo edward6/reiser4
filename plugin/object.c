@@ -482,13 +482,12 @@ int common_file_delete( struct inode *inode /* object to remove */,
 		build_sd_key( inode, &sd_key );
 		result = cut_tree( tree_by_inode( inode ), &sd_key, &sd_key );
 
-		if( result ) return result;
-
-		result = oid_release( get_inode_oid( inode ) );
-
-		if (result) return result;
-
-		oid_count_released();
+		if( result == 0 ) {
+			inode_set_flag( inode, REISER4_NO_STAT_DATA );
+			result = oid_release( get_inode_oid( inode ) );
+			if( result == 0 )
+				oid_count_released();
+		}
 	} else
 		result = 0;
 	return result;

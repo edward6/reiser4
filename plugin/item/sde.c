@@ -125,13 +125,8 @@ int de_add_entry( struct inode *dir /* directory of item */,
 	build_inode_key_id( entry -> obj, &dent -> id );
 	assert( "nikita-1163", 
 		strlen( name -> d_name.name ) == name -> d_name.len );
-	/* AUDIT: The length of source is known, so using of memcpy
-	   would be much cheaper here */
-	strcpy( ( unsigned char * ) dent -> name, name -> d_name.name );
+	xmemcpy( dent -> name, name -> d_name.name, name -> d_name.len );
 	cputod8( 0, &dent -> name[ name -> d_name.len ] );
-
-	dir -> i_size += 1;
-
 	return 0;
 }
 
@@ -144,7 +139,6 @@ int de_rem_entry( struct inode *dir /* directory of item */,
 							    * directory entry
 							    * being removed */ )
 {
-	int     result;
 	coord_t shadow;
 
 	/*
@@ -154,18 +148,7 @@ int de_rem_entry( struct inode *dir /* directory of item */,
 	 * of @coord.
 	 */
 	coord_dup( &shadow, coord );
-	result = cut_node( coord, &shadow, NULL, NULL, NULL, DELETE_KILL, 0 );
-
-	if( result == 0 ) {
-		if( dir -> i_size >= 1 )
-			dir -> i_size -= 1;
-		else {
-			warning( "nikita-2509", "Dir %llu is runt",
-				 get_inode_oid( dir ) );
-			result = -EIO;
-		}
-	}
-	return result;
+	return cut_node( coord, &shadow, NULL, NULL, NULL, DELETE_KILL, 0 );
 }
 
 /* Audited by: green(2002.06.14) */

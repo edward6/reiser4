@@ -964,10 +964,6 @@ int cde_add_entry( struct inode *dir /* directory object */,
 		result = resize_item( coord, &data, 
 				      &dir_entry -> key, lh, 0/*flags*/ );
 	}
-
-	if( result == 0 )
-		dir -> i_size += 1;
-
 	return result;
 }
 

@@ -83,6 +83,11 @@ int hashed_delete( struct inode *object /* object being deleted */,
 			warning( "nikita-2252", "Cannot remove dot of %lli: %i",
 				 get_inode_oid( object ), result );
 
+		/*
+		 * FIXME-NIKITA this only works if @parent is -the- parent of
+		 * @object, viz. object whose key is stored in dotdot
+		 * entry. Wouldn't work with hard-links on directories.
+		 */
 		entry.obj = goodby_dots.d_inode = parent;
 		xmemset( &goodby_dots, 0, sizeof goodby_dots );
 		goodby_dots.d_name.name = "..";
@@ -157,7 +162,7 @@ static int create_dot_dotdot( struct inode *object /* object to create dot and
 	result = hashed_add_entry( object, &dots_entry, NULL, &entry );
 	
 	if( result == 0 )
-		result = reiser4_add_nlink( object, 1 );
+		result = reiser4_add_nlink( object, 0 );
 	else
 		warning( "nikita-2222", "Failed to create dot in %llu: %i",
 			 get_inode_oid( object ), result );
@@ -179,7 +184,7 @@ static int create_dot_dotdot( struct inode *object /* object to create dot and
 	}
 
 	if( result == 0 )
-		result = reiser4_add_nlink( parent, 1 );
+		result = reiser4_add_nlink( parent, 0 );
 
 	return result;
 }
@@ -419,7 +424,8 @@ static int add_name( struct inode *inode /* inode where @coord is to be
 			 * created.
 			 */
 			result = 0;
-		}
+		} else
+			dir -> i_size += 1;
 	}
 	return result;
 }
@@ -750,8 +756,10 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 		seal_done( &fsdata -> entry_seal );
 		result = inode_dir_item_plugin( object ) ->
 			s.dir.add_entry( object, coord, &lh, where, entry );
-		if( result == 0 )
+		if( result == 0 ) {
 			adjust_dir_file( object, coord, off, +1 );
+			object -> i_size += 1;
+		}
 	} else if( result == 0 ) {
 		assert( "nikita-2232", coord -> node == lh.node );
 		result = -EEXIST;
@@ -801,6 +809,15 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 		result = WITH_DATA( loaded, inode_dir_item_plugin( object ) ->
 				    s.dir.rem_entry( object, 
 						     coord, &lh, entry ) );
+		if( result == 0 ) {
+			if( object -> i_size >= 1 )
+				object -> i_size -= 1;
+			else {
+				warning( "nikita-2509", "Dir %llu is runt",
+					 get_inode_oid( object ) );
+				result = -EIO;
+			}
+		}
 	}
 	done_lh( &lh );
 
