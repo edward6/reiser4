@@ -168,29 +168,30 @@ int find_next_item (struct file * file,
 					       * on returned node */)
 {
 	int result;
-	reiser4_file_fsdata * fdata;
-	seal_t * seal;
-	coord_t * sealed_coord;
 
 
 	/* collect statistics on the number of calls to this function */
 	reiser4_stat_file_add (find_items);
 
 	if (!coord->node && file) {
+		reiser4_file_fsdata * fdata;
+		seal_t seal;
+		coord_t sealed_coord;
+
 		/* try to use seal which might be set in previous access to the
 		 * file */
 		fdata = reiser4_get_file_fsdata (file);
 		if (!IS_ERR (fdata)) {
-			seal = &fdata->reg.last_access;
-			if (seal_is_set (seal)) {
-				sealed_coord = &fdata->reg.coord;
-				result = seal_validate (seal, sealed_coord, key,
-							znode_get_level (sealed_coord->node),
+			seal = fdata->reg.last_access;
+			if (seal_is_set (&seal)) {
+				sealed_coord = fdata->reg.coord;
+				result = seal_validate (&seal, &sealed_coord, key,
+							znode_get_level (sealed_coord.node),
 							lh, FIND_MAX_NOT_MORE_THAN, lock_mode,
 							ZNODE_LOCK_LOPRI);
 				if (result == 0) {
 					/* set coord based on seal */
-					coord_dup (coord, sealed_coord);
+					coord_dup (coord, &sealed_coord);
 				}
 			}
 		}
@@ -520,12 +521,15 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 	}
 	if (coord_set_properly (&f.key, &coord)) {
 		reiser4_file_fsdata * fdata;
-		seal_t * seal;
+		seal_t seal;
 
 		fdata = reiser4_get_file_fsdata (file);
 		if (!IS_ERR (fdata)) {
-			seal = &fdata->reg.last_access;
-			seal_init (seal, &coord, &f.key);
+			/* re-set seal of last access to file */
+			seal_init (&seal, &coord, &f.key);
+			fdata->reg.last_access = seal;
+			fdata->reg.coord = coord;
+			fdata->reg.level = znode_get_level (coord.node);
 		}
 	}
 	done_lh (&lh);
