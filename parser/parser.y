@@ -519,14 +519,18 @@ Object_Name
 Unordered_list
 : Object_Name                                           { }
 | P_RUNNER                                              {}
-| Unordered_list SPACE Unordered_list                      {}
+| Unordered_list SPACE Unordered_list                   {}
 ;
 
 Object_Path_Name
-: SLASH Object_relative_Name                            {}               /* /foo */
-| SLASH PROCESS                                         {}               /* /??? */
+: sl Object_relative_Name                               {}               /* /foo */
 | Object_relative_Name                                  {}               /* foo  */
+| SLASH PROCESS                                         {}               /* /??? */
 ;
+
+sl
+: SLASH                                                 { pars_path_init();}
+
 
 Object_relative_Name
 : Object_sub_Name                                       {}
@@ -534,7 +538,7 @@ Object_relative_Name
 ;
 
 Object_sub_Name
-:  WORD                                                 { $$ = pars_pathname($1);} /* foo */
+:  WORD                                                 { $$ = pars_path_walk($1);} /* foo */
 ;
 
 range_type
@@ -595,31 +599,6 @@ char *shell_break_chars = "()<>;&| \t\n";
 
 
 
-
-
-static
-char nullname [] = {"+"};
-
-static int coment;
-
-static unsigned int
-        tlen    [MAXDEF],
-        blen    [MAXDEF],
-        defco        ,
-        memsize      ,
-        calls;
-
-
-static unsigned char 
-	*   ptitle  [MAXDEF],
-	*   pbuf    [MAXDEF];
-
-
-					/* data for ncl arrey in grlex.c */
-
-
-
-
 static struct
 {
 	struct inode *inode;
@@ -627,20 +606,8 @@ static struct
 
 };
 
-static struct
-{
-	char    *       wrd;
-	int             class;
-	int level;
-
-} key [] =
-	{
-		"ÿÿÿÿÿ"      ,  0
-	};
 
 #define version "0"
-
-
 
 #include <sys/types.h>
 
@@ -664,10 +631,6 @@ static struct msglist *Fistmsg;
 
 
 allocate()
-{
-}
-
-definit()
 {
 }
 
@@ -763,7 +726,11 @@ lexem()
 	return(ret);
 }
 
-
+/* move_selected_word - copy term from input bufer to free space. 
+ * if it need more, move freeSpace to the end. 
+ * otherwise next term will owerwrite it
+ *  freeSpace is a kernel space no need make getnam()
+ */
 move_selected_word()
 {
 	int i,j;
@@ -793,15 +760,15 @@ move_selected_word()
 							*tmpWrdEnd++='\n';
 							yytext++;
 							break;
-						case 'b':                       /*  \n  */
+						case 'b':                       /*  \b  */
 							*tmpWrdEnd++='\b';
 							yytext++;
 							break;
-						case 'r':                       /*  \n  */
+						case 'r':                       /*  \r  */
 							*tmpWrdEnd++='\r';
 							yytext++;
 							break;
-						case 'f':                       /*  \n  */
+						case 'f':                       /*  \f  */
 							*tmpWrdEnd++='\f';
 							yytext++;
 							break;
@@ -963,18 +930,37 @@ int 	nmsg,x1,x2,x3,x4,x5,x6,x7,x8;
 	yyerrco++;
 }
 
-int pars_pathname($1)
+
+	struct nameidata * nd;
+
+
+int pars_path_init()
 {
-	struct nameidata nd;
+	if ( path_init( "/", ??flags, nd ) )
+		{
+			err = path_walk("/", nd);
+//			current_path_inode=nd->dentry->d_inode;
+		}
+}
+
+int pars_path_walk(int name)
+{
 	struct inode * inode;
 	int error;
 	reiser4_plugin * r4_plugin;
 
-	error = user_path_walk(yytext, &nd);
-
+	if ( path_init( name, ??flags, nd ) )
+		{
+			error = path_walk( name, nd);
+		}
+	
 	if (error) 
 		{
-			r4_plugin = lookup_plugin_name( char *plug_label );
+			r4_plugin = lookup_plugin_name( name );
+
+?????
+			inode = make_inode_from_plugin( r4_plugin , nd );
+
 		}
 	else
 		{
@@ -982,6 +968,12 @@ int pars_pathname($1)
 		}
 
 	return error;
+}
+
+int make_inode_from_plugin( r4_plugin , nd )
+{
+
+		?	reiser4_plugin *lookup_plugin( char *type_label, char *plug_label );
 }
 
 getvar(int n,int def)
