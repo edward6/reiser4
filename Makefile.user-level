@@ -155,10 +155,10 @@ SRC		:= \
 		   plugin/dir/dir.c \
 		   plugin/security/perm.c \
 		   plugin/security/acl.c \
-           plugin/oid/oid_40.c plugin/oid/oid.c \
+           plugin/oid/oid40.c plugin/oid/oid.c \
            plugin/space/bitmap.c plugin/space/test.c \
 		   plugin/space/space_allocator.c \
-           plugin/disk_format/disk_format_40.c \
+           plugin/disk_format/disk_format40.c \
            plugin/disk_format/test.c \
            plugin/disk_format/disk_format.c \
 		   super.c \
