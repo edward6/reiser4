@@ -523,8 +523,15 @@ static int reiser4_writepage( struct page *page )
 		}
 	}
 	nr_to_write = 1;
+
+	/* The mpage_writepages() calls reiser4_writepage with a locked, but
+	 * clean page.  An extra reference should protect this page from
+	 * removing from memory */
+	page_cache_get (page);
 	result = page_common_writeback( page, &result, 
 					JNODE_FLUSH_MEMORY_UNFORMATTED );
+	page_cache_release (page);
+
 	if( j != NULL )
 		jput( j );
 	REISER4_EXIT( result );
