@@ -283,7 +283,7 @@ static errno_t node40_remove(reiserfs_node40_t *node, reiserfs_pos_t *pos) {
     reiserfs_ih40_t *ih;
     
     reiserfs_ih40_t *ih_at_pos;
-    reiserfs_ih40_t *ih_at_end;
+    reiserfs_ih40_t *ih_at_end = NULL;
     
     aal_assert("umka-762", node != NULL, return -1);
     aal_assert("umka-763", pos != NULL, return -1);
@@ -549,7 +549,7 @@ static reiserfs_plugin_t node40_plugin = {
 	.set_level = NULL,
 	.set_key = NULL,
 	.set_free_space = NULL,
-	.set_item_pid = NULL,
+	.item_set_pid = NULL,
 #endif
 	.item_overhead = (uint32_t (*)(void))node40_item_overhead,
 	

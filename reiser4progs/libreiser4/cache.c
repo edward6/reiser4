@@ -341,6 +341,8 @@ void reiserfs_cache_unregister(
     child->tree = NULL;
 }
 
+#ifndef ENABLE_COMPACT
+
 /*
     Synchronizes passed cache by using resursive pass though all childrens. This
     method will be used when memory pressure occurs. There is possible to pass
@@ -376,4 +378,6 @@ errno_t reiserfs_cache_sync(
     
     return 0;
 }
+
+#endif
 

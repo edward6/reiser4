@@ -16,3 +16,5 @@
 #undef ENABLE_MONOLITHIC
 
 #undef ENABLE_DEBUG
+
+#undef HAVE_UUID

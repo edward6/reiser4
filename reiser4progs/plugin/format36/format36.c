@@ -256,10 +256,20 @@ static reiserfs_plugin_t format36_plugin = {
 	    format36_create,
 	
 	.check = (errno_t (*)(reiserfs_entity_t *, int))format36_check,
+	
+	.set_root = (void (*)(reiserfs_entity_t *, blk_t))format36_set_root,
+	.set_blocks = (void (*)(reiserfs_entity_t *, count_t))format36_set_blocks,
+	.set_free = (void (*)(reiserfs_entity_t *, count_t))format36_set_free,
+	.set_height = NULL,
 #else
 	.sync = NULL,
 	.create = NULL,
 	.check = NULL,
+	
+	.set_root = NULL,
+	.set_blocks = NULL,
+	.set_free = NULL,
+	.set_height = NULL,
 #endif
 	.close = (void (*)(reiserfs_entity_t *))format36_close,
 	.confirm = (int (*)(aal_device_t *))format36_confirm,
@@ -268,16 +278,12 @@ static reiserfs_plugin_t format36_plugin = {
 	.offset = (blk_t (*)(reiserfs_entity_t *))format36_offset,
 	
 	.get_root = (blk_t (*)(reiserfs_entity_t *))format36_get_root,
-	.set_root = (void (*)(reiserfs_entity_t *, blk_t))format36_set_root,
 	
 	.get_blocks = (count_t (*)(reiserfs_entity_t *))format36_get_blocks,
-	.set_blocks = (void (*)(reiserfs_entity_t *, count_t))format36_set_blocks,
 	
 	.get_free = (count_t (*)(reiserfs_entity_t *))format36_get_free,
-	.set_free = (void (*)(reiserfs_entity_t *, count_t))format36_set_free,
 	
 	.get_height = NULL,
-	.set_height = NULL,
 	
 	.oid = NULL,
 	

@@ -191,7 +191,9 @@ static reiserfs_profile_t reiser4profiles[] = {
 	.item = {
 	    .internal = REISERFS_INTERNAL_ITEM,
 	    .statdata = REISERFS_STATDATA_ITEM,
-	    .direntry = REISERFS_CDE_ITEM
+	    .direntry = REISERFS_CDE_ITEM,
+	    .extent = REISERFS_EXTENT_ITEM,
+	    .drop = REISERFS_DROP_ITEM,
 	},
 
 	.object = {
@@ -217,6 +219,8 @@ static reiserfs_profile_t reiser4profiles[] = {
 	    .internal = REISERFS_INTERNAL_ITEM,
 	    .statdata = REISERFS_STATDATA_ITEM,
 	    .direntry = REISERFS_CDE_ITEM,
+	    .extent = REISERFS_EXTENT_ITEM,
+	    .drop = REISERFS_DROP_ITEM,
 	},
 
 	.object = {
@@ -242,6 +246,8 @@ static reiserfs_profile_t reiser4profiles[] = {
 	    .internal = REISERFS_INTERNAL_ITEM,
 	    .statdata = REISERFS_STATDATA_ITEM,
 	    .direntry = REISERFS_CDE_ITEM,
+	    .extent = REISERFS_EXTENT_ITEM,
+	    .drop = REISERFS_DROP_ITEM,
 	},
 
 	.object = {

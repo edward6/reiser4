@@ -15,6 +15,8 @@
 #include <misc/misc.h>
 #include <reiser4/reiser4.h>
 
+#ifndef ENABLE_COMPACT
+
 /* Requests block allocator for new block and creates empty node in it */
 static reiserfs_node_t *reiserfs_tree_alloc_node(
     reiserfs_tree_t *tree,	/* tree for operating on */
@@ -36,6 +38,8 @@ static reiserfs_node_t *reiserfs_tree_alloc_node(
         reiserfs_node_get_pid(tree->cache->node), 
         tree->cache->node->key_plugin->h.id, level);
 }
+
+#endif
 
 /* Setting up the tree cache limit */
 static errno_t reiserfs_tree_setup(reiserfs_tree_t *tree) {
@@ -322,9 +326,9 @@ errno_t reiserfs_tree_shift(
     uint32_t count, moved = 0;
     
     reiserfs_key_t key;
-    reiserfs_cache_t *left;
-    reiserfs_cache_t *right;
     reiserfs_coord_t src, dst;
+    reiserfs_cache_t *left = NULL;
+    reiserfs_cache_t *right = NULL;
 
     aal_assert("umka-759", old != NULL, return -1);
     aal_assert("umka-766", new != NULL, return -1);
@@ -466,8 +470,6 @@ errno_t reiserfs_tree_shift(
 
     return 0;
 }
-
-#endif
 
 /*
     Helper function. It is used for insert a node by its left delimiting key 
@@ -798,4 +800,6 @@ errno_t reiserfs_tree_remove(
 ) {
     return -1;
 }
+
+#endif
 

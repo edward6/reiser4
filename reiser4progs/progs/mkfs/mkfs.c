@@ -1,11 +1,15 @@
 /*
-    mkfs.c -- the program to create reiser4 filesystem.
+    mkfs.c -- program to create reiser4 filesystem.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h> 
+#endif
+
+#ifdef HAVE_UUID
+#  include <uuid/uuid.h>
 #endif
 
 #include <stdio.h>
@@ -27,9 +31,9 @@ static void mkfs_print_usage(void) {
 	"  -u | -h | --usage | --help     prints program usage.\n"
 	"  -q | --quiet                   forces creating filesystem without\n"
 	"                                 any questions.\n"
-	"  -p | --profile                 profile to be used.\n"
 	"  -f | --force                   makes mkfs to use whole disk, not block device\n"
 	"                                 or mounted partition.\n"
+	"  -p | --profile                 profile to be used.\n"
 	"  -k | --known-profiles          prints known profiles.\n"
 	"  -b N | --block-size=N          block size, 4096 by default,\n"
 	"                                 other are not supported for awhile.\n"
@@ -40,7 +44,7 @@ static void mkfs_print_usage(void) {
 
 int main(int argc, char *argv[]) {
     struct stat st;
-    char uuid[33], label[17];
+    char uuid[17], label[17];
     count_t fs_len = 0, dev_len = 0;
     int c, error, force = 0, quiet = 0;
     char *host_dev, *profile_label = "default40";
@@ -66,7 +70,7 @@ int main(int argc, char *argv[]) {
     
     if (argc < 2) {
 	mkfs_print_usage();
-	return 0xfe;
+	return ERROR_USER;
     }
     
     memset(uuid, 0, sizeof(uuid));
@@ -108,45 +112,53 @@ int main(int argc, char *argv[]) {
 	        if (!(blocksize = (uint16_t)progs_misc_strtol(optarg, &error)) && error) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		        "Invalid blocksize (%s).", optarg);
-		    return 0xfe;
+		    return ERROR_USER;
 		}
 		if (!aal_pow_of_two(blocksize)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL, 
 			"Invalid block size %u. It must power of two.", (uint16_t)blocksize);
-		    return 0xfe;	
+		    return ERROR_USER;	
 		}
 		break;
 	    }
 	    case 'i': {
-		if (strlen(optarg) < 16) {
+		if (aal_strlen(optarg) != 36) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-			"Invalid uuid (%s).", optarg);
-		    return 0xfe;
+			"Invalid uuid was specified (%s).", optarg);
+		    return ERROR_USER;
 		}
-		strncpy(uuid, optarg, sizeof(uuid) - 1);
+#ifdef HAVE_UUID
+		{
+		    if (uuid_parse(optarg, uuid) < 0) {
+			aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+			    "Invalid uuid was specified (%s).", optarg);
+			return ERROR_USER;
+		    }
+		}
+#endif		
 		break;
 	    }
 	    case 'l': {
-		strncpy(label, optarg, sizeof(label) - 1);
+		aal_strncpy(label, optarg, sizeof(label) - 1);
 	        break;
 	    }
 	    case '?': {
 	        mkfs_print_usage();
-	        return 0xfe;
+	        return ERROR_USER;
 	    }
 	}
     }
 
     if (optind >= argc) {
 	mkfs_print_usage();
-	return 0xfe;
+	return ERROR_USER;
     }
     
     /* Initializing passed profile */
     if (!(profile = progs_misc_profile_find(profile_label))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find profile by its label \"%s\".", profile_label);
-	return 0xff;
+	goto error;
     }
     
     host_dev = argv[optind++];
@@ -165,7 +177,7 @@ int main(int argc, char *argv[]) {
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Invalid filesystem size (%s).", len_str);
-	    return 0xfe;
+	    return ERROR_USER;
 	}
     }
    
@@ -173,14 +185,14 @@ int main(int argc, char *argv[]) {
     if (stat(host_dev, &st) == -1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Device \"%s\" doesn't exists or invalid.", host_dev);
-	return 0xfe;
+	return ERROR_USER;
     }
     
     if (!S_ISBLK(st.st_mode)) {
 	if (!force) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Device \"%s\" is not block device. Use -f to force over.", host_dev);
-	    return 0xfe;
+	    return ERROR_USER;
 	}
     } else {
 	if ((IDE_DISK_MAJOR(MAJOR(st.st_rdev)) && MINOR(st.st_rdev) % 64 == 0) ||
@@ -188,7 +200,7 @@ int main(int argc, char *argv[]) {
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Device \"%s\" is an entire harddrive, not just one partition.", host_dev);
-	    return 0xfe;
+	    return ERROR_USER;
 	}
     }
    
@@ -196,9 +208,14 @@ int main(int argc, char *argv[]) {
     if (progs_misc_dev_mounted(host_dev, NULL) && !force) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Partition \"%s\" is mounted at the moment. Use -f to force over.", host_dev);
-	return 0xfe;
+	return ERROR_USER;
     }
-    
+
+#ifdef HANE_UUID    
+    if (aal_strlen(uuid) == 0)
+	uuid_generate(uuid);
+#endif
+
     /* Opening device */
     if (!(device = aal_file_open(host_dev, blocksize, O_RDWR))) {
 	char *error = strerror(errno);
@@ -272,7 +289,7 @@ int main(int argc, char *argv[]) {
     libreiser4_done();
     aal_file_close(device);
     
-    return 0;
+    return ERROR_NONE;
 
 error_free_fs:
     reiserfs_fs_close(fs);
@@ -281,6 +298,6 @@ error_free_libreiser4:
 error_free_device:
     aal_file_close(device);
 error:
-    return 0xff;
+    return ERROR_PROG;
 }
 

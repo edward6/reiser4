@@ -172,6 +172,8 @@ errno_t reiserfs_node_ldkey(
     return 0;
 }
 
+#ifndef ENABLE_COMPACT
+
 /* 
     Relocates item from position specified by src_pos into position specified by
     dst_pos params. This function is used for cpying and moving items by balancing 
@@ -269,13 +271,6 @@ errno_t reiserfs_node_split(
     return 0;
 }
 
-int reiserfs_node_confirm(reiserfs_node_t *node) {
-    aal_assert("umka-123", node != NULL, return 0);
-    
-    return libreiser4_plugin_call(return 0, node->node_plugin->node_ops, 
-	confirm, node->entity);
-}
-
 /* Checks node for validness */
 errno_t reiserfs_node_check(
     reiserfs_node_t *node,	/* node to be checked */
@@ -285,6 +280,15 @@ errno_t reiserfs_node_check(
     
     return libreiser4_plugin_call(return -1, node->node_plugin->node_ops, 
 	check, node->entity, flags);
+}
+
+#endif
+
+int reiserfs_node_confirm(reiserfs_node_t *node) {
+    aal_assert("umka-123", node != NULL, return 0);
+    
+    return libreiser4_plugin_call(return 0, node->node_plugin->node_ops, 
+	confirm, node->entity);
 }
 
 /* 
@@ -376,18 +380,6 @@ int reiserfs_node_lookup(
     return lookup;
 }
 
-/* Removes specified by pos item from node */
-errno_t reiserfs_node_remove(
-    reiserfs_node_t *node,	/* node item will be removed from */
-    reiserfs_pos_t *pos		/* position item will be removed at */
-) {
-    aal_assert("umka-767", node != NULL, return -1);
-    aal_assert("umka-768", pos != NULL, return -1);
-
-    return libreiser4_plugin_call(return -1, node->node_plugin->node_ops, 
-	remove, node->entity, pos);
-}
-
 /* Retutrns max possible number of items in specified node */
 uint32_t reiserfs_node_maxnum(reiserfs_node_t *node) {
     aal_assert("umka-452", node != NULL, return 0);
@@ -402,6 +394,20 @@ uint32_t reiserfs_node_count(reiserfs_node_t *node) {
     
     return libreiser4_plugin_call(return 0, node->node_plugin->node_ops, 
 	count, node->entity);
+}
+
+#ifndef ENABLE_COMPACT
+
+/* Removes specified by pos item from node */
+errno_t reiserfs_node_remove(
+    reiserfs_node_t *node,	/* node item will be removed from */
+    reiserfs_pos_t *pos		/* position item will be removed at */
+) {
+    aal_assert("umka-767", node != NULL, return -1);
+    aal_assert("umka-768", pos != NULL, return -1);
+
+    return libreiser4_plugin_call(return -1, node->node_plugin->node_ops, 
+	remove, node->entity, pos);
 }
 
 /* Inserts item described by item hint into specified node at specified pos */
@@ -457,8 +463,6 @@ errno_t reiserfs_node_insert(
     
     return 0;
 }
-
-#ifndef ENABLE_COMPACT
 
 /* Updates node plugin id */
 errno_t reiserfs_node_set_pid(

@@ -251,7 +251,8 @@ reiserfs_fs_t *reiserfs_fs_open(
 	/* Initializing the journal. See  journal.c for details */
 	if (!(fs->journal = reiserfs_journal_open(journal_device, journal_pid)))
 	    goto error_free_alloc;
-	
+
+#ifndef ENABLE_COMPACT	
 	/* 
 	    Reopening super block after journal replaying. It is needed because
 	    journal may contain super block in unflushed transactions.
@@ -265,6 +266,8 @@ reiserfs_fs_t *reiserfs_fs_open(
 	    if (!(fs->format = reiserfs_format_reopen(fs->format, host_device)))
 		goto error_free_journal;
 	}
+#endif
+
     }
     
     /* Initializes oid allocator */

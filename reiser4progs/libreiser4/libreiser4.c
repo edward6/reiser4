@@ -20,6 +20,8 @@ static inline reiserfs_plugin_t *__plugin_find(
     return libreiser4_factory_find(type, id);
 }
 
+#ifndef ENABLE_COMPACT
+
 /* Handler for item insert requests from the all plugins */
 static inline errno_t __item_insert(
     const void *tree,		    /* opaque pointer to the tree */
@@ -41,6 +43,8 @@ static inline errno_t __item_remove(
     
     return reiserfs_tree_remove((reiserfs_tree_t *)tree, key);
 }
+
+#endif
 
 /* Handler for lookup reqiests from the all plugin can arrive */
 static inline int __lookup(
@@ -178,12 +182,16 @@ reiserfs_core_t core = {
 	/* This one for lookuping the tree */
 	.lookup = __lookup,
 
+#ifndef ENABLE_COMPACT	
 	/* Installing callback function for inserting items into the tree */
 	.item_insert = __item_insert,
 
 	/* Installing callback function for removing items from the tree */
 	.item_remove = __item_remove,
-
+#else
+	.item_insert = NULL,
+	.item_remove = NULL,
+#endif
 	/* 
 	    And finally this one for getting body of some item and its size by passed 
 	    coord.

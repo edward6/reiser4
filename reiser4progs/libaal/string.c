@@ -4,7 +4,13 @@
     Author Yury Umanets.
 */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <aal/aal.h>
+
+#ifdef ENABLE_COMPACT
 
 /* 
     Memory and string working functions. They are full analog of standard ones.
@@ -156,6 +162,8 @@ char *aal_strsep(char **stringp, const char *delim) {
     
     return begin;
 }
+
+#endif
 
 #define CONV_DEC_RANGE 1000000000
 #define CONV_HEX_RANGE 0x10000000

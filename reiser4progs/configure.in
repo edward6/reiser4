@@ -38,7 +38,15 @@ AC_ARG_ENABLE(debug,
 )
 AC_SUBST(PROGS_LDFLAGS)
 
-PROGS_LDADD=-luuid
+PROGS_LDADD=""
+
+dnl Check for libuuid
+AC_CHECK_LIB(uuid, uuid_generate, [
+	AC_DEFINE(HAVE_UUID)
+	PROGS_LDADD="$PROGS_LDADD -luuid"
+	AC_SUBST(PROGS_LDADD)
+    ], 
+)
 AC_SUBST(PROGS_LDADD)
 
 AM_ENABLE_SHARED

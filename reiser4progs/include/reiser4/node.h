@@ -15,27 +15,15 @@
 #include <reiser4/key.h>
 #include <reiser4/plugin.h>
 
-/* 
-    Plugin id for reiser3 filesystems. This will be configurable value. There
-    will be ability to specify it in configure time in maner like this:
-
-    ./configure --reiser3-node-pid=0x1
-*/
-#define REISERFS_NODE36_PID (0x1)
-
 extern reiserfs_node_t *reiserfs_node_open(aal_device_t *device, 
     blk_t blk, reiserfs_id_t key_pid);
 
 extern errno_t reiserfs_node_close(reiserfs_node_t *node);
 
+#ifndef ENABLE_COMPACT
+
 extern errno_t reiserfs_node_split(reiserfs_node_t *node, 
     reiserfs_node_t *right);
-
-extern errno_t reiserfs_node_rdkey(reiserfs_node_t *node, 
-    reiserfs_key_t *key);
-
-extern errno_t reiserfs_node_ldkey(reiserfs_node_t *node, 
-    reiserfs_key_t *key);
 
 extern errno_t reiserfs_node_remove(reiserfs_node_t *node, 
     reiserfs_pos_t *pos);
@@ -48,13 +36,21 @@ extern errno_t reiserfs_node_move(reiserfs_node_t *dst_node,
     reiserfs_pos_t *dst_pos, reiserfs_node_t *src_node, 
     reiserfs_pos_t *src_pos);
 
+extern errno_t reiserfs_node_check(reiserfs_node_t *node, int flags);
+
+#endif
+
+extern errno_t reiserfs_node_rdkey(reiserfs_node_t *node, 
+    reiserfs_key_t *key);
+
+extern errno_t reiserfs_node_ldkey(reiserfs_node_t *node, 
+    reiserfs_key_t *key);
+
 extern uint32_t reiserfs_node_maxnum(reiserfs_node_t *node);
 extern uint32_t reiserfs_node_count(reiserfs_node_t *node);
 
 extern int reiserfs_node_lookup(reiserfs_node_t *node, 
     reiserfs_key_t *key, reiserfs_pos_t *pos);
-
-extern errno_t reiserfs_node_check(reiserfs_node_t *node, int flags);
 
 extern int reiserfs_node_confirm(reiserfs_node_t *node);
 

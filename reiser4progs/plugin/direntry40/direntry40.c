@@ -15,6 +15,45 @@
 
 static reiserfs_core_t *core = NULL;
 
+static uint32_t direntry40_count(reiserfs_direntry40_t *direntry) {
+    aal_assert("umka-865", direntry != NULL, return 0);
+    return de40_get_count(direntry);
+}
+
+static errno_t direntry40_get_entry(reiserfs_direntry40_t *direntry, 
+    uint32_t pos, reiserfs_entry_hint_t *entry)
+{
+    uint32_t offset;
+    reiserfs_entry40_t *en;
+    reiserfs_objid_t *objid;
+    
+    aal_assert("umka-866", direntry != NULL, return -1);
+    
+    if (pos > de40_get_count(direntry))
+	return -1;
+    
+    offset = sizeof(reiserfs_direntry40_t) + 
+	pos * sizeof(reiserfs_entry40_t);
+    
+    en = (reiserfs_entry40_t *)(((char *)direntry) + offset);
+    
+    entry->entryid.objectid = eid_get_objectid((reiserfs_entryid_t *)(&en->entryid));
+    entry->entryid.offset = eid_get_offset((reiserfs_entryid_t *)(&en->entryid));
+    
+    offset = en40_get_offset(en); 
+    objid = (reiserfs_objid_t *)(((char *)direntry) + offset);
+    
+    entry->objid.objectid = oid_get_objectid(objid);
+    entry->objid.locality = oid_get_locality(objid);
+
+    /* Here will be also filling up of entry->entryid */
+    
+    offset += sizeof(*objid);
+    entry->name = ((char *)direntry) + offset;
+    
+    return 0;
+}
+
 #ifndef ENABLE_COMPACT
 
 static errno_t direntry40_create(reiserfs_direntry40_t *direntry, 
@@ -53,45 +92,6 @@ static errno_t direntry40_create(reiserfs_direntry40_t *direntry,
 	*((char *)(direntry) + offset + 1) = 0;
 	offset++;
     }
-    
-    return 0;
-}
-
-static uint32_t direntry40_count(reiserfs_direntry40_t *direntry) {
-    aal_assert("umka-865", direntry != NULL, return 0);
-    return de40_get_count(direntry);
-}
-
-static errno_t direntry40_get_entry(reiserfs_direntry40_t *direntry, 
-    uint32_t pos, reiserfs_entry_hint_t *entry)
-{
-    uint32_t offset;
-    reiserfs_entry40_t *en;
-    reiserfs_objid_t *objid;
-    
-    aal_assert("umka-866", direntry != NULL, return -1);
-    
-    if (pos > de40_get_count(direntry))
-	return -1;
-    
-    offset = sizeof(reiserfs_direntry40_t) + 
-	pos * sizeof(reiserfs_entry40_t);
-    
-    en = (reiserfs_entry40_t *)(((char *)direntry) + offset);
-    
-    entry->entryid.objectid = eid_get_objectid((reiserfs_entryid_t *)(&en->entryid));
-    entry->entryid.offset = eid_get_offset((reiserfs_entryid_t *)(&en->entryid));
-    
-    offset = en40_get_offset(en); 
-    objid = (reiserfs_objid_t *)(((char *)direntry) + offset);
-    
-    entry->objid.objectid = oid_get_objectid(objid);
-    entry->objid.locality = oid_get_locality(objid);
-
-    /* Here will be also filling up of entry->entryid */
-    
-    offset += sizeof(*objid);
-    entry->name = ((char *)direntry) + offset;
     
     return 0;
 }
@@ -230,9 +230,14 @@ static reiserfs_plugin_t direntry40_plugin = {
 	    
 	    .estimate = (errno_t (*)(uint32_t, reiserfs_item_hint_t *))
 		direntry40_estimate,
+	    
+	    .insert = (errno_t (*)(const void *, uint32_t, reiserfs_item_hint_t *))
+		direntry40_insert,
+	    
 #else
 	    .create = NULL,
 	    .estimate = NULL,
+	    .insert = NULL,
 #endif
 	    .minsize = (uint32_t (*)(void))direntry40_minsize,
 	    
@@ -243,9 +248,6 @@ static reiserfs_plugin_t direntry40_plugin = {
 		direntry40_lookup,
 	    
 	    .maxkey = (errno_t (*)(const void *))direntry40_maxkey,
-	    
-	    .insert = (errno_t (*)(const void *, uint32_t, reiserfs_item_hint_t *))
-		direntry40_insert,
 	    
 	    .count = (uint32_t (*)(const void *))direntry40_count,
 	    .remove = NULL,

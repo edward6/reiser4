@@ -42,7 +42,11 @@
 	(maj) == IDE5_MAJOR)
 #  endif
 #endif
-	
+
+#define ERROR_USER (0xfe)
+#define ERROR_PROG (0xff)
+#define ERROR_NONE (0)
+
 extern long int progs_misc_strtol(const char *str, int *error);
 
 extern int progs_misc_dev_mounted(const char *name, 
