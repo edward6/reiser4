@@ -172,6 +172,7 @@ show_options(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf
 	SHOW_OPTION(p, buf, REISER4_LOCKPROF);
 	SHOW_OPTION(p, buf, REISER4_LARGE_KEY);
 	SHOW_OPTION(p, buf, REISER4_PROF);
+	SHOW_OPTION(p, buf, REISER4_COPY_ON_CAPTURE);
 	return (p - buf);
 }
 
