@@ -3,7 +3,6 @@
 #include "../../debug.h"
 #include "../plugin_header.h"
 #include "disk_format40.h"
-#include "test.h"
 #include "disk_format.h"
 #include "../plugin.h"
 
@@ -23,21 +22,6 @@ disk_format_plugin format_plugins[LAST_FORMAT_ID] = {
 		.release = release_format40,
 		.log_super = log_super_format40,
 		.print_info = print_info_format40
-	},
-	[TEST_FORMAT_ID] = {
-		.h = {
-			.type_id = REISER4_FORMAT_PLUGIN_TYPE,
-			.id = TEST_FORMAT_ID,
-			.pops = NULL,
-			.label = "test",
-			.desc = "layout for debugging",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO,
-		},
-		.get_ready = get_ready_test_format,
-		.root_dir_key = root_dir_key_test_format,
-		.release = release_test_format,
-		.log_super = NULL,
-		.print_info = print_info_test_format
 	}
 };
 
