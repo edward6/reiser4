@@ -1325,6 +1325,7 @@ carry_cut(carry_op * op /* operation to be performed */ ,
 {
 	int result;
 	carry_plugin_info info;
+	node_plugin *nplug;
 
 	assert("nikita-896", op != NULL);
 	assert("nikita-897", todo != NULL);
@@ -1335,10 +1336,11 @@ carry_cut(carry_op * op /* operation to be performed */ ,
 	info.doing = doing;
 	info.todo = todo;
 
+	nplug = node_plugin_by_node(carry_real(op->node));
 	if (op->u.cut_or_kill.is_cut)
-		result = node_plugin_by_node(carry_real(op->node))->cut(op->u.cut_or_kill.u.cut, &info);
+		result = nplug->cut(op->u.cut_or_kill.u.cut, &info);
 	else
-		result = node_plugin_by_node(carry_real(op->node))->cut_and_kill(op->u.cut_or_kill.u.kill, &info);
+		result = nplug->cut_and_kill(op->u.cut_or_kill.u.kill, &info);
 
 	doing->restartable = 0;
 	return result < 0 ? : 0;
