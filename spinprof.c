@@ -83,7 +83,7 @@ static int callback(struct notifier_block *self, unsigned long val, void *p)
 	int ntop;
 
 	stack = &get_cpu_var(inregion);
-	ntop = atomic_read(&stack->top);
+	ntop = stack->top;
 	if (unlikely(ntop != 0)) {
 		struct pregactivation *act;
 		struct profregion *preg;
