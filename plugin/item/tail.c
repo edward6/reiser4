@@ -396,16 +396,19 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 
 	result = 0;
 	while (f->length && !result) {
-		todo = how_to_write(coord, lh, &f->key);
-		if (unlikely(todo < 0))
-			return todo;
-
 		/* zload is necessary because balancing may return coord->node moved to another possibly not loaded
 		   node. Store what we loaded so that we will be able to zrelse it */
 		result = zload(coord->node);
 		if (result)
 			return result;
 		loaded = coord->node;
+
+		todo = how_to_write(coord, lh, &f->key);
+		if (unlikely(todo < 0)) {
+			zrelse(loaded);
+			return todo;
+		}
+
 		switch (todo) {
 		case FIRST_ITEM:
 		case APPEND_ITEM:
