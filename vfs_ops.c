@@ -1954,7 +1954,7 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 		return result;
 	}
 
-      read_super_block:
+read_super_block:
 	/* look for reiser4 magic at hardcoded place */
 	super_bh = sb_bread(s, (int) (REISER4_MAGIC_OFFSET / s->s_blocksize));
 	if (!super_bh) {
@@ -2099,15 +2099,15 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 		print_fs_info("mount ok", s);
 	REISER4_EXIT(0);
 
-      error4:
+error4:
 	get_super_private(s)->df_plug->release(s);
-      error3:
+error3:
 	done_formatted_fake(s);
 	/* shutdown daemon */
 	ktxnmgrd_detach(&info->tmgr);
-      error2:
+error2:
 	mgr_done(&info->tmgr);
-      error1:
+error1:
 	kfree(info);
 	s->s_fs_info = NULL;
 
@@ -2242,11 +2242,11 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 		 * ->private pointer is protected by page lock that we are
 		 * holding right now.
 		 */
-	      again:
+again:
 		node = jnode_by_page(page);
 		if (node != NULL) {
 			jref(node);
-		      try_to_lock:
+try_to_lock:
 			spin_lock_jnode(node);
 			reiser4_unlock_page(page);
 
