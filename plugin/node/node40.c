@@ -126,6 +126,28 @@ static inline unsigned nh40_get_num_items (node40_header * nh)
 	return d16tocpu (&nh->nr_items);
 }
 
+static void nh40_set_mkfs_id (node40_header * nh, __u32 id)
+{
+	cputod32 (id, &nh->flush.mkfs_id);
+}
+
+
+static inline __u32 nh40_get_mkfs_id (node40_header * nh)
+{
+	return d32tocpu (&nh->flush.mkfs_id);
+}
+
+static void nh40_set_flush_id (node40_header * nh, __u64 id)
+{
+	cputod64 (id, &nh->flush.flush_id);
+}
+
+
+static inline __u64 nh40_get_flush_id (node40_header * nh)
+{
+	return d64tocpu (&nh->flush.flush_id);
+}
+
 /* plugin field of node header should be read/set by
    plugin_by_disk_id/save_disk_plugin */
 
@@ -748,6 +770,7 @@ int node40_init( znode *node /* node to initialise */)
 	nh40_set_level (header, znode_get_level( node ));
 	nh40_set_magic (header, REISER4_NODE_MAGIC);
 	node -> nr_items = 0;
+	nh40_set_mkfs_id(header, reiser4_mkfs_id(reiser4_get_current_sb ()));
 
 	/* flags: 0 */
 	return 0;
