@@ -278,7 +278,8 @@ extern int          txn_mgr_force_commit  (struct super_block *super);
 
 extern int          txn_same_atom_dirty   (jnode              *base,
 					   jnode              *check,
-					   int                 also_allocated);
+					   int                 alloc_check,
+					   int                 alloc_value);
 
 extern int          txn_try_capture       (jnode              *node,
 					   znode_lock_mode     mode,

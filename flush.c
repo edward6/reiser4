@@ -175,13 +175,17 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 	flush_scan_init (& right_scan);
 	flush_scan_init (& left_scan);
 
-	trace_if (TRACE_FLUSH, info ("flush jnode %p\n", node));
+	trace_on (TRACE_FLUSH, "flush jnode %p: (atom %u dirty %u allocated %u)\n", node, node->atom->atom_id, jnode_check_dirty (node), jnode_check_allocated (node));
 	
 	/*trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF));*/
 	/*trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK));*/
 
 	/* A race is possible where node is not dirty at this point. */
 	if (! jnode_check_dirty_and_connected (node)) {
+		if (nr_to_flush != NULL) {
+			(*nr_to_flush) = 0;
+		}
+		trace_on (TRACE_FLUSH, "flush jnode not dirty/connected\n");
 		return 0;
 	}
 
@@ -271,6 +275,10 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 		(*nr_to_flush) = flush_pos.enqueue_cnt;
 	}
 
+	if (ret != 0) {
+		warning ("jmacd-16739", "flush failed: %d\n", ret);
+	}
+	
 	flush_pos_done (& flush_pos);
 	flush_scan_done (& left_scan);
 	flush_scan_done (& right_scan);
@@ -578,7 +586,7 @@ static int flush_enqueue_ancestors (znode *node, flush_position *pos)
 
 	assert ("jmacd-7444", znode_is_any_locked (node));
 
-	if (! znode_is_dirty (node) || ! znode_check_allocated (node)) {
+	if (! znode_check_dirty (node) || ! znode_check_allocated (node)) {
 		return 0;
 	}
 
@@ -1649,7 +1657,7 @@ static int znode_get_utmost_if_dirty (znode *node, lock_handle *lock, sideof sid
 		return -ENAVAIL;
 	}
 
-	if (! (go = txn_same_atom_dirty (ZJNODE (node), ZJNODE (neighbor), 0))) {
+	if (! (go = txn_same_atom_dirty (ZJNODE (node), ZJNODE (neighbor), 0, 0))) {
 		ret = -ENAVAIL;
 		goto fail;
 	}
@@ -1727,7 +1735,7 @@ static int flush_scan_finished (flush_scan *scan)
  * If not, deref the "left" node and stop the scan. */
 static int flush_scan_goto (flush_scan *scan, jnode *tonode)
 {
-	int go = txn_same_atom_dirty (scan->node, tonode, 1);
+	int go = txn_same_atom_dirty (scan->node, tonode, 1, 0);
 
 	if (! go) {
 		jput (tonode);
@@ -1888,7 +1896,7 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 		trace_on (TRACE_FLUSH, "unalloc scan index %lu: node %p(atom=%p,dirty=%u,allocated=%u)\n",
 			  scan_index, neighbor, neighbor->atom, jnode_check_dirty (neighbor), jnode_check_allocated (neighbor));
 
-		assert ("jmacd-3551", ! jnode_check_allocated (neighbor) && txn_same_atom_dirty (neighbor, scan->node, 0));
+		assert ("jmacd-3551", ! jnode_check_allocated (neighbor) && txn_same_atom_dirty (neighbor, scan->node, 0, 0));
 
 		if ((ret = flush_scan_set_current (scan, neighbor, scan_dist, & coord))) {
 			goto exit;
@@ -2077,6 +2085,9 @@ static int flush_scan_formatted (flush_scan *scan)
 		if (neighbor == NULL) {
 			break;
 		}
+
+		trace_on (TRACE_FLUSH, "format scan node %p(atom=%p,dirty=%u,allocated=%u)\n",
+			  neighbor, neighbor->zjnode.atom, znode_check_dirty (neighbor), znode_check_allocated (neighbor));
 
 		/* Check the condition for going left, break if it is not met,
 		 * release left reference. */

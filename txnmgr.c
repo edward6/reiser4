@@ -418,7 +418,7 @@ atom_get_locked_by_jnode (jnode *node)
  * neighbors. */
 /* Audited by: umka (2002.06.13) */
 int
-txn_same_atom_dirty (jnode *node, jnode *check, int also_allocated)
+txn_same_atom_dirty (jnode *node, jnode *check, int alloc_check, int alloc_value)
 {
 	int compat;
 	txn_atom *atom;
@@ -441,8 +441,8 @@ txn_same_atom_dirty (jnode *node, jnode *check, int also_allocated)
 			compat &= znode_is_connected (JZNODE (check));
 		}
 
-		if (compat && also_allocated) {
-			compat &= jnode_is_allocated (check);
+		if (compat && alloc_check) {
+			compat &= (alloc_value == jnode_is_allocated (check));
 		}
 
 		spin_unlock_atom (atom);
@@ -872,7 +872,7 @@ int memory_pressure (struct super_block *super, int *nr_to_flush)
 		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
 			if (! capture_list_empty (& atom->dirty_nodes [level])) {
 				/* Found a dirty node to flush. */
-				node = jref (capture_list_front (& atom->dirty_nodes [level]));
+				node = jref (capture_list_back (& atom->dirty_nodes [level]));
 
 				/* Add this context to the same atom */
 				capture_assign_txnh_nolock (atom, txnh);
