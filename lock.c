@@ -862,7 +862,7 @@ int longterm_lock_znode(
 
 		/* This time, a return of (ret == 0) means we can lock, so we should break
 		   out of the loop. */
-		if (ret != -EAGAIN || non_blocking) {
+		if (likely(ret != -EAGAIN || non_blocking)) {
 			break;
 		}
 
@@ -871,7 +871,8 @@ int longterm_lock_znode(
 		/* By having semaphore initialization here we cannot lose
 		   wakeup signal even if it comes after `nr_signaled' field
 		   check. */
-		if ((ret = prepare_to_sleep(owner))) {
+		ret = prepare_to_sleep(owner);
+		if (unlikely(ret != 0)) {
 			break;
 		}
 
@@ -881,9 +882,9 @@ int longterm_lock_znode(
 			   increase high priority requests counter for the
 			   node */
 			node->lock.nr_hipri_requests++;
-			/* If there no high priority owners for a node,
-			   then immediately wake up low priority owners,
-			   so they can detect possible deadlock */
+			/* If there are no high priority owners for a node,
+			   then immediately wake up low priority owners, so
+			   they can detect possible deadlock */
 			if (node->lock.nr_hipri_owners == 0)
 				wake_up_all_lopri_owners(node);
 			/* And prepare a lock request */
@@ -909,7 +910,8 @@ int longterm_lock_znode(
 		}
 
 		requestors_list_remove(owner);
-		if (ret) {
+		/* signal-interruptible sleep is not supported. */
+		if (0 && ret) {
 			warning("nikita-2266", "Wait interrupted: %i", ret);
 			break;
 		}
@@ -1273,6 +1275,23 @@ check_lock_node_data(znode * node)
 }
 
 #endif
+
+/* return pointer to static storage with name of lock_mode. For
+    debugging */
+const char *
+lock_mode_name(znode_lock_mode lock /* lock mode to get name of */ )
+{
+	if (lock == ZNODE_READ_LOCK)
+		return "read";
+	else if (lock == ZNODE_WRITE_LOCK)
+		return "write";
+	else {
+		static char buf[30];
+
+		sprintf(buf, "unknown: %i", lock);
+		return buf;
+	}
+}
 
 /* Make Linus happy.
    Local variables:
