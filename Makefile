@@ -79,4 +79,8 @@ reiser4-objs := \
 		   plugin/file/file.o \
            plugin/file/tail_conversion.o
 
+#$parser/tmp: $/parser/*.[chy]
+#	$(MAKE) -C parser
+
 include $(TOPDIR)/Rules.make
+
