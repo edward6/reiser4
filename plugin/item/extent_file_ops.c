@@ -598,6 +598,26 @@ zero_around(struct page *page, int from, int count)
 	kunmap_atomic(data, KM_USER0);
 }
 
+static void assign_jnode_blocknr(jnode *j, reiser4_block_nr blocknr, int created)
+{
+	assert("vs-1737", !JF_ISSET(j, JNODE_EFLUSH));
+	if (created) {
+		/* extent corresponding to this jnode was just created */
+		assert("vs-1504", *jnode_get_block(j) == 0);
+		JF_SET(j, JNODE_CREATED);
+		/* new block is added to file. Update inode->i_blocks and inode->i_bytes. FIXME:
+		   inode_set/get/add/sub_bytes is used to be called by quota macros */
+		/*inode_add_bytes(inode, PAGE_CACHE_SIZE);*/
+	}
+
+	if (*jnode_get_block(j) == 0) {
+		jnode_set_block(j, &blocknr);
+	} else {
+		assert("vs-1508", !blocknr_is_fake(&blocknr));
+		assert("vs-1507", ergo(blocknr, *jnode_get_block(j) == blocknr));
+	}
+}
+
 /* write flow's data into file by pages */
 static int
 extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
@@ -663,6 +683,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 			result = PTR_ERR(j);
 			goto exit1;
 		}
+#if 0
 		LOCK_JNODE(j);
 		if (created) {
 			/* extent corresponding to this jnode was just created */
@@ -679,6 +700,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 			assert("vs-1507", ergo(blocknr, *jnode_get_block(j) == blocknr));
 		}
 		UNLOCK_JNODE(j);
+#endif
 
 		/* get page looked and attached to jnode */
 		page = jnode_get_page_locked(j, GFP_KERNEL);
@@ -691,12 +713,24 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 
 		if (!PageUptodate(page)) {
 			if (mode == OVERWRITE_ITEM) {
+				int blocknr_set = 0;
 				/* this page may be either an anonymous page (a page which was dirtied via mmap,
 				   writepage-ed and for which extent pointer was just created. In this case jnode is
-				   eflushed) or correspod to not page cached block (in which case created == 0). In
+				   eflushed) or correspond to not page cached block (in which case created == 0). In
 				   either case we have to read this page if it is being overwritten partially */
 				if (write_is_partial(inode, file_off, page_off, count) &&
 				    (created == 0 || JF_ISSET(j, JNODE_EFLUSH))) {
+					if (!JF_ISSET(j, JNODE_EFLUSH)) {
+						/* eflush bit can be neither
+						   set nor cleared by other
+						   process because page
+						   attached to jnode is
+						   locked */
+						LOCK_JNODE(j);
+						assign_jnode_blocknr(j, blocknr, created);
+						blocknr_set = 1;
+						UNLOCK_JNODE(j);
+					}
 					result = page_io(page, j, READ, GFP_KERNEL);
 					if (result)
 						goto exit3;
@@ -706,15 +740,32 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 				} else {
 					zero_around(page, page_off, count);
 				}
+
+				/* assign blocknr to jnode if it is not assigned yet */
+				LOCK_JNODE(j);
+				eflush_del(j, 1);
+				if (blocknr_set == 0)
+					assign_jnode_blocknr(j, blocknr, created);
+				UNLOCK_JNODE(j);
 			} else {
 				/* new page added to the file. No need to carry about data it might contain. Zero
 				   content of new page around write area */
 				assert("vs-1681", !JF_ISSET(j, JNODE_EFLUSH));
 				zero_around(page, page_off, count);
+
+				/* assign blocknr to jnode if it is not assigned yet */
+				LOCK_JNODE(j);
+				assign_jnode_blocknr(j, blocknr, created);
+				UNLOCK_JNODE(j);
 			}
+		} else {
+			LOCK_JNODE(j);
+			eflush_del(j, 1);
+			assign_jnode_blocknr(j, blocknr, created);
+			UNLOCK_JNODE(j);
 		}
 
-		UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
+		/*UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));*/
 
 		move_flow_forward(flow, count);
 		write_move_coord(coord, uf_coord, mode, page_off + count == PAGE_CACHE_SIZE);
