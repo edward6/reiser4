@@ -493,7 +493,7 @@ static void inode_detach_jnode(jnode * node)
 	assert("zam-1051", info->nr_jnodes != 0);
 	assert("zam-1052", rtree->rnode != NULL);
 	ON_DEBUG(info->nr_jnodes --);
-	check_me("zam-1046", !radix_tree_delete(rtree, node->key.j.index));
+	check_me("zam-1046", radix_tree_delete(rtree, node->key.j.index));
 	if (rtree->rnode == NULL) {
 		inode->i_state &= I_JNODES;
 	}
