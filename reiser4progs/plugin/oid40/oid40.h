@@ -9,7 +9,7 @@
 
 #include <aal/aal.h>
 
-#define REISERFS_OID40_INITIAL 40
+#define REISERFS_OID40_RESERVED (1 << 16)
 
 struct reiserfs_oid40 {
     aal_block_t *block;

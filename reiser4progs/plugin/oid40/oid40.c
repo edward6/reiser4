@@ -45,7 +45,7 @@ static reiserfs_opaque_t *reiserfs_oid40_create(aal_block_t *block, uint16_t off
     
     oid->block = block;
     oid->offset = offset;
-    oid->current = REISERFS_OID40_INITIAL;
+    oid->current = REISERFS_OID40_RESERVED;
     
     *((uint64_t *)(block->data + offset)) = oid->current;
     
@@ -59,7 +59,7 @@ static void reiserfs_oid40_close(reiserfs_oid40_t *oid) {
 
 static uint64_t reiserfs_oid40_alloc(reiserfs_oid40_t *oid) {
     aal_assert("umka-513", oid != NULL, return 0);
-    return ++oid->current;
+    return oid->current++;
 }
 
 static error_t reiserfs_oid40_sync(reiserfs_oid40_t *oid) {
