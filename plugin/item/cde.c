@@ -718,8 +718,8 @@ copy_units_cde(coord_t * target /* coord of target item */ ,
 	assert("nikita-1305", (int) from < units(source));
 	assert("nikita-1307", (int) (from + count) <= units(source));
 
-	trace_if(TRACE_DIR | TRACE_NODES, print_key("cde_copy source", item_key_by_coord(source, &debug_key)));
-	trace_if(TRACE_DIR | TRACE_NODES, print_key("cde_copy target", item_key_by_coord(target, &debug_key)));
+	IF_TRACE(TRACE_DIR | TRACE_NODES, print_key("cde_copy source", item_key_by_coord(source, &debug_key)));
+	IF_TRACE(TRACE_DIR | TRACE_NODES, print_key("cde_copy target", item_key_by_coord(target, &debug_key)));
 
 	if (where_is_free_space == SHIFT_LEFT) {
 		assert("nikita-1453", from == 0);

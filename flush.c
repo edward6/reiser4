@@ -742,16 +742,16 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	/* Flush-concurrency debug code */
 #if REISER4_DEBUG
 	atomic_inc(&flush_cnt);
-	trace_on(TRACE_FLUSH,
+	ON_TRACE(TRACE_FLUSH,
 		 "flush enter: pid %ul %u concurrent procs\n",
 		 current->pid, atomic_read(&flush_cnt)); 
-	trace_if(TRACE_FLUSH,
+	IF_TRACE(TRACE_FLUSH,
 		 if (atomic_read(&flush_cnt) > 1) printk("flush concurrency\n"););
 #endif
 
 	enter_flush(sb);
 
-	trace_on(TRACE_FLUSH, "flush squalloc %s %s\n", jnode_tostring(node), flags_tostring(flags));
+	ON_TRACE(TRACE_FLUSH, "flush squalloc %s %s\n", jnode_tostring(node), flags_tostring(flags));
 
 	/* Initialize a flush position. */
 	pos_init(&flush_pos);
@@ -764,8 +764,8 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	scan_init(&right_scan);
 	scan_init(&left_scan);
 
-	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF)); */
-	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK)); */
+	/*IF_TRACE (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF)); */
+	/*IF_TRACE (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK)); */
 
 	/* First scan left and remember the leftmost scan position.  If the leftmost
 	   position is unformatted we remember its parent_coord.  We scan until counting
@@ -802,7 +802,7 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	/* Only the right-scan count is needed, release any rightward locks right away. */
 	scan_done(&right_scan);
 
-	trace_on(TRACE_FLUSH, "flush: left: %i, right: %i\n", 
+	ON_TRACE(TRACE_FLUSH, "flush: left: %i, right: %i\n", 
 		 left_scan.count, right_scan.count);
 
 	reiser4_stat_add(flush.right, right_scan.count);
@@ -838,7 +838,7 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	   node or its parent (in case of unformatted) helps us in case of
 	   concurrent flushing. */
 	if (jnode_check_flushprepped(left_scan.node)) {
-		trace_on(TRACE_FLUSH_VERB, "flush concurrency: %s already allocated\n", pos_tostring(&flush_pos));
+		ON_TRACE(TRACE_FLUSH_VERB, "flush concurrency: %s already allocated\n", pos_tostring(&flush_pos));
 		ret = 0;
 		goto failed;
 	}
@@ -910,7 +910,7 @@ failed:
 
 	if (nr_to_flush != NULL) {
 		if (ret >= 0) {
-			trace_on(TRACE_FLUSH, "flush_jnode wrote %u blocks\n", flush_pos.prep_or_free_cnt);
+			ON_TRACE(TRACE_FLUSH, "flush_jnode wrote %u blocks\n", flush_pos.prep_or_free_cnt);
 			(*nr_to_flush) = flush_pos.prep_or_free_cnt;
 		} else {
 			(*nr_to_flush) = 0;
@@ -921,7 +921,7 @@ failed:
 		/* FIXME(C): Except for EDEADLK, these should probably be handled properly
 		   in each case.  They already are handled in many cases. */
 		/* Something bad happened, but difficult to avoid...  Try again! */
-		trace_on(TRACE_FLUSH, "flush restartable failure: %ld\n", ret);
+		ON_TRACE(TRACE_FLUSH, "flush restartable failure: %ld\n", ret);
 		ret = 0;
 	}
 
@@ -1264,7 +1264,7 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 	coord_t pcoord;
 	PROF_BEGIN(flush_alloc);
 
-	trace_on(TRACE_FLUSH_VERB, "flush alloc ancestors: %s\n", pos_tostring(pos));
+	ON_TRACE(TRACE_FLUSH_VERB, "flush alloc ancestors: %s\n", pos_tostring(pos));
 
 	coord_init_invalid(&pcoord, NULL);
 	init_lh(&plock);
@@ -1517,15 +1517,15 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 
 	DISABLE_NODE_CHECK;
 
-	trace_on(TRACE_FLUSH_VERB, "sq_twig before copy extents: left %s\n", znode_tostring(left));
-	trace_on(TRACE_FLUSH_VERB, "sq_twig before copy extents: right %s\n", znode_tostring(right));
-	/*trace_if (TRACE_FLUSH_VERB, print_node_content ("left", left, ~0u)); */
-	/*trace_if (TRACE_FLUSH_VERB, print_node_content ("right", right, ~0u)); */
+	ON_TRACE(TRACE_FLUSH_VERB, "sq_twig before copy extents: left %s\n", znode_tostring(left));
+	ON_TRACE(TRACE_FLUSH_VERB, "sq_twig before copy extents: right %s\n", znode_tostring(right));
+	/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("left", left, ~0u)); */
+	/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("right", right, ~0u)); */
 
 	while (item_is_extent(&coord)) {
 		reiser4_key last_stop_key;
 
-		trace_if(TRACE_FLUSH_VERB, print_coord("sq_twig:item_is_extent:", &coord, 0));
+		IF_TRACE(TRACE_FLUSH_VERB, print_coord("sq_twig:item_is_extent:", &coord, 0));
 
 		last_stop_key = stop_key;
 		ret = allocate_and_copy_extent(left, &coord, pos, &stop_key);
@@ -1543,7 +1543,7 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 
 		if (ret == SQUEEZE_TARGET_FULL) {
 			/* Could not complete with current extent item. */
-			trace_if(TRACE_FLUSH_VERB, print_coord("sq_twig:target_full:", &coord, 0));
+			IF_TRACE(TRACE_FLUSH_VERB, print_coord("sq_twig:target_full:", &coord, 0));
 			break;
 		}
 
@@ -1552,22 +1552,22 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 		/* coord_next_item returns 0 if there are more items. */
 		if (coord_next_item(&coord) != 0) {
 			ret = SQUEEZE_SOURCE_EMPTY;
-			trace_if(TRACE_FLUSH_VERB, print_coord("sq_twig:source_empty:", &coord, 0));
+			IF_TRACE(TRACE_FLUSH_VERB, print_coord("sq_twig:source_empty:", &coord, 0));
 			break;
 		}
 
-		trace_if(TRACE_FLUSH_VERB, print_coord("sq_twig:continue:", &coord, 0));
+		IF_TRACE(TRACE_FLUSH_VERB, print_coord("sq_twig:continue:", &coord, 0));
 	}
 
-	trace_on(TRACE_FLUSH_VERB, "sq_twig:after copy extents: left %s\n", znode_tostring(left));
-	trace_on(TRACE_FLUSH_VERB, "sq_twig:after copy extents: right %s\n", znode_tostring(right));
-	/*trace_if (TRACE_FLUSH_VERB, print_node_content ("left", left, ~0u)); */
-	/*trace_if (TRACE_FLUSH_VERB, print_node_content ("right", right, ~0u)); */
+	ON_TRACE(TRACE_FLUSH_VERB, "sq_twig:after copy extents: left %s\n", znode_tostring(left));
+	ON_TRACE(TRACE_FLUSH_VERB, "sq_twig:after copy extents: right %s\n", znode_tostring(right));
+	/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("left", left, ~0u)); */
+	/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("right", right, ~0u)); */
 
 	if (!keyeq(&stop_key, min_key())) {
 		int cut_ret;
 
-		trace_if(TRACE_FLUSH_VERB, print_coord("sq_twig:cut_coord", &coord, 0));
+		IF_TRACE(TRACE_FLUSH_VERB, print_coord("sq_twig:cut_coord", &coord, 0));
 
 		/* Helper function to do the cutting. */
 		cut_ret = squalloc_right_twig_cut(&stop_coord, &stop_key, left);
@@ -1576,7 +1576,7 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 			reiser4_panic("jmacd-87113", "cut_node failed: %d", cut_ret);
 		}
 
-		/*trace_if (TRACE_FLUSH_VERB, print_node_content ("right_after_cut", right, ~0u)); */
+		/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("right_after_cut", right, ~0u)); */
 	}
 
 	ENABLE_NODE_CHECK;
@@ -1589,7 +1589,7 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 
 	if (node_is_empty(right)) {
 		/* The whole right node was copied into @left. */
-		trace_on(TRACE_FLUSH_VERB, "sq_twig right node empty: %s\n", znode_tostring(right));
+		ON_TRACE(TRACE_FLUSH_VERB, "sq_twig right node empty: %s\n", znode_tostring(right));
 		assert("vs-464", ret == SQUEEZE_SOURCE_EMPTY);
 		goto out;
 	}
@@ -1649,8 +1649,8 @@ static int squeeze_right_neighbor(flush_pos_t * pos, znode * left, znode * right
 	assert("jmacd-9322", !node_is_empty(right));
 	assert("jmacd-9323", znode_get_level(left) == znode_get_level(right));
 
-	trace_on(TRACE_FLUSH_VERB, "sq_rn[%u] left  %s\n", znode_get_level(left), znode_tostring(left));
-	trace_on(TRACE_FLUSH_VERB, "sq_rn[%u] right %s\n", znode_get_level(left), znode_tostring(right));
+	ON_TRACE(TRACE_FLUSH_VERB, "sq_rn[%u] left  %s\n", znode_get_level(left), znode_tostring(left));
+	ON_TRACE(TRACE_FLUSH_VERB, "sq_rn[%u] right %s\n", znode_get_level(left), znode_tostring(right));
 
 	switch (znode_get_level(left)) {
 	case TWIG_LEVEL:
@@ -1674,7 +1674,7 @@ static int squeeze_right_neighbor(flush_pos_t * pos, znode * left, znode * right
 		reiser4_stat_inc(flush.squeezed_completely);
 	}
 
-	trace_on(TRACE_FLUSH_VERB, "sq_rn[%u] returns %s: left %s\n",
+	ON_TRACE(TRACE_FLUSH_VERB, "sq_rn[%u] returns %s: left %s\n",
 		 znode_get_level(left),
 		 (ret == SQUEEZE_SOURCE_EMPTY) ? "src empty" :
 		 ((ret == SQUEEZE_TARGET_FULL) ? "tgt full" :
@@ -2421,7 +2421,7 @@ shift_one_internal_unit(znode * left, znode * right)
 		grabbed2free_mark(grabbed);
 	}
 
-	trace_on(TRACE_FLUSH_VERB,
+	ON_TRACE(TRACE_FLUSH_VERB,
 		 "shift_one %s an item: left has %u items, right has %u items\n",
 		 moved > 0 ? "moved" : "did not move", node_num_items(left), node_num_items(right));
 
@@ -2835,10 +2835,10 @@ scan_goto(flush_scan * scan, jnode * tonode)
 
 	if (!go) {
 		scan->stop = 1;
-		trace_on(TRACE_FLUSH_VERB,
+		ON_TRACE(TRACE_FLUSH_VERB,
 			 "flush %s scan stop: stop at node %s\n",
 			 scanning_left(scan) ? "left" : "right", jnode_tostring(scan->node));
-		trace_on(TRACE_FLUSH_VERB,
+		ON_TRACE(TRACE_FLUSH_VERB,
 			 "flush %s scan stop: do not cont at %s\n",
 			 scanning_left(scan) ? "left" : "right", jnode_tostring(tonode));
 		jput(tonode);
@@ -2994,12 +2994,12 @@ scan_common(flush_scan * scan, flush_scan * other)
 				 ZNODE_WRITE_LOCK, 0);
 			if (ret != 0) {
 				/* FIXME(C): check EINVAL, EDEADLK */
-				trace_on(TRACE_FLUSH,
+				ON_TRACE(TRACE_FLUSH,
 					 "flush_scan_common: jnode_lock_parent_coord returned %d\n", ret);				
 				return ret;
 			}
 
-			trace_on(TRACE_FLUSH,
+			ON_TRACE(TRACE_FLUSH,
 				 "flush_scan_common: jnode_lock_parent_coord returned 0\n");
 			assert("jmacd-8661", other != NULL);
 
@@ -3085,7 +3085,7 @@ scan_formatted(flush_scan * scan)
 			break;
 		}
 
-		trace_on(TRACE_FLUSH_VERB, "format scan %s %s\n",
+		ON_TRACE(TRACE_FLUSH_VERB, "format scan %s %s\n",
 			 scanning_left(scan) ? "left" : "right", znode_tostring(neighbor));
 
 		/* Check the condition for going left, break if it is not met.  This also
@@ -3188,7 +3188,7 @@ scan_extent(flush_scan * scan, int skip_first)
 			if (!item_is_extent(&scan->parent_coord)) {
 				/* we raced again extent->tail conversion and
 				   lost. */
-				trace_on(TRACE_FLUSH,
+				ON_TRACE(TRACE_FLUSH,
 					 "Flush raced against extent->tail\n");
 				scan->stop = 1;
 				ret = 0;
@@ -3352,7 +3352,7 @@ scan_extent_coord(flush_scan * scan, const coord_t * in_coord)
 
 	assert("jmacd-7889", item_is_extent(&coord));
 
-	trace_on(TRACE_FLUSH_VERB, "%s scan starts %lu: %s\n",
+	ON_TRACE(TRACE_FLUSH_VERB, "%s scan starts %lu: %s\n",
 		 (scanning_left(scan) ? "left" : "right"), scan_index, jnode_tostring(scan->node));
 
 repeat:
@@ -3368,7 +3368,7 @@ repeat:
 		return 0;
 	}
 */
-	trace_on(TRACE_FLUSH_VERB, "%s scan index %lu: parent %p oid %llu\n",
+	ON_TRACE(TRACE_FLUSH_VERB, "%s scan index %lu: parent %p oid %llu\n",
 		 (scanning_left(scan) ? "left" : "right"), scan_index, coord.node, oid);
 
 	/* FIXME:NIKITA->* this is wrong: hole is treated as allocated extent
@@ -3409,7 +3409,7 @@ repeat:
 			if (neighbor == NULL)
 				goto stop_same_parent;
 
-			trace_on(TRACE_FLUSH_VERB, "alloc scan index %lu: %s\n",
+			ON_TRACE(TRACE_FLUSH_VERB, "alloc scan index %lu: %s\n",
 				 scan_index, jnode_tostring(neighbor));
 
 			if (scan->node != neighbor && !scan_goto(scan, neighbor)) {
@@ -3438,7 +3438,7 @@ repeat:
 			goto exit;
 		}
 
-		trace_on(TRACE_FLUSH_VERB, "unalloc scan index %lu: %s\n", scan_index, jnode_tostring(neighbor));
+		ON_TRACE(TRACE_FLUSH_VERB, "unalloc scan index %lu: %s\n", scan_index, jnode_tostring(neighbor));
 
 		assert("jmacd-3551", !jnode_check_flushprepped(neighbor)
 		       && same_atom_dirty(neighbor, scan->node, 0, 0));

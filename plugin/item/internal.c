@@ -220,7 +220,7 @@ create_hook_internal(const coord_t * item /* coord of item */ ,
 
 		ZF_CLR(child, JNODE_ORPHAN);
 
-		trace_on(TRACE_ZWEB, "create: %llx: %i [%llx]\n",
+		ON_TRACE(TRACE_ZWEB, "create: %llx: %i [%llx]\n",
 			 *znode_get_block(item->node), atomic_read(&item->node->c_count), *znode_get_block(child));
 
 		WUNLOCK_TREE(tree);
@@ -273,7 +273,7 @@ kill_hook_internal(const coord_t * item /* coord of item */ ,
 		UNDER_RW_VOID(tree, znode_get_tree(item->node), write,
 			      coord_init_zero(&child->in_parent));
 		del_c_ref(item->node);
-		trace_on(TRACE_ZWEB, "kill: %llx: %i [%llx]\n",
+		ON_TRACE(TRACE_ZWEB, "kill: %llx: %i [%llx]\n",
 			 *znode_get_block(item->node), atomic_read(&item->node->c_count), *znode_get_block(child));
 
 		zput(child);
@@ -326,7 +326,7 @@ shift_hook_internal(const coord_t * item /* coord of item */ ,
 		del_c_ref(old_node);
 		WUNLOCK_TREE(tree);
 		zput(child);
-		trace_on(TRACE_ZWEB, "shift: %llx: %i -> %lli: %i [%llx]\n",
+		ON_TRACE(TRACE_ZWEB, "shift: %llx: %i -> %lli: %i [%llx]\n",
 			 *znode_get_block(old_node),
 			 atomic_read(&old_node->c_count),
 			 *znode_get_block(new_node), atomic_read(&new_node->c_count), *znode_get_block(child));

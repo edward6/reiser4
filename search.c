@@ -267,7 +267,7 @@ lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 						   * in "coord" are only valid if
 						   * coord_by_key() returned
 						   * "CBK_COORD_FOUND" */ ,
-			   lock_handle * lh,	/* NIKITA-FIXME-HANS: comment needed */
+			   lock_handle * lh,	/* resulting lock handle */
 			   znode_lock_mode lock_mode	/* type of lookup we
 							 * want on node. Pass
 							 * ZNODE_READ_LOCK here

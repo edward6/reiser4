@@ -85,7 +85,7 @@ reiser4_llseek(struct file *file, loff_t off, int origin)
 	init_context(&ctx, inode->i_sb);
 	reiser4_stat_inc(vfs_calls.llseek);
 
-	trace_on(TRACE_VFS_OPS,
+	ON_TRACE(TRACE_VFS_OPS,
 		 "llseek: (i_ino %li, size %lld): off %lli, origin %d\n", inode->i_ino, inode->i_size, off, origin);
 
 	fplug = inode_file_plugin(inode);
@@ -188,7 +188,7 @@ reiser4_mmap(struct file *file, struct vm_area_struct *vma)
 	write_syscall_trace("%s", file->f_dentry->d_name.name);
 	reiser4_stat_inc(vfs_calls.mmap);
 
-	trace_on(TRACE_VFS_OPS, "MMAP: (i_ino %lli, size %lld)\n",
+	ON_TRACE(TRACE_VFS_OPS, "MMAP: (i_ino %lli, size %lld)\n",
 		 get_inode_oid(file->f_dentry->d_inode), 
 		 file->f_dentry->d_inode->i_size);
 
@@ -228,7 +228,7 @@ reiser4_read(struct file *file /* file to read from */ ,
 	write_syscall_trace("%s", file->f_dentry->d_name.name);
 	reiser4_stat_inc(vfs_calls.read);
 
-	trace_on(TRACE_VFS_OPS,
+	ON_TRACE(TRACE_VFS_OPS,
 		 "READ: (i_ino %li, size %lld): %u bytes from pos %lli\n",
 		 inode->i_ino, inode->i_size, count, *off);
 
@@ -271,7 +271,7 @@ reiser4_write(struct file *file /* file to write on */ ,
 	write_syscall_trace("%s", file->f_dentry->d_name.name);
 	reiser4_stat_inc(vfs_calls.write);
 
-	trace_on(TRACE_VFS_OPS,
+	ON_TRACE(TRACE_VFS_OPS,
 		 "WRITE: (i_ino %li, size %lld): %u bytes to pos %lli\n", inode->i_ino, inode->i_size, size, *off);
 
 	result = perm_chk(inode, write, file, buf, size, off);
@@ -305,7 +305,7 @@ reiser4_release(struct inode *i /* inode released */ ,
 	fplug = inode_file_plugin(i);
 	assert("umka-082", fplug != NULL);
 
-	trace_on(TRACE_VFS_OPS,
+	ON_TRACE(TRACE_VFS_OPS,
 		 "RELEASE: (i_ino %li, size %lld)\n", i->i_ino, i->i_size);
 
 	if (fplug->release)

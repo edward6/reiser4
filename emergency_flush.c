@@ -277,7 +277,7 @@ emergency_flush(struct page *page)
 	jref(node);
 	reiser4_stat_inc_at_level(jnode_get_level(node), emergency_flush);
 
-	trace_on(TRACE_EFLUSH, "eflush: %i...", get_super_private(sb)->eflushed);
+	ON_TRACE(TRACE_EFLUSH, "eflush: %i...", get_super_private(sb)->eflushed);
 
 	result = 0;
 	LOCK_JNODE(node);
@@ -302,13 +302,13 @@ emergency_flush(struct page *page)
 						 node, WRITE, GFP_NOFS | __GFP_HIGH);
 				if (result == 0) {
 					result = 1;
-					trace_on(TRACE_EFLUSH, "ok: %llu\n", blk);
+					ON_TRACE(TRACE_EFLUSH, "ok: %llu\n", blk);
 				} else {
 					/* 
 					 * XXX may be set_page_dirty() should be called
 					 */
 					__set_page_dirty_nobuffers(page);
-					trace_on(TRACE_EFLUSH, "submit-failure\n");
+					ON_TRACE(TRACE_EFLUSH, "submit-failure\n");
 				}
 			} else {
 				UNLOCK_JNODE(node);
@@ -316,7 +316,7 @@ emergency_flush(struct page *page)
 					ef_free_block_with_stage(node, &blk, hint.block_stage);
 				if (efnode != NULL)
 					kmem_cache_free(eflush_slab, efnode);
-				trace_on(TRACE_EFLUSH, "failure-2\n");
+				ON_TRACE(TRACE_EFLUSH, "failure-2\n");
 			}
 			
 			blocknr_hint_done(&hint);
@@ -325,7 +325,7 @@ emergency_flush(struct page *page)
 			flush_queue_t *fq;
 
 			/* eflush without allocation temporary location for a node */
-			trace_on(TRACE_EFLUSH, "flushing to relocate place: %llu..", *jnode_get_block(node));
+			ON_TRACE(TRACE_EFLUSH, "flushing to relocate place: %llu..", *jnode_get_block(node));
 			
 			/* get flush queue for this node */
 			result = fq_by_jnode(node, &fq);
@@ -337,7 +337,7 @@ emergency_flush(struct page *page)
 			atom = node->atom;
 
 			if (!flushable(node, page) || needs_allocation(node) || !jnode_is_dirty(node)) {
-				trace_on(TRACE_EFLUSH, "failure-3\n");
+				ON_TRACE(TRACE_EFLUSH, "failure-3\n");
 				UNLOCK_JNODE(node);
 				UNLOCK_ATOM(atom);
 				fq_put(fq);
@@ -353,7 +353,7 @@ emergency_flush(struct page *page)
 			UNLOCK_ATOM(atom);
 
 			result = write_fq(fq);
-			trace_on(TRACE_EFLUSH, "flushed %d blocks\n", result);
+			ON_TRACE(TRACE_EFLUSH, "flushed %d blocks\n", result);
 			/* Even if we wrote nothing, We unlocked the page, so let know to the caller that page should
 			   not be unlocked again */
 			result = 1; 
@@ -362,7 +362,7 @@ emergency_flush(struct page *page)
 		
 	} else {
 		UNLOCK_JNODE(node);
-		trace_on(TRACE_EFLUSH, "failure-1\n");
+		ON_TRACE(TRACE_EFLUSH, "failure-1\n");
 	}
 
 	jput(node);
@@ -648,7 +648,7 @@ eflush_del(jnode *node, int page_locked)
 
 		LOCK_JNODE(node);
 
-		trace_on(TRACE_EFLUSH, "unflush: %i...\n", 
+		ON_TRACE(TRACE_EFLUSH, "unflush: %i...\n", 
 			 get_super_private(tree->super)->eflushed);
 	}
 }

@@ -356,7 +356,7 @@ reiser4_truncate(struct inode *inode /* inode to truncate */ )
 
 	init_context(&ctx, inode->i_sb);
 	reiser4_stat_inc(vfs_calls.truncate);
-	trace_on(TRACE_VFS_OPS, "TRUNCATE: i_ino %li to size %lli\n", inode->i_ino, inode->i_size);
+	ON_TRACE(TRACE_VFS_OPS, "TRUNCATE: i_ino %li to size %lli\n", inode->i_ino, inode->i_size);
 
 	truncate_object(inode, inode->i_size);
 	/* for mysterious reasons ->truncate() VFS call doesn't return
@@ -400,7 +400,7 @@ unlink_file(struct inode *parent /* parent directory */ ,
 	assert("nikita-1435", parent != NULL);
 	assert("nikita-1436", victim != NULL);
 
-	trace_on(TRACE_DIR | TRACE_VFS_OPS, "unlink: %lli/%s\n", 
+	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "unlink: %lli/%s\n", 
 		 get_inode_oid(parent), victim->d_name.name);
 
 	dplug = inode_dir_plugin(parent);
@@ -549,7 +549,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 			}
 		} else {
 			d_instantiate(dentry, child);
-			trace_on(TRACE_VFS_OPS, "create: %s (%o) %llu\n",
+			ON_TRACE(TRACE_VFS_OPS, "create: %s (%o) %llu\n",
 				 dentry->d_name.name, 
 				 data->mode, get_inode_oid(child));
 		}

@@ -288,7 +288,7 @@ file_lookup_result lookup_hashed(struct inode * parent	/* inode of directory to
 	coord = &reiser4_get_dentry_fsdata(dentry)->dec.entry_coord;
 	init_lh(&lh);
 
-	trace_on(TRACE_DIR | TRACE_VFS_OPS, "lookup inode: %lli \"%s\"\n", get_inode_oid(parent), dentry->d_name.name);
+	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "lookup inode: %lli \"%s\"\n", get_inode_oid(parent), dentry->d_name.name);
 
 	/* find entry in a directory. This is plugin method. */
 	result = find_entry(parent, dentry, &lh, ZNODE_READ_LOCK, &entry);
@@ -844,7 +844,7 @@ add_entry_hashed(struct inode *object	/* directory to add new name
 		return RETERR(-ENOSPC);
 
 	init_lh(&lh);
-	trace_on(TRACE_DIR, "[%i]: creating \"%s\" in %llu\n", current->pid, where->d_name.name, get_inode_oid(object));
+	ON_TRACE(TRACE_DIR, "[%i]: creating \"%s\" in %llu\n", current->pid, where->d_name.name, get_inode_oid(object));
 	coord = &fsdata->dec.entry_coord;
 
 	/* check for this entry in a directory. This is plugin method. */
@@ -967,7 +967,7 @@ find_entry(const struct inode *dir /* directory to scan */,
 	coord_t *coord;
 	int result;
 	__u32 flags;
-	de_control *dec;
+	de_location *dec;
 
 	assert("nikita-1130", lh != NULL);
 	assert("nikita-1128", dir != NULL);
@@ -1126,7 +1126,7 @@ check_item(const struct inode *dir, const coord_t * coord, const char *name)
 	}
 	assert("nikita-1137", iplug->s.dir.extract_name);
 
-	trace_on(TRACE_DIR, "[%i]: check_item: \"%s\", \"%s\" in %lli (%lli)\n",
+	ON_TRACE(TRACE_DIR, "[%i]: check_item: \"%s\", \"%s\" in %lli (%lli)\n",
 		 current->pid, name, iplug->s.dir.extract_name(coord, buf),
 		 get_inode_oid(dir), *znode_get_block(coord->node));
 	/* Compare name stored in this entry with name we are looking for.

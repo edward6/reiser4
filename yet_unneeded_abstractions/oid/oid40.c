@@ -106,7 +106,7 @@ oid40_allocate(reiser4_oid_allocator * map, oid_t * result)
 	*result = map->u.oid40.next_to_use;
 	++map->u.oid40.next_to_use;
 	++map->u.oid40.oids_in_use;
-	trace_on(TRACE_OIDS, "[%i]: allocated: %llx\n", current->pid, *result);
+	ON_TRACE(TRACE_OIDS, "[%i]: allocated: %llx\n", current->pid, *result);
 	assert("nikita-1983", map->u.oid40.next_to_use >= map->u.oid40.oids_in_use);
 	unlock(map);
 	return 0;
@@ -121,7 +121,7 @@ oid40_release(reiser4_oid_allocator * map, oid_t oid UNUSED_ARG)
 {
 	assert("nikita-1984", map != NULL);	/* BIG BROTHER IS WATCHING YOU */
 
-	trace_on(TRACE_OIDS, "[%i]: released: %llx\n", current->pid, oid);
+	ON_TRACE(TRACE_OIDS, "[%i]: released: %llx\n", current->pid, oid);
 	lock(map);
 	assert("nikita-1985", map->u.oid40.oids_in_use > 0);
 	--map->u.oid40.oids_in_use;

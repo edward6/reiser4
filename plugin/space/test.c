@@ -89,9 +89,9 @@ alloc_blocks_test(reiser4_space_allocator * allocator, reiser4_blocknr_hint * hi
 		allocator->u.test.new_block_nr = reiser4_block_count(reiser4_get_current_sb());
 		spin_unlock(&allocator->u.test.guard);
 
-		trace_on(TRACE_ALLOC, "test_alloc_blocks: "
+		ON_TRACE(TRACE_ALLOC, "test_alloc_blocks: "
 			 "asked for %d blocks from %llu. ENOSPC returned\n", needed, hint->blk);
-		trace_on(TRACE_ALLOC, "test_alloc_blocks: "
+		ON_TRACE(TRACE_ALLOC, "test_alloc_blocks: "
 			 "next free is %llu, block count %llu, free %llu\n",
 			 allocator->u.test.new_block_nr,
 			 reiser4_block_count
@@ -101,10 +101,10 @@ alloc_blocks_test(reiser4_space_allocator * allocator, reiser4_blocknr_hint * hi
 	}
 	allocator->u.test.new_block_nr = min_free;
 
-	trace_on(TRACE_ALLOC, "test_alloc_blocks: "
+	ON_TRACE(TRACE_ALLOC, "test_alloc_blocks: "
 		 "asked for %d blocks from %llu - got %llu from %llu\n",
 		 needed, hint->blk, *num, *start);
-	trace_on(TRACE_ALLOC, "test_alloc_blocks: "
+	ON_TRACE(TRACE_ALLOC, "test_alloc_blocks: "
 		 "next free is %llu, block count %llu, free %llu\n",
 		 allocator->u.test.new_block_nr,
 		 reiser4_block_count(reiser4_get_current_sb
@@ -122,7 +122,7 @@ void
 dealloc_blocks_test(reiser4_space_allocator * allocator UNUSED_ARG,
 		    reiser4_block_nr start UNUSED_ARG, reiser4_block_nr len UNUSED_ARG)
 {
-	trace_on(TRACE_ALLOC, "test_dealloc_blocks: %llu blocks from %llu\n", start, len);
+	ON_TRACE(TRACE_ALLOC, "test_dealloc_blocks: %llu blocks from %llu\n", start, len);
 	return;
 }
 
