@@ -1,6 +1,6 @@
 /*
-    filesystem.c -- common reiserfs filesystem code.
-    Copyright (C) 1996-2002 Hans Reiser
+    filesystem.c -- common reiser4 filesystem code.
+    Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
 
@@ -12,24 +12,31 @@
 
 #ifndef ENABLE_COMPACT
 
-static errno_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_id_t 
-    format_plugin_id, unsigned int blocksize, const char *uuid, const char *label) 
+/* Forms master super blocks */
+static errno_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_id_t format_plugin_id, 
+    unsigned int blocksize, const char *uuid, const char *label) 
 {
     aal_assert("umka-142", fs != NULL, return -1);
     
+    /* Allocating the memory */
     if (!(fs->master = aal_calloc(REISERFS_DEFAULT_BLOCKSIZE, 0)))
 	return -1;
     
+    /* Copying magic */
     aal_strncpy(fs->master->mr_magic, REISERFS_MASTER_MAGIC, 
 	aal_strlen(REISERFS_MASTER_MAGIC));
     
+    /* Copying uuid and label to corresponding master super block fields */
     if (uuid)
 	aal_strncpy(fs->master->mr_uuid, uuid, sizeof(fs->master->mr_uuid));
 
     if (label)
 	aal_strncpy(fs->master->mr_label, label, sizeof(fs->master->mr_label));
-	
+
+    /* Setting plugin id for used disk format plugin */
     set_mr_format_id(fs->master, format_plugin_id);
+
+    /* Setting block filesystem used */
     set_mr_block_size(fs->master, blocksize);
 	
     return 0;
@@ -37,6 +44,7 @@ static errno_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_id_t
 
 #endif
 
+/* Reads master super block from disk */
 static errno_t reiserfs_master_open(reiserfs_fs_t *fs) {
     blk_t master_offset;
     aal_block_t *block;
@@ -45,8 +53,11 @@ static errno_t reiserfs_master_open(reiserfs_fs_t *fs) {
     aal_assert("umka-143", fs != NULL, return -1);
     
     master_offset = (blk_t)(REISERFS_MASTER_OFFSET / REISERFS_DEFAULT_BLOCKSIZE);
+
+    /* Setting up default block size (4096) to used device */
     aal_device_set_bs(fs->host_device, REISERFS_DEFAULT_BLOCKSIZE);
-	
+    
+    /* Reading the block where master super block lies */
     if (!(block = aal_block_read(fs->host_device, master_offset))) {
 	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
 	    "Can't read master super block at %llu.", master_offset);
@@ -78,8 +89,10 @@ static errno_t reiserfs_master_open(reiserfs_fs_t *fs) {
 	if (!(fs->master = aal_calloc(sizeof(*master), 0)))
 	    goto error_free_block;
 	
+	/* Updating master super block in filesystem instance */
 	aal_memcpy(fs->master, master, sizeof(*master));
 	
+	/* Setting actual used block size from master super block */
 	if (aal_device_set_bs(fs->host_device, get_mr_block_size(master))) {
 	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
 		"Invalid block size detected %u. It must be power of two.", 
@@ -100,6 +113,7 @@ error:
 
 #ifndef ENABLE_COMPACT
 
+/* Saves master super block to device. */
 static errno_t reiserfs_master_sync(reiserfs_fs_t *fs) {
     blk_t master_offset;	
     aal_block_t *block;
@@ -111,6 +125,10 @@ static errno_t reiserfs_master_sync(reiserfs_fs_t *fs) {
     if (!(block = aal_block_alloc(fs->host_device, master_offset, 0)))
 	return -1;
     
+    /* 
+	Writing master super block to host device. Host device is device where
+	filesystem lies. There is also journal device.
+    */
     aal_memcpy(block->data, fs->master, REISERFS_DEFAULT_BLOCKSIZE);
     if (aal_block_write(fs->host_device, block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -124,6 +142,7 @@ static errno_t reiserfs_master_sync(reiserfs_fs_t *fs) {
 
 #endif
 
+/* Frees master super block occupied memory */
 static void reiserfs_master_close(reiserfs_fs_t *fs) {
     aal_assert("umka-146", fs != NULL, return);
     aal_assert("umka-147", fs->master != NULL, return);
@@ -131,6 +150,11 @@ static void reiserfs_master_close(reiserfs_fs_t *fs) {
     aal_free(fs->master);
 }
 
+/*
+    Builds root directory key. It is used for any lookups and other. This method id 
+    needed because of root key in reiser3 and reiser4 has a diffrent locality and object
+    id values.
+*/
 errno_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs, 
     reiserfs_key_t *key, reiserfs_id_t key_plugin_id) 
 {
@@ -138,22 +162,31 @@ errno_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs,
     oid_t root_parent_objectid;
     reiserfs_plugin_t *key_plugin;
     
+    /* Finding needed key plugin by its identifier */
     if (!(key_plugin = libreiser4_factory_find(REISERFS_KEY_PLUGIN, key_plugin_id)))
 	libreiser4_factory_failed(return -1, find, key, key_plugin_id);
 
+    /* Getting root directory attributes from oid allocator */
     root_parent_objectid = libreiser4_plugin_call(return -1,
 	fs->oid->plugin->oid, root_parent_objectid,);
 
     root_objectid = libreiser4_plugin_call(return -1,
 	fs->oid->plugin->oid, root_objectid,);
 
+    /* Initializing the key by found plugin */
     reiserfs_key_init(key, key_plugin);
+
+    /* Building the key */
     reiserfs_key_build_file_key(key, KEY40_STATDATA_MINOR,
 	root_parent_objectid, root_objectid, 0);
 
     return 0;
 }
 
+/* 
+    Opens filesysetm on specified host device and journal device. Replays the 
+    journal if "replay" flag is specified.
+*/
 reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, 
     aal_device_t *journal_device, int replay) 
 {
@@ -176,29 +209,40 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     fs->host_device = host_device;
     fs->journal_device = journal_device;
 
+    /* Reads master super block. See above for details */
     if (reiserfs_master_open(fs))
 	goto error_free_fs;
-	    
+    
+    /* Initializes used disk format. See format.c for details */
     format_plugin_id = get_mr_format_id(fs->master);
     if (!(fs->format = reiserfs_format_open(host_device, format_plugin_id)))
 	goto error_free_master;
 
+    /* Getting plugins in use from disk format object */
     alloc_plugin_id = reiserfs_format_alloc_plugin_id(fs->format);
     journal_plugin_id = reiserfs_format_journal_plugin_id(fs->format);
     oid_plugin_id = reiserfs_format_oid_plugin_id(fs->format);
    
     len = reiserfs_format_get_blocks(fs->format);
     
+    /* Initializes block allocator. See alloc.c for details */
     if (!(fs->alloc = reiserfs_alloc_open(host_device, len, alloc_plugin_id)))
 	goto error_free_super;
-	
+    
+    /* Jouranl device may be not specified. In this case it will not be opened */
     if (journal_device) {
+	    
+	/* Setting up block size in use for journal device */
 	aal_device_set_bs(journal_device, reiserfs_fs_blocksize(fs));
 
+	/* Initializing the journal. See  journal.c for details */
 	if (!(fs->journal = reiserfs_journal_open(journal_device, journal_plugin_id)))
 	    goto error_free_alloc;
 	
-	/* Reopening recent superblock */
+	/* 
+	    Reopening super block after journal replaying. It is needed because
+	    journal may contain super block in unflushed transactions.
+	*/
 	if (replay) {
 	    if (reiserfs_journal_replay(fs->journal)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -210,15 +254,21 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 	}
     }
     
+    /* Initializes oid allocator */
     libreiser4_plugin_call(goto error_free_journal, fs->format->plugin->format, 
 	oid, fs->format->entity, &oid_area_start, &oid_area_end);
     
     if (!(fs->oid = reiserfs_oid_open(oid_area_start, oid_area_end, oid_plugin_id)))
 	goto error_free_journal;
   
+    /* 
+	Initilaizes root directory key.
+	FIXME-UMKA: Here should be not hardcoded key id.
+    */
     if (reiserfs_fs_build_root_key(fs, &root_key, 0x0))
 	goto error_free_oid;
     
+    /* Opens the tree starting from root block */
     if (!(fs->tree = reiserfs_tree_open(host_device, fs->alloc, 
 	    reiserfs_format_get_root(fs->format), &root_key)))
 	goto error_free_oid;
@@ -246,6 +296,7 @@ error:
 
 #define REISERFS_MIN_SIZE (23 + 100)
 
+/* Creates filesystem on specified host and journal device */
 reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile, 
     aal_device_t *host_device, size_t blocksize, const char *uuid, 
     const char *label, count_t len, aal_device_t *journal_device, 
@@ -264,6 +315,7 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
     aal_assert("umka-150", journal_device != NULL, return NULL);
     aal_assert("vpf-113", profile != NULL, return NULL);
 
+    /* Makes check for validness of specified block size value */
     if (!aal_pow_of_two(blocksize)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Invalid block size %u. It must be power of two.", 
@@ -271,6 +323,7 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
 	return NULL;
     }
 
+    /* Checks whether filesystem size is enough big */
     if (aal_device_len(host_device) < REISERFS_MIN_SIZE) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Device %s is too small (%llu). ReiserFS required device %u blocks long.", 
@@ -284,12 +337,15 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
     fs->host_device = host_device;
     fs->journal_device = journal_device;
 
+    /* Creates master super block */
     if (reiserfs_master_create(fs, profile->format, blocksize, uuid, label))
 	goto error_free_fs;
 
+    /* Creates disk format */
     if (!(fs->format = reiserfs_format_create(host_device, len, profile->tail, profile->format)))
 	goto error_free_master;
 
+    /* Creates block allocator */
     if (!(fs->alloc = reiserfs_alloc_create(host_device, len, profile->alloc)))
 	goto error_free_format;
 
@@ -304,6 +360,7 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
     /* Marking format-specific super blocks as used */
     reiserfs_alloc_mark(fs->alloc, reiserfs_format_offset(fs->format));
     
+    /* Creates journal on journal device */
     if (!(fs->journal = reiserfs_journal_create(journal_device, 
 	    journal_params, profile->journal)))
 	goto error_free_alloc;
@@ -311,9 +368,14 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
     libreiser4_plugin_call(goto error_free_journal, fs->journal->plugin->journal, 
 	area, fs->journal->entity, &journal_area_start, &journal_area_end);
     
+    /* Setts up journal blocks in block allocator */
     for (blk = journal_area_start; blk <= journal_area_end; blk++)
 	reiserfs_alloc_mark(fs->alloc, blk);
    
+    /* 
+	Initializes oid allocator on got from disk format oid area of disk format 
+	specific super block.
+    */
     libreiser4_plugin_call(goto error_free_journal, fs->format->plugin->format, 
 	oid, fs->format->entity, &oid_area_start, &oid_area_end);
     
@@ -321,32 +383,39 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
 	    profile->oid)))
 	goto error_free_journal;
 
+    /* Initializes root key */
     if (reiserfs_fs_build_root_key(fs, &root_key, profile->key))
 	goto error_free_oid;
     
+    /* Creates tree */
     if (!(fs->tree = reiserfs_tree_create(host_device, fs->alloc, 
 	    &root_key, profile)))
 	goto error_free_oid;
     
+    /* Setts up root block */
     root_node = reiserfs_tree_root_node(fs->tree);
     reiserfs_format_set_root(fs->format, aal_block_get_nr(root_node->block));
 
+    /* Creates root directory */
     {
 	reiserfs_key_t *root_key;
 	reiserfs_plugin_t *dir_plugin;
 	
+	/* Finding directroy plugin */
 	if (!(dir_plugin = libreiser4_factory_find(REISERFS_DIR_PLUGIN, profile->dir)))
 	    libreiser4_factory_failed(goto error_free_tree, find, dir, profile->dir);
 
+	/* Creating object "dir40". See object.c for details */
 	if (!(root_dir = reiserfs_object_create(fs, NULL, dir_plugin, profile))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't create root directory.");
 	    goto error_free_tree;
 	}
-		
+	
 	reiserfs_object_close(root_dir);
     }
     
+    /* Setts up free blocks in block allocator */
     reiserfs_format_set_free(fs->format, reiserfs_alloc_free(fs->alloc));
     
     return fs;
@@ -369,6 +438,7 @@ error:
     return NULL;
 }
 
+/* Synchronizes all filesystem objects to device */
 errno_t reiserfs_fs_sync(reiserfs_fs_t *fs) {
     aal_assert("umka-231", fs != NULL, return -1);
    
@@ -400,8 +470,8 @@ errno_t reiserfs_fs_check(reiserfs_fs_t *fs) {
 #endif
 
 /* 
-    Closes all filesystem's entities. Calls plugins' "done" 
-    routine for every plugin and frees all assosiated memory. 
+    Closes all filesystem's entities. Calls plugins' "done" routine for every 
+    plugin and frees all assosiated memory. 
 */
 void reiserfs_fs_close(reiserfs_fs_t *fs) {
     
@@ -420,10 +490,12 @@ void reiserfs_fs_close(reiserfs_fs_t *fs) {
     aal_free(fs);
 }
 
+/* Returns format string from disk format object (for instance, reiserfs 4.0) */
 const char *reiserfs_fs_format(reiserfs_fs_t *fs) {
     return reiserfs_format_format(fs->format);
 }
 
+/* Returns disk format plugin in use */
 reiserfs_id_t reiserfs_fs_format_plugin_id(reiserfs_fs_t *fs) {
     aal_assert("umka-151", fs != NULL, return -1);
     aal_assert("umka-152", fs->master != NULL, return -1);
@@ -431,6 +503,7 @@ reiserfs_id_t reiserfs_fs_format_plugin_id(reiserfs_fs_t *fs) {
     return get_mr_format_id(fs->master);
 }
 
+/* Returns filesystem block size value */
 uint16_t reiserfs_fs_blocksize(reiserfs_fs_t *fs) {
     aal_assert("umka-153", fs != NULL, return 0);
     aal_assert("umka-154", fs->master != NULL, return 0);
