@@ -852,7 +852,7 @@ int jdelete( jnode *node /* jnode to finish with */ )
 			assert( "nikita-2181", PageLocked( page ) );
 			ClearPageDirty( page );
 			ClearPageUptodate( page );
-			remove_inode_page( page );
+			remove_from_page_cache( page );
 
 			page_clear_jnode( page, node );
 			unlock_page( page );
@@ -908,7 +908,7 @@ int jdrop_in_tree( jnode *node, reiser4_tree *tree )
 			assert( "nikita-2126", !PageDirty( page ) );
 			assert( "nikita-2127", PageUptodate( page ) );
 			assert( "nikita-2181", PageLocked( page ) );
-			remove_inode_page( page );
+			remove_from_page_cache( page );
 			page_clear_jnode( page, node );
 			unlock_page( page );
 			page_cache_release( page );

@@ -154,7 +154,7 @@ struct reiser4_super_info_data {
 	/**
 	 * list of all jnodes
 	 */
-	list_t               all_jnodes;
+	struct list_head     all_jnodes;
 #endif
 
 	/* disk layout plugin */

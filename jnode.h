@@ -76,7 +76,7 @@ struct jnode
 	capture_list_link capture_link;
 #if REISER4_DEBUG
 	/** list of all jnodes for debugging purposes. */
-	list_t jnodes;
+	struct list_head  jnodes;
 #endif
 };
 
