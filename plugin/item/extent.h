@@ -57,7 +57,7 @@ void extent_print (const char *, tree_coord *);
  * plugin->u.item.s.file.*
  */
 int extent_write (struct inode *, tree_coord *, reiser4_lock_handle *, flow *);
-int extent_fill_page (struct page *, tree_coord *, reiser4_lock_handle *);
+int extent_read (struct inode *, tree_coord *, reiser4_lock_handle *, flow *);
 int extent_readpage (void * arg, struct page * page);
 
 

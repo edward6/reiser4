@@ -24,3 +24,9 @@ int tail_cut_units (tree_coord * item, unsigned from, unsigned count,
 		    const reiser4_key * to_key UNUSED_ARG,
 		    reiser4_key * smallest_removed);
 reiser4_key * tail_unit_key (const tree_coord * coord, reiser4_key * key);
+
+/*
+ * plugin->u.item.s.file.*
+ */
+int tail_write (struct inode *, tree_coord *, reiser4_lock_handle *, flow *);
+int tail_read (struct inode *, tree_coord *, reiser4_lock_handle *, flow *);

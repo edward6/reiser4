@@ -363,8 +363,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				},
 				.s = {
 					.file = {
-						.write = NULL,
-						.read  = NULL,
+						.write = tail_write,
+						.read  = tail_read,
 						.readpage = NULL
 					}
 				},
