@@ -28,7 +28,7 @@ get_exclusive_access(unix_file_info_t *uf_info)
 	assert("nikita-3361", get_current_context()->trans->atom == NULL);
 	BUG_ON(get_current_context()->trans->atom != NULL);
 	LOCK_CNT_INC(inode_sem_w);
-	rw_latch_down_write(&uf_info->latch);
+	down_write(&uf_info->latch);
 	assert("nikita-3060", inode_ea_owner(uf_info) == NULL);
 	assert("vs-1157", !ea_obtained(uf_info));
 	ea_set(uf_info, current);
@@ -42,7 +42,7 @@ drop_exclusive_access(unix_file_info_t *uf_info)
 	assert("vs-1158", ea_obtained(uf_info));
 	ea_set(uf_info, 0);
 	uf_info->exclusive_use = 0;
-	rw_latch_up_write(&uf_info->latch);
+	up_write(&uf_info->latch);
 	assert("nikita-3049", LOCK_CNT_NIL(inode_sem_r));
 	assert("nikita-3049", LOCK_CNT_GTZ(inode_sem_w));
 	LOCK_CNT_DEC(inode_sem_w);
@@ -53,7 +53,7 @@ reiser4_internal void
 get_nonexclusive_access(unix_file_info_t *uf_info)
 {
 	assert("nikita-3029", schedulable());
-	rw_latch_down_read(&uf_info->latch);
+	down_read(&uf_info->latch);
 	LOCK_CNT_INC(inode_sem_r);
 	assert("nikita-3060", inode_ea_owner(uf_info) == NULL);
 	assert("vs-1159", !ea_obtained(uf_info));
@@ -64,7 +64,7 @@ drop_nonexclusive_access(unix_file_info_t *uf_info)
 {
 	assert("nikita-3060", inode_ea_owner(uf_info) == NULL);
 	assert("vs-1160", !ea_obtained(uf_info));
-	rw_latch_up_read(&uf_info->latch);
+	up_read(&uf_info->latch);
 	LOCK_CNT_DEC(inode_sem_r);
 }
 

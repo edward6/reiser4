@@ -4161,7 +4161,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 		UNLOCK_JNODE(node);
 		UNLOCK_ATOM(atom);
 
-		rw_latch_down_write(&reiser4_inode_data(inode)->coc_sem);
+		down_write(&reiser4_inode_data(inode)->coc_sem);
 		lock_page(page);
 		pte_chain_lock(page);
 
@@ -4179,7 +4179,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 			if (result != 0) {
 				unlock_page(page);
 				pte_chain_unlock(page);
-				rw_latch_up_write(&reiser4_inode_data(inode)->coc_sem);
+				up_write(&reiser4_inode_data(inode)->coc_sem);
 				return result;
 			}
 		}
@@ -4205,7 +4205,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 	assert("vs-1626", spin_atom_is_not_locked(atom));
 
 	if (inode != NULL)
-		rw_latch_up_write(&reiser4_inode_data(inode)->coc_sem);
+		up_write(&reiser4_inode_data(inode)->coc_sem);
 
 	return result;
 }

@@ -1185,7 +1185,7 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index)
 		struct page *pg;
 
 		/* look for page with index >= *index tagged as REISER4_MOVED */
-		found = radix_tree_gang_lookup_tag(&mapping->page_tree, (void **)&pg, *index, 1, 
+		found = radix_tree_gang_lookup_tag(&mapping->page_tree, (void **)&pg, *index, 1,
 						   PAGECACHE_TAG_REISER4_MOVED);
 		assert("vs-1652", found < 2);
 		if (found == 0) {
@@ -1468,12 +1468,12 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 		 * sleep on semaphore.
 		 */
 		if (is_in_reiser4_context()) {
-			if (rw_latch_try_read(&uf_info->latch) != 0) {
+			if (down_read_trylock(&uf_info->latch) != 0) {
 				result = RETERR(-EBUSY);
 				break;
 			}
 		} else
-			rw_latch_down_read(&uf_info->latch);
+			down_read(&uf_info->latch);
 
 		init_context(&ctx, inode->i_sb);
 		/* avoid recursive calls to ->sync_inodes */
@@ -1483,7 +1483,7 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 		LOCK_CNT_INC(inode_sem_r);
 
 		result = capture_anonymous_pages(inode->i_mapping, &index);
-		rw_latch_up_read(&uf_info->latch);
+		up_read(&uf_info->latch);
 		LOCK_CNT_DEC(inode_sem_r);
 		if (result != 0 || wbc->sync_mode != WB_SYNC_ALL) {
 			reiser4_exit_context(&ctx);
@@ -1966,13 +1966,13 @@ unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int
 	inode = area->vm_file->f_dentry->d_inode;
 
 	/* block filemap_nopage if copy on capture is processing with a node of this file */
-	rw_latch_down_read(&reiser4_inode_data(inode)->coc_sem);
+	down_read(&reiser4_inode_data(inode)->coc_sem);
 	get_nonexclusive_access(unix_file_inode_data(inode));
 
 	page = filemap_nopage(area, address, 0);
 
 	drop_nonexclusive_access(unix_file_inode_data(inode));
-	rw_latch_up_read(&reiser4_inode_data(inode)->coc_sem);
+	up_read(&reiser4_inode_data(inode)->coc_sem);
 	return page;
 }
 
@@ -2476,7 +2476,7 @@ init_inode_data_unix_file(struct inode *inode,
 
 	data = unix_file_inode_data(inode);
 	data->container = create ? UF_CONTAINER_EMPTY : UF_CONTAINER_UNKNOWN;
-	rw_latch_init(&data->latch);
+	init_rwsem(&data->latch);
 	data->tplug = inode_formatting_plugin(inode);
 	data->exclusive_use = 0;
 	

@@ -49,14 +49,12 @@ typedef enum {
 	UF_CONTAINER_EMPTY = 3
 } file_container_t;
 
-#include "../../latch.h"
-
 struct formatting_plugin;
 struct inode;
 
 /* unix file plugin specific part of reiser4 inode */
 typedef struct unix_file_info {
-	rw_latch_t latch; /* this read-write lock protects file containerization change. Accesses which do not change
+	struct rw_semaphore latch; /* this read-write lock protects file containerization change. Accesses which do not change
 			     file containerization (see file_container_t) (read, readpage, writepage, write (until tail
 			     conversion is involved)) take read-lock. Accesses which modify file containerization
 			     (truncate, conversion from tail to extent and back) take write-lock. */
