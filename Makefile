@@ -78,7 +78,7 @@ reiser4-objs := \
 		   diskmap.o \
 		   prof.o \
 		   repacker.o \
-		   reiser4_status_flags.o \
+		   status_flags.o \
 		   init_super.o \
 		   crab_lock.o \
            \
