@@ -898,6 +898,7 @@ typedef struct mkdir_thread_info {
 void *mkdir_thread( void *arg )
 {
 	int                i;
+	char               dir_name[ 30 ];
 	char               name[ 30 ];
 	mkdir_thread_info *info;
 	struct dentry      dentry;
@@ -910,13 +911,13 @@ void *mkdir_thread( void *arg )
 	info = arg;
 	old_context = reiser4_get_current_context();
 
-	sprintf( name, "Dir-%i", current_pid );
-	dentry.d_name.name = name;
-	dentry.d_name.len = strlen( name );
+	sprintf( dir_name, "Dir-%i", current_pid );
+	dentry.d_name.name = dir_name;
+	dentry.d_name.len = strlen( dir_name );
 	SUSPEND_CONTEXT( old_context );
 	ret = info -> dir -> i_op -> mkdir( info -> dir, 
 					    &dentry, S_IFDIR | 0777 );
-	rlog( "nikita-1638", "In directory: %s", name );
+	rlog( "nikita-1638", "In directory: %s", dir_name );
 	reiser4_init_context( old_context, info -> dir -> i_sb );
 
 	if( ret != 0 ) {
@@ -936,7 +937,8 @@ void *mkdir_thread( void *arg )
 		SUSPEND_CONTEXT( old_context );
 		ret = f -> i_op -> mkdir( f, &dentry, S_IFDIR | 0777 );
 		reiser4_init_context( old_context, f -> i_sb );
-		info( "(%i) %i: %s: %i\n", current_pid, i, name, ret );
+		info( "(%i) %i: %s/%s: %i\n", current_pid, i, 
+		      dir_name, name, ret );
 		if( ( ret != 0 ) && ( ret != -EEXIST ) )
 			rpanic( "nikita-1493", "!!!" );
 		/* print_tree_rec( "tree", tree, 
