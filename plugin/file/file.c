@@ -59,7 +59,7 @@ less_than_ldk(znode *node, const reiser4_key *key)
 	return UNDER_RW(dk, current_tree, read, keylt(key, znode_get_ld_key(node)));
 }
 
-static int
+int
 equal_to_rdk(znode *node, const reiser4_key *key)
 {
 	return UNDER_RW(dk, current_tree, read, keyeq(key, znode_get_rd_key(node)));
@@ -73,7 +73,7 @@ less_than_rdk(znode *node, const reiser4_key *key)
 	return UNDER_RW(dk, current_tree, read, keylt(key, znode_get_rd_key(node)));
 }
 
-static int
+int
 equal_to_ldk(znode *node, const reiser4_key *key)
 {
 	return UNDER_RW(dk, current_tree, read, keyeq(key, znode_get_ld_key(node)));
@@ -694,7 +694,7 @@ truncate_unix_file(struct inode *inode, loff_t new_size)
 
 /* get access hint (seal, coord, key, level) stored in reiser4 private part of
    struct file if it was stored in a previous access to the file */
-static int
+int
 load_file_hint(struct file *file, hint_t *hint, lock_handle *lh)
 {
 	reiser4_file_fsdata *fsdata;
@@ -717,7 +717,7 @@ load_file_hint(struct file *file, hint_t *hint, lock_handle *lh)
 
 /* this copies hint for future tree accesses back to reiser4 private part of
    struct file */
-static void
+void
 save_file_hint(struct file *file, const hint_t *hint)
 {
 	reiser4_file_fsdata *fsdata;
@@ -771,13 +771,13 @@ hint_validate(hint_t *hint, const reiser4_key *key, int check_key, znode_lock_mo
 {
 	int result;
 	coord_t *coord;
-
+	
 	if (!hint || !hint_is_set(hint))
 		/* hint either not set or set for different key */
 		return RETERR(-EAGAIN);
 
 	assert("vs-1277", all_but_offset_key_eq(key, &hint->seal.key));
-
+	
 	if (check_key && get_key_offset(key) != hint->offset)
 		return RETERR(-EAGAIN);
 
@@ -830,7 +830,7 @@ unix_file_writepage_nolock(struct page *page)
 	loaded = lh.node;
 	/* get plugin of extent item */
 	iplug = item_plugin_by_id(EXTENT_POINTER_ID);
-	result = iplug->s.file.writepage(&hint.coord, page, how_to_write(&hint.coord, &key));
+	result = iplug->s.file.writepage(&key, &hint.coord, page, how_to_write(&hint.coord, &key));
 	assert("vs-982", PageLocked(page));
 	assert("vs-429378", result != -EAGAIN);
 	zrelse(loaded);
@@ -839,7 +839,7 @@ unix_file_writepage_nolock(struct page *page)
 }
 
 /* plugin->u.file.writepage this does not start i/o against this page. It just must garantee that tree has a pointer to
-   this page */
+   this page. This is called for pages which were dirtied via mmap-ing by reiser4_writepages */
 int
 writepage_unix_file(struct page *page)
 {
@@ -851,54 +851,14 @@ writepage_unix_file(struct page *page)
 	inode = page->mapping->host;
 	assert("vs-1032", PageLocked(page));
 	assert("vs-1139", file_is_built_of_extents(inode));
+	/* page belongs to file */
+	assert("vs-1393", inode->i_size > ((loff_t) page->index << PAGE_CACHE_SHIFT));
 
-	if (inode->i_size < ((loff_t) page->index << PAGE_CACHE_SHIFT)) {		
-		/* The file was truncated but the page was not yet processed
-		   by truncate_inode_pages. Probably we can safely do nothing
-		   here */
-		warning("vs-1127", "page (index %lu) is truncated? file (oid %llu, size %llu)\n",
-			page->index, get_inode_oid(inode), inode->i_size);
-		return 0;
-	}
-	
-	if (PagePrivate(page)) {
-		result = reiser4_grab_space(1, BA_CAN_COMMIT, "unix_file_writepage");
-		if (result)
-			warning("vs-1246", "Failed to grab space for page (%llu (%lu): %d\n",
-				get_inode_oid(inode), page->index, result);
-		else {
-			jnode *j;
-			
-			j = jnode_by_page(page);
-			/* tree already has pointer to this page */
-			assert("vs-1097", jnode_mapped(j));
-
-			jref(j);
-			reiser4_unlock_page(page);
-
-			LOCK_JNODE(j);
-			result = try_capture(j, ZNODE_WRITE_LOCK, 0);
-			if (result)
-				warning("vs-1245", "Failed to capture page (%llu (%lu): %d\n",
-					get_inode_oid(inode), page->index, result);
-			else {
-				unformatted_jnode_make_dirty(j);
-			}
-			UNLOCK_JNODE(j);
-			reiser4_lock_page(page);
-			jput(j);
-		}
-		return result;
-	}
-
-	/* to keep order of locks right we have to unlock page before call to get_nonexclusive_access */
-	page_cache_get(page);
 	reiser4_unlock_page(page);
-
 	uf_info = unix_file_inode_data(inode);
 	get_nonexclusive_access(uf_info);
 	if (inode->i_size <= ((loff_t) page->index << PAGE_CACHE_SHIFT)) {
-		/* page is out of file */
+		/* race with truncate? */
 		drop_nonexclusive_access(uf_info);
 		reiser4_lock_page(page);
 		page_cache_release(page);
@@ -906,17 +866,13 @@ writepage_unix_file(struct page *page)
 	}
 
 	/* writepage may involve insertion of one unit into tree */
-	if ((result = reiser4_grab_space(estimate_one_insert_into_item(tree_by_inode(inode)), BA_CAN_COMMIT, "unix_file_writepage")) != 0)
-		goto out;
-
-	result = unix_file_writepage_nolock(page);
-
-	assert("vs-1068", PageLocked(page));
-
+	result = reiser4_grab_space(estimate_one_insert_into_item(tree_by_inode(inode)), BA_CAN_COMMIT, "unix_file_writepage");
+	if (likely(!result)) {
+		result = unix_file_writepage_nolock(page);
+		assert("vs-1068", PageLocked(page));
+	}
 	all_grabbed2free("unix_file_writepage");
- out:
 	drop_nonexclusive_access(uf_info);
-	page_cache_release(page);
 	return result;
 }
 
