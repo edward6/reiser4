@@ -641,6 +641,7 @@ static struct page * new_page (struct address_space * mapping,
 	/* use kmap to set this */
 	page->virtual = 0;
 	spin_lock_init (&page->lock);
+	spin_lock_init (&page->lock2);
 
 	spin_lock( &page_list_guard );
 	list_add (&page->list, &page_list);
@@ -666,10 +667,10 @@ void unlock_page (struct page * p)
 
 void remove_inode_page (struct page * page)
 {
-	spin_lock (&page->lock);
+	spin_lock (&page->lock2);
 	assert ("vs-618", (page->count == 2 && PageLocked (page)));
 	page->mapping = 0;
-	spin_unlock (&page->lock);
+	spin_unlock (&page->lock2);
 
 	txn_delete_page (page);
 }
@@ -684,13 +685,13 @@ struct page * find_get_page (struct address_space * mapping,
 
 	list_for_each (cur, &page_list) {
 		page = list_entry (cur, struct page, list);
-		spin_lock (&page->lock);
+		spin_lock (&page->lock2);
 		if (page->index == ind && page->mapping == mapping) {
 			page->count ++;
-			spin_unlock (&page->lock);
+			spin_unlock (&page->lock2);
 			return page;
 		}
-		spin_unlock (&page->lock);
+		spin_unlock (&page->lock2);
 	}
 	return 0;
 }
@@ -710,7 +711,7 @@ static void truncate_inode_pages (struct address_space * mapping,
 		page = list_entry (cur, struct page, list);
 		if (page->mapping == mapping) {
 			if (page->index >= ind) {
-				lock_page (page);
+				spin_lock (&page->lock2);
 				page->count ++;
 				remove_inode_page (page);
 				page->count --;
@@ -720,7 +721,7 @@ static void truncate_inode_pages (struct address_space * mapping,
 					spin_unlock( &page_list_guard );
 					free (page);
 				}
-				unlock_page (page);
+				spin_unlock (&page->lock2);
 			}
 		}
 	}
@@ -850,12 +851,13 @@ static void invalidate_pages (void)
 	spin_lock( &page_list_guard );
 	list_for_each_safe (cur, tmp, &page_list) {
 		page = list_entry (cur, struct page, list);
+		spin_lock (&page->lock2);
 		lock_page (page);
 		assert ("vs-666", !PageDirty (page) && page->count == 0 &&
 			!PageKmaped (page));
 		list_del_init( &page -> list );
 		free (page);
-		lock_page (page);
+		spin_unlock (&page->lock2);
 	}
 	spin_unlock( &page_list_guard );
 }
@@ -886,14 +888,14 @@ void print_inodes (void)
 
 char * kmap (struct page * page)
 {
-	spin_lock (&page->lock);
+	spin_lock (&page->lock2);
 	if (!PageKmaped (page)) {
 		assert ("vs-664", page->kmap_count == 0);
 		SetPageKmaped (page);
 		page->virtual = (char *)page + sizeof (struct page);
 	}
 	page->kmap_count ++;
-	spin_unlock (&page->lock);
+	spin_unlock (&page->lock2);
 	return page->virtual;
 }
 
@@ -902,13 +904,13 @@ void kunmap (struct page * page)
 {
 	assert ("vs-665", PageKmaped (page));
 	assert ("vs-724", page->kmap_count > 0);
-	spin_lock (&page->lock);
+	spin_lock (&page->lock2);
 	page->kmap_count --;
 	if (page->kmap_count == 0) {
 		ClearPageKmaped (page);
 		page->virtual = 0;
 	}
-	spin_unlock (&page->lock);
+	spin_unlock (&page->lock2);
 }
 
 unsigned long get_jiffies ()
