@@ -606,7 +606,8 @@ find_extent_slum_size(const coord_t *start, unsigned pos_in_unit)
 					   is neither captured nor dirty */
 					assert("vs-1426", ergo(i != width - 1, !jnode_check_flushprepped(node)));
 					assert("vs-1408", ergo(i != width - 1, jnode_is_of_the_same_atom(node)));
-					jput(node);
+					if (node)
+						jput(node);
 				});
 			slum_size += width;			
 			index += width;
