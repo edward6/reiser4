@@ -582,9 +582,6 @@ static int           flush_pos_set_point          (flush_position *pos, jnode *n
 static void          flush_pos_release_point      (flush_position *pos);
 static int           flush_pos_lock_parent        (flush_position *pos, coord_t *parent_coord, lock_handle *parent_lock, load_count *parent_load, znode_lock_mode mode);
 
-static int           flush_invalidate_jnode       (struct flush_position * pos,
-						   jnode *node);
-
 /* Flush debug functions */
 static const char*   flush_pos_tostring           (flush_position *pos);
 static const char*   flush_jnode_tostring         (jnode *node);
@@ -2420,21 +2417,6 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 	return ret;
 }
 
-static void jnode_relist (jnode *node, txn_atom * atom)
-{
-	assert ("nikita-2592", node != NULL );
-	assert ("nikita-2593", spin_jnode_is_locked (node));
-	assert ("nikita-2594", atom != NULL );
-
-	capture_list_remove (node);
-
-	if (jnode_is_dirty(node))
-		capture_list_push_back 
-			(&atom->dirty_nodes[jnode_get_level(node)], node);
-	else
-		capture_list_push_back (&atom->clean_nodes, node);
-}
-
 /* Enter a jnode into the flush queue. */
 static int flush_queue_jnode (jnode *node, flush_position *pos)
 {
@@ -2468,7 +2450,6 @@ static int flush_queue_jnode (jnode *node, flush_position *pos)
 
 		capture_list_remove (node);
 		capture_list_push_back(&pos->queue, jref (node));
-		JF_CLR (node, JNODE_DIRTY);
 
 		spin_unlock_atom (atom);
 	}
@@ -2493,7 +2474,9 @@ static void flush_dequeue_jnode (flush_position * pos, jnode * node)
 
 	JF_CLR (node, JNODE_FLUSH_QUEUED);
 	JF_CLR (node, JNODE_DIRTY);
-	jnode_relist (node, atom);
+
+	capture_list_remove (node);
+	capture_list_push_back (&atom->clean_nodes, node);
 
 	pos->queue_num --;
 	atom->num_queued --;
@@ -2587,7 +2570,7 @@ static int flush_empty_queue (flush_position *pos)
 
 		/* FIXME(D): See the atomicity comment in flush_rewrite_jnode. */
 		if (! jnode_check_dirty (check) || JF_ISSET (check, JNODE_HEARD_BANSHEE)) {
-			flush_invalidate_jnode (pos, check);
+			flush_dequeue_jnode (pos, check);
 			trace_on (TRACE_FLUSH, "flush_empty_queue not dirty %s\n", flush_jnode_tostring (check));
 			continue;
 		}
@@ -3638,39 +3621,38 @@ static int flush_pos_valid (flush_position *pos)
 	return pos->point != NULL || lock_mode (& pos->parent_lock) != ZNODE_NO_LOCK;
 }
 
-static int flush_invalidate_jnode (struct flush_position * pos, jnode *node)
-{
-	txn_atom * atom;
-
-	spin_lock_jnode (node);
-	atom = atom_get_locked_by_jnode (node);
-
-	JF_CLR (node, JNODE_FLUSH_QUEUED);
-	JF_SET (node, JNODE_DIRTY);
-
-	pos->queue_num --;
-	atom->num_queued --;
-
-	jnode_relist (node, atom);
-	spin_unlock_jnode (node);
-
-	if (capture_list_empty(&pos->queue)) {
-		flushers_list_remove(pos);
-		spin_unlock_atom (atom);
-		return 0;
-	}
-
-	spin_unlock_atom (atom);
-	return 1;
-}
-
+/* Return jnode back to atom's lists */
 /* Return jnode back to atom's lists */
 static void invalidate_flush_queue (struct flush_position * pos)
 {
-	if (capture_list_empty(&pos->queue)) 
-		return;
-	while (flush_invalidate_jnode (pos, capture_list_front (&pos->queue)))
-	{;}
+	if (capture_list_empty(&pos->queue)) return;
+
+	while (1) {
+		jnode * cur = capture_list_pop_front (&pos->queue);
+		txn_atom * atom;
+
+		spin_lock_jnode (cur);
+		atom = atom_get_locked_by_jnode (cur);
+
+		/*JF_CLR (cur, JNODE_FLUSH_BUSY);*/
+		JF_CLR (cur, JNODE_FLUSH_QUEUED);
+
+		pos->queue_num --;
+		atom->num_queued --;
+
+		if (jnode_is_dirty(cur)) capture_list_push_back (&atom->dirty_nodes[jnode_get_level(cur)], cur);
+		else                     capture_list_push_back (&atom->clean_nodes, cur);
+
+		spin_unlock_jnode (cur);
+
+		if (capture_list_empty(&pos->queue)) {
+			flushers_list_remove(pos);
+			spin_unlock_atom (atom);
+			break;
+		}
+
+		spin_unlock_atom (atom);
+	}
 }
 
 /* Release any resources of a flush_position.  Called when jnode_flush finishes. */
