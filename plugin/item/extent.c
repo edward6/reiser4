@@ -1149,8 +1149,6 @@ static extent_write_todo what_todo (tree_coord * coord, reiser4_key * key)
 	}
 	spin_unlock_dk (current_tree);
 
-	/*info ("FIXME: Uncomment the above once znodes support delimiting keys\n");*/
-
 	if (coord_of_unit (coord))
 		return key_in_extent (coord, key) ? OVERWRITE_BLOCK : RESEARCH;
 
