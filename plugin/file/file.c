@@ -1294,108 +1294,6 @@ static reiser4_block_nr unix_file_estimate_read(struct inode *inode,
    the read method for the unix_file plugin
 
 */
-#if 0
-int first_read_started = 0;
-int second_read_started = 0;
-
-static int
-debugging_can_read(loff_t *off)
-{
-	if (*off == 0) {
-		if (first_read_started == 1) {
-			/* second read started */
-			return 1;
-		} else {
-			first_read_started = 1;
-			return 0;
-		}
-	}
-}
-
-static ssize_t
-debugging_read(struct file *file, unix_file_info_t *uf_info, char *buf, size_t read_amount, loff_t *off)
-{
-	/* short read */
-	struct page *page;
-
-	get_nonexclusive_access(uf_info);
-		
-	/*needed = unix_file_estimate_read(inode, read_amount);*/
-	needed = tree_by_inode(inode)->estimate_one_insert;
-
-	result = reiser4_grab_space(needed, BA_CAN_COMMIT, "unix_file_read");	
-	if (result != 0) {
-		drop_nonexclusive_access(uf_info);
-		return RETERR(-ENOSPC);
-	}
-	result = unix_file_build_flow(inode, buf, 1 /* user space */ , read_amount, *off, READ_OP, &f);
-	if (unlikely(result)) {
-		drop_nonexclusive_access(uf_info);
-		return result;
-	}
-	result = load_file_hint(file, &hint);
-	if (unlikely(result)) {
-		drop_nonexclusive_access(uf_info);
-		return result;
-	}
-	/* initialize readahead info */
-	ra_info.key_to_stop = f.key;
-	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
-
-	read = 0;
-	while (read_amount) {
-		if (*off == 0) {
-			result = find_file_item(&hint, &f.key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, &ra_info, uf_info);
-			BUG_ON(result != CBK_COORD_FOUND);
-		} else {
-			result = seal_validate(&hint.seal, &hint.coord, &f.key,
-					       hint.level, &lh, FIND_MAX_NOT_MORE_THAN, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI);
-			BUG_ON(result != 0);
-		}
-
-		page = find_get_page(inode->i_mapping, *off >> PAGE_CACHE_SHIFT);
-		BUG_ON(page == NULL);
-		BUG_ON(!PageUptodate(page));
-		mark_page_accessed(page);
-
-		lock_page(page);
-		if (PagePrivate(page)) {
-			jnode *j;
-			j = jnode_by_page(page);
-			if (REISER4_USE_EFLUSH && j)
-				UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
-		}
-		unlock_page(page);
-
-		__copy_to_user(buf, kmap(page), PAGE_CACHE_SIZE);
-		kunmap(page);
-		page_cache_release(page);
-			
-		*off += PAGE_CACHE_SIZE;
-		buf += PAGE_CACHE_SIZE;
-		read_amount -= PAGE_CACHE_SIZE;
-		read += PAGE_CACHE_SIZE;
-
-		if (*off == PAGE_CACHE_SIZE) {
-			set_hint(&hint, &f.key, &coord, COORD_RIGHT_STATE);
-		}
-
-		move_coord_pages(&coord, 1);
-		set_key_offset(&f.key, get_key_offset(&f.key) + PAGE_CACHE_SIZE);
-		set_hint(&hint, &f.key, &coord, COORD_RIGHT_STATE);
-		
-		done_lh(&lh);
-		
-	}
-	if (*off == PAGE_CACHE_SIZE)
-		save_file_hint(file, &hint);
-
-	drop_nonexclusive_access(uf_info);
-	return read;
-		
-}
-#endif
-
 ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 {
 	int result;
@@ -1417,11 +1315,6 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 	inode = file->f_dentry->d_inode;
 	assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
 	uf_info = unix_file_inode_data(inode);
-
-/*
-	if (debugging_can_read(off))
-		return debugging_read();
-*/
 
 	get_nonexclusive_access(uf_info);
 	if (*off >= inode->i_size) {
