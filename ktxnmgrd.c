@@ -219,19 +219,6 @@ ktxnmgrd_kick(ktxnmgrd_context * ctx, ktxnmgrd_wake reason)
 	}
 }
 
-/* Did somebody ask us to flush nodes? */
-static int
-need_flush(txn_mgr * tmgr)
-{
-	int ret;
-
-	spin_lock_txnmgr(tmgr);
-	ret = (tmgr->flush_control.nr_to_flush > 0);
-	spin_unlock_txnmgr(tmgr);
-
-	return ret;
-}
-
 /* scan one transaction manager for old atoms */
 static int
 scan_mgr(txn_mgr * mgr)
@@ -254,52 +241,10 @@ scan_mgr(txn_mgr * mgr)
 
 		ret = commit_some_atoms(mgr);
 
-		if (!ret && need_flush(mgr)) {
-			long nr_submitted = 0;
-
-			spin_unlock_ktxnmgrd (mgr->daemon);
-
-			ret = flush_one_atom(mgr, &nr_submitted, 
-					     JNODE_FLUSH_WRITE_BLOCKS);
-
-			spin_lock_ktxnmgrd (mgr->daemon);
-
-			/* FIXME-ZAM: this accounting should be re-implemented
-			 * or just thrown away. It is needed for current
-			 * reiser4_vm_writeback() implementation which does
-			 * not work as it designed (2002.10.21) */
-
-			/*
-			if ((mgr->flush_control.nr_to_flush -=  nr_submitted) < 0) 
-			*/
-			mgr->flush_control.nr_to_flush = 0;
-			mgr->daemon->rescan = 1;
-		}
-
 		spin_ktxnmgrd_dec();
 
 		REISER4_EXIT(ret);
 	}
-}
-
-/* prepare a request for flushing for ktxnmgrd */
-int
-ktxnmgr_writeback(struct super_block *s, struct writeback_control *wbc)
-{
-	txn_mgr *tmgr = &get_super_private(s)->tmgr;
-
-	spin_lock_txnmgr(tmgr);
-
-	if (tmgr->flush_control.nr_to_flush == 0) {
-		tmgr->flush_control.nr_to_flush += wbc->nr_to_write * 2;
-		spin_unlock_txnmgr(tmgr);
-		ktxnmgrd_kick(tmgr->daemon, 0);
-	} else {
-		spin_unlock_txnmgr(tmgr);
-		preempt_point();
-	}
-
-	return 0;
 }
 
 /* Make Linus happy.

@@ -272,11 +272,6 @@ struct txn_handle {
 
 TS_LIST_DECLARE(txn_mgrs);
 
-/* Early flushing control object */
-struct txn_flush_control {
-	long nr_to_flush;
-};
-
 /* The transaction manager: one is contained in the reiser4_super_info_data */
 struct txn_mgr {
 	/* A spinlock protecting the atom list, id_count, flush_control */
@@ -299,9 +294,6 @@ struct txn_mgr {
 
 	/* description of daemon for this txnmgr */
 	ktxnmgrd_context *daemon;
-
-	/* A control object for early flushing (it is done by ktxnmgrd) */
-	struct txn_flush_control flush_control;
 };
 
 TS_LIST_DEFINE(txn_mgrs, txn_mgr, linkage);
