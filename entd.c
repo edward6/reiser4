@@ -24,6 +24,8 @@
  */
 #define USE_ENTD (1)
 
+#define DEF_PRIORITY 12
+
 static void entd_flush(struct super_block *super);
 
 #define set_comm(state)					\
@@ -392,7 +394,7 @@ wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 			 * if scanning priority (which is a measure of memory
 			 * pressure) is lowest, do nothing
 			 */
-			if (wbc->priority != 0) {
+			if (wbc->priority > DEF_PRIORITY / 2) {
 				reiser4_stat_inc(entd.low_priority);
 				result = 1;
 				break;
