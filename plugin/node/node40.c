@@ -1055,7 +1055,7 @@ compact(znode *node, struct cut40_info *cinfo)
 	freed = cinfo->freed_space_end - cinfo->freed_space_start;
 	for (; pos < nr_items; pos ++, ih --) {
 		assert("vs-1581", ih == node40_ih_at(node, pos));
-		ih40_set_offset(ih, (ih40_get_offset(ih) - freed));
+		ih40_set_offset(ih, ih40_get_offset(ih) - freed);
 	}
 
 	/* free space start moved to right */
@@ -1073,6 +1073,52 @@ compact(znode *node, struct cut40_info *cinfo)
 	/* total amount of free space increased */
 	nh40_set_free_space(nh, nh40_get_free_space(nh) + freed);
 }
+
+reiser4_internal int
+shrink_item_node40(coord_t *coord, int delta)
+{
+	node40_header *nh;
+	item_header40 *ih;
+	pos_in_node_t pos;
+	pos_in_node_t nr_items;
+	char  *end;
+	znode *node;
+
+	assert("nikita-3487", coord != NULL);
+	assert("nikita-3488", delta >= 0);
+
+	node = coord->node;
+	node_check(node, 0);
+	nh = node40_node_header(node);
+	nr_items = nh40_get_num_items(nh);
+
+	ih = node40_ih_at_coord(coord);
+	assert("nikita-3489", delta <= length_by_coord_node40(coord));
+	end = zdata(node) + ih40_get_offset(ih) + length_by_coord_node40(coord);
+
+	/* remove gap made up by removal */
+	xmemmove(end - delta, end, nh40_get_free_space_start(nh) - delta);
+
+	/* update item headers of moved items - change their locations */
+	pos = coord->item_pos + 1;
+	ih = node40_ih_at(node, pos);
+	for (; pos < nr_items; pos ++, ih --) {
+		assert("nikita-3490", ih == node40_ih_at(node, pos));
+		ih40_set_offset(ih, ih40_get_offset(ih) - delta);
+	}
+
+	/* free space start moved to left */
+	nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) - delta);
+	/* total amount of free space increased */
+	nh40_set_free_space(nh, nh40_get_free_space(nh) + delta);
+	/*
+	 * This method does _not_ changes number of items. Hence, it cannot
+	 * make node empty. Also it doesn't remove items at all, which means
+	 * that no keys have to be updated either.
+	 */
+	return 0;
+}
+
 
 /* this is used by cut_node40 and kill_node40. It analyses input parameters and calculates cut mode. There are 2 types
    of cut. First is when a unit is removed from the middle of an item.  In this case this function returns 1. All the
