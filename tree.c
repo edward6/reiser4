@@ -1655,15 +1655,17 @@ cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key,
 
 	if (result) {
 		switch (result) {
-		    case -E_NO_NEIGHBOR:
-			    result = 0;
-			    break;
-		    case -E_DEADLOCK:
-			    result = -E_REPEAT;
-		    case -E_REPEAT:
-			    break;
-		    default:
-			    warning("nikita-2861", "failure: %i", result);
+		case -E_NO_NEIGHBOR:
+			result = 0;
+			break;
+		case -E_DEADLOCK:
+			result = -E_REPEAT;
+		case -E_REPEAT:
+		case -ENOMEM:
+		case -ENOENT:
+			break;
+		default:
+			warning("nikita-2861", "failure: %i", result);
 		}
 	}
 
@@ -1724,8 +1726,7 @@ init_tree(reiser4_tree * tree	/* pointer to structure being
 
 	tree->znode_epoch = 1ull;
 
-	cbk_cache_list_init(&tree->cbk_cache.lru);
-	rw_cbk_cache_init(&tree->cbk_cache);
+	cbk_cache_init(&tree->cbk_cache);
 
 	result = znodes_tree_init(tree);
 	if (result == 0)
