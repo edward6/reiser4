@@ -1254,7 +1254,7 @@ int txn_attach_txnh_to_node (jnode *node)
 
 	/* Atom can commit at this point. */
 	if (atom == NULL) {
-		return 0;
+		return -ENOENT;
 	}
 
 	spin_lock_txnh (txnh);

@@ -605,7 +605,12 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 	 * this flush occurs. */ 
 	result = txn_attach_txnh_to_node (node);
 
-   	if (result == 0) {
+	if (result == -ENOENT) {
+
+		/* Txn committed during attach... */
+		result = 0;
+
+	} else if (result == 0) {
 		/* And flush it... */
 		result = jnode_flush (node, nr_to_write, flush_flags);
 	}
