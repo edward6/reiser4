@@ -1043,6 +1043,7 @@ reiser4_show_options(struct seq_file *m, struct vfsmount *mnt)
 
 DEFINE_SPIN_PROFREGIONS(epoch);
 DEFINE_SPIN_PROFREGIONS(jnode);
+DEFINE_SPIN_PROFREGIONS(jload);
 DEFINE_SPIN_PROFREGIONS(stack);
 DEFINE_SPIN_PROFREGIONS(super);
 DEFINE_SPIN_PROFREGIONS(atom);
@@ -1112,6 +1113,7 @@ static int register_profregions(void)
 	register_super_eflush_profregion();
 	register_epoch_profregion();
 	register_jnode_profregion();
+	register_jload_profregion();
 	register_stack_profregion();
 	register_super_profregion();
 	register_atom_profregion();
@@ -1133,6 +1135,7 @@ static void unregister_profregions(void)
 	unregister_zlock_profregion();
 	unregister_super_eflush_profregion();
 	unregister_epoch_profregion();
+	unregister_jload_profregion();
 	unregister_jnode_profregion();
 	unregister_stack_profregion();
 	unregister_super_profregion();
