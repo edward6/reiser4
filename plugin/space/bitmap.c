@@ -398,7 +398,6 @@ int bitmap_init_allocator (reiser4_space_allocator * allocator,
 
 /* plugin->u.space_allocator.destroy_allocator
  * destructor. It is called on fs unmount */
-/* Audited by: green(2002.06.12) */
 int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 			      struct super_block * super)
 {
@@ -418,16 +417,10 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 		down (&bnode->sema);
 
 		if (jnode_page (&bnode->wjnode) != NULL) {
-			reiser4_tree *tree;
-			
 			assert ("zam-480", jnode_page (&bnode->cjnode) != NULL);
 			
-			tree = &get_super_private(super)->tree;
-
-			tree->ops->drop_node(tree, &bnode->wjnode);
-			tree->ops->drop_node(tree, &bnode->cjnode);
-//			jnode_detach_page (&bnode->wjnode);
-//			jnode_detach_page (&bnode->cjnode);
+			jdrop(&bnode->wjnode);
+			jdrop(&bnode->cjnode);
 
 			/* FIXME: check for page state and ref count should be
 			 * added here */
@@ -461,7 +454,7 @@ static int load_and_lock_bnode (struct bnode * bnode)
 
 	if (ret < 0) { 
 		junlock_and_relse(&bnode->wjnode);
-		jnode_detach_page(&bnode->wjnode);
+		jdrop(&bnode->wjnode);
 	
 		goto up_and_ret;
 	}
