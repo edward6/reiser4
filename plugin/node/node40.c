@@ -2199,15 +2199,14 @@ static coord_t * adjust_coord2 (const struct shift_params * shift,
 /* this is called when shift is completed (something of source node is copied
  * to target and deleted in source) to update all taps set in current
  * context */
-static void update_taps (const struct shift_params * shift,
-			 int items_removed_completely)
+static void update_taps (const struct shift_params * shift)
 {
 	tap_t * tap;
 	coord_t new;
 
 
 	for_all_taps (tap) {
-		tap_to (tap, adjust_coord2 (shift, old->coord, &new)
+		tap_to_coord (tap, adjust_coord2 (shift, tap->coord, &new));
 	}
 }
 
@@ -2299,6 +2298,8 @@ int node40_shift (coord_t * from, znode * to,
 	result = node40_delete_copied (&shift);
 	if( result < 0 )
 		return result;
+
+	update_taps (&shift);
 
 	/* adjust @from pointer in accordance with @including_stop_coord flag
 	   and amount of data which was really shifted */
