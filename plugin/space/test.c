@@ -90,6 +90,7 @@ int test_alloc_blocks (reiser4_space_allocator * allocator,
 	/* update space allocator */
 	if (min_free > reiser4_block_count (reiser4_get_current_sb ())) {
 		allocator->u.test.new_block_nr = reiser4_block_count (reiser4_get_current_sb ());
+		spin_unlock (&allocator->u.test.guard);
 		return -ENOSPC;
 	}
 	allocator->u.test.new_block_nr = min_free;

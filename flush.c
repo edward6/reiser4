@@ -2306,7 +2306,7 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 		return ret;
 	}
 
-	if ((ret = flush_allocate_znode (JZNODE (child), & pos->parent_coord, pos))) {
+	if (! jnode_check_allocated (child) && (ret = flush_allocate_znode (JZNODE (child), & pos->parent_coord, pos))) {
 		return ret;
 	}
 
