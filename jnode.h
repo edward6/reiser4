@@ -302,6 +302,7 @@ extern void page_detach_jnode_lock( struct page *page,
 				    struct address_space *mapping, 
 				    unsigned long index );
 extern void page_clear_jnode( struct page *page );
+extern void page_clear_jnode_nolock( struct page *page, jnode *node );
 extern void page_detach_jnode( struct page *page );
 extern void jnode_detach_page( jnode *node );
 

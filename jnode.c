@@ -380,6 +380,12 @@ const reiser4_block_nr *jnode_get_block( const jnode *node /* jnode to
 	return & node -> blocknr;
 }
 
+/*
+ * FIXME-NIKITA jnode<-{attach,detach}->page API is a mess (or, rather, a maze
+ * of little different functions all alike). I'll clear it up once it
+ * stabilizes.
+ */
+
 /* Audited by: umka (2002.06.15) */
 void jnode_attach_page_nolock( jnode *node, struct page *pg )
 {
@@ -421,9 +427,7 @@ void page_detach_jnode_nolock( jnode *node, struct page *page )
 	assert( "nikita-2390", PageLocked( page ) );
 	assert( "jmacd-20642", !PageDirty( page ) );
 
-	page -> private = 0ul;
-	ClearPagePrivate( page );
-	node -> pg = NULL;
+	page_clear_jnode_nolock( page, node );
 
 	spin_unlock_jnode( node );
 	unlock_page( page );
@@ -440,12 +444,23 @@ void page_clear_jnode( struct page *page )
 
 		node = jnode_by_page( page );
 		spin_lock_jnode( node );
-		page -> private = 0ul;
-		ClearPagePrivate( page );
-		node -> pg = NULL;
+		page_clear_jnode_nolock( page, node );
 		spin_unlock_jnode( node );
 		page_cache_release( page );
 	}
+}
+
+void page_clear_jnode_nolock( struct page *page, jnode *node )
+{
+	assert( "nikita-2424", page != NULL );
+	assert( "nikita-2425", PageLocked( page ) );
+	assert( "nikita-2426", node != NULL );
+	assert( "nikita-2427", spin_jnode_is_locked( node ) );
+	assert( "nikita-2428", PagePrivate( page ) );
+
+	page -> private = 0ul;
+	ClearPagePrivate( page );
+	node -> pg = NULL;
 }
 
 void page_detach_jnode( struct page *page )
@@ -636,7 +651,7 @@ int jload( jnode *node )
 		 * subtle locking point: ->pg pointer is protected by jnode
 		 * spin lock, but it is safe to release spin lock here,
 		 * because page can be detached from jnode only when ->d_count
-		 * is, and ZNODE_LOADED is not set.
+		 * is 0, and ZNODE_LOADED is not set.
 		 */
 		if( page != NULL ) {
 			JF_SET( node, ZNODE_LOADED );
@@ -649,6 +664,18 @@ int jload( jnode *node )
 			if( !IS_ERR( page ) ) {
 				wait_on_page_locked( page );
 				kmap( page );
+				/*
+				 * It is possible (however unlikely) that page
+				 * was concurrently released (by flush or
+				 * shrink_cache()), page is still in a page
+				 * cache and up-to-date, but jnode was already
+				 * detached from it.
+				 */
+				if( unlikely( node -> pg == NULL ) ) {
+					jnode_attach_page( node, page );
+					spin_unlock_jnode( node );
+					unlock_page( page );
+				}
 				if( PageUptodate( page ) ) {
 					spin_lock_jnode( node );
 					if( !jnode_is_loaded( node ) ) {
