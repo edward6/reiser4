@@ -1920,20 +1920,18 @@ static void submit_bhs (struct buffer_head ** bhs, unsigned nr)
 
 
 /*
- * extent_readpage uses search.c:iterate_tree() to go through all
- * extents pointing to blocks a page consists of. This is because page may
- * consist of several blocks and therefore extents addressing page blocks may
- * be located in more than one node. iterate_tree will iterate all
- * those extents and call map_extent for every one. This map_extent gets
- * pointer to struct readpage_desc and records there how mapping of page
- * buffers is going
+ * extent_readpage uses search.c:iterate_tree() to go through all extents pointing to blocks a page consists of. One
+ * page may consist of several blocks.  The pointers to these several blocks may be different extents.  These different
+ * extents may be stored in different nodes.  iterate_tree will iterate through all those extents and call map_extent
+ * for every one. This map_extent gets pointer to struct readpage_desc and records there how mapping of page buffers is
+ * going
  */
 struct readpage_desc {
 	struct page * page;      /* page being read */
-	struct buffer_head * bh; /* buffer of page which was not proceeded
+	struct buffer_head * bh; /* buffer of page which was not processed
 				    yet */
 	unsigned done_nr;        /* number of buffers in the page we have
-				    proceeded */
+				    processed */
 	struct buffer_head *bhs [PAGE_SIZE / 512]; /* array of buffers which
 						      have to be read */
 	unsigned have_to_read;   /* number of buffers in the array in above */
@@ -2153,7 +2151,7 @@ int extent_readpage (void * p, struct page * page)
 /*
  * do not read more than MAX_READAHEAD pages ahead
  */
-#define MAX_READAHEAD 10
+#define MAX_READAHEAD 1000
 
 /*
  * when doing readahead mm/filemap.c:read_cache_page() is called with this
@@ -2249,7 +2247,7 @@ static void read_ahead (struct page * page, tree_coord * coord)
 
 
 /*
- * plugin->u.item.s.file.read
+ * Implements plugin->u.item.s.file.read operation for extent items.
  */
 int extent_read (struct inode * inode, tree_coord * coord,
 		 lock_handle * lh, flow_t * f)
@@ -2797,7 +2795,7 @@ int allocate_and_copy_extent (znode * left, tree_coord * right,
 
 /*
  * paste new unallocated extent of width after unit @coord is set to. Ask
- * paste_into_item to not try to shift anything to left
+ * insert_into_item to not try to shift anything to left
  */
 static int paste_unallocated_extent (tree_coord * item, reiser4_key * key,
 				     reiser4_block_nr width)
@@ -2813,7 +2811,7 @@ static int paste_unallocated_extent (tree_coord * item, reiser4_key * key,
 	dup_coord (&coord, item);
 	coord.between = AFTER_UNIT;
 	/*
-	 * have paste_into_item to not shift anything to left
+	 * have insert_into_item to not shift anything to left
 	 */
 	result = resize_item (&coord, init_new_extent (&data, &new_ext, 1), key,
 			      0/*lh*/, COPI_DONT_SHIFT_LEFT);
