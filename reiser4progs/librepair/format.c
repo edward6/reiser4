@@ -6,20 +6,22 @@
 
 #include <repair/librepair.h>
 
-errno_t callback_data_block_check(aal_device_t *device, blk_t blk, 
+errno_t callback_data_block_check(reiser4_entity_t *format, blk_t blk, 
     void *data) 
 {
     blk_t passed_blk = *(blk_t *)data;
 
-/*    
-    if (passed_blk >= reiser4_format_get_len(format))
+    if (passed_blk >= plugin_call(return -1, format->plugin->format_ops, 
+	get_len, format))
 	return -1;
-*/  
+
     return passed_blk == blk ? 1 : 0;
 }
 
 
-static reiser4_plugin_t *__choose_format(reiser4_fs_t *fs, aal_device_t *host_device) {
+static reiser4_plugin_t *__choose_format(reiser4_fs_t *fs, 
+    aal_device_t *host_device) 
+{
     reiser4_plugin_t *plugin;
    
     aal_assert("vpf-167", fs != NULL, return NULL);
@@ -35,31 +37,31 @@ static reiser4_plugin_t *__choose_format(reiser4_fs_t *fs, aal_device_t *host_de
 	if (!(plugin = libreiser4_factory_ifind(FORMAT_PLUGIN_TYPE, 
 	    repair_data(fs)->profile->format))) 
 	{
-	    aal_exception_fatal("Cannot find the format plugin (%d) specified in the "
-		"profile.", repair_data(fs)->profile->format);
+	    aal_exception_fatal("Cannot find the format plugin (%d) specified "
+		"in the profile.", repair_data(fs)->profile->format);
 	    return NULL;	    
 	}
 
 	if (aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_YESNO, 
-	    "Do you want to build the on-disk format (%s) specified in the profile?",
-	    plugin->h.label) == EXCEPTION_NO)
+	    "Do you want to build the on-disk format (%s) specified in the "
+	    "profile?", plugin->h.label) == EXCEPTION_NO)
 	    return NULL;
     } else {
 	/* Format was detected on the partition. */
 	if (repair_data(fs)->profile->format != plugin->h.id)
-	    aal_exception_fatal("The detected on-disk format (%s) differs from the "
-		"profile's one.\nDo not forget to specify the correct on-disk format "
-		"in the profile next time.", plugin->h.label);
+	    aal_exception_fatal("The detected on-disk format (%s) differs from "
+		"the profile's one.\nDo not forget to specify the correct "
+		"on-disk format in the profile next time.", plugin->h.label);
 	else if (repair_verbose(repair_data(fs))) {
-	    aal_exception_info("The on-disk format (%s) was detected on (%s).", plugin->h.label, 
-		aal_device_name(host_device));
+	    aal_exception_info("The on-disk format (%s) was detected on (%s).", 
+		plugin->h.label, aal_device_name(host_device));
 	}
     }
     
     return plugin;
 }
 
-errno_t repair_format_check(reiser4_fs_t *fs) {
+errno_t repair_format_check(reiser4_fs_t *fs) {    
     reiser4_plugin_t *plugin = NULL;
 
     aal_assert("vpf-165", fs != NULL, return -1);
@@ -74,12 +76,15 @@ errno_t repair_format_check(reiser4_fs_t *fs) {
 	if (!(plugin = __choose_format(fs, repair_data(fs)->host_device)))
 	    return -1;
 
-	/* Create the format with invalid parameters and fix them at the check. */
-	if (!(fs->format = reiser4_format_create(repair_data(fs)->host_device, 0, 
-	    INVALID_PLUGIN_ID, plugin->h.id))) 
+	/* 
+	    Create the format with invalid parameters and fix them at the 
+	    check.
+	*/
+	if (!(fs->format = reiser4_format_create(repair_data(fs)->host_device, 
+	    0, INVALID_PLUGIN_ID, plugin->h.id))) 
 	{
-	    aal_exception_fatal("Cannot create a filesystem of the format (%s).", 
-		plugin->h.label);
+	    aal_exception_fatal("Cannot create a filesystem of the format "
+		"(%s).", plugin->h.label);
 	    return -1;
 	}
     } 
@@ -88,8 +93,8 @@ errno_t repair_format_check(reiser4_fs_t *fs) {
     if (plugin_call(return -1, fs->format->entity->plugin->format_ops, check, 
 	fs->format->entity, repair_data(fs)->options)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Failed to recover the on-disk format (%s) on (%s).", plugin->h.label, 
-	    aal_device_name(repair_data(fs)->host_device));
+	    "Failed to recover the on-disk format (%s) on (%s).", 
+	    plugin->h.label, aal_device_name(repair_data(fs)->host_device));
 	return -1;
     }
     
