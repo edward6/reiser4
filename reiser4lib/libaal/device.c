@@ -154,7 +154,7 @@ aal_device_block_t *aal_device_alloc_block(aal_device_t *device, blk_t blk, char
     if (!(block->data = aal_calloc(aal_device_get_blocksize(device), c)))
 	goto error_free_block;
 	
-    block->device = device;
+//    block->device = device;
     block->offset = (aal_device_get_blocksize(device) * blk);
 	
     return block;
@@ -199,21 +199,22 @@ int aal_device_write_block(aal_device_t *device, aal_device_block_t *block) {
     if (!aal_block_dirty(block))
 	return 1;
 	
-    return aal_device_write(device, block->data, aal_device_get_block_location(block), 1);
+    return aal_device_write(device, block->data, 
+	aal_device_get_block_location(device, block), 1);
 }
 
-blk_t aal_device_get_block_location(aal_device_block_t *block) {
-    if (!block)
+blk_t aal_device_get_block_location(aal_device_t *device, aal_device_block_t *block) {
+    if (!block || !device)
 	return 0;
 
-    return (blk_t)(block->offset / aal_device_get_blocksize(block->device));
+    return (blk_t)(block->offset / aal_device_get_blocksize(device));
 }
 
-void aal_device_set_block_location(aal_device_block_t *block, blk_t blk) {
-    if (!block)	
+void aal_device_set_block_location(aal_device_t *device, aal_device_block_t *block, blk_t blk) {
+    if (!block || !device)	
 	return;
 	
-    block->offset = (uint64_t)(blk * aal_device_get_blocksize(block->device));
+    block->offset = (uint64_t)(blk * aal_device_get_blocksize(device));
 }
 
 void aal_device_free_block(aal_device_block_t *block) {

@@ -18,7 +18,7 @@ reiserfs_node_t *reiserfs_node_open(aal_device_block_t *block) {
 	return NULL;
 
     if (!(node->plugin = reiserfs_plugin_find(REISERFS_NODE_PLUGIN, 
-			    reiserfs_node_get_plugin_id(block)))) 
+	reiserfs_node_get_plugin_id(block)))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "vpf-001", 
 	    "Node plugin cannot be find by its identifier %x.",  
