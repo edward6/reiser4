@@ -250,7 +250,7 @@ static __u64 fnv1_hash( const unsigned char *name, int len UNUSED_ARG )
 	return a;
 }
 
-static __u64 deg_hash( const unsigned char *name, int len UNUSED_ARG )
+static __u64 deg_hash( const unsigned char *name UNUSED_ARG, int len UNUSED_ARG )
 {
 	trace_on( TRACE_DIR, "Hashing %s\n", name );
 	return 0xc0c0c0c010101010ull;

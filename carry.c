@@ -795,7 +795,7 @@ carry_op *reiser4_add_op( carry_level *level  /* &carry_level to add node
  * parent, it has corresponding bit (ZNODE_NEW) set in zstate.
  *
  */
-carry_node *find_begetting_brother( carry_node *node, carry_level *kin )
+carry_node *find_begetting_brother( carry_node *node, carry_level *kin UNUSED_ARG )
 {
 	carry_node *scan;
 	
@@ -852,7 +852,7 @@ static int lock_carry_level( carry_level *level )
  * neighbor's right delimiting key to conincide with least key in @node.
  *
  */
-static void sync_dkeys( carry_node *node, carry_level *doing )
+static void sync_dkeys( carry_node *node, carry_level *doing UNUSED_ARG )
 {
 	znode *left;
 	znode *right;

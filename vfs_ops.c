@@ -895,7 +895,7 @@ static void destroy_inodecache(void)
 /**
  * ->alloc_inode() super operation: allocate new inode
  */
-static struct inode *reiser4_alloc_inode( struct super_block *super )
+static struct inode *reiser4_alloc_inode( struct super_block *super UNUSED_ARG )
 {
 	struct reiser4_inode_info *info;
 

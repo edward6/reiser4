@@ -414,7 +414,7 @@ static reiser4_key *last_key_in_extent (const tree_coord * coord,
 static int cut_or_kill_units (tree_coord * coord,
 			      unsigned * from, unsigned * to,
 			      int cut, const reiser4_key * from_key,
-			      const reiser4_key * to_key,
+			      const reiser4_key * to_key UNUSED_ARG,
 			      reiser4_key * smallest_removed)
 {
  	reiser4_extent * ext;
@@ -1957,7 +1957,7 @@ int extent_read (struct inode * inode, tree_coord * coord,
 
 
 
-static void check_resize_result (tree_coord * coord, reiser4_key * key)
+static void check_resize_result (tree_coord * coord, reiser4_key * key UNUSED_ARG)
 {
 	reiser4_key k;
 
@@ -2138,7 +2138,7 @@ int alloc_extent (reiser4_tree * tree, tree_coord * coord,
 
 	item_key_by_coord (coord, &key);
 	while ((result = allocate_unallocated_extent (coord, lh, &key)) > 0) {
-		reiser4_key last_key;
+		ON_DEBUG (reiser4_key last_key);
 
 		/* extent is not done yet */
 		reiser4_done_lh (lh);

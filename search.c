@@ -300,6 +300,7 @@ void cbk_cache_add( znode *node )
 	spin_unlock_tree( current_tree );
 }
 
+#if REISER4_DEBUG
 /**
  * Debugging aid: print human readable information about @slot
  */
@@ -326,6 +327,7 @@ void print_cbk_cache( const char *prefix, cbk_cache  *cache )
 			print_cbk_slot( "slot", slot_by_entry( scan ) );
 	}
 }
+#endif
 
 /** struct to pack all numerous arguments of tree lookup.  Used to avoid
     passing a lot of arguments to helper functions. */
@@ -642,7 +644,6 @@ static lookup_result cbk( cbk_handle *h )
 			 h -> error, h -> level, h -> llevel, h -> slevel,
 			 lock_mode_name( h -> lock_mode ), bias_name( h -> bias ) );
 		print_address( "block", &h -> block );
-		print_tree_rec( "tree", h -> tree, REISER4_NODE_PRINT_HEADER | REISER4_NODE_PRINT_KEYS );
 		print_key( "key", h -> key );
 		print_coord_content( "coord", h -> coord );
 		print_znode( "active", h -> active_lh -> node);

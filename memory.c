@@ -208,7 +208,7 @@ static int formatted_fake_pressure_handler( struct page *page, int gfp )
 /**
  * helper function to allocate fake inode.
  */
-static struct inode *allocate_formatted_fake( struct super_block *sb )
+static struct inode *allocate_formatted_fake( struct super_block *sb UNUSED_ARG )
 {
 	formatted_fake *result;
 

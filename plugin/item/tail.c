@@ -165,7 +165,7 @@ int tail_paste (tree_coord * coord, reiser4_item_data * data,
  * number of units is returned via return value, number of bytes via @size. For
  * tail items they coincide
  */
-int tail_can_shift (unsigned free_space, tree_coord * source,
+int tail_can_shift (unsigned free_space, tree_coord * source UNUSED_ARG,
 		    znode * target UNUSED_ARG,
 		    shift_direction direction UNUSED_ARG,
 		    unsigned * size, unsigned want)
@@ -187,7 +187,7 @@ int tail_can_shift (unsigned free_space, tree_coord * source,
 void tail_copy_units (tree_coord * target, tree_coord * source,
 		      unsigned from, unsigned count,
 		      shift_direction where_is_free_space,
-		      unsigned free_space)
+		      unsigned free_space UNUSED_ARG)
 {
 	/*
 	 * make sure that item @target is expanded already
@@ -238,8 +238,8 @@ void tail_copy_units (tree_coord * target, tree_coord * source,
  * plugin->u.item.b.kill_units
  */
 int tail_cut_units (tree_coord * coord, unsigned * from, unsigned * to,
-		    const reiser4_key * from_key,
-		    const reiser4_key * to_key,
+		    const reiser4_key * from_key UNUSED_ARG,
+		    const reiser4_key * to_key UNUSED_ARG,
 		    reiser4_key * smallest_removed)
 {
 	reiser4_key key;

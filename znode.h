@@ -537,6 +537,9 @@ const char *lock_mode_name( znode_lock_mode lock );
 #if REISER4_DEBUG
 void print_znode( const char *prefix, const znode *node );
 void info_znode( const char *prefix, const znode *node );
+#else
+#define print_znode( p, n ) noop
+#define info_znode( p, n ) noop
 #endif
 
 /**
@@ -548,6 +551,8 @@ extern void  jnode_set_clean (jnode *node);
 
 #if REISER4_DEBUG
 void info_jnode( const char *prefix, const jnode *node );
+#else
+#define info_jnode( p, n ) noop
 #endif
 
 /* Similar to zref() and zput() for jnodes, calls those routines if the node is formatted. */
@@ -572,7 +577,11 @@ SPIN_LOCK_FUNCTIONS(jnode,jnode,guard);
 /* Macros to convert from jnode to znode, znode to jnode.  These are macros because C
  * doesn't allow overloading of const prototypes. */
 #define ZJNODE(x) (& (x) -> zjnode)
-#define JZNODE(x) (assert ("jmacd-1300", !JF_ISSET (x, ZNODE_UNFORMATTED)), (znode*) x)
+#define JZNODE(x) 							\
+({									\
+	assert ("jmacd-1300", !JF_ISSET ((x), ZNODE_UNFORMATTED));	\
+	(znode*) (x);							\
+})
 
 /* Make it look like various znode functions exist instead of treating znodes as
  * jnodes in znode-specific code. */

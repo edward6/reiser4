@@ -275,7 +275,7 @@ void *reiser4_kmalloc( size_t size, int gfp_flag )
  * release memory allocated by reiser4_kmalloc() and update counter.
  *
  */
-void  reiser4_kfree( void *area, size_t size )
+void  reiser4_kfree( void *area, size_t size UNUSED_ARG )
 {
 	assert( "nikita-1410", area != NULL );
 	assert( "nikita-1411", reiser4_get_current_super_private() != NULL );
@@ -287,8 +287,10 @@ void  reiser4_kfree( void *area, size_t size )
 }
 
 
+#if REISER4_DEBUG
 /** helper called by print_tree_rec() */
-void tree_rec_dot( reiser4_tree *tree, znode *node, __u32 flags, FILE *dot )
+static void tree_rec_dot( reiser4_tree *tree, znode *node, 
+			  __u32 flags, FILE *dot )
 {
 	int i;
 	tree_coord coord;
@@ -336,8 +338,9 @@ void tree_rec_dot( reiser4_tree *tree, znode *node, __u32 flags, FILE *dot )
 	*/
 	reiser4_done_coord( &coord );
 }
+
 /** helper called by print_tree_rec() */
-void tree_rec( reiser4_tree *tree, znode *node, __u32 flags )
+static void tree_rec( reiser4_tree *tree, znode *node, __u32 flags )
 {
 	int i;
 	tree_coord coord;
@@ -432,6 +435,8 @@ void print_tree_rec (const char * prefix, reiser4_tree * tree, __u32 flags)
 	zput( root );
 	zput( fake );
 }
+
+#endif
 
 /* 
  * Make Linus happy.

@@ -654,7 +654,7 @@ int zinit_new( znode *node )
  * unload node content from memory. Write it back to the durable storage, if
  * necessary.
  */
-int zunload( znode *node )
+int zunload( znode *node UNUSED_ARG )
 {
 	assert( "nikita-485", node != NULL );
 	assert( "nikita-486", atomic_read( &node -> d_count ) == 0 );

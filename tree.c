@@ -845,6 +845,7 @@ reiser4_init_context_mgr (void)
 	context_list_init (& active_contexts);
 }
 
+#if REISER4_DEBUG
 void reiser4_show_context (int show_tree)
 {
 	reiser4_context *context;
@@ -873,6 +874,7 @@ void reiser4_show_context (int show_tree)
 
 	spin_unlock (& active_contexts_lock);
 }
+#endif
 
 /** return context associated with current thread */
 reiser4_context *reiser4_get_current_context()
