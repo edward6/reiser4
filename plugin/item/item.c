@@ -658,7 +658,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child            = NULL,
 			.utmost_child_real_block = NULL,
 			.update                  = NULL,
-			.scan                    = NULL
+			.scan                    = scan_ctail
 		},
 		.s = {
 			.file = {
