@@ -24,15 +24,16 @@ typedef struct seal_s {
 } seal_t;
 
 
-/** light-weight coord. In contrast to coord_t ->coord must be first
- * seal_validate-ed with ->seal */
-typedef struct {
-	seal_t          *seal;
-	coord_t         *coord;
-} lw_coord_t;
+struct sealed_coord {
+	seal_t          seal;
+	coord_t         coord;
+	reiser4_key     key;
+	tree_level      level;
+	znode_lock_mode       lock;
+};
 
 
-extern void seal_init( seal_t *seal, coord_t *coord, const reiser4_key *key );
+extern void seal_init( seal_t *seal, const coord_t *coord, const reiser4_key *key );
 extern void seal_done( seal_t *seal );
 
 extern int seal_is_set( const seal_t *seal );
