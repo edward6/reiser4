@@ -414,14 +414,19 @@ struct flush_scan {
 	reiser4_block_nr preceder_blk;
 };
 
+
 typedef enum flush_position_state {
-	POS_INVALID,
-	POS_ON_LEAF,
-	POS_ON_TWIG,
-	POS_TO_LEAF,
-	POS_TO_TWIG,
-	POS_END_OF_TWIG,
-	POS_ON_INTERNAL
+	POS_INVALID,		/* Invalid or stopped pos, do not continue slum
+				 * processing */
+	POS_ON_LEAF,		/* pos points to already prepped, locked formatted node at
+				 * leaf level */
+	POS_ON_TWIG,		/* pos keeps a lock on twig level, "coord" field is used
+				 * to traverse unformatted nodes */
+	POS_TO_LEAF,		/* pos is being moved to leaf level */
+	POS_TO_TWIG,		/* pos is being moved to twig level */
+	POS_END_OF_TWIG,	/* special case of POS_ON_TWIG, when coord is after
+				 * rightmost unit of the current twig */
+	POS_ON_INTERNAL		/* same as POS_ON_LEAF, but points to internal node */
 
 } flushpos_state_t;
 
@@ -430,21 +435,10 @@ typedef enum flush_position_state {
    flush_position object is constructed after left- and right-scanning finishes. */
 struct flush_position {
 	flushpos_state_t state;
-#if 1
-	/* FIXME(Zam): remind me not to use coord if (pos->state != POS_ON_TWIG) */
-	coord_t coord;
-	lock_handle lock;
-	load_count load;
-#else
-	jnode *point;		/* The current position, if it is formatted (with a minor exception,
-				 * allowing an unformatted node to be set here, explained in jnode_flush,
-				 * below). */
-	lock_handle point_lock;	/* The current position lock, if it is formatted. */
-	lock_handle parent_lock;	/* Parent of the current position, if it is unformatted. */
-	coord_t parent_coord;	/* Parent coordinate of the current position, if unformatted. */
-	load_count point_load;	/* Loaded point */
-	load_count parent_load;	/* Loaded parent */
-#endif
+
+	coord_t coord;		/* coord to traverse unformatted nodes */
+	lock_handle lock;	/* current lock we hold */
+	load_count load;	/* load status for current locked formatted node  */
 
 	reiser4_blocknr_hint preceder;	/* The flush 'hint' state. */
 	int leaf_relocate;	/* True if enough leaf-level nodes were
@@ -454,7 +448,7 @@ struct flush_position {
 	int alloc_cnt;		/* The number of nodes allocated during squeeze and allococate. */
 	int prep_or_free_cnt;	/* The number of nodes prepared for write (allocate) or squeezed and freed. */
 	flush_queue_t *fq;
-	long nr_written;		/* number of nodes submitted to disk */
+	long nr_written;	/* number of nodes submitted to disk */
 	int flags;		/* a copy of jnode_flush flags argument */
 };
 
@@ -533,7 +527,7 @@ static const char *flags_tostring(int flags);
 #define flags_tostring(f) ""
 #endif
 
-static flush_params *get_params(void);
+static flush_params *get_flush_params(void);
 
 #if REISER4_DEBUG
 static void
@@ -839,7 +833,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	   and, hence, is kept during leftward scan. As a result, we have to
 	   use try-lock when taking long term locks during the leftward scan.
 	*/
-	if ((ret = scan_left(&left_scan, &right_scan, node, get_params()->scan_maxnodes))) {
+	if ((ret = scan_left(&left_scan, &right_scan, node, get_flush_params()->scan_maxnodes))) {
 		goto failed;
 	}
 
@@ -851,7 +845,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	reiser4_stat_add(flush.left, left_scan.count);
 
 	/* ZAM-FIXME-HANS: reduce the layers of wrappings, eliminate get_params function please */
-	todo = get_params()->relocate_threshold - left_scan.count;
+	todo = get_flush_params()->relocate_threshold - left_scan.count;
 	if (todo > 0) {
 		ret = scan_right(&right_scan, node, (unsigned)todo);
 		if (ret != 0)
@@ -868,7 +862,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 
 	/* ... and the answer is: we should relocate leaf nodes if at least
 	   FLUSH_RELOCATE_THRESHOLD nodes were found. */
-	flush_pos.leaf_relocate = (left_scan.count + right_scan.count >= get_params()->relocate_threshold);
+	flush_pos.leaf_relocate = (left_scan.count + right_scan.count >= get_flush_params()->relocate_threshold);
 
 	/*assert ("jmacd-6218", jnode_check_dirty (left_scan.node)); */
 
@@ -907,36 +901,15 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 
 	scan_done(&left_scan);
 
-	/* Check for relocation and allocate ancestors of the initial flush position.  First
-	   perform a relocation check of the flush point (in reverse parent-first
-	   context--see reverse_relocate_test), then if the node is a leftmost child
-	   and the parent is dirty repeat this process at the next level up.  Once
-	   reaching the highest ancestor, allocate on the way back down.  In otherwords,
-	   this operation recurses up in reverse parent-first order and then allocates on
-	   the way back.  This initializes the flush operation for the main
-	   squalloc loop, which continues to allocate in forward parent-first
-	   order. */
+	/* Set pos->preceder and (re)allocate pos and its ancestors if it is needed  */
 	ret = alloc_pos_and_ancestors(&flush_pos);
 	if (ret)
 		goto failed;
 
 	/* Do the main rightward-bottom-up squeeze and allocate loop. */
 	ret = squalloc(&flush_pos);
-	if (ret) {
-		/* FIXME(C): This ENAVAIL check is an ugly, UGLY hack to prevent a certain
-		   deadlocks by trying to prevent atoms from fusing during flushing.  We
-		   allow -ENAVAIL code to be returned from squalloc and
-		   continue to flush_empty_queue.  The proper solution, I feel, is to
-		   catch -EINVAL everywhere it may be generated, not at the top level like
-		   this.  For example, every call to jnode_lock_parent_coord should check
-		   ENAVAIL, perhaps should also check not-same-atom condition, then do the
-		   Right Thing. */
-		if (ret != -ENAVAIL) {
-			goto failed;
-		}
-		/* FIXME(C): Should be this: */
-		/* goto failed; */
-	}
+	if (ret)
+		goto failed;
 
 	/* FIXME_NFQUCMPD: Here, handle the twig-special case for unallocated children.
 	   First, the pos_stop() and pos_valid() routines should be modified
@@ -1070,7 +1043,7 @@ reverse_relocate_if_close_enough(const reiser4_block_nr * pblk, const reiser4_bl
 
 	/* If the block is less than FLUSH_RELOCATE_DISTANCE blocks away from its preceder
 	   block, do not relocate. */
-	if (dist <= get_params()->relocate_distance) {
+	if (dist <= get_flush_params()->relocate_distance) {
 		return 0;
 	}
 
@@ -1262,10 +1235,7 @@ static int get_leftmost_child_of_unit (flush_pos_t * pos, jnode ** child)
 		return ret;
 
 	if (IS_ERR(*child))
-		return PTR_ERR(*child);
-
-	if (!*child)
-		return -ENOENT;	/* not in cache */
+		return PTR_ERR(child);
 
 	return 0;
 }
@@ -1302,6 +1272,12 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 
 		if (ret)
 			goto exit;
+
+		if (child == NULL) {
+			/* the node we should start squalloc from suddenly disappeared */
+			pos_stop(pos);
+			goto exit;
+		}
 
 		coord_dup(&pcoord, &pos->coord);
 
@@ -1625,6 +1601,7 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 	return ret;
 } 
 
+/* Check the leftmost child "flushprepped" status */
 static int leftmost_child_of_unit_check_flushprepped (flush_pos_t * pos)
 {
 	int ret;
@@ -1637,13 +1614,20 @@ static int leftmost_child_of_unit_check_flushprepped (flush_pos_t * pos)
 	if (ret)
 		return ret;
 
-	prepped = jnode_check_flushprepped(child);
-
-	jput(child);
+	if (child) {
+		prepped = jnode_check_flushprepped(child);
+		jput(child);
+	} else {
+		/* We consider not existing child as a node which slum
+		   processing should not continue to.  Not cached node is clean,
+		   so it is flushprepped. */
+		prepped = 1;	
+	}
 
 	return prepped;
 }
 
+/* (re)allocate znode with automated getting parent node */
 static int lock_parent_and_allocate_znode (znode * node, flush_pos_t * pos)
 {
 	int ret;
@@ -1777,7 +1761,7 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 	   is a fast check for unallocated extents which we assume contain all
 	   not flushprepped nodes. */
 	/* FIXME: Here we implement simple check, we are only looking on the
-	   leftmost child.  to do more complicated analysis. */
+	   leftmost child. */
 	if (!extent_is_unallocated(&pos->coord)) {
 		ret = leftmost_child_of_unit_check_flushprepped(pos);
 
@@ -1910,6 +1894,11 @@ static int handle_pos_to_leaf (flush_pos_t * pos)
 	if (ret)
 		return ret;
 
+	if (child == NULL) {
+		pos_stop(pos);
+		return 0;
+	}
+
 	if (jnode_check_flushprepped(child)) {
 		pos->state = POS_INVALID;
 		goto out;
@@ -1998,6 +1987,11 @@ static int squalloc (flush_pos_t * pos)
 	}
 
 	PROF_END(forward_squalloc, forward_squalloc);
+
+	/* -EINVAL is a legal return code for handle_pos* routines, -EINVAL means that
+	   slum edge was reached */
+	if (ret == -ENAVAIL)
+		ret = 0;
 
 	return ret;
 }
@@ -2224,7 +2218,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 			dist = (nblk < pos->preceder.blk) ? (pos->preceder.blk - nblk) : (nblk - pos->preceder.blk);
 
 			/* See if we can find a closer block (forward direction only). */
-			pos->preceder.max_dist = min((reiser4_block_nr) get_params()->relocate_distance, dist);
+			pos->preceder.max_dist = min((reiser4_block_nr) get_flush_params()->relocate_distance, dist);
 			pos->preceder.level = znode_get_level(node);
 
 			if ((ret = allocate_znode_update(node, parent_coord, pos))
@@ -2235,7 +2229,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 			if (ret == 0) {
 				/* Got a better allocation. */
 				jnode_set_reloc(ZJNODE(node));
-			} else if (dist < get_params()->relocate_distance) {
+			} else if (dist < get_flush_params()->relocate_distance) {
 				/* The present allocation is good enough. */
 				jnode_set_wander(ZJNODE(node));
 			} else {
@@ -3308,7 +3302,7 @@ pos_leaf_relocate(flush_pos_t * pos)
 }
 
 static flush_params *
-get_params(void)
+get_flush_params(void)
 {
 	return &get_current_super_private()->flush;
 }
