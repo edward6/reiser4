@@ -281,7 +281,7 @@ int cut_node (tree_coord * from, tree_coord * to,
 	      const reiser4_key * to_key,
 	      reiser4_key * smallest_removed);
 
-resize_result resize_item( reiser4_tree *tree, tree_coord *coord,
+resize_result resize_item( tree_coord *coord,
 			  reiser4_lock_handle *lh, reiser4_key *key,
 			  reiser4_item_data *data );
 int find_new_child_ptr( znode *parent, znode *child, znode *left, 

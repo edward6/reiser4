@@ -914,7 +914,7 @@ int cde_add_entry( const struct inode *dir, tree_coord *coord,
 					  NO_RA );
 	} else {
 		data.length = cde_estimate( coord, &data );
-		result = resize_item( current_tree, coord, lh, 
+		result = resize_item( coord, lh, 
 				      &dir_entry -> key, &data );
 	}
 	return result;

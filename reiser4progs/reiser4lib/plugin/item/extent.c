@@ -737,7 +737,7 @@ static int add_extents (reiser4_tree * tree, tree_coord * coord,
 					reiser4_get_current_sb ()->s_blocksize *
 					extent_get_width ((reiser4_extent *)data->data + i));
 		data->data += delta * sizeof (reiser4_extent);
-		return resize_item (tree, coord, lh, key, data);
+		return resize_item (coord, lh, key, data);
 	}
 
 	if (delta == count) {

@@ -361,8 +361,7 @@ static int update_sd( struct inode *inode )
 			/*
 			 * FIXME-NIKITA resize can create new item.
 			 */
-			result = resize_item( tree_by_inode( inode ),
-					      &coord, 
+			result = resize_item( &coord, 
 					      0/*FIXME-NIKITA lh?*/, 
 					      &key, &data );
 			switch( result ) {

@@ -593,7 +593,7 @@ insert_result insert_by_coord( tree_coord  *coord /* coord where to
  * paste_with_carry() that will do full carry().
  *
  */
-static int paste_into_item( reiser4_tree *tree UNUSED_ARG, tree_coord *coord,
+static int paste_into_item( tree_coord *coord,
 			    reiser4_lock_handle *lh,
 			    reiser4_key *key, reiser4_item_data *data )
 {
@@ -650,9 +650,8 @@ static int paste_into_item( reiser4_tree *tree UNUSED_ARG, tree_coord *coord,
 }
 
 /** this either appends or truncates item @coord */
-resize_result resize_item( reiser4_tree *tree, tree_coord *coord,
-		     reiser4_lock_handle *lh,
-		     reiser4_key *key, reiser4_item_data *data )
+resize_result resize_item( tree_coord *coord, reiser4_lock_handle *lh,
+			   reiser4_key *key, reiser4_item_data *data )
 {
 	int result;
 	carry_pool  pool;
@@ -679,7 +678,7 @@ resize_result resize_item( reiser4_tree *tree, tree_coord *coord,
 			return op ? PTR_ERR (op) : -EIO;
 		not_yet( "nikita-1263", "resize_item() can not cut data yet" );
 	} else
-		result = paste_into_item( tree, coord, lh, key, data );
+		result = paste_into_item( coord, lh, key, data );
 
 	ON_STATS( lowest_level.level_no = znode_get_level( coord -> node ) );
 	result = carry (&lowest_level, 0);
