@@ -35,26 +35,26 @@ struct reiserfs_format40_super {
 
 typedef struct reiserfs_format40_super reiserfs_format40_super_t;
 
-#define get_sb_block_count(sb)				get_le64(sb, sb_block_count)
-#define set_sb_block_count(sb, val)			set_le64(sb, sb_block_count, val)
+#define get_sb_block_count(sb)			get_le64(sb, sb_block_count)
+#define set_sb_block_count(sb, val)		set_le64(sb, sb_block_count, val)
 
-#define get_sb_free_blocks(sb)				get_le64(sb, sb_free_blocks)
-#define set_sb_free_blocks(sb, val)			set_le64(sb, sb_free_blocks, val)
+#define get_sb_free_blocks(sb)			get_le64(sb, sb_free_blocks)
+#define set_sb_free_blocks(sb, val)		set_le64(sb, sb_free_blocks, val)
 
-#define get_sb_root_block(sb)				get_le64(sb, sb_root_block)
-#define set_sb_root_block(sb, val)			set_le64(sb, sb_root_block, val)
+#define get_sb_root_block(sb)			get_le64(sb, sb_root_block)
+#define set_sb_root_block(sb, val)		set_le64(sb, sb_root_block, val)
 
-#define get_sb_tree_height(sb)				get_le64(sb, sb_tree_height)
-#define set_sb_tree_height(sb, val)			set_le64(sb, sb_tree_height, val)
+#define get_sb_tree_height(sb)			get_le64(sb, sb_tree_height)
+#define set_sb_tree_height(sb, val)		set_le64(sb, sb_tree_height, val)
 
-#define get_sb_oid(sb)					get_le64(sb, sb_oid)
-#define set_sb_oid(sb, val)				set_le64(sb, sb_oid, val)
+#define get_sb_oid(sb)				get_le64(sb, sb_oid)
+#define set_sb_oid(sb, val)			set_le64(sb, sb_oid, val)
 
-#define get_sb_file_count(sb)				get_le64(sb, sb_file_count)
-#define set_sb_file_count(sb, val)			set_le64(sb, sb_file_count, val)
+#define get_sb_file_count(sb)			get_le64(sb, sb_file_count)
+#define set_sb_file_count(sb, val)		set_le64(sb, sb_file_count, val)
 
-#define get_sb_flushes(sb)				get_le64(sb, sb_flushes)
-#define set_sb_flushes(sb, val)				set_le64(sb, sb_flushes, val)
+#define get_sb_flushes(sb)			get_le64(sb, sb_flushes)
+#define set_sb_flushes(sb, val)			set_le64(sb, sb_flushes, val)
 
 struct reiserfs_format40 {
     aal_device_t *device;

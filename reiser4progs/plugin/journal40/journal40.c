@@ -4,16 +4,40 @@
     Author Yury Umanets.
 */
 
-#include <reiserfs/reiserfs.h>
 #include <aal/aal.h>
+#include <reiserfs/reiserfs.h>
 
 #include "journal40.h"
 
 static reiserfs_plugins_factory_t *factory = NULL;
 
-static error_t reiserfs_journal40_header_check(reiserfs_journal40_header_t *header, 
+static error_t reiserfs_journal40_check_header(reiserfs_journal40_header_t *header, 
     aal_device_t *device) 
 {
+    aal_assert("umka-515", header != NULL, return -1);
+    aal_assert("umka-517", device != NULL, return -1);
+    
+    if (get_jh_last_commited(header) > aal_device_len(device)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Invalid journal header has detected. "
+	    "Last commited transaction (%llu) lies out of the device (0-%llu).", 
+	    get_jh_last_commited(header), aal_device_len(device));
+	return -1;
+    }
+    return 0;
+}
+
+static error_t reiserfs_journal40_check_footer(reiserfs_journal40_footer_t *footer, 
+    aal_device_t *device) 
+{
+    aal_assert("umka-516", footer != NULL, return -1);
+    aal_assert("umka-517", device != NULL, return -1);
+    
+    if (get_jf_last_flushed(footer) > aal_device_len(device)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Invalid journal footer has detected. "
+	    "Last flushed transaction (%llu) lies out of the device (0-%llu).", 
+	    get_jf_last_flushed(footer), aal_device_len(device));
+	return -1;
+    }
     return 0;
 }
 
@@ -25,21 +49,36 @@ static reiserfs_journal40_t *reiserfs_journal40_open(aal_device_t *device) {
     if (!(journal = aal_calloc(sizeof(*journal), 0)))
 	return NULL;
 
-/*    if (!(journal->header = aal_device_read_block(device, 
-	(blk_t)(REISERFS_JOURNAL40_OFFSET / aal_device_get_blocksize(device)))))
+    /* Reading and chanking journal header */
+    if (!(journal->header = aal_device_read_block(device, 
+	(blk_t)(REISERFS_JOURNAL40_HEADER / aal_device_get_blocksize(device)))))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't read journal header.");
 	goto error_free_journal;
     }
 	
-    if (!reiserfs_journal40_header_check(journal->header->data, device))
-	goto error_free_header;*/
+    if (!reiserfs_journal40_check_header(journal->header->data, device))
+	goto error_free_header;
 	
+    /* Reading and checking journal footer */
+    if (!(journal->footer = aal_device_read_block(device, 
+	(blk_t)(REISERFS_JOURNAL40_FOOTER / aal_device_get_blocksize(device)))))
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't read journal footer.");
+	goto error_free_header;
+    }
+	
+    if (!reiserfs_journal40_check_footer(journal->footer->data, device))
+	goto error_free_footer;
+    
     journal->device = device;
 	
     return journal;
-	
+
+error_free_footer:
+    aal_device_free_block(journal->footer);    
 error_free_header:
     aal_device_free_block(journal->header);
 error_free_journal:
@@ -61,25 +100,53 @@ static reiserfs_journal40_t *reiserfs_journal40_create(aal_device_t *device,
     
     journal->device = device;
 
-    /* Journal creating code */
+    if (!(journal->header = aal_device_alloc_block(device, 
+	    (REISERFS_JOURNAL40_HEADER / aal_device_get_blocksize(device)), 0)))
+	goto error_free_journal;
+   
+    /* Forming journal header basing on passed params */
     
-    return  journal;
+    if (!(journal->footer = aal_device_alloc_block(device, 
+	    (REISERFS_JOURNAL40_FOOTER / aal_device_get_blocksize(device)), 0)))
+	goto error_free_header;
+    
+    /* Forming journal footer basing on passed params */
+    
+    return journal;
+
+error_free_header:
+    aal_device_free_block(journal->header);
+error_free_journal:
+    aal_free(journal);
+error:
+    return NULL;
 }
 
 static error_t reiserfs_journal40_sync(reiserfs_journal40_t *journal) {
 
     aal_assert("umka-410", journal != NULL, return -1);
     
-/*    if (aal_device_write_block(journal->device, journal->header)) {
-	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
-	    "Can't synchronize journal header.");
+    if (aal_device_write_block(journal->device, journal->header)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't write journal header at %llu block.", 
+	    aal_device_get_block_nr(journal->device, journal->header));
 	return -1;
-    }*/
+    }
+    
+    if (aal_device_write_block(journal->device, journal->footer)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't write journal footer at %llu block.", 
+	    aal_device_get_block_nr(journal->device, journal->footer));
+	return -1;
+    }
     return 0;
 }
 
 static void reiserfs_journal40_close(reiserfs_journal40_t *journal) {
     aal_assert("umka-411", journal != NULL, return);
+
+    aal_device_free_block(journal->header);
+    aal_device_free_block(journal->footer);
     aal_free(journal);
 }
 

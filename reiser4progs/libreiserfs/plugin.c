@@ -141,8 +141,9 @@ error_t reiserfs_plugins_init(void) {
     closedir(dir);
 #else
     /* FIXME-umka: The following code is not 64-bit safe */
-    for (entry = (uint32_t *)(&__plugin_start); entry < (uint32_t *)(&__plugin_end); entry++)
-	reiserfs_plugins_load_by_entry((reiserfs_plugin_entry_t)*entry);
+    for (entry = (uint32_t *)(&__plugin_start) + 1; entry < (uint32_t *)(&__plugin_end); entry++) {
+	if (entry) reiserfs_plugins_load_by_entry((reiserfs_plugin_entry_t)*entry);
+    }
 #endif
     return -(aal_list_length(plugins) == 0);
 }
