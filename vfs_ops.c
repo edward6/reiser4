@@ -565,10 +565,15 @@ int reiser4_do_page_cache_readahead (struct file * file,
 	cur_page = start_page;
 	while (intrafile_readahead_amount) {
 		/* calc key of next page to readahead */
-		inode_file_plugin (inode)->key_by_inode (inode, (loff_t)cur_page << PAGE_CACHE_SHIFT, &key);
+		fplug->key_by_inode (inode, (loff_t)cur_page << PAGE_CACHE_SHIFT, &key);
 
 		result = find_next_item (file, &key, &coord, &lh, ZNODE_READ_LOCK);
 		if (result != CBK_COORD_FOUND) {
+			break;
+		}
+
+		result = zload (coord.node);
+		if (result) {
 			break;
 		}
 
