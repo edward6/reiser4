@@ -9,15 +9,6 @@
 
 #include <reiserfs/key.h>
 
-typedef struct reiserfs_direntry40 reiserfs_direntry40_t;
-
-struct reiserfs_dirid {
-    uint8_t objectid[sizeof(uint64_t)];
-    uint8_t offset[sizeof(uint64_t)];
-};
-
-typedef struct reiserfs_dirid reiserfs_dirid_t;
-
 struct reiserfs_objid {
     uint8_t locality[sizeof(uint64_t)];
     uint8_t objectid[sizeof(uint64_t)];
@@ -25,17 +16,28 @@ struct reiserfs_objid {
 
 typedef struct reiserfs_objid reiserfs_objid_t;
 
-struct reiserfs_direntry40_unit {
-    reiserfs_dirid_t hash;
+struct reiserfs_entry40 {
+    reiserfs_entryid_t entryid;
     uint16_t offset;
 };
 
-typedef struct reiserfs_direntry40_unit reiserfs_direntry40_unit_t;
+typedef struct reiserfs_entry40 reiserfs_entry40_t;
 
 struct reiserfs_direntry40 {
-    uint16_t num_entries;
-    reiserfs_direntry40_unit_t entry[0];
+    uint16_t count;
+    reiserfs_entry40_t entry[0];
 };
+
+typedef struct reiserfs_direntry40 reiserfs_direntry40_t;
+
+#define direntry40_get_count(de, num)   get_le16(de, count)
+#define direntry40_set_count(de, num)   set_le16(de, count, num)
+
+#define entry40_get_offset(entry, num)   get_le16(entry, offset)
+#define entry40_set_offset(entry, num)   set_le16(entry, offset, num)
+
+#define direntry40_get_entry_num(de, num)   set_le16(de, entry_num, num)
+#define direntry40_set_entry_num(de, num)   set_le16(de, entry_num, num)
 
 #endif
 

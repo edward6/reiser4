@@ -8,6 +8,7 @@
 #define KEY_H
 
 #include <aal/aal.h>
+#include <reiserfs/filesystem.h>
 
 typedef enum {
     /* file name */
@@ -54,6 +55,13 @@ union reiserfs_key {
 
 typedef union reiserfs_key reiserfs_key_t;
 
+struct reiserfs_entryid {
+    uint8_t objectid[sizeof(uint64_t)];
+    uint8_t hash[sizeof(uint64_t)];
+};
+
+typedef struct reiserfs_entryid reiserfs_entryid_t;
+
 typedef enum {
     /* major locality occupies higher 60 bits of the first element */
     KEY_LOCALITY_MASK    = 0xfffffffffffffff0ull,
@@ -76,6 +84,8 @@ typedef enum {
     /* generation counter occupies lower 8 bits of 3rd element */
     KEY_GEN_MASK         = 0xffull,
 } reiserfs_key_field_mask;
+
+#define OID_CHARS (sizeof(uint64_t) - 1)
 
 typedef enum {
     KEY_LOCALITY_SHIFT   = 4,
@@ -153,7 +163,9 @@ DEFINE_KEY_FIELD(offset, OFFSET, uint64_t);
 DEFINE_KEY_FIELD(hash, HASH, uint64_t);
 
 extern void reiserfs_key_init(reiserfs_key_t *key);
-
+extern void build_key_by_entryid(reiserfs_key_t *key, reiserfs_entryid_t *entryid);
+extern void build_entryid_by_entry_info(reiserfs_entryid_t *entryid, 
+    reiserfs_entry_info_t *info);
 
 #endif
 

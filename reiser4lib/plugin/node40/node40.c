@@ -311,7 +311,7 @@ static reiserfs_plugin_t node40_plugin = {
 	.close = NULL,
 	.confirm = (error_t (*)(reiserfs_opaque_t *))reiserfs_node40_confirm,
 	.check = (error_t (*)(reiserfs_opaque_t *, int))reiserfs_node40_check,
-	.lookup = (int (*)(reiserfs_opaque_t *, reiserfs_key_t *))
+	.lookup = (int (*)(reiserfs_opaque_t *, reiserfs_opaque_t *))
 	    reiserfs_node40_lookup,
 	.insert = (error_t (*)(reiserfs_opaque_t *, reiserfs_opaque_t *, 
 	    reiserfs_opaque_t *))reiserfs_node40_insert,
@@ -323,7 +323,7 @@ static reiserfs_plugin_t node40_plugin = {
 	.item_count = (uint16_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_count,
 	.item_length = (uint16_t (*)(reiserfs_opaque_t *, int32_t))
 	    reiserfs_node40_item_length,
-	.key_at = (reiserfs_key_t *(*)(reiserfs_opaque_t *, int32_t))
+	.key_at = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *, int32_t))
 	    reiserfs_node40_key_at,
 	.item_plugin_id = (uint16_t (*)(reiserfs_opaque_t *, int32_t))
 	    reiserfs_node40_item_plugin_id,

@@ -23,7 +23,9 @@ static error_t reiserfs_internal40_create(reiserfs_coord_t *coord,
 
     inter_info = item_info->info; 
     
+    reiserfs_check_method(coord->node->plugin->node, item, return -1);
     inter = coord->node->plugin->node.item(coord->node, coord->item_pos);
+
     int40_set_blk(inter, *inter_info->blk);
 	    
     return 0;

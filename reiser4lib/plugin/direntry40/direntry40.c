@@ -8,48 +8,90 @@
 
 #include "direntry40.h"
 
+/* This will build sd key as objid has SD_MINOR */
 static void build_key_by_objid(reiserfs_key_t *key, reiserfs_objid_t *id)
 {
     aal_assert("vpf-086", key != NULL, return);
     aal_assert("vpf-087", id != NULL, return);
-    
+   
+    aal_memset(key, 0, sizeof *key);    
     aal_memcpy(key, id, sizeof *id);
 }
 
-static void build_objid_by_key(reiserfs_objid_t *id, reiserfs_key_t *key)
+/* Will build sd key. */
+static void build_objid_by_ids(reiserfs_objid_t *objid, uint64_t loc, uint64_t id)
 {
-    aal_assert("vpf-088", key != NULL, return);
-    aal_assert("vpf-089", id != NULL, return);
+    reiserfs_key_t sd_key;
+    
+    aal_assert("vpf-089", objid != NULL, return);
 
-    aal_memcpy (id, key, sizeof *id);
-}
-
-static void build_key_by_dirid(reiserfs_key_t *key, reiserfs_dirid_t *dirid)
-{
-    aal_assert("vpf-090", key != NULL, return);
-    aal_assert("vpf-091", dirid != NULL, return);
-
-    aal_memcpy (&key[1], dirid, sizeof *dirid);
-}
-
-static void build_dirid_by_key(reiserfs_dirid_t *dirid, reiserfs_key_t *key)
-{
-    aal_assert("vpf-092", key != NULL, return);
-    aal_assert("vpf-093", dirid != NULL, return);
-
-    aal_memcpy (dirid, &key[1], sizeof *dirid);
+    reiserfs_key_init(&sd_key);
+    set_key_locality(&sd_key, loc);
+    set_key_objectid(&sd_key, id);
+    set_key_type(&sd_key, KEY_SD_MINOR);
+    
+    aal_memcpy (objid, &sd_key, sizeof *objid);
 }
 
 static error_t direntry40_create (reiserfs_coord_t *coord, 
     reiserfs_item_info_t *item_info) 
 {
+    int i;
+    uint16_t len, offset;
+    reiserfs_direntry40_t *body;
+    reiserfs_dir_info_t *info;    
+    
+    aal_assert("vpf-097", coord != NULL, return -1);
+    aal_assert("vpf-098", item_info != NULL, return -1);
+    aal_assert("vpf-099", item_info->info != NULL, return -1);
+    
+    info = item_info->info;
+    
+    reiserfs_check_method(coord->node->plugin->node, item, return -1);
+    body = coord->node->plugin->node.item(coord->node, coord->item_pos);
+    
+    direntry40_set_count(body, info->count);
+    
+    offset = sizeof(reiserfs_direntry40_t) + 
+	info->count * sizeof(reiserfs_entry40_t);
+
+    for (i = 0; i < info->count; i++) {	
+	entry40_set_offset(&body->entry[i], offset);
+	build_entryid_by_entry_info(&body->entry[i].entryid, &info->entry[i]);
+	build_objid_by_ids((reiserfs_objid_t *)((char *)body + offset), 
+	    info->entry[i].parent_id, info->entry[i].object_id);
+	
+	len = aal_strlen(info->entry[i].name);
+	aal_memcpy(body + offset + sizeof(reiserfs_objid_t), 
+	    &info->entry[i].name, len);
+	*((char *)body + offset + sizeof(reiserfs_objid_t) + 1) = 0;
+
+	offset += len + 1;
+    }
+    
     return 0;
 }
 
 static error_t direntry40_estimate(reiserfs_coord_t *coord, 
     reiserfs_item_info_t *item_info) 
 {
-    return 0;
+    int i;
+    reiserfs_dir_info_t *info;    
+	    
+    aal_assert("vpf-094", coord != NULL, return -1);
+    aal_assert("vpf-095", item_info != NULL, return -1);
+    aal_assert("vpf-096", item_info->info != NULL, return -1);
+    
+    info = item_info->info;
+    item_info->length = info->count * sizeof(reiserfs_direntry40_t);
+    
+    for (i = 0; i < info->count; i++)
+	item_info->length += aal_strlen(info->entry[i].name) + 1;
+    
+    if (coord == NULL)
+	item_info->length += sizeof(reiserfs_direntry40_t);
+	
+    return 0;    
 }
 
 static reiserfs_plugins_factory_t *factory = NULL;
