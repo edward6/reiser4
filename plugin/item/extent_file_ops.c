@@ -63,8 +63,8 @@ add_hole(coord_t *coord, lock_handle *lh, const reiser4_key *key /* key of posit
 		hole_key = *key;
 		set_key_offset(&hole_key, 0ull);
 
-		hole_width = ((get_key_offset(key) + coord->node->zjnode.tree->super->s_blocksize - 1) >>
-			      coord->node->zjnode.tree->super->s_blocksize_bits);
+		hole_width = ((get_key_offset(key) + current_blocksize - 1) >>
+			      current_blocksize_bits);
 		assert("vs-710", hole_width > 0);
 
 		/* compose body of hole extent */
@@ -95,8 +95,7 @@ add_hole(coord_t *coord, lock_handle *lh, const reiser4_key *key /* key of posit
 	/* extent item has to be appended with hole. Calculate length of that
 	   hole */
 	hole_width = ((get_key_offset(key) - get_key_offset(&hole_key) +
-		       coord->node->zjnode.tree->super->s_blocksize - 1) >> 
-		      coord->node->zjnode.tree->super->s_blocksize_bits);
+		       current_blocksize - 1) >> current_blocksize_bits);
 	assert("vs-954", hole_width > 0);
 
 	/* set coord after last unit */
@@ -351,7 +350,7 @@ make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode, reiser4_b
 
 	default:
 		assert("vs-1346", 0);
-		result = RETERR(-EAGAIN);
+		result = RETERR(-E_REPEAT);
 		break;
 	}
 		
@@ -422,7 +421,7 @@ static int
 extent_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 			   hint_t *hint)
 {
-	return item_balance_dirty_pages(mapping, f, hint, 0);
+	return item_balance_dirty_pages(mapping, f, hint, 0, 0/* do not set hint */);
 }
 
 /* estimate and reserve space which may be required for writing one page of file */
@@ -460,6 +459,7 @@ write_move_coord(coord_t *coord, uf_coord_t *uf_coord, write_mode_t mode, int fu
 		assert("vs-1342", coord->unit_pos == ext_coord->nr_units - 1);
 		assert("vs-1343", ext_coord->pos_in_unit == ext_coord->width - 2);
 		assert("vs-1344", state_of_extent(ext_coord->ext) == UNALLOCATED_EXTENT);
+		ON_DEBUG(ext_coord->extent = *ext_coord->ext);
 		ext_coord->pos_in_unit ++;
 		if (!full_page)
 			coord->between = AT_UNIT;
@@ -526,28 +526,18 @@ index_extent_jnode(reiser4_tree *tree, struct address_space *mapping, oid_t oid,
 		assert("vs-1421", mode == OVERWRITE_ITEM);
 	}
 	assert("vs-1430", jnode_get_mapping(j) == mapping);
-
-	/* FIXME: possible optimization: if jnode is not dirty yet - it gets into clean list in try_capture and then in
-	   jnode_mark_dirty gets moved to dirty list. So, it would be more optimal to put jnode directly to dirty
-	   list */
-	LOCK_JNODE(j);
-	result = try_capture(j, ZNODE_WRITE_LOCK, 0);
-	if (!result)
-		jnode_make_dirty_locked(j);
-	UNLOCK_JNODE(j);
-	
 	return j;
 }
 
 static void
 set_hint_unlock_node(hint_t *hint, flow_t *f, znode_lock_mode mode)
 {
-	if (hint->coord.valid)
-		set_hint(hint, &f->key);
-	else
+	if (hint->coord.valid) {
+		set_hint(hint, &f->key, mode);
+	} else {		
 		unset_hint(hint);
-	longterm_unlock_znode(znode_lh(hint->coord.base_coord.node, mode));
-	assert("", !znode_is_locked(hint->coord.base_coord.node));
+	}
+	longterm_unlock_znode(hint->coord.lh);
 }
 
 /* write flow's data into file by pages */
@@ -636,8 +626,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		if (result)
 			goto exit3;
 
-		/*set_hint_unlock_node(hint, flow, ZNODE_WRITE_LOCK);*/
-
 		assert("nikita-3033", schedulable());
 
 		/* copy user data into page */
@@ -655,6 +643,18 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 
 		reiser4_unlock_page(page);
 		page_cache_release(page);
+
+		/* FIXME: possible optimization: if jnode is not dirty yet - it gets into clean list in try_capture and
+		   then in jnode_mark_dirty gets moved to dirty list. So, it would be more optimal to put jnode directly
+		   to dirty list */
+		LOCK_JNODE(j);
+		result = try_capture(j, ZNODE_WRITE_LOCK, 0);
+		if (!result)
+			jnode_make_dirty_locked(j);
+		else
+			assert("", 0);
+		UNLOCK_JNODE(j);
+
 		jput(j);
 
 		/* throttle the writer */
@@ -922,7 +922,7 @@ read_extent(struct file *file, flow_t *flow,  hint_t *hint)
 
 
 		/* AUDIT: We must page-in/prepare user area first to avoid deadlocks */
-		result = __copy_to_user(flow->data - count, (char *)kmap(page) + page_off, count);
+		result = __copy_to_user(flow->data, (char *)kmap(page) + page_off, count);
 		kunmap(page);
 	
 		page_cache_release(page);
@@ -1157,6 +1157,10 @@ writepage_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, writ
 	LOCK_JNODE(j);
 	if (!jnode_page(j))
 		jnode_attach_page(j, page);
+
+	check_me("", try_capture(j, ZNODE_WRITE_LOCK, 0) == 0);
+	jnode_make_dirty_locked(j);
+
 	UNLOCK_JNODE(j);
 	jput(j);
 	/*reiser4_lock_page(page);*/
