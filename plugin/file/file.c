@@ -678,13 +678,7 @@ truncate_file(struct inode *inode, loff_t new_size, int update_sd)
 	result = find_file_size(inode, &cur_size);
 	if (!result) {
 		if (new_size != cur_size) {
-			int (*truncate_f)(struct inode *, loff_t);
-			
 			INODE_SET_FIELD(inode, i_size, cur_size);
-/*
-			truncate_f = (cur_size < new_size) ? append_hole : shorten_file;
-			result = truncate_f(inode, new_size);
-*/
 			result = (cur_size < new_size) ? append_hole(inode, new_size) : shorten_file(inode, new_size, update_sd);
 
 		} else {
