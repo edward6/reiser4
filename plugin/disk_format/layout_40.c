@@ -63,7 +63,6 @@ static struct buffer_head * read_super_block (struct super_block * s
 	return ERR_PTR (-ENOSYS);
 }
 
-
 /* plugin->u.layout.get_ready */
 int layout_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 {
@@ -94,6 +93,7 @@ int layout_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	if (IS_ERR (super_bh))
 		return PTR_ERR (super_bh);
 
+	/* initialize reiser4_super_info_data */
 	private = get_super_private (s);
 
 	/* initialize part of reiser4_super_info_data specific to layout 40 */
@@ -134,8 +134,8 @@ int layout_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	nplug = node_plugin_by_id (NODE40_ID);
 
 	/* init reiser4_tree for the filesystem */
-	result = init_tree (&private->tree, &root_block, height, nplug,
-			    default_read_node, default_allocate_node, default_unread_node);
+	result = init_tree (&private->tree, s, &root_block, height, nplug,
+			    &page_cache_tops);
 	if (result)
 		return result;
 
