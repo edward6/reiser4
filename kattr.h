@@ -12,7 +12,7 @@
 #include <linux/fs.h>
 
 /* fixme: access to sysfs files may cause deadlock. Do not turn for now */
-#define REISER4_USE_SYSFS (0)
+#define REISER4_USE_SYSFS (1)
 
 #if REISER4_USE_SYSFS
 
