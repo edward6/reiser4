@@ -31,10 +31,10 @@ typedef enum {
 	OTHER_ITEM_TYPE
 } item_type_id;
 
+
 /* this is the part of each item plugin that all items are expected to
    support or at least explicitly fail to support by setting the
    pointer to null. */
-struct cut_list;
 typedef struct {
 	item_type_id item_type;
 
@@ -77,7 +77,7 @@ typedef struct {
 	int (*mergeable) (const coord_t *, const coord_t *);
 
 	/* number of atomic things in an item */
-	pos_in_item_t (*nr_units) (const coord_t *);
+	pos_in_node_t (*nr_units) (const coord_t *);
 
 	/* search within item for a unit within the item, and return a
 	   pointer to it.  This can be used to calculate how many
@@ -136,7 +136,7 @@ typedef struct {
 	   balancing to perform dealloc_block - this will probably
 	   break balancing due to deadlock issues
 	*/
-	int (*kill_hook) (const coord_t *, unsigned from, unsigned count, struct cut_list *);
+	int (*kill_hook) (const coord_t *, pos_in_node_t from, pos_in_node_t count, struct carry_kill_data *);
 	int (*shift_hook) (const coord_t *, unsigned from, unsigned count, znode *_node);
 
 	/* unit @*from contains @from_key. unit @*to contains
@@ -149,18 +149,19 @@ typedef struct {
 	   head. Return amount of space which got freed. Save smallest
 	   removed key if @smallest_removed is not 0
 	*/
-	int (*cut_units) (coord_t *, unsigned *from, unsigned *to,
-			  const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed, struct cut_list *);
+	int (*cut_units) (coord_t *, pos_in_node_t from, pos_in_node_t to, struct carry_cut_data *,
+			  reiser4_key *smallest_removed, reiser4_key *new_first_key);
 
 	/* like cut_units, except that these units are removed from the
 	   tree, not only from a node */
-	int (*kill_units) (coord_t *, unsigned *from, unsigned *to,
-			   const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed, struct cut_list *);
+	int (*kill_units) (coord_t *, pos_in_node_t from, pos_in_node_t to, struct carry_kill_data *,
+			   reiser4_key *smallest_removed, reiser4_key *new_first);
 
 	/* if @key_of_coord == 1 - returned key of coord, otherwise -
 	   key of unit is returned. If @coord is not set to certain
 	   unit - ERR_PTR(-ENOENT) is returned */
 	reiser4_key *(*unit_key) (const coord_t *, reiser4_key *);
+	reiser4_key *(*max_unit_key) (const coord_t *, reiser4_key *);
 	/* estimate how much space is needed for paste @data into item at
 	   @coord. if @coord==0 - estimate insertion, otherwise - estimate
 	   pasting
@@ -322,11 +323,13 @@ extern int item_is_extent(const coord_t *);
 extern int item_is_tail(const coord_t *);
 extern int item_is_statdata(const coord_t * item);
 
-extern int item_length_by_coord(const coord_t * coord);
+extern pos_in_node_t item_length_by_coord(const coord_t * coord);
 extern item_type_id item_type_by_coord(const coord_t * coord);
 extern item_id item_id_by_coord(const coord_t * coord /* coord to query */ );
 extern reiser4_key *item_key_by_coord(const coord_t * coord, reiser4_key * key);
+extern reiser4_key *max_item_key_by_coord(const coord_t *, reiser4_key *);
 extern reiser4_key *unit_key_by_coord(const coord_t * coord, reiser4_key * key);
+extern reiser4_key *max_unit_key_by_coord(const coord_t * coord, reiser4_key * key);
 
 extern void obtain_item_plugin(const coord_t * coord);
 
