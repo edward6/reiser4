@@ -1004,7 +1004,6 @@ coord_is_after_last_unit(coord_t * coord)
 	return 1;
 }
 
-#if REISER4_TRACE
 const char *
 coord_tween_tostring(between_enum n)
 {
@@ -1044,7 +1043,6 @@ print_coord(const char *mes, const coord_t * coord, int node)
 	if (node)
 		print_znode("\tnode", coord->node);
 }
-#endif
 
 int
 item_utmost_child_real_block(const coord_t * coord, sideof side, reiser4_block_nr * blk)
