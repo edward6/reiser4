@@ -344,15 +344,16 @@ extern __u32 reiser4_current_trace_flags;
 #define reiser4_stat_pool_add( stat ) ST_INC_CNT( pool. stat )
 #define reiser4_stat_seal_add( stat ) ST_INC_CNT( seal. stat )
 
-#define	reiser4_stat_add_at_level( lev, stat )				\
+#define	reiser4_stat_add_at_level(lev, stat)				\
 ({									\
-	tree_level level;						\
+	int level;							\
 									\
-	assert ("green-10", lev >= LEAF_LEVEL );			\
-	level = ( lev ) - LEAF_LEVEL;					\
-	if( ( lev ) < REAL_MAX_ZTREE_HEIGHT ) {				\
-		ST_INC_CNT( level[ level ]. stat );			\
-		ST_INC_CNT( level[ level ]. total_hits_at_level );	\
+	level = (lev) - LEAF_LEVEL;					\
+	if ((lev) >= 0) {						\
+		if((lev) < REAL_MAX_ZTREE_HEIGHT) {			\
+			ST_INC_CNT(level[level]. stat);			\
+			ST_INC_CNT(level[level]. total_hits_at_level);	\
+		}							\
 	}								\
 })
 
