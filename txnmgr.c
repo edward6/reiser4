@@ -3763,7 +3763,6 @@ fake_jload(jnode *node)
 
 /* for now - refuse to copy-on-capture any suspicious nodes (WRITEBACK, DIRTY, FLUSH_QUEUED) */
 static int
-
 capturable(const jnode *node, const txn_atom *atom)
 {
 	assert("vs-1429", spin_jnode_is_locked(node));
