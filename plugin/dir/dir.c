@@ -48,7 +48,6 @@ typedef enum {
  *     . if last step fails, remove link from "existing"
  *     . close transaction
  *
- *    Less bread, more taxes!
  */
 static int common_link( struct inode *parent, struct dentry *existing, 
 			struct dentry *where )
@@ -175,11 +174,16 @@ static int common_unlink( struct inode *parent, struct dentry *victim )
 		/* call plugin to do actual removal of link */
 		uf_type = UNLINK_BY_PLUGIN;
 	} else {
+		/* explain how it makes sense to do this for plugins that don't support it? Does it make any sense at
+		   all to have a default method for plugins?  I suspect it will just make the code more confusing to
+		   follow.... -Hans */
 		/* do reasonable default stuff */
 		uf_type = UNLINK_BY_NLINK;
 	}
 
 	/* first, delete directory entry */
+
+	/* and second? -Hans */
 	result = parent_dplug -> rem_entry( parent, victim, &entry );
 	if( result == 0 ) {
 		switch( uf_type ) {
