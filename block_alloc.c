@@ -14,39 +14,19 @@
 #include <linux/fs.h>		/* for struct super_block  */
 #include <linux/spinlock.h>
 
-/* The Reiser4 Disk Space Reservation Scheme. */
+/* THE REISER4 DISK SPACE RESERVATION SCHEME. */
 
-/* The main goal for having a disk space reservation scheme in the reiser4 is to
-   get a reliability for any reiser4 fs operation which may allocate disk space.
-   The reason for unreliability is that we can't allow reiser4 transactions fail
-   at the middle of reiser4 tree or fs modification if that fail leaves reiser4
-   structures in inconsistent state.  The reiser4 transactions ("transcrashes")
-   has no rollback mechanism, and, if an error encountered we can only ignore
-   the error (bad, it makes fs inconsistent) or call reiser4_panic() and have
-   choices to stop the kernel or to remount file system R/O as the best of
-   possible solutions.  It may be acceptable for I/O errors but not for the "no
-   space" error which should be handled without involving such destructive
-   mechanisms.  That means we have to detect the "no space" problems before
-   reiser4 transaction changes the reiser4 tree or whole fs. It is done by
-   reserving disk space needed for subsequent disk space allocations at the
-   beginning of operation.  A call for reserving disk space may fail but not an
-   actual block allocation.
+/* We need to be able to reserve enough disk space to ensure that an atomic
+   operation will have enough disk space to flush (see flush.c and
+   http://namesys.com/v4/fast_reiser4.html) and commit it once it is started.
 
-   The reiser4 fs has a feature of delayed block allocation which is named as
-   "(re)allocate-on-flush" (see http://namesys.com/v4/txn-doc.html).  Here we
-   only need to know that the actual block allocation is done by the reiser4
-   flush routines in a time when a system call which reserved space for it
-   completed already. Disk space is needed for already allocated blocks for
-   writing them to new disk locations as a part of atom's relocate set or
-   allocation of wandered blocks for reliable writing them as a part of atom's
-   overwrite set.
+   In our design a call for reserving disk space may fail but not an actual
+   block allocation.
 
-   All free, reserved and already allocated blocks are counted in different
-   per-fs block counters according to blocks states (allocated or not yet
-   allocated) and reserved for some needs depend on what kind of need blocks
-   were reserved for.
+   All free blocks, already allocated blocks, and all kinds of reserved blocks
+   are counted in different per-fs block counters.
    
-   Now we have the following set of counters:
+   A reiser4 super block's set of block counters currently is:
 
    free -- free blocks,
    used -- already allocated blocks,
@@ -57,7 +37,9 @@
           reserved", "used", the rest of not used grabbed space is returned to
           free space at the end of fs operation;
 
-   fake allocated -- counts all nodes without real disk block numbers assigned;
+   fake allocated -- counts all nodes without real disk block numbers assigned,
+                     we have separate accounting for formatted and unformatted
+                     nodes;
  
    flush reserved -- disk space needed for flushing and committing an atom.
                      Each dirty already allocated block could be written as a
@@ -66,31 +48,58 @@
                      it is used as a wandered block if we do overwrite or as a
 		     new location for relocated block. 
 
-   An example: suppose we insert new item to the reiser4 tree.  We estimate
+   In addition, blocks in some states are counted in per-thread and per-atom
+   basis.  A reiser4 context has a counter of grabbed block, the sb's grabbed
+   blocks counter is a sum of grabbed blocks counter values of each reiser4
+   context.  Each reiser4 atom has a counter of "flush reserved" blocks, which
+   are reserved for flush processing and atom commit. */
+   
+/* AN EXAMPLE: suppose we insert new item to the reiser4 tree.  We estimate
    number of blocks to grab for most expensive case of balancing when the leaf
-   node we insert new item to gets split and new node is needed and that
-   situation repeats on the twig level and all tree levels up to the tree root.
+   node we insert new item to gets split and new leaf node is allocated.
+
    So, we need to grab blocks for 
-   1) up to MAX_TREE_HEIGHT new nodes,
-   2) if node we insert new item and all its parents where clean already
-      allocated nodes we have to grab MAX_TREE_HEIGHT blocks for further
-      counting them as "flush reserved" for writing them as a part of
-      transaction at the moment of atom flushing or commit.
 
-   Suppose 1 new node was allocated and 1 clean already allocated node was
-   modified. Their parent was modified but it was dirty already.  The grabbed
-   space of 2 x MAX_TREE_HEIGHT blocks was spent for 1 new node (1 grabbed block
-   became 1 unallocated block) and for dirtying of one clean node (1 grabbed
-   block became 1 flush reserved block), no one grabbed block was spent for
-   modifying of a already dirty block.  If MAX_TREE_HEIGHT=30, 30 x 2 - 2 = 58,
-   58 blocks should be returned from grabbed counter to free after the insertion
-   completes.
+   1) one block for possible dirtying the node we insert an item to. That block
+      would be used for node relocation at flush time or for allocating of a
+      wandered one, it depends what will be a result (what set, relocate or
+      overwrite the node gets assigned to) of the node processing by the flush
+      algorithm.
+  
+   2) one block for allocating a new node.
 
-   NOTE: the example above is a dumb one which is not from real reiser4 code it
-   is just for illustration of how disk space is reserved and counted in
-   different disk space counters. */
+   This grabbed blocks are counted in both reiser4 context "grabbed blocks"
+   counter and in the fs-wide one (both ctx->grabbed_blocks and
+   sbinfo->blocks_grabbed get incremented by 2), sb's free blocks counter is
+   decremented by 2.
 
-/* Block numbers */
+   Suppose both two blocks were spent for dirtying of a already allocated clean
+   node (one block went from "grabbed" to "flush reserved") and for new block
+   allocating (one block went from "grabbed" to "fake allocated formatted").
+
+   Inserting of a child pointer to the parent node caused parent node to be
+   split, the balancing code takes care about this grabbing necessary space
+   immediately by calling reiser4_grab with BA_RESERVED flag set which means
+   "can use the 5% reserved disk space".
+
+   At this moment insertion completes and grabbed blocks (if they were not used)
+   should be returned to the free space counter.
+
+   However the atom life-cycle is not completed.  The atom has a one "flush
+   reserved" block added by our insertion and the new fake allocated node is
+   counted as a "fake allocated formatted" one.  The atom has to be fully
+   processed by flush before commit.  Suppose that the flush moved the first,
+   already allocated node to the atom's overwrite list, the new fake allocated
+   node, obviously, went into the atom relocate set.  The reiser4 flush
+   allocates the new node using one unit from "fake allocated formatted"
+   counter, the log writer uses one from "flush reserved" for wandered block
+   allocation. 
+
+   And, it is not the end.  When the wandered block is deallocated after the
+   atom gets fully played (see wander.c for term description), the disk space
+   occupied for it is returned to free blocks. */
+
+/* BLOCK NUMBERS */
 
 /* Any reiser4 node has a block number assigned to it.  There are two major
    kinds of block numbers: real block numbers which are locations on the block
