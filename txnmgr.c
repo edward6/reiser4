@@ -1417,11 +1417,6 @@ again:
 				goto again;
 			}
 
-			/* This place have a potential to become CPU-eating dead-loop, so I've
-			   inserted schedule() here, so that other processes might have a chance to
-			   run. */
-			schedulable();
-
 			ret = 0;
 			failed = 1;
 
@@ -1678,16 +1673,18 @@ try_capture(jnode * node, znode_lock_mode lock_mode, txn_capture flags
 
 	int non_blocking = flags & TXN_CAPTURE_NONBLOCKING;
 
-	if ((txnh = get_current_context()->trans) == NULL) {
-		reiser4_panic("jmacd-492", "invalid transaction txnh");
-	}
+	txnh = get_current_context()->trans;
+	assert("jmacd-492", txnh);
 
 	/* FIXME_JMACD No way to set TXN_CAPTURE_READ_MODIFY yet. */
 
 	if (lock_mode == ZNODE_WRITE_LOCK) {
 		cap_mode = TXN_CAPTURE_WRITE;
+	} else if (node->atom != NULL) {
+		cap_mode = TXN_CAPTURE_WRITE;
 	} else if ((txnh->mode == TXN_READ_FUSING)
 		   && (jnode_get_level(node) == LEAF_LEVEL)) {
+		/* NOTE-NIKITA TXN_READ_FUSING is not currently used */
 		/* We only need a READ_FUSING capture at the leaf level.  This is because
 		   the internal levels of the tree (twigs included) are redundant from the
 		   point of the user that asked for a read-fusing transcrash.  The user
