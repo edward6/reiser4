@@ -2643,8 +2643,11 @@ reserve_extent_write_iteration(struct inode *inode, reiser4_tree *tree)
 
 	grab_space_enable();
 	/* one unformatted node and one insertion into tree and one stat data update may be involved */
-	result = reiser4_grab_space(1 + estimate_one_insert_into_item(tree) +
-				    inode_file_plugin(inode)->estimate.update(inode),
+	result = reiser4_grab_space(1 + /* Hans removed reservation for balancing here. */
+				    /* if extent items will be ever used by plugins other than unix file plugin - estimate update should instead be taken by
+				       inode_file_plugin(inode)->estimate.update(inode)
+				    */
+				    estimate_common_update(inode),
 				    0/* flags */, "extent_write");
 	return result;
 }
@@ -2698,7 +2701,7 @@ write_move_coord(coord_t *coord, uf_coord_t *uf_coord, write_mode_t mode, int fu
 /* write flow's data into file by pages */
 static int
 extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint, 
-		  int grabbed, /* 0 if space for operation is not reserved yet, 0 - otherwise */
+		  int grabbed, /* 0 if space for operation is not reserved yet, 1 - otherwise */
 		  write_mode_t mode)
 {
 	int result;
@@ -2890,14 +2893,15 @@ extent_write_hole(struct inode *inode, flow_t *flow, hint_t *hint, int grabbed)
   It can be called in two modes:
   1. real write - to write data from flow to a file (@flow->data != 0)
   2. expanding truncate (@f->data == 0)
-
-  grabbed: extent's write may be called from plain unix file write and from tail conversion. In first case (grabbed ==
-  0) space is not reserved forehand, so, it must be done here. When it is being called from tail conversion - space is
-  reserved already for whole operation which may involve several calls to item write. In this case space reservation
-  will not be done here
 */
 int
-write_extent(struct inode *inode, flow_t *flow, hint_t *hint, int grabbed, write_mode_t mode)
+write_extent(struct inode *inode, flow_t *flow, hint_t *hint, 
+	     int grabbed, /* extent's write may be called from plain unix file write and from tail conversion. In first
+			     case (grabbed == 0) space is not reserved forehand, so, it must be done here. When it is
+			     being called from tail conversion - space is reserved already for whole operation which may
+			     involve several calls to item write. In this case space reservation will not be done
+			     here */
+	     write_mode_t mode)
 {
 	if (flow->data)
 		/* real write */
