@@ -45,11 +45,13 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	set_key_type (root_key, KEY_SD_MINOR);
 	set_key_offset (root_key, (__u64)0);
 
-	/* Fill blocks statistics in the superblock */
-	reiser4_set_block_count (s, 0);
+	/* initialize fields of reiser4 private part of super block which
+	 * are common for all disk formats
+	 * FIXME-VS: shouldn't that initizlization be in common code? */
+	reiser4_set_block_count (s, 0ull);
 	/* number of used blocks */
 	reiser4_set_data_blocks (s, d64tocpu( &disk_sb->new_block_nr ) - 1);
-	reiser4_set_free_blocks (s, 0);
+	reiser4_set_free_blocks (s, 0ull);
 
 	/* init oid allocator */		  
 	private->oid_plug = oid_allocator_plugin_by_id (OID_40_ALLOCATOR_ID);
@@ -77,8 +79,10 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	result = init_tree (&private->tree, s, &root_block, height, 
 			    node_plugin_by_id (NODE40_ID),
 			    &page_cache_tops);
-	if (result)
+	if (result) {
+		brelse (super_bh);
 		return result;
+	}
 
 	/* FIXME-VS: move up to reiser4_fill_super? */
 	result = init_formatted_fake (s);
