@@ -492,9 +492,12 @@ static int submit_write (jnode * first, int nr,
 
 		page_cache_get (pg);
 		lock_page (pg);
-		SetPageWriteback (pg);
 
+		assert ("zam-605", !PageWriteback(pg));
+
+		SetPageWriteback (pg);
 		ClearPageUptodate(pg);
+
 		unlock_page (pg);
 
 		bio->bi_io_vec[i].bv_page   = pg;
