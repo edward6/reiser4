@@ -1495,3 +1495,4 @@ tags
 .reiser4.mod.o.cmd
 reiser4.ko
 reiser4.mod.c
+plugin/.plugin_set.c.swp
