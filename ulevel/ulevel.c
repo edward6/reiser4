@@ -4687,17 +4687,22 @@ static int try_to_release_page (struct page * page, int gfp_mask)
  * number of freed pages */
 static int shrink_cache (void)
 {
-	struct list_head * cur, * tmp;
 	struct page * page;
 	int removed;
+	int i;
 
 	removed = 0;
 
 	spin_lock (&page_list_guard);
 
-	list_for_each_safe (cur, tmp, &page_lru_list) {
-		page = list_entry (cur, struct page, lru);
-		
+	for (i = 0; i < nr_pages; ++ i) {
+		struct list_head * tmp;
+
+		tmp = page_lru_list.prev;
+		page = list_entry (tmp, struct page, lru);
+		list_del(tmp);
+		list_add(tmp, &page_lru_list);
+
 		if (!PagePrivate (page) || !page->mapping) {
 			assert ("vs-820", page_count (page) && page_count (page) < 3);
 			continue;
