@@ -25,7 +25,7 @@ error_t reiserfs_alloc_open(reiserfs_fs_t *fs) {
 	
     if (!(fs->alloc = aal_calloc(sizeof(*fs->alloc), 0)))
 	return -1;
-	
+    
     plugin_id = reiserfs_super_alloc_plugin_id(fs);
     if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_ALLOC_PLUGIN, plugin_id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -35,10 +35,10 @@ error_t reiserfs_alloc_open(reiserfs_fs_t *fs) {
 
     fs->alloc->plugin = plugin;
 
-    reiserfs_check_method(plugin->alloc, open, goto error_free_alloc);
-    if (!(fs->alloc->entity = plugin->alloc.open(fs->device, reiserfs_super_get_blocks(fs)))) {
+    reiserfs_check_method(fs->super->plugin->format, alloc, goto error_free_alloc);
+    if (!(fs->alloc->entity = fs->super->plugin->format.alloc(fs->super->entity))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't initialize block allocator plugin.");
+	    "Can't initialize block allocator.");
 	goto error_free_alloc;
     }
 	
@@ -53,8 +53,9 @@ error:
 
 #ifndef ENABLE_COMPACT
 
-error_t reiserfs_alloc_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t plugin_id, count_t blocks) {
+error_t reiserfs_alloc_create(reiserfs_fs_t *fs, count_t blocks) {
     reiserfs_plugin_t *plugin;
+    reiserfs_plugin_id_t plugin_id;
 	
     aal_assert("umka-137", fs != NULL, return -1);
 	
@@ -67,6 +68,7 @@ error_t reiserfs_alloc_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t plugin_id,
     if (!(fs->alloc = aal_calloc(sizeof(*fs->alloc), 0)))
 	return -1;
 	
+    plugin_id = reiserfs_super_alloc_plugin_id(fs);
     if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_ALLOC_PLUGIN, plugin_id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't find block allocator plugin by its identifier %x.", plugin_id);
@@ -74,13 +76,13 @@ error_t reiserfs_alloc_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t plugin_id,
     }
     fs->alloc->plugin = plugin;
 
-    reiserfs_check_method(plugin->alloc, create, goto error_free_alloc);
-    if (!(fs->alloc->entity = plugin->alloc.create(fs->device, blocks))) {
+    reiserfs_check_method(fs->super->plugin->format, alloc, goto error_free_alloc);
+    if (!(fs->alloc->entity = fs->super->plugin->format.alloc(fs->super->entity))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't allocator.");
+	    "Can't initialize block allocator.");
 	goto error_free_alloc;
     }
-	
+    
     return 0;
 	
 error_free_alloc:
@@ -104,9 +106,6 @@ void reiserfs_alloc_close(reiserfs_fs_t *fs) {
     aal_assert("umka-140", fs != NULL, return);
     aal_assert("umka-141", fs->alloc != NULL, return);
 	
-    reiserfs_check_method(fs->alloc->plugin->alloc, close, return);
-    fs->alloc->plugin->alloc.close(fs->alloc->entity);
-    
     aal_free(fs->alloc);
     fs->alloc = NULL;
 }

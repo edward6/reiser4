@@ -11,7 +11,6 @@
 
 static reiserfs_plugins_factory_t *factory = NULL;
 
-#include <stdio.h>
 static error_t reiserfs_format40_super_check(reiserfs_format40_super_t *super, 
     aal_device_t *device) 
 {
@@ -65,8 +64,10 @@ static aal_block_t *reiserfs_format40_super_open(aal_device_t *device) {
     return block;
 }
 
+/* This function should find most recent copy of the super block */
 static reiserfs_format40_t *reiserfs_format40_open(aal_device_t *device) {
     reiserfs_format40_t *format;
+    reiserfs_plugin_t *plugin;
 
     aal_assert("umka-393", device != NULL, return NULL);
 	
@@ -76,15 +77,36 @@ static reiserfs_format40_t *reiserfs_format40_open(aal_device_t *device) {
     if (!(format->super = reiserfs_format40_super_open(device)))
 	goto error_free_format;
 		
+    if (!(plugin = factory->find_by_coords(REISERFS_ALLOC_PLUGIN, 
+	REISERFS_FORMAT40_ALLOC))) 
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't find allocator plugin by its id %x.", 
+	    REISERFS_FORMAT40_ALLOC);
+	goto error_free_super;
+    }
+    
+    reiserfs_check_method(plugin->alloc, create, goto error_free_super);
+    if (!(format->alloc = plugin->alloc.open(device, 
+	get_sb_block_count((reiserfs_format40_super_t *)format->super->data)))) 
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't open allocator \"%s\".", plugin->h.label);
+	goto error_free_super;
+    }
+    
     format->device = device;
     return format;
 	
+error_free_super:
+    aal_device_free_block(format->super);
 error_free_format:
     aal_free(format);
 error:
     return NULL;
 }
 
+/* This function should update all copies of the super block */
 static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
     blk_t offset;
    
@@ -99,9 +121,9 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
     return 0;
 }
 
+/* This function should create super block and update all copies */
 static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device, 
-    count_t blocks, reiserfs_opaque_t *alloc, reiserfs_plugin_id_t journal_plugin_id, 
-    reiserfs_plugin_id_t alloc_plugin_id, reiserfs_plugin_id_t oid_plugin_id)
+    count_t blocks)
 {
     blk_t blk;
     reiserfs_plugin_t *plugin;
@@ -109,7 +131,6 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device,
     reiserfs_format40_super_t *super;
 
     aal_assert("umka-395", device != NULL, return NULL);
-    aal_assert("umka-396", alloc != NULL, return NULL);
     
     if (!(format = aal_calloc(sizeof(*format), 0)))
 	return NULL;
@@ -133,41 +154,52 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device,
     set_sb_tree_height(super, 2);
 
     /* 
-	Smallest free oid. In theory it should be zero and then 
+	Smallest free oid. In theory it should be minimal and then 
 	it should be increased by node plugin or some item plugin.
-	However, both they not accessible and we will set it into 
-	"two" value (two dirs in the root dir "." and "..").
+	However, both they not completed for awhile and we will set 
+	it into "43" value (two dirs in the root dir "." and "..").
     */
-    set_sb_oid(super, 2);
+    set_sb_oid(super, 43);
 
     /* The same as smallest oid */
     set_sb_file_count(super, 2);
     set_sb_flushes(super, 0);
 
-    set_sb_journal_plugin_id(super, journal_plugin_id);
-    set_sb_alloc_plugin_id(super, alloc_plugin_id);
-    set_sb_oid_plugin_id(super, oid_plugin_id);
-
-    if (!(plugin = factory->find_by_coords(REISERFS_ALLOC_PLUGIN, alloc_plugin_id))) {
+    if (!(plugin = factory->find_by_coords(REISERFS_ALLOC_PLUGIN, 
+	REISERFS_FORMAT40_ALLOC))) 
+    {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find allocator plugin by its id %x.", alloc_plugin_id);
-	goto error_free_format;
+	    "Can't find allocator plugin by its id %x.", 
+	    REISERFS_FORMAT40_ALLOC);
+	goto error_free_super;
     }
-
-    reiserfs_check_method(plugin->alloc, use, goto error_free_format);
+    
+    reiserfs_check_method(plugin->alloc, create, goto error_free_super);
+    if (!(format->alloc = plugin->alloc.create(device, blocks))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't create allocator \"%s\".", plugin->h.label);
+	goto error_free_super;
+    }
+    
+    reiserfs_check_method(plugin->alloc, use, goto error_free_alloc);
     
     /* Marking the skiped area (0-16 blocks) as used */
-    for (blk = 0; blk < (blk_t)(REISERFS_MASTER_OFFSET / aal_device_get_blocksize(device)); blk++)
-	plugin->alloc.use(alloc, blk);
+    for (blk = 0; blk < (blk_t)(REISERFS_MASTER_OFFSET / 
+	    aal_device_get_blocksize(device)); blk++)
+	plugin->alloc.use(format->alloc, blk);
     
     /* Marking master super block as used */
-    plugin->alloc.use(alloc, (REISERFS_MASTER_OFFSET / aal_device_get_blocksize(device)));
+    plugin->alloc.use(format->alloc, (REISERFS_MASTER_OFFSET / 
+	aal_device_get_blocksize(device)));
     
     /* Marking format-specific super block as used */
-    plugin->alloc.use(alloc, (REISERFS_FORMAT40_OFFSET / aal_device_get_blocksize(device)));
+    plugin->alloc.use(format->alloc, (REISERFS_FORMAT40_OFFSET / 
+	aal_device_get_blocksize(device)));
     
     return format;
-    
+
+error_free_alloc:
+    aal_free(format->alloc);
 error_free_super:
     aal_device_free_block(format->super);
 error_free_format:
@@ -183,8 +215,23 @@ static error_t reiserfs_format40_check(reiserfs_format40_t *format) {
 }
 
 static void reiserfs_format40_close(reiserfs_format40_t *format) {
+    reiserfs_plugin_t *plugin;
+    
     aal_assert("umka-398", format != NULL, return);
     
+    if (!(plugin = factory->find_by_coords(REISERFS_ALLOC_PLUGIN, 
+	REISERFS_FORMAT40_ALLOC))) 
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't find allocator plugin by its id %x.", 
+	    REISERFS_FORMAT40_ALLOC);
+	goto error_free_super;
+    }
+    
+    reiserfs_check_method(plugin->alloc, close, return);
+    plugin->alloc.close(format->alloc);
+
+error_free_super:
     aal_device_free_block(format->super);
     aal_free(format);
 }
@@ -206,23 +253,25 @@ static const char *reiserfs_format40_format(reiserfs_format40_t *format) {
 }
 
 static reiserfs_plugin_id_t reiserfs_format40_journal_plugin(reiserfs_format40_t *format) {
-    aal_assert("umka-482", format != NULL, return 0);
-    return get_sb_journal_plugin_id((reiserfs_format40_super_t *)format->super->data);
+    return REISERFS_FORMAT40_JOURNAL;
 }
 
 static reiserfs_plugin_id_t reiserfs_format40_alloc_plugin(reiserfs_format40_t *format) {
-    aal_assert("umka-483", format != NULL, return 0);
-    return get_sb_alloc_plugin_id((reiserfs_format40_super_t *)format->super->data);
+    return REISERFS_FORMAT40_ALLOC;
 }
 
 static reiserfs_plugin_id_t reiserfs_format40_oid_plugin(reiserfs_format40_t *format) {
-    aal_assert("umka-484", format != NULL, return 0);
-    return get_sb_oid_plugin_id((reiserfs_format40_super_t *)format->super->data);
+    return REISERFS_FORMAT40_OID;
 }
 
 static blk_t reiserfs_format40_offset(reiserfs_format40_t *format) {
     aal_assert("umka-399", format != NULL, return 0);
     return (REISERFS_FORMAT40_OFFSET / aal_device_get_blocksize(format->device));
+}
+
+static reiserfs_opaque_t *reiserfs_format40_alloc(reiserfs_format40_t *format) {
+    aal_assert("umka-489", format != NULL, return 0);
+    return format->alloc;
 }
 
 static blk_t reiserfs_format40_get_root(reiserfs_format40_t *format) {
@@ -267,8 +316,7 @@ static reiserfs_plugin_t format40_plugin = {
 	},
 	.open = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_format40_open,
 	
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, reiserfs_opaque_t *, 
-	    reiserfs_plugin_id_t, reiserfs_plugin_id_t, reiserfs_plugin_id_t))
+	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))
 	    reiserfs_format40_create,
 
 	.close = (void (*)(reiserfs_opaque_t *))reiserfs_format40_close,
@@ -278,13 +326,15 @@ static reiserfs_plugin_t format40_plugin = {
 	.format = (const char *(*)(reiserfs_opaque_t *))reiserfs_format40_format,
 	
 	.offset = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format40_offset,
+	.alloc = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *))reiserfs_format40_alloc,
 	
 	.get_root = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format40_get_root,
-	.get_blocks = (count_t (*)(reiserfs_opaque_t *))reiserfs_format40_get_blocks,
-	.get_free = (count_t (*)(reiserfs_opaque_t *))reiserfs_format40_get_free,
-	
 	.set_root = (void (*)(reiserfs_opaque_t *, blk_t))reiserfs_format40_set_root,
+	
+	.get_blocks = (count_t (*)(reiserfs_opaque_t *))reiserfs_format40_get_blocks,
 	.set_blocks = (void (*)(reiserfs_opaque_t *, count_t))reiserfs_format40_set_blocks,
+	
+	.get_free = (count_t (*)(reiserfs_opaque_t *))reiserfs_format40_get_free,
 	.set_free = (void (*)(reiserfs_opaque_t *, count_t))reiserfs_format40_set_free,
 	
 	.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
