@@ -26,6 +26,9 @@ static libreiserfs_malloc_handler_t malloc_handler = NULL;
 static libreiserfs_realloc_handler_t realloc_handler = NULL;
 static libreiserfs_free_handler_t free_handler = NULL;
 
+list_t *plugin_cashe = NULL;
+list_t *plugin_map = NULL;
+
 int libreiserfs_get_max_interface_version(void) {
 	return LIBREISERFS_MAX_INTERFACE_VERSION;
 }
@@ -47,6 +50,17 @@ static void _init(void) {
 #ifdef ENABLE_NLS
 	 bindtextdomain(PACKAGE, LOCALEDIR);
 #endif
+	plugin_cashe = list_create(10);
+	plugin_map = list_create(10);
+	
+	libreiserfs_plugin_map_init();
+}
+
+static void _done(void) __attribute__ ((destructor));
+
+static void _done(void) {
+	list_free(plugin_cashe);
+	list_free(plugin_map);
 }
 
 void libreiserfs_malloc_set_handler(libreiserfs_malloc_handler_t handler) {

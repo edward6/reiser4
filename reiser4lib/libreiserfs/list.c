@@ -98,6 +98,8 @@ int list_delete(list_t *list, int pos) {
 	}
 	
 	list->count--;
+	list_shrink(list);
+	
 	return 1;
 }
 

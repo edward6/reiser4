@@ -142,8 +142,11 @@ AC_OUTPUT([
 	include/Makefile
 	include/dal/Makefile
 	include/reiserfs/Makefile
-	libreiserfs/Makefile
 	libdal/Makefile
+	libreiserfs/Makefile
+	plugin/Makefile
+	plugin/layout36/Makefile
+	plugin/layout40/Makefile
 	debug/Makefile
 	doc/Makefile
 	libreiserfs.spec

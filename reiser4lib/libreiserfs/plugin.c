@@ -20,8 +20,41 @@
 
 #define REISERFS_PLUGIN_CASHE_SIZE 255
 
-list_t *plugin_cashe = NULL;
-list_t *plugin_map = NULL;
+extern list_t *plugin_cashe;
+extern list_t *plugin_map;
+
+struct run_desc {
+	reiserfs_plugin_type_t type;
+	reiserfs_plugin_id_t id;
+};
+
+static int callback_check_plugin(reiserfs_plugin_t *plugin, struct run_desc *desc) {
+	if (plugin->h.type == desc->type && plugin->h.id == desc->id)
+		return 1;
+	
+	return 0;
+}
+
+static reiserfs_plugin_t *reiserfs_plugin_from_cashe(reiserfs_plugin_type_t type, 
+	reiserfs_plugin_id_t id)
+{
+	struct run_desc desc;
+	reiserfs_plugin_t *plugin;
+	
+	desc.type = type;
+	desc.id = id;
+	
+	if (!(plugin = (reiserfs_plugin_t *)list_run(plugin_cashe, 
+			(int (*)(void *, void *))callback_check_plugin, (void *)&desc)))
+		return NULL;
+	
+	plugin->h.nlink++;
+	return plugin;
+}
+
+static void reiserfs_plugin_to_cashe(reiserfs_plugin_t *plugin) {
+	plugin->h.nlink--;
+}
 
 reiserfs_plugin_t *reiserfs_plugin_load_by_name(const char *name, const char *point) {
 	char *error;
@@ -59,39 +92,6 @@ error:
 	return NULL;
 }
 
-struct run_desc {
-	reiserfs_plugin_type_t type;
-	reiserfs_plugin_id_t id;
-};
-
-static int callback_check_plugin(reiserfs_plugin_t *plugin, struct run_desc *desc) {
-	if (plugin->h.type == desc->type && plugin->h.id == desc->id)
-		return 1;
-	
-	return 0;
-}
-
-static reiserfs_plugin_t *reiserfs_plugin_from_cashe(reiserfs_plugin_type_t type, 
-	reiserfs_plugin_id_t id)
-{
-	struct run_desc desc;
-	reiserfs_plugin_t *plugin;
-	
-	desc.type = type;
-	desc.id = id;
-	
-	if (!(plugin = (reiserfs_plugin_t *)list_run(plugin_cashe, 
-			(int (*)(void *, void *))callback_check_plugin, (void *)&desc)))
-		return NULL;
-	
-	plugin->h.nlink++;
-	return plugin;
-}
-
-static void reiserfs_plugin_to_cashe(reiserfs_plugin_t *plugin) {
-	plugin->h.nlink--;
-}
-
 /* Looks for plugin by its coords in the plugin map. */
 int reiserfs_plugin_find_by_cords(reiserfs_plugin_type_t type, 
 	reiserfs_plugin_id_t id, char *name) 
@@ -100,7 +100,9 @@ int reiserfs_plugin_find_by_cords(reiserfs_plugin_type_t type,
 	return 1;
 }
 
-reiserfs_plugin_t *reiserfs_plugin_load(reiserfs_plugin_type_t type, reiserfs_plugin_id_t id) {
+reiserfs_plugin_t *reiserfs_plugin_load_by_cords(reiserfs_plugin_type_t type, 
+	reiserfs_plugin_id_t id) 
+{
 	char name[PATH_MAX];
 	reiserfs_plugin_t *plugin;
 		

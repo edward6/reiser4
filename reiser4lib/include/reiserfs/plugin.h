@@ -6,6 +6,8 @@
 #ifndef PLUGIN_H
 #define PLUGIN_H
 
+#include <dal/dal.h>
+
 enum reiserfs_plugin_type {
 	REISERFS_FILE_PLUGIN,
 	REISERFS_DIR_PLUGIN,
@@ -86,8 +88,12 @@ struct reiserfs_perm_plugin {
 
 typedef struct reiserfs_perm_plugin reiserfs_perm_plugin_t;
 
+typedef void reiserfs_layout_opaque_t;
+
 struct reiserfs_layout_plugin {
 	reiserfs_plugin_header_t h;
+	reiserfs_layout_opaque_t *(*init) (dal_t *);
+	void (*done) (reiserfs_layout_opaque_t *);
 };
 
 typedef struct reiserfs_layout_plugin reiserfs_layout_plugin_t;
@@ -135,7 +141,7 @@ extern reiserfs_plugin_t *reiserfs_plugin_load_by_name(const char *name,
 extern int reiserfs_plugin_find_by_cords(reiserfs_plugin_type_t type, 
 	reiserfs_plugin_id_t id, char *name);
 
-extern reiserfs_plugin_t *reiserfs_plugin_load(reiserfs_plugin_type_t type, 
+extern reiserfs_plugin_t *reiserfs_plugin_load_by_cords(reiserfs_plugin_type_t type, 
 	reiserfs_plugin_id_t id);
 
 extern void reiserfs_plugin_unload(reiserfs_plugin_t *plugin);
