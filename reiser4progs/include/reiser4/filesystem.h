@@ -71,7 +71,7 @@ struct reiserfs_profile {
 	reiserfs_id_t internal;
 	reiserfs_id_t direntry;
 	struct {
-	    reiserfs_id_t tail;
+	    reiserfs_id_t drop;
 	    reiserfs_id_t extent;
 	} file_body;
 	reiserfs_id_t acl;

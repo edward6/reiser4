@@ -153,30 +153,6 @@ error_free_mnt:
     return 0;
 }
 
-/* Finds profile by its name */
-reiserfs_profile_t *progs_misc_profile_find(
-    const char *profile		    /* needed profile name */
-) {
-    unsigned i;
-    
-    aal_assert("vpf-104", profile != NULL, return NULL);
-    
-    for (i = 0; i < (sizeof(reiser4profiles) / sizeof(reiserfs_profile_t)); i++) {
-	if (!strncmp(reiser4profiles[i].label, profile, strlen(reiser4profiles[i].label)))
-	    return &reiser4profiles[i];
-    }
-
-    return NULL;
-}
-
-/* Shows all knows profiles */
-void progs_misc_profile_list(void) {
-    unsigned i;
-    
-    for (i = 0; i < (sizeof(reiser4profiles) / sizeof(reiserfs_profile_t)); i++)
-	printf("(%d) %s (%s).\n", i + 1, reiser4profiles[i].label, reiser4profiles[i].desc);
-}
-
 /* 
     Common reiser4progs exception handler functions. This one returns number of
     specified turned on options.
@@ -385,4 +361,14 @@ void progs_gauge_handler(aal_gauge_t *gauge) {
 	
     fflush(stderr);
 }
+
+/*void progs_misc_factory_print(void) {
+    reiserfs_plugin_t *plugin = NULL;
+
+    printf("\nKnown plugins are:\n");
+    while ((plugin = libreiser4_factory_get_next(plugin)) != NULL)
+	printf("%s: %s.\n", plugin->h.label, plugin->h.desc);
+    
+    printf("\n");
+}*/
 

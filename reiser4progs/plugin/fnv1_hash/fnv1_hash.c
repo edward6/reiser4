@@ -22,8 +22,8 @@ static reiserfs_plugin_t fnv1_hash_plugin = {
     .hash_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = REISERFS_FNV1_HASH,
-	    .type = REISERFS_HASH_PLUGIN,
+	    .id = HASH_FNV1_ID,
+	    .type = HASH_PLUGIN_TYPE,
 	    .label = "fnv1_hash",
 	    .desc = "fnv1 hash plugin for reiser4, "
 		"Copyright (C) 1996-2002 Hans Reiser",

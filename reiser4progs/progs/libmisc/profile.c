@@ -4,7 +4,8 @@
     Author Vitaly Fertman.
 */
 
-#include <profile.h>
+#include <stdio.h>
+#include <reiser4/reiser4.h>
 
 static reiserfs_profile_t reiser4profiles[] = {
     [0] = {
@@ -12,7 +13,7 @@ static reiserfs_profile_t reiser4profiles[] = {
         .desc = "Profile for reiser4 with smart tail policy",
 	.node		= NODE_REISER40_ID,
 	.file = {
-	    .reg	= FILE_FILE40_ID, 
+	    .reg	= FILE_REG40_ID, 
 	    .dir	= FILE_DIR40_ID,
 	    .symlink	= FILE_SYMLINK40_ID,
 	    .special	= FILE_SPECIAL40_ID,
@@ -35,14 +36,14 @@ static reiserfs_profile_t reiser4profiles[] = {
 	.alloc		= ALLOC_REISER40_ID,
 	.journal	= JOURNAL_REISER40_ID,
 	.key		= KEY_REISER40_ID,
-	.sdext		= SDEXT_UNIX_ID
+	.sdext		= 1 << SDEXT_UNIX_ID
     },
     [1] = {
 	.label = "extent40",
 	.desc = "Profile for reiser4 with extents turned on",
 	.node		= NODE_REISER40_ID,
 	.file = {
-	    .reg	= FILE_FILE40_ID, 
+	    .reg	= FILE_REG40_ID, 
 	    .dir	= FILE_DIR40_ID,
 	    .symlink	= FILE_SYMLINK40_ID,
 	    .special	= FILE_SPECIAL40_ID,
@@ -65,14 +66,14 @@ static reiserfs_profile_t reiser4profiles[] = {
 	.alloc		= ALLOC_REISER40_ID,
 	.journal	= JOURNAL_REISER40_ID,
 	.key		= KEY_REISER40_ID,
-	.sdext		= SDEXT_UNIX_ID
+	.sdext		= 1 << SDEXT_UNIX_ID
     },
     [2] = {
 	.label = "tail40",
 	.desc = "Profile for reiser4 with tails turned on",     
 	.node		= NODE_REISER40_ID,
 	.file = {
-	    .reg	= FILE_FILE40_ID, 
+	    .reg	= FILE_REG40_ID, 
 	    .dir	= FILE_DIR40_ID,
 	    .symlink	= FILE_SYMLINK40_ID,
 	    .special	= FILE_SPECIAL40_ID,
@@ -95,37 +96,37 @@ static reiserfs_profile_t reiser4profiles[] = {
 	.alloc		= ALLOC_REISER40_ID,
 	.journal	= JOURNAL_REISER40_ID,
 	.key		= KEY_REISER40_ID,
-	.sdext		= SDEXT_UNIX_ID
+	.sdext		= 1 << SDEXT_UNIX_ID
     }
 };
 
-/* 0 profile is the default one. */
-reiserfs_profile_t *progs_profile_get_default() {
-    return &reiser4profiles[0];
-}
-
-reiserfs_profile_t *progs_profile_find(const char *profile) {
+/* Finds profile by its name */
+reiserfs_profile_t *progs_profile_find(
+    const char *profile		    /* needed profile name */
+) {
     unsigned i;
     
     aal_assert("vpf-104", profile != NULL, return NULL);
     
     for (i = 0; i < (sizeof(reiser4profiles) / sizeof(reiserfs_profile_t)); i++) {
-       if (!aal_strncmp(reiser4profiles[i].label, profile, 
-	   aal_strlen(reiser4profiles[i].label)))
-           return &reiser4profiles[i];
+	if (!aal_strncmp(reiser4profiles[i].label, profile, strlen(reiser4profiles[i].label)))
+	    return &reiser4profiles[i];
     }
 
     return NULL;
 }
 
-void progs_profile_print_list(void) {
+/* Shows all knows profiles */
+void progs_profile_list(void) {
     unsigned i;
     
-    printf("\n");
-    
     for (i = 0; i < (sizeof(reiser4profiles) / sizeof(reiserfs_profile_t)); i++)
-       printf("Profile %s: %s.\n", reiser4profiles[i].label, reiser4profiles[i].desc);
-    printf("\n");
+	printf("(%d) %s (%s).\n", i + 1, reiser4profiles[i].label, reiser4profiles[i].desc);
+}
+
+/* 0 profile is the default one. */
+/*reiserfs_profile_t *progs_profile_default() {
+    return &reiser4profiles[0];
 }
 
 enum plugin_internal_type {
@@ -183,6 +184,7 @@ static reiserfs_id_t *progs_profile_get_field(reiserfs_profile_t *profile,
 	
     if (internal_type >= PROGS_LAST_PLUGIN) 
 	return NULL;
+    
     switch (internal_type) {
 	case PROGS_NODE_PLUGIN:
 	    return &profile->node;
@@ -222,16 +224,17 @@ static reiserfs_id_t *progs_profile_get_field(reiserfs_profile_t *profile,
 	    return &profile->journal;
 	case PROGS_KEY_PLUGIN:
 	    return &profile->key;
-	case PROGS_LAST_PLUGIN:
-	    /* make the gcc to shut up */
+
+	default: 
 	    return NULL;	    
     }
     return NULL;
 }
 
-static reiserfs_plugin_type_t progs_get_plugin_type(plugin_internal_type_t internal_type) {
+static reiserfs_plugin_type_t progs_profile_get_plugin_type(plugin_internal_type_t internal_type) {
     if (internal_type >= PROGS_LAST_PLUGIN) 
-	return -1;    
+	return -1;
+    
     switch (internal_type) {
 	case PROGS_NODE_PLUGIN:
 	    return REISERFS_NODE_PLUGIN;
@@ -271,8 +274,8 @@ static reiserfs_plugin_type_t progs_get_plugin_type(plugin_internal_type_t inter
 	    return REISERFS_JOURNAL_PLUGIN;
 	case PROGS_KEY_PLUGIN:
 	    return REISERFS_KEY_PLUGIN;
-	case PROGS_LAST_PLUGIN:
-	    /* Make the gcc to shut up. */
+
+	default:
 	    return -1;
     }
     return -1;
@@ -369,26 +372,14 @@ void progs_profile_print(reiserfs_profile_t *profile) {
 	
     printf("\nProfile %s: %s.\n", profile->label, profile->desc);
     for (i = 0; i < PROGS_LAST_PLUGIN; i++) {
-
 	if ((plugin = libreiser4_factory_find_by_id(
 	    progs_get_plugin_type(i), *progs_profile_get_field(profile, i))) != NULL) 
 	{
 	    printf("%s plugin is %s: %s.\n", progs_get_plugin_internal_type_name(i), 
 		plugin->h.label, plugin->h.desc);
-	} else {
-	    printf("%s plugin is NOT FOUND.\n", progs_get_plugin_internal_type_name(i));
-	}
+	} else
+	    printf("%s plugin is not found.\n", progs_get_plugin_internal_type_name(i));
     }
     printf("\n");
-}
-
-void progs_plugins_print() {
-    reiserfs_plugin_t *plugin = NULL;
-
-    printf("\nKnown plugins are:\n");
-    while ((plugin = libreiser4_factory_get_next(plugin)) != NULL) {
-	printf("%s: %s.\n", plugin->h.label, plugin->h.desc);
-    }
-    printf("\n");
-}
+}*/
 

@@ -53,8 +53,8 @@ static reiserfs_plugin_t rupasov_hash_plugin = {
     .hash_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = REISERFS_RUPASOV_HASH,
-	    .type = REISERFS_HASH_PLUGIN,
+	    .id = HASH_RUPASOV_ID,
+	    .type = HASH_PLUGIN_TYPE,
 	    .label = "rupasov_hash",
 	    .desc = "rupasov hash plugin for reiser4, "
 		"Copyright (C) 1996-2002 Hans Reiser",

@@ -59,8 +59,8 @@ static reiserfs_plugin_t sdext_unix_plugin = {
     .sdext_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = REISERFS_UNIX_SDEXT,
-	    .type = REISERFS_SDEXT_PLUGIN,
+	    .id = SDEXT_UNIX_ID,
+	    .type = SDEXT_PLUGIN_TYPE,
 	    .label = "sdext_unix",
 	    .desc = "Unix stat data extention for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",

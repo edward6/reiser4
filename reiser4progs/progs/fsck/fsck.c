@@ -16,7 +16,9 @@
 #include <string.h>
 
 #include <reiser4/reiser4.h>
+
 #include <misc.h>
+#include <profile.h>
 
 static void fsck_print_usage(void) {
     fprintf(stderr, "Usage: fsck.reiser4 [ options ] FILE\n");
@@ -89,7 +91,7 @@ int main(int argc, char *argv[]) {
 		break;
 	    }
 	    case 'k': {
-		progs_misc_profile_list();
+		progs_profile_list();
 		return NO_ERROR;
 	    }
 	    case 'n': {
@@ -130,7 +132,7 @@ int main(int argc, char *argv[]) {
 	return USER_ERROR;
     }
     
-    if (!(profile = progs_misc_profile_find(profile_label))) {
+    if (!(profile = progs_profile_find(profile_label))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find profile by its label \"%s\".", profile_label);
 	return OPERATION_ERROR;

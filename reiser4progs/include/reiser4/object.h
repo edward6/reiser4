@@ -16,6 +16,8 @@ extern reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs,
 
 extern void reiserfs_object_close(reiserfs_object_t *object);
 
+extern reiserfs_plugin_t *reiserfs_object_guess(reiserfs_object_t *object);
+
 #ifndef ENABLE_COMPACT
 
 extern reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, 

@@ -16,4 +16,3 @@ liballoc40_static_la_LDFLAGS = $(PLUGIN_LDFLAGS)
 liballoc40_static_la_SOURCES = $(alloc40_sources)
 
 INCLUDES = $(includedir)
-

@@ -12,10 +12,6 @@
 #define REISERFS_FORMAT40_MAGIC		    "R4Sb-Default"
 #define REISERFS_FORMAT40_OFFSET	    (65536 + 4096)
 
-#define REISERFS_FORMAT40_JOURNAL	    0x0
-#define REISERFS_FORMAT40_ALLOC		    0x0
-#define REISERFS_FORMAT40_OID		    0x0
-
 struct reiserfs_format40_super {
     uint64_t sb_block_count;
     uint64_t sb_free_blocks;

@@ -186,15 +186,15 @@ static const char *format36_format(reiserfs_format36_t *format) {
 }
 
 static reiserfs_id_t format36_journal_plugin(reiserfs_format36_t *format) {
-    return 0x1;
+    return JOURNAL_REISER36_ID;
 }
 
 static reiserfs_id_t format36_alloc_plugin(reiserfs_format36_t *format) {
-    return 0x1;
+    return ALLOC_REISER36_ID;
 }
 
 static reiserfs_id_t format36_oid_plugin(reiserfs_format36_t *format) {
-    return 0x1;
+    return OID_REISER36_ID;
 }
 
 static blk_t format36_offset(reiserfs_format36_t *format) {
@@ -240,8 +240,8 @@ static reiserfs_plugin_t format36_plugin = {
     .format_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = 0x1,
-	    .type = REISERFS_FORMAT_PLUGIN,
+	    .id = FORMAT_REISER40_ID,
+	    .type = FORMAT_PLUGIN_TYPE,
 	    .label = "format36",
 	    .desc = "Disk-layout for reiserfs 3.6.x, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",

@@ -261,8 +261,8 @@ static reiserfs_plugin_t key40_plugin = {
     .key_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = 0x0,
-	    .type = REISERFS_KEY_PLUGIN,
+	    .id = KEY_REISER40_ID,
+	    .type = KEY_PLUGIN_TYPE,
 	    .label = "key40",
 	    .desc = "Reiser4 default key, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",

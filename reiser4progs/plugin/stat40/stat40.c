@@ -21,11 +21,11 @@ static aal_list_t *stat40_ext_init(uint64_t extmask) {
     int i;
     aal_list_t *plugins = NULL;
     
-    for (i = 0; i < REISERFS_LAST_SDEXT; i++) {
+    for (i = 0; i < SDEXT_LAST_ID; i++) {
 	if ((1 << i) & extmask) {
 	    reiserfs_plugin_t *plugin;
 
-	    if (!(plugin = core->factory_ops.plugin_find(REISERFS_SDEXT_PLUGIN, i))) {
+	    if (!(plugin = core->factory_ops.plugin_find(SDEXT_PLUGIN_TYPE, i))) {
 		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
 		    "Can't find stat data extention plugin by its id %x.", i);
 		continue;
@@ -160,8 +160,8 @@ static reiserfs_plugin_t stat40_plugin = {
     .item_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = REISERFS_STATDATA_ITEM,
-	    .type = REISERFS_ITEM_PLUGIN,
+	    .id = ITEM_STATDATA40_ID,
+	    .type = ITEM_PLUGIN_TYPE,
 	    .label = "stat40",
 	    .desc = "Stat data for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",

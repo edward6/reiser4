@@ -143,8 +143,8 @@ static reiserfs_plugin_t tea_hash_plugin = {
     .hash_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = REISERFS_TEA_HASH,
-	    .type = REISERFS_HASH_PLUGIN,
+	    .id = HASH_TEA_ID,
+	    .type = HASH_PLUGIN_TYPE,
 	    .label = "tea_hash",
 	    .desc = "tea hash plugin for reiser4, "
 		"Copyright (C) 1996-2002 Hans Reiser",

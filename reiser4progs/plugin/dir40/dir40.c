@@ -111,7 +111,7 @@ static errno_t dir40_read(reiserfs_dir40_t *dir,
 	    return -1;
 	
 	/* Here we check is next item belongs to this directory */
-	if (core->tree_ops.item_pid(dir->tree, &dir->place, REISERFS_ITEM_PLUGIN) != 
+	if (core->tree_ops.item_pid(dir->tree, &dir->place, ITEM_PLUGIN_TYPE) != 
 		dir->direntry_plugin->h.id)
 	    return -1;
 	
@@ -174,14 +174,14 @@ static reiserfs_dir40_t *dir40_open(const void *tree,
 	pointer to the statdata item.
     */
     if ((statdata_pid = core->tree_ops.item_pid(dir->tree, &dir->place, 
-	REISERFS_ITEM_PLUGIN)) == REISERFS_INVAL_PLUGIN)
+	ITEM_PLUGIN_TYPE)) == INVALID_PLUGIN_ID)
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't get stat data plugin id from the tree.");
 	goto error_free_dir;
     }
     
-    if (!(dir->statdata_plugin = core->factory_ops.plugin_find(REISERFS_ITEM_PLUGIN, 
+    if (!(dir->statdata_plugin = core->factory_ops.plugin_find(ITEM_PLUGIN_TYPE, 
 	statdata_pid)))
     {
 	libreiser4_factory_failed(goto error_free_dir, find, 
@@ -194,11 +194,11 @@ static reiserfs_dir40_t *dir40_open(const void *tree,
 	it is a hardcoded value. We will need to fix it after stat data extentions will be 
 	supported.
     */
-    if (!(dir->hash_plugin = core->factory_ops.plugin_find(REISERFS_HASH_PLUGIN, 
-	REISERFS_R5_HASH)))
+    if (!(dir->hash_plugin = core->factory_ops.plugin_find(HASH_PLUGIN_TYPE, 
+	HASH_R5_ID)))
     {
 	libreiser4_factory_failed(goto error_free_dir, find, 
-	    hash, REISERFS_R5_HASH);
+	    hash, HASH_R5_ID);
     }
     
     /* Positioning to the first directory unit */
@@ -214,14 +214,14 @@ static reiserfs_dir40_t *dir40_open(const void *tree,
 	to the first direntry item.
     */
     if ((direntry_pid = core->tree_ops.item_pid(dir->tree, &dir->place, 
-	REISERFS_ITEM_PLUGIN)) == REISERFS_INVAL_PLUGIN)
+	ITEM_PLUGIN_TYPE)) == INVALID_PLUGIN_ID)
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't get direntry plugin id from the tree.");
 	goto error_free_dir;
     }
     
-    if (!(dir->direntry_plugin = core->factory_ops.plugin_find(REISERFS_ITEM_PLUGIN, 
+    if (!(dir->direntry_plugin = core->factory_ops.plugin_find(ITEM_PLUGIN_TYPE, 
 	direntry_pid)))
     {
 	libreiser4_factory_failed(goto error_free_dir, find, 
@@ -264,7 +264,7 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     
     dir->tree = tree;
     
-    if (!(dir->hash_plugin = core->factory_ops.plugin_find(REISERFS_HASH_PLUGIN, hint->hash_pid)))
+    if (!(dir->hash_plugin = core->factory_ops.plugin_find(HASH_PLUGIN_TYPE, hint->hash_pid)))
 	libreiser4_factory_failed(goto error_free_dir, find, hash, hint->hash_pid);
     
     parent_objectid = libreiser4_plugin_call(return NULL, 
@@ -276,14 +276,14 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     objectid = libreiser4_plugin_call(return NULL, 
 	object->plugin->key_ops, get_objectid, object->body);
     
-    if (!(dir->statdata_plugin = core->factory_ops.plugin_find(REISERFS_ITEM_PLUGIN, 
+    if (!(dir->statdata_plugin = core->factory_ops.plugin_find(ITEM_PLUGIN_TYPE, 
 	hint->statdata_pid)))
     {
 	libreiser4_factory_failed(goto error_free_dir, find, 
 	    statdata, hint->statdata_pid);
     }
     
-    if (!(dir->direntry_plugin = core->factory_ops.plugin_find(REISERFS_ITEM_PLUGIN, 
+    if (!(dir->direntry_plugin = core->factory_ops.plugin_find(ITEM_PLUGIN_TYPE, 
 	hint->direntry_pid)))
     {
 	libreiser4_factory_failed(goto error_free_dir, find, 
@@ -432,7 +432,7 @@ static errno_t dir40_add(reiserfs_dir40_t *dir,
     if (!(direntry_hint.entry = aal_calloc(sizeof(*entry), 0)))
 	return -1;
     
-    item.type = REISERFS_CDE_ITEM;
+    item.type = DIRENTRY_ITEM;
     item.hint = &direntry_hint;
    
     libreiser4_plugin_call(goto error_free_entry, dir->key.plugin->key_ops, 
@@ -446,9 +446,9 @@ static errno_t dir40_add(reiserfs_dir40_t *dir,
     
     item.key.plugin = dir->key.plugin;
     
-    libreiser4_plugin_call(goto error_free_entry, item.key.plugin->key_ops, build_entry_full, 
-	item.key.body, dir->hash_plugin, dir40_locality(dir), dir40_objectid(dir), 
-	entry->name);
+    libreiser4_plugin_call(goto error_free_entry, item.key.plugin->key_ops, 
+	build_entry_full, item.key.body, dir->hash_plugin, dir40_locality(dir), 
+	dir40_objectid(dir), entry->name);
     
     item.len = 0;
     item.plugin = dir->direntry_plugin;
@@ -484,8 +484,8 @@ static reiserfs_plugin_t dir40_plugin = {
     .dir_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = 0x0,
-	    .type = REISERFS_DIR_PLUGIN,
+	    .id = FILE_DIR40_ID,
+	    .type = DIRECTORY_FILE,
 	    .label = "dir40",
 	    .desc = "Compound directory plugin for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",

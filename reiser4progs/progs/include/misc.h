@@ -54,17 +54,17 @@ extern int progs_misc_dev_mounted(const char *name,
     const char *ops);
 
 extern int progs_misc_size_check(const char *str);
+
 extern unsigned long long progs_misc_size_parse(const char *str, 
     int *error);
-
-extern reiserfs_profile_t *progs_misc_profile_find(const char *profile);
-extern void progs_misc_profile_list(void);
 
 extern aal_exception_option_t progs_exception_handler(aal_exception_t *exception);
 extern void progs_gauge_handler(aal_gauge_t *gauge);
 
 extern void progs_exception_set_stream(aal_exception_type_t type, void *stream);
 extern void *progs_exception_get_stream(aal_exception_type_t type);
+
+extern void progs_misc_factory_print(void); 
 
 #endif
 

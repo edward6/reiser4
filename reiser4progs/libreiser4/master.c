@@ -61,7 +61,7 @@ static errno_t callback_try_for_guess(
     reiserfs_plugin_t *plugin,	    /* plugin to be checked */
     void *data			    /* needed plugin type */
 ) {
-    if (plugin->h.type == REISERFS_FORMAT_PLUGIN) {
+    if (plugin->h.type == FORMAT_PLUGIN_TYPE) {
 	aal_device_t *device = (aal_device_t *)data;
 
 	if (libreiser4_plugin_call(return 0, plugin->format_ops, 

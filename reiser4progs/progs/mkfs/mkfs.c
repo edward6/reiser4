@@ -22,7 +22,9 @@
 #include <sys/stat.h>
 
 #include <reiser4/reiser4.h>
+
 #include <misc.h>
+#include <profile.h>
 
 static void mkfs_print_usage(void) {
     fprintf(stderr, "Usage: mkfs.reiser4 [ options ] FILE1 FILE2 ... [ size[K|M|G] ]\n");
@@ -108,7 +110,7 @@ int main(int argc, char *argv[]) {
 		break;
 	    }
 	    case 'k': {
-		progs_misc_profile_list();
+		progs_profile_list();
 		return NO_ERROR;
 	    }
 	    case 'b': {
@@ -162,7 +164,7 @@ int main(int argc, char *argv[]) {
     }
     
     /* Initializing passed profile */
-    if (!(profile = progs_misc_profile_find(profile_label))) {
+    if (!(profile = progs_profile_find(profile_label))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find profile by its label \"%s\".", profile_label);
 	goto error;

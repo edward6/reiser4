@@ -101,8 +101,8 @@ static reiserfs_plugin_t oid40_plugin = {
     .oid_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = 0x0,
-	    .type = REISERFS_OID_PLUGIN,
+	    .id = OID_REISER40_ID,
+	    .type = OID_PLUGIN_TYPE,
 	    .label = "oid40",
 	    .desc = "Default inode allocator for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",

@@ -191,15 +191,15 @@ static const char *format40_format(reiserfs_format40_t *format) {
 }
 
 static reiserfs_id_t format40_journal_plugin(reiserfs_format40_t *format) {
-    return REISERFS_FORMAT40_JOURNAL;
+    return JOURNAL_REISER40_ID;
 }
 
 static reiserfs_id_t format40_alloc_plugin(reiserfs_format40_t *format) {
-    return REISERFS_FORMAT40_ALLOC;
+    return ALLOC_REISER40_ID;
 }
 
 static reiserfs_id_t format40_oid_plugin(reiserfs_format40_t *format) {
-    return REISERFS_FORMAT40_OID;
+    return OID_REISER40_ID;
 }
 
 static blk_t format40_offset(reiserfs_format40_t *format) {
@@ -255,8 +255,8 @@ static reiserfs_plugin_t format40_plugin = {
     .format_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = 0x0,
-	    .type = REISERFS_FORMAT_PLUGIN,
+	    .id = FORMAT_REISER40_ID,
+	    .type = FORMAT_PLUGIN_TYPE,
 	    .label = "format40",
 	    .desc = "Disk-layout for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
