@@ -880,7 +880,7 @@ int longterm_lock_znode(
 		   znode ...*/
 		spin_unlock_znode(node);
 		/* ... and sleep */
-		ret = go_to_sleep(owner);
+		ret = go_to_sleep(owner, znode_get_level(node));
 
 		spin_lock_znode(node);
 		if (hipri) {
@@ -975,7 +975,7 @@ invalidate_lock(lock_handle * handle	/* path to lock
 		prepare_to_sleep(owner);
 
 		spin_unlock_znode(node);
-		go_to_sleep(owner);
+		go_to_sleep(owner, znode_get_level(node));
 		spin_lock_znode(node);
 
 		requestors_list_remove(owner);
@@ -1141,12 +1141,33 @@ __reiser4_wake_up(lock_stack * owner)
 
 /* Puts a thread to sleep */
 int
-go_to_sleep(lock_stack * owner)
+__go_to_sleep(lock_stack * owner
+#if REISER4_STATS
+	    , int node_level
+#endif
+)
 {
+#ifdef CONFIG_REISER4_STATS
+	unsigned long sleep_start = jiffies;
+#endif
 	/* Well, we might sleep here, so holding of any spinlocks is no-no */
 	assert("green-30", lock_counters()->spin_locked == 0);
 	/* return down_interruptible(&owner->sema); */
 	down(&owner->sema);
+#ifdef CONFIG_REISER4_STATS
+	switch (node_level) {
+	    case ADD_TO_SLEPT_IN_WAIT_EVENT:
+		    reiser4_stat_txnmgr_add_few(slept_in_wait_event, jiffies - sleep_start);
+		    break;
+	    case ADD_TO_SLEPT_IN_WAIT_ATOM:
+		    reiser4_stat_txnmgr_add_few(slept_in_wait_atom, jiffies - sleep_start);
+		    break;
+	    default:
+		    reiser4_stat_add_at_level_value(node_level, time_slept, 
+						    jiffies - sleep_start);
+	}
+#endif
+	
 	return 0;
 }
 
