@@ -1859,10 +1859,6 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			flushed ++;
 		}
 
-		/*
-		 * FIXME:NIKITA->* temporary workaround until log record are
-		 * implemented and debugged.
-		 */
 		if (WRITE_LOG && JF_ISSET (check, ZNODE_WANDER)) {
 			/* Log-writer expects these to be on the clean list.  They cannot
 			 * leave memory and will remain captured. */
@@ -1890,7 +1886,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			continue;
 
 		} else {
-		
+
 			/* Find consecutive nodes. */
 			struct bio *bio;
 			/*jnode *prev = check;*/
@@ -1901,11 +1897,6 @@ static int flush_empty_queue (flush_position *pos, int finish)
 
 			super = cpage->mapping->host->i_sb;
 			assert( "jmacd-2029", super != NULL );
-
-			/*
-			 * FIXME:NIKITA->JMACD cpage has to be unlocked
-			 * somewhere right?
-			 */
 
 			/* FIXME: Need to work on this: */
 #if REISER4_USER_LEVEL_SIMULATION
