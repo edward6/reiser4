@@ -36,17 +36,19 @@ void print_ctail(const char *prefix, coord_t * coord);
 lookup_result lookup_ctail(const reiser4_key *, lookup_bias, coord_t *);
 
 int paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info UNUSED_ARG);
-int init_ctail(coord_t *, reiser4_item_data *);
+int init_ctail(coord_t *, coord_t *, reiser4_item_data *);
 int can_shift_ctail(unsigned free_space, coord_t * coord,
 		  znode * target, shift_direction pend, unsigned *size, unsigned want);
 void copy_units_ctail(coord_t * target, coord_t * source,
 		    unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space);
 int cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
-		  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, struct cut_list *);
+		    const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, struct cut_list *);
+int kill_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
+		     const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, struct cut_list *);
+
 /*int check_check(const coord_t * coord, const char **error);*/
 
 /* plugin->u.item.s.* */
-int write_ctail(flow_t *, coord_t *, lock_handle *, int, crc_write_mode_t, struct inode *);
 int read_ctail(struct file *, flow_t *, hint_t *);
 int readpage_ctail(void *, struct page *);
 void readpages_ctail(void *, struct address_space *, struct list_head *);
@@ -55,7 +57,7 @@ int kill_hook_ctail(const coord_t *, unsigned, unsigned, struct cut_list *);
 
 /* plugin->u.item.f */
 int utmost_child_ctail(const coord_t *, sideof, jnode **);
-int scan_ctail(flush_scan *, const coord_t *);
+int scan_ctail(flush_scan *);
 int squeeze_ctail(flush_pos_t *);
 item_plugin * item_plugin_by_jnode(jnode *);
 

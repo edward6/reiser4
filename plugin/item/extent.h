@@ -148,7 +148,7 @@ __u64 extent_unit_width(const coord_t * item);	/* Number of blocks in this unit.
 reiser4_block_nr extent_unit_start(const coord_t * item);	/* Starting block location of this unit. */
 
 /* plugin->u.item.f. */
-int scan_extent (flush_scan * scan, const coord_t * in_coord);
+int scan_extent (flush_scan * scan);
 
 reiser4_item_data *init_new_extent(reiser4_item_data *data, void *ext_unit, int nr_extents);
 reiser4_block_nr extent_size(const coord_t *coord, pos_in_item_t nr);

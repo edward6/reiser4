@@ -122,7 +122,7 @@ utmost_child_real_block_extent(const coord_t *coord, sideof side, reiser4_block_
    It returns control to scan_extent, handles these terminating conditions, e.g., by
    loading the next twig.
 */
-int scan_extent(flush_scan * scan, const coord_t * in_coord)
+int scan_extent(flush_scan * scan)
 {
 	coord_t coord;
 	jnode *neighbor;
@@ -140,8 +140,8 @@ int scan_extent(flush_scan * scan, const coord_t * in_coord)
 		return 0; /* Race with truncate, this node is already
 			   * truncated. */
 	}
-
-	coord_dup(&coord, in_coord);
+	
+	coord_dup(&coord, &scan->parent_coord);
 
 	assert("jmacd-1404", !scan_finished(scan));
 	assert("jmacd-1405", jnode_get_level(scan->node) == LEAF_LEVEL);

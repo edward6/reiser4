@@ -920,7 +920,7 @@ create_item_node40(coord_t * target, const reiser4_key * key, reiser4_item_data 
 
 	/* initialise item */
 	if (data->iplug->b.init != NULL) {
-		data->iplug->b.init(target, data);
+		data->iplug->b.init(target, NULL, data);
 	}
 	/* copy item body */
 	if (data->iplug->b.paste != NULL) {
@@ -1560,7 +1560,7 @@ copy(struct shift_params *shift)
 			xmemcpy(to_ih, from_ih, sizeof (item_header40));
 			ih40_set_offset(to_ih, nh40_get_free_space_start(nh) - shift->part_bytes);
 			if (item_plugin_by_coord(&to)->b.init)
-				item_plugin_by_coord(&to)->b.init(&to, 0);
+				item_plugin_by_coord(&to)->b.init(&to, &from, 0);
 			copy_units(&to, &from, 0, shift->part_units, SHIFT_LEFT, shift->part_bytes);
 		}
 
@@ -1643,7 +1643,7 @@ copy(struct shift_params *shift)
 			xmemcpy(to_ih, from_ih, sizeof (item_header40));
 			ih40_set_offset(to_ih, sizeof (node40_header));
 			if (item_plugin_by_coord(&to)->b.init)
-				item_plugin_by_coord(&to)->b.init(&to, 0);
+				item_plugin_by_coord(&to)->b.init(&to, &from, 0);
 			copy_units(&to, &from,
 				   coord_last_unit_pos(&from) -
 				   shift->part_units + 1, shift->part_units, SHIFT_RIGHT, shift->part_bytes);

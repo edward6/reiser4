@@ -581,6 +581,7 @@ check_cde(const coord_t * coord /* coord of item to check */ ,
 /* ->init() method for this item plugin. */
 int
 init_cde(coord_t * coord /* coord of item */ ,
+	 coord_t * from UNUSED_ARG,
 	 reiser4_item_data * data	/* structure used for insertion */
 	 UNUSED_ARG)
 {

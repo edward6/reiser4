@@ -170,10 +170,21 @@ print_ctail(const char *prefix /* prefix to print */ ,
 
 /* ->init() method for this item plugin. */
 int
-init_ctail(coord_t * coord /* coord of item */,
+init_ctail(coord_t * to /* coord of item */,
+	   coord_t * from /* old_item */,
 	   reiser4_item_data * data /* structure used for insertion */)
 {
-	cputod8(*((char *)(data->arg)), &formatted_at(coord)->cluster_shift);
+	if (data) {
+		assert("edward-xxx", data->length > sizeof(ctail_item_format));
+		
+		cputod8(*((char *)(data->arg)), &formatted_at(to)->cluster_shift);
+		data->length -= sizeof(ctail_item_format);
+	}
+	else {
+		assert("edward-xxx", from != NULL);
+		
+		cputod8(cluster_shift_by_coord(from), &formatted_at(to)->cluster_shift);
+	}
 	return 0;
 }
 
@@ -187,34 +198,31 @@ init_ctail(coord_t * coord /* coord of item */,
 int
 paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info UNUSED_ARG)
 {
-	unsigned to_paste;
-
+	unsigned old_nr_units;
+	
 	assert("edward-268", data->data != NULL);
 	/* copy only from kernel space */
 	assert("edward-66", data->user == 0);
 	
+	old_nr_units = item_length_by_coord(coord) - sizeof(ctail_item_format) - data->length;
+	
 	/* ctail items never get pasted in the middle */
 	
-	if (coord->unit_pos == 0) {
-		/* paste at the beginning, length contains item data overhead */
-		
-		assert("edward-450", item_length_by_coord(coord) == data->length);
-		assert("edward-451", coord->between == AT_UNIT);
-		
-		to_paste = data->length - sizeof(ctail_item_format);
+	if (coord->unit_pos == 0 && coord->between == AT_UNIT) {
+
+                /* paste at the beginning when create new item */
+		assert("edward-450", item_length_by_coord(coord) == data->length + sizeof(ctail_item_format));
+		assert("edward-451", old_nr_units == 0);
 	}
-	else if (coord->unit_pos == (nr_units_ctail(coord) - data->length - 1)) {
-		/* paste at the end, length doesn't contain item data overhead */
-		assert("edward-452", coord->between == AFTER_UNIT);
+	else if (coord->unit_pos == old_nr_units - 1 && coord->between == AFTER_UNIT) {
 		
-		to_paste = data->length;
+                /* paste at the end */
+		coord->unit_pos++;
 	}
-	else {
-		to_paste = 0;
+	else 
 		impossible("edward-453", "bad paste position");
-	}
 	
-	xmemcpy(first_unit(coord) + coord->unit_pos, data->data, to_paste);
+	xmemcpy(first_unit(coord) + coord->unit_pos, data->data, data->length);
 	return 0;
 }
 
@@ -225,12 +233,21 @@ paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info 
    ctail items they coincide */
 int
 can_shift_ctail(unsigned free_space, coord_t * source,
-	       znode * target UNUSED_ARG, shift_direction direction UNUSED_ARG, unsigned *size, unsigned want)
+		znode * target, shift_direction direction UNUSED_ARG, unsigned *size, unsigned want)
 {
 	/* make sure that that we do not want to shift more than we have */
 	assert("edward-68", want > 0 && want <= nr_units_ctail(source));
-
+	
 	*size = min(want, free_space);
+	
+	if (!target) {
+		/* new item will be created */
+		if (*size <= sizeof(ctail_item_format)) {
+			*size = 0;
+			return 0;
+		}
+		return *size - sizeof(ctail_item_format);
+	}
 	return *size;
 }
 
@@ -240,9 +257,15 @@ copy_units_ctail(coord_t * target, coord_t * source,
 		unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space UNUSED_ARG)
 {
 	/* make sure that item @target is expanded already */
-	assert("edward-69", nr_units_ctail(target) >= count);
+	assert("edward-69", (unsigned) item_length_by_coord(target) >= count);
 	assert("edward-70", free_space >= count);
-	
+
+	if (item_length_by_coord(target) == count) {
+		/* new item has been created */
+		assert("edward-xxx", count > sizeof(ctail_item_format));
+		
+		count--; 
+	}
 	if (where_is_free_space == SHIFT_LEFT) {
 		/* append item @target with @count first bytes of @source:
 		   this restriction came from ordinary tails */
@@ -287,20 +310,20 @@ kill_hook_ctail(const coord_t *coord, unsigned from, unsigned count, struct cut_
 }
 
 /* plugin->u.item.b.shift_hook */
-/* plugin->u.item.b.cut_units */
-int
-cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
+
+static int
+cut_or_kill_units(coord_t * coord, unsigned *from, unsigned *to, int cut,
 	       const reiser4_key * from_key UNUSED_ARG,
 	       const reiser4_key * to_key UNUSED_ARG, reiser4_key * smallest_removed,
 	       struct cut_list *p)
 {
-	unsigned count;
+	unsigned count; /* number of units to cut */
 	
  	count = *to - *from + 1;
 	/* regarless to whether we cut from the beginning or from the end of
 	   item - we have nothing to do */
 	assert("edward-73", count > 0 && count <= nr_units_ctail(coord));
-	assert("edward-74", *to == coord_last_unit_pos(coord));
+	assert("edward-74", ergo(*from != 0, *to == coord_last_unit_pos(coord)));
 
 	if (smallest_removed) {
 		/* store smallest key removed */
@@ -308,20 +331,42 @@ cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
 		set_key_offset(smallest_removed, get_key_offset(smallest_removed) + *from);
 	}
 	if (*from == 0) {
-		/* whole item is cut, so take into account ctail header */
-		count += sizeof(ctail_item_format);
-		assert("edward-454", count == item_length_by_coord(coord));
+		/* head of item is removed, update item key therefore */
+		reiser4_key key;
+		item_key_by_coord(coord, &key);
+		set_key_offset(&key, get_key_offset(&key) + count);
+		node_plugin_by_node(coord->node)->update_item_key(coord, &key, 0 /*info */ );
+
+		if (count == nr_units_ctail(coord))
+			/* whole item is cut, so more then amount of space occupied
+			   by units got freed */
+			count += sizeof(ctail_item_format);
 	}
-
-	kill_hook_ctail(coord, *from, 0, p);
-
+	if (!cut)
+		kill_hook_ctail(coord, *from, 0, p);
+	
 	if (REISER4_DEBUG)
-		xmemset((*from ? first_unit(coord) + *from : (char *) item_body_by_coord(coord)), 0, count);
+		xmemset((char *)item_body_by_coord(coord) + *to - count + 1, 0, count);
 	return count;
 }
 
-/* plugin->u.item.b.kill_units :
-   ctail_cut_units */
+/* plugin->u.item.b.cut_units */
+int
+cut_units_ctail(coord_t *item, unsigned *from, unsigned *to,
+		const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed,
+		struct cut_list *p)
+{
+	return cut_or_kill_units(item, from, to, 1, from_key, to_key, smallest_removed, p);
+}
+
+/* plugin->u.item.b.kill_units */
+int
+kill_units_ctail(coord_t *item, unsigned *from, unsigned *to,
+		 const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed,
+		 struct cut_list *p)
+{
+	return cut_or_kill_units(item, from, to, 0, from_key, to_key, smallest_removed, p);
+}
 
 /* plugin->u.item.b.unit_key :
    tail_unit_key */
@@ -478,7 +523,7 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 
 	if (!list_empty(pages) && pages->next != pages->prev)
 		/* more then one pages in the list - make sure its order is right */
-		assert("edward-214", list_to_page(pages)->index < list_to_page(pages)->index);
+		assert("edward-214", list_to_page(pages)->index < list_to_next_page(pages)->index);
 	
 	pagevec_init(&lru_pvec, 0);
 	reiser4_cluster_init(&clust);
@@ -554,6 +599,8 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * in
 
 	init_carry_pool(&pool);
 	init_carry_level(&lowest_level, &pool);
+
+	assert("edward-xxx", coord->between == AFTER_ITEM || coord->between == AFTER_UNIT);
 	
 	op = post_carry(&lowest_level, COP_INSERT_FLOW, coord->node, 0 /* operate directly on coord -> node */ );
 	if (IS_ERR(op) || (op == NULL))
@@ -609,12 +656,13 @@ overwrite_ctail(coord_t * coord, flow_t * f)
 	assert("edward-273", coord->unit_pos == 0);
 	assert("edward-274", znode_is_write_locked(coord->node));
 	assert("edward-275", schedulable());
+	assert("edward-xxx", item_plugin_by_coord(coord) == item_plugin_by_id(CTAIL_ID));
 	
-	count = item_length_by_coord(coord);
+	count = nr_units_ctail(coord);
 	
 	if (count > f->length)
 		count = f->length;
-	xmemcpy(item_body_by_coord(coord), f->data, count);
+	xmemcpy(first_unit(coord), f->data, count);
 	move_flow_forward(f, count);
 	coord->unit_pos += count;
 	return 0;
@@ -626,10 +674,14 @@ cut_ctail(coord_t * coord)
 {
 	coord_t stop;
 
-	assert("edward-435", coord_is_existing_unit(coord));
-
-	if(coord->unit_pos == coord_last_unit_pos(coord))
+	assert("edward-435", coord->between == AT_UNIT &&
+	       coord->item_pos < coord_num_items(coord) &&
+	       coord->unit_pos <= coord_num_units(coord));
+	
+	if(coord->unit_pos == coord_num_units(coord)) {
+		/* nothing to cut */
 		return 0;
+	}
 	coord_dup(&stop, coord);
 	stop.unit_pos = coord_last_unit_pos(coord);
 	
@@ -638,19 +690,25 @@ cut_ctail(coord_t * coord)
 
 /* plugin->u.item.s.file.write ? */
 int
-write_ctail(flow_t *f, coord_t *coord, lock_handle *lh, int grabbed, crc_write_mode_t mode, struct inode * inode)
+write_ctail(flush_pos_t * pos, crc_write_mode_t mode)
 {
 	int result;
+	ctail_squeeze_info_t * info;
+	
+	assert("edward-xxx", pos != NULL);
+	assert("edward-xxx", pos->idata != NULL);
+	
+	info = &pos->idata->u.ctail_info;
 	
 	switch (mode) {
 	case CRC_FIRST_ITEM:
 	case CRC_APPEND_ITEM:
-		result = insert_crc_flow_in_place(coord, lh, f, inode);
+		result = insert_crc_flow_in_place(&pos->coord, &pos->lock, &info->flow, info->inode);
 		break;
 	case CRC_OVERWRITE_ITEM:
-		overwrite_ctail(coord, f);
+		overwrite_ctail(&pos->coord, &info->flow);
 	case CRC_CUT_ITEM:
-		result = cut_ctail(coord);
+		result = cut_ctail(&pos->coord);
 		break;
 	default:
 		result = RETERR(-EIO);
@@ -672,7 +730,7 @@ item_plugin_by_jnode(jnode * node)
    the tree. Don't care about scan counter since leftward scanning will be
    continued from rightmost dirty node.
 */
-int scan_ctail(flush_scan * scan, const coord_t * in_coord)
+int scan_ctail(flush_scan * scan)
 {
 	int result;
 	struct page * page;
@@ -698,13 +756,18 @@ int scan_ctail(flush_scan * scan, const coord_t * in_coord)
 	
 	reiser4_cluster_init(&clust);
 
-	if (get_flush_scan_istat(scan) == EXISTING_ITEM) {
+	if (get_flush_scan_nstat(scan) == LINKED) {
 		/* nothing to do */
 		return 0;
 	}
 	assert("edward-233", scan->direction == LEFT_SIDE);
-	/* we start at an unformatted node, which doesn't have any items
-	   in the tree (new file or converted hole), so insert flow and
+	/* We start at an unformatted node, which doesn't have any items
+	   in the tree (new cluster). So find leftmost and rightmost neighbor
+	   clusters (leftmost neighbor is to start flush pages from, and
+	   rightmost is to calculate how much blocks we should convert from
+	   cluster_reserved to grabbed)
+
+	   nd
 	   continue scan from rightmost dirty node */
 	
 	clust.index = pg_to_clust(page->index, inode);
@@ -726,29 +789,46 @@ int scan_ctail(flush_scan * scan, const coord_t * in_coord)
 	
 	assert("edward-234", f.length == 0);
 	
-	/* now child is linked by item on parent level,
+	/* now the child is linked with its parent,
 	   set appropriate status */
-	set_flush_scan_istat(scan, EXISTING_ITEM);
+	set_flush_scan_nstat(scan, LINKED);
 
  exit:	
 	put_cluster_data(&clust, inode);
 	return result;
 }
 
-/* If yes, return true with attached child */
+/* If true, this function attaches children */
 static int
 should_attach_squeeze_idata(flush_pos_t * pos)
 {
-	reiser4_key key;
-	
+	int result;
 	assert("edward-431", pos != NULL);
 	assert("edward-432", pos->child == NULL);
+	assert("edward-xxx", item_plugin_by_coord(&pos->coord) == item_plugin_by_id(CTAIL_ID));
 	
-	if (!cluster_key(&key, &pos->coord))
-		return 0;
 	/* check for leftmost child */
 	utmost_child_ctail(&pos->coord, LEFT_SIDE, &pos->child);
-	return (pos->child != NULL);
+	result = (pos->child != NULL &&
+		  jnode_is_dirty(pos->child) &&
+		  pos->child->atom == ZJNODE(pos->coord.node)->atom);
+	if (!result && pos->child) {
+		/* this child isn't to attach, clear up this one */
+		jput(pos->child);
+		pos->child = NULL;
+	}
+	return result;
+}
+
+void
+init_squeeze_idata_ctail(flush_pos_t * pos)
+{
+	assert("edward-xxx", pos != NULL);
+	assert("edward-xxx", pos->idata != NULL);	
+	assert("edward-xxx", item_plugin_by_coord(&pos->coord) == item_plugin_by_id(CTAIL_ID));
+	
+	xmemset(pos->idata, 0, sizeof(*pos->idata));
+	pos->idata->iplug = item_plugin_by_coord(&pos->coord);
 }
 
 /* attach valid squeeze item data to the flush position */
@@ -771,8 +851,8 @@ attach_squeeze_idata(flush_pos_t * pos, struct inode * inode)
 	pos->idata = reiser4_kmalloc(sizeof(flush_squeeze_item_data_t), GFP_KERNEL);
 	if (pos->idata == NULL)
 		return -ENOMEM;
-	
-	info = &pos->idata->ctail_info;
+	init_squeeze_idata_ctail(pos);
+	info = &pos->idata->u.ctail_info;
 	info->clust = reiser4_kmalloc(sizeof(reiser4_cluster_t), GFP_KERNEL);
 	if (info->clust == NULL) {
 		ret = -ENOMEM;
@@ -811,7 +891,7 @@ detach_squeeze_idata(flush_squeeze_item_data_t ** idata)
 	ctail_squeeze_info_t * info;
 	
 	assert("edward-253", idata != NULL);
-	info = &(*idata)->ctail_info;
+	info = &(*idata)->u.ctail_info;
 
 	assert("edward-254", info->clust != NULL);
 	assert("edward-255", info->inode != NULL);
@@ -819,7 +899,7 @@ detach_squeeze_idata(flush_squeeze_item_data_t ** idata)
 
 	reiser4_kfree(info->clust->buf, inode_scaled_cluster_size(info->inode));
 	reiser4_kfree(info->clust, sizeof(reiser4_cluster_t));
-	reiser4_kfree(info, sizeof(ctail_squeeze_info_t));
+	reiser4_kfree(info, sizeof(flush_squeeze_item_data_t));
 	
 	*idata = NULL;
 }
@@ -835,12 +915,14 @@ utmost_child_ctail(const coord_t * coord, sideof side, jnode ** child)
 {	
 	reiser4_key key;
 
+	item_key_by_coord(coord, &key);
+
 	assert("edward-257", coord != NULL);
 	assert("edward-258", child != NULL);
 	assert("edward-259", side == LEFT_SIDE);
 	assert("edward-260", item_plugin_by_coord(coord) == item_plugin_by_id(CTAIL_ID));
-
-	if (get_key_offset(&key) & ~(~0ULL << cluster_shift_by_coord(coord) << PAGE_CACHE_SHIFT))
+	
+	if (!cluster_key(&key, coord))
 		*child = NULL;
 	else
 		*child = jlookup(current_tree, get_key_objectid(item_key_by_coord(coord, &key)), cluster_index_by_coord(coord));
@@ -848,6 +930,7 @@ utmost_child_ctail(const coord_t * coord, sideof side, jnode ** child)
 }
 
 /* plugin->u.item.f.squeeze */
+/* write ctail in guessed mode */
 int
 squeeze_ctail(flush_pos_t * pos)
 {
@@ -856,9 +939,8 @@ squeeze_ctail(flush_pos_t * pos)
 	crc_write_mode_t mode = CRC_OVERWRITE_ITEM;
 	
 	assert("edward-261", pos != NULL);
-	assert("edward-262", item_plugin_by_coord(&pos->coord) == item_plugin_by_id(CTAIL_ID));
 	
-	if (pos->idata == NULL)
+	if (pos->idata == NULL) {
 		if (should_attach_squeeze_idata(pos)) {
 			/* attach squeeze item info */
 			struct inode * inode;
@@ -878,42 +960,46 @@ squeeze_ctail(flush_pos_t * pos)
 				return result;
 		}
 		else
-			/* nothing to do */
+			/* unsqueezable */
 			return 0;
+	}
 	else {
-		/* there is attached data, check if it is valid */
-		info = &pos->idata->ctail_info;
+		/* there is attached squeeze info, it can be still valid! */
+		info = &pos->idata->u.ctail_info;
+		
 		if (info->flow.length) {
-			/* there is flow to insert, move flush position back if
-			   not a first item */
-			if (!coord_prev_item(&pos->coord))
-				coord_init_after_item_end(&pos->coord);
-			mode = CRC_APPEND_ITEM;
-		}
-		else {
-			/* check if we need to cut item */
-			reiser4_key key;
-			if (cluster_key(&key, &pos->coord)) {
-				/* don't need, put squeeze info and return to squeeze_node()
-				   to contunue from the next item */
-				detach_squeeze_idata(&pos->idata);
-				return 0;
+			/* append or overwrite */
+			if (pos->idata->mergeable) {
+				mode = CRC_OVERWRITE_ITEM;
+				pos->idata->mergeable = 0;
 			}
 			else
-				mode = CRC_CUT_ITEM;	
+				mode = CRC_APPEND_ITEM;
+		}
+		else {
+                        /* cut or invalidate */
+			if (pos->idata->mergeable) {
+				mode = CRC_CUT_ITEM;
+				pos->idata->mergeable = 0;
+			}
+			else {
+				detach_squeeze_idata(&pos->idata);
+				return RETERR(-E_REPEAT);
+			}
 		}
 	}
-
 	assert("edward-433", pos->idata != NULL);
-	result = write_ctail(&info->flow, &pos->coord, &pos->lock, 0, mode, info->inode);
+	result = write_ctail(pos, mode);
 	if (result) {
 		detach_squeeze_idata(&pos->idata);
 		return result;
 	}
+	
 	if (mode == CRC_APPEND_ITEM) {
 		/* detach squeeze info */
-		assert("edward-434", pos->idata->ctail_info.flow.length == 0);
+		assert("edward-434", pos->idata->u.ctail_info.flow.length == 0);
 		detach_squeeze_idata(&pos->idata);
+		return RETERR(-E_REPEAT);
 	}
 	return 0;
 }

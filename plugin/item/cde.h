@@ -43,7 +43,7 @@ pos_in_item_t nr_units_cde(const coord_t * coord);
 reiser4_key *unit_key_cde(const coord_t * coord, reiser4_key * key);
 int estimate_cde(const coord_t * coord, const reiser4_item_data * data);
 void print_cde(const char *prefix, coord_t * coord);
-int init_cde(coord_t * coord, reiser4_item_data * data);
+int init_cde(coord_t * coord, coord_t * from, reiser4_item_data * data);
 lookup_result lookup_cde(const reiser4_key * key, lookup_bias bias, coord_t * coord);
 int paste_cde(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info UNUSED_ARG);
 int can_shift_cde(unsigned free_space, coord_t * coord,
