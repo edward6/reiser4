@@ -116,7 +116,7 @@ struct zlock {
 struct jnode
 {
 	/* jnode's state: bitwise flags from the reiser4_znode_state enum. */
-	__u32        state;
+	unsigned long/*__u32*/        state;
 
 	/* znode's tree level */
 	__u16        level;
@@ -587,10 +587,12 @@ void info_znode( const char *prefix, const znode *node );
  * Jnode routines
  */
 extern jnode* jnode_of_page   (struct page* pg);
+extern jnode* page_next_jnode (jnode *node);
 extern void   jnode_init      (jnode *node);
 extern void   jnode_set_dirty (jnode *node);
 extern void   jnode_set_clean (jnode *node);
 extern const reiser4_block_nr* jnode_get_block( const jnode *node );
+extern int                     jnode_has_block( jnode * );
 extern void   jnode_set_block (jnode *node, const reiser4_block_nr *blocknr);
 extern int    jnode_flush     (jnode *node, int flags);
 
