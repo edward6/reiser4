@@ -37,7 +37,7 @@ void extent_copy_units (tree_coord * target, tree_coord * source,
 			unsigned from, unsigned count, shift_direction
 			where_is_free_space, unsigned free_space);
 int extent_kill_item_hook (const tree_coord *, unsigned from, unsigned count);
-int extent_create_hook (const tree_coord * coord, void * cookie);
+int extent_create_hook (const tree_coord * coord, void * arg);
 int extent_cut_units (tree_coord *, unsigned from, unsigned count,
 		      shift_direction, const reiser4_key * from_key,
 		      const reiser4_key * to_key,
