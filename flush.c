@@ -1574,8 +1574,8 @@ static void flush_bio_write (struct bio *bio)
 		 * For formatted pages I think it never gets set.  Okay? */
 		ClearPageDirty (pg);
 
-		unlock_page (pg);
 		page_cache_release (pg);
+		end_page_writeback (pg);
 	}
 	
 	bio_put (bio);
@@ -1708,7 +1708,6 @@ static int flush_finish (flush_position *pos, int none_busy)
 				jnode_set_clean (node);
 
 				page_cache_get (pg);
-				lock_page (pg);
 				SetPageWriteback (pg);
 
 				bio->bi_io_vec[c].bv_page   = pg;
