@@ -2016,7 +2016,8 @@ carry_estimate_insert_flow(carry_op * op, carry_level * level)
 {
 	int newnodes;
 
-	newnodes = bytes_to_pages(op->u.insert_flow.flow->length);
+	newnodes = min(bytes_to_pages(op->u.insert_flow.flow->length),
+		       CARRY_FLOW_NEW_NODES_LIMIT);
 	/*
 	 * roughly estimate insert_flow as a sequence of insertions.
 	 */
