@@ -9,6 +9,12 @@
 #if !defined( __REISER4_FORWARD_H__ )
 #define __REISER4_FORWARD_H__
 
+struct __reiser4_zlock;
+typedef struct __reiser4_zlock reiser4_zlock;
+
+struct __reiser4_lock_stack;
+typedef struct __reiser4_lock_stack reiser4_lock_stack;
+
 struct __reiser4_lock_handle;
 typedef struct __reiser4_lock_handle reiser4_lock_handle;
 
