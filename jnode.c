@@ -592,6 +592,13 @@ static int page_filler( void *arg, struct page *page )
 	return result;
 }
 
+/** helper function used by jload() */
+static inline void load_page( struct page *page )
+{
+	page_cache_get( page );
+	mark_page_accessed( page );
+	kmap( page );
+}
 
 /* load jnode's data into memory using read_cache_page() */
 int jload( jnode *node )
@@ -655,8 +662,7 @@ int jload( jnode *node )
 		 */
 		if( page != NULL ) {
 			JF_SET( node, JNODE_LOADED );
-			page_cache_get( page );
-			kmap( page );
+			load_page( page );
 		} else {
 			page = read_cache_page( jplug -> mapping( node ),
 						jplug -> index( node ), 
@@ -698,8 +704,7 @@ int jload( jnode *node )
 
 		page = jnode_page( node );
 		assert( "nikita-2348", page != NULL );
-		page_cache_get( page );
-		kmap( page );
+		load_page( page );
 	}
 	return result;
 }
