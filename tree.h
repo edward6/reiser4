@@ -76,6 +76,7 @@ typedef enum {
 typedef int ( *node_read_actor )( const reiser4_block_nr *addr, char **data,
 				  size_t blocksize );
 typedef int ( *node_allocate_actor )( znode *node );
+typedef void ( *node_unread_actor )( znode *node );
 
 /** PUT THIS IN THE SUPER BLOCK
  *
@@ -130,7 +131,10 @@ struct reiser4_tree {
 	/** read given address from persistent storage */
 	node_read_actor      read_node;
 	/** allocate memory for newly created znode */
-	node_allocate_actor      allocate_node;
+	node_allocate_actor  allocate_node;
+	/* call on znode unloading. Currently used to kunmap and release page
+	 * into which znode is read */
+	node_unread_actor    unread_node;
 };
 
 /**
@@ -237,13 +241,6 @@ typedef enum { SHIFTED_SOMETHING  = 0,
 } shift_result;
 
 
-extern int init_tree( reiser4_tree *tree, 
-		      const reiser4_block_nr *root_block,
-		      tree_level height,
-		      node_plugin *default_plugin,
-		      node_read_actor read_node, 
-		      node_allocate_actor alloc_node );
-extern void reiser4_done_tree( reiser4_tree *tree );
 extern node_plugin *node_plugin_by_coord ( const new_coord *coord );
 extern node_plugin *node_plugin_by_node( const znode *node );
 extern int is_coord_in_node( const new_coord *coord );
@@ -350,7 +347,7 @@ extern int cbk_cache_init( cbk_cache *cache );
 extern void cbk_cache_invalidate( const znode *node );
 extern void cbk_cache_add( znode *node );
 
-#if REISER4_DEBUG
+#if defined (REISER4_DEBUG) && defined (REISER4_USER_LEVEL_SIMULATION)
 extern void print_tree( const char *prefix, reiser4_tree *tree, __u32 flags );
 extern void print_tree_rec (const char * prefix, reiser4_tree * tree, __u32 flags);
 extern void print_cbk_slot( const char *prefix, cbk_cache_slot *slot );
@@ -452,7 +449,7 @@ static inline reiser4_context *get_context( const struct task_struct *tsk )
 }
 
 /** return context associated with current thread */
-static inline reiser4_context *get_current_context()
+static inline reiser4_context *get_current_context(void)
 {
 	return get_context( current );
 }
