@@ -1606,6 +1606,11 @@ void print_inode( const char *prefix /* prefix to print */,
 	print_plugin( "\ttail", tail_plugin_to_plugin( ref -> tail ) );
 	print_plugin( "\thash", hash_plugin_to_plugin( ref -> hash ) );
 	print_plugin( "\tsd", item_plugin_to_plugin( ref -> sd ) );
+
+	/*
+	 * FIXME-VS: this segfaults trying to print seal's coord
+	 */
+	return 0;
 	print_seal( "\tsd_seal", &ref -> sd_seal );
 	coord_print( "\tsd_coord", &ref -> sd_coord, 1 );
 	info( "\tflags: %u, bytes: %llu, extmask: %llu, sd_len: %i, pmask: %i, locality: %llu\n",
