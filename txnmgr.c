@@ -914,7 +914,7 @@ atom_should_commit_asap(const txn_atom * atom)
 	assert("nikita-3309", atom != NULL);
 
 	captured = (unsigned) atom->capture_count;
-	pinnedpages = (captured >> PAGE_CACHE_SHIFT) * sizeof(jnode);
+	pinnedpages = (captured >> PAGE_CACHE_SHIFT) * sizeof(znode);
 
 	return
 		(pinnedpages > (totalram_pages >> 3)) ||
@@ -1358,7 +1358,7 @@ again:
 		 * is not set we commit only atoms which were created before
 		 * this call is started. */
 		if (commit_all_atoms || time_before_eq(atom->start_time, start_time)) {
-			if (atom->stage <= ASTAGE_POST_COMMIT) { 
+			if (atom->stage <= ASTAGE_POST_COMMIT) {
 				spin_unlock_txnmgr(mgr);
 
 				if (atom->stage < ASTAGE_PRE_COMMIT) {
@@ -2825,7 +2825,7 @@ count_jnode(txn_atom *atom, jnode *node, atom_list old_list, atom_list new_list,
 	assert("vs-1624", atom->num_queued == atom->fq);
 	if (atom->capture_count != atom->dirty + atom->clean + atom->ovrwr + atom->wb + atom->fq + atom->protect) {
 		printk("count %d, dirty %d clean %d ovrwr %d wb %d fq %d protect %d\n", atom->capture_count, atom->dirty, atom->clean, atom->ovrwr, atom->wb, atom->fq, atom->protect);
-		assert("vs-1622", 
+		assert("vs-1622",
 		       atom->capture_count == atom->dirty + atom->clean + atom->ovrwr + atom->wb + atom->fq + atom->protect);
 	}
 }
@@ -3129,7 +3129,9 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode, int can_c
 		}
 	}
 
-	if (atom->stage == ASTAGE_CAPTURE_WAIT && atom->txnh_count != 0) {
+	if (atom->stage == ASTAGE_CAPTURE_WAIT &&
+	    (atom->txnh_count != 0 ||
+	     atom_should_commit(atom) || atom_should_commit_asap(atom))) {
 		/* We don't fuse with the atom in ASTAGE_CAPTURE_WAIT only if
 		 * there is open transaction handler.  It makes sense: those
 		 * atoms should not wait ktxnmgrd to flush and commit them.
@@ -3364,9 +3366,10 @@ capture_init_fusion_locked(jnode * node, txn_handle * txnh, txn_capture mode, in
 
 	/* If the node atom is in the FUSE_WAIT state then we should wait, except to
 	   avoid deadlock we still must fuse if the txnh atom is also in FUSE_WAIT. */
-	if (atomf->stage == ASTAGE_CAPTURE_WAIT && atomf->txnh_count != 0
-	    && atomh->stage != ASTAGE_CAPTURE_WAIT)
-	{
+	if (atomf->stage == ASTAGE_CAPTURE_WAIT &&
+	    atomh->stage != ASTAGE_CAPTURE_WAIT &&
+	    (atomf->txnh_count != 0 ||
+	     atom_should_commit(atomf) || atom_should_commit_asap(atomf))) {
 		/* see comment in capture_assign_txnh() about the
 		 * "atomf->txnh_count != 0" condition. */
 		/* This unlocks all four locks and returns E_REPEAT. */
@@ -4279,7 +4282,7 @@ print_atom(const char *prefix, txn_atom * atom)
 		sprintf(list, "capture level %d", level);
 
 		for (pos_in_atom = capture_list_front(ATOM_DIRTY_LIST(atom, level));
-		     !capture_list_end(ATOM_DIRTY_LIST(atom, level), pos_in_atom); 
+		     !capture_list_end(ATOM_DIRTY_LIST(atom, level), pos_in_atom);
 		     pos_in_atom = capture_list_next(pos_in_atom)) {
 
 			info_jnode(list, pos_in_atom);
