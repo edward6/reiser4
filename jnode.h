@@ -302,15 +302,11 @@ static inline int jnode_is_dirty( const jnode *node )
 	return JF_ISSET( node, JNODE_DIRTY );
 }
 
-extern void jnode_attach_page_nolock( jnode *node, struct page *pg );
 extern void jnode_attach_page( jnode *node, struct page *pg );
-extern void page_detach_jnode_lock( struct page *page, 
-				    struct address_space *mapping, 
-				    unsigned long index );
-extern void page_clear_jnode( struct page *page );
-extern void page_clear_jnode_nolock( struct page *page, jnode *node );
-extern void page_detach_jnode( struct page *page );
-extern void jnode_detach_page( jnode *node );
+extern void page_detach_jnode( struct page *page, 
+			       struct address_space *mapping, 
+			       unsigned long index );
+extern void page_clear_jnode( struct page *page, jnode *node );
 
 /** return true if "node" is dirty, node is unlocked */
 static inline int jnode_check_dirty( jnode *node )

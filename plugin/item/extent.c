@@ -1921,7 +1921,7 @@ int extent_read (struct inode * inode, coord_t * coord,
 
 	wait_on_page_locked (page);
 	if (!PageUptodate (page)) {
-		page_detach_jnode_lock (page, inode->i_mapping, page_nr);
+		page_detach_jnode (page, inode->i_mapping, page_nr);
 		page_cache_release (page);
 		warning ("jmacd-97178", "extent_read: page is not up to date");
 		return -EIO;
@@ -1933,7 +1933,7 @@ int extent_read (struct inode * inode, coord_t * coord,
 	result = txn_try_capture_page (page, ZNODE_READ_LOCK, 0);
 	unlock_page (page);
 	if (result != 0) {
-		page_detach_jnode_lock (page, inode->i_mapping, page_nr);
+		page_detach_jnode (page, inode->i_mapping, page_nr);
 		page_cache_release (page);
 		return result;
 	}
