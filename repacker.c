@@ -19,9 +19,20 @@
 
 #include "plugin/item/extent.h"
 
+#include <linux/spinlock.h>
+#include "kcond.h"
+
+enum repacker_state_bits {
+	REPACKER_RUNNING         = 1,
+	REPACKER_BEING_STOPPED   = 2,
+	REPACKER_BEING_DESTROYED = 4
+};
+
 struct repacker {
 	struct super_block * super;
-	atomic_t running;
+	enum repacker_state_bits  state;
+	spinlock_t guard;
+	kcond_t    cond;
 #if REISER4_USE_SYSFS
 	struct kobject kobj;
 #endif
@@ -47,11 +58,25 @@ static int renew_transaction (void)
 	return 0;
 }
 
+static inline int check_repacker_state(struct repacker *repacker, enum repacker_state_bits bits)
+{
+	int result;
+
+	spin_lock(&repacker->guard);
+	result = !!(repacker->state & bits);
+	spin_unlock(&repacker->guard);
+
+	return result;
+}
+
 static int dirtying_znode (tap_t * tap, void * arg)
 {
 	struct repacker_stats * stats = arg;
 
 	assert("zam-954", stats->count > 0);
+
+	if (check_repacker_state(get_current_super_private()->repacker, REPACKER_BEING_STOPPED))
+		return -EINTR;
 
 	if (znode_is_dirty(tap->lh->node))
 		return 0;
@@ -69,6 +94,9 @@ static int dirtying_extent (tap_t *tap, void * arg)
 {
 	int ret;
 	struct repacker_stats * stats = arg;
+
+	if (check_repacker_state(get_current_super_private()->repacker, REPACKER_BEING_STOPPED))
+		return -EINTR;
 
 	ret = mark_extent_for_repacking(tap, stats->count);
 	if (ret > 0) {
@@ -110,8 +138,7 @@ static struct tree_walk_actor repacker_actor = {
 
 static int repacker_d(void *arg)
 {
-	struct super_block * super = arg;
-	struct repacker * repacker = get_super_private(super)->repacker;
+	struct repacker * repacker = arg;
 	struct task_struct * me = current; 
 	int ret;
 
@@ -128,7 +155,7 @@ static int repacker_d(void *arg)
 	/* zeroing the fs_context copied form parent process' task struct. */
 	me->fs_context = NULL;
 
-	ret = init_context(&ctx, super);
+	ret = init_context(&ctx, repacker->super);
 	if (ret)
 		goto done;
 
@@ -150,28 +177,43 @@ static int repacker_d(void *arg)
 			ret = ret1;
 	}
 
-	atomic_set(&repacker->running, 0);
+	spin_lock(&repacker->guard);
+	repacker->state &= ~REPACKER_RUNNING;
+	kcond_broadcast(&repacker->cond);
+	spin_unlock(&repacker->guard);
+
 	return ret;
 }
 
-static int start_repacker(struct super_block * super) 
+static void wait_repacker_completion(struct repacker * repacker)
 {
-	struct repacker * repacker = get_super_private(super)->repacker;
+	if (repacker->state & REPACKER_RUNNING) {
+		kcond_wait(&repacker->cond, &repacker->guard, 0);
+		assert("zam-956", !(repacker->state & REPACKER_RUNNING));
+	}
+}
 
-	if (atomic_read(&repacker->running))
-		return 0;
-
-	atomic_set(&repacker->running, 1);
-	kernel_thread(repacker_d, super, CLONE_VM | CLONE_FS | CLONE_FILES);
-
+static int start_repacker(struct repacker * repacker) 
+{
+	spin_lock(&repacker->guard);
+	if (!(repacker->state & REPACKER_BEING_DESTROYED)) {
+		repacker->state &= ~REPACKER_BEING_STOPPED;
+		if (!(repacker->state & REPACKER_RUNNING)) {
+			repacker->state |= REPACKER_RUNNING;
+			spin_unlock(&repacker->guard);
+			kernel_thread(repacker_d, repacker, CLONE_VM | CLONE_FS | CLONE_FILES);
+			return 0;
+		}
+	}
+	spin_unlock(&repacker->guard);
 	return 0;
 } 
 
-static void stop_repacker(struct super_block * super)
+static void stop_repacker(struct repacker * repacker)
 {
-	struct repacker * repacker = get_super_private(super)->repacker;
-
-	atomic_set(&repacker->running, 1);
+	spin_lock(&repacker->guard);
+	repacker->state |= REPACKER_BEING_STOPPED;
+	spin_unlock(&repacker->guard);
 }
 
 #if REISER4_USE_SYSFS
@@ -189,8 +231,7 @@ static struct attribute * repacker_def_attrs[] = {
 static ssize_t repacker_attr_show (struct kobject *kobj, struct attribute *attr,  char *buf)
 {
 	struct repacker * repacker = container_of(kobj, struct repacker, kobj);
-
-	return snprintf(buf, PAGE_SIZE , "%d", atomic_read(&repacker->running));
+	return snprintf(buf, PAGE_SIZE , "%d", check_repacker_state(repacker, REPACKER_RUNNING));
 }
 
 static ssize_t repacker_attr_store (struct kobject *kobj, struct attribute *attr,  const char *buf, size_t size)
@@ -200,9 +241,9 @@ static ssize_t repacker_attr_store (struct kobject *kobj, struct attribute *attr
 
 	sscanf(buf, "%d", &start_stop);
 	if (start_stop) 
-		start_repacker(repacker->super);
+		start_repacker(repacker);
 	else
-		stop_repacker(repacker->super);
+		stop_repacker(repacker);
 
 	return size;
 }
@@ -259,15 +300,27 @@ int init_reiser4_repacker (struct super_block *super)
 		return -ENOMEM;
 	xmemset(sinfo->repacker, 0, sizeof(struct repacker));
 	sinfo->repacker->super = super;
+
+	spin_lock_init(&sinfo->repacker->guard);
+	kcond_init(&sinfo->repacker->cond);
+
 	return init_repacker_sysfs_iface(super);
 }
 
 void done_reiser4_repacker (struct super_block *super)
 {
 	reiser4_super_info_data * sinfo = get_super_private(super);
+	struct repacker * repacker;
 
-	assert("zam-945", sinfo->repacker != NULL);
+	repacker = sinfo->repacker;
+	assert("zam-945", repacker != NULL);
 	done_repacker_sysfs_iface(super);
-	kfree(sinfo->repacker);
+
+	spin_lock(&repacker->guard);
+	repacker->state |= (REPACKER_BEING_STOPPED | REPACKER_BEING_DESTROYED);
+	wait_repacker_completion(repacker);
+	spin_unlock(&repacker->guard);
+
+	kfree(repacker);
 	sinfo->repacker = NULL;
 }
