@@ -231,47 +231,47 @@ const int REISER4_MAGIC_OFFSET; /* offset to magic string from the beginning of
 #include "debug.h"
 
 /** Define serveral inline functions for each type of spinlock. */
-#define SPIN_LOCK_FUNCTIONS(NAME,TYPE,FIELD)					\
-										\
-static inline void spin_lock_ ## NAME (TYPE *x)					\
-{										\
-	assert ("nikita-1383", spin_ordering_pred_ ## NAME (x));		\
-	spin_lock (& x->FIELD);						        \
+#define SPIN_LOCK_FUNCTIONS(NAME,TYPE,FIELD)				\
+									\
+static inline void spin_lock_ ## NAME (TYPE *x)				\
+{									\
+	assert ("nikita-1383", spin_ordering_pred_ ## NAME (x));	\
+	spin_lock (& x->FIELD);						\
 	ON_DEBUG( ++ lock_counters() -> spin_locked_ ## NAME );		\
 	ON_DEBUG( ++ lock_counters() -> spin_locked );			\
-}										\
-										\
-static inline int  spin_trylock_ ## NAME (TYPE *x)				\
-{										\
-	if (spin_trylock (& x->FIELD)) {					\
+}									\
+									\
+static inline int  spin_trylock_ ## NAME (TYPE *x)			\
+{									\
+	if (spin_trylock (& x->FIELD)) {				\
 		ON_DEBUG( ++ lock_counters() -> spin_locked_ ## NAME );	\
 		ON_DEBUG( ++ lock_counters() -> spin_locked );		\
-		return 1;							\
-	}									\
-	return 0;								\
-}										\
-										\
-static inline void spin_unlock_ ## NAME (TYPE *x)				\
-{										\
-	assert( "nikita-1375",							\
+		return 1;						\
+	}								\
+	return 0;							\
+}									\
+									\
+static inline void spin_unlock_ ## NAME (TYPE *x)			\
+{									\
+	assert( "nikita-1375",						\
 		lock_counters() -> spin_locked_ ## NAME > 0 );		\
-	assert( "nikita-1376",							\
+	assert( "nikita-1376",						\
 		lock_counters() -> spin_locked > 0 );			\
 	ON_DEBUG( -- lock_counters() -> spin_locked_ ## NAME );		\
 	ON_DEBUG( -- lock_counters() -> spin_locked );			\
-	spin_unlock (& x->FIELD);						\
-}										\
-										\
-static inline int  spin_ ## NAME ## _is_locked (const TYPE *x)			\
-{										\
-	return spin_is_locked (& x->FIELD);					\
-}										\
-										\
-static inline int  spin_ ## NAME ## _is_not_locked (TYPE *x)			\
-{										\
-	return spin_is_not_locked (& x->FIELD);				        \
-}										\
-										\
+	spin_unlock (& x->FIELD);					\
+}									\
+									\
+static inline int  spin_ ## NAME ## _is_locked (const TYPE *x)		\
+{									\
+	return spin_is_locked (& x->FIELD);				\
+}									\
+									\
+static inline int  spin_ ## NAME ## _is_not_locked (TYPE *x)		\
+{									\
+	return spin_is_not_locked (& x->FIELD);				\
+}									\
+									\
 typedef struct { int foo; } NAME ## _spin_dummy
 
 #include "kcond.h"

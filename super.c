@@ -434,6 +434,50 @@ void print_fs_info (const struct super_block * s)
 		private->oid_plug->print_info (get_oid_allocator (s));
 }
 
+#if 1 || REISER4_DEBUG
+void register_thread( void )
+{
+	reiser4_super_info_data *sdata;
+
+	sdata = get_current_super_private();
+
+	atomic_inc( &sdata -> total_threads );
+	atomic_inc( &sdata -> active_threads );
+}
+
+void deregister_thread( void )
+{
+	reiser4_super_info_data *sdata;
+
+	sdata = get_current_super_private();
+	assert( "nikita-2022", atomic_read( &sdata -> total_threads ) > 0 );
+	assert( "nikita-2023", atomic_read( &sdata -> active_threads ) > 0 );
+	atomic_dec( &sdata -> total_threads );
+	atomic_dec( &sdata -> active_threads );
+}
+
+void activate_thread( void )
+{
+	atomic_inc( &get_current_super_private() -> active_threads );
+}
+
+void deactivate_thread( void )
+{
+	reiser4_super_info_data *sdata;
+
+	sdata = get_current_super_private();
+
+	assert( "nikita-2024", atomic_read( &sdata -> total_threads ) > 0 );
+	assert( "nikita-2025", atomic_read( &sdata -> active_threads ) > 0 );
+	if( atomic_dec_and_test( &sdata -> active_threads ) ) {
+		/*
+		 * Last active thread is going to sleep? Cave leo!
+		 */
+		warning( "nikita-2026", "Deadlock!" );
+	}
+}
+
+#endif
 
 /* 
  * Make Linus happy.

@@ -1459,6 +1459,7 @@ void *mkdir_thread( mkdir_thread_info *info )
 	int                ret;
 	struct file        df;
 
+	register_thread();
 	old_context = get_current_context();
 
 	sprintf( dir_name, "Dir-%i", current_pid );
@@ -1523,6 +1524,7 @@ void *mkdir_thread( mkdir_thread_info *info )
 	call_readdir( f, dir_name );
 	info( "(%i): done.\n", current_pid );
 	iput( f );
+	deregister_thread();
 	return NULL;
 }
 
@@ -4263,6 +4265,7 @@ int real_main( int argc, char **argv )
 			BUG();
 		xmemset (super.u.generic_sbp, 0, 
 			 sizeof (reiser4_super_info_data));
+
 		super.s_op = &reiser4_super_operations;
 		super.s_root = &root_dentry;
 		super.s_blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
@@ -4271,8 +4274,14 @@ int real_main( int argc, char **argv )
 
 		init_context( &__context, &super );
 
+#if REISER4_DEBUG
+		atomic_set( &get_current_super_private() -> total_threads, 0 );
+		atomic_set( &get_current_super_private() -> active_threads, 0 );
+#endif
+
 		assert ("jmacd-998", super.s_blocksize == PAGE_SIZE /* don't blame me, otherwise. */);
 
+		register_thread();
 		spin_lock_init( &mp_guard );
 		kcond_init( &memory_pressed );
 		result = pthread_create( &uswapper, NULL, uswapd, &super );
@@ -4358,6 +4367,7 @@ int real_main( int argc, char **argv )
 
 	info( "tree height: %i\n", tree -> height );
 
+	deregister_thread();
 	eresult = __REISER4_EXIT( &__context );
 
 	fresult = txn_mgr_force_commit (s);
