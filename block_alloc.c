@@ -48,11 +48,11 @@
                      it is used as a wandered block if we do overwrite or as a
 		     new location for relocated block. 
 
-   In addition, blocks in some states are counted in per-thread and per-atom
-   basis.  A reiser4 context has a counter of grabbed block, the sb's grabbed
-   blocks counter is a sum of grabbed blocks counter values of each reiser4
-   context.  Each reiser4 atom has a counter of "flush reserved" blocks, which
-   are reserved for flush processing and atom commit. */
+   In addition, blocks in some states are counted on per-thread and per-atom
+   basis.  A reiser4 context has a counter of blocks grabbed by this transaction
+   and the sb's grabbed blocks counter is a sum of grabbed blocks counter values
+   of each reiser4 context.  Each reiser4 atom has a counter of "flush reserved"
+   blocks, which are reserved for flush processing and atom commit. */
    
 /* AN EXAMPLE: suppose we insert new item to the reiser4 tree.  We estimate
    number of blocks to grab for most expensive case of balancing when the leaf
