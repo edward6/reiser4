@@ -74,7 +74,7 @@ errno_t reiser4_master_valid(reiser4_master_t *master) {
 }
 
 /* Callback function for comparing plugins */
-static errno_t callback_try_for_guess(
+static errno_t callback_guess_format(
     reiser4_plugin_t *plugin,	    /* plugin to be checked */
     void *data			    /* needed plugin type */
 ) {
@@ -90,7 +90,7 @@ static errno_t callback_try_for_guess(
 }
 
 reiser4_plugin_t *reiser4_master_guess(aal_device_t *device) {
-    return libreiser4_factory_cfind(callback_try_for_guess, device);
+    return libreiser4_factory_cfind(callback_guess_format, device);
 }
 
 #endif
