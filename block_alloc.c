@@ -460,20 +460,20 @@ grabbed2fake_allocated_formatted(void)
 	reiser4_spin_unlock_sb(sbinfo);
 }
 
-static void
-grabbed2fake_allocated_unformatted(void)
+void
+grabbed2fake_allocated_unformatted(__u64 count)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
 
 	ctx = get_current_context();
-	sub_from_ctx_grabbed(ctx, 1);
+	sub_from_ctx_grabbed(ctx, count);
 
 	sbinfo = get_super_private(ctx->super);
 	reiser4_spin_lock_sb(sbinfo);
 
-	sub_from_sb_grabbed(sbinfo, 1);
-	sbinfo->blocks_fake_allocated_unformatted ++;
+	sub_from_sb_grabbed(sbinfo, count);
+	sbinfo->blocks_fake_allocated_unformatted += count;
 
 	assert("vs-922", check_block_counters(ctx->super));
 
@@ -575,7 +575,7 @@ fake_blocknr_unformatted(void)
 	ON_TRACE(TRACE_RESERVE2, "fake_blocknr_unformatted: moving 1 grabbed block to fake allocated unformatted\n");
 
 	assign_fake_blocknr(&blocknr);
-	grabbed2fake_allocated_unformatted();
+	grabbed2fake_allocated_unformatted(1);
 
 	return blocknr;
 }
