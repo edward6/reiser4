@@ -302,7 +302,7 @@ static void dealloc_tx_list (capture_list_head * tx_list)
 
 		reiser4_dealloc_block (jnode_get_block (cur), 0, BLOCK_NOT_COUNTED);
 
-		jnode_detach_page (cur);
+		jdrop (cur);
 		jfree (cur);
 	}
 }
@@ -657,7 +657,7 @@ static int alloc_tx (int nr, capture_list_head * tx_list, struct io_handle * io_
 		jnode * node = capture_list_pop_back(tx_list);
 
 		jrelse (node);
-		jnode_detach_page (node);
+		jdrop (node);
 		jfree (node);
 	}
 
