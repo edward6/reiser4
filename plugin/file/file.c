@@ -1870,7 +1870,7 @@ init_inode_data_unix_file(struct inode *inode,
 #if REISER4_DEBUG
 	data->ea_owner = 0;
 #endif
-	init_inode_ordering(inode, cdr, create);
+	init_inode_ordering(inode, crd, create);
 }
 
 /* plugin->u.file.pre_delete */
