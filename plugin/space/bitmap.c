@@ -500,6 +500,7 @@ static void
 release(jnode *node)
 {
 	jrelse(node);
+	JF_SET(node, JNODE_HEARD_BANSHEE);
 	jput(node);
 }
 
