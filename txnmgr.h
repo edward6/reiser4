@@ -422,8 +422,6 @@ SPIN_LOCK_FUNCTIONS(atom, txn_atom, alock);
 SPIN_LOCK_FUNCTIONS(txnh, txn_handle, hlock);
 SPIN_LOCK_FUNCTIONS(txnmgr, txn_mgr, tmgr_lock);
 
-extern spinlock_t _jnode_ptr_lock;
-
 typedef enum {
 	FQ_IN_USE = 0x1,
 	FQ_CONNECTED = 0x2

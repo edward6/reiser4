@@ -389,9 +389,6 @@ kalloc->jnode_lock
 
     emergency_flush() takes jnode spin lock
 
-jnode_lock->inode_guard
-
-   eflush_add() takes inode spin lock under jnode spin lock
 ----------------------------------DEADLOCKS-------------------------------------
 
 Big section describing found/possible/already-worked-around deadlocks.

@@ -1,127 +1,214 @@
+/* cpp -P -DFITPAGE lock-ordering.dot | tred | dot -Tps | gv -media a4 - */
+
+#define CATTR fontsize=14, fontname=Helvetica
+#define NATTR CATTR
+#define EATTR CATTR
+
+#define SYSATTR color=yellow, style=filled
+#define PSEUDOATTR color=pink, style=filled, peripheries=2
+
+#define LONGATTR shape=ellipse
+#define SPINATTR shape=box
+
+#define MARKLONG(name) name -> schedulable [style=invis, weight=0]
+
+#define SYSLONG(name, l) name [label=l, NATTR, LONGATTR, SYSATTR]; MARKLONG(name)
+#define SYSPSEUDO(name) name [NATTR, LONGATTR, PSEUDOATTR]; MARKLONG(name)
+#define RLONG(name) name [NATTR, LONGATTR]; MARKLONG(name)
+
+#define MARKSPIN(name) schedulable -> name [style=invis, weight=0]
+
+#define SYSSPIN(name, l) name [label=l, NATTR, SYSATTR, SPINATTR]; MARKSPIN(name)
+#define RSPIN(name) name [NATTR, SPINATTR]; MARKSPIN(name)
+
+#define ARC(from, to, func, ...) from -> to [EATTR, label=func, ## __VA_ARGS__]
+
 digraph locks {
 
-size="18,10"
+//clusterrank=none
+#if defined(FITPAGE)
+size="7.5, 10.5";
+ratio=compress;
+center=true;
+#endif
 
-/* reiser4 spin locks */
-tree_lock [shape=box]
-dk_lock [shape=box]
-jnode_lock [shape=box]
-inode_guard [shape=box]
-atom_lock [shape=box]
-txnh_lock [shape=box]
-txnmgr_lock [shape=box]
-ktxnmgrd_lock [shape=box]
-cbk_guard [shape=box]
+subgraph long {
+	/* reiser4 long term locks */
+	RLONG(longterm_lock);
+	RLONG(inode_rw_lock);
+	RLONG(stack_sema);
+	RLONG(flush_sema);
+	RLONG(commit_sema);
+	RLONG(delete_sema);
+    /* txncommit is a synonym for flush_sema and commit_sema */
+	txncommit [LONGATTR, PSEUDOATTR]; MARKLONG(txncommit);
+	txncommit -> flush_sema [style=dotted, dir=both];
+	txncommit -> commit_sema [style=dotted, dir=both];
 
-//stack_lock [shape=box]
-//super_guard [shape=box]
-//lnode_guard [shape=box]
-//cksum_guard [shape=box]
-//oid_guard [shape=box]
-//test_lock [shape=box]
-//kcond_lock [shape=box]
-//fake_lock [shape=box]
-//panic_guard [shape=box]
-//contexts_lock [shape=box]
-//pset_guard [shape=box]
-//phash_guard [shape=box]
+	//RLONG(lnode_kcond);
+	//RLONG(ktxnmgrd_start);
+	//RLONG(ktxnmgrd_wait);
+	//RLONG(bnode_sema);
 
-/* reiser4 long term locks */
-longterm_lock
-inode_rw_lock
-stack_sema
-flush_sema
-commit_sema
-delete_sema
+	/* pseudo locks */
+	SYSPSEUDO(pfault);
+	SYSPSEUDO(kalloc);
+	SYSPSEUDO(schedulable);
 
-//lnode_kcond
-//ktxnmgrd_start
-//ktxnmgrd_wait
-//bnode_sema
+	/* system long term locks */
+	SYSLONG(page_write, page_write);
+	SYSLONG(mm_mmap_sem, "mm->mmap_sem");
+	SYSLONG(mapping_i_shared_sem, "mapping->i_shared_sem");
 
-/* pseudo locks */
-pfault [color=pink, style=filled, peripheries=2]
-kalloc [color=pink, style=filled, peripheries=2]
+	SYSLONG(i_sem, i_sem);
+	SYSLONG(page_lock, page_lock);
+	SYSLONG(cache_chain_sem, "&cache_chain_sem");
 
-/* system spin locks */
-cachep_spinlock [label="cachep->spinlock", shape=box, color=yellow, style=filled]
-zone_lock [label="zone->lock", shape=box, color=yellow, style=filled]
-swaplock [label="&swaplock", shape=box, color=yellow, style=filled]
-zone_lru_lock [label="zone->lru_lock", shape=box, color=yellow, style=filled]
-mapping_private_lock [label="mapping->private_lock", shape=box, color=yellow, style=filled]
-mapping_page_lock [label="mapping->page_lock", shape=box, color=yellow, style=filled]
-inode_lock [label="&inode_lock", shape=box, color=yellow, style=filled]
-swap_device_lock [label="swap->device_lock", shape=box, color=yellow, style=filled]
-mm_page_table_lock [label="mm->page_table_lock", shape=box, color=yellow, style=filled]
-sb_lock [label="&sb_lock", shape=box, color=yellow, style=filled]
-pte_chain_lock [label="pte_chain_lock", shape=box, color=yellow, style=filled]
+	SYSLONG(namespace_sem, "namespace->sem");
+	// SYSLONG(bdev_bd_sem, "bdev->bd_sem");
+	SYSLONG(sb_s_lock, "sb->s_lock");
+	SYSLONG(sb_s_umount, "sb->s_umount");
+}
 
-/* system long term locks */
-page_write [color=yellow, style=filled]
-mm_mmap_sem [label="mm->mmap_sem", color=yellow, style=filled]
-mapping_i_shared_sem [label="mapping->i_shared_sem", shape=box, color=yellow, style=filled]
-i_sem [color=yellow, style=filled]
-page_lock [color=yellow, style=filled]
-cache_chain_sem [label="&cache_chain_sem", color=yellow, style=filled]
+subgraph spin {
+
+	/* reiser4 spin locks */
+
+	RSPIN(tree_lock);
+	RSPIN(dk_lock);
+	RSPIN(jnode_lock);
+	RSPIN(inode_guard);
+	RSPIN(atom_lock);
+	RSPIN(txnh_lock);
+	RSPIN(txnmgr_lock);
+	RSPIN(ktxnmgrd_lock);
+	RSPIN(cbk_guard);
+
+	//RSPIN(stack_lock);
+	//RSPIN(super_guard);
+	//RSPIN(lnode_guard);
+	//RSPIN(cksum_guard);
+	//RSPIN(oid_guard);
+	//RSPIN(test_lock);
+	//RSPIN(kcond_lock);
+	//RSPIN(fake_lock);
+	//RSPIN(panic_guard);
+	//RSPIN(contexts_lock);
+	//RSPIN(pset_guard);
+	//RSPIN(phash_guard);
+
+	/* system spin locks */
+	SYSSPIN(bkl, "BKL");
+	SYSSPIN(cachep_spinlock, "cachep->spinlock");
+	SYSSPIN(zone_lock, "zone->lock");
+	SYSSPIN(swaplock, "&swaplock");
+	SYSSPIN(zone_lru_lock, "zone->lru_lock");
+	SYSSPIN(mapping_private_lock, "mapping->private_lock");
+	SYSSPIN(mapping_page_lock, "mapping->page_lock");
+	SYSSPIN(inode_lock, "&inode_lock");
+	SYSSPIN(swap_device_lock, "swap->device_lock");
+	SYSSPIN(mm_page_table_lock, "mm->page_table_lock");
+	SYSSPIN(sb_lock, "&sb_lock");
+	SYSSPIN(page_chain_lock, "page->chain_lock");
+	SYSSPIN(dparent_lock, "dparent_lock");
+	SYSSPIN(dcache_lock, "dcache_lock");
+	SYSSPIN(fs_struct_lock, "fs_struct->lock");
+	SYSSPIN(tasklist_lock, "&tasklist_lock");
+	SYSSPIN(sig_siglock, "sig->siglock");
+	SYSSPIN(fown_lock, "fown->lock");
+	SYSSPIN(task_alloc_lock, "task->alloc_lock");
+	/* rq->lock is special: it can be unlocked by thread different from locker */
+	SYSSPIN(rq_lock, "rq->lock");
+	SYSSPIN(task_capability_lock, "&task_capability_lock");
+    SYSSPIN(mmlist_lock, "&mmlist_lock");
+	SYSSPIN(files_file_lock, "files->file_lock");
+	SYSSPIN(dn_lock, "&dn_lock");
+	//SYSSPIN(bdev_lock, "&bdev_lock");
+}
 
 /* dependencies */
 
-inode_guard->inode_lock [label="eflush_add()"]
-atom_lock->jnode_lock [label="uncapture_block(),\ncapture_fuse_jnode_lists()"]
-jnode_lock->txnh_lock [label="try_capture_block()"]
+ARC(inode_guard, inode_lock, "eflush_add()");
+ARC(inode_guard, tree_lock, "update_sd_at()");
+ARC(inode_guard, jnode_lock, "update_sd_at()");
+ARC(inode_guard, atom_lock, "update_sd_at()");
+ARC(atom_lock, jnode_lock, "uncapture_block()"); //capture_fuse_jnode_lists()
+ARC(jnode_lock, txnh_lock, "try_capture_block()");
 //alredy covered
-//atom_lock->txnh_lock [label="capture_fuse_txnh_lists()"]
-jnode_lock->tree_lock [label="BY DESIGN"]
-tree_lock->cbk_guard [label="cbk_cache_scan_slots()"]
-dk_lock->tree_lock [label="sync_dkeys()"]
-txnmgr_lock->atom_lock [label="atom_dec_and_unlock(),\ntxnmgr_force_commit_all(),\ncommit_some_atoms(),\nflush_one_atom()"]
-//already covered
-//txnmgr_lock->jnode_lock [label="atom_begin_andlock()"]
-//already covered
-//txnmgr_lock->txnh_lock [label="atom_begin_andlock()"]
-i_sem->inode_rw_lock [label="unix_file_setattr(),\nunix_file_write()"]
-inode_rw_lock->delete_sema [label="shorten()"]
-delete_sema->flush_sema [label="reiser4_release_reserved()"]
-delete_sema->commit_sema [label="reiser4_release_reserved()"]
-flush_sema->longterm_lock [label="flush_scan_left(),\nflush_allocate_znode_update(),\nflush_scan_formatted(),\nflush_pos_to_child_and_alloc()"]
-longterm_lock->page_lock [label="cbk_level_lookup()"]
-commit_sema->page_lock [label="submit_write()"]
-pfault->mm_mmap_sem [label="handle_page_fault()"]
-page_lock->pfault [label="extent_write_flow()"]
-mm_mmap_sem->kalloc [label="unix_file_readpage()"]
-jnode_lock->inode_guard [label="eflush_add()"]
+ARC(atom_lock, txnh_lock, "capture_fuse_txnh_lists()");
+ARC(jnode_lock, tree_lock, "jdrop_in_tree()");
+ARC(tree_lock, cbk_guard, "cbk_cache_scan_slots()");
+ARC(dk_lock, tree_lock, "sync_dkeys()");
+ARC(txnmgr_lock, atom_lock, "atom_dec_and_unlock()"); //txnmgr_force_commit_all(),\ncommit_some_atoms(),\nflush_one_atom()");
+ARC(txnmgr_lock, jnode_lock, "atom_begin_andlock()");
+ARC(txnmgr_lock, txnh_lock, "atom_begin_andlock()");
+ARC(i_sem, inode_rw_lock, "unix_file_setattr()");//,\nunix_file_write()");
+ARC(inode_rw_lock, delete_sema, "shorten()");
+ARC(delete_sema, txncommit, "reiser4_release_reserved()");
+ARC(flush_sema, longterm_lock, "flush_scan_left()");//,\nflush_allocate_znode_update(),\nflush_scan_formatted(),\nflush_pos_to_child_and_alloc()");
+ARC(longterm_lock, page_lock, "cbk_level_lookup()");
+ARC(commit_sema, page_lock, "submit_write()");
+ARC(pfault, mm_mmap_sem, "handle_page_fault()");
+ARC(page_lock, pfault, "extent_write_flow()");
+ARC(mm_mmap_sem, kalloc, "unix_file_readpage()");
 
-//mm_mmap_sem->inode_rw_lock [label="unix_file_filemap_nopage()", style="dotted"]
-//mm_mmap_sem->kalloc [label="DEAD2", style="dotted"]
-//kalloc->jnode_lock [label="emergency_flush()"]
-//longterm_lock->jnode_lock [label="longterm_unlock_znode(),\nflush_allocate_znode()"]
+//ARC(inode_rw_lock, mm_mmap_sem, "unix_file_filemap_nopage()", style=dotted, dir=back);
+//ARC(mm_mmap_sem, kalloc, "DEAD2", style="dotted");
+ARC(kalloc, jnode_lock, "emergency_flush()");
+ARC(longterm_lock, jnode_lock, "longterm_unlock_znode()");//,\nflush_allocate_znode()");
 
-kalloc->ktxnmgrd_lock [label="spinlock", style=dotted]
-
-kalloc->inode_guard [label="eflush_add()"]
-ktxnmgrd_lock->txnmgr_lock [label="commit_some_atoms()"]
+ARC(kalloc, inode_guard, "eflush_add()");
+ARC(ktxnmgrd_lock, txnmgr_lock, "commit_some_atoms()");
 
 //already covered
-//mapping_i_shared_sem->mapping_private_lock [label="__set_page_dirty_buffers()"]
+ARC(mapping_i_shared_sem, mapping_private_lock, "__set_page_dirty_buffers()");
 //already covered
-//mapping_i_shared_sem->mapping_page_lock
-mapping_i_shared_sem->mm_page_table_lock [label="vma_link()"]
+ARC(mapping_i_shared_sem, mapping_page_lock, "");
+ARC(mapping_i_shared_sem, mm_page_table_lock, "vma_link()");
 
-inode_lock->mapping_page_lock [label="__sync_single_inode()"]
-inode_lock->sb_lock [label="writeback_inodes()"]
+ARC(inode_lock, mapping_page_lock, "__sync_single_inode()");
+ARC(inode_lock, sb_lock, "writeback_inodes()");
 
-mm_page_table_lock->swap_device_lock [label="try_to_unmap_one()"]
-mm_page_table_lock->mapping_private_lock [label="try_to_unmap_one()"]
+ARC(mm_page_table_lock, swap_device_lock, "try_to_unmap_one()");
+ARC(mm_page_table_lock, mapping_private_lock, "try_to_unmap_one()");
 //already covered
-//mm_page_table_lock->mapping_page_lock [label="try_to_unmap_one()"]
+ARC(mm_page_table_lock, mapping_page_lock, "try_to_unmap_one()");
 
-mm_mmap_sem->mapping_i_shared_sem [label="do_mmap_pgoff()"]
+ARC(mm_mmap_sem, mapping_i_shared_sem, "do_mmap_pgoff()");
 
-swaplock->swap_device_lock [label="swap_info_get()"]
-swap_device_lock->mapping_page_lock [label="exclusive_swap_page()"]
+ARC(swaplock, swap_device_lock, "swap_info_get()");
+ARC(swap_device_lock, mapping_page_lock, "exclusive_swap_page()");
 
-page_lock->pte_chain_lock [label="shrink_list()"]
-mapping_page_lock->zone_lru_lock [label="filemap_fdatawait(),\nadd_to_page_cache()"]
-cache_chain_sem->kalloc [label="cpuup_callback()"]
-//cache_chain_sem->pfault [label="kmem_cache_create()"]
+ARC(page_lock, page_chain_lock, "shrink_list()");
+ARC(mm_page_table_lock, page_chain_lock, "page_add_rmap()");//,\npage_remove_rmap()");
+ARC(mapping_page_lock, zone_lru_lock, "add_to_page_cache()");//,\nfilemap_fdatawait()");
+ARC(mm_page_table_lock, zone_lru_lock, "page_add_rmap()");//,\npage_remove_rmap()");
+ARC(zone_lru_lock, page_chain_lock, "rmap.c");
+
+ARC(cache_chain_sem, kalloc, "cpuup_callback()");
+//ARC(cache_chain_sem, pfault, "kmem_cache_create()");
+
+ARC(dcache_lock, dparent_lock, "d_move()");
+ARC(fs_struct_lock, dcache_lock, "set_fs_pwd()");//,\nset_fs_root()");
+
+ARC(namespace_sem, i_sem, "sys_pivot_root()");
+
+ARC(sb_s_lock, txncommit, "reiser4_write_super()");
+ARC(sb_s_umount, txncommit, "reiser4_kill_super()");
+
+ARC(tasklist_lock, sig_siglock, "de_thread()");//,\ndo_notify_parent(),\nsys_tkill(),\ncopy_process()"); //collect_sigign_sigcatch(),\n__exit_sighand(),\nfreeze_processes()
+ARC(dn_lock, fown_lock, "__inode_dir_notify()");
+ARC(fown_lock, tasklist_lock, "send_sigio()");//,\nsend_sigurg()");
+ARC(tasklist_lock, task_alloc_lock, "chroot_fs_refs()");
+ARC(tasklist_lock, rq_lock, "setscheduler()");
+ARC(task_capability_lock, tasklist_lock, "sys_capget()");//,\nsys_capset()");
+ARC(task_alloc_lock, files_file_lock, "match_comm()");//,\nmatch_pid()");
+
+ARC(mmlist_lock, mm_page_table_lock, "unuse_process()");
+
+ARC(tree_lock, zone_lock, "page_clear_jnode()");//,\njrelse_nolock()");
+ARC(tree_lock, zone_lru_lock, "page_clear_jnode()");//,\njrelse_nolock()");
+ARC(tree_lock, mapping_page_lock, "jdrop_in_tree()");
+
+ARC(bkl, inode_lock, "iget()");
 }
