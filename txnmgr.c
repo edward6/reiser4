@@ -2323,7 +2323,8 @@ jnode_make_clean(jnode * node)
 	UNLOCK_JNODE(node);
 }
 
-/* move jnode to atom's overwrite set */
+/* Make node OVRWR and put it on atom->overwrite_nodes list, atom lock and jnode
+ * lock should be taken before calling this function. */
 void jnode_make_wander_nolock (jnode * node)
 {
 	txn_atom * atom;
@@ -2343,6 +2344,8 @@ void jnode_make_wander_nolock (jnode * node)
 	JF_SET(node, JNODE_OVRWR);
 }
 
+/* Same as jnode_make_wander_nolock, but all necessary locks are taken inside
+ * this function. */
 void jnode_make_wander (jnode * node)
 {
 	txn_atom * atom;
@@ -2354,6 +2357,29 @@ void jnode_make_wander (jnode * node)
 	jnode_make_wander_nolock(node);
 	UNLOCK_ATOM(atom);
 	UNLOCK_JNODE(node);
+}
+
+/* Make node RELOC and put it on flush queue */
+void jnode_make_reloc (jnode * node, flush_queue_t * fq)
+{
+	txn_atom * atom;
+
+	LOCK_JNODE(node);
+
+	atom = atom_locked_by_jnode(node);
+
+	assert ("zam-919", atom != NULL);
+	assert ("zam-916", jnode_is_dirty(node));
+	assert ("zam-917", !JF_ISSET(node, JNODE_RELOC));
+	assert ("zam-918", !JF_ISSET(node, JNODE_OVRWR));
+	assert ("zam-920", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
+	
+	jnode_set_reloc(node);
+	queue_jnode(fq, node);
+
+	UNLOCK_ATOM(atom);
+	UNLOCK_JNODE(node);
+	
 }
 
 /* This function assigns a block to an atom, but first it must obtain the atom lock.  If
@@ -2986,112 +3012,6 @@ jnodes_of_one_atom(jnode * j1, jnode * j2)
 
 	return ret;
 }
-
-#if 0
-/* this is called in reiser4_mark_inode_dirty */
-int capture_inode(txn_handle * txnh, struct inode *inode)
-{
-	int result;
-	txn_atom *atom;
-	reiser4_inode *r4_inode;
-
-	r4_inode = reiser4_inode_data(inode);
-	atom = atom_get_locked_with_txnh_locked_nocheck(txnh);
-	protect_inode_atom_pointer(r4_inode);
-
-	if (r4_inode->atom && (atom == 0 || atom == r4_inode->atom)) {
-		/* inode is already captured and there is no need to fuse */
-		assert("vs-1234", inode->i_state & I_CAPTURED);
-		assert("vs-1235", !list_empty(&r4_inode->atom_link));
-		unprotect_inode_atom_pointer(r4_inode);
-		UNLOCK_TXNH(txnh);
-		if (atom)
-			UNLOCK_ATOM(atom);
-		return 0;
-	}
-	
-	if (r4_inode->atom == 0 && atom) {
-		/* "capture" inode */
-		printk("capture: inode %p (%llu), atom %p [%p %p %p %p]\n", inode, get_inode_oid(inode), atom,
-		       __builtin_return_address(0), __builtin_return_address(1), __builtin_return_address(2), __builtin_return_address(3));
-		assert("vs-1236", !(inode->i_state & I_CAPTURED));
-		assert("vs-1237", list_empty(&r4_inode->atom_link));		
-
-		inode->i_state |= I_CAPTURED;
-		
-		list_add(&r4_inode->atom_link, &atom->inodes);
-		assert("", !list_empty(&r4_inode->atom_link));
-		atom->nr_inodes ++;
-		r4_inode->atom = atom;
-		grabbed2flush_reserved_nolock(atom, reserved_for_sd_update(inode), "capture_inode");
-
-		unprotect_inode_atom_pointer(r4_inode);
-		UNLOCK_TXNH(txnh);
-		if (atom)
-			UNLOCK_ATOM(atom);
-		return 0;
-	}
-
-	/* can not "capture" */
-	unprotect_inode_atom_pointer(r4_inode);
-	UNLOCK_TXNH(txnh);
-	if (atom)
-		UNLOCK_ATOM(atom);
-	result = reiser4_update_sd(inode);
-	return result;
-}
-
-/* do not confuse with atom_locked_by_jnode */
-txn_atom *atom_locked_by_inode(reiser4_inode *r4_inode)
-{
-	txn_atom *atom;
-
-	while (1) {
-		atom = r4_inode->atom;
-		if (atom == 0)
-			break;
-		if (spin_trylock_atom(atom))
-			break;
-		atomic_inc(&atom->refcount);
-		unprotect_inode_atom_pointer(r4_inode);
-		LOCK_ATOM(atom);
-		protect_inode_atom_pointer(r4_inode);
-		if (r4_inode->atom == atom) {
-			atomic_dec(&atom->refcount);
-			break;
-		}		
-		unprotect_inode_atom_pointer(r4_inode);
-		atom_dec_and_unlock(atom);
-		protect_inode_atom_pointer(r4_inode);
-	}
-	return atom;
-}
-
-/* called by reiser4_drop_inode */
-int uncapture_inode(struct inode *inode)
-{
-	txn_atom *atom;
-	reiser4_inode *r4_inode;
-
-	r4_inode = reiser4_inode_data(inode);
-
-	protect_inode_atom_pointer(r4_inode);
-	atom = atom_locked_by_inode(r4_inode);
-	if (!atom) {
-		assert("vs-1237", list_empty(&r4_inode->atom_link));
-		unprotect_inode_atom_pointer(r4_inode);
-	} else {
-		remove_inode_from_atom_list(atom, inode);
-		unprotect_inode_atom_pointer(r4_inode);
-
-		flush_reserved2grabbed(atom, reserved_for_sd_update(inode));
-		grabbed2free(reserved_for_sd_update(inode), "uncapture_inode");
-		UNLOCK_ATOM(atom);
-	}
-	return 0;
-}
-
-#endif
 
 /* DEBUG HELP */
 
