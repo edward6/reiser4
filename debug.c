@@ -74,7 +74,7 @@ void check_preempt( void )
 #if REISER4_DEBUG
 /**
  * Debugging aid: return struct where information about locks taken by current
- * thread is accumulated. This can be used to formulate locking ordering
+ * thread is accumulated. This can be used to formulate lock ordering
  * constraints and various assertions.
  *
  */
