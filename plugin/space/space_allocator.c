@@ -5,7 +5,7 @@
 #include "bitmap.h"
 #include "test.h"
 #include "space_allocator.h"
-
+/* ZAM-FIXME-HANS: implement a compile time selected space allocation plugin with no runtime function dereferences. */
 /* initialization of objectid space allocator plugins */
 space_allocator_plugin space_plugins[LAST_SPACE_ALLOCATOR_ID] = {
 	[BITMAP_SPACE_ALLOCATOR_ID] = {

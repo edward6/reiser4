@@ -332,7 +332,7 @@ struct txn_atom {
 	/* number of flush queues which are IN_USE and jnodes from fq->prepped
 	   are submitted to disk by the write_fq() routine. */
 	int nr_running_queues;
-
+/* ZAM-FIXME-HANS: mention where space reservation is described in detail. */
 	/* A counter of grabbed unformatted nodes. */
 	reiser4_block_nr flush_reserved;
 };
@@ -344,6 +344,7 @@ struct txn_handle {
 	reiser4_spin_data hlock;
 
 	/* Flags for controlling commit_txnh() behavior */
+/* NIKITA-FIXME-HANS: mention where these are enumerated. */
 	txn_handle_flags_t flags;
 
 	/* Whether it is READ_FUSING or WRITE_FUSING. */
@@ -556,18 +557,19 @@ struct flush_queue {
 	reiser4_spin_data guard;
 	/* flush_queue state: [in_use | ready] */
 	flush_queue_state_t state;
-	/* A list which contains queued nodes, queued nodes are removed any
+	/* A list which contains queued nodes, queued nodes are removed from any
 	 * atom's list and put on this ->prepped one. */
 	capture_list_head prepped;
 	/* number of submitted i/o requests */
 	atomic_t nr_submitted;
 	/* number of i/o errors */
 	atomic_t nr_errors;
-	/* An atom this flush handle is attached to */
+	/* An atom this flush queue is attached to */
 	txn_atom *atom;
 	/* ZAM-FIXME-HANS: can you use a better name */
 	/* A semaphore for waiting on i/o completion */
 	struct semaphore sema;
+/* ZAM-FIXME-HANS: comment */
 	void *owner;
 };
 

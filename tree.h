@@ -45,7 +45,7 @@ typedef struct cbk_cache_slot {
    cbk_cache is supposed to speed up tree lookups by caching results of recent
    successful lookups (we don't cache negative results as dentry cache
    does). Cache consists of relatively small number of entries kept in a LRU
-   order. Each entry (&cbk_cache_slot) containts a pointer to znode, from
+   order. Each entry (&cbk_cache_slot) contains a pointer to znode, from
    which we can obtain a range of keys that covered by this znode. Before
    embarking into real tree traversal we scan cbk_cache slot by slot and for
    each slot check whether key we are looking for is between minimal and
@@ -61,6 +61,12 @@ typedef struct cbk_cache_slot {
 
       [cbk-cache-invariant]
 */
+/* ZAM-FIXME-HANS: evaluate on a 4-way, 1-way, and 16-way, with lots of processes running mongo smp, the effect on
+ * performance of removing all of the cbk cache code.  Also analyze different settings of CBK_CACHE_SLOTS. 
+
+As a separate task, while running mongo, collect a random sample of 100 coord_by_key invocations.  Document for me where
+the invocations occurred, and whether they were truly necessary in your view, or could have been avoided by more clever
+coding.  */
 typedef struct cbk_cache {
 	int nr_slots;
 	/* head of LRU list of cache slots */
@@ -89,9 +95,7 @@ typedef enum {
 	LOOKUP_REST
 } level_lookup_result;
 
-/* PUT THIS IN THE SUPER BLOCK
-  
-   This is representation of internal reiser4 tree where all file-system
+/*    This is representation of internal reiser4 tree where all file-system
    data and meta-data are stored. This structure is passed to all tree
    manipulation functions. It's different from the super block because:
    we don't want to limit ourselves to strictly one to one mapping
@@ -106,23 +110,25 @@ typedef enum {
    call the super block the super block for historical reasons (most
    other filesystems call the per filesystem metadata the super block).
 */
+
 struct reiser4_tree {
 	/* block_nr == 0 is fake znode. Write lock it, while changing
 	   tree height. */
 	/* disk address of root node of a tree */
 	reiser4_block_nr root_block;
 
-	/* insert item maximal balance overhead: number of nodes which may get dirty during one item insertion into tree
-	   of current height. This field is added because calculation of balance overhead in estimations appeared to be
-	   a significant cpu consumer */
-	reiser4_block_nr estimate_one_insert;
-
 	/* level of the root node. If this is 1, tree consists of root
 	    node only */
 	tree_level height;
 
+/* NIKITA-FIXME-HANS: */
+/* the cost of an insert should be represented as independent of tree height, and equal to 3 + (insert_size mod
+ * max_body_item_size) it might need to be different for compressed items though, not sure how to estimate that except
+ * by attempting it and reversing if we fail, EDWARD-FIXME-HANS:, but in any event, the plugin not the tree should be
+ * what determines the space reservation. */
+
 	/* cache of recent tree lookup results */
-	cbk_cache cbk_cache;
+	cbk_cache cbk_cache;	
 
 	/* hash table to look up znodes by block number. */
 	z_hash_table zhash_table;
@@ -136,6 +142,11 @@ struct reiser4_tree {
 	    - znode hash table
 	    - coord cache
 	*/
+/* DEMIDOV-FIXME-HANS: I don't like this giant lock, do you have any ideas for how to replace it? If you can do it for sibling pointers, the rest is not as hard. 
+
+ZAM-FIXME-HANS: for sibling pointers, am I right that the only operations that change them are insert node and delete
+node from tree (jload and jput)?  remind me why we can't write lock the left neighbor pointer, then the right neighbor
+pointer, and then alter the pointers?  there was some reason it was not simple, but I forget it.  */
 	reiser4_rw_data tree_lock;
 
 	/* lock protecting delimiting keys */
@@ -147,11 +158,11 @@ struct reiser4_tree {
 	 * information. */
 	__u64 znode_epoch;
 
-	/* fake znode */
+	/* fake znode: I find this annoyingly and gainlessly imitative.  Remove by Aug. 1, VS-FIXME-HANS:*/
 	znode *fake;
 
-	/* default plugin used to create new nodes in a tree. */
-	node_plugin *nplug;
+	/* default plugin used to create new nodes in a tree. Replace with a define.  VS-FIXME-HANS: */
+/* 	node_plugin *nplug; */
 	struct super_block *super;
 	struct {
 		/* carry flags used for insertion of new nodes */

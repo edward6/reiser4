@@ -1853,6 +1853,7 @@ extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
 
 /**
  * container_of - cast a member of a structure out to the containing structure
+NIKITA-FIXME-HANS: that means what?  why is this in this file?
  *
  * @ptr:	the pointer to the member.
  * @type:	the type of the container struct this is embedded in.
@@ -1865,7 +1866,7 @@ extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
 
 #define reparent_to_init() noop
 
-/* Inode flags - they have nothing to superblock flags now */
+/* Inode flags */
 
 #define S_SYNC		1	/* Writes are synced at once */
 #define S_NOATIME	2	/* Do not update access times */

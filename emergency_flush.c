@@ -1,5 +1,7 @@
 /* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
 
+/* this file exists only until VM gets fixed to reserve pages properly, which might or might not be very political. */
+
 /* Implementation of emergency flush. */
 
 /* OVERVIEW:
@@ -271,7 +273,71 @@ static kmem_cache_t *eflush_slab;
 
 #define EFLUSH_START_BLOCK ((reiser4_block_nr)0)
 
+/* get a flush queue for an atom pointed by given jnode (spin-locked) ; returns
+ * both atom and jnode locked and found and took exclusive access for flush
+ * queue object.  */
+int fq_by_jnode (jnode * node, flush_queue_t ** fq)
+{
+	txn_atom * atom;
+	int ret;
 
+	assert("zam-835", spin_jnode_is_locked(node));
+
+	*fq = NULL;
+
+	while (1) {
+		/* begin with taking lock on atom */
+		atom = atom_locked_by_jnode(node);
+		UNLOCK_JNODE(node);
+
+		if (atom == NULL) {
+			/* jnode does not point to the atom anymore, it is
+			 * possible because jnode lock could be removed for a
+			 * time in atom_get_locked_by_jnode() */
+			if (*fq) {
+				done_fq(*fq);
+				*fq = NULL;
+			}
+			return 0;
+		}
+
+		/* atom lock is required for taking flush queue */
+		ret = fq_by_atom(atom, fq);
+
+		if (ret) {
+			if (ret == -EAGAIN)
+				/* atom lock was released for doing memory
+				 * allocation, start with locked jnode one more
+				 * time */
+				goto lock_again;
+			return ret;
+ 		}
+
+		/* It is correct to lock atom first, then lock a jnode */
+		LOCK_JNODE(node);
+
+		if (node->atom == atom)
+			break;	/* Yes! it is our jnode. We got all of them:
+				 * flush queue, and both locked atom and
+				 * jnode */
+
+		/* release all locks and allocated objects and restart from
+		 * locked jnode. */
+		UNLOCK_JNODE(node);
+
+		fq_put(*fq);
+		fq = NULL;
+
+		UNLOCK_ATOM(atom);
+
+	lock_again:
+		LOCK_JNODE(node);
+	}
+
+	return 0;
+}
+
+/* this function exists only until VM gets fixed to reserve pages properly, which might or might not be very political. */
 /* try to flush @page to the disk */
 int
 emergency_flush(struct page *page)

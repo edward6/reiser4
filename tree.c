@@ -26,16 +26,14 @@
   
    COORDINATES
   
-     To find something in the tree, you supply a key, and the key is resolved
-     by coord_by_key() into a coord (coordinate) that is valid as long as the
-     node the coord points to remains locked.  As mentioned above trees
-     consist of nodes that consist of items that consist of units. A unit is
-     the smallest and indivisible piece of tree as far as balancing and tree
-     search are concerned. Each node, item, and unit can be addressed by
-     giving its level in the tree and key occupied by this entity.  coord is a
-     structure containing a pointer to the node, the ordinal number of the
-     item within this node (a sort of item offset), and the ordinal number of
-     the unit within this item.
+     To find something in the tree, you supply a key, and the key is resolved by coord_by_key() into a coord
+     (coordinate) that is valid as long as the node the coord points to remains locked.  As mentioned above trees
+     consist of nodes that consist of items that consist of units. A unit is the smallest and indivisible piece of tree
+     as far as balancing and tree search are concerned. Each node, item, and unit can be addressed by giving its level
+     in the tree and the key occupied by this entity.  A node knows what the key ranges are of the items within it, and
+     how to find its items and invoke their item handlers, but it does not know how to access individual units within
+     its items except through the item handlers.  coord is a structure containing a pointer to the node, the ordinal
+     number of the item within this node (a sort of item offset), and the ordinal number of the unit within this item.
   
    TREE LOOKUP
   

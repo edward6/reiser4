@@ -356,7 +356,7 @@ int atom_fq_parts_are_clean (txn_atom * atom)
 	return fq_list_empty(&atom->flush_queues);
 }
 #endif
-
+/* ZAM-FIXME-HANS: comment this. */
 /* bio i/o completion routine */
 static int
 end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUSED_ARG)
@@ -469,7 +469,9 @@ write_fq(flush_queue_t * fq, long * nr_submitted)
 }
 
 /* Getting flush queue object for exclusive use by one thread. May require
-   several iterations which is indicated by -EAGAIN return code. */
+   several iterations which is indicated by -EAGAIN return code. 
+
+NIKITA-FIXME-HANS: explain why the iteration loop is not inside this function */
 int
 fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
 {
@@ -532,6 +534,7 @@ get_fq_for_current_atom(void)
 	do {
 		atom = get_current_atom_locked();
 		ret = fq_by_atom(atom, &fq);
+/* VS-FIXME-HANS: improper return code */
 	} while (ret == -EAGAIN);
 
 	if (ret)
@@ -549,6 +552,10 @@ fq_put_nolock(flush_queue_t * fq)
 	assert("vs-1245", fq->owner == current);
 	fq->owner = 0;
 }
+
+/* NIKITA-FIXME-HANS: find all instances where we have a wrapper for locking
+ * before calling, and we never call except through the wrapper, and condense
+ * the wrapper into the function it wraps. */
 
 void
 fq_put(flush_queue_t * fq)
@@ -569,74 +576,12 @@ fq_put(flush_queue_t * fq)
 
 /* A part of atom object initialization related to the embedded flush queue
    list head */
+
+/* ZAM-FIXME-HANS: eliminate this wrapper around one line of code. */
 void
 init_atom_fq_parts(txn_atom * atom)
 {
 	fq_list_init(&atom->flush_queues);
-}
-
-/* get a flush queue for an atom pointed by given jnode (spin-locked) ; returns
- * both atom and jnode locked and found and took exclusive access for flush
- * queue object.  */
-int fq_by_jnode (jnode * node, flush_queue_t ** fq)
-{
-	txn_atom * atom;
-	int ret;
-
-	assert("zam-835", spin_jnode_is_locked(node));
-
-	*fq = NULL;
-
-	while (1) {
-		/* begin with taking lock on atom */
-		atom = atom_locked_by_jnode(node);
-		UNLOCK_JNODE(node);
-
-		if (atom == NULL) {
-			/* jnode does not point to the atom anymore, it is
-			 * possible because jnode lock could be removed for a
-			 * time in atom_get_locked_by_jnode() */
-			if (*fq) {
-				done_fq(*fq);
-				*fq = NULL;
-			}
-			return 0;
-		}
-
-		/* atom lock is required for taking flush queue */
-		ret = fq_by_atom(atom, fq);
-
-		if (ret) {
-			if (ret == -EAGAIN)
-				/* atom lock was released for doing memory
-				 * allocation, start with locked jnode one more
-				 * time */
-				goto lock_again;
-			return ret;
- 		}
-
-		/* It is correct to lock atom first, then lock a jnode */
-		LOCK_JNODE(node);
-
-		if (node->atom == atom)
-			break;	/* Yes! it is our jnode. We got all of them:
-				 * flush queue, and both locked atom and
-				 * jnode */
-
-		/* release all locks and allocated objects and restart from
-		 * locked jnode. */
-		UNLOCK_JNODE(node);
-
-		fq_put(*fq);
-		fq = NULL;
-
-		UNLOCK_ATOM(atom);
-
-	lock_again:
-		LOCK_JNODE(node);
-	}
-
-	return 0;
 }
 
 /* Make Linus happy.

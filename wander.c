@@ -511,8 +511,10 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 
 	reiser4_block_nr wide_len = count;
 
-	/* FIXME-ZAM: A special policy needed for allocation of wandered
-	   blocks */
+	/* FIXME-ZAM: A special policy needed for allocation of wandered blocks
+	   ZAM-FIXME-HANS: yes, what happened to our discussion of using a fixed
+	   reserved allocation area so as to get the best qualities of fixed
+	   journals? */
 	blocknr_hint_init(&hint);
 	hint.block_stage = BLOCK_GRABBED;
 	
@@ -1026,7 +1028,7 @@ int reiser4_write_logs(long * nr_submitted)
 	pre_commit_hook();
 
 	trace_mark(wander);
-
+/* ZAM-FIXME-HANS: are these next two lines optimal? */
 	atom = get_current_atom_locked();
 	UNLOCK_ATOM(atom);
 	
@@ -1037,6 +1039,7 @@ int reiser4_write_logs(long * nr_submitted)
 
 	ch.free_blocks = sbinfo->blocks_free_committed;
 	ch.nr_files = sbinfo->nr_files_committed;
+/* ZAM-FIXME-HANS: email me what the contention level is for the super lock. */
 	ch.next_oid = oid_next(super);
 
 	/* count overwrite set and place it in a separate list */
@@ -1045,7 +1048,7 @@ int reiser4_write_logs(long * nr_submitted)
 	if (ret <= 0) {
 		/* It is possible that overwrite set is empty here, it means
 		   all captured nodes are clean */
-		/* FIXME: an extra check for empty RELOC set should be here */
+		/* NIKITA-FIXME-HANS-WAS-JMACD: an extra check for empty RELOC set should be here */
 		goto up_and_ret;
 	}
 
