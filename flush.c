@@ -577,6 +577,15 @@ static znode * get_twig_pointer (flush_pos_t * pos, int twig_is_pos_node)
 	return UNDER_RW(tree, current_tree, read, pos->lock.node->in_parent.node);
 }
 
+/* check fs backing device for write congestion */
+static int check_write_congestion (void)
+{
+	struct backing_device_info * bdi;
+
+	bdi = get_current_super_private()->fake->i_mapping->backing_dev_info;
+	return  bdi_write_congested(bdi);
+}
+
 /* tracking when flush position is moved from one twig and its children to
  * another one */
 static int track_twig (flush_pos_t * pos, int twig_is_pos_node)
@@ -584,8 +593,11 @@ static int track_twig (flush_pos_t * pos, int twig_is_pos_node)
 	int ret = 0;
 	znode * twig = get_twig_pointer(pos, twig_is_pos_node);
 
-	if (pos->prev_twig && pos->prev_twig != twig)
+	if (pos->prev_twig && pos->prev_twig != twig
+	    && !check_write_congestion())
+	{
 		ret = write_prepped_nodes(pos, 0);
+	}
 
 	pos->prev_twig = twig;
 
