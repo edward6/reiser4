@@ -36,6 +36,7 @@ int main( int argc, char **argv )
   unsigned long cycle;
   int dodirs;
   int writelen;
+  int reverse;
   char *buf;
 
   N = 0;
@@ -43,7 +44,8 @@ int main( int argc, char **argv )
   dodirs = 0;
   cycle = 20000;
   writelen = 0;
-  while( ( ch = getopt( argc, argv, "dn:p:c:w:" ) ) != -1 )
+  buf = 0;
+  while( ( ch = getopt( argc, argv, "dn:p:c:w:r" ) ) != -1 )
 	{
 	  switch( ch )
 		{
@@ -61,6 +63,9 @@ int main( int argc, char **argv )
 		  break;
 		case 'w':
 		  writelen = atoi( optarg );
+		  break;
+		case 'r':
+		  reverse = 1;
 		  break;
 		default:
 		  exit( 0 );
@@ -139,6 +144,20 @@ int main( int argc, char **argv )
 		  fname[ j - min + shift ] = alphabet[ ( int ) name[ j ] ];
 		}
 	  fname[ MAX_LEN - min + shift ] = 0;
+	  if( reverse ) 
+		{
+		  int len;
+
+		  len = MAX_LEN - min + shift;
+		  for( j = 0 ; j < len / 2 + 1 ; ++ j )
+			{
+			  char swap;
+
+			  swap = fname[ j ];
+			  fname[ j ] = fname[ len - j - 1 ];
+			  fname[ len - j - 1 ] = swap;
+			}
+		}
 	  if( dodirs )
 		{
 		  fd = mkdir( fname, 0744 );
@@ -181,5 +200,6 @@ int main( int argc, char **argv )
 		  prev = i;
 		}
 	}
-  free( buf );
+  if( buf != NULL )
+	free( buf );
 }
