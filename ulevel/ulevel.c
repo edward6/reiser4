@@ -4680,9 +4680,14 @@ static int shrink_cache (void)
 				
 		spin_lock (&page_list_guard);
 			
-		write_lock (&page->mapping->page_lock);
-		remove_inode_page (page);
-		write_unlock (&page->mapping->page_lock);
+		{
+			struct address_space *mapping;
+
+			mapping = page->mapping;
+			write_lock (&mapping->page_lock);
+			remove_inode_page (page);
+			write_unlock (&mapping->page_lock);
+		}
 
 		/* free page */
 		assert ("vs-822", page_count (page) == 1);
