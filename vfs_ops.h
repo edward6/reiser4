@@ -21,6 +21,7 @@ extern int reiser4_update_sd(struct inode *object);
 extern int reiser4_add_nlink(struct inode *, struct inode *, int);
 extern int reiser4_del_nlink(struct inode *, struct inode *, int);
 
+/* NIKITA-FIXME-HANS: always remove dead code after two weeks for funeral have passed */
 /*extern int truncate_object(struct inode *inode, loff_t size);*/
 
 extern void reiser4_free_dentry_fsdata(struct dentry *dentry);
@@ -32,7 +33,7 @@ extern struct super_operations reiser4_super_operations;
 extern struct address_space_operations reiser4_as_operations;
 extern struct dentry_operations reiser4_dentry_operation;
 
-static inline int set_page_dirty_internal (struct page * page)
+static inline int set_page_dirty_internal (struct page * page) /* NIKITA-FIXME-HANS: what does internal mean in this context? */
 {
 	return __set_page_dirty_nobuffers (page);
 }
@@ -42,6 +43,8 @@ extern int reiser4_releasepage(struct page *page, int gfp);
 extern int reiser4_writepages(struct address_space *, struct writeback_control *wbc);
 extern int reiser4_sync_page(struct page *page);
 
+/* NIKITA-FIXME-HANS: is control the right adjective?  how about a summary sentence defining what this structure accomplishes
+ * functionally? */
 typedef struct de_control {
 	/* seal covering directory entry */
 	seal_t entry_seal;
@@ -54,7 +57,9 @@ typedef struct de_control {
 
 /* &reiser4_dentry_fsdata - reiser4-specific data attached to dentries.
   
-   This is allocated dynamically and released in d_op->d_release() */
+   This is allocated dynamically and released in d_op->d_release() 
+
+NIKITA-FIXME-HANS: Why the use of a struct with only one thing in it?*/
 typedef struct reiser4_dentry_fsdata {
 	/* here will go fields filled by ->lookup() to speedup next
 	   create/unlink, like blocknr of znode with stat-data, or key
@@ -63,12 +68,15 @@ typedef struct reiser4_dentry_fsdata {
 	de_control dec;
 } reiser4_dentry_fsdata;
 
+/* NIKITA-FIXME-HANS: brief me on what this does */
 TS_LIST_DECLARE(readdir);
 
 /* &reiser4_dentry_fsdata - reiser4-specific data attached to files.
   
    This is allocated dynamically and released in reiser4_release() */
 typedef struct reiser4_file_fsdata {
+
+	/* NIKITA-FIXME-HANS: go through all your code and comment, including here */
 	struct file *back;
 	/* We need both directory and regular file parts here, because there
 	   are file system objects that are files and directories. */
@@ -82,6 +90,7 @@ typedef struct reiser4_file_fsdata {
 		   it */
 		coord_t *coord;
 	} reg;
+/* NIKITA-FIXME-HANS: reg means what? */
 } reiser4_file_fsdata;
 
 TS_LIST_DEFINE(readdir, reiser4_file_fsdata, dir.linkage);

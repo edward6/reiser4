@@ -81,6 +81,7 @@ extern struct dentry_operations reiser4_dentry_operation;
 
 static struct file_system_type reiser4_fs_type;
 
+/* VS-FIXME-HANS: why is this in this file?  move it elsewhere please */
 /* return number of files in a filesystem. It is used in reiser4_statfs to
    fill ->f_ffiles */
 /* Audited by: umka (2002.06.12) */
@@ -105,6 +106,7 @@ oids_used(struct super_block *s	/* super block of file system in
 		return (long) -1;
 }
 
+/* VS-FIXME-HANS: why is this in this file?  move it elsewhere please */
 /* number of oids available for use by users. It is used in reiser4_statfs to
    fill ->f_ffree */
 /* Audited by: umka (2002.06.12) */
@@ -134,36 +136,37 @@ oids_free(struct super_block *s	/* super block of file system in
 static int
 reiser4_statfs(struct super_block *super	/* super block of file
 						 * system in queried */ ,
-	       struct statfs *buf	/* buffer to fill with
+	       struct statfs *statfs	/* buffer to fill with
 					 * statistics */ )
 {
 	long bfree;
 	reiser4_context ctx;
 	
 	assert("nikita-408", super != NULL);
-	assert("nikita-409", buf != NULL);
+	assert("nikita-409", statfs != NULL);
 
 	init_context(&ctx, super);
 	reiser4_stat_inc(vfs_calls.statfs);
 
-	buf->f_type = statfs_type(super);
-	buf->f_bsize = super->s_blocksize;
+	statfs->f_type = statfs_type(super);
+	statfs->f_bsize = super->s_blocksize;
 
-	buf->f_blocks = reiser4_block_count(super);
+	statfs->f_blocks = reiser4_block_count(super);
         bfree = reiser4_free_blocks(super);
-	buf->f_bfree = bfree;
+	statfs->f_bfree = bfree;
 	
-	buf->f_bavail = buf->f_bfree - reiser4_reserved_blocks(super, 0, 0);
-	buf->f_files = oids_used(super);
-	buf->f_ffree = oids_free(super);
+	statfs->f_bavail = statfs->f_bfree - reiser4_reserved_blocks(super, 0, 0);
+	statfs->f_files = oids_used(super);
+	statfs->f_ffree = oids_free(super);
 
 	/* maximal acceptable name length depends on directory plugin. */
-	buf->f_namelen = -1;
+	statfs->f_namelen = -1;
 
 	reiser4_exit_context(&ctx);
 	return 0;
 }
 
+/* VS-FIXME-HANS: clean this code please */
 /* this is called whenever mark_inode_dirty is to be called. It links ("captures") inode to the atom. This allows to
    postpone stat data update until atom commits */
 int
@@ -182,6 +185,7 @@ reiser4_update_sd(struct inode *object)
 
 	assert("nikita-2338", object != NULL);
 
+	/* NIKITA-FIXME-HANS: this if never is true, make this a comment instead please or cut it. */
 	if (IS_RDONLY(object))
 		return 0;
 
@@ -198,7 +202,7 @@ reiser4_update_sd(struct inode *object)
 int
 reiser4_add_nlink(struct inode *object /* object to which link is added */ ,
 		  struct inode *parent /* parent where new entry will be */ ,
-		  int write_sd_p	/* true is stat-data has to be
+		  int write_sd_p	/* true if stat-data has to be
 					 * updated */ )
 {
 	file_plugin *fplug;
@@ -209,6 +213,9 @@ reiser4_add_nlink(struct inode *object /* object to which link is added */ ,
 	fplug = inode_file_plugin(object);
 	assert("nikita-1445", fplug != NULL);
 
+	/* NIKITA-FIXME-HANS: if you move this can_add_link functionality into add_link, and then test its return code,
+	 * you can save one function dereference.  Please email me your opinion. */
+
 	/* ask plugin whether it can add yet another link to this
 	   object */
 	if (!fplug->can_add_link(object)) {
@@ -218,6 +225,8 @@ reiser4_add_nlink(struct inode *object /* object to which link is added */ ,
 	assert("nikita-2211", fplug->add_link != NULL);
 	/* call plugin to do actual addition of link */
 	result = fplug->add_link(object, parent);
+
+/* NIKITA-FIXME-HANS: this does what? Can it go into add_link also? */
 	if ((result == 0) && write_sd_p)
 		result = fplug->write_sd_by_inode(object);
 	return result;
@@ -247,6 +256,7 @@ reiser4_del_nlink(struct inode *object	/* object from which link is
 
 	/* call plugin to do actual deletion of link */
 	result = fplug->rem_link(object, parent);
+/* NIKITA-FIXME-HANS: this does what? Can it go into rem_link? */
 	if ((result == 0) && write_sd_p)
 		result = fplug->write_sd_by_inode(object);
 	return result;
@@ -263,6 +273,7 @@ static const char PSEUDO_FILES_PREFIX[] = "..";
 
 /* Return and lazily allocate if necessary per-dentry data that we
    attach to each dentry. */
+/* odd how it returns either a nulled struct or a meaningful struct -Hans */
 /* Audited by: umka (2002.06.12) */
 reiser4_dentry_fsdata *
 reiser4_get_dentry_fsdata(struct dentry *dentry	/* dentry

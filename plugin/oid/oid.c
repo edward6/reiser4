@@ -1,5 +1,23 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
+/* VS-FIXME-HANS: replace this code with a few macros that go something like 
+
+oid = sb->next_oid++; sb->nr_used_oids++;
+
+wherever you need to create files, and similar simplicity elsewhere.  Note that this code as currently written contains
+function dereferences, which are much worse for compilers than datastructure dereferences (am I wrong?)
+
+Make a great big comment out of the rest of this until the day that somebody actually needs the abstraction present
+here.  That day may happen, but it is not today.
+
+Please create a directory named as_yet_unneeded_abstractions, and after discussing it on reiserfs-dev so that people can
+comment, find and put this, and other code like this, in it.  Let us hope that maybe we can put 5% of reiser4 in it.;-)
+
+The objectives of this code were laudable, but sometimes code needs to be written before we can see what part of its
+complexity we can get by without.
+
+ */
+
 #include "../plugin.h"
 #include "../plugin_header.h"
 #include "../../debug.h"

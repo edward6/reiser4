@@ -21,6 +21,7 @@ struct journal_header {
 	d64 last_committed_tx;
 };
 
+/* ZAM-FIXME-HANS: a journal footer is a what? */
 /* journal footer block format */
 struct journal_footer {
 	/* last flushed transaction location. */
@@ -42,6 +43,7 @@ struct journal_footer {
 	d64 next_oid;
 };
 
+/* ZAM-FIXME-HANS: a log_record_header is a what? a record is a what?  a log is a what? */
 /* each log record (except first one) has unified format with log record
    header followed by an array of log entries */
 struct log_record_header {
@@ -97,6 +99,7 @@ struct tx_header {
 /* A transaction gets written to disk as a set of log records (each log record
    size is fs block) */
 
+/* ZAM-FIXME-HANS: "rest" implies that you have already defined a part. You have not. */
 /* rest of log record is filled by these log entries, unused space filled by
    zeroes */
 struct log_entry {
