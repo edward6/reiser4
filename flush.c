@@ -23,6 +23,7 @@ static inline int  load_zh_common (load_handle *zh, znode *node) { int ret; if (
 static inline int  load_zh (load_handle *zh, znode *node) { done_zh (zh); return load_zh_common (zh, node); }
 static inline int  load_jh (load_handle *zh, jnode *node) { done_zh (zh); return jnode_is_formatted (node) ? load_zh_common (zh, JZNODE (node)) : 0; }
 static inline void move_zh (load_handle *new, load_handle *old) { done_zh (new); new->node = old->node; old->node = NULL; }
+static inline void copy_zh (load_handle *new, load_handle *old) { done_zh (new); new->node = old->node; atomic_inc (& old->node->d_count); }
 
 /* The flush_scan data structure maintains the state of an in-progress flush
  * scan on a single level of the tree. */
@@ -542,9 +543,7 @@ static int flush_enqueue_ancestors (znode *node, flush_position *pos)
 		return 0;
 	}
 
-	/*
-	 * FIXME:NIKITA->JMACD this also fails.
-	 */
+	/* FIXME: This can fail after running ibk 3 times. */
 	assert ("jmacd-7443", znode_is_allocated (node));
 
 	if ((ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
@@ -1180,7 +1179,6 @@ void jnode_set_block( jnode *node /* jnode to update */,
 	assert( "nikita-2020", node  != NULL );
 	assert( "umka-055", blocknr != NULL );
 	node -> blocknr = *blocknr;
-	JF_SET (node, ZNODE_RELOC);
 }
 
 /* return true if jnode has real blocknr */
@@ -1216,6 +1214,7 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 
 		if (IS_ERR (fake)) { ret = PTR_ERR(fake); goto exit; }
 
+		/* FIXME: This is failing with another spinlock held. */
 		if ((ret = longterm_lock_znode (& fake_lock, fake, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
 			zput (fake);
 			goto exit;
@@ -1309,7 +1308,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 }
 
 /* This enqueues the current flush point into the developing "struct bio" queue. */
-int flush_enqueue_jnode (jnode *node, flush_position *pos)
+static int flush_enqueue_jnode (jnode *node, flush_position *pos)
 {
 	struct page *pg;
 	int ret;
@@ -1326,7 +1325,7 @@ int flush_enqueue_jnode (jnode *node, flush_position *pos)
 }
 
 /* FIXME: comment */
-int flush_enqueue_jnode_page_locked (jnode *node, flush_position *pos, struct page *pg)
+int flush_enqueue_jnode_page_locked (jnode *node, flush_position *pos UNUSED_ARG, struct page *pg)
 {
 	int ret;
 
@@ -1957,7 +1956,7 @@ static int flush_scan_common (flush_scan *scan, flush_scan *other)
 			/* Duplicate the reference into the other flush_scan. */
 			coord_dup (& other->parent_coord, & scan->parent_coord);
 			copy_lh (& other->parent_lock, & scan->parent_lock);
-			atomic_inc (& other->parent_coord.node->d_count);
+			copy_zh (& other->parent_load, & scan->parent_load);
 		}
 
 		if ((ret = flush_scan_extent (scan, 0/*skip_first*/))) {
