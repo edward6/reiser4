@@ -143,7 +143,7 @@ entd(void *arg)
 		entd_set_comm(".");
 
 		result = kcond_wait(&ctx->wait, &ctx->guard, 1);
-		if (result != -EINTR)
+		if (result != -EINTR && result != 0)
 			/* some other error */
 			warning("nikita-3099", "Error: %i", result);
 
@@ -319,7 +319,7 @@ void ent_writes_page (struct super_block * sb, struct page * page)
 
 	assert("zam-1041", ent != NULL);
 
-	if (PageActive(page)) 
+	if (PageActive(page))
 		return;
 
 	SetPageReclaim(page);
