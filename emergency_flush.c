@@ -323,20 +323,18 @@ emergency_flush(struct page *page)
 				assert("nikita-2759", efnode != NULL);
 				eflush_add(node, &blk, efnode);
 
-				result = page_io(page,
-						 node,
-						 WRITE,
+				result = page_io(page, node, WRITE,
 						 GFP_NOFS | __GFP_HIGH);
 				INC_STAT(node, vm.eflush.ok);
 			} else {
 				JF_CLR(node, JNODE_EFLUSH);
 				UNLOCK_JLOAD(node);
 				UNLOCK_JNODE(node);
-				if (blk != 0ull)
+				if (blk != 0ull) {
 					ef_free_block(node, &blk,
 						      hint.block_stage, efnode);
-				if (efnode != NULL)
 					kmem_cache_free(eflush_slab, efnode);
+				}
 				ON_TRACE(TRACE_EFLUSH, "failure-2\n");
 				result = 1;
 				INC_STAT(node, vm.eflush.nolonger);
@@ -881,19 +879,22 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 	UNLOCK_JLOAD(node);
 	UNLOCK_JNODE(node);
 
+	*efnode = ef_alloc(GFP_NOFS | __GFP_HIGH);
+	if (*efnode == NULL) {
+		result = RETERR(-ENOMEM);
+		goto out;
+	}
+
+#if REISER4_DEBUG
+	(*efnode)->initial_stage = hint->block_stage;
+#endif
+	(*efnode)->reserve = usedreserve;
+
 	one = 1ull;
 	result = reiser4_alloc_blocks(hint, blk, &one, ef_block_flags(node));
-	if (result == 0) {
-		*efnode = ef_alloc(GFP_NOFS | __GFP_HIGH);
-		if (*efnode == NULL)
-			result = RETERR(-ENOMEM);
-		else {
-#if REISER4_DEBUG
-			(*efnode)->initial_stage = hint->block_stage;
-#endif
-			(*efnode)->reserve = usedreserve;
-		}
-	}
+	if (result != 0)
+		kmem_cache_free(eflush_slab, *efnode);
+ out:
 	LOCK_JNODE(node);
 	LOCK_JLOAD(node);
 	return result;
