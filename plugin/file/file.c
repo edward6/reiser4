@@ -670,7 +670,7 @@ static int shorten (struct inode * inode)
 
 	/* last page is partially truncated - zero its content */
 	page = read_cache_page (inode->i_mapping, index,
-				unix_file_readpage_nolock_locked_page,
+				unix_file_readpage_nolock,
 				0);
 	if (IS_ERR (page)) {
 		if (likely (PTR_ERR (page) == -EINVAL)) {
@@ -684,7 +684,7 @@ static int shorten (struct inode * inode)
 		page_cache_release (page);
 		return -EIO;
 	}
-	
+	reiser4_lock_page (page);
 	result = unix_file_writepage_nolock (page);
 	if (result) {
 		page_cache_release (page);
@@ -864,15 +864,18 @@ int hint_validate (struct sealed_coord * hint, const reiser4_key * key,
 
 
 /*
- * this finds item of file corresponding to page being read/written in and
- * calls its readpage/writepage method. It is used when exclusive or sharing
- * access to inode is grabbed
+ * this finds item of file corresponding to page being read in and calls its
+ * readpage method. To perform search in the tree we unlock page, and then lock
+ * it again after long term znode lock is obtained. While page is unlocked - it
+ * can not be neither released (reference count is increased) nor invalidated
+ * (truncate requires exclusive access which can not be obtained while we are
+ * in unix_file_readpage_nolock because all its callers grab either exclusive
+ * (extent2tail->read_cache_page->filler->unix_file_readpage_nolock) or
+ * nonexclusive
+ * (reiser4_readpage->unix_file_readpage->unix_file_readpage_nolock) access to
+ * the file)
  */
-/* nolock means: do not read down reiser4's inode rw_semaphore
- * it is called with unlocked page */
-/* this can be used as a filler for read_cache_page in extent2tail where access
- * (exclusive) to file is acquired already */
-static int unix_file_readpage_nolock (void * file, struct page * page)
+int unix_file_readpage_nolock (void * file, struct page * page)
 {
 	int result;
 	coord_t coord;
@@ -883,8 +886,11 @@ static int unix_file_readpage_nolock (void * file, struct page * page)
 	struct inode * inode;
 
 
-	assert ("vs-1062", !PageLocked (page));
+	assert ("vs-1062", PageLocked (page));
 	assert ("vs-1061", page->mapping && page->mapping->host);
+
+	reiser4_unlock_page (page);
+
 
 	/* get key of first byte of the page */
 	inode = page->mapping->host;
@@ -951,17 +957,6 @@ static int unix_file_readpage_nolock (void * file, struct page * page)
 }
 
 
-/* special version of readpage. it is used as a filler for
- * read_cache_page in shorten and . reiser4 inode rw_semaphore is either read or write
- * down. So, we can safely unlock page. It is used  */
-int unix_file_readpage_nolock_locked_page (void * file,
-					   struct page * page)
-{
-	reiser4_unlock_page (page);
-	return unix_file_readpage_nolock (file, page);
-}
-
-
 /* nolock means: do not read down reiser4's inode rw_semaphore it is called
  * with unlocked page. Lock page after long term znode lock is obtained. Return
  * with page locked */
@@ -978,8 +973,10 @@ int unix_file_writepage_nolock (struct page * page)
 	struct inode * inode;
 
 
-	assert ("vs-1064", !PageLocked (page));
+	assert ("vs-1064", PageLocked (page));
 	assert ("vs-1065", page->mapping && page->mapping->host);
+
+	reiser4_unlock_page (page);
 
 	/* get key of first byte of the page */
 	inode = page->mapping->host;
@@ -1060,12 +1057,11 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 	reiser4_lock_page (page);
 	if (!page->mapping) {
 		drop_nonexclusive_access (inode);
+		page_cache_release (page);
 		return -EIO;
 	}
 	assert ("vs-1067", inode->i_size > ((loff_t)page->index << PAGE_CACHE_SHIFT));
-	reiser4_unlock_page (page);
-	/* page is unlocked but it can not be invalidated, because truncate
-	 * requires exclusive access to the file */
+
 	result = ((op == READ_OP) ?
 		  unix_file_readpage_nolock (file, page) :
 		  unix_file_writepage_nolock (page));

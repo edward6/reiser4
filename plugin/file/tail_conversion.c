@@ -231,7 +231,6 @@ static int replace (struct inode * inode, struct page ** pages, unsigned nr_page
 	iplug = item_plugin_by_id (EXTENT_POINTER_ID);
 
 	for (i = 0; i < nr_pages; i ++) {
-		reiser4_unlock_page (pages [i]);
 		result = unix_file_writepage_nolock (pages [i]);
 		if (result)
 			break;
@@ -479,7 +478,7 @@ int extent2tail (struct file * file)
 
 	for (i = 0; i < num_pages; i ++) {
 		page = read_cache_page (inode->i_mapping, (unsigned)i,
-					unix_file_readpage_nolock_locked_page, file);
+					unix_file_readpage_nolock, file);
 		if (IS_ERR (page)) {
 			result = PTR_ERR (page);
 			break;
