@@ -431,6 +431,9 @@ static tail_write_todo tail_what_todo (struct inode * inode, coord_t * coord,
 
 	if (!znode_contains_key_lock (coord->node, key)) {
 		if (coord_is_before_leftmost (coord)) {
+			/*
+			 * we are in leaf node. Its left neighbor is unformatted node.
+			 */
 			assert ("vs-684",
 				({
 					int result;
@@ -449,6 +452,38 @@ static tail_write_todo tail_what_todo (struct inode * inode, coord_t * coord,
 	}
 
 
+	if (!coord_set_properly (key, coord)) {
+		return TAIL_RESEARCH;
+	}
+
+	if (coord_is_existing_unit (coord)) {
+		assert ("vs-803", keyeq (key, unit_key_by_coord (coord, &item_key)));
+		return TAIL_OVERWRITE;
+	}
+
+	if (coord->between == AFTER_ITEM) {
+		if (get_key_offset (key) == 0)
+			return TAIL_FIRST_ITEM;
+		else
+			return TAIL_CREATE_HOLE;
+	}
+	if (coord->between == EMPTY_NODE) {
+		assert ("vs-806", node_is_empty (coord->node));
+		if (get_key_offset (key) == 0)
+			return TAIL_FIRST_ITEM;
+		else
+			return TAIL_CREATE_HOLE;
+	}
+
+	assert ("vs-804", coord->between == AFTER_UNIT);
+	assert ("vs-805", coord->unit_pos == (unsigned)item_length_by_coord (coord) - 1);
+
+	
+	if (get_key_offset (key) == get_key_offset (tail_max_key (coord, &item_key)) + 1)
+		return TAIL_APPEND;
+	return TAIL_APPEND_HOLE;
+
+#if 0
 	if (inode->i_size == 0) {
 		/*
 		 * no items of this file in tree yet
@@ -497,6 +532,7 @@ static tail_write_todo tail_what_todo (struct inode * inode, coord_t * coord,
 				     coord->unit_pos + 1))
 		return TAIL_APPEND;
 	return TAIL_APPEND_HOLE;
+#endif
 }
 
 
@@ -660,13 +696,14 @@ int tail_write (struct inode * inode, coord_t * coord,
 {
 	int result;
 	tail_write_todo what;
+	znode * loaded;
 
 	while (f->length) {
-		result = zload (coord->node);
+		loaded = coord->node;
+		result = zload (loaded);
 		if (result)
 			break;
 		what = tail_what_todo (inode, coord, &f->key);
-		zrelse (coord->node);
 
 		switch (what) {
 		case TAIL_CREATE_HOLE:
@@ -692,20 +729,12 @@ int tail_write (struct inode * inode, coord_t * coord,
 			result = -EIO;
 			break;
 		}
+		zrelse (loaded);
 		if (result < 0)
 			/*
 			 * error occured or research is required
 			 */
 			return result;
-
-		if (result && !page) {
-			/*
-			 * file became longer and this write is not part of
-			 * extent2tail
-			 */
-			inode->i_size += result;
-			mark_inode_dirty (inode);
-		}
 	}
 
 	return 0;
