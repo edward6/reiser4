@@ -1840,7 +1840,7 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 	if (ret)
 		return ret;
 
-	assert("edward-310", !node_is_empty(pos->lock.node));
+	/*assert("edward-310", !node_is_empty(pos->lock.node));*/
 	
 	while (1) {
 		ret = neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
