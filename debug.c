@@ -364,8 +364,6 @@ report_err(void)
 	}
 }
 
-#endif
-
 #ifdef CONFIG_FRAME_POINTER
 extern int kswapd(void *);
 
@@ -440,19 +438,6 @@ fill_backtrace(backtrace_path *path, int depth, int shift)
 }
 #endif
 
-#if KERNEL_DEBUGGER
-void debugtrap(void)
-{
-	/* do nothing. Put break point here. */
-#ifdef CONFIG_KGDB
-	extern void breakpoint(void);
-	breakpoint();
-#endif
-}
-#endif
-
-#if REISER4_DEBUG
-
 void call_on_each_assert(void)
 {
 	return;
@@ -469,6 +454,18 @@ void call_on_each_assert(void)
 	}
 }
 
+/* REISER4_DEBUG */
+#endif
+
+#if KERNEL_DEBUGGER
+void debugtrap(void)
+{
+	/* do nothing. Put break point here. */
+#if defined(CONFIG_KGDB) && !defined(CONFIG_REISER4_FS_MODULE)
+	extern void breakpoint(void);
+	breakpoint();
+#endif
+}
 #endif
 
 #if REISER4_DEBUG_OUTPUT
