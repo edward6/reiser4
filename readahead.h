@@ -29,6 +29,7 @@ struct reiser4_file_ra_state {
 	loff_t  ahead_start;	/* Ahead window */
 	loff_t  ahead_size;
 	loff_t  max_window_size; /* Maximum readahead window */
+	loff_t  slow_start;      /* enlarging r/a size algorithm. */
 };
 
 extern int reiser4_file_readahead(struct file *, loff_t, size_t);
