@@ -714,6 +714,7 @@ void node40_print( const znode *node /* node to print */,
 /* plugin->u.node.chage_item_size
    look for description of this method in plugin/node/node.h
 */
+/* Audited by: green(2002.06.13) */
 void node40_change_item_size (new_coord * coord, int by)
 {
 	node_header_40 * nh;
@@ -752,6 +753,7 @@ void node40_change_item_size (new_coord * coord, int by)
 }
 
 
+/* Audited by: green(2002.06.13) */
 static int should_notify_parent (const znode *node)
 {
 	/* FIXME_JMACD This looks equivalent to znode_is_root(), right? -josh */
@@ -761,6 +763,9 @@ static int should_notify_parent (const znode *node)
 /* plugin->u.node.create_item
    look for description of this method in plugin/node/node.h
 */
+/* Audited by: green(2002.06.13) */
+/* Auditor comments: This function cannot be called with any spinlocks held in
+   case passed data is in userspace, because userspace access might schedule */
 int node40_create_item (new_coord * target, const reiser4_key * key,
 			reiser4_item_data * data, carry_level * todo )
 {
@@ -834,6 +839,7 @@ int node40_create_item (new_coord * target, const reiser4_key * key,
 	}
 	else if (data->data != NULL) {
 		if (data->user)
+			/* AUDIT: Are we really should not check that pointer from userspace was valid and data bytes were available? How will we return -EFAULT of some kind without this check? */
 			/* copy data from user space */
 			__copy_from_user (zdata (target->node) + offset,
 					  data->data, 
@@ -862,6 +868,7 @@ int node40_create_item (new_coord * target, const reiser4_key * key,
 /* plugin->u.node.update_item_key
    look for description of this method in plugin/node/node.h
 */
+/* Audited by: green(2002.06.13) */
 void node40_update_item_key (new_coord * target, reiser4_key * key,
 			     carry_level * todo)
 {
@@ -876,6 +883,7 @@ void node40_update_item_key (new_coord * target, reiser4_key * key,
 }
 
 
+/* Audited by: green(2002.06.13) */
 static unsigned cut_units (new_coord * coord, unsigned *from, unsigned *to,
 			   int cut,
 			   const reiser4_key * from_key,
@@ -928,6 +936,7 @@ static unsigned cut_units (new_coord * coord, unsigned *from, unsigned *to,
    (kill_hook) will be performed on every unit being removed from tree. When
    @todo != 0 - it is called not by node40_shift who cares about delimiting
    keys itself - update znode's delimiting keys */
+/* Audited by: green(2002.06.13) */
 static int cut_or_kill (new_coord * from, new_coord * to,
 			const reiser4_key * from_key,
 			const reiser4_key * to_key,
@@ -1164,6 +1173,7 @@ static int cut_or_kill (new_coord * from, new_coord * to,
 
 /* plugin->u.node.cut_and_kill
  */
+/* Audited by: green(2002.06.13) */
 int node40_cut_and_kill (new_coord * from, new_coord * to,
 			 const reiser4_key * from_key,
 			 const reiser4_key * to_key,
@@ -1177,6 +1187,7 @@ int node40_cut_and_kill (new_coord * from, new_coord * to,
 
 /* plugin->u.node.cut
  */
+/* Audited by: green(2002.06.13) */
 int node40_cut (new_coord * from, new_coord * to,
 		const reiser4_key * from_key,
 		const reiser4_key * to_key,
@@ -1219,6 +1230,7 @@ struct shift_params {
 };
 
 
+/* Audited by: green(2002.06.13) */
 static int item_creation_overhead (new_coord * item)
 {
 	return node_plugin_by_coord (item) -> item_overhead (item->node, 0);
@@ -1227,6 +1239,7 @@ static int item_creation_overhead (new_coord * item)
 
 /* how many units are there in @source starting from source->unit_pos
    but not further than @stop_coord */
+/* Audited by: green(2002.06.13) */
 static int wanted_units (new_coord * source, new_coord * stop_coord,
 			 shift_direction pend)
 {
@@ -1252,6 +1265,7 @@ static int wanted_units (new_coord * source, new_coord * stop_coord,
 
 /* this calculates what can be copied from @shift->wish_stop.node to
    @shift->target */
+/* Audited by: green(2002.06.13) */
 static void node40_estimate_shift (struct shift_params * shift)
 {
 	unsigned target_free_space, size;
@@ -1402,6 +1416,7 @@ static void node40_estimate_shift (struct shift_params * shift)
 	shift->everything = 1;
 }
 
+/* Audited by: green(2002.06.13) */
 static void copy_units (new_coord * target, new_coord * source,
 			unsigned from, unsigned count, 
 			shift_direction dir, unsigned free_space)
@@ -1434,6 +1449,7 @@ static void copy_units (new_coord * target, new_coord * source,
 /* copy part of @shift->real_stop.node starting either from its beginning or
    from its end and ending at @shift->real_stop to either the end or the
    beginning of @shift->target */
+/* Audited by: green(2002.06.13) */
 void node40_copy (struct shift_params * shift)
 {
 	node_header_40 * nh;
@@ -1492,6 +1508,7 @@ void node40_copy (struct shift_params * shift)
 				shift->entire * sizeof (item_header_40));
 			/* update item header offset */
 			old_offset = ih_40_get_offset (from_ih);
+			/* AUDIT: Looks like if we calculate old_offset + free_space_start here instead of just old_offset, we can perform one "add" operation less per each iteration */
 			for (i = 0; i < shift->entire; i ++, to_ih --, from_ih --)
 				ih_40_set_offset (to_ih,
 						  ih_40_get_offset (from_ih) - old_offset + free_space_start );
@@ -1588,6 +1605,7 @@ void node40_copy (struct shift_params * shift)
 
 			/* update item header offset */
 			old_offset = ih_40_get_offset (from_ih + shift->entire - 1);
+			/* AUDIT: old_offset + sizeof (node_header_40) + shift->part_bytes calculation can be taken off the loop. */
 			for (i = 0; i < shift->entire; i ++, to_ih ++, from_ih ++)
 				ih_40_set_offset (to_ih,
 						  ih_40_get_offset (from_ih) - old_offset +
@@ -1621,6 +1639,7 @@ void node40_copy (struct shift_params * shift)
 
 /* remove everything either before or after @fact_stop. Number of items
    removed completely is returned */
+/* Audited by: green(2002.06.13) */
 static int node40_delete_copied (struct shift_params * shift)
 {
 	new_coord from;
@@ -1647,6 +1666,7 @@ static int node40_delete_copied (struct shift_params * shift)
 
 /* znode has left and right delimiting keys. We moved data between nodes,
    therefore we must update delimiting keys of those znodes */
+/* Audited by: green(2002.06.13) */
 void update_znode_dkeys (znode * left, znode * right)
 {
 	reiser4_key key;
@@ -1666,6 +1686,7 @@ void update_znode_dkeys (znode * left, znode * right)
 		*znode_get_ld_key (right) = key;
 		return;
 	} else if (node_is_empty (left) && node_is_empty (right))
+		/* AUDIT: there are 2 checks below both stating that both nodes cannot be empty, yet we return success before we even had a chance to check for the error. Perhaps some typo is here? */
 		return;
 	else if (node_is_empty (left)) {
 		assert ("vs-186", !node_is_empty (right));
@@ -1698,6 +1719,7 @@ void update_znode_dkeys (znode * left, znode * right)
 
 /* something was moved between @left and @right. Add carry operation to @todo
    list to have carry to update delimiting key between them */
+/* Audited by: green(2002.06.13) */
 static int prepare_for_update (znode * left, znode * right, carry_level * todo)
 {
 	carry_op * op;
@@ -1733,6 +1755,7 @@ static int prepare_for_update (znode * left, znode * right, carry_level * todo)
 
 /* to delete a pointer to @empty from the tree add corresponding carry
    operation (delete) to @todo list */
+/* Audited by: green(2002.06.13) */
 static int prepare_for_removal (znode * empty, carry_level * todo)
 {
 	carry_op * op;
@@ -1750,6 +1773,7 @@ static int prepare_for_removal (znode * empty, carry_level * todo)
 
 /* something were shifted from @insert_coord->node to @shift->target, update
    @insert_coord correspondingly */
+/* Audited by: green(2002.06.13) */
 static void adjust_coord (new_coord * insert_coord,
 			  struct shift_params * shift,
 			  int removed, int including_insert_coord)
@@ -1834,6 +1858,7 @@ static void adjust_coord (new_coord * insert_coord,
 }
 
 
+/* Audited by: green(2002.06.13) */
 static int call_shift_hooks (struct shift_params * shift)
 {
 	unsigned i, shifted;
@@ -1913,6 +1938,7 @@ static int call_shift_hooks (struct shift_params * shift)
 /* plugin->u.node.shift
    look for description of this method in plugin/node/node.h
  */
+/* Audited by: green(2002.06.13) */
 int node40_shift (new_coord * from, znode * to,
 		  shift_direction pend,
 		  int delete_child, /* if @from->node becomes empty - it will
@@ -2048,6 +2074,7 @@ int node40_fast_cut( const new_coord *coord UNUSED_ARG /* node to query */ )
 */
 
 /* plugin->u.node.max_item_size */
+/* Audited by: green(2002.06.13) */
 int node40_max_item_size( void )
 {
 	return reiser4_get_current_sb() -> s_blocksize -
