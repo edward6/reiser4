@@ -96,5 +96,5 @@ license:
 # 
 compression: gzip
 
-# Make Josh always have editable files
-[jmacd@]checkout:edit
+# Make everyone always have editable files
+checkout:edit
