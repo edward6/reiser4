@@ -570,7 +570,7 @@ print_large_times_sd(const char *prefix, char **area /* position in stat-data */
 }
 #endif
 
-/* symlink stat data extention */
+/* symlink stat data extension */
 
 /* allocate memory for symlink target and attach it to inode->u.generic_ip */
 static int

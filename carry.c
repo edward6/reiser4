@@ -234,7 +234,7 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 		   (2) carry_on_level() decides that more nodes have to
 		   be involved.
 
-		   (3) some unexpected error occured while balancing on the
+		   (3) some unexpected error occurred while balancing on the
 		   upper levels. In this case all changes are rolled back.
 
 		*/

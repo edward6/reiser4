@@ -182,7 +182,7 @@ typedef struct file_plugin {
 
 	   This is used by read/write methods to construct a flow to
 	   write/read. ->flow_by_inode() is plugin method, rather than single
-	   global implemenation, because key in a flow used by plugin may
+	   global implementation, because key in a flow used by plugin may
 	   depend on data in a @buf.
 
 NIKITA-FIXME-HANS: please create statistics on what functions are
@@ -192,7 +192,7 @@ Elena doing this for you if that helps.  Email me the list of the top 10, with t
 	int (*flow_by_inode) (struct inode *, char *buf, int user, loff_t size, loff_t off, rw_op op, flow_t *);
 
 	/* Return the key used to retrieve an offset of a file. It is used by
-	   default implemenation of ->flow_by_inode() method
+	   default implementation of ->flow_by_inode() method
 	   (common_build_flow()) and, among other things, to get to the extent
 	   from jnode of unformatted node.
 	*/

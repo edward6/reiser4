@@ -13,7 +13,7 @@
 #include "status_flags.h"
 #include "super.h"
 
-/* This is our end I/O handler that marks page uptodate if IO was succesful. It also
+/* This is our end I/O handler that marks page uptodate if IO was successful. It also
    unconditionally unlocks the page, so we can see that io was done.
    We do not free bio, because we hope to reuse that. */
 static int reiser4_status_endio(struct bio *bio, unsigned int bytes_done, int err)

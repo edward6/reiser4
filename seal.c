@@ -1,5 +1,5 @@
 /* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
-/* Seals implemenation. */
+/* Seals implementation. */
 /* Seals are "weak" tree pointers. They are analogous to tree coords in
    allowing to bypass tree traversal. But normal usage of coords implies that
    node pointed to by coord is locked, whereas seals don't keep a lock (or

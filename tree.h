@@ -338,7 +338,7 @@ extern void coord_unit_move_to(coord_t * coord, int units);
       can be performed faster;
     2 it affects lower-level read-ahead in page-cache;
     3 it allows to avoid unnecessary lookups by maintaining some state
-      accross several operations (this is only for local ra);
+      across several operations (this is only for local ra);
     4 it leaves room for lazy-micro-balancing: when we start a sequence of
       operations they are performed without actually doing any intra-node
       shifts, until we finish sequence or scope of sequence leaves

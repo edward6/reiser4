@@ -2537,7 +2537,7 @@ find_object_size(struct inode *inode, loff_t * size)
 		return 0;
 	}
 	if (result != CBK_COORD_FOUND) {
-		/* error occured */
+		/* error occurred */
 		done_lh(&lh);
 		return result;
 	}

@@ -478,7 +478,7 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 	assert("nikita-2092", page != NULL);
 	assert("nikita-2633", node != NULL);
 
-	/* Simple implemenation in the assumption that blocksize == pagesize.
+	/* Simple implementation in the assumption that blocksize == pagesize.
 
 	   We only have to submit one block, but submit_bh() will allocate bio
 	   anyway, so lets use all the bells-and-whistles of bio code.

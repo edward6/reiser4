@@ -232,7 +232,7 @@ find(const coord_t * coord /* coord of item */ ,
 
 }
 
-/* expand @coord as to accomodate for insertion of @no new entries starting
+/* expand @coord as to accommodate for insertion of @no new entries starting
    from @pos, with total bodies size @size. */
 static int
 expand_item(const coord_t * coord /* coord of item */ ,

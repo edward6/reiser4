@@ -34,7 +34,7 @@ in their use of file attributes.
 
 Yet this compromise deserves to be compromised a little.
 
-We accomodate the case where you have no more than the standard unix file attributes by using an "extension bitmask":
+We accommodate the case where you have no more than the standard unix file attributes by using an "extension bitmask":
 each bit in it indicates presence or absence of or particular stat data extension (see sd_ext_bits enum).
 
   If the first
