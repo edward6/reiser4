@@ -64,9 +64,9 @@ void aal_device_close(aal_device_t *device) {
 
 /* 
     Checks and sets new block size for specified device. Returns error code,
-    see aal.h for more detailed description of error_t.
+    see aal.h for more detailed description of errno_t.
 */
-error_t aal_device_set_bs(aal_device_t *device, uint16_t blocksize) {
+errno_t aal_device_set_bs(aal_device_t *device, uint16_t blocksize) {
 
     aal_assert("umka-431", device != NULL, return -1);
 	
@@ -91,13 +91,13 @@ uint16_t aal_device_get_bs(aal_device_t *device) {
 /* 
     Performs read operation on specified device. Actualy it is called corresponding
     operation (read) from assosiated with device operations. Returns error code,
-    see aal.h for more detailed description of error_t.
+    see aal.h for more detailed description of errno_t.
 */
-error_t aal_device_read(aal_device_t *device, void *buff, 
+errno_t aal_device_read(aal_device_t *device, void *buff, 
     blk_t block, count_t count) 
 {
     aal_assert("umka-433", device != NULL, return -1);
-    
+
     aal_device_check_routine(device, read, return -1);
     return device->ops->read(device, buff, block, count);
 }
@@ -105,9 +105,9 @@ error_t aal_device_read(aal_device_t *device, void *buff,
 /* 
     Performs write operation on specified device. Actualy it is called corresponding
     operation (write) from assosiated with device operations. Returns error code,
-    see aal.h for more detailed description of error_t.
+    see aal.h for more detailed description of errno_t.
 */
-error_t aal_device_write(aal_device_t *device, void *buff, 
+errno_t aal_device_write(aal_device_t *device, void *buff, 
     blk_t block, count_t count) 
 {
     aal_assert("umka-434", device != NULL, return -1);
@@ -120,9 +120,9 @@ error_t aal_device_write(aal_device_t *device, void *buff,
 /* 
     Performs sync operation on specified device. Actualy it is called corresponding
     operation (sync) from assosiated with device operations. Returns error code,
-    see aal.h for more detailed description of error_t.
+    see aal.h for more detailed description of errno_t.
 */
-error_t aal_device_sync(aal_device_t *device) {
+errno_t aal_device_sync(aal_device_t *device) {
     aal_assert("umka-436", device != NULL, return -1);
     
     aal_device_check_routine(device, sync, return -1);
@@ -173,6 +173,12 @@ char *aal_device_name(aal_device_t *device) {
     aal_assert("umka-442", device != NULL, return NULL);
     
     return device->name;
+}
+
+/* Returns last error occured on device */
+char *aal_device_error(aal_device_t *device) {
+    aal_assert("umka-752", device != NULL, return NULL);
+    return device->error;
 }
 
 /* 
@@ -239,7 +245,7 @@ aal_block_t *aal_block_read(aal_device_t *device, blk_t blk) {
 }
 
 /* Makes reread of specified block */
-error_t aal_block_reread(aal_block_t *block, aal_device_t *device, blk_t blk) {
+errno_t aal_block_reread(aal_block_t *block, aal_device_t *device, blk_t blk) {
     aal_assert("umka-631", block != NULL, return -1);
     aal_assert("umka-632", device != NULL, return -1);
 
@@ -262,8 +268,8 @@ error_t aal_block_reread(aal_block_t *block, aal_device_t *device, blk_t blk) {
     Writes specified block onto device. Marks it as clean and returns error 
     code to caller.
 */
-error_t aal_block_write(aal_device_t *device, aal_block_t *block) {
-    error_t error;
+errno_t aal_block_write(aal_device_t *device, aal_block_t *block) {
+    errno_t error;
 
     aal_assert("umka-445", device != NULL, return -1);
     aal_assert("umka-446", block != NULL, return -1);

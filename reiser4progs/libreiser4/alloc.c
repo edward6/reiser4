@@ -78,7 +78,7 @@ error_free_alloc:
     return NULL;
 }
 
-error_t reiserfs_alloc_sync(reiserfs_alloc_t *alloc) {
+errno_t reiserfs_alloc_sync(reiserfs_alloc_t *alloc) {
     aal_assert("umka-139", alloc != NULL, return -1);
 
     return libreiser4_plugin_call(return -1, alloc->plugin->alloc, 

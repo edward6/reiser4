@@ -70,7 +70,7 @@ reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk,
     
     if (!(node->block = aal_block_read(device, blk))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't read block %llu.", blk);
+	    "Can't read block %llu. %s.", blk, aal_device_error(device));
 	goto error_free_node;
     }
     
@@ -98,7 +98,7 @@ error_free_node:
     return NULL;
 }
 
-error_t reiserfs_node_reopen(reiserfs_node_t *node, aal_device_t *device, 
+errno_t reiserfs_node_reopen(reiserfs_node_t *node, aal_device_t *device, 
     blk_t blk, reiserfs_id_t plugin_id) 
 {
     aal_assert("umka-724", node != NULL, return -1);
@@ -107,7 +107,7 @@ error_t reiserfs_node_reopen(reiserfs_node_t *node, aal_device_t *device,
     return -1;
 }
 
-error_t reiserfs_node_close(reiserfs_node_t *node) {
+errno_t reiserfs_node_close(reiserfs_node_t *node) {
     aal_assert("umka-122", node != NULL, return -1);
     
     if (node->children) {
@@ -134,7 +134,7 @@ error_t reiserfs_node_close(reiserfs_node_t *node) {
     return 0;
 }
 
-error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
+errno_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
     aal_assert("umka-123", node != NULL, return -1);
     return libreiser4_plugin_call(return -1, node->plugin->node, 
 	check, node->block, flags);
@@ -266,7 +266,7 @@ static int callback_comp_for_insert(reiserfs_node_t *node1,
 }
 
 /* Connects children into sorted list of specified node */
-error_t reiserfs_node_add(reiserfs_node_t *node, 
+errno_t reiserfs_node_add(reiserfs_node_t *node, 
     reiserfs_node_t *children) 
 {
     reiserfs_key_t key;
@@ -318,7 +318,7 @@ void reiserfs_node_remove(reiserfs_node_t *node,
     Synchronizes node's cache and frees all childrens.
     My be used when memory presure event will occur.
 */
-error_t reiserfs_node_flush(reiserfs_node_t *node) {
+errno_t reiserfs_node_flush(reiserfs_node_t *node) {
     aal_assert("umka-575", node != NULL, return 0);
     
     if (node->children) {
@@ -332,8 +332,9 @@ error_t reiserfs_node_flush(reiserfs_node_t *node) {
     
     if (aal_block_write(node->device, node->block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't synchronize block %llu to device.", 
-	    aal_block_get_nr(node->block));
+	    "Can't synchronize block %llu to device. %s.", 
+	    aal_block_get_nr(node->block), 
+	    aal_device_error(node->device));
 	return -1;
     }
     aal_list_free(node->children);
@@ -345,7 +346,7 @@ error_t reiserfs_node_flush(reiserfs_node_t *node) {
 }
 
 /* Just synchronuizes node's cache */
-error_t reiserfs_node_sync(reiserfs_node_t *node) {
+errno_t reiserfs_node_sync(reiserfs_node_t *node) {
     aal_assert("umka-124", node != NULL, return 0);
     
     if (node->children) {
@@ -359,8 +360,9 @@ error_t reiserfs_node_sync(reiserfs_node_t *node) {
     
     if (aal_block_write(node->device, node->block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't synchronize block %llu to device.", 
-	    aal_block_get_nr(node->block));
+	    "Can't synchronize block %llu to device. %s.", 
+	    aal_block_get_nr(node->block), 
+	    aal_device_error(node->device));
 	return -1;
     }
     return 0;
@@ -579,7 +581,7 @@ void reiserfs_node_item_set_pointer(reiserfs_node_t *node,
     c) get hint->plugin on the base of pos.
 */
 
-error_t reiserfs_node_item_estimate(reiserfs_node_t *node, 
+errno_t reiserfs_node_item_estimate(reiserfs_node_t *node, 
     reiserfs_item_hint_t *hint, reiserfs_pos_t *pos)
 {
     aal_assert("vpf-106", hint != NULL, return -1);
@@ -607,11 +609,11 @@ error_t reiserfs_node_item_estimate(reiserfs_node_t *node,
 	hint, pos);
 }
 
-error_t reiserfs_node_item_insert(reiserfs_node_t *node, 
+errno_t reiserfs_node_item_insert(reiserfs_node_t *node, 
     reiserfs_pos_t *pos, reiserfs_key_t *key, 
     reiserfs_item_hint_t *hint) 
 {
-    error_t ret;
+    errno_t ret;
     
     aal_assert("vpf-109", key != NULL, return -1);
     aal_assert("umka-720", key->plugin != NULL, return -1);

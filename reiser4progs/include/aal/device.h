@@ -41,8 +41,8 @@ struct aal_device {
     int flags;
     void *data;
     void *entity;
-    char name[256];
     uint16_t blocksize;
+    char name[256], error[256];
     struct aal_device_ops *ops;
 };
 
@@ -53,11 +53,11 @@ typedef struct aal_device aal_device_t;
     be implemented.
 */
 struct aal_device_ops {
-    error_t (*read)(aal_device_t *, void *, blk_t, count_t);
-    error_t (*write)(aal_device_t *, void *, blk_t, count_t);
-    error_t (*sync)(aal_device_t *);
+    errno_t (*read)(aal_device_t *, void *, blk_t, count_t);
+    errno_t (*write)(aal_device_t *, void *, blk_t, count_t);
+    errno_t (*sync)(aal_device_t *);
     int (*flags)(aal_device_t *);
-    error_t (*equals)(aal_device_t *, aal_device_t *);
+    errno_t (*equals)(aal_device_t *, aal_device_t *);
     uint32_t (*stat)(aal_device_t *);
     count_t (*len)(aal_device_t *);
 };
@@ -83,18 +83,18 @@ extern aal_device_t *aal_device_open(struct aal_device_ops *ops,
 
 extern void aal_device_close(aal_device_t *device);
 
-extern error_t aal_device_set_bs(aal_device_t *device, 
+extern errno_t aal_device_set_bs(aal_device_t *device, 
     uint16_t blocksize);
 
 extern uint16_t aal_device_get_bs(aal_device_t *device);
 
-extern error_t aal_device_read(aal_device_t *device, 
+extern errno_t aal_device_read(aal_device_t *device, 
     void *buff, blk_t block, count_t count);
 
-extern error_t aal_device_write(aal_device_t *device, 
+extern errno_t aal_device_write(aal_device_t *device, 
     void *buff, blk_t block, count_t count);
 
-extern error_t aal_device_sync(aal_device_t *device);
+extern errno_t aal_device_sync(aal_device_t *device);
 extern int aal_device_flags(aal_device_t *device);
 
 extern int aal_device_equals(aal_device_t *device1, 
@@ -103,6 +103,7 @@ extern int aal_device_equals(aal_device_t *device1,
 extern uint32_t aal_device_stat(aal_device_t *device);
 extern count_t aal_device_len(aal_device_t *device);
 extern char *aal_device_name(aal_device_t *device);
+extern char *aal_device_error(aal_device_t *device);
 
 /* Block-working functions */
 extern aal_block_t *aal_block_alloc(aal_device_t *device, 
@@ -111,10 +112,10 @@ extern aal_block_t *aal_block_alloc(aal_device_t *device,
 extern aal_block_t *aal_block_read(aal_device_t *device, 
     blk_t blk);
 
-extern error_t aal_block_reread(aal_block_t *block, 
+extern errno_t aal_block_reread(aal_block_t *block, 
     aal_device_t *device, blk_t blk);
 
-extern error_t aal_block_write(aal_device_t *device, 
+extern errno_t aal_block_write(aal_device_t *device, 
     aal_block_t *block);
 
 extern void aal_block_free(aal_block_t *block);

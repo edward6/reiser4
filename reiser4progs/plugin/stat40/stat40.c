@@ -15,13 +15,13 @@
 
 static reiserfs_plugin_factory_t *factory = NULL;
 
-static error_t stat40_confirm(reiserfs_stat40_base_t *stat) {
+static errno_t stat40_confirm(reiserfs_stat40_base_t *stat) {
     return 0;
 }
 
 #ifndef ENABLE_COMPACT
 
-static error_t stat40_create(reiserfs_stat40_base_t *stat, 
+static errno_t stat40_create(reiserfs_stat40_base_t *stat, 
     reiserfs_item_hint_t *hint)
 {
     reiserfs_stat_hint_t *stat_hint;
@@ -41,7 +41,7 @@ static error_t stat40_create(reiserfs_stat40_base_t *stat,
     return 0;
 }
 
-static error_t stat40_estimate(reiserfs_item_hint_t *hint, 
+static errno_t stat40_estimate(reiserfs_item_hint_t *hint, 
     reiserfs_pos_t *pos) 
 {
     aal_assert("vpf-074", hint != NULL, return -1);
@@ -54,7 +54,7 @@ static error_t stat40_estimate(reiserfs_item_hint_t *hint,
 
 #endif
 
-static error_t stat40_check(reiserfs_stat40_base_t *stat) {
+static errno_t stat40_check(reiserfs_stat40_base_t *stat) {
     return 0;
 }
 
@@ -95,14 +95,14 @@ static reiserfs_plugin_t stat40_plugin = {
 	    .type = REISERFS_STATDATA_ITEM,
 
 #ifndef ENABLE_COMPACT
-	    .create = (error_t (*)(void *, void *))stat40_create,
-	    .estimate = (error_t (*)(void *, void *))stat40_estimate,
+	    .create = (errno_t (*)(void *, void *))stat40_create,
+	    .estimate = (errno_t (*)(void *, void *))stat40_estimate,
 #else
 	    .create = NULL,
 	    .estimate = NULL,
 #endif
-	    .confirm = (error_t (*)(void *))stat40_confirm,
-	    .check = (error_t (*)(void *))stat40_check,
+	    .confirm = (errno_t (*)(void *))stat40_confirm,
+	    .check = (errno_t (*)(void *))stat40_check,
 	    .print = (void (*)(void *, char *, uint16_t))stat40_print,
 	    .minsize = (uint32_t (*)(void))stat40_minsize,
 	    .internal = (int (*)(void))stat40_internal,

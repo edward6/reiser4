@@ -165,7 +165,7 @@ extern reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 
 extern void reiserfs_fs_close(reiserfs_fs_t *fs);
 
-extern error_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs, 
+extern errno_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs, 
     reiserfs_key_t *key, reiserfs_id_t key_plugin_id);
 
 #ifndef ENABLE_COMPACT
@@ -175,9 +175,9 @@ extern reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
     const char *label, count_t len, aal_device_t *journal_device, 
     reiserfs_opaque_t *journal_params);
 
-extern error_t reiserfs_fs_sync(reiserfs_fs_t *fs);
+extern errno_t reiserfs_fs_sync(reiserfs_fs_t *fs);
 
-extern error_t reiserfs_fs_check(reiserfs_fs_t *fs);
+extern errno_t reiserfs_fs_check(reiserfs_fs_t *fs);
 
 #endif
 

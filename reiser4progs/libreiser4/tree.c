@@ -94,7 +94,7 @@ error_free_tree:
     Syncs whole the tree-cache and removes all nodes except 
     root node from the cache.
 */
-error_t reiserfs_tree_flush(reiserfs_tree_t *tree) {
+errno_t reiserfs_tree_flush(reiserfs_tree_t *tree) {
     aal_assert("umka-573", tree != NULL, return -1);
     
     if (tree->root_node->children) {
@@ -112,7 +112,7 @@ error_t reiserfs_tree_flush(reiserfs_tree_t *tree) {
 }
 
 /* Syncs whole the tree-cache */
-error_t reiserfs_tree_sync(reiserfs_tree_t *tree) {
+errno_t reiserfs_tree_sync(reiserfs_tree_t *tree) {
     aal_assert("umka-560", tree != NULL, return -1);
     return reiserfs_node_sync(tree->root_node);
 }
@@ -203,7 +203,7 @@ int reiserfs_tree_lookup(reiserfs_tree_t *tree,
 	key, coord);
 }
 
-error_t reiserfs_tree_item_insert(reiserfs_tree_t *tree, 
+errno_t reiserfs_tree_item_insert(reiserfs_tree_t *tree, 
     reiserfs_key_t *key, reiserfs_item_hint_t *hint)
 {
     int lookup;
@@ -276,13 +276,13 @@ error_t reiserfs_tree_item_insert(reiserfs_tree_t *tree,
 }
 
 /* Removes item by specified key */
-error_t reiserfs_tree_item_remove(reiserfs_tree_t *tree, 
+errno_t reiserfs_tree_item_remove(reiserfs_tree_t *tree, 
     reiserfs_key_t *key) 
 {
     return -1;
 }
 
-error_t reiserfs_tree_node_insert(reiserfs_tree_t *tree, 
+errno_t reiserfs_tree_node_insert(reiserfs_tree_t *tree, 
     reiserfs_node_t *node) 
 {
     int lookup;
@@ -342,7 +342,7 @@ error_t reiserfs_tree_node_insert(reiserfs_tree_t *tree,
 }
 
 /* Removes node from tree by its left delimiting key */
-error_t reiserfs_tree_node_remove(reiserfs_tree_t *tree, 
+errno_t reiserfs_tree_node_remove(reiserfs_tree_t *tree, 
     reiserfs_key_t *key) 
 {
     return -1;

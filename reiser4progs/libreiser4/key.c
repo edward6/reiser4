@@ -37,7 +37,7 @@ void reiserfs_key_clean(reiserfs_key_t *key) {
     libreiser4_plugin_call(return, key->plugin->key, clean, key->body);
 } 
 
-error_t reiserfs_key_build_file_key(reiserfs_key_t *key, 
+errno_t reiserfs_key_build_file_key(reiserfs_key_t *key, 
     uint32_t type, oid_t locality, oid_t objectid, uint64_t offset) 
 {
     aal_assert("umka-665", key != NULL, return -1);
@@ -47,7 +47,7 @@ error_t reiserfs_key_build_file_key(reiserfs_key_t *key,
 	key->body, type, locality, objectid, offset);
 }
 
-error_t reiserfs_key_build_dir_key(reiserfs_key_t *key, 
+errno_t reiserfs_key_build_dir_key(reiserfs_key_t *key, 
     reiserfs_plugin_t *hash_plugin, oid_t locality, 
     oid_t objectid, const char *name)
 {
@@ -59,7 +59,7 @@ error_t reiserfs_key_build_dir_key(reiserfs_key_t *key,
 	key->body, hash_plugin, locality, objectid, name);
 }
 
-error_t reiserfs_key_set_type(reiserfs_key_t *key, uint32_t type) {
+errno_t reiserfs_key_set_type(reiserfs_key_t *key, uint32_t type) {
     aal_assert("umka-686", key != NULL, return -1);
     aal_assert("umka-687", key->plugin != NULL, return -1);
 
@@ -68,7 +68,7 @@ error_t reiserfs_key_set_type(reiserfs_key_t *key, uint32_t type) {
     return 0;
 }
 
-error_t reiserfs_key_set_offset(reiserfs_key_t *key, uint64_t offset) {
+errno_t reiserfs_key_set_offset(reiserfs_key_t *key, uint64_t offset) {
     aal_assert("umka-688", key != NULL, return -1);
     aal_assert("umka-689", key->plugin != NULL, return -1);
     
@@ -78,7 +78,7 @@ error_t reiserfs_key_set_offset(reiserfs_key_t *key, uint64_t offset) {
     return 0;
 }
 
-error_t reiserfs_key_set_hash(reiserfs_key_t *key, uint64_t hash) {
+errno_t reiserfs_key_set_hash(reiserfs_key_t *key, uint64_t hash) {
     aal_assert("umka-706", key != NULL, return -1);
     aal_assert("umka-707", key->plugin != NULL, return -1);
     
@@ -88,7 +88,7 @@ error_t reiserfs_key_set_hash(reiserfs_key_t *key, uint64_t hash) {
     return 0;
 }
 
-error_t reiserfs_key_set_objectid(reiserfs_key_t *key, oid_t objectid) {
+errno_t reiserfs_key_set_objectid(reiserfs_key_t *key, oid_t objectid) {
     aal_assert("umka-694", key != NULL, return -1);
     aal_assert("umka-695", key->plugin != NULL, return -1);
     
@@ -98,7 +98,7 @@ error_t reiserfs_key_set_objectid(reiserfs_key_t *key, oid_t objectid) {
     return 0;
 }
 
-error_t reiserfs_key_set_locality(reiserfs_key_t *key, oid_t locality) {
+errno_t reiserfs_key_set_locality(reiserfs_key_t *key, oid_t locality) {
     aal_assert("umka-696", key != NULL, return -1);
     aal_assert("umka-697", key->plugin != NULL, return -1);
     

@@ -26,7 +26,7 @@ extern reiserfs_oid_t *reiserfs_oid_create(void *area_start,
 
 extern uint64_t reiserfs_oid_alloc(reiserfs_oid_t *oid);
 extern void reiserfs_oid_dealloc(reiserfs_oid_t *oid, uint64_t id);
-extern error_t reiserfs_oid_sync(reiserfs_oid_t *oid);
+extern errno_t reiserfs_oid_sync(reiserfs_oid_t *oid);
 
 #endif
 

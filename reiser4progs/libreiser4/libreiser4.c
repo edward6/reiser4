@@ -18,7 +18,7 @@ const char *libreiser4_get_version(void) {
     return VERSION;
 }
 
-error_t libreiser4_init(void) {
+errno_t libreiser4_init(void) {
     if (libreiser4_factory_init()) {
 	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, 
 	    "Can't initialize plugin factory.");

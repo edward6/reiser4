@@ -1,4 +1,1 @@
-* move all libc's replacing functions into separate library libaal. Other functions should be in 
-  yet another library.
-* all plugins should be libaal independent. In order to reach this we should
-  export device working interface at least.
+* all functions which return errno_t should return real errno, not just -1

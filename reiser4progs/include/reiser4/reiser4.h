@@ -41,7 +41,7 @@ extern int libreiser4_get_max_interface_version(void);
 extern int libreiser4_get_min_interface_version(void);
 extern const char *libreiser4_get_version(void);
 
-extern error_t libreiser4_init(void);
+extern errno_t libreiser4_init(void);
 extern void libreiser4_done(void);
 
 #ifdef __cplusplus

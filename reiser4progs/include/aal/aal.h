@@ -54,7 +54,7 @@
     Success - 0 (not errors),
     Failure - negative error code
 */
-typedef int error_t;
+typedef int errno_t;
 
 /*
     Type for callback compare function. It is used in list functions and in 

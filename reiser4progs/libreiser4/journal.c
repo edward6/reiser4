@@ -76,7 +76,7 @@ error_free_journal:
     return NULL;
 }
 
-error_t reiserfs_journal_replay(reiserfs_journal_t *journal) {
+errno_t reiserfs_journal_replay(reiserfs_journal_t *journal) {
     aal_assert("umka-727", journal != NULL, return -1);
     
     if (libreiser4_plugin_call(return -1, journal->plugin->journal, 
@@ -89,7 +89,7 @@ error_t reiserfs_journal_replay(reiserfs_journal_t *journal) {
     return 0;
 }
 
-error_t reiserfs_journal_sync(reiserfs_journal_t *journal) {
+errno_t reiserfs_journal_sync(reiserfs_journal_t *journal) {
     aal_assert("umka-100", journal != NULL, return -1);
 
     return libreiser4_plugin_call(return -1, journal->plugin->journal, 

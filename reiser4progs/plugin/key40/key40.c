@@ -141,7 +141,7 @@ static void key40_clean(reiserfs_key40_t *key) {
 }
 
 
-static error_t key40_build_hash(reiserfs_key40_t *key, const char *name, 
+static errno_t key40_build_hash(reiserfs_key40_t *key, const char *name, 
     reiserfs_plugin_t *hash_plugin) 
 {
     uint16_t len;
@@ -180,7 +180,7 @@ static error_t key40_build_hash(reiserfs_key40_t *key, const char *name,
     return 0;
 }
 
-static error_t key40_build_dir_key(reiserfs_key40_t *key, 
+static errno_t key40_build_dir_key(reiserfs_key40_t *key, 
     reiserfs_plugin_t *hash_plugin, oid_t locality, 
     oid_t objectid, const char *name) 
 {
@@ -199,7 +199,7 @@ static error_t key40_build_dir_key(reiserfs_key40_t *key,
     return 0;
 }
 
-static error_t key40_build_file_key(reiserfs_key40_t *key, uint32_t type, 
+static errno_t key40_build_file_key(reiserfs_key40_t *key, uint32_t type, 
     oid_t locality, oid_t objectid, uint64_t offset) 
 {
     aal_assert("vpf-141", key != NULL, return -1);
@@ -217,7 +217,7 @@ static error_t key40_build_file_key(reiserfs_key40_t *key, uint32_t type,
     return 0;
 }
 
-static error_t key40_build_dir_short_key(void *sh_key, const char *name, 
+static errno_t key40_build_dir_short_key(void *sh_key, const char *name, 
     reiserfs_plugin_t *hash_plugin, uint8_t size) 
 {
     reiserfs_key40_t key;    
@@ -237,7 +237,7 @@ static error_t key40_build_dir_short_key(void *sh_key, const char *name,
     return 0;
 }
 
-static error_t key40_build_file_short_key(void *sh_key, uint32_t type, 
+static errno_t key40_build_file_short_key(void *sh_key, uint32_t type, 
     oid_t locality, oid_t objectid, uint8_t size)
 {
     reiserfs_key40_t key;
@@ -260,7 +260,7 @@ static error_t key40_build_file_short_key(void *sh_key, uint32_t type,
     return 0;
 }
 
-static error_t key40_build_key_by_dir_short_key(reiserfs_key40_t *key, 
+static errno_t key40_build_key_by_dir_short_key(reiserfs_key40_t *key, 
     void *sh_key, uint8_t size) 
 {
     aal_assert("vpf-144", key != NULL, return -1);
@@ -272,7 +272,7 @@ static error_t key40_build_key_by_dir_short_key(reiserfs_key40_t *key,
     return 0;
 }
 
-static error_t key40_build_key_by_file_short_key(reiserfs_key40_t *key, 
+static errno_t key40_build_key_by_file_short_key(reiserfs_key40_t *key, 
     void *sh_key, uint8_t size) 
 {
     aal_assert("vpf-144", key != NULL, return -1);
@@ -318,22 +318,22 @@ static reiserfs_plugin_t key40_plugin = {
 	.set_counter = (void (*)(void *, uint8_t))key40_set_counter,
 	.get_counter = (uint8_t (*)(const void *))key40_get_counter,
 	
-	.build_file_key = (error_t (*)(void *, uint32_t, oid_t, oid_t, uint64_t))
+	.build_file_key = (errno_t (*)(void *, uint32_t, oid_t, oid_t, uint64_t))
 	    key40_build_file_key,
 	
-	.build_dir_key = (error_t (*)(void *, void *, oid_t, oid_t, const char *))
+	.build_dir_key = (errno_t (*)(void *, void *, oid_t, oid_t, const char *))
 	    key40_build_dir_key,
 
-	.build_dir_short_key = (error_t (*)(void *, const char *, void *, uint8_t))
+	.build_dir_short_key = (errno_t (*)(void *, const char *, void *, uint8_t))
 	    key40_build_dir_short_key,
 
-	.build_file_short_key = (error_t (*)(void *, uint32_t, oid_t, oid_t, uint8_t))
+	.build_file_short_key = (errno_t (*)(void *, uint32_t, oid_t, oid_t, uint8_t))
 	    key40_build_file_short_key,
 
-	.build_key_by_dir_short_key = (error_t (*)(void *key, void *sh_key, uint8_t size))
+	.build_key_by_dir_short_key = (errno_t (*)(void *key, void *sh_key, uint8_t size))
 		key40_build_key_by_dir_short_key,
 	
-	.build_key_by_file_short_key = (error_t (*)(void *key, void *sh_key, uint8_t size))
+	.build_key_by_file_short_key = (errno_t (*)(void *key, void *sh_key, uint8_t size))
 	    key40_build_key_by_file_short_key, 
 	
 	.size = (uint8_t (*)(void))key40_size

@@ -30,7 +30,7 @@ extern uint16_t reiserfs_format_get_height(reiserfs_format_t *format);
 
 #ifndef ENABLE_COMPACT
 
-extern error_t reiserfs_format_sync(reiserfs_format_t *format);
+extern errno_t reiserfs_format_sync(reiserfs_format_t *format);
 
 extern reiserfs_format_t *reiserfs_format_create(aal_device_t *device,
     count_t len, uint16_t tail_policy, reiserfs_id_t plugin_id);

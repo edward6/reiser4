@@ -22,7 +22,7 @@ extern reiserfs_alloc_t *reiserfs_alloc_open(aal_device_t *device,
 extern reiserfs_alloc_t *reiserfs_alloc_create(aal_device_t *device, 
     count_t len, reiserfs_id_t plugin_id);
 
-extern error_t reiserfs_alloc_sync(reiserfs_alloc_t *alloc);
+extern errno_t reiserfs_alloc_sync(reiserfs_alloc_t *alloc);
 
 extern void reiserfs_alloc_mark(reiserfs_alloc_t *alloc, blk_t blk);
 extern void reiserfs_alloc_dealloc(reiserfs_alloc_t *alloc, blk_t blk);

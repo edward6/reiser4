@@ -12,7 +12,7 @@
 
 #ifndef ENABLE_COMPACT
 
-static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_id_t 
+static errno_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_id_t 
     format_plugin_id, unsigned int blocksize, const char *uuid, const char *label) 
 {
     aal_assert("umka-142", fs != NULL, return -1);
@@ -37,7 +37,7 @@ static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_id_t
 
 #endif
 
-static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
+static errno_t reiserfs_master_open(reiserfs_fs_t *fs) {
     blk_t master_offset;
     aal_block_t *block;
     reiserfs_master_t *master;
@@ -100,7 +100,7 @@ error:
 
 #ifndef ENABLE_COMPACT
 
-static error_t reiserfs_master_sync(reiserfs_fs_t *fs) {
+static errno_t reiserfs_master_sync(reiserfs_fs_t *fs) {
     blk_t master_offset;	
     aal_block_t *block;
 	
@@ -114,8 +114,8 @@ static error_t reiserfs_master_sync(reiserfs_fs_t *fs) {
     aal_memcpy(block->data, fs->master, REISERFS_DEFAULT_BLOCKSIZE);
     if (aal_block_write(fs->host_device, block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't synchronize master super block at %llu.", 
-	    master_offset);
+	    "Can't synchronize master super block at %llu. %s.", 
+	    master_offset, aal_device_error(fs->host_device));
 	return -1;
     }
 
@@ -131,7 +131,7 @@ static void reiserfs_master_close(reiserfs_fs_t *fs) {
     aal_free(fs->master);
 }
 
-error_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs, 
+errno_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs, 
     reiserfs_key_t *key, reiserfs_id_t key_plugin_id) 
 {
     oid_t root_objectid;
@@ -369,7 +369,7 @@ error:
     return NULL;
 }
 
-error_t reiserfs_fs_sync(reiserfs_fs_t *fs) {
+errno_t reiserfs_fs_sync(reiserfs_fs_t *fs) {
     aal_assert("umka-231", fs != NULL, return -1);
    
     if (reiserfs_master_sync(fs))
@@ -393,7 +393,7 @@ error_t reiserfs_fs_sync(reiserfs_fs_t *fs) {
     return 0;
 }
 
-error_t reiserfs_fs_check(reiserfs_fs_t *fs) {
+errno_t reiserfs_fs_check(reiserfs_fs_t *fs) {
     return 0;
 }
 

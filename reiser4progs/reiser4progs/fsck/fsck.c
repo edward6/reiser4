@@ -12,6 +12,8 @@
 #include <string.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <errno.h>
+#include <string.h>
 
 #include <reiser4/reiser4.h>
 #include <reiser4progs/misc.h>
@@ -124,10 +126,12 @@ int main(int argc, char *argv[]) {
 	    "Device %s doesn't exists or invalid.", host_dev);
 	return 0xfe;
     }
-    
+
     if (!(device = aal_file_open(host_dev, REISERFS_DEFAULT_BLOCKSIZE, O_RDWR))) {
+	char *error = strerror(errno);
+	
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't open device %s.", host_dev);
+	    "Can't open device %s. %s.", host_dev, error);
 	goto error;
     }
     

@@ -100,7 +100,7 @@ void reiserfs_oid_dealloc(reiserfs_oid_t *oid, uint64_t id) {
 	dealloc, oid->entity, id);
 }
 
-error_t reiserfs_oid_sync(reiserfs_oid_t *oid) {
+errno_t reiserfs_oid_sync(reiserfs_oid_t *oid) {
     aal_assert("umka-735", oid != NULL, return -1);
     return libreiser4_plugin_call(return -1, oid->plugin->oid, 
 	sync, oid->entity);

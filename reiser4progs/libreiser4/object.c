@@ -15,7 +15,7 @@ static int reiserfs_object_find_entry(reiserfs_coord_t *coord, reiserfs_key_t *k
     return 0;
 }
 	
-static error_t reiserfs_object_lookup(reiserfs_object_t *object, const char *name, 
+static errno_t reiserfs_object_lookup(reiserfs_object_t *object, const char *name, 
     reiserfs_key_t *parent) 
 {
     reiserfs_plugin_t *key_plugin;

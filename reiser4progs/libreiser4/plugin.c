@@ -96,7 +96,7 @@ void libreiser4_plugin_unload(reiserfs_plugin_t *plugin) {
     aal_list_remove(plugins, plugin);
 }
 
-error_t libreiser4_factory_init(void) {
+errno_t libreiser4_factory_init(void) {
 #if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
     DIR *dir;
     struct dirent *ent;
@@ -172,8 +172,8 @@ reiserfs_plugin_t *libreiser4_factory_find(reiserfs_plugin_type_t type, reiserfs
 	(comp_func_t)callback_match_coord, NULL)) ? (reiserfs_plugin_t *)found->item : NULL;
 }
 
-error_t libreiser4_plugins_foreach(reiserfs_plugin_func_t plugin_func, void *data) {
-    error_t res = 0;
+errno_t libreiser4_plugins_foreach(reiserfs_plugin_func_t plugin_func, void *data) {
+    errno_t res = 0;
     aal_list_t *walk;
     
     aal_assert("umka-479", plugin_func != NULL, return -1);

@@ -15,7 +15,7 @@
 
 static reiserfs_plugin_factory_t *factory = NULL;
 
-static error_t format40_super_check(reiserfs_format40_super_t *super, 
+static errno_t format40_super_check(reiserfs_format40_super_t *super, 
     aal_device_t *device) 
 {
     blk_t offset;
@@ -52,7 +52,7 @@ static aal_block_t *format40_super_open(aal_device_t *device) {
 	
     if (!(block = aal_block_read(device, offset))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Can't read block %llu.", offset);
+	   "Can't read block %llu. %s.", offset, aal_device_error(device));
 	return NULL;
     }
     super = (reiserfs_format40_super_t *)block->data;
@@ -132,14 +132,15 @@ error:
 }
 
 /* This function should update all copies of the super block */
-static error_t format40_sync(reiserfs_format40_t *format) {
+static errno_t format40_sync(reiserfs_format40_t *format) {
     blk_t offset;
     aal_assert("umka-394", format != NULL, return -1); 
    
     if (aal_block_write(format->device, format->super)) {
 	offset = aal_block_get_nr(format->super);
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't write superblock to %llu.", offset);
+	    "Can't write superblock to %llu. %s.", offset, 
+	    aal_device_error(format->device));
 	return -1;
     }
     
@@ -148,7 +149,7 @@ static error_t format40_sync(reiserfs_format40_t *format) {
 
 #endif
 
-static error_t format40_check(reiserfs_format40_t *format) {
+static errno_t format40_check(reiserfs_format40_t *format) {
     aal_assert("umka-397", format != NULL, return -1);
     
     return format40_super_check((reiserfs_format40_super_t *)format->super->data, 
@@ -263,7 +264,7 @@ static reiserfs_plugin_t format40_plugin = {
 	.open = (reiserfs_opaque_t *(*)(aal_device_t *))format40_open,
 
 #ifndef ENABLE_COMPACT	
-	.sync = (error_t (*)(reiserfs_opaque_t *))format40_sync,
+	.sync = (errno_t (*)(reiserfs_opaque_t *))format40_sync,
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, uint16_t))format40_create,
 #else
 	.sync = NULL,
@@ -271,7 +272,7 @@ static reiserfs_plugin_t format40_plugin = {
 #endif
 	.oid = (void (*)(reiserfs_opaque_t *, void **, void **))format40_oid,
 	.close = (void (*)(reiserfs_opaque_t *))format40_close,
-	.check = (error_t (*)(reiserfs_opaque_t *))format40_check,
+	.check = (errno_t (*)(reiserfs_opaque_t *))format40_check,
 	.confirm = (int (*)(aal_device_t *))format40_confirm,
 	.format = (const char *(*)(reiserfs_opaque_t *))format40_format,
 	

@@ -77,7 +77,7 @@ error_free_format:
     return NULL;
 }
 
-error_t reiserfs_format_sync(reiserfs_format_t *format) {
+errno_t reiserfs_format_sync(reiserfs_format_t *format) {
     aal_assert("umka-107", format != NULL, return -1);
     
     return libreiser4_plugin_call(return -1, 

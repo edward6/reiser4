@@ -18,7 +18,7 @@ static reiserfs_plugin_factory_t *factory = NULL;
 #ifndef ENABLE_COMPACT
 
 /* Forms internal item in given memory area */
-static error_t internal40_create(reiserfs_internal40_t *internal, 
+static errno_t internal40_create(reiserfs_internal40_t *internal, 
     reiserfs_item_hint_t *hint) 
 {
     aal_assert("vpf-063", internal != NULL, return -1); 
@@ -29,7 +29,7 @@ static error_t internal40_create(reiserfs_internal40_t *internal,
     return 0;
 }
 
-static error_t internal40_estimate(reiserfs_item_hint_t *hint, 
+static errno_t internal40_estimate(reiserfs_item_hint_t *hint, 
     reiserfs_pos_t *pos) 
 {
     aal_assert("vpf-068", hint != NULL, return -1);
@@ -92,8 +92,8 @@ static reiserfs_plugin_t internal40_plugin = {
 	    .type = REISERFS_INTERNAL_ITEM,
 
 #ifndef ENABLE_COMPACT	    
-	    .create = (error_t (*)(void *, void *))internal40_create,
-	    .estimate = (error_t (*)(void *, void *))internal40_estimate,
+	    .create = (errno_t (*)(void *, void *))internal40_create,
+	    .estimate = (errno_t (*)(void *, void *))internal40_estimate,
 #else
 	    .create = NULL,
 	    .estimate = NULL,

@@ -19,7 +19,7 @@ static reiserfs_plugin_factory_t *factory = NULL;
 
 #ifndef ENABLE_COMPACT
 
-static error_t direntry40_create(reiserfs_direntry40_t *direntry, 
+static errno_t direntry40_create(reiserfs_direntry40_t *direntry, 
     reiserfs_item_hint_t *hint)
 {
     int i;
@@ -63,7 +63,7 @@ static error_t direntry40_create(reiserfs_direntry40_t *direntry,
     return 0;
 }
 
-static error_t direntry40_estimate(reiserfs_item_hint_t *hint, 
+static errno_t direntry40_estimate(reiserfs_item_hint_t *hint, 
     reiserfs_pos_t *pos) 
 {
     int i;
@@ -165,7 +165,7 @@ static int direntry40_internal(void) {
     return 0;
 }
 
-static error_t direntry40_max_key(reiserfs_key_t *key) {
+static errno_t direntry40_max_key(reiserfs_key_t *key) {
     aal_assert("umka-716", key->plugin != NULL, return -1);
     aal_assert("vpf-121", key->plugin->key.set_objectid != NULL, return -1);
     aal_assert("vpf-122", key->plugin->key.get_objectid != NULL, return -1);
@@ -194,8 +194,8 @@ static reiserfs_plugin_t direntry40_plugin = {
 	    .type = REISERFS_DIRENTRY_ITEM,
 
 #ifndef ENABLE_COMPACT	    
-	    .create = (error_t (*)(void *, void *))direntry40_create,
-	    .estimate = (error_t (*)(void *, void *))direntry40_estimate,
+	    .create = (errno_t (*)(void *, void *))direntry40_create,
+	    .estimate = (errno_t (*)(void *, void *))direntry40_estimate,
 #else
 	    .create = NULL,
 	    .estimate = NULL,
@@ -204,7 +204,7 @@ static reiserfs_plugin_t direntry40_plugin = {
 	    .print = (void (*)(void *, char *, uint16_t))direntry40_print,
 	    .lookup = (int (*) (void *, void *, void *))direntry40_lookup,
 	    .internal = (int (*)(void))direntry40_internal,
-	    .max_key = (error_t (*)(void *))direntry40_max_key,
+	    .max_key = (errno_t (*)(void *))direntry40_max_key,
 	    
 	    .confirm = NULL,
 	    .check = NULL,

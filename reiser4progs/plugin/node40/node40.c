@@ -37,7 +37,7 @@ static void *node40_item_at(aal_block_t *block, uint32_t pos) {
     high maintainability and clear of sources we dissable
     this ability for awhile.
 */
-static error_t node40_item_remove(aal_block_t *block, 
+static errno_t node40_item_remove(aal_block_t *block, 
     uint32_t pos) 
 {
     aal_assert("vpf-025", block != NULL, return -1);
@@ -119,7 +119,7 @@ static void node40_item_set_plugin_id(aal_block_t *block,
     ih40_set_plugin_id(node40_ih_at(block, pos), plugin_id);
 }
 
-static error_t node40_prepare_space(aal_block_t *block, 
+static errno_t node40_prepare_space(aal_block_t *block, 
     reiserfs_pos_t *pos, reiserfs_key_t *key, reiserfs_item_hint_t *hint) 
 {
     void *body;
@@ -202,7 +202,7 @@ static error_t node40_prepare_space(aal_block_t *block,
 }
 
 /* Inserts item described by hint structure into node. */
-static error_t node40_item_insert(aal_block_t *block, 
+static errno_t node40_item_insert(aal_block_t *block, 
     reiserfs_pos_t *pos, reiserfs_key_t *key, 
     reiserfs_item_hint_t *hint) 
 { 
@@ -221,7 +221,7 @@ static error_t node40_item_insert(aal_block_t *block,
 }
 
 /* Pastes units into item described by hint structure. */
-static error_t node40_item_paste(aal_block_t *block, 
+static errno_t node40_item_paste(aal_block_t *block, 
     reiserfs_pos_t *pos, reiserfs_key_t *key, reiserfs_item_hint_t *hint) 
 {   
     aal_assert("vpf-120", pos != NULL && pos->unit != -1, return -1);
@@ -238,7 +238,7 @@ static error_t node40_item_paste(aal_block_t *block,
     it zeros. This done because passed block may contains
     one old node.
 */
-static error_t node40_create(aal_block_t *block, uint8_t level) {
+static errno_t node40_create(aal_block_t *block, uint8_t level) {
     aal_assert("vpf-012", block != NULL, return -1);
     
     aal_memset(block->data, 0, block->size);
@@ -262,7 +262,7 @@ static error_t node40_create(aal_block_t *block, uint8_t level) {
     Confirms that passed corresponds current plugin.
     This is something like "probe" method.
 */
-static error_t node40_confirm(aal_block_t *block) {
+static errno_t node40_confirm(aal_block_t *block) {
     aal_assert("vpf-014", block != NULL, return -1);
     return -(nh40_get_magic(reiserfs_nh40(block)) != REISERFS_NODE40_MAGIC);
 }
@@ -271,7 +271,7 @@ static error_t node40_confirm(aal_block_t *block) {
     Makes more smart check for node validness. Will be
     used by fsck program.
 */
-static error_t node40_check(aal_block_t *block, int flags) {
+static errno_t node40_check(aal_block_t *block, int flags) {
     aal_assert("vpf-015", block != NULL, return -1);
     
     if (node40_confirm(block))
@@ -377,8 +377,8 @@ static reiserfs_plugin_t node40_plugin = {
 	},
 	.open = NULL, 
 	.close = NULL,
-	.confirm = (error_t (*)(aal_block_t *))node40_confirm,
-	.check = (error_t (*)(aal_block_t *, int))node40_check,
+	.confirm = (errno_t (*)(aal_block_t *))node40_confirm,
+	.check = (errno_t (*)(aal_block_t *, int))node40_check,
 	
 	.lookup = (int (*)(aal_block_t *, void *, void *))
 	    node40_lookup,
@@ -393,17 +393,17 @@ static reiserfs_plugin_t node40_plugin = {
 	    node40_get_free_space,
 	
 #ifndef ENABLE_COMPACT
-	.create = (error_t (*)(aal_block_t *, uint8_t))node40_create,
+	.create = (errno_t (*)(aal_block_t *, uint8_t))node40_create,
 	.set_level = (void (*)(aal_block_t *, uint8_t))
 	    node40_set_level,
 	
 	.set_free_space = (void (*)(aal_block_t *, uint32_t))
 	    node40_set_free_space,
 
-	.item_insert = (error_t (*)(aal_block_t *, void *, void *, void *))
+	.item_insert = (errno_t (*)(aal_block_t *, void *, void *, void *))
 	    node40_item_insert,
 	
-	.item_paste = (error_t (*)(aal_block_t *, void *, void *, void *))
+	.item_paste = (errno_t (*)(aal_block_t *, void *, void *, void *))
 	    node40_item_insert,
 	
 	.item_set_plugin_id = (void (*)(aal_block_t *, int32_t, uint16_t))

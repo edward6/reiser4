@@ -44,7 +44,7 @@ extern blk_t reiserfs_bitmap_calc_used_in_area(reiserfs_bitmap_t *bitmap,
 extern blk_t reiserfs_bitmap_calc_unused_in_area(reiserfs_bitmap_t *bitmap, 
     blk_t start, blk_t end);
 
-extern error_t reiserfs_bitmap_check(reiserfs_bitmap_t *bitmap);
+extern errno_t reiserfs_bitmap_check(reiserfs_bitmap_t *bitmap);
 
 extern reiserfs_bitmap_t *reiserfs_bitmap_alloc(count_t len);
 
@@ -54,20 +54,20 @@ extern reiserfs_bitmap_t *reiserfs_bitmap_open(aal_device_t *device,
 extern reiserfs_bitmap_t *reiserfs_bitmap_create(aal_device_t *device, 
     blk_t start, count_t len);
 
-extern error_t reiserfs_bitmap_resize(reiserfs_bitmap_t *bitmap, 
+extern errno_t reiserfs_bitmap_resize(reiserfs_bitmap_t *bitmap, 
     long start, long end);
 
 extern blk_t reiserfs_bitmap_copy(reiserfs_bitmap_t *dest_bitmap, 
     reiserfs_bitmap_t *src_bitmap, count_t len);
 
 extern reiserfs_bitmap_t *reiserfs_bitmap_clone(reiserfs_bitmap_t *bitmap);
-extern error_t reiserfs_bitmap_sync(reiserfs_bitmap_t *bitmap);
+extern errno_t reiserfs_bitmap_sync(reiserfs_bitmap_t *bitmap);
 extern void reiserfs_bitmap_close(reiserfs_bitmap_t *bitmap);
 
 extern reiserfs_bitmap_t *reiserfs_bitmap_reopen(reiserfs_bitmap_t *bitmap, 
     aal_device_t *device);
 
-extern error_t reiserfs_bitmap_pipe(reiserfs_bitmap_t *bitmap, 
+extern errno_t reiserfs_bitmap_pipe(reiserfs_bitmap_t *bitmap, 
     reiserfs_bitmap_pipe_func_t *pipe_func, void *data);
 
 extern char *reiserfs_bitmap_map(reiserfs_bitmap_t *bitmap);

@@ -75,7 +75,7 @@ error:
     return NULL;
 }
 
-static error_t alloc40_sync(reiserfs_alloc40_t *alloc) {
+static errno_t alloc40_sync(reiserfs_alloc40_t *alloc) {
 
     aal_assert("umka-366", alloc != NULL, return -1);
     aal_assert("umka-367", alloc->bitmap != NULL, return -1);
@@ -169,7 +169,7 @@ static reiserfs_plugin_t alloc40_plugin = {
 
 #ifndef ENABLE_COMPACT
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))alloc40_create,
-	.sync = (error_t (*)(reiserfs_opaque_t *))alloc40_sync,
+	.sync = (errno_t (*)(reiserfs_opaque_t *))alloc40_sync,
 	.mark = (void (*)(reiserfs_opaque_t *, blk_t))alloc40_mark,
 	.alloc = (blk_t (*)(reiserfs_opaque_t *))alloc40_alloc,
 	.dealloc = (void (*)(reiserfs_opaque_t *, blk_t))alloc40_dealloc,

@@ -41,7 +41,7 @@ static int format36_signature(reiserfs_format36_super_t *super) {
     return 0;
 }
 
-static error_t format36_super_check(reiserfs_format36_super_t *super, 
+static errno_t format36_super_check(reiserfs_format36_super_t *super, 
     aal_device_t *device) 
 {
     blk_t dev_len;
@@ -96,6 +96,10 @@ static aal_block_t *format36_super_open(aal_device_t *device) {
 		
 	    }
 	    aal_block_free(block);
+	} else {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't read block %d. %s.", super_offset[i], 
+		aal_device_error(device));
 	}
     }
     return NULL;
@@ -124,14 +128,14 @@ error:
 
 #ifndef ENABLE_COMPACT
 
-static error_t format36_sync(reiserfs_format36_t *format) {
+static errno_t format36_sync(reiserfs_format36_t *format) {
     aal_assert("umka-381", format != NULL, return -1);    
     aal_assert("umka-382", format->super != NULL, return -1);    
 
     if (aal_block_write(format->device, format->super)) {
     	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
-	    "Can't write superblock to block %llu.", 
-	    aal_block_get_nr(format->super));
+	    "Can't write superblock to block %llu. %s.", 
+	    aal_block_get_nr(format->super), aal_device_error(format->device));
 	return -1;
     }
     return 0;
@@ -145,7 +149,7 @@ static reiserfs_format36_t *format36_create(aal_device_t *device,
 
 #endif
 
-static error_t format36_check(reiserfs_format36_t *format) {
+static errno_t format36_check(reiserfs_format36_t *format) {
     
     aal_assert("umka-383", format != NULL, return -1);
     
@@ -246,7 +250,7 @@ static reiserfs_plugin_t format36_plugin = {
 	    format36_open,
 
 #ifndef ENABLE_COMPACT
-	.sync = (error_t (*)(reiserfs_opaque_t *))format36_sync,
+	.sync = (errno_t (*)(reiserfs_opaque_t *))format36_sync,
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, uint16_t))
 	    format36_create,
 #else
@@ -254,7 +258,7 @@ static reiserfs_plugin_t format36_plugin = {
 	.create = NULL,
 #endif
 	.close = (void (*)(reiserfs_opaque_t *))format36_close,
-	.check = (error_t (*)(reiserfs_opaque_t *))format36_check,
+	.check = (errno_t (*)(reiserfs_opaque_t *))format36_check,
 	.confirm = (int (*)(aal_device_t *))format36_confirm,
 	.format = (const char *(*)(reiserfs_opaque_t *))format36_format,
 

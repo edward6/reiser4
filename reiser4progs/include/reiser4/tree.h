@@ -27,19 +27,19 @@ extern reiserfs_tree_t *reiserfs_tree_create(aal_device_t *device,
     reiserfs_alloc_t *alloc, reiserfs_key_t *root_key, 
     reiserfs_profile_t *profile);
 
-extern error_t reiserfs_tree_sync(reiserfs_tree_t *tree);
-extern error_t reiserfs_tree_flush(reiserfs_tree_t *tree);
+extern errno_t reiserfs_tree_sync(reiserfs_tree_t *tree);
+extern errno_t reiserfs_tree_flush(reiserfs_tree_t *tree);
 
-extern error_t reiserfs_tree_item_insert(reiserfs_tree_t *tree, 
+extern errno_t reiserfs_tree_item_insert(reiserfs_tree_t *tree, 
     reiserfs_key_t *key, reiserfs_item_hint_t *hint);
 
-extern error_t reiserfs_tree_item_remove(reiserfs_tree_t *tree, 
+extern errno_t reiserfs_tree_item_remove(reiserfs_tree_t *tree, 
     reiserfs_key_t *key);
 
-extern error_t reiserfs_tree_node_insert(reiserfs_tree_t *tree, 
+extern errno_t reiserfs_tree_node_insert(reiserfs_tree_t *tree, 
     reiserfs_node_t *node);
 
-extern error_t reiserfs_tree_node_remove(reiserfs_tree_t *tree, 
+extern errno_t reiserfs_tree_node_remove(reiserfs_tree_t *tree, 
     reiserfs_key_t *key);
 
 #endif

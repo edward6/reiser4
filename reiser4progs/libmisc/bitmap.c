@@ -132,7 +132,7 @@ blk_t reiserfs_bitmap_unused(reiserfs_bitmap_t *bitmap) {
     return bitmap->total_blocks - bitmap->used_blocks;
 }
 
-error_t reiserfs_bitmap_check(reiserfs_bitmap_t *bitmap) {
+errno_t reiserfs_bitmap_check(reiserfs_bitmap_t *bitmap) {
     aal_assert("umka-346", bitmap != NULL, return 0);
 	
     if (reiserfs_bitmap_calc_used(bitmap) != bitmap->used_blocks)
@@ -164,7 +164,7 @@ error:
     return NULL;
 }
 
-static error_t callback_bitmap_flush(aal_device_t *device, 
+static errno_t callback_bitmap_flush(aal_device_t *device, 
     blk_t blk, char *map, uint32_t chunk, void *data) 
 {
     aal_block_t *block;
@@ -176,7 +176,8 @@ static error_t callback_bitmap_flush(aal_device_t *device,
 		
     if (aal_block_write(device, block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't write bitmap block to %llu.", blk);
+	    "Can't write bitmap block to %llu. %s.", blk, 
+	    aal_device_error(device));
 	goto error_free_block;
     }
     aal_block_free(block);
@@ -189,14 +190,14 @@ error:
     return -1;
 }
 
-static error_t callback_bitmap_fetch(aal_device_t *device, 
+static errno_t callback_bitmap_fetch(aal_device_t *device, 
     blk_t blk, char *map, uint32_t chunk, void *data) 
 {
     aal_block_t *block;
 	
     if (!(block = aal_block_read(device, blk))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't read bitmap block %llu.", blk);
+	    "Can't read bitmap block %llu. %s.", blk, aal_device_error(device));
 	return -1;
     }	
     aal_memcpy(map, block->data, chunk);
@@ -205,7 +206,7 @@ static error_t callback_bitmap_fetch(aal_device_t *device,
     return 0;
 }
 
-error_t reiserfs_bitmap_pipe(reiserfs_bitmap_t *bitmap, 
+errno_t reiserfs_bitmap_pipe(reiserfs_bitmap_t *bitmap, 
     reiserfs_bitmap_pipe_func_t *pipe_func, void *data) 
 {
     char *map;
@@ -331,7 +332,7 @@ static uint32_t reiserfs_bitmap_resize_map(reiserfs_bitmap_t *bitmap,
     return size;
 }
 
-error_t reiserfs_bitmap_resize(reiserfs_bitmap_t *bitmap, 
+errno_t reiserfs_bitmap_resize(reiserfs_bitmap_t *bitmap, 
     long start, long end) 
 {
     int size;
@@ -395,7 +396,7 @@ reiserfs_bitmap_t *reiserfs_bitmap_clone(reiserfs_bitmap_t *bitmap) {
     return clone;
 }
 
-error_t reiserfs_bitmap_sync(reiserfs_bitmap_t *bitmap) {
+errno_t reiserfs_bitmap_sync(reiserfs_bitmap_t *bitmap) {
 
     if (reiserfs_bitmap_pipe(bitmap, callback_bitmap_flush, NULL))
 	return -1;

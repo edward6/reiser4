@@ -47,7 +47,7 @@ static reiserfs_opaque_t *oid40_create(void *area_start, void *area_end) {
     return oid;
 }
 
-static error_t oid40_sync(reiserfs_oid40_t *oid) {
+static errno_t oid40_sync(reiserfs_oid40_t *oid) {
     return 0;
 }
 
@@ -114,7 +114,7 @@ static reiserfs_plugin_t oid40_plugin = {
 	.create = (reiserfs_opaque_t *(*)(void *, void *))oid40_create,
 	.alloc = (oid_t (*)(reiserfs_opaque_t *))oid40_alloc,
 	.dealloc = (void (*)(reiserfs_opaque_t *, oid_t))oid40_dealloc,
-	.sync = (error_t (*)(reiserfs_opaque_t *))oid40_sync,
+	.sync = (errno_t (*)(reiserfs_opaque_t *))oid40_sync,
 #else
 	.create = NULL,
 	.alloc = NULL,

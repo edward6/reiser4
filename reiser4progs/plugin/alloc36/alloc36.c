@@ -55,7 +55,7 @@ error:
     return NULL;
 }
 
-static error_t alloc36_sync(reiserfs_alloc36_t *alloc) {
+static errno_t alloc36_sync(reiserfs_alloc36_t *alloc) {
     aal_assert("umka-415", alloc != NULL, return -1);
     
     return -1;
@@ -81,7 +81,7 @@ static reiserfs_plugin_t alloc36_plugin = {
 
 #ifndef ENABLE_COMPACT
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))alloc36_create,
-	.sync = (error_t (*)(reiserfs_opaque_t *))alloc36_sync,
+	.sync = (errno_t (*)(reiserfs_opaque_t *))alloc36_sync,
 #else
 	.create = NULL,
 	.sync = NULL,

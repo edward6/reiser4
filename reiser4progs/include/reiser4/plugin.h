@@ -112,14 +112,14 @@ struct reiserfs_key_ops {
     /* Get size of the key */
     uint8_t (*size) (void);
 
-    error_t (*build_file_key) (void *, uint32_t, uint64_t, uint64_t, uint64_t);
-    error_t (*build_dir_key) (void *, void *, uint64_t, uint64_t, const char *);
+    errno_t (*build_file_key) (void *, uint32_t, uint64_t, uint64_t, uint64_t);
+    errno_t (*build_dir_key) (void *, void *, uint64_t, uint64_t, const char *);
     
-    error_t (*build_file_short_key) (void *, uint32_t, uint64_t, uint64_t, uint8_t);
-    error_t (*build_dir_short_key) (void *, const char *, void *, uint8_t);
+    errno_t (*build_file_short_key) (void *, uint32_t, uint64_t, uint64_t, uint8_t);
+    errno_t (*build_dir_short_key) (void *, const char *, void *, uint8_t);
     
-    error_t (*build_key_by_file_short_key) (void *, void *, uint8_t);
-    error_t (*build_key_by_dir_short_key) (void *, void *, uint8_t); 
+    errno_t (*build_key_by_file_short_key) (void *, void *, uint8_t);
+    errno_t (*build_key_by_dir_short_key) (void *, void *, uint8_t); 
 };
 
 typedef struct reiserfs_key_ops reiserfs_key_ops_t;
@@ -145,24 +145,24 @@ typedef struct reiserfs_dir_ops reiserfs_dir_ops_t;
 struct reiserfs_item_common_ops {
     reiserfs_item_type_t type;
 
-    error_t (*create) (void *, void *);
+    errno_t (*create) (void *, void *);
     int (*lookup) (void *, void *, void *);
 
-    error_t (*confirm) (void *);
-    error_t (*check) (void *);
+    errno_t (*confirm) (void *);
+    errno_t (*check) (void *);
     void (*print) (void *, char *, uint16_t);
 
     /* 
 	Get the max key which could be stored in the item of 
 	this type.
     */
-    error_t (*max_key) (void *);
+    errno_t (*max_key) (void *);
     
     int (*unit_add) (void *, void *, void *);
     uint16_t (*unit_count) (void *);
     int (*unit_remove) (void *, int32_t, int32_t);
     
-    error_t (*estimate) (void *, void *);
+    errno_t (*estimate) (void *, void *);
     uint32_t (*minsize) (void);
     
     int (*internal) (void);
@@ -219,23 +219,23 @@ struct reiserfs_node_ops {
 	Forms empty node incorresponding to given level in 
 	specified block.
     */
-    error_t (*create) (aal_block_t *, uint8_t);
+    errno_t (*create) (aal_block_t *, uint8_t);
 
     /* 
 	Perform some needed operations to the futher fast work 
 	with the node. Useful for compressed nodes, etc.
      */
-    error_t (*open) (reiserfs_opaque_t *);
-    error_t (*close) (reiserfs_opaque_t *);
+    errno_t (*open) (reiserfs_opaque_t *);
+    errno_t (*close) (reiserfs_opaque_t *);
     
     /*
 	Confirms that given block contains valid node of
 	requested format.
     */
-    error_t (*confirm) (aal_block_t *);
+    errno_t (*confirm) (aal_block_t *);
 
     /* Make more smart node's check and return result */
-    error_t (*check) (aal_block_t *, int);
+    errno_t (*check) (aal_block_t *, int);
     
     /* Makes lookup inside node by specified key */
     int (*lookup) (aal_block_t *, void *, void *);
@@ -255,8 +255,8 @@ struct reiserfs_node_ops {
     void (*print) (aal_block_t *, char *, uint16_t);
     
     /* Inserts item/past units into specified node/item */
-    error_t (*item_insert) (aal_block_t *, void *, void *, void *);
-    error_t (*item_paste) (aal_block_t *, void *, void *, void *);
+    errno_t (*item_insert) (aal_block_t *, void *, void *, void *);
+    errno_t (*item_paste) (aal_block_t *, void *, void *, void *);
     
     /* Returns item's overhead */
     uint16_t (*item_overhead) (aal_block_t *);
@@ -332,7 +332,7 @@ struct reiserfs_format_ops {
 	Called during filesystem syncing. It calls method sync
 	for every "child" plugin (block allocator, journal, etc).
     */
-    error_t (*sync) (reiserfs_opaque_t *);
+    errno_t (*sync) (reiserfs_opaque_t *);
 
     /*
 	Checks format-specific super block for validness. Also checks
@@ -340,7 +340,7 @@ struct reiserfs_format_ops {
 	format-specific supetr block for format40 must lie in 17-th
 	4096 byte block.
     */
-    error_t (*check) (reiserfs_opaque_t *);
+    errno_t (*check) (reiserfs_opaque_t *);
 
     /*
 	Probes whether filesystem on given device has this format.
@@ -398,7 +398,7 @@ struct reiserfs_oid_ops {
     reiserfs_opaque_t *(*open) (void *, void *);
     reiserfs_opaque_t *(*create) (void *, void *);
 
-    error_t (*sync) (reiserfs_opaque_t *);
+    errno_t (*sync) (reiserfs_opaque_t *);
 
     void (*close) (reiserfs_opaque_t *);
     
@@ -421,7 +421,7 @@ struct reiserfs_alloc_ops {
     reiserfs_opaque_t *(*open) (aal_device_t *, count_t);
     reiserfs_opaque_t *(*create) (aal_device_t *, count_t);
     void (*close) (reiserfs_opaque_t *);
-    error_t (*sync) (reiserfs_opaque_t *);
+    errno_t (*sync) (reiserfs_opaque_t *);
 
     void (*mark) (reiserfs_opaque_t *, blk_t);
     int (*test) (reiserfs_opaque_t *, blk_t);
@@ -446,8 +446,8 @@ struct reiserfs_journal_ops {
     void (*area) (reiserfs_opaque_t *, blk_t *start, blk_t *end);
     
     void (*close) (reiserfs_opaque_t *);
-    error_t (*sync) (reiserfs_opaque_t *);
-    error_t (*replay) (reiserfs_opaque_t *);
+    errno_t (*sync) (reiserfs_opaque_t *);
+    errno_t (*replay) (reiserfs_opaque_t *);
 };
 
 typedef struct reiserfs_journal_ops reiserfs_journal_ops_t;
@@ -588,7 +588,7 @@ struct reiserfs_plugin_factory {
 typedef struct reiserfs_plugin_factory reiserfs_plugin_factory_t;
 
 typedef reiserfs_plugin_t *(*reiserfs_plugin_entry_t) (reiserfs_plugin_factory_t *);
-typedef error_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
+typedef errno_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
 
 /* Plugin functions and macros */
 #ifndef ENABLE_COMPACT
@@ -624,7 +624,7 @@ extern reiserfs_plugin_t *libreiser4_plugin_load_by_entry(reiserfs_plugin_entry_
 extern void libreiser4_plugin_unload(reiserfs_plugin_t *plugin);
 
 /* Factory functions */
-extern error_t libreiser4_factory_init(void);
+extern errno_t libreiser4_factory_init(void);
 extern void libreiser4_factory_done(void);
 
 #if defined(ENABLE_COMPACT) || defined(ENABLE_MONOLITHIC)
@@ -649,7 +649,7 @@ extern void libreiser4_factory_done(void);
 extern reiserfs_plugin_t *libreiser4_factory_find(reiserfs_plugin_type_t type,
     reiserfs_id_t id);
 
-extern error_t libreiser4_factory_foreach(reiserfs_plugin_func_t plugin_func, 
+extern errno_t libreiser4_factory_foreach(reiserfs_plugin_func_t plugin_func, 
     void *data);
 
 #endif
