@@ -489,11 +489,11 @@ print_unix_sd(const char *prefix, char **area /* position in stat-data */ ,
 
 	sd = (reiser4_unix_stat *) * area;
 	printk("%s: uid: %i, gid: %i, atime: %i, mtime: %i, ctime: %i, "
-	       "rdev: %o, bytes: %llu\n", prefix,
+	       "rdev: %llo, bytes: %llu\n", prefix,
 	       d32tocpu(&sd->uid),
 	       d32tocpu(&sd->gid),
 	       d32tocpu(&sd->atime),
-	       d32tocpu(&sd->mtime), d32tocpu(&sd->ctime), d32tocpu(&sd->rdev), d64tocpu(&sd->bytes));
+	       d32tocpu(&sd->mtime), d32tocpu(&sd->ctime), d64tocpu(&sd->u.rdev), d64tocpu(&sd->u.bytes));
 	next_stat(len, area, sizeof *sd);
 }
 #endif
