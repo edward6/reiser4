@@ -154,8 +154,8 @@ check_coord(const coord_t *coord, const reiser4_key *key)
 static void
 init_uf_coord(uf_coord_t *uf_coord, lock_handle *lh)
 {
-	coord_init_zero(&uf_coord->base_coord);
-        coord_clear_iplug(&uf_coord->base_coord);
+	coord_init_zero(&uf_coord->coord);
+        coord_clear_iplug(&uf_coord->coord);
 	uf_coord->lh = lh;
 	init_lh(lh);
 	memset(&uf_coord->extension, 0, sizeof(uf_coord->extension));
@@ -166,11 +166,10 @@ static inline void
 validate_extended_coord(uf_coord_t *uf_coord, loff_t offset)
 {
 	assert("vs-1333", uf_coord->valid == 0);
-	assert("vs-1348", item_plugin_by_coord(&uf_coord->base_coord)->s.file.init_coord_extension);
+	assert("vs-1348", item_plugin_by_coord(&uf_coord->coord)->s.file.init_coord_extension);
 
-	/* FIXME: */
-	item_body_by_coord(&uf_coord->base_coord);
-	item_plugin_by_coord(&uf_coord->base_coord)->s.file.init_coord_extension(uf_coord, offset);
+	item_body_by_coord(&uf_coord->coord);
+	item_plugin_by_coord(&uf_coord->coord)->s.file.init_coord_extension(uf_coord, offset);
 }
 
 reiser4_internal write_mode_t
@@ -180,7 +179,7 @@ how_to_write(uf_coord_t *uf_coord, const reiser4_key *key)
 	coord_t *coord;
 	ON_DEBUG(reiser4_key check);
 
-	coord = &uf_coord->base_coord;
+	coord = &uf_coord->coord;
 
 	assert("vs-1252", znode_is_wlocked(coord->node));
 	assert("vs-1253", znode_is_loaded(coord->node));
@@ -332,8 +331,8 @@ find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 	assert("nikita-3030", schedulable());
 	assert("vs-1707", hint != NULL);
 
-	coord = &hint->coord.base_coord;
-	lh = hint->coord.lh;
+	coord = &hint->ext_coord.coord;
+	lh = hint->ext_coord.lh;
 	init_lh(lh);
 
 	result = hint_validate(hint, key, 1/*check key*/, lock_mode);
@@ -347,7 +346,7 @@ find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 			assert("vs-1152", equal_to_ldk(coord->node, key));
 			/* we moved to different node. Invalidate coord extension, zload is necessary to init it
 			   again */
-			hint->coord.valid = 0;
+			hint->ext_coord.valid = 0;
 		}
 		
 		set_file_state(inode, CBK_COORD_FOUND, znode_get_level(coord->node));
@@ -383,7 +382,7 @@ find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 	set_file_state(inode, result, znode_get_level(coord->node));
 
 	/* FIXME: we might already have coord extension initialized */
-	hint->coord.valid = 0;
+	hint->ext_coord.valid = 0;
 	return result;
 }
 
@@ -738,7 +737,9 @@ load_file_hint(struct file *file, hint_t *hint)
 			*hint = fsdata->reg.hint;
 			/* force re-validation of the coord on the first
 			 * iteration of the read/write loop. */
-			hint->coord.valid = 0;
+			hint->ext_coord.valid = 0;
+			assert("nikita-19892", coords_equal(&hint->seal.coord1,
+							    &hint->ext_coord.coord));
 			return 0;
 		}
 		memset(&fsdata->reg.hint, 0, sizeof(hint_t));
@@ -746,7 +747,6 @@ load_file_hint(struct file *file, hint_t *hint)
 	hint_init_zero(hint);
 	return 0;
 }
-
 
 /* this copies hint for future tree accesses back to reiser4 private part of
    struct file */
@@ -760,6 +760,8 @@ save_file_hint(struct file *file, const hint_t *hint)
 
 	fsdata = reiser4_get_file_fsdata(file);
 	assert("vs-965", !IS_ERR(fsdata));
+	assert("nikita-19891", 
+	       coords_equal(&hint->seal.coord1, &hint->ext_coord.coord));
 	fsdata->reg.hint = *hint;
 	return;
 }
@@ -768,6 +770,7 @@ reiser4_internal void
 unset_hint(hint_t *hint)
 {
 	assert("vs-1315", hint);
+	hint->ext_coord.valid = 0;
 	seal_done(&hint->seal);
 }
 
@@ -775,12 +778,11 @@ unset_hint(hint_t *hint)
 reiser4_internal void
 set_hint(hint_t *hint, const reiser4_key *key, znode_lock_mode mode)
 {
-	ON_DEBUG(coord_t *coord = &hint->coord.base_coord);
+	ON_DEBUG(coord_t *coord = &hint->ext_coord.coord);
 	assert("vs-1207", WITH_DATA(coord->node, check_coord(coord, key)));
 
-	seal_init(&hint->seal, &hint->coord.base_coord, key);
+	seal_init(&hint->seal, &hint->ext_coord.coord, key);
 	hint->offset = get_key_offset(key);
-	hint->level = znode_get_level(hint->coord.base_coord.node);
 	hint->mode = mode;
 }
 
@@ -814,9 +816,8 @@ hint_validate(hint_t *hint, const reiser4_key *key, int check_key, znode_lock_mo
 		/* hint is set for different key */
 		return RETERR(-E_REPEAT);
 
-	return seal_validate(&hint->seal, &hint->coord.base_coord, key,
-			     hint->level, hint->coord.lh,
-			     FIND_MAX_NOT_MORE_THAN,
+	return seal_validate(&hint->seal, &hint->ext_coord.coord, key,
+			     hint->ext_coord.lh,
 			     lock_mode, ZNODE_LOCK_LOPRI);
 }
 
@@ -841,7 +842,7 @@ find_or_create_extent(struct page *page)
 	key_by_inode_unix_file(inode, (loff_t) page->index << PAGE_CACHE_SHIFT, &key);
 
 	init_uf_coord(&uf_coord, &lh);
-	coord = &uf_coord.base_coord;
+	coord = &uf_coord.coord;
 
 	result = find_file_item_nohint(coord, &lh, &key, ZNODE_WRITE_LOCK, inode);
 	if (IS_CBKERR(result)) {
@@ -1489,7 +1490,7 @@ readpage_unix_file(void *vp, struct page *page)
 	if (result)
 		return result;
 	init_lh(&lh);
- 	hint.coord.lh = &lh;
+ 	hint.ext_coord.lh = &lh;
 
 	/* get key of first byte of the page */
 	key_by_inode_unix_file(inode, (loff_t) page->index << PAGE_CACHE_SHIFT, &key);
@@ -1510,15 +1511,15 @@ readpage_unix_file(void *vp, struct page *page)
 		return 0;
 	}
 
-	coord = &hint.coord.base_coord;
+	coord = &hint.ext_coord.coord;
 	result = zload(coord->node);
 	if (result) {
 		done_lh(&lh);
 		return result;
 	}
 	
-	if (hint.coord.valid == 0)
-		validate_extended_coord(&hint.coord, (loff_t) page->index << PAGE_CACHE_SHIFT);
+	if (hint.ext_coord.valid == 0)
+		validate_extended_coord(&hint.ext_coord, (loff_t) page->index << PAGE_CACHE_SHIFT);
 
 	if (!coord_is_existing_unit(coord)) {
 		/* this indicates corruption */
@@ -1641,6 +1642,7 @@ read_file(hint_t *hint, file_container_t container,
 	flow_t flow;
 	int (*read_f) (struct file *, flow_t *, hint_t *);
 	coord_t *coord;
+	znode *loaded;
 
 	inode = file->f_dentry->d_inode;
 
@@ -1683,7 +1685,7 @@ read_file(hint_t *hint, file_container_t container,
 	   of this file finished, and the seal will help to determine
 	   if that location is still valid.
 	*/
-	coord = &hint->coord.base_coord;
+	coord = &hint->ext_coord.coord;
 	while (flow.length && result == 0) {
 		result = find_file_item(hint, &flow.key, ZNODE_READ_LOCK, NULL, inode);
 		if (cbk_errored(result))
@@ -1694,19 +1696,20 @@ read_file(hint_t *hint, file_container_t container,
 			/* there were no items corresponding to given offset */
 			break;
 
-		result = zload(coord->node);
+		loaded = coord->node;
+		result = zload(loaded);
 		if (unlikely(result))
 			break;
 
-		if (hint->coord.valid == 0)
-			validate_extended_coord(&hint->coord, get_key_offset(&flow.key));
+		if (hint->ext_coord.valid == 0)
+			validate_extended_coord(&hint->ext_coord, get_key_offset(&flow.key));
 			
 		/* call item's read method */
 		if (!read_f)
 			read_f = item_plugin_by_coord(coord)->s.file.read;
 		result = read_f(file, &flow, hint);
-		zrelse(coord->node);
-		done_lh(hint->coord.lh);
+		zrelse(loaded);
+		done_lh(hint->ext_coord.lh);
 	}
 
 	return (count - flow.length) ? (count - flow.length) : result;
@@ -1754,7 +1757,7 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 	if (result)
 		return result;
 	init_lh(&lh);
-	hint.coord.lh = &lh;
+	hint.ext_coord.lh = &lh;
 
 	left = read_amount;
 	count = 0;
@@ -1856,7 +1859,7 @@ append_and_or_overwrite(hint_t *hint, struct file *file, struct inode *inode, fl
 	assert("vs-1708", hint != NULL);
 
 	init_lh(&lh);
-	hint->coord.lh = &lh;
+	hint->ext_coord.lh = &lh;
 
 	result = 0;
 	uf_info = unix_file_inode_data(inode);
@@ -1873,6 +1876,11 @@ append_and_or_overwrite(hint_t *hint, struct file *file, struct inode *inode, fl
 			if (result)
 				return result;
 		}
+		/* when hint is set - hint's coord matches seal's coord */
+		assert("nikita-19894",
+		       !hint_is_set(hint) ||
+		       coords_equal(&hint->seal.coord1, &hint->ext_coord.coord));
+
 		/* look for file's metadata (extent or tail item) corresponding to position we write to */
 		result = find_file_item(hint, &flow->key, ZNODE_WRITE_LOCK, NULL/* ra_info */, inode);
 		all_grabbed2free();
@@ -1940,9 +1948,15 @@ append_and_or_overwrite(hint_t *hint, struct file *file, struct inode *inode, fl
 				 flow,
 				 hint,
 				 0/* not grabbed */,
-				 how_to_write(&hint->coord, &flow->key));
+				 how_to_write(&hint->ext_coord, &flow->key));
 
 		assert("nikita-3142", get_current_context()->grabbed_blocks == 0);
+		/* seal has either to be not set to set properly */
+		assert("nikita-19893",
+		       ((!hint_is_set(hint) && hint->ext_coord.valid == 0) || 
+			(coords_equal(&hint->seal.coord1, &hint->ext_coord.coord) &&
+			 keyeq(&flow->key, &hint->seal.key))));
+
 		if (cur_container == UF_CONTAINER_EMPTY && to_write != flow->length) {
 			/* file was empty and we have written something and we are having exclusive access to the file -
 			   change file state */
