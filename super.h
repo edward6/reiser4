@@ -12,6 +12,13 @@
 /** reiser4-specific part of super block */
 typedef struct reiser4_super_info_data {
 	/**
+	 * guard spinlock which protects reiser4 super 
+	 * block fields (currently blocks_free, 
+	 * blocks_free_committed)
+	 */
+	spinlock_t        guard;
+ 
+	 /**
 	 * rwlock protecting against bit-tearing in jnode bitfields
 	 * manipulations.
 	 */
@@ -50,6 +57,11 @@ typedef struct reiser4_super_info_data {
 	 * amount of free blocks.
 	 */
 	__u64    blocks_free;
+
+	/**
+	 * free block count for fs committed state.
+	 */
+	__u64    blocks_free_committed;
 
 	/**
 	 * current inode generation.
