@@ -694,9 +694,7 @@ static int write_prepped_nodes (flush_position * pos, int scan)
    data.  Its just a theory, but it needs to be thought out. */
 /* E. Never put JNODE_OVRWR blocks in the flush queue.  This is easy to implement, but it
    is done for historical reasons related to the time when we had no log-writing and the
-   test layout.  If (WRITE_LOG == 0) then wandered blocks in the flush queue makes sense
-   (and the test layout doesn't support WRITE_LOG, I think?), but once (WRITE_LOG == 1)
-   placing wandered blocks in the flush queue can only cause more BIO objects to be
+   test layout. Placing wandered blocks in the flush queue can only cause more BIO objects to be
    allocated than might otherwise be required.  We need to create a wander_queue to solve
    this properly. */
 /* F. bio_alloc() failure is not handled gracefully. */
@@ -843,7 +841,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	if (jnode_is_flushprepped(node)) {
 
 		trace_on(TRACE_FLUSH, "flush rewrite %s %s\n", flush_jnode_tostring(node), flush_flags_tostring(flags));
-		if (WRITE_LOG && JF_ISSET(node, JNODE_OVRWR)) {
+		if (JF_ISSET(node, JNODE_OVRWR)) {
 			jnode_set_clean_nolock(node);
 
 		} else {
