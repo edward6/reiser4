@@ -193,7 +193,7 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 
 	/* initialize part of reiser4_super_info_data specific to layout 40 */
 	sb_copy = &private->u.format40.actual_sb;
-	memcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data), sizeof (*sb_copy));
+	xmemcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data), sizeof (*sb_copy));
 	brelse(super_bh);
 
 	/* init oid allocator */
