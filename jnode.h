@@ -639,10 +639,15 @@ jput(jnode * node)
 	ON_DEBUG_CONTEXT(--lock_counters()->x_refs);
 
 	reiser4_stat_inc_at_level_jput(node);
+	rcu_read_lock();
+	/*
+	 * we don't need and kind of lock here--jput_final() uses RCU.
+	 */
 	if (unlikely(atomic_dec_and_test(&node->x_count))) {
-		jput_final(node);
 		reiser4_stat_inc_at_level_jputlast(node);
-	}
+		jput_final(node);
+	} else
+		rcu_read_unlock();
 }
 
 extern void jrelse(jnode * node);

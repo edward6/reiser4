@@ -762,14 +762,16 @@ jput_final(jnode * node)
 	/* A fast check for keeping node in cache. We always keep node in cache
 	 * if its page is present and node was not marked for deletion */
 	if (jnode_page(node) != NULL && !JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
+		rcu_read_unlock();
 		return;
 	}
 
 	r_i_p = !JF_TEST_AND_SET(node, JNODE_RIP);
 	/*
 	 * if r_i_p is true, we were first to set JNODE_RIP on this node. In
-	 * this case it is safe to access node after spin unlock.
+	 * this case it is safe to access node after unlock.
 	 */
+	rcu_read_unlock();
 	if (r_i_p) {
 		jnode_finish_io(node);
 		if (JF_ISSET(node, JNODE_HEARD_BANSHEE))
