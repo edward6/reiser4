@@ -452,7 +452,8 @@ int lookup_couple(reiser4_tree * tree,
 
 /* ordering constraint for tree spin lock: tree lock is "strongest" */
 #define rw_ordering_pred_tree(tree)			\
-	(lock_counters()->spin_locked_txnh == 0)
+	(lock_counters()->spin_locked_txnh == 0) &&	\
+	(lock_counters()->rw_locked_tree == 0)
 
 /* Define spin_lock_tree, spin_unlock_tree, and spin_tree_is_locked:
    spin lock protecting znode hash, and parent and sibling pointers. */
