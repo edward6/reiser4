@@ -36,12 +36,10 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 	*/
 	spin_lock(&panic_guard);
 	va_start(args, format);
-	vsprintf(panic_buf, format, args);
+	vsnprintf(panic_buf, sizeof(panic_buf), format, args);
 	va_end(args);
+	printk(KERN_EMERG "reiser4 panicked cowardly: %s", panic_buf);
 	spin_unlock(&panic_guard);
-
-	/* print back-trace */
-	dump_stack();
 
 	/* do something more impressive here, print content of
 	   get_current_context() */
@@ -55,8 +53,6 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 			print_znodes("znodes", current_tree);
 	}
 
-	/* panic("reiser4 panicked cowardly: %s", panic_buf); */
-	printk(KERN_EMERG "reiser4 panicked cowardly: %s", panic_buf);
 	BUG();
 	/* to make gcc happy about noreturn attribute */
 	panic(panic_buf);
@@ -451,24 +447,42 @@ void *
 reiser4_kmalloc(size_t size /* number of bytes to allocate */ ,
 		int gfp_flag /* allocation flag */ )
 {
-	assert("nikita-1407", get_current_super_private() != NULL);
-	assert("nikita-1408", ergo(gfp_flag & __GFP_WAIT, lock_counters()->spin_locked == 0));
+	if (REISER4_DEBUG) {
+		struct super_block *super;
 
-	ON_DEBUG(get_current_super_private()->kmalloc_allocated += size);
+		super = reiser4_get_current_sb();
+		assert("nikita-1407", super != NULL);
+		if (gfp_flag & __GFP_WAIT)
+			schedulable();
+
+		reiser4_spin_lock_sb(super);
+		get_super_private(super)->kmalloc_allocated += size;
+		reiser4_spin_unlock_sb(super);
+	}
 	return kmalloc(size, gfp_flag);
 }
 
 /* release memory allocated by reiser4_kmalloc() and update counter. */
 void
-reiser4_kfree(void *area /* memory to from */ ,
+reiser4_kfree(void *area /* memory to from */,
 	      size_t size UNUSED_ARG /* number of bytes to free */)
 {
 	assert("nikita-1410", area != NULL);
-	assert("nikita-1411", get_current_super_private() != NULL);
-	assert("nikita-1412", get_current_super_private()->kmalloc_allocated >= (int) size);
 
 	kfree(area);
-	ON_DEBUG(get_current_super_private()->kmalloc_allocated -= size);
+	if (REISER4_DEBUG) {
+		struct super_block *super;
+		reiser4_super_info_data *info;
+
+		super = reiser4_get_current_sb();
+		info = get_super_private(super);
+
+		reiser4_spin_lock_sb(super);
+		assert("nikita-1411", info != NULL);
+		assert("nikita-1412", info->kmalloc_allocated >= (int) size);
+		info->kmalloc_allocated -= size;
+		reiser4_spin_unlock_sb(super);
+	}
 }
 
 void
@@ -477,11 +491,17 @@ reiser4_kfree_in_sb(void *area /* memory to from */,
 		    struct super_block *sb)
 {
 	assert("nikita-2729", area != NULL);
-	assert("nikita-2730",
-	       get_super_private(sb)->kmalloc_allocated >= (int) size);
-
 	kfree(area);
-	ON_DEBUG(get_super_private(sb)->kmalloc_allocated -= size);
+	if (REISER4_DEBUG) {
+		reiser4_super_info_data *info;
+
+		info = get_super_private(sb);
+
+		reiser4_spin_lock_sb(sb);
+		assert("nikita-2730", info->kmalloc_allocated >= (int) size);
+		info->kmalloc_allocated -= size;
+		reiser4_spin_unlock_sb(sb);
+	}
 }
 
 
