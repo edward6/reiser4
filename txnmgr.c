@@ -2036,7 +2036,7 @@ fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 	assert("zam-691", spin_txnh_is_locked(txnh));
 	assert("zam-692", atomh != NULL);
 
-	WLOCK_ZLOCK(&node->lock);
+	RLOCK_ZLOCK(&node->lock);
 
 	if (!spin_trylock_atom(atomh)) {
 		repeat = 1;
@@ -2090,7 +2090,7 @@ fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 		reiser4_wake_up(lh->owner);
 
 		UNLOCK_TXNH(txnh);
-		WUNLOCK_ZLOCK(&node->lock);
+		RUNLOCK_ZLOCK(&node->lock);
 		spin_unlock_znode(node);
 
 		/* @atomf is "small" and @atomh is "large", by
@@ -2108,13 +2108,13 @@ fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 	if (repeat) {
 fail:
 		UNLOCK_TXNH(txnh);
-		WUNLOCK_ZLOCK(&node->lock);
+		RUNLOCK_ZLOCK(&node->lock);
 		spin_unlock_znode(node);
 		reiser4_stat_inc(txnmgr.restart.fuse_lock_owners);
 		return RETERR(-E_REPEAT);
 	}
 
-	WUNLOCK_ZLOCK(&node->lock);
+	RUNLOCK_ZLOCK(&node->lock);
 	return 0;
 }
 

@@ -514,7 +514,7 @@ set_high_priority(lock_stack * owner)
 			   previous statement (nr_hipri_owners ++) guarantees
 			   that signaled will be never set again. */
 			item->signaled = 0;
-			WUNLOCK_ZLOCK(&node->lock);;
+			WUNLOCK_ZLOCK(&node->lock);
 
 			item = locks_list_next(item);
 		}
@@ -810,12 +810,10 @@ longterm_lock_tryfast(lock_stack * owner, txn_handle * txnh)
 	assert("nikita-3341", request_is_deadlock_safe(node,
 						       ZNODE_READ_LOCK,
 						       ZNODE_LOCK_LOPRI));
-	RLOCK_ZLOCK(lock);
 
-	result = can_lock_object(owner);
+	result = UNDER_RW(zlock, lock, read, can_lock_object(owner));
 
 	if (likely(result != -EINVAL)) {
-		RUNLOCK_ZLOCK(lock);
 		spin_lock_znode(node);
 		result = try_capture_args(ZJNODE(node),
 					  txnh,
@@ -835,10 +833,8 @@ longterm_lock_tryfast(lock_stack * owner, txn_handle * txnh)
 			}
 		}
 		return lock_tail(owner, wake_up_next, result, ZNODE_READ_LOCK);
-	} else {
-		WUNLOCK_ZLOCK(lock);
+	} else
 		return 1;
-	}
 }
 
 /* locks given lock object */
@@ -1423,10 +1419,10 @@ check_lock_data()
 void
 check_lock_node_data(znode * node)
 {
-	WLOCK_ZLOCK(&node->lock);
+	RLOCK_ZLOCK(&node->lock);
 	owners_list_check(&node->lock.owners);
 	requestors_list_check(&node->lock.requestors);
-	WUNLOCK_ZLOCK(&node->lock);
+	RUNLOCK_ZLOCK(&node->lock);
 }
 
 static int
