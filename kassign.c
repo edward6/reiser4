@@ -158,7 +158,10 @@ build_entry_key_common(const struct inode *dir	/* directory where entry is
 	  
 	   To distinguish above cases, in latter set up unused high bit
 	   in objectid field.
-	  
+
+
+	   With large keys (REISER4_LARGE_KEY) algorithm is updated
+	   appropriately.
 	*/
 
 	/* objectid of key is composed of seven first characters of
