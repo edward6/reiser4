@@ -398,7 +398,7 @@ int unix_file_truncate (struct inode * inode, loff_t size)
 	loff_t file_size;
 
 
-	assert ("vs-319", size == inode->i_size);
+	inode->i_size = size;
 
 	get_nonexclusive_access (inode);
 

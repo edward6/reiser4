@@ -240,13 +240,14 @@ typedef struct {
 	 * return it
 	 */
 	unsigned ( *extract_file_type )( const coord_t *coord );
-	int ( *add_entry )( const struct inode *dir,
+	int ( *add_entry )( struct inode *dir,
 			    coord_t *coord, lock_handle *lh,
-			    const struct dentry *name, reiser4_dir_entry_desc *entry );
-	int ( *rem_entry )( const struct inode *dir,
+			    const struct dentry *name, 
+			    reiser4_dir_entry_desc *entry );
+	int ( *rem_entry )( struct inode *dir,
 			    coord_t *coord, lock_handle *lh,
 			    reiser4_dir_entry_desc *entry );
-	int ( *max_name_len )( int block_size );
+	int ( *max_name_len )( const struct inode *dir );
 } dir_entry_ops;
 
 
