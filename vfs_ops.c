@@ -35,7 +35,6 @@
 #include "entd.h"
 #include "emergency_flush.h"
 #include "prof.h"
-#include "repacker.h"
 #include "init_super.h"
 #include "status_flags.h"
 #include "flush.h"
@@ -1289,7 +1288,6 @@ reiser4_kill_super(struct super_block *s)
 
 	ON_TRACE(TRACE_VFS_OPS, "kill_super\n");
 
-	done_reiser4_repacker(s);
 	stop_ktxnmgrd(&sbinfo->tmgr);
 
 	reiser4_sysfs_done(s);

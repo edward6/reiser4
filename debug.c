@@ -385,8 +385,6 @@ static int is_last_frame(void *addr)
 		return 1;
 	if (is_addr_in(addr, kswapd, wakeup_kswapd))
 		return 1;
-	else if (is_addr_in(addr, reiser4_repacker, repacker_d))
-		return 1;
 	else if (is_addr_in(addr, init_ktxnmgrd_context, ktxnmgrd_kick))
 		return 1;
 	else if (is_addr_in(addr, init_entd_context, done_entd_context))
