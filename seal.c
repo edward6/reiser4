@@ -100,6 +100,17 @@ check_seal_match(const coord_t * coord, const reiser4_key * k)
 }
 #endif
 
+
+/* this is used by seal_validate. It accepts return value of longterm_lock_znode and returns 1 if it can be interpreted
+   as seal validation failure. For instance, when longterm_lock_znode returns -EINVAL, seal_validate returns -EAGAIN and
+   caller will call tre search
+   FIXME: longterm_lock_znode could probably do that itself */
+static int
+should_repeat(int ltlz_result)
+{
+	return ltlz_result == -EINVAL;
+}
+
 /* (re-)validate seal.
   
    Checks whether seal is pristine, and try to revalidate it if possible.
@@ -168,9 +179,12 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 				result = -EAGAIN;
 			}
 		}
-		if (result != 0)
+		if (result != 0) {
+			if (should_repeat(result))
+				result = -EAGAIN;
 			/* unlock node on failure */
 			done_lh(lh);
+		}
 	} else {
 		/* znode wasn't in cache */
 		reiser4_stat_inc(seal.out_of_cache);
