@@ -1912,6 +1912,9 @@ void jnode_set_dirty( jnode *node )
 			capture_list_push_front (& atom->dirty_nodes[level], node);
 
 		}
+		/*
+		 * FIXME-*: atom can be 0 here
+		 */
 		spin_unlock_atom (atom);
 
 		/*trace_on (TRACE_FLUSH, "dirty %sformatted node %p\n", 
