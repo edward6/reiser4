@@ -36,7 +36,7 @@ int get_block_address_tail(const uf_coord_t *uf_coord,
 
 void show_tail(struct seq_file *m, coord_t *coord);
 int item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
-			     hint_t *hint, int back_to_dirty);
+			     hint_t *hint, int back_to_dirty, int set_hint);
 
 /* __REISER4_TAIL_H__ */
 #endif
