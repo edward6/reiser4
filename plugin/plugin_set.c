@@ -44,7 +44,8 @@ pseq(const atomic_t * a1, const atomic_t * a2)
 		sizeof set1->hash + 
 		sizeof set1->sd + 
 		sizeof set1->dir_item + 
-		sizeof set1->crypto + 
+		sizeof set1->crypto +
+		sizeof set1->digest +
 		sizeof set1->compression);
 
 	set1 = cast_to(a1);
@@ -58,6 +59,7 @@ pseq(const atomic_t * a1, const atomic_t * a2)
 		set1->sd == set2->sd &&
 		set1->dir_item == set2->dir_item &&
 		set1->crypto == set2->crypto &&
+		set1->digest == set2->digest &&
 		set1->compression == set2->compression;
 }
 
@@ -84,6 +86,7 @@ static inline __u32 calculate_hash(const plugin_set *set)
 	HASH_FIELD(result, set, sd);
 	HASH_FIELD(result, set, dir_item);
 	HASH_FIELD(result, set, crypto);
+	HASH_FIELD(result, set, digest);
 	HASH_FIELD(result, set, compression);
 	return result & (PS_TABLE_SIZE - 1);
 }
@@ -113,6 +116,7 @@ static plugin_set empty_set = {
 	.sd                 = NULL,
 	.dir_item           = NULL,
 	.crypto             = NULL,
+	.digest             = NULL,
 	.compression        = NULL,
 	.link               = { NULL }
 };
@@ -204,6 +208,7 @@ DEFINE_PLUGIN_SET(hash_plugin, hash)
 DEFINE_PLUGIN_SET(item_plugin, sd)
 DEFINE_PLUGIN_SET(item_plugin, dir_item)
 DEFINE_PLUGIN_SET(crypto_plugin, crypto)
+DEFINE_PLUGIN_SET(digest_plugin, digest)
 DEFINE_PLUGIN_SET(compression_plugin, compression)
 
 int plugin_set_init(void)
