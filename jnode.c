@@ -733,18 +733,16 @@ jrelse(jnode * node /* jnode to release references to */)
 	trace_on(TRACE_PCACHE, "release node: %p\n", node);
 
 	page = jnode_page(node);
-	assert("nikita-2989", page != NULL);
-	/*
-	 * it is safe not to lock jnode here, because at this point
-	 * @node->d_count is greater than zero (if jrelse() is used correctly,
-	 * that is). JNODE_LOADED may be not set yet, if, for example, we got
-	 * here as a result of error handling path in jload(). Anyway, page
-	 * cannot be detached by reiser4_releasepage(). truncate will
-	 * invalidate page regardless, but this should not be a problem.
-	 */
-	kunmap(page);
-	page_cache_release(page);
-
+	if (page) {
+		/*
+		 * it is safe not to lock jnode here, because at this point * @node->d_count is greater than zero (if
+		 * jrelse() is used correctly, * that is). JNODE_LOADED may be not set yet, if, for example, we got *
+		 * here as a result of error handling path in jload(). Anyway, page * cannot be detached by
+		 * reiser4_releasepage(). truncate will * invalidate page regardless, but this should not be a problem.
+		 */
+		kunmap(page);
+		page_cache_release(page);
+	}
 	LOCK_JNODE(node);
 	if (atomic_dec_and_test(&node->d_count))
 		/* FIXME it is crucial that we first decrement ->d_count and
