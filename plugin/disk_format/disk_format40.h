@@ -29,15 +29,15 @@ typedef struct format40_disk_super_block {
 	/*   4 */ d64 block_count; /* number of block in a filesystem */
 	/*  12 */ d64 free_blocks; /* number of free blocks */
 	/*  20 */ d64 root_block;  /* filesystem tree root block */
-	/*  28 */ d16 tail_policy;
-	/*  36 */ d64 oid;	   /* smallest free objectid */
-	/*  44 */ d64 file_count;  /* number of files in a filesystem */
-	/*  52 */ d64 flushes;	   /* number of times super block was
+	/*  28 */ d64 oid;	   /* smallest free objectid */
+	/*  36 */ d64 file_count;  /* number of files in a filesystem */
+	/*  44 */ d64 flushes;	   /* number of times super block was
 				    * flushed. Needed if format 40
 				    * will have few super blocks */
-	/*  60 */ char magic[16];  /* magic string R4Sb-Default */
-	/*  76 */ d16 tree_height; /* height of filesystem tree */
-	/*  84 */ char not_used [428];
+	/*  52 */ char magic[16];  /* magic string R4Sb-Default */
+	/*  68 */ d16 tree_height; /* height of filesystem tree */
+	/*  70 */ d16 tail_policy;
+	/*  72 */ char not_used [440];
 } format40_disk_super_block;
 
 
