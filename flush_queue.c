@@ -546,7 +546,7 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 	if (!(bio = bio_alloc(GFP_KERNEL, nr)))
 		return -ENOMEM;
 
-	pagevec_init(&pvec);
+	pagevec_init(&pvec, 0);
 
 	bio->bi_sector = *jnode_get_block(first) * (s->s_blocksize >> 9);
 	bio->bi_bdev = s->s_bdev;
