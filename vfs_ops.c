@@ -16,6 +16,7 @@
 #include "plugin/plugin_set.h"
 #include "plugin/plugin_hash.h"
 #include "plugin/object.h"
+#include "plugin/xattr.h"
 #include "txnmgr.h"
 #include "jnode.h"
 #include "znode.h"
@@ -388,6 +389,9 @@ init_once(void *obj /* pointer to new inode */ ,
 		ON_DEBUG(info->p.jnodes = 0);
 		ON_DEBUG(info->p.eflushed = 0);
 		/* inode's builtin jnode is initialized in reiser4_alloc_inode */
+		xmemset(&info->p.perm_plugin_data, 0,
+			sizeof info->p.perm_plugin_data);
+		xattr_list_init(&info->p.xattr_namespaces);
 	}
 }
 
@@ -500,6 +504,8 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 		}
 		if (inode_get_flag(inode, REISER4_CLUSTER_KNOWN))
 			inode_clr_flag(inode, REISER4_CLUSTER_KNOWN);		
+
+		xattr_clean(inode);
 	}
 	phash_inode_destroy(inode);
 	if (info->pset)
@@ -610,6 +616,24 @@ reiser4_sync_inodes(struct super_block * sb, struct writeback_control * wbc)
 	spin_lock(&inode_lock);
 }
 
+static void
+reiser4_clear_inode(struct inode *object)
+{
+	reiser4_context ctx;
+
+	init_context(&ctx, object->i_sb);
+	reiser4_stat_inc(vfs_calls.delete_inode);
+	if (is_inode_loaded(object)) {
+		file_plugin *fplug;
+
+		fplug = inode_file_plugin(object);
+		if (fplug != NULL && fplug->clear_inode != NULL)
+			fplug->clear_inode(object);
+	}
+	reiser4_exit_context(&ctx);
+}
+
+
 /* ->delete_inode() super operation */
 static void
 reiser4_delete_inode(struct inode *object)
@@ -620,14 +644,15 @@ reiser4_delete_inode(struct inode *object)
 	reiser4_stat_inc(vfs_calls.delete_inode);
 	if (is_inode_loaded(object)) {
 		file_plugin *fplug;
+
 		fplug = inode_file_plugin(object);
-		if ((fplug != NULL) && (fplug->delete != NULL))
+		if (fplug != NULL && fplug->delete != NULL)
 			fplug->delete(object);
 	}
 
 	object->i_blocks = 0;
 	clear_inode(object);
-	(void)reiser4_exit_context(&ctx);
+	reiser4_exit_context(&ctx);
 }
 
 const char *REISER4_SUPER_MAGIC_STRING = "R4Sb";
@@ -1542,6 +1567,7 @@ struct super_operations reiser4_super_operations = {
  	.put_inode          = NULL, /* d */
 	.drop_inode = reiser4_drop_inode,	/* d */
 	.delete_inode = reiser4_delete_inode,	/* d */
+	.clear_inode  = reiser4_clear_inode,    /* d */
 	.put_super = NULL /* d */ ,
 	.write_super = reiser4_write_super,
 /*      .sync_fs = NULL, */
