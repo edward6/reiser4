@@ -344,6 +344,16 @@ static inline void spin_lock_ ## NAME ## _no_ord (TYPE *x, 			\
 	spin_ ## NAME ## _inc();						\
 }										\
 										\
+/* Account for spin lock acquired by some other means. For example        */	\
+/* through atomic_dec_and_lock() or similar.                              */	\
+static inline void spin_lock_ ## NAME ## _acc (TYPE *x, locksite *h)		\
+{										\
+	GETCPU(cpu);								\
+	PREG_IN(cpu, &pregion_spin_ ## NAME ## _held, &x->FIELD.held, h);	\
+	PUTCPU(cpu);								\
+	spin_ ## NAME ## _inc();						\
+}										\
+										\
 /* Lock @x with explicit indication of spin lock profiling "sites".       */	\
 /* Locksite is used by spin lock profiling code (spinprof.[ch]) to        */	\
 /* identify fragment of code that locks @x.                               */	\

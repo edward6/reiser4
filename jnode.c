@@ -946,8 +946,10 @@ jput_final(jnode * node)
 	int r_i_p;
 
 	assert("nikita-2772", !JF_ISSET(node, JNODE_EFLUSH));
+	assert("nikita-3066", spin_jnode_is_locked(node));
 
 	r_i_p = !JF_TEST_AND_SET(node, JNODE_RIP);
+	spin_unlock_jnode(node);
 	jnode_finish_io(node);
 	if (r_i_p) {
 		if (JF_ISSET(node, JNODE_HEARD_BANSHEE))
