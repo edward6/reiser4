@@ -102,33 +102,55 @@ static int reiser4_find_next_set_bit (void * addr, int size, int start_offset)
 	return size;
 }
 
+static void reiser4_clear_bits (char * addr, int start, int end)
+{
+	int first_byte;
+	int last_byte;
+
+	unsigned char first_byte_mask = 0xFF;
+	unsigned char last_byte_mask  = 0xFF;
+
+	assert ("zam-410", start < end);
+
+	first_byte = start >> 3;
+	last_byte = (end - 1) >> 3;
+
+	if (last_byte > first_byte + 1) memset (addr + start + 1, 0, last_byte - first_byte - 1);
+
+	first_byte_mask >>= 8 - (start & 0x7);
+	last_byte_mask  <<= (end - 1) & 0x7;
+
+	if (first_byte == last_byte) {
+		addr[first_byte] &= (first_byte_mask | last_byte_mask);
+	} else {
+		addr[first_byte] &= first_byte_mask;
+		addr[last_byte]  &= last_byte_mask;
+	}
+}
+
 static void reiser4_set_bits (char * addr, int start, int end)
 {
 	int first_byte;
 	int last_byte;
-	int i;
+
+	unsigned char first_byte_mask = 0xFF;
+	unsigned char last_byte_mask = 0xFF;
 
 	assert ("zam-386", start < end);
 
 	first_byte = start >> 3;
 	last_byte = (end - 1) >> 3;
 
-	for (i = first_byte + 1; i < last_byte; i++) 
-		addr[i] = 0xFF;
+	if (last_byte > first_byte + 1) memset (addr + start + 1, 0xFF, last_byte - first_byte - 1);
 
-	{
-		unsigned char first_byte_mask = 0xFF;
-		unsigned char last_byte_mask = 0xFF;
+	first_byte_mask <<= 8 - (start & 0x7);
+	last_byte_mask  >>= (end - 1) & 0x7;
 
-		first_byte_mask >>= (start & 0x7);
-		last_byte_mask <<= (8 - ((end - 1) & 0x7));
-	
-		if (first_byte == last_byte) {
-			addr[first_byte] |= (first_byte_mask & last_byte_mask);
-		} else {
-			addr[first_byte] |= first_byte_mask;
-			addr[last_byte]  |= last_byte_mask;
-		}
+	if (first_byte == last_byte) {
+		addr[first_byte] |= (first_byte_mask & last_byte_mask);
+	} else {
+		addr[first_byte] |= first_byte_mask;
+		addr[last_byte]  |= last_byte_mask;
 	}
 }
 
@@ -352,7 +374,7 @@ static int load_bnode (struct reiser4_bnode * bnode)
 	return ret;
 }
 
-
+#if 0
 static void release_bnode(struct reiser4_bnode * bnode)
 {
 	assert("zam-362", bnode->working != NULL);
@@ -364,7 +386,7 @@ static void release_bnode(struct reiser4_bnode * bnode)
 	zput(bnode->working);
 	zput(bnode->commit);
 }
-
+#endif
 
 /** This function does all block allocation work but only for one bitmap
  * block.*/
@@ -526,7 +548,6 @@ void bitmap_dealloc_blocks (reiser4_block_nr start UNUSED_ARG,
 
 	atom = node->atom;
 	assert ("zam-400", atom != NULL);
-	assert ("zam-401", !JF_ISSET(node, ZNODE_DELETED));
 
 	if (blocknr_is_fake(&node->blocknr)) {
 		/* deallocation of such not-yet-mapped-to-disk nodes does not
@@ -543,11 +564,12 @@ void bitmap_dealloc_blocks (reiser4_block_nr start UNUSED_ARG,
 		spin_unlock (&info_data->guard);
 	}
 
+#if 0
 	/* with mapped nodes we mark them as DELETED and put them to
 	 * atom->clean_nodes list. */
 
 	JF_SET(node, ZNODE_DELETED);
-
+#endif
 	/* move jnode to a atom's clean list */
 	capture_list_remove (node);
 	capture_list_push_front(&atom->clean_nodes, node);
@@ -617,6 +639,7 @@ int block_alloc_pre_commit_hook (txn_atom * atom)
 		if (jnode_is_in_deleteset(node))
 			reiser4_clear_bit(offset, bnode->commit->data);
 
+#if 0
 		/* adjust blocks_free_committed counter -- a free blocks
 		 * counter we write to disk */
 		if (JF_ISSET(node, ZNODE_DELETED))
@@ -628,6 +651,7 @@ int block_alloc_pre_commit_hook (txn_atom * atom)
 			/* count block which are allocated in the transaction, */
 			reiser4_dec_free_committed_blocks (super);
 		}
+#endif
 	}
 
 	spin_unlock_atom(atom);
@@ -655,6 +679,7 @@ int block_alloc_post_commit_hook (txn_atom * atom) {
 		 * recorded in atom's deleted_nodes list changes to working
 		 * bitmap and working free blocks counter ... */
 
+#if 0
 		/* ... count all blocks which are freed in a "working" free
 		 * block counter */
 		if (JF_ISSET(node, ZNODE_DELETED)) {
@@ -663,7 +688,7 @@ int block_alloc_post_commit_hook (txn_atom * atom) {
 			reiser4_inc_free_blocks (super);
 			spin_lock (&info_data->guard);
 		}
-
+#endif
 		if (! jnode_is_in_deleteset(node))
 			continue;
 
