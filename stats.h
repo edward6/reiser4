@@ -188,10 +188,10 @@ typedef struct tshash_stat {
 	statcnt_t scanned;
 } tshash_stat;
 
-#define TSHASH_LOOKUP(stat) ({ if(stat) percpu_counter_inc(&stat->lookup); })
-#define TSHASH_INSERT(stat) ({ if(stat) percpu_counter_inc(&stat->insert); })
-#define TSHASH_REMOVE(stat) ({ if(stat) percpu_counter_inc(&stat->remove); })
-#define TSHASH_SCANNED(stat) ({ if(stat) percpu_counter_inc(&stat->scanned); })
+#define TSHASH_LOOKUP(stat) ({ if(stat) statcnt_inc(&stat->lookup); })
+#define TSHASH_INSERT(stat) ({ if(stat) statcnt_inc(&stat->insert); })
+#define TSHASH_REMOVE(stat) ({ if(stat) statcnt_inc(&stat->remove); })
+#define TSHASH_SCANNED(stat) ({ if(stat) statcnt_inc(&stat->scanned); })
 
 /* set of statistics counter. This is embedded into super-block when
    REISER4_STATS is on. */
