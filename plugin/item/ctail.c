@@ -32,6 +32,7 @@ Internal on-disk structure:
 #include "../../page_cache.h"
 #include "../../cluster.h"
 #include "../../flush.h"
+#include "../../tree_walk.h"
 #include "../file/funcs.h"
 
 #include <linux/pagevec.h>
@@ -858,14 +859,16 @@ insert_crc_flow_in_place(coord_t * coord, lock_handle * lh, flow_t * f, struct i
 	lock_handle lock;
 
 	assert("edward-674", f->length <= inode_scaled_cluster_size(inode));
-	assert("edward-484", coord->between == AT_UNIT ||
-	       coord->between == AFTER_UNIT || coord->between == AFTER_ITEM);
+	assert("edward-484", 
+	       coord->between == AT_UNIT ||
+	       coord->between == AFTER_UNIT ||
+	       coord->between == AFTER_ITEM ||
+	       coord->between == BEFORE_ITEM);
 
 	coord_dup (&point, coord);
 
 	if (coord->between == AT_UNIT) {
-		coord_prev_item(&point);
-
+		
 		assert("edward-485", item_plugin_by_coord(&point) == item_plugin_by_id(CTAIL_ID));
 
 		point.between = AFTER_ITEM;
@@ -1266,6 +1269,8 @@ init_squeeze_data_ctail(squeeze_item_info_t * idata, struct inode * inode)
 	assert("edward-814", inode != NULL);
 
 	idata->inode = inode;
+	idata->d_cur = DC_FIRST_ITEM;
+	idata->d_next = DC_UNKNOWN_ITEM;
 	
 	return 0;
 }
@@ -1342,7 +1347,8 @@ init_item_squeeze_data(flush_pos_t * pos, struct inode * inode)
 	return init_squeeze_data_ctail(sq->itm, inode);
 }
 
-/* create disk cluster info used by 'squeeze' phase of the flush squalloc() */
+/* create and attach disk cluster info used by 'squeeze' phase of the flush
+   squalloc() */
 static int
 attach_squeeze_idata(flush_pos_t * pos, struct inode * inode)
 {
@@ -1368,7 +1374,7 @@ attach_squeeze_idata(flush_pos_t * pos, struct inode * inode)
 	if (cplug->alloc && !get_coa(&clust->tc, cplug->h.id)) {
 		ret = alloc_coa(&clust->tc, cplug, TFM_WRITE);
 		if (ret)
-			goto exit;
+			goto err1;
 	}
 	assert("edward-829", pos->sq != NULL);
 	assert("edward-250", item_squeeze_data(pos) == NULL);
@@ -1377,23 +1383,29 @@ attach_squeeze_idata(flush_pos_t * pos, struct inode * inode)
 
 	ret = alloc_item_squeeze_data(pos->sq);
 	if (ret)
-		goto exit;
+		goto err1;
 	ret = init_item_squeeze_data(pos, inode);
 	if (ret)
-		goto exit;
+		goto err1;
 	info = item_squeeze_data(pos);
 	
 	clust->index = pg_to_clust(jnode_page(pos->child)->index, inode);
+	
+	/* Cluster pages are about to be clean, so we need to be sure that
+           inode won't be evicted (if there is no more dirty pages) during
+	   disk cluster operations */
+	
+	atomic_inc(&inode->i_count);
 
 	ret = flush_cluster_pages(clust, pos->child, inode);
 	if (ret)
-		goto exit;
+		goto err2;
 
 	assert("edward-830", equi(get_coa(&clust->tc, cplug->h.id), cplug->alloc));
 
 	ret = deflate_cluster(clust, inode);
 	if (ret)
-		goto exit;
+		goto err2;
 
 	inc_item_squeeze_count(pos);
 
@@ -1409,7 +1421,9 @@ attach_squeeze_idata(flush_pos_t * pos, struct inode * inode)
 	
 	assert("edward-683", crc_inode_ok(inode));
 	return 0;
- exit:
+ err2:
+	atomic_dec(&inode->i_count);
+ err1:
 	jput(pos->child);
 	free_squeeze_data(pos);
 	return ret;
@@ -1431,8 +1445,9 @@ detach_squeeze_idata(squeeze_info_t * sq)
 
 	inode = info->inode;
 
-	//assert("edward-841", atomic_read(&inode->i_count));
-	//atomic_dec(&inode->i_count);
+	assert("edward-841", atomic_read(&inode->i_count));
+	
+	atomic_dec(&inode->i_count);
 	
 	free_item_squeeze_data(sq);
 	return;
@@ -1463,6 +1478,132 @@ utmost_child_ctail(const coord_t * coord, sideof side, jnode ** child)
 	return 0;
 }
 
+/* Returns true if @p2 is the next item to @p1
+   in the _same_ disk cluster.
+   Disk cluster is a set of items. If ->clustered() != NULL,  
+   with each item the whole disk cluster should be read/modified
+*/
+static int 
+clustered_ctail (const coord_t * p1, const coord_t * p2)
+{
+	return mergeable_ctail(p1, p2);
+}
+
+/* Go rightward and check for next disk cluster item, set 
+   d_next to DC_CHAINED_ITEM, if the last one exists.
+   Skip empty nodes. Note, that right neighbors may be not in
+   the slum because of races. If so, make it dirty and 
+   squeezable. 
+*/
+static int
+next_item_dc_stat(flush_pos_t * pos)
+{
+	int ret; 
+	int stop = 0;
+	znode * cur;
+	coord_t coord;
+	lock_handle lh;
+	lock_handle right_lock;
+	
+	assert("edward-1014", pos->coord.item_pos < coord_num_items(&pos->coord));
+	assert("edward-1015", squeeze_data(pos) && item_squeeze_data(pos));
+	assert("edward-1016", 
+	       item_squeeze_data(pos)->d_cur == DC_FIRST_ITEM ||
+	       item_squeeze_data(pos)->d_cur == DC_CHAINED_ITEM);
+	assert("edward-1017", item_squeeze_data(pos)->d_next == DC_UNKNOWN_ITEM);
+	
+	init_lh(&right_lock);
+	cur = pos->coord.node;
+
+	item_squeeze_data(pos)->d_next = DC_AFTER_CLUSTER;
+	
+	while (!stop) {
+		init_lh(&lh);
+		ret = reiser4_get_right_neighbor(&lh,
+						 cur,
+						 ZNODE_WRITE_LOCK,
+						 GN_CAN_USE_UPPER_LEVELS);
+		if (ret)
+			break;
+		ret = zload(lh.node);
+		if (ret) {
+			done_lh(&lh);
+			break;
+		}
+		coord_init_before_first_item(&coord, lh.node);
+		
+		if (node_is_empty(lh.node)) {
+			znode_make_dirty(lh.node);
+			znode_set_squeezable(lh.node);
+			stop = 0;
+		} else if (clustered_ctail(&pos->coord, &coord)) {
+
+			item_squeeze_data(pos)->d_next = DC_CHAINED_ITEM;
+			
+			if (!znode_is_dirty(lh.node)) {
+				warning("edward-1024",
+					"first item mergeable, " 
+					"but znode %p isn't dirty\n",
+					lh.node);
+				znode_make_dirty(lh.node);
+				znode_set_squeezable(lh.node);
+			}
+			stop = 1;
+		} else
+			stop = 1;
+		zrelse(lh.node);
+		done_lh(&right_lock);
+		copy_lh(&right_lock, &lh);
+		done_lh(&lh);
+		cur = right_lock.node;
+	}
+	done_lh(&right_lock);
+	
+	if (ret == -E_NO_NEIGHBOR)
+		ret = 0;
+	return ret;
+}
+
+static int
+assign_write_mode(squeeze_item_info_t * idata, 
+		   crc_write_mode_t * mode)
+{
+	int result = 0;
+
+	assert("edward-1025", idata != NULL);
+	
+	if (idata->flow.length) {
+		/* append or overwrite */
+		switch(idata->d_cur) {
+		case DC_FIRST_ITEM:
+		case DC_CHAINED_ITEM:
+			*mode = CRC_OVERWRITE_ITEM;
+			break;
+		case DC_AFTER_CLUSTER:
+			*mode = CRC_APPEND_ITEM;
+			break;
+		default:
+			impossible("edward-1018", 
+				   "wrong current disk cluster status");
+		}
+	} else {
+		/* cut or invalidate */
+		switch(idata->d_cur) {
+		case DC_FIRST_ITEM:	
+		case DC_CHAINED_ITEM:	
+			*mode = CRC_CUT_ITEM;
+			break;
+		case DC_AFTER_CLUSTER:
+			result = 1;
+			break;
+		default:
+			impossible("edward-1019", 
+				   "wrong current disk cluster status");
+		}
+	}
+	return result;
+}
+
 /* plugin->u.item.f.squeeze */
 /* write ctail in guessed mode */
 reiser4_internal int
@@ -1471,7 +1612,8 @@ squeeze_ctail(flush_pos_t * pos)
 	int result;
 	crc_write_mode_t mode = CRC_OVERWRITE_ITEM;
 
-	assert("edward-261", pos != NULL);
+	assert("edward-1020", pos != NULL);
+	assert("edward-261", pos->coord.node != NULL);
 
 	if (!pos->sq || !item_squeeze_data(pos)) {
 		if (should_attach_squeeze_idata(pos)) {
@@ -1489,10 +1631,13 @@ squeeze_ctail(flush_pos_t * pos)
 			/* attach item squeeze info by child and put the last one */
 			result = attach_squeeze_idata(pos, inode);
 			pos->child = NULL;
-			if (result == -E_REPEAT)
+			if (result == -E_REPEAT) {
 				/* jnode became clean, or there is no dirty
 				   pages (nothing to update in disk cluster) */
+				warning("edward-1021",
+					"squeeze_ctail: nothing to attach");
 				return 0;
+			}
 			if (result != 0)
 				return result;
 		}
@@ -1503,27 +1648,30 @@ squeeze_ctail(flush_pos_t * pos)
 	else {
 		/* use old squeeze info */
 
-		squeeze_item_info_t * idata = item_squeeze_data(pos);
+		squeeze_item_info_t * idata;
 
-		if (idata->flow.length) {
-			/* append or overwrite */
-			if (idata->mergeable) {
-				mode = CRC_OVERWRITE_ITEM;
-				idata->mergeable = 0;
-			}
-			else
-				mode = CRC_APPEND_ITEM;
-		}
-		else {
-                        /* cut or invalidate */
-			if (idata->mergeable) {
-				mode = CRC_CUT_ITEM;
-				idata->mergeable = 0;
-			}
-			else {
-				detach_squeeze_idata(pos->sq);
-				return RETERR(-E_REPEAT);
-			}
+		idata = item_squeeze_data(pos);
+
+		result = assign_write_mode(idata, &mode);
+		if (result)
+			/* nothing to update */
+			return 0;
+	}
+	
+	assert("edward-433", squeeze_data(pos) && item_squeeze_data(pos));
+	assert("edward-1022", pos->coord.item_pos < coord_num_items(&pos->coord));
+	
+	if ((pos->coord.item_pos == coord_num_items(&pos->coord) - 1) &&
+	    item_squeeze_data(pos)->d_next == DC_UNKNOWN_ITEM) {
+		/*
+		  current item is about to be killed or modified,
+		  so it is a time to check cluster status of the
+		  next slum item
+		*/
+		result = next_item_dc_stat(pos);
+		if (result) {
+			detach_squeeze_idata(pos->sq);
+			return result;
 		}
 	}
 	assert("edward-433", item_squeeze_data(pos));
@@ -1537,7 +1685,7 @@ squeeze_ctail(flush_pos_t * pos)
 		/* detach squeeze info */
 		assert("edward-434", item_squeeze_data(pos)->flow.length == 0);
 		detach_squeeze_idata(pos->sq);
-		return RETERR(-E_REPEAT);
+		return 0;
 	}
 	return 0;
 }
