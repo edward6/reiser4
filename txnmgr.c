@@ -453,11 +453,14 @@ txn_end(reiser4_context * context)
 	txn_handle *txnh;
 
 	assert("umka-283", context != NULL);
+
 	schedulable();
 
 	/* closing non top-level context---nothing to do */
 	if (context != context->parent)
 		return 0;
+
+	assert("nikita-2967", lock_stack_isclean(get_current_lock_stack()));
 
 	txnh = context->trans;
 
@@ -963,6 +966,7 @@ static int force_commit_atom_nolock (txn_handle * txnh)
 
 	assert ("zam-837", txnh != NULL);
 	assert ("zam-835", spin_txnh_is_locked(txnh));
+	assert ("nikita-2966", lock_stack_isclean(get_current_lock_stack()));
 
 	atom = txnh->atom;
 
@@ -1014,6 +1018,8 @@ int txnmgr_force_commit_all (struct super_block *super)
 	txn_mgr *mgr;
 	txn_handle *txnh;
 	reiser4_context * ctx = get_current_context();
+
+	assert("nikita-2965", lock_stack_isclean(get_current_lock_stack()));
 
 	ret = txn_end(ctx);
 	if (ret)
@@ -1340,6 +1346,8 @@ commit_txnh(txn_handle * txnh)
 	assert("umka-192", txnh != NULL);
 
 again:
+	assert("nikita-2968", lock_stack_isclean(get_current_lock_stack()));
+
 	/* Get the atom and txnh locked. */
 	atom = atom_get_locked_with_txnh_locked(txnh);
 
@@ -2392,9 +2400,6 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 	/* We do not need the node lock. */
 	spin_unlock_jnode(node);
 
-	if (atomf->stage == ASTAGE_DONE)
-		print_atom("Waiting for dead to rise", atomf);
-
 	/* Add txnh to atomf's waitfor list, unlock atomf. */
 	fwaitfor_list_push_back(&atomf->fwaitfor_list, &wlinks);
 	atomf->refcount += 1;
@@ -2417,9 +2422,6 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 		trace_on(TRACE_TXN, "thread %u deadlock blocking on atom %u\n", current->pid, atomf->atom_id);
 	} else {
 		ret = go_to_sleep(wlinks._lock_stack, ADD_TO_SLEPT_IN_WAIT_ATOM);
-
-		if (atomf->stage == ASTAGE_DONE)
-			print_atom("Dead has risen", atomf);
 
 		if (ret == 0) {
 			ret = -EAGAIN;
