@@ -31,6 +31,7 @@ never_tail(const struct inode *inode UNUSED_ARG	/* inode to
 	return 0;
 }
 
+#if 0
 static reiser4_block_nr never_tail_estimate ( const struct inode *inode, loff_t size,
 	int is_hole) 
 {
@@ -56,6 +57,7 @@ static reiser4_block_nr never_tail_estimate ( const struct inode *inode, loff_t 
 		    inode_file_plugin(inode)->estimate.update(inode) + 3;
 	}
 }
+#endif
 
 /* Always store file's tail as direct item */
 /* Audited by: green(2002.06.12) */
@@ -67,6 +69,7 @@ always_tail(const struct inode *inode UNUSED_ARG	/* inode to
 	return 1;
 }
 
+#if 0
 static reiser4_block_nr always_tail_estimate ( const struct inode *inode, loff_t size,
 	int is_hole) 
 {
@@ -90,6 +93,7 @@ static reiser4_block_nr always_tail_estimate ( const struct inode *inode, loff_t
 	return block_nr + (block_nr * amount) + 
 		inode_file_plugin(inode)->estimate.update(inode) + 1;
 }
+#endif
 
 /* This function makes test if we should store file denoted @inode as tails only or
    as extents only. */
@@ -106,6 +110,7 @@ test_tail(const struct inode *inode UNUSED_ARG	/* inode to operate
 	return 1;
 }
 
+#if 0
 static reiser4_block_nr test_tail_estimate ( const struct inode *inode, loff_t size,
 	int is_hole) 
 {
@@ -114,44 +119,52 @@ static reiser4_block_nr test_tail_estimate ( const struct inode *inode, loff_t s
 	return test_tail(inode, size) ? always_tail_estimate(inode, size, is_hole) : 
 		never_tail_estimate(inode, size, is_hole);
 }
+#endif
 
 /* tail plugins */
 tail_plugin tail_plugins[LAST_TAIL_ID] = {
 	[NEVER_TAIL_ID] = {
-			   .h = {
-				 .type_id = REISER4_TAIL_PLUGIN_TYPE,
-				 .id = NEVER_TAIL_ID,
-				 .pops = NULL,
-				 .label = "never",
-				 .desc = "Never store file's tail",
-				 .linkage = TS_LIST_LINK_ZERO}
-			   ,
-			   .have_tail = never_tail,
-			   .estimate = never_tail_estimate}
-	,
+		.h = {
+			.type_id = REISER4_TAIL_PLUGIN_TYPE,
+			.id = NEVER_TAIL_ID,
+			.pops = NULL,
+			.label = "never",
+			.desc = "Never store file's tail",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.have_tail = never_tail
+		/*,
+		  .estimate = never_tail_estimate
+		*/
+	},
 	[ALWAYS_TAIL_ID] = {
-			    .h = {
-				  .type_id = REISER4_TAIL_PLUGIN_TYPE,
-				  .id = ALWAYS_TAIL_ID,
-				  .pops = NULL,
-				  .label = "always",
-				  .desc = "Always store file's tail",
-				  .linkage = TS_LIST_LINK_ZERO}
-			    ,
-			    .have_tail = always_tail,
-			    .estimate = always_tail_estimate}
-	,
+		.h = {
+			.type_id = REISER4_TAIL_PLUGIN_TYPE,
+			.id = ALWAYS_TAIL_ID,
+			.pops = NULL,
+			.label = "always",
+			.desc = "Always store file's tail",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.have_tail = always_tail
+		/*,
+		  .estimate = always_tail_estimate
+		*/
+	},
 	[TEST_TAIL_ID] = {
-			  .h = {
-				.type_id = REISER4_TAIL_PLUGIN_TYPE,
-				.id = TEST_TAIL_ID,
-				.pops = NULL,
-				.label = "test",
-				.desc = "store files shorter than 2 blocks in tail items",
-				.linkage = TS_LIST_LINK_ZERO}
-			  ,
-			  .have_tail = test_tail,
-			  .estimate = test_tail_estimate}
+		.h = {
+			.type_id = REISER4_TAIL_PLUGIN_TYPE,
+			.id = TEST_TAIL_ID,
+			.pops = NULL,
+			.label = "test",
+			.desc = "store files shorter than 2 blocks in tail items",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.have_tail = test_tail
+		/*,
+		  .estimate = test_tail_estimate
+		*/
+	}
 };
 
 /* Make Linus happy.
