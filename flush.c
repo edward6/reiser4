@@ -944,7 +944,7 @@ static jnode* jnode_get_neighbor_in_memory (jnode *node, unsigned long node_inde
 static int jnode_is_allocated (jnode *node)
 {
 	return /*JF_ISSET (node, ZNODE_RELOC | ZNODE_WANDER) ||*/
-		! blocknr_is_fake (jnode_get_block (node)));
+		! blocknr_is_fake (jnode_get_block (node));
 }
 
 /* Allocate a block number and flush. */
