@@ -1,3 +1,10 @@
+/*
+ * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
+ */
+
+/*
+ * functions for parser.y
+ */
 
 
 
@@ -9,13 +16,16 @@
  * otherwise next term will owerwrite it
  *  freeSpace is a kernel space no need make getnam()
  */
-static move_selected_word(struct yy_r4_work_spaces * ws )
+static move_selected_word(struct yy_r4_work_spaces * ws, int exclude )
 {
 	int i,j;
 	/*	char * s= ws->ws_pline;*/
 
-
-	for( ws->tmpWrdEnd = ws->freeSpace; ws->yytext <= ws->ws_pline; )
+	if (exclude)
+		{
+			ws->yytext++;
+		}
+	for( ws->tmpWrdEnd = ws->freeSpCur->freeSpace; ws->yytext <= curr_symbol(ws); )
 		{
 			i=0;
 			//			while( *ws->yytext == '\'' )
@@ -23,7 +33,7 @@ static move_selected_word(struct yy_r4_work_spaces * ws )
 			//					ws->yytext++;
 			//					i++;
 			//				} 
-			//			while ( ws->yytext > ws->ws_pline )
+			//			while ( ws->yytext >  curr_symbol(ws) )
 			//				{
 			//					i--;
 			//					ws->yytext--;
@@ -67,18 +77,47 @@ static move_selected_word(struct yy_r4_work_spaces * ws )
 						}
 				}
 			else *ws->tmpWrdEnd++ = *ws->yytext++;
-maxtab	                if( ws->tmpWrdEnd > maxtab ) /*freeSpaceBase[FREESPACESIZE]*/
+	                if( ws->tmpWrdEnd > ws->freeSpCur->freeSpaceMax )
 		                {
-					yyerror( ws ); /* Internal text buffer overflow */
-					exit();
+					if ( ws->freeSpCur->freeSpace > fs->freeSpaceBase ) /* we can reallocate new space and copy all
+											       symbols of current token inside it */
+						{
+							freeSpace * tmp;
+							tmp=ws->freeSpCur;
+							if ( (ws->freeSpCur = freeSpaceNextAlloc(ws))!=NULL)
+								{
+									int i;
+									i = (int)ws->tmpWrdEnd - (int)tmp->freeSpace;
+									memmove( ws->freeSpCur->freeSpace, tmp->freeSpace, i );
+									ws->tmpWrdEnd = tmp->freeSpCur->freeSpace + i;
+								}
+							else
+								{
+									yyerror( ws ); /* Internal text buffer overflow: no enouse mem */
+									yy_exit();
+								}
+						}
+					else
+						{
+							yyerror( ws ); /* Internal space buffer overflow: input token exceed size of bufer */
+							yy_exit();
+						}
+
+
+
+
 		                }
                 }
+	if (exclude)
+		{
+			ws->tmpWrdEnd--;
+		}
 	*ws->tmpWrdEnd++ = '\0';
 }
 
 
 
-static b_check_word(struct yy_r4_work_spaces * ws )
+static int b_check_word(struct yy_r4_work_spaces * ws )
 {
 	int i, j, l;
 	j=sizeof(key)/4;
@@ -86,7 +125,7 @@ static b_check_word(struct yy_r4_work_spaces * ws )
 	while( ( j - l ) >= 0 )
 		{
 			i  =  ( j + l + 1 ) >> 1;
-			switch( strcmp( key[i].wrd, ws->freeSpace ) )
+			switch( strcmp( key[i].wrd, ws->freeSpCur->freeSpace ) )
 				{
 				case  0: return( key[i].class );  break;
 				case  1: j = i - 1;               break;
@@ -99,16 +138,16 @@ static b_check_word(struct yy_r4_work_spaces * ws )
 #define get_firts_wrd(ws) (ws)->WrdHead
 #define get_next_wrd(cur_var) (cur_var)->next
 
-static var_t * inttab(struct yy_r4_work_spaces * ws )
+static var * inttab(struct yy_r4_work_spaces * ws )
 {
 	int i;
-	var_t * cur_var;
-	var_t * new_var;
+	var * cur_var;
+	var * new_var;
 	int len;
 
 	new_var =  get_first_wrd(ws);
 
-	len = strlen( ws->freeSpace );
+	len = strlen( ws->freeSpCur->freeSpace );
 
 	cur_var = NULL;
 	while ( !( new_var == NULL ) )
@@ -126,10 +165,10 @@ static var_t * inttab(struct yy_r4_work_spaces * ws )
 		}
 	
 
-	new_var         = (var_t*)( (char*)(ws->freeSpace) + len );
-	new_var->u.name = ws->freeSpace;
-	new_var->u.len  = (unsigned long)new_var - (unsigned long)ws->freeSpace;
-	ws->freeSpace= (char *)((usigned long)new_var + sizeof(struct var));
+	new_var         = (var*)( (char*)(ws->freeSpCur->freeSpace) + len );
+	new_var->u.name = ws->freeSpCur->freeSpace;
+	new_var->u.len  = (unsigned long)new_var - (unsigned long)ws->freeSpCur->freeSpace;
+	ws->freeSpCur->freeSpace= (char *)((usigned long)new_var + sizeof(struct var));
 
 	new_var->next   = NULL;
 
@@ -161,7 +200,7 @@ static int static reiser4_lex( struct yy_r4_work_spaces * ws )
 	term = 1;
 	while( term )
 		{
-			while ( ( n = lexcls[ lcls ][ i=ncl[ * ( s = next_symbol(ws) ) ] ] ) > 0 && ((lcls=n) < 128) )
+			while ( ( n = lexcls[ lcls ].c[ i=ncl[ * ( s = next_symbol(ws) ) ] ] ) > 0   && ((lcls=n) < 256)  )
 				{
 				}
 			if ( n == OK )
@@ -176,13 +215,48 @@ static int static reiser4_lex( struct yy_r4_work_spaces * ws )
 		}
 	switch (lcls)
 		{
+		case Blk:
+		case Ste: /*'*/
+			error
+			break;
 		case Wrd:
-			move_selected_word(ws);
-			if ( !(ret = b_check_word(ws)) )
-				{
-					ret=Wrd;
+			move_selected_word( ws, lexcls[ lcls ].c[0] );
+			if ( !(ret = b_check_word(ws)) )   /* if ret>0 this is keyword */
+				{                          /*  this is not keyword. tray check in worgs. ret = Wrd */
+					ret=lexcls[ lcls ].term;
 					yyval.Var=inittab(ws);
 				}
+			break;
+		case Int:
+		case Ptr:
+		case Pru:
+		case Str: /*`......"*/
+			move_selected_word( ws, lexcls[ lcls ].c[0] );
+			ret=lexcls[ lcls ].term;
+			yyval.Var=inittab(ws);
+			break;
+		case Stb: /*`'*/
+		case Lpr: /*(*/
+		case Rpr: /*)*/
+		case Com: /*,*/
+		case Mns: /*-*/
+		case Les: /*<*/
+		case Slh: /*/*/
+		case Lsq: /*[*/
+		case Rsq: /*]*/
+		case Bsl: /*\ */
+		case Lfl: /*{*/
+		case Rfl: /*}*/
+		case Sp1: /*;*/
+		case Sp2: /*:*/
+		case Dot: /*.*/
+		case Sp4: /*=*/
+		case Sp5: /*>*/
+		case Sp6: /*?*/
+		case ASG:/*<-*/
+		case App:/*<<-*/
+		case Lnk:/*->*/
+			ret=lexcls[ lcls ].term;
 			break;
 		default :                                /*  others  */
 			ret=*ws->yytext;
@@ -193,12 +267,40 @@ static int static reiser4_lex( struct yy_r4_work_spaces * ws )
 
 
 
+/*==========================================================*/
 
 
-
-//#include ???? dentry, 
 
 static lnode * get_root_lnode(struct yy_r4_work_spaces * ws)
+{
+	struct super_block * super = reiser4_get_current_sb ();
+
+	struct dentry   dentry;
+	struct dentry * result;
+	reiser4_key   * k_rez;
+	lnode         * l_rez;
+	struct nameidata nd;
+
+	walk_init_root("/",&nd);
+
+	ws->root_lnode = allocate_lnode();
+
+	if ( is_reiser4_inode( nd.dentry.d_inode ) )
+		{
+			ws->root_lnode->h.type = LNODE_LW;
+			k_rez = build_sd_key( nd.dentry.d_inode, &ws->root_lnode->lw.key);
+			l_rez = lget( ws->root_lnode, LNODE_LW, ws->root_lnode->lw.key.el[KEY_OBJECTID_INDEX]  );
+
+		}
+	else
+		{
+			ws->root_lnode->h.type = LNODE_INODE;
+			ws->root_lnode->inode.inode = nd.dentry.d_inode;
+		}
+}
+
+
+static lnode * get_current_lnode(struct yy_r4_work_spaces * ws)
 {
 	struct dentry   dentry;
 	struct dentry * result;
@@ -222,7 +324,6 @@ static lnode * get_root_lnode(struct yy_r4_work_spaces * ws)
 			ws->root_lnode->h.type = LNODE_INODE;
 			ws->root_lnode->inode.inode = nd.dentry.d_inode;
 		}
-
 }
 
 
@@ -336,57 +437,6 @@ static int make_inode_from_plugin( reiser4_plugin , nd )
 		?	reiser4_plugin *lookup_plugin( char *type_label, char *plug_label );
 }
 
-static int getvar(struct yy_r4_work_space * ws, int n, int def)
-{                           /* def==1 declare variable  */
-	int i;                  /* def==0 find    variable  */
-	for( i=ws->ws_varco; i ; i-- )
-		if(  Vare(i)==n ) break;
-	
-	if ( def  )
-		{
-			if ( i )
-				{
-					if( i > parco )  yyerror( ws, ???,wrdTab(n)); /* in use */
-					else
-						if(  !Varc(i)  ) yyerror( ws, ???,wrdTab(n)); /* in use */
-				}
-			else
-				i = newvar( ws, n);
-		}
-	else
-		{
-			if ( !i ) yyerror( ws, ???,wrdTab(n)); /* not defined*/
-			else
-				{
-					Varn( i )|=USED;
-				}
-		}
-	return( i );
-}
-
-static int newvar(struct yy_r4_work_space * ws, int n)
-{
-	int i;
-	i=newtmp( ws, getnam( n ) );
-	Vare(i)     = n;
-	return(i);
-}
-
-static int newtmp(struct yy_r4_work_space * ws, int n)
-{
-	int i;
-	++varco;
-	i=varco;
-	if(i >= NVAR)  yyerror();
-	Vart(i)     = n;
-	Vare(i)     = 0;
-	Varn(i)     = 0;
-	Varlev(i)   = ws->ws_level;
-	Varc(i)     = 0;
-	Vara(i)     = 0;
-	return(i);
-}
-
 static lup(struct yy_r4_work_space *ws, int s1)
 {
 	switch ( Slist   (ws->ws_level) )
@@ -491,9 +541,9 @@ static int common_transfer( sink_t *target, flow_t *source )
 
 
 
-void freeList(freeSpace_t * list)
+void freeList(freeSpace * list)
 {
-	freeSpace_t * curr,* next;
+	freeSpace * curr,* next;
 	next = list;
 	while (next)
 		{
@@ -534,33 +584,49 @@ static struct yy_r4_work_space * sys_reiser4_init()
 }
 
 
+#define initNextFreeSpase(fs)	(fs)->freeSpace_next = NULL;                               \
+                                (fs)->freeSpaceMax   = fs->freeSpaceBase+FREESPACESIZE-sizeof(var);           \
+			        (fs)->freeSpace      = fs->freeSpaceBase
 
 
-static freeSpace_t * freeSpaceAlloc()
+
+
+static freeSpace * freeSpaceAlloc()
 {
-	freeSpace_t * fs;
-	if ( ( fs = ( freeSpace_t * ) kmalloc( sizeof( freeSpace_t ),0 ) ) != 0 )
+	freeSpace * fs;
+	if ( ( fs = ( freeSpace * ) kmalloc( sizeof( freeSpace ),0 ) ) != 0 )
 		{
-			fs->freeSpace_next = NULL;
-			fs->freeSpaceSize  = FREESPACESIZE;
-			fs->freeSpace      = fs->freeSpaceBase;
+			initNextFreeSpase(fs);
 		}
 	return fs;
 }
 
-/*
-static strtab * StrTabAlloc()
+#define get_firts_freeSpHead(ws) (ws)->freeSpHead
+#define get_next_freeSpHead(curr) (curr)->freeSpace_next
+
+static freeSpace * freeSpaceNextAlloc(struct yy_r4_work_space * ws)
 {
-	strtab * str;
-	if ( ( str = ( strtab  *   ) kmalloc( sizeof( strtab   ) ) ) != 0 )
+	freeSpace * fs;
+	freeSpace * curr,* next;
+	next = get_firts_freeSpHead(ws);
+	while (next)
 		{
-			str->Str_next   = NULL;
-			str->StrTabSize = STRTABSIZE;
-			str->StrTabLast = 0;
+			curr = next;
+			next = get_next_freeSpHead(curr);
 		}
-	return str;
+	if ((next = freeSpaceAlloc())!=NULL)
+		{
+			if(curr==NULL)
+				{
+					ws->freeSpHead=next;
+				}
+			else
+				{
+					curr->freeSpace_next=next;
+				}
+		}
+	return next;
 }
-*/
 
 
 /* 
