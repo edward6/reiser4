@@ -837,6 +837,14 @@ static void invalidate_clean_list (txn_atom * atom)
 	}
 }
 
+/*
+ * Disable commits during memory pressure.
+ */
+static inline int no_commit_thread( void )
+{
+	return current -> flags & PF_MEMALLOC;
+}
+
 /* Called to commit a transaction handle.  This decrements the atom's number of open
  * handles and if it is the last handle to commit and the atom should commit, initiates
  * atom commit. */
@@ -845,7 +853,10 @@ commit_txnh (txn_handle *txnh)
 {
 	int ret = 0;
 	txn_atom *atom;
-	int failed = 0;
+	/*
+	 * FIXME:NIKITA->JMACD hack to disable commits during memory pressure.
+	 */
+	int failed = no_commit_thread();
 
 	assert("umka-192", txnh != NULL);
 	
