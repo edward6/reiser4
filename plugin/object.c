@@ -203,10 +203,10 @@ int lookup_sd_by_key( reiser4_tree *tree, znode_lock_mode lock_mode,
 			keycmp( unit_key_by_coord( coord, &key_found ), 
 				key ) == EQUAL_TO );
 		/* check that what we really found is stat data */
-		if( item_plugin_id_by_coord( coord ) != STATIC_STAT_DATA_IT ) {
+		if( item_plugin_id_by_coord( coord ) != STATIC_STAT_DATA_ID ) {
 			error_message = "sd found, but it doesn't look like sd ";
 			print_plugin( "found", 
-				      item_plugin_to_plugin( 
+				      common_item_plugin_to_plugin( 
 					      item_plugin_by_coord( coord ) ) );
 			result = -ENOENT;
 		}
@@ -229,7 +229,7 @@ static int insert_new_sd( struct inode *inode )
 	char *area;
 	reiser4_plugin_ref *ref;
 	reiser4_lock_handle lh;
-	oid_mgr_plugin *oplug;
+	oid_allocator_plugin *oplug;
 	oid_t oid;
 
 
@@ -244,10 +244,10 @@ static int insert_new_sd( struct inode *inode )
 	if( ref -> sd == NULL ) {
 		ref -> sd = get_sd_plugin( inode );
 	}
-	data.iplug = ref -> sd;
+	data.iplug = ref -> sd -> common;
 	data.length = ref -> sd_len;
 	if( data.length == 0 ) {
-		data.length = data.iplug -> s.sd.save_len( inode );
+		data.length = ref -> sd -> save_len( inode );
 		ref -> sd_len = data.length;
 	}
 
@@ -255,7 +255,7 @@ static int insert_new_sd( struct inode *inode )
 	data.data = NULL;
 
 	assert( "vs-479", get_super_private( inode -> i_sb ) );
-	oplug = get_super_private( inode -> i_sb ) -> oplug;
+	oplug = get_super_private( inode -> i_sb ) -> oid_plug;
 	assert( "vs-480", oplug && oplug -> allocate_oid );
 	result = oplug -> allocate_oid(
 		get_oid_allocator( inode -> i_sb ), &oid );
@@ -301,17 +301,25 @@ static int insert_new_sd( struct inode *inode )
 		error_message = "no space while inserting sd of";
 		break;
 	case IBK_INSERT_OK:
+	{
+		sd_plugin *sd_plug;
+
 		assert( "nikita-725", /* have we really inserted stat data? */
-			item_plugin_id_by_coord( &coord ) == STATIC_STAT_DATA_IT );
-		area = item_body_by_coord( &coord );
-		result = data.iplug -> s.sd.save( inode, &area );
-		if( result == 0 )
-			/* object has stat-data now */
-			*reiser4_inode_flags( inode ) &= ~REISER4_NO_STAT_DATA;
-		else {
-			error_message = "cannot save sd of";
-			result = -EIO;
+			item_is_stat_data( &coord ) );
+
+		sd_plug = find_sd_plugin (data.iplug->item_plugin_id);
+		if( sd_plug && sd_plug -> save ) {
+			area = item_body_by_coord( &coord );
+			result = sd_plug -> save( inode, &area );
+			if( result == 0 )
+				/* object has stat-data now */
+				*reiser4_inode_flags( inode ) &= ~REISER4_NO_STAT_DATA;
+			else {
+				error_message = "cannot save sd of";
+				result = -EIO;
+			}
 		}
+	}
 	}
 	done_lh( &lh );
 	done_coord( &coord );
@@ -352,12 +360,13 @@ static int update_sd( struct inode *inode )
 		char *area;
 
 		assert( "nikita-728", state -> sd != NULL );
-		data.iplug = state -> sd;
+		data.iplug = state -> sd -> common;
 
 		if( state -> sd_len == 0 ) {
 			/* recalculate stat-data length */
 			state -> sd_len = 
-				data.iplug -> s.sd.save_len( inode );
+				state -> sd -> save_len( inode );
+
 		}
 		/* data.length is how much space to add to (or remove
 		   from if negative) sd */
@@ -392,7 +401,7 @@ static int update_sd( struct inode *inode )
 			assert( "nikita-729", 
 				item_length_by_coord( &coord ) == state -> sd_len );
 			area = item_body_by_coord( &coord );
-			result = data.iplug -> s.sd.save( inode, &area );
+			result = state -> sd -> save( inode, &area );
 		} else {
 			key_warning( error_message, &key, result );
 		}
