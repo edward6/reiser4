@@ -67,7 +67,6 @@ blocknr_is_fake(const reiser4_block_nr * da)
 /* Static functions for <reiser4 super block>/<reiser4 context> block counters
    arithmetic. Mostly, they are isolated to not to code same assertions in
    several places. */
-
 static void
 sub_from_ctx_grabbed(reiser4_context *ctx, __u64 count)
 {	
@@ -196,6 +195,7 @@ print_block_counters(const char *prefix,
 
 /* Get the amount of blocks of 5% of disk. */
 /* FIXME: moved to reiser4_set_block_count */
+#if 0
 reiser4_block_nr
 reiser4_fs_reserved_space(struct super_block * super) 
 {
@@ -206,6 +206,7 @@ reiser4_fs_reserved_space(struct super_block * super)
 	/* 51. / (2^10) == .0498 */
 	return (b * 51) >> 10;
 }
+#endif
 
 /* Adjust "working" free blocks counter for number of blocks we are going to
    allocate.  Record number of grabbed blocks in fs-wide and per-thread
@@ -230,7 +231,7 @@ reiser4_fs_reserved_space(struct super_block * super)
 static int
 reiser4_grab(reiser4_context *ctx, __u64 count, reiser4_ba_flags_t flags)
 {
-	__u64 free_blocks, reserved_blocks;
+	__u64 free_blocks;
 	int ret = 0, use_reserved = flags & BA_RESERVED;
 	reiser4_super_info_data *sbinfo;
 
@@ -241,12 +242,11 @@ reiser4_grab(reiser4_context *ctx, __u64 count, reiser4_ba_flags_t flags)
 	reiser4_spin_lock_sb(sbinfo);
 
 	free_blocks = sbinfo->blocks_free;
-	reserved_blocks = reiser4_fs_reserved_space (ctx->super);
 
 	trace_on(TRACE_ALLOC, "reiser4_grab: free_blocks %llu\n", free_blocks);
 
 	if ((use_reserved && (free_blocks < count)) || 
-	    (!use_reserved && (free_blocks < count + reserved_blocks))) {
+	    (!use_reserved && (free_blocks < count + sbinfo->blocks_reserved))) {
 		ret = -ENOSPC;
 		
 		trace_on(TRACE_ALLOC, "reiser4_grab: ENOSPC: count %llu\n", count);
@@ -432,7 +432,6 @@ static inline void assign_fake_blocknr(reiser4_block_nr *blocknr)
 
 	*blocknr &= ~REISER4_BLOCKNR_STATUS_BIT_MASK;
 	*blocknr |= REISER4_UNALLOCATED_STATUS_VALUE;
-
 #if REISER4_DEBUG
 	{
 		znode *node;
@@ -779,7 +778,7 @@ __grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count)
 	assert ("vpf-292", check_block_counters(ctx->super));
 
 	trace_on(TRACE_RESERVE2, "__grabbed2flush_reserved_nolock %llu blocks for %s: atom %u has %llu flush reserved blocks\n",
-				      count, message, atom->atom_id, atom->flush_reserved);
+		 count, message, atom->atom_id, atom->flush_reserved);
 
 	reiser4_spin_unlock_sb(sbinfo);	
 }
@@ -855,7 +854,7 @@ __flush_reserved2free_all(void)
 		return;
 
 	count = atom->flush_reserved;
-	
+ 
 	sub_from_atom_flush_reserved_nolock(atom, (__u32)count);
 
 	sbinfo = get_current_super_private();
