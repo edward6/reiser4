@@ -560,8 +560,6 @@ int tail_write (struct inode * inode, coord_t * coord,
 		case TAIL_FIRST_ITEM:
 		case TAIL_APPEND:
 		case TAIL_WRITE_FLOW: {
-			reiser4_inode *info;
-
 			/*
 			 * check quota before appending data
 			 */
