@@ -1,0 +1,358 @@
+diff -ru bk/reiser4/lock.c /home/vs/bitstream-reiser4/linux-2.6.9-rc2-mm4/fs/reiser4/lock.c
+--- bk/reiser4/lock.c	2004-10-27 18:47:03.467643409 +0400
++++ /home/vs/bitstream-reiser4/linux-2.6.9-rc2-mm4/fs/reiser4/lock.c	2004-10-26 19:01:41.524131133 +0400
+@@ -238,7 +238,8 @@
+ {
+ 	lock_handle *handle;
+ 
+-	assert("nikita-1824", rw_zlock_is_locked(&node->lock));
++	/*XXXXassert("nikita-1824", rw_zlock_is_locked(&node->lock));XXXX*/
++	assert("nikita-1824", spin_zlock_is_locked(&node->lock));
+ 	for_all_type_safe_list(owners, &node->lock.owners, handle) {
+ 		spin_lock_stack(handle->owner);
+ 
+@@ -265,7 +266,8 @@
+ {
+ 	assert("jmacd-810", handle->owner == NULL);
+ 	assert("nikita-1828", owner == get_current_lock_stack());
+-	assert("nikita-1830", rw_zlock_is_locked(&node->lock));
++	/*XXXXassert("nikita-1830", rw_zlock_is_locked(&node->lock));XXXX*/
++	assert("nikita-1830", spin_zlock_is_locked(&node->lock));
+ 
+ 	handle->owner = owner;
+ 	handle->node = node;
+@@ -284,7 +286,8 @@
+ {
+ 	assert("zam-354", handle->owner != NULL);
+ 	assert("nikita-1608", handle->node != NULL);
+-	assert("nikita-1633", rw_zlock_is_locked(&handle->node->lock));
++	/*XXXXassert("nikita-1633", rw_zlock_is_locked(&handle->node->lock));XXXX*/
++	assert("nikita-1633", spin_zlock_is_locked(&handle->node->lock));
+ 	assert("nikita-1829", handle->owner == get_current_lock_stack());
+ 
+ 	assert("reiser4-5", handle->owner->nr_locks > 0);
+@@ -308,7 +311,8 @@
+ 
+ 	request = &owner->request;
+ 	node    = request->node;
+-	assert("nikita-1834", rw_zlock_is_locked(&node->lock));
++	/*XXXXassert("nikita-1834", rw_zlock_is_locked(&node->lock));XXXX*/
++	assert("nikita-1834", spin_zlock_is_locked(&node->lock));
+ 	if (request->mode == ZNODE_READ_LOCK) {
+ 		node->lock.nr_readers++;
+ 	} else {
+@@ -341,7 +345,8 @@
+ 	/* Owners list is not empty for a locked node */
+ 	assert("zam-314", !owners_list_empty(&node->lock.owners));
+ 	assert("nikita-1841", owner == get_current_lock_stack());
+-	assert("nikita-1848", rw_zlock_is_locked(&node->lock));
++	/*XXXXassert("nikita-1848", rw_zlock_is_locked(&node->lock));XXXX*/
++	assert("nikita-1848", spin_zlock_is_locked(&node->lock));
+ 
+ 	ret = (owners_list_front(&node->lock.owners)->owner == owner);
+ 
+@@ -421,7 +426,8 @@
+ static inline int
+ check_deadlock_condition(znode * node)
+ {
+-	assert("nikita-1833", rw_zlock_is_locked(&node->lock));
++	/*XXXXassert("nikita-1833", rw_zlock_is_locked(&node->lock));XXXX*/
++	assert("nikita-1833", spin_zlock_is_locked(&node->lock));
+ 	return node->lock.nr_hipri_requests > 0 && node->lock.nr_hipri_owners == 0;
+ }
+ 
+@@ -432,7 +438,8 @@
+ 	znode *node = owner->request.node;
+ 
+ 	assert("nikita-1842", owner == get_current_lock_stack());
+-	assert("nikita-1843", rw_zlock_is_locked(&node->lock));
++	/*XXXXassert("nikita-1843", rw_zlock_is_locked(&node->lock));XXXX*/
++	assert("nikita-1843", spin_zlock_is_locked(&node->lock));
+ 
+ 	/* See if the node is disconnected. */
+ 	if (unlikely(ZF_ISSET(node, JNODE_IS_DYING))) {
+@@ -754,7 +761,8 @@
+ 	else
+ 		WUNLOCK_ZLOCK(&node->lock);
+ 
+-	assert("nikita-3182", rw_zlock_is_not_locked(&node->lock));
++	/*XXXXassert("nikita-3182", rw_zlock_is_not_locked(&node->lock));XXXX*/
++	assert("nikita-3182", spin_zlock_is_not_locked(&node->lock));
+ 	/* minus one reference from handle->node */
+ 	handle->node = NULL;
+ 	assert("nikita-2190", znode_invariant(node));
+@@ -769,7 +777,8 @@
+ {
+ 	znode *node = owner->request.node;
+ 
+-	assert("jmacd-807", rw_zlock_is_locked(&node->lock));
++	/*XXXXassert("jmacd-807", rw_zlock_is_locked(&node->lock));XXXX*/
++	assert("jmacd-807", spin_zlock_is_locked(&node->lock));
+ 
+ 	/* If we broke with (ok == 0) it means we can_lock, now do it. */
+ 	if (ok == 0) {
+@@ -830,7 +839,8 @@
+ 						       ZNODE_READ_LOCK,
+ 						       ZNODE_LOCK_LOPRI));
+ 
+-	result = UNDER_RW(zlock, lock, read, can_lock_object(owner));
++	/*XXXXresult = UNDER_RW(zlock, lock, read, can_lock_object(owner));XXXX*/
++	result = UNDER_SPIN(zlock, lock, can_lock_object(owner));
+ 
+ 	if (likely(result != -EINVAL)) {
+ 		spin_lock_znode(node);
+@@ -1081,7 +1091,8 @@
+ 			break;
+ 		}
+ 
+-		assert("nikita-1837", rw_zlock_is_locked(&node->lock));
++		/*XXXXassert("nikita-1837", rw_zlock_is_locked(&node->lock));XXXX*/
++		assert("nikita-1837", spin_zlock_is_locked(&node->lock));
+ 		if (hipri) {
+ 			/* If we are going in high priority direction then
+ 			   increase high priority requests counter for the
+@@ -1118,7 +1129,8 @@
+ 		requestors_list_remove(owner);
+ 	}
+ 
+-	assert("jmacd-807/a", rw_zlock_is_locked(&node->lock));
++	/*XXXXassert("jmacd-807/a", rw_zlock_is_locked(&node->lock));XXXX*/
++	assert("jmacd-807/a", spin_zlock_is_locked(&node->lock));
+ 	return lock_tail(owner, wake_up_next, ret, mode);
+ }
+ 
+@@ -1140,7 +1152,8 @@
+ 	assert("nikita-1793", !ZF_ISSET(node, JNODE_RIGHT_CONNECTED));
+ 	assert("nikita-1394", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
+ 	assert("nikita-3097", znode_is_wlocked_once(node));
+-	assert("nikita-3338", rw_zlock_is_locked(&node->lock));
++	/*XXXXassert("nikita-3338", rw_zlock_is_locked(&node->lock));XXXX*/
++	assert("nikita-3338", spin_zlock_is_locked(&node->lock));
+ 
+ 	if (handle->signaled)
+ 		atomic_dec(&owner->nr_signaled);
+@@ -1194,7 +1207,8 @@
+ 				   * structure. */ )
+ {
+ 	xmemset(lock, 0, sizeof (zlock));
+-	rw_zlock_init(lock);
++	/*XXXXrw_zlock_init(lock);XXXX*/
++	spin_zlock_init(lock);
+ 	requestors_list_init(&lock->requestors);
+ 	owners_list_init(&lock->owners);
+ }
+diff -ru bk/reiser4/lock.h /home/vs/bitstream-reiser4/linux-2.6.9-rc2-mm4/fs/reiser4/lock.h
+--- bk/reiser4/lock.h	2004-10-27 18:47:03.488640821 +0400
++++ /home/vs/bitstream-reiser4/linux-2.6.9-rc2-mm4/fs/reiser4/lock.h	2004-10-26 19:01:39.022439496 +0400
+@@ -41,7 +41,8 @@
+ 
+ /* Per-znode lock object */
+ struct zlock {
+-	reiser4_rw_data guard;
++	reiser4_spin_data guard;
++	/*XXXXreiser4_rw_data guard;XXXX*/
+ 	/* The number of readers if positive; the number of recursively taken
+ 	   write locks if negative. Protected by zlock spin lock. */
+ 	int nr_readers;
+@@ -61,7 +62,8 @@
+ 	  (lock_counters()->spin_locked_stack == 0)
+ 
+ /* Define spin_lock_zlock, spin_unlock_zlock, etc. */
+-RW_LOCK_FUNCTIONS(zlock, zlock, guard);
++/*XXXXRW_LOCK_FUNCTIONS(zlock, zlock, guard);XXXX*/
++SPIN_LOCK_FUNCTIONS(zlock, zlock, guard);
+ 
+ #define lock_is_locked(lock)          ((lock)->nr_readers != 0)
+ #define lock_is_rlocked(lock)         ((lock)->nr_readers > 0)
+diff -ru bk/reiser4/search.c /home/vs/bitstream-reiser4/linux-2.6.9-rc2-mm4/fs/reiser4/search.c
+--- bk/reiser4/search.c	2004-10-27 18:48:20.794112011 +0400
++++ /home/vs/bitstream-reiser4/linux-2.6.9-rc2-mm4/fs/reiser4/search.c	2004-10-27 17:58:23.955507653 +0400
+@@ -65,7 +65,8 @@
+ 		cbk_cache_init_slot(cache->slot + i);
+ 		cbk_cache_list_push_back(&cache->lru, cache->slot + i);
+ 	}
+-	rw_cbk_cache_init(cache);
++	/*XXXXrw_cbk_cache_init(cache);XXXX*/
++	spin_cbk_cache_init(cache);
+ 	return 0;
+ }
+ 
+@@ -130,7 +131,8 @@
+ 	assert("nikita-2469", cache != NULL);
+ 	unused = 0;
+ 	result = 1;
+-	read_lock_cbk_cache((cbk_cache *) cache);
++	/*XXXXread_lock_cbk_cache((cbk_cache *) cache);XXXX*/
++	spin_lock_cbk_cache((cbk_cache *) cache);
+ 	for_all_slots(cache, slot) {
+ 		/* in LRU first go all `used' slots followed by `unused' */
+ 		if (unused && (slot->node != NULL))
+@@ -153,7 +155,8 @@
+ 		if (!result)
+ 			break;
+ 	}
+-	read_unlock_cbk_cache((cbk_cache *) cache);
++	/*XXXXread_unlock_cbk_cache((cbk_cache *) cache);XXXX*/
++	spin_unlock_cbk_cache((cbk_cache *) cache);
+ 	return result;
+ }
+ 
+@@ -174,7 +177,8 @@
+ 	cache = &tree->cbk_cache;
+ 	assert("nikita-2470", cbk_cache_invariant(cache));
+ 
+-	write_lock_cbk_cache(cache);
++	/*XXXXwrite_lock_cbk_cache(cache);XXXX*/
++	spin_lock_cbk_cache(cache);
+ 	for (i = 0, slot = cache->slot; i < cache->nr_slots; ++ i, ++ slot) {
+ 		if (slot->node == node) {
+ 			cbk_cache_list_remove(slot);
+@@ -183,7 +187,8 @@
+ 			break;
+ 		}
+ 	}
+-	write_unlock_cbk_cache(cache);
++	/*XXXXwrite_unlock_cbk_cache(cache);XXXX*/
++	spin_unlock_cbk_cache(cache);
+ 	assert("nikita-2471", cbk_cache_invariant(cache));
+ }
+ 
+@@ -204,7 +209,8 @@
+ 	if (cache->nr_slots == 0)
+ 		return;
+ 
+-	write_lock_cbk_cache(cache);
++	/*XXXXwrite_lock_cbk_cache(cache);XXXX*/
++	spin_lock_cbk_cache(cache);
+ 	/* find slot to update/add */
+ 	for (i = 0, slot = cache->slot; i < cache->nr_slots; ++ i, ++ slot) {
+ 		/* oops, this node is already in a cache */
+@@ -218,7 +224,8 @@
+ 	}
+ 	cbk_cache_list_remove(slot);
+ 	cbk_cache_list_push_front(&cache->lru, slot);
+-	write_unlock_cbk_cache(cache);
++	/*XXXXwrite_unlock_cbk_cache(cache);XXXX*/
++	spin_unlock_cbk_cache(cache);
+ 	assert("nikita-2473", cbk_cache_invariant(cache));
+ }
+ 
+@@ -1242,7 +1249,8 @@
+ 	 */
+ 
+ 	rcu_read_lock();
+-	read_lock_cbk_cache(cache);
++	/*XXXXread_lock_cbk_cache(cache);XXXX*/
++	spin_lock_cbk_cache(cache);
+ 	slot = cbk_cache_list_prev(cbk_cache_list_front(&cache->lru));
+ 	while (1) {
+ 
+@@ -1271,7 +1279,8 @@
+ 			break;
+ 		}
+ 	}
+-	read_unlock_cbk_cache(cache);
++	/*XXXXread_unlock_cbk_cache(cache);XXXX*/
++	spin_unlock_cbk_cache(cache);
+ 
+ 	assert("nikita-2475", cbk_cache_invariant(cache));
+ 
+@@ -1317,14 +1326,16 @@
+ 			/* good. Either item found or definitely not found. */
+ 			result = 0;
+ 
+-			write_lock_cbk_cache(cache);
++			/*XXXXwrite_lock_cbk_cache(cache);XXXX*/
++			spin_lock_cbk_cache(cache);
+ 			if (slot->node == h->active_lh->node/*node*/) {
+ 				/* if this node is still in cbk cache---move
+ 				   its slot to the head of the LRU list. */
+ 				cbk_cache_list_remove(slot);
+ 				cbk_cache_list_push_front(&cache->lru, slot);
+ 			}
+-			write_unlock_cbk_cache(cache);
++			/*XXXXwrite_unlock_cbk_cache(cache);XXXX*/
++			spin_unlock_cbk_cache(cache);
+ 		}
+ 	} else {
+ 		/* race. While this thread was waiting for the lock, node was
+diff -ru bk/reiser4/spin_macros.h /home/vs/bitstream-reiser4/linux-2.6.9-rc2-mm4/fs/reiser4/spin_macros.h
+--- bk/reiser4/spin_macros.h	2004-10-27 18:47:03.490640574 +0400
++++ /home/vs/bitstream-reiser4/linux-2.6.9-rc2-mm4/fs/reiser4/spin_macros.h	2004-10-27 09:58:08.892303450 +0400
+@@ -800,8 +800,10 @@
+ #define WLOCK_TREE(tree) write_lock_tree(tree)
+ #define RLOCK_DK(tree) read_lock_dk(tree)
+ #define WLOCK_DK(tree) write_lock_dk(tree)
+-#define RLOCK_ZLOCK(lock) read_lock_zlock(lock)
+-#define WLOCK_ZLOCK(lock) write_lock_zlock(lock)
++/*XXXX#define RLOCK_ZLOCK(lock) read_lock_zlock(lock)XXXX*/
++/*XXXX#define WLOCK_ZLOCK(lock) write_lock_zlock(lock)XXXX*/
++#define RLOCK_ZLOCK(lock) spin_lock_zlock(lock)
++#define WLOCK_ZLOCK(lock) spin_lock_zlock(lock)
+ #endif
+ 
+ #define UNLOCK_JNODE(node) spin_unlock_jnode(node)
+@@ -813,8 +815,10 @@
+ #define WUNLOCK_TREE(tree) write_unlock_tree(tree)
+ #define RUNLOCK_DK(tree) read_unlock_dk(tree)
+ #define WUNLOCK_DK(tree) write_unlock_dk(tree)
+-#define RUNLOCK_ZLOCK(lock) read_unlock_zlock(lock)
+-#define WUNLOCK_ZLOCK(lock) write_unlock_zlock(lock)
++/*XXXX#define RUNLOCK_ZLOCK(lock) read_unlock_zlock(lock)XXXX*/
++/*XXXX#define WUNLOCK_ZLOCK(lock) write_unlock_zlock(lock)XXXX*/
++#define RUNLOCK_ZLOCK(lock) spin_unlock_zlock(lock)
++#define WUNLOCK_ZLOCK(lock) spin_unlock_zlock(lock)
+ 
+ /* __SPIN_MACROS_H__ */
+ #endif
+diff -ru bk/reiser4/tree.c /home/vs/bitstream-reiser4/linux-2.6.9-rc2-mm4/fs/reiser4/tree.c
+--- bk/reiser4/tree.c	2004-10-27 19:01:47.542670753 +0400
++++ /home/vs/bitstream-reiser4/linux-2.6.9-rc2-mm4/fs/reiser4/tree.c	2004-10-18 15:47:10.449168509 +0400
+@@ -747,7 +747,8 @@
+ 
+ 	assert("vs-164", znode_is_write_locked(node));
+ 	assert("nikita-1280", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
+-	assert("nikita-3337", rw_zlock_is_locked(&node->lock));
++	/*XXXXassert("nikita-3337", rw_zlock_is_locked(&node->lock));XXXX*/
++	assert("nikita-3337", spin_zlock_is_locked(&node->lock));
+ 
+ 	/* We assume that this node was detached from its parent before
+ 	 * unlocking, it gives no way to reach this node from parent through a
+@@ -771,10 +772,12 @@
+ 	 * loop, trying to lock dying object.  The exception is in the flush
+ 	 * code when we take node directly from atom's capture list.*/
+ 
+-	write_unlock_zlock(&node->lock);
++	/*XXXXwrite_unlock_zlock(&node->lock);XXXX*/
++	spin_unlock_zlock(&node->lock);
+ 	/* and, remove from atom's capture list. */
+ 	uncapture_znode(node);
+-	write_lock_zlock(&node->lock);
++	/*XXXXwrite_lock_zlock(&node->lock);XXXX*/
++	spin_lock_zlock(&node->lock);
+ 
+ 	invalidate_lock(handle);
+ }
+diff -ru bk/reiser4/tree.h /home/vs/bitstream-reiser4/linux-2.6.9-rc2-mm4/fs/reiser4/tree.h
+--- bk/reiser4/tree.h	2004-10-27 18:47:03.491640451 +0400
++++ /home/vs/bitstream-reiser4/linux-2.6.9-rc2-mm4/fs/reiser4/tree.h	2004-10-07 15:00:58.782380923 +0400
+@@ -64,7 +64,8 @@
+ */
+ typedef struct cbk_cache {
+ 	/* serializator */
+-	reiser4_rw_data guard;
++	/*XXXXreiser4_rw_data guard;XXXX*/
++	reiser4_spin_data guard;
+ 	int nr_slots;
+ 	/* head of LRU list of cache slots */
+ 	cbk_cache_list_head lru;
+@@ -75,7 +76,8 @@
+ #define rw_ordering_pred_cbk_cache(cache) (1)
+ 
+ /* defined read-write locking functions for cbk_cache */
+-RW_LOCK_FUNCTIONS(cbk_cache, cbk_cache, guard);
++/*XXXXRW_LOCK_FUNCTIONS(cbk_cache, cbk_cache, guard);XXXX*/
++SPIN_LOCK_FUNCTIONS(cbk_cache, cbk_cache, guard);
+ 
+ /* define list manipulation functions for cbk_cache LRU list */
+ TYPE_SAFE_LIST_DEFINE(cbk_cache, cbk_cache_slot, lru);
