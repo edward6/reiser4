@@ -149,7 +149,7 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 	printk("%s: jnode: %i, tree: %i (r:%i,w:%i), dk: %i (r:%i,w:%i)\n"
 	       "txnh: %i, atom: %i, stack: %i, txnmgr: %i, "
 	       "ktxnmgrd: %i, fq: %i, reiser4_sb: %i\n"
-	       "inode: %i, cbk_cache: %i, epoch: %i, zgen: %i, eflush: %i, "
+	       "inode: %i, cbk_cache: %i, epoch: %i %i, eflush: %i, "
 	       "zlock: %i\n"
 	       "spin: %i, long: %i inode_sem: (r:%i,w:%i)\n"
 	       "d: %i, x: %i, t: %i\n", prefix,
@@ -166,7 +166,6 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 	       info->spin_locked_inode_object, 
 	       info->spin_locked_cbk_cache,
 	       info->spin_locked_epoch,
-	       info->spin_locked_zgen,
 	       info->spin_locked_super_eflush,
 	       info->spin_locked_zlock,
 	       info->spin_locked,
