@@ -500,15 +500,13 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	   further checks are necessary. */
 	if (found) {
 		assert("nikita-1259", order == EQUAL_TO);
-		if (iplug->b.init_coord)
-			iplug->b.init_coord(coord);
 		return NS_FOUND;
 	}
 	if (iplug->b.max_key_inside != NULL) {
 		reiser4_key max_item_key;
 
 		/* key > max_item_key --- outside of an item */
-		if (keygt(key, iplug->b.max_key_inside(coord, &max_item_key, 0))) {
+		if (keygt(key, iplug->b.max_key_inside(coord, &max_item_key))) {
 			coord->unit_pos = 0;
 			coord->between = AFTER_ITEM;
 			/* FIXME-VS: key we are looking for does not fit into
@@ -649,8 +647,10 @@ check_node40(const znode * node /* node to check */ ,
 			*error = "non-internal item on the internal level";
 			return -1;
 		}
+#if REISER4_DEBUG
 		if (item_plugin_by_coord(&coord)->b.check && item_plugin_by_coord(&coord)->b.check(&coord, error))
 			return -1;
+#endif
 		if (i) {
 			coord_t prev_coord;
 			/* two neighboring items can not be mergeable */
@@ -674,7 +674,7 @@ check_node40(const znode * node /* node to check */ ,
 		if (iplug->s.file.append_key != NULL) {
 			reiser4_key mkey;
 
-			iplug->s.file.append_key(&coord, &mkey, 0);
+			iplug->s.file.append_key(&coord, &mkey);
 			set_key_offset(&mkey, get_key_offset(&mkey) - 1);
 			if (keygt(&mkey, znode_get_rd_key((znode *) node))) {
 				*error = "key of rightmost item is too large";
@@ -1012,7 +1012,7 @@ cut_or_kill(struct cut_list *params, int cut)
 	unsigned i;
 	unsigned cut_size;
 	reiser4_key old_first_key;
-	pos_in_node wrong_item; /* position of item for which may get
+	pos_in_node_t wrong_item; /* position of item for which may get
 				      mismatching item key and key of first
 				      unit in it */
 	unsigned from_unit, to_unit;
@@ -1025,7 +1025,7 @@ cut_or_kill(struct cut_list *params, int cut)
 	nh = node40_node_header(node);
 	old_first_key = node40_ih_at(node, 0)->key;
 
-	wrong_item = (pos_in_node)~0;
+	wrong_item = (pos_in_node_t)~0;
 	if (params->from->item_pos == params->to->item_pos) {
 		/* cut one item (partially or as whole) */
 		first_removed = params->from->item_pos;
@@ -1274,7 +1274,7 @@ static void
 estimate_shift(struct shift_params *shift)
 {
 	unsigned target_free_space, size;
-	pos_in_node stop_item;	/* item which estimating should not consider */
+	pos_in_node_t stop_item;	/* item which estimating should not consider */
 	unsigned want;		/* number of units of item we want shifted */
 	coord_t source;		/* item being estimated */
 	item_plugin *iplug;
