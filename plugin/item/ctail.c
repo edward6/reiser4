@@ -134,7 +134,7 @@ nr_units_ctail(const coord_t * coord)
 	return (item_length_by_coord(coord) - sizeof(formatted_at(coord)->cluster_shift));
 }
 
-/* plugin->u.item.b.unit_key: 
+/* plugin->u.item.b.unit_key:
    tail_unit_key */
 
 /* plugin->u.item.b.estimate:
@@ -161,7 +161,7 @@ print_ctail(const char *prefix /* prefix to print */ ,
 	assert("edward-63", prefix != NULL);
 	assert("edward-64", coord != NULL);
 
-	if (item_length_by_coord(coord) < (int) sizeof (ctail_item_format)) 
+	if (item_length_by_coord(coord) < (int) sizeof (ctail_item_format))
 		printk("%s: wrong size: %i < %i\n", prefix, item_length_by_coord(coord), sizeof (ctail_item_format));
 	else
 		printk("%s: disk cluster size: %i\n", prefix, cluster_size_by_coord(coord));
@@ -198,8 +198,8 @@ paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info 
 
 	/* tail items never get pasted in the middle */
 	assert("edward-65",
-	       (coord->unit_pos == 0 && coord->between == BEFORE_UNIT) ||  /* after can_paste - wanna glue at right - impossible */     
-	       (coord->unit_pos == old_nr_units - 1 && coord->between == AFTER_UNIT) ||  
+	       (coord->unit_pos == 0 && coord->between == BEFORE_UNIT) ||  /* after can_paste - wanna glue at right - impossible */
+	       (coord->unit_pos == old_nr_units - 1 && coord->between == AFTER_UNIT) ||
 	       (coord->unit_pos == 0 && old_nr_units == 0 && coord->between == AT_UNIT)); /* after create item */
 	
 	if (coord->between == AFTER_UNIT)
@@ -282,12 +282,12 @@ kill_hook_ctail(const coord_t *coord, unsigned from, unsigned count, struct cut_
 
 /* plugin->u.item.b.shift_hook */
 /* plugin->u.item.b.cut_units */
-int 
+int
 cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
 	       const reiser4_key * from_key UNUSED_ARG,
 	       const reiser4_key * to_key UNUSED_ARG, reiser4_key * smallest_removed,
 	       struct cut_list *p UNUSED_ARG)
-{ 
+{
 	reiser4_key key;
 	unsigned count;
 	
@@ -370,7 +370,7 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	   - optimize it for the clusters which represent end of file */
 	clust->len = inode_scaled_cluster_size(inode);
 	clust->buf = reiser4_kmalloc(clust->len, GFP_KERNEL);
-	if (!clust->buf) 
+	if (!clust->buf)
 		return -ENOMEM;
 	result = find_cluster(clust, inode, 1 /* read */, write);
 	if (result)
@@ -433,7 +433,7 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	kunmap(page);
 	SetPageUptodate(page);
  exit:
-	if (release) 
+	if (release)
 		put_cluster_data(clust, inode);
 	return 0;	
 }
@@ -520,7 +520,7 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 	return;
 }
 
-/* 
+/*
    plugin->u.item.s.file.append_key
 */
 reiser4_key *
@@ -612,11 +612,11 @@ overwrite_ctail(coord_t * coord, flow_t * f)
 		count = f->length;
 	xmemcpy(item_body_by_coord(coord), f->data, count);
 	move_flow_forward(f, count);
-	coord->unit_pos += count; 
+	coord->unit_pos += count;
 	return 0;
 }
 
-/* cut ctail item or its tail subset */ 
+/* cut ctail item or its tail subset */
 static int
 cut_ctail(coord_t * coord)
 {
@@ -659,7 +659,7 @@ write_ctail(flow_t *f, coord_t *coord, lock_handle *lh, int grabbed, crc_write_m
    in the tree. If so, insert prosessed cluster into the tree.
    Don't care about scan counter since leftward scanning will be continued
    from rightmost dirty node.
-*/  
+*/
 int scan_ctail(flush_scan * scan, const coord_t * in_coord)
 {
 	int result;
@@ -828,7 +828,7 @@ utmost_child_ctail(const coord_t * coord, sideof side, jnode ** child)
 	if (get_key_offset(&key) & ~(~0ULL << cluster_shift_by_coord(coord) << PAGE_CACHE_SHIFT))
 		*child = NULL;
 	else
-		*child = jlook_lock(current_tree, get_key_objectid(item_key_by_coord(coord, &key)), cluster_index_by_coord(coord));
+		*child = jlookup(current_tree, get_key_objectid(item_key_by_coord(coord, &key)), cluster_index_by_coord(coord));
 	return 0;
 }
 

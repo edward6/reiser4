@@ -75,7 +75,7 @@ utmost_child_extent(const coord_t *coord, sideof side, jnode **childp)
 			index --;
 
 		tree = coord->node->zjnode.tree;
-		*childp = jlook_lock(tree, get_key_objectid(&key), index);
+		*childp = jlookup(tree, get_key_objectid(&key), index);
 	}
 
 	return 0;
@@ -111,13 +111,13 @@ utmost_child_real_block_extent(const coord_t *coord, sideof side, reiser4_block_
 /* Performs leftward scanning starting from an unformatted node and its parent coordinate.
    This scan continues, advancing the parent coordinate, until either it encounters a
    formatted child or it finishes scanning this node.
-  
+
    If unallocated, the entire extent must be dirty and in the same atom.  (Actually, I'm
    not sure this is last property (same atom) is enforced, but it should be the case since
    one atom must write the parent and the others must read the parent, thus fusing?).  In
    any case, the code below asserts this case for unallocated extents.  Unallocated
    extents are thus optimized because we can skip to the endpoint when scanning.
-  
+
    It returns control to scan_extent, handles these terminating conditions, e.g., by
    loading the next twig.
 */
@@ -196,7 +196,7 @@ repeat:
 	   is unallocated we can skip to the scan_max. */
 	if (allocated) {
 		do {
-			neighbor = jlook_lock(tree, oid, scan_index);
+			neighbor = jlookup(tree, oid, scan_index);
 			if (neighbor == NULL)
 				goto stop_same_parent;
 
@@ -221,7 +221,7 @@ repeat:
 
 	} else {
 		/* Optimized case for unallocated extents, skip to the end. */
-		neighbor = jlook_lock(tree, oid, scan_max/*index*/);
+		neighbor = jlookup(tree, oid, scan_max/*index*/);
 		if (neighbor == NULL) {
 			/* Race with truncate */
 			scan->stop = 1;
@@ -352,7 +352,7 @@ must_insert(coord_t *coord, reiser4_key *key)
 /* helper for extent_handle_overwrite_and_copy. It appends last item in the @node with @data if @data and last item are
    mergeable, otherwise insert @data after last item in @node. Have carry to put new data in available space only (that
    it to not allocate new nodes if target does not have enough space). This is because we are in squeezing.
-  
+
    FIXME-VS: me might want to try to union last extent in item @left and @data
 */
 static int
@@ -400,7 +400,7 @@ unprotect_extent_nodes(oid_t oid, unsigned long ind, __u64 count)
 	for (i = 0 ; i < count; ++ i, ++ ind) {
 		jnode  *node;
 
-		node = jlook_lock(tree, oid, ind);
+		node = jlookup(tree, oid, ind);
 		assert("nikita-3088", node != NULL);
 
 		junprotect(node);
@@ -437,7 +437,7 @@ protect_extent_nodes(oid_t oid, unsigned long ind, __u64 count, __u64 *protected
 	for (i = 0; i < count; ++i) {
 		jnode  *node;
 
-		node = jlook_lock(tree, oid, ind + i);
+		node = jlookup(tree, oid, ind + i);
 		/*
 		 * all jnodes of unallocated extent should be in
 		 * place. Truncate removes extent item together with jnodes
@@ -567,7 +567,7 @@ find_extent_slum_size(const coord_t *start, unsigned pos_in_unit)
 		switch (state_of_extent(ext)) {
 		case ALLOCATED_EXTENT:
 			for (i = pos_in_unit; i < width; i ++) {
-				node = jlook_lock(tree, oid, index);
+				node = jlookup(tree, oid, index);
 				if (!node) {
 					slum_done = 1;
 					break;
@@ -595,7 +595,7 @@ find_extent_slum_size(const coord_t *start, unsigned pos_in_unit)
 			assert("vs-1388", pos_in_unit == 0);
 			ON_DEBUG(
 				for (i = 0; i < width; i ++) {
-					node = jlook_lock(tree, oid, index + i);
+					node = jlookup(tree, oid, index + i);
 					assert("vs-1426", ergo(node == 0, i == width - 1));
 					assert("vs-1132", ergo(node, blocknr_is_fake(jnode_get_block(node))));
 
@@ -611,7 +611,7 @@ find_extent_slum_size(const coord_t *start, unsigned pos_in_unit)
 			slum_size += width;			
 			index += width;
 
-			node = jlook_lock(tree, oid, index - 1);
+			node = jlookup(tree, oid, index - 1);
 			if (jnode_check_flushprepped(node)) {
 				/* last jnode of unit is not dirty yet */
 				slum_size --;
@@ -739,7 +739,7 @@ assign_real_blocknrs(oid_t oid, unsigned long index, reiser4_block_nr first,
 	reiser4_tree *tree = current_tree;
 
 	for (i = 0; i < (int) count; i++, first++, index ++) {
-		j = jlook_lock(tree, oid, index);
+		j = jlookup(tree, oid, index);
 		assert("vs-1401", j);
 		assert("vs-1412", JF_ISSET(j, JNODE_EPROTECTED));
 		assert("vs-1132", blocknr_is_fake(jnode_get_block(j)));
@@ -764,7 +764,7 @@ assign_fake_blocknrs(oid_t oid, unsigned long index, reiser4_block_nr count)
 	reiser4_tree *tree = current_tree;
 
 	for (i = 0; i < count; i ++, index ++) {
-		j = jlook_lock(tree, oid, index);
+		j = jlookup(tree, oid, index);
 		assert("vs-1367", j);
 		assert("vs-1363", !jnode_check_flushprepped(j));
 		assert("vs-1412", JF_ISSET(j, JNODE_EPROTECTED));
@@ -786,7 +786,7 @@ change_jnode_blocknrs(oid_t oid, unsigned long index, reiser4_block_nr first,
 	reiser4_tree *tree = current_tree;
 
 	for (i = 0; i < (int) count; i++, first++, index ++) {
-		j = jlook_lock(tree, oid, index);
+		j = jlookup(tree, oid, index);
 		assert("vs-1401", j);
 		jnode_set_block(j, &first);
 
@@ -954,7 +954,7 @@ extent_handle_relocate_in_place(flush_pos_t *flush_pos, unsigned *slum_size)
 	extent_slum_size = protected;
 	assert("vs-1422", ext == extent_by_coord(coord));
 	assert("vs-1423", state_of_extent(ext) == UNALLOCATED_EXTENT || state_of_extent(ext) == UNALLOCATED_EXTENT2);
-	check_me("vs-1138", extent_allocate_blocks(pos_hint(flush_pos), 
+	check_me("vs-1138", extent_allocate_blocks(pos_hint(flush_pos),
 						   extent_slum_size, &first_allocated, &allocated) == 0);
 	assert("vs-440", allocated > 0 && allocated <= extent_slum_size);
 	if (allocated < extent_slum_size)
@@ -1045,7 +1045,7 @@ extent_handle_overwrite_in_place(flush_pos_t *flush_pos, unsigned *slum_size)
 		return 0;
 	}
 	for (i = 0; i < extent_slum_size; i ++) {
-		j = jlook_lock(tree, oid, index + i);
+		j = jlookup(tree, oid, index + i);
 		assert("vs-1396", j && !jnode_check_flushprepped(j));
 		jnode_make_wander(j);
 		jput(j);
@@ -1225,7 +1225,7 @@ extent_handle_overwrite_and_copy(znode *left, coord_t *right, flush_pos_t *flush
 		extent_slum_size = *slum_size;
 
 	for (i = 0; i < extent_slum_size; i ++) {
-		j = jlook_lock(tree, oid, index + i);
+		j = jlookup(tree, oid, index + i);
 		assert("vs-1396", j && !jnode_check_flushprepped(j));
 		jnode_make_wander(j);
 		jput(j);

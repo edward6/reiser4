@@ -48,8 +48,8 @@ mergeable_extent(const coord_t *p1, const coord_t *p2)
 	item_key_by_coord(p1, &key1);
 	item_key_by_coord(p2, &key2);
 	if (get_key_locality(&key1) != get_key_locality(&key2) ||
-	    get_key_objectid(&key1) != get_key_objectid(&key2) || 
-	    get_key_ordering(&key1) != get_key_ordering(&key2) || 
+	    get_key_objectid(&key1) != get_key_objectid(&key2) ||
+	    get_key_ordering(&key1) != get_key_ordering(&key2) ||
 	    get_key_type(&key1) != get_key_type(&key2))
 		return 0;
 	if (get_key_offset(&key1) + extent_size(p1, nr_units_extent(p1)) != get_key_offset(&key2))
@@ -180,7 +180,7 @@ lookup_extent(const reiser4_key *key, lookup_bias bias UNUSED_ARG, coord_t *coor
 	/* key we are looking for must be greater than key of item @coord */
 	assert("vs-414", keygt(key, &item_key));
 	
-	assert("umka-99945", 
+	assert("umka-99945",
 	        !keygt(key, max_key_inside_extent(coord, &item_key)));
 
 	ext = extent_item(coord);
@@ -490,7 +490,7 @@ kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, struct cut
 		WUNLOCK_TREE(tree);
 
 		if (right != NULL)
-			UNDER_RW_VOID(dk, tree, write, 
+			UNDER_RW_VOID(dk, tree, write,
 				      update_znode_dkeys(left, right));
 	}
 
@@ -523,7 +523,7 @@ kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, struct cut
 		/* BA_DEFER bit parameter is turned on because blocks which get freed
 		   are not safe to be freed immediately */
 		
-		reiser4_dealloc_blocks(&start, &length, 0 /* not used */, 
+		reiser4_dealloc_blocks(&start, &length, 0 /* not used */,
 			BA_DEFER/* unformatted with defer */, "extent_kill_item_hook");
 	}
 	return 0;
@@ -578,7 +578,7 @@ cut_or_kill_units(coord_t *coord,
 			long nr_pages;
 
 			/* round @start upward */
-			start = round_up(get_key_offset(from_key), 
+			start = round_up(get_key_offset(from_key),
 					 PAGE_CACHE_SIZE);
 			/* convert to page index */
 			start >>= PAGE_CACHE_SHIFT;
@@ -587,7 +587,7 @@ cut_or_kill_units(coord_t *coord,
 			end   = get_key_offset(to_key) >> PAGE_CACHE_SHIFT;
 			/* number of completely removed pages */
 			nr_pages = end - start + 1;
-			truncate_mapping_pages_range(inode->i_mapping, 
+			truncate_mapping_pages_range(inode->i_mapping,
 						     start, nr_pages);
 			/* detach jnodes from inode's tree of jnodes */
 			truncate_inode_jnodes_range(inode, start, nr_pages);
@@ -644,7 +644,7 @@ cut_or_kill_units(coord_t *coord,
 					start = extent_get_start(ext) + new_width;
 					length = old_width - new_width;
 
-					reiser4_dealloc_blocks(&start, &length, 0 /* not used */, 
+					reiser4_dealloc_blocks(&start, &length, 0 /* not used */,
 						BA_DEFER /* unformatted with defer */, "cut_or_kill_units: from");
 				}
 				extent_set_width(ext, new_width);
@@ -782,7 +782,7 @@ unit_key_extent(const coord_t *coord, reiser4_key *key)
 /* item_plugin->b.check
    used for debugging, every item should have here the most complete
    possible check of the consistency of the item that the inventor can
-   construct 
+   construct
 */
 int
 check_extent(const coord_t *coord /* coord of item to check */ ,
@@ -828,7 +828,7 @@ check_extent(const coord_t *coord /* coord of item to check */ ,
 				jnode *node;
 
 				RLOCK_TREE(tree);
-				node = jlook_lock(tree, oid, index + j);
+				node = jlookup(tree, oid, index + j);
 				if (node == NULL) {
 					BUG();
 					print_coord("scan", &scan, 0);
