@@ -1280,22 +1280,17 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 				  from_key, to_key, &smallest_removed, DELETE_KILL, /*flags */
 				  0);
 		zrelse(loaded);
-
-		if (result == -EAGAIN) {
-			/* cut_node returns this when we cut from the beginning
-			   of twig node and it had to lock neighbor to get
-			   "left child" to update its right delimiting key and
-			   it failed becasue left neighbor was locked. So,
-			   release lock held and try again */
-			done_lh(&lock_handle);
-			continue;
-		}
+		done_lh(&lock_handle);
 
 		if (result) {
-			done_lh(&lock_handle);
+			/* cut_node may return -EDEADLK when we cut from the beginning of twig node and it had to lock
+			   neighbor to get "left child" to update its right delimiting key and it failed because left
+			   neighbor was locked. So, release lock held and try again */
+			if (result == -EDEADLK)
+				continue;
 			break;
 		}
-		done_lh(&lock_handle);
+
 		assert("vs-301", !keyeq(&smallest_removed, min_key()));
 	} while (keygt(&smallest_removed, from_key));
 
