@@ -598,7 +598,7 @@ reiser4_sync_inodes(struct super_block * sb, struct writeback_control * wbc)
 
 	init_context(&ctx, sb);
 	/* avoid recursive calls to ->sync_inodes */
-	ctx.nobalance = 1;
+	context_set_commit_async(&ctx);
 	wbc->older_than_this = NULL;
 
 	/*
@@ -1305,9 +1305,6 @@ reiser4_kill_super(struct super_block *s)
 		goto out;
 
 	done_entd_context(s);
-
-	/* shutdown daemon if last mount is removed */
-	ktxnmgrd_detach(&sbinfo->tmgr);
 
 	check_block_counters(s);
 
