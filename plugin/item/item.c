@@ -9,6 +9,7 @@
 #include "../plugin_header.h"
 #include "sde.h"
 #include "tail.h"
+#include "../cryptcompress.h"
 #include "ctail.h"
 #include "internal.h"
 #include "item.h"
