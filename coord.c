@@ -612,7 +612,8 @@ coords_equal(const coord_t * c1, const coord_t * c2)
 	cassert(sizeof(*c1) == sizeof(c1->node) + 
 		sizeof(c1->item_pos) +
 		sizeof(c1->unit_pos) + 
-		sizeof(c1->iplugid) + sizeof(c1->between) + sizeof(c1->pad));
+		sizeof(c1->iplugid) + sizeof(c1->between) + sizeof(c1->pad) +
+		sizeof(c1->pos_in_unit));
 	return 
 		c1->node == c2->node &&
 		c1->item_pos == c2->item_pos &&
@@ -1038,8 +1039,9 @@ print_coord(const char *mes, const coord_t * coord, int node)
 		printk("%s: null\n", mes);
 		return;
 	}
-	printk("%s: item_pos = %d, unit_pos %d, tween=%s, iplug=%d\n",
-	       mes, coord->item_pos, coord->unit_pos, coord_tween_tostring(coord->between), coord->iplugid);
+	printk("%s: item_pos = %d, unit_pos %d, tween=%s, iplug=%d, pos_in_unit %llu\n",
+	       mes, coord->item_pos, coord->unit_pos, coord_tween_tostring(coord->between), coord->iplugid,
+	       coord->pos_in_unit);
 	if (node)
 		print_znode("\tnode", coord->node);
 }
