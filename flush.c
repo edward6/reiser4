@@ -1368,10 +1368,15 @@ static int flush_forward_squalloc (flush_position *pos)
 {
 	int ret = 0;
 
+#if 0	/* FIXME-ZAM: the flush_alloc_ancestors() leaves pos already prepped
+	 * without advancing the position, so this check is likely to break
+	 * squalloc when there is no concurrent flushing. */
+
 	/* If there is a race and the current node is already prepped, why continue? */
 	if (jnode_check_flushprepped (pos->point)) {
 		return 0;
 	}
+#endif
 
  ALLOC_EXTENTS:
 	/* Step 4: Allocate the current extent (if current position is an extent). */
