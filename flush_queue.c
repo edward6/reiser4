@@ -2,12 +2,27 @@
  * Copyright 2002 Hans Reiser
  */
 
+
+
+
+#include "debug.h"
+#include "tslist.h"
+#include "txnmgr.h"
+#include "jnode.h"
+#include "znode.h"
+
+#include <linux/bio.h>
+#include <linux/mm.h>
+#include <linux/pagemap.h>
+#include <linux/blkdev.h>
+
 /* A flush queue object is an accumulator for keeping jnodes prepared
  * by the jnode_flush() function for writing to disk. Those "queued" jnodes are
  * kept on the flush queue until memory pressure or atom commit asks
  * flush queues to write some or all from their jnodes. */
 
-#include "reiser4.h"
+
+
 
 TS_LIST_DEFINE (fq, flush_queue_t, link);
 
