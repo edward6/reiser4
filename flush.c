@@ -1648,7 +1648,7 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 			init_load_count(&right_load);
 			
 			/* check for slum right neighbor */
-			ret = neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
+			ret = neighbor_in_slum(node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
 			if (ret == -E_NO_NEIGHBOR)
 				/* no neighbor, repeat on this node */
 				continue;
