@@ -25,6 +25,7 @@ TYPE_SAFE_LIST_DEFINE(wbq, struct wbq, link);
 
 #define DEF_PRIORITY 12
 #define MAX_ENTD_ITERS 10
+#define ENTD_ASYNC_REQUESTS_LIMIT 32
 
 static void entd_flush(struct super_block *super);
 static int entd(void *arg);
@@ -76,7 +77,7 @@ init_entd_context(struct super_block *super)
 static void wakeup_wbq (entd_context * ent, struct wbq * rq)
 {
 	wbq_list_remove(rq);
-	ent->wbq_nr --;
+	ent->nr_synchronous_requests --;
 	rq->wbc->nr_to_write --;
 	up(&rq->sem);
 }
@@ -99,7 +100,7 @@ entd(void *arg)
 {
 	struct super_block *super;
 	struct task_struct *me;
-	entd_context       *ctx;
+	entd_context       *ent;
 
 	assert("vs-1655", list_empty(&current_thread_info()->generic.private_pages));
 
@@ -121,53 +122,60 @@ entd(void *arg)
 	*/
 	me->journal_info = NULL;
 
-	ctx = get_entd_context(super);
+	ent = get_entd_context(super);
 
-	spin_lock(&ctx->guard);
-	ctx->tsk = me;
+	spin_lock(&ent->guard);
+	ent->tsk = me;
 	/* signal waiters that initialization is completed */
-	kcond_broadcast(&ctx->startup);
-	spin_unlock(&ctx->guard);
+	kcond_broadcast(&ent->startup);
+	spin_unlock(&ent->guard);
 	while (1) {
 		int result = 0;
 
 		if (me->flags & PF_FREEZE)
 			refrigerator(PF_FREEZE);
 
-		spin_lock(&ctx->guard);
+		spin_lock(&ent->guard);
 
-		while (ctx->wbq_nr != 0) {
-			struct wbq * rq = wbq_list_front(&ctx->wbq_list);
+		while (ent->nr_all_requests != 0) {
+			assert("zam-1043", ent->nr_all_requests >= ent->nr_synchronous_requests);
+			if (ent->nr_synchronous_requests != 0) {
+				struct wbq * rq = wbq_list_front(&ent->wbq_list);
 
-			if (++ rq->nr_entd_iters > MAX_ENTD_ITERS) {
-				wakeup_wbq(ctx, rq);
-				continue;
+				if (++ rq->nr_entd_iters > MAX_ENTD_ITERS) {
+					ent->nr_all_requests --;
+					wakeup_wbq(ent, rq);
+					continue;
+				}
+			} else {
+				/* endless loop avoidance. */
+				ent->nr_all_requests --;
 			}
 
-			spin_unlock(&ctx->guard);
+			spin_unlock(&ent->guard);
 			entd_set_comm("!");
 			entd_flush(super);
-			spin_lock(&ctx->guard);
+			spin_lock(&ent->guard);
 		}
 
 		entd_set_comm(".");
 
 		/* wait for work */
-		result = kcond_wait(&ctx->wait, &ctx->guard, 1);
+		result = kcond_wait(&ent->wait, &ent->guard, 1);
 		if (result != -EINTR && result != 0)
 			/* some other error */
 			warning("nikita-3099", "Error: %i", result);
 
 		/* we are asked to exit */
-		if (ctx->done) {
-			spin_unlock(&ctx->guard);
+		if (ent->done) {
+			spin_unlock(&ent->guard);
 			break;
 		}
 
-		spin_unlock(&ctx->guard);
+		spin_unlock(&ent->guard);
 	}
-	wakeup_all_wbq(ctx);
-	complete_and_exit(&ctx->finish, 0);
+	wakeup_all_wbq(ent);
+	complete_and_exit(&ent->finish, 0);
 	/* not reached. */
 	return 0;
 }
@@ -176,19 +184,19 @@ entd(void *arg)
 reiser4_internal void
 done_entd_context(struct super_block *super)
 {
-	entd_context * ctx;
+	entd_context * ent;
 
 	assert("nikita-3103", super != NULL);
 
-	ctx = get_entd_context(super);
+	ent = get_entd_context(super);
 
-	spin_lock(&ctx->guard);
-	ctx->done = 1;
-	kcond_signal(&ctx->wait);
-	spin_unlock(&ctx->guard);
+	spin_lock(&ent->guard);
+	ent->done = 1;
+	kcond_signal(&ent->wait);
+	spin_unlock(&ent->guard);
 
 	/* wait until daemon finishes */
-	wait_for_completion(&ctx->finish);
+	wait_for_completion(&ent->finish);
 }
 
 /* called at the beginning of jnode_flush to register flusher thread with ent
@@ -222,7 +230,7 @@ reiser4_internal void leave_flush (struct super_block * super)
 
 	spin_lock(&ent->guard);
 	ent->flushers --;
-	if (ent->flushers == 0 && ent->wbq_nr != 0)
+	if (ent->flushers == 0 && ent->nr_synchronous_requests != 0)
 		kcond_signal(&ent->wait);
 #if REISER4_DEBUG
 	flushers_list_remove_clean(get_current_context());
@@ -243,8 +251,6 @@ static void entd_capture_anonymous_pages(
 	capture_reiser4_inodes(super, wbc);
 	spin_unlock(&inode_lock);
 }
-
-#define DEBUG_WRITEOUT (1)
 
 static void entd_flush(struct super_block *super)
 {
@@ -299,23 +305,23 @@ void write_page_by_ent (struct page * page, struct writeback_control * wbc)
 	rq.wbc = wbc;
 
 	spin_lock(&ent->guard);
-	sema_init(&rq.sem, 0);
-
-	wbq_list_push_back(&ent->wbq_list, &rq);
-	ent->wbq_nr ++;
-
 	if (ent->flushers == 0)
 		kick_entd(ent);
-
+	ent->nr_all_requests ++;
+	if (ent->nr_all_requests <= ent->nr_synchronous_requests + ENTD_ASYNC_REQUESTS_LIMIT) {
+		spin_unlock(&ent->guard);
+		return;
+	}
+	sema_init(&rq.sem, 0);
+	wbq_list_push_back(&ent->wbq_list, &rq);
+	ent->nr_synchronous_requests ++;
 	spin_unlock(&ent->guard);
-
 	down(&rq.sem);
 
 	/* don't release rq until wakeup_wbq stops using it. */
 	spin_lock(&ent->guard);
 	spin_unlock(&ent->guard);
-
-	/* wbq dequeued by the ent thread. */
+	/* wbq dequeued by the ent thread (by another then current thread). */
 }
 
 /* ent should be locked */
@@ -336,26 +342,28 @@ void ent_writes_page (struct super_block * sb, struct page * page)
 
 	assert("zam-1041", ent != NULL);
 
-	if (PageActive(page))
+	if (PageActive(page) || ent->nr_all_requests == 0)
 		return;
 
 	SetPageReclaim(page);
 
 	spin_lock(&ent->guard);
-
-	rq = get_wbq(ent);
-	if (rq == NULL)
-		return;
-
-	wakeup_wbq(ent, rq);
-
+	if (ent->nr_all_requests > 0) { 
+		ent->nr_all_requests --;
+		rq = get_wbq(ent);
+		if (rq == NULL)
+			/* get_wbq() releases entd->guard spinlock if NULL is
+			 * returned. */ 
+			return;
+		wakeup_wbq(ent, rq);
+	}
 	spin_unlock(&ent->guard);
 }
 
 int wbq_available (void) {
 	struct super_block * sb = reiser4_get_current_sb();
 	entd_context * ent = get_entd_context(sb);
-	return ent->wbq_nr;
+	return ent->nr_all_requests;
 }
 
 /* Make Linus happy.

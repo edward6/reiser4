@@ -55,7 +55,8 @@ typedef struct entd_context {
 	/* list of all active flushers */
 	flushers_list_head  flushers_list;
 #endif
-	int                 wbq_nr;
+	int                 nr_all_requests;
+	int                 nr_synchronous_requests;
 	wbq_list_head       wbq_list;
 } entd_context;
 
