@@ -3102,7 +3102,7 @@ static int bash_mkfs (const char * file_name)
 			cputod16 (HASHED_DIR_PLUGIN_ID, &test_sb->root_dir_plugin);
 			cputod16 (DEGENERATE_HASH_ID, &test_sb->root_hash_plugin);
 			cputod16 (NODE40_ID, &test_sb->node_plugin);
-			cputod16 (NEVER_TAIL_ID, &test_sb->tail_policy);
+			cputod16 (ALWAYS_TAIL_ID, &test_sb->tail_policy);
 
 			/* block count on device */
 			cputod64 (get_fs_size (&super), &test_sb->block_count);
@@ -3528,7 +3528,8 @@ void * cpr_thread_start (void *arg)
 	      "\tsqueeze        - squeeze twig level\n"\
 	      "\ttail [on|off]  - set or get state of tail plugin of current directory\n"\
 	      "\tp              - print tree\n"\
-	      "\tinfo           - print fs info (height, root, etc)"\
+	      "\tinfo           - print fs info (height, root, etc)\n"\
+              "\tstat           - print reiser4 stats\n"\
 	      "\texit\n");
 
 static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG, 
@@ -3732,7 +3733,13 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 					REISER4_NODE_PRINT_ALL & ~REISER4_NODE_PRINT_PLUGINS & ~REISER4_NODE_PRINT_ZNODE & ~REISER4_NODE_PRINT_ZADDR);
 			__REISER4_EXIT (&__context);
 		} else if (!strncmp (command, "info", 1)) {
+			REISER4_ENTRY (sb);
 			get_current_super_private ()->lplug->print_info (reiser4_get_current_sb ());
+			__REISER4_EXIT (&__context);
+		} else if (!strncmp (command, "stat", 4)) {
+			REISER4_ENTRY (sb);
+			reiser4_print_stats();
+			__REISER4_EXIT (&__context);
 		} else
 			print_help ();
 	}
