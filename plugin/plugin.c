@@ -398,10 +398,11 @@ plugin_by_unsafe_id(reiser4_plugin_type type_id	/* plugin
 			return plugin_at(&plugins[type_id], id);
 		else
 			/* id out of bounds */
-			dinfo("Invalid plugin id: [%i:%i]", type_id, id);
+			warning("nikita-2913", 
+				"Invalid plugin id: [%i:%i]", type_id, id);
 	} else
 		/* type_id out of bounds */
-		dinfo("Invalid type_id: %i", type_id);
+		warning("nikita-2914", "Invalid type_id: %i", type_id);
 	return NULL;
 }
 

@@ -281,6 +281,7 @@ item_plugin *
 node40_plugin_by_coord(const coord_t * coord)
 {
 	item_header40 *ih;
+	item_plugin   *result;
 
 	/* @coord is set to existing item */
 	assert("vs-258", coord != NULL);
@@ -288,7 +289,13 @@ node40_plugin_by_coord(const coord_t * coord)
 
 	ih = node40_ih_at_coord(coord);
 	/* pass NULL in stead of current tree. This is time critical call. */
-	return item_plugin_by_disk_id(NULL, &ih->plugin_id);
+	result = item_plugin_by_disk_id(NULL, &ih->plugin_id);
+	/* XXX debugging. Remove me. */
+	if (result == NULL) {
+		print_coord("null plugin", coord, 0);
+		print_node_content("node", coord->node, ~0);
+	}
+	return result;
 }
 
 /* plugin->u.node.key_at
