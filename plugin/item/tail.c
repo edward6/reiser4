@@ -356,6 +356,13 @@ static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t 
 	if (result)
 		return result;
 
+	/* FIXME-VS: this is temporary: the problem is that bdp takes inodes from sb's dirty list and it looks like
+	   nobody puts there inodes of files which are built of tails */
+	mapping->dirtied_when = jiffies|1;
+	spin_lock(&inode_lock);
+	list_move(&mapping->host->i_list, &mapping->host->i_sb->s_dirty);
+	spin_unlock(&inode_lock);
+
 	balance_dirty_pages(mapping);
 	return hint_validate(&hint, &f->key, coord, lh);
 }
