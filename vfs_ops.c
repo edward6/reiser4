@@ -2418,16 +2418,18 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 		ret = capture_anonymous_pages (mapping);
 
 		if (ret)
-			return ret;
+			REISER4_EXIT(ret);
 	}
 
 	/* Commit all atoms if reiser4_writepages() is called from sys_sync() or
 	   sys_fsync(). */
-	/* FIXME: This way to support fsync is too expansive. Proper solution
+	/* FIXME: This way to support fsync is too expensive. Proper solution
 	   support is to commit only atoms which contain dirty pages from given
 	   address space. */
-	if (wbc->sync_mode == WB_SYNC_HOLD || called_for_sync())
+	if (wbc->sync_mode == WB_SYNC_HOLD || called_for_sync()) {
+		__REISER4_EXIT(&__context);
 		return txnmgr_force_commit_all(s);
+	}
 
 	while (wbc->nr_to_write > 0) {
 		long nr_submitted = 0;

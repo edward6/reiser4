@@ -941,29 +941,25 @@ atom_try_commit_locked(txn_atom * atom)
 
 /* TXN_TXNH */
 
-/* Called to force commit of any outstanding atoms.  Later this should be improved to: (1)
-   wait for atoms with open txnhs to commit and (2) not wait indefinitely if new atoms are
-   created. */
+/*
+ * working function for txnmgr_force_commit_all(). Called without
+ * reiser4_context.
+ */
 int
-txnmgr_force_commit_all(struct super_block *super)
+txnmgr_force_commit_all_nocontext(struct super_block *super)
 {
 	int ret;
 	txn_atom *atom;
 	txn_mgr *mgr;
 	txn_handle *txnh;
-	reiser4_context *host_context;
 	reiser4_context local_context;
 
-	host_context = get_current_context();
-	/* FIXME:NIKITA->NIKITA this only works for top-level contexts. */
-	check_me("nikita-2094", __REISER4_EXIT(host_context) == 0);
 	assert("nikita-2095", get_current_context() == NULL);
 
 	ret = init_context(&local_context, super);
-	if (ret != 0) {
-		init_context(host_context, super);
+	if (ret != 0)
 		return ret;
-	}
+
 	mgr = &get_super_private(super)->tmgr;
 
 	txnh = get_current_context()->trans;
@@ -995,7 +991,6 @@ again:
 
 			if ((ret = txn_end(&local_context)) < 0) {
 				__REISER4_EXIT(&local_context);
-				init_context(host_context, super);
 				return ret;
 			}
 
@@ -1012,8 +1007,28 @@ again:
 	spin_unlock_txnmgr(mgr);
 
 	__REISER4_EXIT(&local_context);
-	init_context(host_context, super);
 	return 0;
+}
+
+/* Called to force commit of any outstanding atoms.  Later this should be improved to: (1)
+   wait for atoms with open txnhs to commit and (2) not wait indefinitely if new atoms are
+   created. */
+int
+txnmgr_force_commit_all(struct super_block *super)
+{
+	reiser4_context *host_context;
+	int result;
+
+	host_context = get_current_context();
+	if (host_context != NULL)
+		/* FIXME:NIKITA->NIKITA this only works for top-level
+		 * contexts. */
+		check_me("nikita-2094", __REISER4_EXIT(host_context) == 0);
+
+	result = txnmgr_force_commit_all_nocontext(super);
+	if (host_context != NULL)
+		init_context(host_context, super);
+	return result;
 }
 
 /* called periodically from ktxnmgrd to commit old atoms. */
