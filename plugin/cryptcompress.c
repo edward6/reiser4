@@ -22,8 +22,8 @@
 #include "../super.h"
 #include "../context.h"
 #include "plugin.h"
+#include "object.h"
 
-extern int common_file_save(struct inode *inode);
 
 /* get cryptcompress specific portion of inode */
 inline cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode)
@@ -128,7 +128,7 @@ inline cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode
 	/* attach cluster info */
 	info->cluster_shift = crc_data->cluster_shift;
 	
-	result = common_file_save(object);
+	result = write_sd_by_inode_common(object);
 	if (!result)
 		return 0;
 	if (info->crypt == &stat) 
@@ -327,8 +327,8 @@ int process_cluster(reiser4_cluster_t *clust, /* contains data to process */
 	cr_plug = inode_crypto_plugin(inode);
 	co_plug = inode_compression_plugin(inode);
 	/* calculate actual cluster size before compression */
-	size = (inode->i_size - (clust->index << PAGE_CACHE_SHIFT/*?*/) < inode_cluster_size(inode) ?
-		inode->i_size - (clust->index << PAGE_CACHE_SHIFT/*?*/) : inode_cluster_size(inode));
+	size = (inode->i_size - (clust->index << PAGE_CACHE_SHIFT) < inode_cluster_size(inode) ?
+		inode->i_size - (clust->index << PAGE_CACHE_SHIFT) : inode_cluster_size(inode));
 	blksize = cr_plug->blocksize(inode_crypto_stat(inode)->keysize);
 	
 	assert("edward-154", clust->len <= size);
