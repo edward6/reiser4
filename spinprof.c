@@ -182,6 +182,17 @@ int profregion_find(struct profregionstack *stack, struct profregion *pregion)
 }
 
 /* REISER4_LOCKPROF */
+#else
+
+/*
+ * if reiser4 is compiled without optimizations, __hits is not optimized away,
+ * so it has to be declared somewhere.
+ */
+#if defined(CONFIG_REISER4_NOOPT)
+locksite __hits;
+#endif
+
+/* REISER4_LOCKPROF */
 #endif
 
 /* Make Linus happy.
