@@ -1181,7 +1181,7 @@ ssize_t read_unix_file(struct file * file, char *buf, size_t read_amount, loff_t
 
 	get_nonexclusive_access(uf_info);
 
-	needed = tree_by_inode(inode)->estimate_one_insert;/*unix_file_estimate_read(inode, read_amount);*/
+	needed = unix_file_estimate_read(inode, read_amount); /* FIXME: tree_by_inode(inode)->estimate_one_insert */
 	result = reiser4_grab_space(needed, BA_CAN_COMMIT, "unix_file_read");	
 	if (result != 0) {
 		drop_nonexclusive_access(uf_info);
@@ -1206,7 +1206,7 @@ ssize_t read_unix_file(struct file * file, char *buf, size_t read_amount, loff_t
 	}
 	/* initialize readahead info */
 	ra_info.key_to_stop = f.key;
-	set_key_offset(&ra_info.key_to_stop, ~0ull/*get_key_offset(max_key())*/);
+	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));/*FIXME: ~0ull*/
 	
 	while (f.length) {
 		loff_t cur_offset;
@@ -1764,7 +1764,7 @@ key_by_inode_unix_file(struct inode *inode, loff_t off, reiser4_key *key)
 {
 	key_init(key);
 	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
-	set_key_objectid(key, /*get_inode_oid(inode)*/inode->i_ino);
+	set_key_objectid(key, get_inode_oid(inode));/*FIXME: inode->i_ino */
 	set_key_type(key, KEY_BODY_MINOR);
 	set_key_offset(key, (__u64) off);
 	return 0;
