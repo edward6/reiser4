@@ -262,6 +262,7 @@ reiserfs_fs_t *reiserfs_fs_create_2(aal_device_t *host_device,
 
     aal_assert("umka-149", host_device != NULL, return NULL);
     aal_assert("umka-150", journal_device != NULL, return NULL);
+    aal_assert("vpf-113", default_plugins != NULL, return NULL);
 
     if (!aal_pow_of_two(blocksize)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
