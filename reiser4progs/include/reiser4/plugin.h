@@ -936,5 +936,13 @@ extern errno_t libreiser4_factory_foreach(reiserfs_plugin_func_t func,
 extern reiserfs_plugin_t *libreiser4_factory_suitable(reiserfs_plugin_func_t func,
     void *data);
 
+extern reiserfs_plugin_t *libreiser4_factory_get_next(reiserfs_plugin_t *start_plugin);
+
+extern reiserfs_plugin_t *libreiser4_factory_find_by_id(reiserfs_plugin_type_t type,
+    reiserfs_id_t id);
+
+extern reiserfs_plugin_t *libreiser4_factory_find_by_name(reiserfs_plugin_type_t type,
+    const char *name);
+
 #endif
 
