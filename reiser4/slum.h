@@ -9,6 +9,14 @@
 #if !defined( __SLUM_H__ )
 #define __SLUM_H__
 
+#define SLUM_SCAN_MAXNODES 10
+
+/* The slum_scan data structure maintains the state of an in-progress slum scan. */
+struct slum_scan {
+	/* The number of nodes currently in the slum. */
+	unsigned size;
+};
+
 extern int flush_jnode_slum ( jnode *node );
 
 /* __SLUM_H__ */

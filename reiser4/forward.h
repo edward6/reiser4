@@ -93,6 +93,9 @@ typedef unsigned pos_in_item;
 struct jnode;
 typedef struct jnode jnode;
 
+struct slum_scan;
+typedef struct slum_scan slum_scan;
+
 struct inode;
 struct page;
 struct file;

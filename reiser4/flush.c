@@ -107,18 +107,124 @@ submanagers should be employed.
 
 #include "reiser4.h"
 
+static void slum_scan_init             (slum_scan *scan);
+static void slum_scan_cleanup          (slum_scan *scan);
+static int  slum_scan_left_finished    (slum_scan *scan);
+static int  slum_scan_left_unformatted (slum_scan *scan, jnode *node);
+static int  slum_scan_left_formatted   (slum_scan *scan, znode *node);
+static int  slum_scan_left             (slum_scan *scan, jnode *node);
+
 /* Perform encryption, allocate-on-flush, and squeezing-left of slums. */
 int flush_jnode_slum (jnode *node)
 {
+	int ret;
+	slum_scan scan;
+
 	/* Somewhere in here, ZNODE_RELOC and ZNODE_WANDERED are set. */
+	/* Lots to do in here. */
 
-	/* Lots to do in here.  The txnmgr expects this to clean the node. */
+	slum_scan_init (& scan);
+
+	/* Scan the slum. */
+	if (0 && (ret = slum_scan_left (& scan, node))) {
+		slum_scan_cleanup (& scan);
+		return ret;
+	}
+
+	/* Squeeze, allocate, encrypt, and flush the slum. */
+	     
+	/* The txnmgr expects this to clean the node.  (i.e., move it to the
+	 * clean list).  That's all this does for now. */
 	jnode_set_clean (node);
-
-	/* Squeeze the slum. */
 
 	return 0;
 }
+
+/* Initialize the slum_scan data structure. */
+static void slum_scan_init (slum_scan *scan)
+{
+	memset (scan, 0, sizeof (*scan));
+}
+
+/* Release any resources held by the slum scan, e.g., release locks, free memory, etc. */
+static void slum_scan_cleanup (slum_scan *scan)
+{
+}
+
+/* Returns true if leftward slum scanning is finished. */
+static int slum_scan_left_finished (slum_scan *scan)
+{
+	return scan->size >= SLUM_SCAN_MAXNODES;
+}
+
+/* Performs leftward scanning starting from a formatted node */
+static int slum_scan_left_formatted (slum_scan *scan, jnode *node)
+{
+	/* Lock tree, follow left pointers as long as:
+	 *
+	 * - node->left is non-NULL
+	 * - node->left is connected, dirty
+	 * - node->left belongs to the same atom
+	 * - slum has room to grow
+	 *
+	 * Unlock tree and get a long-term lock on the left-most node (LOPRI), release last scan lock (if any):
+	 * 
+	 * Then if node->left is non-NULL or the slum does not have room to grow, scan is finished.
+	 *
+	 * Otherwise try to expand slum using unformatted nodes to the left: 
+	 *
+	 * - call get_parent_item(READ_LOCK, HIPRI)
+	 * - call get_left_item(READ_LOCK, HIPRI)
+	 * - if left item is an extent, get leftmost (i.e., last) page from the page cache
+	 * - if that page has a ->jnode and jnode is part of the same atom
+	 * - set that jnode to current scan location, return
+	 */
+	
+	return 0;
+}
+
+/* Performs leftward scanning starting from an unformatted node */
+static int slum_scan_left_unformatted (slum_scan *scan, jnode *node)
+{
+	/* Let I = index of jnode in its extent:
+	 *
+	 * Lookup successive indexes (I-1, I-2, ...) in page cache as long as
+	 *
+	 * - page is dirty
+	 * - page has a jnode in the same atom
+	 * - I >= 0
+	 *
+	 * If (I > 0) then scan is finished.
+	 *
+	 * Otherwise, continue at the next leftward extent.  Proceedure is the same as pseudo-code at the end of
+	 * scan_left_formatted.  Return.
+	 */
+	return 0;
+}
+
+/* Performs leftward scanning starting either kind of node */
+static int slum_scan_left (slum_scan *scan, jnode *node)
+{
+	int ret;
+
+	/* Continue until we've scanned far enough. */
+	do {
+		/* Choose the appropriate scan method and go. */
+		if (JF_ISSET (node, ZNODE_UNFORMATTED)) {
+			ret = slum_scan_left_unformatted (scan, node);
+		} else {
+			ret = slum_scan_left_formatted (scan, JZNODE (node));
+		}
+
+		if (ret != 0) {
+			return ret;
+		}
+
+	} while (! slum_scan_left_finished (scan));
+
+	return 0;
+}
+
 
 #if YOU_CAN_COMPILE_PSEUDO_CODE
 
