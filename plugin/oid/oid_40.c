@@ -176,7 +176,8 @@ int oid_40_reserve_release( reiser4_oid_allocator *map UNUSED_ARG )
 void oid_40_print_info (const char * prefix, reiser4_oid_allocator *map)
 {
 	lock (map);
-	info ("%s: oid40 oid allocator: next free objectid %lli\n",
-	      prefix, map -> u.oid_40.next_to_use);
+	info ("%s: next free objectid %lli, "
+	      "oids in use %llu\n",
+	      prefix, map -> u.oid_40.next_to_use, map -> u.oid_40.oids_in_use);
 	unlock (map);
 }
