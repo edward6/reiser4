@@ -136,20 +136,14 @@ struct reiser4_tree {
 	    - znode hash table
 	    - coord cache
 	*/
-/* DEMIDOV-FIXME-HANS: I don't like this giant lock, do you have any ideas for how to replace it? If you can do it for sibling pointers, the rest is not as hard. 
+	/* NOTE: The "giant" tree lock can be replaced by more spin locks,
+	   hoping they will be less contented. We can use one spin lock per one
+	   znode hash bucket.  With adding of some code complexity, sibling
+	   pointers can be protected by both znode spin locks.  However it looks
+	   more SMP scalable we should test this locking change on n-ways (n >
+	   4) SMP machines.  Current 4-ways machine test does not show that tree
+	   lock is contented and it is a bottleneck (2003.07.25). */
 
-NIKITA: tree is not most highly contended. It doesn't worth complexity of
-optimization.
-
-NIKITA-FIXME-HANS: Ok, I'll byte;-), what is complex?  Go left and lock the left neighbor going low priority, then go
-right and lock the right neighbor going high priority.  Note that this is the same problem that using RCU on linked
-lists solves, but this is simpler unless I am missing something obvious.
-
-ZAM-FIXME-HANS: for sibling pointers, am I right that the only operations that change them are insert node and delete
-node from tree (jload and jput)?  remind me why we can't write lock the left neighbor pointer, then the right neighbor
-pointer, and then alter the pointers?  there was some reason it was not simple, but I forget it.  
-
-*/
 	reiser4_rw_data tree_lock;
 
 	/* lock protecting delimiting keys */
