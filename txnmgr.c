@@ -1616,6 +1616,9 @@ static int check_not_fused_lock_owners (txn_handle * txnh, znode *node)
 
 		ctx = get_context_by_lock_stack (lh->owner);
 
+		if (ctx == get_current_context ())
+			continue;
+
 		if (! spin_trylock_txnh (ctx->trans)) {
 			repeat = 1;
 			continue;
