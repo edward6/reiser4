@@ -218,6 +218,19 @@ PREFIX##_hash_insert_index (PREFIX##_hash_table *hash,					\
   hash->_table[hash_index]  = ins_item;							\
 }											\
 											\
+static __inline__ void									\
+PREFIX##_hash_insert_index_rcu (PREFIX##_hash_table *hash,				\
+			        __u32                hash_index,			\
+			        ITEM_TYPE           *ins_item)				\
+{											\
+  PREFIX##_check_hash(hash, hash_index);						\
+  TSHASH_INSERT(hash->_stats);								\
+											\
+  ins_item->LINK_NAME._next = hash->_table[hash_index];					\
+  smp_wmb();    									\
+  hash->_table[hash_index]  = ins_item;							\
+}											\
+											\
 static __inline__ ITEM_TYPE*								\
 PREFIX##_hash_find (PREFIX##_hash_table *hash,						\
 	            KEY_TYPE const      *find_key)					\
@@ -239,11 +252,26 @@ PREFIX##_hash_remove (PREFIX##_hash_table *hash,					\
   return PREFIX##_hash_remove_index (hash, HASH_FUNC(&del_item->KEY_NAME), del_item);	\
 }											\
 											\
+static __inline__ int									\
+PREFIX##_hash_remove_rcu (PREFIX##_hash_table *hash,					\
+		      ITEM_TYPE           *del_item)					\
+{											\
+  return PREFIX##_hash_remove (hash, del_item);						\
+}											\
+											\
 static __inline__ void									\
 PREFIX##_hash_insert (PREFIX##_hash_table *hash,					\
 		      ITEM_TYPE           *ins_item)					\
 {											\
   return PREFIX##_hash_insert_index (hash, HASH_FUNC(&ins_item->KEY_NAME), ins_item);	\
+}											\
+											\
+static __inline__ void									\
+PREFIX##_hash_insert_rcu (PREFIX##_hash_table *hash,					\
+		          ITEM_TYPE           *ins_item)				\
+{											\
+  return PREFIX##_hash_insert_index_rcu (hash, HASH_FUNC(&ins_item->KEY_NAME),   	\
+                                         ins_item);     				\
 }											\
 											\
 static __inline__ ITEM_TYPE *								\
