@@ -1823,9 +1823,10 @@ define_never_ever_op( direct_IO_vfs )
 int reiser4_invalidatepage( struct page *page, unsigned long offset )
 {
 	REISER4_ENTRY (page->mapping->host->i_sb);
-	assert( "nikita-2160", offset == 0 ); /* FIXME */
-	txn_delete_page( page );
-	page_detach_jnode( page );
+	if( offset == 0 ) {
+		txn_delete_page( page );
+		page_detach_jnode( page );
+	}
 	REISER4_EXIT (0);
 }
 
