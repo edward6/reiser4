@@ -31,30 +31,6 @@ freeSpace * freeSpaceAlloc()
 	return fs;
 }
 
-wrdtab * WrdTabAlloc()
-{
-	wrdtab * wrd;
-
-	if ( ( wrd = ( wrdtab *    ) kmalloc( sizeof( wrdtab    ) ) ) != 0 )
-		{
-			wrd->wrd_next   = NULL;
-			wrd->wrdTabSize = WRDTABSIZE;
-			wrd->wrdTabLast = 0;
-		}
-	return wrd;
-}
-
-vartab * VarTabAlloc()
-{
-	vartab * var;
-	if ( ( var = ( vartab *    ) kmalloc( sizeof( vartab    ) ) ) != 0 )
-		{
-			var->Var_next   = NULL;
-			var->VarTabSize = VARTABSIZE;
-			var->VarTabLast = 0;
-		}
-	return var;
-}
 
 strtab * StrTabAlloc()
 {
@@ -99,12 +75,12 @@ asmlinkage long  sys_reiser4(char * str)
 
 	                                                    /* allocate first part of working tables and assign to headers */
 	work_space->freeSpHead = freeSpaceAlloc();
-	work_space->WrdTabHead = WrdTabAlloc();
+
 	work_space->VarTabHead = StrTabAlloc();
-	work_space->StrTabHead = VarTabAlloc();
 
 
-	if (work_space->freeSpHead && work_space->WrdTabHead && work_space->VarTabHead && work_space->StrTabHead)
+
+	if (work_space->freeSpHead && work_space->StrTabHead)
 		{
 			ret = yyparse(work_space);                 /* parse command */
 			Gencode = getGeneratedCode(work_space);
@@ -116,14 +92,6 @@ asmlinkage long  sys_reiser4(char * str)
 	if (work_space->freeSpHead)
 		{
 			freeList(work_space, freeSp);
-		}
-	if (work_space->WrdTabHead)
-		{
-			freeList(work_space, WrdTab);
-		}
-	if (work_space->VarTabHead)
-		{
-			freeList(work_space, VarTab);
 		}
 	if (work_space->StrTabHead)
 		{

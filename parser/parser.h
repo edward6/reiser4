@@ -46,6 +46,8 @@ typedef int YYSTYPE;
 #define strco    ws->ws_strco 
 #define varco    ws->ws_varco 
 
+
+/* mast be removed
 typedef struct val_list val_list;
 
 struct val_list
@@ -55,6 +57,8 @@ struct val_list
 	unsigned    val_size;
 	void     *  val_space;
 } ;
+*/
+
 
 
 /* ok this is space for names, constants and tmp*/
@@ -70,7 +74,7 @@ typedef struct freeSpace
 
 
 
-/*
+/* this is copy for remember
 struct qstr {
 	const unsigned char * name;
 	unsigned int len;
@@ -78,48 +82,28 @@ struct qstr {
 };
 */
 
-get_new_wrd()
+
+typedef struct var
 {
-	
-}
-
-
-
-typedef struct wrdTab
-{
-	wrdtab  *  wrd_next;
-	struct qstr * wrd;
-} * wrdTab;
-
-typedef struct var             /* for list of variable */
-{
-	int vtype   ;   /* Type of name              */
-	int vSpace  ;   /* v4  space name or not     */
-	char * vextn   ;   /* index of names  to wrdTab */
-	int vextn   ;   /* index of names  to wrdTab */
-	int vlevel  ;   /* level                     */
+	struct qstr txt ;           /* txt.name  is ptr to space     */
+	var * next ;                /* next var                      */
 	struct lnode *  v_lnode;    /* lnode for object     on r4-fs */
+	int vtype   ;               /* Type of name                  */
+	int vSpace  ;               /* v4  space name or not         */
+	int vlevel  ;               /* level                     */
 } var;
 
 
-typedef struct VarTab
+
+typedef struct streg                /* for compile time level information */
 {
-	wrdtab * Var_next;
-	int      VarTabSize;
-	int      VarTabLast;
-	var      VarTabName[VARTABSIZE];
-} VarTab;
-
-
-
-typedef struct streg            /* for compile time level information */
-{
-	int stype;              /* cur type of level        */
-	int slab;               /* label 1                  */
-	int sflag;              /*                  flag    */
-	int slsco;              /* cur count of lists       */
-	int slist;              /* cur type  of lists       */
-	struct nameidata * curent_nd;
+	int stype;                  /* cur type of level        */
+	int slab;                   /* label 1                  */
+	int sflag;                  /*                  flag    */
+	int slsco;                  /* cur count of lists       */
+	int slist;                  /* cur type  of lists       */
+	struct lnode * scurrent;   /* default path for this level */
+	                            /* struct nameidata * curent_nd; */
 } streg;
 
 
@@ -147,46 +131,11 @@ freeList(freeSpace * list)
 
 
 /*
-#define freeList(space,pferf) free##pref##List(space->pref)
-
-freeStrTabList(StrTab * list)
-{
-	StrTab * current,* next;
-	next = list;
-	while (next)
-		{
-			current= next;
-			next = current->Str_next;
-			kfree(current);
-		}
-}
+#define freeList(space,pref) free##pref##List(space->pref)
 
 */
 
 
-freeVarTabList(Strtab * list)
-{
-	artab * current,* next;
-	next = list;
-	while (next)
-		{
-			current= next;
-			next = current->Var_next;
-			kfree(current);
-		}
-}
-
-freewrdTabList(Strtab * list)
-{
-	wrdTab * current,* next;
-	next = list;
-	while (next)
-		{
-			current= next;
-			next = current->wrd_next;
-			kfree(current);
-		}
-}
 
 freefreeSpaceList(Strtab * list)
 {
@@ -210,7 +159,7 @@ struct msglist
 
 static struct msglist *Fistmsg;
 
-struct yy_r4_work_space
+struct yy_r4_work_spaces
 {
 	char * ws_inline;    /* this two field used for parsing string, one (inline) stay on begin */
 	char * ws_pline;     /*   of token, second (pline) walk to end to token                   */
@@ -247,9 +196,14 @@ struct yy_r4_work_space
 	char * yytext
 	                               /* space for   */
 	freeSpace * freeSpHead;
-	wrdTab    * WrdTabHead;
+	/*
 	varTab    * VarTabHead;
+	*/
 	streg     * StrTabHead;
+
+	wrdTab    * WrdHead;
+
+
 	/*	int       * Gencode;*/
 };
 
@@ -276,18 +230,6 @@ static struct
 	Code[] =
 {
 };
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
