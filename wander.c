@@ -1309,7 +1309,8 @@ replay_transaction(const struct super_block *s,
 free_ow_set:
 
 	while (!capture_list_empty(&ch.overwrite_set)) {
-		jnode *cur = capture_list_pop_front(&ch.overwrite_set);
+		jnode *cur = capture_list_front(&ch.overwrite_set);
+		capture_list_remove_clean (cur);
 		jrelse(cur);
 		drop_io_head(cur);
 	}
