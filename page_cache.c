@@ -356,8 +356,6 @@ static struct bio *page_bio( struct page *page, int rw, int gfp )
 		struct super_block *super;
 		reiser4_block_nr    blocknr;
 
-		trace_if( TRACE_BUG, print_page( __FUNCTION__, page ) );
-
 		assert( "nikita-2172", jprivate( page ) != NULL );
 		node = jprivate( page );
 		super = page -> mapping -> host -> i_sb;
