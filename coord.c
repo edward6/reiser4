@@ -984,7 +984,6 @@ void ncoord_print (const char * mes, const coord_t * coord, int node)
 }
 
 /* Hack. */
-/*
 /* Audited by: green(2002.06.15) */
 void ncoord_to_tcoord (coord_t *tcoord, const coord_t *ncoord)
 {
