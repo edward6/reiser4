@@ -910,6 +910,15 @@ common_bind(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)
 	return 0;
 }
 
+static reiser4_block_nr 
+common_estimate_update(struct inode *node)
+{
+	assert("vpf-315", node != NULL);
+	
+	return estimate_internal_amount(1, tree_by_inode(node)->height) + 1;
+}
+
+
 /**
  * implementation of ->bind() method for file plugin of directory file
  */
