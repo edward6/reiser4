@@ -1297,7 +1297,8 @@ reiser4_kill_super(struct super_block *s)
 	sbinfo = (reiser4_super_info_data *) s->s_fs_info;
 	if (!sbinfo) {
 		/* mount failed */
-		s->s_op->write_super = NULL;
+		if (s->s_op) 
+			s->s_op->write_super = NULL;
 		return;
 	}
 

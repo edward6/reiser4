@@ -105,7 +105,8 @@ _DONE_(context)
 		reiser4_print_stats();
 
 	/* we don't want ->write_super to be called any more. */
-	s->s_op->write_super = NULL;
+	if (s->s_op)
+		s->s_op->write_super = NULL;
 	kill_block_super(s);
 	/* err, don't show this to Viro */
 	down_write(&s->s_umount);
