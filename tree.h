@@ -131,7 +131,7 @@ struct reiser4_tree {
 struct reiser4_item_data {
 	/**
 	 * actual data to be inserted. If NULL, ->create_item() will not
-	 * do memcpy itself, leaving this up to the caller. This can
+	 * do xmemcpy itself, leaving this up to the caller. This can
 	 * save some amount of unnecessary memory copying, for example,
 	 * during insertion of stat data.
 	 *
@@ -410,8 +410,23 @@ extern void reiser4_show_context     (int show_tree);
 extern int  reiser4_init_context( reiser4_context *context,
 				  struct super_block *super );
 extern void reiser4_done_context( reiser4_context *context );
-extern reiser4_context *reiser4_get_current_context( void );
-extern reiser4_context *reiser4_get_context( const struct task_struct *tsk );
+
+/** return context associated with given thread */
+static inline reiser4_context *reiser4_get_context( const struct task_struct *tsk )
+{
+	if (tsk == NULL) {
+		BUG ();
+	}
+	
+	return tsk -> journal_info;
+}
+
+/** return context associated with current thread */
+static inline reiser4_context *reiser4_get_current_context()
+{
+	return reiser4_get_context( current );
+}
+
 
 /* comment me.  Say something clever, like I am called at every reiser4 entry point, and I create a struct that is used
    to allow functions to efficiently pass large amounts of parameters around by moving a pointer to the parameters
