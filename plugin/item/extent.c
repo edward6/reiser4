@@ -534,7 +534,7 @@ int extent_kill_item_hook (const coord_t * coord, unsigned from,
 		length = extent_get_width (ext);
 		/* "defer" parameter is set to 1 because blocks which get freed
 		 * are not safe to be freed immediately */
-		reiser4_dealloc_blocks (&start, &length, 1 /* defer */);
+		reiser4_dealloc_blocks (&start, &length, 1 /* defer */, BLOCK_NOT_COUNTED);
 	}
 	return 0;
 }
@@ -640,7 +640,7 @@ static int cut_or_kill_units (coord_t * coord,
 				start = extent_get_start (ext) + new_width;
 				length = extent_get_width (ext) - new_width;
 				reiser4_dealloc_blocks (&start, &length,
-							1 /* defer */);
+							1 /* defer */, BLOCK_NOT_COUNTED);
 			}
 			extent_set_width (ext, new_width);
 			(*from) ++;
@@ -687,7 +687,7 @@ static int cut_or_kill_units (coord_t * coord,
 				start = extent_get_start (ext);
 				length = old_width - new_width;
 				reiser4_dealloc_blocks (&start, &length,
-							1 /* defer */);
+							1 /* defer */, BLOCK_NOT_COUNTED);
 			}
 
 			/* (old_width - new_width) blocks of this extent were
@@ -2708,7 +2708,7 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 				 * immediately
 				 */
 				reiser4_dealloc_blocks (&first_allocated, &allocated,
-							0 /* defer */);
+							0 /* defer */, BLOCK_UNALLOCATED);
 				result = SQUEEZE_TARGET_FULL;
 				trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: target full, to_allocate = %llu\n", to_allocate);
 				goto done;
