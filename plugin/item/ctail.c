@@ -867,43 +867,38 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * in
 	return result;
 }
 
+/* Implementation of CRC_APPEND_ITEM mode of ctail conversion */
 static int
 insert_crc_flow_in_place(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * inode)
 {
 	int ret;
-	coord_t point;
+	coord_t pos;
 	lock_handle lock;
 
 	assert("edward-674", f->length <= inode_scaled_cluster_size(inode));
-	assert("edward-484", 
-	       coord->between == AT_UNIT ||
-	       coord->between == AFTER_UNIT ||
-	       coord->between == AFTER_ITEM ||
-	       coord->between == BEFORE_ITEM);
-
-	coord_dup (&point, coord);
-
-	if (coord->between == AT_UNIT) {
-		
-		assert("edward-485", item_plugin_by_coord(&point) == item_plugin_by_id(CTAIL_ID));
-
-		point.between = AFTER_ITEM;
-	}
-
+	assert("edward-484", coord->between == AT_UNIT || coord->between == AFTER_ITEM);
+	assert("edward-485", item_id_by_coord(coord) == CTAIL_ID);
+	
+	coord_dup (&pos, coord);
+	pos.unit_pos = 0;
+	pos.between = AFTER_ITEM;
+	
 	init_lh (&lock);
 	copy_lh(&lock, lh);
-
-	ret = insert_crc_flow(&point, &lock, f, inode);
+	
+	ret = insert_crc_flow(&pos, &lock, f, inode);
 	done_lh(&lock);
+	
+	assert("edward-1228", !ret);
 	return ret;
 }
 
-/* overwrite tail citem or its part */
+/* Implementation of CRC_OVERWRITE_ITEM mode of ctail conversion */
 static int
 overwrite_ctail(coord_t * coord, flow_t * f)
 {
 	unsigned count;
-
+	
 	assert("edward-269", f->user == 0);
 	assert("edward-270", f->data != NULL);
 	assert("edward-271", f->length > 0);
@@ -923,7 +918,8 @@ overwrite_ctail(coord_t * coord, flow_t * f)
 	return 0;
 }
 
-/* cut ctail item or its tail subset */
+/* Implementation of CRC_CUT_ITEM mode of ctail conversion:
+   cut ctail (part or whole) starting from next unit position */
 static int
 cut_ctail(coord_t * coord)
 {
@@ -933,10 +929,9 @@ cut_ctail(coord_t * coord)
 	       coord->item_pos < coord_num_items(coord) &&
 	       coord->unit_pos <= coord_num_units(coord));
 
-	if(coord->unit_pos == coord_num_units(coord)) {
+	if(coord->unit_pos == coord_num_units(coord))
 		/* nothing to cut */
 		return 0;
-	}
 	coord_dup(&stop, coord);
 	stop.unit_pos = coord_last_unit_pos(coord);
 
@@ -945,7 +940,7 @@ cut_ctail(coord_t * coord)
 
 #define UNPREPPED_DCLUSTER_LEN 2
 
-/* insert minimal disk cluster for unprepped page cluster */
+/* Create a disk cluster of special 'minimal' format */
 int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode)
 {
 	char buf[UNPREPPED_DCLUSTER_LEN];
@@ -1003,12 +998,10 @@ int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode
 	return 0;
 }
 
-/* the following functions are used by flush item methods */
-/* plugin->u.item.s.file.write ? */
 static int
-write_ctail(flush_pos_t * pos, crc_write_mode_t mode)
+do_convert_ctail(flush_pos_t * pos, crc_write_mode_t mode)
 {
-	int result;
+	int result = 0;
 	convert_item_info_t * info;
 	
 	assert("edward-468", pos != NULL);
@@ -1016,30 +1009,27 @@ write_ctail(flush_pos_t * pos, crc_write_mode_t mode)
 	assert("edward-845", item_convert_data(pos) != NULL);
 
 	info = item_convert_data(pos);
-
+	assert("edward-679", info->flow.data != NULL);
+	
 	switch (mode) {
-	case CRC_FIRST_ITEM:
 	case CRC_APPEND_ITEM:
-		assert("edward-679", info->flow.data != NULL);
+		assert("edward-1229", info->flow.length != 0);
 		result = insert_crc_flow_in_place(&pos->coord, &pos->lock, &info->flow, info->inode);
 		break;
 	case CRC_OVERWRITE_ITEM:
+		assert("edward-1230", info->flow.length != 0);
 		overwrite_ctail(&pos->coord, &info->flow);
+		if (info->flow.length != 0)
+			break;
 	case CRC_CUT_ITEM:
+		assert("edward-1231", info->flow.length == 0);
 		result = cut_ctail(&pos->coord);
 		break;
 	default:
 		result = RETERR(-EIO);
-		impossible("edward-244", "wrong ctail write mode");
+		impossible("edward-244", "bad convert mode");
 	}
 	return result;
-}
-
-reiser4_internal item_plugin *
-item_plugin_by_jnode(jnode * node)
-{
-	assert("edward-302", jnode_is_cluster_page(node));
-	return (item_plugin_by_id(CTAIL_ID));
 }
 
 /* plugin->u.item.f.scan */
@@ -1059,28 +1049,21 @@ reiser4_internal int scan_ctail(flush_scan * scan)
 	
 	if (!scanning_left(scan))
 		return result;
-	if (!znode_is_dirty(scan->parent_lock.node)) {
+	if (!znode_is_dirty(scan->parent_lock.node))
 		znode_make_dirty(scan->parent_lock.node);
-#if 0		
-		warning("edward-959", "scan_ctail: parent znode is not dirty "
-			"clust %lu, inode %llu, current file size %llu \n", 
-			pg_to_clust(page->index, inode),
-			(unsigned long long) get_inode_oid(inode),
-			inode->i_size);
-#endif
-	}
-#ifndef	HANDLE_VIA_FLUSH_SCAN
+
 	if (!znode_convertible(scan->parent_lock.node)) {
+		LOCK_JNODE(scan->node);
 		if (jnode_is_dirty(scan->node)) {
 			warning("edward-873", "child is dirty but parent not squeezable");
 			znode_set_convertible(scan->parent_lock.node);
 		} else {
 			warning("edward-681", "cluster page is already processed");
+			UNLOCK_JNODE(scan->node);
 			return -EAGAIN;
 		}
+		UNLOCK_JNODE(scan->node);
 	}
-#endif	
-	assert("edward-1087", get_flush_scan_nstat(scan) == LINKED);
 	return result;
 }
 
@@ -1340,32 +1323,37 @@ clustered_ctail (const coord_t * p1, const coord_t * p2)
 
 /* Go rightward and check for next disk cluster item, set 
    d_next to DC_CHAINED_ITEM, if the last one exists.
+   If the current position is last item, go to right neighbor. 
    Skip empty nodes. Note, that right neighbors may be not in
-   the slum because of races. If so, make it dirty and 
+   the slum because of races. If so, make it dirty and
    convertible. 
 */
 static int
 next_item_dc_stat(flush_pos_t * pos)
 {
-	int ret; 
+	int ret = 0; 
 	int stop = 0;
 	znode * cur;
 	coord_t coord;
 	lock_handle lh;
 	lock_handle right_lock;
 	
+	assert("edward-1232", !node_is_empty(pos->coord.node));
 	assert("edward-1014", pos->coord.item_pos < coord_num_items(&pos->coord));
-	assert("edward-1015", convert_data(pos) && item_convert_data(pos));
-	assert("edward-1016", 
-	       item_convert_data(pos)->d_cur == DC_FIRST_ITEM ||
-	       item_convert_data(pos)->d_cur == DC_CHAINED_ITEM);
+	assert("edward-1015", chaining_data_present(pos));
 	assert("edward-1017", item_convert_data(pos)->d_next == DC_INVALID_STATE);
+
+	item_convert_data(pos)->d_next = DC_AFTER_CLUSTER;
+
+	if (item_convert_data(pos)->d_cur == DC_AFTER_CLUSTER)
+		return ret;
+	if (pos->coord.item_pos < coord_num_items(&pos->coord) - 1)
+		return ret;
 	
+	/* check next slum item */
 	init_lh(&right_lock);
 	cur = pos->coord.node;
 
-	item_convert_data(pos)->d_next = DC_AFTER_CLUSTER;
-	
 	while (!stop) {
 		init_lh(&lh);
 		ret = reiser4_get_right_neighbor(&lh,
@@ -1414,7 +1402,7 @@ next_item_dc_stat(flush_pos_t * pos)
 }
 
 static int
-assign_write_mode(convert_item_info_t * idata, 
+assign_convert_mode(convert_item_info_t * idata, 
 		   crc_write_mode_t * mode)
 {
 	int result = 0;
@@ -1433,7 +1421,7 @@ assign_write_mode(convert_item_info_t * idata,
 			break;
 		default:
 			impossible("edward-1018", 
-				   "wrong current disk cluster status");
+				   "wrong current item state");
 		}
 	} else {
 		/* cut or invalidate */
@@ -1447,7 +1435,7 @@ assign_write_mode(convert_item_info_t * idata,
 			break;
 		default:
 			impossible("edward-1019", 
-				   "wrong current disk cluster status");
+				   "wrong current item state");
 		}
 	}
 	return result;
@@ -1467,7 +1455,7 @@ convert_ctail(flush_pos_t * pos)
 	assert("edward-261", pos->coord.node != NULL);
 	
 	nr_items = coord_num_items(&pos->coord);
-	if (!convert_data(pos) || !item_convert_data(pos)) {
+	if (!chaining_data_present(pos)) {
 		if (should_attach_convert_idata(pos)) {
 			/* attach convert item info */
 			struct inode * inode;
@@ -1499,12 +1487,12 @@ convert_ctail(flush_pos_t * pos)
 	}
 	else {
 		/* use old convert info */
-
+		
 		convert_item_info_t * idata;
 
 		idata = item_convert_data(pos);
 
-		result = assign_write_mode(idata, &mode);
+		result = assign_convert_mode(idata, &mode);
 		if (result) {
 			/* disk cluster is over, 
 			   nothing to update anymore */
@@ -1513,48 +1501,42 @@ convert_ctail(flush_pos_t * pos)
 		}
 	}
 	
-	assert("edward-433", convert_data(pos) && item_convert_data(pos));
+	assert("edward-433", chaining_data_present(pos));
 	assert("edward-1022", pos->coord.item_pos < coord_num_items(&pos->coord));
-	
-	if ((pos->coord.item_pos == coord_num_items(&pos->coord) - 1) &&
-	    item_convert_data(pos)->d_next == DC_INVALID_STATE) {
-		/*
-		  current item is about to be killed or modified,
-		  so it is a time to check cluster status of the
-		  next slum item
-		*/
-		result = next_item_dc_stat(pos);
-		if (result) {
-			detach_convert_idata(pos->sq);
-			return result;
-		}
-	}
-	assert("edward-433", item_convert_data(pos));
-	result = write_ctail(pos, mode);
+
+	result = next_item_dc_stat(pos);
 	if (result) {
 		detach_convert_idata(pos->sq);
 		return result;
 	}
-	if (mode == CRC_CUT_ITEM) {
+	result = do_convert_ctail(pos, mode);
+	if (result) {
+		detach_convert_idata(pos->sq);
+		return result;
+	}
+	switch (mode) {
+	case CRC_CUT_ITEM:
 		assert("edward-1214", item_convert_data(pos)->flow.length == 0);
-		assert("edward-1215", coord_num_items(&pos->coord) == nr_items ||
+		assert("edward-1215",
+		       coord_num_items(&pos->coord) == nr_items ||
 		       coord_num_items(&pos->coord) == nr_items - 1);
-		if (coord_num_items(&pos->coord) != nr_items ||
-		    item_convert_data(pos)->d_next != DC_CHAINED_ITEM) {
-			/* current item is killed, no items to be chained */
+		if (item_convert_data(pos)->d_next == DC_CHAINED_ITEM)
+			break;
+		if (coord_num_items(&pos->coord) != nr_items) {
+			/* the item was killed, no more chained items */
 			detach_convert_idata(pos->sq);
 			if (!node_is_empty(pos->coord.node))
+				/* make sure the next item will be scanned */ 
 				coord_init_before_item(&pos->coord);
-			return 0;
+			break;
 		}
-	}
-	if (mode == CRC_APPEND_ITEM) {
-		/* detach convert info */
+	case CRC_APPEND_ITEM:
 		assert("edward-434", item_convert_data(pos)->flow.length == 0);
 		detach_convert_idata(pos->sq);
-		return 0;
+	case CRC_OVERWRITE_ITEM:
+		break;
 	}
-	return 0;
+	return result;
 }
 
 /* Make Linus happy.
