@@ -2144,7 +2144,9 @@ squeeze_right_non_twig(znode * left, znode * right)
 	int old_free_space;
 
 	assert("nikita-2246", znode_get_level(left) == znode_get_level(right));
-	assert("vs-1102", znode_is_dirty(left) && znode_is_dirty(right));
+	assert("vs-1102", 
+	       (znode_is_dirty(left) || ZF_ISSET(left, JNODE_OVRWR)) && 
+	       (znode_is_dirty(right) || ZF_ISSET(right, JNODE_OVRWR)));
 	init_carry_pool(&pool);
 	init_carry_level(&todo, &pool);
 
