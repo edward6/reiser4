@@ -1002,8 +1002,9 @@ reiser4_write_logs(void)
 	/* VITALY: Check that flush_reserve is enough. */	
 	assert("vpf-279", check_atom_reserved_blocks(atom, ch.overwrite_set_size));
 
+	/* FIXME-UMKA: Check if we should grab blocks from flush reserved */
 	if ((ret = reiser4_grab_space_force((__u64)
-					    (ch.overwrite_set_size + ch.tx_size))))
+					    (ch.overwrite_set_size + ch.tx_size), 1)))
 		goto up_and_ret;
 
 	{

@@ -13,6 +13,7 @@
 #include "plugin/item/extent.h"
 #include "plugin/item/item.h"
 #include "plugin/plugin.h"
+#include "plugin/object.h"
 #include "txnmgr.h"
 #include "jnode.h"
 #include "znode.h"

@@ -482,6 +482,7 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 {
 	space_allocator_plugin *splug;
 	reiser4_block_nr needed = *len;
+	block_stage_t stage = BLOCK_NOT_COUNTED;
 
 	struct super_block *s = reiser4_get_current_sb();
 
@@ -489,7 +490,8 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 
 	assert("vpf-339", hint != NULL);
 	assert("vs-514", (get_super_private(s) &&
-			  get_super_private(s)->space_plug && get_super_private(s)->space_plug->alloc_blocks));
+			  get_super_private(s)->space_plug && 
+			  get_super_private(s)->space_plug->alloc_blocks));
 
 	trace_on(TRACE_ALLOC,
 		 "alloc_blocks: requested %llu, search from %llu\n",
@@ -504,6 +506,7 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 			assert("zam-677",
 			       hint->blk < get_super_private(s)->block_count);
 			reiser4_spin_unlock_sb(s);
+		}
 	}
 	
 	/* VITALY: allocator should grab this for internal/tx-lists/similar only. */
