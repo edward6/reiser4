@@ -2898,8 +2898,20 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 		/* FIXME: JMACD->HANS: It is very complicated to use the formula you give
 		 * in the document for extent-relocation because asking "is there a closer
 		 * allocation" may not have a great answer.  There may be a closer
-		 * allocation but it may be not large enough.  For now just implement the
-		 * leaf_relocate threshold policy. */
+		 * allocation but it may be not large enough.
+
+JOSH-FIXME-HANS
+
+Keep it simple and allocate it closer anyway.  If you keep it simple, it will be easier for other future optimizations to arrange for the right thing to be done.
+
+
+  For now just implement the
+		 * leaf_relocate threshold policy. 
+
+What does this mean?  Did you do it as requested or differently?
+
+
+*/
 		relocate = (all_need_alloc == 1) && flush_pos_leaf_relocate (pos);
 
 		/* Now scan through again. */
