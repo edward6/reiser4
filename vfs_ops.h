@@ -80,3 +80,14 @@ extern reiser4_file_fsdata *reiser4_get_file_fsdata(struct file *f);
 
 /* __FS_REISER4_VFS_OPS_H__ */
 #endif
+
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
+*/
