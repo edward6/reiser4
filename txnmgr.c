@@ -924,6 +924,32 @@ static int submit_reloc_list (void)
 	return ret;
 }
 
+/* Wait completion of all writes, re-submit atom writeback list if needed. */
+static int current_atom_complete_writes (void)
+{
+	int ret;
+
+	/* Scan wb list for nodes with already completed i/o, re-submit them to
+	 * disk */
+	ret = submit_reloc_list();
+	if (ret < 0)
+		return ret;
+
+	/* Wait all i/o completion */
+	ret = current_atom_finish_all_fq();
+	if (ret)
+		return ret;
+
+	/* Scan wb list again; all i/o should be completed, we re-submit dirty
+	 * nodes to disk */
+	ret = submit_reloc_list();
+	if(ret < 0)
+		return ret;
+
+	/* Wait all nodes we just submitted */
+	return current_atom_finish_all_fq();
+}
+
 /* Called with the atom locked and no open "active" transaction handlers except
    ours, this function calls flush_current_atom() until all dirty nodes are
    processed.  Then it initiates commit processing.
@@ -977,19 +1003,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 
 	UNLOCK_ATOM(*atom);
 
-	ret = submit_reloc_list();
-	if (ret < 0)
-		return ret;
-
-	ret = current_atom_finish_all_fq();
-	if (ret)
-		return ret;
-
-	ret = submit_reloc_list();
-	if(ret < 0)
-		return ret;
-
-	ret = current_atom_finish_all_fq();
+	ret = current_atom_complete_writes();
 	if (ret)
 		return ret;
 
