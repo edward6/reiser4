@@ -571,12 +571,12 @@ atom_locked_by_jnode(jnode * node)
 		if (spin_trylock_atom(atom))
 			break;
 
-		/* At leat one jnode belongs to this atom it guarantees that
+		/* At least one jnode belongs to this atom it guarantees that
 		 * atom->refcount > 0, we can safely increment refcount. */
 		atomic_inc(&atom->refcount);
 		UNLOCK_JNODE(node);
 
-		/* re-aquire spin locks in right order */
+		/* re-acquire spin locks in the right order */
 		LOCK_ATOM(atom);
 		LOCK_JNODE(node);
 
