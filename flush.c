@@ -1587,27 +1587,29 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 	/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("left", left, ~0u)); */
 	/*IF_TRACE (TRACE_FLUSH_VERB, print_node_content ("right", right, ~0u)); */
 
-	slum_size = find_extent_slum_size(&coord, 0);
-	if (!should_relocate(slum_size)) {
-		while (slum_size && ret == SQUEEZE_CONTINUE) {
-			if (extent_is_allocated(&coord))
-				ret = extent_handle_overwrite_and_copy(left, &coord, pos, &slum_size, &stop_key);
-			else
+	if (item_is_extent(&coord)) {
+		slum_size = find_extent_slum_size(&coord, 0);
+		if (!should_relocate(slum_size)) {
+			while (slum_size && ret == SQUEEZE_CONTINUE) {
+				if (extent_is_allocated(&coord))
+					ret = extent_handle_overwrite_and_copy(left, &coord, pos, &slum_size, &stop_key);
+				else
+					ret = extent_handle_relocate_and_copy(left, &coord, pos, &slum_size, &stop_key);
+				if (ret == SQUEEZE_TARGET_FULL) {
+					ENABLE_NODE_CHECK;
+					break;
+				}
+				coord_next_unit(&coord);
+			}
+		} else {
+			while (slum_size && ret == SQUEEZE_CONTINUE) {
 				ret = extent_handle_relocate_and_copy(left, &coord, pos, &slum_size, &stop_key);
-			if (ret == SQUEEZE_TARGET_FULL) {
-				ENABLE_NODE_CHECK;
-				break;
+				if (ret == SQUEEZE_TARGET_FULL || ret < 0) {
+					ENABLE_NODE_CHECK;
+					break;
+				}
+				coord_next_unit(&coord);
 			}
-			coord_next_unit(&coord);
-		}
-	} else {
-		while (slum_size && ret == SQUEEZE_CONTINUE) {
-			ret = extent_handle_relocate_and_copy(left, &coord, pos, &slum_size, &stop_key);
-			if (ret == SQUEEZE_TARGET_FULL || ret < 0) {
-				ENABLE_NODE_CHECK;
-				break;
-			}
-			coord_next_unit(&coord);
 		}
 	}
 	if (!keyeq(&stop_key, min_key())) {

@@ -2454,7 +2454,7 @@ extent_handle_relocate_in_place(flush_pos_t *flush_pos, unsigned *slum_size)
 
 	/* compose extent which will replace current one */
 	set_extent(&replace, first_allocated, allocated);
-	if (allocated == width) {
+	if (allocated == extent_slum_size) {
 		/* whole extent is allocated */
 		*ext = replace;
 		
