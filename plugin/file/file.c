@@ -2234,19 +2234,23 @@ reiser4_internal ssize_t sendfile_unix_file(struct file *file, loff_t *ppos, siz
 	return ret;
 }
 
-reiser4_internal int prepare_write_unix_file (
-	struct file * file, struct page * page, unsigned from, unsigned to)
+reiser4_internal int prepare_write_unix_file(struct file *file, struct page *page,
+					     unsigned from, unsigned to)
 {
-/*	ssize_t ret;*/
+	unix_file_info_t *uf_info;
+	int ret;
 
-	/* this is not ready yet */
-	return -EINVAL;
-/*
-	ret = check_pages_unix_file(file, 0, 1, 1);
-	if (ret)
-		return ret;
-	return prepare_write_common(file, page, from, to);
-*/
+	uf_info = unix_file_inode_data(file->f_dentry->d_inode);
+	get_nonexclusive_access(uf_info);
+	ret = find_file_state(uf_info);
+	if (ret == 0) {
+		if (uf_info->container == UF_CONTAINER_TAILS)
+			ret = -EINVAL;
+		else
+			ret = prepare_write_common(file, page, from, to);
+	}
+	drop_nonexclusive_access(uf_info);
+	return ret;
 }
 
 /*
