@@ -160,7 +160,7 @@ int reiserfs_node_lookup(reiserfs_node_t *node,
     }
     
     if (item_plugin->item.common.lookup) {
-	if ((found = item_plugin->item.common.lookup(body, key)) == -1) {
+	if ((found = item_plugin->item.common.lookup(body, key, coord)) == -1) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Lookup in the item %d in the node %llu failed.", coord->item_pos,	    
 		aal_device_get_block_nr(node->device, node->block));

@@ -28,12 +28,9 @@ const reiserfs_key40_t *reiserfs_key_max(void) {
     return &MAXIMAL_KEY;
 }
 
-int reiserfs_key40_cmp(reiserfs_key40_t *key1, reiserfs_key40_t *key2) {
+inline int reiserfs_key40_cmp(reiserfs_key40_t *key1, reiserfs_key40_t *key2) {
     int result;
 
-    aal_assert("vpf-082", key1 != NULL, return -2);
-    aal_assert("vpf-083", key2 != NULL, return -2);
-    
     if ((result = KEY40_COMP_ELEMENT(key1, key2, 0)) == 0) {
 	if ((result = KEY40_COMP_ELEMENT(key1, key2, 1)) == 0)
 	    result = KEY40_COMP_ELEMENT(key1, key2, 2);

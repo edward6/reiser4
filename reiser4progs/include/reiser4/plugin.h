@@ -87,7 +87,7 @@ struct reiserfs_item_ops {
     reiserfs_item_type_id_t type;
 
     error_t (*create) (void *, void *);
-    int (*lookup) (void *, void *);
+    int (*lookup) (void *, void *, void *);
 
     error_t (*confirm) (void *);
     error_t (*check) (void *);
@@ -178,8 +178,7 @@ struct reiserfs_node_plugin {
     error_t (*check) (aal_block_t *, int);
     
     /* Makes lookup inside node by specified key */
-    int (*lookup) (aal_block_t *, reiserfs_item_coord_t *, 
-	void *);
+    int (*lookup) (aal_block_t *, void *, void *);
     
     /* Gets/sets node's free space */
     uint16_t (*get_free_space) (aal_block_t *);
@@ -199,11 +198,11 @@ struct reiserfs_node_plugin {
     void (*print) (aal_block_t *, char *, uint16_t);
     
     /* Inserts item into specified node */
-    error_t (*item_insert) (aal_block_t *, reiserfs_item_coord_t *, 
+    error_t (*item_insert) (aal_block_t *, void *, 
 	void *, void *);
     
     /* Replaces item into specified node */
-    error_t (*item_replace) (aal_block_t *, reiserfs_item_coord_t *, 
+    error_t (*item_replace) (aal_block_t *, void *, 
 	void *, void *);
     
     /* Returns item's overhead */

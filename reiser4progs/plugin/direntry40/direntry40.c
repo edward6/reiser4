@@ -5,6 +5,8 @@
 */
 
 #include <reiser4/reiser4.h>
+#include <misc/misc.h>
+
 #include "direntry40.h"
 
 #define	DIRENTRY40_ID 0x2
@@ -111,12 +113,52 @@ static uint32_t reiserfs_direntry40_minsize(void) {
     return sizeof(reiserfs_direntry40_t);
 }
 
-static error_t reiserfs_direntry40_lookup(reiserfs_direntry40_t *direntry, 
-    reiserfs_key40_t *key) 
+/* 
+    Helper function that is used by lookup method 
+    for getting n-th element of direntry.
+*/
+static void *callback_key_at(reiserfs_direntry40_t *direntry, 
+    uint32_t pos) 
 {
-    aal_assert("umka-609", direntry != NULL, return -1);
-    aal_assert("umka-610", key != NULL, return -1);
-    return -1;
+    return &direntry->entry[pos].entryid;
+}
+
+/* 
+    Helper function that is used by lookup method
+    for comparing given key with passed dirid.
+*/
+static int callback_key_cmp(reiserfs_entryid_t *dirid, 
+    reiserfs_key40_t *key)
+{
+    reiserfs_key40_t entkey;
+
+    aal_memset(&entkey, 0, sizeof(entkey));
+    
+    aal_memcpy(((uint64_t *)&entkey) + 1, dirid, sizeof(entkey));
+    set_key40_locality(&entkey, get_key40_locality(key));
+    set_key40_type(&entkey, KEY40_FILE_NAME_MINOR);
+
+    return reiserfs_key40_cmp(&entkey, key);
+}
+
+static int reiserfs_direntry40_lookup(reiserfs_direntry40_t *direntry, 
+    reiserfs_key40_t *key, reiserfs_item_coord_t *coord)
+{
+    int found;
+    uint64_t pos;
+    
+    aal_assert("umka-609", direntry != NULL, return 0);
+    aal_assert("umka-610", key != NULL, return 0);
+    aal_assert("umka-629", coord != NULL, return 0);
+    
+    if ((found = reiserfs_misc_bin_search((void *)direntry, 
+	    direntry->count, key, (void *(*)(void *, uint32_t))callback_key_at, 
+	    (int (*)(const void *, const void *))callback_key_cmp, &pos)) == -1)
+	return -1;
+
+    coord->unit_pos = (uint32_t)pos;
+
+    return found;
 }
 
 static int reiserfs_direntry40_internal(void) {
@@ -143,7 +185,7 @@ static reiserfs_plugin_t direntry40_plugin = {
 	    
 	    .minsize = (uint32_t (*)(void))reiserfs_direntry40_minsize,
 	    .print = (void (*)(void *, char *, uint16_t))reiserfs_direntry40_print,
-	    .lookup = (error_t (*) (void *, void *))reiserfs_direntry40_lookup,
+	    .lookup = (int (*) (void *, void *, void *))reiserfs_direntry40_lookup,
 	    .internal = (int (*)(void))reiserfs_direntry40_internal,
 	    
 	    .confirm = NULL,

@@ -1,5 +1,6 @@
 /*
-    bitmap.c -- alloc40 bitmap functions.
+    bitmap.c -- bitmap functions. Bitmap is used by block allocator 
+    plugin and fsck program.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */

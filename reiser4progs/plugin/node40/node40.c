@@ -322,21 +322,10 @@ static void reiserfs_node40_print(aal_block_t *block,
 }
 
 static int reiserfs_node40_key_cmp(const void *key1, const void *key2) {
-    int result;
-    reiserfs_key40_t *k1, *k2;
-
     aal_assert("umka-566", key1 != NULL, return -2);
     aal_assert("umka-567", key2 != NULL, return -2);
 
-    k1 = (reiserfs_key40_t *)key1;
-    k2 = (reiserfs_key40_t *)key2;
-
-    if ((result = KEY40_COMP_ELEMENT(k1, k2, 0)) == 0) {
-	if ((result = KEY40_COMP_ELEMENT(k1, k2, 1)) == 0)
-	    result = KEY40_COMP_ELEMENT(k1, k2, 2);
-    }
-
-    return result;
+    return reiserfs_key40_cmp((reiserfs_key40_t *)key1, (reiserfs_key40_t *)key2);
 }
 
 /*
@@ -362,7 +351,7 @@ static int reiserfs_node40_lookup(aal_block_t *block, reiserfs_item_coord_t *coo
     aal_assert("umka-470", block != NULL, return 0);
  
     if ((found = reiserfs_misc_bin_search((void *)block, 
-	    reiserfs_node40_item_count(block), key,
+	    reiserfs_node40_item_count(block), key, 
 	    (void *(*)(void *, uint32_t))reiserfs_node40_key_at, 
 	    reiserfs_node40_key_cmp, &pos)) == -1)
 	return -1;
@@ -389,7 +378,7 @@ static reiserfs_plugin_t node40_plugin = {
 	.confirm = (error_t (*)(aal_block_t *))reiserfs_node40_confirm,
 	.check = (error_t (*)(aal_block_t *, int))reiserfs_node40_check,
 	
-	.lookup = (int (*)(aal_block_t *, reiserfs_item_coord_t *, void *))
+	.lookup = (int (*)(aal_block_t *, void *, void *))
 	    reiserfs_node40_lookup,
 	
 	.print = (void (*)(aal_block_t *, char *, uint16_t))
@@ -408,10 +397,10 @@ static reiserfs_plugin_t node40_plugin = {
 	    reiserfs_node40_set_free_space,
 	
 
-	.item_insert = (error_t (*)(aal_block_t *, reiserfs_item_coord_t *, 
+	.item_insert = (error_t (*)(aal_block_t *, void *, 
 	    void *, void *))reiserfs_node40_item_insert,
 	
-	.item_replace = (error_t (*)(aal_block_t *, reiserfs_item_coord_t *,
+	.item_replace = (error_t (*)(aal_block_t *, void *,
 	    void *, void *))reiserfs_node40_item_replace,
 	
 	.item_overhead = (uint16_t (*)(aal_block_t *))reiserfs_node40_item_overhead,

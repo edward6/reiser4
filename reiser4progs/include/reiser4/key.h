@@ -172,7 +172,9 @@ extern const reiserfs_key40_t *reiserfs_key40_min(void);
 extern const reiserfs_key40_t *reiserfs_key40_max(void);
 
 extern void reiserfs_key40_init(reiserfs_key40_t *key);
-extern int reiserfs_key40_cmp(reiserfs_key40_t *key1, reiserfs_key40_t *key2);
+
+extern inline int reiserfs_key40_cmp(reiserfs_key40_t *key1, 
+    reiserfs_key40_t *key2);
 
 extern error_t build_entryid_by_info(reiserfs_entryid_t *entryid, 
     reiserfs_entry_info_t *info);
