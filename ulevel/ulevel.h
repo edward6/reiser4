@@ -1310,6 +1310,10 @@ struct kstat {
 #define to_kdev_t( x ) ( x )
 #define kdev_t_to_nr( x ) ( x )
 
+#if !REISER4_DEBUG
+typedef off64_t long long
+#endif
+
 static inline void init_rwsem( struct rw_semaphore *rwsem )
 {
 	sema_init( &rwsem -> sem, 1 );

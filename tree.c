@@ -670,21 +670,28 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 void done_context( reiser4_context *context UNUSED_ARG /* context being
 							* released */ )
 {
+	reiser4_context *parent;
 	assert( "nikita-860", context != NULL );
-	assert( "nikita-859", context -> magic == context_magic );
-	assert( "jmacd-673", context -> trans == NULL );
-	assert( "jmacd-1002", lock_stack_isclean (& context->stack));
+	parent = context -> parent;
+	assert( "nikita-2092", parent != NULL );
+	assert( "nikita-2093", parent == parent -> parent );
+	assert( "nikita-859", parent -> magic == context_magic );
+	assert( "jmacd-673", parent -> trans == NULL );
+	assert( "jmacd-1002", lock_stack_isclean (& parent->stack));
 	assert( "nikita-1936", no_counters_are_held() );
-	assert( "vs-646", current -> journal_info == context );
+	assert( "vs-646", current -> journal_info == parent );
 	/* add more checks here */
 
+	if( parent == context ) {
 #if REISER4_DEBUG
-	/* remove from active contexts */
-	spin_lock (& active_contexts_lock);
-	context_list_remove (context);
-	spin_unlock (& active_contexts_lock);
-	current -> journal_info = NULL;
+		/* remove from active contexts */
+		spin_lock (& active_contexts_lock);
+		context_list_remove (parent);
+		spin_unlock (& active_contexts_lock);
 #endif
+		current -> journal_info = NULL;
+	} else
+		current -> journal_info = parent;
 }
 
 /* Audited by: umka (2002.06.16) */
