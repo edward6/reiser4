@@ -89,6 +89,10 @@ typedef struct reiser4_super_info_data {
 
 	/** fake inode used to bind formatted nodes */
 	struct inode        *fake;
+
+	/** an array for bitmap blocks direct access */
+	struct reiser4_bnode * bitmap;
+
 #if REISER4_DEBUG
 	/**
 	 * amount of space allocated by kmalloc. For debugging.
