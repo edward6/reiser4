@@ -97,8 +97,8 @@ static void relse_bitmap_node(struct reiser4_bnode * bnode)
 	assert("zam-362", bnode->working != NULL);
 	assert("zam-363", bnode->commit != NULL);
 
-	zrelse(bnode->working);
-	zrelse(bnode->commit);
+	zrelse(bnode->working, 1);
+	zrelse(bnode->commit, 1);
 
 	zput(bnode-wb);
 	zput(bnode->commit);
