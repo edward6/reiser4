@@ -1,6 +1,6 @@
 
 /*
- * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
+ * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
 /*
@@ -132,7 +132,7 @@
 /**
  * The maximum number of nodes to scan left on a level during flush.
  */
-#define REISER4_FLUSH_SCAN_MAXNODES 10
+#define REISER4_FLUSH_SCAN_MAXNODES 10000
 
 
 /* Mark function argument as unused to avoid compiler warnings. */
