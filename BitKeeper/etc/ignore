@@ -1342,3 +1342,5 @@ plugin/.cryptcompress.o.d
 .sys_reiser4.o.cmd
 .super.o.d
 plugin/dir/.pseudo_dir.o.cmd
+plugin/dir/pseudo_dir.c
+plugin/dir/pseudo_dir.h
