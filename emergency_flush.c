@@ -573,7 +573,6 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		struct inode  *inode;
 		reiser4_inode *info;
 
-		spin_lock(&inode_lock);
 		spin_lock_eflush(tree->super);
 
 		inode = mapping_jnode(node)->host;
@@ -593,11 +592,7 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		}
 		radix_tree_preload_end();
 
-		/* this is to make inode not freeable */
-		inode->i_state |= I_EFLUSH;
-
 		spin_unlock_eflush(tree->super);
-		spin_unlock(&inode_lock);
 	}
 
 	UNLOCK_JLOAD(node);
@@ -682,7 +677,6 @@ static void eflush_free (jnode * node)
 	if (jnode_is_unformatted(node)) {
 		reiser4_inode *info;
 
-		spin_lock(&inode_lock);
 		spin_lock_eflush(tree->super);
 
 		inode = mapping_jnode(node)->host;
@@ -692,31 +686,10 @@ static void eflush_free (jnode * node)
 		radix_tree_delete(ef_jnode_tree_by_reiser4_inode(info), index_jnode(node));
 		ON_DEBUG(ef->hadatom ? (info->captured_eflushed --) : (info->anonymous_eflushed --));
 
-		if (ef_jnode_tree_by_reiser4_inode(info)->rnode == NULL) {
-			assert("nikita-3355", 
-			       (info->captured_eflushed == 0 && info->anonymous_eflushed == 0));
-			inode->i_state &= ~I_EFLUSH;
-		}
-#if 0
-		assert("vs-1194", info->eflushed > 0);
-		ON_DEBUG(-- info->eflushed);
-		if (!ef->hadatom) {
-			-- info->eflushed_anon;
-			list_del(&ef->inode_anon_link);
-		}
-		assert("zam-1040", info->eflushed_anon >= 0);
-
-		/* remove eflush node from inode's list of eflush
-		 * nodes */
-		list_del(&ef->inode_link);
-		if (list_empty(&info->eflushed_jnodes)) {
-			assert("nikita-3355", info->eflushed == 0);
-			inode->i_state &= ~I_EFLUSH;
-		}
-#endif
+		assert("nikita-3355", ergo(ef_jnode_tree_by_reiser4_inode(info)->rnode == NULL,
+					   (info->captured_eflushed == 0 && info->anonymous_eflushed == 0)));
 
 		spin_unlock_eflush(tree->super);
-		spin_unlock(&inode_lock);
 	}
 	UNLOCK_JNODE(node);
 

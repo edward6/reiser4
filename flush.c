@@ -519,7 +519,6 @@ static int delete_empty_node (znode * node)
 	assert("zam-1020", node_is_empty(node));
 	assert("zam-1023", znode_is_wlocked(node));
 
-	clog_op(OP_DELETE_EMPTY_NODE, *znode_get_block(node));
 	return delete_node(node, &smallest_removed, NULL);
 }
 
