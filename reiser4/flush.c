@@ -141,6 +141,7 @@ int flush_jnode_slum (jnode *node)
 	return 0;
 }
 
+
 /* Initialize the slum_scan data structure. */
 static void slum_scan_init (slum_scan *scan)
 {
