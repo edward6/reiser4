@@ -561,34 +561,6 @@ eflush_del(jnode *node, int page_locked)
 
 		tree = jnode_get_tree(node);
 
-		WLOCK_TREE(tree);
-		ef = ef_hash_find(table, C(node));
-		assert("nikita-2745", ef != NULL);
-		blk = ef->blocknr;
-		ef_hash_remove(table, ef);
-		-- get_super_private(tree->super)->eflushed;
-		WUNLOCK_TREE(tree);
-
-		if (jnode_is_unformatted(node)) {
-			reiser4_inode *info;
-			int despatchhim = 0;
-
-			inode = jnode_mapping(node)->host;
-			info = reiser4_inode_data(inode);
-			/* unpin inode after unflushing last eflushed page
-			 * from it. Dual to __iget() in eflush_add(). */
-			spin_lock_inode(inode);
-			assert("vs-1194", info->eflushed > 0);
-			-- info->eflushed;
-			if (info->eflushed == 0 && (inode->i_state & I_GHOST))
-				despatchhim = 1;
-			spin_unlock_inode(inode);
-			if (despatchhim)
-				inode->i_sb->s_op->destroy_inode(inode);
-		}
-
-		JF_CLR(node, JNODE_EFLUSH);
-
 		page = jnode_page(node);
 
 		/* there is no reason to unflush node if it can be flushed
@@ -611,7 +583,34 @@ eflush_del(jnode *node, int page_locked)
 		}
 		assert("nikita-2766", atomic_read(&node->x_count) > 1);
 
+		WLOCK_TREE(tree);
+		ef = ef_hash_find(table, C(node));
+		assert("nikita-2745", ef != NULL);
+		blk = ef->blocknr;
+		ef_hash_remove(table, ef);
+		-- get_super_private(tree->super)->eflushed;
+		WUNLOCK_TREE(tree);
+
+		JF_CLR(node, JNODE_EFLUSH);
 		UNLOCK_JNODE(node);
+
+		if (jnode_is_unformatted(node)) {
+			reiser4_inode *info;
+			int despatchhim = 0;
+
+			inode = jnode_mapping(node)->host;
+			info = reiser4_inode_data(inode);
+			/* unpin inode after unflushing last eflushed page
+			 * from it. Dual to __iget() in eflush_add(). */
+			spin_lock_inode(inode);
+			assert("vs-1194", info->eflushed > 0);
+			-- info->eflushed;
+			if (info->eflushed == 0 && (inode->i_state & I_GHOST))
+				despatchhim = 1;
+			spin_unlock_inode(inode);
+			if (despatchhim)
+				inode->i_sb->s_op->destroy_inode(inode);
+		}
 
 #if REISER4_DEBUG
 		if (blocknr_is_fake(jnode_get_block(node))) {
