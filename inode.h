@@ -53,6 +53,9 @@ typedef struct reiser4_inode_info {
 	inter_syscall_rap          ra;
 	/** locality id for this file */
 	oid_t                      locality_id;
+	/* tail2extent and extent2tail use down_write, read, write, readpage -
+	 * down_read */
+	struct rw_semaphore        sem;
 	/** generic fields not specific to reiser4, but used by VFS */
 	struct inode       vfs_inode;
 } reiser4_inode_info;
@@ -160,7 +163,6 @@ typedef union reiser4_file_fsdata {
 
 extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata( struct dentry *dentry );
 extern reiser4_file_fsdata *reiser4_get_file_fsdata( struct file *f );
-
 extern void reiser4_make_bad_inode( struct inode *inode );
 
 
