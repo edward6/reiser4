@@ -400,8 +400,6 @@ truncate_inode_jnodes_range(struct inode *inode, unsigned long from, int count)
 	unsigned long index;
 	unsigned long end;
 
-	assert("nikita-3465", count > 0);
-
 	truncated_jnodes = 0;
 
 	info = reiser4_inode_data(inode);
@@ -416,7 +414,7 @@ truncate_inode_jnodes_range(struct inode *inode, unsigned long from, int count)
 		int    i;
 		jnode *node;
 
-		assert("nikita-3466", index < end);
+		assert("nikita-3466", index <= end);
 
 		RLOCK_TREE(tree);
 		taken = radix_tree_gang_lookup(&info->jnode_tree, (void **)gang,
