@@ -539,6 +539,7 @@ inode_set_extension(struct inode *inode, sd_ext_bits ext)
 
 	state = reiser4_inode_data(inode);
 	spin_lock_inode(inode);
+	/* FIXME: return value of scint_pack is not checked. */
 	scint_pack(&state->extmask, 
 		   scint_unpack(&state->extmask) | (1 << ext), GFP_ATOMIC);
 	/* force re-calculation of stat-data length on next call to
