@@ -121,9 +121,6 @@ struct reiser4_inode {
 	coord_t sd_coord;
 	/* bit-mask of stat-data extentions used by this file */
 	__u64 extmask;
-	/* number of unformatted nodes, dirtied from mmap and eflushed from
-	 * this object. */
-	int eflushed_anon;
 	/* bitmask of non-default plugins for this inode */
 	__u16 plugin_mask;
 	/* cluster parameter for crypto and compression */
@@ -149,29 +146,19 @@ struct reiser4_inode {
 			       tries to unmap page for which it is called. This prevents process from using page which
 			       was copied on capture */
 
-	/* tree of eflushed jnodes */
-	struct radix_tree_root ef_jnodes;
-
-#if 0
-	/* list of unformatted jnodes eflushed from this object */
-	struct list_head eflushed_jnodes;
-	struct list_head anon_jnodes;
-
-	/* currently operations on this tree are protected by tree's spin lock */
-	struct radix_tree_root jnode_tree;
+	/* tree of eflushed jnodes. Eflushed jnode may be "anonymous" (having no atom) and "captured". Jnodes in this
+	   tree are distinguished by radix tree tags */
+	struct radix_tree_root ef_nodes;
+#if REISER4_DEBUG
+	/* numbers of jnodes of each type in the above tree */
+	int anonymous_eflushed;
+	int captured_eflushed;
 #endif
 
 	/* block number of virtual root for this object. See comment above
 	 * fs/reiser4/search.c:handle_vroot() */
 	reiser4_block_nr vroot;
 	struct semaphore loading;
-
-#if REISER4_DEBUG
-	/* number of unformatted nodes eflushed from this object. This is number of nodes in ef_jnodes tree */
-	int eflushed;
-	/* number of eflushed anon jnodes */
-	int anon_eflushed;
-#endif
 };
 
 #define I_EFLUSH (256)
@@ -403,6 +390,18 @@ get_readdir_list(const struct inode *inode)
 
 extern void init_inode_ordering(struct inode *inode,
 				reiser4_object_create_data *crd, int create);
+
+static inline struct radix_tree_root *
+ef_jnode_tree_by_inode(struct inode *inode)
+{
+	return &reiser4_inode_data(inode)->ef_nodes;
+}
+
+static inline struct radix_tree_root *
+ef_jnode_tree_by_reiser4_inode(reiser4_inode *r4_inode)
+{
+	return &r4_inode->ef_nodes;
+}
 
 #if REISER4_DEBUG_OUTPUT
 extern void print_inode(const char *prefix, const struct inode *i);
