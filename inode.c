@@ -286,8 +286,13 @@ struct inode * reiser4_iget( struct super_block *super,
 
 	/** call iget(). Our ->read_inode() is dummy, so this will either
 	    find inode in cache or return uninitialised inode */
-	/* FIXME_JMACD: get_key_objectid is 64 bits, but iget() takes unsigned long */
-	inode = iget( super, (__u32) get_key_objectid( key ) );
+	/*
+	 * FIXME-NIKITA it is supposed that 2.5 kernels with use 64 bit inode
+	 * numbers. If they will not at the time of reiser4 inclusion,
+	 * find_actor has to be used to distinguish inodes by (lowest?) 32
+	 * bits of objectid.
+	 */
+	inode = iget( super, get_key_objectid( key ) );
 	failed = 0;
 	if( ! inode ) 
 		return NULL;
