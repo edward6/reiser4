@@ -774,7 +774,7 @@ typedef struct reiser4_statistics {
 
 struct kobject;
 extern int reiser4_populate_kattr_dir(struct kobject * kobj);
-extern int reiser4_populate_kattr_level_dir(struct kobject * kobj, int level);
+extern int reiser4_populate_kattr_level_dir(struct kobject * kobj);
 
 #else
 

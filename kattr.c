@@ -197,7 +197,7 @@ static struct sysfs_ops attr_level_ops = {
 
 static struct kobj_type ktype_level_reiser4 = {
 	.sysfs_ops	= &attr_level_ops,
-	.default_attrs	= def_attrs,
+	.default_attrs	= NULL
 };
 
 static int register_level_attrs(reiser4_super_info_data *info, int i)
@@ -216,7 +216,7 @@ static int register_level_attrs(reiser4_super_info_data *info, int i)
 		level->ktype = &ktype_level_reiser4;
 		result = kobject_register(level);
 		if (result == 0)
-			result = reiser4_populate_kattr_level_dir(level, i);
+			result = reiser4_populate_kattr_level_dir(level);
 	} else
 		result = -EBUSY;
 	return result;

@@ -522,7 +522,7 @@ reiser4_populate_kattr_dir(struct kobject * kobj)
 }
 
 int
-reiser4_populate_kattr_level_dir(struct kobject * kobj, int level)
+reiser4_populate_kattr_level_dir(struct kobject * kobj)
 {
 	int result;
 	int i;
