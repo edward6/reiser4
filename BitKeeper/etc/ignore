@@ -31,8 +31,10 @@
 .gdbinit
 .hdepend
 .inode.o.cmd
+.inode.o.d
 .io_handle.o.cmd
 .ioctl.o.cmd
+.ioctl.o.d
 .jnode.o.cmd
 .kassign.o.cmd
 .kcond.o.cmd
@@ -45,6 +47,7 @@
 .page_cache.o.cmd
 .pool.o.cmd
 .reiser4.o.cmd
+.scint.o.cmd
 .seal.o.cmd
 .search.o.cmd
 .super.o.cmd
@@ -56,6 +59,7 @@
 .txnmgr.o.cmd
 .version
 .vfs_ops.o.cmd
+.vfs_ops.o.d
 .wander.o.cmd
 .znode.o.cmd
 11459
@@ -165,12 +169,15 @@ page_cache.bbg
 plugin/.built-in.o.cmd
 plugin/.hash.o.cmd
 plugin/.object.o.cmd
+plugin/.object.o.d
 plugin/.plugin.o.cmd
 plugin/.symlink.o.cmd
 plugin/.tail_policy.o.cmd
 plugin/dir/.built-in.o.cmd
 plugin/dir/.dir.o.cmd
+plugin/dir/.dir.o.d
 plugin/dir/.hashed_dir.o.cmd
+plugin/dir/.props/dir.c
 plugin/dir/dir.bb
 plugin/dir/dir.bbg
 plugin/dir/hashed_dir.bb
@@ -208,6 +215,7 @@ plugin/item/.internal.o.cmd
 plugin/item/.item.o.cmd
 plugin/item/.sde.o.cmd
 plugin/item/.static_stat.o.cmd
+plugin/item/.static_stat.o.d
 plugin/item/.tail.o.cmd
 plugin/item/cde.bb
 plugin/item/cde.bbg
@@ -1274,11 +1282,3 @@ write-test.1
 write-test.2
 znode.bb
 znode.bbg
-plugin/dir/.props/dir.c
-.inode.o.d
-.ioctl.o.d
-.vfs_ops.o.d
-plugin/.object.o.d
-plugin/dir/.dir.o.d
-plugin/item/.static_stat.o.d
-.scint.o.cmd
