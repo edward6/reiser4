@@ -3336,7 +3336,7 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
  ********************************************************************************/
 
 /* Initialize the fields of a flush_position. */
-static int flush_pos_init (flush_position *pos, int *nr_to_flush, flush_queue_t * fq)
+static int flush_pos_init (flush_position *pos, long *nr_to_flush, flush_queue_t * fq)
 {
 	pos->point = NULL;
 	pos->leaf_relocate = 0;
