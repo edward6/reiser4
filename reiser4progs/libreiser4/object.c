@@ -167,7 +167,7 @@ reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
 #ifndef ENABLE_COMPACT
 
 /*
-    In the furure this function will accept char *name of new object
+    In the future this function will accept char *name of new object
     and won't accept parent, since it will be created by 
     reiserfs_object_open call for semantic parent of new object.
 */
@@ -191,25 +191,24 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs,
     if (!(key_plugin = libreiser4_factory_find(REISERFS_KEY_PLUGIN, profile->key))) 
 	libreiser4_factory_failed(goto error_free_object, find, key, profile->key);
 	    
+    if (!parent) {
+	reiserfs_key_init(&parent_key, key_plugin);
+	reiserfs_key_build_file_key(&parent_key, KEY40_STATDATA_MINOR,
+	    reiserfs_oid_root_parent_locality(fs->oid), 
+	    reiserfs_oid_root_parent_objectid(fs->oid), 0);
+
+	objectid = reiserfs_oid_root_objectid(fs->oid);
+    } else {
+	parent_key = parent->key;
+	objectid = reiserfs_oid_alloc(fs->oid);
+    }
+    parent_objectid = reiserfs_key_get_objectid(&parent_key);
+	
+    reiserfs_key_init(&object_key, key_plugin);
+    reiserfs_key_build_file_key(&object_key, KEY40_STATDATA_MINOR,
+	parent_objectid, objectid, 0);
+	
     if (plugin->h.type == REISERFS_DIR_PLUGIN) {
-
-	if (!parent) {
-	    reiserfs_key_init(&parent_key, key_plugin);
-	    reiserfs_key_build_file_key(&parent_key, KEY40_STATDATA_MINOR,
-		reiserfs_oid_root_parent_locality(fs->oid), 
-		reiserfs_oid_root_parent_objectid(fs->oid), 0);
-
-	    objectid = reiserfs_oid_root_objectid(fs->oid);
-	} else {
-	    parent_key = parent->key;
-	    objectid = reiserfs_oid_alloc(fs->oid);
-	}
-	parent_objectid = reiserfs_key_get_objectid(&parent_key);
-	
-	reiserfs_key_init(&object_key, key_plugin);
-	reiserfs_key_build_file_key(&object_key, KEY40_STATDATA_MINOR,
-	    parent_objectid, objectid, 0);
-	
 	if (!(hint = libreiser4_plugin_call(goto error_free_object, plugin->dir, 
 	    build, &parent_key, &object_key, profile->item.statdata, profile->item.direntry)))
 	{
@@ -218,9 +217,13 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs,
 	    goto error_free_object;
 	}
     } else {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Sorry, creating of a file is not supported yet!");
-	goto error_free_object;
+	if (!(hint = libreiser4_plugin_call(goto error_free_object, plugin->file, 
+	    build, &parent_key, &object_key, profile->item.statdata, profile->item.fileentry)))
+	{
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't create file hint.");
+	    goto error_free_object;
+	}
     }
     
     /* Inserting all items into tree */

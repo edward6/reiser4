@@ -116,6 +116,9 @@ typedef struct reiserfs_key_ops reiserfs_key_ops_t;
 
 struct reiserfs_file_ops {
     reiserfs_plugin_header_t h;
+
+    void *(*build) (void *, void *, uint16_t, uint16_t); 
+    void (*destroy) (void *);
 };
 
 typedef struct reiserfs_file_ops reiserfs_file_ops_t;
