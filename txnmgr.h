@@ -125,7 +125,7 @@ typedef enum
 				     TYPE DEFINITIONS
  ****************************************************************************************/
 
-/* A note on lock ordering: the handle & znode spinlock protects reading of their ->atom
+/* A note on lock ordering: the handle & jnode spinlock protects reading of their ->atom
  * fields, so typically an operation on the atom through either of these objects must (1)
  * lock the object, (2) read the atom pointer, (3) lock the atom.
  *
@@ -414,16 +414,26 @@ extern void flush_fuse_queues (txn_atom *large, txn_atom *small);
 				     INLINE FUNCTIONS
  *****************************************************************************************/
 
-#define spin_ordering_pred_atom(atom)   (1)
-#define spin_ordering_pred_txnh(txnh)   (1)
-#define spin_ordering_pred_txnmgr(tmgr) (1)
-#define spin_ordering_pred_tnode(node)  (1)
+#define spin_ordering_pred_atom(atom)				\
+	( ( lock_counters() -> spin_locked_txnh == 0 ) &&	\
+	  ( lock_counters() -> spin_locked_jnode == 0 ) &&	\
+	  ( lock_counters() -> spin_locked_dk == 0 ) &&		\
+	  ( lock_counters() -> spin_locked_tree == 0 ) )
+
+#define spin_ordering_pred_txnh(txnh)				\
+	( ( lock_counters() -> spin_locked_dk == 0 ) &&		\
+	  ( lock_counters() -> spin_locked_tree == 0 ) )
+
+#define spin_ordering_pred_txnmgr(tmgr) 			\
+	( ( lock_counters() -> spin_locked_atom == 0 ) &&	\
+	  ( lock_counters() -> spin_locked_txnh == 0 ) &&	\
+	  ( lock_counters() -> spin_locked_jnode == 0 ) &&	\
+	  ( lock_counters() -> spin_locked_dk == 0 ) &&		\
+	  ( lock_counters() -> spin_locked_tree == 0 ) )
 
 SPIN_LOCK_FUNCTIONS(atom,txn_atom,alock);
 SPIN_LOCK_FUNCTIONS(txnh,txn_handle,hlock);
 SPIN_LOCK_FUNCTIONS(txnmgr,txn_mgr,tmgr_lock);
-
-extern spinlock_t _jnode_ptr_lock;
 
 # endif /* __REISER4_TXNMGR_H__ */
 
