@@ -32,7 +32,7 @@ TS_LIST_DECLARE(owners);
 /* per-owner list of lock handles that point to locked znodes which
    belong to one lock owner 
 
-   Locking: this list is only accessed by the thread owning lock stack this
+   Locking: this list is only accessed by the thread owning the lock stack this
    list is attached to. Hence, no locking is necessary.
 */
 TS_LIST_DECLARE(locks);
