@@ -1329,9 +1329,9 @@ static int plug_hole (coord_t * coord, lock_handle * lh,
 
 	item_key_by_coord (coord, &key);
 	set_key_offset (&key, (get_key_offset (&key) +
-			       extent_size (coord, (unsigned) coord->unit_pos) + 
-			       width_after));
-
+			       extent_size (coord, coord->unit_pos) + 
+			       width_after * current_blocksize));
+	
 	coord->between = AFTER_UNIT;
 
 	/*
@@ -3322,7 +3322,7 @@ static int make_page_extent (coord_t * coord, lock_handle * lh,
 		return PTR_ERR (j);
 
 	if (jnode_mapped (j)) {
-		/* there is extent item corresponding to this page*/
+		/* there is extent item corresponding to this page */
 		jput (j);
 		return 0;
 	}
