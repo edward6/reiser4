@@ -74,7 +74,10 @@ enum reiser4_ba_flags {
 	BA_PERMANENT        = (1 << 4),
 
 	/* grab space even it was disabled */
-	BA_FORCE            = (1 << 5)
+	BA_FORCE            = (1 << 5),
+
+	/* use default start value for free blocks search. */
+	BA_USE_DEFAULT_SEARCH_START = (1 << 6)
 };
 
 typedef enum reiser4_ba_flags reiser4_ba_flags_t;

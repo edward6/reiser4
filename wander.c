@@ -519,7 +519,7 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	hint.block_stage = BLOCK_GRABBED;
 	
 	ret = reiser4_alloc_blocks (&hint, start, &wide_len,
-		BA_FORMATTED/* formatted, not from reserved area */, "get_more_wandered_blocks");
+		BA_FORMATTED | BA_USE_DEFAULT_SEARCH_START, "get_more_wandered_blocks");
 
 	*len = (int) wide_len;
 
@@ -1383,7 +1383,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		/* We assume that disk space for wandered record blocks can be
 		 * taken from reserved area. */
 		ret = reiser4_alloc_blocks (&hint, &first, &len,
-			BA_FORMATTED | BA_RESERVED /* formatted, from reserved area */, "alloc_tx");
+			BA_FORMATTED | BA_RESERVED | BA_USE_DEFAULT_SEARCH_START, "alloc_tx");
 
 		blocknr_hint_done(&hint);
 

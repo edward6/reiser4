@@ -727,9 +727,9 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 		 "alloc_blocks: requested %llu, search from %llu\n",
 		 (unsigned long long) *len, (unsigned long long) (hint ? hint->blk : ~0ull));
 
-	/* If blocknr hint isn't set we use per fs "blocknr_hint default" */
-	/* FIXME-ZAM: should a mount option control this? */
-	if (hint->blk == 0) {
+	/* For write-optimized data we use default search start value, which is
+	 * close to last write location. */
+	if (flags & BA_USE_DEFAULT_SEARCH_START) {
 		reiser4_spin_lock_sb(sbinfo);
 		hint->blk = sbinfo->blocknr_hint_default;
 		reiser4_stat_inc(block_alloc.nohint);
@@ -737,7 +737,7 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 		       hint->blk < sbinfo->block_count);
 		reiser4_spin_unlock_sb(sbinfo);
 	}
-	
+
 	/* VITALY: allocator should grab this for internal/tx-lists/similar only. */
 /* VS-FIXME-HANS: why is this comment above addressed to vitaly (from vitaly)? */
 	if (hint->block_stage == BLOCK_NOT_COUNTED) {
