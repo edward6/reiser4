@@ -196,7 +196,7 @@ int jnode_flush (jnode *node, int flags)
 			/* FIXME: Problem: The batch_relocate condition is not set early
 			 * enough to relocate the leaf-level parent, for example.  This is
 			 * not really a special case, but it maybe it should be handled? */
-			/* FIXME: this doesn't work because of the leftpoint is already locked. */
+			/* FIXME: this doesn't work because the leftpoint is already locked. */
 			if (0 && (ret = flush_scan_right_upto (& right_scan, node, & flush_pos.right_scan_count,
 							  FLUSH_RELOCATE_THRESHOLD - flush_pos.left_scan_count))) {
 				goto failed;
@@ -1072,6 +1072,7 @@ static int squalloc_parent_first_recursive (flush_position *pos, znode *child, t
 	}
 
 	assert ("jmacd-8122", child == JZNODE (pos->point));
+	assert ("jmacd-8123", ! znode_is_root (JZNODE (pos->point)));
 
 	/* Lock the parent. */
 	{
@@ -1084,6 +1085,7 @@ static int squalloc_parent_first_recursive (flush_position *pos, znode *child, t
 		 * a newly-created parent node that has not been allocated?  If so, have
 		 * to allocate it before reaching (or inside) flush_enqueue_point.  Should
 		 * we detect this and call flush_parent_first_broken? */
+		/* FIXME: returning ENAVAIL here in the root case? */
 		ret = jnode_lock_parent_coord (pos->point, coord, & pos->point_lock, ZNODE_WRITE_LOCK);
 
 		done_lh (& save_lock);
