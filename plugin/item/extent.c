@@ -1270,8 +1270,6 @@ extent_writepage(coord_t * coord, lock_handle * lh, struct page *page)
 
 	assert("vs-1052", PageLocked(page));
 	assert("vs-1051", page->mapping && page->mapping->host);
-	/* FIXME:NIKITA->VS make_extent loads znode itself */
-	/* assert("vs-1054", znode_is_loaded(coord->node)); */
 	assert("vs-864", znode_is_wlocked(coord->node));
 
 	result = try_capture_page(page, ZNODE_WRITE_LOCK, 0);
