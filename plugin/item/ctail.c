@@ -411,15 +411,7 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	assert("edward-xxx", PageLocked(page));
 	
 	inode = page->mapping->host;
-	
-	if (!cluster_is_uptodate(clust)) {
-		clust->index = cluster_index_by_page(page, inode);
-		ret = ctail_read_cluster(clust, inode);
-		if (ret)
-			return ret;
-		/* release cluster before exit if it was uptodated here */
-		release = 1;
-	}
+
 	if (clust->stat == FAKE_CLUSTER) {
 		/* fill page by zeroes */
 		char *kaddr = kmap_atomic(page, KM_USER0);
@@ -434,6 +426,19 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 		ON_TRACE(TRACE_CTAIL, " - hole, OK\n");
 		return 0;
 	}	
+	if (!cluster_is_uptodate(clust)) {
+		clust->index = cluster_index_by_page(page, inode);
+		reiser4_unlock_page(page);
+		ret = ctail_read_cluster(clust, inode);
+		reiser4_lock_page(page);
+		if (ret)
+			return ret;
+		/* cluster was uptodated here, release it before exit */
+		release = 1;	
+	}
+	if(PageUptodate(page))
+		/* races with other read/write */
+		goto exit;	
 	/* fill page by plain text */
 	assert("edward-120", clust->len <= inode_cluster_size(inode));
 	/* calculate page index in the cluster */
@@ -449,6 +454,7 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	memset(data + clust->len, 0, PAGE_CACHE_SIZE - to_page);
 	kunmap(page);
 	SetPageUptodate(page);
+ exit:
 	if (release) 
 		put_cluster_data(clust, inode);
 	return 0;	
