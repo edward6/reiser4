@@ -353,7 +353,8 @@ typedef struct crypto_plugin {
 	size_t (*blocksize)(__u16 keysize);
 	/* Offset translator (meaningful for asymmetric crypto-algorithms).
 	   Offset translation allows to keep consistency in key space when
-	   crypto algorithm inflate data. */
+	   crypto algorithm inflate data. 
+	EDWARD-FIXME-HANS: make these comments much longer, or reference a design document that explains it all. */
 	loff_t (*scale)(struct inode * inode, size_t blocksize, loff_t src);	
 	/* Align manager which aligns flow up to crypto block size before
 	   passing it to crypto algorithm */
