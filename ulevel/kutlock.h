@@ -23,6 +23,8 @@ spin_is_not_locked (spinlock_t *s)
 	return 1;
 }
 
+#define print_spin_lock(p, s) noop
+
 #elif defined (KUT_LOCK_POSIX)
 
 #include <errno.h>
@@ -83,6 +85,8 @@ static inline int atomic_dec_and_lock(atomic_t *atomic, spinlock_t *lock)
 	spin_unlock(lock);
 	return 0;
 }
+
+#define print_spin_lock(p, s) noop
 
 #elif defined (KUT_LOCK_ERRORCHECK)
 

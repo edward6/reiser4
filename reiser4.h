@@ -288,6 +288,7 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 #define current_pid     ( current -> pid )
 #define set_current()   current_pid
 #define pthread_self()  0
+#define print_spin_lock(p, s) noop
 
 #endif
 
