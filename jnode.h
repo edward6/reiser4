@@ -102,7 +102,7 @@ typedef enum {
        /* znode data are mapped into memory */
        ZNODE_KMAPPED           = 12,
        /* jnode of block which has pointer (allocated or unallocated) from
-	* extent or somethign similar (indirect item, for example) */
+	* extent or something similar (indirect item, for example) */
        ZNODE_MAPPED            = 13
 } reiser4_znode_state;
 
