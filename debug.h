@@ -8,14 +8,6 @@
 #include "forward.h"
 #include "reiser4.h"
 
-/* for __u?? types */
-#include <linux/types.h>
-/* for struct super_block, etc */
-#include <linux/fs.h>
-/* for in_interrupt() */
-#include <asm/hardirq.h>
-
-#include <linux/sched.h>
 
 /* generic function to produce formatted output, decorating it with
    whatever standard prefixes/postfixes we want. "Fun" is a function
@@ -371,9 +363,9 @@ typedef enum {
 	WRITE_TREE_LOG = (1 << 3), 	/* log internal tree operations */
 	WRITE_SYSCALL_LOG = (1 << 4),   /* log system calls */
 	READAHEAD_LOG = (1 << 5),       /* log read-ahead activity */
-	ALLOC_EXTENT_LOG = (1 << 6)     /* log extent allocation */
+	ALLOC_EXTENT_LOG = (1 << 6),    /* log extent allocation */
+	LOG_FILE_PAGE_EVENT = (1 << 7)	/* log events happened to certain file */
 } reiser4_log_flags;
-
 
 
 extern void reiser4_do_panic(const char *format, ...)
@@ -391,6 +383,7 @@ extern void reiser4_kfree(void *area);
 extern void reiser4_kfree_in_sb(void *area, struct super_block *sb);
 extern __u32 get_current_trace_flags(void);
 extern __u32 get_current_log_flags(void);
+extern __u32 get_current_oid_to_log(void);
 
 #if REISER4_DEBUG_OUTPUT && REISER4_DEBUG_SPIN_LOCKS
 extern void print_lock_counters(const char *prefix,
@@ -530,6 +523,22 @@ typedef struct err_site {} err_site;
 #else
 #define reiser4_internal
 #endif
+
+/* operations to clog */
+#define OP_ADD_EMPTY_LEAF 0 /* eottl.c:handle_eottl(), data is result of add_empty_leaf */
+#define OP_KILL_EMPTY_NODE 1 /* node40.c:shift_node40(), data is unused */
+#define OP_LOOKUP_DEADLOCK 2 /* search.c:traverse_tree() when cbk_level_lookup returns LOOKUP_REST + E_DEADLOCK */
+#define OP_STORE_BB 3 /* blackbox.c:store_block_box(), to delimit cbk which got problem, data is not used */
+#define OP_MAKE_ZNODE_DIRTY 4 /* OFF txnmgr.c:do_jnode_make_dirty(), context's nr_mark_dirty is increased */
+#define OP_DIRTY_EMPTY_LEAF 5 /* eottl.c:add_empty_leaf(), znode_make_dirty for inserted empty node */
+#define OP_CREATE_ITEM 6 /* node40.c:create_item_node40, item is created */
+#define OP_NEW_NODE 7
+#define OP_KILL_INTERNAL 8
+#define OP_DELETE_EMPTY_NODE 9
+#define OP_NUM 10
+
+void clog_op(int op, int data);
+void print_clog(void);
 
 /* __FS_REISER4_DEBUG_H__ */
 #endif
