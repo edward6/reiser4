@@ -64,7 +64,7 @@ int unix_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
 int unix_file_readpage_nolock (struct file * file UNUSED_ARG, struct page * page)
 {
 	int result;
-	new_coord coord;
+	coord_t coord;
 	lock_handle lh;
 	reiser4_key key;
 	item_plugin * iplug;
@@ -123,7 +123,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 {
 	int result;
 	struct inode * inode;
-	new_coord coord;
+	coord_t coord;
 	lock_handle lh;
 	size_t to_read;
 	item_plugin * iplug;
@@ -230,7 +230,7 @@ typedef enum {
 	CONVERT
 } write_todo;
 
-static write_todo unix_file_how_to_write (struct inode *, flow_t *, new_coord *);
+static write_todo unix_file_how_to_write (struct inode *, flow_t *, coord_t *);
 
 /* plugin->u.file.write */
 /* Audited by: green(2002.06.15) */
@@ -241,7 +241,7 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 {
 	int result;
 	struct inode * inode;
-	new_coord coord;
+	coord_t coord;
 	lock_handle lh;	
 	size_t to_write;
 	item_plugin * iplug;
@@ -348,7 +348,7 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 /* AUDIT: Comment above is incorrect, both cases it looks at is dealing with extents, how about file tails? */
 /* Audited by: green(2002.06.15) */
 static int built_of_extents (struct inode * inode UNUSED_ARG,
-			     new_coord * coord)
+			     coord_t * coord)
 {
 	return znode_get_level (coord->node) == TWIG_LEVEL;
 }
@@ -369,7 +369,7 @@ static int should_have_notail (struct inode * inode, loff_t new_size)
 /* decide how to write flow @f into file @inode */
 /* Audited by: green(2002.06.15) */
 static write_todo unix_file_how_to_write (struct inode * inode, flow_t * f,
-					  new_coord * coord)
+					  coord_t * coord)
 {
 	loff_t new_size;
 
@@ -509,7 +509,7 @@ int unix_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
 /* Audited by: green(2002.06.15) */
 int unix_file_owns_item( const struct inode *inode /* object to check
 						    * against */, 
-			 const new_coord *coord /* coord to check */ )
+			 const coord_t *coord /* coord to check */ )
 {
 	int result;
 

@@ -14,7 +14,7 @@ static int find_entry( const struct inode *dir, struct dentry *name,
 		       lock_handle *lh, 
 		       znode_lock_mode mode, reiser4_dir_entry_desc *entry );
 static int check_item( const struct inode *dir, 
-		       const new_coord *coord, const char *name );
+		       const coord_t *coord, const char *name );
 
 /** create sd for directory file. Create stat-data, dot, and dotdot. */
 int hashed_create( struct inode *object /* new directory */, 
@@ -85,7 +85,7 @@ int hashed_delete( struct inode *object /* object being deleted */,
  * ->owns_item() for hashed directory object plugin.
  */
 int hashed_owns_item( const struct inode *inode /* object to check against */, 
-		      const new_coord *coord /* coord of item to check */ )
+		      const coord_t *coord /* coord of item to check */ )
 {
 	reiser4_key item_key;
 
@@ -166,7 +166,7 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 				  struct dentry *dentry /* name to look for */ )
 {
 	int                    result;
-	new_coord            *coord;
+	coord_t            *coord;
 	lock_handle            lh;
 	const char            *name;
 	int                    len;
@@ -254,7 +254,7 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 						     * directory entry */ )
 {
 	int                 result;
-	new_coord         *coord;
+	coord_t         *coord;
 	lock_handle lh;
 
 	assert( "nikita-1114", object != NULL );
@@ -296,7 +296,7 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 					    * removed */ )
 {
 	int                 result;
-	new_coord         *coord;
+	coord_t         *coord;
 	znode             *loaded;
 	lock_handle        lh;
 
@@ -328,7 +328,7 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 
 
 static int entry_actor( reiser4_tree *tree /* tree being scanned */, 
-			new_coord *coord /* current coord */, 
+			coord_t *coord /* current coord */, 
 			lock_handle *lh /* current lock handle */,
 			void *args /* argument to scan */ );
 
@@ -342,7 +342,7 @@ typedef struct entry_actor_args {
 	int          not_found;
 	znode_lock_mode mode;
 
-	new_coord          last_coord;
+	coord_t          last_coord;
 	lock_handle last_lh;
 	const struct inode *inode;
 } entry_actor_args;
@@ -367,7 +367,7 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 {
 	const struct qstr *name;
 	seal_t            *seal;
-	new_coord         *coord;
+	coord_t         *coord;
 	int                result;
 
 	assert( "nikita-1130", lh != NULL );
@@ -451,7 +451,7 @@ static int find_entry( const struct inode *dir /* directory to scan */,
  * Function called by find_entry() to look for given name in the directory.
  */
 static int entry_actor( reiser4_tree *tree UNUSED_ARG /* tree being scanned */, 
-			new_coord *coord /* current coord */, 
+			coord_t *coord /* current coord */, 
 			lock_handle *lh /* current lock handle */,
 			void *entry_actor_arg /* argument to scan */ )
 {
@@ -499,7 +499,7 @@ static int entry_actor( reiser4_tree *tree UNUSED_ARG /* tree being scanned */,
 }
 
 static int check_item( const struct inode *dir, 
-		       const new_coord *coord, const char *name )
+		       const coord_t *coord, const char *name )
 {
 	item_plugin      *iplug;
 

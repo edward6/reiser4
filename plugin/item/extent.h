@@ -14,7 +14,7 @@ typedef struct {
  * one parameter specified by its caller
  */
 struct readpage_arg {
-	new_coord * coord;
+	coord_t * coord;
 	lock_handle * lh;
 };
 
@@ -53,75 +53,75 @@ static inline void extent_set_width(reiser4_extent *ext, reiser4_block_nr width)
 /*
  * plugin->item.common.*
  */
-reiser4_key * extent_max_key_inside    (const new_coord *, reiser4_key *);
-int           extent_can_contain_key   ( const new_coord *coord,
+reiser4_key * extent_max_key_inside    (const coord_t *, reiser4_key *);
+int           extent_can_contain_key   ( const coord_t *coord,
 					 const reiser4_key *key,
 					 const reiser4_item_data * );
-int           extent_mergeable         (const new_coord * p1,
-					const new_coord * p2);
-unsigned      extent_nr_units          (const new_coord *);
+int           extent_mergeable         (const coord_t * p1,
+					const coord_t * p2);
+unsigned      extent_nr_units          (const coord_t *);
 lookup_result extent_lookup            (const reiser4_key *, lookup_bias,
-					new_coord *);
-int           extent_init              (new_coord *, reiser4_item_data *);
-int           extent_paste             (new_coord *, reiser4_item_data *,
+					coord_t *);
+int           extent_init              (coord_t *, reiser4_item_data *);
+int           extent_paste             (coord_t *, reiser4_item_data *,
 					carry_level *);
 int           extent_can_shift         (unsigned free_space,
-					new_coord * source,
+					coord_t * source,
 					znode * target, shift_direction,
 					unsigned * size, unsigned want);
-void          extent_copy_units        (new_coord * target,
-					new_coord * source,
+void          extent_copy_units        (coord_t * target,
+					coord_t * source,
 					unsigned from, unsigned count,
 					shift_direction where_is_free_space,
 					unsigned free_space);
-int           extent_kill_item_hook    (const new_coord *, unsigned from,
+int           extent_kill_item_hook    (const coord_t *, unsigned from,
 					unsigned count, void *kill_params);
-int           extent_create_hook       (const new_coord * coord, void * arg);
-int           extent_cut_units         (new_coord *, unsigned * from,
+int           extent_create_hook       (const coord_t * coord, void * arg);
+int           extent_cut_units         (coord_t *, unsigned * from,
 					unsigned * to,
 					const reiser4_key * from_key,
 					const reiser4_key * to_key,
 					reiser4_key * smallest_removed);
-int           extent_kill_units        (new_coord *, unsigned *from,
+int           extent_kill_units        (coord_t *, unsigned *from,
 					unsigned *to,
 					const reiser4_key * from_key,
 					const reiser4_key * to_key,
 					reiser4_key * smallest_removed);
-reiser4_key * extent_unit_key          (const new_coord * coord,
+reiser4_key * extent_unit_key          (const coord_t * coord,
 					reiser4_key * key);
-int           extent_item_data_by_flow (const new_coord *, const flow_t *,
+int           extent_item_data_by_flow (const coord_t *, const flow_t *,
 					reiser4_item_data *);
-void          extent_print             (const char *, new_coord *);
-int           extent_utmost_child      (const new_coord *coord, sideof side,
+void          extent_print             (const char *, coord_t *);
+int           extent_utmost_child      (const coord_t *coord, sideof side,
 					jnode **child );
-int           extent_utmost_child_dirty ( const new_coord  *coord,
+int           extent_utmost_child_dirty ( const coord_t  *coord,
 					  sideof side, int *is_dirty );
-int           extent_utmost_child_real_block ( const new_coord  *coord,
+int           extent_utmost_child_real_block ( const coord_t  *coord,
 					       sideof side,
 					       reiser4_block_nr  *block );
-reiser4_key * extent_max_key            (const new_coord * coord, 
+reiser4_key * extent_max_key            (const coord_t * coord, 
 					 reiser4_key * key);
 
 /*
  * plugin->u.item.s.file.*
  */
-int extent_write    (struct inode *, new_coord *, lock_handle *,
+int extent_write    (struct inode *, coord_t *, lock_handle *,
 		     flow_t *, struct page *);
-int extent_read     (struct inode *, new_coord *, lock_handle *,
+int extent_read     (struct inode *, coord_t *, lock_handle *,
 		     flow_t *);
 int extent_readpage (void *, struct page * page);
 
 /* these are used in flush.c
  * FIXME-VS: should they be somewhere in item_plugin? */
-int allocate_extent_item_in_place (new_coord * item, reiser4_blocknr_hint * preceder);
-int allocate_and_copy_extent (znode * left, new_coord * right,
+int allocate_extent_item_in_place (coord_t * item, reiser4_blocknr_hint * preceder);
+int allocate_and_copy_extent (znode * left, coord_t * right,
 			      reiser4_blocknr_hint * preceder,
 			      reiser4_key * stop_key);
 
-int   extent_is_allocated (const new_coord *item); /* True if this extent is allocated (i.e., not a hole, not unallocated). */
-__u64 extent_unit_index   (const new_coord *item); /* Block offset of this unit. */
-__u64 extent_unit_width   (const new_coord *item); /* Number of blocks in this unit. */
-void  extent_get_inode    (const new_coord *item, struct inode **inode); /* Get the inode: you must iput() it. */
+int   extent_is_allocated (const coord_t *item); /* True if this extent is allocated (i.e., not a hole, not unallocated). */
+__u64 extent_unit_index   (const coord_t *item); /* Block offset of this unit. */
+__u64 extent_unit_width   (const coord_t *item); /* Number of blocks in this unit. */
+void  extent_get_inode    (const coord_t *item, struct inode **inode); /* Get the inode: you must iput() it. */
 
 /* 
  * Local variables:

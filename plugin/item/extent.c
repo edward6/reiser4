@@ -30,7 +30,7 @@ static reiser4_item_data * init_new_extent (reiser4_item_data * data,
  * it signed, since there can't be more than INT_MAX units in an extent item,
  * right? */
 /* Audited by: green(2002.06.13) */
-static reiser4_block_nr extent_size (const new_coord * coord, unsigned nr)
+static reiser4_block_nr extent_size (const coord_t * coord, unsigned nr)
 {
 	unsigned i;
 	reiser4_block_nr blocks;
@@ -56,7 +56,7 @@ static reiser4_block_nr extent_size (const new_coord * coord, unsigned nr)
  * plugin->u.item.b.max_key_inside
  */
 /* Audited by: green(2002.06.13) */
-reiser4_key * extent_max_key_inside (const new_coord * coord, 
+reiser4_key * extent_max_key_inside (const coord_t * coord, 
 				     reiser4_key * key)
 {
 	item_key_by_coord (coord, key);
@@ -69,7 +69,7 @@ reiser4_key * extent_max_key_inside (const new_coord * coord,
  * this checks whether @key of @data is matching to position set by @coord
  */
 /* Audited by: green(2002.06.13) */
-int extent_can_contain_key (const new_coord * coord, const reiser4_key * key,
+int extent_can_contain_key (const coord_t * coord, const reiser4_key * key,
 			    const reiser4_item_data * data)
 {
 	reiser4_key item_key;
@@ -98,7 +98,7 @@ int extent_can_contain_key (const new_coord * coord, const reiser4_key * key,
  * first item is of extent type
  */
 /* Audited by: green(2002.06.13) */
-int extent_mergeable (const new_coord * p1, const new_coord * p2)
+int extent_mergeable (const coord_t * p1, const coord_t * p2)
 {
 	reiser4_key key1, key2;
 
@@ -145,7 +145,7 @@ static extent_state state_of_extent (reiser4_extent * ext)
 }
 
 /* Audited by: green(2002.06.13) */
-int extent_is_allocated (const new_coord *item)
+int extent_is_allocated (const coord_t *item)
 {
 	assert ("jmacd-5133", item_is_extent (item)); 
 
@@ -179,7 +179,7 @@ static const char * state2label (extent_state state)
 }
 
 /* Audited by: green(2002.06.13) */
-void extent_print (const char * prefix, new_coord * coord)
+void extent_print (const char * prefix, coord_t * coord)
 {
 	reiser4_extent * ext;
 	unsigned i, nr;
@@ -209,7 +209,7 @@ void extent_print (const char * prefix, new_coord * coord)
  * plugin->u.item.b.nr_units
  */
 /* Audited by: green(2002.06.13) */
-unsigned extent_nr_units (const new_coord * coord)
+unsigned extent_nr_units (const coord_t * coord)
 {
 	/* length of extent item has to be multiple of extent size */
 	if( (item_length_by_coord (coord) % sizeof (reiser4_extent)) != 0 )
@@ -226,7 +226,7 @@ unsigned extent_nr_units (const new_coord * coord)
 /* Audited by: green(2002.06.13) */
 lookup_result extent_lookup (const reiser4_key * key,
 			     lookup_bias bias UNUSED_ARG,
-			     new_coord * coord) /* znode and item_pos are
+			     coord_t * coord) /* znode and item_pos are
 						    set to an extent item to
 						    look through */
 {
@@ -313,7 +313,7 @@ static void set_extent (reiser4_extent * ext, extent_state state,
 
 /* plugin->u.item.b.init */
 /* Audited by: green(2002.06.13) */
-int extent_init (new_coord * coord, reiser4_item_data * extent)
+int extent_init (coord_t * coord, reiser4_item_data * extent)
 {
 	unsigned width;
 	assert ("vs-529",
@@ -344,7 +344,7 @@ int extent_init (new_coord * coord, reiser4_item_data * extent)
    @coord must be set between units.
 */
 /* Audited by: green(2002.06.13) */
-int extent_paste (new_coord * coord, reiser4_item_data * data,
+int extent_paste (coord_t * coord, reiser4_item_data * data,
 		  carry_level * todo UNUSED_ARG)
 {
 	unsigned old_nr_units;
@@ -399,7 +399,7 @@ int extent_paste (new_coord * coord, reiser4_item_data * data,
  * plugin->u.item.b.can_shift
  */
 /* Audited by: green(2002.06.13) */
-int extent_can_shift (unsigned free_space, new_coord * source,
+int extent_can_shift (unsigned free_space, coord_t * source,
 		      znode * target UNUSED_ARG, shift_direction pend UNUSED_ARG,
 		      unsigned * size, unsigned want)
 {
@@ -424,7 +424,7 @@ int extent_can_shift (unsigned free_space, new_coord * source,
  * plugin->u.item.b.copy_units
  */
 /* Audited by: green(2002.06.13) */
-void extent_copy_units (new_coord * target, new_coord * source,
+void extent_copy_units (coord_t * target, coord_t * source,
 			unsigned from, unsigned count, shift_direction where_is_free_space,
 			unsigned free_space)
 {
@@ -442,7 +442,7 @@ void extent_copy_units (new_coord * target, new_coord * source,
 		to_ext += (extent_nr_units (target) - count);
 	} else {
 		reiser4_key key;
-		new_coord coord;
+		coord_t coord;
 
 		assert ("vs-216", from + count == ncoord_last_unit_pos (source) + 1);
 
@@ -466,9 +466,9 @@ void extent_copy_units (new_coord * target, new_coord * source,
  * @arg is znode of leaf node for which we need to update right delimiting key
  */
 /* Audited by: green(2002.06.13) */
-int extent_create_hook (const new_coord * coord, void * arg)
+int extent_create_hook (const coord_t * coord, void * arg)
 {
-	new_coord * child_coord;
+	coord_t * child_coord;
 	znode * node;
 	reiser4_key key;
 
@@ -530,7 +530,7 @@ static int free_blocks (reiser4_block_nr start, reiser4_block_nr length)
 /* plugin->u.item.b.kill_item_hook
  */
 /* Audited by: green(2002.06.13) */
-int extent_kill_item_hook (const new_coord * coord, unsigned from,
+int extent_kill_item_hook (const coord_t * coord, unsigned from,
 			   unsigned count, void *kill_params UNUSED_ARG)
 {
  	reiser4_extent * ext;
@@ -553,7 +553,7 @@ int extent_kill_item_hook (const new_coord * coord, unsigned from,
 
 
 /* Audited by: green(2002.06.13) */
-static reiser4_key *last_key_in_extent (const new_coord * coord, 
+static reiser4_key *last_key_in_extent (const coord_t * coord, 
 					reiser4_key *key)
 {
 	item_key_by_coord (coord, key);
@@ -564,7 +564,7 @@ static reiser4_key *last_key_in_extent (const new_coord * coord,
 
 
 /* Audited by: green(2002.06.13) */
-static int cut_or_kill_units (new_coord * coord,
+static int cut_or_kill_units (coord_t * coord,
 			      unsigned * from, unsigned * to,
 			      int cut, const reiser4_key * from_key,
 			      const reiser4_key * to_key,
@@ -728,7 +728,7 @@ static int cut_or_kill_units (new_coord * coord,
  * plugin->u.item.b.cut_units
  */
 /* Audited by: green(2002.06.13) */
-int extent_cut_units (new_coord * item, unsigned * from, unsigned * to,
+int extent_cut_units (coord_t * item, unsigned * from, unsigned * to,
 		      const reiser4_key * from_key, const reiser4_key * to_key,
 		      reiser4_key * smallest_removed)
 {
@@ -741,7 +741,7 @@ int extent_cut_units (new_coord * item, unsigned * from, unsigned * to,
  * plugin->u.item.b.kill_units
  */
 /* Audited by: green(2002.06.13) */
-int extent_kill_units (new_coord * item, unsigned * from, unsigned * to,
+int extent_kill_units (coord_t * item, unsigned * from, unsigned * to,
 		       const reiser4_key * from_key, const reiser4_key * to_key,
 		       reiser4_key * smallest_removed)
 {
@@ -754,7 +754,7 @@ int extent_kill_units (new_coord * item, unsigned * from, unsigned * to,
  * plugin->u.item.b.unit_key
  */
 /* Audited by: green(2002.06.13) */
-reiser4_key * extent_unit_key (const new_coord * coord, reiser4_key * key)
+reiser4_key * extent_unit_key (const coord_t * coord, reiser4_key * key)
 {
 	assert ("vs-300", ncoord_is_existing_unit (coord));
 
@@ -776,7 +776,7 @@ reiser4_key * extent_unit_key (const new_coord * coord, reiser4_key * key)
  * union union-able extents and cut an item correspondingly
  */
 /* Audited by: green(2002.06.13) */
-static void optimize_extent (new_coord * item)
+static void optimize_extent (coord_t * item)
 {
 	unsigned i, old_num, new_num;
 	reiser4_extent * ext, * prev, * start;
@@ -817,7 +817,7 @@ static void optimize_extent (new_coord * item)
 	}
 	if (new_num != old_num)	{
 		int result;
-		new_coord from, to;
+		coord_t from, to;
 
 		ncoord_dup (&from, item);
 		from.unit_pos = new_num;
@@ -840,7 +840,7 @@ static void optimize_extent (new_coord * item)
    inserted. Attempt to union adjacent extents is made. So, resulting item may
    be longer, shorter or of the same length as initial item */
 /* Audited by: green(2002.06.13) */
-static int add_extents (new_coord * coord,
+static int add_extents (coord_t * coord,
 			lock_handle * lh,
 			reiser4_key * key,
 			reiser4_item_data * data)
@@ -976,7 +976,7 @@ static int add_extents (new_coord * coord,
 
 	/* item length has to be decreased, new data is in already */
 	{
-		new_coord from, to;
+		coord_t from, to;
 
 		from = *coord;
 		from.unit_pos = new_num + count;
@@ -994,7 +994,7 @@ static int add_extents (new_coord * coord,
  * @off
  */
 /* Audited by: green(2002.06.13) */
-static reiser4_block_nr in_extent (const new_coord * coord,
+static reiser4_block_nr in_extent (const coord_t * coord,
 				   reiser4_block_nr off)
 {
         reiser4_key key;
@@ -1047,7 +1047,7 @@ static void set_jnode_allocated (jnode * j)
 /* insert extent item (containing one unallocated extent of width 1) to place
    set by @coord */
 /* Audited by: green(2002.06.13) */
-static int insert_first_block (new_coord * coord, lock_handle * lh,
+static int insert_first_block (coord_t * coord, lock_handle * lh,
 			       reiser4_key * key, jnode * j)
 {
 	int result;
@@ -1080,7 +1080,7 @@ static int insert_first_block (new_coord * coord, lock_handle * lh,
    block - either by expanding last unallocated extent or by appending a new
    one of width 1 */
 /* Audited by: green(2002.06.13) */
-static int append_one_block (new_coord * coord,
+static int append_one_block (coord_t * coord,
 			     lock_handle *lh, jnode * j)
 {
 	int result;
@@ -1123,7 +1123,7 @@ static int append_one_block (new_coord * coord,
 /* @coord is set to hole extent, replace it with unallocated extent of length
    1 and correct amount of hole extents around it */
 /* Audited by: green(2002.06.13) */
-static int plug_hole (new_coord * coord, lock_handle * lh,
+static int plug_hole (coord_t * coord, lock_handle * lh,
 		      reiser4_block_nr off)
 {
 	reiser4_extent * ext,
@@ -1169,7 +1169,7 @@ static int plug_hole (new_coord * coord, lock_handle * lh,
 
 /* return value is block number pointed by the @coord */
 /* Audited by: green(2002.06.13) */
-static reiser4_block_nr blocknr_by_coord_in_extent (new_coord * coord,
+static reiser4_block_nr blocknr_by_coord_in_extent (coord_t * coord,
 						    reiser4_block_nr off)
 {
 	assert ("vs-12", ncoord_is_existing_unit (coord));
@@ -1183,7 +1183,7 @@ static reiser4_block_nr blocknr_by_coord_in_extent (new_coord * coord,
  * Return the inode and its key.
  */
 /* Audited by: green(2002.06.13) */
-void extent_get_inode_and_key (const new_coord *item, struct inode **inode, reiser4_key *key)
+void extent_get_inode_and_key (const coord_t *item, struct inode **inode, reiser4_key *key)
 {
 	unsigned long ino;
 
@@ -1202,7 +1202,7 @@ void extent_get_inode_and_key (const new_coord *item, struct inode **inode, reis
  * Return the inode.
  */
 /* Audited by: green(2002.06.13) */
-void extent_get_inode (const new_coord *item, struct inode **inode)
+void extent_get_inode (const coord_t *item, struct inode **inode)
 {
 	reiser4_key key;
 
@@ -1213,7 +1213,7 @@ void extent_get_inode (const new_coord *item, struct inode **inode)
  * Return the reiser_extent and position within that extent.
  */
 /* Audited by: green(2002.06.13) */
-static reiser4_extent* extent_utmost_ext ( const new_coord *coord, sideof side,
+static reiser4_extent* extent_utmost_ext ( const coord_t *coord, sideof side,
 					   reiser4_block_nr *pos_in_unit )
 {
 	reiser4_extent * ext;
@@ -1240,7 +1240,7 @@ static reiser4_extent* extent_utmost_ext ( const new_coord *coord, sideof side,
  * Return the child.
  */
 /* Audited by: green(2002.06.13) */
-int extent_utmost_child ( const new_coord *coord, sideof side, jnode **childp )
+int extent_utmost_child ( const coord_t *coord, sideof side, jnode **childp )
 {
 	reiser4_extent * ext;
 	reiser4_block_nr pos_in_unit;
@@ -1295,7 +1295,7 @@ int extent_utmost_child ( const new_coord *coord, sideof side, jnode **childp )
  * Return whether the child is dirty.
  */
 /* Audited by: green(2002.06.13) */
-int extent_utmost_child_dirty ( const new_coord *coord, sideof side, int *is_dirty )
+int extent_utmost_child_dirty ( const coord_t *coord, sideof side, int *is_dirty )
 {
 	int ret;
 	reiser4_extent * ext;
@@ -1332,7 +1332,7 @@ int extent_utmost_child_dirty ( const new_coord *coord, sideof side, int *is_dir
  * Return the child's block, if allocated.
  */
 /* Audited by: green(2002.06.13) */
-int extent_utmost_child_real_block ( const new_coord *coord, sideof side, reiser4_block_nr *block )
+int extent_utmost_child_real_block ( const coord_t *coord, sideof side, reiser4_block_nr *block )
 {
 	reiser4_extent * ext;
 	reiser4_block_nr pos_in_unit;
@@ -1355,7 +1355,7 @@ int extent_utmost_child_real_block ( const new_coord *coord, sideof side, reiser
 
 /* plugin->u.item.b.real_max_key_inside */
 /* Audited by: green(2002.06.13) */
-reiser4_key * extent_max_key (const new_coord * coord, 
+reiser4_key * extent_max_key (const coord_t * coord, 
 			      reiser4_key * key)
 {
 	last_key_in_extent (coord, key);
@@ -1370,7 +1370,7 @@ reiser4_key * extent_max_key (const new_coord * coord,
 /* pointer to block for @bh exists in extent item and it is addressed by
    @coord. If it is hole - make unallocated extent for it. */
 /* Audited by: green(2002.06.13) */
-static int overwrite_one_block (new_coord * coord, lock_handle * lh,
+static int overwrite_one_block (coord_t * coord, lock_handle * lh,
 				jnode * j, reiser4_block_nr off)
 {
 	reiser4_extent * ext;
@@ -1419,7 +1419,7 @@ typedef enum {
    where first item of file has to be inserted to. Calculate size of hole to
    be inserted. If that hole is too big - only part of it is inserted */
 /* Audited by: green(2002.06.13) */
-static int add_hole (new_coord * coord, lock_handle * lh,
+static int add_hole (coord_t * coord, lock_handle * lh,
 		     reiser4_key * key,
 		     extent_write_todo todo)
 {
@@ -1494,7 +1494,7 @@ static int add_hole (new_coord * coord, lock_handle * lh,
  * does extent @coord contain @key
  */
 /* Audited by: green(2002.06.13) */
-static int key_in_extent (new_coord * coord, reiser4_key * key)
+static int key_in_extent (coord_t * coord, reiser4_key * key)
 {
 	reiser4_extent * ext;
 	reiser4_key ext_key;
@@ -1512,7 +1512,7 @@ static int key_in_extent (new_coord * coord, reiser4_key * key)
  * does item @coord contain @key
  */
 /* Audited by: green(2002.06.13) */
-static int key_in_item (new_coord * coord, reiser4_key * key)
+static int key_in_item (coord_t * coord, reiser4_key * key)
 {
 	reiser4_key item_key;
 
@@ -1526,11 +1526,11 @@ static int key_in_item (new_coord * coord, reiser4_key * key)
    only. Extents represent every byte of file body. One node may not have more
    than one extent item of one file */
 /* Audited by: green(2002.06.13) */
-static extent_write_todo extent_what_todo (new_coord * coord, reiser4_key * key,
+static extent_write_todo extent_what_todo (coord_t * coord, reiser4_key * key,
 					   int to_block)
 {
 	reiser4_key coord_key;
-	new_coord left, right;
+	coord_t left, right;
 	__u64 fbb_offset; /* offset of First Byte of Block */
 
 
@@ -1699,7 +1699,7 @@ static int overwritten_entirely (loff_t file_size,
 /* map all buffers of @page the write falls to. Number of bytes which can be
    written into @page are returned via @count */
 /* Audited by: green(2002.06.13) */
-static int prepare_write (new_coord * coord, lock_handle * lh,
+static int prepare_write (coord_t * coord, lock_handle * lh,
 			  struct page * page, reiser4_key * key,
 			  unsigned * count)
 {
@@ -1905,7 +1905,7 @@ static int commit_write (struct page * page, reiser4_block_nr file_off,
  * is done in one modification of extent?
  */
 /* Audited by: green(2002.06.13) */
-int extent_write (struct inode * inode, new_coord * coord,
+int extent_write (struct inode * inode, coord_t * coord,
 		  lock_handle * lh, flow_t * f, struct page * page)
 {
 	int result;
@@ -2056,7 +2056,7 @@ struct readpage_desc {
  */
 /* Audited by: green(2002.06.13) */
 static int map_extent (reiser4_tree * tree UNUSED_ARG,
-		       new_coord * coord,
+		       coord_t * coord,
 		       lock_handle *lh UNUSED_ARG, void * arg)
 {
 	reiser4_extent * ext;
@@ -2163,7 +2163,7 @@ static int map_extent (reiser4_tree * tree UNUSED_ARG,
  */
 /* Audited by: green(2002.06.13) */
 static int reset_coord (struct page * page,
-			new_coord * coord, lock_handle * lh)
+			coord_t * coord, lock_handle * lh)
 {
 	int result;
 	reiser4_key key;
@@ -2266,7 +2266,7 @@ int extent_readpage (void * vp, struct page * page)
  * Implements plugin->u.item.s.file.read operation for extent items.
  */
 /* Audited by: green(2002.06.13) */
-int extent_read (struct inode * inode, new_coord * coord,
+int extent_read (struct inode * inode, coord_t * coord,
 		 lock_handle * lh, flow_t * f)
 {
 	int result;
@@ -2456,7 +2456,7 @@ static int extent_needs_allocation (reiser4_extent * extent, reiser4_blocknr_hin
  * if @key is glueable to the item @coord is set to
  */
 /* Audited by: green(2002.06.13) */
-static int must_insert (new_coord * coord, reiser4_key * key)
+static int must_insert (coord_t * coord, reiser4_key * key)
 {
 	reiser4_key last;
 
@@ -2478,7 +2478,7 @@ static int put_unit_to_end (znode * node, reiser4_key * key,
 			    reiser4_item_data * data)
 {
 	int result;
-	new_coord coord;
+	coord_t coord;
 	cop_insert_flag flags;
 
 	/* set coord after last unit in an item */
@@ -2504,12 +2504,12 @@ static int put_unit_to_end (znode * node, reiser4_key * key,
  * success and 0 otherwise
  */
 /* Audited by: green(2002.06.13) */
-static int try_to_glue (znode * left, new_coord * right,
+static int try_to_glue (znode * left, coord_t * right,
 			reiser4_block_nr first_allocated,
 			reiser4_block_nr allocated)
 {
 	int result;
-	new_coord last;	
+	coord_t last;	
 	reiser4_key item_key, last_key;
 	reiser4_extent * ext;
 
@@ -2548,7 +2548,7 @@ static int try_to_glue (znode * left, new_coord * right,
  * to impossibility to allocate desired number of contiguous free blocks
  */
 /* Audited by: green(2002.06.13) */
-int allocate_and_copy_extent (znode * left, new_coord * right,
+int allocate_and_copy_extent (znode * left, coord_t * right,
 			      reiser4_blocknr_hint * preceder,
 			      /*
 			       * biggest key which was moved, it is
@@ -2693,11 +2693,11 @@ int allocate_and_copy_extent (znode * left, new_coord * right,
  * insert_into_item to not try to shift anything to left
  */
 /* Audited by: green(2002.06.13) */
-static int paste_unallocated_extent (new_coord * item, reiser4_key * key,
+static int paste_unallocated_extent (coord_t * item, reiser4_key * key,
 				     reiser4_block_nr width)
 {
 	int result;
-	new_coord coord;
+	coord_t coord;
 	reiser4_item_data data;
 	reiser4_extent new_ext;
 
@@ -2724,7 +2724,7 @@ static int paste_unallocated_extent (new_coord * item, reiser4_key * key,
  * to right
  */
 /* Audited by: green(2002.06.13) */
-int allocate_extent_item_in_place (new_coord * item, reiser4_blocknr_hint * preceder)
+int allocate_extent_item_in_place (coord_t * item, reiser4_blocknr_hint * preceder)
 {
 	int result;
 	unsigned i;
@@ -2822,7 +2822,7 @@ int allocate_extent_item_in_place (new_coord * item, reiser4_blocknr_hint * prec
  * iterate_tree's actor is to test extent allocation
  */
 /* Audited by: green(2002.06.13) */
-int alloc_extent (reiser4_tree * tree UNUSED_ARG, new_coord * coord,
+int alloc_extent (reiser4_tree * tree UNUSED_ARG, coord_t * coord,
 		  lock_handle * lh UNUSED_ARG, void * arg UNUSED_ARG)
 {
 	reiser4_blocknr_hint preceder;
@@ -2837,7 +2837,7 @@ int alloc_extent (reiser4_tree * tree UNUSED_ARG, new_coord * coord,
 	if (coord->item_pos == 0) {
 		preceder.blk = *znode_get_block (coord->node);
 	} else {
-		new_coord prev;
+		coord_t prev;
 		reiser4_block_nr da;
 
 		assert ("vs-455", coord->unit_pos == 0);
@@ -2868,7 +2868,7 @@ int alloc_extent (reiser4_tree * tree UNUSED_ARG, new_coord * coord,
 /* Block offset of first block addressed by unit */
 /* Audited by: green(2002.06.13) */
 /* AUDIT shouldn't return value be of reiser4_block_nr type? */
-__u64 extent_unit_index (const new_coord * item)
+__u64 extent_unit_index (const coord_t * item)
 {
 	reiser4_key key;
 
@@ -2880,7 +2880,7 @@ __u64 extent_unit_index (const new_coord * item)
 
 /* Audited by: green(2002.06.13) */
 /* AUDIT shouldn't return value be of reiser4_block_nr type? */
-__u64 extent_unit_width (const new_coord * item)
+__u64 extent_unit_width (const coord_t * item)
 {
 	assert ("vs-649", ncoord_is_existing_unit (item));
 	return width_by_coord (item);

@@ -212,7 +212,7 @@ void build_child_ptr_data( znode *child /* node pointer to which will be
 /* Audited by: umka (2002.06.15) */
 static int add_child_ptr( znode *parent, znode *child )
 {
-	new_coord       coord;
+	coord_t       coord;
 	reiser4_item_data data;
 	int               result;
 	reiser4_key      *key;
@@ -332,7 +332,7 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 int kill_tree_root( znode *old_root /* tree root that we are removing */ )
 {
 	int           result;
-	new_coord   down_link;
+	coord_t   down_link;
 	znode        *new_root;
 	
 	assert( "umka-266", current_tree != NULL );

@@ -179,7 +179,7 @@ int setup_inode_ops( struct inode *inode /* inode to intialise */ )
 /** initialise inode from disk data. Called with inode locked.
     Return inode locked. */
 int init_inode( struct inode *inode /* inode to intialise */, 
-		new_coord *coord /* coord of stat data */ )
+		coord_t *coord /* coord of stat data */ )
 {
 	int result;
 	item_plugin    *iplug;
@@ -249,7 +249,7 @@ static void read_inode( struct inode * inode /* inode to read from disk */,
 	int                 result;
 	lock_handle         lh;
 	reiser4_inode_info *info;
-	new_coord          coord;
+	coord_t          coord;
 
 	assert( "nikita-298", inode != NULL );
 	assert( "nikita-1945", !is_inode_loaded( inode ) );

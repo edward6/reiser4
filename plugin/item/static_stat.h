@@ -154,7 +154,7 @@ typedef struct reiser4_large_times_stat {
 } reiser4_large_times_stat;
 
 /* plugin->item.common.* */
-extern void sd_print( const char *prefix, new_coord *coord );
+extern void sd_print( const char *prefix, coord_t *coord );
 
 /* plugin->item.s.sd.* */
 extern int sd_load( struct inode *inode, char *sd, int len );

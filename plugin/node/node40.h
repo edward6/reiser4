@@ -70,12 +70,12 @@ size_t             node40_free_space       ( znode *node );
 node_search_result node40_lookup           ( znode *node, 
 					     const reiser4_key *key, 
 					     lookup_bias bias, 
-					     new_coord *coord );
+					     coord_t *coord );
 int                node40_num_of_items     ( const znode *node );
-char              *node40_item_by_coord    ( const new_coord *coord );
-int                node40_length_by_coord  ( const new_coord *coord );
-item_plugin       *node40_plugin_by_coord  ( const new_coord *coord );
-reiser4_key       *node40_key_at           ( const new_coord *coord, 
+char              *node40_item_by_coord    ( const coord_t *coord );
+int                node40_length_by_coord  ( const coord_t *coord );
+item_plugin       *node40_plugin_by_coord  ( const coord_t *coord );
+reiser4_key       *node40_key_at           ( const coord_t *coord, 
 					     reiser4_key *key );
 size_t             node40_estimate         ( znode *node );
 int                node40_check            ( const znode *node, __u32 flags,
@@ -84,28 +84,28 @@ int                node40_parse            ( const znode *node );
 void               node40_print            ( const znode *node, __u32 flags );
 int                node40_init             ( znode *node );
 int                node40_guess            ( const znode *node );
-void               node40_change_item_size ( new_coord * coord, int by );
-int                node40_create_item      ( new_coord * target, 
+void               node40_change_item_size ( coord_t * coord, int by );
+int                node40_create_item      ( coord_t * target, 
 					     const reiser4_key * key,
 					     reiser4_item_data *data, 
 					     carry_level * todo );
-void               node40_update_item_key  ( new_coord * target, 
+void               node40_update_item_key  ( coord_t * target, 
 					     reiser4_key * key, 
 					     carry_level * todo);
-int                node40_cut_and_kill     ( new_coord * from, 
-					     new_coord * to, 
+int                node40_cut_and_kill     ( coord_t * from, 
+					     coord_t * to, 
 					     const reiser4_key * from_key,
 					     const reiser4_key * to_key,
 					     reiser4_key * smallest_removed,
 					     carry_level * todo, 
 					     void *kill_params, __u32 flags);
-int                node40_cut              ( new_coord * from, 
-					     new_coord * to,
+int                node40_cut              ( coord_t * from, 
+					     coord_t * to,
 					     const reiser4_key * from_key,
 					     const reiser4_key * to_key,
 					     reiser4_key * smallest_removed,
 					     carry_level * todo, __u32 flags);
-int                node40_shift            ( new_coord * from, 
+int                node40_shift            ( coord_t * from, 
 					     znode * to, 
 					     shift_direction pend,
 					     /* 
@@ -117,9 +117,9 @@ int                node40_shift            ( new_coord * from,
 					     int including_stop_coord,
 					     carry_level *todo );
 
-int                node40_fast_insert      ( const new_coord *coord );
-int                node40_fast_paste       ( const new_coord *coord );
-int                node40_fast_cut         ( const new_coord *coord );
+int                node40_fast_insert      ( const coord_t *coord );
+int                node40_fast_paste       ( const coord_t *coord );
+int                node40_fast_cut         ( const coord_t *coord );
 int                node40_max_item_size    ( void );
 
 void update_znode_dkeys (znode * left, znode * right);

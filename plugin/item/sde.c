@@ -10,7 +10,7 @@
 
 /* Audited by: green(2002.06.14) */
 void de_print( const char *prefix /* prefix to print */, 
-	       new_coord *coord /* item to print */ )
+	       coord_t *coord /* item to print */ )
 {
 	assert( "nikita-1456", prefix != NULL );
 	assert( "nikita-1457", coord != NULL );
@@ -35,7 +35,7 @@ void de_print( const char *prefix /* prefix to print */,
  * ->extract_key() method of simple directory item plugin.
  */
 /* Audited by: green(2002.06.14) */
-int de_extract_key( const new_coord *coord /* coord of item */,
+int de_extract_key( const coord_t *coord /* coord of item */,
 		    reiser4_key *key /* resulting key */ )
 {
 	directory_entry_format *dent;
@@ -53,7 +53,7 @@ int de_extract_key( const new_coord *coord /* coord of item */,
  * ->extract_name() method of simple directory item plugin.
  */
 /* Audited by: green(2002.06.14) */
-char *de_extract_name( const new_coord *coord /* coord of item */ )
+char *de_extract_name( const coord_t *coord /* coord of item */ )
 {
 	directory_entry_format *dent;
 
@@ -68,7 +68,7 @@ char *de_extract_name( const new_coord *coord /* coord of item */ )
 /**
  * ->extract_file_type() method of simple directory item plugin.
  */
-unsigned de_extract_file_type( const new_coord *coord UNUSED_ARG /* coord of
+unsigned de_extract_file_type( const coord_t *coord UNUSED_ARG /* coord of
 								   * item */ )
 {
 	assert( "nikita-1764", coord != NULL );
@@ -82,7 +82,7 @@ unsigned de_extract_file_type( const new_coord *coord UNUSED_ARG /* coord of
 
 /* Audited by: green(2002.06.14) */
 int de_add_entry( const struct inode *dir /* directory of item */, 
-		  new_coord *coord /* coord of item */, 
+		  coord_t *coord /* coord of item */, 
 		  lock_handle *lh /* insertion lock handle */, 
 		  const struct dentry *name /* name to add */, 
 		  reiser4_dir_entry_desc *entry /* parameters of new directory
@@ -112,7 +112,7 @@ int de_add_entry( const struct inode *dir /* directory of item */,
 
 /* Audited by: green(2002.06.14) */
 int de_rem_entry( const struct inode *dir UNUSED_ARG /* directory of item */, 
-		  new_coord *coord /* coord of item */,
+		  coord_t *coord /* coord of item */,
 		  lock_handle *lh UNUSED_ARG /* lock handle for
 						      * removal */, 
 		  reiser4_dir_entry_desc *entry UNUSED_ARG /* parameters of
@@ -120,7 +120,7 @@ int de_rem_entry( const struct inode *dir UNUSED_ARG /* directory of item */,
 							    * being removed */ )
 {
 	int         result;
-	new_coord coord_shadow;
+	coord_t coord_shadow;
 
 	/*
 	 * cut_node() is supposed to take pointers to _different_

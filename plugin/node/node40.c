@@ -120,7 +120,7 @@ static item_header_40 *node40_ih_at( const znode *node, unsigned pos )
 }
 
 /* Audited by: green(2002.06.12) */
-static item_header_40 *node40_ih_at_coord( const new_coord *coord )
+static item_header_40 *node40_ih_at_coord( const coord_t *coord )
 {
 	return (item_header_40 *)( zdata( coord -> node ) + 
 				   znode_size( coord -> node ) ) - 
@@ -189,7 +189,7 @@ size_t node40_free_space ( znode *node )
 node_search_result node40_lookup( znode *node /* node to query */, 
 				  const reiser4_key *key /* key to look for */,
 				  lookup_bias bias /* search bias */, 
-				  new_coord *coord /* resulting coord */ )
+				  coord_t *coord /* resulting coord */ )
 {
 	int left;
 	int right;
@@ -393,7 +393,7 @@ int node40_num_of_items( const znode *node )
    look for description of this method in plugin/node/node.h
 */
 /* Audited by: green(2002.06.12) */
-char * node40_item_by_coord( const new_coord *coord )
+char * node40_item_by_coord( const coord_t *coord )
 {
 	item_header_40 *ih;
 
@@ -411,7 +411,7 @@ char * node40_item_by_coord( const new_coord *coord )
    look for description of this method in plugin/node/node.h
 */
 /* Audited by: green(2002.06.12) */
-int node40_length_by_coord (const new_coord * coord)
+int node40_length_by_coord (const coord_t * coord)
 {
 	item_header_40 * ih;
 
@@ -433,7 +433,7 @@ int node40_length_by_coord (const new_coord * coord)
    look for description of this method in plugin/node/node.h
 */
 /* Audited by: green(2002.06.12) */
-item_plugin *node40_plugin_by_coord( const new_coord *coord )
+item_plugin *node40_plugin_by_coord( const coord_t *coord )
 {
 	item_header_40 *ih;
 
@@ -451,7 +451,7 @@ item_plugin *node40_plugin_by_coord( const new_coord *coord )
    look for description of this method in plugin/node/node.h
 */
 /* Audited by: green(2002.06.12) */
-reiser4_key *node40_key_at( const new_coord *coord, reiser4_key *key )
+reiser4_key *node40_key_at( const coord_t *coord, reiser4_key *key )
 {
 	item_header_40 *ih;
 
@@ -492,7 +492,7 @@ int node40_check( const znode *node /* node to check */,
 	int i;
 	reiser4_key prev;
 	unsigned old_offset;
-	new_coord coord;
+	coord_t coord;
 
 	assert( "nikita-580", node != NULL );
 	assert( "nikita-581", error != NULL );
@@ -569,7 +569,7 @@ int node40_check( const znode *node /* node to check */,
 		    item_plugin_by_coord( &coord ) -> common.check( &coord, error ) )
 			return -1;
 		if( i ) {
-			new_coord prev_coord;
+			coord_t prev_coord;
 			/*
 			 * two neighboring items can not be mergeable
 			 */
@@ -715,7 +715,7 @@ void node40_print( const znode *node /* node to print */,
    look for description of this method in plugin/node/node.h
 */
 /* Audited by: green(2002.06.13) */
-void node40_change_item_size (new_coord * coord, int by)
+void node40_change_item_size (coord_t * coord, int by)
 {
 	node_header_40 * nh;
 	item_header_40 * ih;
@@ -766,7 +766,7 @@ static int should_notify_parent (const znode *node)
 /* Audited by: green(2002.06.13) */
 /* Auditor comments: This function cannot be called with any spinlocks held in
    case passed data is in userspace, because userspace access might schedule */
-int node40_create_item (new_coord * target, const reiser4_key * key,
+int node40_create_item (coord_t * target, const reiser4_key * key,
 			reiser4_item_data * data, carry_level * todo )
 {
 	node_header_40 * nh;
@@ -870,7 +870,7 @@ int node40_create_item (new_coord * target, const reiser4_key * key,
    look for description of this method in plugin/node/node.h
 */
 /* Audited by: green(2002.06.13) */
-void node40_update_item_key (new_coord * target, reiser4_key * key,
+void node40_update_item_key (coord_t * target, reiser4_key * key,
 			     carry_level * todo)
 {
 	item_header_40 * ih;
@@ -885,7 +885,7 @@ void node40_update_item_key (new_coord * target, reiser4_key * key,
 
 
 /* Audited by: green(2002.06.13) */
-static unsigned cut_units (new_coord * coord, unsigned *from, unsigned *to,
+static unsigned cut_units (coord_t * coord, unsigned *from, unsigned *to,
 			   int cut,
 			   const reiser4_key * from_key,
 			   const reiser4_key * to_key,
@@ -893,7 +893,7 @@ static unsigned cut_units (new_coord * coord, unsigned *from, unsigned *to,
 {
 	unsigned cut_size;
 	item_plugin * iplug;
-	int (*cut_f) (new_coord *, unsigned *, unsigned *,
+	int (*cut_f) (coord_t *, unsigned *, unsigned *,
 		       const reiser4_key *, const reiser4_key *,
 		       reiser4_key *);
 
@@ -938,7 +938,7 @@ static unsigned cut_units (new_coord * coord, unsigned *from, unsigned *to,
    @todo != 0 - it is called not by node40_shift who cares about delimiting
    keys itself - update znode's delimiting keys */
 /* Audited by: green(2002.06.13) */
-static int cut_or_kill (new_coord * from, new_coord * to,
+static int cut_or_kill (coord_t * from, coord_t * to,
 			const reiser4_key * from_key,
 			const reiser4_key * to_key,
 			reiser4_key * smallest_removed, carry_level * todo, 
@@ -1045,7 +1045,7 @@ static int cut_or_kill (new_coord * from, new_coord * to,
 			 * for every item being removed entirely between @from
 			 * and @to call special kill method
 			 */
-			new_coord tmp;
+			coord_t tmp;
 			item_plugin * iplug;
 			
 			/*
@@ -1140,7 +1140,7 @@ static int cut_or_kill (new_coord * from, new_coord * to,
 	   already)
 	*/
 	if (wrong_item != ~0u) {
-		new_coord coord;
+		coord_t coord;
 		reiser4_key unit_key;
 
 		assert ("vs-313", wrong_item >= removed_entirely);
@@ -1175,7 +1175,7 @@ static int cut_or_kill (new_coord * from, new_coord * to,
 /* plugin->u.node.cut_and_kill
  */
 /* Audited by: green(2002.06.13) */
-int node40_cut_and_kill (new_coord * from, new_coord * to,
+int node40_cut_and_kill (coord_t * from, coord_t * to,
 			 const reiser4_key * from_key,
 			 const reiser4_key * to_key,
 			 reiser4_key * smallest_removed,
@@ -1189,7 +1189,7 @@ int node40_cut_and_kill (new_coord * from, new_coord * to,
 /* plugin->u.node.cut
  */
 /* Audited by: green(2002.06.13) */
-int node40_cut (new_coord * from, new_coord * to,
+int node40_cut (coord_t * from, coord_t * to,
 		const reiser4_key * from_key,
 		const reiser4_key * to_key,
 		reiser4_key * smallest_removed,
@@ -1204,7 +1204,7 @@ int node40_cut (new_coord * from, new_coord * to,
 struct shift_params {
 	shift_direction pend; /* when @pend == append - we are shifting to
 				 left, when @pend == prepend - to right */
-	new_coord wish_stop; /* when shifting to left this is last unit we
+	coord_t wish_stop; /* when shifting to left this is last unit we
 				  want shifted, when shifting to right - this
 				  is set to unit we want to start shifting
 				  from */
@@ -1213,7 +1213,7 @@ struct shift_params {
 			   shifted, 0 - otherwise */
 
 	/* these are set by estimate_shift */
-	new_coord real_stop; /* this will be set to last unit which will be
+	coord_t real_stop; /* this will be set to last unit which will be
 				  really shifted */
 	unsigned merging_units; /* number of units of first item which have to
 				   be merged with last item of target node */
@@ -1232,7 +1232,7 @@ struct shift_params {
 
 
 /* Audited by: green(2002.06.13) */
-static int item_creation_overhead (new_coord * item)
+static int item_creation_overhead (coord_t * item)
 {
 	return node_plugin_by_coord (item) -> item_overhead (item->node, 0);
 }
@@ -1241,7 +1241,7 @@ static int item_creation_overhead (new_coord * item)
 /* how many units are there in @source starting from source->unit_pos
    but not further than @stop_coord */
 /* Audited by: green(2002.06.13) */
-static int wanted_units (new_coord * source, new_coord * stop_coord,
+static int wanted_units (coord_t * source, coord_t * stop_coord,
 			 shift_direction pend)
 {
 	if (pend == SHIFT_LEFT) {
@@ -1272,7 +1272,7 @@ static void node40_estimate_shift (struct shift_params * shift)
 	unsigned target_free_space, size;
 	unsigned stop_item; /* item which estimating should not consider */
 	unsigned want; /* number of units of item we want shifted */
-	new_coord source; /* item being estimated */
+	coord_t source; /* item being estimated */
 	item_plugin * iplug;
 
 
@@ -1293,7 +1293,7 @@ static void node40_estimate_shift (struct shift_params * shift)
 	if (!node_is_empty (shift->target)) {
 		/* target node is not empty, check for boundary items
 		   mergeability */
-		new_coord to;
+		coord_t to;
 
 		/* item we try to merge @source with */
 		if (shift->pend == SHIFT_LEFT) {
@@ -1418,7 +1418,7 @@ static void node40_estimate_shift (struct shift_params * shift)
 }
 
 /* Audited by: green(2002.06.13) */
-static void copy_units (new_coord * target, new_coord * source,
+static void copy_units (coord_t * target, coord_t * source,
 			unsigned from, unsigned count, 
 			shift_direction dir, unsigned free_space)
 {
@@ -1454,8 +1454,8 @@ static void copy_units (new_coord * target, new_coord * source,
 void node40_copy (struct shift_params * shift)
 {
 	node_header_40 * nh;
-	new_coord from;
-	new_coord to;
+	coord_t from;
+	coord_t to;
 	item_header_40 * from_ih, * to_ih;
 	int free_space_start;
 	int new_items;
@@ -1643,8 +1643,8 @@ void node40_copy (struct shift_params * shift)
 /* Audited by: green(2002.06.13) */
 static int node40_delete_copied (struct shift_params * shift)
 {
-	new_coord from;
-	new_coord to;
+	coord_t from;
+	coord_t to;
 
 
 	if (shift->pend == SHIFT_LEFT) {
@@ -1775,7 +1775,7 @@ static int prepare_for_removal (znode * empty, carry_level * todo)
 /* something were shifted from @insert_coord->node to @shift->target, update
    @insert_coord correspondingly */
 /* Audited by: green(2002.06.13) */
-static void adjust_coord (new_coord * insert_coord,
+static void adjust_coord (coord_t * insert_coord,
 			  struct shift_params * shift,
 			  int removed, int including_insert_coord)
 {
@@ -1863,7 +1863,7 @@ static void adjust_coord (new_coord * insert_coord,
 static int call_shift_hooks (struct shift_params * shift)
 {
 	unsigned i, shifted;
-	new_coord coord;
+	coord_t coord;
 	item_plugin *iplug;
 
 
@@ -1940,7 +1940,7 @@ static int call_shift_hooks (struct shift_params * shift)
    look for description of this method in plugin/node/node.h
  */
 /* Audited by: green(2002.06.13) */
-int node40_shift (new_coord * from, znode * to,
+int node40_shift (coord_t * from, znode * to,
 		  shift_direction pend,
 		  int delete_child, /* if @from->node becomes empty - it will
 				       be deleted from the tree if this is set
@@ -2052,21 +2052,21 @@ int node40_shift (new_coord * from, znode * to,
 
 /* plugin->u.node.fast_insert() 
    look for description of this method in plugin/node/node.h */
-int node40_fast_insert( const new_coord *coord UNUSED_ARG /* node to query */ )
+int node40_fast_insert( const coord_t *coord UNUSED_ARG /* node to query */ )
 {
 	return 1;
 }
 
 /* plugin->u.node.fast_paste() 
    look for description of this method in plugin/node/node.h */
-int node40_fast_paste( const new_coord *coord UNUSED_ARG /* node to query */ )
+int node40_fast_paste( const coord_t *coord UNUSED_ARG /* node to query */ )
 {
 	return 1;
 }
 
 /* plugin->u.node.fast_cut() 
    look for description of this method in plugin/node/node.h */
-int node40_fast_cut( const new_coord *coord UNUSED_ARG /* node to query */ )
+int node40_fast_cut( const coord_t *coord UNUSED_ARG /* node to query */ )
 {
 	return 1;
 }

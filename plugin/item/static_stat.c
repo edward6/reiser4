@@ -16,7 +16,7 @@
  */
 /* Audited by: green(2002.06.14) */
 void sd_print( const char *prefix /* prefix to print */, 
-	       new_coord *coord /* coord of item */ )
+	       coord_t *coord /* coord of item */ )
 {
 	reiser4_stat_data_base *sd_base;
 

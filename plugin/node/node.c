@@ -60,7 +60,7 @@ reiser4_key *leftmost_key_in_node( const znode *node /* node to query */,
 	assert( "nikita-1635", key != NULL );
 
 	if( !node_is_empty( node ) ) {
-		new_coord first_item;
+		coord_t first_item;
 
 		ncoord_init_first_unit( &first_item, ( znode * ) node );
 		item_key_by_coord( &first_item, key );
@@ -107,7 +107,7 @@ void print_znode_content( const znode *node /* node to print */,
 			  __u32 flags /* print flags */ )
 {
 	unsigned i;
-	new_coord coord;
+	coord_t coord;
 	item_plugin *iplug;
 	reiser4_key key;
 

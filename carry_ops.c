@@ -4,7 +4,7 @@
 
 #include "reiser4.h"
 
-static int carry_shift_data( sideof side, new_coord *insert_coord, znode *node,
+static int carry_shift_data( sideof side, coord_t *insert_coord, znode *node,
 			     carry_level *doing, carry_level *todo, 
 			     int including_insert_coord_p );
 
@@ -188,7 +188,7 @@ static unsigned int space_needed_for_op( znode *node /* znode data are
  */
 unsigned int space_needed( const znode *node /* node data are inserted or
 					      * pasted in */, 
-			   const new_coord *coord /* coord where data are
+			   const coord_t *coord /* coord where data are
 						     * inserted or pasted
 						     * at */,
 			   const reiser4_item_data *data /* data to insert or
@@ -405,7 +405,7 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 	     ( not_enough_space > 0 ) && ( result == 0 ) && ( blk_alloc < 2 ) &&
 	     !( op -> u.insert.flags & COPI_DONT_ALLOCATE ) ; ++ blk_alloc ) {
 		carry_node *fresh;
-		new_coord coord_shadow;
+		coord_t coord_shadow;
 		carry_node *node_shadow;
 
 		reiser4_stat_level_add( doing, insert_alloc_new );
@@ -532,7 +532,7 @@ static int insert_paste_common( carry_op *op /* carry operation being
 				carry_level *todo /* next carry level */,
 				carry_insert_data *cdata /* pointer to
 							  * cdata */,
-				new_coord *coord /* insertion/paste coord */, 
+				coord_t *coord /* insertion/paste coord */, 
 				reiser4_item_data *data /* data to be
 							 * inserted/pasted */ )
 {
@@ -664,7 +664,7 @@ static int carry_insert( carry_op *op /* operation to perform */,
 {
 	znode            *node;
 	carry_insert_data cdata;
-	new_coord        coord;
+	coord_t        coord;
 	reiser4_item_data data;
 	int               result;
 
@@ -719,8 +719,8 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 			 carry_level *todo /* next carry level */ )
 {
 	int         result;
-	new_coord coord;
-	new_coord coord2;
+	coord_t coord;
+	coord_t coord2;
 	znode      *parent;
 	znode      *child;
 
@@ -843,7 +843,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 {
 	znode               *node;
 	carry_insert_data    cdata;
-	new_coord           coord;
+	coord_t           coord;
 	reiser4_item_data    data;
 	int                  result;
 	int                  real_size;
@@ -932,7 +932,7 @@ static int carry_extent( carry_op *op /* operation to perform */,
 {
 	znode            *node;
 	carry_insert_data cdata;
-	new_coord        coord;
+	coord_t        coord;
 	reiser4_item_data data;
 	carry_op         *delete_dummy;
 	carry_op         *insert_extent;
@@ -1045,8 +1045,8 @@ static int update_delimiting_key( znode *parent /* node key is updated
 							  * store error
 							  * message */)
 {
-	new_coord  left_pos;
-	new_coord  right_pos;
+	coord_t  left_pos;
+	coord_t  right_pos;
 	int          result;
 	reiser4_key  ldkey;
 
@@ -1210,7 +1210,7 @@ static int carry_modify( carry_op *op /* operation to be performed */,
 
 /* move items from @node during carry */
 static int carry_shift_data( sideof side /* in what direction to move data */, 
-			     new_coord *insert_coord /* coord where new item
+			     coord_t *insert_coord /* coord where new item
 							* is to be inserted */, 
 			     znode *node /* node which data are moved from */,
 			     carry_level *doing /* active carry queue */, 

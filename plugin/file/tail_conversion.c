@@ -16,7 +16,7 @@
 /* AUDIT: since some callers already init lock handle and callers are suppsed
    to clear lock handle anyway, init_lh() should be moved out of here and
    all non conforming acllers should be modified instead */
-int find_item (reiser4_key * key, new_coord * coord,
+int find_item (reiser4_key * key, coord_t * coord,
 	       lock_handle * lh, znode_lock_mode lock_mode)
 {
 	ncoord_init_zero (coord);
@@ -108,7 +108,7 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 				int nr_pages, int count, item_plugin * iplug)
 {
 	flow_t f;
-	new_coord coord;
+	coord_t coord;
 	lock_handle lh;
 	int result;
 	char * p_data;
@@ -243,7 +243,7 @@ static int all_pages_are_full (int nr_pages, int page_off)
 /* part of tail2extent. */
 /* Audited by: green(2002.06.15) */
 static int file_is_over (struct inode * inode, reiser4_key * key,
-			 new_coord * coord)
+			 coord_t * coord)
 {
 	reiser4_key coord_key;
 
@@ -267,7 +267,7 @@ static int file_is_over (struct inode * inode, reiser4_key * key,
 int tail2extent (struct inode * inode)
 {
 	int result;
-	new_coord coord;
+	coord_t coord;
 	lock_handle lh;	
 	reiser4_key key;     /* key of next byte to be moved to page */
 	struct page * page;
@@ -455,7 +455,7 @@ int extent2tail (struct file * file)
 
 	{
 		/* find which items file is built of */
-		new_coord coord;
+		coord_t coord;
 		lock_handle lh;
 		int do_conversion;
 		

@@ -9,7 +9,7 @@
 #if !defined( __REISER4_DIR_H__ )
 #define __REISER4_DIR_H__
 
-extern void directory_readahead( struct inode *dir, new_coord *coord );
+extern void directory_readahead( struct inode *dir, coord_t *coord );
 
 /** 
  * description of directory entry being created/destroyed/sought for

@@ -105,7 +105,7 @@ static int invoke_create_method( struct inode *parent,
 
 
 static int readdir_actor( reiser4_tree *tree, 
-			  new_coord *coord, lock_handle *lh,
+			  coord_t *coord, lock_handle *lh,
 			  void *arg );
 
 /**
@@ -564,7 +564,7 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 {
 	int                 result;
 	struct inode       *inode;
-	new_coord          coord;
+	coord_t          coord;
 	readdir_actor_args  arg;
 	lock_handle lh;
 
@@ -942,7 +942,7 @@ static int reiser4_release( struct inode *i /* inode released */,
  */
 /* Audited by: umka (2002.06.12) */
 static int readdir_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
-			  new_coord *coord /* current coord */,
+			  coord_t *coord /* current coord */,
 			  lock_handle *lh UNUSED_ARG /* current lock
 							      * handle */, 
 			  void *arg /* readdir arguments */ )

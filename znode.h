@@ -271,7 +271,7 @@ struct znode {
 	 * Also, parent pointer is stored here.  The parent pointer
 	 * stored here is NOT a hint, only the position is.
 	 */
-	new_coord            ptr_in_parent_hint;
+	coord_t            ptr_in_parent_hint;
 
 #if REISER4_DEBUG_MODIFY
 	/**

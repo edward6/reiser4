@@ -32,7 +32,7 @@
 
 static znode *seal_node( const seal_t *seal );
 static int seal_matches( const seal_t *seal, znode *node );
-static int seal_search_node( seal_t *seal, new_coord *coord, 
+static int seal_search_node( seal_t *seal, coord_t *coord, 
 			     znode *node, reiser4_key *key, lookup_bias bias,
 			     tree_level level );
 
@@ -41,7 +41,7 @@ static int seal_search_node( seal_t *seal, new_coord *coord,
  * and @key can be NULL. 
  */
 void seal_init( seal_t      *seal /* seal to initialise */, 
-		new_coord  *coord /* coord @seal will be attached to */, 
+		coord_t  *coord /* coord @seal will be attached to */, 
 		const reiser4_key *key UNUSED_ARG /* key @seal will be
 						   * attached to */ )
 {
@@ -89,7 +89,7 @@ int seal_is_set( const seal_t *seal /* seal to query */ )
  *
  */
 int seal_validate( seal_t            *seal  /* seal to validate */, 
-		   new_coord        *coord /* coord to validate against */, 
+		   coord_t        *coord /* coord to validate against */, 
 		   reiser4_key       *key   /* key to validate against */, 
 		   tree_level         level /* level of node */,
 		   lock_handle       *lh    /* resulting lock handle */, 
@@ -184,7 +184,7 @@ static int seal_matches( const seal_t *seal /* seal to check */,
 
 /** intranode search */
 static int seal_search_node( seal_t      *seal  /* seal to repair */, 
-			     new_coord  *coord /* coord attached to @seal */, 
+			     coord_t  *coord /* coord attached to @seal */, 
 			     znode       *node  /* node to search in */, 
 			     reiser4_key *key   /* key attached to @seal */, 
 			     lookup_bias  bias  /* search bias */,

@@ -15,7 +15,7 @@
 
 #if 0
 /** clear coord content */
-int init_coord( new_coord *coord /* coord to init */ )
+int init_coord( coord_t *coord /* coord to init */ )
 {
 	assert( "nikita-312", coord != NULL );
 	trace_stamp( TRACE_TREE );
@@ -24,10 +24,10 @@ int init_coord( new_coord *coord /* coord to init */ )
 	return 0;
 }
 
-/** correct new_coord object duplication */
-void dup_coord (new_coord * new, const new_coord * old)
+/** correct coord_t object duplication */
+void dup_coord (coord_t * new, const coord_t * old)
 {
-	xmemcpy (new, old, sizeof (new_coord));
+	xmemcpy (new, old, sizeof (coord_t));
 	if (old->node != NULL) {
 		/* FIXME-NIKITA nikita: done_coord() does nothing
 		   zref(old->node); */
@@ -42,7 +42,7 @@ void dup_coord (new_coord * new, const new_coord * old)
  * there is a good reason to ref coord->node (i.e., dcount), then implement it
  * NOW.  My code doesn't call done_coord because I didn't know there was such
  * a method. */
-int done_coord( new_coord *coord UNUSED_ARG /* coord to finish with */ )
+int done_coord( coord_t *coord UNUSED_ARG /* coord to finish with */ )
 {
 	assert( "nikita-313", coord != NULL );
 	trace_stamp( TRACE_TREE );
@@ -53,7 +53,7 @@ int done_coord( new_coord *coord UNUSED_ARG /* coord to finish with */ )
 
 /* return pointer to item body */
 /* Audited by: green(2002.06.15) */
-void *item_body_by_coord( const new_coord *coord /* coord to query */ )
+void *item_body_by_coord( const coord_t *coord /* coord to query */ )
 {
 	assert( "nikita-324", coord != NULL );
 	assert( "nikita-325", coord -> node != NULL );
@@ -65,7 +65,7 @@ void *item_body_by_coord( const new_coord *coord /* coord to query */ )
 
 /** return length of item at @coord */
 /* Audited by: green(2002.06.15) */
-int item_length_by_coord( const new_coord *coord /* coord to query */ )
+int item_length_by_coord( const coord_t *coord /* coord to query */ )
 {
 	assert( "nikita-327", coord != NULL );
 	assert( "nikita-328", coord -> node != NULL );
@@ -77,7 +77,7 @@ int item_length_by_coord( const new_coord *coord /* coord to query */ )
 
 /** return plugin of item at @coord */
 /* Audited by: green(2002.06.15) */
-item_plugin *item_plugin_by_coord( const new_coord *coord /* coord to query */ )
+item_plugin *item_plugin_by_coord( const coord_t *coord /* coord to query */ )
 {
 	assert( "nikita-330", coord != NULL );
 	assert( "nikita-331", coord -> node != NULL );
@@ -99,7 +99,7 @@ node_plugin * node_plugin_by_node( const znode *node /* node to query */ )
 
 /** return type of item at @coord */
 /* Audited by: green(2002.06.15) */
-item_type_id item_type_by_coord( const new_coord *coord /* coord to query */ )
+item_type_id item_type_by_coord( const coord_t *coord /* coord to query */ )
 {
 	assert( "nikita-333", coord != NULL );
 	assert( "nikita-334", coord -> node != NULL );
@@ -113,7 +113,7 @@ item_type_id item_type_by_coord( const new_coord *coord /* coord to query */ )
 
 /* return id of item */
 /* Audited by: green(2002.06.15) */
-item_id item_id_by_coord( const new_coord *coord /* coord to query */ )
+item_id item_id_by_coord( const coord_t *coord /* coord to query */ )
 {
 	assert( "vs-539", coord != NULL );
 	assert( "vs-538", coord -> node != NULL );
@@ -129,7 +129,7 @@ item_id item_id_by_coord( const new_coord *coord /* coord to query */ )
 
 /** return key of item at @coord */
 /* Audited by: green(2002.06.15) */
-reiser4_key *item_key_by_coord( const new_coord *coord /* coord to query */, 
+reiser4_key *item_key_by_coord( const coord_t *coord /* coord to query */, 
 				reiser4_key *key /* result */ )
 {
 	assert( "nikita-338", coord != NULL );
@@ -142,7 +142,7 @@ reiser4_key *item_key_by_coord( const new_coord *coord /* coord to query */,
 
 /** return key of unit at @coord */
 /* Audited by: green(2002.06.15) */
-reiser4_key *unit_key_by_coord( const new_coord *coord /* coord to query */, 
+reiser4_key *unit_key_by_coord( const coord_t *coord /* coord to query */, 
 				reiser4_key *key /* result */ )
 {
 	assert( "nikita-772", coord != NULL );
@@ -304,7 +304,7 @@ typedef struct cbk_handle {
 	/** key we are going after */
 	const reiser4_key   *key;
 	/** coord we to store result */
-	new_coord  	    *coord;
+	coord_t  	    *coord;
 	/** lock to take on target node */
 	znode_lock_mode      lock_mode;
 	/** lookup bias */
@@ -369,7 +369,7 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 						* part of file-system
 						* super-block */, 
 			    const reiser4_key *key /* key to look for */,
-			    new_coord *coord /* where to store found
+			    coord_t *coord /* where to store found
 						* position in a tree. Fields
 						* in "coord" are only valid if
 						* coord_by_key() returned
@@ -439,7 +439,7 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 /* relook for @key in the tree if @coord is not set correspondingly already */
 /* Audited by: green(2002.06.15) */
 int coord_by_hint_and_key (reiser4_tree * tree, const reiser4_key * key,
-			   new_coord * coord, lock_handle * lh,
+			   coord_t * coord, lock_handle * lh,
 			   lookup_bias bias,
 			   tree_level lock_level,/* at which level to start
 						    getting write locks */
@@ -474,7 +474,7 @@ int coord_by_hint_and_key (reiser4_tree * tree, const reiser4_key * key,
  */
 /* Audited by: green(2002.06.15) */
 int iterate_tree( reiser4_tree *tree /* tree to scan */, 
-		  new_coord *coord /* coord to start from */, 
+		  coord_t *coord /* coord to start from */, 
 		  lock_handle *lh /* lock handle to start with and to
 					   * update along the way */, 
 		  tree_iterate_actor_t actor /* function to call on each
@@ -687,7 +687,7 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 
 	/*
 	 * FIXME-NIKITA this is ugly kludge. To get rid of it, get rid of
-	 * new_coord.between field first.
+	 * coord_t.between field first.
 	 */
 	h->coord->between = AT_UNIT;
 
@@ -726,7 +726,7 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 		 * tree. Release lock and restart.
 		 */
 		if( REISER4_STATS ) {
-			if( znode_contain_key_lock( active, h -> key ) )
+			if( znode_contains_key_lock( active, h -> key ) )
 				reiser4_stat_tree_add( cbk_met_ghost );
 			else
 				reiser4_stat_tree_add( cbk_key_moved );
@@ -765,7 +765,7 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
  * that node
  */
 /* Audited by: green(2002.06.15) */
-static int is_next_item_internal( new_coord *coord,  lock_handle *lh )
+static int is_next_item_internal( coord_t *coord,  lock_handle *lh )
 {
 	int result;
 
@@ -784,7 +784,7 @@ static int is_next_item_internal( new_coord *coord,  lock_handle *lh )
 		 * look for next item in right neighboring node
 		 */
 		lock_handle right_lh;
-		new_coord right;
+		coord_t right;
 
 
 		init_lh( &right_lh );
@@ -825,13 +825,13 @@ static int is_next_item_internal( new_coord *coord,  lock_handle *lh )
  * know which right delimiting key corresponding znode has to be inserted with
  */
 /* Audited by: green(2002.06.15) */
-static reiser4_key *rd_key( new_coord *coord, reiser4_key *key )
+static reiser4_key *rd_key( coord_t *coord, reiser4_key *key )
 {
 	if( coord -> item_pos != node_num_items( coord -> node ) - 1 ) {
 		/*
 		 * get right delimiting key from an item to the right of @coord
 		 */
-		new_coord tmp;
+		coord_t tmp;
 
 		ncoord_dup( &tmp, coord );
 		tmp.item_pos ++;
@@ -853,7 +853,7 @@ static reiser4_key *rd_key( new_coord *coord, reiser4_key *key )
  * further down because it stopped between items of not internal type
  */
 /* Audited by: green(2002.06.15) */
-static int add_empty_leaf( new_coord *insert_coord, lock_handle *lh,
+static int add_empty_leaf( coord_t *insert_coord, lock_handle *lh,
 			   const reiser4_key *key, const reiser4_key *rdkey )
 {
 	int result;
@@ -1253,7 +1253,7 @@ static znode_lock_mode cbk_lock_mode( tree_level level, cbk_handle *h )
 /* Audited by: green(2002.06.15) */
 int find_child_delimiting_keys( znode *parent /* parent znode, passed
 					       * locked */, 
-				const new_coord *parent_coord /* coord where
+				const coord_t *parent_coord /* coord where
 								 * pointer to
 								 * child is
 								 * stored */, 
@@ -1262,7 +1262,7 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
 				reiser4_key *rd /* where to store right
 						 * delimiting key */)
 {
-	new_coord neighbor;
+	coord_t neighbor;
 	
 	assert( "nikita-1484", parent != NULL );
 	assert( "nikita-1485", spin_dk_is_locked( current_tree ) );
@@ -1312,7 +1312,7 @@ static int prepare_delimiting_keys( cbk_handle *h /* search handle */ )
 static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 {
 	level_lookup_result result;
-	new_coord         *coord;
+	coord_t         *coord;
 	znode              *node;
 	znode              *neighbor;
 
@@ -1337,7 +1337,7 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 		break;
 	case 0: {
 		node_plugin         *nplug;
-		new_coord           crd;
+		coord_t           crd;
 		lookup_bias          bias;
 		
 		neighbor = lh.node;
@@ -1405,7 +1405,7 @@ const char *bias_name( lookup_bias bias /* bias to get name of */ )
 
 /** debugging aid: print human readable information about @p */
 void print_coord_content( const char *prefix /* prefix to print */, 
-			  new_coord *p /* coord to print */ )
+			  coord_t *p /* coord to print */ )
 {
 	reiser4_key key;
 

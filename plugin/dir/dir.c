@@ -21,7 +21,7 @@
  *
  */
 void directory_readahead( struct inode *dir /* directory being accessed */, 
-			  new_coord *coord /* coord of acces */ )
+			  coord_t *coord /* coord of acces */ )
 {
 	assert( "nikita-1682", dir != NULL );
 	assert( "nikita-1683", coord != NULL );

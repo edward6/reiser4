@@ -12,8 +12,8 @@
 
 /* plugin->u.item.b.mergeable */
 /* Audited by: green(2002.06.14) */
-int internal_mergeable (const new_coord * p1 UNUSED_ARG /* first item */,
-			const new_coord * p2 UNUSED_ARG /* second item */)
+int internal_mergeable (const coord_t * p1 UNUSED_ARG /* first item */,
+			const coord_t * p2 UNUSED_ARG /* second item */)
 {
 	/* internal items are not mergeable */
 	return 0;
@@ -23,7 +23,7 @@ int internal_mergeable (const new_coord * p1 UNUSED_ARG /* first item */,
 /* Audited by: green(2002.06.14) */
 lookup_result internal_lookup (const reiser4_key *key /* key to look up */, 
 			       lookup_bias bias UNUSED_ARG /* lookup bias */,
-			       new_coord *coord /* coord of item */ )
+			       coord_t *coord /* coord of item */ )
 {
 	reiser4_key ukey;
 
@@ -45,7 +45,7 @@ lookup_result internal_lookup (const reiser4_key *key /* key to look up */,
 
 /** return body of internal item at @coord */
 /* Audited by: green(2002.06.14) */
-static internal_item_layout *internal_at( const new_coord *coord /* coord of
+static internal_item_layout *internal_at( const coord_t *coord /* coord of
 								   * item */ )
 {
 	assert( "nikita-607", coord != NULL );
@@ -55,7 +55,7 @@ static internal_item_layout *internal_at( const new_coord *coord /* coord of
 }
 
 /* FIXME: ugly hack */
-void internal_update (const new_coord *coord, reiser4_block_nr blocknr)
+void internal_update (const coord_t *coord, reiser4_block_nr blocknr)
 {
 	internal_item_layout *item = internal_at (coord);
 	cpu_to_dblock (blocknr, & item->pointer);
@@ -63,7 +63,7 @@ void internal_update (const new_coord *coord, reiser4_block_nr blocknr)
 
 /** return child block number stored in the internal item at @coord */
 /* Audited by: green(2002.06.14) */
-static reiser4_block_nr pointer_at( const new_coord *coord /* coord of item */ )
+static reiser4_block_nr pointer_at( const coord_t *coord /* coord of item */ )
 {
 	assert( "nikita-608", coord != NULL );
 	return dblock_to_cpu( & internal_at( coord ) -> pointer );
@@ -71,7 +71,7 @@ static reiser4_block_nr pointer_at( const new_coord *coord /* coord of item */ )
 
 /** get znode pointed to by internal @item */
 /* Audited by: green(2002.06.14) */
-static znode *znode_at( const new_coord *item /* coord of item */ )
+static znode *znode_at( const coord_t *item /* coord of item */ )
 {
 	znode *result;
 
@@ -85,7 +85,7 @@ static znode *znode_at( const new_coord *item /* coord of item */ )
 /** store pointer from internal item into "block". Implementation of
     ->down_link() method */
 /* Audited by: green(2002.06.14) */
-void internal_down_link( const new_coord *coord /* coord of item */, 
+void internal_down_link( const coord_t *coord /* coord of item */, 
 			 const reiser4_key *key UNUSED_ARG /* key to get
 							    * pointer for */, 
 			 reiser4_block_nr *block /* resulting block number */ )
@@ -109,7 +109,7 @@ void internal_down_link( const new_coord *coord /* coord of item */,
  * Set if the the child is dirty.
  */
 /* Audited by: green(2002.06.14) */
-int internal_utmost_child_dirty ( const new_coord  *coord,
+int internal_utmost_child_dirty ( const coord_t  *coord,
 				  sideof             side UNUSED_ARG,
 				  int               *is_dirty )
 {
@@ -135,7 +135,7 @@ int internal_utmost_child_dirty ( const new_coord  *coord,
  * Get the child's block number, or 0 if the block is unallocated.
  */
 /* Audited by: green(2002.06.14) */
-int internal_utmost_child_real_block ( const new_coord  *coord,
+int internal_utmost_child_real_block ( const coord_t  *coord,
 				       sideof             side UNUSED_ARG,
 				       reiser4_block_nr  *block )
 {
@@ -154,7 +154,7 @@ int internal_utmost_child_real_block ( const new_coord  *coord,
  * Return the child.
  */
 /* Audited by: green(2002.06.14) */
-int internal_utmost_child ( const new_coord  *coord,
+int internal_utmost_child ( const coord_t  *coord,
 			    sideof             side UNUSED_ARG,
 			    jnode            **childp )
 {
@@ -180,14 +180,14 @@ int internal_utmost_child ( const new_coord  *coord,
  */
 /* Audited by: green(2002.06.14) */
 void internal_print( const char *prefix /* prefix to print */, 
-		     new_coord *coord /* coord of item to print  */ )
+		     coord_t *coord /* coord of item to print  */ )
 {
 	info( "%s: internal: %llu\n", prefix, pointer_at( coord ) );
 }
 
 /** return true only if this item really points to "block" */
 /* Audited by: green(2002.06.14) */
-int internal_has_pointer_to( const new_coord *coord /* coord of item */, 
+int internal_has_pointer_to( const coord_t *coord /* coord of item */, 
 			     const reiser4_block_nr *block /* block number to
 							    * check */ )
 {
@@ -206,7 +206,7 @@ int internal_has_pointer_to( const new_coord *coord /* coord of item */,
  *
  */
 /* Audited by: green(2002.06.14) */
-int internal_create_hook( const new_coord *item /* coord of item */, 
+int internal_create_hook( const coord_t *item /* coord of item */, 
 			  void *arg /* child's left neighbor, if any */ )
 {
 	znode            *child;
@@ -275,7 +275,7 @@ int internal_create_hook( const new_coord *item /* coord of item */,
  *
  */
 /* Audited by: green(2002.06.14) */
-int internal_kill_hook( const new_coord *item /* coord of item */, 
+int internal_kill_hook( const coord_t *item /* coord of item */, 
 			unsigned from UNUSED_ARG /* start unit */, 
 			unsigned count UNUSED_ARG /* stop unit */, 
 			void *kill_params UNUSED_ARG )
@@ -323,7 +323,7 @@ int internal_kill_hook( const new_coord *item /* coord of item */,
  *
  */
 /* Audited by: green(2002.06.14) */
-int internal_shift_hook( const new_coord *item /* coord of item */, 
+int internal_shift_hook( const coord_t *item /* coord of item */, 
 			 unsigned from UNUSED_ARG /* start unit */, 
 			 unsigned count UNUSED_ARG /* stop unit */, 
 			 znode *old_node /* old parent */ )

@@ -72,7 +72,7 @@ static void key_warning( const char *error_message /* message to print */,
 /** find sd of inode in a tree, deal with errors */
 int lookup_sd( struct inode *inode /* inode to look sd for */, 
 	       znode_lock_mode lock_mode /* lock mode */, 
-	       new_coord *coord /* resulting coord */, 
+	       coord_t *coord /* resulting coord */, 
 	       lock_handle *lh /* resulting lock handle */, 
 	       reiser4_key *key /* resulting key */ )
 {
@@ -88,7 +88,7 @@ int lookup_sd( struct inode *inode /* inode to look sd for */,
 /** find sd of inode in a tree, deal with errors */
 int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */, 
 		      znode_lock_mode lock_mode /* lock mode */, 
-		      new_coord *coord /* resulting coord */, 
+		      coord_t *coord /* resulting coord */, 
 		      lock_handle *lh /* resulting lock handle */, 
 		      const reiser4_key *key /* resulting key */ )
 
@@ -157,7 +157,7 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 {
 	int result;
 	reiser4_key key;
-	new_coord coord;
+	coord_t coord;
 	reiser4_item_data  data;
 	const char *error_message;
 	char *area;
@@ -279,7 +279,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 {
 	int result;
 	reiser4_key key;
-	new_coord  coord;
+	coord_t  coord;
 	seal_t      seal;
 	reiser4_item_data  data;
 	const char *error_message;
@@ -520,7 +520,7 @@ int guess_plugin_by_mode( struct inode *inode /* object to guess plugins
     of keys in inode and coord */
 int common_file_owns_item( const struct inode *inode /* object to check
 						      * against */, 
-			   const new_coord *coord /* coord to check */ )
+			   const coord_t *coord /* coord to check */ )
 {
 	reiser4_key item_key;
 	reiser4_key file_key;
@@ -581,7 +581,7 @@ static int unix_key_by_inode ( struct inode *inode, loff_t off, reiser4_key *key
 
 /** actor function looking for any entry different from dot or dotdot. */
 static int is_empty_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
-			   new_coord *coord /* current coord */,
+			   coord_t *coord /* current coord */,
 			   lock_handle *lh UNUSED_ARG /* current lock
 						       * handle */, 
 			   void *arg /* readdir arguments */ )
@@ -637,7 +637,7 @@ static int dir_can_rem_link( const struct inode *dir )
 	reiser4_key de_key;
 	int         result;
 	struct qstr dot;
-	new_coord  coord;
+	coord_t  coord;
 	lock_handle lh;
 
 	assert( "nikita-1976", dir != NULL );

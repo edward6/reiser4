@@ -18,7 +18,7 @@ void drop_nonexclusive_access  (struct inode * inode);
 int  tail2extent               (struct inode * inode);
 int  extent2tail               (struct file * file);
 int  unix_file_readpage_nolock (struct file * file, struct page * page);
-int  find_item                 (reiser4_key * key, new_coord * coord,
+int  find_item                 (reiser4_key * key, coord_t * coord,
 				lock_handle * lh, znode_lock_mode lock_mode);
 
 
@@ -37,7 +37,7 @@ int     unix_file_key_by_inode ( struct inode *, loff_t off, reiser4_key * );
 int     unix_file_create   (struct inode * object, struct inode * parent,
 				reiser4_object_create_data *data);
 int     unix_file_readpage (struct file * file, struct page * page);
-int     unix_file_owns_item( const struct inode *, const new_coord *);
+int     unix_file_owns_item( const struct inode *, const coord_t *);
 
 
 /* __REISER4_FILE_H__ */

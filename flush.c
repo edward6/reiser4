@@ -37,7 +37,7 @@ struct flush_scan {
 
 	/* When the position is unformatted, its parent and coordinate. */
 	lock_handle parent_lock;
-	new_coord  parent_coord;
+	coord_t  parent_coord;
 };
 
 /* An encapsulation of the current flush point and all the parameters that are passed
@@ -46,7 +46,7 @@ struct flush_position {
 	jnode                *point;
 	lock_handle           point_lock;
 	lock_handle           parent_lock;
-	new_coord            parent_coord;
+	coord_t            parent_coord;
 	reiser4_blocknr_hint  preceder;
 	unsigned              left_scan_count;
 	unsigned              right_scan_count;
@@ -72,7 +72,7 @@ static int           flush_scan_formatted         (flush_scan *scan);
 static int           flush_scan_left              (flush_scan *scan, jnode *node);
 static int           flush_scan_right_upto        (flush_scan *scan, jnode *node, __u32 *res_count, __u32 limit);
 
-static int           flush_left_relocate          (jnode *node, const new_coord *parent_coord);
+static int           flush_left_relocate          (jnode *node, const coord_t *parent_coord);
 
 static int           flush_extents                (flush_position *pos);
 static int           flush_enqueue_point          (flush_position *pos);
@@ -85,26 +85,26 @@ static int           flush_lock_leftpoint         (jnode                  *start
 						   flush_scan_config  scan_config,
 						   flush_position         *flush_pos);
 
-static int           flush_find_rightmost           (const new_coord *parent_coord, reiser4_block_nr *pblk);
-static int           flush_find_preceder            (jnode *node, new_coord *parent_coord, reiser4_block_nr *pblk);
+static int           flush_find_rightmost           (const coord_t *parent_coord, reiser4_block_nr *pblk);
+static int           flush_find_preceder            (jnode *node, coord_t *parent_coord, reiser4_block_nr *pblk);
 
 static int           squalloc_leftpoint             (flush_position *pos);
 static int           squalloc_leftpoint_end_of_twig (flush_position *pos);
 static int           squalloc_update_leftpoint      (flush_position *pos);
 static int           squalloc_parent_first          (flush_position *pos);
-static int           squalloc_parent_first_recursive (flush_position *pos, znode *child, new_coord *coord);
+static int           squalloc_parent_first_recursive (flush_position *pos, znode *child, coord_t *coord);
 
 static int           squalloc_children            (flush_position *pos);
 /*static*/ int       squalloc_right_neighbor      (znode *left, znode *right, reiser4_blocknr_hint *preceder);
 static int           squalloc_right_twig          (znode *left, znode *right, reiser4_blocknr_hint *preceder);
-static int           squalloc_right_twig_cut      (new_coord * to, reiser4_key * to_key, znode *left);
+static int           squalloc_right_twig_cut      (coord_t * to, reiser4_key * to_key, znode *left);
 static int           squeeze_right_leaf           (znode *right, znode *left);
 static int           shift_one_internal_unit      (znode *left, znode *right);
 
 flush_scan_config    flush_scan_get_config        (jnode *node, int flags);
 
 static int           jnode_lock_parent_coord      (jnode *node,
-						   new_coord *coord,
+						   coord_t *coord,
 						   lock_handle *parent_lh,
 						   znode_lock_mode mode);
 static int           jnode_is_allocated           (jnode *node);
@@ -295,7 +295,7 @@ static int flush_lock_leftpoint (jnode                  *start_node,
 	jnode *end_node;
 	znode *parent_node;
 	flush_scan level_scan;
-	new_coord parent_coord;
+	coord_t parent_coord;
 	lock_handle end_lock;
 	lock_handle parent_lock;
 	assert ("jmacd-5013", jnode_check_dirty (start_node));
@@ -464,10 +464,10 @@ static int flush_should_relocate (const reiser4_block_nr *pblk,
 }
 
 /* FIXME: comment */
-static int flush_left_relocate  (jnode *node, const new_coord *parent_coord)
+static int flush_left_relocate  (jnode *node, const coord_t *parent_coord)
 {
 	int ret;
-	new_coord coord;
+	coord_t coord;
 	reiser4_block_nr pblk = 0;
 	reiser4_block_nr nblk = 0;
 
@@ -499,7 +499,7 @@ static int flush_left_relocate  (jnode *node, const new_coord *parent_coord)
  * leftmost child, then return its parent's block.  If the node is a leaf, return its left
  * neighbor's block.  Otherwise, call flush_find_rightmost to find the rightmost
  * descendent. */
-static int flush_find_preceder (jnode *node, new_coord *parent_coord, reiser4_block_nr *pblk)
+static int flush_find_preceder (jnode *node, coord_t *parent_coord, reiser4_block_nr *pblk)
 {
 	/* If ncoord_prev_unit returns 1, its the leftmost coord of its parent. */
 	if (ncoord_prev_unit (parent_coord) == 1) {
@@ -521,12 +521,12 @@ static int flush_find_preceder (jnode *node, new_coord *parent_coord, reiser4_bl
 /* Find the rightmost descendant block number of @node.  Set preceder->blk to
  * that value.  This can never be called on a leaf node, the leaf case is
  * handled by flush_preceder_hint. */
-static int flush_find_rightmost (const new_coord *parent_coord, reiser4_block_nr *pblk)
+static int flush_find_rightmost (const coord_t *parent_coord, reiser4_block_nr *pblk)
 {
 	int ret;
 	znode *parent = parent_coord->node;
 	jnode *child;
-	new_coord child_coord;
+	coord_t child_coord;
 
 	assert ("jmacd-2043", znode_get_level (parent) >= TWIG_LEVEL);
 
@@ -911,7 +911,7 @@ static int squalloc_parent_first (flush_position *pos)
 	case SUBTREE_MOVED: {
 		/* Unit of internal item has been shifted, now allocate and
 		 * squeeze that subtree (now the last item of this node). */
-		new_coord crd;
+		coord_t crd;
 		znode *child;
 
 		ncoord_init_last_unit (& crd, JZNODE (pos->point));
@@ -980,7 +980,7 @@ static int squalloc_parent_first (flush_position *pos)
 static int squalloc_children (flush_position *pos)
 {
 	int ret;
-	new_coord crd;
+	coord_t crd;
 
 	ncoord_init_first_unit (& crd, JZNODE (pos->point));
 
@@ -1034,7 +1034,7 @@ static int squalloc_children (flush_position *pos)
  * flush_position->point back to the parent.  It is conceivable that the parent can change
  * during this period, so the @coord argument is returned to allow it to change.
  */
-static int squalloc_parent_first_recursive (flush_position *pos, znode *child, new_coord *coord)
+static int squalloc_parent_first_recursive (flush_position *pos, znode *child, coord_t *coord)
 {
 	int ret;
 
@@ -1199,7 +1199,7 @@ static int squalloc_right_twig (znode    *left,
 				reiser4_blocknr_hint *preceder)
 {
 	int ret = 0;
-	new_coord coord;
+	coord_t coord;
 	reiser4_key stop_key;
 
 	assert ("jmacd-2008", ! node_is_empty (right));
@@ -1269,9 +1269,9 @@ static int squalloc_right_twig (znode    *left,
 
 /* squalloc_right_twig helper function, cut a range of extent items from
  * cut node to->node from the beginning up to coord @to. */
-static int squalloc_right_twig_cut (new_coord * to, reiser4_key * to_key, znode * left)
+static int squalloc_right_twig_cut (coord_t * to, reiser4_key * to_key, znode * left)
 {
-	new_coord from;
+	coord_t from;
 	reiser4_key from_key;
 
 	ncoord_init_first_unit (&from, to->node);
@@ -1290,7 +1290,7 @@ static int shift_one_internal_unit (znode * left, znode * right)
 	int ret;
 	carry_pool pool;
 	carry_level todo;
-	new_coord coord;
+	coord_t coord;
 	int size, moved;
 
 	ncoord_init_first_unit (&coord, right);
@@ -1379,7 +1379,7 @@ static int flush_alloc_block (reiser4_blocknr_hint *preceder, jnode *node, reise
 	/* WARNING: UGLY, TEMPORARY.  Nikita please inspect.  disk_layout, mkfs problems
 	 * when root block is relocated. */
 	if (! znode_is_root (JZNODE (node))) {
-		new_coord ncoord;
+		coord_t ncoord;
 		/*tree_coord tcoord;*/
 
 		if ((ret = jnode_lock_parent_coord (node, & ncoord, & parent_lock, ZNODE_WRITE_LOCK))) {
@@ -1437,7 +1437,7 @@ static int flush_allocate_point (flush_position *pos)
 	 * necessary. */
 	if (! JF_ISSET (node, ZNODE_WANDER) && pos->parent_first_broken) {
 		lock_handle parent_lock;
-		new_coord parent_coord;
+		coord_t parent_coord;
 		reiser4_block_nr pblk;
 
 		init_lh (& parent_lock);
@@ -1589,7 +1589,7 @@ static int flush_extents (flush_position *pos UNUSED_ARG)
  * fusion, but it is only used for read locks (at this point) and therefore
  * fusion only occurs when the parent is already dirty. */
 static int jnode_lock_parent_coord (jnode *node,
-				    new_coord *coord,
+				    coord_t *coord,
 				    lock_handle *parent_lh,
 				    znode_lock_mode parent_mode)
 {
@@ -1756,7 +1756,7 @@ static int flush_scanning_left (flush_scan *scan)
 }
 
 /* Performs leftward scanning starting from an unformatted node and its parent coordinate */
-static int flush_scan_extent_coord (flush_scan *scan, new_coord *coord)
+static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 {
 	jnode *neighbor;
 	unsigned long scan_index, unit_index, unit_width, scan_max, scan_dist; /* FIXME: is u64 right? */

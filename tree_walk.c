@@ -229,7 +229,7 @@ static void link_znodes (znode * first, znode * second, int to_left)
  * sibling link on parent level, if lock_side_neighbor() fails with
  * -ENOENT. */
 /* Audited by: umka (2002.06.14) */
-static int far_next_coord (new_coord * coord, lock_handle * handle, int flags)
+static int far_next_coord (coord_t * coord, lock_handle * handle, int flags)
 {
 	int ret;
 	znode *node;
@@ -273,7 +273,7 @@ static int far_next_coord (new_coord * coord, lock_handle * handle, int flags)
  * when sibling pointer is not available.  Actually, it is only function which
  * does it. */
 /* Audited by: umka (2002.06.14) */
-static int renew_sibling_link (new_coord * coord, lock_handle * handle,
+static int renew_sibling_link (coord_t * coord, lock_handle * handle,
 			       znode * child, tree_level level, int flags, int *nr_locked)
 {
 	int ret;
@@ -370,9 +370,9 @@ static int renew_sibling_link (new_coord * coord, lock_handle * handle,
  * This function is for establishing of one side relation.
  */
 /* Audited by: umka (2002.06.14) */
-static int connect_one_side (new_coord * coord, znode * node, int flags)
+static int connect_one_side (coord_t * coord, znode * node, int flags)
 {
-	new_coord local;
+	coord_t local;
 	lock_handle handle;
 	int nr_locked;
 	int ret;
@@ -404,7 +404,7 @@ static int connect_one_side (new_coord * coord, znode * node, int flags)
 /* if node is not in `connected' state, performs hash searches for left and
  * right neighbor nodes and establishes horizontal sibling links */
 /* Audited by: umka (2002.06.14), umka (2002.06.15) */
-int connect_znode (new_coord * coord, znode * node)
+int connect_znode (coord_t * coord, znode * node)
 {
 	reiser4_tree * tree = current_tree;
 	int ret = 0;
@@ -464,9 +464,9 @@ int connect_znode (new_coord * coord, znode * node)
  * second one is for finding neighbor of neighbor to connect freshly allocated
  * znode. */
 /* Audited by: umka (2002.06.14), umka (2002.06.15) */
-static int renew_neighbor (new_coord * coord, znode * node, tree_level level, int flags)
+static int renew_neighbor (coord_t * coord, znode * node, tree_level level, int flags)
 {
-	new_coord local;
+	coord_t local;
 	lock_handle empty[2];
 	reiser4_tree * tree = current_tree;
 	znode * neighbor = NULL;
@@ -554,7 +554,7 @@ int reiser4_get_neighbor (lock_handle * neighbor /* lock handle that
 	reiser4_tree * tree = current_tree;
 	lock_handle path[REAL_MAX_ZTREE_HEIGHT];
 
-	new_coord coord;
+	coord_t coord;
 
 	tree_level base_level;
 	tree_level h = 0;

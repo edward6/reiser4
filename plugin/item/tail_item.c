@@ -40,7 +40,7 @@ int tail_nr_units (item_coord * item)
    look for description of this method in plugin/item/item.h
 */
 /* Audited by: green(2002.06.14) */
-int tail_can_shift (int free_space, new_coord * target,
+int tail_can_shift (int free_space, coord_t * target,
 		    unit_coord * source, shift_direction pend,
 		    int * size, int stop)
 {
@@ -67,7 +67,7 @@ int tail_can_shift (int free_space, new_coord * target,
    look for description of this method in plugin/item/item.h
  */
 /* Audited by: green(2002.06.14) */
-void tail_copy_units (new_coord * target, unit_coord * source,
+void tail_copy_units (coord_t * target, unit_coord * source,
 		      int unit_num, shift_direction pend,
 		      char * new_data)
 {
@@ -101,7 +101,7 @@ void tail_copy_units (new_coord * target, unit_coord * source,
    look for description of this method in plugin/item/item.h
  */
 /* Audited by: green(2002.06.14) */
-void tail_pend_units (new_coord * target, new_coord * source,
+void tail_pend_units (coord_t * target, coord_t * source,
 		      int from, int count,
 		      shift_direction where_is_free_space, int free_space)
 {
