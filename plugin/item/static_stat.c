@@ -711,6 +711,37 @@ save_gaf_sd(struct inode *inode /* object being processed */ ,
 	return 0;
 }
 
+/* install non-default plugin to inode */
+static void
+plugin_to_inode(reiser4_plugin_type type, reiser4_plugin_id id,  plugin_set ** pset)
+{
+	switch (type) {
+	case REISER4_FILE_PLUGIN_TYPE:
+		plugin_set_file(pset, file_plugin_by_id(id));
+		break;
+	case REISER4_CRYPTO_PLUGIN_TYPE:
+		plugin_set_crypto(pset, crypto_plugin_by_id(id));
+		break;
+	case REISER4_DIGEST_PLUGIN_TYPE:
+		plugin_set_digest(pset, digest_plugin_by_id(id));
+		break;
+	case REISER4_COMPRESSION_PLUGIN_TYPE:
+		plugin_set_compression(pset, compression_plugin_by_id(id));
+		break;
+	case REISER4_HASH_PLUGIN_TYPE:
+		plugin_set_hash(pset, hash_plugin_by_id(id));
+		break;
+	case REISER4_TAIL_PLUGIN_TYPE:
+		plugin_set_tail(pset, tail_plugin_by_id(id));
+		break;
+	case REISER4_PERM_PLUGIN_TYPE:
+		plugin_set_perm(pset, perm_plugin_by_id(id));
+		break;
+	default:
+		impossible("edward-701", "bad non-default plugin");
+	}
+}
+
 static int absent_plugin_sd(struct inode *inode);
 static int
 present_plugin_sd(struct inode *inode /* object being processed */ ,
@@ -723,7 +754,7 @@ present_plugin_sd(struct inode *inode /* object being processed */ ,
 	__u16 mask;
 	int result;
 	int num_of_plugins;
-
+	
 	assert("nikita-653", inode != NULL);
 	assert("nikita-654", area != NULL);
 	assert("nikita-655", *area != NULL);
@@ -750,6 +781,8 @@ present_plugin_sd(struct inode *inode /* object being processed */ ,
 		if (plugin == NULL) {
 			return unknown_plugin(d16tocpu(&slot->id), inode);
 		}
+		plugin_to_inode(plugin->h.type_id, d16tocpu(&slot->id), &reiser4_inode_data(inode)->pset); 
+
 		/* plugin is loaded into inode, mark this into inode's
 		   bitmask of loaded non-standard plugins */
 		if (!(mask & (1 << plugin->h.type_id))) {
