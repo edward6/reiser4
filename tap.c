@@ -51,8 +51,10 @@ tap_relse(tap_t * tap)
 {
 	tap_check(tap);
 	--tap->loaded;
-	if (tap->loaded == 0)
+	if (tap->loaded == 0) {
+		coord_clear_iplug(tap->coord);
 		zrelse(tap->lh->node);
+	}
 	tap_check(tap);
 }
 

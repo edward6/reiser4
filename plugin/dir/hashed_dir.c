@@ -288,6 +288,7 @@ int lookup_hashed(struct inode * parent	/* inode of directory to
 	dentry->d_op = &reiser4_dentry_operation;
 
 	coord = &reiser4_get_dentry_fsdata(dentry)->dec.entry_coord;
+	coord_clear_iplug(coord);
 	init_lh(&lh);
 
 	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "lookup inode: %lli \"%s\"\n", get_inode_oid(parent), dentry->d_name.name);
@@ -699,6 +700,7 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 	new_fsdata = reiser4_get_dentry_fsdata(new_name);
 
 	new_coord = &new_fsdata->dec.entry_coord;
+	coord_clear_iplug(new_coord);
 
 	is_dir = S_ISDIR(old_inode->i_mode);
 
@@ -801,6 +803,8 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 		init_lh(&dotdot_lh);
 
 		dotdot_coord = &reiser4_get_dentry_fsdata(&dotdot_name)->dec.entry_coord;
+		coord_clear_iplug(dotdot_coord);
+
 
 		result = find_entry(old_inode, &dotdot_name, &dotdot_lh, ZNODE_WRITE_LOCK, &dotdot_entry);
 		if (result == 0) {
@@ -852,6 +856,7 @@ add_entry_hashed(struct inode *object	/* directory to add new name
 	init_lh(&lh);
 	ON_TRACE(TRACE_DIR, "[%i]: creating \"%s\" in %llu\n", current->pid, where->d_name.name, get_inode_oid(object));
 	coord = &fsdata->dec.entry_coord;
+	coord_clear_iplug(coord);
 
 	/* check for this entry in a directory. This is plugin method. */
 	result = find_entry(object, where, &lh, ZNODE_WRITE_LOCK, entry);
@@ -902,6 +907,7 @@ rem_entry_hashed(struct inode *object	/* directory from which entry
 	result = find_entry(object, where, &lh, ZNODE_WRITE_LOCK, entry);
 	fsdata = reiser4_get_dentry_fsdata(where);
 	coord = &fsdata->dec.entry_coord;
+	coord_clear_iplug(coord);
 	if (result == 0) {
 		/* remove entry. Just pass control to the directory item
 		   plugin. */
@@ -989,6 +995,7 @@ find_entry(const struct inode *dir /* directory to scan */,
 	*/
 	dec = &reiser4_get_dentry_fsdata(de)->dec;
 	coord = &dec->entry_coord;
+	coord_clear_iplug(coord);
 	seal = &dec->entry_seal;
 	/* compose key of directory entry for @name */
 	result = inode_dir_plugin(dir)->build_entry_key(dir, name, &entry->key);
