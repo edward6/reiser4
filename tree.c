@@ -949,20 +949,6 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
 	
 	ret = NS_NOT_FOUND;
 
-	/* FIXME_NIKITA: The following loop is awkward.  It looks as if it
-	 * ALWAYS will return NS_NOT_FOUND.  When else is ret set?
-	 *
-	 * Also, why not write this as:
-	 *
-	 * coord_first_unit();
-	 * do {
-	 *   ...
-	 * } while (! coord_next_unit ());
-	 *
-	 * The for-loop test (coord_of_unit) is only useful the first time
-	 * through... every other time it is redundent.
-	 */
-	
 	for_all_units( result, parent ) {
 		if( check_tree_pointer( result, child ) == NS_FOUND ) {
 			spin_lock_tree( current_tree );
