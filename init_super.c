@@ -394,6 +394,9 @@ static void done_super (struct super_block * s, int last_done)
 		subsys_array[i].done(s);
 }
 
+/* read super block from device and fill remaining fields in @s.
+
+   This is read_super() of the past.  */
 int reiser4_fill_super (struct super_block * s, void * data, int silent)
 {
 	reiser4_context ctx;
