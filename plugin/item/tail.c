@@ -479,31 +479,36 @@ static int overwrite_tail (coord_t * coord, flow_t * f)
  * plugin->u.item.s.file.write
  * access to data stored in tails goes directly through formatted nodes
  */
-int tail_write (struct inode * inode, coord_t * coord,
-		lock_handle * lh, flow_t * f, struct page * page UNUSED_ARG)
+int tail_write (struct inode * inode, lw_coord_t * lw_coord,
+		flow_t * f, struct page * page UNUSED_ARG)
 {
 	int result;
 	znode * loaded;
 	tail_write_todo what;
+	lock_handle lh;
 
 
-	/*
-	 * FIXME-VS: we can call item's write with not loaded znode
-	 */
-	assert ("vs-859", znode_is_loaded (coord->node));
+	init_lh (&lh);
+	result = seal_validate (lw_coord->seal, lw_coord->coord, &f->key,
+				znode_get_level (lw_coord->coord->node),
+				&lh, FIND_MAX_NOT_MORE_THAN,
+				ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+	if (result) {
+		reiser4_stat_extent_add (broken_seals);
+		lw_coord->coord->node = 0;
+		return -EAGAIN;
+	}
 
-	result = 0;
-
-	while (f->length) {
+	while (f->length && !result) {
 		/*
 		 * coord->node may change as we loop here. So, we have to
 		 * remember node we zload and zrelse it
 		 */
-		loaded = coord->node;
-		result = zload (coord->node);
+		loaded = lw_coord->coord->node;
+		result = zload (lw_coord->coord->node);
 		if (result)
 			return result;
-		what = tail_what_todo (inode, coord, &f->key);
+		what = tail_what_todo (inode, lw_coord->coord, &f->key);
 
 		switch (what) {
 		case TAIL_WRITE_FLOW:
@@ -514,13 +519,13 @@ int tail_write (struct inode * inode, coord_t * coord,
 				result = -EDQUOT;
 				break;
 			}
-			result = insert_flow (coord, lh, f);
+			result = insert_flow (lw_coord->coord, &lh, f);
 			if (f->length)
 				DQUOT_FREE_SPACE_NODIRTY (inode, f->length);
 			break;
 
 		case TAIL_OVERWRITE:
-			result = overwrite_tail (coord, f);
+			result = overwrite_tail (lw_coord->coord, f);
 			break;
 
 		case TAIL_RESEARCH:
@@ -535,14 +540,10 @@ int tail_write (struct inode * inode, coord_t * coord,
 			break;
 		}
 		zrelse (loaded);
-		if (result < 0)
-			/*
-			 * error occured or research is required
-			 */
-			return result;
 	}
 
-	return 0;
+	done_lh (&lh);
+	return result;
 }
 
 
