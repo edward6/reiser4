@@ -977,8 +977,8 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 			.init    = noparse,
 			.parse   = noparse,
 			.remove  = noparse,
-			.mapping = NULL,
-			.index   = NULL
+			.mapping = znode_mapping,
+			.index   = znode_index
 		}
 	}
 };
