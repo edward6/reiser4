@@ -255,7 +255,7 @@ __u8 inode_cluster_shift (struct inode * inode)
 }
 
 /* returns number of pages in the cluster */
-static inline int inode_cluster_pages (struct inode * inode)
+int inode_cluster_pages (struct inode * inode)
 {
 	return (1 << inode_cluster_shift(inode));
 }
@@ -1093,12 +1093,12 @@ __reserve4cluster(struct inode * inode, reiser4_cluster_t * clust)
 	}
 	result = reiser4_grab_space_force(
 		/* estimate_insert_flow(current_tree->height) + estimate_one_insert_into_item(current_tree) */
-		inode_cluster_pages(inode) << 1, 0);
+		estimate_insert_cluster(inode), 0);
 	if (result)
 		return result;
 	JF_SET(j, JNODE_CREATED);
 	
-	grabbed2cluster_reserved(inode_cluster_pages(inode) << 1);
+	grabbed2cluster_reserved(estimate_insert_cluster(inode));
 
 	UNLOCK_JNODE(j);
 	return 0;
@@ -1122,7 +1122,7 @@ free_reserved4cluster(struct inode * inode, reiser4_cluster_t * clust)
 	assert("edward-443", jnode_is_cluster_page(j));
 	assert("edward-444", JF_ISSET(j, JNODE_CREATED));
 
-	cluster_reserved2free(inode_cluster_pages(inode) << 1);
+	cluster_reserved2free(estimate_insert_cluster(inode));
 	JF_CLR(j, JNODE_CREATED);
 	UNLOCK_JNODE(j);
 }
@@ -1173,7 +1173,7 @@ flush_cluster_pages(reiser4_cluster_t * clust, struct inode * inode)
 	if (!clust->buf)
 		return -ENOMEM;
 
-	cluster_reserved2grabbed(inode_cluster_pages(inode) << 1);
+	cluster_reserved2grabbed(estimate_insert_cluster(inode));
 	
 	for(i=0; i < clust->nr_pages; i++){
 		char * data;
@@ -1189,6 +1189,7 @@ flush_cluster_pages(reiser4_cluster_t * clust, struct inode * inode)
 		kunmap(page);
 		uncapture_page(page);
 		unlock_page(page);
+		page_cache_release(page);
 	}
 	return 0;
 }
@@ -1255,13 +1256,6 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
 	return 0;
 }
 
-/* returnes max number of nodes can be occupied by disk cluster */
-reiser4_block_nr
-estimate_disk_cluster(struct inode * inode)
-{
-	return 2 + inode_cluster_pages(inode);
-}
-
 /*
   This is the main disk search procedure for cryptcompress plugins, which
   . finds all items of a disk cluster,
@@ -1282,6 +1276,9 @@ find_cluster(reiser4_cluster_t * clust,
 	ra_info_t ra_info;
 	file_plugin * fplug;
 	item_plugin * iplug;
+	static int cnt = 0;
+
+	cnt ++;
 
 	assert("edward-225", read || write);
 	assert("edward-226", schedulable());
@@ -1935,20 +1932,23 @@ truncate_cryptcompress(struct inode *inode, loff_t new_size)
 	return 0;
 }
 
+#if 0
 static int
-cryptcompress_writepage(struct page * page)
+cryptcompress_writepage(struct page * page, reiser4_cluster_t * clust)
 {
-	int result;
+	int result = 0;
 	int nrpages;
 	struct inode * inode;
-	reiser4_cluster_t clust;
 	
 	assert("edward-423", page->mapping && page->mapping->host);
 
 	inode = page->mapping->host;
 	reiser4_cluster_init(&clust);
-	
-	/* read all cluster pages if necessary */
+
+        /* read all cluster pages if necessary */
+	clust.pages = reiser4_kmalloc(sizeof(*clust.pages) << inode_cluster_shift(inode), GFP_KERNEL);
+	if (!pages)
+		return -ENOMEM;
 	clust.index = pg_to_clust(page->index, inode);
 	clust.off = pg_to_off_to_cloff(page->index, inode);
 	clust.count = PAGE_CACHE_SIZE;
@@ -1956,29 +1956,91 @@ cryptcompress_writepage(struct page * page)
 	
 	result = prepare_cluster(page->mapping->host, 0, 0, &nrpages, &clust, "cryptcompress_writepage");  /* jp+ */
 	if(result)
-		return result;
+		goto exit;
 	
 	set_cluster_pages_dirty(&clust, NULL);                                  /* p- */
 	result = try_capture_cluster(&clust, NULL);
 	if (result) {
 		free_reserved4cluster(inode, &clust);
 		put_cluster_jnodes(&clust);                                     /* j- */
-		return result;
+		goto exit;
 	}
 	lock_page(page);
 	make_cluster_jnodes_dirty(&clust, NULL);
 	put_cluster_jnodes(&clust);                                             /* j- */
-	return 0;	
+ exit:
+	reiser4_kfree(clust.pages, sizeof(*clust.pages) << inode_cluster_shift(inode));
+	return result;	
 }
 
+/* make sure for each page the whole cluster was captured */
+static int
+writepages_cryptcompress(struct address_space * mapping)
+{
+	struct list_head *mpages;
+	int result;
+	int nr;
+	int nrpages;
+	int captured = 0, clean = 0, writeback = 0;
+	reiser4_cluster_t * clust;
+
+	reiser4_cluster_init(clust);
+	result = 0;
+	nr = 0;
+
+	spin_lock (&mapping->page_lock);
+
+	mpages = get_moved_pages(mapping);
+	while ((result == 0 || result == 1) && !list_empty (mpages) && nr < CAPTURE_APAGE_BURST) {
+		struct page *pg = list_to_page(mpages);
+
+		assert("edward-xxx", PageDirty(pg));
+
+		if (!clust->nr_pages || !page_of_cluster(pg, &clust, inode)) {
+			/* update cluster handle */
+			clust.index = pg_to_clust(pg->index, inode);
+			clust.off = pg_to_off_to_cloff(pg->index, inode);
+			clust.count = PAGE_CACHE_SIZE;
+			/* advice number of pages */ 
+			nrpages = count_to_nrpages(fsize_to_count(&clust, inode));	
+			
+			result = prepare_cluster(mapping->host, 0, 0, &nrpages, &clust, 
+		}
+		result = capture_anonymous_page(pg, 0);
+		if (result == 1) {
+			++ nr;
+			result = 0;
+		}
+	}
+	spin_unlock(&mapping->page_lock);
+
+	if (result) {
+		warning("vs-1454", "Cannot capture anon pages: %i (%d %d %d)\n", result, captured, clean, writeback);
+		return result;
+	}
+
+
+	if (nr >= CAPTURE_APAGE_BURST)
+		redirty_inode(mapping->host);
+
+	if (result == 0)
+		result = capture_anonymous_jnodes(mapping->host);
+	
+	if (result != 0)
+		warning("nikita-3328", "Cannot capture anon pages: %i\n", result);
+	return result;
+}
+
+#endif
+	
 /* plugin->u.file.capture
    FIXME: capture method of file plugin is called by reiser4_writepages. It has to capture all
    anonymous pages and jnodes of the mapping. See capture_unix_file, for example
  */
 int
-capture_cryptcompress(struct inode *inode, struct writeback_control *wbc/*struct page *page*/)
+capture_cryptcompress(struct inode *inode, struct writeback_control *wbc)
 {
-	return 0;
+
 #if 0
 	int result;
 	struct inode *inode;
@@ -2001,7 +2063,31 @@ capture_cryptcompress(struct inode *inode, struct writeback_control *wbc/*struct
 	result = cryptcompress_writepage(page);
 	assert("edward-428", PageLocked(page));
 	return result;
+
+	int result;
+	reiser4_context ctx;
+
+	if (!inode_has_anonymous_pages(inode))
+		return 0;
+	
+	init_context(&ctx, inode->i_sb);
+	
+	ctx.nobalance = 1;
+	assert("edward-xxx", lock_stack_isclean(get_current_lock_stack()));
+	
+	result = 0;
+
+	do {
+		result = writepages_cryptcompress(inode->i_mapping);
+		if (result != 0 || wbc->sync_mode != WB_SYNC_ALL)
+			break;
+		result = txnmgr_force_commit_all(inode->i_sb, 0);
+	} while (result == 0 && inode_has_anonymous_pages(inode));
+	
+	reiser4_exit_context(&ctx);
+	return result;
 #endif
+	return 0;
 }
 
 static inline void
