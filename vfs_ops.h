@@ -112,12 +112,6 @@ extern void reiser4_free_file_fsdata(struct file *f);
 extern void reiser4_handle_error(void);
 extern int reiser4_parse_options (struct super_block *, char *);
 
-#if REISER4_DEBUG
-extern void finish_rcu(reiser4_super_info_data *sbinfo);
-#else
-#define finish_rcu(sbinfo) noop
-#endif
-
 /* __FS_REISER4_VFS_OPS_H__ */
 #endif
 

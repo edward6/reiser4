@@ -338,39 +338,13 @@ struct reiser4_super_info_data {
 	 * are kept on a list anchored at sbinfo->all_jnodes. This list is
 	 * protected by sbinfo->all_guard spin lock. This lock should be taken
 	 * with _irq modifier, because it is also modified from interrupt
-	 * contexts (by RCU ).
+	 * contexts (by RCU).
 	 */
 
 	spinlock_t all_guard;
 	/* list of all jnodes */
 	struct list_head all_jnodes;
 
-	/*
-	 * RCU is used to handle jnode deallocation. This interferes in
-	 * certain ways with ->all_jnodes list above. Specifically, jnode is
-	 * removed from ->all_jnodes list in jnode_free_actor()->jnode_done()
-	 * which is called by RCU. This means that during umount, super block
-	 * (containing ->all_jnodes anchor) cannot be freed until all RCU
-	 * call-backs for jnodes have ran to completion. To wait for this
-	 * event, ->rcu_done condition and ->jnodes_in_flight counter variable
-	 * are used:
-	 *
-	 *     . ->jnodes_in_flight is increased in jnode_free() before
-	 *     posting RCU call-back through call_rcu().
-	 *
-	 *     . it is decreased by jnode_done() after jnode is removed from
-	 *     ->all_jnodes.
-	 *
-	 *     . at this moment ->rcu_done is signaled.
-	 *
-	 *     . umount uses finish_rcu() that waits on ->rcu_done until
-	 *     ->jnodes_in_flight becomes 0, to wait for the moment when it is
-	 *     safe to free super block.
-	 *
-	 */
-
-	kcond_t rcu_done;
-	atomic_t jnodes_in_flight;
 #endif
 	struct repacker * repacker;
 	struct page * status_page;

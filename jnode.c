@@ -286,7 +286,7 @@ jnode_init(jnode * node, reiser4_tree * tree, jnode_type type)
 
 #if REISER4_DEBUG
 /*
- * Remove jnode from ->all_jnodes list. See comment for this field in super.h
+ * Remove jnode from ->all_jnodes list.
  */
 void
 jnode_done(jnode * node, reiser4_tree * tree)
@@ -298,9 +298,6 @@ jnode_done(jnode * node, reiser4_tree * tree)
 	spin_lock_irq(&sbinfo->all_guard);
 	assert("nikita-2422", !list_empty(&node->jnodes));
 	list_del_init(&node->jnodes);
-	assert("nikita-3218", atomic_read(&sbinfo->jnodes_in_flight) > 0);
-	atomic_dec(&sbinfo->jnodes_in_flight);
-	kcond_signal(&sbinfo->rcu_done);
 	spin_unlock_irq(&sbinfo->all_guard);
 }
 #endif
@@ -372,18 +369,9 @@ static inline void
 jnode_free(jnode * node, jnode_type jtype)
 {
 	if (jtype != JNODE_INODE) {
-#if REISER4_DEBUG
-		{
-			reiser4_super_info_data *sbinfo;
-
-			sbinfo = get_super_private(jnode_get_tree(node)->super);
-			atomic_inc(&sbinfo->jnodes_in_flight);
-		}
-#endif
 		assert("nikita-3219", list_empty(&node->rcu.list));
 		call_rcu(&node->rcu, jnode_free_actor, node);
-	}
-	else
+	} else
 		jnode_list_remove(node);
 }
 
