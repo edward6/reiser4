@@ -522,11 +522,14 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 {
 	reiser4_key from_key, to_key;
 	reiser4_key smallest_removed;
+	file_plugin * fplug = inode_file_plugin(inode);
 	int result;
-
-	assert("vs-1248", inode_file_plugin(inode)->key_by_inode == key_by_inode_unix_file ||
-	       inode_file_plugin(inode)->key_by_inode == key_by_inode_crytpcompress);
-	key_by_inode_unix_file(inode, new_size, &from_key);
+	
+	assert("vs-1248",
+	       fplug == file_plugin_by_id(UNIX_FILE_PLUGIN_ID) ||
+	       fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
+	
+	fplug->key_by_inode(inode, new_size, &from_key);
 	to_key = from_key;
 	set_key_offset(&to_key, cur_size - 1/*get_key_offset(max_key())*/);
 	/* this loop normally runs just once */
