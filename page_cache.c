@@ -444,8 +444,6 @@ static int formatted_fake_pressure_handler( struct page *page UNUSED_ARG,
 	return 0;
 }
 
-define_never_ever_op( sync_page );
-define_never_ever_op( writepages );
 define_never_ever_op( readpages );
 define_never_ever_op( prepare_write );
 define_never_ever_op( commit_write );
@@ -470,7 +468,7 @@ static struct address_space_operations formatted_fake_as_ops = {
 	 */
 	.sync_page      = NULL,
 	/* Write back some dirty pages from this mapping. Called from sync. */
-	.writepages     = V( never_ever_writepages ),
+	.writepages     = NULL,
 	/* Perform a writeback as a memory-freeing operation. */
 	.vm_writeback   = formatted_fake_pressure_handler,
 	/* Set a page dirty */
