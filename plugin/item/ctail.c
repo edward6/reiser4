@@ -365,8 +365,8 @@ kill_hook_ctail(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, c
 		item_key_by_coord(coord, &key);
 		
 		if (from == 0 && disk_cluster_key(&key, coord)) {
-			pgoff_t start = off_to_pg(get_key_offset(&key));
-			truncate_pages_cryptcompress(inode, start);
+			cloff_t start = off_to_clust(get_key_offset(&key), inode);
+			truncate_page_cluster(inode, start);
 		}
 	}
 	return 0;
@@ -1318,7 +1318,7 @@ detach_convert_idata(convert_info_t * sq)
 	       inode_get_flag(info->inode, REISER4_CLUSTER_KNOWN));
 	
 	/* the final release of pages */
-	forget_cluster_pages(&sq->clust);
+	forget_cluster_pages(sq->clust.pages, sq->clust.nr_pages);
 	free_item_convert_data(sq);
 	return;
 }
