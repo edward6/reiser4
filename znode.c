@@ -428,7 +428,7 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 
 	if (result != NULL) {
 		add_x_ref(ZJNODE(result));
-		result = JZNODE(jnode_rip_check(tree, ZJNODE(result)));
+		result = znode_rip_check(tree, result);
 	}
 	rcu_read_unlock();
 
@@ -508,7 +508,7 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 		   complicated.  */
 		assert("nikita-2131", 1 || znode_parent(result) == parent ||
 		       (ZF_ISSET(result, JNODE_ORPHAN) && (znode_parent(result) == NULL)));
-		result = JZNODE(jnode_rip_check(tree, ZJNODE(result)));
+		result = znode_rip_check(tree, result);
 	}
 
 	rcu_read_unlock();

@@ -320,6 +320,20 @@ znode_get_tree(const znode * node)
 	return jnode_get_tree(ZJNODE(node));
 }
 
+/* resolve race with zput */
+static inline znode *
+znode_rip_check(reiser4_tree *tree, znode * node)
+{
+	jnode *j;
+
+	j = jnode_rip_sync(tree, ZJNODE(node));
+	if (likely(j != NULL))
+		node = JZNODE(j);
+	else
+		node = NULL;
+	return node;
+}
+
 #if defined(REISER4_DEBUG) || defined(REISER4_DEBUG_MODIFY) || defined(REISER4_DEBUG_OUTPUT)
 int znode_is_loaded(const znode * node /* znode to query */ );
 #endif
