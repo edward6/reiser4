@@ -75,7 +75,7 @@ static struct file_system_type reiser4_fs_type;
 static int
 reiser4_statfs(struct super_block *super	/* super block of file
 						 * system in queried */ ,
-	       struct statfs *kstatfs	/* buffer to fill with
+	       struct kstatfs *statfs	/* buffer to fill with
 					 * statistics */ )
 {
 	long bfree;
