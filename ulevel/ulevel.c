@@ -4212,10 +4212,16 @@ static int bm_test_read_node (reiser4_tree * tree, jnode * node )
 
 	page_cache_release (page);
 
-	if (PageUptodate(page)) {
-		kmap (page);
-		return 0;
-	}
+	spin_lock_jnode (node);
+
+	kmap(page);
+
+	if( likely( !JF_ISSET( node, ZNODE_KMAPPED ) ) )
+		JF_SET( node, ZNODE_KMAPPED );
+	else
+		kunmap( page );
+
+	if (PageUptodate(page)) return 0;
 
 	xmemset (jdata(node), 0, tree->super->s_blocksize);
 
@@ -4239,7 +4245,6 @@ static int bm_test_read_node (reiser4_tree * tree, jnode * node )
 	}
 
 	SetPageUptodate(page);
-	kmap (page);
 
 	return 0;
 }
