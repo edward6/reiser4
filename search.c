@@ -1068,6 +1068,7 @@ check_dkeys(const znode *node)
 	RLOCK_DK(current_tree);
 	RLOCK_TREE(current_tree);
 
+	assert("vs-1710", znode_is_any_locked(node));
 	assert("vs-1197", !keygt(&node->ld_key, &node->rd_key));
 
 	left = node->left;
@@ -1075,13 +1076,17 @@ check_dkeys(const znode *node)
 
 	if (ZF_ISSET(node, JNODE_LEFT_CONNECTED) &&
 	    left != NULL && ZF_ISSET(left, JNODE_DKSET))
-		/* check left neighbor */
-		assert("vs-1198", keyeq(&left->rd_key, &node->ld_key));
+		/* check left neighbor. Note that left neighbor is not locked,
+		   so it might get wrong delimiting keys therefore */
+		assert("vs-1198", (keyeq(&left->rd_key, &node->ld_key) ||
+				   ZF_ISSET(left, JNODE_HEARD_BANSHEE)));
 
 	if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && right != NULL &&
 	    ZF_ISSET(right, JNODE_DKSET))
-		/* check right neighbor */
-		assert("vs-1199", keyeq(&node->rd_key, &right->ld_key));
+		/* check right neighbor. Note that right neighbor is not
+		   locked, so it might get wrong delimiting keys therefore  */
+		assert("vs-1199", (keyeq(&node->rd_key, &right->ld_key) ||
+				   ZF_ISSET(right, JNODE_HEARD_BANSHEE)));
 
 	RUNLOCK_TREE(current_tree);
 	RUNLOCK_DK(current_tree);
