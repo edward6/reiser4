@@ -48,7 +48,7 @@ long reiser4_statfs_type( const struct super_block *super UNUSED_ARG )
 }
 
 /** 
- * block size used by file system correspondnig to @super
+ * block size used by file system corresponding to @super
  */
 int  reiser4_blksize( const struct super_block *super )
 {
@@ -198,10 +198,7 @@ static __u64 reserved_for_root( const struct super_block *super UNUSE )
 }
 
 
-/**
- * put this into the super block
- *
- */
+
 int reiser4_init_tree( reiser4_tree *tree /* pointer to structure being
 					   * initialised */, 
 		       const reiser4_disk_addr *root_block /* address of a
