@@ -580,7 +580,6 @@ typedef struct reiser4_statistics {
 		stat_cnt find_next_item_via_seal;
 		stat_cnt find_next_item_via_right_neighbor;
 		stat_cnt find_next_item_via_cbk;
-
 	} file;
 	struct {
 		/* how many unformatted nodes were read */
@@ -600,25 +599,22 @@ typedef struct reiser4_statistics {
 		stat_cnt bdp_caused_repeats;
 	} extent;
 	struct {
-		/* how many nodes were squeezed */
-		stat_cnt squeeze;
-		/* how many times batches carry queue was flushed during
-		   squeezing */
-		stat_cnt flush_carry;
 		/* how many nodes were squeezed to left neighbor completely */
 		stat_cnt squeezed_completely;
 		/* how many times nodes with unallocated children are written */
 		stat_cnt flushed_with_unallocated;
-		/* how many times a znode is squeezed, counted only for the left node. */
-		stat_cnt flush_squeeze;
-		/* how many times a znode is allocated. */
-		stat_cnt flush_zalloc;
 		/* how many leaves were squeezed to left */
 		stat_cnt squeezed_leaves;
 		/* how many items were squeezed on leaf level */
 		stat_cnt squeezed_leaf_items;
 		/* how mnay bytes were squeezed on leaf level */
 		stat_cnt squeezed_leaf_bytes;
+		/* how many times jnode_flush was called */
+		stat_cnt flush;
+		/* how many nodes were scanned by flush_scan_left() */
+		stat_cnt flush_left;
+		/* how many nodes were scanned by flush_scan_right() */
+		stat_cnt flush_right;
 	} flush;
 	struct {
 		/* how many carry objects were allocated */
