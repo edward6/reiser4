@@ -29,6 +29,7 @@
 #include "../../vfs_ops.h"
 #include "../../inode.h"
 #include "../../super.h"
+#include "../object.h"
 
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct file  */
@@ -67,6 +68,32 @@ update_dir(struct inode *dir)
 	return reiser4_write_sd(dir);
 }
 
+static reiser4_block_nr common_estimate_link(
+	struct inode *parent /* parent directory */,
+	struct inode *object /* object to which new link is being cerated */) 
+{
+	reiser4_block_nr res = 0;
+	file_plugin *fplug; 
+	dir_plugin *dplug;
+
+	assert("vpf-317", object != NULL);
+	assert("vpf-318", parent != NULL );
+
+	fplug = inode_file_plugin(object);
+	dplug = inode_dir_plugin(parent);
+	
+	/* reiser4_add_nlink(object) */
+	res += fplug->estimate.update(object);
+	/* add_entry(parent) */
+	res += dplug->estimate.add_entry(parent);
+	/* reiser4_del_nlink(object) */
+	res += fplug->estimate.update(object);
+	/* update_dir(parent) */
+	res += inode_file_plugin(parent)->estimate.update(parent);
+
+	return res;
+}
+
 /** 
  * add link from @parent directory to @existing object.
  *
@@ -92,6 +119,7 @@ common_link(struct inode *parent /* parent directory */ ,
 	dir_plugin *parent_dplug;
 	reiser4_dir_entry_desc entry;
 	reiser4_object_create_data data;
+	reiser4_block_nr reserve;
 
 	assert("nikita-1431", existing != NULL);
 	assert("nikita-1432", parent != NULL);
@@ -122,6 +150,12 @@ common_link(struct inode *parent /* parent directory */ ,
 
 	data.mode = object->i_mode;
 	data.id = inode_file_plugin(object)->h.id;
+	if ((reserve = common_estimate_link(parent, existing->d_inode)) < 0)
+	    return reserve;
+
+	warning("vpf-323", "SPACE: link grabs %llu blocks.", reserve);	
+	if (reiser4_grab_space_exact(reserve, 0))
+	    return -ENOSPC;
 
 	result = reiser4_add_nlink(object, parent, 1);
 	if (result == 0) {
@@ -153,6 +187,30 @@ common_link(struct inode *parent /* parent directory */ ,
 	return result;
 }
 
+static reiser4_block_nr common_estimate_unlink (
+	struct inode *parent /* parent directory */,
+	struct inode *object /* object to which new link is being cerated */) 
+{
+	reiser4_block_nr res = 0;
+	file_plugin *fplug; 
+	dir_plugin *dplug;
+	
+	assert("vpf-317", object != NULL);
+	assert("vpf-318", parent != NULL );
+
+	fplug = inode_file_plugin(object);
+	dplug = inode_dir_plugin(parent);
+	
+	/* rem_entry(parent) */
+	res += dplug->estimate.rem_entry(parent);
+	/* reiser4_del_nlink(object) */
+	res += fplug->estimate.update(object);
+	/* update_dir(parent) */
+	res += inode_file_plugin(parent)->estimate.update(parent);
+
+	return res;
+}
+
 /** 
  * remove link from @parent directory to @victim object.
  *
@@ -172,6 +230,7 @@ common_unlink(struct inode *parent /* parent object */ ,
 	file_plugin *fplug;
 	dir_plugin *parent_dplug;
 	reiser4_dir_entry_desc entry;
+	reiser4_block_nr reserve;
 
 	assert("nikita-864", parent != NULL);
 	assert("nikita-865", victim != NULL);
@@ -180,7 +239,13 @@ common_unlink(struct inode *parent /* parent object */ ,
 	assert("nikita-1239", object != NULL);
 
 	fplug = inode_file_plugin(object);
+	if ((reserve = common_estimate_unlink(parent, victim->d_inode)) < 0)
+		return reserve;
 
+	if (reiser4_grab_space_exact(reserve, 0))
+		return -ENOSPC;
+	
+	warning("vpf-324", "SPACE: unlink grabs %llu blocks.", reserve);	
 	/* check for race with create_object() */
 	if (inode_get_flag(object, REISER4_IMMUTABLE))
 		return -EAGAIN;
@@ -271,6 +336,27 @@ common_unlink(struct inode *parent /* parent object */ ,
 	return result;
 }
 
+/* Estimate the maximum amount of nodes will be allocated or changed for:
+ * - insert an in the parent entry
+ * - update the SD of parent
+ * - estimate child creation
+ */
+static reiser4_block_nr common_estimate_create_dir( 
+	struct inode *parent, /* parent object */
+	struct inode *object /* object */)
+{
+	assert("vpf-309", parent != NULL);
+	assert("vpf-307", object != NULL);
+	
+	return (inode_file_plugin(object)->estimate.create(tree_by_inode(parent)->height, object) +
+	       	(inode_dir_plugin(object) ? 
+		    inode_dir_plugin(object)->estimate.init(parent, object) : 0) + 
+	       	inode_file_plugin(parent)->estimate.update(parent) + 
+		/* FIXME: call oid-alloc estimate */
+		inode_dir_plugin(parent)->estimate.add_entry(parent) + 
+		inode_dir_plugin(parent)->estimate.rem_entry(parent));
+}
+
 /**
  * Create child in directory.
  *
@@ -296,13 +382,13 @@ common_create_child(struct inode *parent /* parent object */ ,
 	dir_plugin *obj_dir;	/* directory plugin on the new object */
 	file_plugin *obj_plug;	/* object plugin on the new object */
 	struct inode *object;	/* new object */
+	reiser4_block_nr reserve;
 
 	reiser4_dir_entry_desc entry;	/* new directory entry */
 
 	assert("nikita-1418", parent != NULL);
 	assert("nikita-1419", dentry != NULL);
 	assert("nikita-1420", data != NULL);
-
 	par_dir = inode_dir_plugin(parent);
 	/* check permissions */
 	if (perm_chk(parent, create, parent, dentry, data)) {
@@ -375,7 +461,13 @@ common_create_child(struct inode *parent /* parent object */ ,
 		return -EPERM;
 
 	reiser4_inode_data(object)->locality_id = get_inode_oid(parent);
+	if ((reserve = common_estimate_create_dir(parent, object)) < 0)
+	    return reserve;
 
+	warning("vpf-325", "SPACE: create child grabs %llu blocks.", reserve);
+	if (reiser4_grab_space_exact(reserve, 0))
+	    return -ENOSPC;
+	
 	/*
 	 * mark inode `immutable'. We disable changes to the file being
 	 * created until valid directory entry for it is inserted. Otherwise,
@@ -467,6 +559,19 @@ common_create_child(struct inode *parent /* parent object */ ,
 	return result;
 }
 
+/*
+static common_esimate_create( 
+    struct inode *parent // parent object , 
+			      struct dentry *dentry // new name , 
+			      reiser4_object_create_data *data // parameters
+							//	* of new
+							//	* object ) 
+{
+	assert( "vpf-307", parent != NULL );
+	assert( "vpf-308", dentry != NULL );
+	assert( "vpf-309", data   != NULL );
+}
+*/
 /** ->is_name_acceptable() method of directory plugin */
 /* Audited by: green(2002.06.15) */
 int
@@ -972,6 +1077,18 @@ common_attach(struct inode *child, struct inode *parent)
 	       (info->parent == NULL) || (info->parent == parent));
 	info->parent = parent;
 	return 0;
+}
+
+static reiser4_block_nr common_estimate_add_entry(struct inode *inode)
+{
+	assert("vpf-316", inode != NULL);
+	
+	return estimate_internal_amount(1, tree_by_inode(inode)->height) + 1;
+}
+
+static reiser4_block_nr common_estimate_rem_entry(struct inode *inode) 
+{
+	return 2 /* SD bytes, current node */;
 }
 
 dir_plugin dir_plugins[LAST_DIR_ID] = {
