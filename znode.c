@@ -190,6 +190,8 @@ TS_HASH_DEFINE( z, znode, reiser4_block_nr, zjnode.blocknr, link, blknrhashfn, b
 /** slab for znodes */
 static kmem_cache_t *znode_slab;
 
+static void znode_remove( znode *node );
+
 /****************************************************************************************
 				   ZNODE INITIALIZATION
  ****************************************************************************************/
@@ -230,7 +232,35 @@ int znodes_tree_init( reiser4_tree *tree /* tree to initialise znodes for */ )
 /* Audited by: umka (2002.06.11) */
 void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 {
+	znode       **bucket;
+	znode        *item;
+	int           parents;
+
 	assert( "nikita-795", tree != NULL );
+
+	print_znodes( "umount", tree );
+
+	/* 
+	 * Remove all znodes.
+	 *
+	 * Stupid and slow, but simple algorithm. Umount is not time-critical
+	 * anyway.
+	 */
+	spin_lock_tree( tree );
+
+	do {
+		parents = 0;
+		for_all_ht_buckets( &tree -> hash_table, bucket ) {
+			for_all_in_bucket( bucket, item, link ) {
+				if( atomic_read( &item -> c_count ) == 0 )
+					znode_remove( item );
+				else
+					++ parents;
+			}
+		}
+	} while( parents > 0 );
+
+	spin_unlock_tree( tree );
 
 	z_hash_done( &tree -> hash_table );
 }
@@ -276,6 +306,39 @@ static void zinit( znode *node /* znode to initialise */,
 	spin_unlock_tree( current_tree );
 }
 
+/** remove znode from hash table */
+static void znode_remove( znode *node /* znode to remove */ )
+{
+	assert( "nikita-2108", node != NULL );
+
+	assert( "nikita-468", atomic_read( &node -> d_count ) == 0 );
+	assert( "nikita-469", atomic_read( &node -> x_count ) == 0 );
+	assert( "nikita-470", atomic_read( &node -> c_count ) == 0 );
+
+	/* remove reference to this znode from pbk cache */
+	cbk_cache_invalidate( node );
+	/* 
+	 * while we were taking lock on pbk cache to remove us from
+	 * there, some lucky parallel process could hit reference to
+	 * this znode from pbk cache. Check for this. 
+	 * 
+	 * Tree lock, shared by the hash table protects us from another
+	 * process taking reference to this node.
+	 */
+
+	if( znode_parent( node ) != NULL ) {
+		/* father, onto your hands I forward my spirit... */
+		atomic_dec( &znode_parent( node ) -> c_count );
+		assert( "nikita-472",
+			atomic_read( &znode_parent( node ) -> c_count ) >= 0 );
+	} else {
+		/* orphaned znode?! Root? */ 
+	}
+
+	/* remove znode from hash-table */
+	z_hash_remove( & current_tree -> hash_table, node );
+}
+
 /** zdestroy() -- Return a znode to the slab allocator.
  *
  * This is called from deallocate_znode() when last reference to the
@@ -298,33 +361,7 @@ void zdestroy( znode *node /* znode to finish with */ )
 		return;
 	}
 
-	assert( "nikita-468", atomic_read( &node -> d_count ) == 0 );
-	assert( "nikita-469", atomic_read( &node -> x_count ) == 0 );
-	assert( "nikita-470", atomic_read( &node -> c_count ) == 0 );
-
-	/* remove reference to this znode from pbk cache */
-	cbk_cache_invalidate( node );
-	/* 
-	 * while we were taking lock on pbk cache to remove us from
-	 * there, some lucky parallel process could hit reference to
-	 * this znode from pbk cache. Check for this. 
-	 * 
-	 * Tree lock, shared by the hash table protects us from another
-	 * process taking reference to this node.
-	 */
-
-	if( ( znode_parent( node ) != NULL ) && 
-	    !znode_above_root( znode_parent( node ) ) ) {
-		/* father, onto your hands I forward my spirit... */
-		atomic_dec( &znode_parent( node ) -> c_count );
-		assert( "nikita-472",
-			atomic_read( &znode_parent( node ) -> c_count ) >= 0 );
-	} else {
-		/* orphaned znode?! Root? */ 
-	}
-
-	/* remove znode from hash-table */
-	z_hash_remove( & tree -> hash_table, node );
+	znode_remove( node );
 	spin_unlock_tree( tree );
 
 	assert( "nikita-2057", tree -> ops -> delete_node != NULL );
