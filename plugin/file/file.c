@@ -25,32 +25,32 @@ unix_file_inode_data(const struct inode * inode)
 
 static int file_is_built_of_tails(const struct inode *inode)
 {
-	return unix_file_inode_data(inode)->state == UNIX_FILE_BUILT_OF_TAILS;
+	return unix_file_inode_data(inode)->container == UF_CONTAINER_TAILS;
 }
 
 int file_is_built_of_extents(const struct inode *inode)
 {
-	return unix_file_inode_data(inode)->state == UNIX_FILE_BUILT_OF_EXTENTS;
+	return unix_file_inode_data(inode)->container == UF_CONTAINER_EXTENTS;
 }
 
 int file_is_empty(const struct inode *inode)
 {
-	return unix_file_inode_data(inode)->state == UNIX_FILE_EMPTY;
+	return unix_file_inode_data(inode)->container == UF_CONTAINER_EMPTY;
 }
 
 void set_file_state_extents(struct inode *inode)
 {
-	unix_file_inode_data(inode)->state = UNIX_FILE_BUILT_OF_EXTENTS;
+	unix_file_inode_data(inode)->container = UF_CONTAINER_EXTENTS;
 }
 
 void set_file_state_tails(struct inode *inode)
 {
-	unix_file_inode_data(inode)->state = UNIX_FILE_BUILT_OF_TAILS;
+	unix_file_inode_data(inode)->container = UF_CONTAINER_TAILS;
 }
 
 static void set_file_state_empty(struct inode *inode)
 {
-	unix_file_inode_data(inode)->state = UNIX_FILE_EMPTY;
+	unix_file_inode_data(inode)->container = UF_CONTAINER_EMPTY;
 }
 
 static int
@@ -324,21 +324,21 @@ set_file_state(unix_file_info_t *uf_info, int cbk_result, tree_level level)
 
 	assert("vs-1164", level == LEAF_LEVEL || level == TWIG_LEVEL);
 
-	if (uf_info->state == UNIX_FILE_STATE_UNKNOWN) {
+	if (uf_info->container == UF_CONTAINER_UNKNOWN) {
 		if (cbk_result == CBK_COORD_NOTFOUND)
-			uf_info->state = UNIX_FILE_EMPTY;
+			uf_info->container = UF_CONTAINER_EMPTY;
 		else if (level == LEAF_LEVEL)
-			uf_info->state = UNIX_FILE_BUILT_OF_TAILS;
+			uf_info->container = UF_CONTAINER_TAILS;
 		else
-			uf_info->state = UNIX_FILE_BUILT_OF_EXTENTS;
+			uf_info->container = UF_CONTAINER_EXTENTS;
 	} else {
 		/* file state is know, check that it is set correctly */
 		assert("vs-1161", ergo(cbk_result == CBK_COORD_NOTFOUND,
-				       uf_info->state == UNIX_FILE_EMPTY));
+				       uf_info->container == UF_CONTAINER_EMPTY));
 		assert("vs-1162", ergo(level == LEAF_LEVEL && cbk_result == CBK_COORD_FOUND,
-				       uf_info->state == UNIX_FILE_BUILT_OF_TAILS));
+				       uf_info->container == UF_CONTAINER_TAILS));
 		assert("vs-1165", ergo(level == TWIG_LEVEL && cbk_result == CBK_COORD_FOUND,
-				       uf_info->state == UNIX_FILE_BUILT_OF_EXTENTS));
+				       uf_info->container == UF_CONTAINER_EXTENTS));
 	}
 }
 
@@ -1211,19 +1211,19 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 	ra_info.key_to_stop = f.key;
 	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));/*FIXME: ~0ull*/
 
-	switch(uf_info->state) {
-	case UNIX_FILE_BUILT_OF_EXTENTS:
+	switch(uf_info->container) {
+	case UF_CONTAINER_EXTENTS:
 		read_f = item_plugin_by_id(EXTENT_POINTER_ID)->s.file.read;
 		break;
-	case UNIX_FILE_BUILT_OF_TAILS:
+	case UF_CONTAINER_TAILS:
 		read_f = item_plugin_by_id(TAIL_ID)->s.file.read;
 		break;
-	case UNIX_FILE_STATE_UNKNOWN:
+	case UF_CONTAINER_UNKNOWN:
 		read_f = 0;
 		break;
 	default:
 		read_f = 0;
-		warning("vs-1297", "File (ino %llu) has unknown state: %d\n", get_inode_oid(inode), uf_info->state);
+		warning("vs-1297", "File (ino %llu) has unknown state: %d\n", get_inode_oid(inode), uf_info->container);
 		return -EIO;
 	}
 
@@ -1301,14 +1301,14 @@ typedef int (*write_f_t)(struct inode *, flow_t *, hint_t *, int grabbed, write_
    appropriate item to actually copy user data into filesystem. This loops
    until all the data from flow @f are written to a file. */
 static loff_t
-append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *f)
+append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *flow)
 {
 	int result;
 	lock_handle lh;
 	hint_t hint;
 	size_t to_write;
 	write_f_t write_f;
-	file_state_t cur_state, new_state;
+	file_container_t cur_container, new_container;
 	znode *loaded;
 
 	assert("nikita-3031", schedulable());
@@ -1320,11 +1320,11 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *f)
 	if (result)
 		return result;
 
-	to_write = f->length;
+	to_write = flow->length;
 
-	while (f->length) {
+	while (flow->length) {
 		assert("vs-1123", get_current_context()->grabbed_blocks == 0);
-		if (to_write == f->length) {
+		if (to_write == flow->length) {
 			/* it may happend that find_next_item will have to insert empty node to the tree (empty leaf
 			   node between two extent items) */
 			result = reiser4_grab_space_force(1 + estimate_one_insert_item(tree_by_inode(uf_info->inode)), 0,
@@ -1333,7 +1333,7 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *f)
 				return result;
 		}
 		/* look for file's metadata (extent or tail item) corresponding to position we write to */
-		result = find_file_item(&hint, &f->key, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/* ra_info */, uf_info);
+		result = find_file_item(&hint, &flow->key, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/* ra_info */, uf_info);
 		all_grabbed2free("append_and_or_overwrite after cbk");
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/* error occurred */
@@ -1341,26 +1341,26 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *f)
 			return result;
 		}
 		
-		cur_state = uf_info->state;
-		switch (cur_state) {
-		case UNIX_FILE_EMPTY:
-			assert("vs-1196", get_key_offset(&f->key) == 0);
-			if (should_have_notail(uf_info, get_key_offset(&f->key) + f->length)) {
-				new_state = UNIX_FILE_BUILT_OF_EXTENTS;
+		cur_container = uf_info->container;
+		switch (cur_container) {
+		case UF_CONTAINER_EMPTY:
+			assert("vs-1196", get_key_offset(&flow->key) == 0);
+			if (should_have_notail(uf_info, get_key_offset(&flow->key) + flow->length)) {
+				new_container = UF_CONTAINER_EXTENTS;
 				write_f = item_plugin_by_id(EXTENT_POINTER_ID)->s.file.write;
 			} else {
-				new_state = UNIX_FILE_BUILT_OF_TAILS;
+				new_container = UF_CONTAINER_TAILS;
 				write_f = item_plugin_by_id(TAIL_ID)->s.file.write;
 			}
 			break;
 
-		case UNIX_FILE_BUILT_OF_EXTENTS:
+		case UF_CONTAINER_EXTENTS:
 			write_f = item_plugin_by_id(EXTENT_POINTER_ID)->s.file.write;
-			new_state = cur_state;
+			new_container = cur_container;
 			break;
 
-		case UNIX_FILE_BUILT_OF_TAILS:
-			if (should_have_notail(uf_info, get_key_offset(&f->key) + f->length)) {
+		case UF_CONTAINER_TAILS:
+			if (should_have_notail(uf_info, get_key_offset(&flow->key) + flow->length)) {
 				longterm_unlock_znode(&lh);
 				result = tail2extent(uf_info);
 				if (result)
@@ -1369,7 +1369,7 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *f)
 				continue;
 			}
 			write_f = item_plugin_by_id(TAIL_ID)->s.file.write;
-			new_state = cur_state;
+			new_container = cur_container;
 			break;
 
 		default:			
@@ -1384,15 +1384,15 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *f)
 		}
 		loaded = lh.node;
 
-		result = write_f(uf_info->inode, f, &hint, 0/* not grabbed */, how_to_write(&hint.coord, &f->key));
+		result = write_f(uf_info->inode, flow, &hint, 0/* not grabbed */, how_to_write(&hint.coord, &flow->key));
 
 		assert("nikita-3142", get_current_context()->grabbed_blocks == 0);
-		if (cur_state == UNIX_FILE_EMPTY && to_write != f->length) {
+		if (cur_container == UF_CONTAINER_EMPTY && to_write != flow->length) {
 			/* file was empty and we have written something and we are having exclusive access to the file -
 			   change file state */
-			assert("vs-1195", (new_state == UNIX_FILE_BUILT_OF_TAILS ||
-					   new_state == UNIX_FILE_BUILT_OF_EXTENTS));
-			uf_info->state = new_state;
+			assert("vs-1195", (new_container == UF_CONTAINER_TAILS ||
+					   new_container == UF_CONTAINER_EXTENTS));
+			uf_info->container = new_container;
 		}
 		zrelse(loaded);
 		done_lh(&lh);
@@ -1405,70 +1405,73 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *f)
 	save_file_hint(file, &hint);
 
 	/* if nothing were written - there must be an error */
-	assert("vs-951", ergo((to_write == f->length), result < 0));
+	assert("vs-951", ergo((to_write == flow->length), result < 0));
 	assert("vs-1110", get_current_context()->grabbed_blocks == 0);
 
-	return (to_write - f->length) ? (to_write - f->length) : result;
+	return (to_write - flow->length) ? (to_write - flow->length) : result;
 }
 
 /* make flow and write data (@buf) to the file. If @buf == 0 - hole of size @count will be created. This is called with
-   either NEA or EA obtained */
+   uf_info->latch either read- or write-locked */
 static loff_t
 write_flow(struct file *file, unix_file_info_t *uf_info, const char *buf, size_t count, loff_t pos)
 {
 	int result;
-	flow_t f;
+	flow_t flow;
 
 	assert("vs-1251", inode_file_plugin(uf_info->inode)->flow_by_inode == flow_by_inode_unix_file);
 	
-	result = flow_by_inode_unix_file(uf_info->inode, (char *)buf, 1 /* user space */, count, pos, WRITE_OP, &f);
+	result = flow_by_inode_unix_file(uf_info->inode, (char *)buf, 1 /* user space */, count, pos, WRITE_OP, &flow);
 	if (result)
 		return result;
 
-	return append_and_or_overwrite(file, uf_info, &f);
+	return append_and_or_overwrite(file, uf_info, &flow);
 }
 
 static void
-get_access(unix_file_info_t *uf_info, int ea)
+drop_access(unix_file_info_t *uf_info)
 {
-	if (ea)
-		get_exclusive_access(uf_info);
-	else
-		get_nonexclusive_access(uf_info);
-}
-
-static void
-drop_access(unix_file_info_t *uf_info, int ea)
-{
-	if (ea)
+	if (uf_info->exclusive_use)
 		drop_exclusive_access(uf_info);
 	else
 		drop_nonexclusive_access(uf_info);
 }
 
-static ssize_t
-write_file(struct file * file, /* file to write to */
-	   struct inode *inode, /* inode */
-	   const char *buf, /* address of user-space buffer */
-	   size_t count, /* number of bytes to write */
-	   loff_t * off /* position to write which */)
+/* plugin->u.file.write */
+ssize_t
+write_unix_file(struct file *file, /* file to write to */
+		const char *buf, /* address of user-space buffer */
+		size_t count, /* number of bytes to write */
+		loff_t *off /* position to write which */)
 {
+	struct inode *inode;
 	int result;
 	ssize_t written;
 	loff_t pos;
-	int ea;
 	unix_file_info_t *uf_info;
+
+	inode = file->f_dentry->d_inode;
+
+	down(&inode->i_sem);
 
 	assert("nikita-3032", schedulable());
 
 	result = generic_write_checks(inode, file, off, &count, 0);
-	if (unlikely(result != 0))
+	if (unlikely(result != 0)) {
+		up(&inode->i_sem);
 		return result;
+	}
 
-	if (unlikely(count == 0))
+	if (unlikely(count == 0)) {
+		up(&inode->i_sem);
 		return 0;
+	}
 
-	/* We can write back this queue in page reclaim */
+	/* linux's VM requires this. See mm/vmscan.c:shrink_list() */
+/* setting this causes the following behavior.  If we request memory, and vmscan finds a dirty page from the same device
+ * we are writing to, and the device is congested, vmscan submits the page to this congested device, which causes the IO
+ * to block, which causes vmscan to block and perform slowly, which throttles this function. This is in addition to
+ * balance_dirty throttling.  I can't say we understand why it is needed.  -Hans */
 	current->backing_dev_info = inode->i_mapping->backing_dev_info;
 
 	/* UNIX behavior: clear suid bit on file modification */
@@ -1476,10 +1479,11 @@ write_file(struct file * file, /* file to write to */
 
 	assert("vs-855", count > 0);
 	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
-
-	ea = (inode->i_size == 0);
 	uf_info = unix_file_inode_data(inode);
-	get_access(uf_info, ea);
+	if (inode->i_size == 0)
+		get_exclusive_access(uf_info);
+	else
+		get_nonexclusive_access(uf_info);
 
 	/* estimation for write is entrusted to write item plugins */
 
@@ -1489,18 +1493,21 @@ write_file(struct file * file, /* file to write to */
 		/* pos is set past real end of file */
 		result = append_hole(uf_info, pos);
 		if (result) {
-			drop_access(uf_info, ea);
+			drop_access(uf_info);
 			current->backing_dev_info = 0;
+			up(&inode->i_sem);
 			return result;
 		}
 		assert("vs-1081", pos == inode->i_size);
 	}
 
 	/* write user data to the file */
-	written = write_flow(file, uf_info, (char *)buf, count, pos);
-	drop_access(uf_info, ea);
+	written = write_flow(file, uf_info, buf, count, pos);
+	drop_access(uf_info);
+	/* linux's VM requires this. See mm/vmscan.c:shrink_list() */
 	current->backing_dev_info = 0;
 
+	up(&inode->i_sem);
 	if (written < 0) {
 		if (written == -EEXIST)
 			printk("write_file returns EEXIST!\n");
@@ -1513,24 +1520,6 @@ write_file(struct file * file, /* file to write to */
 	return written;
 }
 
-/* plugin->u.file.write */
-ssize_t
-write_unix_file(struct file * file, /* file to write to */
-		const char *buf, /* address of user-space buffer */
-		size_t count, /* number of bytes to write */
-		loff_t * off /* position to write which */)
-{
-	ssize_t result;
-	struct inode *inode;
-
-	inode = file->f_dentry->d_inode;
-
-	down(&inode->i_sem);
-	result = write_file(file, inode, buf, count, off);
-	up(&inode->i_sem);
-	return result;
-}
-
 /* plugin->u.file.release
    convert all extent items into tail items if necessary */
 int
@@ -1541,11 +1530,11 @@ release_unix_file(struct inode *inode, struct file *file)
 
 	uf_info = unix_file_inode_data(file->f_dentry->d_inode);
 
-	if (uf_info->state == UNIX_FILE_STATE_UNKNOWN)
+	if (uf_info->container == UF_CONTAINER_UNKNOWN)
 		return 0;
 
 	get_exclusive_access(uf_info);
-	if (uf_info->state == UNIX_FILE_BUILT_OF_EXTENTS && !should_have_notail(uf_info, uf_info->inode->i_size))
+	if (uf_info->container == UF_CONTAINER_EXTENTS && !should_have_notail(uf_info, uf_info->inode->i_size))
 		result = extent2tail(uf_info);
 	else
 		result = 0;
@@ -1593,14 +1582,14 @@ unpack(struct inode *inode, int forever)
 	
 	get_exclusive_access(uf_info);
 
-	if (uf_info->state == UNIX_FILE_STATE_UNKNOWN) {
+	if (uf_info->container == UF_CONTAINER_UNKNOWN) {
 		loff_t file_size;
 
 		result = find_file_size(inode, &file_size);
 	}
-	assert("vs-1074", ergo(result == 0, uf_info->state != UNIX_FILE_STATE_UNKNOWN));
+	assert("vs-1074", ergo(result == 0, uf_info->container != UF_CONTAINER_UNKNOWN));
 	if (result == 0) {
-		if (uf_info->state == UNIX_FILE_BUILT_OF_TAILS)
+		if (uf_info->container == UF_CONTAINER_TAILS)
 			result = tail2extent(uf_info);
 		if (result == 0 && forever)
 			set_file_notail(inode);
@@ -1700,25 +1689,27 @@ get_block_unix_file(struct inode *inode,
 	return result;
 }
 
-/* plugin->u.file.flow_by_inode */
+/* plugin->u.file.flow_by_inode 
+   initialize flow (key, length, buf, etc) */
 int
 flow_by_inode_unix_file(struct inode *inode /* file to build flow for */ ,
 			char *buf /* user level buffer */ ,
 			int user  /* 1 if @buf is of user space, 0 - if it is kernel space */ ,
 			size_t size /* buffer size */ ,
-			loff_t off /* offset to start io from */ ,
+			loff_t off /* offset to start operation(read/write) from */ ,
 			rw_op op /* READ or WRITE */ ,
-			flow_t * f /* resulting flow */ )
+			flow_t *flow /* resulting flow */ )
 {
 	assert("nikita-1100", inode != NULL);
 
-	f->length = size;
-	f->data = buf;
-	f->user = user;
-	f->op = op;
+	flow->length = size;
+	flow->data = buf;
+	flow->user = user;
+	flow->op = op;
 	assert("nikita-1931", inode_file_plugin(inode) != NULL);
 	assert("nikita-1932", inode_file_plugin(inode)->key_by_inode == key_by_inode_unix_file);
-	return key_by_inode_unix_file(inode, off, &f->key);
+	/* calculate key of write position and insert it into flow->key */
+	return key_by_inode_unix_file(inode, off, &flow->key);
 }
 
 /* plugin->u.file.key_by_inode */
@@ -1766,9 +1757,8 @@ delete_unix_file(struct inode *inode)
    this is common_file_owns_item with assertion */
 /* Audited by: green(2002.06.15) */
 int
-owns_item_unix_file(const struct inode *inode	/* object to check
-						 * against */ ,
-		    const coord_t * coord /* coord to check */ )
+owns_item_unix_file(const struct inode *inode	/* object to check against */ ,
+		    const coord_t *coord /* coord to check */ )
 {
 	int result;
 
@@ -1846,7 +1836,7 @@ readpages_unix_file(struct file *file, struct address_space *mapping,
 	reiser4_file_fsdata *fsdata;
 	item_plugin *iplug;
 
-	assert("vs-1282", unix_file_inode_data(mapping->host)->state == UNIX_FILE_BUILT_OF_EXTENTS);
+	assert("vs-1282", unix_file_inode_data(mapping->host)->container == UF_CONTAINER_EXTENTS);
 
 	fsdata = reiser4_get_file_fsdata(file);
 	iplug = item_plugin_by_id(EXTENT_POINTER_ID);
@@ -1862,7 +1852,7 @@ init_inode_data_unix_file(struct inode *inode,
 	unix_file_info_t *data;
 
 	data = unix_file_inode_data(inode);
-	data->state = create ? UNIX_FILE_EMPTY : UNIX_FILE_STATE_UNKNOWN;
+	data->container = create ? UF_CONTAINER_EMPTY : UF_CONTAINER_UNKNOWN;
 	rw_latch_init(&data->latch);
 	data->tplug = inode_tail_plugin(inode);
 	data->inode = inode;
