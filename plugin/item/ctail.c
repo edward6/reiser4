@@ -837,7 +837,7 @@ int
 squeeze_ctail(flush_pos_t * pos)
 {
 	int result;
-	ctail_squeeze_info_t * info;
+	ctail_squeeze_info_t * info = NULL;
 	crc_write_mode_t mode = CRC_OVERWRITE_ITEM;
 	
 	assert("edward-261", pos != NULL);
