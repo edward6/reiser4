@@ -481,10 +481,10 @@ int extent_create_hook (const tree_coord * coord, void * arg)
 	/* break sibling links */
 	spin_lock_tree (current_tree);
 	if (ZF_ISSET (node, ZNODE_RIGHT_CONNECTED) && node->right) {
-		ZF_CLR (node->right, ZNODE_LEFT_CONNECTED);
-		node->right->left = 0;
-		ZF_CLR (node, ZNODE_RIGHT_CONNECTED);
-		node->right = 0;
+		/*ZF_CLR (node->right, ZNODE_LEFT_CONNECTED);*/
+		node->right->left = NULL;
+		/*ZF_CLR (node, ZNODE_RIGHT_CONNECTED);*/
+		node->right = NULL;
 	}
 	spin_unlock_tree (current_tree);
 	return 0;
@@ -1128,31 +1128,28 @@ static reiser4_block_nr blocknr_by_coord_in_extent (tree_coord * coord,
 /**
  * Return the inode and its key.
  */
-int extent_get_inode_and_key (const tree_coord *item, struct inode **inode, reiser4_key *key)
+void extent_get_inode_and_key (const tree_coord *item, struct inode **inode, reiser4_key *key)
 {
+	unsigned long ino;
+
 	item_key_by_coord (item, key);
 
-	/* FIXME: Probably not quite right. */
 	set_key_type (key, KEY_SD_MINOR);
 	set_key_offset (key, 0ull);
-	(*inode) = reiser4_iget (reiser4_get_current_sb (), key);
 
-	if (*inode == NULL) {
-		/* Inode must be in memory.  FIXME: why? */
-		return -EIO;
-	}
+	ino = get_key_objectid (key);
 
-	return 0;
+	(*inode) = find_inode (reiser4_get_current_sb (), ino, reiser4_inode_find_actor, key);
 }
 
 /**
  * Return the inode.
  */
-int extent_get_inode (const tree_coord *item, struct inode **inode)
+void extent_get_inode (const tree_coord *item, struct inode **inode)
 {
 	reiser4_key key;
 
-	return extent_get_inode_and_key (item, inode, & key);
+	extent_get_inode_and_key (item, inode, & key);
 }
 
 /**
@@ -1206,25 +1203,24 @@ int extent_utmost_child ( const tree_coord *coord, sideof side, jnode **childp )
 		struct inode * inode;
 		struct page * pg;
 
-		item_key_by_coord (coord, &key);
+		extent_get_inode_and_key (coord, & inode, & key);
 
-		/* FIXME: Probably not quite right. */
-		set_key_type (&key, KEY_SD_MINOR);
-		set_key_offset (&key, 0ull);
-		inode = reiser4_iget (reiser4_get_current_sb (), &key);
-		if (!inode) {
-			/* inode must be in memory */
-			return -EIO;
+		if (inode == NULL) {
+			assert ("jmacd-1231", state_of_extent (ext) != UNALLOCATED_EXTENT);
+			*childp = NULL;
+			return 0;
 		}
 
-		offset   = get_key_offset (&key) +
-			pos_in_unit * reiser4_get_current_sb ()->s_blocksize;
+		offset = get_key_offset (&key) + pos_in_unit * reiser4_get_current_sb ()->s_blocksize;
+
 		assert ("vs-544", offset >> PAGE_CACHE_SHIFT < ~0ul);
+
 		pg = find_get_page (inode->i_mapping, (unsigned long)(offset >> PAGE_CACHE_SHIFT));
 
-		if (pg == NULL || IS_ERR (pg)) {
+		if (pg == NULL) {
+			*childp = NULL;
 			iput (inode);
-			return -EIO;
+			return 0;
 		}
 
 		*childp = jnode_of_page (pg);
@@ -1854,6 +1850,8 @@ int extent_write (struct inode * inode, tree_coord * coord,
 				page_cache_release (page);
 				return result;
 			}
+			/* FIXME: Is there a better place to dirty the page? */
+			jnode_set_dirty (jnode_of_page (page));
 
 			p_data = kmap (page);
 		} else {

@@ -348,10 +348,10 @@ int is_bad_inode( struct inode *inode UNUSED_ARG )
 }
 
 
-static struct inode * find_inode (struct super_block *super UNUSED_ARG,
-				  unsigned long ino, 
-				  int (*test)(struct inode *, void *), 
-				  void *data)
+struct inode * find_inode (struct super_block *super UNUSED_ARG,
+			   unsigned long ino, 
+			   int (*test)(struct inode *, void *), 
+			   void *data)
 {
 	struct list_head * cur;
 	struct inode * inode;
@@ -601,6 +601,7 @@ static struct page * new_page (struct address_space * mapping,
 
 	page->index = ind;
 	page->mapping = mapping;
+	page->private = 0;
 	page->count = 1;
 
 	page->virtual = kmalloc (PAGE_SIZE, 0);
@@ -631,6 +632,8 @@ void remove_inode_page (struct page * page)
 	assert ("vs-618", (page->count == 1 &&
 			   PageLocked (page)));
 	page->mapping = 0;
+
+	txn_delete_page (page);
 }
 
 
@@ -1340,17 +1343,23 @@ static int call_unlink( struct inode * dir, struct inode *victim,
 	struct dentry guillotine;
 	int result;
 
-	old_context = get_current_context();
-	SUSPEND_CONTEXT( old_context );
-
 	xmemset( &guillotine, 0, sizeof guillotine );
 	guillotine.d_inode = victim;
 	guillotine.d_name.name = name;
 	guillotine.d_name.len = strlen( name );
-	if( dir_p )
+	if( dir_p ) {
+		old_context = get_current_context();
+		SUSPEND_CONTEXT( old_context );
+
 		result = dir -> i_op -> rmdir( dir, &guillotine );
-	else
+	} else {
+		truncate_inode_pages (victim->i_mapping, 0ull);
+		
+		old_context = get_current_context();
+		SUSPEND_CONTEXT( old_context );
+
 		result = dir -> i_op -> unlink( dir, &guillotine );
+	}
 	init_context( old_context, dir -> i_sb );
 	return result;
 }
@@ -2970,8 +2979,10 @@ static int bash_mkfs (const char * file_name)
 			inode = call_lookup (fake_parent, "x");
 			if (!inode)
 				return 1;
-			call_write2 (inode, (loff_t)0, super.s_blocksize);
-			call_unlink (fake_parent, inode, "x", 0);
+			result = call_write2 (inode, (loff_t)0, super.s_blocksize);
+			assert ("jmacd-0000", (unsigned)result == super.s_blocksize);
+			result = call_unlink (fake_parent, inode, "x", 0);
+			assert ("jmacd-0001", result == 0);
 			inode->i_state &= ~I_DIRTY;
 			iput (inode);
 
@@ -4373,3 +4384,4 @@ void funJustAfterMain()
  * fill-column: 120
  * End:
  */
+
