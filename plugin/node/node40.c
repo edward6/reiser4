@@ -449,14 +449,17 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	assert("nikita-3214",
 	       equi(found, keyeq(&node40_ih_at(node, left)->key, key)));
 
-	if (REISER4_STATS) {
-		ADDSTAT(node, found, !!found);
-		ADDSTAT(node, pos, left);
-		if (items > 1)
-			ADDSTAT(node, posrelative, (left << 10) / (items - 1));
-		else
-			ADDSTAT(node, posrelative, 1 << 10);
-	}
+#if REISER4_STATS
+	ADDSTAT(node, found, !!found);
+	ADDSTAT(node, pos, left);
+	if (items > 1)
+		ADDSTAT(node, posrelative, (left << 10) / (items - 1));
+	else
+		ADDSTAT(node, posrelative, 1 << 10);
+	if (left == node->last_lookup_pos)
+		INCSTAT(node, samepos);
+	node->last_lookup_pos = left;
+#endif
 
 	coord_set_item_pos(coord, left);
 	coord->unit_pos = 0;

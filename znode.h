@@ -139,9 +139,12 @@ struct znode {
 	spinlock_t cksum_guard;
 #endif
 
-#ifdef REISER4_DEBUG
+#if REISER4_DEBUG
 	void *creator;
 	reiser4_key first_key;
+#endif
+#if REISER4_STATS
+	int last_lookup_pos;
 #endif
 };
 
