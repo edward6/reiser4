@@ -718,6 +718,7 @@ znode *child_znode( const tree_coord *parent_coord, int setup_dkeys_p )
 {
 	znode *child;
 	znode *parent;
+	item_plugin *iplug;
 
 	assert( "nikita-1374", parent_coord != NULL );
 	assert( "nikita-1482", parent_coord -> node != NULL );
@@ -732,11 +733,12 @@ znode *child_znode( const tree_coord *parent_coord, int setup_dkeys_p )
 		print_znode( "node", parent );
 		return ERR_PTR( -EIO );
 	}
-	if( item_type_by_coord( parent_coord ) == INTERNAL_ITEM_TYPE ) {
+	iplug = item_plugin_by_coord( parent_coord );
+	if( iplug -> item_type == INTERNAL_ITEM_TYPE ) {
 		reiser4_disk_addr addr;
 
-		item_plugin_by_coord( parent_coord ) -> 
-			s.internal.down_link( parent_coord, NULL, &addr );
+		iplug -> s.internal.down_link( parent_coord, NULL, &addr );
+
 		spin_unlock_dk( current_tree );
 		child = zget( current_tree, &addr, parent, 
 			      znode_get_level( parent ) - 1, GFP_KERNEL );
