@@ -672,6 +672,7 @@ void grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count)
 	sub_from_ctx_grabbed (count);
 
 	/* add to atom if exists, otherwise to ctx. */
+	assert("vs-1095", atom);
 	if (atom) {
 	    atom->flush_reserved += count;
 	} else
