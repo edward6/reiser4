@@ -61,6 +61,18 @@ static struct kobj_type ktype_profregion = {
 static decl_subsys(profregion, &ktype_profregion);
 
 DEFINE_PER_CPU(struct profregionstack, inregion) = {0};
+struct profregion outside = {
+	.hits = 0,
+	.kobj = {
+		.name = "outside"
+	}
+};
+struct profregion incontext = {
+	.hits = 0,
+	.kobj = {
+		.name = "incontext"
+	}
+};
 
 extern struct profregion pregion_spin_jnode_held;
 extern struct profregion pregion_spin_jnode_trying;
@@ -72,7 +84,7 @@ static int callback(struct notifier_block *self, unsigned long val, void *p)
 
 	stack = &get_cpu_var(inregion);
 	ntop = atomic_read(&stack->top);
-	if (ntop != 0) {
+	if (unlikely(ntop != 0)) {
 		struct pregactivation *act;
 		struct profregion *preg;
 		int hits;
@@ -99,7 +111,10 @@ static int callback(struct notifier_block *self, unsigned long val, void *p)
 			preg->codehit = hits;
 			preg->code    = act->codeloc;
 		}
-	}
+	} else if (is_in_reiser4_context())
+		incontext.hits ++;
+	else
+		outside.hits ++;
 	put_cpu_var(inregion);
 	return 0;
 }
@@ -121,6 +136,14 @@ profregion_init(void)
 	if (result != 0)
 		return result;
 
+	result = profregion_register(&outside);
+	if (result != 0)
+		return result;
+
+	result = profregion_register(&incontext);
+	if (result != 0)
+		return result;
+
 	return register_profile_notifier(&profregionnotifier);
 }
 subsys_initcall(profregion_init);
@@ -128,6 +151,8 @@ subsys_initcall(profregion_init);
 static void __exit
 profregion_exit(void)
 {
+	profregion_unregister(&incontext);
+	profregion_unregister(&outside);
 	subsystem_unregister(&profregion_subsys);
 }
 __exitcall(profregion_exit);
