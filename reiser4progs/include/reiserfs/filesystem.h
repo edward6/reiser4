@@ -232,6 +232,8 @@ struct reiserfs_fs {
 typedef struct reiserfs_fs reiserfs_fs_t;
 
 /* Public functions */
+extern void reiserfs_init_item_info(reiserfs_item_info_t *item_info);
+
 extern reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, 
     aal_device_t *journal_device, int replay);
 
@@ -239,9 +241,14 @@ extern void reiserfs_fs_close(reiserfs_fs_t *fs);
 extern error_t reiserfs_fs_sync(reiserfs_fs_t *fs);
 	
 extern reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
-    reiserfs_plugin_id_t format_plugin_id, reiserfs_plugin_id_t node_plugin_id, 
+    reiserfs_plugin_id_t format_id, reiserfs_plugin_id_t node_id, 
     size_t blocksize, const char *uuid, const char *label, count_t len, 
     aal_device_t *journal_device, reiserfs_params_opaque_t *journal_params);
+
+extern reiserfs_fs_t *reiserfs_fs_create_2(aal_device_t *host_device, 
+    reiserfs_default_plugin_t *default_plugins, size_t blocksize, const char *uuid, 
+    const char *label, count_t len, aal_device_t *journal_device, 
+    reiserfs_params_opaque_t *journal_params);
 
 extern const char *reiserfs_fs_format(reiserfs_fs_t *fs);
 extern uint16_t reiserfs_fs_blocksize(reiserfs_fs_t *fs);
