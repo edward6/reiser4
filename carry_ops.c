@@ -1759,8 +1759,13 @@ static int update_delimiting_key( znode *parent /* node key is updated
 
 	info.doing  = doing;
 	info.todo   = todo;
-	node_plugin_by_node( parent ) -> update_item_key
-		( &right_pos, leftmost_key_in_node( right, &ldkey ), &info );
+	if( !ZF_ISSET( right, JNODE_HEARD_BANSHEE ) )
+		leftmost_key_in_node( right, &ldkey );
+	else
+		UNDER_SPIN_VOID( dk, current_tree,
+				 ldkey = *znode_get_rd_key( right ) );
+	node_plugin_by_node( parent ) -> update_item_key( &right_pos, 
+							  &ldkey, &info );
 	doing -> restartable = 0;
 	znode_set_dirty( parent );
 	return 0;
@@ -1775,7 +1780,7 @@ static int update_delimiting_key( znode *parent /* node key is updated
  */
 static int carry_update( carry_op *op /* operation to be performed */, 
 			 carry_level *doing /* current carry level */, 
-			 carry_level *todo /* next curry level */ )
+			 carry_level *todo /* next carry level */ )
 {
 	int         result;
 	carry_node *missing UNUSED_ARG;
