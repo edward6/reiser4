@@ -17,6 +17,7 @@
 #include "../reiser4.h"
 
 /** Never store file's tail as direct item */
+/* Audited by: green(2002.06.12) */
 static int never_tail( const struct inode *inode UNUSED_ARG /* inode to
 							     * operate on */, 
 		       loff_t size UNUSED_ARG /* new object size */ )
@@ -25,6 +26,7 @@ static int never_tail( const struct inode *inode UNUSED_ARG /* inode to
 }
 
 /** Always store file's tail as direct item */
+/* Audited by: green(2002.06.12) */
 static int always_tail( const struct inode *inode UNUSED_ARG /* inode to
 							      * operate on */,
 			loff_t size UNUSED_ARG /* new object size */ )
@@ -33,6 +35,9 @@ static int always_tail( const struct inode *inode UNUSED_ARG /* inode to
 }
 
 /** store tails only Always store file's tail as direct item */
+/* Audited by: green(2002.06.12) */
+/* AUDIT: above comment is incorerct and unclean. Also PAGE_SIZE is not correct
+   thing to test against. It should become fs_blocksize instead */
 static int test_tail( const struct inode *inode UNUSED_ARG /* inode to operate
 							    * on */,
 		      loff_t size /* new object size */ )
