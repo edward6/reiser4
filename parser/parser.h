@@ -138,22 +138,17 @@ struct tube {
 	loff_t readoff;      /* reading offset   */
 	loff_t writeoff;     /* writing offset   */
 
- 	sourece_stack_t * last;
-	sourece_stack_t * next;
-	sourece_stack_t * st_current;
+ 	sourece_stack_t * last;        /* work. for special case to push list of expressions */
+	sourece_stack_t * next;        /* work. for special case to push list of expressions */
+	sourece_stack_t * st_current;  /* stack of source expressions */
 
-//	expr_v4_t * source;
-//	sourece_stack_t * st_bottom;
-//	struct file *src;
-
-/* offset might actually point to sink */
-//	pars_var_t * sink;
-
-	struct file *dst;
-
-/* 	pos_t pos; */
+	struct file *dst;    /* target file      */
 };
 
+struct assing_result {
+	loff_t len ;
+	int return_code ;
+};
 
 struct wrd {
 	wrd_t * next ;                /* next word                   */
