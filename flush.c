@@ -1290,21 +1290,8 @@ static int alloc_one_ancestor(const coord_t * coord, flush_pos_t * pos)
 
 	/* If the ancestor is clean or already allocated, or if the child is not a
 	   leftmost child, stop going up, even leaving coord->node not flushprepped. */
-	if (znode_check_flushprepped(coord->node)
-	    || !coord_is_leftmost_unit(coord)) {
-		if (pos->preceder.blk == 0) {
-			if (!blocknr_is_fake(znode_get_block(coord->node))) {
-				pos->preceder.blk = *znode_get_block(coord->node);
-			} else {
-				/* write optimized value of search start is better then
-				 * nothing */
-				get_blocknr_hint_default(&pos->preceder.blk);
-				reiser4_stat_inc(block_alloc.nohint);
-			}
-			check_preceder(pos->preceder.blk);
-		}
+	if (znode_check_flushprepped(coord->node)|| !coord_is_leftmost_unit(coord))
 		return 0;
-	}
 
 	init_lh(&alock);
 	init_load_count(&aload);
@@ -1314,7 +1301,8 @@ static int alloc_one_ancestor(const coord_t * coord, flush_pos_t * pos)
 	   parent in case we will relocate the child. */
 	if (!znode_is_root(coord->node)) {
 
-		ret = jnode_lock_parent_coord(ZJNODE(coord->node), &acoord, &alock, &aload, ZNODE_WRITE_LOCK, 0);
+		ret = jnode_lock_parent_coord(
+			ZJNODE(coord->node), &acoord, &alock, &aload, ZNODE_WRITE_LOCK, 0);
 		if (ret != 0) {
 			/* FIXME(C): check EINVAL, E_DEADLOCK */
 			goto exit;
@@ -2508,17 +2496,24 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 	assert("jmacd-7989", coord_is_invalid(parent_coord)
 	       || znode_is_write_locked(parent_coord->node));
 
-	if (ZF_ISSET(node, JNODE_REPACK) || znode_created(node) || znode_is_root(node)) {
+	if (ZF_ISSET(node, JNODE_REPACK) || znode_created(node) || znode_is_root(node) ||
+	    /* We have enough nodes to relocate no matter what. */
+	    pos->leaf_relocate != 0 && znode_get_level(node) == LEAF_LEVEL ) 
+	{
 		/* No need to decide with new nodes, they are treated the same as
 		   relocate. If the root node is dirty, relocate. */
+		if (pos->preceder.blk == 0) {
+			/* preceder is unknown and we have decided to relocate node --
+			   using of default value for search start is better than search
+			   from block #0. */
+			get_blocknr_hint_default(&pos->preceder.blk);
+			reiser4_stat_inc(block_alloc.nohint);
+			check_preceder(pos->preceder.blk);
+		}
+
 		goto best_reloc;
 
-	} else if (pos->leaf_relocate != 0 && znode_get_level(node) == LEAF_LEVEL) {
-
-		/* We have enough nodes to relocate no matter what. */
-		goto best_reloc;
 	} else if (pos->preceder.blk == 0) {
-
 		/* If we don't know the preceder, leave it where it is. */
 		jnode_make_wander(ZJNODE(node));
 	} else {
