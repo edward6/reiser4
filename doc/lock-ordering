@@ -246,14 +246,14 @@ i_sem
 ..................dk_lock
 ..............................tree_lock
 ................................cbk_guard
-..................mm->page_table_lock
-....................mapping->private_lock
-......................swaplock
-........................swap_device_lock
-........................&inode_lock
-..........................&sb_lock
-..........................mapping->page_lock
-............................zone->lru_lock
+....................mm->page_table_lock
+......................mapping->private_lock
+........................swaplock
+..........................swap_device_lock
+..........................&inode_lock
+............................&sb_lock
+............................mapping->page_lock
+..............................zone->lru_lock
                   ^
                   +-- spin locks are starting here. Don't schedule rightward.
 
@@ -388,6 +388,19 @@ inode_rw_lock->delete_sema
 kalloc->jnode_lock
 
     emergency_flush() takes jnode spin lock
+
+jnode_lock->(mapping->page_lock)
+
+    jnode_set_dirty()->__set_page_dirty_nobuffers()
+
+jnode_lock->&inode_lock
+
+    jnode_set_dirty()->__set_page_dirty_nobuffers()->mark_inode_dirty()
+
+jnode_lock->(zone->lru_lock)
+
+    jnode_set_dirty()->mark_page_accessed()
+
 
 ----------------------------------DEADLOCKS-------------------------------------
 

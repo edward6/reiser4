@@ -211,4 +211,9 @@ ARC(tree_lock, zone_lru_lock, "page_clear_jnode()");//,\njrelse_nolock()");
 ARC(tree_lock, mapping_page_lock, "jdrop_in_tree()");
 
 ARC(bkl, inode_lock, "iget()");
+
+ARC(jnode_lock, mapping_page_lock, "jnode_set_dirty()");
+ARC(jnode_lock, inode_lock, "jnode_set_dirty()");
+ARC(jnode_lock, zone_lru_lock, "jnode_set_dirty()");
+
 }
