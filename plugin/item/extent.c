@@ -550,7 +550,7 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count)
 		}
 		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
 			/* FIXME-VITALY: this is necessary??? */
-			fake_allocated2free(extent_get_width(ext), 0 /* unformatted */ );
+			fake_allocated2free(extent_get_width(ext), 0 /* unformatted */, "extent_kill_item_hook: unallocated extent removed");
 		}
 
 		if (state_of_extent(ext) != ALLOCATED_EXTENT) {
@@ -562,7 +562,7 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count)
 		   are not safe to be freed immediately */
 		
 		reiser4_dealloc_blocks(&start, &length, 0 /* not used */, 
-			BA_DEFER/* unformatted with defer */);
+			BA_DEFER/* unformatted with defer */, "extent_kill_item_hook");
 	}
 	return 0;
 }
@@ -645,8 +645,8 @@ cut_or_kill_units(coord_t * coord,
 				/* FIXME-VS: debugging zam-528 */
 				if (state_of_extent(ext) == UNALLOCATED_EXTENT && !cut) {
 					/* FIXME-VITALY: this is necessary??? */
-					fake_allocated2free(old_width - new_width, 0	/*unformatted */
-					    );
+					fake_allocated2free(old_width - new_width, 0 /* unformatted */,
+							    "cut_or_kill_units: unallocated extent shortened fron its end");
 				}
 
 				if (state_of_extent(ext) == ALLOCATED_EXTENT && !cut) {
@@ -661,7 +661,7 @@ cut_or_kill_units(coord_t * coord,
 					length = old_width - new_width;
 
 					reiser4_dealloc_blocks(&start, &length, 0 /* not used */, 
-						BA_DEFER /* unformatted with defer */);
+						BA_DEFER /* unformatted with defer */, "cut_or_kill_units: from");
 				}
 				extent_set_width(ext, new_width);
 				znode_set_dirty(coord->node);
@@ -702,7 +702,8 @@ cut_or_kill_units(coord_t * coord,
 			/* FIXME-VS: debugging zam-528 */
 			if (state_of_extent(ext) == UNALLOCATED_EXTENT && !cut) {
 				/* FIXME-VITALY: this is necessary??? */
-				fake_allocated2free(old_width - new_width, 0 /*unformatted */ );
+				fake_allocated2free(old_width - new_width, 0 /* unformatted */,
+						    "cut_or_kill_units: unallocated extent shortened from its head");
 			}
 
 			if (state_of_extent(ext) == ALLOCATED_EXTENT && !cut) {
@@ -715,7 +716,7 @@ cut_or_kill_units(coord_t * coord,
 				start = extent_get_start(ext);
 				length = old_width - new_width;
 				reiser4_dealloc_blocks(&start, &length, 0 /* not used */,
-					BA_DEFER/* unformatted with defer */);
+					BA_DEFER/* unformatted with defer */, "cut_or_kill_units: to");
 			}
 
 			/* (old_width - new_width) blocks of this extent were
@@ -862,7 +863,7 @@ optimize_extent(const coord_t * item)
 		   FIXME: JMACD->VS: Just return the error! */
 		assert("vs-456", result == 0);
 	}
-	check_me("nikita-2755", reiser4_grab_space_force(1, BA_RESERVED) == 0);
+	check_me("nikita-2755", reiser4_grab_space_force(1, BA_RESERVED, "optimize_extent") == 0);
 	znode_set_dirty(item->node);
 }
 
@@ -1518,60 +1519,48 @@ extent_allocate_blocks(reiser4_blocknr_hint * preceder,
 
 	*allocated = wanted_count;
 	preceder->max_dist = 0;	/* scan whole disk, if needed */
+
+	/* that number of blocks (wanted_count) must be in UNALLOCATED stage */
 	preceder->block_stage = BLOCK_UNALLOCATED;
 	
-	result = reiser4_alloc_blocks (preceder, first_allocated, allocated, BA_PERMANENT);
+	result = reiser4_alloc_blocks (preceder, first_allocated, allocated, BA_PERMANENT, "extent_allocate");
 
-	if (result) {
+	if (result)
 		/* no free space
 		   FIXME-VS: returning -ENOSPC is not enough
 		   here. It should not happen actually
 		*/
 		impossible("vs-420", "could not allocate unallocated: %d", result);
-	}
+	else
+		/* update flush_pos's preceder to last allocated block number */
+		preceder->blk = *first_allocated + *allocated - 1;
 
 	return result;
 }
 
-/* unallocated extent of file with @objectid corresponding to @offset was
+/* look unallocated extent of file with @objectid corresponding to @offset was
    replaced allocated extent [first, count]. Look for corresponding buffers in
    the page cache and map them properly
    FIXME-VS: this needs changes if blocksize != pagesize is needed
 */
 static int
-assign_jnode_blocknrs(reiser4_key * key, reiser4_block_nr first,
+assign_jnode_blocknrs(oid_t oid, unsigned long index, reiser4_block_nr first,
 		      /* FIXME-VS: get better type for number of
 		         blocks */
 		      reiser4_block_nr count, flush_position * flush_pos)
 {
-	loff_t offset;
-	unsigned long blocksize;
-	unsigned long ind;
 	jnode *j;
 	int i, ret = 0;
 	reiser4_tree *tree;
 
-	blocksize = current_blocksize;
-	assert("vs-749", blocksize == PAGE_CACHE_SIZE);
-
 	tree = current_tree;
 
-	/* offset of first byte addressed by block for which blocknr @first is
-	   allocated */
-	offset = get_key_offset(key);
-	assert("vs-750", ((offset & (blocksize - 1)) == 0));
-
-	for (i = 0; i < (int) count; i++, first++) {
-
-		ind = offset >> PAGE_CACHE_SHIFT;
-
-		j = UNDER_SPIN(tree, tree, jlook(tree, get_key_objectid(key), ind));
-		if (!j) {
-			/* this is possible through concurrent truncate */
-			info("jnode not found. oid %llu, index %lu\n", get_key_objectid(key), ind);
+	for (i = 0; i < (int) count; i++, first++, index ++) {
+		j = UNDER_SPIN(tree, tree, jlook(tree, oid, index));
+		if (!j)
 			continue;
-		}
 
+		assert("vs-1132", blocknr_is_fake(jnode_get_block(j)));
 		jnode_set_block(j, &first);
 
 		/* If we allocated it cannot have been wandered -- in that case
@@ -1582,15 +1571,65 @@ assign_jnode_blocknrs(reiser4_key * key, reiser4_block_nr first,
 		/* Submit I/O and set the jnode clean. */
 		ret = flush_enqueue_unformatted(j, flush_pos);
 		jput(j);
-		if (ret) {
-			break;
-		}
-
-		offset += blocksize;
+		if (ret)
+			warning("vs-1136", "flush_enqueue_unformatted failed with %d\n", ret);
 	}
 
-	return ret;
+	return 0;
 }
+
+static int
+extent_needs_allocation(extent_state st, oid_t oid, unsigned long ind, __u64 count, flush_position * pos)
+{
+	__u64 i;
+	reiser4_tree *tree;
+	jnode *j;
+	ON_DEBUG(jnode *check = 0;)
+
+	switch (st) {
+	case UNALLOCATED_EXTENT:
+		return 1;
+	case HOLE_EXTENT:
+		return 0;
+	default:
+	}
+	assert("jmacd-83112", st == ALLOCATED_EXTENT);
+
+	/* look for all dirty jnodes and mark them OVERWRITE if they are not marked yet */
+	tree = current_tree;
+	for (i = 0; i < count; ++i, ++ind) {		
+		j = UNDER_SPIN(tree, tree, jlook(tree, oid, ind));
+		if (!j)
+			continue;
+
+		if (!jnode_check_dirty(j)) {
+			jput(j);
+			continue;
+		}
+
+		ON_DEBUG({
+			/* all jnodes of this extent unit must belong
+			   to one atom. Check that */
+			if (check) {
+				assert("vs-936", jnodes_of_one_atom(check, j));
+			} else {
+				check = jref(j);
+			}
+		})
+
+		if (!jnode_check_flushprepped(j)) {
+			jnode_set_wander(j);
+			jnode_set_clean(j);
+		}
+
+		jput(j);
+	}
+
+	ON_DEBUG(if(check) jput(check);)
+	return 0;
+}
+
+#if 0
 
 /* return 1 if @extent unit needs allocation, 0 - otherwise. Try to update preceder in
    parent-first order for next block which will be allocated.
@@ -1798,6 +1837,8 @@ extent_needs_allocation(reiser4_extent * extent, const coord_t * coord, flush_po
 	return ret;
 }
 
+#endif
+
 /* if @key is glueable to the item @coord is set to */
 static int
 must_insert(coord_t * coord, reiser4_key * key)
@@ -1876,6 +1917,7 @@ try_to_glue(znode * left, reiser4_block_nr first_allocated, reiser4_block_nr all
 }
 
 #if REISER4_USE_EFLUSH
+#if 0
 static void
 unflush_finish(coord_t *coord, __u64 done)
 {
@@ -1950,6 +1992,69 @@ unflush(coord_t *coord)
 	}
 	return result;
 }
+#endif
+
+/* before allocating unallocated extent we have to prevent from eflushing those jnodes which are not eflushed yet and
+ * "unflush" jnodes which are already eflushed. Both are achieved by jload. However there can be too many eflushed
+ * jnodes so, we limit number of them with this macro */
+#define JNODES_TO_UNFLUSH 16
+
+/* jload part of unallocated extent. Make sure that there were not more than JNODES_TO_UNFLUSH eflushed nodes. Return
+ * number of nodes which were jloaded. They will be allocated */
+static __u64
+unflush_part(oid_t oid, unsigned long ind, __u64 count)
+{
+	__u64           i;
+	int             result;
+	reiser4_tree   *tree;
+	int             eflushed;
+
+	tree = current_tree;
+
+	eflushed = 0;
+	for (i = 0; i < count; ++i, ++ind) {
+		jnode  *node;
+
+		node = UNDER_SPIN(tree, tree, jlook(tree, oid, ind));
+		if (node == NULL)
+			continue;
+
+		if (JF_ISSET(node, JNODE_EFLUSH)) {
+			if (eflushed == JNODES_TO_UNFLUSH)
+				break;
+			eflushed ++;
+		}
+
+		result = jload(node);
+		jput(node);
+		if (result != 0)
+			warning("vs-1134", "jload failed (oid %llu, page %lu, error %d)\n",
+				oid, ind, result);
+	}
+	assert("vs-1130", i > 0);
+	return i;
+}
+
+/* jrelse @count nodes starting from index @ind */
+static void
+unflush_finish_part(oid_t oid, unsigned long ind, __u64 count)
+{
+	__u64         i;
+	reiser4_tree *tree;
+
+	tree = current_tree;
+	for (i = 0 ; i < count; ++ i, ++ ind) {
+		jnode  *node;
+
+		node = UNDER_SPIN(tree, tree, jlook(tree, oid, ind));
+		if (node == NULL)
+			continue;
+		assert("vs-1133", jnode_is_loaded(node));
+		jrelse(node);
+		jput(node);
+	}
+}
+
 #else
 #define unflush_finish(coord, done) noop
 #define unflush(coord) (0)
@@ -1973,15 +2078,15 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 	int result;
 	reiser4_item_data data;
 	reiser4_key key;
-	unsigned long blocksize;
 	reiser4_block_nr first_allocated;
-	reiser4_block_nr to_allocate, allocated;
 	reiser4_extent *ext, new_ext;
+	unsigned long index;
+	oid_t oid;
+	__u64 width, to_allocate, can_be_allocated, allocated;
 
+	/* skip extent being converted into tail */
 	if (item_id_by_coord(right) == FROZEN_EXTENT_POINTER_ID)
 		return SQUEEZE_TARGET_FULL;
-
-	blocksize = current_blocksize;
 
 	optimize_extent(right);
 
@@ -1992,21 +2097,20 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 
 	result = SQUEEZE_CONTINUE;
 	item_key_by_coord(right, &key);
+	oid = get_key_objectid(&key);
+	index = get_key_offset(&key) >> PAGE_CACHE_SHIFT;
 
 	ext = extent_item(right);
 	for (; right->unit_pos < coord_num_units(right); right->unit_pos++, ext++) {
-		reiser4_block_nr width;
-
 		trace_on(TRACE_EXTENTS, "alloc_and_copy_extent: unit %u/%u\n", right->unit_pos, coord_num_units(right));
 
 		width = extent_get_width(ext);
-		if ((result = extent_needs_allocation(ext, right, flush_pos)) < 0) {
+		if ((result = extent_needs_allocation(state_of_extent(ext), oid, index, width, flush_pos)) < 0) {
 			goto done;
 		}
 
 		if (!result) {
-			/* unit does not require allocation, copy this unit as
-			   it is */
+			/* unit does not require allocation, copy this unit as it is */
 			result = put_unit_to_end(left, &key, init_new_extent(&data, ext, 1));
 			if (result == -ENOSPC) {
 				/* left->node does not have enough free space
@@ -2018,7 +2122,8 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 				goto done;
 			}
 			/* update stop key */
-			set_key_offset(&key, get_key_offset(&key) + width * blocksize);
+			index += width;
+			set_key_offset(&key, index << PAGE_CACHE_SHIFT);
 			*stop_key = key;
 			set_key_offset(stop_key, get_key_offset(&key) - 1);
 			result = SQUEEZE_CONTINUE;
@@ -2027,27 +2132,23 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 
 		assert("vs-959", state_of_extent(ext) == UNALLOCATED_EXTENT);
 
-		if((result = unflush(right)))
-			goto done;
-
-		/* extent must be allocated */
 		to_allocate = width;
-		/* until whole extent is allocated and there is space in left
-		   neighbor */
+		/* until whole extent is allocated and there is space in left neighbor */
 		while (to_allocate) {
-			result =
-			    extent_allocate_blocks(flush_pos_hint(flush_pos),
-						   to_allocate, &first_allocated, &allocated);
-			if (result)
-				goto finish_unflush;
+			/* zload nodes before allocating disk space for them. Nodes which were eflushed will be read
+			   from their temporary locations (but not more than certain limit: JNODES_TO_UNFLUSH) and that
+			   disk space will be freed. */		
+			can_be_allocated = unflush_part(oid, index, to_allocate);
+
+			check_me("vs-1137", extent_allocate_blocks(flush_pos_hint(flush_pos),
+								   can_be_allocated, &first_allocated, &allocated) == 0);
+			if (can_be_allocated < allocated)
+				unflush_finish_part(oid, index + allocated, can_be_allocated - allocated);
 
 			trace_on(TRACE_EXTENTS,
 				 "alloc_and_copy_extent: to_allocate = %llu got %llu\n", to_allocate, allocated);
 
 			to_allocate -= allocated;
-
-			/* FIXME: JMACD->ZAM->VS: I think the block allocator should do this. */
-			flush_pos_hint(flush_pos)->blk += allocated;
 
 			if (!try_to_glue(left, first_allocated, allocated, &key)) {
 				/* could not copy current extent by just increasing width of last extent in left
@@ -2064,7 +2165,7 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 					   because these blocks can be made allocable again immediately.
 					*/
 					reiser4_dealloc_blocks(&first_allocated, &allocated,
-						BLOCK_UNALLOCATED, BA_PERMANENT);
+						BLOCK_UNALLOCATED, BA_PERMANENT, "alloc_and_copy_extent: no space in left neighbor");
 
 					result = SQUEEZE_TARGET_FULL;
 					trace_on(TRACE_EXTENTS,
@@ -2079,27 +2180,22 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 						   @right at this unit so that it will be cut properly by
 						   squalloc_right_twig_cut */
 					}
-
-					goto finish_unflush;
+					unflush_finish_part(oid, index, allocated);
+					goto done;
 				}
 			}
-			/* find all pages for which blocks were allocated and assign block numbers to jnodes of those
-			   pages */
-			result = assign_jnode_blocknrs(&key, first_allocated, allocated, flush_pos);
-			if (result)
-				goto finish_unflush;
+			/* find all jnodes for which blocks were allocated and assign block numbers to them */
+			assign_jnode_blocknrs(oid, index, first_allocated, allocated, flush_pos);
+			unflush_finish_part(oid, index, allocated);
+
+			index += allocated;
+			set_key_offset(&key, index << PAGE_CACHE_SHIFT);
 
 			/* update stop key */
-			set_key_offset(&key, get_key_offset(&key) + allocated * blocksize);
 			*stop_key = key;
 			set_key_offset(stop_key, get_key_offset(&key) - 1);
 			result = SQUEEZE_CONTINUE;
 		}
-	finish_unflush:
-		unflush_finish(right, width);
-
-		if (result < 0)
-			break;
 	}
  done:
 
@@ -2195,7 +2291,7 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 }
 
 /* when on flush time unallocated extent is to be replaced with allocated one it may happen that one unallocated extent
-   will have to be replalced with set of allocated extents. In this case insert_into_item will be called which may have
+   will have to be replaced with set of allocated extents. In this case insert_into_item will be called which may have
    to add new nodes into tree. Space for that is taken from inviolable reserve (5%). */
 static reiser4_block_nr
 reserve_replace(void)
@@ -2204,14 +2300,14 @@ reserve_replace(void)
 
 	grabbed = get_current_context()->grabbed_blocks;
 	needed = estimate_one_insert_into_item(current_tree->height);
-	check_me("vpf-340", !reiser4_grab_space_force(needed, BA_RESERVED));
+	check_me("vpf-340", !reiser4_grab_space_force(needed, BA_RESERVED, "reserve_replace"));
 	return grabbed;
 }
 
 static void
-free_reserved(reiser4_block_nr grabbed)
+free_replace_reserved(reiser4_block_nr grabbed)
 {
-	grabbed2free(get_current_context()->grabbed_blocks - grabbed);
+	grabbed2free(get_current_context()->grabbed_blocks - grabbed, "free_replace_reserved");
 }
 
 /* find all units of extent item which require allocation. Allocate free blocks
@@ -2227,14 +2323,15 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 	unsigned i, num_units, orig_item_pos;
 	reiser4_extent *ext;
 	reiser4_block_nr first_allocated;
-	reiser4_block_nr initial_width, allocated;
-	unsigned long blocksize;
 	reiser4_extent replace, paste;
 	reiser4_item_data item;
-	reiser4_key key, orig_key;
-	znode *orig;
-	struct inode *object;
+	reiser4_key key;
 	reiser4_block_nr grabbed;
+	unsigned long index;
+	oid_t oid;
+	__u64 width, can_be_allocated, allocated;
+	ON_DEBUG(reiser4_key orig_key;)
+	ON_DEBUG(znode *orig;)
 
 	assert("vs-1019", item_is_extent(coord));
 	assert("vs-1018", coord_is_existing_unit(coord));
@@ -2249,14 +2346,15 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		return 0;
 	}
 
-	blocksize = current_blocksize;
-
 	ext = extent_by_coord(coord);
 	num_units = coord_num_units(coord);
 
-	orig_item_pos = coord->item_pos;
-	item_key_by_coord(coord, &orig_key);
-	object = NULL;
+	ON_DEBUG(orig_item_pos = coord->item_pos);
+	ON_DEBUG(item_key_by_coord(coord, &orig_key));
+
+	unit_key_by_coord(coord, &key);
+	oid = get_key_objectid(&key);
+	index = (get_key_offset(&key) >> PAGE_CACHE_SHIFT);
 
 	for (i = coord->unit_pos; i < num_units; i++, ext++) {
 		coord->unit_pos = i;
@@ -2265,23 +2363,19 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		assert("vs-1021", coord->item_pos == orig_item_pos);
 		assert("vs-1020", keyeq(item_key_by_coord(coord, &key), &orig_key));
 
-		if ((result = extent_needs_allocation(ext, coord, flush_pos)) < 0) {
+		width = extent_get_width(ext);
+
+		if ((result = extent_needs_allocation(state_of_extent(ext), oid, index, width, flush_pos)) < 0) {
 			break;
 		}
 
-		if (!result /* extent does not need allocation */ ) {
+		if (!result) {
+			/* unit does not require allocation, skip it */ 
+			index += width;
 			continue;
 		}
 
 		assert("vs-439", state_of_extent(ext) == UNALLOCATED_EXTENT);
-
-		/* try to get extent_width () free blocks starting from
-		   *preceder */
-		initial_width = extent_get_width(ext);
-
-		/* inform block allocator that those blocks were in
-		   UNALLOCATED stage */
-		flush_pos_hint(flush_pos)->block_stage = BLOCK_UNALLOCATED;
 
 		/*
 		 * eflush<->extentallocation interactions.
@@ -2320,63 +2414,57 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		 *
 		 */
 
-		result = unflush(coord);
-		if (result)
-			break;
+		/* zload nodes before allocating disk space for them. Nodes which were eflushed will be read from their
+		   temporary locations (but not more than certain limit: JNODES_TO_UNFLUSH) and that disk space will be
+		   freed. */
+		can_be_allocated = unflush_part(oid, index, width);
 
-		result = extent_allocate_blocks(flush_pos_hint(flush_pos), 
-						initial_width, 
-						&first_allocated, &allocated);
-		unflush_finish(coord, initial_width);
+		check_me("vs-1138", extent_allocate_blocks(flush_pos_hint(flush_pos), 
+							   can_be_allocated, &first_allocated, &allocated) == 0);
+		assert("vs-440", allocated > 0 && allocated <= can_be_allocated);
+		if (can_be_allocated < allocated)
+			/* jrelse nodes which will not be allocated on this iteration
+			   FIXME-VS: unflush_finish for the rest is right after call to block allocator. Maybe we could
+			   unflush_finish all nodes there 
+			*/
+			unflush_finish_part(oid, index + allocated, can_be_allocated - allocated);
 
-		if (result)
-			break;
+		/* find all jnodes for which blocks were allocated and assign block numbers to them */
+		assign_jnode_blocknrs(oid, index, first_allocated, allocated, flush_pos);
+		
+		/* now all nodes are marked RELOC and have real block number assigned, thereforel, they are protected by
+		   being eflushed and we may jrelse them. */
+		unflush_finish_part(oid, index, allocated);
 
-		assert("vs-440", allocated > 0);
-		/* update flush_pos's preceder to last allocated block number */
-		flush_pos_hint(flush_pos)->blk = first_allocated + allocated - 1;
-
-		unit_key_by_coord(coord, &key);
-		/* find all pages for which blocks were allocated and assign
-		   block numbers to jnodes of those pages */
-		if ((result = assign_jnode_blocknrs(&key, first_allocated, allocated, flush_pos))) {
-			break;
-		}
-
+		index += allocated;
 		set_extent(&replace, ALLOCATED_EXTENT, first_allocated, allocated);
-		if (allocated == initial_width) {
+		if (allocated == width) {
 			/* whole extent is allocated */
 			*ext = replace;
-#if 0
-			/* grabbing one block for this dirty znode */
-			if ((ret = reiser4_grab_space_force(1, BA_RESERVED)) != 0)
-				break;
-#endif
+
 			/* no need to grab space as it is done already */
-			 
 			znode_set_dirty(coord->node);
 			continue;
 		}
 
 		/* set @key to key of first byte of part of extent which left
 		   unallocated */
-		set_key_offset(&key, get_key_offset(&key) + allocated * blocksize);
-		set_extent(&paste, UNALLOCATED_EXTENT, 0, initial_width - allocated);
+		set_key_offset(&key, index << PAGE_CACHE_SHIFT);
+		set_extent(&paste, UNALLOCATED_EXTENT, 0, width - allocated);
 
-		/* [u/initial_width] ->
-		   [first_allocated/allocated][u/initial_width - allocated] */
+		/* [u/width] ->
+		   [first_allocated/allocated][u/width - allocated] */
 		orig = coord->node;
 
 		/* space for this operation is not reserved. reserve it from inviolable reserve */
 		grabbed = reserve_replace();
 		result = replace_extent(coord, lh, &key,
 					init_new_extent(&item, &paste, 1), &replace, COPI_DONT_SHIFT_LEFT);
-		free_reserved(grabbed);
+		free_replace_reserved(grabbed);
 		if (result)
 			break;
 
-		/* coord->node may change in balancing. Nevertheless,
-		   lh->node must still be set to node replace started
+		/* coord->node may change in balancing. Nevertheless, lh->node must still be set to node replace started
 		   from */
 		assert("vs-1026", orig == lh->node);
 		coord->node = orig;
@@ -2432,7 +2520,7 @@ static void init_new_jnode(jnode *j)
 	jnode_set_mapped(j);
 	jnode_set_created(j);
 	JF_SET (j, JNODE_NEW);
-	assign_fake_blocknr(&fake_blocknr, 0 /* unformatted */);
+	assign_fake_blocknr(&fake_blocknr, 0 /* unformatted */, "new jnode");
 	jnode_set_block(j, &fake_blocknr);
 }
 
@@ -2696,7 +2784,6 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 		memset(data + from + count, 0, PAGE_CACHE_SIZE - from - count);
 		flush_dcache_page(page);
 		kunmap_atomic(data, KM_USER0);
-		JF_CLR(j, JNODE_NEW);
 		return 0;
 	}
 	/* page contains some data of this file */
@@ -2754,7 +2841,7 @@ reserve_extent_write_iteration(tree_level height)
 	grab_space_enable();
 	/* one unformatted node and two insertion into tree (adding a unit into extent item and stat data update) may be
 	   involved */
-	return reiser4_grab_space_exact(1 + estimate_one_insert_into_item(height) * 2, 0);
+	return reiser4_grab_space(1 + estimate_one_insert_into_item(height) * 2, 0, "extent_write");
 }
 
 /* write flow's data into file by pages */
@@ -2821,6 +2908,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 
 		/* if page is not completely overwritten - read it if it is not new or fill by zeros otherwise */
 		result = prepare_page(inode, page, file_off, page_off, to_page);
+		JF_CLR(j, JNODE_NEW);
 		if (result)
 			goto exit3;
 
@@ -2852,7 +2940,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 
 		/* throttle the writer */
 		result = extent_balance_dirty_pages(page->mapping, f, coord, lh);
-		all_grabbed2free();
+		all_grabbed2free("extent_write_flow");
 		if (result) {
 			reiser4_stat_extent_add(bdp_caused_repeats);
 			break;
@@ -2865,7 +2953,7 @@ exit2:
 		reiser4_unlock_page(page);
 		page_cache_release(page);
 exit1:
-		all_grabbed2free();
+		all_grabbed2free("extent_write_flow on error");
 		break;
 
 		/* hint is unset by make_page_extent when first extent of a
@@ -2887,7 +2975,7 @@ extent_hole_reserve(tree_level height)
 {
 	grab_space_enable();
 	/* adding hole may require adding a hole unit into extent item and stat data update */
-	return reiser4_grab_space_exact(estimate_one_insert_into_item(height) * 2, 0);
+	return reiser4_grab_space(estimate_one_insert_into_item(height) * 2, 0, "extent_hole_reserve");
 }
 
 static int
@@ -2909,7 +2997,7 @@ extent_write_hole(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		coord->node = 0;
 		result = update_inode_and_sd_if_necessary(inode, new_size, 1/*update i_size*/);
 	}
-	all_grabbed2free();
+	all_grabbed2free("extent_write_hole");
 	return result;
 }
 
