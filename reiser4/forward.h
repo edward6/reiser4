@@ -11,6 +11,7 @@
 
 struct __reiser4_lock_handle;
 typedef struct __reiser4_lock_handle reiser4_lock_handle;
+
 struct znode;
 typedef struct znode znode;
 
@@ -82,6 +83,9 @@ typedef struct carry_level carry_level;
 
 typedef unsigned pos_in_node;
 typedef unsigned pos_in_item;
+
+struct jnode;
+typedef struct jnode jnode;
 
 struct inode;
 struct page;

@@ -12,6 +12,7 @@
 /** declare hash table of znodes */
 TS_HASH_DECLARE(z, znode);
 
+
 typedef enum {
        /** just created */
        ZNODE_CLEAN             = 0,
@@ -183,7 +184,7 @@ struct znode {
 	txn_atom              *atom;
 
 	/* capture list */
-	capture_list_link      capture_link;
+	capture_znode_list_link      capture_link;
 	
 	/* design note: I think that tree traversal will be more
 	   efficient because of these pointers, but there will be bugs
