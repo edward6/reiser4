@@ -667,7 +667,7 @@ void unlock_page (struct page * p)
 
 void remove_inode_page (struct page * page)
 {
-	assert ("vs-618", (page->count == 2 && PageLocked (page)));
+	assert ("vs-618", (page->count == 1 && PageLocked (page)));
 	page->mapping = 0;
 
 	txn_delete_page (page);
