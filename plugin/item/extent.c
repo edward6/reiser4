@@ -127,11 +127,13 @@ typedef enum {
 
 static extent_state state_of_extent (reiser4_extent * ext)
 {
-	switch (extent_get_start (ext)) {
+	switch ((int)extent_get_start (ext)) {
 	case 0:
 		return HOLE_EXTENT;
 	case 1:
 		return UNALLOCATED_EXTENT;
+	default:
+		break;
 	}
 	return ALLOCATED_EXTENT;
 }
@@ -548,7 +550,7 @@ static int cut_or_kill_units (new_coord * coord,
 {
  	reiser4_extent * ext;
 	reiser4_key key;
-	unsigned blocksize;
+	unsigned blocksize, blocksize_bits;
 	reiser4_block_nr offset;
 	unsigned count;
 	__u64 cut_from_to;
@@ -557,6 +559,7 @@ static int cut_or_kill_units (new_coord * coord,
 	count = *to - *from + 1;
 
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
+	blocksize_bits = reiser4_get_current_sb ()->s_blocksize_bits;
 
 	/*
 	 * make sure that we cut something but not more than all units
@@ -611,7 +614,7 @@ static int cut_or_kill_units (new_coord * coord,
 
 			ext = extent_item (coord) + *from;
 			first = offset + extent_size (coord, *from);
-			new_width = (get_key_offset (from_key) + (blocksize - 1) - first) / blocksize;
+			new_width = (get_key_offset (from_key) + (blocksize - 1) - first) >> blocksize_bits;
 			assert ("vs-307", new_width > 0 && new_width <= extent_get_width (ext));
 			if (state_of_extent (ext) == ALLOCATED_EXTENT) {
 				/*
@@ -648,7 +651,7 @@ static int cut_or_kill_units (new_coord * coord,
 			ext = extent_item (coord) + *to;
 
 			new_width = (get_key_offset (&key_inside) -
-				     get_key_offset (to_key)) / blocksize;
+				     get_key_offset (to_key)) >> blocksize_bits;
 
 			cut_from_to = (extent_get_width (ext) - new_width) * blocksize;
 
@@ -960,12 +963,11 @@ static int add_extents (new_coord * coord,
  * @off
  */
 static reiser4_block_nr in_extent (const new_coord * coord,
-			reiser4_block_nr off)
+				   reiser4_block_nr off)
 {
         reiser4_key key;
         reiser4_block_nr cur;
         reiser4_extent * ext;
-
 
         assert ("vs-266", ncoord_is_existing_unit (coord));
 
@@ -980,16 +982,38 @@ static reiser4_block_nr in_extent (const new_coord * coord,
 		off >= cur && 
 		off < (cur + extent_get_width (ext) * 
 		       reiser4_get_current_sb ()->s_blocksize));
+        return (off - cur) >> reiser4_get_current_sb ()->s_blocksize_bits;
+}
 
-        return (off - cur) / reiser4_get_current_sb ()->s_blocksize;
-        
+
+/*
+ * mark jnode that it corresponds to unallocated page
+ */
+static void set_jnode_unallocated (jnode * j)
+{
+	/*
+	 * FIXME-VS: extent unit of unallocated type matching to this
+	 * jnode(page) has been created
+	 */
+	JF_SET (j, ZNODE_RELOC);
+	JF_SET (j, ZNODE_UNFORMATTED);
+}
+
+static void set_jnode_allocated (jnode * j)
+{
+	/*
+	 * FIXME-VS: extent unit of allocated type matching to this
+	 * jnode(page) has been found
+	 */
+	JF_CLR (j, ZNODE_RELOC);
+	JF_SET (j, ZNODE_UNFORMATTED);
 }
 
 
 /* insert extent item (containing one unallocated extent of width 1) to place
    set by @coord */
 static int insert_first_block (new_coord * coord, lock_handle * lh,
-			       reiser4_key * key, struct buffer_head * bh)
+			       reiser4_key * key, jnode * j)
 {
 	int result;
 	reiser4_extent ext;
@@ -1011,11 +1035,8 @@ static int insert_first_block (new_coord * coord, lock_handle * lh,
 		return result;
 	}
 
-	/* do whatever is needed to be done with new block of a file */
-	bh->b_dev = reiser4_get_current_sb ()->s_dev;
-	mark_buffer_new (bh);
-	mark_buffer_mapped (bh);
-	mark_buffer_unallocated (bh);
+	set_jnode_unallocated (j);
+
 	return 0;
 }
 
@@ -1024,7 +1045,7 @@ static int insert_first_block (new_coord * coord, lock_handle * lh,
    block - either by expanding last unallocated extent or by appending a new
    one of width 1 */
 static int append_one_block (new_coord * coord,
-			     lock_handle *lh, struct buffer_head * bh)
+			     lock_handle *lh, jnode * j)
 {
 	int result;
 	reiser4_extent * ext, new_ext;
@@ -1055,11 +1076,7 @@ static int append_one_block (new_coord * coord,
 		break;
 	}
 
-	/* do whatever is needed to be done with new block of a file */
-	bh->b_dev = reiser4_get_current_sb ()->s_dev;
-	mark_buffer_mapped (bh);
-	mark_buffer_new (bh);
-	mark_buffer_unallocated (bh);
+	set_jnode_unallocated (j);
 
 	coord->unit_pos = ncoord_last_unit_pos (coord);
 	coord->between = AFTER_UNIT;
@@ -1307,8 +1324,7 @@ reiser4_key * extent_max_key (const new_coord * coord,
 /* pointer to block for @bh exists in extent item and it is addressed by
    @coord. If it is hole - make unallocated extent for it. */
 static int overwrite_one_block (new_coord * coord, lock_handle * lh,
-				struct buffer_head * bh,
-				reiser4_block_nr off)
+				jnode * j, reiser4_block_nr off)
 {
 	reiser4_extent * ext;
 	int result;
@@ -1318,23 +1334,18 @@ static int overwrite_one_block (new_coord * coord, lock_handle * lh,
 
 	switch (state_of_extent(ext)) {
 	case ALLOCATED_EXTENT:
-		bh->b_blocknr = blocknr_by_coord_in_extent (coord, off);
+		j->blocknr = blocknr_by_coord_in_extent (coord, off);
+		set_jnode_allocated (j);
 		break;
 
 	case UNALLOCATED_EXTENT:
-		assert ("vs-353", buffer_unallocated (bh));
-		assert ("vs-354", buffer_mapped (bh));
-		assert ("vs-355", buffer_new (bh));
 		break;
 		
 	case HOLE_EXTENT:
 		result = plug_hole (coord, lh, off);
 		if (result)
 			return result;
-		
-		/* do whatever is needed to be done with new block of a file */
-		mark_buffer_new (bh);
-		mark_buffer_unallocated (bh);
+		set_jnode_unallocated (j);
 		break;
 
 	default:
@@ -1342,8 +1353,6 @@ static int overwrite_one_block (new_coord * coord, lock_handle * lh,
 		return -EIO;
 	}
 
-	bh->b_dev = reiser4_get_current_sb ()->s_dev;
-	mark_buffer_mapped (bh);
 	return 0;
 }
 
@@ -1372,6 +1381,7 @@ static int add_hole (new_coord * coord, lock_handle * lh,
 	int result;
 	reiser4_item_data item;
 	reiser4_key last_key;
+	size_t blocksize_bits;
 
 
 	if (todo == EXTENT_CREATE_HOLE) {
@@ -1383,8 +1393,9 @@ static int add_hole (new_coord * coord, lock_handle * lh,
 		hole_off = get_key_offset (last_key_in_extent(coord, &last_key));
 	}
 
-	hole_width = (get_key_offset (key) - hole_off) /
-		reiser4_get_current_sb ()->s_blocksize;
+	blocksize_bits = reiser4_get_current_sb ()->s_blocksize_bits;
+	hole_width = (get_key_offset (key) - hole_off) >> blocksize_bits;
+
 
 	/* compose body of hole extent */
 	set_extent (&new_ext, HOLE_EXTENT, hole_width);
@@ -1640,7 +1651,7 @@ static int prepare_write (new_coord * coord, lock_handle * lh,
 {
 	int result;
 	int cur_off;
-	struct buffer_head * bh, * being_read [2];
+	struct buffer_head bh[2], * being_read [2];
 	int read_nr;
 	unsigned long blocksize;
 	int page_off, to_page;	
@@ -1648,12 +1659,20 @@ static int prepare_write (new_coord * coord, lock_handle * lh,
 	extent_write_todo todo;
 	reiser4_key tmp_key;
 	reiser4_block_nr file_off;
-		
+	jnode * j;
+	int i;
+	
 
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
+	/*
+	 * FIXME-VS: remove this when page will may have more than one jnode
+	 */
+	printf ("PAGESIZE=%ld\n", PAGE_CACHE_SIZE);
+	assert ("vs-655", blocksize == PAGE_CACHE_SIZE);
 
-	if (!page->buffers)
-		create_empty_buffers (page, blocksize);
+	
+	/* get or create jnode for a page */
+	j = jnode_of_page (page);
 
 	tmp_key = *key;
 	file_off = get_key_offset (&tmp_key);
@@ -1667,8 +1686,7 @@ static int prepare_write (new_coord * coord, lock_handle * lh,
 	*count = 0;
 	read_nr = 0;
 	result = 0;
-	for (cur_off = 0, bh = page->buffers; to_page > 0;
-	     bh = bh->b_this_page) {
+	for (cur_off = 0; to_page > 0; j = page_next_jnode (j)) {
 		cur_off += blocksize;
 		if (page_off >= cur_off)
 			/* we do not have to write to this buffer of the
@@ -1680,7 +1698,7 @@ static int prepare_write (new_coord * coord, lock_handle * lh,
 		if (to_block > to_page)
 			to_block = to_page;
 
-		if (!buffer_mapped (bh)) {
+		if (jnode_is_unformatted (j)) {
 			todo = extent_what_todo (coord, &tmp_key, to_block);
 			switch (todo) {
 			case EXTENT_CREATE_HOLE:
@@ -1691,23 +1709,18 @@ static int prepare_write (new_coord * coord, lock_handle * lh,
 			case EXTENT_FIRST_BLOCK:
 				/* create first item of the file */
 				result = insert_first_block (coord, lh,
-							     &tmp_key, bh);
-				assert ("vs-252", buffer_new (bh));
+							     &tmp_key, j);
 				break;
 
 			case EXTENT_APPEND_BLOCK:
-				result = append_one_block (coord, lh, bh);
-				assert ("vs-253", buffer_new (bh));		
+				result = append_one_block (coord, lh, j);
 				break;
 
 			case EXTENT_OVERWRITE_BLOCK:
 				/* there is found extent (possibly hole
 				   one) */
 				result = overwrite_one_block (coord, lh,
-							      bh, file_off);
-				if (buffer_new (bh)) {
-					;
-				}
+							      j, file_off);
 				break;
 
 			case EXTENT_CANT_CONTINUE:
@@ -1737,22 +1750,25 @@ static int prepare_write (new_coord * coord, lock_handle * lh,
 			/* error occurs filling the page */
 			return result;
 
-		/* we can write to current buffer */
-		assert ("vs-340", buffer_mapped (bh));
-
-/*		block_off = page_off & (blocksize - 1);
-		to_block = blocksize - block_off;
-		if (to_block > to_page)
-			to_block = to_page;
-*/
-		if (buffer_allocated (bh) &&
-		    !buffer_uptodate (bh) &&
+		j = jnode_of_page (page);
+		if (!j) {
+			result = -ENOMEM;
+			break;
+		}
+		if (j->blocknr != 0 &&
+		    !JF_ISSET (j, ZNODE_LOADED) &&
 		    !overwritten_entirely (page->mapping->host->i_size,
 					   file_off, block_off, to_block)) {
-			/* block contains data which do not get overwritten, so
-			   we have to read the block */
-			ll_rw_block (READ, 1, &bh);
-			being_read [read_nr ++] = bh;
+			/* jnode has blocknr and block is not loaded (read) and
+			 * not entire content of block is going to be
+			 * overwritten, so we have to read the block */
+			assert ("vs-656", read_nr < 2);
+			bh[read_nr].b_blocknr = j->blocknr;
+			bh[read_nr].b_size = blocksize;
+			bh[read_nr].b_bdev = page->mapping->host->i_sb->s_bdev;
+			being_read [read_nr] = &bh[read_nr];
+			ll_rw_block (READ, 1, &being_read [read_nr]);
+			read_nr ++;
 		}
 
 		to_page -= to_block;
@@ -1761,10 +1777,10 @@ static int prepare_write (new_coord * coord, lock_handle * lh,
 		set_key_offset (&tmp_key, file_off);
 	}
 
-	while (read_nr --) {
-		wait_on_buffer (being_read [read_nr]);
-		if (!buffer_uptodate (being_read [read_nr]))
-			return -EIO;
+	for (i = 0; i < read_nr; i ++) {
+		wait_on_buffer (being_read [i]);
+		if (!buffer_uptodate (being_read [i]))
+			result = -EIO;
 	}
 
 	return result;
@@ -1782,9 +1798,9 @@ static int commit_write (struct page * page, reiser4_block_nr file_off,
 {
 	struct inode * inode;
 	unsigned page_off, cur_off, blocksize, to_block;
-	struct buffer_head * bh;
 	int partial;
-
+	jnode * j;
+	
 
 	inode = page->mapping->host;
 	if ((loff_t)file_off + count > inode->i_size) {
@@ -1795,22 +1811,21 @@ static int commit_write (struct page * page, reiser4_block_nr file_off,
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
 	page_off = file_off & ~PAGE_MASK;
 	partial = 0;
-	for (cur_off = 0, bh = page->buffers; count > 0; bh = bh->b_this_page) {
+
+	for (cur_off = 0, j = jnode_of_page (page); count > 0; j = page_next_jnode (j)) {
 		cur_off += blocksize;
 		if (page_off >= cur_off) {
 			/*
 			 * this buffer was not modified
 			 */
-			if (!buffer_uptodate (bh))
+			if (JF_ISSET (j, ZNODE_LOADED))
 				partial = 1;
 			continue;
 		}
 
-		make_buffer_uptodate (bh, 1);
-		/*
-		 * FIXME-VS: do whatever else is necessary with modified buffer
-		 */
-		mark_buffer_dirty (bh);
+		JF_SET (j, ZNODE_LOADED);
+		JF_SET (j, ZNODE_DIRTY);
+
 		to_block = blocksize - (page_off & (blocksize - 1));
 		if (to_block > count)
 			to_block = count;
@@ -1859,8 +1874,6 @@ int extent_write (struct inode * inode, new_coord * coord,
 				page_cache_release (page);
 				return result;
 			}
-			/* FIXME: Is there a better place to dirty the page? */
-			jnode_set_dirty (jnode_of_page (page));
 
 			p_data = kmap (page);
 		} else {
@@ -1889,6 +1902,8 @@ int extent_write (struct inode * inode, new_coord * coord,
 			flush_dcache_page (page);
 			
 			commit_write (page, file_off, count);
+			/* FIXME: Is there a better place to dirty the page? */
+			jnode_set_dirty (jnode_of_page (page));
 
 			kunmap (page);
 			unlock_page (page);
@@ -1910,21 +1925,40 @@ int extent_write (struct inode * inode, new_coord * coord,
 
 
 /*
- * start read on several buffers
+ * start i/o not loaded nodes
  */
-static void submit_bhs (struct buffer_head ** bhs, unsigned nr)
+static void start_page_read (struct page * page)
 {
-	unsigned i;
+	struct buffer_head *pbhs [MAX_BUF_PER_PAGE];
+	struct buffer_head bhs [MAX_BUF_PER_PAGE];
+	int i, blocks, nr;
+	jnode * j;
+	char * data;
 
+
+	assert ("vs-657", PageLocked (page));
+	data = kmap (page);
+	blocks = PAGE_CACHE_SIZE / reiser4_get_current_sb ()->s_blocksize;
+
+	for (i = 0, nr = 0; i < blocks; i ++, j = page_next_jnode (j)) {
+		if (JF_ISSET (j, ZNODE_LOADED))
+			continue;
+
+		assert ("vs-658", jnode_has_block (j));
+		bhs [nr].b_blocknr = j->blocknr;
+		bhs [nr].b_size = reiser4_get_current_sb ()->s_blocksize;
+		bhs [nr].b_data = data;
+		pbhs [nr] = &bhs [nr];
+		nr ++;
+	}
 	for (i = 0; i < nr; i ++) {
-		lock_buffer (bhs [i]);
-		set_buffer_async_io (bhs [i]);
+		lock_buffer (pbhs [i]);
+		mark_buffer_async_read (pbhs [i]);
 	}
 
 	for (i = 0; i < nr; i ++)
-		submit_bh (READ, bhs [i]);
+		submit_bh (READ, pbhs [i]);
 }
-
 
 /*
  * extent_readpage uses search.c:iterate_tree() to go through all extents pointing to blocks a page consists of. One
@@ -1935,12 +1969,9 @@ static void submit_bhs (struct buffer_head ** bhs, unsigned nr)
  */
 struct readpage_desc {
 	struct page * page;      /* page being read */
-	struct buffer_head * bh; /* buffer of page which was not processed
-				    yet */
+	jnode * j;
 	unsigned done_nr;        /* number of buffers in the page we have
 				    processed */
-	struct buffer_head *bhs [PAGE_SIZE / 512]; /* array of buffers which
-						      have to be read */
 	unsigned have_to_read;   /* number of buffers in the array in above */
 	
 };
@@ -1969,21 +2000,20 @@ static int map_extent (reiser4_tree * tree UNUSED_ARG,
 	unsigned nr;
 	struct page * page;
 	struct inode * inode;
-	struct buffer_head * bh;
 	struct readpage_desc * desc;
 	unsigned blocksize;
 	unsigned i;
+	jnode * j;
 
-	
+
 	desc = (struct readpage_desc *)arg;
 	page = desc->page;
 	assert ("vs-290", PageLocked (page));
 	
 	/*
-	 * not proceeded buffer
+	 * not proceeded jnode
 	 */
-	bh = desc->bh;
-	
+	j = desc->j;
 
 	inode = page->mapping->host;
 	
@@ -2003,37 +2033,36 @@ static int map_extent (reiser4_tree * tree UNUSED_ARG,
 	/*
 	 * number of buffers of @page we can proceed using this extent
 	 */
-	nr = PAGE_SIZE / blocksize - desc->done_nr;
+	nr = PAGE_CACHE_SIZE / blocksize - desc->done_nr;
 	if (width - pos_in_unit < nr)
 		nr = width - pos_in_unit;
 
+	start += pos_in_unit;
 	for (i = 0; i < nr;
-	     i ++, bh = bh->b_this_page, desc->done_nr ++, pos_in_unit ++) {
-		if (buffer_uptodate (bh))
+	     i ++, j = page_next_jnode (j), desc->done_nr ++, pos_in_unit ++) {
+		if (JF_ISSET (j, ZNODE_LOADED))
 			continue;
-		if (!buffer_mapped (bh)) {
+		if (!jnode_has_block (j)) {
 			if (state_of_extent (ext) == HOLE_EXTENT) {
-				xmemset (kmap (page) +
-					desc->done_nr * blocksize,
-					0, blocksize);
+				xmemset (kmap (page) + desc->done_nr * blocksize, 0, blocksize);
 				flush_dcache_page (page);
 				kunmap (page);
-				make_buffer_uptodate (bh, 1);
+				JF_SET (j, ZNODE_LOADED);
 				continue;
 			} else {
 				assert ("vs-281", state_of_extent (ext) ==
 					ALLOCATED_EXTENT);
-				map_bh (bh, reiser4_get_current_sb (),
-					start + pos_in_unit);
+				jnode_set_block (j, &start);
+				start ++;
 			}
 		}
 		/*
 		 * one more block to be read
 		 */
-		desc->bhs [desc->have_to_read ++] = bh;
+		desc->have_to_read ++;
 	}
 
-	if (bh != page->buffers) {
+	if (j != jnode_of_page (page)) {
 		/*
 		 * not all buffers of this page are done
 		 */
@@ -2043,7 +2072,7 @@ static int map_extent (reiser4_tree * tree UNUSED_ARG,
 			/*
 			 * file should continue in next item
 			 */
-			desc->bh = bh;
+			desc->j = j;
 			return 1;
 		}
 
@@ -2052,11 +2081,11 @@ static int map_extent (reiser4_tree * tree UNUSED_ARG,
 		 */
 		nr = PAGE_SIZE / blocksize - desc->done_nr;
 		xmemset (kmap (page) + desc->done_nr * blocksize,
-			0, blocksize * nr);
+			 0, blocksize * nr);
 		flush_dcache_page (page);
 		kunmap (page);
-		for (i = 0; i < nr; i ++, desc->done_nr ++, bh = bh->b_this_page)
-			make_buffer_uptodate (bh, 1);
+		for (i = 0; i < nr; i ++, desc->done_nr ++, j = page_next_jnode (j))
+			JF_SET (j, ZNODE_LOADED);
 	}
 
 	return 0;
@@ -2116,11 +2145,14 @@ int extent_readpage (new_coord * coord, lock_handle * lh, struct page * page)
 	int result;
 	unsigned blocksize;
 	struct readpage_desc desc;
+	struct readpage_arg * arg;
+	jnode * j;
 
-
+	impossible ("vs-685", "DEBUG ME");
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
-	if (!page->buffers)
-		create_empty_buffers (page, blocksize);
+
+	/* get or create jnode for a page */
+	j = jnode_of_page (page);
 
 	/*
 	 * set arg->coord to extent containing beginning of page
@@ -2131,7 +2163,7 @@ int extent_readpage (new_coord * coord, lock_handle * lh, struct page * page)
 
 	xmemset (&desc, 0, sizeof (struct readpage_desc));
 	desc.page = page;
-	desc.bh = page->buffers;
+	desc.j = jnode_of_page (page);
 	/*
 	 * go through extents until all buffers are mapped
 	 */
@@ -2142,9 +2174,9 @@ int extent_readpage (new_coord * coord, lock_handle * lh, struct page * page)
 		return result;
 
 	/*
-	 * all the page buffers are mapped
+	 * all the page jnodes got block number set
 	 */
-	assert ("vs-391", desc.done_nr == PAGE_SIZE / blocksize);
+	assert ("vs-391", desc.done_nr == PAGE_CACHE_SIZE / blocksize);
 	if (!desc.have_to_read) {
 		/*
 		 * there is nothing to read
@@ -2152,10 +2184,7 @@ int extent_readpage (new_coord * coord, lock_handle * lh, struct page * page)
 		SetPageUptodate (page);
 		unlock_page (page);
 	} else {
-		/*
-		 * start read for not uptodate buffers of the page
-		 */
-		submit_bhs (desc.bhs, desc.have_to_read);
+		start_page_read (page);
 	}
 
 	return 0;
@@ -2176,37 +2205,44 @@ int extent_readpage (new_coord * coord, lock_handle * lh, struct page * page)
  */
 static int extent_readpage_ahead (void * arg, struct page * page)
 {
-	struct buffer_head *bhs [PAGE_SIZE / 512];
-	struct buffer_head * bh;
+	struct buffer_head *pbhs [MAX_BUF_PER_PAGE];
+	struct buffer_head bhs [MAX_BUF_PER_PAGE];
 	reiser4_block_nr block;
 	unsigned nr;
+	jnode * j, * first;
+	char * data;
+	unsigned long blocksize;
 
-	
-	if (!page->buffers)
-		create_empty_buffers (page, reiser4_get_current_sb ()->s_blocksize);
-	bh = page->buffers;
+
+	blocksize = reiser4_get_current_sb ()->s_blocksize;
+
+	j = first = jnode_of_page (page);
+
+	data = kmap (page);
+
 	block = *(reiser4_block_nr *)arg;
 	nr = 0;
 	do {
-		if (buffer_uptodate (bh))
+		jnode_set_block (j, &block);
+		if (JF_ISSET (j, ZNODE_LOADED))
 			continue;
-		if (!buffer_mapped (bh)) {
-			map_bh (bh, reiser4_get_current_sb (), block);
-		} else {
-			assert ("vs-325", bh->b_blocknr == block);
-		}
-		block ++;
-		bhs [nr ++] = bh;
-	} while (block ++, bh = bh->b_this_page, bh != page->buffers);
-	
-	submit_bhs (bhs, nr);
+
+		bhs [nr].b_blocknr = block;
+		bhs [nr].b_size = blocksize;
+		bhs [nr].b_data = data;
+		pbhs [nr] = &bhs [nr];
+		nr ++;
+	} while (block ++, data += blocksize, j = page_next_jnode (j), j != first);
+
+	/* all jnodes of the page have blocknr set */
+	start_page_read (page);
 	return 0;
 }
 
 
 /*
- * @coord is set to extent addressing last block of @page which . If this
- * extent is allocated one we try to use the rest of it to readahead few pages
+ * @coord is set to extent addressing last block of @page. If this extent is an
+ * allocated one we try to use the rest of it to readahead few pages
  */
 static void read_ahead (struct page * page, new_coord * coord)
 {
@@ -2247,8 +2283,8 @@ static void read_ahead (struct page * page, new_coord * coord)
 	 * how many blocks does the rest of extent can we readahead (not looking
 	 * further than current extent)
 	 */
-	can_readahead = ((extent_get_width (ext) - pos_in_extent) /
-			 blocks_per_page);
+	can_readahead = ((extent_get_width (ext) - pos_in_extent) >> PAGE_CACHE_SHIFT);
+
 	if (can_readahead > MAX_READAHEAD)
 		can_readahead = MAX_READAHEAD;
 
@@ -2279,6 +2315,7 @@ int extent_read (struct inode * inode, new_coord * coord,
 	page_nr = (get_key_offset (&f->key) >> PAGE_CACHE_SHIFT);
 	arg.coord = coord;
 	arg.lh = lh;
+	count = 0;
 
 	/* this will return page if it exists and is uptodate, otherwise it
 	 * will allocate page and call extent_readpage to fill it */
@@ -2288,15 +2325,15 @@ int extent_read (struct inode * inode, new_coord * coord,
 		return PTR_ERR (page);
 	}
 
-	if (!Page_Uptodate (page)) {
+	if (!PageUptodate (page)) {
 		/* make some readahead pages of extent we stopped at and start
 		 * reading them */
 		read_ahead (page, arg.coord);
 	}
 
-	wait_on_page (page);
+	wait_on_page_locked (page);
 	
-	if (!Page_Uptodate (page)) {
+	if (!PageUptodate (page)) {
 		page_cache_release (page);
 		return -EIO;
 	}
@@ -2307,7 +2344,6 @@ int extent_read (struct inode * inode, new_coord * coord,
 		page_cache_release (page);
 		return result;
 	}
-
 	/* position within the page to read from */
 	page_off = (get_key_offset (&f->key) & ~PAGE_MASK);
 
@@ -2332,13 +2368,8 @@ int extent_read (struct inode * inode, new_coord * coord,
 	if (result) {
 		return result;
 	}
-	
+
 	move_flow_forward (f, count);
-/*
-	f->data.user_buf += count;
-	f->length -= count;
-	set_key_offset (&f->key, get_key_offset (&f->key) + count);
-*/
 	return 0;
 	
 }
@@ -2389,6 +2420,7 @@ static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first,
 	int blocksize, page_off;
 	unsigned long ind;
 	reiser4_key sd_key;
+	jnode * j;
 
 
 	objectid = get_key_objectid (key);
@@ -2404,21 +2436,25 @@ static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first,
 	while (1) {
 		ind = offset >> PAGE_CACHE_SHIFT;
 		page = find_lock_page (inode->i_mapping, ind);
-		assert ("vs-349", page && page->buffers);
+		assert ("vs-349", page && page_buffers (page));
 		
-		bh = page->buffers;
+		bh = page_buffers (page);
 		for (page_off = 0; offset != (ind << PAGE_CACHE_SHIFT) + page_off;
 		     page_off += blocksize, bh = bh->b_this_page);
 
 		do {
 			assert ("vs-350", buffer_mapped (bh));
-			assert ("vs-351", buffer_unallocated (bh));
-			bh->b_blocknr = first ++;
-			mark_buffer_allocated (bh);
+			bh->b_blocknr = first;
+			/* FIXME-VS: do we need to set jnode's block here? */
+			j = jnode_of_page (page);
+			assert ("vs-351", !jnode_has_block (j));
+			jnode_set_block (j, &first);
+			first ++;
+
 			offset += blocksize;
 			count --;
 			bh = bh->b_this_page;
-		} while (count && bh != page->buffers);
+		} while (count && bh != page_buffers (page));
 
 		unlock_page (page);
 		page_cache_release (page);
@@ -2427,135 +2463,6 @@ static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first,
 	}
 	iput (inode);
 }
-
-
-#if 0 /*
-       * allocate extents inflating them to right
-       */
-
-static void check_resize_result (new_coord * coord, reiser4_key * key UNUSED_ARG)
-{
-	reiser4_key k;
-
-
-	assert ("vs-326",
-		coord->between == AT_UNIT);
-	item_key_by_coord (coord, &k);
-	set_key_offset (&k, (get_key_offset (&k) +
-			     extent_size (coord, (unsigned) coord->unit_pos)));
-	assert ("vs-329", keyeq (&k, key));
-}
-
-
-/* this replaces unallocated extents with allocated ones. @coord may change to
-   another node */
-static int allocate_unallocated_extent (new_coord * coord,
-					lock_handle * lh,
-					reiser4_key * key)
-{
-	int result;
-	unsigned i, nr_units;
-	reiser4_extent * ext;
-	reiser4_block_nr hint, width;
-	int blocksize;
-	reiser4_key tmp_key;
-
-		
-	blocksize = reiser4_get_current_sb ()->s_blocksize;
-
-	assert ("vs-319", in_extent (coord, get_key_offset (key)) == 0);
-	assert ("vs-342", (get_key_offset (key) & (blocksize - 1)) == 0);
-
-
- restart:
-	hint = 0;
-	nr_units = extent_nr_units (coord);
-	ext = extent_item (coord) + coord->unit_pos;
-	for (i = coord->unit_pos; i < nr_units; i ++, ext ++, coord->unit_pos ++) {		
-		width = extent_get_width (ext);
-		assert ("vs-320", width);
-		switch (state_of_extent (ext)) {
-		case ALLOCATED_EXTENT:
-			hint = extent_get_start (ext) + extent_get_width (ext);
-		case HOLE_EXTENT:
-			set_key_offset (key, (get_key_offset (key) + 
-					      width * blocksize));
-			continue;
-		case UNALLOCATED_EXTENT:
-			{
-				reiser4_block_nr first, needed;
-				reiser4_extent new_ext;
-				reiser4_item_data item;
-
-
-				/* replace unallocated extent with an
-				   allocated one */
-				needed = width;
-				first = hint;
-				result = allocate_new_blocks (&first, &needed);
-				if (result)
-					return result;
-				/* @needed is now how many blocks were
-				   allocated */
-				assert ("vs-321", first > 0 && needed > 0 &&
-					needed <= width);
-				
-				hint = first + needed;
-				/* store key we have done so far */
-				set_key_offset (key, (get_key_offset (key) + 
-						      needed * blocksize));
-
-				/* update extent in place */
-				extent_set_start (ext, first);
-				extent_set_width (ext, needed);
-
-				if (width == needed)
-					item.length = 0;
-				else {
-					/* part of extent left unallocated,
-					   insert new unallocated extent right
-					   after the one just allocated */
-					set_extent (&new_ext, UNALLOCATED_EXTENT,
-						    width - needed);
-					init_new_extent (&item, &new_ext);
-				}
-
-				coord->between = AFTER_UNIT;
-				result = add_extents (coord, lh, key, &item);
-				if (result)
-					return result;
-
-				/*
-				 * set b_blocknrs of all buffers corresponding
-				 * to newly allocated extent
-				 */
-				set_blocknrs (get_key_objectid (key),
-					      get_key_offset (key) - needed * blocksize,
-					      first, needed);
-
-				if (!coord_of_unit (coord) ||
-				    !keyeq (key, unit_key_by_coord (coord, &tmp_key)))
-					/* have to research a place where we
-					   stopped at */
-					return 1;
-				if (REISER4_DEBUG)
-					/* after resize_item @coord is supposed
-					   to be set to extent next to just
-					   allocated one */
-					check_resize_result (coord, key);
-				goto restart;
-			}
-		}
-	}
-
-	assert ("vs-327", coord->unit_pos == extent_nr_units (coord));
-	return 0;
-}
-
-#endif /*
-       * allocate extents inflating them to right
-       */
-
 
 
 /*
@@ -2991,7 +2898,7 @@ __u64 extent_unit_index (const new_coord * item)
 
 	assert ("vs-648", ncoord_is_existing_unit (item));
 	unit_key_by_coord (item, &key);
-	return get_key_offset (&key) / reiser4_get_current_sb ()->s_blocksize;
+	return get_key_offset (&key) >> reiser4_get_current_sb ()->s_blocksize_bits;
 }
 
 
