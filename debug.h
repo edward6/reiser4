@@ -179,6 +179,8 @@ typedef struct lock_counters_info {
 
 extern lock_counters_info *lock_counters(void);
 
+extern void schedulable (void); 
+
 #else
 
 #define dinfo( format, args... ) noop
@@ -187,6 +189,7 @@ extern lock_counters_info *lock_counters(void);
 #define assert( label, cond ) noop
 #define check_me( label, expr )	( ( void ) ( expr ) )
 #define ON_DEBUG( exp )
+#define schedulable(...) noop
 
 /* REISER4_DEBUG */
 #endif

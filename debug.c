@@ -81,6 +81,13 @@ lock_counters()
 	assert("jmacd-1123", ctx != NULL);
 	return &ctx->locks;
 }
+
+/* check that no spinlocks are held */
+void schedulable (void)
+{
+	assert ("zam-782", lock_counters->spin_locked == 0);
+}
+
 #endif
 
 #if REISER4_DEBUG_OUTPUT && REISER4_DEBUG

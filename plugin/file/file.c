@@ -273,6 +273,8 @@ find_next_item(struct sealed_coord *hint, const reiser4_key * key,	/* key of pos
 {
 	int result;
 
+	schedulable();
+
 	/* collect statistics on the number of calls to this function */
 	reiser4_stat_file_add(find_next_item);
 
@@ -1179,6 +1181,8 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 	item_plugin *iplug;
 	struct sealed_coord hint;
 
+	schedulable();
+
 	init_lh(&lh);
 
 	/* get seal and coord sealed with it from reiser4 private data of
@@ -1307,6 +1311,7 @@ ssize_t unix_file_write(struct file * file,	/* file to write to */
 	loff_t pos;
 	reiser4_block_nr needed = 0;
 
+	schedulable();
 
 	inode = file->f_dentry->d_inode;
 

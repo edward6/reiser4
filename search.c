@@ -292,6 +292,8 @@ lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 	init_lh(lh);
 	init_lh(&parent_lh);
 
+	schedulable();
+
 	assert("nikita-353", tree != NULL);
 	assert("nikita-354", key != NULL);
 	assert("nikita-355", coord != NULL);
@@ -299,7 +301,6 @@ lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 	assert("nikita-357", stop_level >= LEAF_LEVEL);
 	/* no locks can be held during tree traversal */
 	assert("nikita-2104", lock_stack_isclean(get_current_lock_stack()));
-	assert("zam-781", lock_counters()->spin_locked == 0);
 	trace_stamp(TRACE_TREE);
 
 	xmemset(&handle, 0, sizeof handle);
@@ -424,6 +425,8 @@ traverse_tree(cbk_handle * h /* search handle */ )
 	/* loop for restarts */
 restart:
 
+	schedulable();
+
 	h->result = CBK_COORD_FOUND;
 
 	{
@@ -527,6 +530,8 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 {
 	int ret;
 	znode *active;
+
+	schedulable();
 
 	/* acquire reference to @active node */
 	active = zget(h->tree, &h->block, h->parent_lh->node, h->level, GFP_KERNEL);
