@@ -154,6 +154,8 @@ AC_OUTPUT([
 	plugin/journal40/Makefile
 	plugin/alloc36/Makefile
 	plugin/alloc40/Makefile
+	plugin/node40/Makefile
+	plugin/node36/Makefile
 	demos/Makefile
 	debug/Makefile
 	doc/Makefile

@@ -37,8 +37,8 @@ typedef struct reiserfs_format40_super reiserfs_format40_super_t;
 #define get_sb_tree_height(sb)				get_le32(sb, sb_tree_height)
 #define set_sb_tree_height(sb, val)			set_le32(sb, sb_tree_height, val)
 
-#define get_sb_oid(sb)						get_le16(sb, sb_oid)
-#define set_sb_oid(sb, val)					set_le16(sb, sb_oid, val)
+#define get_sb_oid(sb)					get_le16(sb, sb_oid)
+#define set_sb_oid(sb, val)				set_le16(sb, sb_oid, val)
 
 struct reiserfs_format40 {
 	aal_device_t *device;
