@@ -286,7 +286,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	if (result != 0)\
 		return result;\
 	loaded = coord->node;\
-	PROF_END(update_sd_load, update_sd_load);\
+	PROF_END(update_sd_load, 0);\
 }
 
 #define UPDATE_SD_2 \
@@ -296,7 +296,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	spin_lock_inode(inode);\
 	result = data.iplug->s.sd.save(inode, &area);\
 	znode_make_dirty(coord->node);\
-	PROF_END(update_sd_save, update_sd_save);\
+	PROF_END(update_sd_save, 0);\
 }
 
 #define UPDATE_SD_3 \
@@ -307,7 +307,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	spin_unlock_inode(inode);\
 	check_inode_seal(inode, coord, key);\
 	zrelse(loaded);\
-	PROF_END(update_sd_seal, update_sd_seal);\
+	PROF_END(update_sd_seal, 0);\
 }
 
 static int
@@ -401,7 +401,7 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 			check_sd_coord(&coord, &key);\
 	} else\
 		result = -EAGAIN;\
-	PROF_END(seal_validate, seal_validate);\
+	PROF_END(seal_validate, 0);\
 }
 
 

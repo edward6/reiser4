@@ -1291,7 +1291,7 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 	*off += read;
 
 	/* return number of read bytes or error code if nothing is read */
-	PROF_END(file_read, file_read);
+	PROF_END(file_read, 0);
 	return read ?: result;
 }
 

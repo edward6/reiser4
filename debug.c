@@ -315,7 +315,7 @@ return_err(int code, const char *file, int line)
 		reiser4_context *ctx = get_current_context();
 
 		if (ctx != NULL) {
-			fill_backtrace(ctx->err.path);
+			fill_backtrace(&ctx->err.path, 0);
 			ctx->err.code = code;
 			ctx->err.file = file;
 			ctx->err.line = line;
@@ -333,7 +333,7 @@ report_err(void)
 #ifdef CONFIG_FRAME_POINTER
 			int i;
 			for (i = 0; i < REISER4_BACKTRACE_DEPTH ; ++ i)
-				printk("0x%p ", ctx->err.path[i]);
+				printk("0x%p ", ctx->err.path.trace[i]);
 			printk("\n");
 #endif
 			printk("code: %i at %s:%i\n", 
@@ -345,14 +345,58 @@ report_err(void)
 #endif
 
 #ifdef CONFIG_FRAME_POINTER
-void fill_backtrace(backtrace_path path)
+extern int kswapd(void *);
+
+#include <linux/personality.h>
+extern struct exec_domain default_exec_domain;
+static int is_last_frame(void *addr)
 {
-	path[0] = __builtin_return_address(1);
-	path[1] = __builtin_return_address(2);
-	path[2] = __builtin_return_address(3);
-	path[3] = __builtin_return_address(4);
-	path[4] = __builtin_return_address(5);
-	path[5] = __builtin_return_address(6);
+	if (addr == NULL)
+		return 1;
+	/* XXX gross hack */
+	else if ((void *)kswapd < addr && addr < (void *)wakeup_kswapd)	
+		return 1;
+	else
+		return 0;
+}
+
+void fill_backtrace(backtrace_path *path, int shift)
+{
+	int i;
+	void *addr;
+
+	cassert(REISER4_BACKTRACE_DEPTH == 6);
+	assert("nikita-3229", shift < 6);
+
+	/* long live Duff! */
+
+#define FRAME(nr)						\
+	case (nr):						\
+		addr  = __builtin_return_address((nr) + 2);	\
+		break
+
+	xmemset(path, 0, sizeof *path);
+	addr = NULL;
+	for (i = 0; i < REISER4_BACKTRACE_DEPTH; ++ i) {
+		switch(i + shift) {
+			FRAME(0);
+			FRAME(1);
+			FRAME(2);
+			FRAME(3);
+			FRAME(4);
+			FRAME(5);
+			FRAME(6);
+			FRAME(7);
+			FRAME(8);
+			FRAME(9);
+			FRAME(10);
+		default:
+			impossible("nikita-3230", "everything is wrong");
+		}
+		path->trace[i] = addr;
+		if (is_last_frame(addr))
+			break;
+	}
 }
 #endif
 
