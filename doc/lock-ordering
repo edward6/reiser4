@@ -225,6 +225,15 @@ LABEL AND DESCRIPTION                                 LOCKS
 
     (Checked by znode_invariant_f().)
 
+[jnode-oid]                                           jnode_lock, tree_lock
+
+    /* for unformatted node ->objectid and ->mapping fields are
+     * consistent */
+    jnode_is_unformatted(node) =>
+        node->key.j.objectid == get_inode_oid(node->key.j.mapping->host)
+
+    (Checked by znode_invariant_f().)
+
 [jnode-refs]                                          jnode_lock, tree_lock
 
     /* only referenced jnode can be loaded */

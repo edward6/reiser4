@@ -1482,6 +1482,12 @@ jnode_invariant_f(const jnode * node,
 		/* dirty inode is part of atom */
 		_ergo(jnode_is_dirty(node), node->atom != NULL) &&
 
+		/* [jnode-oid] invariant */
+
+		/* for unformatted node ->objectid and ->mapping fields are
+		 * consistent */
+		_ergo(jnode_is_unformatted(node), 
+		      node->key.j.objectid == get_inode_oid(node->key.j.mapping->host)) &&
 		/* [jnode-refs] invariant */
 
 		/* only referenced jnode can be loaded */

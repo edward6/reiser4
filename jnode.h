@@ -92,6 +92,7 @@ typedef struct {
 
       [jnode-dirty]
       [jnode-refs]
+      [jnode-oid]
       [jnode-queued]
 */
 struct jnode {
