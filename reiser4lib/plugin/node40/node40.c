@@ -92,14 +92,14 @@ static error_t reiserfs_node40_check(reiserfs_node40_t *node, int flags) {
     return 0;
 }
 
-static uint32_t reiserfs_node40_item_maxsize(reiserfs_node40_t *node) {
+static uint16_t reiserfs_node40_item_max_size(reiserfs_node40_t *node) {
     aal_assert("vpf-016", node != NULL, return 0);
 
     return node->block->size - sizeof(reiserfs_node40_header_t) - 
 	sizeof(reiserfs_item_header40_t);
 }
 
-static uint32_t reiserfs_node40_item_maxnum(reiserfs_node40_t *node) {
+static uint16_t reiserfs_node40_item_max_num(reiserfs_node40_t *node) {
     aal_assert("vpf-017", node != NULL, return 0);
    
     /*FIXME: this function probably should get item pligin id and call 
@@ -109,18 +109,19 @@ static uint32_t reiserfs_node40_item_maxnum(reiserfs_node40_t *node) {
 	(sizeof(reiserfs_item_header40_t) + 1);
 }
 
-static uint32_t reiserfs_node40_item_count(reiserfs_node40_t *node) {
+static uint16_t reiserfs_node40_item_count(reiserfs_node40_t *node) {
     aal_assert("vpf-018", node != NULL, return 0);
     return get_nh40_num_items(reiserfs_node40_header(node));
 }
 
 /* this shound not be an interface method */
+/*
 static uint8_t reiserfs_node40_level(reiserfs_node40_t *node) {
     aal_assert("vpf-019", node != NULL, return 0);
     return get_nh40_level(reiserfs_node40_header(node));
 }
-
-static uint32_t reiserfs_node40_get_free_space(reiserfs_node40_t *node) {
+*/
+static uint16_t reiserfs_node40_get_free_space(reiserfs_node40_t *node) {
     aal_assert("vpf-020", node != NULL, return 0);
     return get_nh40_free_space(reiserfs_node40_header(node));
 }
@@ -130,6 +131,26 @@ static void reiserfs_node40_set_free_space(reiserfs_node40_t *node,
 {
     aal_assert("vpf-022", node != NULL, return);
     set_nh40_free_space(reiserfs_node40_header(node), free_space);
+}
+
+static uint16_t reiserfs_node40_item_length(reiserfs_node40_t *node, int32_t pos) {
+    aal_assert("vpf-037", node != NULL, return 0);
+    return get_ih40_length(reiserfs_node40_ih_at(node, pos));    
+}
+
+static reiserfs_key_t *reiserfs_node40_item_min_key(reiserfs_node40_t *node, int32_t pos) {
+    aal_assert("vpf-038", node != NULL, return NULL);
+    return &reiserfs_node40_ih_at(node, pos)->key;    
+}
+
+static uint16_t reiserfs_node40_item_plugin_id(reiserfs_node40_t *node, int32_t pos) {
+    aal_assert("vpf-039", node != NULL, return 0);
+    return get_ih40_plugin_id(reiserfs_node40_ih_at(node, pos));    
+}
+
+static void *reiserfs_node40_item(reiserfs_node40_t *node, int32_t pos) {
+    aal_assert("vpf-040", node != NULL, return NULL);
+    return reiserfs_node40_item_at(node, pos);
 }
 
 /* Prepare text node description and push it into buff */
@@ -282,12 +303,15 @@ static reiserfs_plugin_t node40_plugin = {
 	.check = (error_t (*)(reiserfs_opaque_t *, int))reiserfs_node40_check,
 	.lookup = (int (*)(reiserfs_opaque_t *, reiserfs_key_t *, reiserfs_coord_t *))reiserfs_node40_lookup,
 	
-	.item_maxsize = (uint32_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_maxsize,
-	.item_maxnum =  (uint32_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_maxnum,
-	.item_count = (uint32_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_count,
-	.level = (uint8_t (*)(reiserfs_opaque_t *))reiserfs_node40_level,
+	.item_max_size = (uint16_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_max_size,
+	.item_max_num =  (uint16_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_max_num,
+	.item_count = (uint16_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_count,
+	.item_length = (uint16_t (*)(reiserfs_opaque_t *, int32_t))reiserfs_node40_item_length,
+	.item_min_key = (reiserfs_key_t *(*)(reiserfs_opaque_t *, int32_t))reiserfs_node40_item_min_key,
+	.item_plugin_id = (uint16_t (*)(reiserfs_opaque_t *, int32_t))reiserfs_node40_item_plugin_id,
+	.item = (void *(*)(reiserfs_opaque_t *, int32_t))reiserfs_node40_item,
 	
-	.get_free_space = (uint32_t (*)(reiserfs_opaque_t *))reiserfs_node40_get_free_space,
+	.get_free_space = (uint16_t (*)(reiserfs_opaque_t *))reiserfs_node40_get_free_space,
 	.set_free_space = (void (*)(reiserfs_opaque_t *, uint32_t))reiserfs_node40_set_free_space,
 	.print = (void (*)(reiserfs_opaque_t *, char *))reiserfs_node40_print
     }

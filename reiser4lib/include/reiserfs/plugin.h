@@ -150,13 +150,15 @@ struct reiserfs_node_plugin {
     error_t (*check) (reiserfs_opaque_t *, int);
     int (*lookup) (reiserfs_opaque_t *, reiserfs_key_t *, reiserfs_coord_t *);
     
-    uint32_t (*item_maxsize) (reiserfs_opaque_t *);
-    uint32_t (*item_maxnum) (reiserfs_opaque_t *);
-    uint32_t (*item_count) (reiserfs_opaque_t *);
+    uint16_t (*item_max_size) (reiserfs_opaque_t *);
+    uint16_t (*item_max_num) (reiserfs_opaque_t *);
+    uint16_t (*item_count) (reiserfs_opaque_t *);
+    uint16_t (*item_length) (reiserfs_opaque_t *, int32_t);
+    reiserfs_key_t *(*item_min_key) (reiserfs_opaque_t *, int32_t);
+    uint16_t (*item_plugin_id) (reiserfs_opaque_t *, int32_t);
+    void *(*item) (reiserfs_opaque_t *, int32_t);
     
-    uint8_t (*level) (reiserfs_opaque_t *);
-    
-    uint32_t (*get_free_space) (reiserfs_opaque_t *);
+    uint16_t (*get_free_space) (reiserfs_opaque_t *);
     void (*set_free_space) (reiserfs_opaque_t *, uint32_t);
     
     void (*print) (reiserfs_opaque_t *, char *);
