@@ -61,14 +61,14 @@ int release_cryptcompress(struct inode *inode, struct file *);
 int mmap_cryptcompress(struct file *, struct vm_area_struct *vma);
 int get_block_cryptcompress(struct inode *, sector_t block, struct buffer_head *bh_result, int create);
 int flow_by_inode_cryptcompress(struct inode *, char *buf, int user, loff_t, loff_t, rw_op, flow_t *);
-int cluster_key_by_inode(struct inode *, loff_t off, reiser4_key *);
+int key_by_inode_cryptcompress(struct inode *, loff_t off, reiser4_key *);
 int delete_cryptcompress(struct inode *);
 int owns_item_cryptcompress(const struct inode *, const coord_t *);
 int setattr_cryptcompress(struct inode *, struct iattr *);
 void readpages_cryptcompress(struct file *, struct address_space *, struct list_head *pages);
 void init_inode_data_cryptcompress(struct inode *, reiser4_object_create_data *, int create);
 int pre_delete_cryptcompress(struct inode *);
-
+void hint_init_zero(hint_t *, lock_handle *);
 
 /* secret key params supposed to be stored on disk */
 typedef struct crypto_stat {
