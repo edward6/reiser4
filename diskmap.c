@@ -10,7 +10,7 @@
 
 /* Looks through chain of diskmap blocks, looking for table entry where label and parameter
    patch passed in "label" and "parameter"
-   Returns 0 on syccess, -1 if nothing was found or error have occured. */
+   Returns 0 on success, -1 if nothing was found or error have occured. */
 int reiser4_get_diskmap_value( u32 label, u32 parameter, u64 *value)
 {
 	struct super_block *sb = reiser4_get_current_sb();
@@ -40,9 +40,17 @@ search_table:
 
 		/* Since entries in tables are sorted, we iterate until we hit item that we are looking for,
 		   or we reach end of whole fixmap or end of current block */
-		while ((d32tocpu(&diskmap->table[i].label) <= label) &&
-		       (d32tocpu(&diskmap->table[i].parameter) < parameter))
+		while (((d32tocpu(&diskmap->table[i].label) <= label) &&
+		       (d32tocpu(&diskmap->table[i].parameter) < parameter)) &&
+			/* Also check that we do not fall out of current block */
+			((sb->s_blocksize - sizeof(diskmap->magic))/sizeof(diskmap->table[0]) >= i))
 			i++;
+
+		if ( i > (sb->s_blocksize - sizeof(diskmap->magic))/sizeof(diskmap->table[0]) ) {
+			warning("green-2004", "diskmap block %Ld is not properly terminated", (long long)diskmap_bh->b_blocknr);
+			brelse(diskmap_bh);
+			return -1;
+		}
 
 		/* Is this last entry in current table that holds disk block with more data ? */
 		if ( d32tocpu(&diskmap->table[i].label) == REISER4_FIXMAP_NEXT_LABEL ) { /* Need to load next diskmap block */
