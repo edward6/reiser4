@@ -59,9 +59,11 @@ jnode_init (jnode *node)
 {
 	assert("umka-175", node != NULL);
 	
+	memset (node, 0, sizeof (jnode));
 	node->state = 0;
 	node->level = 0;
 	atomic_set (&node->d_count, 0);
+	atomic_set (&node->x_count, 0);
 	spin_lock_init (& node->guard);
 	node->atom = NULL;
 	capture_list_clean (node);
@@ -474,7 +476,7 @@ void info_jnode( const char *prefix /* prefix to print */,
 		return;
 	}
 
-	info( "%s: %p: state: %lu: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, block: %llu, pg: %p, ",
+	info( "%s: %p: state: %lu: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, block: %llu, d_count: %d, x_count: %d, pg: %p, ",
 	      prefix, node, node -> state, 
 
 	      jnode_state_name( node, ZNODE_LOADED ),
@@ -493,7 +495,9 @@ void info_jnode( const char *prefix /* prefix to print */,
 	      jnode_state_name( node, ZNODE_FLUSH_BUSY ),
 	      jnode_state_name( node, ZNODE_FLUSH_QUEUED ),
 	      
-	      jnode_get_level( node ), *jnode_get_block( node ), jnode_page( node ) );
+	      jnode_get_level( node ), *jnode_get_block( node ),
+	      atomic_read( &node -> d_count ), atomic_read( &node -> x_count ),
+	      jnode_page( node ) );
 }
 
 #endif
