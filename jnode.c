@@ -641,6 +641,8 @@ do_jget(reiser4_tree * tree, struct page * pg)
 	}
 
 	result = find_get_jnode(tree, pg->mapping, oid, pg->index);
+	if (unlikely(IS_ERR(result)))
+		return result;
 	/* attach jnode to page */
 	UNDER_SPIN_VOID(jnode, result, jnode_attach_page(result, pg));
 	return result;
