@@ -23,3 +23,4 @@ GSYMS
 .dependencies
 *.bak
 *.so
+TAGS
