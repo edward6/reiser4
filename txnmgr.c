@@ -1,4 +1,10 @@
-/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+
+/* As of 2002 the code in this file was primarily designed by Joshua MacDonald, with aspects relating to ensuring high
+ * performance, and flexibility in the amount of isolation for reasons of high performance, being heavily influenced by
+ * Hans Reiser.  Alexander Zarochentcev became the maintainer when Josh left.  Hans would like to commend Josh for
+ * leaving his code in a well commmented and well structured condition, and to recommend him to any prospective future
+ * employers he might have.  */
 
 /* The txnmgr is a set of interfaces that keep track of atoms and transcrash handles.  The
    txnmgr processes capture_block requests and manages the relationship between jnodes and
@@ -14,17 +20,23 @@
    This code implements the design documented at:
   
      http://namesys.com/txn-doc.html
+
+ZAM-FIXME-HANS: update v4.html to contain all of the information present in the above (but updated), and then remove the
+above document and reference the new.  Be sure to provide some credit to Josh.  I already have some writings on this
+topic in v4.html, but they are lacking in details present in the above.  Cure that.  Remember to write for the bright 12
+year old --- define all technical terms used.
+
 */
 
 /* Thoughts on the external transaction interface:
   
-   In the current code, a TRANSCRASH handle is created implicitly by init_context() and
-   closed by reiser4_exit_context(), occupying the scope of a single system call.  We wish to give
-   certain applications an interface to begin and close (commit) transactions.  Since our
-   implementation of transactions does not yet support isolation, allowing an application
-   to open a transaction implies trusting it to later close the transaction.  Part of the
-   transaction interface will be aimed at enabling that trust, but the interface for
-   actually using transactions is fairly narrow.
+   In the current code, a TRANSCRASH handle is created implicitly by init_context() (which creates state that lasts for
+   the duration of a system call and is called at the start of ReiserFS methods implementing VFS operations), and closed
+   by reiser4_exit_context(), occupying the scope of a single system call.  We wish to give certain applications an
+   interface to begin and close (commit) transactions.  Since our implementation of transactions does not yet support
+   isolation, allowing an application to open a transaction implies trusting it to later close the transaction.  Part of
+   the transaction interface will be aimed at enabling that trust, but the interface for actually using transactions is
+   fairly narrow.
   
    BEGIN_TRANSCRASH: Returns a transcrash identifier.  It should be possible to translate
    this identifier into a string that a shell-script could use, allowing you to start a
@@ -36,12 +48,16 @@
      on writes (WRITE_FUSING) and allow "dirty reads".  If the application wishes to
      capture on reads as well, it should set READ_FUSING.
   
-     - TIMEOUT: Since a non-isolated transcrash cannot be undone, every transcrash must
-     eventually close (or else the machine must crash).  If the application dies an
-     unexpected death with an open transcrash, for example, or if it hangs for a long
-     duration, one solution (to avoid crashing the machine) is to simply close it anyway.
-     This is a dangerous option, but it is one way to solve the problem until isolated
-     transcrashes are available for untrusted applications.
+     - TIMEOUT: Since a non-isolated transcrash cannot be undone, every transcrash must eventually close (or else the
+     machine must crash).  If the application dies an unexpected death with an open transcrash, for example, or if it
+     hangs for a long duration, one solution (to avoid crashing the machine) is to simply close it anyway.  This is a
+     dangerous option, but it is one way to solve the problem until isolated transcrashes are available for untrusted
+     applications.  
+
+     It seems to be what databases do, though it is unclear how one avoids a DoS attack creating a vulnerability based
+     on resource starvation.  Guaranteeing that some minimum amount of computational resources are made available would
+     seem more correct than guaranteeing some amount of time.  When we again have someone to code the work, this issue
+     should be considered carefully.  -Hans
   
    RESERVE_BLOCKS: A running transcrash should indicate to the transaction manager how
    many dirty blocks it expects.  The reserve_blocks interface should be called at a point
