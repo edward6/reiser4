@@ -697,18 +697,26 @@ static int
 truncate_file_body(struct inode *inode, loff_t new_size)
 {
 	int result;
-	loff_t cur_size;
-
+/*	loff_t cur_size;*/
+/*
 	result = find_file_size(inode, &cur_size);
 	if (result != 0)
 		return result;
+*/
+	/*cur_size = get_key_offset(max_key());*/
+	if (inode->i_size < new_size)
+		result = append_hole(inode, new_size);
+	else
+		result = shorten_file(inode, new_size, get_key_offset(max_key()));
 
+#if 0
 	if (new_size != cur_size) {
 		INODE_SET_FIELD(inode, i_size, cur_size);
 		if (cur_size < new_size)
 			result = append_hole(inode, new_size);
 		else
 			result = shorten_file(inode, new_size, cur_size);
+		/* stat data is updated already */
 	} else {
 		/* when file is built of extens - find_file_size can only
 		 * calculate old file size up to page size. Case of not
@@ -719,8 +727,9 @@ truncate_file_body(struct inode *inode, loff_t new_size)
 		       file_is_built_of_extents(inode) ||
 		       (file_is_empty(inode) && cur_size == 0));
 		assert("vs-1116", (new_size & ~PAGE_CACHE_MASK) == 0);
+		/* stat data has to be updated */
 	}
-
+#endif
 	return result;
 }
 
@@ -2357,24 +2366,9 @@ setattr_truncate(struct inode *inode, struct iattr *attr)
 	if (result == 0)
 		result = safe_link_add(inode, SAFE_TRUNCATE);
 	all_grabbed2free();
-	if (result == 0 && inode->i_size != attr->ia_size)
+	if (result == 0)
 		result = truncate_file_body(inode, attr->ia_size);
-	if (result == 0) {
-		/* update stat data */
-		result = setattr_reserve_common(tree);
-		if (!result) {
-			/* items are removed already. inode_setattr will call
-			   vmtruncate to invalidate truncated pages and
-			   unix_file_truncate which will do nothing. FIXME: is
-			   this necessary? */
-			result = inode_setattr(inode, attr);
-			if (!result) {
-				inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-				result = reiser4_update_sd(inode);
-			}
-		}
-		all_grabbed2free();
-	} else
+	if (result)
 		warning("vs-1588", "truncate_file failed: oid %lli, old size %lld, new size %lld, retval %d",
 			get_inode_oid(inode), old_size, attr->ia_size, result);
 
