@@ -674,7 +674,7 @@ txn_mgr_force_commit (struct super_block *super)
 
 	REISER4_ENTRY (super);
 
-	txnh = reiser4_get_current_context ()->trans;
+	txnh = get_current_context ()->trans;
 
  again:
 
@@ -927,7 +927,7 @@ txn_try_capture (jnode           *node,
 	txn_handle  *txnh;
 	txn_capture  cap_mode;
 
-	if ((txnh = reiser4_get_current_context ()->trans) == NULL) {
+	if ((txnh = get_current_context ()->trans) == NULL) {
 		rpanic ("jmacd-492", "invalid transaction txnh");
 	}
 

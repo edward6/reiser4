@@ -343,7 +343,7 @@ TS_LIST_DEFINE(locks, reiser4_lock_handle, locks_link);
  */
 reiser4_lock_stack* get_current_lock_stack ( void )
 {
-	return &reiser4_get_current_context()->stack;
+	return &get_current_context()->stack;
 }
 
 /**

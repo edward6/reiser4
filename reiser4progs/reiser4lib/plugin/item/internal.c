@@ -103,7 +103,7 @@ int internal_create_hook( const tree_coord *item, void *arg )
 		child -> ptr_in_parent_hint = *item;
 		child -> ptr_in_parent_hint.between = AT_UNIT;
 		if( arg != NULL )
-			reiser4_sibling_list_insert_nolock( child, arg );
+			sibling_list_insert_nolock( child, arg );
 
 		ZF_CLR( child, ZNODE_NEW );
 

@@ -20,8 +20,8 @@ void reiser4_panic( const char *format, ... )
 	static char buf[ REISER4_PANIC_MSG_BUFFER_SIZE ];
 	va_list args;
 
-	++ reiser4_get_current_context() -> in_panic;
-	if( reiser4_get_current_context() -> in_panic == 1 ) {
+	++ get_current_context() -> in_panic;
+	if( get_current_context() -> in_panic == 1 ) {
 		/* FIXME-NIKITA bust_spinlocks() should go here. Quoting
 		 * lib/bust_spinlocks.c:
 		 *
@@ -36,7 +36,7 @@ void reiser4_panic( const char *format, ... )
 		/* print back-trace */
 		show_stack( NULL );
 		/* do something more impressive here, print content of
-		   reiser4_get_current_context() */
+		   get_current_context() */
 	} else {
 		BUG(); /* push it down harder */
 	}
@@ -61,7 +61,7 @@ void preempt_point( void )
  */
 lock_counters_info *lock_counters()
 {
-	return &reiser4_get_current_context() -> locks;
+	return &get_current_context() -> locks;
 }
 
 /**
@@ -72,7 +72,7 @@ void check_stack( void )
 {
 	char     dummy;
 	unsigned gap;
-	reiser4_context *context = reiser4_get_current_context();
+	reiser4_context *context = get_current_context();
 
 	if( context == NULL )
 		return;
@@ -264,7 +264,7 @@ void reiser4_print_stats()
 __u32 get_current_trace_flags( void )
 {
 	return 
-		reiser4_get_current_context() -> trace_flags | 
+		get_current_context() -> trace_flags | 
 		get_current_super_private() -> trace_flags |
 		reiser4_current_trace_flags;
 }

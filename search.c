@@ -557,7 +557,7 @@ static lookup_result cbk( cbk_handle *h )
 		/* LOADED is set and d_count incremented because that's what zrelse expects... ? */
 		ZF_SET( fake, ZNODE_LOADED );
 		atomic_inc( &fake -> d_count );
-		/* reiser4_connect_znode() needs it */
+		/* connect_znode() needs it */
 		h -> coord -> node = fake;
 		h -> ld_key = *min_key();
 		h -> rd_key = *max_key();
@@ -666,7 +666,7 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h)
 		/*
 		 * FIXME: h->coord->node and active are of different levels?
 		 */
-		h->result = reiser4_connect_znode(h->coord, active);
+		h->result = connect_znode(h->coord, active);
 		if (h->result)
 			goto fail_or_restart;
 	}

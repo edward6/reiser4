@@ -119,7 +119,7 @@ int read_in_formatted( struct super_block *super, sector_t block, char **area )
 	 */
 	assert( "nikita-1773", PAGE_CACHE_SHIFT >= blksizebits );
 	page_idx = block >> ( PAGE_CACHE_SHIFT - blksizebits );
-	page = grab_cache_page( reiser4_get_super_fake( super ) -> i_mapping, 
+	page = grab_cache_page( get_super_fake( super ) -> i_mapping, 
 				page_idx );
 	if( page != NULL ) {
 		struct buffer_head *bh;

@@ -248,7 +248,7 @@ void reiser4_done_tree( reiser4_tree *tree /* tree to release */ )
 		reiser4_kfree( tree -> cbk_cache, sizeof( cbk_cache ) );
 }
 
-void reiser4_insert_znode( tree_coord *coord, znode *node )
+void insert_znode( tree_coord *coord, znode *node )
 {
 	assert( "nikita-314", coord != NULL );
 	assert( "nikita-315", node != NULL );
@@ -679,7 +679,7 @@ static const __u32 context_magic = 0x4b1b5d0a;
  * This function should be called at the beginning of reiser4 part of
  * syscall.
  */
-int reiser4_init_context( reiser4_context *context /* pointer to the reiser4
+int init_context( reiser4_context *context /* pointer to the reiser4
 						    * context being
 						    * initalised */, 
 			  struct super_block *super /* super block we are
@@ -735,7 +735,7 @@ int reiser4_init_context( reiser4_context *context /* pointer to the reiser4
  * Call to this function is optional.
  *
  */
-void reiser4_done_context( reiser4_context *context UNUSED_ARG /* context being
+void done_context( reiser4_context *context UNUSED_ARG /* context being
 							        * released */ )
 {
 	assert( "nikita-860", context != NULL );
@@ -753,7 +753,7 @@ void reiser4_done_context( reiser4_context *context UNUSED_ARG /* context being
 }
 
 void
-reiser4_init_context_mgr (void)
+init_context_mgr (void)
 {
 #if REISER4_DEBUG
 	spin_lock_init    (& active_contexts_lock);
@@ -762,7 +762,7 @@ reiser4_init_context_mgr (void)
 }
 
 #if REISER4_DEBUG
-void reiser4_show_context (int show_tree)
+void show_context (int show_tree)
 {
 	reiser4_context *context;
 	reiser4_tree    *tree = NULL;
@@ -805,7 +805,7 @@ void forget_znode (reiser4_lock_handle *handle)
 	assert ("vs-164", znode_is_write_locked (node));
 	assert ("nikita-1280", ZF_ISSET (node, ZNODE_HEARD_BANSHEE));
 
-	reiser4_sibling_list_remove (node);
+	sibling_list_remove (node);
 	invalidate_lock (handle);
 
 	/* make sure that we are the only owner of this znode FIXME-NIKITA huh? This is

@@ -266,7 +266,7 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 	 * of newly created inode's fields
 	 */
 	object -> i_mode = data -> mode;
-	object -> i_generation = reiser4_new_inode_generation( object -> i_sb );
+	object -> i_generation = new_inode_generation( object -> i_sb );
 	/* this should be plugin decision */
 	object -> i_uid = current -> fsuid;
 	object -> i_mtime = object -> i_atime = object -> i_ctime = CURRENT_TIME;

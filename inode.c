@@ -20,7 +20,7 @@ reiser4_tree *tree_by_inode( const struct inode *inode )
 {
 	assert( "nikita-256", inode != NULL );
 	assert( "nikita-257", inode -> i_sb != NULL );
-	return reiser4_get_tree( inode -> i_sb );
+	return get_tree( inode -> i_sb );
 }
 
 /** main function for external code to get plugins associated with 

@@ -364,7 +364,7 @@ static int connect_one_side (tree_coord * coord, znode * node, int flags)
 
 /* if node is not in `connected' state, performs hash searches for left and
  * right neighbor nodes and establishes horizontal sibling links */
-int reiser4_connect_znode (tree_coord * coord, znode * node)
+int connect_znode (tree_coord * coord, znode * node)
 {
 	reiser4_tree * tree = current_tree;
 	int ret = 0;
@@ -595,7 +595,7 @@ int reiser4_get_neighbor (reiser4_lock_handle * neighbor /* lock handle that
 }
 
 /** remove node from sibling list */
-void reiser4_sibling_list_remove (znode * node)
+void sibling_list_remove (znode * node)
 {
 	if (!znode_is_connected(node))
 		return;
@@ -615,7 +615,7 @@ void reiser4_sibling_list_remove (znode * node)
 	ZF_CLR (node, ZNODE_RIGHT_CONNECTED);
 }
 
-void reiser4_sibling_list_insert_nolock (znode *new, znode *before)
+void sibling_list_insert_nolock (znode *new, znode *before)
 {
 	assert("zam-334", new != NULL);
 
@@ -640,10 +640,10 @@ void reiser4_sibling_list_insert_nolock (znode *new, znode *before)
 /** Insert new node into sibling list. Regular balancing inserts new node
  * after (at right side) existing and locked node (@before), except one case
  * of adding new tree root node. @before should be NULL in that case. */
-void reiser4_sibling_list_insert (znode *new, znode *before)
+void sibling_list_insert (znode *new, znode *before)
 {
 	spin_lock_tree(current_tree);
-	reiser4_sibling_list_insert_nolock(new, before);
+	sibling_list_insert_nolock(new, before);
 	spin_unlock_tree(current_tree);
 }
 

@@ -36,7 +36,7 @@ reiser4_super_info_data *get_super_private( const struct super_block *super )
 /**
  * Return reiser4 fstype: value that is returned in ->f_type field by statfs()
  */
-long reiser4_statfs_type( const struct super_block *super UNUSED_ARG )
+long statfs_type( const struct super_block *super UNUSED_ARG )
 {
 	assert( "nikita-448", super != NULL );
 	assert( "nikita-449", is_reiser4_super( super ) );
@@ -98,7 +98,7 @@ long reiser4_reserved_blocks( const struct super_block *super,
 /**
  * objectid allocator used by this file system
  */
-reiser4_oid_allocator *reiser4_get_oid_allocator( const struct super_block *super )
+reiser4_oid_allocator *get_oid_allocator( const struct super_block *super )
 {
 	assert( "nikita-458", super != NULL );
 	assert( "nikita-459", is_reiser4_super( super ) );
@@ -108,7 +108,7 @@ reiser4_oid_allocator *reiser4_get_oid_allocator( const struct super_block *supe
 /**
  * return fake inode used to bind formatted nodes in the page cache
  */
-struct inode *reiser4_get_super_fake( const struct super_block *super )
+struct inode *get_super_fake( const struct super_block *super )
 {
 	assert( "nikita-1757", super != NULL );
 	return get_super_private( super ) -> fake;
@@ -117,7 +117,7 @@ struct inode *reiser4_get_super_fake( const struct super_block *super )
 /**
  * tree used by this file system
  */
-reiser4_tree *reiser4_get_tree( const struct super_block *super )
+reiser4_tree *get_tree( const struct super_block *super )
 {
 	assert( "nikita-460", super != NULL );
 	assert( "nikita-461", is_reiser4_super( super ) );
@@ -165,13 +165,13 @@ reiser4_super_info_data *get_current_super_private( void )
  */
 struct super_block *reiser4_get_current_sb()
 {
-	return reiser4_get_current_context() -> super;
+	return get_current_context() -> super;
 }
 
 /**
  * inode generation to use for the newly created inode
  */
-__u32 reiser4_new_inode_generation( const struct super_block *super )
+__u32 new_inode_generation( const struct super_block *super )
 {
 	assert( "nikita-464", is_reiser4_super( super ) );
 	return get_super_private( super ) -> inode_generation;
@@ -205,7 +205,7 @@ static __u64 reserved_for_root( const struct super_block *super UNUSE )
 
 
 
-int reiser4_init_tree( reiser4_tree *tree /* pointer to structure being
+int init_tree( reiser4_tree *tree /* pointer to structure being
 					   * initialised */, 
 		       const reiser4_block_nr *root_block /* address of a
 							    * root block on a

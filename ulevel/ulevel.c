@@ -1045,12 +1045,12 @@ static int readdir( const char *prefix, struct file *dir, __u32 flags )
 		reiser4_context *ctx;
 
 		info.eof = 1;
-		ctx = reiser4_get_current_context();
+		ctx = get_current_context();
 		SUSPEND_CONTEXT( ctx );
 		result = dir -> f_dentry -> d_inode -> i_fop -> 
 			readdir( dir, &info, 
 				 flags ? one_shot_filldir : echo_filldir );
-		reiser4_init_context( ctx, dir -> f_dentry -> d_inode -> i_sb );
+		init_context( ctx, dir -> f_dentry -> d_inode -> i_sb );
 		if( info.eof )
 			break;
 		if( ( flags & EFF_SHOW_INODE ) && ( info.name != NULL ) ) {
@@ -1099,14 +1099,14 @@ static int call_unlink( struct inode * dir, struct inode *victim,
 	struct dentry guillotine;
 	int result;
 
-	old_context = reiser4_get_current_context();
+	old_context = get_current_context();
 	SUSPEND_CONTEXT( old_context );
 
 	guillotine.d_inode = victim;
 	guillotine.d_name.name = name;
 	guillotine.d_name.len = strlen( name );
 	result = dir -> i_op -> unlink( dir, &guillotine );
-	reiser4_init_context( old_context, dir -> i_sb );
+	init_context( old_context, dir -> i_sb );
 	return result;
 }
 
@@ -1141,10 +1141,10 @@ static int call_link( struct inode *dir, const char *old, const char *new )
 		reiser4_context *old_context;
 		int r;
 
-		old_context = reiser4_get_current_context();
+		old_context = get_current_context();
 		SUSPEND_CONTEXT( old_context );
 		r = dir -> i_op -> link( &old_dentry, dir, &new_dentry );
-		reiser4_init_context( old_context, dir -> i_sb );
+		init_context( old_context, dir -> i_sb );
 		iput( old_dentry.d_inode );
 		return r;
 	} else
@@ -1172,7 +1172,7 @@ void *mkdir_thread( mkdir_thread_info *info )
 	int                ret;
 	struct file        df;
 
-	old_context = reiser4_get_current_context();
+	old_context = get_current_context();
 
 	sprintf( dir_name, "Dir-%i", current_pid );
 	dentry.d_name.name = dir_name;
@@ -1181,7 +1181,7 @@ void *mkdir_thread( mkdir_thread_info *info )
 	ret = info -> dir -> i_op -> mkdir( info -> dir, 
 					    &dentry, S_IFDIR | 0777 );
 	rlog( "nikita-1638", "In directory: %s", dir_name );
-	reiser4_init_context( old_context, info -> dir -> i_sb );
+	init_context( old_context, info -> dir -> i_sb );
 
 	if( ret != 0 ) {
 		rpanic( "nikita-1636", "Cannot create dir: %i", ret );
@@ -1286,7 +1286,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	root = allocate_znode( tree, fake, tree -> height, &tree -> root_block, 
 			       !strcmp( argv[ 2 ], "mkfs" ) );
 	root -> rd_key = *max_key();
-	reiser4_sibling_list_insert( root, NULL );
+	sibling_list_insert( root, NULL );
 
 	if( !strcmp( argv[ 2 ], "mkfs" ) ) {
 		/*
@@ -1733,14 +1733,14 @@ static int call_create (struct inode * dir, const char * name)
 	int ret;
 
 
-	old_context = reiser4_get_current_context();
+	old_context = get_current_context();
 	SUSPEND_CONTEXT( old_context );
 
 	dentry.d_name.name = name;
 	dentry.d_name.len = strlen( name );
 	ret = dir->i_op -> create( dir, &dentry, S_IFREG | 0777 );
 
-	reiser4_init_context( old_context, dir->i_sb );
+	init_context( old_context, dir->i_sb );
 	if( ret == 0 )
 		iput( dentry.d_inode );
 	return ret;
@@ -1756,14 +1756,14 @@ static ssize_t call_write (struct inode * inode, const char * buf,
 	struct dentry dentry;
 
 
-	old_context = reiser4_get_current_context();
+	old_context = get_current_context();
 	SUSPEND_CONTEXT( old_context );
 
 	file.f_dentry = &dentry;
 	dentry.d_inode = inode;
 	result = inode->i_fop->write (&file, buf, count, &offset);
 
-	reiser4_init_context (old_context, inode->i_sb);
+	init_context (old_context, inode->i_sb);
 
 	return result;
 }
@@ -1778,14 +1778,14 @@ static ssize_t call_read (struct inode * inode, char * buf, loff_t offset,
 	struct dentry dentry;
 
 
-	old_context = reiser4_get_current_context();
+	old_context = get_current_context();
 	SUSPEND_CONTEXT( old_context );
 
 	file.f_dentry = &dentry;
 	dentry.d_inode = inode;
 	result = inode->i_fop->read (&file, buf, count, &offset);
 
-	reiser4_init_context (old_context, inode->i_sb);
+	init_context (old_context, inode->i_sb);
 	return result;
 }
 
@@ -1794,12 +1794,12 @@ void call_truncate (struct inode * inode, loff_t size)
 {
 	reiser4_context *old_context;
 
-	old_context = reiser4_get_current_context();
+	old_context = get_current_context();
 	SUSPEND_CONTEXT( old_context );
 
 	inode->i_size = size;
 	inode->i_op->truncate (inode);
-	reiser4_init_context (old_context, inode->i_sb);
+	init_context (old_context, inode->i_sb);
 }
 
 
@@ -1809,13 +1809,13 @@ static struct inode * call_lookup (struct inode * dir, const char * name)
 	struct dentry * result;
 	reiser4_context *old_context;
 
-	old_context = reiser4_get_current_context();
+	old_context = get_current_context();
 	SUSPEND_CONTEXT( old_context );
 
 	dentry.d_name.name = name;
 	dentry.d_name.len = strlen (name);
 	result = dir->i_op->lookup (dir, &dentry);
-	reiser4_init_context (old_context, dir->i_sb);
+	init_context (old_context, dir->i_sb);
 
 	assert ("vs-415", ergo (result == NULL, dentry.d_inode != NULL));
 	return (result == NULL) ? dentry.d_inode : ERR_PTR (PTR_ERR (result));	
@@ -1835,14 +1835,14 @@ static int call_mkdir (struct inode * dir, const char * name)
 	int result;
 
 
-	old_context = reiser4_get_current_context();
+	old_context = get_current_context();
 	SUSPEND_CONTEXT( old_context );
 
 	dentry.d_name.name = name;
 	dentry.d_name.len = strlen (name);
 	result = dir->i_op->mkdir (dir, &dentry, S_IFDIR | 0777);
 
-	reiser4_init_context (old_context, dir->i_sb);
+	init_context (old_context, dir->i_sb);
 	if( result == 0 )
 		iput( dentry.d_inode );
 	return result;
@@ -2359,7 +2359,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			       tree -> height, &tree -> root_block, 0 );
 	root -> ld_key = *min_key();
 	root -> rd_key = *max_key();
-	reiser4_sibling_list_insert( root, NULL );
+	sibling_list_insert( root, NULL );
 
 	root_dir = create_root_dir (root);
 	if (IS_ERR (root_dir))
@@ -2766,7 +2766,7 @@ void* monitor_test_handler (void* arg)
 	for (;;) {
 		sleep (10);
 
-		reiser4_show_context (0);
+		show_context (0);
 	}
 
 	REISER4_EXIT_PTR (NULL);
@@ -2966,7 +2966,7 @@ int jmacd_test( int argc UNUSED_ARG,
 	root = allocate_znode( tree, fake, tree -> height, &tree -> root_block, 
 			       !strcmp( argv[ 2 ], "mkr4fs" ) );
 	root -> rd_key = *max_key();
-	reiser4_sibling_list_insert( root, NULL );
+	sibling_list_insert( root, NULL );
 
 	info ("building tree containing %u items using %u threads\n", _jmacd_items, procs);
 
@@ -3110,7 +3110,7 @@ int real_main( int argc, char **argv )
 		root_dentry.d_inode = NULL;
 		/* initialize reiser4_super_info_data's oid plugin */
 		get_super_private( &super ) -> oplug = &oid_plugins[OID_40_ALLOCATOR_ID].u.oid_mgr;
-		get_super_private( &super ) -> oplug -> init_oid_allocator( reiser4_get_oid_allocator( &super ) );
+		get_super_private( &super ) -> oplug -> init_oid_allocator( get_oid_allocator( &super ) );
 
 		s = &super;
 	}
@@ -3167,7 +3167,7 @@ int real_main( int argc, char **argv )
 	}
 
 	tree = &get_super_private( s ) -> tree;
-	result = reiser4_init_tree( tree, &root_block,
+	result = init_tree( tree, &root_block,
 				    1, node_plugin_by_id( NODE40_ID ),
 				    ulevel_read_node );
 	tree -> height = tree_height;
@@ -3226,7 +3226,7 @@ int main (int argc, char **argv)
 	}
 
 	/* Some init functions need to run before REISER4_ENTRY */
-	reiser4_init_context_mgr();
+	init_context_mgr();
 
 	ret = real_main (argc, argv);
 

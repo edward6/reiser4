@@ -144,7 +144,7 @@ int internal_create_hook( const tree_coord *item, void *arg )
 		if( arg != NULL ) {
 			reiser4_key *rd;
 
-			reiser4_sibling_list_insert_nolock( child, arg );
+			sibling_list_insert_nolock( child, arg );
 			rd = znode_get_rd_key( arg );
 			if( keycmp( rd, znode_get_ld_key( child ) ) != EQUAL_TO ) {
 				assert( "nikita-1806", 

@@ -165,7 +165,7 @@ znode *add_tree_root( znode *old_root /* existing tree root */,
 			*znode_get_ld_key( new_root ) = *min_key();
 			*znode_get_rd_key( new_root ) = *max_key();
 			spin_unlock_dk( current_tree );
-			reiser4_sibling_list_insert( new_root, NULL );
+			sibling_list_insert( new_root, NULL );
 			result = add_child_ptr( new_root, old_root );
 		}
 	}
@@ -278,7 +278,7 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 			new_root -> ptr_in_parent_hint.item_pos = ~0u;
 			new_root -> ptr_in_parent_hint.between = AT_UNIT;
 
-			reiser4_sibling_list_insert_nolock( new_root, NULL );
+			sibling_list_insert_nolock( new_root, NULL );
 			spin_unlock_tree( tree );
 
 			/*

@@ -223,13 +223,13 @@ typedef enum { SHIFTED_SOMETHING  = 0,
 } shift_result;
 
 
-extern int reiser4_init_tree( reiser4_tree *tree, 
+extern int init_tree( reiser4_tree *tree, 
 			      const reiser4_block_nr *root_block,
 			      tree_level height,
 			      node_plugin *default_plugin,
 			      node_read_actor read_node );
 extern void reiser4_done_tree( reiser4_tree *tree );
-extern void reiser4_insert_znode( tree_coord *coord, znode *node );
+extern void insert_znode( tree_coord *coord, znode *node );
 extern node_plugin *node_plugin_by_coord ( const tree_coord *coord );
 extern node_plugin *node_plugin_by_node( const znode *node );
 extern int is_coord_in_node( const tree_coord *coord );
@@ -411,22 +411,22 @@ struct reiser4_context {
 };
 
 /* Debugging helps. */
-extern void reiser4_init_context_mgr (void);
+extern void init_context_mgr (void);
 #if REISER4_DEBUG
-extern void reiser4_show_context     (int show_tree);
+extern void show_context     (int show_tree);
 #else
-#define reiser4_show_context(st) noop
+#define show_context(st) noop
 #endif
 
 /* Hans, is this too expensive? */
 #define current_tree (&get_super_private (reiser4_get_current_sb ())->tree)
 
-extern int  reiser4_init_context( reiser4_context *context,
+extern int  init_context( reiser4_context *context,
 				  struct super_block *super );
-extern void reiser4_done_context( reiser4_context *context );
+extern void done_context( reiser4_context *context );
 
 /** return context associated with given thread */
-static inline reiser4_context *reiser4_get_context( const struct task_struct *tsk )
+static inline reiser4_context *get_context( const struct task_struct *tsk )
 {
 	if (tsk == NULL) {
 		BUG ();
@@ -436,9 +436,9 @@ static inline reiser4_context *reiser4_get_context( const struct task_struct *ts
 }
 
 /** return context associated with current thread */
-static inline reiser4_context *reiser4_get_current_context()
+static inline reiser4_context *get_current_context()
 {
-	return reiser4_get_context( current );
+	return get_context( current );
 }
 
 
@@ -461,7 +461,7 @@ static inline reiser4_context *reiser4_get_current_context()
 #define __REISER4_EXIT( context )                                      \
 ({						                       \
         int __ret1 = txn_end( context );                               \
-	reiser4_done_context( context );                               \
+	done_context( context );                               \
         __ret1;                                                        \
 })
 

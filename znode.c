@@ -116,7 +116,7 @@
  * deletion. Node deletion includes two phases. First all ways to get
  * references to that znode (sibling and parent links and hash lookup using
  * block number stored in parent node) should be deleted -- it is done through
- * reiser4_sibling_list_remove(), also we assume that nobody uses down link
+ * sibling_list_remove(), also we assume that nobody uses down link
  * from parent node due to its nonexistence or proper parent node locking and
  * nobody uses parent pointers from children due to absence of them. Second we
  * invalidate all pending lock requests which still are on znode's lock

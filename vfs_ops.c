@@ -406,7 +406,7 @@ static int reiser4_statfs( struct super_block *super, struct statfs *buf )
 	assert( "nikita-409", buf != NULL );
 
 
-	buf -> f_type    = reiser4_statfs_type( super );
+	buf -> f_type    = statfs_type( super );
         /* applications use this not to know what is the block size, but to
          * know what is the optimal size for performing IOs, it is
          * mis-named. So we give them what they want.
@@ -1162,7 +1162,7 @@ static int __init init_reiser4()
 	info( KERN_INFO "Loading Reiser4. See www.namesys.com for a description of Reiser4.\n" );
 	result = init_inodecache();
 	if( result == 0 ) {
-		reiser4_init_context_mgr();
+		init_context_mgr();
 		result = znodes_init();
 		if( result == 0 ) {
 			result = init_plugins();

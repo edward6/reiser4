@@ -114,7 +114,7 @@ int common_file_install( struct inode *inode, reiser4_plugin *plug,
 	assert( "nikita-715", plug -> h.type_id == REISER4_FILE_PLUGIN_ID );
 
 	inode -> i_mode = data -> mode;
-	inode -> i_generation = reiser4_new_inode_generation( inode -> i_sb );
+	inode -> i_generation = new_inode_generation( inode -> i_sb );
 	/* this should be plugin decision */
 	inode -> i_uid = current -> fsuid;
 	inode -> i_mtime = inode -> i_atime = inode -> i_ctime = CURRENT_TIME;
@@ -250,7 +250,7 @@ static int insert_new_sd( struct inode *inode )
 	data.data = NULL;
 
 	result = allocate_oid
-		( reiser4_get_oid_allocator( inode -> i_sb ), &oid );
+		( get_oid_allocator( inode -> i_sb ), &oid );
 	if( result != 0 )
 		return result;
 
