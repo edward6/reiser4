@@ -881,6 +881,9 @@ parse_options(char *opt_string /* starting point */ ,
 		}						\
 	}
 
+
+#define MAX_NR_OPTIONS (30)
+
 /* parse options during mount */
 reiser4_internal int
 reiser4_parse_options(struct super_block *s, char *opt_string)
@@ -888,143 +891,170 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	int result;
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 	char *log_file_name;
+	opt_desc_t *opts, *p;
 
-	opt_desc_t opts[] = {
-		/* trace_flags=N
+	opts = kmalloc(sizeof(opt_desc_t) * MAX_NR_OPTIONS, GFP_KERNEL);
+	if (opts == NULL)
+		return RETERR(-ENOMEM);
 
-		   set trace flags to be N for this mount. N can be C numeric
-		   literal recognized by %i scanf specifier.  It is treated as
-		   bitfield filled by values of debug.h:reiser4_trace_flags
-		   enum
-		*/
-		SB_FIELD_OPT(trace_flags, "%i"),
-		/* log_flags=N
+	p = opts;
 
-		   set log flags to be N for this mount. N can be C numeric
-		   literal recognized by %i scanf specifier.  It is treated as
-		   bitfield filled by values of debug.h:reiser4_log_flags
-		   enum
-		*/
-		SB_FIELD_OPT(log_flags, "%i"),
-		/* debug_flags=N
+#if REISER4_DEBUG
+#  define OPT_ARRAY_CHECK if ((p) > (opts) + MAX_NR_OPTIONS) {		\
+		warning ("zam-1046", "opt array is overloaded"); break;	\
+	}
+#else
+#   define OPT_ARRAY_CHECK noop
+#endif
 
-		   set debug flags to be N for this mount. N can be C numeric
-		   literal recognized by %i scanf specifier.  It is treated as
-		   bitfield filled by values of debug.h:reiser4_debug_flags
-		   enum
-		*/
-		SB_FIELD_OPT(debug_flags, "%i"),
-		/* tmgr.atom_max_size=N
+#define PUSH_OPT(...)				\
+do {						\
+	 opt_desc_t o = __VA_ARGS__;		\
+	 OPT_ARRAY_CHECK;			\
+	 *p ++ = o;				\
+} while (0)	
 
-		   Atoms containing more than N blocks will be forced to
-		   commit. N is decimal.
-		*/
-		SB_FIELD_OPT(tmgr.atom_max_size, "%u"),
-		/* tmgr.atom_max_age=N
+#define PUSH_SB_FIELD_OPT(field, format) PUSH_OPT(SB_FIELD_OPT(field, format)) 
+#define PUSH_BIT_OPT(name, bit) PUSH_OPT(BIT_OPT(name, bit))
 
-		   Atoms older than N seconds will be forced to commit. N is
-		   decimal.
-		*/
-		SB_FIELD_OPT(tmgr.atom_max_age, "%u"),
-		/* tmgr.atom_max_flushers=N
+	/* trace_flags=N
 
-		   limit of concurrent flushers for one atom. 0 means no limit.
-		 */
-		SB_FIELD_OPT(tmgr.atom_max_flushers, "%u"),
-		/* tree.cbk_cache_slots=N
+	set trace flags to be N for this mount. N can be C numeric
+	literal recognized by %i scanf specifier.  It is treated as
+	bitfield filled by values of debug.h:reiser4_trace_flags
+	enum
+	*/
+	PUSH_SB_FIELD_OPT(trace_flags, "%i");
+	/* log_flags=N
 
-		   Number of slots in the cbk cache.
-		*/
-		SB_FIELD_OPT(tree.cbk_cache.nr_slots, "%u"),
+	set log flags to be N for this mount. N can be C numeric
+	literal recognized by %i scanf specifier.  It is treated as
+	bitfield filled by values of debug.h:reiser4_log_flags
+	enum
+	*/
+	PUSH_SB_FIELD_OPT(log_flags, "%i");
+	/* debug_flags=N
 
-		/* If flush finds more than FLUSH_RELOCATE_THRESHOLD adjacent
-		   dirty leaf-level blocks it will force them to be
-		   relocated. */
-		SB_FIELD_OPT(flush.relocate_threshold, "%u"),
-		/* If flush finds can find a block allocation closer than at
-		   most FLUSH_RELOCATE_DISTANCE from the preceder it will
-		   relocate to that position. */
-		SB_FIELD_OPT(flush.relocate_distance, "%u"),
-		/* If we have written this much or more blocks before
-		   encountering busy jnode in flush list - abort flushing
-		   hoping that next time we get called this jnode will be
-		   clean already, and we will save some seeks. */
-		SB_FIELD_OPT(flush.written_threshold, "%u"),
-		/* The maximum number of nodes to scan left on a level during
-		   flush. */
-		SB_FIELD_OPT(flush.scan_maxnodes, "%u"),
+	set debug flags to be N for this mount. N can be C numeric
+	literal recognized by %i scanf specifier.  It is treated as
+	bitfield filled by values of debug.h:reiser4_debug_flags
+	enum
+	*/
+	PUSH_SB_FIELD_OPT(debug_flags, "%i");
+	/* tmgr.atom_max_size=N
 
-		/* preferred IO size */
-		SB_FIELD_OPT(optimal_io_size, "%u"),
+	Atoms containing more than N blocks will be forced to
+	commit. N is decimal.
+	*/
+	PUSH_SB_FIELD_OPT(tmgr.atom_max_size, "%u");
+	/* tmgr.atom_max_age=N
 
-		/* carry flags used for insertion of new nodes */
-		SB_FIELD_OPT(tree.carry.new_node_flags, "%u"),
-		/* carry flags used for insertion of new extents */
-		SB_FIELD_OPT(tree.carry.new_extent_flags, "%u"),
-		/* carry flags used for paste operations */
-		SB_FIELD_OPT(tree.carry.paste_flags, "%u"),
-		/* carry flags used for insert operations */
-		SB_FIELD_OPT(tree.carry.insert_flags, "%u"),
+	Atoms older than N seconds will be forced to commit. N is
+	decimal.
+	*/
+	PUSH_SB_FIELD_OPT(tmgr.atom_max_age, "%u");
+	/* tmgr.atom_max_flushers=N
+
+	limit of concurrent flushers for one atom. 0 means no limit.
+	*/
+	PUSH_SB_FIELD_OPT(tmgr.atom_max_flushers, "%u");
+	/* tree.cbk_cache_slots=N
+
+	Number of slots in the cbk cache.
+	*/
+	PUSH_SB_FIELD_OPT(tree.cbk_cache.nr_slots, "%u");
+
+	/* If flush finds more than FLUSH_RELOCATE_THRESHOLD adjacent
+	   dirty leaf-level blocks it will force them to be
+	   relocated. */
+	PUSH_SB_FIELD_OPT(flush.relocate_threshold, "%u");
+	/* If flush finds can find a block allocation closer than at
+	   most FLUSH_RELOCATE_DISTANCE from the preceder it will
+	   relocate to that position. */
+	PUSH_SB_FIELD_OPT(flush.relocate_distance, "%u");
+	/* If we have written this much or more blocks before
+	   encountering busy jnode in flush list - abort flushing
+	   hoping that next time we get called this jnode will be
+	   clean already, and we will save some seeks. */
+	PUSH_SB_FIELD_OPT(flush.written_threshold, "%u");
+	/* The maximum number of nodes to scan left on a level during
+	   flush. */
+	PUSH_SB_FIELD_OPT(flush.scan_maxnodes, "%u");
+
+	/* preferred IO size */
+	PUSH_SB_FIELD_OPT(optimal_io_size, "%u");
+
+	/* carry flags used for insertion of new nodes */
+	PUSH_SB_FIELD_OPT(tree.carry.new_node_flags, "%u");
+	/* carry flags used for insertion of new extents */
+	PUSH_SB_FIELD_OPT(tree.carry.new_extent_flags, "%u");
+	/* carry flags used for paste operations */
+	PUSH_SB_FIELD_OPT(tree.carry.paste_flags, "%u");
+	/* carry flags used for insert operations */
+	PUSH_SB_FIELD_OPT(tree.carry.insert_flags, "%u");
 
 #ifdef CONFIG_REISER4_BADBLOCKS
-		/* Alternative master superblock location in case if it's original
-		   location is not writeable/accessable. This is offset in BYTES. */
-		SB_FIELD_OPT(altsuper, "%lu"),
+	/* Alternative master superblock location in case if it's original
+	   location is not writeable/accessable. This is offset in BYTES. */
+	PUSH_SB_FIELD_OPT(altsuper, "%lu");
 #endif
 
-		/* turn on BSD-style gid assignment */
-		BIT_OPT("bsdgroups", REISER4_BSD_GID),
-		/* turn on 32 bit times */
-		BIT_OPT("32bittimes", REISER4_32_BIT_TIMES),
-		/* turn off concurrent flushing */
-		BIT_OPT("mtflush", REISER4_MTFLUSH),
-		/* disable pseudo files support */
-		BIT_OPT("nopseudo", REISER4_NO_PSEUDO),
-		/* Don't load all bitmap blocks at mount time, it is useful
-		   for machines with tiny RAM and large disks. */
-		BIT_OPT("dont_load_bitmap", REISER4_DONT_LOAD_BITMAP),
+	/* turn on BSD-style gid assignment */
+	PUSH_BIT_OPT("bsdgroups", REISER4_BSD_GID);
+	/* turn on 32 bit times */
+	PUSH_BIT_OPT("32bittimes", REISER4_32_BIT_TIMES);
+	/* turn off concurrent flushing */
+	PUSH_BIT_OPT("mtflush", REISER4_MTFLUSH);
+	/* disable pseudo files support */
+	PUSH_BIT_OPT("nopseudo", REISER4_NO_PSEUDO);
+	/* Don't load all bitmap blocks at mount time, it is useful
+	   for machines with tiny RAM and large disks. */
+	PUSH_BIT_OPT("dont_load_bitmap", REISER4_DONT_LOAD_BITMAP);
 
-		{
-			/* tree traversal readahead parameters:
-			   -o readahead:MAXNUM:FLAGS
-			   MAXNUM - max number fo nodes to request readahead for: -1UL will set it to max_sane_readahead()
-			   FLAGS - combination of bits: RA_ADJCENT_ONLY, RA_ALL_LEVELS, CONTINUE_ON_PRESENT
-			*/
-			.name = "readahead",
-			.type = OPT_FORMAT,
-			.u = {
-				.f = {
-					.format  = "%u:%u",
-					.nr_args = 2,
-					.arg1 = &sbinfo->ra_params.max,
-					.arg2 = &sbinfo->ra_params.flags,
-					.arg3 = NULL,
-					.arg4 = NULL
-				}
-			}
-		},
-		/* What to do in case of fs error */
-		{
-                        .name = "onerror",
-                        .type = OPT_ONEOF,
-                        .u = {
-                                .oneof = {
-                                        .result = &sbinfo->onerror,
-                                        .list = {"panic", "remount-ro", "reboot", NULL},
-                                }
-                        }
-                },
+	PUSH_OPT ({
+		/* tree traversal readahead parameters:
+		   -o readahead:MAXNUM:FLAGS
+		   MAXNUM - max number fo nodes to request readahead for: -1UL will set it to max_sane_readahead()
+		   FLAGS - combination of bits: RA_ADJCENT_ONLY, RA_ALL_LEVELS, CONTINUE_ON_PRESENT
+		*/
+		.name = "readahead",
+			 .type = OPT_FORMAT,
+			 .u = {
+				 .f = {
+					 .format  = "%u:%u",
+					 .nr_args = 2,
+					 .arg1 = &sbinfo->ra_params.max,
+					 .arg2 = &sbinfo->ra_params.flags,
+					 .arg3 = NULL,
+					 .arg4 = NULL
+				 }
+			 }
+
+ 	});
+
+	/* What to do in case of fs error */
+	PUSH_OPT ({
+		.name = "onerror",
+			 .type = OPT_ONEOF,
+			 .u = {
+				 .oneof = {
+					 .result = &sbinfo->onerror,
+					 .list = {"panic", "remount-ro", "reboot", NULL},
+				 }
+			 }
+	});
 
 #if REISER4_LOG
-		{
-			.name = "log_file",
-			.type = OPT_STRING,
-			.u = {
-				.string = &log_file_name
-			}
-		},
+	PUSH_OPT({
+		.name = "log_file",
+			 .type = OPT_STRING,
+			 .u = {
+				 .string = &log_file_name
+			 }
+	});
 #endif
-	};
+
+	kfree(opts);
 
 	sbinfo->tmgr.atom_max_size = txnmgr_get_max_atom_size(s);
 	sbinfo->tmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
@@ -1052,7 +1082,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	sbinfo->ra_params.max = num_physpages / 4;
 	sbinfo->ra_params.flags = 0;
 
-	result = parse_options(opt_string, opts, sizeof_array(opts));
+	result = parse_options(opt_string, opts, p - opts);
 	if (result != 0)
 		return result;
 
