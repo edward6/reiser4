@@ -147,6 +147,9 @@ struct reiser4_tree {
 	 * information. */
 	__u64 znode_epoch;
 
+	/* fake znode */
+	znode *fake;
+
 	/* default plugin used to create new nodes in a tree. */
 	node_plugin *nplug;
 	struct super_block *super;

@@ -415,7 +415,7 @@ int get_fake_znode(reiser4_tree * tree, znode_lock_mode mode,
 	znode *fake;
 	int result;
 
-	fake = zget(tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL);
+	fake = zref(tree->fake);
 
 	if (!IS_ERR(fake)) {
 		result = longterm_lock_znode(lh, fake, mode, pri);

@@ -1594,6 +1594,13 @@ init_tree(reiser4_tree * tree	/* pointer to structure being
 	result = znodes_tree_init(tree);
 	if (result == 0)
 		result = jnodes_tree_init(tree);
+	if (result == 0) {
+		tree->fake = zget(tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL);
+		if (IS_ERR(tree->fake)) {
+			result = PTR_ERR(tree->fake);
+			tree->fake = NULL;
+		}
+	}
 	return result;
 }
 
@@ -1603,6 +1610,7 @@ done_tree(reiser4_tree * tree /* tree to release */ )
 {
 	assert("nikita-311", tree != NULL);
 
+	zput(tree->fake);
 	znodes_tree_done(tree);
 	jnodes_tree_done(tree);
 	cbk_cache_done(&tree->cbk_cache);
