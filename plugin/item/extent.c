@@ -2214,7 +2214,6 @@ make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j,
 	znode *loaded;
 	reiser4_key tmp_key;
 	write_mode todo;
-	/*PROF_BEGIN(make_extent);*/
 
 	assert("vs-960", znode_is_write_locked(coord->node));
 	assert("nikita-3139", !inode_get_flag(inode, REISER4_NO_SD));
@@ -2282,7 +2281,6 @@ make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j,
 	}
 
 	zrelse(loaded);
-	/*PROF_END(make_extent, make_extent);*/
 	return result;
 }
 
@@ -2345,32 +2343,6 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 }
 
 
-#define SET_SEAL \
-{\
-	PROF_BEGIN(set_seal);\
-	if (hint && coord_state == COORD_RIGHT_STATE)\
-		set_hint(hint, &f->key, coord, coord_state);\
-	else\
-		unset_hint(hint);\
-	longterm_unlock_znode(lh);\
-	PROF_END(set_seal, set_seal);\
-}
-
-#define UPDATE_SD \
-{\
-	PROF_BEGIN(update_sd);\
-	new_size = get_key_offset(&f->key);\
-	result = update_inode_and_sd_if_necessary(mapping->host, new_size, (new_size > mapping->host->i_size) ? 1 : 0, 1/* update stat data */);\
-	PROF_END(update_sd, update_sd);\
-}
-
-#define BALANCE_DIRTY_PAGES \
-{\
-	PROF_BEGIN(bdp);\
-	balance_dirty_pages_ratelimited(mapping);\
-	PROF_END(bdp, bdp);\
-}
-
 /* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
    therefore we have to update stat data if necessary */
 static int extent_balance_dirty_pages(struct address_space *mapping, const flow_t *f, coord_t *coord, lock_handle *lh,
@@ -2379,14 +2351,19 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 	int result;
 	loff_t new_size;
 
-	SET_SEAL;
+	if (hint && coord_state == COORD_RIGHT_STATE)
+		set_hint(hint, &f->key, coord, coord_state);
+	else
+		unset_hint(hint);
+	longterm_unlock_znode(lh);
 
-	UPDATE_SD;
+	new_size = get_key_offset(&f->key);
+	result = update_inode_and_sd_if_necessary(mapping->host, new_size, (new_size > mapping->host->i_size) ? 1 : 0, 1/* update stat data */);
 	if (result)
 		return result;
 
 	/* balance dirty pages periodically */
-	BALANCE_DIRTY_PAGES;
+	balance_dirty_pages_ratelimited(mapping);
 
 	if (coord_state == COORD_WRONG_STATE)
 		return RETERR(-EAGAIN);
@@ -2394,13 +2371,6 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 	result = hint_validate(hint, &f->key, lh, 0/* do not check key */);
 	assert("vs-1283", ergo(result == 0, !memcmp(&hint->coord, coord, sizeof(coord_t))));
 	return result;
-}
-
-#define EXTENT_BALANCE_DIRTY_PAGES \
-{\
-	PROF_BEGIN(extent_bdp);\
-	result = extent_balance_dirty_pages(page->mapping, f, coord, lh, hint, coord_state);\
-	PROF_END(extent_bdp, extent_bdp);\
 }
 
 /* estimate and reserve space which may be required for writing one page of file */
@@ -2415,16 +2385,6 @@ reserve_extent_write_iteration(struct inode *inode, reiser4_tree *tree)
 				    inode_file_plugin(inode)->estimate.update(inode),
 				    0/* flags */, "extent_write");
 	return result;
-}
-
-/* FIXME: remove me */
-#define COPY_FROM_USER								\
-{										\
-	PROF_BEGIN(copy);							\
-	/* FIXME: warning: pointer of type `void *' used in arithmetic */	\
-	result = __copy_from_user((char *)kmap(page) + page_off, f->data, to_page);	\
-	kunmap(page);								\
-	PROF_END(copy, copy);							\
 }
 
 /* write flow's data into file by pages */
@@ -2512,7 +2472,9 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		assert("nikita-3033", schedulable());
 
 		/* copy user data into page */
-		COPY_FROM_USER;
+		/* FIXME: warning: pointer of type `void *' used in arithmetic */
+		result = __copy_from_user((char *)kmap(page) + page_off, f->data, to_page);
+		kunmap(page);
 
 		/* jnode_set_dirty() will mark page accessed. No need to call
 		 * mark_page_accessed() here */
@@ -2538,7 +2500,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		move_flow_forward(f, to_page);
 
 		/* throttle the writer */
-		EXTENT_BALANCE_DIRTY_PAGES;
+		result = extent_balance_dirty_pages(page->mapping, f, coord, lh, hint, coord_state);
 		if (!grabbed)
 			all_grabbed2free("extent_write_flow");
 		if (result) {

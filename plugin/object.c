@@ -317,13 +317,10 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 
 	state = reiser4_inode_data(inode);
 
-	UPDATE_SD_1;
-/*
 	result = zload(coord->node);
 	if (result != 0)
 		return result;
 	loaded = coord->node;
-*/
 
 	spin_lock_inode(inode);
 	assert("nikita-728", state->pset->sd != NULL);
@@ -364,24 +361,18 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 		}
 	}
 
-	UPDATE_SD_2;
-/*
 	area = item_body_by_coord(coord);
 	spin_lock_inode(inode);
 	result = data.iplug->s.sd.save(inode, &area);
 	znode_make_dirty(coord->node);
-*/
 
 	/* re-initialise stat-data seal */
 
-	UPDATE_SD_3;
-/*
 	seal_init(&state->sd_seal, coord, key);
 	state->sd_coord = *coord;
 	spin_unlock_inode(inode);
 	check_inode_seal(inode, coord, key);
 	zrelse(loaded);
-*/
 	return result;
 }
 
@@ -432,7 +423,21 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 	seal = state->sd_seal;
 	spin_unlock_inode(inode);
 
-	SEAL_VALIDATE;
+	if (seal_is_set(&seal)) {
+		/* first, try to use seal */
+		build_sd_key(inode, &key);
+		result = seal_validate(&seal,
+				       &coord,
+				       &key,
+				       LEAF_LEVEL,
+				       &lh,
+				       FIND_EXACT,
+				       ZNODE_WRITE_LOCK,
+				       ZNODE_LOCK_LOPRI);
+		if (result == 0)
+			check_sd_coord(&coord, &key);
+	} else
+		result = -EAGAIN;
 
 	if (result != 0) {
 		coord_init_zero(&coord);
