@@ -12,7 +12,6 @@ libnode40_la_SOURCES	    = $(node40_sources)
 
 libnode40_static_la_LDFLAGS = $(PLUGIN_LDFLAGS)
 libnode40_static_la_SOURCES = $(node40_sources)
-libnode40_static_la_LIBADD  = $(top_builddir)/libmisc/libmisc.la
 
 INCLUDES = $(includedir)
 

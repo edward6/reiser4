@@ -12,7 +12,6 @@ libdirentry40_la_SOURCES	= $(direntry40_sources)
 
 libdirentry40_static_la_LDFLAGS = $(PLUGIN_LDFLAGS)
 libdirentry40_static_la_SOURCES = $(direntry40_sources)
-libdirentry40_static_la_LIBADD  = $(top_builddir)/libmisc/libmisc.la
 
 INCLUDES = $(includedir)
 

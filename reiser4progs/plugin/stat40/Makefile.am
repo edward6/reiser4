@@ -12,7 +12,6 @@ libstat40_la_SOURCES	    = $(stat40_sources)
 
 libstat40_static_la_LDFLAGS = $(PLUGIN_LDFLAGS)
 libstat40_static_la_SOURCES = $(stat40_sources)
-libstat40_static_la_LIBADD  = $(top_builddir)/libmisc/libmisc.la
 
 INCLUDES = $(includedir)
 
