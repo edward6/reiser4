@@ -1549,7 +1549,7 @@ static void flush_bio_write (struct bio *bio)
 		struct page *pg = bio->bi_io_vec[i].bv_page;
 		jnode *node;
 
-		trace_if (TRACE_FLUSH, print_page ("flush_bio_write", pg));
+		trace_if (TRACE_FLUSH_VERB, print_page ("flush_bio_write", pg));
 
 		if (! test_bit (BIO_UPTODATE, & bio->bi_flags)) {
 			SetPageError (pg);

@@ -1994,7 +1994,10 @@ uncapture_block (txn_atom *atom,
 
 	spin_unlock_jnode (node);
 
+	trace_if (TRACE_FLUSH, print_page ("uncapture", node->pg));
+
 	jput (node);
+
 	ON_DEBUG (-- lock_counters() -> t_refs);
 }
 
