@@ -304,11 +304,13 @@ reiser4_grab(__u64 count, reiser4_ba_flags_t flags)
 
 #if REISER4_DEBUG
 	get_current_context()->grabbed_initially = count;
+#ifdef CONFIG_FRAME_POINTER
 	get_current_context()->grabbed_at[0] = __builtin_return_address(1);
 	get_current_context()->grabbed_at[1] = __builtin_return_address(2);
 	get_current_context()->grabbed_at[2] = __builtin_return_address(3);
 	get_current_context()->grabbed_at[3] = __builtin_return_address(4);
 	get_current_context()->grabbed_at[4] = __builtin_return_address(5);
+#endif
 #endif
 
 	free_blocks -= count;
