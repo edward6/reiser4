@@ -788,7 +788,9 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	reiser4_stat_add(flush.left, left_scan.count);
 
 	todo = sbinfo->flush.relocate_threshold - left_scan.count;
-	if (todo > 0) {
+	/* FIXME-NIKITA scan right is inherently deadlock prone, because we
+	 * are (potentially holding a lock on the twig node at this moment. */
+	if (0 && todo > 0) {
 		ret = scan_right(&right_scan, node, (unsigned)todo);
 		if (ret != 0)
 			goto failed;
