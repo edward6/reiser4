@@ -14,6 +14,29 @@
 
 static reiserfs_profile_t profiles[] = {
     [0] = {
+	.label = "default40",
+	.desc = "Profile for reiser4 with default tail policy",
+    
+	.node = 0x0,
+	.item = {
+	    .internal = 0x3,
+	    .statdata = 0x0,
+	    .direntry = 0x2,
+	    .fileentry = 0x0
+	},
+	.file = 0x0,
+	.dir = 0x0,
+	.hash = 0x0,
+	.tail = 0x4,
+	.hook = 0x0,
+	.perm = 0x0,
+	.format = 0x0,
+	.oid = 0x0,
+	.alloc = 0x0,
+	.journal = 0x0,
+	.key = 0x0
+    },
+    [1] = {
 	.label = "extent40",
 	.desc = "Profile for reiser4 with extents turned on",
 	.node = 0x0,
@@ -35,7 +58,7 @@ static reiserfs_profile_t profiles[] = {
 	.journal = 0x0,
 	.key = 0x0
     },
-    [1] = {
+    [2] = {
 	.label = "tail40",
 	.desc = "Profile for reiser4 with tail only turned on",
     
@@ -101,7 +124,7 @@ int main(int argc, char *argv[]) {
     int c, error, force = 0;
     char uuid[17], label[17];
     count_t fs_len = 0, dev_len = 0;
-    char *host_dev, *profile_label = "extent40";
+    char *host_dev, *profile_label = "default40";
     uint16_t blocksize = REISERFS_DEFAULT_BLOCKSIZE;
     
     reiserfs_fs_t *fs;
