@@ -101,13 +101,6 @@ int total_inheritance( struct inode *inode,
 #endif
 
 
-static int is_file_empty( const struct inode *inode )
-{
-	assert( "nikita-710", inode != NULL );
-
-	return( inode -> i_size == 0 );
-}
-
 #ifdef INSTALL_EXISTS
 
 /** part of initialisation of new inode common for all types of objects */
