@@ -52,12 +52,13 @@ error_free_node:
     return NULL;
 }
 
+#ifndef ENABLE_COMPACT
+
 reiserfs_node_t *reiserfs_node_create(
     aal_device_t *device,                /* device which a node will be created on */
     blk_t blk,                           /* allocated block */
     reiserfs_plugin_id_t plugin_id,      /* node plugin id to be used */
     uint8_t level)                       /* level of the node in the tree */
-#ifndef ENABLE_COMPACT
 
 {
     reiserfs_node_t *node;
