@@ -128,7 +128,11 @@ typedef enum {
 	/**
 	 * print a lot of information during panic.
 	 */
-	REISER4_VERBOSE_PANIC     = 0x00000001
+	REISER4_VERBOSE_PANIC     = 0x00000001,
+	/**
+	 * print a lot of information during umount
+	 */
+	REISER4_VERBOSE_UMOUNT    = 0x00000002
 } reiser4_debug_flags;
 
 extern int reiser4_is_debugged( struct super_block *super, __u32 flag );
