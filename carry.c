@@ -952,6 +952,8 @@ int lock_carry_node_tail( carry_node *node /* node to complete locking of */ )
 	 *
 	 * Most of the time this call is cheap because the node is
 	 * already in memory.
+	 *
+	 * Corresponding zrelse() is in unlock_carry_node()
 	 */
 	return zload( node -> real_node );
 }
@@ -1093,7 +1095,6 @@ static void unlock_carry_node( carry_node *node /* node to be released */,
 		assert( "nikita-899", node -> real_node ==
 			node -> lock_handle.node );
 		longterm_unlock_znode( &node -> lock_handle );
-		node -> real_node = NULL;
 	}
 	if( failure ) {
 		if( node -> deallocate && ( node -> real_node != NULL ) ) {
@@ -1110,10 +1111,12 @@ static void unlock_carry_node( carry_node *node /* node to be released */,
 			 */
 			deallocate_znode( node -> real_node );
 		}
-		node -> real_node = NULL;
 		if( node -> free )
 			reiser4_pool_free( &node -> header );
 	}
+	/* pair to zload() in lock_carry_node_tail() */
+	zrelse( node -> real_node );
+	node -> real_node = NULL;
 }
 
 /**
