@@ -531,7 +531,7 @@ static int free_blocks (reiser4_block_nr start, reiser4_block_nr length)
 
 /* plugin->u.item.b.kill_item_hook
  */
-int extent_kill_item_hook (const tree_coord * coord, unsigned from, unsigned count)
+int extent_kill_item_hook (const tree_coord * coord, unsigned from, unsigned count, void *kill_params)
 {
  	reiser4_extent * ext;
 	unsigned i;
@@ -667,7 +667,7 @@ static int cut_or_kill_units (tree_coord * coord,
 		/*
 		 * call kill hook for all extents removed completely
 		 */
-		extent_kill_item_hook (coord, *from, count);
+		extent_kill_item_hook (coord, *from, count, NULL/*FIXME!!!*/);
 
 
 	if (REISER4_DEBUG) {
