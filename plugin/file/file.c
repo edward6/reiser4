@@ -1748,15 +1748,17 @@ unix_file_readpages(struct file *file, struct address_space *mapping,
 {
 	reiser4_file_fsdata *fsdata;
 	item_plugin *iplug;
+	coord_t twin;
 
 	fsdata = reiser4_get_file_fsdata(file);
-	assert("vs-1147", fsdata->coord);
+	assert("vs-1147", fsdata->reg.coord);
 	assert("vs-1148", znode_is_rlocked(fsdata->reg.coord->node));
 	assert("vs-1149", znode_is_loaded(fsdata->reg.coord->node));
 	assert("vs-1150", coord_is_existing_unit(fsdata->reg.coord));
 
-	iplug = item_plugin_by_coord(fsdata->reg.coord);
-	iplug->s.file.readpages(fsdata->reg.coord, mapping, pages);
+	coord_dup(&twin, fsdata->reg.coord);
+	iplug = item_plugin_by_coord(&twin);
+	iplug->s.file.readpages(&twin, mapping, pages);
 	return;
 }
 
