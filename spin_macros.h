@@ -6,6 +6,7 @@
 #define __SPIN_MACROS_H__
 
 #include <asm/spinlock.h>
+#include <linux/profile.h>
 
 #include "debug.h"
 
@@ -34,8 +35,145 @@
 
 #define __ODC ON_DEBUG_CONTEXT
 
+#define REISER4_LOCKPROF (0)
+#if REISER4_LOCKPROF
+#define DEFINE_SPIN_PROFREGIONS(aname)						\
+struct profregion pregion_spin_ ## aname ## _held = {				\
+	.kobj = {								\
+		.name = #aname  "_h"						\
+	}									\
+};										\
+										\
+struct profregion pregion_spin_ ## aname ## _trying = {				\
+	.kobj = {								\
+		.name = #aname  "_t"						\
+	}									\
+};										\
+										\
+static inline int register_ ## aname ## _profregion(void)			\
+{										\
+	int result;								\
+										\
+	result = profregion_register(&pregion_spin_ ## aname ## _held);		\
+	if (result != 0)							\
+		return result;							\
+	result = profregion_register(&pregion_spin_ ## aname ## _trying);	\
+	return result;								\
+}										\
+										\
+static inline void unregister_ ## aname ## _profregion(void)			\
+{										\
+	profregion_unregister(&pregion_spin_ ## aname ## _held);		\
+	profregion_unregister(&pregion_spin_ ## aname ## _trying);		\
+}										\
+										\
+typedef struct { int foo; } aname ## _spin_dummy_profregion
+
+#define DECLARE_SPIN_PROFREGIONS(NAME)				\
+extern struct profregion pregion_spin_ ## NAME ## _held;	\
+extern struct profregion pregion_spin_ ## NAME ## _trying;
+
+
+#define DEFINE_RW_PROFREGIONS(aname)						\
+struct profregion pregion_rw_ ## aname ## _r_held = {				\
+	.kobj = {								\
+		.name = #aname  "_r_h"						\
+	}									\
+};										\
+										\
+struct profregion pregion_rw_ ## aname ## _w_held = {				\
+	.kobj = {								\
+		.name = #aname  "_w_h"						\
+	}									\
+};										\
+										\
+struct profregion pregion_rw_ ## aname ## _r_trying = {				\
+	.kobj = {								\
+		.name = #aname  "_r_t"						\
+	}									\
+};										\
+										\
+struct profregion pregion_rw_ ## aname ## _w_trying = {				\
+	.kobj = {								\
+		.name = #aname  "_w_t"						\
+	}									\
+};										\
+										\
+static inline int register_ ## aname ## _profregion(void)			\
+{										\
+	int result;								\
+										\
+	result = profregion_register(&pregion_rw_ ## aname ## _r_held);		\
+	if (result != 0)							\
+		return result;							\
+	result = profregion_register(&pregion_rw_ ## aname ## _w_held);		\
+	if (result != 0)							\
+		return result;							\
+	result = profregion_register(&pregion_rw_ ## aname ## _r_trying);	\
+	if (result != 0)							\
+		return result;							\
+	result = profregion_register(&pregion_rw_ ## aname ## _w_trying);	\
+	return result;								\
+}										\
+										\
+static inline void unregister_ ## aname ## _profregion(void)			\
+{										\
+	profregion_unregister(&pregion_rw_ ## aname ## _r_held);		\
+	profregion_unregister(&pregion_rw_ ## aname ## _w_held);		\
+	profregion_unregister(&pregion_rw_ ## aname ## _r_trying);		\
+	profregion_unregister(&pregion_rw_ ## aname ## _w_trying);		\
+}										\
+										\
+typedef struct { int foo; } aname ## _rw_dummy_profregion
+
+#define DECLARE_RW_PROFREGIONS(NAME)				\
+extern struct profregion pregion_rw_ ## NAME ## _r_held;	\
+extern struct profregion pregion_rw_ ## NAME ## _w_held;	\
+extern struct profregion pregion_rw_ ## NAME ## _r_trying;	\
+extern struct profregion pregion_rw_ ## NAME ## _w_trying;
+
+#define PROFREGION_IN(obj) profregion_in(obj)
+#define PROFREGION_REPLACE(obj) profregion_replace(obj)
+#define PROFREGION_EX() profregion_ex()
+
+/* REISER4_LOCKPROF */
+#else
+
+#define DEFINE_SPIN_PROFREGIONS(aname)				\
+static inline int register_ ## aname ## _profregion(void)	\
+{								\
+	return 0;						\
+}								\
+								\
+static inline void unregister_ ## aname ## _profregion(void)	\
+{								\
+}
+
+#define DECLARE_SPIN_PROFREGIONS(NAME)
+
+#define DEFINE_RW_PROFREGIONS(aname)				\
+static inline int register_ ## aname ## _profregion(void)	\
+{								\
+	return 0;						\
+}								\
+								\
+static inline void unregister_ ## aname ## _profregion(void)	\
+{								\
+}
+
+#define DECLARE_RW_PROFREGIONS(NAME)
+
+#define PROFREGION_IN(obj)
+#define PROFREGION_REPLACE(obj)
+#define PROFREGION_EX()
+
+/* REISER4_LOCKPROF */
+#endif
+
 /* Define several inline functions for each type of spinlock. */
 #define SPIN_LOCK_FUNCTIONS(NAME,TYPE,FIELD)				\
+									\
+DECLARE_SPIN_PROFREGIONS(NAME)						\
 									\
 static inline void spin_ ## NAME ## _inc(void)				\
 {									\
@@ -61,22 +199,25 @@ static inline int  spin_ ## NAME ## _is_not_locked (TYPE *x)		\
 									\
 static inline void spin_lock_ ## NAME ## _no_ord (TYPE *x)		\
 {									\
-	assert( "nikita-2703", spin_ ## NAME ## _is_not_locked(x));	\
-	spin_lock( &x -> FIELD );					\
+	assert("nikita-2703", spin_ ## NAME ## _is_not_locked(x));	\
+	PROFREGION_IN(&pregion_spin_ ## NAME ## _trying);		\
+	spin_lock(&x -> FIELD);						\
+	PROFREGION_REPLACE(&pregion_spin_ ## NAME ## _held);		\
 	spin_ ## NAME ## _inc();					\
 }									\
 									\
 static inline void spin_lock_ ## NAME (TYPE *x)				\
 {									\
-	__ODC( assert( "nikita-1383",					\
-				  spin_ordering_pred_ ## NAME( x ) ) );	\
-	spin_lock_ ## NAME ## _no_ord( x );				\
+	__ODC(assert("nikita-1383",					\
+				  spin_ordering_pred_ ## NAME(x)));	\
+	spin_lock_ ## NAME ## _no_ord(x);				\
 }									\
 									\
 static inline int  spin_trylock_ ## NAME (TYPE *x)			\
 {									\
 	if (spin_trylock (& x->FIELD)) {				\
 		spin_ ## NAME ## _inc();				\
+		PROFREGION_IN(&pregion_spin_ ## NAME ## _held);		\
 		return 1;						\
 	}								\
 	return 0;							\
@@ -84,13 +225,14 @@ static inline int  spin_trylock_ ## NAME (TYPE *x)			\
 									\
 static inline void spin_unlock_ ## NAME (TYPE *x)			\
 {									\
-	__ODC( assert( "nikita-1375",					\
-		lock_counters() -> spin_locked_ ## NAME > 0 ) );	\
-	__ODC( assert( "nikita-1376",					\
-		lock_counters() -> spin_locked > 0 ) );			\
+	__ODC(assert("nikita-1375",					\
+		lock_counters() -> spin_locked_ ## NAME > 0));		\
+	__ODC(assert("nikita-1376",					\
+		lock_counters() -> spin_locked > 0));			\
 	spin_ ## NAME ## _dec();					\
-	assert( "nikita-2703", spin_ ## NAME ## _is_locked( x ) );	\
+	assert("nikita-2703", spin_ ## NAME ## _is_locked(x));		\
 	spin_unlock (& x->FIELD);					\
+	PROFREGION_EX();						\
 }									\
 									\
 typedef struct { int foo; } NAME ## _spin_dummy
@@ -119,8 +261,11 @@ typedef struct { int foo; } NAME ## _spin_dummy
 	spin_unlock_ ## obj_type (__obj);	\
 })
 
+
 /* Define several inline functions for each type of rwlock. */
 #define RW_LOCK_FUNCTIONS(NAME,TYPE,FIELD)					\
+										\
+DECLARE_RW_PROFREGIONS(NAME)							\
 										\
 static inline int  rw_ ## NAME ## _is_read_locked (const TYPE *x)		\
 {										\
@@ -186,14 +331,18 @@ static inline void write_ ## NAME ## _dec(void)					\
 static inline void read_lock_ ## NAME ## _no_ord (TYPE *x)			\
 {										\
 	assert("nikita-2976", rw_ ## NAME ## _is_not_read_locked(x));		\
+	PROFREGION_IN(&pregion_rw_ ## NAME ## _r_trying);			\
 	read_lock(&x->FIELD);							\
+	PROFREGION_REPLACE(&pregion_rw_ ## NAME ## _r_held);			\
 	read_ ## NAME ## _inc();						\
 }										\
 										\
 static inline void write_lock_ ## NAME ## _no_ord (TYPE *x)			\
 {										\
 	assert("nikita-2977", rw_ ## NAME ## _is_not_write_locked(x));		\
+	PROFREGION_IN(&pregion_rw_ ## NAME ## _w_trying);			\
 	write_lock(&x->FIELD);							\
+	PROFREGION_REPLACE(&pregion_rw_ ## NAME ## _w_held);			\
 	write_ ## NAME ## _inc();						\
 }										\
 										\
@@ -220,6 +369,7 @@ static inline void read_unlock_ ## NAME (TYPE *x)				\
 	read_ ## NAME ## _dec();						\
 	assert("nikita-2703", rw_ ## NAME ## _is_read_locked(x));		\
 	read_unlock (& x->FIELD);						\
+	PROFREGION_EX();							\
 }										\
 										\
 static inline void write_unlock_ ## NAME (TYPE *x)				\
@@ -232,13 +382,15 @@ static inline void write_unlock_ ## NAME (TYPE *x)				\
 				lock_counters()->spin_locked > 0));		\
 	write_ ## NAME ## _dec();						\
 	assert("nikita-2703", rw_ ## NAME ## _is_write_locked(x));		\
-	read_unlock (& x->FIELD);						\
+	write_unlock (& x->FIELD);						\
+	PROFREGION_EX();							\
 }										\
 										\
 										\
 static inline int  write_trylock_ ## NAME (TYPE *x)				\
 {										\
 	if (write_trylock (& x->FIELD)) {					\
+		PROFREGION_REPLACE(&pregion_rw_ ## NAME ## _w_held);		\
 		write_ ## NAME ## _inc();					\
 		return 1;							\
 	}									\

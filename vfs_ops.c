@@ -31,6 +31,7 @@
 #include "kattr.h"
 #include "emergency_flush.h"
 
+#include <linux/profile.h>
 #include <linux/types.h>
 #include <linux/mount.h>
 #include <linux/vfs.h>
@@ -2044,6 +2045,54 @@ init_committed_sb_counters(const struct super_block *s)
 	private->nr_files_committed = oid_used();
 }
 
+DEFINE_SPIN_PROFREGIONS(jnode);
+DEFINE_SPIN_PROFREGIONS(dk);
+DEFINE_SPIN_PROFREGIONS(stack);
+DEFINE_SPIN_PROFREGIONS(super);
+DEFINE_SPIN_PROFREGIONS(atom);
+DEFINE_SPIN_PROFREGIONS(txnh);
+DEFINE_SPIN_PROFREGIONS(txnmgr);
+DEFINE_SPIN_PROFREGIONS(ktxnmgrd);
+DEFINE_SPIN_PROFREGIONS(inode);
+DEFINE_SPIN_PROFREGIONS(fq);
+
+DEFINE_RW_PROFREGIONS(tree);
+
+static int register_profregions(void)
+{
+	register_jnode_profregion();
+	register_dk_profregion();
+	register_stack_profregion();
+	register_super_profregion();
+	register_atom_profregion();
+	register_txnh_profregion();
+	register_txnmgr_profregion();
+	register_ktxnmgrd_profregion();
+	register_inode_profregion();
+	register_fq_profregion();
+
+	register_tree_profregion();
+
+	return 0;
+}
+
+static void unregister_profregions(void)
+{
+	unregister_jnode_profregion();
+	unregister_dk_profregion();
+	unregister_stack_profregion();
+	unregister_super_profregion();
+	unregister_atom_profregion();
+	unregister_txnh_profregion();
+	unregister_txnmgr_profregion();
+	unregister_ktxnmgrd_profregion();
+	unregister_inode_profregion();
+	unregister_fq_profregion();
+
+	unregister_tree_profregion();
+}
+
+
 /* read super block from device and fill remaining fields in @s.
   
    This is read_super() of the past.   */
@@ -2729,6 +2778,7 @@ typedef enum {
 	INIT_JNODES,
 	INIT_EFLUSH,
 	INIT_SCINT,
+	INIT_SPINPROF,
 	INIT_FS_REGISTERED
 } reiser4_init_stage;
 
@@ -2745,6 +2795,7 @@ shutdown_reiser4(void)
 	}
 
 	DONE_IF(INIT_FS_REGISTERED, unregister_filesystem(&reiser4_fs_type));
+	DONE_IF(INIT_SPINPROF, unregister_profregions());
 	DONE_IF(INIT_SCINT, scint_done_once());
 	DONE_IF(INIT_EFLUSH, eflush_done());
 	DONE_IF(INIT_JNODES, jnode_done_static());
@@ -2792,6 +2843,7 @@ init_reiser4(void)
 	CHECK_INIT_RESULT(jnode_init_static());
 	CHECK_INIT_RESULT(eflush_init());
 	CHECK_INIT_RESULT(scint_init_once());
+	CHECK_INIT_RESULT(register_profregions());
 	CHECK_INIT_RESULT(register_filesystem(&reiser4_fs_type));
 
 	calibrate_prof();
