@@ -85,7 +85,7 @@ lock_counters()
 /* check that no spinlocks are held */
 void schedulable (void)
 {
-	assert ("zam-782", lock_counters->spin_locked == 0);
+	assert ("zam-782", lock_counters()->spin_locked == 0);
 }
 
 #endif
