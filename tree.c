@@ -544,6 +544,7 @@ int insert_flow( coord_t *coord, flow_t *f)
 	carry_pool pool;
 	carry_level lowest_level;
 	carry_op *op;
+	reiser4_item_data data;
 
 
 	init_carry_pool( &pool );
@@ -554,8 +555,18 @@ int insert_flow( coord_t *coord, flow_t *f)
 	if( IS_ERR( op ) || ( op == NULL ) )
 		return op ? PTR_ERR (op) : -EIO;
 
+	/* these are permanent durign insert_flow */
+	data.user = 1;
+	data.iplug = item_plugin_by_id( TAIL_ID );
+	data.arg = 0;
+	/* data.length and data.data will be set before calling paste or
+	 * insert */
+	data.length = 0;
+	data.data = 0;
+
 	op -> u.insert_flow.insert_point = coord;
 	op -> u.insert_flow.flow = f;
+	op -> u.insert_flow.data = &data;
 	op -> u.insert_flow.new_nodes = 0;
 
 	ON_STATS( lowest_level.level_no = znode_get_level( coord -> node ) );

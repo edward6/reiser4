@@ -283,6 +283,7 @@ typedef struct carry_op {
 		struct {
 			flow_t              *flow;
 			coord_t             *insert_point;
+			reiser4_item_data   *data;
 			/* flow insertion is limited by number of new blocks
 			 * added in that operation which do not get any data
 			 * but part of flow. This limit is set by macro
