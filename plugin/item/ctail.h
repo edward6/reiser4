@@ -12,18 +12,19 @@ typedef struct ctail_item_format {
 	d8 body[0];
 } __attribute__((packed)) ctail_item_format;
 
-/* Disk cluster is a set of items whose keys belong to the interval
-   [cluster_key , cluster_key + disk_cluster_size - 1] */
+/* The following is a set of various item states in a disk cluster.
+   Disk cluster is a set of items whose keys belong to the interval
+   [dc_key , dc_key + disk_cluster_size - 1] */
 typedef enum {
-	STAT_INVALID,
-	AT_CLUSTER,
-	AFTER_CLUSTER,
-	BEFORE_CLUSTER
-} disk_cluster_stat;
+	DC_INVALID_STATE = 0,
+	DC_FIRST_ITEM = 1,
+	DC_CHAINED_ITEM = 2,
+	DC_AFTER_CLUSTER = 3,
+	DC_BEFORE_CLUSTER = 4
+} dc_item_stat;
 
 typedef struct {
-	/* disk cluster status */
-	disk_cluster_stat stat;
+	dc_item_stat stat;
 } ctail_coord_extension_t;
 
 #define CTAIL_MIN_BODY_SIZE MIN_CRYPTO_BLOCKSIZE

@@ -511,6 +511,7 @@ read_ctail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 
 	coord->item_pos ++;
 	coord->between = BEFORE_ITEM;
+	set_dc_item_stat(hint, DC_CHAINED_ITEM);
 
 	return 0;
 }
@@ -532,7 +533,7 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	assert("edward-672", crc_inode_ok(inode));
 	assert("edward-145", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
 	
-	if (!hint_prev_cluster(clust)) {
+	if (!hint_prev_cluster(clust, inode)) {
 		done_lh(clust->hint->coord.lh);
 		clust->hint->coord.valid = 0;
 		unset_hint(clust->hint);
@@ -628,6 +629,7 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	data = kmap(page);
 	memcpy(data, tfm_stream_data(tc, OUTPUT_STREAM) + cloff, pgcnt);
 	memset(data + pgcnt, 0, (size_t)PAGE_CACHE_SIZE - pgcnt);
+	flush_dcache_page(page);
 	kunmap(page);
 	SetPageUptodate(page);
  exit:
@@ -948,7 +950,9 @@ int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode
 	char buf[UNPREPPED_DCLUSTER_LEN];
 	flow_t f;
 	int result;
-
+	
+	assert("edward-1085", inode != NULL);
+	assert("edward-1086", clust->hint != NULL);
 	assert("edward-1062", new_cluster(clust, inode));
 	assert("edward-675", get_current_context()->grabbed_blocks == 0);
 
@@ -1003,6 +1007,8 @@ int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode
 	assert("edward-744", znode_is_write_locked(clust->hint->coord.lh->node));
 	assert("edward-745", znode_is_dirty(clust->hint->coord.lh->node));
 	
+	set_dc_item_stat(clust->hint, DC_BEFORE_CLUSTER);
+	
 	return 0;
 }
 
@@ -1045,30 +1051,13 @@ item_plugin_by_jnode(jnode * node)
 	return (item_plugin_by_id(CTAIL_ID));
 }
 
-static jnode *
-next_jnode_cluster(jnode * node, struct inode *inode, reiser4_cluster_t * clust)
-{
-	return jlookup(tree_by_inode(inode), get_inode_oid(inode), clust_to_pg(clust->index + 1, inode));
-}
-
-void edward_break_scan(void){;}
-
 /* plugin->u.item.f.scan */
-/* Check if the cluster node we started from is not presented by any items
-   in the tree. If so, create the link by inserting prosessed cluster into
-   the tree. Don't care about scan counter since leftward scanning will be
-   continued from rightmost dirty node.
-*/
 reiser4_internal int scan_ctail(flush_scan * scan)
 {
 	int result = 0;
 	struct page * page;
 	struct inode * inode;
-	reiser4_cluster_t * clust = &scan->clust;
-	compression_plugin * cplug;
-	flow_t f;
 	jnode * node = scan->node;
-	file_plugin * fplug;
 	
 	assert("edward-227", scan->node != NULL);
 	assert("edward-228", jnode_is_cluster_page(scan->node));
@@ -1091,96 +1080,16 @@ reiser4_internal int scan_ctail(flush_scan * scan)
 	}
 #ifndef	HANDLE_VIA_FLUSH_SCAN
 	if (!znode_convertible(scan->parent_lock.node)) {
-		LOCK_JNODE(scan->node);
 		if (jnode_is_dirty(scan->node)) {
-			warning("edward-873", "child is dirty but parent not convertible");
-			edward_break_scan();
+			warning("edward-873", "child is dirty but parent not squeezable");
 			znode_set_convertible(scan->parent_lock.node);
-		}
-		else {
+		} else {
 			warning("edward-681", "cluster page is already processed");
-			result = -EAGAIN;
-		}
-		UNLOCK_JNODE(scan->node);
-		if (result) {
-			assert("edward-1026", 0);
-			return result;
+			return -EAGAIN;
 		}
 	}
 #endif	
-	assert("edward-962", get_flush_scan_nstat(scan) == LINKED);
-	
-	if (get_flush_scan_nstat(scan) == LINKED) {
-		/* nothing to do */
-		return result;
-	}
-	jref(node);
-	
-	do {
-		LOCK_JNODE(node);
-		if (!(jnode_is_dirty(node) &&
-		      (node->atom == ZJNODE(scan->parent_lock.node)->atom) &&
-		      JF_ISSET(node, JNODE_NEW))) {
-                        /* don't touch! */
-			UNLOCK_JNODE(node);
-			jput(node);
-			break;
-		}
-		UNLOCK_JNODE(node);
-		
-		page = jnode_page(node);
-
-		assert("edward-229", page->mapping != NULL);
-		assert("edward-230", page->mapping != NULL);
-		assert("edward-231", page->mapping->host != NULL);
-		
-		inode = page->mapping->host;
-		
-		assert("edward-874", inode != NULL);
-		
-		fplug = inode_file_plugin(inode);
-		cplug = inode_compression_plugin(inode);
-		assert("edward-244", fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
-		assert("edward-232", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
-		assert("edward-233", scan->direction == LEFT_SIDE);
-		
-		clust->index = pg_to_clust(page->index, inode);
-		
-		if (cplug->alloc && !get_coa(&clust->tc, cplug->h.id)) {
-			result = alloc_coa(&clust->tc, cplug, TFM_WRITE);
-			if (result)
-				goto error;
-		}
-		
-		/* remove jnode cluster from dirty list */
-		result = flush_cluster_pages(clust, NULL, inode);
-		if (result)
-			goto error;
-		result = deflate_cluster(clust, inode);
-		if (result)
-			goto error;
-		
-		assert("edward-633", clust->tc.len != 0);
-		
-		fplug->flow_by_inode(inode, tfm_stream_data(&clust->tc, OUTPUT_STREAM), 0,
-				     clust->tc.len, clust_to_off(clust->index, inode),
-				     WRITE_OP, &f);
-		/* insert processed data */
-		result = insert_crc_flow(&scan->parent_coord, /* insert point */
-					 &scan->parent_lock, &f, inode);
-		if (result)
-			goto error;
-		assert("edward-234", f.length == 0);
-		JF_CLR(node, JNODE_NEW);
-		jput(node);
-	}
-	while ((node = next_jnode_cluster(node, inode, clust)));
-	
-	/* now the child is linked to its parent,
-	   set appropriate status */
-	set_flush_scan_nstat(scan, LINKED);
-	return 0;
- error:	
+	assert("edward-1087", get_flush_scan_nstat(scan) == LINKED);
 	return result;
 }
 
@@ -1220,7 +1129,7 @@ init_convert_data_ctail(convert_item_info_t * idata, struct inode * inode)
 
 	idata->inode = inode;
 	idata->d_cur = DC_FIRST_ITEM;
-	idata->d_next = DC_UNKNOWN_ITEM;
+	idata->d_next = DC_INVALID_STATE;
 	
 	return 0;
 }
@@ -1471,7 +1380,7 @@ next_item_dc_stat(flush_pos_t * pos)
 	assert("edward-1016", 
 	       item_convert_data(pos)->d_cur == DC_FIRST_ITEM ||
 	       item_convert_data(pos)->d_cur == DC_CHAINED_ITEM);
-	assert("edward-1017", item_convert_data(pos)->d_next == DC_UNKNOWN_ITEM);
+	assert("edward-1017", item_convert_data(pos)->d_next == DC_INVALID_STATE);
 	
 	init_lh(&right_lock);
 	cur = pos->coord.node;
@@ -1623,7 +1532,7 @@ convert_ctail(flush_pos_t * pos)
 	assert("edward-1022", pos->coord.item_pos < coord_num_items(&pos->coord));
 	
 	if ((pos->coord.item_pos == coord_num_items(&pos->coord) - 1) &&
-	    item_convert_data(pos)->d_next == DC_UNKNOWN_ITEM) {
+	    item_convert_data(pos)->d_next == DC_INVALID_STATE) {
 		/*
 		  current item is about to be killed or modified,
 		  so it is a time to check cluster status of the

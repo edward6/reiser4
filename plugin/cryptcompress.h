@@ -348,24 +348,6 @@ typedef struct reiser4_cluster{
 					 cluster modification is reserved */
 } reiser4_cluster_t;
 
-static inline disk_cluster_stat
-get_disk_cluster_stat(reiser4_cluster_t * clust)
-{
-	assert("edward-1080", clust != NULL);
-	assert("edward-1081", clust->hint != NULL);
-
-	return clust->hint->coord.extension.ctail.stat;
-}
-
-static inline void
-set_disk_cluster_stat(reiser4_cluster_t * clust, disk_cluster_stat stat)
-{
-	assert("edward-1082", clust != NULL);
-	assert("edward-1083", clust->hint != NULL);
-
-	clust->hint->coord.extension.ctail.stat = stat;
-}
-
 static inline void
 reset_cluster_pgset(reiser4_cluster_t * clust, int nrpages)
 {

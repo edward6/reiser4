@@ -66,7 +66,6 @@ struct flush_scan {
 	   preceder is and if so it sets it here, after which it is copied into the
 	   flush_position.  Otherwise, the preceder is computed later. */
 	reiser4_block_nr preceder_blk;
-	reiser4_cluster_t clust;
 };
 
 static inline flush_scan_node_stat_t
@@ -82,21 +81,9 @@ set_flush_scan_nstat(flush_scan * scan, flush_scan_node_stat_t nstat)
 	scan->nstat = nstat;
 }
 
-/* This is a set of item states in a disk cluster. 
-   Disk cluster is a set of items which consists at least of a FIRST item,
-   other items (if any) are CHAINED. This states are used to assign item write
-   modes in flush convert phase.
-*/
-typedef enum {
-	DC_UNKNOWN_ITEM = 0,
-	DC_FIRST_ITEM = 1,
-	DC_CHAINED_ITEM = 2,
-	DC_AFTER_CLUSTER = 3
-} dc_item_stat;
-
 typedef struct convert_item_info {
-	dc_item_stat d_cur;  /* status of the current item */
-	dc_item_stat d_next; /* status of the next slum item */
+	dc_item_stat d_cur;     /* disk cluster state of the current item */
+	dc_item_stat d_next;    /* disk cluster state of the next slum item */
 	struct inode * inode;
 	flow_t flow;
 } convert_item_info_t;
@@ -244,13 +231,13 @@ move_item_convert_data(flush_pos_t * pos,
 		       item_convert_data(pos)->d_next == DC_CHAINED_ITEM);
 		
 		item_convert_data(pos)->d_cur = DC_CHAINED_ITEM;
-		item_convert_data(pos)->d_next = DC_UNKNOWN_ITEM;
+		item_convert_data(pos)->d_next = DC_INVALID_STATE;
 	} else {
 		/* next item is on the same node */ 
 		
 		assert("edward-1013",
 		       item_convert_data(pos)->d_next == DC_AFTER_CLUSTER ||
-		       item_convert_data(pos)->d_next == DC_UNKNOWN_ITEM);
+		       item_convert_data(pos)->d_next == DC_INVALID_STATE);
 		
 		item_convert_data(pos)->d_cur = DC_AFTER_CLUSTER;
 	}
