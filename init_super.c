@@ -26,7 +26,7 @@
 #include <linux/mm.h>
 #include <linux/buffer_head.h>
 
-#define _INIT_PARAM_LIST (struct super_block * s, reiser4_context * ctx, char * data, int silent)
+#define _INIT_PARAM_LIST (struct super_block * s, reiser4_context * ctx, void * data, int silent)
 #define _DONE_PARAM_LIST (struct super_block * s)
 
 #define _INIT_(subsys) static int _init_##subsys _INIT_PARAM_LIST
@@ -394,7 +394,7 @@ static void done_super (struct super_block * s, int last_done)
 		subsys_array[i].done(s);
 }
 
-int reiser4_init_super (struct super_block * s, char * data, int silent)
+int reiser4_init_super (struct super_block * s, void * data, int silent)
 {
 	reiser4_context ctx;
 	int i;

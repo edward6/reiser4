@@ -1041,19 +1041,6 @@ reiser4_show_options(struct seq_file *m, struct vfsmount *mnt)
 	return 0;
 }
 
-extern ktxnmgrd_context kdaemon;
-
-/* There are some 'committed' versions of reiser4 super block counters, which
-   correspond to reiser4 on-disk state. These counters are initialized here */
-static void
-init_committed_sb_counters(const struct super_block *s)
-{
-	reiser4_super_info_data *sbinfo = get_super_private(s);
-
-	sbinfo->blocks_free_committed = sbinfo->blocks_free;
-	sbinfo->nr_files_committed = oids_used(s);
-}
-
 DEFINE_SPIN_PROFREGIONS(epoch);
 DEFINE_SPIN_PROFREGIONS(jnode);
 DEFINE_SPIN_PROFREGIONS(stack);
@@ -1179,8 +1166,6 @@ static void finish_rcu(reiser4_super_info_data *sbinfo)
 #else
 #define finish_rcu(sbinfo) noop
 #endif
-
-reiser4_init_super(s, data, silent);
 
 static void
 reiser4_kill_super(struct super_block *s)
