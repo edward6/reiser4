@@ -380,7 +380,7 @@ static int symlink_target_to_inode( struct inode *inode, const char *target, int
 	if( !inode -> u.generic_ip )
 		return -ENOMEM;
 
-	memcpy( ( char * )( inode -> u.generic_ip ), target, ( size_t ) len );
+	xmemcpy( ( char * )( inode -> u.generic_ip ), target, ( size_t ) len );
 	( ( char * )( inode -> u.generic_ip ) ) [ len ] = 0;
 	inode_set_flag( inode, REISER4_GENERIC_VP_USED );
 	return 0;
@@ -439,8 +439,8 @@ static int symlink_sd_save( struct inode *inode, char **area )
 	result = symlink_target_to_inode( inode, target, 
 					  ( int ) inode -> i_size );
 
-	/* coopy symlink to stat data */
-	memcpy( *area, target, ( size_t ) inode -> i_size );
+	/* copy symlink to stat data */
+	xmemcpy( *area, target, ( size_t ) inode -> i_size );
 	( *area )[ inode -> i_size ] = 0;
 	*area += ( inode -> i_size + 1 );
 	return result;

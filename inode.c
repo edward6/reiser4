@@ -225,6 +225,7 @@ int init_inode( struct inode *inode /* inode to intialise */,
 	assert( "nikita-292", coord != NULL );
 	assert( "nikita-293", inode != NULL );
 	assert( "nikita-1946", inode -> i_state & I_NEW );
+	assert( "nikita-2378", inode -> i_state & I_LOCK );
 
 	result = zload( coord -> node );
 	if( result )
@@ -237,12 +238,14 @@ int init_inode( struct inode *inode /* inode to intialise */,
 	assert( "nikita-296", body != NULL );
 	assert( "nikita-297", length > 0 );
 
+	/*
+	 * inode is under I_LOCK now
+	 */
+
 	state = reiser4_inode_data( inode );
-	spin_lock_inode( state );
 	/* call stat-data plugin method to load sd content into inode */
 	result = iplug -> s.sd.init_inode( inode, body, length );
 	state -> sd = iplug;
-	spin_unlock_inode( state );
 	if( result == 0 ) {
 		result = setup_inode_ops( inode, NULL );
 		if( ( result == 0 ) && ( inode -> i_sb -> s_root ) &&

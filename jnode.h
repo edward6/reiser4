@@ -167,7 +167,6 @@ extern void   jnode_init      (jnode *node);
 extern void   jnode_set_dirty (jnode *node);
 extern void   jnode_set_clean (jnode *node);
 extern const reiser4_block_nr* jnode_get_block( const jnode *node );
-extern int                     jnode_has_block( jnode * );
 extern void   jnode_set_block (jnode *node, const reiser4_block_nr *blocknr);
 
 /**
@@ -183,6 +182,9 @@ extern spinlock_t *page_to_jnode_lock( const struct page *page );
 
 extern int jnode_check_allocated (jnode *node);
 extern int znode_check_allocated (znode *node);
+
+extern jnode_type jnode_get_type( const jnode *node );
+extern void jnode_set_type( jnode * node, jnode_type type );
 
 /*
  * FIXME-VS: these are used in plugin/item/extent.c
@@ -202,13 +204,13 @@ extern int znode_check_allocated (znode *node);
 /* Macros to convert from jnode to znode, znode to jnode.  These are macros because C
  * doesn't allow overloading of const prototypes. */
 #define ZJNODE(x) (& (x) -> zjnode)
-#define JZNODE(x)							\
-({									\
-	typeof (x) __tmp_x;						\
-									\
-	__tmp_x = (x);							\
-	assert ("jmacd-1300", !JF_ISSET (__tmp_x, ZNODE_UNFORMATTED));	\
-	(znode*) __tmp_x;						\
+#define JZNODE(x)						\
+({								\
+	typeof (x) __tmp_x;					\
+								\
+	__tmp_x = (x);						\
+	assert ("jmacd-1300", jnode_is_znode (__tmp_x));	\
+	(znode*) __tmp_x;					\
 })
 
 
@@ -253,14 +255,14 @@ static inline unsigned long jnode_get_index (jnode *node)
 /* returns true if node is formatted, i.e, it's not a znode */
 static inline int jnode_is_unformatted( const jnode *node)
 {
-	assert ("jmacd-0123", node != NULL);
-	return JF_ISSET (node, ZNODE_UNFORMATTED);
+	assert( "jmacd-0123", node != NULL );
+	return jnode_get_type( node ) == JNODE_UNFORMATTED_BLOCK;
 }
 
-/* returns true if node is formatted, i.e, it's a znode */
-static inline int jnode_is_formatted( const jnode *node)
+/* returns true if node is a znode */
+static inline int jnode_is_znode( const jnode *node )
 {
-	return ! JF_ISSET (node, ZNODE_UNFORMATTED);
+	return jnode_get_type( node ) == JNODE_FORMATTED_BLOCK;
 }
 
 static inline int jnode_is_loaded (const jnode * node)
@@ -274,7 +276,9 @@ static inline int jnode_is_loaded (const jnode * node)
 static inline int jnode_is_dirty( const jnode *node )
 {
 	assert( "nikita-782", node != NULL );
-	ON_SMP( assert( "jmacd-1800", spin_jnode_is_locked (node) || (jnode_is_formatted (node) && znode_is_any_locked (JZNODE (node)))));
+	ON_SMP( assert( "jmacd-1800", spin_jnode_is_locked (node) || 
+			(jnode_is_znode (node) && 
+			 znode_is_any_locked (JZNODE (node)))));
 	return JF_ISSET( node, ZNODE_DIRTY );
 }
 
@@ -306,7 +310,7 @@ static inline int jnode_is_allocated (jnode *node)
 /** return true if "node" is the root */
 static inline int jnode_is_root (const jnode *node)
 {
-	return jnode_is_formatted (node) && znode_is_root (JZNODE (node));
+	return jnode_is_znode (node) && znode_is_root (JZNODE (node));
 }
 
 extern void add_d_ref( jnode *node );

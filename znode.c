@@ -636,7 +636,8 @@ void jput (jnode *node)
 	assert ("jmacd-509", node != NULL);
 	assert ("jmacd-510", atomic_read (& node->x_count) > 0);
 	assert ("jmacd-511", atomic_read (& node->d_count) >= 0);
-	assert ("jmacd-572", jnode_is_unformatted (node) || atomic_read (& JZNODE (node)->c_count) >= 0);
+	assert ("jmacd-572", ergo (jnode_is_znode (node),
+				   atomic_read (& JZNODE (node)->c_count) >= 0));
 	ON_DEBUG (-- lock_counters() -> x_refs);
 
 	/*trace_on (TRACE_FLUSH, "del_x_ref: %p: %d\n", node, atomic_read (& node->x_count));*/
@@ -938,7 +939,7 @@ int load_dh( data_handle *dh )
 
 int load_dh_jnode( data_handle *dh, jnode *node )
 {
-	if( jnode_is_formatted( node ) ) {
+	if( jnode_is_znode( node ) ) {
 		return load_dh_znode( dh, JZNODE( node ) );
 	}
 	return 0;
@@ -1118,7 +1119,7 @@ void print_znode( const char *prefix /* prefix to print */,
 	}
 
 	info_znode( prefix, node );
-	if( jnode_is_unformatted( ZJNODE( node ) ) )
+	if( !jnode_is_znode( ZJNODE( node ) ) )
 		return;
 	info_znode( "\tparent", znode_parent_nolock( node ) );
 	info_znode( "\tleft", node -> left );
@@ -1138,7 +1139,7 @@ void info_znode( const char *prefix /* prefix to print */,
 		return;
 	}
 	info_jnode (prefix, ZJNODE (node));
-	if( jnode_is_unformatted( ZJNODE( node ) ) )
+	if( !jnode_is_znode( ZJNODE( node ) ) )
 		return;
 
 	info( "c_count: %i, readers: %i, ", 

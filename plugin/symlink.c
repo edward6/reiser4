@@ -5,7 +5,7 @@
 #include "../reiser4.h"
 
 /*
- * symlink plugin's specifix functions
+ * symlink plugin's specific functions
  */
 
 int symlink_create( struct inode * symlink, /* inode of symlink */

@@ -195,7 +195,7 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	data.data = NULL;
 	data.user = 0;
 
-	if( data.length > current_tree -> nplug -> max_item_size() ) {
+	if( data.length > tree_by_inode( inode ) -> nplug -> max_item_size() ) {
 		/*
 		 * This is silly check, but we don't know actual node where
 		 * insertion will go into.
@@ -248,31 +248,36 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	case IBK_INSERT_OK:
 	{
 		result = zload( coord.node );
-		if( result == 0 ) {
-			assert( "nikita-725", /* have we really inserted stat
-					       * data? */
-				item_is_statdata( &coord ) );
+		if( result != 0 )
+			break;
 
-			spin_lock_inode( ref );
-			if( ref -> sd && ref -> sd -> s.sd.save ) {
-				area = item_body_by_coord( &coord );
-				result = ref -> sd -> s.sd.save( inode, &area );
-				if( result == 0 ) {
-					/* object has stat-data now */
-					inode_clr_flag( inode, 
-							REISER4_NO_STAT_DATA );
-					/* initialise stat-data seal */
-					seal_init( &ref -> sd_seal, 
-						   &coord, &key );
-					ref -> sd_coord = coord;
-				} else {
-					error_message = "cannot save sd of";
-					result = -EIO;
-				}
+		assert( "nikita-725", /* have we really inserted stat
+				       * data? */
+			item_is_statdata( &coord ) );
+		/*
+		 * inode was just created. It is inserted into hash table, but
+		 * no directory entry was yet inserted into parent. So, inode
+		 * is inaccessible through ->lookup(). All places that
+		 * directly grab inode from hash-table (like old knfsd),
+		 * should check IMMUTABLE flag that is set by
+		 * common_create_child.
+		 */
+
+		if( ref -> sd && ref -> sd -> s.sd.save ) {
+			area = item_body_by_coord( &coord );
+			result = ref -> sd -> s.sd.save( inode, &area );
+			if( result == 0 ) {
+				/* object has stat-data now */
+				inode_clr_flag( inode, REISER4_NO_STAT_DATA );
+				/* initialise stat-data seal */
+				seal_init( &ref -> sd_seal, &coord, &key );
+				ref -> sd_coord = coord;
+			} else {
+				error_message = "cannot save sd of";
+				result = -EIO;
 			}
-			spin_unlock_inode( ref );
-			zrelse( coord.node );
 		}
+		zrelse( coord.node );
 	}
 	}
 	done_lh( &lh );

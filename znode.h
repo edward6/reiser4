@@ -510,7 +510,7 @@ static inline void znode_set_level (znode      *node,
 /** get the level field for a jnode */
 static inline tree_level jnode_get_level (const jnode *node)
 {
-	if (jnode_is_formatted (node))
+	if (jnode_is_znode (node))
 		return znode_get_level (JZNODE (node));
 	else
 		/*
