@@ -10,40 +10,49 @@
 #include <aal/aal.h>
 
 #define REISERFS_FORMAT40_MAGIC "R4Sb-Default"
+#define REISERFS_FORMAT40_OFFSET 17
 
 struct reiserfs_format40_super {
-	uint64_t sb_block_count;
-	uint64_t sb_free_blocks;
-	uint64_t sb_root_block;
-	uint16_t sb_tree_height;
-	uint16_t sb_padd[3];
-	uint64_t sb_oid;
-	uint64_t sb_file_count;
-	uint64_t sb_flushes;
-	char sb_magic[16];
-	char sb_unused[408];
+    uint64_t sb_block_count;
+    uint64_t sb_free_blocks;
+    uint64_t sb_root_block;
+    uint16_t sb_tree_height;
+    uint16_t sb_padd[3];
+    uint64_t sb_oid;
+    uint64_t sb_file_count;
+    uint64_t sb_flushes;
+    char sb_magic[16];
+    uint16_t sb_journal_plugin_id;
+    uint16_t sb_alloc_plugin_id;
+    char sb_unused[440];
 };
 
 typedef struct reiserfs_format40_super reiserfs_format40_super_t;
 
-#define get_sb_block_count(sb)				get_le32(sb, sb_block_count)
-#define set_sb_block_count(sb, val)			set_le32(sb, sb_block_count, val)
+#define get_sb_block_count(sb)				get_le64(sb, sb_block_count)
+#define set_sb_block_count(sb, val)			set_le64(sb, sb_block_count, val)
 
-#define get_sb_free_blocks(sb)				get_le32(sb, sb_free_blocks)
-#define set_sb_free_blocks(sb, val)			set_le32(sb, sb_free_blocks, val)
+#define get_sb_free_blocks(sb)				get_le64(sb, sb_free_blocks)
+#define set_sb_free_blocks(sb, val)			set_le64(sb, sb_free_blocks, val)
 
-#define get_sb_root_block(sb)				get_le32(sb, sb_root_block)
-#define set_sb_root_block(sb, val)			set_le32(sb, sb_root_block, val)
+#define get_sb_root_block(sb)				get_le64(sb, sb_root_block)
+#define set_sb_root_block(sb, val)			set_le64(sb, sb_root_block, val)
 
-#define get_sb_tree_height(sb)				get_le32(sb, sb_tree_height)
-#define set_sb_tree_height(sb, val)			set_le32(sb, sb_tree_height, val)
+#define get_sb_tree_height(sb)				get_le64(sb, sb_tree_height)
+#define set_sb_tree_height(sb, val)			set_le64(sb, sb_tree_height, val)
 
-#define get_sb_oid(sb)					get_le16(sb, sb_oid)
-#define set_sb_oid(sb, val)				set_le16(sb, sb_oid, val)
+#define get_sb_oid(sb)					get_le64(sb, sb_oid)
+#define set_sb_oid(sb, val)				set_le64(sb, sb_oid, val)
+
+#define get_journal_plugin_id(sb)			get_le16(sb, journal_plugin_id)
+#define set_journal_plugin_id(sb, val)			set_le16(sb, journal_plugin_id, val)
+
+#define get_alloc_plugin_id(sb)				get_le16(sb, alloc_plugin_id)
+#define set_alloc_plugin_id(sb, val)			set_le16(sb, alloc_plugin_id, val)
 
 struct reiserfs_format40 {
-	aal_device_t *device;
-	aal_block_t *super;
+    aal_device_t *device;
+    aal_block_t *super;
 };
 
 typedef struct reiserfs_format40 reiserfs_format40_t;

@@ -70,7 +70,50 @@ error:
     return NULL;
 }
 
+static int reiserfs_format40_sync(reiserfs_format40_t *format) {
+    if (!format || !format->super)
+	return 0;
+    
+    if (!aal_block_write(format->device, format->super)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-044", 
+	    "Can't write superblock to %d.", aal_block_location(format->super));
+	return 0;
+    }
+    return 1;
+}
+
 static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device) {
+    reiserfs_format40_t *format;
+    reiserfs_format40_super_t *super;
+
+    if (!device)
+	return NULL;
+    
+    if (!(format = aal_calloc(sizeof(*format), 0)))
+	return NULL;
+    
+    format->device = device;
+    
+    if (!(format->super = aal_block_alloc(device, REISERFS_FORMAT40_OFFSET, 0))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-043", 
+	    "Can't allocate superblock.");
+	goto error_free_format;
+    }
+    super = (reiserfs_format40_super_t *)format->super->data;
+    set_sb_block_count(super, aal_device_len(device));
+    
+    /* There will be superblock forming code */
+   
+    if (!reiserfs_format40_sync(format))
+	goto error_free_super;
+
+    return format;
+    
+error_free_super:
+    aal_block_free(format->super);
+error_free_format:
+    aal_free(format);
+error:
     return NULL;
 }
 
@@ -80,10 +123,9 @@ static int reiserfs_format40_check(reiserfs_format40_t *format) {
 }
 
 static void reiserfs_format40_close(reiserfs_format40_t *format, int sync) {
-    if (sync && !aal_block_write(format->device, format->super)) {
-	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-024", 
-	    "Can't synchronize super block.");
-    }
+    if (sync) 
+	reiserfs_format40_sync(format);
+    
     aal_block_free(format->super);
     aal_free(format);
 }
@@ -117,7 +159,7 @@ static reiserfs_plugin_id_t reiserfs_format40_node_plugin(reiserfs_format40_t *f
 }
 
 static blk_t reiserfs_format40_root_block(reiserfs_format40_t *format) {
-    return 0;
+    return get_sb_root_block((reiserfs_format40_super_t *)format->super->data);
 }
 
 reiserfs_plugin_t plugin_info = {
@@ -133,6 +175,7 @@ reiserfs_plugin_t plugin_info = {
 	.open = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format40_open,
 	.create = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format40_create,
 	.close = (void (*)(reiserfs_format_opaque_t *, int))reiserfs_format40_close,
+	.sync = (int (*)(reiserfs_format_opaque_t *))reiserfs_format40_sync,
 	.check = (int (*)(reiserfs_format_opaque_t *))reiserfs_format40_check,
 	.probe = (int (*)(aal_device_t *))reiserfs_format40_probe,
 	.format = (const char *(*)(reiserfs_format_opaque_t *))reiserfs_format40_format,

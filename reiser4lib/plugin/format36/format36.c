@@ -109,6 +109,18 @@ error:
     return NULL;
 }
 
+static int reiserfs_format36_sync(reiserfs_format36_t *format) {
+    if (!format || !format->super)
+	return 0;
+
+    if (!aal_block_write(format->device, format->super)) {
+    	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-022", 
+	    "Can't write superblock to %d.", aal_block_location(format->super));
+	return 0;
+    }
+    return 1;
+}
+
 static reiserfs_format36_t *reiserfs_format36_create(aal_device_t *device) {
     return NULL;
 }
@@ -119,10 +131,9 @@ static int reiserfs_format36_check(reiserfs_format36_t *format) {
 }
 
 static void reiserfs_format36_close(reiserfs_format36_t *format, int sync) {
-    if (sync && !aal_block_write(format->device, format->super)) {
-    	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-022", 
-	    "Can't synchronize super block.");
-    }
+    if (sync)
+	reiserfs_format36_sync(format);
+    
     aal_block_free(format->super);
     aal_free(format);
 }
@@ -174,6 +185,7 @@ reiserfs_plugin_t plugin_info = {
 	.open = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format36_open,
 	.create = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format36_create,
 	.close = (void (*)(reiserfs_format_opaque_t *, int))reiserfs_format36_close,
+	.sync = (int (*)(reiserfs_format_opaque_t *))reiserfs_format36_sync,
 	.check = (int (*)(reiserfs_format_opaque_t *))reiserfs_format36_check,
 	.probe = (int (*)(aal_device_t *))reiserfs_format36_probe,
 	.format = (const char *(*)(reiserfs_format_opaque_t *))reiserfs_format36_format,
