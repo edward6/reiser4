@@ -549,6 +549,23 @@ static int insert_paste_common( carry_op *op /* carry operation being
 		 * nothing to do. Fall through to make_space().
 		 */
 		;
+		/*
+		 * FIXME-NIKITA Currently we cannot do batching at the lowest
+		 * level, because operations here are given by coords where
+		 * modification is to be performed, and one modification can
+		 * invalidate coords of all following operations.
+		 *
+		 * So, we can implement yet another type for operation that
+		 * will use (the only) "locator" stable across shifting of
+		 * data between nodes, etc.: key (COPT_KEY).
+		 *
+		 * Here new clause is to be added that resolves key to the
+		 * coord in the node.
+		 *
+		 * But node can change also. Probably some pieces have to be
+		 * added to the lock_carry_node(), to lock node by its key.
+		 *
+		 */
 	} else if( op -> u.insert.type == COPT_CHILD ) {
 		/*
 		 * if we are asked to insert pointer to the child into

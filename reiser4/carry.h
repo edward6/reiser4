@@ -9,8 +9,6 @@
 #if !defined( __FS_REISER4_CARRY_H__ )
 #define __FS_REISER4_CARRY_H__
 
-/* I need this explained to me.  i don't understand why operations are
-   performed on parent nodes not parent items.  -Hans */
 /**
  * &carry_node - "location" of carry node.
  *
