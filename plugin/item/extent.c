@@ -1707,9 +1707,7 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 		     extent_write_todo todo)
 {
 	reiser4_extent * ext, new_ext;
-	reiser4_block_nr hole_off; /* hole starts at this offset */
 	reiser4_block_nr hole_width;
-	int result;
 	reiser4_item_data item;
 	reiser4_key hole_key;
 
@@ -1727,7 +1725,6 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 		hole_key = *key;
 		set_key_offset (&hole_key, 0ull);
 
-		hole_off = 0;
 		hole_width = ((get_key_offset (key) + current_blocksize - 1) >>
 			      current_blocksize_bits);
 		assert ("vs-710", hole_width > 0);
@@ -1750,20 +1747,21 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 	
 	/* key of first byte which is not addressed by this extent */
 	last_key_in_extent (coord, &hole_key);
-	hole_off = get_key_offset (&hole_key);
-	if (hole_off + current_blocksize > get_key_offset (key)) {
-		/* hole size is not big enough to require adding of hole extent
-		 * explicitly */
-		info ("No hole creation is required\n");
+
+	if (keyle (key, &hole_key)) {
+		/* there is already extent unit which contains position
+		 * specified by @key */
 		return 0;
 	}
 
+	/* extent item has to be appended with hole. Calculate length of that
+	 * hole */
+	hole_width = ((get_key_offset (key) - get_key_offset (&hole_key) +
+		       current_blocksize - 1) >> current_blocksize_bits);
+	assert ("vs-954", hole_width > 0);
+
 	/* set coord after last unit */
 	coord_init_after_item_end (coord);
-
-	hole_width = ((get_key_offset (key) - hole_off + current_blocksize - 1) >>
-		      current_blocksize_bits);
-	assert ("vs-954", hole_width > 0);
 
 	/* get last extent in the item */
 	ext = extent_by_coord (coord);
@@ -1786,7 +1784,7 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 
 	return insert_into_item (coord, lh, &hole_key,
 				 init_new_extent (&item, &new_ext, 1),
-				 0/*flags*/);
+				 0 /*flags*/);
 }
 
 
