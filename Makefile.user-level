@@ -201,7 +201,7 @@ gtags:
 	gtags
 
 gprof:
-	gprof -C -p -q -c -z --function-ordering -A -I `find . -type d -printf "%p:"`> gprof.out
+	gprof -C -p -q -c -z --function-ordering -A -I `find . -type d -printf "%p:"` gmon,out* > gprof.out
 	gprof -l > gprof.out.ll
 
 check-nikita:
