@@ -69,6 +69,8 @@ open_trace_file(struct super_block *super, const char *file_name, size_t size, r
 	}
 	trace->fd->f_dentry->d_inode->i_flags |= S_NOATIME;
 	trace->fd->f_flags |= O_APPEND;
+	trace->fd->f_dentry->d_inode->i_mapping->gfp_mask &= ~__GFP_FS;
+	trace->fd->f_dentry->d_inode->i_mapping->gfp_mask |= GFP_NOFS;
 	trace->type = log_to_file;
 	return 0;
 }
