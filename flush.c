@@ -550,26 +550,7 @@ check_preceder(reiser4_block_nr blk)
    no static initializer function...) */
 ON_DEBUG(atomic_t flush_cnt;)
 
-/* conditionally write flush queue */
-static int write_prepped_nodes (flush_pos_t * pos, int scan)
-{
-	int ret;
-
-	assert("zam-831", pos);
-	assert("zam-832", pos->fq);
-
-	if (!(pos->flags & JNODE_FLUSH_WRITE_BLOCKS))
-		return 0;
-	ret = write_fq(pos->fq);
-	if (ret > 0) {
-		*pos->nr_written += ret;
-		ret = 0;
-	}
-	flush_started_io();
-	return ret;
-}
-
-#if 0
+#if defined (FLUSH_CHECKS_CONGESTION)
 /* check fs backing device for write congestion */
 static int check_write_congestion (void)
 {
@@ -578,7 +559,32 @@ static int check_write_congestion (void)
 	bdi = get_current_super_private()->fake->i_mapping->backing_dev_info;
 	return  bdi_write_congested(bdi);
 }
-#endif
+#endif /* FLUSH_CHECKS_CONGESTION */
+
+/* conditionally write flush queue */
+static int write_prepped_nodes (flush_pos_t * pos, int dont_check_congestion)
+{
+	int ret;
+
+	assert("zam-831", pos);
+	assert("zam-832", pos->fq);
+
+	if (!(pos->flags & JNODE_FLUSH_WRITE_BLOCKS))
+		return 0;
+
+#if defined (FLUSH_CHECKS_CONGESTION)
+	if (!dont_check_congestion && check_write_congestion())
+		return 0;
+#endif /* FLUSH_CHECKS_CONGESTION */
+
+	ret = write_fq(pos->fq);
+	if (ret > 0) {
+		*pos->nr_written += ret;
+		ret = 0;
+	}
+	flush_started_io();
+	return ret;
+}
 
 /* Proper release all flush pos. resources then move flush position to new
    locked node */
