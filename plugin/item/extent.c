@@ -561,7 +561,7 @@ extent_kill_item_hook(const coord_t * coord, unsigned from,
 		 */
 		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
 			/*
-			 * FIXME-VS: this is necessary???
+			 * FIXME-VITALY: this is necessary???
 			 */
 			fake_allocated2free(extent_get_width(ext),
 					    0 /* unformatted */ );
@@ -743,7 +743,7 @@ cut_or_kill_units(coord_t * coord,
 				if (state_of_extent(ext) == UNALLOCATED_EXTENT
 				    && !cut) {
 					/*
-					 * FIXME-VS: this is necessary???
+					 * FIXME-VITALY: this is necessary???
 					 */
 					fake_allocated2free(old_width -
 							    new_width,
@@ -816,7 +816,7 @@ cut_or_kill_units(coord_t * coord,
 			 */
 			if (state_of_extent(ext) == UNALLOCATED_EXTENT && !cut) {
 				/*
-				 * FIXME-VS: this is necessary???
+				 * FIXME-VITALY: this is necessary???
 				 */
 				fake_allocated2free(old_width - new_width,
 						    0 /*unformatted */ );
@@ -2119,9 +2119,8 @@ extent_allocate_blocks(reiser4_blocknr_hint * preceder,
 	 * FIXME-VS: ask Zam how to use this block_stage
 	 */
 	preceder->block_stage = BLOCK_UNALLOCATED;
-	result =
-	    reiser4_alloc_blocks(preceder, first_allocated, allocated,
-				 0 /*unformatted */ );
+	result = reiser4_alloc_blocks (preceder, first_allocated, allocated, 0/*unformatted*/,
+	    0/* do not use 5% */);
 	if (result) {
 		/*
 		 * no free space
@@ -2977,15 +2976,17 @@ insert_first_block(coord_t * coord, lock_handle * lh, jnode * j,
 	/* extent insertion starts at leaf level */
 	assert("vs-719", znode_get_level(coord->node) == LEAF_LEVEL);
 
-	result = reiser4_grab_space_exact((__u64) 1);
+	/* FIXME-VITALY: this is grabbed at file_write time.. */
+	/* result = reiser4_grab_space_exact ((__u64)1);
 	if (result)
-		return result;
+		return result;*/
 
 	set_extent(&ext, UNALLOCATED_EXTENT, 0, 1ull);
 	result = insert_extent_by_coord(coord, init_new_extent(&unit, &ext, 1),
 					key, lh);
 	if (result) {
-		grabbed2free((__u64) 1);
+		/* FIXME-VITALY: this is grabbed at file_write time. */
+		/* grabbed2free ((__u64)1); */
 		return result;
 	}
 
@@ -3021,10 +3022,10 @@ append_one_block(coord_t * coord, lock_handle * lh, jnode * j,
 	assert("vs-883", ( {
 			  reiser4_key next;
 			  keyeq(key, last_key_in_extent(coord, &next));}));
-
-	result = reiser4_grab_space_exact((__u64) 1);
+	/* FIXME-VITALY: this is grabbed at file_write time. */
+	/*result = reiser4_grab_space_exact ((__u64)1);
 	if (result)
-		return result;
+		return result;*/
 
 	ext = extent_by_coord(coord);
 	switch (state_of_extent(ext)) {
@@ -3043,7 +3044,8 @@ append_one_block(coord_t * coord, lock_handle * lh, jnode * j,
 					  init_new_extent(&unit, &new_ext, 1),
 					  0 /* flags */ );
 		if (result) {
-			grabbed2free((__u64) 1);
+			/* FIXME-VITALY: this is grabbed at file_write time. */
+			/*grabbed2free ((__u64)1);*/
 			return result;
 		}
 		break;
@@ -3139,13 +3141,15 @@ overwrite_one_block(coord_t * coord, lock_handle * lh,
 		break;
 
 	case HOLE_EXTENT:
-		result = reiser4_grab_space_exact((__u64) 1);
+		/* VITALY: this is grabbed at file_write time. */
+		/*result = reiser4_grab_space_exact ((__u64)1);
 		if (result)
-			return result;
+			return result;*/
 
 		result = plug_hole(coord, lh, key);
 		if (result) {
-			grabbed2free((__u64) 1);
+			/* VITALY: this is grabbed at file_write time. */
+			/*grabbed2free ((__u64)1);*/
 			return result;
 		}
 
