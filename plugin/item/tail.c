@@ -358,7 +358,7 @@ reiser4_internal int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
 		flush_dcache_page(page);
 
 		/* dettaching page from address space. */
-		kunmap_atomic(page, KM_USER0);
+		kunmap_atomic(pagedata, KM_USER0);
 
 		/* Getting next tail item. */
 		if (mapped + count < PAGE_CACHE_SIZE) {
