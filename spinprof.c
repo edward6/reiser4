@@ -11,10 +11,14 @@
 #include <linux/kallsyms.h>
 
 #include <asm/irq.h>
+#include <asm/ptrace.h> /* for instruction_pointer() */
 
 #if REISER4_LOCKPROF
 
 #define LEFT(p, buf) (PAGE_SIZE - ((p) - (buf)) - 1)
+
+void profregion_functions_start_here(void);
+void profregion_functions_end_here(void);
 
 static locksite none = {
 	.hits = 0,
@@ -40,13 +44,24 @@ profregion_show(struct kobject * kobj, struct attribute *attr, char *buf)
 	return (p - buf);
 }
 
+static ssize_t profregion_store(struct kobject * kobj,struct attribute * attr,
+				const char * buf, size_t size)
+{
+	struct profregion *pregion;
+
+	pregion = container_of(kobj, struct profregion, kobj);
+	pregion->hits = 0;
+	return size;
+}
+
 static struct sysfs_ops profregion_attr_ops = {
-	.show = profregion_show
+	.show  = profregion_show,
+	.store = profregion_store
 };
 
 static struct attribute hits_attr = {
 	.name = "hits",
-	.mode = 0444
+	.mode = 0666
 };
 
 static struct attribute * def_attrs[] = {
@@ -67,10 +82,18 @@ struct profregion outside = {
 		.name = "outside"
 	}
 };
+
 struct profregion incontext = {
 	.hits = 0,
 	.kobj = {
 		.name = "incontext"
+	}
+};
+
+struct profregion overhead = {
+	.hits = 0,
+	.kobj = {
+		.name = "overhead"
 	}
 };
 
@@ -80,7 +103,18 @@ extern struct profregion pregion_spin_jnode_trying;
 static int callback(struct notifier_block *self, unsigned long val, void *p)
 {
 	struct profregionstack *stack;
+	struct pt_regs *regs;
+	unsigned long pc;
 	int ntop;
+
+	regs = p;
+	pc = instruction_pointer(regs);
+
+	if (pc > (unsigned long)profregion_functions_start_here &&
+	    pc < (unsigned long)profregion_functions_end_here) {
+		overhead.hits ++;
+		return 0;
+	}
 
 	stack = &get_cpu_var(inregion);
 	ntop = stack->top;
@@ -100,8 +134,12 @@ static int callback(struct notifier_block *self, unsigned long val, void *p)
 			hits = ++ (*act->objloc);
 		}
 		if (unlikely(hits > preg->objhit)) {
-			preg->objhit = hits;
-			preg->obj    = act->objloc;
+			if (preg->obj != act->objloc) {
+				preg->objhit = hits;
+				preg->obj    = act->objloc;
+				if (preg->champion != NULL)
+					preg->champion(preg);
+			}
 		}
 
 		hits = 0;
@@ -144,6 +182,10 @@ profregion_init(void)
 	if (result != 0)
 		return result;
 
+	result = profregion_register(&overhead);
+	if (result != 0)
+		return result;
+
 	return register_profile_notifier(&profregionnotifier);
 }
 subsys_initcall(profregion_init);
@@ -151,6 +193,7 @@ subsys_initcall(profregion_init);
 static void __exit
 profregion_exit(void)
 {
+	profregion_unregister(&overhead);
 	profregion_unregister(&incontext);
 	profregion_unregister(&outside);
 	subsystem_unregister(&profregion_subsys);
@@ -168,6 +211,8 @@ void profregion_unregister(struct profregion *pregion)
 	kobject_register(&pregion->kobj);
 }
 
+void profregion_functions_start_here(void) { }
+
 int profregion_find(struct profregionstack *stack, struct profregion *pregion)
 {
 	int i;
@@ -181,16 +226,71 @@ int profregion_find(struct profregionstack *stack, struct profregion *pregion)
 	return 0;
 }
 
+void profregfill(struct pregactivation *act,
+		 struct profregion *pregion,
+		 void *objloc, void *codeloc)
+{
+	act->preg    = pregion;
+	act->objloc  = objloc;
+	act->codeloc = codeloc;
+}
+
+void profregion_in(int cpu, struct profregion *pregion,
+		   void *objloc, locksite *codeloc)
+{
+	struct profregionstack *stack;
+	int ntop;
+
+	preempt_disable();
+	stack = &per_cpu(inregion, cpu);
+	ntop = stack->top;
+	BUG_ON(ntop == PROFREGION_MAX_DEPTH);
+	profregfill(&stack->stack[ntop], pregion, objloc, codeloc);
+	/* put optimization barrier here */
+	barrier();
+	++ stack->top;
+}
+
+void profregion_ex(int cpu, struct profregion *pregion)
+{
+	struct profregionstack *stack;
+	int ntop;
+
+	stack = &per_cpu(inregion, cpu);
+	ntop = stack->top;
+	BUG_ON(ntop == 0);
+	if(likely(stack->stack[ntop - 1].preg == pregion)) {
+		do {
+			-- ntop;
+		} while (ntop > 0 &&
+			 stack->stack[ntop - 1].preg == NULL);
+		/* put optimization barrier here */
+		barrier();
+		stack->top = ntop;
+	} else
+		stack->stack[profregion_find(stack, pregion)].preg = NULL;
+	preempt_enable();
+	put_cpu();
+}
+
+void profregion_replace(int cpu, struct profregion *pregion, 
+			void *objloc, void *codeloc)
+{
+	struct profregionstack *stack;
+	int ntop;
+
+	stack = &per_cpu(inregion, cpu);
+	ntop = stack->top;
+	BUG_ON(ntop == 0);
+	profregfill(&stack->stack[ntop - 1], pregion, objloc, codeloc);
+}
+
+void profregion_functions_end_here(void) { }
+
 /* REISER4_LOCKPROF */
 #else
 
-/*
- * if reiser4 is compiled without optimizations, __hits is not optimized away,
- * so it has to be declared somewhere.
- */
-#if defined(CONFIG_REISER4_NOOPT)
 locksite __hits;
-#endif
 
 /* REISER4_LOCKPROF */
 #endif
