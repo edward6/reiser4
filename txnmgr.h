@@ -349,6 +349,7 @@ struct txn_atom {
 	void *committer;
 	atomic_t coc_reloc;
 	atomic_t coc_ovrwr;
+	int ovrwr_leaves;
 #endif
 };
 
