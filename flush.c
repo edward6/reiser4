@@ -621,7 +621,12 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 
 	/* Funny business here.  We set an unformatted point at the left-end of the scan,
 	 * but after that an unformatted flush position sets pos->point to NULL.  This
-	 * seems lazy, but it makes the initial calls to flush_query_relocate much easier
+	 * seems lazy, but it makes the initial calls to flush_query_relocate 
+
+JOSH-FIXME-HANS: flush_query_relocate is not found by tags.
+
+
+much easier
 	 * because we know the first unformatted child already.  Nothing is broken by
 	 * this, but the reasoning is subtle.  Holding an extra reference on a jnode
 	 * during flush can cause us to see nodes with HEARD_BANSHEE during squalloc,
@@ -3529,6 +3534,7 @@ static void flush_pos_release_point (flush_position *pos)
 	done_lh (& pos->point_lock);
 }
 
+/* JOSH-FIXME-HANS: comment me */
 static int flush_pos_set_point (flush_position *pos, jnode *node)
 {
 	flush_pos_release_point (pos);
