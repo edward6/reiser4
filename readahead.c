@@ -123,6 +123,11 @@ formatted_readahead(znode *node, ra_info_t *info)
 		done_lh(&next_lh);
 		if (znode_page(cur) == NULL)
 			jstartio(ZJNODE(cur));
+		else 
+			/* Do not scan read-ahead window if pages already
+			 * allocated (and i/o already started). */
+			break;
+		
 		i ++;
 	}
 	zput(cur);
