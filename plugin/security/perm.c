@@ -48,7 +48,7 @@ read_ok_common(
 	return access_ok(VERIFY_WRITE, buf, size) ? 0 : -EFAULT;
 }
 
-static int 
+static int
 write_ok_common(
 	struct file * file, const char *buf, size_t size, loff_t *off)
 {

@@ -1320,7 +1320,7 @@ kill_node_content(coord_t * from /* coord of the first unit/item that will be
 			return result;
 		}
 	}
-	
+
 	pool = init_carry_pool();
 	if (IS_ERR(pool))
 		return PTR_ERR(pool);
@@ -1491,7 +1491,7 @@ reiser4_internal int delete_node (znode * node, reiser4_key * smallest_removed,
  * @to_key: the end of the deleted key range,
  * @smallest_removed: the smallest removed key,
  * @truncate: true if called for file truncate.
- * @progress: return true if a progress in file items deletions was made, 
+ * @progress: return true if a progress in file items deletions was made,
  *            @smallest_removed value is actual in that case.
  *
  * @return: 0 if success, error code otherwise, -E_REPEAT means that long cut_tree
@@ -1654,7 +1654,7 @@ cut_tree_worker_common (tap_t * tap, const reiser4_key * from_key,
  * @smallest_removed: the smallest removed key,
  * @object: owner of cutting items.
  * @truncate: true if called for file truncate.
- * @progress: return true if a progress in file items deletions was made, 
+ * @progress: return true if a progress in file items deletions was made,
  *            @smallest_removed value is actual in that case.
  *
  * @return: 0 if success, error code otherwise, -E_REPEAT means that long cut_tree

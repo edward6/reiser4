@@ -146,7 +146,7 @@ struct znode {
 	reiser4_key first_key;
 	unsigned long times_locked;
 	int left_version;   /* when node->left was updated */
-	int right_version;  /* when node->right was updated */	
+	int right_version;  /* when node->right was updated */
 	int ld_key_version; /* when node->ld_key was updated */
 	int rd_key_version; /* when node->rd_key was updated */
 #endif

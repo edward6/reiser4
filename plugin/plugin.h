@@ -274,7 +274,7 @@ Elena doing this for you if that helps.  Email me the list of the top 10, with t
 	   (read_inode) and when file is created (common_create_child) so that
 	   file plugin could initialize its inode data */
 	void (*init_inode_data)(struct inode *, reiser4_object_create_data *, int);
-	
+
 	/**
 	 * This method performs progressive deletion of items and whole nodes
 	 from right to left.
@@ -458,7 +458,7 @@ typedef struct compression_plugin {
 	int (*overrun) (unsigned src_len);
 	coa_t (*alloc) (tfm_action act);
 	void (*free) (coa_t coa, tfm_action act);
-	/* minimal size of the flow we still try to compress */ 
+	/* minimal size of the flow we still try to compress */
 	int (*min_tfm_size) (void);
 	/* main transform procedures */
 	void (*compress)   (coa_t coa, __u8 *src_first, unsigned src_len,

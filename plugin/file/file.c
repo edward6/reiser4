@@ -348,7 +348,7 @@ find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 			   again */
 			hint->ext_coord.valid = 0;
 		}
-		
+
 		set_file_state(inode, CBK_COORD_FOUND, znode_get_level(coord->node));
 		return CBK_COORD_FOUND;
 	}
@@ -527,11 +527,11 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 	file_plugin * fplug = inode_file_plugin(inode);
 	int result;
 	int progress = 0;
-	
+
 	assert("vs-1248",
 	       fplug == file_plugin_by_id(UNIX_FILE_PLUGIN_ID) ||
 	       fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
-	
+
 	fplug->key_by_inode(inode, new_size, &from_key);
 	to_key = from_key;
 	set_key_offset(&to_key, cur_size - 1/*get_key_offset(max_key())*/);
@@ -561,7 +561,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 		}
 		if (result && !(result == CBK_COORD_NOTFOUND && new_size == 0 && inode->i_size == 0))
 			break;
-		
+
 		set_key_offset(&smallest_removed, new_size);
 		/* Final sd update after the file gets its correct size */
 		result = update_actor(inode, &smallest_removed, update_sd);
@@ -569,7 +569,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 	}
 	all_grabbed2free();
 	reiser4_release_reserved(inode->i_sb);
-	
+
 	return result;
 }
 
@@ -760,7 +760,7 @@ save_file_hint(struct file *file, const hint_t *hint)
 
 	fsdata = reiser4_get_file_fsdata(file);
 	assert("vs-965", !IS_ERR(fsdata));
-	assert("nikita-19891", 
+	assert("nikita-19891",
 	       coords_equal(&hint->seal.coord1, &hint->ext_coord.coord));
 	fsdata->reg.hint = *hint;
 	return;
@@ -1026,7 +1026,7 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index,
 	int i;
 	int nr;
 
-	pagevec_init(&pvec, 0);	
+	pagevec_init(&pvec, 0);
 	count = min(pagevec_space(&pvec), (unsigned)to_capture);
 	nr = 0;
 
@@ -1096,7 +1096,7 @@ capture_anonymous_jnodes(struct address_space *mapping,
 			break;
 		}
 	}
-		
+
 	RUNLOCK_TREE(tree);
 	if (found_jnodes == 0) {
 		/* there are no anonymous jnodes in the gived range of
@@ -1104,9 +1104,9 @@ capture_anonymous_jnodes(struct address_space *mapping,
 		*from = to;
 		return 0;
 	}
-       
+
 	/* there are anonymous jnodes from given range */
-	
+
 	/* start i/o for eflushed nodes */
 	for (i = 0; i < found_jnodes; i ++)
 		jstartio(jvec[i]);
@@ -1358,14 +1358,14 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 
 		while (to_capture > 0) {
 			pgoff_t start;
-			
+
 			assert("vs-1727", jindex <= pindex);
 			if (pindex == jindex) {
 				start = pindex;
 				result = capture_anonymous_pages(inode->i_mapping, &pindex, to_capture);
 				if (result < 0)
 					break;
-				to_capture -= result;				
+				to_capture -= result;
 				wbc->nr_to_write -= result;
 				if (start + result == pindex) {
 					jindex = pindex;
@@ -1517,7 +1517,7 @@ readpage_unix_file(void *vp, struct page *page)
 		done_lh(&lh);
 		return result;
 	}
-	
+
 	if (hint.ext_coord.valid == 0)
 		validate_extended_coord(&hint.ext_coord, (loff_t) page->index << PAGE_CACHE_SHIFT);
 
@@ -1609,7 +1609,7 @@ adjust_nr_bytes(unsigned long addr, size_t count, int nr_pages)
 }
 
 static int
-reiser4_get_user_pages(struct page **pages, unsigned long addr, int nr_pages, 
+reiser4_get_user_pages(struct page **pages, unsigned long addr, int nr_pages,
 		       int rw)
 {
 	down_read(&current->mm->mmap_sem);
@@ -1703,7 +1703,7 @@ read_file(hint_t *hint, file_container_t container,
 
 		if (hint->ext_coord.valid == 0)
 			validate_extended_coord(&hint->ext_coord, get_key_offset(&flow.key));
-			
+
 		/* call item's read method */
 		if (!read_f)
 			read_f = item_plugin_by_coord(coord)->s.file.read;
@@ -1765,7 +1765,7 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 	nr_pages = 0;
 	while (left > 0) {
 		unsigned long addr;
-		size_t to_read;		
+		size_t to_read;
 
 		addr = (unsigned long)buf;
 		txn_restart_current();
@@ -1953,7 +1953,7 @@ append_and_or_overwrite(hint_t *hint, struct file *file, struct inode *inode, fl
 		assert("nikita-3142", get_current_context()->grabbed_blocks == 0);
 		/* seal has either to be not set to set properly */
 		assert("nikita-19893",
-		       ((!hint_is_set(hint) && hint->ext_coord.valid == 0) || 
+		       ((!hint_is_set(hint) && hint->ext_coord.valid == 0) ||
 			(coords_equal(&hint->seal.coord1, &hint->ext_coord.coord) &&
 			 keyeq(&flow->key, &hint->seal.key))));
 
@@ -2003,7 +2003,7 @@ unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int
 	struct page *page;
 	struct inode *inode;
 	reiser4_context ctx;
-	
+
 	inode = area->vm_file->f_dentry->d_inode;
 	init_context(&ctx, inode->i_sb);
 
@@ -2161,7 +2161,7 @@ write_unix_file(struct file *file, /* file to write to */
 	uf_info = unix_file_inode_data(inode);
 
   	down(&uf_info->write);
-	
+
 	result = generic_write_checks(file, off, &write_amount, 0);
 	if (result) {
 		up(&uf_info->write);
@@ -2186,7 +2186,7 @@ write_unix_file(struct file *file, /* file to write to */
 	if (inode_get_flag(inode, REISER4_HAS_MMAP) && uf_info->container == UF_CONTAINER_TAILS) {
 		/* file built of tails was mmaped. So, there might be
 		   faultin-ed pages filled by tail item contents and mapped to
-		   process address space. 
+		   process address space.
 		   Before starting write:
 
 		   1) block new page creation by obtaining exclusive access to
@@ -2544,7 +2544,7 @@ setattr_unix_file(struct inode *inode,	/* Object to change attributes */
 		/* truncate does reservation itself and requires exclusive
 		 * access obtained */
 		unix_file_info_t *uf_info;
-		
+
 		uf_info = unix_file_inode_data(inode);
 		down(&uf_info->write);
 		get_exclusive_access(uf_info);

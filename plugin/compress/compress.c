@@ -131,7 +131,7 @@ gzip1_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 #if REISER4_GZIP_TFM
 	int ret = 0;
 	struct z_stream_s stream;
-	
+
 	xmemset(&stream, 0, sizeof(stream));
 
 	assert("edward-842", coa != NULL);
@@ -240,12 +240,12 @@ static int lzo1_overrun(unsigned in_len)
 #define LZO_HEAP_SIZE(size) \
 	sizeof(lzo_align_t) * (((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t))
 
-static coa_t 
+static coa_t
 lzo1_alloc(tfm_action act)
 {
 	int ret = 0;
 	coa_t coa = NULL;
-	
+
 	switch (act) {
 	case TFM_WRITE:	/* compress */
 		coa = vmalloc(LZO_HEAP_SIZE(LZO1X_1_MEM_COMPRESS));
@@ -273,7 +273,7 @@ static void
 lzo1_free(coa_t coa, tfm_action act)
 {
 	assert("edward-879", coa != NULL);
-	
+
 	switch (act) {
 	case TFM_WRITE:	/* compress */
 		vfree(coa);
@@ -297,17 +297,17 @@ lzo1_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 	      __u8 * dst_first, unsigned *dst_len)
 {
 	int result;
-	
+
 	assert("edward-846", coa != NULL);
 	assert("edward-847", src_len != 0);
 
 	result = lzo_init();
-	
+
 	if (result != LZO_E_OK) {
 		warning("edward-848", "lzo_init() failed\n");
 		goto out;
 	}
-	
+
 	result =
 		lzo1x_1_compress(src_first, src_len, dst_first, dst_len, coa);
 	if (result != LZO_E_OK) {
@@ -334,12 +334,12 @@ lzo1_decompress(coa_t coa, __u8 * src_first, unsigned src_len,
 	assert("edward-852", src_len != 0);
 
 	result = lzo_init();
-	
+
 	if (result != LZO_E_OK) {
 		warning("edward-888", "lzo_init() failed\n");
 		return;
 	}
-	
+
 	result = lzo1x_decompress(src_first, src_len, dst_first, dst_len, NULL);
 	if (result != LZO_E_OK)
 		warning("edward-853", "lzo1x_1_decompress failed\n");

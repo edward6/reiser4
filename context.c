@@ -184,7 +184,7 @@ reiser4_internal void reiser4_exit_context(reiser4_context * context)
 		   support. */
 		if (context->super->s_flags & (MS_SYNCHRONOUS | MS_DIRSYNC)) {
 			txn_atom *atom;
-			
+
 			atom = get_current_atom_locked_nocheck();
 			if (atom) {
 				atom->flags |= ATOM_FORCE_COMMIT;

@@ -200,7 +200,7 @@ static inline int reiser4_test_bit(int nr, void * addr)
 {
 	return ext2_test_bit(nr + OFF(addr), BASE(addr));
 }
-static inline int reiser4_find_next_zero_bit(void * addr, int maxoffset, int offset) 
+static inline int reiser4_find_next_zero_bit(void * addr, int maxoffset, int offset)
 {
 	int off = OFF(addr);
 
@@ -257,7 +257,7 @@ static bmap_off_t __reiser4_find_next_set_bit(
 	return max_offset;
 }
 
-#if BITS_PER_LONG == 64 
+#if BITS_PER_LONG == 64
 
 static bmap_off_t reiser4_find_next_set_bit(
 	void *addr, bmap_off_t max_offset, bmap_off_t start_offset)
@@ -269,7 +269,7 @@ static bmap_off_t reiser4_find_next_set_bit(
 
 #else
 #define reiser4_find_next_set_bit(addr, max_offset, start_offset) \
-  __reiser4_find_next_set_bit(addr, max_offset, start_offset) 
+  __reiser4_find_next_set_bit(addr, max_offset, start_offset)
 #endif
 
 /* search for the first set bit in single word. */
@@ -502,15 +502,15 @@ bnode_check_adler32(const struct bitmap_node *bnode, unsigned long size)
 {
 	if (bnode_calc_crc(bnode, size) != bnode_commit_crc (bnode)) {
 		bmap_nr_t bmap;
-		
+
 		bmap = bnode - get_bnode(sb_by_bnode(bnode), 0);
-		
-		warning("vpf-263", 
+
+		warning("vpf-263",
 			"Checksum for the bitmap block %llu is incorrect",bmap);
 
 		return RETERR(-EIO);
-	} 
-	
+	}
+
 	return 0;
 }
 
@@ -520,7 +520,7 @@ bnode_check_adler32(const struct bitmap_node *bnode, unsigned long size)
 static int
 bnode_check_crc(const struct bitmap_node *bnode)
 {
-	return bnode_check_adler32(bnode, 
+	return bnode_check_adler32(bnode,
 				   bmap_size(sb_by_bnode(bnode)->s_blocksize));
 }
 

@@ -1341,7 +1341,7 @@ static void stale_dk(reiser4_tree *tree, znode *node)
 	WLOCK_DK(tree);
 	right = node->right;
 
-	if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && 
+	if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) &&
 	    right && ZF_ISSET(right, JNODE_DKSET) &&
 	    !keyeq(znode_get_rd_key(node), znode_get_ld_key(right)))
 		znode_set_rd_key(node, znode_get_ld_key(right));
@@ -1361,7 +1361,7 @@ static void update_stale_dk(reiser4_tree *tree, znode *node)
 	RLOCK_DK(tree);
 	rd = *znode_get_rd_key(node);
 	right = node->right;
-	if (unlikely(ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && 
+	if (unlikely(ZF_ISSET(node, JNODE_RIGHT_CONNECTED) &&
 		     right && ZF_ISSET(right, JNODE_DKSET) &&
 		     !keyeq(&rd, znode_get_ld_key(right)))) {
 		/* does this ever happen? */

@@ -108,7 +108,7 @@ struct reiser4_file_fsdata {
 		void *data;
 	} ra2;
 	struct reiser4_file_ra_state ra1;
-	
+
 };
 
 TYPE_SAFE_LIST_DEFINE(readdir, reiser4_file_fsdata, dir.linkage);

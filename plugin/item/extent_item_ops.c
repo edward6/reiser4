@@ -404,7 +404,7 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 	if (inode != NULL)
 		/* take care of pages and jnodes corresponding to part of item being killed */
 		reiser4_invalidate_pages(
-			inode->i_mapping, from_off, to_off - from_off, 
+			inode->i_mapping, from_off, to_off - from_off,
 			kdata->params.truncate);
 
 	ext = extent_item(coord) + from;

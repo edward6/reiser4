@@ -22,8 +22,8 @@
 
 /* reiser 4.0 default disk layout */
 
-/* Amount of free blocks needed to perform release_format40 when fs gets 
-   mounted RW: 1 for SB, 1 for non-leaves in overwrite set, 2 for tx header 
+/* Amount of free blocks needed to perform release_format40 when fs gets
+   mounted RW: 1 for SB, 1 for non-leaves in overwrite set, 2 for tx header
    & tx record. */
 #define RELEASE_RESERVED 4
 
@@ -397,7 +397,7 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 
 	if (!rofs_super(s) && reiser4_free_blocks(s) < RELEASE_RESERVED)
 		return RETERR(-ENOSPC);
-	
+
 	return result;
 }
 

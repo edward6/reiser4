@@ -714,7 +714,7 @@ truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 }
 
 reiser4_internal void
-reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from, 
+reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from,
 			 unsigned long count, int even_cows)
 {
 	loff_t from_bytes, count_bytes;

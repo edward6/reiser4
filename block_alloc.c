@@ -287,7 +287,7 @@ reiser4_grab(reiser4_context *ctx, __u64 count, reiser4_ba_flags_t flags)
 		ctx->grab_enabled = 0;
 		return 0;
 	}
-	
+
 	sbinfo = get_super_private(ctx->super);
 
 	reiser4_spin_lock_sb(sbinfo);

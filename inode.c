@@ -371,7 +371,7 @@ void loading_init_once(reiser4_inode *info)
 /* for reiser4_alloc_inode */
 void loading_alloc(reiser4_inode *info)
 {
-#if REISER4_DEBUG		
+#if REISER4_DEBUG
 	assert("vs-1717", down_trylock(&info->loading) == 0);
 	up(&info->loading);
 #endif
@@ -380,7 +380,7 @@ void loading_alloc(reiser4_inode *info)
 /* for reiser4_destroy */
 void loading_destroy(reiser4_inode *info)
 {
-#if REISER4_DEBUG		
+#if REISER4_DEBUG
 	assert("vs-1717", down_trylock(&info->loading) == 0);
 	up(&info->loading);
 #endif

@@ -93,7 +93,7 @@ count_to_nr(loff_t count, unsigned shift)
 }
 
 /* number of pages occupied by @count bytes */
-static inline unsigned long 
+static inline unsigned long
 count_to_nrpages(loff_t count)
 {
 	return count_to_nr(count, PAGE_CACHE_SHIFT);
@@ -202,7 +202,7 @@ reiser4_cluster_init (reiser4_cluster_t * clust, reiser4_slide_t * window){
 	clust->win = window;
 }
 
-static inline int 
+static inline int
 dclust_get_extension(hint_t * hint)
 {
 	return hint->ext_coord.extension.ctail.shift;
@@ -258,7 +258,7 @@ void tfm_cluster_clr_uptodate (tfm_cluster_t * tc);
 unsigned long clust_by_coord(const coord_t * coord, struct inode * inode);
 
 /* move cluster handle to the target position
-   specified by the page of index @pgidx 
+   specified by the page of index @pgidx
 */
 static inline void
 move_cluster_forward(reiser4_cluster_t * clust, struct inode * inode,
@@ -266,7 +266,7 @@ move_cluster_forward(reiser4_cluster_t * clust, struct inode * inode,
 {
 	assert("edward-1297", clust != NULL);
 	assert("edward-1298", inode != NULL);
-	
+
 	reset_cluster_params(clust);
 	if (*progress &&
 	    /* hole in the indices */

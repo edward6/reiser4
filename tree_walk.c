@@ -528,7 +528,7 @@ connect_znode(coord_t * parent_coord, znode * child)
 			child->left_version = atomic_inc_return(&delim_key_version);
 			child->right_version = atomic_inc_return(&delim_key_version);
 			);
-		
+
 		return 0;
 	}
 
@@ -823,7 +823,7 @@ sibling_list_remove(znode * node)
 		node->left->right = node->right;
 		ON_DEBUG(node->left->right_version = atomic_inc_return(&delim_key_version););
 	}
-	
+
 	ZF_CLR(node, JNODE_LEFT_CONNECTED);
 	ZF_CLR(node, JNODE_RIGHT_CONNECTED);
 	ON_DEBUG(
@@ -884,7 +884,7 @@ sibling_list_insert_nolock(znode * new, znode * before)
 		new->right = before->right;
 		new->left = before;
 		ON_DEBUG(
-			new->right_version = atomic_inc_return(&delim_key_version);		
+			new->right_version = atomic_inc_return(&delim_key_version);
 			new->left_version = atomic_inc_return(&delim_key_version);
 			);
 		if (before->right != NULL) {

@@ -141,7 +141,7 @@ item_convert_plug (flush_pos_t * pos)
 	return pos->sq->iplug;
 }
 
-static inline convert_info_t * 
+static inline convert_info_t *
 convert_data (flush_pos_t * pos)
 {
 	return pos->sq;
@@ -181,7 +181,7 @@ should_chain_next_node(flush_pos_t * pos) {
 	int result = 0;
 
 	assert("edward-1007", chaining_data_present(pos));
-	
+
 	switch (item_convert_data(pos)->d_next) {
 	case DC_CHAINED_ITEM:
 		result = 1;
@@ -198,28 +198,28 @@ should_chain_next_node(flush_pos_t * pos) {
 static inline void
 move_chaining_data(flush_pos_t * pos,
 		       int this_node /* where is next item */) {
-	
+
 	assert("edward-1010", chaining_data_present(pos));
-	
+
 	if (this_node == 0) {
 		/* next item is on the right neighbor */
-		assert("edward-1011", 
+		assert("edward-1011",
 		       item_convert_data(pos)->d_cur == DC_FIRST_ITEM ||
 		       item_convert_data(pos)->d_cur == DC_CHAINED_ITEM);
-		assert("edward-1012", 
+		assert("edward-1012",
 		       item_convert_data(pos)->d_next == DC_CHAINED_ITEM);
-		
+
 		item_convert_data(pos)->d_cur = DC_CHAINED_ITEM;
 		item_convert_data(pos)->d_next = DC_INVALID_STATE;
 	} else {
-		/* next item is on the same node */ 
+		/* next item is on the same node */
 		assert("edward-1013",
 		       item_convert_data(pos)->d_cur == DC_FIRST_ITEM ||
 		       item_convert_data(pos)->d_cur == DC_CHAINED_ITEM);
-		assert("edward-1227",	       
+		assert("edward-1227",
 		       item_convert_data(pos)->d_next == DC_AFTER_CLUSTER ||
 		       item_convert_data(pos)->d_next == DC_INVALID_STATE);
-		
+
 		item_convert_data(pos)->d_cur = DC_AFTER_CLUSTER;
 		item_convert_data(pos)->d_next = DC_INVALID_STATE;
 	}

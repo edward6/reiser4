@@ -1498,7 +1498,7 @@ item_convert_invariant(flush_pos_t * pos)
 	assert("edward-1225", coord_is_existing_item(&pos->coord));
 	if (chaining_data_present(pos)) {
 		item_plugin * iplug  = item_convert_plug(pos);
-		
+
 		assert("edward-1000", iplug == item_plugin_by_coord(&pos->coord));
 		assert("edward-1001", iplug->f.convert != NULL);
 	}
@@ -1519,37 +1519,37 @@ static int convert_node(flush_pos_t * pos, znode * node)
 {
 	int ret = 0;
 	item_plugin * iplug;
-	
+
 	assert("edward-304", pos != NULL);
 	assert("edward-305", pos->child == NULL);
 	assert("edward-475", znode_convertible(node));
 	assert("edward-669", znode_is_wlocked(node));
 	assert("edward-1210", !node_is_empty(node));
-	
+
 	if (znode_get_level(node) != LEAF_LEVEL)
 		/* unsupported */
 		goto exit;
 
 	coord_init_first_unit(&pos->coord, node);
-	
+
 	while (1) {
 		ret = 0;
 		coord_set_to_left(&pos->coord);
 		item_convert_invariant(pos);
-		
+
 		iplug = item_plugin_by_coord(&pos->coord);
 		assert("edward-844", iplug != NULL);
-		
+
 		if (iplug->f.convert) {
 			ret = iplug->f.convert(pos);
 			if (ret)
 				goto exit;
 		}
 		assert("edward-307", pos->child == NULL);
-	
+
 		if (coord_next_item(&pos->coord)) {
 			/* node is over */
-			
+
 			if (!chaining_data_present(pos))
 				/* finished this node */
 				break;
@@ -1565,16 +1565,16 @@ static int convert_node(flush_pos_t * pos, znode * node)
 		/* Node is not over.
 		   Check if there is attached convert data.
 		   If so roll one item position back and repeat
-		   on this node 
+		   on this node
 		*/
 		if (chaining_data_present(pos)) {
-			
+
 			if (iplug != item_plugin_by_coord(&pos->coord))
 				set_item_convert_count(pos, 0);
-			
+
 			ret = coord_prev_item(&pos->coord);
 			assert("edward-1003", !ret);
-			
+
 			move_chaining_data(pos, 1 /* this node */);
 		}
 	}
@@ -1890,11 +1890,11 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 				   its right slum neighbor should be converted */
 				assert("edward-953", convert_data(pos));
 				assert("edward-954", item_convert_data(pos));
-				
+
 				if (node_is_empty(right_lock.node)) {
 					done_load_count(&right_load);
 					done_lh(&right_lock);
-				} 
+				}
 				else
 					move_flush_pos(pos, &right_lock, &right_load, NULL);
 				continue;
@@ -1924,7 +1924,7 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 			set_item_convert_count(pos, 0);
 			break;
 		}
-		
+
 		/* advance the flush position to the right neighbor */
 		move_flush_pos(pos, &right_lock, &right_load, NULL);
 
@@ -2368,7 +2368,7 @@ squeeze_right_non_twig(znode * left, znode * right)
 
 	if (!znode_is_dirty(left) || !znode_is_dirty(right))
 		return SQUEEZE_TARGET_FULL;
-	
+
 	pool = init_carry_pool();
 	if (IS_ERR(pool))
 		return PTR_ERR(pool);
@@ -3183,7 +3183,7 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
 		if (ret == CBK_COORD_NOTFOUND)
 			/* FIXME(C): check EINVAL, E_DEADLOCK */
 			return ret;
-		
+
 		/* parent was found */
 		assert("jmacd-8661", other != NULL);
 		/* Duplicate the reference into the other flush_scan. */

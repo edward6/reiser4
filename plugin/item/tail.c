@@ -187,7 +187,7 @@ copy_units_tail(coord_t *target, coord_t *source,
 		assert("vs-367", (unsigned) item_length_by_coord(source) == from + count);
 
 		memcpy((char *) item_body_by_coord(target), (char *) item_body_by_coord(source) + from, count);
-		
+
 		/* new units are inserted before first unit in an item,
 		   therefore, we have to update item key */
 		item_key_by_coord(source, &key);

@@ -91,7 +91,7 @@ coord_extension_is_ok2(const uf_coord_t *uf_coord, const reiser4_key *key)
 
 	unit_key_by_coord(&uf_coord->coord, &coord_key);
 	set_key_offset(&coord_key,
-		       get_key_offset(&coord_key) + 
+		       get_key_offset(&coord_key) +
 		       (uf_coord->extension.extent.pos_in_unit << PAGE_CACHE_SHIFT));
 	return keyeq(key, &coord_key);
 }
@@ -894,7 +894,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 
 	} while (1);
 
-	if (err) {		
+	if (err) {
 		assert("", !hint_is_set(hint));
 	} else
 		assert("", ergo(hint_is_set(hint),
@@ -1146,7 +1146,7 @@ move_coord_forward(uf_coord_t *ext_coord)
 		/* went to the next extent unit */
 		reiser4_extent *ext;
 
-		extension->pos_in_unit = 0;		
+		extension->pos_in_unit = 0;
 		extension->ext_offset += sizeof(reiser4_extent);
 		ext = ext_by_offset(coord->node, extension->ext_offset);
 		ON_DEBUG(extension->extent = *ext);
@@ -1196,7 +1196,7 @@ extent_readpage_filler(void *data, struct page *page)
 
 	assert("", (coord_extension_is_ok(ext_coord) &&
 		    coord_extension_is_ok2(ext_coord, &key)));
-	
+
 	result = do_readpage_extent(ext_by_ext_coord(ext_coord),
 				    ext_coord->extension.extent.pos_in_unit, page);
 	if (!result && move_coord_forward(ext_coord) == 0) {
@@ -1205,7 +1205,7 @@ extent_readpage_filler(void *data, struct page *page)
 	} else
 		unset_hint(hint);
 	zrelse(ext_coord->coord.node);
-	done_lh(ext_coord->lh);	
+	done_lh(ext_coord->lh);
 	return result;
 }
 
@@ -1218,7 +1218,7 @@ extent_readpages_hook(struct address_space *mapping, struct list_head *pages, vo
 }
 
 static void
-call_page_cache_readahead(struct address_space *mapping, struct file *file, 
+call_page_cache_readahead(struct address_space *mapping, struct file *file,
 			  hint_t *hint,
 			  unsigned long page_nr,
 			  unsigned long ra_pages)

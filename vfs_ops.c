@@ -320,7 +320,7 @@ init_file_fsdata(void)
 /*
  * dual to init_file_fsdata(). Called during module unload.
  */
-static void 
+static void
 done_file_fsdata(void)
 {
 	kmem_cache_destroy(file_fsdata_slab);

@@ -20,10 +20,10 @@
 
 typedef unsigned long cloff_t;
 
-/* Set of transform id's supported by reiser4, 
+/* Set of transform id's supported by reiser4,
    each transform is implemented by appropriate transform plugin: */
 typedef enum {
-	CRYPTO_TFM,       /* crypto plugin */  
+	CRYPTO_TFM,       /* crypto plugin */
 	DIGEST_TFM,       /* digest plugin */
 	COMPRESS_TFM,     /* compression plugin */
 	LAST_TFM
@@ -60,7 +60,7 @@ static inline void
 set_ts_size(tfm_stream_t * stm, size_t size)
 {
 	assert("edward-930", stm != NULL);
-	
+
 	stm->size = size;
 }
 
@@ -69,7 +69,7 @@ alloc_ts(tfm_stream_t ** stm)
 {
 	assert("edward-931", stm);
 	assert("edward-932", *stm == NULL);
-	
+
 	*stm = reiser4_kmalloc(sizeof ** stm, GFP_KERNEL);
 	if (*stm == NULL)
 		return -ENOMEM;
@@ -104,7 +104,7 @@ static inline void
 free_ts_data(tfm_stream_t * stm)
 {
 	assert("edward-938", equi(ts_data(stm), ts_size(stm)));
-	
+
 	if (ts_data(stm))
 		vfree(ts_data(stm));
 	memset(stm, 0, sizeof *stm);
@@ -134,9 +134,9 @@ typedef struct tfm_cluster{
 	tfm_unit tun;
 	int uptodate;
 	int len;
-} tfm_cluster_t; 
+} tfm_cluster_t;
 
-static inline coa_t 
+static inline coa_t
 get_coa(tfm_cluster_t * tc, reiser4_compression_id id)
 {
 	return tc->coa[id];
@@ -165,9 +165,9 @@ free_coa_set(tfm_cluster_t * tc, tfm_action act)
 {
 	reiser4_compression_id i;
 	compression_plugin * cplug;
-	
+
 	assert("edward-810", tc != NULL);
-	
+
 	for(i = 0; i < LAST_COMPRESSION_ID; i++) {
 		if (!get_coa(tc, i))
 			continue;
@@ -220,7 +220,7 @@ alloc_tfm_stream(tfm_cluster_t * tc, size_t size, tfm_stream_id id)
 {
 	assert("edward-939", tc != NULL);
 	assert("edward-940", !tfm_stream(tc, id));
-	
+
 	tc->tun[id] = reiser4_kmalloc(sizeof(tfm_stream_t), GFP_KERNEL);
 	if (!tc->tun[id])
 		return -ENOMEM;
@@ -292,7 +292,7 @@ tfm_cluster_clr_uptodate (tfm_cluster_t * tc)
 static inline int
 tfm_stream_is_set(tfm_cluster_t * tc, tfm_stream_id id)
 {
-	return (tfm_stream(tc, id) && 
+	return (tfm_stream(tc, id) &&
 		tfm_stream_data(tc, id) &&
 		tfm_stream_size(tc, id));
 }
@@ -311,7 +311,7 @@ static inline void
 alternate_streams(tfm_cluster_t * tc)
 {
 	tfm_stream_t * tmp = tfm_stream(tc, INPUT_STREAM);
-	
+
 	set_tfm_stream(tc, INPUT_STREAM, tfm_stream(tc, OUTPUT_STREAM));
 	set_tfm_stream(tc, OUTPUT_STREAM, tmp);
 }
@@ -323,7 +323,7 @@ typedef enum {
 } window_stat;
 
 /* Sliding window of cluster size which should be set to the approprite position
-   (defined by cluster index) in a file before page cluster modification by 
+   (defined by cluster index) in a file before page cluster modification by
    file_write. Then we translate file size, offset to write from, number of
    bytes to write, etc.. to the following configuration needed to estimate
    number of pages to read before write, etc...
@@ -337,7 +337,7 @@ typedef struct reiser4_slide {
 
 /* The following is a set of possible disk cluster states */
 typedef enum {
-	INVAL_DISK_CLUSTER,/* unknown state */ 
+	INVAL_DISK_CLUSTER,/* unknown state */
 	PREP_DISK_CLUSTER, /* disk cluster got converted by flush
 			      at least 1 time */
 	UNPR_DISK_CLUSTER, /* disk cluster just created and should be
@@ -346,7 +346,7 @@ typedef enum {
 			      nor on disk */
 } disk_cluster_stat;
 
-/* 
+/*
    While implementing all transforms (from page to disk cluster, and back)
    reiser4 cluster manager fills the following structure incapsulating pointers
    to all the clusters for the same index including the sliding window above
@@ -382,7 +382,7 @@ alloc_cluster_pgset(reiser4_cluster_t * clust, int nrpages)
 {
 	assert("edward-949", clust != NULL);
 	assert("edward-950", nrpages != 0 && nrpages <= MAX_CLUSTER_NRPAGES);
-	
+
 	clust->pages = reiser4_kmalloc(sizeof(*clust->pages) * nrpages, GFP_KERNEL);
 	if (!clust->pages)
 		return RETERR(-ENOMEM);
@@ -401,7 +401,7 @@ static inline void
 put_cluster_handle(reiser4_cluster_t * clust, tfm_action act)
 {
 	assert("edward-435", clust != NULL);
-	
+
 	put_tfm_cluster(&clust->tc, act);
 	if (clust->pages)
 		free_cluster_pgset(clust);

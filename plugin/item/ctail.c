@@ -66,10 +66,10 @@ coord_is_unprepped_ctail(const coord_t * coord)
 {
 	assert("edward-1233", coord != NULL);
 	assert("edward-1234", item_id_by_coord(coord) == CTAIL_ID);
-	assert("edward-1235", 
+	assert("edward-1235",
 	       ergo((int)cluster_shift_by_coord(coord) == (int)UCTAIL_SHIFT,
 	       nr_units_ctail(coord) == (pos_in_node_t)UCTAIL_NR_UNITS));
-	
+
 	return (int)cluster_shift_by_coord(coord) == (int)UCTAIL_SHIFT;
 }
 
@@ -77,10 +77,10 @@ reiser4_internal unsigned long
 clust_by_coord(const coord_t * coord, struct inode * inode)
 {
 	int shift;
-	
+
 	if (inode != NULL) {
 		shift = inode_cluster_shift(inode);
-		assert("edward-1236", 
+		assert("edward-1236",
 		       ergo(!coord_is_unprepped_ctail(coord),
 			    shift == cluster_shift_by_coord(coord)));
 	}
@@ -94,12 +94,12 @@ clust_by_coord(const coord_t * coord, struct inode * inode)
 static int unsigned long
 disk_cluster_size (const coord_t * coord)
 {
-	assert("edward-1156", 
+	assert("edward-1156",
 	       item_plugin_by_coord(coord) == item_plugin_by_id(CTAIL_ID));
 	/* calculation of disk cluster size
 	   is meaninless if ctail is unprepped */
 	assert("edward-1238", !coord_is_unprepped_ctail(coord));
-	
+
 	return PAGE_CACHE_SIZE << cluster_shift_by_coord(coord);
 }
 
@@ -108,7 +108,7 @@ static int
 is_disk_cluster_key(const reiser4_key * key, const coord_t * coord)
 {
 	assert("edward-1239", item_id_by_coord(coord) == CTAIL_ID);
-	
+
 	return coord_is_unprepped_ctail(coord) ||
 		((get_key_offset(key) & ((loff_t)disk_cluster_size(coord) - 1)) == 0);
 }
@@ -238,7 +238,7 @@ init_ctail(coord_t * to /* coord of item */,
 reiser4_internal int
 ctail_ok (const coord_t *coord)
 {
-	return coord_is_unprepped_ctail(coord) || 
+	return coord_is_unprepped_ctail(coord) ||
 		(cluster_shift_by_coord(coord) <= MAX_CLUSTER_SHIFT);
 }
 
@@ -287,7 +287,7 @@ paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info 
 		impossible("edward-453", "bad paste position");
 
 	memcpy(first_unit(coord) + coord->unit_pos, data->data, data->length);
-	
+
 	assert("edward-857", ctail_ok(coord));
 
 	return 0;
@@ -300,7 +300,7 @@ paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info 
    ctail items they coincide */
 reiser4_internal int
 can_shift_ctail(unsigned free_space, coord_t * source,
-		znode * target, shift_direction direction UNUSED_ARG, 
+		znode * target, shift_direction direction UNUSED_ARG,
 		unsigned *size /* number of bytes */ , unsigned want)
 {
 	/* make sure that that we do not want to shift more than we have */
@@ -319,12 +319,12 @@ can_shift_ctail(unsigned free_space, coord_t * source,
 	return *size;
 }
 
-/* plugin->u.item.b.copy_units 
+/* plugin->u.item.b.copy_units
    cooperates with ->can_shift() */
 reiser4_internal void
 copy_units_ctail(coord_t * target, coord_t * source,
-		 unsigned from, unsigned count /* units */, 
-		 shift_direction where_is_free_space, 
+		 unsigned from, unsigned count /* units */,
+		 shift_direction where_is_free_space,
 		 unsigned free_space /* bytes */)
 {
 	/* make sure that item @target is expanded already */
@@ -332,20 +332,20 @@ copy_units_ctail(coord_t * target, coord_t * source,
 	assert("edward-70", free_space == count || free_space == count + 1);
 
 	assert("edward-858", ctail_ok(source));
-	
+
 	if (where_is_free_space == SHIFT_LEFT) {
 		/* append item @target with @count first bytes of @source:
 		   this restriction came from ordinary tails */
 		assert("edward-71", from == 0);
 		assert("edward-860", ctail_ok(target));
-		
+
 		memcpy(first_unit(target) + nr_units_ctail(target) - count, first_unit(source), count);
 	} else {
 		/* target item is moved to right already */
 		reiser4_key key;
 
 		assert("edward-72", nr_units_ctail(source) == from + count);
-		
+
 		if (free_space == count) {
 			init_ctail(target, source, NULL);
 			//assert("edward-861", cluster_shift_by_coord(target) == d8tocpu(&ctail_formatted_at(target)->body[count]));
@@ -355,14 +355,14 @@ copy_units_ctail(coord_t * target, coord_t * source,
 			assert("edward-862", ctail_ok(target));
 		}
 		memcpy(first_unit(target), first_unit(source) + from, count);
-		
+
 		assert("edward-863", ctail_ok(target));
-		
+
 		/* new units are inserted before first unit in an item,
 		   therefore, we have to update item key */
 		item_key_by_coord(source, &key);
 		set_key_offset(&key, get_key_offset(&key) + from);
-		
+
 		node_plugin_by_node(target->node)->update_item_key(target, &key, 0 /*info */);
 	}
 }
@@ -372,7 +372,7 @@ reiser4_internal int
 create_hook_ctail (const coord_t * coord, void * arg)
 {
 	assert("edward-864", znode_is_loaded(coord->node));
-	
+
 	znode_set_convertible(coord->node);
 	return 0;
 }
@@ -382,15 +382,15 @@ reiser4_internal int
 kill_hook_ctail(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, carry_kill_data *kdata)
 {
 	struct inode *inode;
-	
+
 	assert("edward-1157", item_id_by_coord(coord) == CTAIL_ID);
 	assert("edward-291", znode_is_write_locked(coord->node));
-	
+
 	inode = kdata->inode;
 	if (inode) {
 		reiser4_key key;
 		item_key_by_coord(coord, &key);
-		
+
 		if (from == 0 && is_disk_cluster_key(&key, coord)) {
 			cloff_t start = off_to_clust(get_key_offset(&key), inode);
 			truncate_page_cluster(inode, start);
@@ -411,14 +411,14 @@ ctail_convertible (const coord_t *coord)
 
 	assert("edward-477", coord != NULL);
 	assert("edward-478", item_id_by_coord(coord) == CTAIL_ID);
-	
+
 	if (coord_is_unprepped_ctail(coord))
 		/* unprepped ctail should be converted */
 		return 1;
-	
+
 	item_key_by_coord(coord, &key);
-	child =  jlookup(current_tree, 
-			 get_key_objectid(&key), 
+	child =  jlookup(current_tree,
+			 get_key_objectid(&key),
 			 clust_by_coord(coord, NULL) << cluster_shift_by_coord(coord));
 	if (!child)
 		return 0;
@@ -542,11 +542,11 @@ read_ctail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 
 	if (f->data)
 		memcpy(f->data, (char *)first_unit(coord), (size_t)nr_units_ctail(coord));
-	
+
 	dclust_set_extension(hint);
 	mark_page_accessed(znode_page(coord->node));
 	move_flow_forward(f, nr_units_ctail(coord));
-	
+
 	return 0;
 }
 
@@ -565,7 +565,7 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	assert("edward-140", clust->dstat == INVAL_DISK_CLUSTER);
 	assert("edward-672", crc_inode_ok(inode));
 	assert("edward-145", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
-	
+
 	/* set input stream */
 	result = grab_tfm_stream(inode, &clust->tc, TFM_READ, INPUT_STREAM);
 	if (result)
@@ -576,11 +576,11 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 		return result;
 
 	if (!write)
-		set_hint_cluster(inode, clust->hint, 
+		set_hint_cluster(inode, clust->hint,
 				 clust->index + 1, ZNODE_READ_LOCK);
-	
+
 	assert("edward-673", znode_is_any_locked(clust->hint->ext_coord.lh->node));
-	
+
 	if (clust->dstat == FAKE_DISK_CLUSTER ||
 	    clust->dstat == UNPR_DISK_CLUSTER) {
 		tfm_cluster_set_uptodate(&clust->tc);
@@ -609,14 +609,14 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	char * data;
 	size_t pgcnt;
 	tfm_cluster_t * tc = &clust->tc;
-	
+
 	assert("edward-212", PageLocked(page));
-	
+
 	if(PageUptodate(page))
 		goto exit;
-	
+
 	inode = page->mapping->host;
-	
+
 	if (!tfm_cluster_is_uptodate(&clust->tc)) {
 		clust->index = pg_to_clust(page->index, inode);
 		unlock_page(page);
@@ -628,7 +628,7 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	if(PageUptodate(page))
 		/* races with another read/write */
 		goto exit;
-	
+
 	/* bytes in the page */
 	pgcnt = off_to_pgcount(i_size_read(inode), page->index);
 
@@ -638,7 +638,7 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	}
 
 	assert("edward-119", tfm_cluster_is_uptodate(tc));
-	
+
 	switch (clust->dstat) {
 	case UNPR_DISK_CLUSTER:
 		assert("edward-1285", 0);
@@ -650,7 +650,7 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	case FAKE_DISK_CLUSTER:
 		/* fill the page by zeroes */
 		data = kmap_atomic(page, KM_USER0);
-		
+
 		memset(data, 0, PAGE_CACHE_SIZE);
 		flush_dcache_page(page);
 		kunmap_atomic(data, KM_USER0);
@@ -660,10 +660,10 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 		/* fill the page by transformed data */
 		assert("edward-1058", !PageUptodate(page));
 		assert("edward-120", tc->len <= inode_cluster_size(inode));
-		
+
 		/* start page offset in the cluster */
 		cloff = pg_to_off_to_cloff(page->index, inode);
-		
+
 		data = kmap(page);
 		memcpy(data, tfm_stream_data(tc, OUTPUT_STREAM) + cloff, pgcnt);
 		memset(data + pgcnt, 0, (size_t)PAGE_CACHE_SIZE - pgcnt);
@@ -675,7 +675,7 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 		impossible("edward-1169", "bad disk cluster state");
 	}
  exit:
-	return 0;	
+	return 0;
 }
 
 /* plugin->u.item.s.file.readpage */
@@ -701,18 +701,18 @@ reiser4_internal int readpage_ctail(void * vp, struct page * page)
 	hint.ext_coord.lh = &lh;
 
 	result = do_readpage_ctail(clust, page);
-	
+
 	assert("edward-213", PageLocked(page));
 	assert("edward-1163", ergo (!result, PageUptodate(page)));
 	assert("edward-868", ergo (!result, tfm_cluster_is_uptodate(&clust->tc)));
-	       
+
 	unlock_page(page);
 
 	hint.ext_coord.valid = 0;
 	save_file_hint(clust->file, &hint);
 	done_lh(&lh);
 	tfm_cluster_clr_uptodate(&clust->tc);
-	
+
 	return result;
 }
 
@@ -748,7 +748,7 @@ ctail_read_page_cluster(reiser4_cluster_t * clust, struct inode * inode)
  out:
 	release_cluster_pages_nocapture(clust);
 	assert("edward-1060", !result);
-	
+
 	return result;
 }
 
@@ -778,7 +778,7 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 	struct pagevec lru_pvec;
 	struct inode * inode = mapping->host;
 	int progress = 0;
-	
+
 	assert("edward-214", ergo(!list_empty(pages) &&
 				  pages->next != pages->prev,
 				  list_to_page(pages)->index < list_to_next_page(pages)->index));
@@ -786,20 +786,20 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 	reiser4_cluster_init(&clust, 0);
 	clust.file = vp;
 	clust.hint = &hint;
-	
+
 	init_lh(&lh);
 
 	ret = alloc_cluster_pgset(&clust, cluster_nrpages(inode));
 	if (ret)
 		goto out;
 	ret = load_file_hint(clust.file, &hint);
-	if (ret) 
+	if (ret)
 		goto out;
  	hint.ext_coord.lh = &lh;
 
 	/* address_space-level file readahead doesn't know about
 	   reiser4 page clustering, so we work around this fact */
-	
+
 	while (!list_empty(pages)) {
 		page = list_to_page(pages);
 		list_del(&page->lru);
@@ -814,13 +814,13 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 			continue;
 		}
 		unlock_page(page);
-		
-		move_cluster_forward(&clust, inode, page->index, &progress); 
+
+		move_cluster_forward(&clust, inode, page->index, &progress);
 		ret = ctail_read_page_cluster(&clust, inode);
 		if (ret)
 			goto exit;
 		assert("edward-869", !tfm_cluster_is_uptodate(&clust.tc));
-		
+
 		lock_page(page);
 		ret = do_readpage_ctail(&clust, page);
 		if (!pagevec_add(&lru_pvec, page))
@@ -831,7 +831,7 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 		exit:
 			while (!list_empty(pages)) {
 				struct page *victim;
-				
+
 				victim = list_to_page(pages);
 				list_del(&victim->lru);
 				page_cache_release(victim);
@@ -839,12 +839,12 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 			break;
 		}
 		assert("edward-1061", PageUptodate(page));
-		
+
 		unlock_page(page);
 	}
 	assert("edward-870", !tfm_cluster_is_uptodate(&clust.tc));
 	save_file_hint(clust.file, &hint);
- out:	
+ out:
 	done_lh(&lh);
 	hint.ext_coord.valid = 0;
 	put_cluster_handle(&clust, TFM_READ);
@@ -861,7 +861,7 @@ append_key_ctail(const coord_t *coord, reiser4_key *key)
 {
 	assert("edward-1241", item_id_by_coord(coord) == CTAIL_ID);
 	assert("edward-1242", cluster_shift_by_coord(coord) <= MAX_CLUSTER_SHIFT);
-	
+
 	item_key_by_coord(coord, key);
 	set_key_offset(key, ((__u64)(clust_by_coord(coord, NULL)) + 1) << cluster_shift_by_coord(coord) << PAGE_CACHE_SHIFT);
 	return key;
@@ -875,9 +875,9 @@ insert_unprepped_ctail(reiser4_cluster_t * clust, struct inode * inode)
 	reiser4_item_data data;
 	reiser4_key key;
 	int shift = (int)UCTAIL_SHIFT;
-	
+
 	memset(buf, 0, (size_t)UCTAIL_NR_UNITS);
-	result = key_by_inode_cryptcompress(inode, 
+	result = key_by_inode_cryptcompress(inode,
 					    clust_to_off(clust->index, inode),
 					    &key);
 	if (result)
@@ -887,10 +887,10 @@ insert_unprepped_ctail(reiser4_cluster_t * clust, struct inode * inode)
 	data.arg = &shift;
 	data.length = sizeof(ctail_item_format) + (size_t)UCTAIL_NR_UNITS;
 	data.data = buf;
-	
+
 	result = insert_by_coord(&clust->hint->ext_coord.coord,
-				 &data, 
-				 &key, 
+				 &data,
+				 &key,
 				 clust->hint->ext_coord.lh, 0);
 	return result;
 }
@@ -956,17 +956,17 @@ insert_crc_flow_in_place(coord_t * coord, lock_handle * lh, flow_t * f, struct i
 	assert("edward-674", f->length <= inode_scaled_cluster_size(inode));
 	assert("edward-484", coord->between == AT_UNIT || coord->between == AFTER_ITEM);
 	assert("edward-485", item_id_by_coord(coord) == CTAIL_ID);
-	
+
 	coord_dup (&pos, coord);
 	pos.unit_pos = 0;
 	pos.between = AFTER_ITEM;
-	
+
 	init_lh (&lock);
 	copy_lh(&lock, lh);
-	
+
 	ret = insert_crc_flow(&pos, &lock, f, inode);
 	done_lh(&lock);
-	
+
 	assert("edward-1228", !ret);
 	return ret;
 }
@@ -976,7 +976,7 @@ static int
 overwrite_ctail(coord_t * coord, flow_t * f)
 {
 	unsigned count;
-	
+
 	assert("edward-269", f->user == 0);
 	assert("edward-270", f->data != NULL);
 	assert("edward-271", f->length > 0);
@@ -986,7 +986,7 @@ overwrite_ctail(coord_t * coord, flow_t * f)
 	assert("edward-275", schedulable());
 	assert("edward-467", item_id_by_coord(coord) == CTAIL_ID);
 	assert("edward-1243", ctail_ok(coord));
-	
+
 	count = nr_units_ctail(coord);
 
 	if (count > f->length)
@@ -1020,34 +1020,34 @@ cut_ctail(coord_t * coord)
 int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode)
 {
 	int result;
-	
+
 	assert("edward-1244", inode != NULL);
 	assert("edward-1245", clust->hint != NULL);
 	assert("edward-1246", clust->dstat == FAKE_DISK_CLUSTER);
 	assert("edward-1247", clust->reserved == 1);
-	assert("edward-1248",  get_current_context()->grabbed_blocks == 
+	assert("edward-1248",  get_current_context()->grabbed_blocks ==
 	       estimate_insert_cluster(inode, 1));
-	
+
 	result = get_disk_cluster_locked(clust, inode, ZNODE_WRITE_LOCK);
 	if (cbk_errored(result))
 		return result;
 	assert("edward-1249", result == CBK_COORD_NOTFOUND);
 	assert("edward-1250", znode_is_write_locked(clust->hint->ext_coord.lh->node));
 
- 	assert("edward-1295", 
+ 	assert("edward-1295",
  	       clust->hint->ext_coord.lh->node == clust->hint->ext_coord.coord.node);
- 
+
  	coord_set_between_clusters(&clust->hint->ext_coord.coord);
- 
+
 	result = insert_unprepped_ctail(clust, inode);
 	all_grabbed2free();
-	
+
 	assert("edward-1251", !result);
 	assert("edward-1252", crc_inode_ok(inode));
 	assert("edward-1253", znode_is_write_locked(clust->hint->ext_coord.lh->node));
 	assert("edward-1254", reiser4_clustered_blocks(reiser4_get_current_sb()));
 	assert("edward-1255", znode_convertible(clust->hint->ext_coord.coord.node));
- 
+
 	return result;
 }
 
@@ -1056,14 +1056,14 @@ do_convert_ctail(flush_pos_t * pos, crc_write_mode_t mode)
 {
 	int result = 0;
 	convert_item_info_t * info;
-	
+
 	assert("edward-468", pos != NULL);
 	assert("edward-469", pos->sq != NULL);
 	assert("edward-845", item_convert_data(pos) != NULL);
 
 	info = item_convert_data(pos);
 	assert("edward-679", info->flow.data != NULL);
-	
+
 	switch (mode) {
 	case CRC_APPEND_ITEM:
 		assert("edward-1229", info->flow.length != 0);
@@ -1093,14 +1093,14 @@ reiser4_internal int scan_ctail(flush_scan * scan)
 	struct page * page;
 	struct inode * inode;
 	jnode * node = scan->node;
-	
+
 	assert("edward-227", scan->node != NULL);
 	assert("edward-228", jnode_is_cluster_page(scan->node));
 	assert("edward-639", znode_is_write_locked(scan->parent_lock.node));
-	
+
 	page = jnode_page(node);
 	inode = page->mapping->host;
-	
+
 	if (!scanning_left(scan))
 		return result;
 	if (!znode_is_dirty(scan->parent_lock.node))
@@ -1158,7 +1158,7 @@ init_convert_data_ctail(convert_item_info_t * idata, struct inode * inode)
 	idata->inode = inode;
 	idata->d_cur = DC_FIRST_ITEM;
 	idata->d_next = DC_INVALID_STATE;
-	
+
 	return 0;
 }
 
@@ -1244,14 +1244,14 @@ attach_convert_idata(flush_pos_t * pos, struct inode * inode)
 	reiser4_cluster_t *clust;
 	file_plugin * fplug = inode_file_plugin(inode);
 	compression_plugin * cplug = inode_compression_plugin(inode);
-	
+
 	assert("edward-248", pos != NULL);
 	assert("edward-249", pos->child != NULL);
 	assert("edward-251", inode != NULL);
 	assert("edward-682", crc_inode_ok(inode));
 	assert("edward-252", fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
 	assert("edward-473", item_plugin_by_coord(&pos->coord) == item_plugin_by_id(CTAIL_ID));
-	
+
 	if (!pos->sq) {
 		ret = alloc_convert_data(pos);
 		if (ret)
@@ -1263,7 +1263,7 @@ attach_convert_idata(flush_pos_t * pos, struct inode * inode)
 		if (ret)
 			goto err;
 	}
-	
+
 	if (convert_data(pos)->clust.pages == NULL) {
 		ret = alloc_cluster_pgset(&convert_data(pos)->clust,
 					  MAX_CLUSTER_NRPAGES);
@@ -1272,7 +1272,7 @@ attach_convert_idata(flush_pos_t * pos, struct inode * inode)
 	}
 	reset_cluster_pgset(&convert_data(pos)->clust,
 			    MAX_CLUSTER_NRPAGES);
-	
+
 	assert("edward-829", pos->sq != NULL);
 	assert("edward-250", item_convert_data(pos) == NULL);
 
@@ -1285,9 +1285,9 @@ attach_convert_idata(flush_pos_t * pos, struct inode * inode)
 	if (ret)
 		goto err;
 	info = item_convert_data(pos);
-	
+
 	clust->index = pg_to_clust(jnode_page(pos->child)->index, inode);
-	
+
 	ret = flush_cluster_pages(clust, pos->child, inode);
 	if (ret)
 		goto err;
@@ -1297,19 +1297,19 @@ attach_convert_idata(flush_pos_t * pos, struct inode * inode)
 	ret = deflate_cluster(clust, inode);
 	if (ret)
 		goto err;
-	
+
 	inc_item_convert_count(pos);
 
 	/* make flow by transformed stream */
-	fplug->flow_by_inode(info->inode, 
-			     tfm_stream_data(&clust->tc, OUTPUT_STREAM), 
+	fplug->flow_by_inode(info->inode,
+			     tfm_stream_data(&clust->tc, OUTPUT_STREAM),
 			     0/* kernel space */,
 			     clust->tc.len,
 			     clust_to_off(clust->index, inode),
 			     WRITE_OP,
 			     &info->flow);
 	jput(pos->child);
-	
+
 	assert("edward-683", crc_inode_ok(inode));
 	return 0;
  err:
@@ -1323,16 +1323,16 @@ static void
 detach_convert_idata(convert_info_t * sq)
 {
 	convert_item_info_t * info;
-	
+
 	assert("edward-253", sq != NULL);
 	assert("edward-840", sq->itm != NULL);
-	
+
 	info = sq->itm;
 	assert("edward-255", info->inode != NULL);
-	assert("edward-1175", 
+	assert("edward-1175",
 	       inode_get_flag(info->inode, REISER4_CLUSTER_KNOWN));
 	assert("edward-1212", info->flow.length == 0);
-	
+
 	/* the final release of pages */
 	forget_cluster_pages(sq->clust.pages, sq->clust.nr_pages);
 	free_item_convert_data(sq);
@@ -1366,44 +1366,44 @@ utmost_child_ctail(const coord_t * coord, sideof side, jnode ** child)
 
 /* Returns true if @p2 is the next item to @p1
    in the _same_ disk cluster.
-   Disk cluster is a set of items. If ->clustered() != NULL,  
+   Disk cluster is a set of items. If ->clustered() != NULL,
    with each item the whole disk cluster should be read/modified
 */
-static int 
+static int
 clustered_ctail (const coord_t * p1, const coord_t * p2)
 {
 	return mergeable_ctail(p1, p2);
 }
 
-/* Go rightward and check for next disk cluster item, set 
+/* Go rightward and check for next disk cluster item, set
    d_next to DC_CHAINED_ITEM, if the last one exists.
-   If the current position is last item, go to right neighbor. 
+   If the current position is last item, go to right neighbor.
    Skip empty nodes. Note, that right neighbors may be not in
    the slum because of races. If so, make it dirty and
-   convertible. 
+   convertible.
 */
 static int
 next_item_dc_stat(flush_pos_t * pos)
 {
-	int ret = 0; 
+	int ret = 0;
 	int stop = 0;
 	znode * cur;
 	coord_t coord;
 	lock_handle lh;
 	lock_handle right_lock;
-	
+
 	assert("edward-1232", !node_is_empty(pos->coord.node));
 	assert("edward-1014", pos->coord.item_pos < coord_num_items(&pos->coord));
 	assert("edward-1015", chaining_data_present(pos));
 	assert("edward-1017", item_convert_data(pos)->d_next == DC_INVALID_STATE);
-	
+
 	item_convert_data(pos)->d_next = DC_AFTER_CLUSTER;
 
 	if (item_convert_data(pos)->d_cur == DC_AFTER_CLUSTER)
 		return ret;
 	if (pos->coord.item_pos < coord_num_items(&pos->coord) - 1)
 		return ret;
-	
+
 	/* check next slum item */
 	init_lh(&right_lock);
 	cur = pos->coord.node;
@@ -1422,7 +1422,7 @@ next_item_dc_stat(flush_pos_t * pos)
 			break;
 		}
 		coord_init_before_first_item(&coord, lh.node);
-		
+
 		if (node_is_empty(lh.node)) {
 			znode_make_dirty(lh.node);
 			znode_set_convertible(lh.node);
@@ -1430,17 +1430,17 @@ next_item_dc_stat(flush_pos_t * pos)
 		} else if (clustered_ctail(&pos->coord, &coord)) {
 
 			item_convert_data(pos)->d_next = DC_CHAINED_ITEM;
-			
+
 			if (!znode_is_dirty(lh.node)) {
 				warning("edward-1024",
-					"next slum item mergeable, " 
+					"next slum item mergeable, "
 					"but znode %p isn't dirty\n",
 					lh.node);
 				znode_make_dirty(lh.node);
 			}
 			if (!znode_convertible(lh.node)) {
 				warning("edward-1272",
-					"next slum item mergeable, " 
+					"next slum item mergeable, "
 					"but znode %p isn't convertible\n",
 					lh.node);
 				znode_set_convertible(lh.node);
@@ -1455,20 +1455,20 @@ next_item_dc_stat(flush_pos_t * pos)
 		cur = right_lock.node;
 	}
 	done_lh(&right_lock);
-	
+
 	if (ret == -E_NO_NEIGHBOR)
 		ret = 0;
 	return ret;
 }
 
 static int
-assign_convert_mode(convert_item_info_t * idata, 
+assign_convert_mode(convert_item_info_t * idata,
 		   crc_write_mode_t * mode)
 {
 	int result = 0;
 
 	assert("edward-1025", idata != NULL);
-	
+
 	if (idata->flow.length) {
 		/* append or overwrite */
 		switch(idata->d_cur) {
@@ -1480,21 +1480,21 @@ assign_convert_mode(convert_item_info_t * idata,
 			*mode = CRC_APPEND_ITEM;
 			break;
 		default:
-			impossible("edward-1018", 
+			impossible("edward-1018",
 				   "wrong current item state");
 		}
 	} else {
 		/* cut or invalidate */
 		switch(idata->d_cur) {
-		case DC_FIRST_ITEM:	
-		case DC_CHAINED_ITEM:	
+		case DC_FIRST_ITEM:
+		case DC_CHAINED_ITEM:
 			*mode = CRC_CUT_ITEM;
 			break;
 		case DC_AFTER_CLUSTER:
 			result = 1;
 			break;
 		default:
-			impossible("edward-1019", 
+			impossible("edward-1019",
 				   "wrong current item state");
 		}
 	}
@@ -1509,27 +1509,27 @@ convert_ctail(flush_pos_t * pos)
 	int result;
 	int nr_items;
 	crc_write_mode_t mode = CRC_OVERWRITE_ITEM;
-	
+
 	assert("edward-1020", pos != NULL);
 	assert("edward-1213", coord_num_items(&pos->coord) != 0);
 	assert("edward-1257", item_id_by_coord(&pos->coord) == CTAIL_ID);
 	assert("edward-1258", ctail_ok(&pos->coord));
 	assert("edward-261", pos->coord.node != NULL);
-	
+
 	nr_items = coord_num_items(&pos->coord);
 	if (!chaining_data_present(pos)) {
 		if (should_attach_convert_idata(pos)) {
 			/* attach convert item info */
 			struct inode * inode;
-			
+
 			assert("edward-264", pos->child != NULL);
 			assert("edward-265", jnode_page(pos->child) != NULL);
 			assert("edward-266", jnode_page(pos->child)->mapping != NULL);
-			
+
 			inode = jnode_page(pos->child)->mapping->host;
-			
+
 			assert("edward-267", inode != NULL);
-			
+
 			/* attach item convert info by child and put the last one */
 			result = attach_convert_idata(pos, inode);
 			pos->child = NULL;
@@ -1549,23 +1549,23 @@ convert_ctail(flush_pos_t * pos)
 	}
 	else {
 		/* use old convert info */
-		
+
 		convert_item_info_t * idata;
-		
+
 		idata = item_convert_data(pos);
-		
+
 		result = assign_convert_mode(idata, &mode);
 		if (result) {
-			/* disk cluster is over, 
+			/* disk cluster is over,
 			   nothing to update anymore */
 			detach_convert_idata(pos->sq);
 			return 0;
 		}
 	}
-	
+
 	assert("edward-433", chaining_data_present(pos));
 	assert("edward-1022", pos->coord.item_pos < coord_num_items(&pos->coord));
-	
+
 	result = next_item_dc_stat(pos);
 	if (result) {
 		detach_convert_idata(pos->sq);
@@ -1588,7 +1588,7 @@ convert_ctail(flush_pos_t * pos)
 			/* the item was killed, no more chained items */
 			detach_convert_idata(pos->sq);
 			if (!node_is_empty(pos->coord.node))
-				/* make sure the next item will be scanned */ 
+				/* make sure the next item will be scanned */
 				coord_init_before_item(&pos->coord);
 			break;
 		}

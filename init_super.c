@@ -421,7 +421,7 @@ _DONE_(fs_root)
 	dput(s->s_root);
 	s->s_root = NULL;
 	invalidate_inodes(s);
-	
+
 }
 
 _INIT_(safelink)

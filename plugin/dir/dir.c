@@ -186,13 +186,13 @@ static reiser4_block_nr common_estimate_unlink (
 	reiser4_block_nr res = 0;
 	file_plugin *fplug;
 	dir_plugin *dplug;
-	
+
 	assert("vpf-317", object != NULL);
 	assert("vpf-318", parent != NULL );
 
 	fplug = inode_file_plugin(object);
 	dplug = inode_dir_plugin(parent);
-	
+
 	/* rem_entry(parent) */
 	res += dplug->estimate.rem_entry(parent);
 	/* reiser4_del_nlink(object) */
