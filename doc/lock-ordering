@@ -232,6 +232,15 @@ LABEL AND DESCRIPTION                                 LOCKS
     reiser4_flush_reserved(super) equals to sum of atom->flush_reserved for
     all atoms.
 
+[tap-sane]
+
+    tap->mode is one of {ZNODE_NO_LOCK, ZNODE_READ_LOCK, ZNODE_WRITE_LOCK}, and
+	tap->coord != NULL, and
+	tap->lh != NULL, and
+	tap->loaded > 0 => znode_is_loaded(tap->coord->node), and
+	tap->coord->node == tap->lh->node
+
+    (Checked by tap_invariant().)
 
 --------------------------------LOCK ORDERING-----------------------------------
 
