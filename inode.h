@@ -82,8 +82,6 @@ typedef struct reiser4_inode {
 	    inode. Bitmasks for this field are defined in
 	    reiser4_file_plugin_flags enum */
 	unsigned long              flags;
-	/** bytes actually used by the file */
-	__u64                      bytes;
 	__u64                      extmask;
 	/** length of stat-data for this inode */
 	short                      sd_len;

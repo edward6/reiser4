@@ -559,9 +559,21 @@ int tail_write (struct inode * inode, coord_t * coord,
 		case TAIL_APPEND_HOLE:
 		case TAIL_FIRST_ITEM:
 		case TAIL_APPEND:
-		case TAIL_WRITE_FLOW:
+		case TAIL_WRITE_FLOW: {
+			reiser4_inode *info;
+
+			/*
+			 * check quota before appending data
+			 */
+			if (DQUOT_ALLOC_SPACE_NODIRTY (inode, f->length)) {
+				result = -EDQUOT;
+				break;
+			}
 			result = insert_flow (coord, lh, f);
+			if (f->length)
+				DQUOT_FREE_SPACE_NODIRTY (inode, f->length);
 			break;
+		}
 		case TAIL_OVERWRITE:
 			result = overwrite_tail (coord, f);
 			break;

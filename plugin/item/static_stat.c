@@ -215,8 +215,6 @@ int sd_load( struct inode *inode /* object being processed */,
 			break;
 	}
 	/* common initialisations */
-	inode -> i_blocks  = 
-		( state -> bytes + VFS_BLKSIZE - 1 ) >> VFS_BLKSIZE_BITS;
 	inode -> i_blksize = 
 		get_super_private( inode -> i_sb ) -> optimal_io_size;
 	inode -> i_version = ++ event;
@@ -330,7 +328,7 @@ static int unix_sd_present( struct inode *inode /* object being processed */,
 		inode -> i_mtime = d32tocpu( &sd -> mtime );
 		inode -> i_ctime = d32tocpu( &sd -> ctime );
 		inode -> i_rdev  = val_to_kdev( d32tocpu( &sd -> rdev ) );
-		reiser4_inode_data( inode ) -> bytes = d64tocpu( &sd -> bytes );
+		inode_set_bytes( inode, d64tocpu( &sd -> bytes ) );
 		move_on( len, area, sizeof *sd );
 		return 0;
 	} else
@@ -343,7 +341,7 @@ static int unix_sd_absent( struct inode *inode /* object being processed */ )
 	inode -> i_uid = get_super_private( inode -> i_sb ) -> default_uid;
 	inode -> i_gid = get_super_private( inode -> i_sb ) -> default_gid;
 	inode -> i_atime = inode -> i_mtime = inode -> i_ctime = CURRENT_TIME;
-	reiser4_inode_data( inode ) -> bytes = inode -> i_size;
+	inode_set_bytes( inode, inode -> i_size );
 	/* mark inode as lightweight, so that caller (reiser4_lookup)
 	   will complete initialisation by copying [ug]id from a
 	   parent.*/
@@ -375,7 +373,7 @@ static int unix_sd_save( struct inode *inode /* object being processed */,
 	cputod32( ( __u32 ) inode -> i_ctime, &sd -> ctime );
 	cputod32( ( __u32 ) inode -> i_mtime, &sd -> mtime );
 	cputod32( kdev_val( inode -> i_rdev ), &sd -> rdev );
-	cputod64( reiser4_inode_data( inode ) -> bytes, &sd -> bytes );
+	cputod64( inode_get_bytes( inode ), &sd -> bytes );
 	*area += sizeof *sd;
 	return 0;
 }

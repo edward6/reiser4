@@ -536,8 +536,8 @@ void print_inode( const char *prefix /* prefix to print */,
 	      i -> i_dev, kdev_t_to_nr( i -> i_rdev ) );
 	info( "\tatime: %li, mtime: %li, ctime: %li\n",
 	      i -> i_atime, i -> i_mtime, i -> i_ctime );
-	info( "\tblkbits: %i, blksize: %lu, blocks: %lu\n",
-	      i -> i_blkbits, i -> i_blksize, i -> i_blocks );
+	info( "\tblkbits: %i, blksize: %lu, blocks: %lu, bytes: %u\n",
+	      i -> i_blkbits, i -> i_blksize, i -> i_blocks, i -> i_bytes );
 	info( "\tversion: %lu, generation: %i, state: %lu, flags: %u\n",
 	      i -> i_version, i -> i_generation, i -> i_state,
 	      i -> i_flags );
@@ -556,8 +556,8 @@ void print_inode( const char *prefix /* prefix to print */,
 	 */
 	print_seal( "\tsd_seal", &ref -> sd_seal );
 	print_coord( "\tsd_coord", &ref -> sd_coord, 0 );
-	info( "\tflags: %lx, bytes: %llu, extmask: %llu, sd_len: %i, pmask: %i, locality: %llu\n",
-	      ref -> flags, ref -> bytes, ref -> extmask, 
+	info( "\tflags: %lx, extmask: %llu, sd_len: %i, pmask: %i, locality: %llu\n",
+	      ref -> flags, ref -> extmask, 
 	      ( int ) ref -> sd_len, ref -> plugin_mask, ref -> locality_id );
 }
 #endif

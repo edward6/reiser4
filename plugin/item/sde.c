@@ -116,6 +116,12 @@ int de_add_entry( struct inode *dir /* directory of item */,
 	data.user   = 0;
 	data.iplug  = item_plugin_by_id( SIMPLE_DIR_ENTRY_ID );
 	
+	/*
+	 * FIXME-NIKITA quota plugin
+	 */
+	if( DQUOT_ALLOC_SPACE_NODIRTY( dir, data.length ) )
+		return -EDQUOT;
+
 	result = insert_by_coord( coord, &data, &entry -> key, lh,
 				  inter_syscall_ra( dir ), NO_RAP, 0/*flags*/ );
 	if( result != 0 )
@@ -127,10 +133,6 @@ int de_add_entry( struct inode *dir /* directory of item */,
 		strlen( name -> d_name.name ) == name -> d_name.len );
 	xmemcpy( dent -> name, name -> d_name.name, name -> d_name.len );
 	cputod8( 0, &dent -> name[ name -> d_name.len ] );
-	/*
-	 * FIXME-NIKITA add disk quota checks here
-	 */
-	reiser4_inode_data( dir ) -> bytes += data.length;
 	return 0;
 }
 
@@ -147,15 +149,9 @@ int de_rem_entry( struct inode *dir /* directory of item */,
 	int     length;
 
 	length = item_length_by_coord( coord );
-	if( reiser4_inode_data( dir ) -> bytes >= length )
-		/*
-		 * FIXME-NIKITA add disk quota updates here
-		 */
-		reiser4_inode_data( dir ) -> bytes -= length;
-	else {
+	if( inode_get_bytes( dir ) < length ) {
 		warning( "nikita-2627", "Dir is broke: %llu: %llu",
-			 get_inode_oid( dir ), 
-			 reiser4_inode_data( dir ) -> bytes );
+			 get_inode_oid( dir ), inode_get_bytes( dir ) );
 		return -EIO;
 	}
 
@@ -167,11 +163,11 @@ int de_rem_entry( struct inode *dir /* directory of item */,
 	 */
 	coord_dup( &shadow, coord );
 	result = cut_node( coord, &shadow, NULL, NULL, NULL, DELETE_KILL, 0 );
-	if( result != 0 ) {
+	if( result == 0 ) {
 		/*
-		 * undo change
+		 * FIXME-NIKITA quota plugin
 		 */
-		reiser4_inode_data( dir ) -> bytes += length;
+		DQUOT_FREE_SPACE_NODIRTY( dir, length );
 	}
 	return result;
 }
