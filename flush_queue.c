@@ -192,6 +192,13 @@ done_fq(flush_queue_t * fq)
 	kmem_cache_free(fq_slab, fq);
 }
 
+void
+mark_jnode_queued(flush_queue_t *fq, jnode *node)
+{
+	JF_SET(node, JNODE_FLUSH_QUEUED);
+	count_enqueued_node(fq);
+}
+
 /* Putting jnode into the flush queue. Both atom and jnode should be
    spin-locked. */
 void
@@ -206,14 +213,15 @@ queue_jnode(flush_queue_t * fq, jnode * node)
 	assert("zam-826", JF_ISSET(node, JNODE_RELOC));
 	assert("zam-907", fq_in_use(fq));
 
-	if (JF_ISSET(node, JNODE_FLUSH_QUEUED))
+	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
+		assert("vs-1481", node->list == FQ_LIST);
 		return;		/* queued already */
+	}
 
-	JF_SET(node, JNODE_FLUSH_QUEUED);
+	mark_jnode_queued(fq, node);
 	capture_list_remove_clean(node);
 	capture_list_push_back(&fq->prepped, node);
 	ON_DEBUG(node->list = FQ_LIST);
-	count_enqueued_node(fq);
 }
 
 /* repeatable process for waiting io completion on a flush queue object */

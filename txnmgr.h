@@ -590,6 +590,8 @@ extern void fq_put_nolock(flush_queue_t *);
 extern void fq_put(flush_queue_t *);
 extern void fuse_fq(txn_atom * to, txn_atom * from);
 extern void queue_jnode(flush_queue_t *, jnode *);
+extern void mark_jnode_queued(flush_queue_t *, jnode *);
+
 extern int write_fq(flush_queue_t *, long *);
 extern int current_atom_finish_all_fq(void);
 extern void init_atom_fq_parts(txn_atom *);
