@@ -1582,6 +1582,8 @@ reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent
 	int need;
 	int result;
 	reiser4_context context;
+	char *tmp;
+	
 
 	TRACE_EXPORT_OPS("started\n");
 
@@ -1608,6 +1610,9 @@ reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent
 		return 255;
 	}
 
+	/*XXX*/
+	tmp = addr;
+
 	/* encode data necessary to restore stat data key */
 	addr += dscale_write(addr, get_inode_oid(inode));
 	addr += dscale_write(addr, get_inode_locality(inode));
@@ -1618,6 +1623,18 @@ reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent
 		     result = 3;
 		     TRACE_EXPORT_OPS("ordering %llu\n", get_inode_ordering(inode))
 		     );
+
+	{
+		/*XXX*/
+		oid_t x, y;
+
+		tmp += dscale_read(tmp, &x);
+		tmp += dscale_read(tmp, &y);
+		TRACE_EXPORT_OPS("read: %llu, %llu\n", x, y);
+		/*XXX*/
+	}
+	
+
 
 	if (need_parent) {
 		/* FIXME: spin_lock(&dentry->d_lock)? */
