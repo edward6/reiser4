@@ -30,8 +30,20 @@
 /* Define if you have <alloca.h> and it should be used (not on Ultrix). */
 #undef HAVE_ALLOCA_H
 
+/* Define if you have the <argz.h> header file. */
+#undef HAVE_ARGZ_H
+
 /* Define if you have the `dcgettext' function. */
 #undef HAVE_DCGETTEXT
+
+/* Define if you have the <dlfcn.h> header file. */
+#undef HAVE_DLFCN_H
+
+/* Define if you have the <errno.h> header file. */
+#undef HAVE_ERRNO_H
+
+/* Define if you have the <fcntl.h> header file. */
+#undef HAVE_FCNTL_H
 
 /* Define if you have the `getcwd' function. */
 #undef HAVE_GETCWD
@@ -45,8 +57,23 @@
 /* Define if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
+/* Define if you have the <langinfo.h> header file. */
+#undef HAVE_LANGINFO_H
+
+/* Define if you have the <libintl.h> header file. */
+#undef HAVE_LIBINTL_H
+
+/* Define if you have the <limits.h> header file. */
+#undef HAVE_LIMITS_H
+
+/* Define if you have the <locale.h> header file. */
+#undef HAVE_LOCALE_H
+
 /* Define if your system has a working `malloc' function. */
 #undef HAVE_MALLOC
+
+/* Define if you have the <malloc.h> header file. */
+#undef HAVE_MALLOC_H
 
 /* Define if you have the `memmove' function. */
 #undef HAVE_MEMMOVE
@@ -68,6 +95,9 @@
 
 /* Define if you have the `setlocale' function. */
 #undef HAVE_SETLOCALE
+
+/* Define if you have the <stddef.h> header file. */
+#undef HAVE_STDDEF_H
 
 /* Define if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
@@ -105,6 +135,9 @@
 /* Define if you have the `strtoul' function. */
 #undef HAVE_STRTOUL
 
+/* Define if you have the <sys/param.h> header file. */
+#undef HAVE_SYS_PARAM_H
+
 /* Define if you have the <sys/stat.h> header file. */
 #undef HAVE_SYS_STAT_H
 
@@ -123,6 +156,9 @@
 /* Define if you have the `__argz_stringify' function. */
 #undef HAVE___ARGZ_STRINGIFY
 
+/* Name of package */
+#undef PACKAGE
+
 /* The size of a `off_t', as computed by sizeof. */
 #undef SIZEOF_OFF_T
 
@@ -136,6 +172,9 @@
 
 /* Define if you have the ANSI C header files. */
 #undef STDC_HEADERS
+
+/* Version number of package */
+#undef VERSION
 
 /* Define if your processor stores words with the most significant byte first
    (like Motorola and SPARC, unlike Intel and VAX). */

@@ -38,10 +38,10 @@ AC_SUBST(LT_REVISION)
 AC_SUBST(LT_AGE)
 
 PACKAGE=libreiserfs
-VERSION=LIBREISERFS_VERSION
+VERSION=$LIBREISERFS_VERSION
 
-AC_INIT_AUTOMAKE($PACKAGE, $VERSION)
-AC_CONFIG_HEADER(config.h)
+AM_INIT_AUTOMAKE($PACKAGE, $VERSION)
+AM_CONFIG_HEADER(config.h)
 
 AC_DEFINE_UNQUOTED(LIBREISERFS_MAX_INTERFACE_VERSION, $LIBREISERFS_BINARY_AGE)
 AC_DEFINE_UNQUOTED(LIBREISERFS_MIN_INTERFACE_VERSION, $LIBREISERFS_INTERFACE_AGE)
@@ -86,7 +86,7 @@ AM_PROG_LIBTOOL
 
 # Checks for header files.
 AC_HEADER_STDC
-C_CHECK_HEADERS([alloca.h argz.h errno.h fcntl.h langinfo.h libintl.h limits.h locale.h malloc.h stddef.h stdlib.h string.h strings.h sys/param.h unistd.h])
+AC_CHECK_HEADERS([alloca.h argz.h errno.h fcntl.h langinfo.h libintl.h limits.h locale.h malloc.h stddef.h stdlib.h string.h strings.h sys/param.h unistd.h])
 
 dnl Checks for typedefs, structures and compiler characteristics.
 AC_C_BIGENDIAN
@@ -119,8 +119,10 @@ esac
 AC_OUTPUT([
 	Makefile
 	include/Makefile
+	include/dal/Makefile
 	include/reiserfs/Makefile
 	libreiserfs/Makefile
+	libdal/Makefile
 	demos/Makefile
 	debug/Makefile
 	doc/Makefile
