@@ -1173,9 +1173,6 @@ void jnode_set_block( jnode *node /* jnode to update */,
 {
 	assert( "nikita-2020", node  != NULL );
 	assert( "umka-055", blocknr != NULL );
-	assert( "vs-751", jnode_is_allocated( node ) );
-	assert( "vs-752", jnode_is_unformatted( node ) );
-	assert( "vs-753", jnode_mapped( node ) );
 	node -> blocknr = *blocknr;
 	JF_SET (node, ZNODE_RELOC);
 }
