@@ -1568,7 +1568,6 @@ static void flush_bio_write (struct bio *bio)
 			SetPageError (pg);
 		}
 
-		/*page_cache_release (pg);*/
 		end_page_writeback (pg);
 	}
 	
@@ -1725,7 +1724,7 @@ static int flush_finish (flush_position *pos, int none_busy)
 
 			submit_bio (WRITE, bio);
 
-			/* FIXME: !!! temporary solution !!! */
+			/* FIXME: temporary solution? */
 			blk_run_queues ();
 		}
 	}

@@ -1424,7 +1424,7 @@ void jnode_set_clean( jnode *node )
 	spin_unlock_jnode (node);
 
 	/* FIXME: JMACD->NIKITA: Shouldn't we rely on the flush/writeback method to set
-	 * the page clean? */ 
+	 * the page clean?  I do not think we should call clean_node here. */ 
 	/*if (! JF_ISSET (node, ZNODE_UNFORMATTED)) {
 		current_tree->ops->clean_node (current_tree, node);
 	}*/

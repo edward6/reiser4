@@ -384,13 +384,15 @@ static void wander_end_io (struct bio * bio)
 			SetPageUptodate(pg);
 		}
 
-		if (! TestClearPageWriteback (pg)) {
-			BUG ();
-		}
+		end_page_writeback (pg);
 
-		ClearPageDirty (pg);
+		/*if (! TestClearPageWriteback (pg)) {BUG ();}*/
 
-		unlock_page (pg);
+		/* FIXME: JMACD->ZAM: This isn't right, but I don't know how to fix it
+		 * either.  Still working on flush_finish/flush_bio_write */
+		/*ClearPageDirty (pg);*/
+
+		/*unlock_page (pg);*/
 		page_cache_release (pg);
 	}
 
@@ -469,6 +471,7 @@ static int submit_write (jnode * first, int nr,
 		SetPageWriteback (pg);
 
 		ClearPageUptodate(pg);
+		unlock_page (pg);
 
 		bio->bi_io_vec[i].bv_page   = pg;
 		bio->bi_io_vec[i].bv_len    = super->s_blocksize;
