@@ -990,7 +990,7 @@ static int squalloc_children (flush_position *pos)
 
 /* This procedure takes care of descending the flush_position->point to @child, releasing
  * the parent lock and getting the child lock.  Then it calls the squalloc_parent_first
- * routine, recursively, and then it re-aquires the parent lock, returning
+ * routine, recursively, and then it re-acquires the parent lock, returning
  * flush_position->point back to the parent.  It is conceivable that the parent can change
  * during this period, so the @coord argument is returned to allow it to change.
  */

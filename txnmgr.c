@@ -6,7 +6,7 @@
  * transcrash, and it also oversees the fusion and capture-on-copy processes.  The main difficulty with this task is
  * maintaining a deadlock-free lock ordering between atoms and jnodes/handles.  The reason for the difficulty is that
  * jnodes, handles, and atoms contain pointer circles, and the cycle must be broken.  The main requirement is that
- * atom-fusion be deadlock free, so once you hold the atom_lock you may then wait to aquire any jnode or handle lock.
+ * atom-fusion be deadlock free, so once you hold the atom_lock you may then wait to acquire any jnode or handle lock.
  * This implies that any time you check the atom-pointer of a jnode or handle and then try to lock that atom, you must
  * use trylock() and possibly reverse the order.
  *
@@ -905,7 +905,7 @@ int memory_pressure (struct super_block *super)
  *
  * 6. A read request for a non-captured block: return immediate success.
  *
- * This function aquires and releases the handle's spinlock.  This function is called
+ * This function acquires and releases the handle's spinlock.  This function is called
  * under the jnode lock and if the return value is 0, it returns with the jnode lock still
  * held.  If the return is -EAGAIN or some other error condition, the jnode lock is
  * released.  The external interface (txn_try_capture) manages re-aquiring the jnode lock

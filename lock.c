@@ -290,7 +290,7 @@
  * Point 2. Just as locking can block waiting for the request to be satisfied, capturing
  * can block waiting for expired atoms to commit.
  *
- * Point 3. It is not acceptable to first aquire the lock and then block waiting to
+ * Point 3. It is not acceptable to first acquire the lock and then block waiting to
  * capture, especially when ignorant of deadlock.  There is no reason to lock until the
  * capture has succeeded.  To block in "capture" should be the same as to block waiting
  * for a lock, therefore a deadlock condition will cause the capture request to return
@@ -298,7 +298,7 @@
  *
  * Point 4. It is acceptable to first capture and then wait to lock.  BUT, once the
  * capture request succeeds the lock request cannot be satisfied out-of-order.  For
- * example, once a read-capture is satisfied no writers may aquire the lock until the
+ * example, once a read-capture is satisfied no writers may acquire the lock until the
  * reader has a chance to read the block.
  *
  * Point 5. Summary: capture requests must be partially-ordered with respect to lock
@@ -306,7 +306,7 @@
  *
  * What this means is for a regular lock_znode request (try_lock is slightly simpler).
  *
- *   1. aquire znode spinlock, check whether the lock request is compatible
+ *   1. acquire znode spinlock, check whether the lock request is compatible
  *      \_ and if not, make request and sleep on lock_stack semaphore
  *      |_ and when it wakes, go to step #1
  *   2. perform a try_capture request
@@ -756,7 +756,7 @@ int longterm_lock_znode (
 	/* Synchronize on node's guard lock. */
 	spin_lock_znode(node);
 
-	/* With spinlock first aquired, convert IF_DIRTY mode to read or write. */
+	/* With spinlock first acquired, convert IF_DIRTY mode to read or write. */
 	if (mode == ZNODE_WRITE_IF_DIRTY) {
 		mode = znode_is_dirty (node) ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK;
 	}
@@ -792,7 +792,7 @@ int longterm_lock_znode (
 			if ((ret = txn_try_capture (ZJNODE (node), mode, non_blocking)) != 0) {
 				/* In the failure case, the txnmgr releases the znode's lock (or
 				 * in some cases, it was released a while ago).  There's no need
-				 * to reaquire it so we should return here, avoid releasing the
+				 * to reacquire it so we should return here, avoid releasing the
 				 * lock. */
 				owner->request.mode = 0;
 				/* next requestor may not fail */
@@ -807,7 +807,7 @@ int longterm_lock_znode (
 			}
 
 			/* Check the lock's availability again -- this is because under some
-			 * circumstances the capture code has to release and reaquire the znode
+			 * circumstances the capture code has to release and reacquire the znode
 			 * spinlock. */
 			ret = can_lock_object(owner, node);
 		}
