@@ -880,7 +880,7 @@ feed_entry(readdir_pos * pos, coord_t * coord, filldir_t filldir, void *dirent)
 		return RETERR(-EIO);
 
 	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "readdir: %s, %llu, %llu\n",
-		 name, pos->entry_no + 1, get_key_objectid(&sd_key));
+		 name, pos->entry_no, get_key_objectid(&sd_key));
 
 	/* send information about directory entry to the ->filldir() filler
 	   supplied to us by caller (VFS). */
