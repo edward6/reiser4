@@ -471,10 +471,8 @@ iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 
 				/* move to the next node  */
 				init_lh(&couple);
-				result = reiser4_get_right_neighbor(&couple,
-								    coord->node,
-								    (int) mode,
-								    GN_DO_READ);
+				result = reiser4_get_right_neighbor(
+					&couple, coord->node, (int) mode, GN_CAN_USE_UPPER_LEVELS);
 				zrelse(coord->node);
 				if (result == 0) {
 
@@ -1443,7 +1441,8 @@ search_to_left(cbk_handle * h /* search handle */ )
 	assert("nikita-1763", coord_is_leftmost_unit(coord));
 
 	reiser4_stat_inc(tree.check_left_nonuniq);
-	h->result = reiser4_get_left_neighbor(&lh, node, (int) h->lock_mode, GN_DO_READ);
+	h->result = reiser4_get_left_neighbor(
+		&lh, node, (int) h->lock_mode, GN_CAN_USE_UPPER_LEVELS);
 	neighbor = NULL;
 	switch (h->result) {
 	case -E_DEADLOCK:

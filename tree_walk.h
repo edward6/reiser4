@@ -41,8 +41,10 @@ int reiser4_get_parent(lock_handle * result, znode * node, znode_lock_mode mode,
 
 /* bits definition for reiser4_get_neighbor function `flags' arg. */
 typedef enum {
-	/* allows to read block from disk */
-	GN_DO_READ = 0x1,
+	/* If sibling pointer is NULL, this flag allows get_neighbor() to try to
+	 * find not allocated not connected neigbor by going though upper
+	 * levels */
+	GN_CAN_USE_UPPER_LEVELS = 0x1,
 	/* locking left neighbor instead of right one */
 	GN_GO_LEFT = 0x2,
 	/* automatically load neighbor node content */

@@ -1116,7 +1116,7 @@ prepare_twig_cut(coord_t * from,
 	if (coord_prev_unit(&left_coord)) {
 		/* @from is leftmost item in its node */
 		if (!locked_left_neighbor) {
-			result = reiser4_get_left_neighbor(&left_lh, from->node, ZNODE_READ_LOCK, GN_DO_READ);
+			result = reiser4_get_left_neighbor(&left_lh, from->node, ZNODE_READ_LOCK, GN_CAN_USE_UPPER_LEVELS);
 			switch (result) {
 			case 0:
 				break;
@@ -1180,7 +1180,7 @@ prepare_twig_cut(coord_t * from,
 		coord_dup(&right_coord, to);
 		if (coord_next_unit(&right_coord)) {
 			/* @to is rightmost unit in the node */
-			result = reiser4_get_right_neighbor(&right_lh, from->node, ZNODE_READ_LOCK, GN_DO_READ);
+			result = reiser4_get_right_neighbor(&right_lh, from->node, ZNODE_READ_LOCK, GN_CAN_USE_UPPER_LEVELS);
 			switch (result) {
 			case 0:
 				result = zload(right_lh.node);
@@ -1467,12 +1467,9 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 
 		node = tap->coord->node;
 
-		/* ZAM-FIXME-HANS: if you can delete the node as a whole, and you can see that from looking in the
-		 * parent which has the child's blocknumber and the key range that it spans, why read it?  Seems like an
-		 * important missing optimization could be here.... */
 		/* Move next_node_lock to the next node on the left. */
-		result = reiser4_get_left_neighbor(&next_node_lock, node,
-						   ZNODE_WRITE_LOCK, GN_DO_READ);
+		result = reiser4_get_left_neighbor(
+			&next_node_lock, node, ZNODE_WRITE_LOCK, GN_CAN_USE_UPPER_LEVELS);
 		if ((result != 0) && (result != -E_NO_NEIGHBOR))
 			break;
 		/* Check can we delete the node as a whole. */

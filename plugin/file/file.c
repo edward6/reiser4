@@ -302,9 +302,10 @@ goto_right_neighbor(coord_t * coord, lock_handle * lh)
 	assert("vs-1100", znode_is_locked(coord->node));
 
 	init_lh(&lh_right);
-	result = reiser4_get_right_neighbor(&lh_right, coord->node,
-					    znode_is_wlocked(coord->node) ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK,
-					    GN_DO_READ);
+	result = reiser4_get_right_neighbor(
+		&lh_right, coord->node, 
+		znode_is_wlocked(coord->node) ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK,
+		GN_CAN_USE_UPPER_LEVELS);
 	if (result) {
 		done_lh(&lh_right);
 		return result;

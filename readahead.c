@@ -82,12 +82,12 @@ formatted_readahead(znode *node, ra_info_t *info)
 
 	write_current_tracef("...readahead\n");
 
-	grn_flags = (ra_get_rn_hard(ra_params->flags) ? GN_DO_READ : 0);
+	grn_flags = (ra_get_rn_hard(ra_params->flags) ? GN_CAN_USE_UPPER_LEVELS : 0);
 
 	/*
-	 * FIXME-ZAM: GN_DO_READ seems to not work these days
+	 * FIXME-ZAM: GN_CAN_USE_UPPER_LEVELS seems to not work these days
 	 */
-	grn_flags |= GN_DO_READ;
+	grn_flags |= GN_CAN_USE_UPPER_LEVELS;
 
 	/* We can have locked nodes on upper tree levels, in this situation lock
 	   priorities do not help to resolve deadlocks, we have to use TRY_LOCK

@@ -658,7 +658,7 @@ again:
 
 	/* only -ENOENT means we may look upward and try to connect
 	   @node with its neighbor (if @flags allow us to do it) */
-	if (ret != -ENOENT || !(flags & GN_DO_READ))
+	if (ret != -ENOENT || !(flags & GN_CAN_USE_UPPER_LEVELS))
 		return ret;
 
 	/* before establishing of sibling link we lock parent node; it is

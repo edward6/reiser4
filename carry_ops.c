@@ -150,7 +150,7 @@ find_right_neighbor(carry_op * op	/* node to find right
 		}
 	}
 
-	flags = GN_DO_READ;
+	flags = GN_CAN_USE_UPPER_LEVELS;
 	if (!op->u.insert.flags & COPI_LOAD_RIGHT)
 		flags = GN_NO_ALLOC;
 
