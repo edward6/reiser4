@@ -53,7 +53,8 @@ void reiser4_panic( const char *format /* format string */, ... /* rest */ )
  */
 void preempt_point( void )
 {
-	cond_resched();
+	if (REISER4_DEBUG == 3)
+		cond_resched();
 }
 
 #if REISER4_DEBUG
@@ -97,20 +98,22 @@ void print_lock_counters( const char *prefix, lock_counters_info *info )
  */
 void check_stack( void )
 {
-	char     dummy;
-	unsigned gap;
-	reiser4_context *context = get_current_context();
+	if (REISER4_DEBUG > 1) {
+		char     dummy;
+		unsigned gap;
+		reiser4_context *context = get_current_context();
 
-	if( context == NULL )
-		return;
-	gap = abs( &dummy - ( char * ) context );
-	if( gap > REISER4_STACK_GAP ) {
-		warning( "nikita-1079", "Stack overflow is close: %i", gap );
+		if( context == NULL )
+			return;
+		gap = abs( &dummy - ( char * ) context );
+		if( gap > REISER4_STACK_GAP ) {
+			warning( "nikita-1079", "Stack overflow is close: %i", gap );
+		}
+		if( gap > REISER4_STACK_ABORT ) {
+			rpanic( "nikita-1080", "Stack overflowed: %i", gap );
+		}
+		reiser4_stat_stack_check_max( gap );
 	}
-	if( gap > REISER4_STACK_ABORT ) {
-		rpanic( "nikita-1080", "Stack overflowed: %i", gap );
-	}
-	reiser4_stat_stack_check_max( gap );
 }
 #endif
 
