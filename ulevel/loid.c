@@ -3,19 +3,32 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <time.h>
+#include <sys/time.h>
 
 #define MAX_LEN   (20)
 
-#define RAT( a, b ) ( ( ( double ) ( a ) ) / ( ( double ) ( b ) ) )
+static double RAT( unsigned long long a, unsigned long long b )
+{
+  if( b == 0 )
+	return 0.0;
+  else
+	return ( ( double ) a ) / b;
+}
+
+static unsigned long long tdiff(struct timeval *t1, struct timeval *t2)
+{
+  return (t1->tv_sec - t2->tv_sec) * 1000000 + (t1->tv_usec - t2->tv_usec);
+}
+
 int main( int argc, char **argv )
 {
   const char alphabet[] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  unsigned long i;
+  unsigned long long i;
   char name[ MAX_LEN + 1 ];
   int min;
   int base;
-  time_t start;
-  time_t instant;
+  struct timeval start;
+  struct timeval instant;
   unsigned long prev;
   unsigned long N;
   int ebusy;
@@ -48,7 +61,8 @@ int main( int argc, char **argv )
   memset( name, base + 10, MAX_LEN + 1 );
   ebusy = 0;
   prev = 0;
-  instant = start = time( NULL );
+  gettimeofday( &instant, 0 );
+  start = instant;
 
   for( i = 0 ; N && i < N ; ++ i )
 	{
@@ -118,14 +132,15 @@ int main( int argc, char **argv )
 	  close( fd );
 	  if( ( i % cycle ) == 0 )
 		{
-		  time_t now;
+		  struct timeval now;
 
-		  now = time( NULL );
-		  printf( "%li files: %li (%f/%f), %i: %s\n", i, time( NULL ) - instant,
-				  ( now - start ) ? RAT( i, now - start ) : 0.0, 
-				  ( now - instant ) ? RAT( i - prev, now - instant ) : 0.0,
+		  gettimeofday( &now, 0 );
+		  printf( "%lli files: %lli (%f/%f), %i: %s\n", i, 
+				  tdiff( &now, &instant ),
+				  RAT( i * 1000000, tdiff( &now, &start ) ), 
+				  RAT( ( i - prev ) * 1000000, tdiff( &now, &instant ) ),
 				  ebusy, fname );
-		  instant = time( NULL );
+		  gettimeofday( &instant, 0 );
 		  prev = i;
 		}
 	}
