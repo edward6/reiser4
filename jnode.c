@@ -155,6 +155,7 @@ jnode_init(jnode * node, reiser4_tree * tree)
 	node->atom = NULL;
 	node->tree = tree;
 	capture_list_clean(node);
+	INIT_RCU_HEAD(&node->rcu);
 
 #if REISER4_DEBUG
 	UNDER_RW_VOID(tree, tree, write,
@@ -269,79 +270,89 @@ jnode_attach_page(jnode * node, struct page *pg);
    creates) jnode corresponding to page @pg. jnode is attached to page and
    inserted into jnode hash-table. */
 static jnode *
-jget(reiser4_tree * tree, struct page * pg)
+do_jget(reiser4_tree * tree, struct page * pg)
 {
 	/* FIXME: Note: The following code assumes page_size == block_size.
 	   When support for page_size > block_size is added, we will need to
 	   add a small per-page array to handle more than one jnode per
 	   page. */
-	jnode *jal = NULL;
+	jnode *jal;
+	jnode *result;
+	j_hash_table *jtable;
 	oid_t oid = get_inode_oid(pg->mapping->host);
-	int takeread;
 
 	assert("umka-176", pg != NULL);
 	/* check that page is unformatted */
 	assert("nikita-2065", pg->mapping->host != get_super_private(pg->mapping->host->i_sb)->fake);
 	assert("nikita-2394", PageLocked(pg));
-	takeread = 1;
-again:
-	if (jprivate(pg) == NULL) {
-		jnode *in_hash;
-		/* check hash-table first */
-		tree = tree_by_page(pg);
-		XLOCK_TREE(tree, takeread);
-		in_hash = jlook(tree, oid, pg->index);
-		if (in_hash != NULL) {
-			assert("nikita-2358", jnode_page(in_hash) == NULL);
-			XUNLOCK_TREE(tree, takeread);
-			UNDER_SPIN_VOID(jnode, in_hash, jnode_attach_page(in_hash, pg));
-			in_hash->key.j.mapping = pg->mapping;
-		} else {
-			j_hash_table *jtable;
 
-			if (jal == NULL) {
-				assert("nikita-3090", takeread);
-				RUNLOCK_TREE(tree);
-				jal = jnew();
+	result = jprivate(pg);
+	if (likely(result != NULL))
+		return jref(result);
 
-				if (jal == NULL) {
-					return ERR_PTR(RETERR(-ENOMEM));
-				}
-				takeread = 0;
-				goto again;
-			}
+	/* check hash-table first */
+	tree = tree_by_page(pg);
 
-			jref(jal);
-
-			jal->key.j.mapping = pg->mapping;
-			jal->key.j.objectid = oid;
-			jal->key.j.index = pg->index;
-
-			jtable = &tree->jhash_table;
-			assert("nikita-2357", j_hash_find(jtable, &jal->key.j) == NULL);
-
-			j_hash_insert(jtable, jal);
-			assert("nikita-3091", !takeread);
-			WUNLOCK_TREE(tree);
-
-			UNDER_SPIN_VOID(jnode, jal, jnode_attach_page(jal, pg));
-			jal = NULL;
-		}
-	} else
-		jref(jprivate(pg));
-
-	assert("nikita-2046", jnode_page(jprivate(pg)) == pg);
-	assert("nikita-2364", jprivate(pg)->key.j.index == pg->index);
-	assert("nikita-2367", jprivate(pg)->key.j.mapping == pg->mapping);
-	assert("nikita-2365", jprivate(pg)->key.j.objectid == oid);
-	assert("vs-1200", jprivate(pg)->key.j.objectid == pg->mapping->host->i_ino);
-	assert("nikita-2356", jnode_is_unformatted(jnode_by_page(pg)));
-	assert("nikita-2956", jnode_invariant(jprivate(pg), 0, 0));
-
-	if (jal != NULL) {
-		jfree(jal);
+	result = jlook_lock(tree, oid, pg->index);
+	if (unlikely(result != NULL)) {
+		assert("nikita-2358", jnode_page(result) == NULL);
+		UNDER_SPIN_VOID(jnode, result, jnode_attach_page(result, pg));
+		result->key.j.mapping = pg->mapping;
+		return result;
 	}
-	return jnode_by_page(pg);
+
+	jal = jnew();
+
+	if (unlikely(jal == NULL))
+		return ERR_PTR(RETERR(-ENOMEM));
+
+	assert("nikita-3209", jprivate(pg) == NULL);
+
+	jref(jal);
+
+	jal->key.j.mapping  = pg->mapping;
+	jal->key.j.objectid = oid;
+	jal->key.j.index    = pg->index;
+
+	jtable = &tree->jhash_table;
+
+	WLOCK_TREE(tree);
+	/* race with some other thread inserting jnode into the hash table is
+	 * impossible, because we keep the page lock. */
+	assert("nikita-3211", j_hash_find(jtable, &jal->key.j) == NULL);
+	j_hash_insert(jtable, jal);
+	WUNLOCK_TREE(tree);
+
+	UNDER_SPIN_VOID(jnode, jal, jnode_attach_page(jal, pg));
+	return jal;
+}
+
+static jnode *
+jget(reiser4_tree * tree, struct page * pg)
+{
+	jnode * result;
+
+	assert("umka-176", pg != NULL);
+	/* check that page is unformatted */
+	assert("nikita-2065", pg->mapping->host != get_super_private(pg->mapping->host->i_sb)->fake);
+	assert("nikita-2394", PageLocked(pg));
+
+	result = do_jget(tree, pg);
+
+	if (REISER4_DEBUG && !IS_ERR(result)) {
+		assert("nikita-3210", result == jprivate(pg));
+		assert("nikita-2046", jnode_page(jprivate(pg)) == pg);
+		assert("nikita-2364", jprivate(pg)->key.j.index == pg->index);
+		assert("nikita-2367", 
+		       jprivate(pg)->key.j.mapping == pg->mapping);
+		assert("nikita-2365", 
+		       jprivate(pg)->key.j.objectid == get_inode_oid(pg->mapping->host));
+		assert("vs-1200", 
+		       jprivate(pg)->key.j.objectid == pg->mapping->host->i_ino);
+		assert("nikita-2356", jnode_is_unformatted(jnode_by_page(pg)));
+		assert("nikita-2956", jnode_invariant(jprivate(pg), 0, 0));
+	}
+	return result;
 }
 
 jnode *
@@ -746,18 +757,15 @@ jput_final(jnode * node)
 	int r_i_p;
 
 	assert("nikita-2772", !JF_ISSET(node, JNODE_EFLUSH));
-	assert("nikita-3066", spin_jnode_is_locked(node));
 	assert("jmacd-511", node->d_count == 0);
 
 	/* A fast check for keeping node in cache. We always keep node in cache
 	 * if its page is present and node was not marked for deletion */
 	if (jnode_page(node) != NULL && !JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
-		spin_unlock_jnode(node);
 		return;
 	}
 
 	r_i_p = !JF_TEST_AND_SET(node, JNODE_RIP);
-	spin_unlock_jnode(node);
 	/*
 	 * if r_i_p is true, we were first to set JNODE_RIP on this node. In
 	 * this case it is safe to access node after spin unlock.
@@ -1101,9 +1109,15 @@ jnode_delete(jnode * node, jnode_type jtype, reiser4_tree * tree UNUSED_ARG)
 	}
 }
 
-static inline void
-jnode_free(jnode * node, jnode_type jtype)
+static void
+jnode_free_actor(void *arg)
 {
+	jnode * node;
+	jnode_type jtype;
+
+	node = arg;
+	jtype = jnode_get_type(node);
+
 	switch (jtype) {
 	case JNODE_IO_HEAD:
 	case JNODE_BITMAP:
@@ -1117,6 +1131,13 @@ jnode_free(jnode * node, jnode_type jtype)
 	default:
 		wrong_return_value("nikita-3197", "Wrong jnode type");
 	}
+}
+
+static inline void
+jnode_free(jnode * node, jnode_type jtype)
+{
+	if (jtype != JNODE_INODE)
+		call_rcu(&node->rcu, jnode_free_actor, node);
 }
 
 int
@@ -1139,9 +1160,9 @@ jnode_try_drop(jnode * node)
 	LOCK_JNODE(node);
 	WLOCK_TREE(tree);
 	if (jnode_page(node) != NULL) {
-		JF_CLR(node, JNODE_RIP);
 		UNLOCK_JNODE(node);
 		WUNLOCK_TREE(tree);
+		JF_CLR(node, JNODE_RIP);
 		return RETERR(-EBUSY);
 	}
 
@@ -1154,8 +1175,8 @@ jnode_try_drop(jnode * node)
 		jnode_free(node, jtype);
 	} else {
 		WUNLOCK_TREE(tree);
-		JF_CLR(node, JNODE_RIP);
 		UNLOCK_JNODE(node);
+		JF_CLR(node, JNODE_RIP);
 	}
 	return result;
 }
@@ -1202,8 +1223,8 @@ jdelete(jnode * node /* jnode to finish with */)
 			drop_page(page);
 	} else {
 		WUNLOCK_TREE(tree);
-		JF_CLR(node, JNODE_RIP);
 		UNLOCK_JNODE(node);
+		JF_CLR(node, JNODE_RIP);
 		if (page != NULL)
 			reiser4_unlock_page(page);
 	}
@@ -1266,8 +1287,8 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 		}
 	} else {
 		WUNLOCK_TREE(tree);
-		JF_CLR(node, JNODE_RIP);
 		UNLOCK_JNODE(node);
+		JF_CLR(node, JNODE_RIP);
 		if (page != NULL)
 			reiser4_unlock_page(page);
 	}
@@ -1400,6 +1421,18 @@ jnode_invariant(const jnode * node, int tlocked, int jlocked)
 	if (!jlocked && !tlocked)
 		UNLOCK_JNODE((jnode *) node);
 	return result;
+}
+#endif
+
+#if REISER4_STATS
+void reiser4_stat_inc_at_level_jput(const jnode * node)
+{
+	reiser4_stat_inc_at_level(jnode_get_level(node), jnode.jput);
+}
+
+void reiser4_stat_inc_at_level_jputlast(const jnode * node)
+{
+	reiser4_stat_inc_at_level(jnode_get_level(node), jnode.jputlast);
 }
 #endif
 
