@@ -864,6 +864,11 @@ static unsigned cut_units (tree_coord * coord, unsigned *from, unsigned *to,
 	}
 
 	if (cut_f) {
+		/* FIXME-VS:
+		 * kill_item_hook for units being cut will be called by
+		 * kill_units method, because it is not clear here which units
+		 * will be actually cut. To have kill_item_hook here we would
+		 * have to pass keys to kill_item_hook */
 		cut_size = cut_f (coord, from, to,
 				  from_key, to_key, smallest_removed);
 	} else {
@@ -899,9 +904,11 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 	znode * node;
 	node_header_40 * nh;
 	item_header_40 * ih;
-	unsigned new_from_end;
-	unsigned new_to_start;
+	unsigned freed_space_start;/*new_from_end;*/
+	unsigned freed_space_end; /*new_to_start;*/
 	unsigned first_removed; /* position of first item removed entirely */
+	int rightmost_not_moved; /* position of item which is the rightmost of
+				  * items which do not change their offset */
 	unsigned removed_entirely; /* number of items removed entirely */
 	unsigned i;
 	unsigned cut_size;
@@ -952,40 +959,44 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 			/*
 			 * whole item is cut
 			 */
-			new_from_end = ih_40_get_offset (ih);
-			new_to_start = ih_40_get_offset (ih) + cut_size;
+			freed_space_start = ih_40_get_offset (ih);
+			freed_space_end = freed_space_start + cut_size;
+			rightmost_not_moved = from->item_pos - 1;
 		} else if (from->unit_pos == 0) {
 			/*
-			 * head is cut
+			 * head is cut, freed space is in the beginning
 			 */
-			new_from_end = ih_40_get_offset (ih);
-			new_to_start = ih_40_get_offset (ih) + cut_size;
-			ih_40_set_offset (ih, new_to_start);
-
+			freed_space_start = ih_40_get_offset (ih);
+			freed_space_end = freed_space_start + cut_size;
+			rightmost_not_moved = from->item_pos - 1;
+			/* item now starts at different place */
+			ih_40_set_offset (ih, freed_space_end);
+			
 		} else if (to->unit_pos == last_unit_pos (to)) {
 			/*
-			 * tail is cut
+			 * tail is cut, freed space is in the end
 			 */
-			new_from_end = ih_40_get_offset (ih) + item_length_by_coord (from) - cut_size;
-			new_to_start = new_from_end + cut_size;
-			ih_40_set_offset (ih, ih_40_get_offset (ih) + cut_size);
+			freed_space_start = ih_40_get_offset (ih) + item_length_by_coord (from) - cut_size;
+			freed_space_end = freed_space_start + cut_size;
+			rightmost_not_moved = from->item_pos;
 		} else {
 			/*
 			 * cut from the middle
 			 * NOTE: cut method of item must leave freed space at
 			 * the end of item
 			 */
-			new_from_end = ih_40_get_offset (ih) + item_length_by_coord (from) - cut_size;
-			new_to_start = new_from_end + cut_size;
-			ih_40_set_offset (ih, ih_40_get_offset (ih) + cut_size);
+			freed_space_start = ih_40_get_offset (ih) + item_length_by_coord (from) - cut_size;
+			freed_space_end = freed_space_start + cut_size;
+			rightmost_not_moved = from->item_pos;
 		}
-		/*ih_40_set_offset (ih, new_to_start);*/
 	} else {
 		/*
 		 * @from and @to are different items
 		 */
 		first_removed = from->item_pos + 1;
 		removed_entirely = to->item_pos - from->item_pos - 1;
+		rightmost_not_moved = from->item_pos;
+
 		if (!cut) {
 			/*
 			 * for every item being removed entirely between @from
@@ -1015,13 +1026,14 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 				      cut_params);
 		if (cut_size == (unsigned)item_length_by_coord (from)) {
 			/*
-			 * item will be removed
+			 * whole @from is cut
 			 */
 			first_removed --;
 			removed_entirely ++;
+			rightmost_not_moved --;
 		}
 		ih = node40_ih_at (node, (unsigned) from->item_pos);
-		new_from_end = ih_40_get_offset (ih) +
+		freed_space_start = ih_40_get_offset (ih) +
 			node40_length_by_coord (from) - cut_size;
 
 		/*
@@ -1033,7 +1045,7 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 				      cut, from_key, to_key, 0, cut_params);
 		if (cut_size == (unsigned)item_length_by_coord (to))
 			/*
-			 * item will be removed
+			 * whole @to is cut
 			 */
 			removed_entirely ++;
 		else
@@ -1041,20 +1053,22 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 			wrong_item = to->item_pos;
 
 		ih = node40_ih_at (node, (unsigned) to->item_pos);
-		new_to_start = ih_40_get_offset (ih) + cut_size;
-		ih_40_set_offset (ih, new_to_start);
+		freed_space_end = ih_40_get_offset (ih) + cut_size;
+
+		/* item now starts at different place */
+		ih_40_set_offset (ih, freed_space_end);
 	}
 
 
 	/* move remaining data to left */
-	xmemmove (node->data + new_from_end, node->data + new_to_start,
-		 nh_40_get_free_space_start (nh) - new_to_start);
+	xmemmove (node->data + freed_space_start, node->data + freed_space_end,
+		 nh_40_get_free_space_start (nh) - freed_space_end);
 
 	/* update item headers of moved items */
-	for (i = first_removed + removed_entirely; i < node_num_items (node); i ++) {
+	for (i = rightmost_not_moved + 1 + removed_entirely; i < node_num_items (node); i ++) {
 		ih = node40_ih_at (node, i);
 		ih_40_set_offset (ih, (ih_40_get_offset (ih) -
-				       (new_to_start - new_from_end)));
+				       (freed_space_end - freed_space_start)));
 	}
 
 	/* cut item headers of removed items */
@@ -1066,9 +1080,9 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 	/* update node header */
 	nh_40_set_num_items (nh, node_num_items (node) - removed_entirely);
 	nh_40_set_free_space_start (nh, nh_40_get_free_space_start (nh) -
-				    (new_to_start - new_from_end));
+				    (freed_space_end - freed_space_start));
 	nh_40_set_free_space (nh, nh_40_get_free_space (nh) +
-			      ((new_to_start - new_from_end) +
+			      ((freed_space_end - freed_space_start) +
 			       sizeof (item_header_40) * removed_entirely));
 
 	/* FIXME-NIKITA make sure that items which were partially cut have correct keys
