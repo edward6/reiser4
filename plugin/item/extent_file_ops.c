@@ -1167,7 +1167,6 @@ writepage_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, writ
 		return PTR_ERR(j);
 	done_lh(uf_coord->lh);
 	JF_CLR(j, JNODE_NEW);
-	done_lh(uf_coord->lh);
 
 	lock_page(page);
 	LOCK_JNODE(j);
