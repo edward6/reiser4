@@ -205,6 +205,10 @@ typedef struct tail_plugin {
 	    in a direct item. */
 	int ( *tail )( const struct inode *inode, loff_t size );
 
+	/** returns non-zero iff file's tail has to be stored
+	    unformatted node */
+	int ( *notail )( const struct inode *inode, loff_t new_size );
+
 } tail_plugin;
 
 typedef struct hash_plugin {
