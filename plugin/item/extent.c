@@ -1816,7 +1816,14 @@ static int extent_get_create_block (coord_t * coord, lock_handle * lh,
 
 		result = insert_first_block (coord, lh, j, key);
 
-		goto count_allocation;
+		/* FIXME: -EAGAIN is OK!  */
+		if (result != -EAGAIN) {
+			reiser4_release_grabbed_space((__u64)1);
+		} else {
+			reiser4_count_fake_allocation((__u64)1);
+		}
+
+		return result;
 
 	case EXTENT_APPEND_BLOCK:
 		result = reiser4_grab_space1((__u64)1);
@@ -1827,7 +1834,13 @@ static int extent_get_create_block (coord_t * coord, lock_handle * lh,
 
 		result = append_one_block (coord, lh, j);
 
-		goto count_allocation;
+		if (result) {
+			reiser4_release_grabbed_space((__u64)1);
+		} else {
+			reiser4_count_fake_allocation((__u64)1);
+		}
+
+		return result;
 
 	case EXTENT_OVERWRITE_BLOCK:
 		/* there is found extent (possibly hole one) */
@@ -1850,16 +1863,6 @@ static int extent_get_create_block (coord_t * coord, lock_handle * lh,
 			    "in what_todo");
 	}
 	return -EIO;
-
- count_allocation:
-	if (result) {
-		reiser4_release_grabbed_space((__u64)1);
-		return result;
-	}
-
-	reiser4_count_fake_allocation((__u64)1);
-
-	return 0;
 }
 
 
