@@ -135,7 +135,7 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 		*/
 		assert("nikita-1448", znode_is_root(old_root));
 		new_root = new_node(fake, tree->height + 1);
-		if (!IS_ERR(new_root)) {
+		if (!IS_ERR(new_root) && (result = zload(new_root)) == 0) {
 			lock_handle rlh;
 
 			init_lh(&rlh);
@@ -153,6 +153,7 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 				WLOCK_TREE(tree);
 				in_parent = &new_root->in_parent;
 				init_parent_coord(in_parent, fake);
+				sibling_list_insert_nolock(new_root, NULL);
 				WUNLOCK_TREE(tree);
 
 				/* insert into new root pointer to the
@@ -162,10 +163,10 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 				znode_set_ld_key(new_root, min_key());
 				znode_set_rd_key(new_root, max_key());
 				WUNLOCK_DK(tree);
-				sibling_list_insert(new_root, NULL);
 				result = add_child_ptr(new_root, old_root);
 				done_lh(&rlh);
 			}
+			zrelse(new_root);
 		}
 	}
 	if (result != 0)
@@ -280,7 +281,7 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 		init_parent_coord(&new_root->in_parent, uber);
 		atomic_inc(&uber->c_count);
 
-		sibling_list_insert_nolock(new_root, NULL);
+		/* sibling_list_insert_nolock(new_root, NULL); */
 		WUNLOCK_TREE(tree);
 
 		/* reinitialise old root. */
