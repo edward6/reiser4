@@ -30,6 +30,7 @@ Internal on-disk structure:
 #include "ctail.h"
 #include "../../page_cache.h"
 
+#include <linux/swap.h>
 #include <linux/fs.h>	
 
 /* return body of ctail item at @coord */
@@ -274,14 +275,123 @@ ctail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, st
 
 /* plugin->u.item.s.file.read */
 int
-ctail_read(struct file *file, coord_t *coord, flow_t * f)
+ctail_read(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
 {
+	assert("edward-127", f->user == 1);
+	assert("edward-128", f->data);
+	assert("edward-129", coord && coord->node);
+	assert("edward-130", coord_is_existing_unit(coord));
+	assert("edward-131", znode_is_rlocked(coord->node));
+	assert("edward-132", znode_is_loaded(coord->node));
+
+	/* start read only from the beginning of ctail */
+	assert("edward-133", coord->unit_pos == 0);
+	/* read only whole ctails */
+	assert("edward-134", ctail_nr_units(coord) >= CTAIL_MIN_BODY_SIZE);
+	assert("edward-135", item_length_by_coord(coord) <= f->length);
+	
+	assert("edward-136", schedulable());
+	
+	memcpy(f->data, (char *)first_unit(coord), (size_t)ctail_nr_units(coord));
+
+	mark_page_accessed(znode_page(coord->node));
+	move_flow_forward(f, ctail_nr_units(coord));
+	coord->unit_pos --;
+	coord->between = AFTER_UNIT;
 	return 0;
 }
 
-static int ctail_cluster_by_page (reiser4_cluster_t * clust, struct page * page, struct inode * inode)
+/* read one cluster form disk, decrypt and decompress its data */
+static int
+ctail_cluster_by_page (reiser4_cluster_t * clust, struct page * page, struct inode * inode)
 {
+	flow_t f; /* for items collection */
+	coord_t coord;
+	lock_handle lh;
+	int res;
+	loff_t offset;
+	ra_info_t ra_info;
+	file_plugin * fplug;
+	item_plugin * iplug;
+	crypto_plugin * cr_plug;
+	compression_plugin * co_plug;
+	cryptcompress_info_t * info;
+	
+	assert("edward-137", inode != NULL);
+	assert("edward-138", clust != NULL);
+	assert("edward-139", clust->buf == NULL);
+	assert("edward-140", clust->stat != HOLE_CLUSTER);
+	
+	fplug = inode_file_plugin(inode);
+	iplug = item_plugin_by_id(CTAIL_ID);
+	cr_plug = inode_crypto_plugin(inode);
+	co_plug = inode_compression_plugin(inode);
+	info = cryptcompress_inode_data(inode);
+
+	assert("edward-141", cr_plug != NULL);
+	assert("edward-142", co_plug != NULL);
+	
+	assert("edward-143", info != NULL);
+	assert("edward-144", info->expkey != NULL);
+	assert("edward-145", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
+	
+	/* allocate temporary buffer of disk cluster size */
+	clust->buf = reiser4_kmalloc(inode_scaled_cluster_size(inode), GFP_KERNEL);
+	if (!clust->buf) 
+		return -ENOMEM;
+	
+	/* keep initial offset */
+	offset = cluster_offset_by_page(page, inode);
+	
+	/* build flow for the cluster */
+	fplug->flow_by_inode(inode, clust->buf, 0 /* kernel space */,
+			     inode_scaled_cluster_size(inode), offset, READ_OP, &f);
+	ra_info.key_to_stop = f.key;
+	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
+	
+	while (f.length) {
+		init_lh(&lh);
+		res = find_cluster_item(&f.key, &coord, &lh, &ra_info);
+		switch (res) {
+		case CBK_COORD_NOTFOUND:
+			if (inode_scaled_offset(inode, offset) == get_key_offset(&f.key)) {
+				/* first item not found: hole cluster */
+				clust->stat = HOLE_CLUSTER;
+				res = 0;
+				goto out;
+			}
+			/* we are outside the cluster, stop search here */
+			/* FIXME-EDWARD. Handle the case when cluster is not complete (-EIO) */
+			assert("edward-146", f.length != inode_scaled_cluster_size(inode));
+			done_lh(&lh);
+			goto ok;
+		case CBK_COORD_FOUND:
+			assert("edward-147", item_plugin_by_coord(&coord) == iplug);
+			assert("edward-148", coord.between != AT_UNIT);
+			res = zload_ra(coord.node, &ra_info);
+			if (unlikely(res))
+				goto out;
+			res = iplug->s.file.read(NULL, &coord, &f);
+			zrelse(coord.node);
+			if (res) 
+				goto out;
+			done_lh(&lh);
+			break;
+		default:
+			goto out;
+		}
+	}
+ ok:
+	clust->len = inode_scaled_cluster_size(inode) - f.length;
+	res = process_cluster(clust, inode, READ_OP);
+	if (res)
+		goto out2;
 	return 0;
+ out:
+	done_lh(&lh);
+ out2:
+	reiser4_kfree(clust->buf, inode_scaled_cluster_size(inode));
+	return res;
 }
 
 /* plugin->u.item.s.file.readpage */
