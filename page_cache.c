@@ -122,7 +122,7 @@ int done_formatted_fake( struct super_block *super )
 {
 	struct inode *fake;
 
-	fake = get_super_private( super ) -> fake;
+	fake = get_super_private_nocheck( super ) -> fake;
 	iput( fake );
 	return 0;
 }
