@@ -191,10 +191,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	oid_t oid;
 
 	assert("nikita-723", inode != NULL);
-
-	/* stat data is already there */
-	if (!inode_get_flag(inode, REISER4_NO_SD))
-		return 0;
+	assert("nikita-3406", !inode_get_flag(inode, REISER4_NO_SD));
 
 	ref = reiser4_inode_data(inode);
 	spin_lock_inode(inode);
@@ -246,6 +243,9 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	*/
 
 	if (result == IBK_INSERT_OK) {
+		write_current_tracef("..sd i %#llx %#llx",
+				     get_inode_oid(inode), ref->locality_id);
+
 		coord_clear_iplug(&coord);
 		result = zload(coord.node);
 		if (result == 0) {
@@ -449,12 +449,14 @@ write_sd_by_inode_common(struct inode *inode /* object to save */)
 
 	assert("nikita-730", inode != NULL);
 
+	mark_inode_update(inode, 1);
+
 	if (inode_get_flag(inode, REISER4_NO_SD))
 		/* object doesn't have stat-data yet */
 		result = insert_new_sd(inode);
 	else
 		result = update_sd(inode);
-	if ((result != 0) && (result != -ENAMETOOLONG))
+	if (result != 0 && result != -ENAMETOOLONG)
 		/* Don't issue warnings about "name is too long" */
 		warning("nikita-2221", "Failed to save sd for %llu: %i",
 			get_inode_oid(inode), result);
@@ -488,6 +490,7 @@ common_file_delete_no_reserve(struct inode *inode /* object to remove */ )
 		DQUOT_DROP(inode);
 
 		build_sd_key(inode, &sd_key);
+		write_current_tracef("..sd k %#llx", get_inode_oid(inode));
 		result = cut_tree(tree_by_inode(inode), &sd_key, &sd_key, NULL);
 		if (result == 0) {
 			inode_set_flag(inode, REISER4_NO_SD);
@@ -721,6 +724,8 @@ rem_link_common(struct inode *object, struct inode *parent UNUSED_ARG)
 	 */
 
 	INODE_DEC_FIELD(object, i_nlink);
+	assert("nikita-3407", inode_dir_plugin(object) == NULL ||
+	       object->i_nlink != 1 || object->i_size <= 1);
 	object->i_ctime = CURRENT_TIME;
 	return 0;
 }
@@ -1074,6 +1079,13 @@ perm(void)
 
 #define eperm ((void *)perm)
 
+static int
+can_rem_dir(const struct inode * inode)
+{
+	/* is_dir_empty() returns 0 is dir is empty */
+	return !is_dir_empty(inode);
+}
+
 /*
  * Definitions of object plugins.
  */
@@ -1152,13 +1164,13 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.key_by_inode = NULL,
 		.set_plug_in_inode = set_plug_in_inode_common,/*common_set_plug,*/
 		.adjust_to_parent = adjust_to_parent_dir,
-		.create = create_common, /*common_file_create,*/
+		.create = create_common,
 		.delete = delete_directory_common,
 		.add_link = add_link_common,
 		.rem_link = rem_link_common,
 		.owns_item = owns_item_hashed,
 		.can_add_link = can_add_link_common,
-		.can_rem_link = is_dir_empty,
+		.can_rem_link = can_rem_dir,
 		.not_linked = not_linked_dir,
 		.setattr = setattr_common,
 		.getattr = getattr_common,

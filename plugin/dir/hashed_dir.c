@@ -187,6 +187,11 @@ detach_hashed(struct inode *object, struct inode *parent)
 		warning("nikita-2253", "Cannot remove .. of %lli: %i",
 			get_inode_oid(object), result);
 
+	/* the dot should be the only entry remaining at this time... */
+	assert("nikita-3400", object->i_size == 1);
+	/* and it provides for the only remaining reference */
+	assert("nikita-3401", object->i_nlink == 1);
+
 	reiser4_del_nlink(parent, object, 0);
 	return 0;
 }
@@ -402,11 +407,13 @@ replace_name(struct inode *to_inode	/* inode where @from_coord is
 		*/
 		result = reiser4_del_nlink(from_inode, from_dir, 0);
 		if (result != 0) {
-			warning("nikita-2330", "Cannot remove link from source: %i. %s", result, possible_leak);
-			/* Has to return success, because entry is already
-			   modified. */
-			result = 0;
+			warning("nikita-2330",
+				"Cannot remove link from source: %i. %s",
+				result, possible_leak);
 		}
+		/* Has to return success, because entry is already
+		 * modified. */
+		result = 0;
 
 		/* NOTE-NIKITA consider calling plugin method in stead of
 		   accessing inode fields directly. */
@@ -441,9 +448,7 @@ add_name(struct inode *inode	/* inode where @coord is to be
 	xmemset(&entry, 0, sizeof entry);
 	entry.obj = inode;
 	/* build key of directory entry description */
-	result = inode_dir_plugin(dir)->build_entry_key(dir, &name->d_name, &entry.key);
-	if (result != 0)
-		return result;
+	inode_dir_plugin(dir)->build_entry_key(dir, &name->d_name, &entry.key);
 
 	/* ext2 does this in different order: first inserts new entry,
 	   then increases directory nlink. We don't want do this,
@@ -755,7 +760,8 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 	init_lh(&new_lh);
 
 	/* find entry for @new_name */
-	result = find_entry(new_dir, new_name, &new_lh, ZNODE_WRITE_LOCK, &new_entry);
+	result = find_entry(new_dir,
+			    new_name, &new_lh, ZNODE_WRITE_LOCK, &new_entry);
 
 	if (IS_CBKERR(result)) {
 		done_lh(&new_lh);
@@ -769,9 +775,26 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 		/* target (@new_name) exists. */
 		/* Not clear what to do with objects that are
 		   both directories and files at the same time. */
-		if (result == CBK_COORD_FOUND)
-			result = replace_name(old_inode, new_dir, new_inode, new_coord, &new_lh);
-		else if (result == CBK_COORD_NOTFOUND) {
+		if (result == CBK_COORD_FOUND) {
+			result = replace_name(old_inode,
+					      new_dir,
+					      new_inode,
+					      new_coord,
+					      &new_lh);
+			if (result == 0) {
+				file_plugin *fplug;
+
+				fplug = inode_file_plugin(new_inode);
+				/* detach @new_inode from name-space */
+				result = fplug->detach(new_inode, new_dir);
+				if (result != 0) {
+					warning("nikita-2330",
+						"Cannot detach %lli: %i. %s",
+						get_inode_oid(new_inode),
+						result, possible_leak);
+				}
+			}
+		} else if (result == CBK_COORD_NOTFOUND) {
 			/* VFS told us that @new_name is bound to existing
 			   inode, but we failed to find directory entry. */
 			warning("nikita-2324", "Target not found");
@@ -780,7 +803,11 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 	} else {
 		/* target (@new_name) doesn't exists. */
 		if (result == CBK_COORD_NOTFOUND)
-			result = add_name(old_inode, new_dir, new_name, new_coord, &new_lh, is_dir);
+			result = add_name(old_inode,
+					  new_dir,
+					  new_name,
+					  new_coord,
+					  &new_lh, is_dir);
 		else if (result == CBK_COORD_FOUND) {
 			/* VFS told us that @new_name is "negative" dentry,
 			   but we found directory entry. */
@@ -792,72 +819,79 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 	/* We are done with all modifications to the @new_dir, release lock on
 	   node. */
 	done_lh(&new_lh);
-	/* "capture" inodes */
-	reiser4_update_dir(new_dir);
+
 	if (new_inode != NULL)
 		reiser4_mark_inode_dirty(new_inode);
 
-	if (result != 0)
-		return result;
+	if (result == 0) {
+		xmemset(&old_entry, 0, sizeof old_entry);
+		old_entry.obj = old_inode;
 
-	xmemset(&old_entry, 0, sizeof old_entry);
-	old_entry.obj = old_inode;
-	result = dplug->build_entry_key(old_dir, &old_name->d_name, &old_entry.key);
-	if (result != 0)
-		return result;
+		dplug->build_entry_key(old_dir,
+				       &old_name->d_name, &old_entry.key);
 
-	/* At this stage new name was introduced for @old_inode. @old_inode,
-	   @new_dir, and @new_inode i_nlink counters were updated.
+		/* At this stage new name was introduced for
+		   @old_inode. @old_inode, @new_dir, and @new_inode i_nlink
+		   counters were updated.
 	
-	   We want to remove @old_name now. If @old_inode wasn't directory
-	   this is simple.
-	*/
-	result = rem_entry_hashed(old_dir, old_name, &old_entry);
-	if (result != 0) {
-		warning("nikita-2335", "Cannot remove old name: %i", result);
-	} else {
-		result = reiser4_del_nlink(old_inode, old_dir, 0);
+		   We want to remove @old_name now. If @old_inode wasn't
+		   directory this is simple.
+		*/
+		result = rem_entry_hashed(old_dir, old_name, &old_entry);
 		if (result != 0) {
-			warning("nikita-2337", "Cannot drop link on old: %i", result);
-		}
-	}
-
-	if (result == 0 && is_dir) {
-		/* @old_inode is directory. We also have to update dotdot
-		   entry. */
-		coord_t *dotdot_coord;
-		lock_handle dotdot_lh;
-		struct dentry dotdot_name;
-		reiser4_dir_entry_desc dotdot_entry;
-
-		xmemset(&dotdot_entry, 0, sizeof dotdot_entry);
-		dotdot_entry.obj = old_dir;
-		xmemset(&dotdot_name, 0, sizeof dotdot_name);
-		dotdot_name.d_name.name = "..";
-		dotdot_name.d_name.len = 2;
-
-		init_lh(&dotdot_lh);
-
-		dotdot_coord = &reiser4_get_dentry_fsdata(&dotdot_name)->dec.entry_coord;
-		coord_clear_iplug(dotdot_coord);
-
-
-		result = find_entry(old_inode, &dotdot_name, &dotdot_lh, ZNODE_WRITE_LOCK, &dotdot_entry);
-		if (result == 0) {
-			/* replace_name() decreases i_nlink on @old_dir */
-			result = replace_name(new_dir,
-					      old_inode,
-					      old_dir,
-					      dotdot_coord,
-					      &dotdot_lh);
+			warning("nikita-2335",
+				"Cannot remove old name: %i", result);
 		} else {
-			warning("nikita-2336", "Dotdot not found in %llu", get_inode_oid(old_inode));
-			result = RETERR(-EIO);
+			result = reiser4_del_nlink(old_inode, old_dir, 0);
+			if (result != 0) {
+				warning("nikita-2337",
+					"Cannot drop link on old: %i", result);
+			}
 		}
-		done_lh(&dotdot_lh);
-		reiser4_free_dentry_fsdata(&dotdot_name);
+
+		if (result == 0 && is_dir) {
+			/* @old_inode is directory. We also have to update
+			   dotdot entry. */
+			coord_t *dotdot_coord;
+			lock_handle dotdot_lh;
+			struct dentry dotdot_name;
+			reiser4_dir_entry_desc dotdot_entry;
+			reiser4_dentry_fsdata *fsdata;
+
+			xmemset(&dotdot_entry, 0, sizeof dotdot_entry);
+			dotdot_entry.obj = old_dir;
+			xmemset(&dotdot_name, 0, sizeof dotdot_name);
+			dotdot_name.d_name.name = "..";
+			dotdot_name.d_name.len = 2;
+
+			init_lh(&dotdot_lh);
+
+			fsdata = reiser4_get_dentry_fsdata(&dotdot_name);
+			dotdot_coord = &fsdata->dec.entry_coord;
+			coord_clear_iplug(dotdot_coord);
+
+
+			result = find_entry(old_inode, &dotdot_name, &dotdot_lh,
+					    ZNODE_WRITE_LOCK, &dotdot_entry);
+			if (result == 0) {
+				/* replace_name() decreases i_nlink on
+				 * @old_dir */
+				result = replace_name(new_dir,
+						      old_inode,
+						      old_dir,
+						      dotdot_coord,
+						      &dotdot_lh);
+			} else {
+				warning("nikita-2336",
+					"Dotdot not found in %llu",
+					get_inode_oid(old_inode));
+				result = RETERR(-EIO);
+			}
+			done_lh(&dotdot_lh);
+			reiser4_free_dentry_fsdata(&dotdot_name);
+		}
 	}
-	/* "capture" inodes */
+	reiser4_update_dir(new_dir);
 	reiser4_update_dir(old_dir);
 	reiser4_mark_inode_dirty(old_inode);
 	return result;
@@ -935,10 +969,43 @@ rem_entry_hashed(struct inode *object	/* directory from which entry
 	coord_t *coord;
 	lock_handle lh;
 	reiser4_dentry_fsdata *fsdata;
+	__u64 tograb;
+
+	/* yes, nested function, so what? Sue me. */
+	int rem_entry(void) {
+		item_plugin *iplug;
+		struct inode *child;
+
+		iplug = inode_dir_item_plugin(object);
+		child = where->d_inode;
+		assert("nikita-3399", child != NULL);
+
+		/* check that we are really destroying an entry for @child */
+		if (REISER4_DEBUG) {
+			int result;
+			reiser4_key key;
+
+			result = iplug->s.dir.extract_key(coord, &key);
+			if (result != 0)
+				return result;
+			if (get_key_objectid(&key) != get_inode_oid(child)) {
+				warning("nikita-3397",
+					"rem_entry: %#llx != %#llx\n",
+					get_key_objectid(&key),
+					get_inode_oid(child));
+				return RETERR(-EIO);
+			}
+		}
+		return iplug->s.dir.rem_entry(object,
+					      &where->d_name, coord, &lh, entry);
+	}
+
 	assert("nikita-1124", object != NULL);
 	assert("nikita-1125", where != NULL);
 
-	if (reiser4_grab_space(inode_dir_plugin(object)->estimate.rem_entry(object), BA_CAN_COMMIT | BA_RESERVED))
+	tograb = inode_dir_plugin(object)->estimate.rem_entry(object);
+	result = reiser4_grab_space(tograb, BA_CAN_COMMIT | BA_RESERVED);
+	if (result != 0)
 		return RETERR(-ENOSPC);
 	
 	init_lh(&lh);
@@ -947,6 +1014,11 @@ rem_entry_hashed(struct inode *object	/* directory from which entry
 	result = find_entry(object, where, &lh, ZNODE_WRITE_LOCK, entry);
 	fsdata = reiser4_get_dentry_fsdata(where);
 	coord = &fsdata->dec.entry_coord;
+
+	assert("nikita-3404",
+	       get_inode_oid(where->d_inode) != get_inode_oid(object) ||
+	       object->i_size <= 1);
+
 	coord_clear_iplug(coord);
 	if (result == 0) {
 		/* remove entry. Just pass control to the directory item
@@ -954,15 +1026,23 @@ rem_entry_hashed(struct inode *object	/* directory from which entry
 		assert("vs-542", inode_dir_item_plugin(object));
 		seal_done(&fsdata->dec.entry_seal);
 		adjust_dir_file(object, where, fsdata->dec.pos, -1);
-		result = WITH_COORD(coord,
-				    inode_dir_item_plugin(object)->s.dir.rem_entry(object, &where->d_name, coord, &lh, entry));
+		result = WITH_COORD(coord, rem_entry());
 		if (result == 0) {
 			if (object->i_size >= 1)
 				INODE_DEC_FIELD(object, i_size);
 			else {
-				warning("nikita-2509", "Dir %llu is runt", get_inode_oid(object));
+				warning("nikita-2509", "Dir %llu is runt",
+					get_inode_oid(object));
 				result = RETERR(-EIO);
 			}
+			write_current_tracef("..de k %#llx %#llx %i %lli",
+					     get_inode_oid(where->d_inode),
+					     get_inode_oid(object),
+					     where->d_inode->i_nlink,
+					     where->d_inode->i_size);
+			assert("nikita-3405", where->d_inode->i_nlink != 1 ||
+			       where->d_inode->i_size != 2 ||
+			       inode_dir_plugin(where->d_inode) == NULL);
 		}
 	}
 	done_lh(&lh);
@@ -1037,9 +1117,7 @@ find_entry(struct inode *dir /* directory to scan */,
 	coord_clear_iplug(coord);
 	seal = &dec->entry_seal;
 	/* compose key of directory entry for @name */
-	result = inode_dir_plugin(dir)->build_entry_key(dir, name, &entry->key);
-	if (result != 0)
-		return result;
+	inode_dir_plugin(dir)->build_entry_key(dir, name, &entry->key);
 
 	if (seal_is_set(seal)) {
 		/* check seal */

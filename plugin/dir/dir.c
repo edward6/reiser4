@@ -39,8 +39,6 @@ reiser4_update_dir(struct inode *dir)
 	assert("nikita-2525", dir != NULL);
 
 	dir->i_ctime = dir->i_mtime = CURRENT_TIME;
-	/* VS-FIXME-HANS: explain comment below or remove it */
-	/* "capture" inode */
 	return reiser4_mark_inode_dirty(dir);
 }
 
@@ -139,7 +137,7 @@ link_common(struct inode *parent /* parent directory */ ,
 		if (result != 0) {
 			/* failure to add entry to the parent, remove
 			   link from "existing" */
-			result = reiser4_del_nlink(object, parent, 1);
+			reiser4_del_nlink(object, parent, 1);
 			/* now, if this fails, we have a file with too
 			   big nlink---space leak, much better than
 			   directory entry pointing to nowhere */
@@ -147,7 +145,6 @@ link_common(struct inode *parent /* parent directory */ ,
 			   if addition of link to parent and update of
 			   object's stat data both failed, chances are
 			   that something is going really wrong */
-			/* NIKITA-FIXME-HANS: print a warning here, yes? */
 		}
 	}
 	if (result == 0) {
@@ -205,8 +202,7 @@ unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 	/* check for race with create_object() */
 	if (inode_get_flag(child, REISER4_IMMUTABLE))
 		return RETERR(-E_REPEAT);
-	/* NIKITA-FIXME-HANS: victim refers to? */
-	/* victim should have stat data */
+	/* object being deleted should have stat data */
 	assert("vs-949", !inode_get_flag(child, REISER4_NO_SD));
 
 	/* check permissions */
@@ -215,11 +211,8 @@ unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 		return result;
 
 	/* ask object plugin */
-	if (fplug->can_rem_link != NULL) {
-		result = fplug->can_rem_link(child);
-		if (result != 0)
-			return result;
-	}
+	if (fplug->can_rem_link != NULL && !fplug->can_rem_link(child))
+		return RETERR(-ENOTEMPTY);
 
 	result = (int)common_estimate_unlink(parent, child);
 	if (result < 0)
@@ -247,7 +240,7 @@ unlink_common(struct inode *parent /* parent object */ ,
 	object = victim->d_inode;
 	fplug  = inode_file_plugin(object);
 	assert("nikita-2882", fplug->detach != NULL);
-	
+
 	result = unlink_check_and_grab(parent, victim);
 	if (result == 0 && (result = fplug->detach(object, parent)) == 0) {
 		dir_plugin            *parent_dplug;
@@ -271,6 +264,9 @@ unlink_common(struct inode *parent /* parent object */ ,
 				   for update. --SUS */
 				result = reiser4_update_dir(parent);
 		}
+		if (unlikely(result != 0))
+			warning("nikita-3398", "Cannot unlink %llu (%i)",
+				get_inode_oid(object), result);
 	}
 	reiser4_release_reserved(object->i_sb);
 

@@ -300,8 +300,9 @@ typedef struct dir_plugin {
 	    Can check for maximal length, reserved symbols etc */
 	int (*is_name_acceptable) (const struct inode * inode, const char *name, int len);
 
-	int (*build_entry_key) (const struct inode * dir	/* directory where entry
-							 * is (or will be) in.*/ ,
+	void (*build_entry_key) (const struct inode * dir /* directory where
+							 * entry is (or will
+							 * be) in.*/ ,
 			  const struct qstr * name	/* name of file referenced
 							 * by this entry */ ,
 			  reiser4_key * result	/* resulting key of directory
