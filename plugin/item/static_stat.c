@@ -964,7 +964,7 @@ static int present_crypto_sd(struct inode *inode, char **area, int *len)
 	reiser4_crypto_stat *sd;
 	crypto_stat_t stat;
 	digest_plugin * dplug = inode_digest_plugin(inode);
-	/* IO_ERROR? */
+	
 	unsigned int keyid_size;
 	
 	assert("edward-06", dplug != NULL);
@@ -976,8 +976,6 @@ static int present_crypto_sd(struct inode *inode, char **area, int *len)
 	if (*len < (int) sizeof (reiser4_crypto_stat)) {
 		return not_enough_space(inode, "crypto-sd");
 	}	
-
-	/* FIXME-EDWARD assert */
 	keyid_size = dplug->digestsize;
 	/* *len is number of bytes in stat data item from *area to the end of
 	   item. It must be not less than size of this extension */
@@ -990,6 +988,11 @@ static int present_crypto_sd(struct inode *inode, char **area, int *len)
 	result = crypto_stat_to_inode(inode, &stat, keyid_size);
 	next_stat(len, area, sizeof(*sd) + keyid_size);
 	return result;
+}
+
+static int absent_crypto_sd(struct inode * inode)
+{
+	return -EIO;
 }
 
 static int save_len_crypto_sd(struct inode *inode)
@@ -1010,18 +1013,15 @@ static int save_crypto_sd(struct inode *inode, char **area)
 	
 	sd = (reiser4_crypto_stat *) *area;
 	if (!inode_get_flag(inode, REISER4_CRYPTO_STAT_LOADED)) {
-		/* file is just created, so update inode's crypto-stat
-		   which is a pointer to the temporary data */ 
+		/* file is just created */ 
 		crypto_stat_t * stat = reiser4_inode_data(inode)->crypt;
 		
 		assert("edward-15", stat != NULL);
-
-		reiser4_inode_data(inode)->crypt = NULL;
-		/* FIXME-EDWARD alloc data for stat in create_oblect */
-		result = crypto_stat_to_inode(inode, stat, dplug->digestsize);
+		
 		/* copy inode crypto-stat to the disk stat-data */
 		cputod16(stat->keysize, &sd->keysize);
 		xmemcpy(sd->keyid, stat->keyid, (size_t)dplug->digestsize);
+		inode_set_flag(inode, REISER4_CRYPTO_STAT_LOADED);
 	} else {
 		/* do nothing */
 	}
@@ -1069,6 +1069,11 @@ static int present_cluster_sd(struct inode *inode, char **area, int *len)
 	}
 	else
 		return not_enough_space(inode, "cluster sd");
+}
+
+static int absent_cluster_sd(struct inode * inode)
+{
+	return -EIO;
 }
 
 static int save_len_cluster_sd(struct inode *inode UNUSED_ARG)
@@ -1222,7 +1227,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				      .linkage = TS_LIST_LINK_ZERO}
 				,
 				.present = present_cluster_sd,
-				.absent = NULL,
+				.absent = absent_cluster_sd,
 				/* return IO_ERROR if smthng is wrong */
 				.save_len = save_len_cluster_sd,
 				.save = save_cluster_sd,
@@ -1241,7 +1246,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				      .linkage = TS_LIST_LINK_ZERO}
 				,
 				.present = present_crypto_sd,
-				.absent = NULL,
+				.absent = absent_crypto_sd,
 				/* return IO_ERROR if smthng is wrong */
 				.save_len = save_len_crypto_sd,
 				.save = save_crypto_sd,
