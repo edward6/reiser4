@@ -248,6 +248,7 @@ int assign_fake_blocknr (reiser4_block_nr *blocknr)
 	int ret;
 	reiser4_block_nr not_used;
 
+#if 0
 	ret = reiser4_reserve_blocks (&not_used, (reiser4_block_nr)1, (reiser4_block_nr)1);
 
 	if (ret != 0) return ret;
@@ -255,16 +256,13 @@ int assign_fake_blocknr (reiser4_block_nr *blocknr)
 	get_next_fake_blocknr (blocknr);
 
 	return 0;
-#if 0
+#else
 	if (1) {
 		space_allocator_plugin * splug;
 		reiser4_blocknr_hint preceder;
 		reiser4_block_nr one;
 
-		if (neighbor)
-			preceder.blk = ZJNODE (neighbor)->blocknr;
-		else
-			preceder.blk = 0;
+		preceder.blk = 0;
 
 		splug = get_current_super_private ()->space_plug;	
 		return splug->alloc_blocks (get_space_allocator (reiser4_get_current_sb ()),
