@@ -147,7 +147,8 @@ extern lock_counters_info *lock_counters(void);
 
 #if REISER4_TRACE
 /* helper macro for tracing, see trace_stamp() below. */
-#define trace_if( flags, e ) if( get_current_trace_flags() & (flags) ) e
+#define trace_if( flags, e ) 							\
+	if( get_current_context() && get_current_trace_flags() & (flags) ) e
 #else
 #define trace_if( flags, e ) noop
 #endif
