@@ -11,8 +11,6 @@
 
 #include "bitmap.h"
 
-#define REISERFS_ALLOC40_OFFSET (65536 + 8192)
-
 struct reiserfs_alloc40 {
     aal_device_t *device;
     reiserfs_bitmap_t *bitmap;

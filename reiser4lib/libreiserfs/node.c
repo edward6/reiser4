@@ -110,6 +110,14 @@ void reiserfs_node_close(reiserfs_node_t *node) {
     aal_free(node);
 }
 
+error_t reiserfs_node_add(reiserfs_node_t *node, reiserfs_node_t *child) {
+    aal_assert("umka-480", node != NULL, return -1);
+    aal_assert("umka-481", child != NULL, return -1);
+
+    child->parent = node;
+    return 0;
+}
+
 error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
     aal_assert("umka-123", node != NULL, return -1);
 

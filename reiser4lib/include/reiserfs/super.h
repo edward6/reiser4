@@ -17,8 +17,8 @@ extern void reiserfs_super_close(reiserfs_fs_t *fs);
 extern error_t reiserfs_super_sync(reiserfs_fs_t *fs);
 
 extern error_t reiserfs_super_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format_plugin_id, 
-    reiserfs_plugin_id_t journal_plugin_id, reiserfs_plugin_id_t alloc_plugin_id, 
-    reiserfs_plugin_id_t node_plugin_id, count_t len);
+    reiserfs_plugin_id_t journal_plugin_id, reiserfs_plugin_id_t alloc_plugin_id,
+    reiserfs_plugin_id_t oid_plugin_id, reiserfs_plugin_id_t node_plugin_id, count_t len);
 
 extern const char *reiserfs_super_format(reiserfs_fs_t *fs);
 

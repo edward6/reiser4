@@ -57,7 +57,6 @@ struct reiserfs_alloc {
 
 typedef struct reiserfs_alloc reiserfs_alloc_t;
 
-/* Tree related strucres */
 /* 
     On memory structure to work with items
     Thougth: the key should not exist here, 
@@ -78,15 +77,20 @@ struct reiserfs_node_common_header {
 
 typedef struct reiserfs_node_common_header reiserfs_node_common_header_t;
 
+typedef struct reiserfs_node reiserfs_node_t;
+
 struct reiserfs_node {
     aal_device_t *device;
     aal_block_t *block;
+    
     reiserfs_opaque_t *entity;
     reiserfs_plugin_t *plugin;
+
+    reiserfs_node_t *parent;
+    aal_list_t *childs;
 };
 
-typedef struct reiserfs_node reiserfs_node_t;
-
+/* Tree structure */
 struct reiserfs_tree {
     reiserfs_node_t *root;
 };
@@ -114,10 +118,11 @@ extern void reiserfs_fs_close(reiserfs_fs_t *fs);
 extern error_t reiserfs_fs_sync(reiserfs_fs_t *fs);
 	
 extern reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
-    reiserfs_plugin_id_t format_plugin_id, reiserfs_plugin_id_t alloc_plugin_id, 
-    reiserfs_plugin_id_t journal_plugin_id, reiserfs_plugin_id_t node_plugin_id, 
-    size_t blocksize, const char *uuid, const char *label, count_t len, 
-    aal_device_t *journal_device, reiserfs_params_opaque_t *journal_params);
+    reiserfs_plugin_id_t format_plugin_id, reiserfs_plugin_id_t journal_plugin_id, 
+    reiserfs_plugin_id_t alloc_plugin_id, reiserfs_plugin_id_t oid_plugin_id, 
+    reiserfs_plugin_id_t node_plugin_id, size_t blocksize, const char *uuid, 
+    const char *label, count_t len, aal_device_t *journal_device, 
+    reiserfs_params_opaque_t *journal_params);
 
 extern const char *reiserfs_fs_format(reiserfs_fs_t *fs);
 extern uint16_t reiserfs_fs_blocksize(reiserfs_fs_t *fs);
