@@ -218,7 +218,7 @@ static int
 cluster_key_by_inode(struct inode *inode, loff_t off, reiser4_key * key)
 {
 	assert("edward-64", inode != 0);
-	assert("edward-112", !(off & ~(~0UL << inode_cluster_shift(inode))));
+	assert("edward-112", !(off & ~(~0UL << inode_cluster_shift(inode) << PAGE_CACHE_SHIFT)));
 	/* don't come here with other offsets */
 	
 	build_sd_key(inode, key);
