@@ -318,8 +318,8 @@ typedef struct space_allocator_plugin {
 	int ( *destroy_allocator )( reiser4_space_allocator *,
 				    struct super_block *);
 	int ( *alloc_blocks )( reiser4_blocknr_hint *, int needed,
-			       reiser4_block_nr *start, int *len );
-	void ( *dealloc_blocks )( reiser4_block_nr start, int len );
+			       reiser4_block_nr *start, reiser4_block_nr *len );
+	void ( *dealloc_blocks )( reiser4_block_nr start, reiser4_block_nr len );
 
 	/* program hooks from journal code */
 	void ( *pre_commit_hook      )( txn_atom * );
@@ -370,10 +370,8 @@ union reiser4_plugin {
 	perm_plugin             perm;
 	/** node plugin */
 	node_plugin             node;
-#if 0
 	/** item plugin */
 	item_plugin             item;
-#endif
 	/** stat-data extension plugin */
 	sd_ext_plugin           sd_ext;
 	/** disk layout plugin */
@@ -555,9 +553,7 @@ static inline reiser4_plugin_id TYPE ## _id( TYPE* plugin )		\
 }									\
 typedef struct { int foo; } TYPE ## _plugin_dummy
 
-#if 0
-PLUGIN_BY_ID(common_item_plugin,REISER4_ITEM_PLUGIN_TYPE,item);
-#endif
+PLUGIN_BY_ID(item_plugin,REISER4_ITEM_PLUGIN_TYPE,item);
 PLUGIN_BY_ID(file_plugin,REISER4_FILE_PLUGIN_TYPE,file);
 PLUGIN_BY_ID(dir_plugin,REISER4_DIR_PLUGIN_TYPE,dir);
 PLUGIN_BY_ID(node_plugin,REISER4_NODE_PLUGIN_TYPE,node);

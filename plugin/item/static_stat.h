@@ -64,18 +64,6 @@ reiser4 is working, then fix it...:-)
     Implementation is in fs/reiser4/plugin/item/static_stat.c
 */
 
-/** operations specific to sd item. Used in 
-    fs/reiser4/plugin/item/item.h:item_ops */
-typedef struct {
-	int ( *init_inode )( struct inode *inode, char *sd, int len );
-	int ( *save_len ) ( struct inode *inode );
-	int ( *save ) ( struct inode *inode, char **area );
-	common_item_plugin *common;
-} sd_plugin;
-
-extern sd_plugin sd_plugins [];
-sd_plugin *find_sd_plugin (unsigned);
-
 
 /** stat-data extension. Please order this by presumed frequency of use */
 typedef enum {
@@ -165,7 +153,10 @@ typedef struct reiser4_large_times_stat {
 	/* 24 */
 } reiser4_large_times_stat;
 
+/* plugin->item.common.* */
 extern void sd_print( const char *prefix, tree_coord *coord );
+
+/* plugin->item.s.sd.* */
 extern int sd_load( struct inode *inode, char *sd, int len );
 extern int sd_len( struct inode *inode );
 extern int sd_save( struct inode *inode, char **area );
