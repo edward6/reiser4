@@ -12,8 +12,8 @@
 
 #ifndef ENABLE_COMPACT
 
-static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format_plugin_id, 
-    unsigned int blocksize, const char *uuid, const char *label) 
+static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t 
+    format_plugin_id, unsigned int blocksize, const char *uuid, const char *label) 
 {
     aal_assert("umka-142", fs != NULL, return -1);
     
@@ -195,7 +195,7 @@ error:
 #ifndef ENABLE_COMPACT
 
 reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
-    reiserfs_plugin_id_t format_plugin_id, reiserfs_plugin_id_t node_plugin_id, 
+    reiserfs_plugin_id_t format_id, reiserfs_plugin_id_t node_id, 
     size_t blocksize, const char *uuid, const char *label, count_t len, 
     aal_device_t *journal_device, reiserfs_params_opaque_t *journal_params)
 {
@@ -217,10 +217,10 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
     fs->host_device = host_device;
     fs->journal_device = journal_device;
 
-    if (reiserfs_master_create(fs, format_plugin_id, blocksize, uuid, label))    
+    if (reiserfs_master_create(fs, format_id, blocksize, uuid, label))    
 	goto error_free_fs;
 
-    if (reiserfs_format_create(fs, format_plugin_id, len, journal_params))
+    if (reiserfs_format_create(fs, format_id, len, journal_params))
 	goto error_free_master;
 
     if (reiserfs_alloc_init(fs))
@@ -229,7 +229,62 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
     if (reiserfs_journal_init(fs, 0))
 	goto error_free_alloc;
 
-    if (reiserfs_oid_init(fs))
+    if (reiserfs_tree_create(fs, node_id))
+	goto error_free_journal;
+    
+    reiserfs_format_set_free(fs, reiserfs_alloc_free(fs));
+    return fs;
+
+error_free_journal:
+    reiserfs_journal_close(fs);
+error_free_alloc:
+    reiserfs_alloc_close(fs);
+error_free_super:
+    reiserfs_format_close(fs);
+error_free_master:
+    reiserfs_master_close(fs);    
+error_free_fs:
+    aal_free(fs);
+error:
+    return NULL;
+}
+
+reiserfs_fs_t *reiserfs_fs_create_2(aal_device_t *host_device, 
+    reiserfs_default_plugin_t *default_plugins, size_t blocksize, const char *uuid, 
+    const char *label, count_t len, aal_device_t *journal_device, 
+    reiserfs_params_opaque_t *journal_params)
+{
+    reiserfs_fs_t *fs;
+
+    aal_assert("umka-149", host_device != NULL, return NULL);
+    aal_assert("umka-150", journal_device != NULL, return NULL);
+
+    if (!aal_pow_of_two(blocksize)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Invalid block size %u. It must be power of two.", 
+	    blocksize);
+	return NULL;
+    }
+
+    if (!(fs = aal_calloc(sizeof(*fs), 0)))
+	return NULL;
+	
+    fs->host_device = host_device;
+    fs->journal_device = journal_device;
+
+    if (reiserfs_master_create(fs, default_plugins->format, blocksize, uuid, label))    
+	goto error_free_fs;
+
+    if (reiserfs_format_create(fs, default_plugins->format, len, journal_params))
+	goto error_free_master;
+
+    if (reiserfs_alloc_init(fs))
+	goto error_free_super;
+
+    if (reiserfs_journal_init(fs, 0))
+	goto error_free_alloc;
+
+    if (reiserfs_tree_create_2(fs, default_plugins))
 	goto error_free_journal;
     
     if (reiserfs_tree_create(fs, node_plugin_id))
@@ -313,4 +368,9 @@ uint16_t reiserfs_fs_blocksize(reiserfs_fs_t *fs) {
     
     return get_mr_block_size(fs->master);
 }
+
+void reiserfs_init_item_info(reiserfs_item_info_t *item_info) {
+    aal_memset(item_info, 0, sizeof *item_info);
+}
+
 
