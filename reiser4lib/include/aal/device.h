@@ -36,7 +36,7 @@ struct aal_device_ops {
 };
 
 struct aal_device_block {
-    int dirty;
+    int flags;
     void *data;
     uint64_t offset;
     aal_device_t *device;
@@ -68,6 +68,14 @@ extern int aal_device_write_block(aal_device_t *device, aal_device_block_t *bloc
 extern blk_t aal_device_get_block_location(aal_device_block_t *block);
 extern void aal_device_set_block_location(aal_device_block_t *block, blk_t blk);
 extern void aal_device_free_block(aal_device_block_t *block);
+
+#define B_DIRTY 0 
+
+#define aal_block_get_size(block) aal_device_get_blocksize(block->device)
+
+#define aal_mark_block_dirty(block) set_bit  (block->flags, B_DIRTY)
+#define aal_block_dirty(block)	    test_bit (block->flags, B_DIRTY)
+#define aal_mark_block_clean(block) clear_bit(block->flags, B_DIRTY)
 
 #endif
 
