@@ -50,7 +50,7 @@
 
 #define CHECKSUM_SIZE    4
 
-#define bmap_size(blocksize)	    (blocksize - CHECKSUM_SIZE)
+#define bmap_size(blocksize)	    ((blocksize) - CHECKSUM_SIZE)
 #define bmap_bit_count(blocksize)   (bmap_size(blocksize) << 3)
 
 /* Block allocation/deallocation are done through special bitmap objects which
