@@ -264,7 +264,7 @@ lookup_pseudo_file(struct inode *parent, struct dentry **dentry)
 	assert("nikita-2999", parent != NULL);
 	assert("nikita-3000", dentry != NULL);
 
-	return -RETERR(-ENOENT);
+	return RETERR(-ENOENT);
 
 	/* if pseudo files are disabled for this file system bail out */
 	if (reiser4_is_set(parent->i_sb, REISER4_NO_PSEUDO))
