@@ -4,7 +4,7 @@ Reiser4 is hereby licensed under the GNU General
 Public License version 2.
 
 Source code files that contain the phrase "licensing governed by
-COPYRIGHT" are "governed files" throughout this file.  Governed
+COPYING" are "governed files" throughout this file.  Governed
 files are licensed under the GPL.  The portions of them owned by Hans
 Reiser, or authorized to be licensed by him, have been in the past,
 and likely will be in the future, licensed to other parties under
