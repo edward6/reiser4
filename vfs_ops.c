@@ -1028,6 +1028,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 
 	sbinfo->tmgr.atom_max_size = txnmgr_get_max_atom_size(s);
 	sbinfo->tmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
+	sbinfo->tmgr.atom_max_flushers = ATOM_MAX_FLUSHERS;
 
 	sbinfo->tree.cbk_cache.nr_slots = CBK_CACHE_SLOTS;
 
@@ -1035,7 +1036,6 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	sbinfo->flush.relocate_distance = FLUSH_RELOCATE_DISTANCE;
 	sbinfo->flush.written_threshold = FLUSH_WRITTEN_THRESHOLD;
 	sbinfo->flush.scan_maxnodes = FLUSH_SCAN_MAXNODES;
-
 
 	sbinfo->optimal_io_size = REISER4_OPTIMAL_IO_SIZE;
 
