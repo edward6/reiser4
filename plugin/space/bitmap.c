@@ -430,14 +430,27 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 		down (&bnode->sema);
 
 		if (bnode->loaded) {
-			assert ("zam-480", jnode_page (&bnode->cjnode) != NULL);
-			assert ("zam-633", jnode_page (&bnode->wjnode) != NULL);
+			jnode *wj = &bnode->wjnode;
+			jnode *cj = &bnode->cjnode;
 
-			jput (&bnode->wjnode);
-			jdrop(&bnode->wjnode);
+			assert ("zam-480", jnode_page (cj) != NULL);
+			assert ("zam-633", jnode_page (wj) != NULL);
 
-			jput (&bnode->cjnode);
-			jdrop(&bnode->cjnode);
+			if (REISER4_DEBUG) {
+				jload(wj);
+				jload(cj);
+
+				assert ("zam-634", memcmp(jdata(wj), jdata(wj), super->s_blocksize) == 0);
+
+				jrelse(wj);
+				jrelse(cj);
+			}
+
+			jput (wj);
+			jdrop(cj);
+
+			jput (wj);
+			jdrop(cj);
 
 			/* FIXME: check for page state and ref count should be
 			 * added here */
