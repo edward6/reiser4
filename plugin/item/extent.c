@@ -1552,10 +1552,7 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 		assert ("vs-707", znode_get_level (coord->node) == LEAF_LEVEL);
 
 		/* @coord must be set for inserting of new item */
-		assert ("vs-711", (coord->between == AFTER_ITEM ||
-				   coord->between == BEFORE_ITEM ||
-				   (coord->between == EMPTY_NODE &&
-				    node_is_empty (coord->node))));
+		assert ("vs-711", coord_is_between_items( coord) );
 
 		hole_key = *key;
 		set_key_offset (&hole_key, 0ull);
