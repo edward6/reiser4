@@ -83,9 +83,11 @@ static int crc_file_create(struct inode *object, struct inode *parent, reiser4_o
 	assert("edward-32", !memcmp(info->keyid, crc_data->keyid, sizeof (reiser4_keyid_stat)));
 
 	reiser4_kfree(info->keyid, sizeof (reiser4_keyid_stat));
+	inode_clr_flag(object, REISER4_KEYID_LOADED);
 	
  destroy_key:
 	xmemset(info->expkey, 0, cplug->keysize);
 	reiser4_kfree(info->expkey, cplug->keysize);
+	inode_clr_flag(object, REISER4_SECRET_KEY_INSTALLED);
 	return result;
 }
