@@ -94,14 +94,19 @@ static error_t reiserfs_node40_check(reiserfs_node40_t *node, int flags) {
 
 static uint32_t reiserfs_node40_item_maxsize(reiserfs_node40_t *node) {
     aal_assert("vpf-016", node != NULL, return 0);
- 
-    return 0;
+
+    return node->block->size - sizeof(reiserfs_node40_header_t) - 
+	sizeof(reiserfs_item_header40_t);
 }
 
 static uint32_t reiserfs_node40_item_maxnum(reiserfs_node40_t *node) {
     aal_assert("vpf-017", node != NULL, return 0);
-    
-    return 0;
+   
+    /*FIXME: this function probably should get item pligin id and call 
+	item.common.minsize method
+    */
+    return (node->block->size - sizeof(reiserfs_node40_header_t)) / 
+	(sizeof(reiserfs_item_header40_t) + 1);
 }
 
 static uint32_t reiserfs_node40_item_count(reiserfs_node40_t *node) {
@@ -109,6 +114,7 @@ static uint32_t reiserfs_node40_item_count(reiserfs_node40_t *node) {
     return get_nh40_num_items(reiserfs_node40_header(node));
 }
 
+/* this shound not be an interface method */
 static uint8_t reiserfs_node40_level(reiserfs_node40_t *node) {
     aal_assert("vpf-019", node != NULL, return 0);
     return get_nh40_level(reiserfs_node40_header(node));
@@ -156,7 +162,7 @@ static int reiserfs_node40_lookup(reiserfs_node40_t *node, reiserfs_key_t *key,
 	reiserfs_node40_key_at, reiserfs_misc_comp_keys, &pos)) == -1)
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Binary search failed on node %d.", 
+	    "Search within the node %d failed.", 
 	    aal_device_get_block_location(node->device, node->block));
 	return 0;
     }
@@ -176,7 +182,7 @@ static int reiserfs_node40_lookup(reiserfs_node40_t *node, reiserfs_key_t *key,
 	    return found;
 	}
 
-/*    	Uncomment this when method's interfaces will be ready
+/*	Uncomment this when item method's interfaces will be ready
 	if there is no item lookup method implemented, return coord with 
 	unit_pos == -1.
 	
@@ -188,24 +194,26 @@ static int reiserfs_node40_lookup(reiserfs_node40_t *node, reiserfs_key_t *key,
 }
 
 static error_t reiserfs_node40_insert(reiserfs_coord_t *where, 
-    reiserfs_item_data_t *item) 
+    reiserfs_item_info_t *item_info) 
 {
+    int num, i;
     uint32_t size, offset;
     reiserfs_node40_t * node;
     void *position, *end_position;
+    reiserfs_item_header40_t *ih;
+    reiserfs_plugin_id_t plugin_id;
+    reiserfs_plugin_t *plugin;
 	
     aal_assert("vpf-006", where != NULL, return -1);
-    aal_assert("vpf-007", item != NULL, return -1);
+    aal_assert("vpf-007", item_info != NULL, return -1);
 
     node = (reiserfs_node40_t *)where->node;
     
     aal_assert("vpf-026", get_nh40_free_space(reiserfs_node40_header(node)) >= 
-	item->length + sizeof(reiserfs_node40_header_t), return -1);
+	item_info->length + sizeof(reiserfs_node40_header_t), return -1);
     
     aal_assert("vpf-027", where->item_pos <= (int)reiserfs_node40_item_count(node), return -1);
-    aal_assert("vpf-027", where->unit_pos >= 0, return -1);
-
-    /* First of all create an item if needed */
+    aal_assert("vpf-021", where->unit_pos >= 0, return -1);
 
     /* Insert free space for item */
 
@@ -217,12 +225,44 @@ static error_t reiserfs_node40_insert(reiserfs_coord_t *where,
     
     position -= size;
 
-    aal_memcpy(position + item->length, position, size);
+    aal_memcpy(position + item_info->length, position, size);
 
-    /* Insert item */
+    /* Insert item or create it if needed */
 
+    plugin_id = item_info->plugin_id;
+    
+    if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_ITEM_PLUGIN, plugin_id))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Item plugin cannot be find by its identifier %x.", plugin_id);
+    } else {
+	/* Uncomment this when item methods will be implemented
+	    item.create (position, data_info);
+	*/
+    }
+
+    
     /* Insert item header */
 
+    position = reiserfs_node40_ih_at(node, where->item_pos);
+
+    size = (reiserfs_node40_item_count(node) - where->item_pos) 
+	* sizeof (reiserfs_item_header40_t);
+	
+    aal_memcpy(position - size, position - size + sizeof (reiserfs_item_header40_t), size);
+
+    /* update ih's->offset */
+    /* Initialize item header */
+    
+    ih = (reiserfs_item_header40_t *)position;
+    
+    /* this should be probably changed to smth like 
+       item.common.get_min_key or item_plugin.get_min_key */
+    ih->key = *item_info->key;
+    
+    ih->plugin_id = item_info->plugin_id;
+    ih->length = item_info->length;
+    ih->offset = position - reiserfs_node40_data(where);
+        
     return 0;
 }
 
