@@ -753,7 +753,6 @@ static int common_getattr( struct vfsmount *mnt UNUSED_ARG,
 	stat -> atime   = obj -> i_atime;
 	stat -> mtime   = obj -> i_mtime;
 	stat -> ctime   = obj -> i_ctime;
-	stat -> ctime   = obj -> i_ctime;
 	stat -> size    = obj -> i_size;
 	stat -> blocks  = obj -> i_blocks;
 	stat -> blksize = obj -> i_blksize;
