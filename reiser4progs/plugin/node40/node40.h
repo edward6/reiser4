@@ -14,20 +14,22 @@
 /* (*(__u32 *)"R4FS"); */
 #define REISERFS_NODE40_MAGIC 0x52344653
 
-typedef struct flush_stamp {
+typedef struct reiserfs_flush_stamp {
     uint32_t mkfs_id;
     uint64_t flush_time;
-} flush_stamp_t;
+} reiserfs_flush_stamp_t;
 
 /* Format of node header for node40 */
 struct reiserfs_nh40 {
     reiserfs_node_header_t header;
+    
     uint16_t free_space;
     uint16_t free_space_start;
     uint8_t level;
     uint32_t magic;
     uint16_t num_items;
-    flush_stamp_t flush_stamp;
+    
+    reiserfs_flush_stamp_t flush_stamp;
 };
 
 typedef struct reiserfs_nh40 reiserfs_nh40_t;  
