@@ -985,7 +985,7 @@ blocknr_by_coord_in_extent(const coord_t * coord, reiser4_block_nr off)
 	assert("vs-264", state_of_extent(extent_by_coord(coord)) == ALLOCATED_EXTENT);
 	check_me("vs-1092", offset_is_in_extent(coord, off, &pos_in_unit));
 
-	return extent_get_start(extent_by_coord(coord) + pos_in_unit);
+	return extent_get_start(extent_by_coord(coord)) + pos_in_unit;
 }
 
 /**
