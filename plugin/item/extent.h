@@ -3,16 +3,6 @@
 #ifndef __REISER4_EXTENT_H__
 #define __REISER4_EXTENT_H__
 
-#include "../../forward.h"
-#include "../../debug.h"
-#include "../../dformat.h"
-#include "item.h"
-#include "../../seal.h"
-
-#include <linux/types.h>	/* for __u??  */
-#include <linux/fs.h>		/* for struct super_block  */
-#include <linux/mm.h>		/* for struct page */
-
 /* on disk extent */
 typedef struct {
 	reiser4_dblock_nr start;
@@ -100,7 +90,7 @@ int extent_check(const coord_t * coord, const char **error);
 /* plugin->u.item.s.file.* */
 int extent_write(struct inode *, coord_t *, lock_handle *, flow_t *);
 int extent_read(struct file *, coord_t *, flow_t *);
-int extent_readpage(const coord_t *, struct page *page);
+int extent_readpage(coord_t *, struct page *page);
 void extent_readpages(coord_t *, struct address_space *, struct list_head *pages);
 int extent_writepage(coord_t *, lock_handle *, struct page *);
 #if 0

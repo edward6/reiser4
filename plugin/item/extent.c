@@ -1,31 +1,28 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-#include "../../forward.h"
-#include "../../dformat.h"
-#include "../../debug.h"
-#include "../../key.h"
-#include "../../kassign.h"
-#include "../../coord.h"
 #include "item.h"
-#include "extent.h"
+#include "../../key.h"
+#include "../../tree.h"
+#include "../../super.h"
+#include "../../carry.h"
+#include "../../inode.h"
+#include "../../page_cache.h"
+
+/*
 #include "../plugin.h"
-#include "../object.h"
+#include "../../coord.h"
+#include "../../super.h"
 #include "../../txnmgr.h"
-#include "../../jnode.h"
 #include "../../block_alloc.h"
-#include "../../znode.h"
 #include "../../carry.h"
 #include "../../tap.h"
-#include "../../super.h"
 #include "../../page_cache.h"
-#include "../../tree.h"
 #include "../../inode.h"
-
-#include <asm/uaccess.h>
-#include <linux/pagemap.h>
-#include <linux/writeback.h>
+*/
 #include <linux/quotaops.h>
-#include <linux/fs.h>		/* for struct address_space  */
+#include <asm/uaccess.h>
+#include <linux/writeback.h>
+#include <linux/pagemap.h>
 
 static const reiser4_block_nr null_block_nr = (__u64) 0;
 
@@ -870,7 +867,7 @@ optimize_extent(const coord_t * item)
 /* return 1 if offset @off is inside of extent unit pointed to by @coord. Set pos_in_unit inside of unit
    correspondingly */
 static int
-offset_is_in_extent(const coord_t * coord, loff_t off, reiser4_block_nr * pos_in_unit)
+offset_is_in_unit(const coord_t * coord, loff_t off, reiser4_block_nr * pos_in_unit)
 {
 	reiser4_key unit_key;
 	loff_t unit_off;
@@ -889,6 +886,36 @@ offset_is_in_extent(const coord_t * coord, loff_t off, reiser4_block_nr * pos_in
 	return 1;
 }
 
+static int
+offset_is_in_item(coord_t * coord, loff_t off, reiser4_block_nr * pos_in_unit)
+{
+	reiser4_extent *ext;
+	reiser4_key item_key;
+	loff_t cur;
+	unsigned i, nr_units;
+	int bits;
+
+	item_key_by_coord(coord, &item_key);
+	cur = get_key_offset(&item_key);
+	if (off < cur)
+		return 0;
+
+	bits = current_blocksize_bits;
+	ext = extent_item(coord);
+	nr_units = extent_nr_units(coord);
+
+	for (i = 0; i < nr_units; i++, ext++) {
+		*pos_in_unit = ((off - cur) >> bits);
+		if (*pos_in_unit < extent_get_width(ext)) {
+			coord->unit_pos = i;
+			coord->between = AT_UNIT;
+			return 1;
+		}
+		cur += (extent_get_width(ext) << bits);
+	}
+	return 0;
+}
+
 /* @coord is set to allocated extent. offset @off is inside that extent. return number of block corresponding to offset
    @off */
 static reiser4_block_nr
@@ -898,7 +925,7 @@ blocknr_by_coord_in_extent(const coord_t * coord, reiser4_block_nr off)
 
 	assert("vs-12", coord_is_existing_unit(coord));
 	assert("vs-264", state_of_extent(extent_by_coord(coord)) == ALLOCATED_EXTENT);
-	check_me("vs-1092", offset_is_in_extent(coord, off, &pos_in_unit));
+	check_me("vs-1092", offset_is_in_unit(coord, off, &pos_in_unit));
 
 	return extent_get_start(extent_by_coord(coord)) + pos_in_unit;
 }
@@ -2555,7 +2582,7 @@ plug_hole(coord_t * coord, lock_handle * lh, reiser4_key * key)
 
 	ext = extent_by_coord(coord);
 	width = extent_get_width(ext);
-	check_me("vs-1090", offset_is_in_extent(coord, get_key_offset(key), &pos_in_unit));
+	check_me("vs-1090", offset_is_in_unit(coord, get_key_offset(key), &pos_in_unit));
 
 	if (width == 1) {
 		set_extent(ext, UNALLOCATED_EXTENT, 0, 1ull);
@@ -2806,7 +2833,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 	do {
 		unsigned long index;
 
-		result = reserve_extent_write_iteration(tree_by_inode(inode)->height);
+		result = reserve_extent_write_iteration(znode_get_tree(coord->node)->height);
 		if (result)
 			break;
 		/* number of bytes to be written to page */
@@ -2921,7 +2948,7 @@ extent_write_hole(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 	int result;
 	loff_t new_size;
 
-	result = extent_hole_reserve(tree_by_inode(inode)->height);
+	result = extent_hole_reserve(znode_get_tree(coord->node)->height);
 	if (result)
 		return result;
 
@@ -3056,7 +3083,7 @@ extent_read(struct file *file, coord_t *coord, flow_t * f)
    locked, coord is set to existing unit inside of extent item
 */
 int
-extent_readpage(const coord_t * coord, struct page *page)
+extent_readpage(coord_t * coord, struct page *page)
 {
 	ON_DEBUG(reiser4_key key;)
 	reiser4_block_nr pos;
@@ -3073,7 +3100,9 @@ extent_readpage(const coord_t * coord, struct page *page)
 	assert("vs-1046", coord_is_existing_unit(coord));
 	assert("vs-1045", znode_is_rlocked(coord->node));
 	assert("vs-1047", (page->mapping->host->i_ino == get_key_objectid(item_key_by_coord(coord, &key))));
-	check_me("vs-1048", offset_is_in_extent(coord, ((loff_t) page->index) << PAGE_CACHE_SHIFT, &pos));
+
+	if (!offset_is_in_item(coord, ((loff_t) page->index) << PAGE_CACHE_SHIFT, &pos))
+		return -EINVAL;
 
 	switch (state_of_extent(extent_by_coord(coord))) {
 	case HOLE_EXTENT:
