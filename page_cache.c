@@ -227,7 +227,13 @@ static int page_cache_delete_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 /** ->drop_node method of page-cache based tree operations */
 static int page_cache_drop_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
+	struct page *page = jnode_page( node );
 	trace_on( TRACE_PCACHE, "drop node: %p\n", node );
+
+	if ( page ) {
+		/* If there is a page, clear it's dirty flag, so that it won't be attempted to be written to disk later */
+		ClearPageDirty( page );
+	}
  	jnode_detach_page( node );
 	return 0;
 }
