@@ -257,7 +257,8 @@ static int renew_sibling_link (tree_coord * coord, reiser4_lock_handle * handle,
 			if (handle->owner != NULL)
 				reiser4_unlock_znode(handle);
 			link_znodes(child, NULL, flags & GN_GO_LEFT);
-			return -ENOENT;
+			/* we know there can't be formatted neighbor*/
+			return -ENAVAIL;
 		}
 
 		if (handle->owner != NULL) {
@@ -330,7 +331,10 @@ static int connect_one_side (tree_coord * coord, znode * node, int flags)
 		reiser4_unlock_znode(&handle);
 	}
 
-	if (ret == -ENOENT) return 0;
+	/* we catch error codes which are not interesting for us because we
+	 * run renew_sibling_link() only for znode connection. */
+	if (ret == -ENOENT || ret == -ENAVAIL) 
+		return 0;
 
 	return ret;
 }
@@ -408,8 +412,10 @@ static int renew_neighbor (tree_coord * coord, znode * node, tree_level level, i
 
 	ret = renew_sibling_link(&local, &empty[nr_locked], neighbor,
 				 level, flags | GN_NO_ALLOC, &nr_locked);
-
-	if (-ENOENT == ret) ret = 0;
+	/* second renew_sibling_link() call is used for znode connection only,
+	 * so we can live with these errors */
+	if (-ENOENT == ret || -ENAVAIL == ret) 
+		ret = 0;
 
  out:
 	reiser4_done_coord(&local);
