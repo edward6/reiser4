@@ -72,7 +72,6 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
    This saves one io on deletion and as far as I can see, doesn't lead
    to troubles on parent splitting and merging. */
 #define REISER4_EXACT_DELIMITING_KEY (0)
-#define REISER4_NON_UNIQUE_KEYS      (1)
 
 #define REISER4_PANIC_MSG_BUFFER_SIZE (1024)
 

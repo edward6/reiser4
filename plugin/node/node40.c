@@ -321,6 +321,7 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	int found;
 	item_plugin *iplug;
 	item_header40 *bstop;
+	item_header40 *ih;
 	cmp_t order;
 
 	assert("nikita-583", node != NULL);
@@ -330,6 +331,11 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	trace_stamp(TRACE_NODES);
 
 	node_check(node, REISER4_NODE_DKEYS);
+
+	if (unlikely(node_is_empty(node))) {
+		coord_init_first_unit(coord, node);
+		return NS_NOT_FOUND;
+	}
 
 	/* binary search for item that can contain given key */
 	left = 0;
@@ -355,91 +361,75 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	  
 	*/
 
-	if (right < REISER4_SEQ_SEARCH_BREAK) {
-#define __get_key( pos ) ( &node40_ih_at( node, ( unsigned ) ( pos ) ) -> key )
-		item_header40 *ih;
-		/* sequential scan. Item headers, and, therefore, keys are
-		   stored at the rightmost part of a node from right to
-		   left. We are trying to access memory from left to right,
-		   and hence, scan in _descending_ order of item numbers.
-		*/
-		for (left = right, ih = node40_ih_at(node, (unsigned) left); left >= 0; ++ih, prefetch(ih), --left) {
-			cmp_t comparison;
+#define __get_key(pos) (&node40_ih_at(node, (unsigned)(pos))->key)
 
-			comparison = keycmp(&ih->key, key);
-			if (comparison == GREATER_THAN)
-				continue;
-			if (comparison == EQUAL_TO) {
-				found = 1;
-				if (!REISER4_NON_UNIQUE_KEYS)
-					break;
-			} else {
-				assert("nikita-1256", comparison == LESS_THAN);
-				if (REISER4_NON_UNIQUE_KEYS && found) {
-					assert("nikita-1257", left < right);
-					++left;
-					assert("nikita-1258", keyeq(__get_key(left), key));
-				}
-				break;
-			}
+	while (right - left >= REISER4_SEQ_SEARCH_BREAK) {
+		int median;
+
+		median = (left + right) / 2;
+
+		assert("nikita-1084", median >= 0);
+		assert("nikita-1085", median < node40_num_of_items_internal(node));
+		switch (keycmp(key, __get_key(median))) {
+		case EQUAL_TO:
+			do {
+				-- median;
+			} while (median >= 0 && keyeq(key, __get_key(median)));
+			right = left = median + 1;
+			found = 1;
+			break;
+		case LESS_THAN:
+			right = median;
+			break;
+		default:
+			wrong_return_value("nikita-586", "keycmp");
+		case GREATER_THAN:
+			left = median;
+			break;
 		}
-	} else
-		do {
-			int median;
+	}
+	/* sequential scan. Item headers, and, therefore, keys are stored at
+	   the rightmost part of a node from right to left. We are trying to
+	   access memory from left to right, and hence, scan in _descending_
+	   order of item numbers.
+	*/
+	for (left = right, ih = node40_ih_at(node, (unsigned) left); 
+	     !found && left >= 0; 
+	     ++ih, prefetch(ih), --left) {
+		cmp_t comparison;
 
-			median = (left + right) / 2;
+		comparison = keycmp(&ih->key, key);
+		if (comparison == GREATER_THAN)
+			continue;
+		if (comparison == EQUAL_TO) {
+			found = 1;
+			do {
+				-- left;
+			} while (left >= 0 && keyeq(__get_key(left), key));
+			++ left;
+		} else {
+			assert("nikita-1256", comparison == LESS_THAN);
+		}
+		break;
+	}
 
-			assert("nikita-1084", median >= 0);
-			assert("nikita-1085", median < node40_num_of_items_internal(node));
-			switch (keycmp(key, __get_key(median))) {
-			case EQUAL_TO:
-				if (!REISER4_NON_UNIQUE_KEYS) {
-					left = median;
-					found = 1;
-				} else
-					right = median;
-				break;
-			case LESS_THAN:
-				right = median - 1;
-				break;
-			default:
-				wrong_return_value("nikita-586", "keycmp");
-			case GREATER_THAN:
-				left = median;
-				break;
-			}
-			if (abs(left - right) < 2) {
-				if (keyle(__get_key(right), key))
-					left = right;
-				found = keyeq(key, __get_key(left));
-				break;
-			}
-#undef __get_key
-		} while ((left < right) && !found);
-	if (right < left)
-		left = right;
+	assert("nikita-3212", right >= left);
+
 	if (left < 0)
 		left = 0;
+
+	assert("nikita-3214", equi(found, keyeq(__get_key(left), key)));
 
 	coord_set_item_pos(coord, left);
 	coord->unit_pos = 0;
 	coord->between = AT_UNIT;
 
-	/* FIXME-VS: handling of empty node case */
-	if (node_is_empty(node))
-		/* this will set coord in empty node properly */
-		coord_init_first_unit(coord, node);
-
-	if (left >= node40_num_of_items_internal(node))
-		return NS_NOT_FOUND;
-
 	/* key < leftmost key in a mode or node is corrupted and keys
 	   are not sorted  */
 	bstop = node40_ih_at(node, (unsigned) left);
 	order = keycmp(&bstop->key, key);
-	if (!found && (order == GREATER_THAN)) {
-		/* see reiser4.h for description of this */
-		if (REISER4_EXACT_DELIMITING_KEY || (left != 0)) {
+	if (unlikely(order == GREATER_THAN)) {
+		if (unlikely(left != 0)) {
 			/* screw up */
 			warning("nikita-587", "Key less than %i key in a node", left);
 			print_key("key", key);
@@ -455,7 +445,7 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	/* left <= key, ok */
 	iplug = item_plugin_by_disk_id(znode_get_tree(node), &bstop->plugin_id);
 
-	if (iplug == NULL) {
+	if (unlikely(iplug == NULL)) {
 		warning("nikita-588", "Unknown plugin %i", d16tocpu(&bstop->plugin_id));
 		print_key("key", key);
 		print_znode("node", node);
@@ -489,7 +479,6 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 			   want it to go down to leaf level
 			*/
 			return NS_NOT_FOUND;
-			return (bias == FIND_EXACT) ? NS_NOT_FOUND : NS_FOUND;
 		}
 	}
 
