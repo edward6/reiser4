@@ -239,7 +239,8 @@ tail_copy_units(coord_t * target, coord_t * source,
 int
 tail_cut_units(coord_t * coord, unsigned *from, unsigned *to,
 	       const reiser4_key * from_key UNUSED_ARG,
-	       const reiser4_key * to_key UNUSED_ARG, reiser4_key * smallest_removed)
+	       const reiser4_key * to_key UNUSED_ARG, reiser4_key * smallest_removed,
+	       void *p UNUSED_ARG)
 {
 	reiser4_key key;
 	unsigned count;

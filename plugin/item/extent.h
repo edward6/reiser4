@@ -85,14 +85,14 @@ int extent_can_shift(unsigned free_space,
 void extent_copy_units(coord_t * target,
 		       coord_t * source,
 		       unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space);
-int extent_kill_item_hook(const coord_t *, unsigned from, unsigned count);
+int extent_kill_item_hook(const coord_t *, unsigned from, unsigned count, void *);
 int extent_create_hook(const coord_t * coord, void *arg);
 int extent_cut_units(coord_t *, unsigned *from,
 		     unsigned *to,
-		     const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed);
+		     const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, void *);
 int extent_kill_units(coord_t *, unsigned *from,
 		      unsigned *to,
-		      const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed);
+		      const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, void *);
 reiser4_key *extent_unit_key(const coord_t * coord, reiser4_key * key);
 int extent_item_data_by_flow(const coord_t *, const flow_t *, reiser4_item_data *);
 void extent_print(const char *, coord_t *);

@@ -933,9 +933,10 @@ node40_update_item_key(coord_t * target, const reiser4_key * key, carry_plugin_i
 static unsigned
 cut_units(coord_t * coord, unsigned *from, unsigned *to,
 	  int cut,
-	  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed)
+	  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed,
+	  void *p)
 {
-	int (*cut_f) (coord_t *, unsigned *, unsigned *, const reiser4_key *, const reiser4_key *, reiser4_key *);
+	int (*cut_f) (coord_t *, unsigned *, unsigned *, const reiser4_key *, const reiser4_key *, reiser4_key *, void *);
 
 	if (cut) {
 		cut_f = item_plugin_by_coord(coord)->b.cut_units;
@@ -949,7 +950,7 @@ cut_units(coord_t * coord, unsigned *from, unsigned *to,
 		   kill_units method, because it is not clear here which units
 		   will be actually cut. To have kill_item_hook here we would
 		   have to pass keys to kill_item_hook */
-		return cut_f(coord, from, to, from_key, to_key, smallest_removed);
+		return cut_f(coord, from, to, from_key, to_key, smallest_removed, p);
 	} else {
 		/* cut method is not defined, so there should be request to cut the single unit of item. The item will
 		   be removed entirely */
@@ -958,7 +959,7 @@ cut_units(coord_t * coord, unsigned *from, unsigned *to,
 		if (smallest_removed)
 			item_key_by_coord(coord, smallest_removed);
 		if (!cut && item_plugin_by_coord(coord)->b.kill_hook)
-			item_plugin_by_coord(coord)->b.kill_hook(coord, 0, 1);
+			item_plugin_by_coord(coord)->b.kill_hook(coord, 0, 1, p);
 		return item_length_by_coord(coord);
 	}
 }
@@ -1001,7 +1002,7 @@ cut_or_kill(struct cut_list *params, int cut)
 		removed_entirely = 0;
 		from_unit = params->from->unit_pos;
 		to_unit = params->to->unit_pos;
-		cut_size = cut_units(params->from, &from_unit, &to_unit, cut, params->from_key, params->to_key, params->smallest_removed);
+		cut_size = cut_units(params->from, &from_unit, &to_unit, cut, params->from_key, params->to_key, params->smallest_removed, params->inode);
 		if (cut_size == (unsigned) item_length_by_coord(params->from))
 			/* item will be removed entirely */
 			removed_entirely = 1;
@@ -1062,7 +1063,7 @@ cut_or_kill(struct cut_list *params, int cut)
 				tmp.between = AT_UNIT;
 				iplug = item_plugin_by_coord(&tmp);
 				if (iplug->b.kill_hook) {
-					iplug->b.kill_hook(&tmp, 0, coord_num_units(&tmp));
+					iplug->b.kill_hook(&tmp, 0, coord_num_units(&tmp), params->inode);
 				}
 			}
 		}
@@ -1070,7 +1071,7 @@ cut_or_kill(struct cut_list *params, int cut)
 		/* cut @from item first */
 		from_unit = params->from->unit_pos;
 		to_unit = coord_last_unit_pos(params->from);
-		cut_size = cut_units(params->from, &from_unit, &to_unit, cut, params->from_key, params->to_key, params->smallest_removed);
+		cut_size = cut_units(params->from, &from_unit, &to_unit, cut, params->from_key, params->to_key, params->smallest_removed, params->inode);
 		if (cut_size == (unsigned) item_length_by_coord(params->from)) {
 			/* whole @from is cut */
 			first_removed--;
@@ -1083,7 +1084,7 @@ cut_or_kill(struct cut_list *params, int cut)
 		/* cut @to item */
 		from_unit = 0;
 		to_unit = params->to->unit_pos;
-		cut_size = cut_units(params->to, &from_unit, &to_unit, cut, params->from_key, params->to_key, 0/*smallest_removed*/);
+		cut_size = cut_units(params->to, &from_unit, &to_unit, cut, params->from_key, params->to_key, 0/*smallest_removed*/, params->inode);
 		if (cut_size == (unsigned) item_length_by_coord(params->to))
 			/* whole @to is cut */
 			removed_entirely++;

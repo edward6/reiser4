@@ -160,7 +160,7 @@ typedef struct {
 	   balancing to perform dealloc_block - this will probably
 	   break balancing due to deadlock issues
 	*/
-	int (*kill_hook) (const coord_t * item, unsigned from, unsigned count);
+	int (*kill_hook) (const coord_t * item, unsigned from, unsigned count, void *);
 	int (*shift_hook) (const coord_t * item, unsigned from, unsigned count, znode * old_node);
 
 	/* unit @*from contains @from_key. unit @*to contains
@@ -174,12 +174,12 @@ typedef struct {
 	   removed key is @smallest_removed is not 0
 	*/
 	int (*cut_units) (coord_t *, unsigned *from, unsigned *to,
-			  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed);
+			  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, void *);
 
 	/* like cut_units, except that these units are removed from the
 	   tree, not only from a node */
 	int (*kill_units) (coord_t *, unsigned *from, unsigned *to,
-			   const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed);
+			   const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, void *);
 
 	/* if @key_of_coord == 1 - returned key of coord, otherwise -
 	   key of unit is returned. If @coord is not set to certain

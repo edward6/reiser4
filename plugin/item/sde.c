@@ -187,7 +187,7 @@ de_rem_entry(struct inode *dir /* directory of item */ ,
 	   of @coord.
 	*/
 	coord_dup(&shadow, coord);
-	result = cut_node(coord, &shadow, NULL, NULL, NULL, DELETE_KILL, 0);
+	result = cut_node(coord, &shadow, NULL, NULL, NULL, DELETE_KILL, 0, 0/*inode*/);
 	if (result == 0) {
 		/* NOTE-NIKITA quota plugin */
 		DQUOT_FREE_SPACE_NODIRTY(dir, length);

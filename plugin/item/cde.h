@@ -49,7 +49,7 @@ int cde_can_shift(unsigned free_space, coord_t * coord,
 void cde_copy_units(coord_t * target, coord_t * source,
 		    unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space);
 int cde_cut_units(coord_t * coord, unsigned *from, unsigned *to,
-		  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed);
+		  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, void *);
 void cde_print(const char *prefix, coord_t * coord);
 int cde_check(const coord_t * coord, const char **error);
 

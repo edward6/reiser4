@@ -7,6 +7,7 @@
 #include "../../carry.h"
 #include "../../inode.h"
 #include "../../page_cache.h"
+#include "../../emergency_flush.h"
 
 #include <linux/quotaops.h>
 #include <asm/uaccess.h>
@@ -503,46 +504,67 @@ extent_create_hook(const coord_t * coord, void *arg)
 	return 0;
 }
 
+/* check inode's list of eflushed jnodes and drop those which correspond to this extent */
+static void drop_eflushed_nodes(struct inode *inode, unsigned long index, int length)
+{
+	struct list_head *tmp, *next;
+	reiser4_inode *info;
+
+	if (!inode)
+		/* there should be no eflushed jnodes */
+		return;
+	info = reiser4_inode_data(inode);
+	spin_lock(&eflushed_guard);
+	list_for_each_safe(tmp, next, &info->eflushed_jnodes) {
+		eflush_node_t *ef;
+
+		ef = list_entry(tmp, eflush_node_t, inode_link);
+		if (jnode_index(ef->node) >= index && jnode_index(ef->node) < index + length)
+			uncapture_jnode(ef->node);
+	}
+	spin_unlock(&eflushed_guard);
+}
+
 /* plugin->u.item.b.kill_item_hook
    this is called when @count units starting from @from-th one are going to be removed */
 int
-extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count)
+extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count, void *p)
 {
 	reiser4_extent *ext;
 	unsigned i;
 	reiser4_block_nr start, length;
 	reiser4_key key;
+	unsigned long index;
+	struct inode *inode;
+
+	inode = p;
 
 	assert ("zam-811", znode_is_write_locked(coord->node));
 	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 
-	item_key_by_coord(coord, &key);
+	item_key_by_coord(coord, &key);	
+	index = (get_key_offset(&key) + extent_size(coord, from)) >> current_blocksize_bits;
 
 	ext = extent_item(coord) + from;
-	for (i = 0; i < count; i++, ext++) {
-		reiser4_tree *tree;
-		coord_t twin;
+	for (i = 0; i < count; i++, ext++, index += length) {
 
 		start = extent_get_start(ext);
 		length = extent_get_width(ext);
+
+		drop_eflushed_nodes(inode, index, length);
+
 		if (state_of_extent(ext) == HOLE_EXTENT)
 			continue;
-		/* at this time there should not be already jnodes
-		 * corresponding any block from this extent. Check that */
-
-		coord_dup(&twin, coord);
-		twin.unit_pos = from + i;
-		twin.between = AT_UNIT;
-		tree = current_tree;
 
 		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
+			/* some jnodes corresponding to this unallocated extent */
+
 			/* FIXME-VITALY: this is necessary??? */
 			fake_allocated2free(extent_get_width(ext), 0 /* unformatted */, "extent_kill_item_hook: unallocated extent removed");
-		}
-
-		if (state_of_extent(ext) != ALLOCATED_EXTENT) {
 			continue;
 		}
+
+		assert("vs-1218", state_of_extent(ext) == ALLOCATED_EXTENT);
 
 		/* FIXME-VS: do I need to do anything for unallocated extents */
 		/* BA_DEFER bit parameter is turned on because blocks which get freed
@@ -557,7 +579,7 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count)
 static int
 cut_or_kill_units(coord_t * coord,
 		  unsigned *from, unsigned *to,
-		  int cut, const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed)
+		  int cut, const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, struct inode *inode)
 {
 	reiser4_extent *ext;
 	reiser4_key key;
@@ -719,7 +741,7 @@ cut_or_kill_units(coord_t * coord,
 
 	if (!cut)
 		/* call kill hook for all extents removed completely */
-		extent_kill_item_hook(coord, *from, count);
+		extent_kill_item_hook(coord, *from, count, inode);
 
 	if (*from == 0 && count != coord_last_unit_pos(coord) + 1) {
 		/* part of item is removed from item beginning, update item key
@@ -741,19 +763,19 @@ cut_or_kill_units(coord_t * coord,
 /* plugin->u.item.b.cut_units */
 int
 extent_cut_units(coord_t * item, unsigned *from, unsigned *to,
-		 const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed)
+		 const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, void *p)
 {
 	DEBUGON(znode_get_level(item->node) != TWIG_LEVEL);
-	return cut_or_kill_units(item, from, to, 1, from_key, to_key, smallest_removed);
+	return cut_or_kill_units(item, from, to, 1, from_key, to_key, smallest_removed, p);
 }
 
 /* plugin->u.item.b.kill_units */
 int
 extent_kill_units(coord_t * item, unsigned *from, unsigned *to,
-		  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed)
+		  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, void *p)
 {
 	DEBUGON(znode_get_level(item->node) != TWIG_LEVEL);
-	return cut_or_kill_units(item, from, to, 0, from_key, to_key, smallest_removed);
+	return cut_or_kill_units(item, from, to, 0, from_key, to_key, smallest_removed, p);
 }
 
 /* plugin->u.item.b.unit_key */
@@ -847,7 +869,7 @@ optimize_extent(const coord_t * item)
 		/* wipe part of item which is going to be cut, so that
 		   node_check will not be confused by extent overlapping */
 		xmemset(extent_by_coord(&from), 0, sizeof (reiser4_extent) * (old_num - new_num));
-		result = cut_node(&from, &to, 0, 0, 0, DELETE_DONT_COMPACT, 0);
+		result = cut_node(&from, &to, 0, 0, 0, DELETE_DONT_COMPACT, 0, 0/*inode*/);
 
 		/* nothing should happen cutting
 		   FIXME: JMACD->VS: Just return the error! */

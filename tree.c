@@ -1115,10 +1115,12 @@ cut_node(coord_t * from		/* coord of the first unit/item that will be
 	 reiser4_key * smallest_removed	/* smallest key actually
 					 * removed */ ,
 	 unsigned flags /* cut flags */ ,
-	 znode * locked_left_neighbor	/* this is set when cut_node is
+	 znode * locked_left_neighbor,	/* this is set when cut_node is
 					 * called with left neighbor locked
 					 * (in squalloc_right_twig_cut,
-					 * namely) */ )
+					 * namely) */
+	 struct inode *inode /* inode of file whose item is to be cut. This is necessary to drop eflushed jnodes
+				together with item */)
 {
 	int result;
 	carry_pool pool;
@@ -1167,6 +1169,7 @@ cut_node(coord_t * from		/* coord of the first unit/item that will be
 	cdata.to_key = to_key;
 	cdata.smallest_removed = smallest_removed;
 	cdata.flags = flags;
+	cdata.inode = inode;
 	op->u.cut = &cdata;
 
 	ON_STATS(lowest_level.level_no = znode_get_level(from->node));
@@ -1273,7 +1276,7 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 		result = cut_node(&intranode_from, &intranode_to,  /* is used as an input and an output, with output
 								      being a hint used by next loop iteration */
 				  from_key, to_key, &smallest_removed, DELETE_KILL, /*flags */
-				  0);
+				  0, 0/*inode*/);
 		zrelse(loaded);
 		done_lh(&lock_handle);
 

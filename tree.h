@@ -358,7 +358,8 @@ insert_result insert_extent_by_coord(coord_t * coord,
 				     reiser4_item_data * data, const reiser4_key * key, lock_handle * lh);
 int cut_node(coord_t * from, coord_t * to,
 	     const reiser4_key * from_key,
-	     const reiser4_key * to_key, reiser4_key * smallest_removed, unsigned flags, znode * left);
+	     const reiser4_key * to_key, reiser4_key * smallest_removed, unsigned flags, znode * left,
+	     struct inode *);
 
 resize_result resize_item(coord_t * coord, reiser4_item_data * data,
 			  reiser4_key * key, lock_handle * lh, cop_insert_flag);

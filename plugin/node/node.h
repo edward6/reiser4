@@ -137,8 +137,8 @@ struct cut_list {
 	const reiser4_key * to_key;
 	reiser4_key * smallest_removed;
 	carry_plugin_info * info;
-	/*void *kill_params;*/
 	__u32 flags;
+	struct inode *inode; /* this is to pass list of eflushed jnodes down to extent_kill_hook */
 };
 
 /* The responsibility of the node plugin is to store and give access

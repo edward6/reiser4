@@ -17,7 +17,7 @@ void tail_copy_units(coord_t * target, coord_t * source,
 		     unsigned from, unsigned count, shift_direction, unsigned free_space);
 int tail_cut_units(coord_t * item, unsigned *from,
 		   unsigned *to,
-		   const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed);
+		   const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, void *);
 reiser4_key *tail_unit_key(const coord_t * coord, reiser4_key * key);
 
 /* plugin->u.item.s.* */
