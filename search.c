@@ -595,7 +595,7 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 	 * it. Delimiting keys are taken from the parent node. See
 	 * setup_delimiting_keys() for details. 
 	 */
-	if( ! znode_is_loaded( active ) )
+	if( znode_just_created( active ) )
 		setup_delimiting_keys( h );
 
 	/*
@@ -617,12 +617,8 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 	 * parent.
 	 */
 	spin_lock_tree (h->tree);
-	/*
-	 * FIXME znode_is_loaded() is not right check here. What we actually
-	 * want to detect is that zget() above created new znode. The same for
-	 * setup_delimiting_keys().
-	 */
-	if (!znode_is_loaded(active) && (h->coord->node != NULL))
+
+	if (znode_just_created(active) && (h->coord->node != NULL))
 		active->ptr_in_parent_hint = *h->coord;
 
 	/* protect sibling pointers and `connected' state bits, check
