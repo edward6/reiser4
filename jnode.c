@@ -489,7 +489,7 @@ jparse(jnode * node)
 {
 	assert("nikita-2466", node != NULL);
 
-	return jnode_ops(node)->parse(node);
+	return UNDER_SPIN(jnode, node, jnode_ops(node)->parse(node));
 }
 
 /* Lock a page attached to jnode, create and attach page to jnode if it had no one. */
@@ -585,12 +585,6 @@ int jload_gfp (jnode * node, int gfp_flags)
 
 		node->data = kmap(page);
 			
-		/* "parse" jnode's page. We don't need locking here, because
-		 * d_count is already incremented and, hence, page cannot be
-		 * released and JNODE_PARSED cannot be cleared. Worst thing we
-		 * can possible get here is several threads entering jparse
-		 * concurrently---not a big deal, because jparse() is supposed
-		 * to be idempotent. */
 		if (likely(!jnode_is_parsed(node))) {
 			result = jparse(node);
 			if (unlikely(result != 0)) {

@@ -612,9 +612,6 @@ zparse(znode * node /* znode to parse */ )
 	assert("nikita-1233", node != NULL);
 	assert("nikita-2370", zdata(node) != NULL);
 
-	/* This function is called from jload_gfp() without any kind of
-	 * synchronization and has to be "idempotent". */
-
 	if (node->nplug == NULL) {
 		node_plugin *nplug;
 
