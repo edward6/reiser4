@@ -97,7 +97,7 @@ int done_formatted_fake( struct super_block *super )
  * read @block into page cache and bind it to the formatted fake inode of
  * @super. Kmap the page. Return pointer to the data in @data.
  */
-int page_cache_read_node( reiser4_tree *tree, jnode *node )
+static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 {
 	struct page *page;
 
@@ -135,7 +135,7 @@ int page_cache_read_node( reiser4_tree *tree, jnode *node )
  *
  * grab page to back up new jnode.
  */
-int page_cache_allocate_node( reiser4_tree *tree, jnode *node )
+static int page_cache_allocate_node( reiser4_tree *tree, jnode *node )
 {
 	struct page *page;
 
@@ -144,6 +144,10 @@ int page_cache_allocate_node( reiser4_tree *tree, jnode *node )
 
 	page = add_page( tree -> super, node );
 	if( page != NULL ) {
+		/*
+		 * FIXME-NIKITA *dubious*
+		 */
+		SetPageUptodate( page );
 		unlock_page( page );
 		kmap( page );
 		return 0;
@@ -152,25 +156,27 @@ int page_cache_allocate_node( reiser4_tree *tree, jnode *node )
 }
 
 /** ->delete_node method of page-cache based tree operations */
-int page_cache_delete_node( reiser4_tree *tree, jnode *node )
+static int page_cache_delete_node( reiser4_tree *tree, jnode *node )
 {
 	return 0;
 }
 
 /** ->release_node method of page-cache based tree operations */
-int page_cache_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
+static int page_cache_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
-	struct page *pg;
+	kunmap( jnode_page( node ) );
+	return 0;
+}
 
-	pg = jnode_page( node );
-	kunmap( pg );
-	jnode_detach_page( node );
-	page_cache_release( pg );
+/** ->drop_node method of page-cache based tree operations */
+static int page_cache_drop_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
+{
+ 	jnode_detach_page( node );
 	return 0;
 }
 
 /** ->dirty_node method of page-cache based tree operations */
-int page_cache_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
+static int page_cache_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
 	assert( "nikita-2045", JF_ISSET( node, ZNODE_LOADED ) );
 	SetPageDirty( jnode_page( node ) );
@@ -211,7 +217,8 @@ static struct page *add_page( struct super_block *super, jnode *node )
 	 * We are under page lock now, so it can be used as synchronization.
 	 *
 	 */
-	jnode_attach_to_page( node, page );
+	jnode_attach_page( node, page );
+	page_cache_release( page );
 	return page;
 }
 
@@ -399,8 +406,9 @@ static struct address_space_operations formatted_fake_as_ops = {
 tree_operations page_cache_tops = {
 	.read_node     = page_cache_read_node,
 	.allocate_node = page_cache_allocate_node,
-	.delete_node   = NULL,
+	.delete_node   = page_cache_delete_node,
 	.release_node  = page_cache_release_node,
+	.drop_node     = page_cache_drop_node,
 	.dirty_node    = page_cache_dirty_node
 };
 
