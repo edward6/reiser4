@@ -804,12 +804,14 @@ sync_dkeys(carry_node * node /* node to update */ ,
 		if (spot == NULL)
 			break;
 
+#if 0
 		/* on the leaf level we can only increase right delimiting key
 		 * of a node on which we don't hold a long term lock. */
 		assert("nikita-2930", 
 		       ergo(!znode_is_write_locked(spot) && 
 			    znode_get_level(spot) == LEAF_LEVEL,
 			    keyge(&pivot, znode_get_rd_key(spot))));
+#endif
 
 		znode_set_rd_key(spot, &pivot);
 		/* don't sink into the domain of another balancing */
@@ -825,6 +827,8 @@ sync_dkeys(carry_node * node /* node to update */ ,
 	spin_unlock_dk(tree);
 }
 
+void
+check_dkeys(const znode *node);
 /* unlock all carry nodes in @level */
 static void
 unlock_carry_level(carry_level * level /* level to unlock */ ,
@@ -854,13 +858,15 @@ unlock_carry_level(carry_level * level /* level to unlock */ ,
 		assert("nikita-1631", ergo(!failure, !ZF_ISSET(node->real_node, JNODE_ORPHAN)));
 		if (!failure)
 			node_check(node->real_node, REISER4_NODE_DKEYS);
+		/* FIXME: remove after debugging */
+		check_dkeys(node->real_node);
 		unlock_carry_node(node, failure);
 	}
 	level->new_root = NULL;
 }
 
 /* finish with @level
-  
+
    Unlock nodes and release all allocated resources */
 static void
 done_carry_level(carry_level * level /* level to finish */ )
