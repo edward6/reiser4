@@ -1552,6 +1552,7 @@ struct super_operations reiser4_super_operations = {
 		ON_TRACE(TRACE_DIR, __VA_ARGS__);\
 	}
 
+/* this returns number of 32 bit long numbers encoded in @data. 255 is returned if file handle can not be stored */
 static int
 reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent)
 {
@@ -1619,6 +1620,7 @@ reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent
 
 	TRACE_EXPORT_OPS("return %d\n", result);
 	reiser4_exit_context(&context);
+	*lenp = result;
 	return result;
 }
 
