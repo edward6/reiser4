@@ -6,6 +6,7 @@
 #include "reiser4.h"
 #include "context.h"
 #include "super.h"
+#include "txnmgr.h"
 
 #include <linux/sysfs.h>
 #include <linux/slab.h>
@@ -419,7 +420,17 @@ void debugtrap(void)
 }
 #endif
 
+#if REISER4_DEBUG
 
+/* Return true if an atom is currently "open". */
+int atom_isopen(const txn_atom * atom)
+{
+	assert("umka-185", atom != NULL);
+
+	return atom->stage > 0 && atom->stage < ASTAGE_PRE_COMMIT;
+}
+
+#endif 
 
 /* Make Linus happy.
    Local variables:

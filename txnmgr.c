@@ -618,17 +618,6 @@ same_slum_check(jnode * node, jnode * check, int alloc_check, int alloc_value)
 
 	return compat;
 }
-/* ZAM-FIXME-HANS: move debugging code to debugging code files. */
-#if REISER4_DEBUG
-/* Return true if an atom is currently "open". */
-static int
-atom_isopen(const txn_atom * atom)
-{
-	assert("umka-185", atom != NULL);
-
-	return atom->stage > 0 && atom->stage < ASTAGE_PRE_COMMIT;
-}
-#endif
 
 /* Decrement the atom's reference count and if it falls to zero, free it. */
 void atom_dec_and_unlock(txn_atom * atom)
