@@ -112,9 +112,9 @@ typedef struct {
 	   continuous in the node, all sorts of other things are maybe
 	   going to break as well. */
 	lookup_result(*lookup) (const reiser4_key * key, lookup_bias bias, coord_t * coord);
-	/* FIXME: temporary. It is called by node lookup method when key matches to item key and item's lookup does not
+	/* optional method. It is called by node lookup method when key matches to item key and item's lookup does not
 	   get called */
-	void (*init_coord)(const reiser4_key * key, coord_t * coord);
+	void (*init_coord)(coord_t * coord);
 	/* method called by ode_plugin->create_item() to initialise new
 	   item */
 	int (*init) (coord_t * coord, reiser4_item_data * data);

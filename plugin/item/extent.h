@@ -75,7 +75,7 @@ int can_contain_key_extent(const coord_t * coord, const reiser4_key * key, const
 int mergeable_extent(const coord_t * p1, const coord_t * p2);
 unsigned nr_units_extent(const coord_t *);
 lookup_result lookup_extent(const reiser4_key *, lookup_bias, coord_t *);
-void init_coord_extent(const reiser4_key *, coord_t *);
+void init_coord_extent(coord_t *);
 int init_extent(coord_t *, reiser4_item_data *);
 int paste_extent(coord_t *, reiser4_item_data *, carry_plugin_info *);
 int can_shift_extent(unsigned free_space,
