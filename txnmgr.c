@@ -1321,6 +1321,8 @@ void txn_delete_page (struct page *pg)
 
 	assert ("jmacd-7192", node != NULL);
 
+	jnode_set_clean (node);
+
 	spin_lock_jnode (node);
 
  repeat:
