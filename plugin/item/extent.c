@@ -1431,6 +1431,7 @@ extent_needs_allocation(coord_t *coord, reiser4_extent *extent, oid_t oid, unsig
 	relocate = find_slum(tree, oid, ind, ae_width, &overwrite, &slum_start, &slum_size);
 	if (relocate) {
 		txn_atom *atom;
+		reiser4_block_nr blocknr;
 		
 		atom = get_current_atom_locked();
 		/* All additional blocks needed for safe writing of modified extent are counted in atom's flush reserved
@@ -1442,16 +1443,13 @@ extent_needs_allocation(coord_t *coord, reiser4_extent *extent, oid_t oid, unsig
 
 		/* assign fake blocknr to all nodes which are going to be relocated */
 		for (i = 0; i < slum_size; i ++) {
-			reiser4_block_nr block;
-				
 			j = jlook_lock(tree, oid, ind + slum_start + i);
 			assert("vs-1367", j);
 			assert("vs-1363", jnode_check_dirty(j));
 			assert("vs-1364", !JF_ISSET(j, JNODE_RELOC));
 			assert("vs-1365", !JF_ISSET(j, JNODE_OVRWR));
-				
-			assign_fake_blocknr_unformatted(&block);
-			jnode_set_block(j, &block);
+			blocknr = fake_blocknr_unformatted();
+			jnode_set_block(j, &blocknr);
 			jput(j);
 		}
 
@@ -1872,11 +1870,12 @@ allocate_and_copy_extent(znode *left, coord_t *right, flush_pos_t *flush_pos,
 	for (; right->unit_pos < coord_num_units(right); right->unit_pos++, ext++) {
 		ON_TRACE(TRACE_EXTENTS, "alloc_and_copy_extent: unit %u/%u\n", right->unit_pos, coord_num_units(right));
 
-		width = extent_get_width(ext);
 		if ((result = extent_needs_allocation(right, ext, oid, index, flush_pos)) < 0) {
 			goto done;
 		}
 
+		/* extent width might change */
+		width = extent_get_width(ext);
 		if (!result) {
 			/* unit does not require allocation, copy this unit as it is */
 			result = put_unit_to_end(left, &key, init_new_extent(&data, ext, 1));
@@ -1900,8 +1899,8 @@ allocate_and_copy_extent(znode *left, coord_t *right, flush_pos_t *flush_pos,
 
 		assert("vs-959", state_of_extent(ext) == UNALLOCATED_EXTENT);
 
-		/* extent width might change */
-		width = extent_get_width(ext);
+		assert("", index == extent_unit_index(right));
+
 
 		to_allocate = width;
 		/* until whole extent is allocated and there is space in left neighbor */
@@ -1937,6 +1936,7 @@ allocate_and_copy_extent(znode *left, coord_t *right, flush_pos_t *flush_pos,
 
 			check_me("vs-1137", extent_allocate_blocks(pos_hint(flush_pos),
 								   protected, &first_allocated, &allocated) == 0);
+			/*XXXX*//*printk("XX: asked for %llu: allocated: (%llu, %llu)\n", protected, first_allocated, allocated);*/
 			if (allocated < protected)
 				/* there were more protected nodes than we have allocated. Unprotect ones which will not
 				   be allocated in this iteration */
@@ -2208,33 +2208,10 @@ extent_unit_start(const coord_t *item)
 	return extent_get_start(extent_by_coord(item));
 }
 
-/* initialize jnode if newly created block. It is called by insert_first_block, append_one_block and hole overwrite */
-static void
-init_new_jnode(jnode *j)
-{
-	reiser4_block_nr fake_blocknr;
-
-	jnode_set_mapped(j);
-	assign_fake_blocknr_unformatted(&fake_blocknr);
-	jnode_set_block(j, &fake_blocknr);	
-	jnode_set_created(j);
-	JF_SET(j, JNODE_NEW);
-	/* mark jnode dirty right away so that it will be captured directly to the dirty list */
-	JF_SET(j, JNODE_DIRTY);
-}
-
-/* initialize jnode of existing block. It is called by overwrite_one_block and do_readpage_extent */
-static void
-init_allocated_jnode(jnode *j, reiser4_block_nr block)
-{
-	jnode_set_mapped(j);
-	jnode_set_block(j, &block);
-}
-
 /* insert extent item (containing one unallocated extent of width 1) to place
    set by @coord */
 static int
-insert_first_block(uf_coord_t *uf_coord, jnode *j, const reiser4_key *key)
+insert_first_block(uf_coord_t *uf_coord, const reiser4_key *key, reiser4_block_nr *block)
 {
 	int result;
 	reiser4_extent ext;
@@ -2254,7 +2231,7 @@ insert_first_block(uf_coord_t *uf_coord, jnode *j, const reiser4_key *key)
 		return result;
 	}
 
-	init_new_jnode(j);
+	*block = fake_blocknr_unformatted();
 
 	/* invalidate coordinate, research must be performed to continue because write will continue on twig level */
 	uf_coord->valid = 0;
@@ -2264,7 +2241,7 @@ insert_first_block(uf_coord_t *uf_coord, jnode *j, const reiser4_key *key)
 /* @coord is set to the end of extent item. Append it with pointer to one block - either by expanding last unallocated
    extent or by appending a new one of width 1 */
 static int
-append_one_block(uf_coord_t *uf_coord, jnode *j, reiser4_key *key)
+append_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *block)
 {
 	int result;
 	reiser4_extent new_ext;
@@ -2306,9 +2283,7 @@ append_one_block(uf_coord_t *uf_coord, jnode *j, reiser4_key *key)
 		break;
 	}
 
-	init_new_jnode(j);
-
-	/*reiser4_stat_file_add (pointers); */
+	*block = fake_blocknr_unformatted();
 	return 0;
 }
 
@@ -2401,7 +2376,7 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 
 /* make unallocated node pointer in the position @uf_coord is set to */
 static int
-overwrite_one_block(uf_coord_t *uf_coord, jnode *j, reiser4_key *key)
+overwrite_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *block)
 {
 	int result;
 	extent_coord_extension_t *ext_coord;
@@ -2411,41 +2386,30 @@ overwrite_one_block(uf_coord_t *uf_coord, jnode *j, reiser4_key *key)
 	ext_coord = &uf_coord->extension.extent;
 	switch (state_of_extent(ext_coord->ext)) {
 	case ALLOCATED_EXTENT:
-		init_allocated_jnode(j, extent_get_start(ext_coord->ext) + ext_coord->pos_in_unit);
-		return 0;
-
-	case UNALLOCATED_EXTENT:
-		assert("vs-1114", jnode_mapped(j));
-		return 0;
+		*block = extent_get_start(ext_coord->ext) + ext_coord->pos_in_unit;
+		result = 0;
+		break;
 
 	case HOLE_EXTENT:
 		result = plug_hole(uf_coord, key);
 		if (!result)
-			init_new_jnode(j);
-		return result;
+			*block = fake_blocknr_unformatted();
+		break;
 
+	case UNALLOCATED_EXTENT:
 	default:
 		impossible("vs-238", "extent of unknown type found");
-		return RETERR(-EIO);
+		result = RETERR(-EIO);
+		break;
 	}
 
-	return 0;
+	return result;
 }
 
 static int
-make_extent(struct inode *inode, uf_coord_t *uf_coord, jnode *j, const reiser4_key *key, write_mode_t mode)
+make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode, reiser4_block_nr *block)
 {
 	int result;
-	reiser4_key tmp_key;
-
-	assert("nikita-3139", !inode_get_flag(inode, REISER4_NO_SD));
-
-	/* key of first byte of the page */
-	if (key) {
-		tmp_key = *key;
-		set_key_offset(&tmp_key, (loff_t) jnode_page(j)->index << PAGE_CACHE_SHIFT);
-	} else
-		inode_file_plugin(inode)->key_by_inode(inode, (loff_t) jnode_page(j)->index << PAGE_CACHE_SHIFT, &tmp_key);
 
 	assert("vs-960", znode_is_write_locked(uf_coord->base_coord.node));
 	assert("vs-1334", znode_is_loaded(uf_coord->base_coord.node));
@@ -2453,17 +2417,17 @@ make_extent(struct inode *inode, uf_coord_t *uf_coord, jnode *j, const reiser4_k
 	switch (mode) {
 	case FIRST_ITEM:
 		/* create first item of the file */
-		result = insert_first_block(uf_coord, j, &tmp_key);
+		result = insert_first_block(uf_coord, key, block);
 		break;
 
 	case APPEND_ITEM:
 		assert("vs-1316", coord_extension_is_ok(uf_coord));
-		result = append_one_block(uf_coord, j, &tmp_key);
+		result = append_one_block(uf_coord, key, block);
 		break;
 
 	case OVERWRITE_ITEM:
 		assert("vs-1316", coord_extension_is_ok(uf_coord));
-		result = overwrite_one_block(uf_coord, j, &tmp_key);
+		result = overwrite_one_block(uf_coord, key, block);
 		break;
 
 	default:
@@ -2623,6 +2587,88 @@ write_move_coord(coord_t *coord, uf_coord_t *uf_coord, write_mode_t mode, int fu
 		ext_coord->pos_in_unit ++;
 }
 
+/* staring from page through extent to jnode */
+static jnode *
+page_extent_jnode(reiser4_tree *tree, oid_t oid, reiser4_key *key, uf_coord_t *uf_coord,
+		  struct page *page, write_mode_t mode)
+{
+	int result;
+	jnode *j;
+
+	assert("vs-1394", PageLocked(page));
+	assert("vs-1396", get_key_objectid(key) == get_inode_oid(page->mapping->host));
+	assert("vs-1397", get_key_objectid(key) == oid);
+	assert("vs-1395", get_key_offset(key) == (loff_t)page->index << PAGE_CACHE_SHIFT);
+
+	if (!PagePrivate(page)) {
+		/* page has no jnode */
+		reiser4_block_nr blocknr;
+
+		/*XXXX*/j =jlook_lock(tree, oid, page->index);
+		/*XXXX*/if (j) {
+			/*XXXX*/info_jnode("jnode found", j);
+		}
+
+
+		assert("vs-1391", !jlook_lock(tree, oid, page->index));
+		j = jnew();
+		if (unlikely(!j))
+			return ERR_PTR(RETERR(-ENOMEM));
+
+		reiser4_unlock_page(page);			
+		result = make_extent(key, uf_coord, mode, &blocknr);
+		if (result) {
+			jfree(j);
+			return ERR_PTR(result);
+		}
+		reiser4_lock_page(page);
+		if (!PagePrivate(page)) {
+			/* page is still not private. Initialize jnode and attach to page */
+			jnode_set_mapped(j);
+			jnode_set_block(j, &blocknr);
+			if (blocknr_is_fake(&blocknr)) {
+				jnode_set_created(j);
+				JF_SET(j, JNODE_NEW);					
+			}
+			bind_jnode_and_page(j, oid, page);
+		} else {
+			/* page was attached to jnode already in other thread */
+			jfree(j);
+			j = jnode_by_page(page);
+			assert("vs-1390", jnode_mapped(j));
+			assert("vs-1392", *jnode_get_block(j) == blocknr);
+			jref(j);
+		}
+	} else {
+		/* page has jnode already. Therefore, there is non hole extent which points to this page */
+		j = jnode_by_page(page);
+		assert("vs-1390", jnode_mapped(j));
+		jref(j);
+	}
+	return j;
+}
+
+/* this is used to capture page in write_extent and in writepage_extent */
+static int
+try_capture_dirty_page(jnode *node, struct page *page)
+{
+	int result;
+
+	assert("umka-292", page != NULL);
+	assert("nikita-2597", PageLocked(page));
+
+	LOCK_JNODE(node);
+	reiser4_unlock_page(page);
+
+	/* FIXME: possible optimization: if jnode is not dirty yet - it gets into clean list in try_capture and then in
+	   jnode_mark_dirty gets moved to dirty list. So, it would be more optimal to put jnode directly to dirty
+	   list */
+	result = try_capture(node, ZNODE_WRITE_LOCK, 0);
+	if (!result)
+		unformatted_jnode_make_dirty(node);
+	UNLOCK_JNODE(node);
+	return result;
+}
 
 /* write flow's data into file by pages */
 static int
@@ -2638,8 +2684,12 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	jnode *j;
 	uf_coord_t *uf_coord;
 	coord_t *coord;
+	oid_t oid;
+	reiser4_tree *tree;
+	reiser4_key page_key;
 	PROF_BEGIN(extent_write);
 
+	assert("nikita-3139", !inode_get_flag(inode, REISER4_NO_SD));
 	assert("vs-885", current_blocksize == PAGE_CACHE_SIZE);
 	assert("vs-700", flow->user == 1);
 	assert("vs-1352", flow->length > 0);
@@ -2648,6 +2698,8 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	if (DQUOT_ALLOC_SPACE_NODIRTY(inode, flow->length))
 		return RETERR(-EDQUOT);
 
+	tree = tree_by_inode(inode);
+	oid = get_inode_oid(inode);
 	uf_coord = &hint->coord;
 	coord = &uf_coord->base_coord;
 
@@ -2658,9 +2710,12 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	/* offset within the page */
 	page_off = (unsigned long)(file_off & (PAGE_CACHE_SIZE - 1));
 
+	/* key of first byte of page */
+	page_key = flow->key;
+	set_key_offset(&page_key, (loff_t)page_nr << PAGE_CACHE_SHIFT);
 	do {
 		if (!grabbed) {
-			result = reserve_extent_write_iteration(inode, znode_get_tree(coord->node));
+			result = reserve_extent_write_iteration(inode, tree);
 			if (result)
 				break;
 		}
@@ -2678,28 +2733,10 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 			goto exit1;
 		}
 
-		j = jnode_of_page(page);
+		j = page_extent_jnode(tree, oid, &page_key, uf_coord, page, mode);
 		if (IS_ERR(j)) {
 			result = PTR_ERR(j);
 			goto exit2;
-		}
-
-		/*if (!jnode_mapped(j) || !jnode_check_flushprepped(j) || !jnode_check_dirty(j)) {*/
-		if (!JF_ISSET(j, JNODE_RELOC)) {
-			ON_TRACE(TRACE_EXTENTS, "MAKE: page %p, index %lu, count %d..", page, page->index, page_count(page));
-
-			/* unlock page before doing anything with filesystem tree */
-			reiser4_unlock_page(page);
-			/* make sure that page has non-hole extent pointing to it */
-			result = make_extent(inode, uf_coord, j, &flow->key, mode);
-			reiser4_lock_page(page);
-			if (result) {
-				ON_TRACE(TRACE_EXTENTS, "FAILED: %d\n", result);
-				goto exit3;
-			}
-			ON_TRACE(TRACE_EXTENTS, "OK\n");
-		} else {
-			/*!!!move_coord*/;
 		}
 
 		/* if page is not completely overwritten - read it if it is not new or fill by zeros otherwise */
@@ -2723,19 +2760,12 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		if (!PageReferenced(page))
 			SetPageReferenced(page);
 
-		LOCK_JNODE(j);
-		reiser4_unlock_page(page);
+		result = try_capture_dirty_page(j, page);
+		/* unlock page is in try_capture_dirty_page */
 		page_cache_release(page);
-
-		result = try_capture(j, ZNODE_WRITE_LOCK, 0/* not non-blocking */);
-		if (result) {
-			UNLOCK_JNODE(j);
-			jput(j);
-			goto exit1;
-		}
-		unformatted_jnode_make_dirty(j);
-		UNLOCK_JNODE(j);
 		jput(j);
+		if (result)
+			goto exit1;
 
 		move_flow_forward(flow, count);
 		write_move_coord(coord, uf_coord, mode, page_off + count == PAGE_CACHE_SIZE);
@@ -2752,14 +2782,15 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		page_off = 0;
 		page_nr ++;
 		file_off += count;
+		set_key_offset(&page_key, (loff_t)page_nr << PAGE_CACHE_SHIFT);
 		continue;
 
-exit3:
+	exit3:
 		jput(j);
-exit2:
+	exit2:
 		reiser4_unlock_page(page);
 		page_cache_release(page);
-exit1:
+	exit1:
 		if (!grabbed)
 			all_grabbed2free("extent_write_flow on error");
 		break;
@@ -3040,6 +3071,9 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 {
 	jnode *j;
 
+	ON_TRACE(TRACE_EXTENTS, "readpage_extent: page (oid %llu, index %lu, count %d)..", 
+		 get_inode_oid(page->mapping->host), page->index, page_count(page));
+
 	switch (state_of_extent(ext)) {
 	case HOLE_EXTENT:
 		{
@@ -3050,23 +3084,35 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 			kunmap_atomic(kaddr, KM_USER0);
 			SetPageUptodate(page);
 			reiser4_unlock_page(page);
-			ON_TRACE(TRACE_EXTENTS, " - hole, OK\n");
+			ON_TRACE(TRACE_EXTENTS, "hole, OK\n");
 
 			return 0;
 		}
 
 	case ALLOCATED_EXTENT:
-		j = jnode_of_page(page);
-		if (IS_ERR(j)) {
-			SetPageError(page);
-			reiser4_unlock_page(page);
-			return PTR_ERR(j);
-		}
-		if (!jnode_mapped(j))
-			init_allocated_jnode(j, extent_get_start(ext) + pos);
-		reiser4_stat_inc(extent.unfm_block_reads);
+		if (!PagePrivate(page)) {
+			oid_t oid;
+			reiser4_block_nr blocknr;
+			
+			oid = get_inode_oid(page->mapping->host);
+			assert("vs-1391", !jlook_lock(current_tree, oid, page->index));
 
-		ON_TRACE(TRACE_EXTENTS, " - allocated, read issued\n");
+			j = jnew();
+			if (unlikely(!j))
+				return RETERR(-ENOMEM);
+
+			jnode_set_mapped(j);
+			blocknr = extent_get_start(ext) + pos;
+			jnode_set_block(j, &blocknr);
+			bind_jnode_and_page(j, oid, page);
+			ON_TRACE(TRACE_EXTENTS, "allocated, page mage private, read issued\n");
+		} else {
+			j = jnode_by_page(page);
+			assert("vs-1390", jnode_mapped(j));
+			assert("vs-1392", !blocknr_is_fake(jnode_get_block(j)));
+			jref(j);
+			ON_TRACE(TRACE_EXTENTS, "allocated, page was private, read issued\n");
+		}
 
 		break;
 
@@ -3075,10 +3121,11 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 			       page->index);
 		assert("nikita-2688", j);
 		assert("nikita-2802", JF_ISSET(j, JNODE_EFLUSH));
+		ON_TRACE(TRACE_EXTENTS, "page was eflushed\n");
 		break;
 
 	default:
-		warning("vs-957", "extent_readpage: wrong extent");
+		warning("vs-957", "extent_readpage: wrong extent\n");
 		return RETERR(-EIO);
 	}
 
@@ -3103,9 +3150,6 @@ readpage_extent(void *vp, struct page *page)
 	uf_coord_t *uf_coord = vp;
 	ON_DEBUG(coord_t *coord = &uf_coord->base_coord);
 	ON_DEBUG(reiser4_key key);
-		
-
-	ON_TRACE(TRACE_EXTENTS, "RP: index %lu, count %d..", page->index, page_count(page));
 
 	assert("vs-1040", PageLocked(page));
 	assert("vs-1050", !PageUptodate(page));
@@ -3128,7 +3172,7 @@ readpage_extent(void *vp, struct page *page)
   locked, coord is set to existing unit inside of extent item
 */
 int
-writepage_extent(uf_coord_t *uf_coord, struct page *page, write_mode_t mode)
+writepage_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_mode_t mode)
 {
 	int result;
 	jnode *j;
@@ -3138,37 +3182,20 @@ writepage_extent(uf_coord_t *uf_coord, struct page *page, write_mode_t mode)
 	assert("vs-1052", PageLocked(page));
 	assert("vs-1073", PageDirty(page));
 	assert("vs-1051", page->mapping && page->mapping->host);
+	assert("nikita-3139", !inode_get_flag(page->mapping->host, REISER4_NO_SD));
 	assert("vs-864", znode_is_wlocked(uf_coord->base_coord.node));
+	assert("vs-1398", get_key_objectid(key) == get_inode_oid(page->mapping->host));
 
-	j = jnode_of_page(page);
+	j = page_extent_jnode(current_tree, get_key_objectid(key), key, uf_coord, page, mode);
 	if (IS_ERR(j))
 		return PTR_ERR(j);
-
-	reiser4_unlock_page(page);
-
-	result = make_extent(page->mapping->host, uf_coord, j, 0/*key*/, mode);
 	JF_CLR(j, JNODE_NEW);
-	if (result) {
-		ON_TRACE(TRACE_EXTENTS, "extent_writepage failed: %d\n", result);
-		return result;
-	}
-
-	LOCK_JNODE(j);
-	result = try_capture(j, ZNODE_WRITE_LOCK, 0/* not non-blocking */);
-	if (result) {
-		UNLOCK_JNODE(j);
-		jput(j);
-		return result;
-	}
-	unformatted_jnode_make_dirty(j);
-	UNLOCK_JNODE(j);
-
-	reiser4_lock_page(page);
+	result = try_capture_dirty_page(j, page);
 	jput(j);
+	reiser4_lock_page(page);
 
 	ON_TRACE(TRACE_EXTENTS, "OK\n");
-
-	return 0;
+	return result;
 }
 
 /*
@@ -3484,6 +3511,12 @@ exit:
 	return ret;
 }
 
+/* 
+   Mark jnodes of given extent for repacking.
+   @tap : lock, coord and load status for the tree traversal position,
+   @max_nr_marked: a maximum number of nodes which can be marked for repacking,
+   @return: error code if < 0, number of marked nodes otherwise. 
+*/
 int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 {
 	coord_t * coord = tap->coord;
@@ -3496,7 +3529,7 @@ int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 
 	ext = extent_by_coord(coord);
 
-	if (state_of_extent(ext) != ALLOCATED_EXTENT)
+	if (state_of_extent(ext) == HOLE_EXTENT)
 		return 0;
 
 	width = extent_get_width(ext);
@@ -3504,6 +3537,41 @@ int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 	index = extent_unit_index(coord);
 
 	{
+		/* We cannot read unformatted data if corresponding inode is
+		 * unknown or not in cache. Here we build stat data key and
+		 * search in the inode cache. */
+
+		/* FIXME(Zam). We have a problem because a reiser4 inode
+		 * initialization cannot be completed.  Some inode properties
+		 * are inherited from a parent directory, unlike
+		 * reiser4_lookup() a parent directory is unknown here.  
+
+		 * The reiser4 file inheritance may be fixed by implementing a
+		 * copying of parent directory properties at the moment of new
+		 * file creation. But, still we do not know what to do with
+		 * light-weight files which have no stat data and all their
+		 * properties are inherited from parent directory. 
+
+		 * I think this problem is from bad layering of reiser4 tree
+		 * access. The repacker is for dealing with reiser4 tree, not
+		 * with files, but it has to take care about reading reiser4
+		 * inodes and proper initialization of their fields.  A layer of
+		 * accessing only tree nodes is just missing in reiser4.
+
+		 * The solution could be in to allow read of unformatted data
+		 * without having fully initialized inode. Actually no
+		 * reiser4-specific fields are needed for accessing of
+		 * unformatted data and repacking them.  The repacker may use
+		 * not-initialized inode for its needs until somebody else
+		 * completes inode initialization in reiser4_lookup().
+
+		 * Another problem is that we cannot construct SD key from a key
+		 * of arbitrary file item.  The key transformation which is done
+		 * here (type := KEY_SD_MINOR, offset := 0). It is OK for
+		 * current key assignment scheme but it is not valid in general
+		 * case.  Using of not-initialized reiser4 inodes can solve this
+		 * problem too. */
+
 		reiser4_key sd_key;
 		struct super_block * super = reiser4_get_current_sb();
 
@@ -3514,7 +3582,8 @@ int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 		inode = ilookup5(super, (unsigned long)get_key_objectid(&sd_key),
 				 reiser4_inode_find_actor, &sd_key);
 		if (inode == NULL) {
-			/* Release all locks before CBK. */
+			/* Inode was not found in cache. We have to release all
+			 * locks before CBK. */
 			tap_done(tap);
 			inode = reiser4_iget(super, &sd_key);
 			if (IS_ERR(inode))
@@ -3522,6 +3591,8 @@ int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 			if (inode->i_state & I_NEW)
 				unlock_new_inode(inode);
 			iput(inode);
+			/* Expect the inode to be in cache when we come here
+			 * next time. */
 			return -EAGAIN;
 		}
 
@@ -3536,7 +3607,7 @@ int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 		struct page * page;
 
 		ret = 0;
-
+		/* Jnodes could not be available  */
 		page = grab_cache_page(inode->i_mapping, index + i);
 		if (page == NULL) {
 			ret = -ENOMEM;
@@ -3549,23 +3620,31 @@ int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 			ret = PTR_ERR(node);
 			break;
 		}
+
+		/* Freshly created jnode has no block number set. */
 		if (node->blocknr == 0) {
 			reiser4_block_nr block;
 			block = start + index;
 			jnode_set_block(node, &block);
 		}
 
-		if (!jnode_is_dirty(node)) {
+		if (!JF_ISSET(node, JNODE_REPACK)) {
 			do {
-				ret = jstartio(node);
-				if (ret)
-					break;
+				/* Check whether the node is already read. */
+				if (!JF_ISSET(node, JNODE_PARSED)) {
+					ret = jstartio(node);
+					if (ret)
+						break;
+				}
 
+				/* Add to the transaction */
 				ret = try_capture(node, ZNODE_WRITE_LOCK, 0);
 				if (ret)
 					break;
 
 				unformatted_jnode_make_dirty(node);
+				JF_SET(node, JNODE_REPACK);
+
 				nr_marked ++;
 			} while (0);
 		}
