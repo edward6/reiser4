@@ -34,13 +34,15 @@ year old --- define all technical terms used.
 
 /* Thoughts on the external transaction interface:
 
-   In the current code, a TRANSCRASH handle is created implicitly by init_context() (which creates state that lasts for
-   the duration of a system call and is called at the start of ReiserFS methods implementing VFS operations), and closed
-   by reiser4_exit_context(), occupying the scope of a single system call.  We wish to give certain applications an
-   interface to begin and close (commit) transactions.  Since our implementation of transactions does not yet support
-   isolation, allowing an application to open a transaction implies trusting it to later close the transaction.  Part of
-   the transaction interface will be aimed at enabling that trust, but the interface for actually using transactions is
-   fairly narrow.
+   In the current code, a TRANSCRASH handle is created implicitly by init_context() (which
+   creates state that lasts for the duration of a system call and is called at the start
+   of ReiserFS methods implementing VFS operations), and closed by reiser4_exit_context(),
+   occupying the scope of a single system call.  We wish to give certain applications an
+   interface to begin and close (commit) transactions.  Since our implementation of
+   transactions does not yet support isolation, allowing an application to open a
+   transaction implies trusting it to later close the transaction.  Part of the
+   transaction interface will be aimed at enabling that trust, but the interface for
+   actually using transactions is fairly narrow.
 
    BEGIN_TRANSCRASH: Returns a transcrash identifier.  It should be possible to translate
    this identifier into a string that a shell-script could use, allowing you to start a
@@ -52,16 +54,18 @@ year old --- define all technical terms used.
      on writes (WRITE_FUSING) and allow "dirty reads".  If the application wishes to
      capture on reads as well, it should set READ_FUSING.
 
-     - TIMEOUT: Since a non-isolated transcrash cannot be undone, every transcrash must eventually close (or else the
-     machine must crash).  If the application dies an unexpected death with an open transcrash, for example, or if it
-     hangs for a long duration, one solution (to avoid crashing the machine) is to simply close it anyway.  This is a
-     dangerous option, but it is one way to solve the problem until isolated transcrashes are available for untrusted
-     applications.
+     - TIMEOUT: Since a non-isolated transcrash cannot be undone, every transcrash must
+     eventually close (or else the machine must crash).  If the application dies an
+     unexpected death with an open transcrash, for example, or if it hangs for a long
+     duration, one solution (to avoid crashing the machine) is to simply close it anyway.
+     This is a dangerous option, but it is one way to solve the problem until isolated
+     transcrashes are available for untrusted applications.
 
-     It seems to be what databases do, though it is unclear how one avoids a DoS attack creating a vulnerability based
-     on resource starvation.  Guaranteeing that some minimum amount of computational resources are made available would
-     seem more correct than guaranteeing some amount of time.  When we again have someone to code the work, this issue
-     should be considered carefully.  -Hans
+     It seems to be what databases do, though it is unclear how one avoids a DoS attack
+     creating a vulnerability based on resource starvation.  Guaranteeing that some
+     minimum amount of computational resources are made available would seem more correct
+     than guaranteeing some amount of time.  When we again have someone to code the work,
+     this issue should be considered carefully.  -Hans
 
    RESERVE_BLOCKS: A running transcrash should indicate to the transaction manager how
    many dirty blocks it expects.  The reserve_blocks interface should be called at a point
@@ -729,9 +733,14 @@ void atom_dec_and_unlock(txn_atom * atom)
 
 /* Return a new atom, locked.  This adds the atom to the transaction manager's list and
    sets its reference count to 1, an artificial reference which is kept until it
-   commits.  We play strange games to avoid allocation under jnode & txnh spinlocks.
+   commits.  We play strange games to avoid allocation under jnode & txnh spinlocks.*/
 
-ZAM-FIXME-HANS: should we set node->atom and txnh->atom here also? */
+/* ZAM-FIXME-HANS: should we set node->atom and txnh->atom here also? */
+/* ANSWER(ZAM): there are special functions, capture_assign_txnh_nolock() and
+   capture_assign_block_nolock(), they are called right after calling
+   atom_begin_and_lock().  It could be done here, but, for understandability, it
+   is better to keep those calls inside try_capture_block main routine where all
+   assignments are made. */
 static txn_atom *
 atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 {
@@ -1382,16 +1391,6 @@ commit_some_atoms(txn_mgr * mgr)
 		if (atom->stage < ASTAGE_PRE_COMMIT &&
 		    atom->txnh_count == 0 && atom_should_commit(atom))
 			break;
-
-		/*
-		 * to simplify locking in other places, it is allowed to
-		 * rarely left fused (ASTAGE_INVALID) unreferenced atom on the
-		 * transaction manager list (see
-		 * trylock_wait()). commit_some_atoms() is called periodically
-		 * from ktxnmgrd and is good place to perform some cleanup.
-		 */
-		atomic_inc(&atom->refcount);
-		atom_dec_and_unlock_locked(atom);
 	}
 
 	ret = atom_list_end(&mgr->atoms_list, atom);
@@ -1782,9 +1781,7 @@ commit_txnh(txn_handle * txnh)
 
    This routine encodes the basic logic of block capturing described by:
 
-     http://namesys.com/txn-doc.html
-
-ZAM-FIXME-HANS: update reference
+     http://namesys.com/v4/v4.html
 
    Our goal here is to ensure that any two blocks that contain dependent modifications
    should commit at the same time.  This function enforces this discipline by initiating
@@ -2052,7 +2049,7 @@ build_capture_mode(jnode * node, znode_lock_mode lock_mode, txn_capture flags)
 }
 
 /* This is an external interface to try_capture_block(), it calls
-   try_capture_block() repeatedly as long as -E_REPEAT is returned. 
+   try_capture_block() repeatedly as long as -E_REPEAT is returned.
 
    @node:         node to capture,
    @lock_mode:    read or write lock is used in capture mode calculation,
@@ -2063,7 +2060,7 @@ build_capture_mode(jnode * node, znode_lock_mode lock_mode, txn_capture flags)
             cannot be processed immediately as it was requested in flags,
 	    < 0 - other errors.
 */
-int 
+int
 try_capture(jnode * node,  znode_lock_mode lock_mode,
 	    txn_capture flags, int can_coc)
 {
@@ -2731,12 +2728,8 @@ trylock_wait(txn_atom *atom, txn_handle * txnh, jnode * node)
 		UNLOCK_TXNH(txnh);
 
 		LOCK_ATOM(atom);
-		/*
-		 * NOTE-NIKITA this probably leaks atom. But such leaks should
-		 * be extremely rare. Probably best solution is to scan atom
-		 * list from ktxnmgrd and collect garbage.
-		 */
-		atomic_dec(&atom->refcount);
+		/* caller should eliminate extra reference by calling
+		 * atom_dec_and_unlock() for this atom. */
 		return 1;
 	} else
 		return 0;
@@ -2754,12 +2747,16 @@ trylock_wait(txn_atom *atom, txn_handle * txnh, jnode * node)
  * busy loop if atom is locked for long enough time. Function below tries to
  * throttle this loop.
  *
- * NIKITA-HANS: there is not different, deadlock-wise.
-
-ZAM-FIXME-HANS: how feasible would it be to use our hi-lo priority locking mechanisms/code for this as well? Does that make any sense?
-
- *
  */
+/* ZAM-FIXME-HANS: how feasible would it be to use our hi-lo priority locking
+   mechanisms/code for this as well? Does that make any sense? */
+/* ANSWER(Zam): I am not sure that I understand you proposal right, but the idea
+   might be in inventing spin_lock_lopri() which should be a complex loop with
+   "release lock" messages check like we have in the znode locking.  I think we
+   should not substitute spin locks by more complex busy loops.  Once it was
+   done that way in try_capture_block() where spin lock waiting was spread in a
+   busy loop  through several functions.  The proper solution should be in
+   making spin lock contention rare. */
 static int
 trylock_throttle(txn_atom *atom, txn_handle * txnh, jnode * node)
 {
@@ -2771,7 +2768,7 @@ trylock_throttle(txn_atom *atom, txn_handle * txnh, jnode * node)
 	assert("nikita-3229", spin_jnode_is_locked(node));
 
 	if (unlikely(trylock_wait(atom, txnh, node) != 0)) {
-		UNLOCK_ATOM(atom);
+		atom_dec_and_unlock(atom);
 		reiser4_stat_inc(txnmgr.restart.trylock_throttle);
 		return RETERR(-E_REPEAT);
 	} else
@@ -2856,7 +2853,7 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode, int can_c
 	 *
 	 *     2. spin_trylock(atom). On failure to acquire lock, increment
 	 *     atom->refcount, release all locks, and spin on atom lock. Then
-	 *     recrement ->refcount, unlock atom and return -E_REPEAT.
+	 *     decrement ->refcount, unlock atom and return -E_REPEAT.
 	 *
 	 *     3. like previous one, but before unlocking atom, re-acquire
 	 *     spin locks on node and txnh and re-check whether function
@@ -2871,11 +2868,18 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode, int can_c
 		if (node->atom == NULL ||
 		    txnh->atom != NULL || atom != node->atom) {
 			/* something changed. Caller have to re-decide */
-			UNLOCK_ATOM(atom);
 			UNLOCK_TXNH(txnh);
 			UNLOCK_JNODE(node);
+			atom_dec_and_unlock(atom);
 			reiser4_stat_inc(txnmgr.restart.assign_txnh);
 			return RETERR(-E_REPEAT);
+		} else {
+			/* atom still has a jnode on its list (node->atom ==
+			 * atom), it means atom is not fused or finished
+			 * (committed), we can safely decrement its refcount
+			 * because it is not a last reference. */
+			atomic_dec(&atom->refcount);
+			assert("zam-990", atomic_read(&atom->refcount) > 0);
 		}
 	}
 
