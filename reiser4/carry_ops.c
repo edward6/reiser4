@@ -601,7 +601,7 @@ static int insert_paste_common( carry_op *op /* carry operation being
 		spin_lock_dk( current_tree );
 		op -> u.insert.key = 
 			leftmost_key_in_node( child, znode_get_ld_key( child ) );
-		op -> u.insert.data -> cookie = op -> u.insert.brother;
+		op -> u.insert.data -> arg = op -> u.insert.brother;
 		spin_unlock_dk( current_tree );
 	} else {
 		assert( "vs-243", op -> u.insert.coord != NULL );
