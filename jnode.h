@@ -310,9 +310,6 @@ static inline int jnode_is_root (const jnode *node)
 
 /** operations to access jnodes */
 typedef struct node_operations {
-	/** allocate memory for newly created znode. This is called from
-	 * zinit_new() */
-	int ( *allocate_node )( reiser4_tree *tree, jnode *node );
 	/** called when node is deleted from the tree. This is called from
 	 * zdestroy(). */
 	int ( *delete_node )( reiser4_tree *tree, jnode *node );
@@ -329,6 +326,7 @@ extern void add_d_ref( jnode *node );
 /* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
 
 extern int jload(jnode * node);
+extern int jinit_new( jnode *node );
 
 extern void jdrop             (jnode* node);
 extern int  jwait_io          (jnode* node, int rw);

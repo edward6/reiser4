@@ -93,7 +93,7 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 		spin_lock_dk (current_tree);
 		assert ("vs-751", keyeq (key, znode_get_ld_key (coord->node)));
 		spin_unlock_dk (current_tree);
-		
+
 		zrelse (coord->node);
 		return 1;
 	}

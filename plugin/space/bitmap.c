@@ -504,21 +504,11 @@ static int load_and_lock_bnode (struct bnode * bnode)
 		
 		if ((ret = jload (bnode->cjnode)) < 0) goto fail; 
 
-		{ /* allocate memory for working bitmap block */
-			reiser4_tree * tree = current_tree;
-
-			add_d_ref (bnode->wjnode);
-
-			assert ("zam-630", tree->ops != NULL && tree->ops->allocate_node != NULL);
-
-			ret = tree->ops->allocate_node(tree, bnode->wjnode);
-			spin_unlock_jnode (bnode->wjnode);
-			if (ret < 0) {
-				goto fail;
-			}
-
-			JF_SET(bnode->wjnode, ZNODE_LOADED);
-		} 
+		/* allocate memory for working bitmap block */
+		ret = jinit_new(bnode->wjnode);
+		if (ret < 0) {
+			goto fail;
+		}
 
 		/* node has been loaded by this jload call  */
 		/* working bitmap is initialized by on-disk commit bitmap */

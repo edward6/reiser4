@@ -191,7 +191,6 @@ TS_HASH_DEFINE( z, znode, reiser4_block_nr,
 /** slab for znodes */
 static kmem_cache_t *znode_slab;
 
-static void znode_remove( znode *node );
 
 /****************************************************************************************
 				   ZNODE INITIALIZATION
@@ -232,7 +231,7 @@ int znodes_tree_init( reiser4_tree *tree /* tree to initialise znodes for */ )
 
 /** free this znode */
 /* Audited by: umka (2002.06.11) */
-static void zfree( znode *node /* znode to free */ )
+void zfree( znode *node /* znode to free */ )
 {
 	trace_stamp( TRACE_ZNODES );
 	assert( "nikita-465", node != NULL );
@@ -338,7 +337,7 @@ static void zinit( znode *node /* znode to initialise */,
 }
 
 /** remove znode from hash table */
-static void znode_remove( znode *node /* znode to remove */ )
+void znode_remove( znode *node /* znode to remove */ )
 {
 	assert( "nikita-2108", node != NULL );
 
@@ -436,34 +435,10 @@ void jdelete( jnode *node /* znode to finish with */ )
  *
  * This is called when znode is removed from the memory.
  */
-void zdrop( reiser4_tree *tree /* tree to remove znode from */, 
+void zdrop( reiser4_tree *tree UNUSED_ARG /* tree to remove znode from */,
 	    znode *node /* znode to finish with */ )
 {
-	trace_stamp( TRACE_ZNODES );
-	assert( "nikita-2153", node != NULL );
-	assert( "nikita-2154", tree != NULL );
-	ON_SMP( assert( "nikita-2128", spin_tree_is_locked( tree ) ) );
-
-	if( atomic_read( &ZJNODE( node ) -> x_count ) > 0 )
-		return;
-
-	/*
-	 * this is called with tree spin-lock held, so call znode_remove()
-	 * directly (rather than znode_lock_remove()).
-	 */
-	znode_remove( node );
-
-	assert( "nikita-2155", tree -> ops -> drop_node != NULL );
-
-	/*
-	 * drop backing store (page).
-	 */
-	if( tree -> ops -> drop_node( tree, ZJNODE( node ) ) != 0 ) {
-		warning( "nikita-2156", "Failed to drop node: %llx",
-			 *znode_get_block( node ) );
-	}
-
-	zfree( node );
+	return jdrop( ZJNODE( node ) );
 }
 
 /** put znode into right place in the hash table */
@@ -799,11 +774,6 @@ int zparse( znode *node /* znode to parse */ )
 	return result;
 }
 
-static void zrelse_nolock( znode *node )
-{
-	jrelse_nolock (ZJNODE(node));
-}
-
 /** load content of node into memory */
 int zload( znode *node /* znode to load */ )
 {
@@ -815,8 +785,8 @@ int zload( znode *node /* znode to load */ )
 	assert( "nikita-2125", atomic_read( &ZJNODE(node) -> x_count ) > 0 );
 	assert( "nikita-2189", lock_counters() -> spin_locked == 0 );
 
-	result = jload (ZJNODE(node));
-	assert ("nikita-1378", znode_invariant (node));
+	result = jload( ZJNODE( node ) );
+	assert( "nikita-1378", znode_invariant( node ) );
 	return result;
 }
 
@@ -824,32 +794,7 @@ int zload( znode *node /* znode to load */ )
 /* Audited by: umka (2002.06.11), umka (2002.06.15) */
 int zinit_new( znode *node /* znode to initialise */ )
 {
-	int   result;
-	reiser4_tree *tree;
-
-	assert( "nikita-1234", node != NULL );
-	tree = current_tree;
-	assert( "umka-274", tree != NULL );
-	assert( "nikita-1908", tree -> ops -> allocate_node != NULL );
-
-	add_d_ref( ZJNODE( node ) );
-	result = tree -> ops -> allocate_node( tree, ZJNODE( node ) );
-	ON_SMP( assert( "nikita-2076", spin_znode_is_locked( node ) ) );
-	if( likely( result == 0 ) ) {
-		if( likely( !znode_is_loaded( node ) ) ) {
-			ZF_SET( node, ZNODE_LOADED );
-			ZF_SET( node, ZNODE_CREATED );
-			assert( "nikita-1235", znode_is_loaded( node ) );
-			assert( "nikita-1236", node_plugin_by_node( node ) != NULL );
-			result = node_plugin_by_node( node ) -> init( node );
-			if( result != 0 )
-				zrelse_nolock( node );
-		}
-	} else
-		zrelse_nolock( node );
-
-	spin_unlock_znode( node );
-	return result;
+	return jinit_new( ZJNODE( node ) );
 }
 
 /**
@@ -1258,11 +1203,8 @@ void info_znode( const char *prefix /* prefix to print */,
 	if( jnode_is_unformatted( ZJNODE( node ) ) )
 		return;
 
-	info( "c_count: %i, d_count: %i, x_count: %i readers: %i, ", 
-	      atomic_read( &node -> c_count ),
-	      atomic_read( &ZJNODE(node) -> d_count ),
-	      atomic_read( &ZJNODE(node) -> x_count ),
-	      node -> lock.nr_readers );
+	info( "c_count: %i, readers: %i, ", 
+	      atomic_read( &node -> c_count ), node -> lock.nr_readers );
 
 	print_address( "blocknr", znode_get_block( node ) );
 }

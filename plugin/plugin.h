@@ -405,7 +405,9 @@ typedef struct layout_plugin {
 typedef struct jnode_plugin {
 	/** generic fields */
 	plugin_header h;
+	int                   ( *init )   ( jnode *node );
 	int                   ( *parse )  ( jnode *node );
+	int                   ( *remove ) ( jnode *node );
 	struct address_space *( *mapping )( const jnode *node );
 	unsigned long         ( *index )  ( const jnode *node );
 } jnode_plugin;

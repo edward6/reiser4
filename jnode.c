@@ -537,27 +537,57 @@ int jload( jnode *node )
 		trace_on( TRACE_PCACHE, "read node: %p\n", node );
 
 		jplug = jnode_ops( node );
+
+		/*
+		 * Our initial design was to index pages with formatted data
+		 * by their block numbers. One disadvantage of this is that
+		 * such setup makes relocation harder to implement: when tree
+		 * node is relocated we need to re-index its data in a page
+		 * cache. To avoid data copying during this re-indexing it was
+		 * decided that first version of reiser4 will only support
+		 * block size equal to PAGE_CACHE_SIZE.
+		 *
+		 * But another problem came up: our block numbers are 64bit
+		 * and pages are indexed by 32bit ->index. Moreover:
+		 *
+		 *  - there is strong opposition for enlarging ->index field
+		 *  (and for good reason: size of struct page is critical,
+		 *  because there are so many of them).
+		 *
+		 *  - our "unallocated" block numbers have highest bit set,
+		 *  which makes 64bit block number support essential
+		 *  independently of device size.
+		 *
+		 * Code below uses jnode _address_ as page index. This has
+		 * following advantages:
+		 *
+		 *  - relocation is simplified
+		 *
+		 *  - if ->index is jnode address, than ->private is free for
+		 *  use. It can be used to store some jnode data making it
+		 *  smaller (not yet implemented). Pointer to atom?
+		 *
+		 */
 		page = read_cache_page( jplug -> mapping( node ),
 					jplug -> index( node ), 
 					page_filler, node );
 		if( !IS_ERR( page ) ) {
 			wait_on_page_locked( page );
 			kmap( page );
-			if( PageUptodate( page ) )
-				/*
-				 * here neither jnode nor page are protected
-				 * by any kind of lock, so several parallel
-				 * ->parse() calls are possible.
-				 */
-				result = jplug -> parse( node );
-			else
+			if( PageUptodate( page ) ) {
+				spin_lock_jnode( node );
+				if( !jnode_is_loaded( node ) ) {
+					result = jplug -> parse( node );
+					if( result == 0 )
+						JF_SET( node, ZNODE_LOADED );
+				}
+				spin_unlock_jnode( node );
+			} else
 				result = -EIO;
 		} else
 			result = PTR_ERR( page );
 
-		if( likely( result == 0 ) ) {
-			JF_SET( node, ZNODE_LOADED );
-		} else
+		if( unlikely( result != 0 ) )
 			jrelse( node );
 	} else {
 		struct page *page;
@@ -568,6 +598,48 @@ int jload( jnode *node )
 		kmap( page );
 		result = 0;
 	}
+	return result;
+}
+
+/** call node plugin to initialise newly allocated node. */
+int jinit_new( jnode *node /* jnode to initialise */ )
+{
+	int           result;
+	struct page  *page;
+	jnode_plugin *jplug;
+
+	assert( "nikita-1234", node != NULL );
+
+	add_d_ref( node );
+	jplug = jnode_ops( node );
+	page = grab_cache_page( jplug -> mapping( node ), 
+				jplug -> index( node ) );
+	if( page != NULL ) {
+		/*
+		 * FIXME-NIKITA *dubious*
+		 */
+		SetPageUptodate( page );
+		jnode_attach_page( node, page );
+		unlock_page( page );
+		kmap( page );
+		result = 0;
+		spin_lock_jnode( node );
+		if( likely( !jnode_is_loaded( node ) ) ) {
+			JF_SET( node, ZNODE_LOADED );
+			JF_SET( node, ZNODE_CREATED );
+			assert( "nikita-1235", jnode_is_loaded( node ) );
+			result = jplug -> init( node );
+			if( unlikely( result != 0 ) ) {
+				JF_CLR( node, ZNODE_LOADED );
+				JF_CLR( node, ZNODE_CREATED );
+			}
+		}
+		spin_unlock_jnode( node );
+	} else
+		result = -ENOMEM;
+
+	if( unlikely( result != 0 ) )
+		jrelse( node );
 	return result;
 }
 
@@ -600,24 +672,41 @@ void jdrop (jnode * node)
 {
 	reiser4_tree * tree = current_tree;
 	int result;
+	struct page *page;
+	spinlock_t  *lock;
 
-	assert ("zam-602", node != NULL);
-	assert ("zam-603", tree->ops != NULL);
-	assert ("zam-604", tree->ops->drop_node != NULL);
-	ON_SMP (assert ("nikita-2362", spin_tree_is_locked (tree)));
+	assert( "zam-602", node != NULL );
+	assert( "zam-603", tree->ops != NULL );
+	assert( "zam-604", tree->ops->drop_node != NULL );
+	ON_SMP( assert( "nikita-2362", spin_tree_is_locked( tree ) ) );
 
 	/* reference was acquired by other thread. */
-	if (atomic_read (& node->x_count) > 0)
+	if( atomic_read( &node -> x_count ) > 0 )
 		return;
 
-	/* remove jnode from hash-table */
-	j_hash_remove (&tree->jhash_table, node);
+	trace_on( TRACE_PCACHE, "drop node: %p\n", node );
 
-	result = tree->ops->drop_node (tree, node);
-	if (result != 0)
-		warning ("nikita-2363", "Failed to drop jnode: %llx: %i",
-			 *jnode_get_block (node), result);
-	jfree (node);
+	lock = jnode_to_page_lock( node );
+	spin_lock( lock );
+	page = jnode_page( node );
+	trace_if( TRACE_PCACHE, print_page( "drop node", page ) );
+	if( page != NULL ) {
+		assert( "nikita-2182", lock == page_to_jnode_lock( page ) );
+		lock_page( page );
+		assert( "nikita-2126", !PageDirty( page ) );
+		assert( "nikita-2127", PageUptodate( page ) );
+		remove_inode_page( page );
+		unlock_page( page );
+		break_page_jnode_linkage( page, node );
+		spin_unlock( lock );
+		page_cache_release( page );
+	} else
+		spin_unlock( lock );
+
+	result = jnode_ops( node ) -> remove( node );
+	if( result != 0 )
+		warning( "nikita-2363", "Failed to drop jnode: %llx: %i",
+			 *jnode_get_block( node ), result );
 }
 
 int jwait_io (jnode * node, int rw)
@@ -691,6 +780,14 @@ static unsigned long jnode_index( const jnode *node )
 	return node -> key.index;
 }
 
+static int jnode_remove_op( jnode *node )
+{
+	/* remove jnode from hash-table */
+	j_hash_remove( &current_tree -> jhash_table, node );
+	jfree( node );
+	return 0;
+}
+
 static struct address_space *znode_mapping( const jnode *node UNUSED_ARG )
 {
 	return get_super_fake( reiser4_get_current_sb() ) -> i_mapping;
@@ -708,6 +805,30 @@ static int znode_parse( jnode *node )
 	return zparse( JZNODE( node ) );
 }
 
+static int znode_remove_op( jnode *node )
+{
+	znode *z;
+
+	ON_SMP( assert( "nikita-2128", spin_tree_is_locked( current_tree ) ) );
+	z = JZNODE( node );
+
+	/*
+	 * this is called with tree spin-lock held, so call znode_remove()
+	 * directly (rather than znode_lock_remove()).
+	 */
+	znode_remove( z );
+	zfree( z );
+	return 0;
+}
+
+static int znode_init( jnode *node )
+{
+	znode *z;
+
+	z = JZNODE( node );
+	return node_plugin_by_node( z ) -> init( z );
+}
+
 reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 	[ JNODE_UNFORMATTED_BLOCK ] = {
 		.jnode = {
@@ -719,7 +840,9 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 				.desc    = "unformatted node",
 				.linkage = TS_LIST_LINK_ZERO
 			},
+			.init    = noparse,
 			.parse   = noparse,
+			.remove  = jnode_remove_op,
 			.mapping = jnode_mapping,
 			.index   = jnode_index
 		}
@@ -734,7 +857,9 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 				.desc    = "formatted tree node",
 				.linkage = TS_LIST_LINK_ZERO
 			},
+			.init    = znode_init,
 			.parse   = znode_parse,
+			.remove  = znode_remove_op,
 			.mapping = znode_mapping,
 			.index   = znode_index
 		}
@@ -749,7 +874,9 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 				.desc    = "bitmap node",
 				.linkage = TS_LIST_LINK_ZERO
 			},
+			.init    = noparse,
 			.parse   = noparse,
+			.remove  = noparse,
 			.mapping = znode_mapping,
 			.index   = znode_index
 		}
@@ -764,7 +891,9 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 				.desc    = "journal record",
 				.linkage = TS_LIST_LINK_ZERO
 			},
+			.init    = noparse,
 			.parse   = noparse,
+			.remove  = noparse,
 			.mapping = NULL,
 			.index   = NULL
 		}
@@ -779,7 +908,9 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 				.desc    = "io head",
 				.linkage = TS_LIST_LINK_ZERO
 			},
+			.init    = noparse,
 			.parse   = noparse,
+			.remove  = noparse,
 			.mapping = NULL,
 			.index   = NULL
 		}

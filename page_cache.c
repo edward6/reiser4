@@ -128,7 +128,6 @@
 
 #include "reiser4.h"
 
-static struct page *add_page( struct super_block *super, jnode *node );
 static struct bio *page_bio( struct page *page, int rw, int gfp );
 
 static struct address_space_operations formatted_fake_as_ops;
@@ -181,38 +180,6 @@ int done_formatted_fake( struct super_block *super )
 	fake = get_super_private_nocheck( super ) -> fake;
 	iput( fake );
 	return 0;
-}
-
-/** 
- * ->allocate_node method of page-cache based tree operations 
- *
- * grab page to back up new jnode.
- */
-static int page_cache_allocate_node( reiser4_tree *tree, jnode *node )
-{
-	struct page *page;
-	int result;
-
-	assert( "nikita-2040", tree != NULL );
-	assert( "nikita-2041", node != NULL );
-
-	trace_on( TRACE_PCACHE, "allocate node: %p\n", node );
-
-	page = add_page( tree -> super, node );
-	if( page != NULL ) {
-		/*
-		 * FIXME-NIKITA *dubious*
-		 */
-		SetPageUptodate( page );
-		unlock_page( page );
-		kmap( page );
-		result = 0;
-	} else {
-		result = -ENOMEM;
-	}
-	/* return with jnode spin-locked */
-	spin_lock_jnode( node );
-	return result;
 }
 
 /** ->delete_node method of page-cache based tree operations */
@@ -287,75 +254,6 @@ static int page_cache_clean_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 	trace_on( TRACE_PCACHE, "clean node: %p\n", node );
 	ClearPageDirty( jnode_page( node ) );
 	return 0;
-}
-
-/** 
- * add or fetch page corresponding to jnode to/from the page cache.  Return
- * page locked.
- */
-static struct page *add_page( struct super_block *super, jnode *node )
-{
-	struct page  *page;
-	int           blksizebits;
-	jnode_plugin *jplug;
-
-	assert( "nikita-2171", super != NULL );
-
-	blksizebits = super -> s_blocksize_bits;
-	/*
-	 * only blocks smaller or equal to page size are supported
-	 */
-	assert( "nikita-1773", PAGE_CACHE_SHIFT >= blksizebits );
-
-	jplug = jnode_ops( node );
-
-	/*
-	 * Our initial design was to index pages with formatted data by their
-	 * block numbers. One disadvantage of this is that such setup makes
-	 * relocation harder to implement: when tree node is relocated we need
-	 * to re-index its data in a page cache. To avoid data copying during
-	 * this re-indexing it was decided that first version of reiser4 will
-	 * only support block size equal to PAGE_CACHE_SIZE.
-	 *
-	 * But another problem came up: our block numbers are 64bit and pages
-	 * are indexed by 32bit ->index. Moreover:
-	 *
-	 *  - there is strong opposition for enlarging ->index field (and for
-	 *  good reason: size of struct page is critical, because there are so
-	 *  many of them).
-	 *
-	 *  - our "unallocated" block numbers have highest bit set, which
-	 *  makes 64bit block number support essential independently of device
-	 *  size.
-	 *
-	 * Code below uses jnode _address_ as page index. This has following
-	 * advantages:
-	 *
-	 *  - relocation is simplified
-	 *
-	 *  - if ->index is jnode address, than ->private is free for use. It
-	 *  can be used to store some jnode data making it smaller (not yet
-	 *  implemented). Pointer to atom?
-	 *
-	 */
-	page = grab_cache_page( jplug -> mapping( node ), jplug -> index( node ) );
-	if( unlikely( page == NULL ) )
-		return NULL;
-
-	/*
-	 * we have page locked and referenced.
-	 */
-	assert( "nikita-1774", PageLocked( page ) );
-
-	/*
-	 * add reiser4 decorations to the page, if they aren't in place:
-	 * pointer to jnode, whatever.
-	 * 
-	 * We are under page lock now, so it can be used as synchronization.
-	 *
-	 */
-	jnode_attach_page( node, page );
-	return page;
 }
 
 #if REISER4_DEBUG
@@ -629,7 +527,6 @@ static struct address_space_operations formatted_fake_as_ops = {
 };
 
 node_operations page_cache_tops = {
-	.allocate_node = page_cache_allocate_node,
 	.delete_node   = page_cache_delete_node,
 	.drop_node     = page_cache_drop_node,
 	.dirty_node    = page_cache_dirty_node,
