@@ -257,10 +257,29 @@ copy_units_ctail(coord_t * target, coord_t * source,
 	}
 }
 
-/* plugin->u.item.b.create_hook
-   plugin->u.item.b.kill_hook
-   plugin->u.item.b.shift_hook */
+/* plugin->u.item.b.create_hook */
+/* plugin->u.item.b.kill_hook */
+int
+kill_hook_ctail(const coord_t *coord, unsigned from, unsigned count, void *p)
+{
+	struct inode *inode = p;
 
+	assert("edward-291", znode_is_write_locked(coord->node));
+	
+	if (inode) {
+		reiser4_key key;
+		
+		assert("edward-292", count == nr_units_ctail(coord));
+
+		item_key_by_coord(coord, &key);
+		if (from == 0 &&
+		    get_key_offset(&key) & ((loff_t) (cluster_size_by_coord(coord)) - 1 == 0))
+			truncate_pages_cryptcompress(inode->i_mapping, off_to_pg(get_key_offset(&key)));
+	}
+	return 0;
+}
+
+/* plugin->u.item.b.shift_hook */
 /* plugin->u.item.b.cut_units */
 int 
 cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
