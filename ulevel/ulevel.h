@@ -92,7 +92,12 @@ extern void spinlock_bug (const char *msg);
 #define __init
 #define __exit
 
-#define module_init(a)
+#define module_init(a) \
+void run_##a ()\
+{\
+  a();\
+}\
+
 #define module_exit(b)
 
 #define MODULE_DESCRIPTION(a)
@@ -473,6 +478,7 @@ struct super_block {
 	unsigned char s_blocksize_bits;
 	struct dentry *s_root;
 	struct super_operations *s_op;
+	unsigned long s_flags;
 	union {
 		void * generic_sbp;
 	} u;
@@ -894,22 +900,17 @@ struct file_system_type {
 	int fs_flags;
 };
 
-static inline struct super_block *get_sb_bdev(struct file_system_type *fs_type UNUSED_ARG,
-					      int flags UNUSED_ARG, char *dev_name UNUSED_ARG, void * data UNUSED_ARG,
-					      int (*fill_super)(struct super_block *, void *, int) UNUSED_ARG)
-{
-	return NULL;
-}
+struct super_block *get_sb_bdev(struct file_system_type *fs_type,
+        int flags, char *dev_name, void * data,
+        int (*fill_super)(struct super_block *, void *, int));
+
 
 static inline void kill_block_super(struct super_block *sb UNUSED_ARG)
 {
 
 }
 
-static inline int register_filesystem(struct file_system_type * fs UNUSED_ARG)
-{
-	return 0;
-}
+extern int register_filesystem(struct file_system_type *);
 
 static inline int unregister_filesystem(struct file_system_type * fs UNUSED_ARG)
 {

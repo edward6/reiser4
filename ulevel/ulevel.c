@@ -6,9 +6,15 @@
  * User-level simulation.
  */
 #define _GNU_SOURCE
-#define _FILE_OFFSET_BITS 64
 
 #include "../reiser4.h"
+
+
+/*
+ * FIXME-VS: do not turn this on yet
+ */
+/*#define READ_SUPER_READY 1*/
+
 
 static void
 SUSPEND_CONTEXT( reiser4_context *context )
@@ -250,6 +256,64 @@ void *kmem_cache_alloc( kmem_cache_t *slab, int gfp_flag UNUSE )
 unsigned long event = 0;
 
 
+/****************************************************************************/
+
+struct file_system_type *file_systems [1];
+
+int register_filesystem (struct file_system_type * fs)
+{
+	assert ("vs-487", file_systems [0] == 0);
+	file_systems [0] = fs;
+	return 0;
+}
+
+struct super_block super_blocks[1];
+
+struct super_block * get_sb_bdev (struct file_system_type *fs_type UNUSED_ARG,
+				  int flags, char *dev_name, void * data,
+				  int (*fill_super)(struct super_block *, void *, int))
+{
+	struct super_block * s;
+	int result;
+
+	s = &super_blocks[0];
+	s->s_flags = flags;
+	s->s_blocksize = 1024;
+	/* not yet */
+	assert ("vs-490", dev_name == 0);
+	result = fill_super (s, data, 0/*silent*/);
+
+	if (result)
+		return 0;
+	return s;
+}
+
+#ifdef READ_SUPER_READY
+
+static struct file_system_type * find_filesystem (const char * name)
+{
+	assert ("vs-488", file_systems[0] != 0);
+	assert ("vs-486", !strcmp (name, file_systems[0]->name));
+	return file_systems [0];
+}
+
+
+
+static struct super_block * do_mount (char * dev_name)
+{
+	struct file_system_type * fs;
+
+	fs = find_filesystem ("reiser4");
+	assert ("vs-489", fs);
+
+	return fs->get_sb (fs, 0/*flags*/, dev_name, 0/*data*/);
+}
+
+#endif /* READ_SUPER_READY */
+
+/****************************************************************************/
+
+
 static spinlock_t inode_hash_guard;
 struct list_head inode_hash_list;
 
@@ -390,8 +454,11 @@ __u32 set_current ()
 {
 	if (current == NULL) {
 		int ret;
-	
-		if ((ret = pthread_setspecific (__current_key, malloc (sizeof (struct task_struct)))) != 0) {
+		struct task_struct *self;
+
+		self = malloc (sizeof (struct task_struct));
+		self->journal_info = 0;
+		if ((ret = pthread_setspecific (__current_key, self)) != 0) {
 			rpanic ("jmacd-900", "pthread_setspecific failed");
 		}
 	}
@@ -698,7 +765,7 @@ char *__prog_name;
 
 static int mmap_back_end_fd = -1;
 static char *mmap_back_end_start = NULL;
-static off_t mmap_back_end_size = 0;
+static size_t mmap_back_end_size = 0;
 
 int ulevel_read_node( const reiser4_block_nr *addr, char **data )
 {
@@ -707,7 +774,7 @@ int ulevel_read_node( const reiser4_block_nr *addr, char **data )
 
 		start = *addr * reiser4_get_current_sb ()->s_blocksize;
 		if( start + reiser4_get_current_sb ()->s_blocksize > mmap_back_end_size ) {
-			warning( "nikita-1372", "Trying to access beyond the device: %Li > %Li",
+			warning( "nikita-1372", "Trying to access beyond the device: %li > %u",
 				 start, mmap_back_end_size );
 			return -EIO;
 		} else {
@@ -943,7 +1010,7 @@ static int one_shot_filldir(void *arg, const char *name, int namelen,
 		info -> fired = 1;
 		info -> name = strdup( name );
 		info -> inum = ( int ) inum;
-		info( "%s[%i]: %s (%i), %Lx, %Lx, %i\n", info -> prefix,
+		info( "%s[%i]: %s (%i), %Lx, %lx, %i\n", info -> prefix,
 		      current_pid, name, namelen, offset, inum, ftype );
 		return 0;
 	} else {
@@ -961,7 +1028,7 @@ static int echo_filldir(void *arg, const char *name, int namelen,
 	info -> eof = 0;
 	if( lc_rand_max( 10ull ) < 2 )
 		return -EINVAL;
-	info( "%s[%i]: %s (%i), %Lx, %Lx, %i\n", info -> prefix,
+	info( "%s[%i]: %s (%i), %Lx, %lx, %i\n", info -> prefix,
 	      current_pid, name, namelen, offset, inum, ftype );
 	return 0;
 }
@@ -1176,7 +1243,7 @@ void *mkdir_thread_start( void *arg )
 }
 
 static void print_percentage( unsigned long reached, 
-			      unsigned long total, char gap )
+			      unsigned long total, int gap )
 {
 	int percentage;
 
@@ -1740,8 +1807,6 @@ static struct inode * call_lookup (struct inode * dir, const char * name)
 {
 	struct dentry dentry;
 	struct dentry * result;
-
-
 	reiser4_context *old_context;
 
 	old_context = reiser4_get_current_context();
@@ -2941,6 +3006,7 @@ int zam_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tree * tree 
 	reiser4_init_bitmap(super);
 
 	reiser4_done_bitmap(super);
+	return 0;
 }
 
 /*****************************************************************************************
@@ -2980,16 +3046,20 @@ extern int init_inodecache( void );
 void funJustBeforeMain()
 {}
 
+
 int real_main( int argc, char **argv )
 {
 	int result, eresult, fresult;
-	struct super_block super;
-	struct dentry root_dentry;
+	struct super_block *s;
 	reiser4_tree *tree;
 	reiser4_block_nr root_block;
 	int tree_height;
-
+#ifndef READ_SUPER_READY
+	struct super_block super;
+	struct dentry root_dentry;
 	REISER4_ENTRY( &super );
+#endif
+
 
 	__prog_name = strrchr( argv[ 0 ], '/' );
 	if( __prog_name == NULL )
@@ -3008,30 +3078,52 @@ int real_main( int argc, char **argv )
 		      get_current_trace_flags() );
 	}
 
-	spin_lock_init( &inode_hash_guard );
-	spin_lock_init( &alloc_guard );
+#ifndef READ_SUPER_READY
+	{		
+		spin_lock_init( &inode_hash_guard );
+		spin_lock_init( &alloc_guard );
 
-	init_inodecache();
-	znodes_init();
-	init_plugins();
-	txn_init_static();
-	sys_rand_init();
-	xmemset( &super, 0, sizeof super );
-	super.s_blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
-		atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
-	assert( "vs-417", super.s_blocksize == 512 ||
-		super.s_blocksize == 1024 || super.s_blocksize == 2048 ||
-		super.s_blocksize == 4096);
+		init_inodecache();
+		znodes_init();
+		init_plugins();
+		txn_init_static();
+		sys_rand_init();
+		xmemset( &super, 0, sizeof super );
+		super.s_blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
+			atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
+		assert( "vs-417", super.s_blocksize == 512 ||
+			super.s_blocksize == 1024 || super.s_blocksize == 2048 ||
+			super.s_blocksize == 4096);
 
-	super.s_op = &reiser4_super_operations;
-	super.s_root = &root_dentry;
+		super.s_op = &reiser4_super_operations;
+		super.s_root = &root_dentry;
 
-	xmemset( &get_current_super_private() -> stats, 0, 
-		sizeof get_current_super_private() -> stats );
-	txn_mgr_init( &get_super_private (&super) -> tmgr );
+		super.u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
+					       GFP_KERNEL);
+		assert( "vs-491", super.u.generic_sbp );
+		xmemset (super.u.generic_sbp, 0, sizeof (reiser4_super_info_data));
 
-	root_dentry.d_inode = NULL;
-	init_oid_allocator( reiser4_get_oid_allocator( &super ) );
+		xmemset( &get_current_super_private() -> stats, 0, 
+			 sizeof get_current_super_private() -> stats );
+		txn_mgr_init( &get_super_private (&super) -> tmgr );
+		
+		root_dentry.d_inode = NULL;
+		/* initialize reiser4_super_info_data's oid plugin */
+		get_super_private( &super ) -> oplug = &oid_plugins[OID_40_ALLOCATOR_ID].u.oid_mgr;
+		get_super_private( &super ) -> oplug -> init_oid_allocator( reiser4_get_oid_allocator( &super ) );
+
+		s = &super;
+	}
+#else /*READ_SUPER_READY*/
+	{
+		/* set thread */
+		set_current ();
+		/* module_init () -> reiser4_init () -> register_filesystem */
+		run_init_reiser4 ();
+		/* fs_type->get_sb () -> get_sb_bdeg () -> reiser4_fill_super */
+		s = do_mount (0);
+	}
+#endif
 
 	INIT_LIST_HEAD( &inode_hash_list );
 	INIT_LIST_HEAD( &page_list );
@@ -3047,7 +3139,7 @@ int real_main( int argc, char **argv )
 				 strerror( errno ) );
 			exit( 1 );
 		}
-		mmap_back_end_size = lseek64( mmap_back_end_fd, (off_t)0, SEEK_END );
+		mmap_back_end_size = lseek( mmap_back_end_fd, (off_t)0, SEEK_END );
 		if( ( off_t ) mmap_back_end_size == ( off_t ) -1 ) {
 			perror( "lseek" );
 			exit( 2 );
@@ -3074,7 +3166,7 @@ int real_main( int argc, char **argv )
 			tree_height = 1;
 	}
 
-	tree = &get_super_private( &super ) -> tree;
+	tree = &get_super_private( s ) -> tree;
 	result = reiser4_init_tree( tree, &root_block,
 				    1, node_plugin_by_id( NODE40_ID ),
 				    ulevel_read_node );
@@ -3113,8 +3205,13 @@ int real_main( int argc, char **argv )
 	}
 	info( "tree height: %i\n", tree -> height );
 
-	eresult = __REISER4_EXIT( &__context );
-	fresult = txn_mgr_force_commit (& super);
+	eresult = 
+#ifndef READ_SUPER_READY
+		__REISER4_EXIT( &__context );
+#else
+	        0;
+#endif
+	fresult = txn_mgr_force_commit (s);
 
 	return result ? : (eresult ? : (fresult ? : 0));
 }
