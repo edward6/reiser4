@@ -109,7 +109,7 @@ static reiser4_entity_t *alloc40_open(reiser4_entity_t *format,
 	goto error_free_bitmap;
     }
     
-    if (layout(format, (reiser4_entity_t *)alloc, callback_fetch_bitmap, alloc)) {
+    if (layout(format, callback_fetch_bitmap, alloc)) {
 	aal_exception_error("Can't load ondisk bitmap.");
 	goto error_free_bitmap;
     }
@@ -252,9 +252,7 @@ static errno_t alloc40_sync(reiser4_entity_t *entity) {
 	return -1;
     }
     
-    if (layout(alloc->format, (reiser4_entity_t *)alloc, 
-	callback_flush_bitmap, alloc))
-    {
+    if (layout(alloc->format, callback_flush_bitmap, alloc)) {
 	aal_exception_error("Can't synchronize bitmap.");
 	return -1;
     }
@@ -392,8 +390,9 @@ static errno_t callback_check_bitmap(reiser4_entity_t *format,
         bitmap.
     */
     if (ladler != cadler) {
-        aal_exception_error("Checksum of bitmap block %llu is missmatch. "
-	    "Block checksum is 0x%x, calculated one is 0x%x.", blk, ladler, cadler);
+        aal_exception_error("Checksum missmatch in bitmap block %llu. "
+	    "Loaded checksum is 0x%x, calculated one is 0x%x.", blk, 
+	    ladler, cadler);
 	
 	return -1;
     }
@@ -416,27 +415,12 @@ errno_t alloc40_valid(reiser4_entity_t *entity) {
 	return -1;
     }
     
-    if (layout(alloc->format, (reiser4_entity_t *)alloc, 
-	callback_check_bitmap, alloc))
-    {
+    if (layout(alloc->format, callback_check_bitmap, alloc)) {
 	aal_exception_error("Can't check bitmap on validness.");
 	return -1;
     }
 
     return 0;
-}
-
-count_t alloc40_bpb(reiser4_entity_t *entity) {
-    aal_device_t *device;
-    alloc40_t *alloc = (alloc40_t *)entity;
-    
-    aal_assert("umka-1134", alloc != NULL, return -1);
-    aal_assert("umka-1135", alloc->format != NULL, return -1);
-
-    device = plugin_call(return -1, alloc->format->plugin->format_ops, 
-	device, alloc->format);
-    
-    return (aal_device_get_bs(device) - CRC_SIZE) * 8;
 }
 
 /* Filling the alloc40 structure by methods */
@@ -468,8 +452,7 @@ static reiser4_plugin_t alloc40_plugin = {
 	.test	    = alloc40_test,
 	.free	    = alloc40_free,
 	.used	    = alloc40_used,
-	.valid	    = alloc40_valid,
-	.bpb	    = alloc40_bpb
+	.valid	    = alloc40_valid
     }
 };
 

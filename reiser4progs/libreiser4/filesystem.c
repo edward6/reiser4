@@ -50,8 +50,6 @@ reiser4_fs_t *reiser4_fs_open(
     if (!(fs->format = reiser4_format_open(host_device, pid)))
 	goto error_free_master;
 
-    fs->format->fs = fs;
-    
     if (reiser4_format_valid(fs->format))
 	goto error_free_format;
     
@@ -211,20 +209,18 @@ reiser4_fs_t *reiser4_fs_create(
 	    profile->tail, profile->format)))
 	goto error_free_master;
 
-    fs->format->fs = fs;
-
     /* Creates block allocator */
     if (!(fs->alloc = reiser4_alloc_create(fs->format, len)))
 	goto error_free_format;
 
-    if (reiser4_format_mark(fs->format, fs->alloc))
-	goto error_free_alloc;
-    
     /* Creates journal on journal device */
     if (!(fs->journal = reiser4_journal_create(fs->format, 
 	    journal_device, journal_params)))
 	goto error_free_alloc;
    
+    if (reiser4_format_mark(fs->format, fs->alloc))
+	goto error_free_journal;
+    
     /* Initializes oid allocator */
     if (!(fs->oid = reiser4_oid_create(fs->format)))
 	goto error_free_journal;

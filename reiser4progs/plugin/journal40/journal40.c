@@ -77,9 +77,7 @@ static reiser4_entity_t *journal40_open(reiser4_entity_t *format) {
 	goto error_free_journal;
     }
     
-    if (layout(format, (reiser4_entity_t *)journal, 
-	callback_fetch_journal, journal)) 
-    {
+    if (layout(format, callback_fetch_journal, journal)) {
 	aal_exception_error("Can't load journal metadata.");
 	goto error_free_journal;
     }
@@ -157,9 +155,7 @@ static reiser4_entity_t *journal40_create(reiser4_entity_t *format,
 	goto error_free_journal;
     }
     
-    if (layout(format, (reiser4_entity_t *)journal, 
-	callback_alloc_journal, journal)) 
-    {
+    if (layout(format, callback_alloc_journal, journal)) {
 	aal_exception_error("Can't load journal metadata.");
 	goto error_free_journal;
     }
@@ -216,9 +212,7 @@ static errno_t journal40_sync(reiser4_entity_t *entity) {
 	return -1;
     }
     
-    if (layout(journal->format, (reiser4_entity_t *)journal, 
-	callback_flush_journal, journal)) 
-    {
+    if (layout(journal->format, callback_flush_journal, journal)) {
 	aal_exception_error("Can't load journal metadata.");
 	return -1;
     }
