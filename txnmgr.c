@@ -3893,7 +3893,7 @@ void uncapture_block(jnode * node)
 	ON_DEBUG(node->list = NOT_CAPTURED);
 	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 		assert("zam-925", atom_isopen(atom));
-		atom->num_queued --;
+		ON_DEBUG(atom->num_queued --);
 		JF_CLR(node, JNODE_FLUSH_QUEUED);
 	}
 	atom->capture_count -= 1;

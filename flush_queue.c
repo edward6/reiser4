@@ -149,14 +149,14 @@ create_fq(void)
 static void
 count_enqueued_node(flush_queue_t * fq)
 {
-	fq->atom->num_queued++;
+	ON_DEBUG(fq->atom->num_queued++);
 }
 
 static void
 count_dequeued_node(flush_queue_t * fq)
 {
 	assert("zam-993", fq->atom->num_queued > 0);
-	fq->atom->num_queued--;
+	ON_DEBUG(fq->atom->num_queued--);
 }
 
 /* attach flush queue object to the atom */
@@ -373,10 +373,11 @@ fuse_fq(txn_atom * to, txn_atom * from)
 
 	fq_list_splice(&to->flush_queues, &from->flush_queues);
 
+#if REISER4_DEBUG
 	to->num_queued += from->num_queued;
-
-	ON_DEBUG(to->nr_flush_queues += from->nr_flush_queues);
-	ON_DEBUG(from->nr_flush_queues = 0);
+	to->nr_flush_queues += from->nr_flush_queues;
+	from->nr_flush_queues = 0;
+#endif
 }
 
 #if REISER4_DEBUG

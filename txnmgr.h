@@ -325,14 +325,14 @@ struct txn_atom {
 	int nr_objects_created;
 	/* number of blocks allocated during the transaction */
 	__u64 nr_blocks_allocated;
-	/* Number of jnodes which were removed from atom's lists and put
-	   on flush_queue */
-	int num_queued;
 	/* All atom's flush queue objects are on this list  */
 	fq_list_head flush_queues;
 #if REISER4_DEBUG
 	/* number of flush queues for this atom. */
 	int nr_flush_queues;
+	/* Number of jnodes which were removed from atom's lists and put
+	   on flush_queue */
+	int num_queued;
 #endif
 	/* number of threads who wait for this atom to complete commit */
 	int nr_waiters;

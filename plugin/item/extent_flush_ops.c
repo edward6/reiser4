@@ -696,6 +696,7 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first, reiser4_blo
 		jnode_set_reloc(node);
 		junprotect(node);
 		ON_DEBUG(node->list = FQ_LIST);
+		ON_DEBUG(atom->num_queued ++);
 		UNLOCK_JNODE(node);
 		first ++;
 	}
