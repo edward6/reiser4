@@ -83,7 +83,35 @@ static struct buffer_head *read_super_block (struct super_block * s
     return find_a_disk_format_40_super_block(s);
 }
 
-static int set_journal_info (struct super_block * s)
+static void done_journal_info (struct super_block *s)
+{
+
+	reiser4_super_info_data * private = get_super_private (s);
+
+	assert ("zam-476", private != NULL);
+
+	if (private->journal_header != NULL) {
+		if (JF_ISSET(private->journal_header, ZNODE_LOADED)) 
+			junload (private->journal_header);
+		if (jnode_page(private->journal_footer))
+			jrelse (private->journal_header);
+		jfree (private->journal_header);
+
+		private->journal_header = NULL;
+	}
+
+	if (private->journal_footer != NULL) {
+		if (JF_ISSET(private->journal_footer, ZNODE_LOADED))
+			junload (private->journal_footer);
+		if (jnode_page(private->journal_footer))
+			jrelse (private->journal_footer);
+		jfree (private->journal_footer);
+
+		private->journal_footer = NULL;
+	}
+}
+
+static int init_journal_info (struct super_block * s)
 {
 	reiser4_super_info_data * private = get_super_private(s);
 
@@ -98,26 +126,17 @@ static int set_journal_info (struct super_block * s)
 	private->journal_header->blocknr = FORMAT_40_JOURNAL_HEADER_BLOCKNR;
 	private->journal_footer->blocknr = FORMAT_40_JOURNAL_FOOTER_BLOCKNR;
 
-	if ((ret = jload (private->journal_header))) goto fail;
+	if ((ret = jload (private->journal_header)) < 0) goto fail;
+	junload (private->journal_header);
 	
-	if ((ret = jload (private->journal_footer))) goto fail;
+	if ((ret = jload (private->journal_footer)) < 0) goto fail;
+	junload (private->journal_footer);
 
 	return 0;
-
-fail:
-	if (private->journal_header != NULL) {
-		junload (private->journal_header);
-		jfree (private->journal_header);
-	}
-
-	if (private->journal_footer != NULL) {
-		junload (private->journal_footer);
-		jfree (private->journal_footer);
-	}
-
+ fail:
+	done_journal_info(s);
 	return ret;
 }
-
 /* plugin->u.layout.get_ready */
 int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 {
@@ -209,7 +228,7 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	private->one_node_plugin = 1; /* all nodes in layout 40 are of one
 				       * plugin */
 
-	result = set_journal_info (s); /* map jnodes for journal control
+	result = init_journal_info (s); /* map jnodes for journal control
 					    * blocks (header, footer) to
 					    * disk  */
 
@@ -240,6 +259,9 @@ int format_40_release (struct super_block * s)
 	}
 
 	done_tree (&get_super_private (s)->tree);
+
+	done_journal_info(s);
+
 	return 0;
 }
 	

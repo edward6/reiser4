@@ -8,8 +8,6 @@
 /* Block allocation/deallocation are done through special bitmap objects which
  * are allocated in an array at fs mount. */
 struct bnode {
-	spinlock_t guard;
-
 	jnode      wjnode;	/* embedded jnodes for WORKING ... */
 	jnode      cjnode;	/* ... and COMMIT bitmap blocks */
 
@@ -36,17 +34,6 @@ static inline char * bnode_commit_data (struct bnode * bnode) {
 	return data;
 }
 
-/* Audited by: green(2002.06.12) */
-static inline void spin_lock_bnode (struct bnode * bnode)
-{
-	spin_lock (& bnode -> guard);
-}
-
-/* Audited by: green(2002.06.12) */
-static inline void spin_unlock_bnode (struct bnode * bnode)
-{
-	spin_unlock (& bnode -> guard);
-}
 
 struct bitmap_allocator_data {
 	/** an array for bitmap blocks direct access */
@@ -352,8 +339,6 @@ static void init_bnode (struct bnode * bnode, struct super_block * super, bmap_n
 {
 	xmemset (bnode, 0, sizeof (struct bnode)); 
 
-	spin_lock_init (& bnode -> guard); 
-
 	jnode_init (& bnode->wjnode);
 	jref (&bnode->wjnode);
 	get_working_bitmap_blocknr (bmap, & bnode->wjnode.blocknr); 
@@ -420,18 +405,21 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 	for (i = 0; i < bitmap_blocks_nr; i ++) {
 		struct bnode * bnode = data -> bitmap + i;
 
-		spin_lock_bnode (bnode);
+		spin_lock_jnode (&bnode->wjnode);
 
-		if (bnode->wjnode.pg != NULL) {
-			assert ("zam-480", bnode->cjnode.pg != NULL);
-			jnode_detach_page (& bnode->wjnode);
-			jnode_detach_page (&bnode->cjnode);
+		if (jnode_page (&bnode->wjnode) != NULL) {
+			assert ("zam-480", jnode_page (&bnode->cjnode) != NULL);
+			spin_unlock_jnode(&bnode->wjnode);
+
+			jrelse (& bnode->wjnode);
+			jrelse (&bnode->cjnode);
 
 			/* FIXME: check for page state and ref count should be
 			 * added here */
+			continue;
 		}
 
-		spin_unlock_bnode (bnode);
+		spin_unlock_jnode (&bnode->wjnode);
 	}
 
 	reiser4_kfree (data->bitmap, (size_t) (sizeof(struct bnode) * bitmap_blocks_nr));
@@ -442,70 +430,26 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 	return 0;
 }
 
-/** Load node at given blocknr, update given pointer. This function should be
- * called under bnode spin lock held */
-static int load_bnode_half (struct bnode * bnode, jnode * node)
-{
-	int (*read_node) ( reiser4_tree *, jnode *);
-	int    ret;
-
-	assert ("zam-478", bnode != NULL);
-
-	read_node = current_tree -> ops -> read_node;
-
-	assert ("zam-415", read_node != NULL);
-
-	assert ("zam-479", 
-		( node == &bnode->wjnode && blocknr_is_fake (jnode_get_block(node))) ||
-		( node == &bnode->cjnode && !blocknr_is_fake (jnode_get_block(node)))) ;
-
-	if (JF_ISSET (node, ZNODE_LOADED)) {
-		assert ("zam-432", node->pg != NULL);
-		kmap (node -> pg);
-		JF_SET (node, ZNODE_KMAPPED);
-		return 1;
-	}
-
-	spin_unlock_bnode (bnode);
-
-	ret = read_node (current_tree, node);
-
-	if (ret) return ret;
-
-	/*
-	 * FIXME-VS: read_node spin locks jnode
-	 */
-	assert("vs-774", spin_jnode_is_locked(node));
-	JF_SET (node, ZNODE_LOADED);
-	spin_unlock_jnode(node);
-
-	spin_lock_bnode(bnode);
-
-	/*
-	 * FIXME-VS: JF_SET was here
-	 */
-	return 0;
-}
 
 /* load bitmap blocks "on-demand" */
 static int load_and_lock_bnode (struct bnode * bnode)
 {
 	struct super_block * super = get_current_context()->super;
-	int ret = 0;
+	int ret;
 
-	spin_lock_bnode(bnode);
-
-	ret = load_bnode_half(bnode, & bnode -> cjnode);
+	ret = jload (&bnode->wjnode);
 
 	if (ret < 0) return ret;
 
-	ret = load_bnode_half(bnode, & bnode -> wjnode);
+	ret = jload (&bnode->cjnode);
 
-	if (ret < 0) return ret;
+	if (ret < 0) { junload(&bnode->cjnode); return ret;}
 
-	if (ret == 0) {
-		/* commit bitmap is initialized by on-disk bitmap
-		 * content (working bitmap in this context) */
+	if (ret == 0) {		
+		/* node has been loaded by this jload call  */
+
+		/* commit bitmap is initialized by on-disk bitmap content
+		 * (working bitmap in this context) */
 		xmemcpy(bnode_working_data(bnode), 
 			bnode_commit_data(bnode), 
 			super->s_blocksize);
@@ -516,14 +460,8 @@ static int load_and_lock_bnode (struct bnode * bnode)
 
 static void release_and_unlock_bnode (struct bnode * bnode)
 {
-	reiser4_tree * tree = current_tree;
-
-	assert ("zam-489", tree->ops->release_node != NULL);
-
-	spin_unlock_bnode (bnode);
-
-	tree->ops->release_node (tree, &bnode->wjnode);
-	tree->ops->release_node (tree, &bnode->cjnode);
+	junload (&bnode->cjnode);
+	junload (&bnode->wjnode);
 }
 
 #if 0

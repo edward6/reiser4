@@ -341,18 +341,45 @@ void jnode_detach_page( jnode *node )
 /* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
 /* jnode ref. counter is missing, it doesn't matter for us because this
  * journal writer uses those jnodes exclusively by only one thread */
-/* FIXME: it should go to other place */
+
+/* loads jnode from disk, spin locks jnode if success */
+/* Note: it _may_ return non-zero positive value if success, so you should
+ * check for an error by the following way: */
+/* if((ret = jload(...)) < 0) return ret; */
 int jload (jnode * node)
 {
 	reiser4_tree * tree = current_tree;
-	int (*read_node) ( reiser4_tree *, jnode *);
+	int ret;
 
 	assert ("zam-441", tree->ops);
 	assert ("zam-442", tree->ops->read_node != NULL);
 
-	read_node = tree->ops->read_node;
+	spin_lock_jnode (node);
 
-	return read_node (tree, node);
+	if (JF_ISSET(node, ZNODE_LOADED)) {
+		assert ("zam-473", jnode_page (node) != NULL);
+		kmap (jnode_page(node));
+		JF_SET(node, ZNODE_KMAPPED);
+
+		return 1;
+	}
+
+	spin_unlock_jnode(node);
+
+	ret = tree->ops->read_node (tree, node);
+
+	if (ret) return ret;
+
+	if (JF_ISSET(node, ZNODE_LOADED)) {
+		assert ("zam-474", tree->ops->release_node != NULL);
+		tree->ops->release_node(tree, node);
+
+		return 1;
+	} else {
+		JF_SET (node, ZNODE_LOADED);
+	}
+
+	return 0;
 }
 
 int jwrite (jnode * node)
@@ -392,14 +419,28 @@ int jwait_io (jnode * node)
 int junload (jnode * node)
 {
 	reiser4_tree * tree = current_tree;
-	int (*release_node) ( reiser4_tree *, jnode *);
+	int ret;
 
 	assert ("zam-443", tree->ops);
 	assert ("zam-444", tree->ops->release_node != NULL);
 
-	release_node = tree->ops->release_node;
+	ret =  tree->ops->release_node (tree, node);
 
-	return release_node (tree, node);
+	spin_unlock_jnode(node);
+
+	return ret;
+}
+
+void jrelse (jnode * node)
+{
+	spin_lock_jnode (node);
+
+	assert ("zam-475", jnode_page(node) != NULL);
+	JF_CLR(node, ZNODE_LOADED);
+
+	spin_unlock_jnode (node);
+
+	jnode_detach_page (node);
 }
 
 #if REISER4_DEBUG

@@ -298,10 +298,11 @@ typedef struct node_operations {
 } node_operations;
 
 /* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
-extern int jload    (jnode *);
-extern int jwrite   (jnode *);
-extern int jwait_io (jnode *);
-extern int junload  (jnode *);
+extern int  jload    (jnode* node);
+extern int  jwrite   (jnode* node);
+extern int  jwait_io (jnode* node);
+extern int  junload  (jnode* node);
+extern void jrelse   (jnode* node);
 
 /* __JNODE_H__ */
 #endif
