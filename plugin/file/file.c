@@ -555,7 +555,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 			txn_restart_current();
 			continue;
 		}
-		if (result)
+		if (result && !(result == CBK_COORD_NOTFOUND && new_size == 0 && inode->i_size == 0))
 			break;
 
 		INODE_SET_FIELD(inode, i_size, new_size);
