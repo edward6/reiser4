@@ -138,8 +138,7 @@ struct reiser4_inode {
 	__u8 cluster_shift;
 	/* secret key parameter for crypto */
 	crypto_stat_t *crypt;
-	/* list of pages dirtied through mmap */
-	struct list_head  moved_pages;
+
 	union {
 		readdir_list_head readdir_list;
 		struct list_head not_used;
@@ -187,7 +186,6 @@ struct reiser4_inode {
 
 #define I_EFLUSH (256)
 #define I_JNODES (512)
-
 
 typedef struct reiser4_inode_object {
 	/* private part */
@@ -283,17 +281,6 @@ static inline void set_inode_ordering(const struct inode *inode, __u64 ordering)
 #define set_inode_ordering(inode, val) noop
 
 #endif
-
-/*
- * each reiser4 inode maintains a list of pages dirtied through mmap. This is
- * needed, because we need effective way to find all such pages and capture
- * them. This function returns a head of this list.
- */
-static inline struct list_head *
-get_moved_pages(struct address_space *mapping)
-{
-	return &reiser4_inode_data(mapping->host)->moved_pages;
-}
 
 /* return inode in which @uf_info is embedded */
 static inline struct inode *
