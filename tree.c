@@ -1591,40 +1591,43 @@ int cut_tree (reiser4_tree * tree UNUSED_ARG,
 /* return number of unallocated children for  @node, or an error code, if result < 0 */
 int check_jnode_for_unallocated (jnode * node)
 {
-	int nr = 0; /* number of unallocated children found */
-	
-	if (jnode_is_znode (node) && jnode_get_level (node) >= TWIG_LEVEL) {
-		znode * z = JZNODE (node);
-		coord_t coord;
+	int ret = 0;
 
-		int ret = zload (z);
+	if (jnode_is_znode (node) && jnode_get_level (node) >= TWIG_LEVEL) {
+		int ret = zload (JZNODE (node));
 		if (ret) return ret;
 
-		// spin_lock_znode (z);
-		for_all_units (&coord, z) {
-			if(item_is_internal (&coord)) {
-				reiser4_block_nr block;
-
-				item_plugin_by_coord( &coord ) -> 
-					s.internal.down_link(&coord, NULL, &block );
-				if (blocknr_is_fake(&block ))
-					nr ++;
-				continue;
-			}
-
-			if (item_is_extent (&coord)) {
-				assert ("zam-675", jnode_get_level (node) == TWIG_LEVEL);
-				if (extent_is_unallocated(&coord)) {
-					reiser4_extent * extent = extent_by_coord (&coord);
-					nr += extent_get_width(extent);
-				}
-			}
-		}
-		// spin_unlock_znode (z);
-
-		zrelse (z);
+		ret = check_jnode_for_unallocated_in_core (JZNODE (node));
+		zrelse (JZNODE (node));
 	}
 
+	return ret;
+}
+
+int check_jnode_for_unallocated_in_core (znode * z)
+{
+	int nr = 0; /* number of unallocated children found */
+	coord_t coord;
+
+	for_all_units (&coord, z) {
+		if(item_is_internal (&coord)) {
+			reiser4_block_nr block;
+
+			item_plugin_by_coord( &coord ) -> 
+				s.internal.down_link(&coord, NULL, &block );
+			if (blocknr_is_fake(&block ))
+				nr ++;
+			continue;
+		}
+
+		if (item_is_extent (&coord)) {
+			assert ("zam-675", znode_get_level (z) == TWIG_LEVEL);
+			if (extent_is_unallocated(&coord)) {
+				reiser4_extent * extent = extent_by_coord (&coord);
+				nr += extent_get_width(extent);
+			}
+		}
+	}
 	return nr;
 }
 
