@@ -2164,7 +2164,8 @@ reiser4_kill_super(struct super_block *s)
 	}
 
 	/* flushes transactions, etc. */
-	get_super_private(s)->df_plug->release(s);
+	if (get_super_private(s)->df_plug->release(s) != 0)
+		goto out;
 
 	/* shutdown daemon if last mount is removed */
 	ktxnmgrd_detach(&info->tmgr);
