@@ -1994,7 +1994,7 @@ uncapture_block (txn_atom *atom,
 	ON_SMP (assert ("jmacd-1023", spin_atom_is_locked (atom)));
 	assert ("nikita-2118", !jnode_check_dirty (node));
 
-	trace_on (TRACE_TXN, "uncapture %p from atom %u (captured %u)\n", node, atom->atom_id, atom->capture_count);
+	/*trace_on (TRACE_TXN, "uncapture %p from atom %u (captured %u)\n", node, atom->atom_id, atom->capture_count);*/
 
 	spin_lock_jnode (node);
 

@@ -2924,7 +2924,6 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 	reiser4_block_nr first_allocated;
 	reiser4_block_nr to_allocate, allocated;
 	reiser4_extent * ext, new_ext;
-	ON_DEBUG (int allocate_times);
 
 	blocksize = current_blocksize;
 
@@ -2983,7 +2982,6 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 		 * until whole extent is allocated and there is space in left
 		 * neighbor
 		 */
-		ON_DEBUG (allocate_times = 0);
 		while (to_allocate) {
 			result = extent_allocate_blocks (flush_pos_hint (flush_pos), to_allocate,
 							 &first_allocated,
@@ -2993,7 +2991,6 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 			}
 
 			trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: to_allocate = %llu got %llu\n", to_allocate, allocated);
-			ON_DEBUG (allocate_times += 1);
 
 			to_allocate -= allocated;
 
@@ -3026,10 +3023,6 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 					 * again immediately.
 					 * FIXME-VS: set target state to grabbed?
 					 */
-					ON_DEBUG (if (allocate_times > 1) {
-						/*info ("stop here!\n");*/
-					});
-
 					reiser4_dealloc_blocks (&first_allocated, &allocated,
 								0 /* defer */, BLOCK_UNALLOCATED);
 					result = SQUEEZE_TARGET_FULL;
