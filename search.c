@@ -574,6 +574,7 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 			    reiser4_stat_tree_add( cbk_restart );
 			    hput(h);
 			    ++ iterations;
+			    cond_resched();
 			    goto restart;
 		}
 	}
