@@ -345,7 +345,7 @@ int extent_init (coord_t * coord, reiser4_item_data * extent)
 */
 /* Audited by: green(2002.06.13) */
 int extent_paste (coord_t * coord, reiser4_item_data * data,
-		  carry_level * todo UNUSED_ARG)
+		  carry_plugin_info *info UNUSED_ARG)
 {
 	unsigned old_nr_units;
 	reiser4_extent * ext;
@@ -454,7 +454,7 @@ void extent_copy_units (coord_t * target, coord_t * source,
 		coord.unit_pos = from;
 		extent_unit_key (&coord, &key);
 
-		node_plugin_by_node (target->node)->update_item_key (target, &key, 0/*todo*/);
+		node_plugin_by_node (target->node)->update_item_key (target, &key, 0/*info*/);
 	}
 
 	xmemcpy (to_ext, from_ext, free_space);
