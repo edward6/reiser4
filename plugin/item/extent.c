@@ -461,6 +461,7 @@ create_hook_extent(const coord_t *coord, void *arg)
 	if (node) {
 		znode_set_rd_key(node, item_key_by_coord(coord, &key));
 
+		assert("nikita-3282", check_sibling_list(node));
 		/* break sibling links */
 		if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && node->right) {
 			/*ZF_CLR (node->right, JNODE_LEFT_CONNECTED); */
@@ -476,7 +477,7 @@ create_hook_extent(const coord_t *coord, void *arg)
 
 /* check inode's list of eflushed jnodes and drop those which correspond to this extent */
 static void
-drop_eflushed_nodes(struct inode *inode, unsigned long index)
+drop_eflushed_nodes(struct inode *inode, unsigned long index, unsigned long end)
 {
 #if REISER4_USE_EFLUSH
 	struct list_head *tmp, *next;
@@ -501,7 +502,7 @@ drop_eflushed_nodes(struct inode *inode, unsigned long index)
 
 		ef = list_entry(tmp, eflush_node_t, inode_link);
 		j = ef->node;
-		if (index_jnode(j) >= index) {
+		if (index_jnode(j) >= index && end && index_jnode(j) < end) {
 			jref(j);			
 			spin_unlock_eflush(tree->super);
 			UNDER_SPIN_VOID(jnode, j, eflush_del(j, 0));
@@ -538,10 +539,11 @@ kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, void *p)
 
 	if (inode) {
 		truncate_inode_pages(inode->i_mapping, offset);
-		drop_eflushed_nodes(inode, index);
+		drop_eflushed_nodes(inode, index, 0);
 	}
 
 	ext = extent_item(coord) + from;
+
 	for (i = 0; i < count; i++, ext++, index += length) {
 
 		start = extent_get_start(ext);
@@ -608,6 +610,22 @@ cut_or_kill_units(coord_t *coord,
 	if (from_key) {
 		reiser4_key key_inside;
 		__u64 last;
+
+		if (!cut && inode != NULL) {
+			loff_t start;
+			loff_t bytes;
+			long nr_pages;
+			unsigned long index;
+
+			start = get_key_offset(from_key);
+			bytes = get_key_offset(to_key) - start;
+			nr_pages = (bytes + PAGE_CACHE_SHIFT - 1) >> PAGE_CACHE_SHIFT;
+			truncate_mapping_pages_range(inode->i_mapping, 
+						     start >> PAGE_CACHE_SHIFT,
+						     nr_pages);
+			index = start >> PAGE_CACHE_SHIFT;
+			drop_eflushed_nodes(inode, index, index + nr_pages);
+		}
 
 		/* when @from_key (and @to_key) are specified things become
 		   more complex. It may happen that @from-th or @to-th extent
@@ -694,8 +712,6 @@ cut_or_kill_units(coord_t *coord,
 			old_width = extent_get_width(ext);
 			cut_from_to = (old_width - new_width) * blocksize;
 
-			/* FIXME:NIKITA->VS I see this failing with new_width
-			   == old_width (@to unit is not affected at all). */
 			assert("vs-617", new_width > 0 && new_width <= old_width);
 
 			/* FIXME-VS: debugging zam-528 */
@@ -733,7 +749,7 @@ cut_or_kill_units(coord_t *coord,
 
 	if (!cut)
 		/* call kill hook for all extents removed completely */
-		kill_hook_extent(coord, *from, count, inode);
+		kill_hook_extent(coord, *from, count, NULL);
 
 	if (*from == 0 && count != coord_last_unit_pos(coord) + 1) {
 		/* part of item is removed from item beginning, update item key
@@ -1543,6 +1559,8 @@ find_extent_slum_size(const coord_t *start, unsigned pos_in_unit)
 	slum_size = 0;
 	slum_done = 0;
 	do {
+		if (item_id_by_coord(&coord) == FROZEN_EXTENT_POINTER_ID)
+			break;
 		ext = extent_by_coord(&coord);
 		switch (state_of_extent(ext)) {
 		case ALLOCATED_EXTENT:
@@ -2397,26 +2415,7 @@ static int
 extent_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 			   hint_t *hint)
 {
-	int result;
-	loff_t new_size;
-	struct inode *object;
-
-	if (hint->coord.valid)
-		set_hint(hint, &f->key);
-	else
-		unset_hint(hint);
-	longterm_unlock_znode(hint->coord.lh);
-
-	new_size = get_key_offset(&f->key);
-	object = mapping->host;
-	result = update_inode_and_sd_if_necessary(object, new_size, 
-						  (new_size > object->i_size) ? 1 : 0, 1/* update stat data */);
-	if (result)
-		return result;
-
-	balance_dirty_page_unix_file(object);
-
-	return hint_validate(hint, &f->key, 0/* do not check key */, ZNODE_WRITE_LOCK);
+	return item_balance_dirty_pages(mapping, f, hint, 0);
 }
 
 /* estimate and reserve space which may be required for writing one page of file */
