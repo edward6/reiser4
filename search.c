@@ -620,12 +620,12 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 
 	put_parent(h);
 
+/* NIKITA-FIXME-HANS: what does this do and why? */
 	if( ! znode_is_loaded( active ) )
 		setup_delimiting_keys( h );
 
 	/*
-	 * FIXME-NIKITA this is ugly kludge. To get rid of it, get rid of
-	 * coord_t.between field first.
+	 * FIXME-NIKITA this is ugly kludge. 
 	 */
 	h->coord->between = AT_UNIT;
 
