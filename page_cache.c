@@ -595,7 +595,11 @@ static struct bio *page_bio( struct page *page, int rw, int gfp )
  */
 static int formatted_fake_pressure_handler( struct page *page, int *nr_to_write )
 {
-	return jnode_flush (jnode_by_page (page), nr_to_write, JNODE_FLUSH_MEMORY_FORMATTED);
+	int result;
+	REISER4_ENTRY( page -> mapping -> host -> i_sb );
+
+	result = jnode_flush (jnode_by_page (page), nr_to_write, JNODE_FLUSH_MEMORY_FORMATTED);
+	REISER4_EXIT( result );
 }
 
 static int formatted_set_page_dirty( struct page *page )
