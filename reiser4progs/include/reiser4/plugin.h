@@ -32,101 +32,104 @@ enum reiserfs_plugin_type {
 
 typedef enum reiserfs_plugin_type reiserfs_plugin_type_t;
 
-/*
 enum reiserfs_file_type {
-    REISERFS_REGULAR_FILE,
-    REISERFS_DIRECTORY_FILE,
-    REISERFS_SYMLINK_FILE,
-    REISERFS_SPECIAL_FILE,
+    REGULAR_FILE,
+    DIRECTORY_FILE,
+    SYMLINK_FILE,
+    SPECIAL_FILE,
 };
+
+typedef enum reiserfs_file_type reiserfs_file_type_t;
 
 enum reiserfs_item_type {
-    REISERFS_STATDATA_ITEM,
-    REISERFS_DIRENTRY_ITEM,
-    REISERFS_INTERNAL_ITEM,
-    REISERFS_ACL_ITEM,
-    REISERFS_FILEBODY_ITEM
+    STATDATA_ITEM,
+    DIRENTRY_ITEM,
+    INTERNAL_ITEM,
+    ACL_ITEM,
+    FILEBODY_ITEM
 };
-*/
+
+typedef enum reiserfs_item_type reiserfs_item_type_t;
 
 enum reiserfs_file_plugin_id {
-    FILE_REG40_ID		    = 0x0,
-    FILE_DIR40_ID		    = 0x1,
-    FILE_SYMLINK40_ID		    = 0x2,
-    FILE_SPECIAL40_ID		    = 0x3
+    FILE_REG40_ID		= 0x0,
+    FILE_DIR40_ID		= 0x1,
+    FILE_SYMLINK40_ID		= 0x2,
+    FILE_SPECIAL40_ID		= 0x3
 };
 
 enum reiserfs_item_plugin_id {
-    ITEM_STATDATA40_ID		    = 0x0,
-    ITEM_SDE40_ID		    = 0x1,
-    ITEM_CDE40_ID		    = 0x2,
-    ITEM_INTERNAL40_ID		    = 0x3,
-    ITEM_ACL40_ID		    = 0x4,
-    ITEM_EXTENT40_ID		    = 0x5,
-    ITEM_DROP40_ID		    = 0x6
+    ITEM_STATDATA40_ID		= 0x0,
+    ITEM_SDE40_ID		= 0x1,
+    ITEM_CDE40_ID		= 0x2,
+    ITEM_INTERNAL40_ID		= 0x3,
+    ITEM_ACL40_ID		= 0x4,
+    ITEM_EXTENT40_ID		= 0x5,
+    ITEM_DROP40_ID		= 0x6
 };
 
 enum reiserfs_node_plugin_id {
-    NODE_REISER40_ID		    = 0x0,
+    NODE_REISER40_ID		= 0x0,
 };
 
 enum reiserfs_hash_plugin_id {
-    HASH_RUPASOV_ID		    = 0x0,
-    HASH_R5_ID			    = 0x1,
-    HASH_TEA_ID			    = 0x2,
-    HASH_FNV1_ID		    = 0x3,
-    HASH_DEGENERATE_ID		    = 0x4
+    HASH_RUPASOV_ID		= 0x0,
+    HASH_R5_ID			= 0x1,
+    HASH_TEA_ID			= 0x2,
+    HASH_FNV1_ID		= 0x3,
+    HASH_DEGENERATE_ID		= 0x4
 };
 
 typedef enum reiserfs_hash reiserfs_hash_t;
 
 enum reiserfs_drop_policy_plugin_id {
-    DROP_NEVER_ID		    = 0x0,
-    DROP_SUPPRESS_ID		    = 0x1,
-    DROP_FOURK_ID		    = 0x2,
-    DROP_ALWAYS_ID		    = 0x3,
-    DROP_SMART_ID		    = 0x4
+    DROP_NEVER_ID		= 0x0,
+    DROP_SUPPRESS_ID		= 0x1,
+    DROP_FOURK_ID		= 0x2,
+    DROP_ALWAYS_ID		= 0x3,
+    DROP_SMART_ID		= 0x4
 };
 
 enum reiserfs_perm_plugin_id {
-    PREM_RWX_ID			    = 0x0
+    PERM_RWX_ID			= 0x0
 };
 
 enum reiserfs_sdext_plugin_id {
-    SDEXT_UNIX_ID		    = 0x0,
-    SDEXT_SYMLINK_ID		    = 0x1,
-    SDEXT_PLUGIN_ID		    = 0x2,
-    SDEXT_GEN_AND_FLAGS_ID	    = 0x3,
-    SDEXT_CAPABILITIES_ID	    = 0x4,
-    SDEXT_LARGE_TIMES_ID	    = 0x5,
+    SDEXT_UNIX_ID		= 0x0,
+    SDEXT_SYMLINK_ID		= 0x1,
+    SDEXT_PLUGIN_ID		= 0x2,
+    SDEXT_GEN_AND_FLAGS_ID	= 0x3,
+    SDEXT_CAPABILITIES_ID	= 0x4,
+    SDEXT_LARGE_TIMES_ID	= 0x5,
     SDEXT_LAST_ID
 };
 
 enum reiserfs_format_plugin_id {
-    FORMAT_REISER40_ID		    = 0x0,
-    FORMAT_REISER36_ID		    = 0x1
+    FORMAT_REISER40_ID		= 0x0,
+    FORMAT_REISER36_ID		= 0x1
 };
 
 enum reiserfs_oid_plugin_id {
-    OID_REISER40_ID		    = 0x0,
-    OID_REISER36_ID		    = 0x1
+    OID_REISER40_ID		= 0x0,
+    OID_REISER36_ID		= 0x1
 };
 
 enum reiserfs_alloc_plugin_id {
-    ALLOC_REISER40_ID		    = 0x0,
-    ALLOC_REISER36_ID		    = 0x1
+    ALLOC_REISER40_ID		= 0x0,
+    ALLOC_REISER36_ID		= 0x1
 };
 
 enum reiserfs_journal_plugin_id {
-    JOURNAL_REISER40_ID		    = 0x0,
-    JOURNAL_REISER36_ID		    = 0x1
+    JOURNAL_REISER40_ID		= 0x0,
+    JOURNAL_REISER36_ID		= 0x1
 };
 
 enum reiserfs_key_plugin_id {
-    KEY_REISER40_ID		    = 0x0,
-    KEY_REISER36_ID		    = 0x1
+    KEY_REISER40_ID		= 0x0,
+    KEY_REISER36_ID		= 0x1
 };
 
+#define INVALID_PLUGIN_ID	(0xffff)
 
 /* 
     Maximal possible key size. It is used for creating temporary keys by declaring 
@@ -890,9 +893,6 @@ typedef errno_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
     ({ops.method(args);})					    \
     
 #endif
-
-#define REISERFS_GUESS_PLUGIN 0xffff
-#define REISERFS_INVAL_PLUGIN 0xffff
 
 #if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
 
