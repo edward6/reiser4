@@ -716,7 +716,7 @@ prepare_bnode(struct bnode *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 	/* allocate memory for working bitmap block. Note that for
 	 * bitmaps jinit_new() doesn't actually modifies node content,
 	 * so parallel calls to this are ok. */
-	ret = jinit_new(wjnode);
+	ret = jinit_new(wjnode, GFP_NOFS);
 	
 	if (ret != 0) {
 		jrelse(cjnode);
@@ -1521,7 +1521,7 @@ init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *s
 	data->bitmap = reiser4_kmalloc((size_t) (sizeof (struct bnode) * bitmap_blocks_nr), GFP_KERNEL);
 
 	if (data->bitmap == NULL) {
-		reiser4_kfree(data, (size_t) (sizeof (struct bnode) * bitmap_blocks_nr));
+		reiser4_kfree(data);
 		return RETERR(-ENOMEM);
 	}
 
@@ -1598,8 +1598,8 @@ destroy_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block
 		up(&bnode->sema);
 	}
 
-	reiser4_kfree(data->bitmap, (size_t) (sizeof (struct bnode) * bitmap_blocks_nr));
-	reiser4_kfree(data, sizeof (struct bitmap_allocator_data));
+	reiser4_kfree(data->bitmap);
+	reiser4_kfree(data);
 
 	allocator->u.generic = NULL;
 

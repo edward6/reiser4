@@ -185,8 +185,8 @@ blknrhashfn(z_hash_table *table, const reiser4_block_nr * b)
 }
 
 /* The hash table definition */
-#define KMALLOC( size ) reiser4_kmalloc( ( size ), GFP_KERNEL )
-#define KFREE( ptr, size ) reiser4_kfree( ptr, size )
+#define KMALLOC(size) reiser4_kmalloc((size), GFP_KERNEL)
+#define KFREE(ptr, size) reiser4_kfree(ptr)
 TYPE_SAFE_HASH_DEFINE(z, znode, reiser4_block_nr, zjnode.key.z, zjnode.link.z, blknrhashfn, blknreq);
 #undef KFREE
 #undef KMALLOC
@@ -666,9 +666,9 @@ reiser4_internal int zload(znode * node)
 
 /* call node plugin to initialise newly allocated node. */
 reiser4_internal int
-zinit_new(znode * node /* znode to initialise */ )
+zinit_new(znode * node /* znode to initialise */, int gfp_flags )
 {
-	return jinit_new(ZJNODE(node));
+	return jinit_new(ZJNODE(node), gfp_flags);
 }
 
 /* drop reference to node data. When last reference is dropped, data are
