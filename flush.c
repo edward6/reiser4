@@ -2160,6 +2160,7 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 
 	if (! jnode_check_dirty (child)) {
 		trace_on (TRACE_FLUSH, "fpos_to_child_alloc: STOP (not dirty): %s\n", flush_pos_tostring (pos));
+		jput (child);
 		return flush_pos_stop (pos);
 	}
 
