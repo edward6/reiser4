@@ -336,6 +336,11 @@ overwrite_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *bl
 	int result;
 	extent_coord_extension_t *ext_coord;
 	reiser4_extent *ext;
+	oid_t oid;
+	pgoff_t index;
+
+	oid = get_key_objectid(key);
+	index = get_key_offset(key) >> current_blocksize_bits;
 
 	assert("vs-1312", uf_coord->base_coord.between == AT_UNIT);
 	
@@ -410,6 +415,11 @@ static int
 make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode, reiser4_block_nr *block, int *created)
 {
 	int result;
+	oid_t oid;
+	pgoff_t index;
+
+	oid = get_key_objectid(key);
+	index = get_key_offset(key) >> current_blocksize_bits;
 
 	assert("vs-960", znode_is_write_locked(uf_coord->base_coord.node));
 	assert("vs-1334", znode_is_loaded(uf_coord->base_coord.node));
@@ -419,7 +429,7 @@ make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode, reiser4_b
 	*block = 0;
 	switch (mode) {
 	case FIRST_ITEM:
-		/* create first item of the file */
+		/* create first item of the file */		
 		result = insert_first_block(uf_coord, key, block);
 		*created = 1;
 		break;
@@ -446,11 +456,9 @@ make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode, reiser4_b
 	}
 
 	ENABLE_NODE_CHECK;
+
 	ON_DEBUG(check_make_extent_result(result, mode, key, uf_coord->lh, *block));
 
-	write_current_logf(ALLOC_EXTENT_LOG,
-			   "mode %d: oid %llu, index %llu",
-			   mode, get_key_objectid(key), get_key_offset(key) >> current_blocksize_bits);
 	return result;
 }
 
@@ -642,47 +650,36 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		}
 		UNLOCK_JNODE(j);
 
-		move_flow_forward(flow, count);
-		write_move_coord(coord, uf_coord, mode, page_off + count == PAGE_CACHE_SIZE);
-		set_hint_unlock_node(hint, flow, ZNODE_WRITE_LOCK);
-
-		fault_in_pages_readable(flow->data - count, count);
-
+		/* get page looked and attached to jnode */
 		page = jnode_get_page_locked(j, GFP_KERNEL);
 		if (IS_ERR(page)) {
 			result = PTR_ERR(page);
 			goto exit2;
 		}
-		page_cache_get(page);
-		assert("vs-1425", jnode_page(j) == page);
 
-		if (!PageUptodate(page)) {
-			if (write_is_partial(inode, file_off, page_off, count)) {
-				/* page is not being overwritten completely, therefore we have to take care about data
-				   which might be written to file already */				
-				if (JF_ISSET(j, JNODE_EFLUSH)) {
-					unlock_page(page);
-					result = jload(j);
-					lock_page(page);
-					if (result)
-						goto exit3;
-					jrelse(j);
-					/* locked page will prevents jnode from eflushing */
-				} else {
-					/* there is no need to jload */
-					zero_around(page, page_off, count);
-				}
-			} else {
-				/* there is no need to jload */				
+		page_cache_get(page);
+
+		if (created) {
+			if (!PageUptodate(page))
 				zero_around(page, page_off, count);
-				UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
-			}
 		} else {
-			/* make sure that jnode is not eflushed */
+			if (!PageUptodate(page) && write_is_partial(inode, file_off, page_off, count)) {
+				result = page_io(page, j, READ, GFP_KERNEL);
+				if (result)
+					goto exit3;
+				lock_page(page);
+				if (!PageUptodate(page))
+					goto exit3;
+			}
+
 			UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
 		}
 
-		assert("vs-1503", UNDER_SPIN(jnode, j, !JF_ISSET(j, JNODE_EFLUSH)));
+		move_flow_forward(flow, count);
+		write_move_coord(coord, uf_coord, mode, page_off + count == PAGE_CACHE_SIZE);
+		set_hint_unlock_node(hint, flow, ZNODE_WRITE_LOCK);
+
+		assert("vs-1503", UNDER_SPIN(jnode, j, (!JF_ISSET(j, JNODE_EFLUSH) && jnode_page(j) == page)));
 		assert("nikita-3033", schedulable());
 
 		/* copy user data into page */
@@ -691,8 +688,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		if (unlikely(result)) {
 			/* FIXME: write(fd, 0, 10); to empty file will write no data but file will get increased
 			   size. */
-			/*if (JF_ISSET(j, JNODE_NEW))
-			  JF_SET(j, JNODE_HEARD_BANSHEE);*/
 			result = RETERR(-EFAULT);
 			goto exit3;
 		}
@@ -730,6 +725,16 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		page_nr ++;
 		file_off += count;
 		set_key_offset(&page_key, (loff_t)page_nr << PAGE_CACHE_SHIFT);
+
+		if (flow->length) {
+			/* read in next portion of user buffer */
+			size_t bytes;
+
+			bytes = PAGE_CACHE_SIZE;
+			if (bytes > flow->length)
+				bytes = flow->length;
+			fault_in_pages_readable(flow->data, bytes);
+		}
 		continue;
 
 	exit3:
@@ -1069,12 +1074,9 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 	mapping = page->mapping;
 	oid = get_inode_oid(mapping->host);
 	index = page->index;
-	ON_TRACE(TRACE_EXTENTS, "readpage_extent: page (oid %llu, index %lu, count %d)..",
-		 oid, index, page_count(page));
 
 	switch (state_of_extent(ext)) {
 	case HOLE_EXTENT:
-		ON_TRACE(TRACE_EXTENTS, "hole, OK\n");
 		/*
 		 * it is possible to have hole page with jnode, if page was
 		 * eflushed previously.
@@ -1086,8 +1088,9 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 		}
 		LOCK_JNODE(j);
 		if (!jnode_page(j)) {
-			jnode_attach_page(j, page);			
+			jnode_attach_page(j, page);
 		} else {
+			BUG_ON(jnode_page(j) != page);
 			assert("vs-1504", jnode_page(j) == page);
 		}
 		
@@ -1113,16 +1116,9 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 		assert("vs-1426", jnode_page(j) == NULL);
 
 		UNDER_SPIN_VOID(jnode, j, jnode_attach_page(j, page));
-		ON_TRACE(TRACE_EXTENTS, "jnode %s attached to page\n", jnode_tostring(j));
 
-		if (!JF_ISSET(j, JNODE_EFLUSH)) {
-			assert("", 0);
-			ON_TRACE(TRACE_EXTENTS, "page fault on not initialized page\n");
-			zero_page(page);
-			jput(j);
-			return 0;
-		}
-
+		/* page is locked, it is safe to check JNODE_EFLUSH */
+		assert("vs-1668", JF_ISSET(j, JNODE_EFLUSH));
 		break;
 
 	default:
