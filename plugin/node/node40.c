@@ -1101,7 +1101,7 @@ static int cut_or_kill (new_coord * from, new_coord * to,
 
 
 	/* move remaining data to left */
-	xmemmove (node->data + freed_space_start, node->data + freed_space_end,
+	xmemmove (zdata (node) + freed_space_start, zdata (node) + freed_space_end,
 		 nh_40_get_free_space_start (nh) - freed_space_end);
 
 	/* update item headers of moved items */
@@ -1497,8 +1497,8 @@ void node40_copy (struct shift_params * shift)
 						  ih_40_get_offset (from_ih) - old_offset + free_space_start );
 
 			/* copy item bodies */
-			xmemcpy (shift->target->data + free_space_start,
-				from.node->data + old_offset,/*ih_40_get_offset (from_ih),*/
+			xmemcpy (zdata (shift->target) + free_space_start,
+				zdata (from.node) + old_offset,/*ih_40_get_offset (from_ih),*/
 				shift->entire_bytes);
 
 			from.item_pos += shift->entire;
@@ -1594,7 +1594,7 @@ void node40_copy (struct shift_params * shift)
 						  sizeof (node_header_40) + shift->part_bytes);
 			/* copy item bodies */
 			from.item_pos -= (shift->entire - 1);
-			xmemcpy (to.node->data + sizeof (node_header_40) + shift->part_bytes,
+			xmemcpy (zdata (to.node) + sizeof (node_header_40) + shift->part_bytes,
 				item_body_by_coord (&from), shift->entire_bytes);
 			from.item_pos --;
 		}
