@@ -87,8 +87,8 @@ static int reiser4_set_page_dirty (struct page * page)
 
 		if (mapping) {
 			spin_lock(&mapping->page_lock);
-			if (page->mapping) {	/* Race with truncate? */
-				                /* VS-FIXME-HANS: answer is? */
+			/* check for race with truncate */
+			if (page->mapping) {
 				if (!mapping->backing_dev_info->memory_backed)
 					inc_page_state(nr_dirty);
 				list_del(&page->list);
@@ -102,7 +102,9 @@ static int reiser4_set_page_dirty (struct page * page)
 }
 /* VS-FIXME-HANS: how about a nice explanation of why we have both readpage and readpages? */
 
-/* ->readpage() VFS method in reiser4 address_space_operations */
+/* ->readpage() VFS method in reiser4 address_space_operations
+   method serving file mmapping
+*/
 static int
 reiser4_readpage(struct file *f /* file to read from */ ,
 		 struct page *page	/* page where to read data
@@ -139,7 +141,9 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 	return 0;
 }
 
-/* ->readpages() VFS method in reiser4 address_space_operations */
+/* ->readpages() VFS method in reiser4 address_space_operations 
+   method serving page cache readahead
+*/
 static int
 reiser4_readpages(struct file *file, struct address_space *mapping,
 		  struct list_head *pages, unsigned nr_pages)
