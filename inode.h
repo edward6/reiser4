@@ -149,6 +149,10 @@ struct reiser4_inode {
 		/* fields specific to pseudo file plugin */
 		pseudo_info_t pseudo_info;
 	} file_plugin_data;
+	rw_latch_t coc_sem; /* filemap_nopage takes it for read, copy_on_capture - for write. Under this it
+			       tries to unmap page for which it is called. This prevents process from using page which
+			       was copied on capture */
+
 	union {
 		acl_perm_info_t acl_perm_info;
 	} perm_plugin_data;

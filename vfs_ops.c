@@ -396,6 +396,7 @@ init_once(void *obj /* pointer to new inode */ ,
 		info->p.eflushed_anon = 0;
 		INIT_LIST_HEAD(&info->p.moved_pages);
 		readdir_list_init(get_readdir_list(&info->vfs_inode));
+		rw_latch_init(&info->p.coc_sem);
 		INIT_LIST_HEAD(&info->p.eflushed_jnodes);
 		INIT_RADIX_TREE(&info->p.jnode_tree, GFP_ATOMIC);
 		ON_DEBUG(info->p.jnodes = 0);

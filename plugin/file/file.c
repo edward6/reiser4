@@ -1783,9 +1783,15 @@ unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int
 	struct inode *inode;
 
 	inode = area->vm_file->f_dentry->d_inode;
+
+	/* block filemap_nopage if copy on capture is processing with a node of this file */
+	rw_latch_down_read(&reiser4_inode_data(inode)->coc_sem);
 	get_nonexclusive_access(unix_file_inode_data(inode));
+
 	page = filemap_nopage(area, address, 0);
+
 	drop_nonexclusive_access(unix_file_inode_data(inode));
+	rw_latch_up_read(&reiser4_inode_data(inode)->coc_sem);
 	return page;
 }
 

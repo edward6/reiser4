@@ -243,6 +243,7 @@ year old --- define all technical terms used.
 #include <linux/pagemap.h>
 #include <linux/writeback.h>
 #include <linux/swap.h>        /* for nr_free_pagecache_pages() */
+#include <linux/rmap-locking.h>
 
 static void atom_free(txn_atom * atom);
 
@@ -4085,13 +4086,22 @@ static int
 create_copy_and_replace(jnode *node, txn_atom *atom)
 {
 	int result;
+	struct inode *inode; /* inode for which filemap_nopage is blocked */
 
 	assert("jmacd-321", spin_jnode_is_locked(node));
 	assert("umka-295", spin_atom_is_locked(atom));
 	assert("vs-1381", node->atom == atom);
 	assert("vs-1409", atom->stage > ASTAGE_CAPTURE_WAIT && atom->stage < ASTAGE_DONE);
-	assert("vs-1410", (jnode_get_type(node) == JNODE_FORMATTED_BLOCK ||
-			   jnode_get_type(node) == JNODE_UNFORMATTED_BLOCK));	
+	assert("vs-1410", jnode_is_znode(node) || jnode_is_unformatted(node));
+
+
+	if (JF_ISSET(node, JNODE_CCED)) {
+		/* node is under copy on capture already */
+		reiser4_stat_inc(coc.coc_race);
+		UNLOCK_JNODE(node);
+		UNLOCK_ATOM(atom);
+		return RETERR(-E_WAIT);
+	}
 
 	/* measure how often suspicious (WRITEBACK, DIRTY, FLUSH_QUEUED) appear
 	   here. For most often case we can return EAGAIN right here and avoid
@@ -4110,14 +4120,52 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 		return RETERR(-E_REPEAT);
 	}
 
-	if (JF_ISSET(node, JNODE_CCED)) {
-		reiser4_stat_inc(coc.coc_race);
+	set_cced_bit(node);
+
+	if (jnode_is_unformatted(node)) {
+		/* to capture_copy unformatted node we have to take care of its
+		   page mappings. Page gets unmapped here and concurrent
+		   mappings are blocked on reiser4 inodes's coc_sem in reiser4's
+		   filemap_nopage */
+		struct page *page;
+
+		inode = mapping_jnode(node)->host;
+		page = jnode_page(node);
+		assert("vs-1640", inode != NULL);
+		assert("vs-1641", page != NULL);
+		assert("vs-1642", page->mapping != NULL);
 		UNLOCK_JNODE(node);
 		UNLOCK_ATOM(atom);
-		return RETERR(-E_WAIT);
-	}
 
-	set_cced_bit(node);
+		rw_latch_down_write(&reiser4_inode_data(inode)->coc_sem);
+		lock_page(page);
+		pte_chain_lock(page);
+
+		if (page_mapped(page)) {
+			result = try_to_unmap(page);
+			if (result == SWAP_AGAIN) {
+				result = RETERR(-E_REPEAT);
+				
+			} else if (result == SWAP_FAIL)
+				result = RETERR(-E_WAIT);
+			else {
+				assert("vs-1643", result == SWAP_SUCCESS);
+				result = 0;
+			}
+			if (result != 0) {
+				unlock_page(page);
+				pte_chain_unlock(page);
+				rw_latch_up_write(&reiser4_inode_data(inode)->coc_sem);
+				return result;
+			}
+		}
+		pte_chain_unlock(page);
+		unlock_page(page);
+		LOCK_ATOM(atom);
+		LOCK_JNODE(node);
+	} else
+		inode = NULL;
+
 	if (!JF_ISSET(node, JNODE_OVRWR) && !JF_ISSET(node, JNODE_RELOC)) {
 		/* clean node can be made available for capturing. Just take
 		   care to preserve atom list during uncapturing */
@@ -4131,6 +4179,10 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 	if (result != 0)
 		clear_cced_bits(node);
 	assert("vs-1626", !spin_atom_is_locked(atom));
+
+	if (inode != NULL)
+		rw_latch_up_write(&reiser4_inode_data(inode)->coc_sem);
+
 	return result;
 }
 #endif /* REISER4_COPY_ON_CAPTURE */
@@ -4150,14 +4202,12 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
 		/* The txnh and its (possibly NULL) atom's locks are not needed
 		   at this point. */
 		UNLOCK_TXNH(txnh);
-		if (atomh != NULL) {
+		if (atomh != NULL)
 			UNLOCK_ATOM(atomh);
-		}
 
 		/* create a copy of node, detach node from atom and attach its copy
 		   instead */
 		atomic_inc(&atomf->refcount);
-		/*UNLOCK_ATOM(atomf);*/
 		result = create_copy_and_replace(node, atomf);
 		assert("nikita-3474", schedulable());
 		preempt_point();
