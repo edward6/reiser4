@@ -1874,6 +1874,11 @@ static int copy_dir (struct inode * dir)
 	int dirs, files;
 
 
+	/*
+	 * no tails for all the directory
+	 */
+	reiser4_get_object_state (dir)->tail = tail_plugin_by_id (NEVER_TAIL_ID);
+
 	dirs = 0;
 	files = 0;
 
@@ -1930,6 +1935,7 @@ static int copy_dir (struct inode * dir)
 					break;
 				}
 				dirs ++;
+#if 0
 				/*
 				 * if parent directory has tails on - make
 				 * child directory to have tail off
@@ -1938,7 +1944,7 @@ static int copy_dir (struct inode * dir)
 					reiser4_get_object_state (inodes [depth - 1])->tail = tail_plugin_by_id (ALWAYS_TAIL_ID);
 				else
 					reiser4_get_object_state (inodes [depth - 1])->tail = tail_plugin_by_id (NEVER_TAIL_ID);
-
+#endif
 			} else if (S_ISREG (st.st_mode)) {
 				printf ("REG\n");
 				if (copy_file (name, inodes [depth - 1], last_name (name + prefix + 1), &st)) {
@@ -2375,6 +2381,8 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				} else {
 					info ("\ttail [on|off]\n");
 				}
+			} else if (!strcmp (command, "alloc")) {
+				allocate_unallocated (tree_by_inode (cwd));
 			} else if (!strncmp (command, "p", 1)) {
 				/*
 				 * print tree
@@ -2398,6 +2406,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				      "\ttail [on|off]  - set or get state of tail plugin of current directory\n"
 				      "\ttouch          - create empty file\n"
 				      "\trm             - remove file\n"
+				      "\talloc          - allocate unallocated extents\n"
 				      "\tp              - print tree\n"
 				      "\texit\n");
 		}
