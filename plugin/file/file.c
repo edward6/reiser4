@@ -1280,8 +1280,10 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 		result = capture_anonymous_pages(inode->i_mapping);
 		rw_latch_up_read(&uf_info->latch);
 		LOCK_CNT_DEC(inode_sem_r);
-		if (result != 0 || wbc->sync_mode != WB_SYNC_ALL)
+		if (result != 0 || wbc->sync_mode != WB_SYNC_ALL) {
+			reiser4_exit_context(&ctx);
 			break;
+		}
 		result = commit_file_atoms(inode);
 		reiser4_exit_context(&ctx);
 	} while (result == 0 && inode_has_anonymous_pages(inode));
