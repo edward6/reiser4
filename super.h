@@ -176,15 +176,28 @@ extern int  is_reiser4_super( const struct super_block *super );
 
 extern struct super_block *reiser4_get_current_sb( void );
 
-file_plugin *default_file_plugin( const struct super_block *super UNUSE );
-dir_plugin  *default_dir_plugin( const struct super_block *super UNUSE );
-hash_plugin *default_hash_plugin( const struct super_block *super UNUSE );
-perm_plugin *default_perm_plugin( const struct super_block *super UNUSE );
-tail_plugin *default_tail_plugin( const struct super_block *super UNUSE );
-item_plugin *default_sd_plugin( const struct super_block *super UNUSE );
-item_plugin *default_dir_item_plugin( const struct super_block *super UNUSE );
+file_plugin *default_file_plugin( const struct super_block *super );
+dir_plugin  *default_dir_plugin( const struct super_block *super );
+hash_plugin *default_hash_plugin( const struct super_block *super );
+perm_plugin *default_perm_plugin( const struct super_block *super );
+tail_plugin *default_tail_plugin( const struct super_block *super );
+item_plugin *default_sd_plugin( const struct super_block *super );
+item_plugin *default_dir_item_plugin( const struct super_block *super );
 void print_fs_info (const struct super_block *);
 
+int default_read_node (const reiser4_block_nr *addr, char **data,
+		       size_t blocksize);
+int default_allocate_node (znode *);
+void default_unread_node (znode *);
+
+int init_tree( reiser4_tree *tree, 
+	       const reiser4_block_nr *root_block,
+	       tree_level height,
+	       node_plugin *default_plugin,
+	       node_read_actor read_node, 
+	       node_allocate_actor alloc_node,
+	       node_unread_actor unread_node );
+void done_tree( reiser4_tree *tree );
 #if 1 || REISER4_DEBUG
 extern void register_thread( void );
 extern void deregister_thread( void );
