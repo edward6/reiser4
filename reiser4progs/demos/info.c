@@ -90,26 +90,17 @@ int main(int argc, char *argv[]) {
     
     {
 	reiserfs_entry_hint_t entry;
-	reiserfs_object_t *obj;
 	
-	if (!(obj = reiserfs_object_open(fs, fs->dir->plugin, "/reiser4progs"))) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Can't open directory.");
-	    goto error_free_device;
-	}
-	
-	if (reiserfs_object_rewind(obj)) {
+	if (reiserfs_object_rewind(fs->dir)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't rewind directory.");
 	    goto error_free_device;
 	}
 
-	while (!reiserfs_object_read(obj, &entry)) {
+	while (!reiserfs_object_read(fs->dir, &entry)) {
 	    aal_printf("%llx:%llx %s\n", (entry.objid.locality >> 4), 
 		entry.objid.objectid, entry.name);
 	}
-
-	reiserfs_object_close(obj);
     }
     
     reiserfs_fs_close(fs);

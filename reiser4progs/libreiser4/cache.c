@@ -168,7 +168,7 @@ errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
     }
 
     /* Raising the right neighbour */
-    if (!cache->right && (uint32_t)pos < reiserfs_node_count(parent)) {
+    if (!cache->right && (uint32_t)pos < reiserfs_node_count(parent) - 1) {
 	if (!(block_nr = reiserfs_node_get_pointer(parent, pos + 1))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get pointer to right neighbour.");

@@ -158,7 +158,6 @@ static errno_t key40_build_hash(reiserfs_key40_t *key,
 	*/
 	key40_set_objectid(key, key40_pack_string(name, 1));
 	if (len <= OID_CHARS + sizeof(uint64_t)) {
-	    /* Fits into objectid + hash. */
 	    if (len > OID_CHARS)
 		/* 
 		    Does not fit into objectid, pack the second part of 
