@@ -227,28 +227,6 @@ reiser4_print_stats()
 	     s->tree.check_left_nonuniq, 
 	     s->tree.left_nonuniq_found);
 
-	info("jnode:\n"
-	     "\t jload:\t %lu\n"
-	     "\t jload_read:\t %lu\n"
-	     "\t jload_already:\t %lu\n"
-	     "\t jload_page:\t %lu\n"
-	     "\t jload_async:\t %lu\n",
-	     s->jnode.jload,
-	     s->jnode.jload_read,
-	     s->jnode.jload_already,
-	     s->jnode.jload_page,
-	     s->jnode.jload_async);
-
-	info("znode:\n"
-	     "\t lock_znode:\t %lu\n"
-	     "\t lock_znode_iteration:\t %lu\n"
-	     "\t lock_neighbor:\t %lu\n"
-	     "\t lock_neighbor_iteration:\t %lu\n",
-	     s->znode.lock_znode,
-	     s->znode.lock_znode_iteration, 
-	     s->znode.lock_neighbor, 
-	     s->znode.lock_neighbor_iteration);
-
 	info("vfs:\n" "\t writes:\t %lu\n" "\t reads:\t %lu\n", 
 	     s->vfs_calls.writes, 
 	     s->vfs_calls.reads);
@@ -422,6 +400,28 @@ reiser4_print_stats()
 		     s->level[i].emergency_flush,
 		     s->level[i].long_term_lock_contented,
 		     s->level[i].long_term_lock_uncontented);
+
+		info("\tjnode:\n"
+		     "\t\t jload:\t %lu\n"
+		     "\t\t jload_read:\t %lu\n"
+		     "\t\t jload_already:\t %lu\n"
+		     "\t\t jload_page:\t %lu\n"
+		     "\t\t jload_async:\t %lu\n",
+		     s->level[i].jnode.jload,
+		     s->level[i].jnode.jload_read,
+		     s->level[i].jnode.jload_already,
+		     s->level[i].jnode.jload_page,
+		     s->level[i].jnode.jload_async);
+
+		info("\tznode:\n"
+		     "\t\t lock_znode:\t %lu\n"
+		     "\t\t lock_znode_iteration:\t %lu\n"
+		     "\t\t lock_neighbor:\t %lu\n"
+		     "\t\t lock_neighbor_iteration:\t %lu\n",
+		     s->level[i].znode.lock_znode,
+		     s->level[i].znode.lock_znode_iteration, 
+		     s->level[i].znode.lock_neighbor, 
+		     s->level[i].znode.lock_neighbor_iteration);
 	}
 }
 #else
