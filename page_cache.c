@@ -579,7 +579,6 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 					 * unused currently. */ )
 {
 	jnode *node;
-	int flush_some;
 	struct super_block *s = page->mapping->host->i_sb;
 	reiser4_tree *tree;
 	int result;

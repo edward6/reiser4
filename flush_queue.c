@@ -33,8 +33,10 @@ SPIN_LOCK_FUNCTIONS(fq, flush_queue_t, guard);
    LOCKING: 
 
    fq->guard spin lock protects fq->atom pointer and nothing else.  fq->prepped
-   list, fq->nr_queued protected by atom spin lock.  fq->send list protected by
-   fq "in-use" state. atom->fq_list and fq->state protected by atom spin lock.
+   list, fq->nr_queued protected by atom spin lock.  For modification of
+   fq->send both atom spin lock and "in-use" fq state are needed. To safely
+   traverse fq->sent list only one locking (fq state or atom spin lock) is
+   enough. atom->fq_list and fq->state protected by atom spin lock.
 
    The deadlock-safe order for flush queues and atoms is: first lock atom, then
    lock flush queue, then lock jnode.
@@ -178,7 +180,7 @@ uncapture_queued_node(flush_queue_t * fq, jnode * node)
 static inline int
 try_uncapture_node(flush_queue_t * fq, jnode * node)
 {
-	assert ("zam-799", fq-atom != NULL);
+	assert ("zam-799", fq->atom != NULL);
 	assert ("zam-800", spin_atom_is_locked(fq->atom));
 	
 	if (JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
@@ -346,19 +348,20 @@ int
 finish_all_fq(txn_atom * atom, int *nr_io_errors)
 {
 	flush_queue_t *fq;
+
 	assert("zam-730", spin_atom_is_locked(atom));
 
 	if (fq_list_empty(&atom->flush_queues))
 		return 0;
 
-	for (fq = fq_list_front(&atom->flush_queues); !fq_list_end(&atom->flush_queues, fq); fq = fq_list_next(fq)) {
-		spin_lock_fq(fq);
-
+	for (fq = fq_list_front(&atom->flush_queues);
+	     !fq_list_end(&atom->flush_queues, fq);
+	     fq = fq_list_next(fq))
+	{
 		if (fq_ready(fq)) {
 			int ret;
 
 			mark_fq_in_use(fq);
-
 			ret = finish_fq(fq, nr_io_errors);
 
 			if (ret) {
@@ -370,8 +373,6 @@ finish_all_fq(txn_atom * atom, int *nr_io_errors)
 
 			return -EAGAIN;
 		}
-
-		spin_unlock_fq(fq);
 	}
 
 	/* All flush queues are in use; atom remains locked */
@@ -419,7 +420,10 @@ scan_fq_and_update_atom_ref(capture_list_head * list, txn_atom * atom)
 {
 	jnode *cur;
 
-	for (cur = capture_list_front(list); !capture_list_end(list, cur); cur = capture_list_next(cur)) {
+	for (cur = capture_list_front(list);
+	     !capture_list_end(list, cur);
+	     cur = capture_list_next(cur))
+	{
 		spin_lock_jnode(cur);
 		cur->atom = atom;
 		spin_unlock_jnode(cur);
@@ -437,11 +441,11 @@ fuse_fq(txn_atom * to, txn_atom * from)
 		flush_queue_t *fq = fq_list_front(&from->flush_queues);
 
 		while (!fq_list_end(&from->flush_queues, fq)) {
+			scan_fq_and_update_atom_ref(&fq->prepped, to);
+
 			spin_lock_fq(fq);
 
-			scan_fq_and_update_atom_ref(&fq->prepped, to);
 			scan_fq_and_update_atom_ref(&fq->sent, to);
-
 			fq->atom = to;
 
 			spin_unlock_fq(fq);
@@ -521,7 +525,7 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 
 	struct pagevec pvec;
 
-	assert("zam-724", lock_counters()->spin_locked == 0);
+	schedulable();
 	assert("zam-725", nr != 0);
 
 	trace_on (TRACE_IO_W, "write of %d blocks starting from %llu\n", nr, 
@@ -610,8 +614,10 @@ prepare_node_for_write(flush_queue_t * fq, jnode * node)
 	int ret = 0;
 	txn_atom *atom;
 
-	atom = atom_get_locked_by_fq(fq);
+	atom = fq->atom;
+
 	assert("zam-726", atom != NULL);
+	assert("zam-803", spin_atom_is_locked(atom));
 
 	spin_lock_jnode(node);
 
@@ -629,9 +635,6 @@ prepare_node_for_write(flush_queue_t * fq, jnode * node)
 
 		spin_unlock_jnode(node);
 	}
-
-	spin_unlock_atom(atom);
-
 	return ret;
 }
 
@@ -640,22 +643,26 @@ prepare_node_for_write(flush_queue_t * fq, jnode * node)
    blocks are written even if we must submit more requests than
    @how_many.
 
- @fq       -- flush queue object which contains jnodes we can (and will) write.
- @how_many -- limit for number of blocks we should write, if 0 -- write all
-              blocks.
+   @fq       -- flush queue object which contains jnodes we can (and will) write.
+   @how_many -- limit for number of blocks we should write, if 0 -- write all
+                blocks.
 
- @return   -- 0 if success, otherwise -- error code.
+   @return   -- number of submitted blocks (>=0) if success, otherwise -- error
+                code (<0).
 */
 int
 write_fq(flush_queue_t * fq, int how_many)
 {
-	jnode *first;		/* should point to the first jnode we are going to submit
-				 * in one bio */
-	jnode *last;		/* should point to the jnode _after_ last to be submitted in that bio */
-	int nr_submitted;	/* number of blocks we submit to write in this
-				 * write_fq() call */
-	int max_blocks;		/* a limit for maximum number of blocks in one bio implied by the
-				 * device specific request queue restriction */
+	/* 
+	 * number of blocks we submit to write in this write_fq() call */
+	int nr_submitted;
+	/* 
+	 * a limit for maximum number of blocks in one bio implied by the device
+	 * specific request queue restriction */
+	int max_blocks;	
+	/*
+	 * atom the fq is attached to */
+	txn_atom * atom;
 
 #if REISER4_USER_LEVEL_SIMULATION
 	max_blocks = fq->nr_queued;
@@ -665,26 +672,37 @@ write_fq(flush_queue_t * fq, int how_many)
 		max_blocks = bdev_get_queue(s->s_bdev)->max_sectors >> (s->s_blocksize_bits - 9);
 	}
 #endif
-	spin_lock_fq(fq);
-
-	if (capture_list_empty(&fq->prepped)) {
-		spin_unlock_fq(fq);
-		return 0;
-	}
-
 	nr_submitted = 0;
 
-	first = capture_list_front(&fq->prepped);
-	last = first;
-
 	/* repeat until either we empty the queue or we submit how_many were requested to be submitted. */
-	do {
-		int nr_contiguous = 0;
-		int ret;
+	while (1) {
 		/* take those nodes from the front of the prepped queue that are a contiguous
 		   sequence of block numbers, not greater than max_blocks (i/o subsystem
 		   limitation), and form a set from them defined by the range from the front of
 		   the queue to cur.  Pass that set to prepare_node_for_write(). */
+		int ret;
+
+		jnode * first;
+		jnode * last;
+
+		int nr_contiguous;
+
+		spin_lock_fq(fq);
+		atom = atom_get_locked_by_fq(fq);
+		spin_unlock_fq(fq);
+
+		assert ("zam-802", atom != NULL);
+
+		if (capture_list_empty(&fq->prepped)) {
+			spin_unlock_atom(atom);
+			break;
+		}
+
+		/* We save first node from sequence as an argument for
+		 * submit_write() */
+		first = last = capture_list_front(&fq->prepped);
+		nr_contiguous = 0;
+
 		for (;;) {
 			jnode *cur = last;
 
@@ -701,8 +719,12 @@ write_fq(flush_queue_t * fq, int how_many)
 
 			if (++nr_contiguous >= max_blocks)
 				break;
-
 		}
+
+		/* All nodes we going to write are moved to sent list, nobody
+		 * can steal them from there, we can unlock atom */
+		spin_unlock_atom(atom);
+
 		/* take the set we just prepped, and submit it for writing to disk */
 		if (nr_contiguous) {
 			ret = submit_write(fq, first, nr_contiguous);
@@ -715,9 +737,7 @@ write_fq(flush_queue_t * fq, int how_many)
 
 		if (how_many && nr_submitted >= how_many)
 			break;
-
-		first = last;
-	} while (!capture_list_end(&fq->prepped, last));
+	} 
 
 	trace_on (TRACE_IO_W, "write_fq submitted %d blocks\n", nr_submitted);
 
@@ -862,7 +882,7 @@ static int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 
 		if (!atom) {
 			if (*fq) {
-				done_fq(fq);
+				done_fq(*fq);
 				*fq = NULL;
 			}
 			/* jnode is not attached to any atom, it is not an error */
