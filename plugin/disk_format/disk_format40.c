@@ -372,6 +372,7 @@ release_format40(struct super_block *s)
 	/*done_tree(&sbinfo->tree);*/
 
 	sa_destroy_allocator(&sbinfo->space_allocator, s);
+	printk("allocator destroyed!\n");
 	done_journal_info(s);
 	eflush_done_at(s);
 	done_super_jnode(s);
