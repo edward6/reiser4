@@ -10,26 +10,6 @@
 #if !defined( __REISER4_FILE_H__ )
 #define __REISER4_FILE_H__
 
-/* a flow is a sequence of bytes being written to or read from the tree.  The
-   tree will slice the flow into items while storing it into nodes, but all of
-   that is hidden from anything outside the tree.  */
-
-typedef enum {
-	USER_BUF,
-	PAGE_PTR
-} buf_or_page;
-
-/* FIXME-VS: shouldn't struct flow be somewhere else? */
-struct flow {
-	reiser4_key key;    /* key of start of flow's sequence of bytes */
-	size_t      length; /* length of flow's sequence of bytes */
-	buf_or_page what;
-	union {   /* start of flow's sequence of bytes */
-		char        *user_buf;
-		struct page *page;
-	} data;
-};
-
 
 /* plugin->file.* */
 int     ordinary_file_create   (struct inode *object, struct inode *parent,

@@ -10,6 +10,26 @@
 #if !defined( __FS_REISER4_PLUGIN_TYPES_H__ )
 #define __FS_REISER4_PLUGIN_TYPES_H__
 
+
+/* a flow is a sequence of bytes being written to or read from the tree.  The
+   tree will slice the flow into items while storing it into nodes, but all of
+   that is hidden from anything outside the tree.  */
+
+typedef enum {
+	USER_BUF,
+	PAGE_PTR /* this is used when data for writing are in page */
+} buf_or_page;
+
+struct flow {
+	reiser4_key key;    /* key of start of flow's sequence of bytes */
+	size_t      length; /* length of flow's sequence of bytes */
+	buf_or_page what;   /* show what is data in below */
+	union {   
+		char        *user_buf; /* start of flow's sequence of bytes */
+		struct page *page;
+	} data;
+};
+
 typedef ssize_t ( *rw_f_type )( struct file *file, flow_t *a_flow, loff_t *off );
 
 
