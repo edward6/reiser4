@@ -510,7 +510,7 @@ static void drop_eflushed_nodes(struct inode *inode, unsigned long index)
 	
 	spin_lock_eflush(tree->super);
 
-	info = reiser4_inode_data(inode);
+	info = reiser4_inode_by_inode(inode);
 	list_for_each_safe(tmp, next, &info->eflushed_jnodes) {
 		eflush_node_t *ef;
 		jnode *j;
@@ -2429,7 +2429,7 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 	longterm_unlock_znode(lh);
 
 	new_size = get_key_offset(&f->key);
-	result = update_inode_and_sd_if_necessary(mapping->host, new_size, (new_size > mapping->host->i_size) ? 1 : 0);
+	result = update_inode_and_sd_if_necessary(mapping->host, new_size, (new_size > mapping->host->i_size) ? 1 : 0, 1/* update stat data */);
 	if (result)
 		return result;
 
@@ -2445,14 +2445,15 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 
 /* estimate and reserve space which may be required for writing one page of file */
 static int
-reserve_extent_write_iteration(tree_level height)
+reserve_extent_write_iteration(struct inode *inode, tree_level height)
 {
 	int result;
 
-	/* one unformatted node and two insertion into tree (adding a unit into extent item and stat data update) may be
-	   involved */
 	grab_space_enable();
-	result = reiser4_grab_space(1 + estimate_one_insert_into_item(height) * 2, 0/* flags */, "extent_write");
+	/* one unformatted node and one insertion into tree and one stat data update may be involved */
+	result = reiser4_grab_space(1 + estimate_one_insert_into_item(height) +
+				    inode_file_plugin(inode)->estimate.update(inode),
+				    0/* flags */, "extent_write");
 	return result;
 }
 
@@ -2507,7 +2508,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		unsigned long index;
 
 		if (!grabbed) {
-			result = reserve_extent_write_iteration(znode_get_tree(coord->node)->height);
+			result = reserve_extent_write_iteration(inode, znode_get_tree(coord->node)->height);
 			if (result)
 				break;
 		}
@@ -2649,7 +2650,7 @@ extent_write_hole(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 	result = add_hole(coord, lh, &f->key);
 	if (!result) {
 		done_lh(lh);
-		result = update_inode_and_sd_if_necessary(inode, new_size, 1/*update i_size*/);
+		result = update_inode_and_sd_if_necessary(inode, new_size, 1/*update i_size*/, 1/* update stat data */);
 	}
 	if (!grabbed)
 		all_grabbed2free("extent_write_hole");
@@ -2835,8 +2836,8 @@ extent_readpage(coord_t * coord, struct page *page)
 		j = jnode_of_page(page);
 		if (IS_ERR(j))
 			return PTR_ERR(j);
-
-		init_allocated_jnode(j, extent_get_start(extent_by_coord(coord)) + pos);
+		if (!jnode_mapped(j))
+			init_allocated_jnode(j, extent_get_start(extent_by_coord(coord)) + pos);
 		reiser4_stat_inc(extent.unfm_block_reads);
 
 		trace_on(TRACE_EXTENTS, " - allocated, read issued\n");
