@@ -1,0 +1,69 @@
+/*
+    stat40.c -- reiser4 default stat data plugin.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Vitaly Fertman.
+*/
+
+#include <reiserfs/reiserfs.h>
+
+#include "stat40.h"
+
+static reiserfs_plugins_factory_t *factory = NULL;
+
+static error_t reiserfs_stat40_confirm(reiserfs_stat40_t *stat) {
+    return 0;
+}
+
+static reiserfs_stat40_t *reiserfs_stat40_create(reiserfs_key_t *key) {
+    reiserfs_stat40_t *stat;
+    
+    if (!(stat = aal_calloc(sizeof(*stat), 0)))
+	return NULL;
+    
+    return stat;
+}
+
+static error_t reiserfs_stat40_check(reiserfs_stat40_t *stat) {
+    return 0;
+}
+
+static void reiserfs_stat40_print(reiserfs_stat40_t *stat) {
+}
+
+#define STAT40_ID 0x1
+
+static reiserfs_plugin_t stat40_plugin = {
+    .item = {
+	.h = {
+	    .handle = NULL,
+	    .id = STAT_DATA_ITEM,
+	    .type = REISERFS_ITEM_PLUGIN,
+	    .label = "StatData40",
+	    .desc = "Stat Data for reiserfs 4.0, ver. 0.1, "
+		"Copyright (C) 1996-2002 Hans Reiser",
+	},
+	.common = {
+	    .item_type = STAT40_ID,
+	    .create = (reiserfs_opaque_t *(*)(reiserfs_key_t *key))reiserfs_stat40_create,
+	    .paste = NULL,
+	    .confirm_format = (error_t (*)(reiserfs_opaque_t *))reiserfs_stat40_confirm,
+	    .check = (error_t (*)(reiserfs_opaque_t *))reiserfs_stat40_check,
+	    .print = (void (*)(reiserfs_opaque_t *))reiserfs_stat40_print,
+	    .nr_units = NULL,
+	    .remove_units = NULL,
+	    .estimate = NULL
+	},
+	.ops = {
+	    .sd = {
+	    }
+	}
+    }
+};
+
+reiserfs_plugin_t *reiserfs_stat40_entry(reiserfs_plugins_factory_t *f) {
+    factory = f;
+    return &stat40_plugin;
+}
+
+reiserfs_plugin_register(reiserfs_stat40_entry);
+
