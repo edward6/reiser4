@@ -311,14 +311,11 @@ void jnode_attach_page( jnode *node, struct page *pg )
 	spin_unlock( lock );
 }
 
-/* Audited by: umka (2002.06.15) */
 void break_page_jnode_linkage( struct page *page, jnode *node )
 {
 	assert( "nikita-2063", page != NULL );
 	assert( "nikita-2064", node != NULL );
-
-	/* FIXME: JMACD->NIKITA: What do you think of this? */
-	assert( "jmacd-20642", ! PageDirty (page) );
+	assert( "jmacd-20642", !PageDirty( page ) );
 
 	trace_on( TRACE_PCACHE, "break page: %p\n", page );
 
@@ -327,10 +324,23 @@ void break_page_jnode_linkage( struct page *page, jnode *node )
 	node -> pg = NULL;
 }
 
-/* Audited by: umka (2002.06.15) */
-jnode *page_detach_jnode( struct page *page )
+void page_detach_jnode_nolock( jnode *node, struct page *page, spinlock_t *lock )
 {
-	jnode *node;
+	assert( "nikita-2256", lock != NULL );
+
+	spin_lock( lock );
+	if( likely( ( node != NULL ) && ( page != NULL ) ) ) {
+		assert( "nikita-2184", lock == jnode_to_page_lock( node ) );
+		assert( "nikita-2185", lock == page_to_jnode_lock( page ) );
+		break_page_jnode_linkage( page, node );
+		spin_unlock( lock );
+		page_cache_release( page );
+	} else
+		spin_unlock( lock );
+}
+
+void page_detach_jnode( struct page *page )
+{
 	spinlock_t *lock;
 
 	assert( "nikita-2062", page != NULL );
@@ -338,23 +348,11 @@ jnode *page_detach_jnode( struct page *page )
 	trace_on( TRACE_PCACHE, "detach page: %p\n", page );
 
 	lock = page_to_jnode_lock( page );
-	spin_lock( lock );
-	node = ( jnode * ) page -> private;
-	if( likely( node != NULL ) ) {
-		assert( "nikita-2184", lock == jnode_to_page_lock( node ) );
-		break_page_jnode_linkage( page, node );
-		spin_unlock( lock );
-		page_cache_release( page );
-		return node;
-	}
-	spin_unlock( lock );
-	return NULL;
+	page_detach_jnode_nolock( ( jnode * ) page -> private, page, lock );
 }
 
-/* Audited by: umka (2002.06.15) */
 void jnode_detach_page( jnode *node )
 {
-	struct page *page;
 	spinlock_t  *lock;
 
 	assert( "nikita-2052", node != NULL );
@@ -362,16 +360,7 @@ void jnode_detach_page( jnode *node )
 	trace_on( TRACE_PCACHE, "detach jnode: %p\n", node );
 
 	lock = jnode_to_page_lock( node );
-	spin_lock( lock );
-	page = jnode_page( node );
-	if( page == NULL ) {
-		assert( "nikita-2185", lock == page_to_jnode_lock( page ) );
-		spin_unlock( lock );
-		return;
-	}
-	break_page_jnode_linkage( page, node );
-	spin_unlock( lock );
-	page_cache_release( page );
+	page_detach_jnode_nolock( node, jnode_page( node ), lock );
 }
 
 /** bump data counter on @node */
