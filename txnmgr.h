@@ -413,7 +413,7 @@ extern jnode * find_first_dirty_jnode (txn_atom *, int);
 extern int commit_some_atoms(txn_mgr *);
 extern int flush_current_atom (int, long *, txn_atom **);
 
-extern int flush_some_atom(long *, int);
+extern int flush_some_atom(long *, struct writeback_control *, int);
 
 #if defined (REISER4_USE_RAPID_FLUSH)
 extern void set_rapid_flush_mode(int);

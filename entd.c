@@ -457,12 +457,19 @@ static void entd_flush(struct super_block *super)
 	long            nr_submitted;
 	int             result;
 	reiser4_context txn;
+	struct writeback_control wbc = {
+		.bdi		= NULL,
+		.sync_mode	= WB_SYNC_NONE,
+		.older_than_this = NULL,
+		.nr_to_write	= 0,
+		.nonblocking	= 0,
+	};
 
 	init_context(&txn, super);
 
 	txn.entd = 1;
 
-	result = flush_some_atom(&nr_submitted, 0);
+	result = flush_some_atom(&nr_submitted, &wbc, 0);
 	if (result != 0)
 		warning("nikita-3100", "Flush failed: %i", result);
 	reiser4_exit_context(&txn);

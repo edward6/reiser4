@@ -487,7 +487,7 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 			break;
 		}
 #endif
-		flush_some_atom(&nr_submitted, JNODE_FLUSH_WRITE_BLOCKS);
+		flush_some_atom(&nr_submitted, wbc, JNODE_FLUSH_WRITE_BLOCKS);
 		if (!nr_submitted)
 			break;
 
@@ -508,8 +508,6 @@ reiser4_sync_inodes(struct super_block * sb, struct writeback_control * wbc)
 	generic_sync_sb_inodes(sb, wbc);
 	spin_unlock(&inode_lock);
 	writeout(sb, wbc);
-	/* NOTE-NIKITA: swapped reiser4_exit_context() and
-	 * spin_lock(). Zam? */
 	(void)reiser4_exit_context(&ctx);
 	spin_lock(&inode_lock);
 }

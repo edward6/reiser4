@@ -170,6 +170,7 @@ year old --- define all technical terms used.
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/pagemap.h>
+#include <linux/writeback.h>
 #include <linux/swap.h>        /* for nr_free_pagecache_pages() */
 
 static void atom_free(txn_atom * atom);
@@ -1271,8 +1272,16 @@ commit_some_atoms(txn_mgr * mgr)
    atom and call jnode_flush() for him.  If current transaction handle has
    already assigned atom (current atom) we have to close current transaction
    prior to switch to another atom or do something with current atom. This
-   code tries to flush current atom. */
-int flush_some_atom(long *nr_submitted, int flags)
+   code tries to flush current atom. 
+
+   flush_some_atom() is called as part of memory clearing process. It is
+   invoked from balance_dirty_pages(), pdflushd, and entd.
+
+   If we can flush no nodes, atom is committed, because this frees memory.
+
+   If atom is too large or too old it is committed also. 
+*/
+int flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 {
 	reiser4_context *ctx = get_current_context();
 	txn_handle *txnh = ctx->trans;
@@ -1315,18 +1324,25 @@ int flush_some_atom(long *nr_submitted, int flags)
 		atom = get_current_atom_locked();
 
 	ret = flush_current_atom(flags, nr_submitted, &atom);
+
+	if (ret == -E_REPEAT) {
+		ret = 0;
+		atom = get_current_atom_locked();
+	}
+
 	if (ret == 0) {
-		if (*nr_submitted == 0) {
-			/* if early flushing could not make more nodes clean, we
-			 * force current atom to commit. */
-			txnh->flags |= TXNH_WAIT_COMMIT;
+		if (*nr_submitted == 0 || atom_should_commit(atom)) {
+			/* if early flushing could not make more nodes clean,
+			 * or atom is too old/large,
+			 * we force current atom to commit */
+			/* wait for commit completion but only if this
+			 * wouldn't stall pdflushd. */
+			if (wbc->nonblocking)
+				txnh->flags |= TXNH_DONT_COMMIT;
 			atom->flags |= ATOM_FORCE_COMMIT;
 		}
 		UNLOCK_ATOM(atom);
 	}
-
-	if (ret == -E_REPEAT)
-		ret = 0;
 
 	{
 		int ret1;
@@ -1479,7 +1495,8 @@ try_commit_txnh(commit_data *cd)
 				cd->preflush = 0;
 				reiser4_stat_inc(txnmgr.restart.flush);
 				result = RETERR(-E_REPEAT);
-			} else	/* NIKITA-FIXME-HANS: comments needed here. */
+			} else	/* Atoms wasn't flushed
+				 * completely. Rinse. Repeat. */
 				-- cd->preflush;
 		} else {
 			/* We change atom state to ASTAGE_CAPTURE_WAIT to
