@@ -21,6 +21,7 @@ typedef struct ctail_squeeze_info {
 #define list_to_next_page(head) (list_entry((head)->prev->prev, struct page, list))
 
 /* plugin->item.b.* */
+int can_contain_key_ctail(const coord_t *, const reiser4_key *, const reiser4_item_data *);
 int mergeable_ctail(const coord_t * p1, const coord_t * p2);
 pos_in_item_t nr_units_ctail(const coord_t * coord);
 int estimate_ctail(const coord_t * coord, const reiser4_item_data * data);
@@ -36,7 +37,7 @@ int cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
 /*int check_check(const coord_t * coord, const char **error);*/
 
 /* plugin->u.item.s.* */
-int write_ctail(flow_t *, coord_t *, lock_handle *, int, crc_write_mode_t);
+int write_ctail(flow_t *, coord_t *, lock_handle *, int, crc_write_mode_t, struct inode *);
 int read_ctail(struct file *, flow_t *, uf_coord_t *);
 int readpage_ctail(void *, struct page *);
 int writepage_ctail(reiser4_key *, uf_coord_t *, struct page *, write_mode_t);
@@ -58,6 +59,7 @@ void put_cluster_data(reiser4_cluster_t *, struct inode *);
 int cluster_is_uptodate (reiser4_cluster_t *);
 loff_t inode_scaled_offset(struct inode *, const loff_t);
 size_t inode_scaled_cluster_size(struct inode *);
+__u8 inode_cluster_shift (struct inode * inode);
 unsigned long cluster_index_by_page(struct page *, struct inode *);
 int inflate_cluster(reiser4_cluster_t *, struct inode *);
 int find_cluster_item(const reiser4_key *, coord_t *, lock_handle *, ra_info_t *);
