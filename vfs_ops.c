@@ -683,7 +683,7 @@ int reiser4_do_page_cache_readahead (struct file * file,
 		cur_page += result;
 	}
 	done_lh (&lh);
-	return result <= 0 ? result : (cur_page - start_page);
+	return result <= 0 ? result : (int) (cur_page - start_page);
 }
 
 
@@ -2021,7 +2021,7 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	 * we are under memory pressure so release jnode
 	 * also. jdrop() internally re-checks x_count.
 	 */
-	jdrop_in_tree( node, tree );
+	jdrop_in_tree( node, tree, 0 );
 	spin_unlock_tree( tree );
 	/*
 	 * return with page still locked. shrink_cache() expects this.
