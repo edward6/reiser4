@@ -861,8 +861,9 @@ reiser4_mmap(struct file *file, struct vm_area_struct *vma)
 	REISER4_ENTRY(file->f_dentry->d_inode->i_sb);
 	WRITE_IN_TRACE("mmap", file->f_dentry->d_name.name);
 
-	trace_on(TRACE_VFS_OPS, "MMAP: (i_ino %li, size %lld)\n",
-		 file->f_dentry->d_inode->i_ino, file->f_dentry->d_inode->i_size);
+	trace_on(TRACE_VFS_OPS, "MMAP: (i_ino %lli, size %lld)\n",
+		 get_inode_oid(file->f_dentry->d_inode), 
+		 file->f_dentry->d_inode->i_size);
 
 	inode = file->f_dentry->d_inode;
 	if (inode_file_plugin(inode)->mmap == NULL)
@@ -886,7 +887,8 @@ unlink_file(struct inode *parent /* parent directory */ ,
 	assert("nikita-1435", parent != NULL);
 	assert("nikita-1436", victim != NULL);
 
-	trace_on(TRACE_DIR | TRACE_VFS_OPS, "unlink: %li/%s\n", (long) parent->i_ino, victim->d_name.name);
+	trace_on(TRACE_DIR | TRACE_VFS_OPS, "unlink: %lli/%s\n", 
+		 get_inode_oid(parent), victim->d_name.name);
 
 	dplug = inode_dir_plugin(parent);
 	assert("nikita-1429", dplug != NULL);

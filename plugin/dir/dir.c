@@ -656,13 +656,66 @@ cmp_t dir_pos_cmp(const dir_pos * p1, const dir_pos * p2)
 }
 
 
+#if REISER4_DEBUG_OUTPUT
+static char filter(const d8 *dch)
+{
+	char ch;
+
+	ch = d8tocpu(dch);
+	if (' ' <= ch && ch <= '~')
+		return ch;
+	else
+		return '?';
+}
+
+static void
+print_de_id(const char *prefix, const de_id *did)
+{
+	info("%s: %c%c%c%c%c%c%c%c:%c%c%c%c%c%c%c%c",
+	     prefix, 
+	     filter(&did->objectid[0]),
+	     filter(&did->objectid[1]),
+	     filter(&did->objectid[2]),
+	     filter(&did->objectid[3]),
+	     filter(&did->objectid[4]),
+	     filter(&did->objectid[5]),
+	     filter(&did->objectid[6]),
+	     filter(&did->objectid[7]),
+
+	     filter(&did->offset[0]),
+	     filter(&did->offset[1]),
+	     filter(&did->offset[2]),
+	     filter(&did->offset[3]),
+	     filter(&did->offset[4]),
+	     filter(&did->offset[5]),
+	     filter(&did->offset[6]),
+	     filter(&did->offset[7]));
+}
+
+static void
+print_dir_pos(const char *prefix, const dir_pos *pos)
+{
+	print_de_id(prefix, &pos->dir_entry_key);
+	info(" pos: %u", pos->pos);
+}
+
+#else
+#define print_de_id(p, did) noop
+#define print_dir_pos(prefix, pos) noop
+#endif
+
 void
 adjust_dir_pos(struct file   * dir,
-	       readdir_pos   * readdir_spot, 
-	       const dir_pos * mod_point, 
+	       readdir_pos   * readdir_spot,
+	       const dir_pos * mod_point,
 	       int             adj)
 {
 	dir_pos *pos;
+
+	trace_on(TRACE_DIR, "adjust: %s/%i", dir->f_dentry->d_name.name, adj);
+	trace_if(TRACE_DIR, print_dir_pos(" mod", mod_point));
+	trace_if(TRACE_DIR, print_dir_pos(" spot", &readdir_spot->position));
+	trace_on(TRACE_DIR, "\n\tspot.entry_no: %llu\n", readdir_spot->entry_no);
 
 	reiser4_stat_dir_add(readdir.adjust_pos);
 	pos = &readdir_spot->position;
@@ -856,7 +909,8 @@ feed_entry(readdir_pos * pos, coord_t * coord, filldir_t filldir, void *dirent)
 		    /* offset of the next entry */
 		    (loff_t) pos->entry_no + 1,
 		    /* inode number of object bounden by this entry */
-		    oid_to_uino(get_key_objectid(&sd_key)), iplug->s.dir.extract_file_type(coord)) < 0) {
+		    oid_to_uino(get_key_objectid(&sd_key)), 
+		    iplug->s.dir.extract_file_type(coord)) < 0) {
 		/* ->filldir() is satisfied. */
 		result = 1;
 	} else
@@ -891,6 +945,9 @@ dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 	*pos = &fsdata->dir.readdir;
 	spin_unlock_inode(inode);
 
+	trace_if(TRACE_DIR, print_dir_pos("readdir", &(*pos)->position));
+	trace_on(TRACE_DIR, " entry_no: %llu\n", (*pos)->entry_no);
+
 	/* move @tap to the current position */
 	return dir_rewind(f, *pos, f->f_pos, tap);
 }
@@ -923,7 +980,9 @@ common_readdir(struct file *f /* directory file being read */ ,
 	init_lh(&lh);
 	tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
 
-	trace_on(TRACE_DIR | TRACE_VFS_OPS, "readdir: inode: %llu offset: %lli\n", get_inode_oid(inode), f->f_pos);
+	trace_on(TRACE_DIR | TRACE_VFS_OPS, 
+		 "readdir: inode: %llu offset: %lli\n", 
+		 get_inode_oid(inode), f->f_pos);
 
 	fplug = inode_file_plugin(inode);
 	result = dir_readdir_init(f, &tap, &pos);
@@ -944,7 +1003,6 @@ common_readdir(struct file *f /* directory file being read */ ,
 				break;
 			result = feed_entry(pos, coord, filld, dirent);
 			if (result > 0) {
-				result = 0;
 				break;
 			} else if (result == 0) {
 				result = go_next_unit(&tap);
@@ -956,8 +1014,8 @@ common_readdir(struct file *f /* directory file being read */ ,
 		}
 		tap_relse(&tap);
 
-		if (result == 0) {
-			f->f_pos = pos->entry_no + 1;
+		if (result >= 0) {
+			f->f_pos = pos->entry_no + ((result == 0) ? 1 : 0);
 			f->f_version = inode->i_version;
 		}
 	} else if (result == -ENAVAIL || result == -ENOENT)

@@ -41,6 +41,16 @@ extern int reiser4_releasepage(struct page *page, int gfp);
 extern int reiser4_writepages(struct address_space *, struct writeback_control *wbc);
 extern int reiser4_sync_page(struct page *page);
 
+typedef struct de_control {
+	/* seal covering directory entry */
+	seal_t entry_seal;
+	/* coord of directory entry */
+	coord_t entry_coord;
+	/* ordinal number of directory entry among all entries with the same
+	   key. (Starting from 0.) */
+	int pos;
+} de_control;
+
 /* &reiser4_dentry_fsdata - reiser4-specific data attached to dentries.
   
    This is allocated dynamically and released in d_op->d_release() */
@@ -49,11 +59,7 @@ typedef struct reiser4_dentry_fsdata {
 	   create/unlink, like blocknr of znode with stat-data, or key
 	   of stat-data.
 	*/
-
-	/* seal covering directory entry */
-	seal_t entry_seal;
-	/* coord of directory entry */
-	coord_t entry_coord;
+	de_control dec;
 } reiser4_dentry_fsdata;
 
 TS_LIST_DECLARE(readdir);
