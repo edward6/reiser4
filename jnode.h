@@ -215,7 +215,10 @@ typedef enum {
 	 * bit can only be set by thread that holds long term lock on jnode
 	 * parent node (twig node, where extent unit lives). */
 	JNODE_EPROTECTED = 21,
-	JNODE_CLUSTER_PAGE = 22
+	JNODE_CLUSTER_PAGE = 22,
+	/* Jnode is marked for repacking, that means the reiser4 flush and the
+	 * block allocator should process this node spacial way  */
+	JNODE_REPACK = 23
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
@@ -278,6 +281,7 @@ extern jnode *jlook_lock(reiser4_tree * tree,
 			 oid_t objectid, unsigned long ind) NONNULL;
 extern jnode *jnode_by_page(struct page *pg) NONNULL;
 extern jnode *jnode_of_page(struct page *pg) NONNULL;
+void bind_jnode_and_page(jnode *node, oid_t oid, struct page *pg) NONNULL;
 extern jnode *page_next_jnode(jnode * node) NONNULL;
 extern void jnode_init(jnode * node, reiser4_tree * tree) NONNULL;
 extern void jnode_make_dirty(jnode * node) NONNULL;
