@@ -19,7 +19,7 @@ EXTRA_CFLAGS += \
 #	       -Winline \
 
 ifeq ($(CONFIG_REISER4_NOOPT),y)
-	EXTRA_CFLAGS += -O0
+	EXTRA_CFLAGS += -O0 -fno-inline
 else
 # this warning is only supported when optimization is on.
 	EXTRA_CFLAGS += \
