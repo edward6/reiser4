@@ -659,6 +659,7 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	
 	switch (clust->dstat) {
 	case UNPR_DISK_CLUSTER:
+		assert("edward-1285", 0);
 #if REISER4_DEBUG
 		warning("edward-1168",
 			"page %lu is not uptodate and disk cluster %lu (inode %llu) is unprepped\n",
