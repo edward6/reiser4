@@ -425,11 +425,8 @@ int get_uber_znode(reiser4_tree * tree, znode_lock_mode mode,
 
 	uber = zref(tree->uber);
 
-	if (!IS_ERR(uber)) {
-		result = longterm_lock_znode(lh, uber, mode, pri);
-		zput(uber);
-	} else
-		result = PTR_ERR(uber);
+	result = longterm_lock_znode(lh, uber, mode, pri);
+	zput(uber);
 	return result;
 }
 
