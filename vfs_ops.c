@@ -2775,6 +2775,7 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 		wait_on_inode(inode);
 		spin_lock(&inode_lock);
 	}
+	inode->i_state |= I_LOCK;
 	spin_unlock(&inode_lock);
 
 	REISER4_EXIT(ret);
