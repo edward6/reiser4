@@ -344,8 +344,6 @@ insert_result insert_by_coord(coord_t * coord	/* coord where to
 		   - node plugin agrees with this
 		  
 		*/
-		int result;
-
 		reiser4_stat_inc(tree.fast_insert);
 		result = node_plugin_by_node(node)->create_item(coord, key, data, NULL);
 		znode_make_dirty(node);
@@ -1337,7 +1335,7 @@ check_jnode_for_unallocated(jnode * node)
 	/* NOTE-NIKITA to properly implement this we need long-term lock on
 	   znode. */
 	if (jnode_is_znode(node) && jnode_get_level(node) >= TWIG_LEVEL) {
-		int ret = zload(JZNODE(node));
+		ret = zload(JZNODE(node));
 		if (ret)
 			return ret;
 
