@@ -1774,6 +1774,7 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 		if (user_space)
 			reiser4_put_user_pages(pages, nr_pages);
 		drop_nonexclusive_access(uf_info);
+		txn_restart_current();
 
 		if (read < 0) {
 			result = read;
@@ -1879,6 +1880,7 @@ append_and_or_overwrite(hint_t *hint, struct file *file, struct inode *inode, fl
 				result = tail2extent(uf_info);
 				if (!exclusive) {
 					drop_exclusive_access(uf_info);
+					txn_restart_current();
 					get_nonexclusive_access(uf_info);
 				}
 				if (result)

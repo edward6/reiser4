@@ -54,6 +54,8 @@ reiser4_internal void
 get_nonexclusive_access(unix_file_info_t *uf_info)
 {
 	assert("nikita-3029", schedulable());
+	assert("nikita-3361", get_current_context()->trans->atom == NULL);
+	BUG_ON(get_current_context()->trans->atom != NULL);
 	down_read(&uf_info->latch);
 	LOCK_CNT_INC(inode_sem_r);
 	assert("vs-1716", uf_info->ea_owner == NULL);
