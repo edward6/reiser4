@@ -124,27 +124,32 @@ int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */,
 	default:
 		/* something other, for which we don't want to print a message */
 		break;
-	case CBK_COORD_FOUND:
-		if( REISER4_DEBUG && ( result = zload( coord -> node ) ) == 0 ) {
-			assert( "nikita-1082", coord_is_existing_unit( coord ) );
-			assert( "nikita-721", item_plugin_by_coord( coord ) != NULL );
-			/* next assertion checks that item we found really has
-			 * the key we've been looking for */
-			assert( "nikita-722", 
-				keyeq( unit_key_by_coord( coord, &key_found ), key ) );
-			assert( "nikita-1897", 
-				znode_get_level( coord -> node ) == LEAF_LEVEL );
-			/* check that what we really found is stat data */
-			if( !item_is_statdata( coord ) ) {
-				error_message = "sd found, but it doesn't look like sd ";
-				print_plugin( "found", 
-					      item_plugin_to_plugin( 
-						      item_plugin_by_coord( coord ) ) );
-				result = -ENOENT;
-			}
-			zrelse( coord -> node );
+	case CBK_COORD_FOUND: {
+		data_handle dh = INIT_DH_NODE( coord -> node );
+;
+		assert( "nikita-1082", WITH_DATA_RET
+			( coord -> node, 1, coord_is_existing_unit( coord ) ) );
+		assert( "nikita-721", WITH_DATA_RET
+			( coord -> node, 1, item_plugin_by_coord( coord ) != NULL ) );
+		/* next assertion checks that item we found really has the key
+		 * we've been looking for */
+		assert( "nikita-722", WITH_DATA_RET
+			( coord -> node, 1, 
+			  keyeq( unit_key_by_coord( coord, &key_found ), key ) ) );
+		assert( "nikita-1897", 
+			znode_get_level( coord -> node ) == LEAF_LEVEL );
+		/* check that what we really found is stat data */
+		result = load_dh( &dh );
+		if( ( result = 0 ) && !item_is_statdata( coord ) ) {
+			error_message = "sd found, but it doesn't look like sd ";
+			print_plugin( "found", 
+				      item_plugin_to_plugin( 
+					      item_plugin_by_coord( coord ) ) );
+			result = -ENOENT;
 		}
+		done_dh( &dh );
 		break;
+	}
 	}
 	if( result != 0 )
 		key_warning( error_message, key, result );
@@ -464,6 +469,32 @@ int common_file_delete( struct inode *inode /* object to remove */,
 	} else
 		result = 0;
 	return result;
+}
+
+/** ->set_plug_in_inode() default method. */
+static int common_set_plug( struct inode *object /* inode to set plugin on */, 
+			    struct inode *parent /* parent object */, 
+			    reiser4_object_create_data *data /* creational
+							      * data */ )
+{
+	object -> i_mode = data -> mode;
+	object -> i_generation = new_inode_generation( object -> i_sb );
+	/* this should be plugin decision */
+	object -> i_uid = current -> fsuid;
+	object -> i_mtime = object -> i_atime = object -> i_ctime = CURRENT_TIME;
+	
+	if( parent -> i_mode & S_ISGID )
+		object -> i_gid = parent -> i_gid;
+	else
+		object -> i_gid = current -> fsgid;
+
+	/* this object doesn't have stat-data yet */
+	*reiser4_inode_flags( object ) |= REISER4_NO_STAT_DATA;
+	/* setup inode and file-operations for this inode */
+	setup_inode_ops( object );
+	/* i_nlink is left 0 here. It'll be increased by ->add_link() */
+	seal_init( &reiser4_inode_data( object ) -> sd_seal, NULL, NULL );
+	return 0;
 }
 
 
@@ -791,9 +822,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.get_block           = unix_file_get_block,
 			.flow_by_inode       = common_build_flow/*NULL*/,
 			.key_by_inode        = unix_key_by_inode,
-			.set_plug_in_sd      = NULL,
-			.set_plug_in_inode   = NULL,
-			.create_blank_sd     = NULL,
+			.set_plug_in_inode   = common_set_plug,
 			.adjust_to_parent    = common_adjust_to_parent,
 			.create              = unix_file_create,
 			.destroy_stat_data   = common_file_delete,
@@ -827,9 +856,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.get_block           = NULL,
 			.flow_by_inode       = NULL,
 			.key_by_inode        = NULL,
-			.set_plug_in_sd      = NULL,
-			.set_plug_in_inode   = NULL,
-			.create_blank_sd     = NULL,
+			.set_plug_in_inode   = common_set_plug,
 			.adjust_to_parent    = dir_adjust_to_parent,
 			.create              = hashed_create,
 			.destroy_stat_data   = hashed_delete,
@@ -863,9 +890,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.get_block           = NULL,
 			.flow_by_inode       = NULL,
 			.key_by_inode        = NULL,
-			.set_plug_in_sd      = NULL,
-			.set_plug_in_inode   = NULL,
-			.create_blank_sd     = NULL,
+			.set_plug_in_inode   = common_set_plug,
 			.adjust_to_parent    = common_adjust_to_parent,
 			.create              = NULL,
 			/*
@@ -903,9 +928,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.get_block           = NULL,
 			.flow_by_inode       = NULL,
 			.key_by_inode        = NULL,
-			.set_plug_in_sd      = NULL,
-			.set_plug_in_inode   = NULL,
-			.create_blank_sd     = NULL,
+			.set_plug_in_inode   = common_set_plug,
 			.adjust_to_parent    = common_adjust_to_parent,
 			.destroy_stat_data   = common_file_delete,
 			.add_link            = NULL,
