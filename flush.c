@@ -55,7 +55,7 @@
  *
  * With these state bits, we describe a test used frequently in the code below,
  * jnode_is_allocated() (and the spin-lock-taking jnode_check_allocated()).  The test for
- * "allocated" returns true any of the following are true:
+ * "allocated" returns true if any of the following are true:
  *
  *   - The node is not dirty
  *   - The node has JNODE_RELOC set
