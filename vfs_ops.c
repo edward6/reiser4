@@ -496,10 +496,26 @@ static int reiser4_statfs( struct super_block *super /* super block of file
 
 /** ->writepage() VFS method in reiser4 address_space_operations */
 /* Audited by: umka (2002.06.12) */
-static int reiser4_writepage( struct page *page UNUSED_ARG )
-{
-	warning( "nikita-2277", "IMPLEMENT ME: ->writepage" );
-	return 0;
+static int reiser4_writepage( struct page *page )
+{	
+	int result;
+	file_plugin * fplug;
+	REISER4_ENTRY( page -> mapping -> host -> i_sb );
+
+
+	trace_on( TRACE_VFS_OPS, "WRITEPAGE: (i_ino %li, page index %lu)\n",
+		  page -> mapping -> host -> i_ino, page ->index );
+
+	if( !PagePrivate( page ) || !jnode_mapped( jnode_of_page( page ) ) ) {
+		/* page does not have jnode attached to it. Get page mapping */
+		fplug = inode_file_plugin( page -> mapping -> host );
+		result = fplug -> writepage( page );
+		if( result )
+			REISER4_EXIT( result );
+	}
+	result = 1;
+	REISER4_EXIT( page_common_writeback( page, &result, 
+					     JNODE_FLUSH_MEMORY_UNFORMATTED ) );
 }
 
 /** ->readpage() VFS method in reiser4 address_space_operations */
@@ -2081,7 +2097,7 @@ struct address_space_operations reiser4_as_operations = {
 	 */
  	.sync_page      = block_sync_page,
 	/** called during sync (pdflush) */
-	.writepages     = reiser4_writepages,
+	.writepages     = NULL,/*reiser4_writepages,*/
 	/** called during memory pressure by kswapd */
 	.vm_writeback   = reiser4_vm_writeback,
 	.set_page_dirty = __set_page_dirty_nobuffers,
