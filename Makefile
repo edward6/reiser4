@@ -6,15 +6,15 @@ obj-$(CONFIG_REISER4_FS) += reiser4.o
 
 EXTRA_CFLAGS += \
 	       -Wpointer-arith \
-	       -Wwrite-strings \
            -Wformat \
 	       -Wundef \
 	       -Wcast-align \
-	       -Wlarger-than-4096 \
+	       -Wlarger-than-16384 \
            -Wunused \
 	       -Wcomment \
            \
 	       -Wno-nested-externs \
+	       -Wno-write-strings \
 	       -Wno-sign-compare
 
 #	       -Winline \
@@ -62,6 +62,7 @@ reiser4-objs := \
 		   kattr.o \
 		   blocknrset.o \
 		   super.o \
+		   oid.o \
 		   tree_walk.o \
 		   inode.o \
 		   vfs_ops.o \
@@ -81,11 +82,11 @@ reiser4-objs := \
 		   plugin/plugin_set.o \
 		   plugin/plugin_hash.o \
 		   plugin/node/node.o \
-		   plugin/node/node40.o \
 		   plugin/object.o \
 		   plugin/symlink.o \
 		   plugin/cryptcompress.o \
 		   plugin/digest.o \
+		   plugin/node/node40.o \
            \
 		   plugin/item/static_stat.o \
 		   plugin/item/sde.o \
@@ -93,6 +94,7 @@ reiser4-objs := \
 		   plugin/item/internal.o \
 		   plugin/item/tail.o \
 		   plugin/item/ctail.o \
+		   plugin/item/extent.o \
            \
 		   plugin/hash.o \
 		   plugin/tail_policy.o \
@@ -106,20 +108,16 @@ reiser4-objs := \
            \
 		   plugin/pseudo/pseudo.o \
            \
-           plugin/oid/oid40.o \
-           plugin/oid/oid.o \
-           \
-           plugin/space/bitmap.o \
-           plugin/space/test.o \
+           	   plugin/space/bitmap.o \
+           	   plugin/space/test.o \
 		   plugin/space/space_allocator.o \
            \
-           plugin/disk_format/disk_format40.o \
-           plugin/disk_format/test.o \
-           plugin/disk_format/disk_format.o \
+           	   plugin/disk_format/disk_format40.o \
+           	   plugin/disk_format/test.o \
+           	   plugin/disk_format/disk_format.o \
            \
-		   plugin/item/extent.o \
 		   plugin/file/file.o \
-           plugin/file/tail_conversion.o
+           	   plugin/file/tail_conversion.o
 
 #$parser/tmp: $/parser/*.[chy]
 #	$(MAKE) -C parser
