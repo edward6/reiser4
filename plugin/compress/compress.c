@@ -17,6 +17,12 @@
 
 #define NONE_NRCOPY 1
 
+static int
+null_min_tfm_size(void)
+{
+	return 1;
+}
+
 static void
 null_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 	      __u8 * dst_first, unsigned *dst_len)
@@ -112,6 +118,12 @@ static void gzip1_free(coa_t coa, tfm_action act)
 	}
 #endif
 	return;
+}
+
+static int
+gzip1_min_tfm_size(void)
+{
+	return 64;
 }
 
 static void
@@ -277,6 +289,12 @@ lzo1_free(coa_t coa, tfm_action act)
 	return;
 }
 
+static int
+lzo1_min_tfm_size(void)
+{
+	return 256;
+}
+
 static void
 lzo1_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 	      __u8 * dst_first, unsigned *dst_len)
@@ -347,6 +365,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 				 .overrun = none_overrun,
 				 .alloc = NULL,
 				 .free = NULL,
+				 .min_tfm_size = NULL,
 				 .compress = NULL,
 				 .decompress = NULL}
 	,
@@ -363,6 +382,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 				 .overrun = none_overrun,
 				 .alloc = NULL,
 				 .free = NULL,
+				 .min_tfm_size = null_min_tfm_size,
 				 .compress = null_compress,
 				 .decompress = null_decompress}
 	,
@@ -379,6 +399,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 				 .overrun = lzo1_overrun,
 				 .alloc = lzo1_alloc,
 				 .free = lzo1_free,
+				 .min_tfm_size = lzo1_min_tfm_size,
 				 .compress = lzo1_compress,
 				 .decompress = lzo1_decompress}
 	,
@@ -395,6 +416,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 				  .overrun = gzip1_overrun,
 				  .alloc = gzip1_alloc,
 				  .free = gzip1_free,
+				  .min_tfm_size = gzip1_min_tfm_size,
 				  .compress = gzip1_compress,
 				  .decompress = gzip1_decompress}
 };
