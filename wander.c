@@ -2,12 +2,7 @@
 
 /* Reiser4 Wandering Log */
 
-/* You should read www.namesys.com/txn-mgr.html 
-
-ZAM_FIXME_HANS: no such URL, please review this comment for currentness
-
-before trying to read this
-   file.
+/* You should read http://www.namesys.com/txn-doc.html 
 
    That describes how filesystem operations are performed as atomic
    transactions, and how we try to arrange it so that we can write most of the
@@ -21,25 +16,22 @@ before trying to read this
    atom either all take effect or none of them take effect.
 
    Relocate set nodes are submitted to write by the jnode_flush() routine, and
-   the overwrite set is submitted by reiser4_write_log().  This is because
-   with the overwrite set we seek to optimize writes, and with the relocate
-   set we seek to cause disk order to correlate with the parent first preorder.
+   the overwrite set is submitted by reiser4_write_log().  This is because with
+   the overwrite set we seek to optimize writes, and with the relocate set we
+   seek to cause disk order to correlate with the parent first pre-order.
 
    reiser4_write_log() allocates and writes wandered blocks and maintains
-   additional on-disk structures of the atom as log records (each log record
-
-ZAM-FIXME-HANS: change "log record" to "wander record"
-
-   occupies one block) for storing of the "wandered map" (a table which
+   additional on-disk structures of the atom as wander records (each wander
+   record occupies one block) for storing of the "wandered map" (a table which
    contains a relation between wandered and real block numbers) and other
    information which might be needed at transaction recovery time.
 
-   The log records are unidirectionally linked into a circle: each log record
-   contains a block number of the next log record, the last log record points
-   to the first one.
+   The wander records are unidirectionally linked into a circle: each wander
+   record contains a block number of the next wander record, the last wander
+   record points to the first one.
 
-   One log record (named "tx head" in this file) has a format which is
-   different from the other log records. The "tx head" has a reference to the
+   One wander record (named "tx head" in this file) has a format which is
+   different from the other wander records. The "tx head" has a reference to the
    "tx head" block of the previously committed atom.  Also, "tx head" contains
    fs information (the free blocks counter, and the oid allocator state) which
    is logged in a special way .
@@ -51,16 +43,35 @@ ZAM-FIXME-HANS: change "log record" to "wander record"
    "played" when all blocks from its overwrite set are written to disk the
    second time (i.e. written to their real locations).
 
+   NOTE: People who know reiserfs internals and its journal structure might be
+   confused with these terms journal footer and journal header. There is a table
+   with terms of similar semantics in reiserfs (reiser3) and reiser4:
+
+   REISER3 TERM        |  REISER4 TERM         | DESCRIPTION
+   --------------------+-----------------------+----------------------------
+   commit record       |  journal header       | atomic write of this record
+                       |                       | ends transaction commit
+   --------------------+-----------------------+----------------------------
+   journal header      |  journal footer       | atomic write of this record
+                       |                       | ends post-commit writes. 
+                       |                       | After successful
+                       |                       | writing of this journal
+                       |                       | blocks (in reiser3) or
+                       |                       | wandered blocks/records are
+                       |                       | free for re-use.
+   --------------------+-----------------------+----------------------------  
+
    The atom commit process is the following: 
   
-   1. The overwrite set is taken from atom's clean list, and its size is counted.
+   1. The overwrite set is taken from atom's clean list, and its size is
+      counted.
   
-   2. The number of necessary log records (including tx head) is calculated,
-      and the log record blocks are allocated.
+   2. The number of necessary wander records (including tx head) is calculated,
+      and the wander record blocks are allocated.
   
-   3. Allocate wandered blocks and populate log records by wandered map.
+   3. Allocate wandered blocks and populate wander records by wandered map.
    
-   4. submit write requests for log records and wandered blocks.
+   4. submit write requests for wander records and wandered blocks.
   
    5. wait until submitted write requests complete.
    
@@ -77,24 +88,26 @@ ZAM-FIXME-HANS: change "log record" to "wander record"
    1. Write atom's overwrite set in-place.
   
    2. Wait on i/o.
-  
-ZAM_FIXME-HANS:why do we need both a journal header and a journal footer? I must be missing an understanding of something....
 
    3. Update journal footer: change the pointer to block number of tx head
    block of the atom we currently flushing, submit an i/o, wait on i/o
    completion.
 
-ZAM_FIXME-HANS: What happens if we crash here? Do we leak space?
+   4. Free disk space which was used for wandered blocks and wander records.
   
-   4. Free disk space which was used for wandered blocks and log records.
-  
-   After the freeing of wandered blocks and log records we have that journal
+   After the freeing of wandered blocks and wander records we have that journal
    footer points to the on-disk structure which might be overwritten soon.
    Neither the log writer nor the journal recovery procedure use that pointer
-   for accessing the data.  When the journal recovery procedure finds the
-   oldest transaction it compares the journal footer pointer value with the
-   "prev_tx" pointer value in tx head, if values are equal the oldest not
-   flushed transaction is found.
+   for accessing the data.  When the journal recovery procedure finds the oldest
+   transaction it compares the journal footer pointer value with the "prev_tx"
+   pointer value in tx head, if values are equal the oldest not flushed
+   transaction is found.
+
+   NOTE on disk space leakage: the information about of what blocks and how many
+   blocks are allocated for wandered blocks, wandered records is not written to
+   the disk because of special logging for bitmaps and some super blocks
+   counters.  After a system crash we the reiser4 does not remember those
+   objects allocation, thus we have no such a kind of disk space leakage.
 */
 
 /* Special logging of reiser4 super block fields. */
@@ -128,8 +141,9 @@ ZAM_FIXME-HANS: What happens if we crash here? Do we leak space?
    collected during the transaction. These counters are stored on disk as a
    part of tx head block when atom is committed.
    
-   2. When the atom is flushed the value of the free block counter and the OID allocator state get written to the
-   journal footer block.  A special journal procedure (journal_recover_sb_data()) takes those values from the journal
+   2. When the atom is flushed the value of the free block counter and the OID
+   allocator state get written to the journal footer block.  A special journal
+   procedure (journal_recover_sb_data()) takes those values from the journal
    footer and updates the reiser4 in-memory super block.
   
    NOTE: That means free block count and OID allocator state are logged
@@ -145,9 +159,10 @@ ZAM_FIXME-HANS: What happens if we crash here? Do we leak space?
 
 ZAM-FIXME-HANS: rewrite paragraph above, it is confusing.
 
-   Knowing that requires write locking of the super block and implies some dependency between atoms which we wanted to
-   avoid. So, the simplest solution seems to be the implemented one, in which the data logged in different ways are
-   written in different blocks.
+   Knowing that requires write locking of the super block and implies some
+   dependency between atoms which we wanted to avoid. So, the simplest solution
+   seems to be the implemented one, in which the data logged in different ways
+   are written in different blocks.
 */
 
 #include "debug.h"
@@ -174,33 +189,25 @@ static int jnode_extent_write(jnode *, int, const reiser4_block_nr *, flush_queu
 /* The commit_handle is a container for objects needed at atom commit time  */
 struct commit_handle {
 	/* A pointer to the list of OVRWR nodes */
-
-/* 	ZAM-FIXME-HANS: why is capture_list_head not in the tags file? */
-
 	capture_list_head * overwrite_set;
 	/* atom's overwrite set size */
 	int overwrite_set_size;
-	/* jnodes for log record blocks */
+	/* jnodes for wander record blocks */
 	capture_list_head tx_list;
-	/* number of log records */
+	/* number of wander records */
 	int tx_size;
 	/* 'committed' sb counters are saved here until atom is completely
 	   flushed  */
 	__u64 free_blocks;
 	__u64 nr_files;
 	__u64 next_oid;
-	/* the atom, currently is being committed */
-
-/* 	ZAM-FIXME-HANS: english in comment above.... */
-
+	/* A pointer to the atom which is being committed */
 	txn_atom *atom;
-	/* current super block */
+	/* A pointer to current super block */
 	struct super_block *super;
-
-	/* Count of modified bitmaps */
+	/* The counter of modified bitmaps */
 	reiser4_block_nr nr_bitmap;
 };
-
 
 static void
 init_commit_handle(struct commit_handle *ch, txn_atom * atom)
@@ -272,20 +279,20 @@ format_journal_footer(struct commit_handle *ch)
 	jrelse(sbinfo->journal_footer);
 }
 
-/* log record capacity depends on current block size */
+/* wander record capacity depends on current block size */
 static int
-log_record_capacity(const struct super_block *super)
+wander_record_capacity(const struct super_block *super)
 {
-	return (super->s_blocksize - sizeof (struct log_record_header)) / sizeof (struct log_entry);
+	return (super->s_blocksize - sizeof (struct wander_record_header)) / sizeof (struct wander_entry);
 }
-/* ZAM-FIXME-HANS: replace all cryptic two letter variable names with full names */
-/* fill first log record (tx head) in accordance with supplied given data */
+
+/* Fill first wander record (tx head) in accordance with supplied given data */
 static void
 format_tx_head(struct commit_handle *ch)
 {
 	jnode *tx_head;
 	jnode *next;
-	struct tx_header *TH;
+	struct tx_header *header;
 
 	tx_head = capture_list_front(&ch->tx_list);
 	assert("zam-692", !capture_list_end(&ch->tx_list, tx_head));
@@ -294,43 +301,43 @@ format_tx_head(struct commit_handle *ch)
 	if (capture_list_end(&ch->tx_list, next))
 		next = tx_head;
 
-	TH = (struct tx_header *) jdata(tx_head);
+	header = (struct tx_header *) jdata(tx_head);
 
-	assert("zam-460", TH != NULL);
+	assert("zam-460", header != NULL);
 	assert("zam-462", ch->super->s_blocksize >= sizeof (struct tx_header));
 
 	xmemset(jdata(tx_head), 0, (size_t) ch->super->s_blocksize);
 	xmemcpy(jdata(tx_head), TX_HEADER_MAGIC, TX_HEADER_MAGIC_SIZE);
 
-	cputod32((__u32) ch->tx_size, &TH->total);
-	cputod64(get_super_private(ch->super)->last_committed_tx, &TH->prev_tx);
-	cputod64(*jnode_get_block(next), &TH->next_block);
+	cputod32((__u32) ch->tx_size, &header->total);
+	cputod64(get_super_private(ch->super)->last_committed_tx, &header->prev_tx);
+	cputod64(*jnode_get_block(next), &header->next_block);
 
-	cputod64(ch->free_blocks, &TH->free_blocks);
-	cputod64(ch->nr_files, &TH->nr_files);
-	cputod64(ch->next_oid, &TH->next_oid);
+	cputod64(ch->free_blocks, &header->free_blocks);
+	cputod64(ch->nr_files, &header->nr_files);
+	cputod64(ch->next_oid, &header->next_oid);
 }
 
-/* prepare ordinary log record block (fill all service fields) */
+/* prepare ordinary wander record block (fill all service fields) */
 static void
-format_log_record(struct commit_handle *ch, jnode * node, int serial)
+format_wander_record(struct commit_handle *ch, jnode * node, int serial)
 {
-	struct log_record_header *LRH;
+	struct wander_record_header *LRH;
 	jnode *next;
 
 	assert("zam-464", node != NULL);
 
-	LRH = (struct log_record_header *) jdata(node);
+	LRH = (struct wander_record_header *) jdata(node);
 	next = capture_list_next(node);
 
 	if (capture_list_end(&ch->tx_list, next))
 		next = capture_list_front(&ch->tx_list);
 
 	assert("zam-465", LRH != NULL);
-	assert("zam-463", ch->super->s_blocksize > sizeof (struct log_record_header));
+	assert("zam-463", ch->super->s_blocksize > sizeof (struct wander_record_header));
 
 	xmemset(jdata(node), 0, (size_t) ch->super->s_blocksize);
-	xmemcpy(jdata(node), LOG_RECORD_MAGIC, LOG_RECORD_MAGIC_SIZE);
+	xmemcpy(jdata(node), WANDER_RECORD_MAGIC, WANDER_RECORD_MAGIC_SIZE);
 
 //      cputod64((__u64)reiser4_trans_id(super), &h->id);
 	cputod32((__u32) ch->tx_size, &LRH->total);
@@ -338,23 +345,23 @@ format_log_record(struct commit_handle *ch, jnode * node, int serial)
 	cputod64((__u64) * jnode_get_block(next), &LRH->next_block);
 }
 
-/* add one wandered map entry to formatted log record */
+/* add one wandered map entry to formatted wander record */
 static void
 store_entry(jnode * node, int index, const reiser4_block_nr * a, const reiser4_block_nr * b)
 {
 	char *data;
-	struct log_entry *pairs;
+	struct wander_entry *pairs;
 
 	data = jdata(node);
 	assert("zam-451", data != NULL);
 
-	pairs = (struct log_entry *) (data + sizeof (struct log_record_header));
+	pairs = (struct wander_entry *) (data + sizeof (struct wander_record_header));
 
 	cputod64(*a, &pairs[index].original);
 	cputod64(*b, &pairs[index].wandered);
 }
 
-/* currently, log records contains contain only wandered map, which depend on
+/* currently, wander records contains contain only wandered map, which depend on
    overwrite set size */
 static void
 get_tx_size(struct commit_handle *ch)
@@ -362,17 +369,17 @@ get_tx_size(struct commit_handle *ch)
 	assert("zam-440", ch->overwrite_set_size != 0);
 	assert("zam-695", ch->tx_size == 0);
 
-	/* count all ordinary log records 
-	   (<overwrite_set_size> - 1) / <log_record_capacity> + 1 and add one
+	/* count all ordinary wander records 
+	   (<overwrite_set_size> - 1) / <wander_record_capacity> + 1 and add one
 	   for tx head block */
-	ch->tx_size = (ch->overwrite_set_size - 1) / log_record_capacity(ch->super) + 2;
+	ch->tx_size = (ch->overwrite_set_size - 1) / wander_record_capacity(ch->super) + 2;
 }
 
 /* A special structure for using in store_wmap_actor() for saving its state
    between calls */
 struct store_wmap_params {
-	jnode *cur;		/* jnode of current log record to fill */
-	int idx;		/* free element index in log record  */
+	jnode *cur;		/* jnode of current wander record to fill */
+	int idx;		/* free element index in wander record  */
 	int capacity;		/* capacity  */
 
 #if REISER4_DEBUG
@@ -381,14 +388,14 @@ struct store_wmap_params {
 };
 
 /* an actor for use in blocknr_set_iterator routine which populates the list
-   of pre-formatted log records by wandered map info */
+   of pre-formatted wander records by wandered map info */
 static int
 store_wmap_actor(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const reiser4_block_nr * b, void *data)
 {
 	struct store_wmap_params *params = data;
 
 	if (params->idx >= params->capacity) {
-		/* a new log record should be taken from the tx_list */
+		/* a new wander record should be taken from the tx_list */
 		params->cur = capture_list_next(params->cur);
 		assert("zam-454", !capture_list_end(params->tx_list, params->cur));
 
@@ -402,9 +409,9 @@ store_wmap_actor(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const r
 }
 
 /* This function is called after Relocate set gets written to disk, Overwrite
-   set is written to wandered locations and all log records are written
+   set is written to wandered locations and all wander records are written
    also. Updated journal header blocks contains a pointer (block number) to
-   first log record of the just written transaction */
+   first wander record of the just written transaction */
 static int
 update_journal_header(struct commit_handle *ch)
 {
@@ -436,7 +443,7 @@ update_journal_header(struct commit_handle *ch)
 
 /* This function is called after write-back is finished. We update journal
    footer block and free blocks which were occupied by wandered blocks and
-   transaction log records */
+   transaction wander records */
 static int
 update_journal_footer(struct commit_handle *ch)
 {
@@ -461,7 +468,7 @@ update_journal_footer(struct commit_handle *ch)
 	return 0;
 }
 
-/* free block numbers of log records of already written in place transaction */
+/* free block numbers of wander records of already written in place transaction */
 static void
 dealloc_tx_list(struct commit_handle *ch)
 {
@@ -538,7 +545,8 @@ static void put_overwrite_set(struct commit_handle * ch)
 
 /* count overwrite set size and place overwrite set on a separate list  
 
-ZAM-FIXME-HANS: please comment better, and indicate whether it would be better to do this work with each modification to the overwrite set instead. */
+ZAM-FIXME-HANS: please comment better, and indicate whether it would be better
+to do this work with each modification to the overwrite set instead. */
 static int
 get_overwrite_set(struct commit_handle *ch)
 {
@@ -555,9 +563,6 @@ get_overwrite_set(struct commit_handle *ch)
 		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
 			trace_on(TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, JNODE_OVRWR));
 		}
-		/* ZAM-FIXME-HANS: dead code? */
-		if (0 && jnode_page(cur) && PageDirty(jnode_page(cur)) && !JF_ISSET(cur, JNODE_OVRWR))
-			reiser4_panic("nikita-2590", "Wow!");
 
 		if (JF_ISSET(cur, JNODE_OVRWR)) {
 			if (jnode_get_type(cur) == JNODE_BITMAP)
@@ -619,8 +624,11 @@ get_overwrite_set(struct commit_handle *ch)
    @block_p block number.  If @fq is not NULL it means that waiting for i/o
    completion will be done more efficiently by using flush_queue_t objects 
 
-ZAM-FIXME-HANS: brief me on why this function exists, and why bios are aggregated in this function instead of being left to the layers below
+ZAM-FIXME-HANS: brief me on why this function exists, and why bios are
+aggregated in this function instead of being left to the layers below
 
+FXIME: ZAM->HANS: What layer are you talking about? Can you point me to that?
+Why that layer needed? Why BIOs cannot be constructed here?
 */
 static int
 jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
@@ -788,12 +796,13 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 
 		blocknr_hint_init(&hint);
 
-		hint.block_stage = BLOCK_NOT_COUNTED;
+		hint.block_stage = BLOCK_GRABBED;
 
 		/* FIXME: there should be some block allocation policy for
-		   nodes which contain log records */
+		   nodes which contain wander records */
 		
-		/* FIXME-VITALY: Who grabbed this? */
+		/* We assume that disk space for wandered record blocks can be
+		 * taken from reserved area. */
 		ret = reiser4_alloc_blocks (&hint, &first, &len, 
 			BA_FORMATTED | BA_RESERVED /* formatted, from reserved area */, "alloc_tx");
 
@@ -804,7 +813,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 
 		allocated += len;
 
-		/* create jnodes for all log records */
+		/* create jnodes for all wander records */
 		while (len--) {
 			cur = alloc_io_head(&first);
 
@@ -828,7 +837,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		}
 	}
 
-	{			/* format a on-disk linked list of log records */
+	{			/* format a on-disk linked list of wander records */
 		int serial = 1;
 
 		txhead = capture_list_front(&ch->tx_list);
@@ -836,20 +845,20 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 
 		cur = capture_list_next(txhead);
 		while (!capture_list_end(&ch->tx_list, cur)) {
-			format_log_record(ch, cur, serial++);
+			format_wander_record(ch, cur, serial++);
 			cur = capture_list_next(cur);
 		}
 
 	}
 
-	{			/* Fill log records with Wandered Set */
+	{			/* Fill wander records with Wandered Set */
 		struct store_wmap_params params;
 		txn_atom *atom;
 
 		params.cur = capture_list_next(txhead);
 
 		params.idx = 0;
-		params.capacity = log_record_capacity(reiser4_get_current_sb());
+		params.capacity = wander_record_capacity(reiser4_get_current_sb());
 
 		atom = get_current_atom_locked();
 		blocknr_set_iterator(atom, &atom->wandered_map, &store_wmap_actor, &params, 0);
@@ -1027,7 +1036,9 @@ int reiser4_write_logs(long * nr_submitted)
 	/* Check that flush_reserve is enough. */	
 	assert("vpf-279", check_atom_reserved_blocks(atom, (__u64)ch.overwrite_set_size));
 
-	if ((ret = reiser4_grab_space_force((__u64)(ch.tx_size), BA_RESERVED, "reiser4_write_logs: for transaction")))
+	/* Grab more space for wandered records. */
+	ret = reiser4_grab_space_force((__u64)(ch.tx_size), BA_RESERVED, "reiser4_write_logs: for wandered records");
+	if (ret)
 		goto up_and_ret;
 
 	{
@@ -1042,14 +1053,25 @@ int reiser4_write_logs(long * nr_submitted)
 
 		UNLOCK_ATOM(fq->atom);
 
-		if (!(ret = alloc_wandered_blocks(&ch, fq)))
-			ret = alloc_tx(&ch, fq);
-		
-		/* ZAM-FIXME-HANS: well, zam?
+		do {
+			ret = alloc_wandered_blocks(&ch, fq);
+			if (ret)
+				break;
 
-		FIXME-VITALY: Check this with Zam. */
+			ret = alloc_tx(&ch, fq);
+			if (ret)
+				break;
+		} while (0);
+
+
+		/* All wandered blocks are allocated, we free all what was
+		 * reserved for flush or grabbed for allocation of wander
+		 * records.*/
 		flush_reserved2free_all("reiser4_write_logs");
-		
+		/* Release all grabbed space if it was not fully used for
+		 * wandered blocks/records allocation. */
+		all_grabbed2free("reiser4_write_logs: release grabbed blocks");
+
 		fq_put(fq);
 		if (ret)
 			goto up_and_ret;
@@ -1127,13 +1149,8 @@ up_and_ret:
 	}
 
 	/* free blocks of flushed transaction */
-
 	dealloc_tx_list(&ch);
 	dealloc_wmap(&ch);
-
-	/* VITALY: Free flush_reserved blocks. */
-	/* FIXME-VS: flush_reserved or grabbed? */
-	all_grabbed2free("reiser4_write_logs: release grabbed blocks");
 
 	put_overwrite_set(&ch);
 
@@ -1186,9 +1203,9 @@ check_journal_footer(const jnode * node UNUSED_ARG)
 static int
 check_tx_head(const jnode * node)
 {
-	struct tx_header *TH = (struct tx_header *) jdata(node);
+	struct tx_header *header = (struct tx_header *) jdata(node);
 
-	if (memcmp(&TH->magic, TX_HEADER_MAGIC, TX_HEADER_MAGIC_SIZE) != 0) {
+	if (memcmp(&header->magic, TX_HEADER_MAGIC, TX_HEADER_MAGIC_SIZE) != 0) {
 		warning("zam-627", "tx head at block %s corrupted\n", sprint_address(jnode_get_block(node)));
 		return RETERR(-EIO);
 	}
@@ -1197,12 +1214,12 @@ check_tx_head(const jnode * node)
 }
 
 static int
-check_log_record(const jnode * node)
+check_wander_record(const jnode * node)
 {
-	struct log_record_header *RH = (struct log_record_header *) jdata(node);
+	struct wander_record_header *RH = (struct wander_record_header *) jdata(node);
 
-	if (memcmp(&RH->magic, LOG_RECORD_MAGIC, LOG_RECORD_MAGIC_SIZE) != 0) {
-		warning("zam-628", "log record at block %s corrupted\n", sprint_address(jnode_get_block(node)));
+	if (memcmp(&RH->magic, WANDER_RECORD_MAGIC, WANDER_RECORD_MAGIC_SIZE) != 0) {
+		warning("zam-628", "wander record at block %s corrupted\n", sprint_address(jnode_get_block(node)));
 		return RETERR(-EIO);
 	}
 
@@ -1239,7 +1256,7 @@ static int
 replay_transaction(const struct super_block *s,
 		   jnode * tx_head,
 		   const reiser4_block_nr * log_rec_block_p,
-		   const reiser4_block_nr * end_block, unsigned int nr_log_records)
+		   const reiser4_block_nr * end_block, unsigned int nr_wander_records)
 {
 	reiser4_block_nr log_rec_block = *log_rec_block_p;
 	struct commit_handle ch;
@@ -1254,14 +1271,14 @@ replay_transaction(const struct super_block *s,
 	restore_commit_handle(&ch, tx_head);
 
 	while (log_rec_block != *end_block) {
-		struct log_record_header *LH;
-		struct log_entry *LE;
+		struct wander_record_header *header;
+		struct wander_entry *entry;
 
 		int i;
 
-		if (nr_log_records == 0) {
+		if (nr_wander_records == 0) {
 			warning("zam-631",
-				"number of log records in the linked list" " greater than number stored in tx head.\n");
+				"number of wander records in the linked list" " greater than number stored in tx head.\n");
 			ret = RETERR(-EIO);
 			goto free_ow_set;
 		}
@@ -1276,24 +1293,24 @@ replay_transaction(const struct super_block *s,
 			return ret;
 		}
 
-		ret = check_log_record(log);
+		ret = check_wander_record(log);
 		if (ret) {
 			jrelse(log);
 			drop_io_head(log);
 			return ret;
 		}
 
-		LH = (struct log_record_header *) jdata(log);
-		log_rec_block = d64tocpu(&LH->next_block);
+		header = (struct wander_record_header *) jdata(log);
+		log_rec_block = d64tocpu(&header->next_block);
 
-		LE = (struct log_entry *) (LH + 1);
+		entry = (struct wander_entry *) (header + 1);
 
-		/* restore overwrite set from log record content */
-		for (i = 0; i < log_record_capacity(s); i++) {
+		/* restore overwrite set from wander record content */
+		for (i = 0; i < wander_record_capacity(s); i++) {
 			reiser4_block_nr block;
 			jnode *node;
 
-			block = d64tocpu(&LE->wandered);
+			block = d64tocpu(&entry->wandered);
 
 			if (block == 0)
 				break;
@@ -1321,7 +1338,7 @@ replay_transaction(const struct super_block *s,
 				goto free_ow_set;
 			}
 
-			block = d64tocpu(&LE->original);
+			block = d64tocpu(&entry->original);
 
 			assert("zam-603", block != 0);
 
@@ -1329,17 +1346,18 @@ replay_transaction(const struct super_block *s,
 
 			capture_list_push_back(ch.overwrite_set, node);
 
-			++LE;
+			++entry;
 		}
 
 		jrelse(log);
 		drop_io_head(log);
 
-		--nr_log_records;
+		--nr_wander_records;
 	}
 
-	if (nr_log_records != 0) {
-		warning("zam-632", "number of log records in the linked list" " less than number stored in tx head.\n");
+	if (nr_wander_records != 0) {
+		warning("zam-632", "number of wander records in the linked list" 
+			" less than number stored in tx head.\n");
 		ret = RETERR(-EIO);
 		goto free_ow_set;
 	}
@@ -1446,7 +1464,7 @@ replay_oldest_transaction(struct super_block *s)
 	log_rec_block = d64tocpu(&T->next_block);
 
 	trace_on(TRACE_REPLAY,
-		 "not flushed transaction found (head block %s, %u log records)\n",
+		 "not flushed transaction found (head block %s, %u wander records)\n",
 		 sprint_address(jnode_get_block(tx_head)), total);
 
 	pin_jnode_data(tx_head);
@@ -1509,17 +1527,10 @@ out:
 int
 reiser4_journal_replay(struct super_block *s)
 {
-	/* ZAM-FIXME-HANS: put into your todo list
-
-	FIXME: it is a limited version of journal replaying which just
-	   takes saved free block counter from journal footer, searches for
-	   not flushed transaction and prints a warning, if those transactions
-	   found.*/
-
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 	jnode *jh, *jf;
 
-	struct journal_header *H;
+	struct journal_header *header;
 	int nr_tx_replayed = 0;
 
 	int ret;
@@ -1564,8 +1575,8 @@ reiser4_journal_replay(struct super_block *s)
 		return ret;
 	}
 
-	H = (struct journal_header *) jdata(jh);
-	sbinfo->last_committed_tx = d64tocpu(&H->last_committed_tx);
+	header = (struct journal_header *) jdata(jh);
+	sbinfo->last_committed_tx = d64tocpu(&header->last_committed_tx);
 
 	jrelse(jh);
 
@@ -1657,6 +1668,6 @@ init_journal_info(struct super_block *s, const reiser4_block_nr * header_block, 
    mode-name: "LC"
    c-basic-offset: 8
    tab-width: 8
-   fill-column: 120
+   fill-column: 80
    End:
 */

@@ -10,10 +10,10 @@
 /* REISER4 JOURNAL ON-DISK DATA STRUCTURES   */
 
 #define TX_HEADER_MAGIC  "TxMagic4"
-#define LOG_RECORD_MAGIC "LogMagc4"
+#define WANDER_RECORD_MAGIC "LogMagc4"
 
 #define TX_HEADER_MAGIC_SIZE  (8)
-#define LOG_RECORD_MAGIC_SIZE (8)
+#define WANDER_RECORD_MAGIC_SIZE (8)
 
 /* journal header block format */
 struct journal_header {
@@ -21,7 +21,7 @@ struct journal_header {
 	d64 last_committed_tx;
 };
 
-/* ZAM-FIXME-HANS: a journal footer is a what? */
+/* The wander.c head comment describes usage and semantic of all these structures */
 /* journal footer block format */
 struct journal_footer {
 	/* last flushed transaction location. */
@@ -43,18 +43,17 @@ struct journal_footer {
 	d64 next_oid;
 };
 
-/* ZAM-FIXME-HANS: a log_record_header is a what? a record is a what?  a log is a what? */
-/* each log record (except first one) has unified format with log record
-   header followed by an array of log entries */
-struct log_record_header {
-	/* when there is no predefined location for log records, this magic
+/* Each wander record (except the first one) has unified format with wander
+   record header followed by an array of log entries */
+struct wander_record_header {
+	/* when there is no predefined location for wander records, this magic
 	   string should help reiser4fsck. */
-	char magic[LOG_RECORD_MAGIC_SIZE];
+	char magic[WANDER_RECORD_MAGIC_SIZE];
 
 	/* transaction id */
 	d64 id;
 
-	/* total number of log records in current transaction  */
+	/* total number of wander records in current transaction  */
 	d32 total;
 
 	/* this block number in transaction */
@@ -64,7 +63,7 @@ struct log_record_header {
 	d64 next_block;
 };
 
-/* The first log record (transaction head) of written transaction has the
+/* The first wander record (transaction head) of written transaction has the
    special format */
 struct tx_header {
 	/* magic string makes first block in transaction different from other
@@ -84,25 +83,24 @@ struct tx_header {
 	/* block number of previous transaction head */
 	d64 prev_tx;
 
-	/* next log record location */
+	/* next wander record location */
 	d64 next_block;
 
 	/* committed versions of free blocks counter */
 	d64 free_blocks;
 
-	/* number of used OIDs (nr_files) and maximal used OID are logged separately from
-	   super block */
+	/* number of used OIDs (nr_files) and maximal used OID are logged
+	   separately from super block */
 	d64 nr_files;
 	d64 next_oid;
 };
 
-/* A transaction gets written to disk as a set of log records (each log record
-   size is fs block) */
+/* A transaction gets written to disk as a set of wander records (each wander
+   record size is fs block) */
 
-/* ZAM-FIXME-HANS: "rest" implies that you have already defined a part. You have not. */
-/* rest of log record is filled by these log entries, unused space filled by
-   zeroes */
-struct log_entry {
+/* As it was told above a wander The rest of wander record is filled by these log entries, unused space filled
+   by zeroes */
+struct wander_entry {
 	d64 original;		/* block original location */
 	d64 wandered;		/* block wandered location */
 };
@@ -125,7 +123,7 @@ extern int write_jnode_list (capture_list_head*, flush_queue_t *);
    mode-name: "LC"
    c-basic-offset: 8
    tab-width: 8
-   fill-column: 120
+   fill-column: 80
    scroll-step: 1
    End:
 */
