@@ -66,7 +66,7 @@ first_unit(coord_t * coord)
 /* plugin->u.item.b.mergeable
    c-tails of different clusters are not mergeable */
 int
-ctail_mergeable(const coord_t * p1, const coord_t * p2)
+mergeable_ctail(const coord_t * p1, const coord_t * p2)
 {
 	reiser4_key key1, key2;
 
@@ -86,8 +86,8 @@ ctail_mergeable(const coord_t * p1, const coord_t * p2)
 		/* items of different objects */
 		return 0;
 	}
-	if ((get_key_offset(&key1) + ctail_nr_units(p1) != get_key_offset(&key2)) ||
-	    ctail_nr_units(p1) == cluster_size_by_coord(p1)) {
+	if ((get_key_offset(&key1) + nr_units_ctail(p1) != get_key_offset(&key2)) ||
+	    nr_units_ctail(p1) == cluster_size_by_coord(p1)) {
 		/* items of different clusters */
 		return 0;
 	}
@@ -96,7 +96,7 @@ ctail_mergeable(const coord_t * p1, const coord_t * p2)
 
 /* plugin->u.item.b.nr_units */
 unsigned
-ctail_nr_units(const coord_t * coord)
+nr_units_ctail(const coord_t * coord)
 {
 	return (item_length_by_coord(coord) - sizeof(formatted_at(coord)->disk_cluster_size));
 }
@@ -107,7 +107,7 @@ ctail_nr_units(const coord_t * coord)
 /* estimate how much space is needed to insert/paste @data->length bytes
    into ctail at @coord */
 int
-ctail_estimate(const coord_t * coord /* coord of item */,
+estimate_ctail(const coord_t * coord /* coord of item */,
 	     const reiser4_item_data * data /* parameters for new item */)
 {
 	if (coord == NULL)
@@ -121,7 +121,7 @@ ctail_estimate(const coord_t * coord /* coord of item */,
 #if REISER4_DEBUG_OUTPUT
 /* ->print() method for this item plugin. */
 void
-ctail_print(const char *prefix /* prefix to print */ ,
+print_ctail(const char *prefix /* prefix to print */ ,
 	  coord_t * coord /* coord of item to print */ )
 {
 	assert("edward-63", prefix != NULL);
@@ -141,12 +141,12 @@ ctail_print(const char *prefix /* prefix to print */ ,
 
 /* plugin->u.item.b.paste */
 int
-ctail_paste(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info UNUSED_ARG)
+paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info UNUSED_ARG)
 {
 	unsigned old_nr_units;
 	
 	/* number of units the item had before resizing has been performed */
-	old_nr_units = ctail_nr_units(coord) - data->length;
+	old_nr_units = nr_units_ctail(coord) - data->length;
 
 	/* tail items never get pasted in the middle */
 	assert("edward-65",
@@ -184,11 +184,11 @@ ctail_paste(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info 
    number of units is returned via return value, number of bytes via @size. For
    ctail items they coincide */
 int
-ctail_can_shift(unsigned free_space, coord_t * source,
+can_shift_ctail(unsigned free_space, coord_t * source,
 	       znode * target UNUSED_ARG, shift_direction direction UNUSED_ARG, unsigned *size, unsigned want)
 {
 	/* make sure that that we do not want to shift more than we have */
-	assert("edward-68", want > 0 && want <= ctail_nr_units(source));
+	assert("edward-68", want > 0 && want <= nr_units_ctail(source));
 
 	*size = min(want, free_space);
 	return *size;
@@ -196,11 +196,11 @@ ctail_can_shift(unsigned free_space, coord_t * source,
 
 /* plugin->u.item.b.copy_units */
 void
-ctail_copy_units(coord_t * target, coord_t * source,
+copy_units_ctail(coord_t * target, coord_t * source,
 		unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space UNUSED_ARG)
 {
 	/* make sure that item @target is expanded already */
-	assert("edward-69", ctail_nr_units(target) >= count);
+	assert("edward-69", nr_units_ctail(target) >= count);
 	assert("edward-70", free_space >= count);
 	
 	if (where_is_free_space == SHIFT_LEFT) {
@@ -208,12 +208,12 @@ ctail_copy_units(coord_t * target, coord_t * source,
 		   this restriction came from ordinary tails */
 		assert("edward-71", from == 0);
 
-		xmemcpy(first_unit(target) + ctail_nr_units(target) - count, first_unit(source), count);
+		xmemcpy(first_unit(target) + nr_units_ctail(target) - count, first_unit(source), count);
 	} else {
 		/* target item is moved to right already */
 		reiser4_key key;
 
-		assert("edward-72", ctail_nr_units(source) == from + count);
+		assert("edward-72", nr_units_ctail(source) == from + count);
 
 		xmemcpy(first_unit(target), first_unit(source) + from, count);
 
@@ -232,7 +232,7 @@ ctail_copy_units(coord_t * target, coord_t * source,
 
 /* plugin->u.item.b.cut_units */
 int 
-ctail_cut_units(coord_t * coord, unsigned *from, unsigned *to,
+cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
 	       const reiser4_key * from_key UNUSED_ARG,
 	       const reiser4_key * to_key UNUSED_ARG, reiser4_key * smallest_removed,
 	       void *p UNUSED_ARG)
@@ -243,7 +243,7 @@ ctail_cut_units(coord_t * coord, unsigned *from, unsigned *to,
  	count = *to - *from + 1;
 	/* regarless to whether we cut from the beginning or from the end of
 	   item - we have nothing to do */
-	assert("edward-73", count > 0 && count <= ctail_nr_units(coord));
+	assert("edward-73", count > 0 && count <= nr_units_ctail(coord));
 	assert("edward-74", ergo(*from != 0, *to == coord_last_unit_pos(coord)));
 
 	if (smallest_removed) {
@@ -271,14 +271,14 @@ ctail_cut_units(coord_t * coord, unsigned *from, unsigned *to,
 
 /* plugin->u.item.s.file.write */
 int
-ctail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, struct sealed_coord *hint, int grabbed)
+write_ctail(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, struct sealed_coord *hint, int grabbed)
 {
 	return 0;
 }
 
 /* plugin->u.item.s.file.read */
 int
-ctail_read(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
+read_ctail(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
 {
 	assert("edward-127", f->user == 1);
 	assert("edward-128", f->data);
@@ -290,15 +290,15 @@ ctail_read(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
 	/* start read only from the beginning of ctail */
 	assert("edward-133", coord->unit_pos == 0);
 	/* read only whole ctails */
-	assert("edward-134", ctail_nr_units(coord) >= CTAIL_MIN_BODY_SIZE);
+	assert("edward-134", nr_units_ctail(coord) >= CTAIL_MIN_BODY_SIZE);
 	assert("edward-135", item_length_by_coord(coord) <= f->length);
 	
 	assert("edward-136", schedulable());
 	
-	memcpy(f->data, (char *)first_unit(coord), (size_t)ctail_nr_units(coord));
+	memcpy(f->data, (char *)first_unit(coord), (size_t)nr_units_ctail(coord));
 
 	mark_page_accessed(znode_page(coord->node));
-	move_flow_forward(f, ctail_nr_units(coord));
+	move_flow_forward(f, nr_units_ctail(coord));
 	coord->unit_pos --;
 	coord->between = AFTER_UNIT;
 	return 0;
@@ -401,7 +401,7 @@ ctail_cluster_by_page (reiser4_cluster_t * clust, struct page * page, struct ino
 }
 
 /* plugin->u.item.s.file.readpage */
-int ctail_readpage(void * vp, struct page *page)
+int readpage_ctail(void * vp, struct page *page)
 {
 	reiser4_cluster_t * clust = vp;
 	int index; /* page index in the cluster */
@@ -463,7 +463,7 @@ int ctail_readpage(void * vp, struct page *page)
 
 /* plugin->s.file.writepage */
 int
-ctail_writepage(coord_t * coord, lock_handle * lh, struct page *page)
+writepage_ctail(coord_t * coord, lock_handle * lh, struct page *page)
 {
 	return 0;
 }
@@ -484,7 +484,7 @@ static int page_of_cluster(struct page * page, reiser4_cluster_t * clust, struct
 /* plugin->u.item.s.file.readpages
    populate an address space with some pages, and start reads against them. */
 void
-ctail_readpages(coord_t *coord UNUSED_ARG, struct address_space *mapping, struct list_head *pages)
+readpages_ctail(coord_t *coord UNUSED_ARG, struct address_space *mapping, struct list_head *pages)
 {
 #if 0 
 	reiser4_cluster_t clust;
@@ -539,7 +539,7 @@ ctail_readpages(coord_t *coord UNUSED_ARG, struct address_space *mapping, struct
    key of first byte which is the next to last byte by addressed by this item
 */
 reiser4_key *
-ctail_append_key(const coord_t * coord, reiser4_key * key, void *p)
+append_key_ctail(const coord_t * coord, reiser4_key * key, void *p)
 {
 	return NULL;
 }
@@ -549,7 +549,7 @@ ctail_append_key(const coord_t * coord, reiser4_key * key, void *p)
   return true @coord is set inside of item to key @key
 */
 int
-ctail_key_in_item(coord_t * coord, const reiser4_key * key, void *p)
+key_in_item_ctail(coord_t * coord, const reiser4_key * key, void *p)
 {
 	return 0;
 }
