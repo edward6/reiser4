@@ -7,6 +7,8 @@
 #ifndef PROGS_H
 #define PROGS_H
 
+#include <misc/misc.h>
+
 /* Error codes for progs */
 #define NO_ERROR	    0
 #define USER_ERROR	    1 /* wrong parameters, not allowed values, syntax error, etc. */

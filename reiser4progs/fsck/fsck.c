@@ -8,28 +8,123 @@
 #  include <config.h> 
 #endif
 
-#include <stdio.h>
-#include <string.h>
-#include <fcntl.h>
-#include <getopt.h>
-#include <errno.h>
-#include <string.h>
+#include <fsck/fsck.h>
 
-#include <progs/progsmisc.h>
-
-static void fsck_print_usage(void) {
-    fprintf(stderr, "Usage: fsck.reiser4 [ options ] FILE\n");
+static void fsck_print_usage(const char *name) {
+    fprintf(stderr, "Usage: %s [ options ] FILE\n", name);
     
-    fprintf(stderr, "Options:\n"
-	"  -v | --version                 prints current version.\n"
-	"  -u | -h | --usage | --help     prints program usage.\n"
-	"  -q | --quiet                   forces filesystem check without\n"
-	"                                 warning message.\n"
-	"  -p | --profile                 profile to be used for recovering.\n"
-	"  -k | --known-profiles          prints known profiles.\n"
-	"  -w | --without-replaying       do not replay the journal.\n"
-	"  -c | --check                   check the filesystem (default).\n"
-	"  -r | --rebuild                 rebuild internal tree.\n");
+    fprintf(stderr, "Modes:\n"
+	"  --check                        consistency checking (default).\n"
+	"  --fix                          fix all fs corruptions.\n"
+	"Options:\n"
+	"  -l | --logfile                 complains into the logfile\n"
+	"  -V | --version                 prints the current version.\n"
+	"  -? | -h | --help               prints program usage.\n"
+	"  -n | --no-log                  makes fsck to not complain.\n"
+	"  -q | --quiet                   reduces the progress infermation.\n"
+	"  -a | -p | --auto | --preen     automatically checks the file system\n"
+        "                                 without any questions.\n"
+	"  -f | --force                   forces checking even if the file system\n"
+        "                                 seems clean.\n"
+	"  -v | --verbose                 makes fsck to be verbose.\n"
+	"  -r                             ignored.\n"
+	"Plugins options:\n"
+	"  -K | --known-profiles          prints known profiles.\n"
+	"  -k | --known-plugins           prints known plugins.\n"	
+	"  -d | --default PROFILE         profile 'PROFILE' to be used or printed.\n"
+	"  -o | --override 'TYPE=plugin'  overrides the default plugin of the type 'TYPE'\n"
+	"                                 by the plugin 'plugin'.\n"
+	"Expert options:\n"
+	"  --no-journal                   does not open nor replay journal.\n");
+}
+
+static int fsck_init(reiser4_program_data_t *prog_data, int argc, char *argv[], 
+    char **host_name) 
+{
+    int c;
+    static int mode, flag;
+    char *profile_label, *str;
+
+    static struct option long_options[] = {
+	/* Fsck modes */
+	{"check", no_argument, &mode, FSCK_CHECK},
+        {"fix", no_argument, &mode, FSCK_FIX},
+	/* Fsck hidden modes. */
+	{"rollback-fsck-changes", no_argument, &mode, FSCK_ROLLBACK},
+	/* Fsck options */
+	{"logfile", required_argument, 0, 'l'},
+	{"version", no_argument, NULL, 'V'},
+	{"help", no_argument, NULL, 'h'},
+	{"quiet", no_argument, NULL, 'q'},
+	{"auto", no_argument, NULL, 'a'},
+	{"preen", no_argument, NULL, 'p'},
+	{"force", no_argument, NULL, 'f'},
+	{"verbose", no_argument, NULL, 'v'},
+	{"default", required_argument, NULL, 'd'},
+	{"known-profiles", no_argument, NULL, 'K'},
+	{"known-plugins", no_argument, NULL, 'k'},
+	{"override", required_argument, NULL, 'o'},
+	{"no-journal", required_argument, &flag, FSCK_OPT_NO_JOURNAL},
+	/* Fsck hidden options. */
+	{"passes-dump", required_argument, 0, 'U'},
+        {"rollback-data", required_argument, 0, 'R'},
+	{0, 0, 0, 0}
+    };
+
+    if (argc < 2) {
+	fsck_print_usage(argv[0]);
+	return NO_ERROR;
+    }
+    while ((c = getopt_long_only(argc, argv, "l:Vhqapfvd:Kko:U:R:r?", long_options, (int *)0)) 
+	!= EOF) 
+    {
+	switch (c) {
+	    case 'l':
+		break;
+	    case 'U':
+		break;
+	    case 'R':
+		break;
+	    case 'f':
+		break;
+	    case 'a':
+	    case 'p':
+		break;
+	    case 'v':
+		break;
+	    case 'd':
+		profile_label = optarg;
+		break;
+	    case 'K':
+		progs_print_profile_list();
+		return NO_ERROR;
+	    case 'k':
+		progs_print_plugins();
+		return NO_ERROR;
+	    case 'o':
+		str = aal_strsep(&optarg, "=");
+		if (!optarg || progs_profile_override_plugin_id_by_name(
+		    prog_data->profile, str, optarg)) 
+		{
+		    prog_error("Cannot load a plugin '%s' of the type '%s'.\n", str, optarg);
+		    return USER_ERROR;
+		}
+		break;
+	    case 'h': 
+	    case '?':
+		fsck_print_usage(argv[0]);
+		return NO_ERROR;	    
+	    case 'V': 
+		prog_info("%s %s\n", argv[0], VERSION);
+		return NO_ERROR;	    
+	    case 'q': 
+		force = 1;
+		break;
+	    case 'r':
+		break;
+	}
+    }
+
 }
 
 int main(int argc, char *argv[]) {
@@ -41,31 +136,13 @@ int main(int argc, char *argv[]) {
     aal_device_t *device;
     reiserfs_profile_t *profile;
     
-    static struct option long_options[] = {
-	{"version", no_argument, NULL, 'v'},
-	{"usage", no_argument, NULL, 'u'},
-	{"help", no_argument, NULL, 'h'},
-	{"quiet", no_argument, NULL, 'q'},
-	{"profile", no_argument, NULL, 'p'},
-	{"known-profiles", no_argument, NULL, 'k'},
-	{"without-replaying", no_argument, NULL, 'w'},
-	{"check", no_argument, NULL, 'c'},
-	{"rebuild", no_argument, NULL, 'r'},
-	{0, 0, 0, 0}
-    };
-    
-    if (argc < 2) {
-	fsck_print_usage();
-	return 0xfe;
-    }
-
     while ((c = getopt_long_only(argc, argv, "uhvp:kqcr", long_options, 
 	(int *)0)) != EOF) 
     {
 	switch (c) {
 	    case 'u': 
 	    case 'h': {
-		fsck_print_usage();
+		fsck_print_usage(argv[0]);
 		return 0;
 	    }
 	    case 'v': {
@@ -97,14 +174,14 @@ int main(int argc, char *argv[]) {
 	        break;
 	    }
 	    case '?': {
-	        fsck_print_usage();
+	        fsck_print_usage(argv[0]);
 	        return 0xfe;
 	    }
 	}
     }
 
     if (optind >= argc) {
-	fsck_print_usage();
+	fsck_print_usage(argv[0]);
 	return 0xfe;
     }
     

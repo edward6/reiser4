@@ -167,7 +167,7 @@ AC_OUTPUT([
     libaal/Makefile
     libmisc/Makefile
     libreiser4/Makefile
-    progsmisc/Makefile
+    libprogs/Makefile
     plugin/Makefile
     plugin/format40/Makefile
     plugin/journal40/Makefile

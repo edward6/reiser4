@@ -14,22 +14,22 @@ static void mkfs_print_usage(char *name) {
 	"                                 other are not supported yet.\n"
 	"  -l | --label LABEL             volume label, lets the filesystem\n"
 	"                                 to be mounted by it.\n"
-	"  -d | --uuid UUID               universally unique identifier, lets\n"
+	"  -u | --uuid UUID               universally unique identifier, lets\n"
 	"                                 the filesystem to be mounted by it.\n"
-	"  -f | --force                   specified once, make mkreiserfs the whole\n"
+	"  -f | --force                   specified once, makes mkreiserfs the whole\n"
 	"                                 disk, not block device or mounted partition;\n"
 	"                                 specified twice, do not ask for confirmation.\n"
 	"  -v | --version                 prints current version.\n"
-	"  -? | -h | --help               prints program usage.\n\n"
-	"  Plugins options:\n"
+	"  -? | -h | --help               prints program usage.\n"
+	"Plugins options:\n"
 	"  -K | --known-profiles          prints known profiles.\n"
 	"  -k | --known-plugins           prints known plugins.\n"	
-	"  -p | --profile PROFILE         profile 'PROFILE' to be used or printed.\n"
-	"  -o | --plugin 'TYPE=plugin'    override the default plugin of the type 'TYPE'\n"
+	"  -d | --default PROFILE         profile 'PROFILE' to be used or printed.\n"
+	"  -o | --override 'TYPE=plugin'  overrides the default plugin of the type 'TYPE'\n"
 	"                                 by the plugin 'plugin'.\n\n");
 }
 
-int progs_can_be_formatted(reiser4_program_data_t *prog_data, const char *dev) {
+static int mkfs_can_be_formatted(reiser4_program_data_t *prog_data, const char *dev) {
     struct stat dev_stat;
     int need_force = 0;
     
@@ -62,24 +62,24 @@ int progs_can_be_formatted(reiser4_program_data_t *prog_data, const char *dev) {
     return 1;
 }
 
-int mkfs_init(reiser4_program_data_t *prog_data, int argc, char *argv[], char **host_name) 
+static int mkfs_init(reiser4_program_data_t *prog_data, int argc, char *argv[], 
+    char **host_name) 
 {
-    char *profile_label = NULL;
-    int c, quite;
+    int c;
+    char *str, *profile_label = NULL;
     char uuid[37];
     int64_t parsed;
-    char *str;
 	
     static struct option long_options[] = {
-	{"profile", required_argument, NULL, 'p'},
+	{"default", required_argument, NULL, 'd'},
 	{"known-profiles", no_argument, NULL, 'K'},
 	{"known-plugins", no_argument, NULL, 'k'},
-	{"plugin", required_argument, NULL, 'o'},
+	{"override", required_argument, NULL, 'o'},
 	{"block-size", required_argument, NULL, 'b'},
 	{"label", required_argument, NULL, 'l'},
-	{"uuid", required_argument, NULL, 'd'},
+	{"uuid", required_argument, NULL, 'u'},
 	{"force", no_argument, NULL, 'f'},
-	{"version", no_argument, NULL, 'v'},
+	{"version", no_argument, NULL, 'V'},
 	{"help", no_argument, NULL, 'h'},	
 	{"quiet", no_argument, NULL, 'q'},
 	{0, 0, 0, 0}
@@ -97,28 +97,10 @@ int mkfs_init(reiser4_program_data_t *prog_data, int argc, char *argv[], char **
 
     prog_data->profile = progs_get_default_profile();
 	
-    while ((c = getopt_long_only(argc, argv, "p:Kko:b:l:d:fvh?", long_options, (int *)0)) 
+    while ((c = getopt_long_only(argc, argv, "d:Kko:b:l:u:fVh?", long_options, (int *)0)) 
 	!= EOF) 
     {
-	switch (c) {
-	    case 'p': 
-		profile_label = optarg;
-		break;
-	    case 'K':
-		progs_print_profile_list();
-		return NO_ERROR;
-	    case 'k':
-		progs_print_plugins();
-		return NO_ERROR;
-	    case 'o':
-		str = aal_strsep(&optarg, "=");
-		if (!optarg || progs_profile_override_plugin_id_by_name(
-		    prog_data->profile, str, optarg)) 
-		{
-		    prog_error("Cannot load a plugin '%s' of the type '%s'.\n", str, optarg);
-		    return USER_ERROR;
-		}
-		break;
+	switch (c) {	    
 	    case 'b': 
 	        if ((parsed = progs_misc_size_parse(optarg)) < 0) {
 		    prog_error("Invalid blocksize was specified (%s).\n", optarg);
@@ -138,7 +120,7 @@ int mkfs_init(reiser4_program_data_t *prog_data, int argc, char *argv[], char **
 		strncpy(mkfs_data(prog_data)->label, optarg, 
 		    sizeof(mkfs_data(prog_data)->label) - 1);
 	        break;		
-	    case 'd': 
+	    case 'u': 
 		if ((strlen(optarg) != 36)) {
 		    prog_error("Invalid uuid was specified (%s).\n", optarg);
 		    return USER_ERROR;
@@ -154,12 +136,30 @@ int mkfs_init(reiser4_program_data_t *prog_data, int argc, char *argv[], char **
 		mkfs_test_force_all(prog_data) == 1 ? mkfs_set_force_quiet(prog_data) : 
 		    mkfs_set_force_all(prog_data);
 		break;
+	    case 'd': 
+		profile_label = optarg;
+		break;
+	    case 'K':
+		progs_print_profile_list();
+		return NO_ERROR;
+	    case 'k':
+		progs_print_plugins();
+		return NO_ERROR;
+	    case 'o':
+		str = aal_strsep(&optarg, "=");
+		if (!optarg || progs_profile_override_plugin_id_by_name(
+		    prog_data->profile, str, optarg)) 
+		{
+		    prog_error("Cannot load a plugin '%s' of the type '%s'.\n", str, optarg);
+		    return USER_ERROR;
+		}
+		break;
 	    case 'h':
 	    case '?':
 		mkfs_print_usage(argv[0]);
 		return NO_ERROR;
-	    case 'v': 
-		printf("%s %s\n", argv[0], VERSION);
+	    case 'V': 
+		prog_info("%s %s\n", argv[0], VERSION);
 		return NO_ERROR;
 	}
     }
@@ -185,7 +185,7 @@ int mkfs_init(reiser4_program_data_t *prog_data, int argc, char *argv[], char **
 	return USER_ERROR;
     }
     
-    if (!progs_can_be_formatted(prog_data, argv[optind])) {
+    if (!mkfs_can_be_formatted(prog_data, argv[optind])) {
 	return USER_ERROR;
     }
 
