@@ -127,6 +127,9 @@
 
 static kmem_cache_t *_jnode_slab = NULL;
 
+static void jnode_set_type(jnode * node, jnode_type type);
+
+
 /* true if valid page is attached to jnode */
 static inline int jnode_is_parsed (jnode * node)
 {
@@ -258,7 +261,6 @@ jnode_init(jnode * node, reiser4_tree * tree, jnode_type type)
 
 	xmemset(node, 0, sizeof (jnode));
 	ON_DEBUG(node->magic = JMAGIC);
-	node->state = 0;
 	jnode_set_type(node, type);
 	atomic_set(&node->d_count, 0);
 	atomic_set(&node->x_count, 0);
@@ -1028,8 +1030,8 @@ jnode_set_type(jnode * node, jnode_type type)
 
 	assert("zam-647", type < LAST_JNODE_TYPE);
 	assert("nikita-2815", !jnode_is_loaded(node));
+	assert("nikita-3386", node->state == 0);
 
-	node->state &= ((1UL << JNODE_TYPE_1) - 1);
 	node->state |= (type_to_mask[type] << JNODE_TYPE_1);
 }
 
@@ -1680,6 +1682,8 @@ jnode_invariant_f(const jnode * node,
 		 * consistent */
 		_ergo(jnode_is_unformatted(node),
 		      node->key.j.objectid == get_inode_oid(node->key.j.mapping->host)) &&
+		_ergo(node->atom != NULL, node->atom->stage != ASTAGE_INVALID) &&
+
 		/* [jnode-refs] invariant */
 
 		/* only referenced jnode can be loaded */
@@ -1715,6 +1719,7 @@ jnode_invariant(const jnode * node, int tlocked, int jlocked)
 		UNLOCK_JNODE((jnode *) node);
 	return result;
 }
+
 /* REISER4_DEBUG */
 #endif
 
