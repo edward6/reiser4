@@ -418,7 +418,8 @@ tail2extent(struct inode *inode)
 					done_lh(&lh);
 					goto error;
 				}
-				item = item_body_by_coord(&coord) + coord.unit_pos;
+				item = ((char *)item_body_by_coord(&coord)) + 
+					coord.unit_pos;
 
 				/* how many bytes to copy */
 				count = item_length_by_coord(&coord) - coord.unit_pos;
@@ -441,7 +442,7 @@ tail2extent(struct inode *inode)
 				zrelse(coord.node);
 				done_lh(&lh);
 
-				if (get_key_offset(&key) == inode->i_size) {
+				if (get_key_offset(&key) == (__u64)inode->i_size) {
 					/* end of file is detected here */
 					p_data = kmap_atomic(pages[i], KM_USER0);
 					memset(p_data + page_off, 0, PAGE_CACHE_SIZE - page_off);
