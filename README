@@ -4,7 +4,7 @@ Reiser4 is hereby licensed under the GNU General
 Public License version 2.
 
 Source code files that contain the phrase "licensing governed by
-reiserfs/README" are "governed files" throughout this file.  Governed
+reiser4/README" are "governed files" throughout this file.  Governed
 files are licensed under the GPL.  The portions of them owned by Hans
 Reiser, or authorized to be licensed by him, have been in the past,
 and likely will be in the future, licensed to other parties under
@@ -35,8 +35,8 @@ govern for this license.
 
 Finally, nothing in this license shall be interpreted to allow you to
 fail to fairly credit me, or to remove my credits such as by creating
-a front end that hides my credits from the user or renaming mkreiserfs
-to mkyourcompanyfs or even just make_filesystem, without my
+a front end that hides my credits from the user or renaming mkfs.reiser4
+to mkfs.yourcompany or even just make_filesystem, without my
 permission, unless you are an end user not redistributing to others.
 If you have doubts about how to properly do that, or about what is
 fair, ask.  (Last I spoke with him Richard was contemplating how best
@@ -53,7 +53,7 @@ choice.
 Reiser4 is a file system based on dancing tree algorithms, and is
 described at http://www.namesys.com
 
-mkreiser4 and other utilities are on our webpage or wherever your
+mkfs.reiser4 and other utilities are on our webpage or wherever your
 Linux provider put them.  You really want to be running the latest
 version off the website if you use fsck.
 
@@ -76,7 +76,7 @@ Hans Reiser was the primary architect of Reiser4, but a whole team
 chipped their ideas in.  He invested everything he had into Namesys
 for 5.5 dark years of no money before Reiser3 finally started to work well
 enough to bring in money.  He owns the copyright.
-
+ 
 DARPA was the primary sponsor of Reiser4.  DARPA does not endorse
 Reiser4, it merely sponsors it.  DARPA is, in solely Hans's personal
 opinion, unique in its willingness to invest into things more
@@ -84,7 +84,7 @@ theoretical than the VC community can readily understand, and more
 longterm than allows them to be sure that they will be the ones to
 extract the economic benefits from.  DARPA also integrated us into a
 security community that transformed our security worldview.
-
+ 
 Vladimir Saveliev is our lead programmer, with us from the beginning,
 and he worked long hours writing the cleanest code.  This is why he is
 now the lead programmer after years of commitment to our work.  He
@@ -92,50 +92,49 @@ always made the effort to be the best he could be, and to make his
 code the best that it could be.  What resulted was quite remarkable. I
 don't think that money can ever motivate someone to work the way he
 did, he is one of the most selfless men I know.
-
+ 
 Alexander Lyamin was our sysadmin, and helped to educate us in
 security issues.  Moscow State University and IMT were very generous
 in the internet access they provided us, and in lots of other little
 ways that a generous institution can be.
-
+ 
 Alexander Zarochentcev (sometimes known as zam, or sasha), wrote the
 locking code, the block allocator, and finished the flushing code.
 His code is always crystal clean and well structured.
-
+ 
 Nikita Danilov wrote the core of the balancing code, the core of the
 plugins code, and the directory code.  He worked a steady pace of long
 hours that produced a whole lot of well abstracted code.  He is our
 senior computer scientist.
-
+ 
 Vladimir Demidov wrote the parser.  Writing an in kernel parser is
 something very few persons have the skills for, and it is thanks to
 him that we can say that the parser is really not so big compared to
 various bits of our other code, and making a parser work in the kernel
 was not so complicated as everyone would imagine mainly because it was
-him doing it....
-
+him doing it...
+ 
 Joshua McDonald wrote the transaction manager, and the flush code.
 The flush code unexpectedly turned out be extremely hairy for reasons
 you can read about on our web page, and he did a great job on an
-extremely difficult task.  
-
+extremely difficult task.
+ 
 Nina Reiser handled our accounting, government relations, and much
 more.
-
-Ramon Reiser developed our website.  
-
+ 
+Ramon Reiser developed our website.
+ 
 Beverly Palmer drew our graphics.
-
-Vitaly Fertman did fsck.  He makes the code simple when it could have
-been so complex, and this is so nice of him....
-
-Yura Umanetz developed libreiserfs.
-
+ 
+Vitaly Fertman developed librepair, userspace plugins repair code, fsck
+and worked with Umka on developing libreiser4 and userspace plugins.
+ 
+Yury Umanets (aka Umka) developed libreiser4, userspace plugins and
+userspace tools (reiser4progs).
+ 
 Oleg Drokin (aka Green) is the release manager who fixes everything.
 It is so nice to have someone like that on the team.  He (plus Chris
 and Jeff) make it possible for the entire rest of the Namesys team to
 focus on Reiser4, and he fixed a whole lot of Reiser4 bugs also.  It
 is just amazing to watch his talent for spotting bugs in action.
-
-
 
