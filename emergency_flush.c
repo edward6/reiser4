@@ -31,7 +31,7 @@
      large queue of nodes ready to be submitted for io.
   
      Items (3) and (4) alone make flush unsuitable for being called directly
-     from reiser4 ->vm_writeback() callback, because of OOM and deadlocks
+     from reiser4 ->writepage() callback, because of OOM and deadlocks
      against threads waiting for memory.
   
      So, flush is performed from within balance_dirty_page() path when dirty
