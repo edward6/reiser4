@@ -82,8 +82,6 @@ int main(int argc, char *argv[]) {
 	int i;
 	for (i = 0; i < 5; i++)
 	    progs_exception_set_stream(i, stderr);
-	
-	aal_exception_set_handler(progs_exception_handler);
     }
     
     if (!(device = aal_file_open(argv[1], REISER4_DEFAULT_BLOCKSIZE, O_RDONLY))) {

@@ -54,10 +54,6 @@ static void mkfs_init(void) {
     /* Setting up exception streams*/
     for (i = 0; i < 5; i++)
 	progs_exception_set_stream(i, stderr);
-    
-    /* Initializing exception progs common factory */
-    progs_exception_init();
-    aal_exception_set_handler(progs_exception_handler);
 }
 
 /* Crates lost+found directory */
@@ -374,7 +370,6 @@ int main(int argc, char *argv[]) {
     aal_gauge_free();
     aal_list_free(devices);
     libreiser4_done();
-    progs_exception_done();
     
     return NO_ERROR;
 
@@ -385,7 +380,6 @@ error_free_device:
 error_free_libreiser4:
     libreiser4_done();
 error:
-    progs_exception_done();
     return OPERATION_ERROR;
 }
 

@@ -266,36 +266,11 @@ static char **progs_exception_complete(char *text, int start, int end) {
 /* Streams assigned with exception type are stored here */
 static void *streams[10];
 
-void progs_exception_init(void) {
-#ifdef HAVE_LIBREADLINE
-    rl_initialize();
-    rl_attempted_completion_function = 
-	(CPPFunction *)progs_exception_complete;
-#endif
-}
-
-void progs_exception_done(void) {}
-
-/* This function sets up exception streams */
-void progs_exception_set_stream(
-    aal_exception_type_t type,	/* type to be assigned with stream */
-    void *stream		/* stream to be assigned */
-) {
-    streams[type] = stream;
-}
-
-/* This function gets exception streams */
-void *progs_exception_get_stream(
-    aal_exception_type_t type	/* type exception stream will be obtained for */
-) {
-    return streams[type];
-}
-
 /* 
     Common exception handler for all reiser4progs. It implements exception handling 
     in "question-answer" maner and used for all communications with user.
 */
-aal_exception_option_t progs_exception_handler(
+static aal_exception_option_t progs_exception_handler(
     aal_exception_t *exception		/* exception to be processed */
 ) {
     int i;
@@ -359,5 +334,33 @@ aal_exception_option_t progs_exception_handler(
 	aal_gauge_resume();
 	    
     return opt;
+}
+
+static void _init(void) __attribute__((constructor));
+
+static void _init(void) {
+    aal_exception_set_handler(progs_exception_handler);
+  
+#ifdef HAVE_LIBREADLINE
+    rl_initialize();
+    
+    rl_attempted_completion_function = 
+	(CPPFunction *)progs_exception_complete;
+#endif
+}
+
+/* This function sets up exception streams */
+void progs_exception_set_stream(
+    aal_exception_type_t type,	/* type to be assigned with stream */
+    void *stream		/* stream to be assigned */
+) {
+    streams[type] = stream;
+}
+
+/* This function gets exception streams */
+void *progs_exception_get_stream(
+    aal_exception_type_t type	/* type exception stream will be obtained for */
+) {
+    return streams[type];
 }
 

@@ -23,7 +23,7 @@ static void ls_print_usage(void) {
     fprintf(stderr, "Usage: ls FILE DIR\n");
 }
 
-static void ls_setup_streams(void) {
+static void ls_init(void) {
     int i;
     for (i = 0; i < 5; i++)
 	progs_exception_set_stream(i, stderr);
@@ -46,9 +46,7 @@ int main(int argc, char *argv[]) {
 	return 0xfe;
     }
 	
-    ls_setup_streams();
-    progs_exception_init();
-    aal_exception_set_handler(progs_exception_handler);
+    ls_init();
 
     if (libreiser4_init(0)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -122,7 +120,6 @@ int main(int argc, char *argv[]) {
     reiser4_fs_close(fs);
     libreiser4_done();
     aal_file_close(device);
-    progs_exception_done();
     
     return 0;
 
@@ -134,8 +131,6 @@ error_free_device:
     aal_file_close(device);
 error_free_libreiser4:
     libreiser4_done();
-error:
-    progs_exception_done();
     
 #endif
     

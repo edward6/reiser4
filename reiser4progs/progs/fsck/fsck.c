@@ -164,7 +164,6 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
 
     data->profile = progs_profile_default();
     fsck_init_streams(data);
-    aal_exception_set_handler(progs_exception_handler);
 
     if (argc < 2) {
 	fsck_print_usage();
