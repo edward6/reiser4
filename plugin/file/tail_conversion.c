@@ -550,7 +550,7 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 	while (f.length) {
 		hint_init_zero(&hint, &lh);
 		result = find_file_item(&hint, &f.key, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/* ra_info */, 0/* inode */);
-		if (result != CBK_COORD_NOTFOUND && result != CBK_COORD_FOUND)
+		if (IS_CBKERR(result))
 			break;
 
 		assert("vs-957", ergo(result == CBK_COORD_NOTFOUND, get_key_offset(&f.key) == 0));

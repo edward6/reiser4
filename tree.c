@@ -659,6 +659,11 @@ forget_znode(lock_handle * handle)
 	spin_lock_znode(node);
 	page = znode_page(node);
 	if (likely(page != NULL)) {
+		/*
+		 * uncapture_page() can only be called when we are sure that
+		 * znode is pinned in memory, which we are, because
+		 * forget_znode() is only called from longterm_unlock_znode().
+		 */
 		page_cache_get(page);
 		spin_unlock_znode(node);
 		reiser4_lock_page(page);
@@ -1459,7 +1464,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 			result = nplug->lookup(node, from_key,
 					       FIND_MAX_NOT_MORE_THAN, &left_coord);
 
-			if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
+			if (IS_CBKERR(result))
 				break;
 
 			/* cut data from one node */

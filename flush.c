@@ -3143,7 +3143,7 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
 		ret = jnode_lock_parent_coord(scan->node, &scan->parent_coord, &scan->parent_lock,
 					      &scan->parent_load, ZNODE_WRITE_LOCK, try);
 
-		if (ret != CBK_COORD_FOUND && ret != CBK_COORD_NOTFOUND)
+		if (IS_CBKERR(ret))
 			return ret;
 
 		if (ret == CBK_COORD_NOTFOUND) {
@@ -3312,7 +3312,7 @@ scan_by_coord(flush_scan * scan)
 			/* stop this coord and continue on parrent level */
 			ret = scan_set_current(scan, ZJNODE(zref(scan->parent_coord.node)), 1, NULL);
 			if (ret != 0)
-				goto exit; 
+				goto exit;
 			break;
 		}
 		
