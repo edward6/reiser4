@@ -855,7 +855,7 @@ static reiser4_key *rd_key( tree_coord *coord, reiser4_key *key )
  * further down because it stopped between items of not internal type
  */
 static int add_empty_leaf( tree_coord *insert_coord, reiser4_lock_handle *lh,
-			   const reiser4_key *key, const reiser4_key *rdkey)
+			   const reiser4_key *key, const reiser4_key *rdkey )
 {
 	int result;
 	carry_pool        pool;
