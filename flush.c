@@ -3060,6 +3060,10 @@ flush_scan_formatted(flush_scan * scan)
 
 		init_lh(&end_lock);
 
+		assert("nikita-2756",
+		       ergo(flush_scanning_left(scan), 
+			    lock_stack_isclean(get_current_lock_stack())));
+
 		/* Need the node locked to get the parent lock, We have to
 		   take write lock since there is at least one call path
 		   where this znode is already write-locked by us. */
