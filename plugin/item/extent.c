@@ -11,14 +11,6 @@
 #include "../../flush.h"
 #include "../object.h"
 
-#include <linux/quotaops.h>
-#include <asm/uaccess.h>
-#include <linux/writeback.h>
-#include <linux/pagemap.h>
-
-/*static const reiser4_block_nr zero = 0;
-static const reiser4_block_nr one = 1;*/
-
 
 /* prepare structure reiser4_item_data. It is used to put one extent unit into tree */
 /* Audited by: green(2002.06.13) */
@@ -39,9 +31,9 @@ init_new_extent(reiser4_item_data *data, void *ext_unit, int nr_extents)
 
 /* how many bytes are addressed by @nr first extents of the extent item */
 reiser4_internal reiser4_block_nr
-extent_size(const coord_t *coord, pos_in_item_t nr)
+extent_size(const coord_t *coord, pos_in_node_t nr)
 {
-	pos_in_item_t i;
+	pos_in_node_t i;
 	reiser4_block_nr blocks;
 	reiser4_extent *ext;
 
