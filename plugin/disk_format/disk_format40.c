@@ -286,8 +286,12 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 	/* recover sb data which were logged separately from sb block */
 	reiser4_journal_recover_sb_data(s);
 
-	/* number of used blocks */
-	reiser4_set_data_blocks(s, get_format40_block_count(sb_copy) - get_format40_free_blocks(sb_copy));
+	/* Set number of used blocks.  The number of used blocks is not stored
+	   neither in on-disk super block nor in the journal footer blocks.  At
+	   this moment actual values of total blocks and free block counters are
+	   set in the reiser4 super block (in-memory structure) and we can
+	   calculate number of used blocks from them. */
+	reiser4_set_data_blocks(s, reiser4_block_count(s) - reiser4_free_blocks(s));
 
 #if REISER4_DEBUG
 	sbinfo->min_blocks_used =
