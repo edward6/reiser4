@@ -406,7 +406,7 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 			print_znode( "node", node );
 		} else if( right != NULL ) {
 			/*
-			 * both nodes are write locked by now.
+			 * node containing insertion point, and its right neighbor node are write locked by now.
 			 *
 			 * shift everything possible on the right of but
 			 * excluding insertion coord into the right neighbor
@@ -430,12 +430,13 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 	 * the carry operation flags (currently this is needed during flush
 	 * only).
 	 */
+/* NIKITA-FIXME-HANS: partial insertion to fill available space.  Review with Hans how insert_flow works for 11k files. */
 	for( blk_alloc = 0 ; 
 	     ( not_enough_space > 0 ) && ( result == 0 ) && ( blk_alloc < 2 ) &&
 	     !( op -> u.insert.flags & COPI_DONT_ALLOCATE ) ; ++ blk_alloc ) {
-		carry_node *fresh; /* new code we are allocating */
+		carry_node *fresh; /* new node we are allocating */
 		coord_t coord_shadow; /* remembered insertion point before
-				       * shifting into data into new node */
+				       * shifting data into new node */
 		carry_node *node_shadow; /* remembered insertion node before
 					  * shifting */
 
@@ -492,7 +493,7 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 		not_enough_space = free_space_shortage( node, op );
 		if( ( not_enough_space > 0 ) && ( node != coord_shadow.node ) ) {
 			/* 
-			 * still no enough space?! Maybe there is enough space
+			 * still not enough space?! Maybe there is enough space
 			 * in the source node (i.e., node data are moved from)
 			 * now.
 			 */
