@@ -19,7 +19,7 @@
 #include <linux/backing-dev.h>  /* bdi_write_congested */
 
 /*
- * set this to 0 if you dont wait to use wait-for-flush in ->writepage(). This
+ * set this to 0 if you don't want to use wait-for-flush in ->writepage(). This
  * is useful for debugging emergency flush, for example.
  */
 #define USE_ENTD (1)
