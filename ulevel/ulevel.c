@@ -3217,12 +3217,9 @@ int real_main( int argc, char **argv )
 	reiser4_tree *tree;
 	reiser4_block_nr root_block;
 	int tree_height;
-#ifndef READ_SUPER_READY
 	struct super_block super;
 	struct dentry root_dentry;
-	REISER4_ENTRY( &super );
-#endif
-
+	reiser4_context __context;
 
 	__prog_name = strrchr( argv[ 0 ], '/' );
 	if( __prog_name == NULL )
@@ -3243,6 +3240,24 @@ int real_main( int argc, char **argv )
 
 #ifndef READ_SUPER_READY
 	{		
+		super.u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
+					       GFP_KERNEL);
+		if( super.u.generic_sbp == NULL )
+			BUG();
+		xmemset (super.u.generic_sbp, 0, 
+			 sizeof (reiser4_super_info_data));
+		super.s_op = &reiser4_super_operations;
+		super.s_root = &root_dentry;
+		super.s_blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
+			atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
+		xmemset( &root_dentry, 0, sizeof root_dentry );
+
+		init_context( &__context, &super );
+
+		assert( "vs-417", super.s_blocksize == 512 ||
+			super.s_blocksize == 1024 || super.s_blocksize == 2048 ||
+			super.s_blocksize == 4096);
+
 		spin_lock_init( &inode_hash_guard );
 		spin_lock_init( &alloc_guard );
 
@@ -3251,24 +3266,6 @@ int real_main( int argc, char **argv )
 		init_plugins();
 		txn_init_static();
 		sys_rand_init();
-		xmemset( &super, 0, sizeof super );
-		super.s_blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
-			atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
-		assert( "vs-417", super.s_blocksize == 512 ||
-			super.s_blocksize == 1024 || super.s_blocksize == 2048 ||
-			super.s_blocksize == 4096);
-
-		super.s_op = &reiser4_super_operations;
-		super.s_root = &root_dentry;
-		xmemset( &root_dentry, 0, sizeof root_dentry );
-
-		super.u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
-					       GFP_KERNEL);
-		assert( "vs-491", super.u.generic_sbp );
-		xmemset (super.u.generic_sbp, 0, sizeof (reiser4_super_info_data));
-
-		xmemset( &get_current_super_private() -> stats, 0, 
-			 sizeof get_current_super_private() -> stats );
 		txn_mgr_init( &get_super_private (&super) -> tmgr );
 		
 		root_dentry.d_inode = NULL;
