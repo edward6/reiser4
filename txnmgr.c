@@ -2027,6 +2027,7 @@ uncapture_block (txn_atom *atom,
 	assert ("jmacd-1021", node->atom == atom);
 	assert ("jmacd-1022", spin_jnode_is_not_locked (node));
 	assert ("jmacd-1023", spin_atom_is_locked (atom));
+	assert ("nikita-2118", !jnode_check_dirty (node));
 
 	trace_on (TRACE_TXN, "uncapture %llu from atom %u (captured %u)\n", JNODE_ID (node), atom->atom_id, atom->capture_count);
 
@@ -2038,7 +2039,7 @@ uncapture_block (txn_atom *atom,
 
 	JF_CLR (node, ZNODE_RELOC);
 	JF_CLR (node, ZNODE_WANDER);
-	JF_CLR (node, ZNODE_DIRTY);
+	JF_CLR (node, ZNODE_ALLOC);
 
 	spin_unlock_jnode (node);
 
