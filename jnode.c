@@ -340,13 +340,15 @@ jnode *page_detach_jnode( struct page *page )
 	lock = page_to_jnode_lock( page );
 	spin_lock( lock );
 	node = ( jnode * ) page -> private;
-	if( node != NULL ) {
+	if( likely( node != NULL ) ) {
 		assert( "nikita-2184", lock == jnode_to_page_lock( node ) );
 		break_page_jnode_linkage( page, node );
+		spin_unlock( lock );
+		page_cache_release( page );
+		return node;
 	}
 	spin_unlock( lock );
-	page_cache_release( page );
-	return node;
+	return NULL;
 }
 
 /* Audited by: umka (2002.06.15) */
