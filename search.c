@@ -66,6 +66,7 @@ cbk_cache_init(cbk_cache * cache /* cache to init */ )
 		cbk_cache_init_slot(cache->slot + i);
 		cbk_cache_list_push_back(&cache->lru, cache->slot + i);
 	}
+	rw_cbk_cache_init(cache);
 	return 0;
 }
 
@@ -74,8 +75,10 @@ reiser4_internal void
 cbk_cache_done(cbk_cache * cache /* cache to release */ )
 {
 	assert("nikita-2493", cache != NULL);
-	if (cache->slot != NULL)
+	if (cache->slot != NULL) {
 		kfree(cache->slot);
+		cache->slot = NULL;
+	}
 }
 
 /* macro to iterate over all cbk cache slots */

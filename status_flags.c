@@ -88,7 +88,7 @@ reiser4_internal int reiser4_status_init(reiser4_block_nr block)
 
 /* Query the status of fs. Returns if the FS can be safely mounted.
    Also if "status" and "extended" parameters are given, it will fill
-   actual parts of statu from disk there. */
+   actual parts of status from disk there. */
 reiser4_internal int reiser4_status_query(u64 *status, u64 *extended)
 {
 	struct super_block *sb = reiser4_get_current_sb();

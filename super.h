@@ -14,6 +14,7 @@
 #include "entd.h"
 #include "plugin/plugin.h"
 #include "prof.h"
+#include "wander.h"
 
 #include "plugin/space/space_allocator.h"
 
@@ -264,6 +265,8 @@ struct reiser4_super_info_data {
 	/* pointers to jnodes for journal header and footer */
 	jnode *journal_header;
 	jnode *journal_footer;
+
+	journal_location jloc;
 
 	/* head block number of last committed transaction */
 	__u64 last_committed_tx;

@@ -21,6 +21,11 @@ struct journal_header {
 	d64 last_committed_tx;
 };
 
+typedef struct journal_location {
+	reiser4_block_nr footer;
+	reiser4_block_nr header;
+} journal_location;
+
 /* The wander.c head comment describes usage and semantic of all these structures */
 /* journal footer block format */
 struct journal_footer {
@@ -111,10 +116,11 @@ extern int reiser4_write_logs(long *);
 extern int reiser4_journal_replay(struct super_block *);
 extern int reiser4_journal_recover_sb_data(struct super_block *);
 
-extern int init_journal_info(struct super_block *, const reiser4_block_nr *, const reiser4_block_nr *);
+extern int init_journal_info(struct super_block *);
 extern void done_journal_info(struct super_block *);
 
 extern int write_jnode_list (capture_list_head*, flush_queue_t*, long*);
+
 #endif				/* __FS_REISER4_WANDER_H__ */
 
 /* Make Linus happy.
