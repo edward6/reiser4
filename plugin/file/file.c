@@ -860,13 +860,14 @@ static int extent2tail (struct file * file)
 	unsigned count;
 
 
-	/* */
-	down_write (&reiser4_inode_data (inode)->sem);
 
 	/* collect statistics on the number of extent2tail conversions */
 	reiser4_stat_file_add (extent2tail);
 	
 	inode = file->f_dentry->d_inode;
+
+	/* get an exclusive access to inode */
+	down_write (&reiser4_inode_data (inode)->sem);
 
 	/* number of pages in the file */
 	num_pages = (inode->i_size + PAGE_SIZE - 1) / PAGE_SIZE;
