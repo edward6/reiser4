@@ -2340,6 +2340,7 @@ static void __exit done_reiser4(void)
 #undef DONE_IF
 }
 
+#if 0
 static int test( struct notifier_block *self, unsigned long event, void *arg )
 {
 	struct low_mem_info *info;
@@ -2356,6 +2357,7 @@ static struct notifier_block low_mem_test = {
 	.next          = NULL,
 	.priority      = 1
 };
+#endif
 
 /**
  * initialise reiser4: this is called either at bootup or at module load.
@@ -2389,7 +2391,7 @@ static int __init init_reiser4(void)
 	CHECK_INIT_RESULT( register_filesystem( &reiser4_fs_type ) );
 
 	assert( "nikita-2515", init_stage == INIT_FS_REGISTERED );
-	notifier_chain_register( &low_mem_chain, &low_mem_test );
+//	notifier_chain_register( &low_mem_chain, &low_mem_test );
 	return 0;
 #undef CHECK_INIT_RESULT
 }
