@@ -719,6 +719,11 @@ longterm_unlock_znode(lock_handle * handle)
 	assert("zam-319", equi(znode_is_locked(node),
 			       !owners_list_empty(&node->lock.owners)));
 
+#if REISER4_DEBUG
+	if (!znode_is_locked(node))
+		++ node->times_locked;
+#endif
+
 	/* If there are pending lock requests we wake up a requestor */
 	if (!znode_is_wlocked(node))
 		wake_up_requestor(node);
@@ -847,7 +852,7 @@ longterm_lock_znode(
 	assert("nikita-3219", request_is_deadlock_safe(node, mode, request));
 	/* long term locks are not allowed in the VM contexts (->writepage(),
 	 * prune_{d,i}cache()). */
-	assert("nikita-3547", (current->flags | PF_MEMALLOC) == 0);
+	assert("nikita-3547", (current->flags & PF_MEMALLOC) == 0);
 
 	cap_flags = 0;
 	if (request & ZNODE_LOCK_NONBLOCK) {
