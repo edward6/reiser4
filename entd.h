@@ -35,7 +35,8 @@ extern void enter_flush(struct super_block *super);
 extern void leave_flush(struct super_block *super);
 extern void flush_started_io(void);
 
-extern int wait_for_flush(struct page *page, struct writeback_control *wbc);
+extern int wait_for_flush(struct page *page, 
+			  jnode *node, struct writeback_control *wbc);
 
 /* __ENTD_H__ */
 #endif

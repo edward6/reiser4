@@ -186,9 +186,9 @@ void flush_started_io(void)
 
 	spin_lock(&ctx->guard);
 	ctx->timeout = (delta + ((1 << decay) - 1) * ctx->timeout) >> decay;
-	/* confine ctx->timeout within [1 .. HZ/10] */
-	if (ctx->timeout > HZ / 10)
-		ctx->timeout = HZ / 10;
+	/* confine ctx->timeout within [1 .. HZ/20] */
+	if (ctx->timeout > HZ / 20)
+		ctx->timeout = HZ / 20;
 	if (ctx->timeout < 1)
 		ctx->timeout = 1;
 	spin_unlock(&ctx->guard);
@@ -252,14 +252,21 @@ static void kick_entd(struct super_block *super)
  * Used in wait_for_flush(), which see for more details.
  */
 static int
-is_writepage_done(struct page *page, int *iterations)
+is_writepage_done(jnode *node, int *iterations)
 {
 	reiser4_stat_inc(entd.iteration);
 	/*
-	 * if flush managed to clean this page we are done.
+	 * if flush managed to process this node we are done.
 	 */
-	if (!PageDirty(page)) {
+	if (jnode_check_flushprepped(node)) {
 		reiser4_stat_inc(entd.cleaned);
+		return 1;
+	}
+	/*
+	 * jnode removed from the tree (truncate or balancing)
+	 */
+	if (JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
+		reiser4_stat_inc(entd.removed);
 		return 1;
 	}
 	/*
@@ -340,7 +347,7 @@ static int dont_wait_for_flush(struct super_block *super)
  *
  */
 int
-wait_for_flush(struct page *page, struct writeback_control *wbc)
+wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 {
 	struct backing_dev_info *bdi;
 	int                      flushers;
@@ -386,13 +393,11 @@ wait_for_flush(struct page *page, struct writeback_control *wbc)
 			 * if scanning priority (which is a measure of memory
 			 * pressure) is lowest, do nothing
 			 */
-#if 0
-			if (wbc->priority == 12) {
+			if (wbc->priority != 0) {
 				reiser4_stat_inc(entd.low_priority);
 				result = 1;
 				break;
 			}
-#endif
 
 			/*
 			 * wait until at least one flushing thread is running
@@ -408,7 +413,7 @@ wait_for_flush(struct page *page, struct writeback_control *wbc)
 			/*
 			 * if flush managed to clean this page we are done.
 			 */
-			result = is_writepage_done(page, &iterations);
+			result = is_writepage_done(node, &iterations);
 		}
 		/*
 		 * at this point we are either done (result != 0), or there is
@@ -419,7 +424,7 @@ wait_for_flush(struct page *page, struct writeback_control *wbc)
 		if (result == 0 && bdi_write_congested(bdi)) {
 			schedule_timeout(timeout);
 			reiser4_stat_inc(entd.wait_congested);
-			result = is_writepage_done(page, &iterations);
+			result = is_writepage_done(node, &iterations);
 			if (result == 0)
 				/*
 				 * still no luck.

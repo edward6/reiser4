@@ -525,13 +525,16 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	} else {
 		/* formatted pages always have znode attached to them */
 		assert("vs-1101", PagePrivate(page) && jnode_by_page(page));
+		node = jnode_by_page(page);
+		jref(node);
 	}
 
 	/*assert("nikita-2419", node != NULL);*/
 
 	reiser4_unlock_page(page);
 
-	result = wait_for_flush(page, wbc);
+	result = wait_for_flush(page, node, wbc);
+	jput(node);
 	if (result != 0)
 		REISER4_EXIT(0);
 
