@@ -80,10 +80,11 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	context_list_push_front(&active_contexts, context);
 	spin_unlock(&active_contexts_lock);
 	context->task = current;
-	context->flush_started = INITIAL_JIFFIES;
 #endif
+	context->flush_started = INITIAL_JIFFIES;
 
 	grab_space_enable();
+	log_entry(super, ":in");
 	return 0;
 }
 
@@ -117,10 +118,6 @@ int reiser4_exit_context(reiser4_context * context)
 
 	assert("nikita-3021", schedulable());
 
-	log_entry(context->super, ":ex");
-	/*
-	 * FIXME-ZAM: temporary
-	 */
 	if (context == context->parent) {
 		if (!(context->nobalance))
 			balance_dirty_pages_at(context);
@@ -158,6 +155,8 @@ done_context(reiser4_context * context /* context being released */)
 		assert("jmacd-1002", lock_stack_isclean(&parent->stack));
 		assert("nikita-1936", no_counters_are_held());
 		assert("nikita-2626", tap_list_empty(taps_list()));
+
+		log_entry(context->super, ":ex");
 
 		if (context->grabbed_blocks != 0)
 			all_grabbed2free("done_context: free grabbed blocks");

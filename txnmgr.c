@@ -18,8 +18,8 @@
 
 /* Thoughts on the external transaction interface:
   
-   In the current code, a TRANSCRASH handle is created implicitely by REISER4_ENTRY and
-   closed by REISER4_EXIT, occupying the scope of a single system call.  We wish to give
+   In the current code, a TRANSCRASH handle is created implicitly by init_context() and
+   closed by reiser4_exit_context(), occupying the scope of a single system call.  We wish to give
    certain applications an interface to begin and close (commit) transactions.  Since our
    implementation of transactions does not yet support isolation, allowing an application
    to open a transaction implies trusting it to later close the transaction.  Part of the

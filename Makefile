@@ -67,6 +67,9 @@ reiser4-objs := \
 		   tree_walk.o \
 		   inode.o \
 		   vfs_ops.o \
+		   inode_ops.o \
+		   file_ops.o \
+		   as_ops.o \
 		   emergency_flush.o \
 		   spinprof.o\
 		   entd.o\

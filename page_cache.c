@@ -500,12 +500,14 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 						  * be unused currently. */)
 {
 	jnode *node;
-	struct super_block *s = page->mapping->host->i_sb;
+	struct super_block *s;
 	reiser4_tree *tree;
 	txn_atom * atom;
 	int result;
+	reiser4_context ctx;
 
-	REISER4_ENTRY(s);
+	s = page->mapping->host->i_sb;
+	init_context(&ctx, s);
 
 	reiser4_stat_inc(pcwb_calls);
 
@@ -532,7 +534,8 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 			reiser4_unlock_page(page);
 
 			reiser4_stat_inc(pcwb_no_jnode);
-			REISER4_EXIT(0);
+			reiser4_exit_context(&ctx);
+			return 0;
 		}
 	} else {
 		reiser4_stat_inc(pcwb_formatted);
@@ -550,7 +553,8 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	jput(node);
 	if (result != 0) {
 		reiser4_stat_inc(pcwb_ented);
-		REISER4_EXIT(0);
+		reiser4_exit_context(&ctx);
+		return 0;
 	}
 
 	assert("nikita-3044", schedulable());
@@ -576,10 +580,12 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	}
 	if (result <= 0) {
 		reiser4_stat_inc(pcwb_not_written);		
-		REISER4_EXIT(WRITEPAGE_ACTIVATE);
+		reiser4_exit_context(&ctx);
+		return WRITEPAGE_ACTIVATE;
 	}
 	reiser4_stat_inc(pcwb_written);
-	REISER4_EXIT(0);
+	reiser4_exit_context(&ctx);
+	return 0;
 }
 
 /* ->set_page_dirty() method of formatted address_space */

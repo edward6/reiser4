@@ -205,35 +205,7 @@ extern int write_in_trace(const char *func, const char *mes);
 #define log_entry(super, str) noop
 #endif
 
-#define __REISER4_ENTRY(super,errret)				\
-	reiser4_context __context;				\
-	do {							\
-                int __ret;					\
-                __ret = init_context(&__context, (super));	\
-		log_entry(super, ":in");			\
-                if (__ret != 0) {				\
-			return errret;				\
-		}						\
-        } while (0)
-
-#define REISER4_ENTRY_PTR(super)  __REISER4_ENTRY(super, ERR_PTR(__ret))
-#define REISER4_ENTRY(super)      __REISER4_ENTRY(super, __ret)
-
 extern int reiser4_exit_context(reiser4_context * context);
-
-#define REISER4_EXIT( ret_exp )				\
-({							\
-	typeof ( ret_exp ) __result = ( ret_exp );	\
-        int __ret = reiser4_exit_context( &__context );	\
-	return __result ? : __ret;			\
-})
-
-#define REISER4_EXIT_PTR( ret_exp )				\
-({								\
-	typeof ( ret_exp ) __result = ( ret_exp );		\
-        int __ret = reiser4_exit_context( &__context );		\
-	return IS_ERR (__result) ? __result : ERR_PTR (__ret);	\
-})
 
 /* __REISER4_CONTEXT_H__ */
 #endif
