@@ -399,10 +399,9 @@ void __tmp_print_page( struct page *page )
 		info( "null page\n" );
 		return;
 	}
-	info( "page index: %lu virtual: %p mapping: %p count: %i private: %lx kmap_count %d\n",
-	      page -> index, page -> virtual, page -> mapping, page -> count,
-	      page -> private, page -> kmap_count );
-	info( "flags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s%s\n",
+	info( "page index: %lu virtual: %p mapping: %p private: %lx\n",
+	      page -> index, page -> virtual, page -> mapping, page -> private );
+	info( "flags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s\n",
 	      page_flag_name( page,  PG_locked ),
 	      page_flag_name( page,  PG_error ),
 	      page_flag_name( page,  PG_referenced ),
@@ -420,8 +419,7 @@ void __tmp_print_page( struct page *page )
 
 	      page_flag_name( page,  PG_private ),
 	      page_flag_name( page,  PG_writeback ),
-	      page_flag_name( page,  PG_nosave ),
-	      page_flag_name( page,  PG_kmapped ) );
+	      page_flag_name( page,  PG_nosave ) );
 }
 
 
