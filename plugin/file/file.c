@@ -179,8 +179,17 @@ write_mode how_to_write(coord_t * coord, lock_handle * lh UNUSED_ARG,
 	if (node_is_empty(coord->node)) {
 		assert("vs-879", znode_get_level(coord->node) == LEAF_LEVEL);
 		assert("vs-880", get_key_offset(key) == 0);
-		if (UNDER_RW(dk, current_tree, read,
-			     !keyeq(key, znode_get_ld_key(coord->node)))) {
+		/*
+		 * Situation that check below tried to handle is follows: some
+		 * other thread writes to (other) file and has to insert empty
+		 * leaf between two adjacent extents. Generally, we are not
+		 * supposed to muck with this node. But it is possible that
+		 * said other thread fails due to some error (out of disk
+		 * space, for example) and leaves empty leaf
+		 * lingering. Nothing prevents us from reusing it.
+		 */
+		if (0 && UNDER_RW(dk, current_tree, read,
+				  !keyeq(key, znode_get_ld_key(coord->node)))) {
 			/* this is possible when cbk_cache_search does eottl handling and returns not found */
 			return RESEARCH;
 		}
