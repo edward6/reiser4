@@ -331,6 +331,8 @@ extern __u32 reiser4_current_trace_flags;
   
 */
 
+#define	reiser4_stat_inc_at(sb, counter)        		\
+	(++ (get_super_private_nocheck(sb) -> stats . counter))
 #define	reiser4_stat_inc(counter)        (++ STS . counter)
 #define reiser4_stat_add(counter, delta) (STS . counter += (delta))
 

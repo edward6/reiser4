@@ -201,7 +201,7 @@ reiser4_create(struct inode *parent	/* inode of parent
 {
 	reiser4_object_create_data data;
 
-	reiser4_stat_inc(vfs_calls.create);
+	reiser4_stat_inc_at(parent->i_sb, vfs_calls.create);
 
 	data.mode = S_IFREG | mode;
 	data.id = UNIX_FILE_PLUGIN_ID;
@@ -236,7 +236,7 @@ reiser4_symlink(struct inode *parent	/* inode of parent
 {
 	reiser4_object_create_data data;
 
-	reiser4_stat_inc(vfs_calls.mkdir);
+	reiser4_stat_inc_at(parent->i_sb, vfs_calls.mkdir);
 
 	data.name = linkname;
 	data.id = SYMLINK_FILE_PLUGIN_ID;
@@ -255,7 +255,7 @@ reiser4_mknod(struct inode *parent /* inode of parent directory */ ,
 {
 	reiser4_object_create_data data;
 
-	reiser4_stat_inc(vfs_calls.mknod);
+	reiser4_stat_inc_at(parent->i_sb, vfs_calls.mknod);
 
 	data.mode = mode;
 	data.rdev = rdev;
@@ -295,7 +295,7 @@ static int
 reiser4_readlink(struct dentry *dentry, char *buf, int buflen)
 {
 	assert("vs-852", S_ISLNK(dentry->d_inode->i_mode));
-	reiser4_stat_inc(vfs_calls.readlink);
+	reiser4_stat_inc_at(dentry->d_inode->i_sb, vfs_calls.readlink);
 	if (!dentry->d_inode->u.generic_ip || !inode_get_flag(dentry->d_inode, REISER4_GENERIC_VP_USED))
 		return -EINVAL;
 	return vfs_readlink(dentry, buf, buflen, dentry->d_inode->u.generic_ip);
@@ -306,7 +306,7 @@ reiser4_follow_link(struct dentry *dentry, struct nameidata *data)
 {
 	assert("vs-851", S_ISLNK(dentry->d_inode->i_mode));
 
-	reiser4_stat_inc(vfs_calls.follow_link);
+	reiser4_stat_inc_at(dentry->d_inode->i_sb, vfs_calls.follow_link);
 	if (!dentry->d_inode->u.generic_ip || !inode_get_flag(dentry->d_inode, REISER4_GENERIC_VP_USED))
 		return -EINVAL;
 	return vfs_follow_link(data, dentry->d_inode->u.generic_ip);
@@ -986,7 +986,7 @@ reiser4_unlink(struct inode *parent /* parent directory */ ,
 	assert("nikita-2011", parent != NULL);
 	assert("nikita-2012", victim != NULL);
 	assert("nikita-2013", victim->d_inode != NULL);
-	reiser4_stat_inc(vfs_calls.unlink);
+	reiser4_stat_inc_at(parent->i_sb,vfs_calls.unlink);
 	if (inode_dir_plugin(victim->d_inode) == NULL)
 		return unlink_file(parent, victim);
 	else
@@ -1008,7 +1008,7 @@ reiser4_rmdir(struct inode *parent /* parent directory */ ,
 	assert("nikita-2015", victim != NULL);
 	assert("nikita-2016", victim->d_inode != NULL);
 
-	reiser4_stat_inc(vfs_calls.rmdir);
+	reiser4_stat_inc_at(parent->i_sb, vfs_calls.rmdir);
 	if (inode_dir_plugin(victim->d_inode) != NULL)
 		/* there is no difference between unlink and rmdir for
 		   reiser4 */
@@ -1393,7 +1393,7 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 	reiser4_inode_object *obj;
 
 	assert("nikita-1696", super != NULL);
-	reiser4_stat_inc(vfs_calls.alloc_inode);
+	reiser4_stat_inc_at(super, vfs_calls.alloc_inode);
 	obj = kmem_cache_alloc(inode_cache, SLAB_KERNEL);
 	if (obj != NULL) {
 		reiser4_inode *info;
@@ -1425,7 +1425,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	reiser4_inode *info;
 
 	info = reiser4_inode_data(inode);
-	reiser4_stat_inc(vfs_calls.destroy_inode);
+	reiser4_stat_inc_at(inode->i_sb, vfs_calls.destroy_inode);
 	if (!is_bad_inode(inode) && inode_get_flag(inode, REISER4_LOADED)) {
 
 		assert("nikita-2828", reiser4_inode_data(inode)->eflushed == 0);
@@ -1471,7 +1471,7 @@ reiser4_drop_inode(struct inode *object)
 	file_plugin *fplug;
 
 	assert("nikita-2643", object != NULL);
-	reiser4_stat_inc(vfs_calls.drop_inode);
+	reiser4_stat_inc_at(object->i_sb, vfs_calls.drop_inode);
 
 	/* -not- creating context in this method, because it is frequently
 	   called and all existing ->not_linked() methods are one liners. */
