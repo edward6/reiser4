@@ -45,9 +45,9 @@ int ordinary_readpage (struct file * file, struct page * page);
  */
 typedef struct file_ops {
 	int (* write) (struct inode *, tree_coord *,
-		       reiser4_lock_handle *, flow *);
+		       reiser4_lock_handle *, flow_t *);
 	int (* read) (struct inode *, tree_coord *,
-		      reiser4_lock_handle *, flow *);
+		      reiser4_lock_handle *, flow_t *);
 	int (* readpage) (void *, struct page *);
 } file_ops;
 

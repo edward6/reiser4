@@ -55,7 +55,7 @@ static int built_of_extents (struct inode * inode UNUSED_ARG,
 /*
  * decide how to write @count bytes to position @offset of file @inode
  */
-write_todo what_todo (struct inode * inode, flow * f, tree_coord * coord)
+write_todo what_todo (struct inode * inode, flow_t * f, tree_coord * coord)
 {
 	loff_t new_size;
 
@@ -140,7 +140,7 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 	reiser4_lock_handle lh;	
 	size_t to_write;
 	item_plugin * iplug;
-	flow f;
+	flow_t f;
 	
 
 	/*
@@ -292,7 +292,7 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 	reiser4_lock_handle lh;
 	size_t to_read;
 	item_plugin * iplug;
-	flow f;
+	flow_t f;
 
 
 	/*

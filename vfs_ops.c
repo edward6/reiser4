@@ -162,7 +162,7 @@ static struct dentry *lookup_object( struct inode *parent,
 	dplug = reiser4_get_dir_plugin( parent );
 
 	/* FIXME-HANS: is this okay? */
-	if( dplug == NULL || !dplug -> lookup ) {
+	if( dplug == NULL || !dplug -> resolve_into_inode/*lookup*/ ) {
 		return ERR_PTR( -ENOTDIR );
 	}
 
@@ -189,7 +189,8 @@ static struct dentry *lookup_object( struct inode *parent,
 
 	xmemset( &entry, 0, sizeof entry );
 
-	switch( dplug -> lookup( parent, &dentry -> d_name, &key, &entry ) ) {
+	/*switch( dplug -> lookup( parent, &dentry -> d_name, &key, &entry ) ) {*/
+	switch( dplug -> resolve_into_inode( parent, &dentry -> d_name, 0/*name_t*/,&key, &entry ) ) {
 	default: wrong_return_value( "nikita-407", "->lookup()" );
 	case FILE_IO_ERROR:
 		return ERR_PTR( -EIO );

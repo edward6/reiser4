@@ -408,13 +408,13 @@ reiser4_plugin dir_plugins[ LAST_DIR_ID ] = {
 		},
 		.u = {
 			.dir = {
+				.resolve             = NULL,
+				.resolve_into_inode/*lookup*/              = hashed_lookup,
 				.unlink              = common_unlink,
 				.link                = common_link,
-				.lookup              = hashed_lookup,
 				.is_name_acceptable  = is_name_acceptable,
 				.add_entry           = hashed_add_entry,
 				.rem_entry           = hashed_rem_entry,
-				/*.create              = hashed_create,*/
 				.create_child        = common_create_child
 			}
 		}

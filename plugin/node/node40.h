@@ -54,7 +54,7 @@ typedef struct item_header_40 {
   /* why pad?  Because of cachelines?  I need more convincing.... No. Because of C language. */
 } item_header_40;
 
-size_t             node40_item_overhead    ( const znode *node, flow * aflow);
+size_t             node40_item_overhead    ( const znode *node, flow_t * aflow);
 size_t             node40_free_space       ( znode *node );
 node_search_result node40_lookup           ( znode *node, 
 					     const reiser4_key *key, 

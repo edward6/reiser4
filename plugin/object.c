@@ -534,7 +534,7 @@ int common_file_owns_item( const struct inode *inode, const tree_coord *coord )
  * data.
  */
 int common_build_flow( struct file *file UNUSED_ARG, char *buf, size_t size, 
-		       loff_t *off, rw_op op UNUSED_ARG, flow *f )
+		       loff_t *off, rw_op op UNUSED_ARG, flow_t *f )
 {
 	assert( "nikita-1100", f != NULL );
 	assert( "nikita-1101", file != NULL );
@@ -561,8 +561,9 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 		},
 		.u = {
 			.file = {
+				.write_flow          = NULL,
+				.read_flow           = NULL,
 				.truncate            = ordinary_file_truncate,
-				.create              = ordinary_file_create,
 				.write_sd_by_inode   = common_file_save,
 				.readpage            = ordinary_readpage,
 				.read                = ordinary_file_read,
@@ -572,6 +573,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.set_plug_in_sd      = NULL,
 				.set_plug_in_inode   = NULL,
 				.create_blank_sd     = NULL,
+				.create              = ordinary_file_create,
 				.destroy_stat_data   = common_file_delete,
 				.add_link            = NULL,
 				.rem_link            = NULL,
@@ -591,8 +593,9 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 		},
 		.u = {
 			.file = {
+				.write_flow          = NULL,
+				.read_flow           = NULL,
 				.truncate            = NULL, /* EISDIR */
-				.create              = hashed_create,
 				.write_sd_by_inode   = common_file_save,
 				.readpage            = NULL, /* EISDIR */
 				.read                = NULL, /* EISDIR */
@@ -602,6 +605,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.set_plug_in_sd      = NULL,
 				.set_plug_in_inode   = NULL,
 				.create_blank_sd     = NULL,
+				.create              = hashed_create,
 				.destroy_stat_data   = hashed_delete,
 				.add_link            = NULL,
 				.rem_link            = NULL,
@@ -621,8 +625,9 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 		},
 		.u = {
 			.file = {
+				.write_flow          = NULL,
+				.read_flow           = NULL,
 				.truncate            = NULL,
-				.create              = NULL,
 				.write_sd_by_inode   = common_file_save,
 				.readpage            = NULL,
 				.read                = NULL,
@@ -632,6 +637,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.set_plug_in_sd      = NULL,
 				.set_plug_in_inode   = NULL,
 				.create_blank_sd     = NULL,
+				.create              = NULL,
 				/*
 				 * FIXME-VS: symlink should probably have its own destroy method
 				 */
@@ -654,6 +660,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 		},
 		.u = {
 			.file = {
+				.write_flow          = NULL,
+				.read_flow           = NULL,
 				.truncate            = NULL,
 				.create              = NULL,
 				.write_sd_by_inode   = common_file_save,

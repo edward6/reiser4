@@ -19,7 +19,7 @@ extern int                hashed_delete    ( struct inode *object,
 extern int                hashed_owns_item ( const struct inode *inode, 
 					     const tree_coord *coord );
 extern file_lookup_result hashed_lookup    ( struct inode *inode, 
-					     const struct qstr *name,
+					     const struct qstr *name, name_t *,
 					     reiser4_key *key, 
 					     reiser4_dir_entry_desc *entry );
 extern int                hashed_add_entry ( struct inode *object,

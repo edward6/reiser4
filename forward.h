@@ -22,7 +22,7 @@ struct znode;
 typedef struct znode znode;
 
 struct flow;
-typedef struct flow flow;
+typedef struct flow flow_t;
 
 struct tree_coord;
 typedef struct tree_coord tree_coord;
@@ -208,6 +208,11 @@ typedef enum {
 	 */
 	SQUEEZE_CONTINUE = 3
 } squeeze_result;
+
+struct name {
+};
+typedef struct name name_t;
+
 
 /* __REISER4_FORWARD_H__ */
 #endif

@@ -122,7 +122,7 @@ typedef struct node_plugin {
 	   item which is in addition to the space consumed by the item body.
 	   (the space consumed by the item body can be gotten by calling
 	   item->estimate) */
-	size_t        ( *item_overhead )( const znode *node, flow *f );
+	size_t        ( *item_overhead )( const znode *node, flow_t *f );
 
 	/**
 	 * returns free space by looking into node (i.e., without using
