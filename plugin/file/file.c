@@ -577,7 +577,7 @@ int find_or_create_extent(struct page *page);
 
 /* part of unix_file_truncate: it is called when truncate is used to make file shorter */
 static int
-shorten_file(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size)
+shorten_file(struct inode *inode, loff_t new_size, loff_t cur_size)
 {
 	int result;
 	struct page *page;
@@ -589,7 +589,7 @@ shorten_file(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_siz
 
 	/* all items of ordinary reiser4 file are grouped together. That is why we can use cut_tree. Plan B files (for
 	   instance) can not be truncated that simply */
-	result = cut_file_items(inode, new_size, update_sd, cur_size, 1);
+	result = cut_file_items(inode, new_size, 1/*update_sd*/, cur_size, 1);
 	if (result)
 		return result;
 
@@ -598,9 +598,6 @@ shorten_file(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_siz
 		set_file_state_empty(inode);
 		return 0;
 	}
-
-	/* this is truncate */
-	assert("vs-1654", update_sd);
 
 	if (file_is_built_of_tails(inode))
 		/* No need to worry about zeroing last page after new file end */
@@ -692,20 +689,12 @@ append_hole(struct inode *inode, loff_t new_size)
 	return result;
 }
 
-reiser4_internal int
-setattr_reserve(reiser4_tree *tree)
-{
-	assert("vs-1096", is_grab_enabled(get_current_context()));
-	return reiser4_grab_space(estimate_one_insert_into_item(tree),
-				  BA_CAN_COMMIT);
-}
-
 /* this either cuts or add items of/to the file so that items match new_size. It is used in unix_file_setattr when it is
    used to truncate
 VS-FIXME-HANS: explain that
 and in unix_file_delete */
 static int
-truncate_file(struct inode *inode, loff_t new_size, int update_sd)
+truncate_file_body(struct inode *inode, loff_t new_size)
 {
 	int result;
 	loff_t cur_size;
@@ -719,8 +708,7 @@ truncate_file(struct inode *inode, loff_t new_size, int update_sd)
 		if (cur_size < new_size)
 			result = append_hole(inode, new_size);
 		else
-			result = shorten_file(inode,
-					      new_size, update_sd, cur_size);
+			result = shorten_file(inode, new_size, cur_size);
 	} else {
 		/* when file is built of extens - find_file_size can only
 		 * calculate old file size up to page size. Case of not
@@ -731,23 +719,13 @@ truncate_file(struct inode *inode, loff_t new_size, int update_sd)
 		       file_is_built_of_extents(inode) ||
 		       (file_is_empty(inode) && cur_size == 0));
 		assert("vs-1116", (new_size & ~PAGE_CACHE_MASK) == 0);
-
-		/* update stat data */
-		if (update_sd) {
-			result = setattr_reserve(tree_by_inode(inode));
-			if (!result && update_sd) {
-				INODE_SET_FIELD(inode, i_size, cur_size);
-				inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-				result = reiser4_update_sd(inode);
-			}
-			all_grabbed2free();
-		}
 	}
+
 	return result;
 }
 
 /* plugin->u.file.truncate
-   all the work is done on reiser4_setattr->unix_file_setattr->truncate_file
+   all the work is done on reiser4_setattr->unix_file_setattr->truncate_file_body
 */
 reiser4_internal int
 truncate_unix_file(struct inode *inode, loff_t new_size)
@@ -1526,7 +1504,6 @@ readpage_unix_file(void *vp, struct page *page)
 	if (result != CBK_COORD_FOUND) {
 		/* this indicates file corruption */
 		done_lh(&lh);
-		clog_op(READPAGE_ERROR, (void *)result, (void *)page->index);
 		return result;
 	}
 
@@ -1541,7 +1518,6 @@ readpage_unix_file(void *vp, struct page *page)
 	result = zload(coord->node);
 	if (result) {
 		done_lh(&lh);
-		clog_op(READPAGE_ERROR, (void *)result, (void *)page->index);
 		return result;
 	}
 	if (!hint.coord.valid)
@@ -1556,7 +1532,6 @@ readpage_unix_file(void *vp, struct page *page)
 			page->index, get_inode_oid(inode), inode->i_size, result);
 		zrelse(coord->node);
 		done_lh(&lh);
-		clog_op(READPAGE_ERROR, (void *)EIO, (void *)page->index);
 		return RETERR(-EIO);
 	}
 
@@ -1580,10 +1555,7 @@ readpage_unix_file(void *vp, struct page *page)
 	save_file_hint(file, &hint);
 
 	assert("vs-979", ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
-	if (result == 0)
-		clog_op(READPAGE_OUT, (void *)(unsigned long)get_inode_oid(inode), (void *)page->index);
-	else
-		clog_op(READPAGE_ERROR, (void *)result, (void *)page->index);
+	clog_op(READPAGE_OUT, (void *)(unsigned long)get_inode_oid(inode), (void *)page->index);
 
 	return result;
 }
@@ -2374,36 +2346,46 @@ setattr_truncate(struct inode *inode, struct iattr *attr)
 	int result;
 	int s_result;
 	loff_t old_size;
+	reiser4_tree *tree;
 
 	inode_check_scale(inode, inode->i_size, attr->ia_size);
 
 	old_size = inode->i_size;
+	tree = tree_by_inode(inode);
 
-	result = safe_link_grab(tree_by_inode(inode), BA_CAN_COMMIT);
+	result = safe_link_grab(tree, BA_CAN_COMMIT);
 	if (result == 0)
 		result = safe_link_add(inode, SAFE_TRUNCATE);
 	all_grabbed2free();
-	if (result == 0)
-		result = truncate_file(inode, attr->ia_size, 1);
+	if (result == 0 && inode->i_size != attr->ia_size)
+		result = truncate_file_body(inode, attr->ia_size);
 	if (result == 0) {
-		/* items are removed already. inode_setattr will call
-		   vmtruncate to invalidate truncated pages and
-		   unix_file_truncate which will do nothing. FIXME: is this
-		   necessary? */
-		INODE_SET_FIELD(inode, i_size, old_size);
-		result = inode_setattr(inode, attr);
+		/* update stat data */
+		result = setattr_reserve_common(tree);
+		if (!result) {
+			/* items are removed already. inode_setattr will call
+			   vmtruncate to invalidate truncated pages and
+			   unix_file_truncate which will do nothing. FIXME: is
+			   this necessary? */
+			result = inode_setattr(inode, attr);
+			if (!result) {
+				inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+				result = reiser4_update_sd(inode);
+			}
+		}
+		all_grabbed2free();
 	} else
 		warning("vs-1588", "truncate_file failed: oid %lli, old size %lld, new size %lld, retval %d",
 			get_inode_oid(inode), old_size, attr->ia_size, result);
 
-	s_result = safe_link_grab(tree_by_inode(inode), BA_CAN_COMMIT);
+	s_result = safe_link_grab(tree, BA_CAN_COMMIT);
 	if (s_result == 0)
 		s_result = safe_link_del(inode, SAFE_TRUNCATE);
 	if (s_result != 0) {
 		warning("nikita-3417", "Cannot kill safelink %lli: %i",
 			get_inode_oid(inode), s_result);
 	}
-	safe_link_release(tree_by_inode(inode));
+	safe_link_release(tree);
 	all_grabbed2free();
 	return result;
 }
@@ -2420,25 +2402,15 @@ setattr_unix_file(struct inode *inode,	/* Object to change attributes */
 	if (attr->ia_valid & ATTR_SIZE) {
 		/* truncate does reservation itself and requires exclusive
 		 * access obtained */
-		if (inode->i_size != attr->ia_size) {
-			unix_file_info_t *ufo;
+		unix_file_info_t *ufo;
+		
+		ufo = unix_file_inode_data(inode);
+		get_exclusive_access(ufo);
+		result = setattr_truncate(inode, attr);
+		drop_exclusive_access(ufo);
+	} else
+		result = setattr_common(inode, attr);
 
-			ufo = unix_file_inode_data(inode);
-			get_exclusive_access(ufo);
-			result = setattr_truncate(inode, attr);
-			drop_exclusive_access(ufo);
-		} else
-			result = 0;
-	} else {
-		result = setattr_reserve(tree_by_inode(inode));
-		if (!result) {
-			result = inode_setattr(inode, attr);
-			if (!result)
-				/* "capture" inode */
-				result = reiser4_mark_inode_dirty(inode);
-			all_grabbed2free();
-		}
-	}
 	return result;
 }
 
@@ -2480,6 +2452,7 @@ init_inode_data_unix_file(struct inode *inode,
 #endif
 	init_inode_ordering(inode, crd, create);
 }
+
 /* VS-FIXME-HANS: what is pre deleting all about? */
 /* plugin->u.file.pre_delete */
 reiser4_internal int
@@ -2488,7 +2461,7 @@ pre_delete_unix_file(struct inode *inode)
 	/* FIXME: put comment here */
 	/*if (inode->i_size == 0)
 	  return 0;*/
-	return truncate_file(inode, 0/* size */, 0/* no stat data update */);
+	return truncate_file_body(inode, 0/* size */);
 }
 
 /* Reads @count bytes from @file and calls @actor for every page read. This is
