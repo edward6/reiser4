@@ -587,7 +587,22 @@ int node40_check( const znode *node /* node to check */,
 		}
 	}
 
-	if( flags & REISER4_NODE_DKEYS ) {
+	if( 0 && ( flags & REISER4_NODE_DKEYS ) ) {
+		spin_lock_dk( current_tree );
+		spin_lock_tree( current_tree );
+		if( node -> left != NULL ) {
+			zref( node -> left );
+			spin_unlock_tree( current_tree );
+			zload( node -> left );
+			spin_lock_tree( current_tree );
+		}
+		if( node -> right != NULL ) {
+			zref( node -> right );
+			spin_unlock_tree( current_tree );
+			zload( node -> right );
+			spin_lock_tree( current_tree );
+		}
+
 		if ( keygt( &prev, &node -> rd_key ) ) {
 			reiser4_stat_tree_add( rd_key_skew );
 			if( flags & REISER4_NODE_TREE_STABLE ) {
@@ -623,6 +638,17 @@ int node40_check( const znode *node /* node to check */,
 			*error = "rdkey or right ldkey is wrong"; 
 			return -1;
 		}
+
+		if( node -> right != NULL ) {
+			zrelse( node -> right );
+			zput( node -> right );
+		}
+		if( node -> left != NULL ) {
+			zrelse( node -> left );
+			zput( node -> left );
+		}
+		spin_unlock_tree( current_tree );
+		spin_unlock_dk( current_tree );
 	}
 
 	return 0;
@@ -758,7 +784,6 @@ void node40_change_item_size (coord_t * coord, int by)
 	/* update node header */
 	nh_40_set_free_space (nh, nh_40_get_free_space (nh) - by);
 	nh_40_set_free_space_start (nh, nh_40_get_free_space_start (nh) + by);
-	node_check (coord->node, REISER4_NODE_PANIC);
 }
 
 

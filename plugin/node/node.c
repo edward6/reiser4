@@ -204,8 +204,8 @@ void node_check( const znode *node /* node to check */,
 {
 	const char * mes;
 	
-	return;
-	if( ( node_plugin_by_node( node ) -> check ) &&
+	if( znode_is_loaded( node ) && 
+	    ( node_plugin_by_node( node ) -> check ) &&
 	    node_plugin_by_node( node ) -> check( node, flags, &mes ) ) {
 		info( "%s\n", mes );
 		print_node_content( "check", node, ~0u );
