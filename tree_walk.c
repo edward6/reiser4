@@ -200,12 +200,12 @@ int lock_side_neighbor( lock_handle * result,
 {
 	if (left != NULL) {
 		left->right = right;
-		ZF_SET (left, ZNODE_RIGHT_CONNECTED);
+		ZF_SET (left, JNODE_RIGHT_CONNECTED);
 	}
 
 	if (right != NULL) {
 		right->left = left;
-		ZF_SET (right, ZNODE_LEFT_CONNECTED);
+		ZF_SET (right, JNODE_LEFT_CONNECTED);
 	}
 }
 
@@ -401,8 +401,8 @@ int connect_znode (coord_t * coord, znode * node)
 	if (znode_above_root(coord->node)) {
 		node->left = NULL;
 		node->right = NULL;
-		ZF_SET (node, ZNODE_LEFT_CONNECTED);
-		ZF_SET (node, ZNODE_RIGHT_CONNECTED);
+		ZF_SET (node, JNODE_LEFT_CONNECTED);
+		ZF_SET (node, JNODE_RIGHT_CONNECTED);
 		return 0;
 	}
 
@@ -673,11 +673,8 @@ void sibling_list_remove (znode * node)
 		assert("zam-323", znode_is_right_connected(node->left));
 		node->left->right = node->right;
 	}
-	/*
-	 * FIXME-NIKITA ordering?
-	 */
-	ZF_CLR (node, ZNODE_LEFT_CONNECTED);
-	ZF_CLR (node, ZNODE_RIGHT_CONNECTED);
+	ZF_CLR (node, JNODE_LEFT_CONNECTED);
+	ZF_CLR (node, JNODE_RIGHT_CONNECTED);
 }
 
 /* Audited by: umka (2002.06.14), umka (2002.06.15) */
@@ -696,11 +693,8 @@ void sibling_list_insert_nolock (znode *new, znode *before)
 		new->right = NULL;
 		new->left = NULL;
 	}
-	/*
-	 * FIXME-NIKITA ordering?
-	 */
-	ZF_SET (new, ZNODE_LEFT_CONNECTED);
-	ZF_SET (new, ZNODE_RIGHT_CONNECTED);
+	ZF_SET (new, JNODE_LEFT_CONNECTED);
+	ZF_SET (new, JNODE_RIGHT_CONNECTED);
 }
 
 /** Insert new node into sibling list. Regular balancing inserts new node

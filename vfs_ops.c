@@ -1951,7 +1951,7 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	 */
 	if( atomic_read( &node -> d_count ) || jnode_is_loaded( node ) ||
 	    blocknr_is_fake( jnode_get_block( node ) ) || 
-	    JF_ISSET( node, ZNODE_WANDER ) ) {
+	    JF_ISSET( node, JNODE_WANDER ) ) {
 		spin_unlock_jnode( node );
 		return 0;
 	}

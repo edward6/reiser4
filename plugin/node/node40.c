@@ -507,7 +507,7 @@ int node40_check( const znode *node /* node to check */,
 	if( !znode_is_loaded( node ) )
 		return 0;
 
-	if( ZF_ISSET( node, ZNODE_HEARD_BANSHEE ) )
+	if( ZF_ISSET( node, JNODE_HEARD_BANSHEE ) )
 		return 0;
 
 	assert( "nikita-582", zdata( node ) != NULL );
@@ -601,9 +601,9 @@ int node40_check( const znode *node /* node to check */,
 			*error = "ldkey is greater than rdkey"; 
 			return -1;
 		}
-		if( ZF_ISSET( node, ZNODE_LEFT_CONNECTED ) && 
+		if( ZF_ISSET( node, JNODE_LEFT_CONNECTED ) && 
 		    ( node -> left != NULL ) && 
-		    ! ZF_ISSET( node -> left, ZNODE_HEARD_BANSHEE )  &&
+		    ! ZF_ISSET( node -> left, JNODE_HEARD_BANSHEE )  &&
 		    ! node_is_empty( node -> left ) && 
 		    ergo( flags & REISER4_NODE_TREE_STABLE,
 			  !keyeq( &node -> left -> rd_key, &node -> ld_key ) ) &&
@@ -613,9 +613,9 @@ int node40_check( const znode *node /* node to check */,
 			*error = "left rdkey or ldkey is wrong"; 
 			return -1;
 		}
-		if( ZF_ISSET( node, ZNODE_RIGHT_CONNECTED ) && 
+		if( ZF_ISSET( node, JNODE_RIGHT_CONNECTED ) && 
 		    ( node -> right != NULL ) && 
-		    ! ZF_ISSET( node -> right, ZNODE_HEARD_BANSHEE )  &&
+		    ! ZF_ISSET( node -> right, JNODE_HEARD_BANSHEE )  &&
 		    ! node_is_empty( node -> right ) && 
 		    ergo( flags & REISER4_NODE_TREE_STABLE,
 			  !keyeq( &node -> rd_key, &node -> right -> ld_key ) ) &&
@@ -1781,7 +1781,7 @@ static int prepare_for_update (znode * left, znode * right, carry_plugin_info *i
 			return PTR_ERR (cn);
 		cn->parent = 1;
 		cn->node = left;
-		if (ZF_ISSET (left, ZNODE_ORPHAN))
+		if (ZF_ISSET (left, JNODE_ORPHAN))
 			cn->left_before = 1;
 		op->u.update.left = cn;
 	} else

@@ -380,7 +380,7 @@ static void invalidate_jnode(jnode * node)
 		reiser4_tree * tree = current_tree;
  
 		spin_lock_jnode (node);
-		if (JF_ISSET(node, ZNODE_LOADED)) {
+		if (JF_ISSET(node, JNODE_LOADED)) {
 			jrelse_nolock(node);
 		}
 		spin_unlock_jnode(node);
@@ -828,7 +828,7 @@ void bitmap_check_blocks (const reiser4_block_nr *start, const reiser4_block_nr 
 	ret = load_and_lock_bnode (bnode);
 	assert ("zam-626", ret == 0);
 
-	assert ("nikita-2216", JF_ISSET(bnode->wjnode, ZNODE_LOADED));
+	assert ("nikita-2216", JF_ISSET(bnode->wjnode, JNODE_LOADED));
 
 	if (desired) {
 		assert ("zam-623", 
@@ -952,13 +952,13 @@ void bitmap_pre_commit_hook (void)
 
 		while (!capture_list_end (head, node)) {
 			/* we detect freshly allocated jnodes */
-			if (JF_ISSET(node, ZNODE_RELOC))
+			if (JF_ISSET(node, JNODE_RELOC))
 			{
 				bmap_nr_t  bmap;
 				bmap_off_t offset;
 				struct bnode * bn;
 
-				assert ("zam-559", !JF_ISSET(node, ZNODE_WANDER));
+				assert ("zam-559", !JF_ISSET(node, JNODE_WANDER));
 				assert ("zam-460", !blocknr_is_fake(& node->blocknr));
 
 				parse_blocknr(& node->blocknr, &bmap, &offset);

@@ -210,8 +210,8 @@ static int seal_search_node( seal_t  *seal  /* seal to repair */,
 		return -EAGAIN;
 
 	if( ( znode_get_level( node ) != level ) ||
-	    ZF_ISSET( node, ZNODE_HEARD_BANSHEE ) ||
-	    ZF_ISSET( node, ZNODE_IS_DYING ) ||
+	    ZF_ISSET( node, JNODE_HEARD_BANSHEE ) ||
+	    ZF_ISSET( node, JNODE_IS_DYING ) ||
 	    ( node != coord -> node ) ) {
 		reiser4_stat_seal_add( wrong_node );
 		return -EAGAIN;

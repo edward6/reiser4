@@ -412,12 +412,12 @@ extern reiser4_key *znode_get_ld_key( znode *node );
 /** `connected' state checks */
 static inline int znode_is_right_connected (const znode * node)
 {
-	return ZF_ISSET (node, ZNODE_RIGHT_CONNECTED);
+	return ZF_ISSET (node, JNODE_RIGHT_CONNECTED);
 }
 
 static inline int znode_is_left_connected (const znode * node)
 {
-	return ZF_ISSET (node, ZNODE_LEFT_CONNECTED);
+	return ZF_ISSET (node, JNODE_LEFT_CONNECTED);
 }
 
 static inline int znode_is_connected (const znode * node)

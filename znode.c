@@ -57,12 +57,12 @@
  * case of the latter. In either case it's inserted into sibling
  * list. This will typically require some ancillary tree traversing,
  * but ultimately both sibling pointers will exist and
- * ZNODE_LEFT_CONNECTED and ZNODE_RIGHT_CONNECTED will be true in zstate.
+ * JNODE_LEFT_CONNECTED and JNODE_RIGHT_CONNECTED will be true in zstate.
  *
  * 3. His youth.
  *
  * If znode is bound to already existing node in a tree, its content is read
- * from the disk by call to zload(). At that moment, ZNODE_LOADED bit is set
+ * from the disk by call to zload(). At that moment, JNODE_LOADED bit is set
  * in zstate and zdata() function starts to return non null for this
  * znode. zload() further calls zparse() that determines which node layout
  * this node is rendered in, and sets ->nplug on success.
@@ -93,7 +93,7 @@
  * Death is complex process.
  *
  * When we irrevocably commit ourselves to decision to remove node from
- * the tree, ZNODE_HEARD_BANSHEE bit is set in zstate of corresponding
+ * the tree, JNODE_HEARD_BANSHEE bit is set in zstate of corresponding
  * znode. This is done either in ->kill_hook() of internal item or in
  * kill_root() function when tree root is removed.
  *
@@ -105,7 +105,7 @@
  *  . data loaded from the disk
  *  . pending requests for lock
  *
- * But once ZNODE_HEARD_BANSHEE bit set, last call to unlock_znode() does node
+ * But once JNODE_HEARD_BANSHEE bit set, last call to unlock_znode() does node
  * deletion. Node deletion includes two phases. First all ways to get
  * references to that znode (sibling and parent links and hash lookup using
  * block number stored in parent node) should be deleted -- it is done through
@@ -113,7 +113,7 @@
  * parent node due to its nonexistence or proper parent node locking and
  * nobody uses parent pointers from children due to absence of them. Second we
  * invalidate all pending lock requests which still are on znode's lock
- * request queue, this is done by invalidate_lock(). Another ZNODE_IS_DYING
+ * request queue, this is done by invalidate_lock(). Another JNODE_IS_DYING
  * znode status bit is used to invalidate pending lock requests. Once it set
  * all requesters are forced to return -EINVAL from
  * longterm_lock_znode(). Future locking attempts are not possible because all
@@ -530,7 +530,7 @@ zget (reiser4_tree *tree,
 		 * complicated.
 		 */
 		assert ("nikita-2131", 1 || znode_parent (result) == parent ||
-			(ZF_ISSET (result, ZNODE_ORPHAN) && 
+			(ZF_ISSET (result, JNODE_ORPHAN) && 
 			 (znode_parent (result) == NULL)));
 	}
 
@@ -645,7 +645,7 @@ void jput (jnode *node)
 
 	/*trace_on (TRACE_FLUSH, "del_x_ref: %p: %d\n", node, atomic_read (& node->x_count));*/
 	if (atomic_dec_and_test (& node->x_count)) {
-		if (JF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
+		if (JF_ISSET (node, JNODE_HEARD_BANSHEE)) {
 			jdelete (node);
 		}
 	}
@@ -776,7 +776,7 @@ unsigned znode_free_space( znode *node /* znode to query */ )
 int znode_is_loaded( const znode *node /* znode to query */ )
 {
 	assert( "nikita-497", node != NULL );
-	return ZF_ISSET( node, ZNODE_LOADED );
+	return ZF_ISSET( node, JNODE_LOADED );
 }
 
 /** left delimiting key of znode */
@@ -1054,7 +1054,7 @@ static int znode_invariant_f( const znode *node /* znode to check */,
 		       atomic_read( &node -> c_count ) == 0 ) &&
 		_ergo( node -> lock.nr_readers != 0,
 		       atomic_read( &ZJNODE(node) -> x_count ) != 0 ) &&
-		zergo( ZNODE_ORPHAN, znode_parent( node ) == NULL );
+		zergo( JNODE_ORPHAN, znode_parent( node ) == NULL );
 }
 
 /** debugging aid: check znode invariant and panic if it doesn't hold */

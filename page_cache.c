@@ -101,7 +101,7 @@
  *    5. at some moment node can be captured by a transaction. Its ->x_count
  *    is then increased by transaction manager.
  *
- *    6. if node is removed from the tree (empty node with ZNODE_HEARD_BANSHEE
+ *    6. if node is removed from the tree (empty node with JNODE_HEARD_BANSHEE
  *    bit set) following will happen (also see comment at the top of znode.c):
  *
  *      1. when last lock is released, node will be uncaptured from
@@ -189,6 +189,10 @@ struct page *reiser4_lock_page( struct address_space *mapping,
 
 	assert( "nikita-2408", mapping != NULL );
 	assert( "nikita-2409", lock_counters() -> spin_locked == 0 );
+	/*
+	 * shouldn't lock more than one page at a time: can deadlock
+	 */
+	assert( "nikita-2433", lock_counters() -> page_locked == 0 );
 	page = find_lock_page( mapping, index );
 	if( page )
 		ON_DEBUG_CONTEXT( ++ lock_counters() -> page_locked );
@@ -374,7 +378,7 @@ static struct bio *page_bio( struct page *page, int rw, int gfp )
 		bio -> bi_io_vec[ 0 ].bv_offset = 0;
 
 		bio -> bi_vcnt = 1;
-		bio -> bi_idx  = 0; /* FIXME: JMACD->NIKITA: can you explain why you set idx?  I don't think its needed. */
+		/* bio -> bi_idx is filled by bio_alloc() */
 		bio -> bi_size = blksz;
 
 		bio -> bi_end_io = ( rw == READ ) ? 
@@ -456,6 +460,8 @@ static int formatted_set_page_dirty( struct page *page )
 	return __set_page_dirty_nobuffers( page );
 }
 
+/** place holders for methods that don't make sense for the fake inode */
+
 define_never_ever_op( readpages )
 define_never_ever_op( prepare_write )
 define_never_ever_op( commit_write )
@@ -463,8 +469,6 @@ define_never_ever_op( bmap )
 define_never_ever_op( direct_IO )
 
 #define V( func ) ( ( void * ) ( func ) )
-
-/** place holder for methods that doesn't make sense for fake inode */
 
 /**
  * address space operations for the fake inode

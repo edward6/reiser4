@@ -1441,7 +1441,7 @@ void jnode_set_dirty( jnode *node )
 
 	if (! jnode_is_dirty (node)) {
 
-		JF_SET (node, ZNODE_DIRTY);
+		JF_SET (node, JNODE_DIRTY);
 
 		assert ("jmacd-3981", jnode_is_dirty (node));
 
@@ -1452,11 +1452,11 @@ void jnode_set_dirty( jnode *node )
 		/* Sometimes a node is set dirty before being captured -- the case for new jnodes.  In that case the
 		 * jnode will be added to the appropriate list in capture_assign_block_nolock. Another reason not to
 		 * re-link jnode is that jnode is on a flush queue (see flush.c for details) */
-		if (atom != NULL && !JF_ISSET(node, ZNODE_FLUSH_QUEUED)) {
+		if (atom != NULL && !JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 
 			int level = jnode_real_level (node);
 
-			assert ("zam-654", !(JF_ISSET(node, ZNODE_WANDER) && atom->stage >= ASTAGE_PRE_COMMIT));
+			assert ("zam-654", !(JF_ISSET(node, JNODE_WANDER) && atom->stage >= ASTAGE_PRE_COMMIT));
 
 			capture_list_remove     (node);
 			capture_list_push_front (& atom->dirty_nodes[level], node);
@@ -1509,7 +1509,7 @@ void jnode_set_clean( jnode *node )
 
 	if (jnode_is_dirty (node)) {
 
-		JF_CLR (node, ZNODE_DIRTY);
+		JF_CLR (node, JNODE_DIRTY);
 
 		assert ("jmacd-9366", ! jnode_is_dirty (node));
 		
@@ -1523,7 +1523,7 @@ void jnode_set_clean( jnode *node )
 	}
 
 	/* do not steal nodes from flush queue */
-	if (!JF_ISSET(node, ZNODE_FLUSH_QUEUED)) {
+	if (!JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 		/* FIXME-VS: remove jnode from capture list even when jnode is not
 		 * dirty.  JMACD says: Is it wrong? */
 		atom = atom_get_locked_by_jnode (node);
@@ -2091,9 +2091,9 @@ uncapture_block (txn_atom *atom,
 	atom->capture_count -= 1;
 	node->atom = NULL;
 
-	JF_CLR (node, ZNODE_RELOC);
-	JF_CLR (node, ZNODE_WANDER);
-	JF_CLR (node, ZNODE_CREATED);
+	JF_CLR (node, JNODE_RELOC);
+	JF_CLR (node, JNODE_WANDER);
+	JF_CLR (node, JNODE_CREATED);
 
 	spin_unlock_jnode (node);
 

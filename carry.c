@@ -469,7 +469,7 @@ carry_op *post_carry( carry_level *level    /* queue where new operation is to
 	result -> node = child;
 	result -> op = op;
 	child  -> parent = apply_to_parent_p;
-	if( ZF_ISSET( node, ZNODE_ORPHAN ) )
+	if( ZF_ISSET( node, JNODE_ORPHAN ) )
 		child -> left_before = 1;
 	child  -> node = node;
 	return result;
@@ -623,7 +623,7 @@ carry_op *add_op( carry_level *level  /* &carry_level to add node to */,
  * which is special case not handled here).
  *
  * @node is new node created on some level, but not yet inserted into its
- * parent, it has corresponding bit (ZNODE_ORPHAN) set in zstate.
+ * parent, it has corresponding bit (JNODE_ORPHAN) set in zstate.
  *
  */
 /* Audited by: green(2002.06.17) */
@@ -638,12 +638,12 @@ carry_node *find_begetting_brother( carry_node *node /* node to start search
 	assert( "nikita-1615", kin != NULL );
 	assert( "nikita-1616", lock_counters() -> spin_locked_tree > 0 );
 	assert( "nikita-1619", ergo( node -> real_node != NULL, 
-				     ZF_ISSET( node -> real_node, ZNODE_ORPHAN ) ) );
+				     ZF_ISSET( node -> real_node, JNODE_ORPHAN ) ) );
 
 	for( scan = node ; ; scan = carry_node_prev( scan ) ) {
 		assert( "nikita-1617", !carry_node_end( kin, scan ) );
 		if( ( scan -> node != node -> node ) && 
-		    ! ZF_ISSET( scan -> node, ZNODE_ORPHAN ) ) {
+		    ! ZF_ISSET( scan -> node, JNODE_ORPHAN ) ) {
 			assert( "nikita-1618", scan -> real_node != NULL );
 			break;
 		}
@@ -742,7 +742,7 @@ carry_op *node_post_carry( carry_plugin_info *info    /* carry parameters
 	result -> node = child;
 	result -> op = op;
 	child  -> parent = apply_to_parent_p;
-	if( ZF_ISSET( node, ZNODE_ORPHAN ) )
+	if( ZF_ISSET( node, JNODE_ORPHAN ) )
 		child -> left_before = 1;
 	child  -> node = node;
 	return result;
@@ -816,13 +816,13 @@ static void sync_dkeys( carry_node *node /* node to update */,
 	 * key of first non-empty left neighbor.
 	 */
 	while( 1 ) {
-		assert( "nikita-2193", ZF_ISSET( spot, ZNODE_LEFT_CONNECTED ) );
+		assert( "nikita-2193", ZF_ISSET( spot, JNODE_LEFT_CONNECTED ) );
 		spot = spot -> left;
 		if( spot == NULL )
 			break;
 
 		*znode_get_rd_key( spot ) = pivot;
-		if( ZF_ISSET( spot, ZNODE_HEARD_BANSHEE ) )
+		if( ZF_ISSET( spot, JNODE_HEARD_BANSHEE ) )
 			*znode_get_ld_key( spot ) = pivot;
 		else
 			break;
@@ -864,7 +864,7 @@ static void unlock_carry_level( carry_level *level /* level to unlock */,
 		 */
 		assert( "nikita-1631", 
 			ergo( ! failure,
-			      ! ZF_ISSET( node -> real_node, ZNODE_ORPHAN ) ) );
+			      ! ZF_ISSET( node -> real_node, JNODE_ORPHAN ) ) );
 		if( ! failure )
 			node_check( node -> real_node, 
 				    REISER4_NODE_DKEYS | REISER4_NODE_PANIC );
@@ -1087,7 +1087,7 @@ static void unlock_carry_node( carry_node *node /* node to be released */,
 			 * Prepare node for removal. Last zput() will finish
 			 * with it.
 			 */
-			ZF_SET( real_node, ZNODE_HEARD_BANSHEE );
+			ZF_SET( real_node, JNODE_HEARD_BANSHEE );
 		}
 		if( node -> free ) {
 			assert( "nikita-2177", 
@@ -1265,10 +1265,10 @@ carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
 	 * it. make_space() does.
 	 */
 
-	ZF_SET( new_znode, ZNODE_ORPHAN );
+	ZF_SET( new_znode, JNODE_ORPHAN );
 	fresh -> node = new_znode;
 
-	while( ZF_ISSET( ref -> real_node, ZNODE_ORPHAN ) ) {
+	while( ZF_ISSET( ref -> real_node, JNODE_ORPHAN ) ) {
 		ref = carry_node_prev( ref );
 		assert( "nikita-1606", !carry_node_end( doing, ref ) );
 	}

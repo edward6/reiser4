@@ -312,7 +312,7 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 			if( result == 0 ) {
 				assert( "nikita-1279", 
 					node_is_empty( old_root ) );
-				ZF_SET( old_root, ZNODE_HEARD_BANSHEE );
+				ZF_SET( old_root, JNODE_HEARD_BANSHEE );
 				atomic_set( &old_root -> c_count, 0 );
 			}
 		}

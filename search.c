@@ -663,7 +663,7 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 
 	if( ( !znode_contains_key_lock( active, h -> key ) &&
 	      ( h -> flags & CBK_TRUST_DK ) ) ||
-	    ZF_ISSET( active, ZNODE_HEARD_BANSHEE ) ) {
+	    ZF_ISSET( active, JNODE_HEARD_BANSHEE ) ) {
 		/*
 		 * 1. key was moved out of this node while this thread was
 		 * waiting for the lock. Restart. More elaborate solution is
@@ -1132,7 +1132,7 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 
 	/* recheck keys */
 	result = znode_contains_key_lock( node, h -> key ) && 
-		! ZF_ISSET( node, ZNODE_HEARD_BANSHEE );
+		! ZF_ISSET( node, JNODE_HEARD_BANSHEE );
 	if( result ) {
 		/* do lookup inside node */
 		h -> level = level;

@@ -772,7 +772,7 @@ void forget_znode (lock_handle *handle)
 	
 	node = handle -> node;
 	assert ("vs-164", znode_is_write_locked (node));
-	assert ("nikita-1280", ZF_ISSET (node, ZNODE_HEARD_BANSHEE));
+	assert ("nikita-1280", ZF_ISSET (node, JNODE_HEARD_BANSHEE));
 
 	sibling_list_remove (node);
 	invalidate_lock (handle);
@@ -1579,8 +1579,8 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 		      *znode_get_block( node ),
 		      znode_get_level( node ),
 		      znode_check_dirty( node ),
-		      ZF_ISSET( node, ZNODE_CREATED ),
-		      ZF_ISSET( node, ZNODE_RELOC ) || ZF_ISSET( node, ZNODE_WANDER ) );
+		      ZF_ISSET( node, JNODE_CREATED ),
+		      ZF_ISSET( node, JNODE_RELOC ) || ZF_ISSET( node, JNODE_WANDER ) );
 	} else {
 		print_node_content( "", node, flags );
 	}

@@ -651,10 +651,10 @@ int jload( jnode *node )
 		 * subtle locking point: ->pg pointer is protected by jnode
 		 * spin lock, but it is safe to release spin lock here,
 		 * because page can be detached from jnode only when ->d_count
-		 * is 0, and ZNODE_LOADED is not set.
+		 * is 0, and JNODE_LOADED is not set.
 		 */
 		if( page != NULL ) {
-			JF_SET( node, ZNODE_LOADED );
+			JF_SET( node, JNODE_LOADED );
 			page_cache_get( page );
 			kmap( page );
 		} else {
@@ -682,7 +682,7 @@ int jload( jnode *node )
 						result = jplug -> parse( node );
 						if( result == 0 )
 							JF_SET( node, 
-								ZNODE_LOADED );
+								JNODE_LOADED );
 					}
 					spin_unlock_jnode( node );
 				} else
@@ -727,13 +727,13 @@ int jinit_new( jnode *node /* jnode to initialise */ )
 		result = 0;
 		spin_lock_jnode( node );
 		if( likely( !jnode_is_loaded( node ) ) ) {
-			JF_SET( node, ZNODE_LOADED );
-			JF_SET( node, ZNODE_CREATED );
+			JF_SET( node, JNODE_LOADED );
+			JF_SET( node, JNODE_CREATED );
 			assert( "nikita-1235", jnode_is_loaded( node ) );
 			result = jplug -> init( node );
 			if( unlikely( result != 0 ) ) {
-				JF_CLR( node, ZNODE_LOADED );
-				JF_CLR( node, ZNODE_CREATED );
+				JF_CLR( node, JNODE_LOADED );
+				JF_CLR( node, JNODE_CREATED );
 			}
 		}
 		spin_unlock_jnode( node );
@@ -767,11 +767,11 @@ void jrelse_nolock( jnode *node /* jnode to release references to */ )
 	if( atomic_dec_and_test( &node -> d_count ) )
 		/*
 		 * FIXME it is crucial that we first decrement ->d_count and
-		 * only later clear ZNODE_LOADED bit. I hope that
+		 * only later clear JNODE_LOADED bit. I hope that
 		 * atomic_dec_and_test() implies memory barrier (and
 		 * optimization barrier, of course).
 		 */
-		JF_CLR( node, ZNODE_LOADED );
+		JF_CLR( node, JNODE_LOADED );
 }
 
 
@@ -786,7 +786,7 @@ int jdelete( jnode *node /* jnode to finish with */ )
 
 	trace_stamp( TRACE_ZNODES );
 	assert( "nikita-467", node != NULL );
-	assert( "nikita-2123", JF_ISSET( node, ZNODE_HEARD_BANSHEE ) );
+	assert( "nikita-2123", JF_ISSET( node, JNODE_HEARD_BANSHEE ) );
 
 	trace_on( TRACE_PCACHE, "delete node: %p\n", node );
 
@@ -834,7 +834,7 @@ void jdrop (jnode * node)
 
 	assert( "zam-602", node != NULL );
 	assert( "nikita-2362", spin_tree_is_locked( current_tree ) );
-	assert( "nikita-2403", !JF_ISSET( node, ZNODE_HEARD_BANSHEE ) );
+	assert( "nikita-2403", !JF_ISSET( node, JNODE_HEARD_BANSHEE ) );
 
 	/* still in use? */
 	if( atomic_read( &node -> x_count ) > 0 )
@@ -904,11 +904,11 @@ int jwait_io (jnode * node, int rw)
 jnode_type jnode_get_type( const jnode *node )
 {
 	static const unsigned long state_mask = 
-		( 1 << ZNODE_TYPE_1 ) | 
-		( 1 << ZNODE_TYPE_2 ) | ( 1 << ZNODE_TYPE_3 );
+		( 1 << JNODE_TYPE_1 ) | 
+		( 1 << JNODE_TYPE_2 ) | ( 1 << JNODE_TYPE_3 );
 
 	static jnode_type mask_to_type[] = {
-		/*  ZNODE_TYPE_3 : ZNODE_TYPE_2 : ZNODE_TYPE_1 */
+		/*  JNODE_TYPE_3 : JNODE_TYPE_2 : JNODE_TYPE_1 */
 		
 		/* 000 */
 		[ 0 ] = JNODE_FORMATTED_BLOCK,
@@ -931,7 +931,7 @@ jnode_type jnode_get_type( const jnode *node )
 	/*
 	 * FIXME-NIKITA atomicity?
 	 */
-	return mask_to_type[ ( node -> state & state_mask ) >> ZNODE_TYPE_1 ];
+	return mask_to_type[ ( node -> state & state_mask ) >> JNODE_TYPE_1 ];
 }
 
 void jnode_set_type( jnode * node, jnode_type type )
@@ -945,8 +945,8 @@ void jnode_set_type( jnode * node, jnode_type type )
 
 	assert ("zam-647", type < JNODE_LAST_TYPE);
 
-	node -> state &= ((1UL << ZNODE_TYPE_1) - 1);
-	node -> state |= (type_to_mask[type] << ZNODE_TYPE_1);
+	node -> state &= ((1UL << JNODE_TYPE_1) - 1);
+	node -> state |= (type_to_mask[type] << JNODE_TYPE_1);
 }
 
 
@@ -1206,19 +1206,19 @@ void info_jnode( const char *prefix /* prefix to print */,
 	info( "%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, block: %llu, d_count: %d, x_count: %d, pg: %p, type: %s, ",
 	      prefix, node, node -> state, 
 
-	      jnode_state_name( node, ZNODE_LOADED ),
-	      jnode_state_name( node, ZNODE_HEARD_BANSHEE ),
-	      jnode_state_name( node, ZNODE_LEFT_CONNECTED ),
-	      jnode_state_name( node, ZNODE_RIGHT_CONNECTED ),
-	      jnode_state_name( node, ZNODE_ORPHAN ),
-	      jnode_state_name( node, ZNODE_CREATED ),
-	      jnode_state_name( node, ZNODE_RELOC ),
-	      jnode_state_name( node, ZNODE_WANDER ),
-	      jnode_state_name( node, ZNODE_DIRTY ),
-	      jnode_state_name( node, ZNODE_IS_DYING ),
-	      jnode_state_name( node, ZNODE_MAPPED ),
-	      jnode_state_name( node, ZNODE_FLUSH_BUSY ),
-	      jnode_state_name( node, ZNODE_FLUSH_QUEUED ),
+	      jnode_state_name( node, JNODE_LOADED ),
+	      jnode_state_name( node, JNODE_HEARD_BANSHEE ),
+	      jnode_state_name( node, JNODE_LEFT_CONNECTED ),
+	      jnode_state_name( node, JNODE_RIGHT_CONNECTED ),
+	      jnode_state_name( node, JNODE_ORPHAN ),
+	      jnode_state_name( node, JNODE_CREATED ),
+	      jnode_state_name( node, JNODE_RELOC ),
+	      jnode_state_name( node, JNODE_WANDER ),
+	      jnode_state_name( node, JNODE_DIRTY ),
+	      jnode_state_name( node, JNODE_IS_DYING ),
+	      jnode_state_name( node, JNODE_MAPPED ),
+	      jnode_state_name( node, JNODE_FLUSH_BUSY ),
+	      jnode_state_name( node, JNODE_FLUSH_QUEUED ),
 
 	      jnode_get_level( node ), *jnode_get_block( node ),
 	      atomic_read( &node -> d_count ), atomic_read( &node -> x_count ),

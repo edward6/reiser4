@@ -534,7 +534,7 @@ static int can_lock_object (lock_stack *owner, znode *node)
 	assert("nikita-1843", spin_znode_is_locked(node));
 
 	/* See if the node is disconnected. */
-	if (ZF_ISSET (node, ZNODE_IS_DYING)) {
+	if (ZF_ISSET (node, JNODE_IS_DYING)) {
 		trace_on (TRACE_LOCKS, "attempt to lock dying znode: %p", node);
 		return -EINVAL;
 	}
@@ -664,7 +664,7 @@ void longterm_unlock_znode (lock_handle *handle)
 		ON_DEBUG_MODIFY (WITH_DATA (node, znode_post_write (node)));
 
 		/* Handle znode deallocation */
-		if (ZF_ISSET(node, ZNODE_HEARD_BANSHEE)) {
+		if (ZF_ISSET(node, JNODE_HEARD_BANSHEE)) {
 			assert("nikita-1221", ergo (znode_is_loaded(node), 
 						    node_is_empty(node)));
 
@@ -921,13 +921,13 @@ void invalidate_lock (lock_handle *handle /* path to lock
 	spin_lock_znode(node);
 
 	assert("zam-103", znode_is_write_locked(node));
-	assert("nikita-1393", ! ZF_ISSET(node, ZNODE_LEFT_CONNECTED));
-	assert("nikita-1793", ! ZF_ISSET(node, ZNODE_RIGHT_CONNECTED));
-	assert("nikita-1394", ZF_ISSET(node, ZNODE_HEARD_BANSHEE));
+	assert("nikita-1393", ! ZF_ISSET(node, JNODE_LEFT_CONNECTED));
+	assert("nikita-1793", ! ZF_ISSET(node, JNODE_RIGHT_CONNECTED));
+	assert("nikita-1394", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
 
 	if (handle->signaled) atomic_dec(&owner->nr_signaled);
 
-	ZF_SET(node, ZNODE_IS_DYING);
+	ZF_SET(node, JNODE_IS_DYING);
 	unlink_object(handle);
 	node->lock.nr_readers = 0;
 

@@ -231,7 +231,7 @@ int internal_create_hook( const coord_t *item /* coord of item */,
 		if( arg != NULL )
 			sibling_list_insert_nolock( child, arg );
 
-		ZF_CLR( child, ZNODE_ORPHAN );
+		ZF_CLR( child, JNODE_ORPHAN );
 
 		trace_on( TRACE_ZWEB, "create: %llx: %i [%llx]\n",
 			  *znode_get_block( item -> node ),
@@ -282,7 +282,7 @@ int internal_kill_hook( const coord_t *item /* coord of item */,
 		assert( "nikita-1397", znode_is_write_locked( child ) );
 		assert( "nikita-1398", atomic_read( &child -> c_count ) == 0 );
 		/* fare thee well */
-		ZF_SET( child, ZNODE_HEARD_BANSHEE );
+		ZF_SET( child, JNODE_HEARD_BANSHEE );
 		spin_lock_tree( current_tree );
 		coord_init_zero( &child -> ptr_in_parent_hint );
 		spin_unlock_tree( current_tree );

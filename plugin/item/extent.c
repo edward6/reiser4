@@ -512,10 +512,10 @@ int extent_create_hook (const coord_t * coord, void * arg)
 
 	/* break sibling links */
 	spin_lock_tree (current_tree);
-	if (ZF_ISSET (node, ZNODE_RIGHT_CONNECTED) && node->right) {
-		/*ZF_CLR (node->right, ZNODE_LEFT_CONNECTED);*/
+	if (ZF_ISSET (node, JNODE_RIGHT_CONNECTED) && node->right) {
+		/*ZF_CLR (node->right, JNODE_LEFT_CONNECTED);*/
 		node->right->left = NULL;
-		/*ZF_CLR (node, ZNODE_RIGHT_CONNECTED);*/
+		/*ZF_CLR (node, JNODE_RIGHT_CONNECTED);*/
 		node->right = NULL;
 	}
 	spin_unlock_tree (current_tree);
@@ -1666,7 +1666,7 @@ static extent_write_todo extent_what_todo (coord_t * coord,
 	__u64 fbb_offset; /* offset of First Byte of Block */
 
 
-	if (ZF_ISSET (coord->node, ZNODE_HEARD_BANSHEE))
+	if (ZF_ISSET (coord->node, JNODE_HEARD_BANSHEE))
 		/* znode is not in tree already */
 		return EXTENT_RESEARCH;
 
@@ -1911,7 +1911,7 @@ static int have_to_read_block (struct inode * inode, jnode * j,
 	if (j->blocknr == 0)
 		/* jnode of unallocated unformatted node */
 		return 0;
-	if (JF_ISSET (j, ZNODE_LOADED))
+	if (JF_ISSET (j, JNODE_LOADED))
 		/* buffer uptodate ? */
 		return 0;
 	if (count == (int)current_blocksize)
@@ -2759,7 +2759,7 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 
 		/* If we allocated it cannot have been wandered -- in that case
 		 * extent_needs_allocation returns 0. */
-		assert ("jmacd-61442", ! JF_ISSET (j, ZNODE_WANDER));
+		assert ("jmacd-61442", ! JF_ISSET (j, JNODE_WANDER));
 		jnode_set_reloc (j);
 
 		/* Submit I/O and set the jnode clean. */
@@ -2912,11 +2912,11 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 					/* If not relocating and dirty, WANDER it */
 					/*
 					 * FIXME:NIKITA->* I see this failing
-					 * because @j already has ZNODE_RELOC
+					 * because @j already has JNODE_RELOC
 					 * set on it. I DONT KNOW WHAT I AM
 					 * DOING.
 					 */
-					JF_CLR (j, ZNODE_RELOC);
+					JF_CLR (j, JNODE_RELOC);
 					jnode_set_wander (j);
 
 					if ((ret = flush_enqueue_unformatted (j, pos))) {

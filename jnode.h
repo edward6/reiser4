@@ -84,51 +84,51 @@ TS_LIST_DEFINE(capture,jnode,capture_link);
 
 typedef enum {
        /** data are loaded from node */
-       ZNODE_LOADED            = 0,
+       JNODE_LOADED            = 0,
        /** node was deleted, not all locks on it were released. This
 	   node is empty and is going to be removed from the tree
 	   shortly. */
        /** Josh respectfully disagrees with obfuscated, metaphoric names
 	   such as this.  He thinks it should be named ZNODE_BEING_REMOVED. */
-       ZNODE_HEARD_BANSHEE     = 1,
+       JNODE_HEARD_BANSHEE     = 1,
        /** left sibling pointer is valid */
-       ZNODE_LEFT_CONNECTED    = 2,
+       JNODE_LEFT_CONNECTED    = 2,
        /** right sibling pointer is valid */
-       ZNODE_RIGHT_CONNECTED   = 3,
+       JNODE_RIGHT_CONNECTED   = 3,
 
        /** znode was just created and doesn't yet have a pointer from
 	   its parent */
-       ZNODE_ORPHAN            = 4,
+       JNODE_ORPHAN            = 4,
 
        /** this node was created by its transaction and has not been assigned
 	* a block address. */
-       ZNODE_CREATED           = 5,
+       JNODE_CREATED           = 5,
 
        /** this node is currently relocated */
-       ZNODE_RELOC             = 6,
+       JNODE_RELOC             = 6,
        /** this node is currently wandered */
-       ZNODE_WANDER            = 7,
+       JNODE_WANDER            = 7,
 
        /** this znode has been modified */
-       ZNODE_DIRTY             = 8,
+       JNODE_DIRTY             = 8,
 
        /* znode lock is being invalidated */
-       ZNODE_IS_DYING          = 9,
+       JNODE_IS_DYING          = 9,
        /* jnode of block which has pointer (allocated or unallocated) from
 	* extent or something similar (indirect item, for example) */
-       ZNODE_MAPPED            = 10,
+       JNODE_MAPPED            = 10,
 
        /* jnode is being flushed.  this implies that the node or its children are being
 	* squeezed and allocated. */
-       ZNODE_FLUSH_BUSY        = 11,
+       JNODE_FLUSH_BUSY        = 11,
 
        /* jnode is queued for flushing. */
-       ZNODE_FLUSH_QUEUED      = 12,
+       JNODE_FLUSH_QUEUED      = 12,
 
        /* In the following bits jnode type is encoded. */
-       ZNODE_TYPE_1            = 13,
-       ZNODE_TYPE_2            = 14,
-       ZNODE_TYPE_3            = 15
+       JNODE_TYPE_1            = 13,
+       JNODE_TYPE_2            = 14,
+       JNODE_TYPE_3            = 15
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
@@ -158,7 +158,7 @@ SPIN_LOCK_FUNCTIONS(jnode,jnode,guard);
 
 static inline int jnode_is_in_deleteset( const jnode *node )
 {
-	return JF_ISSET( node, ZNODE_RELOC );
+	return JF_ISSET( node, JNODE_RELOC );
 }
 
 extern jnode_plugin *jnode_ops( const jnode *node );
@@ -205,15 +205,15 @@ extern void jnode_set_type( jnode * node, jnode_type type );
  */
 
 /* does extent_get_block have to be called */
-#define jnode_mapped(node)     JF_ISSET (node, ZNODE_MAPPED)
-#define jnode_set_mapped(node) JF_SET (node, ZNODE_MAPPED)
+#define jnode_mapped(node)     JF_ISSET (node, JNODE_MAPPED)
+#define jnode_set_mapped(node) JF_SET (node, JNODE_MAPPED)
 /* pointer to this block was just created (either by appending or by plugging a
  * hole), or zinit_new was called */
-#define jnode_created(node)        JF_ISSET (node, ZNODE_CREATED)
-#define jnode_set_created(node)    JF_SET (node, ZNODE_CREATED)
+#define jnode_created(node)        JF_ISSET (node, JNODE_CREATED)
+#define jnode_set_created(node)    JF_SET (node, JNODE_CREATED)
 /* similar to buffer_uptodate */
-#define jnode_loaded(node)     JF_ISSET (node, ZNODE_LOADED)
-#define jnode_set_loaded(node) JF_SET (node, ZNODE_LOADED)
+#define jnode_loaded(node)     JF_ISSET (node, JNODE_LOADED)
+#define jnode_set_loaded(node) JF_SET (node, JNODE_LOADED)
 
 /* Macros to convert from jnode to znode, znode to jnode.  These are macros because C
  * doesn't allow overloading of const prototypes. */
@@ -282,7 +282,7 @@ static inline int jnode_is_znode( const jnode *node )
 static inline int jnode_is_loaded (const jnode * node)
 {
 	assert ("zam-506", node != NULL);
-	return JF_ISSET (node, ZNODE_LOADED);
+	return JF_ISSET (node, JNODE_LOADED);
 }
 
 
@@ -293,7 +293,7 @@ static inline int jnode_is_dirty( const jnode *node )
 	assert( "jmacd-1800", spin_jnode_is_locked (node) || 
 		(jnode_is_znode (node) && 
 		 znode_is_any_locked (JZNODE (node))));
-	return JF_ISSET( node, ZNODE_DIRTY );
+	return JF_ISSET( node, JNODE_DIRTY );
 }
 
 extern void jnode_attach_page_nolock( jnode *node, struct page *pg );
@@ -322,21 +322,21 @@ static inline int jnode_is_allocated (const jnode *node)
 {
 	assert ("jmacd-78212", node != NULL );
 	assert ("jmacd-71276", spin_jnode_is_locked (node));
-	return ! jnode_is_dirty (node) || JF_ISSET (node, ZNODE_RELOC) || JF_ISSET (node, ZNODE_WANDER);
+	return ! jnode_is_dirty (node) || JF_ISSET (node, JNODE_RELOC) || JF_ISSET (node, JNODE_WANDER);
 }
 
 static inline void jnode_set_reloc (jnode *node)
 {
 	assert ("nikita-2431", node != NULL);
-	assert ("nikita-2432", !JF_ISSET (node, ZNODE_WANDER));
-	JF_SET (node, ZNODE_RELOC);
+	assert ("nikita-2432", !JF_ISSET (node, JNODE_WANDER));
+	JF_SET (node, JNODE_RELOC);
 }
 
 static inline void jnode_set_wander (jnode *node)
 {
 	assert ("nikita-2431", node != NULL);
-	assert ("nikita-2432", !JF_ISSET (node, ZNODE_RELOC));
-	JF_SET (node, ZNODE_WANDER);
+	assert ("nikita-2432", !JF_ISSET (node, JNODE_RELOC));
+	JF_SET (node, JNODE_WANDER);
 }
 
 /** return true if "node" is the root */

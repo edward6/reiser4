@@ -369,11 +369,11 @@ static int get_overwrite_set (txn_atom * atom, capture_list_head * overwrite_lis
 		jnode * next = capture_list_next(cur);
 
 		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
-			trace_on (TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, ZNODE_WANDER));
+			trace_on (TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, JNODE_WANDER));
 		}
 
 
-		if (JF_ISSET(cur, ZNODE_WANDER)) { 
+		if (JF_ISSET(cur, JNODE_WANDER)) { 
 			capture_list_remove_clean (cur);
 
 			if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
@@ -418,7 +418,7 @@ static int get_overwrite_set (txn_atom * atom, capture_list_head * overwrite_lis
 
 				jput(cur);
 				cur->atom = NULL;
-				JF_CLR(cur, ZNODE_WANDER);
+				JF_CLR(cur, JNODE_WANDER);
 
 				spin_unlock_jnode(cur);
 
@@ -730,7 +730,7 @@ int alloc_wandered_blocks (int set_size, capture_list_head * set, struct reiser4
 
 	cur = capture_list_front(set);
 	while (!capture_list_end(set, cur)) {
-		assert ("zam-567", JF_ISSET(cur, ZNODE_WANDER));
+		assert ("zam-567", JF_ISSET(cur, JNODE_WANDER));
 
 		ret = get_more_wandered_blocks (rest, &block, &len); 
 		if (ret) return ret;
