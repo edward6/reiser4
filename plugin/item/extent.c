@@ -1033,9 +1033,8 @@ static int append_one_block (tree_coord * coord,
 	reiser4_key key;
 
 	assert ("vs-228",
-		(coord->unit_pos == last_unit_pos (coord) &&
-		 coord->between == AFTER_UNIT) ||
-		coord->between == AFTER_ITEM);
+		coord->unit_pos == last_unit_pos (coord) &&
+		coord->between == AFTER_UNIT);
 
 	ext = extent_by_coord (coord);	
 	switch (state_of_extent (ext)) {
