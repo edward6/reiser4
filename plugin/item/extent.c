@@ -2012,6 +2012,7 @@ static int write_flow_to_page (coord_t * coord, lock_handle * lh, flow_t * f,
 				/* FIXME: JMACD->VS: Are you sure this doesn't cause excess zero-ing? */
 				/*jnode_clear_new (j);*/
 			}
+			assert( "green-13", lock_counters() -> spin_locked == 0 );
 			/* copy data into page */
 			if (unlikely (__copy_from_user (b_data + block_off,
 							f->data + written,
