@@ -1079,22 +1079,6 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	sbinfo->flush.written_threshold = FLUSH_WRITTEN_THRESHOLD;
 	sbinfo->flush.scan_maxnodes = FLUSH_SCAN_MAXNODES;
 
-	if (sbinfo->plug.t == NULL)
-		sbinfo->plug.t = formatting_plugin_by_id(REISER4_FORMATTING_PLUGIN);
-	if (sbinfo->plug.sd == NULL)
-		sbinfo->plug.sd = item_plugin_by_id(REISER4_SD_PLUGIN);
-	if (sbinfo->plug.dir_item == NULL)
-		sbinfo->plug.dir_item = item_plugin_by_id(REISER4_DIR_ITEM_PLUGIN);
-	if (sbinfo->plug.p == NULL)
-		sbinfo->plug.p = perm_plugin_by_id(REISER4_PERM_PLUGIN);
-	if (sbinfo->plug.f == NULL)
-		sbinfo->plug.f = file_plugin_by_id(REISER4_FILE_PLUGIN);
-	if (sbinfo->plug.d == NULL)
-		sbinfo->plug.d = dir_plugin_by_id(REISER4_DIR_PLUGIN);
-	if (sbinfo->plug.h == NULL)
-		sbinfo->plug.h = hash_plugin_by_id(REISER4_HASH_PLUGIN);
-	if (sbinfo->plug.fib == NULL)
-		sbinfo->plug.fib = fibration_plugin_by_id(REISER4_FIBRATION_PLUGIN);
 
 	sbinfo->optimal_io_size = REISER4_OPTIMAL_IO_SIZE;
 
@@ -1117,6 +1101,22 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	if (result != 0)
 		return result;
 
+	if (sbinfo->plug.t == NULL)
+		sbinfo->plug.t = formatting_plugin_by_id(REISER4_FORMATTING_PLUGIN);
+	if (sbinfo->plug.sd == NULL)
+		sbinfo->plug.sd = item_plugin_by_id(REISER4_SD_PLUGIN);
+	if (sbinfo->plug.dir_item == NULL)
+		sbinfo->plug.dir_item = item_plugin_by_id(REISER4_DIR_ITEM_PLUGIN);
+	if (sbinfo->plug.p == NULL)
+		sbinfo->plug.p = perm_plugin_by_id(REISER4_PERM_PLUGIN);
+	if (sbinfo->plug.f == NULL)
+		sbinfo->plug.f = file_plugin_by_id(REISER4_FILE_PLUGIN);
+	if (sbinfo->plug.d == NULL)
+		sbinfo->plug.d = dir_plugin_by_id(REISER4_DIR_PLUGIN);
+	if (sbinfo->plug.h == NULL)
+		sbinfo->plug.h = hash_plugin_by_id(REISER4_HASH_PLUGIN);
+	if (sbinfo->plug.fib == NULL)
+		sbinfo->plug.fib = fibration_plugin_by_id(REISER4_FIBRATION_PLUGIN);
 	if (sbinfo->ra_params.max == -1UL)
 		sbinfo->ra_params.max = max_sane_readahead(sbinfo->ra_params.max);
 
