@@ -202,8 +202,7 @@ blknrhashfn(const reiser4_block_nr * b)
 /** The hash table definition */
 #define KMALLOC( size ) reiser4_kmalloc( ( size ), GFP_KERNEL )
 #define KFREE( ptr, size ) reiser4_kfree( ptr, size )
-TS_HASH_DEFINE(z, znode, reiser4_block_nr,
-	       zjnode.key.z, zjnode.link.z, blknrhashfn, blknreq);
+TS_HASH_DEFINE(z, znode, reiser4_block_nr, zjnode.key.z, zjnode.link.z, blknrhashfn, blknreq);
 #undef KFREE
 #undef KMALLOC
 
@@ -219,8 +218,7 @@ static kmem_cache_t *znode_slab;
 int
 znodes_init()
 {
-	znode_slab = kmem_cache_create("znode_cache", sizeof (znode),
-				       0, SLAB_HWCACHE_ALIGN, NULL, NULL);
+	znode_slab = kmem_cache_create("znode_cache", sizeof (znode), 0, SLAB_HWCACHE_ALIGN, NULL, NULL);
 	if (znode_slab == NULL) {
 		return -ENOMEM;
 	} else {
@@ -279,8 +277,7 @@ znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 
 	assert("nikita-795", tree != NULL);
 
-	trace_if(TRACE_ZWEB,
-		 UNDER_SPIN_VOID(tree, tree, print_znodes("umount", tree)));
+	trace_if(TRACE_ZWEB, UNDER_SPIN_VOID(tree, tree, print_znodes("umount", tree)));
 
 	ztable = &tree->zhash_table;
 
@@ -298,8 +295,7 @@ znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 				++parents;
 				continue;
 			}
-			assert("nikita-2179",
-			       atomic_read(&ZJNODE(node)->x_count) == 0);
+			assert("nikita-2179", atomic_read(&ZJNODE(node)->x_count) == 0);
 			zdrop(node);
 			++killed;
 			break;
@@ -371,8 +367,7 @@ znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 	 */
 
 	if (znode_parent(node) != NULL) {
-		assert("nikita-472",
-		       atomic_read(&znode_parent(node)->c_count) > 0);
+		assert("nikita-472", atomic_read(&znode_parent(node)->c_count) > 0);
 		/* father, onto your hands I forward my spirit... */
 		del_c_ref(znode_parent(node));
 	} else {
@@ -447,9 +442,7 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 	/* Precondition for call to zlook_internal: locked hash table */
 	spin_lock_tree(tree);
 
-	result =
-	    z_hash_find_index(&tree->zhash_table, blknrhashfn(blocknr),
-			      blocknr);
+	result = z_hash_find_index(&tree->zhash_table, blknrhashfn(blocknr), blocknr);
 
 	/* According to the current design, the hash table lock protects new znode
 	 * references. */
@@ -461,18 +454,6 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 	spin_unlock_tree(tree);
 
 	return result;
-}
-
-/** bump reference counter on @node */
-void
-add_x_ref(jnode * node /* node to increase x_count of */ )
-{
-	assert("nikita-1911", node != NULL);
-
-	/*trace_on (TRACE_FLUSH, "add_x_ref: %p: %d\n", node, atomic_read (& node->x_count)); */
-
-	atomic_inc(&node->x_count);
-	ON_DEBUG_CONTEXT(++lock_counters()->x_refs);
 }
 
 /** decrease c_count on @node */
@@ -495,9 +476,7 @@ del_c_ref(znode * node /* node to decrease c_count of */ )
  * LOCK ORDERING: NONE
  */
 znode *
-zget(reiser4_tree * tree,
-     const reiser4_block_nr * const blocknr,
-     znode * parent, tree_level level, int gfp_flag)
+zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent, tree_level level, int gfp_flag)
 {
 	znode *result;
 	znode *shadow;
@@ -544,8 +523,7 @@ zget(reiser4_tree * tree,
 		 * complicated.
 		 */
 		assert("nikita-2131", 1 || znode_parent(result) == parent ||
-		       (ZF_ISSET(result, JNODE_ORPHAN) &&
-			(znode_parent(result) == NULL)));
+		       (ZF_ISSET(result, JNODE_ORPHAN) && (znode_parent(result) == NULL)));
 	}
 
 	/* Release the hash table lock. */
@@ -564,8 +542,7 @@ retry_miss_race:
 			spin_lock_znode(result);
 
 			/* The block numbers must be equal. */
-			assert("jmacd-1160",
-			       blknreq(&ZJNODE(result)->blocknr, blocknr));
+			assert("jmacd-1160", blknreq(&ZJNODE(result)->blocknr, blocknr));
 			spin_unlock_znode(result);
 		}
 
@@ -656,9 +633,7 @@ znode_guess_plugin(const znode * node	/* znode to guess
 	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_ONE_NODE_PLUGIN)) {
 		return znode_get_tree(node)->nplug;
 	} else {
-		return node_plugin_by_disk_id
-		    (znode_get_tree(node),
-		     &((common_node_header *) zdata(node))->plugin_id);
+		return node_plugin_by_disk_id(znode_get_tree(node), &((common_node_header *) zdata(node))->plugin_id);
 #ifdef GUESS_EXISTS
 		reiser4_plugin *plugin;
 
@@ -666,8 +641,7 @@ znode_guess_plugin(const znode * node	/* znode to guess
 		 * FIXME-NIKITA add locking here when dynamic plugins will be implemented
 		 */
 		for_all_plugins(REISER4_NODE_PLUGIN_TYPE, plugin) {
-			if ((plugin->u.node.guess != NULL) &&
-			    plugin->u.node.guess(node))
+			if ((plugin->u.node.guess != NULL) && plugin->u.node.guess(node))
 				return plugin;
 		}
 #endif
@@ -713,8 +687,7 @@ zload(znode * node /* znode to load */ )
 	assert("nikita-1377", znode_invariant(node));
 	assert("jmacd-7771", !znode_above_root(node));
 	assert("nikita-2125", atomic_read(&ZJNODE(node)->x_count) > 0);
-	ON_DEBUG_CONTEXT(assert("nikita-2189",
-				lock_counters()->spin_locked == 0));
+	ON_DEBUG_CONTEXT(assert("nikita-2189", lock_counters()->spin_locked == 0));
 
 	result = jload(ZJNODE(node));
 	ON_DEBUG_MODIFY(znode_pre_write(node));
@@ -789,9 +762,7 @@ znode_contains_key(znode * node /* znode to look in */ ,
 	assert("nikita-1238", key != NULL);
 
 	/* left_delimiting_key <= key <= right_delimiting_key */
-	return
-	    keyle(znode_get_ld_key(node), key) &&
-	    keyle(key, znode_get_rd_key(node));
+	return keyle(znode_get_ld_key(node), key) && keyle(key, znode_get_rd_key(node));
 }
 
 /** same as znode_contains_key(), but lock dk lock */
@@ -803,8 +774,7 @@ znode_contains_key_lock(znode * node /* znode to look in */ ,
 	assert("umka-057", key != NULL);
 	assert("umka-058", current_tree != NULL);
 
-	return UNDER_SPIN(dk, znode_get_tree(node),
-			  znode_contains_key(node, key));
+	return UNDER_SPIN(dk, znode_get_tree(node), znode_contains_key(node, key));
 }
 
 /** get parent pointer, assuming tree is not locked */
@@ -820,8 +790,7 @@ znode *
 znode_parent(const znode * node /* child znode */ )
 {
 	assert("nikita-1226", node != NULL);
-	ON_DEBUG_CONTEXT(assert("nikita-1406",
-				lock_counters()->spin_locked_tree > 0));
+	ON_DEBUG_CONTEXT(assert("nikita-1406", lock_counters()->spin_locked_tree > 0));
 	return znode_parent_nolock(node);
 }
 
@@ -844,8 +813,7 @@ znode_is_true_root(const znode * node /* znode to query */ )
 	assert("umka-060", node != NULL);
 	assert("umka-061", current_tree != NULL);
 
-	return disk_addr_eq(znode_get_block(node),
-			    &znode_get_tree(node)->root_block);
+	return disk_addr_eq(znode_get_block(node), &znode_get_tree(node)->root_block);
 }
 
 /** check that @node is root */
@@ -861,10 +829,8 @@ znode_is_root(const znode * node /* znode to query */ )
 	if (REISER4_DEBUG) {
 		spin_lock_tree(znode_get_tree(node));
 		assert("nikita-1208", !result || znode_is_true_root(node));
-		assert("nikita-1209", !result ||
-		       znode_get_level(znode_parent(node)) == 0);
-		assert("nikita-1212", !result ||
-		       ((node->left == NULL) && (node->right == NULL)));
+		assert("nikita-1209", !result || znode_get_level(znode_parent(node)) == 0);
+		assert("nikita-1212", !result || ((node->left == NULL) && (node->right == NULL)));
 		spin_unlock_tree(znode_get_tree(node));
 	}
 	return result;
@@ -934,8 +900,7 @@ incr_load_count_znode(load_count * dh, znode * node)
 {
 	assert("nikita-2107", dh != NULL);
 	assert("nikita-2158", node != NULL);
-	assert("nikita-2109",
-	       ergo(dh->node != NULL, (dh->node == node) || (dh->d_ref == 0)));
+	assert("nikita-2109", ergo(dh->node != NULL, (dh->node == node) || (dh->d_ref == 0)));
 
 	dh->node = node;
 	return incr_load_count(dh);
@@ -1010,8 +975,7 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 	    _ergo(znode_get_level(node) == 0,
 		  disk_addr_eq(znode_get_block(node),
 			       &FAKE_TREE_ADDR)) &&
-	    _ergo(znode_is_true_root(node),
-		  znode_above_root(znode_parent(node))) &&
+	    _ergo(znode_is_true_root(node), znode_above_root(znode_parent(node))) &&
 	    /*
 	     * Condition 4-6: parent linkage
 	     */
@@ -1023,10 +987,7 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 						      &&
 						      !znode_above_root
 						      (znode_parent(node)),
-						      atomic_read(&znode_parent
-								  (node)->
-								  c_count) > 0)
-	    &&
+						      atomic_read(&znode_parent(node)->c_count) > 0) &&
 #if REISER4_DEBUG
 	    ((*msg) = "jnodes.prev", node->zjnode.jnodes.prev != NULL) &&
 	    ((*msg) = "jnodes.next", node->zjnode.jnodes.next != NULL) &&
@@ -1043,9 +1004,7 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 	    _ergo(node->lock.nr_readers != 0,
 		  atomic_read(&ZJNODE(node)->x_count) != 0) &&
 	    zergo(JNODE_ORPHAN, znode_parent(node) == NULL) &&
-	    ((*msg) = "x_count >= d_count",
-	     atomic_read(&ZJNODE(node)->x_count) >=
-	     atomic_read(&ZJNODE(node)->d_count));
+	    ((*msg) = "x_count >= d_count", atomic_read(&ZJNODE(node)->x_count) >= atomic_read(&ZJNODE(node)->d_count));
 }
 
 /** debugging aid: check znode invariant and panic if it doesn't hold */
@@ -1071,8 +1030,7 @@ znode_invariant(const znode * node /* znode to check */ )
 }
 
 #if REISER4_DEBUG_MODIFY
-__u32
-znode_checksum(const znode * node)
+__u32 znode_checksum(const znode * node)
 {
 	int i, size = znode_size(node);
 	__u32 l = 0;
@@ -1121,14 +1079,11 @@ znode_post_write(const znode * node)
 	cksum = znode_checksum(node);
 
 	if (!(znode_is_dirty(node) || cksum == node->cksum))
-		rpanic("jmacd-1081", "changed znode is not dirty: %llu",
-		       node->zjnode.blocknr);
+		rpanic("jmacd-1081", "changed znode is not dirty: %llu", node->zjnode.blocknr);
 
-	if (0 && znode_is_dirty(node) && cksum == node->cksum
-	    && !ZF_ISSET(node, JNODE_CREATED)) {
+	if (0 && znode_is_dirty(node) && cksum == node->cksum && !ZF_ISSET(node, JNODE_CREATED)) {
 		warning("jmacd-1082",
-			"dirty node %llu was not actually modified (or cksum collision)",
-			node->zjnode.blocknr);
+			"dirty node %llu was not actually modified (or cksum collision)", node->zjnode.blocknr);
 	}
 	spin_unlock(&node->cksum_guard);
 	return 0;
@@ -1191,8 +1146,7 @@ info_znode(const char *prefix /* prefix to print */ ,
 	if (!jnode_is_znode(ZJNODE(node)))
 		return;
 
-	info("c_count: %i, readers: %i, ",
-	     atomic_read(&node->c_count), node->lock.nr_readers);
+	info("c_count: %i, readers: %i, ", atomic_read(&node->c_count), node->lock.nr_readers);
 }
 
 void
@@ -1231,8 +1185,7 @@ int
 znode_x_count_is_protected(const znode * node)
 {
 	assert("nikita-2518", node != NULL);
-	return ergo(atomic_read(&ZJNODE(node)->x_count) == 0,
-		    spin_tree_is_locked(znode_get_tree(node)));
+	return ergo(atomic_read(&ZJNODE(node)->x_count) == 0, spin_tree_is_locked(znode_get_tree(node)));
 }
 
 #endif
