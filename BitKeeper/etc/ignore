@@ -967,3 +967,4 @@ reiser4progs/libreiser4/.deps/object.P
 reiser4progs/libreiser4/object.lo
 fs.loop
 reiser4progs/libreiser4/.deps/object.Plo
+plugin/.symlink.o.cmd
