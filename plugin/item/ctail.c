@@ -102,7 +102,7 @@ mergeable_ctail(const coord_t * p1, const coord_t * p2)
 {
 	reiser4_key key1, key2;
 
-	assert("edward-61", item_type_by_coord(p1) == ORDINARY_FILE_METADATA_TYPE);
+	assert("edward-61", item_type_by_coord(p1) == UNIX_FILE_METADATA_ITEM_TYPE);
 	assert("edward-62", item_id_by_coord(p1) == CTAIL_ID);
 
 	if (item_id_by_coord(p2) != CTAIL_ID) {
