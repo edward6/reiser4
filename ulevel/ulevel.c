@@ -911,8 +911,22 @@ void wait_on_page_writeback(struct page * page UNUSED_ARG)
 
 
 /* mm/readahead.c */
-void page_cache_readahead (struct file * file UNUSED_ARG, unsigned long offset UNUSED_ARG)
+#define READAHEAD_SIZE 64
+
+/*
+ * FIXME-VS: currently, address_space does not have do_page_cache_readahead
+ * method. Call it directly, then.
+ */
+int reiser4_do_page_cache_readahead (struct file * file,
+				     unsigned long start_page,
+				     unsigned long intrafile_readahead_amount);
+
+void page_cache_readahead (struct file * file UNUSED_ARG, unsigned long offset)
 {
+	/* do readahead only if reading from the beginning of file */
+	if (offset == 0) {
+		reiser4_do_page_cache_readahead (file, 0, READAHEAD_SIZE);
+	}
 	return;
 }
 
