@@ -693,7 +693,7 @@ struct inode {
 	unsigned int		i_blkbits;
 	unsigned long		i_blksize;
 	unsigned long		i_blocks;
-	unsigned long		i_bytes;
+	unsigned short		i_bytes;
 	unsigned long		i_version;
 	struct semaphore	i_sem;
 	struct semaphore	i_zombie;

@@ -3545,7 +3545,7 @@ static int bash_mkfs (char * file_name)
 			/* oid allocator */
 			get_super_private (&super)->oid_plug = oid_allocator_plugin_by_id (OID40_ALLOCATOR_ID);
 			get_super_private (&super)->oid_plug->
-				init_oid_allocator (get_oid_allocator (&super), 1ull, TEST_MKFS_ROOT_OBJECTID - 4);
+				init_oid_allocator (get_oid_allocator (&super), 1ull, TEST_MKFS_ROOT_OBJECTID - 3);
 
 			/* test layout super block */
 			test_sb = (test_disk_super_block *)(bh->b_data + sizeof (*master_sb));
@@ -3613,7 +3613,7 @@ static int bash_mkfs (char * file_name)
 			key_init( &key );
 			set_key_type( &key, KEY_SD_MINOR );
 			set_key_locality( &key, 1ull );
-			set_key_objectid( &key, TEST_MKFS_ROOT_LOCALITY - 3);
+			set_key_objectid( &key, TEST_MKFS_ROOT_LOCALITY - 10);
 
 			/* item body */
 			xmemset( &sd, 0, sizeof sd );
@@ -3717,7 +3717,7 @@ static int bash_mkfs (char * file_name)
 			cputod64 (tree -> root_block, &test_sb->root_block);
 			cputod16 (tree -> height, &test_sb->tree_height);
 			/* OIDS_RESERVED---macro defines in oid.c */
-			/*cputod64 ( (__u64)( 1 << 16 ), &test_sb->next_to_use);*/
+			cputod64 ( (__u64)( 1 << 16 ), &test_sb->next_free_oid);
 			mark_buffer_dirty (bh);
 			ll_rw_block (WRITE, 1, &bh);
 			wait_on_buffer (bh);
@@ -4920,7 +4920,7 @@ int real_main( int argc, char **argv )
 	run_init_reiser4 ();
 	s = call_mount( e, getenv( "REISER4_MOUNT_OPTS" ) ? : "" );
 	if( IS_ERR( s ) ) {
-		warning( "nikita-2175", "Cannot mount: %i", PTR_ERR( s ) );
+		warning( "nikita-2175", "Cannot mount: %li", PTR_ERR( s ) );
 		return PTR_ERR( s );
 	}
 	s = &super_blocks[0];
