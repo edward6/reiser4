@@ -955,7 +955,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 				ergo( h -> bias == FIND_EXACT, 
 				      coord_of_unit( h -> coord ) ) );
 			if( !( h -> flags & CBK_UNIQUE ) && 
-			    ( coord_wrt( h -> coord ) == COORD_ON_THE_LEFT ) ) {
+			    coord_is_leftmost( h -> coord ) ) {
 				return search_to_left( h );
 			} else
 				h -> result = CBK_COORD_FOUND;
@@ -1088,6 +1088,7 @@ static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 		znode              *node;
 		level_lookup_result llr;
 		int                 is_key_inside;
+		tree_level          level;
 
 		slot = slot_by_entry( scan );
 		/*
@@ -1106,8 +1107,8 @@ static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 		 * modifications, because all entries in the coord cache and
 		 * always in the LRU list.
 		 */
-		if( ( h -> slevel > znode_get_level( node ) ) || 
-		    ( znode_get_level( node ) > h -> llevel ) ) {
+		level = znode_get_level( node );
+		if( ( h -> slevel > level ) || ( level > h -> llevel ) ) {
 			zput( node );
 			continue;
 		}
@@ -1121,10 +1122,14 @@ static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 			continue;
 		}
 		result = reiser4_lock_znode( h -> active_lh, node, 
-					     cbk_lock_mode( znode_get_level( node ), h ),
+					     cbk_lock_mode( level, h ),
 					     ZNODE_LOCK_LOPRI );
 		zput( node );
-		if( result ) {
+		if( result != 0 ) {
+			break;
+		}
+		result = zload( node );
+		if( result != 0 ) {
 			break;
 		}
 		/*
@@ -1137,22 +1142,42 @@ static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 		spin_unlock_dk( current_tree );
 		spin_unlock_znode( node );
 		if( result ) {
-			result = zload( node );
-			if( result == 0 ) {
-				/*
-				 * do lookup inside node
-				 */
-				h -> level = znode_get_level( node );
-				llr = cbk_node_lookup( h );
+			/*
+			 * do lookup inside node
+			 */
+			h -> level = level;
+			llr = cbk_node_lookup( h );
 				
-				if( ( llr == LLR_DONE ) &&
-				    ( ( h -> result == CBK_COORD_NOTFOUND ) || 
-				      ( h -> result == CBK_COORD_FOUND ) ) ) {
-					result = 0;
-				} else
-					result = -ENOENT;
-				zrelse( node, 1 );
-			}
+			if( llr != LLR_DONE )
+				/*
+				 * restart of continue on the next level
+				 */
+				result = -ENOENT;
+			else if( ( h -> result != CBK_COORD_NOTFOUND ) &&
+				 ( h -> result != CBK_COORD_FOUND ) )
+				/*
+				 * io or oom
+				 */
+				result = -ENOENT;
+			else if( h -> result == CBK_COORD_FOUND )
+				/*
+				 * good. Item found
+				 */
+				result = 0;
+			else if( !( h -> flags & CBK_UNIQUE ) &&
+				 ( coord_wrt( h -> coord ) != COORD_INSIDE ) ) {
+				/*
+				 * we are looking for possibly non-unique key
+				 * and it is item is at the edge of @node. May
+				 * be it is in the neighbor.
+				 */
+				reiser4_stat_tree_add( cbk_cache_utmost );
+				result = -ENOENT;
+			} else
+				/*
+				 * definitely not found
+				 */
+				result = 0;
 		} else {
 			/*
 			 * race. While this thread was waiting for the lock,
@@ -1170,6 +1195,7 @@ static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 			reiser4_stat_tree_add( cbk_cache_race );
 			result = -ENOENT; /* -ERAUGHT */
 		}
+		zrelse( node, 1 );
 		break;
 	}
 	if( result != 0 ) {
@@ -1275,7 +1301,7 @@ static level_lookup_result search_to_left( cbk_handle *h )
 	reiser4_init_lh( &lh );
 	coord = h -> coord;
 	node  = h -> active_lh -> node;
-	assert( "nikita-1717", coord_wrt( coord ) == COORD_ON_THE_LEFT );
+	assert( "nikita-1717", coord_is_leftmost( coord ) );
 
 	reiser4_stat_tree_add( check_left_nonuniq );
 	h -> result = reiser4_get_left_neighbor( &lh, node, 
