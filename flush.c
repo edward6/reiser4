@@ -1779,7 +1779,8 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 	extent_get_inode (& coord, & ino);
 
 	if (ino == NULL) {
-		goto stop_same_parent;
+		scan->stop = 1;
+		return 0;
 	}
 
 	trace_if (TRACE_FLUSH, info ("%s scan index %lu: parent %p inode %lu\n",
@@ -1924,7 +1925,7 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 	init_lh (& next_lock);
 	init_zh (& next_load);
 
-	for (;; skip_first = 0) {
+	for (; ! flush_scan_finished (scan); skip_first = 0) {
 		/* Either skip the first item (formatted) or scan the first extent. */
 		if (skip_first == 0) {
 			assert ("jmacd-1230", item_is_extent (& scan->parent_coord));
