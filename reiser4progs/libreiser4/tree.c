@@ -388,6 +388,106 @@ int reiserfs_tree_lookup(
     return 0;
 }*/
 
+/* This function inserts internal item to the tree */
+static errno_t reiserfs_tree_attach(
+    reiserfs_tree_t *tree,	    /* tree we will attach node to */
+    reiserfs_cache_t *cache	    /* child to attached */
+) {
+    int lookup, level;
+    reiserfs_key_t ldkey;
+    reiserfs_coord_t coord;
+    reiserfs_internal_hint_t internal;
+    reiserfs_item_hint_t internal_item;
+
+    aal_assert("umka-913", tree != NULL, return -1);
+    aal_assert("umka-916", cache != NULL, return -1);
+    aal_assert("umka-919", reiserfs_node_count(cache->node) > 0, return -1);
+    
+    /* Preparing internal item hint */
+    aal_memset(&internal_item, 0, sizeof(internal_item));
+	
+    /* 
+	FIXME-UMKA: Hardcoded internal item id. Here should be getting internal
+	item plugin id from parent. In the case parent doesm't exist, it should
+	be got form filesystem default profile.
+    */
+    if (!(internal_item.plugin = 
+	libreiser4_factory_find_by_id(ITEM_PLUGIN_TYPE, ITEM_INTERNAL40_ID)))
+    {
+	libreiser4_factory_failed(return -1, find, item, ITEM_INTERNAL40_ID);
+    }
+
+    aal_memset(&internal, 0, sizeof(internal));
+    
+    reiserfs_node_ldkey(cache->node, &ldkey);
+    internal.pointer = aal_block_get_nr(cache->node->block);
+    reiserfs_key_init(&internal_item.key, ldkey.plugin, ldkey.body);
+
+    internal_item.hint = &internal;
+
+    level = REISERFS_LEAF_LEVEL + 1;
+    if ((lookup = reiserfs_tree_lookup(tree, level, &ldkey, &coord)) == -1)
+	return -1;
+    
+    if (lookup == 1) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Key (%llx:%x:%llx:%llx) already exists in tree.", 
+	    reiserfs_key_get_locality(&ldkey), reiserfs_key_get_type(&ldkey),
+	    reiserfs_key_get_objectid(&ldkey), reiserfs_key_get_offset(&ldkey));
+	return -1;
+    }
+    
+    if (reiserfs_cache_insert(coord.cache, &coord.pos, &internal_item)) {
+        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	   "Can't insert internal item to the tree.");
+	return -1;
+    }
+    
+    if (reiserfs_cache_register(coord.cache, cache)) {
+        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	   "Can't register node %llu in tree cache.", 
+	    aal_block_get_nr(cache->node->block));
+	return -1;
+    }
+
+    return 0;
+}
+
+/* This function grows and sets up tree after the growing */
+static errno_t reiserfs_tree_grow(
+    reiserfs_tree_t *tree,	/* tree to be growed */
+    reiserfs_cache_t *cache	/* old root cached node */
+) {
+    /* Allocating new root node */
+    if (!(tree->cache = reiserfs_tree_alloc(tree,
+	reiserfs_format_get_height(tree->fs->format) + 1))) 
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't allocate root node.");
+	return -1;
+    }
+
+    if (reiserfs_tree_attach(tree, cache)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't attach node to the tree.");
+	goto error_free_cache;
+    }
+	    
+    /* Updating the tree height and tree root values in disk format */
+    reiserfs_format_set_height(tree->fs->format, 
+	reiserfs_node_get_level(tree->cache->node));
+			
+    reiserfs_format_set_root(tree->fs->format, 
+        aal_block_get_nr(tree->cache->node->block));
+
+    return 0;
+
+error_free_cache:
+    reiserfs_tree_dealloc(tree, tree->cache);
+    tree->cache = cache;
+    return -1;
+}
+
 /* Pefroms left shifting of items */
 errno_t reiserfs_tree_lshift(
     reiserfs_tree_t *tree,	    /* tree pointer function operates on */
@@ -787,95 +887,6 @@ errno_t reiserfs_tree_mkspace(
     return 0;
 }*/
 
-/* This function inserts internal item to the tree */
-errno_t reiserfs_tree_attach(
-    reiserfs_tree_t *tree,	    /* tree to be modified */
-    reiserfs_cache_t *cache	    /* new cached node to be attached */
-) {
-    reiserfs_key_t ldkey;
-    reiserfs_coord_t internal_coord;
-    reiserfs_internal_hint_t internal;
-    reiserfs_item_hint_t internal_item;
-
-    aal_assert("umka-913", tree != NULL, return -1);
-    aal_assert("umka-916", cache != NULL, return -1);
-    aal_assert("umka-919", reiserfs_node_count(cache->node) > 0, return -1);
-    
-    /* Preparing internal item hint */
-    aal_memset(&internal_item, 0, sizeof(internal_item));
-	
-    /* 
-	FIXME-UMKA: Hardcoded internal item id. Here should be getting internal
-	item plugin id from parent. In the case parent doesm't exist, it should
-	be got form filesystem default profile.
-    */
-    if (!(internal_item.plugin = 
-	libreiser4_factory_find_by_id(ITEM_PLUGIN_TYPE, ITEM_INTERNAL40_ID)))
-    {
-	libreiser4_factory_failed(return -1, find, item, 
-	    ITEM_INTERNAL40_ID);
-    }
-
-    aal_memset(&internal, 0, sizeof(internal));
-    
-    reiserfs_node_ldkey(cache->node, &ldkey);
-    internal.pointer = aal_block_get_nr(cache->node->block);
-    reiserfs_key_init(&internal_item.key, ldkey.plugin, ldkey.body);
-
-    internal_item.hint = &internal;
-    internal_item.type = INTERNAL_ITEM;
-
-    if (reiserfs_tree_insert(tree, &internal_item, &internal_coord)) {
-        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Can't insert internal item to the tree.");
-	return -1;
-    }
-
-    if (reiserfs_cache_register(internal_coord.cache, cache)) {
-        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Can't register node %llu in tree cache.", 
-	    aal_block_get_nr(cache->node->block));
-	return -1;
-    }
-
-    return 0;
-}
-
-/* This function grows and sets up tree after the growing */
-errno_t reiserfs_tree_grow(
-    reiserfs_tree_t *tree,	/* tree to be growed */
-    reiserfs_cache_t *cache	/* old root cached node */
-) {
-    /* Allocating new root node */
-    if (!(tree->cache = reiserfs_tree_alloc(tree,
-	reiserfs_format_get_height(tree->fs->format) + 1))) 
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't allocate root node.");
-	return -1;
-    }
-
-    if (reiserfs_tree_attach(tree, cache)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't attach node to the tree.");
-	goto error_free_cache;
-    }
-	    
-    /* Updating the tree height and tree root values in disk format */
-    reiserfs_format_set_height(tree->fs->format, 
-	reiserfs_node_get_level(tree->cache->node));
-			
-    reiserfs_format_set_root(tree->fs->format, 
-        aal_block_get_nr(tree->cache->node->block));
-
-    return 0;
-
-error_free_cache:
-    reiserfs_tree_dealloc(tree, tree->cache);
-    tree->cache = cache;
-    return -1;
-}
-
 /* Inserts new item described by item hint into the tree */
 errno_t reiserfs_tree_insert(
     reiserfs_tree_t *tree,	    /* tree new item will be inserted in */
@@ -893,7 +904,7 @@ errno_t reiserfs_tree_insert(
     key = (reiserfs_key_t *)&item->key;
 
     /* Looking up for target node */
-    level = REISERFS_LEAF_LEVEL + (item->type == INTERNAL_ITEM);
+    level = REISERFS_LEAF_LEVEL;
     
     if ((lookup = reiserfs_tree_lookup(tree, level, key, coord)) == -1)
 	return -1;
@@ -933,7 +944,7 @@ errno_t reiserfs_tree_insert(
 	to insert just object items (the all except internals). In this case, tree
 	balancing algorithm should serve that calls itself. This is the special case.
     */
-    if (level > REISERFS_LEAF_LEVEL && item->type != INTERNAL_ITEM) {
+    if (level > REISERFS_LEAF_LEVEL) {
 	reiserfs_cache_t *cache;
 	
 	if (!(cache = reiserfs_tree_alloc(tree, REISERFS_LEAF_LEVEL))) {

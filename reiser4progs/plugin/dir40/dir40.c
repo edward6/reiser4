@@ -314,7 +314,6 @@ static reiserfs_entity_t *dir40_create(const void *tree,
     aal_memset(&direntry_item, 0, sizeof(direntry_item));
 
     direntry.count = 2;
-    direntry_item.type = DIRENTRY_ITEM;
     direntry_item.plugin = dir->direntry_plugin;
     
     direntry_item.key.plugin = object->plugin; 
@@ -353,7 +352,6 @@ static reiserfs_entity_t *dir40_create(const void *tree,
     /* Initializing stat data hint */
     aal_memset(&stat_item, 0, sizeof(stat_item));
     
-    stat_item.type = STATDATA_ITEM;
     stat_item.plugin = dir->statdata_plugin;
 
     stat_item.key.plugin = object->plugin;
@@ -444,7 +442,6 @@ static errno_t dir40_add(reiserfs_entity_t *entity,
     if (!(direntry_hint.entry = aal_calloc(sizeof(*entry), 0)))
 	return -1;
     
-    item.type = DIRENTRY_ITEM;
     item.hint = &direntry_hint;
    
     /* FIXME-UMKA: Hardcoded key type should be removed */

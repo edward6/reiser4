@@ -35,16 +35,6 @@ enum reiserfs_plugin_type {
 
 typedef enum reiserfs_plugin_type reiserfs_plugin_type_t;
 
-enum reiserfs_item_type {
-    STATDATA_ITEM,
-    DIRENTRY_ITEM,
-    INTERNAL_ITEM,
-    ACL_ITEM,
-    FILEBODY_ITEM
-};
-
-typedef enum reiserfs_item_type reiserfs_item_type_t;
-
 enum reiserfs_dir_plugin_id {
     DIR_DIR40_ID		= 0x0
 };
@@ -262,7 +252,6 @@ typedef struct reiserfs_object_hint reiserfs_object_hint_t;
     a pointer to data to be copied. 
 */ 
 struct reiserfs_item_hint {
-    reiserfs_item_type_t type;
     /*
 	This is pointer to already formated item body. It is useful for item copying, 
 	replacing, etc. This will be used by fsck probably.
