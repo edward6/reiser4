@@ -16,7 +16,6 @@ extern int lookup_sd(struct inode *inode, znode_lock_mode lock_mode,
 		     int silent);
 extern int guess_plugin_by_mode(struct inode *inode);
 
-extern int delete_file_common(struct inode *inode);
 extern int write_sd_by_inode_common(struct inode *inode);
 extern int owns_item_common(const struct inode *inode,
 			    const coord_t * coord);
