@@ -10,7 +10,7 @@
 static reiserfs_profile_t reiser4profiles[] = {
     [0] = {
 	.label = "default40",
-        .desc = "Profile for reiser4 with smart tail policy",
+        .desc = "Profile for reiser4 with smart drop policy",
 	.node		= NODE_REISER40_ID,
 	.file = {
 	    .reg	= FILE_REG40_ID, 
@@ -69,8 +69,8 @@ static reiserfs_profile_t reiser4profiles[] = {
 	.sdext		= 1 << SDEXT_UNIX_ID
     },
     [2] = {
-	.label = "tail40",
-	.desc = "Profile for reiser4 with tails turned on",     
+	.label = "drop40",
+	.desc = "Profile for reiser4 with drops turned on",     
 	.node		= NODE_REISER40_ID,
 	.file = {
 	    .reg	= FILE_REG40_ID, 
@@ -117,7 +117,7 @@ reiserfs_profile_t *progs_profile_find(
 }
 
 /* Shows all knows profiles */
-void progs_profile_list(void) {
+void progs_profile_print_list(void) {
     unsigned i;
     
     for (i = 0; i < (sizeof(reiser4profiles) / sizeof(reiserfs_profile_t)); i++)
@@ -125,7 +125,7 @@ void progs_profile_list(void) {
 }
 
 /* 0 profile is the default one. */
-/*reiserfs_profile_t *progs_profile_default() {
+reiserfs_profile_t *progs_profile_default() {
     return &reiser4profiles[0];
 }
 
@@ -189,13 +189,13 @@ static reiserfs_id_t *progs_profile_get_field(reiserfs_profile_t *profile,
 	case PROGS_NODE_PLUGIN:
 	    return &profile->node;
 	case PROGS_FILE_PLUGIN:
-	    return &profile->object.file;
+	    return &profile->file.reg;
 	case PROGS_DIR_PLUGIN:
-	    return &profile->object.dir;
+	    return &profile->file.dir;
 	case PROGS_SYMLINK_PLUGIN:
-	    return &profile->object.symlink;
+	    return &profile->file.symlink;
 	case PROGS_SPECIAL_PLUGIN:
-	    return &profile->object.special;
+	    return &profile->file.special;
 	case PROGS_INTERNAL_PLUGIN:
 	    return &profile->item.internal;
 	case PROGS_STATDATA_PLUGIN:
@@ -203,7 +203,7 @@ static reiserfs_id_t *progs_profile_get_field(reiserfs_profile_t *profile,
 	case PROGS_DIRENTRY_PLUGIN:
 	    return &profile->item.direntry;
 	case PROGS_TAIL_PLUGIN:
-	    return &profile->item.file_body.tail;
+	    return &profile->item.file_body.drop;
 	case PROGS_EXTENT_PLUGIN:
 	    return &profile->item.file_body.extent;
 	case PROGS_ACL_PLUGIN:
@@ -211,7 +211,7 @@ static reiserfs_id_t *progs_profile_get_field(reiserfs_profile_t *profile,
 	case PROGS_HASH_PLUGIN:
 	    return &profile->hash;
 	case PROGS_TAIL_POLICY_PLUGIN:
-	    return &profile->tail_policy;
+	    return &profile->drop_policy;
 	case PROGS_PERM_PLUGIN:
 	    return &profile->perm;
 	case PROGS_FORMAT_PLUGIN:
@@ -237,43 +237,43 @@ static reiserfs_plugin_type_t progs_profile_get_plugin_type(plugin_internal_type
     
     switch (internal_type) {
 	case PROGS_NODE_PLUGIN:
-	    return REISERFS_NODE_PLUGIN;
+	    return NODE_PLUGIN_TYPE;
 	case PROGS_FILE_PLUGIN:
-	    return REISERFS_OBJECT_PLUGIN;
+	    return FILE_PLUGIN_TYPE;
 	case PROGS_DIR_PLUGIN:
-	    return REISERFS_OBJECT_PLUGIN;
+	    return FILE_PLUGIN_TYPE;
 	case PROGS_SYMLINK_PLUGIN:
-	    return REISERFS_OBJECT_PLUGIN;
+	    return FILE_PLUGIN_TYPE;
 	case PROGS_SPECIAL_PLUGIN:
-	    return REISERFS_OBJECT_PLUGIN;
+	    return FILE_PLUGIN_TYPE;
 	case PROGS_INTERNAL_PLUGIN:
-	    return REISERFS_ITEM_PLUGIN;
+	    return ITEM_PLUGIN_TYPE;
 	case PROGS_STATDATA_PLUGIN:
-	    return REISERFS_ITEM_PLUGIN;
+	    return ITEM_PLUGIN_TYPE;
 	case PROGS_DIRENTRY_PLUGIN:
-	    return REISERFS_ITEM_PLUGIN;
+	    return ITEM_PLUGIN_TYPE;
 	case PROGS_TAIL_PLUGIN:
-	    return REISERFS_ITEM_PLUGIN;
+	    return ITEM_PLUGIN_TYPE;
 	case PROGS_EXTENT_PLUGIN:
-	    return REISERFS_ITEM_PLUGIN;
+	    return ITEM_PLUGIN_TYPE;
 	case PROGS_ACL_PLUGIN:
-	    return REISERFS_ITEM_PLUGIN;
+	    return ITEM_PLUGIN_TYPE;
 	case PROGS_HASH_PLUGIN:
-	    return REISERFS_HASH_PLUGIN;
+	    return HASH_PLUGIN_TYPE;
 	case PROGS_TAIL_POLICY_PLUGIN:
-	    return REISERFS_TAIL_POLICY_PLUGIN;
+	    return DROP_POLICY_PLUGIN_TYPE;
 	case PROGS_PERM_PLUGIN:
-	    return REISERFS_PERM_PLUGIN;
+	    return PERM_PLUGIN_TYPE;
 	case PROGS_FORMAT_PLUGIN:
-	    return REISERFS_FORMAT_PLUGIN;
+	    return FORMAT_PLUGIN_TYPE;
 	case PROGS_OID_PLUGIN:
-	    return REISERFS_OID_PLUGIN;
+	    return OID_PLUGIN_TYPE;
 	case PROGS_ALLOC_PLUGIN:
-	    return REISERFS_ALLOC_PLUGIN;
+	    return ALLOC_PLUGIN_TYPE;
 	case PROGS_JOURNAL_PLUGIN:
-	    return REISERFS_JOURNAL_PLUGIN;
+	    return JOURNAL_PLUGIN_TYPE;
 	case PROGS_KEY_PLUGIN:
-	    return REISERFS_KEY_PLUGIN;
+	    return KEY_PLUGIN_TYPE;
 
 	default:
 	    return -1;
@@ -281,7 +281,9 @@ static reiserfs_plugin_type_t progs_profile_get_plugin_type(plugin_internal_type
     return -1;
 }
 
-static plugin_internal_type_t progs_get_plugin_internal_type(const char *plugin_type_name) {
+static plugin_internal_type_t progs_profile_get_plugin_internal_type(
+    const char *plugin_type_name) 
+{
     if (!plugin_type_name)
 	return -1;
 
@@ -328,7 +330,9 @@ static plugin_internal_type_t progs_get_plugin_internal_type(const char *plugin_
     }    
 }
 
-static char *progs_get_plugin_internal_type_name(plugin_internal_type_t internal_type) {
+static char *progs_profile_get_plugin_internal_type_name(
+    plugin_internal_type_t internal_type) 
+{
     return (internal_type >= PROGS_LAST_PLUGIN) ? NULL : 
 	progs_internal_plugin_name[internal_type];
 }
@@ -345,11 +349,11 @@ int progs_profile_override_plugin_id_by_name(reiserfs_profile_t *profile,
     if (!profile || !plugin_type_name || !plugin_label)
 	return -1;
        	
-    if ((int_type = progs_get_plugin_internal_type(plugin_type_name)) == 
+    if ((int_type = progs_profile_get_plugin_internal_type(plugin_type_name)) == 
 	(plugin_internal_type_t)-1)
 	return -1;
     
-    if ((type = progs_get_plugin_type(int_type)) == (reiserfs_plugin_type_t)-1)
+    if ((type = progs_profile_get_plugin_type(int_type)) == (reiserfs_plugin_type_t)-1)
 	return -1;
 
     if (!(plugin = libreiser4_factory_find_by_name(type, plugin_label))) 
@@ -373,13 +377,15 @@ void progs_profile_print(reiserfs_profile_t *profile) {
     printf("\nProfile %s: %s.\n", profile->label, profile->desc);
     for (i = 0; i < PROGS_LAST_PLUGIN; i++) {
 	if ((plugin = libreiser4_factory_find_by_id(
-	    progs_get_plugin_type(i), *progs_profile_get_field(profile, i))) != NULL) 
+	    progs_profile_get_plugin_type(i), *progs_profile_get_field(profile, i))) != NULL) 
 	{
-	    printf("%s plugin is %s: %s.\n", progs_get_plugin_internal_type_name(i), 
+	    printf("%s plugin is %s: %s.\n", progs_profile_get_plugin_internal_type_name(i), 
 		plugin->h.label, plugin->h.desc);
-	} else
-	    printf("%s plugin is not found.\n", progs_get_plugin_internal_type_name(i));
+	} else {
+	    printf("%s plugin is not found.\n", 
+		progs_profile_get_plugin_internal_type_name(i));
+	}
     }
     printf("\n");
-}*/
+}
 

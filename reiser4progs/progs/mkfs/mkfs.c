@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
 		break;
 	    }
 	    case 'k': {
-		progs_profile_list();
+		progs_profile_print_list();
 		return NO_ERROR;
 	    }
 	    case 'b': {

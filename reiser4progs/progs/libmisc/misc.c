@@ -257,7 +257,7 @@ aal_exception_option_t progs_exception_handler(
 
     if (progs_exception_bit_count(exception->options, 0) == 1) {
 	if (!(stream = streams[exception->type]))
-	    stream = stderr;
+	    return 0;
     }
     
     /* Printing exception type */
