@@ -1828,8 +1828,9 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 			done_lh (& scan->parent_lock);
 			move_lh (& scan->parent_lock, & next_lock);
 			move_zh (& scan->parent_load, & next_load);
-			coord_dup (& scan->parent_coord, & next_coord);
 		}
+
+		coord_dup (& scan->parent_coord, & next_coord);
 
 		assert ("jmacd-1239", item_is_extent (& scan->parent_coord));
 	}

@@ -1850,6 +1850,8 @@ uncapture_block (txn_atom *atom,
 
 	spin_unlock_jnode (node);
 
+	/* FIXME: It is theorized that this jput() should detach the jnode and its
+	 * unformatted node.  Currently no detachment happens. */
 	jput (node);
 }
 
