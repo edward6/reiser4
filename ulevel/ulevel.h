@@ -1277,6 +1277,7 @@ struct bio
 	unsigned short		bi_idx;		/* current index into bvl_vec */
 	unsigned int		bi_size;	/* residual I/O count */
 	bio_end_io_t		*bi_end_io;
+	void                    *bi_private;
 };
 
 #define BIO_MAX_SECTORS	128
