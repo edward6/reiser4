@@ -1439,14 +1439,7 @@ static int squalloc_right_twig_cut(coord_t * to, reiser4_key * to_key, znode * l
 	coord_init_first_unit(&from, to->node);
 	item_key_by_coord(&from, &from_key);
 
-	return cut_node(&from,
-			to,
-			&from_key,
-			to_key,
-			NULL /* smallest_removed */,
-			0,
-			left,
-			0);
+	return cut_node_content(&from, to, &from_key, to_key, NULL);
 }
 
 /* Copy as much of the leading extents from @right to @left, allocating
@@ -1455,6 +1448,10 @@ static int squalloc_right_twig_cut(coord_t * to, reiser4_key * to_key, znode * l
    internal item it calls shift_one_internal_unit and may then return
    SUBTREE_MOVED. */
 squeeze_result squalloc_extent(znode *left, const coord_t *, flush_pos_t *, reiser4_key *stop_key);
+#if REISER4_DEBUG
+void *shift_check_prepare(const znode *left, const znode *right);
+void shift_check(void *vp, const znode *left, const znode *right);
+#endif
 static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 {
 	int ret = SUBTREE_MOVED;
@@ -1471,7 +1468,10 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 
 	/* FIXME: can be optimized to cut once */
 	while (!node_is_empty(coord.node) && item_is_extent(&coord)) {
+		ON_DEBUG(void *vp);
+
 		assert("vs-1468", coord_is_leftmost_unit(&coord));
+		ON_DEBUG(vp = shift_check_prepare(left, coord.node));
 
 		/* stop_key is used to find what was copied and what to cut */
 		stop_key = *min_key();
@@ -1482,7 +1482,9 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 			
 		/* Helper function to do the cutting. */
 		set_key_offset(&stop_key, get_key_offset(&stop_key) - 1);
-		check_me("vs-1466", squalloc_right_twig_cut(&coord, &stop_key, left) == 0);		
+		check_me("vs-1466", squalloc_right_twig_cut(&coord, &stop_key, left) == 0);
+
+		ON_DEBUG(shift_check(vp, left, coord.node));
 	}
 
 	if (node_is_empty(coord.node))
