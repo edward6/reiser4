@@ -325,6 +325,8 @@ static int common_create_child( struct inode *parent /* parent object */,
 			self -> tail = ancestor -> tail;
 		if ( self -> perm == NULL )
 			self -> perm = ancestor -> perm;
+		if ( self -> dir_item == NULL )
+			self -> dir_item = ancestor -> dir_item;
 	}
 #else
 	result = fplug -> inherit

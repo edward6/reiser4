@@ -1694,6 +1694,7 @@ static struct inode * create_root_dir (znode * root)
 	reiser4_inode_data( inode ) -> hash = hash_plugin_by_id ( DEGENERATE_HASH_ID );
 	reiser4_inode_data( inode ) -> tail = tail_plugin_by_id ( ALWAYS_TAIL_ID );
 	reiser4_inode_data( inode ) -> perm = perm_plugin_by_id ( RWX_PERM_ID );
+	reiser4_inode_data( inode ) -> dir_item = item_plugin_by_id ( SIMPLE_DIR_ENTRY_ID );
 	reiser4_inode_data( inode ) -> locality_id = get_key_locality( &key );
 
 	call_create (inode, ".");
