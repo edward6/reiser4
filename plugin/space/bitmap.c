@@ -1148,6 +1148,7 @@ cond_add_to_overwrite_set (txn_atom * atom, jnode * node)
 	assert("zam-547", atom->stage == ASTAGE_PRE_COMMIT);
 	assert("zam-548", node != NULL);
 
+	LOCK_ATOM(atom);
 	LOCK_JNODE(node);
 
 	if (node->atom == NULL) {
@@ -1158,6 +1159,7 @@ cond_add_to_overwrite_set (txn_atom * atom, jnode * node)
 	}
 
 	UNLOCK_JNODE(node);
+	UNLOCK_ATOM(atom);
 }
 
 /* an actor which applies delete set to COMMIT bitmap pages and link modified
@@ -1249,7 +1251,7 @@ pre_commit_hook_bitmap(void)
 	{			/* scan atom's captured list and find all freshly allocated nodes,
 				 * mark corresponded bits in COMMIT BITMAP as used */
 		/* how cpu significant is this scan, should we someday have a freshly_allocated list? -Hans */
-		capture_list_head *head = &atom->clean_nodes;
+		capture_list_head *head = ATOM_CLEAN_LIST(atom);
 		jnode *node;
 
 		spin_lock(&scan_lock);
@@ -1258,7 +1260,7 @@ pre_commit_hook_bitmap(void)
 		while (!capture_list_end(head, node)) {
 			int ret;
 
-			assert("vs-1445", node->list == CLEAN_LIST);
+			assert("vs-1445", NODE_LIST(node) == CLEAN_LIST);
 			BUG_ON(node->atom != atom);
 			JF_SET(node, JNODE_SCANNED);
 			spin_unlock(&scan_lock);
