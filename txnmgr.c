@@ -1250,7 +1250,9 @@ flush_one(txn_mgr * tmgr, long *nr_submitted, int flags)
 }
 
 /* calls jnode_flush for current atom if it exists; if not, just take another atom and call
- * jnode_flush() for him  */
+ * jnode_flush() for him  
+
+Is using the current atom the right thing when called from balance_dirty_pages()?  Why? What is the advantage of the current atom over, say, the oldest atom.  */
 int
 flush_some_atom(long *nr_submitted, int flags)
 {
@@ -1259,6 +1261,7 @@ flush_some_atom(long *nr_submitted, int flags)
 	txn_atom *atom;
 	int ret;
 
+/* can txnh ever be null? */
 	spin_lock_txnh(txnh);
 	atom = txnh->atom;
 	spin_unlock_txnh(txnh);
