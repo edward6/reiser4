@@ -1217,10 +1217,10 @@ again:
 #if REISER4_DEBUG
 	{
 		reiser4_super_info_data * sbinfo = get_super_private(super);
-		reiser4_spin_lock_sb(super);
+		reiser4_spin_lock_sb(sbinfo);
 		assert("zam-813", sbinfo->blocks_fake_allocated_unformatted == 0);
 		assert("zam-812", sbinfo->blocks_fake_allocated == 0);
-		reiser4_spin_unlock_sb(super);
+		reiser4_spin_unlock_sb(sbinfo);
 	}
 #endif
 
@@ -2129,11 +2129,11 @@ repeat:
 			/* jnode has assigned real disk block. Put it into
 			   atom's delete set */
 			if (REISER4_DEBUG) {
-				struct super_block *s = reiser4_get_current_sb();
+				reiser4_super_info_data *sbinfo = get_current_super_private();
 
-				reiser4_spin_lock_sb(s);
-				assert("zam-561", *jnode_get_block(node) < reiser4_block_count(s));
-				reiser4_spin_unlock_sb(s);
+				reiser4_spin_lock_sb(sbinfo);
+				assert("zam-561", *jnode_get_block(node) < sbinfo->block_count);
+				reiser4_spin_unlock_sb(sbinfo);
 			}
 			ret = blocknr_set_add_block(atom, &atom->delete_set, &blocknr_entry, jnode_get_block(node));
 

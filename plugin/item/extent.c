@@ -1366,9 +1366,7 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, fl
 				jnode_make_wander(j);
 			else {
 				reiser4_block_nr block;
-				assign_fake_blocknr(&block, 0,
-						    "make one node of already allocated extent "
-						    "fake allocated");
+				assign_fake_blocknr_unformatted(&block);
 				jnode_set_block(j, &block);
 			}
 		}
@@ -1797,7 +1795,10 @@ reserve_replace(void)
 static void
 free_replace_reserved(reiser4_block_nr grabbed)
 {
-	grabbed2free(get_current_context()->grabbed_blocks - grabbed, "free_replace_reserved");
+	reiser4_context *ctx;
+
+	ctx = get_current_context();
+	grabbed2free(ctx, get_super_private(ctx->super), ctx->grabbed_blocks - grabbed, "free_replace_reserved");
 }
 
 /* find all units of extent item which require allocation. Allocate free blocks
@@ -1993,7 +1994,7 @@ static void init_new_jnode(jnode *j)
 	jnode_set_mapped(j);
 	jnode_set_created(j);
 	JF_SET (j, JNODE_NEW);
-	assign_fake_blocknr(&fake_blocknr, 0 /* unformatted */, "new jnode");
+	assign_fake_blocknr_unformatted(&fake_blocknr);
 	jnode_set_block(j, &fake_blocknr);
 }
 

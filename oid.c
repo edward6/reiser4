@@ -29,13 +29,13 @@ oid_allocate(struct super_block *super)
 
 	sbinfo = get_super_private(super);
 
-	reiser4_spin_lock_sb(super);
+	reiser4_spin_lock_sb(sbinfo);
 	if (sbinfo->next_to_use != ABSOLUTE_MAX_OID) {
 		oid = sbinfo->next_to_use ++;
 		sbinfo->oids_in_use ++;
 	} else
 		oid = ABSOLUTE_MAX_OID;
-	reiser4_spin_unlock_sb(super);	
+	reiser4_spin_unlock_sb(sbinfo);	
 	return oid;
 }
 
@@ -46,9 +46,9 @@ oid_release(struct super_block *super, oid_t oid)
 
 	sbinfo = get_super_private(super);
 
-	reiser4_spin_lock_sb(super);
+	reiser4_spin_lock_sb(sbinfo);
 	sbinfo->oids_in_use --;
-	reiser4_spin_unlock_sb(super);
+	reiser4_spin_unlock_sb(sbinfo);
 	return 0;
 }
 
@@ -59,9 +59,9 @@ oid_t oid_next(const struct super_block *super)
 
 	sbinfo = get_super_private(super);
 
-	reiser4_spin_lock_sb(super);
+	reiser4_spin_lock_sb(sbinfo);
 	oid = sbinfo->next_to_use;
-	reiser4_spin_unlock_sb(super);
+	reiser4_spin_unlock_sb(sbinfo);
 	return oid;
 }
 
@@ -72,9 +72,9 @@ long oids_used(const struct super_block *super)
 
 	sbinfo = get_super_private(super);
 
-	reiser4_spin_lock_sb(super);
+	reiser4_spin_lock_sb(sbinfo);
 	used = sbinfo->oids_in_use;
-	reiser4_spin_unlock_sb(super);
+	reiser4_spin_unlock_sb(sbinfo);
 	if (used < (__u64) ((long) ~0) >> 1)
 		return (long) used;
 	else
@@ -89,9 +89,9 @@ long oids_free(const struct super_block *super)
 
 	sbinfo = get_super_private(super);
 
-	reiser4_spin_lock_sb(super);
+	reiser4_spin_lock_sb(sbinfo);
 	oids = ABSOLUTE_MAX_OID - OIDS_RESERVED - sbinfo->next_to_use;
-	reiser4_spin_unlock_sb(super);
+	reiser4_spin_unlock_sb(sbinfo);
 	if (oids < (__u64) ((long) ~0) >> 1)
 		return (long) oids;
 	else
