@@ -867,7 +867,121 @@ int write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_sub
 	return 0;
 }
 
-#else
+/* add given wandered mapping to atom's wandered map
+   this starts from jnode which is in JNODE_SCANNED state.  */
+static int
+add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
+{
+	int ret;
+	blocknr_set_entry *new_bsep = NULL;
+	reiser4_block_nr block;
+	int first;
+	txn_atom *atom;
+
+	assert("zam-568", block_p != NULL);
+	block = *block_p;
+	assert("zam-569", len > 0);
+	assert("vs-1422", JF_ISSET(cur, JNODE_SCANNED));
+
+	first = 1;
+	spin_lock(&scan_lock);
+
+	while ((len--) > 0) {
+		if (!first)
+			JF_SET(cur, JNODE_SCANNED);
+		spin_unlock(&scan_lock);
+
+		do {
+			atom = get_current_atom_locked();
+			assert("zam-536", !blocknr_is_fake(jnode_get_block(cur)));
+			ret = blocknr_set_add_pair(atom, &atom->wandered_map, &new_bsep, jnode_get_block(cur), &block);
+		} while (ret == -E_REPEAT);
+
+		if (ret) {
+			/* deallocate blocks which were not added to wandered
+			   map */
+			reiser4_block_nr wide_len = len;
+
+			reiser4_dealloc_blocks(&block, &wide_len, BLOCK_NOT_COUNTED,
+				BA_FORMATTED/* formatted, without defer */, "add_region_to_wmap");
+			
+			if (!first)
+				JF_CLR(cur, JNODE_SCANNED);
+			return ret;
+		}
+
+		UNLOCK_ATOM(atom);
+
+		spin_lock(&scan_lock);
+		if (!first)
+			JF_CLR(cur, JNODE_SCANNED);
+		cur = capture_list_next(cur);
+		++block;
+		first = 0;
+	}
+	spin_unlock(&scan_lock);
+
+	return 0;
+}
+
+/* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
+   submit IO for allocated blocks.  We assume that current atom is in a stage
+   when any atom fusion is impossible and atom is unlocked and it is safe. */
+static int
+alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
+{
+	reiser4_block_nr block;
+
+	int rest;
+	int len;
+	int ret;
+
+	jnode *cur;
+
+	assert("zam-534", ch->overwrite_set_size > 0);
+
+	rest = ch->overwrite_set_size;
+
+	spin_lock(&scan_lock);
+	cur = capture_list_front(ch->overwrite_set);
+	while (!capture_list_end(ch->overwrite_set, cur)) {
+		assert("zam-567", JF_ISSET(cur, JNODE_OVRWR));
+		JF_SET(cur, JNODE_SCANNED);
+		spin_unlock(&scan_lock);
+
+		ret = get_more_wandered_blocks(rest, &block, &len);
+		if (ret) {
+			JF_CLR(cur, JNODE_SCANNED);
+			return ret;
+		}
+
+		rest -= len;
+
+		ret = add_region_to_wmap(cur, len, &block);
+		if (ret) {
+			JF_CLR(cur, JNODE_SCANNED);
+			return ret;
+		}
+
+		ret = jnode_extent_write(ch->overwrite_set, cur, len, &block, fq);
+		if (ret) {
+			JF_CLR(cur, JNODE_SCANNED);
+			return ret;
+		}
+
+		spin_lock(&scan_lock);
+		JF_CLR(cur, JNODE_SCANNED);
+		while ((len--) > 0) {
+			assert("zam-604", !capture_list_end(ch->overwrite_set, cur));
+			cur = capture_list_next(cur);
+		}
+	}
+	spin_unlock(&scan_lock);
+
+	return 0;
+}
+
+#else /* !REISER4_COPY_ON_CAPTURE */
 
 /* put overwrite set back to atom's clean list */
 static void put_overwrite_set(struct commit_handle * ch)
@@ -999,7 +1113,7 @@ get_overwrite_set(struct commit_handle *ch)
    all low-level things as bio construction and page states manipulation.
 */
 static int
-jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
+jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
 {
 	struct super_block *super = reiser4_get_current_sb();
 	int max_blocks;
@@ -1138,7 +1252,7 @@ int write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_sub
 			cur = capture_list_next(cur);
 		}
 
-		ret = jnode_extent_write(beg, nr, jnode_get_block(beg), fq);
+		ret = jnode_extent_write(head, beg, nr, jnode_get_block(beg), fq);
 		if (ret)
 			return ret;
 
@@ -1146,6 +1260,92 @@ int write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_sub
 			*nr_submitted += nr;
 
 		beg = cur;
+	}
+
+	return 0;
+}
+
+/* add given wandered mapping to atom's wandered map */
+static int
+add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
+{
+	int ret;
+	blocknr_set_entry *new_bsep = NULL;
+	reiser4_block_nr block;
+
+	txn_atom *atom;
+
+	assert("zam-568", block_p != NULL);
+	block = *block_p;
+	assert("zam-569", len > 0);
+
+	while ((len--) > 0) {
+		do {
+			atom = get_current_atom_locked();
+			assert("zam-536", !blocknr_is_fake(jnode_get_block(cur)));
+			ret = blocknr_set_add_pair(atom, &atom->wandered_map, &new_bsep, jnode_get_block(cur), &block);
+		} while (ret == -E_REPEAT);
+
+		if (ret) {
+			/* deallocate blocks which were not added to wandered
+			   map */
+			reiser4_block_nr wide_len = len;
+
+			reiser4_dealloc_blocks(&block, &wide_len, BLOCK_NOT_COUNTED,
+				BA_FORMATTED/* formatted, without defer */, "add_region_to_wmap");
+			
+			return ret;
+		}
+
+		UNLOCK_ATOM(atom);
+
+		cur = capture_list_next(cur);
+		++block;
+	}
+
+	return 0;
+}
+
+/* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
+   submit IO for allocated blocks.  We assume that current atom is in a stage
+   when any atom fusion is impossible and atom is unlocked and it is safe. */
+int
+alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
+{
+	reiser4_block_nr block;
+
+	int rest;
+	int len;
+	int ret;
+
+	jnode *cur;
+
+	assert("zam-534", ch->overwrite_set_size > 0);
+
+	rest = ch->overwrite_set_size;
+
+	cur = capture_list_front(ch->overwrite_set);
+	while (!capture_list_end(ch->overwrite_set, cur)) {
+		assert("zam-567", JF_ISSET(cur, JNODE_OVRWR));
+
+		ret = get_more_wandered_blocks(rest, &block, &len);
+		if (ret)
+			return ret;
+
+		rest -= len;
+
+		ret = add_region_to_wmap(cur, len, &block);
+		if (ret)
+			return ret;
+
+		ret = jnode_extent_write(ch->overwrite_set, cur, len, &block, fq);
+		if (ret)
+			return ret;
+
+		while ((len--) > 0) {
+			assert("zam-604", !capture_list_end(ch->overwrite_set, cur));
+			cur = capture_list_next(cur);
+		}
 	}
 
 	return 0;
@@ -1263,240 +1463,6 @@ free_not_assigned:
 
 	return ret;
 }
-
-#if REISER4_COPY_ON_CAPTURE
-
-/* add given wandered mapping to atom's wandered map
-   this starts from jnode which is in JNODE_SCANNED state.  */
-static int
-add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
-{
-	int ret;
-	blocknr_set_entry *new_bsep = NULL;
-	reiser4_block_nr block;
-	int first;
-	txn_atom *atom;
-
-	assert("zam-568", block_p != NULL);
-	block = *block_p;
-	assert("zam-569", len > 0);
-	assert("vs-1422", JF_ISSET(cur, JNODE_SCANNED));
-
-	first = 1;
-	spin_lock(&scan_lock);
-
-	while ((len--) > 0) {
-		if (!first)
-			JF_SET(cur, JNODE_SCANNED);
-		spin_unlock(&scan_lock);
-
-		do {
-			atom = get_current_atom_locked();
-			assert("zam-536", !blocknr_is_fake(jnode_get_block(cur)));
-			ret = blocknr_set_add_pair(atom, &atom->wandered_map, &new_bsep, jnode_get_block(cur), &block);
-		} while (ret == -EAGAIN);
-
-		if (ret) {
-			/* deallocate blocks which were not added to wandered
-			   map */
-			reiser4_block_nr wide_len = len;
-
-			reiser4_dealloc_blocks(&block, &wide_len, BLOCK_NOT_COUNTED,
-				BA_FORMATTED/* formatted, without defer */, "add_region_to_wmap");
-			
-			if (!first)
-				JF_CLR(cur, JNODE_SCANNED);
-			return ret;
-		}
-
-		UNLOCK_ATOM(atom);
-
-		spin_lock(&scan_lock);
-		if (!first)
-			JF_CLR(cur, JNODE_SCANNED);
-		cur = capture_list_next(cur);
-		++block;
-		first = 0;
-	}
-	spin_unlock(&scan_lock);
-
-	return 0;
-}
-
-/* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
-   submit IO for allocated blocks.  We assume that current atom is in a stage
-   when any atom fusion is impossible and atom is unlocked and it is safe. */
-static int
-alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
-{
-	reiser4_block_nr block;
-
-	int rest;
-	int len;
-	int ret;
-
-	jnode *cur;
-
-	assert("zam-534", ch->overwrite_set_size > 0);
-
-	rest = ch->overwrite_set_size;
-
-	spin_lock(&scan_lock);
-	cur = capture_list_front(ch->overwrite_set);
-	while (!capture_list_end(ch->overwrite_set, cur)) {
-		assert("zam-567", JF_ISSET(cur, JNODE_OVRWR));
-		JF_SET(cur, JNODE_SCANNED);
-		spin_unlock(&scan_lock);
-
-		ret = get_more_wandered_blocks(rest, &block, &len);
-		if (ret) {
-			JF_CLR(cur, JNODE_SCANNED);
-			return ret;
-		}
-
-		rest -= len;
-
-		ret = add_region_to_wmap(cur, len, &block);
-		if (ret) {
-			JF_CLR(cur, JNODE_SCANNED);
-			return ret;
-		}
-
-		ret = jnode_extent_write(ch->overwrite_set, cur, len, &block, fq);
-		if (ret) {
-			JF_CLR(cur, JNODE_SCANNED);
-			return ret;
-		}
-
-		spin_lock(&scan_lock);
-		JF_CLR(cur, JNODE_SCANNED);
-		while ((len--) > 0) {
-			assert("zam-604", !capture_list_end(ch->overwrite_set, cur));
-			cur = capture_list_next(cur);
-		}
-	}
-	spin_unlock(&scan_lock);
-
-	return 0;
-}
-
-#else
-
-/* add given wandered mapping to atom's wandered map */
-static int
-add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
-{
-	int ret;
-	blocknr_set_entry *new_bsep = NULL;
-	reiser4_block_nr block;
-
-	txn_atom *atom;
-
-	assert("zam-568", block_p != NULL);
-	block = *block_p;
-	assert("zam-569", len > 0);
-
-	while ((len--) > 0) {
-		do {
-			atom = get_current_atom_locked();
-			assert("zam-536", !blocknr_is_fake(jnode_get_block(cur)));
-			ret = blocknr_set_add_pair(atom, &atom->wandered_map, &new_bsep, jnode_get_block(cur), &block);
-		} while (ret == -E_REPEAT);
-
-		if (ret) {
-			/* deallocate blocks which were not added to wandered
-			   map */
-			reiser4_block_nr wide_len = len;
-
-			reiser4_dealloc_blocks(&block, &wide_len, BLOCK_NOT_COUNTED,
-				BA_FORMATTED/* formatted, without defer */, "add_region_to_wmap");
-			
-			return ret;
-		}
-
-		UNLOCK_ATOM(atom);
-
-		cur = capture_list_next(cur);
-		++block;
-	}
-
-	return 0;
-}
-
-/* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
-   submit IO for allocated blocks.  We assume that current atom is in a stage
-   when any atom fusion is impossible and atom is unlocked and it is safe. */
-int
-alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
-{
-	reiser4_block_nr block;
-
-	int rest;
-	int len;
-	int ret;
-
-	jnode *cur;
-
-	assert("zam-534", ch->overwrite_set_size > 0);
-
-	rest = ch->overwrite_set_size;
-
-	cur = capture_list_front(ch->overwrite_set);
-	while (!capture_list_end(ch->overwrite_set, cur)) {
-		assert("zam-567", JF_ISSET(cur, JNODE_OVRWR));
-
-		ret = get_more_wandered_blocks(rest, &block, &len);
-		if (ret)
-			return ret;
-
-		rest -= len;
-
-		ret = add_region_to_wmap(cur, len, &block);
-		if (ret)
-			return ret;
-
-		ret = jnode_extent_write(cur, len, &block, fq);
-		if (ret)
-			return ret;
-
-		while ((len--) > 0) {
-			assert("zam-604", !capture_list_end(ch->overwrite_set, cur));
-			cur = capture_list_next(cur);
-		}
-	}
-
-	return 0;
-}
-
-#endif
-
-#if 0
-scan_capture_list(capture_list_head *head)
-{
-	jnode *cur;
-
-	spin_lock(&scan_lock);
-	cur = capture_list_front(head);
-	while (!capture_list_end(head, cur)) {
-		JF_SET(cur, JNODE_SCANNED);
-		spin_unlock(&scan_lock);
-
-		/* do whatever has to be done with protected jnode cur */
-		
-		spin_lock(&spin_lock);
-		JF_CLR(cur, JNODE_SCANNED);
-		cur = capture_list_next(cur);
-	}
-	spin_unlock(&scan_lock);
-}
-
-/* starting from JNODE_SCANNED jnode skip x jnodes*/
-jnode *move_forward(jnode *j, int x)
-{
-	assert();
-}
-
-#endif
 
 /* We assume that at this moment all captured blocks are marked as RELOC or
    WANDER (belong to Relocate o Overwrite set), all nodes from Relocate set
