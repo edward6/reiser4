@@ -236,11 +236,12 @@ typedef struct {
 	   conversion is in progress) - do not grab a page and do not copy data
 	   from flow into it because all the data are already */
 	int (*write) (struct inode *, coord_t *, lock_handle *, flow_t *);
-	int (*read) (struct inode *, coord_t *, flow_t *);
+	int (*read) (struct file *, coord_t *, flow_t *);
 	int (*readpage) (const coord_t *, struct page *);
 	int (*writepage) (coord_t *, lock_handle *, struct page *);
 	int (*page_cache_readahead) (struct file *, coord_t *, lock_handle *, unsigned long start, unsigned long count);
 	int (*get_block) (const coord_t *, sector_t, struct buffer_head *);
+	void (*readpages) (coord_t *, struct address_space *, struct list_head *pages);
 } file_ops;
 
 /* operations specific to items of stat data type */
