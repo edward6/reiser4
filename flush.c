@@ -418,7 +418,7 @@ typedef enum flush_position_state {
 				 * processing */
 	POS_ON_LEAF,		/* pos points to already prepped, locked formatted node at
 				 * leaf level */
-	POS_ON_TWIG,		/* pos keeps a lock on twig level, "coord" field is used
+	POS_ON_EPOINT,		/* pos keeps a lock on twig level, "coord" field is used
 				 * to traverse unformatted nodes */
 	POS_TO_LEAF,		/* pos is being moved to leaf level */
 	POS_TO_TWIG,		/* pos is being moved to twig level */
@@ -612,7 +612,7 @@ static void move_flush_pos (flush_pos_t * pos, lock_handle * new_lock,
 static void prepare_flush_pos(flush_pos_t *pos, flush_scan * left_scan)
 {
 	if (jnode_is_unformatted(left_scan->node)) {
-		pos->state = POS_ON_TWIG;
+		pos->state = POS_ON_EPOINT;
 		move_flush_pos(pos, &left_scan->parent_lock, &left_scan->parent_load, &left_scan->parent_coord);
 		pos->child = jref(left_scan->node);
 	} else {
@@ -1216,6 +1216,10 @@ reverse_relocate_test(jnode * node, const coord_t * parent_coord, flush_pos_t * 
 
 	nblk = *jnode_get_block(node);
 
+	if (blocknr_is_fake(&nblk))
+		/* child is unallocated, mark parent dirty */
+		return 1;
+
 	return reverse_relocate_if_close_enough(&pblk, &nblk);
 }
 
@@ -1233,6 +1237,8 @@ reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_coord, 
 			return ret;
 		}
 
+		/* FIXME-ZAM
+		   if parent is already relocated - we do not want to grab space, right? */
 		if (ret == 1) {
 			int grabbed;
 
@@ -1291,7 +1297,7 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 	init_lh(&plock);
 	init_load_count(&pload);
 
-	if (pos->state == POS_ON_TWIG) {
+	if (pos->state == POS_ON_EPOINT) {
 		/* a special case for pos on twig level, where we already have
 		   a lock on parent node. */
 		/* The parent may not be dirty, in which case we should decide
@@ -2013,7 +2019,7 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 	int ret;
 
  again:
-	assert ("zam-844", pos->state == POS_ON_TWIG);
+	assert ("zam-844", pos->state == POS_ON_EPOINT);
 	assert ("zam-843", item_is_extent(&pos->coord));
 
 	/* We decide should we continue slum processing with current extent
@@ -2144,7 +2150,7 @@ became_dirty:
 	coord_init_first_unit(&at_right, right_lock.node);
 	assert("zam-868", coord_is_existing_unit(&at_right));
 
-	pos->state = item_is_extent(&at_right) ? POS_ON_TWIG : POS_TO_LEAF;
+	pos->state = item_is_extent(&at_right) ? POS_ON_EPOINT : POS_TO_LEAF;
 	move_flush_pos(pos, &right_lock, &right_load, &at_right);
 
  out:
@@ -2241,7 +2247,7 @@ static int handle_pos_to_twig (flush_pos_t * pos)
 	if (coord_is_after_rightmost(&pcoord)) 
 		pos->state = POS_END_OF_TWIG;
 	else if (item_is_extent(&pcoord))
-		pos->state = POS_ON_TWIG;
+		pos->state = POS_ON_EPOINT;
 	else {
 		/* Here we understand that getting -E_NO_NEIGHBOR in
 		 * handle_pos_on_leaf() was because of just a reaching edge of
@@ -2265,7 +2271,7 @@ static pos_state_handle_t flush_pos_handlers[] = {
 	[POS_ON_LEAF]     = handle_pos_on_leaf,
 	/* process unformatted nodes, keep lock on twig node, pos->coord points to extent currently
 	 * being processed */
-	[POS_ON_TWIG]     = handle_pos_on_twig,
+	[POS_ON_EPOINT]     = handle_pos_on_twig,
 	/* move a lock from leaf node to its parent for further processing of unformatted nodes */
 	[POS_TO_TWIG]     = handle_pos_to_twig,
 	/* move a lock from twig to leaf level when a processing of unformatted nodes finishes,
@@ -3705,7 +3711,7 @@ pos_tostring(flush_pos_t * pos)
 
 	init_load_count(&load);
 
-	if (pos->state == POS_ON_TWIG) {
+	if (pos->state == POS_ON_EPOINT) {
 		assert("jmacd-79123", pos->lock.node == pos->load.node);
 
 		strcat(fmtbuf, "par:");
