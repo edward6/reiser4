@@ -177,7 +177,7 @@ int jnode_flush (jnode *node, int flags UNUSED_ARG)
 
 	trace_if (TRACE_FLUSH, info ("flush jnode %p\n", node));
 	
-	print_tree_rec ("parent_first", current_tree, REISER4_NODE_PRINT_ZADDR);
+	trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_NODE_PRINT_ZADDR));
 	/*trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_NODE_CHECK));*/
 
 	assert ("jmacd-5012", jnode_check_dirty (node));
