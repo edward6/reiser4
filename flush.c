@@ -1858,9 +1858,10 @@ static int flush_rewrite_jnode (jnode *node)
 	assert ("jmacd-53315", ! JF_ISSET (node, ZNODE_FLUSH_QUEUED));
 	assert ("jmacd-53316", jnode_is_allocated (node));
 
-	/* FIXME: temporary */
+	/* If this node is being wandered, just set it clean and return. */
 	if ((WRITE_LOG && JF_ISSET (node, ZNODE_WANDER))) {
 		spin_unlock_jnode (node);
+		jnode_set_clean (node);
 		return 0;
 	}
 
