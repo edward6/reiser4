@@ -9,6 +9,7 @@
 
 #include <aal/aal.h>
 
+/* This is the type of exception */
 enum aal_exception_type {
     EXCEPTION_INFORMATION   = 1,
     EXCEPTION_WARNING	    = 2,
@@ -19,6 +20,10 @@ enum aal_exception_type {
 
 typedef enum aal_exception_type aal_exception_type_t;
 
+/* 
+    This declaration is the exception options. The components may be composed 
+    together.
+*/
 enum aal_exception_option {
     EXCEPTION_UNHANDLED	    = 1 << 0,
     EXCEPTION_YES	    = 1 << 1,
@@ -31,6 +36,12 @@ enum aal_exception_option {
 
 typedef enum aal_exception_option aal_exception_option_t;
 
+/* 
+    This is exception structure. It contains: exception message, exception type,
+    exception options. Usualy, the life cycle of exception is very short. Exception 
+    instance  created by aal_exception_throw function and passed t exception handler. 
+    After exception processed, it is destroyed by exception factory.
+*/
 struct aal_exception {
     char *message;
     aal_exception_type_t type;

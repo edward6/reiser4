@@ -1,5 +1,10 @@
 /*
-    malloc.h -- memory allocation functions.
+    malloc.h -- memory allocation functions. ctualy they are memory allocation
+    handlers which may be set by caller. In the allone mode they will point to
+    corresponding memory allocation functions, which are used in certain alone
+    application (bootloaders, etc). In the standard mode they are pointed to 
+    libc memory allocation functions (malloc, free, etc).
+    
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */

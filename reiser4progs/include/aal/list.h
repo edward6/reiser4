@@ -1,5 +1,7 @@
 /*
-    list.h -- double-linked list implementation. It is used for plugins cashe.
+    list.h -- double-linked list implementation. It is used for plugins cache,
+    for tree cache, etc.
+    
     Copyright (C) 1996 - 2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -9,6 +11,11 @@
 
 typedef struct aal_list aal_list_t;
 
+/* 
+    This is the struct that describes one list element. It contains:
+    pointer to data assosiated with this item of list, pointer to next
+    element of list and pointer to prev element of list.
+*/
 struct aal_list {
     void *item;
     
@@ -50,6 +57,10 @@ extern aal_list_t *aal_list_bin_search(aal_list_t *list, void *item,
 
 extern void aal_list_free(aal_list_t *list);
 
+/* 
+    Macro for walking through the list in both directions (forward and 
+    backward). It is used for simple search (if list has small size), etc.
+*/
 #define aal_list_foreach_forward(walk, list) \
     for (walk = aal_list_first(list); walk; walk = aal_list_next(walk))
 

@@ -9,16 +9,32 @@
 
 #include <aal/aal.h>
 
+/* 
+    This types is used for keeping the block number and block count 
+    value. They are needed to be increase source code maintainability.
+
+    For instance, there is some function:
+
+    blk_t some_func(void);
+    
+    It is clear to any reader, that this function is working with block
+    number, it returns block number.
+
+    Yet another variant of this function:
+
+    uint64_t some_func(void);
+    
+    This function may return anything. This is may be bytes, blocks, etc.
+*/
 typedef uint64_t blk_t;
 typedef uint64_t count_t;
 
 struct aal_device_ops;
 
 /*
-    Abstract device structure. It consists of flags device 
-    opened with, user-specified data, some opaque entity
-    (for standard file it is file descriptor), name of device
-    (for instance, /dev/hda2), block size of device and device
+    Abstract device structure. It consists of flags device opened with, user 
+    specified data, some opaque entity (for standard file it is file descriptor), 
+    name of device (for instance, /dev/hda2), block size of device and device
     operations.
 */
 struct aal_device {
@@ -32,22 +48,25 @@ struct aal_device {
 
 typedef struct aal_device aal_device_t;
 
-/*
-    Operations which may be performed on the device.
+/* 
+    Operations which may be performed on the device. Some of them may not
+    be implemented.
 */
 struct aal_device_ops {
     error_t (*read)(aal_device_t *, void *, blk_t, count_t);
     error_t (*write)(aal_device_t *, void *, blk_t, count_t);
     error_t (*sync)(aal_device_t *);
-    error_t (*flags)(aal_device_t *);
+    int (*flags)(aal_device_t *);
     error_t (*equals)(aal_device_t *, aal_device_t *);
     uint32_t (*stat)(aal_device_t *);
     count_t (*len)(aal_device_t *);
 };
 
 /*
-    Disk block structure. It is a replica of struct buffer_head
-    from the linux kernel.
+    Disk block structure. It is a replica of struct buffer_head from the linux 
+    kernel. It consists of flags (dirty, clean, etc), data (pointer to data of
+    block), block size, offset (offset in bytes where block is placed on device),
+    and pointer to device, block opened on.
 */
 struct aal_block {
     int flags;

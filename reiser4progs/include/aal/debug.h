@@ -13,6 +13,10 @@
 
 #ifdef ENABLE_DEBUG
 
+/*
+    Something like standard assert, but working through exception 
+    factory.
+*/
 #ifdef __GNUC__
 
 #define aal_assert(hint, cond, action)	\

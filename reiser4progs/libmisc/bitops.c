@@ -146,7 +146,7 @@ static inline int reiserfs_misc_be_find_next_zero_bit(const void *vaddr, unsigne
     offset &= 31UL;
     if (offset) {
         tmp = *(p++);
-        tmp |= SWAP32(~0UL >> (32-offset));
+        tmp |= swap32(~0UL >> (32-offset));
 	
         if (size < 32)
 	    goto found_first;
@@ -168,9 +168,9 @@ static inline int reiserfs_misc_be_find_next_zero_bit(const void *vaddr, unsigne
     tmp = *p;
 
 found_first:
-    return result + reiserfs_misc_ffz(SWAP32(tmp) | (~0UL << size));
+    return result + reiserfs_misc_ffz(swap32(tmp) | (~0UL << size));
 found_middle:
-    return result + reiserfs_misc_ffz(SWAP32(tmp));
+    return result + reiserfs_misc_ffz(swap32(tmp));
 }
 
 inline int reiserfs_misc_set_bit(int nr, void *addr) {
