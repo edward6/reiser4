@@ -135,6 +135,8 @@
 #include <linux/writeback.h>
 #include <linux/slab.h>
 
+#if REISER4_USE_EFLUSH
+
 static int flushable(const jnode * node, struct page *page);
 static eflush_node_t *ef_alloc(int flags);
 static reiser4_ba_flags_t ef_block_flags(const jnode *node);
@@ -528,6 +530,8 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode)
 	spin_lock_jnode(node);
 	return result;
 }
+
+#endif
 
 /* Make Linus happy.
    Local variables:

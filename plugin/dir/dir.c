@@ -395,7 +395,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 	/* we'll update i_nlink below */
 	object->i_nlink = 0;
 
-	dentry->d_inode = object;	/* So that on error iput will be called. */
+	dentry->d_inode = object;   /* So that on error iput will be called. */
 
 	if (DQUOT_ALLOC_INODE(object)) {
 		DQUOT_DROP(object);

@@ -517,7 +517,8 @@ load_page(struct page *page, jnode *node)
 	page_cache_get(page);
 	mark_page_accessed(page);
 	kmap(page);
-	UNDER_SPIN_VOID(jnode, node, eflush_del(node, 0));
+	if (REISER4_USE_EFLUSH)
+		UNDER_SPIN_VOID(jnode, node, eflush_del(node, 0));
 }
 
 /* load jnode's data into memory using read_cache_page() */
@@ -605,7 +606,8 @@ jload(jnode * node)
 					result = jparse(node, page);
 				else
 					result = -EIO;
-				eflush_del(node, 1);
+				if (REISER4_USE_EFLUSH)
+					eflush_del(node, 1);
 				spin_unlock_jnode(node);
 				reiser4_unlock_page(page);
 			} else

@@ -5,6 +5,10 @@
 #ifndef __EMERGENCY_FLUSH_H__
 #define __EMERGENCY_FLUSH_H__
 
+#define REISER4_USE_EFLUSH (1)
+
+#if REISER4_USE_EFLUSH
+
 struct eflush_node;
 typedef struct eflush_node eflush_node_t;
 TS_HASH_DECLARE(ef, eflush_node_t);
@@ -20,6 +24,24 @@ extern void eflush_del(jnode *node, int page_locked);
 
 int emergency_flush(struct page *page, struct writeback_control *wbc);
 int emergency_unflush(jnode *node);
+
+#else
+
+typedef struct {
+} ef_hash_table;
+
+#define eflush_init() (0)
+#define eflush_done() noop
+
+#define eflush_init_at(super) (0)
+#define eflush_done_at(super) noop
+
+#define eflush_get(node)           (NULL)
+#define eflush_del(node, pl)       noop
+#define emergency_flush(page, wbc) (0)
+#define emergency_unflush(node)    (0)
+
+#endif
 
 /* __EMERGENCY_FLUSH_H__ */
 #endif
