@@ -1058,6 +1058,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	node = NULL;		/* to keep gcc happy */
 	level = h->level;
 	key = h->key;
+	result = -ENOENT;
 
 	RLOCK_DK(tree);
 	RLOCK_TREE(tree);
@@ -1078,6 +1079,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		    /* min_key < key < max_key */
 		    znode_contains_key_strict(node, key)) {
 			zref(node);
+			result = 0;
 			break;
 		}
 	}
@@ -1088,7 +1090,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 
 	assert("nikita-2475", cbk_cache_invariant(cache));
 
-	if ((node == NULL) || cbk_cache_list_end(&cache->lru, slot)) {
+	if (result != 0) {
 		h->result = CBK_COORD_NOTFOUND;
 		return -ENOENT;
 	}
