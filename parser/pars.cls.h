@@ -12,8 +12,7 @@
 
 
 #if 1
-typedef enum
-  {
+typedef enum {
     OK   ,
     Blk  ,   /* blank */
     Wrd  ,   /* any symbol exept spec symbl */
@@ -64,7 +63,7 @@ typedef enum
 
     Ap2
 
-  } state;
+} state;
 #else
 #define OK   0
 #define Blk  1   /* blank */
@@ -121,8 +120,7 @@ typedef enum
 #define STRING_CONSTANT_EMPTY STRING_CONSTANT   /* tmp */
 
 
-static char   ncl     [256] =
-{
+static char   ncl     [256] = {
 	Blk,  ERR,  ERR,  ERR,  ERR,  ERR,  ERR,  ERR,
 	ERR,  ERR,  ERR,  ERR,  ERR,  ERR,  ERR,  ERR,
 	ERR,  ERR,  ERR,  ERR,  ERR,  ERR,  ERR,  ERR,
@@ -179,36 +177,33 @@ static char   ncl     [256] =
 };
 
 
-struct lexcls
-{
+struct lexcls {
   int term;
   char c[32];
 } ;
 
-static struct
-{
+static struct {
 	char    *       wrd;
 	int             class;
 }
-pars_key [] =
-	{
-		{ "and"         ,    AND            },
-		{ "else"        ,    ELSE           },
-		{ "eq"          ,    EQ             },
-		{ "ge"          ,    GE             },
-		{ "gt"          ,    GT             },
-		{ "if"          ,    IF             },
-		{ "le"          ,    LE             },
-		{ "lt"          ,    LT             },
-		{ "ne"          ,    NE             },
-		{ "not"         ,    NOT            },
-		{ "or"          ,    OR             },
-		{ "then"        ,    THEN           },
-		{ "tw/"         ,    TRANSCRASH     }
-	};
+pars_key [] = {
+  { "and"         ,    AND            },
+  { "else"        ,    ELSE           },
+  { "eq"          ,    EQ             },
+  { "ge"          ,    GE             },
+  { "gt"          ,    GT             },
+  { "if"          ,    IF             },
+  { "le"          ,    LE             },
+  { "lt"          ,    LT             },
+  { "ne"          ,    NE             },
+  { "not"         ,    NOT            },
+  { "or"          ,    OR             },
+  { "then"        ,    THEN           },
+  { "tw/"         ,    TRANSCRASH     }
+};
 
 
-struct lexcls lexcls[64]={
+struct lexcls lexcls[64] = {
 /*
 ..   a   1       _   `   '     (   )   ,   -   <   /   [   ]     \   {   }   |   ;   :   .   =     >   ?   +
 Blk Wrd Int Ptr Pru Stb Ste   Lpr Rpr Com Mns Les Slh Lsq Rsq   Bsl Lfl Rfl Pip Sp1 Sp2 Dot Sp4   Sp5 Sp6 Pls ...  */
@@ -288,16 +283,3 @@ OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,
 };
 
 
-
-
-
-/*
-EOF
-EOL
-ORDERED
-INV_L ??
-INV_R ??
-IS
-NAME ??
-UNNAME ??
-*/

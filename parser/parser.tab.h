@@ -36,9 +36,5 @@ typedef union
 	long charType;
 	expr_v4_t * expr;
 	wrd_t * wrd;
-	/*	String * StrPtr;*/
-	/*	expr_lnode_t * lnd;*/
-	/*	expr_flow_t * flw;*/
-	/*	pars_var_t * pars_var;*/
 } YYSTYPE;
 extern YYSTYPE yylval;
