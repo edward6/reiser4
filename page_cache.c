@@ -594,18 +594,6 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 
 	assert("vs-828", PageLocked(page));
 
-#if 0
-	FIXME: should be turned into assertion?
-	{
-		/* dirty bit is removed already. clear "reiser4 moved" tag as well */
-		unsigned long flags;
-
-		spin_lock_irqsave(&page->mapping->tree_lock, flags);
-		radix_tree_tag_clear(&page->mapping->page_tree, page->index,
-				     PAGECACHE_TAG_REISER4_MOVED);
-		spin_unlock_irqrestore(&page->mapping->tree_lock, flags);
-	}
-#endif
 
 #if REISER4_USE_ENTD
 	
@@ -848,7 +836,7 @@ print_page(const char *prefix, struct page *page)
 		return;
 	}
 	printk("%s: page index: %lu mapping: %p count: %i private: %lx\n",
-	       prefix, page->index, page->mapping, atomic_read(&page->count), page->private);
+	       prefix, page->index, page->mapping, page_count(page), page->private);
 	printk("\tflags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s\n",
 	       page_flag_name(page, PG_locked),
 	       page_flag_name(page, PG_error),
