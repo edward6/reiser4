@@ -4,11 +4,11 @@
 #define P_RUNNER 260
 #define STRING_CONSTANT 261
 #define TRANSCRASH 262
-#define L_ASSIGN 263
-#define L_APPEND 264
-#define L_SYMLINK 265
-#define SEMICOLON 266
-#define COMMA 267
+#define SEMICOLON 263
+#define COMMA 264
+#define L_ASSIGN 265
+#define L_APPEND 266
+#define L_SYMLINK 267
 #define PLUS 268
 #define SLASH 269
 #define INV_L 270
@@ -31,7 +31,6 @@
 #define UNNAME 287
 #define NAMED 288
 #define ROOT 289
-#define USLASH 290
 typedef union 
 {
 	long charType;
