@@ -912,7 +912,9 @@ int unix_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
 	assert( "nikita-745", parent != NULL );
 	assert( "nikita-747", data != NULL );
 	assert( "nikita-748", inode_get_flag( object, REISER4_NO_STAT_DATA ) );
-	assert( "nikita-749", data -> id == REGULAR_FILE_PLUGIN_ID );
+	assert( "nikita-749", 
+		( data -> id == REGULAR_FILE_PLUGIN_ID ) ||
+		( data -> id == SPECIAL_FILE_PLUGIN_ID ) );
 	
 	return common_file_save( object );
 }
