@@ -216,22 +216,41 @@ void reiser4_set_grabbed_blocks (const struct super_block *super, __u64 nr)
 }
 
 /**
- * get/set value of/to counter of unallocated blocks
+ * get/set value of/to counter of fake allocated formatted blocks
  */
-__u64 reiser4_unallocated_blocks (const struct super_block *super)
+__u64 reiser4_fake_allocated (const struct super_block *super)
 {
 	assert ("zam-516", super != NULL);
 	assert ("zam-517", is_reiser4_super (super));
 
-	return get_super_private (super) -> blocks_unallocated;
+	return get_super_private (super) -> blocks_fake_allocated;
 }
 
-void reiser4_set_unallocated_blocks (const struct super_block *super, __u64 nr)
+void reiser4_set_fake_allocated (const struct super_block *super, __u64 nr)
 {
 	assert ("zam-518", super != NULL);
 	assert ("zam-519", is_reiser4_super (super));
 
-	get_super_private (super) -> blocks_unallocated = nr;
+	get_super_private (super) -> blocks_fake_allocated = nr;
+}
+
+/**
+ * get/set value of/to counter of fake allocated unformatted blocks
+ */
+__u64 reiser4_fake_allocated_unformatted (const struct super_block *super)
+{
+	assert ("zam-516", super != NULL);
+	assert ("zam-517", is_reiser4_super (super));
+
+	return get_super_private (super) -> blocks_fake_allocated_unformatted;
+}
+
+void reiser4_set_fake_allocated_unformatted (const struct super_block *super, __u64 nr)
+{
+	assert ("zam-518", super != NULL);
+	assert ("zam-519", is_reiser4_super (super));
+
+	get_super_private (super) -> blocks_fake_allocated_unformatted = nr;
 }
 
 void reiser4_update_last_written_location( const struct super_block *s, const reiser4_block_nr *block)
@@ -471,9 +490,11 @@ void print_fs_info (const char *prefix, const struct super_block * s)
 
 	oid_print_allocator (private->oid_plug->h.label, s);
 	info ("Block counters:\n\tblock count\t%llu\n\tfree blocks\t%llu\n"
-	      "\tused blocks\t%llu\n\tgrabbed\t%llu\n\tunallocated\t%llu\n",
+	      "\tused blocks\t%llu\n\tgrabbed\t%llu\n\tfake allocated formatted\t%llu\n"
+	      "\tfake allocated unformatted\t%llu\n",
 	      reiser4_block_count (s), reiser4_free_blocks (s), reiser4_data_blocks (s),
-	      reiser4_grabbed_blocks (s), reiser4_unallocated_blocks (s));
+	      reiser4_grabbed_blocks (s), reiser4_fake_allocated (s),
+	      reiser4_fake_allocated_unformatted (s));
 	print_key ("Root directory key", private->df_plug->root_dir_key (s));
 
 	if (private->df_plug->print_info) {
