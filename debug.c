@@ -335,10 +335,12 @@ void reiser4_print_stats()
 		      "\t carry_done:\t %lu\n"
 		      "\t carry_left_in_carry:\t %lu\n"
 		      "\t carry_left_in_cache:\t %lu\n"
+		      "\t carry_left_missed:\t %lu\n"
 		      "\t carry_left_not_avail:\t %lu\n"
 		      "\t carry_left_refuse:\t %lu\n"
 		      "\t carry_right_in_carry:\t %lu\n"
 		      "\t carry_right_in_cache:\t %lu\n"
+		      "\t carry_right_missed:\t %lu\n"
 		      "\t carry_right_not_avail:\t %lu\n"
 		      "\t insert_looking_left:\t %lu\n"
 		      "\t insert_looking_right:\t %lu\n"
@@ -365,10 +367,12 @@ void reiser4_print_stats()
 		      s -> level[ i ].carry_done,
 		      s -> level[ i ].carry_left_in_carry,
 		      s -> level[ i ].carry_left_in_cache,
+		      s -> level[ i ].carry_left_missed,
 		      s -> level[ i ].carry_left_not_avail,
 		      s -> level[ i ].carry_left_refuse,
 		      s -> level[ i ].carry_right_in_carry,
 		      s -> level[ i ].carry_right_in_cache,
+		      s -> level[ i ].carry_right_missed,
 		      s -> level[ i ].carry_right_not_avail,
 		      s -> level[ i ].insert_looking_left,
 		      s -> level[ i ].insert_looking_right,

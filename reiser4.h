@@ -24,6 +24,11 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 /** size of pool of preallocated nodes for carry process. */
 #define NODES_LOCKED_POOL_SIZE   (5)
 
+#define REISER4_NEW_NODE_FLAGS (COPI_LOAD_LEFT | COPI_LOAD_RIGHT | COPI_GO_LEFT)
+#define REISER4_NEW_EXTENT_FLAGS (COPI_LOAD_LEFT | COPI_LOAD_RIGHT | COPI_GO_LEFT)
+#define REISER4_PASTE_FLAGS (COPI_GO_LEFT)
+#define REISER4_INSERT_FLAGS (COPI_GO_LEFT)
+
 /** we are supporting reservation of disk space on uid basis */
 #define REISER4_SUPPORT_UID_SPACE_RESERVATION (0)
 /** we are supporting reservation of disk space for groups */
