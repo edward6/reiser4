@@ -35,8 +35,7 @@ reiser4_plugin_t *reiser4_object_guess(reiser4_object_t *object) {
 	from stat data item.
     */
     if (item.plugin->item_ops.specific.statdata.get_mode) {
-	reiser4_id_t id;
-	reiser4_id_t type;
+	rid_t id, type;
 
 	/* 
 	    Guessing plugin type and plugin id by mode field from the stat data
@@ -57,7 +56,7 @@ reiser4_plugin_t *reiser4_object_guess(reiser4_object_t *object) {
 	    id = FILE_REG40_ID;
 	}
 	
-	return libreiser4_factory_find_by_id(type, id);
+	return libreiser4_factory_ifind(type, id);
     }
 
     return NULL;
@@ -139,7 +138,7 @@ static errno_t reiser4_object_lookup(
 
 	    if (!S_ISLNK(mode) && !S_ISDIR(mode) && !S_ISREG(mode)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "%s has invalid mode %x.", track, mode);
+		    "%s has invalid mode 0x%x.", track, mode);
 		return -1;
 	    }
 		
@@ -175,7 +174,7 @@ static errno_t reiser4_object_lookup(
 	if (plugin->h.type == DIR_PLUGIN_TYPE) {
 	    reiser4_entry_hint_t entry;
 	    
-	    if (!(entity = libreiser4_plugin_call(return -1, 
+	    if (!(entity = plugin_call(return -1, 
 		plugin->dir_ops, open, object->fs->tree, &object->key)))
 	    {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -190,7 +189,7 @@ static errno_t reiser4_object_lookup(
 		    "Method \"lookup\" is not implemented in %s plugin.", 
 		    plugin->h.label);
 		
-		libreiser4_plugin_call(return -1, plugin->dir_ops, 
+		plugin_call(return -1, plugin->dir_ops, 
 		    close, entity);
 		
 		return -1;
@@ -200,13 +199,13 @@ static errno_t reiser4_object_lookup(
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't find entry \"%s\".", entry.name);
 		
-		libreiser4_plugin_call(return -1, plugin->dir_ops, 
+		plugin_call(return -1, plugin->dir_ops, 
 		    close, entity);
 		
 		return -1;
 	    }
 	    
-	    libreiser4_plugin_call(return -1, plugin->dir_ops, 
+	    plugin_call(return -1, plugin->dir_ops, 
 		close, entity);
 
 	    /* Updating object key by found objectid and locality */
@@ -234,6 +233,7 @@ reiser4_object_t *reiser4_object_open(
     reiser4_fs_t *fs,		/* filesystem object (file/dir/else) will be opened on */
     const char *name		/* name of object (file/dir/else) */
 ) {
+    reiser4_key_t *root_key;
     reiser4_key_t parent_key;
     reiser4_object_t *object;
     
@@ -242,16 +242,18 @@ reiser4_object_t *reiser4_object_open(
 
     if (!(object = aal_calloc(sizeof(*object), 0)))
 	return NULL;
-
+    
     object->fs = fs;
-    reiser4_key_init(&object->key, fs->key.plugin, fs->key.body);
+
+    root_key = &fs->tree->key;
+    
+    reiser4_key_init(&object->key, root_key->plugin, root_key->body);
     
     /* 
 	I assume that name is absolute name. So, user, who will call this method 
 	should convert name previously into absolute one by getcwd function.
     */
-
-    reiser4_key_init(&parent_key, fs->key.plugin, fs->key.body);
+    reiser4_key_init(&parent_key, root_key->plugin, root_key->body);
     
     if (reiser4_object_lookup(object, name, &parent_key)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 

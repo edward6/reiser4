@@ -72,7 +72,7 @@ uint16_t progs_ui_screen_width(void) {
     if (ioctl(2, TIOCGWINSZ, &winsize))
 	return 0;
     
-    return winsize.ws_col;
+    return winsize.ws_col <= 0 ? 80 : winsize.ws_col;
 }
 
 void progs_ui_wipe_line(void *stream) {
@@ -165,6 +165,7 @@ static char *progs_ui_generator(char *text, int state) {
 
 	progs_misc_upper(s, opt); 
 	progs_misc_upper(s1, text);
+
 	if (!aal_strncmp(s, s1, aal_strlen(s1)))
 	    return aal_strdup(opt);
     }

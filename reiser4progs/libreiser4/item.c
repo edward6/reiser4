@@ -13,13 +13,13 @@
 errno_t reiser4_item_open(reiser4_item_t *item, 
     reiser4_node_t *node, reiser4_pos_t *pos)
 {
-    reiser4_id_t pid;
+    rid_t pid;
     
     aal_assert("umka-1063", node != NULL, return -1);
     aal_assert("umka-1066", pos != NULL, return -1);
     aal_assert("umka-1064", item != NULL, return -1);
     
-    pid = libreiser4_plugin_call(return 0, 
+    pid = plugin_call(return 0, 
 	node->entity->plugin->node_ops, item_pid, node->entity, pos);
     
     if (pid == INVALID_PLUGIN_ID) {
@@ -29,7 +29,7 @@ errno_t reiser4_item_open(reiser4_item_t *item,
 	return -1;
     }
     
-    item->plugin = libreiser4_factory_find_by_id(ITEM_PLUGIN_TYPE, pid);
+    item->plugin = libreiser4_factory_ifind(ITEM_PLUGIN_TYPE, pid);
     
     if (!item->plugin) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -38,7 +38,7 @@ errno_t reiser4_item_open(reiser4_item_t *item,
 	return -1;
     }
 	    
-    item->body = libreiser4_plugin_call(return -1, 
+    item->body = plugin_call(return -1, 
 	node->entity->plugin->node_ops, item_body, 
 	node->entity, pos);
     
@@ -49,7 +49,7 @@ errno_t reiser4_item_open(reiser4_item_t *item,
 	return -1;
     }
 
-    item->len = libreiser4_plugin_call(return -1, 
+    item->len = plugin_call(return -1, 
 	node->entity->plugin->node_ops, item_len, 
 	node->entity, pos);
     
@@ -125,7 +125,7 @@ errno_t reiser4_item_estimate(
 	return 0;
     
     /* Estimate for the 2nd and for the 4th cases */
-    return libreiser4_plugin_call(return -1, hint->plugin->item_ops.common, 
+    return plugin_call(return -1, hint->plugin->item_ops.common, 
 	estimate, item->pos->unit, hint);
 }
 
@@ -152,7 +152,7 @@ blk_t reiser4_item_target(reiser4_item_t *item) {
 	return 0;
     }
     
-    return libreiser4_plugin_call(return 0, 
+    return plugin_call(return 0, 
 	item->plugin->item_ops.specific.internal, target, item->body);
 }
 
@@ -175,7 +175,7 @@ errno_t reiser4_item_pointo(reiser4_item_t *item,
     }
     
     /* Calling node plugin for handling */
-    return libreiser4_plugin_call(return -1, 
+    return plugin_call(return -1, 
 	item->plugin->item_ops.specific.internal, pointo, item->body, blk);
 }
 

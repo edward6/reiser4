@@ -33,8 +33,12 @@ errno_t repair_node_check(reiser4_node_t *node, void *data) {
 	return -1;
     }
     
-    if (!(key.plugin = libreiser4_factory_find_by_id(KEY_PLUGIN_TYPE, KEY_REISER40_ID)))
-	libreiser4_factory_failed(return -1, find, key, KEY_REISER40_ID);
+    /* FIXME-VITALY: Hardcoded key plugin id */
+    if (!(key.plugin = libreiser4_factory_ifind(KEY_PLUGIN_TYPE, KEY_REISER40_ID))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find key plugin by its id 0x%x.", KEY_REISER40_ID);
+	return -1;
+    }
     
     if (reiser4_key_compare(&traverse->ld_key, &key) != 0) {
 	aal_exception_error("The first key %k in the node (%llu) is not equal to the left "

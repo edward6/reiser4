@@ -25,9 +25,9 @@ static aal_list_t *stat40_extinit(uint64_t extmask) {
 	if ((1 << i) & extmask) {
 	    reiser4_plugin_t *plugin;
 
-	    if (!(plugin = core->factory_ops.plugin_find(SDEXT_PLUGIN_TYPE, i))) {
+	    if (!(plugin = core->factory_ops.plugin_ifind(SDEXT_PLUGIN_TYPE, i))) {
 		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
-		    "Can't find stat data extention plugin by its id %x.", i);
+		    "Can't find stat data extention plugin by its id 0x%x.", i);
 		continue;
 	    }
 	    plugins = aal_list_append(plugins, plugin);
@@ -82,14 +82,14 @@ static errno_t stat40_init(reiser4_body_t *body,
 	aal_list_foreach_forward(walk, extplugins) {
 	    reiser4_plugin_t *plugin = (reiser4_plugin_t *)walk->item;
 	
-	    libreiser4_plugin_call(return -1, plugin->sdext_ops, init, 
+	    plugin_call(return -1, plugin->sdext_ops, init, 
 		ext, stat_hint->ext.hint[i++]);
 	
 	    /* 
 		Getting pointer to the next extention. It is evaluating as previous 
 		pointer plus its size.
 	    */
-	    ext += libreiser4_plugin_call(return -1, plugin->sdext_ops, length,);
+	    ext += plugin_call(return -1, plugin->sdext_ops, length,);
 
 	    /* FIXME-UMKA: Here also should be support for more then 16 extentions */
 	}
@@ -123,7 +123,7 @@ static errno_t stat40_estimate(uint32_t pos,
 	aal_list_foreach_forward(walk, extplugins) {
 	    reiser4_plugin_t *plugin = (reiser4_plugin_t *)walk->item;
 	    
-	    hint->len += libreiser4_plugin_call(return -1, plugin->sdext_ops, 
+	    hint->len += plugin_call(return -1, plugin->sdext_ops, 
 		length,);
 	}
 	stat40_extdone(extplugins);
@@ -215,5 +215,5 @@ static reiser4_plugin_t *stat40_start(reiser4_core_t *c) {
     return &stat40_plugin;
 }
 
-libreiser4_factory_register(stat40_start);
+plugin_register(stat40_start);
 

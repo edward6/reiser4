@@ -292,16 +292,16 @@ static int callback_comp_for_lookup(void *key1, void *key2, void *data) {
     
     plugin = (reiser4_plugin_t *)data;
     
-    libreiser4_plugin_call(return -1, plugin->key_ops, 
+    plugin_call(return -1, plugin->key_ops, 
 	build_by_entry, (void *)&key, (void *)key1);
 
-    locality = libreiser4_plugin_call(return -1, plugin->key_ops,
+    locality = plugin_call(return -1, plugin->key_ops,
 	get_locality, key2);
 
-    libreiser4_plugin_call(return -1, plugin->key_ops,
+    plugin_call(return -1, plugin->key_ops,
 	set_locality, (void *)&key, locality);
     
-    return libreiser4_plugin_call(return -1, plugin->key_ops, 
+    return plugin_call(return -1, plugin->key_ops, 
 	compare, &key, key2);
 }
 
@@ -332,16 +332,16 @@ static errno_t direntry40_maxkey(reiser4_key_t *key) {
     
     aal_assert("umka-716", key->plugin != NULL, return -1);
 
-    maxkey = libreiser4_plugin_call(return -1, key->plugin->key_ops,
+    maxkey = plugin_call(return -1, key->plugin->key_ops,
 	maximal,);
     
     objectid = key->plugin->key_ops.get_objectid(maxkey);
     offset = key->plugin->key_ops.get_objectid(maxkey);
     
-    libreiser4_plugin_call(return -1, key->plugin->key_ops,
+    plugin_call(return -1, key->plugin->key_ops,
 	set_objectid, key->body, objectid);
     
-    libreiser4_plugin_call(return -1, key->plugin->key_ops, 
+    plugin_call(return -1, key->plugin->key_ops, 
 	set_offset, key->body, offset);
     
     return 0;
@@ -392,5 +392,5 @@ static reiser4_plugin_t *direntry40_start(reiser4_core_t *c) {
     return &direntry40_plugin;
 }
 
-libreiser4_factory_register(direntry40_start);
+plugin_register(direntry40_start);
 

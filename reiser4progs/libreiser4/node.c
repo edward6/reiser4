@@ -15,7 +15,7 @@
 /* Creates node on specified device and block and with spcified key plugin */
 reiser4_node_t *reiser4_node_create(
     aal_block_t *block,		/* block new node will be created on */
-    reiser4_id_t pid,		/* node plugin id to be used */
+    rid_t pid,		/* node plugin id to be used */
     uint8_t level		/* node level */
 ) {
     reiser4_node_t *node;
@@ -29,11 +29,14 @@ reiser4_node_t *reiser4_node_create(
     node->block = block;
     
     /* Finding the node plugin by its id */
-    if (!(plugin = libreiser4_factory_find_by_id(NODE_PLUGIN_TYPE, pid))) 
-	libreiser4_factory_failed(goto error_free_node, find, node, pid);
-
+    if (!(plugin = libreiser4_factory_ifind(NODE_PLUGIN_TYPE, pid))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find node plugin by its id 0x%x.", pid);
+	goto error_free_node;
+    }
+    
     /* Requesting the plugin for initialization of the entity */
-    if (!(node->entity = libreiser4_plugin_call(goto error_free_node, 
+    if (!(node->entity = plugin_call(goto error_free_node, 
 	plugin->node_ops, create, node->block, level))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -66,7 +69,7 @@ errno_t reiser4_node_set_key(
     aal_assert("umka-805", key != NULL, return -1);
     aal_assert("umka-938", pos != NULL, return -1);
 
-    libreiser4_plugin_call(return -1, node->entity->plugin->node_ops, 
+    plugin_call(return -1, node->entity->plugin->node_ops, 
 	set_key, node->entity, pos, key);
     
     return 0;
@@ -78,7 +81,7 @@ errno_t reiser4_node_set_key(
 static reiser4_plugin_t *reiser4_node_guess(
     aal_block_t *block		/* block node lies in */
 ) {
-    reiser4_id_t pid;
+    rid_t pid;
     reiser4_plugin_t *plugin;
     
     aal_assert("umka-902", block != NULL, return NULL);
@@ -86,7 +89,7 @@ static reiser4_plugin_t *reiser4_node_guess(
     pid = *((uint16_t *)block->data);
     
     /* Finding node plugin by its id from node header */
-    if (!(plugin = libreiser4_factory_find_by_id(NODE_PLUGIN_TYPE, pid))) {
+    if (!(plugin = libreiser4_factory_ifind(NODE_PLUGIN_TYPE, pid))) {
 	/* FIXME-UMKA: Here will be further guessing code */
     }
 
@@ -119,7 +122,7 @@ reiser4_node_t *reiser4_node_open(
 	Initializing node's entity by means of calling "open" method of node
        	plugin.
     */
-    if (!(node->entity = libreiser4_plugin_call(goto error_free_node, 
+    if (!(node->entity = plugin_call(goto error_free_node, 
 	plugin->node_ops, open, node->block)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -139,7 +142,7 @@ errno_t reiser4_node_close(reiser4_node_t *node) {
     aal_assert("umka-824", node != NULL, return -1);
     aal_assert("umka-903", node->entity != NULL, return -1);
     
-    return libreiser4_plugin_call(return -1, node->entity->plugin->node_ops,
+    return plugin_call(return -1, node->entity->plugin->node_ops,
 	close, node->entity);
     
     aal_block_free(node->block);
@@ -285,7 +288,7 @@ errno_t reiser4_node_valid(
 ) {
     aal_assert("umka-123", node != NULL, return -1);
     
-    return libreiser4_plugin_call(return -1, node->entity->plugin->node_ops, 
+    return plugin_call(return -1, node->entity->plugin->node_ops, 
 	valid, node->entity);
 }
 
@@ -294,7 +297,7 @@ errno_t reiser4_node_valid(
 int reiser4_node_confirm(reiser4_node_t *node) {
     aal_assert("umka-123", node != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, node->entity->plugin->node_ops, 
+    return plugin_call(return 0, node->entity->plugin->node_ops, 
 	confirm, node->block);
 }
 
@@ -321,7 +324,7 @@ int reiser4_node_lookup(
 	return 0;
    
     /* Calling node plugin */
-    if ((lookup = libreiser4_plugin_call(return -1, 
+    if ((lookup = plugin_call(return -1, 
 	node->entity->plugin->node_ops, lookup, node->entity, key, pos)) == -1) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -381,7 +384,7 @@ int reiser4_node_lookup(
 uint32_t reiser4_node_count(reiser4_node_t *node) {
     aal_assert("umka-453", node != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, node->entity->plugin->node_ops, 
+    return plugin_call(return 0, node->entity->plugin->node_ops, 
 	count, node->entity);
 }
 
@@ -396,10 +399,10 @@ errno_t reiser4_node_remove(
     aal_assert("umka-768", pos != NULL, return -1);
 
     if (pos->unit == ~0ul)
-	return libreiser4_plugin_call(return -1, node->entity->plugin->node_ops, 
+	return plugin_call(return -1, node->entity->plugin->node_ops, 
 	    remove, node->entity, pos);
     else
-	return libreiser4_plugin_call(return -1, node->entity->plugin->node_ops, 
+	return plugin_call(return -1, node->entity->plugin->node_ops, 
 	    cut, node->entity, pos);
 }
 
@@ -453,11 +456,11 @@ errno_t reiser4_node_insert(
 	pos->item.
     */
     if (pos->unit == ~0ul) {
-        if ((ret = libreiser4_plugin_call(return -1, node->entity->plugin->node_ops, 
+        if ((ret = plugin_call(return -1, node->entity->plugin->node_ops, 
 		insert, node->entity, pos, hint)) != 0)
 	    return ret;
     } else {
-	if ((ret = libreiser4_plugin_call(return -1, node->entity->plugin->node_ops, 
+	if ((ret = plugin_call(return -1, node->entity->plugin->node_ops, 
 		paste, node->entity, pos, hint)) != 0)
 	    return ret;
     }
@@ -473,7 +476,7 @@ uint32_t reiser4_node_pid(
 ) {
     aal_assert("umka-828", node != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, node->entity->plugin->node_ops,
+    return plugin_call(return 0, node->entity->plugin->node_ops,
 	pid, node->entity);
 }
 
@@ -481,7 +484,7 @@ uint32_t reiser4_node_pid(
 uint32_t reiser4_node_space(reiser4_node_t *node) {
     aal_assert("umka-455", node != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, node->entity->plugin->node_ops, 
+    return plugin_call(return 0, node->entity->plugin->node_ops, 
 	space, node->entity);
 }
 
@@ -489,7 +492,7 @@ uint32_t reiser4_node_space(reiser4_node_t *node) {
 uint32_t reiser4_node_overhead(reiser4_node_t *node) {
     aal_assert("vpf-066", node != NULL, return 0);
 
-    return libreiser4_plugin_call(return 0, node->entity->plugin->node_ops, 
+    return plugin_call(return 0, node->entity->plugin->node_ops, 
 	overhead, node->entity);
 }
 
@@ -497,7 +500,7 @@ uint32_t reiser4_node_overhead(reiser4_node_t *node) {
 uint32_t reiser4_node_maxspace(reiser4_node_t *node) {
     aal_assert("umka-125", node != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, node->entity->plugin->node_ops, 
+    return plugin_call(return 0, node->entity->plugin->node_ops, 
 	maxspace, node->entity);
 }
 
@@ -513,7 +516,7 @@ errno_t reiser4_node_get_key(
     aal_assert("umka-803", key != NULL, return -1);
     aal_assert("umka-947", pos != NULL, return -1);
     
-    if ((res = libreiser4_plugin_call(return -1, node->entity->plugin->node_ops, 
+    if ((res = plugin_call(return -1, node->entity->plugin->node_ops, 
 	    get_key, node->entity, pos, key)))
 	return res;
 

@@ -15,7 +15,7 @@
 reiser4_oid_t *reiser4_oid_open(
     reiser4_format_t *format	    /* format oid allocated will be opened on */
 ) {
-    reiser4_id_t pid;
+    rid_t pid;
     reiser4_oid_t *oid;
     reiser4_plugin_t *plugin;
 
@@ -35,14 +35,17 @@ reiser4_oid_t *reiser4_oid_open(
     }
     
     /* Getting oid allocator plugin */
-    if (!(plugin = libreiser4_factory_find_by_id(OID_PLUGIN_TYPE, pid))) 
-	libreiser4_factory_failed(goto error_free_oid, find, oid, pid);
+    if (!(plugin = libreiser4_factory_ifind(OID_PLUGIN_TYPE, pid))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find oid allocator plugin by its id 0x%x.", pid);
+	goto error_free_oid;
+    }
     
-    libreiser4_plugin_call(goto error_free_oid, format->entity->plugin->format_ops, 
+    plugin_call(goto error_free_oid, format->entity->plugin->format_ops, 
 	oid_area, format->entity, &oid_start, &oid_len);
     
     /* Initializing entity */
-    if (!(oid->entity = libreiser4_plugin_call(goto error_free_oid, 
+    if (!(oid->entity = plugin_call(goto error_free_oid, 
 	plugin->oid_ops, open, oid_start, oid_len))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -63,7 +66,7 @@ void reiser4_oid_close(
 ) {
     aal_assert("umka-523", oid != NULL, return);
 
-    libreiser4_plugin_call(return, oid->entity->plugin->oid_ops, 
+    plugin_call(return, oid->entity->plugin->oid_ops, 
 	close, oid->entity);
     
     aal_free(oid);
@@ -75,7 +78,7 @@ void reiser4_oid_close(
 reiser4_oid_t *reiser4_oid_create(
     reiser4_format_t *format	    /* format oid allocator will be oned on */
 ) {
-    reiser4_id_t pid;
+    rid_t pid;
     reiser4_oid_t *oid;
     reiser4_plugin_t *plugin;
 
@@ -95,14 +98,17 @@ reiser4_oid_t *reiser4_oid_create(
     }
     
     /* Getting plugin from plugin id */
-    if (!(plugin = libreiser4_factory_find_by_id(OID_PLUGIN_TYPE, pid)))
-	libreiser4_factory_failed(goto error_free_oid, find, oid, pid);
+    if (!(plugin = libreiser4_factory_ifind(OID_PLUGIN_TYPE, pid))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find oid allocator plugin by its id 0x%x.", pid);
+	goto error_free_oid;
+    }
     
-    libreiser4_plugin_call(goto error_free_oid, format->entity->plugin->format_ops, 
+    plugin_call(goto error_free_oid, format->entity->plugin->format_ops, 
 	oid_area, format->entity, &oid_start, &oid_len);
     
     /* Initializing entity */
-    if (!(oid->entity = libreiser4_plugin_call(goto error_free_oid, 
+    if (!(oid->entity = plugin_call(goto error_free_oid, 
 	plugin->oid_ops, create, oid_start, oid_len)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -121,7 +127,7 @@ error_free_oid:
 uint64_t reiser4_oid_alloc(reiser4_oid_t *oid) {
     aal_assert("umka-522", oid != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, oid->entity->plugin->oid_ops, 
+    return plugin_call(return 0, oid->entity->plugin->oid_ops, 
 	alloc, oid->entity);
 }
 
@@ -132,7 +138,7 @@ void reiser4_oid_dealloc(
 ) {
     aal_assert("umka-525", oid != NULL, return);
     
-    libreiser4_plugin_call(return, oid->entity->plugin->oid_ops, 
+    plugin_call(return, oid->entity->plugin->oid_ops, 
 	dealloc, oid->entity, id);
 }
 
@@ -140,14 +146,14 @@ void reiser4_oid_dealloc(
 errno_t reiser4_oid_valid(reiser4_oid_t *oid) {
     aal_assert("umka-962", oid != NULL, return -1);
     
-    return libreiser4_plugin_call(return -1, oid->entity->plugin->oid_ops, 
+    return plugin_call(return -1, oid->entity->plugin->oid_ops, 
 	valid, oid->entity);
 }
 
 /* Synchronizes specified oid allocator */
 errno_t reiser4_oid_sync(reiser4_oid_t *oid) {
     aal_assert("umka-735", oid != NULL, return -1);
-    return libreiser4_plugin_call(return -1, oid->entity->plugin->oid_ops, 
+    return plugin_call(return -1, oid->entity->plugin->oid_ops, 
 	sync, oid->entity);
 }
 
@@ -157,7 +163,7 @@ errno_t reiser4_oid_sync(reiser4_oid_t *oid) {
 uint64_t reiser4_oid_used(reiser4_oid_t *oid) {
     aal_assert("umka-527", oid != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, oid->entity->plugin->oid_ops, 
+    return plugin_call(return 0, oid->entity->plugin->oid_ops, 
 	used, oid->entity);
 }
 
@@ -165,7 +171,7 @@ uint64_t reiser4_oid_used(reiser4_oid_t *oid) {
 uint64_t reiser4_oid_free(reiser4_oid_t *oid) {
     aal_assert("umka-527", oid != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, oid->entity->plugin->oid_ops, 
+    return plugin_call(return 0, oid->entity->plugin->oid_ops, 
 	free, oid->entity);
 }
 
@@ -173,7 +179,7 @@ uint64_t reiser4_oid_free(reiser4_oid_t *oid) {
 oid_t reiser4_oid_root_parent_locality(reiser4_oid_t *oid) {
     aal_assert("umka-745", oid != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, oid->entity->plugin->oid_ops, 
+    return plugin_call(return 0, oid->entity->plugin->oid_ops, 
 	root_parent_locality,);
 }
 
@@ -181,7 +187,7 @@ oid_t reiser4_oid_root_parent_locality(reiser4_oid_t *oid) {
 oid_t reiser4_oid_root_locality(reiser4_oid_t *oid) {
     aal_assert("umka-746", oid != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, oid->entity->plugin->oid_ops, 
+    return plugin_call(return 0, oid->entity->plugin->oid_ops, 
 	root_locality,);
 }
 
@@ -189,7 +195,7 @@ oid_t reiser4_oid_root_locality(reiser4_oid_t *oid) {
 oid_t reiser4_oid_root_objectid(reiser4_oid_t *oid) {
     aal_assert("umka-747", oid != NULL, return 0);
     
-    return libreiser4_plugin_call(return 0, oid->entity->plugin->oid_ops, 
+    return plugin_call(return 0, oid->entity->plugin->oid_ops, 
 	root_objectid,);
 }
 

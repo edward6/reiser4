@@ -19,7 +19,7 @@ static reiser4_plugin_t *__choose_format(reiser4_fs_t *fs, aal_device_t *host_de
 	aal_exception_fatal("Cannot detect an on-disk format on (%s).", 
 	    aal_device_name(host_device));
 	
-	if (!(plugin = libreiser4_factory_find_by_id(FORMAT_PLUGIN_TYPE, 
+	if (!(plugin = libreiser4_factory_ifind(FORMAT_PLUGIN_TYPE, 
 	    repair_data(fs)->profile->format))) 
 	{
 	    aal_exception_fatal("Cannot find the format plugin (%d) specified in the "
@@ -72,7 +72,7 @@ errno_t repair_format_check(reiser4_fs_t *fs) {
     } 
     
     /* Format was either opened or created. Check it and fix it. */
-    if (libreiser4_plugin_call(return -1, fs->format->entity->plugin->format_ops, check, 
+    if (plugin_call(return -1, fs->format->entity->plugin->format_ops, check, 
 	fs->format->entity, repair_data(fs)->options)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Failed to recover the on-disk format (%s) on (%s).", plugin->h.label, 
@@ -94,7 +94,7 @@ void repair_format_print(reiser4_fs_t *fs, FILE *stream, uint16_t options) {
 
     aal_memset(buf, 0, 4096);
 
-    libreiser4_plugin_call(return, fs->format->entity->plugin->format_ops, print, 
+    plugin_call(return, fs->format->entity->plugin->format_ops, print, 
 	fs->format->entity, buf, 4096, options);
     
     fprintf(stream, "%s", buf);

@@ -40,16 +40,15 @@ extern "C" {
 #include "dir.h"
 #include "master.h"
 #include "item.h"
+#include "factory.h"
 
-extern int libreiser4_get_max_interface_version(void);
-extern int libreiser4_get_min_interface_version(void);
-extern const char *libreiser4_get_version(void);
-
-extern errno_t libreiser4_init(uint32_t mem_limit);
+extern errno_t libreiser4_init(void);
 extern void libreiser4_done(void);
 
-extern uint32_t libreiser4_mlimit_get(void);
-extern void libreiser4_mlimit_set(uint32_t mem_limit);
+extern const char *libreiser4_version(void);
+
+extern int libreiser4_max_interface_version(void);
+extern int libreiser4_min_interface_version(void);
 
 #ifdef __cplusplus
 }

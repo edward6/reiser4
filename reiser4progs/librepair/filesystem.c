@@ -39,10 +39,15 @@ static errno_t repair_fs_check_setup(reiser4_fs_t *fs,
     /* Prepare a level. */
     traverse->level = reiser4_format_get_height(fs->format) + 1;
 
+    /* FIXME-VITALY: Hardcoded key plugin id */
     if (!(traverse->ld_key.plugin = 
-	libreiser4_factory_find_by_id(KEY_PLUGIN_TYPE, KEY_REISER40_ID)))
-	libreiser4_factory_failed(return -1, find, key, KEY_REISER40_ID);
-
+	libreiser4_factory_ifind(KEY_PLUGIN_TYPE, KEY_REISER40_ID)))
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find key plugin by its id 0x%x.", KEY_REISER40_ID);
+	return -1;
+    }
+    
     traverse->format = fs->format;
     traverse->rd_key.plugin = traverse->ld_key.plugin;
     reiser4_key_minimal(&traverse->ld_key);
@@ -197,10 +202,6 @@ reiser4_fs_t *repair_fs_open(repair_data_t *data, callback_ask_user_t ask_blocks
     if (repair_oid_check(fs))
 	goto error_free_oid;
     
-    /* FIXME-VITALY: Get key id in a not hardcoded way. */
-    if (reiser4_fs_build_root_key(fs, KEY_REISER40_ID))
-	goto error_free_oid;
-     
     return fs;
     
 error_free_oid:

@@ -16,7 +16,7 @@
 /* Forms master super block disk structure */
 reiser4_master_t *reiser4_master_create(
     aal_device_t *device,	    /* device master will be created on */
-    reiser4_id_t format_pid,	    /* disk format plugin id to be used */
+    rid_t format_pid,	    /* disk format plugin id to be used */
     unsigned int blocksize,	    /* blocksize to be used */
     const char *uuid,		    /* uuid to be used */
     const char *label		    /* filesystem label to be used */
@@ -81,7 +81,7 @@ static errno_t callback_try_for_guess(
     if (plugin->h.type == FORMAT_PLUGIN_TYPE) {
 	aal_device_t *device = (aal_device_t *)data;
 
-	if (libreiser4_plugin_call(return 0, plugin->format_ops, 
+	if (plugin_call(return 0, plugin->format_ops, 
 		confirm, device))
 	    return 1;
     }
@@ -90,7 +90,7 @@ static errno_t callback_try_for_guess(
 }
 
 reiser4_plugin_t *reiser4_master_guess(aal_device_t *device) {
-    return libreiser4_factory_suitable(callback_try_for_guess, device);
+    return libreiser4_factory_cfind(callback_try_for_guess, device);
 }
 
 #endif
@@ -247,7 +247,7 @@ char *reiser4_master_magic(reiser4_master_t *master) {
     return master->super->mr_magic;
 }
 
-reiser4_id_t reiser4_master_format(reiser4_master_t *master) {
+rid_t reiser4_master_format(reiser4_master_t *master) {
     aal_assert("umka-982", master != NULL, return INVALID_PLUGIN_ID);
     return get_mr_format_id(master->super);
 }

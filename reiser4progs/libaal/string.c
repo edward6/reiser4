@@ -201,14 +201,6 @@ int name(type d, uint32_t n, char *a, int base, int flags) {	\
     }								\
     aal_memset(p, 0, n);					\
 								\
-    if (base == 16) {						\
-	aal_strncat(p, "0x", 2);				\
-	p += 2;							\
-    }								\
-								\
-    if (base == 8)						\
-	*p++ = '0';						\
-								\
     if (d == 0) {						\
 	*p++ = '0';						\
 	return 1;						\

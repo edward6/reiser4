@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
 	
     ls_init();
 
-    if (libreiser4_init(0)) {
+    if (libreiser4_init()) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't initialize libreiser4.");
 	return 0xff;
@@ -74,16 +74,10 @@ int main(int argc, char *argv[]) {
     }
     
     {
-	reiser4_tree_traverse(fs->format->device, fs->tree->cache->node->block, 
-	    __node_open, NULL, NULL, NULL, NULL, NULL);
-    }
-    
-    {
 	reiser4_plugin_t *dir_plugin;
 	reiser4_object_hint_t dir_hint;
 	
-	if (!(dir_plugin = libreiser4_factory_find_by_id(DIR_PLUGIN_TYPE, DIR_DIR40_ID)))
-	    libreiser4_factory_failed(goto error_free_object, find, dir, DIR_DIR40_ID);
+	dir_plugin = fs->dir->entity->plugin;
 	
 	dir_hint.statdata_pid = ITEM_STATDATA40_ID;
 	dir_hint.sdext = SDEXT_UNIX_ID;
@@ -95,7 +89,7 @@ int main(int argc, char *argv[]) {
 	    int i;
 	    char name[256];
 
-	    for (i = 0; i < 89; i++) {
+	    for (i = 0; i < 88; i++) {
 		aal_memset(name, 0, sizeof(name));
 		aal_snprintf(name, 256, "testdir%d", i);
 		reiser4_dir_close(reiser4_dir_create(fs, 
@@ -111,7 +105,7 @@ int main(int argc, char *argv[]) {
     }
 
     while (!reiser4_dir_read(object, &entry)) {
-	fprintf(stdout, "[%llx:%llx] %s\n", (entry.objid.locality >> 4), 
+	fprintf(stdout, "[0x%llx:0x%llx] %s\n", (entry.objid.locality >> 4), 
 	    entry.objid.objectid, entry.name);
     }
     

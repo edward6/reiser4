@@ -30,7 +30,7 @@ reiser4_object_t *reiser4_dir_open(
 	goto error_free_object;
     }
     
-    if (!(object->entity = libreiser4_plugin_call(goto error_free_object, 
+    if (!(object->entity = plugin_call(goto error_free_object, 
         plugin->dir_ops, open, fs->tree, &object->key)))
     {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -52,7 +52,7 @@ void reiser4_dir_close(
     aal_assert("umka-680", object != NULL, return);
     aal_assert("umka-841", object->entity != NULL, return);
 
-    libreiser4_plugin_call(goto error_free_object, 
+    plugin_call(goto error_free_object, 
 	object->entity->plugin->dir_ops, close, object->entity);
 
 error_free_object:
@@ -91,7 +91,7 @@ reiser4_object_t *reiser4_dir_create(
 	oid_t root_locality = reiser4_oid_root_locality(fs->oid);
 	oid_t root_parent_locality = reiser4_oid_root_parent_locality(fs->oid);
 		
-        parent_key.plugin = fs->key.plugin;
+        parent_key.plugin = fs->tree->key.plugin;
         reiser4_key_build_generic(&parent_key, KEY40_STATDATA_MINOR, 
 	    root_parent_locality, root_locality, 0);
 
@@ -108,7 +108,7 @@ reiser4_object_t *reiser4_dir_create(
     
     /* Updating object key */
     {
-	uint32_t key_size = libreiser4_plugin_call(goto error_free_object, 
+	uint32_t key_size = plugin_call(goto error_free_object, 
 	    object_key.plugin->key_ops, size,);
 	
 	reiser4_key_init(&object->key, object_key.plugin, object_key.body);
@@ -135,11 +135,11 @@ reiser4_object_t *reiser4_dir_create(
 	}
     }
 
-    if (!(object->entity = libreiser4_plugin_call(goto error_free_object, 
+    if (!(object->entity = plugin_call(goto error_free_object, 
 	plugin->dir_ops, create, fs->tree, &parent_key, &object_key, hint)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Can't create object"
-	    " with oid %llx.", reiser4_key_get_objectid(&object_key));
+	    " with oid 0x%llx.", reiser4_key_get_objectid(&object_key));
 	goto error_free_object;
     }
     
@@ -158,7 +158,7 @@ errno_t reiser4_dir_add(
     aal_assert("umka-862", object != NULL, return -1);
     aal_assert("umka-863", object->entity != NULL, return -1);
     
-    return libreiser4_plugin_call(return -1, object->entity->plugin->dir_ops, 
+    return plugin_call(return -1, object->entity->plugin->dir_ops, 
         add, object->entity, hint);
 }
 
@@ -171,7 +171,7 @@ errno_t reiser4_dir_rewind(
     aal_assert("umka-842", object != NULL, return -1);
     aal_assert("umka-843", object->entity != NULL, return -1);
 
-    return libreiser4_plugin_call(return -1, object->entity->plugin->dir_ops, 
+    return plugin_call(return -1, object->entity->plugin->dir_ops, 
 	rewind, object->entity);
 }
 
@@ -183,7 +183,7 @@ errno_t reiser4_dir_read(
     aal_assert("umka-860", object != NULL, return -1);
     aal_assert("umka-861", object->entity != NULL, return -1);
 
-    return libreiser4_plugin_call(return -1, object->entity->plugin->dir_ops, 
+    return plugin_call(return -1, object->entity->plugin->dir_ops, 
         read, object->entity, hint);
 }
 
@@ -194,7 +194,7 @@ uint32_t reiser4_dir_tell(
     aal_assert("umka-875", object != NULL, return -1);
     aal_assert("umka-876", object->entity != NULL, return -1);
 
-    return libreiser4_plugin_call(return -1, object->entity->plugin->dir_ops, 
+    return plugin_call(return -1, object->entity->plugin->dir_ops, 
 	tell, object->entity);
 }
 

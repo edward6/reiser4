@@ -121,5 +121,4 @@ static reiser4_plugin_t *internal40_start(reiser4_core_t *c) {
     return &internal40_plugin;
 }
 
-libreiser4_factory_register(internal40_start);
-
+plugin_register(internal40_start);

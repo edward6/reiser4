@@ -29,21 +29,24 @@
 static void mkfs_print_usage(void) {
     fprintf(stderr, "Usage: mkfs.reiser4 [ options ] FILE1 FILE2 ... [ size[K|M|G] ]\n");
     
-    fprintf(stderr, "Options:\n"
-	"  -v | --version                 prints current version.\n"
-	"  -u | -h | --usage | --help     prints program usage.\n"
+    fprintf(stderr, 
+	"Common options:\n"
+	"  -? | -h | --help               prints program usage.\n"
+	"  -V | --version                 prints current version.\n"
 	"  -q | --quiet                   forces creating filesystem without\n"
 	"                                 any questions.\n"
-	"  -f | --force                   makes mkfs to use whole disk, not block device\n"
-	"                                 or mounted partition.\n"
-	"  -d | --default=profile         profile to be used.\n"
-	"  -K | --known-profiles          prints known profiles.\n"
-	"  -s | --lost-found              forces mkfs to create lost+found directory,\n"
-	"  -b | --block-size=N            block size, 4096 by default,\n"
-	"                                 other are not supported for awhile.\n"
-	"  -l | --label=LABEL             volume label lets to mount\n"
+	"  -f | --force                   makes mkfs to use whole disk, not\n"
+	"                                 block device or mounted partition.\n"
+	"  -s | --lost-found              forces mkfs to create lost+found\n"
+	"                                 directory.\n"
+	"  -b | --block-size N            block size, 4096 by default,\n"
+	"                                 other are not supported at the moment.\n"
+	"  -l | --label LABEL             volume label lets to mount\n"
 	"                                 filesystem by its label.\n"
-	"  -i | --uuid=UUID               universally unique identifier.\n");
+	"  -i | --uuid UUID               universally unique identifier.\n"
+	"Plugins options:\n"
+	"  -e | --profile PROFILE         profile to be used.\n"
+	"  -K | --known-profiles          prints known profiles.\n");
 }
 
 static void mkfs_init(void) {
@@ -63,14 +66,12 @@ static reiser4_object_t *mkfs_create_lost_found(reiser4_fs_t *fs,
     reiser4_plugin_t *plugin;
     reiser4_object_hint_t hint;
 
-    /* Getting needed object plugin */
-    if (!(plugin = libreiser4_factory_find_by_id(DIR_PLUGIN_TYPE, profile->dir.dir)))
-        libreiser4_factory_failed(return NULL, find, dir, profile->dir.dir);
+    /* Getting the plugin from entity of the root directory */
+    plugin = fs->dir->entity->plugin;
 	
     /* Preparing object hint */
     hint.statdata_pid = profile->item.statdata;
     hint.direntry_pid = profile->item.direntry;
-    
     hint.sdext = profile->sdext;
     hint.hash_pid = profile->hash;
 	
@@ -96,9 +97,8 @@ int main(int argc, char *argv[]) {
     
     static struct option long_options[] = {
 	{"version", no_argument, NULL, 'v'},
-	{"usage", no_argument, NULL, 'u'},
 	{"help", no_argument, NULL, 'h'},
-	{"default", required_argument, NULL, 'd'},
+	{"profile", required_argument, NULL, 'e'},
 	{"force", no_argument, NULL, 'f'},
 	{"known-profiles", no_argument, NULL, 'K'},
 	{"quiet", no_argument, NULL, 'q'},
@@ -120,17 +120,16 @@ int main(int argc, char *argv[]) {
     memset(label, 0, sizeof(label));
 
     /* Parsing parameters */    
-    while ((c = getopt_long_only(argc, argv, "uhvd:qfKb:i:l:s", long_options, 
+    while ((c = getopt_long_only(argc, argv, "uhve:qfKb:i:l:s", long_options, 
 	(int *)0)) != EOF) 
     {
 	switch (c) {
-	    case 'u': 
 	    case 'h': {
 		mkfs_print_usage();
 		return NO_ERROR;
 	    }
-	    case 'v': {
-		printf("%s %s\n", argv[0], VERSION);
+	    case 'V': {
+		printf(BANNER(argv[0]));
 		return NO_ERROR;
 	    }
 	    case 'd': {
@@ -197,6 +196,8 @@ int main(int argc, char *argv[]) {
 	    }
 	}
     }
+    
+    printf(BANNER(argv[0]));
 
     if (optind >= argc) {
 	mkfs_print_usage();
@@ -215,7 +216,7 @@ int main(int argc, char *argv[]) {
 	case, libreiser4 will set up it by itself. We do this because mkfs doesn't
 	need a big cache.
     */
-    if (libreiser4_init(0)) {
+    if (libreiser4_init()) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't initialize libreiser4.");
 	goto error;

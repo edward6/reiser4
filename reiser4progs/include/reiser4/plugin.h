@@ -14,7 +14,7 @@
 #define REISER4_MASTER_MAGIC		("R4Sb")
 
 typedef uint64_t oid_t;
-typedef uint16_t reiser4_id_t;
+typedef uint16_t rid_t;
 
 typedef void reiser4_body_t;
 
@@ -254,11 +254,11 @@ struct reiser4_direntry_hint {
 typedef struct reiser4_direntry_hint reiser4_direntry_hint_t;
 
 struct reiser4_object_hint {
-    reiser4_id_t statdata_pid;
-    reiser4_id_t direntry_pid;
-    reiser4_id_t drop_pid;
-    reiser4_id_t extent_pid;
-    reiser4_id_t hash_pid;
+    rid_t statdata_pid;
+    rid_t direntry_pid;
+    rid_t drop_pid;
+    rid_t extent_pid;
+    rid_t hash_pid;
     uint64_t sdext;
 };
 
@@ -306,7 +306,7 @@ typedef struct reiser4_pos reiser4_pos_t;
 /* Common plugin header */
 struct reiser4_plugin_header {
     void *handle;
-    reiser4_id_t id;
+    rid_t id;
     reiser4_plugin_type_t type;
     const char label[REISER4_PLUGIN_MAX_LABEL];
     const char desc[REISER4_PLUGIN_MAX_DESC];
@@ -707,9 +707,9 @@ struct reiser4_format_ops {
     void (*set_free) (reiser4_entity_t *, count_t);
     
     /* Returns children objects plugins */
-    reiser4_id_t (*journal_pid) (reiser4_entity_t *);
-    reiser4_id_t (*alloc_pid) (reiser4_entity_t *);
-    reiser4_id_t (*oid_pid) (reiser4_entity_t *);
+    rid_t (*journal_pid) (reiser4_entity_t *);
+    rid_t (*alloc_pid) (reiser4_entity_t *);
+    rid_t (*oid_pid) (reiser4_entity_t *);
 
     /* Returns area where oid data lies */
     void (*oid_area)(reiser4_entity_t *, void **, uint32_t *);
@@ -873,7 +873,10 @@ struct reiser4_core {
     struct {
 	
 	/* Finds plugin by its attribues (type and id) */
-	reiser4_plugin_t *(*plugin_find)(reiser4_plugin_type_t, reiser4_id_t);
+	reiser4_plugin_t *(*plugin_ifind)(rid_t, rid_t);
+	
+	/* Finds plugin by its type and name */
+	reiser4_plugin_t *(*plugin_nfind)(rid_t, const char *);
 	
     } factory_ops;
     
@@ -909,7 +912,7 @@ struct reiser4_core {
 	errno_t (*item_left) (const void *, reiser4_place_t *);
 
 	/* Returs plugin id by coord */
-	reiser4_id_t (*item_pid) (const void *, reiser4_place_t *, 
+	rid_t (*item_pid) (const void *, reiser4_place_t *, 
 	    reiser4_plugin_type_t type);
 	
     } tree_ops;
@@ -917,13 +920,10 @@ struct reiser4_core {
 
 typedef struct reiser4_core reiser4_core_t;
 
-typedef reiser4_plugin_t *(*reiser4_plugin_entry_t) (reiser4_core_t *);
-typedef errno_t (*reiser4_plugin_func_t) (reiser4_plugin_t *, void *);
-
 /* Plugin functions and macros */
 #ifndef ENABLE_COMPACT
 
-#define libreiser4_plugin_call(action, ops, method, args...)	    \
+#define plugin_call(action, ops, method, args...)		    \
     ({								    \
 	if (!ops.method) {					    \
 	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,	    \
@@ -936,54 +936,25 @@ typedef errno_t (*reiser4_plugin_func_t) (reiser4_plugin_t *, void *);
 
 #else
 
-#define libreiser4_plugin_call(action, ops, method, args...)	    \
+#define plugin_call(action, ops, method, args...)		    \
     ({ops.method(args);})					    \
     
 #endif
 
-#if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
-
-extern reiser4_plugin_t *libreiser4_plugin_load_name(const char *name);
-
-#endif
-
-extern reiser4_plugin_t *libreiser4_plugin_load_entry(reiser4_plugin_entry_t entry);
-
-extern void libreiser4_plugin_unload(reiser4_plugin_t *plugin);
-
-/* Factory functions */
-extern errno_t libreiser4_factory_init(void);
-extern void libreiser4_factory_done(void);
+typedef reiser4_plugin_t *(*reiser4_plugin_entry_t) (reiser4_core_t *);
+typedef errno_t (*reiser4_plugin_func_t) (reiser4_plugin_t *, void *);
 
 #if defined(ENABLE_COMPACT) || defined(ENABLE_MONOLITHIC)
     
-#define libreiser4_factory_register(entry)			    \
+#define plugin_register(entry)					    \
     static reiser4_plugin_entry_t __plugin_entry		    \
 	__attribute__((__section__(".plugins"))) = entry
 #else
 
-#define libreiser4_factory_register(entry)			    \
+#define plugin_register(entry)					    \
     reiser4_plugin_entry_t __plugin_entry = entry
 
 #endif
 
-#define libreiser4_factory_failed(action, oper, type, id)	    \
-    do {							    \
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,	    \
-	    "Can't " #oper " " #type " plugin by its id %x.", id);  \
-	action;							    \
-    } while (0)
-
-extern errno_t libreiser4_factory_foreach(reiser4_plugin_func_t func, 
-    void *data);
-
-extern reiser4_plugin_t *libreiser4_factory_suitable(reiser4_plugin_func_t func,
-    void *data);
-
-extern reiser4_plugin_t *libreiser4_factory_find_by_id(reiser4_plugin_type_t type,
-    reiser4_id_t id);
-
-extern reiser4_plugin_t *libreiser4_factory_find_by_name(reiser4_plugin_type_t type,
-    const char *name);
-
 #endif
+

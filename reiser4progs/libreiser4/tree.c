@@ -24,7 +24,7 @@ static reiser4_cache_t *reiser4_tree_alloc(
     blk_t blk;
     aal_block_t *block;
     
-    reiser4_id_t pid;
+    rid_t pid;
     reiser4_node_t *node;
     reiser4_cache_t *cache;
     
@@ -113,25 +113,61 @@ error_free_block:
     return NULL;
 }
 
-/* Setting up the tree cache limit */
-static errno_t reiser4_tree_setup(reiser4_tree_t *tree) {
-    aal_assert("umka-859", tree != NULL, return -1);
+/* Returns tree root key */
+reiser4_key_t *reiser4_tree_key(reiser4_tree_t *tree) {
+    aal_assert("umka-1089", tree != NULL, return NULL);
+    return &tree->key;
+}
 
-    tree->limit.cur = 0;
-
-    if (libreiser4_mlimit_get() > 0)
-	tree->limit.max = libreiser4_mlimit_get();
-    else {
-	/* FIXME-UMKA: Here limit should be calculated by libreiser4 */
-	tree->limit.max = 1000;
+/*
+    Builds the tree root key. It is used for lookups and other as init key. This
+    method id needed because of root key in reiser3 and reiser4 has a diffrent 
+    locality and object id values.
+*/
+static errno_t reiser4_tree_build_key(
+    reiser4_tree_t *tree	/* tree to be used */
+) {
+    rid_t pid;
+    reiser4_oid_t *oid;
+    oid_t objectid, locality;
+    reiser4_plugin_t *plugin;
+    
+    aal_assert("umka-1090", tree != NULL, return -1);
+    aal_assert("umka-1091", tree->fs != NULL, return -1);
+    aal_assert("umka-1092", tree->fs->oid != NULL, return -1);
+    
+    oid = tree->fs->oid;
+    
+    /* FIXME-UMKA: hardcoded key plugin id */
+    pid = KEY_REISER40_ID;
+        
+    /* Finding needed key plugin by its identifier */
+    if (!(plugin = libreiser4_factory_ifind(KEY_PLUGIN_TYPE, pid))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find key plugin by its id 0x%x.", pid);
+	return -1;
     }
     
-    tree->limit.enabled = 1;
+    /* Getting root directory attributes from oid allocator */
+    locality = plugin_call(return -1,
+	oid->entity->plugin->oid_ops, root_locality,);
+
+    objectid = plugin_call(return -1,
+	oid->entity->plugin->oid_ops, root_objectid,);
+
+    /* Initializing the key by found plugin */
+    tree->key.plugin = plugin;
+
+    /* FIXME-UMKA: Hardcoded key40 stat data minor */
     
+    /* Building the key */
+    reiser4_key_build_generic(&tree->key, KEY40_STATDATA_MINOR,
+	locality, objectid, 0);
+
     return 0;
 }
 
-/* Opens balanced tree (that is tree cache) on specified filesystem */
+/* Opens the tree (that is, the tree cache) on specified filesystem */
 reiser4_tree_t *reiser4_tree_open(reiser4_fs_t *fs) {
     blk_t tree_root;
     blk_t tree_height;
@@ -145,6 +181,13 @@ reiser4_tree_t *reiser4_tree_open(reiser4_fs_t *fs) {
 	return NULL;
     
     tree->fs = fs;
+
+    /* Building the tree root key */
+    if (reiser4_tree_build_key(tree)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't build the tree root key.");
+	goto error_free_tree;
+    }
     
     /* Opening root node */
     tree_root = reiser4_tree_root(tree);
@@ -154,13 +197,6 @@ reiser4_tree_t *reiser4_tree_open(reiser4_fs_t *fs) {
 	goto error_free_tree;
     
     tree->cache->tree = tree;
-    
-    /* Setting up tree cache limits */
-    if (reiser4_tree_setup(tree)) {
-	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
-	    "Can't initialize cache limits. Cache limit spying will be disables.");
-	tree->limit.enabled = 0;
-    }
     
     return tree;
 
@@ -195,7 +231,14 @@ reiser4_tree_t *reiser4_tree_create(
 	return NULL;
 
     tree->fs = fs;
-
+    
+    /* Building the tree root key */
+    if (reiser4_tree_build_key(tree)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't build the tree root key.");
+	goto error_free_tree;
+    }
+    
     /* Getting free block from block allocator for place root block in it */
     if (!(blk = reiser4_alloc_alloc(fs->alloc))) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -224,14 +267,6 @@ reiser4_tree_t *reiser4_tree_create(
     
     tree->cache->level = reiser4_tree_height(tree);
     tree->cache->tree = tree;
-    
-    /* Setting up tree cahce limits */
-    if (reiser4_tree_setup(tree)) {
-	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
-	    "Can't initialize cache limits. Cache limit spying "
-	    "will be disables.");
-	tree->limit.enabled = 0;
-    }
     
     return tree;
 
@@ -401,7 +436,7 @@ int reiser4_tree_lookup(
     if (!(plugin = reiser4_node_item_plugin(src->cache->node, &src->pos)))
         return -1;
     
-    if ((libreiser4_plugin_call(return -1, plugin->item_ops.specific.direntry, 
+    if ((plugin_call(return -1, plugin->item_ops.specific.direntry, 
 	    entry, body, src->pos.unit, &entry)))
         return -1;
 	
@@ -465,9 +500,11 @@ static errno_t reiser4_tree_attach(
 	be got from filesystem default profile.
     */
     if (!(hint.plugin = 
-	libreiser4_factory_find_by_id(ITEM_PLUGIN_TYPE, ITEM_INTERNAL40_ID)))
+	libreiser4_factory_ifind(ITEM_PLUGIN_TYPE, ITEM_INTERNAL40_ID)))
     {
-	libreiser4_factory_failed(return -1, find, item, ITEM_INTERNAL40_ID);
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find internal item plugin by its id 0x%x.", ITEM_INTERNAL40_ID);
+	return -1;
     }
 
     aal_memset(&internal_hint, 0, sizeof(internal_hint));
@@ -486,7 +523,7 @@ static errno_t reiser4_tree_attach(
     
     if (lookup == 1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Key (%llx:%x:%llx:%llx) already exists in tree.", 
+	    "Key (0x%llx:0x%x:0x%llx:0x%llx) already exists in tree.", 
 	    reiser4_key_get_locality(&ldkey), reiser4_key_get_type(&ldkey),
 	    reiser4_key_get_objectid(&ldkey), reiser4_key_get_offset(&ldkey));
 	return -1;
@@ -880,7 +917,7 @@ errno_t reiser4_tree_mkspace(
 	    return -1;
 	}
 
-	if (libreiser4_plugin_call(return -1, lp->item_ops.common, compound,)) {
+	if (plugin_call(return -1, lp->item_ops.common, compound,)) {
 	    reiser4_body_t *lbody, *rbody;
 	    uint32_t lcount, rcount;
 		    
@@ -889,7 +926,7 @@ errno_t reiser4_tree_mkspace(
 	    if (!(lbody = reiser4_node_item_body(old->cache->node, &old->pos)))
 		return -1;
 		    
-	    if (!(lcount = libreiser4_plugin_call(return -1, lp->item_ops.common, 
+	    if (!(lcount = plugin_call(return -1, lp->item_ops.common, 
 		count, lbody)))
 	    {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -897,7 +934,7 @@ errno_t reiser4_tree_mkspace(
 		return -1;
 	    }
 		    
-	    if (libreiser4_plugin_call(return -1, lp->item_ops.specific.direntry,
+	    if (plugin_call(return -1, lp->item_ops.specific.direntry,
 		entry, lbody, lcount - 1, &lentry))
 	    {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -917,7 +954,7 @@ errno_t reiser4_tree_mkspace(
 		return -1;
 	    }
 			
-	    if (libreiser4_plugin_call(return -1, rp->item_ops.common, 
+	    if (plugin_call(return -1, rp->item_ops.common, 
 		compound,) && lp->h.id == rp->h.id)
 	    {
 		reiser4_key_t lkey, rkey;
@@ -973,7 +1010,7 @@ errno_t reiser4_tree_insert(
 
     if (lookup == 1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Key (%llx:%x:%llx:%llx) already exists in tree.", 
+	    "Key (0x%llx:0x%x:0x%llx:0x%llx) already exists in tree.", 
 	    reiser4_key_get_locality(key), reiser4_key_get_type(key),
 	    reiser4_key_get_objectid(key), reiser4_key_get_offset(key));
 	return -1;
@@ -1080,7 +1117,7 @@ errno_t reiser4_tree_remove(
 
     if (lookup == 0) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Key (%llx:%x:%llx:%llx) doesn't found in tree.", 
+	    "Key (0x%llx:0x%x:0x%llx:0x%llx) doesn't found in tree.", 
 	    reiser4_key_get_locality(key), reiser4_key_get_type(key),
 	    reiser4_key_get_objectid(key), reiser4_key_get_offset(key));
 	return -1;
@@ -1205,5 +1242,18 @@ error_free_node:
     reiser4_node_close(node);
 error:
     return result;
+}
+
+/* Returns tree limit for number of blocks in cache */
+count_t reiser4_tree_limit(reiser4_tree_t *tree) {
+    aal_assert("umka-1087", tree != NULL, return 0);
+
+    return tree->limit.max;
+}
+
+/* Sets up limit block number for the tree */
+void reiser4_tree_setup(reiser4_tree_t *tree, count_t limit) {
+    aal_assert("umka-1088", tree != NULL, return);
+    tree->limit.max = limit;
 }
 

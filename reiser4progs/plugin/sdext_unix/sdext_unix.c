@@ -82,5 +82,5 @@ static reiser4_plugin_t *sdext_unix_start(reiser4_core_t *c) {
     return &sdext_unix_plugin;
 }
 
-libreiser4_factory_register(sdext_unix_start);
+plugin_register(sdext_unix_start);
 

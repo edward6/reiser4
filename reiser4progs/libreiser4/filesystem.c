@@ -10,40 +10,6 @@
 
 #include <reiser4/reiser4.h>
 
-/*
-    Builds root directory key. It is used for lookups and other as init key. This 
-    method id needed because of root key in reiser3 and reiser4 has a diffrent 
-    locality and object id values.
-*/
-errno_t reiser4_fs_build_root_key(
-    reiser4_fs_t *fs,		/* filesystem to be used */
-    reiser4_id_t pid		/* key plugin id to be used */
-) {
-    oid_t objectid;
-    oid_t parent_objectid;
-    reiser4_plugin_t *plugin;
-    
-    /* Finding needed key plugin by its identifier */
-    if (!(plugin = libreiser4_factory_find_by_id(KEY_PLUGIN_TYPE, pid)))
-	libreiser4_factory_failed(return -1, find, key, pid);
-
-    /* Getting root directory attributes from oid allocator */
-    parent_objectid = libreiser4_plugin_call(return -1,
-	fs->oid->entity->plugin->oid_ops, root_locality,);
-
-    objectid = libreiser4_plugin_call(return -1,
-	fs->oid->entity->plugin->oid_ops, root_objectid,);
-
-    /* Initializing the key by found plugin */
-    fs->key.plugin = plugin;
-
-    /* Building the key */
-    reiser4_key_build_generic(&fs->key, KEY40_STATDATA_MINOR,
-	parent_objectid, objectid, 0);
-
-    return 0;
-}
-
 /* 
     Opens filesysetm on specified host device and journal device. Replays the 
     journal if "replay" flag is specified.
@@ -55,7 +21,7 @@ reiser4_fs_t *reiser4_fs_open(
 ) {
     count_t len;
     reiser4_fs_t *fs;
-    reiser4_id_t pid;
+    rid_t pid;
 
     aal_assert("umka-148", host_device != NULL, return NULL);
 
@@ -141,13 +107,6 @@ reiser4_fs_t *reiser4_fs_open(
 	goto error_free_journal;
   
     if (reiser4_oid_valid(fs->oid))
-	goto error_free_oid;
-    
-    /* 
-	Initilaizes root directory key.
-	FIXME-UMKA: Here should be not hardcoded key id.
-    */
-    if (reiser4_fs_build_root_key(fs, KEY_REISER40_ID))
 	goto error_free_oid;
     
     /* Opens the tree starting from root block */
@@ -261,10 +220,6 @@ reiser4_fs_t *reiser4_fs_create(
     if (!(fs->oid = reiser4_oid_create(fs->format)))
 	goto error_free_journal;
 
-    /* Initializes root key */
-    if (reiser4_fs_build_root_key(fs, profile->key))
-	goto error_free_oid;
-    
     /* Creates tree */
     if (!(fs->tree = reiser4_tree_create(fs, profile)))
 	goto error_free_oid;
@@ -279,8 +234,13 @@ reiser4_fs_t *reiser4_fs_create(
 	reiser4_object_hint_t dir_hint;
 	
 	/* Finding directroy plugin */
-	if (!(dir_plugin = libreiser4_factory_find_by_id(DIR_PLUGIN_TYPE, profile->dir.dir)))
-	    libreiser4_factory_failed(goto error_free_tree, find, dir, profile->dir.dir);
+	if (!(dir_plugin = libreiser4_factory_ifind(DIR_PLUGIN_TYPE, 
+	    profile->dir.dir))) 
+	{
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't find directory plugin by its id 0x%x.", profile->dir.dir);
+	    goto error_free_tree;
+	}
 	
 	dir_hint.statdata_pid = profile->item.statdata;
 	dir_hint.sdext = profile->sdext;
@@ -389,7 +349,7 @@ const char *reiser4_fs_name(
 }
 
 /* Returns disk format plugin in use */
-reiser4_id_t reiser4_fs_format_pid(
+rid_t reiser4_fs_format_pid(
     reiser4_fs_t *fs		/* filesystem disk format pid will be obtained from */
 ) {
     aal_assert("umka-151", fs != NULL, return -1);

@@ -363,15 +363,15 @@ static const char *format40_name(reiser4_entity_t *entity) {
     return formats[0];
 }
 
-static reiser4_id_t format40_journal_pid(reiser4_entity_t *entity) {
+static rid_t format40_journal_pid(reiser4_entity_t *entity) {
     return JOURNAL_REISER40_ID;
 }
 
-static reiser4_id_t format40_alloc_pid(reiser4_entity_t *entity) {
+static rid_t format40_alloc_pid(reiser4_entity_t *entity) {
     return ALLOC_REISER40_ID;
 }
 
-static reiser4_id_t format40_oid_pid(reiser4_entity_t *entity) {
+static rid_t format40_oid_pid(reiser4_entity_t *entity) {
     return OID_REISER40_ID;
 }
 
@@ -489,5 +489,5 @@ static reiser4_plugin_t *format40_start(reiser4_core_t *c) {
     return &format40_plugin;
 }
 
-libreiser4_factory_register(format40_start);
+plugin_register(format40_start);
 

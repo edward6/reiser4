@@ -5,5 +5,5 @@
     Author Yury Umanets.
 */
 
-unsigned long int __plugin_end __attribute__((__section__(".plugins"))) = 0;
+unsigned long __plugin_end __attribute__((__section__(".plugins"))) = 0;
 

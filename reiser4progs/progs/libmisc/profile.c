@@ -183,7 +183,7 @@ static char *progs_plugin_name[] = {
     "KEY"
 };
 
-static reiser4_id_t *progs_profile_field(reiser4_profile_t *profile, 
+static rid_t *progs_profile_field(reiser4_profile_t *profile, 
     progs_plugin_type_t type) 
 {
     aal_assert("umka-920", profile != NULL, return NULL);
@@ -339,7 +339,7 @@ static char *progs_profile_it2name(progs_plugin_type_t type) {
 errno_t progs_profile_override(reiser4_profile_t *profile, 
     const char *type, const char *name) 
 {
-    reiser4_id_t *field;
+    rid_t *field;
     progs_plugin_type_t it;
     reiser4_plugin_type_t pt;
     reiser4_plugin_t *plugin;
@@ -357,7 +357,7 @@ errno_t progs_profile_override(reiser4_profile_t *profile,
     if ((pt = progs_profile_it2pt(it)) == 0xffff)
 	return -1;
     
-    if (!(plugin = libreiser4_factory_find_by_name(pt, name))) {
+    if (!(plugin = libreiser4_factory_nfind(pt, name))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find plugin by type \"%s\" and name \"%s\".", type, name);
 	return -1;
@@ -382,7 +382,7 @@ void progs_profile_print(reiser4_profile_t *profile) {
 	
     printf("\nProfile %s:\n", profile->label);
     for (i = 0; i < PROGS_LAST_PLUGIN; i++) {
-	if ((plugin = libreiser4_factory_find_by_id(progs_profile_it2pt(i), 
+	if ((plugin = libreiser4_factory_ifind(progs_profile_it2pt(i), 
 	    *progs_profile_field(profile, i))) != NULL) 
 	{
 	    printf("%s: %s (%s).\n", progs_profile_it2name(i),

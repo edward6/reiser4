@@ -16,7 +16,7 @@
 #include <reiser4/filesystem.h>
 
 extern reiser4_format_t *reiser4_format_open(aal_device_t *device, 
-    reiser4_id_t pid);
+    rid_t pid);
 
 extern reiser4_format_t *reiser4_format_reopen(reiser4_format_t *format, 
     aal_device_t *device);
@@ -34,7 +34,7 @@ extern uint16_t reiser4_format_get_height(reiser4_format_t *format);
 extern errno_t reiser4_format_sync(reiser4_format_t *format);
 
 extern reiser4_format_t *reiser4_format_create(aal_device_t *device,
-    count_t len, uint16_t drop_policy, reiser4_id_t pid);
+    count_t len, uint16_t drop_policy, rid_t pid);
 
 extern void reiser4_format_set_root(reiser4_format_t *format, 
     blk_t root);
@@ -54,9 +54,9 @@ extern errno_t reiser4_format_mark(reiser4_format_t *format,
 #endif
 
 extern const char *reiser4_format_name(reiser4_format_t *format);
-extern reiser4_id_t reiser4_format_journal_pid(reiser4_format_t *format);
-extern reiser4_id_t reiser4_format_alloc_pid(reiser4_format_t *format);
-extern reiser4_id_t reiser4_format_oid_pid(reiser4_format_t *format);
+extern rid_t reiser4_format_journal_pid(reiser4_format_t *format);
+extern rid_t reiser4_format_alloc_pid(reiser4_format_t *format);
+extern rid_t reiser4_format_oid_pid(reiser4_format_t *format);
 
 extern errno_t reiser4_format_layout(reiser4_format_t *format, 
     reiser4_action_func_t action_func, void *data);

@@ -60,7 +60,7 @@ void reiser4_cache_close(
 /* Helper for comparing during finding in the cashe */
 static int callback_comp_for_find(
     reiser4_cache_t *cache,	/* cache find should be operate on */
-    reiser4_key_t *key,	/* key to be find */
+    reiser4_key_t *key,		/* key to be find */
     void *data			/* user-specified data */
 ) {
     reiser4_key_t ldkey;
@@ -72,7 +72,7 @@ static int callback_comp_for_find(
 /* Finds children by its left delimiting key */
 reiser4_cache_t *reiser4_cache_find(
     reiser4_cache_t *cache,	/* cache to  be greped */
-    reiser4_key_t *key)	/* left delimiting key */
+    reiser4_key_t *key)		/* left delimiting key */
 {
     aal_list_t *item;
     

@@ -281,7 +281,7 @@ static errno_t node40_insert(reiser4_entity_t *entity,
 	return 0;
     }
     
-    return libreiser4_plugin_call(return -1, hint->plugin->item_ops.common,
+    return plugin_call(return -1, hint->plugin->item_ops.common,
 	init, node40_ib_at(node->block, pos->item), hint);
 }
 
@@ -297,7 +297,7 @@ static errno_t node40_paste(reiser4_entity_t *entity,
     if (node40_expand(node, pos, hint))
 	return -1;
 
-    return libreiser4_plugin_call(return -1, hint->plugin->item_ops.common,
+    return plugin_call(return -1, hint->plugin->item_ops.common,
 	insert, node40_ib_at(node->block, pos->item), pos->unit, hint);
 }
 
@@ -386,7 +386,7 @@ static errno_t node40_cut(reiser4_entity_t *entity,
 {
     void *body;
     uint16_t len;
-    reiser4_id_t pid;
+    rid_t pid;
     
     item40_header_t *ih;
     node40_header_t *nh;
@@ -402,9 +402,12 @@ static errno_t node40_cut(reiser4_entity_t *entity,
     if ((pid = ih40_get_pid(ih)) == INVALID_PLUGIN_ID)
         return -1;
 	
-    if (!(plugin = core->factory_ops.plugin_find(ITEM_PLUGIN_TYPE, pid)))
-        libreiser4_factory_failed(return -1, find, item, pid);
-	
+    if (!(plugin = core->factory_ops.plugin_ifind(ITEM_PLUGIN_TYPE, pid))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find item plugin by its id 0x%x.", pid);
+	return -1;
+    }
+    
     body = node40_ib_at(node->block, pos->item);
 	
     if (!(len = plugin->item_ops.common.remove(body, pos->unit)))
@@ -490,7 +493,7 @@ static inline int callback_comp_for_lookup(void *key1,
     aal_assert("umka-567", key2 != NULL, return -1);
     aal_assert("umka-656", data != NULL, return -1);
 
-    return libreiser4_plugin_call(return -1, ((reiser4_plugin_t *)data)->key_ops, 
+    return plugin_call(return -1, ((reiser4_plugin_t *)data)->key_ops, 
 	compare, key1, key2);
 }
 
@@ -567,5 +570,5 @@ static reiser4_plugin_t *node40_start(reiser4_core_t *c) {
     return &node40_plugin;
 }
 
-libreiser4_factory_register(node40_start);
+plugin_register(node40_start);
 

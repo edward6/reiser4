@@ -79,7 +79,7 @@ static oid_t oid40_alloc(reiser4_entity_t *entity) {
     ((oid40_t *)entity)->next++;
     ((oid40_t *)entity)->used++;
     
-    return ((oid40_t *)entity)->next;
+    return ((oid40_t *)entity)->next - 1;
 }
 
 static void oid40_dealloc(reiser4_entity_t *entity, 
@@ -160,5 +160,5 @@ static reiser4_plugin_t *oid40_start(reiser4_core_t *c) {
     return &oid40_plugin;
 }
 
-libreiser4_factory_register(oid40_start);
+plugin_register(oid40_start);
 

@@ -14,11 +14,19 @@
 */
 
 /* Handler for plugin finding requests from all plugins */
-static inline reiser4_plugin_t *__plugin_find(
-    reiser4_plugin_type_t type,    /* needed type of plugin*/
-    reiser4_id_t id		    /* needed plugin id */
+static inline reiser4_plugin_t *__plugin_ifind(
+    rid_t type,			    /* needed type of plugin*/
+    rid_t id			    /* needed plugin id */
 ) {
-    return libreiser4_factory_find_by_id(type, id);
+    return libreiser4_factory_ifind(type, id);
+}
+
+/* Handler for plugin finding requests from all plugins */
+static inline reiser4_plugin_t *__plugin_nfind(
+    rid_t type,			    /* needed type of plugin*/
+    const char *name		    /* needed plugin name (label) */
+) {
+    return libreiser4_factory_nfind(type, name);
 }
 
 #ifndef ENABLE_COMPACT
@@ -79,12 +87,12 @@ static inline errno_t __item_body(
     node = ((reiser4_cache_t *)place->cache)->node;
     
     /* Getting item from the node */
-    *item = libreiser4_plugin_call(return -1, node->entity->plugin->node_ops, 
+    *item = plugin_call(return -1, node->entity->plugin->node_ops, 
 	item_body, node->entity, &place->pos);
     
     /* Getting item length from the node */
     if (len) {
-	*len = libreiser4_plugin_call(return -1, node->entity->plugin->node_ops,
+	*len = plugin_call(return -1, node->entity->plugin->node_ops,
 	    item_len, node->entity, &place->pos);
     }
     
@@ -153,7 +161,7 @@ static inline errno_t __item_key(
 }
 
 /* Handler for plugin id requests */
-static inline reiser4_id_t __item_pid(
+static inline rid_t __item_pid(
     const void *tree,		    /* opaque pointer to the tree */
     reiser4_place_t *place,	    /* coord of item pid will be obtained from */
     reiser4_plugin_type_t type	    /* requested plugin type */
@@ -167,24 +175,23 @@ static inline reiser4_id_t __item_pid(
 	    
 	    node = ((reiser4_cache_t *)place->cache)->node;
 	    
-	    return libreiser4_plugin_call(return -1, 
-		node->entity->plugin->node_ops, item_pid, 
-		node->entity, &place->pos);
+	    return plugin_call(return -1, node->entity->plugin->node_ops, 
+		item_pid, node->entity, &place->pos);
 	}
 	case NODE_PLUGIN_TYPE:
 	    return reiser4_node_pid(((reiser4_cache_t *)place->cache)->node);
 	    
 	default:
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Unknown plugin type %x.", type);
+		"Unknown plugin type 0x%x.", type);
 	    return INVALID_PLUGIN_ID;
     }
 }
 
 #ifndef ENABLE_COMPACT
 
-/* %k */
-#define PA_REISER4_KEY          (PA_LAST)
+/* Support for the %k occurences in the formated messages */
+#define PA_REISER4_KEY  (PA_LAST)
 
 static int _arginfo_k (const struct printf_info *info, size_t n, int *argtypes) {
     if (n > 0)
@@ -195,13 +202,14 @@ static int _arginfo_k (const struct printf_info *info, size_t n, int *argtypes) 
 static int __print_key(FILE * stream, const struct printf_info *info, 
     const void *const *args) 
 {
-    reiser4_key_t *key;
-    char buffer[100];
     int len;
+    char buffer[100];
+    reiser4_key_t *key;
 
-    aal_memset(buffer, 0, 100);
+    aal_memset(buffer, 0, sizeof(buffer));
+    
     key = *((reiser4_key_t **)(args[0]));
-    reiser4_key_print(key, buffer, 100, 0);
+    reiser4_key_print(key, buffer, sizeof(buffer), 0);
 
     fprintf(stream, "%s", buffer);
     
@@ -212,8 +220,11 @@ static int __print_key(FILE * stream, const struct printf_info *info,
 
 reiser4_core_t core = {
     .factory_ops = {
-	/* Installing callback for make search for a plugin by its attributes */
-	.plugin_find = __plugin_find
+	/* Installing callback for making search for a plugin by its type and id */
+	.plugin_ifind = __plugin_ifind,
+	
+	/* Installing callback for making search for a plugin by its type and name */
+	.plugin_nfind = __plugin_nfind,
     },
     
     .tree_ops = {
@@ -251,47 +262,31 @@ reiser4_core_t core = {
 };
 
 /* Returns libreiser4 max supported interface version */
-int libreiser4_get_max_interface_version(void) {
+int libreiser4_max_interface_version(void) {
     return LIBREISER4_MAX_INTERFACE_VERSION;
 }
 
 /* Returns libreiser4 min supported interface version */
-int libreiser4_get_min_interface_version(void) {
+int libreiser4_min_interface_version(void) {
     return LIBREISER4_MIN_INTERFACE_VERSION;
 }
 
 /* Returns libreiser4 version */
-const char *libreiser4_get_version(void) {
+const char *libreiser4_version(void) {
     return VERSION;
-}
-
-static uint32_t mlimit = 0;
-
-/* Returns current memory limit spent for tree cache */
-uint32_t libreiser4_mlimit_get(void) {
-    return mlimit;
-}
-
-/* Sets memory limit for tree cache */
-void libreiser4_mlimit_set(uint32_t mem_limit) {
-    mlimit = mem_limit;
 }
 
 /* 
     Initializes libreiser4 (plugin factory, memory limit, etc). This function 
     should be called before any actions performed on libreiser4.
 */
-errno_t libreiser4_init(
-    uint32_t mem_limit		/* memory limit in blocks tree cache may be size */
-) {
+errno_t libreiser4_init(void) {
     if (libreiser4_factory_init()) {
 	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, 
 	    "Can't initialize plugin factory.");
 	return -1;
     }
-
-    mlimit = mem_limit;
-
+    
 #ifndef ENABLE_COMPACT
     register_printf_function ('k', __print_key, _arginfo_k);
 #endif

@@ -61,37 +61,37 @@ struct reiser4_profile {
     char label[255];
     char desc[255];
     
-    reiser4_id_t node;
+    rid_t node;
 
     struct {
-	reiser4_id_t dir;
+	rid_t dir;
     } dir;
     
     struct {
-	reiser4_id_t reg;
-	reiser4_id_t symlink;
-	reiser4_id_t special;      
+	rid_t reg;
+	rid_t symlink;
+	rid_t special;      
     } file;
     
     struct {	    
-	reiser4_id_t statdata;
-	reiser4_id_t internal;
-	reiser4_id_t direntry;
+	rid_t statdata;
+	rid_t internal;
+	rid_t direntry;
 	struct {
-	    reiser4_id_t drop;
-	    reiser4_id_t extent;
+	    rid_t drop;
+	    rid_t extent;
 	} file_body;
-	reiser4_id_t acl;
+	rid_t acl;
     } item;
     
-    reiser4_id_t hash;
-    reiser4_id_t drop_policy;
-    reiser4_id_t perm;
-    reiser4_id_t format;
-    reiser4_id_t oid;
-    reiser4_id_t alloc;
-    reiser4_id_t journal;
-    reiser4_id_t key;
+    rid_t hash;
+    rid_t drop_policy;
+    rid_t perm;
+    rid_t format;
+    rid_t oid;
+    rid_t alloc;
+    rid_t journal;
+    rid_t key;
     uint64_t sdext;
 };
 
@@ -232,10 +232,10 @@ struct reiser4_cache {
 
 struct reiser4_cache_limit {
     /* Current size of cache in blocks */
-    int32_t cur;
+    count_t cur;
 
     /* Maximal allowed size */
-    uint32_t max;
+    count_t max;
 
     /* Is cache limit spying active? */
     int enabled;
@@ -262,6 +262,9 @@ struct reiser4_tree {
 	allowed value minus some customizable and reasonable number of blocks.
     */
     reiser4_cache_limit_t limit;
+    
+    /* Tree root key */
+    reiser4_key_t key;
 };
 
 /* Callback function for opening node */
@@ -286,7 +289,8 @@ struct reiser4_fs {
     reiser4_tree_t *tree;
     reiser4_object_t *dir;
 
-    reiser4_key_t key;
+    reiser4_profile_t profile;
+    
     void *data;
 };
 
@@ -309,9 +313,8 @@ extern errno_t reiser4_fs_sync(reiser4_fs_t *fs);
 
 extern const char *reiser4_fs_name(reiser4_fs_t *fs);
 extern uint16_t reiser4_fs_blocksize(reiser4_fs_t *fs);
-extern errno_t reiser4_fs_build_root_key(reiser4_fs_t *fs, reiser4_id_t pid);
 
-extern reiser4_id_t reiser4_fs_format_pid(reiser4_fs_t *fs);
+extern rid_t reiser4_fs_format_pid(reiser4_fs_t *fs);
 extern aal_device_t *reiser4_fs_host_device(reiser4_fs_t *fs);
 extern aal_device_t *reiser4_fs_journal_device(reiser4_fs_t *fs);
 

@@ -19,7 +19,7 @@ reiser4_alloc_t *reiser4_alloc_open(
     reiser4_format_t *format,	/* disk-format allocator is going to be opened on */
     count_t len			/* filesystem size in blocks */
 ) {
-    reiser4_id_t pid;
+    rid_t pid;
     reiser4_alloc_t *alloc;
     reiser4_plugin_t *plugin;
 	
@@ -36,11 +36,14 @@ reiser4_alloc_t *reiser4_alloc_open(
     }
     
     /* Finding block allocator plugin */
-    if (!(plugin = libreiser4_factory_find_by_id(ALLOC_PLUGIN_TYPE, pid)))
-    	libreiser4_factory_failed(goto error_free_alloc, find, alloc, pid);
-
+    if (!(plugin = libreiser4_factory_ifind(ALLOC_PLUGIN_TYPE, pid))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find block allocator plugin by its id 0x%x.", pid);
+	goto error_free_alloc;
+    }
+    
     /* Calling "open" method from block allocator plugin */
-    if (!(alloc->entity = libreiser4_plugin_call(goto error_free_alloc, 
+    if (!(alloc->entity = plugin_call(goto error_free_alloc, 
 	plugin->alloc_ops, open, format->entity, len)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -66,7 +69,7 @@ reiser4_alloc_t *reiser4_alloc_create(
     reiser4_format_t *format,   /* format block allocator is going to be created on */
     count_t len			/* filesystem size in blocks */
 ) {
-    reiser4_id_t pid;
+    rid_t pid;
     reiser4_alloc_t *alloc;
     reiser4_plugin_t *plugin;
 	
@@ -83,11 +86,14 @@ reiser4_alloc_t *reiser4_alloc_create(
     }
     
     /* Getting needed plugin from plugin factory by its id */
-    if (!(plugin = libreiser4_factory_find_by_id(ALLOC_PLUGIN_TYPE, pid)))
-    	libreiser4_factory_failed(goto error_free_alloc, find, allocator, pid);
-
+    if (!(plugin = libreiser4_factory_ifind(ALLOC_PLUGIN_TYPE, pid))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find block allocator plugin by its id 0x%x.", pid);
+	goto error_free_alloc;
+    }
+    
     /* Query the block allocator plugin for creating allocator entity */
-    if (!(alloc->entity = libreiser4_plugin_call(goto error_free_alloc, 
+    if (!(alloc->entity = plugin_call(goto error_free_alloc, 
 	plugin->alloc_ops, create, format->entity, len)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -108,7 +114,7 @@ errno_t reiser4_alloc_sync(
 ) {
     aal_assert("umka-139", alloc != NULL, return -1);
 
-    return libreiser4_plugin_call(return -1, alloc->entity->plugin->alloc_ops, 
+    return plugin_call(return -1, alloc->entity->plugin->alloc_ops, 
 	sync, alloc->entity);
 }
 
@@ -121,7 +127,7 @@ void reiser4_alloc_close(
     aal_assert("umka-141", alloc != NULL, return);
 
     /* Calling the plugin for close its internal instance properly */
-    libreiser4_plugin_call(return, alloc->entity->plugin->alloc_ops, 
+    plugin_call(return, alloc->entity->plugin->alloc_ops, 
 	close, alloc->entity);
     
     aal_free(alloc);
@@ -133,7 +139,7 @@ count_t reiser4_alloc_free(
 ) {
     aal_assert("umka-362", alloc != NULL, return 0);
 
-    return libreiser4_plugin_call(return 0, alloc->entity->plugin->alloc_ops, 
+    return plugin_call(return 0, alloc->entity->plugin->alloc_ops, 
 	free, alloc->entity);
 }
 
@@ -143,7 +149,7 @@ count_t reiser4_alloc_used(
 ) {
     aal_assert("umka-499", alloc != NULL, return 0);
 
-    return libreiser4_plugin_call(return 0, alloc->entity->plugin->alloc_ops, 
+    return plugin_call(return 0, alloc->entity->plugin->alloc_ops, 
 	used, alloc->entity);
 }
 
@@ -156,7 +162,7 @@ errno_t reiser4_alloc_mark(
 ) {
     aal_assert("umka-501", alloc != NULL, return -1);
 
-    libreiser4_plugin_call(return -1, alloc->entity->plugin->alloc_ops, 
+    plugin_call(return -1, alloc->entity->plugin->alloc_ops, 
 	mark, alloc->entity, blk);
 
     return 0;
@@ -169,7 +175,7 @@ errno_t reiser4_alloc_dealloc(
 ) {
     aal_assert("umka-503", alloc != NULL, return -1);
 
-    libreiser4_plugin_call(return -1, alloc->entity->plugin->alloc_ops, 
+    plugin_call(return -1, alloc->entity->plugin->alloc_ops, 
 	dealloc, alloc->entity, blk);
 
     return 0;
@@ -181,7 +187,7 @@ blk_t reiser4_alloc_alloc(
 ) {
     aal_assert("umka-505", alloc != NULL, return 0);
 
-    return libreiser4_plugin_call(return 0, alloc->entity->plugin->alloc_ops, 
+    return plugin_call(return 0, alloc->entity->plugin->alloc_ops, 
 	alloc, alloc->entity);
 }
 
@@ -190,7 +196,7 @@ errno_t reiser4_alloc_valid(
 ) {
     aal_assert("umka-833", alloc != NULL, return -1);
 
-    return libreiser4_plugin_call(return -1, alloc->entity->plugin->alloc_ops, 
+    return plugin_call(return -1, alloc->entity->plugin->alloc_ops, 
 	valid, alloc->entity);
 }
 
@@ -206,7 +212,7 @@ int reiser4_alloc_test(
 ) {
     aal_assert("umka-662", alloc != NULL, return 0);
 
-    return libreiser4_plugin_call(return 0, alloc->entity->plugin->alloc_ops, 
+    return plugin_call(return 0, alloc->entity->plugin->alloc_ops, 
 	test, alloc->entity, blk);
 }
 

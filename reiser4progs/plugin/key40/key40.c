@@ -331,5 +331,5 @@ static reiser4_plugin_t *key40_start(reiser4_core_t *c) {
     return &key40_plugin;
 }
 
-libreiser4_factory_register(key40_start);
+plugin_register(key40_start);
 

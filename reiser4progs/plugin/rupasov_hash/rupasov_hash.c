@@ -66,5 +66,5 @@ static reiser4_plugin_t *rupasov_hash_start(reiser4_core_t *c) {
     return &rupasov_hash_plugin;
 }
 
-libreiser4_factory_register(rupasov_hash_start);
+plugin_register(rupasov_hash_start);
 

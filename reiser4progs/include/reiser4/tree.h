@@ -60,7 +60,11 @@ extern errno_t reiser4_tree_traverse(aal_device_t *device,
     void *data);
 
 extern blk_t reiser4_tree_root(reiser4_tree_t *tree);
+extern reiser4_key_t *reiser4_tree_key(reiser4_tree_t *tree);
 extern uint8_t reiser4_tree_height(reiser4_tree_t *tree);
+
+extern count_t reiser4_tree_limit(reiser4_tree_t *tree);
+extern void reiser4_tree_setup(reiser4_tree_t *tree, count_t limit);
 
 #endif
 

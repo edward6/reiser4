@@ -18,7 +18,7 @@ reiser4_journal_t *reiser4_journal_open(
     reiser4_format_t *format,	/* format journal is going to be opened on */
     aal_device_t *device	/* device journal weill be opened on */
 ) {
-    reiser4_id_t pid;
+    rid_t pid;
     reiser4_plugin_t *plugin;
     reiser4_journal_t *journal;
 	
@@ -35,16 +35,19 @@ reiser4_journal_t *reiser4_journal_open(
     }
     
     /* Getting plugin by its id from plugin factory */
-    if (!(plugin = libreiser4_factory_find_by_id(JOURNAL_PLUGIN_TYPE, pid)))
-	libreiser4_factory_failed(goto error_free_journal, find, journal, pid);
-	
+    if (!(plugin = libreiser4_factory_ifind(JOURNAL_PLUGIN_TYPE, pid))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find journal plugin by its id 0x%x.", pid);
+	goto error_free_journal;
+    }
+    
     journal->device = device;
 
     /* 
 	Initializing journal entity by means of calling "open" method from found 
 	journal plugin.
     */
-    if (!(journal->entity = libreiser4_plugin_call(goto error_free_journal, 
+    if (!(journal->entity = plugin_call(goto error_free_journal, 
 	plugin->journal_ops, open, format->entity))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -68,7 +71,7 @@ reiser4_journal_t *reiser4_journal_create(
     aal_device_t *device,	/* device journal will be created on */
     void *params		/* journal params (opaque pointer) */
 ) {
-    reiser4_id_t pid;
+    rid_t pid;
     reiser4_plugin_t *plugin;
     reiser4_journal_t *journal;
 	
@@ -84,13 +87,16 @@ reiser4_journal_t *reiser4_journal_create(
 	goto error_free_journal;
     }
     
-    if (!(plugin = libreiser4_factory_find_by_id(JOURNAL_PLUGIN_TYPE, pid))) 
-	libreiser4_factory_failed(goto error_free_journal, find, journal, pid);
-
+    if (!(plugin = libreiser4_factory_ifind(JOURNAL_PLUGIN_TYPE, pid)))  {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find journal plugin by its id 0x%x.", pid);
+	goto error_free_journal;
+    }
+    
     journal->device = device;
 	
     /* Initializing journal entity */
-    if (!(journal->entity = libreiser4_plugin_call(goto error_free_journal, 
+    if (!(journal->entity = plugin_call(goto error_free_journal, 
 	plugin->journal_ops, create, format->entity, params))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -113,7 +119,7 @@ errno_t reiser4_journal_replay(
     aal_assert("umka-727", journal != NULL, return -1);
     
     /* Calling plugin for actual replaying */
-    if (libreiser4_plugin_call(return -1, journal->entity->plugin->journal_ops, 
+    if (plugin_call(return -1, journal->entity->plugin->journal_ops, 
 	replay, journal->entity)) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -129,7 +135,7 @@ errno_t reiser4_journal_sync(
 ) {
     aal_assert("umka-100", journal != NULL, return -1);
 
-    return libreiser4_plugin_call(return -1, journal->entity->plugin->journal_ops, 
+    return plugin_call(return -1, journal->entity->plugin->journal_ops, 
 	sync, journal->entity);
 }
 
@@ -139,7 +145,7 @@ errno_t reiser4_journal_valid(
 ) {
     aal_assert("umka-830", journal != NULL, return -1);
 
-    return libreiser4_plugin_call(return -1, journal->entity->plugin->journal_ops, 
+    return plugin_call(return -1, journal->entity->plugin->journal_ops, 
 	valid, journal->entity);
 }
 
@@ -151,7 +157,7 @@ void reiser4_journal_close(
 ) {
     aal_assert("umka-102", journal != NULL, return);
     
-    libreiser4_plugin_call(return, journal->entity->plugin->journal_ops, 
+    plugin_call(return, journal->entity->plugin->journal_ops, 
 	close, journal->entity);
     
     aal_free(journal);

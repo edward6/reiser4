@@ -47,7 +47,7 @@ static errno_t format36_super_check(format36_super_t *super,
 
     if (is_journal_dev != is_journal_magic) {
 	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
-	    "Journal relocation flags mismatch. Journal device: %x, magic: %s.",
+	    "Journal relocation flags mismatch. Journal device: 0x%x, magic: %s.",
 	    get_jp_dev(get_sb_jp(super)), super->s_v1.sb_magic);
     }
 
@@ -191,15 +191,15 @@ static const char *format36_name(reiser4_entity_t *entity) {
     return formats[version >= 0 && version < 3 ? version : 1];
 }
 
-static reiser4_id_t format36_journal_pid(reiser4_entity_t *entity) {
+static rid_t format36_journal_pid(reiser4_entity_t *entity) {
     return JOURNAL_REISER36_ID;
 }
 
-static reiser4_id_t format36_alloc_pid(reiser4_entity_t *entity) {
+static rid_t format36_alloc_pid(reiser4_entity_t *entity) {
     return ALLOC_REISER36_ID;
 }
 
-static reiser4_id_t format36_oid_pid(reiser4_entity_t *entity) {
+static rid_t format36_oid_pid(reiser4_entity_t *entity) {
     return OID_REISER36_ID;
 }
 
@@ -322,5 +322,5 @@ static reiser4_plugin_t *format36_start(reiser4_core_t *c) {
     return &format36_plugin;
 }
 
-libreiser4_factory_register(format36_start);
+plugin_register(format36_start);
 

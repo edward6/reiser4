@@ -36,5 +36,5 @@ static reiser4_plugin_t *r5_hash_start(reiser4_core_t *c) {
     return &r5_hash_plugin;
 }
 
-libreiser4_factory_register(r5_hash_start);
+plugin_register(r5_hash_start);
 

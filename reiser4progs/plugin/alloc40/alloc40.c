@@ -327,5 +327,5 @@ static reiser4_plugin_t *alloc40_start(reiser4_core_t *c) {
     return &alloc40_plugin;
 }
 
-libreiser4_factory_register(alloc40_start);
+plugin_register(alloc40_start);
 

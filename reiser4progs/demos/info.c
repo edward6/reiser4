@@ -23,7 +23,7 @@ static void info_print_usage(void) {
 }
 
 static void info_print_plugin(reiser4_plugin_t *plugin) {
-    fprintf(stderr, "%x:%x:%s\n(%s)\n\n", plugin->h.type, plugin->h.id, plugin->h.label, plugin->h.desc);
+    fprintf(stderr, "0x%x:0x%x:%s\n(%s)\n\n", plugin->h.type, plugin->h.id, plugin->h.label, plugin->h.desc);
 }
 
 static void info_print_fs(reiser4_fs_t *fs) {
@@ -51,7 +51,7 @@ static void info_print_fs(reiser4_fs_t *fs) {
     info_print_plugin(fs->oid->entity->plugin);
     
     fprintf(stderr, "(5) ");
-    info_print_plugin(fs->key.plugin);
+    info_print_plugin(fs->tree->key.plugin);
     
     fprintf(stderr, "(6) ");
     info_print_plugin(fs->tree->cache->node->entity->plugin);
@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
     
     aal_exception_set_handler(progs_exception_handler);
     
-    if (libreiser4_init(0)) {
+    if (libreiser4_init()) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't initialize libreiser4.");
 	return 0xff;

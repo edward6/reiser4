@@ -64,5 +64,5 @@ static reiser4_plugin_t *journal36_start(reiser4_core_t *c) {
     return &journal36_plugin;
 }
 
-libreiser4_factory_register(journal36_start);
+plugin_register(journal36_start);
 

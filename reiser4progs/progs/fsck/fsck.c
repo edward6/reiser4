@@ -32,7 +32,7 @@ static void fsck_print_usage() {
 	"Plugins options:\n"
 	"  -K | --known-profiles          prints known profiles.\n"
 	"  -k | --known-plugins           prints known plugins.\n"	
-	"  -d | --default PROFILE         profile 'PROFILE' to be used or printed.\n"
+	"  -e | --profile PROFILE         profile 'PROFILE' to be used or printed.\n"
 	"  -o | --override 'TYPE=plugin'  overrides the default plugin of the type 'TYPE'\n"
 	"                                 by the plugin 'plugin'.\n"
 	"Expert options:\n"
@@ -151,7 +151,7 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
 	{"preen", no_argument, NULL, 'p'},
 	{"force", no_argument, NULL, 'f'},
 	{"verbose", no_argument, NULL, 'v'},
-	{"default", required_argument, NULL, 'd'},
+	{"profile", required_argument, NULL, 'e'},
 	{"known-profiles", no_argument, NULL, 'K'},
 	{"known-plugins", no_argument, NULL, 'k'},
 	{"override", required_argument, NULL, 'o'},
@@ -171,7 +171,7 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
 	return USER_ERROR;
     }
 
-    while ((c = getopt_long(argc, argv, "l:Vhnqapfvd:Kko:U:R:r?", long_options, 
+    while ((c = getopt_long(argc, argv, "l:Vhnqapfve:Kko:U:R:r?", long_options, 
 	(int *)0)) != EOF) 
     {
 	switch (c) {
@@ -227,7 +227,7 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
 		fsck_print_usage();
 		return NO_ERROR;	    
 	    case 'V': 
-		fprintf(stderr, BANNER("fsck.reiser4"));
+		printf(BANNER("fsck.reiser4"));
 		return NO_ERROR;	    
 	    case 'q': 
 		repair_set_option(REPAIR_OPT_QUIET, data);
@@ -315,7 +315,7 @@ int main(int argc, char *argv[]) {
     
     memset(&data, 0, sizeof(data));
 
-    if (libreiser4_init(0)) {
+    if (libreiser4_init()) {
 	aal_exception_fatal("Cannot initialize the libreiser4.");
 	exit(OPER_ERROR);
     }
