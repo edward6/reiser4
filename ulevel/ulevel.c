@@ -3373,7 +3373,7 @@ static __u64 get_fs_size (struct super_block * s)
 	check_me ("vs-749", fstat (s->s_bdev->bd_dev, &st) == 0);
 	size = lseek64 (s->s_bdev->bd_dev, 0ull, SEEK_END);
 	assert ("vs-750", size != (loff_t)-1);
-	return size / 512 / (s->s_blocksize / 512);
+	return size / s->s_blocksize;
 }
 
 #define TEST_MKFS_ROOT_LOCALITY   (41ull)

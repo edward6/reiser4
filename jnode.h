@@ -328,8 +328,6 @@ extern void add_d_ref( jnode *node );
 
 /* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
 
-extern int  jload_and_lock(jnode* node);
-
 extern int jload(jnode * node);
 
 extern void jdrop             (jnode* node);
@@ -347,14 +345,6 @@ static inline void jrelse( jnode *node)
 	assert( "zam-508", atomic_read( &node -> d_count ) > 0 );
 
 	spin_lock_jnode (node);
-	jrelse_nolock(node);
-	spin_unlock_jnode( node );
-}
-
-static inline void junlock_and_relse (jnode * node)
-{
-	assert ("zam-509", node != NULL);
-	ON_SMP (assert ("zam-510", spin_jnode_is_locked (node)));
 	jrelse_nolock(node);
 	spin_unlock_jnode( node );
 }

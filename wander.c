@@ -44,14 +44,16 @@ static void format_journal_header (struct super_block *s, capture_list_head * tx
 
 	txhead = capture_list_front(tx);
 
-	jload_and_lock (private->journal_header);
+	jload (private->journal_header);
+	spin_lock_jnode (private->journal_header);
 
 	h = (struct journal_header*)jdata(private->journal_header);
 	assert ("zam-484", h != NULL);
 
 	cputod64(*jnode_get_block(txhead), &h->last_committed_tx);
 
-	junlock_and_relse (private->journal_header);
+	jrelse_nolock (private->journal_header);
+	spin_unlock_jnode (private->journal_header);
 }
 
 
