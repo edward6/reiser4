@@ -535,19 +535,19 @@ typedef struct load_count {
 	int    d_ref;
 } load_count;
 
-extern void init_lc( load_count *lc );                     /* Initialize a load_count set the current node to NULL. */
-extern void done_lc( load_count *dh );                     /* Finalize a load_count: call zrelse() if necessary */
-extern int  load_lc( load_count *dh );                     /* Call zload() on the current node. */
-extern int  load_lc_znode( load_count *dh, znode *node );  /* Set the argument znode to the current node, call zload(). */
-extern int  load_lc_jnode( load_count *dh, jnode *node );  /* If the argument jnode is formatted, do the same as
-							     * load_lc_znode, otherwise do nothing (unformatted nodes
+extern void init_load_count( load_count *lc );                     /* Initialize a load_count set the current node to NULL. */
+extern void done_load_count( load_count *dh );                     /* Finalize a load_count: call zrelse() if necessary */
+extern int  incr_load_count( load_count *dh );                     /* Call zload() on the current node. */
+extern int  incr_load_count_znode( load_count *dh, znode *node );  /* Set the argument znode to the current node, call zload(). */
+extern int  incr_load_count_jnode( load_count *dh, jnode *node );  /* If the argument jnode is formatted, do the same as
+							     * incr_load_count_znode, otherwise do nothing (unformatted nodes
 							     * don't require zload/zrelse treatment). */
-extern void move_lc( load_count *new, load_count *old );  /* Move the contents of a load_count.  Old handle is released. */
-extern void copy_lc( load_count *new, load_count *old );  /* Copy the contents of a load_count.  Old handle remains held. */
+extern void move_load_count( load_count *new, load_count *old );  /* Move the contents of a load_count.  Old handle is released. */
+extern void copy_load_count( load_count *new, load_count *old );  /* Copy the contents of a load_count.  Old handle remains held. */
 
 /* Variable initializers for load_count. */
-#define INIT_LC ( load_count * ){ .node = NULL, .d_ref = 0 }
-#define INIT_LC_NODE( n ) ( load_count ){ .node = ( n ), .d_ref = 0 }
+#define INIT_LOAD_COUNT ( load_count * ){ .node = NULL, .d_ref = 0 }
+#define INIT_LOAD_COUNT_NODE( n ) ( load_count ){ .node = ( n ), .d_ref = 0 }
 
 /* A convenience macro for use in assertions or debug-only code, where loaded data is only
  * required to perform the debugging check.  This macro encapsulates an expression inside
