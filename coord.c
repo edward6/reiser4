@@ -29,6 +29,9 @@ void coord_normalize (coord_t * coord)
 
 	if (node_is_empty (node)) {
 		coord_init_first_unit (coord, node);
+	} else if ((coord->between == AFTER_ITEM) ||
+		   (coord->between == AFTER_UNIT)) {
+		return;
 	} else if (coord->item_pos == coord_num_items (coord) &&
 		   coord->between == BEFORE_ITEM) {
 		coord->item_pos --;
