@@ -73,9 +73,9 @@ extern void aal_device_free_block(aal_device_block_t *block);
 
 #define aal_block_get_size(block) aal_device_get_blocksize(block->device)
 
-#define aal_mark_block_dirty(block) set_bit  (block->flags, B_DIRTY)
+#define aal_block_mark_dirty(block) set_bit  (block->flags, B_DIRTY)
 #define aal_block_dirty(block)	    test_bit (block->flags, B_DIRTY)
-#define aal_mark_block_clean(block) clear_bit(block->flags, B_DIRTY)
+#define aal_block_makr_clean(block) clear_bit(block->flags, B_DIRTY)
 
 #endif
 
