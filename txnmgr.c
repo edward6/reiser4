@@ -668,9 +668,7 @@ void atom_dec_and_unlock(txn_atom * atom)
 
 /* Return a new atom, locked.  This adds the atom to the transaction manager's list and
    sets its reference count to 1, an artificial reference which is kept until it
-   commits.  We play strange games to avoid allocation under jnode & txnh spinlocks. 
-
-ZAM-FIXME-HANS: should we set node->atom and txnh->atom here also? */
+   commits.  We play strange games to avoid allocation under jnode & txnh spinlocks. */
 static txn_atom *
 atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 {
@@ -682,7 +680,8 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 	assert("jmacd-43226", node->atom == NULL);
 	assert("jmacd-43225", txnh->atom == NULL);
 
-	/* Cannot allocate under those spinlocks. ZAM-FIXME-HANS: provide the reason. */
+	/* A memory allocation may schedule we have to release those spinlocks
+	 * before kmem_cache_alloc() call. */
 	UNLOCK_JNODE(node);
 	UNLOCK_TXNH(txnh);
 
@@ -788,7 +787,6 @@ atom_free(txn_atom * atom)
 	/* Remove from the txn_mgr's atom list */
 	assert("nikita-2657", spin_txnmgr_is_locked(mgr));
 	mgr->atom_count -= 1;
-/* ZAM-FIXME-HANS: why does tags not find this function? */
 	atom_list_remove_clean(atom);
 
 	/* Clean the atom */
@@ -866,7 +864,8 @@ jnode * find_first_dirty_jnode (txn_atom * atom, int flags)
 /* Scan atom->writeback_nodes list and dispatch jnodes according to their state:
  * move dirty and !writeback jnodes to @fq, clean jnodes to atom's clean
  * list. */
-/* ZAM-FIXME-HANS: why aren't clean nodes handled by the end IO handler ? */
+/* NOTE: doing that in end IO handler requires using of special spinlocks which
+ * disables interrupts in all places except IO handler. That is expensive. */
 static void dispatch_wb_list (txn_atom * atom, flush_queue_t * fq)
 {
 	jnode * cur;
@@ -958,9 +957,9 @@ static int current_atom_complete_writes (void)
 {
 	int ret;
 
-	/* Scan wb list for nodes with already completed i/o, re-submit them to
-	 * disk 
-	 ZAM-FIXME-HANS: explain this. If the IO is completed, what is there to resubmit? */
+	/* Each jnode from that list was modified and dirtied when it had i/o
+	 * request running already. After i/o completion we have to resubmit
+	 * them to disk again.*/
 	ret = submit_wb_list();
 	if (ret < 0)
 		return ret;
@@ -1543,7 +1542,7 @@ commit_txnh(txn_handle * txnh)
 
 	UNLOCK_TXNH(txnh);
 	atom_dec_and_unlock(cd.atom);
-/* ZAM-FIXME-HANS: comment on why are we doing this, what is the logic here? */
+	/* support for asynchronous commits. */
 	if (txnh->flags & TXNH_DONT_COMMIT)
 		ktxnmgrd_kick(&get_current_super_private()->tmgr);
 
@@ -1605,6 +1604,10 @@ ZAM-FIXME-HANS: update reference
 */
 
 /* ZAM-FIXME-HANS: this and its wrappers could be completely restructured to some advantage in clarity, yes? */
+/* HANS-FIXME-ZAM: everything should be restructured, probably completely, no?
+ * Can you point exactly to thing which you don't like?  This code implements
+ * enough complex algorithm and just does many branches because atoms, nodes,
+ * transaction handles could have many different states. */
 static int
 try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom ** atom_alloc)
 {
