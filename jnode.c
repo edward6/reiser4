@@ -488,44 +488,75 @@ void add_d_ref( jnode *node /* node to increase d_count of */ )
 }
 
 /* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
-/* jnode ref. counter is missing, it doesn't matter for us because this
- * journal writer uses those jnodes exclusively by only one thread */
 /* load content of jnode into memory in all places except cases of unformatted
  * nodes access  */
 
-
-/* load jnode's data into memory using tree->read_node method */
-int jload_and_lock( jnode *node )
+static int page_filler( void *arg, struct page *page )
 {
-	int result;
+	jnode *node;
+	int    result;
 
-	spin_lock_jnode( node );
+	node = arg;
+
+	assert( "nikita-2369", 
+		page -> mapping == jnode_ops( node ) -> mapping( node ) );
+
+	/*
+	 * add reiser4 decorations to the page, if they aren't in place:
+	 * pointer to jnode, whatever.
+	 * 
+	 * We are under page lock now, so it can be used as synchronization.
+	 */
+	jnode_attach_page( node, page );
+	result = page -> mapping -> a_ops -> readpage( NULL, page );
+	/*
+	 * on error, detach jnode from page
+	 */
+	if( unlikely( result != 0 ) )
+		jnode_detach_page( node );
+	return result;
+}
+
+
+/* load jnode's data into memory using read_cache_page() */
+int jload( jnode *node )
+{
+	int          result;
+	struct page *page;
 
 	reiser4_stat_znode_add( zload );
 	add_d_ref( node );
 	if( !jnode_is_loaded( node ) ) {
-		reiser4_tree *tree;
-
-		spin_unlock_jnode( node );
-
-		tree = current_tree;
-
-		/* load data... */
-		assert( "nikita-1097", tree != NULL );
-		assert( "nikita-1098", tree -> ops -> read_node != NULL );
+		jnode_plugin *jplug;
 
 		/*
-		 * ->read_node() reads data from page cache. In any case we
-		 * rely on proper synchronization in the underlying
-		 * transport. Page reference counter is incremented and page is
-		 * kmapped, it will kunmapped in zrelse
+		 * read data from page cache. In any case we rely on proper
+		 * synchronization in the underlying transport. Page reference
+		 * counter is incremented and page is kmapped, it will
+		 * kunmapped in zrelse
 		 */
-		result = tree -> ops -> read_node( tree, node );
-		reiser4_stat_znode_add( zload_read );
+		trace_on( TRACE_PCACHE, "read node: %p\n", node );
 
-		if( likely( result >= 0 ) ) {
-			ON_SMP( assert( "nikita-2075", 
-					spin_jnode_is_locked( node ) ) );
+		jplug = jnode_ops( node );
+		page = read_cache_page( jplug -> mapping( node ),
+					jplug -> index( node ), 
+					page_filler, node );
+		if( !IS_ERR( page ) ) {
+			wait_on_page_locked( page );
+			kmap( page );
+			if( PageUptodate( page ) )
+				/*
+				 * here neither jnode nor page are protected
+				 * by any kind of lock, so several parallel
+				 * ->parse() calls are possible.
+				 */
+				result = jplug -> parse( node );
+			else
+				result = -EIO;
+		} else
+			result = PTR_ERR( page );
+
+		if( likely( result == 0 ) ) {
 			JF_SET( node, ZNODE_LOADED );
 		} else
 			jrelse_nolock( node );
@@ -537,15 +568,26 @@ int jload_and_lock( jnode *node )
 		assert( "nikita-2348", page != NULL );
 		page_cache_get( page );
 		kmap( page );
-		result = 1;
+		result = 0;
 	}
 	return result;
 }
 
+/* same as jload(), but locks jnode */
+int jload_and_lock( jnode *node )
+{
+	int ret;
+
+	ret = jload( node );
+	spin_lock_jnode( node );
+	return ret;
+}
+
+
 /** just like jrelse, but assume jnode is already spin-locked */
 void jrelse_nolock( jnode *node /* jnode to release references to */ )
 {
-	reiser4_tree *tree;
+	struct page *page;
 
 	assert( "nikita-487", node != NULL );
 	assert( "nikita-489", atomic_read( &node -> d_count ) > 0 );
@@ -553,8 +595,13 @@ void jrelse_nolock( jnode *node /* jnode to release references to */ )
 
 	ON_DEBUG( -- lock_counters() -> d_refs );
 
-	tree = current_tree;
-	tree -> ops -> release_node( tree, node );
+	trace_on( TRACE_PCACHE, "release node: %p\n", node );
+
+	page = jnode_page( node );
+	if( page != NULL ) {
+		kunmap( page );
+		page_cache_release( page );
+	}
 
 	if( atomic_dec_and_test( &node -> d_count ) )
 		JF_CLR( node, ZNODE_LOADED );
@@ -607,6 +654,162 @@ int jwait_io (jnode * node, int rw)
 		result = -EIO;
 
 	return result;
+}
+
+jnode_type jnode_get_type( const jnode *node )
+{
+	static const unsigned long state_mask = 
+		( 1 << ZNODE_UNFORMATTED ) | 
+		( 1 << ZNODE_UNUSED_1 ) | ( 1 << ZNODE_UNUSED_2 );
+
+	static jnode_type mask_to_type[] = {
+		/*  ZNODE_UNUSED_2 : ZNODE_UNUSED_1 : ZNODE_UNFORMATTED */
+		
+		/* 000 */
+		[ 0 ] = JNODE_FORMATTED_BLOCK,
+		/* 001 */
+		[ 1 ] = JNODE_UNFORMATTED_BLOCK,
+		/* 010 */
+		[ 2 ] = JNODE_BITMAP,
+		/* 011 */
+		[ 3 ] = JNODE_LAST_TYPE, /* invalid */
+		/* 100 */
+		[ 4 ] = JNODE_JOURNAL_RECORD,
+		/* 101 */
+		[ 5 ] = JNODE_LAST_TYPE, /* invalid */
+		/* 110 */
+		[ 6 ] = JNODE_IO_HEAD,
+		/* 111 */
+		[ 7 ] = JNODE_LAST_TYPE, /* invalid */
+	};
+
+	/*
+	 * FIXME-NIKITA atomicity?
+	 */
+	return mask_to_type[ ( node -> state & state_mask ) >> ZNODE_UNFORMATTED ];
+}
+
+static int noparse( jnode *node )
+{
+	return 0;
+}
+
+static struct address_space *jnode_mapping( const jnode *node )
+{
+	return node -> key.mapping;
+}
+
+static unsigned long jnode_index( const jnode *node )
+{
+	return node -> key.index;
+}
+
+static struct address_space *znode_mapping( const jnode *node )
+{
+	return get_super_fake( reiser4_get_current_sb() ) -> i_mapping;
+}
+
+static unsigned long znode_index( const jnode *node )
+{
+	return ( unsigned long ) node;
+}
+
+extern int zparse( znode *node );
+
+static int znode_parse( jnode *node )
+{
+	return zparse( JZNODE( node ) );
+}
+
+reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
+	[ JNODE_UNFORMATTED_BLOCK ] = {
+		.jnode = {
+			.h = {
+				.type_id = REISER4_JNODE_PLUGIN_TYPE,
+				.id      = JNODE_UNFORMATTED_BLOCK,
+				.pops    = NULL,
+				.label   = "unformatted",
+				.desc    = "unformatted node",
+				.linkage = TS_LIST_LINK_ZERO
+			},
+			.parse   = noparse,
+			.mapping = jnode_mapping,
+			.index   = jnode_index
+		}
+	},
+	[ JNODE_FORMATTED_BLOCK ] = {
+		.jnode = {
+			.h = {
+				.type_id = REISER4_JNODE_PLUGIN_TYPE,
+				.id      = JNODE_FORMATTED_BLOCK,
+				.pops    = NULL,
+				.label   = "formatted",
+				.desc    = "formatted tree node",
+				.linkage = TS_LIST_LINK_ZERO
+			},
+			.parse   = znode_parse,
+			.mapping = znode_mapping,
+			.index   = znode_index
+		}
+	},
+	[ JNODE_BITMAP ] = {
+		.jnode = {
+			.h = {
+				.type_id = REISER4_JNODE_PLUGIN_TYPE,
+				.id      = JNODE_BITMAP,
+				.pops    = NULL,
+				.label   = "bitmap",
+				.desc    = "bitmap node",
+				.linkage = TS_LIST_LINK_ZERO
+			},
+			.parse   = noparse,
+			.mapping = znode_mapping,
+			.index   = znode_index
+		}
+	},
+	[ JNODE_JOURNAL_RECORD ] = {
+		.jnode = {
+			.h = {
+				.type_id = REISER4_JNODE_PLUGIN_TYPE,
+				.id      = JNODE_JOURNAL_RECORD,
+				.pops    = NULL,
+				.label   = "journal record",
+				.desc    = "journal record",
+				.linkage = TS_LIST_LINK_ZERO
+			},
+			.parse   = noparse,
+			.mapping = NULL,
+			.index   = NULL
+		}
+	},
+	[ JNODE_IO_HEAD ] = {
+		.jnode = {
+			.h = {
+				.type_id = REISER4_JNODE_PLUGIN_TYPE,
+				.id      = JNODE_IO_HEAD,
+				.pops    = NULL,
+				.label   = "io head",
+				.desc    = "io head",
+				.linkage = TS_LIST_LINK_ZERO
+			},
+			.parse   = noparse,
+			.mapping = NULL,
+			.index   = NULL
+		}
+	}
+};
+
+jnode_plugin *jnode_ops_of( const jnode_type type )
+{
+	assert( "nikita-2367", ( 0 <= type ) && ( type < JNODE_LAST_TYPE ) );
+	return jnode_plugin_by_id( type );
+}
+
+jnode_plugin *jnode_ops( const jnode *node )
+{
+	assert( "nikita-2366", node != NULL );
+
+	return jnode_ops_of( jnode_get_type( node ) );
 }
 
 #if REISER4_DEBUG
