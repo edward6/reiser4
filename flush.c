@@ -436,6 +436,7 @@ static int flush_alloc_ancestors (flush_position *pos)
 	}
 
  exit:
+	if (plock.node != NULL) { zrelse (plock.node); }
 	done_lh (& plock);
 	return ret;
 }
