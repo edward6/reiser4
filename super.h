@@ -181,6 +181,7 @@ perm_plugin *default_perm_plugin( const struct super_block *super UNUSE );
 tail_plugin *default_tail_plugin( const struct super_block *super UNUSE );
 item_plugin *default_sd_plugin( const struct super_block *super UNUSE );
 item_plugin *default_dir_item_plugin( const struct super_block *super UNUSE );
+void print_fs_info (const struct super_block *);
 
 
 /* __REISER4_SUPER_H__ */

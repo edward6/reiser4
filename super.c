@@ -419,6 +419,22 @@ int init_tree( reiser4_tree *tree /* pointer to structure being
 }
 
 
+void print_fs_info (const struct super_block * s)
+{
+	reiser4_super_info_data * private;
+
+	private = get_super_private (s);
+
+	info ("================ fs info =================\n");
+	info ("root block: %lli\ntree height: %i\n",
+	      private->tree.root_block, private->tree.height);
+	if (private->space_plug->print_info)
+		private->space_plug->print_info (get_space_allocator (s));
+	if (private->oid_plug->print_info)
+		private->oid_plug->print_info (get_oid_allocator (s));
+}
+
+
 /* 
  * Make Linus happy.
  * Local variables:
