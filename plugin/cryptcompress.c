@@ -296,7 +296,7 @@ find_cluster_item(const reiser4_key *key, /* key of next cluster item to read */
 }
 
 /* decrypt and inflate cluster data if @op == READ
-   deflate and decrypt cluster data if @op == WRITE */
+   deflate and encrypt cluster data if @op == WRITE */
 int process_cluster(reiser4_cluster_t *clust, struct inode *inode, rw_op op)
 {
 	return 0;
