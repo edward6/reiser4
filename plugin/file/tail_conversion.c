@@ -40,7 +40,11 @@ void
 get_exclusive_access(struct inode *inode)
 {
 	assert("nikita-3028", schedulable());
-	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_w ++);
+	if (REISER4_DEBUG && is_in_reiser4_context()) {
+		assert("nikita-3047", lock_counters()->inode_sem_w == 0);
+		assert("nikita-3048", lock_counters()->inode_sem_r == 0);
+		lock_counters()->inode_sem_w ++;
+	}
 	down_write(&reiser4_inode_data(inode)->sem);
 	assert("vs-1157", !ea_obtained(inode));
 	ea_set(inode, current);
@@ -54,27 +58,37 @@ drop_exclusive_access(struct inode *inode)
 	ea_set(inode, 0);
 	inode_clr_flag(inode, REISER4_EXCLUSIVE_USE);
 	up_write(&reiser4_inode_data(inode)->sem);
-	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_w --);
+	if (REISER4_DEBUG && is_in_reiser4_context()) {
+		assert("nikita-3049", lock_counters()->inode_sem_r == 0);
+		assert("nikita-3049", lock_counters()->inode_sem_w > 0);
+		lock_counters()->inode_sem_w --;
+	}
 }
 
 /* nonexclusive access to a file is acquired for read, write, readpage */
-/* Audited by: green(2002.06.15) */
 void
 get_nonexclusive_access(struct inode *inode)
 {
 	assert("nikita-3029", schedulable());
-	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_r ++);
+	if (REISER4_DEBUG && is_in_reiser4_context()) {
+		assert("nikita-3050", lock_counters()->inode_sem_w == 0);
+		assert("nikita-3051", lock_counters()->inode_sem_r == 0);
+		lock_counters()->inode_sem_r ++;
+	}
 	down_read(&reiser4_inode_data(inode)->sem);
 	assert("vs-1159", !ea_obtained(inode));
 }
 
-/* Audited by: green(2002.06.15) */
 void
 drop_nonexclusive_access(struct inode *inode)
 {
 	assert("vs-1160", !ea_obtained(inode));
 	up_read(&reiser4_inode_data(inode)->sem);
-	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_r --);
+	if (REISER4_DEBUG && is_in_reiser4_context()) {
+		assert("nikita-3049", lock_counters()->inode_sem_w == 0);
+		assert("nikita-3049", lock_counters()->inode_sem_r > 0);
+		lock_counters()->inode_sem_r --;
+	}
 }
 
 static void
