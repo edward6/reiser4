@@ -127,7 +127,7 @@ mergeable_ctail(const coord_t * p1, const coord_t * p2)
 }
 
 /* plugin->u.item.b.nr_units */
-reiser4_internal pos_in_item_t
+reiser4_internal pos_in_node_t
 nr_units_ctail(const coord_t * coord)
 {
 	return (item_length_by_coord(coord) - sizeof(ctail_formatted_at(coord)->cluster_shift));
@@ -300,13 +300,13 @@ copy_units_ctail(coord_t * target, coord_t * source,
 /* plugin->u.item.b.create_hook */
 /* plugin->u.item.b.kill_hook */
 reiser4_internal int
-kill_hook_ctail(const coord_t *coord, unsigned from, unsigned count, struct cut_list *p)
+kill_hook_ctail(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, carry_kill_data *kdata)
 {
 	struct inode *inode;
 
 	assert("edward-291", znode_is_write_locked(coord->node));
 	
-	inode = p->inode;
+	inode = kdata->inode;
 	if (inode) {
 		reiser4_key key;
 		item_key_by_coord(coord, &key);
@@ -363,68 +363,73 @@ shift_hook_ctail(const coord_t * item /* coord of item */ ,
 }
 
 static int
-cut_or_kill_ctail_units(coord_t * coord, unsigned *from, unsigned *to, int cut,
-	       const reiser4_key * from_key UNUSED_ARG,
-	       const reiser4_key * to_key UNUSED_ARG, reiser4_key * smallest_removed,
-	       struct cut_list *p)
+cut_or_kill_ctail_units(coord_t * coord, pos_in_node_t from, pos_in_node_t to, int cut,
+			void *p, reiser4_key * smallest_removed, reiser4_key *new_first)
 {
-	unsigned count; /* number of units to cut */
-	char * item;
+	pos_in_node_t count; /* number of units to cut */
+	char *item;
 	
- 	count = *to - *from + 1;
+ 	count = to - from + 1;
 	item = item_body_by_coord(coord);
 	
 	/* When we cut from the end of item - we have nothing to do */
-	assert("edward-73", count > 0 && count <= nr_units_ctail(coord));
-	assert("edward-74", ergo(*from != 0, *to == coord_last_unit_pos(coord)));
+	assert("edward-73", count < nr_units_ctail(coord));
+	assert("edward-74", ergo(from != 0, to == coord_last_unit_pos(coord)));
 
 	if (smallest_removed) {
 		/* store smallest key removed */
 		item_key_by_coord(coord, smallest_removed);
-		set_key_offset(smallest_removed, get_key_offset(smallest_removed) + *from);
+		set_key_offset(smallest_removed, get_key_offset(smallest_removed) + from);
+	}
+
+	if (new_first) {
+		assert("vs-1531", from == 0);
+
+		item_key_by_coord(coord, new_first);
+		set_key_offset(new_first, get_key_offset(new_first) + from + count);		
 	}
 
 	if (!cut)
-		kill_hook_ctail(coord, *from, 0, p);
+		kill_hook_ctail(coord, from, 0, (struct carry_kill_data *)p);
 	
-	if (*from == 0) {
+	if (from == 0) {
 		if (count != nr_units_ctail(coord)) {
 			/* part of item is removed, so move free space at the beginning
 			   of the item and update item key */
 			reiser4_key key;
-			xmemcpy(item + *to + 1, item, sizeof(ctail_item_format));
+			xmemcpy(item + to + 1, item, sizeof(ctail_item_format));
 			item_key_by_coord(coord, &key);
 			set_key_offset(&key, get_key_offset(&key) + count);
 			node_plugin_by_node(coord->node)->update_item_key(coord, &key, 0 /*info */ );
 		}
-		else
+		else {
+			impossible("vs-1532", "cut_units should not be called to cut evrything");
 			/* whole item is cut, so more then amount of space occupied
 			   by units got freed */
 			count += sizeof(ctail_item_format);
+		}
 		if (REISER4_DEBUG)
 			xmemset(item, 0, count);
 	}
 	else if (REISER4_DEBUG)
-		xmemset(item + sizeof(ctail_item_format) + *from, 0, count);
+		xmemset(item + sizeof(ctail_item_format) + from, 0, count);
 	return count;
 }
 
 /* plugin->u.item.b.cut_units */
 reiser4_internal int
-cut_units_ctail(coord_t *item, unsigned *from, unsigned *to,
-		const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed,
-		struct cut_list *p)
+cut_units_ctail(coord_t *item, pos_in_node_t from, pos_in_node_t to,
+		carry_cut_data *cdata, reiser4_key *smallest_removed, reiser4_key *new_first)
 {
-	return cut_or_kill_ctail_units(item, from, to, 1, from_key, to_key, smallest_removed, p);
+	return cut_or_kill_ctail_units(item, from, to, 1, NULL, smallest_removed, new_first);
 }
 
 /* plugin->u.item.b.kill_units */
 reiser4_internal int
-kill_units_ctail(coord_t *item, unsigned *from, unsigned *to,
-		 const reiser4_key *from_key, const reiser4_key *to_key, reiser4_key *smallest_removed,
-		 struct cut_list *p)
+kill_units_ctail(coord_t *item, pos_in_node_t from, pos_in_node_t to,
+		 struct carry_kill_data *kdata, reiser4_key *smallest_removed, reiser4_key *new_first)
 {
-	return cut_or_kill_ctail_units(item, from, to, 0, from_key, to_key, smallest_removed, p);
+	return cut_or_kill_ctail_units(item, from, to, 0, kdata, smallest_removed, new_first);
 }
 
 /* plugin->u.item.s.file.read */
@@ -776,7 +781,7 @@ cut_ctail(coord_t * coord)
 	coord_dup(&stop, coord);
 	stop.unit_pos = coord_last_unit_pos(coord);
 	
-	return cut_node(coord, &stop, NULL, NULL, NULL, 0, NULL, NULL);
+	return cut_node_content(coord, &stop, NULL, NULL, NULL);
 }
 
 /* plugin->u.item.s.file.write ? */
