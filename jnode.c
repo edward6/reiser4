@@ -815,7 +815,7 @@ jnode_type jnode_get_type( const jnode *node )
 
 void jnode_set_type( jnode * node, jnode_type type)
 {
-	static int type_to_mask[] = {
+	static unsigned long type_to_mask[] = {
 		[JNODE_UNFORMATTED_BLOCK] = 0,
 		[JNODE_FORMATTED_BLOCK]   = 1,
 		[JNODE_BITMAP]            = 2,
@@ -825,7 +825,7 @@ void jnode_set_type( jnode * node, jnode_type type)
 
 	assert ("zam-647", type < JNODE_LAST_TYPE);
 
-	node -> state &= ((1 << ZNODE_UNFORMATTED) - 1);
+	node -> state &= ((1UL << ZNODE_UNFORMATTED) - 1);
 	node -> state |= (type_to_mask[type] << ZNODE_UNFORMATTED);
 }
 

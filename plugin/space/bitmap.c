@@ -502,11 +502,6 @@ static int load_and_lock_bnode (struct bnode * bnode)
 
 		if ((bnode->cjnode = bnew ()) == NULL) goto fail;
 
-		/*bitmap nodes should be marked as having no znode fields, it is done
-		  by setting of ZNODE_UNFORMATTED bit.*/
-		JF_SET(bnode->wjnode, ZNODE_UNFORMATTED);
-		JF_SET(bnode->cjnode, ZNODE_UNFORMATTED);
-
 		bmap = bnode - get_bnode(super, 0);
 
 		get_working_bitmap_blocknr (bmap, &bnode->wjnode->blocknr); 
