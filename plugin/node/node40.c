@@ -1281,7 +1281,7 @@ prepare_for_compact(struct cut40_info *cinfo, const struct cut_kill_params *para
 		cinfo->first_moved = item_pos + 1;
 	} else {
 		assert("vs-1521", (cinfo->tail_removed != MAX_POS_IN_NODE ||
-				   cinfo->first_removed != MAX_POS_IN_NODE || 
+				   cinfo->first_removed != MAX_POS_IN_NODE ||
 				   cinfo->head_removed != MAX_POS_IN_NODE));
 
 		switch (cinfo->mode) {
@@ -2705,8 +2705,6 @@ shift_node40(coord_t *from, znode *to, shift_direction pend,
 		right = to;
 	}
 
-	ON_DEBUG(check_data = shift_check_prepare(left, right));
-
 	if (result) {
 		/* move insertion coord even if there is nothing to move */
 		if (including_stop_coord) {
@@ -2741,6 +2739,8 @@ shift_node40(coord_t *from, znode *to, shift_direction pend,
 				       to->cksum == znode_checksum(to)));
 		return 0;
 	}
+
+	ON_DEBUG(check_data = shift_check_prepare(left, right));
 
 	IF_TRACE(TRACE_COORDS, print_coord("shift->wish_stop before copy:", &shift.wish_stop, 0));
 
