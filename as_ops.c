@@ -258,6 +258,8 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 #if !REISER4_DEBUG
 static
 #endif
+
+/* this checks whether page can be detached from jnode */
 int
 releasable(const jnode *node)
 {
@@ -363,15 +365,10 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	}
 }
 
-/* reiser4 writepages() address space operation */
-
-	/* Here we can call synchronously. 
-VS-FIXME-HANS: call what?
-We can be called from balance_dirty_pages()
-	   Reiser4 code is supposed to call balance_dirty_pages at places where no locks
-	   are held, which means we can call begin jnode_flush right from there  (VS-FIXME-HANS where? ) having no
-	   deadlocks between the caller of balance_dirty_pages() and jnode_flush(). */
-/* VS-FIXME-HANS; comment this function better.  What is status of inode capturing?  Did you decide you need to do it or? */
+/* reiser4 writepages() address space operation
+   this captures anonymous pages and anonymous jnodes. Anonymous pages are pages which are dirtied via
+   mmapping. Anonymous jnodes are ones which were created by reiser4_writepage
+ */
 int
 reiser4_writepages(struct address_space *mapping,
 		   struct writeback_control *wbc)
@@ -390,6 +387,7 @@ reiser4_writepages(struct address_space *mapping,
 	inode = mapping->host;
 	if (inode_file_plugin(inode) != NULL &&
 	    inode_file_plugin(inode)->capture != NULL)
+		/* call file plugin method to capture anonymous pages and anonymous jnodes */
 		ret = inode_file_plugin(inode)->capture(inode, wbc);
 
 	/* work around infinite loop in pdflush->sync_sb_inodes. */
