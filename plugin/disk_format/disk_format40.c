@@ -13,6 +13,7 @@
 #include "../../super.h"
 #include "../../wander.h"
 #include "../../diskmap.h"
+#include "../../inode.h"
 #include "../../status_flags.h"
 
 #include <linux/types.h>	/* for __u??  */
@@ -417,6 +418,47 @@ print_info_format40(const struct super_block *s)
 	       tail_plugin_by_id(get_format40_tail_policy(sb_copy))->h.label,
 	       get_format40_oid(sb_copy), get_format40_file_count(sb_copy), get_format40_tree_height(sb_copy));
 #endif
+}
+
+int
+check_mount_format40(const struct super_block *s) {
+	int res;
+
+	/* Check the structure of allocator. Namely, the CRC. */
+	if ((res = sa_check_struct(get_space_allocator(s), s)))
+		return res;
+
+	/* Some other checks? Like the root block must be used, etc */
+	return 0;	
+}
+
+/* plugin->u.format.check_open.
+   Check the opened object for validness. For now it checks for the valid oid &
+   locality only, can be improved later and it its work may depend on the mount 
+   options. */
+int
+check_open_format40(const struct inode *object) {
+	oid_t max, oid;
+	
+	max = oid_next(object->i_sb) - 1;
+
+	/* Chekc the oid. */
+	oid = get_inode_oid(object);
+	if (oid > max) {
+		warning("vpf-1360", "The object with the oid %llu greater then the "
+			"max used oid %llu found.", oid, max);
+		return -EINVAL;
+	}
+
+	/* Check the locality. */
+	oid = reiser4_inode_data(object)->locality_id;
+	if (oid > max) {
+		warning("vpf-1360", "The object with the locality %llu greater then the "
+			"max used oid %llu found.", oid, max);
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 /* Make Linus happy.
