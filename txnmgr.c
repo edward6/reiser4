@@ -2084,15 +2084,23 @@ repeat:
 	assert("jmacd-5177", blocknr_entry == NULL);
 
 	LOCK_JNODE(node);
+	/* We can remove jnode from transaction even if it is on flush queue
+	 * prepped list, we only need to be sure that flush queue is not being
+	 * written by write_fq().  write_fq() does not use atom spin lock for
+	 * protection of the prepped nodes list, instead write_fq() increments
+	 * atom's nr_running_queues counters for the time when prepped list is
+	 * not protected by spin lock.  Here we check this counter if we want to
+	 * remove jnode from flush queue and, if the counter is not zero, wait
+	 * all write_fq() for this atom to complete. */
 	while (JF_ISSET(node, JNODE_FLUSH_QUEUED) && atom->nr_running_queues) {
 		UNLOCK_JNODE(node);
 		/*
 		 * at this moment we want to wait for "atom event", viz. wait
-		 * until @node will be removed from flush queue. But
-		 * atom_wait_event() cannot be called with page locked,
-		 * because it deadlocks with jnode_extent_write(). Unlock
-		 * page, after making sure (through page_cache_get()) that it
-		 * cannot be released from memory.
+		 * until @node can be removed from flush queue. But
+		 * atom_wait_event() cannot be called with page locked, because
+		 * it deadlocks with jnode_extent_write(). Unlock page, after
+		 * making sure (through page_cache_get()) that it cannot be
+		 * released from memory.
 		 */
 		page_cache_get(pg);
 		reiser4_unlock_page(pg);
