@@ -385,8 +385,7 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 {
 	int ret;
-	unsigned char page_idx;
-	unsigned to_page;
+	unsigned cloff;
 	struct inode * inode;
 	char * data;
 	int release = 0;
@@ -423,17 +422,11 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 		goto exit;	
 	/* fill page by plain text */
 	assert("edward-120", clust->len <= inode_cluster_size(inode));
-	/* calculate page index in the cluster */
-	page_idx = page->index & ((1 << inode_cluster_shift(inode)) - 1);
-	to_page = PAGE_CACHE_SIZE;
+	assert("edward-299", off_to_pgoff(clust->len) == 0);
 	
-	if(page_idx == (clust->len >> PAGE_CACHE_SHIFT))
-		to_page = clust->len & (PAGE_CACHE_SHIFT - 1);
-	else if (page_idx > (clust->len >> PAGE_CACHE_SHIFT))
-		to_page = 0;
+	cloff = pg_to_off_to_cloff(page->index, inode);
 	data = kmap(page);
-	memcpy(data, clust->buf + (page_idx << PAGE_CACHE_SHIFT), to_page);
-	memset(data + clust->len, 0, PAGE_CACHE_SIZE - to_page);
+	memcpy(data, clust->buf + cloff, PAGE_CACHE_SIZE);
 	kunmap(page);
 	SetPageUptodate(page);
  exit:

@@ -20,27 +20,17 @@ typedef enum {
 	CRC_CUT_ITEM = 4
 } crc_write_mode_t;
 
-/* cluster lives in many places:
-   - in user space
-   - in adress space (splitted into pages)
-   - in kernel memory (kmalloced buffer to apply inflation/deflation algorithms)
-   - on disk (splitted into items)
-
-   the following structure gathers these concepts 
-*/
 typedef struct reiser4_cluster{
-	__u8 * buf;      /* pointer to the (inflated or deflated) kmalloced cluster's data */
-	int bufsize;
-	__u8 nr_pages;            /* number of cluster pages */
-	struct page ** pages; /* cluster pages */
+	__u8 * buf;      /* pointer to the contiguous region where crypto/compression algorithms live */
+	int bufsize;     /* size of this region */
+	__u8 nr_pages;   /* number of attached pages */
+	struct page ** pages; /* attached pages */
 	struct file * file;
-	size_t len;      /* size of the processed (i.e compressed,
-			    aligned and encrypted cluster) */
-	unsigned long index; /* cluster index (index of the first page) */
-	size_t tlen;     /* size of updated buffer to release */
+	size_t len;
+	unsigned long index; /* cluster index */
 	reiser4_cluster_status stat;
-	unsigned off;    /* write position in the (user space) cluster */  
-	unsigned count;  /* bytes to write to the (user space) cluster */
+	unsigned off;    /* number of the firt byte we want to write/eraze from */
+	unsigned count;  /* bytes to write/eraze */
 	unsigned delta;  /* bytes of user's data to append to the hole */
 } reiser4_cluster_t;
 

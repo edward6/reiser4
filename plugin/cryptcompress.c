@@ -358,7 +358,7 @@ off_to_clust_to_pg(loff_t off, struct inode * inode)
 	return clust_to_pg(off_to_clust(off, inode), inode);
 }
 
-static inline unsigned
+unsigned
 off_to_pgoff(loff_t off)
 {
 	return off & (PAGE_CACHE_SIZE - 1);
@@ -368,6 +368,12 @@ static inline unsigned
 off_to_cloff(loff_t off, struct inode * inode)
 {
 	return off & ((loff_t)(inode_cluster_size(inode)) - 1);
+}
+
+unsigned
+pg_to_off_to_cloff(unsigned long idx, struct inode * inode)
+{
+	return off_to_cloff(pg_to_off(idx), inode);
 }
 
 /* return true if the cluster contains specified page */
@@ -1115,8 +1121,8 @@ int find_cluster(reiser4_cluster_t * clust,
 	return result;
 }
 
-
-/* we don't take an interest in how much bytes was written when error occures */
+/* Read before write.
+   We don't take an interest in how much bytes was written when error occures */
 static int
 read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 {
@@ -1126,36 +1132,42 @@ read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 	item_plugin * iplug;
 	
 	iplug = item_plugin_by_id(CTAIL_ID);
-	/* bytes to read, we start read from the beginning of the cluster
-	   for obvious reason */
+
+	/* bytes we wanna read starting from the beginning of cluster
+	   to keep first @off ones */
 	to_read = clust->off + clust->count + clust->delta;
 	
+	assert("edward-298", to_read <= inode_cluster_size(inode));
+	
 	for (i = 0; i < clust->nr_pages; i++) {
+		struct page * pg = clust->pages[i];
 		
-		/* assert ("edward-218", !PageLocked(clust->pages[i])); */
-		/* FIXME_EDWARD lock pages before each checking */
-		
-		if (clust->off <= (i << PAGE_CACHE_SHIFT) && (i << PAGE_CACHE_SHIFT) <= to_read)
-			/* page will be completely overwritten, skip this */
+		if (clust->off <= pg_to_off(i) && pg_to_off(i) <= to_read - 1)
+			/* page will be completely overwritten */
 			continue;
-		if (PageUptodate(clust->pages[i]))
+		reiser4_lock_page(pg);
+		if (PageUptodate(pg)) {
+			reiser4_unlock_page(pg);
 			continue;
+		}
+		reiser4_unlock_page(pg);
+
 		if (!cluster_is_uptodate(clust)) {
-			/* read cluster and mark leaf znodes dirty */ 
+			/* read cluster and mark its znodes dirty */
 			result = ctail_read_cluster(clust, inode, 1 /* write */);
 			if (result)
 				goto out;
 		}
-		reiser4_lock_page(clust->pages[i]);
-		result =  do_readpage_ctail(clust, clust->pages[i]);
-		reiser4_unlock_page(clust->pages[i]);
+		reiser4_lock_page(pg);
+		result =  do_readpage_ctail(clust, pg);
+		reiser4_unlock_page(pg);
 		if (result) {
 			impossible("edward-219", "do_readpage_ctail returned crap");
 			goto out;
 		}
 	}
 	if (!cluster_is_uptodate(clust))
-		/* disk cluster is unclaimed, make its znodes dirty */
+		/* disk cluster unclaimed, make its znodes dirty */
 		find_cluster(clust, inode, 0 /* do not read */, 1 /*write */);
  out:
 	release_cluster_buf(clust, inode);
