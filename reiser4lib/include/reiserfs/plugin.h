@@ -158,6 +158,7 @@ struct reiserfs_alloc_plugin {
     reiserfs_alloc_opaque_t *(*open) (aal_device_t *);
     reiserfs_alloc_opaque_t *(*create) (aal_device_t *);
     void (*close) (reiserfs_alloc_opaque_t *, int);
+    int (*sync) (reiserfs_alloc_opaque_t *);
 };
 
 typedef struct reiserfs_alloc_plugin reiserfs_alloc_plugin_t;
