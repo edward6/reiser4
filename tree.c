@@ -1374,9 +1374,6 @@ int cut_tree (reiser4_tree * tree,
 	assert("umka-330", from_key != NULL);
 	assert("umka-331", to_key != NULL);
 
-	coord_init_zero (&intranode_to);
-	coord_init_zero (&intranode_from);
-	init_lh(&lock_handle);
 
 #define WE_HAVE_READAHEAD (0)
 #if WE_HAVE_READAHEAD
@@ -1386,10 +1383,20 @@ int cut_tree (reiser4_tree * tree,
 #endif /* WE_HAVE_READAHEAD */
 
 	do {
+		/*
+		 * FIXME-VS: find_next_item is highly optimized for sequential
+		 * writes/reads. For case of cut_tree it can not help
+		 */
+		coord_init_zero (&intranode_to);
+		coord_init_zero (&intranode_from);
+		init_lh(&lock_handle);
 		/* look for @to_key in the tree or use @to_coord if it is set
 		   properly */
 		result = find_next_item (0, to_key,
-					 &intranode_to, /* was set as hint in previous loop iteration (if there was one) */
+					 &intranode_to, /* was set as hint in
+							 * previous loop
+							 * iteration (if there
+							 * was one) */
 					 &lock_handle,
 					 ZNODE_WRITE_LOCK);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
@@ -1398,8 +1405,10 @@ int cut_tree (reiser4_tree * tree,
 
 		loaded = intranode_to.node;
 		result = zload (loaded);
-		if (result)
+		if (result) {
+			done_lh (&lock_handle);
 			break;
+		}
 
 		/* lookup for @from_key in current node */
 		assert ("vs-686", intranode_to.node->nplug);
@@ -1411,15 +1420,16 @@ int cut_tree (reiser4_tree * tree,
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/* -EIO, or something like that */
 			zrelse (loaded);
+			done_lh (&lock_handle);
 			break;
 		}
-
 
 		if (coord_eq (&intranode_from, &intranode_to) && 
 		    !coord_is_existing_unit (&intranode_from)) {
 			/* nothing to cut */
 			result = 0;
 			zrelse (loaded);
+			done_lh (&lock_handle);
 			break;
 		}
 		/* cut data from one node */
@@ -1431,12 +1441,14 @@ int cut_tree (reiser4_tree * tree,
 						     loop iteration */
 				   from_key, to_key, &smallest_removed, DELETE_KILL/*flags*/, 0);
 		zrelse (loaded);
-		if (result)
+		if (result) {
+			done_lh (&lock_handle);
 			break;
+		}
+		done_lh (&lock_handle);
 		assert ("vs-301", !keyeq (&smallest_removed, min_key ()));
 	} while (keygt (&smallest_removed, from_key));
 
-	done_lh(&lock_handle);
 
 	return result;
 }
