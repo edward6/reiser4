@@ -224,9 +224,7 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large);
 
 static int capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh, txn_capture mode);
 
-static void uncapture_block(txn_atom * atom, jnode * node);
-
-static void invalidate_clean_list(txn_atom * atom);
+static void invalidate_list(capture_list_head *);
 
 /* GENERIC STRUCTURES */
 
@@ -378,6 +376,7 @@ atom_init(txn_atom * atom)
 	}
 
 	capture_list_init(&atom->clean_nodes);
+	capture_list_init(&atom->ovrwr_nodes);
 	spin_atom_init(atom);
 	txnh_list_init(&atom->txnh_list);
 	atom_list_clean(atom);
@@ -945,7 +944,8 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 
 	LOCK_ATOM(*atom);
 
-	invalidate_clean_list(*atom);
+	invalidate_list(&(*atom)->clean_nodes);
+	invalidate_list(&(*atom)->ovrwr_nodes);
 
 	up(&sbinfo->tmgr.commit_semaphore);
 
@@ -1229,18 +1229,13 @@ int flush_some_atom(long *nr_submitted, int flags)
 
 /* Remove processed nodes from atom's clean list (thereby remove them from transaction). */
 static void
-invalidate_clean_list(txn_atom * atom)
+invalidate_list(capture_list_head * head)
 {
-
-	while (!capture_list_empty(&atom->clean_nodes)) {
+	while (!capture_list_empty(head)) {
 		jnode *pos_in_atom;
 
-		pos_in_atom = capture_list_front(&atom->clean_nodes);
-
-		assert("jmacd-1063", pos_in_atom != NULL);
-		assert("jmacd-1061", pos_in_atom->atom == atom);
-
-		uncapture_block(atom, pos_in_atom);
+		pos_in_atom = capture_list_front(head);
+		uncapture_block(pos_in_atom->atom, pos_in_atom);
 	}
 }
 
@@ -1872,8 +1867,6 @@ uncapture_page(struct page *pg)
 	if (node == NULL)
 		return;
 
-	jnode_set_clean(node);
-
 repeat:
 	LOCK_JNODE(node);
 
@@ -2144,6 +2137,25 @@ jnode_set_clean(jnode * node)
 		UNLOCK_ATOM(atom);
 
 	UNLOCK_JNODE(node);
+}
+
+/* move jnode to atom's overwrite set */
+void jnode_set_wander (jnode * node)
+{
+	txn_atom * atom;
+
+	assert("nikita-2431", node != NULL);
+	assert("nikita-2432", !JF_ISSET(node, JNODE_RELOC));
+	assert("zam-897", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
+
+	atom = node->atom;
+
+	assert("zam-895", atom != NULL);
+	assert("zam-894", spin_atom_is_locked(atom) || atom->stage >= ASTAGE_PRE_COMMIT);
+
+	capture_list_remove_clean(node);
+	capture_list_push_back(&atom->ovrwr_nodes, node);
+	JF_SET(node, JNODE_OVRWR);
 }
 
 /* This function assigns a block to an atom, but first it must obtain the atom lock.  If
@@ -2589,6 +2601,7 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 
 	/* Splice and update the [clean,dirty] jnode and txnh lists */
 	zcount += capture_fuse_jnode_lists(large, &large->clean_nodes, &small->clean_nodes);
+	zcount += capture_fuse_jnode_lists(large, &large->ovrwr_nodes, &small->ovrwr_nodes);
 	tcount += capture_fuse_txnh_lists(large, &large->txnh_list, &small->txnh_list);
 
 	/* Check our accounting. */
@@ -2691,7 +2704,7 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
 
 /* Release a block from the atom, reversing the effects of being captured.
    Currently this is only called when the atom commits. */
-static void
+void
 uncapture_block(txn_atom * atom, jnode * node)
 {
 	assert("umka-226", node != NULL);
@@ -2699,13 +2712,13 @@ uncapture_block(txn_atom * atom, jnode * node)
 
 	assert("jmacd-1021", node->atom == atom);
 	assert("jmacd-1022", spin_jnode_is_not_locked(node));
-	assert("jmacd-1023", spin_atom_is_locked(atom));
-	assert("nikita-2118", !jnode_check_dirty(node));
+	assert("jmacd-1023", atom_is_protected(atom));
 
 	/*trace_on (TRACE_TXN, "uncapture %p from atom %u (captured %u)\n", node, atom->atom_id, atom->capture_count); */
 
 	LOCK_JNODE(node);
 
+	JF_CLR(node, JNODE_DIRTY);
 	JF_CLR(node, JNODE_RELOC);
 	JF_CLR(node, JNODE_OVRWR);
 	JF_CLR(node, JNODE_CREATED);
@@ -2733,14 +2746,14 @@ uncapture_block(txn_atom * atom, jnode * node)
    bitmap-based allocator code for adding modified bitmap blocks the
    transaction. @atom and @node are spin locked */
 void
-insert_into_atom_clean_list(txn_atom * atom, jnode * node)
+insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node)
 {
 	assert("zam-538", spin_atom_is_locked(atom) || atom->stage >= ASTAGE_PRE_COMMIT);
 	assert("zam-539", spin_jnode_is_locked(node));
-	assert("zam-540", !jnode_is_dirty(node));
+	assert("zam-899", JF_ISSET(node, JNODE_OVRWR));
 	assert("zam-543", node->atom == NULL);
 
-	capture_list_push_front(&atom->clean_nodes, node);
+	capture_list_push_front(&atom->ovrwr_nodes, node);
 	jref(node);
 	node->atom = atom;
 	atom->capture_count++;
