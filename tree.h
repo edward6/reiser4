@@ -477,6 +477,7 @@ struct reiser4_context {
 	reiser4_context      *parent;
 #if REISER4_DEBUG
 	lock_counters_info    locks;
+	struct task_struct    *task; /* so we can easily find owner of the stack */
 #endif
 };
 

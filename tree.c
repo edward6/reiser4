@@ -667,6 +667,7 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 	context_list_check (& active_contexts);
 	context_list_push_front (& active_contexts, context);
 	spin_unlock (& active_contexts_lock);
+	context -> task  = current;
 #endif
 	return 0;
 }
