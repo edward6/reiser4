@@ -1,4 +1,3 @@
-
 /*
  * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
@@ -90,12 +89,14 @@ int           extent_utmost_child_dirty ( const tree_coord  *coord,
 int           extent_utmost_child_real_block ( const tree_coord  *coord,
 					       sideof side,
 					       reiser4_block_nr  *block );
+reiser4_key * extent_max_key            (const tree_coord * coord, 
+					 reiser4_key * key);
 
 /*
  * plugin->u.item.s.file.*
  */
 int extent_write    (struct inode *, tree_coord *, lock_handle *,
-		     flow_t *);
+		     flow_t *, struct page *);
 int extent_read     (struct inode *, tree_coord *, lock_handle *,
 		     flow_t *);
 int extent_readpage (void * arg, struct page * page);
