@@ -36,20 +36,6 @@ int hint_validate(struct sealed_coord *, const reiser4_key *, coord_t *, lock_ha
 int update_inode_and_sd_if_necessary(struct inode *, loff_t new_size, int update_i_size);
 
 
-/* __REISER4_FILE_H__ */
-#endif
-
-/*
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   scroll-step: 1
-   End:
-*/
-
 #if 0
 int update_inode_and_sd_if_necessary(struct inode *inode, loff_t, int);
 #include "../../readahead.h"
@@ -88,5 +74,16 @@ reiser4_block_nr unix_file_estimate_release(struct inode *inode);
 
 #endif
 
+/* __REISER4_FILE_H__ */
+#endif
 
-
+/*
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   scroll-step: 1
+   End:
+*/
