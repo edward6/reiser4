@@ -1232,10 +1232,6 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	if (to_read - f.length) {
 		/* something was read. Update stat data */
 		UPDATE_ATIME (inode);
-		result = reiser4_write_sd (inode);
-		if (result)
-			warning ("vs-676", "updating stat data failed: %i",
-				 result);
 	}
 
 	drop_nonexclusive_access (inode);
@@ -1376,10 +1372,6 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	if( to_read - f.length ) {
 		/* something was read. Update stat data */
 		UPDATE_ATIME (inode);
-		result = reiser4_write_sd (inode);
-		if (result)
-			warning ("vs-676", "updating stat data failed: %i",
-				 result);
 	}
 
 	drop_nonexclusive_access (inode);
