@@ -858,13 +858,11 @@ alloc_extent(flush_pos_t *flush_pos)
 			return 0;
 		}
 		
-		if (state == ALLOCATED_EXTENT) {
-			/* all protected nodes are not flushprepped, therefore they are counted as flush_reserved */
-			atom = get_current_atom_locked();
- 			flush_reserved2grabbed(atom, protected);
-			UNLOCK_ATOM(atom);
-			block_stage = BLOCK_GRABBED;
-		} else
+		if (state == ALLOCATED_EXTENT)
+			/* all protected nodes are not flushprepped, therefore
+			 * they are counted as flush_reserved */
+			block_stage = BLOCK_FLUSH_RESERVED;
+		else
 			block_stage = BLOCK_UNALLOCATED;
 
 		/* allocate new block numbers for protected nodes */
@@ -872,17 +870,14 @@ alloc_extent(flush_pos_t *flush_pos)
 
 		ON_TRACE(TRACE_EXTENT_ALLOC, "allocated: (first %llu, cound %llu) - ", first_allocated, allocated);
 
-		if (allocated != protected) {
-			/* unprotect nodes which will not be allocated/relocated on this iteration */
-			if (state == ALLOCATED_EXTENT) {
-				atom = get_current_atom_locked();
-				grabbed2flush_reserved_nolock(atom, protected - allocated);
-				UNLOCK_ATOM(atom);
-			}
-			unprotect_extent_nodes(flush_pos, protected - allocated, &jnodes.nodes);
-		}
+		if (allocated != protected)
+			/* unprotect nodes which will not be
+			 * allocated/relocated on this iteration */
+			unprotect_extent_nodes(flush_pos, protected - allocated,
+					       &jnodes.nodes);
 		if (state == ALLOCATED_EXTENT) {
-			/* on relocating - free nodes which are going being relocated */
+			/* on relocating - free nodes which are going to be
+			 * relocated */
 			reiser4_dealloc_blocks(&start, &allocated, BLOCK_ALLOCATED, BA_DEFER);
 		}
 
@@ -1010,26 +1005,19 @@ squalloc_extent(znode *left, const coord_t *coord, flush_pos_t *flush_pos, reise
 			return 0;
 		}
 
-		if (state == ALLOCATED_EXTENT) {
-			/* all protected nodes are not flushprepped, therefore they are counted as flush_reserved */
-			atom = get_current_atom_locked();
- 			flush_reserved2grabbed(atom, protected);
-			block_stage = BLOCK_GRABBED;
-			UNLOCK_ATOM(atom);
-		} else
+		if (state == ALLOCATED_EXTENT)
+			/* all protected nodes are not flushprepped, therefore
+			 * they are counted as flush_reserved */
+			block_stage = BLOCK_FLUSH_RESERVED;
+		else
 			block_stage = BLOCK_UNALLOCATED;
 
 		/* allocate new block numbers for protected nodes */
 		extent_allocate_blocks(pos_hint(flush_pos), protected, &first_allocated, &allocated, block_stage);
 		ON_TRACE(TRACE_EXTENT_ALLOC, "allocated: (first %llu, cound %llu) - ", first_allocated, allocated);
-		if (allocated != protected) {
-			if (state == ALLOCATED_EXTENT) {
-				atom = get_current_atom_locked();
-				grabbed2flush_reserved_nolock(atom, protected - allocated);
-				UNLOCK_ATOM(atom);
-			}
-			unprotect_extent_nodes(flush_pos, protected - allocated, &jnodes.nodes);
-		}
+		if (allocated != protected)
+			unprotect_extent_nodes(flush_pos, protected - allocated,
+					       &jnodes.nodes);
 
 		/* prepare extent which will be copied to left */
 		set_extent(&copy_extent, first_allocated, allocated);
