@@ -21,20 +21,28 @@ extern int common_file_save(struct inode *inode);
 
   . install plugins
   . set bits in appropriate masks
-  . attach secret key
-  . attach key-id
+  . attach key to cryptcompress inode data
+  . make fingerprint of the pair (key, keyid) and attach it to the inode's crypto info
 
   FIXME-EDWARD: Cipher and hash key-id by the secret key
   (open method requires armored identification of the key */
 
- __attribute__((unused)) static int crc_file_create(struct inode *object, struct inode *parent, reiser4_object_create_data * data)
+#if 0
+ __attribute__((unused)) static int cryptcompress_create(struct inode *object, struct inode *parent, reiser4_object_create_data * data)
 {
 	int result;
 	scint_t *extmask;
 	reiser4_inode * info;
+	cryptcompress_info_t * crc_info;
 	crypto_plugin * cplug;
-	crc_object_create_data * crc_data;
-		
+	digest_plugin * dplug;
+	compression_plugin *coplug;
+	cryptcompress_data_t * crc_data;
+	crypto_stat_t stat;
+	__u8 fip[dplug->digestsize];
+	void * digest_ctx;
+	
+	
 	assert("edward-23", object != NULL);
 	assert("edward-24", parent != NULL);
 	assert("edward-25", data != NULL);
@@ -42,60 +50,83 @@ extern int common_file_save(struct inode *inode);
 	assert("edward-27", data->id = CRC_FILE_PLUGIN_ID);
 	
 	crc_data = data->crc;
-	assert("edward-28", crc_data != NULL);
-	
 	info = reiser4_inode_data(object);
-	assert("edward-29", info != NULL);
-		
-	cplug = crypto_plugin_by_id(crc_data->cra);
+	crc_info = cryptcompress_inode_data(object);
 	
+	assert("edward-28", crc_data != NULL);
+	assert("edward-xx", crc_data->keyid_size);
+	assert("edward-29", info != NULL);
+	assert("edward-xx", crc_info = NULL);
 	assert("edward-30", info->pset->crypto = NULL);
+	assert("edward-xx", info->pset->digest = NULL);
+	assert("edward-31", info->pset->compression = NULL);
+	
+	cplug = crypto_plugin_by_id(crc_data->cra);
 	plugin_set_crypto(&info->pset, cplug);
 
-	assert("edward-31", info->pset->compression = NULL);
-	plugin_set_compression(&info->pset, 
-			       compression_plugin_by_id(crc_data->coa));
+	dplug = digest_plugin_by_id(crc_data->dia);
+	plugin_set_digest(&info->pset, dplug);
+
+	coplug = compression_plugin_by_id(crc_data->coa);
+	plugin_set_compression(&info->pset, coplug);
 
 	info->plugin_mask |= (1 << REISER4_FILE_PLUGIN_TYPE) |
 		(1 << REISER4_CRYPTO_PLUGIN_TYPE) |
+		(1 << REISER4_DIGEST_PLUGIN_TYPE) |
 		(1 << REISER4_COMPRESSION_PLUGIN_TYPE);
 	extmask = &info->extmask;
 	scint_pack(extmask, scint_unpack(extmask) |
 		   (1 << PLUGIN_STAT) |
-		   (1 << KEY_ID_STAT), GFP_ATOMIC);
+		   (1 << CLUSTER_STAT) |
+		   (1 << CRYPTO_STAT), GFP_ATOMIC);
 
-	info->expkey = reiser4_kmalloc(cplug->keysize, GFP_KERNEL);
-	if (!info->expkey)
+	/* alloc memory for expkey */
+	crc_info->expkey = reiser4_kmalloc((cplug->keysize)*sizeof(__u32), GFP_KERNEL);
+	if (!crc_info->expkey)
 		return RETERR(-ENOMEM);
-	result = cplug->set_key(info->expkey, crc_data->key);
+	/* load expkey */
+	result = cplug->set_key(crc_info->expkey, crc_data->key);
 	if (result)
 		goto destroy_key;
 	assert ("edward-34", !inode_get_flag(object, REISER4_SECRET_KEY_INSTALLED));
 	inode_set_flag(object, REISER4_SECRET_KEY_INSTALLED);
 		
-	/* set temporary pointer for the key-id */
-	info->keyid = crc_data->keyid;
+	/* fingerprint creation of the pair (@key, @keyid) includes two steps: */
+	/* 1. encrypt keyid by key: */
+	/* FIXME-EDWARD: add encryption of keyid */
+
+	/* 2. make digest of encrypted keyid */
+	result = dplug->alloc(digest_ctx);
+	if (result)
+		goto destroy_key;
+	dplug->init(digest_ctx);
+	dplug->update(digest_ctx, crc_data->keyid, crc_data->keyid_size);
+	dplug->final(digest_ctx, fip);
+	dplug->free(digest_ctx);
+	
+	/* add temporary crypto_info to the inode */
+	stat.keysize = crc_data->keysize;
+	stat.fip = fip;
+	info->crypt = &stat;
+	
 	result = common_file_save(object);
 	if (!result)
 		return 0;
-	if (info->keyid == crc_data->keyid) 
+	if (info->crypt == &stat) 
 		goto destroy_key;
 
-        /* the pointer was updated to kmalloced data, but save() method
+	/* now the pointer was updated to kmalloced data, but save() method
 	   for some another sd-extension failed */
-	assert("edward-32", !memcmp(info->keyid, crc_data->keyid, sizeof (reiser4_keyid_stat)));
+	
+	assert("edward-32", !memcmp(info->crypt->keyid, stat.keyid, dplug->digestsize));
 
 	reiser4_kfree(info->keyid, sizeof (reiser4_keyid_stat));
 	inode_clr_flag(object, REISER4_KEYID_LOADED);
 	
  destroy_key:
-	xmemset(info->expkey, 0, cplug->keysize);
-	reiser4_kfree(info->expkey, cplug->keysize);
+	xmemset(crc_info->expkey, 0, (cplug->keysize)*sizeof(__u32));
+	reiser4_kfree(crc_info->expkey, (cplug->keysize)*sizeof(__u32));
 	inode_clr_flag(object, REISER4_SECRET_KEY_INSTALLED);
 	return result;
 }
-
-
-
-
-
+#endif
