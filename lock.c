@@ -30,8 +30,20 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
    |+--+            +--+|
    +--------------------+
   
-We solve this by ensuring that only low priority processes lock in top to bottom order and from right to left, and high priority processes
-   lock from bottom to top and left to right. ZAM-FIXME-HANS: order not just node locks in this way, order atom locks, and kill those damn busy loops.
+   We solve this by ensuring that only low priority processes lock in top to
+   bottom order and from right to left, and high priority processes lock from
+   bottom to top and left to right.
+
+   ZAM-FIXME-HANS: order not just node locks in this way, order atom locks, and
+   kill those damn busy loops.
+   ANSWER(ZAM): atom locks (which are introduced by ASTAGE_CAPTURE_WAIT atom
+   stage) cannot be ordered that way. There are no rules what nodes can belong
+   to the atom and what nodes cannot.  We cannot define what is right or left
+   direction, what is top or bottom.  We can take immediate parent or side
+   neighbor of one node, but nobody guarantees that, say, left neighbor node is
+   not a far right neighbor for other nodes from the same atom.  It breaks
+   deadlock avoidance rules and hi-low priority locking cannot be applied for
+   atom locks.
 
    How does it help to avoid deadlocks ?
   
@@ -39,10 +51,11 @@ We solve this by ensuring that only low priority processes lock in top to bottom
    class never deadlock because they take locks in one consistent
    order.
   
-   So, any possible deadlock loop must have low priority as well as high priority processes.  
-   There are no other lock priority levels except low
-   and high. We know that any deadlock loop contains at least one node locked
-   by a low priority process and requested by a high priority process. If this situation is caught and resolved it is sufficient to avoid deadlocks.
+   So, any possible deadlock loop must have low priority as well as high
+   priority processes.  There are no other lock priority levels except low and
+   high. We know that any deadlock loop contains at least one node locked by a
+   low priority process and requested by a high priority process. If this
+   situation is caught and resolved it is sufficient to avoid deadlocks.
   
    V4 DEADLOCK PREVENTION ALGORITHM IMPLEMENTATION.
   
@@ -150,34 +163,28 @@ We solve this by ensuring that only low priority processes lock in top to bottom
    This is a list of primitive operations over lock stacks / lock handles /
    znodes and locking descriptions for them.
 
-   1. locking / unlocking which is done by two list insertion/deletion is
-      protected by znode spinlock.  A simultaneous access to the list owned by
-      znode is impossible because the only one spinlock embedded into the
-      znode should be taken.  The list owned by the lock stack can be modified
-      only by thread who owns the lock stack and nobody else can modify/read
-      it. There is nothing to be protected by a spinlock or something else.
-   2. adding/removing a lock request to/from znode requesters list. The rule
-      is that znode spinlock should be taken for this.
+   1. locking / unlocking which is done by two list insertion/deletion, one
+      to/from znode's list of lock handles, another one is to/from lock stack's
+      list of lock handles.  The first insertion is protected by
+      znode->lock.guard spinlock.  The list owned by the lock stack can be
+      modified only by thread who owns the lock stack and nobody else can
+      modify/read it. There is nothing to be protected by a spinlock or
+      something else.  
 
-   3. accessing a set of lock stacks who locked given znode is done with znode
-      spinlock taken. Nobody can lock/unlock znode at this time and modify
-      list of lock handles, and, thereby, the set of lock stacks.
+   2. adding/removing a lock request to/from znode requesters list. The rule is
+      that znode->lock.guard spinlock should be taken for this.
 
-   4. Lock stacks can be accessed by from different ways: The thread a lock
-      stack belongs to may change lock stack state, lock or unlock
-      znodes. Another way is when somebody who keep znode spin-locked accesses
-      its lock owners. The parallel access conflicts are solved by using
-      atomic variables for lock stack fields and lock stack spinlock.
+   3. we can traverse list of lock handles and use references to lock stacks who
+      locked given znode if znode->lock.guard spinlock is taken.
 
-ZAM-FIXME-HANS: this section, especially 1. is incomprehensible and bloated
-
-Maybe you mean to say: the znode is protected by a spinlock which also protects all lock lists and requestors lists.  Accessing a lock stack by any thread other than its owner requires spinlocking all znodes on the lock stack.
-
-*/
+   4. If a lock stack is associated with a znode as a lock requestor or lock
+      owner its existence is guaranteed by znode->lock.guard spinlock.  Some its
+      (lock stack's) fields should be protected from being accessed in parallel
+      by two or more threads. Please look at  lock_stack structure definition
+      for the info how those fields are protected.
 
 /* Josh's explanation to Zam on why the locking and capturing code are intertwined.
   ZAM-FIXME-HANS: deadlock is not observed anymore, right?  rewrite this whole comment.
-   FIXME: DEADLOCK STILL OBSERVED:!!!
   
    Point 1. The order in which a node is captured matters.  If a read-capture arrives
    before a write-capture, the read-capture may cause no capturing "work" to be done at
