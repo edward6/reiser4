@@ -1050,6 +1050,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.desc = "regular file",
 			.linkage = TS_LIST_LINK_ZERO
 		},
+		/* FIXME: check which of these are relly needed */
 		.open = NULL,
 		.truncate = truncate_unix_file,
 		.write_sd_by_inode = write_sd_by_inode_common,
