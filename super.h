@@ -429,6 +429,8 @@ extern __u64 reiser4_fake_allocated(const struct super_block *);
 extern void reiser4_set_fake_allocated(const struct super_block *, __u64 nr);
 extern __u64 reiser4_fake_allocated_unformatted(const struct super_block *);
 extern void reiser4_set_fake_allocated_unformatted(const struct super_block *, __u64 nr);
+extern __u64 reiser4_clustered_blocks(const struct super_block *);
+extern void reiser4_set_clustered_blocks(const struct super_block *, __u64 nr);
 
 extern long reiser4_reserved_blocks(const struct super_block *super, uid_t uid, gid_t gid);
 
