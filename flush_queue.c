@@ -202,6 +202,7 @@ queue_jnode(flush_queue_t * fq, jnode * node)
 	assert("zam-714", jnode_is_dirty(node));
 	assert("zam-716", fq->atom != NULL);
 	assert("zam-717", fq->atom == node->atom);
+	assert("zam-826", JF_ISSET(node, JNODE_RELOC));
 
 	if (JF_ISSET(node, JNODE_FLUSH_QUEUED))
 		return;		/* queued already */
@@ -546,6 +547,8 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 		struct page *pg;
 
 		assert("nikita-2776", JF_ISSET(first, JNODE_FLUSH_QUEUED));
+		assert("zam-825", JF_ISSET(first, JNODE_RELOC));
+
 		result = emergency_unflush(first);
 		if (result != 0)
 			reiser4_panic("nikita-2775", 

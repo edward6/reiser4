@@ -2527,12 +2527,16 @@ flush_allocate_znode(znode * node, coord_t * parent_coord, flush_position * pos)
 
 		spin_lock_znode(node);
 		atom = atom_get_locked_by_jnode(ZJNODE(node));
+		assert ("zam-827", atom);
 
-		if (atom) {
+		if (ZF_ISSET(node, JNODE_RELOC)) {
 			queue_jnode(pos->fq, ZJNODE(node));
-			spin_unlock_atom(atom);
+		} else {
+			assert ("zam-828", ZF_ISSET(node, JNODE_OVRWR));
+			jnode_set_clean_nolock(ZJNODE(node));
 		}
 
+		spin_unlock_atom(atom);
 		spin_unlock_znode(node);
 
 		return 0;
