@@ -543,11 +543,11 @@ extern perm_plugin perm_plugins[ LAST_PERM_ID ];
 extern item_plugin item_plugins[ LAST_ITEM_ID ];
 /* defined in fs/reiser4/plugin/node/node.c */
 extern node_plugin node_plugins[ LAST_NODE_ID ];
-/* defined in fs/reiser4/dformat.c */
+/* defined in fs/reiser4/plugin/oid/oid.c */
 extern oid_allocator_plugin oid_plugins[ LAST_OID_ALLOCATOR_ID ];
-/* defined in fs/reiser4/dformat.c */
+/* defined in fs/reiser4/plugin/space/space_allocator.c */
 extern space_allocator_plugin space_plugins[ LAST_SPACE_ALLOCATOR_ID ];
-/* defined in fs/reiser4/dformat.c */
+/* defined in fs/reiser4/plugin/disk_format/disk_format.c */
 extern disk_format_plugin format_plugins[ LAST_FORMAT_ID ];
 /* defined in jnode.c */
 extern jnode_plugin jnode_plugins[ LAST_JNODE_TYPE ];
