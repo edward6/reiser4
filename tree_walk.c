@@ -307,7 +307,7 @@ static int renew_sibling_link (tree_coord * coord, lock_handle * handle,
 			spin_unlock_tree(tree);
 			ret = PTR_ERR(neighbor);
 			if (handle->owner != NULL) {
-				zrelse(handle->node, 1);
+				zrelse(handle->node);
 				longterm_unlock_znode(handle);
 				(*nr_locked) --;
 			}
@@ -350,7 +350,7 @@ static int connect_one_side (tree_coord * coord, znode * node, int flags)
 
 	if (handle.owner != NULL) {
 		/* complementary operations for zload() and lock() in far_next_coord() */
-		zrelse(handle.node, 1);
+		zrelse(handle.node);
 		longterm_unlock_znode(&handle);
 	}
 
@@ -445,7 +445,7 @@ static int renew_neighbor (tree_coord * coord, znode * node, tree_level level, i
 	done_coord(&local);
 
 	while (nr_locked) {
-		zrelse(empty[nr_locked].node, 1);
+		zrelse(empty[nr_locked].node);
 		longterm_unlock_znode(&empty[nr_locked]);
 		-- nr_locked;
 	}
@@ -531,14 +531,14 @@ int reiser4_get_neighbor (lock_handle * neighbor /* lock handle that
 		ret = find_child_ptr(parent, child, &coord);
 
 		if (ret) {
-			zrelse(parent, 1);
+			zrelse(parent);
 			break;
 		}
 
 		/* try to establish missing sibling link */
 		ret = renew_neighbor(&coord, child, h + base_level, flags);
 
-		zrelse(parent, 1);
+		zrelse(parent);
 
 		switch (ret) {
 		    case 0:

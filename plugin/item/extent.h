@@ -66,7 +66,7 @@ void          extent_copy_units        (tree_coord * target,
 					shift_direction where_is_free_space,
 					unsigned free_space);
 int           extent_kill_item_hook    (const tree_coord *, unsigned from,
-					unsigned count);
+					unsigned count, void *kill_params);
 int           extent_create_hook       (const tree_coord * coord, void * arg);
 int           extent_cut_units         (tree_coord *, unsigned * from,
 					unsigned * to,

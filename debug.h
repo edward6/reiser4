@@ -92,6 +92,9 @@ typedef struct lock_counters_info {
 	int                   spin_locked_inode;
 	int                   spin_locked;
 	int                   long_term_locked_znode;
+
+	int                   x_refs;
+	int                   d_refs;
 } lock_counters_info;
 
 extern lock_counters_info *lock_counters();

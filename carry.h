@@ -157,6 +157,7 @@ typedef struct carry_cut_data {
 	const reiser4_key *to_key;
 	reiser4_key       *smallest_removed;
 	unsigned           flags;
+	void              *iplug_params;
 } carry_cut_data;
 
 /** 

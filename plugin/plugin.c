@@ -425,7 +425,7 @@ reiser4_plugin *plugin_by_disk_id( reiser4_tree *tree UNUSED_ARG /* tree,
 	   "universal" ids. This dictionary will be resolved on mount
 	   time, so that this function will perform just one additional
 	   array lookup. */
-	return plugin_by_id( type_id, d16tocpu( did ) );
+	return plugin_by_unsafe_id( type_id, d16tocpu( did ) );
 }
 
 /** convert plugin id to the disk format */

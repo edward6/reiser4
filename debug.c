@@ -332,7 +332,7 @@ static void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 	char buffer_l[ 100 ];
 	char buffer_r[ 100 ];
 
-	i = zparse( node );
+	i = zload( node );
 	if( i != 0 ) {
 		info( "Cannot load/parse node: %i", i );
 		return;
@@ -381,7 +381,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	int i;
 	tree_coord coord;
 
-	i = zparse( node );
+	i = zload( node );
 	if( i != 0 ) {
 		info( "Cannot load/parse node: %i", i );
 		return;

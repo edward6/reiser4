@@ -220,7 +220,7 @@ static int seal_search_node( seal_t      *seal  /* seal to repair */,
 		} else
 			result = -ENOENT;
 	}
-	zrelse( node, 1 );
+	zrelse( node );
 	return result;
 }
 

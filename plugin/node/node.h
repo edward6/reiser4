@@ -200,7 +200,8 @@ typedef struct node_plugin {
 			       const reiser4_key *from_key,
 			       const reiser4_key *to_key,
 			       reiser4_key *smallest_removed,
-			       carry_level *todo, __u32 flags );
+			       carry_level *todo, void *kill_params,
+			       __u32 flags );
 
 	/* remove data between @from and @to from a node (when shifting from
 	   one node to another, one cuts from a node but does not cut_and_kill

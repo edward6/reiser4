@@ -953,7 +953,7 @@ int lock_carry_node_tail( carry_node *node /* node to complete locking of */ )
 	 * Most of the time this call is cheap because the node is
 	 * already in memory.
 	 */
-	return zparse( node -> real_node );
+	return zload( node -> real_node );
 }
 
 /**
@@ -1273,6 +1273,11 @@ carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
 		 */
 		return ( carry_node * ) new_znode;
 
+	/*
+	 * new_znode returned znode with x_count 1. Caller has to decrease
+	 * it. make_space() does.
+	 */
+
 	ZF_SET( new_znode, ZNODE_NEW );
 	fresh -> node = new_znode;
 
@@ -1372,8 +1377,10 @@ void print_op( const char *prefix /* prefix to print */,
 	switch( op -> op ) {
 	case COP_INSERT:
 	case COP_PASTE:
-		print_coord_content( "\tcoord", op -> u.insert.d -> coord );
-		print_key( "\tkey", op -> u.insert.d -> key );
+		print_coord_content( "\tcoord", op -> u.insert.d ? 
+				     op -> u.insert.d -> coord : NULL );
+		print_key( "\tkey", op -> u.insert.d ? 
+			   op -> u.insert.d -> key : NULL );
 		print_carry( "\tchild", op -> u.insert.child );
 		break;
 	case COP_DELETE:

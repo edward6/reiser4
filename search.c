@@ -555,13 +555,9 @@ static lookup_result cbk( cbk_handle *h /* search handle */ )
 
 		assert( "nikita-1637", done != -EDEADLK );
 
-		if (done) {
-			zput(fake);
+		zput(fake);
+		if (done)
 			return done;
-		}
-		/* LOADED is set and d_count incremented because that's what zrelse expects... ? */
-		ZF_SET( fake, ZNODE_LOADED );
-		atomic_inc( &fake -> d_count );
 		/* connect_znode() needs it */
 		h -> coord -> node = fake;
 		h -> ld_key = *min_key();
@@ -706,12 +702,12 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 
 	/* sanity checks */
 	if( sanity_check( h ) ) {
-		zrelse(active, 1);
+		zrelse(active);
 		return LLR_DONE;
 	}
 
 	ret =  cbk_node_lookup(h);
-	zrelse(active, 1);
+	zrelse(active);
 
 	return ret;
 
@@ -844,25 +840,26 @@ static int add_empty_leaf( tree_coord *insert_coord, lock_handle *lh,
 	spin_unlock_dk( current_tree );
 
 	op = post_carry( &todo, COP_INSERT, insert_coord -> node, 0 );
-	if( IS_ERR( op ) )
-		return PTR_ERR( op );
-	cdata.coord = insert_coord;
-	cdata.key   = key;
-	cdata.data  = &item;
-	op -> u.insert.d = &cdata;
-	op -> u.insert.type = COPT_ITEM_DATA;
-	build_child_ptr_data( node, &item );
-	item.arg = NULL;
-	/*
-	 * have @insert_coord to be set at inserted item after insertion is
-	 * done
-	 */
-	op -> node -> track = 1;
-	op -> node -> tracked = lh;
-
-	result = carry( &todo, 0 );
+	if( !IS_ERR( op ) ) {
+		cdata.coord = insert_coord;
+		cdata.key   = key;
+		cdata.data  = &item;
+		op -> u.insert.d = &cdata;
+		op -> u.insert.type = COPT_ITEM_DATA;
+		build_child_ptr_data( node, &item );
+		item.arg = NULL;
+		/*
+		 * have @insert_coord to be set at inserted item after
+		 * insertion is done
+		 */
+		op -> node -> track = 1;
+		op -> node -> tracked = lh;
+		
+		result = carry( &todo, 0 );
+	} else
+		result = PTR_ERR( op );
+	zput( node );
 	done_carry_pool( &pool );
-
 	return result;
 }
 
@@ -903,10 +900,6 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 	active = h -> active_lh -> node;
 	tree   = h -> tree;
 
-	/* Parse node header. */
-	h -> result = zparse( active );
-	if( h -> result )
-		return LLR_DONE;
 	nplug = active -> nplug;
 	assert( "nikita-380", nplug != NULL );
 
@@ -1158,7 +1151,7 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 		reiser4_stat_tree_add( cbk_cache_race );
 		result = -ENOENT; /* -ERAUGHT */
 	}
-	zrelse( node, 1 );
+	zrelse( node );
 	return result;
 }
 
@@ -1334,7 +1327,7 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 			result = LLR_DONE;
 		}
 		if( neighbor != NULL )
-			zrelse( neighbor, 1 );
+			zrelse( neighbor );
 	}
 	}
 	done_lh( &lh );

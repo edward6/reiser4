@@ -57,31 +57,14 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 		 */
 		assert( "nikita-931", result != NULL );
 
-		/*
-		 * FIXME-NIKITA there is actually no need to read fresh znode in a
-		 * memory. In stead memory should be allocated for it so that
-		 * zdata() returns not null.
-		 */
-		retcode = zload( result );
-		if( retcode == 0 ) {
-
-			result -> nplug = current_tree -> nplug;
-			assert( "nikita-933", result -> nplug != NULL );
-			ZF_SET( result, ZNODE_PLUGIN );
+		result -> nplug = current_tree -> nplug;
+		assert( "nikita-933", result -> nplug != NULL );
 			
-			retcode = zinit_new( result );
-			zrelse( result, 1 );
+		retcode = zinit_new( result );
+		zrelse( result );
 
-			if( retcode != 0 ) {
-				result = ERR_PTR( retcode );
-			}
-		} else {
-			warning( "nikita-932",
-				 "Cannot load znode: %i", retcode );
-			print_znode( "node", result );
-			zput( result );
+		if( retcode != 0 ) 
 			result = ERR_PTR( retcode );
-		}
 	} else {
 		/*
 		 * failure to allocate new node during balancing.
@@ -144,29 +127,39 @@ znode *add_tree_root( znode *old_root /* existing tree root */,
 		assert( "nikita-1448", znode_is_root( old_root ) );
 		new_root = new_node( fake, tree -> height + 1 );
 		if( !IS_ERR( new_root ) ) {
-			++ tree -> height;
-			tree -> root_block = *znode_get_block( new_root );
+			lock_handle rlh;
+
 			/*
-			 * new root is child on "fake" node
+			 * FIXME-NIKITA pass lock handle from add_new_root()
+			 * in stead
 			 */
-			spin_lock_tree( tree );
-			new_root -> ptr_in_parent_hint.node = fake;
-			new_root -> ptr_in_parent_hint.item_pos = ~0u;
-			new_root -> ptr_in_parent_hint.between = AT_UNIT;
-			spin_unlock_tree( tree );
+			result = longterm_lock_znode( &rlh, new_root, 
+						      ZNODE_WRITE_LOCK, 
+						      ZNODE_LOCK_LOPRI );
+			if( result == 0 ) {
+				++ tree -> height;
+				tree -> root_block = *znode_get_block( new_root );
+				/* new root is a child on "fake" node */
+				spin_lock_tree( tree );
+				new_root -> ptr_in_parent_hint.node = fake;
+				new_root -> ptr_in_parent_hint.item_pos = ~0u;
+				new_root -> ptr_in_parent_hint.between = AT_UNIT;
+				spin_unlock_tree( tree );
 			
-			/*
-			 * insert into new root pointer to the
-			 * @old_root.
-			 */
-			assert( "nikita-1110", 
-				node_is_empty( new_root ) );
-			spin_lock_dk( current_tree );
-			*znode_get_ld_key( new_root ) = *min_key();
-			*znode_get_rd_key( new_root ) = *max_key();
-			spin_unlock_dk( current_tree );
-			sibling_list_insert( new_root, NULL );
-			result = add_child_ptr( new_root, old_root );
+				/*
+				 * insert into new root pointer to the
+				 * @old_root.
+				 */
+				assert( "nikita-1110", 
+					node_is_empty( new_root ) );
+				spin_lock_dk( current_tree );
+				*znode_get_ld_key( new_root ) = *min_key();
+				*znode_get_rd_key( new_root ) = *max_key();
+				spin_unlock_dk( current_tree );
+				sibling_list_insert( new_root, NULL );
+				result = add_child_ptr( new_root, old_root );
+				done_lh( &rlh );
+			}
 		}
 	}
 	if( result != 0 )
@@ -215,6 +208,9 @@ static int add_child_ptr( znode *parent, znode *child )
 	assert( "nikita-1113", node_is_empty( parent ) );
 	assert( "nikita-1115", znode_get_level( parent ) == znode_get_level( child ) + 1 );
 
+	result = zload( parent );
+	if( result != 0 )
+		return result;
 	coord_first_unit( &coord, parent );
 
 	build_child_ptr_data( child, &data );
@@ -225,6 +221,8 @@ static int add_child_ptr( znode *parent, znode *child )
 	spin_unlock_dk( current_tree );
 	result = node_plugin_by_node( parent ) -> create_item( &coord, key, 
 							       &data, NULL );
+	znode_set_dirty( parent );
+	zrelse( parent );
 	return result;
 }
 

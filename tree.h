@@ -74,6 +74,7 @@ typedef enum {
 } level_lookup_result;
 
 typedef int ( *node_read_actor )( const reiser4_block_nr *addr, char **data );
+typedef int ( *node_allocate_actor )( znode *node );
 
 /** PUT THIS IN THE SUPER BLOCK
  *
@@ -127,6 +128,8 @@ struct reiser4_tree {
 	node_plugin         *nplug;
 	/** read given address from persistent storage */
 	node_read_actor      read_node;
+	/** allocate memory for newly created znode */
+	node_allocate_actor      allocate_node;
 };
 
 /**
@@ -228,10 +231,11 @@ typedef enum { SHIFTED_SOMETHING  = 0,
 
 
 extern int init_tree( reiser4_tree *tree, 
-			      const reiser4_block_nr *root_block,
-			      tree_level height,
-			      node_plugin *default_plugin,
-			      node_read_actor read_node );
+		      const reiser4_block_nr *root_block,
+		      tree_level height,
+		      node_plugin *default_plugin,
+		      node_read_actor read_node, 
+		      node_allocate_actor alloc_node );
 extern void reiser4_done_tree( reiser4_tree *tree );
 extern node_plugin *node_plugin_by_coord ( const tree_coord *coord );
 extern node_plugin *node_plugin_by_node( const znode *node );

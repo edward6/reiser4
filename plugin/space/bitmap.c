@@ -264,8 +264,8 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 		assert ("zam-378", equi(bnode->working == NULL, bnode->commit == NULL));
 
 		if (bnode->working != NULL) {
-			zrelse(bnode->working, 1);
-			zrelse(bnode->commit, 1);
+			zrelse(bnode->working);
+			zrelse(bnode->commit);
 
 			zput(bnode->working);
 			zput(bnode->commit);
@@ -320,7 +320,7 @@ static int load_bnode_half (znode ** node_pp, reiser4_block_nr *block)
 	} else {
 		spin_unlock_tree(current_tree);
 
-		zrelse(node, 1);
+		zrelse(node);
 		zput(node);
 
 		spin_lock_tree(current_tree);
@@ -380,8 +380,8 @@ static void release_bnode(struct reiser4_bnode * bnode)
 	assert("zam-362", bnode->working != NULL);
 	assert("zam-363", bnode->commit != NULL);
 
-	zrelse(bnode->working, 1);
-	zrelse(bnode->commit, 1);
+	zrelse(bnode->working);
+	zrelse(bnode->commit);
 
 	zput(bnode->working);
 	zput(bnode->commit);

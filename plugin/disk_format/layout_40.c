@@ -136,7 +136,7 @@ int layout_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 
 	/* init reiser4_tree for the filesystem */
 	result = init_tree (&private->tree, &root_block, height, nplug,
-			    0/* read_actor */);
+			    0/* read_actor */, 0/* allocate_actor*/);
 	if (result)
 		return result;
 

@@ -769,7 +769,7 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 	dup_coord( &coord2, &coord );
 	result = node_plugin_by_node( parent ) -> cut_and_kill
 		( &coord, &coord2, NULL, NULL, NULL, todo, 
-		  op -> u.delete.flags );
+		  NULL, op -> u.delete.flags );
 	doing -> restartable = 0;
 	znode_set_dirty( coord.node );
 	znode_set_dirty( coord2.node );
@@ -810,7 +810,8 @@ static int carry_cut( carry_op *op /* operation to be performed */,
 			cut_and_kill( op -> u.cut -> from, op -> u.cut -> to,
 				      op -> u.cut -> from_key, op -> u.cut -> to_key,
 				      op -> u.cut -> smallest_removed,
-				      todo, 0 /* FIXME-NIKITA flags */ );
+				      todo, op -> u.cut -> iplug_params, 
+				      0 /* FIXME-NIKITA flags */ );
 	else
 		/* data get cut,  */
 		result = node_plugin_by_node( op -> node -> real_node ) ->

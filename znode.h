@@ -295,37 +295,34 @@ struct znode {
 typedef enum {
        /** data are loaded from node */
        ZNODE_LOADED            = 0,
-       /** node header was successfully parsed and node plugin
-           found and installed. Equivalent to ( ->node_plugin != 0 )*/
-       ZNODE_PLUGIN            = 1,
        /** node was deleted, not all locks on it were released. This
 	   node is empty and is going to be removed from the tree
 	   shortly. */
        /** Josh respectfully disagrees with obfuscated, metaphoric names
 	   such as this.  He thinks it should be named ZNODE_BEING_REMOVED. */
-       ZNODE_HEARD_BANSHEE     = 2,
+       ZNODE_HEARD_BANSHEE     = 1,
        /** left sibling pointer is valid */
-       ZNODE_LEFT_CONNECTED    = 3,
+       ZNODE_LEFT_CONNECTED    = 2,
        /** right sibling pointer is valid */
-       ZNODE_RIGHT_CONNECTED   = 4,
+       ZNODE_RIGHT_CONNECTED   = 3,
        /** znode was just created and doesn't yet have a pointer from
 	   its parent */
-       ZNODE_NEW               = 5,
+       ZNODE_NEW               = 4,
 
        /* The jnode is a unformatted node.  False for all znodes.  */
-       ZNODE_UNFORMATTED       = 6,
+       ZNODE_UNFORMATTED       = 5,
 
        /** this node was allocated by its txn */
-       ZNODE_ALLOC             = 7,
+       ZNODE_ALLOC             = 6,
        /** this node is currently relocated */
-       ZNODE_RELOC             = 8,
+       ZNODE_RELOC             = 7,
        /** this node is currently wandered */
-       ZNODE_WANDER            = 9,
+       ZNODE_WANDER            = 8,
 
        /** this node was modified by an atom and was subsequently allocated.
 	* If this is set, it implies that one of ZNODE_ALLOC, ZNODE_RELOC, or
 	* ZNODE_WANDER has been set. */
-       ZNODE_SQUALLOCED         = 10,
+       ZNODE_SQUALLOCED         = 9,
 	   
        /** this node was deleted by its txn.  Eliminated because the
 	* znode/jnode will be released as soon as possible.  The atom doesn't
@@ -335,12 +332,12 @@ typedef enum {
        /*ZNODE_DELETED           = 10,*/
 
        /** this znode has been modified */
-       ZNODE_DIRTY             = 11,
+       ZNODE_DIRTY             = 10,
        /** this znode has been modified */
-       ZNODE_WRITEOUT          = 12,
+       ZNODE_WRITEOUT          = 11,
 
        /* znode lock is being invalidated */
-       ZNODE_IS_DYING          = 13
+       ZNODE_IS_DYING          = 12
 } reiser4_znode_state;
 
 /* Macros for accessing the znode state. */
@@ -497,6 +494,8 @@ static inline void reiser4_wake_up (lock_stack *owner)
 	spin_unlock_stack(owner);
 }
 
+extern void add_x_ref( znode *node );
+extern void add_d_ref( znode *node );
 extern znode *zref( znode *node );
 extern znode *zget( reiser4_tree *tree, const reiser4_block_nr *const block,
 		    znode *parent, tree_level level, int gfp_flag );
@@ -505,10 +504,9 @@ extern void zput( znode *node );
 extern int zload( znode *node );
 extern int zinit_new( znode *node );
 extern int zunload( znode *node );
-extern int zrelse( znode *node, int count );
+extern int zrelse( znode *node );
 extern void znode_change_parent( znode *new_parent, reiser4_block_nr *block );
 
-extern int zparse( znode *node );
 extern char *zdata( const znode *node );
 extern unsigned znode_size( const znode *node );
 extern unsigned znode_free_space( znode *node );

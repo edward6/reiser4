@@ -22,12 +22,14 @@ mv gmon.out gmon.out.dir.1.100.$r
 mv gmon.out gmon.out.dir.3.1000.$r
 ./a.out jmacd build 3 1000 1000 || exit 4
 mv gmon.out gmon.out.build.3.1000.$r
-./a.out nikita mongo 3 1000 1000 || exit 5
+./a.out nikita mongo 3 1000 || exit 5
 mv gmon.out gmon.out.mongo.3.1000.$r
 ./a.out nikita rm 3 1000 1000 || exit 6
 mv gmon.out gmon.out.rm.3.1000.$r
 ./a.out nikita unlink 10000 || exit 7
 mv gmon.out gmon.out.unlink.10000.$r
+./a.out nikita mongo 30 1000 || exit 6
+mv gmon.out gmon.out.rm.30.1000.$r
 #( find /tmp | ./a.out vs copydir ) || exit 8
 #mv gmon.out gmon.out.vs.copydir.tmp.$r
 echo Round $r done.

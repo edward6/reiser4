@@ -309,7 +309,9 @@ int init_tree( reiser4_tree *tree /* pointer to structure being
 	       tree_level height /* height of a tree */, 
 	       node_plugin *nplug /* default node plugin */, 
 	       node_read_actor read_node /* function to read nodes from
-					  * disk */ )
+					  * disk */,
+	       node_allocate_actor allocate_node /* function to allocate new
+						  * nodes */ )
 {
 	assert( "nikita-306", tree != NULL );
 	assert( "nikita-307", root_block != NULL );
@@ -322,6 +324,7 @@ int init_tree( reiser4_tree *tree /* pointer to structure being
 	tree -> height = height;
 	tree -> nplug = nplug;
 	tree -> read_node = read_node;
+	tree -> allocate_node = allocate_node;
 	tree -> cbk_cache = reiser4_kmalloc( sizeof( cbk_cache ), GFP_KERNEL );
 	if( tree -> cbk_cache == NULL )
 		return -ENOMEM;

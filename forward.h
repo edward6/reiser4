@@ -180,6 +180,16 @@ typedef struct name name_t;
 
 typedef union lnode lnode;
 
+typedef enum { 
+	STATIC_STAT_DATA_ID,
+	SIMPLE_DIR_ENTRY_ID,
+	COMPOUND_DIR_ID,
+	NODE_POINTER_ID,
+	ACL_ID,
+	EXTENT_POINTER_ID, 
+	TAIL_ID, 
+	LAST_ITEM_ID 
+} item_id;
 
 /* __REISER4_FORWARD_H__ */
 #endif

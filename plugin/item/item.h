@@ -20,18 +20,6 @@ typedef enum {
 	OTHER_ITEM_TYPE /* not used */
 } item_type_id;
 
-
-typedef enum { 
-	STATIC_STAT_DATA_ID,
-	SIMPLE_DIR_ENTRY_ID,
-	COMPOUND_DIR_ID,
-	NODE_POINTER_ID,
-	ACL_ID,
-	EXTENT_POINTER_ID, 
-	TAIL_ID, 
-	LAST_ITEM_ID 
-} item_id;
-
 /* flags to utmost_child method */
 typedef enum {
 	UTMOST_GET_CHILD
@@ -167,7 +155,7 @@ typedef struct {
 	 * break balancing due to deadlock issues
 	 */
 	int ( *kill_hook )( const tree_coord *item, 
-			    unsigned from, unsigned count );
+			    unsigned from, unsigned count, void *kill_params );
 	int ( *shift_hook )( const tree_coord *item, 
 			     unsigned from, unsigned count, 
 			     znode *old_node );
