@@ -1646,7 +1646,7 @@ extent_needs_allocation(extent_state st, oid_t oid, unsigned long ind, __u64 cou
 			}
 		})
 
-		if (!jnode_check_flushprepped(j)) {
+		if (!jnode_is_flush_prepped(j)) {
 			jnode_set_wander(j);
 			jnode_set_clean(j);
 		}
@@ -1751,7 +1751,7 @@ extent_needs_allocation(reiser4_extent * extent, const coord_t * coord, flush_po
 			   already have been * allocated, in which case we
 			   take the * previous allocation for this *
 			   extent. */
-			if (jnode_check_flushprepped(j)) {
+			if (jnode_is_flush_prepped(j)) {
 				jput(j);
 				all_need_alloc = 0;
 				break;
@@ -1812,7 +1812,7 @@ extent_needs_allocation(reiser4_extent * extent, const coord_t * coord, flush_po
 				}
 			}
 
-			if (!jnode_check_flushprepped(j)	/* Was (jnode_check_dirty (j)),
+			if (!jnode_is_flush_prepped(j)	/* Was (jnode_check_dirty (j)),
 								   * but allocated check prevents us
 								   * from relocating/wandering a
 								   * previously allocated block  */ ) {

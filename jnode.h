@@ -314,8 +314,8 @@ extern int flush_enqueue_unformatted(jnode * node, flush_position * pos);
 extern reiser4_blocknr_hint *flush_pos_hint(flush_position * pos);
 extern int flush_pos_leaf_relocate(flush_position * pos);
 
-extern int jnode_check_flushprepped(jnode * node);
-extern int znode_check_flushprepped(znode * node);
+extern int jnode_is_flush_prepped(jnode * node);
+extern int znode_is_flush_prepped(znode * node);
 
 /* FIXME-VS: these are used in plugin/item/extent.c */
 
