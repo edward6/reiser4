@@ -710,6 +710,8 @@ znode_get_ld_key(znode * node /* znode to query */ )
 	return &node->ld_key;
 }
 
+static int rd_key_version = 0;
+
 /* update right-delimiting key of @node */
 reiser4_internal reiser4_key *
 znode_set_rd_key(znode * node, const reiser4_key * key)
@@ -726,8 +728,11 @@ znode_set_rd_key(znode * node, const reiser4_key * key)
 	       ZF_ISSET(node, JNODE_HEARD_BANSHEE));
 
 	node->rd_key = *key;
+	node->rd_key_version = ++ rd_key_version;
 	return &node->rd_key;
 }
+
+static int ld_key_version = 0;
 
 /* update left-delimiting key of @node */
 reiser4_internal reiser4_key *
@@ -742,6 +747,7 @@ znode_set_ld_key(znode * node, const reiser4_key * key)
 	       keyeq(znode_get_ld_key(node), min_key()));
 
 	node->ld_key = *key;
+	node->ld_key_version = ++ ld_key_version;
 	return &node->ld_key;
 }
 

@@ -340,7 +340,7 @@ typedef enum {
 
 	TRACE_CAPTURE_ANONYMOUS = (1 << 28), /* 0x10000000 */
 
-	TRACE_UNIX_FILE_WRITE = (1 << 29), /* 0x20000000 */
+	TRACE_UNIX_FILE_OPS = (1 << 29), /* 0x20000000 */
 
 	/* vague section: used to trace bugs. Use it to issue optional prints
 	   at arbitrary points of code. */
@@ -531,15 +531,11 @@ typedef struct err_site {} err_site;
 
 /* operations to clog */
 /* debugging capture_anonymous_pages */
-#define CLOG_CUF_START 0
-#define CLOG_CUF_END 1
-#define CLOG_CAP_START 2
-#define CLOG_CAP_END 3
-#define CLOG_CAJ_START 4
-#define CLOG_CAJ_END 5
-#define CLOG_EFLUSH_PHANTOM 6
+#define CLOG_UNMAP 0 /* try_to_unmap - swap_success */
+#define CLOG_ADD_RMAP 1 /* page_add_file_rmap */
+#define CLOG_FILEMAP_NOPAGE 2 /* unix_file_filemap_nopage */
 
-#define OP_NUM 7
+#define OP_NUM 3
 
 void clog_op(int op, void *, void *);
 void print_clog(void);

@@ -131,8 +131,11 @@ struct znode {
 	/* left delimiting key. Necessary to efficiently perform
 	   balancing with node-level locking. Kept in memory only. */
 	reiser4_key ld_key;
+	int ld_key_version;
 	/* right delimiting key. */
 	reiser4_key rd_key;
+	int rd_key_version;
+	
 
 	/* znode's tree level */
 	__u16 level;

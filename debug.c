@@ -680,13 +680,9 @@ static const char *
 op2str(int op)
 {
 	static const char *op_names[OP_NUM] = {
-		"cuf-start",
-		"cuf-end",
-		"start-cap",
-		"end-cap",
-		"start-caj",
-		"end-caj",
-		"eflush-phantom"
+		"unmap",
+		"add-rmap",
+		"get-user-page"
 	};
 	assert("vs-1673", op < OP_NUM);
 	return op_names[op];
