@@ -371,7 +371,7 @@ void profregion_functions_end_here(void) { }
 /* REISER4_LOCKPROF */
 #else
 
-#if defined (CONFIG_REISER4_NOOPT)
+#if defined(CONFIG_REISER4_NOOPT) || defined(CONFIG_KGDB)
 
 locksite __hits;
 locksite __hits_h;
