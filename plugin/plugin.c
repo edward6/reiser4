@@ -112,6 +112,12 @@ NIKITA-FIXME-HANS: this should be a mkreiserfs option not a mount option, do you
     . mount option "plug" to set-up plugins of root-directory.
       "plug=foo:bar" will set "bar" as default plugin of type "foo".
 
+   Limitations:
+
+    . each plugin type has to provide at least one builtin
+      plugin. This is technical limitation and it can be lifted in the
+      future.
+
    TODO:
 
    New plugin types/plugings:
@@ -171,6 +177,7 @@ NIKTIA-FIXME-HANS: Do the line above.  It is not exclusive of doing the line bel
 #include "plugin.h"
 #include "../reiser4.h"
 #include "../jnode.h"
+#include "../inode.h"
 
 #include <linux/fs.h>		/* for struct super_block  */
 
@@ -178,7 +185,6 @@ NIKTIA-FIXME-HANS: Do the line above.  It is not exclusive of doing the line bel
 
 /* initialise plugin sub-system. Just call this once on reiser4 startup. */
 int init_plugins(void);
-int handle_default_plugin_option(char *option, reiser4_plugin ** area);
 int setup_plugins(struct super_block *super, reiser4_plugin ** area);
 reiser4_plugin *lookup_plugin(const char *type_label, const char *plug_label);
 reiser4_plugin *lookup_plugin_name(char *plug_label);
@@ -201,6 +207,9 @@ init_plugins(void)
 		int i;
 
 		ptype = &plugins[type_id];
+		assert("nikita-3508", ptype->label != NULL);
+		assert("nikita-3509", ptype->type_id == type_id);
+
 		plugin_list_init(&ptype->plugins_list);
 		ON_TRACE(TRACE_PLUGINS,
 			 "Of type %s (%s):\n", ptype->label, ptype->desc);
@@ -231,51 +240,6 @@ init_plugins(void)
 	return 0;
 }
 
-/* parse mount time option and update root-directory plugin
-    appropriately. */
-reiser4_internal int
-handle_default_plugin_option(char *option,	/* Option should has form
-						   "type:label", where "type"
-						   is label of plugin type and
-						   "label" is label of plugin
-						   instance within this
-						   type. */
-			     reiser4_plugin ** area	/* where result is to
-							 * be stored */ )
-{
-	char *type_label;
-	char *plug_label;
-	reiser4_plugin *plugin;
-
-	assert("nikita-538", option != NULL);
-	assert("nikita-539", area != NULL);
-
-	type_label = option;
-	plug_label = strchr(option, ':');
-	if (plug_label == NULL) {
-		printk("Use 'plug=type:label'\n");
-		return RETERR(-EINVAL);
-	}
-
-	*plug_label = '\0';
-	++plug_label;
-
-	plugin = lookup_plugin(type_label, plug_label);
-	if (plugin == NULL) {
-		printk("Unknown plugin: %s:%s\n", type_label, plug_label);
-		return RETERR(-EINVAL);
-	}
-	if (area[plugin->h.type_id] != NULL) {
-		printk("Plugin already set\n");
-		print_plugin("existing", area[plugin->h.type_id]);
-		print_plugin("new", plugin);
-		return RETERR(-EINVAL);
-	}
-	area[plugin->h.type_id] = plugin;
-	return 0;
-}
-
-/* NIKITA-FIXME-HANS: DEMIDOV-FIXME-HANS: who calls this? I want to be very sure it has no significant performance impact.... */
 /* lookup plugin name by scanning tables */
 reiser4_internal reiser4_plugin *
 lookup_plugin_name(char *plug_label /* label to search for */ )
@@ -327,57 +291,13 @@ lookup_plugin(const char *type_label /* plugin type label */ ,
 	assert("nikita-546", type_label != NULL);
 	assert("nikita-547", plug_label != NULL);
 
-	result = NULL;
 	type_id = find_type(type_label);
-	if (is_type_id_valid(type_id)) {
+	if (is_type_id_valid(type_id))
 		result = find_plugin(&plugins[type_id], plug_label);
-		if (result == NULL)
-			printk("Unknown plugin: %s\n", plug_label);
-	} else
-		printk("Unknown plugin type '%s'\n", type_label);
+	else
+		result = NULL;
 	return result;
 }
-
-#if NOT_YET
-/* convert string labels to in-memory identifiers and visa versa.
-    Required for proper interaction with user-land */
-/* takes loc->type_label and loc->plug_label and fills in loc->type_id and loc->id */
-	/* it is not necessary to have a non-NULL type label to find a plugin
-	   by the plug_label */
-
-int
-locate_plugin(struct inode *inode, plugin_locator * loc)
-{
-	reiser4_plugin_type type_id;
-
-	assert("nikita-548", inode != NULL);
-	assert("nikita-549", loc != NULL);
-
-	if (loc->type_label[0] != '\0')
-		loc->type_id = type_by_label(loc->type_label);
-	type_id = loc->type_id;
-	if (is_type_id_valid(type_id)) {
-		reiser4_plugin *plugin;
-
-		if (loc->plug_label[0] != '\0')
-			plugin = find_plugin(&plugins[type_id], loc->plug_label);
-		else
-			plugin = reiser4_get_plugin(inode, type_id);
-		if (plugin == NULL)
-			return -ENOENT;
-
-		strncpy(loc->plug_label, plugin->h.label, min(MAX_PLUGIN_PLUG_LABEL_LEN, strlen(plugin->h.label) + 1));
-		if (loc->type_label[0] == '\0')
-			strncpy(loc->type_label,
-				plugins[type_id].label,
-				min(MAX_PLUGIN_TYPE_LABEL_LEN, strlen(plugins[type_id].label) + 1));
-		loc->id = plugin->h.id;
-		return 0;
-	} else
-		return RETERR(-EINVAL);
-
-}
-#endif
 
 /* return plugin by its @type_id and @id.
 
@@ -412,12 +332,12 @@ plugin_by_unsafe_id(reiser4_plugin_type type_id	/* plugin
 /* convert plugin id to the disk format */
 reiser4_internal int
 save_plugin_id(reiser4_plugin * plugin /* plugin to convert */ ,
-	       d16 * target /* where to store result */ )
+	       d16 * area /* where to store result */ )
 {
 	assert("nikita-1261", plugin != NULL);
 	assert("nikita-1262", area != NULL);
 
-	cputod16((__u16) plugin->h.id, target);
+	cputod16((__u16) plugin->h.id, area);
 	return 0;
 }
 
@@ -453,7 +373,9 @@ find_type(const char *label	/* plugin type
 
 	assert("nikita-550", label != NULL);
 
-	for (type_id = 0; (type_id < REISER4_PLUGIN_TYPES) && strcmp(label, plugins[type_id].label); ++type_id) {;
+	for (type_id = 0; type_id < REISER4_PLUGIN_TYPES &&
+		     strcmp(label, plugins[type_id].label); ++type_id) {
+		;
 	}
 	return type_id;
 }
@@ -477,10 +399,73 @@ find_plugin(reiser4_plugin_type_data * ptype	/* plugin
 
 	for (i = 0; i < ptype->builtin_num; ++i) {
 		result = plugin_at(ptype, i);
+		if (result->h.label == NULL)
+			continue;
 		if (!strcmp(result->h.label, label))
 			return result;
 	}
 	return NULL;
+}
+
+int
+grab_plugin(struct inode *self, struct inode *ancestor, pset_member memb)
+{
+	reiser4_plugin *plug;
+	reiser4_inode *parent;
+
+	parent = reiser4_inode_data(ancestor);
+	plug = pset_get(parent->hset, memb) ? : pset_get(parent->pset, memb);
+	return grab_plugin_from(self, memb, plug);
+}
+
+static void
+update_plugin_mask(reiser4_inode *info, pset_member memb)
+{
+	struct dentry *rootdir;
+	reiser4_inode *root;
+
+	rootdir = inode_by_reiser4_inode(info)->i_sb->s_root;
+	if (rootdir != NULL) {
+		root = reiser4_inode_data(rootdir->d_inode);
+		/*
+		 * if inode is different from the default one, or we are
+		 * changing plugin of root directory, update plugin_mask
+		 */
+		if (pset_get(info->pset, memb) != pset_get(root->pset, memb) ||
+		    info == root)
+			info->plugin_mask |= (1 << memb);
+	}
+}
+
+int
+grab_plugin_from(struct inode *self, pset_member memb, reiser4_plugin *plug)
+{
+	reiser4_inode *info;
+	int            result = 0;
+
+	info = reiser4_inode_data(self);
+	if (pset_get(info->pset, memb) == NULL) {
+		result = pset_set(&info->pset, memb, plug);
+		if (result == 0)
+			update_plugin_mask(info, memb);
+	}
+	return result;
+}
+
+int
+force_plugin(struct inode *self, pset_member memb, reiser4_plugin *plug)
+{
+	reiser4_inode *info;
+	int            result = 0;
+
+	info = reiser4_inode_data(self);
+	if (plug->h.pops != NULL && plug->h.pops->change != NULL)
+		result = plug->h.pops->change(self, plug);
+	else
+		result = pset_set(&info->pset, memb, plug);
+	if (result == 0)
+		update_plugin_mask(info, memb);
+	return result;
 }
 
 /* defined in fs/reiser4/plugin/file.c */
@@ -491,6 +476,8 @@ extern dir_plugin dir_plugins[LAST_DIR_ID];
 extern sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION];
 /* defined in fs/reiser4/plugin/hash.c */
 extern hash_plugin hash_plugins[LAST_HASH_ID];
+/* defined in fs/reiser4/plugin/fibration.c */
+extern fibration_plugin fibration_plugins[LAST_FIBRATION_ID];
 /* defined in fs/reiser4/plugin/crypt.c */
 extern crypto_plugin crypto_plugins[LAST_CRYPTO_ID];
 /* defined in fs/reiser4/plugin/digest.c */
@@ -513,7 +500,7 @@ extern jnode_plugin jnode_plugins[LAST_JNODE_TYPE];
 extern pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID];
 
 reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
-/* NIKITA-FIXME-HANS: add comment or comments describing where all of these are documented */
+	/* C90 initializers */
 	[REISER4_FILE_PLUGIN_TYPE] = {
 		.type_id = REISER4_FILE_PLUGIN_TYPE,
 		.label = "file",
@@ -540,6 +527,15 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin = hash_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (hash_plugin)
+	},
+	[REISER4_FIBRATION_PLUGIN_TYPE] = {
+		.type_id = REISER4_FIBRATION_PLUGIN_TYPE,
+		.label = "fibration",
+		.desc = "Directory fibrations",
+		.builtin_num = sizeof_array(fibration_plugins),
+		.builtin = fibration_plugins,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
+		.size = sizeof (fibration_plugin)
 	},
 	[REISER4_CRYPTO_PLUGIN_TYPE] = {
 		.type_id = REISER4_CRYPTO_PLUGIN_TYPE,
@@ -568,11 +564,11 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (compression_plugin)
 	},
+
 	[REISER4_FORMATTING_PLUGIN_TYPE] = {
 		.type_id = REISER4_FORMATTING_PLUGIN_TYPE,
-/* NIKITA-FIXME-HANS: fix what is broken by this change below */
-		.label = "format",
-		.desc = "Formatted item usage policies",
+		.label = "formatting",
+		.desc = "Tail inlining policies",
 		.builtin_num = sizeof_array(formatting_plugins),
 		.builtin = formatting_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
@@ -616,8 +612,8 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 	},
 	[REISER4_FORMAT_PLUGIN_TYPE] = {
 		.type_id = REISER4_FORMAT_PLUGIN_TYPE,
-		.label = "disk layout",
-		.desc = "defines filesystem disk layout (where supers, bitmaps, etc., are)",
+		.label = "disk_layout",
+		.desc = "defines filesystem on disk layout",
 		.builtin_num = sizeof_array(format_plugins),
 		.builtin = format_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
@@ -625,7 +621,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 	},
 	[REISER4_JNODE_PLUGIN_TYPE] = {
 		.type_id = REISER4_JNODE_PLUGIN_TYPE,
-		.label = "jnode flavor",
+		.label = "jnode",
 		.desc = "defines kind of jnode",
 		.builtin_num = sizeof_array(jnode_plugins),
 		.builtin = jnode_plugins,
@@ -634,7 +630,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 	},
 	[REISER4_PSEUDO_PLUGIN_TYPE] = {
 		.type_id = REISER4_PSEUDO_PLUGIN_TYPE,
-		.label = "pseudo file",
+		.label = "pseudo_file",
 		.desc = "pseudo file",
 		.builtin_num = sizeof_array(pseudo_plugins),
 		.builtin = pseudo_plugins,
