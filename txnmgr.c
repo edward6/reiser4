@@ -2061,6 +2061,7 @@ void txn_insert_into_clean_list (txn_atom * atom, jnode * node)
 	assert ("zam-543", node -> atom == NULL);
 
 	capture_list_push_front (&atom->clean_nodes, node);
+	jref (node);
 	node->atom = atom;
 	atom->capture_count ++;
 }
