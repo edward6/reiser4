@@ -817,9 +817,19 @@ static void save_file_hint (struct file * file,
 void set_hint (struct sealed_coord * hint, const reiser4_key * key,
 	       const coord_t * coord)
 {
+
+	if (coord->node == NULL) {
+		unset_hint (hint);
+		return;
+	}
 	assert ("vs-966", znode_is_locked (coord->node));
 	seal_init (&hint->seal, coord, key);
 	hint->coord = *coord;
+	if (!less_than_rdk (coord->node, key) ||
+	     less_than_ldk (coord->node, key)) {
+		unset_hint (hint);
+		return;
+	}
 	hint->key = *key;
 	hint->level = znode_get_level (coord->node);
 	hint->lock = znode_is_wlocked (coord->node) ? ZNODE_WRITE_LOCK :

@@ -3187,13 +3187,8 @@ static int make_node_extent (struct inode * inode, jnode * j,
 	}
 
 	move_flow_forward (f, to_page);
-	if (coord.node)
-		/*
-		 * seal current coord and keep hint for future accesses
-		 */
-		set_hint (hint, &f->key, &coord);
-	else
-		unset_hint (hint);
+
+	set_hint (hint, &f->key, &coord);
 	done_lh (&lh);
 
 	return 0;
