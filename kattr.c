@@ -128,11 +128,6 @@ DEFINE_SUPER_RO(25, oids_in_use, "%llu", 64);
 DEFINE_SUPER_RO(26, entd.flushers, "%llu", 32);
 DEFINE_SUPER_RO(27, entd.timeout, "%llu", 32);
 
-	struct {
-		unsigned atom_max_size;
-		unsigned atom_max_age;
-	} txnmgr;
-
 static struct attribute * def_attrs[] = {
 	&kattr_super_ro_01.attr,
 	&kattr_super_ro_02.attr,
