@@ -103,7 +103,7 @@ static int node40_confirm(aal_block_t *block) {
 }
 
 /* Returns item number in given block. Used for any loops through all items */
-static uint16_t node40_count(reiser4_entity_t *entity) {
+uint16_t node40_count(reiser4_entity_t *entity) {
     node40_t *node = (node40_t *)entity;
     
     aal_assert("vpf-018", node != NULL, return 0);
@@ -416,7 +416,8 @@ static errno_t node40_cut(reiser4_entity_t *entity,
     
     body = node40_ib_at(node->block, pos->item);
 	
-    if (!(len = plugin->item_ops.common.remove(body, pos->unit)))
+    if (!(len = plugin_call(return 0, plugin->item_ops.common, remove, body, 
+	pos->unit)))
         return -1;
 	
     if (node40_shrink(node, pos, len))
@@ -429,7 +430,9 @@ static errno_t node40_cut(reiser4_entity_t *entity,
 }
 
 extern errno_t node40_check(reiser4_entity_t *entity, uint16_t options);
-
+extern errno_t node40_item_legal(reiser4_entity_t *entity, 
+    reiser4_plugin_t *plugin);
+    
 #endif
 
 static errno_t node40_valid(reiser4_entity_t *entity) {
@@ -542,7 +545,7 @@ static int node40_lookup(reiser4_entity_t *entity,
     return lookup;
 }
 
-static uint8_t node40_get_level(reiser4_entity_t *entity) {
+uint8_t node40_get_level(reiser4_entity_t *entity) {
     aal_assert("umka-1116", entity != NULL, return 0);
     return nh40_get_level(nh40(((node40_t *)entity)->block));
 }
@@ -587,6 +590,7 @@ static reiser4_plugin_t node40_plugin = {
 	.paste		= node40_paste,
 	.cut		= node40_cut,
 	.check		= node40_check,
+	.item_legal	= node40_item_legal,
 	.set_key	= node40_set_key,
 	.set_level	= node40_set_level,
 	.set_stamp	= node40_set_stamp,
