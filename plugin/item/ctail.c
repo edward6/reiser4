@@ -296,104 +296,49 @@ read_ctail(struct file *file UNUSED_ARG, flow_t *f, uf_coord_t *uf_coord)
 
 	mark_page_accessed(znode_page(coord->node));
 	move_flow_forward(f, nr_units_ctail(coord));
-	coord->unit_pos --;
+	coord->unit_pos --; /* ?? */
 	coord->between = AFTER_UNIT;
 	return 0;
 }
 
-/* read one cluster form disk, decrypt and decompress its data */
+/* this reads one cluster form disk,
+   attaches buffer with decrypted and decompressed data */
 int
-ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode)
+ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 {
-	flow_t f; /* for items collection */
-	uf_coord_t uf_coord;
-	lock_handle lh;
-	int res;
-	unsigned long index;
-	ra_info_t ra_info;
-	file_plugin * fplug;
-	item_plugin * iplug;
+	int result;
 	crypto_plugin * cr_plug;
 	cryptcompress_info_t * info;
 	
-	assert("edward-137", inode != NULL);
-	assert("edward-138", clust != NULL);
 	assert("edward-139", clust->buf == NULL);
 	assert("edward-140", clust->stat != FAKE_CLUSTER);
 	
-	fplug = inode_file_plugin(inode);
-	iplug = item_plugin_by_id(CTAIL_ID);
 	cr_plug = inode_crypto_plugin(inode);
 	info = cryptcompress_inode_data(inode);
-
+	
 	assert("edward-141", cr_plug != NULL);
-		
+	
 	assert("edward-143", info != NULL);
 	assert("edward-144", info->expkey != NULL);
 	assert("edward-145", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
 	
 	/* allocate temporary buffer of disk cluster size */
-	/* FIXME-EDWARD optimize it for the clusters which represent end of file */
+	/* FIXME-EDWARD:
+	   - kmalloc?
+	   - optimize it for the clusters which represent end of file */
 	clust->buf = reiser4_kmalloc(inode_scaled_cluster_size(inode), GFP_KERNEL);
 	if (!clust->buf) 
 		return -ENOMEM;
-	
-	index = clust->index;
-	
-	/* build flow for the cluster */
-	fplug->flow_by_inode(inode, clust->buf, 0 /* kernel space */,
-			     inode_scaled_cluster_size(inode), index << PAGE_CACHE_SHIFT, READ_OP, &f);
-	ra_info.key_to_stop = f.key;
-	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
-	
-	while (f.length) {
-		init_lh(&lh);
-		res = find_cluster_item(&f.key, &uf_coord.base_coord, &lh, &ra_info);
-		switch (res) {
-		case CBK_COORD_NOTFOUND:
-			if (inode_scaled_offset(inode, index << PAGE_CACHE_SHIFT) == get_key_offset(&f.key)) {
-				/* first item not found: hole cluster */
-				clust->stat = FAKE_CLUSTER;
-				res = 0;
-				goto out;
-			}
-			/* we are outside the cluster, stop search here */
-			/* FIXME-EDWARD. Handle the case when cluster is not complete (-EIO) */
-			assert("edward-146", f.length != inode_scaled_cluster_size(inode));
-			done_lh(&lh);
-			goto ok;
-		case CBK_COORD_FOUND:
-			assert("edward-147", item_plugin_by_coord(&uf_coord.base_coord) == iplug);
-			assert("edward-148", uf_coord.base_coord.between != AT_UNIT);
-			coord_clear_iplug(&uf_coord.base_coord);
-			res = zload_ra(uf_coord.base_coord.node, &ra_info);
-			if (unlikely(res))
-				goto out;
-			res = iplug->s.file.read(NULL, &f, &uf_coord);
-			zrelse(uf_coord.base_coord.node);
-			if (res) 
-				goto out;
-			done_lh(&lh);
-			break;
-		default:
-			goto out;
-		}
-	}
- ok:
-	clust->len = inode_scaled_cluster_size(inode) - f.length;
-	if (clust->len % cr_plug->blocksize(inode_crypto_stat(inode)->keysize)) {
-		res = -EIO;
-		goto out2;
-	}
-	res = process_cluster(clust, inode, READ_OP);
-	if (res)
-		goto out2;
+	result = find_cluster(clust, inode, 1 /* read */, write);
+	if (result)
+		goto out;
+	result = inflate_cluster(clust, inode);
+	if(result)
+		goto out;
 	return 0;
  out:
-	done_lh(&lh);
- out2:
 	put_cluster_data(clust, inode);
-	return res;
+	return result;
 }
 
 /* read one locked page */
@@ -427,7 +372,7 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	if (!cluster_is_uptodate(clust)) {
 		clust->index = cluster_index_by_page(page, inode);
 		reiser4_unlock_page(page);
-		ret = ctail_read_cluster(clust, inode);
+		ret = ctail_read_cluster(clust, inode, 0 /* do not write */);
 		reiser4_lock_page(page);
 		if (ret)
 			return ret;
@@ -479,7 +424,7 @@ int readpage_ctail(void * vp, struct page * page)
 
 /* plugin->s.file.writepage */
 int
-writepage_ctail(uf_coord_t *uf_coord, struct page *page, write_mode_t mode)
+writepage_ctail(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_mode_t mode)
 {
 	return 0;
 }
@@ -517,7 +462,7 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 			put_cluster_data(&clust, inode);
 			clust.index = cluster_index_by_page(page, inode);
 			reiser4_unlock_page(page);
-			ret = ctail_read_cluster(&clust, inode);
+			ret = ctail_read_cluster(&clust, inode, 0 /* do not write */);
 			if (ret)
 				goto exit;
 			reiser4_lock_page(page);
@@ -548,6 +493,7 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 int
 write_ctail(struct inode *inode, flow_t * f, hint_t *hint, int grabbed, write_mode_t mode)
 {
+	znode_make_dirty(hint->coord.base_coord.node);
 	return 0;
 }
 
@@ -560,6 +506,15 @@ append_key_ctail(const coord_t *coord, reiser4_key *key)
 {
 	return NULL;
 }
+
+/* plugin->u.item.f.scan */
+int scan_ctail(flush_scan * scan, const coord_t * in_coord)
+{
+	return 0;
+}
+
+
+
 
 /* Make Linus happy.
    Local variables:
