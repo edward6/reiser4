@@ -17,7 +17,7 @@ extern error_t reiserfs_journal_create(reiserfs_fs_t *fs, aal_device_t *device,
 
 extern error_t reiserfs_journal_sync(reiserfs_fs_t *fs);
 extern error_t reiserfs_journal_reopen(reiserfs_fs_t *fs, aal_device_t *device, int replay);
-extern void reiserfs_journal_close(reiserfs_fs_t *fs, int sync);
+extern void reiserfs_journal_close(reiserfs_fs_t *fs);
 
 #endif
 

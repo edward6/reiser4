@@ -17,7 +17,7 @@ extern error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     reiserfs_plugin_id_t node_plugin_id);
 
 extern error_t reiserfs_tree_sync(reiserfs_fs_t *fs);
-extern void reiserfs_tree_close(reiserfs_fs_t *fs, int sync);
+extern void reiserfs_tree_close(reiserfs_fs_t *fs);
 
 struct reiserfs_coord {
     reiserfs_opaque_t *node;

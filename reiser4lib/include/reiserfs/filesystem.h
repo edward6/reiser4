@@ -76,7 +76,7 @@ typedef struct reiserfs_fs reiserfs_fs_t;
 extern reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, 
     aal_device_t *journal_device, int replay);
 
-extern void reiserfs_fs_close(reiserfs_fs_t *fs, int sync);
+extern void reiserfs_fs_close(reiserfs_fs_t *fs);
 extern error_t reiserfs_fs_sync(reiserfs_fs_t *fs);
 	
 extern reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 

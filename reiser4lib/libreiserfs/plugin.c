@@ -150,14 +150,14 @@ error_t reiserfs_plugins_init(void) {
 void reiserfs_plugins_fini(void) {
     aal_list_t *walk;
 
+    aal_assert("umka-335", plugins != NULL, return);
+    
     for (walk = aal_list_last(plugins); walk; ) {
-	aal_list_t *temp;
-	
-	temp = aal_list_prev(walk);
+	aal_list_t *temp = aal_list_prev(walk);
 	reiserfs_plugins_unload((reiserfs_plugin_t *)walk->data);
 	walk = temp;
-    }	
-    aal_list_free(plugins);
+    }
+    plugins = NULL;
 }
 
 reiserfs_plugin_t *reiserfs_plugins_find_by_label(const char *label) {

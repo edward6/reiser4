@@ -109,7 +109,7 @@ struct reiserfs_format_plugin {
     reiserfs_opaque_t *(*open) (aal_device_t *, blk_t);
     reiserfs_opaque_t *(*create) (aal_device_t *, blk_t, count_t, uint16_t);
     
-    void (*close) (reiserfs_opaque_t *, int);
+    void (*close) (reiserfs_opaque_t *);
     error_t (*sync) (reiserfs_opaque_t *);
     error_t (*check) (reiserfs_opaque_t *);
     int (*probe) (aal_device_t *device, blk_t);
@@ -141,7 +141,7 @@ struct reiserfs_alloc_plugin {
     reiserfs_plugin_header_t h;
     reiserfs_opaque_t *(*open) (aal_device_t *);
     reiserfs_opaque_t *(*create) (aal_device_t *);
-    void (*close) (reiserfs_opaque_t *, int);
+    void (*close) (reiserfs_opaque_t *);
     error_t (*sync) (reiserfs_opaque_t *);
 
     error_t (*allocate) (reiserfs_opaque_t *, reiserfs_segment_t *, reiserfs_segment_t *);
@@ -154,7 +154,7 @@ struct reiserfs_journal_plugin {
     reiserfs_plugin_header_t h;
     reiserfs_opaque_t *(*open) (aal_device_t *);
     reiserfs_opaque_t *(*create) (aal_device_t *, reiserfs_params_opaque_t *params);
-    void (*close) (reiserfs_opaque_t *, int);
+    void (*close) (reiserfs_opaque_t *);
     error_t (*sync) (reiserfs_opaque_t *);
     error_t (*replay) (reiserfs_opaque_t *);
 };

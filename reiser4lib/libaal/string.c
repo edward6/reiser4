@@ -28,10 +28,9 @@ void *aal_memcpy(void *dest, const void *src, size_t n) {
 int aal_memcmp(const void *s1, const void *s2, size_t n) {
     const char *p_s1 = (const char *)s1, *p_s2 = (const char *)s2;
     for (; (size_t)(p_s1 - (int)s1) < n; p_s1++, p_s2++) {
-		
 	if (*p_s1 < *p_s2) 
 	    return -1;
-		
+	
 	if (*p_s1 > *p_s2)
 	    return 1;
     }

@@ -72,15 +72,10 @@ error_t reiserfs_tree_sync(reiserfs_fs_t *fs) {
 
 #endif
 
-void reiserfs_tree_close(reiserfs_fs_t *fs, int sync) {
+void reiserfs_tree_close(reiserfs_fs_t *fs) {
     aal_assert("umka-133", fs != NULL, return);
     aal_assert("umka-134", fs->tree != NULL, return);
 
-#ifndef ENABLE_COMPACT    
-    if (sync)
-	reiserfs_tree_sync(fs);
-#endif
-    
     reiserfs_node_close(fs->tree->root);
     
     aal_free(fs->tree);

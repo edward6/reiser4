@@ -25,7 +25,8 @@ static error_t reiserfs_format40_super_check(reiserfs_format40_super_t *super,
 }
 
 static int reiserfs_format40_signature(reiserfs_format40_super_t *super) {
-    return aal_strncmp(super->sb_magic, REISERFS_FORMAT40_MAGIC, 16) == 0;
+    return aal_strncmp(super->sb_magic, 
+	REISERFS_FORMAT40_MAGIC, aal_strlen(REISERFS_FORMAT40_MAGIC)) == 0;
 }
 
 static aal_block_t *reiserfs_format40_super_open(aal_device_t *device, blk_t offset) {
@@ -38,11 +39,11 @@ static aal_block_t *reiserfs_format40_super_open(aal_device_t *device, blk_t off
 	return NULL;
     }
     super = (reiserfs_format40_super_t *)block->data;
-		
+    
     if (!reiserfs_format40_signature(super))
 	return NULL;
     
-    if (!reiserfs_format40_super_check(super, device)) {
+    if (reiserfs_format40_super_check(super, device)) {
         aal_device_free_block(block);
         return NULL;
     }
@@ -108,7 +109,7 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device,
 	goto error_free_format;
     }
     super = (reiserfs_format40_super_t *)format->super->data;
-    aal_memcpy(super->sb_magic, REISERFS_FORMAT40_MAGIC, strlen(REISERFS_FORMAT40_MAGIC));
+    aal_memcpy(super->sb_magic, REISERFS_FORMAT40_MAGIC, aal_strlen(REISERFS_FORMAT40_MAGIC));
 
     /* Super block forming code */
     set_sb_block_count(super, blocks);
@@ -175,10 +176,7 @@ static error_t reiserfs_format40_check(reiserfs_format40_t *format) {
 	format->device);
 }
 
-static void reiserfs_format40_close(reiserfs_format40_t *format, int sync) {
-    if (sync) 
-	reiserfs_format40_sync(format);
-    
+static void reiserfs_format40_close(reiserfs_format40_t *format) {
     aal_device_free_block(format->super);
     aal_free(format);
 }
@@ -230,7 +228,7 @@ static reiserfs_plugin_t format40_plugin = {
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, blk_t, count_t, uint16_t))
 	    reiserfs_format40_create,
 	
-	.close = (void (*)(reiserfs_opaque_t *, int))reiserfs_format40_close,
+	.close = (void (*)(reiserfs_opaque_t *))reiserfs_format40_close,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_format40_sync,
 	.check = (error_t (*)(reiserfs_opaque_t *))reiserfs_format40_check,
 	.probe = (int (*)(aal_device_t *, blk_t))reiserfs_format40_probe,

@@ -21,8 +21,12 @@ static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t fo
 	return -1;
     
     aal_strncpy(fs->master->mr_magic, REISERFS_MASTER_MAGIC, aal_strlen(REISERFS_MASTER_MAGIC));
-    aal_strncpy(fs->master->mr_uuid, uuid, sizeof(fs->master->mr_uuid));
-    aal_strncpy(fs->master->mr_label, uuid, sizeof(fs->master->mr_label));
+    
+    if (uuid)
+	aal_strncpy(fs->master->mr_uuid, uuid, sizeof(fs->master->mr_uuid));
+
+    if (label)
+	aal_strncpy(fs->master->mr_label, label, sizeof(fs->master->mr_label));
 	
     set_mr_format_id(fs->master, format_plugin_id);
     set_mr_block_size(fs->master, blocksize);
@@ -119,15 +123,10 @@ static error_t reiserfs_master_sync(reiserfs_fs_t *fs) {
 
 #endif
 
-static void reiserfs_master_close(reiserfs_fs_t *fs, int sync) {
+static void reiserfs_master_close(reiserfs_fs_t *fs) {
     aal_assert("umka-146", fs != NULL, return);
     aal_assert("umka-147", fs->master != NULL, return);
 
-#ifndef ENABLE_COMPACT    
-    if (sync)
-	reiserfs_master_sync(fs);
-#endif
-    
     aal_free(fs->master);
 }
 
@@ -152,12 +151,13 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     if (reiserfs_alloc_open(fs))
 	goto error_free_super;
 	
-    if (journal_device)
+    if (journal_device) {
 	aal_device_set_blocksize(journal_device, reiserfs_fs_blocksize(fs));
 
-    if (reiserfs_super_journal_plugin(fs) != -1 && journal_device && 
-	    reiserfs_journal_open(fs, journal_device, replay))
-	goto error_free_alloc;
+	if (reiserfs_super_journal_plugin(fs) != -1 && 
+		reiserfs_journal_open(fs, journal_device, replay))
+	    goto error_free_alloc;
+    }
 	
     if (reiserfs_tree_open(fs))
 	goto error_free_journal;
@@ -166,13 +166,13 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 
 error_free_journal:
     if (fs->journal)
-	reiserfs_journal_close(fs, 0);
+	reiserfs_journal_close(fs);
 error_free_alloc:
-    reiserfs_alloc_close(fs, 0);
+    reiserfs_alloc_close(fs);
 error_free_super:
-    reiserfs_super_close(fs, 0);
+    reiserfs_super_close(fs);
 error_free_master:
-    reiserfs_master_close(fs, 0);
+    reiserfs_master_close(fs);
 error_free_fs:
     aal_free(fs);
 error:
@@ -221,13 +221,13 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
     return fs;
 
 error_free_journal:
-    reiserfs_journal_close(fs, 0);
+    reiserfs_journal_close(fs);
 error_free_alloc:
-    reiserfs_alloc_close(fs, 0);
+    reiserfs_alloc_close(fs);
 error_free_super:
-    reiserfs_super_close(fs, 0);
+    reiserfs_super_close(fs);
 error_free_master:
-    reiserfs_master_close(fs, 0);    
+    reiserfs_master_close(fs);    
 error_free_fs:
     aal_free(fs);
 error:
@@ -248,18 +248,18 @@ error_t reiserfs_fs_sync(reiserfs_fs_t *fs) {
     Closes all filesystem's entities. Calls plugins' "done" 
     routine for every plugin and frees all assosiated memory. 
 */
-void reiserfs_fs_close(reiserfs_fs_t *fs, int sync) {
+void reiserfs_fs_close(reiserfs_fs_t *fs) {
     
     aal_assert("umka-230", fs != NULL, return);
     
-//    reiserfs_tree_close(fs, sync);
-    reiserfs_alloc_close(fs, sync);
+//    reiserfs_tree_close(fs);
+    reiserfs_alloc_close(fs);
     
     if (fs->journal)
-	reiserfs_journal_close(fs, sync);
+	reiserfs_journal_close(fs);
 	
-    reiserfs_super_close(fs, sync);
-    reiserfs_master_close(fs, sync);
+    reiserfs_super_close(fs);
+    reiserfs_master_close(fs);
     aal_free(fs);
 }
 

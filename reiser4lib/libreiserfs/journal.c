@@ -41,7 +41,7 @@ error_t reiserfs_journal_open(reiserfs_fs_t *fs, aal_device_t *device, int repla
     reiserfs_plugin_check_routine(plugin->journal, open, goto error_free_journal);
     if (!(fs->journal->entity = plugin->journal.open(device))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't initialize the journal.");
+	    "Can't initialize journal.");
 	goto error_free_journal;
     }
 	
@@ -49,7 +49,7 @@ error_t reiserfs_journal_open(reiserfs_fs_t *fs, aal_device_t *device, int repla
     reiserfs_plugin_check_routine(plugin->journal, replay, goto error_free_entity);
     if (replay && plugin->journal.replay(fs->journal->entity)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't replay the journal.");
+	    "Can't replay journal.");
 	goto error_free_entity;
     }
 
@@ -57,7 +57,7 @@ error_t reiserfs_journal_open(reiserfs_fs_t *fs, aal_device_t *device, int repla
 
 error_free_entity:
     reiserfs_plugin_check_routine(plugin->journal, close, goto error_free_journal);
-    plugin->journal.close(fs->journal->entity, 0);
+    plugin->journal.close(fs->journal->entity);
 error_free_journal:
     aal_free(fs->journal);
     fs->journal = NULL;
@@ -116,16 +116,21 @@ error_t reiserfs_journal_sync(reiserfs_fs_t *fs) {
 #endif
 
 error_t reiserfs_journal_reopen(reiserfs_fs_t *fs, aal_device_t *device, int replay) {
-    reiserfs_journal_close(fs, 1);
+    if (reiserfs_journal_sync(fs)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't synchronize journal.");
+	return -1;
+    }
+    reiserfs_journal_close(fs);
     return reiserfs_journal_open(fs, device, replay);
 }
 
-void reiserfs_journal_close(reiserfs_fs_t *fs, int sync) {
+void reiserfs_journal_close(reiserfs_fs_t *fs) {
     aal_assert("umka-101", fs != NULL, return);
     aal_assert("umka-102", fs->journal != NULL, return);
 
     reiserfs_plugin_check_routine(fs->journal->plugin->journal, close, return);
-    fs->journal->plugin->journal.close(fs->journal->entity, sync);
+    fs->journal->plugin->journal.close(fs->journal->entity);
     
     aal_free(fs->journal);
     fs->journal = NULL;

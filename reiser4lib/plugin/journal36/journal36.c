@@ -39,10 +39,7 @@ static error_t reiserfs_journal36_sync(reiserfs_journal36_t *journal) {
     return 0;
 }
 
-static void reiserfs_journal36_close(reiserfs_journal36_t *journal, int sync) {
-    if (sync)
-	reiserfs_journal36_sync(journal);
-    
+static void reiserfs_journal36_close(reiserfs_journal36_t *journal) {
     aal_free(journal);
 }
 
@@ -63,7 +60,7 @@ static reiserfs_plugin_t journal36_plugin = {
 	},
 	.open = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_journal36_open,
 	.create = NULL, 
-	.close = (void (*)(reiserfs_opaque_t *, int))reiserfs_journal36_close,
+	.close = (void (*)(reiserfs_opaque_t *))reiserfs_journal36_close,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_journal36_sync,
 	.replay = (error_t (*)(reiserfs_opaque_t *))reiserfs_journal36_replay
     }

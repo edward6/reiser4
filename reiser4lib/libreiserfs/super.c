@@ -105,13 +105,14 @@ error_t reiserfs_super_sync(reiserfs_fs_t *fs) {
 
 #endif
 
-void reiserfs_super_close(reiserfs_fs_t *fs, int sync) {
+void reiserfs_super_close(reiserfs_fs_t *fs) {
     aal_assert("umka-108", fs != NULL, return);
     aal_assert("umka-109", fs->super != NULL, return);
+   
+    reiserfs_plugin_check_routine(fs->super->plugin->format, close, goto error_free_super);
+    fs->super->plugin->format.close(fs->super->entity);
     
-    reiserfs_plugin_check_routine(fs->super->plugin->format, close, return);
-    fs->super->plugin->format.close(fs->super->entity, sync);
-    
+error_free_super:    
     aal_free(fs->super);
     fs->super = NULL;
 }

@@ -103,12 +103,12 @@ error_t reiserfs_alloc_sync(reiserfs_fs_t *fs) {
 
 #endif
 
-void reiserfs_alloc_close(reiserfs_fs_t *fs, int sync) {
+void reiserfs_alloc_close(reiserfs_fs_t *fs) {
     aal_assert("umka-140", fs != NULL, return);
     aal_assert("umka-141", fs->alloc != NULL, return);
 	
     reiserfs_plugin_check_routine(fs->alloc->plugin->alloc, close, return);
-    fs->alloc->plugin->alloc.close(fs->alloc->entity, sync);
+    fs->alloc->plugin->alloc.close(fs->alloc->entity);
     
     aal_free(fs->alloc);
     fs->alloc = NULL;

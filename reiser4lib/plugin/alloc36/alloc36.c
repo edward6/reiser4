@@ -56,10 +56,7 @@ static error_t reiserfs_alloc36_sync(reiserfs_alloc36_t *alloc) {
     return -1;
 }
 
-static void reiserfs_alloc36_close(reiserfs_alloc36_t *alloc, int sync) {
-    if (sync)
-	reiserfs_alloc36_sync(alloc);
-    
+static void reiserfs_alloc36_close(reiserfs_alloc36_t *alloc) {
     aal_free(alloc);
 }
 
@@ -87,7 +84,7 @@ static reiserfs_plugin_t alloc36_plugin = {
 	},
 	.open = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_alloc36_open,
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_alloc36_create,
-	.close = (void (*)(reiserfs_opaque_t *, int))reiserfs_alloc36_close,
+	.close = (void (*)(reiserfs_opaque_t *))reiserfs_alloc36_close,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_alloc36_sync,
 	
 	.allocate = (error_t (*)(reiserfs_opaque_t *, reiserfs_segment_t *, reiserfs_segment_t *))

@@ -11,7 +11,7 @@
 #include <reiserfs/filesystem.h>
 
 extern error_t reiserfs_super_open(reiserfs_fs_t *fs);
-extern void reiserfs_super_close(reiserfs_fs_t *fs, int sync);
+extern void reiserfs_super_close(reiserfs_fs_t *fs);
 extern error_t reiserfs_super_sync(reiserfs_fs_t *fs);
 extern error_t reiserfs_super_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format_plugin_id, 
     count_t len);

@@ -13,7 +13,7 @@
 extern error_t reiserfs_alloc_open(reiserfs_fs_t *fs);
 extern error_t reiserfs_alloc_create(reiserfs_fs_t *fs);
 extern error_t reiserfs_alloc_sync(reiserfs_fs_t *fs);
-extern void reiserfs_alloc_close(reiserfs_fs_t *fs, int sync);
+extern void reiserfs_alloc_close(reiserfs_fs_t *fs);
 
 #endif
 
