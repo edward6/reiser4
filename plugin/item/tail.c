@@ -10,6 +10,7 @@
 #include "item.h"
 #include "../plugin.h"
 #include "../../znode.h"
+#include "../../super.h"
 #include "../../tree.h"
 
 #include <linux/fs.h> /* for struct inode */
@@ -423,34 +424,104 @@ int tail_key_in_item (coord_t * coord, const reiser4_key * key)
 	return 1;
 }
 
-
-typedef enum {
-	TAIL_OVERWRITE,
-	TAIL_RESEARCH,
-	TAIL_CANT_CONTINUE,
-	TAIL_WRITE_FLOW
-} tail_write_todo;
-
-
+#if 0
 static tail_write_todo tail_what_todo (struct inode * inode, coord_t * coord,
 				       reiser4_key * key)
 {
+#if 0
 	ON_DEBUG (reiser4_key item_key);
 
-
+	assert ("vs-873", !ZF_ISSET (coord->node, JNODE_HEARD_BANSHEE));
 	assert ("vs-860", znode_is_loaded (coord->node));
+
+	if (REISER4_DEBUG) {
+		coord_t twin;
+
+		coord_init_zero (&twin);
+		node_plugin_by_node (coord->node)->lookup (coord->node, key,
+							   FIND_MAX_NOT_MORE_THAN,
+							   &twin);
+		twin.iplug = item_plugin_by_coord (&twin);
+		assert ("vs-1005", !memcmp (coord, &twin, sizeof (twin)));
+	}
+/*
 	if (!coord_set_properly (key, coord)) {
 		return TAIL_RESEARCH;
 	}
-
+*/
 	if (coord_is_existing_unit (coord)) {
 		assert ("vs-803", keyeq (key, unit_key_by_coord (coord, &item_key)));
 		return TAIL_OVERWRITE;
 	}
 
 	return TAIL_WRITE_FLOW;
-}
+#endif
 
+	reiser4_key check;
+
+	if (less_than_ldk (coord->node, key)) {
+		coord_init_before_first_item (coord, coord->node);
+		/*
+		 * FIXME-VS: BEFORE_ITEM should be fine, but node's
+		 * lookup returns BEFORE_UNIT
+		 */
+		coord->between = BEFORE_UNIT;
+		if (get_key_offset (key) == 0) {
+			check_coord (coord, key);
+			return TAIL_WRITE_FLOW;
+		}
+	}
+
+	if (equal_to_rdk (coord->node, key)) {
+		/*
+		 * FIXME-VS: switch to right neighbor
+		 */
+		info ("FIXME!!\n");
+		return TAIL_RESEARCH;
+	}
+
+	if (node_is_empty (coord->node)) {
+		assert ("vs-879", znode_get_level (coord->node) == LEAF_LEVEL);
+		assert ("vs-880", get_key_offset (key) == 0);
+		assert ("vs-999", 
+			UNDER_SPIN (dk, current_tree,
+				    keyeq (key, znode_get_ld_key (coord->node))));
+		assert ("vs-1000", 
+			UNDER_SPIN (dk, current_tree,
+				    keylt (key, znode_get_rd_key (coord->node))));
+		assert ("vs-1002", coord->between == EMPTY_NODE);
+		check_coord (coord, key);
+		return TAIL_WRITE_FLOW;
+	}
+
+	/*
+	 * make sure that coord is set properly. Should it be?
+	 */
+	coord->between = AT_UNIT;
+	assert ("vs-1007", keyle (item_key_by_coord (coord, &check), key));
+	assert ("vs-1008", keylt (key, get_next_item_key (coord, &check)));
+
+
+	if (item_is_tail (coord)) {
+		if (keyeq (key, last_key_in_tail (coord, &check))) {
+			coord->unit_pos = coord_last_unit_pos (coord);
+			coord->between = AFTER_UNIT;
+			check_coord (coord, key);
+			return TAIL_WRITE_FLOW;
+		}
+		
+		if (tail_key_in_item (coord, key)) {
+			coord->between = AT_UNIT;
+			check_coord (coord, key);
+			return TAIL_OVERWRITE;
+		}
+	}
+
+	coord->between = AFTER_ITEM;
+	check_coord (coord, key);
+	return TAIL_WRITE_FLOW;
+}
+#endif
 
 /*
  * overwrite tail item or its part by use data
@@ -503,7 +574,7 @@ int tail_write (struct inode * inode, struct sealed_coord * hint,
 {
 	int result;
 	znode * loaded;
-	tail_write_todo what;
+	write_mode todo;
 	coord_t coord;
 	lock_handle lh;
 
@@ -516,22 +587,27 @@ int tail_write (struct inode * inode, struct sealed_coord * hint,
 		/*reiser4_stat_tail_add (broken_seals);*/
 		return -EAGAIN;
 	}
-	
-	coord_dup_nocheck (&coord, &hint->coord);
 
 	while (f->length && !result) {
 		/*
 		 * coord->node may change as we loop here. So, we have to
 		 * remember node we zload and zrelse it
 		 */
-		loaded = coord.node;
-		result = zload (loaded);
-		if (result)
-			return result;
-		what = tail_what_todo (inode, &coord, &f->key);
+		todo = how_to_write (&coord, &lh, &f->key);
+		if (unlikely (todo < 0))
+			return todo;
 
-		switch (what) {
-		case TAIL_WRITE_FLOW:
+		result = zload (coord.node);
+		if (result) {
+			unset_hint (hint);
+			done_lh (&lh);
+			return result;
+		}
+		loaded = coord.node;
+
+		switch (todo) {
+		case FIRST_ITEM:
+		case APPEND_ITEM:
 			/*
 			 * check quota before appending data
 			 */
@@ -544,20 +620,21 @@ int tail_write (struct inode * inode, struct sealed_coord * hint,
 				DQUOT_FREE_SPACE_NODIRTY (inode, f->length);
 			break;
 
-		case TAIL_OVERWRITE:
+		case OVERWRITE_ITEM:
 			result = overwrite_tail (&coord, f);
 			break;
 
-		case TAIL_RESEARCH:
+		case RESEARCH:
 			/*
 			 * FIXME-VS: 
 			 */
 			result = -EAGAIN;
 			break;
-		case TAIL_CANT_CONTINUE:
 		default:
+			impossible ("vs-1031", "does this ever happen?");
 			result = -EIO;
 			break;
+			
 		}
 		zrelse (loaded);
 	}
