@@ -839,7 +839,7 @@ int zinit_new( znode *node /* znode to initialise */ )
 	assert( "umka-274", tree != NULL );
 	assert( "nikita-1908", tree -> ops -> allocate_node != NULL );
 
-	add_d_ref( ZJNODE(node) );
+	add_d_ref( ZJNODE( node ) );
 	result = tree -> ops -> allocate_node( tree, ZJNODE( node ) );
 	if( likely( result == 0 ) ) {
 		assert( "nikita-2076", spin_znode_is_locked( node ) );
@@ -854,7 +854,11 @@ int zinit_new( znode *node /* znode to initialise */ )
 		}
 	} else {
 		spin_lock_znode( node );
-		zrelse_nolock( node );
+		/*
+		 * just decrement d_count on ->allocate_node() failure, no
+		 * other cleanup is necessary.
+		 */
+		atomic_dec( &ZJNODE( node ) -> d_count );
 	}
 	spin_unlock_znode( node );
 	return result;

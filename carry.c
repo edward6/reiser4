@@ -1405,8 +1405,8 @@ void print_op( const char *prefix /* prefix to print */,
 	switch( op -> op ) {
 	case COP_INSERT:
 	case COP_PASTE:
-		print_coord_content( "\tcoord", op -> u.insert.d ? 
-				     op -> u.insert.d -> coord : NULL );
+		print_coord( "\tcoord", op -> u.insert.d ? 
+			     op -> u.insert.d -> coord : NULL, 0 );
 		print_key( "\tkey", op -> u.insert.d ? 
 			   op -> u.insert.d -> key : NULL );
 		print_carry( "\tchild", op -> u.insert.child );
@@ -1415,8 +1415,8 @@ void print_op( const char *prefix /* prefix to print */,
 		print_carry( "\tchild", op -> u.delete.child );
 		break;
 	case COP_CUT:
-		print_coord_content( "\tfrom", op -> u.cut -> from );
-		print_coord_content( "\tto", op -> u.cut -> to );
+		print_coord( "\tfrom", op -> u.cut -> from, 0 );
+		print_coord( "\tto", op -> u.cut -> to, 0 );
 		break;
 	case COP_UPDATE:
 		print_carry( "\tleft", op -> u.update.left );

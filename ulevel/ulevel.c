@@ -342,7 +342,8 @@ static struct inode * alloc_inode (struct super_block * sb)
 	struct inode * inode;
 
 	inode = sb->s_op->alloc_inode(sb);
-	assert ("vs-289", inode);
+	if (inode == NULL)
+		return NULL;
 	xmemset (inode, 0, sizeof (struct inode));
 	inode->i_sb = sb;
 	inode->i_dev = sb->s_dev;
@@ -363,6 +364,8 @@ struct inode * new_inode (struct super_block * sb)
 	struct inode * inode;
 
 	inode = alloc_inode (sb);
+	if (inode == NULL)
+		return NULL;
 	inode->i_nlink = 1;
 	spin_lock( &inode_hash_guard );
 	list_add (&inode->i_hash, &inode_hash_list);
@@ -520,6 +523,8 @@ get_new_inode(struct super_block *sb,
 	struct inode * inode;
 
 	inode = alloc_inode(sb);
+	if (inode == NULL)
+		return NULL;
 	spin_lock_init( &reiser4_inode_data( inode ) -> guard );
 	init_rwsem( &reiser4_inode_data( inode ) -> sem );
 	if (inode) {
@@ -732,10 +737,11 @@ static struct page * new_page (struct address_space * mapping,
 	struct page * page;
 
 	page = kmalloc (sizeof (struct page) + PAGE_CACHE_SIZE, 0);
-	assert ("vs-288", page);
-	xmemset (page, 0, sizeof (struct page) + PAGE_CACHE_SIZE);
+	if (page != NULL) {
+		xmemset (page, 0, sizeof (struct page) + PAGE_CACHE_SIZE);
 
-	init_page (page, mapping, ind);
+		init_page (page, mapping, ind);
+	}
 	return page;
 }
 
@@ -860,7 +866,8 @@ struct page * grab_cache_page (struct address_space * mapping,
 		return page;
 
 	page = new_page (mapping, ind);
-	lock_page (page);
+	if (page)
+		lock_page (page);
 	return page;
 }
 
@@ -879,7 +886,7 @@ struct page *read_cache_page (struct address_space * mapping,
 	if (!page)
 		page = new_page (mapping, idx);
 	
-	if (!PageUptodate (page)) {
+	if (page && !PageUptodate (page)) {
 		lock_page (page);
 		result = filler (data, page);
 		if (result)
@@ -1756,7 +1763,7 @@ void *mkdir_thread( mkdir_thread_info *info )
 					    &dentry, S_IFDIR | 0777 );
 	rlog( "nikita-1638", "In directory: %s", dir_name );
 
-	if( ret != 0 ) {
+	if( ( ret != 0 ) && ( ret != -ENOMEM ) ) {
 		rpanic( "nikita-1636", "Cannot create dir: %i", ret );
 	}
 	
@@ -1791,7 +1798,7 @@ void *mkdir_thread( mkdir_thread_info *info )
 		info( "(%i) %i:%s %s/%s: %i\n", current_pid, i, op,
 		      dir_name, name, ret );
 		if( ( ret != 0 ) && ( ret != -EEXIST ) && ( ret != -ENOENT ) &&
-		    ( ret != -EINTR ) )
+		    ( ret != -EINTR ) && ( ret != -ENOMEM ) )
 			rpanic( "nikita-1493", "!!!" );
 
 		if( info -> sleep && ( lc_rand_max( 10ull ) < 2 ) ) {
@@ -3114,7 +3121,8 @@ static int bash_mkfs (const char * file_name)
 						     ul_find_actor, 
 						     ul_init_locked_inode,
 						     &key);
-			assert ("vs-621", fake_parent);
+			if (fake_parent == NULL)
+				return -ENOMEM;
 			fake_parent->i_mode = S_IFDIR;
 			fake_parent->i_op = &reiser4_inode_operations;
 			reiser4_inode_data (fake_parent)->dir = dir_plugin_by_id (HASHED_DIR_PLUGIN_ID);

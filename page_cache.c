@@ -258,7 +258,9 @@ static int page_cache_allocate_node( reiser4_tree *tree, jnode *node )
 static int page_cache_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
 	assert( "nikita-2134", spin_jnode_is_locked( node ) );
+	assert( "nikita-2237", jnode_page( node ) != NULL );
 	trace_on( TRACE_PCACHE, "release node: %p\n", node );
+
 	kunmap( jnode_page( node ) );
 	assert( "nikita-2072", JF_ISSET( node, ZNODE_KMAPPED ) );
 	JF_CLR( node, ZNODE_KMAPPED );

@@ -273,24 +273,29 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 		      reiser4_dir_entry_desc *entry /* parameters of new
 						     * directory entry */ )
 {
-	int                 result;
-	coord_t         *coord;
-	lock_handle lh;
+	int                    result;
+	coord_t               *coord;
+	lock_handle            lh;
+	reiser4_dentry_fsdata *fsdata;
 
 	assert( "nikita-1114", object != NULL );
 	assert( "nikita-1250", where != NULL );
+
+	fsdata = reiser4_get_dentry_fsdata( where );
+	if( unlikely( IS_ERR( fsdata ) ) )
+		return PTR_ERR( fsdata );
 
 	init_lh( &lh );
 
 	trace_on( TRACE_DIR, "[%i]: creating \"%s\" in %lx\n", current_pid,
 		  where -> d_name.name, object -> i_ino );
 
-	coord = &reiser4_get_dentry_fsdata( where ) -> entry_coord;
+	coord = &fsdata -> entry_coord;
 	/*
 	 * check for this entry in a directory. This is plugin method.
 	 */
 	result = find_entry( object, where, &lh, ZNODE_WRITE_LOCK, entry );
-	if( result == -ENOENT ) {
+	if( likely( result == -ENOENT ) ) {
 		/*
 		 * add new entry. Just pass control to the directory
 		 * item plugin.

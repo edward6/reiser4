@@ -1251,7 +1251,11 @@ static int carry_shift_data( sideof side /* in what direction to move data */,
 		( insert_coord, node, 
 		  ( side == LEFT_SIDE ) ? SHIFT_LEFT : SHIFT_RIGHT, 0,
 		  including_insert_coord_p, &info );
-	assert( "nikita-915", result >= 0 );
+	/*
+	 * the only error ->shift() method of node plugin can return is
+	 * -ENOMEM due to carry node/operation allocation.
+	 */
+	assert( "nikita-915", ( result >= 0 ) || ( result == -ENOMEM ) );
 	if( result > 0 ) {
 		doing -> restartable = 0;
 		znode_set_dirty( source );
