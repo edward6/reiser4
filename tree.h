@@ -445,8 +445,8 @@ typedef struct cbk_handle {
 	znode_lock_mode lock_mode;
 	/* lookup bias. See comments at the declaration of lookup_bias */
 	lookup_bias bias;
-	/* NIKITA-FIXME-HANS: lock level means what? */
-	/* lock level */
+	/* lock level: level starting from which tree traversal starts taking
+	 * write locks. */
 	tree_level lock_level;
 	/* level where search will stop. Either item will be found between
 	   lock_level and stop_level, or CBK_COORD_NOTFOUND will be
