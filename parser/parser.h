@@ -81,8 +81,36 @@ typedef enum {
 
 
 typedef struct pars_var pars_var_t;
-
+typedef union expr_v4  expr_v4_t;
 typedef struct wrd wrd_t;
+typedef struct tube tube_t;
+typedef struct sourece_stack sourece_stack_t;
+
+typedef enum {
+	ST_FILE,
+	ST_EXPR,
+	ST_DE,
+	ST_WD
+} stack_type;
+
+typedef enum {
+	noV4Space,
+	V4Space,
+	V4Plugin
+} SpaceType;
+
+typedef enum {
+	CONNECT,
+	COMPARE_EQ,
+	COMPARE_NE,
+	COMPARE_LE,
+	COMPARE_GE,
+	COMPARE_LT,
+	COMPARE_GT,
+	COMPARE_OR,
+	COMPARE_AND,
+	COMPARE_NOT
+} expr_code_type;
 
 
                                  /* sizes defines      */
@@ -99,38 +127,37 @@ typedef struct wrd wrd_t;
 #define ROUND_UP(x) _ROUND_UP((x),3)
 
 
-typedef struct tube tube_t;
 
 struct tube {
 	int type_offset;
 	char * offset;       /* pointer to reading position */
-	long len;            /* lenth of current operation
+	size_t len;            /* lenth of current operation
                                (min of (max_of_read_lenth and max_of_write_lenth) )*/
 	long used;
 	char * buf;          /* pointer to bufer */
 	loff_t readoff;      /* reading offset   */
 	loff_t writeoff;     /* writing offset   */
 
+	sourece_stack_t * st_current;
+
 //	expr_v4_t * source;
-	struct file *src;
+//	sourece_stack_t * st_bottom;
+//	struct file *src;
 
 /* offset might actually point to sink */
 //	pars_var_t * sink;
+
 	struct file *dst;
 
 /* 	pos_t pos; */
 };
+
 
 struct wrd {
 	wrd_t * next ;                /* next word                   */
 	struct qstr u ;               /* u.name  is ptr to space     */
 };
 
-typedef enum {
-	noV4Space,
-	V4Space,
-	V4Plugin
-} SpaceType;
 
 struct path_walk {
 	struct dentry *dentry;
@@ -152,20 +179,7 @@ struct pars_var {
 //	int  (*fplug)(lnode * node, const reiser4_plugin_ref * area);
 } ;
 
-typedef union expr_v4  expr_v4_t;
 
-typedef enum {
-	CONNECT,
-	COMPARE_EQ,
-	COMPARE_NE,
-	COMPARE_LE,
-	COMPARE_GE,
-	COMPARE_LT,
-	COMPARE_GT,
-	COMPARE_OR,
-	COMPARE_AND,
-	COMPARE_NOT
-} expr_code_type;
 
 //#typedef __u8 op2_t;
 
@@ -264,6 +278,17 @@ struct freeSpace {
 	char           freeSpaceBase[FREESPACESIZE];   /* current buffer */
 };
 
+struct sourece_stack {
+	sourece_stack_t * prev;
+	long type;                     /* type of current stack head */
+	union {
+		struct file   * file;
+		expr_v4_t     * expr;
+//		struct dentry * de;    /*  ??????? what for  */
+		wrd_t         * wd;
+		long          * pointer;
+	} u;
+};
 
 typedef struct streg  streg_t;
 
