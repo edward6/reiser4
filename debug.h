@@ -533,22 +533,19 @@ typedef struct err_site {} err_site;
 #define PUT_USER_PAGES 1
 #define EXTENT_WRITE_IN 2
 #define EXTENT_WRITE_OUT 3
-#define TAIL_WRITE_IN 4
-#define TAIL_WRITE_OUT 5
-#define READPAGE_IN 6
-#define READPAGE_OUT 7
-#define READPAGE_ERROR 8
-#define RELEASEPAGE_IN 9
-#define RELEASEPAGE_0 10
-#define RELEASEPAGE_1 11
-#define EXTENT_WRITE_IN2 12
-#define LINK_OBJECT 13
-#define UNLINK_OBJECT 14
+#define READPAGE_IN 4
+#define READPAGE_OUT 5
+#define EXTENT_WRITE_IN2 6
+#define EXTENT_WRITE_OUT2 7
+#define LINK_OBJECT 8
+#define UNLINK_OBJECT 9
 
-#define OP_NUM 15
+#define OP_NUM 10
 
 void clog_op(int op, void *, void *);
+void clog_link_object(int op, void *, void *);
 void print_clog(void);
+void print_symname(unsigned long address);
 
 /* __FS_REISER4_DEBUG_H__ */
 #endif

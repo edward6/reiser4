@@ -2752,7 +2752,7 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 					  reiser4_inode_data(inode)->captured_eflushed == 0));
 		
 		if (update_sd) {
-			result = setattr_reserve(tree_by_inode(inode));
+			result = setattr_reserve_common(tree_by_inode(inode));
 			if (!result)
 				result = update_inode_cryptcompress(inode, new_size, 1, 1, 1);
 			all_grabbed2free();
@@ -3062,7 +3062,8 @@ setattr_cryptcompress(struct inode *inode,	/* Object to change attributes */
 		} else
 			result = 0;
 	} else {
-		result = setattr_reserve(tree_by_inode(inode));
+		/* FIXME: Edward, please consider calling setattr_common() here */
+		result = setattr_reserve_common(tree_by_inode(inode));
 		if (!result) {
 			result = inode_setattr(inode, attr);
 			if (!result)
