@@ -143,7 +143,7 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 	else
 		result = -ENOTDIR;
 
-	UPDATE_ATIME(inode);
+	update_atime(inode);
 	write_syscall_trace("ex");
 	up(&inode->i_sem);
 	reiser4_exit_context(&ctx);
