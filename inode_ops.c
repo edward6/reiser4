@@ -79,6 +79,9 @@ reiser4_internal int invoke_create_method(struct inode *parent,
 					  struct dentry *dentry,
 					  reiser4_object_create_data * data);
 
+/* setting this to 1 causes reiser4_create to create both unix and crc files */
+#define TEST_CRC 0
+
 /* ->create() VFS method in reiser4 inode_operations */
 static int
 reiser4_create(struct inode *parent	/* inode of parent
@@ -89,13 +92,31 @@ reiser4_create(struct inode *parent	/* inode of parent
 	       struct nameidata *nameidata)
 {
 	reiser4_object_create_data data;
+#if TEST_CRC
+	compression_data_t co;
+	cluster_data_t cl;
+	static atomic_t cnt = ATOMIC_INIT(0);
+#endif
 
 	xmemset(&data, 0, sizeof data);
 
 	reiser4_stat_inc_at(parent->i_sb, vfs_calls.create);
 
 	data.mode = S_IFREG | mode;
-	data.id = UNIX_FILE_PLUGIN_ID;
+
+#if TEST_CRC
+	atomic_inc(&cnt);
+	if ((atomic_read(&cnt) % 2) == 0) {
+		data.id = CRC_FILE_PLUGIN_ID;
+
+		cl = 4;
+		data.cluster = &cl;
+
+		co.coa = LZO1_COMPRESSION_ID;
+		data.compression = &co;
+	} else
+#endif		
+		data.id = UNIX_FILE_PLUGIN_ID;
 	return invoke_create_method(parent, dentry, &data);
 }
 
