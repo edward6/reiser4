@@ -2260,7 +2260,7 @@ cut_items_cryptcompress(struct inode *inode, loff_t new_size, int update_sd)
 			break;
 		
 		result = cut_tree_object(current_tree, &from_key, &to_key,
-					 &smallest_removed, inode);
+					 &smallest_removed, inode, 0);
 		if (result == -E_REPEAT) {
 			/* -E_REPEAT is a signal to interrupt a long file truncation process */
 			/* FIXME(Zam) cut_tree does not support that signaling.*/
