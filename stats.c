@@ -296,7 +296,6 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STATCNT(txnmgr.commits),
 	DEFINE_STATCNT(txnmgr.post_commit_writes),
 	DEFINE_STATCNT(txnmgr.time_spent_in_commits),
-	DEFINE_STATCNT(txnmgr.raced_with_truncate),
 	DEFINE_STATCNT(txnmgr.empty_bio),
 	DEFINE_STATCNT(txnmgr.commit_from_writepage),
 	DEFINE_STATCNT(txnmgr.capture_equal),
