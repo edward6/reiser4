@@ -266,7 +266,7 @@ struct super_block * get_sb_bdev (struct file_system_type *fs_type UNUSED_ARG,
 	s->s_bdev = &block_devices[0];
 	s->s_bdev->bd_dev = open (dev_name, O_RDWR);
 	if (s->s_bdev->bd_dev == -1)
-		return ERR_PTR (errno);
+		return ERR_PTR (-errno);
 
 	result = fill_super (s, data, 0/*silent*/);
 
@@ -2975,106 +2975,6 @@ static void bash_umount (reiser4_context * context)
 }
 
 
-
-
-static int mkfs_bread (reiser4_tree *tree, jnode *node)
-{
-	struct buffer_head bh, *pbh;
-	struct page *pg;
-
-	memset (&bh, 0, sizeof (bh));
-
-	bh.b_blocknr = node->blocknr;
-	bh.b_size = tree->super->s_blocksize;
-	bh.b_bdev = tree->super->s_bdev;
-	pg = grab_cache_page (get_super_private (tree->super)->fake->i_mapping, 
-		       (unsigned long)*jnode_get_block (node));
-	assert ("vs-669", pg);
-	bh.b_data = (void *) (pg + 1);
-	pbh = &bh;
-	ll_rw_block (READ, 1, &pbh);
-	jnode_attach_page (node, pg);
-	page_cache_release (pg);
-	unlock_page (pg);
-	kmap (pg);
-	spin_lock_jnode (node);
-	return 0;
-}
-
-
-static int mkfs_getblk (reiser4_tree *tree, jnode *node UNUSED_ARG)
-{
-	struct page *pg;
-
-	pg = new_page (get_super_private (tree->super)->fake->i_mapping,
-		       (unsigned long)*jnode_get_block (node));
-	assert ("nikita-2049", pg);
-	jnode_attach_page (node, pg);
-	page_cache_release (pg);
-	kmap (pg);
-	spin_lock_jnode (node);
-	return 0;
-}
-
-
-static int mkfs_brelse (reiser4_tree *tree, jnode *node)
-{
-#if 0
-	struct buffer_head bh, *pbh;
-
-	memset (&bh, 0, sizeof (bh));
-
-	JF_SET (node, ZNODE_DIRTY);
-	assert ("vs-670", !blocknr_is_fake (&node->blocknr) && node->blocknr);
-	bh.b_blocknr = node->blocknr;
-	bh.b_size = tree->super->s_blocksize;
-	bh.b_bdev = tree->super->s_bdev;
-	bh.b_data = jdata (node);
-	pbh = &bh;
-	ll_rw_block (WRITE, 1, &pbh);
-	kunmap (jnode_page (node));
-	JF_CLR (node, ZNODE_DIRTY);
-#endif
-	return 0;
-}
-
-static int mkfs_bdrop (reiser4_tree *tree UNUSED_ARG, jnode *node)
-{
-	assert ("nikita-2056", !JF_ISSET (node, ZNODE_DIRTY));
-
-	spin_lock (&page_list_guard);
-	list_del_init (&jnode_page (node)->list);
-	spin_unlock (&page_list_guard);
-	jnode_detach_page (node);
-	free (jnode_page (node));
-	return 0;
-}
-
-
-int mkfs_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
-{
-	assert ("vs-692", JF_ISSET (node, ZNODE_LOADED));
-	set_page_dirty (jnode_page (node));
-	return 0;
-}
-
-int mkfs_clean_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
-{
-	assert ("vs-692", JF_ISSET (node, ZNODE_LOADED));
-	ClearPageDirty (jnode_page (node));
-	return 0;
-}
-
-static node_operations mkfs_tops = {
-	.read_node     = mkfs_bread,
-	.allocate_node = mkfs_getblk,
-	.delete_node   = mkfs_brelse,
-	.release_node  = mkfs_brelse,
-	.drop_node     = mkfs_bdrop,
-	.dirty_node    = mkfs_dirty_node,
-	.clean_node    = mkfs_clean_node
-};
-
 #define TEST_MKFS_ROOT_LOCALITY   (41ull)
 #define TEST_MKFS_ROOT_OBJECTID   (42ull)
 
@@ -3757,7 +3657,8 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	reiser4_context context;
 	int mounted;
 	int result;
-
+	char * tmp;
+	int tmp_n;
 
 	mounted = 0;
 
@@ -3803,9 +3704,14 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 	cwd = 0;
 
-	for ( ; (command = readline ("> ")) != NULL ; free (command)) {
-		add_history (command);
-
+	/*for ( ; (command = readline ("> ")) != NULL ; free (command)) {*/
+	tmp = 0;
+	tmp_n = 0;
+	for ( ; (getline (&tmp, &tmp_n, stdin)) != -1 ; ) {
+		/*add_history (command);*/
+		/* remove \n */
+		tmp [strlen (tmp) - 1] = 0;
+		command = tmp;
 		if (!strncmp (command, "mount ", 6)) {
 			if (mounted) {
 				info ("Umount first\n");
@@ -3916,6 +3822,7 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		} else
 			print_help ();
 	}
+	free (tmp);
 	info ("Done\n");
 	exit (0);
 }
