@@ -96,102 +96,52 @@ year old --- define all technical terms used.
    requests with the RMW flag set.
 */
 
-/* Special disk space reservation:
-  
-   The space reserved for a transcrash by calling RESERVE_BLOCKS does not cover all
-   possible space requirements that a transaction may encounter trying to flush.  The
-   prime example of this is extent-allocation, which can consume an unpredictable amount
-   of space during flush, due to fragmentation.  We have discussed two ways to reserve for
-   any "extra allocation":
-  
-   - Reserve a fixed percentage of disk space for use (e.g., 5%), and if that approach
-   doesn't work (because Nikita Was Right), then...
-  
-   - Reserve an amount of disk space proportional to the number of unallocated extent
-   blocks, or something like that.
-*/
+/* 
+   The znode/atom deadlock avoidance.
 
-/* CURRENT DEADLOCK BETWEEN LOCK_MANAGER & ATOM_CAPTURE_WAIT: SOLUTION.  Its not a true
-   deadlock, its a bug.  The bug occurs when one thread waits on a lock held by another
-   thread waiting in capture_wait.  The thread waiting for capture is blocked because the
-   atom is expired, trying to commit, but it holds a lock.  This problem has the symptoms
-   of PRIORITY INVERSION because the lock-waiter should be unblocked so that it can
-   eventually release the lock needed to commit the atom.
-  
-   Currently the transaction manager code is properly signalled by the lock manager when a
-   thread is waiting for capture but the lock manager determines that it must yield one of
-   its locks.  The problem is that the transaction manager does not wake threads that are
-   blocked in capture_wait when they hold a lock needed to commit the atom.
-  
-   The problem seems impossible--it seems to be already solved.  As described in comments
-   at the top of lock.c, we try to capture a block before we try to lock it.  First we
-   take the znode spinlock, then we try to capture.  When capture succeeds it returns with
-   the spinlock still held.  This is important because if the lock is available (i.e., it
-   is unlocked or read-locked) the lock must be granted before any other thread "skips
-   ahead" and takes the lock first.  This is done because sometimes a capture request can
-   return without actually requiring capture.  For example, a read-request with a
-   WRITE_FUSING transcrash does nothing, or a read-request with READ_FUSING and a clean
-   node does nothing.  But in order for this to work, the read-request must be granted
-   before any writers can lock the node.  For this reason, we capture before we lock.
-  
-   At first glance, capture-before-lock would seem to address the problem, but it does not
-   always.  The explanation is not difficult, but it requires carefully labeling the
-   objects involved.
-  
-   - There are two threads, BLOCKED_IN_LOCK and BLOCKED_IN_CAPTURE, and there are two
-   nodes, CLEAN_NODE and DIRTY_NODE.
-  
-   - BLOCKED_IN_LOCK and DIRTY_NODE belong to an atom that is trying to commit.
-   BLOCKED_IN_LOCK has already made modifications.
-  
-   - BLOCKED_IN_CAPTURE and CLEAN_NODE have no atom.  BLOCKED_IN_CAPTURE is likely a
-   coord_by_key tree traversal and it has made no modifications.
-  
-   The chain of events goes like this:
-  
-                   BLOCKED_IN_CAPTURE                  BLOCKED_IN_LOCK
-  
-   1.           read-captures CLEAN_NODE
-                  (no capture needed)
-  
-   2.            read-locks CLEAN_NODE
-                      (succeeds)
-  
-   3.                                              write-captures CLEAN_NODE
-                                                    (capture succeeds, now
-                                                     CLEAN_NODE is part of
-                                                     the atom)
-  
-   4.                                               write-locks CLEAN_NODE
-                                                     (!-- blocked waiting for
-                                                      the CLEAN_NODE lock --!)
-  
-   5.          write-captures DIRTY_NODE
-                 (!-- blocked waiting for
-                  atom to commit --!)
-  
-   There we have both processes blocked and capture-before-lock did not help.  The reason
-   capture-before-lock did not help is that neither BLOCKED_IN_CAPTURE nor CLEAN_NODE have
-   an atom, thus the capture step in #3 causes no fusion.  The above order of events is
-   fine the way it is, except in step #3.  At the moment we capture CLEAN_NODE (#3), the
-   BLOCKED_IN_CAPTURE thread (which is not actually blocked until #5) should be "taken in"
-   to the atom because it is trying to commit.  Then BLOCKED_IN_CAPTURE will never
-   actually be blocked in capture when it reaches #5, it will get the lock it wants and
-   eventually release CLEAN_NODE so that BLOCKED_IN_LOCK can get it.  In general, the
-   following steps will solve this problem:
-  
-   - When an atom that is trying to commit will succeed at capturing a block, the to-be
-   captured block's list of lock owners should be inspected.
-  
-   - If the thread (transcrash) that holds the lock belongs to another atom: fuse the
-   lock-holder's atom with the capturer's atom.
-  
-   - If the thread (transcrash) that holds the lock does NOT belong to another atom:
-   assign that thread to the capturer's atom.
-  
-   In our previous discussion on this matter, we included the following step "wake the
-   thread", but now I believe that is not necessary.  In the example above, taking these
-   steps will prevent the BLOCKED_IN_CAPTURE thread from ever blocking.
+   FIXME(Zam): writing of this comment is in progress.
+   
+   The atom's special stage ASTAGE_CAPTURE_WAIT introduces a kind of atom's
+   long-term locking, which makes reiser4 locking scheme more complex.  It had
+   deadlocks until we implement deadlock avoidance algorithms.  That deadlocks
+   looked as the following: one stopped thread waits for a long-term lock on
+   znode, the thread who owns that lock waits when fusion with another atom will
+   be allowed.
+
+   The source of the deadlocks is an optimization of not capturing index nodes
+   for read.  Let's prove it.  Suppose we have dumb node capturing scheme which
+   unconditionally captures each block before locking it.
+
+   That scheme has no deadlocks.  Let's begin with the thread which stage is
+   ASTAGE_CAPTURE_WAIT and it waits for a znode lock.  The thread can't wait for
+   a capture because it's stage allows fusion with any atom except which are
+   being committed currently. A process of atom commit can't deadlock because
+   atom commit procedure does not aquire locks and does not fuse with other
+   atoms.  Reiser4 does capturing right before going to sleep inside the
+   longtertm_lock_znode() function, it means the znode which we wont to lock is
+   already captured and its atom is in ASTAGE_CAPTURE_WAIT stage.  If we
+   continue the analysis we understand that no one process in the sequence may
+   waits atom fusion.  Thereby there are no deadlocks of described kind.
+
+   The capturing optimization makes the deadlocks possible.  A thread can wait a
+   lock which owner did not captured that node.  The lock owner's current atom
+   is not fused with the first atom and it does not get a ASTAGE_CAPTURE_WAIT
+   state. A deadlock is possible when that atom meats another one which is in
+   ASTAGE_CAPTURE_WAIT already.
+
+   The deadlock avoidance scheme includes two algorithms:
+
+   First algorithm is used when a thread captures a node which is locked but not
+   captured by another thread.  Those nodes are marked MISSED_IN_CAPTURE at the
+   moment we skip their capturing.  If such a node (marked MISSED_IN_CAPTURE) is
+   being captured by a thread with current atom is in ASTAGE_CAPTURE_WAIT, the
+   routine which forces all lock owners to join with current atom is executed.
+
+   Second algorithm does not allow to skip capturing of already captured nodes.
+
+   Both algorithms together prevent waiting a longterm lock without atom fusion
+   with atoms of all lock owners, which is a key thing for getting atom/znode
+   locking deadlocks.  
 */
 
 #include "debug.h"
@@ -681,7 +631,7 @@ atom_isopen(const txn_atom * atom)
 #endif
 
 /* Decrement the atom's reference count and if it falls to zero, free it. */
-void atom_dec_and_unlock(txn_atom * atom ) 
+void atom_dec_and_unlock(txn_atom * atom)
 {
 	txn_mgr *mgr = &get_super_private(reiser4_get_current_sb())->tmgr;
 
@@ -3302,6 +3252,6 @@ print_atom(const char *prefix, txn_atom * atom)
    mode-name: "LC"
    c-basic-offset: 8
    tab-width: 8
-   fill-column: 120
+   fill-column: 80
    End:
 */
