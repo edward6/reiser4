@@ -31,17 +31,6 @@ get_super_private_nocheck(const struct super_block *super	/* super block
 	return (reiser4_super_info_data *) super->s_fs_info;
 }
 
-/* Return reiser4-specific part of super block */
-reiser4_super_info_data *
-get_super_private(const struct super_block * super	/* super
-							   block queried */ )
-{
-	assert("nikita-447", super != NULL);
-	assert("nikita-2245", (super->s_op == NULL) || (super->s_op == &reiser4_super_operations));
-
-	return (reiser4_super_info_data *) super->s_fs_info;
-}
-
 
 /* Return reiser4 fstype: value that is returned in ->f_type field by statfs() */
 long
@@ -74,6 +63,12 @@ __u64 reiser4_block_count(const struct super_block * super	/* super block
 	assert("vs-495", is_reiser4_super(super));
 	return get_super_private(super)->block_count;
 }
+
+__u64 reiser4_current_block_count(void)
+{
+	return get_current_super_private()->block_count;
+}
+
 
 /* set number of block in filesystem */
 void
@@ -307,23 +302,6 @@ int
 reiser4_is_set(const struct super_block *super, reiser4_fs_flag f)
 {
 	return test_bit((int) f, &get_super_private(super)->fs_flags);
-}
-
-/* Reiser4-specific part of "current" super-block: main super block used
-   during current system call. Reference to this super block is stored in
-   reiser4_context. */
-reiser4_super_info_data *
-get_current_super_private(void)
-{
-	return get_super_private(reiser4_get_current_sb());
-}
-
-/* "Current" super-block: main super block used during current system
-   call. Reference to this super block is stored in reiser4_context. */
-struct super_block *
-reiser4_get_current_sb(void)
-{
-	return get_current_context()->super;
 }
 
 /* inode generation to use for the newly created inode */

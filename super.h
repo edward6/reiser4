@@ -209,10 +209,38 @@ struct reiser4_super_info_data {
 extern reiser4_super_info_data *get_super_private_nocheck(const struct
 							  super_block *super);
 
-extern reiser4_super_info_data *get_super_private(const struct super_block
-						  *super);
+extern struct super_operations reiser4_super_operations;
 
-extern reiser4_super_info_data *get_current_super_private(void);
+/* Return reiser4-specific part of super block */
+static inline reiser4_super_info_data *
+get_super_private(const struct super_block * super)
+{
+	assert("nikita-447", super != NULL);
+	assert("nikita-2245", 
+	       (super->s_op == NULL) || 
+	       (super->s_op == &reiser4_super_operations));
+
+	return (reiser4_super_info_data *) super->s_fs_info;
+}
+
+/* "Current" super-block: main super block used during current system
+   call. Reference to this super block is stored in reiser4_context. */
+static inline struct super_block *
+reiser4_get_current_sb(void)
+{
+	return get_current_context()->super;
+}
+
+/* Reiser4-specific part of "current" super-block: main super block used
+   during current system call. Reference to this super block is stored in
+   reiser4_context. */
+static inline reiser4_super_info_data *
+get_current_super_private(void)
+{
+	return get_super_private(reiser4_get_current_sb());
+}
+
+extern __u64 reiser4_current_block_count(void);
 
 extern const __u32 REISER4_SUPER_MAGIC;
 
@@ -266,8 +294,6 @@ extern struct inode *get_super_fake(const struct super_block *super);
 extern reiser4_tree *get_tree(const struct super_block *super);
 extern __u32 new_inode_generation(const struct super_block *super);
 extern int is_reiser4_super(const struct super_block *super);
-
-extern struct super_block *reiser4_get_current_sb(void);
 
 file_plugin *default_file_plugin(const struct super_block *super);
 dir_plugin *default_dir_plugin(const struct super_block *super);
