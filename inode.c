@@ -577,7 +577,7 @@ inode_set_extension(struct inode *inode, sd_ext_bits ext)
 }
 
 void
-inode_set_plugin(const struct inode *inode, reiser4_plugin * plug)
+inode_set_plugin(struct inode *inode, reiser4_plugin * plug)
 {
 	assert("nikita-2718", inode != NULL);
 	assert("nikita-2719", plug != NULL);
