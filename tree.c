@@ -539,7 +539,6 @@ insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 }
 
 /* Given a coord in parent node, obtain a znode for the corresponding child */
-/* Audited by: umka (2002.06.16) */
 znode *
 child_znode(const coord_t * parent_coord	/* coord of pointer to
 						 * child */ ,
@@ -553,7 +552,7 @@ child_znode(const coord_t * parent_coord	/* coord of pointer to
 
 	assert("nikita-1374", parent_coord != NULL);
 	assert("nikita-1482", parent != NULL);
-	assert("nikita-1384", rw_dk_is_write_locked(znode_get_tree(parent)));
+	assert("nikita-1384", rw_dk_is_not_locked(znode_get_tree(parent)));
 	assert("nikita-2947", znode_is_any_locked(parent));
 
 	if (znode_get_level(parent) <= LEAF_LEVEL) {
@@ -572,14 +571,12 @@ child_znode(const coord_t * parent_coord	/* coord of pointer to
 		iplug->s.internal.down_link(parent_coord, NULL, &addr);
 
 		tree = znode_get_tree(parent);
-		write_unlock_dk(tree);
 		if (incore_p)
 			child = zlook(tree, &addr);
 		else
 			child = zget(tree, &addr, parent, znode_get_level(parent) - 1, GFP_KERNEL);
 		if ((child != NULL) && !IS_ERR(child) && setup_dkeys_p)
 			set_child_delimiting_keys(parent, parent_coord, child);
-		write_lock_dk(tree);
 	} else {
 		warning("nikita-1483", "Internal item expected");
 		print_znode("node", parent);
@@ -986,8 +983,7 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 	}
 
 	tree = znode_get_tree(left_coord.node);
-	left_child = UNDER_RW(dk, tree, write,
-			      child_znode(&left_coord, left_coord.node, 1, 0 /* update delimiting keys */ ));
+	left_child = child_znode(&left_coord, left_coord.node, 1, 0);
 
 	if (IS_ERR(left_child)) {
 		if (left_zloaded_here)
@@ -1049,10 +1045,8 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 		/* try to get right child of @from */
 		if (right_coord.node &&	/* there is right neighbor of @from */
 		    item_is_internal(&right_coord)) {	/* it is internal item */
-			right_child = UNDER_RW
-				(dk, tree, write, 
-				 child_znode(&right_coord, 
-					     right_coord.node, 1, 0 /* update delimiting keys */ ));
+			right_child = child_znode(&right_coord, 
+						  right_coord.node, 1, 0);
 
 			if (IS_ERR(right_child)) {
 				if (right_zloaded_here)
@@ -1618,9 +1612,8 @@ tree_rec(reiser4_tree * tree /* tree to print */ ,
 		if (item_is_internal(&coord)) {
 			znode *child;
 
-			child = UNDER_RW
-				(dk, znode_get_tree(coord.node), write,
-			     child_znode(&coord, coord.node, (int) (flags & REISER4_NODE_ONLY_INCORE), 0));
+			child = child_znode(&coord, coord.node, 
+					    (int) (flags & REISER4_NODE_ONLY_INCORE), 0);
 			if (child == NULL) ;
 			else if (!IS_ERR(child)) {
 				tree_rec(tree, child, flags);

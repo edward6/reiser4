@@ -325,7 +325,7 @@ kill_tree_root(znode * old_root /* tree root that we are removing */ )
 	coord_init_first_unit(&down_link, old_root);
 
 	tree = znode_get_tree(old_root);
-	new_root = UNDER_RW(dk, tree, write, child_znode(&down_link, old_root, 0, 1));
+	new_root = child_znode(&down_link, old_root, 0, 1);
 	if (!IS_ERR(new_root)) {
 		result = kill_root(tree, old_root, new_root, znode_get_block(new_root));
 		zput(new_root);

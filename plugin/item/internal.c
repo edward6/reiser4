@@ -84,9 +84,7 @@ static znode *
 znode_at(const coord_t * item /* coord of item */ ,
 	 znode * parent /* parent node */)
 {
-	/* Take DK lock, as required by child_znode. */
-	return UNDER_RW(dk, znode_get_tree(item->node), write,
-			child_znode(item, parent, 1, 0));
+	return child_znode(item, parent, 1, 0);
 }
 
 /* store pointer from internal item into "block". Implementation of
@@ -312,7 +310,7 @@ internal_shift_hook(const coord_t * item /* coord of item */ ,
 	new_node = item->node;
 	assert("nikita-2132", new_node != old_node);
 	tree = znode_get_tree(item->node);
-	child = UNDER_RW(dk, tree, write, child_znode(item, old_node, 1, 0));
+	child = child_znode(item, old_node, 1, 0);
 	if (child == NULL)
 		return 0;
 	if (!IS_ERR(child)) {
