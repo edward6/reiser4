@@ -202,17 +202,17 @@ check_block_counters(const struct super_block *super)
 	    	reiser4_data_blocks(super) + reiser4_fake_allocated(super) + 
 		reiser4_fake_allocated_unformatted(super) + flush_reserved(super);
 	if (reiser4_block_count(super) != sum) {
-		info("super block counters: "
-		     "used %llu, free %llu, "
-		     "grabbed %llu, fake allocated (formatetd %llu, unformatted %llu), "
-		     "reserved %llu, sum %llu, must be (block count) %llu\n",
-		     reiser4_data_blocks(super),
-		     reiser4_free_blocks(super),
-		     reiser4_grabbed_blocks(super),
-		     reiser4_fake_allocated(super),
-		     reiser4_fake_allocated_unformatted(super),
-		     flush_reserved(super),
-		     sum, reiser4_block_count(super));
+		printk("super block counters: "
+		       "used %llu, free %llu, "
+		       "grabbed %llu, fake allocated (formatetd %llu, unformatted %llu), "
+		       "reserved %llu, sum %llu, must be (block count) %llu\n",
+		       reiser4_data_blocks(super),
+		       reiser4_free_blocks(super),
+		       reiser4_grabbed_blocks(super),
+		       reiser4_fake_allocated(super),
+		       reiser4_fake_allocated_unformatted(super),
+		       flush_reserved(super),
+		       sum, reiser4_block_count(super));
 		return 0;
 	}
 	return 1;
@@ -225,24 +225,24 @@ print_block_counters(const char *prefix,
 {
 	if (super == NULL)
 		super = reiser4_get_current_sb();
-	info("%s:\tsuper: G: %llu, F: %llu, D: %llu, U: %llu + %llu, R: %llu, T: %llu\n",
-	     prefix,
-	     reiser4_grabbed_blocks(super),
-	     reiser4_free_blocks(super),
-	     reiser4_data_blocks(super),
-	     reiser4_fake_allocated(super),
-	     reiser4_fake_allocated_unformatted(super),
-	     flush_reserved(super),
-	     reiser4_block_count(super));
-	info("\tcontext: G: %llu",
-	     get_current_context()->grabbed_blocks);
+	printk("%s:\tsuper: G: %llu, F: %llu, D: %llu, U: %llu + %llu, R: %llu, T: %llu\n",
+	       prefix,
+	       reiser4_grabbed_blocks(super),
+	       reiser4_free_blocks(super),
+	       reiser4_data_blocks(super),
+	       reiser4_fake_allocated(super),
+	       reiser4_fake_allocated_unformatted(super),
+	       flush_reserved(super),
+	       reiser4_block_count(super));
+	printk("\tcontext: G: %llu",
+	       get_current_context()->grabbed_blocks);
 	if (atom == NULL)
 		atom = get_current_atom_locked_nocheck();
 	if (atom != NULL) {
-		info("\tatom: R: %llu", atom->flush_reserved);
+		printk("\tatom: R: %llu", atom->flush_reserved);
 		spin_unlock_atom(atom);
 	}
-	info("\n");
+	printk("\n");
 }
 #endif
 
@@ -293,8 +293,7 @@ reiser4_grab(__u64 count, reiser4_ba_flags_t flags)
 	    (!use_reserved && (free_blocks - reserved_blocks < count))) {
 		ret = -ENOSPC;
 		
-		trace_if(TRACE_ALLOC,
-		    info("reiser4_grab: ENOSPC: count %llu\n", count));
+		trace_on(TRACE_ALLOC, "reiser4_grab: ENOSPC: count %llu\n", count);
 
 		goto unlock_and_ret;
 	}
@@ -337,10 +336,10 @@ __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
     assert("nikita-2964", ergo(flags & BA_CAN_COMMIT, 
 			       lock_stack_isclean(get_current_lock_stack())));
 
-    trace_if(TRACE_RESERVE2, info("grab_space: %llu for: %s..", count, message));
+    trace_on(TRACE_RESERVE2, "grab_space: %llu for: %s..", count, message);
 
     if (!(flags & BA_FORCE) && !is_grab_enabled()) {
-	    trace_if(TRACE_RESERVE2, info("grab disabled and not forced!\n"));
+	    trace_on(TRACE_RESERVE2, "grab disabled and not forced!\n");
 	    return 0;
     }
 
@@ -349,7 +348,7 @@ __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
 	    /* Trying to commit the all transactions if BA_CAN_COMMIT flag present */
 	    if (flags & BA_CAN_COMMIT) {
 
-		    trace_if(TRACE_RESERVE2, info("force commit!.."));
+		    trace_on(TRACE_RESERVE2, "force commit!..");
 
 		    if (txnmgr_force_commit_all(get_current_context()->super) != 0)
 			reiser4_panic("umka-1272", "Can't commit transactions durring block allocation\n");
@@ -357,7 +356,7 @@ __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
 		    ret = reiser4_grab(count, flags);
 	    }
     }
-    trace_if(TRACE_RESERVE2, info("%s(%d)\n", (ret == 0) ? "ok" : "failed", ret));
+    trace_on(TRACE_RESERVE2, "%s(%d)\n", (ret == 0) ? "ok" : "failed", ret);
     /*
      * allocation from reserved pool cannot fail. This is severe error.
      */
@@ -554,7 +553,7 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	struct super_block *s = reiser4_get_current_sb();
 	int ret;
 
-	trace_if(TRACE_RESERVE2, info("reiser4_alloc_blocks: needed %llu for %s..", needed, message));
+	trace_on(TRACE_RESERVE2, "reiser4_alloc_blocks: needed %llu for %s..", needed, message);
 
 	assert("vpf-339", hint != NULL);
 	assert("vs-514", (get_super_private(s) &&
@@ -603,15 +602,15 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 		switch (hint->block_stage) {
 		case BLOCK_NOT_COUNTED:
 		case BLOCK_GRABBED:
-			trace_if(TRACE_RESERVE2, info("ok. %llu blocks grabbed to used.\n", *len));
+			trace_on(TRACE_RESERVE2, "ok. %llu blocks grabbed to used.\n", *len);
 			grabbed2used(*len);
 			break;
 		case BLOCK_UNALLOCATED:
-			trace_if(TRACE_RESERVE2, info("ok. %llu blocks fake allocated to used.\n", *len));
+			trace_on(TRACE_RESERVE2, "ok. %llu blocks fake allocated to used.\n", *len);
 			fake_allocated2used(*len, flags);
 			break;
 		case BLOCK_FLUSH_RESERVED:
-			trace_if(TRACE_RESERVE2, info("ok. %llu flush reserved to used (get wandered?)\n", *len));
+			trace_on(TRACE_RESERVE2, "ok. %llu flush reserved to used (get wandered?)\n", *len);
 			{
 				txn_atom * atom = get_current_atom_locked ();
 				flush_reserved2used(atom, *len);
@@ -697,7 +696,7 @@ __fake_allocated2free(__u64 count, reiser4_ba_flags_t flags, const char *message
 __fake_allocated2free(__u64 count, reiser4_ba_flags_t flags)
 #endif
 {
-	trace_if(TRACE_RESERVE2, info("fake_allocated2free %llu blocks for %s\n", count, message));
+	trace_on(TRACE_RESERVE2, "fake_allocated2free %llu blocks for %s\n", count, message);
 	fake_allocated2grabbed(count, flags);
 #if REISER4_TRACE
 	__grabbed2free(count, message);
@@ -723,7 +722,7 @@ __grabbed2free(__u64 count)
 {
 	struct super_block *super = reiser4_get_current_sb();
 
-	trace_if(TRACE_RESERVE2, info("grabbed2free: %llu for %s\n", count, message));
+	trace_on(TRACE_RESERVE2, "grabbed2free: %llu for %s\n", count, message);
 
 	sub_from_ctx_grabbed(count);
 
@@ -765,8 +764,8 @@ __grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count)
 
 	assert ("vpf-292", check_block_counters (super));
 
-	trace_if(TRACE_RESERVE2, info("__grabbed2flush_reserved_nolock %llu blocks for %s: atom %u has %llu flush reserved blocks\n",
-				      count, message, atom->atom_id, atom->flush_reserved));
+	trace_on(TRACE_RESERVE2, "__grabbed2flush_reserved_nolock %llu blocks for %s: atom %u has %llu flush reserved blocks\n",
+				      count, message, atom->atom_id, atom->flush_reserved);
 
 	reiser4_spin_unlock_sb (super);	
 }
@@ -780,7 +779,7 @@ __grabbed2flush_reserved(__u64 count)
 {
 	txn_atom * atom = get_current_atom_locked ();
 
-	trace_if(TRACE_RESERVE2, info("__grabbed2flush_reserved for %s\n", message));
+	trace_on(TRACE_RESERVE2, "__grabbed2flush_reserved for %s\n", message);
 
 	grabbed2flush_reserved_nolock (atom, count, "__grabbed2flush_reserved");
 
@@ -872,7 +871,7 @@ __flush_reserved2free_all(void)
 
 	reiser4_spin_unlock_sb (super);
 	    
-	trace_if(TRACE_RESERVE2, info("flush_reserved2free_all moved %llu flush reserved blocks to free for %s\n", count, message));
+	trace_on(TRACE_RESERVE2, "flush_reserved2free_all moved %llu flush reserved blocks to free for %s\n", count, message);
 
 	spin_unlock_atom (atom);
 }
@@ -960,7 +959,7 @@ __reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr 
 	txn_atom *atom = NULL;
 	int ret;
 
-	trace_if(TRACE_RESERVE2, info("reiser4_dealloc_blocks: %llu blocks for %s..", *len, message));
+	trace_on(TRACE_RESERVE2, "reiser4_dealloc_blocks: %llu blocks for %s..", *len, message);
 
 	if (REISER4_DEBUG) {
 		struct super_block *s = reiser4_get_current_sb();
@@ -977,7 +976,7 @@ __reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr 
 	if (flags & BA_DEFER) {
 		blocknr_set_entry *bsep = NULL;
 
-		trace_if(TRACE_RESERVE2, info("put on delete set\n"));
+		trace_on(TRACE_RESERVE2, "put on delete set\n");
 
 		/* storing deleted block numbers in a blocknr set
 		   datastructure for further actual deletion */
@@ -1030,7 +1029,7 @@ __reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr 
 		case BLOCK_NOT_COUNTED:
 			assert("vs-960", flags & BA_FORMATTED);
 			
-			trace_if(TRACE_RESERVE2, info("moved from used to free\n"));
+			trace_on(TRACE_RESERVE2, "moved from used to free\n");
 
 			used2grabbed(*len);
 
@@ -1040,14 +1039,14 @@ __reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr 
 
 		case BLOCK_GRABBED:
 			
-			trace_if(TRACE_RESERVE2, info("moved from used to grabbed\n"));
+			trace_on(TRACE_RESERVE2, "moved from used to grabbed\n");
 
 			used2grabbed(*len);
 			break;
 
 		case BLOCK_UNALLOCATED:
 
-			trace_if(TRACE_RESERVE2, info("moved from used to fake allocated\n"));
+			trace_on(TRACE_RESERVE2, "moved from used to fake allocated\n");
 
 			used2fake_allocated(*len, flags & BA_FORMATTED);
 			break;
@@ -1055,7 +1054,7 @@ __reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr 
 		case BLOCK_FLUSH_RESERVED: {
 			txn_atom *atom;
 
-			trace_if(TRACE_RESERVE2, info("moved from used to flush reserved\n"));
+			trace_on(TRACE_RESERVE2, "moved from used to flush reserved\n");
 
 			atom = get_current_atom_locked();
 			used2flush_reserved(atom, *len, flags & BA_FORMATTED);

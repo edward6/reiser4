@@ -38,9 +38,6 @@
    function */
 #define reiser4_log(label, format, ...) 				\
 	DCALL(KERN_DEBUG, printk, label, format , ## __VA_ARGS__)
-/* use info() for output without any kind of prefix like
-    when doing output in several chunks. */
-#define info(format, ...) printk(format , ## __VA_ARGS__)
 
 /* Assertion checked during compilation. 
     If "cond" is false (0) we get duplicate case label in switch.
@@ -140,11 +137,11 @@
 #if REISER4_DEBUG
 /* version of info that only actually prints anything when _d_ebugging
     is on */
-#define dinfo( format, ... ) info( format , ## __VA_ARGS__ )
+#define dinfo(format, ...) printk(format , ## __VA_ARGS__)
 /* macro to catch logical errors. Put it into `default' clause of
     switch() statement. */
-#define impossible( label, format, ... ) 			\
-         reiser4_panic( label, "impossible: " format , ## __VA_ARGS__ )
+#define impossible(label, format, ...) 			\
+         reiser4_panic(label, "impossible: " format , ## __VA_ARGS__)
 /* assert assures that @cond is true. If it is not, reiser4_panic() is
    called. Use this for checking logical consistency and _never_ call
    this to check correctness of external data: disk blocks and user-input . */
@@ -244,8 +241,8 @@ extern int is_in_reiser4_context(void);
 
 #if REISER4_TRACE
 /* helper macro for tracing, see trace_stamp() below. */
-#define trace_if( flags, e ) 							\
-	if( get_current_trace_flags() & (flags) ) e
+#define trace_if(flags, e) 							\
+	if(get_current_trace_flags() & (flags)) e
 #else
 #define trace_if( flags, e ) noop
 #endif
@@ -325,7 +322,7 @@ extern __u32 reiser4_current_trace_flags;
 #define trace_var( f, format, var ) 				\
         trace_if( f, reiser4_log( "trace", #var ": " format, var ) )
 /* print output only if appropriate trace flag(s) is on */
-#define trace_on( f, ... )   trace_if( f, info( __VA_ARGS__ ) )
+#define trace_on( f, ... )   trace_if(f, printk(__VA_ARGS__))
 
 /* profiling. This is i386, rdtsc-based profiling. */
 #if (defined(__i386__) || defined(CONFIG_USERMODE)) && defined(CONFIG_REISER4_PROF)

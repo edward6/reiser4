@@ -1366,11 +1366,11 @@ print_carry(const char *prefix /* prefix to print */ ,
 	    carry_node * node /* node to print */ )
 {
 	if (node == NULL) {
-		info("%s: null\n", prefix);
+		printk("%s: null\n", prefix);
 		return;
 	}
-	info("%s: %p parent: %s, left: %s, unlock: %s, free: %s, dealloc: %s\n",
-	     prefix, node, tf(node->parent), tf(node->left), tf(node->unlock), tf(node->free), tf(node->deallocate));
+	printk("%s: %p parent: %s, left: %s, unlock: %s, free: %s, dealloc: %s\n",
+	       prefix, node, tf(node->parent), tf(node->left), tf(node->unlock), tf(node->free), tf(node->deallocate));
 	print_znode("\tnode", node->node);
 	print_znode("\treal_node", node->real_node);
 }
@@ -1381,10 +1381,10 @@ print_op(const char *prefix /* prefix to print */ ,
 	 carry_op * op /* operation to print */ )
 {
 	if (op == NULL) {
-		info("%s: null\n", prefix);
+		printk("%s: null\n", prefix);
 		return;
 	}
-	info("%s: %p carry_opcode: %s\n", prefix, op, carry_op_name(op->op));
+	printk("%s: %p carry_opcode: %s\n", prefix, op, carry_op_name(op->op));
 	print_carry("\tnode", op->node);
 	switch (op->op) {
 	case COP_INSERT:
@@ -1405,7 +1405,7 @@ print_op(const char *prefix /* prefix to print */ ,
 		break;
 	case COP_MODIFY:
 		print_carry("\tchild", op->u.modify.child);
-		info("\tflag: %x\n", op->u.modify.flag);
+		printk("\tflag: %x\n", op->u.modify.flag);
 	default:
 		/* do nothing */
 		break;
@@ -1423,10 +1423,11 @@ print_level(const char *prefix /* prefix to print */ ,
 	carry_op *tmp_op;
 
 	if (level == NULL) {
-		info("%s: null\n", prefix);
+		printk("%s: null\n", prefix);
 		return;
 	}
-	info("%s: %p, restartable: %s\n", prefix, level, tf(level->restartable));
+	printk("%s: %p, restartable: %s\n", 
+	       prefix, level, tf(level->restartable));
 
 	for_all_nodes(level, node, tmp_node)
 	    print_carry("\tcarry node", node);

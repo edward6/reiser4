@@ -1187,16 +1187,16 @@ print_lock_stack(const char *prefix, lock_stack * owner)
 
 	spin_lock_stack(owner);
 
-	info("%s:\n", prefix);
-	info(".... nr_signaled %d\n", atomic_read(&owner->nr_signaled));
-	info(".... curpri %s\n", owner->curpri ? "high" : "low");
+	printk("%s:\n", prefix);
+	printk(".... nr_signaled %d\n", atomic_read(&owner->nr_signaled));
+	printk(".... curpri %s\n", owner->curpri ? "high" : "low");
 
 	if (owner->request.mode != 0) {
-		info(".... current request: %s", owner->request.mode == ZNODE_WRITE_LOCK ? "write" : "read");
+		printk(".... current request: %s", owner->request.mode == ZNODE_WRITE_LOCK ? "write" : "read");
 		print_address("", znode_get_block(owner->request.node));
 	}
 
-	info(".... current locks:\n");
+	printk(".... current locks:\n");
 
 	for (handle = locks_list_front(&owner->locks);
 	     !locks_list_end(&owner->locks, handle); handle = locks_list_next(handle)) {

@@ -1514,7 +1514,7 @@ collect_tree_stat(reiser4_tree * tree, znode * node)
 			tree_stat.tail_total_length += coord_num_units(&coord);
 			break;
 		default:
-			info("Unexpected item found: %d\n", id);
+			printk("Unexpected item found: %d\n", id);
 			break;
 		}
 	}
@@ -1523,43 +1523,43 @@ collect_tree_stat(reiser4_tree * tree, znode * node)
 static void
 print_tree_stat(void)
 {
-	info("Nodes:\n"
-	     "total number of formatted nodes: %d\n"
-	     "\tleaves: %d\n"
-	     "\taverage free space in leaves: %d\n"
-	     "\tinternals: %d\n"
-	     "\taverage free space in internals (root not included): %d\n"
-	     "\tleaves with no formatted left neighbor: %d\n",
-	     tree_stat.nodes, tree_stat.leaves,
-	     tree_stat.leaf_free_space / tree_stat.leaves,
-	     tree_stat.internal_nodes,
-	     tree_stat.internal_free_space ? tree_stat.internal_free_space /
-	     (tree_stat.nodes - tree_stat.leaves - 1) : 0, tree_stat.leaves_with_unformatted_left_neighbor);
+	printk("Nodes:\n"
+	       "total number of formatted nodes: %d\n"
+	       "\tleaves: %d\n"
+	       "\taverage free space in leaves: %d\n"
+	       "\tinternals: %d\n"
+	       "\taverage free space in internals (root not included): %d\n"
+	       "\tleaves with no formatted left neighbor: %d\n",
+	       tree_stat.nodes, tree_stat.leaves,
+	       tree_stat.leaf_free_space / tree_stat.leaves,
+	       tree_stat.internal_nodes,
+	       tree_stat.internal_free_space ? tree_stat.internal_free_space /
+	       (tree_stat.nodes - tree_stat.leaves - 1) : 0, tree_stat.leaves_with_unformatted_left_neighbor);
 
-	info("Items:\n"
-	     "total_number of items: %d, total length %d\n"
-	     "\titems on leaf level: %d, their total length: %d\n"
-	     "\tinternals: %d\n"
-	     "\tstat data: %d\n"
-	     "\t\tregular files: %d\n"
-	     "\t\tdirectories: %d\n"
-	     "\tdirectory items: %d\n"
-	     "\t\tnames in them: %d\n"
-	     "\textents: %d\n"
-	     "\t\tallocated: %d, poniters: %d\n"
-	     "\t\tunallocated: %d, poniters: %d\n"
-	     "\t\thole: %d, poniters: %d\n"
-	     "\ttail items: %d, total length: %d\n",
-	     tree_stat.items, tree_stat.item_total_length,
-	     tree_stat.leaf_level_items, tree_stat.leaf_level_item_total_length,
-	     tree_stat.internals,
-	     tree_stat.stat_data, tree_stat.sd_stat.files,
-	     tree_stat.sd_stat.dirs, tree_stat.cde, tree_stat.names,
-	     tree_stat.extents, tree_stat.ex_stat.allocated_units,
-	     tree_stat.ex_stat.allocated_blocks,
-	     tree_stat.ex_stat.unallocated_units,
-	     tree_stat.ex_stat.unallocated_blocks, tree_stat.ex_stat.hole_units,
-	     tree_stat.ex_stat.hole_blocks, tree_stat.tails, tree_stat.tail_total_length);
+	printk("Items:\n"
+	       "total_number of items: %d, total length %d\n"
+	       "\titems on leaf level: %d, their total length: %d\n"
+	       "\tinternals: %d\n"
+	       "\tstat data: %d\n"
+	       "\t\tregular files: %d\n"
+	       "\t\tdirectories: %d\n"
+	       "\tdirectory items: %d\n"
+	       "\t\tnames in them: %d\n"
+	       "\textents: %d\n"
+	       "\t\tallocated: %d, poniters: %d\n"
+	       "\t\tunallocated: %d, poniters: %d\n"
+	       "\t\thole: %d, poniters: %d\n"
+	       "\ttail items: %d, total length: %d\n",
+	       tree_stat.items, tree_stat.item_total_length,
+	       tree_stat.leaf_level_items, tree_stat.leaf_level_item_total_length,
+	       tree_stat.internals,
+	       tree_stat.stat_data, tree_stat.sd_stat.files,
+	       tree_stat.sd_stat.dirs, tree_stat.cde, tree_stat.names,
+	       tree_stat.extents, tree_stat.ex_stat.allocated_units,
+	       tree_stat.ex_stat.allocated_blocks,
+	       tree_stat.ex_stat.unallocated_units,
+	       tree_stat.ex_stat.unallocated_blocks, tree_stat.ex_stat.hole_units,
+	       tree_stat.ex_stat.hole_blocks, tree_stat.tails, tree_stat.tail_total_length);
 }
 
 /* helper called by print_tree_rec() */
@@ -1573,12 +1573,12 @@ tree_rec(reiser4_tree * tree /* tree to print */ ,
 
 	ret = zload(node);
 	if (ret != 0) {
-		info("Cannot load/parse node: %i", ret);
+		printk("Cannot load/parse node: %i", ret);
 		return;
 	}
 
 	if (flags == REISER4_COLLECT_STAT) {
-		info("block %lld, level %d, items %u\n", *znode_get_block(node),
+		printk("block %lld, level %d, items %u\n", *znode_get_block(node),
 		     znode_get_level(node), node_num_items(node));
 		collect_tree_stat(tree, node);
 	} else {
@@ -1589,18 +1589,17 @@ tree_rec(reiser4_tree * tree /* tree to print */ ,
 		if (flags & REISER4_NODE_SILENT) {
 			/* Nothing */
 		} else if (flags == REISER4_NODE_PRINT_BRIEF) {
-			info
-			    ("[node %p block %llu level %u dirty %u created %u alloc %u]\n",
-			     node, *znode_get_block(node),
-			     znode_get_level(node), znode_check_dirty(node),
-			     ZF_ISSET(node, JNODE_CREATED), ZF_ISSET(node, JNODE_RELOC) || ZF_ISSET(node, JNODE_OVRWR));
+			printk("[node %p block %llu level %u dirty %u created %u alloc %u]\n",
+			       node, *znode_get_block(node),
+			       znode_get_level(node), znode_check_dirty(node),
+			       ZF_ISSET(node, JNODE_CREATED), ZF_ISSET(node, JNODE_RELOC) || ZF_ISSET(node, JNODE_OVRWR));
 		} else {
 			print_node_content("", node, flags);
 		}
 
 		if (node_is_empty(node)) {
 			indent_znode(node);
-			info("empty\n");
+			printk("empty\n");
 			zrelse(node);
 			return;
 		}
@@ -1626,7 +1625,7 @@ tree_rec(reiser4_tree * tree /* tree to print */ ,
 				tree_rec(tree, child, flags);
 				zput(child);
 			} else {
-				info("Cannot get child: %li\n", PTR_ERR(child));
+				printk("Cannot get child: %li\n", PTR_ERR(child));
 			}
 		}
 	}
@@ -1655,15 +1654,15 @@ print_tree_rec(const char *prefix /* prefix to print */ ,
 		return;
 
 	if (!(flags & REISER4_NODE_SILENT))
-		info("tree: [%s]\n", prefix);
+		printk("tree: [%s]\n", prefix);
 	fake = zget(tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL);
 	if (IS_ERR(fake)) {
-		info("Cannot get fake\n");
+		printk("Cannot get fake\n");
 		return;
 	}
 	root = zget(tree, &tree->root_block, fake, tree->height, GFP_KERNEL);
 	if (IS_ERR(root)) {
-		info("Cannot get root\n");
+		printk("Cannot get root\n");
 		zput(fake);
 		return;
 	}
@@ -1692,7 +1691,7 @@ print_tree_rec(const char *prefix /* prefix to print */ ,
 	}
 #endif
 	if (!(flags & REISER4_NODE_SILENT))
-		info("end tree: [%s]\n", prefix);
+		printk("end tree: [%s]\n", prefix);
 	zput(root);
 	zput(fake);
 }

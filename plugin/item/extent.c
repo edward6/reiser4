@@ -171,16 +171,16 @@ extent_print(const char *prefix, coord_t * coord)
 	unsigned i, nr;
 
 	if (prefix)
-		info("%s:", prefix);
+		printk("%s:", prefix);
 
 	nr = extent_nr_units(coord);
 	ext = (reiser4_extent *) item_body_by_coord(coord);
 
-	info("%u: ", nr);
+	printk("%u: ", nr);
 	for (i = 0; i < nr; i++, ext++) {
-		info("[%Lu (%Lu) %s]", extent_get_start(ext), extent_get_width(ext), state2label(state_of_extent(ext)));
+		printk("[%Lu (%Lu) %s]", extent_get_start(ext), extent_get_width(ext), state2label(state_of_extent(ext)));
 	}
-	info("\n");
+	printk("\n");
 }
 #endif
 
@@ -1220,7 +1220,7 @@ print_range_list(struct list_head *list)
 	list_for_each(cur, list) {
 		range = list_entry(cur, struct page_range, next);
 		sector = range->sector;
-		info("range: sector %llu, nr_pages %d\n", sector, range->nr_pages);
+		printk("range: sector %llu, nr_pages %d\n", sector, range->nr_pages);
 	}
 }
 #else
@@ -2997,7 +2997,7 @@ extent_read(struct file *file, coord_t *coord, flow_t * f)
 	assert("vs-1120", znode_is_loaded(coord->node));
 
 	if (!extent_key_in_item(coord, &f->key)) {
-		info("does");
+		printk("does");
 		return -EAGAIN;
 	}
 	if (coord->between != AT_UNIT)

@@ -747,9 +747,9 @@ node40_print(const char *prefix, const znode * node /* node to print */ ,
 	node40_header *header;
 
 	header = node40_node_header(node);
-	info("%s: BLOCKNR %Lu FREE_SPACE %u, LEVEL %u, ITEM_NUMBER %u\n",
-	     prefix,
-	     *znode_get_block(node), nh40_get_free_space(header), nh40_get_level(header), nh40_get_num_items(header));
+	printk("%s: BLOCKNR %Lu FREE_SPACE %u, LEVEL %u, ITEM_NUMBER %u\n",
+	       prefix,
+	       *znode_get_block(node), nh40_get_free_space(header), nh40_get_level(header), nh40_get_num_items(header));
 }
 #endif
 

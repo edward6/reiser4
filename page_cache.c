@@ -635,43 +635,43 @@ void
 print_page(const char *prefix, struct page *page)
 {
 	if (page == NULL) {
-		info("null page\n");
+		printk("null page\n");
 		return;
 	}
-	info("%s: page index: %lu mapping: %p count: %i private: %lx\n",
-	     prefix, page->index, page->mapping, atomic_read(&page->count), page->private);
-	info("\tflags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s\n",
-	     page_flag_name(page, PG_locked),
-	     page_flag_name(page, PG_error),
-	     page_flag_name(page, PG_referenced),
-	     page_flag_name(page, PG_uptodate),
-	     page_flag_name(page, PG_dirty),
-	     page_flag_name(page, PG_lru),
-	     page_flag_name(page, PG_active),
-	     page_flag_name(page, PG_slab),
-	     page_flag_name(page, PG_highmem),
-	     page_flag_name(page, PG_checked),
-	     page_flag_name(page, PG_arch_1),
-	     page_flag_name(page, PG_reserved),
-	     page_flag_name(page, PG_private), page_flag_name(page, PG_writeback), page_flag_name(page, PG_nosave));
+	printk("%s: page index: %lu mapping: %p count: %i private: %lx\n",
+	       prefix, page->index, page->mapping, atomic_read(&page->count), page->private);
+	printk("\tflags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s\n",
+	       page_flag_name(page, PG_locked),
+	       page_flag_name(page, PG_error),
+	       page_flag_name(page, PG_referenced),
+	       page_flag_name(page, PG_uptodate),
+	       page_flag_name(page, PG_dirty),
+	       page_flag_name(page, PG_lru),
+	       page_flag_name(page, PG_active),
+	       page_flag_name(page, PG_slab),
+	       page_flag_name(page, PG_highmem),
+	       page_flag_name(page, PG_checked),
+	       page_flag_name(page, PG_arch_1),
+	       page_flag_name(page, PG_reserved),
+	       page_flag_name(page, PG_private), page_flag_name(page, PG_writeback), page_flag_name(page, PG_nosave));
 	if (jprivate(page) != NULL) {
 		info_znode("\tpage jnode", (znode *) jprivate(page));
-		info("\n");
+		printk("\n");
 	}
 }
 
 void
 print_page_state(const char *prefix, struct page_state *ps)
 {
-	info("%i: %s: "
-	     "free: %u, "
-	     "dirty: %lu, "
-	     "writeback: %lu, "
-	     "pagecache: %lu, "
+	printk("%i: %s: "
+	       "free: %u, "
+	       "dirty: %lu, "
+	       "writeback: %lu, "
+	       "pagecache: %lu, "
 //	     "page_table_pages: %lu, "
 //	     "reverse_maps: %lu, "
-	     "mapped: %lu, "
-	     "slab: %lu, "
+	       "mapped: %lu, "
+	       "slab: %lu, "
 //	     "pgpgin: %lu, "
 //	     "pgpgout: %lu, "
 //	     "pswpin: %lu, "
@@ -685,19 +685,19 @@ print_page_state(const char *prefix, struct page_state *ps)
 //	     "pgscan: %lu, "
 //	     "pgrefill: %lu, "
 //	     "pgsteal: %lu, "
-	     "kswapd_steal: %lu, "
+	       "kswapd_steal: %lu, "
 //	     "pageoutrun: %lu, "
 //	     "allocstall: %lu
-	     "\n", current->pid, prefix,
+	       "\n", current->pid, prefix,
 
-	     nr_free_pages(),
-	     ps->nr_dirty,
-	     ps->nr_writeback,
-	     ps->nr_pagecache,
+	       nr_free_pages(),
+	       ps->nr_dirty,
+	       ps->nr_writeback,
+	       ps->nr_pagecache,
 //	     ps->nr_page_table_pages,
 //	     ps->nr_reverse_maps,
-	     ps->nr_mapped,
-	     ps->nr_slab,
+	       ps->nr_mapped,
+	       ps->nr_slab,
 //	     ps->pgpgin,
 //	     ps->pgpgout,
 //	     ps->pswpin,
@@ -711,10 +711,10 @@ print_page_state(const char *prefix, struct page_state *ps)
 //	     ps->pgscan,
 //	     ps->pgrefill,
 //	     ps->pgsteal,
-	     ps->kswapd_steal //,
+	       ps->kswapd_steal //,
 //	     ps->pageoutrun,
 //	     ps->allocstall
-	     );
+		);
 }
 
 void

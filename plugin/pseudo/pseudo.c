@@ -66,7 +66,6 @@ Use the pluginid field?
 
 struct inode *pseudo_lookup(struct inode *parent, const char *name)
 {
-	struct inode *inode;
 	reiser4_plugin *plugin;
 
 	assert("nikita-2999", parent != NULL);
@@ -79,6 +78,8 @@ struct inode *pseudo_lookup(struct inode *parent, const char *name)
 		assert("nikita-3001", pplug->try != NULL);
 
 		if (pplug->try(parent, name)) {
+			struct inode *inode;
+
 			/*
 			 * construct object id and create inode.
 			 */

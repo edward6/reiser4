@@ -1156,7 +1156,7 @@ flush_this_atom(txn_atom * atom, long *nr_submitted, int flags)
 
 		jput(first_dirty);
 		if (ret < 0) {
-			info("jnode_flush failed with err = %ld\n", ret);
+			printk("jnode_flush failed with err = %ld\n", ret);
 		} else {
 			*nr_submitted += ret;
 		}
@@ -1255,7 +1255,7 @@ found:
 		ret = flush_this_atom(atom, nr_submitted, flags);
 
 		if (ret < 0) {
-			info("jnode_flush failed with err = %d\n", ret);
+			printk("jnode_flush failed with err = %d\n", ret);
 		}
 	}
 
@@ -2853,14 +2853,14 @@ void
 info_atom(const char *prefix, txn_atom * atom)
 {
 	if (atom == NULL) {
-		info("%s: no atom\n", prefix);
+		printk("%s: no atom\n", prefix);
 		return;
 	}
 
-	info("%s: refcount: %i id: %i flags: %x txnh_count: %i"
-	     " capture_count: %i stage: %x start: %lu\n", prefix,
-	     atom->refcount, atom->atom_id, atom->flags, atom->txnh_count,
-	     atom->capture_count, atom->stage, atom->start_time);
+	printk("%s: refcount: %i id: %i flags: %x txnh_count: %i"
+	       " capture_count: %i stage: %x start: %lu\n", prefix,
+	       atom->refcount, atom->atom_id, atom->flags, atom->txnh_count,
+	       atom->capture_count, atom->stage, atom->start_time);
 }
 
 void
@@ -2884,7 +2884,7 @@ print_atom(const char *prefix, txn_atom * atom)
 					    pos_in_atom); pos_in_atom = capture_list_next(pos_in_atom)) {
 
 			info_jnode(list, pos_in_atom);
-			info("\n");
+			printk("\n");
 		}
 	}
 
@@ -2892,7 +2892,7 @@ print_atom(const char *prefix, txn_atom * atom)
 	     /**/ !capture_list_end(&atom->clean_nodes, pos_in_atom); pos_in_atom = capture_list_next(pos_in_atom)) {
 
 		info_jnode("clean", pos_in_atom);
-		info("\n");
+		printk("\n");
 	}
 }
 #endif

@@ -259,8 +259,8 @@ write_mode how_to_write(coord_t * coord, lock_handle * lh UNUSED_ARG,
 	}
 
 	if (coord->item_pos >= node_num_items(coord->node)) {
-		info("how_to_write: "
-		     "coord->item_pos is out of range: %u (%u)\n", coord->item_pos, node_num_items(coord->node));
+		printk("how_to_write: "
+		       "coord->item_pos is out of range: %u (%u)\n", coord->item_pos, node_num_items(coord->node));
 		zrelse(coord->node);
 		return RESEARCH;
 	}
@@ -712,7 +712,7 @@ truncate_file(struct inode *inode, loff_t new_size)
 	loff_t old_i_size;
 
 	/* FIXME-VS: remove after debugging */
-	/*info("truncate_file: ino %llu, size %llu (%s)\n", get_inode_oid(inode), inode->i_size,
+	/*printk("truncate_file: ino %llu, size %llu (%s)\n", get_inode_oid(inode), inode->i_size,
 	  file_state(inode));*/
 
 	old_i_size = inode->i_size;
@@ -813,7 +813,7 @@ set_hint(struct sealed_coord *hint, const reiser4_key * key, coord_t * coord)
 		return;
 	}
 	if (!coord_is_existing_item(coord)) {
-		info("set_hint: coord is not set to item\n");
+		printk("set_hint: coord is not set to item\n");
 		unset_hint(hint);
 		return;
 	}
@@ -984,7 +984,7 @@ unix_file_readpage(void *vp, struct page *page)
 	}
 
 	if (PageUptodate(page)) {
-		info("unix_file_readpage: page became already uptodate\n");
+		printk("unix_file_readpage: page became already uptodate\n");
 		done_lh(&lh);
 		unlock_page(page);
 		return 0;
@@ -1131,11 +1131,11 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 		}
 
 		if (coord.between != AT_UNIT) {
-			info("zam-829: unix_file_read: key not in item, "
-			     "reading offset (%llu) from the file (oid %llu) with size (%llu)\n",
-			     (unsigned long long)get_key_offset(&f.key),
-			     get_inode_oid(inode),
-			     (unsigned long long)inode->i_size);
+			printk("zam-829: unix_file_read: key not in item, "
+			       "reading offset (%llu) from the file (oid %llu) with size (%llu)\n",
+			       (unsigned long long)get_key_offset(&f.key),
+			       get_inode_oid(inode),
+			       (unsigned long long)inode->i_size);
 			done_lh(&lh);
 			break;
 		}
@@ -1154,7 +1154,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 		result = read_f(file, &coord, &f);
 		zrelse(coord.node);
 		if (result == -EAGAIN) {
-			info("zam-830: unix_file_read: key was not found in item, repeat search\n");
+			printk("zam-830: unix_file_read: key was not found in item, repeat search\n");
 			unset_hint(&hint);
 			done_lh(&lh);
 			continue;
@@ -1670,7 +1670,7 @@ unix_file_delete(struct inode *inode)
 	int result;
 
 	/* FIXME-VS: remove after debugging */
-	/*info("unix_file_delete: ino %llu, size %llu, (%s)\n", get_inode_oid(inode), inode->i_size,
+	/*printk("unix_file_delete: ino %llu, size %llu, (%s)\n", get_inode_oid(inode), inode->i_size,
 	  file_state(inode));*/
 
 	assert("vs-1099", inode->i_nlink == 0);

@@ -1399,39 +1399,40 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	assert("umka-068", prefix != NULL);
 
 	if (node == NULL) {
-		info("%s: null\n", prefix);
+		printk("%s: null\n", prefix);
 		return;
 	}
 
-	info("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
-	     " block: %s, d_count: %d, x_count: %d, pg: %p, atom: %p(%i), type: %s, ",
-	     prefix, node, node->state,
-	     jnode_state_name(node, JNODE_LOADED),
-	     jnode_state_name(node, JNODE_HEARD_BANSHEE),
-	     jnode_state_name(node, JNODE_LEFT_CONNECTED),
-	     jnode_state_name(node, JNODE_RIGHT_CONNECTED),
-	     jnode_state_name(node, JNODE_ORPHAN),
-	     jnode_state_name(node, JNODE_CREATED),
-	     jnode_state_name(node, JNODE_RELOC),
-	     jnode_state_name(node, JNODE_OVRWR),
-	     jnode_state_name(node, JNODE_DIRTY),
-	     jnode_state_name(node, JNODE_IS_DYING),
-	     jnode_state_name(node, JNODE_MAPPED),
-	     jnode_state_name(node, JNODE_EFLUSH),
-	     jnode_state_name(node, JNODE_FLUSH_QUEUED),
-	     jnode_state_name(node, JNODE_RIP),
-	     jnode_state_name(node, JNODE_MISSED_IN_CAPTURE),
-	     jnode_state_name(node, JNODE_WRITEBACK),
-	     jnode_state_name(node, JNODE_NEW),
-	     jnode_state_name(node, JNODE_ASYNC),
-	     jnode_state_name(node, JNODE_DKSET),
-	     jnode_state_name(node, JNODE_EPROTECTED),
-	     jnode_get_level(node), sprint_address(jnode_get_block(node)),
-	     atomic_read(&node->d_count), atomic_read(&node->x_count),
-	     jnode_page(node), node->atom, !capture_list_is_clean(node),
-	     jnode_type_name(jnode_get_type(node)));
+	printk("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
+	       " block: %s, d_count: %d, x_count: %d, pg: %p, atom: %p(%i), type: %s, ",
+	       prefix, node, node->state,
+	       jnode_state_name(node, JNODE_LOADED),
+	       jnode_state_name(node, JNODE_HEARD_BANSHEE),
+	       jnode_state_name(node, JNODE_LEFT_CONNECTED),
+	       jnode_state_name(node, JNODE_RIGHT_CONNECTED),
+	       jnode_state_name(node, JNODE_ORPHAN),
+	       jnode_state_name(node, JNODE_CREATED),
+	       jnode_state_name(node, JNODE_RELOC),
+	       jnode_state_name(node, JNODE_OVRWR),
+	       jnode_state_name(node, JNODE_DIRTY),
+	       jnode_state_name(node, JNODE_IS_DYING),
+	       jnode_state_name(node, JNODE_MAPPED),
+	       jnode_state_name(node, JNODE_EFLUSH),
+	       jnode_state_name(node, JNODE_FLUSH_QUEUED),
+	       jnode_state_name(node, JNODE_RIP),
+	       jnode_state_name(node, JNODE_MISSED_IN_CAPTURE),
+	       jnode_state_name(node, JNODE_WRITEBACK),
+	       jnode_state_name(node, JNODE_NEW),
+	       jnode_state_name(node, JNODE_ASYNC),
+	       jnode_state_name(node, JNODE_DKSET),
+	       jnode_state_name(node, JNODE_EPROTECTED),
+	       jnode_get_level(node), sprint_address(jnode_get_block(node)),
+	       atomic_read(&node->d_count), atomic_read(&node->x_count),
+	       jnode_page(node), node->atom, !capture_list_is_clean(node),
+	       jnode_type_name(jnode_get_type(node)));
 	if (jnode_is_unformatted(node)) {
-		info("inode: %llu, index: %lu, ", node->key.j.objectid, node->key.j.index);
+		printk("inode: %llu, index: %lu, ", 
+		       node->key.j.objectid, node->key.j.index);
 	}
 }
 
@@ -1467,7 +1468,7 @@ print_jnodes(const char *prefix, reiser4_tree * tree)
 
 	for_all_in_htable(htable, j, node, next) {
 		info_jnode(prefix, node);
-		info("\n");
+		printk("\n");
 	}
 	if (tree_lock_taken)
 		write_unlock_tree(tree);

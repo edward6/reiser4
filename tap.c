@@ -300,12 +300,12 @@ rewind_left(tap_t * tap, int shift)
 void print_tap(const char * prefix, const tap_t * tap)
 {
 	if (tap == NULL) {
-		info("%s: null tap\n", prefix);
+		printk("%s: null tap\n", prefix);
 		return;
 	}
-	info("%s: loaded: %i, in-list: %i, node: %p, mode: %s\n", prefix,
-	     tap->loaded, tap_list_is_clean(tap), tap->lh->node,
-	     lock_mode_name(tap->mode));
+	printk("%s: loaded: %i, in-list: %i, node: %p, mode: %s\n", prefix,
+	       tap->loaded, tap_list_is_clean(tap), tap->lh->node,
+	       lock_mode_name(tap->mode));
 	print_coord("\tcoord", tap->coord, 0);
 }
 #else

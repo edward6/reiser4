@@ -260,7 +260,7 @@ trace_flush(reiser4_trace_file * file)
 		warning("nikita-2505", "unknown trace-file type: %i. Dumping to console", file->type);
 	case log_to_console:
 		if (file->buf != NULL)
-			info(file->buf);
+			printk(file->buf);
 	case log_to_bucket:
 		file->used = 0;
 		break;
@@ -296,7 +296,7 @@ write_tree_trace(reiser4_tree * tree, reiser4_traced_op op, ...)
 	reiser4_key *key;
 
 	if (unlikely(in_interrupt() || in_irq())) {
-		info("cannot write trace from interrupt\n");
+		printk("cannot write trace from interrupt\n");
 		return;
 	}
 

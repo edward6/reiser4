@@ -58,12 +58,12 @@ sd_print(const char *prefix /* prefix to print */ ,
 
 	sd_base = (reiser4_stat_data_base *) sd;
 	if (len < (int) sizeof *sd_base) {
-		info("%s: wrong size: %i < %i\n", prefix, item_length_by_coord(coord), sizeof *sd_base);
+		printk("%s: wrong size: %i < %i\n", prefix, item_length_by_coord(coord), sizeof *sd_base);
 		return;
 	}
 
 	mask = d16tocpu(&sd_base->extmask);
-	info("%s: extmask: %x\n", prefix, mask);
+	printk("%s: extmask: %x\n", prefix, mask);
 
 	next_stat(&len, &sd, sizeof *sd_base);
 
@@ -395,8 +395,8 @@ lw_sd_print(const char *prefix, char **area /* position in stat-data */ ,
 	reiser4_light_weight_stat *sd;
 
 	sd = (reiser4_light_weight_stat *) * area;
-	info("%s: mode: %o, nlink: %i, size: %llu\n", prefix,
-	     d16tocpu(&sd->mode), d32tocpu(&sd->nlink), d64tocpu(&sd->size));
+	printk("%s: mode: %o, nlink: %i, size: %llu\n", prefix,
+	       d16tocpu(&sd->mode), d32tocpu(&sd->nlink), d64tocpu(&sd->size));
 	next_stat(len, area, sizeof *sd);
 }
 #endif
@@ -481,12 +481,12 @@ unix_sd_print(const char *prefix, char **area /* position in stat-data */ ,
 	reiser4_unix_stat *sd;
 
 	sd = (reiser4_unix_stat *) * area;
-	info("%s: uid: %i, gid: %i, atime: %i, mtime: %i, ctime: %i, "
-	     "rdev: %o, bytes: %llu\n", prefix,
-	     d32tocpu(&sd->uid),
-	     d32tocpu(&sd->gid),
-	     d32tocpu(&sd->atime),
-	     d32tocpu(&sd->mtime), d32tocpu(&sd->ctime), d32tocpu(&sd->rdev), d64tocpu(&sd->bytes));
+	printk("%s: uid: %i, gid: %i, atime: %i, mtime: %i, ctime: %i, "
+	       "rdev: %o, bytes: %llu\n", prefix,
+	       d32tocpu(&sd->uid),
+	       d32tocpu(&sd->gid),
+	       d32tocpu(&sd->atime),
+	       d32tocpu(&sd->mtime), d32tocpu(&sd->ctime), d32tocpu(&sd->rdev), d64tocpu(&sd->bytes));
 	next_stat(len, area, sizeof *sd);
 }
 #endif
@@ -546,8 +546,8 @@ large_times_sd_print(const char *prefix, char **area /* position in stat-data */
 	reiser4_large_times_stat *sd;
 
 	sd = (reiser4_large_times_stat *) * area;
-	info("%s: nanotimes: a: %i, m: %i, c: %i\n", prefix,
-	     d32tocpu(&sd->atime), d32tocpu(&sd->mtime), d32tocpu(&sd->ctime));
+	printk("%s: nanotimes: a: %i, m: %i, c: %i\n", prefix,
+	       d32tocpu(&sd->atime), d32tocpu(&sd->mtime), d32tocpu(&sd->ctime));
 	next_stat(len, area, sizeof *sd);
 }
 #endif
@@ -649,7 +649,7 @@ symlink_sd_print(const char *prefix, char **area /* position in stat-data */ ,
 
 	sd = (reiser4_symlink_stat *) * area;
 	length = strlen(sd->body);
-	info("%s: \"%s\"\n", prefix, sd->body);
+	printk("%s: \"%s\"\n", prefix, sd->body);
 	next_stat(len, area, length + 1);
 }
 #endif
@@ -1001,7 +1001,7 @@ keyid_sd_print(const char *prefix, char **area /* position in stat-data */ ,
 	reiser4_keyid_stat *sd = (reiser4_keyid_stat *) * area;
 
 	/* FIXME-EDWARD: printed simbols can be not readable */
- 	info("%s: \"%llx\"\n", prefix, *(__u64 *)(sd->keyid));
+ 	printk("%s: \"%llx\"\n", prefix, *(__u64 *)(sd->keyid));
 	next_stat(len, area, sizeof *sd);
 }
 #endif

@@ -27,7 +27,7 @@ de_print(const char *prefix /* prefix to print */ ,
 	assert("nikita-1457", coord != NULL);
 
 	if (item_length_by_coord(coord) < (int) sizeof (directory_entry_format)) {
-		info("%s: wrong size: %i < %i\n", prefix, item_length_by_coord(coord), sizeof (directory_entry_format));
+		printk("%s: wrong size: %i < %i\n", prefix, item_length_by_coord(coord), sizeof (directory_entry_format));
 	} else {
 		reiser4_key sdkey;
 		char *name;
@@ -35,7 +35,7 @@ de_print(const char *prefix /* prefix to print */ ,
 
 		de_extract_key(coord, &sdkey);
 		name = de_extract_name(coord, buf);
-		info("%s: name: %s\n", prefix, name);
+		printk("%s: name: %s\n", prefix, name);
 		print_key("\tsdkey", &sdkey);
 	}
 }

@@ -174,22 +174,22 @@ test_format_release(struct super_block *s)
 static void
 print_test_disk_sb(const char *mes, const test_disk_super_block * disk_sb)
 {
-	info("%s", mes);
-	info("root %llu, tree height %u,\n"
-	     "block count %llu, next free block %llu,\n"
-	     "next free oid %llu\n"
-	     "root dir [%llu %llu]\n"
-	     "tail policy \"%s\"\n"
-	     "node format \"%s\"\n",
-	     d64tocpu(&disk_sb->root_block),
-	     d16tocpu(&disk_sb->tree_height),
-	     d64tocpu(&disk_sb->block_count),
-	     d64tocpu(&disk_sb->next_free_block),
-	     d64tocpu(&disk_sb->next_free_oid),
-	     d64tocpu(&disk_sb->root_locality),
-	     d64tocpu(&disk_sb->root_objectid),
-	     tail_plugin_by_id(d16tocpu(&disk_sb->tail_policy))->h.label,
-	     node_plugin_by_id(d16tocpu(&disk_sb->node_plugin))->h.label);
+	printk("%s", mes);
+	printk("root %llu, tree height %u,\n"
+	       "block count %llu, next free block %llu,\n"
+	       "next free oid %llu\n"
+	       "root dir [%llu %llu]\n"
+	       "tail policy \"%s\"\n"
+	       "node format \"%s\"\n",
+	       d64tocpu(&disk_sb->root_block),
+	       d16tocpu(&disk_sb->tree_height),
+	       d64tocpu(&disk_sb->block_count),
+	       d64tocpu(&disk_sb->next_free_block),
+	       d64tocpu(&disk_sb->next_free_oid),
+	       d64tocpu(&disk_sb->root_locality),
+	       d64tocpu(&disk_sb->root_objectid),
+	       tail_plugin_by_id(d16tocpu(&disk_sb->tail_policy))->h.label,
+	       node_plugin_by_id(d16tocpu(&disk_sb->node_plugin))->h.label);
 }
 
 #endif

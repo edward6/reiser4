@@ -168,7 +168,7 @@ internal_print(const char *prefix /* prefix to print */ ,
 
 	blk = pointer_at(coord);
 	assert("nikita-2963", reiser4_blocknr_is_sane(&blk));
-	info("%s: internal: %s\n", prefix, sprint_address(&blk));
+	printk("%s: internal: %s\n", prefix, sprint_address(&blk));
 }
 #endif
 

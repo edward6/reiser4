@@ -2007,7 +2007,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	/*
 	 * FIXME-VS: remove after debugging readahead mount option
 	 */
-	info("readahead options: max=%lu, flags=0x%x\n", info->ra_params.max, info->ra_params.flags);
+	printk("readahead options: max=%lu, flags=0x%x\n", info->ra_params.max, info->ra_params.flags);
 
 	/* disable single-threaded flush as it leads to deadlock */
 	info->fs_flags |= (1 << REISER4_MTFLUSH);
@@ -2507,7 +2507,7 @@ try_to_lock:
 				/* FIXME-VS: remove after debugging */
 				if (jnode_is_loaded(node)) {
 					info_jnode("invalidate_page: loaded jnode", node);
-					info("\n");
+					printk("\n");
 				}
 				/* FIXME-VS: remove after debugging */
 				uncapture_page(page);
@@ -2875,7 +2875,9 @@ init_reiser4(void)
 
 	int result;
 
-	info(KERN_INFO "Loading Reiser4. " "See www.namesys.com for a description of Reiser4.\n");
+	printk(KERN_INFO 
+	       "Loading Reiser4. " 
+	       "See www.namesys.com for a description of Reiser4.\n");
 	init_stage = INIT_NONE;
 
 	CHECK_INIT_RESULT(init_inodecache());

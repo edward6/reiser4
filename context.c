@@ -193,14 +193,14 @@ void
 print_context(const char *prefix, reiser4_context * context)
 {
 	if (context == NULL) {
-		info("%s: null context\n", prefix);
+		printk("%s: null context\n", prefix);
 		return;
 	}
-	info("%s: trace_flags: %x\n", prefix, context->trace_flags);
+	printk("%s: trace_flags: %x\n", prefix, context->trace_flags);
 #if REISER4_DEBUG
-	info("\ttid: %i\n", context->tid);
+	printk("\ttid: %i\n", context->tid);
 	print_lock_counters("\tlocks", &context->locks);
-	info("pid: %i, comm: %s\n", context->task->pid, context->task->comm);
+	printk("pid: %i, comm: %s\n", context->task->pid, context->task->comm);
 #endif
 	print_lock_stack("\tlock stack", &context->stack);
 	info_atom("\tatom", context->trans_in_ctx.atom);

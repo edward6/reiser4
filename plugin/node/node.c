@@ -96,7 +96,7 @@ indent(unsigned indentation)
 	unsigned i;
 
 	for (i = 0; i < indentation; ++i)
-		info("%.1i........", indentation - i);
+		printk("%.1i........", indentation - i);
 }
 
 /* helper function used to indent output for @node during recursive tree
@@ -144,7 +144,7 @@ print_node_content(const char *prefix /* output prefix */ ,
 	/*indent_znode (node); */
 	for (i = 0; i < node_num_items(node); i++) {
 		indent_znode(node);
-		info("%d: ", i);
+		printk("%d: ", i);
 
 		coord_set_item_pos(&coord, i);
 
@@ -160,7 +160,7 @@ print_node_content(const char *prefix /* output prefix */ ,
 
 		if ((flags & REISER4_NODE_PRINT_ITEMS) && (iplug->b.print)) {
 			indent_znode(node);
-			info("\tlength %d\n", item_length_by_coord(&coord));
+			printk("\tlength %d\n", item_length_by_coord(&coord));
 			indent_znode(node);
 			iplug->b.print("\titem", &coord);
 		}
@@ -172,7 +172,7 @@ print_node_content(const char *prefix /* output prefix */ ,
 			data = item_body_by_coord(&coord);
 			length = item_length_by_coord(&coord);
 			indent_znode(node);
-			info("\titem length: %i, offset: %i\n", length, data - zdata(node));
+			printk("\titem length: %i, offset: %i\n", length, data - zdata(node));
 			for (j = 0; j < length; ++j) {
 				char datum;
 
@@ -180,23 +180,23 @@ print_node_content(const char *prefix /* output prefix */ ,
 					/* next 16 bytes */
 					if (j == 0) {
 						indent_znode(node);
-						info("\tdata % .2i: ", j);
+						printk("\tdata % .2i: ", j);
 					} else {
-						info("\n");
+						printk("\n");
 						indent_znode(node);
-						info("\t     % .2i: ", j);
+						printk("\t     % .2i: ", j);
 					}
 				}
 				datum = data[j];
-				info("%c", hex_to_ascii((datum & 0xf0) >> 4));
-				info("%c ", hex_to_ascii(datum & 0xf));
+				printk("%c", hex_to_ascii((datum & 0xf0) >> 4));
+				printk("%c ", hex_to_ascii(datum & 0xf));
 			}
-			info("\n");
+			printk("\n");
 			indent_znode(node);
 		}
-		info("======================\n");
+		printk("======================\n");
 	}
-	info("\n");
+	printk("\n");
 }
 
 /* debugging aid: output human readable information about @node
@@ -234,14 +234,14 @@ print_node_items(const char *prefix /* output prefix */ ,
 	coord.between = AT_UNIT;
 	/*indent_znode (node); */
 	if (from >= node_num_items(node) || from + count > node_num_items(node)) {
-		info("there are no those items (%u-%u) in the node (%u)\n",
-		     from, from + count - 1, node_num_items(node));
+		printk("there are no those items (%u-%u) in the node (%u)\n",
+		       from, from + count - 1, node_num_items(node));
 		return;
 	}
 
 	for (i = from; i < from + count; i++) {
 		indent_znode(node);
-		info("%d: ", i);
+		printk("%d: ", i);
 
 		coord_set_item_pos(&coord, i);
 
@@ -257,7 +257,7 @@ print_node_items(const char *prefix /* output prefix */ ,
 
 		if ((flags & REISER4_NODE_PRINT_ITEMS) && (iplug->b.print)) {
 			indent_znode(node);
-			info("\tlength %d\n", item_length_by_coord(&coord));
+			printk("\tlength %d\n", item_length_by_coord(&coord));
 			indent_znode(node);
 			iplug->b.print("\titem", &coord);
 		}
@@ -269,7 +269,7 @@ print_node_items(const char *prefix /* output prefix */ ,
 			data = item_body_by_coord(&coord);
 			length = item_length_by_coord(&coord);
 			indent_znode(node);
-			info("\titem length: %i, offset: %i\n", length, data - zdata(node));
+			printk("\titem length: %i, offset: %i\n", length, data - zdata(node));
 			for (j = 0; j < length; ++j) {
 				char datum;
 
@@ -277,23 +277,23 @@ print_node_items(const char *prefix /* output prefix */ ,
 					/* next 16 bytes */
 					if (j == 0) {
 						indent_znode(node);
-						info("\tdata % .2i: ", j);
+						printk("\tdata % .2i: ", j);
 					} else {
-						info("\n");
+						printk("\n");
 						indent_znode(node);
-						info("\t     % .2i: ", j);
+						printk("\t     % .2i: ", j);
 					}
 				}
 				datum = data[j];
-				info("%c", hex_to_ascii((datum & 0xf0) >> 4));
-				info("%c ", hex_to_ascii(datum & 0xf));
+				printk("%c", hex_to_ascii((datum & 0xf0) >> 4));
+				printk("%c ", hex_to_ascii(datum & 0xf));
 			}
-			info("\n");
+			printk("\n");
 			indent_znode(node);
 		}
-		info("======================\n");
+		printk("======================\n");
 	}
-	info("\n");
+	printk("\n");
 }
 #endif
 
@@ -327,7 +327,7 @@ node_check(znode * node /* node to check */ ,
 	zload(node);
 	result = node_plugin_by_node(node)->check(node, flags, &mes);
 	if (result != 0) {
-		info("%s\n", mes);
+		printk("%s\n", mes);
 		print_node_content("check", node, ~0u);
 		reiser4_panic("vs-273", "node corrupted");
 	}

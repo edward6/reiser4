@@ -40,14 +40,14 @@ tail_can_contain_key(const coord_t * coord, const reiser4_key * key, const reise
 
 	if (coord->between == BEFORE_UNIT) {
 		if (get_key_offset(key) + data->length != get_key_offset(&item_key)) {
-			info("could not merge tail items of one file\n");
+			printk("could not merge tail items of one file\n");
 			return 0;
 		} else
 			return 1;
 
 	} else {
 		if (get_key_offset(key) != (get_key_offset(&item_key) + item_length_by_coord(coord))) {
-			info("could not append tail item with " "a tail item of the same file\n");
+			printk("could not append tail item with " "a tail item of the same file\n");
 			return 0;
 		} else
 			return 1;

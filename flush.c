@@ -690,7 +690,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 		 "flush enter: pid %ul %u concurrent procs\n",
 		 current->pid, atomic_read(&flush_cnt)); 
 	trace_if(TRACE_FLUSH,
-		 if (atomic_read(&flush_cnt) > 1) info("flush concurrency\n"););
+		 if (atomic_read(&flush_cnt) > 1) printk("flush concurrency\n"););
 #endif
 
 	/* The following code gets a fq attached to the atom and takes spin

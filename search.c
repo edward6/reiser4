@@ -99,7 +99,7 @@ print_cbk_slot(const char *prefix /* prefix to print */ ,
 	       const cbk_cache_slot * slot /* slot to print */ )
 {
 	if (slot == NULL)
-		info("%s: null slot\n", prefix);
+		printk("%s: null slot\n", prefix);
 	else
 		print_znode("node", slot->node);
 }
@@ -110,11 +110,11 @@ print_cbk_cache(const char *prefix /* prefix to print */ ,
 		const cbk_cache * cache /* cache to print */ )
 {
 	if (cache == NULL)
-		info("%s: null cache\n", prefix);
+		printk("%s: null cache\n", prefix);
 	else {
 		cbk_cache_slot *scan;
 
-		info("%s: cache: %p\n", prefix, cache);
+		printk("%s: cache: %p\n", prefix, cache);
 		for_all_slots(cache, scan)
 		    print_cbk_slot("slot", scan);
 	}
@@ -622,7 +622,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	read_lock_tree(h->tree);
 	if (ZF_ISSET(active, JNODE_RIGHT_CONNECTED) && active->right) {
 		if (!keyeq(znode_get_rd_key(active), znode_get_ld_key(active->right))) {
-			info("cbk_level_lookup: right delimiting key changed. Corrected\n");
+			printk("cbk_level_lookup: right delimiting key changed. Corrected\n");
 			znode_set_rd_key(active, znode_get_ld_key(active->right));
 		}
 	}
@@ -1354,11 +1354,11 @@ print_coord_content(const char *prefix /* prefix to print */ ,
 	reiser4_key key;
 
 	if (p == NULL) {
-		info("%s: null\n", prefix);
+		printk("%s: null\n", prefix);
 		return;
 	}
 	if ((p->node != NULL) && znode_is_loaded(p->node) && coord_is_existing_item(p))
-		info("%s: data: %p, length: %i\n", prefix, item_body_by_coord(p), item_length_by_coord(p));
+		printk("%s: data: %p, length: %i\n", prefix, item_body_by_coord(p), item_length_by_coord(p));
 	print_znode(prefix, p->node);
 	if (znode_is_loaded(p->node)) {
 		item_key_by_coord(p, &key);
@@ -1372,7 +1372,7 @@ void
 print_address(const char *prefix /* prefix to print */ ,
 	      const reiser4_block_nr * block /* block number to print */ )
 {
-	info("%s: %s\n", prefix, sprint_address(block));
+	printk("%s: %s\n", prefix, sprint_address(block));
 }
 #endif
 

@@ -351,7 +351,7 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 			reiser4_block_nr block;
 
 			item_plugin_by_coord(coord)->s.internal.down_link(coord, h->key, &block);
-			info("empty leaf added: %llx (pid %i)\n", block, current->pid);
+			printk("empty leaf added: %llx (pid %i)\n", block, current->pid);
 		}
 #endif
 	} else {

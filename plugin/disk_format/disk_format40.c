@@ -369,18 +369,18 @@ format40_print_info(const struct super_block *s)
 
 	sb_copy = &get_super_private(s)->u.format40.actual_sb;
 
-	info("\tblock count %llu\n"
-	     "\tfree blocks %llu\n"
-	     "\troot_block %llu\n"
-	     "\ttail policy %s\n"
-	     "\tmin free oid %llu\n"
-	     "\tfile count %llu\n"
-	     "\ttree height %d\n",
-	     get_format40_block_count(sb_copy),
-	     get_format40_free_blocks(sb_copy),
-	     get_format40_root_block(sb_copy),
-	     tail_plugin_by_id(get_format40_tail_policy(sb_copy))->h.label,
-	     get_format40_oid(sb_copy), get_format40_file_count(sb_copy), get_format40_tree_height(sb_copy));
+	printk("\tblock count %llu\n"
+	       "\tfree blocks %llu\n"
+	       "\troot_block %llu\n"
+	       "\ttail policy %s\n"
+	       "\tmin free oid %llu\n"
+	       "\tfile count %llu\n"
+	       "\ttree height %d\n",
+	       get_format40_block_count(sb_copy),
+	       get_format40_free_blocks(sb_copy),
+	       get_format40_root_block(sb_copy),
+	       tail_plugin_by_id(get_format40_tail_policy(sb_copy))->h.label,
+	       get_format40_oid(sb_copy), get_format40_file_count(sb_copy), get_format40_tree_height(sb_copy));
 #endif
 }
 

@@ -153,8 +153,8 @@ void
 oid40_print_info(const char *prefix, reiser4_oid_allocator * map)
 {
 	lock(map);
-	info("%s: next free objectid %lli, "
-	     "oids in use %llu\n", prefix, map->u.oid40.next_to_use, map->u.oid40.oids_in_use);
+	printk("%s: next free objectid %lli, "
+	       "oids in use %llu\n", prefix, map->u.oid40.next_to_use, map->u.oid40.oids_in_use);
 	unlock(map);
 }
 

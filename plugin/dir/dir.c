@@ -646,32 +646,32 @@ static char filter(const d8 *dch)
 static void
 print_de_id(const char *prefix, const de_id *did)
 {
-	info("%s: %c%c%c%c%c%c%c%c:%c%c%c%c%c%c%c%c",
-	     prefix, 
-	     filter(&did->objectid[0]),
-	     filter(&did->objectid[1]),
-	     filter(&did->objectid[2]),
-	     filter(&did->objectid[3]),
-	     filter(&did->objectid[4]),
-	     filter(&did->objectid[5]),
-	     filter(&did->objectid[6]),
-	     filter(&did->objectid[7]),
+	printk("%s: %c%c%c%c%c%c%c%c:%c%c%c%c%c%c%c%c",
+	       prefix, 
+	       filter(&did->objectid[0]),
+	       filter(&did->objectid[1]),
+	       filter(&did->objectid[2]),
+	       filter(&did->objectid[3]),
+	       filter(&did->objectid[4]),
+	       filter(&did->objectid[5]),
+	       filter(&did->objectid[6]),
+	       filter(&did->objectid[7]),
 
-	     filter(&did->offset[0]),
-	     filter(&did->offset[1]),
-	     filter(&did->offset[2]),
-	     filter(&did->offset[3]),
-	     filter(&did->offset[4]),
-	     filter(&did->offset[5]),
-	     filter(&did->offset[6]),
-	     filter(&did->offset[7]));
+	       filter(&did->offset[0]),
+	       filter(&did->offset[1]),
+	       filter(&did->offset[2]),
+	       filter(&did->offset[3]),
+	       filter(&did->offset[4]),
+	       filter(&did->offset[5]),
+	       filter(&did->offset[6]),
+	       filter(&did->offset[7]));
 }
 
 static void
 print_dir_pos(const char *prefix, const dir_pos *pos)
 {
 	print_de_id(prefix, &pos->dir_entry_key);
-	info(" pos: %u", pos->pos);
+	printk(" pos: %u", pos->pos);
 }
 
 #else

@@ -1124,7 +1124,7 @@ print_znode(const char *prefix /* prefix to print */ ,
 	    const znode * node /* node to print */ )
 {
 	if (node == NULL) {
-		info("%s: null\n", prefix);
+		printk("%s: null\n", prefix);
 		return;
 	}
 
@@ -1136,7 +1136,7 @@ print_znode(const char *prefix /* prefix to print */ ,
 	info_znode("\tright", node->right);
 	print_key("\tld", &node->ld_key);
 	print_key("\trd", &node->rd_key);
-	info("\n");
+	printk("\n");
 }
 
 /* debugging aid: output human readable information about @node */
@@ -1151,8 +1151,8 @@ info_znode(const char *prefix /* prefix to print */ ,
 	if (!jnode_is_znode(ZJNODE(node)))
 		return;
 
-	info("c_count: %i, readers: %i, items: %i\n", 
-	     atomic_read(&node->c_count), node->lock.nr_readers, node->nr_items);
+	printk("c_count: %i, readers: %i, items: %i\n", 
+	       atomic_read(&node->c_count), node->lock.nr_readers, node->nr_items);
 }
 
 void

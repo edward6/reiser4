@@ -257,7 +257,7 @@ handle_default_plugin_option(char *option,	/* Option should has form
 	type_label = option;
 	plug_label = strchr(option, ':');
 	if (plug_label == NULL) {
-		info("Use 'plug=type:label'\n");
+		printk("Use 'plug=type:label'\n");
 		return -EINVAL;
 	}
 
@@ -266,11 +266,11 @@ handle_default_plugin_option(char *option,	/* Option should has form
 
 	plugin = lookup_plugin(type_label, plug_label);
 	if (plugin == NULL) {
-		info("Unknown plugin: %s:%s\n", type_label, plug_label);
+		printk("Unknown plugin: %s:%s\n", type_label, plug_label);
 		return -EINVAL;
 	}
 	if (area[plugin->h.type_id] != NULL) {
-		info("Plugin already set\n");
+		printk("Plugin already set\n");
 		print_plugin("existing", area[plugin->h.type_id]);
 		print_plugin("new", plugin);
 		return -EINVAL;
@@ -334,9 +334,9 @@ lookup_plugin(const char *type_label /* plugin type label */ ,
 	if (is_type_id_valid(type_id)) {
 		result = find_plugin(&plugins[type_id], plug_label);
 		if (result == NULL)
-			info("Unknown plugin: %s\n", plug_label);
+			printk("Unknown plugin: %s\n", plug_label);
 	} else
-		info("Unknown plugin type '%s'\n", type_label);
+		printk("Unknown plugin type '%s'\n", type_label);
 	return result;
 }
 
@@ -434,9 +434,9 @@ print_plugin(const char *prefix /* prefix to print */ ,
 	     reiser4_plugin * plugin /* plugin to print */ )
 {
 	if (plugin != NULL) {
-		info("%s: %s (%s:%i)\n", prefix, plugin->h.desc, plugin->h.label, plugin->h.id);
+		printk("%s: %s (%s:%i)\n", prefix, plugin->h.desc, plugin->h.label, plugin->h.id);
 	} else
-		info("%s: (nil)\n", prefix);
+		printk("%s: (nil)\n", prefix);
 }
 
 #endif

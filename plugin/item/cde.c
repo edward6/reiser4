@@ -432,7 +432,7 @@ cde_print(const char *prefix /* prefix to print */ ,
 	assert("nikita-1078", coord != NULL);
 
 	if (item_length_by_coord(coord) < (int) sizeof (cde_item_format)) {
-		info("%s: wrong size: %i < %i\n", prefix, item_length_by_coord(coord), sizeof (cde_item_format));
+		printk("%s: wrong size: %i < %i\n", prefix, item_length_by_coord(coord), sizeof (cde_item_format));
 	} else {
 		char *name;
 		char *end;
@@ -446,18 +446,18 @@ cde_print(const char *prefix /* prefix to print */ ,
 		item_key_by_coord(coord, &key);
 		dirid = extract_dir_id_from_key(&key);
 
-		info("%s: units: %i\n", prefix, cde_nr_units(coord));
+		printk("%s: units: %i\n", prefix, cde_nr_units(coord));
 		for (i = 0; i < units(coord); ++i) {
 			cde_unit_header *header;
 
 			header = header_at(coord, i);
 			indent_znode(coord->node);
-			info("\theader %i: ", i);
+			printk("\theader %i: ", i);
 			if ((char *) (header + 1) > end) {
-				info("out of bounds: %p [%p, %p]\n", header, start, end);
+				printk("out of bounds: %p [%p, %p]\n", header, start, end);
 			} else {
 				extract_key_from_de_id(dirid, &header->hash, &key);
-				info("%i: at %i, offset: %i, ", i, i * sizeof (*header), d16tocpu(&header->offset));
+				printk("%i: at %i, offset: %i, ", i, i * sizeof (*header), d16tocpu(&header->offset));
 				print_key("key", &key);
 			}
 		}
@@ -467,14 +467,14 @@ cde_print(const char *prefix /* prefix to print */ ,
 
 			entry = entry_at(coord, i);
 			indent_znode(coord->node);
-			info("\tentry: %i: ", i);
+			printk("\tentry: %i: ", i);
 			if (((char *) (entry + 1) > end) || ((char *) entry < start)) {
-				info("out of bounds: %p [%p, %p]\n", entry, start, end);
+				printk("out of bounds: %p [%p, %p]\n", entry, start, end);
 			} else {
 				coord->unit_pos = i;
 				cde_extract_key(coord, &key);
 				name = cde_extract_name(coord, buf);
-				info("at %i, name: %s, ", (char *) entry - start, name);
+				printk("at %i, name: %s, ", (char *) entry - start, name);
 				print_key("sdkey", &key);
 			}
 		}

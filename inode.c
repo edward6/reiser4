@@ -558,21 +558,21 @@ print_inode(const char *prefix /* prefix to print */ ,
 	reiser4_inode *ref;
 
 	if (i == NULL) {
-		info("%s: inode: null\n", prefix);
+		printk("%s: inode: null\n", prefix);
 		return;
 	}
-	info("%s: ino: %lu, count: %i, link: %i, mode: %o, size: %llu\n",
-	     prefix, i->i_ino, atomic_read(&i->i_count), i->i_nlink, i->i_mode, (unsigned long long) i->i_size);
-	info("\tuid: %i, gid: %i, dev: %i, rdev: %i\n", i->i_uid, i->i_gid, i->i_sb->s_dev, kdev_t_to_nr(i->i_rdev));
-	info("\tatime: [%li,%li], mtime: [%li,%li], ctime: [%li,%li]\n", 
-	     i->i_atime.tv_sec, i->i_atime.tv_nsec,
-	     i->i_mtime.tv_sec, i->i_mtime.tv_nsec,
-	     i->i_ctime.tv_sec, i->i_ctime.tv_nsec);
-	info("\tblkbits: %i, blksize: %lu, blocks: %lu, bytes: %u\n",
-	     i->i_blkbits, i->i_blksize, i->i_blocks, i->i_bytes);
-	info("\tversion: %lu, generation: %i, state: %lu, flags: %u\n",
-	     i->i_version, i->i_generation, i->i_state, i->i_flags);
-	info("\tis_reiser4_inode: %i\n", is_reiser4_inode(i));
+	printk("%s: ino: %lu, count: %i, link: %i, mode: %o, size: %llu\n",
+	       prefix, i->i_ino, atomic_read(&i->i_count), i->i_nlink, i->i_mode, (unsigned long long) i->i_size);
+	printk("\tuid: %i, gid: %i, dev: %i, rdev: %i\n", i->i_uid, i->i_gid, i->i_sb->s_dev, kdev_t_to_nr(i->i_rdev));
+	printk("\tatime: [%li,%li], mtime: [%li,%li], ctime: [%li,%li]\n", 
+	       i->i_atime.tv_sec, i->i_atime.tv_nsec,
+	       i->i_mtime.tv_sec, i->i_mtime.tv_nsec,
+	       i->i_ctime.tv_sec, i->i_ctime.tv_nsec);
+	printk("\tblkbits: %i, blksize: %lu, blocks: %lu, bytes: %u\n",
+	       i->i_blkbits, i->i_blksize, i->i_blocks, i->i_bytes);
+	printk("\tversion: %lu, generation: %i, state: %lu, flags: %u\n",
+	       i->i_version, i->i_generation, i->i_state, i->i_flags);
+	printk("\tis_reiser4_inode: %i\n", is_reiser4_inode(i));
 	print_key("\tkey", build_sd_key(i, &inode_key));
 	ref = reiser4_inode_data(i);
 	print_plugin("\tfile", file_plugin_to_plugin(ref->pset->file));
@@ -585,10 +585,9 @@ print_inode(const char *prefix /* prefix to print */ ,
 	/* FIXME-VS: this segfaults trying to print seal's coord */
 	print_seal("\tsd_seal", &ref->sd_seal);
 	print_coord("\tsd_coord", &ref->sd_coord, 0);
-	info
-	    ("\tflags: %lx, extmask: %llu, pmask: %i, locality: %llu\n",
-	     *inode_flags(i), scint_unpack(&ref->extmask), 
-	     ref->plugin_mask, ref->locality_id);
+	printk("\tflags: %lx, extmask: %llu, pmask: %i, locality: %llu\n",
+	       *inode_flags(i), scint_unpack(&ref->extmask), 
+	       ref->plugin_mask, ref->locality_id);
 }
 #endif
 

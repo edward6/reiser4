@@ -173,7 +173,7 @@ static void *xxmalloc( size_t size )
 	__u32 * addr;
 
 	if( KMEM_FAILURES && ( rand() < kmalloc_failure_rate ) ) {
-		info( "xxmalloc failed at its discretion\n" );
+		printk( "xxmalloc failed at its discretion\n" );
 		return NULL;
 	}
 
@@ -1591,7 +1591,7 @@ void wait_on_buffer (struct buffer_head * bh)
 
 
 
-#define STYPE( type ) info( #type "\t%i\n", sizeof( type ) )
+#define STYPE( type ) printk( #type "\t%i\n", sizeof( type ) )
 
 char *__prog_name;
 
@@ -2077,7 +2077,7 @@ static int create_twig( reiser4_tree *tree, struct inode *root )
 		if( ( result != 0 ) && ( result != -EEXIST ) )
 			return result;
 	}
-	info( "%i files inserted to create twig level\n", i );
+	printk( "%i files inserted to create twig level\n", i );
 	return 0;
 }
 
@@ -2387,7 +2387,7 @@ static void mt_queue_info( mt_queue_t *queue )
 	assert( "nikita-1920", 
 		( 0 <= queue -> elements ) &&
 		( queue -> elements <= queue -> capacity ) );
-	info( "queue: %i %i\n", queue -> elements, queue -> capacity );
+	printk( "queue: %i %i\n", queue -> elements, queue -> capacity );
 	spin_unlock( &queue -> custodian );
 }
 
@@ -2425,12 +2425,12 @@ void *mt_queue_thread( void *arg )
 		switch( role ) {
 		case consumer:
 			v = mt_queue_get( queue );
-			info( "(%i) %i: got: %i\n", current->pid, i, v );
+			printk( "(%i) %i: got: %i\n", current->pid, i, v );
 			break;
 		case producer:
 			v = lc_rand_max( ( __u64 ) INT_MAX );
 			mt_queue_put( queue, v );
-			info( "(%i) %i: put: %i\n", current->pid, i, v );
+			printk( "(%i) %i: put: %i\n", current->pid, i, v );
 			break;
 		default:
 			impossible( "nikita-1917", "Revolution #9." );
@@ -2438,7 +2438,7 @@ void *mt_queue_thread( void *arg )
 		}
 		mt_queue_info( queue );
 	}
-	info( "(%i): done.\n", current->pid );
+	printk( "(%i): done.\n", current->pid );
 	REISER4_EXIT_PTR( NULL );
 }
 
@@ -2649,7 +2649,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			coord_init_zero( &coord );
 			init_lh( &lh );
 
-			info( "_____________%i_____________\n", i );
+			printk( "_____________%i_____________\n", i );
 			set_key_objectid( &key, ( __u64 ) 1000 + i * 8 );
 
 			cputod16( 0x0 , &sd.base.extmask );
@@ -2674,7 +2674,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 					     CBK_UNIQUE );
 			printf( "result: %i\n", ret );
 
-			info( "____end______%i_____________\n", i );
+			printk( "____end______%i_____________\n", i );
 
 			done_lh( &lh );
 
@@ -2722,7 +2722,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			coord_init_zero( &coord );
 			init_lh( &lh );
 
-			info( "_____________%i_____________\n", i );
+			printk( "_____________%i_____________\n", i );
 			key_init( &key );
 			set_key_objectid( &key, ( __u64 ) 1000 + i * 8 );
 
@@ -2748,7 +2748,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 					     CBK_UNIQUE );
 			printf( "result: %i\n", ret );
 
-			info( "____end______%i_____________\n", i );
+			printk( "____end______%i_____________\n", i );
 
 			done_lh( &lh );
 		}
@@ -2795,10 +2795,10 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			test_search( atoi( argv[ 1 ] ), 
 				     atoi( argv[ 2 ] ), atoi( argv[ 3 ] ) );
 		else {
-			info( "Usage: %s rounds arrays size\n", argv[ 0 ] );
+			printk( "Usage: %s rounds arrays size\n", argv[ 0 ] );
 		}
 	} else {
-		info( "Huh?\n" );
+		printk( "Huh?\n" );
 	}
 	return 0;
 }
@@ -3967,15 +3967,15 @@ static void bash_df (struct inode * cwd)
 	struct statfs st;
 
 	cwd -> i_sb -> s_op -> statfs( cwd -> i_sb, &st );
-	info( "\n\tf_type: %lx", st.f_type );
-	info( "\n\tf_bsize: %li", st.f_bsize );
-	info( "\n\tf_blocks: %li", st.f_blocks );
-	info( "\n\tf_bfree: %li", st.f_bfree );
-	info( "\n\tf_bavail: %li", st.f_bavail );
-	info( "\n\tf_files: %li", st.f_files );
-	info( "\n\tf_ffree: %li", st.f_ffree );
-	info( "\n\tf_fsid: %lx", st.f_fsid );
-	info( "\n\tf_namelen: %li\n", st.f_namelen );
+	printk( "\n\tf_type: %lx", st.f_type );
+	printk( "\n\tf_bsize: %li", st.f_bsize );
+	printk( "\n\tf_blocks: %li", st.f_blocks );
+	printk( "\n\tf_bfree: %li", st.f_bfree );
+	printk( "\n\tf_bavail: %li", st.f_bavail );
+	printk( "\n\tf_files: %li", st.f_files );
+	printk( "\n\tf_ffree: %li", st.f_ffree );
+	printk( "\n\tf_fsid: %lx", st.f_fsid );
+	printk( "\n\tf_namelen: %li\n", st.f_namelen );
 }
 
 static int bash_trace (struct inode * cwd, const char * cmd)
@@ -3983,7 +3983,7 @@ static int bash_trace (struct inode * cwd, const char * cmd)
 	__u32 flags;
 
 	if( sscanf( cmd, "%i", &flags ) != 1 ) {
-		info( "usage: trace N\n" );
+		printk( "usage: trace N\n" );
 		return 0;
 	}
 	get_super_private( cwd -> i_sb ) -> trace_flags = flags;
@@ -4662,7 +4662,7 @@ int real_main( int argc, char **argv )
 	if( getenv( "REISER4_PRINT_STATS" ) != NULL )
 		reiser4_print_stats();
 
-	info( "tree height: %i\n", tree -> height );
+	printk( "tree height: %i\n", tree -> height );
 
 	/*
 	 * shut down uswpad
@@ -4723,7 +4723,7 @@ void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 
 	ret = zload( node );
 	if( ret != 0 ) {
-		info( "Cannot load/parse node: %i", ret );
+		printk( "Cannot load/parse node: %i", ret );
 		return;
 	}
 
@@ -4749,8 +4749,8 @@ void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 					 *znode_get_block( child ) );
 				zput( child );
 			} else {
-				info( "Cannot get child: %li\n", 
-				      PTR_ERR( child ) );
+				printk( "Cannot get child: %li\n", 
+					PTR_ERR( child ) );
 			}
 		}
 	}

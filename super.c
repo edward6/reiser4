@@ -442,22 +442,22 @@ print_fs_info(const char *prefix, const struct super_block *s)
 
 	private = get_super_private(s);
 
-	info("================ fs info (%s) =================\n", prefix);
-	info("root block: %lli\ntree height: %i\n", private->tree.root_block, private->tree.height);
+	printk("================ fs info (%s) =================\n", prefix);
+	printk("root block: %lli\ntree height: %i\n", private->tree.root_block, private->tree.height);
 	if (private->space_plug->print_info)
 		private->space_plug->print_info("", get_space_allocator(s));
 
 	oid_print_allocator(private->oid_plug->h.label, s);
-	info("Block counters:\n\tblock count\t%llu\n\tfree blocks\t%llu\n"
-	     "\tused blocks\t%llu\n\tgrabbed\t%llu\n\tfake allocated formatted\t%llu\n"
-	     "\tfake allocated unformatted\t%llu\n",
-	     reiser4_block_count(s), reiser4_free_blocks(s),
-	     reiser4_data_blocks(s), reiser4_grabbed_blocks(s),
-	     reiser4_fake_allocated(s), reiser4_fake_allocated_unformatted(s));
+	printk("Block counters:\n\tblock count\t%llu\n\tfree blocks\t%llu\n"
+	       "\tused blocks\t%llu\n\tgrabbed\t%llu\n\tfake allocated formatted\t%llu\n"
+	       "\tfake allocated unformatted\t%llu\n",
+	       reiser4_block_count(s), reiser4_free_blocks(s),
+	       reiser4_data_blocks(s), reiser4_grabbed_blocks(s),
+	       reiser4_fake_allocated(s), reiser4_fake_allocated_unformatted(s));
 	print_key("Root directory key", private->df_plug->root_dir_key(s));
 
 	if (private->df_plug->print_info) {
-		info("=========== disk format info (%s) =============\n", private->df_plug->h.label);
+		printk("=========== disk format info (%s) =============\n", private->df_plug->h.label);
 		private->df_plug->print_info(s);
 	}
 

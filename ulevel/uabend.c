@@ -105,7 +105,7 @@ void printBacktrace()
 	int   i;
 	char *frame;
   
-	info( "Stack backtrace:\n" );
+	printk( "Stack backtrace:\n" );
 	for( i = 0 ; isValidFrame( frame = getFrame( i ) ) ; ++i ) {
 		char *baseAddress;
 		const char *name;
@@ -113,7 +113,7 @@ void printBacktrace()
 		name = getNameByAddress( ( char * ) frame, 
 					 ( void ** ) &baseAddress );
 		if( name != NULL ) {
-			info( "%i: %p: %s %c 0x%x\n", i, frame, name,
+			printk( "%i: %p: %s %c 0x%x\n", i, frame, name,
 			      ( baseAddress != NULL ) ? '+' : ' ',
 			      ( baseAddress != NULL ) ? frame - baseAddress : 0 );
 		}
@@ -121,7 +121,7 @@ void printBacktrace()
 			break;
 		}
 	}
-	info( "End backtrace.\n" );
+	printk( "End backtrace.\n" );
 }
 
 static void trap_sig(int signum, 
@@ -138,7 +138,7 @@ void trap_signal( int signum )
 	act.sa_sigaction = trap_sig;
 	act.sa_flags = SA_SIGINFO;
 	if( sigaction( signum, &act, NULL ) != 0 ) {
-		info( "cannot install signal %i: %s(%i)\n",
+		printk( "cannot install signal %i: %s(%i)\n",
 		      signum, strerror( errno ), errno );
 	}
 }
@@ -365,7 +365,7 @@ void  *getAddressFor( char *name )
 static int initBfd( char *image )
 {
 #if HAS_BFD
-#define BFD_ERROR( text ) bfd_perror( text ) ; info( text )
+#define BFD_ERROR( text ) bfd_perror( text ) ; printk( text )
 
 	bfd *abfd;
 	int storage_needed = 0;

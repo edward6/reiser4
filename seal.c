@@ -255,9 +255,9 @@ void
 print_seal(const char *prefix, const seal_t * seal)
 {
 	if (seal == NULL) {
-		info("%s: null seal\n", prefix);
+		printk("%s: null seal\n", prefix);
 	} else {
-		info("%s: version: %llu, block: %llu\n", prefix, seal->version, seal->block);
+		printk("%s: version: %llu, block: %llu\n", prefix, seal->version, seal->block);
 #if REISER4_DEBUG
 		print_key("seal key", &seal->key);
 		print_coord("seal coord", &seal->coord, 0);

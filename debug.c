@@ -126,23 +126,22 @@ int schedulable (void)
 void
 print_lock_counters(const char *prefix, const lock_counters_info * info)
 {
-	info
-	    ("%s: jnode: %i, tree: %i (r:%i,w:%i), dk: %i\n"
-	     "txnh: %i, atom: %i, stack: %i, txnmgr: %i, "
-	     "ktxnmgrd: %i, fq: %i, reiser4_sb: %i\n"
-	     "inode: %i, spin: %i, long: %i inode_sem: (r:%i,w:%i)\n"
-	     "d: %i, x: %i, t: %i\n", prefix,
-	     info->spin_locked_jnode, 
-	     info->rw_locked_tree, info->read_locked_tree, 
-	     info->write_locked_tree,
-	     info->spin_locked_dk, info->spin_locked_txnh,
-	     info->spin_locked_atom, info->spin_locked_stack,
-	     info->spin_locked_txnmgr, info->spin_locked_ktxnmgrd,
-	     info->spin_locked_fq, info->spin_locked_super,
-	     info->spin_locked_inode_object, info->spin_locked,
-	     info->long_term_locked_znode,
-	     info->inode_sem_r, info->inode_sem_w,
-	     info->d_refs, info->x_refs, info->t_refs);
+	printk("%s: jnode: %i, tree: %i (r:%i,w:%i), dk: %i\n"
+	       "txnh: %i, atom: %i, stack: %i, txnmgr: %i, "
+	       "ktxnmgrd: %i, fq: %i, reiser4_sb: %i\n"
+	       "inode: %i, spin: %i, long: %i inode_sem: (r:%i,w:%i)\n"
+	       "d: %i, x: %i, t: %i\n", prefix,
+	       info->spin_locked_jnode, 
+	       info->rw_locked_tree, info->read_locked_tree, 
+	       info->write_locked_tree,
+	       info->spin_locked_dk, info->spin_locked_txnh,
+	       info->spin_locked_atom, info->spin_locked_stack,
+	       info->spin_locked_txnmgr, info->spin_locked_ktxnmgrd,
+	       info->spin_locked_fq, info->spin_locked_super,
+	       info->spin_locked_inode_object, info->spin_locked,
+	       info->long_term_locked_znode,
+	       info->inode_sem_r, info->inode_sem_w,
+	       info->d_refs, info->x_refs, info->t_refs);
 }
 #endif
 
@@ -558,8 +557,8 @@ reiser4_stats_cnt reiser4_stat_level_defs[] = {
 static void
 print_cnt(reiser4_stats_cnt * cnt, const char * prefix, void * base)
 {
-	info("%s%s:\t ", prefix, cnt->kattr.attr.name);
-	info(cnt->format, getat(stat_cnt, base, cnt->offset));
+	printk("%s%s:\t ", prefix, cnt->kattr.attr.name);
+	printk(cnt->format, getat(stat_cnt, base, cnt->offset));
 }
 
 /* Print statistical data accumulated so far. */
@@ -578,7 +577,7 @@ reiser4_print_stats()
 
 		if (s->level[i].total_hits_at_level <= 0)
 			continue;
-		info("tree: at level: %i\n", i +  LEAF_LEVEL);
+		printk("tree: at level: %i\n", i +  LEAF_LEVEL);
 		for(j = 0 ; j < sizeof_array(reiser4_stat_level_defs) ; ++ j)
 			print_cnt(&reiser4_stat_level_defs[j], "\t", &s->level[i]);
 	}

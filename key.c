@@ -74,24 +74,24 @@ print_key(const char *prefix /* prefix to print */ ,
 	/* turn bold on */
 	/* printf ("\033[1m"); */
 	if (key == NULL)
-		info("%s: null key\n", prefix);
+		printk("%s: null key\n", prefix);
 	else {
-		info("%s: (%Lx:%x:%Lx:%Lx:%Lx)", prefix,
-		     get_key_locality(key), get_key_type(key),
-		     get_key_band(key), get_key_objectid(key), get_key_offset(key));
+		printk("%s: (%Lx:%x:%Lx:%Lx:%Lx)", prefix,
+		       get_key_locality(key), get_key_type(key),
+		       get_key_band(key), get_key_objectid(key), get_key_offset(key));
 		if (get_key_type(key) == KEY_FILE_NAME_MINOR) {
 			char buf[DE_NAME_BUF_LEN];
 
 			unpack_string(get_key_objectid(key), buf);
-			info("[%s", buf);
+			printk("[%s", buf);
 			if (is_longname_key(key))
-				info("...]\n");
+				printk("...]\n");
 			else {
 				unpack_string(get_key_offset(key), buf);
-				info("%s]\n", buf);
+				printk("%s]\n", buf);
 			}
 		} else {
-			info("[%s]\n", type_name(get_key_type(key)));
+			printk("[%s]\n", type_name(get_key_type(key)));
 		}
 	}
 	/* turn bold off */
