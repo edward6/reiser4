@@ -1481,7 +1481,7 @@ int cut_tree (reiser4_tree * tree UNUSED_ARG,
 							 * iteration (if there
 							 * was one) */
 					 &lock_handle,
-					 ZNODE_WRITE_LOCK);
+					 ZNODE_WRITE_LOCK, CBK_UNIQUE);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
 			/* -EIO, or something like that */
 			break;

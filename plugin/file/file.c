@@ -239,7 +239,8 @@ int find_next_item (struct file * file,
 				       * in @coord, on exit - lock handle of
 				       * locked node in @coord */
 		    znode_lock_mode lock_mode /* which lock (read/write) to put
-					       * on returned node */)
+					       * on returned node */,
+		    __u32 cbk_flags /* coord_by_key flags: CBK_UNIQUE [| CBK_FOR_INSERT] */)
 {
 	int result;
 	__u32 flags;
@@ -290,12 +291,9 @@ int find_next_item (struct file * file,
 	/* collect statistics on the number of calls to this function which did
 	 * not get optimized */
 	reiser4_stat_file_add (full_find_items);
-	flags = CBK_UNIQUE;
-	if (lock_mode == ZNODE_WRITE_LOCK)
-		flags |= CBK_FOR_INSERT;
 	return coord_by_key (current_tree, key, coord, lh,
 			     lock_mode, SEARCH_BIAS,
-			     TWIG_LEVEL, LEAF_LEVEL, flags);
+			     TWIG_LEVEL, LEAF_LEVEL, cbk_flags);
 }
 
 
@@ -318,7 +316,8 @@ static loff_t find_file_size (struct inode * inode)
 
 	coord_init_zero (&coord);
 	init_lh (&lh);
-	result = find_next_item (0, &key, &coord, &lh, ZNODE_READ_LOCK);
+	result = find_next_item (0, &key, &coord, &lh, ZNODE_READ_LOCK,
+				 CBK_UNIQUE);
 	if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 		/* error occured */
 		done_lh (&lh);
@@ -542,7 +541,8 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 
 	/* look for file metadata corresponding to first byte of page */
 	result = find_next_item (file, &key, &coord, &lh,
-				 op == READ_OP ? ZNODE_READ_LOCK : ZNODE_WRITE_LOCK);
+				 op == READ_OP ? ZNODE_READ_LOCK : ZNODE_WRITE_LOCK,
+				 CBK_UNIQUE);
 	if (result != CBK_COORD_FOUND) {
 		warning ("vs-280", "No file items found\n");
 		goto out2;
@@ -704,7 +704,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 		coord_init_zero (&coord);
 		init_lh (&lh);
 		result = find_next_item (file, &f.key, &coord, &lh,
-					 ZNODE_READ_LOCK);
+					 ZNODE_READ_LOCK, CBK_UNIQUE);
 		if (result != CBK_COORD_FOUND) {
 			/* item had to be found, as it was not - we have
 			 * -EIO */
@@ -839,7 +839,8 @@ static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 		znode * loaded;
 
 		/* look for file's metadata (extent or tail item) corresponding to position we write to */
-		result = find_next_item (file, &f->key, &coord, &lh, ZNODE_WRITE_LOCK);
+		result = find_next_item (file, &f->key, &coord, &lh, ZNODE_WRITE_LOCK,
+					 CBK_UNIQUE | CBK_FOR_INSERT);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/* error occurred */
 			done_lh (&lh);

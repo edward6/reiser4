@@ -135,7 +135,8 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 			znode * loaded;
 
 			result = find_next_item (0, &f.key, &coord, &lh, 
-						 ZNODE_WRITE_LOCK);
+						 ZNODE_WRITE_LOCK,
+						 CBK_UNIQUE | CBK_FOR_INSERT);
 			if (result != CBK_COORD_NOTFOUND && 
 			    result != CBK_COORD_FOUND) {
 				goto done;
@@ -320,7 +321,8 @@ int tail2extent (struct inode * inode)
 	while (1) {
 		if (!item) {
 			/* get next item */
-			result = find_next_item (0, &key, &coord, &lh, ZNODE_READ_LOCK);
+			result = find_next_item (0, &key, &coord, &lh,
+						 ZNODE_READ_LOCK, CBK_UNIQUE);
 			if (result != CBK_COORD_FOUND) {
 				drop_pages (pages, nr_pages);
 				if (result == CBK_COORD_NOTFOUND &&

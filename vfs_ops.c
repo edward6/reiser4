@@ -652,7 +652,8 @@ int reiser4_do_page_cache_readahead (struct file * file,
 		/* calc key of next page to readahead */
 		fplug->key_by_inode (inode, (loff_t)cur_page << PAGE_CACHE_SHIFT, &key);
 
-		result = find_next_item (file, &key, &coord, &lh, ZNODE_READ_LOCK);
+		result = find_next_item (file, &key, &coord, &lh,
+					 ZNODE_READ_LOCK, CBK_UNIQUE);
 		if (result != CBK_COORD_FOUND) {
 			break;
 		}
