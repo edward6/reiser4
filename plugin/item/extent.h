@@ -37,7 +37,7 @@ static inline void extent_set_width(reiser4_extent *ext, reiser4_block_nr width)
 #define width_by_coord(coord) extent_width (extent_by_coord(coord))
 
 /* FIXME: hmm */
-#define extent_item_is_dirty(item) 1
+/*#define extent_item_is_dirty(item) 1*/
 
 
 /*
@@ -107,6 +107,9 @@ int allocate_extent_item_in_place (tree_coord * item, reiser4_blocknr_hint * pre
 int allocate_and_copy_extent (znode * left, tree_coord * right,
 			      reiser4_blocknr_hint * preceder,
 			      reiser4_key * stop_key);
+
+int              extent_is_allocated (tree_coord *item);
+reiser4_block_nr extent_unit_width   (tree_coord *item);
 
 
 /* 
