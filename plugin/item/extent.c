@@ -17,7 +17,7 @@ static reiser4_item_data * init_new_extent (reiser4_item_data * data,
 	data->data = ext_unit;
 	data->length = sizeof (reiser4_extent);
 	data->arg = 0;
-	data->iplug = item_plugin_by_id (EXTENT_POINTER_IT);
+	data->iplug = item_plugin_by_id (EXTENT_POINTER_ID);
 	return data;
 }
 
@@ -115,9 +115,9 @@ int extent_mergeable (const tree_coord * p1, const tree_coord * p2)
 {
 	reiser4_key key1, key2;
 
-	assert ("vs-299", item_is_extent (p1));
+	assert ("vs-299", item_id_by_coord (p1) == EXTENT_POINTER_ID);
 	/* FIXME-VS: Which is it? Assert or return 0 */
-	if (!item_is_extent (p2)) {
+	if (item_id_by_coord (p2) != EXTENT_POINTER_ID) {
 		return 0;
 	}
 
@@ -193,7 +193,9 @@ void extent_print (const char * prefix, tree_coord * coord)
 
 	info ("%u: ", nr);
 	for (i = 0; i < nr; i ++, ext ++) {
-		info ("[%Lu (%Lu) %s]", extent_get_start (ext), extent_get_width (ext), state2label (state_of_extent (ext)));
+		info ("[%Lu (%Lu) %s]", extent_get_start (ext),
+		      extent_get_width (ext),
+		      state2label (state_of_extent (ext)));
 	}
 	info ("\n");
 }
@@ -281,6 +283,51 @@ lookup_result extent_lookup (const reiser4_key * key, lookup_bias bias,
 	coord->unit_pos = nr_units - 1;
 	coord->between = AFTER_UNIT;
 	return  bias == FIND_MAX_NOT_MORE_THAN ? CBK_COORD_FOUND : CBK_COORD_NOTFOUND;
+}
+
+
+/* set extent width and convert type to on disk representation */
+static void set_extent (reiser4_extent * ext, extent_state state,
+			reiser4_block_nr width)
+{
+	reiser4_block_nr start;
+
+	switch (state) {
+	case HOLE_EXTENT:
+		start = 0ull;
+		break;
+	case UNALLOCATED_EXTENT:
+		start = 1ull;
+		break;
+	default:
+		impossible ("vs-338",
+			    "do not create extents but holes and unallocated");
+	}
+	extent_set_start (ext, start);
+	extent_set_width (ext, width);
+}
+
+
+/* plugin->u.item.b.init */
+int extent_init (tree_coord * coord, reiser4_item_data * extent)
+{
+	unsigned width;
+	assert ("vs-529",
+		item_length_by_coord (coord) == sizeof (reiser4_extent));
+	assert ("vs-530", coord->unit_pos == 0);
+	assert ("vs-531", coord_of_unit (coord));
+
+	if (!extent || extent->data)
+		/* body of item is provided, it will be copied */
+		return 0;
+
+	/* body of item is not set - therefore, we are inserting unallocated
+	 * extent in tail2extent conversion. width of extent is in
+	 * extent->arg */
+	width = (unsigned)extent->arg;
+	set_extent (extent_item (coord), UNALLOCATED_EXTENT,
+		    (reiser4_block_nr)width);
+	return 0;
 }
 
 
@@ -461,7 +508,7 @@ static int free_blocks (reiser4_block_nr start, reiser4_block_nr length)
 	space_allocator_plugin * splug;
 
 	splug = get_current_super_private ()->space_plug;
-	splug->dealloc_blocks (start, (int)length);
+	splug->dealloc_blocks (start, length);
 	return 0;
 }
 
@@ -668,42 +715,8 @@ reiser4_key * extent_unit_key (const tree_coord * coord, reiser4_key * key)
 
 /*
  * plugin->u.item.b.estimate
- */
-
-
-/*
  * plugin->u.item.b.item_data_by_flow
  */
-int extent_item_data_by_flow (const tree_coord * coord UNUSED_ARG,
-			      const flow_t * f,
-			      reiser4_item_data * data)
-{
-	data->data = f->data;
-	data->length = sizeof (reiser4_extent);
-	data->iplug  = item_plugin_by_id (EXTENT_POINTER_IT);
-	return 0;
-}
-
-
-/* set extent width and convert type to on disk representation */
-static void set_extent (reiser4_extent * ext, extent_state state, reiser4_block_nr width)
-{
-	reiser4_block_nr start;
-
-	switch (state) {
-	case HOLE_EXTENT:
-		start = 0ull;
-		break;
-	case UNALLOCATED_EXTENT:
-		start = 1ull;
-		break;
-	default:
-		impossible ("vs-338",
-			    "do not create extents but holes and unallocated");
-	}
-	extent_set_start (ext, start);
-	extent_set_width (ext, width);
-}
 
 
 /*
@@ -1081,10 +1094,10 @@ static reiser4_block_nr blocknr_by_coord_in_extent (tree_coord * coord,
 /**
  * Return the reiser_extent and position within that extent.
  */
-static reiser4_extent* extent_utmost_ext ( const tree_coord *coord, sideof side, reiser4_block_nr *pos_in_unit )
+static reiser4_extent* extent_utmost_ext ( const tree_coord *coord, sideof side,
+					   reiser4_block_nr *pos_in_unit )
 {
 	reiser4_extent * ext;
-	reiser4_block_nr block;
 
 	if (side == LEFT_SIDE) {
 		/*
@@ -1130,16 +1143,21 @@ int extent_utmost_child ( const tree_coord *coord, sideof side, jnode **childp )
 		struct inode * inode;
 		struct page * pg;
 
-		item_key_by_coord (coord, key);
+		item_key_by_coord (coord, &key);
 
 		/* FIXME: Probably not quite right. */
 		objectid = get_key_objectid (&key);
-		offset   = get_key_offset (&key) + pos_in_unit;
+		offset   = get_key_offset (&key) +
+			pos_in_unit * reiser4_get_current_sb ()->s_blocksize;
 
 		inode = iget (reiser4_get_current_sb (), (unsigned long)objectid);
-
-		if ((pg = find_get_page (inode->i_mapping, offset))) {
-			return ret;
+		if (!inode) {
+			/* inode must be in memory */
+			return -EIO;
+		}
+		assert ("vs-544", offset >> PAGE_SHIFT < ~0ul);
+		if ((pg = find_get_page (inode->i_mapping, (unsigned long)(offset >> PAGE_SHIFT)))) {
+			return -EIO;
 		}
 
 		*childp = jnode_of_page (pg);
@@ -1174,7 +1192,7 @@ int extent_utmost_child_dirty ( const tree_coord *coord, sideof side, int *is_di
 		return 0;
 	}
 
-	if ((ret = extent_utmost_child (coord, side, child))) {
+	if ((ret = extent_utmost_child (coord, side, &child))) {
 		return ret;
 	}
 
@@ -1192,10 +1210,8 @@ int extent_utmost_child_dirty ( const tree_coord *coord, sideof side, int *is_di
  */
 int extent_utmost_child_real_block ( const tree_coord *coord, sideof side, reiser4_block_nr *block )
 {
-	int ret;
 	reiser4_extent * ext;
 	reiser4_block_nr pos_in_unit;
-	jnode *child;
 
 	ext = extent_utmost_ext (coord, side, & pos_in_unit);
 	
@@ -1443,8 +1459,7 @@ static extent_write_todo extent_what_todo (tree_coord * coord, reiser4_key * key
 
 		item_key_by_coord (&left, &coord_key);
 		if (get_key_objectid (key) != get_key_objectid (&coord_key) ||
-		    item_plugin_id_by_coord (&left) != EXTENT_POINTER_IT ||
-		    !item_is_extent (&left)) {
+		    item_id_by_coord (&left) != EXTENT_POINTER_ID) {
 			/* @coord is set between items of other files */
 			if (fbb_offset == 0)
 				return EXTENT_FIRST_BLOCK;
@@ -1689,8 +1704,8 @@ int extent_write (struct inode * inode, tree_coord * coord,
 	while (f->length) {
 		page = grab_cache_page (inode->i_mapping,
 					(unsigned long)(file_off >> PAGE_SHIFT));
-		if (IS_ERR (page)) {
-			return PTR_ERR (page);
+		if (!page) {
+			return -ENOMEM;
 		}
 
 		/* Capture the page. */
@@ -1811,7 +1826,7 @@ static int map_extent (reiser4_tree * tree UNUSED_ARG,
 
 	inode = page->mapping->host;
 	
-	if (!item_is_extent (coord) ||
+	if (item_id_by_coord (coord) != EXTENT_POINTER_ID ||
 	    !inode_file_plugin (inode)->owns_item (inode, coord)) {
 		warning ("vs-283", "there should be more items of file\n");
 		return -EIO;
@@ -2169,20 +2184,17 @@ int extent_read (struct inode * inode, tree_coord * coord,
  * ask block allocator for some blocks
  */
 static int extent_allocate_blocks (reiser4_block_nr desired_first,
-				   int wanted_count,
+				   reiser4_block_nr wanted_count,
 				   reiser4_block_nr * first_allocated,
-				   int * allocated)
+				   reiser4_block_nr * allocated)
 {
 	int result;
-	space_allocator_plugin * splug;
-	reiser4_blocknr_hint hint;
+	reiser4_blocknr_hint preceder;
 
 
-	splug = get_current_super_private ()->space_plug;
-	assert ("vs-509", splug && splug->alloc_blocks);
-
-	hint.blk = desired_first;
-	result = splug->alloc_blocks (&hint, wanted_count, first_allocated, allocated);
+	preceder.blk = desired_first;
+	*allocated = wanted_count;
+	result = reiser4_alloc_blocks (&preceder, first_allocated, allocated);
 	if (result) {
 		/*
 		 * no free space
@@ -2202,7 +2214,8 @@ static int extent_allocate_blocks (reiser4_block_nr desired_first,
  * replaced allocated extent [first, count]. Look for corresponding buffers in
  * the page cache and map them properly
  */
-static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first, reiser4_block_nr count)
+static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first, 
+				   reiser4_block_nr count)
 {
 	reiser4_block_nr objectid;
 	reiser4_block_nr offset;
@@ -2403,7 +2416,7 @@ static int must_insert (tree_coord * coord, reiser4_key * key)
 {
 	reiser4_key last;
 
-	if (item_is_extent (coord) &&
+	if (item_id_by_coord (coord) == EXTENT_POINTER_ID &&
 	    keyeq (last_key_in_extent (coord, &last), key))
 		return 0;
 	return 1;
@@ -2504,15 +2517,14 @@ int allocate_and_copy_extent (znode * left, tree_coord * right,
 	reiser4_item_data data;
 	reiser4_key key;
 	unsigned long blocksize;
-	reiser4_block_nr to_allocate,
-		first_allocated,
-		allocated;
+	reiser4_block_nr first_allocated;
+	reiser4_block_nr to_allocate, allocated;
 	reiser4_extent * ext, new_ext;
 
 
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
 
-	assert ("vs-419", item_is_extent (right));
+	assert ("vs-419", item_id_by_coord (right) == EXTENT_POINTER_ID);
 	assert ("vs-418", right->unit_pos == 0);
 
 
@@ -2586,7 +2598,7 @@ int allocate_and_copy_extent (znode * left, tree_coord * right,
 			 * append @left with new extent
 			 */
 			extent_set_start (&new_ext, first_allocated);
-			extent_set_width (&new_ext, allocated);
+			extent_set_width (&new_ext, (reiser4_block_nr)allocated);
 
 			result = put_unit_to_end (left, &key,
 						  init_new_extent (&data,
@@ -2667,9 +2679,8 @@ int allocate_extent_item_in_place (tree_coord * item, reiser4_blocknr_hint * pre
 	int result;
 	unsigned i;
  	reiser4_extent * ext;
-	reiser4_block_nr initial_width,
-		first_allocated,
-		allocated;
+	reiser4_block_nr first_allocated;
+	reiser4_block_nr initial_width, allocated;
 	reiser4_key key;
 	unsigned long blocksize;
 
@@ -2760,7 +2771,7 @@ int alloc_extent (reiser4_tree * tree UNUSED_ARG, tree_coord * coord,
 {
 	reiser4_blocknr_hint preceder;
 
-	if (!item_is_extent (coord)) {
+	if (item_id_by_coord (coord) != EXTENT_POINTER_ID) {
 		return 1;
 	}
 
@@ -2780,7 +2791,7 @@ int alloc_extent (reiser4_tree * tree UNUSED_ARG, tree_coord * coord,
 			item_plugin_by_coord (&prev)->s.internal.down_link (&prev, 0,
 						       &da);
 			preceder.blk = da;
-		} else if (item_is_extent (&prev)) {
+		} else if (item_id_by_coord (&prev) == EXTENT_POINTER_ID) {
 			reiser4_extent * ext;
 			ext = extent_by_coord (&prev);
 			preceder.blk = extent_get_start (ext) + extent_get_width (ext);
@@ -2793,15 +2804,6 @@ int alloc_extent (reiser4_tree * tree UNUSED_ARG, tree_coord * coord,
 	allocate_extent_item_in_place (coord, &preceder);
 	return 1;
 }
-
-
-extent_item_plugin extent_plugin = {
-	.write          = extent_write,
-	.read           = extent_read,
-	.readpage       = extent_readpage,
-	.common         = NULL
-};
-
 
 
 /* 
