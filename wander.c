@@ -1085,8 +1085,7 @@ get_overwrite_set(struct commit_handle *ch)
 
 	/* Grab space for writing (wandered blocks) of not leaves found in
 	 * overwrite set. */
-	ret = reiser4_grab_space_force(nr_not_leaves, BA_RESERVED,
-				       "get_overwrite_set: grab space for not leaves.");
+	ret = reiser4_grab_space_force(nr_not_leaves, BA_RESERVED);
 	if (ret)
 		return ret;
 
@@ -1286,7 +1285,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 			reiser4_block_nr wide_len = len;
 
 			reiser4_dealloc_blocks(&block, &wide_len, BLOCK_NOT_COUNTED,
-				BA_FORMATTED/* formatted, without defer */, "add_region_to_wmap");
+				BA_FORMATTED/* formatted, without defer */);
 			
 			return ret;
 		}
