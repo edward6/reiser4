@@ -194,8 +194,8 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 	carry_level todo_area;
 	/* queue of new requests */
 	carry_level *todo;
-	PROF_BEGIN(carry);
 	STORE_COUNTERS;
+	PROF_BEGIN(carry);
 
 	assert("nikita-888", doing != NULL);
 
