@@ -539,7 +539,7 @@ delete_object(struct inode *inode /* object to remove */, int mode /* cut mode *
 	return result;
 }
 
-static int
+reiser4_internal int
 delete_file_common(struct inode * inode)
 {
 	return delete_object(inode, 1);
