@@ -560,7 +560,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	if (page->mapping->host != get_super_fake(s)) {
 		reiser4_stat_inc(pcwb_unformatted);
 		
-		node = jnode_by_page(page);
+		node = jprivate(page);
 		if (node == NULL)
 			node = jlook_lock(tree, 
 					  get_inode_oid(page->mapping->host),
