@@ -247,7 +247,7 @@ zfree(znode * node /* znode to free */ )
 	assert("nikita-2663", capture_list_is_clean(ZJNODE(node)));
 	assert("nikita-2773", !JF_ISSET(ZJNODE(node), JNODE_EFLUSH));
 
-	phash_jnode_destroy(ZJNODE(node));
+	/* not yet phash_jnode_destroy(ZJNODE(node)); */
 	ON_DEBUG(list_del(&ZJNODE(node)->jnodes));
 
 	/* poison memory. */
@@ -407,18 +407,21 @@ znode_rehash(znode * node /* node to rehash */ ,
 znode *
 zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 {
-	znode *result;
+	znode        *result;
+	__u32         hash;
+	z_hash_table *htable;
 
 	trace_stamp(TRACE_ZNODES);
 
 	assert("jmacd-506", tree != NULL);
 	assert("jmacd-507", blocknr != NULL);
 
+	hash   = blknrhashfn(blocknr);
+	htable = get_htable(tree, blocknr);
 	/* Precondition for call to zlook_internal: locked hash table */
 	RLOCK_TREE(tree);
 
-	result = z_hash_find_index(get_htable(tree, blocknr), 
-				   blknrhashfn(blocknr), blocknr);
+	result = z_hash_find_index(htable, hash, blocknr);
 
 	/* According to the current design, the hash table lock protects new znode
 	   references. */
