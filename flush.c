@@ -2818,9 +2818,12 @@ jnode_lock_parent_coord(jnode         * node,
 			if (coord->between != AT_UNIT) {
 				/* FIXME: comment needed */
 				done_lh(parent_lh);
-				warning("nikita-3178", "Found but not happy: %i",
-					coord->between);
-				print_jnode("node", node);
+				if (!JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
+					warning("nikita-3178", 
+						"Found but not happy: %i",
+						coord->between);
+					print_jnode("node", node);
+				}
 				return -ENOENT;
 			}
 			ret = incr_load_count_znode(parent_zh, parent_lh->node);
