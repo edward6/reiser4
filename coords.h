@@ -14,9 +14,9 @@
 typedef enum { 
 	BEFORE_UNIT,
 	AT_UNIT,
-	AFTER_UNIT,
+	AFTER_UNIT /*,
 	BEFORE_ITEM,
-	AFTER_ITEM 
+	AFTER_ITEM */
 } between_enum;
 
 struct tree_coord {
@@ -71,6 +71,11 @@ unsigned coord_num_units (const tree_coord * coord);
 unsigned last_unit_pos (const tree_coord * coord);
 int coord_between_items (const tree_coord * coord);
 int coord_after_last (const tree_coord * coord);
+int coord_before_first (const tree_coord * coord);
+int coord_next_utmost_item( tree_coord *coord, sideof side );
+int coord_next_utmost_unit( tree_coord *coord, sideof side );
+int coord_after_utmost( const tree_coord *coord, sideof side );
+void coord_utmost_unit( tree_coord *coord, znode *node, sideof side );
 
 int left_item_pos (const tree_coord * coord);
 unsigned right_item_pos (const tree_coord * coord);
@@ -100,6 +105,11 @@ typedef enum {
 } coord_wrt_node;
 
 extern coord_wrt_node coord_wrt( const tree_coord *coord );
+
+static inline sideof sideof_reverse( sideof side )
+{
+	return side == LEFT_SIDE ? RIGHT_SIDE : LEFT_SIDE;
+}
 
 /* __REISER4_COORDS_H__ */
 #endif
