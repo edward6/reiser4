@@ -769,6 +769,7 @@ for( plugin = plugin_list_front( get_plugin_list( ptype ) ) ;	\
 #define grab_plugin(self, ancestor, plugin)				\
 	grab_plugin_from((self), plugin, (ancestor)->pset->plugin)
 
+/* NIKITA-FIXME-HANS: comment this */
 #define grab_plugin_from(self, field, val)			\
 	if((self)->pset->field == NULL)				\
 		plugin_set_ ## field(&self->pset, (val))
