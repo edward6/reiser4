@@ -380,8 +380,7 @@ static int formatted_readpage( struct file *f UNUSED_ARG,
 }
 
 /** ->writepage() method for formatted nodes */
-static int formatted_writepage( struct file *f UNUSED_ARG, 
-				struct page *page /* page to write */ )
+static int formatted_writepage( struct page *page /* page to write */ )
 {
 	struct bio         *bio;
 
