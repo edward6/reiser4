@@ -13,10 +13,10 @@
 
 static void yyerror( struct reiser4_syscall_w_space *ws, int msgnum , ...);
 static int yywrap(void);
-static void freeList(freeSpace_t * list);
+static void freeList(free_space_t * list);
 static int reiser4_pars_free(struct reiser4_syscall_w_space * ws);
-static freeSpace_t * freeSpaceAlloc(void);
-static freeSpace_t * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws);
+static free_space_t * freeSpaceAlloc(void);
+static free_space_t * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws);
 static char* list_alloc(struct reiser4_syscall_w_space * ws, int size);
 static streg_t *alloc_new_level(struct reiser4_syscall_w_space * ws);
 static pars_var_t * alloc_pars_var(struct reiser4_syscall_w_space * ws, pars_var_t * last_pars_var);

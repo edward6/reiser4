@@ -39,8 +39,8 @@ struct reiser4_syscall_w_space {
 	char        * tmpWrdEnd;       /* pointer for parsing input string */
 	char        * yytext;          /* pointer for parsing input string */
 	                               /* space for   */
-	freeSpace_t * freeSpHead;      /* work spaces list Header */
-	freeSpace_t * freeSpCur;       /* current work space */
+	free_space_t * freeSpHead;      /* work spaces list Header */
+	free_space_t * freeSpCur;       /* current work space */
 	wrd_t       * wrdHead;         /* names list Header */
 	pars_var_t  * Head_pars_var;   /* parsed variables Header */
 	streg_t     * Head_level;      /* parsers level list Header */

@@ -87,8 +87,8 @@ reiser4
 
 Expression
      : Object_Name                                     { $$ = $1;}
-    | STRING_CONSTANT                                 { $$ = constToExpr( ws, $1 ); }
-    | Expression PLUS       Expression                { $$ = connect_expression( ws, $1, $3 ); }
+    | STRING_CONSTANT                                 { $$ = const_to_expr( ws, $1 ); }
+    | Expression PLUS       Expression                { $$ = concat_expression( ws, $1, $3 ); }
     | Expression SEMICOLON  Expression                { $$ = list_expression( ws, $1, $3 ); }
     | Expression COMMA      Expression                { $$ = list_async_expression( ws, $1, $3 ); }
     | if_statement                                    { $$ = $1; level_down( ws, IF_STATEMENT, IF_STATEMENT ); }

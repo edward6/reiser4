@@ -287,11 +287,11 @@ case 2:
 break;
 case 3:
 #line 90 "fs/reiser4/parser/parser.y"
-{ yyval.expr = constToExpr( ws, yyvsp[0].wrd ); }
+{ yyval.expr = const_to_expr( ws, yyvsp[0].wrd ); }
 break;
 case 4:
 #line 91 "fs/reiser4/parser/parser.y"
-{ yyval.expr = connect_expression( ws, yyvsp[-2].expr, yyvsp[0].expr ); }
+{ yyval.expr = concat_expression( ws, yyvsp[-2].expr, yyvsp[0].expr ); }
 break;
 case 5:
 #line 92 "fs/reiser4/parser/parser.y"

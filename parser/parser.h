@@ -100,7 +100,7 @@ typedef enum {
 } SpaceType;
 
 typedef enum {
-	CONNECT,
+	CONCAT,
 	COMPARE_EQ,
 	COMPARE_NE,
 	COMPARE_LE,
@@ -271,10 +271,10 @@ union expr_v4 {
 };
 
 /* ok this is space for names, constants and tmp*/
-typedef struct freeSpace freeSpace_t;
+typedef struct free_space free_space_t;
 
-struct freeSpace {
-	freeSpace_t  * freeSpace_next;                 /* next buffer   */
+struct free_space {
+	free_space_t * free_space_next;                /* next buffer   */
 	char         * freeSpace;                      /* pointer to free space */
 	char         * freeSpaceMax;                   /* for overflow control */
 	char           freeSpaceBase[FREESPACESIZE];   /* current buffer */
