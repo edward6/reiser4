@@ -89,28 +89,67 @@ void internal_down_link( const tree_coord *coord,
 }
 
 /**
- * Return the child or child's block number according to the utmost_child interface.
+ * Set if the the child is dirty.
+ */
+int internal_utmost_child_dirty ( const tree_coord  *coord,
+				  sideof             side UNUSED_ARG,
+				  int               *is_dirty )
+{
+	jnode* child;
+	int ret;
+
+	assert ("jmacd-2058", is_dirty != NULL); 
+
+	if ((ret = internal_utmost_child (coord, side, & child))) {
+		return ret;
+	}
+
+	if (child == NULL) {
+		*is_dirty = 0;
+	} else {
+		*is_dirty = jnode_is_dirty (child);
+		jput (child);
+	}
+	return 0;
+}
+
+/**
+ * Get the child's block number, or 0 if the block is unallocated.
+ */
+int internal_utmost_child_real_block ( const tree_coord  *coord,
+				       sideof             side UNUSED_ARG,
+				       reiser4_block_nr  *block )
+{
+	assert ("jmacd-2059", coord != NULL); 
+
+	*block = pointer_at (coord);
+
+	if (blocknr_is_fake (block)) {
+		*block = 0;
+	}
+
+	return 0;
+}
+
+/**
+ * Return the child.
  */
 int internal_utmost_child ( const tree_coord  *coord,
 			    sideof             side UNUSED_ARG,
-			    jnode            **childp,
-			    reiser4_block_nr  *blockp )
+			    jnode            **childp )
 {
 	reiser4_block_nr block = pointer_at (coord);
+	znode *child;
 
-	if (blockp != NULL) {
-		*blockp = block;
+	assert ("jmacd-2059", childp != NULL); 
+
+	child = zlook (current_tree, & block, znode_get_level (coord->node) - 1);
+
+	if (IS_ERR (child)) {
+		return PTR_ERR (child);
 	}
 
-	if (childp != NULL) {
-		znode *child = zlook (current_tree, & block, znode_get_level (coord->node) - 1);
-
-		if (IS_ERR (child)) {
-			return PTR_ERR (child);
-		}
-
-		*childp = ZJNODE (child);
-	}
+	*childp = ZJNODE (child);
 
 	return 0;
 }

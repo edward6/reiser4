@@ -1009,7 +1009,11 @@ txn_try_capture_page  (struct page        *pg,
 		       znode_lock_mode     lock_mode,
 		       int                 non_blocking)
 {
-	return txn_try_capture (jnode_of_page (pg), lock_mode, non_blocking);
+	int ret;
+	jnode *node = jnode_of_page (pg);
+	ret = txn_try_capture (, lock_mode, non_blocking);
+	jput (node);
+	return ret;
 }
 
 /* No-locking version of assign_txnh.  Sets the transaction handle's atom pointer,

@@ -1063,14 +1063,12 @@ static reiser4_block_nr blocknr_by_coord_in_extent (tree_coord * coord,
 	return extent_get_start (extent_by_coord (coord)) + in_extent (coord, off);
 }
 
-
 /**
- * Return the child or child's block number according to the utmost_child interface.
+ * Return the reiser_extent and position within that extent.
  */
-int extent_utmost_child ( const tree_coord *coord, sideof side, jnode **childp, reiser4_block_nr *blockp )
+static reiser4_extent* extent_utmost_ext ( const tree_coord *coord, sideof side, reiser4_block_nr *pos_in_unit )
 {
 	reiser4_extent * ext;
-	reiser4_block_nr pos_in_unit;
 	reiser4_block_nr block;
 
 	if (side == LEFT_SIDE) {
@@ -1078,37 +1076,123 @@ int extent_utmost_child ( const tree_coord *coord, sideof side, jnode **childp, 
 		 * get first extent of item
 		 */
 		ext = extent_item (coord);
-		pos_in_unit = 0;
+		*pos_in_unit = 0;
 	} else {
 		/*
 		 * get last extent of item and last position within it
 		 */
 		assert ("vs-363", side == RIGHT_SIDE);
 		ext = extent_item (coord) + last_unit_pos (coord);
-		pos_in_unit = extent_get_width (ext) - 1;
+		*pos_in_unit = extent_get_width (ext) - 1;
 	}
+
+	return ext;
+}
+
+/**
+ * Return the child.
+ */
+int extent_utmost_child ( const tree_coord *coord, sideof side, jnode **childp )
+{
+	reiser4_extent * ext;
+	reiser4_block_nr pos_in_unit;
+
+	ext = extent_utmost_ext (coord, side, & pos_in_unit);
+	
+	switch (state_of_extent (ext)) {
+	case HOLE_EXTENT:
+		*childp = NULL;
+		return 0;
+	case ALLOCATED_EXTENT:
+	case UNALLOCATED_EXTENT:
+		break;
+	}
+
+	{
+		reiser4_key key;
+		reiser4_block_nr objectid;
+		reiser4_block_nr offset;
+		struct inode * inode;
+		struct page * pg;
+
+		item_key_by_coord (coord, key);
+
+		/* FIXME: Probably not quite right. */
+		objectid = get_key_objectid (key);
+		offset   = get_key_offset (key) + pos_in_unit;
+
+		inode = iget (reiser4_get_current_sb (), (unsigned long)objectid);
+
+		if ((pg = find_get_page (inode->mapping, offset))) {
+			return ret;
+		}
+
+		*childp = jnode_of_page (pg);
+
+		page_cache_release (pg);
+	}
+
+	return 0;
+}
+
+
+/**
+ * Return whether the child is dirty.
+ */
+int extent_utmost_child_dirty ( const tree_coord *coord, sideof side, int *is_dirty )
+{
+	int ret;
+	reiser4_extent * ext;
+	reiser4_block_nr pos_in_unit;
+	jnode *child;
+
+	ext = extent_utmost_ext (coord, side, & pos_in_unit);
 	
 	switch (state_of_extent (ext)) {
 	case ALLOCATED_EXTENT:
-		block = extent_get_start (ext) + pos_in_unit;
 		break;
 	case HOLE_EXTENT:
-		block = 0;
-		break;
+		*is_dirty = 0;
+		return 0;
 	case UNALLOCATED_EXTENT:
-		/* FIXME_JMACD: add code to get jnode by blocknumber */
-		impossible ("vs-364", "what here?");
-	}
-
-	if (blockp != NULL) {
-		*blockp = block;
-	}
-
-	if (block == 0 || childp == NULL) {
+		*is_dirty = 1;
 		return 0;
 	}
 
-	/* FIXME_JMACD: Working on this. */
+	if ((ret = extent_utmost_child (coord, side, child))) {
+		return ret;
+	}
+
+	if (child == NULL) {
+		*is_dirty = 0;
+	} else {
+		*is_dirty = jnode_is_dirty (child);
+		jput (child);
+	}
+	return 0;
+}
+
+/**
+ * Return the child's block, if allocated.
+ */
+int extent_utmost_child_real_block ( const tree_coord *coord, sideof side, reiser4_block_nr *block )
+{
+	int ret;
+	reiser4_extent * ext;
+	reiser4_block_nr pos_in_unit;
+	jnode *child;
+
+	ext = extent_utmost_ext (coord, side, & pos_in_unit);
+	
+	switch (state_of_extent (ext)) {
+	case ALLOCATED_EXTENT:
+		*block = extent_get_start (ext) + pos_in_unit;
+		break;
+	case HOLE_EXTENT:
+	case UNALLOCATED_EXTENT:
+		*block = 0;
+		break;
+	}
 
 	return 0;
 }

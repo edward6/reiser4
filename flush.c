@@ -61,23 +61,9 @@ static jnode*        jnode_get_neighbor_in_memory (jnode *node, unsigned long no
 static int           jnode_is_allocated           (jnode *node);
 static int           jnode_allocate_flush         (jnode *node, reiser4_blocknr_hint *preceder);
 
-/* FIXME: extent_utmost_child reveals trouble: if its unallocated?  if its a
- * hole?  Need an extra state bit to say "not yet sqalloced", need to avoid
- * passing over already-allocated nodes, I think.  Discussion with Hans --
- * looks okay for holes.
-
-The questions we ask:
-
-Is the left child dirty?
-
-Get the right child's block number?  (What if its unallocated?)
-
-Get the right child?  (For "rightmost descendant's block number", what if its unallocated?)
-
-Get the right child?  (For "leftward scan")
-
+/* FIXME: Need an extra state bit to say "not yet sqalloced", need to avoid
+ * passing over already-allocated nodes, I think.
  */
-
 
 /* This is the main entry point for flushing a jnode.  Two basic steps are
  * performed: first the "greatest dirty ancestor" of the input jnode is
@@ -308,23 +294,14 @@ static int flush_should_relocate (jnode *node, const tree_coord *parent_coord)
 
 	iplug = item_plugin_by_coord (& coord);
 
-	assert ("jmacd-2049", iplug->utmost_child != NULL);
+	assert ("jmacd-2049", iplug->utmost_child_dirty != NULL);
 
-	/* Get the parent's leftmost child (if in memory). */
-	if ((ret = iplug->utmost_child (& coord, LEFT_SIDE, & left_child, NULL))) {
+	/* Ask the item: is your left child dirty? */
+	if ((ret = iplug->utmost_child_dirty (& coord, LEFT_SIDE, & is_dirty))) {
 		assert ("jmacd-2051", ret < 0);
 		return ret;
 	}
 
-	if (left_child == NULL) {
-		/* Leftmost of parent, left child not dirty, don't relocate. */
-		return 0;
-	}
-
-	/* Leftmost child of parent: relocate parent if child dirty. */
-	is_dirty = jnode_is_dirty (left_child);
-
-	jput (left_child);
 	return is_dirty;
 }
 
@@ -372,7 +349,7 @@ static int flush_preceder_hint (jnode *gda,
 
 	init_lh (& parent_lock);
 
-	/* GDA must not be allocateded yet, otherwise we shouldn't be
+	/* GDA must not be allocated yet, otherwise we shouldn't be
 	 * initializing the preceder at this point. */
 	assert ("jmacd-2301", ! jnode_is_allocated (gda));
 
@@ -381,8 +358,7 @@ static int flush_preceder_hint (jnode *gda,
 		parent = parent_coord->node;
 		dup_coord (& coord, parent_coord);
 	} else {
-		/* Otherwise, lock the parent. */
-
+		/* Otherwise, lock the parent, get the coordinate. */
 		if ((ret = jnode_lock_parent_coord (gda, & coord, & parent_lock, ZNODE_READ_LOCK))) {
 			return ret;
 		}
@@ -400,11 +376,12 @@ static int flush_preceder_hint (jnode *gda,
 		
 		iplug = item_plugin_by_coord (& coord);
 
-		assert ("jmacd-2040", iplug->utmost_child != NULL);
+		assert ("jmacd-2040", iplug->utmost_child_real_block != NULL);
 
 		/* Get the rightmost block number of this coord, which is the
-		 * child to the left of GDA. */
-		ret = iplug->utmost_child (& coord, RIGHT_SIDE, NULL, & preceder->blk);
+		 * child to the left of GDA.  If the block is unallocated or a
+		 * hole, preceder is set to 0. */
+		ret = iplug->utmost_child_real_block (& coord, RIGHT_SIDE, & preceder->blk);
 
 	} else if (is_leftmost) {
 		/* Leftmost case */
@@ -437,37 +414,43 @@ static int flush_preceder_rightmost (const tree_coord *parent_coord, reiser4_blo
 
 	iplug = item_plugin_by_coord (parent_coord);
 
-	assert ("jmacd-2042", iplug->utmost_child != NULL);
 	assert ("jmacd-2043", znode_get_level (parent) >= TWIG_LEVEL);
 
 	if (znode_get_level (parent) == TWIG_LEVEL) {
 		/* End recursion, we made it all the way. */
 
+		assert ("jmacd-2042", iplug->utmost_child_real_block != NULL);
+
 		/* Get the rightmost block number of this coord, which is the
-		 * child to the left of GDA. */
-		return iplug->utmost_child (parent_coord, RIGHT_SIDE, NULL, & preceder->blk);
+		 * child to the left of GDA.  If the block is a unallocated or
+		 * a hole, the preceder is set to 0. */
+		return iplug->utmost_child_real_block (parent_coord, RIGHT_SIDE, & preceder->blk);
 	}
 
-	/* Recurse downwards case: */
+	/* Recurse downwards case: ABOVE TWIG LEVEL. */
+	assert ("jmacd-2045", iplug->utmost_child != NULL);
 
 	/* Get the child if it is in memory. */
-	if ((ret = iplug->utmost_child (parent_coord, RIGHT_SIDE, & child, & preceder->blk))) {
+	if ((ret = iplug->utmost_child (parent_coord, RIGHT_SIDE, & child))) {
 		return ret;
 	}
 
-	/* If the child is not in memory, set preceder->blk to its blocknr and
-	 * return. */
+	/* If the child is not in memory, set preceder remains set to zero. */
 	if (child == NULL) {
-		assert ("jmacd-2050", preceder->blk != 0);
 		return 0;
 	}
 
-	assert ("jmacd-2061", jnode_is_formatted (child));
-	
-	/* The child is in memory, recurse. */
-	coord_last_unit (& child_coord, JZNODE (child));
+	/* If the child is unallocated, there's no reason to continue, all its
+	 * children must be unallocated. */
+	if (! blocknr_is_fake (jnode_get_block (child))) {
 
-	ret = flush_preceder_rightmost (& child_coord, preceder);
+		assert ("jmacd-2061", jnode_is_formatted (child));
+	
+		/* The child is in memory, recurse. */
+		coord_last_unit (& child_coord, JZNODE (child));
+
+		ret = flush_preceder_rightmost (& child_coord, preceder);
+	}
 
 	jput (child);
 	return ret;
@@ -1116,7 +1099,7 @@ static int flush_scan_left_using_parent (flush_scan *scan)
 	assert ("jmacd-2040", iplug->utmost_child != NULL);
 
 	/* Get the rightmost child of this coord, which is the child to the left of the scan position. */
-	if ((ret = iplug->utmost_child (& coord, RIGHT_SIDE, & child_left, NULL))) {
+	if ((ret = iplug->utmost_child (& coord, RIGHT_SIDE, & child_left))) {
 		goto done;
 	}
 
