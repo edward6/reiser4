@@ -166,7 +166,7 @@ jnode_init(jnode * node, reiser4_tree * tree)
 
 	xmemset(node, 0, sizeof (jnode));
 	node->state = 0;
-	atomic_set(&node->d_count, 0);
+	node->d_count = 0;
 	atomic_set(&node->x_count, 0);
 	spin_jnode_init(node);
 	node->atom = NULL;
@@ -541,7 +541,6 @@ jparse(jnode * node, struct page *page)
 static inline void
 load_page(struct page *page, jnode *node)
 {
-	page_cache_get(page);
 	if (!is_writeout_mode()) 
 		/* We do not mark pages active if jload is called as a part of
 		 * jnode_flush() or reiser4_write_logs().  Both jnode_flush()
@@ -663,6 +662,7 @@ jload_gfp (jnode * node, int gfp_flags)
 				JF_CLR(node, JNODE_ASYNC);
 				UNLOCK_JNODE(node);
 				reiser4_unlock_page(page);
+				page_cache_release(page);
 			} else
 				result = PTR_ERR(page);
 
@@ -728,7 +728,6 @@ jrelse(jnode * node /* jnode to release references to */)
 	PROF_BEGIN(jrelse);
 
 	assert("nikita-487", node != NULL);
-	assert("nikita-489", atomic_read(&node->d_count) > 0);
 	assert("nikita-1906", spin_jnode_is_not_locked(node));
 
 	ON_DEBUG_CONTEXT(--lock_counters()->d_refs);
@@ -747,18 +746,19 @@ jrelse(jnode * node /* jnode to release references to */)
 		 * regardless, but this should not be a problem.
 		 */
 		kunmap(page);
-		page_cache_release(page);
 	}
-	if (atomic_dec_and_lock(&node->d_count, &node->guard.lock)) {
-		spin_lock_jnode_acc(node, 0);
+	LOCK_JNODE(node);
+	assert("nikita-489", node->d_count > 0);
+	node->d_count --;
+	if (node->d_count == 0) {
 		/* FIXME it is crucial that we first decrement ->d_count and
 		   only later clear JNODE_LOADED bit. I hope that
 		   atomic_dec_and_test() implies memory barrier (and
 		   optimization barrier, of course).
 		*/
 		JF_CLR(node, JNODE_LOADED);
-		spin_unlock_jnode(node);
 	}
+	UNLOCK_JNODE(node);
 	jput(node);
 	PROF_END(jrelse, jrelse);
 }
@@ -921,7 +921,7 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 	result = jplug->is_busy(node);
 	if (!result) {
 		assert("nikita-2488", page == jnode_page(node));
-		assert("nikita-2533", atomic_read(&node->d_count) == 0);
+		assert("nikita-2533", node->d_count == 0);
 		if (page != NULL) {
 			assert("nikita-2126", !PageDirty(page));
 			assert("nikita-2127", PageUptodate(page));
@@ -958,6 +958,7 @@ jput_final(jnode * node)
 
 	assert("nikita-2772", !JF_ISSET(node, JNODE_EFLUSH));
 	assert("nikita-3066", spin_jnode_is_locked(node));
+	assert("jmacd-511", node->d_count == 0);
 
 	r_i_p = !JF_TEST_AND_SET(node, JNODE_RIP);
 	spin_unlock_jnode(node);
@@ -1343,7 +1344,7 @@ jnode_invariant_f(const jnode * node,
 		/* [jnode-refs] invariant */
 
 		/* only referenced jnode can be loaded */
-		_check(atomic_read(&node->x_count) >= atomic_read(&node->d_count));
+		_check(atomic_read(&node->x_count) >= node->d_count);
 
 }
 
@@ -1444,7 +1445,7 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	       jnode_state_name(node, JNODE_DKSET),
 	       jnode_state_name(node, JNODE_EPROTECTED),
 	       jnode_get_level(node), sprint_address(jnode_get_block(node)),
-	       atomic_read(&node->d_count), atomic_read(&node->x_count),
+	       node->d_count, atomic_read(&node->x_count),
 	       jnode_page(node), node->atom,
 #if REISER4_LOCKPROF
 	       node->guard.held, node->guard.trying,
