@@ -625,7 +625,7 @@ zparse(znode * node /* znode to parse */ )
 		node_plugin *nplug;
 
 		nplug = znode_guess_plugin(node);
-		if (nplug != NULL) {
+		if (likely(nplug != NULL)) {
 			result = nplug->parse(node);
 			if (likely(result == 0))
 				node->nplug = nplug;
