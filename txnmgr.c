@@ -1509,7 +1509,7 @@ flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 
 		/* Write throttling is case of no one atom can be
 		 * flushed/committed.  */
-		if (!current_is_pdflush()) {
+		if (!current_is_pdflush() && !wbc->nonblocking) {
 			for_all_type_safe_list(atom, &tmgr->atoms_list, atom) {
 				LOCK_ATOM(atom);
 				/* Repeat the check from the above. */
