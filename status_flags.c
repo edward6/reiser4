@@ -145,6 +145,7 @@ reiser4_status_write(u64 status, u64 extended_status, char *message)
 	cputod64(extended_status, &statuspage->extended_status);
 	strncpy(statuspage->texterror, message, REISER4_TEXTERROR_LEN);
 
+#ifdef CONFIG_FRAME_POINTER
 #define GETFRAME(no)						\
 	cputod64((unsigned long)__builtin_return_address(no),	\
 		 &statuspage->stacktrace[no])
@@ -161,7 +162,7 @@ reiser4_status_write(u64 status, u64 extended_status, char *message)
 	GETFRAME(9);
 
 #undef GETFRAME
-
+#endif
 	kunmap_atomic(get_super_private(sb)->status_page, KM_USER0);
 	bio->bi_bdev = sb->s_bdev;
 	bio->bi_io_vec[0].bv_page = get_super_private(sb)->status_page;
