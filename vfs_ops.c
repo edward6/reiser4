@@ -1932,14 +1932,14 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	if (!info)
 		return -ENOMEM;
 
-	s->u.generic_sbp = info;
+	s->s_fs_info = info;
 	memset (info, 0, sizeof (*info));
 	ON_DEBUG (INIT_LIST_HEAD (&info->all_jnodes));
 
 	result = init_context (&__context, s);
 	if (result) {
 		kfree (info);
-		s->u.generic_sbp = NULL;
+		s->s_fs_info = NULL;
 		return result;
 	}
 
@@ -2098,7 +2098,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	txn_mgr_done (&info->tmgr);
  error1:
 	kfree (info);
-	s->u.generic_sbp = NULL;
+	s->s_fs_info = NULL;
 
 	REISER4_EXIT (result);
 }
@@ -2108,7 +2108,7 @@ static void reiser4_put_super (struct super_block *s)
 	reiser4_super_info_data *info;
 	__REISER4_ENTRY (s,);
 
-	info = (reiser4_super_info_data *) s->u.generic_sbp;
+	info = (reiser4_super_info_data *) s->s_fs_info;
 	if (!info) {
 		/* mount failed */
 		s->s_op = 0;
@@ -2176,7 +2176,7 @@ static void reiser4_put_super (struct super_block *s)
 	__REISER4_EXIT (&__context);
 
 	kfree(info);
-	s->u.generic_sbp = NULL;
+	s->s_fs_info = NULL;
 }
 
 static void reiser4_write_super (struct super_block * s)

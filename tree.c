@@ -705,7 +705,7 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 #endif
 		return 0;
 	}
-	sdata = ( reiser4_super_info_data* ) super -> u.generic_sbp;
+	sdata = ( reiser4_super_info_data* ) super -> s_fs_info;
 	tree  = & sdata -> tree;
 
 	context -> super = super;
