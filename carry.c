@@ -361,8 +361,8 @@ static int add_new_root( carry_level *level, carry_node *node, znode *fake );
  *
  **/
 int carry( carry_level *doing /* set of carry operations to be performed */, 
-	      carry_level *done  /* set of nodes, already performed at the *
-				  * previous level. NULL in most cases */ )
+	   carry_level *done  /* set of nodes, already performed at the
+			       * previous level. NULL in most cases */ )
 {
 	int             result;
 	carry_level     done_area;
@@ -393,7 +393,7 @@ int carry( carry_level *doing /* set of carry operations to be performed */,
 	while( ( result == 0 ) && ( reiser4_carry_op_num( doing ) > 0 ) ) {
 		carry_level *tmp;
 		
-		ON_STATS( todo -> level_no = ++ doing -> level_no );
+		ON_STATS( todo -> level_no = doing -> level_no + 1 );
 
 		/* at this point @done is locked. */
 		/* repeat lock/do/unlock while
