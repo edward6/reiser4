@@ -85,7 +85,7 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 #endif
 
 	grab_space_enable();
-	if (sdata->fake && !(current->flags & PF_MEMALLOC))
+	if (sdata->fake && !(current->flags & PF_MEMALLOC) && !current_is_pdflush())
 		/*
 		 * FIXME-ZAM: temporary
 		 */
