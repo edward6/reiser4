@@ -81,6 +81,7 @@ static void orderedname(params_t *params, char *name);
 #define DEFAULT_VERBOSE 0
 #define DEFAULT_LIMIT 0
 #define DEFAULT_BENCHMARK 0
+#define DEFAULT_OPERATIONS 0
 
 int delta = DEFAULT_DELTA;
 int max_sleep = DEFAULT_MAX_SLEEP;
@@ -88,6 +89,7 @@ int max_buf_size = DEFAULT_BUF_SIZE;
 int max_size = DEFAULT_MAX_SIZE;
 int verbose = DEFAULT_VERBOSE;
 unsigned long long limit = DEFAULT_LIMIT;
+unsigned long long operations = DEFAULT_OPERATIONS;
 int benchmark = DEFAULT_BENCHMARK;
 int files = DEFAULT_FILES;
 int dirs = DEFAULT_DIRS;
@@ -155,7 +157,7 @@ op_t ops[] = {
 	}
 };
 
-const char optstring[] = "p:f:d:D:i:s:b:M:BvF:L:";
+const char optstring[] = "p:f:d:D:i:s:b:M:BvF:L:O:";
 
 static double
 rate(unsigned long events, int secs)
@@ -187,6 +189,7 @@ usage(char *argv0)
 		"\t-d N   \tduplicate file set in N directories [%i]\n"
 		"\t-D N   \titeration takes N seconds [%i]\n"
 		"\t-i N   \tperform N iterations [%i]\n"
+		"\t-O N   \tperform N operations [%i]\n"
 		"\t-s N   \tsleep [0 .. N] nanoseconds between operations [%i]\n"
 		"\t-b N   \tmaximal buffer size is N bytes [%i]\n"
 		"\t-M N   \tmaximal file size is N bytes [%i]\n"
@@ -200,6 +203,7 @@ usage(char *argv0)
 		DEFAULT_DIRS,
 		DEFAULT_DELTA,
 		DEFAULT_ITERATIONS,
+		DEFAULT_OPERATIONS,
 		DEFAULT_MAX_SLEEP,
 		DEFAULT_BUF_SIZE,
 		DEFAULT_MAX_SIZE,
@@ -234,6 +238,7 @@ main(int argc, char **argv)
 	int threads = DEFAULT_THREADS;
 	int i;
 	int iterations = DEFAULT_ITERATIONS;
+	unsigned long long operations = DEFAULT_OPERATIONS;
 	int opt;
 	char dname[30];
 	unsigned long long initiallyavail;
@@ -263,6 +268,9 @@ main(int argc, char **argv)
 		case 'i':
 			iterations = atoi(optarg);
 			break;
+		case 'O':
+			operations = atoll(optarg);
+			break;
 		case 's':
 			max_sleep = atoi(optarg);
 			break;
@@ -282,6 +290,7 @@ main(int argc, char **argv)
 			break;
 		case 'v':
 			++verbose;
+			break;
 		case 'F': {
 			char *eq;
 			int   opfreq;
@@ -314,7 +323,7 @@ main(int argc, char **argv)
 			break;
 		}
 	} while (opt != -1);
-	stats.total = iterations;
+	stats.total = operations;
 	stats.done = 0;
 
 	stats.totfreq = 0;
@@ -448,7 +457,7 @@ worker(void *arg)
 		STEX(++stats.done);
 		if (!benchmark)
 			nap(0, RND(max_sleep));
-		else if (stats.done >= stats.total) {
+		else if (stats.total && stats.done >= stats.total) {
 			pthread_mutex_lock(&stats.lock);
 			gettimeofday(&stats.end, NULL);
 			printf("start: %li.%li, end: %li.%li, diff: %li, %li\n",
@@ -798,7 +807,7 @@ pip_file(params_t *params)
 		}
 	} else if (errno == ENOENT || ptr == NULL)
 		rewinddir(params->cwd[dirno]);
-	else {
+	else if (verbose) {
 		printf("[%li] P: %i, %i, %p, %s\n", 
 		       pthread_self(), result, errno, ptr, entry.d_name);
 		STEX(++ops[dogc ? gcop : pipop].result.failure);
