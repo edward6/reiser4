@@ -1169,7 +1169,7 @@ int submit_bio( int rw, struct bio *bio )
 		kunmap( pg );
 	}
 
-	trace_on( TRACE_IO, "[%i] page io: %c, %llu, seek: %lli\n",
+	trace_on( (rw == WRITE) ? TRACE_IO_W : TRACE_IO_R, "[%i] page io: %c, %llu, seek: %lli\n",
 		  current_pid, ( rw == WRITE ) ? 'w' : 'r', bio -> bi_sector,
 		  bio -> bi_sector - bio -> bi_bdev -> last_sector - 1 );
 	bio -> bi_bdev -> last_sector = bio -> bi_sector;
