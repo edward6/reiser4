@@ -828,10 +828,12 @@ unix_file_writepage(struct page *page)
 	assert("vs-1032", PageLocked(page));
 	assert("", file_is_built_of_extents(inode));
 
-	if (inode->i_size > ((loff_t) page->index << PAGE_CACHE_SHIFT)) {
+	if (inode->i_size < ((loff_t) page->index << PAGE_CACHE_SHIFT)) {		
 		/* The file was truncated but the page was not yet processed
 		   by truncate_inode_pages. Probably we can safely do nothing
 		   here */
+		warning("vs-1127", "page (index %lu) is truncated? file (oid %llu, size %llu)\n",
+			page->index, get_inode_oid(inode), inode->i_size);
 		return 0;
 	}
 	
