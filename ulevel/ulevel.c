@@ -2745,12 +2745,10 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		STYPE( file_plugin );
 		STYPE( tail_plugin );
 		STYPE( hash_plugin );
-		STYPE( hook_plugin );
 		STYPE( perm_plugin );
 		STYPE( reiser4_plugin );
 		STYPE( inter_syscall_rap );
 		STYPE( reiser4_plugin_ops );
-		STYPE( file_plugins );
 		STYPE( item_header40 );
 		STYPE( reiser4_block_nr );
 		STYPE( znode );
@@ -4608,109 +4606,6 @@ int jmacd_test( int argc UNUSED_ARG,
 
 #define BLOCK_COUNT 14000
 
-/** a temporary solutions for setting up reiser4 super block */
-static void fill_sb (struct super_block * super)
-{
-	reiser4_super_info_data * info_data = get_super_private (super);
-	
-	info_data -> block_count = BLOCK_COUNT;
-	info_data -> blocks_used  = BLOCK_COUNT / 10;
-	info_data -> blocks_free  = info_data -> block_count - info_data -> blocks_used;
-
-	info_data -> blocks_free_committed = info_data -> blocks_free;
-
-	/* set an allocator plugin field to bitmap-based allocator */
-	info_data ->space_plug = &space_plugins[BITMAP_SPACE_ALLOCATOR_ID].space_allocator;
-}
-
-static int bitmap_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tree * tree UNUSED_ARG)
-{
-	struct super_block * super = reiser4_get_current_sb();
-
-	assert ("vs-510", get_super_private (super) != NULL);
-
-	/* just a setting of all sb fields when real read_super is not ready */ 
-	fill_sb (super);
-
-	/*
-	assert ("vs-511", get_super_private (super)->space_plug != NULL);
-	*/
-	if (get_super_private (super)->space_plug->init_allocator)
-		get_super_private (super)->space_plug->init_allocator (
-			get_space_allocator (super), super, 0);
-
-	// tree -> ops -> read_node = bm_test_read_node;
-
-
-	{
-		reiser4_blocknr_hint hint;
-
-		reiser4_block_nr block;
-		reiser4_block_nr len;
-		
-		int ret;
-		int count = 0;
-		int total = 0;
-		
-		while (1) {
-			len = 30;
-
-			blocknr_hint_init (&hint);
-
-			//	hint.not_counted = 1;
-
-			ret = reiser4_alloc_blocks (&hint, &block, &len, 0);
-
-			blocknr_hint_done (&hint);
-
-			if (ret != 0) break;
-
-			++ count;
-			total += (int)len;
-
-			printf ("allocated %d blocks in attempt #%d, total = %d\n", (int)len, (int)count, (int)total);
-
-		}
-
-		printf ("total %d blocks allocated until %d error (%s) returned\n", total, ret, strerror(-ret));
-	}
-
-
-	if (get_super_private (super)->space_plug->destroy_allocator)
-		get_super_private (super)->space_plug->destroy_allocator (
-			get_space_allocator (super), super);
-
-	return 0;
-}
-
-static int zam_test (int argc, char ** argv, reiser4_tree * tree)
-{
-	char * testname;
-
-	if (argc < 3) {
-		printf ("Usage: %s zam testname ...\n", __prog_name);
-		return -1;
-	}
-
-	testname = argv[2];
-
-	{ /* eliminate already parsed command line arguments */
-		int i;
-
-		for (i = 3; i < argc; i++) {
-			argv[i - 2] = argv[i];
-		}
-	}
-
-	if (!strcmp(testname, "bitmap")) {
-		return bitmap_test(argc - 2, argv, tree);
-	}
-
-	printf ("%s: unknown zam\'s test name\n", __prog_name);
-	return 0;
-}
-
-
 static int shrink_cache (void);
 
 static void *uswapd( void *untyped )
@@ -4876,10 +4771,6 @@ static tester team[] = {
 	{
 		.name = "jmacd",
 		.func = jmacd_test
-	},
-	{
-		.name = "zam",
-		.func = zam_test
 	},
 	{
 		.name = NULL,
