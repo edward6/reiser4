@@ -196,7 +196,7 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
       carry_level * done	/* set of nodes, already performed at the
 				 * previous level. NULL in most cases */ )
 {
-	int result;
+	int result = 0;
 	carry_level done_area;
 	carry_level todo_area;
 	/** queue of new requests */
@@ -237,7 +237,7 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 	 * FIXME-NIKITA enough free memory has to be reserved.
 	 */
 	/* iterate until there is nothing more to do */
-	while ((result == 0) && (carry_op_num(doing) > 0)) {
+	while (/*(result == 0) && */(carry_op_num(doing) > 0)) {
 		carry_level *tmp;
 
 		ON_STATS(todo->level_no = doing->level_no + 1);
