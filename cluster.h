@@ -6,9 +6,7 @@
 #if !defined( __FS_REISER4_CLUSTER_H__ )
 #define __FS_REISER4_CLUSTER_H__
 
-#ifndef cloff_t
-#define cloff_t unsigned long
-#endif
+typedef unsigned long cloff_t;
 
 static inline loff_t min_count(loff_t a, loff_t b)
 {
@@ -229,7 +227,7 @@ int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
 void forget_cluster_pages(reiser4_cluster_t *);
 int flush_cluster_pages(reiser4_cluster_t *, jnode *, struct inode *);
 int deflate_cluster(reiser4_cluster_t *, struct inode *);
-void truncate_pg_clusters(struct inode * inode, pgoff_t start);
+void truncate_pages_cryptcompress(struct inode * inode, pgoff_t start);
 void set_hint_cluster(struct inode * inode, hint_t * hint, unsigned long index, znode_lock_mode mode);
 int get_disk_cluster_locked(reiser4_cluster_t * clust, struct inode * inode, znode_lock_mode lock_mode);
 int hint_prev_cluster(reiser4_cluster_t * clust, struct inode * inode);
