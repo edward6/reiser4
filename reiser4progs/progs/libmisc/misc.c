@@ -25,32 +25,6 @@
 #define MB (KB * KB)
 #define GB (KB * MB)
 
-/* Converts string denoted as size into digits */
-long int progs_misc_strtol(
-    const char *str,	    /* string to be converted */
-    int *error		    /* error will be stored here */
-) {
-    char *err;
-    long result = 0;
-
-    if (error)
-	*error = 0;
-	
-    if (!str) {
-	if (error) *error = 1; 
-	return 0;
-    }	
-	
-    result = strtol(str, &err, 10);
-	
-    if (errno == ERANGE || *err) {
-	if (error) *error = 1;
-	return 0;
-    }	
-	
-    return result;
-}
-
 /* Converts human readable size string like "256M" into kb */
 unsigned long long progs_misc_size_parse(
     const char *str,		/* string to be converted */
@@ -77,7 +51,7 @@ unsigned long long progs_misc_size_parse(
     else
 	label = 0;	
 	
-    if ((size = progs_misc_strtol(number, error)) == 0 && *error)
+    if ((size = reiserfs_misc_strtol(number, error)) == 0 && *error)
 	return 0;
 	
     if (label == 0 || toupper(label) == toupper('m'))

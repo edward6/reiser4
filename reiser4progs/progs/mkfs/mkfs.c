@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
 	    case 'b': {
 		
 		/* Parsing blocksize */
-	        if (!(blocksize = (uint16_t)progs_misc_strtol(optarg, &error)) && error) {
+	        if (!(blocksize = (uint16_t)reiserfs_misc_strtol(optarg, &error)) && error) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		        "Invalid blocksize (%s).", optarg);
 		    return USER_ERROR;

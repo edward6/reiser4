@@ -11,7 +11,7 @@
 #  include <config.h>
 #endif
 
-#include <reiser4/filesystem.h>
+#include <reiser4/reiser4.h>
 
 extern void progs_profile_list(void);
 extern void progs_profile_print(reiser4_profile_t *profile);
