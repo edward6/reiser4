@@ -3775,7 +3775,6 @@ swap_jnode_pages(jnode *node, jnode *copy, struct page *new_page)
 		check_me("vs-1418", radix_tree_insert(&mapping->page_tree, index, copy->pg) == 0);
 		___add_to_page_cache(copy->pg, mapping, index);
 		ON_DEBUG(set_bit(PG_arch_1, &(copy->pg)->flags));
-		/*printk("create cc page %p\n", copy->pg);*/
 
 		/* corresponding page_cache_release is in invalidate_list */
 		page_cache_get(copy->pg);
