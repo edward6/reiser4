@@ -196,6 +196,14 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	data.data = NULL;
 	data.user = 0;
 
+	if( data.length > current_tree -> nplug -> max_item_size() ) {
+		/*
+		 * This is silly check, but we don't know actual node where
+		 * insertion will go into.
+		 */
+		return -ENAMETOOLONG;
+	}
+
 	assert( "vs-479", get_super_private( inode -> i_sb ) );
 	oplug = get_super_private( inode -> i_sb ) -> oid_plug;
 	assert( "vs-480", oplug && oplug -> allocate_oid );
@@ -632,7 +640,7 @@ static int common_add_link( struct inode *object )
 {
 	++ object -> i_nlink;
 	object -> i_ctime = CURRENT_TIME;
-	return inode_file_plugin( object ) -> write_sd_by_inode( object );
+	return 0;
 }
 
 /** default ->rem_link() method of file plugin */
@@ -646,7 +654,7 @@ static int common_rem_link( struct inode *object )
 
 	-- object -> i_nlink;
 	object -> i_ctime = CURRENT_TIME;
-	return inode_file_plugin( object ) -> write_sd_by_inode( object );
+	return 0;
 }
 
 /** ->single_link() method for file plugins */
