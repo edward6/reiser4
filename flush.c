@@ -2703,15 +2703,8 @@ static void flush_jnode_tostring_internal (jnode *node, char *buf)
 	}
 
 	items[0] = 0;
-	if (fmttd) {
-		load_handle zh;
-		spin_unlock_jnode (node);
-		init_zh (& zh);
-		if (load_zh (& zh, JZNODE (node)) == 0) {
-			sprintf (items, " items=%u", node_num_items (JZNODE (node)));
-		}
-		done_zh (& zh);
-		spin_lock_jnode (node);
+	if (! fmttd) {
+		sprintf (items, " index=%u", jnode_get_index (node));
 	}
 
 	sprintf (buf+strlen(buf),
