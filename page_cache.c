@@ -332,7 +332,7 @@ static int page_cache_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 /** ->clean_node method of page-cache based tree operations */
 static int page_cache_clean_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
-	assert( "nikita-2170", JF_ISSET( node, ZNODE_LOADED ) );
+	assert( "nikita-2170", jnode_page( node ) != NULL );
 	trace_on( TRACE_PCACHE, "clean node: %p\n", node );
 	ClearPageDirty( jnode_page( node ) );
 	return 0;
