@@ -16,7 +16,7 @@
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block  */
 
-const __u32 REISER4_SUPER_MAGIC = 0x52345362;	/* (*(__u32 *)"R4Sb"); */
+/*const __u32 REISER4_SUPER_MAGIC = 0x52345362;*/	/* (*(__u32 *)"R4Sb"); */
 
 static __u64 reserved_for_gid(const struct super_block *super, gid_t gid);
 static __u64 reserved_for_uid(const struct super_block *super, uid_t uid);

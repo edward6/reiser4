@@ -438,7 +438,7 @@ extern __u64 reiser4_current_block_count(void);
 
 extern void build_object_ops(struct super_block *super, object_ops *ops);
 
-extern const __u32 REISER4_SUPER_MAGIC;
+#define REISER4_SUPER_MAGIC 0x52345362 	/* (*(__u32 *)"R4Sb"); */
 
 #define spin_ordering_pred_super(private) (1)
 SPIN_LOCK_FUNCTIONS(super, reiser4_super_info_data, guard);
