@@ -1017,6 +1017,41 @@ enum bh_state_bits {
 int ulevel_read_node( );
 int ulevel_allocate_node( );
 
+#define GFP_NOFS 0
+
+struct bio_vec {
+	struct page	*bv_page;
+	unsigned int	bv_len;
+	unsigned int	bv_offset;
+};
+
+struct bio
+{
+	struct bio_vec *bi_io_vec;	/* the actual vec list */
+	unsigned short  bi_vcnt;	/* how many bio_vec's */
+};
+
+static inline struct bio* bio_alloc (int gfp_flag, int vec_size)
+{
+	struct bio     *bio = kmalloc (sizeof (struct bio), gfp_flag);
+	struct bio_vec *vec = kmalloc (sizeof (struct bio_vec) * vec_size, gfp_flag);
+
+	if (bio == NULL || vec == NULL) {
+		if (bio != NULL) { kfree (bio); }
+		if (vec != NULL) { kfree (vec); }
+		return NULL;
+	}
+
+	bio->bi_io_vec = vec;
+	bio->bi_vcnt = 0;
+	return bio;
+}
+
+static inline void bio_put (struct bio *bio)
+{
+	kfree (bio->bi_io_vec);
+	kfree (bio);
+}
 
 /* __REISER4_ULEVEL_H__ */
 #endif
