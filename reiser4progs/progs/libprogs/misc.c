@@ -323,6 +323,8 @@ aal_exception_option_t __progs_exception_handler(
     aal_exception_option_t opt;
     
     do {
+	fflush(stdout);
+	
 	/* Printing exception type */
 	if (exception->type != EXCEPTION_BUG)
 	    printf("%s: ", aal_exception_type_string(exception->type));

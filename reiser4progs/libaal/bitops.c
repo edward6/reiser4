@@ -15,6 +15,14 @@
 
 #include <aal/aal.h>
 
+/* 
+    These functions are standard bitopts functions for both (big and little 
+    endian) systems. As endianess of system is determining durring configure
+    of package, we are using WORDS_BIGENDIAN macro for complilation time 
+    determinig system endianess. This way is more preffered as system endianess
+    doesn't changing in runtime :)
+*/
+
 #ifndef WORDS_BIGENDIAN
 
 static inline int aal_le_set_bit(int nr, void *addr) {
@@ -186,6 +194,7 @@ found_middle:
 
 #endif
 
+/* Public wrappers for all bitops functions. */
 inline int aal_set_bit(int nr, void *addr) {
 #ifndef WORDS_BIGENDIAN    
     return aal_le_set_bit(nr, addr);

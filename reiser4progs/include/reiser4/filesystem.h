@@ -19,6 +19,8 @@
 #define REISERFS_MASTER_OFFSET		65536
 #define REISERFS_MASTER_MAGIC		"R4Sb"
 
+#define REISERFS_LEGACY_FORMAT		0x0
+
 /* Master super block structure and macros */
 struct reiserfs_master {
     char mr_magic[4];

@@ -288,7 +288,8 @@ static errno_t callback_bitmap_fetch(
 	    "Can't read bitmap block %llu. %s.", 
 	    blk, aal_device_error(device));
 	return -1;
-    }	
+    }
+    
     aal_memcpy(map, block->data, chunk);
     aal_block_free(block);
 	
@@ -313,7 +314,7 @@ errno_t reiserfs_bitmap_pipe(
 	
     aal_assert("umka-347", bitmap != NULL, return -1);
     aal_assert("umka-348", bitmap->device != NULL, return -1);
-    
+
     /* Going through spreaded bitmap */
     for (left = bitmap->size, blk = bitmap->start, map = bitmap->map; left > 0; ) {	
 	chunk = (left < aal_device_get_bs(bitmap->device) ? left : 
@@ -321,7 +322,7 @@ errno_t reiserfs_bitmap_pipe(
 	
 	if (pipe_func && pipe_func(bitmap->device, blk, map, chunk, NULL))
 	    return -1;
-		
+	
 	blk = (blk / (aal_device_get_bs(bitmap->device) * 8) + 1) * 
 	    (aal_device_get_bs(bitmap->device) * 8);
 
@@ -342,7 +343,7 @@ reiserfs_bitmap_t *reiserfs_bitmap_open(
 	    
     aal_assert("umka-349", device != NULL, return NULL);
 	
-    if(!(bitmap = reiserfs_bitmap_alloc(len)))
+    if (!(bitmap = reiserfs_bitmap_alloc(len)))
 	goto error;
 	
     bitmap->start = start;

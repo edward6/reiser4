@@ -77,20 +77,20 @@ static errno_t reiserfs_master_open(
 #ifndef ENABLE_COMPACT    
 	reiserfs_plugin_t *format36;
 	
-	if (!(format36 = libreiser4_factory_find(REISERFS_FORMAT_PLUGIN, 0x1)))
-    	    libreiser4_factory_failed(goto error_free_block, find, format, 0x1);
+	if (!(format36 = libreiser4_factory_find(REISERFS_FORMAT_PLUGIN, REISERFS_LEGACY_FORMAT)))
+    	    libreiser4_factory_failed(goto error_free_block, find, format, REISERFS_LEGACY_FORMAT);
 	
 	if (!libreiser4_plugin_call(goto error_free_block, 
 		format36->format_ops, confirm, fs->host_device))
 	    goto error_free_block;
-		
+
 	/* Forming in memory master super block for reiser3 */
 	if (reiserfs_master_create(fs, 0x1, aal_device_get_bs(fs->host_device), "", "")) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Can't create in-memory "
 		"master super block in order to initialize reiser3 filesystem.");
 	    goto error_free_block;
 	}
-#endif	
+#endif
     } else {
 	if (!(fs->master = aal_calloc(sizeof(*master), 0)))
 	    goto error_free_block;

@@ -229,7 +229,11 @@ int main(int argc, char *argv[]) {
 	goto error;
     }
     
-    /* Initializing libreiser4 */
+    /* 
+	Initializing libreiser4. We are using zero as tree cache limit. In this 
+	case, libreiser4 will set up it by itself. We do this because mkfs doesn't
+	need a big cache.
+    */
     if (libreiser4_init(0)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't initialize libreiser4.");

@@ -183,17 +183,18 @@ static uint32_t file_stat(
 static count_t file_len(
     aal_device_t *device	    /* file device, lenght will be obtained from */
 ) {
+    uint64_t size;
     struct stat st;
-    unsigned long size;
 
     if (ioctl(*((int *)device->entity), BLKGETSIZE, &size) >= 0)
-        return  size / (device->blocksize / 512);
-
+        return (count_t)(size / (device->blocksize / 512));
+    
     memset(&st, 0, sizeof(st));
     
     if (fstat(*((int *)device->entity), &st) >= 0)
-	return st.st_size / (device->blocksize / 512);
-    
+	return (count_t)(st.st_size / (device->blocksize / 512));
+
+    save_error(device);
     return 0;
 }
 

@@ -37,7 +37,7 @@ static int format36_signature(reiserfs_format36_super_t *super) {
 	    format36_3_6_signature(signature) ||
 	    format36_journal_signature(signature))
 	return 1;
-
+    
     return 0;
 }
 
@@ -173,6 +173,7 @@ static int format36_confirm(aal_device_t *device) {
     if (!(block = format36_super_open(device)))
 	return 0;
 	
+    aal_printf(ERR, "here\n");
     aal_block_free(block);
     return 1;
 }
