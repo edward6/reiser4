@@ -1293,3 +1293,4 @@ ulevel/kseeks.sh
 ulevel/reiser4-seeks.sh
 ulevel/tmp.1001
 ulevel/tmp.998
+.compress.o.cmd
