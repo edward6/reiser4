@@ -194,8 +194,8 @@ static int prepare_repacking_session (void * arg)
 	if (current->flags & PF_FREEZE)
 		refrigerator(PF_FREEZE);
 
-	balance_dirty_pages_ratelimited(get_current_super_private()->fake->i_mapping);
 	begin_work();
+	balance_dirty_pages_ratelimited(get_current_super_private()->fake->i_mapping);
 	cursor->count = get_current_super_private()->repacker->params.chunk_size;
 	return  reiser4_grab_space((__u64)cursor->count,
 				   BA_CAN_COMMIT | BA_FORCE);
