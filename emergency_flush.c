@@ -414,6 +414,11 @@ flushable(const jnode * node, struct page *page)
 		INC_STAT(node, vm.eflush.bitmap);
 		return 0;
 	}
+	/* don't flush cluster pages */
+	if (jnode_is_cluster_page(node)) {
+		INC_STAT(node, vm.eflush.clustered);
+		return 0;
+	}
 	if (JF_ISSET(node, JNODE_EFLUSH)) {      /* already flushed */
 		INC_STAT(node, vm.eflush.eflushed);
 		return 0;
