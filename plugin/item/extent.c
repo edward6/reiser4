@@ -2224,7 +2224,7 @@ static void print_range_list (struct list_head * list)
 
 	list_for_each (cur, list) {
 		range = list_entry (cur, struct page_range, next);
-		info ("range: sector %llu, nr_pages %d\n", range->sector, range->nr_pages);
+		info ("range: sector %lu, nr_pages %d\n", range->sector, range->nr_pages);
 	}
 }
 
