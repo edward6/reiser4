@@ -214,6 +214,8 @@ static int reiser4_prepare_write(struct file *file, struct page *page,
 		result = fplug->prepare_write(file, page, from, to);
 	else
 		result = RETERR(-EINVAL);
+
+	/* don't commit transaction under inode semaphore */
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 
@@ -247,6 +249,7 @@ static int reiser4_commit_write(struct file *file, struct page *page,
 	/* here page is return locked. */
 	assert("umka-3103", PageLocked(page));
 
+	/* don't commit transaction under inode semaphore */
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 	return result;
