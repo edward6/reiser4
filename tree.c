@@ -533,6 +533,7 @@ resize_result resize_item( coord_t *coord /* coord of item being resized */,
 }
 
 
+/* insert */
 int insert_flow( coord_t *coord, lock_handle *lh, flow_t *f)
 {
 	int result;
@@ -550,7 +551,7 @@ int insert_flow( coord_t *coord, lock_handle *lh, flow_t *f)
 	if( IS_ERR( op ) || ( op == NULL ) )
 		return op ? PTR_ERR (op) : -EIO;
 
-	/* these are permanent durign insert_flow */
+	/* these are permanent during insert_flow */
 	data.user = 1;
 	data.iplug = item_plugin_by_id( TAIL_ID );
 	data.arg = 0;
