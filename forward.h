@@ -15,6 +15,7 @@ typedef struct lock_handle lock_handle;
 typedef struct znode znode;
 typedef struct flow flow_t;
 typedef struct coord coord_t;
+typedef struct tree_access_pointer tap_t;
 typedef struct item_coord item_coord;
 typedef struct shift_params shift_params;
 typedef struct reiser4_object_create_data reiser4_object_create_data;

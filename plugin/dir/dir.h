@@ -25,9 +25,19 @@ typedef struct {
 	unsigned pos;
 } dir_pos;
 
-extern cmp_t dir_pos_cmp( const dir_pos *p1, const dir_pos *p2 );
+typedef struct {
+	/** logical position within directory */
+	dir_pos position;
+	/** 
+	 * logical number of directory entry within
+	 * directory 
+	 */
+	__u64   entry_no;
+} readdir_pos;
 
-extern void adjust_dir_pos( struct file *dir, const dir_pos *mod_point, int adj );
+extern void adjust_dir_file( struct inode *dir, const coord_t *coord,
+			     int offset, int adj );
+extern int dir_readdir_init( struct file *f, tap_t *tap, readdir_pos **pos );
 
 /** 
  * description of directory entry being created/destroyed/sought for

@@ -14,6 +14,7 @@ CFLAGS_carry.o += -O0
 CFLAGS_carry_ops.o += -O0
 CFLAGS_lock.o += -O0
 CFLAGS_tree.o += -O0
+CFLAGS_tap.o += -O0
 CFLAGS_coord.o += -O0
 CFLAGS_block_alloc.o += -O0
 CFLAGS_txnmgr.o += -O0
@@ -50,6 +51,7 @@ reiser4-objs := \
 	   carry_ops.o \
 	   lock.o \
 	   tree.o \
+	   tap.o \
 	   coord.o \
 	   block_alloc.o \
 	   txnmgr.o \

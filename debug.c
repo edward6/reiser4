@@ -235,6 +235,29 @@ void reiser4_print_stats()
 	      s -> znode.lock_neighbor,
 	      s -> znode.lock_neighbor_iteration );
 	      
+	info( "dir:\n"
+	      "\treaddir_calls:\t %lu\n"
+	      "\treaddir_reset:\t %lu\n"
+	      "\treaddir_rewind_left:\t %lu\n"
+	      "\treaddir_left_non_uniq:\t %lu\n"
+	      "\treaddir_left_restart:\t %lu\n"
+	      "\treaddir_rewind_right:\t %lu\n"
+	      "\treaddir_adjust_pos:\t %lu\n"
+	      "\treaddir_adjust_lt:\t %lu\n"
+	      "\treaddir_adjust_gt:\t %lu\n"
+	      "\treaddir_adjust_eq:\t %lu\n",
+
+	      s -> dir.readdir.calls,
+	      s -> dir.readdir.reset,
+	      s -> dir.readdir.rewind_left,
+	      s -> dir.readdir.left_non_uniq,
+	      s -> dir.readdir.left_restart,
+	      s -> dir.readdir.rewind_right,
+	      s -> dir.readdir.adjust_pos,
+	      s -> dir.readdir.adjust_lt,
+	      s -> dir.readdir.adjust_gt,
+	      s -> dir.readdir.adjust_eq );
+
 	info( "file:\n"
 	      "\t wait_on_page:\t %lu\n"
 	      "\t fsdata_alloc:\t %lu\n"

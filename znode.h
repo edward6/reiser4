@@ -569,7 +569,7 @@ extern void copy_load_count( load_count *new, load_count *old );  /* Copy the co
 	__with_dh_node = ( node );			\
 	__with_dh_result = zload( __with_dh_node );	\
 	if( __with_dh_result == 0 ) {			\
-		__with_dh_result = ( exp );		\
+		__with_dh_result = ( int )( exp );	\
 		zrelse( __with_dh_node );		\
 	}						\
 	__with_dh_result;				\
@@ -584,7 +584,7 @@ extern void copy_load_count( load_count *new, load_count *old );  /* Copy the co
 	__with_dh_node = ( node );			\
 	__with_dh_result = zload( __with_dh_node );	\
 	if( __with_dh_result == 0 ) {			\
-		__with_dh_result = ( exp );		\
+		__with_dh_result = ( int )( exp );	\
 		zrelse( __with_dh_node );		\
 	} else						\
 		__with_dh_result = ( ret );		\

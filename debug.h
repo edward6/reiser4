@@ -679,6 +679,18 @@ typedef struct reiser4_statistics {
 		stat_cnt lock_neighbor_iteration;
 	} znode;
 	struct {
+		struct {
+			stat_cnt calls;
+			stat_cnt reset;
+			stat_cnt rewind_left;
+			stat_cnt left_non_uniq;
+			stat_cnt left_restart;
+			stat_cnt rewind_right;
+			stat_cnt adjust_pos;
+			stat_cnt adjust_lt;
+			stat_cnt adjust_gt;
+			stat_cnt adjust_eq;
+		} readdir;
 	} dir;
 	struct {
 		stat_cnt wait_on_page;

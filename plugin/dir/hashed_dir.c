@@ -12,7 +12,8 @@
 static int create_dot_dotdot( struct inode *object, struct inode *parent );
 static int find_entry( const struct inode *dir, struct dentry *name, 
 		       lock_handle *lh, 
-		       znode_lock_mode mode, reiser4_dir_entry_desc *entry );
+		       znode_lock_mode mode, reiser4_dir_entry_desc *entry,
+		       int *offset );
 static int check_item( const struct inode *dir, 
 		       const coord_t *coord, const char *name );
 
@@ -223,7 +224,7 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 		  get_inode_oid( parent ), dentry -> d_name.name );
 
 	/* find entry in a directory. This is plugin method. */
-	result = find_entry( parent, dentry, &lh, ZNODE_READ_LOCK, &entry );
+	result = find_entry( parent, dentry, &lh, ZNODE_READ_LOCK, &entry, 0 );
 	if( result == 0 ) {
 		/* entry was found, extract object key from it. */
 		result = WITH_DATA( coord -> node, 
@@ -575,7 +576,7 @@ int hashed_rename( struct inode  *old_dir  /* directory where @old is located */
 	 * find entry for @new_name
 	 */
 	result = find_entry( new_dir, new_name, 
-			     &new_lh, ZNODE_WRITE_LOCK, &new_entry );
+			     &new_lh, ZNODE_WRITE_LOCK, &new_entry, 0 );
 
 	if( ( result != CBK_COORD_FOUND ) && ( result != CBK_COORD_NOTFOUND ) ) {
 		done_lh( &new_lh );
@@ -682,7 +683,7 @@ int hashed_rename( struct inode  *old_dir  /* directory where @old is located */
 
 		result = find_entry( old_inode, &dotdot_name, 
 				     &dotdot_lh, ZNODE_WRITE_LOCK, 
-				     &dotdot_entry );
+				     &dotdot_entry, 0 );
 		if( result == 0 ) {
 			result = replace_name( new_dir, old_inode,
 					       old_dir, dotdot_coord, 
@@ -719,6 +720,7 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 	coord_t               *coord;
 	lock_handle            lh;
 	reiser4_dentry_fsdata *fsdata;
+	int                    off;
 
 	assert( "nikita-1114", object != NULL );
 	assert( "nikita-1250", where != NULL );
@@ -737,7 +739,7 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 	/*
 	 * check for this entry in a directory. This is plugin method.
 	 */
-	result = find_entry( object, where, &lh, ZNODE_WRITE_LOCK, entry );
+	result = find_entry( object, where, &lh, ZNODE_WRITE_LOCK, entry, &off );
 	if( likely( result == -ENOENT ) ) {
 		/*
 		 * add new entry. Just pass control to the directory
@@ -748,7 +750,8 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 		seal_done( &fsdata -> entry_seal );
 		result = inode_dir_item_plugin( object ) ->
 			s.dir.add_entry( object, coord, &lh, where, entry );
-
+		if( result == 0 )
+			adjust_dir_file( object, coord, off, +1 );
 	} else if( result == 0 ) {
 		assert( "nikita-2232", coord -> node == lh.node );
 		result = -EEXIST;
@@ -773,6 +776,7 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 	znode             *loaded;
 	lock_handle        lh;
 	reiser4_dentry_fsdata *fsdata;
+	int                    off;
 
 	assert( "nikita-1124", object != NULL );
 	assert( "nikita-1125", where != NULL );
@@ -782,7 +786,7 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 	/*
 	 * check for this entry in a directory. This is plugin method.
 	 */
-	result = find_entry( object, where, &lh, ZNODE_WRITE_LOCK, entry );
+	result = find_entry( object, where, &lh, ZNODE_WRITE_LOCK, entry, &off );
 	fsdata = reiser4_get_dentry_fsdata( where );
 	coord = &fsdata -> entry_coord;
 	loaded = coord -> node;
@@ -793,6 +797,7 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 		 */
 		assert( "vs-542", inode_dir_item_plugin( object ) );
 		seal_done( &fsdata -> entry_seal );
+		adjust_dir_file( object, coord, off, -1 );
 		result = WITH_DATA( loaded, inode_dir_item_plugin( object ) ->
 				    s.dir.rem_entry( object, 
 						     coord, &lh, entry ) );
@@ -811,9 +816,9 @@ static int entry_actor( reiser4_tree *tree /* tree being scanned */,
 typedef struct entry_actor_args {
 	const char  *name;
 	reiser4_key *key;
+	int          non_uniq;
 #if REISER4_USE_COLLISION_LIMIT || REISER4_STATS
 	int          max_non_uniq;
-	int          non_uniq;
 #endif
 	int          not_found;
 	znode_lock_mode mode;
@@ -839,7 +844,9 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 		       lock_handle *lh /* resulting lock handle */,
 		       znode_lock_mode mode /* required lock mode */,
 		       reiser4_dir_entry_desc *entry /* parameters of found
-						      * directory entry */ )
+						      * directory entry */,
+		       int *offset /* serial number of directory entry among
+				    * all entries with the same key */ )
 {
 	const struct qstr *name;
 	seal_t            *seal;
@@ -852,7 +859,10 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 
 	name = &de -> d_name;
 	assert( "nikita-1129", name != NULL );
-	
+
+	if( offset != NULL )
+		*offset = 0;
+
 	/* 
 	 * dentry private data don't require lock, because dentry
 	 * manipulations are protected by i_sem on parent.  
@@ -891,8 +901,8 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 		arg.name      = name -> name;
 		arg.key       = &entry -> key;
 		arg.not_found = 0;
-#if REISER4_USE_COLLISION_LIMIT
 		arg.non_uniq = 0;
+#if REISER4_USE_COLLISION_LIMIT
 		arg.max_non_uniq = max_hash_collisions( dir );
 #endif
 		arg.mode = mode;
@@ -916,12 +926,17 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 				move_lh( lh, &arg.last_lh );
 				result = -ENOENT;
 				zrelse( arg.last_coord.node );
+				-- arg.non_uniq;
 			}
 		}
 
 		done_lh( &arg.last_lh );
-		if( result == 0 )
+		if( result == 0 ) {
 			seal_init( seal, coord, &entry -> key );
+			assert( "nikita-2580", arg.non_uniq > 0 );
+			if( offset != NULL )
+				*offset = arg.non_uniq - 1;
+		}
 	}
 	return result;
 }
@@ -942,8 +957,8 @@ static int entry_actor( reiser4_tree *tree UNUSED_ARG /* tree being scanned */,
 	assert( "nikita-1133", entry_actor_arg != NULL );
 
 	args = entry_actor_arg;
-#if REISER4_USE_COLLISION_LIMIT
 	++ args -> non_uniq;
+#if REISER4_USE_COLLISION_LIMIT
 	reiser4_stat_nuniq_max( ( unsigned ) args -> non_uniq );
 	if( args -> non_uniq > args -> max_non_uniq ) {
 		args -> not_found = 1;

@@ -915,7 +915,7 @@ int longterm_lock_znode (
 		zref (node);
 
 		ON_DEBUG_CONTEXT(++ lock_counters()->long_term_locked_znode);
-		if (REISER4_DEBUG && mode == ZNODE_WRITE_LOCK)
+		if (REISER4_DEBUG_NODE && mode == ZNODE_WRITE_LOCK)
 			node_check (node, REISER4_NODE_PANIC);
 	}
 
