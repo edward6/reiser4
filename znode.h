@@ -485,8 +485,16 @@ void print_znodes( const char *prefix, reiser4_tree *tree );
 #define spin_znode_is_locked(x)     spin_jnode_is_locked ( ZJNODE(x) )
 #define spin_znode_is_not_locked(x) spin_jnode_is_not_locked ( ZJNODE(x) )
 
+#if REISER4_DEBUG
+extern int znode_x_count_is_protected (const znode *node);
+#endif
+
 static inline znode* zref (znode *node)
 {
+	/*
+	 * change of x_count from 0 to 1 is protected by tree spin-lock
+	 */
+	assert ("nikita-2517", znode_x_count_is_protected (node));
 	return JZNODE (jref (ZJNODE (node)));
 }
 

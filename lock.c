@@ -905,7 +905,13 @@ int longterm_lock_znode (
 	spin_unlock_znode(node);
 
 	if (ret == 0) {
-		/* count a reference from lockhandle->node */
+		/* 
+		 * count a reference from lockhandle->node 
+		 *
+		 * znode was already referenced at the entry to this function,
+		 * hence taking spin-lock here is not necessary (see comment
+		 * in the zref()).
+		 */
 		zref (node);
 
 		ON_DEBUG_CONTEXT(++ lock_counters()->long_term_locked_znode);

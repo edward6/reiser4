@@ -341,7 +341,7 @@ void znode_remove( znode *node /* znode to remove */, reiser4_tree *tree )
 	assert( "nikita-469", atomic_read( &ZJNODE(node) -> x_count ) == 0 );
 	assert( "nikita-470", atomic_read( &node -> c_count ) == 0 );
 
-	/* remove reference to this znode from pbk cache */
+	/* remove reference to this znode from cbk cache */
 	cbk_cache_invalidate( node, tree );
 	/* 
 	 * while we were taking lock on pbk cache to remove us from
@@ -1169,6 +1169,17 @@ void print_znodes( const char *prefix, reiser4_tree *tree )
 	}
 	if( tree_lock_taken )
 		spin_unlock_tree( tree );
+}
+
+/** 
+ * helper function used to implement assertion in zref():
+ * change of x_count from 0 to 1 is protected by tree spin-lock 
+ */
+int znode_x_count_is_protected( const znode *node )
+{
+	assert( "nikita-2518", node != NULL );
+	return ergo( atomic_read( &ZJNODE( node ) -> x_count ) == 0,
+		     spin_tree_is_locked( current_tree ) );
 }
 
 #endif
