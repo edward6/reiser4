@@ -55,6 +55,7 @@ struct coord {
 	 */
 };
 
+
 /* Reverse a direction. */
 static inline sideof sideof_reverse (sideof side)
 {
@@ -281,6 +282,11 @@ extern int ncoord_set_to_right (coord_t *coord);
 /* If the coordinate is between items, shifts it to the left.  Returns 0 on success and
  * non-zero if there is no position to the left. */
 extern int ncoord_set_to_left (coord_t *coord);
+
+/* return true if coord is set after last unit in an item. 0 - otherwise. It is
+ * used mostly to avoid repeated tree traversals writing to a file
+ * sequentially */
+int ncoord_is_after_last_unit (coord_t *coord);
 
 /* If the coordinate is before an item/unit, set to next item/unit.  If the coordinate is
  * after an item/unit, set to the previous item/unit.  Returns 0 on success and non-zero
