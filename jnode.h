@@ -92,34 +92,35 @@ typedef enum {
 	   its parent */
        ZNODE_ORPHAN            = 4,
 
-       /* The jnode is a unformatted node.  False for all znodes.  */
-       ZNODE_UNFORMATTED       = 5,
-
-       /** this node was created by its transaction and has not been assigned a block
-	* address. */
-       ZNODE_CREATED           = 6,
+       /** this node was created by its transaction and has not been assigned
+	* a block address. */
+       ZNODE_CREATED           = 5,
 
        /** this node is currently relocated */
-       ZNODE_RELOC             = 7,
+       ZNODE_RELOC             = 6,
        /** this node is currently wandered */
-       ZNODE_WANDER            = 8,
+       ZNODE_WANDER            = 7,
 
        /** this znode has been modified */
-       ZNODE_DIRTY             = 9,
+       ZNODE_DIRTY             = 8,
 
        /* znode lock is being invalidated */
-       ZNODE_IS_DYING          = 10,
+       ZNODE_IS_DYING          = 9,
        /* jnode of block which has pointer (allocated or unallocated) from
 	* extent or something similar (indirect item, for example) */
-       ZNODE_MAPPED            = 12,
+       ZNODE_MAPPED            = 10,
 
        /* jnode is being flushed.  this implies that the node or its children are being
 	* squeezed and allocated. */
-       ZNODE_FLUSH_BUSY        = 14,
+       ZNODE_FLUSH_BUSY        = 11,
 
        /* jnode is queued for flushing. */
-       ZNODE_FLUSH_QUEUED      = 15,
+       ZNODE_FLUSH_QUEUED      = 12,
 
+       /* The jnode is a unformatted node.  False for all znodes.  */
+       ZNODE_UNFORMATTED       = 13,
+       ZNODE_UNUSED_1          = 14,
+       ZNODE_UNUSED_2          = 15
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
@@ -146,6 +147,8 @@ static inline int jnode_is_in_deleteset( const jnode *node )
 {
 	return JF_ISSET( node, ZNODE_RELOC );
 }
+
+extern jnode_plugin *jnode_ops( const jnode *node );
 
 extern int jnode_init_static (void);
 extern int jnode_done_static (void);
@@ -307,18 +310,12 @@ static inline int jnode_is_root (const jnode *node)
 
 /** operations to access jnodes */
 typedef struct node_operations {
-	/** read given tree node from persistent storage. This is called from
-	 * zload() */
-	int ( *read_node )( reiser4_tree *tree, jnode *node );
 	/** allocate memory for newly created znode. This is called from
 	 * zinit_new() */
 	int ( *allocate_node )( reiser4_tree *tree, jnode *node );
 	/** called when node is deleted from the tree. This is called from
 	 * zdestroy(). */
 	int ( *delete_node )( reiser4_tree *tree, jnode *node );
-	/** called when node's data are no longer needed. This is called from
-	 * zunload(). */
-	int ( *release_node )( reiser4_tree *tree, jnode *node );
 	/** called when node is removed from the memory */
 	int ( *drop_node )( reiser4_tree *tree, jnode *node );
 	/** mark node dirty. This is called from jnode_set_dirty(). */
@@ -331,19 +328,9 @@ extern void add_d_ref( jnode *node );
 
 /* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
 
-/* load jnode data, leave jnode spin-locked return positive number if
- * cached data was used */
-extern int  jload_and_lock    (jnode* node);
+extern int  jload_and_lock(jnode* node);
 
-/* same as jload_and_lock(), but unlock jnode */
-static inline int jload (jnode * node)
-{
-	int ret;
-
-	ret = jload_and_lock (node);
-	spin_unlock_jnode (node);
-	return ret;
-}
+extern int jload(jnode * node);
 
 extern void jdrop             (jnode* node);
 extern int  jwait_io          (jnode* node, int rw);

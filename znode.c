@@ -747,7 +747,7 @@ static node_plugin *znode_guess_plugin( const znode *node /* znode to guess
 							   * plugin of */)
 {
 	assert( "nikita-1053", node != NULL );
-	assert( "nikita-1055", znode_is_loaded( node ) );
+	assert( "nikita-1055", zdata( node ) != NULL );
 	assert( "umka-053", current_tree != NULL );
 
 	if( get_current_super_private() -> one_node_plugin ) {
@@ -775,13 +775,12 @@ static node_plugin *znode_guess_plugin( const znode *node /* znode to guess
 }
 
 /** parse node header and install ->node_plugin */
-/* Audited by: umka (2002.06.11) */
-static int zparse( znode *node /* znode to parse */ )
+int zparse( znode *node /* znode to parse */ )
 {
 	int result;
 
 	assert( "nikita-1233", node != NULL );
-	assert( "nikita-1904", znode_is_loaded( node ) );
+	assert( "nikita-2370", zdata( node ) != NULL );
 
 	if( node -> nplug == NULL ) {
 		node_plugin *nplug;
@@ -806,7 +805,6 @@ static void zrelse_nolock( znode *node )
 }
 
 /** load content of node into memory */
-/* Audited by: umka (2002.06.11), umka (2002.06.15) */
 int zload( znode *node /* znode to load */ )
 {
 	int result;
@@ -817,24 +815,7 @@ int zload( znode *node /* znode to load */ )
 	assert( "nikita-2125", atomic_read( &ZJNODE(node) -> x_count ) > 0 );
 	assert( "nikita-2189", lock_counters() -> spin_locked == 0 );
 
-	result = jload_and_lock (ZJNODE(node));
-
-	if (unlikely (result < 0)) {
-		spin_unlock_znode (node);
-		return result;
-	}
-
-	assert ("zam-511", zdata(node) != NULL);
-
-	if (result == 0) { /* znode was loaded from disk  */
-		result = zparse(node);
-		if (result) zrelse_nolock(node);
-	} else {           /* znode data were taken from cache */
-		result = 0;
-	}
-
-	spin_unlock_znode (node);
-
+	result = jload (ZJNODE(node));
 	assert ("nikita-1378", znode_invariant (node));
 	return result;
 }

@@ -184,53 +184,6 @@ int done_formatted_fake( struct super_block *super )
 }
 
 /** 
- * ->read_node method of page-cache based tree operations 
- *
- * read @block into page cache and bind it to the formatted fake inode of
- * @super. Kmap the page.
- */
-static int page_cache_read_node( reiser4_tree *tree, jnode *node )
-{
-	struct page *page;
-	int result;
-
-	assert( "nikita-2169", node != NULL );
-	assert( "nikita-2038", tree != NULL );
-
-	trace_on( TRACE_PCACHE, "read node: %p\n", node );
-
-	/*
-	 * we don't want to use read_cache_page(), because of the need to
-	 * distinguish pages that were found in page cache from pages that
-	 * were just created.
-	 */
-	page = add_page( tree -> super, node );
-	if( page != NULL ) {
-		if( !PageUptodate( page ) ) {
-			result = page -> mapping -> a_ops -> readpage( NULL,
-								       page );
-			if( likely( result == 0 ) ) {
-				wait_on_page_locked( page );
-				if( likely( PageUptodate( page ) ) )
-					mark_page_accessed( page );
-				else
-					result = -EIO;
-			} else
-				unlock_page( page );
-		} else {
-			unlock_page( page );
-			result = 1;
-		}
-		kmap( page );
-	} else
-		result = -ENOMEM;
-
-	/* return with jnode spin-locked */
-	spin_lock_jnode( node );
-	return result;
-}
-
-/** 
  * ->allocate_node method of page-cache based tree operations 
  *
  * grab page to back up new jnode.
@@ -260,22 +213,6 @@ static int page_cache_allocate_node( reiser4_tree *tree, jnode *node )
 	/* return with jnode spin-locked */
 	spin_lock_jnode( node );
 	return result;
-}
-
-/** ->release_node method of page-cache based tree operations */
-static int page_cache_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
-{
-	struct page *page;
-
-	ON_SMP( assert( "nikita-2134", spin_jnode_is_locked( node ) ) );
-	trace_on( TRACE_PCACHE, "release node: %p\n", node );
-
-	page = jnode_page( node );
-	if( page != NULL ) {
-		kunmap( page );
-		page_cache_release( page );
-	}
-	return 0;
 }
 
 /** ->delete_node method of page-cache based tree operations */
@@ -358,9 +295,9 @@ static int page_cache_clean_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
  */
 static struct page *add_page( struct super_block *super, jnode *node )
 {
-	unsigned long page_idx;
 	struct page  *page;
 	int           blksizebits;
+	jnode_plugin *jplug;
 
 	assert( "nikita-2171", super != NULL );
 
@@ -369,7 +306,8 @@ static struct page *add_page( struct super_block *super, jnode *node )
 	 * only blocks smaller or equal to page size are supported
 	 */
 	assert( "nikita-1773", PAGE_CACHE_SHIFT >= blksizebits );
-	/* page_idx = *jnode_get_block( node ) >> ( PAGE_CACHE_SHIFT - blksizebits ); */
+
+	jplug = jnode_ops( node );
 
 	/*
 	 * Our initial design was to index pages with formatted data by their
@@ -400,8 +338,7 @@ static struct page *add_page( struct super_block *super, jnode *node )
 	 *  implemented). Pointer to atom?
 	 *
 	 */
-	page_idx = ( unsigned long ) node;
-	page = grab_cache_page( get_super_fake( super ) -> i_mapping, page_idx );
+	page = grab_cache_page( jplug -> mapping( node ), jplug -> index( node ) );
 	if( unlikely( page == NULL ) )
 		return NULL;
 
@@ -692,10 +629,8 @@ static struct address_space_operations formatted_fake_as_ops = {
 };
 
 node_operations page_cache_tops = {
-	.read_node     = page_cache_read_node,
 	.allocate_node = page_cache_allocate_node,
 	.delete_node   = page_cache_delete_node,
-	.release_node  = page_cache_release_node,
 	.drop_node     = page_cache_drop_node,
 	.dirty_node    = page_cache_dirty_node,
 	.clean_node    = page_cache_clean_node
