@@ -713,30 +713,25 @@ int scan_ctail(flush_scan * scan, const coord_t * in_coord)
 	return result;
 }
 
-/* how to write */
-static crc_write_mode_t
-guess_write_mode(flush_pos_t * pos, int child)
+/* If yes, return true with attached child */
+static int
+should_attach_squeeze_idata(flush_pos_t * pos)
 {
-	ctail_squeeze_info_t * info;
+	reiser4_key key;
 	
-	assert("edward-245", pos != NULL);
-	assert("edward-246", znode_is_wlocked(pos->coord.node));
-	assert("edward-247", znode_is_loaded(pos->coord.node));
+	assert("edward-431", pos != NULL);
+	assert("edward-432", pos->child == NULL);
 	
-	info = &pos->idata->ctail_info;
-	
-	if (!info->flow.length)
-		return CRC_CUT_ITEM;
-	
-	if (!child)
-		return CRC_APPEND_ITEM;
-	
-	return CRC_OVERWRITE_ITEM;
+	if (!cluster_key(&key, &pos->coord))
+		return 0;
+	/* check for leftmost child */
+	utmost_child_ctail(&pos->coord, LEFT_SIDE, &pos->child);
+	return (pos->child != NULL);
 }
 
 /* attach valid squeeze item data to the flush position */
 static int
-attach_squeeze_ctail_data(flush_pos_t * pos, struct inode * inode)
+attach_squeeze_idata(flush_pos_t * pos, struct inode * inode)
 {
 	int ret = 0;
 	file_plugin * fplug;
@@ -788,7 +783,7 @@ attach_squeeze_ctail_data(flush_pos_t * pos, struct inode * inode)
 }
 
 static void
-invalidate_squeeze_ctail_data(flush_squeeze_item_data_t ** idata)
+detach_squeeze_idata(flush_squeeze_item_data_t ** idata)
 {
 
 	ctail_squeeze_info_t * info;
@@ -831,42 +826,74 @@ utmost_child_ctail(const coord_t * coord, sideof side, jnode ** child)
 }
 
 /* plugin->u.item.f.squeeze */
-/* @child == 1: attach squeeze item info to the @pos if it is not uptodate,
-   @child == 0: detach and invalidate it.
-*/
-int squeeze_ctail(flush_pos_t * pos, int child)
+int
+squeeze_ctail(flush_pos_t * pos)
 {
 	int result;
 	ctail_squeeze_info_t * info;
+	crc_write_mode_t mode = CRC_OVERWRITE_ITEM;
 	
 	assert("edward-261", pos != NULL);
 	assert("edward-262", item_plugin_by_coord(&pos->coord) == item_plugin_by_id(CTAIL_ID));
 	
-	if (pos->idata == 0) {
-		
-		struct inode * inode;
-		
-		assert("edward-263", child != 0);
-		assert("edward-264", pos->child != NULL);
-		assert("edward-265", jnode_page(pos->child) != NULL);
-		assert("edward-266", jnode_page(pos->child)->mapping != NULL);
-		
-		inode = jnode_page(pos->child)->mapping->host;
-		
-		assert("edward-267", inode != NULL);
-		
-		/* attach item squeeze info by child and put the last one */
-		result = attach_squeeze_ctail_data(pos, inode);
-		pos->child = NULL;
-		if (result != 0)
-			return result;
+	if (pos->idata == NULL)
+		if (should_attach_squeeze_idata(pos)) {
+			/* attach squeeze item info */
+			struct inode * inode;
+			
+			assert("edward-264", pos->child != NULL);
+			assert("edward-265", jnode_page(pos->child) != NULL);
+			assert("edward-266", jnode_page(pos->child)->mapping != NULL);
+			
+			inode = jnode_page(pos->child)->mapping->host;
+			
+			assert("edward-267", inode != NULL);
+			
+			/* attach item squeeze info by child and put the last one */
+			result = attach_squeeze_idata(pos, inode);
+			pos->child = NULL;
+			if (result != 0)
+				return result;
+		}
+		else
+			/* nothing to do */
+			return 0;
+	else {
+		/* there is attached data, check if it is valid */
+		info = &pos->idata->ctail_info;
+		if (info->flow.length) {
+			/* there is flow to insert, move flush position back if
+			   not a first item */
+			if (!coord_prev_item(&pos->coord))
+				coord_init_after_item_end(&pos->coord);
+			mode = CRC_APPEND_ITEM;
+		}
+		else {
+			/* check if we need to cut item */
+			reiser4_key key;
+			if (cluster_key(&key, &pos->coord)) {
+				/* don't need, put squeeze info and return to squeeze_node()
+				   to contunue from the next item */
+				detach_squeeze_idata(&pos->idata);
+				return 0;
+			}
+			else
+				mode = CRC_CUT_ITEM;	
+		}
 	}
-	
-	info = &pos->idata->ctail_info;
-	result = write_ctail(&info->flow, &pos->coord, &pos->lock, 0, guess_write_mode(pos, child), info->inode);
-	if (result != 0 || child == 0)
-		invalidate_squeeze_ctail_data(&pos->idata); 
-	return result;
+
+	assert("edward-433", pos->idata != NULL);
+	result = write_ctail(&info->flow, &pos->coord, &pos->lock, 0, mode, info->inode);
+	if (result) {
+		detach_squeeze_idata(&pos->idata);
+		return result;
+	}
+	if (mode == CRC_APPEND_ITEM) {
+		/* detach squeeze info */
+		assert("edward-434", pos->idata->ctail_info.flow.length == 0);
+		detach_squeeze_idata(&pos->idata);
+	}
+	return 0;
 }
 
 

@@ -1563,16 +1563,6 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 		if (iplug->f.squeeze == NULL)
 			/* do not squeeze this item */
 			goto next;
-		
-		/* get child if squeeze item data is not uptodate */
-		if (!pos->idata) {
-			ret = iplug->f.utmost_child(&pos->coord, LEFT_SIDE, &pos->child);
-			if (ret)
-				return ret;
-			if (pos->child == NULL)
-				/* do not squeeze this item */
-				goto next;
-		}
 		ret = iplug->f.squeeze(pos, 1 /* attach info */);
 		
 		assert("edward-307", pos->child == NULL);
@@ -1582,16 +1572,6 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 		if (coord_next_item(&pos->coord))
 			/* node is over */
 			break;
-		/* before starting next iteration check if existing squeeze item data
-		   should be invalidate. If so, call squeeze() method of previous item
-		   plugin for updated flush position */
-		if (pos->idata != NULL && item_plugin_by_coord(&pos->coord) != iplug) {
-			assert("edward-308", iplug->f.squeeze != NULL);
-			ret = iplug->f.squeeze(pos, 0 /* invalidate info */);
-			assert("edward-309", pos->idata == NULL);
-			if (ret)
-				return ret;
-		}
 	}
 	
 #endif	/* SQUEEZE_NODE_SUPPORT */
