@@ -154,16 +154,8 @@ unordered.
 A/B indicates that the plugin for A is to be passed B, 
 and asked to handle it in its way, whatever that way is.  
 
-C/..inherit/"**A 'some text' **B" indicates that C when read shall 
-return the contents of A followed by 'some text' as a delimiter followed by 
-the contents of B.
-
-
-DEMIDOV, is the below still correct?
-
-if A is word expression 
-				 *A is an object expression
-				 **A is the contents of an object 
+C/..invert<-A +"(some text)+ B 
+indicates that C when read shall return the contents of A followed by 'some text' as a delimiter followed by  the contents of B.
 
 if  A  and   B  is object expressions then 
                A+B  is object expression
@@ -175,18 +167,19 @@ So, let us discuss the following example:
 
 Assume 357 is the user id of Michael Jackson.
 
-The following expressions are equivalent:
+The following 3 expressions are equivalent:
 
-ascii_command = "/home/teletubbies/glove_location<-( ..object_t<-audit/encrypted, ..perm_t<-acl); glove_location/..acl<-( uid<-357, access<-denied ); glove_location/..audit<-mailto<-teletubbies@pbs.org; glove_location<-'we stole it quite some number of years ago, and put it in the very first loot pile (in the hole near the purple flower'.";
+ascii_command = "/home/teletubbies/(..new(..name<-glove_location, ..object_t<-audit/encrypted, ..perm_t<-acl); glove_location/..acl<-( uid<-357, access<-denied ); glove_location/..audit<-mailto<-teletubbies@pbs.org; glove_location<-'we stole it quite some number of years ago, and put it in the very first loot pile (in the hole near the purple flower.')";
 
 DEMIDOV, why the \ in the line below? -Hans
 for make nonprintabele sysmbols.
 example:  \n \t \013 ...
 
-ascii_command = '/home/teletubbies/glove_location<-( ..object_t<-audit/encrypted, ..perm_t<-acl); glove_location/..acl<-  ( uid<-357, access<-denied ); glove_location/..audit<-mailto<-\`teletubbies@pbs.org'; glove_location<-`we stole it quite some number of years ago, and put it in the very first loot pile (in the hole near the purple flower\').';
+ascii_command = "/home/teletubbies/(glove_location<-( ..object_t<-audit/encrypted, ..perm_t<-acl); glove_location/..acl<-  ( uid<-357, access<-denied ); glove_location/..audit<-mailto<-teletubbies@pbs.org; glove_location<-'we stole it quite some number of years ago, and put it in the very first loot pile (in the hole near the purple flower)')";
 
 
-ascii_command = '/home/teletubbies/glove_location<-( ..object_t<-audit/encrypted, ..perm_t<-acl); glove_location / ( ..acl<-(uid<-357, access<-denied) ; ..audit<-mailto<-teletubbies@pbs.org); glove_location<-'we stole it quite some number of years ago, and put it in the very first loot pile (in the hole near the purple flower).';
+ascii_command = "/home/teletubbies/(glove_location<-( ..object_t<-audit/encrypted, ..perm_t<-acl); glove_location / ( ..acl<-(uid<-357, access<-denied) ; ..audit<-mailto<-teletubbies@pbs.org); glove_location<-'we stole it quite some number of years ago, and put it in the very first loot pile (in the hole near the purple flower).')";
+
 
 The components of this example have the following meanings: 
 /home/teletubbies/       - directory name
@@ -350,11 +343,11 @@ sprintf( string_pointer_bytes_read, "%8.8p", &bytes_readed );
  */
 %token TRANSCRASH  /* tw/name[op_list] */
 %token EOF 
-%token L_ASSIGN L_ASSIGN_APPEND L_SYMLINK
-%token DOTDOT
+%token L_ASSIGN /*L_ASSIGN_APPEND*/ L_SYMLINK
+/*%token DOTDOT*/
 %token EOL
-%token PROCESS
-%token SLASH SLASH_DOTDOT SLASH2 SLASH3
+%token PROCESS SP
+%token SLASH /*SLASH_DOTDOT*/ SLASH2 SLASH3
 %token STAT
 %token L_PAREN R_PAREN INV_L INV_R
 %token RANGE OFFSET OFFSET_BACK FIRST_BYTE LAST_BYTE P_BYTES_WRITTEN P_BYTES_READ LAST BYTES FIRST
@@ -401,11 +394,13 @@ sprintf( string_pointer_bytes_read, "%8.8p", &bytes_readed );
 
 %%
 
-reiser4             : operation_list    EOF
+reiser4
+: operation_list    EOF                          { make_do_it( $1 ); }
 ;
 
-operation_list      : operation
-                    | operation_list ';'  operation
+operation_list      
+: operation                                      { $$ = make_op_list(  $1 );            /*make first*/}
+| operation_list ';'  operation                  { $$ = add_op_list( $1, $3 );          /*make next*/}
 ;
 
 
@@ -417,17 +412,35 @@ operation_list      : operation
  */
 
 
-operation           : TRANSCRASH SLASH '[' operation_list ']'             /*   ..tw/[a<-b;b<-c] */
-                    | '{' asynchronous_list '}'
-                    | '(' operation_list ')'
-                    | assignment
-                    | if_statement
-                    | Object_Name SLASH2 '(' operation_list ')'              /*   path_name/(a<-b;b<-c) */ 
+operation           
+: tw_begin operation_list ']'                           { $$ = end_tw_list( $1 ); level_down( TW_BEGIN );      /*   ..tw/[a<-b;b<-c] */ }
+| asyn_begin asynchronous_list '}'                      { $$ = end_async_list( $1 ); level_down( ASYN_BEGIN ); }
+| op_level operation_list ')'                           { $$ = $2;  level_down( OP_LEVEL ); }
+| assignment                                            { $$ = $1; }
+| if_statement                                          { $$ = $1; }
+| cd_begin operation_list ')'                           { $$ = $2;  level_down( CD_BEGIN ); }                    /*   path_name/(a<-b;b<-c) */ 
 ;
 
+
+tw_begin
+: TRANSCRASH SLASH '['                                  { level_up( TW_BEGIN ); begin_tw_list( level ); }
+;
+
+asyn_begin
+: '{'                                                   { level_up( ASYN_BEGIN ); begin_asynchronouse( level ); }
+;
+
+cd_begin
+: Object_Name SLASH2 '('                                { level_up( CD_BEGIN ); make_current( $1, level ); } 
+
+op_level
+: '('                                                   { level_up( OP_LEVEL ); }
+
+
                                                /* list of operations that will be performed "simultaneously" */
-asynchronous_list   : operation
-                    | asynchronous_list ',' operation
+asynchronous_list   
+: operation                                             { $$ = make_asyn( $1 ); }
+| asynchronous_list ',' operation                       { $$ = add_asyn( $1, $2 ); }
 ;
 
  
@@ -438,81 +451,110 @@ asynchronous_list   : operation
    all unspecified defaults? */
 
 
-assignment          :  Object_Name L_ASSIGN       Expression           /*  <-  direct assigne  */
-                    |  Object_Name L_ASSIGN INV_L Expression INV_R     /*  <-  invert assign. destination mast have ..invert method  */
-                    |  Object_Name L_SYMLINK      Expression           /*   ->  symlink   */
+/* hte ASSIGNMENT operator mast be have a value: bytes to written */
+
+assignment          
+:  Object_Name L_ASSIGN       Expression                { assign( $1, $3 ); }  /*  <-  direct assigne  */
+|  Object_Name L_ASSIGN INV_L Expression INV_R          { assign_invert( $1, $4 ); }/*  <-  invert assign. destination mast have ..invert method  */
+|  Object_Name L_SYMLINK      Expression                { symlink( $1, $3 ); }/*   ->  symlink   */
 
 
-Expression          : Object_Name
-                    | '(' assignment ')'                               /*  this expresion has value same as target of assigne       */
-                    | Constant
-                    | Expression '+' Expression
-                    | Expression EQ Expression
-                    | Expression NE Expression
-                    | Expression LE Expression
-                    | Expression GE Expression
-                    | Expression LT Expression
-                    | Expression GT Expression
-                    | Expression IS pattern
-                    | Expression OR  Expression
-                    | Expression AND Expression
-                    | NOT '(' Expression ')'
-                    | '(' Expression ')'
-                    | EXIST Object_Name 
+Expression          
+: Object_Name
+| op_level assignment ')'                                { level_down( OP_LEVEL );}/*  this expresion has value written bytes       */
+| Constant                                               { $$ = $1; }
+| Expression '+' Expression                              { $$ = connect_expression( $1,  $3 ); }
+| Expression EQ Expression                               { $$ = compare_expression( $1, $2, $3 ); }
+| Expression NE Expression                               { $$ = compare_expression( $1, $2, $3 ); }
+| Expression LE Expression                               { $$ = compare_expression( $1, $2, $3 ); }
+| Expression GE Expression                               { $$ = compare_expression( $1, $2, $3 ); }
+| Expression LT Expression                               { $$ = compare_expression( $1, $2, $3 ); }
+| Expression GT Expression                               { $$ = compare_expression( $1, $2, $3 ); }
+/*                    | Expression IS pattern   */
+| Expression OR  Expression                              { $$ = compare_expression( $1, $2, $3 ); }
+| Expression AND Expression                              { $$ = compare_expression( $1, $2, $3 ); }
+| NOT '(' Expression ')'                                 { $$ = not_expression( $3 ); }
+| op_level Expression ')'                                { $$ = $2; level_down( OP_LEVEL ); }
+| EXIST Object_Name                                      { $$ = check_exist( $2 ); }
 ;
 
-if_statement        : IF Expression Then_Else
+if_statement        
+: if_Expression Then_Else                { make_end_label(); level_down(IF_STATEMENT);}
 
-Then_Else           : THEN operation 
-                    | THEN operation ELSE operation
+if_Expression 
+: if Expression                         { goto_if_false( $1-1, $2 ); }
+
+if: IF                                  { level_up( IF_STATEMENT ); $$ = reserv_label( 2 ); }
+
+Then_Else           
+: then_operation           
+| then_operation else operation
+
+then_operation
+: THEN operation                       { goto_end();}
+;
+
+else
+: ELSE                                { else_lab();}
+;
 
 /* Object name begin */
-Object_Name         : Object_Path_Name 
-                    | Object_Path_Name SLASH3 range_type
-                    | '[' Unordered_list ']'                                                            /* gruping: [name1 name2 [name3]]  */
+Object_Name
+: Object_Path_Name 
+| Object_Path_Name SLASH3 range_type
+| '[' Unordered_list ']'                                                            /* gruping: [name1 name2 [name3]]  */
 ;
 
-Unordered_list      : Object_Name
-                    | P_RUNNER
-                    | Unordered_list ' ' Unordered_list
+Unordered_list
+: Object_Name
+| P_RUNNER
+| Unordered_list SP Unordered_list
 ;
 
-Object_Path_Name    : SLASH Object_relative_Name                                           /* /foo */
-                    | SLASH PROCESS                                                        /* /??? */
-                    | Object_relative_Name                                                 /* foo  */
+Object_Path_Name
+: SLASH Object_relative_Name                                           /* /foo */
+| SLASH PROCESS                                                        /* /??? */
+| Object_relative_Name                                                 /* foo  */
 ;
 
-Object_relative_Name : Object_sub_Name
-                     | Object_relative_Name  SLASH Object_sub_Name                        /* foo/bar/baz */
+Object_relative_Name
+: Object_sub_Name
+| Object_relative_Name  SLASH Object_sub_Name                        /* foo/bar/baz */
 ;
 
-Object_sub_Name     :  WORD                                                              /* foo */
-
-range_type          :  RANGE SLASH L_PAREN range_set R_PAREN                             /* /..range/(offset<-12345,p_bytes_written<-0xff001258,...) */
-                    |  STAT SLASH WORD                                                   /* /..stat/atime */
-                    |  STAT                                                              /* /..stat */
+Object_sub_Name
+:  WORD                                                              /* foo */
 ;
 
-range_set           : range
-                    | range_set ',' range
+range_type
+:  RANGE SLASH L_PAREN range_set R_PAREN                             /* /..range/(offset<-12345,p_bytes_written<-0xff001258,...) */
+|  STAT SLASH WORD                                                   /* /..stat/atime */
+|  STAT                                                              /* /..stat */
 ;
 
-range               : OFFSET  L_ASSIGN N_WORD                                                     /*offset<-12345*/
-                    | OFFSET_BACK  L_ASSIGN N_WORD                                                /*offset_back<-12345*/
-                    | FIRST  L_ASSIGN N_WORD                                                      /*first_byte<-123456*/
-                    | LAST  L_ASSIGN N_WORD                                                       /*last_byte<-123456*/
-                    | P_BYTES_WRITTEN  L_ASSIGN P_WORD                                            /*p_bytes_written<-0xff001258*/
-                    | P_BYTES_READ  L_ASSIGN P_WORD                                               /*p_bytes_read<-0xff001258*/
-                    | BYTES                                                                       /*p_units<-bytes*/
+range_set
+: range
+| range_set ',' range
+;
+
+range
+: OFFSET  L_ASSIGN N_WORD                                                     /*offset<-12345*/
+| OFFSET_BACK  L_ASSIGN N_WORD                                                /*offset_back<-12345*/
+| FIRST  L_ASSIGN N_WORD                                                      /*first_byte<-123456*/
+| LAST  L_ASSIGN N_WORD                                                       /*last_byte<-123456*/
+| P_BYTES_WRITTEN  L_ASSIGN P_WORD                                            /*p_bytes_written<-0xff001258*/
+| P_BYTES_READ  L_ASSIGN P_WORD                                               /*p_bytes_read<-0xff001258*/
+| BYTES                                                                       /*p_units<-bytes*/
 /*                    | LINES                                                                       /*p_units<-lines*/
 ;
 
-
-pattern             : pattern '~' pattern               {}
-                    | PATTERN
-                    | Expression 
+/*
+pattern             
+: pattern '~' pattern               {}
+| PATTERN
+| Expression 
 ;
-
+*/
 /* Object name end*/
 
 
