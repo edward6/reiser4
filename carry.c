@@ -93,7 +93,7 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
  *     // here, because @op is to be applied to the parent of @node, rather
  *     // than to the @node itself as in the previous case.
  *
- *     op = post_carry( todo, operation, node, 1 );
+ *     op = node_post_carry( todo, operation, node, 1 );
  *     // fill in remaining fields in @op, according to carry.h:carry_op
  *
  *     ....
@@ -278,6 +278,21 @@ int carry( carry_level *doing /* set of carry operations to be performed */,
 	return result;
 }
 
+#define carry_node_next( node ) 					\
+	( ( carry_node * ) pool_level_list_next( &( node ) -> header ) )
+
+#define carry_node_prev( node ) 					\
+	( ( carry_node * ) pool_level_list_prev( &( node ) -> header ) )
+
+#define carry_node_front( level )					\
+	( ( carry_node * ) pool_level_list_front( &( level ) -> nodes ) )
+
+#define carry_node_back( level )					\
+	( ( carry_node * ) pool_level_list_back( &( level ) -> nodes ) )
+
+#define carry_node_end( level, node ) 					\
+	( pool_level_list_end( &( level ) -> nodes, &( node ) -> header ) )
+
 /* macro to iterate over all operations in a @level */
 #define for_all_ops( level /* carry level (of type carry_level *) */, 		\
 		     op    /* pointer to carry operation, modified by loop (of	\
@@ -293,14 +308,13 @@ for( op = ( carry_op * ) pool_level_list_front( &level -> ops ),		\
 /* macro to iterate over all nodes in a @level */
 #define for_all_nodes( level /* carry level (of type carry_level *) */,		\
 		       node  /* pointer to carry node, modified by loop (of	\
-			      * type carry_node *) */, 				\
+			      * type carry_node *) */,				\
 		       tmp   /* pointer to carry node (of type carry_node *),	\
 			      * used to make iterator stable in the face of *	\
 			      * deletions from the level */ )			\
-for( node = ( carry_node * ) pool_level_list_front( &level -> nodes ),  	\
-     tmp = ( carry_node * ) pool_level_list_next( &node -> header ) ; 		\
-     ! pool_level_list_end( &level -> nodes, &node -> header ) ; 		\
-     node = tmp, tmp = ( carry_node * ) pool_level_list_next( &node -> header ) )
+for( node = carry_node_front( level ),						\
+     tmp = carry_node_next( node ) ; ! carry_node_end( level, node ) ;		\
+     node = tmp, tmp = carry_node_next( node ) )
 
 /**
  * macro to iterate over all nodes in a @level in reverse order
@@ -313,10 +327,9 @@ for( node = ( carry_node * ) pool_level_list_front( &level -> nodes ),  	\
 		            tmp   /* pointer to carry node (of type carry_node	\
 				   * *), used to make iterator stable in the	\
 				   * face of deletions from the level */ )	\
-for( node = ( carry_node * ) pool_level_list_back( &level -> nodes ),		\
-     tmp = ( carry_node * ) pool_level_list_prev( &node -> header ) ;		\
-     ! pool_level_list_end( &level -> nodes, &node -> header ) ;		\
-     node = tmp, tmp = ( carry_node * ) pool_level_list_prev( &node -> header ) )
+for( node = carry_node_back( level ),		\
+     tmp = carry_node_prev( node ) ; ! carry_node_end( level, node ) ;		\
+     node = tmp, tmp = carry_node_prev( node ) )
 
 /**
  * perform carry operations on given level.
@@ -450,38 +463,6 @@ carry_op *post_carry( carry_level *level    /* queue where new operation is to
 	return result;
 }
 
-/**
- * add new node to the carry queue
- *
- * Allocate new carry node from pool and add it to the @queue.  Normal carry
- * users should use post_carry() instead. This function is only useful
- * for batching, nodes on the "base" level have to kept locked while
- * operations are batched for the parent level. Such nodes are supplied to
- * reiser4_add_to_carry() so that carry will unlock all these nodes after
- * batched operations performed.
- *
- */
-/* Audited by: green(2002.06.17) */
-carry_node *add_to_carry( znode *node         /* node to be added */, 
-			  carry_level *queue  /* queue where node to be added
-					       * to */ )
-{
-	carry_node *result;
-	int lock_result;
-
-	assert( "nikita-1063", node != NULL );
-	assert( "nikita-1064", queue != NULL );
-
-	result = add_carry( queue, POOLO_LAST, NULL );
-	if( IS_ERR( result ) )
-		return result;
-	result -> node = node;
-	lock_result = lock_carry_node( queue, result );
-	if( lock_result != 0 )
-		result = ERR_PTR( lock_result );
-	return result;
-}
-
 /* number of carry operations in a @level */
 /* Audited by: green(2002.06.17) */
 int carry_op_num( const carry_level *level )
@@ -543,6 +524,38 @@ void done_carry_pool( carry_pool *pool UNUSED_ARG /* pool to destroy */ )
  *
  */
 /* Audited by: green(2002.06.17) */
+carry_node *add_carry_skip( carry_level *level     /* &carry_level to add node
+						    * to */, 
+			    pool_ordering order    /* where to insert: at the
+						    * beginning of @level,
+						    * before @reference, after
+						    * @reference, at the end
+						    * of @level */,
+			    carry_node  *reference /* reference node for
+						    * insertion */ )
+{
+	ON_DEBUG( carry_node *orig_ref = reference );
+
+	trace_stamp( TRACE_CARRY );
+	if( order == POOLO_BEFORE ) {
+		reference = find_left_carry( reference, level );
+		if( reference == NULL )
+			reference = carry_node_front( level );
+		else
+			reference = carry_node_next( reference );
+	} else if( order == POOLO_AFTER ) {
+		reference = find_right_carry( reference, level );
+		if( reference == NULL )
+			reference = carry_node_back( level );
+		else
+			reference = carry_node_prev( reference );
+	}
+	assert( "nikita-2209", 
+		ergo( orig_ref != NULL,
+		      reference -> real_node == orig_ref -> real_node ) );
+	return add_carry( level, order, reference );
+}
+
 carry_node *add_carry( carry_level *level     /* &carry_level to add node
 					       * to */, 
 		       pool_ordering order    /* where to insert: at the
@@ -554,7 +567,6 @@ carry_node *add_carry( carry_level *level     /* &carry_level to add node
 {
 	carry_node *result;
 
-	trace_stamp( TRACE_CARRY );
 	result =  ( carry_node * ) add_obj( &level -> pool -> node_pool,
 					    &level -> nodes, order,
 					    &reference -> header );
@@ -616,10 +628,8 @@ carry_node *find_begetting_brother( carry_node *node /* node to start search
 	assert( "nikita-1619", ergo( node -> real_node != NULL, 
 				     ZF_ISSET( node -> real_node, ZNODE_ORPHAN ) ) );
 
-	for( scan = node ; ; 
-	     scan = ( carry_node * ) pool_level_list_prev( &scan -> header ) ) {
-		assert( "nikita-1617", 
-			!pool_level_list_end( &kin -> nodes, &scan -> header ) );
+	for( scan = node ; ; scan = carry_node_prev( scan ) ) {
+		assert( "nikita-1617", !carry_node_end( kin, scan ) );
 		if( ( scan -> node != node -> node ) && 
 		    ! ZF_ISSET( scan -> node, ZNODE_ORPHAN ) ) {
 			assert( "nikita-1618", scan -> real_node != NULL );
@@ -629,8 +639,101 @@ carry_node *find_begetting_brother( carry_node *node /* node to start search
 	return scan;
 }
 
+static cmp_t carry_node_cmp( carry_level *level, carry_node *n1, carry_node *n2 )
+{
+	assert( "nikita-2199", n1 != NULL );
+	assert( "nikita-2200", n2 != NULL );
+
+	if( n1 == n2 )
+		return EQUAL_TO;
+	while( 1 ) {
+		n1 = carry_node_next( n1 );
+		if( carry_node_end( level, n1 ) )
+			return GREATER_THAN;
+		if( n1 == n2 )
+			return LESS_THAN;
+	}
+	impossible( "nikita-2201", "End of level reached" );
+}
+
+static carry_node *find_carry_node( carry_level *level, const znode *node )
+{
+	carry_node *scan;
+	carry_node *tmp_scan;
+
+	assert( "nikita-2202", level != NULL );
+	assert( "nikita-2203", node != NULL );
+
+	for_all_nodes( level, scan, tmp_scan ) {
+		if( scan -> real_node == node )
+			return scan;
+	}
+	return NULL;
+}
+
+static carry_node *insert_carry_node( carry_level *doing, carry_level *todo, 
+				      const znode *node )
+{
+	carry_node *base;
+	carry_node *scan;
+	carry_node *tmp_scan;
+	carry_node *proj;
+
+	base = find_carry_node( doing, node );
+	assert( "nikita-2204", base != NULL );
+
+	for_all_nodes( todo, scan, tmp_scan ) {
+		proj = find_carry_node( doing, scan -> node );
+		assert( "nikita-2205", proj != NULL );
+		if( carry_node_cmp( doing, proj, base ) != LESS_THAN )
+			break;
+	}
+	return scan;
+}
+
+/** like post_carry(), but designed to be called from node plugin methods. */
+carry_op *node_post_carry( carry_plugin_info *info    /* carry parameters
+						       * passed down to node
+						       * plugin */, 
+			   carry_opcode op       /* opcode of operation */,
+			   znode *node           /* node on which this
+						  * operation will operate */, 
+			   int apply_to_parent_p /* whether operation will
+						  * operate directly on @node
+						  * or on it parent. */ )
+{
+	carry_node *reference;
+	carry_op   *result;
+	carry_node *child;
+
+	assert( "nikita-2207", info != NULL );
+	assert( "nikita-2208", info -> todo != NULL );
+
+	if( info -> doing == NULL )
+		return post_carry( info -> todo, op, node, apply_to_parent_p );
+
+	reference = insert_carry_node( info -> doing, info -> todo, node );
+	assert( "nikita-2206", reference != NULL );
+	
+	result = add_op( info -> todo, POOLO_LAST, NULL );
+	if( IS_ERR( result ) )
+		return result;
+	child = add_carry( info -> todo, POOLO_BEFORE, reference );
+	if( IS_ERR( child ) ) {
+		reiser4_pool_free( &result -> header );
+		return ( carry_op * ) child;
+	}
+	result -> node = child;
+	result -> op = op;
+	child  -> parent = apply_to_parent_p;
+	if( ZF_ISSET( node, ZNODE_ORPHAN ) )
+		child -> left_before = 1;
+	child  -> node = node;
+	return result;
+}
+
+
 /* lock all carry nodes in @level */
-/* Audited by: green(2002.06.17) */
 static int lock_carry_level( carry_level *level /* level to lock */ )
 {
 	int         result;
@@ -640,6 +743,32 @@ static int lock_carry_level( carry_level *level /* level to lock */ )
 	assert( "nikita-881", level != NULL );
 
 	trace_stamp( TRACE_CARRY );
+
+	for_all_nodes( level, node, tmp_node ) {
+		znode *left;
+		znode *right;
+
+		spin_lock_dk( current_tree );
+		if( node != carry_node_front( level ) ) {
+			right = node -> node;
+			left  = carry_node_prev( node ) -> node;
+			if( !keyle( znode_get_ld_key( left ), znode_get_ld_key( right ) ) ) {
+				print_node_content( "left", left, ~REISER4_NODE_SILENT );
+				print_node_content( "right", right, ~REISER4_NODE_SILENT );
+				BUG();
+			}
+		}
+		if( node != carry_node_back( level ) ) {
+			left  = node -> node;
+			right = carry_node_next( node ) -> node;
+			if( !keyle( znode_get_ld_key( left ), znode_get_ld_key( right ) ) ) {
+				print_node_content( "left", left, ~REISER4_NODE_SILENT );
+				print_node_content( "right", right, ~REISER4_NODE_SILENT );
+				BUG();
+			}
+		}
+		spin_unlock_dk( current_tree );
+	}
 
 	/* lock nodes from left to right */
 	result = 0;
@@ -666,8 +795,7 @@ static int lock_carry_level( carry_level *level /* level to lock */ )
 static void sync_dkeys( carry_node *node /* node to update */, 
 			carry_level *doing UNUSED_ARG /* level @node is in */ )
 {
-	znode *left;
-	znode *right;
+	znode *spot;
 	reiser4_key pivot;
 
 	assert( "nikita-1610", node != NULL );
@@ -675,29 +803,39 @@ static void sync_dkeys( carry_node *node /* node to update */,
 	assert( "nikita-1612", lock_counters() -> spin_locked_dk == 0 );
 
 	spin_lock_dk( current_tree );
-	right = node -> real_node;
+	spot = node -> real_node;
 	spin_lock_tree( current_tree );
 
-	do {
-		if( ZF_ISSET( right, ZNODE_LEFT_CONNECTED ) )
-			left = right -> left;
-		else
-			left = NULL;
+	assert( "nikita-2192", znode_is_loaded( spot ) );
 
-		if( node_is_empty( right ) )
-			pivot = *znode_get_rd_key( right );
-		else {
-			assert( "nikita-2192", znode_is_loaded( right ) );
-			leftmost_key_in_node( right, &pivot );
-		}
+	/*
+	 * sync left delimiting key of @spot with key in its leftmost item
+	 */
+	if( node_is_empty( spot ) )
+		pivot = *znode_get_rd_key( spot );
+	else
+		leftmost_key_in_node( spot, &pivot );
 
-		*znode_get_ld_key( right ) = pivot;
-		if( left != NULL ) {
-			*znode_get_rd_key( left ) = pivot;
-		} else
+	*znode_get_ld_key( spot ) = pivot;
+
+	/*
+	 * there can be sequence of empty nodes pending removal on the left of
+	 * @spot. Scan them and update their left and right delimiting keys to
+	 * match left delimiting key of @spot. Also, update right delimiting
+	 * key of first non-empty left neighbor.
+	 */
+	while( 1 ) {
+		assert( "nikita-2193", ZF_ISSET( spot, ZNODE_LEFT_CONNECTED ) );
+		spot = spot -> left;
+		if( spot == NULL )
 			break;
-		right = left;
-	} while( ZF_ISSET( right, ZNODE_HEARD_BANSHEE ) );
+
+		*znode_get_rd_key( spot ) = pivot;
+		if( ZF_ISSET( spot, ZNODE_HEARD_BANSHEE ) )
+			*znode_get_ld_key( spot ) = pivot;
+		else
+			break;
+	}
 
 	spin_unlock_tree( current_tree );
 	spin_unlock_dk( current_tree );
@@ -1105,6 +1243,7 @@ carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
 	carry_node *fresh;
 	znode      *new_znode;
 	carry_op   *add_pointer;
+	carry_plugin_info info;
 
 	assert( "nikita-1048", brother != NULL );
 	assert( "nikita-1049", todo != NULL );
@@ -1120,7 +1259,7 @@ carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
 	 *
 	 */
 
-	fresh = add_carry( doing, ref ? POOLO_AFTER : POOLO_LAST, ref );
+	fresh = add_carry_skip( doing, ref ? POOLO_AFTER : POOLO_LAST, ref );
 	if( IS_ERR( fresh ) )
 		return fresh;
 
@@ -1144,12 +1283,13 @@ carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
 	fresh -> node = new_znode;
 
 	while( ZF_ISSET( ref -> real_node, ZNODE_ORPHAN ) ) {
-		ref = ( carry_node * ) pool_level_list_prev( &ref -> header );
-		assert( "nikita-1606", !pool_level_list_end( &doing -> nodes, 
-							     &ref -> header ) );
+		ref = carry_node_prev( ref );
+		assert( "nikita-1606", !carry_node_end( doing, ref ) );
 	}
 
-	add_pointer = post_carry( todo, COP_INSERT, ref -> real_node, 1 );
+	info.todo  = todo;
+	info.doing = doing;
+	add_pointer = node_post_carry( &info, COP_INSERT, ref -> real_node, 1 );
 	if( IS_ERR( add_pointer ) ) {
 		/*
 		 * no need to deallocate @new_znode here: it will be
