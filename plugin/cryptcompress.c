@@ -633,6 +633,12 @@ max_crypto_overhead(crypto_plugin * cplug, crypto_stat_t * stat)
 	}
 }
 
+unsigned
+compress_overhead(compression_plugin * cplug)
+{
+	return (cplug ? cplug->overrun : 0);   
+}
+
 /* The following two functions represent reiser4 compression policy */
 static int
 try_compress(reiser4_cluster_t * clust, struct inode * inode)
@@ -677,183 +683,264 @@ void set_compression_magic(__u8 * magic)
 }
 
 /*
-  Common deflate cluster manager.
-  . maybe compress cluster and attach compression magic if result of compression is acceptable
-  . maybe align and encrypt cluster 
+  Common cluster deflate manager.
   
-  FIXME-EDWARD: Currently the only symmetric crypto algorithms with ecb are supported */
+  . accept a flow as a single page or cluster of pages assembled into a buffer
+    of cluster handle @clust
+  . maybe allocate buffer @bf to store temporary results 
+  . maybe compress accepted flow and attach compression magic if result of
+    compression is acceptable
+  . maybe align and encrypt the flow.
+  . stores the result in the buffer of cluster handle
+                                     _ _ _ _ _ _ _ _ 
+				    |               |
+                                    |  disk cluster |                                
+                                    |_ _ _ _ _ _ _ _|  
+                                            ^                 
+                                            |  
+          _______________            _______|_______       _ _ _ _ _ _ _ _
+         |               | <---1--- |               |     |               |
+         |     @bf       | ----2--> |     @clust    |<----|  page cluster |
+         |_______________| ----3--> |_______________|     |_ _ _ _ _ _ _ _| 
+                 ^                          ^
+	       4 |      ______________      | 5
+                 |     |              |     |
+                 +---- |     page     | ----+
+	               |______________| 
+
+  1 - compression or encryption
+  2 - encryption
+  3 - alternation
+  4 - compression
+  5 - compression or encryption or copy
+
+  FIXME-EDWARD: Currently the only symmetric crypto algorithms with ecb are
+  supported 
+*/
+
 int
 deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 		struct inode *inode)
 {
-	int result = 0;
-	__u8 * src;
+	int result = 0; 
 	__u8 * bf = NULL;
+	__u8 * src = NULL;
+	__u8 * dst = NULL;
 	size_t bfsize = clust->count;
+	struct page * pg = NULL; 
 	
 	assert("edward-401", inode != NULL);
 	assert("edward-495", clust != NULL);
 	assert("edward-496", clust->count != 0);
 	assert("edward-497", clust->len == 0);
-	assert("edward-498", clust->buf || clust->pages);
+	assert("edward-498", clust->buf && clust->bsize);
 
-	/* set input buffer */
-	if (inode_cluster_size(inode) == PAGE_CACHE_SIZE) {
-		assert("edward-499", clust->pages != NULL && clust->buf == NULL);
-		assert("edward-600", clust->count <= PAGE_CACHE_SIZE);
-
-		lock_page(*clust->pages);
-		src = kmap(*clust->pages);
-		assert("edward-620", PageLocked(*clust->pages));
-	}
-	else {
-		assert("edward-601", clust->buf != NULL && clust->pages == NULL);
-		src = clust->buf;
-	}
 	if (try_compress(clust, inode)) {
 		/* try to compress, discard bad results */
+		__u8 * dst;
 		__u8 * wbuf;
 		compression_plugin * cplug = inode_compression_plugin(inode);
 
 		assert("edward-602", cplug != NULL);
+
+		if (inode_crypto_plugin(inode) || !clust->pages) {
+			/* [12], [42], [13], tmp buffer is required */
+			bfsize += cplug->overrun;
+			bf = reiser4_kmalloc(bfsize, GFP_KERNEL);
+			if (!bf)
+				return -ENOMEM;
+			dst = bf;
+		}
+		else 
+			/* [5] */
+			dst = clust->buf;
+		if (clust->pages) {
+			/* [42], [5] */
+			assert("edward-619", clust->nr_pages == 1);
+			assert("edward-620", PageDirty(*clust->pages));
+			assert("edward-499", inode_cluster_size(inode) == PAGE_CACHE_SIZE); 
+
+			pg = *clust->pages;
+			lock_page(pg);
+			assert("edward-621", PageDirty(pg));
+			src = kmap(pg);
+		}
+		else
+			/* [12], [13] */
+			src = clust->buf;
 		
-                /* max output buffer size after compression */
-		bfsize += cplug->overrun;
-		bf = reiser4_kmalloc(bfsize, GFP_KERNEL);
-		if (bf == NULL)
-			return -ENOMEM;
 		wbuf = reiser4_kmalloc(cplug->mem_req, GFP_KERNEL);
 		if (wbuf == NULL) {
 			result = -ENOMEM;
 			goto exit;
 		}
-		cplug->compress(wbuf, src, clust->count, bf/* res */, &clust->len/* res */);
+		cplug->compress(wbuf, src, clust->count, dst/* res */, &clust->len/* res */);
 
-		assert("edward-603", clust->len <= bfsize);
+		assert("edward-603", clust->len <= (bf ? bfsize : clust->bsize));
 		
 		/* estimate compression quality to accept or discard
 		   the results of our efforts */
 		if (save_compressed(clust, inode)) {
 			/* Accepted */
-			set_compression_magic(bf + clust->len);
+			set_compression_magic(dst + clust->len);
 			clust->len += CLUSTER_MAGIC_SIZE;
-			goto next;
 		}
-		/* Discard */
-		if (clust->pages)
-			xmemcpy(bf, src, clust->count);
-		reiser4_kfree(wbuf, cplug->mem_req);
+		else 
+			/* Discard */
+			clust->len = clust->count;
 	}
-	clust->len = clust->count;
- next:
-	if (inode_crypto_plugin(inode) != NULL) {
+	
+	if (inode_crypto_plugin(inode)) {
 		/* align and encrypt */
-		int i;
 		int oh; /* ohhh, the crypto alignment overhead */
-		int fips;
+		int i, icb, ocb;
 		__u32 * expkey;
 		crypto_plugin * cplug = inode_crypto_plugin(inode);
 		crypto_stat_t * stat = inode_crypto_stat(inode);
-		size_t fip;
-
+				
 		assert("edward-604", stat != NULL);
-
-		fip = cplug->blocksize(stat->keysize);
-
-		assert("edward-605", fip != 0);
-
-		/* estimate crypto overhead of the cluster */
+		
+		icb = cplug->blocksize(stat->keysize);
+		ocb = inode_scaled_offset(inode, icb);
+		
+		assert("edward-605", icb != 0);
+		
+		/* precise crypto-overhead */
 		oh = crypto_overhead(0, clust, inode, WRITE_OP);
 		
-		if (!bf || clust->count == clust->len) {
-			/* encryption is present, compression is absent */
-			if (!bf) {
-				/* no compression plugin, buffer wasn't allocated */
+		if (dst) {
+			/* compression is specified */
+			assert("edward-622", src != NULL);
+			assert("edward-623", bf != NULL && clust->len != 0);
+			assert("edward-624", clust->len <= clust->count);
+			
+			if (clust->len != clust->count)
+				/* saved */
+				src = dst;
+			else
+				/* refused */
+				;
+			if (pg) {
+                                /* flush the page */
+				assert("edward-625", PageLocked(pg));
+				
+				kunmap(pg);
+				uncapture_page(pg);
+				unlock_page(pg);
+				page_cache_release(pg);
+				reiser4_kfree(clust->pages, sizeof(*clust->pages));
+				pg = NULL;
+			}
+		}
+		else {
+			/* [13], [5], compression wasn't specified */
+
+			assert("edward-626", !clust->len);
+			
+			if (!clust->pages) {
+				/* [13], tmp buffer required */
+				assert("edward-627", !bf);
+
 				bfsize += oh;
 				bf = reiser4_kmalloc(bfsize, GFP_KERNEL);
-				if (bf == NULL)
-					return -ENOMEM;
-			}
-			alternate_buffers(clust, &bf, &bfsize);
-			if (bf) {
-				assert("edward-606", !clust->pages);
+				if (!bf)
+					goto exit;
+				alternate_buffers(clust, &bf, &bfsize);
 				src = bf;
 			}
+			else {
+				/* [5] */
+				pg = *clust->pages;
+				lock_page(pg);
+				assert("edward-628", PageDirty(pg));
+				src = kmap(pg);
+			}
+			clust->len = clust->count;
 		}
-		if (oh) {
-			clust->len += cplug->align_cluster(bf + clust->len, clust->len, fip);
 
-			assert("edward-402", clust->len <= inode_cluster_size(inode));
-
-			*(bf + clust->len - 1) = oh;
-		}
-		if (clust->len % fip != 0)
-			impossible("edward-403", "bad aligned length");
+		dst = clust->buf;
 		
-		fips = clust->len/fip;
+		if (oh) {
+			/* align the source */
+			clust->len += cplug->align_cluster(src + clust->len, clust->len, icb);
+			
+			assert("edward-402", clust->len <= (pg ? PAGE_CACHE_SIZE : bfsize));
+
+			*(src + clust->len - 1) = oh;
+		}
+#if REISER4_DEBUG	
+		if (clust->len % icb)
+			impossible("edward-403", "bad alignment");
+#endif
+		
 		expkey = cryptcompress_inode_data(inode)->expkey;
 		
 		assert("edward-404", expkey != NULL);
 		
-		for (i=0; i < fips; i++)
-			cplug->encrypt(expkey, clust->buf + i*fip /* dst */, src + i*fip);
+		for (i=0; i < clust->len/icb; i++)
+			cplug->encrypt(expkey, clust->buf + i*ocb /* dst */, src + i*icb);
 	}
 	
 	else if (bf && clust->len != clust->count)
-		/* encryption is absent, compression is present */
+		/* [13], saved compression, no encryption */
 		alternate_buffers(clust, &bf, &bfsize);
 	else
-		/* encryption is absent, compression is absent */
+		/* not specified or discarded compression, no encryption */
 		if (clust->pages) {
-			assert("edward-607", !clust->buf);
+			if (!pg) {
+				assert("edward-629", !src);
+				/* -not specified, [5] */
+				pg = *clust->pages;
+				lock_page(pg);
+				src = kmap(pg);
+			}
+			else 
+				/* -discarded, [13] */
+				assert("edward-630", src != NULL);
 			
-			clust->buf = reiser4_kmalloc(bfsize, GFP_KERNEL);
-			if (!clust->buf)
-				return -ENOMEM;
-			clust->bsize = bfsize;
-			xmemcpy(clust->buf, src, bfsize);
+			xmemcpy(clust->buf, src, clust->count);
 		}
  exit:
 	if (bf)
 		reiser4_kfree(bf, bfsize);
-	if (clust->pages) {
-
-		assert("edward-621", PageLocked(*clust->pages));
+	if (pg) {
+		assert("edward-621", PageLocked(pg));
 		
-		kunmap(*clust->pages);
-		uncapture_page(*clust->pages);
-		unlock_page(*clust->pages);
-		page_cache_release(*clust->pages);
+		kunmap(pg);
+		uncapture_page(pg);
+		unlock_page(pg);
+		page_cache_release(pg);
 		reiser4_kfree(clust->pages, sizeof(*clust->pages));
 	}
 	return result;
 }
           
-/* Common inflate cluster manager. Is used for mapping of cryptcompress objects
+/* Common inflate cluster manager. Is used in readpage() or readpages() methods of
+   cryptcompress object plugins.
    . maybe allocate temporary buffer (@bf)   
    . maybe decrypt disk cluster (assembled in united flow of cluster handle) and
      cut crypto-alignment overhead (if any)
    . maybe check for compression magic and decompress
    
-   The final result is stored in the same buffer of the cluster handle (@clust)
+   The final result is stored in the buffer of the cluster handle (@clust)
    (which contained assembled disk cluster at the beginning of this procedure)
    and is supposed to be sliced into page cluster by appropriate fillers, but if
    cluster size is equal PAGE_SIZE we fill the single page (@pg) right here: 
 
-                                      ________________
-                                     |                |
-                                     |  disk cluster  |                                
-                                     |________________|  
-                                              |                 
-                                              |  
-         _________________            ________V_______       _______________
-        |                 | <---1--- |                |     |               |
-        |       @bf       | ----2--> |     @clust     |---->|  page cluster |
-        |_________________| ----3--> |________________|     |_______________| 
-                 |                            |
-	       4 |      _______________       | 5
-                 |     |               |      |
-                 +---> |      @pg      | <----+
+                                      _ _ _ _ _ _ _ _ 
+                                     |               | 
+                                     |  disk cluster |                                
+                                     |_ _ _ _ _ _ _ _|  
+                                             |                 
+                                             |  
+          ________________            _______V_______       _ _ _ _ _ _ _ _
+         |                | <---1--- |               |     |               |
+         |      @bf       | ----2--> |     @clust    |---->|  page cluster |
+         |________________| ----3--> |_______________|     |_ _ _ _ _ _ _ _| 
+                 |                           |
+	       4 |      _______________      | 5
+                 |     |               |     |
+                 +---> |      @pg      | <---+
 	               |_______________| 
 
   1, 5 - decryption or decompression
@@ -919,8 +1006,10 @@ inflate_cluster(reiser4_cluster_t *clust, /* cluster handle, contains assembled
 			bfsize = fsize_to_count(clust, inode);
 			bfsize += crypto_overhead(bfsize, clust, inode, WRITE_OP);
 			bf = reiser4_kmalloc(bfsize, GFP_KERNEL);
-			if (!bf)
-				return -ENOMEM;
+			if (!bf) {
+				result = -ENOMEM;
+				goto exit;
+			}
 			dst = bf;
 		}
 		
@@ -965,8 +1054,10 @@ inflate_cluster(reiser4_cluster_t *clust, /* cluster handle, contains assembled
 				/* [13], tmp buffer is needed, estimate its size */
 				bfsize = fsize_to_count(clust, inode);
 				bf = reiser4_kmalloc(bfsize, GFP_KERNEL);
-				if (!bf)
-					return -ENOMEM;
+				if (!bf) {
+					result = -ENOMEM;
+					goto exit;
+				}
 				alternate_buffers(clust, &bf, &bfsize);
 			}
 			dst = clust->buf;
@@ -1418,11 +1509,27 @@ flush_cluster_pages(reiser4_cluster_t * clust, struct inode * inode)
 	set_nrpages_by_frame(clust);
 
 	cluster_reserved2grabbed(estimate_insert_cluster(inode));
+
+	/* estimate max size of the cluster after compression and encryption
+	   including all appended infrastructure, and allocate a buffer */
+	clust->bsize = clust->count +
+		max_crypto_overhead(inode_crypto_plugin(inode), inode_crypto_stat(inode));
+	clust->bsize = inode_scaled_offset(inode, clust->bsize);
+	
+	if (clust->bsize > inode_scaled_cluster_size(inode))
+		clust->bsize = inode_scaled_cluster_size(inode);
+	
+	clust->bsize += compress_overhead(inode_compression_plugin(inode));
+	
+	clust->buf = reiser4_kmalloc(clust->bsize, GFP_KERNEL);
+	if (!clust->buf)
+		return -ENOMEM;
 	
 	if (inode_cluster_size(inode) == PAGE_CACHE_SIZE) {
+		/* do not flush single page */
 		assert("edward-612", clust->nr_pages == 1);
 
-		clust->pages = reiser4_kmalloc(sizeof(clust->pages), GFP_KERNEL);
+		clust->pages = reiser4_kmalloc(sizeof(*clust->pages), GFP_KERNEL);
 		if (!clust->pages)
 			return -ENOMEM;
 		
@@ -1433,23 +1540,8 @@ flush_cluster_pages(reiser4_cluster_t * clust, struct inode * inode)
 		
 		return 0;
 	}
-	
-        /* more then one pages should be assembled in united flow */
 
-	/* FIXME-EDWARD: Estimate maximal buffer size needed for compressed and encrypted cluster
-	   including all appended infrastructure (without compression being involved) */
-
-	clust->bsize = clust->count +
-		max_crypto_overhead(inode_crypto_plugin(inode), inode_crypto_stat(inode));
-	clust->bsize = inode_scaled_offset(inode, clust->bsize);
-
-	if (clust->bsize > inode_scaled_cluster_size(inode))
-		clust->bsize = inode_scaled_cluster_size(inode);
-	
-	clust->buf = reiser4_kmalloc(clust->bsize, GFP_KERNEL);
-	if (!clust->buf)
-		return -ENOMEM;
-	
+        /* flush more then one page after its assembling in united flow */
 	for(i=0; i < clust->nr_pages; i++){
 		struct page * page;
 		char * data;
