@@ -166,12 +166,17 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 		goto error_free_journal;
 	}
     }
-	
-    if (reiserfs_tree_open(fs))
+    
+    if (reiserfs_oid_init(fs))
 	goto error_free_journal;
+    
+    if (reiserfs_tree_open(fs))
+	goto error_free_oid;
 	
     return fs;
 
+error_free_oid:
+    reiserfs_oid_close(fs);
 error_free_journal:
     if (fs->journal)
 	reiserfs_journal_close(fs);
@@ -224,12 +229,17 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
     if (reiserfs_journal_init(fs, 0))
 	goto error_free_alloc;
 
-    if (reiserfs_tree_create(fs, node_plugin_id))
+    if (reiserfs_oid_init(fs))
 	goto error_free_journal;
+    
+    if (reiserfs_tree_create(fs, node_plugin_id))
+	goto error_free_oid;
     
     reiserfs_format_set_free(fs, reiserfs_alloc_free(fs));
     return fs;
 
+error_free_oid:
+    reiserfs_oid_close(fs);
 error_free_journal:
     reiserfs_journal_close(fs);
 error_free_alloc:
@@ -274,7 +284,9 @@ void reiserfs_fs_close(reiserfs_fs_t *fs) {
     aal_assert("umka-230", fs != NULL, return);
     
     reiserfs_tree_close(fs);
-
+    
+    reiserfs_oid_close(fs);
+    
     if (fs->journal)
 	reiserfs_journal_close(fs);
 	

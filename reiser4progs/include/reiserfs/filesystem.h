@@ -200,13 +200,21 @@ struct reiserfs_journal {
 
 typedef struct reiserfs_journal reiserfs_journal_t;
 
-/* Allocator structure */
+/* Block allocator structure */
 struct reiserfs_alloc {
     reiserfs_opaque_t *entity;
     reiserfs_plugin_t *plugin;
 };
 
 typedef struct reiserfs_alloc reiserfs_alloc_t;
+
+/* Oid allocator structure */
+struct reiserfs_oid {
+    reiserfs_opaque_t *entity;
+    reiserfs_plugin_t *plugin;
+};
+
+typedef struct reiserfs_oid reiserfs_oid_t;
 
 /* Filesystem compound structure */
 struct reiserfs_fs {
@@ -217,6 +225,7 @@ struct reiserfs_fs {
     reiserfs_format_t *format;
     reiserfs_journal_t *journal;
     reiserfs_alloc_t *alloc;
+    reiserfs_oid_t *oid;
     reiserfs_tree_t *tree;
 };
 

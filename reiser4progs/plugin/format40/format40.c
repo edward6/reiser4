@@ -325,8 +325,8 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
 	goto error_free_journal;
     }
     
-    reiserfs_check_method(oid_plugin->oid, alloc, goto error_free_oid);
-    set_sb_oid(super, oid_plugin->oid.alloc(format->oid));
+/*    reiserfs_check_method(oid_plugin->oid, alloc, goto error_free_oid);
+    set_sb_oid(super, oid_plugin->oid.alloc(format->oid));*/
     
     return format;
 

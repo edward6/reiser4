@@ -29,6 +29,7 @@ extern "C" {
 #include "format.h"
 #include "journal.h"
 #include "alloc.h"
+#include "oid.h"
 #include "plugin.h"
 #include "tree.h"
 #include "tools.h"

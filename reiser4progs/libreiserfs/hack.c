@@ -31,6 +31,9 @@ static uint64_t pack_string( const char *name, int start_idx) {
 blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     blk_t root_blk, blk;
     aal_block_t *block;
+    
+    uint64_t root_parent_oid;
+    uint64_t root_oid;
 
     reiserfs_nh40_t *node;
     reiserfs_ih40_t *item;
@@ -71,9 +74,12 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     
     aal_memset(&item->key, 0, sizeof(reiserfs_key_t));
     
+    root_parent_oid = reiserfs_oid_alloc(fs);
+    root_oid = reiserfs_oid_alloc(fs);
+
     set_key_type(&item->key, KEY_SD_MINOR);
-    set_key_locality(&item->key, 41);
-    set_key_objectid(&item->key, 42);
+    set_key_locality(&item->key, root_parent_oid);
+    set_key_objectid(&item->key, root_oid);
     
     ih40_set_plugin_id(item, 0x3);
     ih40_set_length(item, sizeof(reiserfs_internal40_t));
@@ -122,8 +128,8 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     aal_memset(&item->key, 0, sizeof(reiserfs_key_t));
     
     set_key_type(&item->key, KEY_SD_MINOR);
-    set_key_locality(&item->key, 41);
-    set_key_objectid(&item->key, 42);
+    set_key_locality(&item->key, root_parent_oid);
+    set_key_objectid(&item->key, root_oid);
     
     ih40_set_plugin_id(item, 0x0);
     ih40_set_length(item, sizeof(reiserfs_stat40_base_t));
@@ -140,7 +146,7 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     aal_memset(&item->key, 0, sizeof(reiserfs_key_t));
     
     set_key_type(&item->key, KEY_FILE_NAME_MINOR);
-    set_key_locality(&item->key, 42);
+    set_key_locality(&item->key, root_oid);
     
     ih40_set_plugin_id(item, 0x2);
     ih40_set_length(item, sizeof(reiserfs_direntry40_t) + 
@@ -158,7 +164,7 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
 	uint64_t offset;
 	
 	aal_memset(&key, 0, sizeof(key));
-	set_key_locality(&key, 42);
+	set_key_locality(&key, root_oid);
 	set_key_type(&key, KEY_FILE_NAME_MINOR);
 	
 	objectid = get_key_objectid(&key);
@@ -178,7 +184,7 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
 	uint64_t offset;
 
 	aal_memset(&key, 0, sizeof(key));
-	set_key_locality(&key, 42);
+	set_key_locality(&key, root_oid);
 	set_key_type(&key, KEY_FILE_NAME_MINOR);
 	
 	objectid = pack_string("..", 1);
@@ -218,8 +224,8 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
 
 	aal_memset(&key, 0, sizeof(key));
 	set_key_type(&key, KEY_SD_MINOR);
-	set_key_locality(&key, 41);
-	set_key_objectid(&key, 42);
+	set_key_locality(&key, root_parent_oid);
+	set_key_objectid(&key, root_oid);
 	
 	locality = get_key_locality(&key) << 4;
 	objectid = get_key_objectid(&key);
@@ -244,8 +250,8 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
 
 	aal_memset(&key, 0, sizeof(key));
 	set_key_type(&key, KEY_SD_MINOR);
-	set_key_locality(&key, (41 - 3));
-	set_key_objectid(&key, 41);
+	set_key_locality(&key, (root_parent_oid - 3));
+	set_key_objectid(&key, root_parent_oid);
 
 	locality = get_key_locality(&key) << 4;
 	objectid = get_key_objectid(&key);
