@@ -58,7 +58,7 @@
 
 #else
 
-#define REISER4_DEBUG (0)
+#define REISER4_DEBUG (1)
 
 #endif /* #if defined( CONFIG_REISER4_CHECK ) */
 
@@ -190,7 +190,7 @@ extern int reiser4_are_all_debugged( struct super_block *super, __u32 flags );
 */
 
 #ifndef REISER4_TRACE
-#define REISER4_TRACE (0)
+#define REISER4_TRACE (1)
 #endif
 
 #if REISER4_TRACE
@@ -324,7 +324,7 @@ extern __u32 reiser4_current_trace_flags;
 #define trace_on( f, args... )   trace_if( f, dinfo( ##args ) )
 
 #ifndef REISER4_STATS
-#define REISER4_STATS (0)
+#define REISER4_STATS (1)
 #endif
 
 #if REISER4_STATS
