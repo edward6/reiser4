@@ -2405,6 +2405,10 @@ static int map_allocated_buffers (reiser4_key * key,
 		ind = offset >> PAGE_CACHE_SHIFT;
 
 		page = find_lock_page (inode->i_mapping, ind);
+		/* 
+		 * FIXME:NIKITA->VS saw this failing with pg == NULL, after
+		 * mkfs, mount, cp /etc/passwd, umount.
+		 */
 		assert ("vs-349", page != NULL);
 		assert ("vs-350", page->private != NULL);
 
