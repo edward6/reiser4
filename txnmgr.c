@@ -4173,10 +4173,8 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
 				z->version = znode_build_version(jnode_get_tree(node));
 			}
 			result = RETERR(-E_REPEAT);
-			return result;
 		}
-		if (result != -E_REPEAT)
-			return result;
+		return result;
 	}
 
 	reiser4_stat_inc(coc.forbidden);
