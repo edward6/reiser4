@@ -1242,6 +1242,7 @@ int txn_attach_txnh_to_node (jnode *node)
 	txn_atom *atom;
 	reiser4_context *ctx;
 	txn_handle *txnh;
+	int ret = 0;
 
 	ctx  = get_current_context ();
 	txnh = ctx->trans;
@@ -1250,21 +1251,24 @@ int txn_attach_txnh_to_node (jnode *node)
 	assert ("jmacd-77917", ctx->parent == ctx);
 	assert ("jmacd-77918", txnh->atom == NULL);
 
+	spin_lock_txnh (txnh);
+	spin_lock_jnode (node);
+
 	atom = atom_get_locked_by_jnode (node);
 
 	/* Atom can commit at this point. */
 	if (atom == NULL) {
-		return -ENOENT;
+		ret = -ENOENT;
+		goto fail_unlock;
 	}
-
-	spin_lock_txnh (txnh);
 
 	capture_assign_txnh_nolock (atom, txnh);
 
 	spin_unlock_atom (atom);
+ fail_unlock:
 	spin_unlock_txnh (txnh);
-	
-	return 0;
+	spin_unlock_jnode (node);
+	return ret;
 }
 
 /* This informs the transaction manager when a node is deleted.  Add the block to the
