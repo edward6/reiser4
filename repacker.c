@@ -111,6 +111,7 @@ static int end_work (void)
 static void begin_work (void)
 {
 	reiser4_context * ctx = get_current_context();
+	preempt_point();
 	txn_begin(ctx);
 }
 
