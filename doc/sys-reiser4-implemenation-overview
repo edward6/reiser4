@@ -5,13 +5,12 @@ A. Basics
 *****************************************************************
 
 sys_reiser4() system call executing a sequence of actions upon the
-file-system(s). Actions are specified by the user in a form of command
+file-system(s). Actions are specified by the user in the form of a command
 string. For the purposes of present discussion, said command string can be
 thought of as a program in a special purpose programming language, which will
-be further referred to as rsccl (reiser4 system call command language,
-presumably pronounced as "rascal").
+be further referred to as reiser4_lang.
 
-Canonical example of rsccl program is
+Canonical example of reiser4_lang program is
 
 /dir1/dir2/dir3/file1 <- /dir4/dir5/dir6/file2
 
@@ -22,17 +21,18 @@ It semantics is following:
 3. assign latter to the former.
 
 This is "assignment" operator. Assignment involves two "file-system objects"
-and semantics of both lookup stage and assignment proper depends upon type of
-the file-system object.
+and semantics of both lookup stage and assignment proper depends upon the type
+of the file-system object.
 
 Following types of file-system objects are recognized:
 
-1. foreign objects: objects of different file-systems. [In the initial
-version,] foreign object cannot be target or source of an assignment. Rather,
-foreign objects can only appear during path name lookup, while traversing
-non-reiser4 part of the file-system name-space. Probably one should
-distinguish between objects belonging to different file-system types (etx2,
-NFS) and objects belonging to different reiser4 mounts.
+1. foreign objects: objects of different file-systems. Foreign object cannot
+be target or source of an assignment. Rather, foreign objects can only appear
+during path name lookup, while traversing non-reiser4 part of the file-system
+name-space. Probably one should distinguish between objects belonging to
+different file-system types (etx2, NFS) and objects belonging to different
+reiser4 mounts. After sys_reiser4() is stable, foreign objects will be more
+fully supported.
 
 2. reiser4 objects.
 
@@ -51,22 +51,26 @@ B. lnodes
 lnodes are handles for file-system objects described above. They serve dual
 purpose:
 
-1. uniform interface to the various types of objects. This allows rsccl
-implementation to treat various types of objects in the same manner. When new
-type of object has to be added, all changes will be grouped in one place,
-rather than scattered across various files. This uniformity also allows code
-sharing between rsccl and VFS access paths. For example, the same ->write
-method can be used by both.
+1. uniform interface to the various types of objects. This allows the
+reiser4_lang implementation to treat various types of objects in the same
+manner. When new type of object has to be added, all changes will be grouped
+in one place, rather than scattered across various files. This uniformity also
+allows code sharing between reiser4_lang and VFS access paths. For example,
+the same ->write method can be used by both. That is, ->read(), and ->write()
+plugin methods used in VFS access paths will take lnode(s) as arguments and
+can share code with sys_reiser4() implementation. For example, assignment is
+particular case of write (or visa versa, depending on point of view).
 
-2. synchronization. rsccl doesn't use inodes and this poses a problem of
+
+2. synchronization. reiser4_lang doesn't use inodes and this poses a problem of
 synchronization with VFS. Each lnode serves as a lock. See lnode.c for more
 details.
 
 C. lookup
 *****************************************************************
 
-[In initial version,] we still support only two traditional UNIX kinds of
-pathnames: absolute and relative to the current working directory. In both
+reiser4_lang still supports only two traditional UNIX kinds of ordered names
+(pathnames): absolute and relative to the current working directory. In both
 cases, lookup starts from some file-system object represented by lnode. Then
 lookup proceeds component-by-component as follows:
 
@@ -79,7 +83,9 @@ lookup proceeds component-by-component as follows:
 
 1. Abovementioned locking issues require that parent lnode has to be kept
 until operation on child finishes. In effect we get lock-coupling much like in
-internal tree traversal.
+internal tree traversal. Also, possibility to use lock on node with directory
+entry in stead of object lock was discussed. We have to think more on this.
+
 
 2. Mount points crossing. It is possible, because dentries and therefore
 inodes of all mount points are pinned in memory and lookup code can check at
@@ -87,11 +93,16 @@ each step whether mount point is crossed. Details are not very nice, because
 for each inode in a path we have to scan list of all its dentries and check
 whether correct one (corresponding to our path) is mount point.
 
+3. It is also possible to pass ->lnode_by_name the whole of the remaining
+name, and let it decide how much of it it should handle. This will complicate
+locking somewhat. But this is doable, though requires changes to the parser.
+
+
 D. assignment
 *****************************************************************
 
 Assignment A<-B basically means duplicating content of B into A. No
-copy-on-write optimizations are planned at this stage.
+copy-on-write optimizations will be in version 4.0.
 
 Assignment implementation is based on the notion of flow (flow_t). Flow is a
 source from which data can be obtained. Flow can be "backed up" by one of the
@@ -114,21 +125,54 @@ and copies them into @area.
 
 Thus, assignment code looks like following:
 
+typedef int ( *connect_t )( sink_t *target, flow_t *source );
+
 int reiser4_assign( lnode *dst, lnode *src )
 {
-    flow_t flow;
-    int    ret_code;
-    int    offset;
-    
-    offset = 0;
-    ret_code = lnode_get_body_plugin( src ) -> build_flow( src, &flow, offset );
-    while( flow_not_empty( &flow ) ) {
-        char  *area;
-        size_t length;
+    flow_t        source;
+    sink_t        target;
+    int           ret_code;
+    file_plugin  *src_fplug;
+    file_plugin  *dst_fplug;
+    connect_t     connection;
+
+    /* get plugins */
+
+    src_fplug = lnode_get_file_plugin( src );
+    dst_fplug = lnode_get_file_plugin( src );
+
+    /* build source flow */
+    ret_code = src_fplug -> build_flow( src, &source, 0 /* offset */ );
+
+    /* build target sink */
+    ret_code = dst_fplug -> build_sink( dst, &target, 0 /* offset */ );
+
+    /* 
+     * select how to transfer data from @src to @dst. 
+     * 
+     * Default implementation of this is common_transfer() (see below).
+     * 
+     * Smart file plugin can choose connection based on type of @dst.
+     *
+     */
+    connection = src_fplug -> select_connection( src, dst );
+
+    /* do transfer */
+    return connection( &target, &source );
+}
+
+int common_transfer( sink_t *target, flow_t *source )
+{
+    lnode  *dst;
+
+    dst = sink_object( target );
+    while( flow_not_empty( source ) ) {
+        char   *area;
+        size_t  length;
 
         /* 
-         * append some space to @dst. Reasonable implementation will allocate
-         * several pagesful here 
+         * append some space to @target. Reasonable implementation will
+         * allocate several pagesful here
          */
         ret_code = lnode_get_body_plugin( dst ) -> prepare_append( dst, 
                                                                    &area, 
@@ -140,7 +184,7 @@ int reiser4_assign( lnode *dst, lnode *src )
         flow_place( flow, area, length );
         /*
          * perform necessary post-write activity required by @dst plugin, like
-         * encryption, compression, etc.
+         * encryption, compression, etc. Release pages.
          */
         ret_code = lnode_get_body_plugin( dst ) -> commit_append( dst, 
                                                                   area, length );
@@ -151,10 +195,11 @@ int reiser4_assign( lnode *dst, lnode *src )
 E. parsing
 *****************************************************************
 
-It is not clear what parts of rsccl processing should go into kernel. In any
-case, providing direct system call as main (or, worse, the only) way to access
-rsccl functionality bounds as to maintain binary compatibility in a future. To
-avoid this, reiser4 should be shipped with user-level library, containing
+It is not clear what parts of reiser4_lang processing should go into
+kernel. In any case, providing direct system call as main (or, worse, the
+only) way to access reiser4_lang functionality bounds as to maintain binary
+compatibility in a future. To avoid this, reiser4 should be shipped with
+user-level library, containing
 
 int reiser4( const char *cmd, size_t length );
 
