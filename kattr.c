@@ -5,6 +5,7 @@
 #include "debug.h"
 #include "super.h"
 #include "kattr.h"
+#include "prof.h"
 
 #include <linux/kobject.h>     /* struct kobject */
 #include <linux/fs.h>          /* struct super_block */
@@ -95,6 +96,43 @@ static ssize_t show_ro_64(struct super_block * s,
 	return (p - buf);
 }
 
+#define SHOW_OPTION(p, buf, option)			\
+	if (option)					\
+		KATTR_PRINT((p), (buf), #option "\n")
+
+static ssize_t 
+show_options(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
+{
+	char *p;
+
+	(void)o;
+	p = buf;
+
+	SHOW_OPTION(p, buf, REISER4_DEBUG);
+	SHOW_OPTION(p, buf, REISER4_DEBUG_MODIFY);
+	SHOW_OPTION(p, buf, REISER4_DEBUG_MEMCPY);
+	SHOW_OPTION(p, buf, REISER4_DEBUG_NODE);
+	SHOW_OPTION(p, buf, REISER4_ZERO_NEW_NODE);
+	SHOW_OPTION(p, buf, REISER4_TRACE);
+	SHOW_OPTION(p, buf, REISER4_TRACE_TREE);
+	SHOW_OPTION(p, buf, REISER4_STATS);
+	SHOW_OPTION(p, buf, REISER4_DEBUG_OUTPUT);
+	SHOW_OPTION(p, buf, REISER4_USE_EFLUSH);
+	SHOW_OPTION(p, buf, REISER4_LOCKPROF);
+	SHOW_OPTION(p, buf, REISER4_LARGE_KEY);
+	SHOW_OPTION(p, buf, REISER4_PROF);
+	return (p - buf);
+}
+
+static reiser4_kattr compile_options = {
+	.attr = {
+		.name = (char *) "options",
+		.mode = 0444   /* r--r--r-- */
+	},
+	.cookie = NULL,
+	.show = show_options
+};
+
 DEFINE_SUPER_RO(01, mkfs_id, "%llx", 32);
 DEFINE_SUPER_RO(02, block_count, "%llu", 64);
 DEFINE_SUPER_RO(03, blocks_used, "%llu", 64);
@@ -156,6 +194,7 @@ static struct attribute * def_attrs[] = {
 	&kattr_super_ro_25.attr,
 	&kattr_super_ro_26.attr,
 	&kattr_super_ro_27.attr,
+	&compile_options.attr,
 	NULL
 };
 
