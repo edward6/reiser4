@@ -15,12 +15,15 @@
 /******************************************************************************/
 /*                         null compression                                   */
 /******************************************************************************/
+
+#define NONE_NRCOPY 1
+
 static void
-null_compress(void *ctx, __u8 * src_first, unsigned src_len,
+null_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 	      __u8 * dst_first, unsigned *dst_len)
 {
 	int i;
-	assert("edward-793", ctx == NULL);
+	assert("edward-793", coa == NULL);
 	assert("edward-794", src_first != NULL);
 	assert("edward-795", dst_first != NULL);
 	assert("edward-796", src_len != 0);
@@ -33,7 +36,7 @@ null_compress(void *ctx, __u8 * src_first, unsigned src_len,
 }
 
 static void
-null_decompress(void *ctx, __u8 * src_first, unsigned src_len,
+null_decompress(coa_t coa, __u8 * src_first, unsigned src_len,
 		__u8 * dst_first, unsigned *dst_len)
 {
 	impossible("edward-798", "trying to decompress uncompressed data");
@@ -47,60 +50,62 @@ null_decompress(void *ctx, __u8 * src_first, unsigned src_len,
 #define GZIP1_DEF_WINBITS		15
 #define GZIP1_DEF_MEMLEVEL		MAX_MEM_LEVEL
 
-static int gzip6_overrun(unsigned src_len UNUSED_ARG)
+static int gzip1_overrun(unsigned src_len UNUSED_ARG)
 {
 	return 0;
 }
 
-static int gzip1_alloc(tfm_info_t * ctx, tfm_action act)
+static coa_t
+gzip1_alloc(tfm_action act)
 {
+	coa_t coa = NULL;
 	int ret = -ENXIO;
-	assert("edward-766", *ctx == NULL);
 #if REISER4_GZIP_TFM
 	ret = 0;
 	switch (act) {
 	case TFM_WRITE:	/* compress */
-		*ctx = __vmalloc(zlib_deflate_workspacesize(),
-				 (in_softirq()? GFP_ATOMIC : GFP_KERNEL) |
-				 __GFP_HIGHMEM, PAGE_KERNEL);
-		if (*ctx == NULL) {
+		coa = __vmalloc(zlib_deflate_workspacesize(),
+				 GFP_KERNEL | __GFP_HIGHMEM, PAGE_KERNEL);
+		if (!coa) {
 			ret = -ENOMEM;
 			break;
 		}
-		xmemset(*ctx, 0, zlib_deflate_workspacesize());
+		xmemset(coa, 0, zlib_deflate_workspacesize());
 		break;
-	case TFM_READ:		/* decompress */
-		*ctx = reiser4_kmalloc(zlib_inflate_workspacesize(),
-				       (in_softirq()? GFP_ATOMIC : GFP_KERNEL));
-		if (*ctx == NULL) {
+	case TFM_READ:	/* decompress */
+		coa = reiser4_kmalloc(zlib_inflate_workspacesize(),
+				      GFP_KERNEL);
+		if (!coa) {
 			ret = -ENOMEM;
 			break;
 		}
-		xmemset(*ctx, 0, zlib_inflate_workspacesize());
+		xmemset(coa, 0, zlib_inflate_workspacesize());
 		break;
 	default:
 		impossible("edward-767",
-			   "alloc workspace for unknown tfm action");
+			   "trying to alloc workspace for unknown tfm action");
 	}
 #endif
-	if (ret)
+	if (ret) {
 		warning("edward-768",
 			"alloc workspace for gzip1 (tfm action = %d) failed\n",
 			act);
-	return ret;
+		return ERR_PTR(ret);
+	}
+	return coa;
 }
 
-static void gzip1_free(tfm_info_t * ctx, tfm_action act)
+static void gzip1_free(coa_t coa, tfm_action act)
 {
 #if REISER4_GZIP_TFM
-	assert("edward-769", *ctx != NULL);
+	assert("edward-769", coa != NULL);
 
 	switch (act) {
 	case TFM_WRITE:	/* compress */
-		vfree(*ctx);
+		vfree(coa);
 		break;
-	case TFM_READ:		/* decompress */
-		reiser4_kfree(*ctx);
+	case TFM_READ:	/* decompress */
+		reiser4_kfree(coa);
 		break;
 	default:
 		impossible("edward-770",
@@ -111,7 +116,7 @@ static void gzip1_free(tfm_info_t * ctx, tfm_action act)
 }
 
 static void
-gzip1_compress(tfm_info_t ctx, __u8 * src_first, unsigned src_len,
+gzip1_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 	       __u8 * dst_first, unsigned *dst_len)
 {
 #if REISER4_GZIP_TFM
@@ -122,14 +127,16 @@ gzip1_compress(tfm_info_t ctx, __u8 * src_first, unsigned src_len,
 
 	xmemset(&stream, 0, sizeof(stream));
 
-	assert("edward-842", ctx != NULL);
+	assert("edward-842", coa != NULL);
+	assert("edward-875", src_len != 0);
 
-	if (!ctx) {
-		ret = cplug->alloc(&stream.workspace, TFM_WRITE);
-		if (ret)
+	if (!coa) {
+		coa_t tmp = cplug->alloc(TFM_WRITE);
+		if (IS_ERR(tmp))
 			goto rollback;
+		stream.workspace = tmp;
 	} else
-		stream.workspace = ctx;
+		stream.workspace = coa;
 
 	ret = zlib_deflateInit2(&stream, GZIP1_DEF_LEVEL, Z_DEFLATED,
 				-GZIP1_DEF_WINBITS, GZIP1_DEF_MEMLEVEL,
@@ -154,19 +161,19 @@ gzip1_compress(tfm_info_t ctx, __u8 * src_first, unsigned src_len,
 		goto rollback;
 	}
 	*dst_len = stream.total_out;
-	if (!ctx)
-		cplug->free(&stream.workspace, TFM_WRITE);
+	if (!coa)
+		cplug->free(stream.workspace, TFM_WRITE);
 	return;
-      rollback:
-	if (!ctx && stream.workspace)
-		cplug->free(&stream.workspace, TFM_WRITE);
+ rollback:
+	if (!coa && stream.workspace)
+		cplug->free(stream.workspace, TFM_WRITE);
 	*dst_len = src_len;
 #endif
 	return;
 }
 
 static void
-gzip1_decompress(tfm_info_t ctx, __u8 * src_first, unsigned src_len,
+gzip1_decompress(coa_t coa, __u8 * src_first, unsigned src_len,
 		 __u8 * dst_first, unsigned *dst_len)
 {
 #if REISER4_GZIP_TFM
@@ -177,14 +184,16 @@ gzip1_decompress(tfm_info_t ctx, __u8 * src_first, unsigned src_len,
 
 	xmemset(&stream, 0, sizeof(stream));
 
-	assert("edward-843", ctx == NULL);
+	assert("edward-843", coa != NULL);
+	assert("edward-876", src_len != 0);
 
-	if (!ctx) {
-		ret = cplug->alloc(&stream.workspace, TFM_READ);
-		if (ret)
+	if (!coa) {
+		coa_t tmp = cplug->alloc(TFM_READ);
+		if (IS_ERR(tmp))
 			goto out;
+		stream.workspace = tmp;
 	} else
-		stream.workspace = ctx;
+		stream.workspace = coa;
 
 	ret = zlib_inflateInit2(&stream, -GZIP1_DEF_WINBITS);
 	if (ret != Z_OK) {
@@ -220,8 +229,8 @@ gzip1_decompress(tfm_info_t ctx, __u8 * src_first, unsigned src_len,
 	}
 	*dst_len = stream.total_out;
       out:
-	if (!ctx && stream.workspace)
-		cplug->free(&stream.workspace, TFM_READ);
+	if (!coa && stream.workspace)
+		cplug->free(stream.workspace, TFM_READ);
 #endif
 	return;
 }
@@ -244,49 +253,105 @@ static int lzo1_overrun(unsigned in_len)
 	return in_len / 64 + 16 + 3;
 }
 
-#define HEAP_ALLOC(var,size) \
-	lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t) ]
+#define LZO_HEAP_SIZE(size) \
+	sizeof(lzo_align_t) * (((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t))
+
+static coa_t 
+lzo1_alloc(tfm_action act)
+{
+	int ret = 0;
+	coa_t coa = NULL;
+	
+	switch (act) {
+	case TFM_WRITE:	/* compress */
+		coa = reiser4_kmalloc(LZO_HEAP_SIZE(LZO1X_1_MEM_COMPRESS),
+				      GFP_KERNEL);
+		if (!coa) {
+			ret = -ENOMEM;
+			break;
+		}
+		xmemset(coa, 0, LZO_HEAP_SIZE(LZO1X_1_MEM_COMPRESS));
+	case TFM_READ:	/* decompress */
+		break;
+	default:
+		impossible("edward-877",
+			   "trying to alloc workspace for unknown tfm action");
+	}
+	if (ret) {
+		warning("edward-878",
+			"alloc workspace for lzo1 (tfm action = %d) failed\n",
+			act);
+		return ERR_PTR(ret);
+	}
+	return coa;
+}
 
 static void
-lzo1_compress(tfm_info_t ctx, __u8 * src_first, unsigned src_len,
+lzo1_free(coa_t coa, tfm_action act)
+{
+	assert("edward-879", coa != NULL);
+	
+	switch (act) {
+	case TFM_WRITE:	/* compress */
+		reiser4_kfree(coa);
+	case TFM_READ:	/* decompress */
+		break;
+	default:
+		impossible("edward-880",
+			   "trying to free workspace for unknown tfm action");
+	}
+	return;
+}
+
+static void
+lzo1_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 	      __u8 * dst_first, unsigned *dst_len)
 {
 	int result;
-	HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
-
-	assert("edward-846", ctx == NULL);
+	
+	assert("edward-846", coa != NULL);
 	assert("edward-847", src_len != 0);
 
 	result = lzo_init();
-
+	
 	if (result != LZO_E_OK) {
 		warning("edward-848", "lzo_init() failed\n");
 		goto out;
 	}
+	
 	result =
-	    lzo1x_1_compress(src_first, src_len, dst_first, dst_len, wrkmem);
+		lzo1x_1_compress(src_first, src_len, dst_first, dst_len, coa);
 	if (result != LZO_E_OK) {
 		warning("edward-849", "lzo1x_1_compress failed\n");
 		goto out;
 	}
-	if (*dst_len >= src_len)
+	if (*dst_len >= src_len) {
 		warning("edward-850",
 			"lzo1x_1_compress: incompressible data\n");
+		goto out;
+	}
 	return;
-      out:
+ out:
 	*dst_len = src_len;
 	return;
 }
 
 static void
-lzo1_decompress(tfm_info_t ctx, __u8 * src_first, unsigned src_len,
+lzo1_decompress(coa_t coa, __u8 * src_first, unsigned src_len,
 		__u8 * dst_first, unsigned *dst_len)
 {
 	int result;
 
-	assert("edward-851", ctx == NULL);
+	assert("edward-851", coa == NULL);
 	assert("edward-852", src_len != 0);
 
+	result = lzo_init();
+	
+	if (result != LZO_E_OK) {
+		warning("edward-888", "lzo_init() failed\n");
+		return;
+	}
+	
 	result = lzo1x_decompress(src_first, src_len, dst_first, dst_len, NULL);
 	if (result != LZO_E_OK)
 		warning("edward-853", "lzo1x_1_decompress failed\n");
@@ -338,8 +403,8 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 				       .linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				 ,
 				 .overrun = lzo1_overrun,
-				 .alloc = NULL,
-				 .free = NULL,
+				 .alloc = lzo1_alloc,
+				 .free = lzo1_free,
 				 .compress = lzo1_compress,
 				 .decompress = lzo1_decompress}
 	,
@@ -353,7 +418,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 					.desc = "gzip1 compression transform",
 					.linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				  ,
-				  .overrun = gzip6_overrun,
+				  .overrun = gzip1_overrun,
 				  .alloc = gzip1_alloc,
 				  .free = gzip1_free,
 				  .compress = gzip1_compress,
