@@ -1272,3 +1272,4 @@ vfs_ops.
 plugin/file/.file.o.d
 plugin/item/.extent.o.d
 .context.o.cmd
+.estimate.o.cmd
