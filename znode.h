@@ -224,6 +224,7 @@ struct znode {
 	 * notification.
 	 */
 	__u32                  cksum; 
+	spinlock_t             cksum_guard;
 #endif 
 };
 

@@ -220,8 +220,8 @@ kmem_cache_t *kmem_cache_create( const char *name,
 				 size_t size UNUSED_ARG, 
 				 size_t offset UNUSED_ARG,
 				 unsigned long flags UNUSED_ARG, 
-				 void (*ctor)(void*, kmem_cache_t *, unsigned long) UNUSED_ARG,
-				 void (*dtor)(void*, kmem_cache_t *, unsigned long) UNUSED_ARG )
+				 void (*ctor)(void*, kmem_cache_t *, unsigned long),
+				 void (*dtor)(void*, kmem_cache_t *, unsigned long) )
 {
 	kmem_cache_t *result;
 
@@ -229,6 +229,8 @@ kmem_cache_t *kmem_cache_create( const char *name,
 	result -> size  = size;
 	result -> count = 0;
 	result -> name  = name;
+	result -> ctor  = ctor;
+	result -> dtor  = dtor;
 	spin_lock_init (& result -> lock);
 	return result;
 }
@@ -246,6 +248,9 @@ int kmem_cache_destroy( kmem_cache_t *slab )
 void kmem_cache_free( kmem_cache_t *slab, void *addr )
 {
 	assert( "jmacd-1064", addr != NULL);
+
+	if( slab -> ctor != NULL )
+		slab -> ctor( addr, slab, 0 );
 
 	kfree( addr );
 
@@ -276,6 +281,8 @@ void *kmem_cache_alloc( kmem_cache_t *slab, int gfp_flag )
 		spin_lock (& slab -> lock);
 		slab -> count += 1;
 		spin_unlock (& slab -> lock);
+		if( slab -> ctor != NULL )
+			slab -> ctor( addr, slab, SLAB_CTOR_CONSTRUCTOR );
 	}
 
 	return addr;
@@ -365,7 +372,7 @@ static struct super_block * call_mount (const char * dev_name, const char *opts)
 
 static struct inode *get_root_dir( struct super_block *s )
 {
-	return reiser4_iget (s, get_super_private (s)->lplug->root_dir_key (s));
+	return reiser4_iget (s, get_super_private (s)->df_plug->root_dir_key (s));
 }
 
 
@@ -3502,7 +3509,7 @@ static int bash_mkfs (char * file_name)
 		 * the log writer. */
 		WRITE_LOG = 0;
 
-		get_super_private (&super)->lplug = layout_plugin_by_id (TEST_LAYOUT_ID);
+		get_super_private (&super)->df_plug = disk_format_plugin_by_id (TEST_FORMAT_ID);
 
 
 
@@ -3521,7 +3528,7 @@ static int bash_mkfs (char * file_name)
 			/* master */
 			master_sb = (reiser4_master_sb *)bh->b_data;
 			strncpy (master_sb->magic, REISER4_SUPER_MAGIC_STRING, 4);
-			cputod16 (TEST_LAYOUT_ID, &master_sb->disk_plugin_id);
+			cputod16 (TEST_FORMAT_ID, &master_sb->disk_plugin_id);
 			cputod16 (blocksize, &master_sb->blocksize);
 
 
@@ -4207,7 +4214,7 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			__REISER4_EXIT (&__context);
 		} else if (!strncmp (command, "info", 1)) {
 			REISER4_ENTRY (sb);
-			get_current_super_private ()->lplug->print_info (reiser4_get_current_sb ());
+			get_current_super_private ()->df_plug->print_info (reiser4_get_current_sb ());
 			__REISER4_EXIT (&__context);
 		} else if (!strncmp (command, "stat", 4)) {
 			REISER4_ENTRY (sb);

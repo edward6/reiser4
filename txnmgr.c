@@ -1866,19 +1866,22 @@ void jnode_set_dirty( jnode *node )
 
 	if (jnode_is_znode (node)) {
 		reiser4_tree *tree;
+		znode        *z;
 
 		tree = current_tree;
+		z = JZNODE (node);
 		/* bump version counter in znode */
-		JZNODE (node)->version = 
-			UNDER_SPIN (tree, tree, ++ tree->znode_epoch);
+		z->version = UNDER_SPIN (tree, tree, ++ tree->znode_epoch);
 		/* FIXME: This makes no sense, delete it, reenable nikita-1900:
 		 *
 		 * the flush code sets a node dirty even though it is read locked... but
 		 * it captures it first.  However, the new assertion (jmacd-9777) seems to
 		 * contradict the statement above, that a node is captured before being
 		 * captured.  Perhaps that is no longer true. */
-		assert ("nikita-1900", znode_is_write_locked (JZNODE (node)));
-		assert ("jmacd-9777", node->atom != NULL && znode_is_any_locked (JZNODE (node)));
+		assert ("nikita-1900", znode_is_write_locked (z));
+		assert ("jmacd-9777", node->atom != NULL);
+		ON_DEBUG_MODIFY (z->cksum = 
+				 znode_is_loaded (z) ? znode_checksum (z) : 0);
 	}
 
 	if (jnode_page (node) != NULL)
@@ -1912,7 +1915,7 @@ void jnode_set_clean( jnode *node )
 		assert ("jmacd-9366", ! jnode_is_dirty (node));
 		
 #if REISER4_DEBUG_MODIFY
-		if (jnode_is_znode (node))
+		if (jnode_is_znode (node) && jnode_is_loaded (node))
 			JZNODE (node)->cksum = znode_checksum (JZNODE (node));
 #endif
 

@@ -326,6 +326,8 @@ static void zinit( znode *node /* znode to initialise */,
 	coord_init_parent_hint (&node -> in_parent, parent);
 	node -> version = ++ tree -> znode_epoch;
 	spin_unlock_tree( tree );
+	ON_DEBUG_MODIFY( spin_lock_init( &node -> cksum_guard ) );
+	ON_DEBUG_MODIFY( node -> cksum = 0 );
 }
 
 /** remove znode from hash table */
@@ -692,6 +694,7 @@ int zload( znode *node /* znode to load */ )
 				  lock_counters() -> spin_locked == 0 ) );
 
 	result = jload( ZJNODE( node ) );
+	ON_DEBUG_MODIFY( znode_pre_write( node ) );
 	assert( "nikita-1378", znode_invariant( node ) );
 	return result;
 }
@@ -1059,9 +1062,13 @@ int znode_pre_write( znode *node )
 {
 	assert( "umka-066", node != NULL );
 	
-	if ( ! znode_is_dirty( node ) ) {
+	if( !znode_is_loaded( node ) )
+		return 0;
+
+	spin_lock( &node -> cksum_guard );
+	if( ( node -> cksum == 0 ) && !znode_is_dirty( node ) )
 		node->cksum = znode_checksum( node );
-	}
+	spin_unlock( &node -> cksum_guard );
 	return 0;
 }
 
@@ -1071,16 +1078,22 @@ int znode_post_write( const znode *node )
 	__u32 cksum;
 	
 	assert( "umka-067", node != NULL );
-	
+
+	if( !znode_is_loaded( node ) )
+		return 0;
+
+	spin_lock( &node -> cksum_guard );
+
 	cksum = znode_checksum (node);
 
 	if ( ! (znode_is_dirty (node) || cksum == node->cksum))
 		rpanic ("jmacd-1081", "changed znode is not dirty: %llu", 
 			node->zjnode.blocknr);
 
-	if (znode_is_dirty (node) && cksum == node->cksum) {
+	if (0 && znode_is_dirty (node) && cksum == node->cksum && !ZF_ISSET(node, JNODE_CREATED)) {
 		warning ("jmacd-1082", "dirty node %llu was not actually modified (or cksum collision)", node->zjnode.blocknr);
 	}
+	spin_unlock( &node -> cksum_guard );
 	return 0;
 }
 #endif

@@ -364,14 +364,16 @@ struct rw_semaphore {
 	semaphore sem;
 };
 
+typedef struct kmem_cache_t kmem_cache_t;
 
-
-typedef struct kmem_cache_t {
+struct kmem_cache_t {
 	size_t      size;
 	const char* name;
 	unsigned    count;
 	spinlock_t  lock;
-} kmem_cache_t;
+	void (*ctor)(void*, kmem_cache_t *, unsigned long);
+	void (*dtor)(void*, kmem_cache_t *, unsigned long);
+};
 
 /* quick string, with pre-computed hash used to speedup comparisons */
 struct qstr {
