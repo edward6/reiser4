@@ -579,6 +579,7 @@ static struct bio *page_bio( struct page *page, int rw, int gfp )
 		blksz = super -> s_blocksize;
 		assert( "nikita-2028", blksz == ( int ) PAGE_CACHE_SIZE );
 
+		/* Note: This code is somewhat duplicated in flush.c:flush_finish */
 		bio -> bi_sector = *jnode_get_block( node ) * ( blksz >> 9 );
 		bio -> bi_bdev   = super -> s_bdev;
 		bio -> bi_io_vec[ 0 ].bv_page   = page;
@@ -586,7 +587,7 @@ static struct bio *page_bio( struct page *page, int rw, int gfp )
 		bio -> bi_io_vec[ 0 ].bv_offset = 0;
 
 		bio -> bi_vcnt = 1;
-		bio -> bi_idx  = 0;
+		bio -> bi_idx  = 0; /* FIXME: JMACD->NIKITA: can you explain why you set idx?  I don't think its needed. */
 		bio -> bi_size = blksz;
 
 		bio -> bi_end_io = ( rw == READ ) ? 

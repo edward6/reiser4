@@ -4189,7 +4189,7 @@ static void *uswapd( void *untyped )
 void declare_memory_pressure( void )
 {
 	/* FIXME: To disable ulevel memory pressure, return here.  Make it an environment option? */
-	/*return;*/
+	return;
 	spin_lock( &mp_guard );
 	is_mp = 1;
 	spin_unlock( &mp_guard );
