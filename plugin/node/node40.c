@@ -1263,31 +1263,8 @@ static void copy_units (tree_coord * target, tree_coord * source,
 	assert ("nikita-1463", target != NULL);
 	assert ("nikita-1464", source != NULL);
 	assert ("nikita-1465", from + count <= num_units (source));
-	/*
-	 * FIXME-VS: this is not true: tail_mergeable and extent_meregable
-	 * check offsets. At this point of shift offsets of @target and @source
-	 * are not offsets of mergeable items. So, we can not check for
-	 * merge-ability, but only that items are of the same type and of the
-	 * same object
-	 */
-	/*
-	assert ("nikita-1466", ergo ((dir == SHIFT_APPEND), 
-				     are_items_mergeable (target, source)));
-	assert ("nikita-1467", ergo ((dir == SHIFT_PREPEND), 
-				     are_items_mergeable (source, target)));
-	*/
 	assert ("vs-393", item_plugin_id (item_plugin_by_coord (target)) ==
 		item_plugin_id (item_plugin_by_coord (source)));
-	assert ("vs-394", (
-	{
-		reiser4_key key1, key2;
-
-		item_key_by_coord (source, &key1);
-		item_key_by_coord (target, &key2);
-		get_key_objectid (&key1) == get_key_objectid (&key2) &&
-		get_key_locality (&key1) == get_key_locality (&key2);
-	}));
-
 
 	iplug = item_plugin_by_coord (source);
 	assert ("nikita-1468", iplug == item_plugin_by_coord (target));
