@@ -698,7 +698,7 @@ int reiser4_init_context( reiser4_context *context /* pointer to the reiser4
 	xmemset( context, 0, sizeof *context );
 
 	tid = set_current ();
-	sdata = ( reiser4_super_info_data* ) &super -> u.reiser4_sb;
+	sdata = ( reiser4_super_info_data* ) super -> u.generic_sbp;
 	tree  = & sdata -> tree;
 
 	xmemset( context, 0, sizeof *context );
@@ -1237,7 +1237,7 @@ int cut_tree (reiser4_tree * tree,
 						     an output, with output
 						     being a hint used by next
 						     loop iteration */
-				   from_key, to_key, &smallest_removed, 0/*flags*/);
+				   from_key, to_key, &smallest_removed, DELETE_KILL/*flags*/);
 		if (result)
 			break;
 		assert ("vs-301", keycmp (&smallest_removed, 
