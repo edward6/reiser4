@@ -623,10 +623,8 @@ cut_or_kill_units(coord_t *coord,
 					 PAGE_CACHE_SIZE);
 			/* convert to page index */
 			start >>= PAGE_CACHE_SHIFT;
-			/* round @end downward */
-			end   = get_key_offset(to_key) & PAGE_CACHE_MASK;
-			/* convert to page index */
-			end   >>= PAGE_CACHE_SHIFT;
+			/* index of last page which is to be truncated */
+			end   = get_key_offset(to_key) >> PAGE_CACHE_SHIFT;
 			/* number of completely removed pages */
 			nr_pages = end - start + 1;
 			truncate_mapping_pages_range(inode->i_mapping, 
