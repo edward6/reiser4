@@ -1,0 +1,72 @@
+#! /bin/sh
+
+#set -x
+
+OPTVAL=`getopt -o t:o:vd: -n 'shortlived' -- "$@"`
+
+# Note the quotes around `$OPTVAL': they are essential!
+eval set -- "$OPTVAL"
+
+verbose=0
+threads=10
+delay=1000
+limit=nolimit
+
+while true ;do
+	case "$1" in
+		-v)
+			verbose=$(($verbose + 1))
+			shift
+		;;
+		-t)
+			threads=$2
+			shift 2
+		;;
+		-d)
+			delay=$2
+			shift 2
+		;;
+		-o)
+			limit=$2
+			shift 2
+		;;
+		--) 
+			shift 
+			break 
+		;;
+		*) 
+			echo "Internal error!" 
+			exit 1 
+		;;
+	esac
+done
+
+function udelay()
+{
+	local ms
+	local i
+
+	ms=$1
+	i=$((35015 * ms / 1000))
+	while [ $i -gt 0 ] ;do i=$(($i - 1)) ;done
+}
+
+for thr in $(seq 1 $threads) ;do
+	while : ;do
+		fname=$thr.$RANDOM.$$
+		if [ $verbose -gt 0 ] ;then
+			echo $fname
+		fi
+		touch $fname
+		udelay $delay
+		rm $fname
+		if [ x$limit != xnolimit ] ;then
+			limit=$(($limit - 1))
+		fi
+		if [ x$limit = x0 ] ;then
+			break
+		fi
+	done &
+done
+
+wait
