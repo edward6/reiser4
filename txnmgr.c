@@ -1620,11 +1620,12 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 	/* The jnode is already locked!  Being called from try_capture(). */
 	assert("jmacd-567", spin_jnode_is_locked(node));
 
+	block_atom = node->atom;
+
 	/* Get txnh spinlock, this allows us to compare txn_atom pointers but it doesn't
 	   let us touch the atoms themselves. */
 	LOCK_TXNH(txnh);
 
-	block_atom = node->atom;
 	txnh_atom = txnh->atom;
 
 	if (REISER4_STATS) {
