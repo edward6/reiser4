@@ -32,6 +32,8 @@ void init_coord_extension_tail(uf_coord_t *, loff_t offset);
 int get_block_address_tail(const uf_coord_t *uf_coord, 
 			   sector_t block, struct buffer_head *bh);
 
+void show_tail(struct seq_file *m, coord_t *coord);
+
 /* __REISER4_TAIL_H__ */
 #endif
 
