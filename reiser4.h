@@ -135,7 +135,7 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
  * atom will be forced to commit, either synchronously or asynchronously. Can
  * be overwritten by txnmgr.atom_max_age mount option.
  */
-#define REISER4_ATOM_MAX_AGE          (30 * HZ)
+#define REISER4_ATOM_MAX_AGE          (600 * HZ)
 
 /**
  * After percentage of free memory falls below this, preventive flushing is
