@@ -2531,6 +2531,11 @@ trylock_wait(txn_atom *atom, txn_handle * txnh, jnode * node)
 		UNLOCK_TXNH(txnh);
 
 		LOCK_ATOM(atom);
+		/*
+		 * NOTE-NIKITA this probably leaks atom. But such leaks should
+		 * be extremely rare. Probably best solution is to scan atom
+		 * list from ktxnmgrd and collect garbage.
+		 */
 		atomic_dec(&atom->refcount);
 		return 1;
 	} else
