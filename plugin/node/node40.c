@@ -467,6 +467,9 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	   further checks are necessary. */
 	if (found) {
 		assert("nikita-1259", order == EQUAL_TO);
+		/* FIXME: temporary */
+		if (iplug->b.init_coord)
+			iplug->b.init_coord(key, coord);
 		return NS_FOUND;
 	}
 	if (iplug->b.max_key_inside != NULL) {
