@@ -461,7 +461,7 @@ int ctail_readpage(void * vp, struct page *page)
 	return 0;	
 }
 
-/* plugin->u.item.s.file.writepage */
+/* plugin->s.file.writepage */
 int
 ctail_writepage(coord_t * coord, lock_handle * lh, struct page *page)
 {
