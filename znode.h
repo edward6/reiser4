@@ -587,6 +587,7 @@ void info_znode( const char *prefix, const znode *node );
 /**
  * Jnode routines
  */
+extern jnode* jnode_by_page   (struct page* pg);
 extern jnode* jnode_of_page   (struct page* pg);
 extern jnode* page_next_jnode (jnode *node);
 extern void   jnode_init      (jnode *node);
