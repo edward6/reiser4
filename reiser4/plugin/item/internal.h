@@ -36,7 +36,7 @@ extern void internal_down_link    ( const tree_coord *coord,
 				    reiser4_disk_addr *block );
 extern int internal_has_pointer_to( const tree_coord *coord, 
 				    const reiser4_disk_addr *block );
-extern int internal_create_hook   ( const tree_coord *item, void *cookie );
+extern int internal_create_hook   ( const tree_coord *item, void *arg );
 extern int internal_kill_hook     ( const tree_coord *item, 
 				    unsigned from, unsigned count );
 extern int internal_shift_hook    ( const tree_coord *item, 
