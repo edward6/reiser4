@@ -690,7 +690,7 @@ static cmp_t carry_node_cmp( carry_level *level, carry_node *n1, carry_node *n2 
 	impossible( "nikita-2201", "End of level reached" );
 }
 
-static carry_node *find_carry_node( carry_level *level, const znode *node )
+carry_node *find_carry_node( carry_level *level, const znode *node )
 {
 	carry_node *scan;
 	carry_node *tmp_scan;
