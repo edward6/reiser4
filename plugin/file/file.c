@@ -1085,6 +1085,16 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 			done_lh(&lh);
 			break;
 		}
+
+		if (coord.between != AT_UNIT) {
+			info("zam-829: unix_file_read: key not in item, "
+			     "reading offset (%llu) from the file with size (%llu)",
+			     (unsigned long long)get_key_offset(&f.key),
+			     (unsigned long long)inode->i_size);
+			done_lh(&lh);
+			break;
+		}
+
 		result = zload(coord.node);
 		if (result) {
 			done_lh(&lh);
@@ -1100,6 +1110,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 		/* call read method of found item */
 		result = iplug->s.file.read(inode, &coord, &f);
 		if (result == -EAGAIN) {
+			info("zam-830: unix_file_read: key was not found in item, repeat search\n");
 			unset_hint(&hint);
 			done_lh(&lh);
 			continue;
