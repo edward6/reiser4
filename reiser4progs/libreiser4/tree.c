@@ -43,7 +43,7 @@ static reiser4_cache_t *reiser4_tree_alloc(
 	return NULL;
     }
     
-    if ((pid = reiser4_node_get_pid(tree->cache->node)) == 
+    if ((pid = reiser4_node_pid(tree->cache->node)) == 
 	INVALID_PLUGIN_ID) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -52,13 +52,15 @@ static reiser4_cache_t *reiser4_tree_alloc(
     }
     
     /* Creating new node */
-    if (!(node = reiser4_node_create(block, pid, level)))
+    if (!(node = reiser4_node_create(block, pid)))
 	goto error_free_block;
 
     if (!(cache = reiser4_cache_create(node))) {
 	reiser4_node_close(node);
 	return NULL;
     }
+    
+    cache->level = level;
     
     return cache;
     
@@ -82,7 +84,7 @@ static void reiser4_tree_dealloc(reiser4_tree_t *tree,
 #endif
 
 static reiser4_cache_t *reiser4_tree_load(reiser4_tree_t *tree, 
-    blk_t blk) 
+    blk_t blk, uint8_t level) 
 {
     aal_block_t *block;
     reiser4_node_t *node;
@@ -102,6 +104,8 @@ static reiser4_cache_t *reiser4_tree_load(reiser4_tree_t *tree,
 	return NULL;
     }
 
+    cache->level = level;
+    
     return cache;
     
 error_free_block:
@@ -129,6 +133,9 @@ static errno_t reiser4_tree_setup(reiser4_tree_t *tree) {
 
 /* Opens balanced tree (that is tree cache) on specified filesystem */
 reiser4_tree_t *reiser4_tree_open(reiser4_fs_t *fs) {
+    blk_t tree_root;
+    blk_t tree_height;
+    
     reiser4_tree_t *tree;
 
     aal_assert("umka-737", fs != NULL, return NULL);
@@ -140,8 +147,10 @@ reiser4_tree_t *reiser4_tree_open(reiser4_fs_t *fs) {
     tree->fs = fs;
     
     /* Opening root node */
-    if (!(tree->cache = reiser4_tree_load(tree, 
-	    reiser4_format_get_root(fs->format))))
+    tree_root = reiser4_tree_root(tree);
+    tree_height = reiser4_tree_height(tree);
+    
+    if (!(tree->cache = reiser4_tree_load(tree, tree_root, tree_height)))
 	goto error_free_tree;
     
     tree->cache->tree = tree;
@@ -161,9 +170,9 @@ error_free_tree:
 }
 
 /* Returns tree root cache */
-reiser4_cache_t *reiser4_tree_root(reiser4_tree_t *tree) {
-    aal_assert("umka-738", tree != NULL, return NULL);
-    return tree->cache;
+blk_t reiser4_tree_root(reiser4_tree_t *tree) {
+    aal_assert("umka-738", tree != NULL, return 0);
+    return reiser4_format_get_root(tree->fs->format);
 }
 
 #ifndef ENABLE_COMPACT
@@ -201,9 +210,7 @@ reiser4_tree_t *reiser4_tree_create(
     }
     
     /* Creating root node */
-    if (!(node = reiser4_node_create(block, profile->node, 
-	reiser4_format_get_height(fs->format))))
-    {
+    if (!(node = reiser4_node_create(block, profile->node))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create root node.");
 	goto error_free_block;
@@ -213,6 +220,7 @@ reiser4_tree_t *reiser4_tree_create(
     if (!(tree->cache = reiser4_cache_create(node)))
 	goto error_free_node;
     
+    tree->cache->level = reiser4_tree_height(tree);
     tree->cache->tree = tree;
     
     /* Setting up tree cahce limits */
@@ -271,6 +279,11 @@ void reiser4_tree_close(reiser4_tree_t *tree) {
     aal_free(tree);
 }
 
+uint8_t reiser4_tree_height(reiser4_tree_t *tree) {
+    aal_assert("umka-1065", tree != NULL, return 0);
+    return reiser4_format_get_height(tree->fs->format);
+}
+
 /* 
     Makes search in the tree by specified key. Fills passed coord by coords of 
     found item. 
@@ -278,18 +291,22 @@ void reiser4_tree_close(reiser4_tree_t *tree) {
 int reiser4_tree_lookup(
     reiser4_tree_t *tree,	/* tree to be grepped */
     uint8_t level,		/* stop level for search */
-    reiser4_key_t *key,	/* key to be find */
+    reiser4_key_t *key,		/* key to be find */
     reiser4_coord_t *coord	/* coord of found item */
 ) {
-    blk_t blk;
-    reiser4_key_t ikey;
-    int lookup, real_level;
+    blk_t target;
+    int lookup, deep;
+    
+    reiser4_key_t ldkey;
+    reiser4_item_t item;
     reiser4_cache_t *parent;
 
     aal_assert("umka-742", key != NULL, return -1);
     aal_assert("umka-742", coord != NULL, return -1);
   
+    deep = reiser4_tree_height(tree);
     reiser4_coord_init(coord, tree->cache, 0, ~0ul);
+    
     while (1) {
 	/* 
 	    Looking up for key inside node. Result of lookuping will be stored
@@ -299,71 +316,59 @@ int reiser4_tree_lookup(
 		key, &coord->pos)) == -1)
 	    return -1;
 
-	/* Checking for level */
-	if ((real_level = reiser4_node_get_level(coord->cache->node)) > 
-	    reiser4_format_get_height(tree->fs->format))
-	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Invalid node level %u has been detected.", real_level);
-	    return -1;
-	}
-	
-	if (real_level <= level)
+	if (deep <= level || reiser4_node_count(coord->cache->node) == 0)
 	    return lookup;
        	
-	/* 
-	    Key not found, and pos->item points to item placed right after needed 
-	    internal item. So, we need to decrease position.
-	*/
-	if (lookup == 0) {
-	    
-	    /* Nothing found, probably node was empty */
-	    if (coord->pos.item == 0)
-		return lookup;
-
+	if (lookup == 0)
 	    coord->pos.item--;
-	}
 
-	if (!reiser4_node_item_internal(coord->cache->node, &coord->pos)) {
+	if (reiser4_item_open(&item, coord->cache->node, &coord->pos)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Not internal item was found on the twig level. "
-		"Sorry, drilling doesn't supported yet!");
-	    return 0;
+	        "Can't open item by its coord. Node %llu, item %u.",
+	        aal_block_get_nr(coord->cache->node->block), coord->pos.item);
+	    return -1;
 	}
-
+	    
+	if (!reiser4_item_internal(&item)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	        "Not internal item was found on the twig level. "
+	        "Sorry, drilling is not supported yet!");
+	    return -1;
+	}
+	    
 	/* Getting the node pointer from internal item */
-	if (!(blk = reiser4_node_get_pointer(coord->cache->node, 
-	    &coord->pos)))
-	{
+	if (!(target = reiser4_item_target(&item))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get pointer from internal item %u, node %llu.", 
-		coord->pos.item, aal_block_get_nr(coord->cache->node->block));
+		item.pos->item, aal_block_get_nr(item.node->block));
 	    return -1;
 	}
 	
+	deep--; 
 	parent = coord->cache;
 	
 	/* 
 	    Check whether specified node already in cache. If so, we use node
 	    from the cache.
 	*/
-	reiser4_node_get_key(coord->cache->node, &coord->pos, &ikey);
+	reiser4_node_get_key(coord->cache->node, &coord->pos, &ldkey);
 
-	if (!(coord->cache = reiser4_cache_find(parent, &ikey))) {
+	if (!(coord->cache = reiser4_cache_find(parent, &ldkey))) {
 	    /* 
 		Node was not found in the cache, we open it and register in the 
 		cache.
 	    */
-	    if (!(coord->cache = reiser4_tree_load(tree, blk))) {
+	    if (!(coord->cache = reiser4_tree_load(tree, target, deep))) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't load node %llu durring lookup.", blk);
+		    "Can't load node %llu durring lookup.", target);
 		return -1;
 	    }
-	    
+
 	    /* Registering node in tree cache */
 	    if (reiser4_cache_register(parent, coord->cache)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't register node %llu in the tree.", blk);
+		    "Can't register node %llu in the tree.", target);
+		
 		reiser4_cache_close(coord->cache);
 		return -1;
 	    }
@@ -422,7 +427,7 @@ int reiser4_tree_lookup(
     if (reiser4_node_item_estimate(dst->cache->node, &dst->pos, &direntry_item))
 	return -1;
 
-    if (direntry_item.len > reiser4_node_get_space(dst->cache->node))
+    if (direntry_item.len > reiser4_node_space(dst->cache->node))
 	return -1;
     
     if (reiser4_cache_insert(dst->cache, &dst->pos, &direntry_item))
@@ -442,36 +447,37 @@ static errno_t reiser4_tree_attach(
     int lookup, level;
     reiser4_key_t ldkey;
     reiser4_coord_t coord;
-    reiser4_internal_hint_t internal;
-    reiser4_item_hint_t internal_item;
+    reiser4_item_hint_t hint;
+    reiser4_internal_hint_t internal_hint;
 
     aal_assert("umka-913", tree != NULL, return -1);
     aal_assert("umka-916", cache != NULL, return -1);
     aal_assert("umka-919", reiser4_node_count(cache->node) > 0, return -1);
     
     /* Preparing internal item hint */
-    aal_memset(&internal_item, 0, sizeof(internal_item));
+    aal_memset(&hint, 0, sizeof(hint));
 	
     /* 
 	FIXME-UMKA: Hardcoded internal item id. Here should be getting internal
 	item plugin id from parent. In the case parent doesn't exist, it should
 	be got from filesystem default profile.
     */
-    if (!(internal_item.plugin = 
+    if (!(hint.plugin = 
 	libreiser4_factory_find_by_id(ITEM_PLUGIN_TYPE, ITEM_INTERNAL40_ID)))
     {
 	libreiser4_factory_failed(return -1, find, item, ITEM_INTERNAL40_ID);
     }
 
-    aal_memset(&internal, 0, sizeof(internal));
+    aal_memset(&internal_hint, 0, sizeof(internal_hint));
     
-    reiser4_node_lkey(cache->node, &ldkey);
-    internal.pointer = aal_block_get_nr(cache->node->block);
-    reiser4_key_init(&internal_item.key, ldkey.plugin, ldkey.body);
+    reiser4_node_ldkey(cache->node, &ldkey);
+    internal_hint.pointer = aal_block_get_nr(cache->node->block);
+    reiser4_key_init(&hint.key, ldkey.plugin, ldkey.body);
 
-    internal_item.hint = &internal;
+    hint.hint = &internal_hint;
 
     level = REISER4_LEAF_LEVEL + 1;
+    
     if ((lookup = reiser4_tree_lookup(tree, level, &ldkey, &coord)) == -1)
 	return -1;
     
@@ -483,7 +489,7 @@ static errno_t reiser4_tree_attach(
 	return -1;
     }
     
-    if (reiser4_cache_insert(coord.cache, &coord.pos, &internal_item)) {
+    if (reiser4_cache_insert(coord.cache, &coord.pos, &hint)) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	   "Can't insert internal item to the tree.");
 	return -1;
@@ -506,7 +512,7 @@ static errno_t reiser4_tree_grow(
 ) {
     /* Allocating new root node */
     if (!(tree->cache = reiser4_tree_alloc(tree,
-	reiser4_format_get_height(tree->fs->format) + 1))) 
+	reiser4_tree_height(tree) + 1))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't allocate root node.");
@@ -521,10 +527,10 @@ static errno_t reiser4_tree_grow(
 	    
     /* Updating the tree height and tree root values in disk format */
     reiser4_format_set_height(tree->fs->format, 
-	reiser4_node_get_level(tree->cache->node));
-			
+	reiser4_tree_height(tree) + 1);
+    
     reiser4_format_set_root(tree->fs->format, 
-        aal_block_get_nr(tree->cache->node->block));
+	aal_block_get_nr(tree->cache->node->block));
 
     return 0;
 
@@ -573,28 +579,34 @@ errno_t reiser4_tree_lshift(
     if (!(left = old->cache->left))
 	return 0;
 
-    item_overhead = reiser4_node_item_overhead(old->cache->node);
+    item_overhead = reiser4_node_overhead(old->cache->node);
     
     /* Trying to move items into the left neighbour */
     if (reiser4_node_count(old->cache->node) > 0) {
 	reiser4_pos_t mpos;
+	reiser4_item_t item;
 
 	reiser4_pos_init(&mpos, 0, ~0ul);
 
         /* Initializing item_len by length of the first item from shifted node */
-	item_len = reiser4_node_item_len(old->cache->node, &mpos) + item_overhead;
+	if (reiser4_item_open(&item, old->cache->node, &mpos)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't open item by its coord. Node %llu, item %u.",
+		aal_block_get_nr(old->cache->node->block), mpos.item);
+	    return -1;
+	}
+	
+	item_len = reiser4_item_len(&item) + item_overhead;
 	
 	/* Moving items until insertion point reach first position in node */
 	while (reiser4_node_count(old->cache->node) > 0 && 
-	    reiser4_node_get_space(new->cache->node) < needed)
+	    reiser4_node_space(new->cache->node) < needed)
 	{
-	    if (allocate && (reiser4_node_get_space(left->node) < item_len ||
+	    if (allocate && (reiser4_node_space(left->node) < item_len ||
 		(new->cache == old->cache && new->pos.item == 0 &&
-		reiser4_node_get_space(left->node) - item_len < needed)))
+		reiser4_node_space(left->node) - item_len < needed)))
 	    {
-		if (!(left = reiser4_tree_alloc(tree, 
-		    reiser4_node_get_level(left->node)))) 
-		{
+		if (!(left = reiser4_tree_alloc(tree, left->level))) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		        "Can't allocate new leaf node durring left shift.");
 		    return -1;
@@ -624,10 +636,8 @@ errno_t reiser4_tree_lshift(
 		return -1;
 	    }
 	    
-	    if (reiser4_node_count(old->cache->node) > 0) {
-		item_len = reiser4_node_item_len(old->cache->node, &mpos) + 
-		    item_overhead;
-	    }
+	    if (reiser4_node_count(old->cache->node) > 0)
+		item_len = reiser4_item_len(&item) + item_overhead;
 	}
 	
 	if (left != old->cache->left) {
@@ -695,40 +705,44 @@ errno_t reiser4_tree_rshift(
 
 	if (!allocate) return 0;
 	
-	if (!(right = reiser4_tree_alloc(tree, 
-	    reiser4_node_get_level(old->cache->node)))) 
-	{
+	if (!(right = reiser4_tree_alloc(tree, old->cache->level))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't allocate new leaf node durring right shift.");
 	    return -1;
 	}
     }
     
-    item_overhead = reiser4_node_item_overhead(old->cache->node);
+    item_overhead = reiser4_node_overhead(old->cache->node);
     
     /* Trying to move items into the right neighbour */
     if (reiser4_node_count(old->cache->node) > 0) {
 	reiser4_pos_t mpos;
+	reiser4_item_t item;
 	
 	reiser4_pos_init(&mpos, 
 	    reiser4_node_count(old->cache->node) - 1, ~0ul);
 	
-	item_len = reiser4_node_item_len(old->cache->node, &mpos) + 
-	    item_overhead;
+	/* Initializing item in order to get its len, etc */
+	if (reiser4_item_open(&item, old->cache->node, &mpos)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't open item by its coord. Node %llu, item %u.",
+		aal_block_get_nr(old->cache->node->block), mpos.item);
+	    return -1;
+	}
+	
+	item_len = reiser4_item_len(&item) + item_overhead;
 	    
 	while (reiser4_node_count(old->cache->node) > 0 && 
-	    reiser4_node_get_space(new->cache->node) < needed)
+	    reiser4_node_space(new->cache->node) < needed)
 	{
 	    uint32_t count = reiser4_node_count(new->cache->node);
 	    
 	    /* Allocating new block */
-	    if (allocate && (reiser4_node_get_space(right->node) < item_len ||
+	    if (allocate && (reiser4_node_space(right->node) < item_len ||
 		(new->cache == old->cache && new->pos.item >= count - 1 &&
-		(reiser4_node_get_space(right->node) -	item_len) < needed)))
+		(reiser4_node_space(right->node) - item_len) < needed)))
 	    {
-		if (!(right = reiser4_tree_alloc(tree, 
-		    reiser4_node_get_level(right->node)))) 
-		{
+		if (!(right = reiser4_tree_alloc(tree, right->level))) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 			"Can't allocate new leaf node durring right shift.");
 		    return -1;
@@ -757,8 +771,7 @@ errno_t reiser4_tree_rshift(
 	    /* Updating item_len for next item to be moved */
 	    if (reiser4_node_count(old->cache->node) > 0) {
 		mpos.item = reiser4_node_count(old->cache->node) - 1;
-		item_len = reiser4_node_item_len(old->cache->node, &mpos) + 
-		    item_overhead;
+		item_len = reiser4_item_len(&item) + item_overhead;
 	    }
 	}
 	
@@ -813,7 +826,7 @@ errno_t reiser4_tree_mkspace(
 	return -1;
 
     /* Trying to shift items into right neighbour */
-    if (reiser4_node_get_space(new->cache->node) < needed && 
+    if (reiser4_node_space(new->cache->node) < needed && 
 	reiser4_node_count(old->cache->node) > 0) 
     {
 	reiser4_coord_t coord = *new;
@@ -850,8 +863,8 @@ errno_t reiser4_tree_mkspace(
 	return 0;
     
     while (reiser4_node_count(old->cache->node) > 0 && 
-	reiser4_node_get_space(right->node) >= item_len &&
-        reiser4_node_get_space(new->cache->node) < needed)
+	reiser4_node_space(right->node) >= item_len &&
+        reiser4_node_space(new->cache->node) < needed)
     {
 	reiser4_pos_t p;
 	reiser4_plugin_t *lp, *rp;
@@ -936,7 +949,7 @@ errno_t reiser4_tree_mkspace(
 /* Inserts new item described by item hint into the tree */
 errno_t reiser4_tree_insert(
     reiser4_tree_t *tree,	    /* tree new item will be inserted in */
-    reiser4_item_hint_t *item,	    /* item hint to be inserted */
+    reiser4_item_hint_t *hint,	    /* item hint to be inserted */
     reiser4_coord_t *coord	    /* coord item or unit inserted at */
 ) {
     uint32_t needed;
@@ -944,10 +957,10 @@ errno_t reiser4_tree_insert(
     reiser4_key_t *key;
 
     aal_assert("umka-779", tree != NULL, return -1);
-    aal_assert("umka-779", item != NULL, return -1);
+    aal_assert("umka-779", hint != NULL, return -1);
     aal_assert("umka-909", coord != NULL, return -1);
     
-    key = (reiser4_key_t *)&item->key;
+    key = (reiser4_key_t *)&hint->key;
 
     /* Looking up for target node */
     level = REISER4_LEAF_LEVEL;
@@ -962,10 +975,8 @@ errno_t reiser4_tree_insert(
 	    reiser4_key_get_objectid(key), reiser4_key_get_offset(key));
 	return -1;
     }
-    
-    if ((level = reiser4_node_get_level(coord->cache->node)) > 
-	REISER4_LEAF_LEVEL + 1) 
-    {
+
+    if ((level = coord->cache->level) > REISER4_LEAF_LEVEL + 1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Lookup stoped on invalid level %d.", level);
 	return -1;
@@ -978,12 +989,18 @@ errno_t reiser4_tree_insert(
     coord->pos.unit += (coord->pos.unit != ~0ul ? 1 : 0);
     
     /* Estimating item in order to insert it into found node */
-    if (reiser4_node_item_estimate(coord->cache->node, &coord->pos, item))
-        return -1;
- 
+    {
+	reiser4_item_t item;
+	
+	reiser4_item_init(&item, coord->cache->node, &coord->pos);
+	
+	if (reiser4_item_estimate(&item, hint))
+	    return -1;
+    }
+    
     /* Needed space is estimated space plugs item overhead */
-    needed = item->len + (coord->pos.unit == ~0ul ? 
-	reiser4_node_item_overhead(coord->cache->node) : 0);
+    needed = hint->len + (coord->pos.unit == ~0ul ? 
+	reiser4_node_overhead(coord->cache->node) : 0);
     
     /* 
 	The all functions which are using reiser4_tree_insert function, are able
@@ -1002,7 +1019,7 @@ errno_t reiser4_tree_insert(
 	/* Updating coord by just allocated leaf */
 	reiser4_coord_init(coord, cache, 0, ~0ul);
 	
-        if (reiser4_cache_insert(coord->cache, &coord->pos, item)) {
+        if (reiser4_cache_insert(coord->cache, &coord->pos, hint)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't insert an item into the node %llu.", 
 		aal_block_get_nr(coord->cache->node->block));
@@ -1021,7 +1038,7 @@ errno_t reiser4_tree_insert(
     }
     
     /* Inserting item at coord if there is enough free space */
-    if (reiser4_node_get_space(coord->cache->node) < needed) {
+    if (reiser4_node_space(coord->cache->node) < needed) {
 	reiser4_coord_t insert;
 		
 	if (reiser4_tree_mkspace(tree, coord, &insert, needed))
@@ -1030,7 +1047,7 @@ errno_t reiser4_tree_insert(
 	*coord = insert;
     }
     
-    if (reiser4_cache_insert(coord->cache, &coord->pos, item)) {
+    if (reiser4_cache_insert(coord->cache, &coord->pos, hint)) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	   "Can't insert an %s into the node %llu.", 
 	    (coord->pos.unit == ~0ul ? "item" : "unit"),
@@ -1066,9 +1083,7 @@ errno_t reiser4_tree_remove(
 	return -1;
     }
     
-    if ((level = reiser4_node_get_level(coord.cache->node)) > 
-	REISER4_LEAF_LEVEL + 1) 
-    {
+    if (coord.cache->level > REISER4_LEAF_LEVEL + 1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Lookup stoped on invalid level %d.", level);
 	return -1;
@@ -1140,32 +1155,37 @@ errno_t reiser4_tree_traverse(
         goto error_free_node;
 
     if ((setup_func && !(result = setup_func(node, data))) || !setup_func) {
+	reiser4_item_t item;
 	reiser4_pos_t pos = {0, 0};
 
 	for (; pos.item < reiser4_node_count(node); pos.item++) {
-	    uint32_t count;
 	    aal_block_t *block;
 	    
-	    count = reiser4_node_item_count(node, &pos);
+	    if (reiser4_item_open(&item, node, &pos)) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Can't open item by its coord. Node %llu, item %u.",
+		    aal_block_get_nr(node->block), pos.item);
+		goto error_free_node;
+	    }
 	    
-	    for (; pos.unit < count; pos.unit++) {
-		blk_t blk;
+	    for (; pos.unit < reiser4_item_count(&item); pos.unit++) {
+		blk_t target;
 
-		if (!reiser4_node_item_internal(node, &pos))
+		if (!reiser4_item_internal(&item))
 		    continue;
 		
-		if ((blk = reiser4_node_get_pointer(node, &pos)) > 0) {
+		if ((target = reiser4_item_target(&item)) > 0) {
 
-		    if (!(block = aal_block_read(device, blk))) {
+		    if (!(block = aal_block_read(device, target))) {
 			aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-			    "Can't read block %llu. %s.", blk, device->error);
+			    "Can't read block %llu. %s.", target, device->error);
 			goto error_free_node;
 		    }
 		
 		    result = reiser4_tree_traverse(device, block, open_func, 
 			before_func, setup_func, update_func, after_func, data);
 
-		    if (update_func && !(result = update_func(node, pos.item, data)))
+		    if (update_func && !update_func(node, pos.item, data))
 			goto error_free_node;
 		}
 	    }
@@ -1176,7 +1196,7 @@ errno_t reiser4_tree_traverse(
 	goto error_free_node;
 
     reiser4_node_close(node);
-    return 0;
+    return result;
 
 error_free_node:
     reiser4_node_close(node);

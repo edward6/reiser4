@@ -9,13 +9,13 @@
 
 #include <aal/aal.h>
 
+#define REISER4_DEFAULT_BLOCKSIZE	(4096)
+#define REISER4_MASTER_OFFSET		(65536)
+#define REISER4_MASTER_MAGIC		("R4Sb")
+
 typedef uint64_t oid_t;
-
 typedef uint32_t reiser4_id_t;
-typedef void reiser4_entity_t;
 typedef void reiser4_body_t;
-
-typedef union reiser4_plugin reiser4_plugin_t;
 
 enum reiser4_plugin_type {
     FILE_PLUGIN_TYPE,
@@ -117,7 +117,22 @@ enum reiser4_key_plugin_id {
     KEY_REISER36_ID		= 0x1
 };
 
+typedef union reiser4_plugin reiser4_plugin_t;
+
+struct reiser4_entity {
+    reiser4_plugin_t *plugin;
+};
+
+typedef struct reiser4_entity reiser4_entity_t;
+
 #define INVALID_PLUGIN_ID	(0xffff)
+
+/* Types for layout defining */
+typedef errno_t (*reiser4_action_func_t) (aal_device_t *, 
+    blk_t, void *);
+
+typedef errno_t (*reiser4_layout_func_t) (reiser4_entity_t *, 
+    reiser4_action_func_t, void *);
 
 /* 
     Maximal possible key size. It is used for creating temporary keys by declaring 
@@ -302,7 +317,7 @@ struct reiser4_key_ops {
     reiser4_plugin_header_t h;
 
     /* Smart check of key structure */
-    errno_t (*valid) (reiser4_body_t *, int);
+    errno_t (*valid) (reiser4_body_t *);
     
     /* Confirms key format */
     int (*confirm) (reiser4_body_t *);
@@ -359,16 +374,12 @@ struct reiser4_key_ops {
     /* Gets/sets directory key hash */
     void (*set_hash) (reiser4_body_t *, uint64_t);
     uint64_t (*get_hash) (reiser4_body_t *);
-
-    /* Prints the key content */
-    void (*print) (reiser4_body_t *, char *, uint32_t, uint16_t);
 };
 
 typedef struct reiser4_key_ops reiser4_key_ops_t;
 
 struct reiser4_file_ops {
     reiser4_plugin_header_t h;
-
 };
 
 typedef struct reiser4_file_ops reiser4_file_ops_t;
@@ -401,14 +412,8 @@ struct reiser4_dir_ops {
     /* Removes entry from directory */
     errno_t (*remove) (reiser4_entity_t *, uint32_t);
     
-    /* Makes check of directory */
-    errno_t (*valid) (reiser4_entity_t *, int);
-
-    /* 
-	Simple check for validness (for instance, is statdata exists for dir40 
-	directory). 
-    */
-    int (*confirm) (reiser4_entity_t *);
+    /* Makes simple check of directory */
+    errno_t (*valid) (reiser4_entity_t *);
 
     /* Returns current position in directory */
     uint32_t (*tell) (reiser4_entity_t *);
@@ -440,7 +445,7 @@ struct reiser4_item_common_ops {
     int (*lookup) (reiser4_body_t *, reiser4_key_t *, uint32_t *);
 
     /* Checks item for validness */
-    errno_t (*valid) (reiser4_body_t *, int);
+    errno_t (*valid) (reiser4_body_t *);
 
     /* Prints item into specified buffer */
     errno_t (*print) (reiser4_body_t *, char *, uint32_t);
@@ -475,9 +480,8 @@ struct reiser4_stat_ops {
 typedef struct reiser4_stat_ops reiser4_stat_ops_t;
 
 struct reiser4_internal_ops {
-    errno_t (*set_pointer) (reiser4_body_t *, blk_t);
-    blk_t (*get_pointer) (reiser4_body_t *);
-    int (*has_pointer) (reiser4_body_t *, blk_t);
+    blk_t (*target) (reiser4_body_t *);
+    errno_t (*pointo) (reiser4_body_t *, blk_t);
 };
 
 typedef struct reiser4_internal_ops reiser4_internal_ops_t;
@@ -527,7 +531,7 @@ struct reiser4_node_ops {
 	Forms empty node incorresponding to given level in specified block.
 	Initializes instance of node and returns it to caller.
     */
-    reiser4_entity_t *(*create) (aal_block_t *, uint8_t);
+    reiser4_entity_t *(*create) (aal_block_t *);
 
     /* 
 	Opens node (parses data in orser to check whether it is valid for this
@@ -544,14 +548,25 @@ struct reiser4_node_ops {
     /* Confirms that given block contains valid node of requested format */
     int (*confirm) (aal_block_t *);
 
-    /* 
-	Make more smart node check and return result to caller. Thsi method is 
-	used for fsck purposes.
-    */
-    errno_t (*valid) (reiser4_entity_t *, int);
+    errno_t (*valid) (reiser4_entity_t *);
     
     /* Prints node into given buffer */
     errno_t (*print) (reiser4_entity_t *, char *, uint32_t);
+    
+    /* Returns item count */
+    uint32_t (*count) (reiser4_entity_t *);
+    
+    /* Returns item's overhead */
+    uint32_t (*overhead) (reiser4_entity_t *);
+
+    /* Returns item's max size */
+    uint32_t (*maxspace) (reiser4_entity_t *);
+    
+    /* Returns free space in the node */
+    uint32_t (*space) (reiser4_entity_t *);
+
+    /* Gets node's plugin id */
+    uint32_t (*pid) (reiser4_entity_t *);
     
     /* 
 	Makes lookup inside node by specified key. Returns TRUE in the case exact
@@ -574,43 +589,18 @@ struct reiser4_node_ops {
     /* Removes unit at specified pos */
     errno_t (*cut) (reiser4_entity_t *, reiser4_pos_t *);
     
-    /* Returns item count */
-    uint32_t (*count) (reiser4_entity_t *);
-    
-    /* Gets/sets node's free space */
-    uint32_t (*get_space) (reiser4_entity_t *);
-    errno_t (*set_space) (reiser4_entity_t *, uint32_t);
-   
-    /* Gets/sets node's plugin id */
-    uint32_t (*get_pid) (reiser4_entity_t *);
-    errno_t (*set_pid) (reiser4_entity_t *, uint32_t);
-    
-    /*
-	This is optional method. That means that there could be node formats which 
-	do not keep level.
-    */
-    uint8_t (*get_level) (reiser4_entity_t *);
-    errno_t (*set_level) (reiser4_entity_t *, uint8_t);
-    
     /* Gets/sets key at pos */
     errno_t (*get_key) (reiser4_entity_t *, reiser4_pos_t *, reiser4_key_t *);
     errno_t (*set_key) (reiser4_entity_t *, reiser4_pos_t *, reiser4_key_t *);
 
-    /* Returns item's overhead */
-    uint32_t (*item_overhead) (void);
+    /* Gets item at passed pos */
+    reiser4_body_t *(*item_body) (reiser4_entity_t *, reiser4_pos_t *);
 
     /* Returns item's length by pos */
     uint32_t (*item_len) (reiser4_entity_t *, reiser4_pos_t *);
     
-    /* Returns item's max size */
-    uint32_t (*item_maxsize) (reiser4_entity_t *);
-    
-    /* Gets item at passed pos */
-    void *(*item_body) (reiser4_entity_t *, reiser4_pos_t *);
-
     /* Gets/sets node's plugin ID */
-    uint32_t (*item_get_pid) (reiser4_entity_t *, reiser4_pos_t *);
-    errno_t (*item_set_pid) (reiser4_entity_t *, reiser4_pos_t *, uint32_t);
+    uint32_t (*item_pid) (reiser4_entity_t *, reiser4_pos_t *);
 };
 
 typedef struct reiser4_node_ops reiser4_node_ops_t;
@@ -670,13 +660,13 @@ struct reiser4_format_ops {
 	format-specific super block for format40 must lie in 17-th
 	block for 4096 byte long blocks.
     */
-    errno_t (*valid) (reiser4_entity_t *, int);
+    errno_t (*valid) (reiser4_entity_t *);
     
     /*	Checks thoroughly the format structure and fixes what needed. */
     errno_t (*check) (reiser4_entity_t *, uint16_t);
 
     /* Prints all useful information about the format */
-    void (*print) (reiser4_entity_t *, char *, uint32_t, uint16_t);
+    void (*print) (reiser4_entity_t *, char *buf, uint32_t n, uint16_t);
     
     /*
 	Probes whether filesystem on given device has this format.
@@ -725,15 +715,11 @@ struct reiser4_format_ops {
 
     /* Returns area where oid data lies */
     void (*oid_area)(reiser4_entity_t *, void **, uint32_t *);
-    
-    /* Returns the area journal lies on */
-    void (*journal_area) (reiser4_entity_t *, blk_t *, blk_t *);
 
-    /* Returns 1 if specified block is not an allocator/journal/skipped/SB block */
-    int (*data_block) (reiser4_entity_t *, blk_t);
-
-    /* Returns 1 if specified block is an allocator block */
-    int (*alloc_block) (reiser4_entity_t *, blk_t);    
+    /* The set of methods for going through format blocks */
+    reiser4_layout_func_t format_layout;
+    reiser4_layout_func_t alloc_layout;
+    reiser4_layout_func_t journal_layout;
 };
 
 typedef struct reiser4_format_ops reiser4_format_ops_t;
@@ -754,7 +740,7 @@ struct reiser4_oid_ops {
     errno_t (*sync) (reiser4_entity_t *);
 
     /* Makes check for validness */
-    errno_t (*valid) (reiser4_entity_t *, int);
+    errno_t (*valid) (reiser4_entity_t *);
     
     /* Gets next object id */
     uint64_t (*alloc) (reiser4_entity_t *);
@@ -780,10 +766,10 @@ struct reiser4_alloc_ops {
     reiser4_plugin_header_t h;
     
     /* Opens block allocator */
-    reiser4_entity_t *(*open) (aal_device_t *, count_t);
+    reiser4_entity_t *(*open) (reiser4_entity_t *);
 
     /* Creates block allocator */
-    reiser4_entity_t *(*create) (aal_device_t *, count_t);
+    reiser4_entity_t *(*create) (reiser4_entity_t *);
     
     /* Closes blcok allocator */
     void (*close) (reiser4_entity_t *);
@@ -810,7 +796,7 @@ struct reiser4_alloc_ops {
     count_t (*used) (reiser4_entity_t *);
 
     /* Checks blocks allocator on validness */
-    errno_t (*valid) (reiser4_entity_t *, int);
+    errno_t (*valid) (reiser4_entity_t *);
 };
 
 typedef struct reiser4_alloc_ops reiser4_alloc_ops_t;
@@ -819,16 +805,16 @@ struct reiser4_journal_ops {
     reiser4_plugin_header_t h;
     
     /* Opens journal on specified device */
-    reiser4_entity_t *(*open) (aal_device_t *);
+    reiser4_entity_t *(*open) (reiser4_entity_t *);
 
     /* Creates journal on specified device */
-    reiser4_entity_t *(*create) (aal_device_t *, void *);
+    reiser4_entity_t *(*create) (reiser4_entity_t *, void *);
 
     /* Frees journal instance */
     void (*close) (reiser4_entity_t *);
 
     /* Checks journal metadata on validness */
-    errno_t (*valid) (reiser4_entity_t *, int);
+    errno_t (*valid) (reiser4_entity_t *);
     
     /* Synchronizes journal */
     errno_t (*sync) (reiser4_entity_t *);

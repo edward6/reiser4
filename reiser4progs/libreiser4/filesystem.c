@@ -29,10 +29,10 @@ errno_t reiser4_fs_build_root_key(
 
     /* Getting root directory attributes from oid allocator */
     parent_objectid = libreiser4_plugin_call(return -1,
-	fs->oid->plugin->oid_ops, root_locality,);
+	fs->oid->entity->plugin->oid_ops, root_locality,);
 
     objectid = libreiser4_plugin_call(return -1,
-	fs->oid->plugin->oid_ops, root_objectid,);
+	fs->oid->entity->plugin->oid_ops, root_objectid,);
 
     /* Initializing the key by found plugin */
     fs->key.plugin = plugin;
@@ -84,14 +84,14 @@ reiser4_fs_t *reiser4_fs_open(
     if (!(fs->format = reiser4_format_open(host_device, pid)))
 	goto error_free_master;
 
-    if (reiser4_format_valid(fs->format, 0))
+    if (reiser4_format_valid(fs->format))
 	goto error_free_format;
     
     /* Initializes block allocator. See alloc.c for details */
     if (!(fs->alloc = reiser4_alloc_open(fs->format)))
 	goto error_free_format;
     
-    if (reiser4_alloc_valid(fs->alloc, 0))
+    if (reiser4_alloc_valid(fs->alloc))
 	goto error_free_alloc;
     
     /* Jouranl device may be not specified. In this case it will not be opened */
@@ -104,7 +104,7 @@ reiser4_fs_t *reiser4_fs_open(
 	if (!(fs->journal = reiser4_journal_open(fs->format, journal_device)))
 	    goto error_free_alloc;
     
-	if (reiser4_journal_valid(fs->journal, 0))
+	if (reiser4_journal_valid(fs->journal))
 	    goto error_free_journal;
 
 #ifndef ENABLE_COMPACT	
@@ -138,7 +138,7 @@ reiser4_fs_t *reiser4_fs_open(
     if (!(fs->oid = reiser4_oid_open(fs->format)))
 	goto error_free_journal;
   
-    if (reiser4_oid_valid(fs->oid, 0))
+    if (reiser4_oid_valid(fs->oid))
 	goto error_free_oid;
     
     /* 
@@ -246,14 +246,15 @@ reiser4_fs_t *reiser4_fs_create(
     /* Creates block allocator */
     if (!(fs->alloc = reiser4_alloc_create(fs->format)))
 	goto error_free_format;
+
+    if (reiser4_format_mark(fs->format, fs->alloc))
+	goto error_free_alloc;
     
     /* Creates journal on journal device */
     if (!(fs->journal = reiser4_journal_create(fs->format, 
 	    journal_device, journal_params)))
 	goto error_free_alloc;
    
-    reiser4_format_mark(fs->format, fs->alloc);
-    
     /* Initializes oid allocator */
     if (!(fs->oid = reiser4_oid_create(fs->format)))
 	goto error_free_journal;
@@ -345,7 +346,7 @@ errno_t reiser4_fs_sync(
 	return -1;
 
     if (reiser4_master_sync(fs->master))
-        return -1;
+	return -1;
 
     return 0;
 }
