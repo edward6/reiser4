@@ -11,7 +11,6 @@
 
 #define NOT_YET                        (0)
 #define YOU_CAN_COMPILE_PSEUDO_CODE    (0)
-#define BROKEN_WITHOUT_SLUMS           (0)
 
 #include <errno.h>
 #include <asm/types.h>
