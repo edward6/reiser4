@@ -981,7 +981,8 @@ jnode_set_type(jnode * node, jnode_type type)
 		[JNODE_FORMATTED_BLOCK] = 0,
 		[JNODE_BITMAP] = 2,
 		[JNODE_CLUSTER_PAGE] = 3,
-		[JNODE_IO_HEAD] = 6
+		[JNODE_IO_HEAD] = 6,
+		[JNODE_INODE] = 4
 	};
 
 	assert("zam-647", type < LAST_JNODE_TYPE);
@@ -1023,6 +1024,19 @@ jnode_remove_op(jnode * node, reiser4_tree * tree)
 	/* remove jnode from hash-table */
 	j_hash_remove(&tree->jhash_table, node);
 	jfree(node);
+	return 0;
+}
+
+static int inode_jnode_remove_op(jnode * node, reiser4_tree * tree)
+{
+	/* remove from super block's all_jnodes list */
+	/*printk("remove inode jnode: %p, [%p %p %p %p]\n", node, __builtin_return_address(0), __builtin_return_address(1),
+	  __builtin_return_address(2), __builtin_return_address(3));*/
+	assert("nikita-2422", !list_empty(&node->jnodes));
+	assert("nikita-2663", capture_list_is_clean(node));
+
+	phash_jnode_destroy(node);
+	ON_DEBUG(list_del_init(&node->jnodes));
 	return 0;
 }
 
@@ -1234,6 +1248,24 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 			   .mapping = znode_mapping,
 			   .index = znode_index,
 			   .io_hook = no_hook
+	},
+	[JNODE_INODE] = {
+			   .h = {
+				 .type_id = REISER4_JNODE_PLUGIN_TYPE,
+				 .id = JNODE_INODE,
+				 .pops = NULL,
+				 .label = "inode",
+				 .desc = "inode's builtin jnode",
+				 .linkage = TS_LIST_LINK_ZERO
+			   },
+			   .init = NULL,
+			   .parse = NULL,
+			   .remove = inode_jnode_remove_op,
+			   .delete = NULL,
+			   .is_busy = jnode_is_busy,
+			   .mapping = NULL,
+			   .index = NULL,
+			   .io_hook = NULL
 	}
 };
 
@@ -1372,6 +1404,8 @@ jnode_type_name(jnode_type type)
 		return "cluster page";		
 	case JNODE_IO_HEAD:
 		return "io head";
+	case JNODE_INODE:
+		return "inode";
 	case LAST_JNODE_TYPE:
 		return "last";
 	default:{

@@ -481,6 +481,7 @@ typedef enum {
 	JNODE_BITMAP,
 	JNODE_CLUSTER_PAGE,
 	JNODE_IO_HEAD,
+	JNODE_INODE,
 	LAST_JNODE_TYPE
 } jnode_type;
 
@@ -502,7 +503,7 @@ jnode_get_type(const jnode * node)
 		/* 011 */
 		[3] = JNODE_CLUSTER_PAGE,
 		/* 100 */
-		[4] = LAST_JNODE_TYPE,	/* invalid */
+		[4] = JNODE_INODE,
 		/* 101 */
 		[5] = LAST_JNODE_TYPE,	/* invalid */
 		/* 110 */
@@ -556,6 +557,15 @@ jnode_is_cluster_page(const jnode * node)
 	assert("edward-50", node != NULL);
 	return jnode_get_type(node) == JNODE_CLUSTER_PAGE;
 }
+
+/* returns true is node is builtin inode's jnode */
+static inline int
+jnode_is_inode(const jnode * node)
+{
+	assert("vs-1240", node != NULL);
+	return jnode_get_type(node) == JNODE_INODE;
+}
+
 
 /* returns true if node is not a znode, but can have a "parent"
    coord in the tree */
