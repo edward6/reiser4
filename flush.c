@@ -46,7 +46,7 @@ struct flush_scan {
 
 	/* The current scan position, referenced. */
 	jnode    *node;
-
+/* JMACD-FIXME-HANS: what is a point_load? */
 	load_handle point_load;
 
 	/* When the position is unformatted, its parent and coordinate. */
