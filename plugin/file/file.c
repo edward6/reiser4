@@ -23,7 +23,7 @@
 static int unpack(struct inode *inode, int forever);
 
 /* get unix file plugin specific portion of inode */
-reiser4_internal inline unix_file_info_t *
+reiser4_internal unix_file_info_t *
 unix_file_inode_data(const struct inode * inode)
 {
 	return &reiser4_inode_data(inode)->file_plugin_data.unix_file_info;
