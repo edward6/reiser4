@@ -1933,11 +1933,11 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			}
 
 			/*
-			 * write to that file 10 blocks at offset 3 blocks
+			 * write to that file 3 blocks at offset 1 blocks
 			 */
 			buf = malloc (blocksize * 10);
 			assert ("vs-345", buf);
-			call_write (inode, buf, (loff_t)3 * blocksize, blocksize * 10);
+			call_write (inode, buf, (loff_t)1 * blocksize, blocksize * 3);
 
 		
 			/*
@@ -1950,6 +1950,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				info ("lookup failed for file %s\n", name);
 				return 0;
 			}
+			print_tree_rec ("AFTER 1 WRITE", tree, REISER4_NODE_PRINT_ALL);
 			/*
 			 * write to that file 5 blocks at offset 1 block
 			 */
