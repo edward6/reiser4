@@ -900,7 +900,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 	(*efnode)->reserve = usedreserve;
 
 	result = reiser4_alloc_block(hint, blk, ef_block_flags(node));
-	if (!result)
+	if (result)
 		kmem_cache_free(eflush_slab, *efnode);
  out:
 	LOCK_JNODE(node);
