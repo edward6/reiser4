@@ -88,5 +88,3 @@ reiser4-objs := \
 #$parser/tmp: $/parser/*.[chy]
 #	$(MAKE) -C parser
 
-include $(TOPDIR)/Rules.make
-
