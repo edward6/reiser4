@@ -1335,8 +1335,7 @@ read_super_block:
 		    REISER4_ZERO_NEW_NODE || 
 		    REISER4_TRACE_TREE || 
 		    REISER4_PROF || 
-		    REISER4_LOCKPROF || 
-		    !reiser4_is_set(s, REISER4_NO_PSEUDO))
+		    REISER4_LOCKPROF)
 			reiser4_log("nikita-2372",
 				    "Debugging is on. Benchmarking is invalid.");
 
