@@ -145,13 +145,11 @@ struct reiser4_inode {
 	struct rw_semaphore coc_sem; /* filemap_nopage takes it for read, copy_on_capture - for write. Under this it
 			       tries to unmap page for which it is called. This prevents process from using page which
 			       was copied on capture */
-	/* tree of jnodes. Jnodes in this tree are distinguished by radix tree
-	   tags */
+
+	/* tree of jnodes. Phantom jnodes (ones not attched to any atom) are
+	   tagged in that tree by EFLUSH_TAG_ANONYMOUS */
 	struct radix_tree_root jnodes_tree;
 #if REISER4_DEBUG
-	/* list of jnodes. Number of jnodes in this list is the above jnodes field */
-	inode_jnodes_list_head jnodes_list;
-
 	/* numbers of eflushed jnodes of each type in the above tree */
 	int anonymous_eflushed;
 	int captured_eflushed;
@@ -164,6 +162,12 @@ struct reiser4_inode {
 	reiser4_block_nr vroot;
 	struct semaphore loading;
 };
+
+void loading_init_once(reiser4_inode *);
+void loading_alloc(reiser4_inode *);
+void loading_destroy(reiser4_inode *);
+void loading_down(reiser4_inode *);
+void loading_up(reiser4_inode *);
 
 
 #define I_JNODES (512)	/* inode state bit. Set when in hash table there are more than 0 jnodes of unformatted nodes of
@@ -292,6 +296,7 @@ extern reiser4_tree *tree_by_inode(const struct inode *inode);
 
 #if REISER4_DEBUG
 extern void inode_invariant(const struct inode *inode);
+extern int inode_has_no_jnodes(reiser4_inode *);
 #else
 #define inode_invariant(inode) noop
 #endif

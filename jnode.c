@@ -446,7 +446,7 @@ jfind(struct address_space *mapping, unsigned long index)
 	return node;
 }
 
-static void inode_attach_jnode(jnode * node)
+static void inode_attach_jnode(jnode *node)
 {
 	struct inode * inode;
 	reiser4_inode * info;
@@ -458,18 +458,18 @@ static void inode_attach_jnode(jnode * node)
 	rtree = jnode_tree_by_reiser4_inode(info);
 
 	spin_lock(&inode_lock);
-	assert("zam-1049", equi(rtree->rnode !=NULL, info->nr_jnodes != 0));
+	assert("zam-1049", equi(rtree->rnode != NULL, info->nr_jnodes != 0));
 	check_me("zam-1045", !radix_tree_insert(rtree, node->key.j.index, node));
 	ON_DEBUG(info->nr_jnodes ++);
 	inode->i_state |= I_JNODES;
 	spin_unlock(&inode_lock);
 }
 
-static void inode_detach_jnode(jnode * node)
+static void inode_detach_jnode(jnode *node)
 {
-	struct inode * inode;
-	reiser4_inode * info;
-	struct radix_tree_root * rtree;
+	struct inode *inode;
+	reiser4_inode *info;
+	struct radix_tree_root *rtree;
 
 	assert ("zam-1044", node->key.j.mapping != NULL);
 	inode = node->key.j.mapping->host;
@@ -479,7 +479,10 @@ static void inode_detach_jnode(jnode * node)
 	spin_lock(&inode_lock);
 	assert("zam-1051", info->nr_jnodes != 0);
 	assert("zam-1052", rtree->rnode != NULL);
+	assert("vs-1730", !JF_ISSET(node, JNODE_EFLUSH));
 	ON_DEBUG(info->nr_jnodes --);
+
+	/* delete jnode from inode's radix tree of jnodes */
 	check_me("zam-1046", radix_tree_delete(rtree, node->key.j.index));
 	if (rtree->rnode == NULL) {
 		inode->i_state &= ~I_JNODES;
