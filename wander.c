@@ -1117,6 +1117,8 @@ up_and_ret:
 	dealloc_wmap(&ch);
 
 	/* VITALY: Free flush_reserved blocks. */
+	warning("vpf-335", "SPACE: release all grabbed blocks (%llu).", 
+		get_current_context()->grabbed_blocks);
 	all_grabbed2free();	
 	capture_list_splice(&ch.atom->clean_nodes, &ch.overwrite_set);
 	done_commit_handle(&ch);

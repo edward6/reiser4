@@ -393,7 +393,7 @@ assign_fake_blocknr(reiser4_block_nr * blocknr, int formatted)
 		assert("zam-394", node == NULL);
 	}
 #endif
-
+	warning("vpf-336", "SAPCE: allocate 1 block");
 	grabbed2fake_allocated((__u64) 1, formatted);
 	return 0;
 }

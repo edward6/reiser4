@@ -768,13 +768,14 @@ done_context(reiser4_context * context /* context being released */ )
 	assert("nikita-859", parent->magic == context_magic);
 	assert("vs-646", (reiser4_context *) current->fs_context == parent);
 	assert("zam-686", !no_context);
+	/*
 	if (context->grabbed_blocks != 0) {
 		warning("zam-520",
 			"%llu grabbed blocks were not freed, free them now",
 			context->grabbed_blocks);
 		all_grabbed2free();
 	}
-
+*/
 	/* add more checks here */
 
 	if (parent == context) {
@@ -783,7 +784,14 @@ done_context(reiser4_context * context /* context being released */ )
 		assert("nikita-1936", no_counters_are_held());
 		assert("nikita-2626", tap_list_empty(taps_list()));
 
-		all_grabbed2free();
+		if (context->grabbed_blocks != 0) {
+			warning("zam-520",
+				"%llu grabbed blocks were not freed, free them now",
+				context->grabbed_blocks);
+		
+			all_grabbed2free();
+		}
+
 		
 #if REISER4_DEBUG
 		/* remove from active contexts */
