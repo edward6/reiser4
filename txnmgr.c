@@ -582,6 +582,21 @@ atom_should_commit (txn_atom *atom)
 		(atom->flags & ATOM_FORCE_COMMIT);
 }
 
+/* FIXME: temporary */
+static void txn_wait_on_io (txn_atom *atom)
+{
+	jnode *scan;
+
+	for (scan = capture_list_front (& atom->clean_nodes);
+	     /**/ ! capture_list_end   (& atom->clean_nodes, scan);
+	     scan = capture_list_next  (scan)) {
+
+		if (PageWriteback (scan->pg)) {
+			wait_on_page_writeback (scan->pg);
+		}
+	}
+}
+
 /* Called with the atom locked and no open txnhs, this function determines
  * whether the atom can commit and if so, initiates commit processing.
  * However, the atom may not be able to commit due to un-allocated nodes.  As
@@ -648,6 +663,9 @@ atom_try_commit_locked (txn_atom *atom)
 		}
 	}
 
+	/* FIXME: temporary */
+	txn_wait_on_io (atom);
+
 	/* We unlock atom to allow journal writer and others (block allocator
 	 * hooks) to do things which may schedule, like memory allocation or
 	 * disk i/o.  ASTAGE_PRE_COMMIT should guarantee that current atom
@@ -657,7 +675,6 @@ atom_try_commit_locked (txn_atom *atom)
 	/* isolate critical code path which should be executed by only one thread using
  	 * tmgr semaphore */
 	down (&private->tmgr.commit_semaphore);
-
 
 	do {
 		pre_commit_hook ();
