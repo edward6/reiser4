@@ -13,44 +13,6 @@
 /* tree searching algorithm, intranode searching algorithms are in
    plugin/node/ */
 
-#if 0
-/** clear coord content */
-int init_coord( coord_t *coord /* coord to init */ )
-{
-	assert( "nikita-312", coord != NULL );
-	trace_stamp( TRACE_TREE );
-
-	xmemset( coord, 0, sizeof *coord );
-	return 0;
-}
-
-/** correct coord_t object duplication */
-void dup_coord (coord_t * new, const coord_t * old)
-{
-	xmemcpy (new, old, sizeof (coord_t));
-	if (old->node != NULL) {
-		/* FIXME-NIKITA nikita: done_coord() does nothing
-		   zref(old->node); */
-	}
-	/* FIXME-NIKITA: d_count ? */
-}
-
-/** release all resources associated with "coord": zput coord's znode. */
-/** FIXME: JMACD says: we shouldn't reference coord->node, the caller should
- * just ensure that the node is otherwise referenced.  This done_coord isn't
- * being used consistently now because it is not properly enforced yet.  If
- * there is a good reason to ref coord->node (i.e., dcount), then implement it
- * NOW.  My code doesn't call done_coord because I didn't know there was such
- * a method. */
-int done_coord( coord_t *coord UNUSED_ARG /* coord to finish with */ )
-{
-	assert( "nikita-313", coord != NULL );
-	trace_stamp( TRACE_TREE );
-
-	return 0;
-}
-#endif
-
 /* return pointer to item body */
 /* Audited by: green(2002.06.15) */
 void *item_body_by_coord( const coord_t *coord /* coord to query */ )

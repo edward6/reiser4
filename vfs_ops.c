@@ -1102,6 +1102,7 @@ static void init_once( void *obj /* pointer to new inode */,
 		 */
 		inode_init_once( &info -> vfs_inode );
 		spin_lock_init( &info -> guard );
+		init_rwsem( &info -> sem );
 	}
 }
 
@@ -1137,7 +1138,25 @@ static struct inode *reiser4_alloc_inode( struct super_block *super UNUSED_ARG /
 
 	assert( "nikita-1696", super != NULL );
 	info = kmem_cache_alloc( inode_cache, SLAB_KERNEL );
-	return ( info == NULL ) ? NULL : &info -> vfs_inode;
+	if( info != NULL ) {
+		info -> flags = 0;
+		info -> file  = NULL;
+		info -> dir   = NULL;
+		info -> perm  = NULL;
+		info -> tail  = NULL;
+		info -> hash  = NULL;
+		info -> sd    = NULL;
+		info -> dir_item = NULL;
+		info -> bytes = NULL;
+		info -> extmask = 0ull;
+		info -> sd_len = 0;
+		info -> locality_id = 0ull;
+		seal_init( &info -> sd_seal, NULL, NULL );
+		ncoord_init_invalid( &info -> sd_coord, NULL );
+		xmemset( &info -> ra, 0, sizeof info -> ra );
+		return &info -> vfs_inode;
+	} else
+		return NULL;
 }
 
 /** ->destroy_inode() super operation: recycle inode */
