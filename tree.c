@@ -387,7 +387,7 @@ insert_result insert_extent_by_coord( coord_t  *coord /* coord where to
 	assert( "vs-406", data != NULL );
 	assert( "vs-407", data -> length > 0 );
 	assert( "vs-408", znode_is_write_locked( coord -> node ) );
-	assert( "vs-409", znode_get_level( coord -> node ) );
+	assert( "vs-409", znode_get_level( coord -> node ) == LEAF_LEVEL );
 
 	return insert_with_carry_by_coord( coord, lh, data, key, COP_EXTENT, 0/*flags*/ );
 }
