@@ -656,6 +656,8 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 	reiser4_super_info_data *sdata;
 	__u32 tid;
 
+	assert( "nikita-2662", !no_context );
+
 	if( context == NULL || super == NULL ) {
 		BUG();
 	}
