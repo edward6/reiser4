@@ -636,7 +636,8 @@ carry_node *find_begetting_brother( carry_node *node /* node to start search
 	
 	assert( "nikita-1614", node != NULL );
 	assert( "nikita-1615", kin != NULL );
-	assert( "nikita-1616", lock_counters() -> spin_locked_tree > 0 );
+	ON_DEBUG_CONTEXT( assert( "nikita-1616", 
+				  lock_counters() -> spin_locked_tree > 0 ) );
 	assert( "nikita-1619", ergo( node -> real_node != NULL, 
 				     ZF_ISSET( node -> real_node, JNODE_ORPHAN ) ) );
 
@@ -791,7 +792,8 @@ static void sync_dkeys( carry_node *node /* node to update */,
 
 	assert( "nikita-1610", node != NULL );
 	assert( "nikita-1611", doing != NULL );
-	assert( "nikita-1612", lock_counters() -> spin_locked_dk == 0 );
+	ON_DEBUG_CONTEXT( assert( "nikita-1612", 
+				  lock_counters() -> spin_locked_dk == 0 ) );
 
 	spin_lock_dk( current_tree );
 	spot = node -> real_node;

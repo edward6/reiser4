@@ -681,6 +681,28 @@ void sibling_list_remove (znode * node)
 	ZF_CLR (node, JNODE_RIGHT_CONNECTED);
 }
 
+/** disconnect node from sibling list */
+void siblink_list_drop (znode *node)
+{
+	znode *right;
+	znode *left;
+
+	assert ("nikita-2464", node != NULL);
+
+	right = node->right;
+	if (right != NULL) {
+		assert("nikita-2465", znode_is_left_connected(right));
+		right->left = NULL;
+	}
+	left = node->left;
+	if (left != NULL) {
+		assert("zam-323", znode_is_right_connected(left));
+		left->right = NULL;
+	}
+	ZF_CLR (node, JNODE_LEFT_CONNECTED);
+	ZF_CLR (node, JNODE_RIGHT_CONNECTED);
+}
+
 /* Audited by: umka (2002.06.14), umka (2002.06.15) */
 void sibling_list_insert_nolock (znode *new, znode *before)
 {
