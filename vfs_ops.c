@@ -1258,6 +1258,7 @@ init_once(void *obj /* pointer to new inode */ ,
 		inode_init_once(&info->vfs_inode);
 		spin_lock_init(&info->p.guard);
 		init_rwsem(&info->p.sem);
+		info->p.ea_owner = 0;
 		readdir_list_init(&info->p.readdir_list);
 	}
 }
