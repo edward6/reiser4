@@ -189,13 +189,11 @@ struct page *reiser4_lock_page( struct address_space *mapping,
 
 	assert( "nikita-2408", mapping != NULL );
 	assert( "nikita-2409", lock_counters() -> spin_locked == 0 );
-	/*
-	 * shouldn't lock more than one page at a time: can deadlock
-	 */
-	assert( "nikita-2433", lock_counters() -> page_locked == 0 );
 	page = find_lock_page( mapping, index );
-	if( page )
+	if( page ) {
 		ON_DEBUG_CONTEXT( ++ lock_counters() -> page_locked );
+		lock_counters() -> page_locker = __builtin_return_address( 0 );
+	}
 	return page;
 }
 
@@ -378,7 +376,7 @@ static struct bio *page_bio( struct page *page, int rw, int gfp )
 		bio -> bi_io_vec[ 0 ].bv_offset = 0;
 
 		bio -> bi_vcnt = 1;
-		/* bio -> bi_idx is filled by bio_alloc() */
+		/* bio -> bi_idx is filled by bio_init() */
 		bio -> bi_size = blksz;
 
 		bio -> bi_end_io = ( rw == READ ) ? 
