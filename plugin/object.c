@@ -282,12 +282,14 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 	reiser4_item_data  data;
 	char              *area;
 	reiser4_inode     *state;
+	znode             *loaded;
 
 	state = reiser4_inode_data(inode);
 
 	result = zload(coord->node);
 	if (result != 0)
 		return result;
+	loaded = coord->node;
 
 	spin_lock_inode(inode);
 	assert("nikita-728", state->pset->sd != NULL);
@@ -304,7 +306,7 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 		data.length = 0;
 	spin_unlock_inode(inode);
 
-	zrelse(coord->node);
+	/*zrelse(coord->node);*/
 
 	/* if on-disk stat data is of different length than required
 	   for this inode, resize it */
@@ -312,23 +314,31 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 		data.data = NULL;
 		data.user = 0;
 		result = resize_item(coord, &data, key, lh, 0);
-	}
-	if (result == 0) {
-		result = zload(coord->node);
-		if (result == 0) {
-			area = item_body_by_coord(coord);
-			spin_lock_inode(inode);
-			result = data.iplug->s.sd.save(inode, &area);
-			znode_set_dirty(coord->node);
-			/* re-initialise stat-data seal */
-			seal_init(&state->sd_seal, coord, key);
-			state->sd_coord = *coord;
-			spin_unlock_inode(inode);
-			check_inode_seal(inode, coord, key);
-			zrelse(coord->node);
+		if (result != 0) {
+			key_warning(key, result);
+			zrelse(loaded);
+			return result;
 		}
-	} else
-		key_warning(key, result);
+		if (loaded != coord->node) {
+			/* resize_item moved coord to another node. Zload it */
+			zrelse(loaded);
+			result = zload(coord->node);
+			if (result != 0)
+				return result;
+			loaded = coord->node;
+		}
+	}
+	area = item_body_by_coord(coord);
+	spin_lock_inode(inode);
+	result = data.iplug->s.sd.save(inode, &area);
+	znode_set_dirty(coord->node);
+	/* re-initialise stat-data seal */
+	seal_init(&state->sd_seal, coord, key);
+	state->sd_coord = *coord;
+	spin_unlock_inode(inode);
+	check_inode_seal(inode, coord, key);
+	zrelse(loaded);
+
 	return result;
 }
 
@@ -347,8 +357,7 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 	assert("nikita-726", inode != NULL);
 
 	/* no stat-data, nothing to update?! */
-	if (inode_get_flag(inode, REISER4_NO_SD))
-		return -ENOENT;
+	assert("nikita-726000", !inode_get_flag(inode, REISER4_NO_SD));
 
 	init_lh(&lh);
 
@@ -952,7 +961,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					    .update = common_estimate_update,
 					    .unlink = common_estimate_unlink
 				    },
-				    .readpages = unix_file_readpages
+				    .readpages = unix_file_readpages,
+				    .init_inode_data = unix_file_init_inode
 	},
 	[DIRECTORY_FILE_PLUGIN_ID] = {
 				      .h = {
@@ -994,7 +1004,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					    .update = common_estimate_update,
 					    .unlink = dir_estimate_unlink
 				      },
-				    .readpages = NULL
+				      .readpages = NULL,
+				      .init_inode_data = NULL
 	},
 	[SYMLINK_FILE_PLUGIN_ID] = {
 				    .h = {
@@ -1038,7 +1049,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					    .update = common_estimate_update,
 					    .unlink = common_estimate_unlink
 				    },
-				    .readpages = NULL
+				    .readpages = NULL,
+				    .init_inode_data = NULL
 	},
 	[SPECIAL_FILE_PLUGIN_ID] = {
 				    .h = {
@@ -1081,7 +1093,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					    .update = common_estimate_update,
 					    .unlink = common_estimate_unlink
 				    },
-				    .readpages = NULL
+				    .readpages = NULL,
+				    .init_inode_data = NULL
 	},
 	[PSEUDO_FILE_PLUGIN_ID] = {
 				    .h = {
@@ -1125,7 +1138,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					    .update = ,
 					    .unlink = 
 				    },
-				    .readpages = 
+				    .readpages = ,
+				    .init_inode_data
 #endif
 	}
 };
