@@ -215,10 +215,12 @@ struct item_ops {
 	} s;			/* item specific item operations */
 
 	/**
-	 * return rightmost or leftmost child of this item. If there is none,
-	 * or child is not in a memory return NULL.
+	 * return rightmost or leftmost child of this item with refcount incremented.
+	 * If there is none, or child is not in a memory return NULL.
 	 *
 	 * This method is optional. It is used by slum gathering code.
+	 *
+	 * Maybe this method should go in balance_ops (.b)?
 	 */
 	jnode * ( *utmost_child )( const tree_coord *coord, sideof side );
 };
