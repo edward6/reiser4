@@ -57,8 +57,8 @@ int writepage_ctail(struct page *);
 int truncate_jnodes_range(struct inode *inode, unsigned long from, int count);
 int cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size);
 int delete_object(struct inode *inode, int mode);
-__u8 cluster_shift_by_coord(const coord_t * coord);
 int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode);
+int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode);
 int hint_is_set(const hint_t *hint);
 reiser4_plugin * get_default_plugin(pset_member memb);
 
@@ -1030,7 +1030,7 @@ inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		
 		/* check length */
 		tc->len = dst_len;
-		//assert("edward-157", dst_len == fsize_to_count(clust, inode));
+		assert("edward-157", dst_len == fsize_to_count(clust, inode));
 		transformed = 1;
 	}
 	if (!transformed)
@@ -1865,9 +1865,9 @@ find_cluster(reiser4_cluster_t * clust,
 	/* at least one item was found  */
 	/* NOTE-EDWARD: Callers should handle the case when disk cluster is incomplete (-EIO) */
 	tc->len = inode_scaled_cluster_size(inode) - f.length;
-	assert("edward-1196", tc->len >= UNPREPPED_DCLUSTER_LEN);
+	assert("edward-1196", tc->len > 0);
  
-	if (disk_cluster_unprepped(tc))
+	if (hint_is_unprepped_dclust(clust->hint))
 		clust->dstat = UNPR_DISK_CLUSTER;
 	else
 		clust->dstat = PREP_DISK_CLUSTER;
@@ -1922,7 +1922,7 @@ read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 
 	assert("edward-733", ergo(clust->reserved, 
 				  get_current_context()->grabbed_blocks == 
-				  estimate_insert_cluster(inode, 1)));
+				  estimate_insert_cluster(inode, 1 /* unprepped */)));
 	assert("edward-924", !tfm_cluster_is_uptodate(&clust->tc));
 
 #if REISER4_DEBUG
@@ -1955,11 +1955,6 @@ read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 	for (i = 0; i < clust->nr_pages; i++) {
 		struct page * pg = clust->pages[i];
 		
-		if (win && 
-		    i >= count_to_nrpages(win->off) &&
-		    i < off_to_pg(win->off + win->count))
-			/* page will be completely overwritten */
-			continue;
 		lock_page(pg);
 		if (PageUptodate(pg)) {
 			unlock_page(pg);
@@ -1967,6 +1962,34 @@ read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 		}
 		unlock_page(pg);
 		
+		if (win && 
+		    i >= count_to_nrpages(win->off) &&
+		    i < off_to_pg(win->off + win->count + win->delta))
+			/* page will be completely overwritten */
+			continue;
+		if (win && (i == clust->nr_pages - 1) &&
+		    /* the last page is
+		       partially modified,
+		       not uptodate .. */
+		    (count_to_nrpages(inode->i_size) <= pg->index)) {
+			/* .. and appended,
+			   so set zeroes to the rest */
+			char * data;
+			int offset;
+			lock_page(pg);
+			data = kmap_atomic(pg, KM_USER0);
+			
+			assert("edward-1260", 
+			       count_to_nrpages(win->off + win->count + win->delta) - 1 == i);
+			
+			offset = off_to_pgoff(win->off + win->count + win->delta);
+			memset(data + offset, 0, PAGE_CACHE_SIZE - offset);
+			flush_dcache_page(pg);
+			kunmap_atomic(data, KM_USER0);
+			unlock_page(pg);
+			/* still not uptodate */
+			break;
+		}
 		if (!tfm_cluster_is_uptodate(&clust->tc)) {
 			result = ctail_read_cluster(clust, inode, 1 /* write */);
 			assert("edward-992", !result);
@@ -2037,7 +2060,7 @@ crc_make_unprepped_cluster (reiser4_cluster_t * clust, struct inode * inode)
 		all_grabbed2free();
 		return 0;	
 	}
-	result = ctail_make_unprepped_cluster(clust, inode);
+	result = ctail_insert_unprepped_cluster(clust, inode);
 	if (result)
 		return result;
 	
@@ -2518,6 +2541,13 @@ ssize_t read_cryptcompress(struct file * file, char *buf, size_t size, loff_t * 
 	return result;
 }
 
+static void
+set_append_cluster_key(const coord_t *coord, reiser4_key *key, struct inode *inode)
+{
+	item_key_by_coord(coord, key);
+	set_key_offset(key, ((__u64)(clust_by_coord(coord, inode)) + 1) << inode_cluster_shift(inode) << PAGE_CACHE_SHIFT);
+}
+
 /* If @index > 0, find real disk cluster of the index (@index - 1),
    If @index == 0 find the real disk cluster of the object of maximal index.
    Keep incremented index of the result in @found.
@@ -2573,12 +2603,9 @@ find_real_disk_cluster(struct inode * inode, cloff_t * found, cloff_t index)
 	}
 	iplug = item_plugin_by_coord(coord);
 	assert("edward-277", iplug == item_plugin_by_id(CTAIL_ID));
-	assert("edward-659", cluster_shift_by_coord(coord) == inode_cluster_shift(inode));
-
-	assert("edward-1202", !check_ctail(coord, NULL));
+	assert("edward-1202", ctail_ok(coord));
 	
-	/* FIXME-EDWARD: Should it be ->append_key() ? */
-	iplug->s.file.append_key(coord, &key);
+	set_append_cluster_key(coord, &key, inode);
 	
 	*found = off_to_clust(get_key_offset(&key), inode);
 
