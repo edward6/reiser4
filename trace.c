@@ -247,7 +247,9 @@ write_trace_stamp(reiser4_tree * tree, reiser4_traced_op op, ...)
 	va_start(args, op);
 
 	key = va_arg(args, reiser4_key *);
-	rest = buf + sprintf_key(buf, key);
+	rest = buf;
+	rest += sprintf(rest, "....tree %c ", op);
+	rest += sprintf_key(buf, key);
 	*rest++ = ' ';
 	*rest = '\0';
 
@@ -279,20 +281,16 @@ write_trace_stamp(reiser4_tree * tree, reiser4_traced_op op, ...)
 		}
 	}
 	va_end(args);
-	return write_trace(file, "%i %s  %s %lu ....tree %c %s\n",
-			   current->pid, current->comm, 
-			   kdevname(to_kdev_t(tree->super->s_dev)), jiffies, op, buf);
+	return write_tracef(file, tree->super, "%s", buf);
 }
 
-int write_in_trace(const char *f, const char *mes)
+int write_in_trace(const char *func, const char *mes)
 {
 	struct super_block *super;
 
 	super = reiser4_get_current_sb();
-	return write_trace(&get_super_private(super)->trace_file,
-			   "%i %s %s %lu %s %s\n",
-			   current->pid, current->comm,
-			   kdevname(to_kdev_t(super->s_dev)), jiffies, f, mes);
+	return write_tracef(&get_super_private(super)->trace_file, super,
+			    "%s %s", func, mes);
 }
 
 #endif

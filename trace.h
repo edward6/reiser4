@@ -62,6 +62,14 @@ typedef struct {
 
 #define WRITE_TRACE(...) ((void) write_trace_stamp(__VA_ARGS__))
 
+#define write_tracef(file, super, format, ...)		\
+({							\
+	write_trace(file, "%i %s %s %lu " format "\n",	\
+		    current->pid, current->comm,	\
+		    kdevname(to_kdev_t(super->s_dev)),	\
+		    jiffies , ## __VA_ARGS__);		\
+})
+
 /* __REISER4_TRACE_H__ */
 #endif
 
