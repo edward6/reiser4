@@ -170,7 +170,7 @@ int setup_inode_ops( struct inode *inode /* inode to intialise */ )
 	default:
 		warning( "nikita-291", "wrong file mode: %o for %lx", 
 			 inode -> i_mode, ( long ) inode -> i_ino );
-		make_bad_inode( inode );
+		reiser4_make_bad_inode( inode );
 		return -EINVAL;
 	}
 	return 0;
@@ -231,7 +231,7 @@ static int read_inode( struct inode * inode /* inode to read from disk */ )
 	if( info -> locality_id == 0 ) {
 		warning( "nikita-300", "no locality in inode %lx",
 			 ( long ) inode -> i_ino );
-		make_bad_inode( inode );
+		reiser4_make_bad_inode( inode );
 		return -EINVAL;
 	}
 
@@ -263,12 +263,10 @@ static int read_inode( struct inode * inode /* inode to read from disk */ )
 	done_coord( &coord );
 	if( result != 0 ) {
 		if( inode != NULL )
-			make_bad_inode( inode );
+			reiser4_make_bad_inode( inode );
 	}
 	return result;
 }
-
-
 
 /** this is our helper function a la iget().
     Probably we also need function taking locality_id as the second argument. ???
@@ -295,7 +293,7 @@ struct inode *reiser4_iget( struct super_block *super /* super block  */,
 	 */
 	inode = iget( super, get_key_objectid( key ) );
 	failed = 0;
-	if( ! inode ) 
+	if( inode == NULL ) 
 		return NULL;
 	else if( is_bad_inode( inode ) ) {
 		warning( "nikita-304", "Stat data not found" );
@@ -371,6 +369,16 @@ struct inode *reiser4_iget( struct super_block *super /* super block  */,
 		return NULL;
 	} else
 		return inode;
+}
+
+void reiser4_make_bad_inode( struct inode *inode )
+{
+	assert( "nikita-1934", inode != NULL );
+	
+	/* clear LOADED bit */
+	reiser4_inode_data( inode ) -> flags &= ~REISER4_LOADED;
+	make_bad_inode( inode );
+	return;
 }
 
 file_plugin *inode_file_plugin( const struct inode *inode )
