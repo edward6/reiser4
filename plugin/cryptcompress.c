@@ -950,7 +950,8 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 
 	if (try_compress(clust, inode)) {
 		/* try to compress, discard bad results */
-		__u32 dst_len;	
+		__u32 dst_len;
+		void * ctx = NULL;
 		compression_plugin * cplug = inode_compression_plugin(inode);
 		
 		assert("edward-602", cplug != NULL);
@@ -982,8 +983,9 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 		
 		dst_len = bfsize;
 		
-		cplug->compress(src, clust->count, dst/* res */, &dst_len);
-		
+		cplug->compress(ctx, src, clust->count, dst/* res */, &dst_len);
+		assert("edward-763", !in_interrupt());
+				
 		clust->len = dst_len;
 			
 		assert("edward-603", clust->len <= (bf ? bfsize : clust->bsize));
@@ -1260,6 +1262,7 @@ inflate_cluster(reiser4_cluster_t *clust, /* cluster handle, contains assembled
 	if (need_decompression(clust, inode, 0 /* estimate for decrypted cluster */)) {
 		unsigned dst_len = inode_cluster_size(inode);
 		compression_plugin * cplug = inode_compression_plugin(inode);
+		void * ctx = NULL;
 		__u8 * src = bf;
 		__u8 magic[CLUSTER_MAGIC_SIZE];
 		
@@ -1323,7 +1326,7 @@ inflate_cluster(reiser4_cluster_t *clust, /* cluster handle, contains assembled
 		}
 		clust->len -= (size_t)CLUSTER_MAGIC_SIZE;
 		/* decompress cluster */
-		cplug->decompress(src, clust->len, dst, &dst_len);
+		cplug->decompress(ctx, src, clust->len, dst, &dst_len);
 		
 		/* check length */
 		assert("edward-157", dst_len == fsize_to_count(clust, inode));
@@ -1537,7 +1540,7 @@ grab_cache_cluster(struct inode * inode, reiser4_cluster_t * clust)
 	return result;
 }
 
-static void
+UNUSED_ARG static void
 set_cluster_unlinked(reiser4_cluster_t * clust, struct inode * inode)
 {
 	jnode * node;
@@ -1667,6 +1670,7 @@ static int
 __reserve4cluster(struct inode * inode, reiser4_cluster_t * clust)
 {
 	int result = 0;
+	int reserved = 0;
 	jnode * j;
 
 	assert("edward-439", inode != NULL);
@@ -1682,15 +1686,21 @@ __reserve4cluster(struct inode * inode, reiser4_cluster_t * clust)
 		UNLOCK_JNODE(j);
 		return 0;
 	}
-	result = reiser4_grab_space_force(estimate_insert_cluster(inode, 0/* prepped */), 0);
+	reserved = estimate_insert_cluster(inode, 0/* prepped */);
+	result = reiser4_grab_space_force(reserved, 0);
 	if (result)
 		return result;
 	JF_SET(j, JNODE_CREATED);
 	
-	grabbed2cluster_reserved(estimate_insert_cluster(inode, 0));
+	grabbed2cluster_reserved(reserved);
+	all_grabbed2free();
 	
-	assert("edeard-xxx", get_current_context()->grabbed_blocks == 0);
-	
+#if REISER4_DEBUG
+	{
+		reiser4_context * ctx = get_current_context();
+		assert("edward-777", ctx->grabbed_blocks == 0);
+	}
+#endif
 	UNLOCK_JNODE(j);
 	return 0;
 }
@@ -2507,7 +2517,7 @@ find_object_size(struct inode *inode, loff_t * size)
 	return 0;
 }
 
-static int
+UNUSED_ARG static int
 cut_items_cryptcompress(struct inode *inode, loff_t new_size, int update_sd)
 {
 	reiser4_key from_key, to_key;
