@@ -802,7 +802,7 @@ atom_free (txn_atom *atom)
 
 	/* Clean the atom */
 	assert ("jmacd-16", (atom->stage == ASTAGE_FUSED ||
-			     atom->stage == ASTAGE_PRE_COMMIT));
+			     atom->stage == ASTAGE_DONE));
 	atom->stage = ASTAGE_FREE;
 
 	blocknr_set_destroy (& atom->delete_set);
@@ -873,14 +873,10 @@ atom_try_commit_locked (txn_atom *atom)
 	jnode *first_dirty;		/* a variable for atom's dirty lists scanning */
 
 	assert ("umka-190", atom != NULL);	
-	assert ("jmacd-150", atom->txnh_count == 1);
+	// assert ("jmacd-150", atom->txnh_count == 1);
 	assert ("jmacd-151", atom_isopen (atom));
 
 	trace_on (TRACE_TXN, "atom %u trying to commit %u: CAPTURE_WAIT\n", atom->atom_id, current_pid);
-
-	/* When trying to commit, make sure we keep trying, also prevent new txnhs. */
-	atom->flags |= ATOM_FORCE_COMMIT;
-	atom->stage = ASTAGE_CAPTURE_WAIT;
 
 	/* FIXME_NFQUCMPD: Read the comment at the end of jnode_flush() about only calling
 	 * jnode_flush() on the leaf level. */
@@ -965,6 +961,8 @@ atom_try_commit_locked (txn_atom *atom)
 	spin_lock_atom (atom);
 
 	invalidate_clean_list (atom);
+
+	atom->stage = ASTAGE_DONE;
 
 	/* Atom's state changes, so wake up everybody waiting for this
 	 * event. */
@@ -1136,7 +1134,7 @@ int txn_commit_some (txn_mgr *mgr)
 	return ret;
 }
 
-/* FIXME: comment */
+/* Remove processed nodes from atom's clean list (thereby remove them from transaction). */
 static void invalidate_clean_list (txn_atom * atom)
 {
 
@@ -1150,6 +1148,45 @@ static void invalidate_clean_list (txn_atom * atom)
 		
 		uncapture_block (atom, pos_in_atom);
 	}
+}
+
+
+static void init_wlinks (txn_wait_links * wlinks)
+{
+	wlinks->_lock_stack = get_current_lock_stack ();
+	fwaitfor_list_clean (wlinks);
+	fwaiting_list_clean (wlinks);
+}
+
+/* Add and atom to the atom's waitfor list and wait somebody who is pleased to wake us up.*/
+static void atom_unlock_and_wait_event (txn_handle * h)
+{
+	txn_atom * atom = h->atom;
+	txn_wait_links _wlinks;
+
+	assert ("zam-744", spin_atom_is_locked (atom));
+
+	init_wlinks (&_wlinks);
+	atom->refcount ++;
+	fwaitfor_list_push_back (&atom->fwaitfor_list, &_wlinks);
+
+	prepare_to_sleep (_wlinks._lock_stack);
+	go_to_sleep (_wlinks._lock_stack);
+	
+	atom = atom_get_locked_with_txnh_locked (h);
+
+	atom->refcount ++;
+	fwaitfor_list_remove (&_wlinks);
+
+	spin_unlock_txnh (h);
+	spin_unlock_atom (atom);
+}
+
+/* wake all threads which wait for an event */
+void atom_send_event (txn_atom * atom)
+{
+	assert ("zam-745", spin_atom_is_locked (atom));
+	wakeup_atom_waitfor_list (atom);
 }
 
 /*
@@ -1170,6 +1207,7 @@ commit_txnh (txn_handle *txnh)
 	int ret = 0;
 	txn_atom *atom;
 	int failed = 0;
+	int do_flushing = 0;
 
 	assert("umka-192", txnh != NULL);
 	
@@ -1182,45 +1220,73 @@ commit_txnh (txn_handle *txnh)
 	 * we don't need the txnh lock while trying to commit. */
 	spin_unlock_txnh (txnh);
 
-	trace_on (TRACE_TXN, "commit_txnh: atom %u failed %u; txnh_count %u; should_commit %u\n", atom->atom_id, failed, atom->txnh_count, atom_should_commit (atom));
+	/* If we were counted as active flusher in previous iteration of this "again" loop we need
+	 * to decrement nr_flushers before recalculating the situation because we have not yet began
+	 * the flushing again. */
+	if (do_flushing) {
+		do_flushing = 0;
+		atom->nr_flushers --;
+	}
 
-	/* Only the atom is still locked. */
-	if (! failed && (atom->txnh_count == 1) && atom_should_commit (atom)) {
+	if (!failed && atom_should_commit (atom)) {
+		trace_on (TRACE_TXN, "commit_txnh: atom %u failed %u; txnh_count %u; should_commit %u\n", atom->atom_id, failed, atom->txnh_count, atom_should_commit (atom));
 
-		/*
-		 * FIXME:NIKITA->JMACD hack to disable commits during memory
-		 * pressure.
-		 */
+		if (atom->stage == ASTAGE_DONE)
+			goto done;
+
+		/* No wait if bdflush thread calls us */
 		if (should_delegate_commit()) {
 			ktxnmgrd_kick (get_current_super_private() -> tmgr.daemon, 
 				       CANNOT_COMMIT);
-		} else {
+			goto done;
+		}
 
-			ret = atom_try_commit_locked (atom);
+		/* Check if our atom is being committed or it is being flushed by another thread */
+		if (atom->stage + atom->nr_flushers >= ASTAGE_PRE_COMMIT) { 
+			/* we wait atom to be fully committed or flusher to exit */
+			atom_unlock_and_wait_event(txnh);
+			goto again;
+		}
 
-			if (ret != 0) {
-				assert ("jmacd-1027", spin_atom_is_not_locked (atom));
-				if (ret != -EAGAIN) {
-					warning ("jmacd-7881", "transaction commit failed: %d", ret);
-					failed = 1;
-				} else {
-					trace_on (TRACE_TXN, "try_commit atom repeat\n");
-					ret = 0;
-				}
+		/* We change atom state to ASTAGE_CAPTURE_WAIT to prevent atom fusion and count
+		 * ourself as an active flusher */
+		atom->stage = ASTAGE_CAPTURE_WAIT;
+		atom->flags |= ATOM_FORCE_COMMIT;
 
-				/* This place have a potential to become
-				   CPU-eating dead-loop, so I've inserted
-				   schedule() here, so that other processes
-				   might have a chance to run. */
-				assert( "green-15", lock_counters() -> spin_locked == 0 );
+		atom->nr_flushers ++;
+		do_flushing = 1;
 
-				preempt_point();
+		ret = atom_try_commit_locked (atom);
+		
+		if (ret) {
+			if (ret == -EAGAIN)
+				goto again;
+
+			if (ret == -EBUSY) {
+				/* -EBUSY means that another thread took fq object in exclusive use
+				 * for submitting an I/O or so and we cannot find any fq object
+				 * which is ready to write to disk; we just wait that thread. */
+				atom_unlock_and_wait_event (txnh);
+
 				goto again;
 			}
+
+			/* This place have a potential to become CPU-eating dead-loop, so I've
+			   inserted schedule() here, so that other processes might have a chance to
+			   run. */
+			assert( "green-15", lock_counters() -> spin_locked == 0 );
+
+			ret = 0;
+			failed = 1;
+
+			preempt_point();
+			goto again;
 		}
 	}
 
+
 	assert ("jmacd-1027", spin_atom_is_locked (atom));
+ done:
 	spin_lock_txnh (txnh);
 
 	atom->txnh_count -= 1;
@@ -1244,6 +1310,7 @@ commit_txnh (txn_handle *txnh)
 	 */
 	return 0;
 }
+
 
 /*****************************************************************************************
 				   TXN_TRY_CAPTURE
@@ -2221,11 +2288,8 @@ capture_fuse_wait (jnode *node, txn_handle *txnh, txn_atom *atomf, txn_atom *ato
 
 		return -EAGAIN;
 	}
-	
-	wlinks._lock_stack = get_current_lock_stack ();
 
-	fwaitfor_list_clean (& wlinks);
-	fwaiting_list_clean (& wlinks);
+	init_wlinks (& wlinks);
 
 	/* We do not need the node lock. */
 	spin_unlock_jnode  (node);
@@ -2699,6 +2763,6 @@ print_atom (const char *prefix, txn_atom *atom)
  * mode-name: "LC"
  * c-basic-offset: 8
  * tab-width: 8
- * fill-column: 120
+ * fill-column: 98
  * End:
  */
