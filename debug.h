@@ -251,6 +251,7 @@ extern int reiser4_is_debugged(struct super_block *super, __u32 flag);
 
 extern int is_in_reiser4_context(void);
 
+/* NIKITA-FIXME-HANS: comment this */
 #define ON_CONTEXT(e)	do {			\
 	if(is_in_reiser4_context()) {		\
 		e;				\
