@@ -48,8 +48,7 @@ void          cde_copy_units ( tree_coord *target, tree_coord *source,
 			       unsigned from, unsigned count,
 			       shift_direction where_is_free_space,
 			       unsigned free_space );
-int           cde_cut_units  ( tree_coord *coord, unsigned from, unsigned count,
-			       shift_direction where_to_move_free_space,
+int           cde_cut_units  ( tree_coord *coord, unsigned *from, unsigned *to,
 			       const reiser4_key *from_key,
 			       const reiser4_key *to_key,
 			       reiser4_key *smallest_removed );

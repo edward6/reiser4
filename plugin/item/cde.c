@@ -592,9 +592,9 @@ int cde_can_shift( unsigned free_space, tree_coord *coord, znode *target,
 	}
 
 	/*
-	 * pend == SHIFT_APPEND <==> shifting to the left
+	 * pend == SHIFT_LEFT <==> shifting to the left
 	 */
-	if( pend == SHIFT_APPEND ) {
+	if( pend == SHIFT_LEFT ) {
 		for( shift = min( ( int ) want - 1, units( coord ) ) ; 
 		     shift >= 0 ; -- shift ) {
 			*size = part_size( coord, shift );
@@ -607,7 +607,7 @@ int cde_can_shift( unsigned free_space, tree_coord *coord, znode *target,
 	} else {
 		int total_size;
 
-		assert( "nikita-1301", pend == SHIFT_PREPEND );
+		assert( "nikita-1301", pend == SHIFT_RIGHT );
 		
 		total_size = item_length_by_coord( coord );
 		for( shift = units( coord ) - want - 1 ; 
@@ -659,7 +659,7 @@ void cde_copy_units( tree_coord *target, tree_coord *source,
 		  print_key( "cde_copy target", 
 			     item_key_by_coord( target, &debug_key ) ) );
 		  
-	if( where_is_free_space == SHIFT_APPEND ) {
+	if( where_is_free_space == SHIFT_LEFT ) {
 		assert( "nikita-1453", from == 0 );
 		pos_in_target = units( target );
 	} else {
@@ -715,8 +715,7 @@ void cde_copy_units( tree_coord *target, tree_coord *source,
 /**
  * ->cut_units() method for this item plugin.
  */
-int cde_cut_units( tree_coord *coord, unsigned from, unsigned count,
-		   shift_direction where_to_move_free_space,
+int cde_cut_units( tree_coord *coord, unsigned *from, unsigned *to,
 		   const reiser4_key *from_key UNUSED_ARG,
 		   const reiser4_key *to_key UNUSED_ARG,
 		   reiser4_key *smallest_removed)
@@ -732,8 +731,12 @@ int cde_cut_units( tree_coord *coord, unsigned from, unsigned count,
 	int   header_delta;
 	int   i;
 
+	unsigned count;
+
+	count = *to - *from + 1;
+
 	assert( "nikita-1454", coord != NULL );
-	assert( "nikita-1455", ( int ) ( from + count ) <= units( coord ) );
+	assert( "nikita-1455", ( int ) ( *from + count ) <= units( coord ) );
 
 	if (smallest_removed)
 		unit_key_by_coord (coord, smallest_removed);
@@ -743,11 +746,11 @@ int cde_cut_units( tree_coord *coord, unsigned from, unsigned count,
 		return size;
 	}
 
-	header_from = ( char * ) header_at( coord, ( int ) from );
-	header_to   = ( char * ) header_at( coord, ( int ) ( from + count ) );
+	header_from = ( char * ) header_at( coord, ( int ) *from );
+	header_to   = ( char * ) header_at( coord, ( int ) ( *from + count ) );
 
-	entry_from  = ( char * ) entry_at( coord, ( int ) from );
-	entry_to = ( char * ) entry_at( coord, ( int ) ( from + count ) );
+	entry_from  = ( char * ) entry_at( coord, ( int ) *from );
+	entry_to = ( char * ) entry_at( coord, ( int ) ( *from + count ) );
 
 	/* move headers */
 	memmove( header_from, header_to, 
@@ -770,11 +773,11 @@ int cde_cut_units( tree_coord *coord, unsigned from, unsigned count,
 	 * update offsets
 	 */
 
-	for( i = 0 ; i < ( int ) from ; ++ i ) {
+	for( i = 0 ; i < ( int ) *from ; ++ i ) {
 		set_offset( coord, i, offset_of( coord, i ) - header_delta );
 	}
 
-	for( i = from ; i < units( coord ) - (int ) count ; ++ i ) {
+	for( i = *from ; i < units( coord ) - (int ) count ; ++ i ) {
 		set_offset( coord, i, offset_of( coord, i ) - header_delta - 
 			    entry_delta );
 	}
@@ -782,10 +785,23 @@ int cde_cut_units( tree_coord *coord, unsigned from, unsigned count,
 	cputod16( ( __u16 ) units( coord ) - count, 
 		  &formatted_at( coord ) -> num_of_entries );
 
-	if( where_to_move_free_space == SHIFT_PREPEND ) {
+	if( *from == 0 ) {
+		/*
+		 * entries from head was removed - move remaining to right
+		 */
 		memmove( ( char * ) item_body_by_coord( coord ) + 
 			 header_delta + entry_delta,
 			 item_body_by_coord( coord ), ( unsigned ) size );
+		if( REISER4_DEBUG )
+			memset( item_body_by_coord( coord ), 0, 
+				( unsigned )header_delta + entry_delta );
+	} else {
+		/*
+		 * freed space is already at the end of item
+		 */
+		if( REISER4_DEBUG )
+			memset( ( char * )item_body_by_coord( coord ) + size, 0,
+				( unsigned )header_delta + entry_delta );
 	}
 
 	return header_delta + entry_delta;
