@@ -619,6 +619,7 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws /* work space ptr */
 	case ASG:/*<-*/
 	case App:/*<<-*/
 	case Lnk:/*->*/
+	case Pls:/*+*/
 		ret=lexcls[(int) lcls ].term;
 		break;
 	case Lpr:
@@ -1077,7 +1078,7 @@ static expr_v4_t * constToExpr(struct reiser4_syscall_w_space * ws /* work space
 {
 	expr_v4_t * new_expr = alloc_new_expr(ws, EXPR_WRD );
 	new_expr->wd.s = e1;
-	return NULL;
+	return new_expr;
 }
 
 /* allocate EXPR_OP2  */
@@ -1475,7 +1476,7 @@ static int get_tube_next_src(tube_t * tube)
 			switch (s->h.type)
 				{
 				case EXPR_WRD:
-					change_tube_stack( tube, ST_WD , &s->wd.s->u );
+					change_tube_stack( tube, ST_WD , s->wd.s );
 					break;
 				case EXPR_PARS_VAR:
 					assert("VD-free_expr.EXPR_PARS_VAR", s->pars_var.v!=NULL);
@@ -1577,7 +1578,7 @@ static tube_t *  get_tube_general(tube_t * tube, pars_var_t *sink, expr_v4_t *so
 					tube->len         = 0;
 					tube->used        = 0;
 #endif
-					tube->dst         = dentry_open( sink->ln->dentry.dentry, sink->ln->dentry.mnt, O_WRONLY );
+					tube->dst         = dentry_open( sink->ln->dentry.dentry, sink->ln->dentry.mnt, O_WRONLY|O_TRUNC );
 					tube->writeoff    = 0;
 			printk("get stack tube=%p, tube->writeoff=%d \n", tube, tube->writeoff);
 					tube->st_current  = NULL;
@@ -1655,7 +1656,6 @@ static size_t prep_tube_general(tube_t * tube)
 			ret = 0;
 		}
 	tube->len = ret;
-	reserv_space_in_sink( tube );
 	return ret;
 }
 
@@ -1749,6 +1749,7 @@ static int  pump( pars_var_t *sink, expr_v4_t *source )
 		      tube_to_sink   = tube_to_sink_general;
 #endif
 
+		      reserv_space_in_sink( tube );
 		      while ( tube->st_current != NULL && prep_tube( tube )  )
 			      {
 				      printk("p 1 tube=%p,tube->writeoff=%d,tube->readoff=%d\n", tube,(int) tube->writeoff, (int)tube->readoff);
