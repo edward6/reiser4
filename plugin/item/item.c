@@ -321,7 +321,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 					.file = {
 						.write = extent_write,
 						.read  = NULL,
-						.fill_page = extent_fill_page
+						.readpage = extent_readpage
 					}
 				},
 				.utmost_child           = NULL,
@@ -365,7 +365,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 					.file = {
 						.write = NULL,
 						.read  = NULL,
-						.fill_page = NULL
+						.readpage = NULL
 					}
 				},
 				.utmost_child           = NULL,

@@ -168,21 +168,12 @@ typedef struct file_plugin {
 /* reiser4 required file operations */
 
 
-
-
-	int (*write_flow)(flow * flow);
-	int (*read_flow)(flow * flow);
+	int (*write_flow)(flow *);
+	int (*read_flow)(flow *);
 	
 	/* VFS required/defined operations */
 	int ( *truncate )( struct inode *inode, loff_t size );
-	/* create new object described by @data and add it to the @parent directory under the name described by
-	   @dentry 
-	   
-	   FIXME-HANS how comes that creation of sub-object is part of file
-	   plugin rather than directory plugin?
-	*/
-	int ( *create )( struct inode *parent, struct dentry *dentry, 
-			       reiser4_object_create_data *data );
+
 	/** save inode cached stat-data onto disk. It was called
 	    reiserfs_update_sd() in 3.x */
 	int ( *write_sd_by_inode)( struct inode *inode );
@@ -193,21 +184,37 @@ typedef struct file_plugin {
 			 loff_t *off );
 
 	
-	/* private methods: These are optional.  If used they will allow you to minimize the amount of code needed to
-	 * implement a deviation from some other method that also uses them. */
+	/*
+	 * private methods: These are optional.  If used they will allow you to
+	 * minimize the amount of code needed to implement a deviation from
+	 * some other method that also uses them.
+	 */
+
 	/**
 	 * Construct flow into @flow according to user-supplied data.
+	 * needs better comment
 	 */
-				/* needs better comment */
 	int ( *flow_by_inode )( struct file *file, char *buf, size_t size, 
-			     loff_t *off, rw_op op, flow *flow );
-	int (*flow_by_key)(reiser4_key *key, flow * flow);
-	/* set the plugin for a file.  Called during file creation in reiser4() and creat(). */
-	int (*set_plug_in_sd)(reiser4_plugin_type plug_type, reiser4_key key_of_sd);
-	/* set the plugin for a file.  Called during file creation in creat() but not reiser4() unless an inode already exists
-	   for the file. */
-	int (*set_plug_in_inode)(reiser4_plugin_type plug_type, struct inode *inode);
-	int (*create_blank_sd)(reiser4_key *key);
+				loff_t *off, rw_op op, flow * );
+	int ( *flow_by_key )( reiser4_key *key, flow * );
+	/*
+	 * set the plugin for a file.  Called during file creation in reiser4()
+	 * and creat().
+	 */
+	int ( *set_plug_in_sd )( reiser4_plugin_type plug_type, reiser4_key key_of_sd );
+	/*
+	 * set the plugin for a file.  Called during file creation in creat()
+	 * but not reiser4() unless an inode already exists for the file.
+	 */
+	int ( *set_plug_in_inode )( reiser4_plugin_type plug_type, struct inode *inode );
+	int ( *create_blank_sd )( reiser4_key *key );
+	/*
+	 * this does whatever is necessary to do when object is created. For
+	 * instance, for ordinary files stat data is inserted, for directory
+	 * entries "." and ".." get inserted becides stat data
+	 */
+	int ( *create )( struct inode *object, struct inode *parent,
+			 reiser4_object_create_data *data );
 	/** 
 	 * delete this object's stat-data if REISER4_NO_STAT_DATA is not set
 	 * and set REISER4_NO_STAT_DATA 
@@ -276,6 +283,12 @@ typedef struct dir_plugin {
 
 	int ( *rem_entry )( struct inode *object, 
 			    struct dentry *where, reiser4_dir_entry_desc *entry );
+	/*
+	 * create new object described by @data and add it to the @parent
+	 * directory under the name described by @dentry
+	 */	   
+	int ( *create_child )( struct inode *parent, struct dentry *dentry, 
+			       reiser4_object_create_data *data );
 } dir_plugin;
 
 typedef struct tail_plugin {

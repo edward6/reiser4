@@ -616,7 +616,7 @@ int reiser4_add_nlink( struct inode *object )
 		/* do reasonable default stuff */
 		++ object -> i_nlink;
 		object -> i_ctime = CURRENT_TIME;
-		return fplug -> write_inode( object );
+		return fplug -> write_sd_by_inode( object );
 	}
 }
 
@@ -644,7 +644,7 @@ int reiser4_del_nlink( struct inode *object )
 		/* do reasonable default stuff */
 		-- object -> i_nlink;
 		object -> i_ctime = CURRENT_TIME;
-		return fplug -> write_inode( object );
+		return fplug -> write_sd_by_inode( object );
 	}
 }
 

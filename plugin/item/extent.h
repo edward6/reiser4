@@ -22,7 +22,9 @@ typedef struct {
 #define width_by_coord(coord) extent_width (extent_by_coord(coord))
 
 
-/* plugin->u.item.b.* */
+/*
+ * plugin->u.item.b.*
+ */
 reiser4_key * extent_max_key_inside (const tree_coord *, reiser4_key *);
 int extent_mergeable (const tree_coord * p1, const tree_coord * p2);
 unsigned extent_nr_units (const tree_coord *);
@@ -51,9 +53,12 @@ int extent_item_data_by_flow (const tree_coord *, const flow *,
 			      reiser4_item_data *);
 void extent_print (const char *, tree_coord *);
 
-/* plugin->u.item.s.file.* */
+/*
+ * plugin->u.item.s.file.*
+ */
 int extent_write (struct inode *, tree_coord *, reiser4_lock_handle *, flow *);
 int extent_fill_page (struct page *, tree_coord *, reiser4_lock_handle *);
+int extent_readpage (void * arg, struct page * page);
 
 
 
