@@ -174,8 +174,8 @@ setup_inode_ops(struct inode *inode /* inode to intialise */ ,
 
 			/* ugly hack with rdev */
 			if (data == NULL) {
-				rdev = kdev_val(inode->i_rdev);
-				inode->i_rdev = val_to_kdev(0);
+				rdev = kdev_t_to_nr(inode->i_rdev);
+				inode->i_rdev = to_kdev_t(0);
 			} else
 				rdev = data->rdev;
 			inode->i_blocks = 0;

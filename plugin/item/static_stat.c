@@ -425,7 +425,7 @@ present_unix_sd(struct inode *inode /* object being processed */ ,
 		inode->i_atime.tv_sec = d32tocpu(&sd->atime);
 		inode->i_mtime.tv_sec = d32tocpu(&sd->mtime);
 		inode->i_ctime.tv_sec = d32tocpu(&sd->ctime);
-		inode->i_rdev = val_to_kdev(d32tocpu(&sd->rdev));
+		inode->i_rdev = to_kdev_t(d32tocpu(&sd->rdev));
 		inode_set_bytes(inode, (loff_t) d64tocpu(&sd->bytes));
 		next_stat(len, area, sizeof *sd);
 		return 0;
@@ -470,7 +470,7 @@ save_unix_sd(struct inode *inode /* object being processed */ ,
 	cputod32((__u32) inode->i_atime.tv_sec, &sd->atime);
 	cputod32((__u32) inode->i_ctime.tv_sec, &sd->ctime);
 	cputod32((__u32) inode->i_mtime.tv_sec, &sd->mtime);
-	cputod32(kdev_val(inode->i_rdev), &sd->rdev);
+	cputod32(kdev_t_to_nr(inode->i_rdev), &sd->rdev);
 	cputod64((__u64) inode_get_bytes(inode), &sd->bytes);
 	*area += sizeof *sd;
 	return 0;
