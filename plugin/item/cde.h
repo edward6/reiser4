@@ -58,7 +58,7 @@ int           cde_cut_units  ( coord_t *coord, unsigned *from, unsigned *to,
 			       const reiser4_key *to_key,
 			       reiser4_key *smallest_removed );
 void          cde_print      ( const char *prefix, coord_t *coord );
-int           cde_check      ( coord_t *coord, const char **error );
+int           cde_check      ( const coord_t *coord, const char **error );
 
 /* plugin->u.item.s.dir.* */
 int   cde_extract_key  ( const coord_t *coord, reiser4_key *key );

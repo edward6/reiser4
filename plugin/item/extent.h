@@ -111,7 +111,7 @@ int           extent_key_in_item        ( coord_t *coord,
 int           extent_key_in_unit        ( const coord_t *coord,
 					  const reiser4_key *key );
 void          extent_item_stat          ( const coord_t *coord, void *vp );
-int           extent_check              ( coord_t *coord, const char **error );
+int           extent_check              ( const coord_t *coord, const char **error );
 
 /*
  * plugin->u.item.s.file.*

@@ -78,7 +78,7 @@ typedef struct {
 	/* used for debugging, every item should have here the most
 	   complete possible check of the consistency of the item that
 	   the inventor can construct */
-	int ( *check )( coord_t *coord, const char **error );
+	int ( *check )( const coord_t *coord, const char **error );
 	
 	/* number of atomic things in an item */
 	unsigned ( *nr_units )( const coord_t *coord );

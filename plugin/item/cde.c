@@ -498,7 +498,7 @@ void cde_print( const char *prefix /* prefix to print */,
  * construct 
  */
 /* Audited by: green(2002.06.13) */
-int cde_check( coord_t *coord /* coord of item to check */, 
+int cde_check( const coord_t *coord /* coord of item to check */, 
 	       const char **error /* where to store error message */ )
 {
 	int   i;
