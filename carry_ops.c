@@ -968,11 +968,11 @@ static int make_space_by_shift_left( carry_op *op, carry_level *doing,
 		 * even minimal portion of flow into it, therefore, move
 		 * insertion point back to orig node (before first item) */
 		coord_init_before_first_item( flow_insert_point( op ), orig );
-		/*sync_op(); ? */
 		return 1;
 	}
 
 	/* part of flow is to be written to the end of node */
+	op -> node = left;
 	return 0;
 }
 
@@ -1072,6 +1072,7 @@ static int make_space_by_new_nodes( carry_op *op, carry_level *doing,
 
 	/* move insertion point to new node */
 	coord_init_before_first_item( flow_insert_point( op ), new -> real_node );
+	op -> node = new;
 	return 0;
 }
 
