@@ -4,6 +4,9 @@
 #include "tree_walk.h"
 #include "super.h"
 
+/* for nr_free_pagecache_pages(), totalram_pages */
+#include <linux/swap.h>
+
 void init_ra_info(ra_info_t * rai)
 {
 	rai->key_to_stop = *min_key();
@@ -36,6 +39,17 @@ should_readahead_neighbor(znode *node, ra_info_t *info)
 			 keyle(znode_get_rd_key(node), &info->key_to_stop)));
 }
 
+#define LOW_MEM_PERCENTAGE (5)
+
+static int
+low_on_memory(void)
+{
+	unsigned int freepages;
+
+	freepages = nr_free_pagecache_pages();
+	return freepages < (totalram_pages * LOW_MEM_PERCENTAGE / 100);
+}
+
 /* start read for @node and for few of its right neighbors */
 void
 formatted_readahead(znode *node, ra_info_t *info)
@@ -58,6 +72,10 @@ formatted_readahead(znode *node, ra_info_t *info)
 	jstartio(ZJNODE(node));
 
 	if (!ra_all_levels(ra_params->flags) && znode_get_level(node) != LEAF_LEVEL)
+		return;
+
+	/* don't waste memory for read-ahead when low on memory */
+	if (low_on_memory())
 		return;
 
 	write_current_tracef("...readahead\n");
