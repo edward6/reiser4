@@ -107,16 +107,6 @@ OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 [Res]={  0,{0, 
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Res]={  0,{0, 
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Res]={  0,{0, 
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Res]={  0,{0, 
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Res]={  0,{0, 
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Res]={  0,{0, 
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 
 [Str]={  STRING_CONSTANT,{1, 
 OK ,Str,Str,Str,Str,Str,OK ,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str}},
@@ -295,9 +285,10 @@ static lnode * get_lnode(struct reiser4_syscall_w_space * ws, struct inode * ino
 				}
 			else
 				{
-					ln->h.type = LNODE_INODE;
-					ln->inode.inode = inode;
-					PTRACE( ws, "no r4 lnode=%p", ln );
+					ln->h.type = LNODE_DENTRY;
+					ln->dentry.dentry = d_alloc_anon(inode);
+//					ln->inode.inode = inode;
+					PTRACE( ws, "no r4 lnode=%p,dentry=%p", ln, ln->dentry.dentry);
 				}
 		}
 	PTRACE( ws, " lnode=%p", ln );
@@ -337,7 +328,7 @@ static struct reiser4_syscall_w_space * reiser4_pars_init()
 
 
 
-static void level_up(struct reiser4_syscall_w_space *ws, int type)
+static void level_up(struct reiser4_syscall_w_space *ws, long type)
 {
 	PTRACE(ws, "%s", "begin");
 	if (ws->cur_level->next==NULL)
@@ -354,7 +345,7 @@ static void level_up(struct reiser4_syscall_w_space *ws, int type)
 }
 
 
-static  void  level_down(struct reiser4_syscall_w_space * ws, int type1, int type2)
+static  void  level_down(struct reiser4_syscall_w_space * ws, long type1, long type2)
 {
 	PTRACE(ws, "%s", "begin");
 	assert("VD-level_down, type mithmatch",type1==type2);
@@ -550,7 +541,6 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 	int ret;
 	char lcls;
 	char * s ;
-	PTRACE(ws, "%s", "lex1");
 
 //	s = curr_symbol(ws);              /* first symbol or Last readed symbol of the previous token parsing */
 	if ( *curr_symbol(ws) == 0 ) return EOF;        /* end of string is EOF */
@@ -567,12 +557,14 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 	term = 1;
 	while( term )
 		{
+			n=lcls;
 			PTRACE(ws, "while1: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*curr_symbol(ws));
-			while ( ( n = lexcls[ lcls ].c[ i=ncl[ *curr_symbol(ws) ] ] ) > 0   )
+			while (  n > 0   )
 				{
-					PTRACE(ws, "while2: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*curr_symbol(ws));
-					lcls=n;
 					next_symbol(ws);
+					lcls=n;
+					n = lexcls[ lcls ].c[ i=ncl[ *curr_symbol(ws) ] ];
+					PTRACE(ws, "while2: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*curr_symbol(ws));
 				}
 			if ( n == OK )
 				{
@@ -598,7 +590,7 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 				{                          /*  this is not keyword. tray check in worgs. ret = Wrd */
 					PTRACE(ws, "%s ", "no keyword");
 					ret=lexcls[ lcls ].term;
-					ws->ws_yyval.wrd = _wrd_inittab(ws);
+					ws->ws_yylval.wrd = _wrd_inittab(ws);
 				}
 			break;
 		case Int:
@@ -607,7 +599,7 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 		case Str: /*`......"*/
 			move_selected_word( ws, lexcls[ lcls ].c[0] );
 			ret=lexcls[ lcls ].term;
-			ws->ws_yyval.wrd = _wrd_inittab(ws);
+			ws->ws_yylval.wrd = _wrd_inittab(ws);
 			break;
 			/*
 			move_selected_word( ws, lexcls[ lcls ].c[0] );
@@ -634,7 +626,7 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 			break;
 		case Lpr: 
 		case Rpr: 
-			ws->ws_yyval.charType = *ws->yytext ;
+			ws->ws_yylval.charType = *ws->yytext ;
 			ret=lexcls[ lcls ].term;
 			break;
 		default :                                /*  others  */
@@ -723,22 +715,35 @@ static expr_v4_t *  pars_expr(struct reiser4_syscall_w_space * ws, expr_v4_t * e
 static expr_v4_t *  lookup_word(struct reiser4_syscall_w_space * ws, wrd_t * w)
 {
 	expr_v4_t * e;
-	vnode_t * vnode;
-	PTRACE(ws, "%s", "begin");
+	vnode_t * cur_vnode;
+	PTRACE(ws, "begin &w=%p",w);
+	PTRACE(ws, "w->u.name=%p, %s",w->u.name,w->u.name);
 #if 1           /* tmp.  this is fist version.  for II we need do "while" throus expression for all vnode */
-	vnode        = ws->cur_level->wrk_exp->vnode.v; 
+	cur_vnode        = ws->cur_level->wrk_exp->vnode.v; 
+
+
+
 #else
-	vnode       = getFirsVnodeFromExpr(ws->level->wrk_exp); 
+	cur_vnode       = getFirsVnodeFromExpr(ws->level->wrk_exp); 
 	while(vnode!=NULL)
 		{
 #endif
+
+
+
 	e             = alloc_new_expr( ws, EXPR_VNODE );
-	e->vnode.v    = lookup_vnode_word( ws, vnode, w );
+
+	e->vnode.v    = lookup_vnode_word( ws, cur_vnode, w );
+
+
 #if 0
 			vnode=getNextVnodeFromExpr(ws->level->wrk_exp); 
 		}
  all rezult mast be connected to expression. 
 #endif
+
+
+	PTRACE(ws, "end e=%p",e);
 	return e;
 }
 
@@ -766,13 +771,10 @@ static vnode_t *  lookup_vnode_word(struct reiser4_syscall_w_space * ws, vnode_t
 	struct dentry  * de;
 	vnode_t * rez_vnode;
 	vnode_t * last_vnode;
-	PTRACE(ws, "begin ws->Head_vnode=%p, parent=%p",ws->Head_vnode,parent);
+	PTRACE(ws, "begin ws->Head_vnode=%p, parent=%p w=%p",ws->Head_vnode,parent,w);
 
 	last_vnode  = NULL;
 	rez_vnode   = ws->Head_vnode;
-#if 0
-	printk(" %s",w->u.name);
-#else
 	while (rez_vnode!=NULL)
 		{
 			PTRACE(ws, "while rez=%p,rez_vnode->parent=%p, last=%p",rez_vnode,rez_vnode->parent,last_vnode);
@@ -796,6 +798,7 @@ static vnode_t *  lookup_vnode_word(struct reiser4_syscall_w_space * ws, vnode_t
 			de = parent->ln->dentry.dentry;
 			break;
 		case LNODE_INODE:
+			PTRACE(ws, "parent inode=%p",parent->ln->inode.inode);
 			de = d_alloc_anon(parent->ln->inode.inode);
 			break;
 		case LNODE_PSEUDO:
@@ -803,11 +806,13 @@ static vnode_t *  lookup_vnode_word(struct reiser4_syscall_w_space * ws, vnode_t
 		case LNODE_NR_TYPES:
 			break;
 		}
-	PTRACE(ws, "de=%p",de);
+	PTRACE(ws, "parent de=%p",de);
+	PTRACE(ws, "       w->u.name= %p, u.name->%s, u.len=%d",de,w->u.name,w->u.name,w->u.len);
 	rez_vnode->ln->h.type= LNODE_DENTRY;
-	rez_vnode->ln->dentry.dentry= lookup_one_len( w->u.name, de, w->u.len);
+	de = lookup_one_len( w->u.name, de, w->u.len);
+	PTRACE(ws, "new de=%p,",de);
+	if (de!=NULL)	rez_vnode->ln->dentry.dentry= de;
 	PTRACE(ws, "rez de=%p",rez_vnode->ln->dentry.dentry);
-#endif
 	return rez_vnode;
 }
 

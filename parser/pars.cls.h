@@ -10,62 +10,63 @@
 
 #define ERR  -128
 
-#define OK   0
 
 #if 1
 typedef enum
   {
- Blk  ,   /* blank */
- Wrd  ,   /* any symbol exept spec symbl */
- Int  ,   /* numeric */
+    OK   ,
+    Blk  ,   /* blank */
+    Wrd  ,   /* any symbol exept spec symbl */
+    Int  ,   /* numeric */
+    
+    Ptr  ,   /* pointer */
+    
+    Pru  ,   /* _pruner */
+    
+    Stb  ,   /* ` string begin */
+    Ste  ,   /* ' string end */
+    Lpr  ,   /* ( [ { */ 
+    Rpr  ,   /* ) ] } */
+    Com  ,   /* , */
+    Mns  ,   /* - */
+    
+       
+    Les  ,   /* < */
+    Slh  ,   /* / */
+    
+    Lsq  ,   /* [ ----------*/
+    Rsq  ,   /* ] ----------*/
+    
+    Bsl  ,   /* \ */
+    
+    Lfl  ,   /* { ----------*/
+    Rfl  ,   /* } ----------*/
+    
+    Pip  ,   /* | */
+    Sp1  ,   /* : */
+    Sp2  ,   /* ; */
+    
+    Dot  ,   /* . */
+    
+    Sp4  ,   /* = */
+    Sp5  ,   /* > */
+    Sp6  ,   /* ? */
+    Pls  ,   /* +  ???*/
+    
+    /*LastTerm Sp6*/
+    
+    Res  ,   /*  */
+    
+    Str  ,
+    ASG  ,
+    App  ,
+    Lnk  ,
 
- Ptr  ,   /* pointer */
-
- Pru  ,   /* _pruner */
-
- Stb  ,   /* ` string begin */
- Ste  ,   /* ' string end */
- Lpr  ,   /* ( [ { */ 
- Rpr  ,   /* ) ] } */
- Com  ,   /* , */
- Mns  ,   /* - */
-
- Pls  ,   /* +  ???*/
-
- Les  ,   /* < */
- Slh  ,   /* / */
-
- Lsq  ,   /* [ ----------*/
- Rsq  ,   /* ] ----------*/
-
- Bsl  ,   /* \ */
-
- Lfl  ,   /* { ----------*/
- Rfl  ,   /* } ----------*/
-
- Pip  ,   /* | */
- Sp1  ,   /* : */
- Sp2  ,   /* ; */
-
- Dot  ,   /* . */
-
- Sp4  ,   /* = */
- Sp5  ,   /* > */
- Sp6  ,   /* ? */
-
- /*LastTerm Sp6*/
-
- Res  ,   /*  */
-
- Str  ,
- ASG  ,
- App  ,
- Lnk  ,
-
- Ap2  
+    Ap2  
 
   } state;
 #else
+#define OK   0
 #define Blk  1   /* blank */
 #define Wrd  2   /* any symbol exept spec symbl */
 #define Int  3   /* numeric */
