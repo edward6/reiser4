@@ -2080,6 +2080,7 @@ repeat:
 
 	assert("jmacd-5177", blocknr_entry == NULL);
 
+	LOCK_JNODE(node);
 	while (JF_ISSET(node, JNODE_FLUSH_QUEUED) && atom->nr_running_queues) {
 		UNLOCK_JNODE(node);
 		atom_wait_event(atom);
@@ -2090,6 +2091,7 @@ repeat:
 			return;
 		}
 	}
+	UNLOCK_JNODE(node);
 
 	uncapture_block(atom, node);
 
