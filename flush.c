@@ -2737,13 +2737,16 @@ jnode_lock_parent_coord(jnode         * node,
 		switch (ret) {
 		case CBK_COORD_NOTFOUND:
 			if (jnode_is_cluster_page(node)) {
+				int result;
 				assert("edward-164", jnode_page(node) != NULL);
 				assert("edward-165", jnode_page(node)->mapping != NULL);
 				assert("edward-166", jnode_page(node)->mapping->host != NULL);
 				assert("edward-167", inode_get_flag(jnode_page(node)->mapping->host, REISER4_CLUSTER_KNOWN));
 				/* file was just created or cluster doesn't have
 				 * appropriate items in the tree. */
-				ret = incr_load_count_znode(parent_zh, parent_lh->node);
+				result = incr_load_count_znode(parent_zh, parent_lh->node);
+				if (result != 0)
+					return result;
 			} else if (!JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
 				warning("nikita-3177", "Parent not found");
 				print_jnode("node", node);
@@ -3073,6 +3076,27 @@ scan_common(flush_scan * scan, flush_scan * other)
 	return 0;
 }
 
+/* called by scan_unformatted() when jnode_lock_parent_coord
+   returns COORD_NOT_FOUND.
+*/
+static int
+should_set_scan_istat(flush_scan * scan)
+{
+	assert("edward-311", scan->node != NULL);
+	if (jnode_is_cluster_page(scan->node)) {
+		
+		assert("edward-303", scan->parent_coord.between != EMPTY_NODE);
+		return 1;
+	}
+	return 0;
+}
+
+static void
+set_scan_istat(flush_scan * scan)
+{
+	set_flush_scan_istat(scan, NEED_CREATE);
+}
+
 static int
 scan_unformatted(flush_scan * scan, flush_scan * other)
 {
@@ -3126,12 +3150,10 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
 			/* FIXME(C): check EINVAL, E_DEADLOCK */
 			ON_TRACE(TRACE_FLUSH,
 				 "flush_scan_common: jnode_lock_parent_coord returned %d\n", ret);
-			if (jnode_is_cluster_page(scan->node)) {
-				assert("edward-303", scan->parent_coord.between == AFTER_UNIT);
-				scan->parent_coord.between = INVALID_COORD;
-				goto scan;
-			}
-			return ret;
+			if (should_set_scan_istat(scan))
+				set_scan_istat(scan);
+			else
+				return ret;
 		}
 		/* parent was found */
 		ON_TRACE(TRACE_FLUSH,
@@ -3246,14 +3268,11 @@ scan_by_coord(flush_scan * scan)
 	scan_this_coord = (jnode_is_unformatted(scan->node) ? 1 : 0);
 
         /* set initial item id */
-	if(coord_is_invalid(&scan->parent_coord)) {
-		/* this is possible only for ctails for a while */
-		assert("edward-302", jnode_is_cluster_page(scan->node));
-		iplug = item_plugin_by_id(CTAIL_ID);
-	}
+	if (get_flush_scan_istat(scan) == NEED_CREATE)
+		iplug = item_plugin_by_jnode(scan->node);
 	else
 		iplug = item_plugin_by_coord(&scan->parent_coord);
-
+	
 	if (iplug->f.scan == NULL) {
 		scan->stop = 1;
 		ret = 0;
@@ -3263,7 +3282,7 @@ scan_by_coord(flush_scan * scan)
 	for (; !scan_finished(scan); scan_this_coord = 1) {
 
 		if (scan_this_coord) {
-			if (!coord_is_invalid(&scan->parent_coord) &&
+			if (get_flush_scan_istat(scan) == EXISTING_ITEM &&
 			    item_plugin_by_coord(&scan->parent_coord) != iplug) {
 				/* we raced again extent->tail conversion and
 				   lost. */
