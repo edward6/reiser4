@@ -2834,7 +2834,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 		struct page * pg;
 		unsigned long i, blocksize;
 		unsigned long ind;
-		int all_dirty = 1;
+		int all_need_alloc = 1;
 
 		unit_key_by_coord (coord, & item_key);
 
@@ -2854,7 +2854,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 			pg  = reiser4_lock_page (inode->i_mapping, ind);
 
 			if (pg == NULL) {
-				all_dirty = 0;
+				all_need_alloc = 0;
 				break;
 			}
 
@@ -2863,13 +2863,17 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 			page_cache_release (pg);
 			
 			if (IS_ERR(j)) {
-				all_dirty = 0;
+				all_need_alloc = 0;
 				break;
 			}
 
-			if (! jnode_check_dirty (j)) {
+			if (jnode_check_allocated (j) /* Was (! jnode_check_dirty (j)) but
+						       * the node may already have been *
+						       * allocated, in which case we take
+						       * the * previous allocation for
+						       * this * extent. */) {
 				jput (j);
-				all_dirty = 0;
+				all_need_alloc = 0;
 				break;
 			}
 
@@ -2883,7 +2887,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 		 * allocation" may not have a great answer.  There may be a closer
 		 * allocation but it may be not large enough.  For now just implement the
 		 * leaf_relocate threshold policy. */
-		relocate = (all_dirty == 1) && flush_pos_leaf_relocate (pos);
+		relocate = (all_need_alloc == 1) && flush_pos_leaf_relocate (pos);
 
 		/* Now scan through again. */
 		offset = get_key_offset (& item_key);
@@ -2906,17 +2910,13 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 				continue;
 			}
 
-			if (jnode_check_dirty (j)) {
+			if (! jnode_check_allocated (j) /* Was (jnode_check_dirty (j)),
+							 * but allocated check prevents us
+							 * from relocating/wandering a
+							 * previously allocated block  */) {
 
 				if (relocate == 0) {
 					/* If not relocating and dirty, WANDER it */
-					/*
-					 * FIXME:NIKITA->JMACD I see this failing
-					 * because @j already has JNODE_RELOC
-					 * set on it. I DONT KNOW WHAT I AM
-					 * DOING.
-					 */
-					JF_CLR (j, JNODE_RELOC);
 					jnode_set_wander (j);
 
 					if ((ret = flush_enqueue_unformatted (j, pos))) {
