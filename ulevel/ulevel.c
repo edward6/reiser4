@@ -2671,7 +2671,10 @@ int real_main( int argc, char **argv )
 	sys_rand_init();
 	memset( &super, 0, sizeof super );
 	super.s_blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
-		atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 256;
+		atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
+	assert( "vs-417", super.s_blocksize == 512 ||
+		super.s_blocksize == 1024 || super.s_blocksize == 2048 ||
+		super.s_blocksize == 4096);
 
 	super.s_op = &reiser4_super_operations;
 	super.s_root = &root_dentry;
