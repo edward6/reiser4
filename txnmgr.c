@@ -185,7 +185,7 @@ txn_mgr_init (txn_mgr *mgr)
 
 /* Free a new transaction manager. */
 int
-txn_mgr_done (txn_mgr* mgr UNUSE)
+txn_mgr_done (txn_mgr* mgr UNUSED_ARG)
 {
 	return 0;
 }
@@ -322,6 +322,14 @@ jnode_of_page (struct page* pg)
 	return (jnode*) pg->private;
 }
 
+/* get next jnode of a page.
+ * FIXME-VS: update this when more than one jnode per page will be allowed */
+jnode*
+page_next_jnode( jnode* node )
+{
+	return node;
+}
+
 /* Increment to the jnode's reference counter. */
 jnode *jref( jnode *node )
 {
@@ -346,7 +354,7 @@ void   jput( jnode *node )
 /* FIXME_LATER_JMACD Not sure how this is used yet.  The idea is to reserve a number of
  * blocks for use by the current transaction handle. */
 int
-txn_reserve (int reserved UNUSE)
+txn_reserve (int reserved UNUSED_ARG)
 {
 	return 0;
 }
@@ -1246,6 +1254,15 @@ void jnode_set_dirty( jnode *node )
 		/*info ("dirty unformatted page %lu\n", node->pg->index);*/
 	}
 
+	/*
+	 * FIXME-VS: where do we dirty page?
+	 */
+	{
+		assert ("vs-688", JF_ISSET (node, ZNODE_LOADED));
+		if (node->pg)
+			SetPageDirty (node->pg);
+	}
+
 	spin_unlock_jnode (node);
 }
 
@@ -1267,16 +1284,20 @@ void jnode_set_clean( jnode *node )
 		if ( ! JF_ISSET (node, ZNODE_UNFORMATTED))
 			JZNODE (node)->cksum = znode_checksum (JZNODE (node));
 #endif
-
-		atom = atom_get_locked_by_jnode (node);
-
-		assert ("jmacd-1201", atom != NULL);
-
-		capture_list_remove     (node);
-		capture_list_push_front (& atom->clean_nodes, node);
-
-		spin_unlock_atom (atom);
 	}
+	/*
+	 * FIXME-VS: remove jnode from capture list even when jnode is not
+	 * dirty
+	 */
+	atom = atom_get_locked_by_jnode (node);
+	
+	assert ("jmacd-1201", atom != NULL);
+
+	capture_list_remove     (node);
+	capture_list_push_front (& atom->clean_nodes, node);
+	
+	spin_unlock_atom (atom);
+
 
 	spin_unlock_jnode (node);
 }
