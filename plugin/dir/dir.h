@@ -14,7 +14,14 @@
 extern void directory_readahead(struct inode *dir, coord_t * coord);
 
 /* locking: fields of per file descriptor readdir_pos and ->f_pos are
- * protected by ->i_sem on inode */
+ * protected by ->i_sem on inode. Under this lock following invariant
+ * holds:
+ *
+ *     file descriptor is "looking" at the entry_no-th directory entry from
+ *     the beginning of directory. This entry has key dir_entry_key and is
+ *     pos-th entry with duplicate-key sequence.
+ *
+ */
 
 /* logical position within directory */
 typedef struct {

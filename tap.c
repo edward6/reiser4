@@ -63,11 +63,12 @@ tap_relse(tap_t * tap)
 void
 tap_init(tap_t * tap, coord_t * coord, lock_handle * lh, znode_lock_mode mode)
 {
-	tap->coord = coord;
-	tap->lh = lh;
-	tap->mode = mode;
+	tap->coord  = coord;
+	tap->lh     = lh;
+	tap->mode   = mode;
 	tap->loaded = 0;
 	tap_list_clean(tap);
+	init_ra_info(&tap->ra_info);
 }
 
 /** add @tap to the per-thread list of all taps */
@@ -78,6 +79,21 @@ tap_monitor(tap_t * tap)
 	tap_check(tap);
 	tap_list_push_front(taps_list(), tap);
 	tap_check(tap);
+}
+
+void 
+tap_copy(tap_t * dst, tap_t * src)
+{
+	assert("nikita-3193", src != NULL);
+	assert("nikita-3194", dst != NULL);
+
+	*dst->coord  = *src->coord;
+	if (src->lh->node)
+		copy_lh(dst->lh, src->lh);
+	dst->mode    = src->mode;
+	dst->loaded  = 0;
+	tap_list_clean(dst);
+	dst->ra_info = src->ra_info;
 }
 
 /** finish with @tap */

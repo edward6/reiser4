@@ -42,6 +42,7 @@ extern int tap_load(tap_t * tap);
 extern void tap_relse(tap_t * tap);
 extern void tap_init(tap_t * tap, coord_t * coord, lock_handle * lh, znode_lock_mode mode);
 extern void tap_monitor(tap_t * tap);
+extern void tap_copy(tap_t * dst, tap_t * src);
 extern void tap_done(tap_t * tap);
 extern int tap_move(tap_t * tap, lock_handle * target);
 extern int tap_to(tap_t * tap, znode * target);

@@ -25,6 +25,7 @@ typedef struct {
 } ra_info_t;
 
 void formatted_readahead(znode *, ra_info_t *);
+void init_ra_info(ra_info_t * rai);
 
 /* __READAHEAD_H__ */
 #endif

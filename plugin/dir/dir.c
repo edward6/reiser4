@@ -696,6 +696,11 @@ adjust_dir_pos(struct file   * dir,
 	trace_on(TRACE_DIR, "\n\tspot.entry_no: %llu\n", readdir_spot->entry_no);
 
 	reiser4_stat_inc(dir.readdir.adjust_pos);
+
+	/* directory is positioned to the beginning. */
+	if (dir->f_pos == 0)
+		return;
+
 	pos = &readdir_spot->position;
 	switch (dir_pos_cmp(mod_point, pos)) {
 	case LESS_THAN:
@@ -725,6 +730,8 @@ adjust_dir_pos(struct file   * dir,
 		   readdir will have to scan the beginning of
 		   directory. Proper solution is to use semaphore in
 		   spin lock's stead and use rewind_right() here.
+
+		   NOTE-NIKITA: now, semaphore is used, so...
 		*/
 		xmemset(readdir_spot, 0, sizeof *readdir_spot);
 		reiser4_stat_inc(dir.readdir.adjust_eq);
@@ -779,6 +786,58 @@ dir_go_to(struct file *dir, readdir_pos * pos, tap_t * tap)
 }
 
 static int
+set_pos(struct inode * inode, readdir_pos * pos, tap_t * tap)
+{
+	int          result;
+	coord_t      coord;
+	lock_handle  lh;
+	tap_t        scan;
+	file_plugin *fplug;
+	de_id       *did;
+
+	coord_init_zero(&coord);
+	init_lh(&lh);
+	tap_init(&scan, &coord, &lh, ZNODE_READ_LOCK);
+	tap_copy(&scan, tap);
+	tap_load(&scan);
+	fplug = inode_file_plugin(inode);
+	pos->position.pos = 0;
+
+	did = &pos->position.dir_entry_key;
+
+	while (1) {
+		reiser4_key de_key;
+
+		result = go_prev_unit(&scan);
+		if (result != 0)
+			break;
+
+		result = RETERR(-EINVAL);
+		if (item_type_by_coord(scan.coord) != DIR_ENTRY_ITEM_TYPE)
+			break;
+		else if (!fplug->owns_item(inode, scan.coord))
+			break;
+
+		/* get key of directory entry */
+		unit_key_by_coord(scan.coord, &de_key);
+
+		result = 0;
+		if (de_id_key_cmp(did, &de_key) != EQUAL_TO) {
+			/* duplicate-sequence is over */
+			break;
+		}
+		pos->position.pos ++;
+	}
+	tap_relse(&scan);
+	tap_done(&scan);
+	return result;
+}
+
+
+/*
+ * "rewind" directory to @offset, i.e., set @pos and @tap correspondingly.
+ */
+static int
 dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 {
 	__u64 destination;
@@ -808,12 +867,10 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 		if (shift <= (int) pos->position.pos) {
 			/* destination is within sequence of entries with
 			   duplicate keys. */
-			pos->position.pos -= shift;
 			reiser4_stat_inc(dir.readdir.left_non_uniq);
 			result = dir_go_to(dir, pos, tap);
 		} else {
 			shift -= pos->position.pos;
-			pos->position.pos = 0;
 			while (1) {
 				/* repetitions: deadlock is possible when
 				   going to the left. */
@@ -835,6 +892,11 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 		result = dir_go_to(dir, pos, tap);
 		if (result == 0)
 			result = rewind_right(tap, -shift);
+	}
+	if (result == 0) {
+		pos->entry_no = destination;
+		/* update pos->position.pos */
+		result = set_pos(dir->f_dentry->d_inode, pos, tap);
 	}
 	return result;
 }

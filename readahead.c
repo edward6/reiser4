@@ -4,6 +4,10 @@
 #include "tree_walk.h"
 #include "super.h"
 
+void init_ra_info(ra_info_t * rai)
+{
+	rai->key_to_stop = *min_key();
+}
 
 /* global formatted node readahead parameter. It can be set by mount option -o readahead:NUM:1 */
 static inline int ra_adjacent_only(int flags)
