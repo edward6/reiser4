@@ -905,7 +905,7 @@ static void steal_queued_nodes (txn_atom * atom, flush_queue_t * dst, long how_m
 	flush_queue_t * fq;
 
 	assert ("zam-791", spin_atom_is_locked(atom));
-	assert ("zam-792", !spin_fq_is_locked(dst));
+	assert ("zam-792", spin_fq_is_not_locked(dst));
 
 	for (fq = fq_list_front(&atom->flush_queues);
 	     ! fq_list_end(&atom->flush_queues, fq);
