@@ -1546,8 +1546,8 @@ flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 			 * or atom is too old/large,
 			 * we force current atom to commit */
 			/* wait for commit completion but only if this
-			 * wouldn't stall pdflushd. */
-			if (!wbc->nonblocking)
+			 * wouldn't stall pdflushd and ent thread. */
+			if (!wbc->nonblocking && !ctx->entd)
 				txnh->flags |= TXNH_WAIT_COMMIT;
 			atom->flags |= ATOM_FORCE_COMMIT;
 		}
@@ -4222,7 +4222,8 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
 #if REISER4_COPY_ON_CAPTURE
 	reiser4_stat_inc(coc.calls);
 
-	if (can_coc) {
+	/* do not copy on capture in ent thread to avoid deadlock on coc semaphore */
+	if (can_coc && get_current_context()->entd == 0) {
 		int result;
 
 		ON_TRACE(TRACE_TXN, "capture_copy\n");
