@@ -1316,3 +1316,6 @@ flush.c.orig
 plugin/item/extent.c.orig
 .prof.o.cmd
 prof.E
+.as_ops.o.cmd
+.file_ops.o.cmd
+.inode_ops.o.cmd
