@@ -441,7 +441,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 			/* do not read out of file */
 			break;		/* coord will point to current item on entry and next item on exit */
 		readahead_result = find_next_item (file, &f.key, &coord, &lh,
-					 ZNODE_READ_LOCK);
+						   ZNODE_READ_LOCK);
 		if (readahead_result != CBK_COORD_FOUND)
 			/* item had to be found, as it was not - we have
 			 * -EIO */
@@ -471,6 +471,8 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 		if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
 			/* do not read out of file */
 			break;
+
+                page_cache_readahead (file, (unsigned long)(get_key_offset (&f.key) >> PAGE_CACHE_SHIFT));
 
 		/* coord will point to current item on entry and next item on exit */
 		result = find_next_item (file, &f.key, &coord, &lh,
