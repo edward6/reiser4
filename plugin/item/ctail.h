@@ -66,6 +66,7 @@ unsigned long pg_to_clust(unsigned long, struct inode *);
 loff_t clust_to_off(unsigned long, struct inode *);
 unsigned long off_to_pg(loff_t);
 unsigned off_to_pgoff(loff_t);
+unsigned off_to_pgcount(loff_t, unsigned long);
 unsigned pg_to_off_to_cloff(unsigned long, struct inode *);
 
 void reiser4_cluster_init(reiser4_cluster_t *);
