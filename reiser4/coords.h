@@ -33,11 +33,6 @@ struct tree_coord {
 	between_enum  between;
 };
 
-typedef enum {
-	LEFT_SIDE,
-	RIGHT_SIDE
-} sideof;
-
 int coord_correct (const tree_coord * coord);
 int coord_of_item (const tree_coord * coord);
 int coord_of_unit (const tree_coord * coord);
