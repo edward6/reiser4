@@ -782,8 +782,9 @@ find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 
 	tree = znode_get_tree(parent);
 	/* NOTE-NIKITA taking read-lock on tree here assumes that @result is
-	 * not aliased to ->in_parent of some znode. Otherwise, xmemcpy()
-	 * below would modify data protected by tree lock. */
+	 * not aliased to ->in_parent of some znode. Otherwise,
+	 * parent_coord_to_coord() below would modify data protected by tree
+	 * lock. */
 	RLOCK_TREE(tree);
 	/* fast path. Try to use cached value. Lock tree to keep
 	   node->pos_in_parent and pos->*_blocknr consistent. */
