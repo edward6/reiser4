@@ -1587,7 +1587,6 @@ static ssize_t call_read (struct inode *, char * buf,
 			  loff_t offset, unsigned count);
 void call_truncate (struct inode * inode, loff_t size);
 static int call_readdir (struct inode * dir, const char *prefix);
-static struct inode * create_root_dir (znode * root);
 
 static int create_twig( reiser4_tree *tree, struct inode *root )
 {
@@ -4472,7 +4471,7 @@ void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 			znode *child;
 
 			spin_lock_dk( current_tree );
-			child = child_znode( &coord, 0 );
+			child = child_znode( &coord, coord.node, 0 );
 			spin_unlock_dk( current_tree );
 			if( !IS_ERR( child ) ) {
 				tree_rec_dot( tree, child, flags, dot );
