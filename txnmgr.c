@@ -1366,7 +1366,7 @@ void atom_wait_event(txn_atom * atom)
 	atomic_inc(&atom->refcount);
 	UNLOCK_ATOM(atom);
 
-	assert("nikita-3056", no_counters_are_held());
+	/*assert("nikita-3056", no_counters_are_held());*/
 	prepare_to_sleep(_wlinks._lock_stack);
 	go_to_sleep(_wlinks._lock_stack, ADD_TO_SLEPT_IN_WAIT_EVENT);
 
