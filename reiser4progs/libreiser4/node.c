@@ -186,34 +186,39 @@ int reiserfs_node_lookup(reiserfs_node_t *node,
     return found;
 }
 
+/* 
+    Callback function for comparing two nodes by their
+    left delimiting keys.
+*/
+static int callback_comp_for_insert(reiserfs_node_t *node1, 
+    reiserfs_node_t *node2) 
+{
+    return reiserfs_node_item_key_cmp(node1, reiserfs_node_item_key_at(node1, 0),
+	reiserfs_node_item_key_at(node1, 0));
+}
+
+/* 
+    Callback function for comparing node's left delimiting key
+    with given key.
+*/
+static int callback_comp_for_find(reiserfs_node_t *node, 
+    void *key) 
+{
+    return reiserfs_node_item_key_cmp(node, 
+	reiserfs_node_item_key_at(node, 0), key);
+}
+
 /* Finds children node by its key in node cache */
 reiserfs_node_t *reiserfs_node_find_child(reiserfs_node_t *node, 
     void *key)
 {
-    return NULL;
-}
-
-/* 
-    Callback function for compatring two nodes by their
-    left delimiting keys. It is used by aal_list_insert_sorted
-    function.
-*/
-static int callback_comp_left_keys(const void *n1, const void *n2) {
-    const void *key1, *key2;
-    reiserfs_node_t *node1 = (reiserfs_node_t *)n1;
-    reiserfs_node_t *node2 = (reiserfs_node_t *)n2;
-   
-    /* Check whether two given nodes have the same format */
-    if (!libreiserfs_plugins_call(return -2, node1->plugin->node, confirm, node2->block)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Different node formats has found.");
-	return -2;
-    }
-
-    key1 = reiserfs_node_item_key_at(node1, 0);
-    key2 = reiserfs_node_item_key_at(node2, 0);
+    aal_list_t *list;
     
-    return reiserfs_node_item_key_cmp(node1, key1, key2);
+    if (!(list = aal_list_bin_search(node->children, key, 
+	    (int (*)(const void *, const void *))callback_comp_for_find)))
+	return NULL;
+
+    return (reiserfs_node_t *)list->data;
 }
 
 /* Connects children into sorted list of specified node */
@@ -224,7 +229,7 @@ error_t reiserfs_node_add_children(reiserfs_node_t *node,
     aal_assert("umka-564", children != NULL, return -1);
 
     node->children = aal_list_insert_sorted(node->children, 
-	children, callback_comp_left_keys);
+	children, (int (*)(const void *, const void *))callback_comp_for_insert);
     
     return 0;   
 }

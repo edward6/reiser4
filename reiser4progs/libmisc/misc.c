@@ -14,9 +14,9 @@
     0 - exact key has not been found. key of *pos < then wanted.
 */
 int reiserfs_misc_bin_search(
-    void *needle,		    /* element to be found */
     void *array,		    /* array search will be performed on */ 
     uint32_t count,		    /* array size */
+    void *needle,		    /* element to be found */
     reiserfs_elem_func_t elem_func, /* function for getting next element from given array */
     reiserfs_comp_func_t comp_func, /* function for comparing needle and a lement from array */
     uint64_t *pos)		    /* pointer on found pos a result will be stored in */

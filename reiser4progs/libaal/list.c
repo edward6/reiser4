@@ -19,6 +19,8 @@ aal_list_t *aal_list_alloc(void *data) {
 }
 
 aal_list_t *aal_list_last(aal_list_t *list) {
+    aal_assert("umka-611", list != NULL, return NULL);
+    
     while (list->next)
 	list = list->next;
 
@@ -26,6 +28,8 @@ aal_list_t *aal_list_last(aal_list_t *list) {
 }
 
 aal_list_t *aal_list_first(aal_list_t *list) {
+    aal_assert("umka-612", list != NULL, return NULL);
+    
     while (list->prev)
 	list = list->prev;
 
@@ -33,10 +37,12 @@ aal_list_t *aal_list_first(aal_list_t *list) {
 }
 
 aal_list_t *aal_list_next(aal_list_t *list) {
+    aal_assert("umka-613", list != NULL, return NULL);
     return list->next;
 }
 
 aal_list_t *aal_list_prev(aal_list_t *list) {
+    aal_assert("umka-614", list != NULL, return NULL);
     return list->prev;
 }
 
@@ -75,7 +81,7 @@ int32_t aal_list_pos(aal_list_t *list, void *data) {
 	pos++;
 	list = list->next;
     }
-    return -1;
+    return pos;
 }
 
 aal_list_t *aal_list_at(aal_list_t *list, uint32_t n) {
@@ -109,22 +115,25 @@ aal_list_t *aal_list_insert(aal_list_t *list, void *data, uint32_t n) {
 }
 
 aal_list_t *aal_list_insert_sorted(aal_list_t *list,
-    void *data, comp_func_t func)
+    void *data, comp_func_t comp_func)
 {
     aal_list_t *tmp_list = list;
     aal_list_t *new_list;
     int cmp;
 
+    if (!comp_func)
+	return NULL;
+    
     if (!list) {
 	new_list = aal_list_alloc(data);
 	return new_list;
     }
   
-    cmp = func(data, tmp_list->data);
+    cmp = comp_func((const void *)data, (const void *)tmp_list->data);
   
     while ((tmp_list->next) && (cmp > 0)) {
 	tmp_list = tmp_list->next;
-	cmp = func(data, tmp_list->data);
+	cmp = comp_func((const void *)data, (const void *)tmp_list->data);
     }
 
     new_list = aal_list_alloc(data);
@@ -185,8 +194,9 @@ aal_list_t *aal_list_append(aal_list_t *list, void *data) {
 }
 
 void aal_list_remove(aal_list_t *list, void *data) {
-    aal_list_t *temp = aal_list_find(list, data);
+    aal_list_t *temp;
    
+    temp = aal_list_find(list, data);
     if (temp) {
 	if (temp->prev)
 	    temp->prev->next = temp->next;
@@ -209,14 +219,14 @@ aal_list_t *aal_list_find(aal_list_t *list, void *data) {
 }
 
 aal_list_t *aal_list_find_custom(aal_list_t *list, void *data, 
-    comp_func_t func) 
+    comp_func_t comp_func) 
 {
-	
-    if (!func)
+
+    if (!comp_func)
 	return NULL;
     
     while (list) {
-	if (func(list->data, data))
+	if (comp_func((const void *)list->data, (const void *)data))
 	    return list;
 
 	list = list->next;
@@ -224,8 +234,46 @@ aal_list_t *aal_list_find_custom(aal_list_t *list, void *data,
     return NULL;
 }
 
+aal_list_t *aal_list_bin_search(aal_list_t *list, void *data, 
+    comp_func_t comp_func)
+{
+    int ret = 0;
+    aal_list_t *item;
+    uint32_t rbound, lbound, j;
+
+    aal_assert("umka-626", list != NULL, return NULL);
+    
+    if (!comp_func)
+	return NULL;
+    
+    list = aal_list_first(list);
+    
+    lbound = 0;
+    rbound = aal_list_length(list) - 1;
+
+    for (j = (rbound + lbound) / 2; lbound <= rbound; j = (rbound + lbound) / 2) {
+	if (!(item = aal_list_at(list, j)))
+	    return NULL;
+	
+        if ((ret = comp_func((const void *)item->data, (const void *)data)) < 0) { 
+            lbound = j + 1;
+            continue;
+        } else if (ret > 0) { 
+            if (j == 0) 
+		break;
+            rbound = j - 1;
+            continue;
+        } else 
+            return aal_list_at(list, j);
+    }
+
+    return aal_list_at(list, lbound - (ret >= 0));
+}
+
 void aal_list_free(aal_list_t *list) {
     aal_list_t *last = list;
+    
+    aal_assert("umka-627", list != NULL, return);
     
     while (last->next) {
 	aal_list_t *temp = last->next;

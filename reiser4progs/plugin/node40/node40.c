@@ -361,8 +361,8 @@ static int reiserfs_node40_lookup(aal_block_t *block, reiserfs_item_coord_t *coo
     aal_assert("umka-478", coord != NULL, return 0);
     aal_assert("umka-470", block != NULL, return 0);
  
-    if ((found = reiserfs_misc_bin_search(key, (void *)block, 
-	    reiserfs_node40_item_count(block), 
+    if ((found = reiserfs_misc_bin_search((void *)block, 
+	    reiserfs_node40_item_count(block), key,
 	    (void *(*)(void *, uint32_t))reiserfs_node40_key_at, 
 	    reiserfs_node40_key_cmp, &pos)) == -1)
 	return -1;
