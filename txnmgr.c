@@ -781,11 +781,13 @@ commit_txnh (txn_handle *txnh)
 	 * can't be fused */
 	spin_unlock_atom (atom);
 
+#if 0	/* NOT YET TESTED */
 	pre_commit_hook ();
 
 	/* write transaction log records in a manner which allows further
 	 * transaction recovery after a system crash */
 	reiser4_write_logs ();
+#endif
 
 	/* Now close this txnh's reference to the atom. */
 	spin_lock_atom (atom);

@@ -274,6 +274,17 @@ int reiser4_grab_space (__u64 * grabbed, __u64 min_block_count, __u64 max_block_
 } 
 
 /**
+ * A simple wrapper for reiser4_grab_space, suitable for most places when we
+ * are going to allocate exact number of blocks 
+ */
+int reiser4_grab_space1 (__u64 count)
+{
+	__u64 not_used;
+
+	return reiser4_grab_space (&not_used, count, count);
+}
+
+/**
  * Adjust free blocks count for blocks which were reserved but were not used.
  */
 void reiser4_release_grabbed_space (__u64 count)

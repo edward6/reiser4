@@ -356,6 +356,8 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "super.h"
 #include "page_cache.h"
 
+#include "wander.h"
+
 #endif /* __REISER4_H__ */
 
 /* 

@@ -21,10 +21,9 @@
 /* FIXME: I think that `write atomicity' means atomic write of block with
  * sizes which are supported by the hardware */
 
-struct journal_header {
-	/* last written transaction head location */
-	d64      last_committed_tx;
-};
+/* Journal footer gets updated after one transaction is flushed (all blocks
+ * are written in place) and _before_ wandered blocks and log records are
+ * freed in WORKING bitmap */
 
 static const d64 *get_last_committed_tx (struct super_block *s)
 {
@@ -64,18 +63,6 @@ static void set_last_committed_tx (struct super_block *s, const d64 * block)
 	h->last_committed_tx = *block;
 }
 
-/* Journal footer gets updated after one transaction is flushed (all blocks
- * are written in place) and _before_ wandered blocks and log records are
- * freed in WORKING bitmap */
-struct journal_footer {
-	/* last flushed transaction location.*/
-	/* This block number is no more valid after the transaction it points
-	 * to gets flushed, this number is used only at journal replaying time
-	 * for detection of the end of on-disk list of committed transactions
-	 * which were not flushed completely */
-	d64      last_flushed_tx;
-};
-
 static const d64 *get_last_flushed_tx (struct super_block * s)
 {
 	struct reiser4_super_info_data * private;
@@ -113,72 +100,6 @@ static void set_last_flushed_tx (struct super_block *s, const d64 *block)
 
 	h->last_flushed_tx = *block;
 }
-
-#define TX_HEADER_MAGIC  "TxMagic4"
-#define LOG_RECORD_MAGIC "LogMagc4"
-
-#define TX_HEADER_MAGIC_SIZE  (8)
-#define LOG_RECORD_MAGIC_SIZE (8)
-
-/* A transaction gets written to disk as a set of log records (each log record
- * size is fs block) */
-
-/* The first log record (transaction head) of written transaction has the
- * special format */
-struct tx_header {
-	/* magic string makes first block in transaction different from other
-	 * logged blocks, it should help fsck. */
-	char     magic[TX_HEADER_MAGIC_SIZE];
-
-	/* transaction id*/
-	d64      id;
-
-	/* total number of records (including this first tx head) in the
-	 * transaction */
-	d32      total;
-
-	/* align next field to 8-byte boundary; this field always is zero */
-	d32      padding;
-
-	/* block number of previous transaction head */
-	d64      prev_tx;
-
-	/* next log record location */
-	d64      next_block;
-
-	/* committed versions of free blocks counter */
-	d64      free_blocks;
-};
-/* FIXME-ZAM: rest of block is unused currently, I plan to put wandered map there */
-
-
-/* each log record (except first one) has unified format with log record
- * header followed by an array of log entries */
-struct log_record_header {
-	/* when there is no predefined location for log records, this magic
-	 * string should help reiser4fsck. */
-	char     magic[LOG_RECORD_MAGIC_SIZE];
-
-	/* transaction id */
-	d64      id;
-
-	/* total number of log records in current transaction  */
-	d32      total;
-
-	/* this block number in transaction */			
-	d32      serial;
-
-	/* number of previous block in commit */
-	d64      next_block;
-};
-
-/* rest of log record is filled by these log entries, unused space filled by
- * zeroes */
-struct log_entry {
-	d64      original;	/* block original location */
-	d64      wandered;	/* block wandered location */
-};
-
 
 /* log record capacity depends on current block size */
 static int log_record_capacity (struct super_block * super)
@@ -589,12 +510,15 @@ static void dealloc_wmap (txn_atom * atom)
 /* This function is called after write-back is finished. We update journal
  * footer block and free blocks which were occupied by wandered blocks and
  * transaction log records */
-int reiser4_flush_logs (txn_atom * atom)
+int reiser4_flush_logs (void)
 {
+	txn_atom * atom = get_current_atom_locked ();
 	jnode * tx_head = capture_list_back (&atom->tx_list);
 	struct super_block * s = reiser4_get_current_sb();
 	reiser4_super_info_data * private = get_super_private(s);
 	int ret;
+
+	spin_unlock_atom (atom);
 
 	assert ("zam-496", !capture_list_end (&atom->tx_list, tx_head));
 	set_last_flushed_tx (s, (d64*)jnode_get_block(tx_head));
@@ -614,6 +538,124 @@ int reiser4_flush_logs (txn_atom * atom)
 	return 0;
 }
 
+/* helper function for alloc wandered blocks, which refill set of block
+ * numbers needed for wandered blocks  */
+static int get_more_wandered_blocks (int count, reiser4_block_nr * start, reiser4_block_nr *len)
+{
+	reiser4_blocknr_hint hint;
+	int ret;
+
+	blocknr_hint_init (&hint);
+	hint.block_stage = BLOCK_GRABBED;
+	
+	*len = count;
+
+	ret = reiser4_alloc_blocks (&hint, start, len);
+
+	blocknr_hint_done (&hint);
+
+	return ret;
+}
+
+/* check if jnode is in overwrite set and wandered block is not yet
+ * assigned. */
+static int not_wandered (const jnode * node UNUSED_ARG)
+{
+	// FIXME: not completed
+	return 1;
+}
+static int get_owerwrite_set_size (txn_atom * atom)
+{
+	int set_size = 0;
+	int level;
+	for (level = 0; level <= REAL_MAX_ZTREE_HEIGHT; level ++) {
+		capture_list_head * head = &atom->dirty_nodes[level];
+		jnode * cur = capture_list_front(head);
+
+		while (!capture_list_end (head, cur)) {
+			if (not_wandered(cur)) set_size ++;
+		}
+	}
+	return set_size;
+}
+
+/* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
+ * submit IO for allocated blocks.  We assume that current atom is in a stage
+ * when any atom fusion is impossible and atom is unlocked and it is
+ * _safe_. */
+
+int alloc_wandered_blocks (void)
+{
+	int     set_size;
+	int     rest;
+
+	reiser4_block_nr len = 0;
+	reiser4_block_nr block;
+
+	int     level;
+	int     ret;
+
+	blocknr_set_entry *new_bsep = NULL;
+	txn_atom *atom = get_current_atom_locked ();
+
+	set_size = get_owerwrite_set_size (atom);
+
+	assert ("zam-534", set_size != 0);
+
+	ret = reiser4_grab_space1 ((__u64)set_size);
+
+	if (ret) return ret;
+
+	rest = set_size;
+
+	spin_unlock_atom (atom);
+
+	for (level = 0; level <= REAL_MAX_ZTREE_HEIGHT; level ++) {
+		capture_list_head * head = &atom->dirty_nodes[level];
+		jnode * cur = capture_list_front(head);
+
+		while (!capture_list_end (head, cur)) {
+
+			if (!not_wandered(cur)) continue;
+
+			if (len == 0) {
+				ret = get_more_wandered_blocks (rest, &block, &len); 
+				if (ret) goto free_blocks;
+			}
+
+			ret = jwrite_to (cur, &block);
+
+			if (ret) goto free_blocks;
+
+			assert ("zam-536", !blocknr_is_fake (jnode_get_block(cur)));
+
+			spin_lock_atom (atom);
+
+			ret = blocknr_set_add_pair (atom, &atom->wandered_map, &new_bsep, jnode_get_block(cur), &block);
+			assert ("zam-537", ret != -EAGAIN);
+
+			if (ret) goto free_blocks;
+
+			spin_unlock_atom (atom);
+
+			block ++; len --;
+		}
+
+		cur = capture_list_next (cur);
+	}
+
+	assert ("zam-535", len == 0);
+	return 0;
+	
+ free_blocks:
+	/* free all blocks from wandered map*/
+	dealloc_wmap(atom);
+
+	reiser4_release_grabbed_space ((__u64)set_size);
+	
+	return ret;
+	
+}
 
 /*
  * Make Linus happy.

@@ -465,6 +465,12 @@ int jwrite (jnode * node)
 	return page_io (page, WRITE, GFP_NOIO);
 }
 
+int jwrite_to (jnode * node UNUSED_ARG, const reiser4_block_nr * block UNUSED_ARG)
+{
+	// FIXME: not completed
+	return 0;
+}
+
 int jwait_io (jnode * node)
 {
 	struct page * page;

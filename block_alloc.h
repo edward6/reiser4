@@ -51,6 +51,7 @@ extern void blocknr_hint_init (reiser4_blocknr_hint *hint);
 extern void blocknr_hint_done (reiser4_blocknr_hint *hint);
 
 extern int reiser4_grab_space (reiser4_block_nr *, __u64, __u64);
+extern int reiser4_grab_space1 (__u64);
 extern void reiser4_release_grabbed_space (__u64 count);
 extern void reiser4_release_all_grabbed_space (void);
 
