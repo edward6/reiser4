@@ -22,10 +22,10 @@ struct reiser4_master_super {
     char mr_magic[4];
 
     /* Disk format plugin in use */
-    uint16_t mr_format_id;
+    d16_t mr_format_id;
 
     /* Block size in use */
-    uint16_t mr_blocksize;
+    d16_t mr_blocksize;
 
     /* Universaly unique identifier */
     char mr_uuid[16];

@@ -27,10 +27,9 @@ aal_block_t *aal_block_create(
     if (!(block = (aal_block_t *)aal_calloc(sizeof(*block), 0)))
 	return NULL;
 
-    block->size = aal_device_get_bs(device);
     block->device = device;
 	    
-    if (!(block->data = aal_calloc(block->size, c)))
+    if (!(block->data = aal_calloc(aal_device_get_bs(device), c)))
 	goto error_free_block;
 	
     block->offset = (aal_device_get_bs(device) * blk);

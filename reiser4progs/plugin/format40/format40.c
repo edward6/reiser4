@@ -16,7 +16,7 @@ static blk_t format40_get_root(reiser4_entity_t *entity) {
     aal_assert("umka-400", entity != NULL, return 0);
     
     super = format40_super(((format40_t *)entity)->block);
-    return get_sb_root_block(super);
+    return (blk_t)get_sb_root_block(super);
 }
 
 static count_t format40_get_len(reiser4_entity_t *entity) {

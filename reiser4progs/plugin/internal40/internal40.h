@@ -11,7 +11,7 @@
 #include <reiser4/plugin.h>
 
 struct internal40 {
-    blk_t ptr;
+    d64_t ptr;
 };
 
 typedef struct internal40 internal40_t;

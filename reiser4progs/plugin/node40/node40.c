@@ -12,7 +12,8 @@ static reiser4_core_t *core = NULL;
 
 /* Returns item header by pos */
 inline item40_header_t *node40_ih_at(aal_block_t *block, int pos) {
-    return ((item40_header_t *)(block->data + block->size)) - pos - 1;
+    return ((item40_header_t *)(block->data + 
+	aal_block_size(block))) - pos - 1;
 }
 
 /* Retutrns item body by pos */
@@ -31,7 +32,7 @@ static reiser4_entity_t *node40_create(aal_block_t *block,
 
     if (!(node = aal_calloc(sizeof(*node), 0)))
 	return NULL;
-
+    
     node->block = block;
     node->plugin = &node40_plugin;
     
@@ -39,15 +40,15 @@ static reiser4_entity_t *node40_create(aal_block_t *block,
     nh40_set_pid(nh40(node->block), NODE_REISER40_ID);
 
     nh40_set_free_space(nh40(node->block), 
-	node->block->size - sizeof(node40_header_t));
+	aal_block_size(node->block) - sizeof(node40_header_t));
     
     nh40_set_free_space_start(nh40(node->block), 
 	sizeof(node40_header_t));
-    
+   
     nh40_set_level(nh40(node->block), level);
     nh40_set_magic(nh40(node->block), NODE40_MAGIC);
     nh40_set_num_items(nh40(node->block), 0);
-    
+
     return (reiser4_entity_t *)node;
 }
 
@@ -156,7 +157,7 @@ static uint16_t node40_maxspace(reiser4_entity_t *entity) {
     
     aal_assert("vpf-016", node != NULL, return 0);
 
-    return node->block->size - sizeof(node40_header_t) - 
+    return aal_block_size(node->block) - sizeof(node40_header_t) - 
 	sizeof(item40_header_t);
 }
 
@@ -488,13 +489,16 @@ static errno_t node40_print(reiser4_entity_t *entity,
     return -1;
 }
 
-static inline void *callback_elem_for_lookup(void *node, 
+static inline void *callback_get_key(void *node, 
     uint32_t pos, void *data)
 {
-    return &(node40_ih_at(((node40_t *)node)->block, pos)->key);
+    item40_header_t *ih = 
+	node40_ih_at(((node40_t *)node)->block, pos);
+
+    return &ih->key;
 }
 
-static inline int callback_comp_for_lookup(void *key1,
+static inline int callback_comp_key(void *key1,
     void *key2, void *data)
 {
     aal_assert("umka-566", key1 != NULL, return -1);
@@ -521,8 +525,7 @@ static int node40_lookup(reiser4_entity_t *entity,
     count = nh40_get_num_items(nh40(node->block));
     
     if ((lookup = reiser4_comm_bin_search(node, count, key->body, 
-	    callback_elem_for_lookup, callback_comp_for_lookup, 
-	    key->plugin, &item)) != -1)
+	    callback_get_key, callback_comp_key, key->plugin, &item)) != -1)
 	pos->item = item;
 
     return lookup;

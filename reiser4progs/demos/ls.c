@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
 	    char name[256];
 	    reiser4_object_t *dir;
 
-	    for (i = 0; i < 89; i++) {
+	    for (i = 0; i < 87; i++) {
 		aal_memset(name, 0, sizeof(name));
 		aal_snprintf(name, 256, "testdir%d", i);
 		if ((dir = reiser4_dir_create(fs, &dir_hint, dir_plugin, object, name)))

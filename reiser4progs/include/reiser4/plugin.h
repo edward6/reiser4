@@ -13,6 +13,15 @@
 #define REISER4_MASTER_OFFSET		(65536)
 #define REISER4_MASTER_MAGIC		("R4Sb")
 
+/* 
+    Defining types for disk structures. All types like f32_t are fake types needed
+    to avoid gcc-2.95.x bug with typedef of aligned types.
+*/
+typedef uint8_t f8_t; typedef f8_t d8_t/* __attribute__((aligned(1)))*/;
+typedef uint16_t f16_t; typedef f16_t d16_t/* __attribute__((aligned(2)))*/;
+typedef uint32_t f32_t; typedef f32_t d32_t/* __attribute__((aligned(4)))*/;
+typedef uint64_t f64_t; typedef f64_t d64_t/* __attribute__((aligned(8)))*/;
+
 typedef uint64_t roid_t;
 typedef uint16_t rpid_t;
 
@@ -356,10 +365,6 @@ struct reiser4_key_ops {
     
     errno_t (*build_entryid) (reiser4_body_t *, 
 	reiser4_plugin_t *, const char *);
-
-    /* Builds full key by short entry key */
-    errno_t (*build_by_entry) (reiser4_body_t *, 
-	reiser4_body_t *);
 
     /* Gets/sets key type (minor in reiser4 notation) */	
     void (*set_type) (reiser4_body_t *, reiser4_key_type_t);
@@ -881,7 +886,7 @@ typedef struct reiser4_place reiser4_place_t;
 
 /* The common node header */
 struct reiser4_node_header {
-    uint16_t pid;
+    d16_t pid;
 };
 
 typedef struct reiser4_node_header reiser4_node_header_t;

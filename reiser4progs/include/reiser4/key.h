@@ -36,9 +36,6 @@ extern errno_t reiser4_key_build_direntry(reiser4_key_t *key,
 extern errno_t reiser4_key_build_entryid(reiser4_key_t *key, 
     reiser4_plugin_t *hash_plugin, const char *name);
 
-extern errno_t reiser4_key_build_by_entry(reiser4_key_t *key,
-    void *data);
-
 extern errno_t reiser4_key_set_type(reiser4_key_t *key, 
     uint32_t type);
 

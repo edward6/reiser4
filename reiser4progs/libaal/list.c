@@ -161,10 +161,7 @@ aal_list_t *aal_list_insert_sorted(aal_list_t *list,
     new_list->next = tmp_list;
     tmp_list->prev = new_list;
  
-    if (tmp_list == list)
-	return new_list;
-    else
-	return list;
+    return new_list;
 }
 
 aal_list_t *aal_list_prepend(aal_list_t *list, void *item) {

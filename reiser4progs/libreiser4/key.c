@@ -134,18 +134,6 @@ errno_t reiser4_key_build_entryid(
 	build_entryid, key->body, hash_plugin, name);
 }
 
-/* Builds full key by entry short key */
-errno_t reiser4_key_build_by_entry(
-    reiser4_key_t *key,	    /* key to be built */
-    void *data			    /* short entry key data pointer */
-) {
-    aal_assert("umka-1003", key != NULL, return -1);
-    aal_assert("umka-1004", data != NULL, return -1);
-    
-    return plugin_call(return -1, key->plugin->key_ops, 
-	build_by_entry, key->body, data);
-}
-
 /* Sets key type */
 errno_t reiser4_key_set_type(
     reiser4_key_t *key,	    /* key type will be updated in */

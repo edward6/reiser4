@@ -264,7 +264,7 @@ static errno_t direntry40_print(reiser4_body_t *body,
     Helper function that is used by lookup method for getting n-th element of 
     direntry.
 */
-static void *callback_elem_for_lookup(void *direntry, 
+static inline void *callback_get_entry(void *direntry, 
     uint32_t pos, void *data) 
 {
     return &((direntry40_t *)direntry)->entry[pos].entryid;
@@ -274,28 +274,40 @@ static void *callback_elem_for_lookup(void *direntry,
     Helper function that is used by lookup method for comparing given key with 
     passed dirid.
 */
-static int callback_comp_for_lookup(void *key1, void *key2, void *data) {
-    roid_t locality;
-    reiser4_key_t key;
+static inline int callback_comp_entry(
+    reiser4_body_t *entryid,	/* entryid passed by binay search */
+    reiser4_body_t *lookkey,	/* looked key */
+    void *data			/* user-specified data */
+) {
+    reiser4_key_t entrykey;
     reiser4_plugin_t *plugin;
+    reiser4_key_type_t type;
 
-    aal_assert("umka-657", key1 != NULL, return -1);
-    aal_assert("umka-658", key2 != NULL, return -1);
+    roid_t locality;
+    roid_t objectid;
+    uint64_t offset;
+
+    aal_assert("umka-657", entryid != NULL, return -1);
+    aal_assert("umka-658", lookkey != NULL, return -1);
     aal_assert("umka-659", data != NULL, return -1);
     
     plugin = (reiser4_plugin_t *)data;
     
-    plugin_call(return -1, plugin->key_ops, 
-	build_by_entry, (void *)&key, (void *)key1);
+    locality = plugin_call(return -1, plugin->key_ops, 
+	get_locality, lookkey);
 
-    locality = plugin_call(return -1, plugin->key_ops,
-	get_locality, key2);
+    type = plugin_call(return -1, plugin->key_ops,
+        get_type, lookkey);
+    
+    objectid = *((uint64_t *)entryid);
+    offset = *((uint64_t *)entryid + 1);
 
     plugin_call(return -1, plugin->key_ops,
-	set_locality, (void *)&key, locality);
+	build_generic, entrykey.body, type, locality, 
+	objectid, offset);
     
     return plugin_call(return -1, plugin->key_ops, 
-	compare, &key, key2);
+	compare, entrykey.body, lookkey);
 }
 
 static int direntry40_lookup(reiser4_body_t *body, 
@@ -310,9 +322,9 @@ static int direntry40_lookup(reiser4_body_t *body,
     aal_assert("umka-609", body != NULL, return -1);
     aal_assert("umka-629", pos != NULL, return -1);
     
-    if ((lookup = reiser4_comm_bin_search((void *)body, direntry40_count(body), 
-	    key->body, callback_elem_for_lookup, callback_comp_for_lookup, 
-	    key->plugin, &unit)) != -1)
+    if ((lookup = reiser4_comm_bin_search((void *)body, 
+	    direntry40_count(body), key->body, callback_get_entry, 
+	    callback_comp_entry, key->plugin, &unit)) != -1)
 	*pos = (uint32_t)unit;
 
     return lookup;

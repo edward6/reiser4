@@ -51,7 +51,7 @@ typedef enum {
 } key40_field_t;
 
 union key40 {
-    uint64_t el[KEY40_LAST_INDEX];
+    d64_t el[KEY40_LAST_INDEX];
     int pad;
 };
 
@@ -136,7 +136,7 @@ static inline T k40_get_##L (const key40_t *key) {		    \
 }								    \
 								    \
 static inline void k40_set_##L(key40_t *key, T loc) {		    \
-    uint64_t el;						    \
+    uint64_t el;						    	    \
 								    \
     aal_assert("vpf-033", key != NULL, return);			    \
 								    \
@@ -159,4 +159,3 @@ DEFINE_KEY40_FIELD(offset, OFFSET, uint64_t);
 DEFINE_KEY40_FIELD(hash, HASH, uint64_t);
 
 #endif
-

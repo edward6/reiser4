@@ -17,42 +17,42 @@
 #define FORMAT36_OFFSET     (65536)
 
 struct format36_journal_params {
-    uint32_t jp_start;
-    uint32_t jp_dev;
-    uint32_t jp_len;
-    uint32_t jp_trans_max;
-    uint32_t jp_magic;
-    uint32_t jp_max_batch;
-    uint32_t jp_max_commit_age;
-    uint32_t jp_max_trans_age;
+    d32_t jp_start;
+    d32_t jp_dev;
+    d32_t jp_len;
+    d32_t jp_trans_max;
+    d32_t jp_magic;
+    d32_t jp_max_batch;
+    d32_t jp_max_commit_age;
+    d32_t jp_max_trans_age;
 };
 
 typedef struct format36_journal_params format36_journal_params_t;
 
 struct format36_super_v1 {
-    uint32_t sb_block_count;
-    uint32_t sb_free_blocks;
-    uint32_t sb_root_block;
+    d32_t sb_block_count;
+    d32_t sb_free_blocks;
+    d32_t sb_root_block;
     format36_journal_params_t sb_journal;
-    uint16_t sb_block_size;
-    uint16_t sb_oid_max_size;
-    uint16_t sb_oid_cur_size;
-    uint16_t sb_umount_state;
+    d16_t sb_block_size;
+    d16_t sb_oid_max_size;
+    d16_t sb_oid_cur_size;
+    d16_t sb_umount_state;
     char sb_magic[10];
-    uint16_t sb_fs_state;
-    uint32_t sb_hash_function_code;
-    int16_t sb_tree_height;
-    uint16_t sb_bmap_nr;
-    uint16_t sb_format;
-    uint16_t sb_reserved_for_journal;
-} __attribute__ ((__packed__));
+    d16_t sb_fs_state;
+    d32_t sb_hash_function_code;
+    d16_t sb_tree_height;
+    d16_t sb_bmap_nr;
+    d16_t sb_format;
+    d16_t sb_reserved_for_journal;
+};
 
 typedef struct format36_super_v1 format36_super_v1_t;
 
 struct format36_super {
     format36_super_v1_t s_v1;
-    uint32_t s_inode_generation;
-    uint32_t s_flags;
+    d32_t s_inode_generation;
+    d32_t s_flags;
     char s_uuid[16];
     char s_label[16];
     char s_unused[88];
@@ -143,4 +143,3 @@ typedef struct format36 format36_t;
 #define set_jp_max_trans_age(jp,val)		aal_set_le32(jp, jp_max_trans_age, val)
 	
 #endif
-

@@ -12,40 +12,40 @@
 #include <comm/misc.h>
 
 struct objid40 {
-    uint8_t locality[sizeof(uint64_t)];
-    uint8_t objectid[sizeof(uint64_t)];
+    d8_t locality[sizeof(d64_t)];
+    d8_t objectid[sizeof(d64_t)];
 };
 
 typedef struct objid40 objid40_t;
 
-#define oid_get_locality(oid)		    LE64_TO_CPU(*((uint64_t *)oid->locality))
-#define oid_set_locality(oid, val)	    (*(uint64_t *)oid->locality) = CPU_TO_LE64(val)
+#define oid_get_locality(oid)		    LE64_TO_CPU(*((d64_t *)oid->locality))
+#define oid_set_locality(oid, val)	    (*(d64_t *)oid->locality) = CPU_TO_LE64(val)
 
-#define oid_get_objectid(oid)		    LE64_TO_CPU(*((uint64_t *)oid->objectid))
-#define oid_set_objectid(oid, val)	    (*(uint64_t *)oid->objectid) = CPU_TO_LE64(val)
+#define oid_get_objectid(oid)		    LE64_TO_CPU(*((d64_t *)oid->objectid))
+#define oid_set_objectid(oid, val)	    (*(d64_t *)oid->objectid) = CPU_TO_LE64(val)
 
 struct entryid40 {
-    uint8_t objectid[sizeof(uint64_t)];
-    uint8_t offset[sizeof(uint64_t)];
+    d8_t objectid[sizeof(uint64_t)];
+    d8_t offset[sizeof(uint64_t)];
 };
 
 typedef struct entryid40 entryid40_t;
 
-#define eid_get_objectid(eid)		    LE64_TO_CPU(*((uint64_t *)eid->objectid))
-#define eid_set_objectid(eid, val)	    (*(uint64_t *)eid->objectid) = CPU_TO_LE64(val)
+#define eid_get_objectid(eid)		    LE64_TO_CPU(*((d64_t *)eid->objectid))
+#define eid_set_objectid(eid, val)	    (*(d64_t *)eid->objectid) = CPU_TO_LE64(val)
 
-#define eid_get_offset(eid)		    LE64_TO_CPU(*((uint64_t *)eid->offset))
-#define eid_set_offset(eid, val)	    (*(uint64_t *)eid->offset) = CPU_TO_LE64(val)
+#define eid_get_offset(eid)		    LE64_TO_CPU(*((d64_t *)eid->offset))
+#define eid_set_offset(eid, val)	    (*(d64_t *)eid->offset) = CPU_TO_LE64(val)
 
 struct entry40 {
     entryid40_t entryid;
-    uint16_t offset;
+    d16_t offset;
 };
 
 typedef struct entry40 entry40_t;
 
 struct direntry40 {
-    uint16_t count;
+    d16_t count;
     entry40_t entry[0];
 };
 
@@ -58,4 +58,3 @@ typedef struct direntry40 direntry40_t;
 #define en40_set_offset(en, num)	    aal_set_le16(en, offset, num)
 
 #endif
-

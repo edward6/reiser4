@@ -192,19 +192,29 @@ static errno_t reiser4_object_lookup(
 	    plugin_call(return -1, plugin->dir_ops, close, entity);
 
 	    /* Updating object key by found objectid and locality */
-	    plugin_call(return -1, object->key.plugin->key_ops,
-		set_locality, object->key.body, entry.objid.locality);
+
+	    /* 
+		FIXME-UMKA: What if dir->lookup will return already formed key, 
+		not filled out entry?
+	    */
+	    {
+		roid_t locality;
+
+		locality = plugin_call(return -1, object->key.plugin->key_ops,
+		    get_locality, &entry.objid);
+		
+		plugin_call(return -1, object->key.plugin->key_ops,
+		    set_locality, object->key.body, locality);
 	    
-	    plugin_call(return -1, object->key.plugin->key_ops,
-		set_type, object->key.body, KEY_STATDATA_TYPE);
-	    
-	    plugin_call(return -1, object->key.plugin->key_ops,
-		set_objectid, object->key.body, entry.objid.objectid);
+		plugin_call(return -1, object->key.plugin->key_ops,
+		    set_objectid, object->key.body, entry.objid.objectid);
+	    }
 	} else {
 
 	    /* 
-		Here we should check is found object type may contain entries (probably it is 
-		that strange compound object which is file and directory in the time). 
+		Here we should check is found object type may contain entries 
+		(probably it is that strange compound object which is file and 
+		directory in the time). 
 	    */
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Sorry, files are not supported yet!");

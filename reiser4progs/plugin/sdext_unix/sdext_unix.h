@@ -13,13 +13,13 @@
 #include <reiser4/plugin.h>
 
 struct sdext_unix {
-    uint32_t uid;
-    uint32_t gid;
-    uint32_t atime;
-    uint32_t mtime;
-    uint32_t ctime;
-    uint32_t rdev;
-    uint64_t bytes;
+    d32_t uid;
+    d32_t gid;
+    d32_t atime;
+    d32_t mtime;
+    d32_t ctime;
+    d32_t rdev;
+    d64_t bytes;
 };
 
 typedef struct sdext_unix sdext_unix_t;

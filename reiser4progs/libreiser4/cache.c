@@ -217,12 +217,14 @@ errno_t reiser4_cache_raise(
 }
 
 /* Helper function for registering in cache */
-static int callback_comp_for_register(
-    reiser4_cache_t *cache1,	/* the first cache inetance for comparing */
-    reiser4_cache_t *cache2,	/* the second one */
+static int callback_comp_cache(
+    const void *item1,		/* the first cache inetance for comparing */
+    const void *item2,		/* the second one */
     void *data			/* user-specified data */
 ) {
     reiser4_key_t ldkey1, ldkey2;
+    reiser4_cache_t *cache1 = (reiser4_cache_t *)item1;
+    reiser4_cache_t *cache2 = (reiser4_cache_t *)item2;
     
     reiser4_node_lkey(cache1->node, &ldkey1);
     reiser4_node_lkey(cache2->node, &ldkey2);
@@ -262,10 +264,13 @@ errno_t reiser4_cache_register(
     }
     
     /* Inserting passed cache into right position */
-    cache->list = aal_list_insert_sorted(cache->list ? aal_list_first(cache->list) : NULL, 
-	child, (int (*)(const void *, const void *, void *))
-	callback_comp_for_register, NULL);
+    {
+	aal_list_t *list = cache->list ? aal_list_first(cache->list) : NULL;
 
+	cache->list = aal_list_insert_sorted(list, child, 
+	    callback_comp_cache, NULL);
+    }
+    
     left = cache->list->prev ? cache->list->prev->item : NULL;
     right = cache->list->next ? cache->list->next->item : NULL;
    

@@ -23,7 +23,7 @@ struct journal40 {
 typedef struct journal40 journal40_t;
 
 struct journal40_header {
-    uint64_t jh_last_commited;
+    d64_t jh_last_commited;
 };
 
 typedef struct journal40_header journal40_header_t;
@@ -32,7 +32,7 @@ typedef struct journal40_header journal40_header_t;
 #define set_jh_last_commited(jh, val)		aal_set_le64(jh, jh_last_commited, val)
 
 struct journal40_footer {
-    uint64_t jf_last_flushed;
+    d64_t jf_last_flushed;
 };
 
 typedef struct journal40_footer journal40_footer_t;

@@ -28,11 +28,11 @@ struct oid40 {
 
 typedef struct oid40 oid40_t;
 
-#define oid40_get_next(area)			LE64_TO_CPU(*((uint64_t *)area))
-#define oid40_set_next(area, val)		(*((uint64_t *)area) = CPU_TO_LE64(val))
+#define oid40_get_next(area)		LE64_TO_CPU(*((d64_t *)area))
+#define oid40_set_next(area, val)	(*((d64_t *)area) = CPU_TO_LE64(val))
 
-#define oid40_get_used(area)			LE64_TO_CPU(*(((uint64_t *)area) + 1))
-#define oid40_set_used(area, val)		(*(((uint64_t *)area) + 1) = CPU_TO_LE64(val))
+#define oid40_get_used(area)		LE64_TO_CPU(*(((d64_t *)area) + 1))
+#define oid40_set_used(area, val)	(*(((d64_t *)area) + 1) = CPU_TO_LE64(val))
 
 #endif
 

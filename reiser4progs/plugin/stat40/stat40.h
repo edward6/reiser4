@@ -16,10 +16,10 @@
     there are objects of the same size only. 
 */
 struct stat40 {
-    uint16_t mode;
-    uint16_t extmask;
-    uint32_t nlink;
-    uint64_t size;
+    d16_t mode;
+    d16_t extmask;
+    d32_t nlink;
+    d64_t size;
 };
 
 typedef struct stat40 stat40_t;  

@@ -286,7 +286,8 @@ static errno_t key40_build_entryid(reiser4_body_t *body,
 }
 
 static errno_t key40_build_generic(reiser4_body_t *body, 
-    reiser4_key_type_t type, roid_t locality, roid_t objectid, uint64_t offset) 
+    reiser4_key_type_t type, roid_t locality, roid_t objectid, 
+    uint64_t offset) 
 {
     key40_t *key = (key40_t *)body;
     
@@ -318,20 +319,6 @@ static errno_t key40_build_objid(reiser4_body_t *body,
     aal_memset(body, 0, sizeof(uint64_t)*2);
     aal_memcpy(body, &key, sizeof(uint64_t)*2);
 
-    return 0;
-}
-
-static errno_t key40_build_by_entry(reiser4_body_t *body, 
-    void *data)
-{
-    key40_t *key = (key40_t *)body;
-    
-    aal_assert("umka-877", body != NULL, return -1);
-    aal_assert("umka-878", data != NULL, return -1);
-    
-    key40_clean(key);
-    aal_memcpy(&key->el[1], data, sizeof(uint64_t) * 2);
-    
     return 0;
 }
 
@@ -376,9 +363,7 @@ static reiser4_plugin_t key40_plugin = {
 	.build_direntry = key40_build_direntry,
 	
 	.build_objid	= key40_build_objid,
-	.build_entryid  = key40_build_entryid,
-	
-	.build_by_entry	= key40_build_by_entry
+	.build_entryid  = key40_build_entryid
     }
 };
 
