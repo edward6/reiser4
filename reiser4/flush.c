@@ -158,6 +158,28 @@ static int slum_scan_left_finished (slum_scan *scan)
 	return scan->stop || scan->size >= SLUM_SCAN_MAXNODES;
 }
 
+/* Return true if the scan should continue to the left.  If not, deref the "left" node and stop the scan. */
+static int slum_scan_goleft (slum_scan *scan, jnode *left)
+{
+	int goleft;
+	
+	/* Spin lock the left node to check its state. */
+	spin_lock_jnode (left);
+	
+	goleft = ((jnode_is_unformatted (left) ? 1 : znode_is_connected (JZNODE (left))) &&
+		  jnode_is_dirty (left) &&
+		  (scan->atom == left->atom));
+	
+	spin_unlock_jnode (left);
+
+	if (! goleft) {
+		jput (left);
+		scan->stop = 1;
+	}
+
+	return goleft;
+}
+
 /* Set the current scan->node, refcount it, increment size, and deref previous current. */
 static void slum_scan_set_current (slum_scan *scan, jnode *node)
 {
@@ -167,8 +189,6 @@ static void slum_scan_set_current (slum_scan *scan, jnode *node)
 
 	scan->size += 1;
 	scan->node  = node;
-
-	jref (scan->node);
 }
 
 /* Perform a single leftward step using the parent, finding the next-left item, and
@@ -178,6 +198,8 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 	int ret;
 	reiser4_lock_handle node_lh, parent_lh, left_parent_lh;
 	tree_coord coord;
+	reiser4_item_plugin *iplug;
+	jnode *child_left;
 
 	assert ("jmacd-1403", ! slum_scan_left_finished (scan));
 
@@ -186,7 +208,7 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 	reiser4_init_lh    (& parent_lh);
 	reiser4_init_lh    (& left_parent_lh);
 
-	if (JF_ISSET (scan->node, ZNODE_UNFORMATTED)) {
+	if (jnode_is_unformatted (scan->node)) {
 
 		/* FIXME_JMACD: Don't know how to do this. */
 		ret = 0;
@@ -229,10 +251,28 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 			coord_last_unit (& coord);
 		}
 
+		iplug = & item_plugin_by_coord (& coord)->u.item;
+		child_left = NULL;
+
+		/* If the item has no utmost_child routine (odd), or if the child is not in memory, stop. */
+		if (iplug->utmost_child == NULL || (child_left = iplug->utmost_child (& coord, RIGHT_SIDE)) == NULL) {
+			scan->stop = 1;
+			ret = 0;
+			goto done;
+		}
+
+		if (IS_ERR (child_left)) {
+			ret = PTR_ERR (child_left);
+			goto done;
+		}
 	}
 
-	/* FIXME_JMACD: */
-	/* if it is dirty, belongs to the same atom, connected, etc, continue scan, else stop. */
+	/* We've found a child to the left, now see if we should continue the scan.  If not then scan->stop is set. */
+	if (slum_scan_goleft (scan, child_left)) {
+		slum_scan_set_current (scan, child_left);
+	}
+
+	/* Release locks. */
  done:
 	reiser4_done_lh (& node_lh);
 	reiser4_done_lh (& parent_lh);
@@ -268,7 +308,6 @@ static int slum_scan_left_formatted (slum_scan *scan, znode *node)
 	 * - slum has not reached maximum size
 	 */
 	znode *left;
-	int    goleft;
 
 	assert ("jmacd-1401", slum_scan_left_finished (scan));
 	
@@ -294,20 +333,8 @@ static int slum_scan_left_formatted (slum_scan *scan, znode *node)
 			break;
 		}
 
-		/* Spin lock the left node to check its state. */
-		spin_lock_znode (left);
-
-		/* The condition for going left. */
-		goleft = znode_is_connected (left) &&
-			 znode_is_dirty (left) &&
-			 (scan->atom == ZJNODE (left)->atom);
-
-		spin_unlock_znode (left);
-
-		/* Break if left is not part of slum, release left reference. */
-		if (! goleft) {
-			scan->stop = 1;
-			zput (left);
+		/* Check the condition for going left, break if left is not part of slum, release left reference. */
+		if (! slum_scan_goleft (scan, ZJNODE (left))) {
 			break;
 		}
 
@@ -330,7 +357,6 @@ static int slum_scan_left_formatted (slum_scan *scan, znode *node)
 static int slum_scan_left_extent (slum_scan *scan, jnode *node)
 {
 	jnode *left;
-	int goleft;
 	unsigned long scan_index;
 
 	assert ("jmacd-1404", ! slum_scan_left_finished (scan));
@@ -350,17 +376,8 @@ static int slum_scan_left_extent (slum_scan *scan, jnode *node)
 			break;
 		}
 
-		/* Spinlock the node to check its state. */
-		spin_lock_jnode (left);
-
-		/* The condition for going left. */
-		goleft = jnode_is_dirty (left) && (left->atom == scan->atom);
-
-		spin_unlock_jnode (left);
-
-		if (! goleft) {
-			scan->stop = 1;
-			jput (left);
+		/* Check the condition for going left. */
+		if (! slum_scan_goleft (scan, left)) {
 			break;
 		}
 
@@ -382,13 +399,13 @@ static int slum_scan_left (slum_scan *scan, jnode *node)
 {
 	int ret;
 
-	/* Set the initial leftmost boundary. */
-	slum_scan_set_current (scan, node);
+	/* Reference and set the initial leftmost boundary. */
+	slum_scan_set_current (scan, jref (node));
 
 	/* Continue until we've scanned far enough. */
 	do {
 		/* Choose the appropriate scan method and go. */
-		if (JF_ISSET (node, ZNODE_UNFORMATTED)) {
+		if (jnode_is_unformatted (node)) {
 			ret = slum_scan_left_extent (scan, node);
 		} else {
 			ret = slum_scan_left_formatted (scan, JZNODE (node));
