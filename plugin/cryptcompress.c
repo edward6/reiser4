@@ -945,6 +945,22 @@ put_cluster_jnodes(reiser4_cluster_t * clust)
 }
 
 static void
+release_cluster_pages(reiser4_cluster_t * clust, int from)
+{
+	int i;
+	
+	assert("edward-447", clust != NULL);
+	assert("edward-448", from < clust->nr_pages);
+	
+	for (i = from; i < clust->nr_pages; i++) {
+		
+		assert("edward-449", clust->pages[i] != NULL);
+
+		page_cache_release(clust->pages[i]);
+	}
+}
+
+static void
 release_cluster(reiser4_cluster_t * clust)
 {
 	int i;
@@ -1744,6 +1760,7 @@ shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd)
 	clust.pages = pages;
 	clust_by_offs(&clust, inode, new_size, old_size);
 
+	/* read the whole cluster */ 
 	result = prepare_cluster(inode, 0, 0, NULL, &clust);
 	if (result)
 		goto exit;
@@ -1752,19 +1769,22 @@ shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd)
 	assert("edward-294", clust.stat == DATA_CLUSTER);
 
 	pg_padd = PAGE_CACHE_SIZE - off_to_pgoff(clust.off);
+
+	/* release last truncated pages */
+	release_cluster_pages(&clust, off_to_pg(clust.off) + 1 /* ?? */);
 	
 	truncate_pages_cryptcompress(inode->i_mapping, off_to_pg(clust_to_off(clust.index, inode) + clust.off + pg_padd));
-	
+
+	/* align last non-truncated page */
 	reiser4_lock_page(pages[off_to_pg(clust.off)]);
 	kaddr = kmap_atomic(pages[off_to_pg(clust.off)], KM_USER0);
-
+	
 	if (cplug)
 		cplug->align_cluster(kaddr + off_to_pgoff(clust.off), off_to_pgoff(clust.off), PAGE_CACHE_SIZE);
 	else
 		xmemset(kaddr + off_to_pgoff(clust.off), 0, PAGE_CACHE_SIZE - off_to_pgoff(clust.off));
-
 	reiser4_unlock_page(pages[off_to_pg(clust.off)]);
-
+	
 	nrpages = off_to_pg(clust.off) + 1;
 	set_cluster_pages_dirty(&clust, &nrpages);
 	result = try_capture_cluster(&clust, &nrpages);
@@ -1777,6 +1797,7 @@ shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd)
 
 	result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1, update_sd);
  exit:
+	put_cluster_jnodes(&clust);
 	reiser4_kfree(pages, sizeof(*pages) << inode_cluster_shift(inode));
 	return result;
 }
@@ -1846,19 +1867,24 @@ cryptcompress_writepage(struct page * page)
 	clust.count = PAGE_CACHE_SIZE;
 	nrpages = count_to_nrpages(fsize_to_count(&clust, inode));
 	
-	result = prepare_cluster(page->mapping->host, 0, 0, &nrpages, &clust);
+	result = prepare_cluster(page->mapping->host, 0, 0, &nrpages, &clust);  /* jp+ */
 	if(result)
 		return result;
 	
-	set_cluster_pages_dirty(&clust, NULL);
+	set_cluster_pages_dirty(&clust, NULL);                                  /* p- */
 	result = try_capture_cluster(&clust, NULL);
 	if (result) {
-		put_cluster_jnodes(&clust);
+		put_cluster_jnodes(&clust);                                     /* j- */
 		return result;
+	}
+	result = reserve4cluster(inode, &clust, "cryptcompress_writepage");
+	if (result) {
+		put_cluster_jnodes(&clust);                                     /* j- */
+		return result;		
 	}
 	reiser4_lock_page(page);
 	make_cluster_jnodes_dirty(&clust, NULL);
-	put_cluster_jnodes(&clust);
+	put_cluster_jnodes(&clust);                                             /* j- */
 	return 0;	
 }
 
