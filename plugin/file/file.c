@@ -88,8 +88,17 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 	result = zload (coord->node);
 	if (result)
 		return 0;
+
+	if (node_is_empty (coord->node)) {
+		spin_lock_dk (current_tree);
+		assert ("vs-751", keyeq (key, znode_get_ld_key (coord->node)));
+		spin_unlock_dk (current_tree);
+		
+		zrelse (coord->node);
+		return 1;
+	}
+
 	/* FIXME-VS: fow now */
-	assert ("vs-735", !node_is_empty (coord->node));
 	assert ("vs-736", coord->between != BEFORE_ITEM);
 	assert ("vs-737", coord->between != BEFORE_UNIT);
 
