@@ -504,9 +504,26 @@ lookup_result cde_lookup( const reiser4_key *key, lookup_bias bias,
 	cmp_t last_comp;
 	int   pos;
 
+	reiser4_key utmost_key;
+
 	assert( "nikita-1293", coord != NULL );
 	assert( "nikita-1294", key != NULL );
 
+	if( keycmp( key, cde_max_key_inside( coord, 
+					     &utmost_key ) ) == GREATER_THAN ) {
+		/*
+		 * @key is from another directory item
+		 */
+		coord -> unit_pos = units( coord ) - 1;
+		coord -> between = AFTER_UNIT;
+		return CBK_COORD_NOTFOUND;
+	}
+	if( keycmp( item_key_by_coord( coord, &utmost_key ), 
+		    key ) == GREATER_THAN ) {
+		coord -> unit_pos = 0;
+		coord -> between = BEFORE_UNIT;
+		return CBK_COORD_NOTFOUND;
+	}
 	pos = find( coord, key, &last_comp );
 	if( pos >= 0 ) {
 		coord -> unit_pos = ( int ) pos;
