@@ -417,7 +417,8 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 			   reiser4-specific part. This is enough for
 			   read_inode() to read stat data from the disk */
 			result = read_inode(inode, key, silent);
-		}
+		} else
+			up(&info->loading);
 	}
 
 	if (inode->i_state & I_NEW)
