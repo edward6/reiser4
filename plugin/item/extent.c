@@ -2218,7 +2218,7 @@ static void print_range_list (struct list_head * list)
 
 	list_for_each (cur, list) {
 		range = list_entry (cur, struct page_range, next);
-		info ("range: sector %llu, nr_pages %d\n", range->sector, range->nr_pages);
+		info ("range: sector %lu, nr_pages %d\n", range->sector, range->nr_pages);
 	}
 }
 
@@ -2264,6 +2264,7 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 	__u64 pages;
 
 
+	page = 0;
 	assert ("vs-789", file && file->f_dentry && file->f_dentry->d_inode &&
 		file->f_dentry->d_inode->i_mapping);
 	mapping = file->f_dentry->d_inode->i_mapping;
