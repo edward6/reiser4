@@ -24,8 +24,7 @@
  * directory allows us to store said key fragment only once. That is, this is
  * some ad hoc form of key compression (stem compression) that is implemented
  * here, because general key compression is not supposed to be implemented in
- * v4.0 and disk space efficiency for directory entries is deemed (who are the
- * deemsters?) to be important.
+ * v4.0.
  *
  * Another decision that was made regarding all directory item plugins, is
  * that they will store entry keys unaligned. This is for that sake of disk
@@ -1032,6 +1031,7 @@ int cde_rem_entry( struct inode *dir /* directory of item */,
 }
 
 /** ->s.dir.max_name_len() method for this item plugin */
+/* where VFS limits us to 255 characters this can be optimized away NIKITA-FIXME-HANS */
 /* Audited by: green(2002.06.13) */
 int cde_max_name_len( const struct inode *dir /* directory */ )
 {
