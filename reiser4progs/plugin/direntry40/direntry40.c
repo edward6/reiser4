@@ -176,13 +176,10 @@ static reiserfs_plugin_t direntry40_plugin = {
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.common = {
-	    .type = DIR_ENTRY_ITEM,
+	    .type = DIRENTRY_ITEM,
 	    
 	    .create = (error_t (*)(void *, void *))reiserfs_direntry40_create,
-	    
-	    .estimate = (void (*)(void *, reiserfs_item_coord_t *))
-		reiserfs_direntry40_estimate,
-	    
+	    .estimate = (void (*)(void *, void *))reiserfs_direntry40_estimate,
 	    .minsize = (uint32_t (*)(void))reiserfs_direntry40_minsize,
 	    .print = (void (*)(void *, char *, uint16_t))reiserfs_direntry40_print,
 	    .lookup = (int (*) (void *, void *, void *))reiserfs_direntry40_lookup,

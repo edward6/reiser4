@@ -1,7 +1,7 @@
 /*
     plugin.h -- reiserfs plugin factory implementation.
-    Copyright (C) 1996 - 2002 Hans Reiser
-    Author Vitaly Fertman.
+    Copyright (C) 1996-2002 Hans Reiser
+    Author Yury Umanets.
 */
 
 #ifndef PLUGIN_H
@@ -11,6 +11,7 @@
 
 typedef void reiserfs_opaque_t;
 typedef void reiserfs_params_opaque_t;
+typedef uint64_t oid_t;
 
 enum reiserfs_plugin_id {
     REISERFS_FILE_PLUGIN,
@@ -25,12 +26,13 @@ enum reiserfs_plugin_id {
     REISERFS_FORMAT_PLUGIN,
     REISERFS_OID_PLUGIN,
     REISERFS_ALLOC_PLUGIN,
-    REISERFS_JOURNAL_PLUGIN
+    REISERFS_JOURNAL_PLUGIN,
+    REISERFS_KEY_PLUGIN,
 };
 
 enum reiserfs_item_type_id {
-    STAT_DATA_ITEM,
-    DIR_ENTRY_ITEM,
+    STAT_ITEM,
+    DIRENTRY_ITEM,
     INTERNAL_ITEM,
     FILE_ITEM
 };
@@ -41,7 +43,7 @@ typedef int reiserfs_plugin_id_t;
 #define REISERFS_PLUGIN_MAX_LABEL	16
 #define REISERFS_PLUGIN_MAX_DESC	256
 
-/* Common plugins header */
+/* Common plugin header */
 struct reiserfs_plugin_header {
     void *handle;
     reiserfs_plugin_id_t id;
@@ -51,6 +53,16 @@ struct reiserfs_plugin_header {
 };
 
 typedef struct reiserfs_plugin_header reiserfs_plugin_header_t;
+
+struct reiserfs_key_plugin {
+    reiserfs_plugin_header_t h;
+
+    error_t (*build) (void *, uint16_t, oid_t, oid_t, uint64_t);
+    int (*confirm) (void *);
+    int (*compare) (const void *, const void *);
+};
+
+typedef struct reiserfs_key_plugin reiserfs_key_plugin_t;
 
 struct reiserfs_file_plugin {
     reiserfs_plugin_header_t h;
@@ -67,21 +79,6 @@ struct reiserfs_dir_plugin {
 };
 
 typedef struct reiserfs_dir_plugin reiserfs_dir_plugin_t;
-
-struct reiserfs_item_coord {
-    int16_t item_pos;		/* pos of an item in the node */
-    int16_t unit_pos;		/* pos of an unit in the item */
-};
-
-typedef struct reiserfs_item_coord reiserfs_item_coord_t;
-
-struct reiserfs_node_coord {
-    void *node;			/* node in the tree */
-    int16_t item_pos;		/* pos of an item in the node */
-    int16_t unit_pos;		/* pos of an unit in the item */
-};
-
-typedef struct reiserfs_node_coord reiserfs_node_coord_t;
 
 struct reiserfs_item_ops {
     reiserfs_item_type_id_t type;
@@ -104,14 +101,7 @@ struct reiserfs_item_ops {
     uint16_t (*unit_count) (void *);
     int (*unit_remove) (void *, int32_t, int32_t);
     
-    /*  
-	FIXME-UMKA: We can't pass reiserfs_node_coord_t to plugin's 
-	methods, because it contains reiserfs_node_t - pointer to high 
-	level structure instance, plugins doesn't known about. Also
-	plugins should be not libreiserfs dependent. They may be used
-	not only libreiserfs.
-    */
-    void (*estimate) (void *, reiserfs_item_coord_t *);
+    void (*estimate) (void *, void *);
     uint32_t (*minsize) (void);
     
     int (*internal) (void);
@@ -261,7 +251,7 @@ struct reiserfs_perm_plugin {
 
 typedef struct reiserfs_perm_plugin reiserfs_perm_plugin_t;
 
-/* Format plugin. */
+/* Disk-format plugin */
 struct reiserfs_format_plugin {
     reiserfs_plugin_header_t h;
     
@@ -353,19 +343,19 @@ typedef struct reiserfs_format_plugin reiserfs_format_plugin_t;
 struct reiserfs_oid_plugin {
     reiserfs_plugin_header_t h;
 
-    reiserfs_opaque_t *(*init) (uint64_t, uint64_t);
+    reiserfs_opaque_t *(*init) (oid_t, oid_t);
     void (*fini) (reiserfs_opaque_t *);
     
-    uint64_t (*alloc) (reiserfs_opaque_t *);
-    void (*dealloc) (reiserfs_opaque_t *, uint64_t);
+    oid_t (*alloc) (reiserfs_opaque_t *);
+    void (*dealloc) (reiserfs_opaque_t *, oid_t);
     
-    uint64_t (*next) (reiserfs_opaque_t *);
-    uint64_t (*used) (reiserfs_opaque_t *);
+    oid_t (*next) (reiserfs_opaque_t *);
+    oid_t (*used) (reiserfs_opaque_t *);
 
-    uint64_t (*root_parent_locality) (reiserfs_opaque_t *);
-    uint64_t (*root_parent_objectid) (reiserfs_opaque_t *);
+    oid_t (*root_parent_locality) (reiserfs_opaque_t *);
+    oid_t (*root_parent_objectid) (reiserfs_opaque_t *);
     
-    uint64_t (*root_objectid) (reiserfs_opaque_t *);
+    oid_t (*root_objectid) (reiserfs_opaque_t *);
 };
 
 typedef struct reiserfs_oid_plugin reiserfs_oid_plugin_t;
@@ -423,6 +413,7 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
 /* 
     To create a new item or to insert into the item we 
     need to perform the following operations:
+    
     1. Create the description of the data being inserted.
     2. Ask item plugin how much space is needed for the 
        data, described in 1.   
@@ -430,7 +421,8 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
     4. Ask item plugin to create an item (to paste into 
        the item) on the base of description from 1.
 
-    For such purposes we have: 
+    For such purposes we have:
+    
     1. Fixed description structures for all item types (stat, 
        diritem, internal, etc).
     2. Estimate common item method which gets coord of where 
@@ -461,11 +453,11 @@ struct reiserfs_internal_info {
 
 typedef struct reiserfs_internal_info reiserfs_internal_info_t;
 
+/*  
+    These fields should be changed to what proper description 
+    of needed extentions. 
+*/
 struct reiserfs_stat_info {
-    /*  
-	These fields should be changed to what proper description of 
-	needed extentions. 
-    */
     uint16_t mode;
     uint16_t extmask;
     uint32_t nlink;
@@ -493,6 +485,21 @@ struct reiserfs_dir_info {
 };
 
 typedef struct reiserfs_dir_info reiserfs_dir_info_t;
+
+struct reiserfs_item_coord {
+    int16_t item_pos;
+    int16_t unit_pos;
+};
+
+typedef struct reiserfs_item_coord reiserfs_item_coord_t;
+
+struct reiserfs_node_coord {
+    void *node;
+    int16_t item_pos;
+    int16_t unit_pos;
+};
+
+typedef struct reiserfs_node_coord reiserfs_node_coord_t;
 
 struct reiserfs_plugins_factory {
     reiserfs_plugin_t *(*find_by_coords)(reiserfs_plugin_id_t, reiserfs_plugin_id_t);

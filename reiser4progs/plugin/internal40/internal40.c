@@ -87,10 +87,7 @@ static reiserfs_plugin_t internal40_plugin = {
 	    .type = INTERNAL_ITEM,
 	    
 	    .create = (error_t (*)(void *, void *))reiserfs_internal40_create,
-	    
-	    .estimate = (void (*)(void *, reiserfs_item_coord_t *))
-		reiserfs_internal40_estimate,
-	    
+	    .estimate = (void (*)(void *, void *))reiserfs_internal40_estimate,
 	    .minsize = (uint32_t (*)(void))reiserfs_internal40_minsize,
 	    .print = (void (*)(void *, char *, uint16_t))reiserfs_internal40_print,
 	    .internal = (int (*)(void))reiserfs_internal40_internal,

@@ -170,6 +170,7 @@ AC_OUTPUT([
     plugin/internal40/Makefile
     plugin/stat40/Makefile
     plugin/direntry40/Makefile
+    plugin/key40/Makefile
     plugin/format36/Makefile
     plugin/journal36/Makefile
     plugin/alloc36/Makefile

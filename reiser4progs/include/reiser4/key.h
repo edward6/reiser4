@@ -13,29 +13,29 @@ typedef enum {
     /* File name key type */
     KEY40_FILE_NAME_MINOR = 0,
     /* Stat-data key type */
-    KEY40_SD_MINOR        = 1,
+    KEY40_SD_MINOR	  = 1,
     /* File attribute name */
     KEY40_ATTR_NAME_MINOR = 2,
     /* File attribute value */
     KEY40_ATTR_BODY_MINOR = 3,
     /* File body (tail or extent) */
-    KEY40_BODY_MINOR      = 4
+    KEY40_BODY_MINOR	  = 4
 } reiserfs_key40_minor;
 
 typedef enum {
     /* Major "locale", aka dirid. Sits in 1st element */
-    KEY40_LOCALITY_INDEX   = 0,
+    KEY40_LOCALITY_INDEX  = 0,
     /* Minor "locale", aka item type. Sits in 1st element */
-    KEY40_TYPE_INDEX       = 0,
+    KEY40_TYPE_INDEX	  = 0,
     /* Object band. Sits in 2nd element */
-    KEY40_BAND_INDEX       = 1,
+    KEY40_BAND_INDEX	  = 1,
     /* Object id. Sits in 2nd element */
-    KEY40_OBJECTID_INDEX   = 1,
+    KEY40_OBJECTID_INDEX  = 1,
     /* Offset. Sits in 3rd element */
-    KEY40_OFFSET_INDEX     = 2,
+    KEY40_OFFSET_INDEX	  = 2,
     /* Name hash. Sits in 3rd element */
-    KEY40_HASH_INDEX       = 2,
-    KEY40_LAST_INDEX       = 3
+    KEY40_HASH_INDEX	  = 2,
+    KEY40_LAST_INDEX	  = 3
 } reiserfs_key40_field_index;
 
 union reiserfs_key40 {

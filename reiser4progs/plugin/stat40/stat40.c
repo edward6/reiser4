@@ -73,13 +73,13 @@ static reiserfs_plugin_t stat40_plugin = {
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.common = {
-	    .type = STAT_DATA_ITEM,
+	    .type = STAT_ITEM,
 	    
 	    .create = (error_t (*)(void *, void *))reiserfs_stat40_create,
 	    .confirm = (error_t (*)(void *))reiserfs_stat40_confirm,
 	    .check = (error_t (*)(void *))reiserfs_stat40_check,
 	    .print = (void (*)(void *, char *, uint16_t))reiserfs_stat40_print,
-	    .estimate = (void (*)(void *, reiserfs_item_coord_t *))reiserfs_stat40_estimate,
+	    .estimate = (void (*)(void *, void *))reiserfs_stat40_estimate,
 	    .minsize = (uint32_t (*)(void))reiserfs_stat40_minsize,
 	    .internal = (int (*)(void))reiserfs_stat40_internal,
 
