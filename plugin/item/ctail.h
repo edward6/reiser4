@@ -41,11 +41,12 @@ __u8 inode_cluster_shift (struct inode *);
 size_t inode_cluster_size (struct inode *);
 crypto_stat_t * inode_crypto_stat(struct inode *);
 
+void reiser4_cluster_init(reiser4_cluster_t *);
 void put_cluster_data(reiser4_cluster_t *, struct inode *);
 int cluster_is_required (reiser4_cluster_t *);
 loff_t inode_scaled_offset(struct inode *, const loff_t);
 size_t inode_scaled_cluster_size(struct inode *);
-loff_t cluster_offset_by_page(struct page *, struct inode *);
+unsigned long cluster_index_by_page(struct page *, struct inode *);
 int process_cluster(reiser4_cluster_t *, struct inode *, rw_op);
 int find_cluster_item(const reiser4_key *, coord_t *, lock_handle *, ra_info_t *);
 
