@@ -315,7 +315,7 @@ static struct inode *get_root_dir( struct super_block *s )
 /****************************************************************************/
 
 
-static spinlock_t inode_hash_guard;
+static spinlock_t inode_hash_guard = SPIN_LOCK_UNLOCKED;
 struct list_head inode_hash_list;
 
 #if 0
@@ -346,6 +346,7 @@ static struct inode * alloc_inode (struct super_block * sb)
 	INIT_LIST_HEAD (&inode->i_mapping->clean_pages);
 	INIT_LIST_HEAD (&inode->i_mapping->dirty_pages);
 	INIT_LIST_HEAD (&inode->i_mapping->locked_pages);
+	spin_lock_init (&inode->i_mapping->page_lock);
 	return inode;
 }
 
@@ -358,6 +359,9 @@ struct inode * new_inode (struct super_block * sb)
 	spin_lock( &inode_hash_guard );
 	list_add (&inode->i_hash, &inode_hash_list);
 	spin_unlock( &inode_hash_guard );
+
+	spin_lock_init( &reiser4_inode_data( inode ) -> guard );
+	init_rwsem( &reiser4_inode_data( inode ) -> sem );
 	return inode;
 }
 
@@ -497,6 +501,8 @@ get_new_inode(struct super_block *sb,
 	struct inode * inode;
 
 	inode = alloc_inode(sb);
+	spin_lock_init( &reiser4_inode_data( inode ) -> guard );
+	init_rwsem( &reiser4_inode_data( inode ) -> sem );
 	if (inode) {
 		struct inode * old;
 
@@ -680,7 +686,7 @@ TS_HASH_DEFINE( pc, struct page, page_p, self, link, indexhashfn, indexeq );
 #undef KMALLOC
 
 pc_hash_table page_htable;
-static spinlock_t page_list_guard;
+static spinlock_t page_list_guard = SPIN_LOCK_UNLOCKED;
 
 static void init_page (struct page * page, struct address_space * mapping,
 		       unsigned long ind)
@@ -934,11 +940,15 @@ char * kmap (struct page * page)
 
 void kunmap (struct page * page)
 {
-	assert ("vs-724", page->kmap_count > 0);
 	spin_lock (&page->lock2);
+	assert ("vs-724", page->kmap_count > 0);
 	page->kmap_count --;
 	if (page->kmap_count == 0) {
 		page->virtual = 0;
+/*  		fprintf (stderr, "[%i]: page: %p, node: %p (%p:%p:%p:%p:%p)\n", */
+/*  			 current_pid, page, jnode_by_page (page), */
+/*  			 getFrame (0), getFrame (1),  */
+/*  			 getFrame (2), getFrame (3), getFrame (4) ); */
 	}
 	spin_unlock (&page->lock2);
 }
@@ -1168,7 +1178,7 @@ int ulevel_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG )
 
 int ulevel_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG )
 {
-	assert ("vs-688", JF_ISSET (node, ZNODE_LOADED));
+	assert ("vs-688", znode_is_loaded (JZNODE (node)));
 	set_page_dirty (jnode_page (node));
 	return 0;
 }
@@ -2824,7 +2834,6 @@ static int bash_mount (/*reiser4_context * context,*/ char * cmd, struct super_b
 
 static void bash_umount (struct super_block * sb/*reiser4_context * context*/)
 {
-	int ret;
 	/*struct super_block * sb;*/
 	int fd;
 
