@@ -465,19 +465,6 @@ static int reiser4_statfs( struct super_block *super /* super block of file
 
 
 	buf -> f_type    = statfs_type( super );
-        /* applications use this not to know what is the block size, but to
-         * know what is the optimal size for performing IOs, it is
-         * mis-named. So we give them what they want.
-	 * 
-	 * FIXME-NIKITA why this is constant? Hans? Shouldn't it depend on
-	 * super block?
-	 *
-	 * As for applications, they use ->st_blksize field as reported by
-	 * stat(2).
-	 * FIXME-GREEN: This is used by df and friends as a blocksize, so I set
-	 * it to blocksize. Also SUSv2 devines f_bsize as block size, so
-	 * it is probably wrong linux manpage that cause all the confusion.
-	 */
 	buf -> f_bsize   = super->s_blocksize;
 	buf -> f_blocks  = reiser4_block_count( super );
 	buf -> f_bfree   = reiser4_free_blocks( super );
@@ -1056,14 +1043,6 @@ int truncate_object( struct inode *inode /* object to truncate */,
     prefix existing for all pseudo files, and thereby hampers creating
     pseudo-files without this prefix, I will be pissed.  -Hans */
 static const char PSEUDO_FILES_PREFIX[] = "..";
-
-/** check whether "name" represents one of reiser4 `pseudo' files like
-    host/..plugin, host/..acl etc. If so, return new inode with operations
-    set. Otherwise return NULL */
-/* this was coded exactly the way it was not supposed to be coded and was removed. */
-/*
- * FIXME-NIKITA nikita: more descriptive comment would be appreciated
- */
 
 /**
  * Return and lazily allocate if necessary per-dentry data that we
@@ -2105,7 +2084,7 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 
 	/*
 	 * FIXME-NIKITA: this can be called in the context of reiser4 call. It
-	 * is not clear what to do in this case. A lot of deadlock seems be
+	 * is not clear what to do in this case. A lot of deadlocks seems be
 	 * possible.
 	 */
 

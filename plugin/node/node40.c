@@ -1004,7 +1004,6 @@ static int cut_or_kill (coord_t * from, coord_t * to,
 	unsigned i;
 	unsigned cut_size;
 	reiser4_key old_first_key;
-	/* FIXME-NIKITA */
 	unsigned wrong_item; /* position of item for which may get mismatching
 				item key and key of first unit in it */
 	unsigned from_unit, to_unit;
@@ -1185,10 +1184,6 @@ static int cut_or_kill (coord_t * from, coord_t * to,
 			      ((freed_space_end - freed_space_start) +
 			       sizeof (item_header_40) * removed_entirely));
 
-	/* FIXME-NIKITA make sure that items which were partially cut have correct keys
-	   FIXME-NIKITA item's cut method could care about it (extent's cut does
-	   already)
-	*/
 	if (wrong_item != ~0u) {
 		coord_t coord;
 		reiser4_key unit_key;
@@ -1785,10 +1780,6 @@ void update_znode_dkeys (znode * left, znode * right)
 		*znode_get_rd_key (left) = *znode_get_ld_key (left);
 
 		/* update left delimiting key of @right */
-		/*
-		 * FIXME-NIKITA nikita: why?
-		 * *znode_get_ld_key (right) = *znode_get_ld_key (left);
-		 */
 		*znode_get_ld_key (right) = key;
 		return;
 	}

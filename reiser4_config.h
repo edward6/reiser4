@@ -43,7 +43,9 @@
 #define REISER4_ZNODE_HASH_TABLE_SIZE (8192)
 
 /** size of hash-table for jnodes */
-#define REISER4_JNODE_HASH_TABLE_SIZE (8192)
+#define REISER4_JNODE_HASH_TABLE_BITS (13)
+#define REISER4_JNODE_HASH_TABLE_SIZE (1 << REISER4_JNODE_HASH_TABLE_BITS)
+
 /** some ridiculously high maximal limit on height of znode tree. This
     is used in declaration of various per level arrays and
     to allocate stattistics gathering array for per-level stats. */

@@ -1591,7 +1591,7 @@ static int carry_extent( carry_op *op /* operation to perform */,
 {
 	znode            *node;
 	carry_insert_data cdata;
-	coord_t        coord;
+	coord_t           coord;
 	reiser4_item_data data;
 	carry_op         *delete_dummy;
 	carry_op         *insert_extent;
@@ -1676,7 +1676,10 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	 */
 	insert_extent = node_post_carry( &info, COP_INSERT, node, 1 );
 	if( IS_ERR( insert_extent ) )
-		/* FIXME-NIKITA cleanup @delete_dummy */
+		/* 
+		 * @delete_dummy will be automatically destroyed on the level
+		 * exiting 
+		 */
 		return PTR_ERR( insert_extent );
 	/*
 	 * FIXME-NIKITA insertion by key is simplest option here. Another

@@ -49,9 +49,11 @@ struct coord {
 	 */
 	between_enum  between;
 	/*
-	 * FIXME-NIKITA possible future optimization: store plugin id of item
-	 * here. Profiling shows that node40_plugin_by_coord() is top CPU
-	 * user.
+	 * optimization: plugin of item is stored in coord_t. Until this was
+	 * implemented, item_plugin_by_coord() was major CPU consumer. ->iplug
+	 * is invalidated (set to NULL) on each modification of ->item_pos,
+	 * and all such modifications are funneled through coord_*_item_pos()
+	 * functions below.
 	 */
 	item_plugin  *iplug;
 };

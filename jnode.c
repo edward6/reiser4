@@ -33,17 +33,16 @@ static inline int jnode_key_eq( const jnode_key_t *k1, const jnode_key_t *k2 )
 static inline __u32 jnode_key_hashfn( const jnode_key_t *key )
 {
 	__u32 hash;
+	__u32 shift;
 
 	assert( "nikita-2352", key != NULL );
 
-	/*
-	 * FIXME-NIKITA Stupid, primitive and dubious hash function. Improve
-	 * it.
-	 */
-	hash  = ( __u32 ) key -> mapping;
-	hash /= sizeof( struct inode );
-	hash ^= ( __u32 ) ( key -> index );
-	return hash & ( REISER4_JNODE_HASH_TABLE_SIZE - 1 );
+	shift  = ( __u32 ) key -> mapping;
+	shift /= ( sizeof( struct inode ) & ~ ( sizeof ( struct inode ) - 1 ) );
+	shift += ( __u32 ) key -> index;
+
+	hash = shift + ( shift >> REISER4_JNODE_HASH_TABLE_BITS );
+	return hash ( REISER4_JNODE_HASH_TABLE_SIZE - 1 );
 }
 
 /** The hash table definition */
@@ -368,12 +367,6 @@ const reiser4_block_nr *jnode_get_block( const jnode *node /* jnode to
 */
 	return & node -> blocknr;
 }
-
-/*
- * FIXME-NIKITA jnode<-{attach,detach}->page API is a mess (or, rather, a maze
- * of little different functions all alike). I'll clear it up once it
- * stabilizes.
- */
 
 /* Audited by: umka (2002.06.15) */
 void jnode_attach_page( jnode *node, struct page *pg )

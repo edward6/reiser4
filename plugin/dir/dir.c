@@ -457,7 +457,6 @@ int is_dir_empty( const struct inode *dir )
 	 * FIXME-NIKITA this is not correct if hard links on directories are
 	 * supported in this fs (if reiser4_adg( dir -> i_sb ) is false). But
 	 * then, how to determine that last "outer" link is removed?
-	 *
 	 */
 
 	dot.name = ".";
@@ -470,11 +469,6 @@ int is_dir_empty( const struct inode *dir )
 	coord_init_zero( &coord );
 	init_lh( &lh );
 		
-	/* 
-	 * FIXME-NIKITA this looks almost exactly like code in
-	 * readdir(). Consider implementing iterate_dir( dir, actor )
-	 * function.
-	 */
 	result = coord_by_key( tree_by_inode( dir ), &de_key, &coord, &lh, 
 			       ZNODE_READ_LOCK, FIND_MAX_NOT_MORE_THAN,
 			       LEAF_LEVEL, LEAF_LEVEL, 0 );

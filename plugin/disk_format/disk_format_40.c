@@ -88,12 +88,6 @@ static int get_super_jnode (struct super_block * s)
 	reiser4_block_nr super_block_nr;
 	int ret;
 
-	/*
-	 * FIXME-NIKITA jnew() returns unreferenced jnode which is
-	 * useless: it can be already wiped out by memory pressure when jnew()
-	 * returns.
-	 */
-
 	super_block_nr = FORMAT_40_OFFSET / s->s_blocksize;
 
 	sb_jnode = alloc_io_head (&super_block_nr);

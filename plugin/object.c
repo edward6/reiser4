@@ -383,9 +383,6 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 		if( 0 != data.length ) {
 			data.data = NULL;
 			data.user = 0;
-			/*
-			 * FIXME-NIKITA resize can create new item.
-			 */
 			result = resize_item( &coord, &data, &key,
 					      0/*FIXME-NIKITA lh?*/, 
 					      0/*flags*/ );

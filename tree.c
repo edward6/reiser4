@@ -514,11 +514,6 @@ resize_result resize_item( coord_t *coord /* coord of item being resized */,
 	init_carry_pool( &pool );
 	init_carry_level( &lowest_level, &pool );
 
-	/*
-	 * FIXME-NIKITA add shortcut versions here like one for insertion above.
-	 * use ->fast_*() methods of node layout plugin
-	 */
-
 	if( data -> length < 0 ) {
 		/*
 		 * if we are trying to shrink item (@data->length < 0), call
@@ -828,10 +823,6 @@ void forget_znode (lock_handle *handle)
 	sibling_list_remove (node);
 	invalidate_lock (handle);
 
-	/* make sure that we are the only owner of this znode FIXME-NIKITA huh? This is
-	   supposed to be called on the last _unlock_ rather than last zput().
-	   assert ("vs-145", atomic_read (&node->x_count) == 1);
-	*/
 	/*
 	 * and remove node from transaction. FIXME-NIKITA Locking?
 	 */
