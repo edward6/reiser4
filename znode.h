@@ -12,71 +12,6 @@
 /** declare hash table of znodes */
 TS_HASH_DECLARE(z, znode);
 
-
-typedef enum {
-       /** just created */
-       ZNODE_CLEAN             = 0,
-       /** data are loaded from node */
-       ZNODE_LOADED            = (1 << 0),
-       /** node header was successfully parsed and node plugin
-           found and installed. Equivalent to ( ->node_plugin != 0 )*/
-       ZNODE_PLUGIN            = (1 << 1),
-       /** node was deleted, not all locks on it were released. This
-	   node is empty and is going to be removed from the tree
-	   shortly. */
-       /** Josh respectfully disagrees with obfuscated, metaphoric names
-	   such as this.  He thinks it should be named ZNODE_BEING_REMOVED. */
-       ZNODE_HEARD_BANSHEE     = (1 << 2),
-       /** left sibling pointer is valid */
-       ZNODE_LEFT_CONNECTED    = (1 << 3),
-       /** right sibling pointer is valid */
-       ZNODE_RIGHT_CONNECTED   = (1 << 4),
-       /** mask: both sibling pointers are valid */
-       ZNODE_BOTH_CONNECTED    = (ZNODE_LEFT_CONNECTED | ZNODE_RIGHT_CONNECTED),
-
-       /** znode was just created and doesn't yet have a pointer from
-	   its parent */
-       ZNODE_NEW               = (1 << 6),
-
-       /* The jnode is a unformatted node.  False for all znodes.  */
-       ZNODE_UNFORMATTED       = (1 << 7),
-
-       /** this node was allocated by its txn */
-       ZNODE_ALLOC             = (1 << 10),
-       /** this node is currently relocated */
-       ZNODE_RELOC             = (1 << 11),
-       /** this node is currently wandered */
-       ZNODE_WANDER            = (1 << 12),
-       /** this node was deleted by its txn */
-       ZNODE_DELETED           = (1 << 13),
-
-       /** this znode has been modified */
-       ZNODE_DIRTY             = (1 << 14),
-       /** this znode has been modified */
-       ZNODE_WRITEOUT          = (1 << 15),
-
-       /* this node was relocated or deleted, therefore part of the delete set */
-       ZNODE_DELETESET         = (ZNODE_RELOC | ZNODE_DELETED),
-
-       /* this node is either dirty or currently being flushed */
-       ZNODE_WSTATE            = (ZNODE_DIRTY | ZNODE_WRITEOUT),
-
-       /* znode lock is being invalidated */
-       ZNODE_IS_DYING          = (1 << 16)
-} reiser4_znode_state;
-
-/* Macros for accessing the znode state. */
-#define	ZF_CLR(p,f)		((p)->zjnode.state &= ~(f))
-#define	ZF_ISSET(p,f)	       (((p)->zjnode.state &   (f)) != 0)
-#define	ZF_MASK(p,f)		((p)->zjnode.state &   (f))
-#define	ZF_SET(p,f)		((p)->zjnode.state |=  (f))
-
-/* Macros for accessing the jnode state. */
-#define	JF_CLR(p,f)		((p)->state &= ~(f))
-#define	JF_ISSET(p,f)	       (((p)->state &   (f)) != 0)
-#define	JF_MASK(p,f)		((p)->state &   (f))
-#define	JF_SET(p,f)		((p)->state |=  (f))
-
 /* per-znode lock requests queue; list items are lock owner objects
    which want to lock given znode */
 TS_LIST_DECLARE(requestors);
@@ -345,6 +280,103 @@ struct znode {
 #endif 
 };
 
+typedef enum {
+       /** just created */
+       ZNODE_CLEAN             = 0,
+       /** data are loaded from node */
+       ZNODE_LOADED            = (1 << 0),
+       /** node header was successfully parsed and node plugin
+           found and installed. Equivalent to ( ->node_plugin != 0 )*/
+       ZNODE_PLUGIN            = (1 << 1),
+       /** node was deleted, not all locks on it were released. This
+	   node is empty and is going to be removed from the tree
+	   shortly. */
+       /** Josh respectfully disagrees with obfuscated, metaphoric names
+	   such as this.  He thinks it should be named ZNODE_BEING_REMOVED. */
+       ZNODE_HEARD_BANSHEE     = (1 << 2),
+       /** left sibling pointer is valid */
+       ZNODE_LEFT_CONNECTED    = (1 << 3),
+       /** right sibling pointer is valid */
+       ZNODE_RIGHT_CONNECTED   = (1 << 4),
+       /** mask: both sibling pointers are valid */
+       ZNODE_BOTH_CONNECTED    = (ZNODE_LEFT_CONNECTED | ZNODE_RIGHT_CONNECTED),
+
+       /** znode was just created and doesn't yet have a pointer from
+	   its parent */
+       ZNODE_NEW               = (1 << 6),
+
+       /* The jnode is a unformatted node.  False for all znodes.  */
+       ZNODE_UNFORMATTED       = (1 << 7),
+
+       /** this node was allocated by its txn */
+       ZNODE_ALLOC             = (1 << 10),
+       /** this node is currently relocated */
+       ZNODE_RELOC             = (1 << 11),
+       /** this node is currently wandered */
+       ZNODE_WANDER            = (1 << 12),
+       /** this node was deleted by its txn */
+       ZNODE_DELETED           = (1 << 13),
+
+       /** this znode has been modified */
+       ZNODE_DIRTY             = (1 << 14),
+       /** this znode has been modified */
+       ZNODE_WRITEOUT          = (1 << 15),
+
+       /* this node was relocated or deleted, therefore part of the delete set */
+       ZNODE_DELETESET         = (ZNODE_RELOC | ZNODE_DELETED),
+
+       /* this node is either dirty or currently being flushed */
+       ZNODE_WSTATE            = (ZNODE_DIRTY | ZNODE_WRITEOUT),
+
+       /* znode lock is being invalidated */
+       ZNODE_IS_DYING          = (1 << 16)
+} reiser4_znode_state;
+
+/* Macros for accessing the znode state. */
+#define	ZF_CLR(p,f)		JF_CLR(ZJNODE(p), (f))
+#define	ZF_ISSET(p,f)	        JF_ISSET(ZJNODE(p), (f))
+#define	ZF_ISSET_NOLOCK(p,f)    JF_ISSET_NOLOCK(ZJNODE(p), (f))
+#define	ZF_MASK(p,f)		JF_MASK(ZJNODE(p), (f))
+#define	ZF_SET(p,f)		JF_SET(ZJNODE(p), (f))
+#define	ZF_SET_NOLOCK(p,f)	JF_SET_NOLOCK(ZJNODE(p), (f))
+
+extern void rlock_bit_tear();
+extern void wlock_bit_tear();
+extern void runlock_bit_tear();
+extern void wunlock_bit_tear();
+
+/* Macros for accessing the jnode state. */
+#define	JF_CLR(j,f)				\
+({						\
+	wlock_bit_tear();			\
+	(j)->state &= ~(f);			\
+	wunlock_bit_tear();			\
+})
+#define	JF_ISSET(j,f)				\
+({						\
+	int __result;				\
+						\
+	rlock_bit_tear();			\
+	__result = (((j)->state & (f)) != 0);	\
+	runlock_bit_tear();			\
+	__result;				\
+})
+#define	JF_MASK(j,f)				\
+({						\
+	int __result;				\
+						\
+	rlock_bit_tear();			\
+	__result = ((j)->state & (f));		\
+	runlock_bit_tear();			\
+	__result;				\
+})
+#define	JF_SET(j,f)				\
+({						\
+	wlock_bit_tear();			\
+	((j)->state |= (f));			\
+	wunlock_bit_tear();			\
+})
+
 /**
  * Since we have R/W znode locks we need addititional `link' objects to
  * implement n<->m relationship between lock owners and lock objects. We call
@@ -491,25 +523,50 @@ extern char *zdata( const znode *node );
 extern unsigned znode_size( const znode *node );
 extern unsigned znode_free_space( znode *node );
 extern int znode_is_loaded( const znode *node );
+extern int znode_is_loaded_nolock( const znode *node );
 extern const reiser4_disk_addr *znode_get_block( const znode *node );
 
 extern reiser4_key *znode_get_rd_key( znode *node );
 extern reiser4_key *znode_get_ld_key( znode *node );
 
+/*
+ * ordering constraint for znode spin lock: znode lock is weaker than 
+ * tree lock and dk lock
+ */
+#define spin_ordering_pred_jnode( node )			\
+	( ( lock_counters() -> spin_locked_tree == 0 ) &&	\
+	  ( lock_counters() -> spin_locked_dk == 0 ) )
+
+/** 
+ * Define spin_lock_znode, spin_unlock_znode, and spin_znode_is_locked.
+ * Take and release short-term spinlocks.  Don't hold these across
+ * io. 
+ */
+SPIN_LOCK_FUNCTIONS(jnode,jnode,guard);
+
+/* Macros to convert from jnode to znode, znode to jnode.  These are macros because C
+ * doesn't allow overloading of const prototypes. */
+#define ZJNODE(x) (& (x) -> zjnode)
+#define JZNODE(x) 							\
+({									\
+	assert ("jmacd-1300", !JF_ISSET ((x), ZNODE_UNFORMATTED));	\
+	(znode*) (x);							\
+})
+
 /** `connected' state checks */
-static inline int znode_is_right_connected (znode * node)
+static inline int znode_is_right_connected (const znode * node)
 {
 	return ZF_ISSET (node, ZNODE_RIGHT_CONNECTED);
 }
 
-static inline int znode_is_left_connected (znode * node)
+static inline int znode_is_left_connected (const znode * node)
 {
 	return ZF_ISSET (node, ZNODE_LEFT_CONNECTED);
 }
 
 static inline int znode_is_connected (const znode * node)
 {
-	return ZF_MASK (node, ZNODE_BOTH_CONNECTED) == ZNODE_BOTH_CONNECTED;
+	return znode_is_right_connected (node) && znode_is_left_connected (node);
 }
 
 extern znode *znode_parent( const znode *node );
@@ -559,30 +616,6 @@ void info_jnode( const char *prefix, const jnode *node );
 extern jnode *jref( jnode *node );
 extern void   jput( jnode *node );
 
-/*
- * ordering constraint for znode spin lock: znode lock is weaker than 
- * tree lock and dk lock
- */
-#define spin_ordering_pred_jnode( node )			\
-	( ( lock_counters() -> spin_locked_tree == 0 ) &&	\
-	  ( lock_counters() -> spin_locked_dk == 0 ) )
-
-/** 
- * Define spin_lock_znode, spin_unlock_znode, and spin_znode_is_locked.
- * Take and release short-term spinlocks.  Don't hold these across
- * io. 
- */
-SPIN_LOCK_FUNCTIONS(jnode,jnode,guard);
-
-/* Macros to convert from jnode to znode, znode to jnode.  These are macros because C
- * doesn't allow overloading of const prototypes. */
-#define ZJNODE(x) (& (x) -> zjnode)
-#define JZNODE(x) 							\
-({									\
-	assert ("jmacd-1300", !JF_ISSET ((x), ZNODE_UNFORMATTED));	\
-	(znode*) (x);							\
-})
-
 /* Make it look like various znode functions exist instead of treating znodes as
  * jnodes in znode-specific code. */
 #define znode_get_level(x)          jnode_get_level ( ZJNODE(x) )
@@ -601,7 +634,12 @@ SPIN_LOCK_FUNCTIONS(jnode,jnode,guard);
 /** get the level field for a jnode */
 static inline tree_level jnode_get_level (const jnode *node)
 {
-	return node->level;
+	tree_level result;
+
+	rlock_bit_tear();
+	result = node->level;
+	runlock_bit_tear();
+	return result;
 }
 
 /** set the level field for a jnode */
@@ -609,7 +647,9 @@ static inline void jnode_set_level (jnode      *node,
 				    tree_level  level)
 {
 	assert ("jmacd-1161", level < 32);
+	wlock_bit_tear();
 	node->level = level;
+	wunlock_bit_tear();
 }
 
 /* returns true if node is formatted, i.e, it's not a znode */
@@ -631,7 +671,6 @@ static inline int jnode_is_dirty( jnode *node )
 	assert( "jmacd-1800", spin_jnode_is_locked (node) || (jnode_is_formatted (node) && znode_is_any_locked (JZNODE (node))));
 	return JF_ISSET( node, ZNODE_DIRTY );
 }
-
 
 /* __ZNODE_H__ */
 #endif
