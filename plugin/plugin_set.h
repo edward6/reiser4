@@ -8,13 +8,14 @@
 #include "../tshash.h"
 #include "plugin.h"
 
+#include <linux/rcupdate.h>
+
 struct plugin_set;
 typedef struct plugin_set plugin_set;
 
 TS_HASH_DECLARE(ps, plugin_set);
 
 struct plugin_set {
-	atomic_t            ref;
 	__u32               hashval;
 	/* plugin of file */
 	file_plugin        *file;

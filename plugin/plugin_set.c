@@ -21,13 +21,13 @@ static spinlock_t plugin_set_lock[8] __cacheline_aligned_in_smp = {
 #define PS_TABLE_SIZE (32)
 
 static inline plugin_set *
-cast_to(const atomic_t * a)
+cast_to(const __u32 * a)
 {
-	return container_of(a, plugin_set, ref);
+	return container_of(a, plugin_set, hashval);
 }
 
 static inline int
-pseq(const atomic_t * a1, const atomic_t * a2)
+pseq(const __u32 * a1, const __u32 * a2)
 {
 	plugin_set *set1;
 	plugin_set *set2;
@@ -35,7 +35,6 @@ pseq(const atomic_t * a1, const atomic_t * a2)
 	/* make sure fields are not missed in the code below */
 	cassert(sizeof *set1 ==
 
-		sizeof set1->ref + 
 		sizeof set1->hashval + 
 		sizeof set1->link + 
 
@@ -53,6 +52,8 @@ pseq(const atomic_t * a1, const atomic_t * a2)
 	set1 = cast_to(a1);
 	set2 = cast_to(a2);
 	return 
+		set1->hashval == set2->hashval &&
+
 		set1->file == set2->file &&
 		set1->dir == set2->dir &&
 		set1->perm == set2->perm &&
@@ -67,12 +68,7 @@ pseq(const atomic_t * a1, const atomic_t * a2)
 
 #define HASH_FIELD(hash, set, field)		\
 ({						\
-	__u32 top;				\
-						\
-	top = (hash) >> (32 - 4);		\
-	(hash) <<= 4;				\
-	(hash) |= top;				\
-	(hash) ^= (__u32)(set)->field;		\
+        (hash) += (__u32)(set)->field >> 2;	\
 })
 
 static inline __u32 calculate_hash(const plugin_set *set)
@@ -94,21 +90,20 @@ static inline __u32 calculate_hash(const plugin_set *set)
 }
 
 static inline __u32
-pshash(const atomic_t * a)
+pshash(const __u32 * a)
 {
-	return cast_to(a)->hashval;
+	return *a;
 }
 
 /* The hash table definition */
 #define KMALLOC(size) kmalloc((size), GFP_KERNEL)
 #define KFREE(ptr, size) kfree(ptr)
-TS_HASH_DEFINE(ps, plugin_set, atomic_t, ref, link, pshash, pseq);
+TS_HASH_DEFINE(ps, plugin_set, __u32, hashval, link, pshash, pseq);
 #undef KFREE
 #undef KMALLOC
 
 static ps_hash_table ps_table;
 static plugin_set empty_set = {
-	.ref                = ATOMIC_INIT(1),
 	.hashval            = 0,
 	.file               = NULL,
 	.dir                = NULL,
@@ -125,34 +120,27 @@ static plugin_set empty_set = {
 
 plugin_set *plugin_set_get_empty(void)
 {
-	return plugin_set_clone(&empty_set);
-}
-
-plugin_set *plugin_set_clone(plugin_set *set)
-{
-	assert("nikita-2901", set != NULL);
-
-	atomic_inc(&set->ref);
-	return set;
+	return &empty_set;
 }
 
 void plugin_set_put(plugin_set *set)
 {
-	spinlock_t *lock;
-
-	assert("nikita-2900", set != NULL);
-
-	lock = &plugin_set_lock[set->hashval & 7];
-	if (atomic_dec_and_lock(&set->ref, lock)) {
-		assert("nikita-2899", set != &empty_set);
-		ps_hash_remove(&ps_table, set);
-		spin_unlock(lock);
-		kmem_cache_free(plugin_set_slab, set);
-	}
 }
 
-int plugin_set_field(plugin_set **set, void *val, int offset, int len)
+plugin_set *plugin_set_clone(plugin_set *set)
 {
+	return set;
+}
+
+static inline __u32 *
+pset_field(plugin_set *set, int offset)
+{
+	return (__u32 *)(((char *)set) + offset);
+}
+
+static int plugin_set_field(plugin_set **set, const __u32 val, const int offset)
+{
+	__u32      *spot;
 	spinlock_t *lock;
 	plugin_set  replica;
 	plugin_set *twin;
@@ -161,46 +149,45 @@ int plugin_set_field(plugin_set **set, void *val, int offset, int len)
 
 	assert("nikita-2902", set != NULL);
 	assert("nikita-2904", *set != NULL);
-	assert("nikita-2903", val != NULL);
 
-	if (unlikely(!memcmp(((char *)*set) + offset, val, len)))
+	spot = pset_field(*set, offset);
+	if (unlikely(*spot == val))
 		return 0;
 
 	replica = *(orig = *set);
-	xmemcpy(((char *)&replica) + offset, val, len);
+	*pset_field(&replica, offset) = val;
 	replica.hashval = calculate_hash(&replica);
-	psal = NULL;
-	lock = &plugin_set_lock[replica.hashval & 7];
-	spin_lock(lock);
-	twin = ps_hash_find(&ps_table, &replica.ref);
+	rcu_read_lock();
+	twin = ps_hash_find(&ps_table, &replica.hashval);
 	if (unlikely(twin == NULL)) {
-		spin_unlock(lock);
+		rcu_read_unlock();
 		psal = kmem_cache_alloc(plugin_set_slab, GFP_KERNEL);
 		if (psal == NULL)
 			return RETERR(-ENOMEM);
-		atomic_set(&psal->ref, 1);
 		*psal = replica;
+		lock = &plugin_set_lock[replica.hashval & 7];
 		spin_lock(lock);
-		twin = ps_hash_find(&ps_table, &replica.ref);
+		twin = ps_hash_find(&ps_table, &replica.hashval);
 		if (likely(twin) == NULL) {
 			*set = psal;
-			ps_hash_insert(&ps_table, psal);
+			ps_hash_insert_rcu(&ps_table, psal);
 		} else {
-			*set = plugin_set_clone(twin);
+			*set = twin;
 			kmem_cache_free(plugin_set_slab, psal);
 		}
-	} else
-		*set = plugin_set_clone(twin);
-	spin_unlock(lock);
-	plugin_set_put(orig);
+		spin_unlock(lock);
+	} else {
+		rcu_read_unlock();
+		*set = twin;
+	}
 	return 0;
 }
 
 #define DEFINE_PLUGIN_SET(type, field)						\
 int plugin_set_ ## field(plugin_set **set, type *val)				\
 {										\
-	return plugin_set_field(set, &val, 					\
-				offsetof(plugin_set, field), sizeof(val));	\
+	cassert(sizeof val == sizeof(__u32));					\
+	return plugin_set_field(set, (__u32)val, offsetof(plugin_set, field));	\
 }
 
 DEFINE_PLUGIN_SET(file_plugin, file)
