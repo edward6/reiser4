@@ -585,8 +585,6 @@ shorten_file(struct inode *inode, loff_t new_size, loff_t cur_size)
 	unsigned long index;
 	char *kaddr;
 
-	assert("vs-1106", inode->i_size > new_size);
-
 	/* all items of ordinary reiser4 file are grouped together. That is why we can use cut_tree. Plan B files (for
 	   instance) can not be truncated that simply */
 	result = cut_file_items(inode, new_size, 1/*update_sd*/, cur_size, 1);
