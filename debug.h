@@ -528,10 +528,12 @@ typedef struct err_site {} err_site;
 
 /* operations to clog */
 /* debugging lack of reserved space in tail conversion */
+/*
 #define T2E_RESERVE 0
 #define E2T_RESERVE 1
 #define ALL_GRABBED2FREE 2
 #define ALL_GRABBED2FREE_IN_COMMIT 3
+*/
 #define OP_NUM 4
 
 void clog_op(int op, void *);

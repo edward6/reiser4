@@ -948,7 +948,6 @@ all_grabbed2free(void)
 	reiser4_context *ctx = get_current_context();
 
 	grabbed2free(ctx, get_super_private(ctx->super), ctx->grabbed_blocks);
-	clog_op(ALL_GRABBED2FREE, 0);
 }
 
 /* adjust sb block counters if real (on-disk) blocks do not become unallocated

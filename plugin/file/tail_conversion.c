@@ -173,7 +173,6 @@ reserve_tail2extent_iteration(struct inode *inode)
 	 *     5. possible update of stat-data
 	 *
 	 */
-	clog_op(T2E_RESERVE, inode);
 	grab_space_enable();
 	return reiser4_grab_space
 		(2 * tree->height +
@@ -513,7 +512,6 @@ reserve_extent2tail_iteration(struct inode *inode)
 	 *
 	 *     4. possible update of stat-data
 	 */
-	clog_op(E2T_RESERVE, inode);
 	grab_space_enable();
 	return reiser4_grab_space
 		(estimate_one_item_removal(tree) +
