@@ -10,6 +10,21 @@
 #define __REISER4_PERM_H__
 
 
+/**
+ * interface for perm plugin.
+ *
+ * Perm plugin method can be implemented through:
+ *
+ *  1. consulting ->i_mode bits in stat data
+ *
+ *  2. obtaining acl from the tree and inspecting it
+ *
+ *  3. asking some kernel module or user-level program to authorize access.
+ *
+ * This allows for integration with things like capabilities, SELinux-style
+ * secutiry contexts, etc.
+ *
+ */
 typedef struct perm_plugin {
 	/** check permissions for read/write */
 	int ( *rw_ok )( struct file *file, const char *buf, 
@@ -38,11 +53,6 @@ typedef struct perm_plugin {
 } perm_plugin;
 
 /** call ->check_ok method of perm plugin for inode */
-/* you have made assumptions about how a security plugin will work.  This is incompatible with such things as asking a
-   user space program to determine if permission is not granted.  */
-
-/* one of us needs to look at lsm, and analyze if what we are doing is consistent with that.... -Hans */
-#if 0
 #define perm_chk( inode, check, args... )			\
 ({								\
 	perm_plugin *perm;					\
@@ -52,7 +62,6 @@ typedef struct perm_plugin {
 	  ( perm -> ## check ## _ok != NULL ) &&	\
 	    perm -> ## check ## _ok( ##args ) );	\
 })
-#endif /* 0 */
 
 typedef enum { RWX_PERM_ID, LAST_PERM_ID } reiser4_perm_id;
 
