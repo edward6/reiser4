@@ -3650,6 +3650,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 	page_cache_get(page);
 	jref(node);
 	UNLOCK_JNODE(node);
+>>>>>>>
 
 	/* create "capture copy" jnode */
 	result = -ENOMEM;
