@@ -14,9 +14,6 @@ struct jnode
 	/* jnode's state: bitwise flags from the reiser4_znode_state enum. */
 	unsigned long/*__u32*/        state;
 
-	/* znode's tree level */
-	__u16        level;
-
 	/* lock, protecting jnode's fields. */
 	spinlock_t   guard;
 
@@ -180,10 +177,13 @@ extern int znode_check_allocated (znode *node);
 /* Macros to convert from jnode to znode, znode to jnode.  These are macros because C
  * doesn't allow overloading of const prototypes. */
 #define ZJNODE(x) (& (x) -> zjnode)
-#define JZNODE(x) 							\
+#define JZNODE(x)							\
 ({									\
-	assert ("jmacd-1300", !JF_ISSET ((x), ZNODE_UNFORMATTED));	\
-	(znode*) (x);							\
+	typeof (x) __tmp_x;						\
+									\
+	__tmp_x = (x);							\
+	assert ("jmacd-1300", !JF_ISSET (__tmp_x, ZNODE_UNFORMATTED));	\
+	(znode*) __tmp_x;						\
 })
 
 
@@ -212,20 +212,6 @@ static inline char *jdata (const jnode *node)
 static inline struct page *jnode_page (const jnode *node)
 {
 	return node->pg;
-}
-
-/** get the level field for a jnode */
-static inline tree_level jnode_get_level (const jnode *node)
-{
-	return node->level;
-}
-
-/** set the level field for a jnode */
-static inline void jnode_set_level (jnode      *node,
-				    tree_level  level)
-{
-	assert ("jmacd-1161", level < 32);
-	node->level = level;
 }
 
 /* Get the index of a block. */
