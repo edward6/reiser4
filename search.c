@@ -381,6 +381,7 @@ static void hput( cbk_handle *h );
 
 static void setup_delimiting_keys( cbk_handle *h );
 static int prepare_delimiting_keys( cbk_handle *h );
+static lookup_result search_to_left( cbk_handle *h );
 
 /**
  * main tree lookup procedure
@@ -950,7 +951,10 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 			assert( "nikita-1604",
 				ergo( h -> bias == FIND_EXACT, 
 				      coord_of_unit( h -> coord ) ) );
-			h -> result = CBK_COORD_FOUND;
+			if( coord_wrt( h -> coord ) == COORD_ON_THE_LEFT ) {
+				return search_to_left( h );
+			} else
+				h -> result = CBK_COORD_FOUND;
 			reiser4_stat_tree_add( cbk_found );
 		} else {
 			h -> result = CBK_COORD_NOTFOUND;
@@ -1250,6 +1254,71 @@ static int prepare_delimiting_keys( cbk_handle *h )
 	result = find_child_delimiting_keys( h -> active_lh -> node, h -> coord, 
 					     &h -> ld_key, &h -> rd_key );
 	spin_unlock_dk( current_tree );
+	return result;
+}
+
+static level_lookup_result search_to_left( cbk_handle *h )
+{
+	level_lookup result;
+	tree_coord  *coord;
+	znode       *node;
+
+	reiser4_lock_handle lh;
+
+	assert( "nikita-1716", h != NULL );
+	assert( "nikita-1719", h -> level == h -> slevel );
+
+	reiser4_init_lh( &lh );
+	coord = h -> coord;
+	node  = h -> active_lh -> node;
+	assert( "nikita-1717", coord_wrt( coord ) == COORD_ON_THE_LEFT );
+
+	h -> result = reiser4_get_left_neighbor( &lh, node, h -> lock_mode,
+						 GN_LOAD_NEIGHBOR );
+	switch( h -> result ) {
+	case -EDEADLK:
+		result = LLR_REST;
+		break;
+	case 0: {
+		znode               *neighbor;
+		reiser4_node_plugin *nplug;
+		tree_coord           coord;
+		
+		neighbor = lh.node;
+		h -> result = zload( neighbor );
+		if( h -> result != 0 ) {
+			result = LLR_DONE;
+			break;
+		}
+
+		nplug = neighbor -> nplug;
+
+		reiser4_init_coord( &coord );
+		h -> result = nplug -> lookup( neighbor, h -> key,
+					       h -> bias, &coord );
+		reiser4_done_coord( &coord );
+
+		if( h -> result == NS_NOT_FOUND ) {
+	case -ENAVAIL:
+			h -> result = CBK_COORD_FOUND;
+			reiser4_stat_tree_add( cbk_found );
+			cbk_cache_add( node );
+	default: /* some other error */ 
+			result = LLR_DONE;
+		} else if( h -> result == NS_FOUND ) {
+			spin_lock_dk( current_tree );
+			h -> rd_key = znode_get_ld_key( node );
+			leftmost_key_in_node( neighbor, &h -> ld_key );
+			spin_unlock_dk( current_tree );
+			h -> block = znode_get_block( neighbor );
+			result = LLR_CONT;
+		} else {
+			result = LLR_DONE;
+		}
+		zrelse( neighbor, 1 );
+	}
+	}
+	reiser4_done_lh( &lh );
 	return result;
 }
 

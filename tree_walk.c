@@ -295,6 +295,10 @@ static int renew_sibling_link (tree_coord * coord, reiser4_lock_handle * handle,
 			neighbor = zget(tree, &da, side_parent, level, GFP_KERNEL);
 		}
 
+		/*
+		 * FIXME-NIKITA delimiting keys should be updated here
+		 */
+
 		if (IS_ERR(neighbor)) {
 			/* restore the state we had before entering
 			 * renew_sibling() except coord object is no more
