@@ -56,7 +56,7 @@ struct coord {
 	 * safe side and to have a clear picture of the memory layout of this
 	 * structure. */
 	/* 10 */ __u16 pad;
-	/* 12 */ void *body;
+	/* 12 */ int offset;
 #if REISER4_DEBUG
 	unsigned long plug_v;
 	unsigned long body_v;
@@ -64,13 +64,14 @@ struct coord {
 };
 
 #define INVALID_PLUGID  ((char)((1 << 8) - 1))
+#define INVALID_OFFSET -1
 
 static inline void
 coord_clear_iplug(coord_t * coord)
 {
 	assert("nikita-2835", coord != NULL);
 	coord->iplugid = INVALID_PLUGID;
-	coord->body    = NULL;
+	coord->offset  = INVALID_OFFSET;
 }
 
 static inline int

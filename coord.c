@@ -601,7 +601,7 @@ coords_equal(const coord_t * c1, const coord_t * c2)
 		sizeof(c1->iplugid) +
 		sizeof(c1->between) +
 		sizeof(c1->pad) +
-		sizeof(c1->body) +
+		sizeof(c1->offset) +
 		DEBUG_COORD_FIELDS);
 	return
 		c1->node == c2->node &&
