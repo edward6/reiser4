@@ -73,19 +73,19 @@ struct reiserfs_node_plugin {
 
     reiserfs_node_opaque_t *(*open) (aal_block_t *);
     reiserfs_node_opaque_t *(*create) (aal_block_t *, uint32_t);
-    void     (*close) (reiserfs_node_opaque_t *, int);
+    void (*close) (reiserfs_node_opaque_t *, int);
     uint32_t (*check) (reiserfs_node_opaque_t *, int);
     
     uint32_t (*max_item_size) (void);
     uint32_t (*max_item_num)  (void);
 
-    uint32_t (*count) (const reiserfs_node_opaque_t *);
-    uint32_t (*level)	     (const reiserfs_node_opaque_t *);
+    uint32_t (*count) (reiserfs_node_opaque_t *);
+    uint32_t (*level) (reiserfs_node_opaque_t *);
     
-    uint32_t (*get_free_space) (const reiserfs_node_opaque_t *);
-    void     (*set_free_space) (const reiserfs_node_opaque_t *);
+    uint32_t (*get_free_space) (reiserfs_node_opaque_t *);
+    void     (*set_free_space) (reiserfs_node_opaque_t *);
      
-    void (*print) (const reiserfs_node_opaque_t * node);
+    void (*print) (reiserfs_node_opaque_t * node);
     
 };
 
@@ -131,8 +131,8 @@ struct reiserfs_format_plugin {
     reiserfs_format_opaque_t *(*open) (aal_device_t *);
     reiserfs_format_opaque_t *(*create) (aal_device_t *);
     void (*close) (reiserfs_format_opaque_t *, int);
+    int (*sync) (reiserfs_format_opaque_t *);
     int (*check) (reiserfs_format_opaque_t *);
-
     int (*probe) (aal_device_t *device);
     const char *(*format) (reiserfs_format_opaque_t *);
 

@@ -68,7 +68,7 @@ reiserfs_plugin_t *reiserfs_plugin_load(const char *name, const char *point) {
     entry = dlsym(handle, point);
     if ((error = dlerror()) != NULL) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-002", 
-	    "Can't find symbol %s in plugin %s. %s.", point, name, error);
+	    "Can't find symbol %s in plugin %s.", point, name);
 	goto error_free_handle;
     }
 	

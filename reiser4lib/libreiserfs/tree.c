@@ -14,12 +14,12 @@
 int reiserfs_tree_node_check(reiserfs_fs_t *fs, aal_block_t *block) {
     reiserfs_plugin_id_t id;
     reiserfs_plugin_t *plugin;
-    reiserfs_node_header_t *header;
+    reiserfs_node_common_header_t *header;
 
     ASSERT(fs != NULL, return 0);
     ASSERT(block != NULL, return 0);
 
-    header = (reiserfs_node_header_t *)block->data;
+    header = (reiserfs_node_common_header_t *)block->data;
    
     id = get_nh_plugin_id(header);
     if (!(plugin = reiserfs_plugin_find(REISERFS_NODE_PLUGIN, id))) {
@@ -29,7 +29,7 @@ int reiserfs_tree_node_check(reiserfs_fs_t *fs, aal_block_t *block) {
     }
     
     reiserfs_plugin_check_routine(plugin->node, check, return 0);
-    return plugin->node.check(block);
+    return plugin->node.check(block, 0);
 }
 
 int reiserfs_tree_open(reiserfs_fs_t *fs) {
@@ -37,7 +37,7 @@ int reiserfs_tree_open(reiserfs_fs_t *fs) {
     aal_block_t *block;
     reiserfs_plugin_id_t id;
     reiserfs_plugin_t *plugin;
-    reiserfs_node_header_t *header;
+    reiserfs_node_common_header_t *header;
 
     ASSERT(fs != NULL, return 0);
     ASSERT(fs->super != NULL, return 0);
@@ -59,7 +59,7 @@ int reiserfs_tree_open(reiserfs_fs_t *fs) {
 	goto error_free_tree;
     }
 
-    header = (reiserfs_node_header_t *)block->data;
+    header = (reiserfs_node_common_header_t *)block->data;
     id = get_nh_plugin_id(header);
     
     if (!(plugin = reiserfs_plugin_find(REISERFS_NODE_PLUGIN, id))) {
@@ -133,8 +133,7 @@ void reiserfs_tree_close(reiserfs_fs_t *fs, int sync) {
     ASSERT(fs->tree != NULL, return);
     
     reiserfs_plugin_check_routine(fs->tree->plugin->node, close, return);
-    fs->tree->plugin->node.close(fs->tree->entity);
+    fs->tree->plugin->node.close(fs->tree->entity, 1);
     aal_free(fs->tree);
     fs->tree = NULL;
 }
-
