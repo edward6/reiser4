@@ -412,8 +412,8 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 		seal_init(&info->sd_seal, NULL, NULL);
 		coord_init_invalid(&info->sd_coord, NULL);
 		xmemset(&info->ra, 0, sizeof info->ra);
-		info->expkey = NULL;
-		info->keyid = NULL;
+		info->cluster_shift = 0;
+		info->crypt = NULL;
 		info->flags = 0;
 		spin_inode_object_init(info);
 
@@ -462,16 +462,19 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 			/* destroy secret key */
 			crypto_plugin *cplug = inode_crypto_plugin(inode);
 			assert("edward-35", cplug != NULL);
-			assert("edward-37", info->expkey != NULL);
-			xmemset(info->expkey, 0, cplug->keysize);
-			reiser4_kfree_in_sb(info->expkey, cplug->keysize, inode->i_sb);
+			assert("edward-37", cryptcompress_inode_data(inode)->expkey != NULL);
+			xmemset(cryptcompress_inode_data(inode)->expkey, 0, (cplug->keysize)*sizeof(__u32));
+			reiser4_kfree_in_sb(cryptcompress_inode_data(inode)->expkey, (cplug->keysize)*sizeof(__u32), inode->i_sb);
 			inode_clr_flag(inode, REISER4_SECRET_KEY_INSTALLED);
 		}
-		if (inode_get_flag(inode, REISER4_KEYID_LOADED)) {
-			assert("edward-38", info->keyid != NULL);
-			reiser4_kfree_in_sb(info->keyid, sizeof(reiser4_keyid_stat), inode->i_sb);
-			inode_clr_flag(inode, REISER4_KEYID_LOADED);
+		if (inode_get_flag(inode, REISER4_CRYPTO_STAT_LOADED)) {
+			digest_plugin *dplug = inode_digest_plugin(inode);
+			assert("edward-38", info->crypt != NULL);
+			reiser4_kfree_in_sb(info->crypt->keyid, dplug->digestsize, inode->i_sb);
+			inode_clr_flag(inode, REISER4_CRYPTO_STAT_LOADED);
 		}
+		if (inode_get_flag(inode, REISER4_CLUSTER_KNOWN))
+			inode_clr_flag(inode, REISER4_CLUSTER_KNOWN);		
 	}
 	phash_inode_destroy(inode);
 	if (info->pset)

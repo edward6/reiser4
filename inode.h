@@ -13,6 +13,7 @@
 #include "seal.h"
 #include "scint.h"
 #include "plugin/plugin.h"
+#include "plugin/cryptcompress.h"
 #include "plugin/plugin_set.h"
 #include "plugin/security/perm.h"
 #include "vfs_ops.h"
@@ -47,10 +48,12 @@ typedef enum {
 	REISER4_GENERIC_VP_USED = 4,
 	REISER4_EXCLUSIVE_USE = 5,
 	REISER4_SDLEN_KNOWN   = 6,
-	/* reiser4_inode->keyid points to the identification word */
-	REISER4_KEYID_LOADED = 7,
-	/* reiser4_inode->expkey points to the secret key */
-	REISER4_SECRET_KEY_INSTALLED = 8
+	/* reiser4_inode->crypt points to the crypto stat */
+	REISER4_CRYPTO_STAT_LOADED = 7,
+	/* reiser4_inode->cluster_shift makes sense */
+	REISER4_CLUSTER_KNOWN = 8,
+	/* cryptcompress_inode_data points to the secret key */
+	REISER4_SECRET_KEY_INSTALLED = 9
 } reiser4_file_plugin_flags;
 
 #if BITS_PER_LONG == 64
@@ -108,16 +111,17 @@ struct reiser4_inode {
 	/* 96 */ __u16 plugin_mask;
 	/* 98 */ inter_syscall_rap ra;
 	/* 98 */ __u16 padding;
-	/* secret key and its id. The last supposed to be stored on disk.
-	   Only meaningful for crypto-files */
-	/* 100 */__u32 *expkey;
-	/* 104 */__u8 *keyid;
-	/* 116 */
+	/* cluster parameter for crypto and compression */
+	/* 100 */__u8 cluster_shift;
+	/* secret key parameter for crypto */ 
+	/* 101 */crypto_stat_t *crypt;
+	/* 105 */
 	struct list_head  moved_pages;
 	readdir_list_head readdir_list;
 	unsigned long flags;
 	union {
 		unix_file_info_t unix_file_info;
+		cryptcompress_info_t cryptcompress_info;
 	} file_plugin_data;
 
 	struct list_head eflushed_jnodes;
@@ -202,6 +206,7 @@ extern perm_plugin *inode_perm_plugin(const struct inode *inode);
 extern tail_plugin *inode_tail_plugin(const struct inode *inode);
 extern hash_plugin *inode_hash_plugin(const struct inode *inode);
 extern crypto_plugin *inode_crypto_plugin(const struct inode *inode);
+extern digest_plugin *inode_digest_plugin(const struct inode *inode);
 extern compression_plugin *inode_compression_plugin(const struct inode *inode);
 extern item_plugin *inode_sd_plugin(const struct inode *inode);
 extern item_plugin *inode_dir_item_plugin(const struct inode *inode);
