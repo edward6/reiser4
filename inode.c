@@ -372,6 +372,12 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 	if (inode->i_state & I_NEW)
 		unlock_new_inode(inode);
 
+	/* Reiser4 inode state bit REISER4_LOADED is used to distinguish fully
+	   loaded and initialized inode from just allocated inode. If
+	   REISER4_LOADED bit is not set, reiser4_iget() completes loading under
+	   inode->i_sem.  The place in reiser4 which uses not initialized inode
+	   is the reiser4 repacker, see repacker-related functions in
+	   plugin/item/extent.c */
 	if (!is_inode_loaded(inode)) {
 		reiser4_inode * info;
 
