@@ -841,7 +841,7 @@ getattr_common(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct ks
 	stat->mtime = obj->i_mtime;
 	stat->ctime = obj->i_ctime;
 	stat->size = obj->i_size;
-	stat->blocks = (inode_get_bytes(obj) + VFS_BLKSIZE) >> VFS_BLKSIZE_BITS;
+	stat->blocks = (inode_get_bytes(obj) + VFS_BLKSIZE - 1) >> VFS_BLKSIZE_BITS;
 	/* "preferred" blocksize for efficient file system I/O */
 	stat->blksize = get_super_private(obj->i_sb)->optimal_io_size;
 
