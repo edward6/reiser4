@@ -963,14 +963,15 @@ int writeback_queued_jnodes(struct super_block *s, jnode * node, struct writebac
 		int errors = 0;
 		/* wait for i/o completion */
 		ret = wait_io(fq, &errors);
-		if (ret == -EAGAIN)
-			return 0;
-		if (ret)
-			return ret;
-		spin_unlock_atom(atom);
-		if (errors)
-			return -EIO;
-		return 0;
+		if (ret) {
+			if(ret == -EAGAIN)
+				ret = 0;
+		} else {
+			spin_unlock_atom(atom);
+		}
+
+		fq_put(fq);
+		return ret;
 	}
 
 	if (fq->nr_queued == 0)
@@ -984,7 +985,6 @@ int writeback_queued_jnodes(struct super_block *s, jnode * node, struct writebac
 		wbc->nr_to_write -= ret;
 
 	fq_put(fq);
-
 	return ret;
 }
 
