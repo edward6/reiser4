@@ -138,11 +138,10 @@ void coord_init_after_last_item (coord_t *coord, znode *node)
 
 /* Initialize a coordinate to after last unit in the item. Coord must be set
  * already to existing item */
-void coord_init_after_item (coord_t *coord)
+void coord_init_after_item_end (coord_t *coord)
 {
-	assert ("vs-904", coord_is_existing_item (coord));
-	coord->unit_pos = coord_last_unit_pos (coord);
 	coord->between = AFTER_UNIT;
+	coord->unit_pos = coord_last_unit_pos (coord);
 }
 
 /* Initialize a parent hint pointer. (parent hint pointer is a field in znode,
@@ -712,8 +711,10 @@ int coord_is_after_rightmost (const coord_t *coord)
 /* Audited by: green(2002.06.15) */
 int coord_is_before_leftmost (const coord_t *coord)
 {
-	assert ("jmacd-7313", coord_check (coord));
-
+	/* FIXME-VS: coord_check requires node to be loaded whereas it is not
+	   necessary to check if coord is set before leftmost
+	   assert ("jmacd-7313", coord_check (coord));
+	*/
 	switch (coord->between) {
 	case INVALID_COORD:
 	case AT_UNIT:
