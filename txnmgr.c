@@ -613,7 +613,6 @@ atom_try_commit_locked (txn_atom *atom)
 	int level;
 	int ret = 0;
 	jnode *scan;
-	reiser4_super_info_data * private = get_current_super_private();
 
 	assert ("umka-190", atom != NULL);	
 	assert ("jmacd-150", atom->txnh_count == 1);
