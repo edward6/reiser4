@@ -6,18 +6,15 @@
 
 #include "reiser4.h"
 
-/* FIXME: Hans' idea.  When you don't know the preceder use a global value for the last
- * written location.  When you're writing just a single internal node, use the global
- * value. */
-
 /* FIXME: Comments are out of date and missing in this file. */
 
 /* FIXME: */
-#define NEW_ENQUEUE 0
+#define NEW_ENQUEUE 1
 
 /* FIXME: Make these mount options. */
 #define FLUSH_RELOCATE_THRESHOLD 64
 #define FLUSH_RELOCATE_DISTANCE  64
+#define FLUSH_BIO_SIZE           256
 
 /* FIXME: Nikita has written similar functions to these, should replace them with his. */
 typedef struct load_handle load_handle;
@@ -80,6 +77,7 @@ struct flush_position {
 	int                  *nr_to_flush;
 	int                   alloc_cnt;
 	int                   enqueue_cnt;
+	struct bio           *bio;
 };
 
 typedef enum {
@@ -2254,6 +2252,10 @@ static int flush_scan_common (flush_scan *scan, flush_scan *other)
 /* Initialize the fields of a flush_position. */
 static int flush_pos_init (flush_position *pos, int *nr_to_flush)
 {
+	if ((pos->bio = bio_alloc (GFP_NOFS, FLUSH_BIO_SIZE)) == NULL) {
+		return -ENOMEM;
+	}
+
 	pos->point = NULL;
 	pos->leaf_relocate = 0;
 	pos->alloc_cnt = 0;
@@ -2290,14 +2292,18 @@ static void flush_pos_done (flush_position *pos)
 /* Reset the point and parent. */
 static int flush_pos_stop (flush_position *pos)
 {
+	if (pos->bio != NULL) {
+		bio_put (pos->bio);
+		pos->bio = NULL;
+	}
+	done_zh (& pos->parent_load);
+	done_zh (& pos->point_load);
 	if (pos->point != NULL) {
 		jput (pos->point);
 		pos->point = NULL;
 	}
 	done_lh (& pos->point_lock);
 	done_lh (& pos->parent_lock);
-	done_zh (& pos->parent_load);
-	done_zh (& pos->point_load);
 	coord_init_invalid (& pos->parent_coord, NULL);
 	return 0;
 }

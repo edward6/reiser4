@@ -26,6 +26,10 @@
  * that it is impossible to overload this counter during one transaction life.
  */
 
+/* FIXME: JMACD->ZAM: Hans' idea.  When you don't know the preceder use a global value for
+ * the last written location.  When you're writing just a single internal node, use the
+ * global value.  Zam, can you add this for the case where preceder->hint == 0? */
+
 
 /* Initialize a blocknr hint. */
 
