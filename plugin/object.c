@@ -883,6 +883,7 @@ dir_seek(struct file *file, loff_t off, int origin)
 		ff = dir_readdir_init(file, &tap, &pos);
 		if (ff != 0)
 			result = (loff_t) ff;
+		tap_done(&tap);
 	}
 	return result;
 }
