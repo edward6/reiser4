@@ -117,7 +117,7 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 	      znode * fake /* "fake" znode */ )
 {
 	reiser4_tree *tree = znode_get_tree(old_root);
-	znode *new_root;
+	znode *new_root = NULL; /* to shut gcc up */
 	int result;
 
 	assert("nikita-1069", old_root != NULL);
