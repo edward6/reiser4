@@ -405,7 +405,7 @@ typedef struct readdir_actor_args {
 	void        *dirent;
 	filldir_t    filldir;
 	struct file *dir;
-	off_t        offset_hi;
+	__u64        offset_hi;
 	__u64        offset_lo;
 } readdir_actor_args;
 
