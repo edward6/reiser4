@@ -63,7 +63,8 @@ struct flush_position {
 
 	/* FIXME: Add a per-level bitmask, I think, or something to detect the first set
 	 * of nodes that needs to be checked for having still-unallocated children?  How
-	 * about the last set? */
+	 * about the last set?  They're still FLUSH_BUSY in the final flush_finish now
+	 * that flush_enqueue_ancestors is not used. */
 };
 
 typedef enum {
@@ -82,7 +83,7 @@ static int           flush_scan_formatted         (flush_scan *scan);
 static int           flush_scan_left              (flush_scan *scan, flush_scan *right, jnode *node, __u32 limit);
 static int           flush_scan_right             (flush_scan *scan, jnode *node, __u32 limit);
 
-static int           flush_left_relocate_dirty    (jnode *node, const coord_t *parent_coord, flush_position *pos);
+static int           flush_query_relocate_dirty    (jnode *node, const coord_t *parent_coord, flush_position *pos);
 
 static int           flush_allocate_znode         (znode *node, coord_t *parent_coord, flush_position *pos);
 static int           flush_release_znode          (znode *node);
@@ -325,8 +326,13 @@ static int flush_relocate_unless_close_enough (const reiser4_block_nr *pblk,
 	return 1;
 }
 
-/* FIXME: comment */
-static int flush_left_relocate_check (jnode *node, const coord_t *parent_coord, flush_position *pos)
+/* This function is a predicate that tests for relocation.  Always called in the
+ * reverse-parent-first context, when we are asking whether the current node should be
+ * relocated in order to expand the flush by dirtying the parent level (and thus
+ * proceeding to flush that level).  When traversing in the forward-parent-first
+ * direction, relocation decisions are handled in two places: flush_allocate_znode() and
+ * extent_needs_allocation(). */
+static int flush_query_relocate_check (jnode *node, const coord_t *parent_coord, flush_position *pos)
 {
 	reiser4_block_nr pblk = 0;
 	reiser4_block_nr nblk = 0;
@@ -355,14 +361,15 @@ static int flush_left_relocate_check (jnode *node, const coord_t *parent_coord, 
 	return flush_relocate_unless_close_enough (& pblk, & nblk);
 }
 
-/* FIXME: comment */
-static int flush_left_relocate_dirty (jnode *node, const coord_t *parent_coord, flush_position *pos)
+/* This function calls flush_query_relocate_check to make a reverse-parent-first
+ * relocation decision and then, if yes, it marks the parent dirty. */
+static int flush_query_relocate_dirty (jnode *node, const coord_t *parent_coord, flush_position *pos)
 {
 	int ret;
 
 	if (! znode_check_dirty (parent_coord->node)) {
 
-		if ((ret = flush_left_relocate_check (node, parent_coord, pos)) < 0) {
+		if ((ret = flush_query_relocate_check (node, parent_coord, pos)) < 0) {
 			return ret;
 		}
 
@@ -374,7 +381,13 @@ static int flush_left_relocate_dirty (jnode *node, const coord_t *parent_coord, 
 	return 0;
 }
 
-/* FIXME: comment */
+/* This function either continues or stops the squeeze-and-allocate procedure when it
+ * reaches the end of the twig level.  This case is special because the first child of the
+ * next-rightward twig may need to be relocated even if the parent is clean.  This only
+ * performs part of the task: if the right neighbor is dirty then we continue with the
+ * (upward-recursive) squalloc_changed_ancestors step regardless of the first child.  If
+ * the first child is clean then we stop.  If the first child is dirty, then see if it
+ * should be relocated and possibly dirty the parent. */
 static int flush_right_relocate_end_of_twig (flush_position *pos)
 {
 	int ret;
@@ -390,7 +403,8 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 	 * a dirty unformatted leftmost child of a clean twig. */
 	if ((ret = reiser4_get_right_neighbor (& right_lock, pos->parent_lock.node, ZNODE_WRITE_LOCK, 0))) {
 		/* If -ENAVAIL,-ENOENT we are finished (or do we go upward anyway?). */
-		/* FIXME: check EDEADLK, EINVAL */
+		/* FIXME: check EDEADLK, EINVAL.  We can just stop in case of deadlock,
+		 * but I would like to have a test first. */
 		if (ret == -ENAVAIL || ret == -ENOENT) {
 
 			/* Now finished with twig node. */
@@ -429,7 +443,7 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 	}
 
 	/* Now see if the child should be relocated. */
-	if ((ret = flush_left_relocate_dirty (child, & right_coord, pos))) {
+	if ((ret = flush_query_relocate_dirty (child, & right_coord, pos))) {
 		goto exit;
 	}
 
@@ -444,7 +458,7 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 }
 
 /********************************************************************************
- * FIXME:
+ * Flush Squeeze and Allocate
  ********************************************************************************/
 
 /* Here the rule is: squeeze left uncle with parent if uncle is dirty.  Repeat until the
@@ -525,7 +539,7 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 			goto exit;
 		}
 
-		if ((ret = flush_left_relocate_dirty (ZJNODE (coord->node), & acoord, pos))) {
+		if ((ret = flush_query_relocate_dirty (ZJNODE (coord->node), & acoord, pos))) {
 			goto exit;
 		}
 
@@ -569,7 +583,7 @@ static int flush_alloc_ancestors (flush_position *pos)
 
 		/* It may not be dirty, in which case we should decide whether to relocate the
 		 * child now. */
-		if ((ret = flush_left_relocate_dirty (pos->point, & pcoord, pos))) {
+		if ((ret = flush_query_relocate_dirty (pos->point, & pcoord, pos))) {
 			goto exit;
 		}
 
@@ -917,8 +931,8 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	trace_on (TRACE_FLUSH_VERB, "sq_rca ready to move right %s\n", flush_znode_tostring (right_lock.node));
 
 	/* We have a new right and it should have been allocated by the call to
-	 * flush_squalloc_one_changed_ancestor.  FIXME: its coneivable under a
-	 * multi-threaded workload that this can be violated.  Nikita seems to have proven
+	 * flush_squalloc_one_changed_ancestor.  FIXME: I think it is coneivable that this
+	 * can be violated under a multi-threaded workload.  Nikita seems to have proven
 	 * it.  Eventually handle this nicely.  Until then, this asserts that sq1 does the
 	 * right thing. */
 	assert ("jmacd-90123", jnode_check_allocated (ZJNODE (right_lock.node)));
@@ -1357,7 +1371,8 @@ void jnode_set_block( jnode *node /* jnode to update */,
 	node -> blocknr = *blocknr;
 }
 
-/* return true if jnode has real blocknr */ /* FIXME: JMACD->?? Who wrote this, who uses it?  Looks funny to me. */
+/* return true if jnode has real blocknr */
+/* FIXME: JMACD->??? Who wrote this, who uses it?  Looks funny to me. */
 int jnode_has_block (jnode * node)
 {
 	assert ("vs-673", node);
@@ -1426,7 +1441,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 	assert ("jmacd-7988", znode_is_write_locked (node));
 	assert ("jmacd-7989", coord_is_invalid (parent_coord) || znode_is_write_locked (parent_coord->node));
 
-	if (jnode_created (node) || znode_is_root (node)) {
+	if (znode_created (node) || znode_is_root (node)) {
 		/* No need to decide with new nodes, they are treated the same as
 		 * relocate. If the root node is dirty, relocate. */
 		goto best_reloc;
@@ -1488,10 +1503,9 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 	spin_lock_znode (node);
 
 	assert ("jmacd-4277", ! blocknr_is_fake (& pos->preceder.blk));
-	assert ("jmacd-4278", ! JF_ISSET (node, ZNODE_FLUSH_BUSY));
+	assert ("jmacd-4278", ! ZF_ISSET (node, ZNODE_FLUSH_BUSY));
 
-	/* FIXME: Why does this not complain of a type error (should be ZF_SET) */
-	JF_SET (node, ZNODE_FLUSH_BUSY);
+	ZF_SET (node, ZNODE_FLUSH_BUSY);
 	trace_on (TRACE_FLUSH, "alloc: %s\n", flush_znode_tostring (node));
 
 	/* Queue it now, node is busy until release_znode is called, releases lock. */

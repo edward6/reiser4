@@ -106,9 +106,9 @@ typedef enum {
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
-#define	JF_CLR(j,f)   clear_bit((f), &((jnode *)j)->state)
-#define	JF_ISSET(j,f) test_bit ((f), &((jnode *)j)->state)
-#define	JF_SET(j,f)   set_bit  ((f), &((jnode *)j)->state)
+static inline void JF_CLR (jnode *j, int f) { clear_bit (f, &j->state); }
+static inline int JF_ISSET (const jnode *j, int f) { return test_bit (f, &((jnode*)j)->state); }
+static inline void JF_SET (jnode *j, int f) { set_bit (f, &j->state); }
 
 /*
  * ordering constraint for znode spin lock: znode lock is weaker than 

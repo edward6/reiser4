@@ -463,6 +463,8 @@ void print_znodes( const char *prefix, reiser4_tree *tree );
 #define znode_get_level(x)          jnode_get_level ( ZJNODE(x) )
 #define znode_set_level(x,l)        jnode_set_level ( ZJNODE(x), (l) )
 #define znode_get_block(x)          jnode_get_block ( ZJNODE(x) )
+#define znode_created(x)            jnode_created ( ZJNODE(x) )
+#define znode_set_created(x)        jnode_set_created ( ZJNODE(x) )
 
 #define znode_is_dirty(x)           jnode_is_dirty    ( ZJNODE(x) )
 #define znode_check_dirty(x)        jnode_check_dirty ( ZJNODE(x) )
