@@ -2448,8 +2448,8 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	   support is to commit only atoms which contain dirty pages from given
 	   address space. */
 	if (wbc->sync_mode == WB_SYNC_HOLD || called_for_sync()) {
-		__REISER4_EXIT(&__context);
-		return txnmgr_force_commit_all(s);
+		ret = txnmgr_force_commit_all(s);
+		REISER4_EXIT(ret);
 	}
 
 //	while (wbc->nr_to_write > 0) 
