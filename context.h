@@ -184,6 +184,11 @@ static inline void grab_space_disable(void)
 	get_current_context()->grab_enabled = 0;
 }
 
+static inline void grab_space_set_enabled (int enabled)
+{
+	get_current_context()->grab_enabled = enabled;
+}
+ 
 static inline int is_grab_enabled(reiser4_context *ctx)
 {
 	return ctx->grab_enabled;
