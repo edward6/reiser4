@@ -220,7 +220,10 @@ static int page_cache_delete_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 	/* FIXME-NIKITA locking? */
 	ClearPageDirty( page );
 	ClearPageUptodate( page );
+	lock_page(page); /* remove_inode_page needs page locked. May be we
+			    should use __remove_inode_page instead? */
 	remove_inode_page( page );
+	unlock_page(page);
  	jnode_detach_page( node );
 	return 0;
 }
