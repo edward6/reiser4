@@ -53,7 +53,9 @@ int ctail_read_cluster (reiser4_cluster_t *, struct inode *, int);
 reiser4_key * append_cluster_key_ctail(const coord_t *, reiser4_key *);
 int setattr_reserve(reiser4_tree *);
 int writepage_ctail(struct page *);
-int cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size);
+int update_file_size(struct inode * inode, reiser4_key * key, int update_sd);
+int cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size,
+		   int (*update_actor)(struct inode *, reiser4_key *, int));
 int delete_object(struct inode *inode, int mode);
 int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode);
 int hint_is_set(const hint_t *hint);
@@ -2915,6 +2917,14 @@ body_truncate_ok(struct inode * inode, cloff_t aidx)
 }
 #endif		   
 
+static int 
+update_cryptcompress_size(struct inode * inode, reiser4_key * key, int update_sd)
+{
+	return (get_key_offset(key) & ((loff_t)(inode_cluster_size(inode)) - 1) ?
+		0 :
+		update_file_size(inode, key, update_sd));
+}
+
 /* prune cryptcompress file in two steps (exclusive access should be acquired!)
    1) cut all disk clusters but the last one partially truncated,
    2) set zeroes and capture last partially truncated page cluster if the last
@@ -2957,7 +2967,8 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 		result = cut_file_items(inode,
 					clust_to_off(fidx, inode),
 					update_sd,
-					clust_to_off(aidx, inode));
+					clust_to_off(aidx, inode),
+					update_cryptcompress_size);
 		if (result)
 			goto out;
 	}
