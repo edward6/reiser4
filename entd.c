@@ -106,7 +106,7 @@ entd(void *arg)
 		entd_set_comm(".");
 		spin_lock(&ctx->guard);
 
-		if (!ctx->rerun) {
+		if (!ctx->rerun && ctx->wbq_nr == 0) {
 			result = kcond_wait(&ctx->wait, &ctx->guard, 1);
 
 			/* we are asked to exit */
@@ -265,6 +265,7 @@ void write_page_by_ent (struct page * page, struct writeback_control * wbc)
 	prepare_wbq(&rq);
 
 	wbq_list_push_front(&ent->wbq_list, &rq);
+	ent->wbq_nr ++;
 
 	if (ent->flushers == 0)
 		kick_entd(ent);
@@ -306,6 +307,7 @@ void ent_writes_page (struct super_block * sb, struct page * page)
 		return;
 
 	wbq_list_remove(rq);
+	ent->wbq_nr --;
 	rq->wbc->nr_to_write --;
 	up(&rq->sem);
 
