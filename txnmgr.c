@@ -3595,7 +3595,7 @@ static int
 capturable(const jnode *node, const txn_atom *atom)
 {
 	assert("vs-1429", spin_jnode_is_locked(node));
-	assert("vs-1487", spin_is_locked(&scan_lock));
+	assert("vs-1487", check_spin_is_locked(&scan_lock));
 	
 	if (JF_ISSET(node, JNODE_WRITEBACK)) {
 		reiser4_stat_inc(coc.writeback);
