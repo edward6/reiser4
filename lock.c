@@ -686,7 +686,8 @@ static int internal_lock_znode (reiser4_lock_handle *handle /* local link
 				znode               *node /* znode we want to
 							   * lock. */,
 				znode_lock_mode      mode /* {ZNODE_READ_LOCK,
-							   * ZNODE_WRITE_LOCK}; */,
+							   * ZNODE_WRITE_LOCK,
+							   * ZNODE_WRITE_IF_DIRTY}; */,
 				znode_lock_request   request /* {0, -EINVAL,
 							      * -EDEADLK}, see
 							      * return codes
@@ -703,11 +704,6 @@ static int internal_lock_znode (reiser4_lock_handle *handle /* local link
 	/* Check that the lock handle is initialized and isn't already being used. */
 	assert ("jmacd-808", handle->owner == NULL);
 
-	/* Fill request structure with our values. */
-	owner->request.mode   = mode;
-	owner->request.handle = handle;
-	owner->request.node   = node;
-
 	/* If we are changing our process priority we must adjust a number
 	 * of high priority owners for each znode that we already lock */
 	if (hipri) {
@@ -719,6 +715,16 @@ static int internal_lock_znode (reiser4_lock_handle *handle /* local link
 	reiser4_stat_znode_add(lock_znode);
 	/* Synchronize on node's guard lock. */
 	spin_lock_znode(node);
+
+	/* With spinlock first aquired, convert IF_DIRTY mode to read or write. */
+	if (mode == ZNODE_WRITE_IF_DIRTY) {
+		mode = znode_is_dirty (node) ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK;
+	}
+
+	/* Fill request structure with our values. */
+	owner->request.mode   = mode;
+	owner->request.handle = handle;
+	owner->request.node   = node;
 
 	for (;;) {
 

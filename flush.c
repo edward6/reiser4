@@ -136,7 +136,7 @@ int flush_jnode_slum (jnode *node)
 	}
 
 	/* Allocate upward, rightward, squeeze. */
-	if ((ret = slum_allocate (& scan))) {
+	if (0 && (ret = slum_allocate (& scan))) {
 		goto failed;
 	}
 
@@ -182,7 +182,7 @@ static int slum_allocate (slum_scan *scan)
 	 * relocate, capture and write lock now.  Need it for squeezing.
 	 * Getting the write lock captures the node. */
 	if ((ret = jnode_lock_parent_coord (scan->node, & child_lock, & parent_lock, & coord,
-					    relocate_child ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK))) {
+					    relocate_child ? ZNODE_WRITE_LOCK : ZNODE_WRITE_IF_DIRTY))) {
 		goto failure;
 	}
 	
@@ -194,14 +194,6 @@ static int slum_allocate (slum_scan *scan)
 	/* If the parent is dirty, want to check if it should be allocated
 	 * before the child's level slum. */
 	if (znode_is_dirty (parent_lock.node)) {
-
-		/* FIXME: if not relocating, but dirty, then we have a read
-		 * lock, need a write lock.  If scan->node is a znode then we
-		 * could lock the tree, ref parent, unlock tree, spinlock
-		 * parent, check dirty bit, unspinlock. */
-		if (! relocate_child) {
-			
-		}
 
 		/* Scan parent level, then squeeze */
 		if ((ret = slum_scan_left (& parent_scan, ZJNODE (parent_lock.node)))) {
