@@ -1,7 +1,7 @@
 /* Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
  */
 
-/* The design document for this file is at www.namesys.com/flush-alg.html. */
+/* The design document for this file is at www.namesys.com/fast_reiser4.html. */
 
 #include "forward.h"
 #include "debug.h"
