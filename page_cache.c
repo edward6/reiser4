@@ -693,7 +693,7 @@ print_page_state(const char *prefix, struct page_state *ps)
 	       nr_free_pages(),
 	       ps->nr_dirty,
 	       ps->nr_writeback,
-	       ps->nr_pagecache,
+//	       ps->nr_pagecache,
 //	     ps->nr_page_table_pages,
 //	     ps->nr_reverse_maps,
 	       ps->nr_mapped,

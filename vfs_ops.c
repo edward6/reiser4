@@ -1955,7 +1955,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	/*
 	  init default readahead params
 	*/
-	sbinfo->ra_params.max = totalram_pages / 4;
+	sbinfo->ra_params.max = num_physpages / 4;
 	sbinfo->ra_params.flags = 0;
 
 	result = parse_options(opt_string, opts, sizeof_array(opts));
