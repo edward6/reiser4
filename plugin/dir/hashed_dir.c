@@ -175,13 +175,16 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 	assert( "nikita-1247", parent != NULL );
 	assert( "nikita-1248", dentry != NULL );
 	assert( "nikita-1123", dentry->d_name.name != NULL );
-	
+
+#if 0
 	/*
 	 * we are trying to do finer grained locking than BKL. Lock inode in
 	 * question and release BKL. Hopefully BKL was only taken once by VFS.
 	 */
+/* FIXME-GREEN - this seems to be done by VFS? */
 	if( reiser4_lock_inode_interruptible( parent ) != 0 )
 		return -EINTR;
+#endif
 
 	if( perm_chk( parent, lookup, parent, dentry ) )
 		return -EPERM;
@@ -237,7 +240,10 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 			result = -EACCES;
 	}
 
+#if 0
+/* FIXME-GREEN done for us by VFS? */
 	reiser4_unlock_inode( parent );
+#endif
 	return result;
 }
 
