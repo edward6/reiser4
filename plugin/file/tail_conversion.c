@@ -190,8 +190,11 @@ static void drop_pages (struct page ** pages, unsigned nr_pages)
 	unsigned i;
 
 	for (i = 0; i < nr_pages; i ++) {
+		if (!pages [i])
+			continue;
 		unlock_page (pages [i]);
 		page_cache_release (pages [i]);
+		pages [i] = NULL;
 	}
 }
 
@@ -239,38 +242,6 @@ static int replace (struct inode * inode, struct page ** pages, unsigned nr_page
 
 #define TAIL2EXTENT_PAGE_NUM 3  /* number of pages to fill before cutting tail
 				 * items */
-#if 0
-/* Audited by: green(2002.06.15) */
-static int all_pages_are_full (unsigned nr_pages, unsigned page_off)
-{
-	/* max number of pages is used and last one is full */
-	return (nr_pages == TAIL2EXTENT_PAGE_NUM &&
-		page_off == PAGE_CACHE_SIZE);
-}
-
-
-/* part of tail2extent. */
-/* Audited by: green(2002.06.15) */
-static int file_is_over (struct inode * inode, reiser4_key * key,
-			 coord_t * coord)
-{
-	reiser4_key coord_key;
-
-	assert ("vs-567", item_id_by_coord (coord) == TAIL_ID);
-	assert ("vs-566", inode->i_size >= (loff_t)get_key_offset (key));
-	item_key_by_coord (coord, &coord_key);
-	assert ("vs-601", keygt (key, &coord_key));
-	set_key_offset (&coord_key,
-			get_key_offset (&coord_key) +
-			item_length_by_coord (coord));
-	assert ("vs-568", keyle (key, &coord_key));
-
-	/*
-	 * FIXME-VS: do we need to try harder?
-	 */
-	return (inode->i_size == (loff_t)get_key_offset (key));
-}
-#endif
 
 int tail2extent (struct inode * inode)
 {
@@ -283,7 +254,6 @@ int tail2extent (struct inode * inode)
 			      * copied to page */
 		copied;      /* number of bytes of item copied already */
 	struct page * pages [TAIL2EXTENT_PAGE_NUM];
-	unsigned nr_pages;        /* number of pages in the above array */
 	int done;            /* set to 1 when all file is read */
 	char * item;
 	int i;
@@ -307,8 +277,6 @@ int tail2extent (struct inode * inode)
 	/* get key of first byte of a file */
 	unix_file_key_by_inode (inode, 0ull, &key);
 
-	memset (pages, 0, sizeof (pages));
-	nr_pages = 0;
 	page_off = 0;
 	item = 0;
 	copied = 0;
@@ -316,7 +284,6 @@ int tail2extent (struct inode * inode)
 	done = 0;
 	while (!done) {
 		memset (pages, 0, sizeof (pages));
-		nr_pages = 0;
 		for (i = 0; i < sizeof_array (pages) && !done; i ++) {
 			assert ("vs-598",
 				(get_key_offset (&key) & ~PAGE_CACHE_MASK) == 0);
@@ -324,7 +291,6 @@ int tail2extent (struct inode * inode)
 						     (unsigned long)(get_key_offset (&key) >>
 								     PAGE_CACHE_SHIFT));
 			if (!pages [i]) {
-				drop_pages (pages, i);
 				result = -ENOMEM;
 				goto error;
 			}
@@ -341,12 +307,12 @@ int tail2extent (struct inode * inode)
 				result = find_next_item (0, &key, &coord, &lh,
 							 ZNODE_READ_LOCK, CBK_UNIQUE);
 				if (result != CBK_COORD_FOUND) {
-					drop_pages (pages, nr_pages);
 					if (result == CBK_COORD_NOTFOUND &&
 					    get_key_offset (&key) == 0)
 						/* conversion can be called for
 						 * empty file */
 						result = 0;
+					done_lh (&lh);
 					goto error;
 				}
 				if (coord.between == AFTER_UNIT) {
@@ -366,7 +332,7 @@ int tail2extent (struct inode * inode)
 				result = zload (coord.node);
 				if (result) {
 					done_lh (&lh);
-					drop_pages (pages, nr_pages);
+					goto error;
 				}
 				assert ("vs-562", unix_file_owns_item (inode, &coord));
 				assert ("vs-856", coord.between == AT_UNIT);
@@ -386,7 +352,6 @@ int tail2extent (struct inode * inode)
 						result = -EIO;
 					zrelse (coord.node);
 					done_lh (&lh);
-					drop_pages (pages, nr_pages);
 					goto error;
 				}
 				item = item_body_by_coord (&coord) + coord.unit_pos;
@@ -395,7 +360,7 @@ int tail2extent (struct inode * inode)
 				count = item_length_by_coord (&coord) - coord.unit_pos;
 				/* limit length of copy to end of page */
 				if (count > PAGE_CACHE_SIZE - page_off)
-				count = PAGE_CACHE_SIZE - page_off;
+					count = PAGE_CACHE_SIZE - page_off;
 			
 				/* kmap/kunmap are necessary for pages which
 				 * are not addressable by direct kernel virtual
@@ -420,7 +385,6 @@ int tail2extent (struct inode * inode)
 					memset (kmap (pages [i]) + page_off, 0, PAGE_CACHE_SIZE - page_off);
 					kunmap (pages [i]);
 					done = 1;
-					/*break;*/
 				}
 			} /* while */
 		} /* for */
@@ -428,7 +392,6 @@ int tail2extent (struct inode * inode)
 		result = replace (inode, pages, i, 
 				  (int)((i - 1) * PAGE_CACHE_SIZE +
 					page_off));
-		drop_pages (pages, i);
 		if (result)
 			goto error;
 	}
@@ -437,6 +400,7 @@ int tail2extent (struct inode * inode)
 	inode_clr_flag (inode, REISER4_HAS_TAIL);
 
  ok:
+	drop_pages (pages, sizeof_array (pages));
 	drop_exclusive_access (inode);
 	get_nonexclusive_access (inode);
 	
@@ -449,6 +413,7 @@ int tail2extent (struct inode * inode)
 	return 0;
 
  error:
+	drop_pages (pages, sizeof_array (pages));
 	drop_exclusive_access (inode);
 	get_nonexclusive_access (inode);
 	return result;
