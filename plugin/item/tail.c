@@ -12,22 +12,16 @@
 
 /* plugin->u.item.b.max_key_inside */
 reiser4_key *
-max_key_inside_tail(const coord_t * coord, reiser4_key * key, void *p)
+max_key_inside_tail(const coord_t *coord, reiser4_key *key)
 {
 	item_key_by_coord(coord, key);
-	if (p) {
-		struct coord_item_info *info;
-
-		info = (struct coord_item_info *)p;
-		info->key = *key;
-	}
 	set_key_offset(key, get_key_offset(max_key()));
 	return key;
 }
 
 /* plugin->u.item.b.can_contain_key */
 int
-can_contain_key_tail(const coord_t * coord, const reiser4_key * key, const reiser4_item_data * data)
+can_contain_key_tail(const coord_t *coord, const reiser4_key *key, const reiser4_item_data *data)
 {
 	reiser4_key item_key;
 
@@ -45,7 +39,7 @@ can_contain_key_tail(const coord_t * coord, const reiser4_key * key, const reise
    first item is of tail type */
 /* Audited by: green(2002.06.14) */
 int
-mergeable_tail(const coord_t * p1, const coord_t * p2)
+mergeable_tail(const coord_t *p1, const coord_t *p2)
 {
 	reiser4_key key1, key2;
 
@@ -75,15 +69,15 @@ mergeable_tail(const coord_t * p1, const coord_t * p2)
    plugin->u.item.b.check */
 
 /* plugin->u.item.b.nr_units */
-unsigned
-nr_units_tail(const coord_t * coord)
+pos_in_item_t
+nr_units_tail(const coord_t *coord)
 {
 	return item_length_by_coord(coord);
 }
 
 /* plugin->u.item.b.lookup */
 lookup_result
-lookup_tail(const reiser4_key * key, lookup_bias bias, coord_t * coord)
+lookup_tail(const reiser4_key *key, lookup_bias bias, coord_t *coord)
 {
 	reiser4_key item_key;
 	__u64 lookuped, offset;
@@ -96,7 +90,7 @@ lookup_tail(const reiser4_key * key, lookup_bias bias, coord_t * coord)
 	/* key we are looking for must be greater than key of item @coord */
 	assert("vs-416", keygt(key, &item_key));
 
-	if (keygt(key, max_key_inside_tail(coord, &item_key, 0))) {
+	if (keygt(key, max_key_inside_tail(coord, &item_key))) {
 		/* @key is key of another file */
 		coord->unit_pos = nr_units - 1;
 		coord->between = AFTER_UNIT;
@@ -121,7 +115,7 @@ lookup_tail(const reiser4_key * key, lookup_bias bias, coord_t * coord)
 
 /* plugin->u.item.b.paste */
 int
-paste_tail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info UNUSED_ARG)
+paste_tail(coord_t *coord, reiser4_item_data *data, carry_plugin_info *info UNUSED_ARG)
 {
 	unsigned old_item_length;
 	char *item;
@@ -167,8 +161,8 @@ paste_tail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info U
    number of units is returned via return value, number of bytes via @size. For
    tail items they coincide */
 int
-can_shift_tail(unsigned free_space, coord_t * source UNUSED_ARG,
-	       znode * target UNUSED_ARG, shift_direction direction UNUSED_ARG, unsigned *size, unsigned want)
+can_shift_tail(unsigned free_space, coord_t *source UNUSED_ARG,
+	       znode *target UNUSED_ARG, shift_direction direction UNUSED_ARG, unsigned *size, unsigned want)
 {
 	/* make sure that that we do not want to shift more than we have */
 	assert("vs-364", want > 0 && want <= (unsigned) item_length_by_coord(source));
@@ -179,7 +173,7 @@ can_shift_tail(unsigned free_space, coord_t * source UNUSED_ARG,
 
 /* plugin->u.item.b.copy_units */
 void
-copy_units_tail(coord_t * target, coord_t * source,
+copy_units_tail(coord_t *target, coord_t *source,
 		unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space UNUSED_ARG)
 {
 	/* make sure that item @target is expanded already */
@@ -217,9 +211,9 @@ copy_units_tail(coord_t * target, coord_t * source,
 /* plugin->u.item.b.cut_units
    plugin->u.item.b.kill_units */
 int
-cut_units_tail(coord_t * coord, unsigned *from, unsigned *to,
-	       const reiser4_key * from_key UNUSED_ARG,
-	       const reiser4_key * to_key UNUSED_ARG, reiser4_key * smallest_removed,
+cut_units_tail(coord_t *coord, unsigned *from, unsigned *to,
+	       const reiser4_key *from_key UNUSED_ARG,
+	       const reiser4_key *to_key UNUSED_ARG, reiser4_key *smallest_removed,
 	       void *p UNUSED_ARG)
 {
 	reiser4_key key;
@@ -251,7 +245,7 @@ cut_units_tail(coord_t * coord, unsigned *from, unsigned *to,
 
 /* plugin->u.item.b.unit_key */
 reiser4_key *
-unit_key_tail(const coord_t * coord, reiser4_key * key)
+unit_key_tail(const coord_t *coord, reiser4_key *key)
 {
 	assert("vs-375", coord_is_existing_unit(coord));
 
@@ -266,7 +260,7 @@ unit_key_tail(const coord_t * coord, reiser4_key * key)
 
 /* overwrite tail item or its part by use data */
 static int
-overwrite_tail(coord_t * coord, flow_t * f)
+overwrite_tail(coord_t *coord, flow_t *f)
 {
 	unsigned count;
 
@@ -291,17 +285,18 @@ overwrite_tail(coord_t * coord, flow_t * f)
 
 /* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
    therefore we have to update stat data if necessary */
-static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t *f, coord_t *coord, lock_handle *lh,
-				    hint_t *hint, coord_state_t coord_state)
+static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
+				    hint_t *hint)
 {
 	int result;
 	loff_t new_size;
 	
-	if (hint && coord_state == COORD_RIGHT_STATE)
-		set_hint(hint, &f->key, coord, coord_state);
+	if (hint->coord.valid)
+		set_hint(hint, &f->key);
 	else
 		unset_hint(hint);
-	longterm_unlock_znode(lh);
+	longterm_unlock_znode(hint->coord.lh);
+
 	new_size = get_key_offset(&f->key);
 	result = update_inode_and_sd_if_necessary(mapping->host, new_size, (new_size > mapping->host->i_size) ? 1 : 0, 1/* update stat data */);
 	if (result)
@@ -315,9 +310,7 @@ static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t 
 	spin_unlock(&inode_lock);
 
 	balance_dirty_pages_ratelimited(mapping);
-	result = hint_validate(hint, &f->key, lh, 0/* do not check key */);
-	assert("vs-1284", ergo(result == 0, coords_equal(&hint->coord, coord)));
-	return result;
+	return hint_validate(hint, &f->key, 0/* do not check key */, ZNODE_WRITE_LOCK);
 }
 
 /* calculate number of blocks which can be dirtied/added when flow is inserted and stat data gets updated and grab them.
@@ -341,29 +334,17 @@ overwrite_reserve(reiser4_tree *tree)
 /* plugin->u.item.s.file.write
    access to data stored in tails goes directly through formatted nodes */
 int
-write_tail(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, hint_t *hint, int grabbed)
+write_tail(struct inode *inode, flow_t *f, hint_t *hint, int grabbed, write_mode_t mode)
 {
 	int result;
-	write_mode todo;
-	znode *loaded;
-	coord_state_t coord_state;
+	coord_t *coord;
 
+	assert("vs-1338", hint->coord.valid == 1);
+
+	coord = &hint->coord.base_coord;
 	result = 0;
-	while (f->length && !result) {
-		/* zload is necessary because balancing may return coord->node moved to another possibly not loaded
-		   node. Store what we loaded so that we will be able to zrelse it */
-		result = zload(coord->node);
-		if (result)
-			return result;
-		loaded = coord->node;
-
-		todo = how_to_write(coord, &f->key);
-		if (unlikely(todo < 0)) {
-			zrelse(loaded);
-			return todo;
-		}
-
-		switch (todo) {
+	while (f->length && hint->coord.valid == 1) {
+		switch (mode) {
 		case FIRST_ITEM:
 		case APPEND_ITEM:
 			/* check quota before appending data */
@@ -373,23 +354,20 @@ write_tail(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, hin
 			}
 
 			if (!grabbed)
-				result = insert_flow_reserve(znode_get_tree(loaded));
+				result = insert_flow_reserve(znode_get_tree(coord->node));
 			if (!result)
-				result = insert_flow(coord, lh, f);
+				result = insert_flow(coord, hint->coord.lh, f);
 			if (f->length)
 				DQUOT_FREE_SPACE_NODIRTY(inode, f->length);
 			break;
 
 		case OVERWRITE_ITEM:
 			if (!grabbed)
-				result = overwrite_reserve(znode_get_tree(loaded));
+				result = overwrite_reserve(znode_get_tree(coord->node));
 			if (!result)
 				result = overwrite_tail(coord, f);
 			break;
 
-		case RESEARCH:
-			result = RETERR(-EAGAIN);
-			break;
 		default:
 			impossible("vs-1031", "does this ever happen?");
 			result = RETERR(-EIO);
@@ -398,28 +376,16 @@ write_tail(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, hin
 		}
 
 		if (result) {
-			zrelse(loaded);
 			if (!grabbed)
 				all_grabbed2free("tail_write: on error");
 			break;
 		}
-
-		/* check whether coord is set properly. If coord is set such that it can not be later sealed - set coord->node
-		   to 0	*/
-		if (coord->node == loaded && coord_is_existing_item(coord) && item_is_tail(coord)) {
-			if (key_in_item_tail(coord, &f->key, 0)) { 
-				/* coord is set properly, it will be sealed before calling balance_dirty_pages */;
-				coord_state = COORD_RIGHT_STATE;
-			} else {
-				coord_state = COORD_WRONG_STATE;
-			}
-		} else {
-			coord_state = COORD_UNKNOWN_STATE;
-		}
-		zrelse(loaded);
 		
+		/* FIXME: do not rely on a coord yet */
+		hint->coord.valid = 0;
+
 		/* throttle the writer */
-		result = tail_balance_dirty_pages(inode->i_mapping, f, coord, lh, hint, coord_state);
+		result = tail_balance_dirty_pages(inode->i_mapping, f, hint);
 		if (!grabbed)
 			all_grabbed2free("tail_write");
 		if (result) {
@@ -433,10 +399,13 @@ write_tail(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, hin
 
 /* plugin->u.item.s.file.read */
 int
-read_tail(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
+read_tail(struct file *file UNUSED_ARG, flow_t *f, uf_coord_t *uf_coord)
 {
 	unsigned count;
 	int item_length;
+	coord_t *coord;
+
+	coord = &uf_coord->base_coord;
 
 	assert("vs-571", f->user == 1);
 	assert("vs-571", f->data);
@@ -445,8 +414,7 @@ read_tail(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
 	assert("vs-1118", znode_is_loaded(coord->node));
 
 	assert("nikita-3037", schedulable());
-	if (!key_in_item_tail(coord, &f->key, 0))
-		return RETERR(-EAGAIN);
+	assert("", key_in_item_tail(uf_coord, &f->key));
 
 	/* calculate number of bytes to read off the item */
 	item_length = item_length_by_coord(coord);
@@ -476,62 +444,37 @@ read_tail(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
    key of first byte which is the next to last byte by addressed by this item
 */
 reiser4_key *
-append_key_tail(const coord_t * coord, reiser4_key * key, void *p)
+append_key_tail(const coord_t *coord, reiser4_key *key)
 {
-	if (p) {
-		struct coord_item_info *pinfo = p;
-
-		/* item key must be already set  */
-		assert("vs-1207", keyeq(&pinfo->key, item_key_by_coord(coord, key)));
-
-		*key = pinfo->key;
-		pinfo->nr_units = item_length_by_coord(coord);
-		set_key_offset(key, get_key_offset(key) + pinfo->nr_units);
-	} else {
-		item_key_by_coord(coord, key);
-		set_key_offset(key, get_key_offset(key) + item_length_by_coord(coord));
-	}
+	item_key_by_coord(coord, key);
+	set_key_offset(key, get_key_offset(key) + item_length_by_coord(coord));
 	return key;
+}
+
+/* plugin->u.item.s.file.init_coord_extension */
+void
+init_coord_extension_tail(uf_coord_t *uf_coord, loff_t lookuped)
+{
+	uf_coord->valid = 1;	
 }
 
 /*
   plugin->u.item.s.file.key_in_item
   return true @coord is set inside of item to key @key
 */
+#if REISER4_DEBUG
 int
-key_in_item_tail(coord_t * coord, const reiser4_key * key, void *p)
+key_in_item_tail(const uf_coord_t *uf_coord, const reiser4_key *key)
 {
-	struct coord_item_info info, *pinfo;
-	reiser4_key append_key;
+	reiser4_key item_key;
 
-	assert("vs-778", coord_is_existing_item(coord));
-
-	if (!p) {
-		pinfo = &info;
-		item_key_by_coord(coord, &pinfo->key);
-	} else
-		pinfo = p;
-
-	if (keyge(key, append_key_tail(coord, &append_key, pinfo))) {
-		/* key >= append key */
-		if (get_key_offset(key) == get_key_offset(&append_key)) {
-			/* key == append key*/
-			coord->unit_pos = pinfo->nr_units - 1;
-			coord->between = AFTER_UNIT;
-			return 1;
-		}
-		/* hole is necessary */
+	if (keygt(key, append_key_tail(&uf_coord->base_coord, &item_key)))
 		return 0;
-	}
-
-	if (keylt(key, &pinfo->key))
-		/* key < min key of item */
+	if (keylt(key, item_key_by_coord(&uf_coord->base_coord, &item_key)))
 		return 0;
-
-	coord->unit_pos = get_key_offset(key) - get_key_offset(&pinfo->key);
-	coord->between = AT_UNIT;
-	return 1;
+	return get_key_offset(key) == get_key_offset(&item_key) + uf_coord->base_coord.unit_pos;
 }
+#endif
 
 /*
    Local variables:
