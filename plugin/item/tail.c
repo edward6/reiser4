@@ -335,16 +335,130 @@ static tail_write_todo what_todo (struct inode * inode, tree_coord * coord,
 }
 
 
-static int create_hole (tree_coord * coord,
-			reiser4_lock_handle * lh, flow * f)
+/*
+ * prepare item data which will be passed down to either insert_by_coord or to
+ * resize_item
+ */
+static void make_item_data (tree_coord * coord, reiser4_item_data * item,
+			    char * data, int desired_len)
+{
+	item->data = data;
+	item->len = node_plugin_by_node (coord->node)->max_item_size ();
+	if (desired_len < item->len)
+		item->len = desired_len;
+	item->arg = 0;
+	item->iplug = item_plugin_by_id (BODY_ITEM_ID);
+}
+
+
+/*
+ * insert tail item consisting of zeros only
+ */
+static int create_hole (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
+{
+	reiser4_key hole_key;
+	reiser4_item_data item;
+
+
+	hole_key = f->key;
+	set_key_offset (&hole_key, 0ull);
+
+	make_item_data (coord, &item, 0, get_key_offset (&f->key));
+	return insert_by_coord (coord, &item, &hole_key);
+}
+
+
+/*
+ * append @coord item with zeros
+ */
+static int append_hole (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
+{
+	reiser4_key hole_key;
+	reiser4_item_data item;
+
+
+	item_key_by_coord (coord, &hole_key);
+	set_key_offset (&hole_key,
+			get_key_offset (&hole_key) + coord->unit_pos + 1);
+
+	make_item_data (coord, &item, 0, (get_key_offset (&f->key) -
+					  get_key_offset (&hole_key)));
+	return resize_item (coord, &item, &hole_key);
+}
+
+
+/*
+ * @count bytes of flow @f got written, update correspondingly f->length,
+ * f->data and f->key
+ */
+static void move_flow_forward (flow * f, int count)
+{
+	f->data += count;
+	f->length -= count;
+	set_key_offset (&f->key, get_key_offset (&f->key) + count);
+}
+
+
+/*
+ * insert first item of file into tree
+ */
+static int insert_first_item (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
 {
 	reiser4_item_data item;
+	int result;
+
 	
-	item.data = 0;
-	item.length = ;
-	item.arg = 0;
-	item.iplug = ;
-	return insert_by_coord (coord, &item, key);
+	assert ("vs-383", get_key_offset (&f->key) == 0);
+
+	prepare_hole_adding (coord, &item, f->data, f->length);
+	result = insert_by_coord (coord, &item, &f->key);
+	if (result)
+		return result;
+	
+	move_flow_forward (f, item.length);
+	return 0;
+}
+
+
+/*
+ * append item @coord with flow @f's data
+ */
+static int append_tail (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
+{
+	reiser4_item_data item;
+	int result;
+
+
+	prepare_item (coord, &item, f->data, f->length);
+	result = resize_item (coord, &item, &f->key);
+	if (result)
+		return result;
+
+	move_flow_forward (f, item.length);
+	return 0;
+}
+
+
+/*
+ *
+ */
+static int overwrite_tail (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
+{
+	int count;
+
+
+	count = item_length_by_coord (coord) - coord->unit_pos;
+	if (count > f->length)
+		count = f->length;
+
+	/*
+	 * FIXME-ME: mark_znode_dirty ?
+	 */
+	memcpy ((char *)item_body_by_coord (coord) + coord->unit_pos, f->data,
+		count);
+
+	move_flow_forward (f, count);
+	return 0;
 }
 
 
@@ -356,94 +470,36 @@ int tail_write (struct inode * inode, tree_coord * coord,
 		reiser4_lock_handle * lh, flow * f)
 {
 	int result;
-	struct page * page;
-	unsigned long long file_off; /* offset within a file we write to */
-	unsigned long long blocksize;
-	reiser4_tree * tree;
-	int research = 0;
-	char * kaddr;
-	unsigned count;
 
-
-	switch (what_todo (inode, coord, &f->key)) {
-	case CREATE_HOLE:
-		result = create_hole (coord, lh, );
-		break;
-	case APPEND_HOLE:
-		result = append_hole (coord, lh, );
-		break;
-	case FIRST_ITEM:
-		result = insert_first_item (coord, lh, );
-		break;
-	case OVERWRITE:
-		result = overwrite_tail (coord, lh, f);
-		break;
-	case APPEND:
-		result = append_tail (coord, lh, f);
-		break;
-	case RESEARCH:
-		result = -EAGAIN;
-		break;
-	case CANT_CONTINUE:
-	default:
-		result = -EIO;
-		break;
-	}
-	return result;
-}
-	/*
-	 *
-	 */
-
-
-	tree = tree_by_inode (inode);
-
-	blocksize = reiser4_get_current_sb ()->s_blocksize;
-	file_off = get_key_offset (&f->key);
 
 	while (f->length) {
-		page = grab_cache_page (inode->i_mapping,
-					(unsigned long)(file_off >> PAGE_SHIFT));
-		if (IS_ERR (page))
-			return PTR_ERR (page);
-
-		kaddr = kmap (page);
-		count = f->length;
-		result = prepare_write (tree, coord, lh, page, &f->key, &count);
-		if (result && result != -EAGAIN) {
-			/* error occurred */
-			kunmap (page);
-			UnlockPage (page);
-			page_cache_release (page);
-			return result;
+		switch (what_todo (inode, coord, &f->key)) {
+		case CREATE_HOLE:
+			result = create_hole (coord, lh, f);
+			break;
+		case APPEND_HOLE:
+			result = append_hole (coord, lh, f);
+			break;
+		case FIRST_ITEM:
+			result = insert_first_item (coord, lh, f);
+			break;
+		case OVERWRITE:
+			result = overwrite_tail (coord, lh, f);
+			break;
+		case APPEND:
+			result = append_tail (coord, lh, f);
+			break;
+		case RESEARCH:
+			result = -EAGAIN;
+			break;
+		case CANT_CONTINUE:
+		default:
+			result = -EIO;
+			break;
 		}
-
-		if (result == -EAGAIN)
-			/* not entire page is prepared for writing into it */
-			research = 1;
-
-		result = __copy_from_user (kaddr + (file_off & ~PAGE_MASK),
-					   f->data, count);
-		flush_dcache_page (page);
-
-		commit_write (page, file_off, count);
-
-		kunmap (page);
-		UnlockPage (page);
-		page_cache_release (page);
-		if (result)
-			return result;
-
-		file_off += count;
-		f->data += count;
-		f->length -= count;
-		set_key_offset (&f->key, file_off);
-
-		if (research)
-			return -EAGAIN;
 	}
 
-	return 0;
+	return result;
 }
 
 
