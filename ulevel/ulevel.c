@@ -3929,7 +3929,7 @@ static int bm_test_read_node (const reiser4_block_nr *addr, char **data, size_t 
 	}
 
 	/* it is a hack for finding what block we read (bitmap block or not) */
-	bmap_nr = *addr / super->s_blocksize;
+	bmap_nr = *addr / (super->s_blocksize * 8);
 	get_bitmap_blocknr (super,  bmap_nr, &bmap_block_addr);
 
 	if (disk_addr_eq (addr, &bmap_block_addr)) {
