@@ -1143,7 +1143,9 @@ void __reiser4_wake_up (lock_stack *owner)
  */
 int go_to_sleep (lock_stack *owner)
 {
-	return down_interruptible(&owner->sema);
+	/* return down_interruptible(&owner->sema); */
+	down(&owner->sema);
+	return 0;
 }
 
 int lock_stack_isclean (lock_stack *owner)
