@@ -12,6 +12,11 @@
 /** fictive block number never actually used */
 extern const reiser4_disk_addr FAKE_TREE_ADDR;
 
+/*
+ * define typed list for cbk_cache lru
+ */
+TS_LIST_DECLARE( cbk_cache );
+
 /**
  * &cbk_cache_slot - entry in a coord cache.
  *
@@ -21,27 +26,25 @@ extern const reiser4_disk_addr FAKE_TREE_ADDR;
  */
 typedef struct cbk_cache_slot {
 	/** cached node */
-	znode            *node;
+	znode              *node;
 	/** linkage to the next cbk cache slot in a LRU order */
-	/* FIXME_JMACD: Why not use the type safe list here? */
-	struct list_head  lru_chain;
+	cbk_cache_list_link lru;
 } cbk_cache_slot;
 
 /**
  * &cbk_cache - coord cache. This is part of reiser4_tree.
  *
- * cbk_cache is supposed to speed up tree lookups by caching results of
- * recent successful lookups (we don't cache negative results as dentry
- * cache does). Cache consists of relatively small number of entries
- * kept in a LRU order. Each entry (&cbk_cache_slot) containts a pointer
- * to znode and records range of keys that was found in this znode at
- * the time entry was inserted into cache.  Before embarking into real
- * tree traversal we scan cbk_cache slot by slot and for each slot check
- * whether key we are looking for is between minimal and maximal keys
- * for node pointed to by this slot. If no match is found, real tree
- * traversal is performed and if result is successful, appropriate entry
- * is inserted into cache, possibly pulling least recently used entry
- * out of it.
+ * cbk_cache is supposed to speed up tree lookups by caching results of recent
+ * successful lookups (we don't cache negative results as dentry cache
+ * does). Cache consists of relatively small number of entries kept in a LRU
+ * order. Each entry (&cbk_cache_slot) containts a pointer to znode, from
+ * which we can obtain a range of keys that covered by this znode. Before
+ * embarking into real tree traversal we scan cbk_cache slot by slot and for
+ * each slot check whether key we are looking for is between minimal and
+ * maximal keys for node pointed to by this slot. If no match is found, real
+ * tree traversal is performed and if result is successful, appropriate entry
+ * is inserted into cache, possibly pulling least recently used entry out of
+ * it.
  *
  * Tree spin lock is used to protect coord cache. If contention for this
  * lock proves to be too high, more finer grained locking can be added.
@@ -49,9 +52,11 @@ typedef struct cbk_cache_slot {
  */
 typedef struct cbk_cache {
 	/** head of LRU list of cache slots */
-	struct list_head lru;
+	cbk_cache_list_head lru;
 	/** actual array of slots */
-	cbk_cache_slot   slot[ CBK_CACHE_SLOTS ];
+	cbk_cache_slot      slot[ CBK_CACHE_SLOTS ];
+	/** serializator */
+	spinlock_t          guard;
 } cbk_cache;
 
 /**
@@ -320,7 +325,7 @@ extern void print_coord_content( const char *prefix, tree_coord *p );
 extern void print_address( const char *prefix, const reiser4_disk_addr *block );
 extern const char *bias_name( lookup_bias bias );
 extern int cbk_cache_init( cbk_cache *cache );
-extern void cbk_cache_invalidate( znode *node );
+extern void cbk_cache_invalidate( const znode *node );
 extern void cbk_cache_add( znode *node );
 
 #if REISER4_DEBUG

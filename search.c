@@ -145,25 +145,7 @@ reiser4_key *unit_key_by_coord( const tree_coord *coord, reiser4_key *key )
 
 /* tree lookup cache */
 
-/** move cbk-cache slot to the head of LRU list */
-static void cbk_cache_slot_hit( cbk_cache *cache, cbk_cache_slot *slot )
-{
-	assert( "nikita-341", cache != NULL );
-	assert( "nikita-342", slot != NULL );
-
-	list_del( &slot -> lru_chain );
-	list_add( &slot -> lru_chain, &cache -> lru );
-}
-
-/**
- * helper function for coord cache: cast LRU linkage into coord cache slot.
- *
- * FIXME-NIKITA rewrite coord cache to use tslist
- */
-static cbk_cache_slot *slot_by_entry( struct list_head *scan )
-{
-	return list_entry( scan, cbk_cache_slot, lru_chain );
-}
+TS_LIST_DEFINE( cbk_cache, cbk_cache_slot, lru );
 
 /**
  * Initialise coord cache slot
@@ -172,7 +154,7 @@ static void cbk_cache_init_slot( cbk_cache_slot *slot )
 {
 	assert( "nikita-345", slot != NULL );
 
-	INIT_LIST_HEAD( &slot -> lru_chain );
+	cbk_cache_list_clean( slot );
 	slot -> node = NULL;
 }
 
@@ -185,56 +167,74 @@ int cbk_cache_init( cbk_cache *cache )
 
 	assert( "nikita-346", cache != NULL );
 
-	INIT_LIST_HEAD( &cache -> lru );
+	cbk_cache_list_init( &cache -> lru );
 	for( i = 0 ; i < CBK_CACHE_SLOTS ; ++ i ) {
 		cbk_cache_init_slot( &cache -> slot[ i ] );
-		list_add_tail( &cache -> slot[ i ].lru_chain, &cache -> lru );
+		cbk_cache_list_push_back( &cache -> lru, cache -> slot + i );
 	}
+	spin_lock_init( &cache -> guard );
 	return 0;
 }
+
+static void cbk_cache_lock( cbk_cache *cache )
+{
+	assert( "nikita-1800", cache != NULL );
+	spin_lock( &cache -> guard );
+}
+
+static void cbk_cache_unlock( cbk_cache *cache )
+{
+	assert( "nikita-1801", cache != NULL );
+	spin_unlock( &cache -> guard );
+}
+
+/**
+ * macro to iterate over all cbk cache slots
+ */
+#define for_all_slots( cache, slot )					\
+	for( ( slot ) = cbk_cache_list_front( &( cache ) -> lru ) ;	\
+	     !cbk_cache_list_end( &( cache ) -> lru, ( slot ) ) ; 	\
+	     ( slot ) = cbk_cache_list_next( slot ) )
 
 /**
  * Remove references, if any, to @node from coord cache
  */
-void cbk_cache_invalidate( znode *node )
+void cbk_cache_invalidate( const znode *node )
 {
-	struct list_head *scan;
-	cbk_cache        *cache;
+	cbk_cache_slot *slot;
+	cbk_cache      *cache;
 
 	assert( "nikita-350", node != NULL );
 	assert( "nikita-1479", lock_counters() -> spin_locked_tree > 0 );
 
 	cache = current_tree -> cbk_cache;
-	list_for_each( scan, &cache -> lru ) {
-		cbk_cache_slot *slot;
-
-		slot = slot_by_entry( scan );
+	cbk_cache_lock( cache );
+	for_all_slots( cache, slot ) {
 		if( slot -> node == NULL )
 			break;
 		if( slot -> node == node ) {
-			list_del( &slot -> lru_chain );
-			list_add_tail( &slot -> lru_chain, &cache -> lru );
+			cbk_cache_list_remove( slot );
+			cbk_cache_list_push_back( &cache -> lru, slot );
 			slot -> node = NULL;
 			break;
 		}
 	}
+	cbk_cache_unlock( cache );
 }
 
 /** add to the cbk-cache in the "tree" information about "node". This
     can actually be update of existing slot in a cache. */
 void cbk_cache_add( znode *node )
 {
-	struct list_head *scan;
 	cbk_cache        *cache;
 	cbk_cache_slot   *slot;
 
 	assert( "nikita-352", node != NULL );
 
 	cache = current_tree -> cbk_cache;
-	spin_lock_tree( current_tree );
+	cbk_cache_lock( cache );
 	/* find slot to update/add */
-	list_for_each( scan, &cache -> lru ) {
-		slot = slot_by_entry( scan );
+	for_all_slots( cache, slot ) {
 		/* oops, this node is already in a cache */
 		if( slot -> node == node )
 			break;
@@ -244,12 +244,12 @@ void cbk_cache_add( znode *node )
 		}
 	}
 	/* if all slots are used, reuse least recently used one */
-	if( ( scan == &cache -> lru ) || ( slot == NULL ) )
-		scan = cache -> lru.prev;
-	slot = slot_by_entry( scan );
+	if( ( slot == NULL ) || cbk_cache_list_end( &cache -> lru, slot ) )
+		slot = cbk_cache_list_back( &cache -> lru );
 	slot -> node = node;
-	cbk_cache_slot_hit( cache, slot );
-	spin_unlock_tree( current_tree );
+	cbk_cache_list_remove( slot );
+	cbk_cache_list_push_back( &cache -> lru, slot );
+	cbk_cache_unlock( cache );
 }
 
 #if REISER4_DEBUG
@@ -272,11 +272,11 @@ void print_cbk_cache( const char *prefix, cbk_cache  *cache )
 	if( cache == NULL )
 		info( "%s: null cache\n", prefix );
 	else {
-		struct list_head *scan;
+		cbk_cache_slot *scan;
 
 		info( "%s: cache: %p\n", prefix, cache );
-		list_for_each( scan, &cache -> lru )
-			print_cbk_slot( "slot", slot_by_entry( scan ) );
+		for_all_slots( cache, scan )
+			print_cbk_slot( "slot", scan );
 	}
 }
 #endif
@@ -682,10 +682,17 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h)
 		 * 2. or, node itself is going to be removed from the
 		 * tree. Release lock and restart.
 		 */
-		if( REISER4_STATS )
-			znode_contains_key( active, h -> key ) ? 
-				reiser4_stat_tree_add( cbk_met_ghost ) : 
+		if( 1 || REISER4_STATS ) {
+			if( znode_contains_key( active, h -> key ) ) {
+				print_znode( "ghost", active );
+				print_key( "ghost key", h -> key );
+				reiser4_stat_tree_add( cbk_met_ghost );
+			} else {
+				print_znode( "moved", active );
+				print_key( "moved key", h -> key );
 				reiser4_stat_tree_add( cbk_key_moved );
+			}
+		}
 		h -> result = -EAGAIN;
 	}
 	spin_unlock_dk( current_tree );
@@ -1046,6 +1053,122 @@ static int key_is_delimiting( znode *node, const reiser4_key *key )
 	return result;
 }
 
+static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
+{
+	level_lookup_result llr;
+	znode              *node;
+	cbk_cache_slot     *slot;
+	cbk_cache          *cache;
+	tree_level          level;
+	int                 result;
+
+	assert( "nikita-1317", h != NULL );
+	assert( "nikita-1315", h -> tree != NULL );
+	assert( "nikita-1316", h -> key != NULL );
+
+	cache = h -> tree -> cbk_cache;
+
+	/*
+	 * keep cache spin locked during this test, to avoid race with
+	 * cbk_cache_invalidate()
+	 */
+	cbk_cache_lock( cache );
+	for_all_slots( cache, slot ) {
+		int is_key_inside;
+
+		node = slot -> node;
+		if( node != NULL )
+			zref( node );
+		if( node == NULL )
+			break;
+
+		level = znode_get_level( node );
+		if( ( h -> slevel > level ) || ( level > h -> llevel ) )
+			zput( node );
+		else {
+			spin_lock_dk( current_tree );
+			/* min_key <= key <= max_key */
+			is_key_inside = znode_contains_key( node, h -> key );
+			spin_unlock_dk( current_tree );
+			if( ! is_key_inside )
+				zput( node );
+			else
+				break;
+		}
+	}
+	cbk_cache_unlock( cache );
+	if( ( node == NULL ) || cbk_cache_list_end( &cache -> lru, slot ) ) {
+		h -> result = CBK_COORD_NOTFOUND;
+		return -ENOENT;
+	}
+
+	result = reiser4_lock_znode( h -> active_lh, node, 
+				     cbk_lock_mode( level, h ), 
+				     ZNODE_LOCK_LOPRI );
+	zput( node );
+	if( result != 0 )
+		return result;
+	result = zload( node );
+	if( result != 0 )
+		return result;
+	/*
+	 * recheck keys
+	 */
+	spin_lock_dk( current_tree );
+	result = znode_contains_key( node, h -> key ) && 
+		! ZF_ISSET( node, ZNODE_HEARD_BANSHEE );
+	spin_unlock_dk( current_tree );
+	if( result ) {
+		/*
+		 * do lookup inside node
+		 */
+		h -> level = level;
+		llr = cbk_node_lookup( h );
+		
+		if( llr != LLR_DONE )
+			/*
+			 * restart of continue on the next level
+			 */
+			result = -ENOENT;
+		else if( ( h -> result != CBK_COORD_NOTFOUND ) &&
+			 ( h -> result != CBK_COORD_FOUND ) )
+			/*
+			 * io or oom
+			 */
+			result = -ENOENT;
+		else if( key_is_delimiting( node, h -> key ) ) {
+			/*
+			 * we are looking for possibly non-unique key
+			 * and it is item is at the edge of @node. May
+			 * be it is in the neighbor.
+			 */
+			reiser4_stat_tree_add( cbk_cache_utmost );
+			result = -ENOENT;
+		} else 
+			/*
+			 * good. Either item found or definitely not found.
+			 */
+			result = 0;
+	} else {
+		/*
+		 * race. While this thread was waiting for the lock, node was
+		 * rebalanced and item we are looking for, shifted out of it
+		 * (if it ever was here).
+		 *
+		 * Continuing scanning is almost hopeless: node key range was
+		 * moved to, is almost certainly at the beginning of the LRU
+		 * list at this time, because it's hot, but restarting
+		 * scanning from the very beginning is complex. Just return,
+		 * so that cbk() will be performed. This is not that
+		 * important, because such races should be rare. Are they?
+		 */
+		reiser4_stat_tree_add( cbk_cache_race );
+		result = -ENOENT; /* -ERAUGHT */
+	}
+	zrelse( node, 1 );
+	return result;
+}
+
 /**
  * look for item with given key in the coord cache
  *
@@ -1062,131 +1185,9 @@ static int key_is_delimiting( znode *node, const reiser4_key *key )
  */
 static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 {
-	struct list_head *scan;
-	cbk_cache        *cache;
-	int               result;
+	int result;
 
-	assert( "nikita-1317", h != NULL );
-	assert( "nikita-1315", h -> tree != NULL );
-	assert( "nikita-1316", h -> key != NULL );
-
-	cache = h -> tree -> cbk_cache;
-
-	result = -ENOENT;
-	list_for_each( scan, &cache -> lru ) {
-		cbk_cache_slot     *slot;
-		znode              *node;
-		level_lookup_result llr;
-		int                 is_key_inside;
-		tree_level          level;
-
-		slot = slot_by_entry( scan );
-		/*
-		 * keep tree spin locked during this test, to avoid race with
-		 * cbk_cache_invalidate()
-		 */
-		spin_lock_tree( h -> tree );
-		node = slot -> node;
-		if( node != NULL )
-			zref( node );
-		spin_unlock_tree( h -> tree );
-		if( node == NULL )
-			break;
-		/*
-		 * List scanning is safe even in the face of concurrent
-		 * modifications, because all entries in the coord cache and
-		 * always in the LRU list.
-		 */
-		level = znode_get_level( node );
-		if( ( h -> slevel > level ) || ( level > h -> llevel ) ) {
-			zput( node );
-			continue;
-		}
-
-		spin_lock_dk( current_tree );
-		/* min_key <= key < max_key */
-		is_key_inside = znode_contains_key( node, h -> key );
-		spin_unlock_dk( current_tree );
-		if( ! is_key_inside ) {
-			zput( node );
-			continue;
-		}
-		result = reiser4_lock_znode( h -> active_lh, node, 
-					     cbk_lock_mode( level, h ),
-					     ZNODE_LOCK_LOPRI );
-		zput( node );
-		if( result != 0 ) {
-			break;
-		}
-		result = zload( node );
-		if( result != 0 ) {
-			break;
-		}
-		/*
-		 * recheck keys
-		 */
-		spin_lock_znode( node );
-		spin_lock_dk( current_tree );
-		result = znode_contains_key( node, h -> key ) && 
-			! ZF_ISSET( node, ZNODE_HEARD_BANSHEE );
-		spin_unlock_dk( current_tree );
-		spin_unlock_znode( node );
-		if( result ) {
-			/*
-			 * do lookup inside node
-			 */
-			h -> level = level;
-			llr = cbk_node_lookup( h );
-				
-			if( llr != LLR_DONE )
-				/*
-				 * restart of continue on the next level
-				 */
-				result = -ENOENT;
-			else if( ( h -> result != CBK_COORD_NOTFOUND ) &&
-				 ( h -> result != CBK_COORD_FOUND ) )
-				/*
-				 * io or oom
-				 */
-				result = -ENOENT;
-			else if( key_is_delimiting( node, h -> key ) ) {
-				/*
-				 * we are looking for possibly non-unique key
-				 * and it is item is at the edge of @node. May
-				 * be it is in the neighbor.
-				 */
-				reiser4_stat_tree_add( cbk_cache_utmost );
-				result = -ENOENT;
-			} else if( h -> result == CBK_COORD_FOUND )
-				/*
-				 * good. Item found
-				 */
-				result = 0;
-			else
-				/*
-				 * definitely not found
-				 */
-				result = 0;
-		} else {
-			/*
-			 * race. While this thread was waiting for the lock,
-			 * node was rebalanced and item we are looking for,
-			 * shifted out of it (if it ever was here).
-			 *
-			 * Continuing scanning is almost hopeless: node key
-			 * range was moved to, is almost certainly at the
-			 * beginning of the LRU list at this time, because
-			 * it's hot, but restarting scanning from the very
-			 * beginning is complex. Just return, so that cbk()
-			 * will be performed. This is not that important,
-			 * because such races should be rare. Are they?
-			 */
-			reiser4_stat_tree_add( cbk_cache_race );
-			result = -ENOENT; /* -ERAUGHT */
-		}
-		zrelse( node, 1 );
-		break;
-	}
+	result = cbk_cache_scan_slots( h );
 	if( result != 0 ) {
 		reiser4_done_lh( h -> active_lh );
 		reiser4_done_lh( h -> parent_lh );
