@@ -324,8 +324,7 @@ extern void add_d_ref( jnode *node );
  * cached data was used */
 extern int  jload_and_lock    (jnode* node);
 
-/* load jnode data, unlock jnode and hide the difference between using cached
- * data and reading data from disk */
+/* same as jload_and_lock(), but unlock jnode */
 static inline int jload (jnode * node)
 {
 	int ret;
@@ -333,8 +332,6 @@ static inline int jload (jnode * node)
 	ret = jload_and_lock (node);
 
 	if (unlikely (ret < 0)) return ret;
-
-	if (ret > 0) ret = 0;
 
 	spin_unlock_jnode (node);
 

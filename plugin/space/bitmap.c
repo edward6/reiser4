@@ -8,6 +8,8 @@
 /* Block allocation/deallocation are done through special bitmap objects which
  * are allocated in an array at fs mount. */
 struct bnode {
+	semaphore sema;	/* long term lock object */
+
 	jnode      wjnode;	/* embedded jnodes for WORKING ... */
 	jnode      cjnode;	/* ... and COMMIT bitmap blocks */
 
@@ -346,6 +348,8 @@ static void init_bnode (struct bnode * bnode, struct super_block * super, bmap_n
 {
 	xmemset (bnode, 0, sizeof (struct bnode)); 
 
+	sema_init (&bnode->sema, 1);
+
 	jnode_init (& bnode->wjnode);
 	jref (&bnode->wjnode);
 	get_working_bitmap_blocknr (bmap, & bnode->wjnode.blocknr); 
@@ -412,21 +416,19 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 	for (i = 0; i < bitmap_blocks_nr; i ++) {
 		struct bnode * bnode = data -> bitmap + i;
 
-		spin_lock_jnode (&bnode->wjnode);
+		down (&bnode->sema);
 
 		if (jnode_page (&bnode->wjnode) != NULL) {
 			assert ("zam-480", jnode_page (&bnode->cjnode) != NULL);
-			spin_unlock_jnode(&bnode->wjnode);
 
 			jnode_detach_page (& bnode->wjnode);
 			jnode_detach_page (&bnode->cjnode);
 
 			/* FIXME: check for page state and ref count should be
 			 * added here */
-			continue;
 		}
 
-		spin_unlock_jnode (&bnode->wjnode);
+		up (&bnode->sema);
 	}
 
 	reiser4_kfree (data->bitmap, (size_t) (sizeof(struct bnode) * bitmap_blocks_nr));
@@ -444,17 +446,19 @@ static int load_and_lock_bnode (struct bnode * bnode)
 	struct super_block * super = get_current_context()->super;
 	int ret;
 
+	down (&bnode->sema);
+
 	ret = jload (&bnode->wjnode);
 
-	if (ret < 0) return ret;
+	if (ret < 0) goto up_and_ret;
 
-	ret = jload (&bnode->cjnode);
+	ret = jload(&bnode->cjnode);
 
 	if (ret < 0) { 
 		junlock_and_relse(&bnode->wjnode);
 		jnode_detach_page(&bnode->wjnode);
 	
-		return ret;
+		goto up_and_ret;
 	}
 
 	if (ret == 0) {		
@@ -464,12 +468,19 @@ static int load_and_lock_bnode (struct bnode * bnode)
 	}
 
 	return 0;
+
+ up_and_ret:
+
+	up (&bnode->sema);
+	return ret;
 }
 
 static void release_and_unlock_bnode (struct bnode * bnode)
 {
 	jrelse (&bnode->cjnode);
 	jrelse (&bnode->wjnode);
+
+	up (&bnode->sema);
 }
 
 #if 0
