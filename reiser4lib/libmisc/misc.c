@@ -11,7 +11,7 @@
     
     Return values: 
     1 - key on *pos found exact key on *pos position; 
-    0 - exact key has not been found. key on *pos < then;
+    0 - exact key has not been found. key of *pos < then wanted.
 */
 int reiserfs_misc_bin_search(
     void *needle,		    /* element to be found */
