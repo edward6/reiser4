@@ -128,11 +128,13 @@ void test_layout_release (struct super_block * s)
 		space_allocator_plugin_by_id (TEST_SPACE_ALLOCATOR_ID));
 	cputod64 (get_space_allocator (s)->u.test.new_block_nr, &disk_sb->new_block_nr);
 
+#if 0
+	/* FIXME-GREEN: generic_shutdown_super clears s->s_root */
 	/* root directory key */
 	cputod64 (reiser4_inode_data (s->s_root->d_inode)->locality_id,
 		  &disk_sb->root_locality);
 	cputod64 ((__u64)(s->s_root->d_inode->i_ino), &disk_sb->root_objectid);
-
+#endif
 	/* FIXME-VS: remove this debugging info */
 	print_test_disk_sb ("release:\n", disk_sb);
 
