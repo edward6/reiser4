@@ -2015,7 +2015,7 @@ jnode_set_dirty(jnode * node)
 				 "jnode_set_dirty: moving 1 grabbed block to flush reserved. Atom %u: block %llu\n", atom ? atom->atom_id : 0, node->blocknr);
 			grabbed2flush_reserved_nolock(atom, 1);
 		}
-		
+		assert("vs-1094", atom);
 		if (atom && !JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 			/* If the atom is not set yet, it will be added to the appropriate list in
 			   capture_assign_block_nolock. */
