@@ -71,7 +71,8 @@ int main(int argc, char *argv[]) {
     
     memset(uuid, 0, sizeof(uuid));
     memset(label, 0, sizeof(label));
-    
+
+    /* Parsing parameters */    
     while ((c = getopt_long_only(argc, argv, "uhvp:qfkb:i:l:", long_options, 
 	(int *)0)) != EOF) 
     {
@@ -102,6 +103,8 @@ int main(int argc, char *argv[]) {
 		return 0;
 	    }
 	    case 'b': {
+		
+		/* Parsing blocksize */
 	        if (!(blocksize = (uint16_t)progs_misc_strtol(optarg, &error)) && error) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		        "Invalid blocksize (%s).", optarg);
@@ -139,6 +142,7 @@ int main(int argc, char *argv[]) {
 	return 0xfe;
     }
     
+    /* Initializing passed profile */
     if (!(profile = progs_misc_profile_find(profile_label))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find profile by its label \"%s\".", profile_label);
@@ -187,13 +191,15 @@ int main(int argc, char *argv[]) {
 	    return 0xfe;
 	}
     }
-    
+   
+    /* Checking if passed partition is mounted */
     if (progs_misc_dev_mounted(host_dev, NULL) && !force) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Partition \"%s\" is mounted at the moment. Use -f to force over.", host_dev);
 	return 0xfe;
     }
     
+    /* Opening device */
     if (!(device = aal_file_open(host_dev, blocksize, O_RDWR))) {
 	char *error = strerror(errno);
 	
@@ -202,12 +208,14 @@ int main(int argc, char *argv[]) {
 	goto error;
     }
     
+    /* Initializing libreiser4 */
     if (libreiser4_init(0)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't initialize libreiser4.");
 	goto error_free_device;
     }
 
+    /* Preparing filesystem length */
     dev_len = aal_device_len(device);
     
     if (!fs_len)
@@ -219,6 +227,7 @@ int main(int argc, char *argv[]) {
 	goto error_free_libreiser4;
     }
 
+    /* Checking for "quiet" mode */
     if (!quiet) {
 	if (!(c = progs_misc_choose_propose("ynYN", "Please select (y/n) ", 
 		"All data on %s will be lost (y/n) ", host_dev)))
@@ -231,6 +240,7 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Creating reiser4 with \"%s\" profile...", profile->label);
     fflush(stderr);
     
+    /* Cerating filesystem */
     if (!(fs = reiserfs_fs_create(profile, device, blocksize, 
 	(const char *)uuid, (const char *)label, fs_len, device, NULL))) 
     {
@@ -242,12 +252,14 @@ int main(int argc, char *argv[]) {
 
     fprintf(stderr, "Synchronizing...");
     
+    /* Flushing all filesystem buffers onto the device */
     if (reiserfs_fs_sync(fs)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't synchronize created filesystem.");
 	goto error_free_fs;
     }
 
+    /* Synchronizing device */
     if (aal_device_sync(device)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't synchronize device %s.", aal_device_name(device));
@@ -271,3 +283,4 @@ error_free_device:
 error:
     return 0xff;
 }
+

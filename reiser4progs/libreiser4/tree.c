@@ -306,9 +306,17 @@ errno_t reiserfs_tree_move(
 	src->cache->node, &src->pos);
 }
 
-errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new, 
-    uint32_t needed)
-{
+/* 
+    The central packing on insert function. It shifts some number of items to left
+    or right neightbor in order to release "needed" space in specified by "old"
+    node. As insertion point may be shifted to one of neighbors, new insertion 
+    point position is stored in "new" coord.
+*/
+errno_t reiserfs_tree_shift(
+    reiserfs_coord_t *old,	    /* old coord of insertion point */
+    reiserfs_coord_t *new,	    /* new coord will be stored here */
+    uint32_t needed		    /* amount of space that should be freed */
+) {
     int32_t point;
     reiserfs_pos_t pos;
     uint32_t count, moved = 0;
@@ -465,9 +473,11 @@ errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
     Helper function. It is used for insert a node by its left delimiting key 
     into the tree.
 */
-static errno_t __tree_node_insert(reiserfs_tree_t *tree, 
-    reiserfs_cache_t *parent, reiserfs_cache_t *cache)
-{
+static errno_t __tree_node_insert(
+    reiserfs_tree_t *tree,	    /* tree we will operate on */
+    reiserfs_cache_t *parent,	    /* cached node we will insert in */
+    reiserfs_cache_t *cache	    /* cached node to be inserted */
+) {
     int lookup;
     uint32_t needed;
     reiserfs_key_t ldkey;
@@ -480,6 +490,7 @@ static errno_t __tree_node_insert(reiserfs_tree_t *tree,
     aal_assert("umka-647", cache != NULL, return -1);
     aal_assert("umka-796", parent != NULL, return -1);
 
+    /* Getting left delimiting key from passed node to be inserted */
     if (reiserfs_node_ldkey(cache->node, &ldkey))
 	return -1;
     
@@ -496,7 +507,8 @@ static errno_t __tree_node_insert(reiserfs_tree_t *tree,
 	    aal_block_get_nr(parent->node->block));
 	return -1;
     }
-    
+
+    /* Preparing internal item hint */
     aal_memset(&item, 0, sizeof(item));
     internal.pointer = aal_block_get_nr(cache->node->block);
 
@@ -622,7 +634,10 @@ static errno_t __tree_node_insert(reiserfs_tree_t *tree,
     has enought free space for new item then creates new node and inserts it into
     the tree by reiserfs_tree_node_insert function. See bellow for details.
 */
-errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) {
+errno_t reiserfs_tree_insert(
+    reiserfs_tree_t *tree,	    /* tree new item will be inserted in */
+    reiserfs_item_hint_t *item	    /* item hint to be inserted */
+) {
     int lookup;
     uint32_t needed;
     reiserfs_key_t *key;
@@ -777,9 +792,10 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 }
 
 /* Removes item by specified key */
-errno_t reiserfs_tree_remove(reiserfs_tree_t *tree, 
-    reiserfs_key_t *key) 
-{
+errno_t reiserfs_tree_remove(
+    reiserfs_tree_t *tree,	/* tree item will beremoved from */
+    reiserfs_key_t *key		/* key item will be found by */
+) {
     return -1;
 }
 
