@@ -9,97 +9,35 @@
 #if !defined( __REISER4_FORWARD_H__ )
 #define __REISER4_FORWARD_H__
 
-/* You know, it really is unnecessary to write
- *
- *   struct F;
- *   typedef struct F F;
- *
- * the first line is not needed:
- *
- *   typedef struct F F;
- *
- * has the effect of declaring struct F and typedeffing it at once.  Correct
- * me if I'm wrong, but I've been writing programs this way for a long time...
- */
-struct __reiser4_zlock;
 typedef struct __reiser4_zlock reiser4_zlock;
-
-struct __reiser4_lock_stack;
 typedef struct __reiser4_lock_stack reiser4_lock_stack;
-
-struct __reiser4_lock_handle;
 typedef struct __reiser4_lock_handle reiser4_lock_handle;
-
-struct znode;
 typedef struct znode znode;
-
-struct flow;
 typedef struct flow flow_t;
-
-struct tree_coord;
 typedef struct tree_coord tree_coord;
-
-struct item_coord;
 typedef struct item_coord item_coord;
-
-struct shift_params;
 typedef struct shift_params shift_params;
-
-struct reiser4_object_create_data;
 typedef struct reiser4_object_create_data reiser4_object_create_data;
-
-struct reiser4_plugin;
 typedef struct reiser4_plugin reiser4_plugin;
-
-struct reiser4_item_data;
 typedef struct reiser4_item_data reiser4_item_data;
-
-union reiser4_key;
 typedef union reiser4_key reiser4_key;
-
-union reiser4_disk_addr;
 typedef union reiser4_disk_addr reiser4_disk_addr;
-
-struct reiser4_tree;
 typedef struct reiser4_tree reiser4_tree;
-
-struct carry_tree_op;
 typedef struct carry_tree_op carry_tree_op;
-
-struct carry_tree_node;
 typedef struct carry_tree_node carry_tree_node;
-
-struct reiser4_journal;
 typedef struct reiser4_journal reiser4_journal;
-
-struct txn_atom;
 typedef struct txn_atom txn_atom;
-
-struct txn_handle;
 typedef struct txn_handle txn_handle;
-
-struct txn_mgr;
 typedef struct txn_mgr txn_mgr;
-
-struct reiser4_dir_entry_desc;
 typedef struct reiser4_dir_entry_desc reiser4_dir_entry_desc;
-
-struct reiser4_context;
 typedef struct reiser4_context reiser4_context;
-
-struct carry_level;
 typedef struct carry_level carry_level;
 
 typedef unsigned pos_in_node;
 typedef unsigned pos_in_item;
 
-struct jnode;
 typedef struct jnode jnode;
-
-struct slum_scan;
 typedef struct slum_scan slum_scan;
-
-struct reiser4_blocknr_hint;
 typedef struct reiser4_blocknr_hint reiser4_blocknr_hint;
 
 struct inode;
