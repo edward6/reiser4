@@ -798,14 +798,13 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 	if( ! S_ISDIR( inode -> i_mode ) )
 		REISER4_EXIT( -ENOTDIR );
 
-	/*init_coord( &coord );*/
 	coord_init_zero( &coord );
 	init_lh( &lh );
 
 	result = inode_dir_plugin( inode ) -> readdir_key( f, &arg.key );
 
 	trace_on( TRACE_DIR | TRACE_VFS_OPS, 
-		  "readdir: inode: %lli offset: %lli\n", 
+		  "readdir: inode: %llu offset: %lli\n", 
 		  get_inode_oid( inode ), f -> f_pos );
 	trace_if( TRACE_DIR | TRACE_VFS_OPS, print_key( "readdir", &arg.key ) );
 
@@ -2029,7 +2028,7 @@ static void reiser4_kill_super (struct super_block *s)
 
 	done_formatted_fake (s);
 
-	close_trace_file(&info->trace_file);
+	close_trace_file (&info->trace_file);
 
 	/*
 	 * we don't want ->write_super to be called any more.
@@ -2042,7 +2041,7 @@ static void reiser4_kill_super (struct super_block *s)
 		list_t *scan;
 
 		/*
-		 * print jnode that survived umount.
+		 * print jnodes that survived umount.
 		 */
 		list_for_each(scan, &info->all_jnodes) {
 			jnode *busy;
