@@ -117,7 +117,7 @@ int write_extent(struct inode *, flow_t *, hint_t *, int grabbed, write_mode_t);
 int read_extent(struct file *, flow_t *, uf_coord_t *);
 int readpage_extent(void *, struct page *);
 void readpages_extent(void *, struct address_space *, struct list_head *pages);
-int writepage_extent(uf_coord_t *, struct page *, write_mode_t);
+int writepage_extent(reiser4_key *, uf_coord_t *, struct page *, write_mode_t);
 reiser4_key *append_key_extent(const coord_t *, reiser4_key *);
 void init_coord_extension_extent(uf_coord_t *, loff_t offset);
 int get_block_address_extent(const uf_coord_t *, sector_t block, struct buffer_head *);
