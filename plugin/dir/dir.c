@@ -807,9 +807,6 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 	destination = (__u64) offset;
 
 	shift = pos->entry_no - destination;
-	if (unlikely(abs(shift) > 100000))
-		/* something strange: huge seek */
-		warning("nikita-2549", "Strange seekdir: %llu->%llu", pos->entry_no, destination);
 	if (shift >= 0) {
 		/* rewinding to the left */
 		reiser4_stat_inc(dir.readdir.rewind_left);
