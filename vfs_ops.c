@@ -1718,7 +1718,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 
 	result = init_context (&__context, s);
 	if (result) {
-		kfree (s->u.generic_sbp);
+		kfree (info);
 		s->u.generic_sbp = NULL;
 		return result;
 	}
@@ -1855,10 +1855,12 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	get_super_private (s)->lplug->release (s);
  error3:
 	done_formatted_fake (s);
+	/* shutdown daemon */
+	ktxnmgrd_detach (&info->tmgr);
  error2:
 	txn_mgr_done (&info->tmgr);
  error1:
-	kfree (s->u.generic_sbp);
+	kfree (info);
 	s->u.generic_sbp = NULL;
 
 	REISER4_EXIT (result);
@@ -1892,6 +1894,7 @@ static void reiser4_kill_super (struct super_block *s)
 	/* flushes transactions, etc. */
 	get_super_private (s)->lplug->release (s);
 
+	/* shutdown daemon if last mount is removed */
 	ktxnmgrd_detach (&info->tmgr);
 
 	done_formatted_fake (s);
@@ -1975,6 +1978,7 @@ int reiser4_invalidatepage( struct page *page, unsigned long offset )
 int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 {
 	jnode        *node;
+	reiser4_tree *tree;
 
 	assert( "nikita-2257", PagePrivate( page ) );
 	assert( "nikita-2259", PageLocked( page ) );
@@ -2007,16 +2011,16 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	}
 	page_clear_jnode_nolock( page, node );
 	spin_unlock_jnode( node );
-	trace_on( TRACE_BUG, "released: %li, %lu\n",
-		  page -> mapping -> host -> i_ino, page -> index );
+	tree = tree_by_page( page );
 	page_cache_release( page );
-	if ( atomic_read( &node -> x_count ) == 0 && jnode_is_unformatted(node)) {
-		__REISER4_ENTRY( page -> mapping -> host -> i_sb, );
-		spin_lock_tree(current_tree);
-		jdrop( node);
-		spin_unlock_tree(current_tree);
-		__REISER4_EXIT( &__context );
-	}
+
+	spin_lock_tree( tree );
+	/*
+	 * we are under memory pressure so release jnode
+	 * also. jdrop() internally re-checks x_count.
+	 */
+	jdrop_in_tree( node, tree );
+	spin_unlock_tree( tree );
 	/*
 	 * return with page still locked. shrink_cache() expects this.
 	 */
