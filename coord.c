@@ -17,7 +17,7 @@ static inline void coord_init_values (coord_t  *coord,
 	coord->unit_pos = unit_pos;
 	coord->between  = between;
 
-	trace_on (TRACE_COORDS, "init coord %p node %p: %u %u %s", coord, node, item_pos, unit_pos, coord_tween_tostring (between));
+	/*trace_on (TRACE_COORDS, "init coord %p node %p: %u %u %s\n", coord, node, item_pos, unit_pos, coord_tween_tostring (between));*/
 }
 
 /* after shifting coord previously set properly may become invalid. */
