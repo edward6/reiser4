@@ -91,7 +91,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 #define REISER4_MIN_TREE_HEIGHT       (TWIG_LEVEL)
 
 /* default file plugin */
-#define REISER4_FILE_PLUGIN       (REGULAR_FILE_PLUGIN_ID)
+#define REISER4_FILE_PLUGIN       (UNIX_FILE_PLUGIN_ID)
 
 /* default directory plugin */
 #define REISER4_DIR_PLUGIN        (HASHED_DIR_PLUGIN_ID)
