@@ -217,7 +217,6 @@ void reiser4_count_real_deallocation (__u64 count)
 	reiser4_spin_lock_sb(super);
 
 	add_to_sb_grabbed(super, count);
-	/*sub_from_sb_grabbed(super, count);*/
 	sub_from_sb_used(super, count);
 
 	reiser4_spin_unlock_sb (super);
