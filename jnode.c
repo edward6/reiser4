@@ -763,6 +763,7 @@ jrelse(jnode * node /* jnode to release references to */)
 		*/
 		JF_CLR(node, JNODE_LOADED);
 	UNLOCK_JNODE(node);
+	jput(node);
 }
 
 /* start async io for @node */
