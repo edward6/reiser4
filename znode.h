@@ -186,6 +186,9 @@ struct jnode
 	 *
 	 * FIXME-NIKITA This means what? Reusing spare bits in spinlock_t for
 	 * state? This is unportable.
+	 *
+	 * FIXME_JMACD: Yes, that's what we mean.  Surely it can be made
+	 * portable?
 	 */
 	spinlock_t   guard;
 
@@ -193,6 +196,8 @@ struct jnode
 	 *
 	 * FIXME-NIKITA pointer to page is not enough when block size is
 	 * smaller than page size.
+	 *
+	 * FIXME_JMACD yes, this needs thinking
 	 */
 	struct page *pg;
 

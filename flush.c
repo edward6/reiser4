@@ -114,7 +114,6 @@ static int  slum_scan_left_formatted   (slum_scan *scan, znode *node);
 static void slum_scan_set_current      (slum_scan *scan, jnode *node);
 static int  slum_scan_left             (slum_scan *scan, jnode *node);
 
-
 #if 0
 /* What Hans wrote:
  * 
