@@ -1022,7 +1022,7 @@ txn_try_capture (jnode           *node,
 		/*
 		 * FIXME-VS: probably wrong
 		 */
-		jnode_detach_page (node);
+/*		jnode_detach_page (node);*/
 		return 0;
 	}
 
