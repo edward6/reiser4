@@ -49,7 +49,7 @@ static int           flush_lock_leftpoint         (jnode                *start,
 						   jnode               **leftpoint,
 						   lock_handle          *leftpoint_lock,
 						   reiser4_blocknr_hint *preceder,
-						   int                   scan_left);
+						   flush_scan_left_config  scan_config);
 
 static int           squalloc_leftpoint           (jnode *node, lock_handle *node_lock, reiser4_blocknr_hint *preceder);
 static int           squalloc_leftpoint_end_of_twig (jnode **node, lock_handle *node_lock, lock_handle *parent_lock, tree_coord *parent_coord, int *is_unformatted);
@@ -213,7 +213,7 @@ static int flush_lock_leftpoint (jnode                  *start_node,
 	init_lh (& parent_lock);
 	init_lh (& end_lock);
 
-	if (scan_left != SCAN_LEFT_NEVER) {
+	if (scan_config != SCAN_LEFT_NEVER) {
 		/* Scan start_node's level for the leftmost dirty neighbor. */
 		if ((ret = flush_scan_left (& level_scan, start_node))) {
 			goto failure;
