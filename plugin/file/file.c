@@ -371,7 +371,9 @@ static int shorten (struct inode * inode)
  * longer */
 static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f);
 
-/* append hole to a file until inode->i_size < real size */
+
+/* Add hole to end of file. @file_size is current file size. @inode->i_size is
+ * size file is to be expanded to */
 static int expand_file (struct inode * inode, loff_t file_size)
 {
 	int result;
@@ -844,7 +846,7 @@ static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 /* plugin->u.file.write */
 ssize_t unix_file_write (struct file * file, /* file to write to */
 			 const char * buf, /* comments are needed */
-			 size_t size, /* number of bytes ot write */
+			 size_t count, /* number of bytes ot write */
 			 loff_t * off /* position to write which */)
 {
 	int result;
@@ -853,16 +855,34 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 	ssize_t written;
 
 
-	assert ("vs-855", size > 0);
+	assert ("vs-855", count > 0);
 
 	/* collect statistics on the number of writes */
 	reiser4_stat_file_add (writes);
 
 	inode = file->f_dentry->d_inode;
 
+	if (inode->i_size < *off) {
+		loff_t old_size;
+
+		/* append file with a hole. This allows extent_write and
+		 * tail_write to not decide when hole appending is
+		 * necessary. When it is required f->length == 0 */
+		old_size = inode->i_size;
+		inode->i_size = *off;
+		result = expand_file (inode, old_size);
+		if (result) {
+			/*
+			 * FIXME-VS: i_size may now be set incorrectly
+			 */
+			inode->i_size = old_size;
+			return result;
+		}
+	}
+
 	/* build flow */
 	result = inode_file_plugin (inode)->flow_by_inode (inode, (char *)buf,
-							   1/* user space */, size, *off,
+							   1/* user space */, count, *off,
 							   WRITE_OP, &f);
 	if (result)
 		return result;
@@ -919,10 +939,46 @@ static int should_have_notail (struct inode * inode, loff_t new_size)
 }
 
 
-/* decide how to write flow @f into file @inode */
-/* Audited by: green(2002.06.15) */
 static write_todo unix_file_how_to_write (struct inode * inode, flow_t * f,
 					  coord_t * coord)
+{
+	reiser4_item_data data;
+	loff_t new_size;
+
+
+	/* size file will have after write */
+	new_size = get_key_offset (&f->key) + f->length;
+
+	if (znode_get_level (coord->node) == TWIG_LEVEL) {
+		/* extent item of this file found */
+		data.iplug = item_plugin_by_id (EXTENT_POINTER_ID);
+		assert ("vs-919", item_can_contain_key (coord, &f->key, &data));
+		return WRITE_EXTENT;
+	}
+
+	assert ("vs-920", znode_get_level (coord->node) == LEAF_LEVEL);
+
+	data.iplug = item_plugin_by_id (TAIL_ID);
+	if (!node_is_empty (coord->node) &&
+	    coord_is_existing_item (coord) &&
+	    item_can_contain_key (coord, &f->key, &data)) {
+		/* tail item of this file found */
+		if (should_have_notail (inode, new_size))
+			return CONVERT;
+		return WRITE_TAIL;
+	}
+
+	/* there are no any items of this file yet */
+	if (should_have_notail (inode, new_size))
+		return WRITE_EXTENT;
+	return WRITE_TAIL;
+}
+
+
+/* decide how to write flow @f into file @inode */
+/* Audited by: green(2002.06.15) */
+static write_todo unix_file_how_to_write2 (struct inode * inode, flow_t * f,
+					   coord_t * coord)
 {
 	loff_t new_size;
 
