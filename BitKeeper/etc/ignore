@@ -999,3 +999,4 @@ reiser4progs/reiser4progs/fsck/.libs/fsck.reiser4
 reiser4progs/reiser4progs/fsck/Makefile
 reiser4progs/reiser4progs/fsck/Makefile.in
 reiser4progs/reiser4progs/fsck/fsck.reiser4
+.ktxnmgrd.o.cmd
