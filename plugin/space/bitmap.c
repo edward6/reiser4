@@ -1466,11 +1466,11 @@ pre_commit_hook_bitmap(void)
 						       index),
 						     size - index),
 
-				bnode_set_commit_crc(bnode, crc);
+				bnode_set_commit_crc(bn, crc);
 
 				release_and_unlock_bnode(bn);
 
-				ret = bnode_check_crc(bnode);
+				ret = bnode_check_crc(bn);
 				if (ret != 0)
 					return ret;
 
