@@ -152,6 +152,7 @@ typedef struct file_plugin {
 	    reiserfs_update_sd() in 3.x */
 	int (*write_sd_by_inode) (struct inode * inode);
 	int (*readpage) (void *, struct page *);
+	int (*prepare_write) (struct file *, struct page *, unsigned, unsigned);
 
 	/* captures passed page to current atom and takes care about extents handling.
 	   This is needed for loop back devices support and used from ->commit_write() */

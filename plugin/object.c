@@ -1150,6 +1150,60 @@ clear_inode_common(struct inode *inode)
 		pplug->clear(inode);
 }
 
+reiser4_internal int prepare_write_common (
+	struct file * file, struct page * page, unsigned from, unsigned to)
+{
+	int result;
+	file_plugin *fplug;
+	struct inode *inode;
+	reiser4_context ctx;
+
+	assert("umka-3099", file != NULL);
+	assert("umka-3100", page != NULL);
+	assert("umka-3095", PageLocked(page));
+
+	if (to - from == PAGE_CACHE_SIZE || PageUptodate(page))
+		return 0;
+
+	inode = page->mapping->host;
+	init_context(&ctx, inode->i_sb);
+	fplug = inode_file_plugin(inode);
+	
+	if (fplug->readpage != NULL)
+		result = fplug->readpage(file, page);
+	else
+		result = RETERR(-EINVAL);
+	
+	if (result != 0) {
+		SetPageError(page);
+		ClearPageUptodate(page);
+		/* here we do not unlock the page, as loop back device driver
+		   expects it will be locked after ->prepare_write()
+		   finish. */
+	} else {
+		/*
+		 * ->readpage() either:
+		 *
+		 *     1. starts IO against @page. @page is locked for IO in
+		 *     this case.
+		 *
+		 *     2. doesn't start IO. @page is unlocked.
+		 *
+		 * In either case, page should be locked.
+		 */
+		lock_page(page);
+		/*
+		 * IO (if any) is completed at this point. Check for IO
+		 * errors.
+		 */
+		if (!PageUptodate(page))
+			result = RETERR(-EIO);
+	}
+	assert("umka-3098", PageLocked(page));
+	reiser4_exit_context(&ctx);
+	return result;
+}
+
 /* from xattr.c */
 extern xattr_list_head xattr_common_namespaces;
 
@@ -1217,6 +1271,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.forget_inode = forget_inode_common,
 		.clear_inode  = clear_inode_common,
 		.sendfile = sendfile_unix_file,
+		.prepare_write = prepare_write_unix_file
 	},
 	[DIRECTORY_FILE_PLUGIN_ID] = {
 		.h = {
@@ -1515,6 +1570,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.forget_inode = forget_inode_common,
 		.clear_inode  = clear_inode_common,
 		.sendfile = sendfile_common,
+		.prepare_write = prepare_write_common
 	}
 };
 
