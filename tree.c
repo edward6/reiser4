@@ -327,9 +327,12 @@ insert_result insert_by_coord( coord_t  *coord /* coord where to
 		 * we are forced to use free space of coord->node and new item
 		 * does not fit into it.
 		 *
-		 * This is used during flushing when we try to pack as many
-		 * item into node as possible, but don't shift data from this
-		 * node elsewhere. Returning -ENOSPC is "normal" here.
+		 * Currently we get here only when we allocate and copy units
+		 * of extent item from a node to its left neighbor during
+		 * "squalloc"-ing.  If @node (this is left neighbor) does not
+		 * have enough free space - we do not want to attempt any
+		 * shifting and allocations because we are in squeezing and
+		 * everything to the left of @node is tightly packed.
 		 */
 		result = -ENOSPC;
 	} else if( ( item_size <= znode_free_space( node ) ) && 
