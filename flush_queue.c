@@ -134,6 +134,7 @@ attach_fq(txn_atom * atom, flush_queue_t * fq)
 	assert("zam-718", spin_atom_is_locked(atom));
 	fq_list_push_front(&atom->flush_queues, fq);
 	fq->atom = atom;
+	atom->nr_flush_queues++;
 }
 
 static void
@@ -143,6 +144,7 @@ detach_fq(flush_queue_t * fq)
 
 	spin_lock_fq(fq);
 	fq_list_remove_clean(fq);
+	fq->atom->nr_flush_queues--;
 	fq->atom = NULL;
 	spin_unlock_fq(fq);
 }
@@ -233,7 +235,7 @@ finish_fq(flush_queue_t * fq, int *nr_io_errors)
 
 /* wait for all i/o for given atom to be completed, actually do one iteration
    on that and return -EAGAIN if there more iterations needed */
-int
+static int
 finish_all_fq(txn_atom * atom, int *nr_io_errors)
 {
 	flush_queue_t *fq;
@@ -251,6 +253,8 @@ finish_all_fq(txn_atom * atom, int *nr_io_errors)
 			int ret;
 
 			mark_fq_in_use(fq);
+			assert("vs-1247", fq->owner == 0);
+			fq->owner = current;
 			ret = finish_fq(fq, nr_io_errors);
 
 			if (ret) {
@@ -489,6 +493,8 @@ fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
 
 		if (fq_ready(fq)) {
 			mark_fq_in_use(fq);
+			assert("vs-1246", fq->owner == 0);
+			fq->owner = current;
 			spin_unlock_fq(fq);
 
 			if (*new_fq)
@@ -507,6 +513,8 @@ fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
 	/* Use previously allocated fq object */
 	if (*new_fq) {
 		mark_fq_in_use(*new_fq);
+		assert("vs-1248", (*new_fq)->owner == 0);
+		(*new_fq)->owner = current;
 		attach_fq(atom, *new_fq);
 
 		return 0;
@@ -549,6 +557,8 @@ fq_put_nolock(flush_queue_t * fq)
 	assert("zam-902", capture_list_empty(&fq->prepped));
 	assert("zam-910", fq->nr_queued == 0);
 	mark_fq_ready(fq);
+	assert("vs-1245", fq->owner == current);
+	fq->owner = 0;
 }
 
 void
