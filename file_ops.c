@@ -379,6 +379,7 @@ static ssize_t reiser4_sendfile(struct file *file, loff_t *ppos,
 	else
 		result = RETERR(-EINVAL);
 
+	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 	return result;
 }
