@@ -446,13 +446,31 @@ adler32(char *data, __u32 len)
 	return (s2 << 16) | s1;
 }
 
-static __u32
-bnode_calc_crc(const struct bitmap_node *bnode)
-{
-	struct super_block *super;
+#define sb_by_bnode(bnode) \
+	((struct super_block *)jnode_get_tree(bnode->wjnode)->super)
 
-	super = jnode_get_tree(bnode->wjnode)->super;
-	return adler32(bnode_commit_data(bnode), bmap_size(super->s_blocksize));
+static __u32
+bnode_calc_crc(const struct bitmap_node *bnode, unsigned long size)
+{
+	return adler32(bnode_commit_data(bnode), bmap_size(size));
+}
+
+
+static int
+bnode_check_adler32(const struct bitmap_node *bnode, unsigned long size)
+{
+	if (bnode_calc_crc(bnode, size) != bnode_commit_crc (bnode)) {
+		bmap_nr_t bmap;
+		
+		bmap = bnode - get_bnode(sb_by_bnode(bnode), 0);
+		
+		warning("vpf-263", 
+			"Checksum for the bitmap block %llu is incorrect",bmap);
+
+		return RETERR(-EIO);
+	} 
+	
+	return 0;
 }
 
 #define REISER4_CHECK_BMAP_CRC (0)
@@ -461,18 +479,8 @@ bnode_calc_crc(const struct bitmap_node *bnode)
 static int
 bnode_check_crc(const struct bitmap_node *bnode)
 {
-	if (bnode_calc_crc(bnode) != bnode_commit_crc (bnode)) {
-		bmap_nr_t bmap;
-		struct super_block *super;
-
-		super = jnode_get_tree(bnode->wjnode)->super;
-		bmap = bnode - get_bnode(super, 0)
-
-		warning("vpf-263",
-			"Checksum for the bitmap block %llu is incorrect", bmap);
-		return RETERR(-EIO);
-	} else
-		return 0;
+	return bnode_check_adler32(bnode, 
+				   bmap_size(sb_by_bnode(bnode)->s_blocksize));
 }
 
 /* REISER4_CHECK_BMAP_CRC */
@@ -709,22 +717,16 @@ prepare_bnode(struct bitmap_node *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 
 }
 
-	static int
-check_adler32_jnode(jnode *jnode, unsigned long size) {
-	return (adler32(jdata(jnode) + CHECKSUM_SIZE, size) != *(__u32 *)jdata(jnode));
-}
-
 /* Check the bnode data on read. */
 static int check_struct_bnode(struct bitmap_node *bnode, __u32 blksize) {
 	void *data;
+	int ret;
 
 	/* Check CRC */
-	if (check_adler32_jnode(bnode->cjnode, bmap_size(blksize))) {
-		warning("vpf-1361",
-			"Checksum for the bitmap block %llu is incorrect",
-			(unsigned long long)bnode->cjnode->blocknr);
+	ret = bnode_check_adler32(bnode, blksize);
 
-		return -EINVAL;
+	if (ret) {
+		return ret;
 	}
 
 	data = jdata(bnode->cjnode) + CHECKSUM_SIZE;
@@ -1254,7 +1256,7 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 		(*blocks_freed_p)++;
 	}
 
-	bnode_set_commit_crc(bnode, bnode_calc_crc(bnode));
+	bnode_set_commit_crc(bnode, bnode_calc_crc(bnode, sb->s_blocksize));
 
 	release_and_unlock_bnode(bnode);
 
