@@ -789,7 +789,7 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	if (ret)
 		goto failed;
 
-	if (znode_get_level(flush_pos.coord.node) == LEAF_LEVEL 
+	if (znode_get_level(flush_pos.coord.node) == LEAF_LEVEL
 	    && node_is_empty(flush_pos.coord.node)) {
 		znode * empty = flush_pos.coord.node;
 
@@ -2570,7 +2570,8 @@ jnode_set_block(jnode * node /* jnode to update */ ,
 /* Make the final relocate/wander decision during forward parent-first squalloc for a
    znode.  For unformatted nodes this is done in plugin/item/extent.c:extent_needs_allocation(). */
 static int
-allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
+allocate_znode_loaded(znode * node,
+		      const coord_t * parent_coord, flush_pos_t * pos)
 {
 	int ret;
 	reiser4_super_info_data * sbinfo = get_current_super_private();
@@ -2657,6 +2658,18 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 
 	return 0;
 }
+
+static int
+allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
+{
+	/*
+	 * perform znode allocation with znode pinned in memory to avoid races
+	 * with asynchronous emergency flush (which plays with
+	 * JNODE_FLUSH_RESERVED bit).
+	 */
+	return WITH_DATA(node, allocate_znode_loaded(node, parent_coord, pos));
+}
+
 
 /* A subroutine of allocate_znode, this is called first to see if there is a close
    position to relocate to.  It may return ENOSPC if there is no close position.  If there
