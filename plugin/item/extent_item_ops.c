@@ -451,7 +451,7 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 	assert("vs-1545", inode != NULL);
 	if (inode != NULL)
 		/* take care of pages and jnodes corresponding to part of item being killed */
-		reiser4_invalidate_pages(inode->i_mapping, from_off, to_off - from_off + 1);
+		reiser4_invalidate_pages(inode->i_mapping, from_off, to_off - from_off);
 
 	ext = extent_item(coord) + from;
 	offset = (get_key_offset(&min_item_key) + extent_size(coord, from)) >> PAGE_CACHE_SHIFT;
