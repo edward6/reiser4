@@ -352,6 +352,8 @@ reiser4_lock_stack* get_current_lock_stack ( void )
 static void wake_up_all_lopri_owners (znode *node)
 {
 	reiser4_lock_handle *handle = owners_list_front(&node->lock.owners);
+
+	assert("nikita-1824", spin_znode_is_locked(node));
 	while (!owners_list_end(&node->lock.owners, handle)) {
 		spin_lock_stack(handle->owner);
 
