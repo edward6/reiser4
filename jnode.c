@@ -213,8 +213,11 @@ jfree(jnode * node)
 
 	assert("nikita-2663", capture_list_is_clean(node));
 	assert("nikita-2774", !JF_ISSET(node, JNODE_EFLUSH));
+	assert("nikita-3222", list_empty(&node->jnodes));
+	assert("nikita-3221", jnode_page(node) == NULL);
 
 	/* not yet phash_jnode_destroy(node); */
+
 	/* poison memory. */
 	ON_DEBUG(xmemset(node, 0xad, sizeof *node));
 	kmem_cache_free(_jnode_slab, node);
@@ -1131,6 +1134,20 @@ jnode_free_actor(void *arg)
 	}
 }
 
+#if REISER4_DEBUG
+void jnode_list_remove(jnode * node)
+{
+	reiser4_super_info_data *sbinfo;
+
+	sbinfo = get_super_private(jnode_get_tree(node)->super);
+
+	spin_lock_irq(&sbinfo->all_guard);
+	assert("nikita-2422", !list_empty(&node->jnodes));
+	list_del_init(&node->jnodes);
+	spin_unlock_irq(&sbinfo->all_guard);
+}
+#endif
+
 static inline void
 jnode_free(jnode * node, jnode_type jtype)
 {
@@ -1143,21 +1160,11 @@ jnode_free(jnode * node, jnode_type jtype)
 			atomic_inc(&sbinfo->jnodes_in_flight);
 		}
 #endif
+		assert("nikita-3219", list_empty(&node->rcu.list));
 		call_rcu(&node->rcu, jnode_free_actor, node);
 	} 
-#if REISER4_DEBUG
 	else
-	{
-		reiser4_super_info_data *sbinfo;
-
-		sbinfo = get_super_private(jnode_get_tree(node)->super);
-
-		spin_lock_irq(&sbinfo->all_guard);
-		assert("nikita-2422", !list_empty(&node->jnodes));
-		list_del_init(&node->jnodes);
-		spin_unlock_irq(&sbinfo->all_guard);
-	}
-#endif
+		jnode_list_remove(node);
 }
 
 int

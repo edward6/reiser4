@@ -250,6 +250,7 @@ zfree(znode * node /* znode to free */ )
 	assert("nikita-2302", requestors_list_empty(&node->lock.requestors));
 	assert("nikita-2663", capture_list_is_clean(ZJNODE(node)));
 	assert("nikita-2773", !JF_ISSET(ZJNODE(node), JNODE_EFLUSH));
+	assert("nikita-3220", list_empty(&ZJNODE(node)->jnodes));
 
 	/* not yet phash_jnode_destroy(ZJNODE(node)); */
 
@@ -538,6 +539,7 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 
 		shadow = z_hash_find_index(zth, hashi, blocknr);
 		if (unlikely(shadow != NULL && !ZF_ISSET(shadow, JNODE_RIP))) {
+			jnode_list_remove(ZJNODE(result));
 			zfree(result);
 			result = shadow;
 		} else {
