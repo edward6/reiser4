@@ -45,6 +45,9 @@ typedef struct node40_header {
 	d16            free_space_start;
 	/** magic field we need to tell formatted nodes */
   	d32	       magic;
+	/** 1 is leaf level, 2 is twig level, root is the numerically largest
+	 * level */
+	d8	       level;
 	/** node flags to be used by fsck (reiser4ck or reiser4fsck?)
 	    and repacker */
 	/** for reiser4_fsck.  When information about what is a free
@@ -55,9 +58,6 @@ typedef struct node40_header {
 	    delete the wrong files and send us desperate emails
 	    offering $25 for them back.  */
 	flush_stamp_t flush;
-	/** 1 is leaf level, 2 is twig level, root is the numerically largest
-	 * level */
-	d8	       level;
 } node40_header;
 
 /* item headers are not standard across all node layouts, pass
