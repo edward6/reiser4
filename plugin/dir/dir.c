@@ -631,11 +631,11 @@ static int dir_go_to( struct file *dir, readdir_pos *pos, tap_t *tap )
 			       FIND_MAX_NOT_MORE_THAN,
 			       LEAF_LEVEL, LEAF_LEVEL, 0 );
 	if( result == CBK_COORD_FOUND )
-		result = rewind_right( tap, pos -> position.pos );
+		result = rewind_right( tap, ( int ) pos -> position.pos );
 	return result;
 }
 
-static int rewind( struct file *dir, readdir_pos *pos,
+static int dir_rewind( struct file *dir, readdir_pos *pos,
 		   loff_t offset, tap_t *tap )
 {
 	__u64 destination;
@@ -761,7 +761,7 @@ static int feed_entry( readdir_pos *pos,
 		     /*
 		      * offset of the next entry
 		      */
-		     pos -> entry_no + 1,
+		     ( loff_t ) pos -> entry_no + 1,
 		     /*
 		      * inode number of object bounden by this entry
 		      */
@@ -805,7 +805,7 @@ int dir_readdir_init( struct file *f, tap_t *tap, readdir_pos **pos )
 	/*
 	 * move @tap to the current position
 	 */
-	return rewind( f, *pos, f -> f_pos, tap );
+	return dir_rewind( f, *pos, f -> f_pos, tap );
 }
 
 /** ->readdir method of directory plugin */
