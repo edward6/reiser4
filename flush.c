@@ -972,27 +972,6 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 	 * objects are initialized any abnormal return goes to the 'failed' label. */
  clean_out:
 
-	/* Wait for io completion.  (FIXME_NFQUCMPD)
-	 *
-	 * FIXME(A): I THINK THIS IS KILLING COMMIT PERFORMANCE!
-	 *
-	 * FIXME(A): JMACD->ZAM,HANS: I don't think this will work, conditionally waiting for
-	 * an IO completion here.  Certainly it is easiest if we allocate the io_handle on
-	 * the stack, but the check for JNODE_FLUSH_COMMIT doesn't work because a call to
-	 * early-flush will not wait here.  If the transaction commits shortly after
-	 * memory pressure causes early flushing, then the transaction will not wait for
-	 * the early-flush writes to complete.  I propose this solution:
-	 *
-	 * 1. Allocate io_handles w/ kmalloc
-	 * 2. Maintain per-atom list of active io_handles
-	 * 3. Fuse lists when atoms commit
-	 * 4. Wait on all io_handles prior in PRE_COMMIT.
-	 * 5. After this is accomplished, remove txn_wait_on_io() from txnmgr.c
-	 *
-	 * The alternative is to undconditionally call done_io_handle here, not just when
-	 * JNODE_FLUSH_COMMIT is called, but that will make performance suck.
-	 */
-
 	ON_DEBUG (atomic_dec (& flush_cnt));
 
 	return ret;
@@ -3636,37 +3615,37 @@ static int flush_pos_valid (flush_position *pos)
 	return pos->point != NULL || lock_mode (& pos->parent_lock) != ZNODE_NO_LOCK;
 }
 
-/* Return jnode back to atom's lists */
+/* return one jnode back to atom's lists */
+static void invalidate_queued_jnode (struct flush_position * pos, jnode * node)
+{
+	txn_atom * atom;
+
+	spin_lock_jnode (node);
+	atom = atom_get_locked_by_jnode (node);
+
+	/*JF_CLR (cur, JNODE_FLUSH_BUSY);*/
+	JF_CLR (node, JNODE_FLUSH_QUEUED);
+
+	pos->queue_num --;
+	atom->num_queued --;
+
+	if (jnode_is_dirty(node)) capture_list_push_back (&atom->dirty_nodes[jnode_get_level(node)], node);
+	else                      capture_list_push_back (&atom->clean_nodes, node);
+
+	spin_unlock_jnode (node);
+
+	if (capture_list_empty(&pos->queue))
+		flushers_list_remove(pos);
+
+	spin_unlock_atom (atom);
+}
+
 /* Return jnode back to atom's lists */
 static void invalidate_flush_queue (struct flush_position * pos)
 {
-	if (capture_list_empty(&pos->queue)) return;
-
-	while (1) {
+	while(!capture_list_empty(&pos->queue)) {
 		jnode * cur = capture_list_pop_front (&pos->queue);
-		txn_atom * atom;
-
-		spin_lock_jnode (cur);
-		atom = atom_get_locked_by_jnode (cur);
-
-		/*JF_CLR (cur, JNODE_FLUSH_BUSY);*/
-		JF_CLR (cur, JNODE_FLUSH_QUEUED);
-
-		pos->queue_num --;
-		atom->num_queued --;
-
-		if (jnode_is_dirty(cur)) capture_list_push_back (&atom->dirty_nodes[jnode_get_level(cur)], cur);
-		else                     capture_list_push_back (&atom->clean_nodes, cur);
-
-		spin_unlock_jnode (cur);
-
-		if (capture_list_empty(&pos->queue)) {
-			flushers_list_remove(pos);
-			spin_unlock_atom (atom);
-			break;
-		}
-
-		spin_unlock_atom (atom);
+		invalidate_queued_jnode (pos, cur);
 	}
 }
 
