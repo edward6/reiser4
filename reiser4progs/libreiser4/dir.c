@@ -121,7 +121,7 @@ reiserfs_object_t *reiserfs_dir_create(
 	aal_memcpy(object->key.body, object_key.body, key_size);
     }
     
-    {   
+    if (parent) {   
 	reiserfs_entry_hint_t entry;
 
 	/* 

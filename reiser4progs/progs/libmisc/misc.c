@@ -314,8 +314,12 @@ static aal_exception_option_t progs_exception_option_by_name(char *name) {
     for (i = 0; i < aal_log2(EXCEPTION_LAST); i++) {
 	char *opt = aal_exception_option_string(1 << i);
 	
+	/* 
+	    Function fgets puts '\n' symbol at end of entered string. Because of 
+	    this we should check for strlen(name) == 2.
+	*/
 	if (aal_strncmp(opt, name, aal_strlen(name)) == 0 || 
-		(aal_strlen(name) == 1 && toupper(opt[0]) == toupper(name[0])))
+		(aal_strlen(name) == 2 && toupper(opt[0]) == toupper(name[0])))
 	    return 1 << i;
     }
     
@@ -327,7 +331,9 @@ static aal_exception_option_t progs_exception_selected_option(void) {
     char str[256];
     
     aal_memset(str, 0, sizeof(str));
-    return progs_exception_option_by_name(fgets(str, 256, stdin));
+    fgets(str, sizeof(str), stdin);
+
+    return progs_exception_option_by_name(str);
 }
 
 /* Streams assigned with exception type are stored here */

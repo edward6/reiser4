@@ -868,11 +868,11 @@ typedef errno_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
 
 #if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
 
-extern reiserfs_plugin_t *libreiser4_plugin_load_by_name(const char *name);
+extern reiserfs_plugin_t *libreiser4_plugin_load_name(const char *name);
 
 #endif
 
-extern reiserfs_plugin_t *libreiser4_plugin_load_by_entry(reiserfs_plugin_entry_t entry);
+extern reiserfs_plugin_t *libreiser4_plugin_load_entry(reiserfs_plugin_entry_t entry);
 
 extern void libreiser4_plugin_unload(reiserfs_plugin_t *plugin);
 
@@ -902,7 +902,10 @@ extern void libreiser4_factory_done(void);
 extern reiserfs_plugin_t *libreiser4_factory_find(reiserfs_plugin_type_t type,
     reiserfs_id_t id);
 
-extern errno_t libreiser4_factory_foreach(reiserfs_plugin_func_t plugin_func, 
+extern errno_t libreiser4_factory_foreach(reiserfs_plugin_func_t func, 
+    void *data);
+
+extern reiserfs_plugin_t *libreiser4_factory_suitable(reiserfs_plugin_func_t func,
     void *data);
 
 #endif

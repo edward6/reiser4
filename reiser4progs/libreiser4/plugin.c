@@ -41,7 +41,7 @@ static int callback_match_coord(
 #if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
 
 /* Loads non-builtin plugin by filename */
-reiserfs_plugin_t *libreiser4_plugin_load_by_name(const char *name) {
+reiserfs_plugin_t *libreiser4_plugin_load_name(const char *name) {
     void *handle, *addr;
     reiserfs_plugin_t *plugin;
     reiserfs_plugin_entry_t entry;
@@ -65,7 +65,7 @@ reiserfs_plugin_t *libreiser4_plugin_load_by_name(const char *name) {
     
     /* Getting plugin info by entry point */
     entry = *((reiserfs_plugin_entry_t *)addr);
-    if (!(plugin = reiserfs_plugins_load_by_entry(entry)))
+    if (!(plugin = reiserfs_plugins_load_entry(entry)))
 	goto error_free_handle;
     
     plugin->h.handle = handle;
@@ -80,7 +80,7 @@ error:
 #endif
 
 /* Loads plugin by entry point (used for builtin plugins) */
-reiserfs_plugin_t *libreiser4_plugin_load_by_entry(reiserfs_plugin_entry_t entry) {
+reiserfs_plugin_t *libreiser4_plugin_load_entry(reiserfs_plugin_entry_t entry) {
     reiserfs_plugin_t *plugin;
     
     aal_assert("umka-259", entry != NULL, return NULL);
@@ -150,7 +150,7 @@ errno_t libreiser4_factory_init(void) {
 	aal_snprintf(name, sizeof(name), "%s/%s", PLUGIN_DIR, ent->d_name);
 
 	/* Loading plugin*/
-	libreiser4_plugins_load_by_name(name);
+	libreiser4_plugins_load_name(name);
     }
     closedir(dir);
 #else
@@ -161,7 +161,7 @@ errno_t libreiser4_factory_init(void) {
 	entry < (uint32_t *)(&__plugin_end); entry++) 
     {
 	if (entry) 
-	    libreiser4_plugin_load_by_entry((reiserfs_plugin_entry_t)*entry);
+	    libreiser4_plugin_load_entry((reiserfs_plugin_entry_t)*entry);
     }
 #endif
     return -(aal_list_length(plugins) == 0);
@@ -200,23 +200,42 @@ reiserfs_plugin_t *libreiser4_factory_find(
 	(comp_func_t)callback_match_coord, NULL)) ? (reiserfs_plugin_t *)found->item : NULL;
 }
 
+/* Finds plugins by its type and id */
+reiserfs_plugin_t *libreiser4_factory_suitable(
+    reiserfs_plugin_func_t func,	    /* per plugin function */
+    void *data				    /* user-specified data */
+) {
+    aal_list_t *walk = NULL;
+
+    aal_assert("umka-899", func != NULL, return NULL);    
+    aal_assert("umka-155", plugins != NULL, return NULL);    
+	
+    aal_list_foreach_forward(walk, plugins) {
+	reiserfs_plugin_t *plugin = (reiserfs_plugin_t *)walk->item;
+	
+	if (func(plugin, data))
+	    return plugin;
+    }
+    return NULL;
+}
+
 /* 
     Calls specified function for every plugin from plugin list. This functions
     is used for getting any plugins information.
 */
 errno_t libreiser4_factory_foreach(
-    reiserfs_plugin_func_t plugin_func,	    /* per plugin function */
+    reiserfs_plugin_func_t func,	    /* per plugin function */
     void *data				    /* user-specified data */
 ) {
     errno_t res = 0;
     aal_list_t *walk;
     
-    aal_assert("umka-479", plugin_func != NULL, return -1);
+    aal_assert("umka-479", func != NULL, return -1);
 
     aal_list_foreach_forward(walk, plugins) {
 	reiserfs_plugin_t *plugin = (reiserfs_plugin_t *)walk->item;
 	
-	if ((res = plugin_func(plugin, data)))
+	if ((res = func(plugin, data)))
 	    return res;
     }
     return res;

@@ -10,156 +10,6 @@
 
 #include <reiser4/reiser4.h>
 
-#ifndef ENABLE_COMPACT
-
-/* Forms master super block disk structure */
-static errno_t reiserfs_master_create(
-    reiserfs_fs_t *fs,		    /* filesystem instance */
-    reiserfs_id_t format_pid,	    /* disk format plugin id to be used */
-    unsigned int blocksize,	    /* blocksize to be used */
-    const char *uuid,		    /* uuid to be used */
-    const char *label		    /* filesystem label to be used */
-) {
-    aal_assert("umka-142", fs != NULL, return -1);
-    
-    /* Allocating the memory */
-    if (!(fs->master = aal_calloc(REISERFS_DEFAULT_BLOCKSIZE, 0)))
-	return -1;
-    
-    /* Copying magic */
-    aal_strncpy(fs->master->mr_magic, REISERFS_MASTER_MAGIC, 
-	aal_strlen(REISERFS_MASTER_MAGIC));
-    
-    /* Copying uuid and label to corresponding master super block fields */
-    if (uuid)
-	aal_strncpy(fs->master->mr_uuid, uuid, sizeof(fs->master->mr_uuid));
-
-    if (label)
-	aal_strncpy(fs->master->mr_label, label, sizeof(fs->master->mr_label));
-
-    /* Setting plugin id for used disk format plugin */
-    set_mr_format_id(fs->master, format_pid);
-
-    /* Setting block filesystem used */
-    set_mr_block_size(fs->master, blocksize);
-	
-    return 0;
-}
-
-#endif
-
-/* Reads master super block from disk */
-static errno_t reiserfs_master_open(
-    reiserfs_fs_t *fs		    /* filesystem for working with */
-) {
-    blk_t master_offset;
-    aal_block_t *block;
-    reiserfs_master_t *master;
-    
-    aal_assert("umka-143", fs != NULL, return -1);
-    
-    master_offset = (blk_t)(REISERFS_MASTER_OFFSET / REISERFS_DEFAULT_BLOCKSIZE);
-
-    /* Setting up default block size (4096) to used device */
-    aal_device_set_bs(fs->host_device, REISERFS_DEFAULT_BLOCKSIZE);
-    
-    /* Reading the block where master super block lies */
-    if (!(block = aal_block_read(fs->host_device, master_offset))) {
-	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
-	    "Can't read master super block at %llu.", master_offset);
-	return -1;
-    }
-    
-    master = (reiserfs_master_t *)block->data;
-
-    /* Checking for reiser3 disk-format */
-    if (aal_strncmp(master->mr_magic, REISERFS_MASTER_MAGIC, 4) != 0) {
-#ifndef ENABLE_COMPACT    
-	reiserfs_plugin_t *format36;
-	
-	if (!(format36 = libreiser4_factory_find(REISERFS_FORMAT_PLUGIN, REISERFS_LEGACY_FORMAT)))
-    	    libreiser4_factory_failed(goto error_free_block, find, format, REISERFS_LEGACY_FORMAT);
-	
-	if (!libreiser4_plugin_call(goto error_free_block, 
-		format36->format_ops, confirm, fs->host_device))
-	    goto error_free_block;
-
-	/* Forming in memory master super block for reiser3 */
-	if (reiserfs_master_create(fs, 0x1, aal_device_get_bs(fs->host_device), "", "")) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Can't create in-memory "
-		"master super block in order to initialize reiser3 filesystem.");
-	    goto error_free_block;
-	}
-#endif
-    } else {
-	if (!(fs->master = aal_calloc(sizeof(*master), 0)))
-	    goto error_free_block;
-	
-	/* Updating master super block in filesystem instance */
-	aal_memcpy(fs->master, master, sizeof(*master));
-	
-	/* Setting actual used block size from master super block */
-	if (aal_device_set_bs(fs->host_device, get_mr_block_size(master))) {
-	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
-		"Invalid block size detected %u. It must be power of two.", 
-		get_mr_block_size(master));
-	    
-	    aal_free(fs->master);
-	    goto error_free_block;
-	}
-    }
-    
-    return 0;
-    
-error_free_block:
-    aal_block_free(block);
-error:
-    return -1;    
-}
-
-#ifndef ENABLE_COMPACT
-
-/* Saves master super block to device. */
-static errno_t reiserfs_master_sync(
-    reiserfs_fs_t *fs		/* filesystem master will be saved from */
-) {
-    blk_t master_offset;	
-    aal_block_t *block;
-	
-    aal_assert("umka-144", fs != NULL, return -1);
-    aal_assert("umka-145", fs->master != NULL, return -1);
-
-    master_offset = (blk_t)(REISERFS_MASTER_OFFSET / REISERFS_DEFAULT_BLOCKSIZE);
-    if (!(block = aal_block_alloc(fs->host_device, master_offset, 0)))
-	return -1;
-    
-    /* 
-	Writing master super block to host device. Host device is device where
-	filesystem lies. There is also journal device.
-    */
-    aal_memcpy(block->data, fs->master, REISERFS_DEFAULT_BLOCKSIZE);
-    if (aal_block_write(block)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't synchronize master super block at %llu. %s.", 
-	    master_offset, aal_device_error(fs->host_device));
-	return -1;
-    }
-
-    return 0;
-}
-
-#endif
-
-/* Frees master super block occupied memory */
-static void reiserfs_master_close(
-    reiserfs_fs_t *fs		/* filesystem master will be freed in */
-) {
-    aal_assert("umka-146", fs != NULL, return);
-    aal_assert("umka-147", fs->master != NULL, return);
-
-    aal_free(fs->master);
-}
-
 /*
     Builds root directory key. It is used for lookups and other as init key. This 
     method id needed because of root key in reiser3 and reiser4 has a diffrent 
@@ -223,7 +73,7 @@ reiserfs_fs_t *reiserfs_fs_open(
     fs->journal_device = journal_device;
 
     /* Reads master super block. See above for details */
-    if (reiserfs_master_open(fs))
+    if (!(fs->master = reiserfs_master_open(host_device)))
 	goto error_free_fs;
     
     /* Initializes used disk format. See format.c for details */
@@ -306,7 +156,7 @@ error_free_alloc:
 error_free_super:
     reiserfs_format_close(fs->format);
 error_free_master:
-    reiserfs_master_close(fs);
+    reiserfs_master_close(fs->master);
 error_free_fs:
     aal_free(fs);
 error:
@@ -329,7 +179,7 @@ reiserfs_fs_t *reiserfs_fs_create(
     void *journal_params	    /* journal params (most probably will be used for r3) */
 ) {
     reiserfs_fs_t *fs;
-    blk_t blk, master_blk;
+    blk_t blk, master_offset;
     void *oid_area_start, *oid_area_end;
     blk_t journal_area_start, journal_area_end;
 
@@ -361,7 +211,8 @@ reiserfs_fs_t *reiserfs_fs_create(
     fs->journal_device = journal_device;
 
     /* Creates master super block */
-    if (reiserfs_master_create(fs, profile->format, blocksize, uuid, label))
+    if (!(fs->master = reiserfs_master_create(profile->format, 
+	    blocksize, uuid, label)))
 	goto error_free_fs;
 
     /* Creates disk format */
@@ -370,15 +221,18 @@ reiserfs_fs_t *reiserfs_fs_create(
 	goto error_free_master;
 
     /* Creates block allocator */
-    if (!(fs->alloc = reiserfs_alloc_create(host_device, len, profile->alloc)))
+    if (!(fs->alloc = reiserfs_alloc_create(host_device, len, 
+	    profile->alloc)))
 	goto error_free_format;
 
     /* 
 	Marking the skiped area and master super block 
 	(0-16 blocks) as used.
     */
-    master_blk = (blk_t)(REISERFS_MASTER_OFFSET/aal_device_get_bs(host_device));
-    for (blk = 0; blk <= master_blk; blk++)
+    master_offset = (blk_t)(REISERFS_MASTER_OFFSET / 
+	aal_device_get_bs(host_device));
+    
+    for (blk = 0; blk <= master_offset; blk++)
 	reiserfs_alloc_mark(fs->alloc, blk);
     
     /* Marking format-specific super blocks as used */
@@ -458,7 +312,7 @@ error_free_alloc:
 error_free_format:
     reiserfs_format_close(fs->format);
 error_free_master:
-    reiserfs_master_close(fs);
+    reiserfs_master_close(fs->master);
 error_free_fs:
     aal_free(fs);
 error:
@@ -474,9 +328,15 @@ errno_t reiserfs_fs_sync(
 ) {
     aal_assert("umka-231", fs != NULL, return -1);
    
-    /* Synchronizing the master super block */
-    if (reiserfs_master_sync(fs))
-	return -1;
+    /* 
+	Synchronizing the master super block. As master may not be exist on device,
+	because reiser3 filesystem was created, we should make sure, that filesystem
+	on the host device is realy reiser4 filesystem.
+    */
+    if (reiserfs_master_confirm(fs->host_device)) {
+	if (reiserfs_master_sync(fs->master, fs->host_device))
+	    return -1;
+    }
     
     /* Synchronizing block allocator */
     if (reiserfs_alloc_sync(fs->alloc))
@@ -530,7 +390,7 @@ void reiserfs_fs_close(
 	
     reiserfs_alloc_close(fs->alloc);
     reiserfs_format_close(fs->format);
-    reiserfs_master_close(fs);
+    reiserfs_master_close(fs->master);
 
     /* Freeing memory occupied by fs instance */
     aal_free(fs);
