@@ -8,6 +8,13 @@
 /*
  * plugin->u.item.b.max_key_inside
  */
+reiser4_key * tail_max_key_inside (const tree_coord * coord, 
+				   reiser4_key * key)
+{
+	item_key_by_coord (coord, key);
+	set_key_offset (key, get_key_offset (max_key ()));
+	return key;
+}
 
 
 /*
