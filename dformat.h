@@ -101,9 +101,9 @@ static inline int disk_addr_eq( const reiser4_disk_addr *b1,
 	return !memcmp( b1, b2, sizeof *b1 );
 }
 
-extern int reiser4_get_nr_bmap (struct super_block * super);
+extern int get_nr_bmap (struct super_block * super);
 
-extern block_nr reiser4_get_bitmap_blocknr (struct super_block *, int);
+extern block_nr get_bitmap_blocknr (struct super_block *, int);
 
 /* __FS_REISER4_DFORMAT_H__ */
 #endif

@@ -87,7 +87,7 @@ static int common_link( struct inode *parent, struct dentry *existing,
 	entry.obj = object;
 
 	data.mode = object -> i_mode;
-	data.id   = file_plugin_to_plugin( reiser4_get_object_state( object ) -> file ) -> h.id;
+	data.id   = file_plugin_to_plugin( get_object_state( object ) -> file ) -> h.id;
 
 	result = reiser4_add_nlink( object );
 	if( result == 0 ) {
@@ -275,7 +275,7 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 	else
 		object -> i_gid = current -> fsgid;
 
-	reiser4_get_object_state( object ) -> file = fplug;
+	get_object_state( object ) -> file = fplug;
 
 	/* this object doesn't have stat-data yet */
 	*reiser4_inode_flags( object ) |= REISER4_NO_STAT_DATA;
@@ -302,8 +302,8 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 		reiser4_plugin_ref *self;
 		reiser4_plugin_ref *ancestor;
 
-		self = reiser4_get_object_state( object );
-		ancestor = reiser4_get_object_state( parent ? parent :
+		self = get_object_state( object );
+		ancestor = get_object_state( parent ? parent :
 						     object -> i_sb -> s_root -> d_inode );
 		if ( self -> dir == NULL )
 			self -> dir = ancestor -> dir;
@@ -327,8 +327,8 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 #endif /* inherit */
 
 	/* reget plugin after installation */
-	fplug = reiser4_get_object_state( object ) -> file;
-	reiser4_get_object_state( object ) -> locality_id = parent -> i_ino;
+	fplug = get_object_state( object ) -> file;
+	get_object_state( object ) -> locality_id = parent -> i_ino;
 
 	/* mark inode immutable. We disable changes to the file
 	   being created until valid directory entry for it is

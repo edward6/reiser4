@@ -25,7 +25,7 @@ typedef struct reiser4_inode_info {
 } reiser4_inode_info;
 
 extern reiser4_tree *tree_by_inode( const struct inode *inode );
-extern reiser4_plugin_ref *reiser4_get_object_state( const struct inode *inode );
+extern reiser4_plugin_ref *get_object_state( const struct inode *inode );
 extern reiser4_inode_info *reiser4_inode_data( const struct inode * );
 extern __u32 *reiser4_inode_flags( const struct inode *inode );
 extern file_plugin *reiser4_get_file_plugin( const struct inode *inode );

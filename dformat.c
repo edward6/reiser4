@@ -5,7 +5,7 @@
 
 /** A number of bitmap blocks for given fs. This number can be stored on disk
  * or calculated on fly; it depends on disk format. */
-int reiser4_get_nr_bmap (struct super_block * super)
+int get_nr_bmap (struct super_block * super)
 {
 	reiser4_super_info_data * info_data = reiser4_get_super_private(super); 
 
@@ -18,11 +18,11 @@ int reiser4_get_nr_bmap (struct super_block * super)
 
 
 /** return a physical disk address for logical bitmap number @bmap */
-block_nr reiser4_get_bitmap_blocknr (struct super_block * super, int bmap)
+block_nr get_bitmap_blocknr (struct super_block * super, int bmap)
 {
 
 	assert ("zam-389", bmap >= 0);
-	assert ("zam-390", bmap < reiser4_get_nr_bmap(super));
+	assert ("zam-390", bmap < get_nr_bmap(super));
 
 	/* FIXME_ZAM: before discussing of disk layouts and disk format
 	 * plugins I implement bitmap location scheme which is close to scheme

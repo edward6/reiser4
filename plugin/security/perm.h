@@ -54,7 +54,7 @@ typedef struct perm_plugin {
 ({								\
 	perm_plugin *perm;					\
 								\
-	perm = reiser4_get_object_state( inode ) -> perm;	\
+	perm = get_object_state( inode ) -> perm;	\
 	( ( perm != NULL ) &&					\
 	  ( perm -> ## check ## _ok != NULL ) &&	\
 	    perm -> ## check ## _ok( ##args ) );	\

@@ -80,8 +80,8 @@ int total_inheritance( struct inode *inode,
 	assert( "nikita-705", ( parent == NULL ) || S_ISDIR( parent -> i_mode ) );
 	assert( "nikita-706", ( root == NULL ) || S_ISDIR( root -> i_mode ) );
 
-	self = reiser4_get_object_state( inode );
-	ancestor = reiser4_get_object_state( parent ? : root );
+	self = get_object_state( inode );
+	ancestor = get_object_state( parent ? : root );
 	changed = 0;
 
 	changed |= inherit_if_nil( &self -> hash, &ancestor -> hash );
@@ -124,7 +124,7 @@ int common_file_install( struct inode *inode, reiser4_plugin *plug,
 	else
 		inode -> i_gid = current -> fsgid;
 
-	reiser4_get_object_state( inode ) -> file = plug;
+	get_object_state( inode ) -> file = plug;
 
 	/* this object doesn't have stat-data yet */
 	*reiser4_inode_flags( inode ) |= REISER4_NO_STAT_DATA;
@@ -233,7 +233,7 @@ static int insert_new_sd( struct inode *inode )
 	if( !( *reiser4_inode_flags( inode ) & REISER4_NO_STAT_DATA ) )
 		return 0;
 
-	ref = reiser4_get_object_state( inode );
+	ref = get_object_state( inode );
 
 	data.plugin = ref -> sd;
 	if( data.plugin == NULL ) {
@@ -335,7 +335,7 @@ static int update_sd( struct inode *inode )
 
 	result = lookup_sd( inode, ZNODE_WRITE_LOCK, &coord, &lh, &key );
 	error_message = NULL;
-	state = reiser4_get_object_state( inode );
+	state = get_object_state( inode );
 	/* we don't want to re-check that somebody didn't remove stat-data
 	   while we were doing io, because if it did, lookup_sd returned
 	   error. */
@@ -635,8 +635,8 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 	}
 
 	/* reget plugin after installation */
-	plugin = reiser4_get_object_state( object ) -> file;
-	reiser4_get_object_state( object ) -> locality_id = parent -> i_ino;
+	plugin = get_object_state( object ) -> file;
+	get_object_state( object ) -> locality_id = parent -> i_ino;
 
 	/* reserve space in transaction to add new entry to parent */
 	reserved = fplug -> estimate.add( parent, dentry, data );
@@ -854,7 +854,7 @@ static int common_link( struct inode *parent, struct dentry *existing,
 	memset( &entry, 0, sizeof entry );
 
 	data.mode = object -> i_mode;
-	data.id   = reiser4_get_object_state( object ) -> file -> h.id;
+	data.id   = get_object_state( object ) -> file -> h.id;
 	/* reserve space in transaction to add new entry to parent */
 	reserved = parent_fplug -> estimate.add( parent, existing, &data );
 	/* reserve space in transaction to add link and may be to remove link */
