@@ -485,8 +485,9 @@ kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, struct cut
 		left = p->left->node;
 		right = p->right->node;
 
-		UNDER_RW_VOID(tree, tree, write, 
-			      link_left_and_right(left, right));
+		WLOCK_TREE(tree);
+		link_left_and_right(left, right);
+		WUNLOCK_TREE(tree);
 
 		if (right != NULL)
 			UNDER_RW_VOID(dk, tree, write, 
