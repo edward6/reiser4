@@ -88,6 +88,8 @@ typedef enum {
 	LAST_IMPORTANT_SD_EXTENSION = PLUGIN_STAT,
 } sd_ext_bits;
 
+#define PACKED __attribute__((packed))
+
 /* this is not minimal.  I used to think that size was the only stat
    data which cannot be eliminated/inherited, but then I realized that
    if you have a directory of files of equal size, you could cause
@@ -105,14 +107,14 @@ typedef enum {
 typedef struct reiser4_stat_data_base {
 	/*  0 */ d16 extmask;
 	/*  2 */
-} reiser4_stat_data_base;
+} PACKED reiser4_stat_data_base;
 
 typedef struct reiser4_light_weight_stat {
 	/*  0 */ d16 mode;
 	/*  2 */ d32 nlink;
 	/*  8 */ d64 size;	/* size in bytes */
 	/* 16 */
-} reiser4_light_weight_stat;
+} PACKED reiser4_light_weight_stat;
 
 typedef struct reiser4_unix_stat {
 	/*  0 */ d32 uid;	/* owner id */
@@ -123,19 +125,19 @@ typedef struct reiser4_unix_stat {
 	/* 20 */ d32 rdev;	/* minor:major for device files */
 	/* 24 */ d64 bytes;     /* bytes used by file */
 	/* 32 */
-} reiser4_unix_stat;
+} PACKED reiser4_unix_stat;
 
 /** symlink stored as part of inode */
 typedef struct reiser4_symlink_stat {
 	char body[ 0 ];
-} reiser4_symlink_stat;
+} PACKED reiser4_symlink_stat;
 
 typedef struct reiser4_plugin_slot {
 	/*  0 */ d16 type_id;
 	/*  2 */ d16 id;
 	/*  4 */ /* here plugin stores its persistent state */
 /* NIKITA-FIXME-HANS: what does that mean? */
-} reiser4_plugin_slot;
+} PACKED reiser4_plugin_slot;
 
 /** stat-data extension for files with non-standard plugin. */
 /* NIKITA-FIXME-HANS: comment on these things as a set, what they are used for, etc. */
@@ -144,26 +146,26 @@ typedef struct reiser4_plugin_stat {
 	/*  0 */ d16 plugins_no;
 	/*  2 */ reiser4_plugin_slot slot[ 0 ];
 	/*  2 */
-} reiser4_plugin_stat;
+} PACKED reiser4_plugin_stat;
 
 typedef struct reiser4_gen_and_flags_stat {
 	/*  0 */ d32 generation;
 	/*  4 */ d32 flags;
 	/*  8 */
-} reiser4_gen_and_flags_stat;
+} PACKED reiser4_gen_and_flags_stat;
 
 typedef struct reiser4_capabilities_stat {
 	/*  0 */ d32 effective;
 	/*  8 */ d32 permitted;
 	/* 16 */
-} reiser4_capabilities_stat;
+} PACKED reiser4_capabilities_stat;
 
 typedef struct reiser4_large_times_stat {
 	/*  0 */ d32 atime;	/* access time */
 	/*  8 */ d32 mtime;	/* modification time */
 	/* 16 */ d32 ctime;	/* change time */
 	/* 24 */
-} reiser4_large_times_stat;
+} PACKED reiser4_large_times_stat;
 
 /* this structure is filled by sd_item_stat */
 typedef struct sd_stat {
