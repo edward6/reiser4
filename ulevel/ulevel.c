@@ -2091,6 +2091,13 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			reiser4_stat_data_base base;
 			reiser4_unix_stat      un;
 		} sd;
+		struct inode *f;
+
+		f = sandbox( get_root_dir( tree -> super ) );
+		key_init( &key );
+		set_key_locality( &key, ( __u64 ) f -> i_ino );
+		set_key_type( &key, KEY_SD_MINOR );
+
 		for( i = 0 ; ( i < atoi( argv[ 3 ] ) ) ||
 			     ( tree -> height < TWIG_LEVEL ) ; ++ i ) {
 			lock_handle lh;
@@ -2099,7 +2106,6 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			init_lh( &lh );
 
 			info( "_____________%i_____________\n", i );
-			key_init( &key );
 			set_key_objectid( &key, ( __u64 ) 1000 + i * 8 );
 
 			cputod16( S_IFREG | 0111, &sd.base.mode );
@@ -2479,13 +2485,13 @@ static struct inode * call_lookup (struct inode * dir, const char * name)
 static struct inode *sandbox( struct inode * dir )
 {
 	char dir_name[ 100 ];
-	int ret;
+	struct inode *jail;
 
 	sprintf( dir_name, "sandbox-%li", ( long ) getpid() );
-	ret = call_mkdir( dir, dir_name );
-	assert( "nikita-1935", ret == 0 );
-	return call_lookup( dir, dir_name );
-
+	check_me( "nikita-1935", call_mkdir( dir, dir_name ) == 0 );
+	jail = call_lookup( dir, dir_name );
+	iput( dir );
+	return jail;
 }
 
 static int call_mkdir (struct inode * dir, const char * name)
