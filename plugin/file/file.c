@@ -1004,8 +1004,7 @@ capture_anonymous_page(struct page *pg, int keepme)
 
 	return result;
 }
-#endif
-#if 1
+#else
 /* this returns 1 if it captured page */
 static int
 capture_anonymous_page(struct page *page, int keepme UNUSED_ARG)
@@ -1014,8 +1013,8 @@ capture_anonymous_page(struct page *page, int keepme UNUSED_ARG)
 	jnode *node;
 	struct pagevec pvec;
 	unsigned nr_pages;
-	int done;
-	int result;
+	int done = 0;
+	int result = 0;
 	int i;
 
 	mapping = page->mapping;
