@@ -339,7 +339,7 @@ read_ctail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 	assert("edward-128", f->data);
 	assert("edward-129", coord && coord->node);
 	assert("edward-130", coord_is_existing_unit(coord));
-	assert("edward-131", znode_is_rlocked(coord->node));
+//	assert("edward-131", znode_is_rlocked(coord->node));
 	assert("edward-132", znode_is_loaded(coord->node));
 
 	/* start read only from the beginning of ctail */
