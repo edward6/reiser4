@@ -163,7 +163,7 @@ ZAM-FIXME-HANS: use term "play" and define it too;-)
 #include <linux/bio.h>		/* for struct bio */
 #include <linux/blkdev.h>
 
-static int submit_write(jnode *, int, const reiser4_block_nr *, flush_queue_t * fq);
+static int wandered_extent_write(jnode *, int, const reiser4_block_nr *, flush_queue_t * fq);
 
 /* The commit_handle is a container for objects needed at atom commit time  */
 struct commit_handle {
@@ -406,7 +406,7 @@ update_journal_header(struct commit_handle *ch)
 
 	format_journal_header(ch);
 
-	ret = submit_write(jh, 1, jnode_get_block(jh), NULL);
+	ret = wandered_extent_write(jh, 1, jnode_get_block(jh), NULL);
 
 	if (ret)
 		return ret;
@@ -437,7 +437,7 @@ update_journal_footer(struct commit_handle *ch)
 
 	format_journal_footer(ch);
 
-	ret = submit_write(jf, 1, jnode_get_block(jf), 0);
+	ret = wandered_extent_write(jf, 1, jnode_get_block(jf), 0);
 	if (ret)
 		return ret;
 
@@ -637,7 +637,7 @@ get_overwrite_set(struct commit_handle *ch)
    @block_p block number.  If @fq is not NULL it means that waiting for i/o
    completion will be done more efficiently by using flush_queue_t objects */
 static int
-submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
+wandered_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
 {
 	struct super_block *super = reiser4_get_current_sb();
 	int max_blocks;
@@ -669,7 +669,7 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 			return -ENOMEM;
 
 		/* NOTE:NIKITA->ZAM this is very similar to the
-		   submit_write(). */
+		   wandered_extent_write(). */
 
 		bio->bi_sector = block * (super->s_blocksize >> 9);
 		bio->bi_bdev = super->s_bdev;
@@ -744,7 +744,7 @@ submit_batched_write(capture_list_head * head, flush_queue_t * fq)
 			cur = capture_list_next(cur);
 		}
 
-		ret = submit_write(beg, nr, jnode_get_block(beg), fq);
+		ret = wandered_extent_write(beg, nr, jnode_get_block(beg), fq);
 		if (ret)
 			return ret;
 
@@ -937,7 +937,7 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 		if (ret)
 			return ret;
 
-		ret = submit_write(cur, len, &block, fq);
+		ret = wandered_extent_write(cur, len, &block, fq);
 		if (ret)
 			return ret;
 
