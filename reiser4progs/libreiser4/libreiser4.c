@@ -19,7 +19,12 @@ const char *libreiser4_get_version(void) {
 }
 
 error_t libreiser4_init(void) {
-    return libreiser4_factory_init();
+    if (libreiser4_factory_init()) {
+	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, 
+	    "Can't initialize plugin factory.");
+	return -1;
+    }
+    return 0;
 }
 
 void libreiser4_done(void) {

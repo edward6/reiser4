@@ -64,13 +64,13 @@ static error_t direntry40_create(reiserfs_direntry40_t *direntry,
 }
 
 static error_t direntry40_estimate(reiserfs_item_hint_t *hint, 
-    reiserfs_unit_coord_t *coord) 
+    reiserfs_pos_t *pos) 
 {
     int i;
     reiserfs_direntry_hint_t *direntry_hint;
 	    
     aal_assert("vpf-095", hint != NULL, return -1);
-    aal_assert("umka-608", coord != NULL, return -1);
+    aal_assert("umka-608", pos != NULL, return -1);
     
     direntry_hint = (reiserfs_direntry_hint_t *)hint->hint;
     hint->length = direntry_hint->count * sizeof(reiserfs_entry40_t);
@@ -80,7 +80,7 @@ static error_t direntry40_estimate(reiserfs_item_hint_t *hint,
 	    sizeof(reiserfs_objid_t) + 1;
     }
 
-    if (coord == NULL || coord->unit_pos == -1)
+    if (pos == NULL || pos->unit == -1)
 	hint->length += sizeof(reiserfs_direntry40_t);
     
     return 0;
@@ -103,8 +103,8 @@ static uint32_t direntry40_minsize(void) {
     Helper function that is used by lookup method 
     for getting n-th element of direntry.
 */
-static void *callback_elem_for_lookup(void *direntry, uint32_t pos, 
-    void *data) 
+static void *callback_elem_for_lookup(void *direntry, 
+    uint32_t pos, void *data) 
 {
     return &((reiserfs_direntry40_t *)direntry)->entry[pos].entryid;
 }
@@ -113,8 +113,8 @@ static void *callback_elem_for_lookup(void *direntry, uint32_t pos,
     Helper function that is used by lookup method
     for comparing given key with passed dirid.
 */
-static int callback_cmp_for_lookup(const void *key1, const void *key2, 
-    void *data) 
+static int callback_comp_for_lookup(const void *key1, 
+    const void *key2, void *data) 
 {
     oid_t locality;
     oid_t objectid;
@@ -122,45 +122,43 @@ static int callback_cmp_for_lookup(const void *key1, const void *key2,
     reiserfs_key_t key;
     reiserfs_plugin_t *plugin;
 
-    aal_assert("umka-657", key1 != NULL, return -2);
-    aal_assert("umka-658", key2 != NULL, return -2);
-    aal_assert("umka-659", data != NULL, return -2);
+    aal_assert("umka-657", key1 != NULL, return -1);
+    aal_assert("umka-658", key2 != NULL, return -1);
+    aal_assert("umka-659", data != NULL, return -1);
     
     plugin = (reiserfs_plugin_t *)data;
     
-    locality = libreiser4_plugin_call(return -2, plugin->key, 
+    locality = libreiser4_plugin_call(return -1, plugin->key, 
 	get_locality, (void *)key2);
    
     objectid = entryid_get_objectid(((reiserfs_entryid_t *)key1));
     offset = entryid_get_offset(((reiserfs_entryid_t *)key1));
     
-    /* FIXME-UMKA: Here should be not hardcoded key parameters */
-    libreiser4_plugin_call(return -2, plugin->key, clean, &key);
-    libreiser4_plugin_call(return -2, plugin->key, build_file_key, 
-	&key, 0, locality, objectid, offset);
+    libreiser4_plugin_call(return -1, plugin->key, build_file_key, 
+	&key, KEY40_STATDATA_MINOR, locality, objectid, offset);
     
-    return libreiser4_plugin_call(return -2, plugin->key, compare, &key, key2);
+    return libreiser4_plugin_call(return -1, plugin->key, 
+	compare, &key, key2);
 }
 
 static int direntry40_lookup(reiserfs_direntry40_t *direntry, 
-    reiserfs_key_t *key, reiserfs_unit_coord_t *coord)
+    reiserfs_key_t *key, reiserfs_pos_t *pos)
 {
-    int found;
-    uint64_t pos;
+    int lookup;
+    uint64_t unit;
     
-    aal_assert("umka-609", direntry != NULL, return -2);
     aal_assert("umka-610", key != NULL, return -2);
     aal_assert("umka-717", key->plugin != NULL, return -2);
-    aal_assert("umka-629", coord != NULL, return -2);
     
-    if ((found = reiserfs_misc_bin_search((void *)direntry, 
+    aal_assert("umka-609", direntry != NULL, return -2);
+    aal_assert("umka-629", pos != NULL, return -2);
+    
+    if ((lookup = reiserfs_misc_bin_search((void *)direntry, 
 	    direntry->count, key->body, callback_elem_for_lookup, 
-	    callback_cmp_for_lookup, key->plugin, &pos)) == -1)
-	return -1;
+	    callback_comp_for_lookup, key->plugin, &unit)) != -1)
+	pos->unit = (uint32_t)pos;
 
-    coord->unit_pos = (uint32_t)pos;
-
-    return found;
+    return lookup;
 }
 
 static int direntry40_internal(void) {

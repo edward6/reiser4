@@ -68,18 +68,21 @@ static reiserfs_object_hint_t *dir40_build(reiserfs_key_t *parent,
     
     hint->item[0]->type = REISERFS_STAT_ITEM; 
     
-    if (!(hint->item[0]->plugin = factory->find_by_coord(REISERFS_ITEM_PLUGIN,
-	stat_plugin_id)))
+    if (!(hint->item[0]->plugin = 
+	    factory->find(REISERFS_ITEM_PLUGIN, stat_plugin_id)))
     {
-	libreiser4_factory_find_failed(REISERFS_ITEM_PLUGIN, stat_plugin_id,
-	    goto error_free_item0);
+	libreiser4_factory_failed(goto error_free_item0, 
+	    find, item, stat_plugin_id);
     }
 
     if (!(hint->item[0]->hint = aal_calloc(sizeof(reiserfs_stat_hint_t), 0)))
 	goto error_free_item0;
    
-    hint->item[0]->key.plugin = key_plugin; 
-    aal_memcpy(&hint->item[0]->key.body, object->body, sizeof(object->body));
+    hint->item[0]->key.plugin = key_plugin;
+    
+    aal_memcpy(&hint->item[0]->key.body, 
+	object->body, sizeof(object->body));
+    
     stat_hint = hint->item[0]->hint;
 
     stat_hint->mode = S_IFDIR | 0755;
@@ -93,11 +96,11 @@ static reiserfs_object_hint_t *dir40_build(reiserfs_key_t *parent,
     
     hint->item[1]->type = REISERFS_DIRENTRY_ITEM; 
     
-    if (!(hint->item[1]->plugin = factory->find_by_coord(REISERFS_ITEM_PLUGIN,
+    if (!(hint->item[1]->plugin = factory->find(REISERFS_ITEM_PLUGIN,
 	direntry_plugin_id)))
     {
-	libreiser4_factory_find_failed(REISERFS_ITEM_PLUGIN, direntry_plugin_id,
-	    goto error_free_item1);
+	libreiser4_factory_failed(goto error_free_item1, find, item, 
+	    direntry_plugin_id);
     }
     
     if (!(hint->item[1]->hint = aal_calloc(sizeof(reiserfs_direntry_hint_t), 0)))
@@ -111,8 +114,9 @@ static reiserfs_object_hint_t *dir40_build(reiserfs_key_t *parent,
     direntry_hint->key_plugin = key_plugin;
     direntry_hint->hash_plugin = NULL;
    
-    libreiser4_plugin_call(goto error_free_hint1, key_plugin->key, build_dir_key, 
-	&hint->item[1]->key.body, direntry_hint->hash_plugin, parent_objectid, objectid, ".");
+    libreiser4_plugin_call(goto error_free_hint1, key_plugin->key, 
+	build_dir_key, &hint->item[1]->key.body, direntry_hint->hash_plugin, 
+	parent_objectid, objectid, ".");
     
     if (!(direntry_hint->entry = aal_calloc(2 * sizeof(reiserfs_entry_hint_t *), 0)))
 	goto error_free_hint1;
@@ -240,21 +244,21 @@ static void dir40_destroy(reiserfs_object_hint_t *hint) {
 
     aal_assert("umka-672", block != NULL, return NULL);
 
-    if (!(key_plugin = factory->find_by_coord(REISERFS_KEY_PLUGIN, 
+    if (!(key_plugin = factory->find(REISERFS_KEY_PLUGIN, 
 	key_plugin_id))) 
     {
 	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, key_plugin_id,
 	    return NULL);
     }
     
-    if (!(node_plugin = factory->find_by_coord(REISERFS_NODE_PLUGIN,
+    if (!(node_plugin = factory->find(REISERFS_NODE_PLUGIN,
 	node_plugin_id)))
     {
 	libreiser4_factory_find_failed(REISERFS_NODE_PLUGIN, node_plugin_id,
 	    return NULL);
     }
     
-    if (!(oid_plugin = factory->find_by_coord(REISERFS_OID_PLUGIN, 
+    if (!(oid_plugin = factory->find(REISERFS_OID_PLUGIN, 
 	oid_plugin_id)))
     {
 	libreiser4_factory_find_failed(REISERFS_OID_PLUGIN, oid_plugin_id,
@@ -293,7 +297,7 @@ static void dir40_destroy(reiserfs_object_hint_t *hint) {
     libreiser4_plugin_call(goto error_free_dir, key_plugin->key, build_file_key, 
 	key.body, KEY40_STATDATA_MINOR, root_parent_objectid, root_objectid, 0);
     
-    if (!(item_hint.plugin = factory->find_by_coord(REISERFS_ITEM_PLUGIN,
+    if (!(item_hint.plugin = factory->find(REISERFS_ITEM_PLUGIN,
 	stat_plugin_id)))
     {
 	libreiser4_factory_find_failed(REISERFS_ITEM_PLUGIN, stat_plugin_id,
@@ -330,7 +334,7 @@ static void dir40_destroy(reiserfs_object_hint_t *hint) {
     coord.item_pos = pos + 1;
     coord.unit_pos = -1;
 
-    if (!(item_hint.plugin = factory->find_by_coord(REISERFS_ITEM_PLUGIN, 
+    if (!(item_hint.plugin = factory->find(REISERFS_ITEM_PLUGIN, 
 	direntry_plugin_id))) 
     {
 	libreiser4_factory_find_failed(REISERFS_ITEM_PLUGIN, direntry_plugin_id,

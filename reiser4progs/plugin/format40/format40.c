@@ -188,15 +188,15 @@ static const char *format40_format(reiserfs_format40_t *format) {
     return formats[0];
 }
 
-static reiserfs_plugin_id_t format40_journal_plugin(reiserfs_format40_t *format) {
+static reiserfs_id_t format40_journal_plugin(reiserfs_format40_t *format) {
     return REISERFS_FORMAT40_JOURNAL;
 }
 
-static reiserfs_plugin_id_t format40_alloc_plugin(reiserfs_format40_t *format) {
+static reiserfs_id_t format40_alloc_plugin(reiserfs_format40_t *format) {
     return REISERFS_FORMAT40_ALLOC;
 }
 
-static reiserfs_plugin_id_t format40_oid_plugin(reiserfs_format40_t *format) {
+static reiserfs_id_t format40_oid_plugin(reiserfs_format40_t *format) {
     return REISERFS_FORMAT40_OID;
 }
 
@@ -292,13 +292,13 @@ static reiserfs_plugin_t format40_plugin = {
 	.set_free = NULL,
 	.set_height = NULL,
 #endif
-	.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
+	.journal_plugin_id = (reiserfs_id_t(*)(reiserfs_opaque_t *))
 	    format40_journal_plugin,
 		
-	.alloc_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
+	.alloc_plugin_id = (reiserfs_id_t(*)(reiserfs_opaque_t *))
 	    format40_alloc_plugin,
 	
-	.oid_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
+	.oid_plugin_id = (reiserfs_id_t(*)(reiserfs_opaque_t *))
 	    format40_oid_plugin,
     }
 };

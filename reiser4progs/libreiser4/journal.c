@@ -11,7 +11,7 @@
 #include <reiser4/reiser4.h>
 
 reiserfs_journal_t *reiserfs_journal_open(aal_device_t *device, 
-    reiserfs_plugin_id_t plugin_id) 
+    reiserfs_id_t plugin_id) 
 {
     reiserfs_plugin_t *plugin;
     reiserfs_journal_t *journal;
@@ -21,10 +21,8 @@ reiserfs_journal_t *reiserfs_journal_open(aal_device_t *device,
     if (!(journal = aal_calloc(sizeof(*journal), 0)))
 	return NULL;
 	
-    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_JOURNAL_PLUGIN, plugin_id))) {
-	libreiser4_factory_find_failed(REISERFS_JOURNAL_PLUGIN, 
-	    plugin_id, goto error_free_journal);
-    }
+    if (!(plugin = libreiser4_factory_find(REISERFS_JOURNAL_PLUGIN, plugin_id)))
+	libreiser4_factory_failed(goto error_free_journal, find, journal, plugin_id);
 	
     journal->plugin = plugin;
 	
@@ -47,7 +45,7 @@ error_free_journal:
 #ifndef ENABLE_COMPACT
 
 reiserfs_journal_t *reiserfs_journal_create(aal_device_t *device, 
-    reiserfs_opaque_t *params, reiserfs_plugin_id_t plugin_id) 
+    reiserfs_opaque_t *params, reiserfs_id_t plugin_id) 
 {
     reiserfs_plugin_t *plugin;
     reiserfs_journal_t *journal;
@@ -57,12 +55,9 @@ reiserfs_journal_t *reiserfs_journal_create(aal_device_t *device,
     if (!(journal = aal_calloc(sizeof(*journal), 0)))
 	return NULL;
 	
-    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_JOURNAL_PLUGIN, 
-	plugin_id))) 
-    {
-	libreiser4_factory_find_failed(REISERFS_JOURNAL_PLUGIN, 
-	    plugin_id, goto error_free_journal);
-    }
+    if (!(plugin = libreiser4_factory_find(REISERFS_JOURNAL_PLUGIN, plugin_id))) 
+	libreiser4_factory_failed(goto error_free_journal, find, journal, plugin_id);
+
     journal->plugin = plugin;
 	
     if (!(journal->entity = libreiser4_plugin_call(goto error_free_journal, 

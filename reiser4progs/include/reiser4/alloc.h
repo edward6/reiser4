@@ -15,12 +15,12 @@
 #include <reiser4/filesystem.h>
 
 extern reiserfs_alloc_t *reiserfs_alloc_open(aal_device_t *device, 
-    count_t len, reiserfs_plugin_id_t plugin_id);
+    count_t len, reiserfs_id_t plugin_id);
 
 #ifndef ENABLE_COMPACT
 
 extern reiserfs_alloc_t *reiserfs_alloc_create(aal_device_t *device, 
-    count_t len, reiserfs_plugin_id_t plugin_id);
+    count_t len, reiserfs_id_t plugin_id);
 
 extern error_t reiserfs_alloc_sync(reiserfs_alloc_t *alloc);
 

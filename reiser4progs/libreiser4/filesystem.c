@@ -12,7 +12,7 @@
 
 #ifndef ENABLE_COMPACT
 
-static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t 
+static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_id_t 
     format_plugin_id, unsigned int blocksize, const char *uuid, const char *label) 
 {
     aal_assert("umka-142", fs != NULL, return -1);
@@ -60,13 +60,11 @@ static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
 #ifndef ENABLE_COMPACT    
 	reiserfs_plugin_t *format36;
 	
-	if (!(format36 = libreiser4_factory_find_by_coord(REISERFS_FORMAT_PLUGIN, 0x1))) {
-    	    libreiser4_factory_find_failed(REISERFS_FORMAT_PLUGIN, 0x1,
-		goto error_free_block);
-	}
+	if (!(format36 = libreiser4_factory_find(REISERFS_FORMAT_PLUGIN, 0x1)))
+    	    libreiser4_factory_failed(goto error_free_block, find, format, 0x1);
 	
-	if (!libreiser4_plugin_call(goto error_free_block, format36->format, confirm, 
-		fs->host_device))
+	if (!libreiser4_plugin_call(goto error_free_block, 
+		format36->format, confirm, fs->host_device))
 	    goto error_free_block;
 		
 	/* Forming in memory master super block for reiser3 */
@@ -134,18 +132,14 @@ static void reiserfs_master_close(reiserfs_fs_t *fs) {
 }
 
 error_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs, 
-    reiserfs_key_t *key, reiserfs_plugin_id_t key_plugin_id) 
+    reiserfs_key_t *key, reiserfs_id_t key_plugin_id) 
 {
     oid_t root_objectid;
     oid_t root_parent_objectid;
     reiserfs_plugin_t *key_plugin;
     
-    if (!(key_plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN,
-	key_plugin_id)))
-    {
-	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, key_plugin_id,
-	    return -1);
-    }
+    if (!(key_plugin = libreiser4_factory_find(REISERFS_KEY_PLUGIN, key_plugin_id)))
+	libreiser4_factory_failed(return -1, find, key, key_plugin_id);
 
     root_parent_objectid = libreiser4_plugin_call(return -1,
 	fs->oid->plugin->oid, root_parent_objectid,);
@@ -167,10 +161,10 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     reiserfs_fs_t *fs;
     reiserfs_key_t root_key;
 
-    reiserfs_plugin_id_t oid_plugin_id;
-    reiserfs_plugin_id_t format_plugin_id;
-    reiserfs_plugin_id_t alloc_plugin_id;
-    reiserfs_plugin_id_t journal_plugin_id;
+    reiserfs_id_t oid_plugin_id;
+    reiserfs_id_t format_plugin_id;
+    reiserfs_id_t alloc_plugin_id;
+    reiserfs_id_t journal_plugin_id;
 
     void *oid_area_start, *oid_area_end;
 	
@@ -341,8 +335,8 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
 	reiserfs_key_t *root_key;
 	reiserfs_plugin_t *dir_plugin;
 	
-	if (!(dir_plugin = libreiser4_factory_find_by_coord(REISERFS_DIR_PLUGIN, profile->dir)))
-	    libreiser4_factory_find_failed(REISERFS_DIR_PLUGIN, profile->dir, goto error_free_tree);
+	if (!(dir_plugin = libreiser4_factory_find(REISERFS_DIR_PLUGIN, profile->dir)))
+	    libreiser4_factory_failed(goto error_free_tree, find, dir, profile->dir);
 
 	if (!(root_dir = reiserfs_object_create(fs, NULL, dir_plugin, profile))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -426,7 +420,7 @@ const char *reiserfs_fs_format(reiserfs_fs_t *fs) {
     return reiserfs_format_format(fs->format);
 }
 
-reiserfs_plugin_id_t reiserfs_fs_format_plugin_id(reiserfs_fs_t *fs) {
+reiserfs_id_t reiserfs_fs_format_plugin_id(reiserfs_fs_t *fs) {
     aal_assert("umka-151", fs != NULL, return -1);
     aal_assert("umka-152", fs->master != NULL, return -1);
 

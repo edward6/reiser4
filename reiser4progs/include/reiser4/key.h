@@ -23,6 +23,8 @@ struct reiserfs_key {
 
 typedef struct reiserfs_key reiserfs_key_t;
 
+typedef uint64_t oid_t;
+
 /*
     FIXME-VITALY: We should change these names to plugin 
     independent style. Pass these names to key plugin where 
@@ -57,8 +59,8 @@ extern error_t reiserfs_key_build_file_key(reiserfs_key_t *key,
     uint32_t type, oid_t locality, oid_t objectid, uint64_t offset);
 
 extern error_t reiserfs_key_build_dir_key(reiserfs_key_t *key, 
-    reiserfs_plugin_t *hash_plugin, oid_t locality, oid_t objectid, 
-    const char *name);
+    reiserfs_plugin_t *hash_plugin, oid_t locality, 
+    oid_t objectid, const char *name);
 
 extern error_t reiserfs_key_set_type(reiserfs_key_t *key, uint32_t type);
 extern error_t reiserfs_key_set_offset(reiserfs_key_t *key, uint64_t offset);

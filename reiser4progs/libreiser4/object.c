@@ -53,22 +53,22 @@ static error_t reiserfs_object_lookup(reiserfs_object_t *object, const char *nam
 	
 	/* Checking whether found item is a link */
 	if (!(body = reiserfs_node_item_at(object->coord.node, 
-	    object->coord.pos.item_pos))) 
+	    object->coord.pos.item))) 
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get item body. Node %llu, item %u.", 
 		aal_block_get_nr(object->coord.node->block), 
-		object->coord.pos.item_pos);
+		object->coord.pos.item);
 	    return -1;
 	}
 	
 	if (!(plugin = reiserfs_node_item_get_plugin(object->coord.node, 
-	    object->coord.pos.item_pos)))
+	    object->coord.pos.item)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get item plugin. Node %llu, item %u.", 
 		aal_block_get_nr(object->coord.node->block),
-		object->coord.pos.item_pos);
+		object->coord.pos.item);
 	    return -1;
 	}
 	
@@ -101,12 +101,12 @@ static error_t reiserfs_object_lookup(reiserfs_object_t *object, const char *nam
 	aal_strncat(track, dirname, aal_strlen(dirname));
 	
 	/* 
-	    FIXME-UMKA: Hardcoded key40 key type should be fixed. Also 
-	    key id should be recived from anywhere. And finally, hash_plugin
-	    should not be initializing every time.
+	    FIXME-UMKA: Hardcoded key40 key type should be fixed. 
+	    Also key id should be recived from anywhere. And finally, 
+	    hash_plugin should not be initializing every time.
 	*/
-	if (!(hash_plugin = libreiser4_factory_find_by_coord(REISERFS_HASH_PLUGIN, 0x0)))
-	    libreiser4_factory_find_failed(REISERFS_HASH_PLUGIN, 0x0, return -1);
+	if (!(hash_plugin = libreiser4_factory_find(REISERFS_HASH_PLUGIN, 0x0)))
+	    libreiser4_factory_failed(return -1, find, hash, 0x0);
 	
 	reiserfs_key_build_dir_key(&object->key, hash_plugin, 
 	    reiserfs_key_get_locality(&object->key), 
@@ -144,8 +144,8 @@ reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
     object->fs = fs;
     
     /* FIXME-UMKA: Hardcoded key plugin id */
-    if (!(key_plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 0x0)))
-	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, 0x0, return NULL);
+    if (!(key_plugin = libreiser4_factory_find(REISERFS_KEY_PLUGIN, 0x0)))
+	libreiser4_factory_failed(return NULL, find, key, 0x0);
    
     reiserfs_fs_build_root_key(fs, &object->key, 0x0);
     reiserfs_fs_build_root_key(fs, &parent_key, 0x0);
@@ -188,12 +188,8 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs,
     if (!(object = aal_calloc(sizeof(*object), 0)))
 	return NULL;
     
-    if (!(key_plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN,
-	profile->key))) 
-    {
-	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, profile->key,
-	    goto error_free_object);
-    }
+    if (!(key_plugin = libreiser4_factory_find(REISERFS_KEY_PLUGIN, profile->key))) 
+	libreiser4_factory_failed(goto error_free_object, find, key, profile->key);
 	    
     if (plugin->h.type == REISERFS_DIR_PLUGIN) {
 

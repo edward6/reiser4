@@ -140,8 +140,8 @@ static int reiserfs_tree_node_lookup(reiserfs_tree_t *tree,
     aal_assert("umka-742", tree != NULL, return 0);
    
     coord->node = node;
-    coord->pos.item_pos = 0;
-    coord->pos.unit_pos = -1;
+    coord->pos.item = 0;
+    coord->pos.unit = -1;
 
     reiserfs_key_init(&internal_key, key->plugin);
     
@@ -156,14 +156,14 @@ static int reiserfs_tree_node_lookup(reiserfs_tree_t *tree,
 	    return lookup;
        	
 	if (lookup == 0)
-	    coord->pos.item_pos--;
+	    coord->pos.item--;
 	
 	if (!(pointer = reiserfs_node_item_get_pointer(node, 
-	    coord->pos.item_pos))) 
+	    coord->pos.item))) 
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get pointer from internal item %u, node %llu.", 
-		coord->pos.item_pos, aal_block_get_nr(coord->node->block));
+		coord->pos.item, aal_block_get_nr(coord->node->block));
 	    return -1;
 	}
 	
@@ -172,7 +172,7 @@ static int reiserfs_tree_node_lookup(reiserfs_tree_t *tree,
 	    in tree cache.
 	*/
 	aal_memcpy(internal_key.body, reiserfs_node_item_key_at(coord->node, 
-	    coord->pos.item_pos), sizeof(internal_key.body));
+	    coord->pos.item), sizeof(internal_key.body));
 	
 	if (!(coord->node = reiserfs_node_find(node, &internal_key))) {
 	    if (!(coord->node = reiserfs_node_open(node->device, pointer, 
@@ -240,8 +240,8 @@ error_t reiserfs_tree_item_insert(reiserfs_tree_t *tree,
 	    return -1;
 	}
 	coord.node = leaf;
-	coord.pos.item_pos = 0;
-	coord.pos.unit_pos = -1;
+	coord.pos.item = 0;
+	coord.pos.unit = -1;
     
 	if (reiserfs_node_item_insert(coord.node, &coord.pos, key, hint)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -324,8 +324,8 @@ error_t reiserfs_tree_node_insert(reiserfs_tree_t *tree,
     item_hint.type = REISERFS_INTERNAL_ITEM;
     
     /* FIXME-UMKA: Hardcoded internal item id */
-    if (!(item_hint.plugin = libreiser4_factory_find_by_coord(REISERFS_ITEM_PLUGIN, 0x3)))
-    	libreiser4_factory_find_failed(REISERFS_ITEM_PLUGIN, 0x3, return -1);
+    if (!(item_hint.plugin = libreiser4_factory_find(REISERFS_ITEM_PLUGIN, 0x3)))
+    	libreiser4_factory_failed(return -1, find, item, 0x3);
    
     if (reiserfs_node_item_estimate(coord.node, &item_hint, &coord.pos))
 	return -1;

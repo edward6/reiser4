@@ -46,26 +46,26 @@ struct reiserfs_profile {
     char label[255];
     char desc[255];
     
-    reiserfs_plugin_id_t node;
+    reiserfs_id_t node;
     
     struct {
-	reiserfs_plugin_id_t internal;
-	reiserfs_plugin_id_t statdata;
-	reiserfs_plugin_id_t direntry;
-	reiserfs_plugin_id_t fileentry;
+	reiserfs_id_t internal;
+	reiserfs_id_t statdata;
+	reiserfs_id_t direntry;
+	reiserfs_id_t fileentry;
     } item;
     
-    reiserfs_plugin_id_t file;
-    reiserfs_plugin_id_t dir;
-    reiserfs_plugin_id_t hash;
-    reiserfs_plugin_id_t tail;
-    reiserfs_plugin_id_t hook;
-    reiserfs_plugin_id_t perm;
-    reiserfs_plugin_id_t format;
-    reiserfs_plugin_id_t oid;
-    reiserfs_plugin_id_t alloc;
-    reiserfs_plugin_id_t journal;
-    reiserfs_plugin_id_t key;
+    reiserfs_id_t file;
+    reiserfs_id_t dir;
+    reiserfs_id_t hash;
+    reiserfs_id_t tail;
+    reiserfs_id_t hook;
+    reiserfs_id_t perm;
+    reiserfs_id_t format;
+    reiserfs_id_t oid;
+    reiserfs_id_t alloc;
+    reiserfs_id_t journal;
+    reiserfs_id_t key;
 };
 
 typedef struct reiserfs_profile reiserfs_profile_t;
@@ -84,7 +84,7 @@ struct reiserfs_node {
 
 struct reiserfs_coord {
     reiserfs_node_t *node;
-    reiserfs_unit_coord_t pos;
+    reiserfs_pos_t pos;
 };
 
 typedef struct reiserfs_coord reiserfs_coord_t;
@@ -166,7 +166,7 @@ extern reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 extern void reiserfs_fs_close(reiserfs_fs_t *fs);
 
 extern error_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs, 
-    reiserfs_key_t *key, reiserfs_plugin_id_t key_plugin_id);
+    reiserfs_key_t *key, reiserfs_id_t key_plugin_id);
 
 #ifndef ENABLE_COMPACT
 
@@ -181,7 +181,7 @@ extern error_t reiserfs_fs_sync(reiserfs_fs_t *fs);
 
 extern const char *reiserfs_fs_format(reiserfs_fs_t *fs);
 extern uint16_t reiserfs_fs_blocksize(reiserfs_fs_t *fs);
-extern reiserfs_plugin_id_t reiserfs_fs_format_plugin_id(reiserfs_fs_t *fs);
+extern reiserfs_id_t reiserfs_fs_format_plugin_id(reiserfs_fs_t *fs);
 
 #endif
 

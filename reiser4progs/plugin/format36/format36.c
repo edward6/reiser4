@@ -181,15 +181,15 @@ static const char *format36_format(reiserfs_format36_t *format) {
     return formats[version >= 0 && version < 3 ? version : 1];
 }
 
-static reiserfs_plugin_id_t format36_journal_plugin(reiserfs_format36_t *format) {
+static reiserfs_id_t format36_journal_plugin(reiserfs_format36_t *format) {
     return 0x1;
 }
 
-static reiserfs_plugin_id_t format36_alloc_plugin(reiserfs_format36_t *format) {
+static reiserfs_id_t format36_alloc_plugin(reiserfs_format36_t *format) {
     return 0x1;
 }
 
-static reiserfs_plugin_id_t format36_oid_plugin(reiserfs_format36_t *format) {
+static reiserfs_id_t format36_oid_plugin(reiserfs_format36_t *format) {
     return 0x1;
 }
 
@@ -274,13 +274,13 @@ static reiserfs_plugin_t format36_plugin = {
 	
 	.oid = NULL,
 	
-	.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
+	.journal_plugin_id = (reiserfs_id_t(*)(reiserfs_opaque_t *))
 	    format36_journal_plugin,
 		
-	.alloc_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
+	.alloc_plugin_id = (reiserfs_id_t(*)(reiserfs_opaque_t *))
 	    format36_alloc_plugin,
 	
-	.oid_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
+	.oid_plugin_id = (reiserfs_id_t(*)(reiserfs_opaque_t *))
 	    format36_oid_plugin,
     }
 };

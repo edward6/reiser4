@@ -15,7 +15,7 @@
     requests block allocator plugin for opening.
 */
 reiserfs_alloc_t *reiserfs_alloc_open(aal_device_t *device, 
-    count_t len, reiserfs_plugin_id_t plugin_id) 
+    count_t len, reiserfs_id_t plugin_id) 
 {
     reiserfs_alloc_t *alloc;
     reiserfs_plugin_t *plugin;
@@ -25,8 +25,8 @@ reiserfs_alloc_t *reiserfs_alloc_open(aal_device_t *device,
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
     
-    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_ALLOC_PLUGIN, plugin_id)))
-    	libreiser4_factory_find_failed(REISERFS_ALLOC_PLUGIN, plugin_id, goto error_free_alloc);
+    if (!(plugin = libreiser4_factory_find(REISERFS_ALLOC_PLUGIN, plugin_id)))
+    	libreiser4_factory_failed(goto error_free_alloc, find, alloc, plugin_id);
 
     alloc->plugin = plugin;
 
@@ -48,7 +48,7 @@ error_free_alloc:
 #ifndef ENABLE_COMPACT
 
 reiserfs_alloc_t *reiserfs_alloc_create(aal_device_t *device, 
-    count_t len, reiserfs_plugin_id_t plugin_id) 
+    count_t len, reiserfs_id_t plugin_id) 
 {
     reiserfs_alloc_t *alloc;
     reiserfs_plugin_t *plugin;
@@ -58,12 +58,9 @@ reiserfs_alloc_t *reiserfs_alloc_create(aal_device_t *device,
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
     
-    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_ALLOC_PLUGIN, 
-	plugin_id)))
-    {
-    	libreiser4_factory_find_failed(REISERFS_ALLOC_PLUGIN, 
-	    plugin_id, goto error_free_alloc);
-    }
+    if (!(plugin = libreiser4_factory_find(REISERFS_ALLOC_PLUGIN, plugin_id)))
+    	libreiser4_factory_failed(goto error_free_alloc, find, alloc, plugin_id);
+
     alloc->plugin = plugin;
 
     if (!(alloc->entity = libreiser4_plugin_call(goto error_free_alloc, 

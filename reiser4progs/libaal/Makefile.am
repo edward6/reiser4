@@ -1,13 +1,17 @@
-LIBS 			= @LIBS@
+includedir 		 = -I$(top_srcdir)/include
 
-includedir 		= -I$(top_srcdir)/include
+libaal_sources  	 = device.c file.c exception.c list.c malloc.c \
+			   print.c string.c math.c endian.c debug.c
 
-lib_LTLIBRARIES		= libaal.la
-libaal_la_LDFLAGS 	= -version-info $(LT_CURRENT):$(LT_REVISION):$(LT_AGE) \
-			  -release $(LT_RELEASE)
+lib_LTLIBRARIES		 = libaal.la
+noinst_LTLIBRARIES	 = libaal-static.la
 
-libaal_la_SOURCES  	= device.c file.c exception.c list.c malloc.c \
-			  print.c string.c math.c endian.c debug.c
+libaal_la_LDFLAGS 	 = -version-info $(LT_CURRENT):$(LT_REVISION):$(LT_AGE) \
+			   -release $(LT_RELEASE)
+
+libaal_la_SOURCES  	 = $(libaal_sources)
+
+libaal_static_la_SOURCES = $(libaal_sources)
 
 INCLUDES = $(includedir)
 

@@ -16,10 +16,10 @@
 #include <reiser4/plugin.h>
 
 extern reiserfs_node_t *reiserfs_node_open(aal_device_t *device, 
-    blk_t blk, reiserfs_plugin_id_t plugin_id);
+    blk_t blk, reiserfs_id_t plugin_id);
 
 extern error_t reiserfs_node_reopen(reiserfs_node_t *node, 
-    aal_device_t *device, blk_t blk, reiserfs_plugin_id_t plugin_id);
+    aal_device_t *device, blk_t blk, reiserfs_id_t plugin_id);
 
 extern error_t reiserfs_node_close(reiserfs_node_t *node);
 
@@ -29,24 +29,16 @@ extern error_t reiserfs_node_sync(reiserfs_node_t *node);
 extern error_t reiserfs_node_flush(reiserfs_node_t *node);
 
 extern reiserfs_node_t *reiserfs_node_create(aal_device_t *device, 
-    blk_t blk, reiserfs_plugin_id_t plugin_id, uint8_t level);
+    blk_t blk, reiserfs_id_t plugin_id, uint8_t level);
 
 #endif
 
 extern error_t reiserfs_node_check(reiserfs_node_t *node, int flags);
-/*
-    I suggest the following results of lookup (item_pos, unit_pos):
-    (i+1, -1) - between i, i+1 items.
-    (i, 0) - before the first unit in the item.
-    (0, units_count) - after the last unit in the item.
-    (item_count, -1) - after the last item.
-    
-    FIXME-VITALY: it works in another way for now.
-*/
-extern int reiserfs_node_lookup(reiserfs_node_t *node, 
-    reiserfs_key_t *key, reiserfs_unit_coord_t *coord);
 
-extern reiserfs_plugin_id_t reiserfs_node_get_plugin_id(reiserfs_node_t *node);
+extern int reiserfs_node_lookup(reiserfs_node_t *node, 
+    reiserfs_key_t *key, reiserfs_pos_t *pos);
+
+extern reiserfs_id_t reiserfs_node_get_plugin_id(reiserfs_node_t *node);
 
 extern uint8_t reiserfs_node_get_level(reiserfs_node_t *node);
 extern uint16_t reiserfs_node_get_free_space(reiserfs_node_t *node);
@@ -54,7 +46,7 @@ extern uint16_t reiserfs_node_get_free_space(reiserfs_node_t *node);
 #ifndef ENABLE_COMPACT
 
 extern void reiserfs_node_set_plugin_id(reiserfs_node_t *node, 
-    reiserfs_plugin_id_t plugin_id);
+    reiserfs_id_t plugin_id);
 
 extern void reiserfs_node_set_level(reiserfs_node_t *node, 
     uint8_t level);
@@ -77,7 +69,7 @@ extern reiserfs_node_t *reiserfs_node_find(reiserfs_node_t *node,
 
 /* Item functions */
 extern void reiserfs_node_item_set_plugin_id(reiserfs_node_t *node, 
-    uint32_t pos, reiserfs_plugin_id_t plugin_id);
+    uint32_t pos, reiserfs_id_t plugin_id);
 
 extern void reiserfs_node_item_set_plugin(reiserfs_node_t *node, 
     uint32_t pos, reiserfs_plugin_t *plugin);
@@ -86,15 +78,14 @@ extern void reiserfs_node_item_set_pointer(reiserfs_node_t *node,
     uint32_t pos, blk_t blk); 
 
 extern error_t reiserfs_node_item_estimate(reiserfs_node_t *node, 
-    reiserfs_item_hint_t *hint, reiserfs_unit_coord_t *coord);
+    reiserfs_item_hint_t *hint, reiserfs_pos_t *pos);
 
 extern error_t reiserfs_node_item_insert(reiserfs_node_t *node, 
-    reiserfs_unit_coord_t *coord, reiserfs_key_t *key, 
-    reiserfs_item_hint_t *hint);
+    reiserfs_pos_t *pos, reiserfs_key_t *key, reiserfs_item_hint_t *hint);
 
 #endif
 
-extern reiserfs_plugin_id_t reiserfs_node_item_get_plugin_id(
+extern reiserfs_id_t reiserfs_node_item_get_plugin_id(
     reiserfs_node_t *node, uint32_t pos);
 
 extern reiserfs_plugin_t *reiserfs_node_item_get_plugin(

@@ -10,9 +10,9 @@
 #include <aal/aal.h>
 
 typedef void reiserfs_opaque_t;
-typedef uint64_t oid_t;
+typedef int reiserfs_id_t;
 
-enum reiserfs_plugin_id {
+enum reiserfs_plugin_type {
     REISERFS_FILE_PLUGIN,
     REISERFS_DIR_PLUGIN,
     REISERFS_ITEM_PLUGIN,
@@ -29,6 +29,8 @@ enum reiserfs_plugin_id {
     REISERFS_KEY_PLUGIN,
 };
 
+typedef enum reiserfs_plugin_type reiserfs_plugin_type_t;
+
 enum reiserfs_item_type_id {
     REISERFS_STAT_ITEM,
     REISERFS_DIRENTRY_ITEM,
@@ -37,7 +39,6 @@ enum reiserfs_item_type_id {
 };
 
 typedef enum reiserfs_item_type_id reiserfs_item_type_id_t;
-typedef int reiserfs_plugin_id_t;
 
 #define REISERFS_PLUGIN_MAX_LABEL	16
 #define REISERFS_PLUGIN_MAX_DESC	256
@@ -45,8 +46,8 @@ typedef int reiserfs_plugin_id_t;
 /* Common plugin header */
 struct reiserfs_plugin_header {
     void *handle;
-    reiserfs_plugin_id_t id;
-    reiserfs_plugin_id_t type;
+    reiserfs_id_t id;
+    reiserfs_plugin_type_t type;
     const char label[REISERFS_PLUGIN_MAX_LABEL];
     const char desc[REISERFS_PLUGIN_MAX_DESC];
 };
@@ -79,12 +80,12 @@ struct reiserfs_key_ops {
     uint32_t (*get_type) (const void *);
 
     /* Gets/sets key locality */
-    void (*set_locality) (void *, oid_t);
-    oid_t (*get_locality) (const void *);
+    void (*set_locality) (void *, uint64_t);
+    uint64_t (*get_locality) (const void *);
     
     /* Gets/sets key objectid */
-    void (*set_objectid) (void *, oid_t);
-    oid_t (*get_objectid) (const void *);
+    void (*set_objectid) (void *, uint64_t);
+    uint64_t (*get_objectid) (const void *);
 
     /* Gets/sets key offset */
     void (*set_offset) (void *, uint64_t);
@@ -101,10 +102,10 @@ struct reiserfs_key_ops {
     /* Get size of the key */
     uint8_t (*size) (void);
 
-    error_t (*build_file_key) (void *, uint32_t, oid_t, oid_t, uint64_t);
-    error_t (*build_dir_key) (void *, void *, oid_t, oid_t, const char *);
+    error_t (*build_file_key) (void *, uint32_t, uint64_t, uint64_t, uint64_t);
+    error_t (*build_dir_key) (void *, void *, uint64_t, uint64_t, const char *);
     
-    error_t (*build_file_short_key) (void *, uint32_t, oid_t, oid_t, uint8_t);
+    error_t (*build_file_short_key) (void *, uint32_t, uint64_t, uint64_t, uint8_t);
     error_t (*build_dir_short_key) (void *, const char *, void *, uint8_t);
     
     error_t (*build_key_by_file_short_key) (void *, void *, uint8_t);
@@ -369,9 +370,9 @@ struct reiserfs_format_ops {
     void (*set_free) (reiserfs_opaque_t *, count_t);
     
     /* Returns children objects plugins */
-    reiserfs_plugin_id_t (*journal_plugin_id) (reiserfs_opaque_t *);
-    reiserfs_plugin_id_t (*alloc_plugin_id) (reiserfs_opaque_t *);
-    reiserfs_plugin_id_t (*oid_plugin_id) (reiserfs_opaque_t *);
+    reiserfs_id_t (*journal_plugin_id) (reiserfs_opaque_t *);
+    reiserfs_id_t (*alloc_plugin_id) (reiserfs_opaque_t *);
+    reiserfs_id_t (*oid_plugin_id) (reiserfs_opaque_t *);
 
     void (*oid)(reiserfs_opaque_t *, void **, void **);
 };
@@ -388,15 +389,15 @@ struct reiserfs_oid_ops {
 
     void (*close) (reiserfs_opaque_t *);
     
-    oid_t (*alloc) (reiserfs_opaque_t *);
-    void (*dealloc) (reiserfs_opaque_t *, oid_t);
+    uint64_t (*alloc) (reiserfs_opaque_t *);
+    void (*dealloc) (reiserfs_opaque_t *, uint64_t);
     
-    oid_t (*next) (reiserfs_opaque_t *);
-    oid_t (*used) (reiserfs_opaque_t *);
+    uint64_t (*next) (reiserfs_opaque_t *);
+    uint64_t (*used) (reiserfs_opaque_t *);
 
-    oid_t (*root_parent_locality) (void);
-    oid_t (*root_parent_objectid) (void);
-    oid_t (*root_objectid) (void);
+    uint64_t (*root_parent_locality) (void);
+    uint64_t (*root_parent_objectid) (void);
+    uint64_t (*root_objectid) (void);
 };
 
 typedef struct reiserfs_oid_ops reiserfs_oid_ops_t;
@@ -476,7 +477,7 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
 	diritem, internal, etc).
     
     (2) Estimate common item method which gets coord of where 
-	to insert into (NULL or unit_pos == -1 for insertion, 
+	to insert into (NULL or unit == -1 for insertion, 
 	otherwise it is pasting) and data description from 1.
     
     (3) Insert node methods prepare needed space and call 
@@ -560,16 +561,15 @@ struct reiserfs_object_hint {
 
 typedef struct reiserfs_object_hint reiserfs_object_hint_t;
 
-struct reiserfs_unit_coord {
-    int16_t item_pos;
-    int16_t unit_pos;
+struct reiserfs_pos {
+    int16_t item;
+    int16_t unit;
 };
 
-typedef struct reiserfs_unit_coord reiserfs_unit_coord_t;
+typedef struct reiserfs_pos reiserfs_pos_t;
 
 struct reiserfs_plugin_factory {
-    reiserfs_plugin_t *(*find_by_coord)(reiserfs_plugin_id_t, reiserfs_plugin_id_t);
-    reiserfs_plugin_t *(*find_by_label)(const char *);
+    reiserfs_plugin_t *(*find)(reiserfs_plugin_type_t, reiserfs_id_t);
 };
 
 typedef struct reiserfs_plugin_factory reiserfs_plugin_factory_t;
@@ -626,20 +626,19 @@ extern void libreiser4_factory_done(void);
 
 #endif
 
-#define libreiser4_factory_find_failed(type, id, action)	    \
+#define libreiser4_factory_failed(action, oper, type, id)	    \
     do {							    \
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,	    \
-	    "Can't find plugin by its coord (%x, %x).",		    \
-	    ##type##, ##id##);					    \
+	    "Can't " #oper " " #type " plugin by its id %x.",	    \
+	    ##id##);						    \
 	action;							    \
     } while (0)
 
-extern reiserfs_plugin_t *libreiser4_factory_find_by_coord(reiserfs_plugin_id_t type,
-    reiserfs_plugin_id_t id);
+extern reiserfs_plugin_t *libreiser4_factory_find(reiserfs_plugin_type_t type,
+    reiserfs_id_t id);
 
-extern reiserfs_plugin_t *libreiser4_factory_find_by_label(const char *label);
-
-extern error_t libreiser4_factory_foreach(reiserfs_plugin_func_t plugin_func, void *data);
+extern error_t libreiser4_factory_foreach(reiserfs_plugin_func_t plugin_func, 
+    void *data);
 
 #endif
 

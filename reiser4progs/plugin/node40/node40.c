@@ -78,8 +78,8 @@ static uint16_t node40_item_maxnum(aal_block_t *block) {
     for (i = 0; i < nh40_get_num_items(reiserfs_nh40(block)); i++) {
 	uint16_t plugin_id = ih40_get_plugin_id(node40_ih_at(block, i));
 	
-	if (!(plugin = factory->find_by_coord(REISERFS_ITEM_PLUGIN, plugin_id)))
-	    libreiser4_factory_find_failed(REISERFS_ITEM_PLUGIN, plugin_id, return 0);
+	if (!(plugin = factory->find(REISERFS_ITEM_PLUGIN, plugin_id)))
+	    libreiser4_factory_failed(return 0, find, item, plugin_id);
 	
 	total_size += libreiser4_plugin_call(return 0, plugin->item.common, 
 	    minsize,) + sizeof(reiserfs_ih40_t);
@@ -120,19 +120,20 @@ static void node40_item_set_plugin_id(aal_block_t *block,
 }
 
 static error_t node40_prepare_space(aal_block_t *block, 
-    reiserfs_unit_coord_t *coord, reiserfs_key_t *key, 
-    reiserfs_item_hint_t *hint) 
+    reiserfs_pos_t *pos, reiserfs_key_t *key, reiserfs_item_hint_t *hint) 
 {
     void *body;
-    int i, item_pos;
+    int i, item;
     uint32_t offset;
     
     reiserfs_ih40_t *ih;
     reiserfs_nh40_t *nh;
-    int is_enought_space, is_inside_range;
-    int is_new_item = 0;
+    
+    int is_enought_space;
+    int is_inside_range;
+    int is_new_item;
 
-    aal_assert("vpf-006", coord != NULL, return -1);
+    aal_assert("vpf-006", pos != NULL, return -1);
     aal_assert("vpf-007", hint != NULL, return -1);
     aal_assert("umka-712", key != NULL, return -1);
     aal_assert("umka-713", key->plugin != NULL, return -1);
@@ -140,37 +141,37 @@ static error_t node40_prepare_space(aal_block_t *block,
     is_enought_space = (nh40_get_free_space(reiserfs_nh40(block)) >= 
 	hint->length + sizeof(reiserfs_ih40_t));
 
-    is_inside_range = coord->item_pos <= node40_item_count(block);
+    is_inside_range = pos->item <= node40_item_count(block);
     
     aal_assert("vpf-026", is_enought_space, return -1);
     aal_assert("vpf-027", is_inside_range, return -1);
 
-    if (coord->unit_pos == -1) {
-	is_new_item = 1;
-	item_pos = coord->item_pos;
-    } else
-	item_pos = coord->item_pos + 1;
+    is_new_item = (pos->unit == -1);
+    item = pos->item + !is_new_item;
     
     nh = reiserfs_nh40(block);
-    ih = node40_ih_at(block, item_pos);
+    ih = node40_ih_at(block, item);
 
     /* Insert free space for item and ih, change item heads */
-    if (item_pos < nh40_get_num_items(nh)) {
+    if (item < nh40_get_num_items(nh)) {
 	offset = ih40_get_offset(ih);
 
 	aal_memcpy(block->data + offset + hint->length, 
 		block->data + offset, nh40_get_free_space_start(nh) - offset);
 	
-	for (i = item_pos; i < nh40_get_num_items(nh); i++, ih--) 
+	for (i = item; i < nh40_get_num_items(nh); i++, ih--) 
 	    ih40_set_offset(ih, ih40_get_offset(ih) + hint->length);
 
 	if (!is_new_item) {	    
-	    ih = node40_ih_at(block, coord->item_pos);
+	    ih = node40_ih_at(block, pos->item);
 	    ih40_set_length(ih, ih40_get_length(ih) + hint->length);
 	} else {
-	    /* ih is set at the last item head - 1 in the last _for_ clause */
+	    /* 
+		ih is set at the last item head - 1 in the last 
+		for clause 
+	    */
 	    aal_memcpy(ih, ih + 1, sizeof(reiserfs_ih40_t) * 
-		(node40_item_count(block) - item_pos)); 
+		(node40_item_count(block) - item)); 
 	}
     } else {
 	if (!is_new_item) 
@@ -202,35 +203,34 @@ static error_t node40_prepare_space(aal_block_t *block,
 
 /* Inserts item described by hint structure into node. */
 static error_t node40_item_insert(aal_block_t *block, 
-    reiserfs_unit_coord_t *coord, reiserfs_key_t *key, 
+    reiserfs_pos_t *pos, reiserfs_key_t *key, 
     reiserfs_item_hint_t *hint) 
 { 
     reiserfs_nh40_t *nh;
     
-    aal_assert("vpf-119", coord != NULL && coord->unit_pos == -1, return -1);
+    aal_assert("vpf-119", pos != NULL && pos->unit == -1, return -1);
     
-    if (node40_prepare_space(block, coord, key, hint))
+    if (node40_prepare_space(block, pos, key, hint))
 	return -1;
 
     nh = reiserfs_nh40(block);
     nh40_set_num_items(nh, nh40_get_num_items(nh) + 1);
     
     return libreiser4_plugin_call(return -1, hint->plugin->item.common,
-	create, node40_item_at_pos(block, coord->item_pos), hint);
+	create, node40_item_at_pos(block, pos->item), hint);
 }
 
 /* Pastes units into item described by hint structure. */
 static error_t node40_item_paste(aal_block_t *block, 
-    reiserfs_unit_coord_t *coord, reiserfs_key_t *key, 
-    reiserfs_item_hint_t *hint) 
+    reiserfs_pos_t *pos, reiserfs_key_t *key, reiserfs_item_hint_t *hint) 
 {   
-    aal_assert("vpf-120", coord != NULL && coord->unit_pos != -1, return -1);
+    aal_assert("vpf-120", pos != NULL && pos->unit != -1, return -1);
     
-    if (node40_prepare_space(block, coord, key, hint))
+    if (node40_prepare_space(block, pos, key, hint))
 	return -1;
 
     return libreiser4_plugin_call(return -1, hint->plugin->item.common,
-	unit_add, node40_item_at_pos(block, coord->item_pos), coord, hint);
+	unit_add, node40_item_at_pos(block, pos->item), pos, hint);
 }
 
 /*
@@ -346,22 +346,23 @@ static int callback_compare_for_lookup(const void *key1,
 	compare, key1, key2);
 }
 
-static int node40_lookup(aal_block_t *block, reiserfs_unit_coord_t *coord, 
+static int node40_lookup(aal_block_t *block, reiserfs_pos_t *pos, 
     reiserfs_key_t *key) 
 {
-    int found; int64_t pos;
+    int lookup; int64_t item;
     
     aal_assert("umka-472", key != NULL, return -1);
     aal_assert("umka-714", key->plugin != NULL, return -1);
-    aal_assert("umka-478", coord != NULL, return -1);
+    
+    aal_assert("umka-478", pos != NULL, return -1);
     aal_assert("umka-470", block != NULL, return -1);
  
-    if ((found = reiserfs_misc_bin_search((void *)block, node40_item_count(block), 
+    if ((lookup = reiserfs_misc_bin_search((void *)block, node40_item_count(block), 
 	    key->body, callback_elem_for_lookup, callback_compare_for_lookup, 
-	    key->plugin, &pos)) != -1)
-	coord->item_pos = pos;
+	    key->plugin, &item)) != -1)
+	pos->item = item;
 
-    return found;
+    return lookup;
 }
 
 static reiserfs_plugin_t node40_plugin = {

@@ -42,11 +42,12 @@ static error_t stat40_create(reiserfs_stat40_base_t *stat,
 }
 
 static error_t stat40_estimate(reiserfs_item_hint_t *hint, 
-    reiserfs_unit_coord_t *coord) 
+    reiserfs_pos_t *pos) 
 {
     aal_assert("vpf-074", hint != NULL, return -1);
 
     /* Should calculate extentions size also */
+    
     hint->length = sizeof(reiserfs_stat40_base_t);
     return 0;
 }
