@@ -107,10 +107,6 @@ _DONE_(context)
 	/* we don't want ->write_super to be called any more. */
 	if (s->s_op)
 		s->s_op->write_super = NULL;
-	kill_block_super(s);
-	/* err, don't show this to Viro */
-	down_write(&s->s_umount);
-
 #if REISER4_DEBUG
 	{
 		struct list_head *scan;
