@@ -400,7 +400,6 @@ extern znode *zlook( reiser4_tree *tree, const reiser4_block_nr *const block );
 extern void zput( znode *node );
 extern int zload( znode *node );
 extern int zinit_new( znode *node );
-extern int zunload( znode *node );
 extern int zrelse( znode *node );
 extern void znode_change_parent( znode *new_parent, reiser4_block_nr *block );
 
