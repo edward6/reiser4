@@ -603,12 +603,6 @@ lookup_result lookup_cde(const reiser4_key * key /* key to search for */ ,
 
 	CHECKME(coord);
 
-	if (keygt(key, max_key_inside_cde(coord, &utmost_key))) {
-		/* @key is from another directory item */
-		coord->unit_pos = units(coord) - 1;
-		coord->between = AFTER_UNIT;
-		return CBK_COORD_NOTFOUND;
-	}
 	if (keygt(item_key_by_coord(coord, &utmost_key), key)) {
 		coord->unit_pos = 0;
 		coord->between = BEFORE_UNIT;
