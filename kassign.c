@@ -137,7 +137,8 @@ int build_entry_key( const struct inode *dir /* directory where entry is
 		 * offset is the hash of the file name.
 		 */
 		offset = inode_hash_plugin( dir ) -> 
-			hash( name -> name + OID_CHARS, ( int ) name -> len );
+			hash( name -> name + OID_CHARS, 
+			      ( int ) ( name -> len - OID_CHARS ) );
 	}
 
 	/*
