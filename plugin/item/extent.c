@@ -3719,6 +3719,10 @@ static int relocate_extent (struct inode * inode, coord_t * coord, reiser4_block
 		/* relocate node */
 		jnode_set_block(check, &new_block);
 		new_block ++;
+
+		JF_SET(check, JNODE_RELOC);
+		JF_SET(check, JNODE_REPACK);
+
 		jput(check);
 	}
 
