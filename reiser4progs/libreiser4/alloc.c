@@ -27,7 +27,7 @@ reiserfs_alloc_t *reiserfs_alloc_open(aal_device_t *device,
 	return NULL;
     
     /* Finding block allocator plugin */
-    if (!(plugin = libreiser4_factory_find(REISERFS_ALLOC_PLUGIN, pid)))
+    if (!(plugin = libreiser4_factory_find_by_id(REISERFS_ALLOC_PLUGIN, pid)))
     	libreiser4_factory_failed(goto error_free_alloc, find, alloc, pid);
 
     alloc->plugin = plugin;
@@ -36,8 +36,7 @@ reiserfs_alloc_t *reiserfs_alloc_open(aal_device_t *device,
     if (!(alloc->entity = libreiser4_plugin_call(goto error_free_alloc, 
 	plugin->alloc_ops, open, device, len)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't initialize block allocator.");
+	aal_throw_error(EO_OK, "Can't initialize block allocator.");
 	goto error_free_alloc;
     }
 	
@@ -65,7 +64,7 @@ reiserfs_alloc_t *reiserfs_alloc_create(aal_device_t *device,
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
     
-    if (!(plugin = libreiser4_factory_find(REISERFS_ALLOC_PLUGIN, pid)))
+    if (!(plugin = libreiser4_factory_find_by_id(REISERFS_ALLOC_PLUGIN, pid)))
     	libreiser4_factory_failed(goto error_free_alloc, find, alloc, pid);
 
     alloc->plugin = plugin;
@@ -74,8 +73,7 @@ reiserfs_alloc_t *reiserfs_alloc_create(aal_device_t *device,
     if (!(alloc->entity = libreiser4_plugin_call(goto error_free_alloc, 
 	plugin->alloc_ops, create, device, len)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't create block allocator.");
+	aal_throw_error(EO_OK, "Can't create block allocator.");
 	goto error_free_alloc;
     }
 	

@@ -13,7 +13,7 @@
 */
 
 static inline reiserfs_plugin_t *__factory_find(reiserfs_plugin_type_t type, reiserfs_id_t id) {
-    return libreiser4_factory_find(type, id);
+    return libreiser4_factory_find_by_id(type, id);
 }
 
 static inline errno_t __tree_insert(const void *tree, reiserfs_item_hint_t *item) {
@@ -126,8 +126,7 @@ static inline reiserfs_id_t __tree_pid(const void *tree,
 	case REISERFS_NODE_PLUGIN:
 	    return reiserfs_node_get_pid(((reiserfs_cache_t *)place->cache)->node);
 	default: {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Unknown plugin type %x.", type);
+	    aal_throw_error(EO_OK, "Unknown plugin type %x.", type);
 	    return REISERFS_INVAL_PLUGIN;
 	}
     }
@@ -178,9 +177,10 @@ const char *libreiser4_get_version(void) {
 }
 
 errno_t libreiser4_init(void) {
+    aal_exception_get_streams(NULL);
+
     if (libreiser4_factory_init()) {
-	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, 
-	    "Can't initialize plugin factory.");
+	aal_throw_fatal(EO_OK, "Can't initialize plugin factory.");
 	return -1;
     }
     return 0;

@@ -25,8 +25,7 @@ static reiserfs_node_t *reiserfs_tree_alloc_node(reiserfs_tree_t *tree,
     
     /* Allocating the block */
     if (!(block_nr = reiserfs_alloc_alloc(tree->fs->alloc))) {
-        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Can't allocate block for a node.");
+        aal_throw_error(EO_OK, "Can't allocate block for a node.");
 	return NULL;
     }
 
@@ -73,8 +72,8 @@ reiserfs_tree_t *reiserfs_tree_open(reiserfs_fs_t *fs) {
     tree->cache->tree = tree;
     
     if (reiserfs_tree_setup(tree)) {
-	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
-	    "Can't initialize cache limits. Cache limit spying will be disables.");
+	aal_throw_warning(EO_OK, "Can't initialize cache limits. Cache limit spying "
+	    "will be disables.");
 	tree->limit.enabled = 0;
     }
     
@@ -110,16 +109,14 @@ reiserfs_tree_t *reiserfs_tree_create(reiserfs_fs_t *fs,
     tree->fs = fs;
 
     if (!(block_nr = reiserfs_alloc_alloc(fs->alloc))) {
-        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Can't allocate block for the root node.");
+        aal_throw_error(EO_OK, "Can't allocate block for the root node.");
 	goto error_free_tree;
     }
 
     if (!(node = reiserfs_node_create(fs->host_device, block_nr,
         profile->node, profile->key, reiserfs_format_get_height(fs->format))))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't create root node.");
+	aal_throw_error(EO_OK, "Can't create root node.");
 	goto error_free_tree;
     }
 
@@ -129,8 +126,8 @@ reiserfs_tree_t *reiserfs_tree_create(reiserfs_fs_t *fs,
     tree->cache->tree = tree;
     
     if (reiserfs_tree_setup(tree)) {
-	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
-	    "Can't initialize cache limits. Cache limit spying will be disables.");
+	aal_throw_warning(EO_OK, "Can't initialize cache limits. Cache limit spying will "
+	    "be disables.");
 	tree->limit.enabled = 0;
     }
     
@@ -226,8 +223,7 @@ int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t level,
 	if (!(block_nr = reiserfs_node_get_pointer(coord->cache->node, 
 	    coord->pos.item))) 
 	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't get pointer from internal item %u, node %llu.", 
+	    aal_throw_error(EO_OK, "Can't get pointer from internal item %u, node %llu.", 
 		coord->pos.item, aal_block_get_nr(coord->cache->node->block));
 	    return -1;
 	}
@@ -305,8 +301,7 @@ errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
 	the shifting of items from target node into neighbours.
     */
     if (reiserfs_cache_raise(old->cache)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't raise up neighbours of node %llu.", 
+	aal_throw_error(EO_OK, "Can't raise up neighbours of node %llu.", 
 	    aal_block_get_nr(old->cache->node->block));
 	return -1;
     }
@@ -316,8 +311,7 @@ errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
 	for updating left delimiting keys after shift will be complete.
     */
     if (reiserfs_cache_pos(old->cache, &pos)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find left delimiting key of node %llu.",
+	aal_throw_error(EO_OK, "Can't find left delimiting key of node %llu.",
 	    aal_block_get_nr(old->cache->node->block));
 	return -1;
     }
@@ -341,8 +335,7 @@ errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
 	    reiserfs_coord_init(&dst, left, reiserfs_node_count(left->node), 0xffff);
 	
 	    if (reiserfs_tree_move(&dst, &src)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Left shifting failed. Can't move item.");
+		aal_throw_error(EO_OK, "Left shifting failed. Can't move item.");
 		return -1;
 	    }
 	    
@@ -382,8 +375,7 @@ errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
 	    reiserfs_coord_init(&dst, right, 0, 0xffff);
 	
 	    if (reiserfs_tree_move(&dst, &src)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Right shifting failed. Can't move item.");
+		aal_throw_error(EO_OK, "Right shifting failed. Can't move item.");
 		return -1;
 	    }
 	    
@@ -404,8 +396,7 @@ errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
     if (left && old->pos.item != new->pos.item) {
 	reiserfs_node_ldkey(old->cache->node, &key);
 	if (reiserfs_node_set_key(old->cache->parent->node, pos.item, &key)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't update left delimiting key for shifted node %llu.",
+	    aal_throw_error(EO_OK, "Can't update left delimiting key for shifted node %llu.",
 		aal_block_get_nr(old->cache->node->block));
 	    return -1;
 	}
@@ -415,9 +406,8 @@ errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
     if (right && count != reiserfs_node_count(old->cache->node)) {
 	reiserfs_node_ldkey(right->node, &key);
 	if (reiserfs_node_set_key(right->node, pos.item + 1, &key)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't update left delimiting key for right neighbour block %llu.",
-		aal_block_get_nr(right->node->block));
+	    aal_throw_error(EO_OK, "Can't update left delimiting key for right neighbour "
+		"block %llu.", aal_block_get_nr(right->node->block));
 	    return -1;
 	}
     }
@@ -464,8 +454,7 @@ static errno_t __tree_node_insert(reiserfs_tree_t *tree,
 	return -1;
     
     if (lookup == 1) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Key (%llx:%x:%llx:%llx) already exists in block %llu.", 
+	aal_throw_error(EO_OK, "Key (%llx:%x:%llx:%llx) already exists in block %llu.", 
 	    reiserfs_key_get_locality(&ldkey), reiserfs_key_get_type(&ldkey),
 	    reiserfs_key_get_objectid(&ldkey), reiserfs_key_get_offset(&ldkey),
 	    aal_block_get_nr(parent->node->block));
@@ -479,11 +468,11 @@ static errno_t __tree_node_insert(reiserfs_tree_t *tree,
     reiserfs_key_init(&item.key, ldkey.body);
     
     item.hint = &internal;
-    item.type = REISERFS_INTERNAL_ITEM;
+    item.type = REISERFS_INTERNAL40_ID;
     
     /* FIXME-UMKA: Hardcoded internal item id */
-    if (!(item.plugin = libreiser4_factory_find(REISERFS_ITEM_PLUGIN, REISERFS_INTERNAL_ITEM)))
-    	libreiser4_factory_failed(return -1, find, item, REISERFS_INTERNAL_ITEM);
+    if (!(item.plugin = libreiser4_factory_find_by_id(REISERFS_ITEM_PLUGIN, REISERFS_INTERNAL40_ID)))
+    	libreiser4_factory_failed(return -1, find, item, REISERFS_INTERNAL40_ID);
    
     /* Estimating found internal node */
     if (reiserfs_node_item_estimate(parent->node, &coord.pos, &item))
@@ -512,14 +501,12 @@ static errno_t __tree_node_insert(reiserfs_tree_t *tree,
 	    reiserfs_node_t *right;
 	    
 	    if (!(right = reiserfs_tree_alloc_node(tree, REISERFS_LEAF_LEVEL + 1))) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		    "Can't allocate new internal node.");
+		aal_throw_error(EO_OK, "Can't allocate new internal node.");
 		return -1;
 	    }
 
 	    if (reiserfs_node_split(insert.cache->node, right)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		    "Can't split node %llu.", 
+		aal_throw_error(EO_OK, "Can't split node %llu.", 
 		    aal_block_get_nr(insert.cache->node->block));
 		return -1;
 	    }
@@ -532,8 +519,7 @@ static errno_t __tree_node_insert(reiserfs_tree_t *tree,
 		if (!(root = reiserfs_tree_alloc_node(tree, 
 		    reiserfs_format_get_height(tree->fs->format)))) 
 		{
-		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-			"Can't allocate root node.");
+		    aal_throw_error(EO_OK, "Can't allocate root node.");
 		    return -1;
 		}
 		
@@ -542,8 +528,7 @@ static errno_t __tree_node_insert(reiserfs_tree_t *tree,
 		
 		/* Registering insert point node in the new root node  */
 		if (__tree_node_insert(tree, tree->cache, insert.cache)) {
-		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-			"Can't insert node %llu into the tree.", 
+		    aal_throw_error(EO_OK, "Can't insert node %llu into the tree.", 
 			aal_block_get_nr(insert.cache->node->block));
 		    return -1;
 		}
@@ -560,15 +545,13 @@ static errno_t __tree_node_insert(reiserfs_tree_t *tree,
 	    if (__tree_node_insert(tree, insert.cache->parent, 
 		reiserfs_cache_create(right))) 
 	    {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		    "Can't insert node %llu into the tree.", 
+		aal_throw_error(EO_OK, "Can't insert node %llu into the tree.", 
 		    aal_block_get_nr(right->block));
 		return -1;
 	    }
 	} else {
 	    if (reiserfs_node_insert(parent->node, &coord.pos, &item)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		    "Can't insert an internal item into the node %llu.", 
+		aal_throw_error(EO_OK, "Can't insert an internal item into the node %llu.", 
 		    aal_block_get_nr(parent->node->block));
 		return -1;
 	    }
@@ -579,8 +562,7 @@ static errno_t __tree_node_insert(reiserfs_tree_t *tree,
 
 	/* Inserting item */
 	if (reiserfs_node_insert(parent->node, &coord.pos, &item)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Can't insert an internal item into the node %llu.", 
+	    aal_throw_error(EO_OK, "Can't insert an internal item into the node %llu.", 
 		aal_block_get_nr(parent->node->block));
 	    return -1;
 	}
@@ -610,10 +592,9 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 
     /* Looking up for target leaf */
     if ((lookup = reiserfs_tree_lookup(tree, REISERFS_LEAF_LEVEL + 
-	(item->type == REISERFS_INTERNAL_ITEM), key, &coord)) == 1)
+	(item->type == REISERFS_INTERNAL40_ID), key, &coord)) == 1)
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Key (%llx:%x:%llx:%llx) already exists in block %llu.", 
+	aal_throw_error(EO_OK, "Key (%llx:%x:%llx:%llx) already exists in block %llu.", 
 	    reiserfs_key_get_locality(key), reiserfs_key_get_type(key),
 	    reiserfs_key_get_objectid(key), reiserfs_key_get_offset(key),
 	    aal_block_get_nr(coord.cache->node->block));
@@ -647,8 +628,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 		new leaf and insert it into tree.
 	    */
 	    if (!(leaf = reiserfs_tree_alloc_node(tree, REISERFS_LEAF_LEVEL))) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't allocate a leaf node.");
+		aal_throw_error(EO_OK, "Can't allocate a leaf node.");
 		return -1;
 	    }
 	
@@ -657,8 +637,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
     
 	    /* Inserting item into new leaf */
 	    if (reiserfs_node_insert(leaf, &coord.pos, item)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		    "Can't insert item into the node %llu.", 
+		aal_throw_error(EO_OK, "Can't insert item into the node %llu.", 
 		    aal_block_get_nr(coord.cache->node->block));
 
 		reiserfs_node_close(leaf);
@@ -669,8 +648,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 	    if (__tree_node_insert(tree, coord.cache, 
 		reiserfs_cache_create(leaf))) 
 	    {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		    "Can't insert node %llu into the thee.", 
+		aal_throw_error(EO_OK, "Can't insert node %llu into the thee.", 
 		    aal_block_get_nr(leaf->block));
 
 		reiserfs_node_close(leaf);
@@ -697,8 +675,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 		    Allocating the new leaf is needed.
 		*/
 		if (!(leaf = reiserfs_tree_alloc_node(tree, REISERFS_LEAF_LEVEL))) {
-		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-			"Can't allocate a leaf node.");
+		    aal_throw_error(EO_OK, "Can't allocate a leaf node.");
 		    return -1;
 		}
 	
@@ -707,8 +684,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
     
 		/* Inserting item into new leaf */
 		if (reiserfs_node_insert(leaf, &coord.pos, item)) {
-		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-			"Can't insert item into the node %llu.", 
+		    aal_throw_error(EO_OK, "Can't insert item into the node %llu.", 
 			aal_block_get_nr(coord.cache->node->block));
 
 		    reiserfs_node_close(leaf);
@@ -719,8 +695,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 		if (__tree_node_insert(tree, coord.cache->parent, 
 		    reiserfs_cache_create(leaf))) 
 		{
-		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-			"Can't insert node %llu into the thee.", 
+		    aal_throw_error(EO_OK, "Can't insert node %llu into the thee.", 
 			aal_block_get_nr(leaf->block));
 
 		    reiserfs_node_close(leaf);
@@ -730,8 +705,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 		    
 		/* Inserting item into found after shifting point */
 		if (reiserfs_node_insert(insert.cache->node, &insert.pos, item)) {
-		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-			"Can't insert an internal item into the node %llu.", 
+		    aal_throw_error(EO_OK, "Can't insert an internal item into the node %llu.", 
 			aal_block_get_nr(coord.cache->node->block));
 		    return -1;
 		}
@@ -741,8 +715,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 	    
 	/* Inserting item into existent one leaf */
 	if (reiserfs_node_insert(coord.cache->node, &coord.pos, item)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Can't insert an internal item into the node %llu.", 
+	    aal_throw_error(EO_OK, "Can't insert an internal item into the node %llu.", 
 		aal_block_get_nr(coord.cache->node->block));
 	    return -1;
 	}

@@ -22,7 +22,7 @@ reiserfs_format_t *reiserfs_format_open(aal_device_t *device,
     if (!(format = aal_calloc(sizeof(*format), 0)))
 	return NULL;
 	
-    if (!(plugin = libreiser4_factory_find(REISERFS_FORMAT_PLUGIN, pid))) 
+    if (!(plugin = libreiser4_factory_find_by_id(REISERFS_FORMAT_PLUGIN, pid))) 
 	libreiser4_factory_failed(goto error_free_format, find, format, pid);
     
     format->plugin = plugin;
@@ -30,8 +30,7 @@ reiserfs_format_t *reiserfs_format_open(aal_device_t *device,
     if (!(format->entity = libreiser4_plugin_call(goto error_free_format, 
 	plugin->format_ops, open, device)))
     {
-	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
-	    "Can't open disk-format %s on %s.", plugin->h.label, 
+	aal_throw_fatal(EO_OK, "Can't open disk-format %s on %s.", plugin->h.label, 
 	    aal_device_name(device));
 	goto error_free_format;
     }
@@ -53,7 +52,7 @@ reiserfs_format_t *reiserfs_format_create(aal_device_t *device,
 		
     aal_assert("umka-105", device != NULL, return NULL);
 
-    if (!(plugin = libreiser4_factory_find(REISERFS_FORMAT_PLUGIN, pid))) 
+    if (!(plugin = libreiser4_factory_find_by_id(REISERFS_FORMAT_PLUGIN, pid))) 
 	libreiser4_factory_failed(return NULL, find, format, pid); 
     
     if (!(format = aal_calloc(sizeof(*format), 0)))
@@ -64,8 +63,7 @@ reiserfs_format_t *reiserfs_format_create(aal_device_t *device,
     if (!(format->entity = libreiser4_plugin_call(goto error_free_format, 
 	plugin->format_ops, create, device, len, tail_policy))) 
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't create disk-format %s on %s.", plugin->h.label, 
+	aal_throw_error(EO_OK, "Can't create disk-format %s on %s.", plugin->h.label, 
 	    aal_device_name(device));
 	goto error_free_format;
     }
