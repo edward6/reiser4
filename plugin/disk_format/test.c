@@ -45,6 +45,12 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	set_key_type (root_key, KEY_SD_MINOR);
 	set_key_offset (root_key, (__u64)0);
 
+	/* Fill blocks statistics in the superblock */
+	reiser4_set_block_count (s, -1);
+	/* number of used blocks */
+	reiser4_set_data_blocks (s, d64tocpu( &disk_sb->new_block_nr ) - 1);
+	reiser4_set_free_blocks (s, -1);
+
 	/* init oid allocator */		  
 	private->oid_plug = oid_allocator_plugin_by_id (OID_40_ALLOCATOR_ID);
 	assert ("vs-627", (private->oid_plug &&
