@@ -243,11 +243,11 @@ ctail_ok (const coord_t *coord)
 }
 
 /* plugin->u.item.b.lookup:
-   NULL. (we are looking only for exact keys from item headers) */
+   NULL: We are looking for item keys only */
 reiser4_internal int
 check_ctail (const coord_t * coord, const char **error)
 {
-	if (!ctail_ok) {
+	if (!ctail_ok(coord)) {
 		if (error)
 			*error = "bad cluster shift in ctail";
 		return 1;
@@ -1666,7 +1666,7 @@ convert_ctail(flush_pos_t * pos)
 		detach_convert_idata(pos->sq);
 		break;
 	case CRC_OVERWRITE_ITEM:
-		if (coord_is_unprepped_ctail) {
+		if (coord_is_unprepped_ctail(&pos->coord)) {
 			/* convert unpprepped ctail to prepped one */
 			int shift;
 			shift = inode_cluster_shift(item_convert_data(pos)->inode);
