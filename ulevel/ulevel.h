@@ -1294,6 +1294,8 @@ struct kstat {
         unsigned long   blocks;
 };
 
+#define get_unaligned(ptr) (*(ptr))
+#define put_unaligned(val, ptr) ((void)( *(ptr) = (val) ))
 
 /* __REISER4_ULEVEL_H__ */
 #endif
