@@ -2532,7 +2532,8 @@ jnode_set_block(jnode * node /* jnode to update */ ,
 {
 	assert("nikita-2020", node != NULL);
 	assert("umka-055", blocknr != NULL);
-	assert("zam-819", !JF_ISSET(node, JNODE_EFLUSH));
+	assert("zam-819", ergo(JF_ISSET(node, JNODE_EFLUSH), node->blocknr == 0));
+	assert("vs-1453", ergo(JF_ISSET(node, JNODE_EFLUSH), jnode_is_unformatted(node)));
 	node->blocknr = *blocknr;
 }
 
