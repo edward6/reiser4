@@ -115,7 +115,7 @@ int reiser4_exit_context(reiser4_context * context)
 {
         int result;
 
-	schedulable();
+	assert("nikita-3021", schedulable());
 
 	log_entry(context->super, ":ex");
 	/*

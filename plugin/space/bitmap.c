@@ -520,7 +520,7 @@ bitmap_init_allocator(reiser4_space_allocator * allocator, struct super_block *s
 	bmap_nr_t bitmap_blocks_nr;
 	bmap_nr_t i;
 
-	schedulable();
+	assert("nikita-3039", schedulable());
 	/* getting memory for bitmap allocator private data holder */
 	data = reiser4_kmalloc(sizeof (struct bitmap_allocator_data), GFP_KERNEL);
 
@@ -645,7 +645,7 @@ load_and_lock_bnode(struct bnode *bnode)
 	jnode *cjnode;
 	jnode *wjnode;
 
-	schedulable();
+	assert("nikita-3040", schedulable());
 
 	if (atomic_read(&bnode->loaded)) {
 		/* bitmap is already loaded, nothing to do */

@@ -84,7 +84,7 @@ reiser4_print_prefix(const char *level, const char *mid,
 int
 preempt_point(void)
 {
-	schedulable();
+	assert("nikita-3008", schedulable());
 	cond_resched();
 	return signal_pending(current);
 }
@@ -104,17 +104,20 @@ lock_counters()
 }
 
 /* check that no spinlocks are held */
-void schedulable (void)
+int schedulable (void)
 {
 	if (REISER4_DEBUG && get_current_context_check() != NULL) {
 		lock_counters_info *counters;
 
 		counters = lock_counters();
-		if (counters->spin_locked != 0)
+		if (counters->spin_locked != 0) {
 			print_lock_counters("in atomic", counters);
-		assert ("zam-782", counters->spin_locked == 0);
+			return 0;
+		}
+		return 1;
 	}
 	might_sleep();
+	return 1;
 }
 
 #endif
@@ -659,7 +662,7 @@ reiser4_kmalloc(size_t size /* number of bytes to allocate */ ,
 		super = reiser4_get_current_sb();
 		assert("nikita-1407", super != NULL);
 		if (gfp_flag & __GFP_WAIT)
-			schedulable();
+			assert("nikita-3009", schedulable());
 
 		reiser4_spin_lock_sb(super);
 		ON_DEBUG(get_super_private(super)->kmalloc_allocated += size);

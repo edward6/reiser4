@@ -453,8 +453,7 @@ txn_end(reiser4_context * context)
 	txn_handle *txnh;
 
 	assert("umka-283", context != NULL);
-
-	schedulable();
+	assert("nikita-3012", schedulable());
 
 	/* closing non top-level context---nothing to do */
 	if (context != context->parent)

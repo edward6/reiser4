@@ -664,7 +664,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	flush_queue_t *fq = NULL;
 
 	assert("jmacd-76619", lock_stack_isclean(get_current_lock_stack()));
-	schedulable();
+	assert("nikita-3022", schedulable());
 
 	sb = reiser4_get_current_sb();
 	info = get_super_private(sb);

@@ -558,7 +558,7 @@ emergency_unflush(jnode *node)
 	int result;
 
 	assert("nikita-2778", node != NULL);
-	schedulable();
+	assert("nikita-3046", schedulable());
 
 	if (JF_ISSET(node, JNODE_EFLUSH)) {
 		result = jload(node);

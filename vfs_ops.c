@@ -714,11 +714,11 @@ reiser4_writepage(struct page *page, struct writeback_control *wbc)
 {
 	int result;
 	assert("zam-822", current->flags & PF_MEMALLOC);
-	schedulable();
+	assert("nikita-3017", schedulable());
 	result = page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
 	/* check that we fulfill shrink_list() calling conventions */
 	assert("nikita-2907", equi(result == WRITEPAGE_ACTIVATE, PageLocked(page)));
-	schedulable();
+	assert("nikita-3018", schedulable());
 	return result;
 }
 
@@ -2565,7 +2565,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	assert("nikita-2257", PagePrivate(page));
 	assert("nikita-2259", PageLocked(page));
 	assert("nikita-2892", !PageWriteback(page));
-	schedulable();
+	assert("nikita-3019", schedulable());
 
 	/* NOTE-NIKITA: this can be called in the context of reiser4 call. It
 	   is not clear what to do in this case. A lot of deadlocks seems be
@@ -2619,7 +2619,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		/*if (JF_ISSET(node, JNODE_EFLUSH))
 		  info_jnode("reiser4_releasepage: !not releasable node!!", node);*/
 		UNLOCK_JNODE(node);
-		schedulable();
+		assert("nikita-3020", schedulable());
 		return 0;
 	}
 }

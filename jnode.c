@@ -563,7 +563,7 @@ jload_gfp (jnode * node, int gfp_flags)
 	struct page *page;
 	PROF_BEGIN(jload);
 
-	schedulable();
+	assert("nikita-3010", schedulable());
 
 	write_node_trace(node);
 

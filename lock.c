@@ -770,8 +770,7 @@ int longterm_lock_znode(
 
 	/* Check that the lock handle is initialized and isn't already being used. */
 	assert("jmacd-808", handle->owner == NULL);
-
-	schedulable();
+	assert("nikita-3026", schedulable());
 
 	if (request & ZNODE_LOCK_NONBLOCK) {
 		try_capture_flags |= TXN_CAPTURE_NONBLOCKING;
@@ -1148,7 +1147,7 @@ __go_to_sleep(lock_stack * owner
 	unsigned long sleep_start = jiffies;
 #endif
 	/* Well, we might sleep here, so holding of any spinlocks is no-no */
-	schedulable();
+	assert("nikita-3027", schedulable());
 	/* return down_interruptible(&owner->sema); */
 	down(&owner->sema);
 #ifdef CONFIG_REISER4_STATS

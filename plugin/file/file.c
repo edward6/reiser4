@@ -376,7 +376,7 @@ find_file_item(struct sealed_coord *hint,
 {
 	int result;
 
-	schedulable();
+	assert("nikita-3030", schedulable());
 
 	/* collect statistics on the number of calls to this function */
 	reiser4_stat_inc(file.find_next_item);
@@ -1199,8 +1199,7 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 	int (*write_f) (struct inode *, coord_t *, lock_handle *, flow_t *);
 	int state;
 
-	schedulable();
-
+	assert("nikita-3031", schedulable());
 	assert("vs-1109", get_current_context()->grabbed_blocks == 0);
 
 	/* get seal and coord sealed with it from reiser4 private data of
@@ -1425,7 +1424,7 @@ write_file(struct file * file, /* file to write to */
 	loff_t pos;
 	int ea;
 
-	schedulable();
+	assert("nikita-3032", schedulable());
 
 	result = write_checks(file, &count, off);
 	if (unlikely(result != 0))

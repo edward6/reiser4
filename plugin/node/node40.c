@@ -871,7 +871,7 @@ node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data 
 			   from userspace was valid and data bytes were
 			   available? How will we return -EFAULT of some kind
 			   without this check? */
-			schedulable();
+			assert("nikita-3038", schedulable());
 			/* copy data from user space */
 			__copy_from_user(zdata(target->node) + offset, data->data, (unsigned) data->length);
 		} else

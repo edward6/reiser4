@@ -634,7 +634,7 @@ zload_ra(znode * node /* znode to load */, ra_info_t *info)
 	assert("nikita-1377", znode_invariant(node));
 	assert("jmacd-7771", !znode_above_root(node));
 	assert("nikita-2125", atomic_read(&ZJNODE(node)->x_count) > 0);
-	schedulable();
+	assert("nikita-3016", schedulable());
 
 	if (info)
 		formatted_readahead(node, info);

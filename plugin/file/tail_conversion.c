@@ -39,7 +39,7 @@ static void ea_set(const struct inode *inode, void *value)
 void
 get_exclusive_access(struct inode *inode)
 {
-	schedulable();
+	assert("nikita-3028", schedulable());
 	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_w ++);
 	down_write(&reiser4_inode_data(inode)->sem);
 	assert("vs-1157", !ea_obtained(inode));
@@ -62,7 +62,7 @@ drop_exclusive_access(struct inode *inode)
 void
 get_nonexclusive_access(struct inode *inode)
 {
-	schedulable();
+	assert("nikita-3029", schedulable());
 	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_r ++);
 	down_read(&reiser4_inode_data(inode)->sem);
 	assert("vs-1159", !ea_obtained(inode));
@@ -336,7 +336,9 @@ tail2extent(struct inode *inode)
 	}
 
 	if (file_is_built_of_extents(inode)) {
-		warning("vs-1171", "file is built of tails already. Should not happen\n");
+		warning("vs-1171", 
+			"file %llu is built of tails already. Should not happen",
+			get_inode_oid(inode));
 		/* tail was converted by someone else */
 		if (access_switched)
 			ea2nea(inode);

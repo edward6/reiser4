@@ -243,7 +243,7 @@ void
 reiser4_lock_page(struct page *page)
 {
 	assert("nikita-2408", page != NULL);
-	schedulable();
+	assert("nikita-3041", schedulable());
 	lock_page(page);
 }
 
@@ -403,11 +403,11 @@ formatted_writepage(struct page *page, /* page to write */ struct writeback_cont
 	assert("zam-823", current->flags & PF_MEMALLOC);
 	assert("nikita-2632", PagePrivate(page) && jprivate(page));
 
-	schedulable();
+	assert("nikita-3042", schedulable());
 	result = page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_FORMATTED);
 	/* check that we fulfill shrink_list() calling conventions */
 	assert("nikita-2909", equi(result == WRITEPAGE_ACTIVATE, PageLocked(page)));
-	schedulable();
+	assert("nikita-3043", schedulable());
 	return result;
 }
 
@@ -537,7 +537,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 		jput(node);
 	}
 
-	schedulable();
+	assert("nikita-3044", schedulable());
 
 	if (result > 0)
 		REISER4_EXIT(0);

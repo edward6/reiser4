@@ -259,7 +259,7 @@ wait_io(flush_queue_t * fq, int *nr_io_errors)
 	if (atomic_read(&fq->nr_submitted) != 0) {
 		spin_unlock_atom(fq->atom);
 
-		schedulable();
+		assert("nikita-3013", schedulable());
 
 		blk_run_queues();
 		down(&fq->sema);
@@ -528,7 +528,7 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 	int nr_processed;
 	int doing_reclaim;
 
-	schedulable();
+	assert("nikita-3014", schedulable());
 	assert("zam-725", nr != 0);
 
 	trace_on (TRACE_IO_W, "write of %d blocks starting from %llu\n", nr, 
@@ -685,7 +685,7 @@ write_fq(flush_queue_t * fq, int how_many)
 	/* atom the fq is attached to */
 	txn_atom * atom;
 
-	schedulable();
+	assert("nikita-3015", schedulable());
 
 #if REISER4_USER_LEVEL_SIMULATION
 	max_blocks = fq->nr_queued;

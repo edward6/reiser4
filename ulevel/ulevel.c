@@ -292,7 +292,7 @@ void *kmem_cache_alloc( kmem_cache_t *slab, int gfp_flag )
 {
 	void *addr;
 
-	schedulable();
+	assert("nikita-3045", schedulable());
 
 	addr = kmalloc( slab -> size, gfp_flag );
 

@@ -2856,7 +2856,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		if (result)
 			goto exit3;
 
-		schedulable();
+		assert("nikita-3033", schedulable());
 
 		/* copy user data into page */
 		data = kmap(page);
@@ -3058,7 +3058,7 @@ extent_read(struct file *file, coord_t *coord, flow_t * f)
 	/* AUDIT: We must page-in/prepare user area first to avoid deadlocks */
 	kaddr = kmap(page);
 	assert("vs-572", f->user == 1);
-	schedulable();
+	assert("nikita-3034", schedulable());
 
 	/* read_cache_page() already marked page as accessed. No need to call
 	 * mark_page_accessed() */
