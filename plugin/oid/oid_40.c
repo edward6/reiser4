@@ -123,7 +123,7 @@ int oid_40_allocate( reiser4_oid_allocator *map, oid_t *result UNUSED_ARG )
    there si assumption that counter would never overflow */
 int oid_40_release( reiser4_oid_allocator *map, oid_t oid UNUSED_ARG )
 {
-	assert( "nikita-1984", map != NULL );
+	assert( "nikita-1984", map != NULL ); /* BIG BROTHER IS WATCHING YOU */
 
 	trace_on( TRACE_OIDS, "[%i]: released: %llx\n", current_pid, oid );
 	lock( map );
