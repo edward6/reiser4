@@ -166,6 +166,16 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
  */
 #define REISER4_MAX_MULTI_SEARCH (4)
 
+/* FIXME: Make these mount options. */
+/* If flush finds more than FLUSH_RELOCATE_THRESHOLD adjacent dirty leaf-level blocks it
+ * will force them to be relocated. */
+#define FLUSH_RELOCATE_THRESHOLD 64
+/* If flush finds can find a block allocation closer than at most FLUSH_RELOCATE_DISTANCE
+ * from the preceder it will relocate to that position. */
+#define FLUSH_RELOCATE_DISTANCE  64
+/* Flush defers actualy BIO submission until it gathers FLUSH_QUEUE_SIZE blocks. */
+#define FLUSH_QUEUE_SIZE         256
+
 /* 
  * what size units of IO we would like cp, etc., to use, in writing to
  * reiser4. In 512 byte blocks.

@@ -150,8 +150,9 @@ extern void   jnode_set_block (jnode *node, const reiser4_block_nr *blocknr);
  * Jnode flush interface.
  */
 extern int    jnode_flush     (jnode *node, int *nr_to_flush, int flags);
-extern int    flush_enqueue_unformatted_page_locked (jnode *node, flush_position *pos, struct page *pg);
+extern int    flush_enqueue_unformatted (jnode *node, flush_position *pos);
 extern reiser4_blocknr_hint* flush_pos_hint (flush_position *pos);
+extern int    flush_pos_leaf_relocate (flush_position *pos);
 
 extern spinlock_t *jnode_to_page_lock( const jnode *node );
 extern spinlock_t *page_to_jnode_lock( const struct page *page );

@@ -314,6 +314,9 @@ void break_page_jnode_linkage( struct page *page, jnode *node )
 	assert( "nikita-2063", page != NULL );
 	assert( "nikita-2064", node != NULL );
 
+	/* FIXME: JMACD->NIKITA: What do you think of this? */
+	assert( "jmacd-20642", ! PageDirty (page) );
+
 	trace_on( TRACE_PCACHE, "break page: %p\n", page );
 
 	page -> private = 0ul;

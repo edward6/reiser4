@@ -1227,6 +1227,9 @@ void txn_delete_page (struct page *pg)
 
 	jnode_set_clean (node);
 
+	/* FIXME: JMACD->NIKITA: What do you think of this? */
+	ClearPageDirty (pg);
+	
 	spin_lock_jnode (node);
 
  repeat:

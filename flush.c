@@ -8,11 +8,6 @@
 
 /* FIXME: Comments are out of date and missing in this file. */
 
-/* FIXME: Make these mount options. */
-#define FLUSH_RELOCATE_THRESHOLD 64
-#define FLUSH_RELOCATE_DISTANCE  64
-#define FLUSH_QUEUE_SIZE         256
-
 /* FIXME: Nikita has written similar functions to these, should replace them with his. */
 typedef struct load_handle load_handle;
 struct load_handle { znode *node; };
@@ -404,19 +399,17 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 		/* FIXME: check EDEADLK, EINVAL */
 		if (ret == -ENAVAIL || ret == -ENOENT) {
 
-			/* Now finished with twig node (enqueue if dirty). */
-			if (znode_check_dirty (pos->parent_lock.node)) {
-				ret = flush_release_ancestors (pos->parent_lock.node);
-			} else {
-				ret = 0;
-			}
+			/* Now finished with twig node. */
 			trace_on (TRACE_FLUSH_VERB, "end_of_twig: STOP (end of twig, ENAVAIL right): %s\n", flush_pos_tostring (pos));
+			ret = flush_release_ancestors (pos->parent_lock.node);
 			flush_pos_stop (pos);
 		}
 		goto exit;
 	}
 
-	/* If it is dirty then we don't care about its leftmost child yet. */
+	trace_on (TRACE_FLUSH_VERB, "end_of_twig: right node %s\n", flush_znode_tostring (right_lock.node));
+
+	/* If the right twig is dirty then we don't have to check the child. */
 	if (znode_check_dirty (right_lock.node)) {
 		ret = 0;
 		goto exit;
@@ -434,7 +427,10 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 	}
 
 	if (child == NULL || ! jnode_check_dirty (child)) {
-		ret = 0;
+		/* Finished at this twig. */
+		trace_on (TRACE_FLUSH_VERB, "end_of_twig: STOP right node & leftmost child clean\n");
+		ret = flush_release_ancestors (pos->parent_lock.node);
+		flush_pos_stop (pos);
 		goto exit;
 	}
 
@@ -442,6 +438,9 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 	if ((ret = flush_left_relocate_dirty (child, & right_coord, pos))) {
 		goto exit;
 	}
+
+	/* If the child is relocated it will be handled by squalloc_changed_ancestor,
+	 * which also handles pos_to_child. */
 
  exit:
 	if (child != NULL) { jput (child); }
@@ -812,7 +811,6 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	trace_on (TRACE_FLUSH_VERB, "sq_r changed ancestors before: %s\n", flush_pos_tostring (pos));
 
 	assert ("jmacd-9814", znode_is_write_locked (node));
-	assert ("jmacd-4386", znode_check_dirty (node));
 
 	init_lh (& right_lock);
 
@@ -899,13 +897,9 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 			trace_on (TRACE_FLUSH_VERB, "sq_rca stop at twig, next is internal: %s\n", flush_pos_tostring (pos));
 		stop_at_twig:
 			/* We are leaving twig now, enqueue it if allocated. */
-			if ((ret = flush_release_ancestors (node))) {
-				warning ("jmacd-61436", "flush_release_ancestors failed: %d", ret);
-				goto exit;
-			}
-
+			ret = flush_release_ancestors (node);
 			trace_on (TRACE_FLUSH_VERB, "sq_rca: STOP (at twig): %s\n", flush_pos_tostring (pos));
-			ret = flush_pos_stop (pos);
+			flush_pos_stop (pos);
 			goto exit;
 		}
 
@@ -1381,7 +1375,8 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 		return ret;
 	}
 
-	if (! ZF_ISSET (node, ZNODE_CREATED) && (ret = reiser4_dealloc_block (znode_get_block (node), 1, 0))) {
+	if (! ZF_ISSET (node, ZNODE_CREATED) &&
+	    (ret = reiser4_dealloc_block (znode_get_block (node), /* defer */1, 0 /* FIXME: JMACD->ZAM: Why 0 (BLOCK_NOT_COUNTED)? */))) {
 		return ret;
 	}
 
@@ -1456,7 +1451,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 			dist = (nblk < pos->preceder.blk) ? (pos->preceder.blk - nblk) : (nblk - pos->preceder.blk);
 
 			/* See if we can find a closer block (forward direction only). */
-			pos->preceder.max_dist = dist;
+			pos->preceder.max_dist = min ((reiser4_block_nr) FLUSH_RELOCATE_DISTANCE, dist);
 			pos->preceder.level    = znode_get_level (node);
 
 			if ((ret = flush_allocate_znode_update (node, parent_coord, pos)) && (ret != -ENOSPC)) {
@@ -1532,11 +1527,8 @@ static int flush_release_znode (znode *node)
 }
 
 /* FIXME: comment */
-int flush_enqueue_unformatted_page_locked (jnode *node, flush_position *pos, struct page *pg)
+int flush_enqueue_unformatted (jnode *node, flush_position *pos)
 {
-	/* FIXME: not sure about this.  release the lock because it will be queued. */
-	unlock_page (pg);
-
 	return flush_queue_jnode (node, pos);
 }
 
@@ -1556,6 +1548,10 @@ static void flush_bio_write (struct bio *bio)
 		if (! TestClearPageWriteback (pg)) {
 			BUG ();
 		}
+
+		/* FIXME: JMACD->NIKITA: For unformatted pages DIRTY needs to be cleared.
+		 * For formatted pages I think it never gets set.  Okay? */
+		ClearPageDirty (pg);
 
 		unlock_page (pg);
 		page_cache_release (pg);
@@ -1608,24 +1604,38 @@ static int flush_finish (flush_position *pos, int none_busy)
 
 			if (i != refill) {
 				assert ("jmacd-71237", pos->queue[refill] == NULL);
-				pos->queue[refill++] = check;
+				pos->queue[refill] = check;
 				pos->queue[i] = NULL;
 			}
 
+			refill += 1;
 			i += 1;
+			continue;
+		}
+
+		if (JF_ISSET (check, ZNODE_WANDER)) {
+			/* It will be written later. */
+
+			/* Log-writer expects these to be on the clean list.  They cannot
+			 * leave memory and will remain captured. */
+			jnode_set_clean (check);
+			jput (check);
+			pos->queue[i++] = NULL;
+			continue;
 
 		} else {
 
-			/* Have at least two consecutive nodes. */
+			/* Find consecutive nodes. */
 			struct bio *bio;
 			jnode *prev = check;
 			int j, c, nr;
 			struct super_block *super;
 			int blksz;
 
-			/* Set j to the first non-consecutive block (or end-of-queue) */
+			/* Set j to the first non-consecutive, non-wandered block (or end-of-queue) */
 			for (j = i + 1; j < pos->queue_num; j += 1) {
-				if (*jnode_get_block (prev) + 1 != *jnode_get_block (pos->queue[j])) {
+				if (JF_ISSET (pos->queue[j], ZNODE_WANDER) ||
+				    (*jnode_get_block (prev) + 1 != *jnode_get_block (pos->queue[j]))) {
 					break;
 				}
 				prev = pos->queue[j];
@@ -2615,6 +2625,11 @@ static int flush_pos_lock_parent (flush_position *pos, coord_t *parent_coord, lo
 reiser4_blocknr_hint* flush_pos_hint (flush_position *pos)
 {
 	return & pos->preceder;
+}
+
+int flush_pos_leaf_relocate (flush_position *pos)
+{
+	return pos->leaf_relocate;
 }
 
 #if REISER4_DEBUG

@@ -68,7 +68,7 @@ extern void reiser4_count_real_deallocation (__u64);
 extern int blocknr_is_fake(const reiser4_block_nr * da);
 extern int reiser4_alloc_blocks (reiser4_blocknr_hint * hint,
 				 reiser4_block_nr * start, reiser4_block_nr * len);
-extern int reiser4_dealloc_blocks (const reiser4_block_nr *, const reiser4_block_nr *, int, block_stage_t);
+extern int reiser4_dealloc_blocks (const reiser4_block_nr *, const reiser4_block_nr *, int defer, block_stage_t);
 
 static inline int reiser4_dealloc_block (const reiser4_block_nr *block, int defer, block_stage_t stage)
 {
