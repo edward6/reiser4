@@ -2383,12 +2383,14 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 
 	pos->preceder.block_stage = ZF_ISSET(node, JNODE_CREATED) ? BLOCK_UNALLOCATED : BLOCK_NOT_COUNTED ;
 
-	if ((ret = reiser4_alloc_blocks (& pos->preceder, & blk, & len))) {
+	if ((ret = reiser4_alloc_blocks (& pos->preceder, & blk, & len, 1/*formatted*/))) {
 		return ret;
 	}
 
 	if (! ZF_ISSET (node, JNODE_CREATED) &&
-	    (ret = reiser4_dealloc_block (znode_get_block (node), 1 /* defer */, 0 /* BLOCK_NOT_COUNTED */))) {
+	    (ret = reiser4_dealloc_block (znode_get_block (node), 1 /* defer */,
+					  0 /* target stage, it only matters
+					     * when defer == 0 */))) {
 		return ret;
 	}
 
@@ -3435,8 +3437,9 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 	unsigned long scan_index, unit_index, unit_width, scan_max, scan_dist;
 	reiser4_block_nr unit_start;
 	struct inode *ino = NULL;
-	struct page *pg;
+	/*struct page *pg;*/
 	int ret = 0, allocated, incr;
+	reiser4_tree *tree;
 
 	coord_dup (& coord, in_coord);
 
@@ -3500,11 +3503,14 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 		incr      = +1;
 	}
 
+	tree = tree_by_inode (ino);
+
 	/* If the extent is allocated we have to check each of its blocks.  If the extent
 	 * is unallocated we can skip to the scan_max. */
 	if (allocated) {
-
 		do {
+#if 0
+
 			/* Note: On the very first pass through this block we test the
 			 * current position (pg of the starting scan_index, which we know
 			 * is dirty/same atom by pre-condition).  Its redundant but it
@@ -3519,11 +3525,20 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 
 			unlock_page (pg);
 			page_cache_release (pg);
-
 			if (IS_ERR(neighbor)) {
 				ret = PTR_ERR(neighbor);
 				goto exit;
 			}
+#endif
+			/*
+			 * 
+			 */
+			neighbor = UNDER_SPIN (tree, tree,
+					       jlook (tree, ino->i_mapping,
+						      scan_index));
+			if (neighbor == NULL)
+				goto stop_same_parent;
+			
 
 			trace_on (TRACE_FLUSH_VERB, "alloc scan index %lu: %s\n", scan_index, flush_jnode_tostring (neighbor));
 
@@ -3541,6 +3556,7 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 
 	} else {
 		/* Optimized case for unallocated extents, skip to the end. */
+#if 0
 		pg = reiser4_lock_page (ino->i_mapping, scan_max);
 
 		if (pg == NULL) {
@@ -3556,6 +3572,17 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 
 		if (IS_ERR(neighbor)) {
 			ret = PTR_ERR(neighbor);
+			goto exit;
+		}
+#endif
+		neighbor = UNDER_SPIN (tree, tree,
+				       jlook (tree, ino->i_mapping,
+					      scan_index));
+		if (neighbor == NULL) {
+			/* jnode of unallocated block must be found */
+			impossible ("jmacd-8337",
+				    "unallocated node index %lu ino %lu not in memory", scan_max, ino->i_ino);
+			ret = -EIO;
 			goto exit;
 		}
 
