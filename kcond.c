@@ -36,7 +36,7 @@ kcond_t *kcond_init( kcond_t *cvar /* cvar to init */ )
 	assert( "nikita-1868", cvar != NULL );
 
 	xmemset( cvar, 0, sizeof *cvar );
-	cvar -> lock = SPIN_LOCK_UNLOCKED;
+	spin_lock_init( &cvar -> lock );
 	cvar -> queue = NULL;
 	return cvar;
 }
