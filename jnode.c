@@ -799,7 +799,8 @@ jstartio(jnode * node)
 		UNLOCK_JNODE(node);
 		unlock_page(page);
 	}
-	
+
+	cache_page_release(page);
 	return result;
 }
 
