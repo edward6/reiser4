@@ -872,6 +872,86 @@ znode_build_version(reiser4_tree * tree)
 	return UNDER_SPIN(epoch, tree, ++tree->znode_epoch);
 }
 
+static int 
+relocate_locked(znode * node, znode * parent, reiser4_block_nr * blk)
+{
+	coord_t  inparent;
+	int      result;
+
+	assert("nikita-3127", node != NULL);
+	assert("nikita-3128", parent != NULL);
+	assert("nikita-3129", blk != NULL);
+	assert("nikita-3130", znode_is_any_locked(node));
+	assert("nikita-3131", znode_is_any_locked(parent));
+	assert("nikita-3132", znode_is_loaded(node));
+	assert("nikita-3133", znode_is_loaded(parent));
+
+	result = find_child_ptr(parent, node, &inparent);
+	if (result == NS_FOUND) {
+		int grabbed;
+
+		grabbed = get_current_context()->grabbed_blocks;
+		/* for a node and its parent */
+		result = reiser4_grab_space_force((__u64)2, BA_RESERVED, 
+						  __FUNCTION__);
+		if (result == 0) {
+			item_plugin *iplug;
+
+			iplug = item_plugin_by_coord(&inparent);
+			assert("nikita-3126", iplug->f.update != NULL);
+			iplug->f.update(&inparent, blk);
+			znode_set_dirty(inparent.node);
+			result = znode_rehash(node, blk);
+		}
+		grabbed2free_mark(grabbed);
+	} else
+		result = -EIO;
+	return result;
+}
+
+/*
+ * relocate znode to the new block number @blk. Used for speculative
+ * relocation of bad blocks.
+ */
+int 
+znode_relocate(znode * node, reiser4_block_nr * blk)
+{
+	lock_handle lh;
+	int         result;
+
+	assert("nikita-3120", node != NULL);
+	assert("nikita-3121", atomic_read(&ZJNODE(node)->x_count) > 0);
+	assert("nikita-3122", blk != NULL);
+	assert("nikita-3123", lock_stack_isclean(get_current_lock_stack()));
+	assert("nikita-3124", schedulable());
+	assert("nikita-3125", !znode_is_root(node));
+
+	init_lh(&lh);
+	result = longterm_lock_znode(&lh, node,
+				     ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI);
+	if (result == 0) {
+		lock_handle parent;
+
+		result = reiser4_get_parent(&parent, node, ZNODE_READ_LOCK, 1);
+		if (result == 0) {
+			result = zload(node);
+			if (result == 0) {
+				result = zload(parent.node);
+				if (result == 0) {
+					result = relocate_locked(node,
+								 parent.node,
+								 blk);
+					zrelse(parent.node);
+				}
+				zrelse(node);
+			}
+			done_lh(&parent);
+		}
+		done_lh(&lh);
+	}
+	return result;
+}
+
 void
 init_load_count(load_count * dh)
 {
