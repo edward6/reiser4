@@ -172,6 +172,7 @@ void jfree (jnode * node)
 	assert ("zam-449", node != NULL);
 
 	assert ("nikita-2422", !list_empty (&node->jnodes));
+	assert ("nikita-2663", capture_list_is_clean (node));
 
 	ON_DEBUG (list_del_init (&node->jnodes));
 	/*

@@ -1112,16 +1112,31 @@ reiser4_file_fsdata *reiser4_get_file_fsdata( struct file *f /* file
 
 	if( f -> private_data == NULL ) {
 		reiser4_file_fsdata *fsdata;
+		reiser4_inode       *info;
+
 		reiser4_stat_file_add( private_data_alloc );
 		/* FIXME-NIKITA use slab in stead */
 		fsdata = reiser4_kmalloc( sizeof *fsdata, GFP_KERNEL );
 		if( fsdata == NULL )
 			return ERR_PTR( -ENOMEM );
 		xmemset( fsdata, 0, sizeof *fsdata );
-		fsdata -> back = f;
-		readdir_list_clean( fsdata );
-		f -> private_data = fsdata;
+
+		info = reiser4_inode_data( f -> f_dentry -> d_inode );
+		spin_lock( &info -> guard );
+		if( f -> private_data == NULL ) {
+			fsdata -> back = f;
+			readdir_list_clean( fsdata );
+			f -> private_data = fsdata;
+			fsdata = NULL;
+		}
+		spin_unlock( &info -> guard );
+		if( fsdata != NULL )
+			/*
+			 * other thread initialised ->fsdata
+			 */
+			reiser4_kfree( fsdata, sizeof *fsdata );
 	}
+	assert( "nikita-2665", f -> private_data != NULL );
 	return f -> private_data;
 }
 

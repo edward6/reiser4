@@ -1934,7 +1934,7 @@ void jnode_set_clean( jnode *node )
 		atom = atom_get_locked_by_jnode (node);
 
 		capture_list_remove (node);
-
+		ON_DEBUG (capture_list_clean (node));
 		/* Now it's possible that atom may be NULL, in case this was called
 		 * from invalidate page */
 		if (atom != NULL) {

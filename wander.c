@@ -448,6 +448,7 @@ static void dealloc_tx_list (struct commit_handle * ch)
 	while (!capture_list_empty (&ch->tx_list)) {
 		jnode * cur = capture_list_pop_front(&ch->tx_list);
 
+		ON_DEBUG (capture_list_clean (cur));
 		reiser4_dealloc_block (jnode_get_block (cur), 0, BLOCK_NOT_COUNTED);
 
 		unpin_jnode_data (cur);

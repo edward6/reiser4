@@ -236,7 +236,9 @@ void zfree( znode *node /* znode to free */ )
 	assert( "nikita-465", node != NULL );
 	assert( "nikita-2120", znode_page( node ) == NULL );
 	assert( "nikita-2301", owners_list_empty( &node -> lock.owners ) );
-	assert( "nikita-2302", requestors_list_empty( &node -> lock.requestors ) );
+	assert( "nikita-2302", 
+		requestors_list_empty( &node -> lock.requestors ) );
+	assert( "nikita-2663", capture_list_is_clean( ZJNODE( node ) ) );
 
 	ON_DEBUG( list_del( &ZJNODE( node ) -> jnodes ) );
 
