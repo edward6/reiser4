@@ -124,7 +124,7 @@ znode *add_tree_root( znode *old_root /* existing tree root */,
 	assert( "nikita-1211", znode_is_root( old_root ) );
 
 	result = 0;
-	if( tree -> height >= REISER4_MAX_ZTREE_HEIGHT - 1 ) {
+	if( tree -> height >= REAL_MAX_ZTREE_HEIGHT ) {
 		warning( "nikita-1344", "Tree is too tall: %i", tree -> height );
 		/*
 		 * ext2 returns -ENOSPC when it runs out of free inodes with a

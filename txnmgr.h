@@ -184,8 +184,8 @@ struct txn_atom
 	/* Start time. */
 	unsigned long          start_time;
 
-	/* The transaction's list of dirty captured nodes--per level. */
-	capture_list_head      dirty_nodes[REISER4_MAX_ZTREE_HEIGHT];
+	/* The transaction's list of dirty captured nodes--per level.  Index by (level-LEAF_LEVEL). */
+	capture_list_head      dirty_nodes[REAL_MAX_ZTREE_HEIGHT];
 
 	/* The transaction's list of clean captured nodes. */
 	capture_list_head      clean_nodes;

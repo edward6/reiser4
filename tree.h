@@ -9,9 +9,6 @@
 #if !defined( __REISER4_TREE_H__ )
 #define __REISER4_TREE_H__
 
-extern const tree_level LEAF_LEVEL;
-extern const tree_level TWIG_LEVEL; /* what about trees of height 1? */
-
 /** fictive block number never actually used */
 extern const reiser4_disk_addr FAKE_TREE_ADDR;
 

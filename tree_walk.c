@@ -477,7 +477,7 @@ int reiser4_get_neighbor (reiser4_lock_handle * neighbor /* lock handle that
 				     * above) subset. */ )
 {
 	reiser4_tree * tree = current_tree;
-	reiser4_lock_handle path[REISER4_MAX_ZTREE_HEIGHT - 1];
+	reiser4_lock_handle path[REAL_MAX_ZTREE_HEIGHT];
 
 	tree_coord coord;
 

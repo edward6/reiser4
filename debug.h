@@ -240,12 +240,13 @@ extern __u32 reiser4_current_trace_flags;
 #define reiser4_stat_slum_add( stat ) ST_INC_CNT( slum. ## stat )
 #define reiser4_stat_pool_add( stat ) ST_INC_CNT( pool. ## stat )
 
+/* FIXME_NIKITA: Why test (level > 0) below, if you've already subtracted LEAF_LEVEL? */
 #define	reiser4_stat_level_add( l, stat )				\
 ({									\
 	tree_level level;						\
 									\
 	level = ( l ) -> level_no - LEAF_LEVEL;				\
-	if( ( level > 0 ) && ( level < REISER4_MAX_ZTREE_HEIGHT ) ) {	\
+	if( ( level > 0 ) && ( level < REAL_MAX_ZTREE_HEIGHT ) ) {	\
 		ST_INC_CNT( level[ level ]. ## stat );			\
 		ST_INC_CNT( level[ level ]. ## total_hits_at_level );	\
 	}								\
@@ -471,7 +472,7 @@ typedef struct reiser4_stat {
 		 */
 		stat_cnt track_lh;
 		stat_cnt total_hits_at_level;
-	} level[ REISER4_MAX_ZTREE_HEIGHT ];
+	} level[ REAL_MAX_ZTREE_HEIGHT ];
 	struct {
 		/*
 		 * calls to zload()

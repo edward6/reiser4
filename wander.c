@@ -313,7 +313,7 @@ int format_commit_record (txn_atom *atom UNUSED_ARG)
 	int level;
 	znode *scan;
 
-	for (level = 0; level < REISER4_MAX_ZTREE_HEIGHT; level += 1) {
+	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
 
 		for (scan = capture_list_front (& atom->capture_level[level]);
 		     /**/ ! capture_list_end   (& atom->capture_level[level], scan);

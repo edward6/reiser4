@@ -146,6 +146,8 @@
 /** logical equivalence */
 #define equi( p1, p2 ) ( ergo( ( p1 ), ( p2 ) ) && ergo( ( p2 ), ( p1 ) ) )
 
+#define sizeof_array(x) ((int) (sizeof(x) / sizeof(x[0])))
+
 /* Certain user-level testing requirements */
 #if REISER4_USER_LEVEL_SIMULATION
 
@@ -159,8 +161,6 @@
 
 #include "build.h"
 #include "debug.h"
-
-#define sizeof_array(x) ((int) (sizeof(x) / sizeof(x[0])))
 
 /** Define serveral inline functions for each type of spinlock. */
 #define SPIN_LOCK_FUNCTIONS(NAME,TYPE,FIELD)					\

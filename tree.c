@@ -357,16 +357,6 @@ internal_node_split(node node, insert_coord)
 #endif
 
 /**
- * number of leaf level of the tree
- */
-const tree_level LEAF_LEVEL = 1;
-
-/**
- * number of level one above leaf level of the tree
- */
-const tree_level TWIG_LEVEL = 2;
-
-/**
  * Disk address (block number) never ever used for any real tree node. This is
  * used as block number of "fake" znode.
  *

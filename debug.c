@@ -183,7 +183,7 @@ void reiser4_print_stats()
 	      s -> non_uniq_max,
 	      s -> stack_size_max );
 
-	for( i = 0 ; i < REISER4_MAX_ZTREE_HEIGHT ; ++ i ) {
+	for( i = 0 ; i < REAL_MAX_ZTREE_HEIGHT ; ++ i ) {
 		if( s -> level[ i ].total_hits_at_level <= 0 )
 			continue;
 		info( "tree: at level: %i\n"
@@ -211,7 +211,7 @@ void reiser4_print_stats()
 		      "\t half_split_race:\t %lli\n"
 		      "\t track_lh:\t %lli\n",
 
-		      i,
+		      i + LEAF_LEVEL,
 
 		      s -> level[ i ].carry_restart,
 		      s -> level[ i ].carry_done,

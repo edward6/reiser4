@@ -119,7 +119,30 @@ typedef enum {
 	FIND_MAX_NOT_MORE_THAN/*LEFT_SLANT_BIAS*/
 } lookup_bias;
 
-typedef unsigned tree_level;
+typedef enum {
+	/* FIXME_NIKITA: I (Josh) changed this from an unsigned type, and I
+	 * think this is just as good.  Let me know if there was some deep
+	 * reason for it to be unsigned.  The "const unsigned" type would not
+	 * let me use it to declare per-level arrays offset by LEAF_LEVEL, so
+	 * it needs to be statically known. */
+	/**
+	 * number of leaf level of the tree
+	 * The fake root has (tree_level=0).
+	 */
+	LEAF_LEVEL = 1,
+
+	/**
+	 * number of level one above leaf level of the tree: a #define because
+	 * LEAF_LEVEL is, thought not used in per-level arrays.
+	 *
+	 * what about trees of height 1? 
+	 */
+	TWIG_LEVEL = 2,
+} tree_level;
+
+/* The "real" maximum ztree height is the 0-origin size of any per-level
+ * array, since the zero'th level is not used. */
+#define REAL_MAX_ZTREE_HEIGHT     (REISER4_MAX_ZTREE_HEIGHT-LEAF_LEVEL)
 
 /** enumeration of possible mutual position of item and coord.  This enum is
     return type of ->is_in_item() item plugin method which see. */

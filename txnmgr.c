@@ -188,7 +188,7 @@ atom_init (txn_atom     *atom)
 	atom->stage         = ASTAGE_FREE;
 	atom->start_time    = jiffies;
 
-	for (level = 0; level < REISER4_MAX_ZTREE_HEIGHT; level += 1) {
+	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
 		capture_list_init (& atom->dirty_nodes[level]);
 	}
 
@@ -206,7 +206,7 @@ atom_isclean (txn_atom *atom)
 {
 	int level;
 
-	for (level = 0; level < REISER4_MAX_ZTREE_HEIGHT; level += 1) {
+	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
 		if (! capture_list_empty (& atom->dirty_nodes[level])) {
 			return 0;
 		}
@@ -498,7 +498,7 @@ atom_try_commit_locked (txn_atom *atom)
 	atom->stage = ASTAGE_CAPTURE_WAIT;
 
 	/* From the leaf level up, find dirty nodes in this transaction that need balancing/flushing. */
-	for (level = 0; level < REISER4_MAX_ZTREE_HEIGHT; level += 1) {
+	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
 
 		if (capture_list_empty (& atom->dirty_nodes[level])) {
 			continue;
@@ -929,7 +929,7 @@ capture_assign_block_nolock (txn_atom *atom,
 	node->atom = atom;
 
 	if (jnode_is_dirty (node)) {
-		capture_list_push_back (& atom->dirty_nodes[ jnode_get_level (node) ], node);
+		capture_list_push_back (& atom->dirty_nodes[ jnode_get_level (node) - LEAF_LEVEL ], node);
 	} else {
 		capture_list_push_back (& atom->clean_nodes, node);
 	}
@@ -964,7 +964,7 @@ void jnode_set_dirty( jnode *node )
 		if (atom != NULL) {
 
 			capture_list_remove     (node);
-			capture_list_push_front (& atom->dirty_nodes[ jnode_get_level (node) ], node);
+			capture_list_push_front (& atom->dirty_nodes[ jnode_get_level (node) - LEAF_LEVEL ], node);
 
 			spin_unlock_atom (atom);
 		}
@@ -1375,7 +1375,7 @@ capture_fuse_into (txn_atom  *small,
 	trace_on (TRACE_TXN, "fuse atom %u into %u\n", small->atom_id, large->atom_id);
 
 	/* Splice and update the per-level dirty jnode lists */
-	for (level = 0; level < REISER4_MAX_ZTREE_HEIGHT; level += 1) {
+	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
 		zcount += capture_fuse_jnode_lists (large, & large->dirty_nodes[level], & small->dirty_nodes[level]);
 	}
 
@@ -1489,7 +1489,7 @@ atom_print (txn_atom *atom)
 	char prefix[32];
 	int level;
 	
-	for (level = 0; level < REISER4_MAX_ZTREE_HEIGHT; level += 1) {
+	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
 
 		sprintf (prefix, "capture level %d", level);
 
