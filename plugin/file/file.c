@@ -936,6 +936,7 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 	struct inode * inode;
 	flow_t f;
 	ssize_t written;
+	loff_t pos;
 
 
 	assert ("vs-855", count > 0);
@@ -946,6 +947,10 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 	inode = file->f_dentry->d_inode;
 
 	get_nonexclusive_access (inode);
+
+	pos = *off;
+	if (file->f_flags & O_APPEND)
+		pos = inode->i_size;
 
 	if (inode->i_size < *off) {
 		loff_t old_size;
@@ -968,7 +973,7 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 
 	/* build flow */
 	result = inode_file_plugin (inode)->flow_by_inode (inode, (char *)buf,
-							   1/* user space */, count, *off,
+							   1/* user space */, count, pos,
 							   WRITE_OP, &f);
 	if (result)
 		return result;
@@ -991,7 +996,7 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 	drop_nonexclusive_access (inode);
 
 	/* update position in a file */
-	*off += written;
+	*off = pos + written;
 	/* return number of written bytes */
 	return written;
 }
