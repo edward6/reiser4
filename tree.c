@@ -1,21 +1,15 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/* Because we balance one level at a time, we need for each level to be able to change the delimiting keys of the nodes of
-that level independently of the levels above it.  This is a questionable design decision to start with.  Then we add to
-this the questionable design decision to replicate the delimiting keys in two places: each first key of an item in a
-node is present as the left key of the znode, and as the right key of the left neigboring node's znode.  This is
-arguably more efficient for some node layouts.  Maybe those as yet unwritten node layouts should be fixed.;-) This
-design needs to be justified in a seminar on Monday.
-
-     To simplify balancing, allow some flexibility in locking and speed up
+/*   To simplify balancing, allow some flexibility in locking and speed up
      important coord cache optimization, we keep delimiting keys of nodes in
      memory. Depending on disk format (implemented by appropriate node plugin)
      node on disk can record both left and right delimiting key, only one of
      them, or none. Still, our balancing and tree traversal code keep both
-     delimiting keys for a node that is in memory stored in the znode. When node is first brought into memory during
-     tree traversal, its left delimiting key is taken from its parent, and its
-     right delimiting key is either next key in its parent, or is right
-     delimiting key of parent if node is the rightmost child of parent.
+     delimiting keys for a node that is in memory stored in the znode. When
+     node is first brought into memory during tree traversal, its left
+     delimiting key is taken from its parent, and its right delimiting key is
+     either next key in its parent, or is right delimiting key of parent if
+     node is the rightmost child of parent.
   
      Physical consistency of delimiting key is protected by special dk spin
      lock. That is, delimiting keys can only be inspected or modified under
@@ -31,12 +25,16 @@ design needs to be justified in a seminar on Monday.
   
    COORDINATES
   
-     To find something in the tree, you supply a key, and the key is resolved by coord_by_key() into a coord
-     (coordinate) that is valid as long as the node the coord points to remains locked.  As mentioned above trees
-     consist of nodes that consist of items that consist of units. A unit is the smallest and indivisible piece of tree
-     as far as balancing and tree search are concerned. Each node, item, and unit can be addressed by giving its level
-     in the tree and key occupied by this entity.  coord is a structure containing a pointer to the node, the ordinal
-     number of the item within this node (a sort of item offset), and the ordinal number of the unit within this item.
+     To find something in the tree, you supply a key, and the key is resolved
+     by coord_by_key() into a coord (coordinate) that is valid as long as the
+     node the coord points to remains locked.  As mentioned above trees
+     consist of nodes that consist of items that consist of units. A unit is
+     the smallest and indivisible piece of tree as far as balancing and tree
+     search are concerned. Each node, item, and unit can be addressed by
+     giving its level in the tree and key occupied by this entity.  coord is a
+     structure containing a pointer to the node, the ordinal number of the
+     item within this node (a sort of item offset), and the ordinal number of
+     the unit within this item.
   
    TREE LOOKUP
   
@@ -64,16 +62,17 @@ design needs to be justified in a seminar on Monday.
      performed and binary searches are CPU consuming and tend to destroy CPU
      caches.
   
-     To work around this, a "coord by key cache", or cbk_cache as it is called in the code, was introduced.
+     To work around this, a "coord by key cache", or cbk_cache as it is called
+     in the code, was introduced.
   
-     The coord by key cache consists of small list of recently accessed nodes maintained
-     according to the LRU discipline. Before doing real top-to-down tree
-     traversal this cache is scanned for nodes that can contain key requested.
+     The coord by key cache consists of small list of recently accessed nodes
+     maintained according to the LRU discipline. Before doing real top-to-down
+     tree traversal this cache is scanned for nodes that can contain key
+     requested.
   
-     The efficiency of coord cache depends heavily on locality of reference for tree accesses. Our user level
-     simulations show reasonably good hit ratios for coord cache under most loads so far.
-  
-
+     The efficiency of coord cache depends heavily on locality of reference
+     for tree accesses. Our user level simulations show reasonably good hit
+     ratios for coord cache under most loads so far.
 */
 
 #include "forward.h"
@@ -105,8 +104,6 @@ design needs to be justified in a seminar on Monday.
 #include <linux/fs.h>		/* for struct super_block  */
 #include <linux/spinlock.h>
 
-/* Long-dead pseudo-code removed Tue Apr 23 17:55:24 MSD 2002. */
-				/* email me the removed pseudo-code -Hans */
 /* Disk address (block number) never ever used for any real tree node. This is
    used as block number of "fake" znode.
   
@@ -178,29 +175,14 @@ insert_result insert_by_key(reiser4_tree * tree	/* tree to insert new item
    insertion failed  */
 /* Audited by: umka (2002.06.16) */
 static insert_result
-insert_with_carry_by_coord(coord_t * coord	/* coord
-						   * where
-						   * to
-						   * insert */ ,
-			   lock_handle * lh	/* lock
-						   * handle
-						   * of
-						   * insertion
-						   * node */ ,
-			   reiser4_item_data * data	/* parameters
-							 * of
-							 * new
-							 * item */ ,
-			   const reiser4_key * key	/* key
-							 * of
-							 * new
-							 * item */ ,
-			   carry_opcode cop	/* carry
-						 * operation
-						 * to
-						 * perform */ ,
-			   cop_insert_flag flags	/* carry
-							 * flags */ )
+insert_with_carry_by_coord(coord_t * coord /* coord where to insert */ ,
+			   lock_handle * lh /* lock handle of insertion
+					     * node */ ,
+			   reiser4_item_data * data /* parameters of new
+						     * item */ ,
+			   const reiser4_key * key /* key of new item */ ,
+			   carry_opcode cop /* carry operation to perform */ ,
+			   cop_insert_flag flags /* carry flags */)
 {
 	int result;
 	carry_pool pool;
