@@ -104,14 +104,6 @@ extent_can_contain_key(const coord_t * coord, const reiser4_key * key, const rei
 	    get_key_objectid(key) != get_key_objectid(&item_key)) return 0;
 
 	return 1;
-
-	assert("vs-458", coord->between == AFTER_UNIT);
-	set_key_offset(&item_key, get_key_offset(&item_key) + extent_size(coord, coord->unit_pos + 1));
-	if (!keyeq(&item_key, key)) {
-		info("could not merge extent items of one file\n");
-		return 0;
-	}
-	return 1;
 }
 
 /*
@@ -159,15 +151,6 @@ state_of_extent(reiser4_extent * ext)
 	default:
 		break;
 	}
-	if (0 && REISER4_DEBUG) {
-		/* make sure that all blocks are marked used */
-		reiser4_block_nr start, width;
-
-		start = extent_get_start(ext);
-		width = extent_get_width(ext);
-		reiser4_check_blocks(&start, &width, 1);
-	}
-
 	return ALLOCATED_EXTENT;
 }
 
@@ -227,9 +210,62 @@ extent_print(const char *prefix, coord_t * coord)
 }
 #endif
 
-/*
- * plugin->u.item.b.check
+/**
+ * extent_check ->check() method for extent items
+ *
+ * used for debugging, every item should have here the most complete
+ * possible check of the consistency of the item that the inventor can
+ * construct 
  */
+int
+extent_check(const coord_t * coord /* coord of item to check */ ,
+	     const char **error /* where to store error message */ )
+{
+	reiser4_extent *ext, *first;
+	unsigned i, j;
+	reiser4_block_nr start, width, blk_cnt;
+	unsigned num_units;
+
+	assert("vs-933", REISER4_DEBUG);
+
+	if (item_length_by_coord(coord) % sizeof (reiser4_extent) != 0) {
+		*error = "Wrong item size";
+		return -1;
+	}
+	ext = first = extent_item(coord);
+	blk_cnt = reiser4_block_count(reiser4_get_current_sb());
+	num_units = coord_num_units(coord);
+
+	for (i = 0; i < num_units; ++i, ++ext) {
+
+		start = extent_get_start(ext);
+		if (start < 2)
+			continue;
+		/* extent is allocated one */
+		width = extent_get_width(ext);
+		if (start >= blk_cnt) {
+			*error = "Start too large";
+			return -1;
+		}
+		if (start + width > blk_cnt) {
+			*error = "End too large";
+			return -1;
+		}
+		/* make sure that this extent does not overlap with other
+		 * allocated extents extents */
+		for (j = 0; j < i; j++) {
+			if (state_of_extent(first + j) != ALLOCATED_EXTENT)
+				continue;
+			if (!((extent_get_start(ext) >= extent_get_start(first + j) + extent_get_width(first + j))
+			      || (extent_get_start(ext) + extent_get_width(ext) <= extent_get_start(first + j)))) {
+				*error = "Extent overlaps with others";
+				return -1;
+			}
+		}
+
+	}
+	return 0;
+}
 
 /*
  * plugin->u.item.b.nr_units
@@ -326,29 +362,6 @@ set_extent(reiser4_extent * ext, extent_state state, reiser4_block_nr start, rei
 	}
 	extent_set_start(ext, start);
 	extent_set_width(ext, width);
-}
-
-/* plugin->u.item.b.init */
-int
-extent_init(coord_t * coord, reiser4_item_data * extent)
-{
-	unsigned width;
-	assert("vs-529", item_length_by_coord(coord) == sizeof (reiser4_extent));
-	assert("vs-530", coord->unit_pos == 0);
-	assert("vs-531", coord_is_existing_unit(coord));
-	/* extent was prepared in kernel space */
-	assert("vs-555", extent->user == 0);
-
-	if (!extent || extent->data)
-		/* body of item is provided, it will be copied */
-		return 0;
-
-	/* body of item is not set - therefore, we are inserting unallocated
-	 * extent in tail2extent conversion. width of extent is in
-	 * extent->arg */
-	width = (unsigned) extent->arg;
-	set_extent(extent_item(coord), UNALLOCATED_EXTENT, 0, (reiser4_block_nr) width);
-	return 0;
 }
 
 /* plugin->u.item.b.paste
@@ -553,63 +566,6 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count, void
 		 * are not safe to be freed immediately */
 		reiser4_dealloc_blocks(&start, &length, 1 /* defer */ ,
 				       0 /* not used */ , 0 /* unformatted */ );
-	}
-	return 0;
-}
-
-/**
- * extent_check ->check() method for extent items
- *
- * used for debugging, every item should have here the most complete
- * possible check of the consistency of the item that the inventor can
- * construct 
- */
-int
-extent_check(const coord_t * coord /* coord of item to check */ ,
-	     const char **error /* where to store error message */ )
-{
-	reiser4_extent *ext, *first;
-	unsigned i, j;
-	reiser4_block_nr start, width, blk_cnt;
-	unsigned num_units;
-
-	assert("vs-933", REISER4_DEBUG);
-
-	if (item_length_by_coord(coord) % sizeof (reiser4_extent) != 0) {
-		*error = "Wrong item size";
-		return -1;
-	}
-	ext = first = extent_item(coord);
-	blk_cnt = reiser4_block_count(reiser4_get_current_sb());
-	num_units = coord_num_units(coord);
-
-	for (i = 0; i < num_units; ++i, ++ext) {
-
-		start = extent_get_start(ext);
-		if (start < 2)
-			continue;
-		/* extent is allocated one */
-		width = extent_get_width(ext);
-		if (start >= blk_cnt) {
-			*error = "Start too large";
-			return -1;
-		}
-		if (start + width > blk_cnt) {
-			*error = "End too large";
-			return -1;
-		}
-		/* make sure that this extent does not overlap with other
-		 * allocated extents extents */
-		for (j = 0; j < i; j++) {
-			if (state_of_extent(first + j) != ALLOCATED_EXTENT)
-				continue;
-			if (!((extent_get_start(ext) >= extent_get_start(first + j) + extent_get_width(first + j))
-			      || (extent_get_start(ext) + extent_get_width(ext) <= extent_get_start(first + j)))) {
-				*error = "Extent overlaps with others";
-				return -1;
-			}
-		}
-
 	}
 	return 0;
 }
