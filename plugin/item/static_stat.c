@@ -833,12 +833,12 @@ plugin_sd_save_len(struct inode *inode /* object being processed */ )
 	   Addition can be performed here. Also probably some kind of loop
 	   should be done through all plugins, not blind hardwiring of all
 	   plugins known at compilation time */
-	len = len_for(file_plugin_to_plugin(state->file), inode, len);
-	len = len_for(perm_plugin_to_plugin(state->perm), inode, len);
-	len = len_for(tail_plugin_to_plugin(state->tail), inode, len);
-	len = len_for(hash_plugin_to_plugin(state->hash), inode, len);
-	len = len_for(crypto_plugin_to_plugin(state->crypto), inode, len);
-	len = len_for(compression_plugin_to_plugin(state->compression), inode, len);
+	len = len_for(file_plugin_to_plugin(state->pset->file), inode, len);
+	len = len_for(perm_plugin_to_plugin(state->pset->perm), inode, len);
+	len = len_for(tail_plugin_to_plugin(state->pset->tail), inode, len);
+	len = len_for(hash_plugin_to_plugin(state->pset->hash), inode, len);
+	len = len_for(crypto_plugin_to_plugin(state->pset->crypto), inode, len);
+	len = len_for(compression_plugin_to_plugin(state->pset->compression), inode, len);
 	assert("nikita-664", len > (int) sizeof (reiser4_plugin_stat));
 	return len;
 }
@@ -904,12 +904,12 @@ plugin_sd_save(struct inode *inode /* object being processed */ ,
 	/* for now, use hardcoded list of plugins that can be associated
 	   with inode */
 	/* AUDIT. Hardcoded list of plugins is bad */
-	result = save_plug(file_plugin_to_plugin(state->file), inode, area, &num_of_plugins)
-	    && save_plug(perm_plugin_to_plugin(state->perm), inode, area, &num_of_plugins)
-	    && save_plug(tail_plugin_to_plugin(state->tail), inode, area, &num_of_plugins)
-            && save_plug(hash_plugin_to_plugin(state->hash), inode, area, &num_of_plugins)
-	    && save_plug(crypto_plugin_to_plugin(state->crypto), inode, area, &num_of_plugins)
-	    && save_plug(compression_plugin_to_plugin(state->compression), inode, area, &num_of_plugins);
+	result = save_plug(file_plugin_to_plugin(state->pset->file), inode, area, &num_of_plugins)
+	    && save_plug(perm_plugin_to_plugin(state->pset->perm), inode, area, &num_of_plugins)
+	    && save_plug(tail_plugin_to_plugin(state->pset->tail), inode, area, &num_of_plugins)
+            && save_plug(hash_plugin_to_plugin(state->pset->hash), inode, area, &num_of_plugins)
+	    && save_plug(crypto_plugin_to_plugin(state->pset->crypto), inode, area, &num_of_plugins)
+	    && save_plug(compression_plugin_to_plugin(state->pset->compression), inode, area, &num_of_plugins);
 
 	cputod16((unsigned) num_of_plugins, &sd->plugins_no);
 	return result;

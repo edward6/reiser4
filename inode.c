@@ -273,7 +273,7 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 	state = reiser4_inode_data(inode);
 	/* call stat-data plugin method to load sd content into inode */
 	result = iplug->s.sd.init_inode(inode, body, length);
-	state->sd = iplug;
+	plugin_set_sd(&state->pset, iplug);
 	if (result == 0) {
 		result = setup_inode_ops(inode, NULL);
 		if ((result == 0) && (inode->i_sb->s_root) && (inode->i_sb->s_root->d_inode)) {
@@ -284,16 +284,11 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 			self = reiser4_inode_data(inode);
 			root = reiser4_inode_data(inode->i_sb->s_root->d_inode);
 			/* file and directory plugins are already initialised. */
-			if (self->sd == NULL)
-				self->sd = root->sd;
-			if (self->hash == NULL)
-				self->hash = root->hash;
-			if (self->tail == NULL)
-				self->tail = root->tail;
-			if (self->perm == NULL)
-				self->perm = root->perm;
-			if (self->dir_item == NULL)
-				self->dir_item = root->dir_item;
+			grab_plugin(self, root, sd);
+			grab_plugin(self, root, hash);
+			grab_plugin(self, root, tail);
+			grab_plugin(self, root, perm);
+			grab_plugin(self, root, dir_item);
 		}
 	}
 	zrelse(coord->node);
@@ -459,7 +454,7 @@ file_plugin *
 inode_file_plugin(const struct inode * inode)
 {
 	assert("nikita-1997", inode != NULL);
-	return reiser4_inode_data(inode)->file;
+	return reiser4_inode_data(inode)->pset->file;
 }
 
 /* Audited by: green(2002.06.17) */
@@ -467,7 +462,7 @@ dir_plugin *
 inode_dir_plugin(const struct inode * inode)
 {
 	assert("nikita-1998", inode != NULL);
-	return reiser4_inode_data(inode)->dir;
+	return reiser4_inode_data(inode)->pset->dir;
 }
 
 /* Audited by: green(2002.06.17) */
@@ -475,7 +470,7 @@ perm_plugin *
 inode_perm_plugin(const struct inode * inode)
 {
 	assert("nikita-1999", inode != NULL);
-	return reiser4_inode_data(inode)->perm;
+	return reiser4_inode_data(inode)->pset->perm;
 }
 
 /* Audited by: green(2002.06.17) */
@@ -483,7 +478,7 @@ tail_plugin *
 inode_tail_plugin(const struct inode * inode)
 {
 	assert("nikita-2000", inode != NULL);
-	return reiser4_inode_data(inode)->tail;
+	return reiser4_inode_data(inode)->pset->tail;
 }
 
 /* Audited by: green(2002.06.17) */
@@ -491,21 +486,21 @@ hash_plugin *
 inode_hash_plugin(const struct inode * inode)
 {
 	assert("nikita-2001", inode != NULL);
-	return reiser4_inode_data(inode)->hash;
+	return reiser4_inode_data(inode)->pset->hash;
 }
 
 crypto_plugin *
 inode_crypto_plugin(const struct inode * inode)
 {
 	assert("edward-36", inode != NULL);
-	return reiser4_inode_data(inode)->crypto;
+	return reiser4_inode_data(inode)->pset->crypto;
 }
 
 compression_plugin *
 inode_compression_plugin(const struct inode * inode)
 {
 	assert("edward-37", inode != NULL);
-	return reiser4_inode_data(inode)->compression;
+	return reiser4_inode_data(inode)->pset->compression;
 }
 
 /* Audited by: green(2002.06.17) */
@@ -513,7 +508,7 @@ item_plugin *
 inode_sd_plugin(const struct inode * inode)
 {
 	assert("vs-534", inode != NULL);
-	return reiser4_inode_data(inode)->sd;
+	return reiser4_inode_data(inode)->pset->sd;
 }
 
 /* Audited by: green(2002.06.17) */
@@ -521,7 +516,7 @@ item_plugin *
 inode_dir_item_plugin(const struct inode * inode)
 {
 	assert("vs-534", inode != NULL);
-	return reiser4_inode_data(inode)->dir_item;
+	return reiser4_inode_data(inode)->pset->dir_item;
 }
 
 void
@@ -589,12 +584,12 @@ print_inode(const char *prefix /* prefix to print */ ,
 	info("\tis_reiser4_inode: %i\n", is_reiser4_inode(i));
 	print_key("\tkey", build_sd_key(i, &inode_key));
 	ref = reiser4_inode_data(i);
-	print_plugin("\tfile", file_plugin_to_plugin(ref->file));
-	print_plugin("\tdir", dir_plugin_to_plugin(ref->dir));
-	print_plugin("\tperm", perm_plugin_to_plugin(ref->perm));
-	print_plugin("\ttail", tail_plugin_to_plugin(ref->tail));
-	print_plugin("\thash", hash_plugin_to_plugin(ref->hash));
-	print_plugin("\tsd", item_plugin_to_plugin(ref->sd));
+	print_plugin("\tfile", file_plugin_to_plugin(ref->pset->file));
+	print_plugin("\tdir", dir_plugin_to_plugin(ref->pset->dir));
+	print_plugin("\tperm", perm_plugin_to_plugin(ref->pset->perm));
+	print_plugin("\ttail", tail_plugin_to_plugin(ref->pset->tail));
+	print_plugin("\thash", hash_plugin_to_plugin(ref->pset->hash));
+	print_plugin("\tsd", item_plugin_to_plugin(ref->pset->sd));
 
 	/* FIXME-VS: this segfaults trying to print seal's coord */
 	print_seal("\tsd_seal", &ref->sd_seal);

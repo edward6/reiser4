@@ -140,6 +140,7 @@ SRC		:= \
 		   search.c \
 		   blocknrset.c \
 		   plugin/plugin.c \
+		   plugin/plugin_set.c \
 		   plugin/node/node.c \
 		   plugin/node/node40.c \
 		   plugin/object.c \

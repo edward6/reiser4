@@ -197,11 +197,10 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 
 	ref = reiser4_inode_data(inode);
 	spin_lock_inode(inode);
-	if (ref->sd == NULL)
-		ref->sd = inode_sd_plugin(inode);
+	grab_plugin_from(ref, sd, inode_sd_plugin(inode));
 
-	data.iplug = ref->sd;
-	data.length = ref->sd->s.sd.save_len(inode);
+	data.iplug = ref->pset->sd;
+	data.length = data.iplug->s.sd.save_len(inode);
 	spin_unlock_inode(inode);
 
 	data.data = NULL;
@@ -249,9 +248,9 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 			   from hash-table (like old knfsd), should check
 			   IMMUTABLE flag that is set by common_create_child.
 			*/
-			if (ref->sd && ref->sd->s.sd.save) {
+			if (data.iplug && data.iplug->s.sd.save) {
 				area = item_body_by_coord(&coord);
-				result = ref->sd->s.sd.save(inode, &area);
+				result = data.iplug->s.sd.save(inode, &area);
 				if (result == 0) {
 					/* object has stat-data now */
 					inode_clr_flag(inode, REISER4_NO_SD);
@@ -292,15 +291,15 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 		return result;
 
 	spin_lock_inode(inode);
-	assert("nikita-728", state->sd != NULL);
-	data.iplug = state->sd;
+	assert("nikita-728", state->pset->sd != NULL);
+	data.iplug = state->pset->sd;
 
 	/* data.length is how much space to add to (or remove
 	   from if negative) sd */
 	if (!inode_get_flag(inode, REISER4_SDLEN_KNOWN)) {
 		/* recalculate stat-data length */
 		data.length = 
-			state->sd->s.sd.save_len(inode) - 
+			data.iplug->s.sd.save_len(inode) - 
 			item_length_by_coord(coord);
 	} else
 		data.length = 0;
@@ -320,7 +319,7 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 		if (result == 0) {
 			area = item_body_by_coord(coord);
 			spin_lock_inode(inode);
-			result = state->sd->s.sd.save(inode, &area);
+			result = data.iplug->s.sd.save(inode, &area);
 			znode_set_dirty(coord->node);
 			/* re-initialise stat-data seal */
 			seal_init(&state->sd_seal, coord, key);
@@ -550,6 +549,7 @@ guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
 {
 	int fplug_id;
 	int dplug_id;
+	reiser4_inode *info;
 
 	assert("nikita-736", inode != NULL);
 
@@ -576,8 +576,11 @@ guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
 		fplug_id = REGULAR_FILE_PLUGIN_ID;
 		break;
 	}
-	reiser4_inode_data(inode)->file = (fplug_id >= 0) ? file_plugin_by_id(fplug_id) : NULL;
-	reiser4_inode_data(inode)->dir = (dplug_id >= 0) ? dir_plugin_by_id(dplug_id) : NULL;
+	info = reiser4_inode_data(inode);
+	plugin_set_file(&info->pset, 
+			(fplug_id >= 0) ? file_plugin_by_id(fplug_id) : NULL);
+	plugin_set_dir(&info->pset, 
+		       (dplug_id >= 0) ? dir_plugin_by_id(dplug_id) : NULL);
 	return 0;
 }
 
@@ -714,10 +717,6 @@ dir_not_linked(const struct inode *inode)
 	/* one link from dot */
 	return (inode->i_nlink == 1);
 }
-
-#define grab_plugin( self, ancestor, plugin )			\
-	if( ( self ) -> plugin == NULL )			\
-		( self ) -> plugin = ( ancestor ) -> plugin
 
 /* ->adjust_to_parent() method for regular files */
 static int

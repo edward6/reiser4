@@ -9,8 +9,6 @@ ifeq ($(CONFIG_REISER4_NOOPT),y)
 endif
 
 reiser4-objs := \
-                   crypt.o \
-		   compress.o\
 		   debug.o \
 		   jnode.o \
 		   znode.o \
@@ -50,8 +48,11 @@ reiser4-objs := \
 		   ioctl.o \
 		   emergency_flush.o \
 		   readahead.o \
+           crypt.o \
+		   compress.o\
            \
 		   plugin/plugin.o \
+		   plugin/plugin_set.o \
 		   plugin/node/node.o \
 		   plugin/node/node40.o \
 		   plugin/object.o \

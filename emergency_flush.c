@@ -262,7 +262,7 @@ emergency_flush(struct page *page)
 					}
 					/* ok, now we can flush it */
 					reiser4_unlock_page(page);
-					
+
 					queue_jnode(fq, node);
 					spin_unlock_jnode(node);
 					spin_unlock_atom(atom);

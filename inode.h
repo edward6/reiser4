@@ -12,6 +12,7 @@
 #include "seal.h"
 #include "scint.h"
 #include "plugin/plugin.h"
+#include "plugin/plugin_set.h"
 #include "plugin/security/perm.h"
 #include "vfs_ops.h"
 
@@ -79,20 +80,7 @@ typedef __u32 oid_hi_t;
   
 */
 typedef struct reiser4_inode {
-	/* plugin of file */
-	/*  0 */ file_plugin *file;
-	/* plugin of dir */
-	/*  4 */ dir_plugin *dir;
-	/* perm plugin for this file */
-	/*  8 */ perm_plugin *perm;
-	/* tail policy plugin. Only meaningful for regular files */
-	/* 12 */ tail_plugin *tail;
-	/* hash plugin. Only meaningful for directories. */
-	/* 16 */ hash_plugin *hash;
-	/* plugin of stat-data */
-	/* 20 */ item_plugin *sd;
-	/* plugin of items a directory is built of */
-	/* 24 */ item_plugin *dir_item;
+	plugin_set *pset;
 	/* OFFSETS ARE WRONG BELOW THIS POINT */
 	/* seal for stat-data */
 	/* 32 */ seal_t sd_seal;
@@ -115,10 +103,6 @@ typedef struct reiser4_inode {
 	   Only meaningful for crypto-files */
 	/* 100 */__u32 *expkey;
 	/* 104 */__u8 *keyid;
-	/* crypto plugin */
-	/* 108 */crypto_plugin *crypto;
-	/* compression plugin */
-	/* 112 */compression_plugin *compression;
 	/* 116 */
 	struct list_head  moved_pages;
 	readdir_list_head readdir_list;

@@ -51,8 +51,8 @@ reiser4_unpack(struct inode *inode, struct file *filp UNUSED_ARG)
 		reiser4_inode *state;
 
 		state = reiser4_inode_data(inode);
-		state->tail = tail_plugin_by_id(NEVER_TAIL_ID);
-		inode_set_plugin(inode, tail_plugin_to_plugin(state->tail));
+		plugin_set_tail(&state->pset, tail_plugin_by_id(NEVER_TAIL_ID));
+		inode_set_plugin(inode, tail_plugin_to_plugin(state->pset->tail));
 		result = reiser4_write_sd(inode);
 	}
 

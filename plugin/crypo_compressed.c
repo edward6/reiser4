@@ -47,11 +47,12 @@ static int crc_file_create(struct inode *object, struct inode *parent, reiser4_o
 		
 	cplug = crypto_plugin_by_id(crc_data->cra);
 	
-	assert("edward-30", info->crypto = NULL);
-	info->crypto = cplug;
-	
-	assert("edward-31", info->compression = NULL);
-	info->compression = compression_plugin_by_id(crc_data->coa);
+	assert("edward-30", info->pset->crypto = NULL);
+	plugin_set_crypto(&info->pset, cplug);
+
+	assert("edward-31", info->pset->compression = NULL);
+	plugin_set_compression(&info->pset, 
+			       compression_plugin_by_id(crc_data->coa));
 
 	info->plugin_mask |= (1 << REISER4_FILE_PLUGIN_TYPE) |
 		(1 << REISER4_CRYPTO_PLUGIN_TYPE) |

@@ -13,6 +13,7 @@
 #include "plugin/oid/oid.h"
 #include "plugin/disk_format/disk_format.h"
 #include "plugin/plugin.h"
+#include "plugin/plugin_set.h"
 #include "plugin/object.h"
 #include "txnmgr.h"
 #include "jnode.h"
@@ -1302,13 +1303,7 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 
 		info = &obj->p;
 
-		info->file = NULL;
-		info->dir = NULL;
-		info->perm = NULL;
-		info->tail = NULL;
-		info->hash = NULL;
-		info->sd = NULL;
-		info->dir_item = NULL;
+		info->pset = plugin_set_get_empty();
 		scint_init(&info->extmask);
 		info->locality_id = 0ull;
 		info->plugin_mask = 0;
@@ -1320,8 +1315,6 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 		xmemset(&info->ra, 0, sizeof info->ra);
 		info->expkey = NULL;
 		info->keyid = NULL;
-		info->crypto = NULL;
-		info->compression = NULL;
 		info->flags = 0;
 		return &obj->vfs_inode;
 	} else
@@ -1359,6 +1352,9 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 			inode_clr_flag(inode, REISER4_KEYID_LOADED);
 		}
 	}
+	if (info->pset)
+		plugin_set_put(info->pset);
+
 	assert("nikita-2872", list_empty(&info->moved_pages));
 	assert("nikita-2894", list_empty(&inode->i_list));
 	assert("nikita-2895", list_empty(&inode->i_dentry));
@@ -2049,27 +2045,22 @@ read_super_block:
 
 		info = reiser4_inode_data(inode);
 
-		if (info->file == NULL)
-			info->file = default_file_plugin(s);
-		if (info->dir == NULL)
-			info->dir = default_dir_plugin(s);
-		if (info->sd == NULL)
-			info->sd = default_sd_plugin(s);
-		if (info->hash == NULL)
-			info->hash = default_hash_plugin(s);
-		if (info->tail == NULL)
-			info->tail = default_tail_plugin(s);
-		if (info->perm == NULL)
-			info->perm = default_perm_plugin(s);
-		if (info->dir_item == NULL)
-			info->dir_item = default_dir_item_plugin(s);
-		assert("nikita-1951", info->file != NULL);
-		assert("nikita-1814", info->dir != NULL);
-		assert("nikita-1815", info->sd != NULL);
-		assert("nikita-1816", info->hash != NULL);
-		assert("nikita-1817", info->tail != NULL);
-		assert("nikita-1818", info->perm != NULL);
-		assert("vs-545", info->dir_item != NULL);
+		grab_plugin_from(info, file, default_file_plugin(s));
+		grab_plugin_from(info, dir, default_dir_plugin(s));
+		grab_plugin_from(info, sd, default_sd_plugin(s));
+		grab_plugin_from(info, hash, default_hash_plugin(s));
+		grab_plugin_from(info, tail, default_tail_plugin(s));
+		grab_plugin_from(info, perm, default_perm_plugin(s));
+		grab_plugin_from(info, dir_item, default_dir_item_plugin(s));
+
+		assert("nikita-1951", info->pset->file != NULL);
+		assert("nikita-1814", info->pset->dir != NULL);
+		assert("nikita-1815", info->pset->sd != NULL);
+		assert("nikita-1816", info->pset->hash != NULL);
+		assert("nikita-1817", info->pset->tail != NULL);
+		assert("nikita-1818", info->pset->perm != NULL);
+		assert("vs-545", info->pset->dir_item != NULL);
+
 		unlock_new_inode(inode);
 	}
 
@@ -2554,6 +2545,7 @@ typedef enum {
 	INIT_CONTEXT_MGR,
 	INIT_ZNODES,
 	INIT_PLUGINS,
+	INIT_PLUGIN_SET,
 	INIT_TXN,
 	INIT_FAKES,
 	INIT_JNODES,
@@ -2582,6 +2574,7 @@ shutdown_reiser4(void)
 	DONE_IF(INIT_JNODES, jnode_done_static());
 	DONE_IF(INIT_FAKES,;);
 	DONE_IF(INIT_TXN, txnmgr_done_static());
+	DONE_IF(INIT_PLUGIN_SET,plugin_set_done());
 	DONE_IF(INIT_PLUGINS,;);
 	DONE_IF(INIT_ZNODES, znodes_done());
 	DONE_IF(INIT_CONTEXT_MGR,;);
@@ -2615,6 +2608,7 @@ init_reiser4(void)
 	CHECK_INIT_RESULT(init_context_mgr());
 	CHECK_INIT_RESULT(znodes_init());
 	CHECK_INIT_RESULT(init_plugins());
+	CHECK_INIT_RESULT(plugin_set_init());
 	CHECK_INIT_RESULT(txnmgr_init_static());
 	CHECK_INIT_RESULT(init_fakes());
 	CHECK_INIT_RESULT(jnode_init_static());

@@ -401,7 +401,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 	xmemset(&entry, 0, sizeof entry);
 	entry.obj = object;
 
-	reiser4_inode_data(object)->file = obj_plug;
+	plugin_set_file(&reiser4_inode_data(object)->pset, obj_plug);
 	result = obj_plug->set_plug_in_inode(object, parent, data);
 	if (result) {
 		warning("nikita-431", "Cannot install plugin %i on %llx", data->id, get_inode_oid(object));

@@ -511,144 +511,132 @@ extern jnode_plugin jnode_plugins[LAST_JNODE_TYPE];
 reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 	/* C90 initializers */
 	[REISER4_FILE_PLUGIN_TYPE] = {
-				      .type_id = REISER4_FILE_PLUGIN_TYPE,
-				      .label = "file",
-				      .desc = "Object plugins",
-				      .builtin_num = sizeof_array(file_plugins),
-				      .builtin = file_plugins,
-				      .plugins_list = TS_LIST_HEAD_ZERO,
-				      .size = sizeof (file_plugin)
-				      }
-	,
+		.type_id = REISER4_FILE_PLUGIN_TYPE,
+		.label = "file",
+		.desc = "Object plugins",
+		.builtin_num = sizeof_array(file_plugins),
+		.builtin = file_plugins,
+		.plugins_list = TS_LIST_HEAD_ZERO,
+		.size = sizeof (file_plugin)
+	},
 	[REISER4_DIR_PLUGIN_TYPE] = {
-				     .type_id = REISER4_DIR_PLUGIN_TYPE,
-				     .label = "dir",
-				     .desc = "Directory plugins",
-				     .builtin_num = sizeof_array(dir_plugins),
-				     .builtin = dir_plugins,
-				     .plugins_list = TS_LIST_HEAD_ZERO,
-				     .size = sizeof (dir_plugin)
-				     }
-	,
+		.type_id = REISER4_DIR_PLUGIN_TYPE,
+		.label = "dir",
+		.desc = "Directory plugins",
+		.builtin_num = sizeof_array(dir_plugins),
+		.builtin = dir_plugins,
+		.plugins_list = TS_LIST_HEAD_ZERO,
+		.size = sizeof (dir_plugin)
+	},
 	[REISER4_HASH_PLUGIN_TYPE] = {
-				      .type_id = REISER4_HASH_PLUGIN_TYPE,
-				      .label = "hash",
-				      .desc = "Directory hashes",
-				      .builtin_num = sizeof_array(hash_plugins),
-				      .builtin = hash_plugins,
-				      .plugins_list = TS_LIST_HEAD_ZERO,
-				      .size = sizeof (hash_plugin)
-                                     }
-        ,
-
+		.type_id = REISER4_HASH_PLUGIN_TYPE,
+		.label = "hash",
+		.desc = "Directory hashes",
+		.builtin_num = sizeof_array(hash_plugins),
+		.builtin = hash_plugins,
+		.plugins_list = TS_LIST_HEAD_ZERO,
+		.size = sizeof (hash_plugin)
+	},
 	[REISER4_CRYPTO_PLUGIN_TYPE] = {
-                                      .type_id = REISER4_CRYPTO_PLUGIN_TYPE,
-                                      .label = "crypto",
-                                      .desc = "Crypto plugins",
-                                      .builtin_num = sizeof_array(crypto_plugins),
-                                      .builtin = crypto_plugins,
-                                      .plugins_list = TS_LIST_HEAD_ZERO,
-                                      .size = sizeof (crypto_plugin)
-				      }
-	,
+		.type_id = REISER4_CRYPTO_PLUGIN_TYPE,
+		.label = "crypto",
+		.desc = "Crypto plugins",
+		.builtin_num = sizeof_array(crypto_plugins),
+		.builtin = crypto_plugins,
+		.plugins_list = TS_LIST_HEAD_ZERO,
+		.size = sizeof (crypto_plugin)
+	},
 	[REISER4_COMPRESSION_PLUGIN_TYPE] = {
-                                      .type_id = REISER4_COMPRESSION_PLUGIN_TYPE,
-                                      .label = "compression",
-                                      .desc = "Compression plugins",
-                                      .builtin_num = sizeof_array(compression_plugins),
-                                      .builtin = compression_plugins,
-                                      .plugins_list = TS_LIST_HEAD_ZERO,
-                                      .size = sizeof (compression_plugin)
-				      }
-	,
+		.type_id = REISER4_COMPRESSION_PLUGIN_TYPE,
+		.label = "compression",
+		.desc = "Compression plugins",
+		.builtin_num = sizeof_array(compression_plugins),
+		.builtin = compression_plugins,
+		.plugins_list = TS_LIST_HEAD_ZERO,
+		.size = sizeof (compression_plugin)
+	},
 
 	[REISER4_TAIL_PLUGIN_TYPE] = {
-				      .type_id = REISER4_TAIL_PLUGIN_TYPE,
-				      .label = "tail",
-				      .desc = "Tail inlining policies",
-				      .builtin_num = sizeof_array(tail_plugins),
-				      .builtin = tail_plugins,
-				      .plugins_list = TS_LIST_HEAD_ZERO,
-				      .size = sizeof (tail_plugin)
-				      }
-	,
+		.type_id = REISER4_TAIL_PLUGIN_TYPE,
+		.label = "tail",
+		.desc = "Tail inlining policies",
+		.builtin_num = sizeof_array(tail_plugins),
+		.builtin = tail_plugins,
+		.plugins_list = TS_LIST_HEAD_ZERO,
+		.size = sizeof (tail_plugin)
+	},
 	[REISER4_PERM_PLUGIN_TYPE] = {
-				      .type_id = REISER4_PERM_PLUGIN_TYPE,
-				      .label = "perm",
-				      .desc = "Permission checks",
-				      .builtin_num = sizeof_array(perm_plugins),
-				      .builtin = perm_plugins,
-				      .plugins_list = TS_LIST_HEAD_ZERO,
-				      .size = sizeof (perm_plugin)
-				      }
-	,
+		.type_id = REISER4_PERM_PLUGIN_TYPE,
+		.label = "perm",
+		.desc = "Permission checks",
+		.builtin_num = sizeof_array(perm_plugins),
+		.builtin = perm_plugins,
+		.plugins_list = TS_LIST_HEAD_ZERO,
+		.size = sizeof (perm_plugin)
+	},
 	[REISER4_ITEM_PLUGIN_TYPE] = {
-				      .type_id = REISER4_ITEM_PLUGIN_TYPE,
-				      .label = "item",
-				      .desc = "Item handlers",
-				      .builtin_num = sizeof_array(item_plugins),
-				      .builtin = item_plugins,
-				      .plugins_list = TS_LIST_HEAD_ZERO,
-				      .size = sizeof (item_plugin)
-				      }
-	,
+		.type_id = REISER4_ITEM_PLUGIN_TYPE,
+		.label = "item",
+		.desc = "Item handlers",
+		.builtin_num = sizeof_array(item_plugins),
+		.builtin = item_plugins,
+		.plugins_list = TS_LIST_HEAD_ZERO,
+		.size = sizeof (item_plugin)
+	},
 	[REISER4_NODE_PLUGIN_TYPE] = {
-				      .type_id = REISER4_NODE_PLUGIN_TYPE,
-				      .label = "node",
-				      .desc = "node layout handlers",
-				      .builtin_num = sizeof_array(node_plugins),
-				      .builtin = node_plugins,
-				      .plugins_list = TS_LIST_HEAD_ZERO,
-				      .size = sizeof (node_plugin)
-				      }
-	,
+		.type_id = REISER4_NODE_PLUGIN_TYPE,
+		.label = "node",
+		.desc = "node layout handlers",
+		.builtin_num = sizeof_array(node_plugins),
+		.builtin = node_plugins,
+		.plugins_list = TS_LIST_HEAD_ZERO,
+		.size = sizeof (node_plugin)
+	},
 	[REISER4_SD_EXT_PLUGIN_TYPE] = {
-					.type_id = REISER4_SD_EXT_PLUGIN_TYPE,
-					.label = "sd_ext",
-					.desc = "Parts of stat-data",
-					.builtin_num = sizeof_array(sd_ext_plugins),
-					.builtin = sd_ext_plugins,
-					.plugins_list = TS_LIST_HEAD_ZERO,
-					.size = sizeof (sd_ext_plugin)
-					}
-	,
+		.type_id = REISER4_SD_EXT_PLUGIN_TYPE,
+		.label = "sd_ext",
+		.desc = "Parts of stat-data",
+		.builtin_num = sizeof_array(sd_ext_plugins),
+		.builtin = sd_ext_plugins,
+		.plugins_list = TS_LIST_HEAD_ZERO,
+		.size = sizeof (sd_ext_plugin)
+	},
 	[REISER4_OID_ALLOCATOR_PLUGIN_TYPE] = {
-					       .type_id = REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
-					       .label = "oid manager",
-					       .desc = "allocate/deallocate oids",
-					       .builtin_num = sizeof_array(oid_plugins),
-					       .builtin = oid_plugins,
-					       .plugins_list = TS_LIST_HEAD_ZERO,
-					       .size = sizeof (oid_allocator_plugin)}
-	,
+		.type_id = REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
+		.label = "oid manager",
+		.desc = "allocate/deallocate oids",
+		.builtin_num = sizeof_array(oid_plugins),
+		.builtin = oid_plugins,
+		.plugins_list = TS_LIST_HEAD_ZERO,
+		.size = sizeof (oid_allocator_plugin)
+	},
 	[REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE] = {
-						 .type_id = REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,
-						 .label = "disk space manager",
-						 .desc = "allocate/deallocate disk free space",
-						 .builtin_num = sizeof_array(space_plugins),
-						 .builtin = space_plugins,
-						 .plugins_list = TS_LIST_HEAD_ZERO,
-						 .size = sizeof (space_allocator_plugin)}
-	,
+		.type_id = REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,
+		.label = "disk space manager",
+		.desc = "allocate/deallocate disk free space",
+		.builtin_num = sizeof_array(space_plugins),
+		.builtin = space_plugins,
+		.plugins_list = TS_LIST_HEAD_ZERO,
+		.size = sizeof (space_allocator_plugin)
+	},
 	[REISER4_FORMAT_PLUGIN_TYPE] = {
-					.type_id = REISER4_FORMAT_PLUGIN_TYPE,
-					.label = "disk layout",
-					.desc = "defines filesystem on disk layout",
-					.builtin_num = sizeof_array(format_plugins),
-					.builtin = format_plugins,
-					.plugins_list = TS_LIST_HEAD_ZERO,
-					.size = sizeof (disk_format_plugin)
-					}
-	,
+		.type_id = REISER4_FORMAT_PLUGIN_TYPE,
+		.label = "disk layout",
+		.desc = "defines filesystem on disk layout",
+		.builtin_num = sizeof_array(format_plugins),
+		.builtin = format_plugins,
+		.plugins_list = TS_LIST_HEAD_ZERO,
+		.size = sizeof (disk_format_plugin)
+	},
 	[REISER4_JNODE_PLUGIN_TYPE] = {
-				       .type_id = REISER4_JNODE_PLUGIN_TYPE,
-				       .label = "jnode flavor",
-				       .desc = "defined kind of jnode",
-				       .builtin_num = sizeof_array(jnode_plugins),
-				       .builtin = jnode_plugins,
-				       .plugins_list = TS_LIST_HEAD_ZERO,
-				       .size = sizeof (jnode_plugin)
-				       }
+		.type_id = REISER4_JNODE_PLUGIN_TYPE,
+		.label = "jnode flavor",
+		.desc = "defined kind of jnode",
+		.builtin_num = sizeof_array(jnode_plugins),
+		.builtin = jnode_plugins,
+		.plugins_list = TS_LIST_HEAD_ZERO,
+		.size = sizeof (jnode_plugin)
+	}
 };
 
 /* Make Linus happy.

@@ -762,6 +762,13 @@ plugin_by_disk_id(reiser4_tree * tree UNUSED_ARG	/* tree,
 	return plugin_by_unsafe_id(type_id, d16tocpu(did));
 }
 
+#define grab_plugin(self, ancestor, plugin)				\
+	grab_plugin_from((self), plugin, (ancestor)->pset->plugin)
+
+#define grab_plugin_from(self, field, val)			\
+	if((self)->pset->field == NULL)				\
+		plugin_set_ ## field(&self->pset, (val))
+
 
 /* __FS_REISER4_PLUGIN_TYPES_H__ */
 #endif
