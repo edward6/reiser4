@@ -5,25 +5,25 @@
 */  
 
 /* 
-    this implements binary search for 'find_it' among 'count' elements.
-    return values: 
+    This implements binary search for 'find_it' among 'count' elements.
+    Return values: 
     1 - key on *ppos  found exact key on *ppos position; 
-    0 - exect key has not been found. key on *ppos < then 
+    0 - exect key has not been found. key on *ppos < then;
 */
 
 #include <misc/misc.h>
 
 int reiserfs_misc_bin_search (
-    void * find_it,                 /* element to be found */
-    int64_t * ppos,                 /* return position */
+    void *find_it,                  /* element to be found */
+    int64_t *ppos,                  /* return position */
     uint32_t count,                 /* count of elements to look through */
     void *entity,                   /* whose elements we are looking through */
     get_element_to_comp_t get_elem, /* function to get element */
     comp_function_t comp_func)      /* function to compare elements */
 {
-    int64_t rbound, lbound, j;
+    void *elem;
     int ret = 0;
-    void * elem;
+    int64_t rbound, lbound, j;
 
     if (count == 0) {
         *ppos = -1;
@@ -35,13 +35,13 @@ int reiserfs_misc_bin_search (
 
     for (j = (rbound + lbound) / 2; lbound <= rbound; j = (rbound + lbound) / 2) {
 	elem = get_elem(entity, j);
-;
+	
 	if (elem == NULL) {
 	    *ppos = -1;
 	    return -1;
 	}
 	
-        ret =  comp_func (elem, find_it);
+        ret = comp_func(elem, find_it);
         if (ret < 0) { 
 	    /* second is greater */
             lbound = j + 1;
