@@ -813,11 +813,18 @@ static loff_t dir_seek( struct file *file, loff_t off, int origin )
 	return result;
 }
 
-static int common_bind( struct inode *child, struct inode *parent )
+/**
+ * default implementation of ->bind() method of file plugin
+ */
+static int common_bind( struct inode *child UNUSED_ARG, 
+			struct inode *parent UNUSED_ARG )
 {
 	return 0;
 }
 
+/**
+ * implementation of ->bind() method for file plugin of directory file
+ */
 static int dir_bind( struct inode *child, struct inode *parent )
 {
 	dir_plugin *dplug;
