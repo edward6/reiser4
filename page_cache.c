@@ -691,7 +691,7 @@ invalidate_unformatted(jnode *node)
 #define JNODE_GANG_SIZE (16)
 
 static int
-truncate_inode_jnodes_range(struct inode *inode, unsigned long from, int count)
+truncate_inode_jnodes_range(struct inode *inode, unsigned long from, unsigned long count)
 {
 	reiser4_inode *info;
 	int truncated_jnodes;
@@ -750,10 +750,8 @@ reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from, unsigned l
 	loff_t from_bytes, count_bytes;
 
 	from_bytes = ((loff_t)from) << PAGE_CACHE_SHIFT;
+	assert("vs-1621", count != 0);
 	count_bytes = ((loff_t)count) << PAGE_CACHE_SHIFT;
-	if (count == 0)
-		/**/
-		count = ~0UL;
 
 	invalidate_mmap_range(mapping, from_bytes, count_bytes);
 	truncate_mapping_pages_range(mapping, from, count);
