@@ -1632,10 +1632,7 @@ unix_file_delete(struct inode *inode)
 
 	assert("vs-1099", inode->i_nlink == 0);
 	if (inode->i_size) {
-		get_exclusive_access(inode);
-		/*INODE_SET_FIELD(inode, i_size, 0);*/
 		result = truncate_file(inode, 0);
-		drop_exclusive_access(inode);
 		if (result) {
 			warning("nikita-2848",
 				"Cannot truncate unnamed file %lli: %i",
