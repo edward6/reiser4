@@ -1231,6 +1231,13 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
 	return 0;
 }
 
+/* returnes max number of nodes can be occupied by disk cluster */
+reiser4_block_nr
+estimate_disk_cluster(struct inode * inode)
+{
+	return 2 + inode_cluster_pages(inode);
+}
+
 /*
   This is the main disk search procedure for cryptcompress plugins, which
   . finds all items of a disk cluster,
@@ -1258,6 +1265,7 @@ find_cluster(reiser4_cluster_t * clust,
 	assert("edward-138", clust != NULL);
 	assert("edward-461", ergo(read, clust->buf != NULL));
 	assert("edward-462", ergo(!read, !cluster_is_uptodate(clust)));
+	assert("edward-474", get_current_context()->grabbed_blocks == 0);
 	
 	cl_idx = clust->index;
 	fplug = inode_file_plugin(inode);
@@ -1268,6 +1276,11 @@ find_cluster(reiser4_cluster_t * clust,
 	result = load_file_hint(clust->file, &hint, &lh);
 	if (result)
 		return result;
+	if (write) {
+		result = reiser4_grab_space_force(estimate_disk_cluster(inode), 0);
+		if (result)
+			goto out2;
+	}
 	ra_info.key_to_stop = f.key;
 	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
 	
@@ -1276,10 +1289,10 @@ find_cluster(reiser4_cluster_t * clust,
 		switch (result) {
 		case CBK_COORD_NOTFOUND:
 			if (inode_scaled_offset(inode, clust_to_off(cl_idx, inode)) == get_key_offset(&f.key)) {
-				/* first item not found: hole cluster */
-				if (!read)
-					return 0;
-				clust->stat = FAKE_CLUSTER;
+				/* first item not found */
+				if (read)
+					/* hole cluster */
+					clust->stat = FAKE_CLUSTER;
 				result = 0;
 				goto out2;
 			}
@@ -1319,12 +1332,14 @@ find_cluster(reiser4_cluster_t * clust,
 	   Callers should handle the case when disk cluster is incomplete (-EIO) */
 	clust->len = inode_scaled_cluster_size(inode) - f.length;
 	save_file_hint(clust->file, &hint);
+	all_grabbed2free();
 	return 0;
  out:
 	zrelse(hint.coord.base_coord.node);
  out2:
 	done_lh(&lh);
 	save_file_hint(clust->file, &hint);
+	all_grabbed2free();
 	return result;
 }
 
