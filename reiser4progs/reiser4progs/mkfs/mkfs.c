@@ -65,6 +65,7 @@ static void mkfs_print_usage(void) {
 	"  -v | --version                  prints current version\n"
 	"  -u | --usage                    prints program usage\n"
 	"  -p | --profile                  profile to be used\n"
+	"  -f | --force                    force creating filesystem without warning message\n"
 	"  -k | --known-profiles           prints known profiles\n"
 	"  -b N | --block-size=N           block size (1024, 2048, 4096...)\n"
 	"  -l LABEL | --label=LABEL        volume label\n"
@@ -72,7 +73,7 @@ static void mkfs_print_usage(void) {
 }
 
 int main(int argc, char *argv[]) {
-    int c, error;
+    int c, error, force = 0;
     char uuid[17], label[17];
     count_t fs_len = 0, dev_len = 0;
     char *host_dev, *profile_label = "default40";
@@ -86,6 +87,7 @@ int main(int argc, char *argv[]) {
 	{"version", no_argument, NULL, 'v'},
 	{"usage", no_argument, NULL, 'u'},
 	{"profile", no_argument, NULL, 'p'},
+	{"force", no_argument, NULL, 'f'},
 	{"block-size", required_argument, NULL, 'b'},
 	{"label", required_argument, NULL, 'l'},
 	{"uuid", required_argument, NULL, 'i'},
@@ -100,7 +102,7 @@ int main(int argc, char *argv[]) {
     memset(uuid, 0, sizeof(uuid));
     memset(label, 0, sizeof(label));
     
-    while ((c = getopt_long_only(argc, argv, "uvp:kb:i:l:", long_options, 
+    while ((c = getopt_long_only(argc, argv, "uvp:fkb:i:l:", long_options, 
 	(int *)0)) != EOF) 
     {
 	switch (c) {
@@ -114,6 +116,10 @@ int main(int argc, char *argv[]) {
 	    }
 	    case 'p': {
 		profile_label = optarg;
+		break;
+	    }
+	    case 'f': {
+		force = 1;
 		break;
 	    }
 	    case 'k': {
@@ -216,13 +222,14 @@ int main(int argc, char *argv[]) {
 	goto error_free_libreiser4;
     }
 
-    if (!(c = reiser4progs_misc_choose_propose("ynYN", "Please select (y/n) ", 
-	    "All data on %s will be lost. Do you realy want create reiserfs "
-	    "with \"%s\" profile (y/n) ", host_dev, profile->label)))
-	goto error_free_device;
+    if (!force) {
+	if (!(c = reiser4progs_misc_choose_propose("ynYN", "Please select (y/n) ", 
+		"All data on %s will be lost (y/n) ", host_dev)))
+	    goto error_free_device;
 	
-    if (c == 'n' || c == 'N')
-        goto error_free_device;
+	if (c == 'n' || c == 'N')
+	    goto error_free_device;
+    }
 
     fprintf(stderr, "Creating reiserfs with \"%s\" profile...", profile->label);
     fflush(stderr);
@@ -236,19 +243,14 @@ int main(int argc, char *argv[]) {
     }
     fprintf(stderr, "done\n");
 
-    fprintf(stderr, "Synchronizing filesystem...");
-    fflush(stderr);
+    fprintf(stderr, "Synchronizing...");
     
     if (reiserfs_fs_sync(fs)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't synchronize created filesystem.");
 	goto error_free_fs;
     }
-    fprintf(stderr, "done\n");
 
-    fprintf(stderr, "Synchronizing device...");
-    fflush(stderr);
-	
     if (aal_device_sync(device)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't synchronize device %s.", argv[1]);

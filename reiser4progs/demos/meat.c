@@ -21,7 +21,7 @@ static void meat_print_usage(void) {
 }
 
 static void meat_print_plugin(reiserfs_plugin_t *plugin) {
-    aal_printf("%x:%x (%s)\n", plugin->h.type, plugin->h.id, plugin->h.label);
+    aal_printf("%x:%x:%s (%s)\n", plugin->h.type, plugin->h.id, plugin->h.label, plugin->h.desc);
 }
 
 static void meat_print_fs(reiserfs_fs_t *fs) {
