@@ -1194,9 +1194,9 @@ extent_readpage(coord_t * coord, lock_handle * lh, struct page *page)
 	assert("vs-1050", !PageUptodate(page));
 	assert("vs-757", !jprivate(page) && !PagePrivate(page));
 	assert("vs-1039", page->mapping && page->mapping->host);
+	assert("vs-1044", znode_is_loaded(coord->node));
 	assert("vs-758", item_is_extent(coord));
 	assert("vs-1046", coord_is_existing_unit(coord));
-	assert("vs-1044", znode_is_loaded(coord->node));
 	assert("vs-1045", znode_is_rlocked(coord->node));
 	assert("vs-1047", (page->mapping->host->i_ino == get_key_objectid(item_key_by_coord(coord, &key))));
 	check_me("vs-1048", offset_is_in_extent(coord, ((loff_t) page->index) << PAGE_CACHE_SHIFT, &pos));
@@ -1270,24 +1270,24 @@ extent_writepage(coord_t * coord, lock_handle * lh, struct page *page)
 	assert("vs-1051", page->mapping && page->mapping->host);
 	assert("vs-864", znode_is_wlocked(coord->node));
 
-	result = try_capture_page(page, ZNODE_WRITE_LOCK, 0);
-	if (result)
-		return result;
-	j = jnode_by_page(page);
+	j = jnode_of_page(page);
+	if (IS_ERR(j))
+		return PTR_ERR(j);
 
 	reiser4_unlock_page(page);
-
 	result = make_extent(page->mapping->host, coord, lh, j);
 	reiser4_lock_page(page);
 	if (result) {
-		uncapture_page(page);
-
 		trace_on(TRACE_EXTENTS, "extent_writepage failed: %d\n", result);
-
 		return result;
 	}
 
+	result = try_capture_page(page, ZNODE_WRITE_LOCK, 0);
+	if (result)
+		return result;
 	jnode_set_dirty(j);
+	jput(j);
+
 	assert("vs-1073", PageDirty(page));
 
 	trace_on(TRACE_EXTENTS, "OK\n");
@@ -2964,14 +2964,20 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		}
 
 		if (!jnode_mapped(j)) {
+			trace_on(TRACE_EXTENTS, "MAKE: page %p, index %lu, count %d..", page, page->index, page_count(page));
+			
 			/* unlock page before doing anything with filesystem tree */
 			reiser4_unlock_page(page);
-
 			/* make sure that page has non-hole extent pointing to it */
 			result = make_extent(inode, coord, lh, j);
 			reiser4_lock_page(page);
-			if (result)
+			if (result) {
+				trace_on(TRACE_EXTENTS, "FAILED: %d\n", result);
 				goto exit3;
+			}
+			if (page->index == 16)
+				print_page ("page 16", page);
+			trace_on(TRACE_EXTENTS, "OK\n");
 		}
 
 		/* if page is not completely overwritten - read it if it is not
@@ -2992,12 +2998,11 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		}
 		SetPageUptodate(page);
 
-		jnode_set_dirty(j);
-		jput(j);
-
 		result = try_capture_page(page, ZNODE_WRITE_LOCK, 0);
 		if (result)
 			goto exit3;
+		jnode_set_dirty(j);
+		jput(j);
 
 		assert("vs-1072", PageDirty(page));
 		reiser4_unlock_page(page);
