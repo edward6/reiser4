@@ -568,15 +568,7 @@ static int write_prepped_nodes (flush_pos_t * pos, int scan)
 	return ret;
 }
 
-/* get an address of current twig node */
-static znode * get_twig_pointer (flush_pos_t * pos, int twig_is_pos_node)
-{
-	if (twig_is_pos_node)
-		return pos->lock.node;
-
-	return UNDER_RW(tree, current_tree, read, pos->lock.node->in_parent.node);
-}
-
+#if 0
 /* check fs backing device for write congestion */
 static int check_write_congestion (void)
 {
@@ -585,24 +577,7 @@ static int check_write_congestion (void)
 	bdi = get_current_super_private()->fake->i_mapping->backing_dev_info;
 	return  bdi_write_congested(bdi);
 }
-
-/* tracking when flush position is moved from one twig and its children to
- * another one */
-static int track_twig (flush_pos_t * pos, int twig_is_pos_node)
-{
-	int ret = 0;
-	znode * twig = get_twig_pointer(pos, twig_is_pos_node);
-
-	if (pos->prev_twig && pos->prev_twig != twig
-	    && !check_write_congestion())
-	{
-		ret = write_prepped_nodes(pos, 0);
-	}
-
-	pos->prev_twig = twig;
-
-	return ret;
-}
+#endif
 
 /* Proper release all flush pos. resources then move flush position to new
    locked node */
@@ -1552,6 +1527,17 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 out:
 	assert("jmacd-8612", ret < 0 || ret == SQUEEZE_TARGET_FULL
 	       || ret == SUBTREE_MOVED || ret == SQUEEZE_SOURCE_EMPTY);
+
+	if (ret == SQUEEZE_TARGET_FULL) {
+		/* We submit prepped nodes here and expect that this @left twig
+		 * will not be modified again during this jnode_flush() call. */
+		int ret1;
+
+		ret1 = write_prepped_nodes(pos, 0);
+		if (ret1 < 0)
+			return ret1;
+	}
+
 	return ret;
 }
 
@@ -1806,9 +1792,6 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 	init_load_count(&right_load);
 
 	while (1) {
-		if (pos->state == POS_ON_LEAF && (ret = track_twig(pos, 0)))
-			break;
-		
 		ret = neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
 		if (ret)
 			break;
@@ -1924,10 +1907,6 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 	assert ("zam-844", pos->state == POS_ON_TWIG);
 	assert ("zam-843", item_is_extent(&pos->coord));
 
-	ret = track_twig(pos, 1);
-	if (ret)
-		return ret;
-	
 	/* We decide should we continue slum processing with current extent
 	   unit: if leftmost child of current extent unit is flushprepped
 	   (i.e. clean or already processed by flush) we stop squalloc().  There
@@ -2263,15 +2242,13 @@ squeeze_right_non_twig(znode * left, znode * right)
 
 		ret = carry(&todo, NULL /* previous level */ );
 		grabbed2free_mark(grabbed);
+	} else {
+		/* Shifting impossible, we return appropriate result code */
+		ret = node_is_empty(right) ? SQUEEZE_SOURCE_EMPTY : SQUEEZE_TARGET_FULL;
 	}
 
 	done_carry_pool(&pool);
-
-	if (ret < 0) {
-		return ret;
-	}
-
-	return node_is_empty(right) ? SQUEEZE_SOURCE_EMPTY : SQUEEZE_TARGET_FULL;
+	return ret;
 }
 
 /* Shift first unit of first item if it is an internal one.  Return
