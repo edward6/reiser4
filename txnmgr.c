@@ -659,12 +659,13 @@ atom_try_commit_locked (txn_atom *atom)
 
 	pre_commit_hook ();
 
-#if 0	/* NOT YET TESTED */
+#if 0
+	alloc_wandered_blocks ();
+
 	/* write transaction log records in a manner which allows further
 	 * transaction recovery after a system crash */
 	reiser4_write_logs ();
 #endif
-
 	up (&private->tmgr.commit_semaphore);
 
 	/* Now close this txnh's reference to the atom. */
@@ -1224,11 +1225,24 @@ void txn_delete_page (struct page *pg)
 		return;
 	}
 
-	ret = blocknr_set_add_block (atom, & atom->delete_set, & blocknr_entry, jnode_get_block (node));
+	if (!blocknr_is_fake(jnode_get_block(node))) {
+		if (REISER4_DEBUG) {
+			struct super_block * s = reiser4_get_current_sb();
 
-	if (ret == -EAGAIN) {
-		/* Jnode is still locked, which atom_get_locked_by_jnode expects. */
-		goto repeat;
+			reiser4_spin_lock_sb(s);
+			assert ("zam-561", *jnode_get_block(node) < reiser4_block_count(s));
+			reiser4_spin_unlock_sb(s);
+		}
+
+		ret = blocknr_set_add_block (atom, & atom->delete_set, & blocknr_entry, jnode_get_block (node));
+
+		if (ret == -EAGAIN) {
+			/* Jnode is still locked, which atom_get_locked_by_jnode expects. */
+			goto repeat;
+		}
+	} else {
+		reiser4_count_fake_deallocation ((__u64)1);
+		reiser4_release_grabbed_space ((__u64)1);
 	}
 
 	assert ("jmacd-5177", blocknr_entry == NULL);
@@ -1957,6 +1971,7 @@ void txn_insert_into_clean_list (txn_atom * atom, jnode * node)
 
 	capture_list_push_front (&atom->clean_nodes, node);
 	node->atom = atom;
+	atom->capture_count ++;
 }
 
 /*****************************************************************************************

@@ -1405,6 +1405,12 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 		return ret;
 	}
 
+	if (!ZF_ISSET(node, ZNODE_CREATED)) {
+		ret = reiser4_dealloc_block(znode_get_block(node), 1, 0);
+
+		if (ret) return ret;
+	}
+
 	init_lh (& fake_lock);
 
 	/* FIXME: free old location if not fake? */
