@@ -2422,7 +2422,7 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 
 		/* If we allocated it cannot have been wandered -- in that case
 		 * extent_needs_allocation returns 0. */
-		assert ("jmacd-61442", ! JF_ISSET (j, JNODE_WANDER));
+		assert ("jmacd-61442", ! JF_ISSET (j, JNODE_OVRWR));
 		jnode_set_reloc (j);
 
 		/* Submit I/O and set the jnode clean. */
