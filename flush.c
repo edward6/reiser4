@@ -2154,8 +2154,8 @@ squeeze_right_non_twig(znode * left, znode * right)
 		//info ("shifted %u bytes %p <- %p\n", ret, left, right);
 		ON_STATS(todo.level_no = znode_get_level(left) + 1);
 		
-		estimate_internal_amount(2, 
-			get_current_super_private()->tree.height, &amount);
+		amount = estimate_internal_amount(2, 
+						  get_current_super_private()->tree.height);
 
 		if ((ret = reiser4_grab_space_force(amount, BA_RESERVED)) != 0) {
 			done_carry_pool(&pool);
