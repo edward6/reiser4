@@ -169,23 +169,9 @@ TYPE_SAFE_HASH_DEFINE(j, jnode, jnode_key_t, key.j, link.j, jnode_key_hashfn, jn
 reiser4_internal int
 jnodes_tree_init(reiser4_tree * tree /* tree to initialise jnodes for */ )
 {
-	int buckets;
-	int result;
-
 	assert("nikita-2359", tree != NULL);
-
-	/*
-	 * number of hash buckets in hash table depends on amount of memory
-	 * available. If we cannot allocate that much, number of buckets is
-	 * halved until allocation succeeds.
-	 */
-	buckets = 1 << fls(nr_free_pagecache_pages());
-	do {
-		result = j_hash_init(&tree->jhash_table, buckets,
-				     reiser4_stat(tree->super, hashes.jnode));
-		buckets >>= 1;
-	} while (result == -ENOMEM);
-	return result;
+	return j_hash_init(&tree->jhash_table, 16384,
+			   reiser4_stat(tree->super, hashes.jnode));
 }
 
 /* call this to destroy jnode hash table. This is called during umount. */

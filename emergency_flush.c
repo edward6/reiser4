@@ -516,17 +516,9 @@ eflush_done(void)
 reiser4_internal int
 eflush_init_at(struct super_block *super)
 {
-	int buckets;
-	int result;
-
-	buckets = 1 << fls(nr_free_pagecache_pages() >> 2);
-	do {
-		result = ef_hash_init(&get_super_private(super)->efhash_table,
-				      buckets,
-				      reiser4_stat(super, hashes.eflush));
-		buckets >>= 1;
-	} while(result == -ENOMEM);
-	return result;
+	return ef_hash_init(&get_super_private(super)->efhash_table,
+			    8192,
+			    reiser4_stat(super, hashes.eflush));
 }
 
 reiser4_internal void
