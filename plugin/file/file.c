@@ -183,6 +183,8 @@ int find_next_item (struct file * file,
 	/* collect statistics on the number of calls to this function */
 	reiser4_stat_file_add (find_items);
 
+#if 0
+/* VS said so */
 	if (!coord->node && file) {
 		reiser4_file_fsdata * fdata;
 		seal_t seal;
@@ -206,7 +208,7 @@ int find_next_item (struct file * file,
 			}
 		}
 	}
-
+#endif
 	if (coord->node) {
 		if (coord_set_properly (key, coord))
 			return 0;
