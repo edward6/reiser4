@@ -1,0 +1,1 @@
+break reiser4_panic
