@@ -3116,7 +3116,9 @@ extent_readpage(coord_t * coord, struct page *page)
 		{
 			reiser4_tree *tree;
 
-			info("extent_readpage: " "reading node corresponding to unallocated extent\n");
+			/* FIXME-NIKITA I removed `info' below, because, the
+			 * case is ok, for eflushed jnode, right? */
+			/* info("extent_readpage: " "reading node corresponding to unallocated extent\n"); */
 			tree = current_tree;
 			j = UNDER_SPIN(tree, tree, jlook(tree, get_inode_oid(page->mapping->host), page->index));
 			assert("nikita-2688", j);
