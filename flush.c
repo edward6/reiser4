@@ -134,9 +134,6 @@ static const char*   flush_pos_tostring           (flush_position *pos);
 static const char*   flush_jnode_tostring         (jnode *node);
 static const char*   flush_znode_tostring         (znode *node);
 
-static int           jnode_check_dirty_and_connected (jnode *node);
-
-
 /* This is the main entry point for flushing a jnode, called by the transaction manager
  * when an atom closes (to commit writes) and called by the VM under memory pressure (to
  * early-flush dirty blocks).
@@ -162,35 +159,42 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 	flush_scan right_scan;
 	flush_scan left_scan;
 
-	if (0 /* To disable flush and keep the txnmgr happy, just set node clean. */) {
-		jnode_set_clean (node);
-		return 0;
-	}
+	/**/if (0 /* To disable flush and keep the txnmgr happy, just set node clean. */) {
+		/**/jnode_set_clean (node);
+		/**/return 0;
+	/**/}
 
 	trace_on (TRACE_FLUSH, "flush_jnode %s\n", flush_jnode_tostring (node));
 
-	/* A race is possible where node is not dirty at this point. */
-	if (! jnode_check_dirty_and_connected (node)) {
+	spin_lock_jnode (node);
+
+	/* A race is possible where node is not dirty or worse, not connected, by this point. */
+	if (! jnode_is_dirty (node) ||
+	    ! (jnode_is_unformatted (node) || znode_is_connected (JZNODE (node))) ||
+	    JF_ISSET (node, ZNODE_HEARD_BANSHEE) ||
+	    JF_ISSET (node, ZNODE_FLUSH_QUEUED)) {
 		if (nr_to_flush != NULL) {
 			(*nr_to_flush) = 0;
 		}
-		trace_on (TRACE_FLUSH_VERB, "flush_jnode not dirty/connected\n");
+		spin_unlock_jnode (node);
+		trace_on (TRACE_FLUSH_VERB, "flush_jnode not dirty/connected or queued\n");
 		return 0;
 	}
 
-	if (jnode_check_allocated (node)) {
-		/* Already has been assigned a block number, just write it again?  FIXME: Hans? */
-		if ((ret = flush_rewrite_jnode (node))) {
-			return ret;
-		}
+	if (jnode_is_allocated (node)) {
+		/* Already has been assigned a block number, just write it again? */
+		ret = flush_rewrite_jnode (node);
 
 		if (nr_to_flush != NULL) {
 			(*nr_to_flush) = 1;
 		}
 
+		spin_unlock_jnode (node);
 		trace_on (TRACE_FLUSH_VERB, "flush_jnode rewrite\n");
-		return 0;
+		return ret;
 	}
+
+	spin_unlock_jnode (node);
 
 	if ((ret = flush_pos_init (& flush_pos, nr_to_flush))) {
 		return ret;
@@ -292,17 +296,6 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 	flush_scan_done (& left_scan);
 	flush_scan_done (& right_scan);
 	return ret;
-}
-
-static int jnode_check_dirty_and_connected( jnode *node )
-{
-	int is_dirty;
-	assert( "jmacd-7798", node != NULL );
-	assert( "jmacd-7799", spin_jnode_is_not_locked (node) );
-	spin_lock_jnode (node);
-	is_dirty = jnode_is_dirty (node) && (jnode_is_unformatted (node) || znode_is_connected (JZNODE (node)));
-	spin_unlock_jnode (node);
-	return is_dirty;
 }
 
 /********************************************************************************
@@ -514,7 +507,7 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 
 	/* If the ancestor is clean or already allocated, or if the child is not a
 	 * leftmost child, stop going up. */
-	if (! znode_check_dirty (coord->node) || znode_check_allocated (coord->node) || ! coord_is_leftmost_unit (coord)) {
+	if (znode_check_allocated (coord->node) || ! coord_is_leftmost_unit (coord)) {
 		return 0;
 	}
 
@@ -536,8 +529,7 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 		}
 
 		/* Recursive call. */
-		if (znode_check_dirty (acoord.node) &&
-		    ! znode_check_allocated (acoord.node) &&
+		if (! znode_check_allocated (acoord.node) &&
 		    (ret = flush_alloc_one_ancestor (& acoord, pos))) {
 			goto exit;
 		}
@@ -1423,6 +1415,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 {
 	int ret;
 
+	/* FIXME: Some kind of atomicity is needed for allocation. */
 	assert ("jmacd-7987", ! jnode_check_allocated (ZJNODE (node)));
 	assert ("jmacd-7988", znode_is_write_locked (node));
 	assert ("jmacd-7989", coord_is_invalid (parent_coord) || znode_is_write_locked (parent_coord->node));
@@ -1486,13 +1479,16 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 	pos->preceder.blk = *znode_get_block (node);
 	pos->alloc_cnt += 1;
 
+	spin_lock_znode (node);
+
 	assert ("jmacd-4277", ! blocknr_is_fake (& pos->preceder.blk));
 	assert ("jmacd-4278", ! JF_ISSET (node, ZNODE_FLUSH_BUSY));
 
+	/* FIXME: Why does this not complain of a type error (should be ZF_SET) */
 	JF_SET (node, ZNODE_FLUSH_BUSY);
 	trace_on (TRACE_FLUSH, "alloc: %s\n", flush_znode_tostring (node));
 
-	/* Queue it now, node is busy until release_znode is called. */
+	/* Queue it now, node is busy until release_znode is called, releases lock. */
 	return flush_queue_jnode (ZJNODE (node), pos);
 }
 
@@ -1504,11 +1500,15 @@ static int flush_queue_jnode (jnode *node, flush_position *pos)
 	 * still be reached through the sibling list, which can confuse flush code.
 	 * However, this should only be able to confuse a concurrent flush process.  We
 	 * shall see. */
+	assert ("jmacd-65551", spin_jnode_is_locked (node));
 
 	/* FIXME: See comment in flush_rewrite_jnode. */
-	if (! jnode_check_dirty (node) || JF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
+	if (! jnode_is_dirty (node) || JF_ISSET (node, ZNODE_HEARD_BANSHEE) || JF_ISSET (node, ZNODE_FLUSH_BUSY) || JF_ISSET (node, ZNODE_FLUSH_QUEUED)) {
+		spin_unlock_jnode (node);
 		return 0;
 	}
+
+	JF_SET (node, ZNODE_FLUSH_QUEUED);
 
 	assert ("jmacd-4279", pos->queue_num < FLUSH_QUEUE_SIZE);
 	assert ("jmacd-1771", jnode_check_allocated (node));
@@ -1516,6 +1516,8 @@ static int flush_queue_jnode (jnode *node, flush_position *pos)
 	pos->queue[pos->queue_num++] = jref (node);
 
 	trace_if (TRACE_FLUSH, if (jnode_is_unformatted (node)) { info ("queue: %s\n", flush_jnode_tostring (node)); });
+
+	spin_unlock_jnode (node);
 
 	if (pos->queue_num == FLUSH_QUEUE_SIZE) {
 		return flush_finish (pos, 0);
@@ -1535,6 +1537,7 @@ static int flush_release_znode (znode *node)
 /* FIXME: comment */
 int flush_enqueue_unformatted (jnode *node, flush_position *pos)
 {
+	spin_lock_jnode (node);
 	return flush_queue_jnode (node, pos);
 }
 
@@ -1601,9 +1604,11 @@ static int flush_finish (flush_position *pos, int none_busy)
 		check = pos->queue[i];
 
 		assert ("jmacd-71235", check != NULL);
+		assert ("jmacd-71236", JF_ISSET (check, ZNODE_FLUSH_QUEUED));
 
 		/* FIXME: See the comment in flush_rewrite_jnode. */
 		if (! jnode_check_dirty (check) || JF_ISSET (check, ZNODE_HEARD_BANSHEE)) {
+			JF_CLR (check, ZNODE_FLUSH_QUEUED);
 			jput (check);
 			pos->queue[i++] = NULL;
 			continue;
@@ -1637,6 +1642,7 @@ static int flush_finish (flush_position *pos, int none_busy)
 			/* Log-writer expects these to be on the clean list.  They cannot
 			 * leave memory and will remain captured. */
 			jnode_set_clean (check);
+			JF_CLR (check, ZNODE_FLUSH_QUEUED);
 			jput (check);
 			pos->queue[i++] = NULL;
 			continue;
@@ -1650,8 +1656,10 @@ static int flush_finish (flush_position *pos, int none_busy)
 			/* FIXME: It is being written, presumably it is clean already?  In
 			 * any case, deal with it later. */
 			unlock_page (cpage);
+			JF_CLR (check, ZNODE_FLUSH_QUEUED);
 			jput (check);
 			pos->queue[i++] = NULL;
+			warning ("jmacd-74232", "flush_finish: page in writeback already");
 			continue;
 
 		} else {
@@ -1715,18 +1723,16 @@ static int flush_finish (flush_position *pos, int none_busy)
 
 				pos->queue[j] = NULL;
 
+				JF_CLR (node, ZNODE_FLUSH_QUEUED);
+
 				trace_on (TRACE_FLUSH_VERB, "flush_finish writes %s\n", flush_jnode_tostring (node));
 
 				assert ("jmacd-71442", super == pg->mapping->host->i_sb);
 
 				jnode_set_clean (node);
 
-				if (! PageDirty (pg)) {
-					/* FIXME: trying to figure this out: */
-					warning ("jmacd-74232", "flush_finish: page not dirty");
-					SetPageDirty (pg);
-				}
 				assert ("jmacd-74233", !PageWriteback (pg));
+				assert ("jmacd-74234", !PageDirty (pg));
 				SetPageWriteback (pg);
 				unlock_page (pg);
 
@@ -1806,13 +1812,16 @@ static int flush_rewrite_jnode (jnode *node)
 	/* FIXME: Have to be absolutely sure that HEARD_BANSHEE isn't set when we write,
 	 * otherwise if the page was a fresh allocation the dealloc of that block might
 	 * have been non-deferred, and then we could trash otherwise-allocated data? */
-	if (! jnode_check_dirty (node) ||
-	    JF_ISSET (node, ZNODE_HEARD_BANSHEE) ||
-	    (WRITE_LOG && JF_ISSET (node, ZNODE_WANDER))) {
+	assert ("jmacd-53312", spin_jnode_is_locked (node));
+	assert ("jmacd-53313", jnode_is_dirty (node));
+	assert ("jmacd-53314", ! JF_ISSET (node, ZNODE_HEARD_BANSHEE));
+	assert ("jmacd-53315", ! JF_ISSET (node, ZNODE_FLUSH_QUEUED));
+	assert ("jmacd-53316", jnode_is_allocated (node));
+
+	/* FIXME: temporary */
+	if ((WRITE_LOG && JF_ISSET (node, ZNODE_WANDER))) {
 		return 0;
 	}
-
-	assert ("jmacd-76516", jnode_check_allocated (node));
 
 	if ((pg = jnode_page (node)) == NULL) {
 		return -ENOMEM;
@@ -1822,8 +1831,6 @@ static int flush_rewrite_jnode (jnode *node)
 
 	lock_page (pg);
 
-	/* The jnode thinks it is clean, the page should still think it is dirty.  I think
-	 * the next assertion can fail in a race but I'd like to prove it. */
 	assert ("jmacd-76515", PageDirty (pg));
 
 	ret = write_one_page (pg, 0 /* no wait */);

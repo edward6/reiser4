@@ -100,6 +100,9 @@ typedef enum {
 	* squeezed and allocated. */
        ZNODE_FLUSH_BUSY        = 14,
 
+       /* jnode is queued for flushing. */
+       ZNODE_FLUSH_QUEUED      = 15,
+
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
