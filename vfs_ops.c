@@ -792,13 +792,18 @@ parse_option(char *opt_string /* starting point of parsing */ ,
 		break;
 	case OPT_ONEOF:{
 			int i = 0;
+
+			if (val_start == NULL) {
+				err_msg = "Value is missing";
+				result = RETERR(-EINVAL);
+				break;
+			}
 			err_msg = "Wrong option value";
 			result = RETERR(-EINVAL);
 			while ( opt->u.oneof.list[i] ) {
 				if ( !strcmp(opt->u.oneof.list[i], val_start) ) {
 					result = 0;
 					*opt->u.oneof.result = i;
-printk("%s choice is %d\n",opt->name, i);
 					break;
 				}
 				i++;
@@ -1018,39 +1023,38 @@ do {						\
 		   FLAGS - combination of bits: RA_ADJCENT_ONLY, RA_ALL_LEVELS, CONTINUE_ON_PRESENT
 		*/
 		.name = "readahead",
-			 .type = OPT_FORMAT,
-			 .u = {
-				 .f = {
-					 .format  = "%u:%u",
-					 .nr_args = 2,
-					 .arg1 = &sbinfo->ra_params.max,
-					 .arg2 = &sbinfo->ra_params.flags,
-					 .arg3 = NULL,
-					 .arg4 = NULL
-				 }
-			 }
-
+		.type = OPT_FORMAT,
+		.u = {
+			.f = {
+				.format  = "%u:%u",
+				.nr_args = 2,
+				.arg1 = &sbinfo->ra_params.max,
+				.arg2 = &sbinfo->ra_params.flags,
+				.arg3 = NULL,
+				.arg4 = NULL
+			}
+		}
  	});
 
 	/* What to do in case of fs error */
 	PUSH_OPT ({
 		.name = "onerror",
-			 .type = OPT_ONEOF,
-			 .u = {
-				 .oneof = {
-					 .result = &sbinfo->onerror,
-					 .list = {"panic", "remount-ro", "reboot", NULL},
-				 }
-			 }
+		.type = OPT_ONEOF,
+		.u = {
+			.oneof = {
+				.result = &sbinfo->onerror,
+				.list = {"panic", "remount-ro", "reboot", NULL},
+			}
+		}
 	});
 
 #if REISER4_LOG
 	PUSH_OPT({
 		.name = "log_file",
-			 .type = OPT_STRING,
-			 .u = {
-				 .string = &log_file_name
-			 }
+		.type = OPT_STRING,
+		.u = {
+			.string = &log_file_name
+		}
 	});
 #endif
 
