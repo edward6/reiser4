@@ -580,8 +580,7 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 	znode * active;
 
 	/* acquire reference to @active node */
-	active = zget( h -> tree, &h -> block,
-		       h -> parent_lh -> node,
+	active = zget( h -> tree, &h -> block, h -> parent_lh -> node,
 		       h -> level, GFP_KERNEL );
 
 	if (IS_ERR(active)) {
