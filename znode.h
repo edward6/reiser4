@@ -318,8 +318,13 @@ typedef enum {
        ZNODE_RELOC             = 8,
        /** this node is currently wandered */
        ZNODE_WANDER            = 9,
-       /** this node was deleted by its txn */
-       ZNODE_DELETED           = 10,
+
+       /** this node was deleted by its txn.  Eliminated because the
+	* znode/jnode will be released as soon as possible.  The atom doesn't
+	* need to keep track of deleted nodes, and this also allows us to
+	* delete nodes that are not in memory (which will be common for
+	* extents). */
+       /*ZNODE_DELETED           = 10,*/
 
        /** this znode has been modified */
        ZNODE_DIRTY             = 11,
@@ -547,7 +552,8 @@ static inline int znode_is_connected (const znode * node)
 
 static inline int jnode_is_in_deleteset( const jnode *node )
 {
-	return JF_ISSET( node, ZNODE_RELOC ) || JF_ISSET( node, ZNODE_DELETED );
+	/* FIXME: Zam, this needs to actually do a lookup in the delete set, right? */
+	return JF_ISSET( node, ZNODE_RELOC )  /*|| JF_ISSET( node, ZNODE_DELETED )*/;
 }
 
 extern znode *znode_parent( const znode *node );

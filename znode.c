@@ -1005,7 +1005,7 @@ void info_jnode( const char *prefix /* prefix to print */,
 		return;
 	}
 
-	info( "%s: %p: state: %x: [%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, ",
+	info( "%s: %p: state: %x: [%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, ",
 	      prefix, node, node -> state, 
 
 	      jnode_state_name( node, ZNODE_LOADED ),
@@ -1017,7 +1017,6 @@ void info_jnode( const char *prefix /* prefix to print */,
 	      jnode_state_name( node, ZNODE_ALLOC ),
 	      jnode_state_name( node, ZNODE_RELOC ),
 	      jnode_state_name( node, ZNODE_WANDER ),
-	      jnode_state_name( node, ZNODE_DELETED ),
 	      jnode_state_name( node, ZNODE_DIRTY ),
 	      jnode_state_name( node, ZNODE_WRITEOUT ),
 	      jnode_state_name( node, ZNODE_IS_DYING ),
