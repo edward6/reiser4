@@ -4,7 +4,7 @@
 */
 
 #include <aal/aal.h>
-#include <reiserfs/plugin.h>
+#include <reiserfs/reiserfs.h>
 
 #include <stdlib.h>
 
@@ -34,6 +34,32 @@ static int reiserfs_layout36_any_signature(const char *signature) {
 	return 0;
 }
 
+static int reiserfs_layout36_super_check(reiserfs_layout36_super_t *super, 
+	aal_device_t *device) 
+{
+	blk_t dev_len;
+	int is_journal_dev, is_journal_magic;
+
+	is_journal_dev = (get_jp_dev(get_sb_jp(super)) ? 1 : 0);
+	is_journal_magic = reiserfs_layout36_journal_signature(super->s_v1.sb_magic);
+
+	if (is_journal_dev != is_journal_magic) {
+		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
+			"umka-006", "Journal relocation flags mismatch. Journal device: %x, magic: %s.",
+			get_jp_dev(get_sb_jp(super)), super->s_v1.sb_magic);
+	}
+
+	dev_len = aal_device_len(device);
+	if (get_sb_block_count(super) > dev_len) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+			"umka-007", "Superblock has an invalid block count %d for device "
+			"length %d blocks.", get_sb_block_count(super), dev_len);
+		return 0;
+	}
+
+	return 1;
+}
+
 static aal_block_t *reiserfs_layout36_super_open(aal_device_t *device) {
 	aal_block_t *block;
 	reiserfs_layout36_super_t *super;
@@ -43,20 +69,17 @@ static aal_block_t *reiserfs_layout36_super_open(aal_device_t *device) {
 		if ((block = aal_block_read(device, super_offset[i]))) {
 			super = (reiserfs_layout36_super_t *)block->data;
 			if (reiserfs_layout36_any_signature((const char *)super->s_v1.sb_magic)) {
-				
-//				size_t blocksize = get_sb_block_size(super);
-				size_t blocksize = super->s_v1.sb_block_size;
-				
+				size_t blocksize = get_sb_block_size(super);
 				if (!aal_device_set_blocksize(device, blocksize)) {
 					aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
 						"umka-005", "Invalid blocksize %d. It must power of two.", blocksize);
 					aal_block_free(block);
 					continue;
 				}
-/*				if (!reiserfs_layout36_super_check(super, aal_device_len(device))) {
-					aa_block_free(block);
+				if (!reiserfs_layout36_super_check(super, device)) {
+					aal_block_free(block);
 					continue;
-				}*/
+				}
 				return block;
 			}
 			aal_block_free(block);
@@ -66,38 +89,32 @@ static aal_block_t *reiserfs_layout36_super_open(aal_device_t *device) {
 }
 
 static reiserfs_layout36_t *reiserfs_layout36_init(aal_device_t *device) {
-	aal_block_t *block;
 	reiserfs_layout36_t *layout;
 	
 	if (!device)
 		return NULL;
 	
-	if (!(block = reiserfs_layout36_super_open(device)))
-		return NULL;
-	
 	if (!(layout = aal_calloc(sizeof(*layout), 0)))
 		return NULL;
 		
-	layout->device = device;
-	
-	if (!(layout->super = aal_calloc(aal_device_blocksize(device), 0)))
+	if (!(layout->super = reiserfs_layout36_super_open(device)))
 		goto error_free_layout;
-
-	aal_memcpy(layout->super, block->data, aal_device_blocksize(device));
 	
+	layout->device = device;
 	return layout;
 
 error_free_layout:
 	aal_free(layout);
-error_free_block:
-	aal_block_free(block);
 error:
 	return NULL;
 }
 
 static void reiserfs_layout36_done(reiserfs_layout36_t *layout) {
-	/* Syncing superblock and other */
-	aal_free(layout->super);
+	if (!aal_block_write(layout->device, layout->super)) {
+		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-006", 
+			"Can't update super block.");
+	}	
+	aal_block_free(layout->super);
 	aal_free(layout);
 }
 
