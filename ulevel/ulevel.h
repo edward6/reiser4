@@ -686,7 +686,8 @@ struct page {
 	void * virtual;
 	struct address_space *mapping;
 	unsigned long flags;
-	unsigned count;	
+	unsigned count;
+	unsigned long private;
 	struct list_head list;
 };
 

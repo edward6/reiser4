@@ -950,7 +950,6 @@ txn_try_capture (jnode           *node,
 	return ret;
 }
 
-#if 0
 /* This is the interface to capture unformatted nodes via their struct page
  * reference.  If the page currently has a jnode assigned to it, call
  * txn_try_capture, otherwise assign it a jnode and then make the call.  To
@@ -959,7 +958,7 @@ txn_try_capture (jnode           *node,
  */
 int
 txn_try_capture_page  (struct page        *pg,
-		       znode_lock_mode     mode,
+		       znode_lock_mode     lock_mode,
 		       int                 non_blocking)
 {
 	/* FIXME: Note: The following code assumes page_size == block_size.
@@ -971,13 +970,13 @@ txn_try_capture_page  (struct page        *pg,
  again:
 	spin_lock (& _jnode_ptr_lock);
 
-	if (pg->private == NULL) {
+	if ((jnode*) pg->private == NULL) {
 		if (jal == NULL) {
 			spin_unlock (& _jnode_ptr_lock);
 			jal = kmem_cache_alloc (_jnode_slab, GFP_KERNEL);
 			goto again;
 		}
-		pg->private = jal;
+		pg->private = (unsigned long) jal;
 		jal = NULL;
 
 		/* FIXME: INITIALIZE JNODE HERE */
@@ -997,11 +996,10 @@ txn_try_capture_page  (struct page        *pg,
 		kmem_cache_free (_jnode_slab, jal);
 	}
 
-	return txn_try_capture (pg->private,
+	return txn_try_capture ((jnode*) pg->private,
 				lock_mode,
 				non_blocking);
 }
-#endif
 
 /* No-locking version of assign_txnh.  Sets the transaction handle's atom pointer,
  * increases atom refcount, adds to txnh_list. */
