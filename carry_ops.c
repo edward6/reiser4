@@ -1312,8 +1312,8 @@ can_paste(coord_t * icoord, const reiser4_key * key, const reiser4_item_data * d
 	item_plugin *old_iplug;
 	int result = 0;		/* to keep gcc shut */
 
-	if (icoord->between == AT_UNIT)
-		return 1;
+	assert("", icoord->between != AT_UNIT);
+
 	/* obviously, one cannot paste when node is empty---there is nothing
 	   to paste into. */
 	if (node_is_empty(icoord->node))
