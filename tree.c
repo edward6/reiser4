@@ -1437,8 +1437,6 @@ int cut_tree (reiser4_tree * tree,
 	assert("umka-330", from_key != NULL);
 	assert("umka-331", to_key != NULL);
 
-	check_tree();
-
 #define WE_HAVE_READAHEAD (0)
 #if WE_HAVE_READAHEAD
 	request_read_ahead_key_range(from, to, LIMIT_READ_AHEAD_BY_CACHE_SIZE_ONLY);
@@ -1526,7 +1524,6 @@ int cut_tree (reiser4_tree * tree,
 	} while (keygt (&smallest_removed, from_key));
 
 
-	check_tree();
 	CHECK_COUNTERS;
 	return result;
 }
