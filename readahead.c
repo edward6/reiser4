@@ -155,7 +155,7 @@ static loff_t do_reiser4_file_readahead (struct inode * inode, loff_t offset, lo
 
 	/* Stop on twig level */
 	result = coord_by_key(
-		current_tree, &start_key, &coord, &lock, ZNODE_WRITE_LOCK, 
+		current_tree, &start_key, &coord, &lock, ZNODE_READ_LOCK, 
 		FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL, 0, NULL);
 	if (result < 0)
 		goto error;
@@ -203,7 +203,7 @@ static loff_t do_reiser4_file_readahead (struct inode * inode, loff_t offset, lo
 
 		/* ... and continue on the right neighbor if needed. */
 		result = reiser4_get_right_neighbor (
-			&next_lock, lock.node, ZNODE_WRITE_LOCK,
+			&next_lock, lock.node, ZNODE_READ_LOCK,
 			GN_CAN_USE_UPPER_LEVELS | GN_ASYNC);
 		if (result)
 			break;
@@ -218,12 +218,13 @@ static loff_t do_reiser4_file_readahead (struct inode * inode, loff_t offset, lo
 	if (result) {
 		if (result == -E_REPEAT || result == -E_NO_NEIGHBOR) {
 			loff_t end_offset;
+			reiser4_tree * tree = current_tree;
 
 			assert("zam-994", lock.node != NULL);
 
-			/* If node is locked, nobody can change node's left
-			 * delimiting key. */
+			read_lock_dk(tree);
 			end_offset = get_key_offset(znode_get_ld_key(lock.node));
+			read_unlock_dk(tree);
 			result = end_offset - offset;
 		}
 	} else {
