@@ -442,13 +442,16 @@ void print_inode( const char *prefix /* prefix to print */,
 	print_key( "\tkey", build_sd_key( i, &inode_key ) );
 	ref = reiser4_inode_data( i );
 	print_plugin( "\tfile", file_plugin_to_plugin( ref -> file ) );
+	print_plugin( "\tdir", dir_plugin_to_plugin( ref -> dir ) );
 	print_plugin( "\tperm", perm_plugin_to_plugin( ref -> perm ) );
 	print_plugin( "\ttail", tail_plugin_to_plugin( ref -> tail ) );
 	print_plugin( "\thash", hash_plugin_to_plugin( ref -> hash ) );
 	print_plugin( "\tsd", item_plugin_to_plugin( ref -> sd ) );
-	info( "\tflags: %u, bytes: %llu, extmask: %llu, sd_len: %i, pmask: %i\n",
+	print_seal( "\tsd_seal", &ref -> sd_seal );
+	print_coord( "\tsd_coord", &ref -> sd_coord, 1 );
+	info( "\tflags: %u, bytes: %llu, extmask: %llu, sd_len: %i, pmask: %i, locality: %llu\n",
 	      ref -> flags, ref -> bytes, ref -> extmask, 
-	      ( int ) ref -> sd_len, ref -> plugin_mask );
+	      ( int ) ref -> sd_len, ref -> plugin_mask, ref -> locality_id );
 }
 
 /* 
