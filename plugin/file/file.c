@@ -316,6 +316,8 @@ find_next_item(struct sealed_coord *hint, const reiser4_key * key,	/* key of pos
 			if (equal_to_rdk(coord->node, key)) {
 				assert("", coord->between == AFTER_UNIT);
 				result = goto_right_neighbor(coord, lh);
+				if (result == -ENAVAIL)
+					return -EIO;
 				if (result)
 					return result;
 				assert("", equal_to_ldk(coord->node, key));
