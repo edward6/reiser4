@@ -437,6 +437,8 @@ extern int znode_invariant( const znode *node );
 extern unsigned znode_save_free_space( znode *node );
 extern unsigned znode_recover_free_space( znode *node );
 
+extern int znode_just_created( const znode *node );
+
 #if REISER4_DEBUG_MODIFY
 extern void znode_pre_write( znode *node );
 extern void znode_post_write( const znode *node );

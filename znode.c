@@ -1003,6 +1003,16 @@ int znode_is_root( const znode *node /* znode to query */ )
 	return result;
 }
 
+/**
+ * Returns true is @node was just created by zget() and wasn't ever loaded
+ * into memory.
+ */
+int znode_just_created( const znode *node )
+{
+	assert( "nikita-2188", node != NULL );
+	return( znode_page( node ) == NULL );
+}
+
 void init_dh( data_handle *dh )
 {
 	assert( "nikita-2105", dh != NULL );
