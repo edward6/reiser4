@@ -1087,8 +1087,52 @@ static int replay_oldest_transaction(struct super_block * s)
 	return -EAGAIN;
 }
 
+/* The reiser4 journal current implementation was optimized to not to capture
+ * super block if certain super blocks fields are modified. Currently, the set
+ * is (<free block count>, <OID allocator>). These fields are logged by
+ * special way which includes storing them in each transaction head block at
+ * atom commit time and writing that information to journal footer block at
+ * atom flush time.  For getting info from journal footer block to the
+ * in-memory super block there is a special function
+ * reiser4_journal_recover_sb_data() which should be called after disk format
+ * plugin re-reads super block after journal replaying.
+ */
+
+/* get the information from journal footer in-memory super block */
+int reiser4_journal_recover_sb_data (struct super_block * s)
+{
+	reiser4_super_info_data * private = get_super_private (s);
+	struct journal_footer * JF;
+	int ret;
+
+
+	assert ("zam-673", private->journal_footer != NULL);
+
+	if ((ret = jload (private->journal_footer)))
+		return ret;
+
+	if ((ret = check_journal_footer (private->journal_footer)))
+		goto out;
+
+	JF = (struct journal_footer *)jdata(private->journal_footer);
+
+	/* FIXME: there should be more clear was to recognize a state of
+	 * reiser4 journal, free block counter is obviously a wrong choice. */
+	if (d64tocpu(&JF->free_blocks)) {
+
+		/* restore free block counter logged in this transaction */
+		reiser4_set_free_blocks (s, d64tocpu(&JF->free_blocks));
+
+		/* restore oid allocator state */
+		oid_init_allocator (s, d64tocpu(&JF->nr_files), d64tocpu(&JF->next_oid));
+	}
+ out:
+	jrelse (private->journal_footer);
+	return ret;
+}
+
 /* reiser4 replay journal procedure */
-int reiser4_replay_journal (struct super_block * s)
+int reiser4_journal_replay (struct super_block * s)
 {
 	/* FIXME: it is a limited version of journal replaying which just
 	 * takes saved free block counter from journal footer, searches for
@@ -1099,8 +1143,6 @@ int reiser4_replay_journal (struct super_block * s)
 	jnode *jh, *jf;
 
 	struct journal_header * H;
-	struct journal_footer * F;
-
 	int nr_tx_replayed = 0;
 
 	int ret;
@@ -1125,12 +1167,6 @@ int reiser4_replay_journal (struct super_block * s)
 
 	ret = check_journal_footer(jf);
 	if (ret) { jrelse(jf); return ret; }
-
-	/* restore free block counter logged in this transaction */
-	F = (struct journal_footer *)jdata(jf);
-	if (d64tocpu(&F->free_blocks)) {
-		reiser4_set_free_blocks (s, d64tocpu(&F->free_blocks));
-	}
 
 	jrelse(jf);
 

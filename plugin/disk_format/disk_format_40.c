@@ -157,7 +157,7 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	
 
 	/* ok, we are sure that filesystem format is a format_40 format */
-	result = reiser4_replay_journal (s);
+	result = reiser4_journal_replay (s);
 	if (result)
 		return result;
 
@@ -230,6 +230,8 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	xmemset(&private->stats, 0, sizeof (reiser4_stat));
 	/* private->tmgr is initialized already */
 
+	/* recover sb data which were logged separately from sb block */
+	reiser4_journal_recover_sb_data (s);
 
 #if REISER4_DEBUG
 	/*
