@@ -229,7 +229,9 @@ static int insert_new_sd( struct inode *inode )
 	char *area;
 	reiser4_plugin_ref *ref;
 	reiser4_lock_handle lh;
+	oid_mgr_plugin *oplug;
 	oid_t oid;
+
 
 	assert( "nikita-723", inode != NULL );
 
@@ -253,13 +255,10 @@ static int insert_new_sd( struct inode *inode )
 	data.data = NULL;
 
 	assert( "vs-479", get_super_private( inode -> i_sb ) );
-	assert( "vs-480", get_super_private( inode -> i_sb ) -> lplug );
-	resutl = get_super_private( inode -> i_sb ) ->
-		lplug -> allocate_oid( inode -> i_sb, &oid );
-/*
-	result = allocate_oid
-		( reiser4_get_oid_allocator( inode -> i_sb ), &oid );
-*/
+	oplug = get_super_private( inode -> i_sb ) -> oplug;
+	assert( "vs-480", oplug && oplug -> allocate_oid );
+	result = oplug -> allocate_oid(
+		reiser4_get_oid_allocator( inode -> i_sb ), &oid );
 	if( result != 0 )
 		return result;
 
@@ -550,8 +549,10 @@ int common_build_flow( struct file *file, char *buf, size_t size,
 
 static int ordinary_key_by_inode ( struct inode *inode, const loff_t *off, reiser4_key *key )
 {
-	/* FIXME: VS */
-	return -EINVAL;
+	build_sd_key (inode, key);
+	set_key_type (key, KEY_BODY_MINOR );
+	set_key_offset (key, ( __u64 ) *off);
+	return 0;
 }
 
 reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
@@ -573,7 +574,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.readpage            = ordinary_readpage,
 				.read                = ordinary_file_read,
 				.write               = ordinary_file_write,
-				.flow_by_inode       = NULL,
+				.flow_by_inode       = common_build_flow/*NULL*/,
 				.flow_by_key         = NULL,
 				.key_by_inode        = ordinary_key_by_inode,
 				.set_plug_in_sd      = NULL,
