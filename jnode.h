@@ -318,11 +318,25 @@ static inline int jnode_check_dirty( jnode *node )
 	return is_dirty;
 }
 
-static inline int jnode_is_allocated (jnode *node)
+static inline int jnode_is_allocated (const jnode *node)
 {
 	assert ("jmacd-78212", node != NULL );
 	assert ("jmacd-71276", spin_jnode_is_locked (node));
 	return ! jnode_is_dirty (node) || JF_ISSET (node, ZNODE_RELOC) || JF_ISSET (node, ZNODE_WANDER);
+}
+
+static inline void jnode_set_reloc (jnode *node)
+{
+	assert ("nikita-2431", node != NULL);
+	assert ("nikita-2432", !JF_ISSET (node, ZNODE_WANDER));
+	JF_SET (node, ZNODE_RELOC);
+}
+
+static inline void jnode_set_wander (jnode *node)
+{
+	assert ("nikita-2431", node != NULL);
+	assert ("nikita-2432", !JF_ISSET (node, ZNODE_RELOC));
+	JF_SET (node, ZNODE_WANDER);
 }
 
 /** return true if "node" is the root */

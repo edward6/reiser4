@@ -397,7 +397,7 @@ static int get_overwrite_set (txn_atom * atom, capture_list_head * overwrite_lis
 
 					spin_lock_jnode (sbj);
 
-					JF_SET(sbj, ZNODE_WANDER);
+					jnode_set_wander(sbj);
 					capture_list_push_back (overwrite_list, sbj);
 					sbj->atom = atom;
 					jref(sbj);

@@ -855,7 +855,7 @@ static void cond_add_to_clean_list (txn_atom * atom, jnode * node)
 	spin_lock_jnode (node);
 
 	if (node->atom == NULL) {
-		JF_SET(node, ZNODE_WANDER);
+		jnode_set_wander(node);
 		txn_insert_into_clean_list (atom, node);
 	} else {
 		assert ("zam-549", node->atom == atom);
