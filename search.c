@@ -691,17 +691,26 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 	 */
 	h->coord->between = AT_UNIT;
 
+	/*
+	 * if we are going to load znode right now, setup
+	 * ->ptr_in_parent_hint: coord where pointer to this node is stored in
+	 * parent.
+	 */
 	spin_lock_tree (h->tree);
 	if (!znode_is_loaded(active) && (h->coord->node != NULL))
 		active->ptr_in_parent_hint = *h->coord;
-	spin_unlock_tree (h->tree);
 
-	/* AUDIT: ulocking a lock right before taking it again looks silly,
-	   What is the intent for that? */
 	/* protect sibling pointers and `connected' state bits, check
 	 * znode state */
-	spin_lock_tree(h -> tree);
 	ret = znode_is_connected(active);
+
+	/*
+	 * above two operations (setting ->ptr_in_parent_hint up and checking
+	 * connectedness) are logically separate and one can release and
+	 * re-acquire tree lock between them. On the other hand,
+	 * releasing-acquiring spinlock requires d-cache flushing on some
+	 * architectures and can thus be expensive.
+	 */
 	spin_unlock_tree(h -> tree);
 
 	if (!ret) {
