@@ -6,7 +6,7 @@
 /* declarations of functions implementing file plugin for unix file plugin */
 int truncate_unix_file(struct inode *, loff_t size);
 int readpage_unix_file(void *, struct page *);
-int writepage_unix_file(struct page *);
+int capture_unix_file(struct page *);
 ssize_t read_unix_file(struct file *, char *buf, size_t size, loff_t *off);
 ssize_t write_unix_file(struct file *, const char *buf, size_t size, loff_t *off);
 int release_unix_file(struct inode *inode, struct file *);

@@ -807,7 +807,7 @@ unix_file_writepage_nolock(struct page *page)
 
 	reiser4_stat_inc(file.page_ops.writepage_calls);
 
-	assert("vs-1064", !PageLocked(page));
+	// assert("vs-1064", !PageLocked(page));
 	assert("vs-1065", page->mapping && page->mapping->host);
 
 	/* get key of first byte of the page */
@@ -841,7 +841,7 @@ unix_file_writepage_nolock(struct page *page)
 /* plugin->u.file.writepage this does not start i/o against this page. It just must garantee that tree has a pointer to
    this page. This is called for pages which were dirtied via mmap-ing by reiser4_writepages */
 int
-writepage_unix_file(struct page *page)
+capture_unix_file(struct page *page)
 {
 	int result;
 	struct inode *inode;

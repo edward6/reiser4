@@ -382,7 +382,7 @@ static void capture_page_and_create_extent (struct page * page)
 
 	grab_space_enable ();
 
-	result = fplug->writepage(page);
+	result = fplug->capture(page);
 
 	if (result != 0) {
 		SetPageError(page);
@@ -414,7 +414,6 @@ static int capture_anonymous_pages (struct address_space * mapping)
 
 			lock_page (pg);
 			capture_page_and_create_extent (pg);
-		
 			unlock_page (pg);
 
 			page_cache_release (pg);
@@ -447,9 +446,7 @@ reiser4_writepages(struct address_space *mapping,
 			       lock_stack_isclean(get_current_lock_stack())));
 
 	if (mapping_has_anonymous_pages(mapping)) {
-		if (inode_file_plugin(mapping->host)->h.id != UNIX_FILE_PLUGIN_ID) {
-			ret = RETERR(-EINVAL);
-		} else {
+		if (inode_file_plugin(mapping->host)->h.id == UNIX_FILE_PLUGIN_ID) {
 			unix_file_info_t *uf_info;
 
 			uf_info = unix_file_inode_data(mapping->host);
@@ -465,7 +462,8 @@ reiser4_writepages(struct address_space *mapping,
 				if (REISER4_DEBUG)
 					lock_counters()->inode_sem_r --;
 			}
-		}
+		} else
+			ret = RETERR(-EINVAL);
 	}
 
 	inode = mapping->host;

@@ -156,7 +156,10 @@ typedef struct file_plugin {
 	    reiserfs_update_sd() in 3.x */
 	int (*write_sd_by_inode) (struct inode * inode);
 	int (*readpage) (void *, struct page *);
-	int (*writepage) (struct page *);
+	/*
+	 * add page created through mmap into object.
+	 */
+	int (*capture) (struct page *);
 	/* these should be implemented using body_read_flow and body_write_flow
 	   builtins */
 	 ssize_t(*read) (struct file * file, char *buf, size_t size, loff_t * off);
