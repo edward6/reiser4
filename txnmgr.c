@@ -433,6 +433,7 @@ atom_init(txn_atom * atom)
 	atom_list_clean(atom);
 	fwaitfor_list_init(&atom->fwaitfor_list);
 	fwaiting_list_init(&atom->fwaiting_list);
+	prot_list_init(&atom->protected);
 	blocknr_set_init(&atom->delete_set);
 	blocknr_set_init(&atom->wandered_map);
 
@@ -463,7 +464,9 @@ atom_isclean(txn_atom * atom)
 		capture_list_empty(&atom->clean_nodes) &&
 		capture_list_empty(&atom->ovrwr_nodes) &&
 		capture_list_empty(&atom->writeback_nodes) &&
-		fwaitfor_list_empty(&atom->fwaitfor_list) && fwaiting_list_empty(&atom->fwaiting_list)) &&
+		fwaitfor_list_empty(&atom->fwaitfor_list) &&
+		fwaiting_list_empty(&atom->fwaiting_list)) &&
+		prot_list_empty(&atom->protected) &&
 		atom_fq_parts_are_clean(atom);
 }
 #endif
@@ -1201,6 +1204,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	/* Up to this point we have been flushing and after flush is called we
 	   return -E_REPEAT.  Now we can commit.  We cannot return -E_REPEAT at this
 	   point, commit should be successful. */
+	/* XXX why waiters are not waken up at atom stage change? --nikita */
 	(*atom)->stage = ASTAGE_PRE_COMMIT;
 	ON_DEBUG(((*atom)->committer = current, atomic_set(&((*atom)->coc_reloc), 0), atomic_set(&((*atom)->coc_ovrwr), 0)));
 
@@ -3277,9 +3281,7 @@ capture_fuse_txnh_lists(txn_atom * large, txnh_list_head * large_head, txnh_list
 		count += 1;
 
 		/* With the txnh lock held, update atom pointer. */
-		LOCK_TXNH(txnh);
-		txnh->atom = large;
-		UNLOCK_TXNH(txnh);
+		UNDER_SPIN_VOID(txnh, txnh, txnh->atom = large);
 	}
 
 	/* Splice the txn_handle list. */
@@ -3299,6 +3301,7 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 	int level;
 	unsigned zcount = 0;
 	unsigned tcount = 0;
+	protected_jnodes *prot_list;
 
 	assert("umka-224", small != NULL);
 	assert("umka-225", small != NULL);
@@ -3322,6 +3325,22 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 	zcount += capture_fuse_jnode_lists(large, &large->writeback_nodes, &small->writeback_nodes);
 	zcount += capture_fuse_jnode_lists(large, &large->inodes, &small->inodes);
 	tcount += capture_fuse_txnh_lists(large, &large->txnh_list, &small->txnh_list);
+
+	for_all_type_safe_list(prot, &small->protected, prot_list) {
+		jnode *node;
+
+		for_all_type_safe_list(capture, &prot_list->nodes, node) {
+			zcount += 1;
+
+			LOCK_JNODE(node);
+			assert("nikita-3375", node->atom == small);
+			/* With the jnode lock held, update atom pointer. */
+			node->atom = large;
+			UNLOCK_JNODE(node);
+		}
+	}
+	/* Splice the lists of lists. */
+	prot_list_splice(&large->protected, &small->protected);
 
 	/* Check our accounting. */
 	assert("jmacd-1063", zcount + small->num_queued == small->capture_count);
@@ -3397,6 +3416,31 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 	/* Unlock atoms */
 	UNLOCK_ATOM(large);
 	atom_dec_and_unlock(small);
+}
+
+void
+protected_jnodes_init(protected_jnodes *list)
+{
+	txn_atom *atom;
+
+	assert("nikita-3376", list != NULL);
+
+	atom = get_current_atom_locked();
+	prot_list_push_front(&atom->protected, list);
+	capture_list_init(&list->nodes);
+	UNLOCK_ATOM(atom);
+}
+
+void
+protected_jnodes_done(protected_jnodes *list)
+{
+	txn_atom *atom;
+
+	assert("nikita-3379", capture_list_empty(&list->nodes));
+
+	atom = get_current_atom_locked();
+	prot_list_remove(list);
+	UNLOCK_ATOM(atom);
 }
 
 /* TXNMGR STUFF */
