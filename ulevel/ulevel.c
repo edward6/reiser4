@@ -919,7 +919,7 @@ int submit_bio (int rw, struct bio *bio)
 
 int ulevel_read_node( const reiser4_block_nr *addr, char **data, size_t blksz )
 {
-	if( mmap_back_end_fd > 0 ) {
+	if( ( mmap_back_end_fd > 0 ) && !blocknr_is_fake( addr ) ) {
 		off_t start;
 
 		start = *addr * blksz;
