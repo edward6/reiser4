@@ -31,6 +31,7 @@
 #include "entd.h"
 #include "emergency_flush.h"
 #include "prof.h"
+#include "repacker.h"
 
 #include <linux/profile.h>
 #include <linux/types.h>
@@ -1333,6 +1334,12 @@ read_super_block:
 	s->s_maxbytes = MAX_LFS_FILESIZE;
 	reiser4_sysfs_init(s);
 
+	result = init_reiser4_repacker(s);
+	if (result) {
+		reiser4_sysfs_done(s);
+		goto error4;
+	}
+
 	if (!silent) {
 		print_fs_info("mount ok", s);
 		if (REISER4_DEBUG || 
@@ -1391,6 +1398,8 @@ reiser4_kill_super(struct super_block *s)
 	init_context(&context, s);
 
 	ON_TRACE(TRACE_VFS_OPS, "kill_super\n");
+
+	done_reiser4_repacker(s);
 
 	reiser4_sysfs_done(s);
 

@@ -318,6 +318,7 @@ struct reiser4_super_info_data {
 	struct list_head all_jnodes;
 	atomic_t jnodes_in_flight;
 #endif
+	struct repacker * repacker;
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct

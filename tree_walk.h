@@ -86,6 +86,8 @@ extern void sibling_list_insert(znode * new, znode * before);
 extern void sibling_list_insert_nolock(znode * new, znode * before);
 extern void link_left_and_right(znode * left, znode * right);
 
+extern int tree_walk(const reiser4_key *, int (*actor)(void*), void *opaque);
+
 #endif				/* __FS_REISER4_TREE_WALK_H__ */
 
 /*

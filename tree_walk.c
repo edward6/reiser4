@@ -753,6 +753,139 @@ sibling_list_insert(znode * new, znode * before)
 		      sibling_list_insert_nolock(new, before));
 }
 
+
+/* it locks the root node, handles the restarts inside */
+static int lock_tree_root (lock_handle * lock, znode_lock_mode mode)
+{
+	int ret;
+
+	reiser4_tree * tree = current_tree;
+	lock_handle fake_znode_lock;
+	znode * root;
+
+	init_lh(&fake_znode_lock);
+ again:
+	
+	ret = get_fake_znode(tree, mode, ZNODE_LOCK_HIPRI, &fake_znode_lock);
+	if (ret)
+		return ret;
+
+	root = zget(tree, &tree->root_block, fake_znode_lock.node, tree->height, GFP_KERNEL);
+	if (IS_ERR(root)) {
+		done_lh(&fake_znode_lock);
+		return PTR_ERR(root);
+	}
+
+	ret = longterm_lock_znode(lock, root, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
+
+	zput(root);
+	done_lh(&fake_znode_lock);
+
+	if (ret == -EDEADLOCK)
+		goto again;
+
+	return ret;
+}
+
+/* Reiser4 tree walker. */
+
+int tree_walk(const reiser4_key * start_key, int (*actor)(void*), void * opaque)
+{
+	// reiser4_key last_processed_key;
+	lock_handle   lock;
+	coord_t       coord;
+	int           ret;
+
+	znode      * next_node;
+	lock_handle  next_lock;
+
+	tap_t tap;
+
+	/* Start from the tree root */
+	init_lh(&lock);
+	ret = lock_tree_root(&lock, ZNODE_WRITE_LOCK);
+	if (ret)
+		return ret;
+	tap_init(&tap, &coord, &lock, ZNODE_WRITE_LOCK);
+	coord_init_first_unit(&coord, lock.node);
+
+	while (1) {
+		item_plugin * iplug;
+		tree_level level;
+
+		if (coord_is_after_rightmost(&coord)) {
+			/* go upward */
+			ret = reiser4_get_parent(&next_lock, lock.node, ZNODE_WRITE_LOCK, 0);
+			if (ret)
+				break;
+
+			if (znode_above_root(next_lock.node))
+				break;
+
+			ret = find_child_ptr(lock.node, next_lock.node, &coord);
+			if (ret)
+				break;
+			done_lh(&lock);
+			move_lh(&lock, &next_lock);
+
+			continue;
+		}
+
+		assert ("zam-944", coord_is_existing_unit(&coord));
+
+		iplug = item_plugin_by_coord(&coord);
+
+		ret = actor(opaque);
+		if (ret)
+			break;
+
+		level = znode_get_level(lock.node);
+
+		if (level == LEAF_LEVEL) {
+			coord_init_after_last_item(&coord, lock.node);
+			continue;
+		}
+
+		if (item_is_extent(&coord)) {
+			/*  */
+			coord_next_unit(&coord);
+			continue;
+		} else {
+			reiser4_block_nr block;
+			lock_handle next_lock;
+
+			assert ("zam-943", item_is_internal(&coord));
+
+			iplug->s.internal.down_link(&coord, NULL, &block);
+
+			next_node = zget(current_tree, &block, lock.node, level - 1, GFP_KERNEL);
+			if (IS_ERR(next_node)) {
+				ret = PTR_ERR(next_node);
+				break;
+			}
+
+			init_lh(&next_lock);
+			ret = longterm_lock_znode(&next_lock, next_node, ZNODE_WRITE_LOCK, 0);
+			zput(next_node);
+			if (ret)
+				break;
+
+			done_lh(&lock);
+			move_lh(&lock, &next_lock);
+
+			coord_init_first_unit(&coord, lock.node);
+		}
+	}
+
+	done_lh(&lock);
+	done_lh(&next_lock);
+
+	return ret;
+}
+
+ 
+
+
 /*
    Local variables:
    c-indentation-style: "K&R"
