@@ -648,18 +648,28 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 					 op == READ_OP ? ZNODE_READ_LOCK : ZNODE_WRITE_LOCK,
 					 CBK_UNIQUE);
 		if (result != CBK_COORD_FOUND) {
-			warning ("vs-280", "No file items found\n");
+			warning ("vs-280",
+				 "Looking for page %lu of file %lu (size %lli)."
+				 "No file items found (%d). "
+				 "Race with truncate?\n",
+				 page->index, file->f_dentry->d_inode->i_ino,
+				 result, file->f_dentry->d_inode->i_size);
+			done_lh (&lh);
 			break;
 		}
 
 		result = zload (coord.node);
-		if (result)
+		if (result) {
+			done_lh (&lh);
 			break;
+		}
 		
 		if (!coord_is_existing_unit (&coord)) {
 			/*
 			 * truncate stole a march of us
 			 */
+			zrelse (coord.node);
+			done_lh (&lh);
 			result = -EIO;
 			break;
 		}
