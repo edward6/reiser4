@@ -28,6 +28,7 @@ static reiserfs_master_super_t *reiserfs_super_fill_master(reiserfs_master_super
 
 int reiserfs_super_open(reiserfs_fs_t *fs) {
     aal_block_t *block;
+    int reiser3_emulation = 0;
     reiserfs_plugin_t *plugin;
     reiserfs_master_super_t *master;
 	
@@ -57,19 +58,18 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 
     /* Checking for reiser3 disk-format */
     if (aal_strncmp(master->mr_magic, REISERFS_MASTER_MAGIC, 4) != 0) {
-	unsigned int blocksize;
 	reiserfs_plugin_t *format36;
 		
 	if (!(format36 = reiserfs_plugin_find(REISERFS_FORMAT_PLUGIN, 0x2)))
 	    goto error_free_block;
 		
 	reiserfs_plugin_check_routine(format36->format, probe, goto error_free_block);
-	if (!(blocksize = format36->format.probe(fs->device)))
+	if (!format36->format.probe(fs->device))
 	    goto error_free_block;
 		
 	/* Forming in memory master super block for reiser3 */
-	reiserfs_super_fill_master(master, 0x2, blocksize, "", "");
-    }	
+	reiserfs_super_fill_master(master, 0x2, aal_device_blocksize(fs->device), "", "");
+    }
 	
     aal_memcpy(&fs->super->master, master, sizeof(*master));
 	

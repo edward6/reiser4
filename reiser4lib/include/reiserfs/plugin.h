@@ -120,7 +120,9 @@ struct reiserfs_format_plugin {
     reiserfs_format_opaque_t *(*open) (aal_device_t *);
     reiserfs_format_opaque_t *(*create) (aal_device_t *);
     void (*close) (reiserfs_format_opaque_t *, int);
-    unsigned int (*probe) (aal_device_t *device);
+    int (*check) (reiserfs_format_opaque_t *);
+
+    int (*probe) (aal_device_t *device);
     const char *(*format) (reiserfs_format_opaque_t *);
 
     blk_t (*root_block) (reiserfs_format_opaque_t *);

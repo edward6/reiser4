@@ -73,6 +73,10 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device) {
     return NULL;
 }
 
+static int reiserfs_format40_check(reiserfs_format40_t *format) {
+    return reiserfs_format40_super_check(format->super, super->device);
+}
+
 static void reiserfs_format40_close(reiserfs_format40_t *format, int sync) {
     if (sync && !aal_block_write(format->device, format->super)) {
 	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-024", 
@@ -82,15 +86,14 @@ static void reiserfs_format40_close(reiserfs_format40_t *format, int sync) {
     aal_free(format);
 }
 
-static unsigned int reiserfs_format40_probe(aal_device_t *device) {
+static int reiserfs_format40_probe(aal_device_t *device) {
     aal_block_t *block;
 
     if (!(block = reiserfs_format40_super_open(device)))
 	return 0;
 	
     aal_block_free(block);
-	
-    return REISERFS_DEFAULT_BLOCKSIZE;
+    return 1;
 }
 
 static const char *formats[] = {"4.0"};
@@ -128,7 +131,8 @@ reiserfs_plugin_t plugin_info = {
 	.open = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format40_open,
 	.create = (reiserfs_format_opaque_t *(*)(aal_device_t *))reiserfs_format40_create,
 	.close = (void (*)(reiserfs_format_opaque_t *, int))reiserfs_format40_close,
-	.probe = (unsigned int (*)(aal_device_t *))reiserfs_format40_probe,
+	.check = (int (*)(reiserfs_format_opaque_t *))reiserfs_format40_check,
+	.probe = (int (*)(aal_device_t *))reiserfs_format40_probe,
 	.format = (const char *(*)(reiserfs_format_opaque_t *))reiserfs_format40_format,
 	
 	.root_block = (blk_t (*)(reiserfs_format_opaque_t *))reiserfs_format40_root_block,
