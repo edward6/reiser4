@@ -542,6 +542,8 @@ static int find_relocatable_extent (struct inode * inode, coord_t * coord,
 	for (reloc_end = ext_width - 1;
 	     reloc_end >= 0 && *nr_reserved > 0; reloc_end --)
 	{
+		assert("zam-980", get_current_context()->grabbed_blocks >= *nr_reserved);
+
 		check = get_jnode_by_mapping(inode, reloc_end + ext_index);
 		if (IS_ERR(check))
 			return PTR_ERR(check);
@@ -579,32 +581,37 @@ static int find_and_relocate_end_of_extent (struct inode * inode, coord_t * coor
 	ret = find_relocatable_extent(inode, coord, nr_reserved, &len);
 	if (ret)
 		return ret;
+	if (len == 0) {
+		*done = 1;
+		return 0;
+	}
 
 	ret = relocate_extent(inode, coord, hint, done, &len);
 	if (ret)
 		return ret;
+
 	return (int)len;
 }
 
 /* process (relocate) unformatted nodes in backward direction: from the end of extent to the its start.  */
-int process_extent_backward_for_repacking (tap_t * tap, int max_nr_processed, reiser4_blocknr_hint * hint)
+int process_extent_backward_for_repacking (tap_t * tap, int * nr_reserved, reiser4_blocknr_hint * hint)
 {
 	coord_t * coord = tap->coord;
 	reiser4_extent *ext;
-	int nr_reserved = max_nr_processed;
 	struct inode * inode = NULL;
 	int done = 0;
 	int ret;
 
 
+	assert("zam-985", *nr_reserved > 0);
 	ext = extent_by_coord(coord);
 	if (state_of_extent(ext) == HOLE_EXTENT)
 		return 0;
 
 	ret = get_reiser4_inode_by_tap(&inode, tap);
 
-	while (!done && !ret)
-		ret = find_and_relocate_end_of_extent(inode, coord, &nr_reserved, hint, &done);
+	while (!done && (ret >= 0))
+		ret = find_and_relocate_end_of_extent(inode, coord, nr_reserved, hint, &done);
 
 	iput(inode);
 	return ret;
