@@ -106,30 +106,41 @@ int reiserfs_item_is_internal (reiserfs_item_t * item) {
 error_t reiserfs_item_estimate (reiserfs_coord_t *coord, reiserfs_item_info_t *item_info, 
     reiserfs_plugin_id_t id) 
 {
+    int insert = 0;
     reiserfs_plugin_id_t plugin_id;
 
+    aal_assert("vpf-106", item_info != NULL, return -1);
+    
+    /* If we specified coord, it must be initialized correctly. */
+    aal_assert("vpf-107", (coord == NULL || (coord->node != NULL && 
+	coord->item_pos >=0)), return -1);
+
+    /* If we want to memcpy we must specify the coord, where we want to do it into. */
+    aal_assert("vpf-112", (item_info->data == NULL || coord != NULL), return -1);
+    
+    if (coord == NULL || coord->unit_pos == -1 || coord->item_pos >= 
+	coord->node->plugin->node.item_count(coord->node))
+	insert = 1;
+
     if (item_info->plugin == NULL) {	
-	aal_assert ("vpf-073", (id != 0) || ((coord != NULL) && 
-	    (coord->node != NULL) && (coord->item_pos >= 0) && 
-	    (coord->item_pos < coord->node->plugin->node.item_count(coord->node))), 
-	    return -1);
-	    
-	if (coord == NULL) 
-	    plugin_id = id;
-	else {
-	    if (!(plugin_id = reiserfs_node_get_item_plugin_id (coord->node, 
-		coord->item_pos))) 
+	/* coord can be NULL or its node must specified */
+	
+	if (insert) {
+	    plugin_id = id; 
+	} else {
+	    if (!(plugin_id = reiserfs_node_get_item_plugin_id 
+		(coord->node, coord->item_pos))) 
 	    {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		    "Can't get plugin id of the item (%u) in the node (%llu).", 
-		    coord->item_pos, 
-		    aal_device_get_block_nr(coord->node->device, coord->node->block));
+		    coord->item_pos, aal_device_get_block_nr(coord->node->device, 
+		    coord->node->block));
 		return -1;
-	    }	    
+	    }
 	}
-	
+	    
 	if (!(item_info->plugin = reiserfs_plugins_find_by_coords
-		(REISERFS_ITEM_PLUGIN, plugin_id))) 
+	    (REISERFS_ITEM_PLUGIN, plugin_id))) 
 	{	
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't find internal item plugin by its identifier %x.", plugin_id);
@@ -137,9 +148,12 @@ error_t reiserfs_item_estimate (reiserfs_coord_t *coord, reiserfs_item_info_t *i
 	}
     }
 
-    reiserfs_check_method (item_info->plugin->item.common, estimate, return -1);    
+    if (item_info->data != NULL)
+	return 0;
+	
+    reiserfs_check_method(item_info->plugin->item.common, estimate, return -1);    
 
-    item_info->plugin->item.common.estimate(coord, item_info);  
+    item_info->plugin->item.common.estimate((insert ? NULL : coord), item_info);  
     
     return 0;
 }

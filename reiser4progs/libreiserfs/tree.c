@@ -157,6 +157,7 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     set_key_locality(&key, REISERFS_ROOT_DIRECTORY_LOCATION);
     set_key_objectid(&key, REISERFS_ROOT_DIRECTORY_OBJECTID);
 
+    reiserfs_init_item_info(&item_info);
     item_info.info = &internal_info;
     coord.node = &squeeze;
     coord.item_pos = 0;
@@ -195,7 +196,8 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     stat_info.extmask = 0;
     stat_info.mode = 2;
     stat_info.size = 0;
-    
+   
+    reiserfs_init_item_info(&item_info);
     item_info.info = &stat_info;
 
     /* Insert the stat data. */
@@ -215,6 +217,7 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
     set_key_locality(&key, REISERFS_ROOT_DIRECTORY_LOCATION);
     set_key_objectid(&key, REISERFS_ROOT_DIRECTORY_OBJECTID);
 
+    reiserfs_init_item_info(&item_info);
     item_info.info = &dir_info;
 
     coord.item_pos = 1;

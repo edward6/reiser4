@@ -296,11 +296,13 @@ static error_t reiserfs_node40_insert(reiserfs_coord_t *where, reiserfs_key_t *k
     return 0;
 }
 
+#define NODE40_ID 0x0
+
 static reiserfs_plugin_t node40_plugin = {
     .node = {
 	.h = {
 	    .handle = NULL,
-	    .id = 0x0,
+	    .id = NODE40_ID,
 	    .type = REISERFS_NODE_PLUGIN,
 	    .label = "node40",
 	    .desc = "Node for reiserfs 4.0, ver. 0.1, "

@@ -34,6 +34,7 @@ error_t reiserfs_node_create(reiserfs_node_t *node, aal_device_t *device,
     int no_node = 0;
     reiserfs_node_t *work_node;
     
+    /* node could be NULL */ 
     aal_assert("umka-121", device != NULL, return -1);
 
     if (node == NULL) {
@@ -287,10 +288,15 @@ void *reiserfs_node_item(reiserfs_node_t *node, uint32_t pos) {
 int reiserfs_node_insert_item(reiserfs_coord_t *coord, reiserfs_key_t *key, 
     reiserfs_item_info_t *item_info, reiserfs_plugin_id_t id) 
 {
+    aal_assert("vpf-108", coord != NULL, return -1);
+    aal_assert("vpf-109", key != NULL, return -1);
+    aal_assert("vpf-110", item_info != NULL, return -1);
+    aal_assert("vpf-111", coord->node != NULL, return -1);
+    
     reiserfs_check_method (coord->node->plugin->node, insert, return -1);
     
     /* Estimate the size and check the free space */
-    if (reiserfs_item_estimate ((id == 0 ? coord : NULL), item_info, id)) {
+    if (reiserfs_item_estimate (coord, item_info, id)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't estimate space that item being inserted will consume.");
 	return -1;
