@@ -150,6 +150,23 @@ fsize_to_count(reiser4_cluster_t * clust, struct inode * inode)
 	return off_to_count(inode->i_size, clust->index, inode);	
 }
 
+static inline int
+alloc_clust_pages(reiser4_cluster_t * clust, struct inode * inode )
+{
+	assert("edward-791", clust != NULL);
+	assert("edward-792", inode != NULL);
+	clust->pages = reiser4_kmalloc(sizeof(*clust->pages) << inode_cluster_shift(inode), GFP_KERNEL);
+	if (!clust->pages)
+		return -ENOMEM;
+	return 0;
+}
+
+static inline void
+free_clust_pages(reiser4_cluster_t * clust)
+{
+	reiser4_kfree(clust->pages);
+}
+
 #endif /* __FS_REISER4_CLUSTER_H__ */
 
 
