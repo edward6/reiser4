@@ -50,6 +50,8 @@ reiser4_fs_t *reiser4_fs_open(
     if (!(fs->format = reiser4_format_open(host_device, pid)))
 	goto error_free_master;
 
+    fs->format->fs = fs;
+    
     if (reiser4_format_valid(fs->format))
 	goto error_free_format;
     
@@ -107,7 +109,7 @@ reiser4_fs_t *reiser4_fs_open(
   
     if (reiser4_oid_valid(fs->oid))
 	goto error_free_oid;
-    
+
     /* Opens the tree starting from root block */
     if (!(fs->tree = reiser4_tree_open(fs)))
 	goto error_free_oid;
@@ -208,6 +210,8 @@ reiser4_fs_t *reiser4_fs_create(
     if (!(fs->format = reiser4_format_create(host_device, len, 
 	    profile->tail, profile->format)))
 	goto error_free_master;
+
+    fs->format->fs = fs;
 
     /* Creates block allocator */
     if (!(fs->alloc = reiser4_alloc_create(fs->format, len)))

@@ -153,7 +153,7 @@ typedef errno_t (*reiser4_action_func_t) (reiser4_entity_t *,
     blk_t, void *);
 
 typedef errno_t (*reiser4_layout_func_t) (reiser4_entity_t *, 
-    reiser4_action_func_t, void *);
+    reiser4_entity_t *, reiser4_action_func_t, void *);
 
 /* 
     Maximal possible key size. It is used for creating temporary keys by declaring 
@@ -841,6 +841,9 @@ struct reiser4_alloc_ops {
 
     /* Checks blocks allocator on validness */
     errno_t (*valid) (reiser4_entity_t *);
+
+    /* Returns the number of block described by one fs block */
+    count_t (*bpb) (reiser4_entity_t *);
 };
 
 typedef struct reiser4_alloc_ops reiser4_alloc_ops_t;

@@ -96,6 +96,7 @@ static reiser4_plugin_t alloc36_plugin = {
 	.used	    = NULL,
 
 	.valid	    = NULL,
+	.bpb	    = NULL
     }
 };
 

@@ -65,7 +65,8 @@ static uint32_t format40_get_stamp(reiser4_entity_t *entity) {
 
 /* This function describes journal layout in format40 */
 static errno_t format40_journal_layout(reiser4_entity_t *entity,
-    reiser4_action_func_t action_func, void *data)
+    reiser4_entity_t *journal, reiser4_action_func_t action_func, 
+    void *data)
 {
     blk_t blk;
     format40_t *format = (format40_t *)entity;
@@ -89,14 +90,25 @@ static errno_t format40_journal_layout(reiser4_entity_t *entity,
 #define FORMAT40_ALLOC (REISER4_MASTER_OFFSET + (4096 * 2))
 
 static errno_t format40_alloc_layout(reiser4_entity_t *entity,
-    reiser4_action_func_t action_func, void *data) 
+    reiser4_entity_t *alloc, reiser4_action_func_t action_func, 
+    void *data) 
 {
+    count_t bpb;
     blk_t blk, start;
     format40_t *format = (format40_t *)entity;
 	
     aal_assert("umka-347", entity != NULL, return -1);
+    aal_assert("umka-1136", alloc != NULL, return -1);
     aal_assert("umka-348", action_func != NULL, return -1);
 
+    if (!(bpb = plugin_call(return -1, alloc->plugin->alloc_ops,
+	bpb, alloc)))
+    {
+	aal_exception_error("Invalid block per block value has "
+	    "got from block allocator.");
+	return -1;
+    }
+    
     start = FORMAT40_ALLOC / aal_device_get_bs(format->device);
     
     for (blk = start; blk < format40_get_len(entity);) {	
@@ -104,15 +116,15 @@ static errno_t format40_alloc_layout(reiser4_entity_t *entity,
 	if (action_func((reiser4_entity_t *)format, blk, data))
 	    return -1;
 	
-	blk = (blk / (aal_device_get_bs(format->device) * 8) + 1) * 
-	    (aal_device_get_bs(format->device) * 8);
+	blk = (blk / bpb + 1) * bpb;
     }
     
     return 0;
 }
 
 static errno_t format40_skipped_layout(reiser4_entity_t *entity,
-    reiser4_action_func_t action_func, void *data) 
+    reiser4_entity_t *fake, reiser4_action_func_t action_func, 
+    void *data) 
 {
     blk_t blk, offset;
     format40_t *format = (format40_t *)entity;
@@ -131,7 +143,8 @@ static errno_t format40_skipped_layout(reiser4_entity_t *entity,
 }
 
 static errno_t format40_format_layout(reiser4_entity_t *entity,
-    reiser4_action_func_t action_func, void *data) 
+    reiser4_entity_t *fake, reiser4_action_func_t action_func, 
+    void *data) 
 {
     blk_t blk, offset;
     format40_t *format = (format40_t *)entity;
@@ -288,7 +301,7 @@ static reiser4_entity_t *format40_create(aal_device_t *device,
 
     /* Clobbering skipped area */
     if (format40_skipped_layout((reiser4_entity_t *)format, 
-        callback_clobber_block, NULL))
+        NULL, callback_clobber_block, NULL))
     {
 	aal_exception_error("Can't clobber skipped area.");
 	goto error_free_block;

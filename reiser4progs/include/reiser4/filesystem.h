@@ -169,6 +169,9 @@ struct reiser4_format {
 	initialization.
     */
     reiser4_entity_t *entity;
+
+    /* Filesystem reference */
+    reiser4_fs_t *fs;
 };
 
 typedef struct reiser4_format reiser4_format_t;
