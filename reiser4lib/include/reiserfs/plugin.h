@@ -176,7 +176,7 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
 extern reiserfs_plugin_t *reiserfs_plugin_load(const char *name, 
 	const char *point);
 
-reiserfs_plugin_t *reiserfs_plugin_find(reiserfs_plugin_type_t type, 
+extern reiserfs_plugin_t *reiserfs_plugin_find(reiserfs_plugin_type_t type, 
 	reiserfs_plugin_id_t id);
 
 extern void reiserfs_plugin_unload(reiserfs_plugin_t *plugin);

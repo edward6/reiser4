@@ -28,7 +28,6 @@ static reiserfs_master_super_t *reiserfs_super_fill_master(reiserfs_master_super
 
 int reiserfs_super_open(reiserfs_fs_t *fs) {
 	aal_block_t *block;
-	reiserfs_plugin_t *plugin;
 	reiserfs_master_super_t *master;
 	
 	ASSERT(fs != NULL, return 0);
@@ -58,6 +57,7 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 	/* Checking for reiser3 disk-format */
 	if (aal_strncmp(master->mr_magic, REISERFS_MASTER_MAGIC, 4) != 0) {
 		unsigned int blocksize;
+		reiserfs_plugin_t *plugin;
 		
 		if (!(plugin = reiserfs_plugin_find(REISERFS_FORMAT_PLUGIN, 0x2)))
 			goto error_free_block;
@@ -78,7 +78,7 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 		goto error_free_block;
 	}
 
-	if (!(plugin = reiserfs_plugin_find(REISERFS_FORMAT_PLUGIN, 
+	if (!(fs->super->plugin = reiserfs_plugin_find(REISERFS_FORMAT_PLUGIN, 
 		get_mr_format_id(master)))) 
 	{
 		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-020", 
@@ -88,12 +88,11 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 		goto error_free_block;
 	}
 	
-	if (!(fs->super->entity = plugin->format.init(fs->device))) {
+	if (!(fs->super->entity = fs->super->plugin->format.init(fs->device))) {
 		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-021", 
 			"Can't initialize disk-format plugin.");
 		goto error_free_block;
 	}	
-	fs->super->plugin = plugin;
 	aal_block_free(block);
 
 	return 1;
@@ -101,6 +100,7 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 error_free_block:
 	aal_block_free(block);
 error_free_super:
+	fs->super->plugin->format.done(fs->super->entity, 0);
 	aal_free(fs->super);
 	fs->super = NULL;
 error:
