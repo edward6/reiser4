@@ -19,7 +19,7 @@
 #include <linux/fs.h>		/* for struct super_block  */
 #include <asm/semaphore.h>
 
-/* 
+/*
 
    ZAM-FIXME-HANS: review whether there is code relating to the below not useful
    optimization that can be removed from the code base.  Complexity is slower.;-)
@@ -87,7 +87,7 @@ bnode_working_data(struct bnode *bnode)
 }
 
 static inline char *
-bnode_commit_data(struct bnode *bnode)
+bnode_commit_data(const struct bnode *bnode)
 {
 	char *data;
 
@@ -97,15 +97,26 @@ bnode_commit_data(struct bnode *bnode)
 	return data + CHECKSUM_SIZE;
 }
 
-static inline __u32 *
-bnode_commit_crc(struct bnode *bnode)
+static inline __u32
+bnode_commit_crc(const struct bnode *bnode)
 {
 	char *data;
 
 	data = jdata(bnode->cjnode);
 	assert("vpf-261", data != NULL);
 
-	return (__u32 *) data;
+	return d32tocpu((d32 *) data);
+}
+
+static inline void
+bnode_set_commit_crc(struct bnode *bnode, __u32 crc)
+{
+	char *data;
+
+	data = jdata(bnode->cjnode);
+	assert("vpf-261", data != NULL);
+
+	cputod32(crc, (d32 *) data);
 }
 
 /* ZAM-FIXME-HANS: is the idea that this might be a union someday? having written the code, does this added abstraction still have */
@@ -474,6 +485,43 @@ adler32(char *data, __u32 len)
 */
 
 static __u32
+bnode_calc_crc(const struct bnode *bnode)
+{
+	struct super_block *super;
+
+	super = jnode_get_tree(bnode->wjnode)->super;
+	return adler32(bnode_commit_data(bnode), bmap_size(super->s_blocksize));
+}
+
+#define REISER4_CHECK_BMAP_CRC (0)
+
+#if REISER4_CHECK_BMAP_CRC
+static int
+bnode_check_crc(const struct bnode *bnode)
+{
+	if (bnode_calc_crc(bnode) != bnode_commit_crc (bnode)) {
+		bmap_nr_t bmap;
+		struct super_block *super;
+
+		super = jnode_get_tree(bnode->wjnode)->super;
+		bmap = bnode - get_bnode(super, 0)
+
+		warning("vpf-263",
+			"Checksum for the bitmap block %llu is incorrect", bmap);
+		return RETERR(-EIO);
+	} else
+		return 0;
+}
+
+/* REISER4_CHECK_BMAP_CRC */
+#else
+
+#define bnode_check_crc(bnode) (0)
+
+/* REISER4_CHECK_BMAP_CRC */
+#endif
+
+static __u32
 adler32_recalc(__u32 adler, unsigned char old_data, unsigned char data, __u32 tail)
 {
 	__u32 delta = data - old_data + 2 * ADLER_BASE;
@@ -485,6 +533,7 @@ adler32_recalc(__u32 adler, unsigned char old_data, unsigned char data, __u32 ta
 
 	return (s2 << 16) | s1;
 }
+
 
 #define LIMIT(val, boundary) ((val) > (boundary) ? (boundary) : (val))
 
@@ -673,16 +722,17 @@ prepare_bnode(struct bnode *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 		goto error;
 	}
 
-	if (*(__u32 *)jdata(cjnode) != adler32(jdata(cjnode) + CHECKSUM_SIZE, 
-					       bmap_size(super->s_blocksize)))
-	{
+#if REISER4_CHECK_BMAP_CRC
+	/* we cannot use bnode_commit_crc() and bnode_calc_crc() here,
+	 * because bnode->{c,w}node are not yet set. */
+	if (d32tocpu((d32 *)jdata(cjnode)) != adler32(jdata(cjnode) + CHECKSUM_SIZE, bmap_size(super->s_blocksize))) {
 		warning("vpf-263", "Checksum for the bitmap block %llu is incorrect", bmap);
-		ret = -EINVAL;
+		ret = -EIO;
 		jrelse(cjnode);
 		jrelse(wjnode);
 		goto error;
 	}
-	
+#endif
 	return 0;
 	
  error:
@@ -1219,13 +1269,10 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 
 	data = bnode_commit_data(bnode);
 
-	if (__cpu_to_le32 (adler32 (bnode_commit_data(bnode), bmap_size(sb->s_blocksize))) != 
-	    *bnode_commit_crc (bnode))
-	{
-		warning("vpf-263", "Checksum for the bitmap block %llu is incorrect", bmap);
-		return -EINVAL;
-	}
-	
+	ret = bnode_check_crc(bnode);
+	if (ret != 0)
+		return ret;
+
 	if (len != NULL) {
 		/* FIXME-ZAM: a check that all bits are set should be there */
 		assert("zam-443", offset + *len <= bmap_bit_count(sb->s_blocksize));
@@ -1237,8 +1284,7 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 		(*blocks_freed_p)++;
 	}
 
-	*bnode_commit_crc(bnode) = __cpu_to_le32 (adler32(bnode_commit_data(bnode), 
-							  bmap_size(sb->s_blocksize)));
+	bnode_set_commit_crc(bnode, bnode_calc_crc(bnode));
 
 	release_and_unlock_bnode(bnode);
 
@@ -1281,6 +1327,8 @@ pre_commit_hook_bitmap(void)
 		node = capture_list_front(head);
 
 		while (!capture_list_end(head, node)) {
+			int ret;
+
 			assert("vs-1445", node->list == CLEAN_LIST);
 			JF_SET(node, JNODE_SCANNED);
 			spin_unlock(&scan_lock);
@@ -1290,9 +1338,11 @@ pre_commit_hook_bitmap(void)
 				bmap_nr_t bmap;
 
 				bmap_off_t offset;
+				bmap_off_t index;
 				struct bnode *bn;
 				__u32 size = bmap_size(super->s_blocksize);
 				char byte;
+				__u32 crc;
 
 				assert("zam-559", !JF_ISSET(node, JNODE_OVRWR));
 				assert("zam-460", !blocknr_is_fake(&node->blocknr));
@@ -1300,31 +1350,31 @@ pre_commit_hook_bitmap(void)
 				parse_blocknr(&node->blocknr, &bmap, &offset);
 				bn = get_bnode(super, bmap);
 
-				assert("vpf-276", offset / 8 < size);
+				index = offset >> 3;
+				assert("vpf-276", index < size);
 
-				if (*bnode_commit_crc(bn) != __cpu_to_le32 (adler32(bnode_commit_data(bn), size))) {
-					warning("vpf-262", "Checksum for the bitmap block %llu is incorrect", bmap);
-					return -EINVAL;
-				}
+				ret = bnode_check_crc(bnode);
+				if (ret != 0)
+					return ret;
 
 				check_bnode_loaded(bn);
 				load_and_lock_bnode(bn);
 
-				byte = *(bnode_commit_data(bn) + offset / 8);
+				byte = *(bnode_commit_data(bn) + index);
 				reiser4_set_bit(offset, bnode_commit_data(bn));
 
-				*bnode_commit_crc(bn) = 
-					__cpu_to_le32 (adler32_recalc(*bnode_commit_crc(bn), byte,
-								      *(bnode_commit_data(bn) + offset / 8),
-								      size - offset / 8));
+				crc = adler32_recalc(bnode_commit_crc(bn), byte,
+						     *(bnode_commit_data(bn) +
+						       index),
+						     size - index),
+
+				bnode_set_commit_crc(bn, crc);
 
 				release_and_unlock_bnode(bn);
 
-				if (*bnode_commit_crc(bn) != __cpu_to_le32 (adler32(bnode_commit_data(bn), size))) {
-					warning("vpf-275", "Checksum for the bitmap block %llu is incorrect", bmap);
-					return -EINVAL;
-					
-				}
+				ret = bnode_check_crc(bnode);
+				if (ret != 0)
+					return ret;
 
 				/* working of this depends on how it inserts
 				   new j-node into clean list, because we are
@@ -1379,11 +1429,14 @@ pre_commit_hook_bitmap(void)
 		while (!capture_list_end(head, node)) {
 			/* we detect freshly allocated jnodes */
 			if (JF_ISSET(node, JNODE_RELOC)) {
+				int ret;
 				bmap_nr_t bmap;
 
 				bmap_off_t offset;
+				bmap_off_t index;
 				struct bnode *bn;
 				__u32 size = bmap_size(super->s_blocksize);
+				__u32 crc;
 				char byte;
 
 				assert("zam-559", !JF_ISSET(node, JNODE_OVRWR));
@@ -1392,30 +1445,31 @@ pre_commit_hook_bitmap(void)
 				parse_blocknr(&node->blocknr, &bmap, &offset);
 				bn = get_bnode(super, bmap);
 
-				assert("vpf-276", offset / 8 < size);
+				index = offset >> 3;
+				assert("vpf-276", index < size);
 
-				if (*bnode_commit_crc(bn) != __cpu_to_le32 (adler32(bnode_commit_data(bn), size))) {
-					warning("vpf-262", "Checksum for the bitmap block %llu is incorrect", bmap);
-					return -EINVAL;
-				}
+				ret = bnode_check_crc(bnode);
+				if (ret != 0)
+					return ret;
 
 				check_bnode_loaded(bn);
 				load_and_lock_bnode(bn);
 
-				byte = *(bnode_commit_data(bn) + offset / 8);
+				byte = *(bnode_commit_data(bn) + index);
 				reiser4_set_bit(offset, bnode_commit_data(bn));
 
-				*bnode_commit_crc(bn) =
-				    __cpu_to_le32 (adler32_recalc(*bnode_commit_crc(bn), byte,
-								  *(bnode_commit_data(bn) + offset / 8), 
-								  size - offset / 8));
+				crc = adler32_recalc(bnode_commit_crc(bn), byte,
+						     *(bnode_commit_data(bn) +
+						       index),
+						     size - index),
+
+				bnode_set_commit_crc(bnode, crc);
 
 				release_and_unlock_bnode(bn);
 
-				if (*bnode_commit_crc(bn) != __cpu_to_le32 (adler32(bnode_commit_data(bn), size))) {
-					warning("vpf-275", "Checksum for the bitmap block %llu is incorrect", bmap);
-					return -EINVAL;
-				}
+				ret = bnode_check_crc(bnode);
+				if (ret != 0)
+					return ret;
 
 				/* working of this depends on how it inserts
 				   new j-node into clean list, because we are
