@@ -168,14 +168,10 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 }
 
 reiser4_internal lock_handle *
-znode_lh(znode *node, znode_lock_mode mode)
+znode_lh(znode *node)
 {
-	if (mode == ZNODE_WRITE_LOCK) {
-		assert("vs-1371", znode_is_write_locked(node));
-		assert("vs-1372", znode_is_wlocked_once(node));
-	} else
-		assert("vs-1371", znode_is_rlocked(node));
-		
+	assert("vs-1371", znode_is_write_locked(node));
+	assert("vs-1372", znode_is_wlocked_once(node));
 	return owners_list_front(&node->lock.owners);
 }
 

@@ -197,7 +197,7 @@ static int replace_end_of_extent (coord_t * coord, reiser4_block_nr end_part_sta
 			return ret;
 
 		ret =  replace_extent(
-			coord, znode_lh(coord->node, ZNODE_WRITE_LOCK), &key,
+			coord, znode_lh(coord->node), &key,
 			init_new_extent(&item, &new_ext, 1), &replace_ext, COPI_DONT_SHIFT_LEFT);
 
 		/* release grabbed space if it was not used. */

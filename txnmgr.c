@@ -1186,7 +1186,8 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	   point, commit should be successful. */
 	/* XXX why waiters are not waken up at atom stage change? --nikita */
 	(*atom)->stage = ASTAGE_PRE_COMMIT;
-	ON_DEBUG(((*atom)->committer = current, atomic_set(&((*atom)->coc_reloc), 0), atomic_set(&((*atom)->coc_ovrwr), 0)));
+	ON_DEBUG(((*atom)->committer = current,
+		  (*atom)->coc_reloc = (*atom)->coc_ovrwr = (*atom)->coc_nopage = (*atom)->coc_uber = (*atom)->coc_clean = 0));
 
 	ON_TRACE(TRACE_TXN, "commit atom %u: PRE_COMMIT\n", (*atom)->atom_id);
 	ON_TRACE(TRACE_FLUSH, "everything flushed atom %u: PRE_COMMIT\n", (*atom)->atom_id);
@@ -2717,7 +2718,6 @@ reiser4_internal void jnode_make_wander_nolock (jnode * node)
 
 	capture_list_remove_clean(node);
 	capture_list_push_back(&atom->ovrwr_nodes, node);
-	ON_DEBUG(if (jnode_is_leaf(node) && node->list != OVRWR_LIST) atom->ovrwr_leaves ++);
 	ON_DEBUG(node->list = OVRWR_LIST);
 	JF_SET(node, JNODE_OVRWR);
 }
@@ -3625,6 +3625,7 @@ copy_on_capture_clean(jnode *node, txn_atom *atom)
 		   UNLOCK_ATOM here */
 		jput(node);
 		reiser4_stat_inc(coc.ok_clean);
+		ON_DEBUG(atom->coc_clean ++);
 		return 0;
 	} else {
 		/* may be we should restart capture_copy rather then wait in capture_fuse_wait */
@@ -3660,10 +3661,13 @@ copy_on_capture_nopage(jnode *node, txn_atom *atom)
 	if (capturable(node, atom) && node->pg == 0) {
 		replace_on_capture_list(node, copy);
 		set_cced_bit(node, JNODE_CCED_NOPAGE);
-		if (znode_above_root(JZNODE(node)))
+		if (znode_above_root(JZNODE(node))) {
 			reiser4_stat_inc(coc.ok_uber);
-		else
+			ON_DEBUG(atom->coc_uber ++);
+		} else {
 			reiser4_stat_inc(coc.ok_nopage);
+			ON_DEBUG(atom->coc_nopage ++);
+		}
 		result = 0;
 	} else {
 		result = RETERR(-E_REPEAT);
@@ -3721,7 +3725,6 @@ real_copy_on_capture(jnode *node, txn_atom *atom)
 				to = kmap(new_page);
 				lock_page(page);
 				from = kmap(page);
-				check_coc(node, page);
 				LOCK_JNODE(node);
 				spin_lock(&scan_lock);
 				if (capturable(node, atom)) {
@@ -3735,6 +3738,8 @@ real_copy_on_capture(jnode *node, txn_atom *atom)
 							    - put_overwrite_set
 							    will not jrelse
 							    it */
+					check_coc(node, page);
+
 					was_jloaded = JF_ISSET(node, JNODE_JLOADED_BY_GET_OVERWRITE_SET);
 					
 					replace_page_in_mapping(node, new_page);
@@ -3745,10 +3750,12 @@ real_copy_on_capture(jnode *node, txn_atom *atom)
 						set_cced_bit(node, JNODE_CCED_RELOC);
 						JF_SET(node, JNODE_CCED_RELOC);
 						reiser4_stat_inc(coc.ok_reloc);
+						ON_DEBUG(atom->coc_reloc ++);
 					} else if (JF_ISSET(copy, JNODE_OVRWR)) {
 						set_cced_bit(node, JNODE_CCED_OVRWR);
 						JF_SET(node, JNODE_CCED_OVRWR);
 						reiser4_stat_inc(coc.ok_ovrwr);
+						ON_DEBUG(atom->coc_ovrwr ++);
 					} else
 						impossible("", "");
 
@@ -3772,7 +3779,6 @@ real_copy_on_capture(jnode *node, txn_atom *atom)
 					} else
 						kunmap(new_page);
 					
-					ON_DEBUG(atomic_inc(&atom->coc_ovrwr));
 					jput(copy);
 					jrelse(node);
 					jput(node);
@@ -3945,7 +3951,6 @@ reiser4_internal void uncapture_block(jnode * node)
 #endif
 
 	capture_list_remove_clean(node);
-	ON_DEBUG(if (node->list == OVRWR_LIST && jnode_is_leaf(node)) atom->ovrwr_leaves --);
 	ON_DEBUG(node->list = NOT_CAPTURED);
 	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 		assert("zam-925", atom_isopen(atom));

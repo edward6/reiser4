@@ -353,9 +353,11 @@ struct txn_atom {
 #if REISER4_DEBUG
 	/* number of flush queues for this atom. */
 	void *committer;
-	atomic_t coc_reloc;
-	atomic_t coc_ovrwr;
-	int ovrwr_leaves;
+	int coc_reloc;
+	int coc_ovrwr;
+	int coc_nopage;
+	int coc_clean;
+	int coc_uber;
 #endif
 };
 

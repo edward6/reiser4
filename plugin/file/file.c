@@ -1114,7 +1114,6 @@ static int capture_anonymous_pages(struct address_space * mapping)
 		return result;
 	}
 
-
 	if (nr >= CAPTURE_APAGE_BURST)
 		redirty_inode(mapping->host);
 

@@ -386,7 +386,7 @@ split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
 		 extent_get_start(&append_ext), extent_get_width(&append_ext));
 	
 	grabbed = reserve_replace();
-	result = replace_extent(coord, znode_lh(coord->node, ZNODE_WRITE_LOCK), &key, init_new_extent(&item, &append_ext, 1),
+	result = replace_extent(coord, znode_lh(coord->node), &key, init_new_extent(&item, &append_ext, 1),
 				&replace_ext, COPI_DONT_SHIFT_LEFT);
 	free_replace_reserved(grabbed);
 	return result;
@@ -654,7 +654,7 @@ conv_extent(coord_t *coord, reiser4_extent *replace)
 		 extent_get_start(&padd_ext), extent_get_width(&padd_ext));
 
 	grabbed = reserve_replace();
-	result = replace_extent(coord, znode_lh(coord->node, ZNODE_WRITE_LOCK), &key, init_new_extent(&item, &padd_ext, 1),
+	result = replace_extent(coord, znode_lh(coord->node), &key, init_new_extent(&item, &padd_ext, 1),
 				replace, COPI_DONT_SHIFT_LEFT);
 
 	free_replace_reserved(grabbed);
