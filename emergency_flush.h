@@ -5,13 +5,13 @@
 #ifndef __EMERGENCY_FLUSH_H__
 #define __EMERGENCY_FLUSH_H__
 
-#define REISER4_USE_EFLUSH (1)
-
 
 /* this bit is set when inode gets first eflushed jnode (eflush_add()). It is cleared when last eflushed jnode is
    eunflushed (eflush_del()). It solely exists to prevent inodes having eflushed jnodes from being pruned
    (fs/inode.c:can_unuse()) */
 #define I_EFLUSH (256)
+
+extern spinlock_t eflushed_guard;
 
 #if REISER4_USE_EFLUSH
 
@@ -44,7 +44,6 @@ extern void eflush_del(jnode *node, int page_locked);
 int emergency_flush(struct page *page);
 int emergency_unflush(jnode *node);
 
-extern spinlock_t eflushed_guard;
 
 #else
 
