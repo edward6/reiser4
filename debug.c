@@ -185,8 +185,6 @@ reiser4_is_debugged(struct super_block *super, __u32 flag)
 	return get_super_private(super)->debug_flags & flag;
 }
 
-#if REISER4_STATS
-
 #define LEFT(p, buf) (PAGE_SIZE - (p - buf) - 1)
 
 typedef struct reiser4_stats_cnt {
@@ -196,7 +194,70 @@ typedef struct reiser4_stats_cnt {
 	const char    *format;
 } reiser4_stats_cnt;
 
-#define getat(ptr, offset) *(stat_cnt *)(((char *)(ptr)) + (offset))
+#define getat(type, ptr, offset) (*(type *)(((char *)(ptr)) + (offset)))
+
+#define DEFINE_STAT_CNT_0(aname, afield, atype, afmt, aproc)	\
+{							\
+	.kattr = {					\
+		.attr = {				\
+			.name = aname,			\
+			.mode = 0444 /* r--r--r-- */	\
+		},					\
+		.cookie = 0,				\
+		.show = aproc				\
+	},						\
+	.format = afmt "\n",				\
+	.offset = offsetof(atype, afield),		\
+	.size   = sizeof(((atype *)0)->afield)		\
+}
+
+#if REISER4_PROF
+
+void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now, 
+		     unsigned long swtch_mark)
+{
+	__u64 delta;
+
+	delta = now - then;
+	cnt->nr ++;
+	cnt->total += delta;
+	cnt->max = max(cnt->max, delta);
+	if (swtch_mark == nr_context_switches()) {
+		cnt->noswtch_nr ++;
+		cnt->noswtch_total += delta;
+		cnt->noswtch_max = max(cnt->noswtch_max, delta);
+	}
+}
+
+static ssize_t 
+show_prof_attr(struct super_block * s, reiser4_kattr * kattr, 
+	       void * opaque, char * buf)
+{
+	char *p;
+	reiser4_stats_cnt *cnt;
+	reiser4_prof_cnt   val;
+	(void)opaque;
+
+	cnt = container_of(kattr, reiser4_stats_cnt, kattr);
+	val = getat(reiser4_prof_cnt, &get_super_private(s)->prof, cnt->offset);
+	p = buf;
+	p += snprintf(p, LEFT(p, buf), "%llu %llu %llu %llu %llu %llu\n",
+		      val.nr, val.total, val.max,
+		      val.noswtch_nr, val.noswtch_total, val.noswtch_max);
+	return (p - buf);
+}
+
+#define DEFINE_PROF_CNT(field)						\
+	DEFINE_STAT_CNT_0("prof." #field, 				\
+			  field, reiser4_prof, "", show_prof_attr)
+
+reiser4_stats_cnt reiser4_prof_defs[] = {
+	DEFINE_PROF_CNT(jload),
+	DEFINE_PROF_CNT(carry)
+};
+#endif
+
+#if REISER4_STATS
 
 static ssize_t 
 show_stat_attr(struct super_block * s, reiser4_kattr * kattr, 
@@ -204,13 +265,14 @@ show_stat_attr(struct super_block * s, reiser4_kattr * kattr,
 {
 	char *p;
 	reiser4_stats_cnt *cnt;
+	stat_cnt val;
 
 	(void)opaque;
 
 	cnt = container_of(kattr, reiser4_stats_cnt, kattr);
+	val = getat(stat_cnt, &get_super_private(s)->stats, cnt->offset);
 	p = buf;
-	p += snprintf(p, LEFT(p, buf), cnt->format, 
-		      getat(&get_super_private(s)->stats, cnt->offset));
+	p += snprintf(p, LEFT(p, buf), cnt->format, val);
 	return (p - buf);
 }
 
@@ -220,34 +282,20 @@ show_stat_level_attr(struct super_block * s, reiser4_kattr * kattr,
 {
 	char *p;
 	reiser4_stats_cnt *cnt;
+	stat_cnt val;
 	int level;
 
 	level = *(int *)da;
 	cnt = container_of(kattr, reiser4_stats_cnt, kattr);
+	val = getat(stat_cnt, &get_super_private(s)->stats.level[level],
+		    cnt->offset);
 	p = buf;
-	p += snprintf(p, LEFT(p, buf), cnt->format, 
-		      getat(&get_super_private(s)->stats.level[level], 
-			    cnt->offset));
+	p += snprintf(p, LEFT(p, buf), cnt->format, val);
 	return (p - buf);
 }
 
-#define DEFINE_STAT_CNT_0(field, type, fmt, proc)	\
-{							\
-	.kattr = {					\
-		.attr = {				\
-			.name = #field,			\
-			.mode = 0444 /* r--r--r-- */	\
-		},					\
-		.cookie = 0,				\
-		.show = proc				\
-	},						\
-	.format = fmt "\n",				\
-	.offset = offsetof(type, field),		\
-	.size   = sizeof(((type *)0)->field)		\
-}
-
 #define DEFINE_STAT_CNT(field)						\
-	DEFINE_STAT_CNT_0(field, reiser4_stat, "%lu", show_stat_attr)
+	DEFINE_STAT_CNT_0(#field, field, reiser4_stat, "%lu", show_stat_attr)
 
 reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STAT_CNT(tree.cbk),
@@ -355,8 +403,9 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STAT_CNT(stack_size_max)
 };
 
-#define DEFINE_STAT_LEVEL_CNT(field)				\
-	DEFINE_STAT_CNT_0(field, reiser4_level_stat, "%lu", show_stat_level_attr)
+#define DEFINE_STAT_LEVEL_CNT(field)						\
+	DEFINE_STAT_CNT_0(#field, field, 					\
+			  reiser4_level_stat, "%lu", show_stat_level_attr)
 
 reiser4_stats_cnt reiser4_stat_level_defs[] = {
 	DEFINE_STAT_LEVEL_CNT(carry_restart),
@@ -408,13 +457,11 @@ reiser4_stats_cnt reiser4_stat_level_defs[] = {
 	DEFINE_STAT_LEVEL_CNT(total_hits_at_level)
 };
 
-#define getat(ptr, offset) *(stat_cnt *)(((char *)(ptr)) + (offset))
-
 static void
 print_cnt(reiser4_stats_cnt * cnt, const char * prefix, void * base)
 {
 	info("%s%s:\t ", prefix, cnt->kattr.attr.name);
-	info(cnt->format, getat(base, cnt->offset));
+	info(cnt->format, getat(stat_cnt, base, cnt->offset));
 }
 
 /* Print statistical data accumulated so far. */
@@ -449,6 +496,12 @@ reiser4_populate_kattr_dir(struct kobject * kobj)
 	for(i = 0 ; i < sizeof_array(reiser4_stat_defs) && !result ; ++ i)
 		result = sysfs_create_file(kobj,
 					  &reiser4_stat_defs[i].kattr.attr);
+
+#if REISER4_PROF
+	for(i = 0 ; i < sizeof_array(reiser4_prof_defs) && !result ; ++ i)
+		result = sysfs_create_file(kobj,
+					  &reiser4_prof_defs[i].kattr.attr);
+#endif
 	if (result != 0)
 		warning("nikita-2920", "Failed to add sysfs attr: %i, %i",
 			result, i);

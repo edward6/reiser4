@@ -315,6 +315,61 @@ extern __u32 reiser4_current_trace_flags;
 /* print output only if appropriate trace flag(s) is on */
 #define trace_on( f, ... )   trace_if( f, info( __VA_ARGS__ ) )
 
+/* profiling. This is i386, rdtsc-based profiling. */
+#if (defined(__i386__) || defined(CONFIG_USERMODE))
+#define REISER4_PROF (1)
+#else
+#define REISER4_PROF (0)
+#endif
+
+#if REISER4_PROF
+/* include from asm-i386 directly to work under UML/i386 */
+#include <asm-i386/msr.h>
+
+typedef struct reiser4_prof_cnt {
+	__u64 nr;
+	__u64 total;
+	__u64 max;
+	__u64 noswtch_nr;
+	__u64 noswtch_total;
+	__u64 noswtch_max;
+} reiser4_prof_cnt;
+
+typedef struct reiser4_prof {
+	reiser4_prof_cnt jload;
+	reiser4_prof_cnt carry;
+} reiser4_prof;
+
+extern unsigned long nr_context_switches(void);
+extern void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now, 
+			    unsigned long swtch_mark);
+
+#define PROF_BEGIN(aname)							\
+	unsigned long __swtch_mark__ ## aname = nr_context_switches();		\
+	__u64 __prof_cnt__ ## aname = ({ __u64 __tmp_prof ;			\
+			      		rdtscll(__tmp_prof) ; __tmp_prof; })
+
+#define PROF_END(aname, acnt)							\
+({										\
+	__u64 __prof_end;							\
+	reiser4_prof *prf;							\
+										\
+	rdtscll(__prof_end);							\
+	prf = &get_super_private_nocheck(reiser4_get_current_sb()) -> prof;	\
+	update_prof_cnt(&prf->acnt, __prof_cnt__ ## aname, __prof_end,		\
+			__swtch_mark__ ## aname);				\
+})
+
+#else
+
+typedef struct reiser4_prof_cnt {} reiser4_prof_cnt;
+typedef struct reiser4_prof {} reiser4_prof;
+
+#define PROF_BEGIN(aname) noop
+#define PROF_END(aname, acnt) noop
+
+#endif
+
 #if REISER4_STATS
 
 /* following macros update counters from &reiser4_stat below, which
