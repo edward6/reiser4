@@ -168,6 +168,7 @@ struct reiser4_inode {
 
 	/* list of unformatted jnodes eflushed from this object */
 	struct list_head eflushed_jnodes;
+	struct list_head anon_jnodes;
 
 	jnode inode_jnode; /* this is to capture inode */
 
