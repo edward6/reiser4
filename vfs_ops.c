@@ -2005,6 +2005,13 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	trace_on( TRACE_BUG, "released: %li, %lu\n",
 		  page -> mapping -> host -> i_ino, page -> index );
 	page_cache_release( page );
+	if ( atomic_read( &node -> x_count ) == 0 && jnode_is_unformatted(node)) {
+		__REISER4_ENTRY( page -> mapping -> host -> i_sb, );
+		spin_lock_tree(current_tree);
+		jdrop( node);
+		spin_unlock_tree(current_tree);
+		__REISER4_EXIT( &__context );
+	}
 	/*
 	 * return with page still locked. shrink_cache() expects this.
 	 */

@@ -645,7 +645,7 @@ void jput (jnode *node)
 
 	/*trace_on (TRACE_FLUSH, "del_x_ref: %p: %d\n", node, atomic_read (& node->x_count));*/
 	if (atomic_dec_and_test (& node->x_count)) {
-		if (JF_ISSET (node, JNODE_HEARD_BANSHEE)) {
+		if (JF_ISSET (node, JNODE_HEARD_BANSHEE) || (!jnode_page(node) && jnode_is_unformatted (node))  ) {
 			jdelete (node);
 		}
 	}
