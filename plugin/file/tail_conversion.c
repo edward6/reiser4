@@ -264,6 +264,8 @@ int tail2extent (struct inode * inode)
 	drop_nonexclusive_access (inode);
 	get_exclusive_access (inode);
 
+	xmemset (pages, 0, sizeof (pages));
+
 	if (inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN) &&
 	    !inode_get_flag (inode, REISER4_HAS_TAIL)) {
 		/* tail was converted by someone else */
@@ -283,7 +285,8 @@ int tail2extent (struct inode * inode)
 
 	done = 0;
 	while (!done) {
-		memset (pages, 0, sizeof (pages));
+		drop_pages (pages, sizeof_array (pages));
+		xmemset (pages, 0, sizeof (pages));
 		for (i = 0; i < sizeof_array (pages) && !done; i ++) {
 			assert ("vs-598",
 				(get_key_offset (&key) & ~PAGE_CACHE_MASK) == 0);
