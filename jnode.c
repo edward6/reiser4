@@ -434,30 +434,6 @@ jlookup(reiser4_tree * tree, oid_t objectid, unsigned long index)
 	return node;
 }
 
-/* as jlookup(), but is called with tree locked already */
-static jnode *
-jlookup_locked(reiser4_tree * tree, oid_t objectid, unsigned long index)
-{
-	jnode_key_t jkey;
-	jnode *node;
-
-	assert("nikita-2353", tree != NULL);
-
-	jkey.objectid = objectid;
-	jkey.index = index;
-
-	node = j_hash_find(&tree->jhash_table, &jkey);
-	if (node != NULL) {
-		/* protect @node from recycling */
-		jref(node);
-		if (unlikely(JF_ISSET(node, JNODE_RIP))) {
-			dec_x_ref(node);
-			node = NULL;
-		}
-	}
-	return node;
-}
-
 /* per inode radix tree of jnodes is protected by tree's read write spin lock */
 static jnode *
 jfind_nolock(struct address_space *mapping, unsigned long index)
