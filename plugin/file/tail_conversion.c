@@ -100,6 +100,8 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 	char * p_data;
 	unsigned i;
 	int to_page;
+	seal_t seal;
+	lw_coord_t lw_coord = {&seal, &coord};
 
 
 	assert ("vs-604", ergo (item_plugin_id(iplug) == TAIL_ID, 
@@ -132,8 +134,6 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 				       WRITE_OP, &f);
 
 		while (f.length) {
-			znode * loaded;
-
 			result = find_next_item (0, &f.key, &coord, &lh, 
 						 ZNODE_WRITE_LOCK,
 						 CBK_UNIQUE | CBK_FOR_INSERT);
@@ -141,18 +141,20 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 			    result != CBK_COORD_FOUND) {
 				goto done;
 			}
-			loaded = coord.node;
-			result = zload (loaded);
+
+			assert ("vs-957", ergo (result == CBK_COORD_NOTFOUND,
+						get_key_offset (&f.key) == 0));
+			assert ("vs-958", ergo (result == CBK_COORD_FOUND,
+						get_key_offset (&f.key) != 0));
+
+			seal_init (&seal, &coord, &f.key);
+			done_lh (&lh);
+
+			result = iplug->s.file.write (inode, &lw_coord, &f,
+						      pages [i]);
 			if (result)
 				goto done;
 			
-			result = iplug->s.file.write (inode, &coord, &lh, &f,
-						      pages [i]);
-			/* item's write method may return -EAGAIN */
-			zrelse (loaded);
-			if (result && result != -EAGAIN)
-				goto done;
-			result = 0;
 		}
 
 		if (p_data != NULL)
@@ -278,7 +280,7 @@ int tail2extent (struct inode * inode)
 	coord_t coord;
 	lock_handle lh;	
 	reiser4_key key;     /* key of next byte to be moved to page */
-	reiser4_key tmp;     /* used for sanity check */
+	reiser4_key tmp;
 	struct page * page;
 	char * p_data;       /* data of page */
 	unsigned page_off,   /* offset within the page where to copy data */
@@ -562,7 +564,11 @@ int extent2tail (struct file * file)
 			break;
 		}
 		/* release page, detach jnode if any */
-		page -> mapping -> a_ops -> invalidatepage( page, 0 );
+		if (PagePrivate (page)) {
+			page -> mapping -> a_ops -> invalidatepage( page, 0 );
+		}
+		clear_page_dirty(page);
+		ClearPageUptodate(page);
 		remove_from_page_cache (page);
 		unlock_page (page);
 		page_cache_release (page);		
