@@ -343,6 +343,7 @@ extern __u32 reiser4_current_trace_flags;
 #define reiser4_stat_vfs_calls_add( stat ) ST_INC_CNT( vfs_calls . stat )
 #define reiser4_stat_file_add( stat ) ST_INC_CNT( file . stat )
 #define reiser4_stat_extent_add( stat ) ST_INC_CNT( extent . stat )
+#define reiser4_stat_tail_add( stat ) ST_INC_CNT( extent . stat )
 #define reiser4_stat_flush_add( stat ) ST_INC_CNT( flush . stat )
 #define reiser4_stat_flush_add_few( stat, cnt ) ST_ADD_CNT( flush . stat, cnt )
 #define reiser4_stat_pool_add( stat ) ST_INC_CNT( pool. stat )
@@ -612,6 +613,13 @@ typedef struct reiser4_statistics {
 		*/
 		stat_cnt bdp_caused_repeats;
 	} extent;
+	struct { /* stats on tail items */		
+		/* tail_write calls balance_dirty_pages after every call to insert_flow. Before that it seals node it
+		   currently holds and uses seal_validate to lock it again. This field stores how many times
+		   balance_dirty_pages broke that seal and caused to repease search tree traversal
+		*/
+		stat_cnt bdp_caused_repeats;		
+	} tail;
 	struct {
 		/* how many nodes were squeezed to left neighbor completely */
 		stat_cnt squeezed_completely;

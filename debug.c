@@ -297,6 +297,8 @@ reiser4_print_stats()
 	     s->extent.unfm_block_reads, 
 	     s->extent.broken_seals,
 	     s->extent.bdp_caused_repeats);
+	info("tail:\n"
+	     "\t repeats due to balance_dirty_pages:\t%lu\n", s->tail.bdp_caused_repeats);
 
 	info("flush:\n"
 	     "\t flush:\t %lu\n"

@@ -8,10 +8,12 @@
 #include "../plugin.h"
 #include "../../znode.h"
 #include "../../tree.h"
+#include "../../super.h"
 
 #include <linux/fs.h>		/* for struct inode */
 #include <linux/quotaops.h>
 #include <asm/uaccess.h>
+#include <linux/writeback.h>
 
 /* plugin->u.item.b.max_key_inside */
 /* Audited by: green(2002.06.14) */
@@ -347,6 +349,24 @@ overwrite_tail(coord_t * coord, flow_t * f)
 	return 0;
 }
 
+/* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
+   therefore we have to update stat data if necessary */
+static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t *f, coord_t *coord, lock_handle *lh)
+{
+	int result;
+	struct sealed_coord hint;
+
+	set_hint(&hint, &f->key, coord);
+	done_lh(lh);
+	coord->node = 0;
+	result = update_sd_if_necessary(mapping->host, f);
+	if (result)
+		return result;
+
+	balance_dirty_pages(mapping);
+	return hint_validate(&hint, &f->key, coord, lh);
+}
+
 /* plugin->u.item.s.file.write
    access to data stored in tails goes directly through formatted nodes */
 int
@@ -396,6 +416,13 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 
 		}
 		zrelse(loaded);
+
+		/* throttle the writer */
+		result = tail_balance_dirty_pages(inode->i_mapping, f, coord, lh);
+		if (result) {
+			reiser4_stat_tail_add(bdp_caused_repeats);
+			break;
+		}		
 	}
 
 	return result;
