@@ -309,7 +309,9 @@ txnmgr_init_static(void)
 
 	ON_DEBUG(atomic_set(&flush_cnt, 0));
 
-	_atom_slab = kmem_cache_create("txn_atom", sizeof (txn_atom), 0, SLAB_HWCACHE_ALIGN, NULL, NULL);
+	_atom_slab = kmem_cache_create("txn_atom", sizeof (txn_atom), 0,
+				       SLAB_HWCACHE_ALIGN|SLAB_RECLAIM_ACCOUNT,
+				       NULL, NULL);
 
 	if (_atom_slab == NULL) {
 		goto error;

@@ -202,7 +202,9 @@ int znode_shift_order;
 int
 znodes_init()
 {
-	znode_slab = kmem_cache_create("znode", sizeof (znode), 0, SLAB_HWCACHE_ALIGN, NULL, NULL);
+	znode_slab = kmem_cache_create("znode", sizeof (znode), 0,
+				       SLAB_HWCACHE_ALIGN|SLAB_RECLAIM_ACCOUNT,
+				       NULL, NULL);
 	if (znode_slab == NULL) {
 		return RETERR(-ENOMEM);
 	} else {

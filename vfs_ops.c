@@ -238,7 +238,7 @@ int init_dentry_fsdata(void)
 	dentry_fsdata_slab = kmem_cache_create("dentry_fsdata",
 					       sizeof (reiser4_dentry_fsdata),
 					       0,
-					       SLAB_HWCACHE_ALIGN,
+					       SLAB_HWCACHE_ALIGN|SLAB_RECLAIM_ACCOUNT,
 					       NULL,
 					       NULL);
 	return (dentry_fsdata_slab == NULL) ? RETERR(-ENOMEM) : 0;
@@ -295,7 +295,7 @@ int init_file_fsdata(void)
 	file_fsdata_slab = kmem_cache_create("file_fsdata",
 					     sizeof (reiser4_file_fsdata),
 					     0,
-					     SLAB_HWCACHE_ALIGN,
+					     SLAB_HWCACHE_ALIGN|SLAB_RECLAIM_ACCOUNT,
 					     NULL,
 					     NULL);
 	return (file_fsdata_slab == NULL) ? RETERR(-ENOMEM) : 0;
@@ -394,7 +394,11 @@ int
 init_inodecache(void)
 {
 	inode_cache = kmem_cache_create("reiser4_inode",
-					sizeof (reiser4_inode_object), 0, SLAB_HWCACHE_ALIGN, init_once, NULL);
+					sizeof (reiser4_inode_object),
+					0,
+					SLAB_HWCACHE_ALIGN|SLAB_RECLAIM_ACCOUNT,
+					init_once,
+					NULL);
 	return (inode_cache != NULL) ? 0 : RETERR(-ENOMEM);
 }
 

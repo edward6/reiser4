@@ -219,7 +219,9 @@ jnode_init_static(void)
 {
 	assert("umka-168", _jnode_slab == NULL);
 
-	_jnode_slab = kmem_cache_create("jnode", sizeof (jnode), 0, SLAB_HWCACHE_ALIGN, NULL, NULL);
+	_jnode_slab = kmem_cache_create("jnode", sizeof (jnode), 0,
+					SLAB_HWCACHE_ALIGN|SLAB_RECLAIM_ACCOUNT,
+					NULL, NULL);
 
 	if (_jnode_slab == NULL) {
 		goto error;
