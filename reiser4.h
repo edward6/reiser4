@@ -231,6 +231,7 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "znode.h"
 #include "tree.h"
 #include "slum.h"
+#include "bitmap.h"
 #include "block_alloc.h"
 #include "tree_walk.h"
 #include "pool.h"

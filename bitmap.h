@@ -1,5 +1,8 @@
 /* Copyright 2002, Hans Reiser */
 
+#if !defined (__FS__REISER4_BITMAP_H__)
+#define __FS_REISER4_BITMAP_H__
+
 /* Block allocation/deallocation are done through special bitmap objects which
  * are allocated in an array at fs mount. */
 struct reiser4_bnode {
@@ -15,3 +18,5 @@ extern int reiser4_bitmap_done_writeback (txn_atom*);
 
 extern int reiser4_init_bitmap ();
 extern void reiser4_done_bitmap ();
+
+#endif /* __FS_REISER4_BITMAP_H__ */
