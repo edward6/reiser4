@@ -1508,6 +1508,10 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	zrelse( node );
 }
 
+#if REISER4_USER_LEVEL_SIMULATION
+extern void tree_rec_dot( reiser4_tree *, znode *, __u32, FILE * );
+#endif
+
 /**
  * debugging aid: recursively print content of a @tree.
  */
@@ -1538,7 +1542,6 @@ void print_tree_rec (const char * prefix /* prefix to print */,
 	if( ! ( flags & REISER4_NODE_DONT_DOT ) ) {
 		char path[ 100 ];
 		FILE *dot;
-		extern void tree_rec_dot( reiser4_tree *, znode *, __u32, FILE * );
 
 		snprintf( path, sizeof path, "/tmp/%s.dot", prefix );
 		dot = fopen( path, "w+" );
@@ -1598,7 +1601,7 @@ void print_inode( const char *prefix /* prefix to print */,
 	 * FIXME-VS: this segfaults trying to print seal's coord
 	 */
 	print_seal( "\tsd_seal", &ref -> sd_seal );
-	coord_print( "\tsd_coord", &ref -> sd_coord, 1 );
+	coord_print( "\tsd_coord", &ref -> sd_coord, 0 );
 	info( "\tflags: %u, bytes: %llu, extmask: %llu, sd_len: %i, pmask: %i, locality: %llu\n",
 	      ref -> flags, ref -> bytes, ref -> extmask, 
 	      ( int ) ref -> sd_len, ref -> plugin_mask, ref -> locality_id );
