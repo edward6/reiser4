@@ -1168,7 +1168,7 @@ static int carry_insert_flow( carry_op *op, carry_level *doing, carry_level *tod
 			nplug -> change_item_size( insert_point, flow_insert_data( op ) -> length );
 			flow_insert_data( op ) -> iplug -> common.paste(
 				insert_point, flow_insert_data( op ), &info );
-			coord_init_after_item( insert_point );
+			coord_init_after_item_end( insert_point );
 		} else {
 			/* new item must be inserted */
 			pos_in_node new_pos;
@@ -1195,7 +1195,7 @@ static int carry_insert_flow( carry_op *op, carry_level *doing, carry_level *tod
 			nplug -> create_item( insert_point, &f -> key,
 					      flow_insert_data( op ), &info );
 			insert_point -> item_pos = new_pos;
-			coord_init_after_item( insert_point );
+			coord_init_after_item_end( insert_point );
 		}
 		doing -> restartable = 0;
 		znode_set_dirty( insert_point -> node );
@@ -1458,10 +1458,12 @@ static int can_paste( carry_op *op /* carry operation to check */,
 	} else
 		impossible( "nikita-2513", "Nothing works" );
 	if( result ) {
-		if( icoord -> between == BEFORE_ITEM )
+		if( icoord -> between == BEFORE_ITEM ) {
+			assert( "vs-912", icoord -> unit_pos == 0 );
 			icoord -> between = BEFORE_UNIT;
-		else if( icoord -> between == AFTER_ITEM )
-			icoord -> between = AFTER_UNIT;
+		} else if( icoord -> between == AFTER_ITEM ) {
+			coord_init_after_item_end( icoord );
+		}
 	}
 	return result;
 }
