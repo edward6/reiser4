@@ -23,14 +23,8 @@ struct slum_scan {
 	/* The current scan position. */
 	jnode    *node;
 
-#if 0
-	/* The current scan parent. */
-	znode    *parent;
-	/* Locks for the above two nodes. */
-	reiser4_lock_handle parent_lock;
-	/* The current coord of node in parent. */
-	tree_coord coord;
-#endif
+	/* Lock at the end of the scan, if formatted. */
+	reiser4_lock_handle node_lock;
 	
 	/* The current scan atom. */
 	txn_atom *atom;

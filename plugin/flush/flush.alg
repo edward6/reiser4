@@ -239,6 +239,24 @@ void allocate_and_squeeze_parent_first (jnode *node)
 ########################################################################
 ########################################################################
 
+########################################################################
+########################################################################
+
+Hans says:
+
+Relocate parent if leftmost child is also relocated
+
+Relocate if leftmost-child of parent.
+
+Ignore the "always relocate children if two children of a node are dirty"
+idea.
+
+Rather than scan left at the leaf level, why not jump to parent, check
+left-most child dirty, and stop?
+
+########################################################################
+########################################################################
+
 Dead pseudo code, older stuff:
 
 ########################################################################
