@@ -1,4 +1,4 @@
-# This file is a paty of libreiserfs
+# This file is a part of libreiserfs
 # Copyright (C) 1996 - 2002 Hans Reiser
 
 dnl Usage:
@@ -73,7 +73,7 @@ int main(){
 			$libreiserfs_config_major_version, 
 			$libreiserfs_config_minor_version,
 			$libreiserfs_config_micro_version);
-		printf("*** You can get it at - http://reiserfs.linux.kiev.ua\n");
+		printf("*** You can get it at - http://www.namesys.com\n");
 		return 1;
 	}
 }
@@ -91,3 +91,4 @@ dnl Execute ACTION-IF-FOUND
 $2
 
 ])
+

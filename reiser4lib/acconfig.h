@@ -13,5 +13,7 @@
 
 #undef ENABLE_COMPACT
 
+#undef ENABLE_MONOLITIC
+
 #undef ENABLE_DEBUG
 
