@@ -221,7 +221,8 @@ typedef enum {
 	   is_next_item_internal().
 	*/
 	CBK_TRUST_DK = (1 << 2),
-	CBK_READA    = (1 << 3)
+	CBK_READA    = (1 << 3),  /* original: readahead leaves which contain items of certain file */
+	CBK_READDIR_RA = (1 << 4) /* readdir: readahead whole directory and all its stat datas */
 } cbk_flags;
 
 /* insertion outcome. IBK = insert by key */
