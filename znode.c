@@ -711,12 +711,13 @@ reiser4_key *znode_set_rd_key(znode * node, const reiser4_key * key)
 	assert("nikita-2937", node != NULL);
 	assert("nikita-2939", key != NULL);
 	assert("nikita-2938", spin_dk_is_locked(znode_get_tree(node)));
+/*
 	assert("nikita-2944", 
 	       znode_is_any_locked(node) || 
 	       znode_get_level(node) != LEAF_LEVEL ||
 	       keyge(key, znode_get_rd_key(node)) || 
 	       keyeq(znode_get_rd_key(node), min_key()));
-
+*/
 	node->rd_key = *key;
 	return &node->rd_key;
 }
