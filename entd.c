@@ -384,19 +384,12 @@ wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 		/*
 		 * if memory pressure is low, do nothing
 		 */
-#if 0
-		if (page_zone(page)->pressure < (DEF_PRIORITY - 3) << 10) {
+		if (page_zone(page)->pressure < 3 << 10) {
 			reiser4_stat_inc(wff.low_priority);
 			result = 1;
 			break;
 		}
-#else
-		if (wbc->priority > DEF_PRIORITY - 3) {
-			reiser4_stat_inc(wff.low_priority);
-			result = 1;
-			break;
-		}
-#endif
+
 		/*
 		 * we don't want to apply usual wait-for-flush logic in
 		 * ->writepage() if current thread is ent or, more generally,
