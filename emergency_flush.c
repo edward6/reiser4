@@ -580,26 +580,18 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		info = reiser4_inode_data(inode);
 
 		check_me("vs-1677",
-			 radix_tree_insert(&info->ef_jnodes, index_jnode(node), node) == 0);
+			 radix_tree_insert(ef_jnode_tree_by_reiser4_inode(info),
+					   index_jnode(node), node) == 0);
 		if (!ef->hadatom) {
-			radix_tree_tag_set(&info->ef_jnodes, index_jnode(node), EFLUSH_TAG_ANONYMOUS);
+			radix_tree_tag_set(ef_jnode_tree_by_reiser4_inode(info),
+					   index_jnode(node), EFLUSH_TAG_ANONYMOUS);
 			ON_DEBUG(info->anonymous_eflushed ++);
 		} else {			
-			radix_tree_tag_set(&info->ef_jnodes, index_jnode(node), EFLUSH_TAG_CAPTURED);
+			radix_tree_tag_set(ef_jnode_tree_by_reiser4_inode(info),
+					   index_jnode(node), EFLUSH_TAG_CAPTURED);
 			ON_DEBUG(info->captured_eflushed ++);
 		}
 		radix_tree_preload_end();
-#if 0
-		ON_DEBUG(++ info->eflushed);
-		assert("zam-1039", info->eflushed_anon >= 0);
-		if (!ef->hadatom) {
-			++ info->eflushed_anon;
-			list_add(&ef->inode_anon_link, &info->anon_jnodes);
-		}
-
-		/* add eflush node to inode's list */
-		list_add(&ef->inode_link, &info->eflushed_jnodes);
-#endif
 
 		/* this is to make inode not freeable */
 		inode->i_state |= I_EFLUSH;
@@ -697,9 +689,14 @@ static void eflush_free (jnode * node)
 		info = reiser4_inode_data(inode);
 
 		/* removed eflushed jnode to reiser4_inode's radix tree */
-		radix_tree_delete(&info->ef_jnodes, index_jnode(node));
+		radix_tree_delete(ef_jnode_tree_by_reiser4_inode(info), index_jnode(node));
 		ON_DEBUG(ef->hadatom ? (info->captured_eflushed --) : (info->anonymous_eflushed --));
 
+		if (ef_jnode_tree_by_reiser4_inode(info)->rnode == NULL) {
+			assert("nikita-3355", 
+			       (info->captured_eflushed == 0 && info->anonymous_eflushed == 0));
+			inode->i_state &= ~I_EFLUSH;
+		}
 #if 0
 		assert("vs-1194", info->eflushed > 0);
 		ON_DEBUG(-- info->eflushed);
@@ -741,58 +738,61 @@ static void eflush_free (jnode * node)
 
 reiser4_internal void eflush_del (jnode * node, int page_locked)
 {
-	struct page * page;
+        struct page * page;
 
-	assert("nikita-2743", node != NULL);
-	assert("nikita-2770", spin_jnode_is_locked(node));
+        assert("nikita-2743", node != NULL);
+        assert("nikita-2770", spin_jnode_is_locked(node));
 
-	if (!JF_ISSET(node, JNODE_EFLUSH)) 
-		return;
+        if (!JF_ISSET(node, JNODE_EFLUSH))
+                return;
 
-	if (page_locked) {
-		page = jnode_page(node);
-		assert("nikita-2806", page != NULL);
-		assert("nikita-2807", PageLocked(page));
-	} else {
-		UNLOCK_JNODE(node);
-		page = jnode_get_page_locked(node, GFP_NOFS);
-		LOCK_JNODE(node);
-		if (page == NULL) {
-			warning ("zam-1025", "eflush_del failed to get page back\n");
-			return;
-		}
-		if (unlikely(!JF_ISSET(node, JNODE_EFLUSH)))
-			/* race: some other thread unflushed jnode. */
-			goto out;
-	}
+        if (page_locked) {
+                page = jnode_page(node);
+                assert("nikita-2806", page != NULL);
+                assert("nikita-2807", PageLocked(page));
+        } else {
+                UNLOCK_JNODE(node);
+                page = jnode_get_page_locked(node, GFP_NOFS);
+                LOCK_JNODE(node);
+                if (page == NULL) {
+                        warning ("zam-1025", "eflush_del failed to get page back\n");
+                        return;
+                }
+                if (unlikely(!JF_ISSET(node, JNODE_EFLUSH)))
+                        /* race: some other thread unflushed jnode. */
+                        goto out;
+        }
 
-	if (PageWriteback(page)) {
-		UNLOCK_JNODE(node);
-		page_cache_get(page);
-		reiser4_wait_page_writeback(page);
-		page_cache_release(page);
-		LOCK_JNODE(node);
-		if (unlikely(!JF_ISSET(node, JNODE_EFLUSH)))
-			/* race: some other thread unflushed jnode. */
-			goto out;
-	}
+        if (PageWriteback(page)) {
+                UNLOCK_JNODE(node);
+                page_cache_get(page);
+                reiser4_wait_page_writeback(page);
+                page_cache_release(page);
+                LOCK_JNODE(node);
+                if (unlikely(!JF_ISSET(node, JNODE_EFLUSH)))
+                        /* race: some other thread unflushed jnode. */
+                        goto out;
+        }
 
-	/*
-	 * either jnode was dirty or page was dirtied through mmap. Page's dirty
-	 * bit was cleared before io was submitted. If page is left clean, we
-	 * would have dirty jnode with clean page. Neither ->writepage() nor
-	 * ->releasepage() can free it. Re-dirty page, so ->writepage() will be
-	 * called again if necessary.
-	 */
-	set_page_dirty_internal(page);
+	if (JF_ISSET(node, JNODE_KEEPME))
+		set_page_dirty(page);
+	else
+		/*
+		 * either jnode was dirty or page was dirtied through mmap. Page's dirty
+		 * bit was cleared before io was submitted. If page is left clean, we
+		 * would have dirty jnode with clean page. Neither ->writepage() nor
+		 * ->releasepage() can free it. Re-dirty page, so ->writepage() will be
+		 * called again if necessary.
+		 */
+		set_page_dirty_internal(page);
 
-	assert("nikita-2766", atomic_read(&node->x_count) > 1);
-	/* release allocated disk block and in-memory structures  */
-	eflush_free(node);
-	JF_CLR(node, JNODE_EFLUSH);
+        assert("nikita-2766", atomic_read(&node->x_count) > 1);
+        /* release allocated disk block and in-memory structures  */
+        eflush_free(node);
+        JF_CLR(node, JNODE_EFLUSH);
  out:
-	if (!page_locked)
-		unlock_page(page);
+        if (!page_locked)
+                unlock_page(page);
 }
 
 reiser4_internal int
