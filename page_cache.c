@@ -312,6 +312,7 @@ int page_io( struct page *page, int rw, int gfp )
 	assert( "nikita-2412", PagePrivate( page ) && jprivate( page ) );
 	node = jprivate( page );
 	jnode_ops( node ) -> io_hook( node, page, rw );
+
 	bio = page_bio( page, rw, gfp );
 	if( !IS_ERR( bio ) ) {
 		if( rw == WRITE ) {
@@ -404,7 +405,8 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 
 	assert( "vs-828", PageLocked( page ) );
 
-	node = jget (current_tree, page);
+	node = jfind( page );
+	assert( "nikita-2419", node != NULL );
 
 	unlock_page( page );
 
