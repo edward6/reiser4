@@ -436,7 +436,12 @@ page_io(struct page *page /* page to perform io for */ ,
 			SetPageWriteback(page);
 			reiser4_unlock_page(page);
 		}
-		reiser4_submit_bio(rw, bio);
+		if ( rw == WRITE && reiser4_get_current_sb()->s_flags & MS_RDONLY ) {
+			ClearPageWriteback(page);
+			bio_put(bio);
+		} else {
+			reiser4_submit_bio(rw, bio);
+		}
 		result = 0;
 	} else
 		result = PTR_ERR(bio);

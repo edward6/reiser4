@@ -1551,6 +1551,23 @@ done_reiser4(void)
 	shutdown_reiser4();
 }
 
+void reiser4_handle_error(void)
+{
+	struct super_block *sb = reiser4_get_current_sb();
+
+	if ( !sb )
+		return;
+
+/* FIXME-GREEN, need to implement this as mount options
+	if ( get_super_private(sb)->some_var_holding_mount_options ) {
+		reiser4_panic("", "Filesystem error occured\n");
+	} else */ { 
+		if ( sb->s_flags & MS_RDONLY )
+			return;
+		sb->s_flags |= MS_RDONLY;
+	}
+}
+
 module_init(init_reiser4);
 module_exit(done_reiser4);
 

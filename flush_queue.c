@@ -203,7 +203,8 @@ wait_io(flush_queue_t * fq, int *nr_io_errors)
 		assert("nikita-3013", schedulable());
 
 		blk_run_queues();
-		down(&fq->sema);
+		if ( !(reiser4_get_current_sb()->s_flags & MS_RDONLY) ) 
+			down(&fq->sema);
 
 		/* Ask the caller to re-aquire the locks and call this
 		   function again. Note: this technique is commonly used in
@@ -261,6 +262,7 @@ finish_all_fq(txn_atom * atom, int *nr_io_errors)
 
 			if (ret) {
 				fq_put(fq);
+				reiser4_handle_error();
 				return ret;
 			}
 

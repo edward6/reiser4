@@ -684,8 +684,20 @@ jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flus
 			bio->bi_size = super->s_blocksize * nr_used;
 			bio->bi_vcnt = nr_used;
 
-			add_fq_to_bio(fq, bio);
-			reiser4_submit_bio(WRITE, bio);
+			/* Check if we are allowed to write at all */
+			if ( super->s_flags & MS_RDONLY ) {
+				int i;
+				for ( i = 0; i < nr_used ; i++) {
+					struct page *pg = bio->bi_io_vec[i].bv_page;
+					ClearPageWriteback(pg);
+					JF_CLR((jnode *)pg->private, JNODE_WRITEBACK);
+					JF_SET((jnode *)pg->private, JNODE_DIRTY);
+				}
+				bio_put(bio);
+			} else {
+				add_fq_to_bio(fq, bio);
+				reiser4_submit_bio(WRITE, bio);
+			}
 
 			block += nr_used - 1;
 			update_blocknr_hint_default (super, &block);
