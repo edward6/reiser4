@@ -980,6 +980,14 @@ commit_txnh (txn_handle *txnh)
 					trace_on (TRACE_TXN, "try_commit atom repeat\n");
 					ret = 0;
 				}
+
+				/* This place have a potential to become
+				   CPU-eating dead-loop, so I've inserted
+				   schedule() here, so that other processes
+				   might have a chance to run. */
+				assert( "green-15", lock_counters() -> spin_locked == 0 );
+
+				cond_resched();
 				goto again;
 			}
 		}
