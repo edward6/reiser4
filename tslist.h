@@ -389,7 +389,7 @@ typedef struct { int foo; } PREFIX##_dummy_decl
 
 /* The final typedef is to allow a semicolon at the end of TS_LIST_DEFINE(); */
 
-#endif /* __REISER4_TSLIST_H__ */
+#endif				/* __REISER4_TSLIST_H__ */
 
 /*
  * Local variables:

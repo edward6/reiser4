@@ -12,10 +12,10 @@
 #include "../../forward.h"
 #include "../../kassign.h"
 
-#include <linux/types.h> /* for __u??  */
-#include <linux/fs.h> /* for struct file  */
+#include <linux/types.h>	/* for __u??  */
+#include <linux/fs.h>		/* for struct file  */
 
-extern void directory_readahead( struct inode *dir, coord_t *coord );
+extern void directory_readahead(struct inode *dir, coord_t * coord);
 
 /** logical position within directory */
 typedef struct {
@@ -38,12 +38,12 @@ typedef struct {
 	 * logical number of directory entry within
 	 * directory 
 	 */
-	__u64   entry_no;
+	__u64 entry_no;
 } readdir_pos;
 
-extern void adjust_dir_file( struct inode *dir, const coord_t *coord,
-			     int offset, int adj );
-extern int dir_readdir_init( struct file *f, tap_t *tap, readdir_pos **pos );
+extern void adjust_dir_file(struct inode *dir, const coord_t * coord,
+			    int offset, int adj);
+extern int dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos);
 
 /** 
  * description of directory entry being created/destroyed/sought for
@@ -62,16 +62,16 @@ struct reiser4_dir_entry_desc {
 	/*
 	 * key of directory entry
 	 */
-	reiser4_key   key;
+	reiser4_key key;
 	/*
 	 * object bound by this entry.
 	 */
 	struct inode *obj;
 };
 
-int is_name_acceptable( const struct inode *inode, const char *name UNUSED_ARG, 
-			int len );
-int is_dir_empty( const struct inode *dir );
+int is_name_acceptable(const struct inode *inode, const char *name UNUSED_ARG,
+		       int len);
+int is_dir_empty(const struct inode *dir);
 
 /* __REISER4_DIR_H__ */
 #endif

@@ -12,7 +12,7 @@
 #include "forward.h"
 #include "debug.h"
 
-#include <linux/types.h> /* for __u??  */
+#include <linux/types.h>	/* for __u??  */
 
 /* Operations on keys in reiserfs tree */
 
@@ -31,13 +31,13 @@ typedef enum {
 	/** file name */
 	KEY_FILE_NAME_MINOR = 0,
 	/** stat-data */
-	KEY_SD_MINOR        = 1,
+	KEY_SD_MINOR = 1,
 	/** file attribute name */
-        KEY_ATTR_NAME_MINOR = 2,
+	KEY_ATTR_NAME_MINOR = 2,
 	/** file attribute value */
 	KEY_ATTR_BODY_MINOR = 3,
 	/** file body (tail or extent) */
-	KEY_BODY_MINOR      = 4,
+	KEY_BODY_MINOR = 4,
 } key_minor_locality;
 
 /* everything stored in the tree has a unique key, which means that
@@ -85,18 +85,18 @@ contents.
     is. */
 typedef enum {
 	/** major "locale", aka dirid. Sits in 1st element */
-	KEY_LOCALITY_INDEX   = 0,
+	KEY_LOCALITY_INDEX = 0,
 	/** minor "locale", aka item type. Sits in 1st element */
-	KEY_TYPE_INDEX       = 0,
+	KEY_TYPE_INDEX = 0,
 	/** "object band". Sits in 2nd element */
-	KEY_BAND_INDEX       = 1,
+	KEY_BAND_INDEX = 1,
 	/** objectid. Sits in 2nd element */
-	KEY_OBJECTID_INDEX   = 1,
+	KEY_OBJECTID_INDEX = 1,
 	/** Offset. Sits in 3rd element */
-	KEY_OFFSET_INDEX     = 2,
+	KEY_OFFSET_INDEX = 2,
 	/** Name hash. Sits in 3rd element */
-	KEY_HASH_INDEX       = 2,
-	KEY_LAST_INDEX       = 3
+	KEY_HASH_INDEX = 2,
+	KEY_LAST_INDEX = 3
 } reiser4_key_field_index;
 
 /** key in reiser4 internal "balanced" tree. It is just array of three
@@ -108,7 +108,7 @@ typedef enum {
     We declare this as union with second component dummy to suppress
     inconvenient array<->pointer casts implied in C. */
 union reiser4_key {
-	d64 el[ KEY_LAST_INDEX ];
+	d64 el[KEY_LAST_INDEX];
 	int pad;
 };
 
@@ -116,46 +116,46 @@ union reiser4_key {
     stored. */
 typedef enum {
 	/** major locality occupies higher 60 bits of the first element */
-	KEY_LOCALITY_MASK    = 0xfffffffffffffff0ull,
+	KEY_LOCALITY_MASK = 0xfffffffffffffff0ull,
 	/** minor locality occupies lower 4 bits of the first element */
-	KEY_TYPE_MASK        = 0xfull,
+	KEY_TYPE_MASK = 0xfull,
 	/** controversial band occupies higher 4 bits of the 2nd element */
-	KEY_BAND_MASK        = 0xf000000000000000ull,
+	KEY_BAND_MASK = 0xf000000000000000ull,
 	/** objectid occupies lower 60 bits of the 2nd element */
-	KEY_OBJECTID_MASK    = 0x0fffffffffffffffull,
+	KEY_OBJECTID_MASK = 0x0fffffffffffffffull,
 	/** offset is just 3rd L.M.Nt itself */
-	KEY_OFFSET_MASK      = 0xffffffffffffffffull,
+	KEY_OFFSET_MASK = 0xffffffffffffffffull,
 	/** hash occupies 56 higher bits of 3rd element */
-	KEY_HASH_MASK        = 0xffffffffffffff00ull,
+	KEY_HASH_MASK = 0xffffffffffffff00ull,
 	/** generation counter occupies lower 8 bits of 3rd element */
-	KEY_GEN_MASK         = 0xffull,
+	KEY_GEN_MASK = 0xffull,
 } reiser4_key_field_mask;
 
 /** how many bits key element should be shifted to left to get particular field */
 typedef enum {
-	KEY_LOCALITY_SHIFT   = 4,
-	KEY_TYPE_SHIFT       = 0,
-	KEY_BAND_SHIFT       = 60,
-	KEY_OBJECTID_SHIFT   = 0,
-	KEY_OFFSET_SHIFT     = 0,
-	KEY_HASH_SHIFT       = 8,
-	KEY_GEN_SHIFT        = 0,
+	KEY_LOCALITY_SHIFT = 4,
+	KEY_TYPE_SHIFT = 0,
+	KEY_BAND_SHIFT = 60,
+	KEY_OBJECTID_SHIFT = 0,
+	KEY_OFFSET_SHIFT = 0,
+	KEY_HASH_SHIFT = 8,
+	KEY_GEN_SHIFT = 0,
 } reiser4_key_field_shift;
 
-static inline __u64 get_key_el( const reiser4_key *key, 
-				reiser4_key_field_index off )
+static inline __u64
+get_key_el(const reiser4_key * key, reiser4_key_field_index off)
 {
-	assert( "nikita-753", key != NULL );
-	assert( "nikita-754", off < KEY_LAST_INDEX );
-	return d64tocpu( &key -> el[ off ] );
+	assert("nikita-753", key != NULL);
+	assert("nikita-754", off < KEY_LAST_INDEX);
+	return d64tocpu(&key->el[off]);
 }
 
-static inline void set_key_el( reiser4_key *key, 
-			       reiser4_key_field_index off, __u64 value )
+static inline void
+set_key_el(reiser4_key * key, reiser4_key_field_index off, __u64 value)
 {
-	assert( "nikita-755", key != NULL );
-	assert( "nikita-756", off < KEY_LAST_INDEX );
-	cputod64( value, &key -> el[ off ] );
+	assert("nikita-755", key != NULL);
+	assert("nikita-756", off < KEY_LAST_INDEX);
+	cputod64(value, &key->el[off]);
 }
 
 /** macro to define getter and setter functions for field F with type T */
@@ -193,39 +193,39 @@ static inline void set_key_ ## L ( reiser4_key *key, T loc )		\
 typedef __u64 oid_t;
 
 /* define get_key_locality(), set_key_locality() */
-DEFINE_KEY_FIELD( locality, LOCALITY, oid_t );
+DEFINE_KEY_FIELD(locality, LOCALITY, oid_t);
 /* define get_key_type(), set_key_type() */
-DEFINE_KEY_FIELD( type, TYPE, key_minor_locality );
+DEFINE_KEY_FIELD(type, TYPE, key_minor_locality);
 /* define get_key_band(), set_key_band() */
-DEFINE_KEY_FIELD( band, BAND, __u64 );
+DEFINE_KEY_FIELD(band, BAND, __u64);
 /* define get_key_objectid(), set_key_objectid() */
-DEFINE_KEY_FIELD( objectid, OBJECTID, oid_t );
+DEFINE_KEY_FIELD(objectid, OBJECTID, oid_t);
 /* define get_key_offset(), set_key_offset() */
-DEFINE_KEY_FIELD( offset, OFFSET, __u64 );
+DEFINE_KEY_FIELD(offset, OFFSET, __u64);
 /* define get_key_hash(), set_key_hash() */
-DEFINE_KEY_FIELD( hash, HASH, __u64 );
+DEFINE_KEY_FIELD(hash, HASH, __u64);
 
 /** key comparison result */
 typedef enum { LESS_THAN = -1,	/* if first key is less than second */
-	       EQUAL_TO = 0,	/* if keys are equal */
-	       GREATER_THAN = +1 /* if first key is greater than second */
+	EQUAL_TO = 0,		/* if keys are equal */
+	GREATER_THAN = +1	/* if first key is greater than second */
 } cmp_t;
 
-void key_init( reiser4_key *key );
+void key_init(reiser4_key * key);
 
 /** minimal possible key in the tree. Return pointer to the static storage. */
-extern const reiser4_key *min_key( void );
-extern const reiser4_key *max_key( void );
-extern cmp_t keycmp( const reiser4_key *k1, const reiser4_key *k2 );
-extern int   keyeq ( const reiser4_key *k1, const reiser4_key *k2 );
-extern int   keylt ( const reiser4_key *k1, const reiser4_key *k2 );
-extern int   keyle ( const reiser4_key *k1, const reiser4_key *k2 );
-extern int   keygt ( const reiser4_key *k1, const reiser4_key *k2 );
-extern int   keyge ( const reiser4_key *k1, const reiser4_key *k2 );
+extern const reiser4_key *min_key(void);
+extern const reiser4_key *max_key(void);
+extern cmp_t keycmp(const reiser4_key * k1, const reiser4_key * k2);
+extern int keyeq(const reiser4_key * k1, const reiser4_key * k2);
+extern int keylt(const reiser4_key * k1, const reiser4_key * k2);
+extern int keyle(const reiser4_key * k1, const reiser4_key * k2);
+extern int keygt(const reiser4_key * k1, const reiser4_key * k2);
+extern int keyge(const reiser4_key * k1, const reiser4_key * k2);
 
-extern int  sprintf_key( char *buffer, const reiser4_key *key );
+extern int sprintf_key(char *buffer, const reiser4_key * key);
 #if REISER4_DEBUG_OUTPUT
-extern void print_key( const char *prefix, const reiser4_key *key );
+extern void print_key(const char *prefix, const reiser4_key * key);
 #else
 #define print_key(p,k) noop
 #endif

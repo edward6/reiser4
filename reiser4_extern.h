@@ -10,12 +10,8 @@
 #if !defined( __REISER4_EXTERN_H__ )
 #define __REISER4_EXTERN_H__
 
-
-
-
 /* __REISER4_EXTERN_H__ */
 #endif
-
 
 /*
  * Make Linus happy.

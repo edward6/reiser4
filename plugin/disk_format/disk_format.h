@@ -6,9 +6,9 @@
  * plugins */
 
 #if !defined( __REISER4_DISK_FORMAT_H__ )
-#define __REISER4_DISK_FORMAT_H__ 
+#define __REISER4_DISK_FORMAT_H__
 
-typedef enum { 
+typedef enum {
 	/* standard reiser4 disk layout plugin id */
 	FORMAT40_ID,
 	TEST_FORMAT_ID,
@@ -17,5 +17,3 @@ typedef enum {
 
 /* __REISER4_DISK_FORMAT_H__ */
 #endif
-
-

@@ -23,7 +23,7 @@ reiser4 is working, then fix it...:-)
 #include "../../forward.h"
 #include "../../dformat.h"
 
-#include <linux/fs.h> /* for struct inode */
+#include <linux/fs.h>		/* for struct inode */
 
 /* Stat data layout: goals and implementation.  
 
@@ -60,26 +60,25 @@ NIKITA-FIXME-HANS: needs three more sentences to explain absent().
     Implementation is in fs/reiser4/plugin/item/static_stat.c
 */
 
-
 /** stat-data extension. Please order this by presumed frequency of use */
 typedef enum {
 	/** support for light-weight files */
 	LIGHT_WEIGHT_STAT,
 	/** data required to implement unix stat(2) call. Layout is in
 	    reiser4_unix_stat. If this is not present, file is light-weight */
-	UNIX_STAT, 
+	UNIX_STAT,
 	/* stat data has link name included */
 	SYMLINK_STAT,
 	/** if this is present, file is controlled by non-standard
 	    plugin (that is, plugin that cannot be deduced from file
 	    mode bits), for example, aggregation, interpolation etc. */
-	PLUGIN_STAT, 
+	PLUGIN_STAT,
 	/** this extension contains inode generation and persistent inode
 	    flags. Layout is in reiser4_gen_and_flags_stat */
-	GEN_AND_FLAGS_STAT, 
+	GEN_AND_FLAGS_STAT,
 	/** this extension contains capabilities sets, associated with this
 	    file. Layout is in reiser4_capabilities_stat */
-	CAPABILITIES_STAT, 
+	CAPABILITIES_STAT,
 	/** this contains additional set of 32bit [anc]time fields to
 	    implement 64bit times a la BSD. Layout is in
 	    reiser4_large_times_stat */
@@ -112,30 +111,38 @@ typedef struct reiser4_stat_data_base {
 typedef struct reiser4_light_weight_stat {
 	/*  0 */ d16 mode;
 	/*  2 */ d32 nlink;
-	/*  8 */ d64 size;	/* size in bytes */
+				/*  8 */ d64 size;
+				/* size in bytes */
 	/* 16 */
 } PACKED reiser4_light_weight_stat;
 
 typedef struct reiser4_unix_stat {
-	/*  0 */ d32 uid;	/* owner id */
-	/*  4 */ d32 gid;	/* group id */
-	/*  8 */ d32 atime;	/* access time */
-	/* 12 */ d32 mtime;	/* modification time */
-	/* 16 */ d32 ctime;	/* change time */
-	/* 20 */ d32 rdev;	/* minor:major for device files */
-	/* 24 */ d64 bytes;     /* bytes used by file */
+				/*  0 */ d32 uid;
+				/* owner id */
+				/*  4 */ d32 gid;
+				/* group id */
+				/*  8 */ d32 atime;
+				/* access time */
+				/* 12 */ d32 mtime;
+				/* modification time */
+				/* 16 */ d32 ctime;
+				/* change time */
+				/* 20 */ d32 rdev;
+				/* minor:major for device files */
+				/* 24 */ d64 bytes;
+				/* bytes used by file */
 	/* 32 */
 } PACKED reiser4_unix_stat;
 
 /** symlink stored as part of inode */
 typedef struct reiser4_symlink_stat {
-	char body[ 0 ];
+	char body[0];
 } PACKED reiser4_symlink_stat;
 
 typedef struct reiser4_plugin_slot {
 	/*  0 */ d16 type_id;
 	/*  2 */ d16 id;
-	/*  4 */ /* here plugin stores its persistent state */
+/*  4 *//* here plugin stores its persistent state */
 /* NIKITA-FIXME-HANS: what does that mean? */
 } PACKED reiser4_plugin_slot;
 
@@ -144,7 +151,7 @@ typedef struct reiser4_plugin_slot {
 typedef struct reiser4_plugin_stat {
 	/** number of additional plugins, associated with this object */
 	/*  0 */ d16 plugins_no;
-	/*  2 */ reiser4_plugin_slot slot[ 0 ];
+	/*  2 */ reiser4_plugin_slot slot[0];
 	/*  2 */
 } PACKED reiser4_plugin_stat;
 
@@ -161,9 +168,12 @@ typedef struct reiser4_capabilities_stat {
 } PACKED reiser4_capabilities_stat;
 
 typedef struct reiser4_large_times_stat {
-	/*  0 */ d32 atime;	/* access time */
-	/*  8 */ d32 mtime;	/* modification time */
-	/* 16 */ d32 ctime;	/* change time */
+				/*  0 */ d32 atime;
+				/* access time */
+				/*  8 */ d32 mtime;
+				/* modification time */
+				/* 16 */ d32 ctime;
+				/* change time */
 	/* 24 */
 } PACKED reiser4_large_times_stat;
 
@@ -175,13 +185,13 @@ typedef struct sd_stat {
 } sd_stat;
 
 /* plugin->item.common.* */
-extern void sd_print( const char *prefix, coord_t *coord );
-extern void sd_item_stat( const coord_t *coord, void *vp );
+extern void sd_print(const char *prefix, coord_t * coord);
+extern void sd_item_stat(const coord_t * coord, void *vp);
 
 /* plugin->item.s.sd.* */
-extern int sd_load( struct inode *inode, char *sd, int len );
-extern int sd_len( struct inode *inode );
-extern int sd_save( struct inode *inode, char **area );
+extern int sd_load(struct inode *inode, char *sd, int len);
+extern int sd_len(struct inode *inode);
+extern int sd_save(struct inode *inode, char **area);
 
 /* __FS_REISER4_PLUGIN_ITEM_STATIC_STAT_H__ */
 #endif

@@ -42,26 +42,24 @@
 #include "disk_format/test.h"
 #include "disk_format/disk_format.h"
 
-#include <linux/fs.h> /* for struct super_block, address_space  */
-#include <linux/mm.h> /* for struct page */
-#include <linux/buffer_head.h> /* for struct buffer_head */
-#include <linux/dcache.h> /* for struct dentry */
+#include <linux/fs.h>		/* for struct super_block, address_space  */
+#include <linux/mm.h>		/* for struct page */
+#include <linux/buffer_head.h>	/* for struct buffer_head */
+#include <linux/dcache.h>	/* for struct dentry */
 #include <linux/types.h>
 
 /* a flow is a sequence of bytes being written to or read from the tree.  The
    tree will slice the flow into items while storing it into nodes, but all of
    that is hidden from anything outside the tree.  */
 
-
 struct flow {
-	reiser4_key key;    /* key of start of flow's sequence of bytes */
-	size_t      length; /* length of flow's sequence of bytes */
-	char        *data;  /* start of flow's sequence of bytes */
-	int         user;   /* if 1 data is user space, 0 - kernel space */
+	reiser4_key key;	/* key of start of flow's sequence of bytes */
+	size_t length;		/* length of flow's sequence of bytes */
+	char *data;		/* start of flow's sequence of bytes */
+	int user;		/* if 1 data is user space, 0 - kernel space */
 };
 
-typedef ssize_t ( *rw_f_type )( struct file *file, flow_t *a_flow, loff_t *off );
-
+typedef ssize_t(*rw_f_type) (struct file * file, flow_t * a_flow, loff_t * off);
 
 /**
 
@@ -150,34 +148,34 @@ typedef ssize_t ( *rw_f_type )( struct file *file, flow_t *a_flow, loff_t *off )
  */
 
 typedef struct file_plugin {
-	
+
 	/** generic fields */
 	plugin_header h;
 /* reiser4 required file operations */
 
-	int (* write_flow)(flow_t * , /* buffer of data to write */
-		      reiser4_key *);
-	int (* read_flow)(flow_t * , /* buffer to hold data to be read */
-		     reiser4_key *);
+	int (*write_flow) (flow_t *,	/* buffer of data to write */
+			   reiser4_key *);
+	int (*read_flow) (flow_t *,	/* buffer to hold data to be read */
+			  reiser4_key *);
 /* VFS required/defined operations */
-	int ( *truncate )( struct inode *inode, loff_t size );
+	int (*truncate) (struct inode * inode, loff_t size);
 
 	/** save inode cached stat-data onto disk. It was called
 	    reiserfs_update_sd() in 3.x */
-	int ( *write_sd_by_inode)( struct inode *inode );
-	int ( *readpage )( struct file *file, struct page * );
-	int ( *writepage )( struct page * );
+	int (*write_sd_by_inode) (struct inode * inode);
+	int (*readpage) (struct file * file, struct page *);
+	int (*writepage) (struct page *);
 	/* these should be implemented using body_read_flow and body_write_flow
 	 * builtins */
-	ssize_t ( *read )( struct file *file, char *buf, size_t size, 
-			 loff_t *off );
-	ssize_t ( *write )( struct file *file, const char *buf, size_t size, 
-			 loff_t *off );
+	 ssize_t(*read) (struct file * file, char *buf, size_t size,
+			 loff_t * off);
+	 ssize_t(*write) (struct file * file, const char *buf, size_t size,
+			  loff_t * off);
 
-	int ( *release )( struct file *file );
-	int ( *mmap )( struct file *file, struct vm_area_struct *vma);
-	int ( *get_block )( struct inode *inode, sector_t block,
-			    struct buffer_head *bh_result, int create );
+	int (*release) (struct file * file);
+	int (*mmap) (struct file * file, struct vm_area_struct * vma);
+	int (*get_block) (struct inode * inode, sector_t block,
+			  struct buffer_head * bh_result, int create);
 /*
  * private methods: These are optional.  If used they will allow you to
  * minimize the amount of code needed to implement a deviation from some other
@@ -192,8 +190,8 @@ typedef struct file_plugin {
 	 * global implemenation, because key in a flow used by plugin may
 	 * depend on data in a @buf.
 	 */
-	int ( *flow_by_inode )( struct inode *, char *buf, int user,
-				size_t size, loff_t off, rw_op op, flow_t * );
+	int (*flow_by_inode) (struct inode *, char *buf, int user,
+			      size_t size, loff_t off, rw_op op, flow_t *);
 
 	/**
 	 * Return the key used to retrieve an offset of a file. It is used by
@@ -201,93 +199,90 @@ typedef struct file_plugin {
 	 * (common_build_flow()) and, among other things, to get to the extent
 	 * from jnode of unformatted node.
 	 */
-	int ( *key_by_inode )( struct inode *inode, loff_t off, 
-			       reiser4_key *key );
+	int (*key_by_inode) (struct inode * inode, loff_t off,
+			     reiser4_key * key);
 
 	/*
 	 * set the plugin for a file.  Called during file creation in creat()
 	 * but not reiser4() unless an inode already exists for the file.
 	 */
-	int ( *set_plug_in_inode )( struct inode *inode, struct inode *parent, 
-				    reiser4_object_create_data *data );
+	int (*set_plug_in_inode) (struct inode * inode, struct inode * parent,
+				  reiser4_object_create_data * data);
 
 	/**
 	 * set up plugins for new @object created in @parent. @root is root
 	 * directory.
 	 */
-	int ( *adjust_to_parent )( struct inode *object,
-				   struct inode *parent,
-				   struct inode *root );
+	int (*adjust_to_parent) (struct inode * object,
+				 struct inode * parent, struct inode * root);
 	/*
 	 * this does whatever is necessary to do when object is created. For
 	 * instance, for ordinary files stat data is inserted
 	 */
-	int ( *create )( struct inode *object, struct inode *parent,
-			 reiser4_object_create_data *data );
+	int (*create) (struct inode * object, struct inode * parent,
+		       reiser4_object_create_data * data);
 	/** 
 	 * delete empty object. This method should check REISER4_NO_SD
 	 * and set REISER4_NO_SD on success. Deletion of empty object
 	 * at least includes removal of stat-data if any. For directories this
 	 * also includes removal of dot and dot-dot.
 	 */
-	int ( *delete )( struct inode *object );
+	int (*delete) (struct inode * object);
 
 	/** add link from @parent to @object */
-	int ( *add_link )( struct inode *object, struct inode *parent );
+	int (*add_link) (struct inode * object, struct inode * parent);
 
 	/** remove link from @parent to @object */
-	int ( *rem_link )( struct inode *object, struct inode *parent );
+	int (*rem_link) (struct inode * object, struct inode * parent);
 
 	/** return true if item addressed by @coord belongs to @inode.
 	    This is used by read/write to properly slice flow into items
 	    in presence of multiple key assignment policies, because
 	    items of a file are not necessarily contiguous in a key space,
 	    for example, in a plan-b. */
-	int ( *owns_item )( const struct inode *inode,
-			    const coord_t *coord );
+	int (*owns_item) (const struct inode * inode, const coord_t * coord);
 
 	/** 
 	 * checks whether yet another hard links to this object can be
 	 * added 
 	 */
-	int ( *can_add_link )( const struct inode *inode );
+	int (*can_add_link) (const struct inode * inode);
 	/** 
 	 * checks whether hard links to this object can be removed
 	 */
-	int ( *can_rem_link )( const struct inode *inode );
+	int (*can_rem_link) (const struct inode * inode);
 	/**
 	 * true if there is only one link (aka name) for this file
 	 */
-	int ( *not_linked )( const struct inode *inode );
+	int (*not_linked) (const struct inode * inode);
 
 	/**
 	 * change inode attributes.
 	 */
-	int ( *setattr )( struct inode * inode, struct iattr * attr );
+	int (*setattr) (struct inode * inode, struct iattr * attr);
 
 	/**
 	 * obtain inode attributes
 	 */
-	int ( *getattr )( struct vfsmount *mnt UNUSED_ARG,
-			  struct dentry *dentry, struct kstat *stat );
+	int (*getattr) (struct vfsmount * mnt UNUSED_ARG,
+			struct dentry * dentry, struct kstat * stat);
 
 	/** seek */
-	loff_t ( *seek )( struct file *f, loff_t offset, int origin );
+	 loff_t(*seek) (struct file * f, loff_t offset, int origin);
 
 	/** called when @child was just looked up in the @parent */
-	int   ( *bind )( struct inode *child, struct inode *parent );
+	int (*bind) (struct inode * child, struct inode * parent);
 } file_plugin;
-
 
 typedef struct dir_plugin {
 	/** generic fields */
 	plugin_header h;
 	/* resolves one component of name_in, and returns the key that it
 	 * resolves to plus the remaining name */
-	int ( *resolve)(name_t * name_in, /* name within this directory that is to be found */
-			name_t * name_out, /* name remaining after the part of the name that was resolved is stripped from it */
+	int (*resolve) (name_t * name_in,	/* name within this directory that is to be found */
+			name_t * name_out,	/* name remaining after the part of the name that was resolved is stripped from it */
 			key_t key_found	/* key of what was named */
-			);
+	    );
 
 	/* for use by open call, based on name supplied will install
 	   appropriate plugin and state information, into the inode such that
@@ -295,12 +290,12 @@ typedef struct dir_plugin {
 	   operate in a manner appropriate.  Note that this may require storing
 	   some state for the plugin, and that this state might even include
 	   the name used by open.  */
-	int (*resolve_into_inode)(struct inode *parent_inode, 
-				  struct dentry *dentry );
+	int (*resolve_into_inode) (struct inode * parent_inode,
+				   struct dentry * dentry);
 	/* VFS required/defined operations below this line */
-	int ( *unlink )( struct inode *parent, struct dentry *victim );
-	int ( *link )( struct inode *parent, struct dentry *existing, 
-		       struct dentry *where );
+	int (*unlink) (struct inode * parent, struct dentry * victim);
+	int (*link) (struct inode * parent, struct dentry * existing,
+		     struct dentry * where);
 	/* sub-methods: These are optional.  If used they will allow you to
 	   minimize the amount of code needed to implement a deviation from
 	   some other method that uses them.  You could logically argue that
@@ -309,49 +304,50 @@ typedef struct dir_plugin {
 	/** check whether "name" is acceptable name to be inserted into
 	    this object. Optionally implemented by directory-like objects.
 	    Can check for maximal length, reserved symbols etc */
-	int ( *is_name_acceptable )( const struct inode *inode, 
-				     const char *name, int len );
+	int (*is_name_acceptable) (const struct inode * inode,
+				   const char *name, int len);
 
-	int ( *entry_key )( const struct inode *dir /* directory where entry
-						     * is (or will be) in.*/, 
-			    const struct qstr *name /* name of file referenced
-						     * by this entry */,
-			    reiser4_key *result /* resulting key of directory
+	int (*entry_key) (const struct inode * dir	/* directory where entry
+							 * is (or will be) in.*/ ,
+			  const struct qstr * name	/* name of file referenced
+							 * by this entry */ ,
+			  reiser4_key * result	/* resulting key of directory
 						 * entry */ );
-	int ( *readdir_key )( struct file *dir, reiser4_key *result );
-	int ( *add_entry )( struct inode *object, struct dentry *where, 
-			    reiser4_object_create_data *data, 
-			    reiser4_dir_entry_desc *entry );
+	int (*readdir_key) (struct file * dir, reiser4_key * result);
+	int (*add_entry) (struct inode * object, struct dentry * where,
+			  reiser4_object_create_data * data,
+			  reiser4_dir_entry_desc * entry);
 
-	int ( *rem_entry )( struct inode *object, 
-			    struct dentry *where, reiser4_dir_entry_desc *entry );
+	int (*rem_entry) (struct inode * object,
+			  struct dentry * where,
+			  reiser4_dir_entry_desc * entry);
 	/*
 	 * create new object described by @data and add it to the @parent
 	 * directory under the name described by @dentry
-	 */	   
-	int ( *create_child )( struct inode *parent, struct dentry *dentry, 
-			       reiser4_object_create_data *data );
+	 */
+	int (*create_child) (struct inode * parent, struct dentry * dentry,
+			     reiser4_object_create_data * data);
 	/**
 	 * rename object named by @old entry in @old_dir to be named by @new
 	 * entry in @new_dir
 	 */
-	int ( *rename )( struct inode *old_dir, struct dentry *old,
-			 struct inode *new_dir, struct dentry *new );
+	int (*rename) (struct inode * old_dir, struct dentry * old,
+		       struct inode * new_dir, struct dentry * new);
 
 	/** readdir implementation */
-	int ( *readdir )( struct file *f, void *cookie, filldir_t filldir );
+	int (*readdir) (struct file * f, void *cookie, filldir_t filldir);
 
 	/**
 	 * initialize directory structure for newly created object. For normal
 	 * unix directories, insert dot and dotdot.
 	 */
-	int ( *init )( struct inode *object, struct inode *parent,
-		       reiser4_object_create_data *data );
+	int (*init) (struct inode * object, struct inode * parent,
+		     reiser4_object_create_data * data);
 	/** destroy directory */
-	int ( *done )( struct inode *child );
+	int (*done) (struct inode * child);
 
 	/** called when @subdir was just looked up in the @dir */
-	int ( *attach )( struct inode *subdir, struct inode *dir );
+	int (*attach) (struct inode * subdir, struct inode * dir);
 } dir_plugin;
 
 typedef struct tail_plugin {
@@ -359,7 +355,7 @@ typedef struct tail_plugin {
 	plugin_header h;
 	/** returns non-zero iff file's tail has to be stored
 	    in a direct item. */
-	int ( *have_tail )( const struct inode *inode, loff_t size );
+	int (*have_tail) (const struct inode * inode, loff_t size);
 
 } tail_plugin;
 
@@ -367,18 +363,18 @@ typedef struct hash_plugin {
 	/** generic fields */
 	plugin_header h;
 	/** computes hash of the given name */
-	__u64 ( *hash ) ( const unsigned char *name, int len );
+	 __u64(*hash) (const unsigned char *name, int len);
 } hash_plugin;
 
 typedef struct sd_ext_plugin {
 	/** generic fields */
 	plugin_header h;
-	int ( *present ) ( struct inode *inode, char **area, int *len );
-	int ( *absent ) ( struct inode *inode );
-	int ( *save_len ) ( struct inode *inode );
-	int ( *save ) ( struct inode *inode, char **area );
+	int (*present) (struct inode * inode, char **area, int *len);
+	int (*absent) (struct inode * inode);
+	int (*save_len) (struct inode * inode);
+	int (*save) (struct inode * inode, char **area);
 #if REISER4_DEBUG_OUTPUT
-	void ( *print ) ( const char *prefix, char **area, int *len );
+	void (*print) (const char *prefix, char **area, int *len);
 #endif
 	/** alignment requirement for this stat-data part */
 	int alignment;
@@ -390,49 +386,50 @@ typedef struct sd_ext_plugin {
 typedef struct oid_allocator_plugin {
 	/** generic fields */
 	plugin_header h;
-	int ( *init_oid_allocator )( reiser4_oid_allocator *map, __u64 nr_files,
-				     __u64 oids );
-	/* used to report statfs->f_files */	
-	__u64 ( *oids_used )( reiser4_oid_allocator *map );
+	int (*init_oid_allocator) (reiser4_oid_allocator * map, __u64 nr_files,
+				   __u64 oids);
+	/* used to report statfs->f_files */
+	 __u64(*oids_used) (reiser4_oid_allocator * map);
 	/* get next oid to use */
-	__u64 ( *next_oid )( reiser4_oid_allocator *map );
+	 __u64(*next_oid) (reiser4_oid_allocator * map);
 	/* used to report statfs->f_ffree */
-	__u64 ( *oids_free )( reiser4_oid_allocator *map );
+	 __u64(*oids_free) (reiser4_oid_allocator * map);
 	/* allocate new objectid */
-	int ( *allocate_oid )( reiser4_oid_allocator *map, oid_t * );
+	int (*allocate_oid) (reiser4_oid_allocator * map, oid_t *);
 	/* release objectid */
-	int ( *release_oid )( reiser4_oid_allocator *map, oid_t );
+	int (*release_oid) (reiser4_oid_allocator * map, oid_t);
 	/* how many pages to reserve in transaction for allocation of new
 	   objectid */
-	int ( *oid_reserve_allocate )( reiser4_oid_allocator *map );
+	int (*oid_reserve_allocate) (reiser4_oid_allocator * map);
 	/* how many pages to reserve in transaction for freeing of an
 	   objectid */
-	int ( *oid_reserve_release )( reiser4_oid_allocator *map );
-	void ( *print_info )( const char *, reiser4_oid_allocator * );
+	int (*oid_reserve_release) (reiser4_oid_allocator * map);
+	void (*print_info) (const char *, reiser4_oid_allocator *);
 } oid_allocator_plugin;
 
 /* this plugin contains method to allocate and deallocate free space of disk */
 typedef struct space_allocator_plugin {
 	/** generic fields */
 	plugin_header h;
-	int ( *init_allocator )( reiser4_space_allocator *,
-				 struct super_block *, void * );
-	int ( *destroy_allocator )( reiser4_space_allocator *,
-				    struct super_block *);
-	int ( *alloc_blocks )( reiser4_space_allocator *,
-			       reiser4_blocknr_hint *, int needed,
-			       reiser4_block_nr *start, reiser4_block_nr *len );
-	void ( *dealloc_blocks )( reiser4_space_allocator *,
-				  reiser4_block_nr start, reiser4_block_nr len );
-#if REISER4_DEBUG	
-	void ( *check_blocks )( const reiser4_block_nr *, const reiser4_block_nr *, int);
+	int (*init_allocator) (reiser4_space_allocator *,
+			       struct super_block *, void *);
+	int (*destroy_allocator) (reiser4_space_allocator *,
+				  struct super_block *);
+	int (*alloc_blocks) (reiser4_space_allocator *,
+			     reiser4_blocknr_hint *, int needed,
+			     reiser4_block_nr * start, reiser4_block_nr * len);
+	void (*dealloc_blocks) (reiser4_space_allocator *,
+				reiser4_block_nr start, reiser4_block_nr len);
+#if REISER4_DEBUG
+	void (*check_blocks) (const reiser4_block_nr *,
+			      const reiser4_block_nr *, int);
 #endif
-	void ( *print_info )( const char *, reiser4_space_allocator * );
+	void (*print_info) (const char *, reiser4_space_allocator *);
 
 	/* program hooks from journal code */
-	void ( *pre_commit_hook      )( void );
-	void ( *post_commit_hook     )( void );
-	void ( *post_write_back_hook )( void );
+	void (*pre_commit_hook) (void);
+	void (*post_commit_hook) (void);
+	void (*post_write_back_hook) (void);
 } space_allocator_plugin;
 
 /* disk layout plugin: this specifies super block, journal, bitmap (if there
@@ -441,28 +438,27 @@ typedef struct disk_format_plugin {
 	/** generic fields */
 	plugin_header h;
 	/* replay journal, initialize super_info_data, etc */
-	int ( *get_ready )( struct super_block *, void * data);
+	int (*get_ready) (struct super_block *, void *data);
 
 	/* key of root directory stat data */
-	const reiser4_key * ( *root_dir_key )( const struct super_block * );
+	const reiser4_key *(*root_dir_key) (const struct super_block *);
 
-	int ( *release )( struct super_block * );
-	jnode * (*log_super)( struct super_block * );
-	void ( *print_info )( const struct super_block * );
+	int (*release) (struct super_block *);
+	jnode *(*log_super) (struct super_block *);
+	void (*print_info) (const struct super_block *);
 } disk_format_plugin;
 
 typedef struct jnode_plugin {
 	/** generic fields */
 	plugin_header h;
-	int                   ( *init )   ( jnode *node );
-	int                   ( *parse )  ( jnode *node );
-	int                   ( *is_busy ) ( const jnode *node );
-	int                   ( *remove ) ( jnode *node, reiser4_tree *tree );
-	int                   ( *delete ) ( jnode *node, reiser4_tree *tree );
-	struct address_space *( *mapping )( const jnode *node );
-	unsigned long         ( *index )  ( const jnode *node );
-	int                   ( *io_hook )( jnode *node, struct page *page,
-					    int rw );
+	int (*init) (jnode * node);
+	int (*parse) (jnode * node);
+	int (*is_busy) (const jnode * node);
+	int (*remove) (jnode * node, reiser4_tree * tree);
+	int (*delete) (jnode * node, reiser4_tree * tree);
+	struct address_space *(*mapping) (const jnode * node);
+	unsigned long (*index) (const jnode * node);
+	int (*io_hook) (jnode * node, struct page * page, int rw);
 } jnode_plugin;
 
 typedef enum {
@@ -488,36 +484,36 @@ typedef enum {
 /* allows to avoid type-casts.                                              */
 union reiser4_plugin {
 	/* generic fields */
-	plugin_header           h;
+	plugin_header h;
 	/** file plugin */
-	file_plugin             file;
+	file_plugin file;
 	/** directory plugin */
-	dir_plugin              dir;
+	dir_plugin dir;
 	/** hash plugin, used by directory plugin */
-	hash_plugin             hash;
+	hash_plugin hash;
 	/** tail plugin, used by file plugin */
-	tail_plugin             tail;
+	tail_plugin tail;
 	/** permission plugin */
-	perm_plugin             perm;
+	perm_plugin perm;
 	/** node plugin */
-	node_plugin             node;
+	node_plugin node;
 	/** item plugin */
-	item_plugin             item;
+	item_plugin item;
 	/** stat-data extension plugin */
-	sd_ext_plugin           sd_ext;
+	sd_ext_plugin sd_ext;
 	/** disk layout plugin */
-	disk_format_plugin      format;
+	disk_format_plugin format;
 	/** object id allocator plugin */
-	oid_allocator_plugin    oid_allocator;
+	oid_allocator_plugin oid_allocator;
 	/** disk space allocator plugin */
-	space_allocator_plugin  space_allocator;
+	space_allocator_plugin space_allocator;
 	/** plugin for different jnode types */
-	jnode_plugin            jnode;
+	jnode_plugin jnode;
 	/** 
 	 * place-holder for new plugin types that can be registered
 	 * dynamically, and used by other dynamically loaded plugins. 
 	 */
-	void                   *generic;
+	void *generic;
 };
 
 /** intra-syscall Repetitive Access Pattern. Use it when you are going to do
@@ -535,56 +531,52 @@ typedef struct inter_syscall_rap_t {
 
 struct reiser4_plugin_ops {
 	/** load given plugin from disk */
-	int ( *load )( struct inode *inode, reiser4_plugin *plugin,
-		       char **area, int *len );
+	int (*load) (struct inode * inode, reiser4_plugin * plugin,
+		     char **area, int *len);
 	/** how many space is required to store this plugin's state
 	    in stat-data */
-	int ( *save_len )( struct inode *inode, reiser4_plugin *plugin );
+	int (*save_len) (struct inode * inode, reiser4_plugin * plugin);
 	/** save persistent plugin-data to disk */
-	int ( *save )( struct inode *inode, reiser4_plugin *plugin, 
-		       char **area );
+	int (*save) (struct inode * inode, reiser4_plugin * plugin,
+		     char **area);
 	/** alignment requirement for on-disk state of this plugin
 	    in number of bytes */
 	int alignment;
 	/** install itself into given inode. This can return error
 	    (e.g., you cannot change hash of non-empty directory). */
-	int ( *change )( struct inode *inode, reiser4_plugin *plugin );
+	int (*change) (struct inode * inode, reiser4_plugin * plugin);
 };
-
 
 /* functions implemented in fs/reiser4/plugin/plugin.c */
 
 /** stores plugin reference in reiser4-specific part of inode */
-extern int set_object_plugin( struct inode *inode, reiser4_plugin_id id );
-extern int handle_default_plugin_option( char *option, 
-						 reiser4_plugin **area );
-extern int setup_plugins( struct super_block *super, 
-				  reiser4_plugin **area );
-extern reiser4_plugin *lookup_plugin( const char *type_label, 
-				      const char *plug_label );
-extern int init_plugins( void );
+extern int set_object_plugin(struct inode *inode, reiser4_plugin_id id);
+extern int handle_default_plugin_option(char *option, reiser4_plugin ** area);
+extern int setup_plugins(struct super_block *super, reiser4_plugin ** area);
+extern reiser4_plugin *lookup_plugin(const char *type_label,
+				     const char *plug_label);
+extern int init_plugins(void);
 
 /* functions implemented in fs/reiser4/plugin/object.c */
- void move_flow_forward (flow_t * f, unsigned count);
-
+void move_flow_forward(flow_t * f, unsigned count);
 
 /* builtin plugins */
 
 /* builtin file-plugins */
 typedef enum { REGULAR_FILE_PLUGIN_ID, DIRECTORY_FILE_PLUGIN_ID,
-	       SYMLINK_FILE_PLUGIN_ID,
-	       /* 
-		* SPECIAL_FILE_PLUGIN_ID is for objects completely handled by
-		* VFS: fifos, devices, sockets 
-		*/
-	       SPECIAL_FILE_PLUGIN_ID,
-	       /* number of file plugins. Used as size of arrays to hold
-		* file plugins. */
-	       LAST_FILE_PLUGIN_ID
+	SYMLINK_FILE_PLUGIN_ID,
+	/* 
+	 * SPECIAL_FILE_PLUGIN_ID is for objects completely handled by
+	 * VFS: fifos, devices, sockets 
+	 */
+	SPECIAL_FILE_PLUGIN_ID,
+	/* number of file plugins. Used as size of arrays to hold
+	 * file plugins. */
+	LAST_FILE_PLUGIN_ID
 } reiser4_file_id;
 
 /* builtin dir-plugins */
-typedef enum { 
+typedef enum {
 	HASHED_DIR_PLUGIN_ID,
 	SEEKABLE_HASHED_DIR_PLUGIN_ID,
 	LAST_DIR_ID
@@ -597,9 +589,9 @@ struct reiser4_object_create_data {
 	reiser4_file_id id;
 	/** mode of regular file, directory or special file */
 /* what happens if some other sort of perm plugin is in use? */
-	int         mode;
+	int mode;
 	/** rdev of special file */
-	int         rdev;
+	int rdev;
 	/** symlink target */
 	const char *name;
 	/* add here something for non-standard objects you invent, like
@@ -608,9 +600,9 @@ struct reiser4_object_create_data {
 
 /* builtin hash-plugins */
 
-typedef enum { 
-	RUPASOV_HASH_ID, 
-	R5_HASH_ID, 
+typedef enum {
+	RUPASOV_HASH_ID,
+	R5_HASH_ID,
 	TEA_HASH_ID,
 	FNV1_HASH_ID,
 	DEGENERATE_HASH_ID,
@@ -619,10 +611,10 @@ typedef enum {
 
 /* builtin tail-plugins */
 
-typedef enum { 
-	NEVER_TAIL_ID, 
+typedef enum {
+	NEVER_TAIL_ID,
 	SUPPRESS_OLD_ID,
-	FOURK_TAIL_ID, 
+	FOURK_TAIL_ID,
 	ALWAYS_TAIL_ID,
 	TEST_TAIL_ID,
 	LAST_TAIL_ID
@@ -635,21 +627,22 @@ typedef enum {
     reiser4(). */
 typedef struct plugin_locator {
 	reiser4_plugin_type type_id;
-	reiser4_plugin_id   id;
-	char         type_label[ MAX_PLUGIN_TYPE_LABEL_LEN ];
-	char         plug_label[ MAX_PLUGIN_PLUG_LABEL_LEN ];
+	reiser4_plugin_id id;
+	char type_label[MAX_PLUGIN_TYPE_LABEL_LEN];
+	char plug_label[MAX_PLUGIN_PLUG_LABEL_LEN];
 } plugin_locator;
 
-extern int locate_plugin( struct inode *inode, plugin_locator *loc );
+extern int locate_plugin(struct inode *inode, plugin_locator * loc);
 
-extern reiser4_plugin *plugin_by_id( reiser4_plugin_type type_id, 
-				     reiser4_plugin_id id );
+extern reiser4_plugin *plugin_by_id(reiser4_plugin_type type_id,
+				    reiser4_plugin_id id);
 
-extern reiser4_plugin *plugin_by_disk_id( reiser4_tree *tree, 
-					  reiser4_plugin_type type_id, d16 *did );
+extern reiser4_plugin *plugin_by_disk_id(reiser4_tree * tree,
+					 reiser4_plugin_type type_id,
+					 d16 * did);
 
-extern reiser4_plugin *plugin_by_unsafe_id( reiser4_plugin_type type_id, 
-					    reiser4_plugin_id id );
+extern reiser4_plugin *plugin_by_unsafe_id(reiser4_plugin_type type_id,
+					   reiser4_plugin_id id);
 
 #define PLUGIN_BY_ID(TYPE,ID,FIELD)					\
 static inline TYPE *TYPE ## _by_id( reiser4_plugin_id id )		\
@@ -677,32 +670,32 @@ static inline reiser4_plugin_id TYPE ## _id( TYPE* plugin )		\
 }									\
 typedef struct { int foo; } TYPE ## _plugin_dummy
 
-PLUGIN_BY_ID(item_plugin,REISER4_ITEM_PLUGIN_TYPE,item);
-PLUGIN_BY_ID(file_plugin,REISER4_FILE_PLUGIN_TYPE,file);
-PLUGIN_BY_ID(dir_plugin,REISER4_DIR_PLUGIN_TYPE,dir);
-PLUGIN_BY_ID(node_plugin,REISER4_NODE_PLUGIN_TYPE,node);
-PLUGIN_BY_ID(sd_ext_plugin,REISER4_SD_EXT_PLUGIN_TYPE,sd_ext);
-PLUGIN_BY_ID(perm_plugin,REISER4_PERM_PLUGIN_TYPE,perm);
-PLUGIN_BY_ID(hash_plugin,REISER4_HASH_PLUGIN_TYPE,hash);
-PLUGIN_BY_ID(tail_plugin,REISER4_TAIL_PLUGIN_TYPE,tail);
-PLUGIN_BY_ID(disk_format_plugin,REISER4_FORMAT_PLUGIN_TYPE,format);
-PLUGIN_BY_ID(oid_allocator_plugin,REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
+PLUGIN_BY_ID(item_plugin, REISER4_ITEM_PLUGIN_TYPE, item);
+PLUGIN_BY_ID(file_plugin, REISER4_FILE_PLUGIN_TYPE, file);
+PLUGIN_BY_ID(dir_plugin, REISER4_DIR_PLUGIN_TYPE, dir);
+PLUGIN_BY_ID(node_plugin, REISER4_NODE_PLUGIN_TYPE, node);
+PLUGIN_BY_ID(sd_ext_plugin, REISER4_SD_EXT_PLUGIN_TYPE, sd_ext);
+PLUGIN_BY_ID(perm_plugin, REISER4_PERM_PLUGIN_TYPE, perm);
+PLUGIN_BY_ID(hash_plugin, REISER4_HASH_PLUGIN_TYPE, hash);
+PLUGIN_BY_ID(tail_plugin, REISER4_TAIL_PLUGIN_TYPE, tail);
+PLUGIN_BY_ID(disk_format_plugin, REISER4_FORMAT_PLUGIN_TYPE, format);
+PLUGIN_BY_ID(oid_allocator_plugin, REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
 	     oid_allocator);
-PLUGIN_BY_ID(space_allocator_plugin,REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,
+PLUGIN_BY_ID(space_allocator_plugin, REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,
 	     space_allocator);
-PLUGIN_BY_ID(jnode_plugin,REISER4_JNODE_PLUGIN_TYPE, jnode);
+PLUGIN_BY_ID(jnode_plugin, REISER4_JNODE_PLUGIN_TYPE, jnode);
 
-extern int save_plugin_id( reiser4_plugin *plugin, d16 *area );
+extern int save_plugin_id(reiser4_plugin * plugin, d16 * area);
 
 #if REISER4_DEBUG_OUTPUT
-extern void print_plugin( const char *prefix, reiser4_plugin *plugin );
+extern void print_plugin(const char *prefix, reiser4_plugin * plugin);
 #else
 #define print_plugin( pr, pl ) noop
 #endif
 
-TS_LIST_DEFINE( plugin, reiser4_plugin, h.linkage );
+TS_LIST_DEFINE(plugin, reiser4_plugin, h.linkage);
 
-extern plugin_list_head *get_plugin_list( reiser4_plugin_type type_id );
+extern plugin_list_head *get_plugin_list(reiser4_plugin_type type_id);
 
 #define for_all_plugins( ptype, plugin )			\
 for( plugin = plugin_list_front( get_plugin_list( ptype ) ) ;	\
@@ -711,7 +704,6 @@ for( plugin = plugin_list_front( get_plugin_list( ptype ) ) ;	\
 
 /* __FS_REISER4_PLUGIN_TYPES_H__ */
 #endif
-
 
 /* 
  * Make Linus happy.

@@ -11,23 +11,23 @@
 #include "forward.h"
 #include "debug.h"
 
-#include <linux/fs.h> /* for struct super_block, address_space  */
-#include <linux/mm.h> /* for struct page  */
+#include <linux/fs.h>		/* for struct super_block, address_space  */
+#include <linux/mm.h>		/* for struct page  */
 
-extern int init_fakes( void );
-extern int init_formatted_fake( struct super_block *super );
-extern int done_formatted_fake( struct super_block *super );
+extern int init_fakes(void);
+extern int init_formatted_fake(struct super_block *super);
+extern int done_formatted_fake(struct super_block *super);
 
-extern reiser4_tree *tree_by_page( const struct page *page );
-extern void reiser4_lock_page( struct page *page );
-extern void reiser4_unlock_page( struct page *page );
+extern reiser4_tree *tree_by_page(const struct page *page);
+extern void reiser4_lock_page(struct page *page);
+extern void reiser4_unlock_page(struct page *page);
 
 #define jprivate( page ) ( ( jnode * ) ( page ) -> private )
 
-extern int page_io( struct page *page, jnode *node, int rw, int gfp );
-extern int page_common_writeback( struct page *page, 
-				  struct writeback_control *wbc, 
-				  int flush_flags );
+extern int page_io(struct page *page, jnode * node, int rw, int gfp);
+extern int page_common_writeback(struct page *page,
+				 struct writeback_control *wbc,
+				 int flush_flags);
 
 #define define_never_ever_op( op )						\
 static int never_ever_ ## op ( void )						\
@@ -37,10 +37,10 @@ static int never_ever_ ## op ( void )						\
 	return -EIO;								\
 }
 
-extern void drop_page( struct page *page, jnode *node );
+extern void drop_page(struct page *page, jnode * node);
 
 #if REISER4_DEBUG_OUTPUT
-extern void print_page( const char *prefix, struct page *page );
+extern void print_page(const char *prefix, struct page *page);
 #else
 #define print_page( prf, p ) noop
 #endif

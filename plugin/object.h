@@ -11,26 +11,24 @@
 
 #include "../forward.h"
 
-#include <linux/fs.h> /* for struct inode */
+#include <linux/fs.h>		/* for struct inode */
 #include <linux/types.h>
 
-extern int lookup_sd            ( struct inode *inode, znode_lock_mode lock_mode,
-				  coord_t *coord, lock_handle *lh, 
-				  reiser4_key *key );
-extern int lookup_sd_by_key     ( reiser4_tree *tree, znode_lock_mode lock_mode, 
-				  coord_t *coord, lock_handle *lh, 
-				  const reiser4_key *key );
+extern int lookup_sd(struct inode *inode, znode_lock_mode lock_mode,
+		     coord_t * coord, lock_handle * lh, reiser4_key * key);
+extern int lookup_sd_by_key(reiser4_tree * tree, znode_lock_mode lock_mode,
+			    coord_t * coord, lock_handle * lh,
+			    const reiser4_key * key);
 
-extern int guess_plugin_by_mode ( struct inode *inode );
+extern int guess_plugin_by_mode(struct inode *inode);
 
-extern int common_file_delete   ( struct inode *inode );
-extern int common_file_save     ( struct inode *inode );
-extern int common_build_flow    ( struct inode *, char *buf, int user, 
-				  size_t size, loff_t off, rw_op op, flow_t *);
-extern int common_write_inode   ( struct inode *inode );
-extern int common_file_owns_item( const struct inode *inode, 
-				  const coord_t *coord );
-
+extern int common_file_delete(struct inode *inode);
+extern int common_file_save(struct inode *inode);
+extern int common_build_flow(struct inode *, char *buf, int user,
+			     size_t size, loff_t off, rw_op op, flow_t *);
+extern int common_write_inode(struct inode *inode);
+extern int common_file_owns_item(const struct inode *inode,
+				 const coord_t * coord);
 
 /* __FS_REISER4_PLUGIN_OBJECT_H__ */
 #endif

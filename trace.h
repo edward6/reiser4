@@ -14,7 +14,7 @@
 #include "debug.h"
 
 #include <linux/types.h>
-#include <linux/fs.h> /* for struct super_block, etc  */
+#include <linux/fs.h>		/* for struct super_block, etc  */
 #include <asm/semaphore.h>
 
 typedef enum { log_to_file, log_to_console, log_to_bucket } trace_file_type;
@@ -22,39 +22,39 @@ typedef enum { log_to_file, log_to_console, log_to_bucket } trace_file_type;
 #if REISER4_TRACE_TREE
 
 typedef struct {
-	trace_file_type  type;
-	struct file     *fd;
-	char            *buf;
-	size_t           size;
-	size_t           used;
+	trace_file_type type;
+	struct file *fd;
+	char *buf;
+	size_t size;
+	size_t used;
 	struct semaphore held;
-	int              disabled;
+	int disabled;
 } reiser4_trace_file;
 
-typedef enum { 
-	tree_cut    = 'c',
+typedef enum {
+	tree_cut = 'c',
 	tree_lookup = 'l',
 	tree_insert = 'i',
-	tree_paste  = 'p'
+	tree_paste = 'p'
 } reiser4_traced_op;
 
-extern int open_trace_file   ( struct super_block *super,
-			       const char *file_name, size_t size, 
-			       reiser4_trace_file *trace );
-extern int write_trace       ( reiser4_trace_file *file, 
-			       const char *format, ... ) 
-__attribute__ ((format (printf, 2, 3)));
+extern int open_trace_file(struct super_block *super,
+			   const char *file_name, size_t size,
+			   reiser4_trace_file * trace);
+extern int write_trace(reiser4_trace_file * file, const char *format, ...)
+    __attribute__ ((format(printf, 2, 3)));
 
-extern int write_trace_raw   ( reiser4_trace_file *file, 
-			       const void *data, size_t len );
-extern int hold_trace        ( reiser4_trace_file *file, int flag );
-extern int disable_trace     ( reiser4_trace_file *file, int flag );
-extern void close_trace_file ( reiser4_trace_file *file );
-extern int write_trace_stamp ( reiser4_tree *tree, reiser4_traced_op op, ... );
+extern int write_trace_raw(reiser4_trace_file * file,
+			   const void *data, size_t len);
+extern int hold_trace(reiser4_trace_file * file, int flag);
+extern int disable_trace(reiser4_trace_file * file, int flag);
+extern void close_trace_file(reiser4_trace_file * file);
+extern int write_trace_stamp(reiser4_tree * tree, reiser4_traced_op op, ...);
 
 #else
 
-typedef struct {} reiser4_trace_file;
+typedef struct {
+} reiser4_trace_file;
 
 #define open_trace_file( super, file_name, size, trace ) (0)
 #define write_trace( file, format, ... ) (0)

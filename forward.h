@@ -23,11 +23,11 @@ typedef struct tree_access_pointer tap_t;
 typedef struct item_coord item_coord;
 typedef struct shift_params shift_params;
 typedef struct reiser4_object_create_data reiser4_object_create_data;
-typedef union  reiser4_plugin reiser4_plugin;
+typedef union reiser4_plugin reiser4_plugin;
 typedef struct item_plugin item_plugin;
 typedef struct reiser4_item_data reiser4_item_data;
-typedef union  reiser4_key reiser4_key;
-typedef union  reiser4_dblock_nr reiser4_dblock_nr;
+typedef union reiser4_key reiser4_key;
+typedef union reiser4_dblock_nr reiser4_dblock_nr;
 typedef struct reiser4_tree reiser4_tree;
 typedef struct carry_tree_op carry_tree_op;
 typedef struct carry_tree_node carry_tree_node;
@@ -47,7 +47,7 @@ typedef struct reiser4_super_info_data reiser4_super_info_data;
 typedef struct reiser4_oid_allocator reiser4_oid_allocator;
 typedef struct reiser4_space_allocator reiser4_space_allocator;
 
-typedef struct flush_scan     flush_scan;
+typedef struct flush_scan flush_scan;
 typedef struct flush_position flush_position;
 
 typedef unsigned pos_in_node;
@@ -66,31 +66,31 @@ struct super_block;
 struct sealed_coord;
 
 /** return values of coord_by_key(). cbk == coord_by_key */
-typedef enum { 
-	CBK_COORD_FOUND    = 0,
-	CBK_COORD_NOTFOUND = -ENOENT, 
-	CBK_IO_ERROR       = -EIO, /* FIXME: it seems silly to have special OOM, IO_ERROR return codes for each search. */
-	CBK_OOM            = -ENOMEM /* FIXME: it seems silly to have special OOM, IO_ERROR return codes for each search. */
+typedef enum {
+	CBK_COORD_FOUND = 0,
+	CBK_COORD_NOTFOUND = -ENOENT,
+	CBK_IO_ERROR = -EIO,	/* FIXME: it seems silly to have special OOM, IO_ERROR return codes for each search. */
+	CBK_OOM = -ENOMEM	/* FIXME: it seems silly to have special OOM, IO_ERROR return codes for each search. */
 /* why is it silly? -Hans */
 /* should this be merged with the tween field? */
 } lookup_result;
 
 /** results of lookup with directory file */
-typedef enum { 
-	FILE_NAME_FOUND     = 0, 
-	FILE_NAME_NOTFOUND  = -ENOENT, 
-	FILE_IO_ERROR       = -EIO, /* FIXME: it seems silly to have special OOM, IO_ERROR return codes for each search. */
-	FILE_OOM            = -ENOMEM /* FIXME: it seems silly to have special OOM, IO_ERROR return codes for each search. */
+typedef enum {
+	FILE_NAME_FOUND = 0,
+	FILE_NAME_NOTFOUND = -ENOENT,
+	FILE_IO_ERROR = -EIO,	/* FIXME: it seems silly to have special OOM, IO_ERROR return codes for each search. */
+	FILE_OOM = -ENOMEM	/* FIXME: it seems silly to have special OOM, IO_ERROR return codes for each search. */
 } file_lookup_result;
 
 /** behaviors of lookup. If coord we are looking for is actually in a tree,
     both coincide. */
-typedef enum { 
+typedef enum {
 	/** search exactly for the coord with key given */
 	FIND_EXACT,
 	/** search for coord with the maximal key not greater than one
 	    given */
-	FIND_MAX_NOT_MORE_THAN/*LEFT_SLANT_BIAS*/
+	FIND_MAX_NOT_MORE_THAN	/*LEFT_SLANT_BIAS */
 } lookup_bias;
 
 typedef enum {
@@ -130,15 +130,15 @@ typedef enum {
 
 /** type of lock to acquire on znode before returning it to caller */
 typedef enum {
-	ZNODE_NO_LOCK        = 0,
-	ZNODE_READ_LOCK      = 1,
-	ZNODE_WRITE_LOCK     = 2,
+	ZNODE_NO_LOCK = 0,
+	ZNODE_READ_LOCK = 1,
+	ZNODE_WRITE_LOCK = 2,
 } znode_lock_mode;
 
 /** type of lock request */
 typedef enum {
-	ZNODE_LOCK_LOPRI    = 0,
-	ZNODE_LOCK_HIPRI    = (1 << 0),
+	ZNODE_LOCK_LOPRI = 0,
+	ZNODE_LOCK_HIPRI = (1 << 0),
 
 	/* By setting the ZNODE_LOCK_NONBLOCK flag in a lock request the call to longterm_lock_znode will not sleep
 	 * waiting for the lock to become available.  If the lock is unavailable, reiser4_znode_lock will immediately
@@ -194,27 +194,27 @@ struct name {
 };
 typedef struct name name_t;
 
-typedef enum { 
+typedef enum {
 	STATIC_STAT_DATA_ID,
 	SIMPLE_DIR_ENTRY_ID,
 	COMPOUND_DIR_ID,
 	NODE_POINTER_ID,
 	ACL_ID,
 	EXTENT_POINTER_ID,
-	TAIL_ID, 
-	LAST_ITEM_ID 
+	TAIL_ID,
+	LAST_ITEM_ID
 } item_id;
 
 /* Flags passed to jnode_flush() to allow it to distinguish default settings based on
  * whether commit() was called or VM memory pressure was applied. */
 typedef enum {
 	/* submit flush queue to disk at jnode_flush completion */
-	JNODE_FLUSH_WRITE_BLOCKS       = 1,
+	JNODE_FLUSH_WRITE_BLOCKS = 1,
 
 	/* not implemented */
-	JNODE_FLUSH_COMMIT             = 2,
+	JNODE_FLUSH_COMMIT = 2,
 	/* not implemented */
-	JNODE_FLUSH_MEMORY_FORMATTED   = 4,
+	JNODE_FLUSH_MEMORY_FORMATTED = 4,
 
 	/* not implemented */
 	JNODE_FLUSH_MEMORY_UNFORMATTED = 8,
@@ -230,45 +230,44 @@ typedef enum {
 	 * carry is not allowed to shift data to the left when trying to find
 	 * free space 
 	 */
-	COPI_DONT_SHIFT_LEFT     = ( 1 << 0 ),
+	COPI_DONT_SHIFT_LEFT = (1 << 0),
 	/** 
 	 * carry is not allowed to shift data to the right when trying to find
 	 * free space 
 	 */
-	COPI_DONT_SHIFT_RIGHT    = ( 1 << 1 ),
+	COPI_DONT_SHIFT_RIGHT = (1 << 1),
 	/** 
 	 * carry is not allowed to allocate new node(s) when trying to find
 	 * free space
 	 */
-	COPI_DONT_ALLOCATE       = ( 1 << 2 ),
+	COPI_DONT_ALLOCATE = (1 << 2),
 	/**
 	 * try to load left neighbor if its not in a cache
 	 */
-	COPI_LOAD_LEFT           = ( 1 << 3 ),
+	COPI_LOAD_LEFT = (1 << 3),
 	/**
 	 * try to load right neighbor if its not in a cache
 	 */
-	COPI_LOAD_RIGHT          = ( 1 << 4 ),
+	COPI_LOAD_RIGHT = (1 << 4),
 	/**
 	 * shift insertion point to the left neighbor
 	 */
-	COPI_GO_LEFT             = ( 1 << 5 ),
+	COPI_GO_LEFT = (1 << 5),
 	/**
 	 * shift insertion point to the right neighbor
 	 */
-	COPI_GO_RIGHT            = ( 1 << 6 ),
+	COPI_GO_RIGHT = (1 << 6),
 	/**
 	 * try to step back into original node if insertion into new node
 	 * fails after shifting data there.
 	 */
-	COPI_STEP_BACK           = ( 1 << 7 ),
-	COPI_GLUE_LEFT           = ( 1 << 8 ),
-	COPI_GLUE_RIGHT          = ( 1 << 9 )
+	COPI_STEP_BACK = (1 << 7),
+	COPI_GLUE_LEFT = (1 << 8),
+	COPI_GLUE_RIGHT = (1 << 9)
 } cop_insert_flag;
 
 /* __REISER4_FORWARD_H__ */
 #endif
-
 
 /* 
  * Make Linus happy.
@@ -280,4 +279,3 @@ typedef enum {
  * fill-column: 120
  * End:
  */
-

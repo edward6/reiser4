@@ -11,7 +11,7 @@
 
 #include "forward.h"
 #include "reiser4.h"
- 
+
 #ifdef __KERNEL__
 /* for __u?? types */
 #include <linux/types.h>
@@ -20,7 +20,7 @@
 /* for in_interrupt() */
 #include <asm/hardirq.h>
 #endif
- 
+
 #include <linux/sched.h>
 
 /** basic debug/logging output macro. "label" is unfamous "maintainer-id" */
@@ -144,7 +144,6 @@
 #define REISER4_DEBUG_OUTPUT (0)
 #endif
 
-
 #define noop   do {;} while( 0 )
 
 #if REISER4_DEBUG
@@ -178,21 +177,21 @@
 #define ON_DEBUG( exp ) exp
 
 typedef struct lock_counters_info {
-	 int                   spin_locked_jnode;
-	 int                   spin_locked_tree;
-	 int                   spin_locked_dk;
-	 int                   spin_locked_txnh;
-	 int                   spin_locked_atom;
-	 int                   spin_locked_stack;
-	 int                   spin_locked_txnmgr;
-         int                   spin_locked_fq;
-	 int                   spin_locked_inode;
-	 int                   spin_locked;
-	 int                   long_term_locked_znode;
-	 
-	 int                   d_refs;
-	 int                   x_refs;
-	 int                   t_refs;
+	int spin_locked_jnode;
+	int spin_locked_tree;
+	int spin_locked_dk;
+	int spin_locked_txnh;
+	int spin_locked_atom;
+	int spin_locked_stack;
+	int spin_locked_txnmgr;
+	int spin_locked_fq;
+	int spin_locked_inode;
+	int spin_locked;
+	int long_term_locked_znode;
+
+	int d_refs;
+	int x_refs;
+	int t_refs;
 } lock_counters_info;
 
 extern lock_counters_info *lock_counters(void);
@@ -217,23 +216,23 @@ typedef enum {
 	/**
 	 * print a lot of information during panic.
 	 */
-	REISER4_VERBOSE_PANIC     = 0x00000001,
+	REISER4_VERBOSE_PANIC = 0x00000001,
 	/**
 	 * print a lot of information during umount
 	 */
-	REISER4_VERBOSE_UMOUNT    = 0x00000002,
+	REISER4_VERBOSE_UMOUNT = 0x00000002,
 	/**
 	 * print gathered statistics on umount
 	 */
-	REISER4_STATS_ON_UMOUNT   = 0x00000004,
+	REISER4_STATS_ON_UMOUNT = 0x00000004,
 	/**
 	 * check node consistency
 	 */
-	REISER4_CHECK_NODE        = 0x00000008
+	REISER4_CHECK_NODE = 0x00000008
 } reiser4_debug_flags;
 
-extern int reiser4_are_all_debugged( struct super_block *super, __u32 flags );
-extern int reiser4_is_debugged( struct super_block *super, __u32 flag );
+extern int reiser4_are_all_debugged(struct super_block *super, __u32 flags);
+extern int reiser4_is_debugged(struct super_block *super, __u32 flag);
 
 /**
  * FIXME-NIKITA this is wrong, because other file systems share ->fs_context
@@ -274,109 +273,109 @@ typedef enum {
 	/*
 	 * trace nothing
 	 */
-	NO_TRACE         =     0,
+	NO_TRACE = 0,
 	/*
 	 * trace vfs interaction functions from vfs_ops.c
 	 */
-	TRACE_VFS_OPS    =     (1 << 0),     /* 0x00000001 */
+	TRACE_VFS_OPS = (1 << 0),	/* 0x00000001 */
 	/*
 	 * trace plugin handling functions
 	 */
-	TRACE_PLUGINS    =     (1 << 1),     /* 0x00000002 */
+	TRACE_PLUGINS = (1 << 1),	/* 0x00000002 */
 	/*
 	 * trace tree traversals
 	 */
-	TRACE_TREE       =     (1 << 2),     /* 0x00000004 */
+	TRACE_TREE = (1 << 2),	/* 0x00000004 */
 	/*
 	 * trace znode manipulation functions
 	 */
-	TRACE_ZNODES     =     (1 << 3),     /* 0x00000008 */
+	TRACE_ZNODES = (1 << 3),	/* 0x00000008 */
 	/*
 	 * trace node layout functions
 	 */
-	TRACE_NODES      =     (1 << 4),     /* 0x00000010 */
+	TRACE_NODES = (1 << 4),	/* 0x00000010 */
 	/*
 	 * trace directory functions
 	 */
-	TRACE_DIR        =     (1 << 5),     /* 0x00000020 */
+	TRACE_DIR = (1 << 5),	/* 0x00000020 */
 	/*
 	 * trace flush code verbosely
 	 */
-	TRACE_FLUSH_VERB   =     (1 << 6),     /* 0x00000040 */
+	TRACE_FLUSH_VERB = (1 << 6),	/* 0x00000040 */
 	/*
 	 * trace flush code
 	 */
-	TRACE_FLUSH       =     (1 << 7),     /* 0x00000080 */
+	TRACE_FLUSH = (1 << 7),	/* 0x00000080 */
 	/*
 	 * trace carry
 	 */
-	TRACE_CARRY      =     (1 << 8),     /* 0x00000100 */
+	TRACE_CARRY = (1 << 8),	/* 0x00000100 */
 	/*
 	 * trace how tree (web) of znodes if maintained through tree
 	 * balancings.
 	 */
-	TRACE_ZWEB       =     (1 << 9),     /* 0x00000200 */
+	TRACE_ZWEB = (1 << 9),	/* 0x00000200 */
 	/*
 	 * trace transactions.
 	 */
-	TRACE_TXN        =     (1 << 10),     /* 0x00000400 */
+	TRACE_TXN = (1 << 10),	/* 0x00000400 */
 	/*
 	 * trace object id allocation/releasing
 	 */
-	TRACE_OIDS       =     (1 << 11),     /* 0x00000800 */
+	TRACE_OIDS = (1 << 11),	/* 0x00000800 */
 	/*
 	 * trace item shifts
 	 */
-	TRACE_SHIFT      =     (1 << 12),     /* 0x00001000 */
+	TRACE_SHIFT = (1 << 12),	/* 0x00001000 */
 	/*
 	 * trace page cache
 	 */
-	TRACE_PCACHE      =    (1 << 13),     /* 0x00002000 */
+	TRACE_PCACHE = (1 << 13),	/* 0x00002000 */
 	/*
 	 * trace extents
 	 */
-	TRACE_EXTENTS     =    (1 << 14),     /* 0x00004000 */
+	TRACE_EXTENTS = (1 << 14),	/* 0x00004000 */
 	/*
 	 * trace locks
 	 */
-	TRACE_LOCKS       =    (1 << 15),     /* 0x00008000 */
+	TRACE_LOCKS = (1 << 15),	/* 0x00008000 */
 	/*
 	 * trace coords
 	 */
-	TRACE_COORDS      =    (1 << 16),     /* 0x00010000 */
+	TRACE_COORDS = (1 << 16),	/* 0x00010000 */
 	/*
 	 * trace read-IO functions
 	 */
-	TRACE_IO_R        =    (1 << 17),     /* 0x00020000 */
+	TRACE_IO_R = (1 << 17),	/* 0x00020000 */
 	/*
 	 * trace write-IO functions
 	 */
-	TRACE_IO_W        =    (1 << 18),     /* 0x00040000 */
+	TRACE_IO_W = (1 << 18),	/* 0x00040000 */
 
 	/*
 	 * trace log writing
 	 */
-	TRACE_LOG         =    (1 << 19),     /* 0x00080000 */
+	TRACE_LOG = (1 << 19),	/* 0x00080000 */
 
 	/*
 	 * trace journal replaying
 	 */
-	TRACE_REPLAY      =    (1 << 20),     /* 0x00100000 */
+	TRACE_REPLAY = (1 << 20),	/* 0x00100000 */
 
 	/*
 	 * trace space allocation
 	 */
-	TRACE_ALLOC       =    (1 << 21),     /* 0x00200000 */
+	TRACE_ALLOC = (1 << 21),	/* 0x00200000 */
 
 	/*
 	 * vague section: used to trace bugs. Use it to issue optional prints
 	 * at arbitrary points of code.
 	 */
-	TRACE_BUG        =     (1 << 31),     /* 0x80000000 */
+	TRACE_BUG = (1 << 31),	/* 0x80000000 */
 	/*
 	 * trace everything above
 	 */
-	TRACE_ALL        =     0xffffffffu
+	TRACE_ALL = 0xffffffffu
 } reiser4_trace_flags;
 
 extern __u32 reiser4_current_trace_flags;
@@ -685,12 +684,12 @@ typedef struct reiser4_statistics {
 		/*
 		 * key was moved out of node while thread was waiting
 		 * for the lock
-		 */		
+		 */
 		stat_cnt cbk_key_moved;
 		/*
 		 * node was moved out of tree while thread was waiting
 		 * for the lock
-		 */		
+		 */
 		stat_cnt cbk_met_ghost;
 		/**
 		 * for how many pages on this level ->releasepage() was
@@ -702,7 +701,7 @@ typedef struct reiser4_statistics {
 		 */
 		stat_cnt page_released;
 		stat_cnt total_hits_at_level;
-	} level[ REAL_MAX_ZTREE_HEIGHT ];
+	} level[REAL_MAX_ZTREE_HEIGHT];
 	struct {
 		/*
 		 * calls to zload()
@@ -918,28 +917,29 @@ typedef struct reiser4_statistics {
 #define reiser4_stat_nuniq_max( gen ) noop
 #define reiser4_stat_stack_check_max( gap ) noop
 #define reiser4_stat_seal_add( stat ) noop
-typedef struct {} reiser4_stat;
+typedef struct {
+} reiser4_stat;
 
 #endif
 
-extern void reiser4_panic( const char *format, ... ) 
-__attribute__( ( noreturn, format( printf, 1, 2 ) ) );
+extern void reiser4_panic(const char *format, ...)
+    __attribute__ ((noreturn, format(printf, 1, 2)));
 
-extern int  preempt_point( void );
-extern void reiser4_print_stats( void );
+extern int preempt_point(void);
+extern void reiser4_print_stats(void);
 
-extern void *reiser4_kmalloc( size_t size, int gfp_flag );
-extern void  reiser4_kfree( void *area, size_t size );
-extern __u32 get_current_trace_flags( void );
+extern void *reiser4_kmalloc(size_t size, int gfp_flag);
+extern void reiser4_kfree(void *area, size_t size);
+extern __u32 get_current_trace_flags(void);
 
 #if REISER4_DEBUG
 extern int no_counters_are_held(void);
-extern void check_stack( void );
+extern void check_stack(void);
 #endif
 
 #if REISER4_DEBUG_OUTPUT && REISER4_DEBUG
-extern void print_lock_counters( const char *prefix, 
-				 const lock_counters_info *info );
+extern void print_lock_counters(const char *prefix,
+				const lock_counters_info * info);
 #else
 #define print_lock_counters( p, i ) noop
 #endif
@@ -948,9 +948,9 @@ extern void print_lock_counters( const char *prefix,
 #define REISER4_STACK_GAP            (REISER4_STACK_ABORT - 100)
 
 #if REISER4_DEBUG_MEMCPY
-extern void *xmemcpy( void *dest, const void *src, size_t n );
-extern void *xmemmove( void *dest, const void *src, size_t n );
-extern void *xmemset( void *s, int c, size_t n );
+extern void *xmemcpy(void *dest, const void *src, size_t n);
+extern void *xmemmove(void *dest, const void *src, size_t n);
+extern void *xmemset(void *s, int c, size_t n);
 #else
 #define xmemcpy( d, s, n ) memcpy( ( d ), ( s ), ( n ) )
 #define xmemmove( d, s, n ) memmove( ( d ), ( s ), ( n ) )

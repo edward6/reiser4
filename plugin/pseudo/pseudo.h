@@ -33,8 +33,8 @@ typedef struct pseudo_ops {
 	 * ->method_lookup( "dup" ) can be called to get operation.
 	 *
 	 */
-	int ( *method_lookup )( const char *name, int len, 
-				reiser4_syscall_method *method );
+	int (*method_lookup) (const char *name, int len,
+			      reiser4_syscall_method * method);
 
 	/**
 	 * generic name of this pseudo object "..acl", "..key", etc.
@@ -45,7 +45,6 @@ typedef struct pseudo_ops {
 	 * FIXME-NIKITA some other operations. Reiser4 syntax people should
 	 * add something here.
 	 */
-
 
 } pseudo_ops;
 
@@ -65,5 +64,3 @@ typedef struct pseudo_ops {
  * scroll-step: 1
  * End:
  */
-
-

@@ -118,10 +118,3 @@ typedef struct { int foo; } NAME ## _spin_dummy
  * scroll-step: 1
  * End:
  */
-
-
-
-
-
-
-

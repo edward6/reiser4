@@ -13,11 +13,11 @@
 #include "forward.h"
 #include "debug.h"
 
-#include <asm/param.h> /* for HZ */
- 
+#include <asm/param.h>		/* for HZ */
+
 extern const char *REISER4_SUPER_MAGIC_STRING;
-extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
-					* beginning of device */
+extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
+					 * beginning of device */
 
 /* here go tunable parameters that are not worth special entry in kernel
    configuration */
@@ -92,7 +92,6 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
  * don't allow tree to be lower than this
  */
 #define REISER4_MIN_TREE_HEIGHT       (TWIG_LEVEL)
-
 
 /**
  * default file plugin
@@ -234,9 +233,6 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
  */
 #define REISER4_BSD_PORT  (0)
 
-
-
-
 /* Mark function argument as unused to avoid compiler warnings. */
 #define UNUSED_ARG __attribute__( ( unused ) )
 
@@ -274,7 +270,7 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 #include "build.h"
 #endif
 
-#endif /* __REISER4_H__ */
+#endif				/* __REISER4_H__ */
 
 /* 
  * Make Linus happy.

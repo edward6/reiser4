@@ -16,20 +16,20 @@
 #include <linux/completion.h>
 #include <linux/spinlock.h>
 #include <asm/atomic.h>
-#include <linux/sched.h> /* for struct task_struct */
+#include <linux/sched.h>	/* for struct task_struct */
 
 struct ktxnmgrd_context {
-	kcond_t             startup;
-	struct completion   finish;
-	kcond_t             wait;
-	spinlock_t          guard;
-	signed long         timeout;
+	kcond_t startup;
+	struct completion finish;
+	kcond_t wait;
+	spinlock_t guard;
+	signed long timeout;
 	struct task_struct *tsk;
-	txn_mgrs_list_head  queue;
-	int                 done     :1;
-	int                 rescan   :1;
-	__u32               duties;
-	atomic_t            pressure;
+	txn_mgrs_list_head queue;
+	int done:1;
+	int rescan:1;
+	__u32 duties;
+	atomic_t pressure;
 };
 
 typedef enum {
@@ -38,15 +38,14 @@ typedef enum {
 	LOW_MEMORY
 } ktxnmgrd_wake;
 
-extern void init_ktxnmgrd_context( ktxnmgrd_context *context );
-extern int  ktxnmgrd( void *context );
+extern void init_ktxnmgrd_context(ktxnmgrd_context * context);
+extern int ktxnmgrd(void *context);
 
-extern int ktxnmgrd_attach( ktxnmgrd_context *ctx, txn_mgr *mgr );
-extern void ktxnmgrd_detach( txn_mgr *mgr );
+extern int ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr);
+extern void ktxnmgrd_detach(txn_mgr * mgr);
 
-extern void ktxnmgrd_kick( ktxnmgrd_context *ctx, ktxnmgrd_wake reason );
-extern int  ktxnmgr_writeback (struct super_block * s, struct writeback_control *);
-
+extern void ktxnmgrd_kick(ktxnmgrd_context * ctx, ktxnmgrd_wake reason);
+extern int ktxnmgr_writeback(struct super_block *s, struct writeback_control *);
 
 /* __KTXNMGRD_H__ */
 #endif

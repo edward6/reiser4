@@ -5,7 +5,7 @@
 
 #include "dformat.h"
 
-#include <linux/fs.h> /* for struct super_block  */
+#include <linux/fs.h>		/* for struct super_block  */
 
 /*****************************************************************************************
                             REISER4 JOURNAL ON-DISK DATA STRUCTURES  
@@ -25,28 +25,28 @@ extern int WRITE_LOG;
 /* journal header block format */
 struct journal_header {
 	/* last written transaction head location */
-	d64      last_committed_tx;
+	d64 last_committed_tx;
 };
 
 /* journal footer block format */
 struct journal_footer {
-	/* last flushed transaction location.*/
+	/* last flushed transaction location. */
 	/* This block number is no more valid after the transaction it points
 	 * to gets flushed, this number is used only at journal replaying time
 	 * for detection of the end of on-disk list of committed transactions
 	 * which were not flushed completely */
-	d64      last_flushed_tx;
+	d64 last_flushed_tx;
 
 	/* free block counter is written in journal footer at transaction
 	 * flushing , not in super block because free blocks counter is logged
 	 * by another way than super block fields (root pointer, for
 	 * example). */
-	d64      free_blocks;
+	d64 free_blocks;
 
 	/* number of used OIDs and maximal used OID are logged separately from
 	 * super block */
-	d64      nr_files;
-	d64      next_oid;
+	d64 nr_files;
+	d64 next_oid;
 };
 
 /* each log record (except first one) has unified format with log record
@@ -54,19 +54,19 @@ struct journal_footer {
 struct log_record_header {
 	/* when there is no predefined location for log records, this magic
 	 * string should help reiser4fsck. */
-	char     magic[LOG_RECORD_MAGIC_SIZE];
+	char magic[LOG_RECORD_MAGIC_SIZE];
 
 	/* transaction id */
-	d64      id;
+	d64 id;
 
 	/* total number of log records in current transaction  */
-	d32      total;
+	d32 total;
 
-	/* this block number in transaction */			
-	d32      serial;
+	/* this block number in transaction */
+	d32 serial;
 
 	/* number of previous block in commit */
-	d64      next_block;
+	d64 next_block;
 };
 
 /* The first log record (transaction head) of written transaction has the
@@ -74,31 +74,31 @@ struct log_record_header {
 struct tx_header {
 	/* magic string makes first block in transaction different from other
 	 * logged blocks, it should help fsck. */
-	char     magic[TX_HEADER_MAGIC_SIZE];
+	char magic[TX_HEADER_MAGIC_SIZE];
 
-	/* transaction id*/
-	d64      id;
+	/* transaction id */
+	d64 id;
 
 	/* total number of records (including this first tx head) in the
 	 * transaction */
-	d32      total;
+	d32 total;
 
 	/* align next field to 8-byte boundary; this field always is zero */
-	d32      padding;
+	d32 padding;
 
 	/* block number of previous transaction head */
-	d64      prev_tx;
+	d64 prev_tx;
 
 	/* next log record location */
-	d64      next_block;
+	d64 next_block;
 
 	/* committed versions of free blocks counter */
-	d64      free_blocks;
+	d64 free_blocks;
 
 	/* number of used OIDs (nr_files) and maximal used OID are logged separately from
 	 * super block */
-	d64      nr_files;
-	d64      next_oid;
+	d64 nr_files;
+	d64 next_oid;
 };
 
 /* A transaction gets written to disk as a set of log records (each log record
@@ -107,19 +107,20 @@ struct tx_header {
 /* rest of log record is filled by these log entries, unused space filled by
  * zeroes */
 struct log_entry {
-	d64      original;	/* block original location */
-	d64      wandered;	/* block wandered location */
+	d64 original;		/* block original location */
+	d64 wandered;		/* block wandered location */
 };
 
 /*****************************************************************************************
                             REISER4 JOURNAL WRITER FUNCTIONS  
  *****************************************************************************************/
 
-extern int reiser4_write_logs     (void);
-extern int reiser4_journal_replay (struct super_block*);
-extern int reiser4_journal_recover_sb_data (struct super_block*);
+extern int reiser4_write_logs(void);
+extern int reiser4_journal_replay(struct super_block *);
+extern int reiser4_journal_recover_sb_data(struct super_block *);
 
-extern int  init_journal_info (struct super_block *, const reiser4_block_nr *, const reiser4_block_nr *);
-extern void done_journal_info (struct super_block *);
+extern int init_journal_info(struct super_block *, const reiser4_block_nr *,
+			     const reiser4_block_nr *);
+extern void done_journal_info(struct super_block *);
 
-#endif /* __FS_REISER4_WANDER_H__ */
+#endif				/* __FS_REISER4_WANDER_H__ */

@@ -16,8 +16,8 @@
 #include "plugin/plugin_header.h"
 #include "key.h"
 
-#include <linux/types.h> /* for __u??  */ 
-#include <linux/fs.h> /* for struct super_block, etc.  */
+#include <linux/types.h>	/* for __u??  */
+#include <linux/fs.h>		/* for struct super_block, etc.  */
 
 typedef enum {
 	LNODE_INODE,
@@ -29,7 +29,7 @@ typedef enum {
 typedef union lnode lnode;
 
 /** declare hash table of lnode_lw's */
-TS_HASH_DECLARE( ln, lnode );
+TS_HASH_DECLARE(ln, lnode);
 
 /** common part of various lnode types */
 typedef struct lnode_header {
@@ -37,55 +37,55 @@ typedef struct lnode_header {
 	 * lnode type. Taken from lnode_type enum. Never changed after
 	 * initialisation, so needs no locking. 
 	 */
-	__u8          type;
+	__u8 type;
 	/** unused. Alignment requires this anyway. */
-	__u8          flags;
+	__u8 flags;
 	/** condition variable to wake up waiters */
-	kcond_t       cvar;
+	kcond_t cvar;
 	/** hash table linkage. Updated under hash-table spinlock. */
-	ln_hash_link  link;
+	ln_hash_link link;
 	/** 
 	 * objectid of underlying file system object. Never changed after
 	 * initialisation, so needs no locking. 
 	 */
-	oid_t         oid;
+	oid_t oid;
 	/** reference counter. Updated under hash-table spinlock. */
-	int           ref;
+	int ref;
 } lnode_header;
 
 typedef struct lnode_inode {
-	lnode_header   h;
-	struct inode  *inode;
+	lnode_header h;
+	struct inode *inode;
 } lnode_inode;
 
 typedef struct lnode_lw {
-	lnode_header   h;
-	reiser4_key    key;
+	lnode_header h;
+	reiser4_key key;
 } lnode_lw;
 
 typedef struct lnode_pseudo {
-	lnode_header   h;
-	lnode         *host;
+	lnode_header h;
+	lnode *host;
 	/* something to identify pseudo file type, like name or plugin */
 } lnode_pseudo;
 
 union lnode {
 	lnode_header h;
-	lnode_inode  inode;
-	lnode_lw     lw;
+	lnode_inode inode;
+	lnode_lw lw;
 	lnode_pseudo pseudo;
 };
 
-extern int lnodes_init( struct super_block *super );
-extern lnode *lget( lnode *node, lnode_type type, oid_t oid );
-extern void lput( lnode *node );
-extern int lnode_eq( const lnode *node1, const lnode *node2 );
+extern int lnodes_init(struct super_block *super);
+extern lnode *lget(lnode * node, lnode_type type, oid_t oid);
+extern void lput(lnode * node);
+extern int lnode_eq(const lnode * node1, const lnode * node2);
 
-extern struct inode *inode_by_lnode( const lnode *node );
-extern reiser4_key *lnode_key( const lnode *node, reiser4_key *result );
+extern struct inode *inode_by_lnode(const lnode * node);
+extern reiser4_key *lnode_key(const lnode * node, reiser4_key * result);
 
-extern int get_lnode_plugins( const lnode *node, reiser4_plugin_ref *area );
-extern int set_lnode_plugins( lnode *node, const reiser4_plugin_ref *area );
+extern int get_lnode_plugins(const lnode * node, reiser4_plugin_ref * area);
+extern int set_lnode_plugins(lnode * node, const reiser4_plugin_ref * area);
 
 /* __LNODE_H__ */
 #endif

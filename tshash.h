@@ -216,7 +216,6 @@ PREFIX##_hash_next (PREFIX##_hash_table *hash,						\
   return next;										\
 }
 
-
 #define for_all_ht_buckets(table, head)					\
 for ((head) = &(table) -> _table[ 0 ] ;					\
      (head) != &(table) -> _table[ (table) -> _buckets ] ; ++ (head))
@@ -231,7 +230,7 @@ for ((item) = prefix ## _hash_first ((table), 0), (next) = prefix ## _hash_next 
      (item) != NULL ;										    \
      (item) = (next), (next) = prefix ## _hash_next ((table), (item)))
 
-#endif /* __REISER4_TSHASH_H__ */
+#endif				/* __REISER4_TSHASH_H__ */
 
 /*
  * Make Linus happy.

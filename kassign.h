@@ -13,10 +13,10 @@
 #include "key.h"
 #include "dformat.h"
 
-#include <linux/types.h> /* for __u??  */
-#include <linux/fs.h> /* for struct super_block, etc  */
-#include <linux/dcache.h> /* for struct qstr */
-/* key assignment functions */ 
+#include <linux/types.h>	/* for __u??  */
+#include <linux/fs.h>		/* for struct super_block, etc  */
+#include <linux/dcache.h>	/* for struct qstr */
+/* key assignment functions */
 
 /**
  * Information from which key of file stat-data can be uniquely
@@ -46,9 +46,10 @@
  *
  */
 typedef struct obj_key_id {
-	d8 locality[ sizeof( __u64 ) ];
-	d8 objectid[ sizeof( __u64 ) ];
-} obj_key_id;
+	d8 locality[sizeof (__u64)];
+	d8 objectid[sizeof (__u64)];
+}
+obj_key_id;
 
 /**
  * Information sufficient to uniquely identify directory entry within
@@ -57,36 +58,36 @@ typedef struct obj_key_id {
  * For alignment issues see &obj_key_id above.
  */
 typedef struct de_id {
-	d8 objectid[ sizeof( __u64 ) ];
-	d8 offset  [ sizeof( __u64 ) ];
-} de_id;
+	d8 objectid[sizeof (__u64)];
+	d8 offset[sizeof (__u64)];
+}
+de_id;
 
-extern int build_inode_key_id( const struct inode *obj, obj_key_id *id );
-extern int extract_key_from_id( const obj_key_id *id, reiser4_key *key );
-extern int build_obj_key_id( const reiser4_key *key, obj_key_id *id );
-extern oid_t extract_dir_id_from_key( const reiser4_key *de_key );
-extern int build_de_id( const struct inode *dir, const struct inode *obj, 
-			const struct qstr *name, de_id *id );
-extern int build_de_id_by_key( const reiser4_key *entry_key, de_id *id );
-extern int extract_key_from_de_id( const oid_t locality, 
-			    const de_id *id, reiser4_key *key );
-extern cmp_t key_id_cmp( const obj_key_id *i1, const obj_key_id *i2 );
-extern cmp_t key_id_key_cmp( const obj_key_id *id, const reiser4_key *key );
-extern cmp_t de_id_cmp( const de_id *id1, const de_id *id2 );
-extern cmp_t de_id_key_cmp( const de_id *id, const reiser4_key *key );
+extern int build_inode_key_id(const struct inode *obj, obj_key_id * id);
+extern int extract_key_from_id(const obj_key_id * id, reiser4_key * key);
+extern int build_obj_key_id(const reiser4_key * key, obj_key_id * id);
+extern oid_t extract_dir_id_from_key(const reiser4_key * de_key);
+extern int build_de_id(const struct inode *dir, const struct inode *obj,
+		       const struct qstr *name, de_id * id);
+extern int build_de_id_by_key(const reiser4_key * entry_key, de_id * id);
+extern int extract_key_from_de_id(const oid_t locality,
+				  const de_id * id, reiser4_key * key);
+extern cmp_t key_id_cmp(const obj_key_id * i1, const obj_key_id * i2);
+extern cmp_t key_id_key_cmp(const obj_key_id * id, const reiser4_key * key);
+extern cmp_t de_id_cmp(const de_id * id1, const de_id * id2);
+extern cmp_t de_id_key_cmp(const de_id * id, const reiser4_key * key);
 
-extern int build_readdir_key( struct file *dir, reiser4_key *result );
-extern int build_entry_key( const struct inode *dir, const struct qstr *name,
-			    reiser4_key *result );
-extern int build_readdir_stable_entry_key( const struct inode *dir, 
-					   const struct qstr *name,
-					   reiser4_key *result );
-extern int is_dot_key( const reiser4_key *key );
-extern reiser4_key *build_sd_key( const struct inode *target, 
-				  reiser4_key *result );
-extern int is_root_dir_key( const struct super_block *super, 
-			    const reiser4_key *key );
-
+extern int build_readdir_key(struct file *dir, reiser4_key * result);
+extern int build_entry_key(const struct inode *dir, const struct qstr *name,
+			   reiser4_key * result);
+extern int build_readdir_stable_entry_key(const struct inode *dir,
+					  const struct qstr *name,
+					  reiser4_key * result);
+extern int is_dot_key(const reiser4_key * key);
+extern reiser4_key *build_sd_key(const struct inode *target,
+				 reiser4_key * result);
+extern int is_root_dir_key(const struct super_block *super,
+			   const reiser4_key * key);
 
 /* __KASSIGN_H__ */
 #endif
@@ -101,4 +102,3 @@ extern int is_root_dir_key( const struct super_block *super,
  * fill-column: 120
  * End:
  */
-

@@ -39,24 +39,23 @@ typedef struct reiser4_plugin_ops reiser4_plugin_ops;
 struct reiser4_plugin_ref;
 typedef struct reiser4_plugin_ref reiser4_plugin_ref;
 
-TS_LIST_DECLARE( plugin );
+TS_LIST_DECLARE(plugin);
 
 /** common part of each plugin instance. */
 typedef struct plugin_header {
 	/** plugin type */
-	reiser4_plugin_type  type_id;
+	reiser4_plugin_type type_id;
 	/** id of this plugin */
-	reiser4_plugin_id    id;
+	reiser4_plugin_id id;
 	/** plugin operations */
-	reiser4_plugin_ops  *pops;
+	reiser4_plugin_ops *pops;
 	/** short label of this plugin */
-	const char          *label;
+	const char *label;
 	/** descriptive string. Put your copyright message here. */
-	const char          *desc;
+	const char *desc;
 	/** list linkage */
-	plugin_list_link     linkage;
+	plugin_list_link linkage;
 } plugin_header;
-
 
 /* __PLUGIN_HEADER_H__ */
 #endif

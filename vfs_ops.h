@@ -15,30 +15,30 @@
 #include "tslist.h"
 #include "plugin/dir/dir.h"
 
-#include <linux/types.h> /* for loff_t */
-#include <linux/fs.h> /* for struct address_space */
-#include <linux/dcache.h> /* for struct dentry */
+#include <linux/types.h>	/* for loff_t */
+#include <linux/fs.h>		/* for struct address_space */
+#include <linux/dcache.h>	/* for struct dentry */
 #include <linux/mm.h>
 
-extern int reiser4_write_sd ( struct inode *object );
-extern int reiser4_add_nlink( struct inode *, struct inode *, int );
-extern int reiser4_del_nlink( struct inode *, struct inode *, int );
+extern int reiser4_write_sd(struct inode *object);
+extern int reiser4_add_nlink(struct inode *, struct inode *, int);
+extern int reiser4_del_nlink(struct inode *, struct inode *, int);
 
-extern int truncate_object  ( struct inode *inode, loff_t size );
+extern int truncate_object(struct inode *inode, loff_t size);
 
-extern void reiser4_free_dentry_fsdata( struct dentry *dentry );
+extern void reiser4_free_dentry_fsdata(struct dentry *dentry);
 
-extern struct file_operations          reiser4_file_operations;
-extern struct inode_operations         reiser4_inode_operations;
-extern struct inode_operations         reiser4_symlink_inode_operations;
-extern struct super_operations         reiser4_super_operations;
+extern struct file_operations reiser4_file_operations;
+extern struct inode_operations reiser4_inode_operations;
+extern struct inode_operations reiser4_symlink_inode_operations;
+extern struct super_operations reiser4_super_operations;
 extern struct address_space_operations reiser4_as_operations;
-extern struct dentry_operations        reiser4_dentry_operation;
+extern struct dentry_operations reiser4_dentry_operation;
 
-extern int reiser4_invalidatepage( struct page *page, unsigned long offset );
-extern int reiser4_releasepage   ( struct page *page, int gfp );
-extern int reiser4_writepages    ( struct address_space *, 
-				   struct writeback_control *wbc );
+extern int reiser4_invalidatepage(struct page *page, unsigned long offset);
+extern int reiser4_releasepage(struct page *page, int gfp);
+extern int reiser4_writepages(struct address_space *,
+			      struct writeback_control *wbc);
 
 /**
  * &reiser4_dentry_fsdata - reiser4-specific data attached to dentries.
@@ -53,12 +53,12 @@ typedef struct reiser4_dentry_fsdata {
 	 */
 
 	/* seal covering directory entry */
-	seal_t     entry_seal;
+	seal_t entry_seal;
 	/* coord of directory entry */
 	coord_t entry_coord;
 } reiser4_dentry_fsdata;
 
-TS_LIST_DECLARE( readdir );
+TS_LIST_DECLARE(readdir);
 
 /**
  * &reiser4_dentry_fsdata - reiser4-specific data attached to files.
@@ -80,10 +80,10 @@ typedef struct reiser4_file_fsdata {
 	} reg;
 } reiser4_file_fsdata;
 
-TS_LIST_DEFINE( readdir, reiser4_file_fsdata, dir.linkage );
+TS_LIST_DEFINE(readdir, reiser4_file_fsdata, dir.linkage);
 
-extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata( struct dentry *dentry );
-extern reiser4_file_fsdata   *reiser4_get_file_fsdata  ( struct file *f );
+extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *dentry);
+extern reiser4_file_fsdata *reiser4_get_file_fsdata(struct file *f);
 
 /* __FS_REISER4_VFS_OPS_H__ */
 #endif
