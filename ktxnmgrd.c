@@ -16,12 +16,6 @@
 
 static int scan_mgr(txn_mgr * mgr);
 
-#if (0)
-#define ktxnmgrd_trace( args... ) info( "ktxnmgrd: " ##args )
-#else
-#define ktxnmgrd_trace( args... ) noop
-#endif
-
 /* change current->comm so that ps, top, and friends will see changed
    state. This serves no useful purpose whatsoever, but also costs
    nothing. May be it will make lonely system administrator feeling less alone
@@ -33,7 +27,7 @@ static int scan_mgr(txn_mgr * mgr);
 
 /* The background transaction manager daemon, started as a kernel thread
    during reiser4 initialization. */
-int
+static int
 ktxnmgrd(void *arg)
 {
 	struct task_struct *me;
@@ -61,7 +55,6 @@ ktxnmgrd(void *arg)
 	spin_lock_ktxnmgrd(ctx);
 	ctx->tsk = me;
 	kcond_broadcast(&ctx->startup);
-	ktxnmgrd_trace("started\n");
 	while (1) {
 		int result;
 		txn_mgr *mgr;
@@ -91,8 +84,6 @@ ktxnmgrd(void *arg)
 		if (ctx->done)
 			break;
 
-		ktxnmgrd_trace("woke up\n");
-
 		set_comm(result ? "timed" : "run");
 
 		/* wait timed out or ktxnmgrd was woken up by explicit request
@@ -104,7 +95,6 @@ ktxnmgrd(void *arg)
 			for (mgr = txn_mgrs_list_front(&ctx->queue);
 			     !txn_mgrs_list_end(&ctx->queue, mgr); mgr = txn_mgrs_list_next(mgr)) {
 				scan_mgr(mgr);
-				ktxnmgrd_trace("\tscan mgr\n");
 
 				spin_lock_ktxnmgrd(ctx);
 				if (ctx->rescan) {
@@ -115,13 +105,11 @@ ktxnmgrd(void *arg)
 					break;
 				}
 			}
-			ktxnmgrd_trace("scan finished\n");
 		} while (ctx->rescan);
 	}
 
 	spin_unlock_ktxnmgrd(ctx);
 
-	ktxnmgrd_trace("exiting\n");
 	complete_and_exit(&ctx->finish, 0);
 	/* not reached. */
 	return 0;
