@@ -606,9 +606,11 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 	ctx  = get_current_context ();
 	txnh = ctx->trans;
 
-	spin_lock_txnh (txnh);
+	if (! spin_trylock_txnh (txnh)) {
+		REISER4_EXIT (0);
+	}
 
-	if (txnh->atom != NULL) {
+	if (txnh->atom != NULL || ! lock_stack_isclean( & ctx->stack )) {
 		/*
 		 * Good Lord, we are called synchronously! What a shame.
 		 *
@@ -620,8 +622,6 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 		spin_unlock_txnh (txnh);
 		REISER4_EXIT (0);
 	}
-
-	assert( "jmacd-21048", lock_stack_isclean( & ctx->stack ));
 
 	node = jnode_by_page (page);
 
