@@ -2008,10 +2008,12 @@ unflush_part(oid_t oid, unsigned long ind, __u64 count)
 	int             result;
 	reiser4_tree   *tree;
 	int             eflushed;
+	int             jloaded;
 
 	tree = current_tree;
 
 	eflushed = 0;
+	jloaded = 0;
 	for (i = 0; i < count; ++i, ++ind) {
 		jnode  *node;
 
@@ -2026,13 +2028,14 @@ unflush_part(oid_t oid, unsigned long ind, __u64 count)
 		}
 
 		result = jload(node);
+		jloaded ++;
 		jput(node);
 		if (result != 0)
 			warning("vs-1134", "jload failed (oid %llu, page %lu, error %d)\n",
 				oid, ind, result);
 	}
-	assert("vs-1130", i > 0);
-	return i;
+	assert("vs-1130", jloaded > 0);
+	return jloaded;
 }
 
 /* jrelse @count nodes starting from index @ind */
@@ -2142,7 +2145,7 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 
 			check_me("vs-1137", extent_allocate_blocks(flush_pos_hint(flush_pos),
 								   can_be_allocated, &first_allocated, &allocated) == 0);
-			if (can_be_allocated < allocated)
+			if (allocated < can_be_allocated)
 				unflush_finish_part(oid, index + allocated, can_be_allocated - allocated);
 
 			trace_on(TRACE_EXTENTS,
@@ -2422,7 +2425,7 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		check_me("vs-1138", extent_allocate_blocks(flush_pos_hint(flush_pos), 
 							   can_be_allocated, &first_allocated, &allocated) == 0);
 		assert("vs-440", allocated > 0 && allocated <= can_be_allocated);
-		if (can_be_allocated < allocated)
+		if (allocated < can_be_allocated)
 			/* jrelse nodes which will not be allocated on this iteration
 			   FIXME-VS: unflush_finish for the rest is right after call to block allocator. Maybe we could
 			   unflush_finish all nodes there 
