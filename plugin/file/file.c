@@ -17,6 +17,7 @@
 /* plugin->u.file.truncate */
 int unix_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
 {
+	int result;
 	reiser4_key from, to;
 
 	assert ("vs-319", size == inode->i_size);
@@ -30,7 +31,16 @@ int unix_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
 	/* all items of ordinary reiser4 file are grouped together. That is why
 	   we can use cut_tree. Plan B files (for instance) can not be
 	   truncated that simply */
-	return cut_tree (tree_by_inode (inode), &from, &to);
+	result = cut_tree (tree_by_inode (inode), &from, &to);
+	if (result) {
+		return result;
+	}
+	assert ("vs-637",
+		inode_file_plugin( inode ) -> write_sd_by_inode ==
+		common_file_save);
+	if ((result = common_file_save (inode)))
+		warning ("vs-638", "updating stat data failed\n");
+	return result;
 }
 
 
@@ -97,7 +107,6 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 	tree_coord coord;
 	lock_handle lh;
 	size_t to_read;
-	file_plugin * fplug;
 	item_plugin * iplug;
 	flow_t f;
 
@@ -109,13 +118,11 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 	result = 0;
 
 	/* build flow */
-	assert ("vs-528", inode_file_plugin (inode));
-	fplug = inode_file_plugin (inode);
-	if (!fplug->flow_by_inode)
-		return -EINVAL;
+	assert ("vs-528",
+		inode_file_plugin (inode)->flow_by_inode == common_build_flow);
 
-	result = fplug->flow_by_inode (inode, buf, 1/* user space */, size,
-				       *off, READ_OP, &f);
+	result = common_build_flow (inode, buf, 1/* user space */, size,
+				    *off, READ_OP, &f);
 	if (result)
 		return result;
 
@@ -183,7 +190,6 @@ ssize_t unix_file_write (struct file * file,
 	tree_coord coord;
 	lock_handle lh;	
 	size_t to_write;
-	file_plugin * fplug;
 	item_plugin * iplug;
 	flow_t f;
 	
@@ -194,13 +200,11 @@ ssize_t unix_file_write (struct file * file,
 	inode = file->f_dentry->d_inode;
 
 	/* build flow */
-	assert ("vs-481", inode_file_plugin (inode));
-	fplug = inode_file_plugin (inode);
-	if (!fplug->flow_by_inode)
-		return -EINVAL;
+	assert ("vs-481",
+		inode_file_plugin (inode)->flow_by_inode == common_build_flow);
 
-	result = fplug->flow_by_inode (inode, buf, 1/* user space */, size, *off,
-				       WRITE_OP, &f);
+	result = common_build_flow (inode, buf, 1/* user space */, size, *off,
+				    WRITE_OP, &f);
 	if (result)
 		return result;
 
@@ -249,7 +253,16 @@ ssize_t unix_file_write (struct file * file,
 			continue;
 		break;
 	}
-	
+	if( to_write - f.length ) {
+		/* something was written. Update stat data */
+		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+		assert ("vs-639",
+			inode_file_plugin (inode)->write_sd_by_inode ==
+			common_file_save);
+		if (common_file_save (inode))
+			warning ("vs-636", "updating stat data failed\n");
+	}
+
 	/* update position in a file */
 	*off += (to_write - f.length);
 	/* return number of written bytes or error code if nothing is written */
@@ -288,7 +301,8 @@ static int built_of_extents (struct inode * inode UNUSED_ARG,
  * nodes */
 static int should_have_notail (struct inode * inode, loff_t new_size)
 {
-	assert ("vs-549", inode_tail_plugin (inode));
+	if (!inode_tail_plugin (inode))
+		return 1;
 	return !inode_tail_plugin (inode)->have_tail (inode, new_size);
 
 }
@@ -407,6 +421,7 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 	assert ("vs-564", iplug && iplug->s.file.write);
 
 	to_page = PAGE_SIZE;
+	result = 0;
 	for (i = 0; i < nr_pages; i ++) {
 		p_data = kmap (pages [i]);
 
@@ -572,7 +587,9 @@ static int tail2extent (struct inode * inode)
 	memset (pages, 0, sizeof (pages));
 	nr_pages = 0;
 	page = 0;
+	page_off = 0;
 	item = 0;
+	copied = 0;
 	while (1) {
 		if (!item) {
 			/* get next one */
