@@ -167,7 +167,7 @@ LOCAL void __lzrw1_decompress(p_src_first,src_len,p_dst_first,p_dst_len)
 /******************************************************************************/
 
 static void 
-lzrw1_compress(void *ctx, __u8 *src_first, unsigned src_len, __u8 *dst_first, unsigned *dst_len)
+lzrw1_compress(tfm_info_t ctx, __u8 *src_first, unsigned src_len, __u8 *dst_first, unsigned *dst_len)
 {
 	assert("edward-764", ctx == NULL);
 	__lzrw1_compress(src_first, src_len, dst_first, dst_len);
@@ -175,7 +175,7 @@ lzrw1_compress(void *ctx, __u8 *src_first, unsigned src_len, __u8 *dst_first, un
 }
 
 static void 
-lzrw1_decompress(void *ctx, __u8 *src_first, unsigned src_len, __u8 *dst_first, unsigned *dst_len)
+lzrw1_decompress(tfm_info_t ctx, __u8 *src_first, unsigned src_len, __u8 *dst_first, unsigned *dst_len)
 {
 	assert("edward-765", ctx == NULL);
 	__lzrw1_decompress(src_first, src_len, dst_first, dst_len);
@@ -183,19 +183,19 @@ lzrw1_decompress(void *ctx, __u8 *src_first, unsigned src_len, __u8 *dst_first, 
 }
 
 /******************************************************************************/
-/*                                GZIP6.C                                     */
+/*                                GZIP1.C                                     */
 /******************************************************************************/
 /*                                                                            */
 /* See linux/zlib.h for details                                               */
 /*                                                                            */
 /******************************************************************************/
 
-#define GZIP6_DEF_LEVEL		        Z_DEFAULT_COMPRESSION
-#define GZIP6_DEF_WINBITS		11
-#define GZIP6_DEF_MEMLEVEL		MAX_MEM_LEVEL
+#define GZIP1_DEF_LEVEL		        Z_BEST_SPEED
+#define GZIP1_DEF_WINBITS		15
+#define GZIP1_DEF_MEMLEVEL		MAX_MEM_LEVEL
 
 static int 
-gzip6_alloc (void ** ctx, tfm_action act)
+gzip1_alloc (tfm_info_t * ctx, tfm_action act)
 {
 	int ret = -ENXIO;
 	assert("edward-766", *ctx == NULL);
@@ -226,12 +226,12 @@ gzip6_alloc (void ** ctx, tfm_action act)
 	}
 #endif
 	if (ret)
-		warning("edward-768", "alloc workspace for gzip6 (tfm action = %d) failed\n", act);
+		warning("edward-768", "alloc workspace for gzip1 (tfm action = %d) failed\n", act);
 	return ret;
 }
 
 static void 
-gzip6_free (void ** ctx, tfm_action act)
+gzip1_free (tfm_info_t * ctx, tfm_action act)
 {
 #if REISER4_GZIP_TFM
 	assert("edward-769", *ctx != NULL);
@@ -251,14 +251,16 @@ gzip6_free (void ** ctx, tfm_action act)
 }
 
 static void 
-gzip6_compress( void *ctx, __u8 *src_first, unsigned src_len, __u8 *dst_first, unsigned *dst_len)
+gzip1_compress(tfm_info_t ctx, __u8 *src_first, unsigned src_len, __u8 *dst_first, unsigned *dst_len)
 {
 #if REISER4_GZIP_TFM
 	int ret = 0;
 	struct z_stream_s stream;
-	compression_plugin * cplug = compression_plugin_by_id(GZIP6_COMPRESSION_ID);
+	compression_plugin * cplug = compression_plugin_by_id(GZIP1_COMPRESSION_ID);
 	
 	xmemset(&stream, 0, sizeof(stream));
+
+	assert("edward-842", ctx != NULL);
 	
 	if (!ctx) {
 		ret = cplug->alloc(&stream.workspace, TFM_WRITE);
@@ -268,8 +270,8 @@ gzip6_compress( void *ctx, __u8 *src_first, unsigned src_len, __u8 *dst_first, u
 	else 
 		stream.workspace = ctx;	
 	
-	ret = zlib_deflateInit2(&stream, GZIP6_DEF_LEVEL, Z_DEFLATED,
-	                        -GZIP6_DEF_WINBITS, GZIP6_DEF_MEMLEVEL,
+	ret = zlib_deflateInit2(&stream, GZIP1_DEF_LEVEL, Z_DEFLATED,
+	                        -GZIP1_DEF_WINBITS, GZIP1_DEF_MEMLEVEL,
 	                        Z_DEFAULT_STRATEGY);
 	if (ret != Z_OK) {
 		warning("edward-771", "zlib_deflateInit2 returned %d\n", ret);
@@ -302,15 +304,17 @@ gzip6_compress( void *ctx, __u8 *src_first, unsigned src_len, __u8 *dst_first, u
 	return;
 }
 
-static void 
-gzip6_decompress(void * ctx, __u8 *src_first, unsigned src_len, __u8 *dst_first, unsigned *dst_len)
+static void
+gzip1_decompress(tfm_info_t ctx, __u8 *src_first, unsigned src_len, __u8 *dst_first, unsigned *dst_len)
 {
 #if REISER4_GZIP_TFM
 	int ret = 0;
 	struct z_stream_s stream;
-	compression_plugin * cplug = compression_plugin_by_id(GZIP6_COMPRESSION_ID);
+	compression_plugin * cplug = compression_plugin_by_id(GZIP1_COMPRESSION_ID);
 	
 	xmemset(&stream, 0, sizeof(stream));
+
+	assert("edward-843", ctx == NULL);
 	
 	if (!ctx) {
 		ret = cplug->alloc(&stream.workspace, TFM_READ);
@@ -318,9 +322,9 @@ gzip6_decompress(void * ctx, __u8 *src_first, unsigned src_len, __u8 *dst_first,
 			goto out;
 	}
 	else 
-		stream.workspace = ctx;	
+		stream.workspace = ctx;
 	
-	ret = zlib_inflateInit2(&stream, -GZIP6_DEF_WINBITS);
+	ret = zlib_inflateInit2(&stream, -GZIP1_DEF_WINBITS);
 	if (ret != Z_OK) {
 		warning("edward-774", "zlib_inflateInit2 returned %d\n", ret);
 		goto out;
@@ -406,20 +410,20 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 	        .compress = lzrw1_compress,
 	        .decompress = lzrw1_decompress
 	},
-	[GZIP6_COMPRESSION_ID] = {
+	[GZIP1_COMPRESSION_ID] = {
 		.h = {
 			.type_id = REISER4_COMPRESSION_PLUGIN_TYPE,
-			.id = GZIP6_COMPRESSION_ID,
+			.id = GZIP1_COMPRESSION_ID,
 			.pops = NULL,
-			.label = "gzip6",
-			.desc = "gzip6 compression transform",
+			.label = "gzip1",
+			.desc = "gzip1 compression transform",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.overrun = 0,
-		.alloc = gzip6_alloc,
-		.free = gzip6_free,
-	        .compress = gzip6_compress,
-	        .decompress = gzip6_decompress
+		.alloc = gzip1_alloc,
+		.free = gzip1_free,
+	        .compress = gzip1_compress,
+	        .decompress = gzip1_decompress
 	}
 };
 

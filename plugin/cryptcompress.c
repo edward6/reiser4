@@ -947,7 +947,8 @@ reiser4_internal void set_compression_magic(__u8 * magic)
 */
 
 reiser4_internal int
-deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
+deflate_cluster(tfm_info_t ctx, /* data for compression plugin, which can be allocated per flush positionn */
+		reiser4_cluster_t *clust, /* contains data to process */
 		struct inode *inode)
 {
 	int result = 0;
@@ -966,7 +967,6 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 	if (try_compress(clust, inode)) {
 		/* try to compress, discard bad results */
 		__u32 dst_len;
-		void * ctx = NULL;
 		compression_plugin * cplug = inode_compression_plugin(inode);
 		
 		assert("edward-602", cplug != NULL);
@@ -1277,7 +1277,7 @@ inflate_cluster(reiser4_cluster_t *clust, /* cluster handle, contains assembled
 	if (need_decompression(clust, inode, 0 /* estimate for decrypted cluster */)) {
 		unsigned dst_len = inode_cluster_size(inode);
 		compression_plugin * cplug = inode_compression_plugin(inode);
-		void * ctx = NULL;
+		tfm_info_t ctx = NULL;
 		__u8 * src = bf;
 		__u8 magic[CLUSTER_MAGIC_SIZE];
 		
@@ -2010,7 +2010,7 @@ find_cluster(reiser4_cluster_t * clust,
 	hint = clust->hint;
 	cl_idx = clust->index;
 	fplug = inode_file_plugin(inode);
-	iplug = item_plugin_by_id(CTAIL_ID);
+	
 	/* build flow for the cluster */
 	fplug->flow_by_inode(inode, clust->buf, 0 /* kernel space */,
 			     inode_scaled_cluster_size(inode), clust_to_off(cl_idx, inode), READ_OP, &f);
@@ -2046,7 +2046,8 @@ find_cluster(reiser4_cluster_t * clust,
 			result = zload_ra(hint->coord.base_coord.node, &ra_info);
 			if (unlikely(result))
 				goto out2;
-			assert("edward-147", item_plugin_by_coord(&hint->coord.base_coord) == iplug);
+			iplug = item_plugin_by_coord(&hint->coord.base_coord);
+			assert("edward-147", item_plugin_by_coord(&hint->coord.base_coord) == item_plugin_by_id(CTAIL_ID));
 			if (read) {
 				result = iplug->s.file.read(NULL, &f, hint);
 				if(result)
