@@ -400,10 +400,11 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 		/* check seal */
 		result = seal_validate( seal, coord, &entry -> key, LEAF_LEVEL,
 					lh, FIND_EXACT, mode, ZNODE_LOCK_LOPRI );
-		if( result == 0 ) {
+		if( ( result == 0 ) && !( result = zload( coord -> node ) ) ) {
 			/* key was found. Check that it is really item we are
 			 * looking for. */
 			result = check_item( dir, coord, name -> name );
+			zrelse( coord -> node );
 			if( result == 0 )
 				return 0;
 		}
@@ -480,6 +481,7 @@ static int entry_actor( reiser4_tree *tree UNUSED_ARG /* tree being scanned */,
 		return -EBUSY;
 	}
 #endif
+	
 	if( !keyeq( args -> key, unit_key_by_coord( coord, &unit_key ) ) ) {
 		assert( "nikita-1791", 
 			keylt( args -> key, 
