@@ -1523,9 +1523,12 @@ convert_ctail(flush_pos_t * pos)
 		idata = item_convert_data(pos);
 
 		result = assign_write_mode(idata, &mode);
-		if (result)
-			/* nothing to update */
+		if (result) {
+			/* disk cluster is over, 
+			   nothing to update anymore */
+			detach_convert_idata(pos->sq);
 			return 0;
+		}
 	}
 	
 	assert("edward-433", convert_data(pos) && item_convert_data(pos));
