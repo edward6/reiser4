@@ -141,9 +141,61 @@ static errno_t repair_node_dkeys_check(reiser4_node_t *node,
     return 0;
 }
 
+static errno_t repair_node_keys_check(reiser4_node_t *node, 
+    repair_check_t *data) 
+{
+    reiser4_key_t key, prev_key;
+    reiser4_pos_t pos = {0, ~0ul};
+    errno_t res;
+    
+    aal_assert("vpf-258", node != NULL, return -1);
+    
+    if (!(key.plugin = libreiser4_factory_ifind(KEY_PLUGIN_TYPE, 
+	KEY_REISER40_ID))) 
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find key plugin by its id 0x%x.", KEY_REISER40_ID);
+	return -1;
+    }
+    
+    for (pos.item = 0; reiser4_node_count(node); pos.item++) {
+	if (reiser4_node_get_key(node, &pos, &key)) {
+	    aal_exception_error("Node (%llu): Failed to get the key of the "
+		"item (%u).", aal_block_number(node->block), pos.item);
+	    return -1;
+	}
+	if (reiser4_key_valid(&key)) {
+	    aal_exception_error("Node (%llu): The key %k of the item (%u) is "
+		"not valid. Item removed.", aal_block_number(node->block), 
+		&key, pos.item);
+	    
+	    if (reiser4_node_remove(node, &pos)) {
+		aal_exception_bug("Node (%llu): Failed to delete the item "
+		    "(%d).", aal_block_number(node->block), pos.item);
+		return -1;
+	    }
+	}
+	if (pos.item) {	    
+	    if ((res = reiser4_key_compare(&prev_key, &key)) > 0 || 
+		(res == 0 && (reiser4_key_get_type(&key) != KEY_FILENAME_TYPE ||
+		reiser4_key_get_type(&prev_key) != KEY_FILENAME_TYPE))) 
+	    {
+		/* 
+		    FIXME-VITALY: Which part does put the rule that neighbour 
+		    keys could be equal?
+		*/
+		return 1;		
+	    }
+	}
+	prev_key = key;
+    }
+    
+    return 0;
+}
+
 /* 
     Checks the node content. 
-    Returns: 0 - OK; -1 - operational error; 1 - unrecoverable error;
+    Returns: 0 - OK; -1 - unrecoverable error; 1 - unrecoverable error;
 */
 errno_t repair_node_check(reiser4_node_t *node, repair_check_t *data) {
     blk_t blk;
@@ -189,9 +241,15 @@ errno_t repair_node_check(reiser4_node_t *node, repair_check_t *data) {
     if ((res = repair_node_items_check(node, data))) 
 	return res;
     
+    if ((res = repair_node_keys_check(node, data)))
+	    return res;
+    
     if ((res = repair_node_dkeys_check(node, data)))
 	return res;
     
+    if (reiser4_node_count(node) == 0)
+	return 1;
+	
     return 0;
 }
 
