@@ -346,6 +346,7 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "plugin/item/extent.h"
 #include "plugin/item/tail.h"
 #include "plugin/file/file.h"
+#include "plugin/symlink.h"
 #include "plugin/dir/hashed_dir.h"
 #include "plugin/dir/dir.h"
 #include "plugin/item/item.h"
