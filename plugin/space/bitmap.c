@@ -250,6 +250,83 @@ reiser4_find_next_set_bit(void *addr, bmap_off_t max_offset, bmap_off_t start_of
 	return max_offset;
 }
 
+static int
+find_last_set_bit_in_byte (unsigned byte, int start)
+{
+	unsigned bit_mask = 0x80;
+	int nr = 7;
+
+	while (nr > 0 ) {
+		if (bit_mask & byte)
+			return nr;
+		bit_mask >>= 1;
+		nr --;
+	}
+	return 8;
+}
+
+/* Search bitmap for a set bit in backward direction from the end to the
+ * beginning of given region */
+static bmap_off_t
+reiser4_find_last_set_bit (void * addr, bmap_off_t beg, bmap_off_t end)
+{
+	unsigned char * base = addr;
+	int last_byte;
+	int first_byte;
+	int last_bit;
+	int nr;
+
+	last_byte = end >> 3;
+	last_bit = end & 0x7;
+	first_byte = beg >> 3;
+
+	if (last_bit != 0) {
+		nr = find_last_set_bit_in_byte(base[last_byte], last_bit);
+		if (nr < 8) 
+			return (last_byte << 3) + nr;
+		-- last_byte;
+	}
+	while (last_byte > first_byte) {
+		if (base[last_byte] != 0xFF)
+			return (last_byte << 3) + 
+				find_last_set_bit_in_byte((unsigned)base[last_byte], 7);
+		-- last_byte;
+	}
+
+	return beg - 1;
+}
+
+/* Search bitmap for a clear bit in backward direction from the end to the
+ * beginning of given region */
+static bmap_off_t
+reiser4_find_last_zero_bit (void * addr, bmap_off_t beg, bmap_off_t end)
+{
+	unsigned char * base = addr;
+	int last_byte;
+	int first_byte;
+	int last_bit;
+	int nr;
+
+	last_byte = end >> 3;
+	last_bit = end & 0x7;
+	first_byte = beg >> 3;
+
+	if (last_bit != 0) {
+		nr = find_last_set_bit_in_byte(base[last_byte], last_bit);
+		if (nr < 8) 
+			return (last_byte << 3) + nr;
+		-- last_byte;
+	}
+	while (last_byte > first_byte) {
+		if (base[last_byte] != 0)
+			return (last_byte << 3) + 
+				find_last_set_bit_in_byte(~(unsigned)base[last_byte], 7);
+		-- last_byte;    
+	}
+
+	return beg - 1;
+}
+
 /* Audited by: green(2002.06.12) */
 static void
 reiser4_clear_bits(char *addr, bmap_off_t start, bmap_off_t end)
@@ -678,7 +755,8 @@ bitmap_iterator(reiser4_block_nr * start, reiser4_block_nr * start,
    have it in v4.x */
 
 static int
-search_one_bitmap(bmap_nr_t bmap, bmap_off_t * offset, bmap_off_t max_offset, int min_len, int max_len)
+search_one_bitmap(bmap_nr_t bmap, bmap_off_t * offset, bmap_off_t max_offset,
+		  int min_len, int max_len)
 {
 	struct super_block *super = get_current_context()->super;
 	struct bnode *bnode = get_bnode(super, bmap);
@@ -752,10 +830,59 @@ search_one_bitmap(bmap_nr_t bmap, bmap_off_t * offset, bmap_off_t max_offset, in
 	return ret;
 }
 
+static int
+search_one_bitmap_backward (bmap_nr_t bmap, bmap_off_t * start_offset, bmap_off_t end_offset,
+			    int min_len, int max_len)
+{
+	struct super_block *super = get_current_context()->super;
+	struct bnode *bnode = get_bnode(super, bmap);
+
+	char *data;
+
+	bmap_off_t start;
+	bmap_off_t end;
+
+	int ret;
+
+	assert("zam-958", min_len > 0);
+	assert("zam-959", max_len >= min_len);
+	assert("zam-960", *start_offset > end_offset);
+
+	ret = load_and_lock_bnode(bnode);
+	if (ret)
+		return ret;
+
+	data = bnode_working_data(bnode);
+	start = *start_offset;
+
+	while (1) {
+		start = reiser4_find_last_zero_bit(data, end_offset, start);
+
+		if (start < end_offset + min_len)
+			break;
+
+		end = reiser4_find_last_set_bit(data, end_offset, start);
+
+		if (end >= start + min_len) {
+			if (end > end_offset)
+				end = end_offset;
+			ret = end - start;
+			*start_offset = start;
+			reiser4_set_bits(data, start, end);
+			break;
+		}
+		start = end - 1;
+	}
+
+	release_and_unlock_bnode(bnode);
+	return ret;
+}
+
+
 /* allocate contiguous range of blocks in bitmap */
 
 static int
-bitmap_alloc(reiser4_block_nr * start, const reiser4_block_nr * end, int min_len, int max_len)
+bitmap_alloc(reiser4_block_nr * start, const reiser4_block_nr * end, int min_len, int max_len, int backward)
 {
 	bmap_nr_t bmap, end_bmap;
 	bmap_off_t offset, end_offset;
@@ -772,24 +899,54 @@ bitmap_alloc(reiser4_block_nr * start, const reiser4_block_nr * end, int min_len
 	parse_blocknr(&tmp, &end_bmap, &end_offset);
 	++end_offset;
 
-	assert("zam-358", end_bmap >= bmap);
-	assert("zam-359", ergo(end_bmap == bmap, end_offset > offset));
+	if (backward) {
+		assert("zam-961", end_bmap <= bmap);
+		assert("zam-962", ergo(end_bmap == bmap, end_offset > offset));
 
-	for (; bmap < end_bmap; bmap++, offset = 0) {
-		len = search_one_bitmap(bmap, &offset, max_offset, min_len, max_len);
-		if (len != 0)
-			goto out;
+		for (; bmap > end_bmap; end_bmap --, offset = 0) {
+			len = search_one_bitmap_backward(bmap, &offset, max_offset, min_len, max_len);
+			if (len != 0)
+				goto out;
+		}
+		
+		len = search_one_bitmap(bmap, &offset, end_offset, min_len, max_len);
+	} else {
+		assert("zam-358", end_bmap >= bmap);
+		assert("zam-359", ergo(end_bmap == bmap, end_offset > offset));
+
+		for (; bmap < end_bmap; bmap++, offset = 0) {
+			len = search_one_bitmap(bmap, &offset, max_offset, min_len, max_len);
+			if (len != 0)
+				goto out;
+		}
+		
+		len = search_one_bitmap(bmap, &offset, end_offset, min_len, max_len);
 	}
-
-	len = search_one_bitmap(bmap, &offset, end_offset, min_len, max_len);
-
 out:
 	*start = bmap * max_offset + offset;
 	return len;
 }
 
+/* set the search end to correct value */
+static void set_search_end (reiser4_blocknr_hint * hint, reiser4_block_nr * search_end)
+{
+	struct super_block * super = reiser4_get_current_sb();
+	if (hint->backward) {
+		if (hint->max_dist == 0 || hint->blk < hint->max_dist)
+			*search_end = 0;
+		else
+			*search_end = hint->blk - hint->max_dist;
+			
+	} else {
+		if (hint->max_dist == 0)
+			*search_end = reiser4_block_count(super);
+		else
+			*search_end = LIMIT(hint->blk + hint->max_dist, reiser4_block_count(super));
+	}
+}
+
+
 /* plugin->u.space_allocator.alloc_blocks() */
-/* Audited by: green(2002.06.12) */
 int
 alloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
 		    reiser4_blocknr_hint * hint, int needed, reiser4_block_nr * start, reiser4_block_nr * len)
@@ -805,34 +962,24 @@ alloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
 	assert("zam-412", hint != NULL);
 	assert("zam-397", hint->blk < reiser4_block_count(super));
 
-	/* These blocks should have been allocated as "new", "not-yet-mapped"
-	   blocks, so we should not decrease blocks_free count twice. */
+	set_search_end(hint, &search_end);
 
-	/* first, we use @hint -> blk as a search start and search from it to
-	   the end of the disk or in given region if @hint -> max_dist is not
-	   zero */
-
+	/* We use @hint -> blk as a search start and search from it to the end
+	   of the disk or in given region if @hint -> max_dist is not zero */
 	search_start = hint->blk;
 
-	if (hint->max_dist == 0) {
-		search_end = reiser4_block_count(super);
-	} else {
-		search_end = LIMIT(search_start + hint->max_dist, reiser4_block_count(super));
+	actual_len = bitmap_alloc(&search_start, &search_end, 1, needed, hint->backward);
+
+	/* There is only one bitmap search if max_dist was specified or first
+	   pass was from the beginning of the bitmap. We also do one pass for
+	   scanning bitmap in backward direction. */
+	if (!(actual_len != 0 || hint->max_dist != 0 || hint->backward || search_start == 0)) {
+		/* next step is a scanning from 0 to search_start */
+		search_end = search_start;
+		search_start = 0;
+		actual_len = bitmap_alloc(&search_start, &search_end, 1, needed, 0);
 	}
 
-	actual_len = bitmap_alloc(&search_start, &search_end, 1, needed);
-
-	/* there is only one bitmap search if max_dist was specified or first
-	   pass was from the beginning of the bitmap */
-	if (actual_len != 0 || hint->max_dist != 0 || search_start == 0)
-		goto out;
-
-	/* next step is a scanning from 0 to search_start */
-	search_end = search_start;
-	search_start = 0;
-	actual_len = bitmap_alloc(&search_start, &search_end, 1, needed);
-
-out:
 	if (actual_len == 0)
 		return RETERR(-ENOSPC);
 
