@@ -619,7 +619,7 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 			if (wbc->nonblocking &&
 			    bdi_write_congested(mapping->backing_dev_info)) {
 
-				blk_run_backing_dev(mapping->backing_dev_info);
+				blk_run_address_space(mapping);
 				/*blk_run_queues();*/
 				wbc->encountered_congestion = 1;
 				break;

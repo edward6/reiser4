@@ -7,6 +7,7 @@
 #define __REISER4_KATTR_H__
 
 #include <linux/types.h>
+#include <linux/list.h>
 #include <linux/sysfs.h>
 #include <linux/fs.h>
 

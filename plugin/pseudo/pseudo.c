@@ -382,7 +382,7 @@ static int update_ugid(struct dentry *dentry, struct inode *inode,
 	return result;
 }
 
-static int get_uid(struct file *file, const char *buf)
+static int store_uid(struct file *file, const char *buf)
 {
 	uid_t uid;
 	int result;
@@ -1255,7 +1255,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 		 },
 		.write_type  = PSEUDO_WRITE_STRING,
 		.write       = {
-			 .gets        = get_uid
+			 .gets        = store_uid
 		 }
 	},
 	[PSEUDO_GID_ID] = {

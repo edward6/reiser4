@@ -241,7 +241,7 @@ wait_io(flush_queue_t * fq, int *nr_io_errors)
 		super = reiser4_get_current_sb();
 
 		/* FIXME: this is instead of blk_run_queues() */
-		blk_run_backing_dev(get_super_fake(super)->i_mapping->backing_dev_info);
+		blk_run_address_space(get_super_fake(super)->i_mapping);
 
 		if ( !(super->s_flags & MS_RDONLY) )
 			down(&fq->io_sem);

@@ -428,7 +428,7 @@ update_journal_header(struct commit_handle *ch)
 	if (ret)
 		return ret;
 
-	blk_run_backing_dev(sbinfo->fake->i_mapping->backing_dev_info);
+	blk_run_address_space(sbinfo->fake->i_mapping);
 	/*blk_run_queues();*/
 
 	ret = jwait_io(jh, WRITE);
@@ -459,7 +459,7 @@ update_journal_footer(struct commit_handle *ch)
 	if (ret)
 		return ret;
 
-       	blk_run_backing_dev(sbinfo->fake->i_mapping->backing_dev_info);
+	blk_run_address_space(sbinfo->fake->i_mapping);
 	/*blk_run_queue();*/
 
 	ret = jwait_io(jf, WRITE);
