@@ -399,7 +399,6 @@ jlookup_locked(reiser4_tree * tree, oid_t objectid, unsigned long index)
 	if (node != NULL) {
 		/* protect @node from recycling */
 		jref(node);
-		assert("nikita-2955", jnode_invariant(node, 1, 0));
 		if (unlikely(JF_ISSET(node, JNODE_RIP))) {
 			dec_x_ref(node);
 			node = NULL;
@@ -557,6 +556,7 @@ find_get_jnode(reiser4_tree * tree, struct address_space *mapping, oid_t oid,
 		result = shadow;
 	}
 	WUNLOCK_TREE(tree);
+	assert("nikita-2955", ergo(result != NULL, jnode_invariant(result, 0, 0)));
 	radix_tree_preload_end();
 	return result;
 }
