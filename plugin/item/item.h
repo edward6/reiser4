@@ -298,18 +298,41 @@ get_iplugid(item_plugin *iplug)
 
 extern int item_can_contain_key(const coord_t * item, const reiser4_key * key, const reiser4_item_data *);
 extern int are_items_mergeable(const coord_t * i1, const coord_t * i2);
-extern int item_is_internal(const coord_t *);
 extern int item_is_extent(const coord_t *);
 extern int item_is_tail(const coord_t *);
 extern int item_is_statdata(const coord_t * item);
 
 extern void *item_body_by_coord(const coord_t * coord);
 extern int item_length_by_coord(const coord_t * coord);
-extern item_plugin *item_plugin_by_coord(const coord_t * coord);
 extern item_type_id item_type_by_coord(const coord_t * coord);
 extern item_id item_id_by_coord(const coord_t * coord /* coord to query */ );
 extern reiser4_key *item_key_by_coord(const coord_t * coord, reiser4_key * key);
 extern reiser4_key *unit_key_by_coord(const coord_t * coord, reiser4_key * key);
+
+extern void obtain_item_plugin(const coord_t * coord);
+extern int znode_is_loaded(const znode * node);
+
+/* return plugin of item at @coord */
+static inline item_plugin *
+item_plugin_by_coord(const coord_t * coord /* coord to query */ )
+{
+	assert("nikita-330", coord != NULL);
+	assert("nikita-331", coord->node != NULL);
+	assert("nikita-332", znode_is_loaded(coord->node));
+	trace_stamp(TRACE_TREE);
+
+	if (unlikely(!coord_is_iplug_set(coord)))
+		obtain_item_plugin(coord);
+	return coord_iplug(coord);
+}
+
+/* this returns true if item is of internal type */
+static inline int
+item_is_internal(const coord_t * item)
+{
+	assert("vs-483", coord_is_existing_item(item));
+	return item_type_by_coord(item) == INTERNAL_ITEM_TYPE;
+}
 
 /* __REISER4_ITEM_H__ */
 #endif

@@ -43,21 +43,18 @@ item_length_by_coord(const coord_t * coord /* coord to query */ )
 	return node_plugin_by_node(coord->node)->length_by_coord(coord);
 }
 
-/* return plugin of item at @coord */
-/* Audited by: green(2002.06.15) */
-item_plugin *
-item_plugin_by_coord(const coord_t * coord /* coord to query */ )
+void
+obtain_item_plugin(const coord_t * coord)
 {
 	assert("nikita-330", coord != NULL);
 	assert("nikita-331", coord->node != NULL);
 	assert("nikita-332", znode_is_loaded(coord->node));
 	trace_stamp(TRACE_TREE);
 
-	if (!coord_is_iplug_set(coord))
-		coord_set_iplug((coord_t *) coord,
-				node_plugin_by_node(coord->node)->plugin_by_coord(coord));
-	assert("nikita-2479", coord_iplug(coord) == node_plugin_by_node(coord->node)->plugin_by_coord(coord));
-	return coord_iplug(coord);
+	coord_set_iplug((coord_t *) coord,
+			node_plugin_by_node(coord->node)->plugin_by_coord(coord));
+	assert("nikita-2479", 
+	       coord_iplug(coord) == node_plugin_by_node(coord->node)->plugin_by_coord(coord));
 }
 
 /* return type of item at @coord */
@@ -236,14 +233,6 @@ item_is_tail(const coord_t * item)
 {
 	assert("vs-482", coord_is_existing_item(item));
 	return item_id_by_coord(item) == TAIL_ID || item_id_by_coord(item) == FROZEN_TAIL_ID;
-}
-
-/* this returns true if item is of internal type */
-int
-item_is_internal(const coord_t * item)
-{
-	assert("vs-483", coord_is_existing_item(item));
-	return item_type_by_coord(item) == INTERNAL_ITEM_TYPE;
 }
 
 int
