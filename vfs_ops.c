@@ -341,13 +341,13 @@ init_once(void *obj /* pointer to new inode */ ,
 		/* NOTE-NIKITA add here initialisations for locks, list heads,
 		   etc. that will be added to our private inode part. */
 		inode_init_once(&info->vfs_inode);
-		info->p.eflushed = 0;
 		info->p.eflushed_anon = 0;
 		INIT_LIST_HEAD(&info->p.moved_pages);
 		readdir_list_init(get_readdir_list(&info->vfs_inode));
 		INIT_LIST_HEAD(&info->p.eflushed_jnodes);
 		INIT_RADIX_TREE(&info->p.jnode_tree, GFP_ATOMIC);
 		ON_DEBUG(info->p.jnodes = 0);
+		ON_DEBUG(info->p.eflushed = 0);
 		/* inode's builtin jnode is initialized in reiser4_alloc_inode */
 	}
 }
@@ -1172,10 +1172,6 @@ static void unregister_profregions(void)
 	unregister_dk_profregion();
 	unregister_tree_profregion();
 }
-
-/* read super block from device and fill remaining fields in @s.
-
-   This is read_super() of the past.   */
 
 #if REISER4_DEBUG
 static void finish_rcu(reiser4_super_info_data *sbinfo)
