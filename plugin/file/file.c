@@ -1204,7 +1204,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 
 		switch (mode) {
 		case READ_EXTENT:
-			page_cache_readahead (file, (unsigned long) (cur_offset >> PAGE_CACHE_SHIFT));
+			do_page_cache_readahead (inode->i_mapping, file, (unsigned long) (cur_offset >> PAGE_CACHE_SHIFT), read_amount);
 			iplug = item_plugin_by_id (EXTENT_POINTER_ID);
 			break;
 
