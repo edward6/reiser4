@@ -891,6 +891,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 {
 	int ret;
 	int setdk;
+	int ldkeyset = 0;
 	reiser4_key ldkey;
 	reiser4_key key;
 	znode *active;
@@ -937,9 +938,13 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		if (!ZF_ISSET(active, JNODE_DKSET))
 			setdk = set_child_delimiting_keys(parent,
 							  h->coord, active);
-		else
-			find_child_delimiting_keys(parent, h->coord,
-						   &ldkey, &key);
+		else {
+			UNDER_RW_VOID(dk, h->tree, read,
+				      find_child_delimiting_keys(parent,
+								 h->coord,
+								 &ldkey, &key));
+			ldkeyset = 1;
+		}
 		zrelse(parent);
 		if (unlikely(h->result != 0))
 			goto fail_or_restart;
@@ -1016,7 +1021,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 
 	/* check that key of leftmost item in the @active is the same as in
 	 * its parent */
-	if (!node_is_empty(active) &&
+	if (ldkeyset && !node_is_empty(active) &&
 	    !keyeq(leftmost_key_in_node(active, &key), &ldkey)) {
 		warning("vs-3533", "Keys are inconsistent. Fsck?");
 		print_node_content("parent", parent, ~0);
