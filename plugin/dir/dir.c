@@ -207,7 +207,7 @@ static reiser4_block_nr common_estimate_unlink (
 }
 
 static int
-unlink_check_and_grab(struct inode *parent, struct dentry *victim, int *doup)
+unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 {
 	file_plugin  *fplug;
 	struct inode *child;
@@ -216,8 +216,6 @@ unlink_check_and_grab(struct inode *parent, struct dentry *victim, int *doup)
 	result = 0;
 	child = victim->d_inode;
 	fplug = inode_file_plugin(child);
-
-	*doup = 0;
 
 	/* check for race with create_object() */
 	if (inode_get_flag(child, REISER4_IMMUTABLE))
@@ -241,18 +239,8 @@ unlink_check_and_grab(struct inode *parent, struct dentry *victim, int *doup)
 	if (result < 0)
 		return result;
 
-	if (reiser4_grab_space(result, BA_CAN_COMMIT, "common_unlink")) {
-		down(&get_super_private(child->i_sb)->delete_sema);
-		*doup = 1;
-
-		if(reiser4_grab_space(result, BA_RESERVED | BA_CAN_COMMIT, 
-				      "common_unlink(from reserved)")) {
-			warning("zam-833", 
-				"reserved space is not enough to unlink");
-			return -ENOSPC;
-		}
-	}
-	return 0;
+	return reiser4_grab_reserved(child->i_sb, result, BA_CAN_COMMIT, 
+				     __FUNCTION__);
 }
 
 /* remove link from @parent directory to @victim object.
@@ -267,8 +255,7 @@ static int
 common_unlink(struct inode *parent /* parent object */ ,
 	      struct dentry *victim /* name being removed from @parent */)
 {
-	int                    result;
-	int                    delete_semaphore_taken;
+	int           result;
 	struct inode *object;
 	file_plugin  *fplug;
 
@@ -276,7 +263,7 @@ common_unlink(struct inode *parent /* parent object */ ,
 	fplug  = inode_file_plugin(object);
 	assert("nikita-2882", fplug->detach != NULL);
 	
-	result = unlink_check_and_grab(parent, victim, &delete_semaphore_taken);
+	result = unlink_check_and_grab(parent, victim);
 	if (result == 0 && (result = fplug->detach(object, parent)) == 0) {
 		dir_plugin            *parent_dplug;
 		reiser4_dir_entry_desc entry;
@@ -300,13 +287,7 @@ common_unlink(struct inode *parent /* parent object */ ,
 				result = update_dir(parent);
 		}
 	}
-	if (delete_semaphore_taken) {
-		/* we have to commit transaction here because we need to get
-		   reserved free space back before delete semaphore is up
-		   again */
-		txnmgr_force_commit_current_atom();
-		up(&get_super_private(object->i_sb)->delete_sema);
-	}
+	reiser4_release_reserved(object->i_sb);
 
 	/* @object's i_ctime was updated by ->rem_link() method(). */
 	return result;

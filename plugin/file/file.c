@@ -464,7 +464,10 @@ find_file_size(struct inode *inode, loff_t *file_size)
 static int reserve_cut_iteration(tree_level height)
 {
 	grab_space_enable();
-	return reiser4_grab_space(estimate_one_item_removal(height) + estimate_one_insert_into_item(height), 0, "cut_file: one cut_iteration");
+	return reiser4_grab_reserved(reiser4_get_current_sb(),
+				     estimate_one_item_removal(height) + 
+				     estimate_one_insert_into_item(height),
+				     0 /* flags */, __FUNCTION__);
 }
 
 /* estimate and reserve space needed to truncate page which gets partially truncated: one block for page itself, stat
@@ -473,7 +476,10 @@ static int reserve_cut_iteration(tree_level height)
 static int reserve_partial_page(tree_level height)
 {
 	grab_space_enable();
-	return reiser4_grab_space(1 + 2 * estimate_one_insert_into_item(height), BA_CAN_COMMIT, "reserve_partial_page");
+	return reiser4_grab_reserved(reiser4_get_current_sb(),
+				     1 + 
+				     2 * estimate_one_insert_into_item(height),
+				     BA_CAN_COMMIT, __FUNCTION__);
 }
 
 /* cut file items one by one starting from the last one until new file size (inode->i_size) is reached. Reserve space
@@ -562,6 +568,7 @@ cut_file_items(struct inode *inode, loff_t new_size)
 			   neighbor to get "left child" to update its right delimiting key and it failed because left
 			   neighbor was locked. So, release lock held and try again */
 			all_grabbed2free("cut_file_items on error");
+			reiser4_release_reserved(inode->i_sb);
 			if (result == -EDEADLK)
 				continue;
 			break;
@@ -573,9 +580,12 @@ cut_file_items(struct inode *inode, loff_t new_size)
 		all_grabbed2free("cut_file_items after update_inode..");
 		if (result)
 			break;
+		reiser4_release_reserved(inode->i_sb);
 		balance_dirty_pages(inode->i_mapping);
 
 	} while (keygt(&smallest_removed, &from_key));
+
+	reiser4_release_reserved(inode->i_sb);
 
 	return result;
 }
@@ -616,14 +626,17 @@ shorten_file(struct inode *inode, loff_t new_size)
 		return 0;
 
 	result = reserve_partial_page(tree_by_inode(inode)->height);
-	if (result)
+	if (result) {
+		reiser4_release_reserved(inode->i_sb);
 		return result;
+	}
 
 	/* last page is partially truncated - zero its content */
 	index = (inode->i_size >> PAGE_CACHE_SHIFT);
 	page = read_cache_page(inode->i_mapping, index, unix_file_readpage/*filler*/, 0);
 	if (IS_ERR(page)) {
 		all_grabbed2free("shorten_file: read_cache_page failed");
+		reiser4_release_reserved(inode->i_sb);
 		if (likely(PTR_ERR(page) == -EINVAL)) {
 			/* looks like file is built of tail items */
 			return 0;
@@ -634,12 +647,17 @@ shorten_file(struct inode *inode, loff_t new_size)
 	if (!PageUptodate(page)) {
 		all_grabbed2free("shorten_file: page !uptodate");
 		page_cache_release(page);
+		reiser4_release_reserved(inode->i_sb);
 		return -EIO;
 	}
 	result = unix_file_writepage_nolock(page);
+	assert("vs-98221", PageLocked(page));
 	all_grabbed2free("shorten_file");
+	reiser4_release_reserved(inode->i_sb);
 	if (result) {
+		reiser4_unlock_page(page);
 		page_cache_release(page);
+		reiser4_release_reserved(inode->i_sb);
 		return result;
 	}
 
@@ -649,7 +667,8 @@ shorten_file(struct inode *inode, loff_t new_size)
 	flush_dcache_page(page);
 	kunmap_atomic(kaddr, KM_USER0);
 	reiser4_unlock_page(page);
-	page_cache_release(page);	
+	page_cache_release(page);
+	reiser4_release_reserved(inode->i_sb);
 	return 0;
 }
 
@@ -846,12 +865,12 @@ unix_file_writepage_nolock(struct page *page)
 	coord_init_zero(&coord);
 	init_lh(&lh);
 	result = find_file_item(0, &key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/*ra_info*/, 0/* inode */);
+
+	reiser4_lock_page(page);
 	if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 		done_lh(&lh);
 		return result;
 	}
-
-	reiser4_lock_page(page);
 
 	/* get plugin of extent item */
 	iplug = item_plugin_by_id(EXTENT_POINTER_ID);

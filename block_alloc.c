@@ -353,6 +353,44 @@ __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
     return ret;
 }
 
+int
+reiser4_grab_reserved(struct super_block *super,
+		      __u64 count, reiser4_ba_flags_t flags, const char *message)
+{
+	reiser4_super_info_data *info;
+
+	info = get_super_private(super);
+	if (reiser4_grab_space(count, flags, message)) {
+		down(&info->delete_sema);
+		assert("nikita-2929", info->delete_sema_owner == NULL);
+		info->delete_sema_owner = current;
+
+		if(reiser4_grab_space(count, flags | BA_RESERVED, message)) {
+			warning("zam-833", 
+				"reserved space is not enough (%llu, %s)",
+				count, message);
+			return -ENOSPC;
+		}
+	}
+	return 0;
+}
+
+void
+reiser4_release_reserved(struct super_block *super)
+{
+	reiser4_super_info_data *info;
+
+	info = get_super_private(super);
+	if (info->delete_sema_owner == current) {
+		info->delete_sema_owner = NULL;
+		/* we have to commit transaction here because we need to get
+		   reserved free space back before delete semaphore is up
+		   again */
+		txnmgr_force_commit_current_atom();
+		up(&info->delete_sema);
+	}
+}
+
 #if 0
 /* A simple wrapper for reiser4_grab_space, suitable for most places when we
    are going to allocate exact number of blocks .

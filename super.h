@@ -283,6 +283,8 @@ struct reiser4_super_info_data {
 	   one cut_tree tread is allowed to grab space from reserved area (it is 5% of
 	   disk space(2002.11.09)) */
 	struct semaphore delete_sema;
+	struct task_struct *delete_sema_owner;
+
 	/* serialize semaphore */
 	struct semaphore flush_sema;
 };
