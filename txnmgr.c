@@ -3656,22 +3656,27 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 	assert("vs-1410", (jnode_get_type(node) == JNODE_FORMATTED_BLOCK ||
 			   jnode_get_type(node) == JNODE_UNFORMATTED_BLOCK));	
 
+	ON_TRACE(TRACE_CAPTURE_COPY, "copy_on_capture: node %p, atom %p..", node, atom);
 	if (JF_ISSET(node, JNODE_EFLUSH)) {
 		UNLOCK_JNODE(node);
 		
 		reiser4_stat_inc(coc.nopage_eflush);
+		ON_TRACE(TRACE_CAPTURE_COPY, "eflushed\n");
 		return RETERR(-E_REPEAT);
 	}
 
 	if (!JF_ISSET(node, JNODE_FLUSH_QUEUED) && !JF_ISSET(node, JNODE_DIRTY) &&
 	    !JF_ISSET(node, JNODE_WRITEBACK) && !JF_ISSET(node, JNODE_OVRWR)) {
 		/* copy of page does not have to be created */
-		if (!JF_ISSET(node, JNODE_RELOC))
+		if (!JF_ISSET(node, JNODE_RELOC)) {
 			/* clean node can be made available for capturing. Just
 			   take care to preserve atom list during uncapturing */
+			ON_TRACE(TRACE_CAPTURE_COPY, "clean\n");
 			return copy_on_capture_clean(node);
+		}
 		
 		/* create cc jnode and replace @node with it on atom's list. */
+		ON_TRACE(TRACE_CAPTURE_COPY, "reloc\n");
 		return copy_on_capture_reloc(node, atom);
 	}
 
@@ -3702,6 +3707,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 		spin_unlock(&scan_lock);
 		UNLOCK_JNODE(node);
 		jput(copy);
+		ON_TRACE(TRACE_CAPTURE_COPY, "uber\n");
 		return result;
 	}
 
@@ -3775,6 +3781,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 					page_cache_release(page);
 					page_cache_release(new_page);
 					check_coc(node, new_page);
+					ON_TRACE(TRACE_CAPTURE_COPY, "copy on capture done\n");
 					return 0;
 				} else {
 					ON_TRACE(TRACE_CAPTURE_COPY, "scanned jnode encountered: %s\n", jnode_tostring(node));
@@ -3796,7 +3803,6 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 	jput(node);
 
 	page_cache_release(page);
-	ON_TRACE(TRACE_CAPTURE_COPY, "end\n");
 	return result;
 }
 
