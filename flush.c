@@ -1533,9 +1533,15 @@ int flush_enqueue_unformatted (jnode *node, flush_position *pos)
 }
 
 /* FIXME: comment */
+/* This is called from withing interrupt context, so we need to  
+   make a reiser4 context in order for all other stuff (and assertions)
+   to work correctly */
 static void flush_bio_write (struct bio *bio)
 {
 	int i;
+	/* Note, we may put assertion here that this is in fact our
+	   sb and so on */
+	__REISER4_ENTRY (bio->bi_io_vec[0].bv_page->mapping->host->i_sb,);
 
 	for (i = 0; i < bio->bi_vcnt; i += 1) {
 		struct page *pg = bio->bi_io_vec[i].bv_page;
@@ -1561,6 +1567,7 @@ static void flush_bio_write (struct bio *bio)
 	}
 	
 	bio_put (bio);
+	__REISER4_EXIT (&__context);
 }
 
 /* FIXME: comment */
