@@ -3398,8 +3398,8 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 			/*
 			 * FIXME-VS: this needs to be carefully reviewed
 			 */
-			txn_delete_page (page);
 			unlock_page (page);
+			txn_delete_page (page);
 			page_cache_release (page);
 			break;
 		}
