@@ -104,6 +104,7 @@ TS_LIST_DEFINE(readdir, reiser4_file_fsdata, dir.linkage);
 extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *dentry);
 extern reiser4_file_fsdata *reiser4_get_file_fsdata(struct file *f);
 extern void reiser4_handle_error(void);
+extern int reiser4_parse_options (struct super_block *, char *);
 
 /* __FS_REISER4_VFS_OPS_H__ */
 #endif
