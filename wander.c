@@ -557,33 +557,23 @@ static int get_more_wandered_blocks (int count, reiser4_block_nr * start, reiser
 	return ret;
 }
 
-/* check if jnode is in overwrite set and wandered block is not yet
- * assigned. */
-static int not_wandered (const jnode * node UNUSED_ARG)
-{
-	// FIXME: not completed
-	return 1;
-}
+/* count Overwrite Set size */
 static int get_owerwrite_set_size (txn_atom * atom)
 {
 	int set_size = 0;
-	int level;
-	for (level = 0; level <= REAL_MAX_ZTREE_HEIGHT; level ++) {
-		capture_list_head * head = &atom->dirty_nodes[level];
-		jnode * cur = capture_list_front(head);
 
-		while (!capture_list_end (head, cur)) {
-			if (not_wandered(cur)) set_size ++;
-		}
-	}
+	capture_list_head * head = &atom->clean_nodes;
+	jnode * cur = capture_list_front(head);
+
+	while (!capture_list_end (head, cur))
+		if (JF_ISSET(cur, ZNODE_WANDER)) set_size ++;
+
 	return set_size;
 }
 
 /* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
  * submit IO for allocated blocks.  We assume that current atom is in a stage
- * when any atom fusion is impossible and atom is unlocked and it is
- * _safe_. */
-
+ * when any atom fusion is impossible and atom is unlocked and it is safe. */
 int alloc_wandered_blocks (void)
 {
 	int     set_size;
@@ -616,7 +606,7 @@ int alloc_wandered_blocks (void)
 
 		while (!capture_list_end (head, cur)) {
 
-			if (!not_wandered(cur)) continue;
+			if (!JF_ISSET(cur, ZNODE_WANDER)) continue;
 
 			if (len == 0) {
 				ret = get_more_wandered_blocks (rest, &block, &len); 
@@ -631,8 +621,14 @@ int alloc_wandered_blocks (void)
 
 			spin_lock_atom (atom);
 
-			ret = blocknr_set_add_pair (atom, &atom->wandered_map, &new_bsep, jnode_get_block(cur), &block);
-			assert ("zam-537", ret != -EAGAIN);
+			ret = blocknr_set_add_pair (
+				atom, &atom->wandered_map, &new_bsep, jnode_get_block(cur), &block );
+
+			if (ret ==  -EAGAIN) {
+				spin_lock_atom (atom);
+				ret = blocknr_set_add_pair (
+					atom, &atom->wandered_map, &new_bsep, jnode_get_block(cur), &block );
+			}
 
 			if (ret) goto free_blocks;
 
