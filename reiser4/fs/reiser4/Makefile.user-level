@@ -184,7 +184,7 @@ dep .dependencies:
 	makedepend -Y -w 8000 $(INCS) $(SRC) $(DEFINES) -f .dependencies
 
 tags: 
-	etags `find . -name '*.[ch]'`
+	etags `find . \( -name SCCS -prune -o -true \) -name '*.[ch]'`
 
 gtags: 
 	gtags
