@@ -232,7 +232,6 @@ extern int reiser4_exit_context(reiser4_context * context);
 	return IS_ERR (__result) ? __result : ERR_PTR (__ret);	\
 })
 
-
 /* __REISER4_CONTEXT_H__ */
 #endif
 
