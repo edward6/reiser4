@@ -9,16 +9,22 @@
 
 typedef enum {
 	DATA_CLUSTER = 0,
-	HOLE_CLUSTER = 1
+	HOLE_CLUSTER = 1,
+	FAKE_CLUSTER = 2
 } reiser4_cluster_status;
 
 typedef struct reiser4_cluster{
 	__u8 * buf;      /* pointer to the cluster's data */
+	struct page ** pages;
 	size_t len;      /* size of the processed (i.e compressed,
 			    aligned and encrypted cluster) */
-	unsigned long index;      /* index of the first page */
+	unsigned long index;      /* cluster index */
+	__u8 nr_pages;            /* number of cluster pages */
 	size_t tlen;     /* size of updated buffer to release */
 	reiser4_cluster_status stat;
+	unsigned off;    /* write position in the cluster */  
+	unsigned count;  /* bytes to write to the cluster */
+	unsigned delta;  /* bytes of user's data to append to the hole */
 } reiser4_cluster_t;
 
 inline struct cryptcompress_info *cryptcompress_inode_data(const struct inode * inode);
