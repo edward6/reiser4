@@ -202,7 +202,7 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 		 */
 		return -ENAMETOOLONG;
 	}
-	result = allocate_oid( &oid );
+	result = oid_allocate( &oid );
 
 	if( result != 0 )
 		return result;
@@ -280,7 +280,7 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	if( result != 0 )
 		key_warning( error_message, &key, result );
 	else 
-		count_allocated_oid();
+		oid_count_allocated();
 
 	return result;
 }
@@ -477,11 +477,11 @@ int common_file_delete( struct inode *inode /* object to remove */,
 
 		if( result ) return result;
 
-		result = release_oid( ( oid_t ) inode -> i_ino );
+		result = oid_release( ( oid_t ) inode -> i_ino );
 
 		if (result) return result;
 
-		count_released_oid();
+		oid_count_released();
 	} else
 		result = 0;
 	return result;

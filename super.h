@@ -170,7 +170,10 @@ struct reiser4_super_info_data {
 	__u64                 last_committed_tx;
 
 	/* we remember last written location for using as a hint for new block allocation */
-	__u64                  last_written_location;
+	__u64                 last_written_location;
+
+	/* committed number of files (oid allocator state variable ) */
+	__u64                 nr_files;
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck( const struct super_block *super );

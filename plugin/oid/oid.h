@@ -2,11 +2,16 @@
  * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
+extern __u64 oid_used          ( void );
+extern __u64 oid_next          ( void );
 
-extern int allocate_oid (oid_t *);
-extern int release_oid  (oid_t);
-extern void count_allocated_oid(void);
-extern void count_released_oid(void);
+extern int  oid_allocate       ( oid_t *);
+extern int  oid_release        ( oid_t  );
+
+extern void oid_count_allocated( void );
+extern void oid_count_released ( void );
+
+extern int  oid_init_allocator ( __u64, __u64);
 
 /* identifiers of available objectid managers */
 typedef enum {

@@ -38,6 +38,11 @@ struct journal_footer {
 	 * by another way than super block fields (root pointer, for
 	 * example). */
 	d64      free_blocks;
+
+	/* number of used OIDs and maximal used OID are logged separately from
+	 * super block */
+	d64      nr_files;
+	d64      next_oid;
 };
 
 /* each log record (except first one) has unified format with log record
@@ -85,8 +90,12 @@ struct tx_header {
 
 	/* committed versions of free blocks counter */
 	d64      free_blocks;
+
+	/* number of used OIDs (nr_files) and maximal used OID are logged separately from
+	 * super block */
+	d64      nr_files;
+	d64      next_oid;
 };
-/* FIXME-ZAM: rest of block is unused currently, I plan to put wandered map there */
 
 /* A transaction gets written to disk as a set of log records (each log record
  * size is fs block) */

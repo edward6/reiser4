@@ -5,7 +5,7 @@
 #include "../../reiser4.h"
 
 /* a wrapper for allocate_oid method of oid_allocator plugin */
-int allocate_oid( oid_t *oid )
+int oid_allocate( oid_t *oid )
 {
 	struct super_block *s = reiser4_get_current_sb();
 
@@ -19,7 +19,7 @@ int allocate_oid( oid_t *oid )
 }
 
 /* a wrapper for release_oid method of oid_allocator plugin */
-int release_oid( oid_t oid )
+int oid_release( oid_t oid )
 {
 	struct super_block *s = reiser4_get_current_sb();
 
@@ -45,7 +45,7 @@ int release_oid( oid_t oid )
 
 /* count an object allocation in atom's nr_objects_created when current atom
  * is available */
-void count_allocated_oid ( void )
+void oid_count_allocated( void )
 {
 	txn_atom * atom;
 
@@ -55,15 +55,47 @@ void count_allocated_oid ( void )
 }
 
 /* count an object deletion in atom's nr_objects_deleted */
-void count_released_oid( void )
+void oid_count_released( void )
 {
 	txn_atom * atom;
 
 	atom = get_current_atom_locked();
-	atom->nr_objects_created ++;
+	atom->nr_objects_deleted ++;
 	spin_unlock_atom(atom);
 }
 
+__u64 oid_used( void )
+{
+	reiser4_super_info_data * private = get_current_super_private();
+
+	assert ("zam-636", private != NULL);
+	assert ("zam-598", private->oid_plug != NULL);
+	assert ("zam-599", private->oid_plug->oids_used != NULL);
+
+	return private->oid_plug->oids_used(&private->oid_allocator);
+}
+
+__u64 oid_next( void )
+{
+	reiser4_super_info_data * private = get_current_super_private();
+
+	assert ("zam-637", private != NULL);
+	assert ("zam-638", private->oid_plug != NULL);
+	assert ("zam-639", private->oid_plug->next_oid != NULL);
+	
+	return private->oid_plug->next_oid(&private->oid_allocator);
+}
+
+int oid_init_allocator( __u64 nr_files, __u64 oids)
+{
+	reiser4_super_info_data * private = get_current_super_private();
+
+	assert ("zam-640", private != NULL);
+	assert ("zam-641", private->oid_plug != NULL);
+	assert ("zam-642", private->oid_plug->read_allocator != NULL);
+
+	return private->oid_plug->init_oid_allocator(&private->oid_allocator, nr_files, oids);
+}
 
 /* initialization of objectid management plugins */
 reiser4_plugin oid_plugins[ LAST_OID_ALLOCATOR_ID ] = {

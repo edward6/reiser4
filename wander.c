@@ -61,7 +61,10 @@ static void format_journal_header (struct super_block *s, capture_list_head * tx
 static void format_journal_footer (struct super_block *s, jnode * txhead)
 {
 	struct reiser4_super_info_data * private;
-	struct journal_footer * h;
+
+	__u64 free_blocks;
+	__u64 nr_files;
+	__u64 next_oid;
 
 	private = get_super_private(s);
 
@@ -69,15 +72,36 @@ static void format_journal_footer (struct super_block *s, jnode * txhead)
 	assert ("zam-493", private != NULL);
 	assert ("zam-494", private->journal_header != NULL);
 
-	jload_and_lock (private->journal_footer);
+	{
+		struct tx_header * T;
 
-	h = (struct journal_footer*)jdata(private->journal_footer);
-	assert ("zam-495", h != NULL);
+		jload (txhead);
 
-	cputod64(*jnode_get_block(txhead), &h->last_flushed_tx);
-	cputod64(reiser4_free_committed_blocks(s), &h->free_blocks);
+		T = (struct tx_header*)jdata(txhead);
 
-	junlock_and_relse (private->journal_footer);
+		free_blocks = d64tocpu(&T->free_blocks);
+		nr_files    = d64tocpu(&T->nr_files);
+		next_oid    = d64tocpu(&T->next_oid);
+
+		jrelse (txhead);
+	}
+
+	{
+		struct journal_footer * F;
+
+		jload (private->journal_footer);
+
+		F = (struct journal_footer*)jdata(private->journal_footer);
+		assert ("zam-495", F != NULL);
+
+		cputod64(*jnode_get_block(txhead), &F->last_flushed_tx);
+		cputod64(free_blocks, &F->free_blocks);
+
+		cputod64(nr_files, &F->nr_files);
+		cputod64(next_oid, &F->next_oid);
+
+		jrelse (private->journal_footer);
+	}
 }
 
 /* log record capacity depends on current block size */
@@ -97,22 +121,26 @@ static void format_tx_head (
 	const reiser4_block_nr * next)
 {
 	struct super_block * super = reiser4_get_current_sb();
-	struct tx_header * h;
+	reiser4_super_info_data * private = get_super_private(super);
+	struct tx_header * TH;
 
 	assert ("zam-459", node != NULL);
 
-	h = (struct tx_header*)jdata(node);
+	TH = (struct tx_header*)jdata(node);
 
-	assert ("zam-460", h != NULL);
+	assert ("zam-460", TH != NULL);
 	assert ("zam-462", super -> s_blocksize >= sizeof (struct tx_header));
 
 	xmemset (jdata(node), 0, (size_t)super->s_blocksize);
 	xmemcpy (jdata(node), TX_HEADER_MAGIC, TX_HEADER_MAGIC_SIZE); 
 
-	cputod32((__u32)total, & h->total);
-	cputod64(get_super_private(super)->last_committed_tx, & h->prev_tx);
-	cputod64((__u64)(*next), & h->next_block );
-	cputod64((__u64)reiser4_free_committed_blocks(super), & h->free_blocks);
+	cputod32((__u32)total, & TH->total);
+	cputod64(get_super_private(super)->last_committed_tx, & TH->prev_tx);
+	cputod64((__u64)(*next), & TH->next_block );
+	cputod64((__u64)reiser4_free_committed_blocks(super), & TH->free_blocks);
+
+	cputod64(private->nr_files, & TH->nr_files);
+	cputod64(oid_next(), & TH->next_oid);
 }
 
 /**
@@ -744,6 +772,10 @@ int reiser4_write_logs (void)
 	pre_commit_hook();
 
 	atom = get_current_atom_locked();
+
+	private->nr_files += (unsigned)atom->nr_objects_created;
+	private->nr_files -= (unsigned)atom->nr_objects_deleted;
+
 	spin_unlock_atom(atom);
 
 	/* count overwrite set and place it in a separate list */
