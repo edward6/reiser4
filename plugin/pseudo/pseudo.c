@@ -301,8 +301,11 @@ init_pseudo(struct inode *parent, struct inode *pseudo,
 		return result;
 	}
 
-	/* inherit permission plugin from parent */
+	/* inherit permission plugin from parent, */
 	grab_plugin(pseudo, parent, PSET_PERM);
+	/* and credentials... */
+	pseudo->i_uid = parent->i_uid;
+	pseudo->i_gid = parent->i_gid;
 
 	pseudo->i_nlink = 1;
 	/* insert inode into VFS hash table */
