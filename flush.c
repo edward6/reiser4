@@ -929,9 +929,17 @@ static int flush_set_preceder (const coord_t *coord_in, flush_position *pos)
 	if (! coord_is_leftmost_unit (& coord)) {
 		coord_prev_unit (& coord);
 	} else {
-		if ((ret = reiser4_get_left_neighbor (& left_lock, coord.node, ZNODE_READ_LOCK, 0))) {
+		/* since reiser4_get_left_neighbor knows nothing about atom
+		   boundaries, it may easily get tot a node that does not
+		   belong to our atom and deadlock might occur, to avoid that
+		   we ask to make a non blocking access to nodes not from
+		   this atom.
+		   May be later GN_DONT_CROSS_ATOM should be imlemented per
+		   zam's suggestion */
+		if ((ret = reiser4_get_left_neighbor (& left_lock, coord.node, ZNODE_READ_LOCK, GN_TRY_LOCK))) {
 			/* FIXME(C): check EINVAL, EDEADLK */
-			if (ret == -ENAVAIL || ret == -ENOENT) { ret = 0; }
+			printk("reiser4_get_left_neighbor returned %d\n", ret);
+			if (ret == -EAGAIN || ret == -ENAVAIL || ret == -ENOENT) { ret = 0; }
 			goto exit;
 		}
 	}
