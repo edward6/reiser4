@@ -495,24 +495,37 @@ static inline void zput (znode *node)
 	jput (ZJNODE (node));
 }
 
-/* data-handles */
-
+/* Data-handles.  A data handle object manages pairing calls to zload() and zrelse().  We
+ * must load the data for a node in many places.  We could do this by simply calling
+ * zload() everywhere, the difficulty arises when we must release the loaded data by
+ * calling zrelse.  In a function with many possible error/return paths, it requires extra
+ * work to figure out which exit paths must call zrelse and those which do not.  The data
+ * handle automatically calls zrelse for every zload that it is responsible for.  In that
+ * sense, it acts much like a lock_handle.
+ */
 typedef struct data_handle {
 	znode *node;
 	int    d_ref;
 } data_handle;
 
-extern void init_dh( data_handle *dh );
-extern void done_dh( data_handle *dh );
-extern int  load_dh( data_handle *dh );
-extern int  load_dh_znode( data_handle *dh, znode *node );
-extern int  load_dh_jnode( data_handle *dh, jnode *node );
-extern void move_dh( data_handle *new, data_handle *old );
-extern void copy_dh( data_handle *new, data_handle *old );
+extern void init_dh( data_handle *dh );                     /* Initialize a data_handle: set the current node to NULL. */
+extern void done_dh( data_handle *dh );                     /* Finalize a data_handle: call zrelse() if necessary */
+extern int  load_dh( data_handle *dh );                     /* Call zload() on the current node. */
+extern int  load_dh_znode( data_handle *dh, znode *node );  /* Set the argument znode to the current node, call zload(). */
+extern int  load_dh_jnode( data_handle *dh, jnode *node );  /* If the argument jnode is formatted, do the same as
+							     * load_dh_znode, otherwise do nothing (unformatted nodes
+							     * don't require zload/zrelse treatment). */
+extern void move_dh( data_handle *new, data_handle *old );  /* Move the contents of a data_handle.  Old handle is released. */
+extern void copy_dh( data_handle *new, data_handle *old );  /* Copy the contents of a data_handle.  Old handle remains held. */
 
+/* Variable initializers for data_handles. */
 #define INIT_DH ( data_handle * ){ .node = NULL, .d_ref = 0 }
 #define INIT_DH_NODE( n ) ( data_handle ){ .node = ( n ), .d_ref = 0 }
 
+/* A convenience macro for use in assertions or debug-only code, where loaded data is only
+ * required to perform the debugging check.  This macro encapsulates an expression inside
+ * a pair of calls to zload()/zrelse().
+ */
 #define WITH_DATA( node, exp )				\
 ({							\
 	int __with_dh_result;				\
@@ -527,6 +540,7 @@ extern void copy_dh( data_handle *new, data_handle *old );
 	__with_dh_result;				\
 })
 
+/* Same as above, but accepts a return value in case zload fails. */
 #define WITH_DATA_RET( node, ret, exp )			\
 ({							\
 	int __with_dh_result;				\
