@@ -367,11 +367,15 @@ typedef enum {
 	 */
 	TRACE_ALLOC = (1 << 21),	/* 0x00200000 */
 
+	/* trace space reservation */
+	TRACE_RESERVE = (1 << 22),
+
 	/*
 	 * vague section: used to trace bugs. Use it to issue optional prints
 	 * at arbitrary points of code.
 	 */
 	TRACE_BUG = (1 << 31),	/* 0x80000000 */
+
 	/*
 	 * trace everything above
 	 */

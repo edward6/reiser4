@@ -541,7 +541,7 @@ common_file_delete(struct inode *inode /* object to remove */ )
 		if (reiser4_grab_space_exact((reserve = common_estimate_file_delete(inode)), 1))
 			return -ENOSPC;
 
-		warning("vpf-330", "SPACE: file delete grabs %llu block.", reserve);
+		trace_on(TRACE_RESERVE, "file delete grabs %llu block.", reserve);
 		
 		build_sd_key(inode, &sd_key);
 		result = cut_tree(tree_by_inode(inode), &sd_key, &sd_key);
@@ -678,7 +678,7 @@ common_file_create(struct inode *object,
 		    common_estimate_create(tree_by_inode(object)->height, object), 0))
 		return -ENOSPC;
 	
-	warning("vpf-331", "SPACE: file create grabs %llu, blocks.", reserve);
+	trace_on(TRACE_RESERVE, "file create grabs %llu, blocks.", reserve);
 	return reiser4_write_sd(object);
 }
 

@@ -534,7 +534,7 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	 * blocks */
 	blocknr_hint_init(&hint);
 	hint.block_stage = BLOCK_FLUSH_RESERVED;
-	warning("vpf-304", "SPACE: flush allocates %llu blocks for wandering logs.", wide_len);
+	trace_on(TRACE_RESERVE, "flush allocates %llu blocks for wandering logs.", wide_len);
 	ret = reiser4_alloc_blocks (&hint, start, &wide_len, 1/*not unformatted*/, 0);
 
 	blocknr_hint_done(&hint);
@@ -799,7 +799,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		/* FIXME: there should be some block allocation policy for
 		 * nodes which contain log records */
 		/* FIXME-VITALY: Who grabbed this? */
-		warning("vpf-305", "SPACE: flush allocates %llu blocks for tx lists.", len);
+		trace_on(TRACE_RESERVE, "flush allocates %llu blocks for tx lists.", len);
 		ret = reiser4_alloc_blocks (&hint, &first, &len, 1/*not unformatted*/, 1);
 
 		blocknr_hint_done(&hint);
@@ -1035,7 +1035,7 @@ reiser4_write_logs(void)
 /*	if (reiser4_grab_space_exact(ch.tx_size, 1))
 		goto up_and_ret;*/
 
-	warning("vpf-302", "SPACE: tx logs grabs %d blocks.", ch.tx_size);
+	trace_on(TRACE_RESERVE, "tx logs grabs %d blocks.", ch.tx_size);
 
 	{
 		flush_queue_t *fq;
@@ -1049,8 +1049,9 @@ reiser4_write_logs(void)
 
 		if (!(ret = alloc_wandered_blocks(&ch, fq)))
 			ret = alloc_tx(&ch, fq);
+		
 		/* FIXME-VITALY: Check this with Zam. */
-		warning("vpf-296", "SPACE: free all (%llu) reserved.", 
+		trace_on(TRACE_RESERVE, "free all (%llu) reserved.", 
 			reiser4_atom_flush_reserved());
 
 		flush_reserved2free_all();
@@ -1128,8 +1129,9 @@ up_and_ret:
 	dealloc_wmap(&ch);
 
 	/* VITALY: Free flush_reserved blocks. */
-	warning("vpf-335", "SPACE: release all grabbed blocks (%llu).", 
+	trace_on(TRACE_RESERVE, "release all grabbed blocks (%llu).", 
 		get_current_context()->grabbed_blocks);
+
 	all_grabbed2free();	
 	capture_list_splice(&ch.atom->clean_nodes, &ch.overwrite_set);
 	done_commit_handle(&ch);

@@ -773,7 +773,7 @@ unix_file_truncate(struct inode *inode, loff_t size)
 		return -ENOSPC;
 	}
 	
-	warning("umka-1232", "SPACE: file truncate grabs %llu blocks.", needed);
+	trace_on(TRACE_RESERVE, "file truncate grabs %llu blocks.", needed);
 
 	if (file_size < inode->i_size)
 		result = expand_file(inode, file_size, inode->i_size);
@@ -1314,7 +1314,7 @@ unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t * off)
 	    return -ENOSPC;
 	}
 	
-	warning("umka-1231", "SPACE: file read grabs %llu blocks.", needed);
+	trace_on(TRACE_RESERVE, "file read grabs %llu blocks.", needed);
 
 	/* build flow */
 	result = inode_file_plugin(inode)->flow_by_inode(inode, buf,
@@ -1815,7 +1815,7 @@ unix_file_write(struct file * file,	/* file to write to */
 		return -ENOSPC;
 	}
 	
-	warning("vpf-301", "SPACE: file write grabs %llu blocks "
+	trace_on(TRACE_RESERVE, "file write grabs %llu blocks "
 		"for %llu bytes long data.", needed, count);
 	
 	pos = *off;
@@ -1919,7 +1919,7 @@ unix_file_release(struct file *file)
 	
 	if (result != 0) return -ENOSPC;
 	
-	warning("umka-1240", "SPACE: file release grabs %llu blocks.", needed);
+	trace_on(TRACE_RESERVE, "file release grabs %llu blocks.", needed);
 
 	/*
 	 * FIXME-VS: it is not clear where to do extent2tail conversion yet
@@ -1989,7 +1989,7 @@ unix_file_mmap(struct file *file, struct vm_area_struct *vma)
 	
 	if (result != 0) return -ENOSPC;
 	
-	warning("umka-1247", "SPACE: file mmap grabs %llu blocks.", needed);
+	trace_on(TRACE_RESERVE, "file mmap grabs %llu blocks.", needed);
 
 	/* tail2extent expects file to be nonexclusively locked */
 	get_nonexclusive_access(inode);

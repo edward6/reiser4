@@ -1393,7 +1393,8 @@ reiser4_dirty_inode(struct inode *inode)
 	if (reiser4_grab_space_exact(1, 1))
 		goto no_space;
 	
-	warning("vpf-332", "SPACE: ditry inode grabs 1 block.");
+	trace_on(TRACE_RESERVE, "ditry inode grabs 1 block.");
+
 	result = reiser4_write_sd(inode);
 	if (result != 0)
 		warning("nikita-2524", "Failed to write sd of %llu: %i",
@@ -1461,7 +1462,8 @@ reiser4_delete_inode(struct inode *object)
 		if (reiser4_grab_space_exact(reserved, 1))
 			goto no_space;
 		
-		warning("vpf-333", "SPACE: delete inode grabs %llu blocks.", reserved);
+		trace_on(TRACE_RESERVE, "delete inode grabs %llu blocks.", reserved);
+		
 		get_exclusive_access(object);
 		truncate_object(object, (loff_t) 0);
 		drop_exclusive_access(object);

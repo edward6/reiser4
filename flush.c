@@ -2338,7 +2338,7 @@ squeeze_right_non_twig(znode * left, znode * right)
 			return ret;
 		}
 		
-		warning("umka-1240", "SPACE: squeeze_right_non_twig grabs %llu blocks.", amount);
+		trace_on(TRACE_RESERVE, "squeeze right non twig grabs %llu blocks.", amount);
 		
 		ret = carry(&todo, NULL /* previous level */ );
 	}
@@ -2762,7 +2762,7 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord,
 		&pos->preceder, &blk, &len, 1/*formatted*/, 0/* do not use 5% */)))
                 return ret;
                             
-        warning("vpf-303", "SPACE: flush allocates %llu blocks.", len);
+        trace_on(TRACE_RESERVE, "flush allocates %llu blocks.", len);
 
 	if (!ZF_ISSET(node, JNODE_CREATED) &&
 	    (ret = reiser4_dealloc_block(znode_get_block(node), 1 /* defer */ ,

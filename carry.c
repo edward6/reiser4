@@ -209,22 +209,7 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 	trace_stamp(TRACE_CARRY);
 
 	grabbed = get_current_context()->grabbed_blocks;
-	/* 
-	    If we are not in the flush mode, do not allow to allocate from 5% of disk. 
-	    Balancing has not been started yet.
-	    Otherwise, allocate from 5% for evth only! This will probably need to not make 
-	    new leaves and unfm dirty, only which are such already.
-	*/
-	/*
-	result = reiser4_grab_space_exact( amount = carry_estimate_space( doing ), 
-	    is_flush_mode() );
-
-	if (result != 0)
-		return result;
 	
-	warning("vpf-299", "SPACE: carry grabs %llu blocks.", result ? 0 : amount);
-
-	*/
 	todo = &todo_area;
 	init_carry_level(todo, doing->pool);
 	if (done == NULL) {

@@ -326,6 +326,10 @@ reiser4_grab_space(__u64 * grabbed, __u64 min_block_count,
 	if ((reserved && (free_blocks < min_block_count)) || 
 	    (!reserved && (free_blocks - reserved_blocks < min_block_count))) 
 	{
+		/* FIXME-UMKA: Zam things, that here we should try to commit current atom first
+		 * and try to allocate needed blocks one more time. Only if we will unable
+		 * to allocate needed amount of blocks again, we will report -ENOSPC */
+
 		ret = -ENOSPC;
 		trace_if(TRACE_ALLOC,
 			 info
@@ -430,9 +434,9 @@ assign_fake_blocknr(reiser4_block_nr * blocknr, int formatted)
 		assert("zam-394", node == NULL);
 	}
 #endif
-	warning("vpf-336", "SPACE: allocate 1 block");
-
+	trace_on(TRACE_RESERVE, "moving 1 grabbed block to fake allocated.");
 	grabbed2fake_allocated(1, formatted);
+	
 	return 0;
 }
 
@@ -509,7 +513,7 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	/* VITALY: allocator should grab this for internal/tx-lists/similar only. */
 	if (hint->block_stage == BLOCK_NOT_COUNTED) {
 		reiser4_grab_space_enable();
-		warning("vpf-337", "SPACE: grab for not counted %llu blocks.", *len);
+		trace_on(TRACE_RESERVE, "grab for not counted %llu blocks.", *len);
 		ret = reiser4_grab_space(&needed, (reiser4_block_nr) 1, *len, 
 			from_reserved_space);
 		if (ret != 0)
@@ -529,17 +533,17 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 		switch (hint->block_stage) {
 		case BLOCK_NOT_COUNTED:
 		case BLOCK_GRABBED:
-			warning("vpf-334", "SPACE: use %s %llu blocks.", 
+			trace_on(TRACE_RESERVE, "use %s %llu blocks.", 
 				hint->block_stage == BLOCK_GRABBED ? 
 				"grabbed" : "not counted", *len);
 			grabbed2used(*len);
 			break;
 		case BLOCK_UNALLOCATED:
-			warning("vpf-335", "SPACE: allocate %llu blocks.", *len);
+			trace_on(TRACE_RESERVE, "allocate %llu blocks.", *len);
 			fake_allocated2used(*len, formatted);
 			break;
 		case BLOCK_FLUSH_RESERVED:
-		    	warning("vpf-334", "SPACE: get wandered %llu blocks.", *len);
+		    	trace_on(TRACE_RESERVE, "get wandered %llu blocks.", *len);
 			assert("vpf-294", !sub_from_atom_flush_reserved(*len));
 			break;
 		default:
