@@ -30,7 +30,7 @@
 #include "object.h"
 
 int do_readpage_ctail(reiser4_cluster_t *, struct page * page);
-int ctail_read_cluster (reiser4_cluster_t *, struct inode *);
+int ctail_read_cluster (reiser4_cluster_t *, struct inode *, int);
 
 /* get cryptcompress specific portion of inode */
 inline cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode)
@@ -354,14 +354,38 @@ set_cluster_nr_pages(struct inode * inode, reiser4_cluster_t * clust)
 }
 
 int
-find_cluster_item(const reiser4_key *key, /* key of next cluster item to read */
-		  coord_t *coord,
-		  lock_handle *lh,
+find_cluster_item(hint_t * hint, /* coord, lh, seal */
+		  const reiser4_key *key, /* key of next cluster item to read */
+		  znode_lock_mode lock_mode /* which lock */,
 		  ra_info_t *ra_info)
 {
+	int result;
+	coord_t *coord;
+	
 	assert("edward-152", schedulable());
 	
-	return  coord_by_key(current_tree, key, coord, lh, ZNODE_READ_LOCK,
+	init_lh(hint->coord.lh);
+	coord = &hint->coord.base_coord;
+	if(hint) {
+		result = hint_validate(hint, key, 1 /* check key */, lock_mode);
+		if (!result) {
+			if (coord->between == AFTER_UNIT && equal_to_rdk(coord->node, key)) {
+				result = goto_right_neighbor(coord, hint->coord.lh);
+				if (result == -E_NO_NEIGHBOR)
+					return RETERR(-EIO);
+				if (result)
+					return result;
+				assert("vs-1152", equal_to_ldk(coord->node, key));
+				/* we moved to different node. Invalidate coord extension, zload is necessary to init it
+				   again */
+				hint->coord.valid = 0;
+			}
+			return CBK_COORD_FOUND;
+		}
+	}
+	coord_init_zero(coord);
+	hint->coord.valid = 0;
+	return  coord_by_key(current_tree, key, coord, hint->coord.lh, lock_mode,
 			     FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, CBK_UNIQUE, ra_info);
 }
 
@@ -371,15 +395,13 @@ void get_cluster_magic(__u8 * magic)
 	   PARANOID? */ 
 }
 
-/* @op == READ_OP:
-   . decrypt cluster
-   . check for end-of-cluster magic (NOTE-EDWARD: this magic should be private)
-   . decompress cluster
-   
-   @op == WRITE_OP:
+/*
+   . decrypt cluster was read from disk
+   . check for cluster magic
+   . decompress
 */
-int process_cluster(reiser4_cluster_t *clust, /* contains data to process */
-		    struct inode *inode, rw_op op)
+int inflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
+		    struct inode *inode)
 {
 	int result = 0;
 	int i, nr_fips;
@@ -443,7 +465,7 @@ int process_cluster(reiser4_cluster_t *clust, /* contains data to process */
 	tail_size = *(buf + (clust->len - 1)); 
 	if (memcmp(buf + clust->len - (size_t)CLUSTER_MAGIC_SIZE - tail_size,
 		   magic, (size_t)CLUSTER_MAGIC_SIZE)) {
-		printk("edward-156: process_cluster: wrong end-of-cluster magic\n");
+		printk("edward-156: inflate_cluster: wrong end-of-cluster magic\n");
 		result = -EIO;
 		goto exit;
 	}
@@ -459,6 +481,16 @@ int process_cluster(reiser4_cluster_t *clust, /* contains data to process */
 	return result;	
 }
 
+/*
+   . compress cluster
+   . append end-of-cluster magic (NOTE-EDWARD: this magic should be private)
+   . align and encrypt result
+*/
+int deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
+		    struct inode *inode)
+{
+	return 0;
+}
 /* plugin->read() :
  * generic_file_read()   
  * All key offsets don't make sense in traditional unix semantics unless they
@@ -730,6 +762,86 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
 	return 0;
 }
 
+/* find all cluster's items, read and(or) write each one */ 
+int find_cluster(reiser4_cluster_t * clust,
+		 struct inode * inode,
+		 int read /* read items */,
+		 int write /* write items */)
+{
+	flow_t f;
+	lock_handle lh;
+	hint_t hint;
+	int result;
+	unsigned long index;
+	ra_info_t ra_info;
+	file_plugin * fplug;
+	item_plugin * iplug;
+
+	assert("edward-225", read || write);
+	assert("edward-226", schedulable());
+	assert("edward-137", inode != NULL);
+	assert("edward-138", clust != NULL);
+	
+	index = clust->index;
+	fplug = inode_file_plugin(inode);
+	iplug = item_plugin_by_id(CTAIL_ID);
+	/* build flow for the cluster */
+	fplug->flow_by_inode(inode, clust->buf, 0 /* kernel space */,
+			     inode_scaled_cluster_size(inode), index << PAGE_CACHE_SHIFT, READ_OP, &f);
+	result = load_file_hint(clust->file, &hint, &lh);
+	if (result)
+		return result;
+	ra_info.key_to_stop = f.key;
+	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
+	
+	while (f.length) {
+		result = find_cluster_item(&hint, &f.key, (write ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK), &ra_info);
+		switch (result) {
+		case CBK_COORD_NOTFOUND:
+			if (inode_scaled_offset(inode, index << PAGE_CACHE_SHIFT) == get_key_offset(&f.key)) {
+				/* first item not found: hole cluster */
+				clust->stat = FAKE_CLUSTER;
+				result = 0;
+				goto out2;
+			}
+			/* we are outside the cluster, stop search here */
+			assert("edward-146", f.length != inode_scaled_cluster_size(inode));
+			result = 0;
+			goto ok;
+		case CBK_COORD_FOUND:
+			assert("edward-147", item_plugin_by_coord(&hint.coord.base_coord) == iplug);
+			assert("edward-148", hint.coord.base_coord.between != AT_UNIT);
+			coord_clear_iplug(&hint.coord.base_coord);
+			result = zload_ra(hint.coord.base_coord.node, &ra_info);
+			if (unlikely(result))
+				goto out2;
+			if (read) {
+				result = iplug->s.file.read(NULL, &f, &hint.coord);
+				if(result)
+					goto out;
+			}
+			if (write) 
+				znode_make_dirty(hint.coord.base_coord.node);
+			zrelse(hint.coord.base_coord.node);
+			done_lh(&lh);
+			break;
+		default:
+			goto out2;
+		}
+	}
+ ok:
+	/* gathering finished with number of items > 0 */
+	/* NOTE-EDWARD: Handle the cases when cluster is incomplete (-EIO) */	
+	clust->len = inode_scaled_cluster_size(inode) - f.length;
+ out:
+	zrelse(hint.coord.base_coord.node);
+ out2:
+	done_lh(&lh);
+	save_file_hint(clust->file, &hint);
+	return result;
+}
+
+
 /* we don't take an interest in how much bytes was written when error occures */
 static int
 read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
@@ -754,18 +866,24 @@ read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 		if (PageUptodate(clust->pages[i]))
 			continue;
 		if (!cluster_is_uptodate(clust)) {
-			result = ctail_read_cluster(clust, inode);
+			/* read cluster and mark leaf znodes dirty */ 
+			result = ctail_read_cluster(clust, inode, 1 /* write */);
 			if (result)
-				break;
+				goto out;
 		}
 		reiser4_lock_page(clust->pages[i]);
 		result =  do_readpage_ctail(clust, clust->pages[i]);
 		reiser4_unlock_page(clust->pages[i]);
 		if (result) {
 			impossible("edward-219", "do_readpage_ctail returned crap");
-			break;
+			goto out;
 		}
 	}
+	if (!cluster_is_uptodate(clust))
+		/* we don't need cluster's data,
+		   just make its leaf znodes dirty */
+		find_cluster(clust, inode, 0 /* do not read */, 1 /*write */);
+ out:
 	release_cluster_buf(clust, inode);
 	return result;
 }
@@ -855,7 +973,7 @@ set_cluster_params(struct inode * inode, reiser4_cluster_t * clust, flow_t * f, 
 /* FIXME_EDWARD replace flow by something lightweigth */
 
 static loff_t 
-write_flow(struct file * file , struct inode * inode, const char *buf, size_t count, loff_t pos)
+write_cryptcompress_flow(struct file * file , struct inode * inode, const char *buf, size_t count, loff_t pos)
 {
 	int i, result;
 	flow_t f;
@@ -874,8 +992,9 @@ write_flow(struct file * file , struct inode * inode, const char *buf, size_t co
         /* current write position in file */
 	file_off = pos;
 	reiser4_cluster_init(&clust);
+	clust.file = file;
 	clust.pages = pages;
-	
+		
 	set_cluster_params(inode, &clust, &f, file_off);
 	
 	if (clust.stat == HOLE_CLUSTER) {
@@ -963,7 +1082,7 @@ write_file(struct file * file, /* file to write to */
         /* FIXME-EDWARD: other UNIX features */
 
 	pos = *off;
-	written = write_flow(file, inode, (char *)buf, count, pos);
+	written = write_cryptcompress_flow(file, inode, (char *)buf, count, pos);
 	if (written < 0) {
 		if (written == -EEXIST)
 			printk("write_file returns EEXIST!\n");
