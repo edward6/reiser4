@@ -646,7 +646,7 @@ jload(jnode * node)
 
 /* call node plugin to initialise newly allocated node. */
 int
-jinit_new(jnode * node /* jnode to initialise */ )
+jinit_new(jnode * node /* jnode to initialise */)
 {
 	int result;
 	struct page *page;
@@ -927,7 +927,6 @@ jnode_finish_io(jnode * node)
 		page_cache_get(page);
 		spin_unlock_jnode(node);
 		wait_on_page_writeback(page);
-		wait_on_page_locked(page);
 		page_cache_release(page);
 	} else
 		spin_unlock_jnode(node);
