@@ -496,7 +496,8 @@ int bitmap_alloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	reiser4_block_nr search_end;
 
 	assert ("zam-398", super != NULL);
-	assert ("zam-397", *start < reiser4_block_count (super));
+	assert ("zam-412", hint != NULL);
+	assert ("zam-397", hint->blk < reiser4_block_count (super));
 
 	/* These blocks should have been allocated as "new", "not-yet-mapped"
 	 * blocks, so we should not decrease blocks_free count twice. */
