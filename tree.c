@@ -1390,145 +1390,6 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 	return ret;
 }
 
-#define CUT_TREE_GOES_FROM_LEFT_TO_RIGHT 0
-#if CUT_TREE_GOES_FROM_LEFT_TO_RIGHT
-
-static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, 
-			    const reiser4_key * to_key, struct inode * object)
-{
-	lock_handle next_node_lock;
-	reiser4_tree * tree = current_tree;
-	coord_t right_coord;
-	int result;
-	long iterations = 0;
-
-	assert("zam-931", tap->coord->node != NULL);
-	assert("zam-932", znode_is_write_locked(tap->coord->node));
-
-	init_lh(&next_node_lock);
-
-	while (1) {
-		node_plugin *nplug;
-
-		if (UNDER_RW(dk, tree, read, keyle(&tap->coord->node->rd_key, to_key))) {
-			/* Advance the intranode_from position to the next node. */
-			result = reiser4_get_right_neighbor(&next_node_lock, tap->coord->node, 
-							    ZNODE_WRITE_LOCK, GN_DO_READ);
-			if (result != 0 && result != -E_NO_NEIGHBOR)
-				break;
-		}
-
-		/* Check can we deleted the node as a whole. */
-		if (iterations && znode_get_level(tap->coord->node) == LEAF_LEVEL &&
-		    UNDER_RW(dk, tree, read, keyle(&tap->coord->node->rd_key, to_key)))
-		{
-			lock_handle left_lock;
-
-			init_lh(&left_lock);
-
-			result = reiser4_get_left_neighbor(&left_lock, tap->coord->node,
-							   ZNODE_WRITE_LOCK, GN_DO_READ);
-			if (result && result != -E_NO_NEIGHBOR)
-				break;
-
-			result = delete_node(left_lock.node, tap->coord->node, NULL);
-
-			done_lh(&left_lock);
-			if (result)
-				break;
-		} else {
-			result = tap_load(tap);
-			if (result)
-				return result;
-
-			if (iterations)
-				coord_init_first_unit(tap->coord, tap->coord->node);
-
-			/* Prepare the second (right) point for cut_node() */
-			nplug = tap->coord->node->nplug;
-
-			assert("vs-686", nplug);
-			assert("vs-687", nplug->lookup);
-
-			result = nplug->lookup(tap->coord->node, to_key, 
-					       FIND_MAX_NOT_MORE_THAN, &right_coord);
-
-			if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
-				break;
-
-			/* cut data from one node */
-			result = cut_node(tap->coord, &right_coord, from_key, to_key, 
-					  NULL, DELETE_KILL, NULL, object);
-			tap_relse(tap);
-			if (result)
-				break;
-		}
-
-		if (next_node_lock.node == NULL)
-			break;
-
-		result = tap_move(tap, &next_node_lock);
-		done_lh(&next_node_lock);
-		if (result)
-			break;
-
-		++ iterations;
-	}
-
-	done_lh(&next_node_lock);
-	return result;
-}
-
-int cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, 
-		    const reiser4_key * to_key, reiser4_key * smallest_removed_p UNUSED_ARG,
-		    struct inode * object)
-{
-	lock_handle lock;
-	int result;
-	tap_t tap;
-	coord_t left_coord;
-	ra_info_t ra = {.key_to_stop = *to_key};
-
-	STORE_COUNTERS;
-
-	assert("umka-329", tree != NULL);
-	assert("umka-330", from_key != NULL);
-	assert("umka-331", to_key != NULL);
-	assert("zam-936", keyle(from_key, to_key));
-
-	write_tree_trace(tree, tree_cut, from_key, to_key);
-	init_lh(&lock);
-
-	do {
-		/* Find rightmost item to cut away from the tree. */
-		result = coord_by_key(current_tree, from_key, &left_coord, &lock, 
-				      ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN,
-				      TWIG_LEVEL, LEAF_LEVEL, CBK_UNIQUE, &ra);
-		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
-			break;
-
-		tap_init(&tap, &left_coord, &lock, ZNODE_WRITE_LOCK);
-		tap.ra_info = ra;
-		result = cut_tree_worker(&tap, from_key, to_key, object);
-		tap_done(&tap);
-
-		preempt_point();
-
-	} while (result == -E_DEADLOCK || result == -E_REPEAT);
-
-	if (result == -E_NO_NEIGHBOR)
-		result = 0;
-	else if (result != 0)
-		warning("nikita-2861", "failure: %i", result);
-
-	done_lh(&lock);
-
-	CHECK_COUNTERS;
-	return result;
-}
-
-#else
-
 /**
  * The cut_tree subroutine which does progressive deletion of items and whole
  * nodes from right to left (which is not optimal but implementation seems to
@@ -1726,8 +1587,6 @@ cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key,
 	return result;
 }
 
-#endif /* CUT_TREE_GOES_FROM_LEFT_TO_RIGHT */
-
 /* return number of unallocated children for  @node, or an error code, if result < 0 */
 int
 check_jnode_for_unallocated(jnode * node)
@@ -1794,7 +1653,6 @@ init_tree_0(reiser4_tree * tree)
 	assert("zam-683", tree != NULL);
 	rw_tree_init(tree);
 	spin_epoch_init(tree);
-	spin_zgen_init(tree);
 }
 
 /* finishing reiser4 initialization */
@@ -1823,7 +1681,6 @@ init_tree(reiser4_tree * tree	/* pointer to structure being
 	tree->nplug = nplug;
 
 	tree->znode_epoch = 1ull;
-	tree->zgen = 0;
 
 	cbk_cache_list_init(&tree->cbk_cache.lru);
 	spin_cbk_cache_init(&tree->cbk_cache);
