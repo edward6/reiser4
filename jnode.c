@@ -207,6 +207,8 @@ jnodes_tree_done(reiser4_tree * tree /* tree to destroy jnodes for */ )
 
 	jtable = &tree->jhash_table;
 	for_all_in_htable(jtable, j, node, next) {
+		if (atomic_read(&node->x_count))
+			info_jnode("x_count != 0", node);
 		assert("nikita-2361", !atomic_read(&node->x_count));
 		jdrop(node);
 	}
@@ -454,6 +456,7 @@ jlookup_locked(reiser4_tree * tree, oid_t objectid, unsigned long index)
 	return node;
 }
 
+#if 0
 static int
 inode_has_no_jnodes(reiser4_inode *r4_inode)
 {
@@ -466,8 +469,9 @@ inode_has_no_jnodes(reiser4_inode *r4_inode)
 	assert("vs-1437", (inode_by_reiser4_inode(r4_inode)->i_state & I_JNODES) != 0);
 	return 0;
 }
+#endif
 
-
+#if 0
 /* insert jnode into reiser4 inode's radix tree of jnodes. This is performed under tree spin lock. It also sets a bit
    (I_JNODES) in inode's i_state so that fs/inode.c:can_unuse never returns 1, so, jnodes in inode's jnode tree prevent
    inode from being pruned. This is important because jnodes store pointer to inode's mapping */
@@ -515,6 +519,7 @@ inode_detach_jnode(jnode *node)
 	}
 	spin_unlock(&inode_lock);
 }
+#endif
 
 /* put jnode into hash table (where they can be found by flush who does not know mapping) and to inode's tree of jnodes
    (where they can be found (hopefully faster) in places where mapping is known). Currently it is used by
@@ -545,7 +550,7 @@ hash_unformatted_jnode(jnode *node, struct address_space *mapping, unsigned long
 	/* assert("nikita-3211", j_hash_find(jtable, &node->key.j) == NULL); */
 	j_hash_insert_rcu(jtable, node);
 
-	inode_attach_jnode(node);
+	/*inode_attach_jnode(node);*/
 }
 
 static void
@@ -555,7 +560,7 @@ unhash_unformatted_node_nolock(jnode *node)
 	j_hash_remove_rcu(&node->tree->jhash_table, node);
 
 	/* remove jnode from inode's tree of jnodes */
-	inode_detach_jnode(node);
+	/*inode_detach_jnode(node);*/
 
 	node->key.j.mapping = 0;
 	node->key.j.index = (unsigned long)-1;
