@@ -31,7 +31,7 @@
  * represent original data location and second block represents new data
  * location (and/or vice versa?). */
 
-typedef struct blocknr_pair      blocknr_pair;
+typedef struct blocknr_pair blocknr_pair;
 
 /** The total size of a blocknr_set_entry. */
 #define BLOCKNR_SET_ENTRY_SIZE 128
@@ -45,10 +45,10 @@ typedef struct blocknr_pair      blocknr_pair;
 
 /** An entry of the blocknr_set */
 struct blocknr_set_entry {
-	unsigned              nr_singles;
-	unsigned              nr_pairs;
+	unsigned nr_singles;
+	unsigned nr_pairs;
 	blocknr_set_list_link link;
-	reiser4_block_nr      ents[BLOCKNR_SET_ENTS_SIZE];
+	reiser4_block_nr ents[BLOCKNR_SET_ENTS_SIZE];
 };
 
 /* A pair of blocks as recorded in the blocknr_set_entry data. */
@@ -62,74 +62,86 @@ TS_LIST_DEFINE(blocknr_set, blocknr_set_entry, link);
 
 /* Return the number of blocknr slots available in a blocknr_set_entry. */
 /* Audited by: green(2002.06.11) */
-static unsigned bse_avail (blocknr_set_entry *bse)
+static unsigned
+bse_avail(blocknr_set_entry * bse)
 {
 	unsigned used = bse->nr_singles + 2 * bse->nr_pairs;
 
-	assert ("jmacd-5088", BLOCKNR_SET_ENTS_SIZE >= used);
-	cassert (sizeof (blocknr_set_entry) == BLOCKNR_SET_ENTRY_SIZE);
+	assert("jmacd-5088", BLOCKNR_SET_ENTS_SIZE >= used);
+	cassert(sizeof (blocknr_set_entry) == BLOCKNR_SET_ENTRY_SIZE);
 
 	return BLOCKNR_SET_ENTS_SIZE - used;
 }
 
 /** Initialize a blocknr_set_entry. */
 /* Audited by: green(2002.06.11) */
-static void bse_init (blocknr_set_entry *bse)
+static void
+bse_init(blocknr_set_entry * bse)
 {
 	bse->nr_singles = 0;
-	bse->nr_pairs  = 0;
-	blocknr_set_list_clean (bse);
+	bse->nr_pairs = 0;
+	blocknr_set_list_clean(bse);
 }
 
 /** Allocate and initialize a blocknr_set_entry. */
 /* Audited by: green(2002.06.11) */
-static blocknr_set_entry* bse_alloc (void)
+static blocknr_set_entry *
+bse_alloc(void)
 {
 	blocknr_set_entry *e;
 
-	if ((e = (blocknr_set_entry*) kmalloc (sizeof (blocknr_set_entry), GFP_KERNEL)) == NULL) {
+	if (
+	    (e =
+	     (blocknr_set_entry *) kmalloc(sizeof (blocknr_set_entry),
+					   GFP_KERNEL)) == NULL) {
 		return NULL;
 	}
 
-	bse_init (e);
+	bse_init(e);
 
 	return e;
 }
 
 /** Free a blocknr_set_entry. */
 /* Audited by: green(2002.06.11) */
-static void bse_free (blocknr_set_entry *bse)
+static void
+bse_free(blocknr_set_entry * bse)
 {
-	kfree (bse);
+	kfree(bse);
 }
 
 /** Add a block number to a blocknr_set_entry */
 /* Audited by: green(2002.06.11) */
-static void bse_put_single (blocknr_set_entry *bse, const reiser4_block_nr *block)
+static void
+bse_put_single(blocknr_set_entry * bse, const reiser4_block_nr * block)
 {
-	assert ("jmacd-5099", bse_avail (bse) >= 1);
+	assert("jmacd-5099", bse_avail(bse) >= 1);
 
 	bse->ents[bse->nr_singles++] = *block;
 }
 
 /** Get a pair of block numbers */
 /* Audited by: green(2002.06.11) */
-static inline blocknr_pair* bse_get_pair (blocknr_set_entry *bse, unsigned pno)
+static inline blocknr_pair *
+bse_get_pair(blocknr_set_entry * bse, unsigned pno)
 {
-	assert ("green-1", BLOCKNR_SET_ENTS_SIZE >= 2 * (pno + 1) );
+	assert("green-1", BLOCKNR_SET_ENTS_SIZE >= 2 * (pno + 1));
 
-	return (blocknr_pair*) (bse->ents + BLOCKNR_SET_ENTS_SIZE - 2 * (pno + 1));
+	return (blocknr_pair *) (bse->ents + BLOCKNR_SET_ENTS_SIZE -
+				 2 * (pno + 1));
 }
 
 /** Add a pair of block numbers to a blocknr_set_entry */
 /* Audited by: green(2002.06.11) */
-static void bse_put_pair (blocknr_set_entry *bse, const reiser4_block_nr *a, const reiser4_block_nr *b)
+static void
+bse_put_pair(blocknr_set_entry * bse, const reiser4_block_nr * a,
+	     const reiser4_block_nr * b)
 {
 	blocknr_pair *pair;
 
-	assert ("jmacd-5100", bse_avail (bse) >= 2 && a != NULL && b != NULL);
+	assert("jmacd-5100", bse_avail(bse) >= 2 && a != NULL && b != NULL);
 
-	pair = bse_get_pair (bse, bse->nr_pairs++);
+	pair = bse_get_pair(bse, bse->nr_pairs++);
 
 	pair->a = *a;
 	pair->b = *b;
@@ -147,49 +159,49 @@ static void bse_put_pair (blocknr_set_entry *bse, const reiser4_block_nr *a, con
  * the operation succeeds, 0 is returned.  If new_bsep is non-NULL and not
  * used during the call, it will be freed automatically. */
 /* Audited by: green(2002.06.11) */
-static int blocknr_set_add (txn_atom                *atom,
-			    blocknr_set             *bset,
-			    blocknr_set_entry      **new_bsep,
-			    const reiser4_block_nr  *a,
-			    const reiser4_block_nr  *b)
+static int
+blocknr_set_add(txn_atom * atom,
+		blocknr_set * bset,
+		blocknr_set_entry ** new_bsep,
+		const reiser4_block_nr * a, const reiser4_block_nr * b)
 {
 	blocknr_set_entry *bse;
 	unsigned ents_needed;
 
-	assert ("jmacd-5101", a != NULL);
+	assert("jmacd-5101", a != NULL);
 
 	ents_needed = (b == NULL) ? 1 : 2;
 
-	if (blocknr_set_list_empty (& bset->entries) ||
-	    bse_avail (blocknr_set_list_front (& bset->entries)) < ents_needed) {
+	if (blocknr_set_list_empty(&bset->entries) ||
+	    bse_avail(blocknr_set_list_front(&bset->entries)) < ents_needed) {
 
 		/* See if a bse was previously allocated. */
 		if (*new_bsep == NULL) {
-			spin_unlock_atom (atom);
-			*new_bsep = bse_alloc ();
+			spin_unlock_atom(atom);
+			*new_bsep = bse_alloc();
 			return (*new_bsep != NULL) ? -EAGAIN : -ENOMEM;
 		}
 
 		/* Put it on the head of the list. */
-		blocknr_set_list_push_front (& bset->entries, *new_bsep);
+		blocknr_set_list_push_front(&bset->entries, *new_bsep);
 
 		*new_bsep = NULL;
 	}
 
 	/* Add the single or pair. */
-	bse = blocknr_set_list_front (& bset->entries);
+	bse = blocknr_set_list_front(&bset->entries);
 	if (b == NULL) {
-		bse_put_single (bse, a);
+		bse_put_single(bse, a);
 	} else {
-		bse_put_pair (bse, a, b);
+		bse_put_pair(bse, a, b);
 	}
 
 	/* If new_bsep is non-NULL then there was an allocation race, free this copy. */
 	if (*new_bsep != NULL) {
-		bse_free (*new_bsep);
+		bse_free(*new_bsep);
 		*new_bsep = NULL;
 	}
-	
+
 	return 0;
 }
 
@@ -199,14 +211,16 @@ static int blocknr_set_add (txn_atom                *atom,
 /* Auditor note: Entire call chain cannot hold any spinlocks, because
    kmalloc might schedule. The only exception is atom spinlock, which is
    properly freed. */
-int blocknr_set_add_extent (txn_atom                *atom,
-			    blocknr_set             *bset,
-			    blocknr_set_entry      **new_bsep,
-			    const reiser4_block_nr  *start,
-			    const reiser4_block_nr  *len)
+int
+blocknr_set_add_extent(txn_atom * atom,
+		       blocknr_set * bset,
+		       blocknr_set_entry ** new_bsep,
+		       const reiser4_block_nr * start,
+		       const reiser4_block_nr * len)
 {
-	assert ("jmacd-5102", start != NULL && len != NULL && *len > 0);
-	return blocknr_set_add (atom, bset, new_bsep, start, *len == 1 ? NULL : len);
+	assert("jmacd-5102", start != NULL && len != NULL && *len > 0);
+	return blocknr_set_add(atom, bset, new_bsep, start,
+			       *len == 1 ? NULL : len);
 }
 
 /* Add a single block to the block set. */
@@ -214,13 +228,14 @@ int blocknr_set_add_extent (txn_atom                *atom,
 /* Auditor note: Entire call chain cannot hold any spinlocks, because
    kmalloc might schedule. The only exception is atom spinlock, which is
    properly freed. */
-int blocknr_set_add_block (txn_atom                *atom,
-			   blocknr_set             *bset,
-			   blocknr_set_entry      **new_bsep,
-			   const reiser4_block_nr  *block)
+int
+blocknr_set_add_block(txn_atom * atom,
+		      blocknr_set * bset,
+		      blocknr_set_entry ** new_bsep,
+		      const reiser4_block_nr * block)
 {
-	assert ("jmacd-5102", block != NULL);
-	return blocknr_set_add (atom, bset, new_bsep, block, NULL);
+	assert("jmacd-5102", block != NULL);
+	return blocknr_set_add(atom, bset, new_bsep, block, NULL);
 }
 
 /* Add a block pair to the block set. */
@@ -228,29 +243,31 @@ int blocknr_set_add_block (txn_atom                *atom,
 /* Auditor note: Entire call chain cannot hold any spinlocks, because
    kmalloc might schedule. The only exception is atom spinlock, which is
    properly freed. */
-int blocknr_set_add_pair (txn_atom                *atom,
-			  blocknr_set             *bset,
-			  blocknr_set_entry      **new_bsep,
-			  const reiser4_block_nr  *a,
-			  const reiser4_block_nr  *b)
+int
+blocknr_set_add_pair(txn_atom * atom,
+		     blocknr_set * bset,
+		     blocknr_set_entry ** new_bsep,
+		     const reiser4_block_nr * a, const reiser4_block_nr * b)
 {
-	assert ("jmacd-5103", a != NULL && b != NULL);
-	return blocknr_set_add (atom, bset, new_bsep, a, b);
+	assert("jmacd-5103", a != NULL && b != NULL);
+	return blocknr_set_add(atom, bset, new_bsep, a, b);
 }
 
 /* Initialize a blocknr_set. */
 /* Audited by: green(2002.06.11) */
-void blocknr_set_init (blocknr_set *bset)
+void
+blocknr_set_init(blocknr_set * bset)
 {
-	blocknr_set_list_init (& bset->entries);
+	blocknr_set_list_init(&bset->entries);
 }
 
 /* Release the entries of a blocknr_set. */
 /* Audited by: green(2002.06.11) */
-void blocknr_set_destroy (blocknr_set *bset)
+void
+blocknr_set_destroy(blocknr_set * bset)
 {
-	while (! blocknr_set_list_empty (& bset->entries)) {
-		bse_free (blocknr_set_list_pop_front (& bset->entries));
+	while (!blocknr_set_list_empty(&bset->entries)) {
+		bse_free(blocknr_set_list_pop_front(&bset->entries));
 	}
 }
 
@@ -264,85 +281,87 @@ void blocknr_set_destroy (blocknr_set *bset)
    actual processing of this set. Testing this kind of stuff right here is
    also complicated by the fact that these sets are not sorted and going
    through whole set on each element addition is going to be CPU-heavy task */
-void blocknr_set_merge (blocknr_set *from, blocknr_set *into)
+void
+blocknr_set_merge(blocknr_set * from, blocknr_set * into)
 {
 	blocknr_set_entry *bse_into = NULL;
 
 	/* If @from is empty, no work to perform. */
-	if (blocknr_set_list_empty (& from->entries)) {
+	if (blocknr_set_list_empty(&from->entries)) {
 		return;
 	}
 
 	/* If @into is not empty, try merging partial-entries. */
-	if (! blocknr_set_list_empty (& into->entries)) {
+	if (!blocknr_set_list_empty(&into->entries)) {
 
 		/* Neither set is empty, pop the front to members and try to combine them. */
 		blocknr_set_entry *bse_from;
 		unsigned into_avail;
 
-		bse_into = blocknr_set_list_pop_front (& into->entries);
-		bse_from = blocknr_set_list_pop_front (& from->entries);
+		bse_into = blocknr_set_list_pop_front(&into->entries);
+		bse_from = blocknr_set_list_pop_front(&from->entries);
 
 		/* Combine singles. */
-		for (into_avail = bse_avail (bse_into);
+		for (into_avail = bse_avail(bse_into);
 		     into_avail != 0 && bse_from->nr_singles != 0;
 		     into_avail -= 1) {
-			bse_put_single (bse_into, & bse_from->ents[--bse_from->nr_singles]);
+			bse_put_single(bse_into,
+				       &bse_from->ents[--bse_from->nr_singles]);
 		}
 
 		/* Combine pairs. */
 		for (;
 		     into_avail > 1 && bse_from->nr_pairs != 0;
 		     into_avail -= 2) {
-			blocknr_pair *pair = bse_get_pair (bse_from, --bse_from->nr_pairs);
-			bse_put_pair (bse_into, & pair->a, & pair->b);
+			blocknr_pair *pair =
+			    bse_get_pair(bse_from, --bse_from->nr_pairs);
+			bse_put_pair(bse_into, &pair->a, &pair->b);
 		}
 
 		/* If bse_from is empty, delete it now. */
-		if (bse_avail (bse_from) == BLOCKNR_SET_ENTS_SIZE) {
-			bse_free (bse_from);
+		if (bse_avail(bse_from) == BLOCKNR_SET_ENTS_SIZE) {
+			bse_free(bse_from);
 		} else {
 			/* Otherwise, bse_into is full or nearly full (e.g.,
 			 * it could have one slot avail and bse_from has one
 			 * pair left).  Push it back onto the list.  bse_from
 			 * becomes bse_into, which will be the new partial. */
-			blocknr_set_list_push_front (& into->entries, bse_into);
+			blocknr_set_list_push_front(&into->entries, bse_into);
 			bse_into = bse_from;
 		}
 	}
 
 	/* Splice lists together. */
-	blocknr_set_list_splice (& into->entries, & from->entries);
+	blocknr_set_list_splice(&into->entries, &from->entries);
 
 	/* Add the partial entry back to the head of the list. */
 	if (bse_into != NULL) {
-		blocknr_set_list_push_front (& into->entries, bse_into);
+		blocknr_set_list_push_front(&into->entries, bse_into);
 	}
 }
 
 /* Iterate over all blocknr set elements, should be called under atom (spin)lock held. */
-int blocknr_set_iterator (txn_atom * atom,
-			  blocknr_set * bset,
-			  blocknr_set_actor_f actor,
-			  void * data,
-			  int    delete)
+int
+blocknr_set_iterator(txn_atom * atom,
+		     blocknr_set * bset,
+		     blocknr_set_actor_f actor, void *data, int delete)
 {
-	
-	blocknr_set_entry * entry;
-	
-	assert ("zam-429", atom != NULL);
-	assert ("zam-430", spin_atom_is_locked (atom));
-	assert ("zam-431", bset != 0);
-	assert ("zam-432", actor != NULL);
+
+	blocknr_set_entry *entry;
+
+	assert("zam-429", atom != NULL);
+	assert("zam-430", spin_atom_is_locked(atom));
+	assert("zam-431", bset != 0);
+	assert("zam-432", actor != NULL);
 
 	entry = blocknr_set_list_front(&bset->entries);
 	while (!blocknr_set_list_end(&bset->entries, entry)) {
-		blocknr_set_entry * tmp = blocknr_set_list_next(entry);
+		blocknr_set_entry *tmp = blocknr_set_list_next(entry);
 		unsigned int i;
 		int ret;
 
 		/* FIXME: unsigned >= 0 */
-		/*assert ("zam-565", bse_avail(entry) >= 0);*/
+		/*assert ("zam-565", bse_avail(entry) >= 0); */
 
 		for (i = 0; i < entry->nr_singles; i++) {
 			/*
@@ -355,22 +374,24 @@ int blocknr_set_iterator (txn_atom * atom,
 			 * jnodes got into delete set? Now, there do not, so
 			 * hopefully, you will not see that anymore
 			 */
-			ret = actor (atom, &entry->ents[i], NULL, data);
+			ret = actor(atom, &entry->ents[i], NULL, data);
 
 			/* FIXME: we can't break a loop if delete flag is
 			 * set. It is just an implementation issue and could
 			 * changed if one needs it. */
-			if (ret != 0 && !delete) return ret; 
+			if (ret != 0 && !delete)
+				return ret;
 		}
 
 		for (i = 0; i < entry->nr_pairs; i++) {
 			struct blocknr_pair *ab;
 
-			ab = bse_get_pair (entry, i);
+			ab = bse_get_pair(entry, i);
 
-			ret = actor (atom, &ab->a, &ab->b, data);
-			
-			if (ret != 0 && !delete) return ret;
+			ret = actor(atom, &ab->a, &ab->b, data);
+
+			if (ret != 0 && !delete)
+				return ret;
 		}
 
 		if (delete) {
@@ -383,7 +404,6 @@ int blocknr_set_iterator (txn_atom * atom,
 
 	return 0;
 }
-
 
 /* 
  * Local variables:

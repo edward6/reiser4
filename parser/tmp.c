@@ -1,5 +1,4 @@
 
-
 /*
 #define SP      1
 #define SP_SIM  2
@@ -9,24 +8,16 @@
 #define WRD 24
 */
 
-
-
 #include "../sys_reiser4.c"
 
-
-
-int main()
+int
+main()
 {
-    int i;
-    i=0;
-    while (i!=307) 
-        {
-            printf("-------->%d\n",	i=sys_reiser4("a<-b;");
-        }  
-    return 0;
-}
-
-
+	int i;
+	i = 0;
+	while (i != 307) {
+	printf("-------->%d\n", i = sys_reiser4("a<-b;");}
+	       return 0;}
 
 /* 
  * Make Linus happy.

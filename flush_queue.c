@@ -22,8 +22,8 @@
  * kept on the flush queue until memory pressure or atom commit asks
  * flush queues to write some or all from their jnodes. */
 
-TS_LIST_DEFINE (fq, flush_queue_t, alink);
-TS_LIST_DEFINE(atom,txn_atom,atom_link);
+TS_LIST_DEFINE(fq, flush_queue_t, alink);
+TS_LIST_DEFINE(atom, txn_atom, atom_link);
 
 #if REISER4_DEBUG
 #   define spin_ordering_pred_fq(fq)  (1)
@@ -41,11 +41,12 @@ SPIN_LOCK_FUNCTIONS(fq, flush_queue_t, guard);
 #define mark_fq_ready(fq)      do { (fq)->state &= ~FQ_IN_USE;   } while (0)
 
 /* get lock on atom from locked flush queue object */
-static txn_atom * atom_get_locked_by_fq (flush_queue_t * fq)
+static txn_atom *
+atom_get_locked_by_fq(flush_queue_t * fq)
 {
-	txn_atom * atom;
+	txn_atom *atom;
 
-	assert ("zam-729", spin_fq_is_locked (fq));
+	assert("zam-729", spin_fq_is_locked(fq));
 
 	for (;;) {
 		atom = fq->atom;
@@ -53,130 +54,137 @@ static txn_atom * atom_get_locked_by_fq (flush_queue_t * fq)
 		if (atom == NULL)
 			break;
 
-		if (spin_trylock_atom (atom))
+		if (spin_trylock_atom(atom))
 			break;
 
-		spin_unlock_fq (fq);
-		spin_lock_fq (fq);
+		spin_unlock_fq(fq);
+		spin_lock_fq(fq);
 	}
 
 	return atom;
 }
 
-static void init_fq (flush_queue_t * fq)
+static void
+init_fq(flush_queue_t * fq)
 {
-	xmemset (fq, 0, sizeof *fq);
+	xmemset(fq, 0, sizeof *fq);
 
-	atomic_set (&fq->nr_submitted, 0);
+	atomic_set(&fq->nr_submitted, 0);
 
-	capture_list_init (&fq->prepped);
-	capture_list_init (&fq->sent);
+	capture_list_init(&fq->prepped);
+	capture_list_init(&fq->sent);
 
-	sema_init (&fq->sema, 0);
-	spin_lock_init (&fq->guard);
+	sema_init(&fq->sema, 0);
+	spin_lock_init(&fq->guard);
 }
 
 /* create new flush queue object */
-static flush_queue_t * fq_create (void)
+static flush_queue_t *
+fq_create(void)
 {
-	flush_queue_t * fq;
+	flush_queue_t *fq;
 
-	fq = reiser4_kmalloc (sizeof (*fq), GFP_KERNEL);
+	fq = reiser4_kmalloc(sizeof (*fq), GFP_KERNEL);
 
 	if (fq)
-		init_fq (fq);
+		init_fq(fq);
 
 	return fq;
 }
 
 /* adjust atom's and flush queue's counters of queued nodes */
-static void count_enqueued_node (flush_queue_t * fq)
+static void
+count_enqueued_node(flush_queue_t * fq)
 {
-	txn_mgr * tmgr = &get_current_super_private()->tmgr;
+	txn_mgr *tmgr = &get_current_super_private()->tmgr;
 
-	txn_mgr_stat_inc(tmgr,nr_queued);
-	
-	fq->nr_queued ++;
-	fq->atom->num_queued ++;
+	txn_mgr_stat_inc(tmgr, nr_queued);
+
+	fq->nr_queued++;
+	fq->atom->num_queued++;
 }
 
-static void count_dequeued_node (flush_queue_t *fq)
+static void
+count_dequeued_node(flush_queue_t * fq)
 {
-	txn_mgr * tmgr = &get_current_super_private()->tmgr;
+	txn_mgr *tmgr = &get_current_super_private()->tmgr;
 
-	txn_mgr_stat_dec(tmgr,nr_queued);
+	txn_mgr_stat_dec(tmgr, nr_queued);
 
-	fq->nr_queued --;
-	fq->atom->num_queued --;
+	fq->nr_queued--;
+	fq->atom->num_queued--;
 }
-
 
 /* attach flush queue object to the atom */
-static void fq_attach (txn_atom * atom, flush_queue_t * fq)
+static void
+fq_attach(txn_atom * atom, flush_queue_t * fq)
 {
-	assert ("zam-718", spin_atom_is_locked (atom));
-	fq_list_push_front (&atom->flush_queues, fq);
+	assert("zam-718", spin_atom_is_locked(atom));
+	fq_list_push_front(&atom->flush_queues, fq);
 	fq->atom = atom;
 }
 
-static void fq_detach_nolock (flush_queue_t * fq)
+static void
+fq_detach_nolock(flush_queue_t * fq)
 {
-	assert ("zam-732", spin_fq_is_locked (fq));
-	assert ("zam-731", spin_atom_is_locked (fq->atom));
+	assert("zam-732", spin_fq_is_locked(fq));
+	assert("zam-731", spin_atom_is_locked(fq->atom));
 
-	fq_list_remove_clean (fq);
+	fq_list_remove_clean(fq);
 	fq->atom = NULL;
 }
 
 #if 0
 /* detach fq from atom */
-static void fq_detach (flush_queue_t * fq)
+static void
+fq_detach(flush_queue_t * fq)
 {
-	txn_atom * atom;
-	spin_lock_fq (fq);
+	txn_atom *atom;
+	spin_lock_fq(fq);
 
-	atom = atom_get_locked_by_fq (fq);
+	atom = atom_get_locked_by_fq(fq);
 
 	if (atom != NULL) {
-		fq_detach_nolock (fq);
-		spin_unlock_atom (atom);
+		fq_detach_nolock(fq);
+		spin_unlock_atom(atom);
 	}
-		
-	spin_unlock_fq (fq);
+
+	spin_unlock_fq(fq);
 }
 #endif
 
 /* destroy flush queue object */
-void fq_done (flush_queue_t * fq)
+void
+fq_done(flush_queue_t * fq)
 {
-	reiser4_kfree (fq, sizeof *fq);
+	reiser4_kfree(fq, sizeof *fq);
 }
 
-
 /* remove queued node from transaction */
-static void uncapture_queued_node (flush_queue_t *fq, jnode *node)
+static void
+uncapture_queued_node(flush_queue_t * fq, jnode * node)
 {
-	assert ("zam-737", spin_jnode_is_locked (node));
-	assert ("zam-738", fq_in_use (fq));
-	assert ("zam-739", fq->atom);
-	assert ("zam-740", spin_atom_is_locked (fq->atom));
+	assert("zam-737", spin_jnode_is_locked(node));
+	assert("zam-738", fq_in_use(fq));
+	assert("zam-739", fq->atom);
+	assert("zam-740", spin_atom_is_locked(fq->atom));
 
-	trace_on (TRACE_FLUSH, "queued jnode removed from memory\n");
+	trace_on(TRACE_FLUSH, "queued jnode removed from memory\n");
 
-	capture_list_remove_clean (node);
-	count_dequeued_node (fq);
+	capture_list_remove_clean(node);
+	count_dequeued_node(fq);
 
-	JF_CLR (node, JNODE_FLUSH_QUEUED);
-	JF_CLR (node, JNODE_OVRWR);
-	JF_CLR (node, JNODE_RELOC);
-	JF_CLR (node, JNODE_CREATED);
+	JF_CLR(node, JNODE_FLUSH_QUEUED);
+	JF_CLR(node, JNODE_OVRWR);
+	JF_CLR(node, JNODE_RELOC);
+	JF_CLR(node, JNODE_CREATED);
 
-	node->atom->capture_count --;
+	node->atom->capture_count--;
 	node->atom = NULL;
 
-	spin_unlock_jnode (node);
+	spin_unlock_jnode(node);
 
-	jput (node);
+	jput(node);
 
 	/* atom and fq are still locked at this moment */
 }
@@ -184,10 +192,11 @@ static void uncapture_queued_node (flush_queue_t *fq, jnode *node)
 /* Check if this node must be removed from the transaction, if so, remove
  * it. Return value: 1 if node has been removed from the transaction, 0
  * otherwise. */
-static inline int try_uncapture_node (flush_queue_t * fq, jnode * node)
+static inline int
+try_uncapture_node(flush_queue_t * fq, jnode * node)
 {
-	if (JF_ISSET (node, JNODE_HEARD_BANSHEE)) {
-		uncapture_queued_node (fq, node);
+	if (JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
+		uncapture_queued_node(fq, node);
 		return 1;
 	}
 
@@ -197,81 +206,84 @@ static inline int try_uncapture_node (flush_queue_t * fq, jnode * node)
 /**
  * Putting jnode into the flush queue. Both atom and jnode should be
  * spin-locked. */
-void fq_queue_node (flush_queue_t * fq, jnode * node)
+void
+fq_queue_node(flush_queue_t * fq, jnode * node)
 {
-	assert ("zam-711", spin_jnode_is_locked (node));
-	assert ("zam-713", node->atom != NULL);
-	assert ("zam-712", spin_atom_is_locked (node->atom));
-	assert ("zam-714", jnode_is_dirty (node));
-	assert ("zam-716", fq->atom != NULL);
-	assert ("zam-717", fq->atom == node->atom);
+	assert("zam-711", spin_jnode_is_locked(node));
+	assert("zam-713", node->atom != NULL);
+	assert("zam-712", spin_atom_is_locked(node->atom));
+	assert("zam-714", jnode_is_dirty(node));
+	assert("zam-716", fq->atom != NULL);
+	assert("zam-717", fq->atom == node->atom);
 
-	if (JF_ISSET (node, JNODE_FLUSH_QUEUED))
-		return;	/* queued already */
+	if (JF_ISSET(node, JNODE_FLUSH_QUEUED))
+		return;		/* queued already */
 
-	capture_list_remove_clean (node);
+	capture_list_remove_clean(node);
 
-	JF_SET (node, JNODE_FLUSH_QUEUED);
+	JF_SET(node, JNODE_FLUSH_QUEUED);
 
 	/* Some tricks with lock ordering. */
-	spin_unlock_jnode (node);
+	spin_unlock_jnode(node);
 
-	spin_lock_fq (fq);
-	spin_lock_jnode (node);
+	spin_lock_fq(fq);
+	spin_lock_jnode(node);
 
 	if (JF_ISSET(node, JNODE_WRITEBACK)) {
-		capture_list_push_back (&fq->sent, node);
-		atomic_inc (&fq->nr_submitted);
+		capture_list_push_back(&fq->sent, node);
+		atomic_inc(&fq->nr_submitted);
 	} else {
-		capture_list_push_back (&fq->prepped, node);
+		capture_list_push_back(&fq->prepped, node);
 	}
 
-	count_enqueued_node (fq);
-	spin_unlock_fq (fq);
+	count_enqueued_node(fq);
+	spin_unlock_fq(fq);
 }
 
 /* remove jnode from the flush queue; return 0 if node has been uncaptured;
  * always unlocks jnode */
-static int fq_dequeue_node (flush_queue_t *fq, jnode * node)
+static int
+fq_dequeue_node(flush_queue_t * fq, jnode * node)
 {
-	assert ("zam-724", spin_jnode_is_locked (node));
-	assert ("zam-725", fq->atom != NULL);
-	assert ("zam-726", spin_atom_is_locked (fq->atom));
-	assert ("zam-741", !jnode_is_dirty(node));
-	assert ("zam-754", fq_in_use (fq));
+	assert("zam-724", spin_jnode_is_locked(node));
+	assert("zam-725", fq->atom != NULL);
+	assert("zam-726", spin_atom_is_locked(fq->atom));
+	assert("zam-741", !jnode_is_dirty(node));
+	assert("zam-754", fq_in_use(fq));
 
-	if (try_uncapture_node (fq, node))
+	if (try_uncapture_node(fq, node))
 		return 0;
 
-	count_dequeued_node (fq);
+	count_dequeued_node(fq);
 
-	JF_CLR (node, JNODE_FLUSH_QUEUED);
-	JF_CLR (node, JNODE_DIRTY);
+	JF_CLR(node, JNODE_FLUSH_QUEUED);
+	JF_CLR(node, JNODE_DIRTY);
 
-	capture_list_remove (node);
-	capture_list_push_back (&fq->atom->clean_nodes, node);
+	capture_list_remove(node);
+	capture_list_push_back(&fq->atom->clean_nodes, node);
 
-	spin_unlock_jnode (node);
+	spin_unlock_jnode(node);
 
 	return 1;
 }
 
 /* repeatable process for waiting io completion on a flush queue object */
-static int fq_wait_io (flush_queue_t * fq, int * nr_io_errors)
+static int
+fq_wait_io(flush_queue_t * fq, int *nr_io_errors)
 {
-	assert ("zam-737", spin_fq_is_locked (fq));
-	assert ("zam-738", fq->atom != NULL);
-	assert ("zam-739", spin_atom_is_locked (fq->atom));
-	assert ("zam-736", fq_ready(fq));
+	assert("zam-737", spin_fq_is_locked(fq));
+	assert("zam-738", fq->atom != NULL);
+	assert("zam-739", spin_atom_is_locked(fq->atom));
+	assert("zam-736", fq_ready(fq));
 
-	if (atomic_read (&fq->nr_submitted) != 0) {
-		spin_unlock_fq (fq);
-		spin_unlock_atom (fq->atom);
+	if (atomic_read(&fq->nr_submitted) != 0) {
+		spin_unlock_fq(fq);
+		spin_unlock_atom(fq->atom);
 
-		assert ("zam-734", lock_counters () -> spin_locked == 0);
+		assert("zam-734", lock_counters()->spin_locked == 0);
 
 		blk_run_queues();
-		down (&fq->sema);
+		down(&fq->sema);
 
 		/* Ask the caller to re-aquire the locks and call this
 		 * function again. Note: this technique is commonly used in
@@ -279,37 +291,38 @@ static int fq_wait_io (flush_queue_t * fq, int * nr_io_errors)
 		return -EAGAIN;
 	}
 
-	* nr_io_errors += atomic_read (&fq->nr_errors);
+	*nr_io_errors += atomic_read(&fq->nr_errors);
 	return 0;
 }
 
 /* scan fq's io list and dispatch nodes */
-static void fq_scan_io_list (flush_queue_t * fq)
+static void
+fq_scan_io_list(flush_queue_t * fq)
 {
-	jnode * cur;
-	txn_atom * atom;
+	jnode *cur;
+	txn_atom *atom;
 
-	assert ("nikita-2704", fq_in_use (fq));
+	assert("nikita-2704", fq_in_use(fq));
 	atom = fq->atom;
-	assert ("zam-741", atom != NULL);
-	assert ("zam-742", spin_atom_is_locked (atom));
+	assert("zam-741", atom != NULL);
+	assert("zam-742", spin_atom_is_locked(atom));
 
-	cur = capture_list_front (&fq->sent);
+	cur = capture_list_front(&fq->sent);
 
-	while (! capture_list_end (&fq->sent, cur)) {
-		jnode * next = capture_list_next (cur);
+	while (!capture_list_end(&fq->sent, cur)) {
+		jnode *next = capture_list_next(cur);
 
-		spin_lock_jnode (cur);
+		spin_lock_jnode(cur);
 
-		assert ("zam-735", !JF_ISSET(cur, JNODE_WRITEBACK));
+		assert("zam-735", !JF_ISSET(cur, JNODE_WRITEBACK));
 
-		if (JF_ISSET (cur, JNODE_DIRTY)) {
-			capture_list_remove (cur);
-			capture_list_push_back (&fq->prepped, cur);
+		if (JF_ISSET(cur, JNODE_DIRTY)) {
+			capture_list_remove(cur);
+			capture_list_push_back(&fq->prepped, cur);
 
-			spin_unlock_jnode (cur);
+			spin_unlock_jnode(cur);
 		} else {
-			fq_dequeue_node (fq, cur);
+			fq_dequeue_node(fq, cur);
 		}
 
 		cur = next;
@@ -317,30 +330,31 @@ static void fq_scan_io_list (flush_queue_t * fq)
 }
 
 /* wait on I/O completion, re-submit dirty nodes to write */
-static int fq_finish (flush_queue_t * fq, int * nr_io_errors)
+static int
+fq_finish(flush_queue_t * fq, int *nr_io_errors)
 {
 	int ret;
 
-	assert ("zam-743", spin_fq_is_locked (fq));
-	assert ("zam-744", spin_atom_is_locked (fq->atom));
+	assert("zam-743", spin_fq_is_locked(fq));
+	assert("zam-744", spin_atom_is_locked(fq->atom));
 
-	ret = fq_wait_io (fq, nr_io_errors);
+	ret = fq_wait_io(fq, nr_io_errors);
 	if (ret)
 		return ret;
 
-	mark_fq_in_use (fq);
+	mark_fq_in_use(fq);
 
-	fq_scan_io_list (fq);
+	fq_scan_io_list(fq);
 
 	/* check can we release this fq object */
 	if (fq->nr_queued) {
-		spin_unlock_fq (fq);
-		spin_unlock_atom (fq->atom);
-		
-		/* re-submit nodes to write*/
-		ret = fq_write (fq, 0);
+		spin_unlock_fq(fq);
+		spin_unlock_atom(fq->atom);
 
-		fq_put (fq);
+		/* re-submit nodes to write */
+		ret = fq_write(fq, 0);
+
+		fq_put(fq);
 
 		if (ret < 0)
 			return ret;
@@ -348,42 +362,42 @@ static int fq_finish (flush_queue_t * fq, int * nr_io_errors)
 		return -EAGAIN;
 	}
 
-	fq_detach_nolock (fq);
+	fq_detach_nolock(fq);
 	spin_unlock_fq(fq);
-	fq_done (fq);
+	fq_done(fq);
 
 	return 0;
 }
 
 /* wait for all i/o for given atom to be completed, actually do one iteration
  * on that and return -EAGAIN if there more iterations needed */
-int finish_all_fq (txn_atom * atom, int * nr_io_errors)
+int
+finish_all_fq(txn_atom * atom, int *nr_io_errors)
 {
-	flush_queue_t * fq;
-	assert ("zam-730", spin_atom_is_locked (atom));
+	flush_queue_t *fq;
+	assert("zam-730", spin_atom_is_locked(atom));
 
-	if (fq_list_empty (&atom->flush_queues))
+	if (fq_list_empty(&atom->flush_queues))
 		return 0;
 
-	for (fq = fq_list_front (&atom->flush_queues);
-	     ! fq_list_end (&atom->flush_queues, fq);
-	     fq = fq_list_next (fq))
-	{
-		spin_lock_fq (fq);
+	for (fq = fq_list_front(&atom->flush_queues);
+	     !fq_list_end(&atom->flush_queues, fq); fq = fq_list_next(fq)) {
+		spin_lock_fq(fq);
 
 		if (fq_ready(fq)) {
 			int ret;
 
-			ret = fq_finish (fq, nr_io_errors);
+			ret = fq_finish(fq, nr_io_errors);
 
-			if (ret) return ret;
+			if (ret)
+				return ret;
 
-			spin_unlock_atom (atom);
+			spin_unlock_atom(atom);
 
 			return -EAGAIN;
 		}
 
-		spin_unlock_fq (fq);
+		spin_unlock_fq(fq);
 	}
 
 	/* All flush queues are in use; atom remains locked */
@@ -391,15 +405,16 @@ int finish_all_fq (txn_atom * atom, int * nr_io_errors)
 }
 
 /* wait all i/o for current atom */
-int current_atom_finish_all_fq (void)
+int
+current_atom_finish_all_fq(void)
 {
-	txn_atom * atom;
+	txn_atom *atom;
 	int nr_io_errors = 0;
 	int ret;
 
 	do {
-		atom = get_current_atom_locked ();
-		ret = finish_all_fq (atom, &nr_io_errors);
+		atom = get_current_atom_locked();
+		ret = finish_all_fq(atom, &nr_io_errors);
 
 	} while (ret == -EAGAIN);
 
@@ -407,70 +422,70 @@ int current_atom_finish_all_fq (void)
 	 * -EBUSY are two return codes when atom remains locked after
 	 * finish_all_fq */
 	if (!ret || ret == -EBUSY)
-		spin_unlock_atom (atom);
+		spin_unlock_atom(atom);
 
-	assert ("nikita-2696", spin_atom_is_not_locked (atom));
+	assert("nikita-2696", spin_atom_is_not_locked(atom));
 
 	if (ret)
 		return ret;
-	
-	if (nr_io_errors) 
+
+	if (nr_io_errors)
 		return -EIO;
 
 	return 0;
 }
 
-
 /* change node->atom field for all jnode from given list */
-static void fq_queue_change_atom (capture_list_head * list, txn_atom * atom)
+static void
+fq_queue_change_atom(capture_list_head * list, txn_atom * atom)
 {
-	jnode * cur;
+	jnode *cur;
 
-	for (cur = capture_list_front (list);
-	     ! capture_list_end (list, cur);
-	     cur = capture_list_next (cur))
-	{
-		spin_lock_jnode (cur);
-		cur->atom = atom; 
-		spin_unlock_jnode (cur);
+	for (cur = capture_list_front(list);
+	     !capture_list_end(list, cur); cur = capture_list_next(cur)) {
+		spin_lock_jnode(cur);
+		cur->atom = atom;
+		spin_unlock_jnode(cur);
 	}
-} 
+}
 
 /* support for atom fusion operation */
-void fq_fuse (txn_atom * to, txn_atom * from)
+void
+fq_fuse(txn_atom * to, txn_atom * from)
 {
-	assert ("zam-720", spin_atom_is_locked (to));
-	assert ("zam-721", spin_atom_is_locked (from));
+	assert("zam-720", spin_atom_is_locked(to));
+	assert("zam-721", spin_atom_is_locked(from));
 
 	{
-		flush_queue_t * fq = fq_list_front (&from->flush_queues);
+		flush_queue_t *fq = fq_list_front(&from->flush_queues);
 
-		while (!fq_list_end (&from->flush_queues, fq)) {
-			spin_lock_fq (fq);
+		while (!fq_list_end(&from->flush_queues, fq)) {
+			spin_lock_fq(fq);
 
-			fq_queue_change_atom (&fq->prepped, to);
-			fq_queue_change_atom (&fq->sent, to);
+			fq_queue_change_atom(&fq->prepped, to);
+			fq_queue_change_atom(&fq->sent, to);
 
 			fq->atom = to;
 
-			spin_unlock_fq (fq);
+			spin_unlock_fq(fq);
 
-			fq = fq_list_next (fq);
+			fq = fq_list_next(fq);
 		}
 	}
 
-	fq_list_splice (&to->flush_queues, &from->flush_queues);
+	fq_list_splice(&to->flush_queues, &from->flush_queues);
 
 	to->num_queued += from->num_queued;
 }
 
 /* bio i/o completion routine */
-static int fq_end_io (struct bio * bio, unsigned int bytes_done UNUSED_ARG, 
-		      int err UNUSED_ARG)
+static int
+fq_end_io(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
+	  int err UNUSED_ARG)
 {
 	int i;
 	int nr_errors = 0;
-	flush_queue_t * fq = bio->bi_private;
+	flush_queue_t *fq = bio->bi_private;
 
 	if (bio->bi_size != 0)
 		return 1;
@@ -478,122 +493,123 @@ static int fq_end_io (struct bio * bio, unsigned int bytes_done UNUSED_ARG,
 	for (i = 0; i < bio->bi_vcnt; i += 1) {
 		struct page *pg = bio->bi_io_vec[i].bv_page;
 
-		if (! test_bit (BIO_UPTODATE, & bio->bi_flags)) {
-			SetPageError (pg);
-			nr_errors ++;
+		if (!test_bit(BIO_UPTODATE, &bio->bi_flags)) {
+			SetPageError(pg);
+			nr_errors++;
 		}
 
 		{
-			jnode * node;
+			jnode *node;
 
-			assert ("zam-736", pg != NULL);
-			assert ("zam-736", PagePrivate(pg));
-			node = (jnode*)(pg->private);
+			assert("zam-736", pg != NULL);
+			assert("zam-736", PagePrivate(pg));
+			node = (jnode *) (pg->private);
 
-			JF_CLR (node, JNODE_WRITEBACK);
+			JF_CLR(node, JNODE_WRITEBACK);
 		}
 
-		end_page_writeback (pg);
-		page_cache_release (pg);
+		end_page_writeback(pg);
+		page_cache_release(pg);
 	}
 
 	if (fq) {
 		atomic_add(nr_errors, &fq->nr_errors);
 
 		if (atomic_sub_and_test(bio->bi_vcnt, &fq->nr_submitted))
-			up (&fq->sema);
+			up(&fq->sema);
 	}
 
-	bio_put (bio);
+	bio_put(bio);
 	return 0;
 }
 
 /* Count I/O requests which will be submitted by @bio in given flush queues
  * @fq */
-void fq_add_bio (flush_queue_t * fq, struct bio * bio)
+void
+fq_add_bio(flush_queue_t * fq, struct bio *bio)
 {
 	bio->bi_private = fq;
-	bio->bi_end_io  = fq_end_io;
+	bio->bi_end_io = fq_end_io;
 
 	if (fq)
-		atomic_add (bio->bi_vcnt, &fq->nr_submitted);
+		atomic_add(bio->bi_vcnt, &fq->nr_submitted);
 }
 
 /* submitting to write prepared list of jnodes */
-static int fq_submit_write (flush_queue_t * fq, jnode * first, int nr)
+static int
+fq_submit_write(flush_queue_t * fq, jnode * first, int nr)
 {
-	struct bio * bio;
-	struct super_block * s = reiser4_get_current_sb();
+	struct bio *bio;
+	struct super_block *s = reiser4_get_current_sb();
 	int nr_processed;
 
 	struct pagevec pvec;
 
-	assert ("zam-724", lock_counters()->spin_locked == 0);
-	assert ("zam-725", nr != 0);
+	assert("zam-724", lock_counters()->spin_locked == 0);
+	assert("zam-725", nr != 0);
 
-	if (! (bio = bio_alloc (GFP_KERNEL, nr)) ) 
+	if (!(bio = bio_alloc(GFP_KERNEL, nr)))
 		return -ENOMEM;
 
-	pagevec_init (&pvec);
+	pagevec_init(&pvec);
 
-	bio->bi_sector  = *jnode_get_block (first) * (s->s_blocksize >>9);
-	bio->bi_bdev    = s->s_bdev;
-	bio->bi_vcnt    = nr;
-	bio->bi_size    = s->s_blocksize * nr;
+	bio->bi_sector = *jnode_get_block(first) * (s->s_blocksize >> 9);
+	bio->bi_bdev = s->s_bdev;
+	bio->bi_vcnt = nr;
+	bio->bi_size = s->s_blocksize * nr;
 
 	for (nr_processed = 0;
 	     nr_processed < nr;
-	     nr_processed ++, first = capture_list_next (first))
-	{
-		struct page * pg;
+	     nr_processed++, first = capture_list_next(first)) {
+		struct page *pg;
 
-		pg = jnode_page (first);
+		pg = jnode_page(first);
 
 		/* This page is protected from washing from the page cache by
 		 * pages' jnode state bits: JNODE_OVERWRITE if jnode is in
 		 * overwrite set or JNODE_WRITEBACK if jnode is in relocate
 		 * set. */
-		assert ("zam-727", pg != NULL);
+		assert("zam-727", pg != NULL);
 
-		page_cache_get (pg);
-		reiser4_lock_page (pg);
+		page_cache_get(pg);
+		reiser4_lock_page(pg);
 
-		assert ("zam-728", !PageWriteback (pg));
-		SetPageWriteback (pg);
+		assert("zam-728", !PageWriteback(pg));
+		SetPageWriteback(pg);
 
 		write_lock(&pg->mapping->page_lock);
 		/*
 		 * clear dirty bit and update page cache statistics.
 		 */
-		test_clear_page_dirty (pg);
+		test_clear_page_dirty(pg);
 
 		list_del(&pg->list);
 		list_add(&pg->list, &pg->mapping->locked_pages);
 
 		write_unlock(&pg->mapping->page_lock);
 
-		reiser4_unlock_page (pg);
+		reiser4_unlock_page(pg);
 
 		/* Put pages to inactive list where they have chance to be
 		 * freed. (as in mpage_writepages()) */
 		if ((current->flags & PF_MEMALLOC) &&
 		    !PageActive(pg) && PageLRU(pg)) {
-			page_cache_get (pg);
+			page_cache_get(pg);
 			if (!pagevec_add(&pvec, pg))
 				pagevec_deactivate_inactive(&pvec);
 		}
 
-		jnode_ops (first)->io_hook (first, pg, WRITE);
+		jnode_ops(first)->io_hook(first, pg, WRITE);
 
-		bio->bi_io_vec[nr_processed].bv_page   = pg;
-		bio->bi_io_vec[nr_processed].bv_len    = s->s_blocksize;
+		bio->bi_io_vec[nr_processed].bv_page = pg;
+		bio->bi_io_vec[nr_processed].bv_len = s->s_blocksize;
 		bio->bi_io_vec[nr_processed].bv_offset = 0;
 	}
 
 	pagevec_deactivate_inactive(&pvec);
 
-	fq_add_bio (fq, bio);
-	submit_bio (WRITE, bio);
+	fq_add_bio(fq, bio);
+	submit_bio(WRITE, bio);
 
 	return nr;
 }
@@ -602,35 +618,35 @@ static int fq_submit_write (flush_queue_t * fq, jnode * first, int nr)
  * 1. check whether this node should be written to disk or not; 
  * 2. change its state if yes, dequeue jnode if not; 
  * 3. inform the caller about the decision */
-static int fq_prepare_node_for_write (flush_queue_t * fq, jnode * node)
+static int
+fq_prepare_node_for_write(flush_queue_t * fq, jnode * node)
 {
 	int ret = 0;
-	txn_atom * atom;
-				
-	spin_lock_jnode (node);
-	atom = atom_get_locked_by_jnode (node);
-	assert ("zam-726", atom != NULL);
+	txn_atom *atom;
 
-	if (!JF_ISSET (node, JNODE_DIRTY)) {
+	spin_lock_jnode(node);
+	atom = atom_get_locked_by_jnode(node);
+	assert("zam-726", atom != NULL);
+
+	if (!JF_ISSET(node, JNODE_DIRTY)) {
 		/* dequeue it */
-		fq_dequeue_node (fq, node);
+		fq_dequeue_node(fq, node);
 		ret = 1;	/* this node should be skipped */
 	} else {
 
-		JF_SET (node, JNODE_WRITEBACK);
-		JF_CLR (node, JNODE_DIRTY);
+		JF_SET(node, JNODE_WRITEBACK);
+		JF_CLR(node, JNODE_DIRTY);
 
-		capture_list_remove (node);
-		capture_list_push_back (&fq->sent, node);
+		capture_list_remove(node);
+		capture_list_push_back(&fq->sent, node);
 
-		spin_unlock_jnode (node);
+		spin_unlock_jnode(node);
 	}
 
-	spin_unlock_atom (atom);
+	spin_unlock_atom(atom);
 
 	return ret;
 }
-
 
 /**
  * submit @how_many write requests for nodes on the already filled
@@ -644,31 +660,35 @@ static int fq_prepare_node_for_write (flush_queue_t * fq, jnode * node)
 
  @return   -- 0 if success, otherwise -- error code.
 */
-int fq_write (flush_queue_t * fq, int how_many)
+int
+fq_write(flush_queue_t * fq, int how_many)
 {
-	jnode * first;          /* should point to the first jnode we are going to submit
+	jnode *first;		/* should point to the first jnode we are going to submit
 				 * in one bio */
-	jnode * last;	/* should point to the jnode _after_ last to be submitted in that bio */
+	jnode *last;		/* should point to the jnode _after_ last to be submitted in that bio */
 	int nr_submitted;	/* number of blocks we submit to write in this
 				 * fq_write() call */
 	int max_blocks;		/* a limit for maximum number of blocks in one bio implied by the
 				 * device specific request queue restriction */
 
-	if (capture_list_empty (&fq->prepped))
+	if (capture_list_empty(&fq->prepped))
 		return 0;
 
 #if REISER4_USER_LEVEL_SIMULATION
 	max_blocks = fq->nr_queued;
 #else
 	{
-		struct super_block * s = reiser4_get_current_sb ();
-		max_blocks = bdev_get_queue (s->s_bdev)->max_sectors >> (s->s_blocksize_bits - 9);
+		struct super_block *s = reiser4_get_current_sb();
+		max_blocks =
+		    bdev_get_queue(s->s_bdev)->max_sectors >> (s->
+							       s_blocksize_bits
+							       - 9);
 	}
 #endif
 
 	nr_submitted = 0;
 
-	first = capture_list_front (&fq->prepped);
+	first = capture_list_front(&fq->prepped);
 	last = first;
 
 	/* repeat until either we empty the queue or we submit how_many were requested to be submitted. */
@@ -680,26 +700,26 @@ int fq_write (flush_queue_t * fq, int how_many)
 		 * limitation), and form a set from them defined by the range from the front of
 		 * the queue to cur.  Pass that set to fq_prepare_node_for_write(). */
 		for (;;) {
-			jnode * cur = last;
+			jnode *cur = last;
 
-			if (capture_list_end (&fq->prepped, cur))
+			if (capture_list_end(&fq->prepped, cur))
 				break;
 
-			if (*jnode_get_block (cur) != *jnode_get_block (first) + nr_contiguous)
+			if (*jnode_get_block(cur) !=
+			    *jnode_get_block(first) + nr_contiguous) break;
+
+			last = capture_list_next(last);
+
+			if (fq_prepare_node_for_write(fq, cur))
 				break;
 
-			last = capture_list_next (last);
-
-			if (fq_prepare_node_for_write (fq, cur))
-				break;
-
-			if (++ nr_contiguous >= max_blocks)
+			if (++nr_contiguous >= max_blocks)
 				break;
 
 		}
 		/* take the set we just prepped, and submit it for writing to disk */
 		if (nr_contiguous) {
-			ret = fq_submit_write (fq, first, nr_contiguous);
+			ret = fq_submit_write(fq, first, nr_contiguous);
 
 			if (ret < 0)
 				return ret;
@@ -711,29 +731,30 @@ int fq_write (flush_queue_t * fq, int how_many)
 			break;
 
 		first = last;
-	} while (!capture_list_end (&fq->prepped, last));
+	} while (!capture_list_end(&fq->prepped, last));
 
 	return nr_submitted;
 }
 
 /* Getting flush queue object for exclusive use by one thread. May require
  * several iterations which is indicated by -EAGAIN return code. */
-int fq_get (txn_atom * atom, flush_queue_t ** new_fq)
+int
+fq_get(txn_atom * atom, flush_queue_t ** new_fq)
 {
-	flush_queue_t * fq;
+	flush_queue_t *fq;
 
-	assert ("zam-745", spin_atom_is_locked (atom));
+	assert("zam-745", spin_atom_is_locked(atom));
 
-	fq = fq_list_front (&atom->flush_queues);
-	while (! fq_list_end (&atom->flush_queues, fq)) {
-		spin_lock_fq (fq);
+	fq = fq_list_front(&atom->flush_queues);
+	while (!fq_list_end(&atom->flush_queues, fq)) {
+		spin_lock_fq(fq);
 
 		if (fq_ready(fq)) {
-			mark_fq_in_use (fq);
-			spin_unlock_fq (fq);
-			
+			mark_fq_in_use(fq);
+			spin_unlock_fq(fq);
+
 			if (*new_fq) {
-				fq_done (*new_fq);
+				fq_done(*new_fq);
 			}
 
 			*new_fq = fq;
@@ -741,22 +762,22 @@ int fq_get (txn_atom * atom, flush_queue_t ** new_fq)
 			return 0;
 		}
 
-		spin_unlock_fq (fq);
+		spin_unlock_fq(fq);
 
-		fq = fq_list_next (fq);
+		fq = fq_list_next(fq);
 	}
 
 	/* Use previously allocated fq object */
 	if (*new_fq) {
-		mark_fq_in_use (*new_fq);
-		fq_attach (atom, *new_fq);
+		mark_fq_in_use(*new_fq);
+		fq_attach(atom, *new_fq);
 
 		return 0;
 	}
 
-	spin_unlock_atom (atom);
+	spin_unlock_atom(atom);
 
-	*new_fq = fq_create ();
+	*new_fq = fq_create();
 
 	if (*new_fq == NULL)
 		return -ENOMEM;
@@ -765,82 +786,86 @@ int fq_get (txn_atom * atom, flush_queue_t ** new_fq)
 }
 
 /* A wrapper around fq_get for getting a flush queue object for current atom */
-flush_queue_t * get_fq_for_current_atom (void)
+flush_queue_t *
+get_fq_for_current_atom(void)
 {
-	flush_queue_t * fq = NULL;
-	txn_atom * atom;
+	flush_queue_t *fq = NULL;
+	txn_atom *atom;
 	int ret;
 
 	do {
-		atom = get_current_atom_locked ();
-		ret = fq_get (atom, &fq);
+		atom = get_current_atom_locked();
+		ret = fq_get(atom, &fq);
 	} while (ret == -EAGAIN);
-	
-	if (ret)
-		return ERR_PTR (ret);
 
-	spin_unlock_atom (atom);
+	if (ret)
+		return ERR_PTR(ret);
+
+	spin_unlock_atom(atom);
 	return fq;
 }
 
 /* Releasing flush queue object after exclusive use */
-static void fq_put_nolock (flush_queue_t * fq)
+static void
+fq_put_nolock(flush_queue_t * fq)
 {
-	assert ("zam-747", fq->atom != NULL);
+	assert("zam-747", fq->atom != NULL);
 	mark_fq_ready(fq);
 }
 
-void fq_put (flush_queue_t * fq)
+void
+fq_put(flush_queue_t * fq)
 {
-	txn_atom * atom;
+	txn_atom *atom;
 
-	spin_lock_fq (fq);
-	atom = atom_get_locked_by_fq (fq);
+	spin_lock_fq(fq);
+	atom = atom_get_locked_by_fq(fq);
 
-	assert ("zam-746", atom != NULL);
+	assert("zam-746", atom != NULL);
 
-	fq_put_nolock (fq);
-	atom_send_event (atom);
+	fq_put_nolock(fq);
+	atom_send_event(atom);
 
-	spin_unlock_fq (fq);
-	spin_unlock_atom (atom);
+	spin_unlock_fq(fq);
+	spin_unlock_atom(atom);
 }
 
 /* A part of atom object initialization related to the embedded flush queue
  * list head */
-void fq_init_atom (txn_atom * atom)
+void
+fq_init_atom(txn_atom * atom)
 {
-	fq_list_init (&atom->flush_queues);
+	fq_list_init(&atom->flush_queues);
 }
 
 #define atom_has_queues_to_write(atom) \
-((atom)->stage < ASTAGE_PRE_COMMIT && !fq_list_empty(&(atom)->flush_queues))  
+((atom)->stage < ASTAGE_PRE_COMMIT && !fq_list_empty(&(atom)->flush_queues))
 
-static int get_enough_fq (txn_atom * atom, flush_queue_t ** result_list, int how_many)
+static int
+get_enough_fq(txn_atom * atom, flush_queue_t ** result_list, int how_many)
 {
 	int total_est = 0;
 
-	if (atom_has_queues_to_write (atom)) {
-		flush_queue_t * fq;
-		for (fq = fq_list_front (&atom->flush_queues);
-		     ! fq_list_end (&atom->flush_queues, fq) && (total_est <= how_many);
-		     fq = fq_list_next (fq))
-		{
+	if (atom_has_queues_to_write(atom)) {
+		flush_queue_t *fq;
+		for (fq = fq_list_front(&atom->flush_queues);
+		     !fq_list_end(&atom->flush_queues, fq)
+		     && (total_est <= how_many); fq = fq_list_next(fq)) {
 			int est;
 
-			spin_lock_fq (fq);
+			spin_lock_fq(fq);
 
-			est = fq->nr_queued - atomic_read (&fq->nr_submitted);
+			est = fq->nr_queued - atomic_read(&fq->nr_submitted);
 
-			if (fq_ready (fq) && est > 0) {
+			if (fq_ready(fq) && est > 0) {
 				fq->next_to_write = *result_list;
 				*result_list = fq;
-				mark_fq_in_use (fq);
+				mark_fq_in_use(fq);
 
 				total_est += est;
 			}
 
-			spin_unlock_fq (fq);
+			spin_unlock_fq(fq);
 		}
 	}
 
@@ -850,112 +875,120 @@ static int get_enough_fq (txn_atom * atom, flush_queue_t ** result_list, int how
 /* Submit nodes to write from single-linked list of flush queues until number
  * of submitted nodes is equal to or greater than @how_many nodes requested
  * for submission */
-static long write_list_fq (flush_queue_t * first, long how_many)
+static long
+write_list_fq(flush_queue_t * first, long how_many)
 {
 	long nr_submitted = 0;
 
-	while (first != NULL ) {
+	while (first != NULL) {
 		int ret;
 
-		flush_queue_t * cur = first;
+		flush_queue_t *cur = first;
 
 		first = cur->next_to_write;
 		cur->next_to_write = NULL;
 
-		if (atomic_read (&cur->nr_submitted) == 0) {
-			txn_atom * atom;
+		if (atomic_read(&cur->nr_submitted) == 0) {
+			txn_atom *atom;
 
-			spin_lock_fq (cur);
-			atom = atom_get_locked_by_fq (cur);
-			spin_unlock_fq (cur);
+			spin_lock_fq(cur);
+			atom = atom_get_locked_by_fq(cur);
+			spin_unlock_fq(cur);
 
-			fq_scan_io_list (cur);
+			fq_scan_io_list(cur);
 
-			spin_unlock_atom (atom);
+			spin_unlock_atom(atom);
 		}
 
 		if (nr_submitted < how_many) {
-			ret = fq_write (cur, how_many - nr_submitted);
+			ret = fq_write(cur, how_many - nr_submitted);
 
 			if (ret > 0)
 				nr_submitted += ret;
 		}
 
-		fq_put (cur);
+		fq_put(cur);
 	}
 
 	return nr_submitted;
 }
 
 /* perform a sent list scan before submitting queue to disk */
-int fq_scan_and_write (flush_queue_t * fq, int how_many) 
+int
+fq_scan_and_write(flush_queue_t * fq, int how_many)
 {
-	if (atomic_read (&fq->nr_submitted) == 0) {
-		txn_atom * atom;
+	if (atomic_read(&fq->nr_submitted) == 0) {
+		txn_atom *atom;
 
-		spin_lock_fq (fq);
-		atom = atom_get_locked_by_fq (fq);
-		spin_unlock_fq (fq);
+		spin_lock_fq(fq);
+		atom = atom_get_locked_by_fq(fq);
+		spin_unlock_fq(fq);
 
-		fq_scan_io_list (fq);
+		fq_scan_io_list(fq);
 
-		spin_unlock_atom (atom);
+		spin_unlock_atom(atom);
 	}
 
-	return fq_write (fq, how_many);
+	return fq_write(fq, how_many);
 }
 
 /* A response to memory pressure */
-int fq_writeback (struct super_block *s, jnode * node, struct writeback_control * wbc)
+int
+fq_writeback(struct super_block *s, jnode * node, struct writeback_control *wbc)
 {
 
-	txn_atom * atom;
+	txn_atom *atom;
 	long total_est = 0;
-	flush_queue_t * list_fq_to_write = NULL;
+	flush_queue_t *list_fq_to_write = NULL;
 
-	assert ("zam-747", wbc->nr_to_write > 0);
+	assert("zam-747", wbc->nr_to_write > 0);
 
 	/* First, we try to get atom we have jnode from, and write dirty
 	 * jnodes from atom's flush queues */
-	spin_lock_jnode (node);
-	atom = atom_get_locked_by_jnode (node);
+	spin_lock_jnode(node);
+	atom = atom_get_locked_by_jnode(node);
 
 	if (atom != NULL) {
 		if (atom_has_queues_to_write(atom)) {
-			total_est = get_enough_fq (atom, &list_fq_to_write, wbc->nr_to_write);
+			total_est =
+			    get_enough_fq(atom, &list_fq_to_write,
+					  wbc->nr_to_write);
 		}
-		spin_unlock_atom (atom);
+		spin_unlock_atom(atom);
 	}
 
-	spin_unlock_jnode (node);
+	spin_unlock_jnode(node);
 
 	/* If scanning of one atom was not enough we scan all atoms for flush
 	 * queues in proper state */
 	if (wbc->nr_to_write > total_est) {
-		txn_mgr * mgr = &get_super_private(s)->tmgr;
+		txn_mgr *mgr = &get_super_private(s)->tmgr;
 
-		spin_lock_txnmgr (mgr);
+		spin_lock_txnmgr(mgr);
 
-		for (atom = atom_list_front (&mgr->atoms_list);
-		     ! atom_list_end (&mgr->atoms_list, atom) && total_est < wbc->nr_to_write;
-		     atom = atom_list_next (atom))
-		{
-			spin_lock_atom (atom);
-			total_est += get_enough_fq (atom, &list_fq_to_write, wbc->nr_to_write - total_est);
-			spin_unlock_atom (atom);
+		for (atom = atom_list_front(&mgr->atoms_list);
+		     !atom_list_end(&mgr->atoms_list, atom)
+		     && total_est < wbc->nr_to_write;
+		     atom = atom_list_next(atom)) {
+			spin_lock_atom(atom);
+			total_est +=
+			    get_enough_fq(atom, &list_fq_to_write,
+					  wbc->nr_to_write - total_est);
+			spin_unlock_atom(atom);
 		}
 
-		spin_unlock_txnmgr (mgr);
+		spin_unlock_txnmgr(mgr);
 	}
 
 	/* Write collected flush queues  */
 	if (list_fq_to_write) {
 		long nr_submitted;
 
-		nr_submitted = write_list_fq (list_fq_to_write, wbc->nr_to_write);
+		nr_submitted =
+		    write_list_fq(list_fq_to_write, wbc->nr_to_write);
 
 		if (nr_submitted < 0)
-			return (int)nr_submitted;
+			return (int) nr_submitted;
 
 		if (nr_submitted >= wbc->nr_to_write) {
 			wbc->nr_to_write = 0;

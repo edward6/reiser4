@@ -40,73 +40,76 @@
 #include "tree.h"
 #include "super.h"
 
-static znode *seal_node( const seal_t *seal );
-static int seal_matches( const seal_t *seal, znode *node );
-static int seal_search_node( seal_t *seal, coord_t *coord, 
-			     znode *node, const reiser4_key *key, lookup_bias bias,
-			     tree_level level );
+static znode *seal_node(const seal_t * seal);
+static int seal_matches(const seal_t * seal, znode * node);
+static int seal_search_node(seal_t * seal, coord_t * coord,
+			    znode * node, const reiser4_key * key,
+			    lookup_bias bias, tree_level level);
 
 /** 
  * initialise seal. This can be called several times on the same seal. @coord
  * and @key can be NULL. 
  */
 /* Audited by: green(2002.06.17) */
-void seal_init( seal_t   *seal /* seal to initialise */, 
-		const coord_t  *coord /* coord @seal will be attached to */, 
-		const reiser4_key *key UNUSED_ARG /* key @seal will be
-						   * attached to */ )
+void
+seal_init(seal_t * seal /* seal to initialise */ ,
+	  const coord_t * coord /* coord @seal will be attached to */ ,
+	  const reiser4_key * key UNUSED_ARG	/* key @seal will be
+						 * attached to */ )
 {
-	assert( "nikita-1886", seal != NULL );
-	xmemset( seal, 0, sizeof *seal );
-	if( coord != NULL ) {
+	assert("nikita-1886", seal != NULL);
+	xmemset(seal, 0, sizeof *seal);
+	if (coord != NULL) {
 		znode *node;
 
-		node = coord -> node;
-		assert( "nikita-1987", node != NULL );
-		spin_lock_znode( node );
-		seal -> version = node -> version;
-		assert( "nikita-1988", seal -> version != 0 );
-		seal -> block   = *znode_get_block( node );
+		node = coord->node;
+		assert("nikita-1987", node != NULL);
+		spin_lock_znode(node);
+		seal->version = node->version;
+		assert("nikita-1988", seal->version != 0);
+		seal->block = *znode_get_block(node);
 #if REISER4_DEBUG
-		seal -> coord = *coord;
-		if( key != NULL )
-			seal -> key = *key;
+		seal->coord = *coord;
+		if (key != NULL)
+			seal->key = *key;
 #endif
-		spin_unlock_znode( node );
+		spin_unlock_znode(node);
 	}
 }
 
 /** finish with seal */
 /* Audited by: green(2002.06.17) */
-void seal_done( seal_t *seal )
+void
+seal_done(seal_t * seal)
 {
-	assert( "nikita-1887", seal != NULL );
-	seal -> version = 0;
+	assert("nikita-1887", seal != NULL);
+	seal->version = 0;
 }
 
 /** true if seal was initialised */
 /* Audited by: green(2002.06.17) */
-int seal_is_set( const seal_t *seal /* seal to query */ )
+int
+seal_is_set(const seal_t * seal /* seal to query */ )
 {
-	assert( "nikita-1890", seal != NULL );
-	return seal -> version != 0;
+	assert("nikita-1890", seal != NULL);
+	return seal->version != 0;
 }
 
 #if REISER4_DEBUG
 /** helper function for seal_validate() */
-static inline int check_seal_match( const coord_t *coord, const reiser4_key *k )
+static inline int
+check_seal_match(const coord_t * coord, const reiser4_key * k)
 {
 	reiser4_key ukey;
 
-	return
-		( coord -> between != AT_UNIT ) ||
-		/*
-		 * FIXME-VS: we only can compare keys for items whose units
-		 * represent exactly one key
-		 */
-		( coord_is_existing_unit( coord ) &&
-		  ( item_is_extent( coord ) ||
-		    keyeq( k, unit_key_by_coord( coord, &ukey ) ) ) );
+	return (coord->between != AT_UNIT) ||
+	    /*
+	     * FIXME-VS: we only can compare keys for items whose units
+	     * represent exactly one key
+	     */
+	    (coord_is_existing_unit(coord) &&
+	     (item_is_extent(coord) ||
+	      keyeq(k, unit_key_by_coord(coord, &ukey))));
 }
 #endif
 
@@ -124,43 +127,43 @@ static inline int check_seal_match( const coord_t *coord, const reiser4_key *k )
  *
  */
 /* Audited by: green(2002.06.17) */
-int seal_validate( seal_t            *seal  /* seal to validate */, 
-		   coord_t        *coord /* coord to validate against */, 
-		   const reiser4_key       *key   /* key to validate against */, 
-		   tree_level         level /* level of node */,
-		   lock_handle       *lh    /* resulting lock handle */, 
-		   lookup_bias        bias  /* search bias */,
-		   znode_lock_mode    mode  /* lock node */,
-		   znode_lock_request request /* locking priority */ )
+int
+seal_validate(seal_t * seal /* seal to validate */ ,
+	      coord_t * coord /* coord to validate against */ ,
+	      const reiser4_key * key /* key to validate against */ ,
+	      tree_level level /* level of node */ ,
+	      lock_handle * lh /* resulting lock handle */ ,
+	      lookup_bias bias /* search bias */ ,
+	      znode_lock_mode mode /* lock node */ ,
+	      znode_lock_request request /* locking priority */ )
 {
 	znode *node;
-	int    result;
+	int result;
 
-	assert( "nikita-1889", seal != NULL );
-	assert( "nikita-1881", seal_is_set( seal ) );
-	assert( "nikita-1882", key != NULL );
-	assert( "nikita-1883", coord != NULL );
-	assert( "nikita-1884", lh != NULL );
-	assert( "nikita-1885", keyeq( &seal -> key, key ) );
-	assert( "nikita-1989", !memcmp( &seal -> coord, coord, sizeof *coord ) );
+	assert("nikita-1889", seal != NULL);
+	assert("nikita-1881", seal_is_set(seal));
+	assert("nikita-1882", key != NULL);
+	assert("nikita-1883", coord != NULL);
+	assert("nikita-1884", lh != NULL);
+	assert("nikita-1885", keyeq(&seal->key, key));
+	assert("nikita-1989", !memcmp(&seal->coord, coord, sizeof *coord));
 
 	/* obtain znode by block number */
-	node = seal_node( seal );
-	if( node != NULL ) {
+	node = seal_node(seal);
+	if (node != NULL) {
 		/* znode was in cache, lock it */
-		result = longterm_lock_znode( lh, node, mode, request );
-		zput( node );
-		if( result == 0 ) {
-			if( seal_matches( seal, node ) ) {
+		result = longterm_lock_znode(lh, node, mode, request);
+		zput(node);
+		if (result == 0) {
+			if (seal_matches(seal, node)) {
 				/* if seal version and znode version
 				 * coincide */
-				assert( "nikita-1990", 
-					node == seal -> coord.node );
-				assert( "nikita-1898", WITH_DATA_RET
-					( coord -> node, 1, 
-					  check_seal_match( coord, key ) ) );
-				reiser4_stat_seal_add( perfect_match );
-			} else if( coord -> between != AT_UNIT )
+				assert("nikita-1990", node == seal->coord.node);
+				assert("nikita-1898", WITH_DATA_RET
+				       (coord->node, 1,
+					check_seal_match(coord, key)));
+				reiser4_stat_seal_add(perfect_match);
+			} else if (coord->between != AT_UNIT)
 				/*
 				 * if seal was placed on position with node
 				 * (rather than on the existing unit within
@@ -172,25 +175,25 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 				 * usually, though.
 				 */
 				result = -EAGAIN;
-			else if( znode_contains_key_lock( node, key ) )
+			else if (znode_contains_key_lock(node, key))
 				/* 
 				 * seal is broken, but there is a hope that
 				 * key is still in @node
 				 */
-				result = seal_search_node( seal, coord, node, 
-							   key, bias, level );
+				result = seal_search_node(seal, coord, node,
+							  key, bias, level);
 			else {
 				/* key is not in @node */
-				reiser4_stat_seal_add( key_drift );
+				reiser4_stat_seal_add(key_drift);
 				result = -EAGAIN;
 			}
 		}
-		if( result != 0 )
+		if (result != 0)
 			/* unlock node on failure */
-			done_lh( lh );
+			done_lh(lh);
 	} else {
 		/* znode wasn't in cache */
-		reiser4_stat_seal_add( out_of_cache );
+		reiser4_stat_seal_add(out_of_cache);
 		result = -EAGAIN;
 	}
 	return result;
@@ -200,85 +203,88 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 
 /** obtain reference to znode seal points to, if in cache */
 /* Audited by: green(2002.06.17) */
-static znode *seal_node( const seal_t *seal /* seal to query */ )
+static znode *
+seal_node(const seal_t * seal /* seal to query */ )
 {
-	assert( "nikita-1891", seal != NULL );
-	return zlook( current_tree, &seal -> block );
+	assert("nikita-1891", seal != NULL);
+	return zlook(current_tree, &seal->block);
 }
 
 /** true if @seal version and @node version coincide */
 /* Audited by: green(2002.06.17) */
-static int seal_matches( const seal_t *seal /* seal to check */, 
-			 znode *node /* node to check */ )
+static int
+seal_matches(const seal_t * seal /* seal to check */ ,
+	     znode * node /* node to check */ )
 {
-	assert( "nikita-1991", seal != NULL );
-	assert( "nikita-1993", node != NULL );
+	assert("nikita-1991", seal != NULL);
+	assert("nikita-1993", node != NULL);
 
-	return UNDER_SPIN( znode, node, ( seal -> version == node -> version ) );
+	return UNDER_SPIN(znode, node, (seal->version == node->version));
 }
 
 /** intranode search */
 /* Audited by: green(2002.06.17) */
-static int seal_search_node( seal_t  *seal  /* seal to repair */, 
-			     coord_t *coord /* coord attached to @seal */, 
-			     znode   *node  /* node to search in */, 
-			     const reiser4_key *key   /* key attached to @seal */, 
-			     lookup_bias  bias  /* search bias */,
-			     tree_level   level /* node level */ )
+static int
+seal_search_node(seal_t * seal /* seal to repair */ ,
+		 coord_t * coord /* coord attached to @seal */ ,
+		 znode * node /* node to search in */ ,
+		 const reiser4_key * key /* key attached to @seal */ ,
+		 lookup_bias bias /* search bias */ ,
+		 tree_level level /* node level */ )
 {
-	int         result;
+	int result;
 	reiser4_key unit_key;
 
-	assert( "nikita-1888", seal != NULL );
-	assert( "nikita-1994", coord != NULL );
-	assert( "nikita-1892", node != NULL );
-	assert( "nikita-1893", znode_is_any_locked( node ) );
+	assert("nikita-1888", seal != NULL);
+	assert("nikita-1994", coord != NULL);
+	assert("nikita-1892", node != NULL);
+	assert("nikita-1893", znode_is_any_locked(node));
 
-		return -EAGAIN;
+	return -EAGAIN;
 
-	if( ( znode_get_level( node ) != level ) ||
-	    ZF_ISSET( node, JNODE_HEARD_BANSHEE ) ||
-	    ZF_ISSET( node, JNODE_IS_DYING ) ||
-	    ( node != coord -> node ) ) {
-		reiser4_stat_seal_add( wrong_node );
+	if ((znode_get_level(node) != level) ||
+	    ZF_ISSET(node, JNODE_HEARD_BANSHEE) ||
+	    ZF_ISSET(node, JNODE_IS_DYING) || (node != coord->node)) {
+		reiser4_stat_seal_add(wrong_node);
 		return -EAGAIN;
 	}
 
-	result = zload( node );
-	if( result != 0 )
+	result = zload(node);
+	if (result != 0)
 		return result;
 
-	if( coord_is_existing_unit( coord ) && 
-	    keyeq( key, unit_key_by_coord( coord, &unit_key ) ) ) {
+	if (coord_is_existing_unit(coord) &&
+	    keyeq(key, unit_key_by_coord(coord, &unit_key))) {
 		/* coord is still at the same position in the @node */
-		reiser4_stat_seal_add( didnt_move );
+		reiser4_stat_seal_add(didnt_move);
 		result = 0;
 	} else {
-		result = node_plugin_by_node( node ) -> lookup( node, key, 
-								bias, coord );
-		if( result == NS_FOUND ) {
+		result = node_plugin_by_node(node)->lookup(node, key,
+							   bias, coord);
+		if (result == NS_FOUND) {
 			/* renew seal */
-			reiser4_stat_seal_add( found );
-			seal_init( seal, coord, key );
+			reiser4_stat_seal_add(found);
+			seal_init(seal, coord, key);
 		} else
-			result = -EAGAIN; /* Remove -ENOENT to simplify seal
-					   * interface */
+			result = -EAGAIN;	/* Remove -ENOENT to simplify seal
+						 * interface */
 	}
-	zrelse( node );
+	zrelse(node);
 	return result;
 }
 
 #if REISER4_DEBUG_OUTPUT
-void print_seal( const char *prefix, const seal_t *seal )
+void
+print_seal(const char *prefix, const seal_t * seal)
 {
-	if( seal == NULL ) {
-		info( "%s: null seal\n", prefix );
+	if (seal == NULL) {
+		info("%s: null seal\n", prefix);
 	} else {
-		info( "%s: version: %llu, block: %llu\n",
-		      prefix, seal -> version, seal -> block );
+		info("%s: version: %llu, block: %llu\n",
+		     prefix, seal->version, seal->block);
 #if REISER4_DEBUG
-		print_key( "seal key", &seal -> key );
-		print_coord( "seal coord", &seal -> coord, 0 );
+		print_key("seal key", &seal->key);
+		print_coord("seal coord", &seal->coord, 0);
 #endif
 	}
 }

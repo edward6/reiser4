@@ -13,8 +13,8 @@
 #include "inode.h"
 #include "super.h"
 
-#include <linux/types.h> /* for __u??  */
-#include <linux/fs.h> /* for struct super_block, etc  */
+#include <linux/types.h>	/* for __u??  */
+#include <linux/fs.h>		/* for struct super_block, etc  */
 
 #define OID_CHARS ( sizeof( __u64 ) - 1 )
 
@@ -26,19 +26,20 @@
  * endian-safe encoding. memcpy(2) will not do.
  * 
  */
-static __u64 pack_string( const char *name /* string to encode */, 
-			  int start_idx /* highest byte in result from
-					 * which to start encoding */ )
+static __u64
+pack_string(const char *name /* string to encode */ ,
+	    int start_idx	/* highest byte in result from
+				 * which to start encoding */ )
 {
-	unsigned  i;
-	__u64     str;
+	unsigned i;
+	__u64 str;
 
 	str = 0;
-	for( i = 0 ; ( i < sizeof str - start_idx ) && name[ i ] ; ++ i ) {
+	for (i = 0; (i < sizeof str - start_idx) && name[i]; ++i) {
 		str <<= 8;
-		str |= ( unsigned char ) name[ i ];
+		str |= (unsigned char) name[i];
 	}
-	str <<= ( sizeof str - i - start_idx ) << 3;
+	str <<= (sizeof str - i - start_idx) << 3;
 	return str;
 }
 
@@ -47,25 +48,26 @@ static __u64 pack_string( const char *name /* string to encode */,
  *
  * See reiser4_readdir() for more detailed comment.
  */
-int build_readdir_key( struct file *dir /* directory being read */, 
-		       reiser4_key *result /* where to store key */ )
+int
+build_readdir_key(struct file *dir /* directory being read */ ,
+		  reiser4_key * result /* where to store key */ )
 {
 	reiser4_file_fsdata *fdata;
 	struct inode *inode;
 
-	assert( "nikita-1361", dir != NULL );
-	assert( "nikita-1362", result != NULL );
-	assert( "nikita-1363", dir -> f_dentry != NULL );
-	inode = dir -> f_dentry -> d_inode;
-	assert( "nikita-1373", inode != NULL );
+	assert("nikita-1361", dir != NULL);
+	assert("nikita-1362", result != NULL);
+	assert("nikita-1363", dir->f_dentry != NULL);
+	inode = dir->f_dentry->d_inode;
+	assert("nikita-1373", inode != NULL);
 
-	fdata = reiser4_get_file_fsdata( dir );
-	if( IS_ERR( fdata ) )
-		return PTR_ERR( fdata );
-	assert( "nikita-1364", fdata != NULL );
+	fdata = reiser4_get_file_fsdata(dir);
+	if (IS_ERR(fdata))
+		return PTR_ERR(fdata);
+	assert("nikita-1364", fdata != NULL);
 	return extract_key_from_de_id
-		( get_inode_oid( inode ), 
-		  &fdata -> dir.readdir.position.dir_entry_key, result );
+	    (get_inode_oid(inode),
+	     &fdata->dir.readdir.position.dir_entry_key, result);
 
 }
 
@@ -73,37 +75,38 @@ int build_readdir_key( struct file *dir /* directory being read */,
  * build key for directory entry.
  *
  */
-int build_entry_key( const struct inode *dir /* directory where entry is
-					      * (or will be) in.*/, 
-		     const struct qstr *name /* name of file referenced
-					      * by this entry */,
-		     reiser4_key *result /* resulting key of directory
-					  * entry */ )
+int
+build_entry_key(const struct inode *dir	/* directory where entry is
+					 * (or will be) in.*/ ,
+		const struct qstr *name	/* name of file referenced
+					 * by this entry */ ,
+		reiser4_key * result	/* resulting key of directory
+					 * entry */ )
 {
 	oid_t objectid;
 	__u64 offset;
 
-	assert( "nikita-1139", dir != NULL );
-	assert( "nikita-1140", name != NULL );
-	assert( "nikita-1141", name -> name != NULL );
-	assert( "nikita-1142", result != NULL );
+	assert("nikita-1139", dir != NULL);
+	assert("nikita-1140", name != NULL);
+	assert("nikita-1141", name->name != NULL);
+	assert("nikita-1142", result != NULL);
 
-	key_init( result );
+	key_init(result);
 	/*
 	 * locality of directory entry's key is objectid of parent
 	 * directory
 	 */
-	set_key_locality( result, get_inode_oid( dir ) );
+	set_key_locality(result, get_inode_oid(dir));
 	/*
 	 * minor packing locality is constant
 	 */
-	set_key_type( result, KEY_FILE_NAME_MINOR );
+	set_key_type(result, KEY_FILE_NAME_MINOR);
 	/*
 	 * dot is special case---we always want it to be first entry in
 	 * a directory. Actually, we just want to have smallest
 	 * directory entry.
 	 */
-	if( ( name -> len == 1 ) && ( name -> name[ 0 ] == '.' ) )
+	if ((name->len == 1) && (name->name[0] == '.'))
 		return 0;
 
 	/*
@@ -129,10 +132,10 @@ int build_entry_key( const struct inode *dir /* directory where entry is
 	 * file's name. This imposes global ordering on directory
 	 * entries.
 	 */
-	objectid = pack_string( name -> name, 1 );
-	if( name -> len <= OID_CHARS + sizeof( __u64 ) ) {
-		if( name -> len > OID_CHARS )
-			offset = pack_string( name -> name + OID_CHARS, 0 );
+	objectid = pack_string(name->name, 1);
+	if (name->len <= OID_CHARS + sizeof (__u64)) {
+		if (name->len > OID_CHARS)
+			offset = pack_string(name->name + OID_CHARS, 0);
 		else
 			offset = 0ull;
 	} else {
@@ -143,17 +146,17 @@ int build_entry_key( const struct inode *dir /* directory where entry is
 		/*
 		 * offset is the hash of the file name.
 		 */
-		offset = inode_hash_plugin( dir ) -> 
-			hash( name -> name + OID_CHARS, 
-			      ( int ) ( name -> len - OID_CHARS ) );
+		offset = inode_hash_plugin(dir)->hash(name->name + OID_CHARS,
+						      (int) (name->len -
+							     OID_CHARS));
 	}
 
 	/*
 	 * objectid is 60 bits
 	 */
-	assert( "nikita-1405", !( objectid & ~KEY_OBJECTID_MASK ) );
-	set_key_objectid( result, objectid );
-	set_key_offset( result, offset );
+	assert("nikita-1405", !(objectid & ~KEY_OBJECTID_MASK));
+	set_key_objectid(result, objectid);
+	set_key_offset(result, offset);
 	return 0;
 }
 
@@ -163,66 +166,67 @@ int build_entry_key( const struct inode *dir /* directory where entry is
  * This is for directories where we want repeatable and restartable readdir()
  * even in case 32bit user level struct dirent (readdir(3)).
  */
-int build_readdir_stable_entry_key( const struct inode *dir /* directory where
-							     * entry is (or
-							     * will be) in. */, 
-				    const struct qstr *name /* name of file
-							     * referenced by
-							     * this entry */,
-				    reiser4_key *result /* resulting key of
+int
+build_readdir_stable_entry_key(const struct inode *dir	/* directory where
+							 * entry is (or
+							 * will be) in. */ ,
+			       const struct qstr *name	/* name of file
+							 * referenced by
+							 * this entry */ ,
+			       reiser4_key * result	/* resulting key of
 							 * directory entry */ )
 {
 	oid_t objectid;
 
-	assert( "nikita-2283", dir != NULL );
-	assert( "nikita-2284", name != NULL );
-	assert( "nikita-2285", name -> name != NULL );
-	assert( "nikita-2286", result != NULL );
+	assert("nikita-2283", dir != NULL);
+	assert("nikita-2284", name != NULL);
+	assert("nikita-2285", name->name != NULL);
+	assert("nikita-2286", result != NULL);
 
-	key_init( result );
+	key_init(result);
 	/*
 	 * locality of directory entry's key is objectid of parent
 	 * directory
 	 */
-	set_key_locality( result, get_inode_oid( dir ) );
+	set_key_locality(result, get_inode_oid(dir));
 	/*
 	 * minor packing locality is constant
 	 */
-	set_key_type( result, KEY_FILE_NAME_MINOR );
+	set_key_type(result, KEY_FILE_NAME_MINOR);
 	/*
 	 * dot is special case---we always want it to be first entry in
 	 * a directory. Actually, we just want to have smallest
 	 * directory entry.
 	 */
-	if( ( name -> len == 1 ) && ( name -> name[ 0 ] == '.' ) )
+	if ((name->len == 1) && (name->name[0] == '.'))
 		return 0;
 
 	/*
 	 * objectid of key is 31 lowest bits of hash.
 	 */
-	objectid = inode_hash_plugin( dir ) -> 
-		hash( name -> name, ( int ) name -> len ) & 0x7fffffff;
+	objectid =
+	    inode_hash_plugin(dir)->hash(name->name,
+					 (int) name->len) & 0x7fffffff;
 
-	assert( "nikita-2303", !( objectid & ~KEY_OBJECTID_MASK ) );
-	set_key_objectid( result, objectid );
+	assert("nikita-2303", !(objectid & ~KEY_OBJECTID_MASK));
+	set_key_objectid(result, objectid);
 
 	/*
 	 * offset is always 0.
 	 */
-	set_key_offset( result, ( __u64 ) 0 );
+	set_key_offset(result, (__u64) 0);
 	return 0;
 }
 
 /**
  * true, if @key is the key of "."
  */
-int is_dot_key( const reiser4_key *key /* key to check */ )
+int
+is_dot_key(const reiser4_key * key /* key to check */ )
 {
-	assert( "nikita-1717", key != NULL );
-	assert( "nikita-1718", get_key_type( key ) == KEY_FILE_NAME_MINOR );
-	return 
-		( get_key_objectid( key ) == 0ull ) && 
-		( get_key_offset( key ) == 0ull );
+	assert("nikita-1717", key != NULL);
+	assert("nikita-1718", get_key_type(key) == KEY_FILE_NAME_MINOR);
+	return (get_key_objectid(key) == 0ull) && (get_key_offset(key) == 0ull);
 }
 
 /**
@@ -232,17 +236,18 @@ int is_dot_key( const reiser4_key *key /* key to check */ )
  * method in the future. For now, let it be here.
  *
  */
-reiser4_key *build_sd_key( const struct inode *target /* inode of an object */, 
-			   reiser4_key *result /* resulting key of @target
-						  stat-data */ )
+reiser4_key *
+build_sd_key(const struct inode * target /* inode of an object */ ,
+	     reiser4_key * result	/* resulting key of @target
+					   stat-data */ )
 {
-	assert( "nikita-261", result != NULL );
+	assert("nikita-261", result != NULL);
 
-	key_init( result );
-	set_key_locality( result, reiser4_inode_data( target ) -> locality_id );
-	set_key_objectid( result, get_inode_oid( target ) );
-	set_key_type    ( result, KEY_SD_MINOR );
-	set_key_offset  ( result, ( __u64 ) 0 );
+	key_init(result);
+	set_key_locality(result, reiser4_inode_data(target)->locality_id);
+	set_key_objectid(result, get_inode_oid(target));
+	set_key_type(result, KEY_SD_MINOR);
+	set_key_offset(result, (__u64) 0);
 	return result;
 }
 
@@ -254,13 +259,14 @@ reiser4_key *build_sd_key( const struct inode *target /* inode of an object */,
  *
  * See &obj_key_id
  */
-int build_obj_key_id( const reiser4_key *key /* key to encode */, 
-		      obj_key_id *id /* id where key is encoded in */ )
+int
+build_obj_key_id(const reiser4_key * key /* key to encode */ ,
+		 obj_key_id * id /* id where key is encoded in */ )
 {
-	assert( "nikita-1151", key != NULL );
-	assert( "nikita-1152", id != NULL );
+	assert("nikita-1151", key != NULL);
+	assert("nikita-1152", id != NULL);
 
-	xmemcpy( id, key, sizeof *id );
+	xmemcpy(id, key, sizeof *id);
 	return 0;
 }
 
@@ -269,16 +275,17 @@ int build_obj_key_id( const reiser4_key *key /* key to encode */,
  *
  * This is like build_obj_key_id() above, but takes inode as parameter.
  */
-int build_inode_key_id( const struct inode *obj /* object to build key of */, 
-			obj_key_id *id /* result */ )
+int
+build_inode_key_id(const struct inode *obj /* object to build key of */ ,
+		   obj_key_id * id /* result */ )
 {
 	reiser4_key sdkey;
-	
-	assert( "nikita-1166", obj != NULL );
-	assert( "nikita-1167", id != NULL );
 
-	build_sd_key( obj, &sdkey );
-	build_obj_key_id( &sdkey, id );
+	assert("nikita-1166", obj != NULL);
+	assert("nikita-1167", id != NULL);
+
+	build_sd_key(obj, &sdkey);
+	build_obj_key_id(&sdkey, id);
 	return 0;
 }
 
@@ -288,15 +295,16 @@ int build_inode_key_id( const struct inode *obj /* object to build key of */,
  * Restore key of object stat-data from @id. This is dual to
  * build_obj_key_id() above.
  */
-int extract_key_from_id( const obj_key_id *id /* object key id to extract key
-					       * from */, 
-			 reiser4_key *key /* result */ )
+int
+extract_key_from_id(const obj_key_id * id	/* object key id to extract key
+						 * from */ ,
+		    reiser4_key * key /* result */ )
 {
-	assert( "nikita-1153", id != NULL );
-	assert( "nikita-1154", key != NULL );
+	assert("nikita-1153", id != NULL);
+	assert("nikita-1154", key != NULL);
 
-	key_init( key );
-	xmemcpy( key, id, sizeof *id );
+	key_init(key);
+	xmemcpy(key, id, sizeof *id);
 	return 0;
 }
 
@@ -305,12 +313,13 @@ int extract_key_from_id( const obj_key_id *id /* object key id to extract key
  * directory.
  *
  */
-oid_t extract_dir_id_from_key( const reiser4_key *de_key /* key of
-							  * directory
-							  * entry */ )
+oid_t
+extract_dir_id_from_key(const reiser4_key * de_key	/* key of
+							 * directory
+							 * entry */ )
 {
-	assert( "nikita-1314", de_key != NULL );
-	return get_key_locality( de_key );
+	assert("nikita-1314", de_key != NULL);
+	return get_key_locality(de_key);
 }
 
 /**
@@ -322,28 +331,29 @@ oid_t extract_dir_id_from_key( const reiser4_key *de_key /* key of
  * to objectid of their directory.
  *
  */
-int build_de_id( const struct inode *dir /* inode of directory */, 
-		 const struct inode *obj UNUSED_ARG /* inode of object
-						     * to be bound to by
-						     * directory entry
-						     * being
-						     * constructed*/,
-		 const struct qstr *name /* name to be given to @obj by
-					  * directory entry being
-					  * constructed */, 
-		 de_id *id /* short key of directory entry */ )
+int
+build_de_id(const struct inode *dir /* inode of directory */ ,
+	    const struct inode *obj UNUSED_ARG	/* inode of object
+						 * to be bound to by
+						 * directory entry
+						 * being
+						 * constructed*/ ,
+	    const struct qstr *name	/* name to be given to @obj by
+					 * directory entry being
+					 * constructed */ ,
+	    de_id * id /* short key of directory entry */ )
 {
 	reiser4_key key;
 
-	assert( "nikita-1290", dir != NULL );
-	assert( "nikita-1291", obj != NULL );
-	assert( "nikita-1292", id != NULL );
+	assert("nikita-1290", dir != NULL);
+	assert("nikita-1291", obj != NULL);
+	assert("nikita-1292", id != NULL);
 
 	/*
 	 * FIXME-NIKITA this is suboptimal.
 	 */
-	inode_dir_plugin( dir ) -> entry_key( dir, name, &key );
-	return build_de_id_by_key( &key, id );
+	inode_dir_plugin(dir)->entry_key(dir, name, &key);
+	return build_de_id_by_key(&key, id);
 }
 
 /**
@@ -355,11 +365,12 @@ int build_de_id( const struct inode *dir /* inode of directory */,
  * to objectid of their directory.
  *
  */
-int build_de_id_by_key( const reiser4_key *entry_key /* full key of directory
-						      * entry */, 
-			de_id *id /* short key of directory entry */ )
+int
+build_de_id_by_key(const reiser4_key * entry_key	/* full key of directory
+							 * entry */ ,
+		   de_id * id /* short key of directory entry */ )
 {
-	xmemcpy( id, ( ( __u64 * ) entry_key ) + 1, sizeof *id );
+	xmemcpy(id, ((__u64 *) entry_key) + 1, sizeof *id);
 	return 0;
 }
 
@@ -370,79 +381,85 @@ int build_de_id_by_key( const reiser4_key *entry_key /* full key of directory
  * key of directory entry within directory item.
  *
  */
-int extract_key_from_de_id( const oid_t locality /* locality of directory
-						  * entry */, 
-			    const de_id *id /* directory entry id */, 
-			    reiser4_key *key /* result */ )
+int
+extract_key_from_de_id(const oid_t locality	/* locality of directory
+						 * entry */ ,
+		       const de_id * id /* directory entry id */ ,
+		       reiser4_key * key /* result */ )
 {
 	/*
 	 * no need to initialise key here: all fields are overwritten
 	 */
-	xmemcpy( ( ( __u64 * ) key ) + 1, id, sizeof *id );
-	set_key_locality( key, locality );
-	set_key_type( key, KEY_FILE_NAME_MINOR );
+	xmemcpy(((__u64 *) key) + 1, id, sizeof *id);
+	set_key_locality(key, locality);
+	set_key_type(key, KEY_FILE_NAME_MINOR);
 	return 0;
 }
 
 /** compare two &obj_key_id */
-cmp_t key_id_cmp( const obj_key_id *i1 /* first object key id to compare */, 
-		  const obj_key_id *i2 /* second object key id to compare */ )
+cmp_t
+key_id_cmp(const obj_key_id * i1 /* first object key id to compare */ ,
+	   const obj_key_id * i2 /* second object key id to compare */ )
 {
 	reiser4_key k1;
 	reiser4_key k2;
 
-	extract_key_from_id( i1, &k1 );
-	extract_key_from_id( i2, &k2 );
-	return keycmp( &k1, &k2 );
+	extract_key_from_id(i1, &k1);
+	extract_key_from_id(i2, &k2);
+	return keycmp(&k1, &k2);
 }
 
 /** compare &obj_key_id with full key */
-cmp_t key_id_key_cmp( const obj_key_id *id /* object key id to compare */, 
-		      const reiser4_key *key /* key to compare */ )
+cmp_t
+key_id_key_cmp(const obj_key_id * id /* object key id to compare */ ,
+	       const reiser4_key * key /* key to compare */ )
 {
 	reiser4_key k1;
 
-	extract_key_from_id( id, &k1 );
-	return keycmp( &k1, key );
+	extract_key_from_id(id, &k1);
+	return keycmp(&k1, key);
 }
 
 /** compare two &de_id's */
-cmp_t de_id_cmp( const de_id *id1 /* first &de_id to compare */,
-		 const de_id *id2 /* second &de_id to compare */ )
+cmp_t
+de_id_cmp(const de_id * id1 /* first &de_id to compare */ ,
+	  const de_id * id2 /* second &de_id to compare */ )
 {
 	/* FIXME-NIKITA ugly implementation */
 	reiser4_key k1;
 	reiser4_key k2;
 
-	extract_key_from_de_id( ( oid_t ) 0, id1, &k1 );
-	extract_key_from_de_id( ( oid_t ) 0, id2, &k2 );
-	return keycmp( &k1, &k2 );
+	extract_key_from_de_id((oid_t) 0, id1, &k1);
+	extract_key_from_de_id((oid_t) 0, id2, &k2);
+	return keycmp(&k1, &k2);
 }
 
 /** compare &de_id with key */
-cmp_t de_id_key_cmp( const de_id *id /* directory entry id to compare */, 
-		     const reiser4_key *key /* key to compare */ )
+cmp_t
+de_id_key_cmp(const de_id * id /* directory entry id to compare */ ,
+	      const reiser4_key * key /* key to compare */ )
 {
 	reiser4_key k1;
 
-	extract_key_from_de_id( get_key_locality( key ), id, &k1 );
-	return keycmp( &k1, key );
+	extract_key_from_de_id(get_key_locality(key), id, &k1);
+	return keycmp(&k1, key);
 }
 
-
 /** true if key of root directory sd */
-int is_root_dir_key( const struct super_block *super /* super block to check*/,
-		     const reiser4_key *key /* key to check */ )
+int
+is_root_dir_key(const struct super_block *super /* super block to check */ ,
+		const reiser4_key * key /* key to check */ )
 {
-	assert( "nikita-1819", super != NULL );
-	assert( "nikita-1820", key != NULL );
+	assert("nikita-1819", super != NULL);
+	assert("nikita-1820", key != NULL);
 	/*
 	 * call disk plugin's root_dir_key method if it exists
 	 */
-	if( get_super_private( super ) -> df_plug &&
-	    get_super_private( super ) -> df_plug -> root_dir_key )
-		return keyeq( key, get_super_private( super ) ->
-			      df_plug -> root_dir_key( super ) );
+	if (get_super_private(super)->df_plug &&
+	    get_super_private(super)->df_plug->root_dir_key)
+		    return keyeq(key,
+				 get_super_private(super)->df_plug->
+				 root_dir_key(super));
 	return 0;
 }
 
@@ -456,4 +473,3 @@ int is_root_dir_key( const struct super_block *super /* super block to check*/,
  * fill-column: 120
  * End:
  */
-

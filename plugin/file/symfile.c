@@ -31,7 +31,6 @@ or
 
 /etc/passwd/userlines/(demidov+edward+reiser+root)
 
-
 A symfile with contents
 
 /filenameA+"(some text stored in the uninvertable symfile)+/filenameB
@@ -64,7 +63,6 @@ or
 )+root+"(
 ))
 
-
 and the file demidov might be specified as:
 
 /etc/passwd/userlines/demidov/username+"(:)+/etc/passwd/userlines/demidov/password+"(:)+/etc/passwd/userlines/demidov/userid+"(:)+/etc/passwd/userlines/demidov/groupid+"(:)+/etc/passwd/userlines/demidov/gecos+"(:)+/etc/passwd/userlines/demidov/home+"(:)+/etc/passwd/userlines/demidov/shell
@@ -73,11 +71,9 @@ or
 
 /etc/passwd/userlines/demidov/(username+"(:)+password+"(:)+userid+"(:)+groupid+"(:)+gecos+"(:)+home+"(:)+shell)
 
-
 Notice that if the file demidov has a carriage return in it, the
 parsing fails, but then if you put carriage returns in the wrong place
 in a normal /etc/passwd file it breaks things also.
-
 
 Note that it is forbidden to have no text between two interpolations
 if one wants to be able to define what parts of a write go to what

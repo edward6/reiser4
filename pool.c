@@ -57,43 +57,45 @@
  * initialise new pool object
  */
 /* Audited by: green(2002.06.15) */
-static void reiser4_init_pool_obj( reiser4_pool_header *h /* pool object to
-							   * initialise */ )
+static void
+reiser4_init_pool_obj(reiser4_pool_header * h	/* pool object to
+						 * initialise */ )
 {
-	pool_usage_list_clean( h );
-	pool_level_list_clean( h );
-	pool_extra_list_clean( h );
+	pool_usage_list_clean(h);
+	pool_level_list_clean(h);
+	pool_extra_list_clean(h);
 }
 
 /**
  * initialise new pool
  */
 /* Audited by: green(2002.06.15) */
-void reiser4_init_pool( reiser4_pool *pool /* pool to initialise */, 
-			size_t obj_size /* size of objects in @pool */, 
-			int num_of_objs /* number of preallocated objects */, 
-			char *data /* area for preallocated objects */ )
+void
+reiser4_init_pool(reiser4_pool * pool /* pool to initialise */ ,
+		  size_t obj_size /* size of objects in @pool */ ,
+		  int num_of_objs /* number of preallocated objects */ ,
+		  char *data /* area for preallocated objects */ )
 {
 	reiser4_pool_header *h;
 	int i;
 
-	assert( "nikita-955", pool != NULL );
-	assert( "nikita-1044", obj_size > 0 );
-	assert( "nikita-956", num_of_objs >= 0 );
-	assert( "nikita-957", data != NULL );
+	assert("nikita-955", pool != NULL);
+	assert("nikita-1044", obj_size > 0);
+	assert("nikita-956", num_of_objs >= 0);
+	assert("nikita-957", data != NULL);
 
-	xmemset( pool, 0, sizeof *pool );
-	pool -> obj_size = obj_size;
-	pool -> data = data;
-	pool_usage_list_init( &pool -> free );
-	pool_usage_list_init( &pool -> used );
-	pool_extra_list_init( &pool -> extra );
-	xmemset( data, 0, obj_size * num_of_objs );
-	for( i = 0 ; i < num_of_objs ; ++ i ) {
-		h = ( reiser4_pool_header * ) ( data + i * obj_size );
-		reiser4_init_pool_obj( h );
-		pool_usage_list_push_back( &pool -> free, h );
-		h -> pool = pool;
+	xmemset(pool, 0, sizeof *pool);
+	pool->obj_size = obj_size;
+	pool->data = data;
+	pool_usage_list_init(&pool->free);
+	pool_usage_list_init(&pool->used);
+	pool_extra_list_init(&pool->extra);
+	xmemset(data, 0, obj_size * num_of_objs);
+	for (i = 0; i < num_of_objs; ++i) {
+		h = (reiser4_pool_header *) (data + i * obj_size);
+		reiser4_init_pool_obj(h);
+		pool_usage_list_push_back(&pool->free, h);
+		h->pool = pool;
 	}
 }
 
@@ -105,7 +107,8 @@ void reiser4_init_pool( reiser4_pool *pool /* pool to initialise */,
  *
  */
 /* Audited by: green(2002.06.15) */
-void reiser4_done_pool( reiser4_pool *pool UNUSED_ARG /* pool to destroy */ )
+void
+reiser4_done_pool(reiser4_pool * pool UNUSED_ARG /* pool to destroy */ )
 {
 }
 
@@ -117,38 +120,39 @@ void reiser4_done_pool( reiser4_pool *pool UNUSED_ARG /* pool to destroy */ )
  *
  */
 /* Audited by: green(2002.06.15) */
-void *reiser4_pool_alloc( reiser4_pool *pool /* pool to allocate object
-					      * from */ )
+void *
+reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
+					 * from */ )
 {
 	reiser4_pool_header *result;
 
-	assert( "nikita-959", pool != NULL );
-	trace_stamp( TRACE_CARRY );
-	reiser4_stat_pool_add( pool_alloc );
+	assert("nikita-959", pool != NULL);
+	trace_stamp(TRACE_CARRY);
+	reiser4_stat_pool_add(pool_alloc);
 
-	if( !pool_usage_list_empty( &pool -> free ) ) {
-		result = pool_usage_list_pop_front( &pool -> free );
-		pool_usage_list_clean( result );
-		assert( "nikita-960", result -> pool == pool );
-		assert( "nikita-965", pool_extra_list_is_clean( result ) );
+	if (!pool_usage_list_empty(&pool->free)) {
+		result = pool_usage_list_pop_front(&pool->free);
+		pool_usage_list_clean(result);
+		assert("nikita-960", result->pool == pool);
+		assert("nikita-965", pool_extra_list_is_clean(result));
 	} else {
-		reiser4_stat_pool_add( pool_kmalloc );
+		reiser4_stat_pool_add(pool_kmalloc);
 		/*
 		 * pool is empty. Extra allocations don't deserve dedicated
 		 * slab to be served from, as they are expected to be rare.
 		 */
-		result = reiser4_kmalloc( pool -> obj_size, GFP_KERNEL );
-		if( result != 0 ) {
-			reiser4_init_pool_obj( result );
-			pool_extra_list_push_front( &pool -> extra, result );
-			result -> pool = pool;
+		result = reiser4_kmalloc(pool->obj_size, GFP_KERNEL);
+		if (result != 0) {
+			reiser4_init_pool_obj(result);
+			pool_extra_list_push_front(&pool->extra, result);
+			result->pool = pool;
 		} else
-			return ERR_PTR( -ENOMEM );
+			return ERR_PTR(-ENOMEM);
 	}
-	++ pool -> objs;
-	pool_level_list_clean( result );
-	pool_usage_list_push_front( &pool -> used, result );
-	xmemset( result + 1, 0, pool -> obj_size - sizeof *result );
+	++pool->objs;
+	pool_level_list_clean(result);
+	pool_usage_list_push_front(&pool->used, result);
+	xmemset(result + 1, 0, pool->obj_size - sizeof *result);
 	return result;
 }
 
@@ -157,23 +161,24 @@ void *reiser4_pool_alloc( reiser4_pool *pool /* pool to allocate object
  *
  */
 /* Audited by: green(2002.06.15) */
-void reiser4_pool_free( reiser4_pool_header *h /* pool to return object back
-						* into */)
+void
+reiser4_pool_free(reiser4_pool_header * h	/* pool to return object back
+						 * into */ )
 {
-	assert( "nikita-961", h != NULL );
-	assert( "nikita-962", h -> pool != NULL );
-	trace_stamp( TRACE_CARRY );
+	assert("nikita-961", h != NULL);
+	assert("nikita-962", h->pool != NULL);
+	trace_stamp(TRACE_CARRY);
 
-	-- h -> pool -> objs;
-	assert( "nikita-963", h -> pool -> objs >= 0 );
+	--h->pool->objs;
+	assert("nikita-963", h->pool->objs >= 0);
 
-	pool_usage_list_remove_clean( h );
-	pool_level_list_remove_clean( h );
-	if( pool_extra_list_is_clean( h ) )
-		pool_usage_list_push_front( &h -> pool -> free, h );
+	pool_usage_list_remove_clean(h);
+	pool_level_list_remove_clean(h);
+	if (pool_extra_list_is_clean(h))
+		pool_usage_list_push_front(&h->pool->free, h);
 	else {
-		pool_extra_list_remove_clean( h );
-		reiser4_kfree( h, h -> pool -> obj_size );
+		pool_extra_list_remove_clean(h);
+		reiser4_kfree(h, h->pool->obj_size);
 	}
 }
 
@@ -195,43 +200,45 @@ void reiser4_pool_free( reiser4_pool_header *h /* pool to return object back
  *
  */
 /* Audited by: green(2002.06.15) */
-reiser4_pool_header *add_obj( reiser4_pool *pool /* pool from which to
-						  * allocate new object */, 
-			      pool_level_list_head *list /* list where to add
-							  * object */,
-			      pool_ordering order /* where to add */, 
-			      reiser4_pool_header *reference /* after (or
-							      * before) which
-							      * existing
-							      * object to
-							      * add */ )
+reiser4_pool_header *
+add_obj(reiser4_pool * pool	/* pool from which to
+				 * allocate new object */ ,
+	pool_level_list_head * list	/* list where to add
+					 * object */ ,
+	pool_ordering order /* where to add */ ,
+	reiser4_pool_header * reference	/* after (or
+					 * before) which
+					 * existing
+					 * object to
+					 * add */ )
 {
 	reiser4_pool_header *result;
 
-	assert( "nikita-972", pool != NULL );
+	assert("nikita-972", pool != NULL);
 
-	trace_stamp( TRACE_CARRY );
+	trace_stamp(TRACE_CARRY);
 
-	result = reiser4_pool_alloc( pool );
-	if( IS_ERR( result ) )
+	result = reiser4_pool_alloc(pool);
+	if (IS_ERR(result))
 		return result;
 
-	assert( "nikita-973", result != NULL );
+	assert("nikita-973", result != NULL);
 
-	switch( order ) {
+	switch (order) {
 	case POOLO_BEFORE:
-		pool_level_list_insert_before( reference, result );
+		pool_level_list_insert_before(reference, result);
 		break;
 	case POOLO_AFTER:
-		pool_level_list_insert_after( reference, result );
+		pool_level_list_insert_after(reference, result);
 		break;
 	case POOLO_LAST:
-		pool_level_list_push_back( list, result );
+		pool_level_list_push_back(list, result);
 		break;
 	case POOLO_FIRST:
-		pool_level_list_push_front( list, result );
+		pool_level_list_push_front(list, result);
 		break;
-	default: wrong_return_value( "nikita-927", "order" );
+	default:
+		wrong_return_value("nikita-927", "order");
 	}
 	return result;
 }

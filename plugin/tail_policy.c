@@ -19,22 +19,24 @@
 #include "plugin_header.h"
 
 #include <linux/pagemap.h>
-#include <linux/fs.h> /* For struct inode */
+#include <linux/fs.h>		/* For struct inode */
 
 /** Never store file's tail as direct item */
 /* Audited by: green(2002.06.12) */
-static int never_tail( const struct inode *inode UNUSED_ARG /* inode to
-							     * operate on */, 
-		       loff_t size UNUSED_ARG /* new object size */ )
+static int
+never_tail(const struct inode *inode UNUSED_ARG	/* inode to
+						 * operate on */ ,
+	   loff_t size UNUSED_ARG /* new object size */ )
 {
 	return 0;
 }
 
 /** Always store file's tail as direct item */
 /* Audited by: green(2002.06.12) */
-static int always_tail( const struct inode *inode UNUSED_ARG /* inode to
-							      * operate on */,
-			loff_t size UNUSED_ARG /* new object size */ )
+static int
+always_tail(const struct inode *inode UNUSED_ARG	/* inode to
+							 * operate on */ ,
+	    loff_t size UNUSED_ARG /* new object size */ )
 {
 	return 1;
 }
@@ -43,9 +45,10 @@ static int always_tail( const struct inode *inode UNUSED_ARG /* inode to
 /* Audited by: green(2002.06.12) */
 /* AUDIT: above comment is incorerct and unclean. Also PAGE_SIZE is not correct
    thing to test against. It should become fs_blocksize instead */
-static int test_tail( const struct inode *inode UNUSED_ARG /* inode to operate
-							    * on */,
-		      loff_t size /* new object size */ )
+static int
+test_tail(const struct inode *inode UNUSED_ARG	/* inode to operate
+						 * on */ ,
+	  loff_t size /* new object size */ )
 {
 	if (size > PAGE_CACHE_SIZE * 4)
 		return 0;
@@ -55,40 +58,40 @@ static int test_tail( const struct inode *inode UNUSED_ARG /* inode to operate
 /**
  * tail plugins
  */
-tail_plugin tail_plugins[ LAST_TAIL_ID ] = {
-	[ NEVER_TAIL_ID ] = {
-		.h = {
-			.type_id = REISER4_TAIL_PLUGIN_TYPE,
-			.id      = NEVER_TAIL_ID,
-			.pops    = NULL,
-			.label   = "never",
-			.desc    = "Never store file's tail",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.have_tail   = never_tail
-	},
-	[ ALWAYS_TAIL_ID ] = {
-		.h = {
-			.type_id = REISER4_TAIL_PLUGIN_TYPE,
-			.id      = ALWAYS_TAIL_ID,
-			.pops    = NULL,
-			.label   = "always",
-			.desc    = "Always store file's tail",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.have_tail   = always_tail
-	},
-	[ TEST_TAIL_ID ] = {
-		.h = {
-			.type_id = REISER4_TAIL_PLUGIN_TYPE,
-			.id      = TEST_TAIL_ID,
-			.pops    = NULL,
-			.label   = "test",
-			.desc    = "store files shorter than 2 blocks in tail items",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.have_tail   = test_tail
-	}
+tail_plugin tail_plugins[LAST_TAIL_ID] = {
+	[NEVER_TAIL_ID] = {
+			   .h = {
+				 .type_id = REISER4_TAIL_PLUGIN_TYPE,
+				 .id = NEVER_TAIL_ID,
+				 .pops = NULL,
+				 .label = "never",
+				 .desc = "Never store file's tail",
+				 .linkage = TS_LIST_LINK_ZERO}
+			   ,
+			   .have_tail = never_tail}
+	,
+	[ALWAYS_TAIL_ID] = {
+			    .h = {
+				  .type_id = REISER4_TAIL_PLUGIN_TYPE,
+				  .id = ALWAYS_TAIL_ID,
+				  .pops = NULL,
+				  .label = "always",
+				  .desc = "Always store file's tail",
+				  .linkage = TS_LIST_LINK_ZERO}
+			    ,
+			    .have_tail = always_tail}
+	,
+	[TEST_TAIL_ID] = {
+			  .h = {
+				.type_id = REISER4_TAIL_PLUGIN_TYPE,
+				.id = TEST_TAIL_ID,
+				.pops = NULL,
+				.label = "test",
+				.desc =
+				"store files shorter than 2 blocks in tail items",
+				.linkage = TS_LIST_LINK_ZERO}
+			  ,
+			  .have_tail = test_tail}
 };
 
 /* 

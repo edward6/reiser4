@@ -47,29 +47,31 @@
 #include <linux/timer.h>
 #include <linux/spinlock.h>
 
-static void kcond_timeout( unsigned long datum );
-static void kcond_remove( kcond_t *cvar, kcond_queue_link_t *link );
+static void kcond_timeout(unsigned long datum);
+static void kcond_remove(kcond_t * cvar, kcond_queue_link_t * link);
 
 /** 
  * initialize condition variable. Initializer for global condition variables
  * is macro in kcond.h 
  */
-kcond_t *kcond_init( kcond_t *cvar /* cvar to init */ )
+kcond_t *
+kcond_init(kcond_t * cvar /* cvar to init */ )
 {
-	assert( "nikita-1868", cvar != NULL );
+	assert("nikita-1868", cvar != NULL);
 
-	xmemset( cvar, 0, sizeof *cvar );
-	spin_lock_init( &cvar -> lock );
-	cvar -> queue = NULL;
+	xmemset(cvar, 0, sizeof *cvar);
+	spin_lock_init(&cvar->lock);
+	cvar->queue = NULL;
 	return cvar;
 }
 
 /**
  * destroy condition variable.
  */
-int kcond_destroy( kcond_t *cvar /* cvar to destroy */ )
+int
+kcond_destroy(kcond_t * cvar /* cvar to destroy */ )
 {
-	return kcond_are_waiters( cvar ) ? -EBUSY : 0;
+	return kcond_are_waiters(cvar) ? -EBUSY : 0;
 }
 
 /**
@@ -103,36 +105,37 @@ int kcond_destroy( kcond_t *cvar /* cvar to destroy */ )
  * step (5) would return immediately.
  *
  */
-int kcond_wait( kcond_t *cvar /* cvar to wait for */, 
-		spinlock_t *lock /* lock to use */, 
-		int signl /* if 0, ignore signals during sleep */ )
+int
+kcond_wait(kcond_t * cvar /* cvar to wait for */ ,
+	   spinlock_t * lock /* lock to use */ ,
+	   int signl /* if 0, ignore signals during sleep */ )
 {
 	kcond_queue_link_t qlink;
 	int result;
-  
-	assert( "nikita-1869", cvar != NULL );
-	assert( "nikita-1870", lock != NULL );
-	assert( "nikita-1871", check_spin_is_locked( lock ) );
 
-	spin_lock( &cvar -> lock );
-	qlink.next = cvar -> queue;
-	cvar -> queue = &qlink;
-	init_MUTEX_LOCKED( &qlink.wait );
-	spin_unlock( &cvar -> lock );
-	spin_unlock( lock );
+	assert("nikita-1869", cvar != NULL);
+	assert("nikita-1870", lock != NULL);
+	assert("nikita-1871", check_spin_is_locked(lock));
+
+	spin_lock(&cvar->lock);
+	qlink.next = cvar->queue;
+	cvar->queue = &qlink;
+	init_MUTEX_LOCKED(&qlink.wait);
+	spin_unlock(&cvar->lock);
+	spin_unlock(lock);
 
 	result = 0;
-	if( signl )
-		result = down_interruptible( &qlink.wait );
+	if (signl)
+		result = down_interruptible(&qlink.wait);
 	else
-		down( &qlink.wait );
-	spin_lock( &cvar -> lock );
-	if( result != 0 ) {
+		down(&qlink.wait);
+	spin_lock(&cvar->lock);
+	if (result != 0) {
 		/*
 		 * if thread was woken up by signal, @qlink is probably still
 		 * in the queue, remove it.
 		 */
-		kcond_remove( cvar, &qlink );
+		kcond_remove(cvar, &qlink);
 	}
 	/*
 	 * if it wasn't woken up by signal, spinlock here is still useful,
@@ -141,23 +144,24 @@ int kcond_wait( kcond_t *cvar /* cvar to wait for */,
 	 * that, that kcond_wait() would exit and up() would see garbage in a
 	 * semaphore.
 	 */
-	spin_unlock( &cvar -> lock );
-	spin_lock( lock );
+	spin_unlock(&cvar->lock);
+	spin_lock(lock);
 	return result;
 }
 
 typedef struct {
 	kcond_queue_link_t *link;
-	int                *woken_up;
+	int *woken_up;
 } kcond_timer_arg;
 
 /**
  * like kcond_wait(), but with timeout
  */
-int kcond_timedwait( kcond_t *cvar /* cvar to wait for */, 
-		     spinlock_t *lock /* lock to use */,
-		     signed long timeout /* timeout in jiffies */,
-		     int signl /* if 0, ignore signals during sleep */ )
+int
+kcond_timedwait(kcond_t * cvar /* cvar to wait for */ ,
+		spinlock_t * lock /* lock to use */ ,
+		signed long timeout /* timeout in jiffies */ ,
+		int signl /* if 0, ignore signals during sleep */ )
 {
 	struct timer_list timer;
 	kcond_queue_link_t qlink;
@@ -165,140 +169,144 @@ int kcond_timedwait( kcond_t *cvar /* cvar to wait for */,
 	int woken_up;
 	kcond_timer_arg targ;
 
-	assert( "nikita-2437", cvar != NULL );
-	assert( "nikita-2438", lock != NULL );
-	assert( "nikita-2439", check_spin_is_locked( lock ) );
+	assert("nikita-2437", cvar != NULL);
+	assert("nikita-2438", lock != NULL);
+	assert("nikita-2439", check_spin_is_locked(lock));
 
-	spin_lock( &cvar -> lock );
-	qlink.next = cvar -> queue;
-	cvar -> queue = &qlink;
-	init_MUTEX_LOCKED( &qlink.wait );
-	spin_unlock( &cvar -> lock );
-	spin_unlock( lock );
+	spin_lock(&cvar->lock);
+	qlink.next = cvar->queue;
+	cvar->queue = &qlink;
+	init_MUTEX_LOCKED(&qlink.wait);
+	spin_unlock(&cvar->lock);
+	spin_unlock(lock);
 
 	/* prepare timer */
-	init_timer( &timer );
-	timer.expires  = jiffies + timeout;
-	timer.data     = ( unsigned long ) &targ;
+	init_timer(&timer);
+	timer.expires = jiffies + timeout;
+	timer.data = (unsigned long) &targ;
 	timer.function = kcond_timeout;
 
-	woken_up      = 0;
+	woken_up = 0;
 
-	targ.link     = &qlink;
+	targ.link = &qlink;
 	targ.woken_up = &woken_up;
 
 	/* ... and set it up */
-	add_timer( &timer );
+	add_timer(&timer);
 
 	result = 0;
-	if( signl )
-		result = down_interruptible( &qlink.wait );
+	if (signl)
+		result = down_interruptible(&qlink.wait);
 	else
-		down( &qlink.wait );
+		down(&qlink.wait);
 
 	/* cancel timer */
-	del_timer_sync( &timer );
+	del_timer_sync(&timer);
 
-	if( woken_up )
+	if (woken_up)
 		result = -ETIMEDOUT;
 
-	spin_lock( &cvar -> lock );
-	if( result != 0 ) {
+	spin_lock(&cvar->lock);
+	if (result != 0) {
 		/*
 		 * if thread was woken up by signal, or due to time-out,
 		 * @qlink is probably still in the queue, remove it.
 		 */
-		kcond_remove( cvar, &qlink );
+		kcond_remove(cvar, &qlink);
 	}
-	spin_unlock( &cvar -> lock );
+	spin_unlock(&cvar->lock);
 
-	spin_lock( lock );
+	spin_lock(lock);
 	return result;
 }
 
 /**
  * Signal condition variable: wake up one waiter, if any.
  */
-int kcond_signal( kcond_t *cvar /* cvar to signal */ )
+int
+kcond_signal(kcond_t * cvar /* cvar to signal */ )
 {
 	kcond_queue_link_t *queue_head;
 
-	assert( "nikita-1872", cvar != NULL );
+	assert("nikita-1872", cvar != NULL);
 
-	spin_lock( &cvar -> lock );
+	spin_lock(&cvar->lock);
 
-	queue_head = cvar -> queue;
-	if( queue_head != NULL ) {
-		cvar -> queue = queue_head -> next;
-		up( &queue_head -> wait );
+	queue_head = cvar->queue;
+	if (queue_head != NULL) {
+		cvar->queue = queue_head->next;
+		up(&queue_head->wait);
 	}
-	spin_unlock( &cvar -> lock );
+	spin_unlock(&cvar->lock);
 	return 1;
 }
 
 /**
  * Broadcast condition variable: wake up all waiters.
  */
-int kcond_broadcast( kcond_t *cvar /* cvar to broadcast */ )
+int
+kcond_broadcast(kcond_t * cvar /* cvar to broadcast */ )
 {
 	kcond_queue_link_t *queue_head;
 
-	assert( "nikita-1875", cvar != NULL );
+	assert("nikita-1875", cvar != NULL);
 
-	spin_lock( &cvar -> lock );
+	spin_lock(&cvar->lock);
 
-	for( queue_head = cvar -> queue ; 
-	     queue_head != NULL ; queue_head = queue_head -> next )
-		up( &queue_head -> wait );
+	for (queue_head = cvar->queue;
+	     queue_head != NULL; queue_head = queue_head->next)
+		    up(&queue_head->wait);
 
-	cvar -> queue = NULL;
-	spin_unlock( &cvar -> lock );
+	cvar->queue = NULL;
+	spin_unlock(&cvar->lock);
 	return 1;
 }
 
 /** true if there are threads sleeping on @cvar */
-int kcond_are_waiters( kcond_t *cvar /* cvar to query */ )
+int
+kcond_are_waiters(kcond_t * cvar /* cvar to query */ )
 {
-	assert( "nikita-1877", cvar != NULL );
-	return cvar -> queue != NULL;
+	assert("nikita-1877", cvar != NULL);
+	return cvar->queue != NULL;
 }
 
 /**
  * timer expiration function used by kcond_timedwait
  */
-static void kcond_timeout( unsigned long datum )
+static void
+kcond_timeout(unsigned long datum)
 {
 	kcond_timer_arg *arg;
 
-	arg = ( kcond_timer_arg * ) datum;
-	*arg -> woken_up = 1;
-	up( &arg -> link -> wait );
+	arg = (kcond_timer_arg *) datum;
+	*arg->woken_up = 1;
+	up(&arg->link->wait);
 }
 
 /**
  * helper function to remove @link from @cvar queue
  */
-static void kcond_remove( kcond_t *cvar /* cvar to operate on */,
-			  kcond_queue_link_t *link /* link to remove */ )
+static void
+kcond_remove(kcond_t * cvar /* cvar to operate on */ ,
+	     kcond_queue_link_t * link /* link to remove */ )
 {
 	kcond_queue_link_t *scan;
 	kcond_queue_link_t *prev;
 
-	assert( "nikita-2440", cvar != NULL );
-	assert( "nikita-2441", check_spin_is_locked( &cvar -> lock ) );
+	assert("nikita-2440", cvar != NULL);
+	assert("nikita-2441", check_spin_is_locked(&cvar->lock));
 
-	for( scan = cvar -> queue, prev = NULL ;
-	     scan != NULL ; prev = scan, scan = scan -> next ) {
-		if( scan == link ) {
-			if( prev == NULL )
-				cvar -> queue = scan -> next;
+	for (scan = cvar->queue, prev = NULL;
+	     scan != NULL; prev = scan, scan = scan->next) {
+		if (scan == link) {
+			if (prev == NULL)
+				cvar->queue = scan->next;
 			else
-				prev -> next = scan -> next;
+				prev->next = scan->next;
 			break;
 		}
 	}
 }
-
 
 /*
  * Make Linus happy.

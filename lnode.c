@@ -89,16 +89,16 @@
 #include "super.h"
 #include "reiser4.h"
 
-#include <linux/fs.h> /* for struct super_block  */
+#include <linux/fs.h>		/* for struct super_block  */
 #include <linux/spinlock.h>
 
-static reiser4_key *lnode_inode_key( const lnode *node, reiser4_key *result );
-static reiser4_key *lnode_lw_key( const lnode *node, reiser4_key *result );
-static int lnode_inode_eq( const lnode *node1, const lnode *node2 );
-static int lnode_lw_eq( const lnode *node1, const lnode *node2 );
+static reiser4_key *lnode_inode_key(const lnode * node, reiser4_key * result);
+static reiser4_key *lnode_lw_key(const lnode * node, reiser4_key * result);
+static int lnode_inode_eq(const lnode * node1, const lnode * node2);
+static int lnode_lw_eq(const lnode * node1, const lnode * node2);
 
 #if REISER4_DEBUG
-static int lnode_valid_type( lnode_type type );
+static int lnode_valid_type(lnode_type type);
 #endif
 
 /*
@@ -108,55 +108,45 @@ static int lnode_valid_type( lnode_type type );
  */
 static struct {
 	/** get a key of the corresponding file system object */
-	reiser4_key * ( * key )( const lnode *node, reiser4_key *result );
+	reiser4_key *(*key) (const lnode * node, reiser4_key * result);
 	/** get a plugin suitable for the corresponding file system object */
-	int ( *get_plugins )( const lnode *node, reiser4_plugin_ref *area );
+	int (*get_plugins) (const lnode * node, reiser4_plugin_ref * area);
 	/** set a plugin suitable for the corresponding file system object */
-	int ( *set_plugins )( lnode *node, const reiser4_plugin_ref *area );
+	int (*set_plugins) (lnode * node, const reiser4_plugin_ref * area);
 	/** true if @node1 and @node2 refer to the same object */
-	int ( *eq )( const lnode *node1, const lnode *node2 );
-} lnode_ops[ LNODE_NR_TYPES ] = {
-	[ LNODE_INODE ] = {
-		.key         = lnode_inode_key,
-		.get_plugins = NULL,
-		.set_plugins = NULL,
-		.eq          = lnode_inode_eq
-	},
-	[ LNODE_PSEUDO ] = {
-		.key         = NULL,
-		.get_plugins = NULL,
-		.set_plugins = NULL,
-		.eq          = NULL
-	},
-	[ LNODE_LW ] = {
-		.key         = lnode_lw_key,
-		.get_plugins = NULL,
-		.set_plugins = NULL,
-		.eq          = lnode_lw_eq
-	},
-};
+	int (*eq) (const lnode * node1, const lnode * node2);
+} lnode_ops[LNODE_NR_TYPES] = {
+	[LNODE_INODE] = {
+		.key = lnode_inode_key,.get_plugins = NULL,.set_plugins =
+		    NULL,.eq = lnode_inode_eq},[LNODE_PSEUDO] = {
+	.key = NULL,.get_plugins = NULL,.set_plugins = NULL,.eq =
+		    NULL},[LNODE_LW] = {
+		.key = lnode_lw_key,.get_plugins = NULL,.set_plugins =
+		    NULL,.eq = lnode_lw_eq},};
 
 /* hash table support */
 
 /** compare two block numbers for equality. Used by hash-table macros */
 /* Audited by: green(2002.06.15) */
-static inline int oid_eq( const oid_t *o1 /* first oid to compare */, 
-			  const oid_t *o2 /* second oid to compare */ )
+static inline int
+oid_eq(const oid_t * o1 /* first oid to compare */ ,
+       const oid_t * o2 /* second oid to compare */ )
 {
 	return *o1 == *o2;
 }
 
 /** Hash znode by block number. Used by hash-table macros */
 /* Audited by: green(2002.06.15) */
-static inline __u32 oid_hash( const oid_t *o /* oid to hash */ )
+static inline __u32
+oid_hash(const oid_t * o /* oid to hash */ )
 {
-	return *o & ( LNODE_HTABLE_BUCKETS - 1 );
+	return *o & (LNODE_HTABLE_BUCKETS - 1);
 }
 
 /** The hash table definition */
 #define KMALLOC( size ) reiser4_kmalloc( ( size ), GFP_KERNEL )
 #define KFREE( ptr, size ) reiser4_kfree( ptr, size )
-TS_HASH_DEFINE( ln, lnode, oid_t, h.oid, h.link, oid_hash, oid_eq );
+TS_HASH_DEFINE(ln, lnode, oid_t, h.oid, h.link, oid_hash, oid_eq);
 #undef KFREE
 #undef KMALLOC
 
@@ -172,31 +162,34 @@ TS_HASH_DEFINE( ln, lnode, oid_t, h.oid, h.link, oid_hash, oid_eq );
  *
  */
 /* Audited by: green(2002.06.15) */
-int lnode_compatible_type( lnode_type required /* required lnode type */, 
-			   lnode_type set /* lnode type already set */ )
+int
+lnode_compatible_type(lnode_type required /* required lnode type */ ,
+		      lnode_type set /* lnode type already set */ )
 {
-	return !( ( set == LNODE_LW ) && ( required != LNODE_INODE ) );
+	return !((set == LNODE_LW) && (required != LNODE_INODE));
 }
 
 /** initialise lnode module for @super. */
 /* Audited by: green(2002.06.15) */
-int lnodes_init( struct super_block *super /* super block to initialise lnodes
-					    * for */ )
+int
+lnodes_init(struct super_block *super	/* super block to initialise lnodes
+					 * for */ )
 {
-	assert( "nikita-1861", super != NULL ); /* slavery forbidden in Russia */
-	ln_hash_init( &get_super_private( super ) -> lnode_htable, 
-		      LNODE_HTABLE_BUCKETS );
-	spin_lock_init( &get_super_private( super ) -> lnode_htable_guard );
+	assert("nikita-1861", super != NULL);	/* slavery forbidden in Russia */
+	ln_hash_init(&get_super_private(super)->lnode_htable,
+		     LNODE_HTABLE_BUCKETS);
+	spin_lock_init(&get_super_private(super)->lnode_htable_guard);
 	return 0;
 }
 
 /** free lnode resources associated with @super. */
 /* Audited by: green(2002.06.15) */
-int lnodes_done( struct super_block *super /* super block to destroy lnodes
-					    * for */ )
+int
+lnodes_done(struct super_block *super	/* super block to destroy lnodes
+					 * for */ )
 {
-	assert( "nikita-1863", super != NULL );
-	ln_hash_done( &get_super_private( super ) -> lnode_htable );
+	assert("nikita-1863", super != NULL);
+	ln_hash_done(&get_super_private(super)->lnode_htable);
 	return 0;
 }
 
@@ -214,24 +207,25 @@ int lnodes_done( struct super_block *super /* super block to destroy lnodes
  *
  */
 /* Audited by: green(2002.06.15) */
-lnode *lget( lnode *node /* lnode to add to the hash table */, 
-	     lnode_type type /* lnode type */, oid_t oid /* objectid */ )
+lnode *
+lget(lnode * node /* lnode to add to the hash table */ ,
+     lnode_type type /* lnode type */ , oid_t oid /* objectid */ )
 {
-	lnode         *result;
+	lnode *result;
 	ln_hash_table *htable;
-	spinlock_t    *guard;
+	spinlock_t *guard;
 
-	assert( "nikita-1862", node != NULL );
-	assert( "nikita-1866", lnode_valid_type( type ) );
+	assert("nikita-1862", node != NULL);
+	assert("nikita-1866", lnode_valid_type(type));
 
-	htable = &get_current_super_private() -> lnode_htable;
-	guard = &get_current_super_private() -> lnode_htable_guard;
-	spin_lock( guard );
+	htable = &get_current_super_private()->lnode_htable;
+	guard = &get_current_super_private()->lnode_htable_guard;
+	spin_lock(guard);
 	/* check hash table */
-	while( ( result = ln_hash_find( htable, &oid ) ) != 0 ) {
-		if( !lnode_compatible_type( type, result -> h.type ) ) {
+	while ((result = ln_hash_find(htable, &oid)) != 0) {
+		if (!lnode_compatible_type(type, result->h.type)) {
 			int ret;
-			
+
 			/* 
 			 * if lnode is of incompatible type, wait until all
 			 * incompatible users go away. For example, if we are
@@ -239,9 +233,9 @@ lnode *lget( lnode *node /* lnode to add to the hash table */,
 			 * LNODE_INODE), wait until all reiser4() system call
 			 * manipulations with this object finish.
 			 */
-			ret = kcond_wait( &result -> h.cvar, guard, 1 );
-			if( ret != 0 ) {
-				result = ERR_PTR( ret );
+			ret = kcond_wait(&result->h.cvar, guard, 1);
+			if (ret != 0) {
+				result = ERR_PTR(ret);
 				break;
 			}
 		} else {
@@ -249,98 +243,104 @@ lnode *lget( lnode *node /* lnode to add to the hash table */,
 			 * compatible lnode found in the hash table. Just
 			 * return it.
 			 */
-			++ result -> h.ref;
+			++result->h.ref;
 			break;
 		}
 	}
-	if( result == NULL ) {
+	if (result == NULL) {
 		/*
 		 * lnode wasn't found in the hash table, initialise @node and
 		 * add it into hash table.
 		 */
-		xmemset( node, 0, sizeof *node );
-		node -> h.type = type;
-		node -> h.oid  = oid;
-		kcond_init( &node -> h.cvar );
-		node -> h.ref = 1;
-		ln_hash_insert( htable, node );
+		xmemset(node, 0, sizeof *node);
+		node->h.type = type;
+		node->h.oid = oid;
+		kcond_init(&node->h.cvar);
+		node->h.ref = 1;
+		ln_hash_insert(htable, node);
 		result = node;
 	}
-	spin_unlock( guard );
+	spin_unlock(guard);
 	return result;
 }
 
 /** release reference to file system object */
 /* Audited by: green(2002.06.15) */
-void lput( lnode *node /* lnode to release */ )
+void
+lput(lnode * node /* lnode to release */ )
 {
 	reiser4_super_info_data *sinfo;
 
-	assert( "nikita-1864", node != NULL );
-	assert( "nikita-1961", lnode_valid_type( node -> h.type ) ); /* man in
-								      * a
-								      * space */
+	assert("nikita-1864", node != NULL);
+	assert("nikita-1961", lnode_valid_type(node->h.type));	/* man in
+								 * a
+								 * space */
 	sinfo = get_current_super_private();
-	spin_lock( &sinfo -> lnode_htable_guard );
-	assert( "nikita-1878", ln_hash_find( &sinfo -> lnode_htable,
-					     &node -> h.oid ) == node );
-	if( -- node -> h.ref == 0 ) {
-		ln_hash_remove( &sinfo -> lnode_htable, node );
-		kcond_broadcast( &node -> h.cvar );
+	spin_lock(&sinfo->lnode_htable_guard);
+	assert("nikita-1878", ln_hash_find(&sinfo->lnode_htable,
+					   &node->h.oid) == node);
+	if (--node->h.ref == 0) {
+		ln_hash_remove(&sinfo->lnode_htable, node);
+		kcond_broadcast(&node->h.cvar);
 	}
-	spin_unlock( &sinfo -> lnode_htable_guard );
+	spin_unlock(&sinfo->lnode_htable_guard);
 }
 
 /** true if @node1 and @node2 refer to the same object */
 /* Audited by: green(2002.06.15) */
-int lnode_eq( const lnode *node1 /* first node to compare */, 
-	      const lnode *node2 /* second node to compare */ )
+int
+lnode_eq(const lnode * node1 /* first node to compare */ ,
+	 const lnode * node2 /* second node to compare */ )
 {
-	assert( "nikita-1921", node1 != NULL );
-	assert( "nikita-1922", node2 != NULL ); /* Finnegans Wake started */
+	assert("nikita-1921", node1 != NULL);
+	assert("nikita-1922", node2 != NULL);	/* Finnegans Wake started */
 
-	if( node1 -> h.oid != node2 -> h.oid )
+	if (node1->h.oid != node2->h.oid)
 		return 0;
-	else if( node1 -> h.type != node2 -> h.type )
+	else if (node1->h.type != node2->h.type)
 		return 0;
 	else
-		return lnode_ops[ node1 -> h.type ].eq( node1, node2 );
+		return lnode_ops[node1->h.type].eq(node1, node2);
 }
 
 /** return key of object behind @node */
 /* Audited by: green(2002.06.15) */
-reiser4_key *lnode_key( const lnode *node /* lnode to query */, 
-			reiser4_key *result /* result */ )
+reiser4_key *
+lnode_key(const lnode * node /* lnode to query */ ,
+	  reiser4_key * result /* result */ )
 {
-	assert( "nikita-1849", node != NULL );
-	assert( "nikita-1855", lnode_valid_type( node -> h.type ) );
-	return lnode_ops[ node -> h.type ].key( node, result );
+	assert("nikita-1849", node != NULL);
+	assert("nikita-1855", lnode_valid_type(node->h.type));
+	return lnode_ops[node->h.type].key(node, result);
 }
 
 /** return plugins of object behind @node */
 /* Audited by: green(2002.06.15) */
-int get_lnode_plugins( const lnode *node /* lnode to query */, 
-		       reiser4_plugin_ref *area /* result */ )
+int
+get_lnode_plugins(const lnode * node /* lnode to query */ ,
+		  reiser4_plugin_ref * area /* result */ )
 {
-	assert( "nikita-1853", node != NULL );
-	assert( "nikita-1858", lnode_valid_type( node -> h.type ) );
-	return lnode_ops[ node -> h.type ].get_plugins( node, area );
+	assert("nikita-1853", node != NULL);
+	assert("nikita-1858", lnode_valid_type(node->h.type));
+	return lnode_ops[node->h.type].get_plugins(node, area);
 }
 
 /** set plugins of object behind @node */
 /* Audited by: green(2002.06.15) */
-int set_lnode_plugins( lnode *node /* lnode to modify */, 
-		       const reiser4_plugin_ref *area /* plugins to install */)
+int
+set_lnode_plugins(lnode * node /* lnode to modify */ ,
+		  const reiser4_plugin_ref * area /* plugins to install */ )
 {
-	assert( "nikita-1859", node != NULL );
-	assert( "nikita-1860", lnode_valid_type( node -> h.type ) );
-	return lnode_ops[ node -> h.type ].set_plugins( node, area );
+	assert("nikita-1859", node != NULL);
+	assert("nikita-1860", lnode_valid_type(node->h.type));
+	return lnode_ops[node->h.type].set_plugins(node, area);
 }
 
 #if REISER4_DEBUG
 /** true if @type is valid lnode type */
 /* Audited by: green(2002.06.15) */
-static int lnode_valid_type( lnode_type type /* would-be lnode type */ )
+static int
+lnode_valid_type(lnode_type type /* would-be lnode type */ )
 {
 	return type < LNODE_NR_TYPES;
 }
@@ -348,49 +348,53 @@ static int lnode_valid_type( lnode_type type /* would-be lnode type */ )
 
 /** return key of object behind inode-based @node */
 /* Audited by: green(2002.06.15) */
-static reiser4_key *lnode_inode_key( const lnode *node /* lnode to query */, 
-				     reiser4_key *result /* result */ )
+static reiser4_key *
+lnode_inode_key(const lnode * node /* lnode to query */ ,
+		reiser4_key * result /* result */ )
 {
-	return build_sd_key( node -> inode.inode, result );
+	return build_sd_key(node->inode.inode, result);
 }
 
 /** return key of object behind lighweight @node */
 /* Audited by: green(2002.06.15) */
-static reiser4_key *lnode_lw_key( const lnode *node /* lnode to query */, 
-				  reiser4_key *result /* result */ )
+static reiser4_key *
+lnode_lw_key(const lnode * node /* lnode to query */ ,
+	     reiser4_key * result /* result */ )
 {
-	*result = node -> lw.key;
+	*result = node->lw.key;
 	return result;
 }
 
 /** compare two inodes */
 /* Audited by: green(2002.06.15) */
-static int lnode_inode_eq( const lnode *node1 /* first node to compare */, 
-			   const lnode *node2 /* second node to compare */ )
+static int
+lnode_inode_eq(const lnode * node1 /* first node to compare */ ,
+	       const lnode * node2 /* second node to compare */ )
 {
-	assert( "nikita-1923", node1 != NULL );
-	assert( "nikita-1924", node2 != NULL );
+	assert("nikita-1923", node1 != NULL);
+	assert("nikita-1924", node2 != NULL);
 
-	assert( "nikita-1927", node1 -> inode.inode != NULL );
-	assert( "nikita-1928", node2 -> inode.inode != NULL );
+	assert("nikita-1927", node1->inode.inode != NULL);
+	assert("nikita-1928", node2->inode.inode != NULL);
 
-	return( node1 -> inode.inode == node2 -> inode.inode );
-		
+	return (node1->inode.inode == node2->inode.inode);
+
 }
 
 /** compare two lw objects */
 /* Audited by: green(2002.06.15) */
-static int lnode_lw_eq( const lnode *node1 UNUSED_ARG /* first node to
-						       * compare */, 
-			const lnode *node2 UNUSED_ARG /* second node to
-						       * compare */ )
+static int
+lnode_lw_eq(const lnode * node1 UNUSED_ARG	/* first node to
+						 * compare */ ,
+	    const lnode * node2 UNUSED_ARG	/* second node to
+						 * compare */ )
 {
-	assert( "nikita-1925", node1 != NULL );
-	assert( "nikita-1926", node2 != NULL );
+	assert("nikita-1925", node1 != NULL);
+	assert("nikita-1926", node2 != NULL);
 
 	/* we only get there if oids are equal */
-	assert( "nikita-1929", node1 -> h.oid == node2 -> h.oid );
-	assert( "nikita-1930", keyeq( &node1 -> lw.key, &node2 -> lw.key ) );
+	assert("nikita-1929", node1->h.oid == node2->h.oid);
+	assert("nikita-1930", keyeq(&node1->lw.key, &node2->lw.key));
 	return 1;
 }
 

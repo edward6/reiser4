@@ -26,29 +26,32 @@
 /* see internal.h for explanation */
 
 /* plugin->u.item.b.mergeable */
-int internal_mergeable (const coord_t * p1 UNUSED_ARG /* first item */,
-			const coord_t * p2 UNUSED_ARG /* second item */)
+int
+internal_mergeable(const coord_t * p1 UNUSED_ARG /* first item */ ,
+		   const coord_t * p2 UNUSED_ARG /* second item */ )
 {
 	/* internal items are not mergeable */
 	return 0;
 }
 
 /* ->lookup() method for internal items */
-lookup_result internal_lookup (const reiser4_key *key /* key to look up */, 
-			       lookup_bias bias UNUSED_ARG /* lookup bias */,
-			       coord_t *coord /* coord of item */ )
+lookup_result
+internal_lookup(const reiser4_key * key /* key to look up */ ,
+		lookup_bias bias UNUSED_ARG /* lookup bias */ ,
+		coord_t * coord /* coord of item */ )
 {
 	reiser4_key ukey;
 
-	switch( keycmp( unit_key_by_coord( coord, &ukey ), key ) ) {
-	default: impossible( "", "keycmp()?!" );
+	switch (keycmp(unit_key_by_coord(coord, &ukey), key)) {
+	default:
+		impossible("", "keycmp()?!");
 	case LESS_THAN:
 		/*
 		 * FIXME-VS: AFTER_ITEM used to be here. But with new coord
 		 * item plugin can not be taken using coord set this way
 		 */
-		assert( "vs-681", coord -> unit_pos == 0 );
-		coord -> between = AFTER_UNIT;
+		assert("vs-681", coord->unit_pos == 0);
+		coord->between = AFTER_UNIT;
 	case EQUAL_TO:
 		return CBK_COORD_FOUND;
 	case GREATER_THAN:
@@ -57,70 +60,75 @@ lookup_result internal_lookup (const reiser4_key *key /* key to look up */,
 }
 
 /** return body of internal item at @coord */
-static internal_item_layout *internal_at( const coord_t *coord /* coord of
-								   * item */ )
+static internal_item_layout *
+internal_at(const coord_t * coord	/* coord of
+					   * item */ )
 {
-	assert( "nikita-607", coord != NULL );
-	assert( "nikita-1650", item_plugin_by_coord( coord ) == 
-		item_plugin_by_id( NODE_POINTER_ID ) );
-	return ( internal_item_layout * ) item_body_by_coord( coord );
+	assert("nikita-607", coord != NULL);
+	assert("nikita-1650", item_plugin_by_coord(coord) ==
+	       item_plugin_by_id(NODE_POINTER_ID));
+	return (internal_item_layout *) item_body_by_coord(coord);
 }
 
 /* FIXME: ugly hack */
-void internal_update (const coord_t *coord, reiser4_block_nr blocknr)
+void
+internal_update(const coord_t * coord, reiser4_block_nr blocknr)
 {
-	internal_item_layout *item = internal_at (coord);
-	cpu_to_dblock (blocknr, & item->pointer);
+	internal_item_layout *item = internal_at(coord);
+	cpu_to_dblock(blocknr, &item->pointer);
 }
 
 /** return child block number stored in the internal item at @coord */
-static reiser4_block_nr pointer_at( const coord_t *coord /* coord of item */ )
+static reiser4_block_nr
+pointer_at(const coord_t * coord /* coord of item */ )
 {
-	assert( "nikita-608", coord != NULL );
-	return dblock_to_cpu( & internal_at( coord ) -> pointer );
+	assert("nikita-608", coord != NULL);
+	return dblock_to_cpu(&internal_at(coord)->pointer);
 }
 
 /** get znode pointed to by internal @item */
-static znode *znode_at( const coord_t *item /* coord of item */, 
-			znode *parent /* parent node */, int incore_p )
+static znode *
+znode_at(const coord_t * item /* coord of item */ ,
+	 znode * parent /* parent node */ , int incore_p)
 {
 	/* Take DK lock, as required by child_znode. */
-	return UNDER_SPIN( dk, znode_get_tree( item -> node ),
-			   child_znode( item, parent, incore_p, 0 ) );
+	return UNDER_SPIN(dk, znode_get_tree(item->node),
+			  child_znode(item, parent, incore_p, 0));
 }
 
 /** store pointer from internal item into "block". Implementation of
     ->down_link() method */
-void internal_down_link( const coord_t *coord /* coord of item */, 
-			 const reiser4_key *key UNUSED_ARG /* key to get
-							    * pointer for */, 
-			 reiser4_block_nr *block /* resulting block number */ )
+void
+internal_down_link(const coord_t * coord /* coord of item */ ,
+		   const reiser4_key * key UNUSED_ARG	/* key to get
+							 * pointer for */ ,
+		   reiser4_block_nr * block /* resulting block number */ )
 {
-	ON_DEBUG( reiser4_key item_key );
+	ON_DEBUG(reiser4_key item_key);
 
-	assert( "nikita-609", coord != NULL );
-	assert( "nikita-611", block != NULL );
-	assert( "nikita-612", ( key == NULL ) || 
-		/* twig horrors */
-		( znode_get_level( coord -> node ) == TWIG_LEVEL ) ||
-		keyle( item_key_by_coord( coord, &item_key ), key ) );
+	assert("nikita-609", coord != NULL);
+	assert("nikita-611", block != NULL);
+	assert("nikita-612", (key == NULL) ||
+	       /* twig horrors */
+	       (znode_get_level(coord->node) == TWIG_LEVEL) ||
+	       keyle(item_key_by_coord(coord, &item_key), key));
 
-	*block = pointer_at( coord );
+	*block = pointer_at(coord);
 }
-
 
 /**
  * Get the child's block number, or 0 if the block is unallocated.
  */
-int internal_utmost_child_real_block ( const coord_t  *coord,
-				       sideof             side UNUSED_ARG,
-				       reiser4_block_nr  *block )
+int
+internal_utmost_child_real_block(const coord_t * coord,
+				 sideof side UNUSED_ARG,
+				 reiser4_block_nr * block)
 {
-	assert ("jmacd-2059", coord != NULL); 
+	assert("jmacd-2059", coord != NULL);
 
-	*block = pointer_at (coord);
+	*block = pointer_at(coord);
 
-	if (blocknr_is_fake (block)) {
+	if (blocknr_is_fake(block)) {
 		*block = 0;
 	}
 
@@ -130,22 +138,22 @@ int internal_utmost_child_real_block ( const coord_t  *coord,
 /**
  * Return the child.
  */
-int internal_utmost_child ( const coord_t  *coord,
-			    sideof             side UNUSED_ARG,
-			    jnode            **childp )
+int
+internal_utmost_child(const coord_t * coord,
+		      sideof side UNUSED_ARG, jnode ** childp)
 {
-	reiser4_block_nr block = pointer_at (coord);
+	reiser4_block_nr block = pointer_at(coord);
 	znode *child;
 
-	assert ("jmacd-2059", childp != NULL); 
+	assert("jmacd-2059", childp != NULL);
 
-	child = zlook (znode_get_tree (coord->node), & block);
+	child = zlook(znode_get_tree(coord->node), &block);
 
-	if (IS_ERR (child)) {
-		return PTR_ERR (child);
+	if (IS_ERR(child)) {
+		return PTR_ERR(child);
 	}
 
-	*childp = ZJNODE (child);
+	*childp = ZJNODE(child);
 
 	return 0;
 }
@@ -155,26 +163,28 @@ int internal_utmost_child ( const coord_t  *coord,
  * debugging aid: print human readable information about internal item at
  * @coord 
  */
-void internal_print( const char *prefix /* prefix to print */, 
-		     coord_t *coord /* coord of item to print  */ )
+void
+internal_print(const char *prefix /* prefix to print */ ,
+	       coord_t * coord /* coord of item to print  */ )
 {
 	reiser4_block_nr blk;
 
-	blk = pointer_at( coord );
-	info( "%s: internal: %s\n", prefix, sprint_address( &blk ) );
+	blk = pointer_at(coord);
+	info("%s: internal: %s\n", prefix, sprint_address(&blk));
 }
 #endif
 
 /** return true only if this item really points to "block" */
 /* Audited by: green(2002.06.14) */
-int internal_has_pointer_to( const coord_t *coord /* coord of item */, 
-			     const reiser4_block_nr *block /* block number to
-							    * check */ )
+int
+internal_has_pointer_to(const coord_t * coord /* coord of item */ ,
+			const reiser4_block_nr * block	/* block number to
+							 * check */ )
 {
-	assert( "nikita-613", coord != NULL );
-	assert( "nikita-614", block != NULL );
+	assert("nikita-613", coord != NULL);
+	assert("nikita-614", block != NULL);
 
-	return pointer_at( coord ) == *block;
+	return pointer_at(coord) == *block;
 }
 
 /**
@@ -185,45 +195,46 @@ int internal_has_pointer_to( const coord_t *coord /* coord of item */,
  * parent pointer in child znode, insert child into sibling list and slum.
  *
  */
-int internal_create_hook( const coord_t *item /* coord of item */, 
-			  void *arg /* child's left neighbor, if any */ )
+int
+internal_create_hook(const coord_t * item /* coord of item */ ,
+		     void *arg /* child's left neighbor, if any */ )
 {
-	znode            *child;
+	znode *child;
 
-	assert( "nikita-1252", item != NULL );
-	assert( "nikita-1253", item -> node != NULL );
-	assert( "nikita-1181", znode_get_level( item -> node ) > LEAF_LEVEL );
-	assert( "nikita-1450", item -> unit_pos == 0 );
+	assert("nikita-1252", item != NULL);
+	assert("nikita-1253", item->node != NULL);
+	assert("nikita-1181", znode_get_level(item->node) > LEAF_LEVEL);
+	assert("nikita-1450", item->unit_pos == 0);
 
-	child = znode_at( item, item -> node, 0 );
-	if( ! IS_ERR( child ) ) {
+	child = znode_at(item, item->node, 0);
+	if (!IS_ERR(child)) {
 		int result = 0;
 		reiser4_tree *tree;
 
-		tree = znode_get_tree( item -> node );
-		spin_lock_dk( tree );
-		spin_lock_tree( tree );
-		assert( "nikita-1400", 
-			( child -> in_parent.node == NULL ) ||
-			( znode_above_root( child -> in_parent.node ) ) );
-		atomic_inc( &item -> node -> c_count );
-		child -> in_parent = *item;
-		child -> in_parent.between = AT_UNIT;
-		sibling_list_insert_nolock( child, arg );
+		tree = znode_get_tree(item->node);
+		spin_lock_dk(tree);
+		spin_lock_tree(tree);
+		assert("nikita-1400",
+		       (child->in_parent.node == NULL) ||
+		       (znode_above_root(child->in_parent.node)));
+		atomic_inc(&item->node->c_count);
+		child->in_parent = *item;
+		child->in_parent.between = AT_UNIT;
+		sibling_list_insert_nolock(child, arg);
 
-		ZF_CLR( child, JNODE_ORPHAN );
+		ZF_CLR(child, JNODE_ORPHAN);
 
-		trace_on( TRACE_ZWEB, "create: %llx: %i [%llx]\n",
-			  *znode_get_block( item -> node ),
-			  atomic_read( &item -> node -> c_count ),
-			  *znode_get_block( child ) );
+		trace_on(TRACE_ZWEB, "create: %llx: %i [%llx]\n",
+			 *znode_get_block(item->node),
+			 atomic_read(&item->node->c_count),
+			 *znode_get_block(child));
 
-		spin_unlock_tree( tree );
-		spin_unlock_dk( tree );
-		zput( child );
+		spin_unlock_tree(tree);
+		spin_unlock_dk(tree);
+		zput(child);
 		return result;
 	} else
-		return PTR_ERR( child );
+		return PTR_ERR(child);
 }
 
 /**
@@ -243,41 +254,42 @@ int internal_create_hook( const coord_t *item /* coord of item */,
  *
  *
  */
-int internal_kill_hook( const coord_t *item /* coord of item */, 
-			unsigned from UNUSED_ARG /* start unit */, 
-			unsigned count UNUSED_ARG /* stop unit */, 
-			void *kill_params UNUSED_ARG )
+int
+internal_kill_hook(const coord_t * item /* coord of item */ ,
+		   unsigned from UNUSED_ARG /* start unit */ ,
+		   unsigned count UNUSED_ARG /* stop unit */ ,
+		   void *kill_params UNUSED_ARG)
 {
 	znode *child;
 
-	assert( "nikita-1222", item != NULL );
-	assert( "nikita-1224", from == 0 );
-	assert( "nikita-1225", count == 1 );
+	assert("nikita-1222", item != NULL);
+	assert("nikita-1224", from == 0);
+	assert("nikita-1225", count == 1);
 
-	child = znode_at( item, item -> node, 0 );
-	if( IS_ERR( child ) )
-		return PTR_ERR( child );
-	else if( node_is_empty( child ) ) {
-		assert( "nikita-1397", znode_is_write_locked( child ) );
-		assert( "nikita-1398", atomic_read( &child -> c_count ) == 0 );
-		assert( "nikita-2546", ZF_ISSET( child, JNODE_HEARD_BANSHEE ) );
-		UNDER_SPIN_VOID( tree, znode_get_tree( item -> node ),
-				 coord_init_zero( &child -> in_parent ) );
-		del_c_ref( item -> node );
-		trace_on( TRACE_ZWEB, "kill: %llx: %i [%llx]\n",
-			  *znode_get_block( item -> node ),
-			  atomic_read( &item -> node -> c_count ),
-			  *znode_get_block( child ) );
+	child = znode_at(item, item->node, 0);
+	if (IS_ERR(child))
+		return PTR_ERR(child);
+	else if (node_is_empty(child)) {
+		assert("nikita-1397", znode_is_write_locked(child));
+		assert("nikita-1398", atomic_read(&child->c_count) == 0);
+		assert("nikita-2546", ZF_ISSET(child, JNODE_HEARD_BANSHEE));
+		UNDER_SPIN_VOID(tree, znode_get_tree(item->node),
+				coord_init_zero(&child->in_parent));
+		del_c_ref(item->node);
+		trace_on(TRACE_ZWEB, "kill: %llx: %i [%llx]\n",
+			 *znode_get_block(item->node),
+			 atomic_read(&item->node->c_count),
+			 *znode_get_block(child));
 
-		zput( child );
+		zput(child);
 		return 0;
 	} else {
-  		warning( "nikita-1223",  
-  			 "Cowardly refuse to remove link to non-empty node" ); 
-  		print_znode( "parent", item -> node ); 
-  		print_znode( "child", child ); 
-  		zput( child ); 
-  		return -EIO; 
+		warning("nikita-1223",
+			"Cowardly refuse to remove link to non-empty node");
+		print_znode("parent", item->node);
+		print_znode("child", child);
+		zput(child);
+		return -EIO;
 	}
 }
 
@@ -288,48 +300,49 @@ int internal_kill_hook( const coord_t *item /* coord of item */,
  * Update parent pointer in child and c_counts in old and new parent
  *
  */
-int internal_shift_hook( const coord_t *item /* coord of item */, 
-			 unsigned from UNUSED_ARG /* start unit */, 
-			 unsigned count UNUSED_ARG /* stop unit */, 
-			 znode *old_node /* old parent */ )
+int
+internal_shift_hook(const coord_t * item /* coord of item */ ,
+		    unsigned from UNUSED_ARG /* start unit */ ,
+		    unsigned count UNUSED_ARG /* stop unit */ ,
+		    znode * old_node /* old parent */ )
 {
 	znode *child;
 	znode *new_node;
 	reiser4_tree *tree;
 
-	assert( "nikita-1276", item != NULL );
-	assert( "nikita-1277", from == 0 );
-	assert( "nikita-1278", count == 1 );
-	assert( "nikita-1451", item -> unit_pos == 0 );
+	assert("nikita-1276", item != NULL);
+	assert("nikita-1277", from == 0);
+	assert("nikita-1278", count == 1);
+	assert("nikita-1451", item->unit_pos == 0);
 
-	new_node = item -> node;
-	assert( "nikita-2132", new_node != old_node );
-	tree = znode_get_tree( item -> node );
-	child = UNDER_SPIN( dk, tree, child_znode( item, old_node, 1, 1 ) );
-	if( child == NULL )
+	new_node = item->node;
+	assert("nikita-2132", new_node != old_node);
+	tree = znode_get_tree(item->node);
+	child = UNDER_SPIN(dk, tree, child_znode(item, old_node, 1, 1));
+	if (child == NULL)
 		return 0;
-	if( !IS_ERR( child ) ) {
-		reiser4_stat_tree_add( reparenting );
-		spin_lock_tree( tree );
-		atomic_inc( &new_node -> c_count );
-		assert( "nikita-1395", znode_parent( child ) == old_node );
-		assert( "nikita-1396", atomic_read( &old_node -> c_count ) > 0 );
-		child -> in_parent = *item;
-		assert( "nikita-1781", znode_parent( child ) == new_node );
-		assert( "nikita-1782", check_tree_pointer( item, 
-							   child ) == NS_FOUND );
-		del_c_ref( old_node );
-		spin_unlock_tree( tree );
-		zput( child );
-		trace_on( TRACE_ZWEB, "shift: %llx: %i -> %lli: %i [%llx]\n",
-			  *znode_get_block( old_node ), 
-			  atomic_read( &old_node -> c_count ),
-			  *znode_get_block( new_node ), 
-			  atomic_read( &new_node -> c_count ),
-			  *znode_get_block( child ) );
+	if (!IS_ERR(child)) {
+		reiser4_stat_tree_add(reparenting);
+		spin_lock_tree(tree);
+		atomic_inc(&new_node->c_count);
+		assert("nikita-1395", znode_parent(child) == old_node);
+		assert("nikita-1396", atomic_read(&old_node->c_count) > 0);
+		child->in_parent = *item;
+		assert("nikita-1781", znode_parent(child) == new_node);
+		assert("nikita-1782", check_tree_pointer(item,
+							 child) == NS_FOUND);
+		del_c_ref(old_node);
+		spin_unlock_tree(tree);
+		zput(child);
+		trace_on(TRACE_ZWEB, "shift: %llx: %i -> %lli: %i [%llx]\n",
+			 *znode_get_block(old_node),
+			 atomic_read(&old_node->c_count),
+			 *znode_get_block(new_node),
+			 atomic_read(&new_node->c_count),
+			 *znode_get_block(child));
 		return 0;
 	} else
-		return PTR_ERR( child );
+		return PTR_ERR(child);
 }
 
 /* plugin->u.item.b.max_key_inside - not defined
@@ -337,7 +350,6 @@ int internal_shift_hook( const coord_t *item /* coord of item */,
 
 /* plugin->u.item.b.nr_units - item.c:single_unit
  */
-
 
 /* 
  * Make Linus happy.

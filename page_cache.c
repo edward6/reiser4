@@ -188,12 +188,12 @@
 
 #include <linux/types.h>
 #include <linux/fs.h>
-#include <linux/mm.h> /* for struct page */
+#include <linux/mm.h>		/* for struct page */
 #include <linux/pagemap.h>
 #include <linux/bio.h>
 #include <linux/writeback.h>
 
-static struct bio *page_bio( struct page *page, jnode *node, int rw, int gfp );
+static struct bio *page_bio(struct page *page, jnode * node, int rw, int gfp);
 
 static struct address_space_operations formatted_fake_as_ops;
 
@@ -202,7 +202,8 @@ static const oid_t fake_ino = 0x1;
 /**
  * one-time initialisation of fake inodes handling functions.
  */
-int init_fakes()
+int
+init_fakes()
 {
 	return 0;
 }
@@ -210,38 +211,40 @@ int init_fakes()
 /**
  * initialise fake inode to which formatted nodes are bound in the page cache.
  */
-int init_formatted_fake( struct super_block *super )
+int
+init_formatted_fake(struct super_block *super)
 {
 	struct inode *fake;
 
-	assert( "nikita-1703", super != NULL );
+	assert("nikita-1703", super != NULL);
 
-	fake = iget_locked( super, oid_to_ino( fake_ino ) );
+	fake = iget_locked(super, oid_to_ino(fake_ino));
 
-	if( fake ) {
-		assert( "nikita-2168", fake -> i_state & I_NEW );
-		fake -> i_mapping -> a_ops = &formatted_fake_as_ops;
-		fake -> i_blkbits = super -> s_blocksize_bits;
-		fake -> i_size    = ~0ull;
-		fake -> i_rdev    = to_kdev_t( super -> s_bdev -> bd_dev );
-		fake -> i_bdev    = super -> s_bdev;
-		get_super_private( super ) -> fake = fake;
+	if (fake) {
+		assert("nikita-2168", fake->i_state & I_NEW);
+		fake->i_mapping->a_ops = &formatted_fake_as_ops;
+		fake->i_blkbits = super->s_blocksize_bits;
+		fake->i_size = ~0ull;
+		fake->i_rdev = to_kdev_t(super->s_bdev->bd_dev);
+		fake->i_bdev = super->s_bdev;
+		get_super_private(super)->fake = fake;
 		/*
 		 * FIXME-NIKITA something else?
 		 */
-		unlock_new_inode( fake );
+		unlock_new_inode(fake);
 		return 0;
 	} else
 		return -ENOMEM;
 }
 
 /** release fake inode for @super */
-int done_formatted_fake( struct super_block *super )
+int
+done_formatted_fake(struct super_block *super)
 {
 	struct inode *fake;
 
-	fake = get_super_private_nocheck( super ) -> fake;
-	iput( fake );
+	fake = get_super_private_nocheck(super)->fake;
+	iput(fake);
 	return 0;
 }
 
@@ -250,7 +253,8 @@ int done_formatted_fake( struct super_block *super )
  * check amount of available for allocation memory, and kick ktxnmgrd is it
  * is low. NEITHER FINISHED NOR USED.
  */
-void reiser4_check_mem( reiser4_context *ctx )
+void
+reiser4_check_mem(reiser4_context * ctx)
 {
 	reiser4_super_info_data *info;
 
@@ -258,36 +262,36 @@ void reiser4_check_mem( reiser4_context *ctx )
 	unsigned int free;
 	unsigned int ratio;
 
-	if( ctx == NULL || ctx -> super == NULL )
+	if (ctx == NULL || ctx->super == NULL)
 		return;
 
-	info = get_super_private( ctx -> super );
-	if( info == NULL )
+	info = get_super_private(ctx->super);
+	if (info == NULL)
 		return;
 
 	total = nr_free_pagecache_pages();
-	free  = nr_free_pages();
+	free = nr_free_pages();
 
 	/*
 	 * we don't care about overflows here, because this is only hint
 	 * anyway.
 	 */
 	ratio = free * 100 / total;
-	if( ratio <= info -> txnmgr.low_memory ) {
+	if (ratio <= info->txnmgr.low_memory) {
 		ktxnmgrd_context *daemon;
 
-		daemon = info -> tmgr.daemon;
-		if( daemon != NULL ) {
+		daemon = info->tmgr.daemon;
+		if (daemon != NULL) {
 			int kick_it;
 
 			/* 
 			 * we are first to note low free memory. Wake up
 			 * ktxnmgrd 
 			 */
-			kick_it = !atomic_read( &daemon -> pressure );
-			atomic_inc( &daemon -> pressure );
-			if( kick_it )
-				ktxnmgrd_kick( daemon, LOW_MEMORY );
+			kick_it = !atomic_read(&daemon->pressure);
+			atomic_inc(&daemon->pressure);
+			if (kick_it)
+				ktxnmgrd_kick(daemon, LOW_MEMORY);
 		}
 	}
 }
@@ -298,25 +302,28 @@ void reiser4_check_mem( reiser4_context *ctx )
  * helper function to find-and-lock page in a page cache and do additional
  * checks 
  */
-void reiser4_lock_page( struct page *page )
+void
+reiser4_lock_page(struct page *page)
 {
-	assert( "nikita-2408", page != NULL );
-	ON_DEBUG_CONTEXT( assert( "nikita-2409", 
-				  lock_counters() -> spin_locked == 0 ) );
-	lock_page( page );
+	assert("nikita-2408", page != NULL);
+	ON_DEBUG_CONTEXT(assert("nikita-2409",
+				lock_counters()->spin_locked == 0));
+	lock_page(page);
 }
 
-void reiser4_unlock_page( struct page *page )
+void
+reiser4_unlock_page(struct page *page)
 {
-	assert( "nikita-2700", page -> owner != NULL );
-	unlock_page( page );
+	assert("nikita-2700", page->owner != NULL);
+	unlock_page(page);
 }
 
 /** return tree @page is in */
-reiser4_tree *tree_by_page( const struct page *page /* page to query */ )
+reiser4_tree *
+tree_by_page(const struct page *page /* page to query */ )
 {
-	assert( "nikita-2461", page != NULL );
-	return &get_super_private( page -> mapping -> host -> i_sb ) -> tree;
+	assert("nikita-2461", page != NULL);
+	return &get_super_private(page->mapping->host->i_sb)->tree;
 }
 
 #if REISER4_DEBUG_MEMCPY
@@ -327,51 +334,56 @@ reiser4_tree *tree_by_page( const struct page *page /* page to query */ )
  */
 
 struct mem_ops_table {
-	void * ( *cpy ) ( void *dest, const void *src, size_t n );
-	void * ( *move )( void *dest, const void *src, size_t n );
-	void * ( *set ) ( void *s, int c, size_t n );
+	void *(*cpy) (void *dest, const void *src, size_t n);
+	void *(*move) (void *dest, const void *src, size_t n);
+	void *(*set) (void *s, int c, size_t n);
 };
 
-void *xxmemcpy( void *dest, const void *src, size_t n )
+void *
+xxmemcpy(void *dest, const void *src, size_t n)
 {
-	return memcpy( dest, src, n );
+	return memcpy(dest, src, n);
 }
 
-void *xxmemmove( void *dest, const void *src, size_t n )
+void *
+xxmemmove(void *dest, const void *src, size_t n)
 {
-	return memmove( dest, src, n );
+	return memmove(dest, src, n);
 }
 
-void *xxmemset( void *s, int c, size_t n )
+void *
+xxmemset(void *s, int c, size_t n)
 {
-	return memset( s, c, n );
+	return memset(s, c, n);
 }
 
 struct mem_ops_table std_mem_ops = {
-	.cpy  = xxmemcpy,
+	.cpy = xxmemcpy,
 	.move = xxmemmove,
-	.set  = xxmemset
+	.set = xxmemset
 };
 
 struct mem_ops_table *mem_ops = &std_mem_ops;
 
-void *xmemcpy( void *dest, const void *src, size_t n )
+void *
+xmemcpy(void *dest, const void *src, size_t n)
 {
-	return mem_ops -> cpy( dest, src, n );
+	return mem_ops->cpy(dest, src, n);
 }
 
-void *xmemmove( void *dest, const void *src, size_t n )
+void *
+xmemmove(void *dest, const void *src, size_t n)
 {
-	return mem_ops -> move( dest, src, n );
+	return mem_ops->move(dest, src, n);
 }
 
-void *xmemset( void *s, int c, size_t n )
+void *
+xmemset(void *s, int c, size_t n)
 {
-	return mem_ops -> set( s, c, n );
+	return mem_ops->set(s, c, n);
 }
 
 #endif
-
 
 /** 
  * completion handler for single page bio-based read. 
@@ -379,25 +391,25 @@ void *xmemset( void *s, int c, size_t n )
  * mpage_end_io_read() would also do. But it's static.
  *
  */
-static int end_bio_single_page_read( struct bio *bio, 
-				     unsigned int bytes_done UNUSED_ARG, 
-				     int err UNUSED_ARG)
+static int
+end_bio_single_page_read(struct bio *bio,
+			 unsigned int bytes_done UNUSED_ARG, int err UNUSED_ARG)
 {
 	struct page *page;
 
-	if( bio -> bi_size != 0 )
+	if (bio->bi_size != 0)
 		return 1;
 
-	page = bio -> bi_io_vec[ 0 ].bv_page;
+	page = bio->bi_io_vec[0].bv_page;
 
-	if( test_bit( BIO_UPTODATE, &bio -> bi_flags ) )
-		SetPageUptodate( page );
+	if (test_bit(BIO_UPTODATE, &bio->bi_flags))
+		SetPageUptodate(page);
 	else {
-		ClearPageUptodate( page );
-		SetPageError( page );
+		ClearPageUptodate(page);
+		SetPageError(page);
 	}
-	reiser4_unlock_page( page );
-	bio_put( bio );
+	reiser4_unlock_page(page);
+	bio_put(bio);
 	return 0;
 }
 
@@ -407,87 +419,91 @@ static int end_bio_single_page_read( struct bio *bio,
  * mpage_end_io_write() would also do. But it's static.
  *
  */
-static int end_bio_single_page_write( struct bio *bio, 
-				      unsigned int bytes_done UNUSED_ARG, 
-				      int err UNUSED_ARG)
+static int
+end_bio_single_page_write(struct bio *bio,
+			  unsigned int bytes_done UNUSED_ARG,
+			  int err UNUSED_ARG)
 {
 	struct page *page;
 
-	if( bio -> bi_size != 0 )
+	if (bio->bi_size != 0)
 		return 1;
 
-	page = bio -> bi_io_vec[ 0 ].bv_page;
+	page = bio->bi_io_vec[0].bv_page;
 
-	if( !test_bit( BIO_UPTODATE, &bio -> bi_flags ) )
-		SetPageError( page );
-	end_page_writeback( page );
-	bio_put( bio );
+	if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
+		SetPageError(page);
+	end_page_writeback(page);
+	bio_put(bio);
 	return 0;
 }
 
 /** ->readpage() method for formatted nodes */
-static int formatted_readpage( struct file *f UNUSED_ARG,
-			       struct page *page /* page to read */ )
+static int
+formatted_readpage(struct file *f UNUSED_ARG,
+		   struct page *page /* page to read */ )
 {
-	assert( "nikita-2412", PagePrivate( page ) && jprivate( page ) );
-	return page_io( page, jprivate( page ), READ, GFP_KERNEL );
+	assert("nikita-2412", PagePrivate(page) && jprivate(page));
+	return page_io(page, jprivate(page), READ, GFP_KERNEL);
 }
 
 /** ->writepage() method for formatted nodes */
-static int formatted_writepage( struct page *page /* page to write */ )
+static int
+formatted_writepage(struct page *page /* page to write */ )
 {
 	struct writeback_control wbc;
-	int                      result;
+	int result;
 
-	assert( "nikita-2632", PagePrivate( page ) && jprivate( page ) );
+	assert("nikita-2632", PagePrivate(page) && jprivate(page));
 
-	xmemset( &wbc, 0, sizeof wbc );
+	xmemset(&wbc, 0, sizeof wbc);
 	wbc.nr_to_write = 1;
 
 	/* The mpage_writepages() calls reiser4_writepage with a locked, but
 	 * clean page. An extra reference should protect this page from
 	 * removing from memory */
-	page_cache_get( page );
-	result = page_common_writeback( page, &wbc, 
-					JNODE_FLUSH_MEMORY_FORMATTED );
-	page_cache_release (page);
+	page_cache_get(page);
+	result = page_common_writeback(page, &wbc,
+				       JNODE_FLUSH_MEMORY_FORMATTED);
+	page_cache_release(page);
 	return result;
 }
 
 /** submit single-page bio request */
-int page_io( struct page *page /* page to perform io for */, 
-	     jnode *node /* jnode of page */,
-	     int rw /* read or write */, int gfp /* GFP mask */ )
+int
+page_io(struct page *page /* page to perform io for */ ,
+	jnode * node /* jnode of page */ ,
+	int rw /* read or write */ , int gfp /* GFP mask */ )
 {
 	struct bio *bio;
-	int         result;
+	int result;
 
-	assert( "nikita-2094", page != NULL );
-	assert( "nikita-2226", PageLocked( page ) );
-	assert( "nikita-2634", node != NULL );
+	assert("nikita-2094", page != NULL);
+	assert("nikita-2226", PageLocked(page));
+	assert("nikita-2634", node != NULL);
 
-	jnode_ops( node ) -> io_hook( node, page, rw );
+	jnode_ops(node)->io_hook(node, page, rw);
 
-	bio = page_bio( page, node, rw, gfp );
-	if( !IS_ERR( bio ) ) {
-		if( rw == WRITE ) {
-			SetPageWriteback( page );
+	bio = page_bio(page, node, rw, gfp);
+	if (!IS_ERR(bio)) {
+		if (rw == WRITE) {
+			SetPageWriteback(page);
 			reiser4_unlock_page(page);
 		}
-		submit_bio( rw, bio );
+		submit_bio(rw, bio);
 		result = 0;
 	} else
-		result = PTR_ERR( bio );
+		result = PTR_ERR(bio);
 	return result;
 }
 
-
 /** helper function to construct bio for page */
-static struct bio *page_bio( struct page *page, jnode *node, int rw, int gfp )
+static struct bio *
+page_bio(struct page *page, jnode * node, int rw, int gfp)
 {
 	struct bio *bio;
-	assert( "nikita-2092", page != NULL );
-	assert( "nikita-2633", node != NULL );
+	assert("nikita-2092", page != NULL);
+	assert("nikita-2633", node != NULL);
 
 	/*
 	 * Simple implemenation in the assumption that blocksize == pagesize.
@@ -505,57 +521,57 @@ static struct bio *page_bio( struct page *page, jnode *node, int rw, int gfp )
 	 *
 	 */
 
-	bio = bio_alloc( gfp, 1 );
-	if( bio != NULL ) {
-		int                 blksz;
+	bio = bio_alloc(gfp, 1);
+	if (bio != NULL) {
+		int blksz;
 		struct super_block *super;
-		reiser4_block_nr    blocknr;
+		reiser4_block_nr blocknr;
 
-		super = page -> mapping -> host -> i_sb;
-		assert( "nikita-2029", super != NULL );
-		blksz = super -> s_blocksize;
-		assert( "nikita-2028", blksz == ( int ) PAGE_CACHE_SIZE );
+		super = page->mapping->host->i_sb;
+		assert("nikita-2029", super != NULL);
+		blksz = super->s_blocksize;
+		assert("nikita-2028", blksz == (int) PAGE_CACHE_SIZE);
 
-		blocknr = *jnode_get_block( node );
-		assert( "nikita-2275", blocknr != ( reiser4_block_nr ) 0 );
-		assert( "nikita-2276", !blocknr_is_fake( &blocknr ) );
+		blocknr = *jnode_get_block(node);
+		assert("nikita-2275", blocknr != (reiser4_block_nr) 0);
+		assert("nikita-2276", !blocknr_is_fake(&blocknr));
 
-		bio -> bi_sector = blocknr * ( blksz >> 9 );
-		bio -> bi_bdev   = super -> s_bdev;
-		bio -> bi_io_vec[ 0 ].bv_page   = page;
-		bio -> bi_io_vec[ 0 ].bv_len    = blksz;
-		bio -> bi_io_vec[ 0 ].bv_offset = 0;
+		bio->bi_sector = blocknr * (blksz >> 9);
+		bio->bi_bdev = super->s_bdev;
+		bio->bi_io_vec[0].bv_page = page;
+		bio->bi_io_vec[0].bv_len = blksz;
+		bio->bi_io_vec[0].bv_offset = 0;
 
-		bio -> bi_vcnt = 1;
+		bio->bi_vcnt = 1;
 		/* bio -> bi_idx is filled by bio_init() */
-		bio -> bi_size = blksz;
+		bio->bi_size = blksz;
 
-		bio -> bi_end_io = ( rw == READ ) ? 
-			end_bio_single_page_read : end_bio_single_page_write;
+		bio->bi_end_io = (rw == READ) ?
+		    end_bio_single_page_read : end_bio_single_page_write;
 
 		return bio;
 	} else
-		return ERR_PTR( -ENOMEM );
+		return ERR_PTR(-ENOMEM);
 }
 
 /**
  * ->vm_writeback() callback for formatted page. Called from shrink_cache()
  * (or however it will be called by the time you read this).
  */
-static int formatted_vm_writeback( struct page *page /* page to start
-						      * writeback from */,
-				   struct writeback_control *wbc /* writeback
-								  * control
-								  * information
-								  * passed by
-								  * VM */ )
+static int
+formatted_vm_writeback(struct page *page	/* page to start
+						 * writeback from */ ,
+		       struct writeback_control *wbc	/* writeback
+							 * control
+							 * information
+							 * passed by
+							 * VM */ )
 {
 	int result;
 
-	page_cache_get( page );
-	result = page_common_writeback( page, wbc, 
-					JNODE_FLUSH_MEMORY_FORMATTED );
-	page_cache_release (page);
+	page_cache_get(page);
+	result = page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_FORMATTED);
+	page_cache_release(page);
 	return result;
 }
 
@@ -576,68 +592,68 @@ static int formatted_vm_writeback( struct page *page /* page to start
  * is not much sense in elaborating it now when VM is in such a flux.
  *
  */
-int page_common_writeback( struct page *page /* page to start writeback from */,
-			   struct writeback_control *wbc /* writeback control
-							  * information passed
-							  * by VM */, 
-			   int flush_flags /* Additional hint. Seems to be
-					    * unused currently. */ )
+int
+page_common_writeback(struct page *page /* page to start writeback from */ ,
+		      struct writeback_control *wbc	/* writeback control
+							 * information passed
+							 * by VM */ ,
+		      int flush_flags	/* Additional hint. Seems to be
+					 * unused currently. */ )
 {
 	jnode *node;
 	int flush_some;
-	struct super_block *s = page -> mapping -> host -> i_sb;
+	struct super_block *s = page->mapping->host->i_sb;
 
-	REISER4_ENTRY (s);
+	REISER4_ENTRY(s);
 
-	assert( "vs-828", PageLocked( page ) );
+	assert("vs-828", PageLocked(page));
 
-	node = jfind( page );
-	assert( "nikita-2419", node != NULL );
+	node = jfind(page);
+	assert("nikita-2419", node != NULL);
 
-	reiser4_unlock_page( page );
+	reiser4_unlock_page(page);
 
 	/* An attempt to balance queued and dirty nodes on a reiser4 fs is done by the following: vm writeback points us
 	 * to some arbitrary dirty node.  We analyze "queued" status of the node to determine should we ask ktxnmgrd to
 	 * prepare some nodes by calling jnode_flush().  If the node is not "queued" we do that. This job is done
 	 * asynchronously by ktxnmgrd. Our current thread just write required number of nodes from flush queues. If
 	 * there are no prepared nodes, we say VM that we can write nothing to disk.*/
-	flush_some = !JF_ISSET (node, JNODE_FLUSH_QUEUED);
+	flush_some = !JF_ISSET(node, JNODE_FLUSH_QUEUED);
 
-	fq_writeback (s, node, wbc);
+	fq_writeback(s, node, wbc);
 
 	if (flush_some) {
-		ktxnmgr_writeback (s, wbc);
+		ktxnmgr_writeback(s, wbc);
 	}
 
-	jput (node);
-	REISER4_EXIT (0);
+	jput(node);
+	REISER4_EXIT(0);
 }
 
 /** ->set_page_dirty() method of formatted address_space */
-static int formatted_set_page_dirty( struct page *page /* page to mark
-							* dirty */ )
+static int
+formatted_set_page_dirty(struct page *page	/* page to mark
+						 * dirty */ )
 {
-	assert( "nikita-2173", page != NULL );
-	return __set_page_dirty_nobuffers( page );
+	assert("nikita-2173", page != NULL);
+	return __set_page_dirty_nobuffers(page);
 }
 
 /** place holders for methods that don't make sense for the fake inode */
 
-define_never_ever_op( readpages )
-define_never_ever_op( prepare_write )
-define_never_ever_op( commit_write )
-define_never_ever_op( bmap )
-define_never_ever_op( direct_IO )
-
+define_never_ever_op(readpages)
+    define_never_ever_op(prepare_write)
+    define_never_ever_op(commit_write)
+    define_never_ever_op(bmap)
+    define_never_ever_op(direct_IO)
 #define V( func ) ( ( void * ) ( func ) )
-
 /**
  * address space operations for the fake inode
  */
 static struct address_space_operations formatted_fake_as_ops = {
-	.writepage      = formatted_writepage,
+	.writepage = formatted_writepage,
 	/* this is called to read formatted node */
-	.readpage       = formatted_readpage,
+	.readpage = formatted_readpage,
 	/**
 	 * ->sync_page() method of fake inode address space operations. Called
 	 * from wait_on_page() and lock_page().
@@ -646,19 +662,19 @@ static struct address_space_operations formatted_fake_as_ops = {
 	 * from wait_on_page_bit() and lock_page() and its purpose is to
 	 * actually start io by jabbing device drivers.
 	 */
-	.sync_page      = block_sync_page,
+	.sync_page = block_sync_page,
 	/* Write back some dirty pages from this mapping. Called from sync.
 	   called during sync (pdflush) */
-	.writepages     = reiser4_writepages,
+	.writepages = reiser4_writepages,
 	/* Perform a writeback as a memory-freeing operation. */
-	.vm_writeback   = formatted_vm_writeback,
+	.vm_writeback = formatted_vm_writeback,
 	/* Set a page dirty */
 	.set_page_dirty = formatted_set_page_dirty,
 	/* used for read-ahead. Not applicable */
-	.readpages      = V( never_ever_readpages ),
-	.prepare_write  = V( never_ever_prepare_write ),
-	.commit_write   = V( never_ever_commit_write ),
-	.bmap           = V( never_ever_bmap ),
+	.readpages = V(never_ever_readpages),
+	.prepare_write = V(never_ever_prepare_write),
+	.commit_write = V(never_ever_commit_write),
+	.bmap = V(never_ever_bmap),
 	/* called just before page is being detached from inode mapping and
 	 * removed from memory. Called on truncate, cut/squeeze, and
 	 * umount. */
@@ -668,70 +684,67 @@ static struct address_space_operations formatted_fake_as_ops = {
 	 * release objects (jnodes, buffers, journal heads) attached to page
 	 * and, may be made page itself free-able.
 	 */
-	.releasepage    = reiser4_releasepage,
-	.direct_IO      = V( never_ever_direct_IO )
+	.releasepage = reiser4_releasepage,
+	.direct_IO = V(never_ever_direct_IO)
 };
 
 /**
  * called just before page is released (no longer used by reiser4). Callers:
  * jdelete() and extent2tail().
  */
-void drop_page( struct page *page, jnode *node )
+void
+drop_page(struct page *page, jnode * node)
 {
-	assert( "nikita-2181", PageLocked( page ) );
-	clear_page_dirty( page );
-	ClearPageUptodate( page );
-	remove_from_page_cache( page );
+	assert("nikita-2181", PageLocked(page));
+	clear_page_dirty(page);
+	ClearPageUptodate(page);
+	remove_from_page_cache(page);
 
-	if( node != NULL )
-		page_clear_jnode( page, node );
-	reiser4_unlock_page( page );
+	if (node != NULL)
+		page_clear_jnode(page, node);
+	reiser4_unlock_page(page);
 	/*
 	 * page removed from the mapping---decrement page counter
 	 */
-	page_cache_release( page );
+	page_cache_release(page);
 }
-
 
 #if REISER4_DEBUG_OUTPUT
 
 #define page_flag_name( page, flag )			\
 	( test_bit( ( flag ), &( page ) -> flags ) ? ((#flag "|")+3) : "" )
 
-void print_page( const char *prefix, struct page *page )
+void
+print_page(const char *prefix, struct page *page)
 {
-	if( page == NULL ) {
-		info( "null page\n" );
+	if (page == NULL) {
+		info("null page\n");
 		return;
 	}
-	info( "%s: page index: %lu mapping: %p count: %i private: %lx\n",
-	      prefix, page -> index, page -> mapping, 
-	      atomic_read( &page -> count ), page -> private );
-	info( "\tflags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s\n",
-	      page_flag_name( page,  PG_locked ),
-	      page_flag_name( page,  PG_error ),
-	      page_flag_name( page,  PG_referenced ),
-	      page_flag_name( page,  PG_uptodate ),
-
-	      page_flag_name( page,  PG_dirty ),
-	      page_flag_name( page,  PG_lru ),
-	      page_flag_name( page,  PG_active ),
-	      page_flag_name( page,  PG_slab ),
-
-	      page_flag_name( page,  PG_highmem ),
-	      page_flag_name( page,  PG_checked ),
-	      page_flag_name( page,  PG_arch_1 ),
-	      page_flag_name( page,  PG_reserved ),
-
-	      page_flag_name( page,  PG_private ),
-	      page_flag_name( page,  PG_writeback ),
-	      page_flag_name( page,  PG_nosave ) );
-	if( jprivate( page ) != NULL ) {
-		info_znode( "\tpage jnode", ( znode * ) jprivate( page ) );
-		info( "\n" );
+	info("%s: page index: %lu mapping: %p count: %i private: %lx\n",
+	     prefix, page->index, page->mapping,
+	     atomic_read(&page->count), page->private);
+	info("\tflags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s\n",
+	     page_flag_name(page, PG_locked),
+	     page_flag_name(page, PG_error),
+	     page_flag_name(page, PG_referenced),
+	     page_flag_name(page, PG_uptodate),
+	     page_flag_name(page, PG_dirty),
+	     page_flag_name(page, PG_lru),
+	     page_flag_name(page, PG_active),
+	     page_flag_name(page, PG_slab),
+	     page_flag_name(page, PG_highmem),
+	     page_flag_name(page, PG_checked),
+	     page_flag_name(page, PG_arch_1),
+	     page_flag_name(page, PG_reserved),
+	     page_flag_name(page, PG_private),
+	     page_flag_name(page, PG_writeback),
+	     page_flag_name(page, PG_nosave));
+	if (jprivate(page) != NULL) {
+		info_znode("\tpage jnode", (znode *) jprivate(page));
+		info("\n");
 	}
 }
-
 
 #endif
 

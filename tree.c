@@ -106,7 +106,7 @@ design needs to be justified in a seminar on Monday.
 #include "super.h"
 #include "reiser4.h"
 
-#include <linux/fs.h> /* for struct super_block  */
+#include <linux/fs.h>		/* for struct super_block  */
 #include <linux/spinlock.h>
 #include <linux/writeback.h>
 
@@ -125,52 +125,52 @@ const reiser4_block_nr FAKE_TREE_ADDR = 0ull;
 /* This list and the two fields that follow maintain the currently active
  * contexts, used for debugging purposes.  */
 
-spinlock_t        active_contexts_lock;
+spinlock_t active_contexts_lock;
 context_list_head active_contexts;
 #endif
 
 /* Audited by: umka (2002.06.16) */
-node_plugin *node_plugin_by_coord ( const coord_t *coord )
+node_plugin *
+node_plugin_by_coord(const coord_t * coord)
 {
-	assert( "vs-1", coord != NULL );
-	assert( "vs-2", coord -> node != NULL );
+	assert("vs-1", coord != NULL);
+	assert("vs-2", coord->node != NULL);
 
-	return coord -> node -> nplug;
+	return coord->node->nplug;
 }
-
-
 
 /** insert item into tree. Fields of "coord" are updated so
     that they can be used by consequent insert operation. */
 /* Audited by: umka (2002.06.16) */
-insert_result insert_by_key( reiser4_tree *tree /* tree to insert new item
-						 * into */,
-			     const reiser4_key *key /* key of new item */,
-			     reiser4_item_data *data UNUSED_ARG /* parameters
-								 * for item
-								 * creation */,
-			     coord_t *coord /* resulting insertion coord */,
-			     lock_handle * lh /* resulting lock
-						       * handle */,
-			     tree_level stop_level /** level where to insert */,
-			     inter_syscall_rap *ra UNUSED_ARG /* repetitive
-								   * access
-								   * hint */,
-			     intra_syscall_rap ira UNUSED_ARG /* repetitive
-								   * access
-								   * hint */, 
-			     __u32 flags /* insertion flags */ )
+insert_result
+insert_by_key(reiser4_tree * tree	/* tree to insert new item
+					 * into */ ,
+	      const reiser4_key * key /* key of new item */ ,
+	      reiser4_item_data * data UNUSED_ARG	/* parameters
+							 * for item
+							 * creation */ ,
+	      coord_t * coord /* resulting insertion coord */ ,
+	      lock_handle * lh	/* resulting lock
+				   * handle */ ,
+	      tree_level stop_level /** level where to insert */ ,
+	      inter_syscall_rap * ra UNUSED_ARG	/* repetitive
+						   * access
+						   * hint */ ,
+	      intra_syscall_rap ira UNUSED_ARG	/* repetitive
+						   * access
+						   * hint */ ,
+	      __u32 flags /* insertion flags */ )
 {
 	int result;
 
-	assert( "nikita-358", tree != NULL );
-	assert( "nikita-360", coord != NULL );
-	assert( "nikita-361", ra != NULL );
+	assert("nikita-358", tree != NULL);
+	assert("nikita-360", coord != NULL);
+	assert("nikita-361", ra != NULL);
 
-	result = coord_by_key( tree, key, coord, lh, ZNODE_WRITE_LOCK, 
-			       FIND_EXACT, stop_level, stop_level, 
-			       flags | CBK_FOR_INSERT );
-	switch( result ) {
+	result = coord_by_key(tree, key, coord, lh, ZNODE_WRITE_LOCK,
+			      FIND_EXACT, stop_level, stop_level,
+			      flags | CBK_FOR_INSERT);
+	switch (result) {
 	default:
 		break;
 	case CBK_COORD_FOUND:
@@ -183,75 +183,75 @@ insert_result insert_by_key( reiser4_tree *tree /* tree to insert new item
 		result = IBK_OOM;
 		break;
 	case CBK_COORD_NOTFOUND:
-		assert( "nikita-2017", coord -> node != NULL );
-		result = insert_by_coord( coord, 
-					  data, key, lh, ra, ira, 0/*flags*/ );
+		assert("nikita-2017", coord->node != NULL);
+		result = insert_by_coord(coord,
+					 data, key, lh, ra, ira, 0 /*flags */ );
 		break;
 	}
 	return result;
 }
-
 
 /** 
  * insert item by calling carry. Helper function called if short-cut
  * insertion failed 
  */
 /* Audited by: umka (2002.06.16) */
-static insert_result insert_with_carry_by_coord( coord_t  *coord /* coord
-								     * where
-								     * to
-								     * insert */,
-						 lock_handle *lh /* lock
-									  * handle
-									  * of
-									  * insertion
-									  * node */,
-						 reiser4_item_data *data /* parameters
-									  * of
-									  * new
-									  * item */, 
-						 const reiser4_key *key /* key
-									 * of
-									 * new
-									 * item */,
-						 carry_opcode cop /* carry
-								   * operation
-								   * to
-								   * perform */,
-						 cop_insert_flag flags /* carry
-									* flags */ )
+static insert_result
+insert_with_carry_by_coord(coord_t * coord	/* coord
+						   * where
+						   * to
+						   * insert */ ,
+			   lock_handle * lh	/* lock
+						   * handle
+						   * of
+						   * insertion
+						   * node */ ,
+			   reiser4_item_data * data	/* parameters
+							 * of
+							 * new
+							 * item */ ,
+			   const reiser4_key * key	/* key
+							 * of
+							 * new
+							 * item */ ,
+			   carry_opcode cop	/* carry
+						 * operation
+						 * to
+						 * perform */ ,
+			   cop_insert_flag flags	/* carry
+							 * flags */ )
 {
 	int result;
-	carry_pool  pool;
+	carry_pool pool;
 	carry_level lowest_level;
-	carry_op * op;
+	carry_op *op;
 	carry_insert_data cdata;
 
 	assert("umka-314", coord != NULL);
 
-	init_carry_pool( &pool );
-	init_carry_level( &lowest_level, &pool );
+	init_carry_pool(&pool);
+	init_carry_level(&lowest_level, &pool);
 
-	op = post_carry( &lowest_level, cop, coord->node, 0 );
-	if( IS_ERR( op ) || ( op == NULL ) )
-		return op ? PTR_ERR (op) : -EIO;
+	op = post_carry(&lowest_level, cop, coord->node, 0);
+	if (IS_ERR(op) || (op == NULL))
+		return op ? PTR_ERR(op) : -EIO;
 	cdata.coord = coord;
-	cdata.data  = data;
-	cdata.key   = key;
-	op -> u.insert.d = &cdata;
-	if( flags == 0 )
-		flags = znode_get_tree( coord -> node ) -> carry.insert_flags;
-	op -> u.insert.flags = flags;
-	op -> u.insert.type = COPT_ITEM_DATA;
-	op -> u.insert.child = 0;
-	if( lh != NULL ) {
-		op -> node -> track = 1;
-		op -> node -> tracked = lh;
-	}	
+	cdata.data = data;
+	cdata.key = key;
+	op->u.insert.d = &cdata;
+	if (flags == 0)
+		flags = znode_get_tree(coord->node)->carry.insert_flags;
+	op->u.insert.flags = flags;
+	op->u.insert.type = COPT_ITEM_DATA;
+	op->u.insert.child = 0;
+	if (lh != NULL) {
+		op->node->track = 1;
+		op->node->tracked = lh;
+	}
 
-	ON_STATS( lowest_level.level_no = znode_get_level( coord -> node ) );
-	result = carry( &lowest_level, 0 );
-	done_carry_pool( &pool );
+	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
+	result = carry(&lowest_level, 0);
+	done_carry_pool(&pool);
 
 	return result;
 }
@@ -265,46 +265,47 @@ static insert_result insert_with_carry_by_coord( coord_t  *coord /* coord
  *
  */
 /* Audited by: umka (2002.06.16) */
-static int paste_with_carry( coord_t *coord /* coord of paste */, 
-			     lock_handle *lh /* lock handle of node
-						      * where item is
-						      * pasted */,
-			     reiser4_item_data *data /* parameters of new
-						      * item */,
-			     const reiser4_key *key /* key of new item */,
-			     unsigned flags /* paste flags */ )
+static int
+paste_with_carry(coord_t * coord /* coord of paste */ ,
+		 lock_handle * lh	/* lock handle of node
+					   * where item is
+					   * pasted */ ,
+		 reiser4_item_data * data	/* parameters of new
+						 * item */ ,
+		 const reiser4_key * key /* key of new item */ ,
+		 unsigned flags /* paste flags */ )
 {
 	int result;
-	carry_pool  pool;
+	carry_pool pool;
 	carry_level lowest_level;
-	carry_op * op;
+	carry_op *op;
 	carry_insert_data cdata;
 
 	assert("umka-315", coord != NULL);
 	assert("umka-316", key != NULL);
 
-	init_carry_pool( &pool );
-	init_carry_level( &lowest_level, &pool );
+	init_carry_pool(&pool);
+	init_carry_level(&lowest_level, &pool);
 
-	op = post_carry( &lowest_level, COP_PASTE, coord -> node, 0 );
-	if( IS_ERR( op ) || ( op == NULL ) )
-		return op ? PTR_ERR (op) : -EIO;
+	op = post_carry(&lowest_level, COP_PASTE, coord->node, 0);
+	if (IS_ERR(op) || (op == NULL))
+		return op ? PTR_ERR(op) : -EIO;
 	cdata.coord = coord;
-	cdata.data  = data;
-	cdata.key   = key;
-	op -> u.paste.d = &cdata;
-	if( flags == 0 )
-		flags = znode_get_tree( coord -> node ) -> carry.paste_flags;
-	op -> u.paste.flags = flags;
-	op -> u.paste.type  = COPT_ITEM_DATA;
-	if( lh != NULL ) {
-		op -> node -> track = 1;
-		op -> node -> tracked = lh;
+	cdata.data = data;
+	cdata.key = key;
+	op->u.paste.d = &cdata;
+	if (flags == 0)
+		flags = znode_get_tree(coord->node)->carry.paste_flags;
+	op->u.paste.flags = flags;
+	op->u.paste.type = COPT_ITEM_DATA;
+	if (lh != NULL) {
+		op->node->track = 1;
+		op->node->tracked = lh;
 	}
 
-	ON_STATS( lowest_level.level_no = znode_get_level( coord -> node ) );
-	result = carry( &lowest_level, 0 );
-	done_carry_pool( &pool );
+	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
+	result = carry(&lowest_level, 0);
+	done_carry_pool(&pool);
 
 	return result;
 }
@@ -319,45 +320,45 @@ static int paste_with_carry( coord_t *coord /* coord of paste */,
  *
  */
 /* Audited by: umka (2002.06.16) */
-insert_result insert_by_coord( coord_t  *coord /* coord where to
-						    * insert. coord->node has
-						    * to be write locked by
-						    * caller */,
-			       reiser4_item_data *data /* data to be
-							* inserted */, 
-			       const reiser4_key *key /* key of new item */,
-			       lock_handle *lh /* lock handle of write
-							* lock on node */,
-			       inter_syscall_rap *ra UNUSED_ARG /* repetitive
-								     * access
-								     * hint */,
-			       intra_syscall_rap ira UNUSED_ARG /* repetitive
-								     * access
-								     * hint */, 
-			       __u32 flags /* insertion flags */ )
+insert_result
+insert_by_coord(coord_t * coord	/* coord where to
+				   * insert. coord->node has
+				   * to be write locked by
+				   * caller */ ,
+		reiser4_item_data * data	/* data to be
+						 * inserted */ ,
+		const reiser4_key * key /* key of new item */ ,
+		lock_handle * lh	/* lock handle of write
+					   * lock on node */ ,
+		inter_syscall_rap * ra UNUSED_ARG	/* repetitive
+							   * access
+							   * hint */ ,
+		intra_syscall_rap ira UNUSED_ARG	/* repetitive
+							   * access
+							   * hint */ ,
+		__u32 flags /* insertion flags */ )
 {
 	unsigned item_size;
-	int      result;
-	znode   *node;
+	int result;
+	znode *node;
 
-	assert( "vs-247", coord != NULL );
-	assert( "vs-248", data != NULL );
-	assert( "vs-249", data -> length > 0 );
-	assert( "nikita-1191", znode_is_write_locked( coord -> node ) );
+	assert("vs-247", coord != NULL);
+	assert("vs-248", data != NULL);
+	assert("vs-249", data->length > 0);
+	assert("nikita-1191", znode_is_write_locked(coord->node));
 
-	WRITE_TRACE( znode_get_tree( coord -> node ),
-		     tree_insert, key, data, coord, flags );
+	WRITE_TRACE(znode_get_tree(coord->node),
+		    tree_insert, key, data, coord, flags);
 
-	node = coord -> node;
-	result = zload( node );
-	if( result != 0 )
+	node = coord->node;
+	result = zload(node);
+	if (result != 0)
 		return result;
 
-	item_size = space_needed( node, NULL, data, 1 );
-	if( item_size > znode_free_space( node ) &&
-	    ( flags & COPI_DONT_SHIFT_LEFT ) &&
-	    ( flags & COPI_DONT_SHIFT_RIGHT ) &&
-	    ( flags & COPI_DONT_ALLOCATE ) ) {
+	item_size = space_needed(node, NULL, data, 1);
+	if (item_size > znode_free_space(node) &&
+	    (flags & COPI_DONT_SHIFT_LEFT) &&
+	    (flags & COPI_DONT_SHIFT_RIGHT) && (flags & COPI_DONT_ALLOCATE)) {
 		/*
 		 * we are forced to use free space of coord->node and new item
 		 * does not fit into it.
@@ -370,10 +371,10 @@ insert_result insert_by_coord( coord_t  *coord /* coord where to
 		 * everything to the left of @node is tightly packed.
 		 */
 		result = -ENOSPC;
-	} else if( ( item_size <= znode_free_space( node ) ) && 
-		   !coord_is_before_leftmost( coord ) && 
-		   ( node_plugin_by_node( node ) -> fast_insert != NULL ) &&
-		   node_plugin_by_node( node ) -> fast_insert( coord ) ) {
+	} else if ((item_size <= znode_free_space(node)) &&
+		   !coord_is_before_leftmost(coord) &&
+		   (node_plugin_by_node(node)->fast_insert != NULL) &&
+		   node_plugin_by_node(node)->fast_insert(coord)) {
 		/*
 		 * shortcut insertion without carry() overhead.
 		 *
@@ -390,18 +391,18 @@ insert_result insert_by_coord( coord_t  *coord /* coord where to
 		 */
 		int result;
 
-		reiser4_stat_tree_add( fast_insert );
-		result = node_plugin_by_node( node ) -> create_item
-			( coord, key, data, NULL );
-		znode_set_dirty( node );
+		reiser4_stat_tree_add(fast_insert);
+		result = node_plugin_by_node(node)->create_item
+		    (coord, key, data, NULL);
+		znode_set_dirty(node);
 	} else {
 		/*
 		 * otherwise do full-fledged carry().
 		 */
-		result = insert_with_carry_by_coord( coord, lh, data, 
-						     key, COP_INSERT, flags );
+		result = insert_with_carry_by_coord(coord, lh, data,
+						    key, COP_INSERT, flags);
 	}
-	zrelse( node );
+	zrelse(node);
 	return result;
 }
 
@@ -409,27 +410,28 @@ insert_result insert_by_coord( coord_t  *coord /* coord where to
  * @coord is set to leaf level and @data is to be inserted to twig level
  */
 /* Audited by: umka (2002.06.16) */
-insert_result insert_extent_by_coord( coord_t  *coord /* coord where to
-							  * insert. coord->node
-							  * has to be write
-							  * locked by caller */,
-				      reiser4_item_data *data /* data to be
-							       * inserted */, 
-				      const reiser4_key *key /* key of new item */,
-				      lock_handle *lh /* lock handle of
-							       * write lock on
-							       * node */
-				      )
+insert_result
+insert_extent_by_coord(coord_t * coord	/* coord where to
+					   * insert. coord->node
+					   * has to be write
+					   * locked by caller */ ,
+		       reiser4_item_data * data	/* data to be
+						 * inserted */ ,
+		       const reiser4_key * key /* key of new item */ ,
+		       lock_handle * lh	/* lock handle of
+					   * write lock on
+					   * node */
+    )
 {
-	assert( "vs-405", coord != NULL );
-	assert( "vs-406", data != NULL );
-	assert( "vs-407", data -> length > 0 );
-	assert( "vs-408", znode_is_write_locked( coord -> node ) );
-	assert( "vs-409", znode_get_level( coord -> node ) == LEAF_LEVEL );
+	assert("vs-405", coord != NULL);
+	assert("vs-406", data != NULL);
+	assert("vs-407", data->length > 0);
+	assert("vs-408", znode_is_write_locked(coord->node));
+	assert("vs-409", znode_get_level(coord->node) == LEAF_LEVEL);
 
-	return insert_with_carry_by_coord( coord, lh, data, key, COP_EXTENT, 0/*flags*/ );
+	return insert_with_carry_by_coord(coord, lh, data, key, COP_EXTENT,
+					  0 /*flags */ );
 }
-
 
 /**
  * Insert into the item at the given coord.
@@ -442,11 +444,12 @@ insert_result insert_extent_by_coord( coord_t  *coord /* coord where to
  */
 /* paste_into_item */
 /* Audited by: umka (2002.06.16) */
-int insert_into_item( coord_t *coord /* coord of pasting */,
-		      lock_handle *lh /* lock handle on node involved */,
-		      reiser4_key *key /* key of unit being pasted*/, 
-		      reiser4_item_data *data /* parameters for new unit */,
-		      unsigned flags /* insert/paste flags */ )
+int
+insert_into_item(coord_t * coord /* coord of pasting */ ,
+		 lock_handle * lh /* lock handle on node involved */ ,
+		 reiser4_key * key /* key of unit being pasted */ ,
+		 reiser4_item_data * data /* parameters for new unit */ ,
+		 unsigned flags /* insert/paste flags */ )
 {
 	int result;
 	int size_change;
@@ -455,20 +458,19 @@ int insert_into_item( coord_t *coord /* coord of pasting */,
 
 	assert("umka-317", coord != NULL);
 	assert("umka-318", key != NULL);
-	
-	iplug = item_plugin_by_coord( coord );
-	nplug = node_plugin_by_coord( coord );
 
-	assert( "nikita-1480", iplug == data -> iplug );
+	iplug = item_plugin_by_coord(coord);
+	nplug = node_plugin_by_coord(coord);
 
-	WRITE_TRACE( znode_get_tree( coord -> node ), 
-		     tree_paste, key, data, coord, flags );
+	assert("nikita-1480", iplug == data->iplug);
 
-	size_change = space_needed( coord -> node, coord, data, 0 );
-	if( size_change > ( int ) znode_free_space( coord -> node ) &&
-	    ( flags & COPI_DONT_SHIFT_LEFT ) &&
-	    ( flags & COPI_DONT_SHIFT_RIGHT ) &&
-	    ( flags & COPI_DONT_ALLOCATE ) ) {
+	WRITE_TRACE(znode_get_tree(coord->node),
+		    tree_paste, key, data, coord, flags);
+
+	size_change = space_needed(coord->node, coord, data, 0);
+	if (size_change > (int) znode_free_space(coord->node) &&
+	    (flags & COPI_DONT_SHIFT_LEFT) &&
+	    (flags & COPI_DONT_SHIFT_RIGHT) && (flags & COPI_DONT_ALLOCATE)) {
 		/*
 		 * we are forced to use free space of coord->node and new data
 		 * does not fit into it.
@@ -490,82 +492,81 @@ int insert_into_item( coord_t *coord /* coord of pasting */,
 	 *
 	 * - item plugin agrees with us
 	 */
-	if( ( size_change <= ( int ) znode_free_space( coord -> node ) ) && 
-	    ( ( coord -> item_pos != 0 ) || 
-	      ( coord -> unit_pos != 0 ) ||
-	      ( coord -> between == AFTER_UNIT ) ) &&
-	    ( coord -> unit_pos != 0 ) &&
-	    ( nplug -> fast_paste != NULL ) &&
-	    nplug -> fast_paste( coord ) &&
-	    ( iplug -> b.fast_paste != NULL ) && 
-	    iplug -> b.fast_paste( coord ) ) {
-		reiser4_stat_tree_add( fast_paste );
-		if( size_change > 0 )
-			nplug -> change_item_size( coord, size_change );
+	if ((size_change <= (int) znode_free_space(coord->node)) &&
+	    ((coord->item_pos != 0) ||
+	     (coord->unit_pos != 0) ||
+	     (coord->between == AFTER_UNIT)) &&
+	    (coord->unit_pos != 0) &&
+	    (nplug->fast_paste != NULL) &&
+	    nplug->fast_paste(coord) &&
+	    (iplug->b.fast_paste != NULL) && iplug->b.fast_paste(coord)) {
+		reiser4_stat_tree_add(fast_paste);
+		if (size_change > 0)
+			nplug->change_item_size(coord, size_change);
 		/*
 		 * FIXME-NIKITA: huh? where @key is used?
 		 */
-		result = iplug -> b.paste( coord, data, NULL );
-		znode_set_dirty( coord -> node );
-		if( size_change < 0 )
-			nplug -> change_item_size( coord, size_change );
+		result = iplug->b.paste(coord, data, NULL);
+		znode_set_dirty(coord->node);
+		if (size_change < 0)
+			nplug->change_item_size(coord, size_change);
 	} else
 		/*
 		 * otherwise do full-fledged carry().
 		 */
-		result = paste_with_carry( coord, lh, data, key, flags );
+		result = paste_with_carry(coord, lh, data, key, flags);
 	return result;
 }
 
 /** this either appends or truncates item @coord */
 /* Audited by: umka (2002.06.16) */
-resize_result resize_item( coord_t *coord /* coord of item being resized */, 
-			   reiser4_item_data *data /* parameters of resize*/,
-			   reiser4_key *key /* key of new unit */, 
-			   lock_handle *lh /* lock handle of node
-						    * being modified */,
-			   cop_insert_flag flags /* carry flags */ )
+resize_result
+resize_item(coord_t * coord /* coord of item being resized */ ,
+	    reiser4_item_data * data /* parameters of resize */ ,
+	    reiser4_key * key /* key of new unit */ ,
+	    lock_handle * lh	/* lock handle of node
+				   * being modified */ ,
+	    cop_insert_flag flags /* carry flags */ )
 {
-	int         result;
-	carry_pool  pool;
+	int result;
+	carry_pool pool;
 	carry_level lowest_level;
-	carry_op   *op;
-	znode      *node;
+	carry_op *op;
+	znode *node;
 
+	assert("nikita-362", coord != NULL);
+	assert("nikita-363", data != NULL);
+	assert("vs-245", data->length != 0);
 
-	assert( "nikita-362", coord != NULL );
-	assert( "nikita-363", data != NULL );
-	assert( "vs-245", data -> length != 0 );
-
-	node = coord -> node;
-	result = zload( node );
-	if( result != 0 )
+	node = coord->node;
+	result = zload(node);
+	if (result != 0)
 		return result;
 
-	init_carry_pool( &pool );
-	init_carry_level( &lowest_level, &pool );
+	init_carry_pool(&pool);
+	init_carry_level(&lowest_level, &pool);
 
-	if( data -> length < 0 ) {
+	if (data->length < 0) {
 		/*
 		 * if we are trying to shrink item (@data->length < 0), call
 		 * COP_CUT operation.
 		 */
-		op = post_carry( &lowest_level, COP_CUT, coord->node, 0 );
-		if( IS_ERR( op ) || ( op == NULL ) ) {
-			zrelse( node );
-			return op ? PTR_ERR (op) : -EIO;
+		op = post_carry(&lowest_level, COP_CUT, coord->node, 0);
+		if (IS_ERR(op) || (op == NULL)) {
+			zrelse(node);
+			return op ? PTR_ERR(op) : -EIO;
 		}
-		not_yet( "nikita-1263", "resize_item() can not cut data yet" );
+		not_yet("nikita-1263", "resize_item() can not cut data yet");
 	} else
-		result = insert_into_item( coord, lh, key, data, flags );
+		result = insert_into_item(coord, lh, key, data, flags);
 
-	zrelse( node );
+	zrelse(node);
 	return result;
 }
 
-
 /* insert */
-int insert_flow( coord_t *coord, lock_handle *lh, flow_t *f)
+int
+insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 {
 	int result;
 	carry_pool pool;
@@ -573,94 +574,92 @@ int insert_flow( coord_t *coord, lock_handle *lh, flow_t *f)
 	carry_op *op;
 	reiser4_item_data data;
 
+	init_carry_pool(&pool);
+	init_carry_level(&lowest_level, &pool);
 
-	init_carry_pool( &pool );
-	init_carry_level( &lowest_level, &pool );
-
-	op = post_carry( &lowest_level, COP_INSERT_FLOW, coord -> node,
-			 0 /* operate directly on coord -> node */ );
-	if( IS_ERR( op ) || ( op == NULL ) )
-		return op ? PTR_ERR (op) : -EIO;
+	op = post_carry(&lowest_level, COP_INSERT_FLOW, coord->node,
+			0 /* operate directly on coord -> node */ );
+	if (IS_ERR(op) || (op == NULL))
+		return op ? PTR_ERR(op) : -EIO;
 
 	/* these are permanent during insert_flow */
 	data.user = 1;
-	data.iplug = item_plugin_by_id( TAIL_ID );
+	data.iplug = item_plugin_by_id(TAIL_ID);
 	data.arg = 0;
 	/* data.length and data.data will be set before calling paste or
 	 * insert */
 	data.length = 0;
 	data.data = 0;
 
-	op -> u.insert_flow.insert_point = coord;
-	op -> u.insert_flow.flow = f;
-	op -> u.insert_flow.data = &data;
-	op -> u.insert_flow.new_nodes = 0;
+	op->u.insert_flow.insert_point = coord;
+	op->u.insert_flow.flow = f;
+	op->u.insert_flow.data = &data;
+	op->u.insert_flow.new_nodes = 0;
 
-	op -> node -> track = 1;
-	op -> node -> tracked = lh;
+	op->node->track = 1;
+	op->node->tracked = lh;
 
-	ON_STATS( lowest_level.level_no = znode_get_level( coord -> node ) );
-	result = carry( &lowest_level, 0 );
-	done_carry_pool( &pool );
+	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
+	result = carry(&lowest_level, 0);
+	done_carry_pool(&pool);
 
 	return result;
 }
-
 
 /**
  * Given a coord in parent node, obtain a znode for the corresponding child
  */
 /* Audited by: umka (2002.06.16) */
-znode *child_znode( const coord_t *parent_coord /* coord of pointer to
-						 * child */, 
-		    znode *parent /* parent of child */,
-		    int incore_p /* if !0 only return child if already in
-				  * memory */,
-		    int setup_dkeys_p /* if !0 update delimiting keys of
-				       * child */ )
+znode *
+child_znode(const coord_t * parent_coord	/* coord of pointer to
+						 * child */ ,
+	    znode * parent /* parent of child */ ,
+	    int incore_p	/* if !0 only return child if already in
+				 * memory */ ,
+	    int setup_dkeys_p	/* if !0 update delimiting keys of
+				 * child */ )
 {
 	znode *child;
 
-	assert( "nikita-1374", parent_coord != NULL );
-	assert( "nikita-1482", parent != NULL );
-	assert( "nikita-1384", spin_dk_is_locked( znode_get_tree( parent ) ) );
+	assert("nikita-1374", parent_coord != NULL);
+	assert("nikita-1482", parent != NULL);
+	assert("nikita-1384", spin_dk_is_locked(znode_get_tree(parent)));
 
-	if( znode_get_level( parent ) <= LEAF_LEVEL ) {		
+	if (znode_get_level(parent) <= LEAF_LEVEL) {
 		/*
 		 * trying to get child of leaf node
 		 */
-		warning( "nikita-1217", "Child of maize?" );
-		print_znode( "node", parent );
-		return ERR_PTR( -EIO );
+		warning("nikita-1217", "Child of maize?");
+		print_znode("node", parent);
+		return ERR_PTR(-EIO);
 	}
-	if( item_is_internal( parent_coord ) ) {
+	if (item_is_internal(parent_coord)) {
 		reiser4_block_nr addr;
 		item_plugin *iplug;
 		reiser4_tree *tree;
 
-		iplug = item_plugin_by_coord( parent_coord );		
-		assert( "vs-512", iplug -> s.internal.down_link );
-		iplug -> s.internal.down_link( parent_coord, NULL, &addr );
+		iplug = item_plugin_by_coord(parent_coord);
+		assert("vs-512", iplug->s.internal.down_link);
+		iplug->s.internal.down_link(parent_coord, NULL, &addr);
 
-		tree = znode_get_tree( parent );
-		spin_unlock_dk( tree );
-		if( incore_p )
-			child = zlook( tree, &addr );
+		tree = znode_get_tree(parent);
+		spin_unlock_dk(tree);
+		if (incore_p)
+			child = zlook(tree, &addr);
 		else
-			child = zget( tree, &addr, parent, 
-				      znode_get_level( parent ) - 1, 
-				      GFP_KERNEL );
-		spin_lock_dk( tree );
-		if( ( child != NULL ) && !IS_ERR( child ) && setup_dkeys_p && 
-		    znode_just_created( child ) ) {
-			find_child_delimiting_keys( parent, parent_coord,
-						    znode_get_ld_key( child ),
-						    znode_get_rd_key( child ) );
+			child = zget(tree, &addr, parent,
+				     znode_get_level(parent) - 1, GFP_KERNEL);
+		spin_lock_dk(tree);
+		if ((child != NULL) && !IS_ERR(child) && setup_dkeys_p &&
+		    znode_just_created(child)) {
+			find_child_delimiting_keys(parent, parent_coord,
+						   znode_get_ld_key(child),
+						   znode_get_rd_key(child));
 		}
 	} else {
-		warning( "nikita-1483", "Internal item expected" );
-		print_znode( "node", parent );
-		child = ERR_PTR( -EIO );
+		warning("nikita-1483", "Internal item expected");
+		print_znode("node", parent);
+		child = ERR_PTR(-EIO);
 	}
 	return child;
 }
@@ -671,64 +670,66 @@ znode *child_znode( const coord_t *parent_coord /* coord of pointer to
  * This function should be called at the beginning of reiser4 part of
  * syscall.
  */
-int init_context( reiser4_context *context /* pointer to the reiser4 context
-					    * being initalised */, 
-		  struct super_block *super /* super block we are going to
-					     * work with */ )
+int
+init_context(reiser4_context * context	/* pointer to the reiser4 context
+					 * being initalised */ ,
+	     struct super_block *super	/* super block we are going to
+					 * work with */ )
 {
 	reiser4_tree *tree;
 	reiser4_super_info_data *sdata;
 	__u32 tid;
 
-	assert( "nikita-2662", !no_context );
+	assert("nikita-2662", !no_context);
 
-	if( context == NULL || super == NULL ) {
+	if (context == NULL || super == NULL) {
 		BUG();
 	}
 
-	if( super -> s_op != NULL && super -> s_op != &reiser4_super_operations )
+	if (super->s_op != NULL && super->s_op != &reiser4_super_operations)
 		BUG();
 
-	xmemset( context, 0, sizeof *context );
+	xmemset(context, 0, sizeof *context);
 
-	tid = set_current ();
-	if( is_in_reiser4_context() ) {
+	tid = set_current();
+	if (is_in_reiser4_context()) {
 		reiser4_context *parent;
 
-		parent = ( reiser4_context * ) current -> fs_context;
-		if( parent -> super == super ) {
-			context -> parent = parent;
+		parent = (reiser4_context *) current->fs_context;
+		if (parent->super == super) {
+			context->parent = parent;
 #if (REISER4_DEBUG)
-			++ context->parent->nr_children;
+			++context->parent->nr_children;
 #endif
 			return 0;
 		}
 	}
-	sdata = ( reiser4_super_info_data* ) super -> s_fs_info;
-	tree  = & sdata -> tree;
+	sdata = (reiser4_super_info_data *) super->s_fs_info;
+	tree = &sdata->tree;
 
-	context -> super = super;
-	context -> tid   = tid;
+	context->super = super;
+	context->tid = tid;
 
-	assert("green-7", super->s_op == NULL || super->s_op == &reiser4_super_operations );
+	assert("green-7", super->s_op == NULL
+	       || super->s_op == &reiser4_super_operations);
 
-	context -> magic = context_magic;
-	context -> outer = current -> fs_context;
-	current -> fs_context = ( struct fs_activation * ) context;
+	context->magic = context_magic;
+	context->outer = current->fs_context;
+	current->fs_context = (struct fs_activation *) context;
 
-	init_lock_stack( &context -> stack );
+	init_lock_stack(&context->stack);
 
-	txn_begin (context);
+	txn_begin(context);
 
-	context -> parent = context;
-	tap_list_init( &context -> taps );
+	context->parent = context;
+	tap_list_init(&context->taps);
 #if REISER4_DEBUG
-	context_list_clean (context); /* to satisfy assertion */
-	spin_lock (& active_contexts_lock);
-	context_list_check (& active_contexts);
-	context_list_push_front (& active_contexts, context);
-	spin_unlock (& active_contexts_lock);
-	context -> task  = current;
+	context_list_clean(context);	/* to satisfy assertion */
+	spin_lock(&active_contexts_lock);
+	context_list_check(&active_contexts);
+	context_list_push_front(&active_contexts, context);
+	spin_unlock(&active_contexts_lock);
+	context->task = current;
 #endif
 
 	if (sdata->fake)
@@ -737,9 +738,11 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 	return 0;
 }
 
-reiser4_context * get_context_by_lock_stack (lock_stack * owner)
+reiser4_context *
+get_context_by_lock_stack(lock_stack * owner)
 {
-	return (reiser4_context*)((char*)owner - (int)(&((reiser4_context*)0)->stack));
+	return (reiser4_context *) ((char *) owner -
+				    (int) (&((reiser4_context *) 0)->stack));
 }
 
 /**
@@ -753,92 +756,94 @@ reiser4_context * get_context_by_lock_stack (lock_stack * owner)
  *
  */
 /* Audited by: umka (2002.06.16) */
-void done_context( reiser4_context *context /* context being released */ )
+void
+done_context(reiser4_context * context /* context being released */ )
 {
 	reiser4_context *parent;
-	assert( "nikita-860", context != NULL );
-	parent = context -> parent;
-	assert( "nikita-2174", parent != NULL );
-	assert( "nikita-2093", parent == parent -> parent );
-	assert( "nikita-859", parent -> magic == context_magic );
-	assert( "vs-646", 
-		( reiser4_context * ) current -> fs_context == parent );
-	assert( "zam-686", !no_context);
+	assert("nikita-860", context != NULL);
+	parent = context->parent;
+	assert("nikita-2174", parent != NULL);
+	assert("nikita-2093", parent == parent->parent);
+	assert("nikita-859", parent->magic == context_magic);
+	assert("vs-646", (reiser4_context *) current->fs_context == parent);
+	assert("zam-686", !no_context);
 
 	if (context->grabbed_blocks != 0) {
-		warning( "zam-520", "%llu grabbed blocks were not freed, free them now",
-			 context->grabbed_blocks);
+		warning("zam-520",
+			"%llu grabbed blocks were not freed, free them now",
+			context->grabbed_blocks);
 		all_grabbed2free();
 	}
 
 	/* add more checks here */
 
-	if( parent == context ) {
-		assert( "jmacd-673", parent -> trans == NULL );
-		assert( "jmacd-1002", lock_stack_isclean (& parent->stack));
-		assert( "nikita-1936", no_counters_are_held() );
-		assert( "nikita-2626", tap_list_empty (taps_list ()));
+	if (parent == context) {
+		assert("jmacd-673", parent->trans == NULL);
+		assert("jmacd-1002", lock_stack_isclean(&parent->stack));
+		assert("nikita-1936", no_counters_are_held());
+		assert("nikita-2626", tap_list_empty(taps_list()));
 #if REISER4_DEBUG
 		/* remove from active contexts */
-		spin_lock (& active_contexts_lock);
-		context_list_remove (parent);
-		spin_unlock (& active_contexts_lock);
+		spin_lock(&active_contexts_lock);
+		context_list_remove(parent);
+		spin_unlock(&active_contexts_lock);
 
-		assert ("zam-684", context->nr_children == 0);
+		assert("zam-684", context->nr_children == 0);
 #endif
-		current -> fs_context = context -> outer;
+		current->fs_context = context->outer;
 	} else {
 #if REISER4_DEBUG
-		parent->nr_children --;
-		assert ("zam-685", parent->nr_children >= 0);
+		parent->nr_children--;
+		assert("zam-685", parent->nr_children >= 0);
 #endif
 	}
 }
 
 /* Audited by: umka (2002.06.16) */
 int
-init_context_mgr (void)
+init_context_mgr(void)
 {
 #if REISER4_DEBUG
-	spin_lock_init    (& active_contexts_lock);
-	context_list_init (& active_contexts);
+	spin_lock_init(&active_contexts_lock);
+	context_list_init(&active_contexts);
 #endif
 	return 0;
 }
 
 #if REISER4_DEBUG_OUTPUT
-void print_context( const char *prefix, reiser4_context *context )
+void
+print_context(const char *prefix, reiser4_context * context)
 {
-	if( context == NULL ) {
-		info( "%s: null context\n", prefix );
+	if (context == NULL) {
+		info("%s: null context\n", prefix);
 		return;
 	}
-	info( "%s: trace_flags: %x, tid: %i\n", 
-	      prefix, context -> trace_flags, context -> tid );
+	info("%s: trace_flags: %x, tid: %i\n",
+	     prefix, context->trace_flags, context->tid);
 #if REISER4_DEBUG
-	print_lock_counters( "\tlocks", &context -> locks );
-	info( "pid: %i, comm: %s\n", 
-	      context -> task -> pid, context -> task -> comm );
+	print_lock_counters("\tlocks", &context->locks);
+	info("pid: %i, comm: %s\n", context->task->pid, context->task->comm);
 #endif
-	print_lock_stack( "\tlock stack", &context -> stack );
-	info_atom( "\tatom", context -> trans_in_ctx.atom );
+	print_lock_stack("\tlock stack", &context->stack);
+	info_atom("\tatom", context->trans_in_ctx.atom);
 }
 
 #if REISER4_DEBUG
-void print_contexts (void)
+void
+print_contexts(void)
 {
 	reiser4_context *context;
 
-	spin_lock (& active_contexts_lock);
+	spin_lock(&active_contexts_lock);
 
-	for (context = context_list_front (& active_contexts);
-	             ! context_list_end   (& active_contexts, context);
-	     context = context_list_next  (context)) {
+	for (context = context_list_front(&active_contexts);
+	     !context_list_end(&active_contexts, context);
+	     context = context_list_next(context)) {
 
-		print_context ("context", context);
+		print_context("context", context);
 	}
-	
-	spin_unlock (& active_contexts_lock);
+
+	spin_unlock(&active_contexts_lock);
 }
 #endif
 #endif
@@ -849,57 +854,59 @@ void print_contexts (void)
  * from sibling list and its lock is invalidated.
  */
 /* Audited by: umka (2002.06.16) */
-void forget_znode (lock_handle *handle)
+void
+forget_znode(lock_handle * handle)
 {
 	znode *node;
 
-	assert ("umka-319", handle != NULL);
-	
-	node = handle -> node;
-	assert ("vs-164", znode_is_write_locked (node));
-	assert ("nikita-1280", ZF_ISSET (node, JNODE_HEARD_BANSHEE));
+	assert("umka-319", handle != NULL);
 
-	sibling_list_remove (node);
-	invalidate_lock (handle);
+	node = handle->node;
+	assert("vs-164", znode_is_write_locked(node));
+	assert("nikita-1280", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
+
+	sibling_list_remove(node);
+	invalidate_lock(handle);
 
 	/*
 	 * and remove node from transaction. FIXME-NIKITA Locking?
 	 */
-	delete_page (znode_page (node));
+	delete_page(znode_page(node));
 }
 
 /**
  * Check that internal item at @pointer really contains pointer to @child.
  */
 /* Audited by: umka (2002.06.16) */
-int check_tree_pointer( const coord_t *pointer /* would-be pointer to
-						   * @child */, 
-			const znode *child /* child znode */ )
+int
+check_tree_pointer(const coord_t * pointer	/* would-be pointer to
+						   * @child */ ,
+		   const znode * child /* child znode */ )
 {
-	assert( "nikita-1016", pointer != NULL );
-	assert( "nikita-1017", child != NULL );
-	assert( "nikita-1018", pointer -> node != NULL );
+	assert("nikita-1016", pointer != NULL);
+	assert("nikita-1017", child != NULL);
+	assert("nikita-1018", pointer->node != NULL);
 
-	assert( "nikita-1325", znode_is_any_locked( pointer -> node ) );
+	assert("nikita-1325", znode_is_any_locked(pointer->node));
 
-	if( znode_get_level( pointer -> node ) != znode_get_level( child ) + 1 )
+	if (znode_get_level(pointer->node) != znode_get_level(child) + 1)
 		return NS_NOT_FOUND;
 
-	( ( coord_t * ) pointer ) -> iplug = NULL;
+	((coord_t *) pointer)->iplug = NULL;
 
-	if( coord_is_existing_unit( pointer ) ) {
-		item_plugin     *iplug;
+	if (coord_is_existing_unit(pointer)) {
+		item_plugin *iplug;
 		reiser4_block_nr addr;
 
-		if( item_is_internal( pointer ) ) {
-			iplug = item_plugin_by_coord( pointer );
-			assert( "vs-513", iplug -> s.internal.down_link );
-			iplug -> s.internal.down_link( pointer, NULL, &addr );
+		if (item_is_internal(pointer)) {
+			iplug = item_plugin_by_coord(pointer);
+			assert("vs-513", iplug->s.internal.down_link);
+			iplug->s.internal.down_link(pointer, NULL, &addr);
 			/*
 			 * check that cached value is correct
 			 */
-			if( disk_addr_eq( &addr, znode_get_block( child ) ) ) {
-				reiser4_stat_tree_add( pos_in_parent_hit );
+			if (disk_addr_eq(&addr, znode_get_block(child))) {
+				reiser4_stat_tree_add(pos_in_parent_hit);
 				return NS_FOUND;
 			}
 		}
@@ -916,28 +923,27 @@ int check_tree_pointer( const coord_t *pointer /* would-be pointer to
  *
  */
 /* Audited by: umka (2002.06.16) */
-int find_new_child_ptr( znode *parent /* parent znode, passed locked */,
-			znode *child UNUSED_ARG /* child znode, passed locked */,
-			znode *left /* left brother of new node */,
-			coord_t *result /* where result is stored in */ )
+int
+find_new_child_ptr(znode * parent /* parent znode, passed locked */ ,
+		   znode * child UNUSED_ARG /* child znode, passed locked */ ,
+		   znode * left /* left brother of new node */ ,
+		   coord_t * result /* where result is stored in */ )
 {
 	int ret;
 
-	assert( "nikita-1486", parent != NULL );
-	assert( "nikita-1487", child != NULL );
-	assert( "nikita-1488", result != NULL );
+	assert("nikita-1486", parent != NULL);
+	assert("nikita-1487", child != NULL);
+	assert("nikita-1488", result != NULL);
 
-	ret = find_child_ptr( parent, left, result );
-	if( ret != NS_FOUND ) {
-		warning( "nikita-1489", "Cannot find brother position: %i",
-			 ret );
+	ret = find_child_ptr(parent, left, result);
+	if (ret != NS_FOUND) {
+		warning("nikita-1489", "Cannot find brother position: %i", ret);
 		return -EIO;
 	} else {
-		result -> between = AFTER_UNIT;
+		result->between = AFTER_UNIT;
 		return NS_NOT_FOUND;
 	}
 }
-
 
 /**
  * find coord of pointer to @child in @parent.
@@ -946,70 +952,70 @@ int find_new_child_ptr( znode *parent /* parent znode, passed locked */,
  *
  */
 /* Audited by: umka (2002.06.16) */
-int find_child_ptr( znode *parent /* parent znode, passed locked */,
-		    znode *child /* child znode, passed locked */,
-		    coord_t *result /* where result is stored in */ )
+int
+find_child_ptr(znode * parent /* parent znode, passed locked */ ,
+	       znode * child /* child znode, passed locked */ ,
+	       coord_t * result /* where result is stored in */ )
 {
-	int                lookup_res;
-	node_plugin       *nplug;
+	int lookup_res;
+	node_plugin *nplug;
 	/* left delimiting key of a child */
-	reiser4_key        ld;
-	reiser4_tree      *tree;
+	reiser4_key ld;
+	reiser4_tree *tree;
 
-	assert( "nikita-934", parent != NULL );
-	assert( "nikita-935", child != NULL );
-	assert( "nikita-936", result != NULL );
-	assert( "zam-356", znode_is_loaded(parent)); 
+	assert("nikita-934", parent != NULL);
+	assert("nikita-935", child != NULL);
+	assert("nikita-936", result != NULL);
+	assert("zam-356", znode_is_loaded(parent));
 
-	assert( "umka-321", current_tree != NULL );
+	assert("umka-321", current_tree != NULL);
 
-	coord_init_zero( result );
-	result -> node = parent;
+	coord_init_zero(result);
+	result->node = parent;
 
-	nplug = parent -> nplug;
-	assert( "nikita-939", nplug != NULL );
+	nplug = parent->nplug;
+	assert("nikita-939", nplug != NULL);
 
-
-	tree = znode_get_tree( parent );
-	spin_lock_tree( tree );
+	tree = znode_get_tree(parent);
+	spin_lock_tree(tree);
 	/*
 	 * fast path. Try to use cached value. Lock tree to keep
 	 * node->pos_in_parent and pos->*_blocknr consistent.
 	 */
-	if( child -> in_parent.item_pos + 1 != 0 ) {
-		reiser4_stat_tree_add( pos_in_parent_set );
-		xmemcpy( result, &child -> in_parent, sizeof *result );
-		if( check_tree_pointer( result, child ) == NS_FOUND ) {
-			spin_unlock_tree( tree );
+	if (child->in_parent.item_pos + 1 != 0) {
+		reiser4_stat_tree_add(pos_in_parent_set);
+		xmemcpy(result, &child->in_parent, sizeof *result);
+		if (check_tree_pointer(result, child) == NS_FOUND) {
+			spin_unlock_tree(tree);
 			return NS_FOUND;
 		}
 
-		reiser4_stat_tree_add( pos_in_parent_miss );
-		coord_set_item_pos( &child -> in_parent, ~0u );
+		reiser4_stat_tree_add(pos_in_parent_miss);
+		coord_set_item_pos(&child->in_parent, ~0u);
 	}
-	spin_unlock_tree( tree );
+	spin_unlock_tree(tree);
 
 	/*
 	 * is above failed, find some key from @child. We are looking for the
 	 * least key in a child.
 	 */
-	spin_lock_dk( tree );
-	ld = *znode_get_ld_key( child );
+	spin_lock_dk(tree);
+	ld = *znode_get_ld_key(child);
 	/*
 	 * now, lookup parent with key just found.
 	 */
-	lookup_res = nplug -> lookup( parent, &ld, FIND_EXACT, result );
+	lookup_res = nplug->lookup(parent, &ld, FIND_EXACT, result);
 	/* update cached pos_in_node */
-	if( lookup_res == NS_FOUND ) {
-		spin_lock_tree( tree );
-		child -> in_parent = *result;
-		child -> in_parent.between = AT_UNIT;
-		spin_unlock_tree( tree );
-		lookup_res = check_tree_pointer( result, child );
+	if (lookup_res == NS_FOUND) {
+		spin_lock_tree(tree);
+		child->in_parent = *result;
+		child->in_parent.between = AT_UNIT;
+		spin_unlock_tree(tree);
+		lookup_res = check_tree_pointer(result, child);
 	}
-	spin_unlock_dk( tree );
-	if( lookup_res == NS_NOT_FOUND )
-		lookup_res = find_child_by_addr( parent, child, result );
+	spin_unlock_dk(tree);
+	if (lookup_res == NS_NOT_FOUND)
+		lookup_res = find_child_by_addr(parent, child, result);
 	return lookup_res;
 }
 
@@ -1022,24 +1028,25 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
  *
  */
 /* Audited by: umka (2002.06.16) */
-int find_child_by_addr( znode *parent /* parent znode, passed locked */, 
-			znode *child /* child znode, passed locked */, 
-			coord_t *result /* where result is stored in */ )
+int
+find_child_by_addr(znode * parent /* parent znode, passed locked */ ,
+		   znode * child /* child znode, passed locked */ ,
+		   coord_t * result /* where result is stored in */ )
 {
 	int ret;
 
-	assert( "nikita-1320", parent != NULL );
-	assert( "nikita-1321", child != NULL );
-	assert( "nikita-1322", result != NULL );
+	assert("nikita-1320", parent != NULL);
+	assert("nikita-1321", child != NULL);
+	assert("nikita-1322", result != NULL);
 
-	assert( "umka-323", current_tree != NULL );
-	
+	assert("umka-323", current_tree != NULL);
+
 	ret = NS_NOT_FOUND;
 
-	for_all_units( result, parent ) {
-		if( check_tree_pointer( result, child ) == NS_FOUND ) {
-			UNDER_SPIN_VOID( tree, znode_get_tree( parent ),
-					 child -> in_parent = *result );
+	for_all_units(result, parent) {
+		if (check_tree_pointer(result, child) == NS_FOUND) {
+			UNDER_SPIN_VOID(tree, znode_get_tree(parent),
+					child->in_parent = *result);
 			ret = NS_FOUND;
 			break;
 		}
@@ -1052,12 +1059,14 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
  * highest bit set.
  */
 /* Audited by: umka (2002.06.16) */
-int is_disk_addr_unallocated( const reiser4_block_nr *addr /* address to
-							    * check */ )
+int
+is_disk_addr_unallocated(const reiser4_block_nr * addr	/* address to
+							 * check */ )
 {
-	assert( "nikita-1766", addr != NULL );
-	cassert( sizeof( reiser4_block_nr ) == 8 );
-	return (*addr & REISER4_BLOCKNR_STATUS_BIT_MASK) == REISER4_UNALLOCATED_STATUS_VALUE;
+	assert("nikita-1766", addr != NULL);
+	cassert(sizeof (reiser4_block_nr) == 8);
+	return (*addr & REISER4_BLOCKNR_STATUS_BIT_MASK) ==
+	    REISER4_UNALLOCATED_STATUS_VALUE;
 }
 
 /**
@@ -1066,104 +1075,108 @@ int is_disk_addr_unallocated( const reiser4_block_nr *addr /* address to
  * FIXME: This needs a big comment.
  */
 /* Audited by: umka (2002.06.16) */
-void *unallocated_disk_addr_to_ptr( const reiser4_block_nr *addr /* address to
-								  * convert */ )
+void *
+unallocated_disk_addr_to_ptr(const reiser4_block_nr * addr	/* address to
+								 * convert */ )
 {
-	assert( "nikita-1688", addr != NULL );
-	assert( "nikita-1689", is_disk_addr_unallocated( addr ) );
-	return ( void * ) ( long ) ( *addr << 1 );
+	assert("nikita-1688", addr != NULL);
+	assert("nikita-1689", is_disk_addr_unallocated(addr));
+	return (void *) (long) (*addr << 1);
 }
 
 /* try to shift everything from @right to @left. If everything was shifted -
  * @right is removed from the tree.  Result is the number of bytes shifted. FIXME: right? */
 /* Audited by: umka (2002.06.16) */
-int shift_everything_left (znode * right, znode * left, carry_level *todo)
+int
+shift_everything_left(znode * right, znode * left, carry_level * todo)
 {
 	int result;
 	coord_t from;
-	node_plugin * nplug;
+	node_plugin *nplug;
 	carry_plugin_info info;
 
-	coord_init_after_last_item (&from, right);
+	coord_init_after_last_item(&from, right);
 
-	trace_if (TRACE_COORDS, print_coord ("shift_everything_left:", & from, 0));
+	trace_if(TRACE_COORDS, print_coord("shift_everything_left:", &from, 0));
 
-	nplug = node_plugin_by_node (right);
+	nplug = node_plugin_by_node(right);
 	info.doing = NULL;
-	info.todo  = todo;
-	result = nplug->shift (&from, left, SHIFT_LEFT,
-			    1/* delete node @right if all its contents was moved to @left */,
-			    1/* @from will be set to @left node */,
-			    &info);
-	znode_set_dirty( right );
-	znode_set_dirty( left );
+	info.todo = todo;
+	result = nplug->shift(&from, left, SHIFT_LEFT,
+			      1
+			      /* delete node @right if all its contents was moved to @left */
+			      ,
+			      1 /* @from will be set to @left node */ ,
+			      &info);
+	znode_set_dirty(right);
+	znode_set_dirty(left);
 	return result;
 }
-
 
 /* allocate new node and insert a pointer to it into the tree such that new
    node becomes a right neighbor of @insert_coord->node */
 /* Audited by: umka (2002.06.16) */
-znode *insert_new_node (coord_t * insert_coord, lock_handle *lh)
+znode *
+insert_new_node(coord_t * insert_coord, lock_handle * lh)
 {
 	int result;
-	carry_pool  pool;
+	carry_pool pool;
 	carry_level this_level, parent_level;
-	carry_node * cn;
-	znode * new_znode;
+	carry_node *cn;
+	znode *new_znode;
 
+	init_carry_pool(&pool);
+	init_carry_level(&this_level, &pool);
+	init_carry_level(&parent_level, &pool);
 
-	init_carry_pool (&pool);
-	init_carry_level (&this_level, &pool);
-	init_carry_level (&parent_level, &pool);
-
-	new_znode = ERR_PTR (-EIO);
-	cn = add_new_znode (insert_coord->node, 0, &this_level, &parent_level);
-	if (!IS_ERR (cn)) {
-		result = longterm_lock_znode (lh, cn->real_node, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
+	new_znode = ERR_PTR(-EIO);
+	cn = add_new_znode(insert_coord->node, 0, &this_level, &parent_level);
+	if (!IS_ERR(cn)) {
+		result =
+		    longterm_lock_znode(lh, cn->real_node, ZNODE_WRITE_LOCK,
+					ZNODE_LOCK_HIPRI);
 		if (!result) {
 			new_znode = cn->real_node;
-			result = carry (&parent_level, &this_level);
+			result = carry(&parent_level, &this_level);
 		}
 		if (result)
-			new_znode = ERR_PTR (result);
+			new_znode = ERR_PTR(result);
 	} else
-		new_znode = ERR_PTR (PTR_ERR (cn));
+		new_znode = ERR_PTR(PTR_ERR(cn));
 
-	done_carry_pool (&pool);
+	done_carry_pool(&pool);
 	return new_znode;
 }
-
 
 /* returns true if removing bytes of given range of key [from_key, to_key]
  * causes removing of whole item @from */
 /* Audited by: umka (2002.06.16) */
-static int item_removed_completely (coord_t * from,
-				    const reiser4_key * from_key, 
-				    const reiser4_key * to_key)
+static int
+item_removed_completely(coord_t * from,
+			const reiser4_key * from_key,
+			const reiser4_key * to_key)
 {
-	item_plugin * iplug;
+	item_plugin *iplug;
 	reiser4_key key_in_item;
 
 	assert("umka-325", from != NULL);
-	
+
 	/* check first key just for case */
-	item_key_by_coord (from, &key_in_item);
-	if (keygt (from_key, &key_in_item))
+	item_key_by_coord(from, &key_in_item);
+	if (keygt(from_key, &key_in_item))
 		return 0;
 
 	/* check last key */
-	iplug = item_plugin_by_coord (from);
-	assert ("vs-611", iplug && iplug->b.real_max_key_inside);
+	iplug = item_plugin_by_coord(from);
+	assert("vs-611", iplug && iplug->b.real_max_key_inside);
 
-	iplug->b.real_max_key_inside (from, &key_in_item);
+	iplug->b.real_max_key_inside(from, &key_in_item);
 
-	if (keylt (to_key, &key_in_item))
+	if (keylt(to_key, &key_in_item))
 		/* last byte is not removed */
 		return 0;
 	return 1;
 }
-
 
 /* part of cut_node. It is called when cut_node is called to remove or cut part
  * of extent item. When head of that item is removed - we have to update right
@@ -1173,30 +1186,29 @@ static int item_removed_completely (coord_t * from,
  * locked. So, caller should repeat an attempt
  */
 /* Audited by: umka (2002.06.16) */
-static int prepare_twig_cut (coord_t * from, coord_t * to,
-			     const reiser4_key * from_key, 
-			     const reiser4_key * to_key,
-			     znode * locked_left_neighbor)
+static int
+prepare_twig_cut(coord_t * from, coord_t * to,
+		 const reiser4_key * from_key,
+		 const reiser4_key * to_key, znode * locked_left_neighbor)
 {
 	int result;
 	reiser4_key key;
 	lock_handle left_lh;
 	coord_t left_coord;
-	znode * left_child;
-	znode * right_child;
+	znode *left_child;
+	znode *right_child;
 	int left_zloaded_here, right_zloaded_here;
 
+	assert("umka-326", from != NULL);
+	assert("umka-327", to != NULL);
 
-	assert ("umka-326", from != NULL);
-	assert ("umka-327", to != NULL);
-	
 	/* for one extent item only yet */
-	assert ("vs-591", item_is_extent (from));
+	assert("vs-591", item_is_extent(from));
 	/* FIXME: Really we should assert that all the items are extents, or not, however
 	 * the following assertion was too strict. */
-	/*assert ("vs-592", from->item_pos == to->item_pos);*/
+	/*assert ("vs-592", from->item_pos == to->item_pos); */
 
-	if ((from_key && keygt (from_key, item_key_by_coord (from, &key))) ||
+	if ((from_key && keygt(from_key, item_key_by_coord(from, &key))) ||
 	    from->unit_pos != 0) {
 		/* head of item @from is not removed, there is nothing to
 		 * worry about */
@@ -1206,22 +1218,23 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 	left_zloaded_here = 0;
 	right_zloaded_here = 0;
 
-	coord_dup (&left_coord, from);
-	init_lh (&left_lh);
-	if (coord_prev_unit (&left_coord)) {
+	coord_dup(&left_coord, from);
+	init_lh(&left_lh);
+	if (coord_prev_unit(&left_coord)) {
 		/* @from is leftmost item in its node */
 		if (!locked_left_neighbor) {
-			result = reiser4_get_left_neighbor (&left_lh, from->node,
-							    ZNODE_READ_LOCK,
-							    GN_DO_READ);
+			result = reiser4_get_left_neighbor(&left_lh, from->node,
+							   ZNODE_READ_LOCK,
+							   GN_DO_READ);
 			switch (result) {
 			case 0:
 				break;
 			case -ENAVAIL:
 				/* there is no formatted node to the left of
 				 * from->node */
-				warning ("vs-605", "extent item has smallest key in "
-					 "the tree and it is about to be removed");
+				warning("vs-605",
+					"extent item has smallest key in "
+					"the tree and it is about to be removed");
 				return 0;
 			case -EDEADLK:
 				/* need to restart */
@@ -1230,148 +1243,150 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 			}
 
 			/* we have acquired left neighbor of from->node */
-			result = zload (left_lh.node);
+			result = zload(left_lh.node);
 			if (result) {
-				done_lh (&left_lh);
+				done_lh(&left_lh);
 				return result;
 			}
 			left_zloaded_here = 1;
-			coord_init_last_unit (&left_coord, left_lh.node);
+			coord_init_last_unit(&left_coord, left_lh.node);
 		} else {
 			/* squalloc_right_twig_cut should have supplied loaded
 			 * locked left neighbor */
-			assert ("vs-833", znode_is_loaded (locked_left_neighbor));
-			assert ("vs-834", znode_is_write_locked (locked_left_neighbor));
-			coord_init_last_unit (&left_coord, locked_left_neighbor);
+			assert("vs-833", znode_is_loaded(locked_left_neighbor));
+			assert("vs-834",
+			       znode_is_write_locked(locked_left_neighbor));
+			coord_init_last_unit(&left_coord, locked_left_neighbor);
 		}
 	}
 
-	if (!item_is_internal (&left_coord)) {
+	if (!item_is_internal(&left_coord)) {
 		/* what else but extent can be on twig level */
-		assert ("vs-606", item_is_extent (&left_coord));
+		assert("vs-606", item_is_extent(&left_coord));
 
 		/* there is no left formatted child */
 		if (left_zloaded_here)
-			zrelse (left_lh.node);
-		done_lh (&left_lh);
+			zrelse(left_lh.node);
+		done_lh(&left_lh);
 		return 0;
 	}
 
-	left_child = UNDER_SPIN (dk, znode_get_tree(left_coord.node),
-				 child_znode (&left_coord, left_coord.node, 0,
-					      1/* update delimiting keys*/));
-	if (IS_ERR (left_child)) {
+	left_child = UNDER_SPIN(dk, znode_get_tree(left_coord.node),
+				child_znode(&left_coord, left_coord.node, 0,
+					    1 /* update delimiting keys */ ));
+	if (IS_ERR(left_child)) {
 		if (left_zloaded_here)
-			zrelse (left_lh.node);
-		done_lh (&left_lh);
-		return PTR_ERR (left_child);
+			zrelse(left_lh.node);
+		done_lh(&left_lh);
+		return PTR_ERR(left_child);
 	}
-
 
 	/* left child is acquired, calculate new right delimiting key for it
 	 * and get right child if it is necessary */
-	if (item_removed_completely (from, from_key, to_key)) {
+	if (item_removed_completely(from, from_key, to_key)) {
 		/* try to get right child of removed item */
 		coord_t right_coord;
 		lock_handle right_lh;
 
-
-		assert ("vs-607", to->unit_pos == coord_last_unit_pos (to));
-		coord_dup (&right_coord, to);
-		init_lh (&right_lh);
-		if (coord_next_unit (&right_coord)) {
+		assert("vs-607", to->unit_pos == coord_last_unit_pos(to));
+		coord_dup(&right_coord, to);
+		init_lh(&right_lh);
+		if (coord_next_unit(&right_coord)) {
 			/* @to is rightmost unit in the node */
-			result = reiser4_get_right_neighbor (&right_lh, from->node,
-							     ZNODE_READ_LOCK,
-							     GN_DO_READ);
+			result =
+			    reiser4_get_right_neighbor(&right_lh, from->node,
+						       ZNODE_READ_LOCK,
+						       GN_DO_READ);
 			switch (result) {
 			case 0:
-				result = zload (right_lh.node);
+				result = zload(right_lh.node);
 				if (result) {
-					done_lh (&right_lh);
+					done_lh(&right_lh);
 					if (left_zloaded_here)
-						zrelse (left_lh.node);
-					done_lh (&left_lh);
-					zput (left_child);
+						zrelse(left_lh.node);
+					done_lh(&left_lh);
+					zput(left_child);
 					return result;
 				}
 				right_zloaded_here = 1;
-				coord_init_first_unit (&right_coord, right_lh.node);
-				item_key_by_coord (&right_coord, &key);
+				coord_init_first_unit(&right_coord,
+						      right_lh.node);
+				item_key_by_coord(&right_coord, &key);
 				break;
 
 			case -ENAVAIL:
 				/* there is no formatted node to the right of
 				 * from->node */
-				UNDER_SPIN_VOID (dk, znode_get_tree(from->node),
-						 key = *znode_get_rd_key (from->node));
+				UNDER_SPIN_VOID(dk, znode_get_tree(from->node),
+						key =
+						*znode_get_rd_key(from->node));
 				right_coord.node = 0;
 				break;
 			default:
 				/* real error */
-				done_lh (&right_lh);
+				done_lh(&right_lh);
 				if (left_zloaded_here)
-					zrelse (left_lh.node);
-				done_lh (&left_lh);
-				zput (left_child);
+					zrelse(left_lh.node);
+				done_lh(&left_lh);
+				zput(left_child);
 				return result;
 			}
 		} else {
 			/* there is an item to the right of @from - take its key */
-			item_key_by_coord (&right_coord, &key);
+			item_key_by_coord(&right_coord, &key);
 		}
 
 		/* try to get right child of @from */
-		if (right_coord.node && /* there is right neighbor of @from */
-		    item_is_internal (&right_coord)) { /* it is internal item */
-			right_child = UNDER_SPIN 
-				(dk, znode_get_tree (right_coord.node),
-				 child_znode (&right_coord,
-					      right_coord.node, 0,
-					      1/* update delimiting keys*/));
+		if (right_coord.node &&	/* there is right neighbor of @from */
+		    item_is_internal(&right_coord)) {	/* it is internal item */
+			right_child = UNDER_SPIN
+			    (dk, znode_get_tree(right_coord.node),
+			     child_znode(&right_coord,
+					 right_coord.node, 0,
+					 1 /* update delimiting keys */ ));
 
-			if (IS_ERR (right_child)) {
+			if (IS_ERR(right_child)) {
 				if (right_zloaded_here)
-					zrelse (right_lh.node);
-				done_lh (&right_lh);
+					zrelse(right_lh.node);
+				done_lh(&right_lh);
 				if (left_zloaded_here)
-					zrelse (left_lh.node);
-				done_lh (&left_lh);
-				zput (left_child);
-				return PTR_ERR (right_child);
+					zrelse(left_lh.node);
+				done_lh(&left_lh);
+				zput(left_child);
+				return PTR_ERR(right_child);
 			}
 
 			/* link left_child and right_child */
-			UNDER_SPIN_VOID (tree, znode_get_tree (right_coord.node),
-					 link_left_and_right (left_child, 
-							      right_child));
-			zput (right_child);
+			UNDER_SPIN_VOID(tree, znode_get_tree(right_coord.node),
+					link_left_and_right(left_child,
+							    right_child));
+			zput(right_child);
 		}
 		if (right_zloaded_here)
-			zrelse (right_lh.node);
-		done_lh (&right_lh);
+			zrelse(right_lh.node);
+		done_lh(&right_lh);
 
 	} else {
 		/* only head of item @to is removed. calculate new item key, it
 		 * will be used to set right delimiting key of "left child" */
 		key = *to_key;
-		set_key_offset (&key, get_key_offset (&key) + 1);
-		assert ("vs-608", (get_key_offset (&key) & 
-			     (reiser4_get_current_sb ()->s_blocksize - 1)) == 0);
+		set_key_offset(&key, get_key_offset(&key) + 1);
+		assert("vs-608", (get_key_offset(&key) &
+				  (reiser4_get_current_sb()->s_blocksize -
+				   1)) == 0);
 	}
 
 	/* update right delimiting key of left_child */
 
-	UNDER_SPIN_VOID (dk, znode_get_tree (left_child),
-			 *znode_get_rd_key (left_child) = key);
+	UNDER_SPIN_VOID(dk, znode_get_tree(left_child),
+			*znode_get_rd_key(left_child) = key);
 
-	zput (left_child);
+	zput(left_child);
 	if (left_zloaded_here)
-		zrelse (left_lh.node);
-	done_lh (&left_lh);
+		zrelse(left_lh.node);
+	done_lh(&left_lh);
 	return 0;
 }
-
 
 /**
  * cut part of the node
@@ -1385,60 +1400,62 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
  *
  */
 /* Audited by: umka (2002.06.16) */
-int cut_node (coord_t * from /* coord of the first unit/item that will be
-				  * eliminated */, 
-	      coord_t * to /* coord of the last unit/item that will be
-				* eliminated */,
-	      const reiser4_key * from_key /* first key to be removed */, 
-	      const reiser4_key * to_key /* last key to be removed */,
-	      reiser4_key * smallest_removed /* smallest key actually
-					      * removed */,
-	      unsigned flags /* cut flags */,
-	      znode * locked_left_neighbor /* this is set when cut_node is
-					    * called with left neighbor locked
-					    * (in squalloc_right_twig_cut,
-					    * namely) */)
+int
+cut_node(coord_t * from		/* coord of the first unit/item that will be
+				   * eliminated */ ,
+	 coord_t * to		/* coord of the last unit/item that will be
+				   * eliminated */ ,
+	 const reiser4_key * from_key /* first key to be removed */ ,
+	 const reiser4_key * to_key /* last key to be removed */ ,
+	 reiser4_key * smallest_removed	/* smallest key actually
+					 * removed */ ,
+	 unsigned flags /* cut flags */ ,
+	 znode * locked_left_neighbor	/* this is set when cut_node is
+					 * called with left neighbor locked
+					 * (in squalloc_right_twig_cut,
+					 * namely) */ )
 {
 	int result;
-	carry_pool  pool;
+	carry_pool pool;
 	carry_level lowest_level;
-	carry_op * op;
+	carry_op *op;
 	carry_cut_data cdata;
 
-	assert ("umka-328", from != NULL);
-	assert ("vs-316", !node_is_empty (from->node));
+	assert("umka-328", from != NULL);
+	assert("vs-316", !node_is_empty(from->node));
 
-	if (coord_eq (from, to) && !coord_is_existing_unit (from)) {
-		assert ("nikita-1812", !coord_is_existing_unit (to)); /* Napoleon defeated */
+	if (coord_eq(from, to) && !coord_is_existing_unit(from)) {
+		assert("nikita-1812", !coord_is_existing_unit(to));	/* Napoleon defeated */
 		return 0;
 	}
 	/* set @from and @to to first and last units which are to be removed
 	   (getting rid of betweenness) */
-	if (coord_set_to_right (from) || coord_set_to_left (to)) {
-		warning ("jmacd-18128", "coord_set failed"); return -EIO; }
+	if (coord_set_to_right(from) || coord_set_to_left(to)) {
+		warning("jmacd-18128", "coord_set failed");
+		return -EIO;
+	}
 
 	/* make sure that @from and @to are set to existing units in the
 	   node */
-	assert ("vs-161", coord_is_existing_unit (from));
-	assert ("vs-162", coord_is_existing_unit (to));
+	assert("vs-161", coord_is_existing_unit(from));
+	assert("vs-162", coord_is_existing_unit(to));
 
-
-	if (znode_get_level (from->node) == TWIG_LEVEL && item_is_extent (from)) {
+	if (znode_get_level(from->node) == TWIG_LEVEL && item_is_extent(from)) {
 		/* left child of extent item may have to get updated right
 		 * delimiting key and to get linked with right child of extent
 		 * @from if it will be removed completely */
-		result = prepare_twig_cut (from, to, from_key, to_key,
-					   locked_left_neighbor);
+		result = prepare_twig_cut(from, to, from_key, to_key,
+					  locked_left_neighbor);
 		if (result)
 			return result;
 	}
 
-	init_carry_pool( &pool );
-	init_carry_level( &lowest_level, &pool );
+	init_carry_pool(&pool);
+	init_carry_level(&lowest_level, &pool);
 
-	op = post_carry( &lowest_level, COP_CUT, from->node, 0 );
-	if( IS_ERR( op ) || ( op == NULL ) )
-		return op ? PTR_ERR (op) : -EIO;
+	op = post_carry(&lowest_level, COP_CUT, from->node, 0);
+	if (IS_ERR(op) || (op == NULL))
+		return op ? PTR_ERR(op) : -EIO;
 
 	cdata.from = from;
 	cdata.to = to;
@@ -1448,13 +1465,12 @@ int cut_node (coord_t * from /* coord of the first unit/item that will be
 	cdata.flags = flags;
 	op->u.cut = &cdata;
 
-	ON_STATS( lowest_level.level_no = znode_get_level( from -> node ) );
-	result = carry( &lowest_level, 0 );
-	done_carry_pool( &pool );
+	ON_STATS(lowest_level.level_no = znode_get_level(from->node));
+	result = carry(&lowest_level, 0);
+	done_carry_pool(&pool);
 
 	return result;
 }
-
 
 /* there is a fundamental problem with optimizing deletes: VFS does it
    one file at a time.  Another problem is that if an item can be
@@ -1484,88 +1500,90 @@ int cut_node (coord_t * from /* coord of the first unit/item that will be
 */
 
 /* Audited by: umka (2002.06.16) */
-int cut_tree (reiser4_tree * tree UNUSED_ARG,
-	      const reiser4_key * from_key, const reiser4_key * to_key)
+int
+cut_tree(reiser4_tree * tree UNUSED_ARG,
+	 const reiser4_key * from_key, const reiser4_key * to_key)
 {
 	coord_t intranode_to, intranode_from;
 	reiser4_key smallest_removed;
 	lock_handle lock_handle;
 	int result;
-	znode * loaded;
+	znode *loaded;
 	STORE_COUNTERS;
 
 	assert("umka-329", tree != NULL);
 	assert("umka-330", from_key != NULL);
 	assert("umka-331", to_key != NULL);
 
-	WRITE_TRACE( tree, tree_cut, from_key, to_key );
+	WRITE_TRACE(tree, tree_cut, from_key, to_key);
 
 #define WE_HAVE_READAHEAD (0)
 #if WE_HAVE_READAHEAD
-	request_read_ahead_key_range(from, to, LIMIT_READ_AHEAD_BY_CACHE_SIZE_ONLY);
+	request_read_ahead_key_range(from, to,
+				     LIMIT_READ_AHEAD_BY_CACHE_SIZE_ONLY);
 	/* locking? */
 	spans_node = key_range_spans_node(from, to);
-#endif /* WE_HAVE_READAHEAD */
+#endif				/* WE_HAVE_READAHEAD */
 
 	do {
 		/*
 		 * FIXME-VS: find_next_item is highly optimized for sequential
 		 * writes/reads. For case of cut_tree it can not help
 		 */
-		coord_init_zero (&intranode_to);
-		coord_init_zero (&intranode_from);
+		coord_init_zero(&intranode_to);
+		coord_init_zero(&intranode_from);
 		init_lh(&lock_handle);
 		/* look for @to_key in the tree or use @to_coord if it is set
 		   properly */
-		result = find_next_item (0, to_key,
-					 &intranode_to, /* was set as hint in
-							 * previous loop
-							 * iteration (if there
-							 * was one) */
-					 &lock_handle,
-					 ZNODE_WRITE_LOCK, CBK_UNIQUE);
+		result = find_next_item(0, to_key, &intranode_to,	/* was set as hint in
+									 * previous loop
+									 * iteration (if there
+									 * was one) */
+					&lock_handle,
+					ZNODE_WRITE_LOCK, CBK_UNIQUE);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
 			/* -EIO, or something like that */
 			break;
 
 		loaded = intranode_to.node;
-		result = zload (loaded);
+		result = zload(loaded);
 		if (result) {
-			done_lh (&lock_handle);
+			done_lh(&lock_handle);
 			break;
 		}
 
 		/* lookup for @from_key in current node */
-		assert ("vs-686", intranode_to.node->nplug);
-		assert ("vs-687", intranode_to.node->nplug->lookup);
-		result = intranode_to.node->nplug->lookup (intranode_to.node,
-							   from_key, FIND_MAX_NOT_MORE_THAN,
-							   &intranode_from);
-               
+		assert("vs-686", intranode_to.node->nplug);
+		assert("vs-687", intranode_to.node->nplug->lookup);
+		result = intranode_to.node->nplug->lookup(intranode_to.node,
+							  from_key,
+							  FIND_MAX_NOT_MORE_THAN,
+							  &intranode_from);
+
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/* -EIO, or something like that */
-			zrelse (loaded);
-			done_lh (&lock_handle);
+			zrelse(loaded);
+			done_lh(&lock_handle);
 			break;
 		}
 
-		if (coord_eq (&intranode_from, &intranode_to) && 
-		    !coord_is_existing_unit (&intranode_from)) {
+		if (coord_eq(&intranode_from, &intranode_to) &&
+		    !coord_is_existing_unit(&intranode_from)) {
 			/* nothing to cut */
 			result = 0;
-			zrelse (loaded);
-			done_lh (&lock_handle);
+			zrelse(loaded);
+			done_lh(&lock_handle);
 			break;
 		}
 		/* cut data from one node */
-		smallest_removed = *min_key ();
-		result = cut_node (&intranode_from,
-				   &intranode_to, /* is used as an input and
-						     an output, with output
-						     being a hint used by next
-						     loop iteration */
-				   from_key, to_key, &smallest_removed, DELETE_KILL/*flags*/, 0);
-		zrelse (loaded);
+		smallest_removed = *min_key();
+		result = cut_node(&intranode_from, &intranode_to,	/* is used as an input and
+									   an output, with output
+									   being a hint used by next
+									   loop iteration */
+				  from_key, to_key, &smallest_removed, DELETE_KILL	/*flags */
+				  , 0);
+		zrelse(loaded);
 
 		if (result == -EAGAIN) {
 			/*
@@ -1574,59 +1592,62 @@ int cut_tree (reiser4_tree * tree UNUSED_ARG,
 			 * "left child" to update its right delimiting key and
 			 * it failed becasue left neighbor was locked. So,
 			 * release lock held and try again */
-			done_lh (&lock_handle);
+			done_lh(&lock_handle);
 			continue;
 		}
 
 		if (result) {
-			done_lh (&lock_handle);
+			done_lh(&lock_handle);
 			break;
 		}
-		done_lh (&lock_handle);
-		assert ("vs-301", !keyeq (&smallest_removed, min_key ()));
-	} while (keygt (&smallest_removed, from_key));
-
+		done_lh(&lock_handle);
+		assert("vs-301", !keyeq(&smallest_removed, min_key()));
+	} while (keygt(&smallest_removed, from_key));
 
 	CHECK_COUNTERS;
 	return result;
 }
 
 /* return number of unallocated children for  @node, or an error code, if result < 0 */
-int check_jnode_for_unallocated (jnode * node)
+int
+check_jnode_for_unallocated(jnode * node)
 {
 	int ret = 0;
 
-	if (jnode_is_znode (node) && jnode_get_level (node) >= TWIG_LEVEL) {
-		int ret = zload (JZNODE (node));
-		if (ret) return ret;
+	if (jnode_is_znode(node) && jnode_get_level(node) >= TWIG_LEVEL) {
+		int ret = zload(JZNODE(node));
+		if (ret)
+			return ret;
 
-		ret = check_jnode_for_unallocated_in_core (JZNODE (node));
-		zrelse (JZNODE (node));
+		ret = check_jnode_for_unallocated_in_core(JZNODE(node));
+		zrelse(JZNODE(node));
 	}
 
 	return ret;
 }
 
-int check_jnode_for_unallocated_in_core (znode * z)
+int
+check_jnode_for_unallocated_in_core(znode * z)
 {
-	int nr = 0; /* number of unallocated children found */
+	int nr = 0;		/* number of unallocated children found */
 	coord_t coord;
 
-	for_all_units (&coord, z) {
-		if(item_is_internal (&coord)) {
+	for_all_units(&coord, z) {
+		if (item_is_internal(&coord)) {
 			reiser4_block_nr block;
 
-			item_plugin_by_coord( &coord ) -> 
-				s.internal.down_link(&coord, NULL, &block );
-			if (blocknr_is_fake(&block ))
-				nr ++;
+			item_plugin_by_coord(&coord)->s.internal.
+			    down_link(&coord, NULL, &block);
+			if (blocknr_is_fake(&block))
+				nr++;
 			continue;
 		}
 
-		if (item_is_extent (&coord)) {
-			assert ("zam-675", znode_get_level (z) == TWIG_LEVEL);
+		if (item_is_extent(&coord)) {
+			assert("zam-675", znode_get_level(z) == TWIG_LEVEL);
 			if (extent_is_unallocated(&coord)) {
-				reiser4_extent * extent = extent_by_coord (&coord);
+				reiser4_extent *extent =
+				    extent_by_coord(&coord);
 				nr += extent_get_width(extent);
 			}
 		}
@@ -1635,65 +1656,67 @@ int check_jnode_for_unallocated_in_core (znode * z)
 }
 
 /* first step of reiser4 tree initialization */
-void init_tree_0( reiser4_tree * tree)
+void
+init_tree_0(reiser4_tree * tree)
 {
-	assert( "zam-683", tree != NULL );
-	spin_lock_init( & tree -> tree_lock );
+	assert("zam-683", tree != NULL);
+	spin_lock_init(&tree->tree_lock);
 }
 
 /* finishing reiser4 initialization */
-int init_tree( reiser4_tree *tree /* pointer to structure being
-				   * initialized */, 
-	       const reiser4_block_nr *root_block /* address of a root block
-						   * on a disk */,
-	       tree_level height /* height of a tree */, 
-	       node_plugin *nplug /* default node plugin */ )
+int
+init_tree(reiser4_tree * tree	/* pointer to structure being
+				 * initialized */ ,
+	  const reiser4_block_nr * root_block	/* address of a root block
+						 * on a disk */ ,
+	  tree_level height /* height of a tree */ ,
+	  node_plugin * nplug /* default node plugin */ )
 {
 	int result;
 
-	assert( "nikita-306", tree != NULL );
-	assert( "nikita-307", root_block != NULL );
-	assert( "nikita-308", height > 0 );
-	assert( "nikita-309", nplug != NULL );
-	assert( "zam-587", tree->super != NULL );
+	assert("nikita-306", tree != NULL);
+	assert("nikita-307", root_block != NULL);
+	assert("nikita-308", height > 0);
+	assert("nikita-309", nplug != NULL);
+	assert("zam-587", tree->super != NULL);
 
-	/* someone might not call init_tree_0 before calling init_tree.*/
-	init_tree_0( tree );
+	/* someone might not call init_tree_0 before calling init_tree. */
+	init_tree_0(tree);
 
-	tree -> root_block = *root_block;
-	tree -> height = height;
-	tree -> nplug = nplug;
+	tree->root_block = *root_block;
+	tree->height = height;
+	tree->nplug = nplug;
 
-	tree -> znode_epoch = 1ull;
+	tree->znode_epoch = 1ull;
 
-	cbk_cache_list_init( &tree -> cbk_cache.lru );
+	cbk_cache_list_init(&tree->cbk_cache.lru);
 
-	result = znodes_tree_init( tree );
-	if( result == 0 )
-		result = jnodes_tree_init( tree );
+	result = znodes_tree_init(tree);
+	if (result == 0)
+		result = jnodes_tree_init(tree);
 	return result;
 }
 
-
 /** release resources associated with @tree */
-void done_tree( reiser4_tree *tree /* tree to release */ )
+void
+done_tree(reiser4_tree * tree /* tree to release */ )
 {
-	assert( "nikita-311", tree != NULL );
+	assert("nikita-311", tree != NULL);
 
-	znodes_tree_done( tree );
-	jnodes_tree_done( tree );
-	cbk_cache_done( &tree -> cbk_cache );
+	znodes_tree_done(tree);
+	jnodes_tree_done(tree);
+	cbk_cache_done(&tree->cbk_cache);
 }
 
 #if REISER4_DEBUG_OUTPUT
 
 struct tree_stat {
-	int nodes; /* number of node in the tree */
-	int leaves; /* number of leaves */
-	int leaf_free_space; /* average amount of free space for leaf level */
+	int nodes;		/* number of node in the tree */
+	int leaves;		/* number of leaves */
+	int leaf_free_space;	/* average amount of free space for leaf level */
 
 	int internal_nodes;
-	int internal_free_space; /* average amount of free space for internal level */
+	int internal_free_space;	/* average amount of free space for internal level */
 	int leaves_with_unformatted_left_neighbor;
 
 	int items;
@@ -1715,222 +1738,229 @@ struct tree_stat {
 	int tail_total_length;
 } tree_stat;
 
-
-static void collect_tree_stat( reiser4_tree *tree, znode *node )
+static void
+collect_tree_stat(reiser4_tree * tree, znode * node)
 {
 	coord_t coord;
-	static int last_twig_item = 0; /* it is 1 if last item on twig level is
-					* extent, 2 if - internal */
+	static int last_twig_item = 0;	/* it is 1 if last item on twig level is
+					 * extent, 2 if - internal */
 
 	/* number of formatted nodes in the tree */
-	tree_stat.nodes ++;
+	tree_stat.nodes++;
 
-	if( znode_get_level( node ) == LEAF_LEVEL ) {
+	if (znode_get_level(node) == LEAF_LEVEL) {
 		/* number of leaves */
-		tree_stat.leaves ++;
+		tree_stat.leaves++;
 
 		/* amount of free space in leaves */
-		tree_stat.leaf_free_space += znode_free_space( node );
+		tree_stat.leaf_free_space += znode_free_space(node);
 	} else {
 		/* number of internal nodes */
-		tree_stat.internal_nodes ++;
+		tree_stat.internal_nodes++;
 
 		/* amount of free space in internal nodes and number of items
 		 * (root not included) */
-		if( *znode_get_block( node ) != tree -> root_block ) {
-			tree_stat.internal_free_space += znode_free_space( node );
+		if (*znode_get_block(node) != tree->root_block) {
+			tree_stat.internal_free_space += znode_free_space(node);
 		}
 	}
 
 	/* calculate number of leaves which have unformatted left neighbor */
-	if( znode_get_level( node ) == TWIG_LEVEL ) {
-		for( coord_init_before_first_item( &coord, node );
-		     coord_next_item( &coord ) == 0; ) {
-			if( last_twig_item ) {
-				if( last_twig_item == 1 && item_is_internal( &coord ) )
-					tree_stat.leaves_with_unformatted_left_neighbor ++;
+	if (znode_get_level(node) == TWIG_LEVEL) {
+		for (coord_init_before_first_item(&coord, node);
+		     coord_next_item(&coord) == 0;) {
+			if (last_twig_item) {
+				if (last_twig_item == 1
+				    && item_is_internal(&coord)) tree_stat.
+					    leaves_with_unformatted_left_neighbor++;
 			}
-			if( item_is_internal( &coord ) )
+			if (item_is_internal(&coord))
 				last_twig_item = 2;
-			else if( item_is_extent( &coord ) )
+			else if (item_is_extent(&coord))
 				last_twig_item = 1;
 			else
-				impossible( "vs-896", "wrong item on twig level" );
+				impossible("vs-896",
+					   "wrong item on twig level");
 		}
 	}
 
-	for( coord_init_before_first_item( &coord, node ); coord_next_item( &coord ) == 0; ) {
+	for (coord_init_before_first_item(&coord, node);
+	     coord_next_item(&coord) == 0;) {
 		item_id id;
 
-		tree_stat.items ++;
-		tree_stat.item_total_length += item_length_by_coord( &coord );
-		if( znode_get_level( node ) == LEAF_LEVEL ) {
-			tree_stat.leaf_level_items ++;
-			tree_stat.leaf_level_item_total_length += item_length_by_coord( &coord );
+		tree_stat.items++;
+		tree_stat.item_total_length += item_length_by_coord(&coord);
+		if (znode_get_level(node) == LEAF_LEVEL) {
+			tree_stat.leaf_level_items++;
+			tree_stat.leaf_level_item_total_length +=
+			    item_length_by_coord(&coord);
 		}
-		id = item_id_by_coord( &coord );
-		switch( id ) {
+		id = item_id_by_coord(&coord);
+		switch (id) {
 		case STATIC_STAT_DATA_ID:
-			tree_stat.stat_data ++;
-			item_plugin_by_id( STATIC_STAT_DATA_ID ) -> 
-				b.item_stat( &coord, &tree_stat.sd_stat );
+			tree_stat.stat_data++;
+			item_plugin_by_id(STATIC_STAT_DATA_ID)->b.
+			    item_stat(&coord, &tree_stat.sd_stat);
 			break;
 		case COMPOUND_DIR_ID:
-			tree_stat.cde ++;
-			tree_stat.names += coord_num_units( &coord );
+			tree_stat.cde++;
+			tree_stat.names += coord_num_units(&coord);
 			break;
 		case NODE_POINTER_ID:
-			tree_stat.internals ++;
+			tree_stat.internals++;
 			break;
 		case EXTENT_POINTER_ID:
-			tree_stat.extents ++;
-			item_plugin_by_id( EXTENT_POINTER_ID ) ->
-				b.item_stat( &coord, &tree_stat.ex_stat );
+			tree_stat.extents++;
+			item_plugin_by_id(EXTENT_POINTER_ID)->b.
+			    item_stat(&coord, &tree_stat.ex_stat);
 			break;
 		case TAIL_ID:
-			tree_stat.tails ++;
-			tree_stat.tail_total_length += coord_num_units( &coord );
+			tree_stat.tails++;
+			tree_stat.tail_total_length += coord_num_units(&coord);
 			break;
 		default:
-			info( "Unexpected item found: %d\n", id );
+			info("Unexpected item found: %d\n", id);
 			break;
 		}
 	}
 }
 
-
-static void print_tree_stat( void )
+static void
+print_tree_stat(void)
 {
-	info( "Nodes:\n"
-	      "total number of formatted nodes: %d\n"
-	      "\tleaves: %d\n"
-	      "\taverage free space in leaves: %d\n"
-	      "\tinternals: %d\n"
-	      "\taverage free space in internals (root not included): %d\n"
-	      "\tleaves with no formatted left neighbor: %d\n",
-	      tree_stat.nodes, tree_stat.leaves,
-	      
-	      tree_stat.leaf_free_space / tree_stat.leaves,
-	      tree_stat.internal_nodes,
-	      tree_stat.internal_free_space ? tree_stat.internal_free_space / (tree_stat.nodes - tree_stat.leaves - 1) : 0,
-	      tree_stat.leaves_with_unformatted_left_neighbor);
+	info("Nodes:\n"
+	     "total number of formatted nodes: %d\n"
+	     "\tleaves: %d\n"
+	     "\taverage free space in leaves: %d\n"
+	     "\tinternals: %d\n"
+	     "\taverage free space in internals (root not included): %d\n"
+	     "\tleaves with no formatted left neighbor: %d\n",
+	     tree_stat.nodes, tree_stat.leaves,
+	     tree_stat.leaf_free_space / tree_stat.leaves,
+	     tree_stat.internal_nodes,
+	     tree_stat.internal_free_space ? tree_stat.internal_free_space /
+	     (tree_stat.nodes - tree_stat.leaves - 1) : 0,
+	     tree_stat.leaves_with_unformatted_left_neighbor);
 
-	info( "Items:\n"
-	      "total_number of items: %d, total length %d\n"
-	      "\titems on leaf level: %d, their total length: %d\n"
-	      "\tinternals: %d\n"
-	      "\tstat data: %d\n"
-	      "\t\tregular files: %d\n"
-	      "\t\tdirectories: %d\n"
-	      "\tdirectory items: %d\n"
-	      "\t\tnames in them: %d\n"
-	      "\textents: %d\n"
-	      "\t\tallocated: %d, poniters: %d\n"
-	      "\t\tunallocated: %d, poniters: %d\n"
-	      "\t\thole: %d, poniters: %d\n"
-	      "\ttail items: %d, total length: %d\n",
-	      tree_stat.items, tree_stat.item_total_length,
-	      tree_stat.leaf_level_items, tree_stat.leaf_level_item_total_length,
-	      tree_stat.internals,
-	      tree_stat.stat_data, tree_stat.sd_stat.files, tree_stat.sd_stat.dirs,
-	      tree_stat.cde, tree_stat.names,
-	      tree_stat.extents,
-	      tree_stat.ex_stat.allocated_units, tree_stat.ex_stat.allocated_blocks,
-	      tree_stat.ex_stat.unallocated_units, tree_stat.ex_stat.unallocated_blocks,
-	      tree_stat.ex_stat.hole_units, tree_stat.ex_stat.hole_blocks,
-	      tree_stat.tails, tree_stat.tail_total_length);
+	info("Items:\n"
+	     "total_number of items: %d, total length %d\n"
+	     "\titems on leaf level: %d, their total length: %d\n"
+	     "\tinternals: %d\n"
+	     "\tstat data: %d\n"
+	     "\t\tregular files: %d\n"
+	     "\t\tdirectories: %d\n"
+	     "\tdirectory items: %d\n"
+	     "\t\tnames in them: %d\n"
+	     "\textents: %d\n"
+	     "\t\tallocated: %d, poniters: %d\n"
+	     "\t\tunallocated: %d, poniters: %d\n"
+	     "\t\thole: %d, poniters: %d\n"
+	     "\ttail items: %d, total length: %d\n",
+	     tree_stat.items, tree_stat.item_total_length,
+	     tree_stat.leaf_level_items, tree_stat.leaf_level_item_total_length,
+	     tree_stat.internals,
+	     tree_stat.stat_data, tree_stat.sd_stat.files,
+	     tree_stat.sd_stat.dirs, tree_stat.cde, tree_stat.names,
+	     tree_stat.extents, tree_stat.ex_stat.allocated_units,
+	     tree_stat.ex_stat.allocated_blocks,
+	     tree_stat.ex_stat.unallocated_units,
+	     tree_stat.ex_stat.unallocated_blocks, tree_stat.ex_stat.hole_units,
+	     tree_stat.ex_stat.hole_blocks, tree_stat.tails,
+	     tree_stat.tail_total_length);
 }
 
 /** helper called by print_tree_rec() */
-static void tree_rec( reiser4_tree *tree /* tree to print */, 
-		      znode *node /* node to print */, 
-		      __u32 flags /* print flags */ )
+static void
+tree_rec(reiser4_tree * tree /* tree to print */ ,
+	 znode * node /* node to print */ ,
+	 __u32 flags /* print flags */ )
 {
 	int ret;
 	coord_t coord;
 
-
-	ret = zload( node );
-	if( ret != 0 ) {
-		info( "Cannot load/parse node: %i", ret );
+	ret = zload(node);
+	if (ret != 0) {
+		info("Cannot load/parse node: %i", ret);
 		return;
 	}
 
-	if( flags == REISER4_COLLECT_STAT ) {
-		info( "block %lld, level %d, items %u\n", *znode_get_block( node ),
-		      znode_get_level( node ), node_num_items( node ) );
-		collect_tree_stat( tree, node );
+	if (flags == REISER4_COLLECT_STAT) {
+		info("block %lld, level %d, items %u\n", *znode_get_block(node),
+		     znode_get_level(node), node_num_items(node));
+		collect_tree_stat(tree, node);
 	} else {
 
-		if( flags & REISER4_NODE_PRINT_ZNODE )
-			print_znode( "", node );
+		if (flags & REISER4_NODE_PRINT_ZNODE)
+			print_znode("", node);
 
-		if( flags & REISER4_NODE_SILENT ) {
+		if (flags & REISER4_NODE_SILENT) {
 			/* Nothing */
-		} else if( flags == REISER4_NODE_PRINT_BRIEF ) {
-			info( "[node %p block %llu level %u dirty %u created %u alloc %u]\n",
-			      node,
-			      *znode_get_block( node ),
-			      znode_get_level( node ),
-			      znode_check_dirty( node ),
-			      ZF_ISSET( node, JNODE_CREATED ),
-			      ZF_ISSET( node, JNODE_RELOC ) || ZF_ISSET( node, JNODE_OVRWR ) );
+		} else if (flags == REISER4_NODE_PRINT_BRIEF) {
+			info
+			    ("[node %p block %llu level %u dirty %u created %u alloc %u]\n",
+			     node, *znode_get_block(node),
+			     znode_get_level(node), znode_check_dirty(node),
+			     ZF_ISSET(node, JNODE_CREATED), ZF_ISSET(node,
+								     JNODE_RELOC)
+			     || ZF_ISSET(node, JNODE_OVRWR));
 		} else {
-			print_node_content( "", node, flags );
+			print_node_content("", node, flags);
 		}
-		
-		if( node_is_empty( node ) ) {
-			indent_znode( node );
-			info( "empty\n" );
-			zrelse( node );
+
+		if (node_is_empty(node)) {
+			indent_znode(node);
+			info("empty\n");
+			zrelse(node);
 			return;
 		}
 
-		if( flags & REISER4_NODE_CHECK )
-			node_check( node, flags );
+		if (flags & REISER4_NODE_CHECK)
+			node_check(node, flags);
 	}
 
-	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL ) {
-		print_address( "children of node", znode_get_block( node ) );
+	if (flags & REISER4_NODE_PRINT_HEADER
+	    && znode_get_level(node) != LEAF_LEVEL) {
+		print_address("children of node", znode_get_block(node));
 	}
 
-	for( coord_init_before_first_item( &coord, node ); coord_next_item( &coord ) == 0; ) {
+	for (coord_init_before_first_item(&coord, node);
+	     coord_next_item(&coord) == 0;) {
 
-		if( item_is_internal(&coord ) ) {
+		if (item_is_internal(&coord)) {
 			znode *child;
 
 			child = UNDER_SPIN
-				( dk, znode_get_tree( coord.node ),
-				  child_znode( &coord, coord.node, 
-					       ( int )( flags & REISER4_NODE_ONLY_INCORE ),
-					       0 ) );
-			if( child == NULL )
-				;
-			else if( !IS_ERR( child ) ) {
-				tree_rec( tree, child, flags );
-				zput( child );
+			    (dk, znode_get_tree(coord.node),
+			     child_znode(&coord, coord.node,
+					 (int) (flags &
+						REISER4_NODE_ONLY_INCORE), 0));
+			if (child == NULL) ;
+			else if (!IS_ERR(child)) {
+				tree_rec(tree, child, flags);
+				zput(child);
 			} else {
-				info( "Cannot get child: %li\n", 
-				      PTR_ERR( child ) );
+				info("Cannot get child: %li\n", PTR_ERR(child));
 			}
 		}
 	}
-	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL ) {
-		print_address( "end children of node", znode_get_block( node ) );
+	if (flags & REISER4_NODE_PRINT_HEADER
+	    && znode_get_level(node) != LEAF_LEVEL) {
+		print_address("end children of node", znode_get_block(node));
 	}
-	zrelse( node );
+	zrelse(node);
 }
 
 #if REISER4_USER_LEVEL_SIMULATION
-extern void tree_rec_dot( reiser4_tree *, znode *, __u32, FILE * );
+extern void tree_rec_dot(reiser4_tree *, znode *, __u32, FILE *);
 #endif
 
 /**
  * debugging aid: recursively print content of a @tree.
  */
-void print_tree_rec (const char * prefix /* prefix to print */, 
-		     reiser4_tree * tree /* tree to print */, 
-		     __u32 flags /* print flags*/ )
+void
+print_tree_rec(const char *prefix /* prefix to print */ ,
+	       reiser4_tree * tree /* tree to print */ ,
+	       __u32 flags /* print flags */ )
 {
 	znode *fake;
 	znode *root;
@@ -1939,57 +1969,53 @@ void print_tree_rec (const char * prefix /* prefix to print */,
 	 * print_tree_rec() could be called late during umount, when znode
 	 * hash table is already destroyed. Check for this.
 	 */
-	if( tree -> zhash_table._table == NULL )
+	if (tree->zhash_table._table == NULL)
 		return;
 
-	if( !( flags & REISER4_NODE_SILENT ) )
-		info( "tree: [%s]\n", prefix );
-	fake = zget( tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL );
-	if( IS_ERR( fake ) ) {
-		info( "Cannot get fake\n" );
+	if (!(flags & REISER4_NODE_SILENT))
+		info("tree: [%s]\n", prefix);
+	fake = zget(tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL);
+	if (IS_ERR(fake)) {
+		info("Cannot get fake\n");
 		return;
 	}
-	root = zget( tree, &tree -> root_block, fake, tree -> height, 
-		     GFP_KERNEL );
-	if( IS_ERR( root ) ) {
-		info( "Cannot get root\n" );
-		zput( fake );
+	root = zget(tree, &tree->root_block, fake, tree->height, GFP_KERNEL);
+	if (IS_ERR(root)) {
+		info("Cannot get root\n");
+		zput(fake);
 		return;
 	}
-	memset( &tree_stat, 0, sizeof( tree_stat ) );
+	memset(&tree_stat, 0, sizeof (tree_stat));
 
-	tree_rec( tree, root, flags );
-	
-	if( flags == REISER4_COLLECT_STAT ) {
+	tree_rec(tree, root, flags);
+
+	if (flags == REISER4_COLLECT_STAT) {
 		print_tree_stat();
 	}
-
 #if REISER4_USER_LEVEL_SIMULATION
-	if( ! ( flags & REISER4_NODE_DONT_DOT ) ) {
-		char path[ 100 ];
+	if (!(flags & REISER4_NODE_DONT_DOT)) {
+		char path[100];
 		FILE *dot;
 
-		snprintf( path, sizeof path, "/tmp/%s.dot", prefix );
-		dot = fopen( path, "w+" );
-		if( dot != NULL ) {
-			fprintf( dot,
-				 "digraph L0 {\n"
-				 "ordering=out;\n"
-				 "node [shape = box];\n" );
+		snprintf(path, sizeof path, "/tmp/%s.dot", prefix);
+		dot = fopen(path, "w+");
+		if (dot != NULL) {
+			fprintf(dot,
+				"digraph L0 {\n"
+				"ordering=out;\n" "node [shape = box];\n");
 #if REISER4_DEBUG
-			tree_rec_dot( tree, root, flags, dot );
+			tree_rec_dot(tree, root, flags, dot);
 #endif
-			fprintf( dot, "}\n" );
-			fclose( dot );
+			fprintf(dot, "}\n");
+			fclose(dot);
 		}
 	}
 #endif
-	if( !( flags & REISER4_NODE_SILENT ) )
-		info( "end tree: [%s]\n", prefix );
-	zput( root );
-	zput( fake );
+	if (!(flags & REISER4_NODE_SILENT))
+		info("end tree: [%s]\n", prefix);
+	zput(root);
+	zput(fake);
 }
-
 
 #endif
 

@@ -14,65 +14,67 @@
 #include <linux/types.h>
 
 /** old rupasov (yura) hash */
-static __u64 rupasov_hash( const unsigned char *name /* name to hash */, 
-			   int len /* @name's length */ )
+static __u64
+rupasov_hash(const unsigned char *name /* name to hash */ ,
+	     int len /* @name's length */ )
 {
-	int   i;
-	int   j;
-	int   pow;
+	int i;
+	int j;
+	int pow;
 	__u64 a;
 	__u64 c;
-    
-	assert( "nikita-672", name != NULL );
-	assert( "nikita-673", len >= 0 );
 
-	for( pow = 1, i = 1 ; i < len ; ++ i ) 
-		pow = pow * 10; 
-    
-	if( len == 1 ) 
-		a = name[ 0 ] - 48;
+	assert("nikita-672", name != NULL);
+	assert("nikita-673", len >= 0);
+
+	for (pow = 1, i = 1; i < len; ++i)
+		pow = pow * 10;
+
+	if (len == 1)
+		a = name[0] - 48;
 	else
-		a = ( name[ 0 ] - 48 ) * pow;
-    
-	for( i = 1 ; i < len ; ++ i ) {
-		c = name[ i ] - 48; 
-		for( pow = 1, j = i ; j < len - 1 ; ++ j )
-			pow = pow * 10; 
+		a = (name[0] - 48) * pow;
+
+	for (i = 1; i < len; ++i) {
+		c = name[i] - 48;
+		for (pow = 1, j = i; j < len - 1; ++j)
+			pow = pow * 10;
 		a = a + c * pow;
 	}
-	for( ; i < 40 ; ++ i ) {
-		c = '0' - 48; 
-		for( pow = 1, j = i ; j < len - 1; ++ j )
-			pow = pow * 10; 
+	for (; i < 40; ++i) {
+		c = '0' - 48;
+		for (pow = 1, j = i; j < len - 1; ++j)
+			pow = pow * 10;
 		a = a + c * pow;
 	}
-    
-	for( ; i < 256 ; ++ i ) {
-		c = i; 
-		for( pow = 1, j = i ; j < len - 1 ; ++ j ) 
-			pow = pow * 10; 
+
+	for (; i < 256; ++i) {
+		c = i;
+		for (pow = 1, j = i; j < len - 1; ++j)
+			pow = pow * 10;
 		a = a + c * pow;
 	}
-    
+
 	a = a << 7;
 	return a;
 }
 
 /** r5 hash */
-static __u64 r5_hash( const unsigned char *name /* name to hash */, 
-		      int len UNUSED_ARG /* @name's length */ )
+static __u64
+r5_hash(const unsigned char *name /* name to hash */ ,
+	int len UNUSED_ARG /* @name's length */ )
 {
 	__u64 a = 0;
 
-	assert( "nikita-674", name != NULL );
-	assert( "nikita-675", len >= 0 );
+	assert("nikita-674", name != NULL);
+	assert("nikita-675", len >= 0);
 
-	while( *name ) { 
+	while (*name) {
 		a += *name << 4;
 		a += *name >> 4;
 		a *= 11;
 		name++;
-	} 
+	}
 	return a;
 }
 
@@ -89,18 +91,19 @@ static __u64 r5_hash( const unsigned char *name /* name to hash */,
  *
  * This code was blindly upgraded to __u64 by s/__u32/__u64/g.
  */
-static __u64 tea_hash( const unsigned char *name /* name to hash */, 
-		       int len /* @name's length */ )
+static __u64
+tea_hash(const unsigned char *name /* name to hash */ ,
+	 int len /* @name's length */ )
 {
-	__u64 k[] = { 0x9464a485u, 0x542e1a94u, 0x3e846bffu, 0xb75bcfc3u }; 
+	__u64 k[] = { 0x9464a485u, 0x542e1a94u, 0x3e846bffu, 0xb75bcfc3u };
 
 	__u64 h0 = k[0], h1 = k[1];
 	__u64 a, b, c, d;
 	__u64 pad;
 	int i;
 
-	assert( "nikita-676", name != NULL );
-	assert( "nikita-677", len >= 0 );
+	assert("nikita-676", name != NULL);
+	assert("nikita-677", len >= 0);
 
 #define DELTA 0x9E3779B9u
 #define FULLROUNDS 10		/* 32 is overkill, 16 is strong crypto */
@@ -127,106 +130,84 @@ static __u64 tea_hash( const unsigned char *name /* name to hash */,
 		h1 += b1;						\
 	} while(0)
 
-	pad = (__u64)len | ((__u64)len << 8);
+	pad = (__u64) len | ((__u64) len << 8);
 	pad |= pad << 16;
 
-	while(len >= 16)
-	{
-		a = (__u64)name[ 0]      |
-		    (__u64)name[ 1] << 8 |
-		    (__u64)name[ 2] << 16|
-		    (__u64)name[ 3] << 24;
-		b = (__u64)name[ 4]      |
-		    (__u64)name[ 5] << 8 |
-		    (__u64)name[ 6] << 16|
-		    (__u64)name[ 7] << 24;
-		c = (__u64)name[ 8]      |
-		    (__u64)name[ 9] << 8 |
-		    (__u64)name[10] << 16|
-		    (__u64)name[11] << 24;
-		d = (__u64)name[12]      |
-		    (__u64)name[13] << 8 |
-		    (__u64)name[14] << 16|
-		    (__u64)name[15] << 24;
-		
+	while (len >= 16) {
+		a = (__u64) name[0] |
+		    (__u64) name[1] << 8 |
+		    (__u64) name[2] << 16 | (__u64) name[3] << 24;
+		b = (__u64) name[4] |
+		    (__u64) name[5] << 8 |
+		    (__u64) name[6] << 16 | (__u64) name[7] << 24;
+		c = (__u64) name[8] |
+		    (__u64) name[9] << 8 |
+		    (__u64) name[10] << 16 | (__u64) name[11] << 24;
+		d = (__u64) name[12] |
+		    (__u64) name[13] << 8 |
+		    (__u64) name[14] << 16 | (__u64) name[15] << 24;
+
 		TEACORE(PARTROUNDS);
 
 		len -= 16;
 		name += 16;
 	}
 
-	if (len >= 12)
-	{
-	    	//assert(len < 16);
+	if (len >= 12) {
+		//assert(len < 16);
 		if (len >= 16)
-		    *(int *)0 = 0;
+			*(int *) 0 = 0;
 
-		a = (__u64)name[ 0]      |
-		    (__u64)name[ 1] << 8 |
-		    (__u64)name[ 2] << 16|
-		    (__u64)name[ 3] << 24;
-		b = (__u64)name[ 4]      |
-		    (__u64)name[ 5] << 8 |
-		    (__u64)name[ 6] << 16|
-		    (__u64)name[ 7] << 24;
-		c = (__u64)name[ 8]      |
-		    (__u64)name[ 9] << 8 |
-		    (__u64)name[10] << 16|
-		    (__u64)name[11] << 24;
+		a = (__u64) name[0] |
+		    (__u64) name[1] << 8 |
+		    (__u64) name[2] << 16 | (__u64) name[3] << 24;
+		b = (__u64) name[4] |
+		    (__u64) name[5] << 8 |
+		    (__u64) name[6] << 16 | (__u64) name[7] << 24;
+		c = (__u64) name[8] |
+		    (__u64) name[9] << 8 |
+		    (__u64) name[10] << 16 | (__u64) name[11] << 24;
 
 		d = pad;
-		for(i = 12; i < len; i++)
-		{
+		for (i = 12; i < len; i++) {
 			d <<= 8;
 			d |= name[i];
 		}
-	}
-	else if (len >= 8)
-	{
-	    	//assert(len < 12);
+	} else if (len >= 8) {
+		//assert(len < 12);
 		if (len >= 12)
-		    *(int *)0 = 0;
-		a = (__u64)name[ 0]      |
-		    (__u64)name[ 1] << 8 |
-		    (__u64)name[ 2] << 16|
-		    (__u64)name[ 3] << 24;
-		b = (__u64)name[ 4]      |
-		    (__u64)name[ 5] << 8 |
-		    (__u64)name[ 6] << 16|
-		    (__u64)name[ 7] << 24;
+			*(int *) 0 = 0;
+		a = (__u64) name[0] |
+		    (__u64) name[1] << 8 |
+		    (__u64) name[2] << 16 | (__u64) name[3] << 24;
+		b = (__u64) name[4] |
+		    (__u64) name[5] << 8 |
+		    (__u64) name[6] << 16 | (__u64) name[7] << 24;
 
 		c = d = pad;
-		for(i = 8; i < len; i++)
-		{
+		for (i = 8; i < len; i++) {
 			c <<= 8;
 			c |= name[i];
 		}
-	}
-	else if (len >= 4)
-	{
-	    	//assert(len < 8);
+	} else if (len >= 4) {
+		//assert(len < 8);
 		if (len >= 8)
-		    *(int *)0 = 0;
-		a = (__u64)name[ 0]      |
-		    (__u64)name[ 1] << 8 |
-		    (__u64)name[ 2] << 16|
-		    (__u64)name[ 3] << 24;
+			*(int *) 0 = 0;
+		a = (__u64) name[0] |
+		    (__u64) name[1] << 8 |
+		    (__u64) name[2] << 16 | (__u64) name[3] << 24;
 
 		b = c = d = pad;
-		for(i = 4; i < len; i++)
-		{
+		for (i = 4; i < len; i++) {
 			b <<= 8;
 			b |= name[i];
 		}
-	}
-	else
-	{
-	    	//assert(len < 4);
+	} else {
+		//assert(len < 4);
 		if (len >= 4)
-		    *(int *)0 = 0;
+			*(int *) 0 = 0;
 		a = b = c = d = pad;
-		for(i = 0; i < len; i++)
-		{
+		for (i = 0; i < len; i++) {
 			a <<= 8;
 			a |= name[i];
 		}
@@ -235,7 +216,7 @@ static __u64 tea_hash( const unsigned char *name /* name to hash */,
 	TEACORE(FULLROUNDS);
 
 /*	return 0;*/
-	return h0^h1;
+	return h0 ^ h1;
 
 }
 
@@ -255,21 +236,22 @@ static __u64 tea_hash( const unsigned char *name /* name to hash */,
  *   domain.
  * 
  */
-static __u64 fnv1_hash( const unsigned char *name /* name to hash */, 
-			int len UNUSED_ARG /* @name's length */ )
+static __u64
+fnv1_hash(const unsigned char *name /* name to hash */ ,
+	  int len UNUSED_ARG /* @name's length */ )
 {
 	unsigned long long a = 0xcbf29ce484222325ull;
 	const unsigned long long fnv_64_prime = 0x100000001b3ull;
 
-	assert( "nikita-678", name != NULL );
-	assert( "nikita-679", len >= 0 );
+	assert("nikita-678", name != NULL);
+	assert("nikita-679", len >= 0);
 
 	/* FNV-1 hash each octet in the buffer */
-	for( ; *name ; ++name ) {
+	for (; *name; ++name) {
 		/* multiply by the 32 bit FNV magic prime mod 2^64 */
 		a *= fnv_64_prime;
 		/* xor the bottom with the current octet */
-		a ^= ( unsigned long long ) ( *name );
+		a ^= (unsigned long long) (*name);
 	}
 	/* return our new hash value */
 	return a;
@@ -277,72 +259,73 @@ static __u64 fnv1_hash( const unsigned char *name /* name to hash */,
 
 /** degenerate hash function used to simplify testing of non-unique key
  * handling */
-static __u64 deg_hash( const unsigned char *name UNUSED_ARG /* name to hash */, 
-		       int len UNUSED_ARG /* @name's length */ )
+static __u64
+deg_hash(const unsigned char *name UNUSED_ARG /* name to hash */ ,
+	 int len UNUSED_ARG /* @name's length */ )
 {
-	trace_on( TRACE_DIR, "Hashing %s\n", name );
+	trace_on(TRACE_DIR, "Hashing %s\n", name);
 	return 0xc0c0c0c010101010ull;
 }
 
 /**
  * hash plugins
  */
-hash_plugin hash_plugins[ LAST_HASH_ID ] = {
-	[ RUPASOV_HASH_ID ] = {
-		.h = {
-			.type_id = REISER4_HASH_PLUGIN_TYPE,
-			.id      = RUPASOV_HASH_ID,
-			.pops    = NULL,
-			.label   = "rupasov",
-			.desc    = "Original Yura's hash",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.hash = rupasov_hash
-	},
-	[ R5_HASH_ID ] = {
-		.h = {
-			.type_id = REISER4_HASH_PLUGIN_TYPE,
-			.id      = R5_HASH_ID,
-			.pops    = NULL,
-			.label   = "r5",
-			.desc    = "r5 hash",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.hash = r5_hash
-	},
-	[ TEA_HASH_ID ] = {
-		.h = {
-			.type_id = REISER4_HASH_PLUGIN_TYPE,
-			.id      = TEA_HASH_ID,
-			.pops    = NULL,
-			.label   = "tea",
-			.desc    = "tea hash",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.hash = tea_hash
-	},
-	[ FNV1_HASH_ID ] = {
-		.h = {
-			.type_id = REISER4_HASH_PLUGIN_TYPE,
-			.id      = FNV1_HASH_ID,
-			.pops    = NULL,
-			.label   = "fnv1",
-			.desc    = "fnv1 hash",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.hash = fnv1_hash
-	},
-	[ DEGENERATE_HASH_ID ] = {
-		.h = {
-			.type_id = REISER4_HASH_PLUGIN_TYPE,
-			.id      = DEGENERATE_HASH_ID,
-			.pops    = NULL,
-			.label   = "degenerate hash",
-			.desc    = "Degenerate hash: only for testing",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.hash = deg_hash
-	}
+hash_plugin hash_plugins[LAST_HASH_ID] = {
+	[RUPASOV_HASH_ID] = {
+			     .h = {
+				   .type_id = REISER4_HASH_PLUGIN_TYPE,
+				   .id = RUPASOV_HASH_ID,
+				   .pops = NULL,
+				   .label = "rupasov",
+				   .desc = "Original Yura's hash",
+				   .linkage = TS_LIST_LINK_ZERO}
+			     ,
+			     .hash = rupasov_hash}
+	,
+	[R5_HASH_ID] = {
+			.h = {
+			      .type_id = REISER4_HASH_PLUGIN_TYPE,
+			      .id = R5_HASH_ID,
+			      .pops = NULL,
+			      .label = "r5",
+			      .desc = "r5 hash",
+			      .linkage = TS_LIST_LINK_ZERO}
+			,
+			.hash = r5_hash}
+	,
+	[TEA_HASH_ID] = {
+			 .h = {
+			       .type_id = REISER4_HASH_PLUGIN_TYPE,
+			       .id = TEA_HASH_ID,
+			       .pops = NULL,
+			       .label = "tea",
+			       .desc = "tea hash",
+			       .linkage = TS_LIST_LINK_ZERO}
+			 ,
+			 .hash = tea_hash}
+	,
+	[FNV1_HASH_ID] = {
+			  .h = {
+				.type_id = REISER4_HASH_PLUGIN_TYPE,
+				.id = FNV1_HASH_ID,
+				.pops = NULL,
+				.label = "fnv1",
+				.desc = "fnv1 hash",
+				.linkage = TS_LIST_LINK_ZERO}
+			  ,
+			  .hash = fnv1_hash}
+	,
+	[DEGENERATE_HASH_ID] = {
+				.h = {
+				      .type_id = REISER4_HASH_PLUGIN_TYPE,
+				      .id = DEGENERATE_HASH_ID,
+				      .pops = NULL,
+				      .label = "degenerate hash",
+				      .desc =
+				      "Degenerate hash: only for testing",
+				      .linkage = TS_LIST_LINK_ZERO}
+				,
+				.hash = deg_hash}
 };
 
 /* 

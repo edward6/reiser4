@@ -80,71 +80,72 @@
 #include <linux/types.h>
 #include <linux/fs.h>
 #include <linux/dcache.h>
-#include <linux/quotaops.h> 
+#include <linux/quotaops.h>
 
 /** helper function to print errors */
-static void key_warning( const char *error_message /* message to print */, 
-			 const reiser4_key *key /* key to print */, 
-			 int code /* error code to print */)
+static void
+key_warning(const char *error_message /* message to print */ ,
+	    const reiser4_key * key /* key to print */ ,
+	    int code /* error code to print */ )
 {
-	assert( "nikita-716", key != NULL );
-	
-	warning( "nikita-717", "%s inode %llu (%i)", 
-		 error_message ? : "error for", get_key_objectid( key ), code );
-	print_key( "for key", key );
-}
+	assert("nikita-716", key != NULL);
 
-
-/** find sd of inode in a tree, deal with errors */
-int lookup_sd( struct inode *inode /* inode to look sd for */, 
-	       znode_lock_mode lock_mode /* lock mode */, 
-	       coord_t *coord /* resulting coord */, 
-	       lock_handle *lh /* resulting lock handle */, 
-	       reiser4_key *key /* resulting key */ )
-{
-	assert( "nikita-1692", inode != NULL );
-	assert( "nikita-1693", coord != NULL );
-	assert( "nikita-1694", key != NULL );
-
-	build_sd_key( inode, key );
-	return lookup_sd_by_key( tree_by_inode( inode ), 
-				 lock_mode, coord, lh, key );
+	warning("nikita-717", "%s inode %llu (%i)",
+		error_message ? : "error for", get_key_objectid(key), code);
+	print_key("for key", key);
 }
 
 /** find sd of inode in a tree, deal with errors */
-int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */, 
-		      znode_lock_mode lock_mode /* lock mode */, 
-		      coord_t *coord /* resulting coord */, 
-		      lock_handle *lh /* resulting lock handle */, 
-		      const reiser4_key *key /* resulting key */ )
-
+int
+lookup_sd(struct inode *inode /* inode to look sd for */ ,
+	  znode_lock_mode lock_mode /* lock mode */ ,
+	  coord_t * coord /* resulting coord */ ,
+	  lock_handle * lh /* resulting lock handle */ ,
+	  reiser4_key * key /* resulting key */ )
 {
-	int   result;
+	assert("nikita-1692", inode != NULL);
+	assert("nikita-1693", coord != NULL);
+	assert("nikita-1694", key != NULL);
+
+	build_sd_key(inode, key);
+	return lookup_sd_by_key(tree_by_inode(inode),
+				lock_mode, coord, lh, key);
+}
+
+/** find sd of inode in a tree, deal with errors */
+int
+lookup_sd_by_key(reiser4_tree * tree /* tree to look in */ ,
+		 znode_lock_mode lock_mode /* lock mode */ ,
+		 coord_t * coord /* resulting coord */ ,
+		 lock_handle * lh /* resulting lock handle */ ,
+		 const reiser4_key * key /* resulting key */ )
+ {
+	int result;
 	const char *error_message;
-	__u32       flags;
+	__u32 flags;
 #if REISER4_DEBUG
 	reiser4_key key_found;
 #endif
-	assert( "nikita-718", tree != NULL );
-	assert( "nikita-719", coord != NULL );
-	assert( "nikita-720", key != NULL );
+	assert("nikita-718", tree != NULL);
+	assert("nikita-719", coord != NULL);
+	assert("nikita-720", key != NULL);
 
-	result        = 0;
+	result = 0;
 	error_message = NULL;
 	/* look for the object's stat data in a tree. 
 	   This returns in "node" pointer to a locked znode and in "pos"
 	   position of an item found in node. Both are only valid if
 	   coord_found is returned. */
-	flags  = ( lock_mode == ZNODE_WRITE_LOCK ) ? CBK_FOR_INSERT : 0;
+	flags = (lock_mode == ZNODE_WRITE_LOCK) ? CBK_FOR_INSERT : 0;
 	flags |= CBK_UNIQUE;
-	result = coord_by_key( tree, key, coord, lh,
-			       lock_mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, 
-			       flags );
-	switch( result ) {
+	result = coord_by_key(tree, key, coord, lh,
+			      lock_mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL,
+			      flags);
+	switch (result) {
 	case CBK_OOM:
 		error_message = "out of memory while looking for sd of";
 		break;
-	case CBK_IO_ERROR: 
+	case CBK_IO_ERROR:
 		error_message = "io error while looking for sd of";
 		break;
 	case CBK_COORD_NOTFOUND:
@@ -153,99 +154,101 @@ int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */,
 	default:
 		/* something other, for which we don't want to print a message */
 		break;
-	case CBK_COORD_FOUND: {
-		load_count lc = INIT_LOAD_COUNT_NODE( coord -> node );
-;
-		assert( "nikita-1082", WITH_DATA_RET
-			( coord -> node, 1, coord_is_existing_unit( coord ) ) );
-		assert( "nikita-721", WITH_DATA_RET
-			( coord -> node, 1, item_plugin_by_coord( coord ) != NULL ) );
-		/* next assertion checks that item we found really has the key
-		 * we've been looking for */
-		assert( "nikita-722", WITH_DATA_RET
-			( coord -> node, 1, 
-			  keyeq( unit_key_by_coord( coord, &key_found ), key ) ) );
-		assert( "nikita-1897", 
-			znode_get_level( coord -> node ) == LEAF_LEVEL );
-		/* check that what we really found is stat data */
-		result = incr_load_count( &lc );
-		if( ( result = 0 ) && !item_is_statdata( coord ) ) {
-			error_message = "sd found, but it doesn't look like sd";
-			print_plugin( "found", 
-				      item_plugin_to_plugin( 
-					      item_plugin_by_coord( coord ) ) );
-			result = -ENOENT;
+	case CBK_COORD_FOUND:{
+			load_count lc = INIT_LOAD_COUNT_NODE(coord->node);
+			;
+			assert("nikita-1082", WITH_DATA_RET
+			       (coord->node, 1, coord_is_existing_unit(coord)));
+			assert("nikita-721", WITH_DATA_RET
+			       (coord->node, 1,
+				item_plugin_by_coord(coord) != NULL));
+			/* next assertion checks that item we found really has the key
+			 * we've been looking for */
+			assert("nikita-722", WITH_DATA_RET
+			       (coord->node, 1,
+				keyeq(unit_key_by_coord(coord, &key_found),
+				      key)));
+			assert("nikita-1897",
+			       znode_get_level(coord->node) == LEAF_LEVEL);
+			/* check that what we really found is stat data */
+			result = incr_load_count(&lc);
+			if ((result = 0) && !item_is_statdata(coord)) {
+				error_message =
+				    "sd found, but it doesn't look like sd";
+				print_plugin("found",
+					     item_plugin_to_plugin
+					     (item_plugin_by_coord(coord)));
+				result = -ENOENT;
+			}
+			done_load_count(&lc);
+			break;
 		}
-		done_load_count( &lc );
-		break;
 	}
-	}
-	if( result != 0 )
-		key_warning( error_message, key, result );
+	if (result != 0)
+		key_warning(error_message, key, result);
 	return result;
 }
 
 /** insert new stat-data into tree. Called with inode state
     locked. Return inode state locked. */
-static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
+static int
+insert_new_sd(struct inode *inode /* inode to create sd for */ )
 {
 	int result;
 	reiser4_key key;
 	coord_t coord;
-	reiser4_item_data  data;
+	reiser4_item_data data;
 	const char *error_message;
 	char *area;
 	reiser4_inode *ref;
 	lock_handle lh;
 	oid_t oid;
 
-
-	assert( "nikita-723", inode != NULL );
+	assert("nikita-723", inode != NULL);
 
 	/* stat data is already there */
-	if( !inode_get_flag( inode, REISER4_NO_SD ) )
+	if (!inode_get_flag(inode, REISER4_NO_SD))
 		return 0;
 
-	ref = reiser4_inode_data( inode );
-	spin_lock_inode( ref );
-	if( ref -> sd == NULL ) {
-		ref -> sd = inode_sd_plugin( inode );
+	ref = reiser4_inode_data(inode);
+	spin_lock_inode(ref);
+	if (ref->sd == NULL) {
+		ref->sd = inode_sd_plugin(inode);
 	}
-	data.iplug = ref -> sd;
-	data.length = ref -> sd_len;
-	if( data.length == 0 ) {
-		data.length = ref -> sd -> s.sd.save_len( inode );
-		ref -> sd_len = data.length;
+	data.iplug = ref->sd;
+	data.length = ref->sd_len;
+	if (data.length == 0) {
+		data.length = ref->sd->s.sd.save_len(inode);
+		ref->sd_len = data.length;
 	}
 
-	ref -> sd_len = data.length;
-	spin_unlock_inode( ref );
+	ref->sd_len = data.length;
+	spin_unlock_inode(ref);
 	data.data = NULL;
 	data.user = 0;
 
-	if( data.length > tree_by_inode( inode ) -> nplug -> max_item_size() ) {
+	if (data.length > tree_by_inode(inode)->nplug->max_item_size()) {
 		/*
 		 * This is silly check, but we don't know actual node where
 		 * insertion will go into.
 		 */
 		return -ENAMETOOLONG;
 	}
-	result = oid_allocate( &oid );
+	result = oid_allocate(&oid);
 
-	if( result != 0 )
+	if (result != 0)
 		return result;
 
-	set_inode_oid( inode, oid );
+	set_inode_oid(inode, oid);
 
-	coord_init_zero( &coord );
-	init_lh( &lh );
+	coord_init_zero(&coord);
+	init_lh(&lh);
 
-	result = insert_by_key( tree_by_inode( inode ),
-				build_sd_key( inode, &key ), &data, &coord, &lh,
-				/* stat data lives on a leaf level */
-				LEAF_LEVEL, 
-				inter_syscall_ra( inode ), NO_RAP,
-				CBK_UNIQUE );
+	result = insert_by_key(tree_by_inode(inode),
+			       build_sd_key(inode, &key), &data, &coord, &lh,
+			       /* stat data lives on a leaf level */
+			       LEAF_LEVEL,
+			       inter_syscall_ra(inode), NO_RAP, CBK_UNIQUE);
 	/* we don't want to re-check that somebody didn't insert
 	   stat-data while we were doing io, because if it did,
 	   insert_by_key() returned error. */
@@ -257,14 +260,14 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	   changes in sd size: changing plugins etc. */
 
 	error_message = NULL;
-	switch( result ) {
+	switch (result) {
 	case IBK_OOM:
 		error_message = "out of memory while inserting sd of";
 		break;
 	case IBK_ALREADY_EXISTS:
 		error_message = "sd already exists for";
 		break;
-	default: 
+	default:
 		/* something other, for which we don't want to print a message */
 		break;
 	case IBK_IO_ERROR:
@@ -274,45 +277,45 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 		error_message = "no space while inserting sd of";
 		break;
 	case IBK_INSERT_OK:
-	{
-		result = zload( coord.node );
-		if( result != 0 )
-			break;
+		{
+			result = zload(coord.node);
+			if (result != 0)
+				break;
 
-		assert( "nikita-725", /* have we really inserted stat
-				       * data? */
-			item_is_statdata( &coord ) );
-		/*
-		 * inode was just created. It is inserted into hash table, but
-		 * no directory entry was yet inserted into parent. So, inode
-		 * is inaccessible through ->lookup(). All places that
-		 * directly grab inode from hash-table (like old knfsd),
-		 * should check IMMUTABLE flag that is set by
-		 * common_create_child.
-		 */
+			assert("nikita-725",	/* have we really inserted stat
+						 * data? */
+			       item_is_statdata(&coord));
+			/*
+			 * inode was just created. It is inserted into hash table, but
+			 * no directory entry was yet inserted into parent. So, inode
+			 * is inaccessible through ->lookup(). All places that
+			 * directly grab inode from hash-table (like old knfsd),
+			 * should check IMMUTABLE flag that is set by
+			 * common_create_child.
+			 */
 
-		if( ref -> sd && ref -> sd -> s.sd.save ) {
-			area = item_body_by_coord( &coord );
-			result = ref -> sd -> s.sd.save( inode, &area );
-			if( result == 0 ) {
-				/* object has stat-data now */
-				inode_clr_flag( inode, REISER4_NO_SD );
-				/* initialise stat-data seal */
-				seal_init( &ref -> sd_seal, &coord, &key );
-				ref -> sd_coord = coord;
-			} else {
-				error_message = "cannot save sd of";
-				result = -EIO;
+			if (ref->sd && ref->sd->s.sd.save) {
+				area = item_body_by_coord(&coord);
+				result = ref->sd->s.sd.save(inode, &area);
+				if (result == 0) {
+					/* object has stat-data now */
+					inode_clr_flag(inode, REISER4_NO_SD);
+					/* initialise stat-data seal */
+					seal_init(&ref->sd_seal, &coord, &key);
+					ref->sd_coord = coord;
+				} else {
+					error_message = "cannot save sd of";
+					result = -EIO;
+				}
 			}
+			zrelse(coord.node);
 		}
-		zrelse( coord.node );
 	}
-	}
-	done_lh( &lh );
+	done_lh(&lh);
 
-	if( result != 0 )
-		key_warning( error_message, &key, result );
-	else 
+	if (result != 0)
+		key_warning(error_message, &key, result);
+	else
 		oid_count_allocated();
 
 	return result;
@@ -320,100 +323,101 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 
 /** Update existing stat-data in a tree. Called with inode state
     locked. Return inode state locked. */
-static int update_sd( struct inode *inode /* inode to update sd for */ )
+static int
+update_sd(struct inode *inode /* inode to update sd for */ )
 {
 	int result;
 	reiser4_key key;
-	coord_t  coord;
-	seal_t      seal;
-	reiser4_item_data  data;
+	coord_t coord;
+	seal_t seal;
+	reiser4_item_data data;
 	const char *error_message;
 	reiser4_inode *state;
 	lock_handle lh;
 
-	assert( "nikita-726", inode != NULL );
+	assert("nikita-726", inode != NULL);
 
 	/* no stat-data, nothing to update?! */
-	if( inode_get_flag( inode, REISER4_NO_SD ) )
+	if (inode_get_flag(inode, REISER4_NO_SD))
 		return -ENOENT;
 
-	init_lh( &lh );
+	init_lh(&lh);
 
-	state = reiser4_inode_data( inode );
-	spin_lock_inode( state );
-	coord = state -> sd_coord;
-	seal  = state -> sd_seal;
-	spin_unlock_inode( state );
+	state = reiser4_inode_data(inode);
+	spin_lock_inode(state);
+	coord = state->sd_coord;
+	seal = state->sd_seal;
+	spin_unlock_inode(state);
 
-	if( seal_is_set( &seal ) ) {
+	if (seal_is_set(&seal)) {
 		/* first, try to use seal */
-		build_sd_key( inode, &key );
-		result = seal_validate( &seal, &coord, 
-					&key, LEAF_LEVEL, &lh, FIND_EXACT, 
-					ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI );
-		if( REISER4_DEBUG && ( result == 0 ) &&
-		    ( ( result = zload( coord.node ) ) == 0 ) ) {
+		build_sd_key(inode, &key);
+		result = seal_validate(&seal, &coord,
+				       &key, LEAF_LEVEL, &lh, FIND_EXACT,
+				       ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+		if (REISER4_DEBUG && (result == 0) &&
+		    ((result = zload(coord.node)) == 0)) {
 			reiser4_key ukey;
 
-			if( !coord_is_existing_unit( &coord ) ||
-			    !item_plugin_by_coord( &coord ) ||
-			    !keyeq( unit_key_by_coord( &coord, &ukey ), &key ) ||
-			    ( znode_get_level( coord.node ) != LEAF_LEVEL ) ||
-			    !item_is_statdata( &coord ) ) {
-				warning( "nikita-1901", "Conspicuous seal" );
-				/*print_inode( "inode", inode );*/
-				print_key( "key", &key );
-				print_coord( "coord", &coord, 1 );
+			if (!coord_is_existing_unit(&coord) ||
+			    !item_plugin_by_coord(&coord) ||
+			    !keyeq(unit_key_by_coord(&coord, &ukey), &key) ||
+			    (znode_get_level(coord.node) != LEAF_LEVEL) ||
+			    !item_is_statdata(&coord)) {
+				warning("nikita-1901", "Conspicuous seal");
+				/*print_inode( "inode", inode ); */
+				print_key("key", &key);
+				print_coord("coord", &coord, 1);
 				result = -EIO;
 			}
-			zrelse( coord.node );
+			zrelse(coord.node);
 		}
 	} else
 		result = -EAGAIN;
 
-	if( result != 0 ) {
-		coord_init_zero( &coord );
-		result = lookup_sd( inode, ZNODE_WRITE_LOCK, &coord, &lh, &key );
+	if (result != 0) {
+		coord_init_zero(&coord);
+		result = lookup_sd(inode, ZNODE_WRITE_LOCK, &coord, &lh, &key);
 	}
 	error_message = NULL;
 	/* we don't want to re-check that somebody didn't remove stat-data
 	   while we were doing io, because if it did, lookup_sd returned
 	   error. */
-	if( result == 0 && ( ( result = zload( coord.node ) ) == 0 ) ) {
+	if (result == 0 && ((result = zload(coord.node)) == 0)) {
 		char *area;
 
-		spin_lock_inode( state );
-		assert( "nikita-728", state -> sd != NULL );
-		data.iplug = state -> sd;
+		spin_lock_inode(state);
+		assert("nikita-728", state->sd != NULL);
+		data.iplug = state->sd;
 
-		if( state -> sd_len == 0 ) {
+		if (state->sd_len == 0) {
 			/* recalculate stat-data length */
-			state -> sd_len = 
-				state -> sd -> s.sd.save_len( inode );
+			state->sd_len = state->sd->s.sd.save_len(inode);
 
 		}
 		/* data.length is how much space to add to (or remove
 		   from if negative) sd */
-		data.length = state -> sd_len - item_length_by_coord( &coord );
-		if( data.length < 0 ) {
-			info( "sd_len: %i, item: %i\n", state -> sd_len, 
-			      item_length_by_coord( &coord ) );
+		data.length = state->sd_len - item_length_by_coord(&coord);
+		if (data.length < 0) {
+			info("sd_len: %i, item: %i\n", state->sd_len,
+			     item_length_by_coord(&coord));
 		}
-		spin_unlock_inode( state );
+		spin_unlock_inode(state);
 
-		zrelse( coord.node );
+		zrelse(coord.node);
 
 		/* if on-disk stat data is of different length than required
 		   for this inode, resize it */
-		if( 0 != data.length ) {
+		if (0 != data.length) {
 			data.data = NULL;
 			data.user = 0;
-			result = resize_item( &coord, &data, &key, &lh, 0 );
-			switch( result ) {
+			result = resize_item(&coord, &data, &key, &lh, 0);
+			switch (result) {
 			case RESIZE_OOM:
-				error_message = "out of memory while resizing sd of";
+				error_message =
+				    "out of memory while resizing sd of";
 			case RESIZE_OK:
-			default: 
+			default:
 				break;
 			case RESIZE_IO_ERROR:
 				error_message = "io error while resizing sd of";
@@ -423,60 +427,61 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 				break;
 			}
 		}
-		if( result == 0 && ( ( result = zload( coord.node ) ) == 0 ) ) {
-			area = item_body_by_coord( &coord );
-			spin_lock_inode( state );
-			assert( "nikita-729", 
-				item_length_by_coord( &coord ) == state -> sd_len );
-			result = state -> sd -> s.sd.save( inode, &area );
-			znode_set_dirty( coord.node );
+		if (result == 0 && ((result = zload(coord.node)) == 0)) {
+			area = item_body_by_coord(&coord);
+			spin_lock_inode(state);
+			assert("nikita-729",
+			       item_length_by_coord(&coord) == state->sd_len);
+			result = state->sd->s.sd.save(inode, &area);
+			znode_set_dirty(coord.node);
 			/* re-initialise stat-data seal */
-			seal_init( &state -> sd_seal, &coord, &key );
-			state -> sd_coord = coord;
-			spin_unlock_inode( state );
-			zrelse( coord.node );
+			seal_init(&state->sd_seal, &coord, &key);
+			state->sd_coord = coord;
+			spin_unlock_inode(state);
+			zrelse(coord.node);
 		} else {
-			key_warning( error_message, &key, result );
+			key_warning(error_message, &key, result);
 		}
 	}
-	done_lh( &lh );
+	done_lh(&lh);
 
 	return result;
 }
 
 /** save object's stat-data to disk */
-int common_file_save( struct inode *inode /* object to save */ )
+int
+common_file_save(struct inode *inode /* object to save */ )
 {
 	int result;
 
-	assert( "nikita-730", inode != NULL );
-	
-	if( inode_get_flag( inode, REISER4_NO_SD ) )
+	assert("nikita-730", inode != NULL);
+
+	if (inode_get_flag(inode, REISER4_NO_SD))
 		/* object doesn't have stat-data yet */
-		result = insert_new_sd( inode );
-	else 
-		result = update_sd( inode );
-	if( ( result != 0 ) && ( result != -ENAMETOOLONG ) )
+		result = insert_new_sd(inode);
+	else
+		result = update_sd(inode);
+	if ((result != 0) && (result != -ENAMETOOLONG))
 		/*
 		 * Don't issue warnings about "name is too long"
 		 */
-		warning( "nikita-2221", "Failed to save sd for %llu: %i (%lx)",
-			 get_inode_oid( inode ), result, 
-			 reiser4_inode_data( inode ) -> flags );
+		warning("nikita-2221", "Failed to save sd for %llu: %i (%lx)",
+			get_inode_oid(inode), result,
+			reiser4_inode_data(inode)->flags);
 	return result;
 }
 
-
-int common_write_inode( struct inode *inode UNUSED_ARG )
+int
+common_write_inode(struct inode *inode UNUSED_ARG)
 {
 	return -EINVAL;
 }
 
-
 /** checks whether yet another hard links to this object can be added */
-int common_file_can_add_link( const struct inode *object /* object to check */ )
+int
+common_file_can_add_link(const struct inode *object /* object to check */ )
 {
-	assert( "nikita-732", object != NULL );
+	assert("nikita-732", object != NULL);
 
 	/*
 	 * Problem is that nlink_t is usually short, which doesn't left room
@@ -488,29 +493,30 @@ int common_file_can_add_link( const struct inode *object /* object to check */ )
 	 * parent. Stat-data (static_stat.c) is ready for 32bit nlink
 	 * counters.
 	 */
-	return object -> i_nlink < ( ( ( nlink_t ) ~0 ) >> 1 );
+	return object->i_nlink < (((nlink_t) ~ 0) >> 1);
 }
 
 /** common_file_delete() - delete object stat-data */
-int common_file_delete( struct inode *inode /* object to remove */ )
+int
+common_file_delete(struct inode *inode /* object to remove */ )
 {
 	int result;
 
-	assert( "nikita-1477", inode != NULL );
+	assert("nikita-1477", inode != NULL);
 
-	if( !inode_get_flag( inode, REISER4_NO_SD ) ) {
+	if (!inode_get_flag(inode, REISER4_NO_SD)) {
 		reiser4_key sd_key;
 
-	    	DQUOT_FREE_INODE( inode );
-		DQUOT_DROP( inode );
+		DQUOT_FREE_INODE(inode);
+		DQUOT_DROP(inode);
 
-		build_sd_key( inode, &sd_key );
-		result = cut_tree( tree_by_inode( inode ), &sd_key, &sd_key );
+		build_sd_key(inode, &sd_key);
+		result = cut_tree(tree_by_inode(inode), &sd_key, &sd_key);
 
-		if( result == 0 ) {
-			inode_set_flag( inode, REISER4_NO_SD );
-			result = oid_release( get_inode_oid( inode ) );
-			if( result == 0 )
+		if (result == 0) {
+			inode_set_flag(inode, REISER4_NO_SD);
+			result = oid_release(get_inode_oid(inode));
+			if (result == 0)
 				oid_count_released();
 		}
 	} else
@@ -519,46 +525,47 @@ int common_file_delete( struct inode *inode /* object to remove */ )
 }
 
 /** ->set_plug_in_inode() default method. */
-static int common_set_plug( struct inode *object /* inode to set plugin on */, 
-			    struct inode *parent /* parent object */, 
-			    reiser4_object_create_data *data /* creational
-							      * data */ )
+static int
+common_set_plug(struct inode *object /* inode to set plugin on */ ,
+		struct inode *parent /* parent object */ ,
+		reiser4_object_create_data * data	/* creational
+							 * data */ )
 {
-	object -> i_mode = data -> mode;
-	object -> i_generation = new_inode_generation( object -> i_sb );
+	object->i_mode = data->mode;
+	object->i_generation = new_inode_generation(object->i_sb);
 	/* this should be plugin decision */
-	object -> i_uid = current -> fsuid;
-	object -> i_mtime = object -> i_atime = object -> i_ctime = CURRENT_TIME;
+	object->i_uid = current->fsuid;
+	object->i_mtime = object->i_atime = object->i_ctime = CURRENT_TIME;
 
 #if REISER4_BSD_PORT
 	/*
 	 * support for BSD style group-id assignment.
 	 */
-	if( reiser4_is_set( object -> i_sb, REISER4_BSD_GID ) )
-		object -> i_gid = parent -> i_gid;
-	else 
+	if (reiser4_is_set(object->i_sb, REISER4_BSD_GID))
+		object->i_gid = parent->i_gid;
+	else
 #endif
-	/*
-	 * parent directory has sguid bit
-	 */
-	if( parent -> i_mode & S_ISGID ) {
-		object -> i_gid = parent -> i_gid;
-		if( S_ISDIR( object -> i_mode ) )
+		/*
+		 * parent directory has sguid bit
+		 */
+	if (parent->i_mode & S_ISGID) {
+		object->i_gid = parent->i_gid;
+		if (S_ISDIR(object->i_mode))
 			/*
 			 * sguid is inherited by sub-directories
 			 */
-			object -> i_mode |= S_ISGID;
+			object->i_mode |= S_ISGID;
 	} else
-		object -> i_gid = current -> fsgid;
+		object->i_gid = current->fsgid;
 
 	/* this object doesn't have stat-data yet */
-	inode_set_flag( object, REISER4_NO_SD );
+	inode_set_flag(object, REISER4_NO_SD);
 	/* setup inode and file-operations for this inode */
-	setup_inode_ops( object, data );
+	setup_inode_ops(object, data);
 	/* i_nlink is left 1 here as set by new_inode() */
-	seal_init( &reiser4_inode_data( object ) -> sd_seal, NULL, NULL );
-	reiser4_inode_data( object ) -> extmask = 
-		( 1 << UNIX_STAT ) | ( 1 << LIGHT_WEIGHT_STAT );
+	seal_init(&reiser4_inode_data(object)->sd_seal, NULL, NULL);
+	reiser4_inode_data(object)->extmask =
+	    (1 << UNIX_STAT) | (1 << LIGHT_WEIGHT_STAT);
 	return 0;
 }
 
@@ -573,17 +580,18 @@ static int common_set_plug( struct inode *object /* inode to set plugin on */,
  * is encoded (see stat(2)).
  *
  */
-int guess_plugin_by_mode( struct inode *inode /* object to guess plugins
-					       * for */ )
+int
+guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
+						 * for */ )
 {
 	int fplug_id;
 	int dplug_id;
 
-	assert( "nikita-736", inode != NULL );
+	assert("nikita-736", inode != NULL);
 
 	dplug_id = fplug_id = -1;
 
-	switch( inode -> i_mode & S_IFMT ) {
+	switch (inode->i_mode & S_IFMT) {
 	case S_IFSOCK:
 	case S_IFBLK:
 	case S_IFCHR:
@@ -598,135 +606,139 @@ int guess_plugin_by_mode( struct inode *inode /* object to guess plugins
 		dplug_id = HASHED_DIR_PLUGIN_ID;
 		break;
 	default:
-		warning( "nikita-737", "wrong file mode: %o", inode -> i_mode );
+		warning("nikita-737", "wrong file mode: %o", inode->i_mode);
 		return -EIO;
 	case S_IFREG:
 		fplug_id = REGULAR_FILE_PLUGIN_ID;
 		break;
 	}
-	reiser4_inode_data( inode ) -> file = 
-		( fplug_id >= 0 ) ? file_plugin_by_id( fplug_id ) : NULL;
-	reiser4_inode_data( inode ) -> dir = 
-		( dplug_id >= 0 ) ? dir_plugin_by_id( dplug_id ) : NULL;
+	reiser4_inode_data(inode)->file =
+	    (fplug_id >= 0) ? file_plugin_by_id(fplug_id) : NULL;
+	reiser4_inode_data(inode)->dir =
+	    (dplug_id >= 0) ? dir_plugin_by_id(dplug_id) : NULL;
 	return 0;
 }
 
 /* 
  * ->create method of object plugin
  */
-static int common_file_create( struct inode *object, 
-			       struct inode *parent UNUSED_ARG,
-			       reiser4_object_create_data *data UNUSED_ARG )
+static int
+common_file_create(struct inode *object,
+		   struct inode *parent UNUSED_ARG,
+		   reiser4_object_create_data * data UNUSED_ARG)
 {
-	assert( "nikita-744", object != NULL );
-	assert( "nikita-745", parent != NULL );
-	assert( "nikita-747", data != NULL );
-	assert( "nikita-748", inode_get_flag( object, REISER4_NO_SD ) );
+	assert("nikita-744", object != NULL);
+	assert("nikita-745", parent != NULL);
+	assert("nikita-747", data != NULL);
+	assert("nikita-748", inode_get_flag(object, REISER4_NO_SD));
 
-	return reiser4_write_sd( object );
+	return reiser4_write_sd(object);
 }
-
-
 
 /** standard implementation of ->owns_item() plugin method: compare objectids
     of keys in inode and coord */
-int common_file_owns_item( const struct inode *inode /* object to check
-						      * against */, 
-			   const coord_t *coord /* coord to check */ )
+int
+common_file_owns_item(const struct inode *inode	/* object to check
+						 * against */ ,
+		      const coord_t * coord /* coord to check */ )
 {
 	reiser4_key item_key;
 	reiser4_key file_key;
 
-	assert( "nikita-760", inode != NULL );
-	assert( "nikita-761", coord != NULL );
+	assert("nikita-760", inode != NULL);
+	assert("nikita-761", coord != NULL);
 
-	return /*coord_is_in_node( coord ) &&*/
-		coord_is_existing_item (coord) &&
-		( get_key_objectid( build_sd_key ( inode, &file_key ) ) ==
-		  get_key_objectid( item_key_by_coord( coord, &item_key ) ) );
+	return			/*coord_is_in_node( coord ) && */
+	    coord_is_existing_item(coord) &&
+	    (get_key_objectid(build_sd_key(inode, &file_key)) ==
+	     get_key_objectid(item_key_by_coord(coord, &item_key)));
 }
 
 /*
  * @count bytes of flow @f got written, update correspondingly f->length,
  * f->data and f->key
  */
-void move_flow_forward (flow_t * f, unsigned count)
+void
+move_flow_forward(flow_t * f, unsigned count)
 {
 	if (f->data)
 		f->data += count;
 	f->length -= count;
-	set_key_offset (&f->key, get_key_offset (&f->key) + count);
+	set_key_offset(&f->key, get_key_offset(&f->key) + count);
 }
 
 /**
  * Default method to construct flow into @f according to user-supplied
  * data.
  */
-int common_build_flow( struct inode *inode /* file to build flow for */, 
-		       char *buf /* user level buffer */,
-		       int user /* 1 if @buf is of user space, 0 - if it is
-				   kernel space */,
-		       size_t size /* buffer size */, 
-		       loff_t off /* offset to start io from */, 
-		       rw_op op UNUSED_ARG /* io operation */, 
-		       flow_t *f /* resulting flow */ )
+int
+common_build_flow(struct inode *inode /* file to build flow for */ ,
+		  char *buf /* user level buffer */ ,
+		  int user	/* 1 if @buf is of user space, 0 - if it is
+				   kernel space */ ,
+		  size_t size /* buffer size */ ,
+		  loff_t off /* offset to start io from */ ,
+		  rw_op op UNUSED_ARG /* io operation */ ,
+		  flow_t * f /* resulting flow */ )
 {
 	file_plugin *fplug;
 
-	assert( "nikita-1100", inode != NULL );
+	assert("nikita-1100", inode != NULL);
 
-	f -> length = size;
-	f -> data   = buf;
-	f -> user   = user;
-	fplug = inode_file_plugin( inode );
-	assert( "nikita-1931", fplug != NULL );
-	assert( "nikita-1932", fplug -> key_by_inode != NULL );
-	return fplug -> key_by_inode( inode, off, &f -> key );
+	f->length = size;
+	f->data = buf;
+	f->user = user;
+	fplug = inode_file_plugin(inode);
+	assert("nikita-1931", fplug != NULL);
+	assert("nikita-1932", fplug->key_by_inode != NULL);
+	return fplug->key_by_inode(inode, off, &f->key);
 }
 
-static int unix_key_by_inode ( struct inode *inode, loff_t off, reiser4_key *key )
+static int
+unix_key_by_inode(struct inode *inode, loff_t off, reiser4_key * key)
 {
-	build_sd_key (inode, key);
-	set_key_type (key, KEY_BODY_MINOR );
-	set_key_offset (key, ( __u64 ) off);
+	build_sd_key(inode, key);
+	set_key_type(key, KEY_BODY_MINOR);
+	set_key_offset(key, (__u64) off);
 	return 0;
 }
 
-
 /** default ->add_link() method of file plugin */
-static int common_add_link( struct inode *object, 
-			    struct inode *parent UNUSED_ARG )
+static int
+common_add_link(struct inode *object, struct inode *parent UNUSED_ARG)
 {
-	++ object -> i_nlink;
-	object -> i_ctime = CURRENT_TIME;
+	++object->i_nlink;
+	object->i_ctime = CURRENT_TIME;
 	return 0;
 }
 
 /** default ->rem_link() method of file plugin */
-static int common_rem_link( struct inode *object, 
-			    struct inode *parent UNUSED_ARG )
+static int
+common_rem_link(struct inode *object, struct inode *parent UNUSED_ARG)
 {
-	assert( "nikita-2021", object != NULL );
-	assert( "nikita-2163", object -> i_nlink > 0 );
+	assert("nikita-2021", object != NULL);
+	assert("nikita-2163", object->i_nlink > 0);
 
-	-- object -> i_nlink;
-	object -> i_ctime = CURRENT_TIME;
+	--object->i_nlink;
+	object->i_ctime = CURRENT_TIME;
 	return 0;
 }
 
 /** ->not_linked() method for file plugins */
-static int common_not_linked( const struct inode *inode )
+static int
+common_not_linked(const struct inode *inode)
 {
-	assert( "nikita-2007", inode != NULL );
-	return ( inode -> i_nlink == 0 );
+	assert("nikita-2007", inode != NULL);
+	return (inode->i_nlink == 0);
 }
 
 /** ->not_linked() method the for directory file plugin */
-static int dir_not_linked( const struct inode *inode )
+static int
+dir_not_linked(const struct inode *inode)
 {
-	assert( "nikita-2008", inode != NULL );
+	assert("nikita-2008", inode != NULL);
 	/* one link from dot */
-	return ( inode -> i_nlink == 1 );
+	return (inode->i_nlink == 1);
 }
 
 #define grab_plugin( self, ancestor, plugin )			\
@@ -734,113 +746,118 @@ static int dir_not_linked( const struct inode *inode )
 		( self ) -> plugin = ( ancestor ) -> plugin
 
 /** ->adjust_to_parent() method for regular files */
-static int common_adjust_to_parent( struct inode *object /* new object */,
-				    struct inode *parent /* parent directory */,
-				    struct inode *root /* root directory */ )
+static int
+common_adjust_to_parent(struct inode *object /* new object */ ,
+			struct inode *parent /* parent directory */ ,
+			struct inode *root /* root directory */ )
 {
 	reiser4_inode *self;
 	reiser4_inode *ancestor;
 
-	assert( "nikita-2165", object != NULL );
-	if( parent == NULL )
+	assert("nikita-2165", object != NULL);
+	if (parent == NULL)
 		parent = root;
-	assert( "nikita-2069", parent != NULL );
+	assert("nikita-2069", parent != NULL);
 
-	self     = reiser4_inode_data( object );
-	ancestor = reiser4_inode_data( parent );
+	self = reiser4_inode_data(object);
+	ancestor = reiser4_inode_data(parent);
 
-	grab_plugin( self, ancestor, file );
-	grab_plugin( self, ancestor, sd );
-	grab_plugin( self, ancestor, tail );
-	grab_plugin( self, ancestor, perm );
+	grab_plugin(self, ancestor, file);
+	grab_plugin(self, ancestor, sd);
+	grab_plugin(self, ancestor, tail);
+	grab_plugin(self, ancestor, perm);
 	return 0;
 }
 
 /** ->adjust_to_parent() method for directory files */
-static int dir_adjust_to_parent( struct inode *object /* new object */,
-				 struct inode *parent /* parent directory */,
-				 struct inode *root /* root directory */ )
+static int
+dir_adjust_to_parent(struct inode *object /* new object */ ,
+		     struct inode *parent /* parent directory */ ,
+		     struct inode *root /* root directory */ )
 {
 	reiser4_inode *self;
 	reiser4_inode *ancestor;
 
-	assert( "nikita-2166", object != NULL );
-	if( parent == NULL )
+	assert("nikita-2166", object != NULL);
+	if (parent == NULL)
 		parent = root;
-	assert( "nikita-2167", parent != NULL );
+	assert("nikita-2167", parent != NULL);
 
-	self     = reiser4_inode_data( object );
-	ancestor = reiser4_inode_data( parent );
+	self = reiser4_inode_data(object);
+	ancestor = reiser4_inode_data(parent);
 
-	grab_plugin( self, ancestor, file );
-	grab_plugin( self, ancestor, dir );
-	grab_plugin( self, ancestor, sd );
-	grab_plugin( self, ancestor, hash );
-	grab_plugin( self, ancestor, tail );
-	grab_plugin( self, ancestor, perm );
-	grab_plugin( self, ancestor, dir_item );
+	grab_plugin(self, ancestor, file);
+	grab_plugin(self, ancestor, dir);
+	grab_plugin(self, ancestor, sd);
+	grab_plugin(self, ancestor, hash);
+	grab_plugin(self, ancestor, tail);
+	grab_plugin(self, ancestor, perm);
+	grab_plugin(self, ancestor, dir_item);
 	return 0;
 }
 
 /** simplest implementation of ->getattr() method. Completely static. */
-static int common_getattr( struct vfsmount *mnt UNUSED_ARG,
-			   struct dentry *dentry, struct kstat *stat )
+static int
+common_getattr(struct vfsmount *mnt UNUSED_ARG,
+	       struct dentry *dentry, struct kstat *stat)
 {
 	struct inode *obj;
 
-	assert( "nikita-2298", dentry != NULL );
-	assert( "nikita-2299", stat != NULL );
-	assert( "nikita-2300", dentry -> d_inode != NULL );
+	assert("nikita-2298", dentry != NULL);
+	assert("nikita-2299", stat != NULL);
+	assert("nikita-2300", dentry->d_inode != NULL);
 
-	obj = dentry -> d_inode;
+	obj = dentry->d_inode;
 
-	stat -> dev     = obj -> i_dev;
-	stat -> ino     = oid_to_uino( get_inode_oid( obj ) );
-	stat -> mode    = obj -> i_mode;
-	stat -> nlink   = obj -> i_nlink;
-	stat -> uid     = obj -> i_uid;
-	stat -> gid     = obj -> i_gid;
-	stat -> rdev    = kdev_t_to_nr( obj -> i_rdev );
-	stat -> atime   = obj -> i_atime;
-	stat -> mtime   = obj -> i_mtime;
-	stat -> ctime   = obj -> i_ctime;
-	stat -> size    = obj -> i_size;
-	stat -> blocks  = ( inode_get_bytes( obj ) + VFS_BLKSIZE ) >> VFS_BLKSIZE_BITS;
+	stat->dev = obj->i_dev;
+	stat->ino = oid_to_uino(get_inode_oid(obj));
+	stat->mode = obj->i_mode;
+	stat->nlink = obj->i_nlink;
+	stat->uid = obj->i_uid;
+	stat->gid = obj->i_gid;
+	stat->rdev = kdev_t_to_nr(obj->i_rdev);
+	stat->atime = obj->i_atime;
+	stat->mtime = obj->i_mtime;
+	stat->ctime = obj->i_ctime;
+	stat->size = obj->i_size;
+	stat->blocks = (inode_get_bytes(obj) + VFS_BLKSIZE) >> VFS_BLKSIZE_BITS;
 	/*
 	 * "preferred" blocksize for efficient file system I/O
 	 */
-	stat -> blksize = get_super_private( obj -> i_sb ) -> optimal_io_size;
+	stat->blksize = get_super_private(obj->i_sb)->optimal_io_size;
 
 	return 0;
 }
 
 /* plugin->u.file.release */
-static int dir_release( struct file *file )
+static int
+dir_release(struct file *file)
 {
-	if( file -> private_data != NULL )
-		readdir_list_remove( reiser4_get_file_fsdata( file ) );
+	if (file->private_data != NULL)
+		readdir_list_remove(reiser4_get_file_fsdata(file));
 	return 0;
 }
 
-static loff_t dir_seek( struct file *file, loff_t off, int origin )
+static loff_t
+dir_seek(struct file *file, loff_t off, int origin)
 {
 	loff_t result;
 
-	result = default_llseek( file, off, origin );
-	if( result >= 0 ) {
-		int          ff;
-		coord_t      coord;
-		lock_handle  lh;
-		tap_t        tap;
+	result = default_llseek(file, off, origin);
+	if (result >= 0) {
+		int ff;
+		coord_t coord;
+		lock_handle lh;
+		tap_t tap;
 		readdir_pos *pos;
 
-		coord_init_zero( &coord );
-		init_lh( &lh );
-		tap_init( &tap, &coord, &lh, ZNODE_READ_LOCK );
+		coord_init_zero(&coord);
+		init_lh(&lh);
+		tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
 
-		ff = dir_readdir_init( file, &tap, &pos );
-		if( ff != 0 )
-			result = ( loff_t ) ff;
+		ff = dir_readdir_init(file, &tap, &pos);
+		if (ff != 0)
+			result = (loff_t) ff;
 	}
 	return result;
 }
@@ -848,8 +865,8 @@ static loff_t dir_seek( struct file *file, loff_t off, int origin )
 /**
  * default implementation of ->bind() method of file plugin
  */
-static int common_bind( struct inode *child UNUSED_ARG, 
-			struct inode *parent UNUSED_ARG )
+static int
+common_bind(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)
 {
 	return 0;
 }
@@ -857,169 +874,169 @@ static int common_bind( struct inode *child UNUSED_ARG,
 /**
  * implementation of ->bind() method for file plugin of directory file
  */
-static int dir_bind( struct inode *child, struct inode *parent )
+static int
+dir_bind(struct inode *child, struct inode *parent)
 {
 	dir_plugin *dplug;
 
-	dplug = inode_dir_plugin( child );
-	assert( "nikita-2646", dplug != NULL );
-	return dplug -> attach( child, parent );
+	dplug = inode_dir_plugin(child);
+	assert("nikita-2646", dplug != NULL);
+	return dplug->attach(child, parent);
 }
 
-file_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
-	[ REGULAR_FILE_PLUGIN_ID ] = {
-		.h = {
-			.type_id = REISER4_FILE_PLUGIN_TYPE,
-			.id      = REGULAR_FILE_PLUGIN_ID,
-			.pops    = NULL,
-			.label   = "reg",
-			.desc    = "regular file",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.write_flow          = NULL,
-		.read_flow           = NULL,
-		.truncate            = unix_file_truncate,
-		.write_sd_by_inode   = common_file_save,
-		.readpage            = unix_file_readpage,
-		.writepage           = unix_file_writepage,
-		.read                = unix_file_read,
-		.write               = unix_file_write,
-		.release             = unix_file_release,
-		.mmap                = unix_file_mmap,
-		.get_block           = unix_file_get_block,
-		.flow_by_inode       = common_build_flow/*NULL*/,
-		.key_by_inode        = unix_key_by_inode,
-		.set_plug_in_inode   = common_set_plug,
-		.adjust_to_parent    = common_adjust_to_parent,
-		.create              = common_file_create,
-		.delete              = common_file_delete,
-		.add_link            = common_add_link,
-		.rem_link            = common_rem_link,
-		.owns_item           = unix_file_owns_item,
-		.can_add_link        = common_file_can_add_link,
-		.can_rem_link        = NULL,
-		.not_linked          = common_not_linked,
-		.setattr             = unix_file_setattr,
-		.getattr             = common_getattr,
-		.seek                = NULL,
-		.bind                = common_bind
-	},
-	[ DIRECTORY_FILE_PLUGIN_ID ] = {
-		.h = {
-			.type_id = REISER4_FILE_PLUGIN_TYPE,
-			.id      = DIRECTORY_FILE_PLUGIN_ID,
-			.pops    = NULL,
-			.label   = "dir",
-			.desc    = "hashed directory",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.write_flow          = NULL,
-		.read_flow           = NULL,
-		.truncate            = NULL, /* EISDIR */
-		.write_sd_by_inode   = common_file_save,
-		.readpage            = NULL, /* EISDIR */
-		.writepage           = NULL,
-		.read                = NULL, /* EISDIR */
-		.write               = NULL, /* EISDIR */
-		.release             = dir_release,
-		.mmap                = NULL,
-		.get_block           = NULL,
-		.flow_by_inode       = NULL,
-		.key_by_inode        = NULL,
-		.set_plug_in_inode   = common_set_plug,
-		.adjust_to_parent    = dir_adjust_to_parent,
-		.create              = common_file_create,
-		.delete              = common_file_delete,
-		.add_link            = common_add_link,
-		.rem_link            = common_rem_link,
-		.owns_item           = hashed_owns_item,
-		.can_add_link        = common_file_can_add_link,
-		.can_rem_link        = is_dir_empty,
-		.not_linked          = dir_not_linked,
-		.setattr             = inode_setattr,
-		.getattr             = common_getattr,
-		.seek                = dir_seek,
-		.bind                = dir_bind
-	},
-	[ SYMLINK_FILE_PLUGIN_ID ] = {
-		.h = {
-			.type_id = REISER4_FILE_PLUGIN_TYPE,
-			.id      = SYMLINK_FILE_PLUGIN_ID,
-			.pops    = NULL,
-			.label   = "symlink",
-			.desc    = "symbolic link",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.write_flow          = NULL,
-		.read_flow           = NULL,
-		.truncate            = NULL,
-		.write_sd_by_inode   = common_file_save,
-		.readpage            = NULL,
-		.writepage           = NULL,
-		.read                = NULL,
-		.write               = NULL,
-		.release             = NULL,
-		.mmap                = NULL,
-		.get_block           = NULL,
-		.flow_by_inode       = NULL,
-		.key_by_inode        = NULL,
-		.set_plug_in_inode   = common_set_plug,
-		.adjust_to_parent    = common_adjust_to_parent,
-		.create              = symlink_create,
-		/*
-		 * FIXME-VS: symlink should probably have its own destroy method
-		 */
-		.delete              = common_file_delete,
-		.add_link            = common_add_link,
-		.rem_link            = common_rem_link,
-		.owns_item           = NULL,
-		.can_add_link        = common_file_can_add_link,
-		.can_rem_link        = NULL,
-		.not_linked          = common_not_linked,
-		.setattr             = inode_setattr,
-		.getattr             = common_getattr,
-		.seek                = NULL,
-		.bind                = common_bind
-	},
-	[ SPECIAL_FILE_PLUGIN_ID ] = {
-		.h = {
-			.type_id = REISER4_FILE_PLUGIN_TYPE,
-			.id      = SPECIAL_FILE_PLUGIN_ID,
-			.pops    = NULL,
-			.label   = "special",
-			.desc    = "special: fifo, device or socket",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.write_flow          = NULL,
-		.read_flow           = NULL,
-		.truncate            = NULL,
-		.create              = common_file_create,
-		.write_sd_by_inode   = common_file_save,
-		.readpage            = NULL,
-		.writepage           = NULL,
-		.read                = NULL,
-		.write               = NULL,
-		.release             = NULL,
-		.mmap                = NULL,
-		.get_block           = NULL,
-		.flow_by_inode       = NULL,
-		.key_by_inode        = NULL,
-		.set_plug_in_inode   = common_set_plug,
-		.adjust_to_parent    = common_adjust_to_parent,
-		.delete              = common_file_delete,
-		.add_link            = common_add_link,
-		.rem_link            = common_rem_link,
-		.owns_item           = common_file_owns_item,
-		.can_add_link        = common_file_can_add_link,
-		.can_rem_link        = NULL,
-		.not_linked          = common_not_linked,
-		.setattr             = inode_setattr,
-		.getattr             = common_getattr,
-		.seek                = NULL,
-		.bind                = common_bind
-	}
+file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
+	[REGULAR_FILE_PLUGIN_ID] = {
+				    .h = {
+					  .type_id = REISER4_FILE_PLUGIN_TYPE,
+					  .id = REGULAR_FILE_PLUGIN_ID,
+					  .pops = NULL,
+					  .label = "reg",
+					  .desc = "regular file",
+					  .linkage = TS_LIST_LINK_ZERO}
+				    ,
+				    .write_flow = NULL,
+				    .read_flow = NULL,
+				    .truncate = unix_file_truncate,
+				    .write_sd_by_inode = common_file_save,
+				    .readpage = unix_file_readpage,
+				    .writepage = unix_file_writepage,
+				    .read = unix_file_read,
+				    .write = unix_file_write,
+				    .release = unix_file_release,
+				    .mmap = unix_file_mmap,
+				    .get_block = unix_file_get_block,
+				    .flow_by_inode = common_build_flow /*NULL*/,
+				    .key_by_inode = unix_key_by_inode,
+				    .set_plug_in_inode = common_set_plug,
+				    .adjust_to_parent = common_adjust_to_parent,
+				    .create = common_file_create,
+				    .delete = common_file_delete,
+				    .add_link = common_add_link,
+				    .rem_link = common_rem_link,
+				    .owns_item = unix_file_owns_item,
+				    .can_add_link = common_file_can_add_link,
+				    .can_rem_link = NULL,
+				    .not_linked = common_not_linked,
+				    .setattr = unix_file_setattr,
+				    .getattr = common_getattr,
+				    .seek = NULL,
+				    .bind = common_bind}
+	,
+	[DIRECTORY_FILE_PLUGIN_ID] = {
+				      .h = {
+					    .type_id = REISER4_FILE_PLUGIN_TYPE,
+					    .id = DIRECTORY_FILE_PLUGIN_ID,
+					    .pops = NULL,
+					    .label = "dir",
+					    .desc = "hashed directory",
+					    .linkage = TS_LIST_LINK_ZERO}
+				      ,
+				      .write_flow = NULL,
+				      .read_flow = NULL,
+				      .truncate = NULL,	/* EISDIR */
+				      .write_sd_by_inode = common_file_save,
+				      .readpage = NULL,	/* EISDIR */
+				      .writepage = NULL,
+				      .read = NULL,	/* EISDIR */
+				      .write = NULL,	/* EISDIR */
+				      .release = dir_release,
+				      .mmap = NULL,
+				      .get_block = NULL,
+				      .flow_by_inode = NULL,
+				      .key_by_inode = NULL,
+				      .set_plug_in_inode = common_set_plug,
+				      .adjust_to_parent = dir_adjust_to_parent,
+				      .create = common_file_create,
+				      .delete = common_file_delete,
+				      .add_link = common_add_link,
+				      .rem_link = common_rem_link,
+				      .owns_item = hashed_owns_item,
+				      .can_add_link = common_file_can_add_link,
+				      .can_rem_link = is_dir_empty,
+				      .not_linked = dir_not_linked,
+				      .setattr = inode_setattr,
+				      .getattr = common_getattr,
+				      .seek = dir_seek,
+				      .bind = dir_bind}
+	,
+	[SYMLINK_FILE_PLUGIN_ID] = {
+				    .h = {
+					  .type_id = REISER4_FILE_PLUGIN_TYPE,
+					  .id = SYMLINK_FILE_PLUGIN_ID,
+					  .pops = NULL,
+					  .label = "symlink",
+					  .desc = "symbolic link",
+					  .linkage = TS_LIST_LINK_ZERO}
+				    ,
+				    .write_flow = NULL,
+				    .read_flow = NULL,
+				    .truncate = NULL,
+				    .write_sd_by_inode = common_file_save,
+				    .readpage = NULL,
+				    .writepage = NULL,
+				    .read = NULL,
+				    .write = NULL,
+				    .release = NULL,
+				    .mmap = NULL,
+				    .get_block = NULL,
+				    .flow_by_inode = NULL,
+				    .key_by_inode = NULL,
+				    .set_plug_in_inode = common_set_plug,
+				    .adjust_to_parent = common_adjust_to_parent,
+				    .create = symlink_create,
+				    /*
+				     * FIXME-VS: symlink should probably have its own destroy method
+				     */
+				    .delete = common_file_delete,
+				    .add_link = common_add_link,
+				    .rem_link = common_rem_link,
+				    .owns_item = NULL,
+				    .can_add_link = common_file_can_add_link,
+				    .can_rem_link = NULL,
+				    .not_linked = common_not_linked,
+				    .setattr = inode_setattr,
+				    .getattr = common_getattr,
+				    .seek = NULL,
+				    .bind = common_bind}
+	,
+	[SPECIAL_FILE_PLUGIN_ID] = {
+				    .h = {
+					  .type_id = REISER4_FILE_PLUGIN_TYPE,
+					  .id = SPECIAL_FILE_PLUGIN_ID,
+					  .pops = NULL,
+					  .label = "special",
+					  .desc =
+					  "special: fifo, device or socket",
+					  .linkage = TS_LIST_LINK_ZERO}
+				    ,
+				    .write_flow = NULL,
+				    .read_flow = NULL,
+				    .truncate = NULL,
+				    .create = common_file_create,
+				    .write_sd_by_inode = common_file_save,
+				    .readpage = NULL,
+				    .writepage = NULL,
+				    .read = NULL,
+				    .write = NULL,
+				    .release = NULL,
+				    .mmap = NULL,
+				    .get_block = NULL,
+				    .flow_by_inode = NULL,
+				    .key_by_inode = NULL,
+				    .set_plug_in_inode = common_set_plug,
+				    .adjust_to_parent = common_adjust_to_parent,
+				    .delete = common_file_delete,
+				    .add_link = common_add_link,
+				    .rem_link = common_rem_link,
+				    .owns_item = common_file_owns_item,
+				    .can_add_link = common_file_can_add_link,
+				    .can_rem_link = NULL,
+				    .not_linked = common_not_linked,
+				    .setattr = inode_setattr,
+				    .getattr = common_getattr,
+				    .seek = NULL,
+				    .bind = common_bind}
 };
-
 
 /* 
  * Make Linus happy.

@@ -76,7 +76,6 @@
 #include "forward.h"
 #include "debug.h"
 
-
 /* 
  * Make Linus happy.
  * Local variables:
@@ -87,4 +86,3 @@
  * fill-column: 120
  * End:
  */
-
