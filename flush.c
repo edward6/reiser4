@@ -500,6 +500,18 @@ static void move_flush_pos (flush_pos_t * pos, lock_handle * new_lock,
 	move_lh(&pos->lock, new_lock);
 }
 
+/* delete empty node which link from the parent still exists. */
+static int delete_empty_node (znode * node)
+{
+	reiser4_key smallest_removed;
+
+	assert("zam-1019", node != NULL);
+	assert("zam-1020", node_is_empty(node));
+	assert("zam-1023", znode_is_wlocked(node));
+
+	return delete_node(node, &smallest_removed, NULL);
+}
+
 /* Prepare flush position for alloc_pos_and_ancestors() and squalloc() */
 static int prepare_flush_pos(flush_pos_t *pos, jnode * org)
 {
@@ -776,6 +788,15 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	ret = prepare_flush_pos(&flush_pos, leftmost_in_slum);
 	if (ret)
 		goto failed;
+
+	if (znode_get_level(flush_pos.coord.node) == LEAF_LEVEL 
+	    && node_is_empty(flush_pos.coord.node)) {
+		znode * empty = flush_pos.coord.node;
+
+		assert ("zam-1022", !ZF_ISSET(empty, JNODE_HEARD_BANSHEE));
+		ret = delete_empty_node(empty);
+		goto failed;
+	}
 
 	if (jnode_check_flushprepped(leftmost_in_slum)) {
 		ON_TRACE(TRACE_FLUSH_VERB, "flush concurrency: %s already allocated\n", pos_tostring(&flush_pos));
@@ -1885,17 +1906,6 @@ static int lock_parent_and_allocate_znode (znode * node, flush_pos_t * pos)
 	done_load_count(&parent_load);
 	done_lh(&parent_lock);
 	return ret;
-}
-
-/* delete empty node which has  */
-static int delete_empty_node (znode * node)
-{
-	reiser4_key smallest_removed;
-
-	assert("zam-1019", node != NULL);
-	assert("zam-1020", node_is_empty(node));
-
-	return delete_node(node, &smallest_removed, NULL);
 }
 
 /* Process nodes on leaf level until unformatted node or rightmost node in the
