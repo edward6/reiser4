@@ -568,6 +568,11 @@ typedef struct reiser4_statistics {
 		/* number of tail conversions */
 		stat_cnt tail2extent;
 		stat_cnt extent2tail;
+		/* how many times find_next_item was called */
+		stat_cnt find_items;
+		/* how many times find_next_item had to call coord_by_key */
+		stat_cnt full_find_items;
+
 	} file;
 	struct {
 		/*
