@@ -168,37 +168,6 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 }
 #endif
 
-#if REISER4_DEBUG
-
-/* check_stack() - check for possible stack overflow */
-void
-check_stack(void)
-{
-	if (REISER4_DEBUG_STACK) {
-		char dummy;
-		unsigned gap;
-		reiser4_context *context = get_current_context_check();
-
-		if (context == NULL)
-			return;
-		gap = abs(&dummy - (char *) context);
-		if (gap > REISER4_STACK_GAP) {
-			warning("nikita-1079", "Stack overflow is close: %i", gap);
-		}
-		if (gap > REISER4_STACK_ABORT) {
-			printk("Stack overflow! Starting busyloop\n");
-			while ( 1 )
-				if ( !in_interrupt() && !in_irq() )
-					schedule();
-			reiser4_panic("nikita-1080", "Stack overflow: %i", gap);
-		}
-
-		reiser4_stat_stack_check_max(gap);
-	}
-}
-
-#endif
-
 int
 reiser4_are_all_debugged(struct super_block *super, __u32 flags)
 {

@@ -55,13 +55,6 @@
 #define REISER4_DEBUG (0)
 #endif
 
-#if defined(CONFIG_REISER4_CHECK_STACK)
-/* check for stack overflow in each assertion check */
-#define REISER4_DEBUG_STACK (1)
-#else
-#define REISER4_DEBUG_STACK (0)
-#endif
-
 #if defined(CONFIG_REISER4_DEBUG_MODIFY)
 /* this significantly slows down testing, but we should run our testsuite
    through with this every once in a while.  */
@@ -155,7 +148,6 @@
 #define assert(label, cond)						\
 ({									\
 	BUG_ON(preempt_count() < 0);					\
-	check_stack();							\
 	if (unlikely(!(cond)))						\
 		reiser4_panic(label, "assertion failed: " #cond);	\
 })
@@ -373,7 +365,6 @@ extern __u32 get_current_trace_flags(void);
 #if REISER4_DEBUG
 extern int no_counters_are_held(void);
 extern int commit_check_locks(void);
-extern void check_stack(void);
 #endif
 
 #if REISER4_DEBUG_OUTPUT && REISER4_DEBUG

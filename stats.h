@@ -530,7 +530,6 @@ extern void reiser4_stat_done(reiser4_stat ** stats);
 #define	reiser4_stat_inc_at_level(lev, stat) noop
 #define reiser4_stat_add_at_level(lev, stat, cnt) noop
 #define	reiser4_stat_level_inc(l, stat) noop
-#define reiser4_stat_stack_check_max(gap) noop
 
 typedef struct {
 } reiser4_stat;
