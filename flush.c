@@ -330,11 +330,11 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	/* Funny business here.  We set an unformatted point at the left-end of the scan,
 	 * but after that an unformatted flush position sets pos->point to NULL.  This
 	 * seems lazy, but it makes the initial calls to flush_query_relocate much easier
-	 * because we know the first unformatted child.  Nothing is broken by this, but
-	 * the reason is subtle.  Holding an extra reference on a jnode during flush can
-	 * cause us to see nodes with HEARD_BANSHEE during squalloc, which is not good,
-	 * but this only happens on the left-edge of flush, where nodes cannot be deleted.
-	 * So if nothing is broken, why fix it? */
+	 * because we know the first unformatted child already.  Nothing is broken by
+	 * this, but the reasoning is subtle.  Holding an extra reference on a jnode
+	 * during flush can cause us to see nodes with HEARD_BANSHEE during squalloc,
+	 * which is not good, but this only happens on the left-edge of flush, where nodes
+	 * cannot be deleted.  So if nothing is broken, why fix it? */
 	if ((ret = flush_pos_set_point (& flush_pos, left_scan.node))) {
 		goto failed;
 	}
@@ -2660,13 +2660,25 @@ static int flush_scan_formatted (flush_scan *scan)
 	}
 }
 
-/* Performs leftward scanning starting from either kind of node.  Counts the starting node. */
-static int flush_scan_left (flush_scan *scan, flush_scan *right, jnode *node, __u32 limit)
+/* Performs leftward scanning starting from either kind of node.  Counts the starting
+ * node.  The right-scan object is passed in for the left-scan in order to copy the parent
+ * of an unformatted starting position.  This way we avoid searching for the unformatted
+ * node's parent when scanning in each direction.  If we search for the parent once it is
+ * set in both scan objects.  The limit parameter tells flush-scan when to stop, and the
+ * rapid_after parameter (if non-zero) tells flush to perform a rapid scan after that many
+ * nodes have been counted.  The rapid scan skips past the interior children of any node
+ * with at least one dirty children and only scans through dirty children at the boundary
+ * between two parents.
+ *
+ * Rapid scanning is used only during scan_left, where we are interested in finding the
+ * 'leftpoint' where we begin flushing.  We are not interested in HERE YOU ARE. */
+static int flush_scan_left (flush_scan *scan, flush_scan *right, jnode *node, __u32 limit, __u32 rapid_after)
 {
 	int ret;
 
-	scan->max_size  = limit;
-	scan->direction = LEFT_SIDE;
+	scan->max_size    = limit;
+	scan->rapid_after = rapid_after;
+	scan->direction   = LEFT_SIDE;
 
 	if ((ret = flush_scan_set_current (scan, jref (node), 1, NULL))) {
 		return ret;
@@ -2675,13 +2687,22 @@ static int flush_scan_left (flush_scan *scan, flush_scan *right, jnode *node, __
 	return flush_scan_common (scan, right);
 }
 
-/* Performs rightward scanning... Does not count the starting node. */
+/* Performs rightward scanning... Does not count the starting node.  The limit parameter
+ * is described in flush_scan_left.  If the starting node is unformatted then the
+ * parent_coord was already set during scan_left.  The rapid_after parameter is not used
+ * during right-scanning.
+ *
+ * scan_right is only called if the scan_left operation does not count at least
+ * FLUSH_RELOCATE_THRESHOLD nodes for flushing.  Otherwise, the limit parameter is set to
+ * the difference between scan-left's count and FLUSH_RELOCATE_THRESHOLD, meaning
+ * scan-right counts as high as FLUSH_RELOCATE_THRESHOLD and then stops. */
 static int flush_scan_right (flush_scan *scan, jnode *node, __u32 limit)
 {
 	int ret;
 
-	scan->max_size  = limit;
-	scan->direction = RIGHT_SIDE;
+	scan->max_size    = limit;
+	scan->rapid_after = 0;
+	scan->direction   = RIGHT_SIDE;
 
 	if ((ret = flush_scan_set_current (scan, jref (node), 0, NULL))) {
 		return ret;
