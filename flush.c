@@ -27,6 +27,7 @@
 #include "entd.h"
 #include "reiser4.h"
 #include "prof.h"
+#include "flush.h"
 
 #include <asm/atomic.h>
 #include <linux/fs.h>		/* for struct super_block  */
@@ -361,115 +362,17 @@
    from the two nodes being squeezed.  Looks difficult, but has potential to increase
    space utilization. */
 
-/* DECLARATIONS: */
-
-/* The flush_scan data structure maintains the state of an in-progress flush-scan on a
-   single level of the tree.  A flush-scan is used for counting the number of adjacent
-   nodes to flush, which is used to determine whether we should relocate, and it is also
-   used to find a starting point for flush.  A flush-scan object can scan in both right
-   and left directions via the scan_left() and scan_right() interfaces.  The
-   right- and left-variations are similar but perform different functions.  When scanning
-   left we (optionally perform rapid scanning and then) longterm-lock the endpoint node.
-   When scanning right we are simply counting the number of adjacent, dirty nodes. */
-struct flush_scan {
-
-	/* The current number of nodes scanned on this level. */
-	unsigned count;
-
-	/* There may be a maximum number of nodes for a scan on any single level.  When
-	   going leftward, max_count is determined by FLUSH_SCAN_MAXNODES (see reiser4.h) */
-	unsigned max_count;
-
-	/* Direction: Set to one of the sideof enumeration: { LEFT_SIDE, RIGHT_SIDE }. */
-	sideof direction;
-
-	/* Initially @stop is set to false then set true once some condition stops the
-	   search (e.g., we found a clean node before reaching max_count or we found a
-	   node belonging to another atom). */
-	int stop;
-
-	/* The current scan position.  If @node is non-NULL then its reference count has
-	   been incremented to reflect this reference. */
-	jnode *node;
-
-	/* A handle for zload/zrelse of current scan position node. */
-	load_count node_load;
-
-	/* During left-scan, if the final position (a.k.a. endpoint node) is formatted the
-	   node is locked using this lock handle.  The endpoint needs to be locked for
-	   transfer to the flush_position object after scanning finishes. */
-	lock_handle node_lock;
-
-	/* When the position is unformatted, its parent, coordinate, and parent
-	   zload/zrelse handle. */
-	lock_handle parent_lock;
-	coord_t parent_coord;
-	load_count parent_load;
-
-	/* The block allocator preceder hint.  Sometimes flush_scan determines what the
-	   preceder is and if so it sets it here, after which it is copied into the
-	   flush_position.  Otherwise, the preceder is computed later. */
-	reiser4_block_nr preceder_blk;
-};
-
-
-typedef enum flush_position_state {
-	POS_INVALID,		/* Invalid or stopped pos, do not continue slum
-				 * processing */
-	POS_ON_LEAF,		/* pos points to already prepped, locked formatted node at
-				 * leaf level */
-	POS_ON_EPOINT,		/* pos keeps a lock on twig level, "coord" field is used
-				 * to traverse unformatted nodes */
-	POS_TO_LEAF,		/* pos is being moved to leaf level */
-	POS_TO_TWIG,		/* pos is being moved to twig level */
-	POS_END_OF_TWIG,	/* special case of POS_ON_TWIG, when coord is after
-				 * rightmost unit of the current twig */
-	POS_ON_INTERNAL		/* same as POS_ON_LEAF, but points to internal node */
-
-} flushpos_state_t;
-
-/* An encapsulation of the current flush point and all the parameters that are passed
-   through the entire squeeze-and-allocate stage of the flush routine.  A single
-   flush_position object is constructed after left- and right-scanning finishes. */
-struct flush_position {
-	flushpos_state_t state;
-
-	coord_t coord;		/* coord to traverse unformatted nodes */
-	lock_handle lock;	/* current lock we hold */
-	load_count load;	/* load status for current locked formatted node  */
-
-	jnode * child;          /* for passing a reference to unformatted child
-				 * across pos state changes */
-
-	reiser4_blocknr_hint preceder;	/* The flush 'hint' state. */
-	int leaf_relocate;	/* True if enough leaf-level nodes were
-				 * found to suggest a relocate policy. */
-	long *nr_to_flush;	/* If called under memory pressure,
-				 * indicates how many nodes the VM asked to flush. */
-	int alloc_cnt;		/* The number of nodes allocated during squeeze and allococate. */
-	int prep_or_free_cnt;	/* The number of nodes prepared for write (allocate) or squeezed and freed. */
-	flush_queue_t *fq;
-	long *nr_written;	/* number of nodes submitted to disk */
-	int flags;		/* a copy of jnode_flush flags argument */
-
-	znode * prev_twig;	/* previous parent pointer value, used to catch
-				 * processing of new twig node */
-};
-
 /* Flush-scan helper functions. */
 static void scan_init(flush_scan * scan);
 static void scan_done(flush_scan * scan);
-static int scan_set_current(flush_scan * scan, jnode * node, unsigned add_size, const coord_t * parent);
-static int scan_finished(flush_scan * scan);
-static int scanning_left(flush_scan * scan);
 
 /* Flush-scan algorithm. */
 static int scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned limit);
 static int scan_right(flush_scan * scan, jnode * node, unsigned limit);
 static int scan_common(flush_scan * scan, flush_scan * other);
 static int scan_formatted(flush_scan * scan);
-static int scan_extent(flush_scan * scan, int skip_first);
-static int scan_extent_coord(flush_scan * scan, const coord_t * in_coord);
+static int scan_unformatted(flush_scan * scan, flush_scan * other);
+static int scan_by_coord(flush_scan * scan);
 
 /* Initial flush-point ancestor allocation. */
 static int alloc_pos_and_ancestors(flush_pos_t * pos);
@@ -520,27 +423,15 @@ static int pos_stop(flush_pos_t * pos);
 #endif
 
 #if REISER4_TRACE
-static const char *jnode_tostring(jnode * node);
 static const char *pos_tostring(flush_pos_t * pos);
 static const char *znode_tostring(znode * node);
 static const char *flags_tostring(int flags);
 #else
-#define jnode_tostring(n) ""
 #define pos_tostring(p)   ""
 #define znode_tostring(n) ""
 #define flags_tostring(f) ""
 #endif
 
-
-#if REISER4_DEBUG
-static void
-check_preceder(reiser4_block_nr blk)
-{
-	assert("nikita-2588", blk < reiser4_block_count(reiser4_get_current_sb()));
-}
-#else
-#define check_preceder( b ) noop
-#endif
 
 /* This flush_cnt variable is used to track the number of concurrent flush operations,
    useful for debugging.  It is initialized in txnmgr.c out of laziness (because flush has
@@ -2698,6 +2589,7 @@ jnode_lock_parent_coord(jnode         * node,
 {
 	int ret;
 
+	assert("edward-xxx", coord_is_invalid(coord));
 	assert("edward-53", jnode_is_unformatted(node) || jnode_is_znode(node));
 	assert("edward-54", jnode_is_unformatted(node) || znode_is_any_locked(JZNODE(node)));
 	
@@ -2730,7 +2622,8 @@ jnode_lock_parent_coord(jnode         * node,
 				assert("edward-165", jnode_page(node)->mapping != NULL);
 				assert("edward-166", jnode_page(node)->mapping->host != NULL);
 				assert("edward-167", inode_get_flag(jnode_page(node)->mapping->host, REISER4_CLUSTER_KNOWN));
-				/* file was just created 
+				/* file was just created or cluster doesn't have
+				 * appropriate items in the tree.
 				 * FIXME-EDWARD Process one cluster and insert appropriate items 
  				 * by (ino, coord, parent_lh, get_key_offset(&key)))
 				 */
@@ -2878,7 +2771,7 @@ scan_done(flush_scan * scan)
 }
 
 /* Returns true if flush scanning is finished. */
-static int
+int
 scan_finished(flush_scan * scan)
 {
 	return scan->stop || scan->count >= scan->max_count;
@@ -2886,7 +2779,7 @@ scan_finished(flush_scan * scan)
 
 /* Return true if the scan should continue to the @tonode.  True if the node meets the
    same_atom_dirty condition.  If not, deref the "left" node and stop the scan. */
-static int
+int
 scan_goto(flush_scan * scan, jnode * tonode)
 {
 	int go = same_atom_dirty(scan->node, tonode, 1, 0);
@@ -2908,7 +2801,7 @@ scan_goto(flush_scan * scan, jnode * tonode)
 /* Set the current scan->node, refcount it, increment count by the @add_count (number to
    count, e.g., skipped unallocated nodes), deref previous current, and copy the current
    parent coordinate. */
-static int
+int
 scan_set_current(flush_scan * scan, jnode * node, unsigned add_count, const coord_t * parent)
 {
 	/* Release the old references, take the new reference. */
@@ -2934,7 +2827,7 @@ scan_set_current(flush_scan * scan, jnode * node, unsigned add_count, const coor
 }
 
 /* Return true if scanning in the leftward direction. */
-static int
+int
 scanning_left(flush_scan * scan)
 {
 	return scan->direction == LEFT_SIDE;
@@ -3043,46 +2936,10 @@ scan_common(flush_scan * scan, flush_scan * other)
 	   For this reason, if we search for the parent during scan-left we then duplicate
 	   the coord/lock/load into the scan-right object. */
 	if (jnode_is_unformatted(scan->node)) {
-
-		if (coord_is_invalid(&scan->parent_coord)) {
-
-			ret = jnode_lock_parent_coord
-				(scan->node, &scan->parent_coord, 
-				 &scan->parent_lock, &scan->parent_load, 
-				 ZNODE_WRITE_LOCK, 0);
-			if (ret != 0) {
-				/* FIXME(C): check EINVAL, EDEADLK */
-				ON_TRACE(TRACE_FLUSH,
-					 "flush_scan_common: jnode_lock_parent_coord returned %d\n", ret);				
-				return ret;
-			}
-
-			ON_TRACE(TRACE_FLUSH,
-				 "flush_scan_common: jnode_lock_parent_coord returned 0\n");
-			assert("jmacd-8661", other != NULL);
-
-			/* Duplicate the reference into the other flush_scan. */
-			coord_dup(&other->parent_coord, &scan->parent_coord);
-			copy_lh(&other->parent_lock, &scan->parent_lock);
-			copy_load_count(&other->parent_load, &scan->parent_load);
-		}
-
-		/* The common scan code is structured as a loop that repeatedly calls:
-
-		   \_ scan_formatted
-		      \_ scan_extent
-		         \_ scan_extent_coord
-		  
-		   But if we start at an unformatted node (extent) then we begin with a
-		   call to scan_extent then fall into the loop at a formatted
-		   position below.
-		*/
-		/* skip_first = false (i.e., starting position is
-		 * unformatted) */
-		if ((ret = scan_extent(scan, 0)))
+		ret = scan_unformatted(scan, other);
+		if (ret != 0)
 			return ret;
 	}
-
 	/* This loop expects to start at a formatted position, which explains the
 	   scan_extent case above.  After scanning from a formatted position the
 	   code then checks for an extent and scans past all extents until the next
@@ -3094,8 +2951,74 @@ scan_common(flush_scan * scan, flush_scan * other)
 			return ret;
 		}
 	}
-
+	
 	return 0;
+}
+
+static int
+scan_unformatted(flush_scan * scan, flush_scan * other)
+{
+	int ret = 0;
+	int try = 0;
+	
+	if (!coord_is_invalid(&scan->parent_coord))
+		goto scan;
+
+        /* set parent coord from */ 
+	if (!jnode_is_unformatted(scan->node)) {
+		/* formatted position*/
+
+		lock_handle lock;
+		assert("edward-xxx", jnode_is_znode(scan->node));
+		init_lh(&lock);
+		try = scanning_left(scan) && !lock_stack_isclean(get_current_lock_stack());
+		/* Need the node locked to get the parent lock, We have to
+		   take write lock since there is at least one call path
+		   where this znode is already write-locked by us. */
+		ret = longterm_lock_znode(&lock, JZNODE(scan->node), ZNODE_WRITE_LOCK,
+					  scanning_left(scan) ? ZNODE_LOCK_LOPRI : ZNODE_LOCK_HIPRI);
+		if (ret != 0) 
+			/* EINVAL or EDEADLK here mean... try again!  At this point we've
+			   scanned too far and can't back out, just start over. */
+			return ret;
+		
+		ret = jnode_lock_parent_coord(scan->node, &scan->parent_coord, &scan->parent_lock,
+					      &scan->parent_load, ZNODE_WRITE_LOCK, try);
+		
+		/* FIXME(C): check EINVAL, EDEADLK */
+		done_lh(&lock);
+		if (ret == -EAGAIN) {
+			scan->stop = 1;
+			return 0;
+		}
+		if (ret)
+			return ret;
+		
+	}
+	else {
+		/* unformatted position */
+		
+		ret = jnode_lock_parent_coord(scan->node, &scan->parent_coord, &scan->parent_lock,
+					      &scan->parent_load, ZNODE_WRITE_LOCK, try);
+		if (ret != 0) {
+			/* FIXME(C): check EINVAL, EDEADLK */
+			if (jnode_is_cluster_page(scan->node))
+				goto scan;
+			ON_TRACE(TRACE_FLUSH,
+				 "flush_scan_common: jnode_lock_parent_coord returned %d\n", ret);				
+			return ret;
+		}
+		ON_TRACE(TRACE_FLUSH,
+			 "flush_scan_common: jnode_lock_parent_coord returned 0\n");
+		assert("jmacd-8661", other != NULL);
+		
+		/* Duplicate the reference into the other flush_scan. */
+		coord_dup(&other->parent_coord, &scan->parent_coord);
+		copy_lh(&other->parent_lock, &scan->parent_lock);
+		copy_load_count(&other->parent_load, &scan->parent_load);
+	}	
+ scan:
+	return scan_by_coord(scan);
 }
 
 /* Performs left- or rightward scanning starting from a formatted node. Follow left
@@ -3167,84 +3090,55 @@ scan_formatted(flush_scan * scan)
 		scan->stop = 1;
 		return 0;
 	}
+	/* Otherwise, calls scan_by_coord for the right(left)most item of the
+	   left(right) neighbor on the parent level, then possibly continue. */
 
-	/* Otherwise, check for an extent at the parent level then possibly continue. */
-	{
-		int ret;
-		int try;
-		lock_handle end_lock;
-
-		init_lh(&end_lock);
-
-		try = 
-			scanning_left(scan) && 
-			!lock_stack_isclean(get_current_lock_stack());
-
-		/* Need the node locked to get the parent lock, We have to
-		   take write lock since there is at least one call path
-		   where this znode is already write-locked by us. */
-		ret = longterm_lock_znode(&end_lock, JZNODE(scan->node), ZNODE_WRITE_LOCK,
-					  scanning_left(scan) ? ZNODE_LOCK_LOPRI : ZNODE_LOCK_HIPRI);
-		if (ret != 0) {
-			/* EINVAL or EDEADLK here mean... try again!  At this point we've
-			   scanned too far and can't back out, just start over. */
-			return ret;
-		}
-
-		/* This is a write-lock since we may start flushing from this locked coordinate. */
-		ret =
-		    jnode_lock_parent_coord(scan->node, &scan->parent_coord,
-					    &scan->parent_lock, &scan->parent_load, ZNODE_WRITE_LOCK, try);
-		/* FIXME(C): check EINVAL, EDEADLK */
-
-		done_lh(&end_lock);
-
-		if (ret != 0) {
-			if (ret == -EAGAIN) {
-				scan->stop = 1;
-				return 0;
-			}
-			return ret;
-		}
-
-		/* With the parent coordinate set, call scan_extent.  If the next
-		   position is not an extent, scan_extent will detect it and do
-		   nothing. */
-		return scan_extent(scan, 1
-					 /* skip_first = true (i.e., current position is formatted) */
-		    );
-	}
+	coord_init_invalid(&scan->parent_coord, NULL);
+	return scan_unformatted(scan, NULL);
 }
 
-/* Performs leftward scanning starting from a (possibly) unformatted node.  Skip_first
-   indicates that the scan->node is set to a formatted node and we are interested in
-   continuing at the next neighbor only if it is unformatted.  When called initially from
-   scan_common, it sets skip_first=0 (because the first node is unformatted), but
-   when called from scan_formatted, it sets skip_first=1 (because the current
-   position is formatted).  After one iteration through the loop below, skip_first is
-   reset to zero and the flush .  */
+/* NOTE-EDWARD:
+   This scans adjacent items of the same type and calls scan flush plugin for each one.
+   Performs leftward scanning starting from a (possibly) unformatted node.  If we start
+   from unformatted node, then we continue only if the next neighbor is also unformatted.
+   When called from scan_formatted, we skip first iteration (to make sure that
+   right(left)most item of the left(right) neighbor on the parent level is of the same
+   type and set appropriate coord). */
 static int
-scan_extent(flush_scan * scan, int skip_first)
+scan_by_coord(flush_scan * scan)
 {
 	int ret = 0;
+	int scan_this_coord;
 	lock_handle next_lock;
 	load_count next_load;
 	coord_t next_coord;
 	jnode *child;
-
+	item_plugin *iplug;
+	
 	init_lh(&next_lock);
 	init_load_count(&next_load);
+	scan_this_coord = (jnode_is_unformatted(scan->node) ? 1 : 0);
 
-	for (; !scan_finished(scan); skip_first = 0) {
+        /* set initial item id */
+	if(coord_is_invalid(&scan->parent_coord)) {
+		/* this is possible only for ctails for a while */
+		assert("edward-xxx", jnode_is_cluster_page(scan->node));
+		iplug = item_plugin_by_id(CTAIL_ID);
+	}
+	else
+		iplug = item_plugin_by_coord(&scan->parent_coord);
+	
+	if (iplug->f.scan == NULL) {
+		scan->stop = 1;
+		ret = 0;
+		goto exit;
+	}	
 
-		/* If not skipping the first item (only true the first iteration of this
-		   loop when called from scan_formatted), then we call
-		   scan_extent_coord, which scans as many extent units as it can
-		   until either finding a non-dirty jnode, a formatted node (internal
-		   unit), or reaching the end of node. */
-		if (skip_first == 0) {
-
-			if (!item_is_extent(&scan->parent_coord)) {
+	for (; !scan_finished(scan); scan_this_coord = 1) {
+		
+		if (scan_this_coord) {
+			if (!coord_is_invalid(&scan->parent_coord) &&
+			    item_plugin_by_coord(&scan->parent_coord) != iplug) {
 				/* we raced again extent->tail conversion and
 				   lost. */
 				ON_TRACE(TRACE_FLUSH,
@@ -3253,24 +3147,21 @@ scan_extent(flush_scan * scan, int skip_first)
 				ret = 0;
 				goto exit;
 			}
-			assert("jmacd-1230", item_is_extent(&scan->parent_coord));
-
-			ret = scan_extent_coord(scan, &scan->parent_coord);
+			ret = iplug->f.scan(scan, &scan->parent_coord);
 			if (ret != 0) {
 				goto exit;
 			}
-
 			if (scan_finished(scan)) {
 				break;
 			}
 		} else {
 			/* FIXME:NIKITA->* the same race against truncate as
 			 * above is possible here, it seems */
-			/* In this case, apply the same end-of-node logic but don't scan
+			
+			/* NOTE-JMACD: In this case, apply the same end-of-node logic but don't scan
 			   the first coordinate. */
 			assert("jmacd-1231", item_is_internal(&scan->parent_coord));
 		}
-
 		/* Either way, the invariant is that scan->parent_coord is set to the
 		   parent of scan->node.  Now get the next item. */
 		coord_dup(&next_coord, &scan->parent_coord);
@@ -3300,22 +3191,23 @@ scan_extent(flush_scan * scan, int skip_first)
 			coord_init_sideof_unit(&next_coord, next_lock.node, sideof_reverse(scan->direction));
 		}
 
-		/* If skip_first was set, then we are only interested in continuing if the
-		   next item is an extent.  If this is not the case, stop now.  Otherwise,
-		   if the next item is an extent we will return to the scan_common
-		   loop and the next call will be to scan_formatted() to handle this
-		   case. */
-		if (!item_is_extent(&next_coord) && skip_first) {
+		/* We are only interested in continuing if the next item has the same id.
+		   If so we will return to the scan_common loop and the next call will be
+		   to scan_formatted() to handle this case. */
+		if (item_plugin_by_coord(&next_coord) != iplug) {
 			scan->stop = 1;
 			break;
 		}
 
 		/* Get the next child. */
+
+		assert("edward-xxx", iplug->f.utmost_child != NULL);
+		
 		ret = item_utmost_child(&next_coord, sideof_reverse(scan->direction), &child);
 		if (ret != 0) {
 			goto exit;
 		}
-
+		
 		/* If the next child is not in memory, or, item_utmost_child
 		   failed (due to race with unlink, most probably), stop
 		   here. */
@@ -3323,14 +3215,14 @@ scan_extent(flush_scan * scan, int skip_first)
 			scan->stop = 1;
 			break;
 		}
-
+		
 		assert("nikita-2374", jnode_is_unformatted(child) || jnode_is_znode(child));
-
+		
 		/* See if it is dirty, part of the same atom. */
 		if (!scan_goto(scan, child)) {
 			break;
 		}
-
+		
 		/* If so, make it current. */
 		ret = scan_set_current(scan, child, 1, &next_coord);
 		if (ret != 0) {
@@ -3349,206 +3241,19 @@ scan_extent(flush_scan * scan, int skip_first)
 			move_lh(&scan->parent_lock, &next_lock);
 			move_load_count(&scan->parent_load, &next_load);
 		}
-
-		assert("jmacd-1239", item_is_extent(&scan->parent_coord));
 	}
-
-	assert("jmacd-6233", scan_finished(scan)
-	       || jnode_is_znode(scan->node));
-exit:
+	
+	assert("jmacd-6233", scan_finished(scan) || jnode_is_znode(scan->node));
+ exit:
 	if (jnode_is_znode(scan->node)) {
 		done_lh(&scan->parent_lock);
 		done_load_count(&scan->parent_load);
 	}
-
+	
 	done_load_count(&next_load);
 	done_lh(&next_lock);
 	return ret;
-}
-
-/* Performs leftward scanning starting from an unformatted node and its parent coordinate.
-   This scan continues, advancing the parent coordinate, until either it encounters a
-   formatted child or it finishes scanning this node.
-  
-   If unallocated, the entire extent must be dirty and in the same atom.  (Actually, I'm
-   not sure this is last property (same atom) is enforced, but it should be the case since
-   one atom must write the parent and the others must read the parent, thus fusing?).  In
-   any case, the code below asserts this case for unallocated extents.  Unallocated
-   extents are thus optimized because we can skip to the endpoint when scanning.
-  
-   It returns control to scan_extent, handles these terminating conditions, e.g., by
-   loading the next twig.
-*/
-static int
-scan_extent_coord(flush_scan * scan, const coord_t * in_coord)
-{
-	coord_t coord;
-	jnode *neighbor;
-	unsigned long scan_index, unit_index, unit_width, scan_max, scan_dist;
-	reiser4_block_nr unit_start;
-	/*struct inode *ino = NULL; */
-	__u64 oid;
-	reiser4_key key;
-	/*struct page *pg; */
-	int ret = 0, allocated, incr;
-	reiser4_tree *tree;
-
-	if (!jnode_check_dirty(scan->node)) {
-		scan->stop = 1;
-		return 0; /* Race with truncate, this node is already
-			   * truncated. */
-	}
-
-	coord_dup(&coord, in_coord);
-
-	assert("jmacd-1404", !scan_finished(scan));
-	assert("jmacd-1405", jnode_get_level(scan->node) == LEAF_LEVEL);
-	assert("jmacd-1406", jnode_is_unformatted(scan->node));
-
-	/* The scan_index variable corresponds to the current page index of the
-	   unformatted block scan position. */
-	scan_index = index_jnode(scan->node);
-
-	assert("jmacd-7889", item_is_extent(&coord));
-
-	ON_TRACE(TRACE_FLUSH_VERB, "%s scan starts %lu: %s\n",
-		 (scanning_left(scan) ? "left" : "right"), scan_index, jnode_tostring(scan->node));
-
-repeat:
-	/* If the get_inode call is expensive we can be a bit more clever and only call
-	   get_inode when the extent item changes, not just the extent unit.  As it is,
-	   this repeats the get_inode call for every unit even when the OID doesn't
-	   change. */
-	oid = get_key_objectid(item_key_by_coord(&coord, &key));
-
-	ON_TRACE(TRACE_FLUSH_VERB, "%s scan index %lu: parent %p oid %llu\n",
-		 (scanning_left(scan) ? "left" : "right"), scan_index, coord.node, oid);
-
-	/* FIXME:NIKITA->* this is wrong: hole is treated as allocated extent
-	   by this function---this leads to incorrect preceder update in
-	   "stop-same-parent" branch below.
-	*/
-	allocated = !extent_is_unallocated(&coord);
-	/* Get the values of this extent unit: */
-	unit_index = extent_unit_index(&coord);
-	unit_width = extent_unit_width(&coord);
-	unit_start = extent_unit_start(&coord);
-
-	assert("jmacd-7187", unit_width > 0);
-	assert("jmacd-7188", scan_index >= unit_index);
-	assert("jmacd-7189", scan_index <= unit_index + unit_width - 1);
-
-	/* Depending on the scan direction, we set different maximum values for scan_index
-	   (scan_max) and the number of nodes that would be passed if the scan goes the
-	   entire way (scan_dist).  Incr is an integer reflecting the incremental
-	   direction of scan_index. */
-	if (scanning_left(scan)) {
-		scan_max = unit_index;
-		scan_dist = scan_index - unit_index;
-		incr = -1;
-	} else {
-		scan_max = unit_index + unit_width - 1;
-		scan_dist = scan_max - unit_index;
-		incr = +1;
-	}
-
-	tree = current_tree;	/*tree_by_inode (ino); */
-
-	/* If the extent is allocated we have to check each of its blocks.  If the extent
-	   is unallocated we can skip to the scan_max. */
-	if (allocated) {
-		do {
-			neighbor = jlook_lock(tree, oid, scan_index);
-			if (neighbor == NULL)
-				goto stop_same_parent;
-
-			ON_TRACE(TRACE_FLUSH_VERB, "alloc scan index %lu: %s\n",
-				 scan_index, jnode_tostring(neighbor));
-
-			if (scan->node != neighbor && !scan_goto(scan, neighbor)) {
-				/* @neighbor was jput() by scan_goto(). */
-				goto stop_same_parent;
-			}
-
-			ret = scan_set_current(scan, neighbor, 1, &coord);
-			if (ret != 0) {
-				goto exit;
-			}
-
-			/* reference to @neighbor is stored in @scan, no need
-			   to jput(). */
-			scan_index += incr;
-
-		} while (incr + scan_max != scan_index);
-
-	} else {
-		/* Optimized case for unallocated extents, skip to the end. */
-		neighbor = jlook_lock(tree, oid, scan_index);
-		if (neighbor == NULL) {
-			/* Race with truncate */
-			scan->stop = 1;
-			ret = 0;
-			goto exit;
-		}
-
-		ON_TRACE(TRACE_FLUSH_VERB, "unalloc scan index %lu: %s\n", scan_index, jnode_tostring(neighbor));
-
-		assert("jmacd-3551", !jnode_check_flushprepped(neighbor)
-		       && same_atom_dirty(neighbor, scan->node, 0, 0));
-
-		ret = scan_set_current(scan, neighbor, scan_dist, &coord);
-		if (ret != 0) {
-			goto exit;
-		}
-	}
-
-	if (coord_sideof_unit(&coord, scan->direction) == 0 && item_is_extent(&coord)) {
-		/* Continue as long as there are more extent units. */
-
-		scan_index =
-		    extent_unit_index(&coord) + (scanning_left(scan) ? extent_unit_width(&coord) - 1 : 0);
-		/*assert ("vs-835", ino); */
-		/*iput (ino); */
-		goto repeat;
-	}
-
-	if (0) {
-stop_same_parent:
-
-		/* If we are scanning left and we stop in the middle of an allocated
-		   extent, we know the preceder immediately.. */
-		/* middle of extent is (scan_index - unit_index) != 0. */
-		if (scanning_left(scan) && (scan_index - unit_index) != 0) {
-			/* FIXME(B): Someone should step-through and verify that this preceder
-			   calculation is indeed correct. */
-			/* @unit_start is starting block (number) of extent
-			   unit. Flush stopped at the @scan_index block from
-			   the beginning of the file, which is (scan_index -
-			   unit_index) block within extent.
-			*/
-			if (unit_start) {
-				/* skip preceder update when we are at hole */
-				scan->preceder_blk = unit_start + scan_index - unit_index;
-				check_preceder(scan->preceder_blk);
-			}
-		}
-
-		/* In this case, we leave coord set to the parent of scan->node. */
-		scan->stop = 1;
-
-	} else {
-		/* In this case, we are still scanning, coord is set to the next item which is
-		   either off-the-end of the node or not an extent. */
-		assert("jmacd-8912", scan->stop == 0);
-		assert("jmacd-7812", (coord_is_after_sideof_unit(&coord, scan->direction)
-				      || !item_is_extent(&coord)));
-	}
-
-	ret = 0;
-exit:
-	/*if (ino != NULL) { iput (ino); } */
-	return ret;
-}
+}	
 
 /* FLUSH POS HELPERS */
 
@@ -3557,19 +3262,19 @@ static void
 pos_init(flush_pos_t * pos)
 {
 	xmemset(pos, 0, sizeof *pos);
-
+	
 	pos->state = POS_INVALID;
 	coord_init_invalid(&pos->coord, NULL);
 	init_lh(&pos->lock);
 	init_load_count(&pos->load);
-
+	
 	blocknr_hint_init(&pos->preceder);
 }
 
 /* The flush loop inside squalloc periodically checks pos_valid to
    determine when "enough flushing" has been performed.  This will return true until one
    of the following conditions is met:
-  
+   
    1. the number of flush-queued nodes has reached the kernel-supplied "int *nr_to_flush"
    parameter, meaning we have flushed as many blocks as the kernel requested.  When
    flushing to commit, this parameter is NULL.
@@ -3687,7 +3392,7 @@ jnode_tostring_internal(jnode * node, char *buf)
 	}
 }
 
-static const char *
+const char *
 jnode_tostring(jnode * node)
 {
 	static char fmtbuf[256];
