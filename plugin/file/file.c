@@ -554,10 +554,12 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 		if (result)
 			break;
 
-		/* Final sd update after the file gets its correct size */
-		INODE_SET_FIELD(inode, i_size, new_size);
-		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-		result = reiser4_update_sd(inode);
+		if (update_sd) {
+			/* Final sd update after the file gets its correct size */
+			INODE_SET_FIELD(inode, i_size, new_size);
+			inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+			result = reiser4_update_sd(inode);
+		}
 		break;
 	}
 
