@@ -303,7 +303,7 @@ error:
 reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile, 
     aal_device_t *host_device, size_t blocksize, const char *uuid, 
     const char *label, count_t len, aal_device_t *journal_device, 
-    reiserfs_opaque_t *journal_params)
+    void *journal_params)
 {
     reiserfs_fs_t *fs;
     blk_t blk, master_blk;

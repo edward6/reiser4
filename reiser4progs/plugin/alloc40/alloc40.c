@@ -188,15 +188,15 @@ static reiserfs_plugin_t alloc40_plugin = {
 	    .desc = "Space allocator for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))alloc40_open,
-	.close = (void (*)(reiserfs_opaque_t *))alloc40_close,
+	.open = (reiserfs_entity_t *(*)(aal_device_t *, count_t))alloc40_open,
+	.close = (void (*)(reiserfs_entity_t *))alloc40_close,
 
 #ifndef ENABLE_COMPACT
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))alloc40_create,
-	.sync = (errno_t (*)(reiserfs_opaque_t *))alloc40_sync,
-	.mark = (void (*)(reiserfs_opaque_t *, blk_t))alloc40_mark,
-	.alloc = (blk_t (*)(reiserfs_opaque_t *))alloc40_alloc,
-	.dealloc = (void (*)(reiserfs_opaque_t *, blk_t))alloc40_dealloc,
+	.create = (reiserfs_entity_t *(*)(aal_device_t *, count_t))alloc40_create,
+	.sync = (errno_t (*)(reiserfs_entity_t *))alloc40_sync,
+	.mark = (void (*)(reiserfs_entity_t *, blk_t))alloc40_mark,
+	.alloc = (blk_t (*)(reiserfs_entity_t *))alloc40_alloc,
+	.dealloc = (void (*)(reiserfs_entity_t *, blk_t))alloc40_dealloc,
 #else
 	.create = NULL,
 	.sync = NULL,
@@ -204,9 +204,9 @@ static reiserfs_plugin_t alloc40_plugin = {
 	.alloc = NULL,
 	.dealloc = NULL,
 #endif
-	.test = (int (*)(reiserfs_opaque_t *, blk_t))alloc40_test,
-	.free = (count_t (*)(reiserfs_opaque_t *))alloc40_free,
-	.used = (count_t (*)(reiserfs_opaque_t *))alloc40_used
+	.test = (int (*)(reiserfs_entity_t *, blk_t))alloc40_test,
+	.free = (count_t (*)(reiserfs_entity_t *))alloc40_free,
+	.used = (count_t (*)(reiserfs_entity_t *))alloc40_used
     }
 };
 

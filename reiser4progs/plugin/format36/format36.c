@@ -246,45 +246,45 @@ static reiserfs_plugin_t format36_plugin = {
 	    .desc = "Disk-layout for reiserfs 3.6.x, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(aal_device_t *))
+	.open = (reiserfs_entity_t *(*)(aal_device_t *))
 	    format36_open,
 
 #ifndef ENABLE_COMPACT
-	.sync = (errno_t (*)(reiserfs_opaque_t *))format36_sync,
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, uint16_t))
+	.sync = (errno_t (*)(reiserfs_entity_t *))format36_sync,
+	.create = (reiserfs_entity_t *(*)(aal_device_t *, count_t, uint16_t))
 	    format36_create,
 #else
 	.sync = NULL,
 	.create = NULL,
 #endif
-	.close = (void (*)(reiserfs_opaque_t *))format36_close,
-	.check = (errno_t (*)(reiserfs_opaque_t *))format36_check,
+	.close = (void (*)(reiserfs_entity_t *))format36_close,
+	.check = (errno_t (*)(reiserfs_entity_t *))format36_check,
 	.confirm = (int (*)(aal_device_t *))format36_confirm,
-	.format = (const char *(*)(reiserfs_opaque_t *))format36_format,
+	.format = (const char *(*)(reiserfs_entity_t *))format36_format,
 
-	.offset = (blk_t (*)(reiserfs_opaque_t *))format36_offset,
+	.offset = (blk_t (*)(reiserfs_entity_t *))format36_offset,
 	
-	.get_root = (blk_t (*)(reiserfs_opaque_t *))format36_get_root,
-	.set_root = (void (*)(reiserfs_opaque_t *, blk_t))format36_set_root,
+	.get_root = (blk_t (*)(reiserfs_entity_t *))format36_get_root,
+	.set_root = (void (*)(reiserfs_entity_t *, blk_t))format36_set_root,
 	
-	.get_blocks = (count_t (*)(reiserfs_opaque_t *))format36_get_blocks,
-	.set_blocks = (void (*)(reiserfs_opaque_t *, count_t))format36_set_blocks,
+	.get_blocks = (count_t (*)(reiserfs_entity_t *))format36_get_blocks,
+	.set_blocks = (void (*)(reiserfs_entity_t *, count_t))format36_set_blocks,
 	
-	.get_free = (count_t (*)(reiserfs_opaque_t *))format36_get_free,
-	.set_free = (void (*)(reiserfs_opaque_t *, count_t))format36_set_free,
+	.get_free = (count_t (*)(reiserfs_entity_t *))format36_get_free,
+	.set_free = (void (*)(reiserfs_entity_t *, count_t))format36_set_free,
 	
 	.get_height = NULL,
 	.set_height = NULL,
 	
 	.oid = NULL,
 	
-	.journal_pid = (reiserfs_id_t(*)(reiserfs_opaque_t *))
+	.journal_pid = (reiserfs_id_t(*)(reiserfs_entity_t *))
 	    format36_journal_plugin,
 		
-	.alloc_pid = (reiserfs_id_t(*)(reiserfs_opaque_t *))
+	.alloc_pid = (reiserfs_id_t(*)(reiserfs_entity_t *))
 	    format36_alloc_plugin,
 	
-	.oid_pid = (reiserfs_id_t(*)(reiserfs_opaque_t *))
+	.oid_pid = (reiserfs_id_t(*)(reiserfs_entity_t *))
 	    format36_oid_plugin,
     }
 };

@@ -93,7 +93,7 @@ error:
 #ifndef ENABLE_COMPACT
 
 static reiserfs_journal40_t *journal40_create(aal_device_t *device, 
-    reiserfs_opaque_t *params) 
+    void *params) 
 {
     reiserfs_journal40_t *journal;
     
@@ -183,20 +183,20 @@ static reiserfs_plugin_t journal40_plugin = {
 	    .desc = "Default journal for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(aal_device_t *))
+	.open = (reiserfs_entity_t *(*)(aal_device_t *))
 	    journal40_open,
 	
 #ifndef ENABLE_COMPACT
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, reiserfs_opaque_t *))
+	.create = (reiserfs_entity_t *(*)(aal_device_t *, void *))
 	    journal40_create,
-	.sync = (errno_t (*)(reiserfs_opaque_t *))journal40_sync,
+	.sync = (errno_t (*)(reiserfs_entity_t *))journal40_sync,
 #else
 	.create = NULL,
 	.sync = NULL,
 #endif
-	.area = (void (*)(reiserfs_opaque_t *, blk_t *, blk_t *))journal40_area,
-	.close = (void (*)(reiserfs_opaque_t *))journal40_close,
-	.replay = (errno_t (*)(reiserfs_opaque_t *))journal40_replay
+	.area = (void (*)(reiserfs_entity_t *, blk_t *, blk_t *))journal40_area,
+	.close = (void (*)(reiserfs_entity_t *))journal40_close,
+	.replay = (errno_t (*)(reiserfs_entity_t *))journal40_replay
     }
 };
 

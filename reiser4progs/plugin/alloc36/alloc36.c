@@ -80,14 +80,14 @@ static reiserfs_plugin_t alloc36_plugin = {
 	},
 
 #ifndef ENABLE_COMPACT
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))alloc36_create,
-	.sync = (errno_t (*)(reiserfs_opaque_t *))alloc36_sync,
+	.create = (reiserfs_entity_t *(*)(aal_device_t *, count_t))alloc36_create,
+	.sync = (errno_t (*)(reiserfs_entity_t *))alloc36_sync,
 #else
 	.create = NULL,
 	.sync = NULL,
 #endif
-	.close = (void (*)(reiserfs_opaque_t *))alloc36_close,
-	.open = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))alloc36_open,
+	.close = (void (*)(reiserfs_entity_t *))alloc36_close,
+	.open = (reiserfs_entity_t *(*)(aal_device_t *, count_t))alloc36_open,
 
 	.mark = NULL,
 	.test = NULL,

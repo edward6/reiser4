@@ -499,52 +499,52 @@ static reiserfs_plugin_t node40_plugin = {
 	    .desc = "Node for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(aal_block_t *))node40_open,
-	.close = (errno_t (*)(reiserfs_opaque_t *))node40_close,
+	.open = (reiserfs_entity_t *(*)(aal_block_t *))node40_open,
+	.close = (errno_t (*)(reiserfs_entity_t *))node40_close,
 	
-	.confirm = (int (*)(reiserfs_opaque_t *))node40_confirm,
-	.check = (errno_t (*)(reiserfs_opaque_t *, int))node40_check,
+	.confirm = (int (*)(reiserfs_entity_t *))node40_confirm,
+	.check = (errno_t (*)(reiserfs_entity_t *, int))node40_check,
 	
-	.lookup = (int (*)(reiserfs_opaque_t *, reiserfs_key_t *, 
+	.lookup = (int (*)(reiserfs_entity_t *, reiserfs_key_t *, 
 	    reiserfs_pos_t *))node40_lookup,
 	
-	.print = (errno_t (*)(reiserfs_opaque_t *, char *, uint32_t))
+	.print = (errno_t (*)(reiserfs_entity_t *, char *, uint32_t))
 	    node40_print,
 	
-	.maxnum =  (uint32_t (*)(reiserfs_opaque_t *))node40_maxnum,
-	.count = (uint32_t (*)(reiserfs_opaque_t *))node40_count,
+	.maxnum =  (uint32_t (*)(reiserfs_entity_t *))node40_maxnum,
+	.count = (uint32_t (*)(reiserfs_entity_t *))node40_count,
 	
-	.get_pid = (uint32_t (*)(reiserfs_opaque_t *))node40_get_pid,
-	.get_level = (uint8_t (*)(reiserfs_opaque_t *))node40_get_level,
+	.get_pid = (uint32_t (*)(reiserfs_entity_t *))node40_get_pid,
+	.get_level = (uint8_t (*)(reiserfs_entity_t *))node40_get_level,
 	
-	.get_key = (errno_t (*)(reiserfs_opaque_t *, uint32_t, reiserfs_key_t *))
+	.get_key = (errno_t (*)(reiserfs_entity_t *, uint32_t, reiserfs_key_t *))
 	    node40_get_key,
 	
-	.get_free_space = (uint32_t (*)(reiserfs_opaque_t *))node40_get_free_space,
+	.get_free_space = (uint32_t (*)(reiserfs_entity_t *))node40_get_free_space,
 	
 #ifndef ENABLE_COMPACT
-	.create = (reiserfs_opaque_t *(*)(aal_block_t *, uint8_t))node40_create,
+	.create = (reiserfs_entity_t *(*)(aal_block_t *, uint8_t))node40_create,
 	
-	.insert = (errno_t (*)(reiserfs_opaque_t *, reiserfs_pos_t *, 
+	.insert = (errno_t (*)(reiserfs_entity_t *, reiserfs_pos_t *, 
 	    reiserfs_item_hint_t *))node40_insert,
 	
-	.paste = (errno_t (*)(reiserfs_opaque_t *, reiserfs_pos_t *, 
+	.paste = (errno_t (*)(reiserfs_entity_t *, reiserfs_pos_t *, 
 	    reiserfs_item_hint_t *))node40_paste,
 	
-	.remove = (errno_t (*)(reiserfs_opaque_t *, reiserfs_pos_t *))
+	.remove = (errno_t (*)(reiserfs_entity_t *, reiserfs_pos_t *))
 	    node40_remove,
 	
-	.set_level = (errno_t (*)(reiserfs_opaque_t *, uint8_t))node40_set_level,
+	.set_level = (errno_t (*)(reiserfs_entity_t *, uint8_t))node40_set_level,
 	
-	.set_pid = (errno_t (*)(reiserfs_opaque_t *, uint32_t))node40_get_pid,
+	.set_pid = (errno_t (*)(reiserfs_entity_t *, uint32_t))node40_get_pid,
 	
-	.set_key = (errno_t (*)(reiserfs_opaque_t *, uint32_t, reiserfs_key_t *))
+	.set_key = (errno_t (*)(reiserfs_entity_t *, uint32_t, reiserfs_key_t *))
 	    node40_set_key,
 	
-	.set_free_space = (errno_t (*)(reiserfs_opaque_t *, uint32_t))
+	.set_free_space = (errno_t (*)(reiserfs_entity_t *, uint32_t))
 	    node40_set_free_space,
 
-	.item_set_pid = (errno_t (*)(reiserfs_opaque_t *, uint32_t, uint32_t))
+	.item_set_pid = (errno_t (*)(reiserfs_entity_t *, uint32_t, uint32_t))
 	    node40_item_set_pid,
 #else
 	.create = NULL,
@@ -559,11 +559,11 @@ static reiserfs_plugin_t node40_plugin = {
 #endif
 	.item_overhead = (uint32_t (*)(void))node40_item_overhead,
 	
-	.item_maxsize = (uint32_t (*)(reiserfs_opaque_t *))node40_item_maxsize,
-	.item_len = (uint32_t (*)(reiserfs_opaque_t *, uint32_t))node40_item_len,
-	.item_body = (void *(*)(reiserfs_opaque_t *, uint32_t))node40_item_body,
+	.item_maxsize = (uint32_t (*)(reiserfs_entity_t *))node40_item_maxsize,
+	.item_len = (uint32_t (*)(reiserfs_entity_t *, uint32_t))node40_item_len,
+	.item_body = (void *(*)(reiserfs_entity_t *, uint32_t))node40_item_body,
 
-	.item_get_pid = (uint32_t (*)(reiserfs_opaque_t *, uint32_t))
+	.item_get_pid = (uint32_t (*)(reiserfs_entity_t *, uint32_t))
 	    node40_item_get_pid,
     }
 };

@@ -21,7 +21,7 @@ extern reiserfs_journal_t *reiserfs_journal_open(aal_device_t *device,
 #ifndef ENABLE_COMPACT
 
 extern reiserfs_journal_t *reiserfs_journal_create(aal_device_t *device,
-    reiserfs_opaque_t *params, reiserfs_id_t pid);
+    void *params, reiserfs_id_t pid);
 
 extern errno_t reiserfs_journal_sync(reiserfs_journal_t *journal);
 extern errno_t reiserfs_journal_replay(reiserfs_journal_t *journal);

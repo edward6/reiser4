@@ -1,3 +1,2 @@
 * all functions which return errno_t should return real errno, not just -1.
 * it is not necessary to allocate block for the tree node immediately, it might be done in flush time.
-* replace all reiserfs_opaque_t to reiserfs_entity_t in plugin.h

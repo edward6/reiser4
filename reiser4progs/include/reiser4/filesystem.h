@@ -83,7 +83,7 @@ typedef struct reiserfs_coord reiserfs_coord_t;
 
 struct reiserfs_node {
     aal_block_t *block;
-    reiserfs_opaque_t *entity;
+    reiserfs_entity_t *entity;
     
     reiserfs_plugin_t *key_plugin;
     reiserfs_plugin_t *node_plugin;
@@ -103,7 +103,7 @@ typedef struct reiserfs_object reiserfs_object_t;
 
 /* Format structure */
 struct reiserfs_format {
-    reiserfs_opaque_t *entity;
+    reiserfs_entity_t *entity;
     reiserfs_plugin_t *plugin;
 };
 
@@ -111,7 +111,7 @@ typedef struct reiserfs_format reiserfs_format_t;
 
 /* Journal structure */
 struct reiserfs_journal {
-    reiserfs_opaque_t *entity;
+    reiserfs_entity_t *entity;
     reiserfs_plugin_t *plugin;
 };
 
@@ -119,7 +119,7 @@ typedef struct reiserfs_journal reiserfs_journal_t;
 
 /* Block allocator structure */
 struct reiserfs_alloc {
-    reiserfs_opaque_t *entity;
+    reiserfs_entity_t *entity;
     reiserfs_plugin_t *plugin;
 };
 
@@ -127,7 +127,7 @@ typedef struct reiserfs_alloc reiserfs_alloc_t;
 
 /* Oid allocator structure */
 struct reiserfs_oid {
-    reiserfs_opaque_t *entity;
+    reiserfs_entity_t *entity;
     reiserfs_plugin_t *plugin;
     reiserfs_key_t root_key;
 };
@@ -178,7 +178,7 @@ extern void reiserfs_fs_close(reiserfs_fs_t *fs);
 extern reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile, 
     aal_device_t *host_device, size_t blocksize, const char *uuid, 
     const char *label, count_t len, aal_device_t *journal_device, 
-    reiserfs_opaque_t *journal_params);
+    void *journal_params);
 
 extern errno_t reiserfs_fs_sync(reiserfs_fs_t *fs);
 

@@ -261,46 +261,46 @@ static reiserfs_plugin_t format40_plugin = {
 	    .desc = "Disk-layout for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(aal_device_t *))format40_open,
+	.open = (reiserfs_entity_t *(*)(aal_device_t *))format40_open,
 
 #ifndef ENABLE_COMPACT	
-	.sync = (errno_t (*)(reiserfs_opaque_t *))format40_sync,
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, uint16_t))format40_create,
+	.sync = (errno_t (*)(reiserfs_entity_t *))format40_sync,
+	.create = (reiserfs_entity_t *(*)(aal_device_t *, count_t, uint16_t))format40_create,
 #else
 	.sync = NULL,
 	.create = NULL,
 #endif
-	.oid = (void (*)(reiserfs_opaque_t *, void **, void **))format40_oid,
-	.close = (void (*)(reiserfs_opaque_t *))format40_close,
-	.check = (errno_t (*)(reiserfs_opaque_t *))format40_check,
+	.oid = (void (*)(reiserfs_entity_t *, void **, void **))format40_oid,
+	.close = (void (*)(reiserfs_entity_t *))format40_close,
+	.check = (errno_t (*)(reiserfs_entity_t *))format40_check,
 	.confirm = (int (*)(aal_device_t *))format40_confirm,
-	.format = (const char *(*)(reiserfs_opaque_t *))format40_format,
+	.format = (const char *(*)(reiserfs_entity_t *))format40_format,
 	
-	.offset = (blk_t (*)(reiserfs_opaque_t *))format40_offset,
+	.offset = (blk_t (*)(reiserfs_entity_t *))format40_offset,
 	
-	.get_root = (blk_t (*)(reiserfs_opaque_t *))format40_get_root,
-	.get_blocks = (count_t (*)(reiserfs_opaque_t *))format40_get_blocks,
-	.get_free = (count_t (*)(reiserfs_opaque_t *))format40_get_free,
-	.get_height = (uint16_t (*)(reiserfs_opaque_t *))format40_get_height,
+	.get_root = (blk_t (*)(reiserfs_entity_t *))format40_get_root,
+	.get_blocks = (count_t (*)(reiserfs_entity_t *))format40_get_blocks,
+	.get_free = (count_t (*)(reiserfs_entity_t *))format40_get_free,
+	.get_height = (uint16_t (*)(reiserfs_entity_t *))format40_get_height,
 	
 #ifndef ENABLE_COMPACT	
-	.set_root = (void (*)(reiserfs_opaque_t *, blk_t))format40_set_root,
-	.set_blocks = (void (*)(reiserfs_opaque_t *, count_t))format40_set_blocks,
-	.set_free = (void (*)(reiserfs_opaque_t *, count_t))format40_set_free,
-	.set_height = (void (*)(reiserfs_opaque_t *, uint16_t))format40_set_height,
+	.set_root = (void (*)(reiserfs_entity_t *, blk_t))format40_set_root,
+	.set_blocks = (void (*)(reiserfs_entity_t *, count_t))format40_set_blocks,
+	.set_free = (void (*)(reiserfs_entity_t *, count_t))format40_set_free,
+	.set_height = (void (*)(reiserfs_entity_t *, uint16_t))format40_set_height,
 #else
 	.set_root = NULL,
 	.set_blocks = NULL,
 	.set_free = NULL,
 	.set_height = NULL,
 #endif
-	.journal_pid = (reiserfs_id_t(*)(reiserfs_opaque_t *))
+	.journal_pid = (reiserfs_id_t(*)(reiserfs_entity_t *))
 	    format40_journal_plugin,
 		
-	.alloc_pid = (reiserfs_id_t(*)(reiserfs_opaque_t *))
+	.alloc_pid = (reiserfs_id_t(*)(reiserfs_entity_t *))
 	    format40_alloc_plugin,
 	
-	.oid_pid = (reiserfs_id_t(*)(reiserfs_opaque_t *))
+	.oid_pid = (reiserfs_id_t(*)(reiserfs_entity_t *))
 	    format40_oid_plugin,
     }
 };

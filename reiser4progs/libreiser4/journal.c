@@ -45,7 +45,7 @@ error_free_journal:
 #ifndef ENABLE_COMPACT
 
 reiserfs_journal_t *reiserfs_journal_create(aal_device_t *device, 
-    reiserfs_opaque_t *params, reiserfs_id_t pid) 
+    void *params, reiserfs_id_t pid) 
 {
     reiserfs_plugin_t *plugin;
     reiserfs_journal_t *journal;

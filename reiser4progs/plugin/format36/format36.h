@@ -60,10 +60,6 @@ typedef struct reiserfs_format36_super reiserfs_format36_super_t;
 struct reiserfs_format36 {
     aal_device_t *device;
     aal_block_t *super;
-
-    reiserfs_opaque_t *journal;
-    reiserfs_opaque_t *alloc;
-    reiserfs_opaque_t *oid;
 };
 
 typedef struct reiserfs_format36 reiserfs_format36_t;

@@ -12,7 +12,7 @@
 typedef uint64_t oid_t;
 
 typedef uint32_t reiserfs_id_t;
-typedef void reiserfs_opaque_t;
+typedef void reiserfs_entity_t;
 typedef union reiserfs_plugin reiserfs_plugin_t;
 
 enum reiserfs_plugin_type {
@@ -370,90 +370,90 @@ struct reiserfs_node_ops {
 	Forms empty node incorresponding to given level in specified block.
 	Initializes instance of node and returns it to caller.
     */
-    reiserfs_opaque_t *(*create) (aal_block_t *, uint8_t);
+    reiserfs_entity_t *(*create) (aal_block_t *, uint8_t);
 
     /* 
 	Opens node (parses data in orser to check whether it is valid for this
 	node type), initializes instance and returns it to caller.
      */
-    reiserfs_opaque_t *(*open) (aal_block_t *);
+    reiserfs_entity_t *(*open) (aal_block_t *);
 
     /* 
 	Finalizes work with node (compresses data back) and frees all memory.
 	Returns the error code to caller.
     */
-    errno_t (*close) (reiserfs_opaque_t *);
+    errno_t (*close) (reiserfs_entity_t *);
     
     /* Confirms that given block contains valid node of requested format */
-    int (*confirm) (reiserfs_opaque_t *);
+    int (*confirm) (reiserfs_entity_t *);
 
     /* 
 	Make more smart node check and return result to caller. Thsi method is 
 	used for fsck purposes.
     */
-    errno_t (*check) (reiserfs_opaque_t *, int);
+    errno_t (*check) (reiserfs_entity_t *, int);
     
     /* Prints node into given buffer */
-    errno_t (*print) (reiserfs_opaque_t *, char *, uint32_t);
+    errno_t (*print) (reiserfs_entity_t *, char *, uint32_t);
     
     /* 
 	Makes lookup inside node by specified key. Returns TRUE in the case exact
 	match was found and FALSE otherwise.
     */
-    int (*lookup) (reiserfs_opaque_t *, reiserfs_key_t *, 
+    int (*lookup) (reiserfs_entity_t *, reiserfs_key_t *, 
 	reiserfs_pos_t *);
     
     /* Inserts item at specified pos */
-    errno_t (*insert) (reiserfs_opaque_t *, reiserfs_pos_t *, 
+    errno_t (*insert) (reiserfs_entity_t *, reiserfs_pos_t *, 
 	reiserfs_item_hint_t *);
     
     /* Pastes units at specified pos */
-    errno_t (*paste) (reiserfs_opaque_t *, reiserfs_pos_t *, 
+    errno_t (*paste) (reiserfs_entity_t *, reiserfs_pos_t *, 
 	reiserfs_item_hint_t *);
     
     /* Removes item at specified pos */
-    errno_t (*remove) (reiserfs_opaque_t *, reiserfs_pos_t *);
+    errno_t (*remove) (reiserfs_entity_t *, reiserfs_pos_t *);
     
     /* Returns max item count */
-    uint32_t (*maxnum) (reiserfs_opaque_t *);
+    uint32_t (*maxnum) (reiserfs_entity_t *);
 
     /* Returns item count */
-    uint32_t (*count) (reiserfs_opaque_t *);
+    uint32_t (*count) (reiserfs_entity_t *);
     
     /* Gets/sets node's free space */
-    uint32_t (*get_free_space) (reiserfs_opaque_t *);
-    errno_t (*set_free_space) (reiserfs_opaque_t *, uint32_t);
+    uint32_t (*get_free_space) (reiserfs_entity_t *);
+    errno_t (*set_free_space) (reiserfs_entity_t *, uint32_t);
    
     /* Gets/sets node's plugin id */
-    uint32_t (*get_pid) (reiserfs_opaque_t *);
-    errno_t (*set_pid) (reiserfs_opaque_t *, uint32_t);
+    uint32_t (*get_pid) (reiserfs_entity_t *);
+    errno_t (*set_pid) (reiserfs_entity_t *, uint32_t);
     
     /*
 	This is optional method. That means that there could be node formats which 
 	do not keep level.
     */
-    uint8_t (*get_level) (reiserfs_opaque_t *);
-    errno_t (*set_level) (reiserfs_opaque_t *, uint8_t);
+    uint8_t (*get_level) (reiserfs_entity_t *);
+    errno_t (*set_level) (reiserfs_entity_t *, uint8_t);
     
     /* Gets/sets key at pos */
-    errno_t (*get_key) (reiserfs_opaque_t *, uint32_t, reiserfs_key_t *);
-    errno_t (*set_key) (reiserfs_opaque_t *, uint32_t, reiserfs_key_t *);
+    errno_t (*get_key) (reiserfs_entity_t *, uint32_t, reiserfs_key_t *);
+    errno_t (*set_key) (reiserfs_entity_t *, uint32_t, reiserfs_key_t *);
 
     /* Returns item's overhead */
     uint32_t (*item_overhead) (void);
 
     /* Returns item's length by pos */
-    uint32_t (*item_len) (reiserfs_opaque_t *, uint32_t);
+    uint32_t (*item_len) (reiserfs_entity_t *, uint32_t);
     
     /* Returns item's max size */
-    uint32_t (*item_maxsize) (reiserfs_opaque_t *);
+    uint32_t (*item_maxsize) (reiserfs_entity_t *);
     
     /* Gets item at passed pos */
-    void *(*item_body) (reiserfs_opaque_t *, uint32_t);
+    void *(*item_body) (reiserfs_entity_t *, uint32_t);
 
     /* Gets/sets node's plugin ID */
-    uint32_t (*item_get_pid) (reiserfs_opaque_t *, uint32_t);
-    errno_t (*item_set_pid) (reiserfs_opaque_t *, uint32_t, uint32_t);
+    uint32_t (*item_get_pid) (reiserfs_entity_t *, uint32_t);
+    errno_t (*item_set_pid) (reiserfs_entity_t *, uint32_t, uint32_t);
 };
 
 typedef struct reiserfs_node_ops reiserfs_node_ops_t;
@@ -491,20 +491,20 @@ struct reiserfs_format_ops {
 	It reads format-specific super block and initializes
 	plugins suitable for this format.
     */
-    reiserfs_opaque_t *(*open) (aal_device_t *);
+    reiserfs_entity_t *(*open) (aal_device_t *);
     
     /* 
 	Called during filesystem creating. It forms format-specific
 	super block, initializes plugins and calls their create 
 	method.
     */
-    reiserfs_opaque_t *(*create) (aal_device_t *, count_t, uint16_t);
+    reiserfs_entity_t *(*create) (aal_device_t *, count_t, uint16_t);
     
     /*
 	Called during filesystem syncing. It calls method sync
 	for every "child" plugin (block allocator, journal, etc).
     */
-    errno_t (*sync) (reiserfs_opaque_t *);
+    errno_t (*sync) (reiserfs_entity_t *);
 
     /*
 	Checks format-specific super block for validness. Also checks
@@ -512,7 +512,7 @@ struct reiserfs_format_ops {
 	format-specific super block for format40 must lie in 17-th
 	block for 4096 byte long blocks.
     */
-    errno_t (*check) (reiserfs_opaque_t *);
+    errno_t (*check) (reiserfs_entity_t *);
 
     /*
 	Probes whether filesystem on given device has this format.
@@ -524,42 +524,42 @@ struct reiserfs_format_ops {
 	Closes opened or created previously filesystem. Frees
 	all assosiated memory.
     */
-    void (*close) (reiserfs_opaque_t *);
+    void (*close) (reiserfs_entity_t *);
     
     /*
 	Returns format string for this format. For example
 	"reiserfs 4.0".
     */
-    const char *(*format) (reiserfs_opaque_t *);
+    const char *(*format) (reiserfs_entity_t *);
 
     /* 
 	Returns offset in blocks where format-specific super block 
 	lies.
     */
-    blk_t (*offset) (reiserfs_opaque_t *);
+    blk_t (*offset) (reiserfs_entity_t *);
     
     /* Gets/sets root block */
-    blk_t (*get_root) (reiserfs_opaque_t *);
-    void (*set_root) (reiserfs_opaque_t *, blk_t);
+    blk_t (*get_root) (reiserfs_entity_t *);
+    void (*set_root) (reiserfs_entity_t *, blk_t);
     
     /* Gets/sets block count */
-    count_t (*get_blocks) (reiserfs_opaque_t *);
-    void (*set_blocks) (reiserfs_opaque_t *, count_t);
+    count_t (*get_blocks) (reiserfs_entity_t *);
+    void (*set_blocks) (reiserfs_entity_t *, count_t);
     
     /* Gets/sets height field */
-    uint16_t (*get_height) (reiserfs_opaque_t *);
-    void (*set_height) (reiserfs_opaque_t *, uint16_t);
+    uint16_t (*get_height) (reiserfs_entity_t *);
+    void (*set_height) (reiserfs_entity_t *, uint16_t);
     
     /* Gets/sets free blocks number for this format */
-    count_t (*get_free) (reiserfs_opaque_t *);
-    void (*set_free) (reiserfs_opaque_t *, count_t);
+    count_t (*get_free) (reiserfs_entity_t *);
+    void (*set_free) (reiserfs_entity_t *, count_t);
     
     /* Returns children objects plugins */
-    reiserfs_id_t (*journal_pid) (reiserfs_opaque_t *);
-    reiserfs_id_t (*alloc_pid) (reiserfs_opaque_t *);
-    reiserfs_id_t (*oid_pid) (reiserfs_opaque_t *);
+    reiserfs_id_t (*journal_pid) (reiserfs_entity_t *);
+    reiserfs_id_t (*alloc_pid) (reiserfs_entity_t *);
+    reiserfs_id_t (*oid_pid) (reiserfs_entity_t *);
 
-    void (*oid)(reiserfs_opaque_t *, void **, void **);
+    void (*oid)(reiserfs_entity_t *, void **, void **);
 };
 
 typedef struct reiserfs_format_ops reiserfs_format_ops_t;
@@ -567,18 +567,18 @@ typedef struct reiserfs_format_ops reiserfs_format_ops_t;
 struct reiserfs_oid_ops {
     reiserfs_plugin_header_t h;
 
-    reiserfs_opaque_t *(*open) (void *, void *);
-    reiserfs_opaque_t *(*create) (void *, void *);
+    reiserfs_entity_t *(*open) (void *, void *);
+    reiserfs_entity_t *(*create) (void *, void *);
 
-    errno_t (*sync) (reiserfs_opaque_t *);
+    errno_t (*sync) (reiserfs_entity_t *);
 
-    void (*close) (reiserfs_opaque_t *);
+    void (*close) (reiserfs_entity_t *);
     
-    uint64_t (*alloc) (reiserfs_opaque_t *);
-    void (*dealloc) (reiserfs_opaque_t *, uint64_t);
+    uint64_t (*alloc) (reiserfs_entity_t *);
+    void (*dealloc) (reiserfs_entity_t *, uint64_t);
     
-    uint64_t (*next) (reiserfs_opaque_t *);
-    uint64_t (*used) (reiserfs_opaque_t *);
+    uint64_t (*next) (reiserfs_entity_t *);
+    uint64_t (*used) (reiserfs_entity_t *);
 
     uint64_t (*root_parent_locality) (void);
     uint64_t (*root_parent_objectid) (void);
@@ -590,19 +590,19 @@ typedef struct reiserfs_oid_ops reiserfs_oid_ops_t;
 struct reiserfs_alloc_ops {
     reiserfs_plugin_header_t h;
     
-    reiserfs_opaque_t *(*open) (aal_device_t *, count_t);
-    reiserfs_opaque_t *(*create) (aal_device_t *, count_t);
-    void (*close) (reiserfs_opaque_t *);
-    errno_t (*sync) (reiserfs_opaque_t *);
+    reiserfs_entity_t *(*open) (aal_device_t *, count_t);
+    reiserfs_entity_t *(*create) (aal_device_t *, count_t);
+    void (*close) (reiserfs_entity_t *);
+    errno_t (*sync) (reiserfs_entity_t *);
 
-    void (*mark) (reiserfs_opaque_t *, blk_t);
-    int (*test) (reiserfs_opaque_t *, blk_t);
+    void (*mark) (reiserfs_entity_t *, blk_t);
+    int (*test) (reiserfs_entity_t *, blk_t);
     
-    blk_t (*alloc) (reiserfs_opaque_t *);
-    void (*dealloc) (reiserfs_opaque_t *, blk_t);
+    blk_t (*alloc) (reiserfs_entity_t *);
+    void (*dealloc) (reiserfs_entity_t *, blk_t);
 
-    count_t (*free) (reiserfs_opaque_t *);
-    count_t (*used) (reiserfs_opaque_t *);
+    count_t (*free) (reiserfs_entity_t *);
+    count_t (*used) (reiserfs_entity_t *);
 };
 
 typedef struct reiserfs_alloc_ops reiserfs_alloc_ops_t;
@@ -610,16 +610,16 @@ typedef struct reiserfs_alloc_ops reiserfs_alloc_ops_t;
 struct reiserfs_journal_ops {
     reiserfs_plugin_header_t h;
     
-    reiserfs_opaque_t *(*open) (aal_device_t *);
+    reiserfs_entity_t *(*open) (aal_device_t *);
     
-    reiserfs_opaque_t *(*create) (aal_device_t *, 
-	reiserfs_opaque_t *);
+    reiserfs_entity_t *(*create) (aal_device_t *, 
+	reiserfs_entity_t *);
     
-    void (*area) (reiserfs_opaque_t *, blk_t *start, blk_t *end);
+    void (*area) (reiserfs_entity_t *, blk_t *start, blk_t *end);
     
-    void (*close) (reiserfs_opaque_t *);
-    errno_t (*sync) (reiserfs_opaque_t *);
-    errno_t (*replay) (reiserfs_opaque_t *);
+    void (*close) (reiserfs_entity_t *);
+    errno_t (*sync) (reiserfs_entity_t *);
+    errno_t (*replay) (reiserfs_entity_t *);
 };
 
 typedef struct reiserfs_journal_ops reiserfs_journal_ops_t;
