@@ -12,6 +12,7 @@ int reiser4_blocknr_is_fake(const reiser4_disk_addr * da)
 	return da->blk & REISER4_FAKE_BLOCKNR_BIT_MASK;
 }
 
+
 /** a generator for tree nodes fake block numbers */
 static block_nr get_next_fake_blocknr ()
 {
@@ -772,14 +773,34 @@ int block_alloc_post_writeback_hook (txn_atom * atom)
  * FIXME_ZAM: old block allocator function. they are here until new code is
  * completed.
  */
-
-int  allocate_new_blocks (block_nr *start, block_nr *len)
+/*
+ * probability of getting blocks prefectly allocated
+ */
+#define P 0.2
+int allocate_new_blocks (block_nr * hint,
+			 block_nr * count)
 {
-	static block_nr next_block = 1000;
+	double p;
+	static block_nr min_free = 10000;
 
-	*start = next_block ++;
-	*len   = 1;
 
+	assert ("vs-460", *count > 0);
+	p = drand48 ();
+	if (p < P) {
+		if (*hint >= min_free) {
+			/*
+			 * return what we were asked for
+			 */
+			min_free += *count;
+			return 0;
+		}
+	}
+	*hint = min_free + 3;
+	/*
+	 * choose amount of free blocks randomly
+	 */
+	*count = 1 + (int) ((double)(*count) * rand () / (RAND_MAX + 1.0));
+	min_free += 3 + *count;
 	return 0;
 }
 
@@ -788,7 +809,7 @@ void reiser4_free_block (block_nr block UNUSED_ARG)
 	return;
 }
 
-int free_blocks (block_nr start UNUSED_ARG, block_nr len UNUSED_ARG)
+int free_blocks (block_nr hint UNUSED_ARG, block_nr count UNUSED_ARG)
 {
 	return 0;
 }
