@@ -330,12 +330,12 @@ void zdestroy( znode *node /* znode to finish with */ )
 	z_hash_remove( & tree -> hash_table, node );
 	spin_unlock_tree( tree );
 
-	assert( "nikita-2057", tree -> ops -> drop_node != NULL );
+	assert( "nikita-2057", tree -> ops -> delete_node != NULL );
 	/*
 	 * remove node backing store (page).
 	 */
-	if( tree -> ops -> drop_node( tree, ZJNODE( node ) ) != 0 ) {
-		warning( "nikita-2058", "Failed to drop node: %llx",
+	if( tree -> ops -> delete_node( tree, ZJNODE( node ) ) != 0 ) {
+		warning( "nikita-2058", "Failed to delete node: %llx",
 			 *znode_get_block( node ) );
 	}
 
@@ -605,21 +605,51 @@ void zput (znode *node)
 	assert ("jmacd-510", atomic_read (& node->x_count) > 0);
 	assert ("jmacd-511", atomic_read (& node->d_count) >= 0);
 	assert ("jmacd-572", atomic_read (& node->c_count) >= 0);
+	ON_DEBUG ( -- lock_counters() -> x_refs );
 
 	/*
 	 * FIXME-NIKITA nikita: handle releasing reference to the znode that is
 	 * removed from the tree. Locking?
 	 */
-	if (atomic_dec_and_test (& node->x_count) && 
-	    ZF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
+	if (atomic_dec_and_test (& node->x_count)) {
+		reiser4_tree *tree;
 
-		/* FIXME_JMACD: Currently deallocate_znode just calls zdestroy(). */
-		deallocate_znode (node);
+		if (ZF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
 
-		/* FIXME_JMACD: The atom has no reference because jnodes don't have
-		 * an x_count... what to do? */
+			/* FIXME_JMACD: Currently deallocate_znode just calls
+			 * zdestroy(). */
+			deallocate_znode (node);
+			/* FIXME_JMACD: The atom has no reference because
+			 * jnodes don't have an x_count... what to do? */
+			return;
+		}
+		tree = current_tree;
+		spin_lock_tree (tree);
+		if (atomic_read (& node->x_count) > 0) {
+			/*
+			 * some other lucky thread referenced znode while we
+			 * were waiting for the tree lock.
+			 */
+			spin_unlock_tree (tree);
+			return;
+		}
+		assert ("nikita-2065", atomic_read (& node->d_count) == 0);
+		
+		/*
+		 * znode is unreferenced. Page is not needed in memory any
+		 * longer.
+		 */
+		/* 
+		 * znode fields can be accessed here, because tree is locked
+		 * and thus, no hash-table lookup can be performed. 
+		 */
+		assert ("nikita-2066", tree->ops->drop_node != NULL);
+		if (tree->ops->drop_node (tree, ZJNODE (node)) != 0) {
+			warning ("nikita-2067", "Failed to free node: %llx",
+				 *znode_get_block (node));
+		}
+		spin_unlock_tree (tree);
 	}
-	ON_DEBUG ( -- lock_counters() -> x_refs );
 }
 
 /****************************************************************************************
@@ -724,7 +754,7 @@ int zload( znode *node /* znode to load */ )
 		reiser4_stat_znode_add( zload_read );
 		spin_lock_znode( node );
 
-		if( result == 0 ) {
+		if( likely( ( result == 0 ) && !znode_is_loaded( node ) ) ) {
 			ZF_SET( node, ZNODE_LOADED );
 			add_d_ref( node );
 			result = zparse( node );
