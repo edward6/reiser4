@@ -225,7 +225,7 @@ int main(int argc, char *argv[]) {
 	if (stat(argv[optind], &st) == -1) {
 	    fs_len = (progs_misc_size_parse(argv[optind], &error));
 	    if (!error || error == ~0) {
-		if (fs_len < blocksize) {
+		if (error != ~0 && fs_len < blocksize) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 			"Strange filesystem size has been detected (%s).", argv[optind]);
 		    goto error_free_libreiser4;

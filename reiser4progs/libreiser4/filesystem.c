@@ -153,7 +153,7 @@ aal_device_t *reiser4_fs_journal_device(reiser4_fs_t *fs) {
 
 #ifndef ENABLE_COMPACT
 
-#define REISER4_MIN_SIZE (23 + 100)
+#define REISER4_MIN_SIZE 23
 
 /* Creates filesystem on specified host and journal devices */
 reiser4_fs_t *reiser4_fs_create(
@@ -182,11 +182,19 @@ reiser4_fs_t *reiser4_fs_create(
 	return NULL;
     }
 
+    if (len > aal_device_len(host_device)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Device %s is too small (%llu) for filesystem %u blocks long.", 
+	    aal_device_name(host_device), aal_device_len(host_device), len);
+	return NULL;
+    }
+    
     /* Checks whether filesystem size is enough big */
     if (len < REISER4_MIN_SIZE) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Device %s is too small (%llu). ReiserFS required device %u blocks long.", 
-	    aal_device_name(host_device), len, REISER4_MIN_SIZE);
+	    "Requested filesytem size (%llu) too small. "
+	    "ReiserFS required minimal size %u blocks long.", 
+	    len, REISER4_MIN_SIZE);
 	return NULL;
     }
     
