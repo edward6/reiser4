@@ -1010,12 +1010,17 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	 */
 
 	/*
-	 * proceed with inserting extent item into parent. We are definetely
+	 * proceed with inserting extent item into parent. We are definitely
 	 * inserting rather than pasting if we get that far.
 	 */
 	insert_extent = reiser4_post_carry( todo, COP_INSERT, node, 1 );
 	if( IS_ERR( insert_extent ) )
 		return PTR_ERR( insert_extent );
+	/*
+	 * FIXME-NIKITA insertion by key is simplest option here. Another
+	 * possibility is to insert on the left or right of already existing
+	 * item.
+	 */
 	insert_extent -> u.insert.type = COPT_KEY;
 	insert_extent -> u.insert.data = op -> u.extent.data;
 	insert_extent -> u.insert.key  = op -> u.extent.key;
