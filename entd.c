@@ -198,7 +198,7 @@ void wait_for_flush (struct super_block * super)
 	spin_lock(&ent->guard);
 	if (ent->flushers == 0)
 		kick_entd(ent);
-	kcond_wait(&ent->flush_wait, &ent->guard, 1);
+	kcond_timedwait(&ent->flush_wait, &ent->guard, HZ / 4, 1);
 	spin_unlock(&ent->guard);
 }
 
