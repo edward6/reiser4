@@ -36,6 +36,10 @@ int connect_znode(coord_t * coord, znode * node);
 
 */
 
+int
+reiser4_get_parent_flags(lock_handle * result, znode * node,
+			 znode_lock_mode mode, int flags);
+
 int reiser4_get_parent(lock_handle * result, znode * node, znode_lock_mode mode, int only_connected_p);
 
 /* bits definition for reiser4_get_neighbor function `flags' arg. */

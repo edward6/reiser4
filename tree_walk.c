@@ -119,8 +119,18 @@ lock_neighbor(
 	}
 }
 
+int
+reiser4_get_parent_flags(lock_handle * result	/* resulting lock handle */,
+			 znode * node /* child node */,
+			 znode_lock_mode mode /* type of lock: read or write */,
+			 int flags /* GN_* flags */)
+{
+	return UNDER_SPIN(tree, znode_get_tree(node),
+			  lock_neighbor(result, node, PARENT_PTR_OFFSET, mode,
+					ZNODE_LOCK_HIPRI, flags));
+}
+
 /* description is in tree_walk.h */
-/* Audited by: umka (2002.06.14), umka (2002.06.15) */
 int
 reiser4_get_parent(lock_handle * result	/* resulting lock
 					   * handle */ ,
@@ -137,9 +147,8 @@ reiser4_get_parent(lock_handle * result	/* resulting lock
 {
 	assert("umka-238", znode_get_tree(node) != NULL);
 
-	return UNDER_SPIN(tree, znode_get_tree(node),
-			  lock_neighbor(result, node, PARENT_PTR_OFFSET, mode,
-					ZNODE_LOCK_HIPRI, only_connected_p ? 0 : GN_ALLOW_NOT_CONNECTED));
+	return reiser4_get_parent_flags(result, node, mode,
+					only_connected_p ? 0 : GN_ALLOW_NOT_CONNECTED);
 }
 
 /* wrapper function to lock right or left neighbor depending on GN_GO_LEFT
