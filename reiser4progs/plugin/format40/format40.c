@@ -46,7 +46,7 @@ static aal_block_t *format40_super_open(aal_device_t *device) {
     
     offset = (REISERFS_FORMAT40_OFFSET / aal_device_get_bs(device));
 	
-    if (!(block = aal_device_read_block(device, offset))) {
+    if (!(block = aal_block_read(device, offset))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	   "Can't read block %llu.", offset);
 	return NULL;
@@ -57,7 +57,7 @@ static aal_block_t *format40_super_open(aal_device_t *device) {
 	return NULL;
     
     if (format40_super_check(super, device)) {
-        aal_device_free_block(block);
+        aal_block_free(block);
         return NULL;
     }
     
@@ -150,7 +150,7 @@ error_free_alloc:
     libreiserfs_plugins_call(goto error_free_super, 
 	alloc_plugin->alloc, close, format->alloc);
 error_free_super:
-    aal_device_free_block(format->super);
+    aal_block_free(format->super);
 error_free_format:
     aal_free(format);
 error:
@@ -178,7 +178,7 @@ static format40_t *format40_create(aal_device_t *host_device,
     if (!journal_device)
 	journal_device = host_device;
 
-    if (!(format->super = aal_device_alloc_block(host_device, 
+    if (!(format->super = aal_block_alloc(host_device, 
 	(REISERFS_FORMAT40_OFFSET / aal_device_get_bs(host_device)), 0))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -289,7 +289,7 @@ error_free_alloc:
     libreiserfs_plugins_call(goto error_free_super, alloc_plugin->alloc, 
 	close, format->alloc);
 error_free_super:
-    aal_device_free_block(format->super);
+    aal_block_free(format->super);
 error_free_format:
     aal_free(format);
 error:
@@ -342,8 +342,8 @@ static error_t format40_sync(format40_t *format) {
     set_sb_file_count((format40_super_t *)format->super->data, 
 	libreiserfs_plugins_call(return -1, plugin->oid, used, format->oid));
     
-    if (aal_device_write_block(format->device, format->super)) {
-	offset = aal_device_get_block_nr(format->super);
+    if (aal_block_write(format->device, format->super)) {
+	offset = aal_block_get_nr(format->super);
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't write superblock to %llu.", offset);
 	return -1;
@@ -402,7 +402,7 @@ error_free_oid:
 	close, format->oid);
 
 error_free_super:
-    aal_device_free_block(format->super);
+    aal_block_free(format->super);
     aal_free(format);
 }
 
@@ -412,7 +412,7 @@ static int format40_confirm(aal_device_t *device) {
     if (!(block = format40_super_open(device)))
 	return 0;
 	
-    aal_device_free_block(block);
+    aal_block_free(block);
     return 1;
 }
 

@@ -73,17 +73,17 @@ static aal_block_t *format36_super_open(aal_device_t *device) {
     aal_device_set_bs(device, REISERFS_DEFAULT_BLOCKSIZE);
     
     for (i = 0; super_offset[i] != -1; i++) {
-	if ((block = aal_device_read_block(device, super_offset[i]))) {
+	if ((block = aal_block_read(device, super_offset[i]))) {
 	    super = (format36_super_t *)block->data;
 			
 	    if (format36_signature(super)) {
 		if (aal_device_set_bs(device, get_sb_block_size(super))) {
-		    aal_device_free_block(block);
+		    aal_block_free(block);
 		    continue;
 		}
 				
 		if (format36_super_check(super, device)) {
-		    aal_device_free_block(block);
+		    aal_block_free(block);
 		    continue;
 		}
 		
@@ -91,7 +91,7 @@ static aal_block_t *format36_super_open(aal_device_t *device) {
 		    return block;
 		
 	    }
-	    aal_device_free_block(block);
+	    aal_block_free(block);
 	}
     }
     return NULL;
@@ -123,10 +123,10 @@ static error_t format36_sync(format36_t *format) {
     aal_assert("umka-381", format != NULL, return -1);    
     aal_assert("umka-382", format->super != NULL, return -1);    
 
-    if (aal_device_write_block(format->device, format->super)) {
+    if (aal_block_write(format->device, format->super)) {
     	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
 	    "Can't write superblock to block %llu.", 
-	    aal_device_get_block_nr(format->super));
+	    aal_block_get_nr(format->super));
 	return -1;
     }
     return 0;
@@ -150,7 +150,7 @@ static void format36_close(format36_t *format) {
     
     aal_assert("umka-384", format != NULL, return);
     
-    aal_device_free_block(format->super);
+    aal_block_free(format->super);
     aal_free(format);
 }
 
@@ -162,7 +162,7 @@ static int format36_confirm(aal_device_t *device) {
     if (!(block = format36_super_open(device)))
 	return 0;
 	
-    aal_device_free_block(block);
+    aal_block_free(block);
     return 1;
 }
 

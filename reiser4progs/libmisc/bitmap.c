@@ -170,22 +170,22 @@ static error_t callback_bitmap_flush(aal_device_t *device,
 {
     aal_block_t *block;
 
-    if (!(block = aal_device_alloc_block(device, blk, 0xff)))
+    if (!(block = aal_block_alloc(device, blk, 0xff)))
 	goto error;
 		
     aal_memcpy(block->data, map, chunk); 
 		
-    if (aal_device_write_block(device, block)) {
+    if (aal_block_write(device, block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't write bitmap block to %llu.", blk);
 	goto error_free_block;
     }
-    aal_device_free_block(block);
+    aal_block_free(block);
 	
     return 0;
 	
 error_free_block:
-    aal_device_free_block(block);
+    aal_block_free(block);
 error:
     return -1;
 }
@@ -195,13 +195,13 @@ static error_t callback_bitmap_fetch(aal_device_t *device,
 {
     aal_block_t *block;
 	
-    if (!(block = aal_device_read_block(device, blk))) {
+    if (!(block = aal_block_read(device, blk))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't read bitmap block %llu.", blk);
 	return -1;
     }	
     memcpy(map, block->data, chunk);
-    aal_device_free_block(block);
+    aal_block_free(block);
 	
     return 0;
 }

@@ -140,7 +140,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     if (reiserfs_node_item_insert(squeeze, &coord, &key, &item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
-	    aal_device_get_block_nr(squeeze->block));
+	    aal_block_get_nr(squeeze->block));
 	goto error_free_squeeze;
     }
 
@@ -175,7 +175,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     if (reiserfs_node_item_insert(leaf, &coord, &key, &item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
-	    aal_device_get_block_nr(leaf->block));
+	    aal_block_get_nr(leaf->block));
 	goto error_free_leaf;
     }
    
@@ -218,7 +218,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     if (reiserfs_node_item_insert(leaf, &coord, &key, &item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert direntry item into the node %llu.", 
-	    aal_device_get_block_nr(leaf->block));
+	    aal_block_get_nr(leaf->block));
 	goto error_free_leaf;
     }
 

@@ -47,7 +47,7 @@ static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
     master_offset = (blk_t)(REISERFS_MASTER_OFFSET / REISERFS_DEFAULT_BLOCKSIZE);
     aal_device_set_bs(fs->host_device, REISERFS_DEFAULT_BLOCKSIZE);
 	
-    if (!(block = aal_device_read_block(fs->host_device, master_offset))) {
+    if (!(block = aal_block_read(fs->host_device, master_offset))) {
 	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
 	    "Can't read master super block at %llu.", master_offset);
 	return -1;
@@ -93,7 +93,7 @@ static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
     return 0;
     
 error_free_block:
-    aal_device_free_block(block);
+    aal_block_free(block);
 error:
     return -1;    
 }
@@ -108,11 +108,11 @@ static error_t reiserfs_master_sync(reiserfs_fs_t *fs) {
     aal_assert("umka-145", fs->master != NULL, return -1);
 
     master_offset = (blk_t)(REISERFS_MASTER_OFFSET / REISERFS_DEFAULT_BLOCKSIZE);
-    if (!(block = aal_device_alloc_block(fs->host_device, master_offset, 0)))
+    if (!(block = aal_block_alloc(fs->host_device, master_offset, 0)))
 	return -1;
     
     aal_memcpy(block->data, fs->master, REISERFS_DEFAULT_BLOCKSIZE);
-    if (aal_device_write_block(fs->host_device, block)) {
+    if (aal_block_write(fs->host_device, block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't synchronize master super block at %llu.", 
 	    master_offset);
