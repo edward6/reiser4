@@ -1,17 +1,10 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-#include "../../forward.h"
-#include "../../debug.h"
-#include "../../key.h"
-#include "../../coord.h"
 #include "item.h"
-#include "../plugin.h"
-#include "../../znode.h"
+#include "../../key.h"
 #include "../../tree.h"
-#include "../../super.h"
-#include "../../inode.h"
+#include "../../context.h"
 
-#include <linux/fs.h>		/* for struct inode */
 #include <linux/quotaops.h>
 #include <asm/uaccess.h>
 #include <linux/writeback.h>
@@ -414,7 +407,8 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 				result = -EDQUOT;
 				break;
 			}
-			result = insert_flow_reserve(tree_by_inode(inode)->height);
+
+			result = insert_flow_reserve(znode_get_tree(loaded)->height);
 			if (!result)
 				result = insert_flow(coord, lh, f);
 			if (f->length)
@@ -422,7 +416,7 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 			break;
 
 		case OVERWRITE_ITEM:
-			result = overwrite_reserve(tree_by_inode(inode)->height);
+			result = overwrite_reserve(znode_get_tree(loaded)->height);
 			if (!result)
 				result = overwrite_tail(coord, f);
 			break;
