@@ -97,6 +97,7 @@ subgraph spin {
 	RSPIN(epoch_lock);
 	RSPIN(stack_lock);
 	RSPIN(zlock);
+	RSPIN(fq_lock);
 
 	//RSPIN(stack_lock);
 	//RSPIN(super_guard);
@@ -240,4 +241,8 @@ ARC(atom_event, longterm_lock, "flush");
 ARC(atom_event, page_lock, "jnode_extent_write()");
 ARC(zlock, stack_lock, "longterm_lock_znode()");//,\nlongterm_unlock_znode(), wake_up_all_lopri_owners()");
 
+ARC(atom_lock, stack_lock, "check_not_fused_lock_owners()");//atom_send_event()
+ARC(txnh_lock, stack_lock, "check_not_fused_lock_owners()");
+ARC(fq_lock, stack_lock, "wakeup_atom_waitfor_list()");
+ARC(atom_lock, fq_lock, "detach_fq()");
 }

@@ -223,12 +223,8 @@ extern int znode_is_write_locked(const znode * node);
 #endif
 /* lock ordering is: first take zlock spin lock, then lock stack spin lock */
 #define spin_ordering_pred_stack(stack)				\
-	((lock_counters()->spin_locked_atom == 0) &&		\
-	 (lock_counters()->spin_locked_txnh == 0) &&		\
-	 (lock_counters()->spin_locked_jnode == 0) &&		\
-	 (lock_counters()->spin_locked_stack == 0) &&		\
+	((lock_counters()->spin_locked_stack == 0) &&		\
 	 (lock_counters()->spin_locked_txnmgr == 0) &&		\
-	 (lock_counters()->spin_locked_fq == 0) &&		\
 	 (lock_counters()->spin_locked_super == 0) &&		\
 	 (lock_counters()->spin_locked_inode_object == 0) &&	\
 	 (lock_counters()->spin_locked_cbk_cache == 0) &&	\
