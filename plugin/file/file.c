@@ -1582,7 +1582,7 @@ unpack(struct inode *inode, int forever)
 		tograb = inode_file_plugin(inode)->estimate.update(inode);
 		result = reiser4_grab_space(tograb, BA_CAN_COMMIT, __FUNCTION__);
 		if (result == 0)
-			result = reiser4_mark_inode_dirty(inode);
+			update_atime(inode);
 	}
 
 	return result;
