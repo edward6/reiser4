@@ -815,6 +815,7 @@ adjust_to_parent_dir(struct inode *object /* new object */ ,
 	grab_plugin(self, ancestor, dir);
 	grab_plugin(self, ancestor, sd);
 	grab_plugin(self, ancestor, hash);
+	grab_plugin(self, ancestor, fibration);
 	grab_plugin(self, ancestor, formatting);
 	grab_plugin(self, ancestor, perm);
 	grab_plugin(self, ancestor, dir_item);
