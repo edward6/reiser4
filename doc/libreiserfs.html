@@ -5,58 +5,58 @@
 
 </PRE>
 <H2>INTRODUCTION</H2><PRE>
-       This document  consists  of  two  parts.  The  first  part
-       describes  DAL  as  the  way  for  communications with any
-       device by unified interface.  And  second  part  describes
+       This document  consists  of  two  parts.  First  part
+       describes  DAL  as  the  way  of  communication with any
+       device through unified interface.  Second  part describes
        libreiserfs that works over DAL.
-
-
 
 </PRE>
 <H2>DAL (Device Abstraction Layer)</H2><PRE>
-       This  is  a  layer  between  the device abstract object in
-       underlying software package that is used  libreiserfs  and
-       libreiserfs  for  handling  all  I/O calls from it to that
-       device.
+       DAL  is  a  layer  between  the device abstract object in
+       "master" software package that uses  libreiserfs  and
+       libreiserfs. DAL layer  handles  all I/O requests from libreiserfs
+       to that device.
 
        <B>Abstract</B>
 
-       Lets enumerate all projects which interested in  using  of
-       libreiserfs.  There following: GNU Parted, EVMS, GNU GRUB,
+       Following is not complete list of projects that are interested
+      in  using libreiserfs: GNU Parted, EVMS, GNU GRUB,
        Yaboot, Partimage, Reiserfsprogs.
 
-       What is the nature of this software packages in context of
-       I/O operations?  Lets find it out.
+       Why additional abstraction layer is required in libreiserfs
+       to cooperate with these packages?
 
        All  these  projects have their own device abstract device
-       that has additional purposes except plain device  for  I/O
-       operations.  This  additional  purposes are the following:
-       policies, backing up,  checking,  logging,  etc.  Some  of
-       these  device  abstract  objects  doesn't have opened file
-       descriptor (for real device) in itself  at  all.  This  is
-       because  they  doesn't  use standard library (libc, glibc,
-       etc) at all. For example, GNU GRUB  or  Yaboot.  They  are
-       bootloaders.
+       that has additional properties except being plain UNIX block 
+       device.  
 
-       Therefore  we  must export some "device-presentation inde­
-       pendent" interface for all I/O operations. This  interface
+       For example: various "policies", 
+       backing up,  checking,  logging,  etc.  Some  of
+       these  device  abstract  objects  doesn't have opened file
+       descriptor (for real device) corresponding to them at all.
+       For example, GNU GRUB  or Yaboot are boot loaders and as such
+       do not and can not use standard C library and kernel services. 
+
+       Therefore  we  must export some "device-presentation 
+       independent" interface for all I/O operations. This  interface
        will  be based on installable callback functions for every
-       atomic I/O operation. There following: read, write,  sync,
-       equals,  length,  flags,  stat. And more detailed: to read
-       from device, to write to device, to sync a device, to com­
-       pare  two  devices, to make request for length from device
-       and to make request for flags  device  opened  with  (read
+       atomic I/O operation: to read from device, to write to device,
+       to sync a device, to compare  two  devices, to obtain capacity
+       of device (number of bytes that can be stored on device) 
+       and to obtain flags  device was opened with (read
        only, read/write, etc).
 
-       Why is this our job?
+       Why should we burden ourselves with this?
 
-       This is because we must build our project (libreiserfs) on
-       an stable interface.  We must  rely  on  it.  However  I/O
-       interface  very  vary  from one project to another.  Or it
-       not exists at all.
+       This is because we want to build our library (libreiserfs) on
+       an stable interface.  We have to rely on it.  However  I/O
+       requirements vary from one project to another.  Or doesn't
+       exist at all.
 
        In fact we are forcing all projects to use our DAL  inter­
-       face.  Every  project implements our interface in order to
+       face.  Every  project implements our interface in order to 
+
+       <b>FIXME-NIKITA phase is not finished properly</b>
 
        The  reiserfsprogs DAL object will be the simplest of them
        all, since reiserfsprogs operates directly on a UNIX block
@@ -69,38 +69,43 @@
        reason  that  Parted  requires a more sophisticated DAL is
        that  it  has,  roughly  speaking,  more  complex   device
        abstract  object.  Parted  is able to check for errors and
-       aborts current action if anything goes wrong. Due to  this
+       to abort current action if anything went wrong. Owing to this
        more complex behavior, libreiserfs cannot operate directly
        on a block device and file descriptor. Another feature  of
-       Parted  might be support for partition "slices", which are
-       sub-partitions of a  single  block  device  (supported  in
+       Parted  is its support for partition "slices", which are
+       sub-partitions of a  single  block  device  (supported  on
        FreeBSD, for example).
 
        The  GNU  GRUB  system is a bootloader, so it runs without
-       any Kernel to support it. Therefore there must be a  layer
+       any kernel to support it. Therefore there must be a  layer
        of abstraction between libreiserfs and the client programs
        that use it. Reiserfsprogs is a simple example that  would
        not require any DAL support, but support for a wider range
        of libreiserfs applications will require a  DAL  layer  to
        interface with them.
 
-       So  every  project  that  is going to use libreiserfs must
-       prepare "dal_ops" structure and fill it by its device spe­
-       cific  I/O  working functions. This "dal_ops" structure is
-       the main field of DAL. And as libreiserfs is using DAL for
-       I/O  operations, it will call installed in "dal_ops" call­
-       back functions for every "read",  "write",  etc  operation
+       So  every  project  that  is going to use libreiserfs should
+       prepare "dal_ops" structure and fill it by its device 
+       specific  I/O  working functions. This "dal_ops" structure is
+       the central component of DAL. To use DAL object for I/O operations,
+       libreiserfs will call installed in "dal_ops" callback functions
+       for every "read",  "write",  etc  operation
        every  time as it will be needed to read, write something.
 
-       In fact for every I/O operation will be  called  installed
-       callback  function,  that will does all work. For example,
-       for reiserfsck will be called  reiserfsck_read  that  will
-       call  standard "read" function for passed file descriptor,
-       for GNU Parted will be called  ped_geometry_read  function
-       that  will call standard "read" function, and for GNU GRUB
-       will be called "biosdisk" function.
+       That is, all real I/O work is delegated to the appropriate
+       callback function. For example,  reiserfsck_read
+       is be called for reiserfsck. reiserfsck_read 
+       calls  standard read(2) function to read from supplied file descriptor.
 
-       For example, "dal_ops" for GNU GRUB will roughly look:
+       For GNU Parted, ped_geometry_read callback function
+       calls standard read(2) function,
+
+       <b>FIXME-NIKITA is it so? What if ped_geometry_read is called on slice?
+       </b>
+
+       and for GNU GRUB, read callback calls "biosdisk" function.
+
+       For example, "dal_ops" for GNU GRUB looks roughly like this:
 
        This stuff lies in separate device.S file. This function does all work on device.
 
@@ -435,34 +440,34 @@
             return 0xff;
        }
 
-       What does it mean to open a filesystem?
 
-       It is mean  the  following:  to  initialize  all  internal
-       structures,  to read superblock, journal header, to replay
-       journal, to check superblock and journal header for valid­
-       ness   (sb_block_count  &lt;=  dev_length,  etc),  re-reading
-       superblock from the journal (if it is mapped to some jour­
-       nal  block),  to initialize bitmap, optionally to check it
-       for validness, to initialize tree, to read the root  block
-       and   check  it  for  validness  and  returns  initialized
+       Opening of a filesystem consists of the following steps:
+ 
+       initialize  all  internal
+       structures; read superblock, and journal header; replay
+       journal; check superblock and journal header for 
+       validness   (sb_block_count  &lt;=  dev_length,  etc);  re-read
+       superblock from the journal (if it was overwritten by 
+       journal  replay);  initialize bitmap; optionally check it
+       for validness; initialize tree; read the root  block,
+       and   check  it  for  validness; return initialized
        filesystem instance.
 
 
 
 </PRE>
 <H2>libreiserfs</H2><PRE>
-       libreiserfs will consists of set of APIs. There  are  fol­
-       lowing:  plugins  API  (plugins  factory), filesystem API,
+       libreiserfs will consists of set of APIs. There  are  
+       following:  plugins  API  (plugin  factory), filesystem API,
        journal API, allocator API, oid allocator API,  tree  API.
        Also  it  will contain API (the set of wrappers functions)
        for every plugin. For example, libreiserfs will be working
        with directory plugin via directory API.
 
-       Also  libreiserfs  will  consists of minor APIs too. There
-       following:  exceptions  API,  memory  working   functions,
-       tools.
+       Also  libreiserfs  will  contain additional minor APIs:
+       exceptions  API, memory handling functions, tools.
 
-       <B>Abstraction</B> <B>levels</B> <B>in</B> <B>libreiserfs.</B>
+       <B>Abstraction levels in libreiserfs.</B>
 
        libreiserfs is structured into several abstraction layers.
        Main goal of an abstraction layer is to  correctly  handle
@@ -487,7 +492,7 @@
 
        etc.
 
-       <B>Exceptions</B> <B>in</B> <B>libreiserfs.</B>
+       <B>Exceptions in libreiserfs.</B>
 
        Exceptions  in  libreiserfs  are  uniform  way  to  handle
        errors. Contrary to some similarity in naming,  they  have
@@ -1179,3 +1184,5 @@ libreiserfs                13 May, 2002            <B>libreiserfs(8)</B>
 </PRE>
 </BODY>
 </HTML>
+<!--  LocalWords:  libreiserfs
+ -->
