@@ -710,7 +710,8 @@ insert_crc_flow_in_place(coord_t * coord, lock_handle * lh, flow_t * f, struct i
 	coord_t point;
 	lock_handle lock;
 
-	assert("edward-484", coord->between == AT_UNIT || coord->between == AFTER_ITEM);
+	assert("edward-484", coord->between == AT_UNIT ||
+	       coord->between == AFTER_UNIT || coord->between == AFTER_ITEM);
 	
 	coord_dup (&point, coord);
 	
@@ -866,6 +867,8 @@ reiser4_internal int scan_ctail(flush_scan * scan)
 	result = deflate_cluster(&clust, inode);
 	if (result)
 		goto exit;
+
+	assert("edward-633", clust.len != 0);
 	
 	fplug->flow_by_inode(inode, clust.buf, 0, clust.len, clust_to_off(clust.index, inode), WRITE, &f);
 	/* insert processed data */
