@@ -60,7 +60,7 @@ static void reiser4_destroy_inode(struct inode *inode);
 static void reiser4_drop_inode(struct inode *);
 static void reiser4_delete_inode(struct inode *);
 static void reiser4_write_super(struct super_block *);
-static int reiser4_statfs(struct super_block *, struct statfs *);
+static int reiser4_statfs(struct super_block *, struct kstatfs *);
 static void reiser4_kill_super(struct super_block *);
 static int reiser4_show_options(struct seq_file *m, struct vfsmount *mnt);
 static int reiser4_fill_super(struct super_block *s, void *data, int silent);
@@ -75,7 +75,7 @@ static struct file_system_type reiser4_fs_type;
 static int
 reiser4_statfs(struct super_block *super	/* super block of file
 						 * system in queried */ ,
-	       struct statfs *statfs	/* buffer to fill with
+	       struct statfs *kstatfs	/* buffer to fill with
 					 * statistics */ )
 {
 	long bfree;
