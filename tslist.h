@@ -6,9 +6,9 @@
 
 /* A circular doubly linked list that differs from the previous
  * <linux/list.h> implementation because it is parametrized to provide
- * type safety.  This data structure is also useful as a queue.
+ * type safety.  This data structure is also useful as a queue or stack.
  *
- * The "list class" consists of a set of types and methods for
+ * The "list template" consists of a set of types and methods for
  * implementing list operations.  All of the types and methods
  * associated with a single list class are assigned unique names and
  * type signatures, thus allowing the compiler to verify correct
@@ -37,7 +37,7 @@
  * in this file but uses only a single type "struct list_head".  There
  * are two problems with this approach.  First, there are no type
  * distinctions made between the two objects despite their distinct
- * types, which increases the possibility of mistakes being made.  For
+ * types, which greatly increases the possibility for mistakes.  For
  * example, the <linux/list.h> list_add function takes two "struct
  * list_head" arguments: the first is the item being inserted and the
  * second is the "struct list_head" which should precede the new
@@ -385,7 +385,7 @@ PREFIX##_list_check (PREFIX##_list_head  *head)                                 
                                                                                               \
 typedef struct { int foo; } PREFIX##_dummy_decl
 
-/* this last typedef is to allow semicolon a the and of TS_LIST_DEFINE() */
+/* The final typedef is to allow a semicolon at the end of TS_LIST_DEFINE(); */
 
 #endif /* __REISER4_TSLIST_H__ */
 
