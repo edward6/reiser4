@@ -527,6 +527,7 @@ node40_check(const znode * node /* node to check */ ,
 	int i;
 	reiser4_key prev;
 	unsigned old_offset;
+	tree_level level;
 	coord_t coord;
 
 	assert("nikita-580", node != NULL);
@@ -556,6 +557,7 @@ node40_check(const znode * node /* node to check */ ,
 	coord.node = (znode *) node;
 	coord.unit_pos = 0;
 	coord.between = AT_UNIT;
+	level = znode_get_level(node);
 	for (i = 0; i < nr_items; i++) {
 		item_header40 *ih;
 		reiser4_key unit_key;
@@ -598,6 +600,26 @@ node40_check(const znode * node /* node to check */ ,
 			prev = unit_key;
 		}
 		coord.unit_pos = 0;
+		if (level != TWIG_LEVEL && 
+		    item_is_extent(&coord)) {
+			*error = "extent on the wrong level";
+			return -1;
+		}
+		if (level == LEAF_LEVEL && 
+		    item_is_internal(&coord)) {
+			*error = "internal item on the wrong level";
+			return -1;
+		}
+		if (level != LEAF_LEVEL && 
+		    !item_is_internal(&coord) && !item_is_extent(&coord)) {
+			*error = "wrong item on the internal level";
+			return -1;
+		}
+		if (level > TWIG_LEVEL && 
+		    !item_is_internal(&coord)) {
+			*error = "non-internal item on the internal level";
+			return -1;
+		}
 		if (item_plugin_by_coord(&coord)->b.check && item_plugin_by_coord(&coord)->b.check(&coord, error))
 			return -1;
 		if (i) {
