@@ -2,7 +2,7 @@
  * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "reiser4.h"
+#include "../../reiser4.h"
 #include "bitmap.h"
 
 /* Block allocation/deallocation are done through special bitmap objects which
@@ -240,8 +240,8 @@ static void parse_blocknr (const reiser4_block_nr *block, bmap_nr_t *bmap, bmap_
 {
 	struct super_block * super = get_current_context()->super;
 
-	*bmap   = *block / (super->s_blocksize * 8);
-	*offset = *block % (super->s_blocksize * 8);
+	*bmap   = *block >> super->s_blocksize_bits;
+	*offset = *block & (super->s_blocksize - 1);
 } 
 
 /** A number of bitmap blocks for given fs. This number can be stored on disk
@@ -253,7 +253,7 @@ static bmap_nr_t get_nr_bmap (struct super_block * super)
 {
 	assert ("zam-393", reiser4_block_count (super) != 0);
 
-	return (reiser4_block_count (super) - 1) / (reiser4_blksize (super) * 8) + 1;
+	return ((reiser4_block_count (super) - 1) >> (super->s_blocksize_bits + 3)) + 1;
 }
 
 /* bnode structure initialization */
