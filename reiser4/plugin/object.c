@@ -146,14 +146,28 @@ static void key_warning( const char *error_message, reiser4_key *key, int code )
 
 /** find sd of inode in a tree, deal with errors */
 int lookup_sd( struct inode *inode, znode_lock_mode lock_mode, 
-		  tree_coord *coord, reiser4_lock_handle *lh, reiser4_key *key )
+	       tree_coord *coord, reiser4_lock_handle *lh, reiser4_key *key )
+{
+	assert( "nikita-1692", inode != NULL );
+	assert( "nikita-1693", coord != NULL );
+	assert( "nikita-1694", key != NULL );
+
+	build_sd_key( inode, key );
+	return lookup_sd_by_key( tree_by_inode( inode ), 
+				 lock_mode, coord, lh, key );
+}
+
+/** find sd of inode in a tree, deal with errors */
+int lookup_sd_by_key( reiser4_tree *tree, znode_lock_mode lock_mode, 
+		      tree_coord *coord, reiser4_lock_handle *lh, 
+		      reiser4_key *key )
 {
 	int   result;
 	const char *error_message;
 #if REISER4_DEBUG
 	reiser4_key key_found;
 #endif
-	assert( "nikita-718", inode != NULL );
+	assert( "nikita-718", tree != NULL );
 	assert( "nikita-719", coord != NULL );
 	assert( "nikita-720", key != NULL );
 
@@ -163,8 +177,7 @@ int lookup_sd( struct inode *inode, znode_lock_mode lock_mode,
 	   This returns in "node" pointer to a locked znode and in "pos"
 	   position of an item found in node. Both are only valid if
 	   coord_found is returned. */
-	result = coord_by_key( tree_by_inode( inode ), 
-			       build_sd_key( inode, key ), coord, lh,
+	result = coord_by_key( tree, key, coord, lh,
 			       lock_mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL );
 	switch( result ) {
 	case CBK_OOM:
