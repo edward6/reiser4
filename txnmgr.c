@@ -2440,8 +2440,8 @@ capture_fuse_into (txn_atom  *small,
 	large->flags     |= small->flags;
 
 	/* Merge blocknr sets. */
-	blocknr_set_merge (& large->delete_set, & small->delete_set);
-	blocknr_set_merge (& large->wandered_map, & small->wandered_map);
+	blocknr_set_merge (& small->delete_set, & large->delete_set);
+	blocknr_set_merge (& small->wandered_map, & large->wandered_map);
 
 	/* Merge allocated/deleted file counts */
 	large->nr_objects_deleted += small->nr_objects_deleted; 	
