@@ -13,7 +13,6 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 	reiserfs_fs_t *fs;
 	
 	ASSERT(host_device != NULL, return NULL);
-	ASSERT(journal_device != NULL, return NULL);
 
 	if (!(fs = aal_calloc(sizeof(*fs), 0)))
 		return NULL;
@@ -23,8 +22,11 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 	if (!reiserfs_super_open(fs))
 		goto error_free_fs;
 
+	if (journal_device)
+		aal_device_set_blocksize(journal_device, get_mr_blocksize(&fs->super->master));
+
 	if (reiserfs_super_journal_plugin(fs) != REISERFS_UNSUPPORTED_PLUGIN && 
-			!reiserfs_journal_open(fs, journal_device, replay))
+			journal_device && !reiserfs_journal_open(fs, journal_device, replay))
 		goto error_free_super;
 	
 	if (reiserfs_super_alloc_plugin(fs) != REISERFS_UNSUPPORTED_PLUGIN &&

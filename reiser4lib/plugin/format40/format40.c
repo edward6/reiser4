@@ -22,7 +22,7 @@ static int reiserfs_format40_super_check(reiserfs_format40_super_t *super,
 }
 
 static int reiserfs_format40_signature(reiserfs_format40_super_t *super) {
-	return 1;
+	return aal_strncmp(super->sb_magic, REISERFS_FORMAT40_MAGIC, 16) == 0;
 }
 
 static aal_block_t *reiserfs_format40_super_open(aal_device_t *device) {
@@ -30,22 +30,18 @@ static aal_block_t *reiserfs_format40_super_open(aal_device_t *device) {
 	reiserfs_format40_super_t *super;
 	int i, super_offset[] = {16, 2, -1};
 	
-    for (i = 0; super_offset[i] != -1; i++) {
+	for (i = 0; super_offset[i] != -1; i++) {
 		if ((block = aal_block_read(device, super_offset[i]))) {
 			super = (reiserfs_format40_super_t *)block->data;
 			
 			if (reiserfs_format40_signature(super)) {
-				size_t blocksize = get_sb_block_size(super);
-				if (!aal_device_set_blocksize(device, blocksize)) {
-					aal_block_free(block);
-					continue;
-				}
 				if (!reiserfs_format40_super_check(super, device)) {
 					aal_block_free(block);
 					continue;
-				}
+				}	
 				return block;
 			}
+			
 			aal_block_free(block);
 		}
 	}

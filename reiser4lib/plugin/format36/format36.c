@@ -69,18 +69,10 @@ static aal_block_t *reiserfs_format36_super_open(aal_device_t *device) {
 		if ((block = aal_block_read(device, super_offset[i]))) {
 			super = (reiserfs_format36_super_t *)block->data;
 			if (reiserfs_format36_signature(super)) {
-
-				size_t blocksize = get_sb_block_size(super);
-				if (!aal_device_set_blocksize(device, blocksize)) {
-					aal_block_free(block);
-					continue;
-				}
-				
 				if (!reiserfs_format36_super_check(super, device)) {
 					aal_block_free(block);
 					continue;
 				}
-				
 				return block;
 			}
 			aal_block_free(block);

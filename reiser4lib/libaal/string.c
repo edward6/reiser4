@@ -36,9 +36,11 @@ int aal_strncmp(const char *s1, const char *s2, size_t n) {
 	const char *p;
 	for (p = s1; *p; p++, s1++, s2++) {
 		if ((size_t)(p - s1) >= n) break;
-		if (*s1 != *s2) return 0;
+	
+		if (*s1 < *s2) return -1;
+		if (*s1 > *s2) return 1;
 	}
-	return 1;	
+	return 0;
 }
 
 int aal_ltos(long int d, size_t n, char *a, int base) {

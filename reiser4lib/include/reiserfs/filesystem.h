@@ -9,7 +9,24 @@
 #include <aal/aal.h>
 #include <reiserfs/plugin.h>
 
+#define REISERFS_MASTER_MAGIC 		"R4Sb"
+
+#define REISERFS_MASTER_OFFSET 		65536
+#define REISERFS_DEFAULT_BLOCKSIZE 	4096
+
+struct reiserfs_master_super {
+	char mr_magic[4];
+	uint16_t mr_format_id;
+	uint16_t mr_blocksize;
+	char mr_uuid[16];
+};
+
+#define get_mr_format_id(mr)		get_le16(mr, mr_format_id)
+#define get_mr_blocksize(mr)		get_le16(mr, mr_blocksize)
+
 struct reiserfs_super {
+	struct reiserfs_master_super master;
+		
 	reiserfs_format_opaque_t *entity;
 	reiserfs_plugin_t *plugin;
 };

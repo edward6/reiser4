@@ -8,17 +8,19 @@
 
 #include <aal/aal.h>
 
+#define REISERFS_FORMAT40_MAGIC "R4Sb-Default"
+
 struct reiserfs_format40_super {
 	uint64_t sb_block_count;
 	uint64_t sb_free_blocks;
-	uint64_t sb_block_size;
 	uint64_t sb_root_block;
 	uint16_t sb_tree_height;
 	uint16_t sb_padd[3];
 	uint64_t sb_oid;
 	uint64_t sb_file_count;
 	uint64_t sb_flushes;
-	char sb_unused[424];
+	char sb_magic[16];
+	char sb_unused[408];
 };
 
 typedef struct reiserfs_format40_super reiserfs_format40_super_t;
@@ -34,9 +36,6 @@ typedef struct reiserfs_format40_super reiserfs_format40_super_t;
 
 #define get_sb_tree_height(sb)				get_le32(sb, sb_tree_height)
 #define set_sb_tree_height(sb, val)			set_le32(sb, sb_tree_height, val)
-
-#define get_sb_block_size(sb)				get_le16(sb, sb_block_size)
-#define set_sb_block_size(sb, val)			set_le16(sb, sb_block_size, val)
 
 #define get_sb_oid(sb)						get_le16(sb, sb_oid)
 #define set_sb_oid(sb, val)					set_le16(sb, sb_oid, val)

@@ -9,8 +9,9 @@
 extern aal_list_t *plugins;
 
 int reiserfs_super_open(reiserfs_fs_t *fs) {
-	int i;
+	aal_block_t *block;
 	reiserfs_plugin_t *plugin;
+	struct reiserfs_master_super *master;
 	
 	ASSERT(fs != NULL, return 0);
 	ASSERT(fs->device != NULL, return 0);
@@ -24,21 +25,54 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 	if (!(fs->super = aal_calloc(sizeof(*fs->super), 0)))
 		return 0;
 	
-	for (i = 0; i < aal_list_count(plugins); i++) {
-		plugin = (reiserfs_plugin_t *)aal_list_at(plugins, i);
-		
-		if (plugin->h.type != REISERFS_FORMAT_PLUGIN)
-			continue;
-		
-		if ((fs->super->entity = plugin->format.init(fs->device))) {
-			fs->super->plugin = plugin;
-			return 1;
-		}	
+	aal_device_set_blocksize(fs->device, REISERFS_DEFAULT_BLOCKSIZE);
+	
+	if (!(block = aal_block_read(fs->device, 
+		(blk_t)(REISERFS_MASTER_OFFSET / REISERFS_DEFAULT_BLOCKSIZE))))
+	{
+		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-018", 
+			"Can't read master super block.");
+		goto error_free_super;
 	}
 	
+	master = (struct reiserfs_master_super *)block->data;
+	if (aal_strncmp(master->mr_magic, REISERFS_MASTER_MAGIC, 4) != 0)
+		goto error_free_block;
+	
+	aal_memcpy(&fs->super->master, master, sizeof(*master));
+	
+	if (!aal_device_set_blocksize(fs->device, get_mr_blocksize(master))) {
+			aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-019",
+					"Invalid block size detected %d. It must be power of two.", 
+			get_mr_blocksize(master));
+		goto error_free_block;
+	}
+	
+	if (!(plugin = reiserfs_plugin_find(REISERFS_FORMAT_PLUGIN, 
+		get_mr_format_id(master)))) 
+	{
+		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-020", 
+			"Can't find disk-format plugin by its identifier %d.", get_mr_format_id(master));
+		goto error_free_block;
+	}
+	
+	aal_block_free(block);
+	
+	if (!(fs->super->entity = plugin->format.init(fs->device))) {
+		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-021", 
+			"Can't initialize disk-format plugin.");
+		goto error_free_block;
+	}	
+	fs->super->plugin = plugin;
+	
+	return 1;
+	
+error_free_block:
+	aal_block_free(block);
+error_free_super:
 	aal_free(fs->super);
 	fs->super = NULL;
-	
+error:
 	return 0;
 }
 
