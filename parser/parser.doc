@@ -74,9 +74,72 @@ A<-"`I think that using " in a language for delimiting quoting is bad style beca
 
 assigns the string `I think that using " in a language for delimiting quoting is bad style because delimiters should be matching pairs not matching identical singletons if nesting is to work at all.' to A
 
+
+
+
+
+
+named assign.
+
+name<=A<-B
+
+The "name" is a name for result of assign . This is not a object of file system.(need to test) ok tested
+Rule for it name is common rule for object of FS, exept one rule: names in path no need coresponded object in FS.??? (need to test.)
+Time of a life of it limited to covering brackets or end of command string. (tested.) (need check using this name afte covering brackets)
+After this operator this name will have subnames "assign_result" and "assign_length", (ok tested)
+wich will contane error code of assign and number of bytes wroten to file A. (ok tested)
+
+
+After name is dead the previously value of name is restored. (ok tested)
+This rule not depended of exist or not file in FS with same name.
+
+if file "name" exist in current directory, then
+
+This names is avalable in any expression as a file. (Only body of file. no any meta data) ?? (ok tested)
+parent of it is a current directory, or defined path. (tested current directory, need test permition for full pathname)
+It means we can use full pathname for access to it. ( tested, need more test)
+
+for example
+
+C<-name/assign_result; D<-name/assign_length
+
+files C an D will contain error code of assign and number of bytes, wroten to file A. (ok tested)
+
+
+
+special case ??? (not yet work.)
+
+E<-name
+
+where E is directory.
+in this case in directory E will create or owerwrite files assign_length assign_result with correspended values.
+
+
+
+Deneral rules for tmp names.
+If lookup can't find any name in FS for specified path, this nema is a TMP name. It can have a value and a children. but no metadata.
+Offcose it have a parent. Life time of this name limited by covering brackets or end of command string.
+Fist name in path, which is TMP name my have a subtree of TMP names, and ony TMP names.
+It can be used on the left hand of assign. In this case it will have value as a copy of value of the right hand.
+
+
+
+Different between TMP names and named assign.
+1. The name of named assign can be exist in file system. TMP name - not.
+2. We can recursively define named assign with same name as stack of value. TMP name has only one value.
+(need to check if we use TMP name and same named assign )
+3. The name of named assign will have 2 child for assign result with fixed names.
+
+All other properties is equvalent.
+while life time we can add any new name as child, if it not exist.
+
 A<<-B
 
-appends file B to file A
+appends file B to file A (not yet ready)
+
+
+
+
 
 We need to define multiple aspects of the object when creating it.
 Additionally, we need to assign default values to those aspects of the
@@ -95,6 +158,7 @@ single unit by operators.  If you use named parenthesis you can avoid
 the "LISP bird nest" effect.  The disadvantage is that if you leave
 off the whitespace following the open parenthesis you will get an
 unintended effect.  Note that there must be no space between ( and x.
+(not yet ready)
 
 Referencing the contents of parenthesis by the name of the parenthesis
 is planned in later versions..
@@ -162,6 +226,27 @@ if  A  and   B  are object expressions then
                A<-B is possible operation
 
 
+
+
+--------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 So, let us discuss the following example:
 
 Assume 357 is the user id of Michael Jackson.
@@ -178,7 +263,7 @@ ascii_command = "/home/teletubbies/(glove_location<-( ..object_t<-audit/regular,
 DEMIDOV-FIXME-HANS: what is the meaning of the line below, and should it be ..new rather than new
 a/b/(new/(name<-"new_file_name"; type<-"regular file"; perm_t<-"acl"); new_file_name/acl<- ( uid<-"357", access<-"denied" ))
 
-DEMIDOV-FIXME-HANS: what is the meaning of ..anon and backing?
+DEMIDOV-FIXME-HANS: update this example
 ascii_command =
    "/home/teletubbies/glove_location<-
              ( (..object_t<-audit, ..perm_t<-acl) ;
