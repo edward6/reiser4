@@ -1670,6 +1670,7 @@ int extent_writepage (coord_t * coord, lock_handle * lh, struct page * page)
 	}
 
 	jnode_set_dirty (j);
+	assert ("vs-1073", PageDirty (page));
 
 	trace_on (TRACE_EXTENTS, "OK\n");
 
@@ -2681,6 +2682,7 @@ static int replace_extent (coord_t * un_extent, lock_handle * lh,
 	lock_handle lh_after;
 	tap_t watch;
 	reiser4_extent orig_ext; /* this is for debugging */
+	znode * orig_znode;
 
 
 	assert ("vs-990", coord_is_existing_unit (un_extent));
@@ -2692,6 +2694,7 @@ static int replace_extent (coord_t * un_extent, lock_handle * lh,
 	tap_monitor (&watch);
 
 	orig_ext = *extent_by_coord (un_extent);
+	orig_znode = un_extent->node;
 
 	/* set insert point after unit to be replaced */
 	un_extent->between = AFTER_UNIT;
@@ -2701,7 +2704,7 @@ static int replace_extent (coord_t * un_extent, lock_handle * lh,
 	if (!result) {
 		reiser4_extent * ext;
 
-		if (coord_after.node != un_extent->node)
+		if (coord_after.node != orig_znode)
 			result = zload (coord_after.node);
 
 		if (likely (!result)) {
@@ -2714,7 +2717,7 @@ static int replace_extent (coord_t * un_extent, lock_handle * lh,
 			*ext = *new_ext;
 			znode_set_dirty (coord_after.node);
 
-			if (coord_after.node != un_extent->node)
+			if (coord_after.node != orig_znode)
 				zrelse (coord_after.node);
 		}
 	}
@@ -3349,7 +3352,7 @@ static int extent_write_flow (struct inode * inode, struct sealed_coord * hint,
 		page_cache_release (page);
 
 		jnode_set_dirty (j);
-		
+		assert ("vs-1072", PageDirty (page));
 		balance_dirty_pages (page->mapping);
 
 		page_off = 0;
