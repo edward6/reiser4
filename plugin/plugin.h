@@ -477,12 +477,13 @@ typedef enum {
 /* defined in fs/reiser4/plugin/object.c */
 extern reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ];
 
-/** data type used to pack parameters that we pass to generic
+/** data type used to pack parameters that we pass to vfs
     object creation function create_object() */
 struct reiser4_object_create_data {
 	/** plugin to control created object */
 	reiser4_file_id id;
 	/** mode of regular file, directory or special file */
+/* what happens if some other sort of perm plugin is in use? */
 	int         mode;
 	/** rdev of special file */
 	int         rdev;

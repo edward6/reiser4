@@ -63,6 +63,12 @@ oid_t reiser4_minimal_oid( reiser4_oid_allocator *map UNUSED_ARG )
 	return ABSOLUTE_MIN_OID + OIDS_RESERVED;
 }
 
+__u64 reiser4_objects_in_use(reiser4_oid_allocator_t reiser4_oid_allocator)
+{
+	return reiser4_oid_allocator->objects_in_use;
+}
+
+
 /** return number of user-visible oids already allocated in this map.
     Used by reiser4_statfs() to report "f_files". */
 __u64 reiser4_oids_used( reiser4_oid_allocator *map )

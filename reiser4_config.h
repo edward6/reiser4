@@ -9,6 +9,9 @@
 #if !defined( __REISER4_H__ )
 #define __REISER4_H__
 
+/* what size units of IO we would like cp, etc., to use, in writing to reiser4 */
+#define OPTIMAL_REISER4_IO_SIZE 64 * 1024
+
 /** number of slots in coord-by-key caches */
 #define CBK_CACHE_SLOTS    (32)
 /** how many elementary tree operation to carry on the next level */

@@ -255,12 +255,14 @@ static int reiser4_statfs( struct super_block *super, struct statfs *buf )
 
 
 	buf -> f_type    = reiser4_statfs_type( super );
-	buf -> f_bsize   = reiser4_blksize( super );
+        /* applications use this not to know what is the block size, but to know what is the optimal size for performing IOs, it
+         * is mis-named. So we give them what they want. */
+	buf -> f_bsize   =  OPTIMAL_REISER4_IO_SIZE;
 	buf -> f_blocks  = reiser4_data_blocks( super );
 	buf -> f_bfree   = reiser4_free_blocks( super );
 	buf -> f_bavail  = buf -> f_bfree - reiser4_reserved_blocks( super, 0, 0 );
 	oidmap = reiser4_get_oid_allocator( super );
-	buf -> f_files   = reiser4_oids_used( oidmap );
+	buf -> f_files   = reiser4_objects_in_use(super);
 	buf -> f_ffree   = 
 		reiser4_maximal_oid( oidmap ) - 
 		reiser4_minimal_oid( oidmap ) - buf -> f_files;
@@ -755,31 +757,6 @@ static int readdir_actor( reiser4_tree *tree UNUSED_ARG,
 	 * continue with the next entry
 	 */
 	return 1;
-}
-
-/*
- * VFS object creation function (not used by reiser4 assignments)
- *
- */
-static int create_object( struct inode *parent, struct dentry *dentry, 
-			  reiser4_object_create_data *data )
-{
-	int result;
-	dir_plugin *dplug;
-	REISER4_ENTRY( parent -> i_sb );
-
-	assert( "nikita-426", parent != NULL );
-	assert( "nikita-427", dentry != NULL );
-	assert( "nikita-428", data != NULL );
-
-	dplug = reiser4_get_dir_plugin( parent );
-	assert( "nikita-429", dplug != NULL );
-	if( dplug -> create_child != NULL ) {
-		result = dplug -> create_child( parent, dentry, data );
-	} else {
-		result = -EPERM;
-	}
-	REISER4_EXIT( result );
 }
 
 /** our ->read_inode() is no-op. Reiser4 inodes should be loaded

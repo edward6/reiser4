@@ -47,16 +47,6 @@ long reiser4_statfs_type( const struct super_block *super UNUSED_ARG )
 	return ( long ) REISER4_SUPER_MAGIC;
 }
 
-/** 
- * block size used by file system corresponding to @super
- */
-int  reiser4_blksize( const struct super_block *super )
-{
-	assert( "nikita-450", super != NULL );
-	assert( "nikita-451", is_reiser4_super( super ) );
-	return super -> s_blocksize;
-}
-
 /**
  * amount of blocks used (allocated for data) in file system
  */

@@ -16,7 +16,8 @@ typedef __u64 oid_t;
 typedef struct reiser4_oid_allocator {
 	spinlock_t oguard;
 	oid_t      next_to_use;
-} reiser4_oid_allocator;
+	oid_t objects_in_use;
+} reiser4_oid_allocator_t;
 
 extern int   reiser4_init_oid_allocator( reiser4_oid_allocator *map );
 extern oid_t reiser4_maximal_oid( reiser4_oid_allocator *map );
