@@ -356,7 +356,9 @@ extern void jnode_make_dirty(jnode * node) NONNULL;
 extern void jnode_make_clean(jnode * node) NONNULL;
 extern void jnode_make_wander_nolock(jnode * node) NONNULL;
 extern void jnode_make_wander(jnode*) NONNULL;
-extern void jnode_make_reloc(jnode*, flush_queue_t*) NONNULL;
+extern void znode_make_reloc(znode*, flush_queue_t*) NONNULL;
+extern void unformatted_make_reloc(jnode*, flush_queue_t*) NONNULL;
+
 extern void jnode_set_block(jnode * node,
 			    const reiser4_block_nr * blocknr) NONNULL;
 extern struct page *jnode_lock_page(jnode *) NONNULL;

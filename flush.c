@@ -2597,7 +2597,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 
 			if (ret == 0) {
 				/* Got a better allocation. */
-				jnode_make_reloc(ZJNODE(node), pos->fq);
+				znode_make_reloc(node, pos->fq);
 			} else if (dist < sbinfo->flush.relocate_distance) {
 				/* The present allocation is good enough. */
 				jnode_make_wander(ZJNODE(node));
@@ -2609,7 +2609,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 					return ret;
 
 				/* set JNODE_RELOC bit _after_ node gets allocated */
-				jnode_make_reloc(ZJNODE(node), pos->fq);
+				znode_make_reloc(node, pos->fq);
 			}
 		}
 	}
