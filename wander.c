@@ -602,7 +602,7 @@ static int alloc_tx (int nr, capture_list_head * tx_list, struct reiser4_io_hand
 				goto free_not_assigned;
 			}
 
-			ret = jload(cur);
+			ret = jinit_new(cur);
 
 			if (ret != 0) {
 				jfree (cur);
