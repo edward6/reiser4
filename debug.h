@@ -362,7 +362,7 @@ typedef enum {
 	TRACE_ALLOC = (1 << 21),	/* 0x00200000 */
 
 	/* trace space reservation */
-	TRACE_RESERVE2 = (1 << 22),	/* 0x00400000 */
+	TRACE_RESERVE = (1 << 22),	/* 0x00400000 */
 
 	/* trace emergency flush */
 	TRACE_EFLUSH  = (1 << 23),	/* 0x00800000 */
@@ -373,6 +373,8 @@ typedef enum {
 	TRACE_PARSE = (1 << 25),       /* 0x02000000 */
 
 	TRACE_CAPTURE_COPY = (1 << 26), /* 0x04000000 */
+
+	TRACE_EXTENT_ALLOC = (1 << 27), /* 0x08000000 */
 
 	/* vague section: used to trace bugs. Use it to issue optional prints
 	   at arbitrary points of code. */

@@ -814,7 +814,7 @@ check_extent(const coord_t *coord /* coord of item to check */ ,
 	     const char **error /* where to store error message */ )
 {
 	reiser4_extent *ext, *first;
-/*	unsigned i, j;*/
+	unsigned i, j;
 	reiser4_block_nr start, width, blk_cnt;
 	unsigned num_units;
 	reiser4_tree *tree;
@@ -840,13 +840,13 @@ check_extent(const coord_t *coord /* coord of item to check */ ,
 	oid = get_key_objectid(&key);
 	coord_dup(&scan, coord);
 
-#if 0
 	for (i = 0; i < num_units; ++i, ++ext) {
 		__u64 index;
 
 		scan.unit_pos = i;
 		index = extent_unit_index(&scan);
 
+#if 0
 		/* check that all jnodes are present for the unallocated
 		 * extent */
 		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
@@ -862,6 +862,7 @@ check_extent(const coord_t *coord /* coord of item to check */ ,
 				jput(node);
 			}
 		}
+#endif
 
 		start = extent_get_start(ext);
 		if (start < 2)
@@ -889,7 +890,7 @@ check_extent(const coord_t *coord /* coord of item to check */ ,
 		}
 
 	}
-#endif
+
 	return 0;
 }
 

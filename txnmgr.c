@@ -3390,7 +3390,7 @@ replace_page_in_mapping(jnode *node, struct page *new_page)
 	assert("vs-1428", node->pg->mapping == mapping);
 	__remove_from_page_cache(node->pg);
 
-	/* insert new mpage into mapping */
+	/* insert new page into mapping */
 	check_me("vs-1411",
 		 radix_tree_insert(&mapping->page_tree, index, new_page) == 0);
 
