@@ -2,7 +2,11 @@
 
 /* Reiser4 Wandering Log */
 
-/* You should read www.namesys.com/txn-mgr.html before trying to read this
+/* You should read www.namesys.com/txn-mgr.html 
+
+ZAM_FIXME_HANS: no such URL, please review this comment for currentness
+
+before trying to read this
    file.
 
    That describes how filesystem operations are performed as atomic
@@ -23,12 +27,15 @@
 
    reiser4_write_log() allocates and writes wandered blocks and maintains
    additional on-disk structures of the atom as log records (each log record
+
+ZAM-FIXME-HANS: change "log record" to "wander record"
+
    occupies one block) for storing of the "wandered map" (a table which
    contains a relation between wandered and real block numbers) and other
    information which might be needed at transaction recovery time.
 
    The log records are unidirectionally linked into a circle: each log record
-   contains a block number of the next log record, the last log records points
+   contains a block number of the next log record, the last log record points
    to the first one.
 
    One log record (named "tx head" in this file) has a format which is
@@ -65,15 +72,19 @@
    fields makes processes of atom commit, flush and recovering a bit more
    complex (see comments in the source code for details).
 
-   The atom playing is the following:
+   The atom playing process is the following:
   
    1. Write atom's overwrite set in-place.
   
    2. Wait on i/o.
   
+ZAM_FIXME-HANS:why do we need both a journal header and a journal footer? I must be missing an understanding of something....
+
    3. Update journal footer: change the pointer to block number of tx head
    block of the atom we currently flushing, submit an i/o, wait on i/o
    completion.
+
+ZAM_FIXME-HANS: What happens if we crash here? Do we leak space?
   
    4. Free disk space which was used for wandered blocks and log records.
   
@@ -98,7 +109,7 @@
    committed and flushed.  Those "counters logged specially" are logged in "tx
    head" blocks and in the journal footer block.
   
-   The step-by-step description of special logging is the following:
+   A step-by-step description of special logging:
   
    0. The per-atom information about deleted or created files and allocated or
    freed blocks is collected during the transaction.  The atom's
@@ -110,17 +121,16 @@
    
    1. The "logged specially" reiser4 super block fields have their "committed"
    versions in the reiser4 in-memory super block.  They get modified only at
-   atom commit time.  The atom's commit thread has an exclusive access to that
+   atom commit time.  The atom's commit thread has an exclusive access to those
    "committed" fields because the log writer implementation supports only one
-   atom commit a time (it is done by using of per-fs "commit" semaphore).  At
+   atom commit a time (there is a per-fs "commit" semaphore).  At
    that time "committed" counters are modified using per-atom information
    collected during the transaction. These counters are stored on disk as a
    part of tx head block when atom is committed.
    
-   2. When the atom is flushed the value of free block counter and OID allocator
-   state get written to the journal footer block.  A special journal procedure
-   (journal_recover_sb_data()) takes those values from the journal footer and
-   updates the reiser4 in-memory super block.
+   2. When the atom is flushed the value of the free block counter and the OID allocator state get written to the
+   journal footer block.  A special journal procedure (journal_recover_sb_data()) takes those values from the journal
+   footer and updates the reiser4 in-memory super block.
   
    NOTE: That means free block count and OID allocator state are logged
    separately from the reiser4 super block regardless of the fact that the
@@ -131,11 +141,13 @@
    need to know the actual values of all of its fields.  For example if we
    have a transaction which has not captured the super block we cannot
    re-write the super block when such a transaction is committed because we do
-   not know the actual value of the tree root pointer. Knowing that requires
-   write locking of the super block and implies some dependency between atoms
-   which we wanted to avoid. So, the simplest solution seems to be the
-   implemented one, in which the data logged in different ways are written in
-   different blocks.
+   not know the actual value of the tree root pointer.
+
+ZAM-FIXME-HANS: rewrite paragraph above, it is confusing.
+
+   Knowing that requires write locking of the super block and implies some dependency between atoms which we wanted to
+   avoid. So, the simplest solution seems to be the implemented one, in which the data logged in different ways are
+   written in different blocks.
 */
 
 #include "debug.h"
@@ -162,6 +174,9 @@ static int jnode_extent_write(jnode *, int, const reiser4_block_nr *, flush_queu
 /* The commit_handle is a container for objects needed at atom commit time  */
 struct commit_handle {
 	/* A pointer to the list of OVRWR nodes */
+
+/* 	ZAM-FIXME-HANS: why is capture_list_head not in the tags file? */
+
 	capture_list_head * overwrite_set;
 	/* atom's overwrite set size */
 	int overwrite_set_size;
@@ -175,6 +190,9 @@ struct commit_handle {
 	__u64 nr_files;
 	__u64 next_oid;
 	/* the atom, currently is being committed */
+
+/* 	ZAM-FIXME-HANS: english in comment above.... */
+
 	txn_atom *atom;
 	/* current super block */
 	struct super_block *super;
@@ -182,6 +200,7 @@ struct commit_handle {
 	/* Count of modified bitmaps */
 	reiser4_block_nr nr_bitmap;
 };
+
 
 static void
 init_commit_handle(struct commit_handle *ch, txn_atom * atom)
@@ -204,7 +223,7 @@ static void
 format_journal_header(struct commit_handle *ch)
 {
 	struct reiser4_super_info_data *sbinfo;
-	struct journal_header *h;
+	struct journal_header *header;
 	jnode *txhead;
 
 	sbinfo = get_super_private(ch->super);
@@ -215,10 +234,10 @@ format_journal_header(struct commit_handle *ch)
 
 	jload(sbinfo->journal_header);
 
-	h = (struct journal_header *) jdata(sbinfo->journal_header);
-	assert("zam-484", h != NULL);
+	header = (struct journal_header *) jdata(sbinfo->journal_header);
+	assert("zam-484", header != NULL);
 
-	cputod64(*jnode_get_block(txhead), &h->last_committed_tx);
+	cputod64(*jnode_get_block(txhead), &header->last_committed_tx);
 
 	jrelse(sbinfo->journal_header);
 }
@@ -228,7 +247,7 @@ static void
 format_journal_footer(struct commit_handle *ch)
 {
 	struct reiser4_super_info_data *sbinfo;
-	struct journal_footer *F;
+	struct journal_footer *footer;
 
 	jnode *tx_head;
 
@@ -241,14 +260,14 @@ format_journal_footer(struct commit_handle *ch)
 
 	check_me("zam-691", jload(sbinfo->journal_footer) == 0);
 
-	F = (struct journal_footer *) jdata(sbinfo->journal_footer);
-	assert("zam-495", F != NULL);
+	footer = (struct journal_footer *) jdata(sbinfo->journal_footer);
+	assert("zam-495", footer != NULL);
 
-	cputod64(*jnode_get_block(tx_head), &F->last_flushed_tx);
-	cputod64(ch->free_blocks, &F->free_blocks);
+	cputod64(*jnode_get_block(tx_head), &footer->last_flushed_tx);
+	cputod64(ch->free_blocks, &footer->free_blocks);
 
-	cputod64(ch->nr_files, &F->nr_files);
-	cputod64(ch->next_oid, &F->next_oid);
+	cputod64(ch->nr_files, &footer->nr_files);
+	cputod64(ch->next_oid, &footer->next_oid);
 
 	jrelse(sbinfo->journal_footer);
 }
@@ -259,7 +278,7 @@ log_record_capacity(const struct super_block *super)
 {
 	return (super->s_blocksize - sizeof (struct log_record_header)) / sizeof (struct log_entry);
 }
-
+/* ZAM-FIXME-HANS: replace all cryptic two letter variable names with full names */
 /* fill first log record (tx head) in accordance with supplied given data */
 static void
 format_tx_head(struct commit_handle *ch)
@@ -517,7 +536,9 @@ static void put_overwrite_set(struct commit_handle * ch)
 
 }
 
-/* count overwrite set size and place overwrite set on a separate list  */
+/* count overwrite set size and place overwrite set on a separate list  
+
+ZAM-FIXME-HANS: please comment better, and indicate whether it would be better to do this work with each modification to the overwrite set instead. */
 static int
 get_overwrite_set(struct commit_handle *ch)
 {
@@ -534,7 +555,7 @@ get_overwrite_set(struct commit_handle *ch)
 		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
 			trace_on(TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, JNODE_OVRWR));
 		}
-
+		/* ZAM-FIXME-HANS: dead code? */
 		if (0 && jnode_page(cur) && PageDirty(jnode_page(cur)) && !JF_ISSET(cur, JNODE_OVRWR))
 			reiser4_panic("nikita-2590", "Wow!");
 
@@ -596,7 +617,11 @@ get_overwrite_set(struct commit_handle *ch)
    jnodes are after the @first on the double-linked "capture" list.  All
    jnodes will be written to the disk region of @nr blocks starting with
    @block_p block number.  If @fq is not NULL it means that waiting for i/o
-   completion will be done more efficiently by using flush_queue_t objects */
+   completion will be done more efficiently by using flush_queue_t objects 
+
+ZAM-FIXME-HANS: brief me on why this function exists, and why bios are aggregated in this function instead of being left to the layers below
+
+*/
 static int
 jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
 {
@@ -742,7 +767,7 @@ int write_jnode_list (capture_list_head * head, flush_queue_t * fq)
 }
 
 /* allocate given number of nodes over the journal area and link them into a
-   list, return pinter to the first jnode in the list */
+   list, return pointer to the first jnode in the list */
 static int
 alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 {
@@ -939,7 +964,8 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 
 /* We assume that at this moment all captured blocks are marked as RELOC or
    WANDER (belong to Relocate o Overwrite set), all nodes from Relocate set
-   are submitted to write.*/
+   are submitted to write.
+*/
 
 int reiser4_write_logs(long * nr_submitted)
 {
@@ -998,7 +1024,7 @@ int reiser4_write_logs(long * nr_submitted)
 	/* count all records needed for storing of the wandered set */
 	get_tx_size(&ch);
 	
-	/* VITALY: Check that flush_reserve is enough. */	
+	/* Check that flush_reserve is enough. */	
 	assert("vpf-279", check_atom_reserved_blocks(atom, (__u64)ch.overwrite_set_size));
 
 	if ((ret = reiser4_grab_space_force((__u64)(ch.tx_size), BA_RESERVED, "reiser4_write_logs: for transaction")))
@@ -1019,7 +1045,9 @@ int reiser4_write_logs(long * nr_submitted)
 		if (!(ret = alloc_wandered_blocks(&ch, fq)))
 			ret = alloc_tx(&ch, fq);
 		
-		/* FIXME-VITALY: Check this with Zam. */
+		/* ZAM-FIXME-HANS: well, zam?
+
+		FIXME-VITALY: Check this with Zam. */
 		flush_reserved2free_all("reiser4_write_logs");
 		
 		fq_put(fq);
@@ -1344,7 +1372,11 @@ free_ow_set:
 	return ret;
 }
 
-/* find oldest not flushed transaction and flush it */
+/* find oldest not flushed transaction and flush it 
+
+ZAM-FIXME-HANS: flushed or played?  define in more detail the phase in which this occurs
+
+*/
 static int
 replay_oldest_transaction(struct super_block *s)
 {
@@ -1477,7 +1509,9 @@ out:
 int
 reiser4_journal_replay(struct super_block *s)
 {
-	/* FIXME: it is a limited version of journal replaying which just
+	/* ZAM-FIXME-HANS: put into your todo list
+
+	FIXME: it is a limited version of journal replaying which just
 	   takes saved free block counter from journal footer, searches for
 	   not flushed transaction and prints a warning, if those transactions
 	   found.*/
@@ -1543,7 +1577,7 @@ reiser4_journal_replay(struct super_block *s)
 
 	return ret;
 }
-
+/* ZAM-FIXME-HANS: define journal control block */
 /* load journal header or footer */
 static int
 load_journal_control_block(jnode ** node, const reiser4_block_nr * block)
