@@ -239,11 +239,11 @@ AC_OUTPUT([
     Makefile
     include/Makefile
     include/aal/Makefile
-    include/comm/Makefile
+    include/aux/Makefile
     include/reiser4/Makefile
     include/repair/Makefile
     libaal/Makefile
-    libcomm/Makefile
+    libaux/Makefile
     libreiser4/Makefile
     librepair/Makefile
     plugin/Makefile

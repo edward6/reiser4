@@ -8,8 +8,8 @@
 #define DIRENTRY40_H
 
 #include <aal/aal.h>
+#include <aux/aux.h>
 #include <reiser4/plugin.h>
-#include <comm/misc.h>
 
 struct objid40 {
     d8_t locality[sizeof(d64_t)];

@@ -12,7 +12,7 @@
 #include <sys/vfs.h>
 #include <sys/mount.h>
 
-#include <comm/misc.h>
+#include <aux/aux.h>
 #include <reiser4/reiser4.h>
 
 #define KB 1024
@@ -45,7 +45,7 @@ long long progs_misc_size_parse(
     else
 	label = 0;	
 	
-    if ((size = reiser4_comm_strtol(number, error)) == 0 && *error)
+    if ((size = reiser4_aux_strtol(number, error)) == 0 && *error)
 	return 0;
 	
     if (label == 0 || toupper(label) == toupper('m'))

@@ -4,3 +4,4 @@ Copyright (C) 1996-2002 Hans Reiser
 * all functions which return errno_t should return real errno, not just -1.
 * is it necessary to allocate block for the tree node immediately? it might be done in flush time.
 * add INVALID_BLK macro and return it from the all blk-returning functions as error value.
+

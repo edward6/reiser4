@@ -8,8 +8,8 @@
 #define ALLOC40_H
 
 #include <aal/aal.h>
+#include <aux/bitmap.h>
 #include <reiser4/plugin.h>
-#include <comm/bitmap.h>
 
 struct alloc40 {
     reiser4_plugin_t *plugin;

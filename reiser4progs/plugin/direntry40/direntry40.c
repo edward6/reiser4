@@ -323,7 +323,7 @@ static int direntry40_lookup(reiser4_body_t *body,
     aal_assert("umka-609", body != NULL, return -1);
     aal_assert("umka-629", pos != NULL, return -1);
     
-    if ((lookup = reiser4_comm_bin_search((void *)body, 
+    if ((lookup = reiser4_aux_binsearch((void *)body, 
 	    direntry40_count(body), key->body, callback_get_entry, 
 	    callback_comp_entry, key->plugin, &unit)) != -1)
 	*pos = (uint32_t)unit;

@@ -12,8 +12,8 @@
 #endif
 
 #include <aal/aal.h>
+#include <aux/aux.h>
 #include <reiser4/plugin.h>
-#include <comm/misc.h>
 
 /* (*(__u32 *)"R4FS") */
 #define NODE40_MAGIC 0x52344653

@@ -1,7 +1,7 @@
 if ENABLE_COMPACT
-SUBDIRS         = libaal libcomm plugin libreiser4 include doc debug
+SUBDIRS         = libaal libaux plugin libreiser4 include doc debug
 else
-SUBDIRS         = libaal libcomm plugin libreiser4 librepair progs demos include doc debug
+SUBDIRS         = libaal libaux plugin libreiser4 librepair progs demos include doc debug
 endif
 
 EXTRA_DIST	= ABOUT-NLS AUTHORS BUGS COPYING TODO NEWS THANKS README CREDITS \

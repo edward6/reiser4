@@ -23,7 +23,7 @@
 
 #include <reiser4/reiser4.h>
 
-#include <comm/misc.h>
+#include <aux/aux.h>
 #include <misc/misc.h>
 
 static void mkfs_print_usage(char *name) {
@@ -151,7 +151,7 @@ int main(int argc, char *argv[]) {
 	    case 'b': {
 		
 		/* Parsing blocksize */
-	        if (!(blocksize = (uint16_t)reiser4_comm_strtol(optarg, &error)) && error) {
+	        if (!(blocksize = (uint16_t)reiser4_aux_strtol(optarg, &error)) && error) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		        "Invalid blocksize (%s).", optarg);
 		    return USER_ERROR;

@@ -17,7 +17,7 @@
 #include <string.h>
 #include <time.h>
 
-#include <comm/misc.h>
+#include <aux/aux.h>
 #include <misc/misc.h>
 
 #include <repair/librepair.h>

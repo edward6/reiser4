@@ -114,7 +114,7 @@ uint16_t fsck_callback_blocksize_from_user(reiser4_fs_t *fs, int *error) {
 
     getline(&answer, &n, stdin);
     if (aal_strncmp(answer, "\n", 1)) {
-        if ((!(blocksize = (uint16_t)reiser4_comm_strtol(answer, error)) && 
+        if ((!(blocksize = (uint16_t)reiser4_aux_strtol(answer, error)) && 
 	    *error) || !aal_pow_of_two(blocksize)) 
 	{
             aal_exception_fatal("Invalid blocksize was specified (%d).", 

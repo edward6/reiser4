@@ -5,7 +5,7 @@
 */
 
 #include <aal/aal.h>
-#include <comm/misc.h>
+#include <aux/aux.h>
 
 #include "key40.h"
 
@@ -20,7 +20,7 @@ errno_t key40_print(reiser4_body_t *body, char *buff,
 
     if (!buff) return -1;
 
-    reiser4_comm_strcat(buff, n, "[key40: %llu:%u:%llu:%llu:%llu %s]", 
+    reiser4_aux_strcat(buff, n, "[key40: %llu:%u:%llu:%llu:%llu %s]", 
 	k40_get_locality(key), k40_get_minor(key),  k40_get_band(key),
 	k40_get_objectid(key), k40_get_offset(key), key40_m2n(k40_get_minor(key)));
 

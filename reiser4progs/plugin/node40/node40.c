@@ -535,7 +535,7 @@ static int node40_lookup(reiser4_entity_t *entity,
 
     count = nh40_get_num_items(nh40(node->block));
     
-    if ((lookup = reiser4_comm_bin_search(node, count, key->body, 
+    if ((lookup = reiser4_aux_binsearch(node, count, key->body, 
 	    callback_get_key, callback_comp_key, key->plugin, &item)) != -1)
 	pos->item = item;
 
