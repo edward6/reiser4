@@ -242,7 +242,7 @@ common_unlink(struct inode *parent /* parent object */ ,
 	if ((reserve = common_estimate_unlink(parent, victim->d_inode)) < 0)
 		return reserve;
 
-	if (reiser4_grab_space_exact(reserve, 0))
+	if (reiser4_grab_space_exact(reserve, 1))
 		return -ENOSPC;
 	
 	warning("vpf-324", "SPACE: unlink grabs %llu blocks.", reserve);	
