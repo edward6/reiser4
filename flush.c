@@ -2367,6 +2367,32 @@ static void update_ldkey(znode * left)
 				       leftmost_key_in_node(left, &ldkey)));
 }
 
+/* try to shift everything from @right to @left. If everything was shifted -
+   @right is removed from the tree.  Result is the number of bytes shifted. */
+static int
+shift_everything_left(znode * right, znode * left, carry_level * todo)
+{
+	int result;
+	coord_t from;
+	node_plugin *nplug;
+	carry_plugin_info info;
+
+	coord_init_after_last_item(&from, right);
+
+	IF_TRACE(TRACE_COORDS, print_coord("shift_everything_left:", &from, 0));
+
+	nplug = node_plugin_by_node(right);
+	info.doing = NULL;
+	info.todo = todo;
+	result = nplug->shift(&from, left, SHIFT_LEFT, 1
+			      /* delete node @right if all its contents was moved to @left */
+			      , 1 /* @from will be set to @left node */ ,
+			      &info);
+	znode_make_dirty(right);
+	znode_make_dirty(left);
+	return result;
+}
+
 /* Shift as much as possible from @right to @left using the memcpy-optimized
    shift_everything_left.  @left and @right are formatted neighboring nodes on
    leaf level. */
@@ -2449,25 +2475,22 @@ shift_one_internal_unit(znode * left, znode * right)
 	assert("nikita-2247", znode_get_level(left) == znode_get_level(right));
 	assert("nikita-2435", znode_is_write_locked(left));
 	assert("nikita-2436", znode_is_write_locked(right));
-
-	if (REISER4_DEBUG) {
-		RLOCK_TREE(znode_get_tree(left));
-		assert("nikita-2434", left->right == right);
-		RUNLOCK_TREE(znode_get_tree(left));
-	}
+	assert("nikita-2434", UNDER_RW(tree, znode_get_tree(left), read, left->right == right));
 
 	coord_init_first_unit(&coord, right);
 
-	if (REISER4_DEBUG && !node_is_empty(left)) {
+#if REISER4_DEBUG
+	if (!node_is_empty(left)) {
 		coord_t last;
-		ON_DEBUG(reiser4_key right_key);
-		ON_DEBUG(reiser4_key left_key);
+		reiser4_key right_key;
+		reiser4_key left_key;
 
 		coord_init_last_unit(&last, left);
 
 		assert("nikita-2463",
 		       keyle(item_key_by_coord(&last, &left_key), item_key_by_coord(&coord, &right_key)));
 	}
+#endif
 
 	assert("jmacd-2007", item_is_internal(&coord));
 
