@@ -70,6 +70,21 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 				* delimiting key */
 
 
+	/*
+	 * FIXME-VS: znode_contains_key is not appropriate here because it
+	 * does: left delimiting key <= key <= right delimiting key. We need
+	 * here: left_delimiting key <= key < right delimiting key
+	 */
+	spin_lock_dk (current_tree);
+	result = (keyle (znode_get_ld_key (coord->node), key) &&
+		  keylt (key, znode_get_rd_key (coord->node)));
+	spin_unlock_dk (current_tree);
+	
+	if (!result) {
+		/* node does not contain @key */
+		return 0;
+	}
+
 	result = zload (coord->node);
 	if (result)
 		return 0;
@@ -103,24 +118,6 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 	iplug = item_plugin_by_coord (&item);
 
 
-	/* @coord requires re-setting, check whether @key is in this node
-	 * before calling node's lookup */
-	/*
-	 * FIXME-VS: znode_contains_key is not appropriate here because it
-	 * does: left delimiting key <= key <= right delimiting key. We need
-	 * here: left_delimiting key <= key < right delimiting key
-	 */
-	spin_lock_dk (current_tree);
-	result = (keyle (znode_get_ld_key (coord->node), key) &&
-		  keylt (key, znode_get_rd_key (coord->node)));
-	spin_unlock_dk (current_tree);
-	
-	if (!result) {
-		/* node does not contain @key */
-		zrelse (coord->node);
-		return 0;
-	}
-
 	/* max key stored in item */
 	if (iplug->common.real_max_key_inside)
 		iplug->common.real_max_key_inside (&item, &max_key);
@@ -148,7 +145,6 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 		}
 		if (keylt (key, &max_possible_key)) {
 			/* key < max_possible_key */
-			assert ("vs-740", keygt (key, &max_key));
 			coord->unit_pos = coord_last_unit_pos (coord);
 			coord->between = AFTER_UNIT;
 			zrelse (coord->node);
