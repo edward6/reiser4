@@ -28,7 +28,7 @@ int tail_key_in_item(coord_t * coord, const reiser4_key * key);
 
 /* plugin->u.item.s.* */
 int tail_write(struct inode *, coord_t *, lock_handle *, flow_t *);
-int tail_read(struct inode *, coord_t *, flow_t *);
+int tail_read(struct file *, coord_t *, flow_t *);
 
 /* __REISER4_TAIL_H__ */
 #endif

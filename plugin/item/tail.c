@@ -457,7 +457,7 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 
 /* plugin->u.item.s.file.read */
 int
-tail_read(struct inode *inode UNUSED_ARG, coord_t *coord, flow_t * f)
+tail_read(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
 {
 	unsigned count;
 
