@@ -37,8 +37,8 @@ def get_file(rw, mark):
 
 def close_all_files():
     global files
-    for file in files.keys():
-        file.close()
+    for name in files.keys():
+        files[name].close()
 
 def dispatch_bio(n, block, rw, mark=""):
     file = get_file(rw, mark)
@@ -49,10 +49,10 @@ def out_bio(first, len):
     block = first
     for i in xrange(1, len + 1):
         if marks.has_key(pid):
-            print str(n) + " " + str(block) + " " + rw + " " + marks[pid]
+            # print str(n) + " " + str(block) + " " + rw + " " + marks[pid]
             dispatch_bio(n, block, rw, marks[pid])
         else:
-            print str(n) + " " + str(block) + " " + rw
+            # print str(n) + " " + str(block) + " " + rw
             dispatch_bio(n, block, rw)
         n = n + 1
 
