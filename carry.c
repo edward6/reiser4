@@ -878,8 +878,7 @@ static void sync_dkeys( carry_node *node, carry_level *doing UNUSED_ARG )
 			left = NULL;
 	} while( left && ZF_ISSET( left, ZNODE_HEARD_BANSHEE ) );
 	
-	if( left != NULL )
-		update_znode_dkeys( left, right );
+	update_znode_dkeys( left, right );
 
 	spin_unlock_tree( current_tree );
 	spin_unlock_dk( current_tree );
