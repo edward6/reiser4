@@ -226,8 +226,9 @@ static char* list_alloc(struct reiser4_syscall_w_space * ws, int len)
 			assert("VD-LIST_ALLOC",ws->freeSpCur!=NULL);
 		}
 	rez = ws->freeSpCur->freeSpace;
-	assert("VD-LIST_ALLOC:rez==NULL",rez!=NULL);
+	assert("VD-LIST_ALLOC:rez==NULL", rez != NULL );
 	ws->freeSpCur->freeSpace += ROUND_UP(len);
+	assert("VD-LIST_ALLOC:_ROUND_UP_MASK!=0", ws->freeSpCur->freeSpace & _ROUND_UP_MASK(3) == 0);
 	PTRACE(ws, "end, space=%p, free=%p rez = %p", ws->freeSpCur,ws->freeSpCur->freeSpace,rez);
 	return rez;
 }
@@ -524,9 +525,11 @@ static __inline__ wrd_t * _wrd_inittab(struct reiser4_syscall_w_space * ws )
 			new_wrd = cur_wrd->next;
 		}
 	new_wrd         = ( wrd_t *)(ws->freeSpCur->freeSpace + ROUND_UP( len+1 ));
+	assert("VD-wrd_inittab:_ROUND_UP_MASK!=0", new_wrd & _ROUND_UP_MASK(3) == 0);
 	new_wrd->u.name = ws->freeSpCur->freeSpace;
 	new_wrd->u.len  = len;
 	ws->freeSpCur->freeSpace= (char*)new_wrd + ROUND_UP(sizeof(wrd_t));
+	assert("VD-LIST_ALLOC2:_ROUND_UP_MASK!=0", ws->freeSpCur->freeSpace & _ROUND_UP_MASK(3) == 0);
 	new_wrd->next   = NULL;
 	if (cur_wrd==NULL)
 		{
@@ -536,7 +539,7 @@ static __inline__ wrd_t * _wrd_inittab(struct reiser4_syscall_w_space * ws )
 		{
 			cur_wrd->next = new_wrd;
 		}
-	PTRACE( ws, "wrd  len=%d new=%p", len , new_wrd );
+	PTRACE( ws, "wrd  len=%d new=%p, name=%p name=%s len=%d", len , new_wrd, new_wrd->u.name, new_wrd->u.name, new_wrd->u.len );
 	return new_wrd;
 }
 

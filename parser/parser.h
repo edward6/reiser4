@@ -78,7 +78,7 @@ typedef struct wrd wrd_t;
 
 
                                  /* sizes defines      */
-#define FREESPACESIZE_DEF PAGESIZE*4
+#define FREESPACESIZE_DEF PAGE_SIZE*4
 #define FREESPACESIZE (FREESPACESIZE_DEF - sizeof(char*)*2 - sizeof(int) )
 
 #define _ROUND_UP_MASK(n) ((1UL<<(n))-1UL)
