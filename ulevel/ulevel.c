@@ -2103,7 +2103,8 @@ static void allocate_unallocated (reiser4_tree * tree)
 /*
  * tree_iterate actor
  */
-int squalloc_right_neighbor (znode * left, znode * right, block_nr *preceder);
+int squalloc_right_neighbor (znode * left, znode * right, 
+			     reiser4_blocknr_hint *preceder);
 static int do_twig_squeeze (reiser4_tree * tree, tree_coord * coord,
 			    reiser4_lock_handle * lh, void * arg UNUSED_ARG)
 {
