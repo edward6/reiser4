@@ -216,6 +216,7 @@ int jnode_flush (jnode *node, int flags UNUSED_ARG)
 		if (jnode_is_unformatted (left_scan.node)) {
 			coord_dup (& flush_pos.parent_coord, & left_scan.parent_coord);
 			move_lh (& flush_pos.parent_lock, & left_scan.parent_lock);
+			move_zh (& flush_pos.parent_load, & left_scan.parent_load);
 		} else {
 			if ((ret = longterm_lock_znode (& flush_pos.point_lock, JZNODE (left_scan.node), ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
 				goto failed;
@@ -795,7 +796,6 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	}
 
 	/* Get the right neighbor. */
- RIGHT_AGAIN:
 	assert ("jmacd-1092", znode_is_write_locked (node));
 	if ((ret = znode_get_utmost_if_dirty (node, & right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK))) {
 		/* Unless we get ENAVAIL at the leaf level, it means to stop. */
@@ -904,8 +904,6 @@ static int flush_squalloc_right (flush_position *pos)
 	if ((ret = flush_alloc_ancestors (pos))) {
 		goto exit;
 	}
-
-	/* FIXME: Not enqueuing ancestors when the end-of-squalloc-right are extents.  (test4) */
 
  STEP_2:/* Step 2: Handle extents. */
 	if (flush_pos_unformatted (pos)) {
