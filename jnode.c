@@ -1305,6 +1305,8 @@ jnode * alloc_io_head (const reiser4_block_nr * block)
 		jnode_set_block (jal, block);
 	}
 
+	jref (jal);
+
 	return jal;
 }
 
@@ -1313,6 +1315,8 @@ void drop_io_head (jnode * node)
 	reiser4_tree * tree = current_tree;
 
 	assert ("zam-648", jnode_get_type(node) == JNODE_IO_HEAD);
+
+	jput (node);
 
 	UNDER_SPIN_VOID (tree, tree, jdrop(node));
 }
