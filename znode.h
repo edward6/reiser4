@@ -632,7 +632,7 @@ extern void   jput( jnode *node );
 static inline char *jdata (const jnode *node)
 {
 	assert ("nikita-1415", node != NULL);
-	return node->pg ? page_address (node->pg) : NULL;
+	return node->pg && node->pg->virtual ? page_address (node->pg) : NULL;
 }
 
 /** get the page of jnode */
