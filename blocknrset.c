@@ -164,6 +164,7 @@ static int blocknr_set_add (txn_atom                *atom,
 	/* If new_bsep is non-NULL then there was an allocation race, free this copy. */
 	if (*new_bsep != NULL) {
 		bse_free (*new_bsep);
+		*new_bsep = NULL;
 	}
 	
 	return 0;

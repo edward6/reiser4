@@ -385,12 +385,15 @@ txn_end (reiser4_context *context)
 				      TXN_ATOM
 *****************************************************************************************/
 
-/* Get the atom belonging to a txnh.  Return with both txnh and atom locked.  This performs
- * the necessary spin_trylock to break the lock-ordering cycle.  May not return NULL. */
+/* Get the atom belonging to a txnh, which is not locked.  Return with both
+ * txnh and atom locked.  This performs the necessary spin_trylock to break
+ * the lock-ordering cycle.  May not return NULL. */
 static txn_atom*
 atom_get_locked_by_txnh (txn_handle *txnh)
 {
 	txn_atom *atom;
+
+	assert ("jmacd-5108", spin_txnh_is_not_locked (txnh));
 
  try_again:
 
@@ -412,13 +415,16 @@ atom_get_locked_by_txnh (txn_handle *txnh)
 	return atom;
 }
 
-/* Get the atom belonging to a jnode.  Return with both jnode and atom locked.  This performs
- * the necessary spin_trylock to break the lock-ordering cycle.  Assumes the jnode is already
- * locked, and returns NULL if atom is not set. */
+/* Get the atom belonging to a jnode, which is initially locked.  Return with
+ * both jnode and atom locked.  This performs the necessary spin_trylock to
+ * break the lock-ordering cycle.  Assumes the jnode is already locked, and
+ * returns NULL if atom is not set. */
 static txn_atom*
 atom_get_locked_by_jnode (jnode *node)
 {
 	txn_atom *atom;
+
+	assert ("jmacd-5108", spin_jnode_is_locked (node));
 
  try_again:
 
@@ -468,6 +474,33 @@ txn_same_atom_dirty (jnode *node, jnode *check)
 	spin_unlock_jnode (check);
 
 	return compat;
+}
+
+/* Add a jnode to the atom's delete set.  Handles the EAGAIN result, which is
+ * returned by blocknr_set_add when it releases the atom lock to perform an
+ * allocation.  The atom could fuse while this lock is held, which is why the
+ * EAGAIN must be handled by repeating the call to atom_get_locked_by_jnode.
+ * The second call is guaranteed to provide a pre-allocated blocknr_entry so
+ * it can only "repeat" once.  */
+int atom_add_to_delete_set (jnode *node)
+{
+	blocknr_set_entry *blocknr_entry = NULL;
+	txn_atom *atom;
+	int ret;
+
+ repeat:
+	atom = atom_get_locked_by_jnode (node);
+
+	ret = blocknr_set_add_block (atom, & atom->delete_set, & blocknr_entry, jnode_get_block (node));
+
+	if (ret == EAGAIN) {
+		/* Jnode is still locked, which atom_get_locked_by_jnode expects. */
+		goto repeat;
+	}
+
+	assert ("jmacd-5177", blocknr_entry == NULL);
+
+	return ret;
 }
 
 /* Return true if an atom is currently "open". */
