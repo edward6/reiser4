@@ -912,7 +912,8 @@ int jdrop_in_tree( jnode *node, reiser4_tree *tree )
 	result = jplug -> is_busy( node );
 	if( !result ) {
 		assert( "nikita-2488", page == node -> pg );
-		if( page != NULL ) { 
+		assert( "nikita-2533", atomic_read( &node -> d_count ) == 0 );
+		if( page != NULL ) {
 			assert( "nikita-2126", !PageDirty( page ) );
 			assert( "nikita-2127", PageUptodate( page ) );
 			assert( "nikita-2181", PageLocked( page ) );
