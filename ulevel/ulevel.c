@@ -633,6 +633,7 @@ static void init_page (struct page * page, struct address_space * mapping,
 	spin_lock_init (&page->lock);
 	spin_lock_init (&page->lock2);
 
+	INIT_LIST_HEAD (&page -> mapping_list);
 	spin_lock( &page_list_guard );
 	list_add (&page->list, &page_list);
 	spin_unlock( &page_list_guard );
@@ -4780,8 +4781,8 @@ int __set_page_dirty_nobuffers(struct page *page)
 
 		if (mapping) {
 			spin_lock( &page_list_guard );
-			list_del(&page->list);
-			list_add(&page->list, &mapping->dirty_pages);
+			list_del(&page->mapping_list);
+			list_add(&page->mapping_list, &mapping->dirty_pages);
 			spin_unlock( &page_list_guard );
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 		}

@@ -757,6 +757,7 @@ struct page {
 	unsigned count;
 	unsigned long private;
 	struct list_head list;
+	struct list_head mapping_list;
 	spinlock_t lock;
 	spinlock_t lock2;
 	int kmap_count;
