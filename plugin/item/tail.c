@@ -1,10 +1,7 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "item.h"
-#include "../../key.h"
-#include "../../tree.h"
 #include "../../inode.h"
-#include "../../context.h"
 #include "../../page_cache.h"
 #include "../../carry.h"
 
@@ -200,24 +197,30 @@ copy_units_tail(coord_t *target, coord_t *source,
 		item_key_by_coord(source, &key);
 		set_key_offset(&key, get_key_offset(&key) + from);
 
-		node_plugin_by_node(target->node)->update_item_key(target, &key, 0	/*info */
-		    );
+		node_plugin_by_node(target->node)->update_item_key(target, &key, 0 /*info */);
 	}
 }
 
 /* plugin->u.item.b.create_hook */
 
+
 /* item_plugin->b.kill_hook
    this is called when @count units starting from @from-th one are going to be removed
    */
 reiser4_internal int
-kill_hook_tail(const coord_t *coord UNUSED_ARG, pos_in_node_t from UNUSED_ARG, 
+kill_hook_tail(const coord_t *coord, pos_in_node_t from UNUSED_ARG, 
 	       pos_in_node_t count, struct carry_kill_data *kdata)
 {
+	reiser4_key key;
+	loff_t start, end;
+
 	assert("vs-1577", kdata);
 	assert("vs-1579", kdata->inode);
-	
-	DQUOT_FREE_SPACE_NODIRTY(kdata->inode, count);
+
+	item_key_by_coord(coord, &key);
+	start = get_key_offset(&key) + from;
+	end = start + count;
+	fake_kill_hook_tail(kdata->inode, start, end);
 	return 0;
 }
 

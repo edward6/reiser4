@@ -398,6 +398,8 @@ int shift_right_of_but_excluding_insert_coord(coord_t * insert_coord);
 int shift_left_of_and_including_insert_coord(coord_t * insert_coord);
 int shift_everything_left(znode * right, znode * left, carry_level * todo);
 
+void fake_kill_hook_tail(struct inode *, loff_t start, loff_t end);
+
 extern int cut_tree_object(reiser4_tree*, const reiser4_key*, const reiser4_key*, reiser4_key*, struct inode*);
 extern int cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to, struct inode*);
 

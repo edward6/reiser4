@@ -191,6 +191,7 @@
 #include "page_cache.h"
 #include "super.h"
 #include "reiser4.h"
+#include "inode.h"
 
 #include <linux/fs.h>		/* for struct super_block  */
 #include <linux/spinlock.h>
@@ -1414,6 +1415,26 @@ kill_node_content(coord_t * from /* coord of the first unit/item that will be
 	return result;
 }
 
+void
+fake_kill_hook_tail(struct inode *inode, loff_t start, loff_t end)
+{
+	if (inode_get_flag(inode, REISER4_TAILS_FILE_MMAPED)) {
+		pgoff_t start_pg, end_pg;
+
+		start_pg = start >> PAGE_CACHE_SHIFT;
+		end_pg = (end - 1) >> PAGE_CACHE_SHIFT;
+
+		if ((start & (PAGE_CACHE_SIZE - 1)) == 0) {
+			assert("", start_pg == end_pg);
+			reiser4_invalidate_pages(inode->i_mapping, start_pg, 1);
+		} else if (start_pg != end_pg) {
+			assert("", end_pg - start_pg == 1);
+			reiser4_invalidate_pages(inode->i_mapping, start_pg, end_pg - start_pg);
+		}
+	}
+	inode_sub_bytes(inode, end - start);
+}
+
 /**
  * Delete whole @node from the reiser4 tree without loading it.
  *
@@ -1441,7 +1462,7 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 	assert ("zam-937", node != NULL);
 	assert ("zam-933", znode_is_write_locked(node));
 	assert ("zam-939", ergo(left != NULL, znode_is_locked(left)));
-	assert ("zam-999", ergo(object != NULL, smallest_removed != NULL));
+	assert ("zam-999", smallest_removed != NULL);
 
 	init_lh(&parent_lock);
 
@@ -1501,12 +1522,18 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 		
 		if (left)
 			left->rd_key = node->rd_key;
-		if (smallest_removed)
-			*smallest_removed = *znode_get_ld_key(node);
+		*smallest_removed = *znode_get_ld_key(node);
+
 		WUNLOCK_DK(tree);
 
-		if (object)
-			inode_sub_bytes(object, (loff_t)(end_offset - start_offset));
+		if (object) {
+			/* we used to perform actions which are to be performed on items on their removal from tree in
+			   special item method - kill_hook. Here for optimization reasons we avoid reading node
+			   containing item we remove and can not call item's kill hook. Instead we call function which
+			   does exactly the same things as tail kill hook in assumption that node we avoid reading
+			   contains only one item and that item is a tail one. */
+			fake_kill_hook_tail(object, start_offset, end_offset);
+		}
 	}
  failed:
 	zrelse(parent_lock.node);

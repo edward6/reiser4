@@ -667,6 +667,100 @@ drop_page(struct page *page)
 		unlock_page(page);
 }
 
+
+/* distinguish jnodes with and without pages, captured and not */
+static void
+invalidate_unformatted(jnode *node)
+{
+	struct page *page;
+
+	LOCK_JNODE(node);
+	page = node->pg;
+	if (page) {
+		page_cache_get(page);
+		UNLOCK_JNODE(node);
+		truncate_mapping_pages_range(page->mapping, page->index, 1);
+		page_cache_release(page);
+	} else {
+		JF_SET(node, JNODE_HEARD_BANSHEE);		
+		uncapture_jnode(node);
+		unhash_unformatted_jnode(node);
+	}
+}
+
+#define JNODE_GANG_SIZE (16)
+
+static int
+truncate_inode_jnodes_range(struct inode *inode, unsigned long from, int count)
+{
+	reiser4_inode *info;
+	int truncated_jnodes;
+	reiser4_tree *tree;
+	unsigned long index;
+	unsigned long end;
+
+	truncated_jnodes = 0;
+
+	info = reiser4_inode_data(inode);
+	tree = tree_by_inode(inode);
+
+	index = from;
+	end   = from + count;
+
+	while (1) {
+		jnode *gang[JNODE_GANG_SIZE];
+		int    taken;
+		int    i;
+		jnode *node;
+
+		assert("nikita-3466", index <= end);
+
+		RLOCK_TREE(tree);
+		taken = radix_tree_gang_lookup(&info->jnode_tree, (void **)gang,
+					       index, JNODE_GANG_SIZE);
+		for (i = 0; i < taken; ++i) {
+			node = gang[i];
+			if (index_jnode(node) < end)
+				jref(node);
+			else
+				gang[i] = NULL;
+		}
+		RUNLOCK_TREE(tree);
+
+		for (i = 0; i < taken; ++i) {
+			node = gang[i];
+			if (node != NULL) {
+				index = max(index, index_jnode(node));
+				invalidate_unformatted(node);
+				truncated_jnodes ++;
+				jput(node);
+			} else
+				break;
+		}
+		if (i != taken || taken == 0)
+			break;
+	}
+	return truncated_jnodes;
+}
+
+/* */
+reiser4_internal void
+reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from, unsigned long count)
+{
+	loff_t from_bytes, count_bytes;
+
+	from_bytes = ((loff_t)from) << PAGE_CACHE_SHIFT;
+	count_bytes = ((loff_t)count) << PAGE_CACHE_SHIFT;
+	if (count == 0)
+		/**/
+		count = ~0UL;
+
+	invalidate_mmap_range(mapping, from_bytes, count_bytes);
+	truncate_mapping_pages_range(mapping, from, count);
+	truncate_inode_jnodes_range(mapping->host, from, count);
+} 
+
+
 #if REISER4_DEBUG_OUTPUT
 
 #define page_flag_name( page, flag )			\

@@ -3,6 +3,7 @@
 #include "item.h"
 #include "../../inode.h"
 #include "../../tree_walk.h" /* check_sibling_list() */
+#include "../../page_cache.h"
 #include "../../carry.h"
 
 /* item_plugin->b.max_key_inside */
@@ -366,81 +367,6 @@ create_hook_extent(const coord_t *coord, void *arg)
 	return 0;
 }
 
-/* distinguish jnodes with and without pages, captured and not */
-static void
-invalidate_unformatted(jnode *node)
-{
-	struct page *page;
-
-	LOCK_JNODE(node);
-	page = node->pg;
-	if (page) {
-		page_cache_get(page);
-		UNLOCK_JNODE(node);
-		truncate_mapping_pages_range(page->mapping, page->index, 1);
-		page_cache_release(page);
-	} else {
-		JF_SET(node, JNODE_HEARD_BANSHEE);		
-		uncapture_jnode(node);
-		unhash_unformatted_jnode(node);
-	}
-}
-
-
-#define JNODE_GANG_SIZE (16)
-
-static int
-truncate_inode_jnodes_range(struct inode *inode, unsigned long from, int count)
-{
-	reiser4_inode *info;
-	int truncated_jnodes;
-	reiser4_tree *tree;
-	unsigned long index;
-	unsigned long end;
-
-	truncated_jnodes = 0;
-
-	info = reiser4_inode_data(inode);
-	tree = tree_by_inode(inode);
-
-	index = from;
-	end   = from + count;
-
-	while (1) {
-		jnode *gang[JNODE_GANG_SIZE];
-		int    taken;
-		int    i;
-		jnode *node;
-
-		assert("nikita-3466", index <= end);
-
-		RLOCK_TREE(tree);
-		taken = radix_tree_gang_lookup(&info->jnode_tree, (void **)gang,
-					       index, JNODE_GANG_SIZE);
-		for (i = 0; i < taken; ++i) {
-			node = gang[i];
-			if (index_jnode(node) < end)
-				jref(node);
-			else
-				gang[i] = NULL;
-		}
-		RUNLOCK_TREE(tree);
-
-		for (i = 0; i < taken; ++i) {
-			node = gang[i];
-			if (node != NULL) {
-				index = max(index, index_jnode(node));
-				invalidate_unformatted(node);
-				truncated_jnodes ++;
-				jput(node);
-			} else
-				break;
-		}
-		if (i != taken || taken == 0)
-			break;
-	}
-	return truncated_jnodes;
-}
 
 #define ITEM_TAIL_KILLED 0
 #define ITEM_HEAD_KILLED 1
@@ -523,14 +449,9 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 
 	inode = kdata->inode;
 	assert("vs-1545", inode != NULL);
-	if (inode != NULL) {
+	if (inode != NULL)
 		/* take care of pages and jnodes corresponding to part of item being killed */
-		long nr_pages;
-
-		nr_pages = (to_off - from_off);
-		truncate_mapping_pages_range(inode->i_mapping, from_off, nr_pages);
-		truncate_inode_jnodes_range(inode, from_off, nr_pages);
-	}
+		reiser4_invalidate_pages(inode->i_mapping, from_off, to_off - from_off);
 
 	ext = extent_item(coord) + from;
 	offset = (get_key_offset(&min_item_key) + extent_size(coord, from)) >> PAGE_CACHE_SHIFT;

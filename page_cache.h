@@ -41,6 +41,7 @@ static inline void lock_and_wait_page_writeback (struct page * page)
 extern int page_io(struct page *page, jnode * node, int rw, int gfp);
 extern int reiser4_writepage(struct page *page, struct writeback_control *wbc);
 extern void drop_page(struct page *page);
+extern void reiser4_invalidate_pages(struct address_space *, pgoff_t from, unsigned long count);
 
 #if REISER4_DEBUG_OUTPUT
 extern void print_page(const char *prefix, struct page *page);

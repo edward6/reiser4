@@ -1684,7 +1684,7 @@ check_pages_unix_file(struct file *file, int vm_flags, int caller_is_write,
 		if ((vm_flags & VM_MAYWRITE) || caller_is_write) {
 			get_exclusive_access(uf_info);
 			*gotaccess = 1;
-			truncate_inode_pages(inode->i_mapping, 0);
+			reiser4_invalidate_pages(inode->i_mapping, 0, 0);
 			inode_clr_flag(inode, REISER4_TAILS_FILE_MMAPED);
 		}
 	}
