@@ -1593,7 +1593,11 @@ void update_znode_dkeys (znode * left, znode * right)
 
 	leftmost_key_in_node (right, &key );
 
-	if (!node_is_empty (left) && !node_is_empty (right)) {
+	if (left == NULL) {
+		/* update left delimiting key of @right */
+		*znode_get_ld_key (right) = key;
+		return;
+	} else if (!node_is_empty (left) && !node_is_empty (right)) {
 		/* update right delimiting key of @left */
 		*znode_get_rd_key (left) = key;
 		/* update left delimiting key of @right */
@@ -1601,8 +1605,7 @@ void update_znode_dkeys (znode * left, znode * right)
 		return;
 	} else if (node_is_empty (left) && node_is_empty (right))
 		return;
-
-	if (node_is_empty (left)) {
+	else if (node_is_empty (left)) {
 		assert ("vs-186", !node_is_empty (right));
 
 		/* update right delimiting key of @left */
