@@ -295,7 +295,8 @@ emergency_flush(struct page *page)
 	 * before ->releasepage() freed page.
 	 */
 	eflush_del(node, 1);
-	
+
+	LOCK_JLOAD(node);
 	if (flushable(node, page)) {
 		if (needs_allocation(node)) {
 			reiser4_block_nr blk;
@@ -306,7 +307,7 @@ emergency_flush(struct page *page)
 			efnode = NULL;
 
 			blocknr_hint_init(&hint);
-			
+
 			INC_STAT(node, vm.eflush.needs_block);
 			result = ef_prepare(node, &blk, &efnode, &hint);
 			if (flushable(node, page) && result == 0) {
@@ -319,6 +320,7 @@ emergency_flush(struct page *page)
 						 GFP_NOFS | __GFP_HIGH);
 				INC_STAT(node, vm.eflush.ok);
 			} else {
+				UNLOCK_JLOAD(node);
 				UNLOCK_JNODE(node);
 				if (blk != 0ull)
 					ef_free_block_with_stage(node, &blk, hint.block_stage, efnode->hadatom);
@@ -348,6 +350,7 @@ emergency_flush(struct page *page)
 
 			if (!flushable(node, page) || needs_allocation(node) || !jnode_is_dirty(node)) {
 				ON_TRACE(TRACE_EFLUSH, "failure-3\n");
+				UNLOCK_JLOAD(node);
 				UNLOCK_JNODE(node);
 				UNLOCK_ATOM(atom);
 				fq_put(fq);
@@ -359,6 +362,7 @@ emergency_flush(struct page *page)
 
 			queue_jnode(fq, node);
 
+			UNLOCK_JLOAD(node);
 			UNLOCK_JNODE(node);
 			UNLOCK_ATOM(atom);
 
@@ -370,6 +374,7 @@ emergency_flush(struct page *page)
 		}
 		
 	} else {
+		UNLOCK_JLOAD(node);
 		UNLOCK_JNODE(node);
 		ON_TRACE(TRACE_EFLUSH, "failure-1\n");
 		result = 1;
@@ -384,6 +389,7 @@ flushable(const jnode * node, struct page *page)
 {
 	assert("nikita-2725", node != NULL);
 	assert("nikita-2726", spin_jnode_is_locked(node));
+	assert("nikita-3388", spin_jload_is_locked(node));
 
 	if (jnode_is_loaded(node)) {             /* loaded */
 		INC_STAT(node, vm.eflush.loaded);
@@ -528,7 +534,9 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 
 	assert("nikita-2737", node != NULL);
 	assert("nikita-2738", !JF_ISSET(node, JNODE_EFLUSH));
+	assert("nikita-3382", !JF_ISSET(node, JNODE_EPROTECTED));
 	assert("nikita-2765", spin_jnode_is_locked(node));
+	assert("nikita-3381", spin_jload_is_locked(node));
 
 	tree = jnode_get_tree(node);
 
@@ -540,13 +548,6 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 	ef_hash_insert(get_jnode_enhash(node), ef);
 	ON_DEBUG(++ get_super_private(tree->super)->eflushed);
 	spin_unlock_eflush(tree->super);
-
-	atom = atom_locked_by_jnode(node);
-	if (atom != NULL) {
-		++ atom->flushed;
-		ef->hadatom = 1;
-		UNLOCK_ATOM(atom);
-	}
 
 	/*
 	 * set JNODE_EFLUSH bit on the jnode. inode is not yet pinned at this
@@ -577,6 +578,22 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		/*printk("eflush_add: j %p, inode %llu, index %lu, atom %p\n", node, get_inode_oid(inode),
 		  jnode_index(node), node->atom);*/
 		spin_unlock_eflush(tree->super);
+	}
+
+	UNLOCK_JLOAD(node);
+
+	/*
+	 * atom_locked_by_jnode() can possible release jnode spin lock. This
+	 * means it can only be called _after_ JNODE_EFLUSH is set, because
+	 * otherwise we would have to re-check flushable() once more. No
+	 * thanks.
+	 */
+
+	atom = atom_locked_by_jnode(node);
+	if (atom != NULL) {
+		++ atom->flushed;
+		ef->hadatom = 1;
+		UNLOCK_ATOM(atom);
 	}
 
 	UNLOCK_JNODE(node);
@@ -629,8 +646,9 @@ eflush_del(jnode *node, int page_locked)
 			page_cache_get(page);
 
 		/* there is no reason to unflush node if it can be flushed
-		 * back immediately */
-		assert("nikita-3083", !flushable(node, page) || page_locked);
+		 * back immediately. Unfortunately, this assertion requires
+		 * jload lock. */
+		/* assert("nikita-3083", !flushable(node, page) || page_locked); */
 
 		assert("nikita-2806", ergo(page_locked, page != NULL));
 		assert("nikita-2807", ergo(page_locked, PageLocked(page)));
@@ -811,6 +829,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 	assert("nikita-2761", blk != NULL);
 	assert("nikita-2762", efnode != NULL);
 	assert("nikita-2763", spin_jnode_is_locked(node));
+	assert("nikita-3387", spin_jload_is_locked(node));
 
 	hint->blk         = EFLUSH_START_BLOCK;
 	hint->max_dist    = 0;
@@ -848,6 +867,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 
 	/* XXX protect @node from being concurrently eflushed. Otherwise,
 	 * there is a danger of underflowing block space */
+	UNLOCK_JLOAD(node);
 	UNLOCK_JNODE(node);
 
 	one = 1ull;
@@ -863,6 +883,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 		}
 	}
 	LOCK_JNODE(node);
+	LOCK_JLOAD(node);
 	return result;
 }
 
