@@ -339,6 +339,8 @@ static ssize_t reiser4_read( struct file *file /* file to read from */,
 	assert( "umka-073", buf != NULL );
 	assert( "umka-074", off != NULL );
 	
+	reiser4_stat_vfs_calls_add (reads);
+
 	trace_on( TRACE_VFS_OPS, "READ: (i_ino %li, size %lld): %u bytes from pos %lli\n",
 		  file -> f_dentry -> d_inode -> i_ino,
 		  file -> f_dentry -> d_inode -> i_size, size, *off );
@@ -374,6 +376,8 @@ static ssize_t reiser4_write( struct file *file /* file to write on */,
 	assert( "nikita-1421", file != NULL );
 	assert( "nikita-1422", buf != NULL );
 	assert( "nikita-1424", off != NULL );
+
+	reiser4_stat_vfs_calls_add (writes);
 
 	trace_on( TRACE_VFS_OPS, "WRITE: (i_ino %li, size %lld): %u bytes to pos %lli\n",
 		  inode -> i_ino, inode -> i_size, size, *off );
@@ -663,7 +667,10 @@ int reiser4_do_page_cache_readahead (struct file * file,
 		/* calc key of next page to readahead */
 		fplug->key_by_inode (inode, (loff_t)cur_page << PAGE_CACHE_SHIFT, &key);
 
-		result = find_next_item (file, &key, &coord, &lh,
+		/*
+		 * FIXME-ME: seal might be used to find_next_item
+		 */
+		result = find_next_item (0, &key, &coord, &lh,
 					 ZNODE_READ_LOCK, CBK_UNIQUE);
 		if (result != CBK_COORD_FOUND) {
 			break;
