@@ -761,8 +761,6 @@ void done_context( reiser4_context *context /* context being released */ )
 		parent->nr_children --;
 		assert ("zam-685", parent->nr_children >= 0);
 #endif
-		/* FIXME_ZAM->NIKITA: why we need this? */
-		// current -> journal_info = parent;
 	}
 }
 
