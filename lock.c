@@ -711,7 +711,6 @@ wake_up_requestor(znode *node)
 
 	assert("nikita-3180", node != NULL);
 	assert("nikita-3181", spin_zlock_is_locked(&node->lock));
-	assert("nikita-3183", !znode_is_wlocked(node));
 
 	ADDSTAT(node, wakeup);
 
