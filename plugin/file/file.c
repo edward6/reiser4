@@ -909,12 +909,6 @@ static int inode_has_anonymous_pages(struct inode *inode)
 static int capture_page_and_create_extent(struct page * page)
 {
 	int result;
-	file_plugin *fplug;
-
-	fplug = inode_file_plugin(page->mapping->host);
-
-	if (fplug == NULL)
-		return 0;
 
 	grab_space_enable ();
 
@@ -1086,9 +1080,18 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 {
 	int               result;
 	unix_file_info_t *uf_info;
+	reiser4_context ctx;
+
+	if (!inode_has_anonymous_pages(inode))
+		return 0;
+
+	init_context(&ctx, inode->i_sb);
+	/* avoid recursive calls to ->sync_inodes */
+	ctx.nobalance = 1;
+	assert("zam-760", lock_stack_isclean(get_current_lock_stack()));
 
 	result = 0;
-	while (result == 0 && inode_has_anonymous_pages(inode)) {
+	do {
 		uf_info = unix_file_inode_data(inode);
 		/*
 		 * locking: creation of extent requires read-semaphore on
@@ -1112,7 +1115,9 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 			result = txnmgr_force_commit_all(inode->i_sb, 0);
 		} else
 			result = RETERR(-EBUSY);
-	}
+	} while (result == 0 && inode_has_anonymous_pages(inode));
+
+	reiser4_exit_context(&ctx);
 	return result;
 }
 
