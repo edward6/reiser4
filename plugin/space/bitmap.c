@@ -172,7 +172,7 @@ find_next_zero_bit_in_byte(unsigned int byte, int start)
 #define reiser4_find_next_zero_bit(addr, maxoffset, offset) \
 ext2_find_next_zero_bit(addr, maxoffset, offset)
 
-/* ZAM-FIXME-HANS: would 32 or 64 bit comparisons be faster? */
+/* ZAM-FIXME-HANS: would 32 or 64 bit comparisons be faster? Perhaps you should optimize for AMD and Intel instruction sets, which would give flx more to say in explaining why we need the loaner machines.... ;-) */
 static bmap_off_t
 reiser4_find_next_set_bit(void *addr, 
 bmap_off_t max_offset,		/* ZAM-FIXME-HANS: comment needed */
@@ -233,6 +233,7 @@ find_last_set_bit_in_byte (unsigned byte, int start)
 
 /* Search bitmap for a set bit in backward direction from the end to the
  * beginning of given region */
+/* ZAM-FIXME-HANS: comment more */
 static int
 reiser4_find_last_set_bit (bmap_off_t * result, void * addr, bmap_off_t low_off, bmap_off_t high_off)
 {
@@ -335,6 +336,7 @@ reiser4_clear_bits(char *addr, bmap_off_t start, bmap_off_t end)
 }
 
 /* Audited by: green(2002.06.12) */
+/* ZAM-FIXME-HANS: comment this */
 static void
 reiser4_set_bits(char *addr, bmap_off_t start, bmap_off_t end)
 {
@@ -391,7 +393,7 @@ reiser4_set_bits(char *addr, bmap_off_t start, bmap_off_t end)
     Jean-loup Gailly        Mark Adler
     jloup@gzip.org          madler@alumni.caltech.edu
 
-    The above comment is applyed to the only alder32 function.
+    The above comment applies only to the adler32 function.
 */
 
 static __u32
@@ -416,15 +418,6 @@ adler32(char *data, __u32 len)
 	}
 	return (s2 << 16) | s1;
 }
-
-/* Recalculates the adler32 checksum for only 1 byte change.
-    adler - previous adler checksum
-    old_data, data - old, new byte values.
-    tail == (chunk - offset) : length, checksum was calculated for, - offset of
-    the changed byte within this chunk.
-    This function could be used for checksum calculation optimisation, but not
-    used for now. -Vitaly.
-*/
 
 static __u32
 bnode_calc_crc(const struct bnode *bnode)
@@ -462,6 +455,17 @@ bnode_check_crc(const struct bnode *bnode)
 
 /* REISER4_CHECK_BMAP_CRC */
 #endif
+
+/* Recalculates the adler32 checksum for only 1 byte change.
+    adler - previous adler checksum
+    old_data, data - old, new byte values.
+    tail == (chunk - offset) : length, checksum was calculated for, - offset of
+    the changed byte within this chunk.
+    This function could be used for checksum calculation optimisation, but not
+    used for now. -Vitaly.
+
+*/
+/* ZAM-FIXME-HANS: We should use it.  */
 
 static __u32
 adler32_recalc(__u32 adler, unsigned char old_data, unsigned char data, __u32 tail)
@@ -506,7 +510,6 @@ parse_blocknr(const reiser4_block_nr * block, bmap_nr_t * bmap, bmap_off_t * off
 }
 
 #if REISER4_DEBUG
-
 /* Audited by: green(2002.06.12) */
 static void
 check_block_range(const reiser4_block_nr * start, const reiser4_block_nr * len)
@@ -554,6 +557,7 @@ adjust_first_zero_bit(struct bnode *bnode, bmap_off_t offset)
 
 /* return a physical disk address for logical bitmap number @bmap */
 /* FIXME-VS: this is somehow related to disk layout? */
+/* ZAM-FIXME-HANS: your answer is? Use not more than one function dereference per block allocation so that performance is not affected.  Probably this whole file should be considered part of the disk layout plugin, and other disk layouts can use other defines and efficiency will not be significantly affected.  */
 #define REISER4_FIRST_BITMAP_BLOCK \
 	((REISER4_MASTER_OFFSET / PAGE_CACHE_SIZE) + 2)
 	
@@ -622,7 +626,7 @@ done_bnode(struct bnode *bnode)
 	}
 }
 
-
+/* ZAM-FIXME-HANS: comment this.  Called only by load_and_lock_bnode()*/
 static int
 prepare_bnode(struct bnode *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 {
@@ -686,7 +690,9 @@ load_and_lock_bnode(struct bnode *bnode)
 	jnode *wjnode;
 
 	assert("nikita-3040", schedulable());
-
+/* ZAM-FIXME-HANS: since bitmaps are never unloaded, this does not
+ * need to be atomic, right? Just leave a comment that if bitmaps were
+ * unloadable, this would need to be atomic.  */
 	if (atomic_read(&bnode->loaded)) {
 		/* bitmap is already loaded, nothing to do */
 		check_bnode_loaded(bnode);
@@ -736,51 +742,12 @@ release_and_unlock_bnode(struct bnode *bnode)
 	up(&bnode->sema);
 }
 
-#if 0
-
-/* calls an actor for each bitmap block which is in a given range of disk
-   blocks with parameters of start and end offsets within bitmap block */
-static int
-bitmap_iterator(reiser4_block_nr * start, reiser4_block_nr * start,
-		int (*actor) (void *, bmap_nr_t bmap, int start_offset, int end_offset), void *opaque)
-{
-	struct super_block *super = get_current_sb();
-	const int max_offset = super->s_blocksize * 8;
-
-	bmap_nr_t bmap, end_bmap;
-	bmap_off_t offset, end_offset;
-
-	reiser4_block_nr tmp;
-
-	int ret;
-
-	assert("zam-426", *end > *start);
-	assert("zam-427", *end <= reiser4_block_count(super));
-	assert("zam-428", actor != NULL);
-
-	parse_blocknr(start, &bmap, &offset);
-	tmp = *end - 1;
-	parse_blocknr(&tmp, &end_bmap, &end_offset);
-	++end_offset;
-
-	for (; bmap < end_bmap; bmap++, offset = 0) {
-		ret = actor(opaque, bmap, offset, max_offset);
-
-		if (ret != 0)
-			return ret;
-	}
-
-	return actor(opaque, bmap, offset, end_offset);
-}
-
-#endif
-
 /* This function does all block allocation work but only for one bitmap
    block.*/
 /* FIXME_ZAM: It does not allow us to allocate block ranges across bitmap
    block responsibility zone boundaries. This had no sense in v3.6 but may
    have it in v4.x */
-
+/* ZAM-FIXME-HANS: do you mean search one bitmap block forward? */
 static int
 search_one_bitmap_forward(bmap_nr_t bmap, bmap_off_t * offset, bmap_off_t max_offset,
 			  int min_len, int max_len)
