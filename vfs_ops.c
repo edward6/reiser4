@@ -1267,6 +1267,7 @@ init_once(void *obj /* pointer to new inode */ ,
 		init_rwsem(&info->p.sem);
 		info->p.ea_owner = 0;
 		readdir_list_init(&info->p.readdir_list);
+		info->p.eflushed = 0;
 	}
 }
 
@@ -1329,10 +1330,10 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 
 /* ->destroy_inode() super operation: recycle inode */
 static void
-reiser4_destroy_inode(struct inode *inode	/* inode being
-						 * destroyed */ )
+reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 {
 	if (!is_bad_inode(inode) && inode_get_flag(inode, REISER4_LOADED)) {
+		assert("nikita-2828", reiser4_inode_data(inode)->eflushed == 0);
 		if (inode_get_flag(inode, REISER4_GENERIC_VP_USED)) {
 			assert("vs-839", S_ISLNK(inode->i_mode));
 			reiser4_kfree_in_sb(inode->u.generic_ip, (size_t) inode->i_size + 1, inode->i_sb);

@@ -106,6 +106,7 @@ typedef struct reiser4_inode {
 	oid_hi_t oid_hi;
 	readdir_list_head readdir_list;
 	struct inode *parent;
+	int eflushed;
 } reiser4_inode;
 
 typedef struct reiser4_inode_object {

@@ -353,7 +353,7 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 	if (ef == NULL)
 		ef = ef_alloc(GFP_NOFS);
 	if (ef != NULL) {
-		reiser4_tree *tree;
+		reiser4_tree  *tree;
 
 		tree = jnode_get_tree(node);
 
@@ -365,6 +365,20 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		++ get_super_private(tree->super)->eflushed;
 		spin_unlock_tree(tree);
 		JF_SET(node, JNODE_EFLUSH);
+		if (jnode_is_unformatted(node)) {
+			struct inode  *inode;
+			reiser4_inode *info;
+
+			inode = jnode_mapping(node)->host;
+			info = reiser4_inode_data(inode);
+			/* pin inode containing eflushed pages. Otherwise it
+			 * may get evicted */
+			spin_lock_inode(info);
+			if (info->eflushed == 0)
+				__iget(inode);
+			++ info->eflushed;
+			spin_unlock_inode(info);
+		}
 		return 0;
 	} else
 		return -ENOMEM;
@@ -402,6 +416,9 @@ eflush_del(jnode *node, int page_locked)
 	if (JF_ISSET(node, JNODE_EFLUSH)) {
 		reiser4_block_nr blk;
 		struct page *page;
+		struct inode  *inode = NULL;
+		reiser4_inode *info;
+		int putit = 0;
 
 		table = get_jnode_enhash(node);
 
@@ -415,6 +432,16 @@ eflush_del(jnode *node, int page_locked)
 		-- get_super_private(tree->super)->eflushed;
 		spin_unlock_tree(tree);
 
+		if (jnode_is_unformatted(node)) {
+			inode = jnode_mapping(node)->host;
+			info = reiser4_inode_data(inode);
+			/* unpin inode after unflushing last eflushed apge
+			 * from it. Dual to __iget() in eflush_add(). */
+			spin_lock_inode(info);
+			-- info->eflushed;
+			putit = (info->eflushed == 0);
+			spin_unlock_inode(info);
+		}
 		JF_CLR(node, JNODE_EFLUSH);
 
 		page = jnode_page(node);
@@ -435,6 +462,9 @@ eflush_del(jnode *node, int page_locked)
 		assert("nikita-2766", atomic_read(&node->x_count) > 1);
 
 		spin_unlock_jnode(node);
+
+		if (putit)
+			iput(inode);
 
 #if REISER4_DEBUG
 		if (blocknr_is_fake(jnode_get_block(node))) {
