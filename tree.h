@@ -506,6 +506,9 @@ struct reiser4_context {
 #endif
 };
 
+extern reiser4_context * get_context_by_lock_stack (lock_stack*);
+
+
 /* Debugging helps. */
 extern int  init_context_mgr (void);
 #if REISER4_DEBUG

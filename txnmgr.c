@@ -1,14 +1,16 @@
 /* Copyright (C) 2001, 2002 Hans Reiser.  All rights reserved.
  */
 
-/* The txnmgr is a set of interfaces that keep track of atoms and transcrash handles.  The txnmgr processes
- * capture_block requests and manages the relationship between jnodes and atoms through the various stages of a
- * transcrash, and it also oversees the fusion and capture-on-copy processes.  The main difficulty with this task is
- * maintaining a deadlock-free lock ordering between atoms and jnodes/handles.  The reason for the difficulty is that
- * jnodes, handles, and atoms contain pointer circles, and the cycle must be broken.  The main requirement is that
- * atom-fusion be deadlock free, so once you hold the atom_lock you may then wait to acquire any jnode or handle lock.
- * This implies that any time you check the atom-pointer of a jnode or handle and then try to lock that atom, you must
- * use trylock() and possibly reverse the order.
+/* The txnmgr is a set of interfaces that keep track of atoms and transcrash handles.  The
+ * txnmgr processes capture_block requests and manages the relationship between jnodes and
+ * atoms through the various stages of a transcrash, and it also oversees the fusion and
+ * capture-on-copy processes.  The main difficulty with this task is maintaining a
+ * deadlock-free lock ordering between atoms and jnodes/handles.  The reason for the
+ * difficulty is that jnodes, handles, and atoms contain pointer circles, and the cycle
+ * must be broken.  The main requirement is that atom-fusion be deadlock free, so once you
+ * hold the atom_lock you may then wait to acquire any jnode or handle lock.  This implies
+ * that any time you check the atom-pointer of a jnode or handle and then try to lock that
+ * atom, you must use trylock() and possibly reverse the order.
  *
  * This code implements the design documented at:
  *
@@ -200,6 +202,9 @@ static int    capture_assign_block            (txn_handle *txnh,
 static int    capture_assign_txnh             (jnode       *node,
 					       txn_handle  *txnh,
 					       txn_capture  mode);
+
+static int    check_not_fused_lock_owners     (txn_handle  *txnh,
+					       znode       *node);
 
 static int    capture_init_fusion             (jnode       *node,
 					       txn_handle  *txnh,
@@ -1386,6 +1391,18 @@ try_capture_block (txn_handle  *txnh,
 		/* In this case, the page is unlocked and the txnh wishes exclusive access. */
 
 		if (txnh_atom != NULL) {
+			/* A hack for <lock>/<atom fuse> deadlock prevention
+			 * as it described in the head comment of this file.*/
+			if (txnh_atom->stage >= ASTAGE_CAPTURE_WAIT &&
+			    jnode_is_znode (node) &&
+			    znode_is_locked (JZNODE(node)))
+			{
+				ret = check_not_fused_lock_owners (txnh, JZNODE(node));
+				assert ("zam-687", spin_txnh_is_not_locked (txnh));
+				assert ("zam-688", spin_jnode_is_not_locked (node));
+				if (ret) return ret;
+			}
+
 			/* The txnh is already assigned: add the page to its atom. */
 			if ((ret = capture_assign_block (txnh, node)) != 0) {
 				/* EAGAIN or otherwise */
@@ -1529,6 +1546,90 @@ txn_try_capture (jnode           *node,
 	}
 
 	return ret;
+}
+
+/* fuse all 'active' atoms of lock owners of given node. */
+static int check_not_fused_lock_owners (txn_handle * txnh, znode *node)
+{
+	lock_handle * lh;
+	int repeat = 0;
+	txn_atom * atomh = txnh->atom;
+
+	assert ("zam-689", znode_is_rlocked (node));
+	assert ("zam-690", spin_znode_is_locked (node));
+	assert ("zam-691", spin_txnh_is_locked (txnh));
+	assert ("zam-692", atomh != NULL);
+
+	if (!spin_trylock_atom (atomh)) {
+		repeat = 1;
+		goto fail;
+	}
+
+	/* inspect list of lock owners */
+	for (lh = owners_list_front (&node->lock.owners);
+	     !owners_list_end (&node->lock.owners, lh);
+	     lh = owners_list_next (lh)) 
+	{
+		reiser4_context * ctx;
+		txn_atom * atomf;
+
+		ctx = get_context_by_lock_stack (lh->owner);
+
+		if (! spin_trylock_txnh (ctx->trans)) {
+			repeat = 1;
+			continue;
+		}
+
+		atomf = ctx->trans->atom;
+
+		if (atomf == NULL) {
+			capture_assign_txnh_nolock (atomh, ctx->trans);
+			spin_unlock_txnh (ctx->trans);
+
+			reiser4_wake_up (lh->owner);
+			continue;
+		}
+
+		if (atomf == atomh) {
+			spin_unlock_txnh (ctx->trans);
+			continue;
+		}
+
+		if (! spin_trylock_atom (atomf)) {
+			spin_unlock_txnh (ctx->trans);
+			repeat = 1;
+			continue;
+		}
+
+		spin_unlock_txnh (ctx->trans);
+
+		if (atomf == atomh || atomf->stage > ASTAGE_CAPTURE_WAIT) {
+			spin_unlock_atom (atomf);
+			continue;
+		}
+
+		// repeat = 1;
+
+		spin_unlock_txnh (txnh);
+		spin_unlock_znode (node);
+
+		capture_fuse_into (atomh, atomf);
+
+		reiser4_wake_up (lh->owner);
+
+		return -EAGAIN;
+	}
+
+	spin_unlock_atom (atomh);
+
+	if (repeat) { 
+	fail:
+		spin_unlock_txnh (txnh);
+		spin_unlock_znode (node);
+		return -EAGAIN;
+	}
+
+	return 0;
 }
 
 /* This is the interface to capture unformatted nodes via their struct page

@@ -663,6 +663,11 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 	return 0;
 }
 
+reiser4_context * get_context_by_lock_stack (lock_stack * owner)
+{
+	return (reiser4_context*)((char*)owner - (int)(&((reiser4_context*)0)->stack));
+}
+
 /**
  * release resources associated with context.
  *
