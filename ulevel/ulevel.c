@@ -104,11 +104,6 @@ void cond_resched()
 	sched_yield();
 }
 
-void schedule()
-{
-	sched_yield();
-}
-
 void spinlock_bug (const char *msg)
 {
 	rpanic ("jmacd-1010", "spinlock: %s", msg); 
@@ -779,6 +774,7 @@ __u32 set_current ()
 		assert ("vs-827", self);
 		memset (self, 0, sizeof (struct task_struct));
 		self->journal_info = 0;
+		spin_lock_init (&self->sigmask_lock);
 		if ((ret = pthread_setspecific (__current_key, self)) != 0) {
 			rpanic ("jmacd-900", "pthread_setspecific failed");
 		}
@@ -5218,6 +5214,38 @@ void add_timer(struct timer_list * timer UNUSED_ARG)
 int del_timer(struct timer_list * timer UNUSED_ARG)
 {
 	return 0;
+}
+
+typedef struct {
+	int (*fn)(void *);
+	void * arg;
+} kernel_thread_args;
+
+static void *kernel_thread_helper( void *dummy )
+{
+	kernel_thread_args *arg;
+
+	arg = dummy;
+	set_current();
+	return ( void * ) arg -> fn( arg -> arg );
+}
+
+int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags UNUSED_ARG)
+{
+	pthread_t id;
+	kernel_thread_args *args;
+	pthread_attr_t kattr;
+
+	check_me( "nikita-2458", args = xxmalloc( sizeof *args ) );
+	args -> fn  = fn;
+	args -> arg = arg;
+	pthread_attr_init( &kattr );
+	pthread_attr_setdetachstate( &kattr, PTHREAD_CREATE_DETACHED );
+	check_me( "nikita-2457", 
+		  pthread_create( &id, &kattr, 
+				  kernel_thread_helper, args ) == 0 );
+	pthread_attr_destroy( &kattr );
+	return id;
 }
 
 /*
