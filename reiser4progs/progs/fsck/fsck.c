@@ -36,8 +36,9 @@ static void fsck_print_usage(void) {
 }
 
 int main(int argc, char *argv[]) {
-    int c, error, quiet = 0, replay = 1;
+    uint64_t limit = 0;
     int check = 0, rebuild = 0;
+    int c, error, quiet = 0, replay = 1;
     char *host_dev, *profile_label = "default40";
     
     reiserfs_fs_t *fs;
@@ -103,6 +104,19 @@ int main(int argc, char *argv[]) {
 		rebuild = 1;
 	        break;
 	    }
+	    case 'l': {
+		int error;
+		
+		/* Parsing tree cache limit */
+		if (!(limit = (progs_misc_size_parse(optarg, 
+		    &error))) && error) 
+		{
+		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+			"Invalid tree-cache limit (%s).", optarg);
+		    return ERROR_USER;
+		}
+		break;
+	    }
 	    case 'r': break;
 	    case '?': {
 	        fsck_print_usage();
@@ -126,8 +140,17 @@ int main(int argc, char *argv[]) {
 	check = 1;
     
     host_dev = argv[optind++];
+
+    if (progs_misc_dev_mounted(host_dev, "rw")) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Device \"%s\" is mounted with write permisions. "
+	    "Cannot fsck it.", host_dev);
+	goto error;
+    }
     
-    if (!(device = aal_file_open(host_dev, REISERFS_DEFAULT_BLOCKSIZE, O_RDWR))) {
+    if (!(device = aal_file_open(host_dev, 
+	REISERFS_DEFAULT_BLOCKSIZE, O_RDWR))) 
+    {
 	char *error = strerror(errno);
 	
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -135,7 +158,9 @@ int main(int argc, char *argv[]) {
 	goto error;
     }
     
-    if (libreiser4_init(0)) {
+    limit /= device->blocksize;
+    
+    if (libreiser4_init(limit)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't initialize libreiser4.");
 	goto error_free_device;
