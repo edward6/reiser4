@@ -40,6 +40,7 @@ static int seal_search_node( seal_t *seal, coord_t *coord,
  * initialise seal. This can be called several times on the same seal. @coord
  * and @key can be NULL. 
  */
+/* Audited by: green(2002.06.17) */
 void seal_init( seal_t      *seal /* seal to initialise */, 
 		coord_t  *coord /* coord @seal will be attached to */, 
 		const reiser4_key *key UNUSED_ARG /* key @seal will be
@@ -66,6 +67,7 @@ void seal_init( seal_t      *seal /* seal to initialise */,
 }
 
 /** finish with seal */
+/* Audited by: green(2002.06.17) */
 void seal_done( seal_t *seal )
 {
 	assert( "nikita-1887", seal != NULL );
@@ -74,6 +76,7 @@ void seal_done( seal_t *seal )
 }
 
 /** true if seal was initialised */
+/* Audited by: green(2002.06.17) */
 int seal_is_set( const seal_t *seal /* seal to query */ )
 {
 	assert( "nikita-1890", seal != NULL );
@@ -88,6 +91,7 @@ int seal_is_set( const seal_t *seal /* seal to query */ )
  * If seal was burned, or broken irreparably, return -EAGAIN.
  *
  */
+/* Audited by: green(2002.06.17) */
 int seal_validate( seal_t            *seal  /* seal to validate */, 
 		   coord_t        *coord /* coord to validate against */, 
 		   reiser4_key       *key   /* key to validate against */, 
@@ -161,6 +165,7 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 /* helpers functions */
 
 /** obtain reference to znode seal points to, if in cache */
+/* Audited by: green(2002.06.17) */
 static znode *seal_node( const seal_t *seal /* seal to query */ )
 {
 	assert( "nikita-1891", seal != NULL );
@@ -168,6 +173,7 @@ static znode *seal_node( const seal_t *seal /* seal to query */ )
 }
 
 /** true if @seal version and @node version coincide */
+/* Audited by: green(2002.06.17) */
 static int seal_matches( const seal_t *seal /* seal to check */, 
 			 znode *node /* node to check */ )
 {
@@ -183,6 +189,7 @@ static int seal_matches( const seal_t *seal /* seal to check */,
 }
 
 /** intranode search */
+/* Audited by: green(2002.06.17) */
 static int seal_search_node( seal_t      *seal  /* seal to repair */, 
 			     coord_t  *coord /* coord attached to @seal */, 
 			     znode       *node  /* node to search in */, 
