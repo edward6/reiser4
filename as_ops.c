@@ -601,13 +601,6 @@ reiser4_internal int reiser4_start_up_io(struct page *page)
 	return 0;
 }
 
-static int reiser4_writepages_nofile (
-	struct address_space * mapping, struct writeback_control * wbc)
-{
-	move_inode_out_from_sync_inodes_loop(mapping);
-	return 0;
-}
-
 /*
  * reiser4 methods for VM
  */
@@ -648,12 +641,6 @@ struct address_space_operations reiser4_as_operations = {
 	/* not yet implemented */
 	.direct_IO = NULL
 };
-
-struct address_space_operations reiser4_as_ops_nofile = {
-	.writepages = reiser4_writepages_nofile,
-	.writepage  = reiser4_writepage,
-	.releasepage = reiser4_releasepage
-}; 
 
 /* Make Linus happy.
    Local variables:

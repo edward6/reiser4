@@ -667,7 +667,7 @@ get_reiser4_inode_by_key (struct inode ** result, const reiser4_key * key)
 		inode_data->ordering = get_key_ordering(key);
 #endif
 
-		inode->i_mapping->a_ops = &reiser4_as_ops_nofile;
+		inode->i_mapping->a_ops = &reiser4_as_operations;
 		unlock_new_inode(inode);
 	}
 
