@@ -803,3 +803,5 @@ reiser4progs/plugin/key40/libkey40-static.la
 reiser4progs/plugin/key40/libkey40.la
 reiser4progs/reiser4progs/Makefile
 reiser4progs/reiser4progs/Makefile.in
+josh-test.11
+josh-test.12
