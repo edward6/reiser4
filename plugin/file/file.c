@@ -1390,8 +1390,11 @@ write_file(struct file * file, /* file to write to */
 	drop_access(inode, ea);
 	current->backing_dev_info = 0;
 
-	if (written < 0)
+	if (written < 0) {
+		if (written == -EEXIST)
+			printk("write_file returns EEXIST!\n");
 		return written;
+	}
 
 	/* update position in a file */
 	*off = pos + written;
@@ -1656,7 +1659,10 @@ unix_file_setattr(struct inode *inode,	/* Object to change attributes */
 
 			old_size = inode->i_size;
 
-			get_exclusive_access(inode);
+			if (attr->ia_valid != ATTR_SIZE)
+				get_exclusive_access(inode);
+			else
+				/* setattr is called from delete_inode to remove file body */;
 			result = truncate_file(inode, attr->ia_size);
 			if (!result) {
 				/* items are removed already. inode_setattr will call vmtruncate to invalidate truncated
@@ -1664,7 +1670,8 @@ unix_file_setattr(struct inode *inode,	/* Object to change attributes */
 				INODE_SET_FIELD(inode, i_size, old_size);
 				result = inode_setattr(inode, attr);
 			}
-			drop_exclusive_access(inode);
+			if (attr->ia_valid != ATTR_SIZE)
+				drop_exclusive_access(inode);
 		} else
 			result = 0;
 	} else {
