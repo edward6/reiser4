@@ -1841,6 +1841,15 @@ static int flush_rewrite_jnode (jnode *node)
 		return -ENOMEM;
 	}
 
+	/*
+	 * FIXME:NIKITA->JMACD unlock jnode here because:
+	 * 
+	 * 1. jnode_set_clean() wants in unlocked
+	 * 
+	 * 2. lock_page() may sleep
+	 */
+	spin_unlock_jnode (node);
+
 	jnode_set_clean (node);
 
 	lock_page (pg);
@@ -1850,6 +1859,7 @@ static int flush_rewrite_jnode (jnode *node)
 	ret = write_one_page (pg, 0 /* no wait */);
 
 	trace_on (TRACE_FLUSH, "rewrite: %s\n", flush_jnode_tostring (node));
+	spin_lock_jnode (node);
 	return ret;
 }
 
