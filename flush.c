@@ -888,7 +888,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	trace_on(TRACE_FLUSH, "flush: left: %i, right: %i\n", 
 		 left_scan.count, right_scan.count);
 
-	reiser4_stat_flush_add_few(flush_left, right_scan.count);
+	reiser4_stat_flush_add_few(flush_right, right_scan.count);
 
 	/* ... and the answer is: we should relocate leaf nodes if at least
 	   FLUSH_RELOCATE_THRESHOLD nodes were found. */
