@@ -743,9 +743,9 @@ inode_invariant(const struct inode *inode)
 
 	assert("nikita-3146", object->eflushed >= 0);
 	assert("nikita-3441", ergo(object->eflushed > 0,
-				   !list_empty(&object->eflushed_jnodes)));
+				   object->ef_jnodes.rnode != NULL));
 	assert("nikita-3442", object->eflushed >= object->eflushed_anon);
-
+	
 	spin_unlock_eflush(inode->i_sb);
 }
 
@@ -765,7 +765,7 @@ mark_inode_update(struct inode *object, int immediate)
 			pos = i;
 	}
 	if (pos == -1)
-		warning("nikita-3402", "Too many delayed inode updates");
+		;/*warning("nikita-3402", "Too many delayed inode updates");*/
 	else if (immediate) {
 		ctx->dirty[pos].ino = 0;
 	} else {
