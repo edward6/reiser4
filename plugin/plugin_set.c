@@ -21,13 +21,13 @@ static spinlock_t plugin_set_lock[8] __cacheline_aligned_in_smp = {
 #define PS_TABLE_SIZE (32)
 
 static inline plugin_set *
-cast_to(const __u32 * a)
+cast_to(const unsigned long * a)
 {
 	return container_of(a, plugin_set, hashval);
 }
 
 static inline int
-pseq(const __u32 * a1, const __u32 * a2)
+pseq(const unsigned long * a1, const unsigned long * a2)
 {
 	plugin_set *set1;
 	plugin_set *set2;
@@ -68,12 +68,12 @@ pseq(const __u32 * a1, const __u32 * a2)
 
 #define HASH_FIELD(hash, set, field)		\
 ({						\
-        (hash) += (__u32)(set)->field >> 2;	\
+        (hash) += (unsigned long)(set)->field >> 2;	\
 })
 
-static inline __u32 calculate_hash(const plugin_set *set)
+static inline unsigned long calculate_hash(const plugin_set *set)
 {
-	__u32 result;
+	unsigned long result;
 
 	result = 0;
 	HASH_FIELD(result, set, file);
@@ -89,8 +89,8 @@ static inline __u32 calculate_hash(const plugin_set *set)
 	return result & (PS_TABLE_SIZE - 1);
 }
 
-static inline __u32
-pshash(const __u32 * a)
+static inline unsigned long
+pshash(const unsigned long * a)
 {
 	return *a;
 }
@@ -98,7 +98,7 @@ pshash(const __u32 * a)
 /* The hash table definition */
 #define KMALLOC(size) kmalloc((size), GFP_KERNEL)
 #define KFREE(ptr, size) kfree(ptr)
-TS_HASH_DEFINE(ps, plugin_set, __u32, hashval, link, pshash, pseq);
+TS_HASH_DEFINE(ps, plugin_set, unsigned long, hashval, link, pshash, pseq);
 #undef KFREE
 #undef KMALLOC
 
@@ -132,15 +132,15 @@ plugin_set *plugin_set_clone(plugin_set *set)
 	return set;
 }
 
-static inline __u32 *
+static inline unsigned long *
 pset_field(plugin_set *set, int offset)
 {
-	return (__u32 *)(((char *)set) + offset);
+	return (unsigned long *)(((char *)set) + offset);
 }
 
-static int plugin_set_field(plugin_set **set, const __u32 val, const int offset)
+static int plugin_set_field(plugin_set **set, const unsigned long val, const int offset)
 {
-	__u32      *spot;
+	unsigned long      *spot;
 	spinlock_t *lock;
 	plugin_set  replica;
 	plugin_set *twin;
@@ -186,8 +186,8 @@ static int plugin_set_field(plugin_set **set, const __u32 val, const int offset)
 #define DEFINE_PLUGIN_SET(type, field)						\
 int plugin_set_ ## field(plugin_set **set, type *val)				\
 {										\
-	cassert(sizeof val == sizeof(__u32));					\
-	return plugin_set_field(set, (__u32)val, offsetof(plugin_set, field));	\
+	cassert(sizeof val == sizeof(unsigned long));					\
+	return plugin_set_field(set, (unsigned long)val, offsetof(plugin_set, field));	\
 }
 
 DEFINE_PLUGIN_SET(file_plugin, file)

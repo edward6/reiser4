@@ -16,7 +16,7 @@ typedef struct plugin_set plugin_set;
 TS_HASH_DECLARE(ps, plugin_set);
 
 struct plugin_set {
-	__u32               hashval;
+	unsigned long               hashval;
 	/* plugin of file */
 	file_plugin        *file;
 	/* plugin of dir */
