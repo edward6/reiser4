@@ -164,7 +164,7 @@ SRC		:= \
 		   plugin/file/file.c \
 		   ulevel/uabend.c \
 		   ulevel/ulevel.c \
-		   memory.c \
+		   page_cache.c \
 		   lnode.c \
 		   kcond.c \
 		   seal.c

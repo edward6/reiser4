@@ -278,7 +278,6 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "dformat.h"
 #include "key.h"
 #include "kassign.h"
-/*#include "coords.h"*/
 #include "new_coord.h"
 #include "seal.h"
 #include "tshash.h"
@@ -324,7 +323,7 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "lnode.h"
 #include "super.h"
 
-#include "memory.h"
+#include "page_cache.h"
 
 #endif /* __REISER4_H__ */
 
