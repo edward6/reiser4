@@ -66,21 +66,23 @@ errno_t format40_check(reiser4_entity_t *entity, uint16_t options) {
 	result = aal_device_len(format->device);
 	    
 	if (aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_YES|EXCEPTION_NO, 
-	    "Number of blocks found in the superblock is not equal to the size of the "
-	    "partition.\nHave you used resizer?") == EXCEPTION_NO) 
+	    "Number of blocks found in the superblock (%llu) is not equal to the size "
+	    "of the partition.\nHave you used resizer?", 
+	    get_sb_block_count(super)) == EXCEPTION_NO) 
 	{
-	    aal_exception_error("Invalid size (%llu) found in the superblock. Fixed "
-		"to (%llu)", get_sb_block_count(super), aal_device_len(format->device));
+	    aal_exception_error("Size of the partition was fixed to (%llu).", 
+		aal_device_len(format->device));
 	} else {
 	    while (1) {
 		if (!(result = __get_number(&error, "Enter the number of blocks on your "
-		    "partition [%llu]: ", aal_device_len(format->device))) && error == 1)	
+		    "partition [%llu]: ", aal_device_len(format->device))) && error == 1)
 		{
 		    result = aal_device_len(format->device);
 		    break;
 		} else if ((uint64_t)result > aal_device_len(format->device)) {
-		    aal_exception_error("Specified number of blocks (%ld) is greater then "
-			"the partition size (%lld).", result, aal_device_len(format->device));
+		    aal_exception_error("Specified number of blocks (%ld) is greater "
+			"then the partition size (%lld).", result, 
+			aal_device_len(format->device));
 		} else 
 		    break;
 	    }
@@ -89,23 +91,28 @@ errno_t format40_check(reiser4_entity_t *entity, uint16_t options) {
     }
 
     /* Check the free block count. */
-    if (get_sb_free_blocks(super) > get_sb_block_count(super)) 
-	aal_exception_error("Invalid free block count (%llu) found in the superblock. Zeroed.", 
-	    get_sb_free_blocks(super));
+    if (get_sb_free_blocks(super) > get_sb_block_count(super)) {
+	aal_exception_error("Invalid free block count (%llu) found in the superblock. "
+	    "Zeroed.", get_sb_free_blocks(super));
+	set_sb_free_blocks(super, get_sb_block_count(super));
+    }
     
     /* Check the root block number. */
-    if (get_sb_root_block(super) > get_sb_block_count(super)) 
+    if (get_sb_root_block(super) > get_sb_block_count(super)) {
 	aal_exception_error("Invalid root block (%llu) found in the superblock. Zeroed.", 
 	    get_sb_root_block(super));
+	set_sb_root_block(super, get_sb_block_count(super));
+    }
     
     /* Some extra check for root block? */    
 
     /* Check the drop policy. */
     if (get_sb_drop_policy(super) >= DROP_LAST_ID) {
-	aal_exception_error("Invalid drop policy found in the superblock.");
+	aal_exception_error("Invalid drop policy (%u) found in the superblock.", 
+	    get_sb_drop_policy(super));
 	while (1) {
 	    if (!(result = __get_number(&error, "Enter the preferable drop policy "
-		"(0-%u)[0]: ", DROP_LAST_ID - 1)) && error == 1) 
+		"(0-%d)[0]: ", DROP_LAST_ID - 1)) && error == 1) 
 	    {
 		result = 0;
 		break;
@@ -114,11 +121,12 @@ errno_t format40_check(reiser4_entity_t *entity, uint16_t options) {
 	    } else 
 		break;
 	}
+	set_sb_drop_policy(super, result);
     }
     return 0;
 }
 
-void format40_print(char *buf, size_t n, reiser4_entity_t *entity, uint16_t options) 
+void format40_print(reiser4_entity_t *entity, char *buf, uint32_t size, uint16_t options) 
 {
     format40_super_t *super;
     
@@ -129,15 +137,15 @@ void format40_print(char *buf, size_t n, reiser4_entity_t *entity, uint16_t opti
 
     super = format40_super(((format40_t *)entity)->block);
     
-    reiser4_comm_strcat(buf, n, "Format40 on-disk format\n");
-    reiser4_comm_strcat(buf, n, "Count of blocks free/all: (%llu)/(%llu)\n", 
+    reiser4_comm_strcat(buf, size, "Format40 on-disk format\n");
+    reiser4_comm_strcat(buf, size, "Count of blocks free/all: (%llu)/(%llu)\n", 
 	get_sb_free_blocks(super), get_sb_block_count(super));
-    reiser4_comm_strcat(buf, n, "Root block (%llu)\n", get_sb_root_block(super));
-    reiser4_comm_strcat(buf, n, "Drop policy (%u)\n", get_sb_drop_policy(super));
-    reiser4_comm_strcat(buf, n, "Oid (%llu)\n", get_sb_oid(super));
-    reiser4_comm_strcat(buf, n, "File count (%llu)\n", get_sb_file_count(super));
-    reiser4_comm_strcat(buf, n, "Flushes (%llu)\n", get_sb_flushes(super));
-    reiser4_comm_strcat(buf, n, "Magic (%s)\n", super->sb_magic);
-    reiser4_comm_strcat(buf, n, "Tree height (%u)\n", get_sb_tree_height(super));
+    reiser4_comm_strcat(buf, size, "Root block (%llu)\n", get_sb_root_block(super));
+    reiser4_comm_strcat(buf, size, "Drop policy (%u)\n", get_sb_drop_policy(super));
+    reiser4_comm_strcat(buf, size, "Oid (%llu)\n", get_sb_oid(super));
+    reiser4_comm_strcat(buf, size, "File count (%llu)\n", get_sb_file_count(super));
+    reiser4_comm_strcat(buf, size, "Flushes (%llu)\n", get_sb_flushes(super));
+    reiser4_comm_strcat(buf, size, "Magic (%s)\n", super->sb_magic);
+    reiser4_comm_strcat(buf, size, "Tree height (%u)\n", get_sb_tree_height(super));
 }
 
