@@ -192,14 +192,14 @@ LABEL AND DESCRIPTION                                 LOCKS
 [znode-refs]                                          jnode_lock, tree_lock
 
     /* only referenced znode can be long-term locked */
-    znode_is_locked(node) => atomic_read(&ZJNODE(node)->x_count) != 0)
+    znode_is_locked(node) => atomic_read(&ZJNODE(node)->x_count) != 0
 
     (Checked by znode_invariant_f().)
 
 [jnode-refs]                                          jnode_lock, tree_lock
 
-    /* only referenced znode can be loaded */
-    atomic_read(&node->x_count) >= atomic_read(&node->d_count))
+    /* only referenced jnode can be loaded */
+    node->d_count > 0 => atomic_read(&node->x_count) > 0
 
     (Checked by jnode_invariant_f().)
 
