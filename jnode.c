@@ -996,6 +996,31 @@ jnode_plugin *jnode_ops( const jnode *node )
 	return jnode_ops_of( jnode_get_type( node ) );
 }
 
+/*
+ * IO head jnode implementation; The io heads are simple j-nodes with limited
+ * functionality (these j-nodes are not in any hash table) just for reading
+ * from and writing to disk.
+ */
+
+jnode * alloc_io_head (const reiser4_block_nr * block)
+{
+	jnode * jal = jalloc();
+
+	if (jal != NULL) {
+		jnode_init      (jal);
+		jnode_set_type  (jal, JNODE_IO_HEAD);
+		jnode_set_block (jal, block);
+	}
+
+	return jal;
+}
+
+void drop_io_head (jnode * node)
+{
+	assert ("zam-648", jnode_get_type(node) == JNODE_IO_HEAD);
+	jdrop(node);
+}
+
 #if REISER4_DEBUG
 
 #define jnode_state_name( node, flag )			\

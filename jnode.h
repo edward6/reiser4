@@ -321,6 +321,9 @@ extern int  jwait_io          (jnode* node, int rw);
 
 extern void jrelse_nolock     (jnode* node);
 
+extern jnode * alloc_io_head (const reiser4_block_nr * block);
+extern void    drop_io_head  (jnode * node);
+
 /**
  * drop reference to node data. When last reference is dropped, data are
  * unloaded.
