@@ -39,13 +39,6 @@ static __u64 get_format_40_oid (const format_40_disk_super_block * sb)
 	return d64tocpu (&sb->oid);
 }
 
-/* FIXME-JMACD: is part of disk layout plugin's do_on_mount method right place
- * for it */
-static int replay_journal (struct super_block * s UNUSED_ARG)
-{
-	return 0;
-}
-
 /* find any valid super block of disk_format_40 (even if the first
  * super block is destroyed) */
 static struct buffer_head * find_a_disk_format_40_super_block (struct super_block * s
@@ -157,7 +150,7 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	brelse (super_bh);
 
 	/* ok, we are sure that filesystem format is a format_40 format */
-	result = replay_journal (s);
+	result = reiser4_replay_journal (s);
 	if (result)
 		return result;
 

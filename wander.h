@@ -29,6 +29,32 @@ struct journal_footer {
 	 * for detection of the end of on-disk list of committed transactions
 	 * which were not flushed completely */
 	d64      last_flushed_tx;
+
+	/* free block counter is written in journal footer at transaction
+	 * flushing , not in super block because free blocks counter is logged
+	 * by another way than super block fields (root pointer, for
+	 * example). */
+	d64      free_blocks;
+};
+
+/* each log record (except first one) has unified format with log record
+ * header followed by an array of log entries */
+struct log_record_header {
+	/* when there is no predefined location for log records, this magic
+	 * string should help reiser4fsck. */
+	char     magic[LOG_RECORD_MAGIC_SIZE];
+
+	/* transaction id */
+	d64      id;
+
+	/* total number of log records in current transaction  */
+	d32      total;
+
+	/* this block number in transaction */			
+	d32      serial;
+
+	/* number of previous block in commit */
+	d64      next_block;
 };
 
 /* The first log record (transaction head) of written transaction has the
@@ -62,26 +88,6 @@ struct tx_header {
 /* A transaction gets written to disk as a set of log records (each log record
  * size is fs block) */
 
-/* each log record (except first one) has unified format with log record
- * header followed by an array of log entries */
-struct log_record_header {
-	/* when there is no predefined location for log records, this magic
-	 * string should help reiser4fsck. */
-	char     magic[LOG_RECORD_MAGIC_SIZE];
-
-	/* transaction id */
-	d64      id;
-
-	/* total number of log records in current transaction  */
-	d32      total;
-
-	/* this block number in transaction */			
-	d32      serial;
-
-	/* number of previous block in commit */
-	d64      next_block;
-};
-
 /* rest of log record is filled by these log entries, unused space filled by
  * zeroes */
 struct log_entry {
@@ -93,6 +99,7 @@ struct log_entry {
                             REISER4 JOURNAL WRITER FUNCTIONS  
  *****************************************************************************************/
 
-extern int reiser4_write_logs    (void);
+extern int reiser4_write_logs     (void);
+extern int reiser4_replay_journal (struct super_block*);
 
 #endif /* __FS_REISER4_WANDER_H__ */
