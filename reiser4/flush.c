@@ -111,7 +111,7 @@ static void slum_scan_init             (slum_scan *scan);
 static void slum_scan_cleanup          (slum_scan *scan);
 static int  slum_scan_left_finished    (slum_scan *scan);
 static int  slum_scan_left_unformatted (slum_scan *scan, jnode *node);
-static int  slum_scan_left_formatted   (slum_scan *scan, znode *node);
+static int  slum_scan_left_formatted   (slum_scan *scan, jnode *node);
 static int  slum_scan_left             (slum_scan *scan, jnode *node);
 
 /* Perform encryption, allocate-on-flush, and squeezing-left of slums. */
