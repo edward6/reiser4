@@ -783,7 +783,7 @@ void bitmap_pre_commit_hook (void)
 		int err;
 
 		/* FIXME: page locking ?*/
-//		page = virt_to_page (bnode->cpage);
+		page = virt_to_page (bnode->cpage);
 		
 		assert ("zam-445", page != NULL);
 
