@@ -142,15 +142,18 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 			result = longterm_lock_znode(&rlh, new_root, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
 			if (result == 0) {
 				parent_coord_t *in_parent;
+
+				znode_make_dirty(fake);
+
+				/* new root is a child of "fake" node */
+				WLOCK_TREE(tree);
+
 				++tree->height;
 
 				/* recalculate max balance overhead */
 				tree->estimate_one_insert = estimate_one_insert_item(tree);
 
 				tree->root_block = *znode_get_block(new_root);
-				znode_make_dirty(fake);
-				/* new root is a child of "fake" node */
-				WLOCK_TREE(tree);
 				in_parent = &new_root->in_parent;
 				init_parent_coord(in_parent, fake);
 				/* manually insert new root into sibling
@@ -269,6 +272,13 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 				&handle_for_uber);
 	if (result == 0) {
 		uber = handle_for_uber.node;
+
+		znode_make_dirty(uber);
+
+		/* don't take long term lock a @new_root. Take spinlock. */
+
+		WLOCK_TREE(tree);
+
 		tree->root_block = *new_root_blk;
 		--tree->height;
 
@@ -276,12 +286,6 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 		tree->estimate_one_insert = estimate_one_insert_item(tree);
 
 		assert("nikita-1202", tree->height = znode_get_level(new_root));
-
-		znode_make_dirty(uber);
-
-		/* don't take long term lock a @new_root. Take spinlock. */
-
-		WLOCK_TREE(tree);
 
 		/* new root is child on "fake" node */
 		init_parent_coord(&new_root->in_parent, uber);
@@ -300,6 +304,7 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 		}
 	}
 	done_lh(&handle_for_uber);
+
 	return result;
 }
 
