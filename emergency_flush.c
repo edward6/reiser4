@@ -237,7 +237,7 @@
 #include <linux/vmalloc.h>
 #include <linux/swap.h>
 
-static int flushable(const jnode * node, struct page *page);
+static int flushable(const jnode * node, struct page *page, int);
 static int needs_allocation(const jnode * node);
 static eflush_node_t *ef_alloc(int flags);
 static reiser4_ba_flags_t ef_block_flags(const jnode *node);
@@ -293,7 +293,7 @@ emergency_flush(struct page *page)
 	eflush_del(node, 1);
 
 	LOCK_JLOAD(node);
-	if (flushable(node, page)) {
+	if (flushable(node, page, 1)) {
 		if (needs_allocation(node)) {
 			reiser4_block_nr blk;
 			eflush_node_t *efnode;
@@ -302,11 +302,16 @@ emergency_flush(struct page *page)
 			blk = 0ull;
 			efnode = NULL;
 
+			/* Set JNODE_EFLUSH bit _before_ allocating a block,
+			 * that prevents flush reserved block from using here
+			 * and by a reiser4 flush process  */
+			JF_SET(node, JNODE_EFLUSH);
+
 			blocknr_hint_init(&hint);
 
 			INC_STAT(node, vm.eflush.needs_block);
 			result = ef_prepare(node, &blk, &efnode, &hint);
-			if (flushable(node, page) && result == 0) {
+			if (flushable(node, page, 0) && result == 0) {
 				assert("nikita-2759", efnode != NULL);
 				eflush_add(node, &blk, efnode);
 
@@ -316,6 +321,7 @@ emergency_flush(struct page *page)
 						 GFP_NOFS | __GFP_HIGH);
 				INC_STAT(node, vm.eflush.ok);
 			} else {
+				JF_CLR(node, JNODE_EFLUSH);
 				UNLOCK_JLOAD(node);
 				UNLOCK_JNODE(node);
 				if (blk != 0ull)
@@ -344,7 +350,7 @@ emergency_flush(struct page *page)
 
 			atom = node->atom;
 
-			if (!flushable(node, page) || needs_allocation(node) || !jnode_is_dirty(node)) {
+			if (!flushable(node, page, 1) || needs_allocation(node) || !jnode_is_dirty(node)) {
 				ON_TRACE(TRACE_EFLUSH, "failure-3\n");
 				UNLOCK_JLOAD(node);
 				UNLOCK_JNODE(node);
@@ -384,7 +390,7 @@ emergency_flush(struct page *page)
 }
 
 static int
-flushable(const jnode * node, struct page *page)
+flushable(const jnode * node, struct page *page, int check_eflush)
 {
 	assert("nikita-2725", node != NULL);
 	assert("nikita-2726", spin_jnode_is_locked(node));
@@ -424,7 +430,7 @@ flushable(const jnode * node, struct page *page)
 		INC_STAT(node, vm.eflush.clustered);
 		return 0;
 	}
-	if (JF_ISSET(node, JNODE_EFLUSH)) {      /* already flushed */
+	if (check_eflush && JF_ISSET(node, JNODE_EFLUSH)) {      /* already flushed */
 		INC_STAT(node, vm.eflush.eflushed);
 		return 0;
 	}
@@ -533,7 +539,7 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 	reiser4_tree  *tree;
 
 	assert("nikita-2737", node != NULL);
-	assert("nikita-2738", !JF_ISSET(node, JNODE_EFLUSH));
+	assert("nikita-2738", JF_ISSET(node, JNODE_EFLUSH));
 	assert("nikita-3382", !JF_ISSET(node, JNODE_EPROTECTED));
 	assert("nikita-2765", spin_jnode_is_locked(node));
 	assert("nikita-3381", spin_jload_is_locked(node));
@@ -549,14 +555,6 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 	ef_hash_insert(get_jnode_enhash(node), ef);
 	ON_DEBUG(++ get_super_private(tree->super)->eflushed);
 	spin_unlock_eflush(tree->super);
-
-	/*
-	 * set JNODE_EFLUSH bit on the jnode. inode is not yet pinned at this
-	 * point. We are safe, because page it is still attached to both @node
-	 * and its inode. Page cannot be released at this point, because it is
-	 * locked.
-	 */
-	JF_SET(node, JNODE_EFLUSH);
 
 	if (jnode_is_unformatted(node)) {
 		struct inode  *inode;
@@ -626,130 +624,129 @@ eflush_get(const jnode *node)
 	return &ef->blocknr;
 }
 
-reiser4_internal void
-eflush_del(jnode *node, int page_locked)
+/* free resources taken for emergency flushing of the node */
+static void eflush_free (jnode * node)
 {
+	eflush_node_t *ef;
+	ef_hash_table *table;
+	reiser4_tree  *tree;
+	txn_atom      *atom;
+	struct inode  *inode = NULL;
+	reiser4_block_nr blk;
+
+	assert ("zam-1026", spin_jnode_is_locked(node));
+
+	table = get_jnode_enhash(node);
+	tree = jnode_get_tree(node);
+
+	spin_lock_eflush(tree->super);
+	ef = ef_hash_find(table, C(node));
+	assert("nikita-2745", ef != NULL);
+	blk = ef->blocknr;
+	ef_hash_remove(table, ef);
+	ON_DEBUG(-- get_super_private(tree->super)->eflushed);
+	spin_unlock_eflush(tree->super);
+
+	if (ef->incatom) {
+		atom = jnode_get_atom(node);
+		assert("nikita-3311", atom != NULL);
+		-- atom->flushed;
+		UNLOCK_ATOM(atom);
+	}
+
+	assert("vs-1215", JF_ISSET(node, JNODE_EFLUSH));
+	JF_CLR(node, JNODE_EFLUSH);
+
+	if (jnode_is_unformatted(node)) {
+		reiser4_inode *info;
+
+		spin_lock_eflush(tree->super);
+
+		inode = mapping_jnode(node)->host;
+		info = reiser4_inode_data(inode);
+		assert("vs-1194", info->eflushed > 0);
+		ON_DEBUG(-- info->eflushed);
+		if (!ef->hadatom)
+			-- info->eflushed_anon;
+		/* remove eflush node from inode's list of eflush
+		 * nodes */
+		list_del(&ef->inode_link);
+		if (list_empty(&info->eflushed_jnodes)) {
+			assert("nikita-3355", info->eflushed == 0);
+			inode->i_state &= ~I_EFLUSH;
+		}
+
+		spin_unlock_eflush(tree->super);
+	}
+	UNLOCK_JNODE(node);
+
+	if (blocknr_is_fake(jnode_get_block(node)))
+		assert ("zam-817", ef->initial_stage == BLOCK_UNALLOCATED);
+	else
+		assert ("zam-818", ef->initial_stage == BLOCK_GRABBED);
+
+	jput(node);
+
+	ef_free_block(node, &blk,
+		      blocknr_is_fake(jnode_get_block(node)) ?
+		      BLOCK_UNALLOCATED : BLOCK_GRABBED, ef);
+
+	kmem_cache_free(eflush_slab, ef);
+
+	LOCK_JNODE(node);
+}
+
+reiser4_internal void eflush_del (jnode * node, int page_locked)
+{
+	struct page * page;
+
 	assert("nikita-2743", node != NULL);
 	assert("nikita-2770", spin_jnode_is_locked(node));
 
-	if (unlikely(JF_ISSET(node, JNODE_EFLUSH))) {
-		eflush_node_t *ef;
-		ef_hash_table *table;
-		reiser4_tree  *tree;
-		txn_atom      *atom;
-		struct page   *page;
-		struct inode  *inode = NULL;
+	if (!JF_ISSET(node, JNODE_EFLUSH)) 
+		return;
 
-		reiser4_block_nr blk;
-
-		table = get_jnode_enhash(node);
-		tree = jnode_get_tree(node);
+	if (page_locked) {
 		page = jnode_page(node);
-		if (page != NULL)
-			page_cache_get(page);
-
-		/* there is no reason to unflush node if it can be flushed
-		 * back immediately. Unfortunately, this assertion requires
-		 * jload lock. */
-		/* assert("nikita-3083", !flushable(node, page) || page_locked); */
-
-		assert("nikita-2806", ergo(page_locked, page != NULL));
-		assert("nikita-2807", ergo(page_locked, PageLocked(page)));
-		if (page != NULL) {
-			/* emergency flush hasn't reclaimed page yet. Wait
-			 * until io is submitted. Otherwise there is a room
-			 * for a race: emergency_flush() calls page_io() and
-			 * we clear JNODE_EFLUSH bit concurrently---page_io()
-			 * gets wrong block number. */
-			UNLOCK_JNODE(node);
-			if (!page_locked)
-				lock_page(page);
-			wait_on_page_writeback(page);
-			LOCK_JNODE(node);
-
-			if (unlikely(!JF_ISSET(node, JNODE_EFLUSH))) {
-				/*
-				 * race: some other thread unflushed jnode.
-				 */
-				if (!page_locked)
-					unlock_page(page);
-				page_cache_release(page);
-				return;
-			}
-			/*
-			 * either jnode was dirty or page was dirtied through
-			 * mmap. Page's dirty bit was cleared before io was
-			 * submitted. If page is left clean, we would have
-			 * dirty jnode with clean page. Neither ->writepage()
-			 * nor ->releasepage() can free it. Re-dirty page, so
-			 * ->writepage() will be called again if necessary.
-			 */
-			set_page_dirty_internal(page);
-		}
-		assert("nikita-2766", atomic_read(&node->x_count) > 1);
-
-		spin_lock_eflush(tree->super);
-		ef = ef_hash_find(table, C(node));
-		assert("nikita-2745", ef != NULL);
-		blk = ef->blocknr;
-		ef_hash_remove(table, ef);
-		ON_DEBUG(-- get_super_private(tree->super)->eflushed);
-		spin_unlock_eflush(tree->super);
-
-		if (ef->incatom) {
-			atom = jnode_get_atom(node);
-			assert("nikita-3311", atom != NULL);
-			-- atom->flushed;
-			UNLOCK_ATOM(atom);
-		}
-
-		assert("vs-1215", JF_ISSET(node, JNODE_EFLUSH));
-		JF_CLR(node, JNODE_EFLUSH);
-
-		if (jnode_is_unformatted(node)) {
-			reiser4_inode *info;
-
-			spin_lock_eflush(tree->super);
-
-			inode = mapping_jnode(node)->host;
-			info = reiser4_inode_data(inode);
-			assert("vs-1194", info->eflushed > 0);
-			ON_DEBUG(-- info->eflushed);
-			if (!ef->hadatom)
-				-- info->eflushed_anon;
-			/* remove eflush node from inode's list of eflush
-			 * nodes */
-			list_del(&ef->inode_link);
-			if (list_empty(&info->eflushed_jnodes)) {
-				assert("nikita-3355", info->eflushed == 0);
-				inode->i_state &= ~I_EFLUSH;
-			}
-
-			spin_unlock_eflush(tree->super);
-		}
+		assert("nikita-2806", page != NULL);
+		assert("nikita-2807", PageLocked(page));
+	} else {
 		UNLOCK_JNODE(node);
-
-		if (blocknr_is_fake(jnode_get_block(node)))
-			assert ("zam-817", ef->initial_stage == BLOCK_UNALLOCATED);
-		else
-			assert ("zam-818", ef->initial_stage == BLOCK_GRABBED);
-
-		jput(node);
-
-		ef_free_block(node, &blk,
-			      blocknr_is_fake(jnode_get_block(node)) ?
-			      BLOCK_UNALLOCATED : BLOCK_GRABBED, ef);
-
-		kmem_cache_free(eflush_slab, ef);
-
-		if (page != NULL) {
-			if (!page_locked)
-				unlock_page(page);
-			page_cache_release(page);
+		page = jnode_get_page_locked(node, GFP_NOFS);
+		LOCK_JNODE(node);
+		if (page == NULL) {
+			warning ("zam-1025", "eflush_del failed to get page back\n");
+			return;
 		}
 
-		LOCK_JNODE(node);
 	}
+
+	if (PageWriteback(page)) {
+		UNLOCK_JNODE(node);
+		page_cache_get(page);
+		reiser4_wait_page_writeback(page);
+		page_cache_release(page);
+		LOCK_JNODE(node);
+		if (unlikely(!JF_ISSET(node, JNODE_EFLUSH)))
+			/* race: some other thread unflushed jnode. */
+			goto out;
+	}
+
+	/*
+	 * either jnode was dirty or page was dirtied through mmap. Page's dirty
+	 * bit was cleared before io was submitted. If page is left clean, we
+	 * would have dirty jnode with clean page. Neither ->writepage() nor
+	 * ->releasepage() can free it. Re-dirty page, so ->writepage() will be
+	 * called again if necessary.
+	 */
+	set_page_dirty_internal(page);
+
+	assert("nikita-2766", atomic_read(&node->x_count) > 1);
+	/* release allocated disk block and in-memory structures  */
+	eflush_free(node);
+ out:
+	if (!page_locked)
+		unlock_page(page);
 }
 
 reiser4_internal int
