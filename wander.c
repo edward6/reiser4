@@ -31,6 +31,7 @@ struct io_handle {
 	struct semaphore io_sema;
 	atomic_t         nr_submitted;
 	atomic_t         nr_errors;
+	int              clear_dirty;
 };
 
 static int submit_write (jnode*, int, const reiser4_block_nr *, struct io_handle *);
@@ -398,6 +399,7 @@ static void wander_end_io (struct bio * bio)
 {
 	int i;
 	struct io_handle * io_hdl = bio->bi_private;
+	int clear_dirty = io_hdl && io_hdl->clear_dirty;
 
 	for (i = 0; i < bio->bi_vcnt; i += 1) {
 		struct page *pg = bio->bi_io_vec[i].bv_page;
@@ -415,7 +417,7 @@ static void wander_end_io (struct bio * bio)
 
 		/* FIXME: JMACD->ZAM: This isn't right, but I don't know how to fix it
 		 * either.  Still working on flush_finish/flush_bio_write */
-		/*ClearPageDirty (pg);*/
+		if (clear_dirty) ClearPageDirty (pg);
 
 		/*unlock_page (pg);*/
 		page_cache_release (pg);
@@ -429,7 +431,7 @@ static void wander_end_io (struct bio * bio)
 }
 
 
-static void init_io_handle (struct io_handle * io)
+static void init_io_handle (struct io_handle * io, int clear_dirty)
 {
 	sema_init(&io->io_sema, 0);
 
@@ -438,6 +440,8 @@ static void init_io_handle (struct io_handle * io)
 	atomic_set(&io->nr_submitted, 1);
 
 	atomic_set(&io->nr_errors, 0);
+
+	io->clear_dirty = clear_dirty;
 }
 
 static int done_io_handle (struct io_handle * io)
@@ -805,7 +809,7 @@ int reiser4_write_logs (void)
 	if ((ret = reiser4_grab_space1((__u64)(overwrite_set_size + tx_size))))
 		goto up_and_ret;
 
-	init_io_handle (&io_hdl);
+	init_io_handle (&io_hdl, 0);
 
 	if ((ret = alloc_wandered_blocks (overwrite_set_size, &overwrite_set, &io_hdl)))
 		goto up_and_ret;
@@ -821,7 +825,7 @@ int reiser4_write_logs (void)
 
 	post_commit_hook();
 
-	init_io_handle (&io_hdl);
+	init_io_handle (&io_hdl, 1);
 
 	/* force j-nodes write back */
 	if ((ret = submit_batched_write(&overwrite_set, &io_hdl)))
@@ -977,7 +981,7 @@ static int replay_transaction (const struct super_block * s,
 	{       /* write wandered set in place */
 		struct io_handle io;
 
-		init_io_handle(&io);
+		init_io_handle(&io, 0);
 		submit_batched_write(&overwrite, &io);
 		ret = done_io_handle(&io);
 
