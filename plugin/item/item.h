@@ -237,7 +237,7 @@ typedef struct {
 	   from flow into it because all the data are already */
 	int (*write) (struct inode *, coord_t *, lock_handle *, flow_t *, struct sealed_coord *, int grabbed);
 	int (*read) (struct file *, coord_t *, flow_t *);
-	int (*readpage) (coord_t *, struct page *);
+	int (*readpage) (void *, struct page *);
 	int (*writepage) (coord_t *, lock_handle *, struct page *);
 	int (*page_cache_readahead) (struct file *, coord_t *, lock_handle *, unsigned long start, unsigned long count);
 	int (*get_block) (const coord_t *, sector_t, struct buffer_head *);
