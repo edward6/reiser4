@@ -1468,7 +1468,7 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 		 * sleep on semaphore.
 		 */
 		if (is_in_reiser4_context()) {
-			if (down_read_trylock(&uf_info->latch) != 0) {
+			if (down_read_trylock(&uf_info->latch) == 0) {
 				result = RETERR(-EBUSY);
 				break;
 			}
