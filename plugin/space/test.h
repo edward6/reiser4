@@ -15,4 +15,6 @@ int  test_alloc_blocks   (reiser4_space_allocator *,
 			  reiser4_block_nr * start, reiser4_block_nr * len);
 void test_dealloc_blocks (reiser4_space_allocator *,
 			  reiser4_block_nr start, reiser4_block_nr len);
+void test_check_blocks   (const reiser4_block_nr * start,
+			  const reiser4_block_nr * len, int desired);
 void test_print_info     (const char *, reiser4_space_allocator *);

@@ -45,7 +45,7 @@ reiser4_plugin space_plugins[ LAST_SPACE_ALLOCATOR_ID ] = {
 			.alloc_blocks      = test_alloc_blocks,
 			.dealloc_blocks    = test_dealloc_blocks,
 #if REISER4_DEBUG
-			.check_blocks         = NULL,
+			.check_blocks         = test_check_blocks,
 #endif
 			.pre_commit_hook      = NULL,
 			.post_commit_hook     = NULL,
