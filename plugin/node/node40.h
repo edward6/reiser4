@@ -55,6 +55,7 @@ typedef struct node40_header {
 	    if marked as freed, then old versions of data may
 	    duplicate newer versions, and this field allows us to
 	    restore the newer version.  Also useful for when users
+	    who don't have the new trashcan installed on their linux distro
 	    delete the wrong files and send us desperate emails
 	    offering $25 for them back.  */
 	flush_stamp_t flush;
