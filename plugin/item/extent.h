@@ -132,6 +132,9 @@ __u64 extent_unit_index(const coord_t * item);	/* Block offset of this unit. */
 __u64 extent_unit_width(const coord_t * item);	/* Number of blocks in this unit. */
 reiser4_block_nr extent_unit_start(const coord_t * item);	/* Starting block location of this unit. */
 
+/* plugin->u.item.f. */
+int scan_extent (flush_scan * scan, const coord_t * in_coord);
+
 /* __REISER4_EXTENT_H__ */
 #endif
 /*
