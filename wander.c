@@ -169,7 +169,7 @@ static void store_entry (jnode * node,
 
 
 /* currently, log records contains contain only wandered map, which depend on
- * Overwrite Set size */
+ * overwrite set size */
 static int get_tx_size (const struct super_block * super, int overwrite_set_size)
 {
 	int tx_size;
@@ -226,12 +226,9 @@ static int update_journal_header (capture_list_head * tx_list)
 	struct reiser4_super_info_data * private = get_super_private (s);
 
 	jnode * jh = private->journal_header;
-	jnode * head = capture_list_back (tx_list);
+	jnode * head = capture_list_front (tx_list);
 
-	d64 block;
 	int ret;
-
-	cputod64 (*jnode_get_block(head), &block);
 
 	format_journal_header (s, tx_list);
 
@@ -243,7 +240,11 @@ static int update_journal_header (capture_list_head * tx_list)
 
 	ret = jwait_io (jh, WRITE);
 
-	return ret;
+	if (ret) return ret;
+
+	private->last_committed_tx = *jnode_get_block(head);
+
+	return 0;
 }
 	
 /* This function is called after write-back is finished. We update journal
@@ -746,15 +747,15 @@ int alloc_wandered_blocks (int set_size, capture_list_head * set, struct io_hand
 		assert ("zam-567", JF_ISSET(cur, ZNODE_WANDER));
 
 		ret = get_more_wandered_blocks (rest, &block, &len); 
-		if (ret) goto free_blocks;
+		if (ret) return ret;
 
 		rest -= len;
 
 		ret = add_region_to_wmap(cur, len, &block);
-		if (ret) goto free_blocks;
+		if (ret) return ret;
 
 		ret = submit_write (cur, len, &block, io_hdl);
-		if (ret) goto free_blocks;
+		if (ret) return ret;
 
 		while ((len --) > 0) {
 			assert ("zam-604", !capture_list_end(set, cur));
@@ -763,12 +764,6 @@ int alloc_wandered_blocks (int set_size, capture_list_head * set, struct io_hand
 	}
 
 	return 0;
-	
- free_blocks:
-	/* free all blocks from wandered map*/
-	dealloc_wmap();
-	return ret;
-	
 }
 
 /* We assume that at this moment all captured blocks are marked as RELOC or
@@ -1148,6 +1143,7 @@ int reiser4_replay_journal (struct super_block * s)
 	ret = check_journal_footer(jf);
 	if (ret) { jrelse(jf); return ret; }
 
+	/* restore free block counter logged in this transaction */
 	F = (struct journal_footer *)jdata(jf);
 	if (d64tocpu(&F->free_blocks)) {
 		reiser4_set_free_blocks (s, d64tocpu(&F->free_blocks));
