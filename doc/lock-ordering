@@ -1,5 +1,21 @@
+---------------------------------INTRODUCTION-----------------------------------
 
-                           LOCKS IN REISER4
+This document tries to provide concise description of various "locking" issues
+in reiser4 code. There are two major areas here:
+
+1. locking as a device for the concurrency control: various synchronization
+objects are used to maintain integrity of shared data structures.
+
+2. (induced by the former) deadlocks, livelocks, missed wake ups, and alikes.
+
+"Locks" above means both standard synchronization primitives like mutexes,
+semaphores, condition variables and so on, and any other kind of object on
+which thread execution may "block". Waiting on io completion is not considered
+here, because hardware errors barred, it will ultimately finish regardless of
+any other threads and locks in the system (This only holds if io completion
+handlers don't acquire locks themselves.).
+
+                               LOCKS IN REISER4
 
 Reiser4 introduces following locks:
 
@@ -39,25 +55,38 @@ Reiser4 introduces following locks:
 17. Per-super-block spin lock used by "test" disk format plugin to serialize
     block allocation                                            (test_lock+)
 
-18. per-condition-variable spin lock                            (kcond_lock+)
+18. Per-condition-variable spin lock                            (kcond_lock+)
 
-19. single spin lock used to serialize fake block allocation    (fake_lock+)
+19. Single spin lock used to serialize fake block allocation    (fake_lock+)
 
-20. single spin lock used to serialize calls to reiser4_panic   (panic_guard+)
+20. Single spin lock used to serialize calls to reiser4_panic   (panic_guard+)
 
-21. single spin lock used by debugging code to keep track of all active
+21. Single spin lock used by debugging code to keep track of all active
     reiser4_context instances                                   (contexts_lock+)
 
-22. Various locks used by the user level simulator
+22. Per-lnode condition variable used by wait for completion of "incompatible
+    access mode"                                                (lnode_kcond)
+
+23. Per-flushing-thread condition variable for startup waiting  (ktxnmgrd_start)
+
+24. Per-flushing-thread condition variable                      (ktxnmgrd_wait)
+
+25. Per-lock-stack wakeup semaphore                             (stack_sema)
+
+99. Various locks used by the user level simulator
 
 Locks marked by (*) after label, are accessed through spin lock macros,
-defined in reiser4.h. For them, locking ordering is checked at runtime (at
+defined in reiser4.h. For them, locking ordering is checked at the runtime (at
 least in the principle) when REISER4_DEBUG is on(e).
 
 Locks marked by (+) after label exist only for serializing concurrent access
 to the shared data and are not supposed to be used in conjunction with any
 other locks. They are omitted from locking ordering below to simplify the
-picture.
+picture. One can imaging them to be rightmost in the ordering.
+
+All locks, spin locks, and semaphores, except for stack_sema are subject to
+normal protocol: thread that grabbed the lock will release it. stack_sema is
+described in more details below.
 
 Also, following kernel locks are used by our code:
 
@@ -65,34 +94,62 @@ Also, following kernel locks are used by our code:
 
 2. Per-inode semaphore                                          (i_sem)
 
-                                LOCK ORDERING
+Thread also can block on the following "objects" that are not really locks:
 
-Lock ordering from kernel locks is taken from mm/filemap.c. Locks can be taken
+1. Page fault                                                   (pfault)
+
+2. Memory allocation                                            (kalloc)
+
+3. Dirtying a page (through balance_dirty_pages())              (page_dirty)
+
+----------------------------------LOCK SCOPE------------------------------------
+
+Section describing what invariants and data are protected by what locks. TBD.
+
+--------------------------------LOCK ORDERING-----------------------------------
+
+Lock ordering for kernel locks is taken from mm/filemap.c. Locks can be taken
 from the left to the right. Locks on the same indentation level are unordered
-with respect to each other. Any spinlock is righter than any long term lock,
+with respect to each other. Any spin lock is righter than any long term lock,
 obviously.
 
 i_sem
-..inode_rw_lock
-....page_lock
-......longterm_lock
-........ktxnmgrd_lock
-..........txnmgr_lock
-............atom_lock
-..............jnode_lock
-................txnh_lock
-..................dk_lock
-....................tree_lock
-......................cbk_guard
-........->i_shared_lock		          [vmtruncate]
-..........->private_lock		      [__free_pte->__set_page_dirty_buffers]
-............->swap_list_lock
-..............->swap_device_lock	  [exclusive_swap_page,.others]
-................->mapping->page_lock
-............inode_lock		          [__mark_inode_dirty]
-..............->sb_lock		          [fs/fs-writeback.c]
-        ^
-        +-- spin locks are starting here. Don't schedule rightward.
+..inode_rw_lock <-----DEAD2---+
+....page_lock                 |
+......longterm_lock <-DEAD1-+ |
+........pfault              | |
+..........mm->mmap_sem------+-+                   [do_page_fault]
+............kalloc
+..............mapping->i_shared_lock          [vmtruncate]
+..............ktxnmgrd_lock
+................mapping->private_lock         [__set_page_dirty_buffers]
+................txnmgr_lock
+..................cachep->spinlock
+..................zone->lock
+..................&inode_lock
+..................atom_lock
+..................&swaplock
+....................swap->device_lock     [exclusive_swap_page,.others]
+....................jnode_lock            [->vm_writeback()->jget()]
+......................mm->page_table_lock [handle_mm_fault, do_no_page]
+......................zone->lru_lock
+......................mapping->page_lock
+......................txnh_lock
+........................dk_lock
+..........................tree_lock
+............................cbk_guard
+....................&sb_lock 		          [fs/fs-writeback.c]
+              ^
+              +-- spin locks are starting here. Don't schedule rightward.
+
+NO FINISHED.
+
+page_dirty
+....&inode_lock
+....&sb_lock
+....mapping->page_lock [mpage_writepages]
+..page_lock
+..longterm_lock        [__set_page_dirty_buffers->__mark_inode_dirty]
 
 Nice and clear picture with all reiser4 locks totally ordered, right?
 
@@ -107,8 +164,61 @@ loop is employed. See:
 
 functions for examples of this.
 
+The only exception from the above locking oder is when thread wants to lock
+object it is just created and hasn't yet announced to other threads (by means
+of placing it into some shared data structure like hash table or list). There
+is special spin lock macro spin_lock_foo_no_ord() defined in reiser4.h for
+this purpose.
+
+pfault and kalloc are something special: when page fault occurs in the memory
+are mmapped from reiser4 file, reiser4_readpage() is invoked that starts
+taking locks from the very beginning.
+
+DEAD1 
+
+   is safe, because inode_rw_lock is read-taken by both read/write and
+   ->readpage. It is only write-taken during tail<->extent conversion and if
+   file is mmaped is was already converted to extents.
+
+DEAD2
+
+   is safe, because copy_from_user is used only for tails and extents:
+
+    . extent: extent_write_flow() releases longterm_lock before calling
+      copy_from_user.
+
+    . tail: during copying into tail, only node containing this tail is long
+      term locked. It is easy to see, that ->readpage serving page fault (that
+      is, readpage for unformatted data) will never attempt to lock said node.
+
+When memory allocation tries to free some memory it 
+
+1. asynchronously launches kswapd that will ultimately call
+   reiser4_vm_writeback().
+
+2. calls reiser4_vm_writeback() synchronously.
+
+----------------------------------DEADLOCKS-------------------------------------
+
+Big section describing found/possible/already-worked-around deadlocks.
+
+1. Locking during tree traversal.
+
+2. Locking during balancing.
+
+3. Locking during squalloc.
+
+4. Page locking.
+
+5. Atom fusion.
+
+Please, fill gaps up.
+
+TBD.
+
 2002.09.19. Nikita.
 
+--------------------------------------------------------------------------------
 
 ^ Local variables:
 ^ mode-name: "Memo"
