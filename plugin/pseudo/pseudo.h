@@ -41,6 +41,11 @@ typedef struct pseudo_plugin {
 
 } pseudo_plugin;
 
+typedef struct pseudo_info {
+	pseudo_plugin *plugin;
+	struct inode  *host;
+} pseudo_info_t;
+
 extern struct inode *pseudo_lookup(struct inode *parent, const char *name);
 
 typedef enum { 
