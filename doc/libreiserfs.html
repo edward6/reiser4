@@ -633,62 +633,247 @@ Disables exceptions: force exception handler to just return.<br><br>
 Enables exceptions: switches back to normal handler behavior.<br>
 </td></tr></table>
 
-<h3>filesystem API.</h3>
+<h3>Filesystem API.</h3>
 
 <table width=70%><tr><td align=justify>
-Filesystem API will be containing all public function.
+Filesystem API will be containing all public function.<br><br>
+
 There are general functions: reiserfs_fs_open, reiserfs_fs_close, 
 reiserfs_fs_resize, reiserfs_fs_copy, etc, and some utilities: 
 reiserfs_fs_format, reiserfs_fs_uuid, reiserfs_fs_lable, reiserfs_fs_size, 
-reiserfs_fs_metadata_size, etc.<br><br>
-
-There will be also the set of  wrappers  for  journal  and
-allocator  functions.   This is because journal object and
-allocator object lies on the lower abstraction layer  than
-filesystem  and  can't change properties of the filesystem
-object directly.<br><br>
-
-Changes of the filesystem properties are needed, for example, 
-for tuning (updating the journal properties in the
-superblock). There will  be  functions: reiserfs_fs_journal_open, 
-reiserfs_fs_journal_close, reiserfs_fs_journal_create, 
-reiserfs_fs_journal_tune, reiserfs_fs_journal_resize, etc.<br>
+reiserfs_fs_metadata_size, etc.
 </td></tr></table>
 
-<h3>journal API.</h3>
+<h3>Journal plugin. Journal API.</h3>
 
 <table width=70%><tr><td align=justify>
-Journal  API  is  a  set of wrappers functions for journal
-plugin. Also it will contain common code for  all  journal
-formats.<br>
+			
+Reiser4 will support several formats of the journal. In
+order to support format-variable journal we need the journal 
+plugin.<br><br>
+
+I assume, that any format of journal will support at least
+following properties: journal  will  be  transaction-based
+and journal can be opened and closed.<br><br>
+
+Initialization will include reading the journal header,
+checking it for validness. Possibly it will build  journal
+cache,  or  something  else.  The  journal  behavior fully
+depends on the journal plugin. Then  journal  plugin  will
+prepare initialized journal instance and will returns it to
+caller.<br><br>
+
+Journal plugin interface will depends on common journal 
+parameters for every journal format. As reiser4 will support 
+old journal format, journal plugin must export interface to 
+obtain such parameters: start, length, max_trans_size, etc. 
+Also interface must let to do something with the journal 
+(tuning, resizing, etc).<br><br>
+
+Besides, libreiserfs code must know where journal is
+placed. Especially standard journal in reiser3. Journal
+plugin  must  have an journal-internals independent interface.<br><br>
+
+<pre>
+typedef void reiserfs_opaque_t;
+
+struct reiserfs_journal_plug {
+	reiserfs_opaque_t *(*init) (dal_t *dal);
+	reiserfs_opaque_t *(*create) (dal_t *dal);
+	void (*done) (reiserfs_opaque_t *);
+
+	/* Journal routines which are common in reiser3 and reiser4 journal format */
+	int (*replay) (reiserfs_opaque_t *, int is_replay);
+	int (*alterable) (reiserfs_opaque_t *);
+
+	/* Journal routines which are specific for reiser3 journal format */
+	int (*resize) (reiserfs_opaque_t *, blk_t, blk_t);
+	void (*boundaries) (reiserfs_opaque_t *, blk_t *, blk_t *);
+
+	/* Calls for obtaining and modifying journal parameters */
+};
+</pre><br>
+
+<b>reiserfs_opaque_t *(*init) (dal_t *dal)</b>
+
+<p>
+Opens journal (reading the header and checking it for errors) and returns
+initialized journal instance. This instance will be using to working with
+journal.<br><br>
+
+<b>reiserfs_opaque_t *(*create) (dal_t *dal)</b>
+
+<p>
+Creates the journal on specified DAL. Opens created journal by "init" call
+and returns initialized journal instance.<br><br>
+
+<b>void (*done) (reiserfs_opaque_t *)</b>
+
+<p>
+Closes journal. Frees all internal structures.<br><br>
+
+<b>int (*replay) (reiserfs_opaque_t *, int is_replay)</b>
+
+<p>
+Replays journal. Returns result of replaying.<br><br>
+
+<b>int (*alterable) (reiserfs_opaque_t *)</b>
+
+<p>
+Returns "bool" value that means whether journal can be resized, tuned or not.<br><br>
+
+<b>void (*boundaries) (reiserfs_opaque_t *, blk_t *, blk_t *)</b>
+
+<p>
+Returns journal boundaries for journal in reiser3. As journal in reiser4 will
+has not exactly defined boundaries, this function will do nothing or will be
+uninitialized.<br><br>
+
+Journal API will be a set of wrapper functions for journal plugin. 
+There following: reiserfs_journal_create, reiserfs_journal_open,
+reiserfs_journal_close, reiserfs_journal_replay, reiserfs_journal_resize, 
+etc.
+
+Also it will contain common code for all journal formats.<br>
 </td></tr></table>
 
-<h3>allocator API.</h3>
+<h3>Disk-Format plugin. Superblock API.</h3>
 
 <table width=70%><tr><td align=justify>
+			
+Disk-Format plugin defines filesystem layout  at  general.
+First of all it defines where the superblock lies and what
+the format this superblock has.<br><br>
+
+Also it exports interface for getting/setting values from/to superblock.<br><br>
+
+Therefore all available disk-format plugins must be loaded
+during library initialization  time,  just  after  plugin
+cache will be initialized in order to be able to find any
+superblock at filesystem opening time.<br><br>
+
+Also  disk-format plugin defines  where  root  block  is
+located, etc. It will look like this:<br><br>
+
+<pre>
+struct reiserfs_layout_plug {
+	reiserfs_opaque_t *(*init) (dal_t *);
+	void (*done) (reiserfs_opaque_t *);
+
+	uint16_t (*alloc_plug_id) (reiserfs_opaque_t *);
+	uint16_t (*oid_plug_id) (reiserfs_opaque_t *);
+	uint16_t (*journal_plug_id) (reiserfs_opaque_t *);
+
+	/* Routines for working with superblock */
+	blk_t (*get_journal_block) (reiserfs_opaque_t *);
+	void (*set_journal_block) (reiserfs_opaque_t *, blk_t);
+
+	blk_t (*get_block_count) (reiserfs_opaque_t *);
+	void (*set_block_count) (reiserfs_opaque_t *, blk_t);
+
+	blk_t (*get_free_blocks) (reiserfs_opaque_t *);
+	void (*set_free_blocks) (reiserfs_opaque_t *, blk_t);
+
+	blk_t (*get_root_block) (reiserfs_opaque_t *);
+	void (*set_root_block) (reiserfs_opaque_t *, blk_t);
+
+	uint16_t (*get_tree_height) (reiserfs_opaque_t *);
+	void (*set_tree_height) (reiserfs_opaque_t *, uint32_t);
+
+	uint64_t (*get_oid) (reiserfs_opaque_t *);
+	void (*set_oid) (reiserfs_opaque_t *, uint64_t);
+
+	uint64_t (*get_file_count) (reiserfs_opaque_t *);
+	void (*set_file_count) (reiserfs_opaque_t *, uint64_t);
+};
+
+typedef struct reiserfs_layout_plug reiserfs_layout_plug_t;
+</pre>
+
+<b>reiserfs_opaque_t *(*init) (dal_t *)</b>
+
+<p>
+Returns oid allocator plugin's ID. Will be used  in  order
+to  find oid allocator plugin in plugins cashe and plugins
+map.<br><br>
+
+<b>uint16_t (*alloc_plug_id) (reiserfs_opaque_t *)</b>
+
+<p>
+Returns allocator's plugin ID. Will used in order to  find
+needed allocator plugin.<br><br>
+
+<b>blk_t (*get_journal_block) (reiserfs_opaque_t *)<br>
+reiserfs_opaque_t(*set_journal_block) (reiserfs_opaque_t *, blk_t)</b>
+
+<p>
+Gets/sets the block where journal header is lies.<br><br>
+
+<b>blk_t (*get_block_count) (reiserfs_opaque_t *)<br>
+reiserfs_opaque_t(*set_block_count) (reiserfs_opaque_t *, blk_t)</b>
+
+<p>
+Gets/sets  "block_count" field of super block of this layout.<br><br>
+
+<b>blk_t (*get_free_blocks) (reiserfs_opaque_t *)<br>
+reiserfs_opaque_t(*set_free_blocks) (reiserfs_opaque_t *, blk_t)</b>
+
+<p>
+Gets/sets "free_blocks" field of super block of this  layout.<br><br>
+
+<b>blk_t (*get_root_block) (reiserfs_opaque_t *)<br>
+reiserfs_opaque_t(*set_root_block) (reiserfs_opaque_t *, blk_t)</b>
+
+<p>
+Gets/sets  "root_block"  field of super block of this layout.<br><br>
+
+<b>uint16_t (*get_tree_height) (reiserfs_opaque_t *)<br>
+reiserfs_opaque_t(*set_tree_height) (reiserfs_opaque_t *, uint16_t)</b>
+
+<p>
+Gets/sets field "tree_height" of super block of this  layout.<br><br>
+
+<b>uint64_t (*get_oid) (reiserfs_opaque_t *) reiserfs_opaque_t(*set_oid) <br>
+(reiserfs_opaque_t *, uint64_t)</b>
+
+<p>
+Gets/sets "oid" field of super block of this layout.<br><br>
+
+<b>uint64_t (*get_file_count) (reiserfs_opaque_t *) <br>
+reiserfs_opaque_t(*get_file_count) (reiserfs_opaque_t *, uint64_t)</b>
+
+<p>
+Gets/sets "file_count" of super block of this layout.<br><br>
+
+Superblock API will be a set of wrapper functions for Disk-Format plugin.
+It will include the following: reiserfs_super_open, reiserfs_super_close, 
+reiserfs_super_update_magic, etc.
+
+</td></tr></table>
+
+<h3>Allocator plugin. Allocator API.</h3>
+
+<table width=70%><tr><td align=justify>
+
+Allocator plugin interface not defined yet (We have to discuss it).
+			
 A replica of bitmap in reiser3. There will be functions:
 reiserfs_alloc_create, reiserfs_alloc_close, reisitem,  
-hash and security  plugins. Each plugin will be a separate 
+hash and security plugins. Each plugin will be a separate 
 library (shared object, .so)  with  all  required functionality. 
 All plugins will be mapped to the corresponding abstract 
 objects in libreiserfs. Therefore libreiserfs will contain 
-the set of APIs for all plugins.<br><br>
-
-It would be nice to have the same plugins  set  for  users
-pace purpose (libreiserfs) and kernel space purpose. It is
-more likely some of plugins will be have  double  purpose.
-For  example,  hash  plugin  due  to it is very simple for
-implementation.<br>
+the set of APIs for all plugins.
 </td></tr></table>
 
-<h3>plugins map.</h3>
+<h3>Plugins map.</h3>
 
 <table width=70%><tr><td align=justify>
 Plugins map keeps correspondence between  plugins  id  and
 library for this plugin.<br>
 </td></tr></table>
 
-<h3>plugins factory.</h3>
+<h3>Plugins factory.</h3>
 
 <table width=70%><tr><td align=justify>
 In the initialization  time  libreiserfs will initialize
@@ -902,206 +1087,7 @@ Unloads plugin, unregisters it from cache.<br><br>
 In finalization time plugin factory will release all plugins.
 </td></tr></table>
 
-<h3>Journal plugin.</h3>
-
 <table width=70%><tr><td align=justify>
-Reiser4  will  support  several formats of the journal. In
-order to support format-variable journal we need the jour­
-nal plugin.<br><br>
-
-I assume, that any format of journal will support at least
-following properties: journal  will  be  transaction-based
-and journal can be opened and closed.<br><br>
-
-Journal plugin will handle such requests and events:<br><br>
-
-<b>Initialization/finalization.</b>
-
-<p>
-Initialization  will  include  reading the journal header,
-checking it for validness. Possibly it will build  journal
-cache,  or  something  else.  The  journal  behavior fully
-depends on the journal plugin. Then  journal  plugin  will
-prepare initialized journal instance and will returns it to
-caller.<br><br>
-
-<b>Transaction handling.</b>
-
-<p>
-Transaction  handling  interface  in  journal  plugin will
-depends on common journal  parameters  for  every  journal
-format.  As reiser4 will support old journal format, jour­
-nal plugin must export interface to  obtain  such  parame­
-ters:  start,  length, max_trans_size, etc. Also interface
-must let to do something with the journal (tuning,  resiz­
-ing, etc).<br><br>
-
-Besides,  libreiserfs  code  must  know  where  journal is
-placed. Especially standard journal  in  reiser3.  Journal
-plugin  must  have an journal-internals independent inter­
-face.<br><br>
-
-<pre>
-typedef void reiserfs_opaque_t;
-
-struct reiserfs_journal_plug {
-	reiserfs_opaque_t *(*init) (dal_t *dal);
-	void (*done) (reiserfs_opaque_t *);
-
-	/* Journal routines which are common in reiser3 and reiser4 journal format */
-	int (*replay) (reiserfs_opaque_t *, int is_replay);
-	int (*tune) (reiserfs_opaque_t *, some_journal_parameters);
-	int (*alterable) (reiserfs_opaque_t *);
-
-	/* Journal routines which are specific for reiser3 journal format */
-	int (*resize) (reiserfs_opaque_t *, blk_t, blk_t);
-	void (*boundaries) (reiserfs_opaque_t *, blk_t *, blk_t *);
-};
-</pre><br>
-
-<b>reiserfs_opaque_t *(*init) (dal_t *dal)</b>
-
-<p>
-Opens journal (reading the header and checking it for errors) and returns
-initialized journal instance. This instance will be using to working with
-journal.<br><br>
-
-<b>void (*done) (reiserfs_opaque_t *)</b>
-
-<p>
-Closes journal. Frees all internal structures.<br><br>
-
-<b>int (*replay) (reiserfs_opaque_t *, int is_replay)</b>
-
-<p>
-Replays journal. Returns result of replaying.<br><br>
-
-<b>int (*tune) (reiserfs_opaque_t *, some_journal_parameters)</b>
-
-<p>
-Changes journal parameters. Exact list of parameters isn't defined yet
-(We must discuss it).<br><br>
-
-<b>int (*alterable) (reiserfs_opaque_t *)</b>
-
-<p>
-Returns "bool" value that means whether journal can be resized, tuned or not.<br><br>
-
-<b>void (*boundaries) (reiserfs_opaque_t *, blk_t *, blk_t *)</b>
-
-<p>
-Returns journal boundaries for journal in reiser3. As journal in reiser4 will
-has not exactly defined boundaries, this function will do nothing or will be
-uninitialized.<br><br>
-</td></tr></table>
-
-<b>Disk-Format plugin.</b>
-
-<table width=70%><tr><td align=justify>
-Disk-Format plugin defines filesystem layout  at  general.
-First of all it defines where the superblock lies and what
-the format this superblock has.<br><br>
-
-Also it exports interface for getting/setting values from/to superblock.<br><br>
-
-Therefore all available disk-format plugins must be loaded
-during library initialization  time,  just  after  plugin
-cache will be initialized in order to be able to find any
-superblock at filesystem opening time.<br><br>
-
-Also  disk-format plugin defines  where  root  block  is
-located, etc. It will look like this:<br><br>
-
-<pre>
-struct reiserfs_layout_plug {
-	reiserfs_opaque_t *(*init) (dal_t *);
-	void (*done) (reiserfs_opaque_t *);
-
-	uint16_t (*alloc_plug_id) (reiserfs_opaque_t *);
-	uint16_t (*oid_plug_id) (reiserfs_opaque_t *);
-	uint16_t (*journal_plug_id) (reiserfs_opaque_t *);
-
-	/* Routines for working with superblock */
-	blk_t (*get_journal_block) (reiserfs_opaque_t *);
-	void (*set_journal_block) (reiserfs_opaque_t *, blk_t);
-
-	blk_t (*get_block_count) (reiserfs_opaque_t *);
-	void (*set_block_count) (reiserfs_opaque_t *, blk_t);
-
-	blk_t (*get_free_blocks) (reiserfs_opaque_t *);
-	void (*set_free_blocks) (reiserfs_opaque_t *, blk_t);
-
-	blk_t (*get_root_block) (reiserfs_opaque_t *);
-	void (*set_root_block) (reiserfs_opaque_t *, blk_t);
-
-	uint16_t (*get_tree_height) (reiserfs_opaque_t *);
-	void (*set_tree_height) (reiserfs_opaque_t *, uint32_t);
-
-	uint64_t (*get_oid) (reiserfs_opaque_t *);
-	void (*set_oid) (reiserfs_opaque_t *, uint64_t);
-
-	uint64_t (*get_file_count) (reiserfs_opaque_t *);
-	void (*set_file_count) (reiserfs_opaque_t *, uint64_t);
-};
-
-typedef struct reiserfs_layout_plug reiserfs_layout_plug_t;
-</pre>
-
-<b>reiserfs_opaque_t *(*init) (dal_t *)</b>
-
-<p>
-Returns oid allocator plugin's ID. Will be used  in  order
-to  find oid allocator plugin in plugins cashe and plugins
-map.<br><br>
-
-<b>uint16_t (*alloc_plug_id) (reiserfs_opaque_t *)</b>
-
-<p>
-Returns allocator's plugin ID. Will used in order to  find
-needed allocator plugin.<br><br>
-
-<b>blk_t (*get_journal_block) (reiserfs_opaque_t *)<br>
-reiserfs_opaque_t(*set_journal_block) (reiserfs_opaque_t *, blk_t)</b>
-
-<p>
-Gets/sets the block where journal header is lies.<br><br>
-
-<b>blk_t (*get_block_count) (reiserfs_opaque_t *)<br>
-reiserfs_opaque_t(*set_block_count) (reiserfs_opaque_t *, blk_t)</b>
-
-<p>
-Gets/sets  "block_count" field of super block of this layout.<br><br>
-
-<b>blk_t (*get_free_blocks) (reiserfs_opaque_t *)<br>
-reiserfs_opaque_t(*set_free_blocks) (reiserfs_opaque_t *, blk_t)</b>
-
-<p>
-Gets/sets "free_blocks" field of super block of this  layout.<br><br>
-
-<b>blk_t (*get_root_block) (reiserfs_opaque_t *)<br>
-reiserfs_opaque_t(*set_root_block) (reiserfs_opaque_t *, blk_t)</b>
-
-<p>
-Gets/sets  "root_block"  field of super block of this layout.<br><br>
-
-<b>uint16_t (*get_tree_height) (reiserfs_opaque_t *)<br>
-reiserfs_opaque_t(*set_tree_height) (reiserfs_opaque_t *, uint16_t)</b>
-
-<p>
-Gets/sets field "tree_height" of super block of this  layout.<br><br>
-
-<b>uint64_t (*get_oid) (reiserfs_opaque_t *) reiserfs_opaque_t(*set_oid) <br>
-(reiserfs_opaque_t *, uint64_t)</b>
-
-<p>
-Gets/sets "oid" field of super block of this layout.<br><br>
-
-<b>uint64_t (*get_file_count) (reiserfs_opaque_t *) <br>
-reiserfs_opaque_t(*get_file_count) (reiserfs_opaque_t *, uint64_t)</b>
-
-<p>
-Gets/sets "file_count" of super block of this layout.<br><br>
-
 Filesystem opening stuff look roughly like following:<br>
 
 <pre>
