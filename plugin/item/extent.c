@@ -1939,8 +1939,7 @@ static int write_flow_to_page (coord_t * coord, lock_handle * lh, flow_t * f,
 	block_off = page_off & (current_blocksize - 1);
 
 	for (block = first, j = nth_jnode (page, first);
-	     left > 0;
-	     block ++, j = next_jnode (j)) {
+	     left > 0; j = next_jnode (j)) {
 		/* number if bytes to written into this block */
 		to_block = current_blocksize - block_off;
 		if (to_block > left)
@@ -1999,6 +1998,7 @@ static int write_flow_to_page (coord_t * coord, lock_handle * lh, flow_t * f,
 		left -= to_block;
 		block_off = 0;
 		b_data += current_blocksize;
+		block ++;
 		if (result)
 			/* after inserting first item of a file - research is
 			 * required */
