@@ -333,7 +333,12 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 	if (0 != data.length) {
 		data.data = NULL;
 		data.user = 0;
-		result = resize_item(coord, &data, key, lh, 0);
+
+		/* insertion code requires that insertion point (coord) was
+		 * between units. */
+		coord->between = AFTER_UNIT;
+		result = resize_item(coord,
+				     &data, key, lh, COPI_DONT_SHIFT_LEFT);
 		if (result != 0) {
 			key_warning(key, inode, result);
 			zrelse(loaded);
@@ -1138,6 +1143,9 @@ clear_inode_common(struct inode *inode)
 		pplug->clear(inode);
 }
 
+/* from xattr.c */
+extern xattr_list_head xattr_common_namespaces;
+
 /*
  * Definitions of object plugins.
  */
@@ -1191,7 +1199,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.get    = xattr_get_common,
 			.list   = xattr_list_common,
 			.remove = xattr_remove_common,
-			.handlers = xattr_handlers_common
+			.ns     = &xattr_common_namespaces
 		},
 		.readpages = readpages_unix_file,
 		.init_inode_data = init_inode_data_unix_file,
@@ -1248,7 +1256,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.get    = xattr_get_common,
 			.list   = xattr_list_common,
 			.remove = xattr_remove_common,
-			.handlers = xattr_handlers_common
+			.ns     = &xattr_common_namespaces
 		},
 		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
@@ -1308,7 +1316,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.get    = xattr_get_common,
 			.list   = xattr_list_common,
 			.remove = xattr_remove_common,
-			.handlers = xattr_handlers_common
+			.ns     = &xattr_common_namespaces
 		},
 		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
@@ -1366,7 +1374,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.get    = xattr_get_common,
 			.list   = xattr_list_common,
 			.remove = xattr_remove_common,
-			.handlers = xattr_handlers_common
+			.ns     = &xattr_common_namespaces
 		},
 		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
@@ -1424,7 +1432,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.get    = NULL,
 			.list   = NULL,
 			.remove = NULL,
-			.handlers = NULL
+			.ns     = NULL
 		},
 		.readpages = NULL,
 		.init_inode_data = NULL,
@@ -1483,7 +1491,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.get    = xattr_get_common,
 			.list   = xattr_list_common,
 			.remove = xattr_remove_common,
-			.handlers = xattr_handlers_common
+			.ns     = &xattr_common_namespaces
 		},
 		.readpages = readpages_cryptcompress,
 		.init_inode_data = NULL,
