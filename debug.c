@@ -201,6 +201,12 @@ void reiser4_print_stats()
 	      s -> znode.lock_neighbor,
 	      s -> znode.lock_neighbor_iteration );
 	      
+	info( "vfs:\n"
+	      "\t writes:\t %lu\n"
+	      "\t reads:\t %lu\n",
+	      s -> vfs_calls.writes,
+	      s -> vfs_calls.reads );
+
 	info( "dir:\n"
 	      "\treaddir_calls:\t %lu\n"
 	      "\treaddir_reset:\t %lu\n"
@@ -228,23 +234,20 @@ void reiser4_print_stats()
 	      "\t wait_on_page:\t %lu\n"
 	      "\t fsdata_alloc:\t %lu\n"
 	      "\t private_data_alloc:\t %lu\n"
-	      "\t writes:\t %lu\n"
-	      "\t write repeats:\t %lu\n"
 	      "\t tail2extent:\t %lu\n"
 	      "\t extent2tail:\t %lu\n"
-	      "\t unformatted node pointers added (hole plugging not included):\t %lu\n"
-	      "\t find_items:\t %lu\n"
-	      "\t full find items:\t%lu\n",
+	      "\t find_next_item:\t %lu\n"
+	      "\t\t via seal:\t%lu\n"
+	      "\t\t via cbk:\t%lu\n",
+
 	      s -> file.wait_on_page,
 	      s -> file.fsdata_alloc,
 	      s -> file.private_data_alloc,
-	      s -> file.writes,
-	      s -> file.write_repeats,
 	      s -> file.tail2extent,
 	      s -> file.extent2tail,
-	      s -> file.pointers,
-	      s -> file.find_items,
-	      s -> file.full_find_items );
+	      s -> file.find_next_item,
+	      s -> file.find_next_item_via_seal,
+	      s -> file.find_next_item_via_cbk );
 	info( "extent:\n"
 	      "\t read unformatted nodes:\t %lu\n"
 	      "\t broken seals:\t %lu\n",
