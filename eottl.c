@@ -150,10 +150,7 @@ is_next_item_internal(coord_t * coord, lock_handle * lh)
 		coord_t right;
 
 		init_lh(&right_lh);
-		result = reiser4_get_right_neighbor(&right_lh,
-						    coord->node,
-						    ZNODE_READ_LOCK,
-						    GN_DO_READ);
+		result = reiser4_get_right_neighbor(&right_lh, coord->node, ZNODE_READ_LOCK, GN_DO_READ);
 		if (result && result != -ENAVAIL) {
 			/* error occured */
 			/*
@@ -222,8 +219,7 @@ rd_key(coord_t * coord, reiser4_key * key)
  * further down because it stopped between items of not internal type
  */
 static int
-add_empty_leaf(coord_t * insert_coord, lock_handle * lh,
-	       const reiser4_key * key, const reiser4_key * rdkey)
+add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key, const reiser4_key * rdkey)
 {
 	int result;
 	carry_pool pool;
@@ -314,8 +310,7 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 
 	coord = h->coord;
 
-	if (h->level != TWIG_LEVEL ||
-	    (coord_is_existing_item(coord) && item_is_internal(coord))) {
+	if (h->level != TWIG_LEVEL || (coord_is_existing_item(coord) && item_is_internal(coord))) {
 		/*
 		 * Continue to traverse tree downward.
 		 */
@@ -383,8 +378,7 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 			return 1;
 		}
 
-		result = add_empty_leaf(coord, h->active_lh,
-					h->key, rd_key(coord, &key));
+		result = add_empty_leaf(coord, h->active_lh, h->key, rd_key(coord, &key));
 		if (result) {
 			h->error = "could not add empty leaf";
 			h->result = result;
