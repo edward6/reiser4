@@ -428,26 +428,31 @@ static void wander_end_io (struct bio * bio)
 }
 
 
-static void init_io_handle (struct io_handle * io_hdl)
+static void init_io_handle (struct io_handle * io)
 {
-	sema_init(&io_hdl->io_sema, 0);
+	sema_init(&io->io_sema, 0);
 
-	atomic_set(&io_hdl->nr_submitted, 0);
-	atomic_set(&io_hdl->nr_errors, 0);
+	/* This setting makes the wakeup code in wander_and_io working only
+	 * after io->nr_submitted gets decremented in done_io_handle. */
+	atomic_set(&io->nr_submitted, 1);
+
+	atomic_set(&io->nr_errors, 0);
 }
 
-static int done_io_handle (struct io_handle * io_hdl)
+static int done_io_handle (struct io_handle * io)
 {
-	/* sort and pass requests to driver */
-	blk_run_queues();
+	/* this 1 was from init_io_handle() */
+	if (! atomic_dec_and_test(&io->nr_submitted)) {
+		/* sort and pass requests to driver */
+		blk_run_queues();
+		/* wait all IO to complete */
+		down (&io->io_sema);
 
-	/* wait all IO to complete */
-	down (&io_hdl->io_sema);
+		assert ("zam-577", atomic_read(&io->nr_submitted) == 0);
 
-	assert ("zam-577", atomic_read(&io_hdl->nr_submitted) == 0);
+	}
 
-	if (atomic_read(&io_hdl->nr_errors)) return -EIO;
-
+	if (atomic_read(&io->nr_errors)) return -EIO;
 	return 0;
 }
 
