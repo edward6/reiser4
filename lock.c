@@ -796,7 +796,7 @@ int longterm_lock_znode (
 
 		assert("nikita-1844", 
 		       (ret == 0) || ((ret == -EAGAIN) && !non_blocking));
-		/* If we could get the lock... Try to capture first before taking the
+		/* If we can get the lock... Try to capture first before taking the
 		 * lock.*/
 		if ((ret = txn_try_capture (ZJNODE (node), mode, try_capture_flags)) != 0) {
 			/* In the failure case, the txnmgr releases the znode's lock (or
@@ -820,7 +820,6 @@ int longterm_lock_znode (
 		 * circumstances the capture code has to release and reacquire the znode
 		 * spinlock. */
 		ret = can_lock_object(owner, node);
-
 
 		/* This time, a return of (ret == 0) means we can lock, so we should break
 		 * out of the loop. */
