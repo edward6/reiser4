@@ -182,27 +182,31 @@ int init_inode( struct inode *inode /* inode to intialise */,
 		tree_coord *coord /* coord of stat data */ )
 {
 	int result;
-	item_plugin *iplug;
+	item_plugin    *iplug;
 	void           *body;
 	int             length;
+	reiser4_inode_info *state;
 
 	assert( "nikita-292", coord != NULL );
 	assert( "nikita-293", inode != NULL );
 
-	iplug = item_plugin_by_coord( coord );
-	body = item_body_by_coord( coord );
+	iplug  = item_plugin_by_coord( coord );
+	body   = item_body_by_coord  ( coord );
 	length = item_length_by_coord( coord );
 
 	assert( "nikita-295", iplug != NULL );
 	assert( "nikita-296", body != NULL );
 	assert( "nikita-297", length > 0 );
 
+	state = reiser4_inode_data( inode );
+	spin_lock_inode( state );
 	/* call stat-data plugin method to load sd content into inode */
 	result = iplug -> s.sd.init_inode( inode, body, length );
-	if( result )
-		return result;
-	reiser4_inode_data( inode ) -> sd = iplug;
-	return setup_inode_ops( inode );
+	state -> sd = iplug;
+	spin_unlock_inode( state );
+	if( result == 0 )
+		result = setup_inode_ops( inode );
+	return result;
 }
 
 /* read `inode' from the disk. This is what was previously in 
