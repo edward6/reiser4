@@ -10,12 +10,6 @@
    3) digest plugin
    4) compression plugin
 */
-   
-/* PAGE CLUSTERING TEWRMINOLOGY:
-   cluster size  : cluster size in bytes 
-   cluster index : index of cluster's first page
-   cluster number: offset in cluster size units 
-*/
 
 #include "../debug.h"
 #include "../inode.h"
@@ -305,7 +299,7 @@ void release_cluster_buf(reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-125", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
 
 	if (clust->buf)
-		reiser4_kfree(clust->buf, clust->bufsize);
+		reiser4_kfree(clust->buf, clust->len);
 }
 
 void put_cluster_data(reiser4_cluster_t * clust, struct inode * inode)
@@ -543,9 +537,9 @@ alternate_buffers(reiser4_cluster_t * clust, __u8 * buff, size_t * size)
 	tmp_buf = buff;
 	tmp_size = *size;
 	buff = clust->buf;
-	*size = clust->bufsize;
+	*size = clust->len;
 	clust->buf = tmp_buf;
-	clust->bufsize = tmp_size;
+	clust->len = tmp_size;
 }
 
 /*
@@ -561,7 +555,7 @@ int inflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 	size_t buff_size = 0;
 	
 	assert("edward-407", clust->buf != NULL);
-	assert("edward-408", clust->bufsize != 0);
+	assert("edward-408", clust->len != 0);
 	
 	if (inode_crypto_plugin(inode) != NULL) {
 		/* decrypt */
@@ -672,8 +666,8 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 	__u8 * buff = NULL;
 	size_t buff_size = 0;
 	
-	assert("edward-401", clust->buf != 0);
-	assert("edward-409", clust->bufsize != 0);
+	assert("edward-401", clust->buf != NULL);
+	assert("edward-409", clust->len != 0);
 	
 	if (try_compress(clust, inode)) {
 		/* try to compress, discard bad results */
@@ -1749,6 +1743,7 @@ cryptcompress_writepage(struct page * page)
 		release_cache_cluster(&clust);
 		return result;
 	}
+	reiser4_lock_page(page);
 	make_cluster_jnodes_dirty(&clust, NULL);
 	
 	return 0;	
