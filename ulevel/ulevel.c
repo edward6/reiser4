@@ -4365,7 +4365,7 @@ int real_main( int argc, char **argv )
 		bash_test (argc, argv, 0);
 	}
 	if( getenv( "REISER4_MOUNT" ) == NULL ) {
-		warning( "nikita-2110", "Set REISER4_MOUNT" );
+		warning( "nikita-2175", "Set REISER4_MOUNT" );
 		return 0;
 	}
 	set_current ();
@@ -4556,7 +4556,7 @@ int write_one_page(struct page *page, int wait)
 	struct address_space *mapping = page->mapping;
 	int ret = 0;
 
-	assert ("nikita-2104", PageLocked(page));
+	assert ("nikita-2176", PageLocked(page));
 
 	if (wait && PageWriteback(page))
 		wait_on_page_writeback(page);
