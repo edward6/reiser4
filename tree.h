@@ -244,7 +244,8 @@ typedef enum {
 	CBK_TRUST_DK = (1 << 2),
 	CBK_READA    = (1 << 3),  /* original: readahead leaves which contain items of certain file */
 	CBK_READDIR_RA = (1 << 4), /* readdir: readahead whole directory and all its stat datas */
-	CBK_DKSET    = (1 << 5)
+	CBK_DKSET    = (1 << 5),
+	CBK_EXTENDED_COORD = (1 << 6) /* coord_t is actually */
 } cbk_flags;
 
 /* insertion outcome. IBK = insert by key */
@@ -277,7 +278,7 @@ node_plugin_by_node(const znode * node /* node to query */ )
 	return node->nplug;
 }
 
-static inline unsigned
+static inline pos_in_node_t
 node_num_items(const znode * node)
 {
 	assert("nikita-2754", znode_is_loaded(node));
