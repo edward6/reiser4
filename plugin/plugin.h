@@ -537,19 +537,6 @@ union reiser4_plugin {
 	void *generic;
 };
 
-/* intra-syscall Repetitive Access Pattern. Use it when you are going to do
-    several operations in a row */
-typedef enum { AHEAD_RAP, BEHIND_RAP, NO_RAP } intra_syscall_rap;
-
-/* inter-syscall Repetitive Access Pattern structure. We can store such thing into inode.  It would be better if it was
-    associated with struct file rather than with struct inode, but there is no file-system specific part in struct
-    file. insert/delete tree operations consult this structure and update it. We can add user interface to this later.
-    This will help improve the performance of cross-syscall insertions and reads that are localized within the tree. */
-typedef struct inter_syscall_rap_t {
-	/* some fields should go here.
-	   Start by looking at include/linux/fs.h:struct file */
-} inter_syscall_rap;
-
 struct reiser4_plugin_ops {
 	/* load given plugin from disk */
 	int (*load) (struct inode * inode, reiser4_plugin * plugin, char **area, int *len);

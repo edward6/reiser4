@@ -376,11 +376,11 @@ lookup_result object_lookup(struct inode *object,
 insert_result insert_by_key(reiser4_tree * tree, const reiser4_key * key,
 			    reiser4_item_data * data, coord_t * coord,
 			    lock_handle * lh,
-			    tree_level stop_level, inter_syscall_rap * ra, intra_syscall_rap ira, __u32 flags);
+			    tree_level stop_level, __u32 flags);
 insert_result insert_by_coord(coord_t * coord,
 			      reiser4_item_data * data, const reiser4_key * key,
 			      lock_handle * lh,
-			      inter_syscall_rap * ra UNUSED_ARG, intra_syscall_rap ira UNUSED_ARG, __u32);
+			      __u32);
 insert_result insert_extent_by_coord(coord_t * coord,
 				     reiser4_item_data * data, const reiser4_key * key, lock_handle * lh);
 int cut_node(coord_t * from, coord_t * to,

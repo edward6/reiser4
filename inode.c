@@ -129,17 +129,6 @@ max_hash_collisions(const struct inode *dir /* inode queried */ )
 #endif
 }
 
-/* return information about "repetitive access" (ra) patterns,
-    accumulated in inode. */
-/* Audited by: green(2002.06.17) */
-inter_syscall_rap *
-inter_syscall_ra(const struct inode * inode	/* inode
-						 * queried */ )
-{
-	assert("nikita-289", is_reiser4_inode(inode));
-	return &reiser4_inode_data(inode)->ra;
-}
-
 /* Install file, inode, and address_space operation on @inode, depending on
    its mode. */
 /* Audited by: green(2002.06.17) */

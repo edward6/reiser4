@@ -148,7 +148,7 @@ add_entry_de(struct inode *dir /* directory of item */ ,
 		return -EDQUOT;
 
 	result = insert_by_coord(coord, &data, &entry->key, lh,
-				 inter_syscall_ra(dir), NO_RAP, 0 /*flags */ );
+				 NULL, NO_RAP, 0 /*flags */ );
 	if (result != 0)
 		return result;
 

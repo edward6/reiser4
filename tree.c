@@ -133,19 +133,12 @@ insert_result insert_by_key(reiser4_tree * tree	/* tree to insert new item
 			    lock_handle * lh	/* resulting lock
 						   * handle */ ,
 			    tree_level stop_level /** level where to insert */ ,
-			    inter_syscall_rap * ra UNUSED_ARG	/* repetitive
-								   * access
-								   * hint */ ,
-			    intra_syscall_rap ira UNUSED_ARG	/* repetitive
-								   * access
-								   * hint */ ,
 			    __u32 flags /* insertion flags */ )
 {
 	int result;
 
 	assert("nikita-358", tree != NULL);
 	assert("nikita-360", coord != NULL);
-	assert("nikita-361", ra != NULL);
 
 	result = coord_by_key(tree, key, coord, lh, ZNODE_WRITE_LOCK,
 			      FIND_EXACT, stop_level, stop_level, flags | CBK_FOR_INSERT, 0/*ra_info*/);
@@ -160,7 +153,7 @@ insert_result insert_by_key(reiser4_tree * tree	/* tree to insert new item
 		break;
 	case CBK_COORD_NOTFOUND:
 		assert("nikita-2017", coord->node != NULL);
-		result = insert_by_coord(coord, data, key, lh, ra, ira, 0 /*flags */ );
+		result = insert_by_coord(coord, data, key, lh, 0 /*flags */ );
 		break;
 	}
 	return result;
@@ -286,12 +279,6 @@ insert_result insert_by_coord(coord_t * coord	/* coord where to
 			      const reiser4_key * key /* key of new item */ ,
 			      lock_handle * lh	/* lock handle of write
 						   * lock on node */ ,
-			      inter_syscall_rap * ra UNUSED_ARG	/* repetitive
-								   * access
-								   * hint */ ,
-			      intra_syscall_rap ira UNUSED_ARG	/* repetitive
-								   * access
-								   * hint */ ,
 			      __u32 flags /* insertion flags */ )
 {
 	unsigned item_size;

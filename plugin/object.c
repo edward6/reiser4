@@ -150,7 +150,7 @@ lookup_sd(struct inode *inode /* inode to look sd for */ ,
 	   coord_found is returned. */
 	flags = (lock_mode == ZNODE_WRITE_LOCK) ? CBK_FOR_INSERT : 0;
 	flags |= CBK_UNIQUE;
-	result = object_lookup(inode,
+	result = coord_by_key(tree_by_inode(inode),
 			       key,
 			       coord,
 			       lh,
@@ -220,7 +220,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 			       &lh,
 			       /* stat data lives on a leaf level */
 			       LEAF_LEVEL,
-			       inter_syscall_ra(inode),
+			       NULL,
 			       NO_RAP,
 			       CBK_UNIQUE);
 
