@@ -399,7 +399,7 @@ void print_tree_rec (const char * prefix, reiser4_tree * tree, __u32 flags)
 	znode *fake;
 	znode *root;
 
-	if( ( flags & ~REISER4_NODE_CHECK ) != 0 )
+	if( ( flags & ( unsigned ) ~REISER4_NODE_CHECK ) != 0 )
 		info( "tree: [%s]\n", prefix );
 	fake = zget( tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL );
 	if( IS_ERR( fake ) ) {
@@ -430,7 +430,7 @@ void print_tree_rec (const char * prefix, reiser4_tree * tree, __u32 flags)
 		}
 	}
 
-	if( ( flags & ~REISER4_NODE_CHECK ) != 0 )
+	if( ( flags & ( unsigned ) ~REISER4_NODE_CHECK ) != 0 )
 		info( "end tree: [%s]\n", prefix );
 	zput( root );
 	zput( fake );
