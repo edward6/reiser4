@@ -1852,7 +1852,7 @@ info_jnode(const char *prefix /* prefix to print */ ,
 		return;
 	}
 
-	printk("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
+	printk("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
 	       " block: %s, d_count: %d, x_count: %d, "
 	       "pg: %p, atom: %p, lock: %i:%i, type: %s, ",
 	       prefix, node, node->state,
@@ -1875,6 +1875,7 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	       jnode_state_name(node, JNODE_DKSET),
 	       jnode_state_name(node, JNODE_EPROTECTED),
 	       jnode_state_name(node, JNODE_REPACK),
+	       jnode_state_name(node, JNODE_CLUSTER_PAGE),
 	       jnode_get_level(node), sprint_address(jnode_get_block(node)),
 	       atomic_read(&node->d_count), atomic_read(&node->x_count),
 	       jnode_page(node), node->atom,
