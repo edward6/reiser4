@@ -607,13 +607,17 @@ static int flush_pos_lock_parent(flush_position * pos, coord_t * parent_coord,
 
 /* Flush debug functions */
 #if REISER4_DEBUG_OUTPUT
-static const char *flush_pos_tostring(flush_position * pos);
+#else
+#endif
+
+#if REISER4_TRACE
 static const char *flush_jnode_tostring(jnode * node);
+static const char *flush_pos_tostring(flush_position * pos);
 static const char *flush_znode_tostring(znode * node);
 static const char *flush_flags_tostring(int flags);
 #else
-#define flush_pos_tostring(p)   ""
 #define flush_jnode_tostring(n) ""
+#define flush_pos_tostring(p)   ""
 #define flush_znode_tostring(n) ""
 #define flush_flags_tostring(f) ""
 #endif
@@ -3751,7 +3755,7 @@ flush_get_params(void)
 	return &get_current_super_private()->flush;
 }
 
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_TRACE
 static void
 flush_jnode_tostring_internal(jnode * node, char *buf)
 {
@@ -3807,18 +3811,18 @@ flush_jnode_tostring_internal(jnode * node, char *buf)
 }
 
 static const char *
-flush_znode_tostring(znode * node)
-{
-	return flush_jnode_tostring(ZJNODE(node));
-}
-
-static const char *
 flush_jnode_tostring(jnode * node)
 {
 	static char fmtbuf[256];
 	fmtbuf[0] = 0;
 	flush_jnode_tostring_internal(node, fmtbuf);
 	return fmtbuf;
+}
+
+static const char *
+flush_znode_tostring(znode * node)
+{
+	return flush_jnode_tostring(ZJNODE(node));
 }
 
 static const char *
@@ -3887,7 +3891,7 @@ flush_flags_tostring(int flags)
 		return "(unknown)";
 	}
 }
-#endif
+#endif /* REISER4_TRACE */
 
 /* Make Linus happy.
    Local variables:
