@@ -1340,3 +1340,5 @@ debug.E
 stats
 plugin/.cryptcompress.o.d
 .sys_reiser4.o.cmd
+.super.o.d
+plugin/dir/.pseudo_dir.o.cmd
