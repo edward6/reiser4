@@ -299,7 +299,7 @@ extent_allocate_blocks(reiser4_blocknr_hint *preceder,
 	preceder->block_stage = block_stage;
 
 	/* FIXME: we do not handle errors here now */
-	check_me("vs-420", reiser4_alloc_blocks (preceder, first_allocated, allocated, BA_PERMANENT, "extent_allocate") == 0);
+	check_me("vs-420", reiser4_alloc_blocks (preceder, first_allocated, allocated, BA_PERMANENT) == 0);
 	/* update flush_pos's preceder to last allocated block number */
 	preceder->blk = *first_allocated + *allocated - 1;
 }
@@ -1460,7 +1460,7 @@ try_to_merge_with_left(coord_t *coord, reiser4_extent *ext, reiser4_extent *repl
 		/* wipe part of item which is going to be cut, so that node_check will not be confused by extent
 		   overlapping */
 		ON_DEBUG(xmemset(extent_item(coord) + from.unit_pos, 0, sizeof (reiser4_extent)));
-		cut_node(&from, &to, 0, 0, 0, DELETE_DONT_COMPACT, 0, 0/*inode*/);
+		cut_node(&from, &to, 0, 0, 0, 0, 0, 0/*inode*/);
 	}
 	/* move coord back */
 	coord->unit_pos --;
@@ -1675,14 +1675,14 @@ alloc_extent(flush_pos_t *flush_pos)
 			/* unprotect nodes which will not be allocated/relocated on this iteration */
 			if (state == ALLOCATED_EXTENT) {
 				atom = get_current_atom_locked();
-				grabbed2flush_reserved_nolock(atom, protected - allocated, "");
+				grabbed2flush_reserved_nolock(atom, protected - allocated);
 				UNLOCK_ATOM(atom);
 			}
 			unprotect_extent_nodes(oid, index + allocated, protected - allocated);
 		}
 		if (state == ALLOCATED_EXTENT) {
 			/* on relocating - free nodes which are being relocated */
-			reiser4_dealloc_blocks(&start, &allocated, BLOCK_ALLOCATED, BA_DEFER, "");
+			reiser4_dealloc_blocks(&start, &allocated, BLOCK_ALLOCATED, BA_DEFER);
 		}
 
 		/* assign new block numbers to protected nodes */
@@ -1727,8 +1727,7 @@ put_unit_to_end(znode *node, const reiser4_key *key, reiser4_extent *copy_ext)
 
 	flags = COPI_DONT_SHIFT_LEFT | COPI_DONT_SHIFT_RIGHT | COPI_DONT_ALLOCATE;
 	if (must_insert(&coord, key)) {
-		result = insert_by_coord(&coord, init_new_extent(&data, copy_ext, 1), key, 0 /*lh */ , 0 /*ra */ ,
-					 0 /*ira */ , flags);
+		result = insert_by_coord(&coord, init_new_extent(&data, copy_ext, 1), key, 0 /*lh */ , flags);
 
 	} else {
 		/* try to glue with last unit */
@@ -1818,7 +1817,7 @@ squalloc_extent(znode *left, const coord_t *coord, flush_pos_t *flush_pos, reise
 		if (allocated != protected) {
 			if (state == ALLOCATED_EXTENT) {
 				atom = get_current_atom_locked();
-				grabbed2flush_reserved_nolock(atom, protected - allocated, "");
+				grabbed2flush_reserved_nolock(atom, protected - allocated);
 				UNLOCK_ATOM(atom);
 			}
 			unprotect_extent_nodes(oid, index + allocated, protected - allocated);
@@ -1833,16 +1832,16 @@ squalloc_extent(znode *left, const coord_t *coord, flush_pos_t *flush_pos, reise
 			printk("left is full, free (first %llu, count %llu)\n", first_allocated, allocated);
 #endif
 			if (state == ALLOCATED_EXTENT)
-				reiser4_dealloc_blocks(&first_allocated, &allocated, BLOCK_FLUSH_RESERVED, 0, "");
+				reiser4_dealloc_blocks(&first_allocated, &allocated, BLOCK_FLUSH_RESERVED, 0);
 			else
-				reiser4_dealloc_blocks(&first_allocated, &allocated, BLOCK_UNALLOCATED, 0, "");
+				reiser4_dealloc_blocks(&first_allocated, &allocated, BLOCK_UNALLOCATED, 0);
 			unprotect_extent_nodes(oid, index, allocated);
 			return SQUEEZE_TARGET_FULL;
 		}
 
 		/* free nodes which were relocated */
 		if (state == ALLOCATED_EXTENT) {
-			reiser4_dealloc_blocks(&start, &allocated, BLOCK_ALLOCATED, BA_DEFER, "");
+			reiser4_dealloc_blocks(&start, &allocated, BLOCK_ALLOCATED, BA_DEFER);
 		}
 
 		/* assign new block numbers to protected nodes */
