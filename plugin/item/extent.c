@@ -2975,8 +2975,6 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 				trace_on(TRACE_EXTENTS, "FAILED: %d\n", result);
 				goto exit3;
 			}
-			if (page->index == 16)
-				print_page ("page 16", page);
 			trace_on(TRACE_EXTENTS, "OK\n");
 		}
 
