@@ -130,6 +130,14 @@
  */
 #define REISER4_GLOBAL_COLLISION_LIMIT (1024)
 
+/* 
+ * what size units of IO we would like cp, etc., to use, in writing to
+ * reiser4. In 512 byte blocks.
+ *
+ * Currently this is constant (64k).
+ */
+#define REISER4_OPTIMAL_IO_SIZE( super, inode ) ((64 * 1024) >> VFS_BLKSIZE_BITS)
+
 
 
 

@@ -182,7 +182,7 @@ int sd_load( struct inode *inode, char *sd, int len )
 	}
 	/* common initialisations */
 	inode -> i_blocks     = state -> bytes >> VFS_BLKSIZE_BITS;
-	inode -> i_blksize    = reiser4_blksize( inode -> i_sb );
+	inode -> i_blksize    = REISER4_OPTIMAL_IO_SIZE( inode -> i_sb, inode );
 	inode -> i_version    = ++ event;
 	if( len > 0 )
 		warning( "nikita-631", "unused space in inode %lx", 
