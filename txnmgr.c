@@ -897,7 +897,8 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	assert ("zam-887", get_current_context()->trans->atom == *atom);
 	assert("jmacd-151", atom_isopen(*atom));
 
-	trace_on(TRACE_TXN, "atom %u trying to commit %u: CAPTURE_WAIT\n", atom->atom_id, current->pid);
+	trace_on(TRACE_TXN, "atom %u trying to commit %u: CAPTURE_WAIT\n", 
+		 (*atom)->atom_id, current->pid);
 
 	while (1) {
 		ret = flush_current_atom(JNODE_FLUSH_WRITE_BLOCKS, nr_submitted, atom);
@@ -931,7 +932,8 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	if (ret)
 		return ret;
 
-	trace_on(TRACE_FLUSH, "everything written back atom %u\n", atom->atom_id);
+	trace_on(TRACE_FLUSH, "everything written back atom %u\n", 
+		 (*atom)->atom_id);
 
 	/* isolate critical code path which should be executed by only one
 	 * thread using tmgr semaphore */

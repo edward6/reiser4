@@ -336,7 +336,7 @@ reiser4_stats_cnt reiser4_prof_defs[] = {
 	DEFINE_PROF_CNT(forward_squalloc),
 	DEFINE_PROF_CNT(atom_wait_event),
 	DEFINE_PROF_CNT(set_child_delimiting_keys),
-	DEFINE_PROF_CNT(length_by_coord)
+	DEFINE_PROF_CNT(length_by_coord),
 	DEFINE_PROF_CNT(zget)
 };
 

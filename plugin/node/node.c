@@ -314,7 +314,7 @@ node_check(znode * node /* node to check */ ,
 		return;
 	tree = znode_get_tree(node);
 
-	if (lock_counters()->spin_locked_dk > 0)
+	if (lock_counters()->rw_locked_dk > 0)
 		return;
 	if (lock_counters()->rw_locked_tree > 0)
 		return;
