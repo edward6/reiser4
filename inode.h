@@ -116,6 +116,7 @@ struct reiser4_inode {
 	 * readpage - down_read */
 	/* 88 */ scint_t extmask;
 	/* 92 */ int eflushed;
+	int eflushed_anon;
 	/* bitmask of non-default plugins for this inode */
 	/* 96 */ __u16 plugin_mask;
 	/* 98 */ inter_syscall_rap ra;

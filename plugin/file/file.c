@@ -865,8 +865,8 @@ unix_file_writepage_nolock(struct page *page)
 
 /* plugin->u.file.writepage this does not start i/o against this page. It just must garantee that tree has a pointer to
    this page. This is called for pages which were dirtied via mmap-ing by reiser4_writepages */
-int
-capture_unix_file(struct page *page)
+static int
+capture_unix_file_page(struct page *page)
 {
 	int result;
 	struct inode *inode;
@@ -886,6 +886,209 @@ capture_unix_file(struct page *page)
 		result = unix_file_writepage_nolock(page);
 	}
 	all_grabbed2free("unix_file_writepage");
+	return result;
+}
+
+/* Check mapping for existence of not captured dirty pages */
+static int inode_has_anonymous_pages(struct inode *inode)
+{
+	int ret;
+	struct address_space *mapping;
+
+	mapping = inode->i_mapping;
+	spin_lock (&mapping->page_lock);
+	ret = !list_empty (get_moved_pages(mapping));
+	spin_unlock (&mapping->page_lock);
+	ret |= (reiser4_inode_data(inode)->eflushed_anon > 0);
+
+	return ret;
+}
+
+static int capture_page_and_create_extent(struct page * page)
+{
+	int result;
+	file_plugin *fplug;
+
+	fplug = inode_file_plugin(page->mapping->host);
+
+	if (fplug == NULL)
+		return 0;
+
+	grab_space_enable ();
+
+	result = fplug->capture(page);
+
+	if (result != 0)
+		SetPageError(page);
+	return result;
+}
+
+static void redirty_inode(struct inode *inode)
+{
+	spin_lock(&inode_lock);
+	inode->i_state |= I_DIRTY;
+	spin_unlock(&inode_lock);
+}
+
+static int capture_anonymous_page(struct page *pg)
+{
+	struct address_space *mapping;
+	int result;
+
+	mapping = pg->mapping;
+	result = 0;
+	if (PageWriteback(pg)) {
+		if (PageDirty(pg))
+			list_move(&pg->list, &mapping->dirty_pages);
+		else
+			list_move(&pg->list, &mapping->locked_pages);
+	} else if (!PageDirty(pg))
+		list_move(&pg->list, &mapping->clean_pages);
+	else {
+		jnode *node;
+
+		list_move(&pg->list, &mapping->io_pages);
+		page_cache_get (pg);
+		
+		spin_unlock (&mapping->page_lock);
+
+		lock_page(pg);
+		/* page is guaranteed to be in the mapping, because we are
+		 * operating under rw-semaphore. */
+		assert("nikita-3336", pg->mapping == mapping);
+		node = jnode_of_page(pg);
+		unlock_page(pg);
+		if (!IS_ERR(node)) {
+			result = jload(node);
+			assert("nikita-3334", result == 0);
+			assert("nikita-3335", jnode_page(node) == pg);
+			result = capture_page_and_create_extent(pg);
+			if (result == 0) {
+				assert("nikita-3326", jnode_check_dirty(node));
+				assert("nikita-3327", node->atom != NULL);
+				JF_CLR(node, JNODE_KEEPME);
+			} else
+				warning("nikita-3329",
+					"Cannot capture anon page: %i", result);
+			jrelse(node);
+		} else
+			result = PTR_ERR(node);
+		page_cache_release(pg);
+		spin_lock(&mapping->page_lock);
+	}
+	return result;
+}
+
+#define CAPTURE_AJNODE_BURST     (128)
+#define CAPTURE_APAGE_BURST      (1024)
+
+static int capture_anonymous_jnodes(struct inode *inode)
+{
+	struct list_head *tmp, *next;
+	reiser4_inode *info;
+	reiser4_tree *tree;
+	int nr;
+	int found;
+	int result;
+
+	tree = tree_by_inode(inode);
+
+	info = reiser4_inode_data(inode);
+	result = 0;
+	nr = 0;
+	do {
+		found = 0;
+		spin_lock_eflush(tree->super);
+
+		list_for_each_safe(tmp, next, &info->eflushed_jnodes) {
+			eflush_node_t *ef;
+			jnode *node;
+
+			ef = list_entry(tmp, eflush_node_t, inode_link);
+			node = ef->node;
+			/*
+			 * anonymous jnode doesn't have an atom.
+			 *
+			 * jnode spin-lock is not needed, because we don't have
+			 * requirement to capture _all_ anonymous jnodes anyway.
+			 */
+			if (node->atom != NULL)
+				continue;
+			jref(node);
+			spin_unlock_eflush(tree->super);
+			result = jload(node);
+			jput(node);
+			if (result != 0)
+				return result;
+			spin_lock(&inode->i_mapping->page_lock);
+			result = capture_anonymous_page(jnode_page(node));
+			spin_unlock(&inode->i_mapping->page_lock);
+			jrelse(node);
+			found ++;
+			nr ++;
+			if (nr >= CAPTURE_AJNODE_BURST) {
+				found = 0;
+				redirty_inode(inode);
+			}
+			spin_lock_eflush(tree->super);
+			break;
+		}
+		spin_unlock_eflush(tree->super);
+	} while (found > 0 && result == 0);
+	return result;
+}
+
+static int capture_anonymous_pages(struct address_space * mapping)
+{
+	struct list_head *mpages;
+	int result;
+	int nr;
+
+	result = 0;
+	nr = 0;
+
+	spin_lock (&mapping->page_lock);
+
+	mpages = get_moved_pages(mapping);
+	while (result == 0 && !list_empty (mpages) && nr < CAPTURE_APAGE_BURST) {
+		struct page *pg = list_entry(mpages->prev, struct page, list);
+
+		result = capture_anonymous_page(pg);
+		++ nr;
+	}
+
+	spin_unlock(&mapping->page_lock);
+
+	if (nr >= CAPTURE_APAGE_BURST)
+		redirty_inode(mapping->host);
+
+	if (result == 0)
+		result = capture_anonymous_jnodes(mapping->host);
+
+	if (result != 0)
+		warning("nikita-3328", "Cannot capture anon pages: %i", result);
+	return result;
+}
+
+int
+capture_unix_file(struct inode *inode, struct writeback_control *wbc)
+{
+	int               result;
+	unix_file_info_t *uf_info;
+
+	if (inode_has_anonymous_pages(inode)) {
+		uf_info = unix_file_inode_data(inode);
+		if (rw_latch_try_read(&uf_info->latch) == 0) {
+			ON_DEBUG(lock_counters()->inode_sem_r ++);
+
+			result = capture_anonymous_pages(inode->i_mapping);
+
+			rw_latch_up_read(&uf_info->latch);
+			ON_DEBUG(lock_counters()->inode_sem_r --);
+		} else
+			result = RETERR(-EBUSY);
+	} else
+		result = 0;
 	return result;
 }
 

@@ -58,7 +58,8 @@ typedef struct unix_file_info {
 	struct inode *inode;
 	int exclusive_use;
 #if REISER4_DEBUG
-	void *ea_owner; /* pointer to task struct of thread owning exclusive access to file */
+	void *ea_owner; /* pointer to task struct of thread owning exclusive
+			 * access to file */
 #endif
 #if REISER4_LARGE_KEY
 	__u64 ordering;

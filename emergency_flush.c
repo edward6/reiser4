@@ -552,6 +552,8 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		info = reiser4_inode_data(inode);
 
 		++ info->eflushed;
+		if (!ef->hadatom)
+			++ info->eflushed_anon;
 
 		/* this is to make inode not freeable */
 		inode->i_state |= I_EFLUSH;
@@ -681,6 +683,8 @@ eflush_del(jnode *node, int page_locked)
 			info = reiser4_inode_data(inode);
 			assert("vs-1194", info->eflushed > 0);
 			-- info->eflushed;
+			if (!ef->hadatom)
+				-- info->eflushed_anon;
 			/* remove eflush node from inode's list of eflush
 			 * nodes */
 			list_del(&ef->inode_link);

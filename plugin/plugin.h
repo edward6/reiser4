@@ -157,9 +157,9 @@ typedef struct file_plugin {
 	int (*write_sd_by_inode) (struct inode * inode);
 	int (*readpage) (void *, struct page *);
 	/*
-	 * add page created through mmap into object.
+	 * add pages created through mmap into object.
 	 */
-	int (*capture) (struct page *);
+	int (*capture) (struct inode *inode, struct writeback_control *wbc);
 	/* these should be implemented using body_read_flow and body_write_flow
 	   builtins */
 	 ssize_t(*read) (struct file * file, char *buf, size_t size, loff_t * off);
