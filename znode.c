@@ -250,6 +250,7 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 	znode        *node;
 	znode        *next;
 	int           parents;
+	ON_DEBUG( int killed );
 
 	assert( "nikita-795", tree != NULL );
 
@@ -265,14 +266,19 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 
 	do {
 		parents = 0;
+		ON_DEBUG( killed = 0 );
 		for_all_ht_buckets( &tree -> hash_table, bucket ) {
 			for_all_in_bucket( bucket, node, next, link ) {
 				if( atomic_read( &node -> c_count ) == 0 ) {
+					assert( "nikita-2179", 
+						atomic_read( &node -> x_count ) == 0 );
 					zdrop( tree, node );
+					ON_DEBUG( ++ killed );
 				} else
 					++ parents;
 			}
 		}
+		assert( "nikita-2178", killed > 0 );
 	} while( parents > 0 );
 
 	spin_unlock_tree( tree );
