@@ -114,22 +114,83 @@ static int  slum_scan_left_formatted   (slum_scan *scan, znode *node);
 static void slum_scan_set_current      (slum_scan *scan, jnode *node);
 static int  slum_scan_left             (slum_scan *scan, jnode *node);
 
+
+	/*
+
+	Scan right (all levels):
+
+	Hans says: try to release parent before taking child lock, to avoid
+	contention with hipri traversals.
+
+	allocate_tree(node,
+	              reiser4_blocknr * blocknrs_passed_by_parent, -- 0 on first entry 
+	              nr_blocknrs -- 0 on first entry)
+
+	{
+	blocks_needed = count(node) plus count(all of its children);
+	get blocknrs for them;
+	allocate_node(node, blocknrs_passed_by_parent, nr_blocknrs);
+	if (update_pointer_in_parent_to_me() == PARENT_FULL)
+		{
+		put_remaining_as_yet_unallocated_extent_in_right_neighbor_of_parent;
+		return;
+		}
+	if (child is formatted node)
+		squeeze_left (child);
+	while (child can fit into parent)
+	    allocate_tree (child, blocknrs, nr_blocknrs);
+	free_unused_blocknrs();
+	}
+
+	*/
+
+
+
 /* Perform encryption, allocate-on-flush, and squeezing-left of slums. */
 int flush_jnode_slum (jnode *node)
 {
 	int ret;
 	slum_scan scan;
 
+	/* PLAN "SCAN SLUM"
+	 *
+	 * Order of steps to flush a slum (on leaf level -- most interesting case):
+	 *
+	 * 1. Scan left -
+	 *
+	 *   a. If formatted node, follow left pointers until NULL or not-dirty/not-in-atom
+	 *   b. If unformatted node, search page cache for dirty pages from high indexes (right) to
+	 *      low indexes (left) until ZERO or not-dirty/not-in-atom
+	 *
+	 * 2. Lock leftmost node -
+	 *
+	 * 3. Scan right - create an "iterator" - object for scanning right one node at a time.
+	 *
+	 * 4. Call allocate plugin, which iterates right using the iterator
+	 *
+	 *   a. If the iterator is positioned at an unformatted node, and to
+	 *      the right is a formatted node, squeeze formatted slum to-the-right before
+	 *      returning to the iterator.
+	 *   b. Allocate nodes while iterating to the right, squeezing each time you begin
+	 *      a new formatted slum.
+	 *	 
+	 *
+	 */
+
 	/* Somewhere in here, ZNODE_RELOC and ZNODE_WANDERED are set. */
 	/* Lots to do in here. */
 
 	slum_scan_init (& scan);
 
-	/* Scan the slum.  FIXME_JMACD: TEMPORARILY DISABLED TO KEEP CODE FUNCTIONING. */
+	/* Scan the slum. */
 	if (0 && (ret = slum_scan_left (& scan, node))) {
 		slum_scan_cleanup (& scan);
 		return ret;
 	}
+
+	/* Get the leftmost node lock. */
+	/*spin_lock_jnode (scan->node);*/
+	/*if ((ret = slum_scan_right ())) {}*/
 
 	/* Squeeze, allocate, encrypt, and flush the slum. */
 	     
@@ -426,7 +487,7 @@ static int slum_scan_left (slum_scan *scan, jnode *node)
 		}
 
 		if (ret != 0) {
-			/* FIXME_JMACD: do something with deadlock here? */
+			/* FIXME_JMACD: what to do about deadlock? */
 			return ret;
 		}
 
