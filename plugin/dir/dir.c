@@ -836,9 +836,10 @@ set_pos(struct inode * inode, readdir_pos * pos, tap_t * tap)
  * "rewind" directory to @offset, i.e., set @pos and @tap correspondingly.
  */
 static int
-dir_rewind(struct file *dir, readdir_pos * pos, long long shift, tap_t * tap)
+dir_rewind(struct file *dir, readdir_pos * pos, tap_t * tap)
 {
 	__u64 destination;
+	__s64 shift;
 	int result;
 	struct inode *inode;
 
@@ -847,6 +848,7 @@ dir_rewind(struct file *dir, readdir_pos * pos, long long shift, tap_t * tap)
 	assert("nikita-2551", tap->coord != NULL);
 	assert("nikita-2552", tap->lh != NULL);
 
+	shift = dir->f_pos - pos->fpos;
 	/* this is logical directory entry within @dir which we are rewinding
 	 * to */
 	destination = pos->entry_no + shift;
@@ -854,14 +856,13 @@ dir_rewind(struct file *dir, readdir_pos * pos, long long shift, tap_t * tap)
 	inode = dir->f_dentry->d_inode;
 	if (dir->f_pos < 0)
 		return RETERR(-EINVAL);
-	else if (destination >= inode->i_size)
-		return RETERR(-ENOENT);
 	else if (destination == 0ll || dir->f_pos == 0) {
 		/* rewind to the beginning of directory */
 		xmemset(pos, 0, sizeof *pos);
 		reiser4_stat_inc(dir.readdir.reset);
 		return dir_go_to(dir, pos, tap);
-	}
+	} else if (destination >= inode->i_size)
+		return RETERR(-ENOENT);
 
 	if (shift < 0) {
 		/* I am afraid of negative numbers */
@@ -902,7 +903,7 @@ dir_rewind(struct file *dir, readdir_pos * pos, long long shift, tap_t * tap)
 		if (result == 0) {
 			/* update pos->position.pos */
 			pos->entry_no = destination;
-			pos->fpos += shift;
+			pos->fpos = dir->f_pos;
 		}
 	}
 	return result;
@@ -1020,6 +1021,26 @@ move_entry(readdir_pos * pos, coord_t * coord)
 	++pos->fpos;
 }
 
+#define CLIENT_MASK  (0xffff000000000000ull)
+#define CLIENT_SHIFT (48)
+
+static void
+try_to_attach_fsdata(struct file *f, struct inode *inode)
+{
+	int client;
+	__u64 pos;
+
+	assert("nikita-3544", f != NULL);
+	assert("nikita-3545", inode != NULL);
+
+	pos = f->f_pos;
+	if (pos == 0)
+		/* we are asked to rewind to the beginning of directory. No
+		 * state is needed. */
+		return;
+	client = (pos & CLIENT_MASK) >> CLIENT_SHIFT;
+}
+
 static int
 dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 {
@@ -1029,6 +1050,9 @@ dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 	assert("nikita-1359", f != NULL);
 	inode = f->f_dentry->d_inode;
 	assert("nikita-1360", inode != NULL);
+
+	if (inode_get_flag(inode, REISER4_STATELESS))
+		try_to_attach_fsdata(f, inode);
 
 	if (!S_ISDIR(inode->i_mode))
 		return RETERR(-ENOTDIR);
@@ -1049,7 +1073,7 @@ dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 		 (*pos)->entry_no, (*pos)->fpos);
 
 	/* move @tap to the current position */
-	return dir_rewind(f, *pos, f->f_pos - (*pos)->fpos, tap);
+	return dir_rewind(f, *pos, tap);
 }
 
 /*
