@@ -6,6 +6,7 @@
 #include "../../inode.h"
 #include "../../context.h"
 #include "../../page_cache.h"
+#include "../../carry.h"
 
 #include <linux/quotaops.h>
 #include <asm/uaccess.h>
@@ -76,7 +77,7 @@ reiser4_internal void show_tail(struct seq_file *m, coord_t *coord)
    plugin->u.item.b.check */
 
 /* plugin->u.item.b.nr_units */
-reiser4_internal pos_in_item_t
+reiser4_internal pos_in_node_t
 nr_units_tail(const coord_t *coord)
 {
 	return item_length_by_coord(coord);
@@ -204,43 +205,72 @@ copy_units_tail(coord_t *target, coord_t *source,
 	}
 }
 
-/* plugin->u.item.b.create_hook
-   plugin->u.item.b.kill_hook
-   plugin->u.item.b.shift_hook */
+/* plugin->u.item.b.create_hook */
 
-/* plugin->u.item.b.cut_units
-   plugin->u.item.b.kill_units */
+/* item_plugin->b.kill_hook
+   this is called when @count units starting from @from-th one are going to be removed
+   */
 reiser4_internal int
-cut_units_tail(coord_t *coord, unsigned *from, unsigned *to,
-	       const reiser4_key *from_key UNUSED_ARG,
-	       const reiser4_key *to_key UNUSED_ARG, reiser4_key *smallest_removed,
-	       struct cut_list *p UNUSED_ARG)
+kill_hook_tail(const coord_t *coord UNUSED_ARG, pos_in_node_t from UNUSED_ARG, 
+	       pos_in_node_t count, struct carry_kill_data *kdata)
 {
-	reiser4_key key;
-	unsigned count;
+	assert("vs-1577", kdata);
+	assert("vs-1579", kdata->inode);
+	
+	DQUOT_FREE_SPACE_NODIRTY(kdata->inode, count);
+	return 0;
+}
 
-	count = *to - *from + 1;
-	/* regarless to whether we cut from the beginning or from the end of
-	   item - we have nothing to do */
-	assert("vs-374", count > 0 && count <= (unsigned) item_length_by_coord(coord));
+/* plugin->u.item.b.shift_hook */
+
+/* helper for kill_units_tail and cut_units_tail */
+static int
+do_cut_or_kill(coord_t *coord, pos_in_node_t from, pos_in_node_t to,
+	       reiser4_key *smallest_removed, reiser4_key *new_first)
+{
+	pos_in_node_t count;
+
+	/* this method is only called to remove part of item */
+	assert("vs-374", (to - from + 1) < item_length_by_coord(coord));
 	/* tails items are never cut from the middle of an item */
-	assert("vs-396", ergo(*from != 0, *to == coord_last_unit_pos(coord)));
+	assert("vs-396", ergo(from != 0, to == coord_last_unit_pos(coord)));
+	assert("vs-1558", ergo(from == 0, to < coord_last_unit_pos(coord)));
+
+	count = to - from + 1;
 
 	if (smallest_removed) {
 		/* store smallest key removed */
 		item_key_by_coord(coord, smallest_removed);
-		set_key_offset(smallest_removed, get_key_offset(smallest_removed) + *from);
+		set_key_offset(smallest_removed, get_key_offset(smallest_removed) + from);
 	}
-	if (*from == 0) {
-		/* head of item is removed, update item key therefore */
-		item_key_by_coord(coord, &key);
-		set_key_offset(&key, get_key_offset(&key) + count);
-		node_plugin_by_node(coord->node)->update_item_key(coord, &key, 0 /*info */ );
+	if (new_first) {
+		/* head of item is cut */
+		assert("vs-1529", from == 0);
+
+		item_key_by_coord(coord, new_first);
+		set_key_offset(new_first, get_key_offset(new_first) + from + count);
 	}
 
 	if (REISER4_DEBUG)
-		xmemset((char *) item_body_by_coord(coord) + *from, 0, count);
+		xmemset((char *) item_body_by_coord(coord) + from, 0, count);
 	return count;
+}
+
+/* plugin->u.item.b.cut_units */
+reiser4_internal int
+cut_units_tail(coord_t *coord, pos_in_node_t from, pos_in_node_t to,
+	       struct carry_cut_data *cdata UNUSED_ARG, reiser4_key *smallest_removed, reiser4_key *new_first)
+{
+	return do_cut_or_kill(coord, from, to, smallest_removed, new_first);
+}
+
+/* plugin->u.item.b.kill_units */
+reiser4_internal int
+kill_units_tail(coord_t *coord, pos_in_node_t from, pos_in_node_t to,
+		struct carry_kill_data *kdata, reiser4_key *smallest_removed, reiser4_key *new_first)
+{
+	kill_hook_tail(coord, from, to - from + 1, kdata);
+	return do_cut_or_kill(coord, from, to, smallest_removed, new_first);
 }
 
 /* plugin->u.item.b.unit_key */
@@ -416,12 +446,10 @@ readpage_tail(void *vp, struct page *page)
 
 reiser4_internal int
 item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
-			     hint_t *hint, int back_to_dirty, int do_set_hint)
+			 hint_t *hint, int back_to_dirty, int do_set_hint)
 {
 	int result;
-	loff_t new_size;
-	struct inode *object;
-	int size_changed;
+	struct inode *inode;
 	
 	if (do_set_hint) {
 		if (hint->coord.valid)
@@ -431,11 +459,11 @@ item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 		longterm_unlock_znode(hint->coord.lh);
 	}
 
-	new_size = get_key_offset(&f->key);
-	object = mapping->host;
-	size_changed = new_size > object->i_size;
-	result = update_inode_and_sd_if_necessary(object, new_size,
-						  size_changed, f->user, 1);
+	inode = mapping->host;
+	if (get_key_offset(&f->key) > inode->i_size)
+		INODE_SET_FIELD(inode, i_size, get_key_offset(&f->key));
+	inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+	result = reiser4_update_sd(inode);
 	if (result)
 		return result;
 
@@ -445,11 +473,11 @@ item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 	if (back_to_dirty) {
 		mapping->dirtied_when = jiffies|1;
 		spin_lock(&inode_lock);
-		list_move(&object->i_list, &object->i_sb->s_dirty);
+		list_move(&inode->i_list, &inode->i_sb->s_dirty);
 		spin_unlock(&inode_lock);
 	}
 
-	balance_dirty_page_unix_file(object);
+	balance_dirty_page_unix_file(inode);
 	return hint_validate(hint, &f->key, 0/* do not check key */, ZNODE_WRITE_LOCK);
 }
 
@@ -594,7 +622,7 @@ read_tail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 		count = f->length;
 
 
-	/* FIXME: unlock ! */
+	/* FIXME: unlock long term lock ! */
 
 	if (__copy_to_user(f->data, ((char *) item_body_by_coord(coord) + coord->unit_pos), count))
 		return RETERR(-EFAULT);
