@@ -955,7 +955,7 @@ typedef enum {
 			* the plugin foo */
 } plugin_field;
 
-/* map pseudo files under "a/metas/plugin/foo" to their names
+/* map pseudo files under "a/metas/plugin/foo" to their names */
 static plugin_entry fentry[] = {
 	PSEUDO_ARRAY_ENTRY(PFIELD_TYPEID, "type_id"),
 	PSEUDO_ARRAY_ENTRY(PFIELD_ID, "id"),
