@@ -1300,7 +1300,6 @@ kill_node_content(coord_t * from /* coord of the first unit/item that will be
 		  const reiser4_key * to_key /* last key to be removed */ ,
 		  reiser4_key * smallest_removed	/* smallest key actually
 							 * removed */ ,
-		  unsigned flags /* cut flags */ ,
 		  znode * locked_left_neighbor,	/* this is set when kill_node_content is called with left neighbor
 						 * locked (in squalloc_right_twig_cut, namely) */
 		  struct inode *inode /* inode of file whose item (or its part) is to be killed. This is necessary to
@@ -1316,7 +1315,8 @@ kill_node_content(coord_t * from /* coord of the first unit/item that will be
 
 	assert("umka-328", from != NULL);
 	assert("vs-316", !node_is_empty(from->node));
-
+	assert("nikita-1812", coord_is_existing_unit(from) && coord_is_existing_unit(to));
+#if 0
 	if (coord_eq(from, to) && !coord_is_existing_unit(from)) {
 		assert("nikita-1812", !coord_is_existing_unit(to));	/* Napoleon defeated */
 		return 0;
@@ -1332,6 +1332,7 @@ kill_node_content(coord_t * from /* coord of the first unit/item that will be
 	   node */
 	assert("vs-161", coord_is_existing_unit(from));
 	assert("vs-162", coord_is_existing_unit(to));
+#endif
 
 	init_lh(&left_child);
 	init_lh(&right_child);
@@ -1341,8 +1342,7 @@ kill_node_content(coord_t * from /* coord of the first unit/item that will be
 	kdata.params.from_key = from_key;
 	kdata.params.to_key = to_key;
 	kdata.params.smallest_removed = smallest_removed;
-	assert("vs-1570", flags == DELETE_RETAIN_EMPTY || flags == 0);
-	kdata.flags = flags;
+	kdata.flags = 0;
 	kdata.inode = inode;
 	kdata.left = &left_child;
 	kdata.right = &right_child;
@@ -1598,7 +1598,6 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 						   from_key,
 						   to_key,
 						   smallest_removed,
-						   0,
 						   next_node_lock.node,
 						   object);
 			tap_relse(tap);
