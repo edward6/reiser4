@@ -6,9 +6,9 @@
  * plugin->u.item.common.*
  */
 reiser4_key * tail_max_key_inside  (const coord_t *, reiser4_key *);
-int           tail_can_contain_key ( const coord_t *coord,
-				      const reiser4_key *key,
-				      const reiser4_item_data * );
+int           tail_can_contain_key (const coord_t *coord,
+				    const reiser4_key *key,
+				    const reiser4_item_data *);
 int           tail_mergeable       (const coord_t * p1,
 				    const coord_t * p2);
 unsigned      tail_nr_units        (const coord_t *);
@@ -38,5 +38,5 @@ int           tail_key_in_item     (coord_t * coord, const reiser4_key * key);
  */
 int tail_write (struct inode *, struct sealed_coord *, flow_t *,
 		struct page *);
-int tail_read  (struct inode *, coord_t *, lock_handle *, flow_t *);
+int tail_read  (struct inode *, struct sealed_coord *, flow_t *);
 
