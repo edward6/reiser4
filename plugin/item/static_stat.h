@@ -97,11 +97,17 @@ typedef enum {
    exist, you need compressed item headers to make the solution
    complete.  Not until v4.1, or later.  */
 /* NIKITA-FIXME-HANS: read the above */
+/* HANS-FIXME-ZAM: it would be better to see light-weight files before changing
+ * stat_data_base. Do you have a proof that they do not need this? */
 /** minimal stat-data. This allows to support light-weight files. */
 typedef struct reiser4_stat_data_base {
+	/*  0 */ d16 mode;
 	/** bitmask indicating what pieces of data (extensions) follow
 	    this minimal stat-data */
 	/*  2 */ d16 extmask;
+	/*  4 */ d32 nlink;
+	/*  8 */ d64 size;	/* size in bytes */
+	/* 16 */
 } reiser4_stat_data_base;
 
 typedef struct reiser4_unix_stat {
@@ -116,9 +122,6 @@ typedef struct reiser4_unix_stat {
 } reiser4_unix_stat;
 
 /** symlink stored as part of inode */
-
-?
-
 typedef struct reiser4_symlink_stat {
 	char body[ 0 ];
 } reiser4_symlink_stat;
