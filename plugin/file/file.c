@@ -149,7 +149,6 @@ static int get_next_item (coord_t * coord, lock_handle * lh,
 					     coord->node, (int)lock_mode,
 					     GN_DO_READ );
 	if (result == 0) {
-		zrelse (coord->node);
 		done_lh (lh);
 		
 		result = zload (lh_right_neighbor.node);
@@ -157,6 +156,7 @@ static int get_next_item (coord_t * coord, lock_handle * lh,
 			return result;
 		coord_init_first_unit (coord, lh_right_neighbor.node);
 		move_lh (lh, &lh_right_neighbor);
+		zrelse (lh_right_neighbor.node);
 	}
 	return result;	
 }
@@ -398,16 +398,24 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 			 * -EIO */
 			break;
 
+		result = zload (coord.node);
+		if (result) {
+			break;
+		}
+
 		/* call read method of found item */
 		iplug = item_plugin_by_coord (&coord);
 		if (!iplug->s.file.read) {
 			result = -EINVAL;
+			zrelse (coord.node);
 			break;
 		}
 		
 		result = iplug->s.file.read (inode, &coord, &lh, &f);
-		if (result)
+		zrelse (coord.node);
+		if (result) {
 			break;
+		}
 	}
 
 #ifdef NEW_READ_IS_READY

@@ -461,8 +461,8 @@ int extent2tail (struct file * file)
 			if (item_id_by_coord (&coord) == EXTENT_POINTER_ID) {
 				do_conversion = 1;
 			}
-			zrelse (coord.node);
 		}
+		zrelse (coord.node);
 		done_lh (&lh);
 		if (!do_conversion) {
 			assert ("vs-590", CBK_COORD_FOUND == 0);
