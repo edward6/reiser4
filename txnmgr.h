@@ -280,6 +280,15 @@ struct txn_atom {
 	   dirty_nodes[level] and clean_nodes lists. */
 	__u32 capture_count;
 
+#if REISER4_DEBUG
+	int clean;
+	int dirty;
+	int ovrwr;
+	int wb;
+	int fq;
+	int protect;
+#endif
+
 	__u32 flushed;
 
 	/* Current transaction stage. */
@@ -297,16 +306,16 @@ struct txn_atom {
 
 	/* The transaction's list of dirty captured nodes--per level.  Index
 	   by (level). dirty_nodes[0] is for znode-above-root */
-	capture_list_head dirty_nodes[REAL_MAX_ZTREE_HEIGHT + 1];
+	capture_list_head dirty_nodes1[REAL_MAX_ZTREE_HEIGHT + 1];
 
 	/* The transaction's list of clean captured nodes. */
-	capture_list_head clean_nodes;
+	capture_list_head clean_nodes1;
 
 	/* The atom's overwrite set */
-	capture_list_head ovrwr_nodes;
+	capture_list_head ovrwr_nodes1;
 
 	/* nodes which are being written to disk */
-	capture_list_head writeback_nodes;
+	capture_list_head writeback_nodes1;
 
 	/* list of inodes */
 	capture_list_head inodes;
@@ -354,6 +363,16 @@ struct txn_atom {
 	void *committer;
 #endif
 };
+
+#define ATOM_DIRTY_LIST(atom, level) (&(atom)->dirty_nodes1[level])
+#define ATOM_CLEAN_LIST(atom) (&(atom)->clean_nodes1)
+#define ATOM_OVRWR_LIST(atom) (&(atom)->ovrwr_nodes1)
+#define ATOM_WB_LIST(atom) (&(atom)->writeback_nodes1)
+#define ATOM_FQ_LIST(fq) (&(fq)->prepped1)
+
+#define NODE_LIST(node) (node)->list1
+#define ASSIGN_NODE_LIST(node, list) ON_DEBUG(NODE_LIST(node) = list)
+ON_DEBUG(void count_jnode(txn_atom *, jnode *, atom_list old_list, atom_list new_list, int check_lists));
 
 typedef struct protected_jnodes {
 	prot_list_link inatom;
@@ -567,7 +586,7 @@ struct flush_queue {
 	flush_queue_state_t state;
 	/* A list which contains queued nodes, queued nodes are removed from any
 	 * atom's list and put on this ->prepped one. */
-	capture_list_head prepped;
+	capture_list_head prepped1;
 	/* number of submitted i/o requests */
 	atomic_t nr_submitted;
 	/* number of i/o errors */
