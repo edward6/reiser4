@@ -1489,8 +1489,6 @@ reiser4_drop_inode(struct inode *object)
 		   unallocated extent will be flushed to the disk.
 		*/
 		__REISER4_ENTRY(object->i_sb,);
-
-		INODE_SET_FIELD(object, i_nlink, 0);
 		generic_delete_inode(object);
 		(void)reiser4_exit_context(&__context);
 	} else
