@@ -116,11 +116,11 @@ typedef struct reiser4_super_info_data {
 
 } reiser4_super_info_data;
 
-extern reiser4_super_info_data *reiser4_get_super_private_nocheck( const struct super_block *super );
+extern reiser4_super_info_data *get_super_private_nocheck( const struct super_block *super );
 
-extern reiser4_super_info_data *reiser4_get_super_private( const struct super_block *super );
+extern reiser4_super_info_data *get_super_private( const struct super_block *super );
 
-extern reiser4_super_info_data *reiser4_get_current_super_private( void );
+extern reiser4_super_info_data *get_current_super_private( void );
 
 extern const __u32 REISER4_SUPER_MAGIC;
 

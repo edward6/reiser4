@@ -293,8 +293,8 @@ static int unix_sd_present( struct inode *inode, char **area, int *len )
 
 static int unix_sd_absent( struct inode *inode )
 {
-	inode -> i_uid = reiser4_get_super_private( inode -> i_sb ) -> default_uid;
-	inode -> i_gid = reiser4_get_super_private( inode -> i_sb ) -> default_gid;
+	inode -> i_uid = get_super_private( inode -> i_sb ) -> default_uid;
+	inode -> i_gid = get_super_private( inode -> i_sb ) -> default_gid;
 	inode -> i_atime = inode -> i_mtime = inode -> i_ctime = CURRENT_TIME;
 	get_object_state( inode ) -> bytes = inode -> i_size;
 	/* mark inode as lightweight, so that caller (reiser4_lookup)

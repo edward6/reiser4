@@ -90,7 +90,7 @@ int init_formatted_fake( struct super_block *super )
 		fake -> i_size    = ~0ull;
 		fake -> i_rdev    = super -> s_dev;
 		fake -> i_bdev    = super -> s_bdev;
-		reiser4_get_super_private( super ) -> fake = fake;
+		get_super_private( super ) -> fake = fake;
 		/*
 		 * FIXME-NIKITA something else?
 		 */

@@ -250,7 +250,7 @@ static inline int load_bnode_half (znode ** node_pp, block_nr block)
 /* load bitmap blocks "on-demand" */
 static int load_bnode (struct reiser4_bnode * bnode)
 {
-	reiser4_super_info_data * info_data = reiser4_get_current_super_private(); 
+	reiser4_super_info_data * info_data = get_current_super_private(); 
 	struct super_block * super = reiser4_get_current_context()->super;
 	int ret = 0;
 	int bmap_nr = info_data->bitmap - bnode;
@@ -311,7 +311,7 @@ static void release_bnode(struct reiser4_bnode * bnode)
 static int search_one_bitmap (int bmap, int *offset, int max_offset, 
 			      int min_len, int max_len)
 {
-	reiser4_super_info_data * info_data = reiser4_get_current_super_private(); 
+	reiser4_super_info_data * info_data = get_current_super_private(); 
 	struct reiser4_bnode * bnode = &info_data->bitmap[bmap];
 
 	int search_end;
@@ -401,7 +401,7 @@ int bitmap_alloc (block_nr *start, block_nr end, int min_len, int max_len)
 /** bitmap structure initialization */
 int reiser4_init_bitmap (struct super_block * super)
 {
-	reiser4_super_info_data * info_data = reiser4_get_super_private(super); 
+	reiser4_super_info_data * info_data = get_super_private(super); 
 	int bitmap_blocks_nr;
 
 	bitmap_blocks_nr = get_nr_bmap(super); 
@@ -420,7 +420,7 @@ int reiser4_init_bitmap (struct super_block * super)
 /** bitmap structure proper destroying */
 void reiser4_done_bitmap (struct super_block * super)
 {
-	reiser4_super_info_data * info_data = reiser4_get_super_private(super); 
+	reiser4_super_info_data * info_data = get_super_private(super); 
 	int bitmap_blocks_nr;
 	int i;
 
@@ -463,7 +463,7 @@ void reiser4_done_bitmap (struct super_block * super)
  * get_next_fake_blocknr()  */
 int alloc_new_unf_blocks (int count) 
 {
-	reiser4_super_info_data * info_data = reiser4_get_current_super_private();
+	reiser4_super_info_data * info_data = get_current_super_private();
 	int ret = 0;
 
 	spin_lock (&info_data->guard);
@@ -481,7 +481,7 @@ int alloc_new_unf_blocks (int count)
 /** allocate one block for formatted node */
 int alloc_new_block (block_nr * block)
 {
-	reiser4_super_info_data * info_data = reiser4_get_current_super_private();
+	reiser4_super_info_data * info_data = get_current_super_private();
 	int ret = 0;
 
 	spin_lock (&info_data->guard);
@@ -501,7 +501,7 @@ int alloc_new_block (block_nr * block)
 void dealloc_new_blocks (int count)
 {
 	struct super_block * super = reiser4_get_current_context()->super;
-	reiser4_super_info_data * info_data = reiser4_get_super_private(super);
+	reiser4_super_info_data * info_data = get_super_private(super);
 
 	spin_lock (&info_data->guard);
 
@@ -517,7 +517,7 @@ void dealloc_new_blocks (int count)
 int reiser4_alloc_blocks (struct reiser4_blocknr_hint * hint UNUSED_ARG, block_nr *start, int *len)
 {
 	struct super_block      * super = reiser4_get_current_context()->super;
-	reiser4_super_info_data * info_data = reiser4_get_super_private(super); 
+	reiser4_super_info_data * info_data = get_super_private(super); 
 
 	int      actual_len;
 
@@ -561,7 +561,7 @@ int reiser4_alloc_blocks (struct reiser4_blocknr_hint * hint UNUSED_ARG, block_n
 /** Block deallocation. */
 void reiser4_dealloc_block (jnode *node)
 {
-	reiser4_super_info_data * info_data = reiser4_get_current_super_private(); 
+	reiser4_super_info_data * info_data = get_current_super_private(); 
 
 	txn_atom * atom = node->atom;
 
@@ -610,7 +610,7 @@ void reiser4_dealloc_block (jnode *node)
  * BITMAP blocks, copy COMMIT BITMAP blocks data). */
 int block_alloc_pre_commit_hook (txn_atom * atom)
 {
-	reiser4_super_info_data * info_data = reiser4_get_current_super_private(); 
+	reiser4_super_info_data * info_data = get_current_super_private(); 
 	int ret = 0;
 	WALK_ATOM_VARS;
 
@@ -678,7 +678,7 @@ int block_alloc_pre_commit_hook (txn_atom * atom)
 
 /** called after transaction commit, apply DELETE SET to WORKING BITMAP */
 int block_alloc_post_commit_hook (txn_atom * atom) {
-	reiser4_super_info_data * info_data = reiser4_get_current_super_private(); 
+	reiser4_super_info_data * info_data = get_current_super_private(); 
 	int ret = 0;
 	WALK_ATOM_VARS;
 
@@ -731,7 +731,7 @@ int block_alloc_post_commit_hook (txn_atom * atom) {
  * WORKING BITMAP) */
 int block_alloc_post_writeback_hook (txn_atom * atom)
 {
-	reiser4_super_info_data * info_data = reiser4_get_current_super_private();
+	reiser4_super_info_data * info_data = get_current_super_private();
 	int ret = 0;
 	WALK_ATOM_VARS;
 

@@ -2682,7 +2682,7 @@ void* build_test_handler (void* arg)
 		
 		REISER4_ENTRY_PTR (super);
 
-		tree = & reiser4_get_super_private (super)->tree;
+		tree = & get_super_private (super)->tree;
 		
 		spin_lock (& _jmacd_items_created_lock);
 		if (_jmacd_items_created == _jmacd_items) {
@@ -2751,7 +2751,7 @@ void* drive_test_handler (void* arg)
 		
 		REISER4_ENTRY_PTR (super);
 
-		tree = & reiser4_get_super_private (super)->tree;
+		tree = & get_super_private (super)->tree;
 	again:
 		item = sys_lrand (_jmacd_items);
 
@@ -2985,9 +2985,9 @@ int real_main( int argc, char **argv )
 	super.s_op = &reiser4_super_operations;
 	super.s_root = &root_dentry;
 
-	xmemset( &reiser4_get_current_super_private() -> stats, 0, 
-		sizeof reiser4_get_current_super_private() -> stats );
-	txn_mgr_init( &reiser4_get_super_private (&super) -> tmgr );
+	xmemset( &get_current_super_private() -> stats, 0, 
+		sizeof get_current_super_private() -> stats );
+	txn_mgr_init( &get_super_private (&super) -> tmgr );
 
 	root_dentry.d_inode = NULL;
 	init_oid_allocator( reiser4_get_oid_allocator( &super ) );
@@ -3033,7 +3033,7 @@ int real_main( int argc, char **argv )
 			tree_height = 1;
 	}
 
-	tree = &reiser4_get_super_private( &super ) -> tree;
+	tree = &get_super_private( &super ) -> tree;
 	result = reiser4_init_tree( tree, &root_block,
 				    1, node_plugin_by_id( NODE40_ID ),
 				    ulevel_read_node );

@@ -7,7 +7,7 @@
  * or calculated on fly; it depends on disk format. */
 int get_nr_bmap (struct super_block * super)
 {
-	reiser4_super_info_data * info_data = reiser4_get_super_private(super); 
+	reiser4_super_info_data * info_data = get_super_private(super); 
 
 	assert ("zam-391", super->s_blocksize > 0);
 	assert ("zam-392", info_data != NULL);

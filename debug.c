@@ -96,7 +96,7 @@ void reiser4_print_stats()
 	reiser4_stat *s;
 	int           i;
 
-	s = &reiser4_get_current_super_private() -> stats;
+	s = &get_current_super_private() -> stats;
 	info( "tree:" 
 	      "\t cbk:\t %lli\n"
 	      "\t cbk_found:\t %lli\n"
@@ -263,7 +263,7 @@ __u32 get_current_trace_flags( void )
 {
 	return 
 		reiser4_get_current_context() -> trace_flags | 
-		reiser4_get_current_super_private() -> trace_flags |
+		get_current_super_private() -> trace_flags |
 		reiser4_current_trace_flags;
 }
 
@@ -274,10 +274,10 @@ __u32 get_current_trace_flags( void )
  */
 void *reiser4_kmalloc( size_t size, int gfp_flag )
 {
-	assert( "nikita-1407", reiser4_get_current_super_private() != NULL );
+	assert( "nikita-1407", get_current_super_private() != NULL );
 	assert( "nikita-1408", lock_counters() -> spin_locked == 0 );
 
-	ON_DEBUG( reiser4_get_current_super_private() -> kmalloc_allocated += size );
+	ON_DEBUG( get_current_super_private() -> kmalloc_allocated += size );
 	return kmalloc( size, gfp_flag );
 }
 
@@ -288,12 +288,12 @@ void *reiser4_kmalloc( size_t size, int gfp_flag )
 void  reiser4_kfree( void *area, size_t size UNUSED_ARG )
 {
 	assert( "nikita-1410", area != NULL );
-	assert( "nikita-1411", reiser4_get_current_super_private() != NULL );
+	assert( "nikita-1411", get_current_super_private() != NULL );
 	assert( "nikita-1412", 
-		reiser4_get_current_super_private() -> kmalloc_allocated >= ( int ) size );
+		get_current_super_private() -> kmalloc_allocated >= ( int ) size );
 
 	kfree( area );
-	ON_DEBUG( reiser4_get_current_super_private() -> kmalloc_allocated -= size );
+	ON_DEBUG( get_current_super_private() -> kmalloc_allocated -= size );
 }
 
 

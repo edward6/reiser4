@@ -18,7 +18,7 @@ static __u64 reserved_for_root( const struct super_block *super );
  * Return reiser4-specific part of super block
  */
 reiser4_super_info_data *
-reiser4_get_super_private_nocheck( const struct super_block *super )
+get_super_private_nocheck( const struct super_block *super )
 {
 	return ( reiser4_super_info_data * )&super -> u.reiser4_sb;
 }
@@ -26,7 +26,7 @@ reiser4_get_super_private_nocheck( const struct super_block *super )
 /**
  * Return reiser4-specific part of super block
  */
-reiser4_super_info_data *reiser4_get_super_private( const struct super_block *super )
+reiser4_super_info_data *get_super_private( const struct super_block *super )
 {
 	assert( "nikita-447", super != NULL );
 	/* If you got compilation error at this point, go to the
@@ -65,7 +65,7 @@ long reiser4_data_blocks( const struct super_block *super )
 {
 	assert( "nikita-452", super != NULL );
 	assert( "nikita-453", is_reiser4_super( super ) );
-	return reiser4_get_super_private( super ) -> blocks_used;
+	return get_super_private( super ) -> blocks_used;
 }
 
 /**
@@ -75,7 +75,7 @@ long reiser4_free_blocks( const struct super_block *super )
 {
 	assert( "nikita-454", super != NULL );
 	assert( "nikita-455", is_reiser4_super( super ) );
-	return reiser4_get_super_private( super ) -> blocks_free;
+	return get_super_private( super ) -> blocks_free;
 }
 
 /**
@@ -106,7 +106,7 @@ reiser4_oid_allocator_t *reiser4_get_oid_allocator( const struct super_block *su
 {
 	assert( "nikita-458", super != NULL );
 	assert( "nikita-459", is_reiser4_super( super ) );
-	return &reiser4_get_super_private( super ) -> allocator;
+	return &get_super_private( super ) -> allocator;
 }
 
 /**
@@ -115,7 +115,7 @@ reiser4_oid_allocator_t *reiser4_get_oid_allocator( const struct super_block *su
 struct inode *reiser4_get_super_fake( const struct super_block *super )
 {
 	assert( "nikita-1757", super != NULL );
-	return reiser4_get_super_private( super ) -> fake;
+	return get_super_private( super ) -> fake;
 }
 
 /**
@@ -125,7 +125,7 @@ reiser4_tree *reiser4_get_tree( const struct super_block *super )
 {
 	assert( "nikita-460", super != NULL );
 	assert( "nikita-461", is_reiser4_super( super ) );
-	return &reiser4_get_super_private( super ) -> tree;
+	return &get_super_private( super ) -> tree;
 }
 
 /**
@@ -140,7 +140,7 @@ reiser4_tree *reiser4_get_tree( const struct super_block *super )
  */
 int reiser4_adg( const struct super_block *super )
 {
-	return reiser4_get_super_private( super ) -> adg;
+	return get_super_private( super ) -> adg;
 }
 
 /**
@@ -158,9 +158,9 @@ int is_reiser4_super( const struct super_block *super )
  * during current system call. Reference to this super block is stored in
  * reiser4_context.
  */
-reiser4_super_info_data *reiser4_get_current_super_private( void )
+reiser4_super_info_data *get_current_super_private( void )
 {
-	return reiser4_get_super_private( reiser4_get_current_sb() );
+	return get_super_private( reiser4_get_current_sb() );
 }
 
 /**
@@ -178,7 +178,7 @@ struct super_block *reiser4_get_current_sb()
 __u32 reiser4_new_inode_generation( const struct super_block *super )
 {
 	assert( "nikita-464", is_reiser4_super( super ) );
-	return reiser4_get_super_private( super ) -> inode_generation;
+	return get_super_private( super ) -> inode_generation;
 }
 
 /**
