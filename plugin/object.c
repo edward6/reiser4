@@ -434,8 +434,19 @@ int common_file_delete( struct inode *inode /* object to remove */,
 
 		build_sd_key( inode, &sd_key );
 		result = cut_tree( tree_by_inode( inode ), &sd_key, &sd_key );
-		if( result == 0 )
+		if( result == 0 ) {
+			oid_allocator_plugin *oplug;
+
 			*reiser4_inode_flags( inode ) &= ~REISER4_NO_STAT_DATA;
+			assert( "nikita-1902", 
+				get_super_private( inode -> i_sb ) );
+			oplug = get_super_private( inode -> i_sb ) -> oid_plug;
+			assert( "nikita-1903", ( oplug != NULL ) && 
+				( oplug -> release_oid != NULL ) );
+			result = oplug -> release_oid
+				( get_oid_allocator( inode -> i_sb ), 
+				  ( oid_t ) inode -> i_ino );
+		}
 	} else
 		result = 0;
 	return result;
@@ -513,18 +524,18 @@ int common_file_owns_item( const struct inode *inode /* object to check
  * Default method to construct flow into @f according to user-supplied
  * data.
  */
-int common_build_flow( struct inode *inode /* file to build flow for */, 
-		       void *data,
-		       buf_or_page what,
+static int common_build_flow( struct inode *inode /* file to build flow for */, 
+			      void *data,
+			      int what,
 #if 0
-		       char *buf /* user level buffer */,
-		       int user /* 1 if @buf is of user space, 0 - if it is
-				 * kernel space */,
+			      char *buf /* user level buffer */,
+			      int user /* 1 if @buf is of user space, 0 - if
+					* it is kernel space */,
 #endif
-		       size_t size /* buffer size */, 
-		       loff_t off /* offset to start io from */, 
-		       rw_op op UNUSED_ARG /* io operation */, 
-		       flow_t *f /* resulting flow */ )
+			      size_t size /* buffer size */, 
+			      loff_t off /* offset to start io from */, 
+			      rw_op op UNUSED_ARG /* io operation */, 
+			      flow_t *f /* resulting flow */ )
 {
 	assert( "nikita-1100", inode != NULL );
 
