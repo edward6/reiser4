@@ -1505,8 +1505,12 @@ unix_file_delete(struct inode *inode)
 		inode->i_size = 0;
 		result = unix_file_truncate(inode, 0);
 		drop_exclusive_access(inode);
-		if (result)
+		if (result) {
+			warning("nikita-2848",
+				"Cannot truncate unnamed file %lli. Run fsck",
+				get_inode_oid(inode));
 			return result;
+		}
 	}
 	return common_file_delete(inode);
 }

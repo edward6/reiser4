@@ -535,9 +535,13 @@ common_file_delete(struct inode *inode /* object to remove */ )
 		reiser4_block_nr reserve;
 
 		/* grab space which is needed to remove one item from the tree */
-		if (reiser4_grab_space_exact(reserve = estimate_one_item_removal(tree_by_inode(inode)->height),
-					     BA_RESERVED | BA_CAN_COMMIT))
+		if (reiser4_grab_space_force(reserve = estimate_one_item_removal(tree_by_inode(inode)->height),
+					     BA_RESERVED | BA_CAN_COMMIT)) {
+			warning("nikita-2847", 
+				"Cannot delete unnamed sd of %lli. Run fsck", 
+				get_inode_oid(inode));
 			return -ENOSPC;
+		}
 
 		trace_on(TRACE_RESERVE, 
 			 "file delete grabs %llu block.\n", reserve);
