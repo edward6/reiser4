@@ -2102,7 +2102,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			mkdir_thread( &info );
 
 		call_readdir( f, argv[ 2 ] );
-		// print_tree_rec( "tree-dir", tree, REISER4_TREE_CHECK_ALL );
+		print_tree_rec( "tree-dir", tree, REISER4_TREE_CHECK_ALL );
 	} else if( !strcmp( argv[ 2 ], "queue" ) ) {
 		/*
 		 * a.out nikita queue T C O | egrep '^queue' | cut -f2 -d' '
@@ -2205,7 +2205,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			done_lh( &lh );
 
 		}
-		// print_tree_rec( "tree:ibk", tree, REISER4_TREE_CHECK_ALL );
+		print_tree_rec( "tree:ibk", tree, REISER4_TREE_CHECK_ALL );
 	} else if( !strcmp( argv[ 2 ], "inode" ) ) {
 		struct inode f;
 		xmemset( &f, 0, sizeof f );
@@ -2279,7 +2279,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		}
 		ret = cut_tree( tree, min_key(), max_key() );
 		printf( "result: %i\n", ret );
-		// print_tree_rec( "tree:cut", tree, REISER4_TREE_CHECK_ALL );
+		print_tree_rec( "tree:cut", tree, REISER4_TREE_CHECK_ALL );
 	} else if( !strcmp( argv[ 2 ], "sizeof" ) ) {
 		STYPE( reiser4_key );
 		STYPE( reiser4_tree );
