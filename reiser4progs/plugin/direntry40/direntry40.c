@@ -259,14 +259,6 @@ static errno_t direntry40_print(reiser4_body_t *body,
     return -1;
 }
 
-static int direntry40_internal(void) {
-    return 0;
-}
-
-static int direntry40_compound(void) {
-    return 1;
-}
-
 /* 
     Helper function that is used by lookup method for getting n-th element of 
     direntry.
@@ -356,6 +348,7 @@ static reiser4_plugin_t direntry40_plugin = {
 	    .label = "direntry40",
 	    .desc = "Compound direntry for reiserfs 4.0, ver. " VERSION,
 	},
+	.t = DIRENTRY_ITEM_TYPE,
 	.common = {
 #ifndef ENABLE_COMPACT	    
 	    .init	= direntry40_init,
@@ -374,10 +367,7 @@ static reiser4_plugin_t direntry40_plugin = {
 	    .print	= direntry40_print,
 	    .lookup	= direntry40_lookup,
 	    .maxkey	= direntry40_maxkey,
-	    .count	= direntry40_count,
-	   
-	    .internal	= direntry40_internal,
-	    .compound	= direntry40_compound
+	    .count	= direntry40_count
 	},
 	.specific = {
 	    .direntry = { 

@@ -68,7 +68,7 @@ struct reiser4_profile {
     } dir;
     
     struct {
-	rid_t reg;
+	rid_t regular;
 	rid_t symlink;
 	rid_t special;      
     } file;

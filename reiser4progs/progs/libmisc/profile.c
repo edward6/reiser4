@@ -15,7 +15,7 @@ static reiser4_profile_t reiser4profiles[] = {
 	    .dir	= DIR_DIR40_ID,
 	},
 	.file = {
-	    .reg	= FILE_REG40_ID, 
+	    .regular	= FILE_REGULAR40_ID, 
 	    .symlink	= FILE_SYMLINK40_ID,
 	    .special	= FILE_SPECIAL40_ID,
 	},
@@ -47,7 +47,7 @@ static reiser4_profile_t reiser4profiles[] = {
 	    .dir	= DIR_DIR40_ID,
 	},
 	.file = {
-	    .reg	= FILE_REG40_ID, 
+	    .regular	= FILE_REGULAR40_ID, 
 	    .symlink	= FILE_SYMLINK40_ID,
 	    .special	= FILE_SPECIAL40_ID,
 	},
@@ -79,7 +79,7 @@ static reiser4_profile_t reiser4profiles[] = {
 	    .dir	= DIR_DIR40_ID,
 	},
 	.file = {
-	    .reg	= FILE_REG40_ID, 
+	    .regular	= FILE_REGULAR40_ID, 
 	    .symlink	= FILE_SYMLINK40_ID,
 	    .special	= FILE_SPECIAL40_ID,
 	},
@@ -195,7 +195,7 @@ static rid_t *progs_profile_field(reiser4_profile_t *profile,
 	case PROGS_NODE_PLUGIN:
 	    return &profile->node;
 	case PROGS_FILE_PLUGIN:
-	    return &profile->file.reg;
+	    return &profile->file.regular;
 	case PROGS_DIR_PLUGIN:
 	    return &profile->dir.dir;
 	case PROGS_SYMLINK_PLUGIN:

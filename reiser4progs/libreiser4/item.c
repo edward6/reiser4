@@ -1,5 +1,5 @@
 /*
-    item.c -- coomon reiser4 item functions.
+    item.c -- common reiser4 item functions.
     Copyright 1996-2002 (C) Hans Reiser.
     Author Yury Umanets.
 */
@@ -38,9 +38,8 @@ errno_t reiser4_item_open(reiser4_item_t *item,
 	return -1;
     }
 	    
-    item->body = plugin_call(return -1, 
-	node->entity->plugin->node_ops, item_body, 
-	node->entity, pos);
+    item->body = plugin_call(return -1, node->entity->plugin->node_ops, 
+	item_body, node->entity, pos);
     
     if (!item->body) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -49,9 +48,8 @@ errno_t reiser4_item_open(reiser4_item_t *item,
 	return -1;
     }
 
-    item->len = plugin_call(return -1, 
-	node->entity->plugin->node_ops, item_len, 
-	node->entity, pos);
+    item->len = plugin_call(return -1, node->entity->plugin->node_ops, 
+	item_len, node->entity, pos);
     
     item->node = node;
     item->pos = pos;
@@ -131,35 +129,105 @@ errno_t reiser4_item_estimate(
 
 #endif
 
+int reiser4_item_permissn(reiser4_item_t *item) {
+    aal_assert("umka-1100", item != NULL, return 0);
+    aal_assert("umka-1101", item->plugin != NULL, return 0);
+
+    return item->plugin->h.type == ITEM_PLUGIN_TYPE &&
+	item->plugin->item_ops.t == PERMISSN_ITEM_TYPE;
+}
+
+int reiser4_item_filebody(reiser4_item_t *item) {
+    aal_assert("umka-1098", item != NULL, return 0);
+    aal_assert("umka-1099", item->plugin != NULL, return 0);
+
+    return item->plugin->h.type == ITEM_PLUGIN_TYPE &&
+	item->plugin->item_ops.t == FILEBODY_ITEM_TYPE;
+}
+
+int reiser4_item_direntry(reiser4_item_t *item) {
+    aal_assert("umka-1096", item != NULL, return 0);
+    aal_assert("umka-1097", item->plugin != NULL, return 0);
+
+    return item->plugin->h.type == ITEM_PLUGIN_TYPE &&
+	item->plugin->item_ops.t == DIRENTRY_ITEM_TYPE;
+}
+
+int reiser4_item_statdata(reiser4_item_t *item) {
+    aal_assert("umka-1094", item != NULL, return 0);
+    aal_assert("umka-1095", item->plugin != NULL, return 0);
+
+    return item->plugin->h.type == ITEM_PLUGIN_TYPE &&
+	item->plugin->item_ops.t == STATDATA_ITEM_TYPE;
+}
+
+uint16_t reiser4_item_get_smode(reiser4_item_t *item) {
+    aal_assert("umka-1102", item != NULL, return 0);
+    aal_assert("umka-1103", item->plugin != NULL, return 0);
+    aal_assert("umka-1104", item->body != NULL, return 0);
+
+    /* Checking if specified item is a statdata item */
+    if (!reiser4_item_statdata(item)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "An attempt to get access mode from non-statdata item.");
+	return 0;
+    }
+    
+    return plugin_call(return 0, item->plugin->item_ops.specific.statdata, 
+	get_mode, item->body);
+}
+
+#ifndef ENABLE_COMPACT
+
+errno_t reiser4_item_set_smode(reiser4_item_t *item, 
+    uint16_t mode) 
+{
+    aal_assert("umka-1105", item != NULL, return 0);
+    aal_assert("umka-1106", item->plugin != NULL, return 0);
+    aal_assert("umka-1107", item->body != NULL, return 0);
+
+    /* Checking if specified item is a statdata item */
+    if (!reiser4_item_statdata(item)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "An attempt to get access mode from non-statdata item.");
+	return -1;
+    }
+    
+    return plugin_call(return -1, item->plugin->item_ops.specific.statdata, 
+	set_mode, item->body, mode);
+}
+
+#endif
+
 int reiser4_item_internal(reiser4_item_t *item) {
     aal_assert("vpf-042", item != NULL, return 0);
     aal_assert("umka-1072", item->plugin != NULL, return 0);
 
-    return item->plugin->item_ops.common.internal && 
-	item->plugin->item_ops.common.internal();
+    return item->plugin->h.type == ITEM_PLUGIN_TYPE &&
+	item->plugin->item_ops.t == INTERNAL_ITEM_TYPE;
 }
 
 /* Returns node pointer from internal node */
-blk_t reiser4_item_target(reiser4_item_t *item) {
+blk_t reiser4_item_get_iptr(reiser4_item_t *item) {
     aal_assert("vpf-041", item != NULL, return 0);
     aal_assert("umka-1073", item->body != NULL, return 0);
     aal_assert("umka-1074", item->plugin != NULL, return 0);
     
-    /* Checking if specified item isn't an internal item */
+    /* Checking if specified item is an internal item */
     if (!reiser4_item_internal(item)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "An attempt to get the node pointer from non-internal item.");
 	return 0;
     }
     
-    return plugin_call(return 0, 
-	item->plugin->item_ops.specific.internal, target, item->body);
+    return plugin_call(return 0, item->plugin->item_ops.specific.internal, 
+	get_ptr, item->body);
 }
 
 #ifndef ENABLE_COMPACT
 
 /* Updates node pointer in internal item specified by "pos" */
-errno_t reiser4_item_pointo(reiser4_item_t *item,
+errno_t reiser4_item_set_iptr(reiser4_item_t *item,
     blk_t blk) 
 {
     aal_assert("umka-607", item != NULL, return -1);
@@ -175,8 +243,8 @@ errno_t reiser4_item_pointo(reiser4_item_t *item,
     }
     
     /* Calling node plugin for handling */
-    return plugin_call(return -1, 
-	item->plugin->item_ops.specific.internal, pointo, item->body, blk);
+    return plugin_call(return -1, item->plugin->item_ops.specific.internal, 
+	set_ptr, item->body, blk);
 }
 
 #endif

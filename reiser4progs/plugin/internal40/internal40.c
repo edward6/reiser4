@@ -20,8 +20,8 @@ static errno_t internal40_init(reiser4_body_t *body,
     aal_assert("vpf-063", body != NULL, return -1); 
     aal_assert("vpf-064", hint != NULL, return -1);
 
-    it40_set_pointer((internal40_t *)body, 
-	((reiser4_internal_hint_t *)hint->hint)->pointer);
+    it40_set_ptr((internal40_t *)body, 
+	((reiser4_internal_hint_t *)hint->hint)->ptr);
 	    
     return 0;
 }
@@ -37,14 +37,6 @@ static errno_t internal40_estimate(uint32_t pos,
 
 #endif
 
-static int internal40_internal(void) {
-    return 1;
-}
-
-static int internal40_compound(void) {
-    return 0;
-}
-
 static errno_t internal40_print(reiser4_body_t *body, 
     char *buff, uint32_t n, uint16_t options) 
 {
@@ -56,20 +48,20 @@ static errno_t internal40_print(reiser4_body_t *body,
 
 #ifndef ENABLE_COMPACT
 
-static errno_t internal40_pointo(reiser4_body_t *body, 
+static errno_t internal40_set_ptr(reiser4_body_t *body, 
     blk_t blk)
 {
     aal_assert("umka-605", body != NULL, return -1);
-    it40_set_pointer((internal40_t *)body, blk);
+    it40_set_ptr((internal40_t *)body, blk);
 
     return 0;
 }
 
 #endif
 
-static blk_t internal40_target(reiser4_body_t *body) {
+static blk_t internal40_get_ptr(reiser4_body_t *body) {
     aal_assert("umka-606", body != NULL, return 0);
-    return it40_get_pointer((internal40_t *)body);
+    return it40_get_ptr((internal40_t *)body);
 }
 
 static reiser4_plugin_t internal40_plugin = {
@@ -81,7 +73,7 @@ static reiser4_plugin_t internal40_plugin = {
 	    .label = "internal40",
 	    .desc = "Internal item for reiserfs 4.0, ver. " VERSION,
 	},
-	
+	.t = INTERNAL_ITEM_TYPE,
 	.common = {
 #ifndef ENABLE_COMPACT	    
 	    .init	= internal40_init,
@@ -99,17 +91,15 @@ static reiser4_plugin_t internal40_plugin = {
 	    .count	= NULL,
 	    .remove	= NULL,
 	    
-	    .print	= internal40_print,
-	    .internal	= internal40_internal,
-	    .compound	= internal40_compound
+	    .print	= internal40_print
 	},
 	.specific = {
 	    .internal = {
-		.target = internal40_target,
+		.get_ptr = internal40_get_ptr,
 #ifndef ENABLE_COMPACT
-		.pointo = internal40_pointo
+		.set_ptr = internal40_set_ptr
 #else
-		.pointo = NULL
+		.set_ptr = NULL
 #endif
 	    }
 	}

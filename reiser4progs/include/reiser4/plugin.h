@@ -41,7 +41,7 @@ enum reiser4_dir_plugin_id {
 };
 
 enum reiser4_file_plugin_id {
-    FILE_REG40_ID		= 0x0,
+    FILE_REGULAR40_ID		= 0x0,
     FILE_SYMLINK40_ID		= 0x1,
     FILE_SPECIAL40_ID		= 0x2
 };
@@ -55,6 +55,16 @@ enum reiser4_item_plugin_id {
     ITEM_EXTENT40_ID		= 0x5,
     ITEM_DROP40_ID		= 0x6
 };
+
+enum reiser4_item_type {
+    STATDATA_ITEM_TYPE		= 0x0,
+    INTERNAL_ITEM_TYPE		= 0x1,
+    DIRENTRY_ITEM_TYPE		= 0x2,
+    FILEBODY_ITEM_TYPE		= 0x3,
+    PERMISSN_ITEM_TYPE		= 0x4
+};
+
+typedef enum reiser4_item_type reiser4_item_type_t;
 
 enum reiser4_node_plugin_id {
     NODE_REISER40_ID		= 0x0,
@@ -186,7 +196,7 @@ typedef uint32_t reiser4_key_type_t;
 */
 
 struct reiser4_internal_hint {    
-    blk_t pointer;
+    blk_t ptr;
 };
 
 typedef struct reiser4_internal_hint reiser4_internal_hint_t;
@@ -454,12 +464,6 @@ struct reiser4_item_common_ops {
     
     /* Returns unit count */
     uint32_t (*count) (reiser4_body_t *);
-
-    /* Returns TRUE if item plugin is internal item plugin */
-    int (*internal) (void);
-
-    /* Returns TRUE if item may be splitted (compound item) */
-    int (*compound) (void);
 };
 
 typedef struct reiser4_item_common_ops reiser4_item_common_ops_t;
@@ -473,14 +477,14 @@ typedef struct reiser4_direntry_ops reiser4_direntry_ops_t;
 
 struct reiser4_stat_ops {
     uint16_t (*get_mode) (reiser4_body_t *);
-    void (*set_mode) (reiser4_body_t *, uint16_t);
+    errno_t (*set_mode) (reiser4_body_t *, uint16_t);
 };
 
 typedef struct reiser4_stat_ops reiser4_stat_ops_t;
 
 struct reiser4_internal_ops {
-    blk_t (*target) (reiser4_body_t *);
-    errno_t (*pointo) (reiser4_body_t *, blk_t);
+    blk_t (*get_ptr) (reiser4_body_t *);
+    errno_t (*set_ptr) (reiser4_body_t *, blk_t);
 };
 
 typedef struct reiser4_internal_ops reiser4_internal_ops_t;
@@ -488,14 +492,20 @@ typedef struct reiser4_internal_ops reiser4_internal_ops_t;
 struct reiser4_item_ops {
     reiser4_plugin_header_t h;
 
+    /* Item type (stat data, internal, file body, etc) */
+    reiser4_item_type_t t;
+
     /* Methods common for all item types */
     reiser4_item_common_ops_t common;
 
     /* Methods specific to particular type of item */
     union {
-	reiser4_direntry_ops_t direntry;
 	reiser4_stat_ops_t statdata;
 	reiser4_internal_ops_t internal;
+	reiser4_direntry_ops_t direntry;
+	
+	/* Here shall be filebody item (extent, tail) */
+
     } specific;
 };
 

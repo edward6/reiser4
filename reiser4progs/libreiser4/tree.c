@@ -372,7 +372,7 @@ int reiser4_tree_lookup(
 	}
 	    
 	/* Getting the node pointer from internal item */
-	if (!(target = reiser4_item_target(&item))) {
+	if (!(target = reiser4_item_get_iptr(&item))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get pointer from internal item %u, node %llu.", 
 		item.pos->item, aal_block_number(item.node->block));
@@ -447,8 +447,7 @@ static errno_t reiser4_tree_attach(
     }
 
     aal_memset(&internal_hint, 0, sizeof(internal_hint));
-    
-    internal_hint.pointer = aal_block_number(cache->node->block);
+    internal_hint.ptr = aal_block_number(cache->node->block);
 
     reiser4_node_lkey(cache->node, &ldkey);
     reiser4_key_init(&hint.key, ldkey.plugin, ldkey.body);
@@ -1046,7 +1045,7 @@ errno_t reiser4_tree_traverse(
 		if (!reiser4_item_internal(&item))
 		    continue;
 		
-		if ((target = reiser4_item_target(&item)) > 0) {
+		if ((target = reiser4_item_get_iptr(&item)) > 0) {
 
 		    if (!(block = aal_block_open(device, target))) {
 			aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 

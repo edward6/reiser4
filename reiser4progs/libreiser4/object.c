@@ -29,26 +29,27 @@ reiser4_plugin_t *reiser4_object_guess(reiser4_object_t *object) {
 	return NULL;
     }
     
-    /* 
-	FIXME-UMKA: Here should be used more carefull way to understand if we are
-	able to call item_ops.specific.statdata method in order to get mode field
-	from stat data item.
-    */
-    if (item.plugin->item_ops.specific.statdata.get_mode) {
+    if (reiser4_item_statdata(&item)) {
 	/* 
-	    Guessing plugin type and plugin id by mode field from the stat data
-	    item. This guessing should be performed only if stat data has not an
-	    plugin extention plugin type and id might be got from.
+	    FIXME-UMKA: Here should be inspecting of the stat data extentions
+	    in order to find out is there some plugin id extention exists and
+	    if so, what the plugin id should be used for working with this kind
+	    of object.
 	*/
-	
-	uint16_t mode = item.plugin->item_ops.specific.statdata.get_mode(item.body);
+	    
+	/* 
+	    Guessing plugin type and plugin id by mode field from the stat data 
+	    item. Here we return default plugins for every object type.
+	*/
+	uint16_t mode = reiser4_item_get_smode(&item);
     
 	if (S_ISDIR(mode))
 	    return libreiser4_factory_ifind(DIR_PLUGIN_TYPE, DIR_DIR40_ID);
-	else if (S_ISLNK(mode))
+	
+	if (S_ISLNK(mode))
 	    return libreiser4_factory_ifind(FILE_PLUGIN_TYPE, FILE_SYMLINK40_ID);
-	else
-	    return libreiser4_factory_ifind(FILE_PLUGIN_TYPE, FILE_REG40_ID);
+	
+	return libreiser4_factory_ifind(FILE_PLUGIN_TYPE, FILE_REGULAR40_ID);
     }
 
     return NULL;
@@ -114,18 +115,14 @@ static errno_t reiser4_object_lookup(
 	    return -1;
 	}
 	
-	/* 
-	    FIXME-UMKA: Here should be used more carefull way to understand the
-	    real item type (statdata, direntry, etc).
-	*/
-	if (item.plugin->item_ops.specific.statdata.get_mode) {
+	if (reiser4_item_statdata(&item)) {
 	    uint16_t mode;
 
 	    /* 
 		Checking for mode. It is used in order to know is current entry link or 
 		not and is the mode valid one.
 	    */
-	    mode = item.plugin->item_ops.specific.statdata.get_mode(item.body);
+	    mode = reiser4_item_get_smode(&item);
 
 	    if (!S_ISLNK(mode) && !S_ISDIR(mode) && !S_ISREG(mode)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -152,10 +149,6 @@ static errno_t reiser4_object_lookup(
 	
 	aal_strncat(track, dirname, aal_strlen(dirname));
 	
-	/* 
-	    Here we should get dir plugin id from the statdata and using it try find 
-	    needed entry inside it.
-	*/
 	if (!(plugin = reiser4_object_guess(object))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't guess object plugin for parent of %s.", track);

@@ -11,13 +11,13 @@
 #include <reiser4/plugin.h>
 
 struct internal40 {
-    blk_t pointer;
+    blk_t ptr;
 };
 
 typedef struct internal40 internal40_t;
 
-#define it40_get_pointer(it)		aal_get_le64(it, pointer)
-#define it40_set_pointer(it, val)	aal_set_le64(it, pointer, val)
+#define it40_get_ptr(it)	aal_get_le64(it, ptr)
+#define it40_set_ptr(it, val)	aal_set_le64(it, ptr, val)
 
 #endif
 

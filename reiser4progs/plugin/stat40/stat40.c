@@ -148,24 +148,18 @@ static errno_t stat40_print(reiser4_body_t *body,
     return -1;
 }
 
-static int stat40_internal(void) {
-    return 0;
-}
-
-static int stat40_compound(void) {
-    return 0;
-}
-
 static uint16_t stat40_get_mode(reiser4_body_t *body) {
     aal_assert("umka-710", body != NULL, return 0);
     return st40_get_mode((reiser4_stat40_t *)body);
 }
 
-static void stat40_set_mode(reiser4_body_t *body, 
+static errno_t stat40_set_mode(reiser4_body_t *body, 
     uint16_t mode)
 {
-    aal_assert("umka-711", body != NULL, return);
+    aal_assert("umka-711", body != NULL, return -1);
     st40_set_mode((reiser4_stat40_t *)body, mode);
+
+    return 0;
 }
 
 static reiser4_plugin_t stat40_plugin = {
@@ -177,6 +171,7 @@ static reiser4_plugin_t stat40_plugin = {
 	    .label = "stat40",
 	    .desc = "Stat data for reiserfs 4.0, ver. " VERSION,
 	},
+	.t = STATDATA_ITEM_TYPE,
 	.common = {
 		
 #ifndef ENABLE_COMPACT
@@ -195,10 +190,7 @@ static reiser4_plugin_t stat40_plugin = {
 	    
 	    .confirm	= stat40_confirm,
 	    .valid	= stat40_valid,
-	    .print	= stat40_print,
-	    .internal	= stat40_internal,
-	    .compound	= stat40_compound,
-
+	    .print	= stat40_print
 	},
 	
 	.specific = {
