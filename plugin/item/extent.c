@@ -280,7 +280,7 @@ int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 	reiser4_extent *ext;
 	int nr_marked;
 	struct inode * inode;
-	unsigned long index, i;
+	unsigned long index, pos_in_extent;
 	reiser4_block_nr width, start;
 	int ret;
 
@@ -297,10 +297,12 @@ int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 	if (ret)
 		return ret;
 
-	for (nr_marked = 0, i = 0; nr_marked < max_nr_marked && i < width; i++) {
+	for (nr_marked = 0, pos_in_extent = 0; 
+	     nr_marked < max_nr_marked && pos_in_extent < width; pos_in_extent ++)
+	{
 		jnode * node;
 
-		node = get_jnode_by_mapping(inode, index + i);
+		node = get_jnode_by_mapping(inode, index + pos_in_extent);
 		if (IS_ERR(node)) {
 			ret = PTR_ERR(node);
 			break;
@@ -309,7 +311,7 @@ int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 		/* Freshly created jnode has no block number set. */
 		if (node->blocknr == 0) {
 			reiser4_block_nr block;
-			block = start + index;
+			block = start + pos_in_extent;
 			jnode_set_block(node, &block);
 		}
 
@@ -454,13 +456,19 @@ static int skip_not_relocatable_extent(struct inode * inode, coord_t * coord, in
 	jnode * check = NULL;
 	int ret = 0;
 
-
+	assert("zam-985", state_of_extent(extent_by_coord(coord)));
 	parse_extent(coord, &ext_start, &ext_width, &ext_index);
 
 	for (reloc_start = ext_width - 1; reloc_start >= 0; reloc_start --) {
 		check = get_jnode_by_mapping(inode, reloc_start + ext_index);
 		if (IS_ERR(check))
 			return PTR_ERR(check);
+
+		if (check->blocknr == 0) {
+			reiser4_block_nr block;
+			block = ext_start + reloc_start;
+			jnode_set_block(check, &block);
+		}
 
 		if (relocatable(check)) {
 			jput(check);
@@ -491,7 +499,7 @@ static int relocate_extent (struct inode * inode, coord_t * coord, reiser4_block
 	hint->block_stage = unallocated_flg ? BLOCK_UNALLOCATED : BLOCK_FLUSH_RESERVED;
 		
 	new_ext_width = *len;
-	ret = reiser4_alloc_blocks(hint, &new_ext_start, &new_ext_width, BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
+	ret = reiser4_alloc_blocks(hint, &new_ext_start, &new_ext_width, BA_PERMANENT, __FUNCTION__);
 	if (ret)
 		return ret;
 
@@ -514,7 +522,10 @@ static int relocate_extent (struct inode * inode, coord_t * coord, reiser4_block
 		check = get_jnode_by_mapping(inode, ext_index + reloc_ind);
 		if (IS_ERR(check))
 			return PTR_ERR(check);
+
 		assert("zam-975", relocatable(check));
+		assert("zam-986", check->blocknr != 0);
+
 		jnode_set_block(check, &new_block);
 		new_block ++;
 
@@ -548,6 +559,13 @@ static int find_relocatable_extent (struct inode * inode, coord_t * coord,
 		check = get_jnode_by_mapping(inode, reloc_end + ext_index);
 		if (IS_ERR(check))
 			return PTR_ERR(check);
+
+		if (check->blocknr == 0) {
+			reiser4_block_nr block;
+			block = ext_start + reloc_end;
+			jnode_set_block(check, &block);
+		}
+
 		if (!relocatable(check)) {
 			assert("zam-973", reloc_end < ext_width - 1);
 			goto out;
