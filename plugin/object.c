@@ -69,6 +69,7 @@
 #include "../super.h"
 #include "../reiser4.h"
 #include "../prof.h"
+#include "../safe_link.h"
 
 #include <linux/types.h>
 #include <linux/fs.h>
@@ -473,8 +474,15 @@ common_file_delete_no_reserve(struct inode *inode /* object to remove */ )
 		if (result == 0) {
 			inode_set_flag(inode, REISER4_NO_SD);
 			result = oid_release(inode->i_sb, get_inode_oid(inode));
-			if (result == 0)
+			if (result == 0) {
 				oid_count_released();
+
+				result = safe_link_del(inode, SAFE_UNLINK);
+				if (result != 0)
+					warning("nikita-3416",
+						"Cannot kill safelink %lli: %i",
+						get_inode_oid(inode), result);
+			}
 		}
 	} else
 		result = 0;
@@ -488,12 +496,15 @@ delete_file_common(struct inode *inode /* object to remove */ )
 	int result;
 
 	assert("nikita-1477", inode != NULL);
+	assert("nikita-3420", inode->i_size == 0 || S_ISLNK(inode->i_mode));
+	assert("nikita-3421", inode->i_nlink == 0);
 
 	if (!inode_get_flag(inode, REISER4_NO_SD)) {
 		reiser4_block_nr reserve;
 
-		/* grab space which is needed to remove one item from the tree */
-		reserve = estimate_one_item_removal(tree_by_inode(inode));
+		/* grab space which is needed to remove stat data and
+		 * safe-link form the tree */
+		reserve = 2 * estimate_one_item_removal(tree_by_inode(inode));
 		if (reiser4_grab_space_force(reserve,
 					     BA_RESERVED | BA_CAN_COMMIT)) {
 			warning("nikita-2847",
@@ -988,16 +999,17 @@ static void delete_inode_common(struct inode *object)
 		/* truncate object body */
 		fplug = inode_file_plugin(object);
 		if (fplug->pre_delete != NULL && fplug->pre_delete(object) != 0)
-			warning("vs-1216", "Failed to delete file body for %llu",
+			warning("vs-1216", "Failed to delete file body %llu",
 				get_inode_oid(object));
-		assert("vs-1430", reiser4_inode_data(object)->jnodes == 0);
+		else
+			assert("vs-1430",
+			       reiser4_inode_data(object)->jnodes == 0);
 	}
 
 	if (object->i_data.nrpages) {
 		warning("vs-1434", "nrpages %ld\n", object->i_data.nrpages);
 		truncate_inode_pages(&object->i_data, 0);
 	}
-
 	security_inode_delete(object);
 	if (!is_bad_inode(object))
 		DQUOT_INIT(object);
@@ -1099,7 +1111,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common,
 		.create = create_common,
-		.delete = delete_unix_file,
+		.delete = delete_file_common,
 		.add_link = add_link_common,
 		.rem_link = rem_link_common,
 		.owns_item = owns_item_unix_file,
@@ -1111,6 +1123,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.seek = NULL,
 		.detach = detach_common,
 		.bind = bind_common,
+		.safelink = safelink_unix_file,
 		.estimate = {
 			.create = estimate_create_file_common,
 			.update = estimate_update_common,
@@ -1159,6 +1172,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.seek = seek_dir,
 		.detach = detach_dir,
 		.bind = bind_dir,
+		.safelink = NULL,
 		.estimate = {
 			.create = estimate_create_dir_common,
 			.update = estimate_update_common,
@@ -1209,6 +1223,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.seek = NULL,
 		.detach = detach_common,
 		.bind = bind_common,
+		.safelink = NULL,
 		.estimate = {
 			.create = estimate_create_file_common,
 			.update = estimate_update_common,
@@ -1258,6 +1273,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.seek = NULL,
 		.detach = detach_common,
 		.bind = bind_common,
+		.safelink = NULL,
 		.estimate = {
 			.create = estimate_create_file_common,
 			.update = estimate_update_common,
@@ -1307,6 +1323,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.seek              = seek_pseudo,
 		.detach            = detach_common,
 		.bind              = bind_common,
+		.safelink = NULL,
 		.estimate = {
 			.create = NULL,
 			.update = NULL,
@@ -1357,6 +1374,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.seek = NULL,
 		.detach = detach_common,
 		.bind = bind_common,
+		.safelink = NULL,
 		.estimate = {
 			.create = estimate_create_file_common,
 			.update = estimate_update_common,
