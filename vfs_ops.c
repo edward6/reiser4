@@ -533,7 +533,7 @@ int reiser4_do_page_cache_readahead (struct file * file,
 				     unsigned long start_page,
 				     unsigned long intrafile_readahead_amount)
 {
-	int result;
+	int result = 0;
 	struct inode * inode;
 	reiser4_key key;
 	coord_t coord;
