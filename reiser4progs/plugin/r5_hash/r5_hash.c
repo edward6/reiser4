@@ -10,11 +10,12 @@ uint64_t r5_hash_build(const unsigned char *name, uint32_t len) {
     uint32_t i;
     uint64_t a = 0;
 	
-    for (i = 0; i < len; i ++) {
+    for (i = 0; i < len; i++) {
 	a += name[i] << 4;
 	a += name[i] >> 4;
 	a *= 11;
-    } 
+    }
+    
     return a;
 }
 

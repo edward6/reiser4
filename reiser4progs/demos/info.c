@@ -90,17 +90,26 @@ int main(int argc, char *argv[]) {
     
     {
 	reiserfs_entry_hint_t entry;
+	reiserfs_object_t *obj;
 	
-	if (reiserfs_object_rewind(fs->dir)) {
+	if (!(obj = reiserfs_object_open(fs, fs->dir->plugin, "/reiser4progs"))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Can't rewind root directory.");
+		"Can't open directory.");
+	    goto error_free_device;
+	}
+	
+	if (reiserfs_object_rewind(obj)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Can't rewind directory.");
 	    goto error_free_device;
 	}
 
-	while (!reiserfs_object_read(fs->dir, &entry))
+	while (!reiserfs_object_read(obj, &entry))
 	    aal_printf("%llx:%llx %s\n", (entry.locality >> 4), entry.objectid, entry.name);
-    }
 
+	reiserfs_object_close(obj);
+    }
+    
     reiserfs_fs_close(fs);
     libreiser4_done();
     aal_file_close(device);

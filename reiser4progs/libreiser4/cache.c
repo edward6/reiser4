@@ -207,7 +207,6 @@ static int callback_comp_for_register(reiserfs_cache_t *cache1,
 errno_t reiserfs_cache_register(reiserfs_cache_t *cache, 
     reiserfs_cache_t *child) 
 {
-    aal_list_t *new_list;
     reiserfs_key_t ldkey;
     reiserfs_key_t lnkey, rnkey;
     reiserfs_cache_t *left, *right;
@@ -227,14 +226,12 @@ errno_t reiserfs_cache_register(reiserfs_cache_t *cache,
 	limit->cur++;
     }
     
-    new_list = aal_list_insert_sorted(cache->list, 
+    cache->list = aal_list_insert_sorted(cache->list ? aal_list_first(cache->list) : NULL, 
 	child, (int (*)(const void *, const void *, void *))
 	callback_comp_for_register, NULL);
 
-    cache->list = aal_list_first(new_list);
-    
-    left = new_list->prev ? new_list->prev->item : NULL;
-    right = new_list->next ? new_list->next->item : NULL;
+    left = cache->list->prev ? cache->list->prev->item : NULL;
+    right = cache->list->next ? cache->list->next->item : NULL;
    
     child->parent = cache;
     child->tree = cache->tree;

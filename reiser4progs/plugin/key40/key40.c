@@ -164,13 +164,13 @@ static errno_t key40_build_hash(reiserfs_key40_t *key,
 		    Does not fit into objectid, pack the second part of 
 		    the name into offset. 
 		*/
-		key40_set_offset(key, key40_pack_string(name, 0));
+		key40_set_offset(key, key40_pack_string(name + 7, 0));
 	} else {
 	    /* Note in the key that it is hash, not a name */
 	    key->el[1] |= 0x0100000000000000ull;
 		
  	    key40_set_hash(key, hash_plugin->hash_ops.build((const unsigned char *)name, 
-		    aal_strlen(name)));
+		aal_strlen(name)));
 
 	    key40_set_counter(key, 0);
 	}
@@ -246,6 +246,29 @@ static errno_t key40_build_generic_short(void *ptr, uint32_t type,
     return 0;
 }
 
+static errno_t key40_build_by_entry_short(reiserfs_key40_t *key, 
+    void *data)
+{
+    aal_assert("umka-877", key != NULL, return -1);
+    aal_assert("umka-878", data != NULL, return -1);
+    
+    key40_clean(key);    
+    aal_memcpy(&key->el[1], data, sizeof(uint64_t) * 2);
+    
+    return 0;
+}
+
+static errno_t key40_build_by_generic_short(reiserfs_key40_t *key, 
+    void *data)
+{
+    aal_assert("umka-879", key != NULL, return -1);
+    aal_assert("umka-880", data != NULL, return -1);
+    
+    aal_memcpy(key, data, sizeof(uint64_t) * 2);
+    
+    return 0;
+}
+
 static reiserfs_plugin_t key40_plugin = {
     .key_ops = {
 	.h = {
@@ -294,7 +317,13 @@ static reiserfs_plugin_t key40_plugin = {
 	    key40_build_generic_short,
 
 	.build_entry_short = (errno_t (*)(void *, void *, const char *))
-	    key40_build_entry_short
+	    key40_build_entry_short,
+
+	.build_by_entry_short = (errno_t (*)(void *, void *))
+	    key40_build_by_entry_short,
+	
+	.build_by_generic_short = (errno_t (*)(void *, void *))
+	    key40_build_by_generic_short,
     }
 };
 

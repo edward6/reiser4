@@ -269,6 +269,9 @@ struct reiserfs_key_ops {
     
     errno_t (*build_generic_short) (void *, uint32_t, uint64_t, uint64_t);
     errno_t (*build_entry_short) (void *, void *, const char *);
+
+    errno_t (*build_by_entry_short) (void *, void *);
+    errno_t (*build_by_generic_short) (void *, void *);
 };
 
 typedef struct reiserfs_key_ops reiserfs_key_ops_t;

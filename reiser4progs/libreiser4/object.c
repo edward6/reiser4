@@ -11,10 +11,10 @@
 #include <reiser4/reiser4.h>
 #include <sys/stat.h>
 
-static int reiserfs_object_find_entry(reiserfs_coord_t *coord, 
+static errno_t reiserfs_object_find_entry(reiserfs_coord_t *coord, 
     reiserfs_key_t *key) 
 {
-    return 0;
+    return -1;
 }
 	
 static errno_t reiserfs_object_lookup(reiserfs_object_t *object, 
@@ -37,8 +37,12 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object,
     
     if (path[0] != '.' || path[0] == '/')
 	track[aal_strlen(track)] = '/';
-	
-    pointer = &path[0];
+   
+    if (path[0] == '/')
+	pointer = &path[1]; 
+    else
+	pointer = &path[0];
+
     while (1) {
 	void *body; uint16_t mode;
 	reiserfs_plugin_t *plugin;
@@ -47,11 +51,11 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object,
 	reiserfs_key_set_type(&object->key, KEY40_STATDATA_MINOR);
 	reiserfs_key_set_offset(&object->key, 0);
 	
-	if (!reiserfs_tree_lookup(object->fs->tree, REISERFS_LEAF_LEVEL, 
-	    &object->key, &object->coord)) 
+	if (reiserfs_tree_lookup(object->fs->tree, REISERFS_LEAF_LEVEL, 
+	    &object->key, &object->coord) != 1) 
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't find stat data of directory %s.", track);
+		"Can't find stat data of directory \"%s\".", track);
 	    return -1;
 	}
 	
@@ -110,27 +114,27 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object,
 	    Also key id should be recived from anywhere. And finally, 
 	    hash_plugin should not be initializing every time.
 	*/
-	if (!(hash_plugin = libreiser4_factory_find(REISERFS_HASH_PLUGIN, 0x0)))
-	    libreiser4_factory_failed(return -1, find, hash, 0x0);
+	if (!(hash_plugin = libreiser4_factory_find(REISERFS_HASH_PLUGIN, REISERFS_R5_HASH)))
+	    libreiser4_factory_failed(return -1, find, hash, REISERFS_R5_HASH);
 	
 	reiserfs_key_build_entry_full(&object->key, hash_plugin, 
 	    reiserfs_key_get_locality(&object->key), 
 	    reiserfs_key_get_objectid(&object->key), 
 	    dirname);
 	
-	if (!reiserfs_tree_lookup(object->fs->tree, REISERFS_LEAF_LEVEL, 
-	    &object->key, &object->coord)) 
+	if (reiserfs_tree_lookup(object->fs->tree, REISERFS_LEAF_LEVEL, 
+	    &object->key, &object->coord) != 1) 
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't find stat data of directory %s.", track);
+		"Can't find entry \"%s\".", dirname);
 	    return -1;
 	}
 
-	if (!reiserfs_object_find_entry(&object->coord, &object->key)) {
+/*	if (reiserfs_object_find_entry(&object->coord, &object->key)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't find entry %s.", track);
 	    return -1;
-	}
+	}*/
 
 	track[aal_strlen(track)] = '/';
     }

@@ -158,9 +158,6 @@ static void *callback_elem_for_lookup(void *direntry,
 static int callback_comp_for_lookup(const void *key1, 
     const void *key2, void *data) 
 {
-    oid_t locality;
-    oid_t objectid;
-    uint64_t offset;
     reiserfs_key_t key;
     reiserfs_plugin_t *plugin;
 
@@ -170,15 +167,9 @@ static int callback_comp_for_lookup(const void *key1,
     
     plugin = (reiserfs_plugin_t *)data;
     
-    locality = libreiser4_plugin_call(return -1, plugin->key_ops, 
-	get_locality, (void *)key2);
-   
-    objectid = eid_get_objectid(((reiserfs_entryid_t *)key1));
-    offset = eid_get_offset(((reiserfs_entryid_t *)key1));
-    
-    libreiser4_plugin_call(return -1, plugin->key_ops, build_generic_full, 
-	&key, KEY40_STATDATA_MINOR, locality, objectid, offset);
-    
+    libreiser4_plugin_call(return -1, plugin->key_ops, 
+	build_by_entry_short, (void *)&key, (void *)key1);
+
     return libreiser4_plugin_call(return -1, plugin->key_ops, 
 	compare_full, &key, key2);
 }
@@ -189,11 +180,11 @@ static int direntry40_lookup(reiserfs_direntry40_t *direntry,
     int lookup;
     uint64_t unit;
     
-    aal_assert("umka-610", key != NULL, return -2);
-    aal_assert("umka-717", key->plugin != NULL, return -2);
+    aal_assert("umka-610", key != NULL, return -1);
+    aal_assert("umka-717", key->plugin != NULL, return -1);
     
-    aal_assert("umka-609", direntry != NULL, return -2);
-    aal_assert("umka-629", pos != NULL, return -2);
+    aal_assert("umka-609", direntry != NULL, return -1);
+    aal_assert("umka-629", pos != NULL, return -1);
     
     if ((lookup = reiserfs_misc_bin_search((void *)direntry, 
 	    de40_get_count(direntry), key->body, callback_elem_for_lookup, 
