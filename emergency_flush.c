@@ -327,9 +327,10 @@ emergency_flush(struct page *page)
 					ON_TRACE(TRACE_EFLUSH, "ok: %llu\n", blk);
 				} else {
 					/* 
-					 * XXX may be set_page_dirty() should be called
+					 * XXX may be set_page_dirty() should
+					 * be called
 					 */
-					__set_page_dirty_nobuffers(page);
+					set_page_dirty_internal(page);
 					ON_TRACE(TRACE_EFLUSH, "submit-failure\n");
 				}
 			} else {
@@ -340,7 +341,7 @@ emergency_flush(struct page *page)
 					kmem_cache_free(eflush_slab, efnode);
 				ON_TRACE(TRACE_EFLUSH, "failure-2\n");
 			}
-			
+
 			blocknr_hint_done(&hint);
 		} else {
 			txn_atom *atom;
@@ -442,7 +443,7 @@ static inline __u32
 jnode_hfn(jnode * const * j)
 {
 	assert("nikita-2735", j != NULL);
-	return (((unsigned long)*j) / sizeof(**j)) & (REISER4_EF_HASH_SIZE - 1);
+	return ((unsigned long)*j) & (REISER4_EF_HASH_SIZE - 1);
 }
 
 
@@ -577,25 +578,23 @@ eflush_get(const jnode *node)
 void
 eflush_del(jnode *node, int page_locked)
 {
-	eflush_node_t *ef;
-	ef_hash_table *table;
-	reiser4_tree  *tree;
-	struct page   *lockedpage;
-
 	assert("nikita-2743", node != NULL);
 	assert("nikita-2770", spin_jnode_is_locked(node));
 
-	lockedpage = NULL;
-	if (JF_ISSET(node, JNODE_EFLUSH)) {
-		reiser4_block_nr blk;
-		struct page *page;
+	if (unlikely(JF_ISSET(node, JNODE_EFLUSH))) {
+		eflush_node_t *ef;
+		ef_hash_table *table;
+		reiser4_tree  *tree;
+		struct page   *lockedpage;
+		struct page   *page;
 		struct inode  *inode = NULL;
 
+		reiser4_block_nr blk;
+
 		table = get_jnode_enhash(node);
-
 		tree = jnode_get_tree(node);
-
 		page = jnode_page(node);
+		lockedpage = NULL;
 
 		/* there is no reason to unflush node if it can be flushed
 		 * back immediately */
