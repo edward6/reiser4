@@ -1035,7 +1035,7 @@ int txnmgr_force_commit_all (struct super_block *super)
 	reiser4_context * ctx = get_current_context();
 
 	assert("nikita-2965", lock_stack_isclean(get_current_lock_stack()));
-	assert("nikita-3058", no_counters_are_held());
+	assert("nikita-3058", commit_check_locks());
 
 	ret = txn_end(ctx);
 	if (ret)
@@ -1259,7 +1259,7 @@ void atom_wait_event(txn_atom * atom)
 	atomic_inc(&atom->refcount);
 	UNLOCK_ATOM(atom);
 
-	/*assert("nikita-3056", no_counters_are_held());*/
+	/*assert("nikita-3056", commit_check_locks());*/
 	prepare_to_sleep(_wlinks._lock_stack);
 	go_to_sleep(_wlinks._lock_stack, ADD_TO_SLEPT_IN_WAIT_EVENT);
 
@@ -2153,7 +2153,7 @@ void jnode_set_wander (jnode * node)
 	atom = node->atom;
 
 	assert("zam-895", atom != NULL);
-	assert("zam-894", spin_atom_is_locked(atom) || atom->stage >= ASTAGE_PRE_COMMIT);
+	assert("zam-894", atom_is_protected(atom));
 
 	capture_list_remove_clean(node);
 	capture_list_push_back(&atom->ovrwr_nodes, node);
