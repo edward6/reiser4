@@ -264,6 +264,7 @@ node_plugin_by_node(const znode * node /* node to query */ )
 static inline unsigned
 node_num_items(const znode * node)
 {
+	assert("nikita-2754", znode_is_loaded(node));
 	assert("nikita-2468", 
 	       node_plugin_by_node(node)->num_of_items(node) == node->nr_items);
 	assert("nikita-2746", znode_is_any_locked(node));
