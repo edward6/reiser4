@@ -12,13 +12,13 @@
 /* Mask when is applied to given block number shows is that block number is a fake one */
 #define REISER4_FAKE_BLOCKNR_BIT_MASK   0x8000000000000000ULL
 /* Mask which isolates a type of object this fake block number was assigned to */
-#define REISER4_BLOCKNR_STATUS_BIT_MASK 0xF000000000000000ULL
+#define REISER4_BLOCKNR_STATUS_BIT_MASK 0xC000000000000000ULL
 
 /*result after applying the REISER4_BLOCKNR_STATUS_BIT_MASK should be compared
    against these two values to understand is the object unallocated or bitmap
    shadow object (WORKING BITMAP block, look at the plugin/space/bitmap.c) */
-#define REISER4_UNALLOCATED_STATUS_VALUE    0xF000000000000000ULL
-#define REISER4_BITMAP_BLOCKS_STATUS_VALUE  0x9000000000000000ULL
+#define REISER4_UNALLOCATED_STATUS_VALUE    0xC000000000000000ULL
+#define REISER4_BITMAP_BLOCKS_STATUS_VALUE  0x8000000000000000ULL
 
 /* specification how block allocation was counted in sb block counters */
 typedef enum {

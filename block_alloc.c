@@ -105,10 +105,9 @@
 
 /* BLOCK NUMBERS */
 
-/* Any reiser4 node has a block number assigned to it.  There are two major
-   kinds of block numbers: real block numbers which are locations on the block
-   device which a reiser4 is mounted to and fake block numbers used for indexing
-   of not-yet-allocated nodes.
+/* Any reiser4 node has a block number assigned to it.  We use these numbers for
+   indexing in hash tables, so if a block has not yet been assigned a location
+   on disk we need to give it a temporary fake block number.
 
    Current implementation of reiser4 uses 64-bit integers for block numbers. We
    use highest bit in 64-bit block number to distinguish fake and real block
@@ -134,8 +133,7 @@ blocknr_hint_done(reiser4_blocknr_hint * hint UNUSED_ARG)
 	/* No resources should be freed in current blocknr_hint implementation.*/
 }
 
-/* is it a real block number from real block device or fake block number for
-   not-yet-mapped object? */
+/* see above for explanation of fake block number.  */
 /* Audited by: green(2002.06.11) */
 int
 blocknr_is_fake(const reiser4_block_nr * da)
