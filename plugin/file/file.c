@@ -234,8 +234,8 @@ int
 update_inode_and_sd_if_necessary(struct inode *inode, loff_t new_size, int update_i_size, int do_update)
 {
 	int result;
-	PROF_BEGIN(update_sd);
 	int inode_changed;
+	PROF_BEGIN(update_sd);
 
 	result = 0;
 
