@@ -123,11 +123,13 @@ typedef struct reiser4_unix_stat {
 	/* 12 */ d32 mtime;
 	/* change time */
 	/* 16 */ d32 ctime;
+	union {
 	/* minor:major for device files */
-	/* 20 */ d32 rdev;
+	/* 20 */         d64 rdev;
 	/* bytes used by file */
-	/* 24 */ d64 bytes;
-	/* 32 */
+	/* 20 */         d64 bytes;
+	} u;
+	/* 28 */
 } PACKED reiser4_unix_stat;
 
 /* symlink stored as part of inode */

@@ -510,6 +510,7 @@ static int
 eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 {
 	reiser4_tree  *tree;
+	txn_atom      *atom;
 
 	assert("nikita-2737", node != NULL);
 	assert("nikita-2738", !JF_ISSET(node, JNODE_EFLUSH));
@@ -524,6 +525,12 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 	ef_hash_insert(get_jnode_enhash(node), ef);
 	++ get_super_private(tree->super)->eflushed;
 	spin_unlock_eflush(tree->super);
+
+	atom = atom_locked_by_jnode(node);
+	assert("nikita-3310", atom != NULL);
+	++ atom->flushed;
+	UNLOCK_ATOM(atom);
+
 	/*
 	 * set JNODE_EFLUSH bit on the jnode. inode is not yet pinned at this
 	 * point. We are safe, because page it is still attached to both @node
@@ -598,6 +605,7 @@ eflush_del(jnode *node, int page_locked)
 		eflush_node_t *ef;
 		ef_hash_table *table;
 		reiser4_tree  *tree;
+		txn_atom      *atom;
 		struct page   *page;
 		struct inode  *inode = NULL;
 
@@ -656,6 +664,11 @@ eflush_del(jnode *node, int page_locked)
 		ef_hash_remove(table, ef);
 		-- get_super_private(tree->super)->eflushed;
 		spin_unlock_eflush(tree->super);
+
+		atom = atom_locked_by_jnode(node);
+		assert("nikita-3311", atom != NULL);
+		-- atom->flushed;
+		UNLOCK_ATOM(atom);
 
 		assert("vs-1215", JF_ISSET(node, JNODE_EFLUSH));
 		JF_CLR(node, JNODE_EFLUSH);

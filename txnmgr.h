@@ -268,6 +268,8 @@ struct txn_atom {
 	   dirty_znodes[level] and clean_znodes lists. */
 	__u32 capture_count;
 
+	__u32 flushed;
+
 	/* Current transaction stage. */
 	txn_stage stage;
 
@@ -598,7 +600,7 @@ extern flush_queue_t *get_fq_for_current_atom(void);
 /* Debugging */
 #if REISER4_DEBUG_OUTPUT
 void print_atom(const char *prefix, txn_atom * atom);
-void info_atom(const char *prefix, txn_atom * atom);
+void info_atom(const char *prefix, const txn_atom * atom);
 #else
 #define       print_atom(p,a) noop
 #define       info_atom(p,a) noop

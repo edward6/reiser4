@@ -260,7 +260,7 @@ jlook_lock(reiser4_tree * tree, oid_t objectid, unsigned long index)
 	if (node != NULL) {
 		/* protect @node from recycling */
 		jref(node);
-		assert("nikita-2955", jnode_invariant(node, 1, 0));
+		assert("nikita-2955", jnode_invariant(node, 0, 0));
 		node = jnode_rip_check(tree, node);
 	}
 	rcu_read_unlock();
@@ -1471,6 +1471,11 @@ jnode_invariant_f(const jnode * node,
 
 		_check(node->jnodes.prev != NULL) &&
 		_check(node->jnodes.next != NULL) &&
+
+		/* [jnode-dirty] invariant */
+
+		/* dirty inode is part of atom */
+		_ergo(jnode_is_dirty(node), node->atom != NULL) &&
 
 		/* [jnode-refs] invariant */
 

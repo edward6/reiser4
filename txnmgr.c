@@ -813,6 +813,22 @@ atom_should_commit(const txn_atom * atom)
 		atom_is_dotard(atom);
 }
 
+static int
+atom_should_commit_asap(const txn_atom * atom)
+{
+	unsigned int captured;
+	unsigned int pinnedpages;
+
+	assert("nikita-3309", atom != NULL);
+
+	captured = (unsigned) atom_pointer_count(atom);
+	pinnedpages = (captured >> PAGE_CACHE_SHIFT) * sizeof(jnode);
+
+	return 
+		(pinnedpages > (totalram_pages >> 3)) ||
+		(atom->flushed > 100);
+}
+
 /* Get first dirty node from the atom's dirty_nodes[n] lists; return NULL if atom has no dirty
    nodes on atom's lists */
 jnode * find_first_dirty_jnode (txn_atom * atom, int flags)
@@ -1325,24 +1341,22 @@ int flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags
 
 	ret = flush_current_atom(flags, nr_submitted, &atom);
 
-	if (ret == -E_REPEAT) {
-		ret = 0;
-		atom = get_current_atom_locked();
-	}
-
 	if (ret == 0) {
-		if (*nr_submitted == 0 || atom_should_commit(atom)) {
+		if (*nr_submitted == 0 || atom_should_commit_asap(atom)) {
 			/* if early flushing could not make more nodes clean,
 			 * or atom is too old/large,
 			 * we force current atom to commit */
 			/* wait for commit completion but only if this
 			 * wouldn't stall pdflushd. */
-			if (wbc->nonblocking)
-				txnh->flags |= TXNH_DONT_COMMIT;
+			if (!wbc->nonblocking)
+				txnh->flags |= TXNH_WAIT_COMMIT;
 			atom->flags |= ATOM_FORCE_COMMIT;
 		}
 		UNLOCK_ATOM(atom);
 	}
+
+	if (ret == -E_REPEAT)
+		ret = 0;
 
 	{
 		int ret1;
@@ -1470,8 +1484,13 @@ try_commit_txnh(commit_data *cd)
 				atom_wait_event(cd->atom);
 				reiser4_stat_inc(txnmgr.restart.should_wait);
 				result = RETERR(-E_REPEAT);
-			} else
+			} else {
 				result = 0;
+				if (atom_should_commit_asap(cd->atom)) {
+					cd->atom->stage = ASTAGE_CAPTURE_WAIT;
+					cd->atom->flags |= ATOM_FORCE_COMMIT;
+				}
+			}
 		} else if (cd->txnh->flags & TXNH_DONT_COMMIT) {
 			/*
 			 * this thread (transaction handle that is) doesn't
@@ -3046,6 +3065,10 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 	/* count flushers in result atom */
 	large->nr_flushers += small->nr_flushers;
 	small->nr_flushers = 0;
+
+	/* update counts of flushed nodes */
+	large->flushed += small->flushed;
+	small->flushed = 0;
 
 	/* Transfer list counts to large. */
 	large->txnh_count += small->txnh_count;
