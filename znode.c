@@ -332,7 +332,7 @@ static void zinit( znode *node /* znode to initialise */,
 	assert( "umka-051", tree != NULL );
 	
 	spin_lock_tree( tree );
-	coord_init_parent_hint (&node -> ptr_in_parent_hint, parent);
+	coord_init_parent_hint (&node -> in_parent, parent);
 	node -> version = ++ tree -> znode_epoch;
 	spin_unlock_tree( tree );
 }
@@ -677,7 +677,7 @@ int zparse( znode *node /* znode to parse */ )
 		nplug = znode_guess_plugin( node );
 		if( nplug != NULL ) {
 			node -> nplug = nplug;
-			result = nplug -> init_znode/*parse*/( node );
+			result = nplug -> parse( node );
 			if( unlikely( result != 0 ) )
 				node -> nplug = NULL;
 		} else {
@@ -811,7 +811,7 @@ int znode_contains_key_lock( znode *node /* znode to look in */,
 znode *znode_parent_nolock( const znode *node /* child znode */ )
 {
 	assert( "nikita-1444", node != NULL );
-	return node -> ptr_in_parent_hint.node;
+	return node -> in_parent.node;
 }
 
 /** get parent pointer of znode */

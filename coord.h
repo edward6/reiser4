@@ -37,12 +37,12 @@ typedef enum {
 
 struct coord {
 	/* node in a tree */
-	znode *node;
+	znode        *node;
 
 	/* position of item within node */
-	pos_in_node  item_pos;
+	const pos_in_node item_pos;
 	/* position of unit within item */
-	pos_in_item  unit_pos;
+	pos_in_item   unit_pos;
 	/** 
 	 * position of coord w.r.t. to neighboring items and/or units. 
 	 * Values are taken from &between_enum above.
@@ -53,8 +53,38 @@ struct coord {
 	 * here. Profiling shows that node40_plugin_by_coord() is top CPU
 	 * user.
 	 */
+	item_plugin  *iplug;
 };
 
+#define MUTABLE_POS( c ) ( *( pos_in_node * )( &( c ) -> item_pos ) )
+
+static inline void coord_set_item_pos( coord_t *coord, pos_in_node pos )
+{
+	assert( "nikita-2478", coord != NULL );
+	MUTABLE_POS( coord ) = pos;
+	coord -> iplug = NULL;
+}
+
+static inline void coord_dec_item_pos( coord_t *coord )
+{
+	assert( "nikita-2480", coord != NULL );
+	-- MUTABLE_POS( coord );
+	coord -> iplug = NULL;
+}
+
+static inline void coord_inc_item_pos( coord_t *coord )
+{
+	assert( "nikita-2481", coord != NULL );
+	++ MUTABLE_POS( coord );
+	coord -> iplug = NULL;
+}
+
+static inline void coord_add_item_pos( coord_t *coord, int delta )
+{
+	assert( "nikita-2482", coord != NULL );
+	MUTABLE_POS( coord ) += delta;
+	coord -> iplug = NULL;
+}
 
 /* Reverse a direction. */
 static inline sideof sideof_reverse (sideof side)

@@ -45,7 +45,11 @@ item_plugin *item_plugin_by_coord( const coord_t *coord /* coord to query */ )
 	assert( "nikita-332", znode_is_loaded( coord -> node ) );
 	trace_stamp( TRACE_TREE );
 
-	return node_plugin_by_node( coord -> node ) -> plugin_by_coord( coord );
+	if( coord -> iplug == NULL )
+		( ( coord_t * ) coord ) -> iplug = node_plugin_by_node( coord -> node ) -> plugin_by_coord( coord );
+	assert( "nikita-2479", 
+		coord -> iplug == node_plugin_by_node( coord -> node ) -> plugin_by_coord( coord ) );
+	return coord -> iplug;
 }
 
 /** return node plugin of @node */
@@ -172,6 +176,74 @@ static void cbk_cache_unlock( cbk_cache *cache /* cache to unlock */)
 	     !cbk_cache_list_end( &( cache ) -> lru, ( slot ) ) ; 	\
 	     ( slot ) = cbk_cache_list_next( slot ) )
 
+#if REISER4_DEBUG
+/** Debugging aid: print human readable information about @slot */
+void print_cbk_slot( const char *prefix /* prefix to print */, 
+		     const cbk_cache_slot *slot /* slot to print */ )
+{
+	if( slot == NULL )
+		info( "%s: null slot\n", prefix );
+	else
+		print_znode( "node", slot -> node );
+}
+
+/** Debugging aid: print human readable information about @cache */
+void print_cbk_cache( const char *prefix /* prefix to print */, 
+		      const cbk_cache *cache /* cache to print */)
+{
+	if( cache == NULL )
+		info( "%s: null cache\n", prefix );
+	else {
+		cbk_cache_slot *scan;
+
+		info( "%s: cache: %p\n", prefix, cache );
+		for_all_slots( cache, scan )
+			print_cbk_slot( "slot", scan );
+	}
+}
+
+static int cbk_cache_invariant( const cbk_cache *cache )
+{
+	cbk_cache_slot *slot;
+	int             result;
+	int             unused;
+
+	assert( "nikita-2469", cache != NULL );
+	unused = 0;
+	result = 1;
+	cbk_cache_lock( ( cbk_cache * ) cache );
+	for_all_slots( cache, slot ) {
+		/*
+		 * in LRU first go all `used' slots followed by `unused'
+		 */
+		if( unused && ( slot -> node != NULL ) )
+			result = 0;
+		if( slot -> node == NULL )
+			unused = 1;
+		else {
+			cbk_cache_slot *scan;
+
+			/*
+			 * all cached nodes are different
+			 */
+			scan = slot;
+			while( result ) {
+				scan = cbk_cache_list_next( scan );
+				if( cbk_cache_list_end( &cache -> lru, scan ) )
+					break;
+				if( slot -> node == scan -> node )
+					result = 0;
+			}
+		}
+		if( !result )
+			break;
+	}
+	cbk_cache_unlock( ( cbk_cache * ) cache );
+	return result;
+}
+
+#endif
+
 /**
  * Remove references, if any, to @node from coord cache
  */
@@ -187,6 +259,8 @@ void cbk_cache_invalidate( const znode *node /* node to remove from cache */,
 				  lock_counters() -> spin_locked_tree > 0 ) );
 
 	cache = tree -> cbk_cache;
+	assert( "nikita-2470", cbk_cache_invariant( cache ) );
+
 	cbk_cache_lock( cache );
 	for_all_slots( cache, slot ) {
 		if( slot -> node == NULL )
@@ -199,12 +273,13 @@ void cbk_cache_invalidate( const znode *node /* node to remove from cache */,
 		}
 	}
 	cbk_cache_unlock( cache );
+	assert( "nikita-2471", cbk_cache_invariant( cache ) );
 }
 
 /** add to the cbk-cache in the "tree" information about "node". This
     can actually be update of existing slot in a cache. */
 /* Audited by: green(2002.06.15) */
-void cbk_cache_add( znode *node /* node to add to the cache */ )
+void cbk_cache_add( const znode *node /* node to add to the cache */ )
 {
 	cbk_cache        *cache;
 	cbk_cache_slot   *slot;
@@ -212,6 +287,7 @@ void cbk_cache_add( znode *node /* node to add to the cache */ )
 	assert( "nikita-352", node != NULL );
 
 	cache = current_tree -> cbk_cache;
+	assert( "nikita-2472", cbk_cache_invariant( cache ) );
 	cbk_cache_lock( cache );
 	/* find slot to update/add */
 	for_all_slots( cache, slot ) {
@@ -226,38 +302,12 @@ void cbk_cache_add( znode *node /* node to add to the cache */ )
 	/* if all slots are used, reuse least recently used one */
 	if( ( slot == NULL ) || cbk_cache_list_end( &cache -> lru, slot ) )
 		slot = cbk_cache_list_back( &cache -> lru );
-	slot -> node = node;
+	slot -> node = ( znode * ) node;
 	cbk_cache_list_remove( slot );
 	cbk_cache_list_push_front( &cache -> lru, slot );
 	cbk_cache_unlock( cache );
+	assert( "nikita-2473", cbk_cache_invariant( cache ) );
 }
-
-#if REISER4_DEBUG && REISER4_USER_LEVEL_SIMULATION
-/** Debugging aid: print human readable information about @slot */
-void print_cbk_slot( const char *prefix /* prefix to print */, 
-		     cbk_cache_slot *slot /* slot to print */ )
-{
-	if( slot == NULL )
-		info( "%s: null slot\n", prefix );
-	else
-		print_znode( "node", slot -> node );
-}
-
-/** Debugging aid: print human readable information about @cache */
-void print_cbk_cache( const char *prefix /* prefix to print */, 
-		      cbk_cache  *cache /* cache to print */)
-{
-	if( cache == NULL )
-		info( "%s: null cache\n", prefix );
-	else {
-		cbk_cache_slot *scan;
-
-		info( "%s: cache: %p\n", prefix, cache );
-		for_all_slots( cache, scan )
-			print_cbk_slot( "slot", scan );
-	}
-}
-#endif
 
 static lookup_result coord_by_handle( cbk_handle *handle );
 static lookup_result traverse_tree( cbk_handle *h );
@@ -517,7 +567,7 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 				 iterations );
 			print_key( "key", h -> key );
 		} else if( unlikely( iterations > REISER4_MAX_CBK_ITERATIONS ) ) {
-			h -> error = "reiser-2018: Too many iterations. Tree corrupted, or (less likely) starvation occuring.";
+			h -> error = "reiser-2018: Too many iterations. Tree corrupted, or (less likely) starvation occurring.";
 			h -> result = -EIO;
 			break;
 		}
@@ -554,8 +604,8 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 	/*
 	 * `unlikely' error case
 	 */
-	if( ( unlikely( h -> result != CBK_COORD_FOUND ) ) &&
-	    ( h -> result != CBK_COORD_NOTFOUND ) ) {
+	if( unlikely( ( h -> result != CBK_COORD_FOUND ) &&
+		      ( h -> result != CBK_COORD_NOTFOUND ) ) ) {
 		/* failure. do cleanup */
 		hput( h );
 	} else {
@@ -624,20 +674,20 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 
 	/*
 	 * if we are going to load znode right now, setup
-	 * ->ptr_in_parent_hint: coord where pointer to this node is stored in
+	 * ->in_parent: coord where pointer to this node is stored in
 	 * parent.
 	 */
 	spin_lock_tree (h->tree);
 
 	if (znode_just_created(active) && (h->coord->node != NULL))
-		active->ptr_in_parent_hint = *h->coord;
+		active->in_parent = *h->coord;
 
 	/* protect sibling pointers and `connected' state bits, check
 	 * znode state */
 	ret = znode_is_connected(active);
 
 	/*
-	 * above two operations (setting ->ptr_in_parent_hint up and checking
+	 * above two operations (setting ->in_parent up and checking
 	 * connectedness) are logically separate and one can release and
 	 * re-acquire tree lock between them. On the other hand,
 	 * releasing-acquiring spinlock requires d-cache flushing on some
@@ -767,7 +817,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 	 */
 	node_bias = h -> bias;
 	result = nplug -> lookup( active, h -> key, node_bias, h -> coord );
-	if( unlikely(result != NS_FOUND && result != NS_NOT_FOUND) ) {
+	if( unlikely( result != NS_FOUND && result != NS_NOT_FOUND) ) {
 		/* error occured */
 		h -> result = result;
 		return LOOKUP_DONE;
@@ -1089,6 +1139,7 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 	assert( "nikita-1316", h -> key != NULL );
 
 	cache = h -> tree -> cbk_cache;
+	assert( "nikita-2474", cbk_cache_invariant( cache ) );
 	node  = NULL; /* to keep gcc happy */
 	level = LEAF_LEVEL; /* to keep gcc happy */
 	/*
@@ -1118,6 +1169,7 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 		}
 	}
 	cbk_cache_unlock( cache );
+	assert( "nikita-2475", cbk_cache_invariant( cache ) );
 	if( ( node == NULL ) || cbk_cache_list_end( &cache -> lru, slot ) ) {
 		h -> result = CBK_COORD_NOTFOUND;
 		return -ENOENT;
@@ -1125,7 +1177,7 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 
 	result = longterm_lock_znode( h -> active_lh, node, 
 				      cbk_lock_mode( level, h ), 
-				      ZNODE_LOCK_LOPRI );
+				      ZNODE_LOCK_HIPRI );
 	zput( node );
 	if( result != 0 )
 		return result;
@@ -1140,13 +1192,18 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 		/* do lookup inside node */
 		h -> level = level;
 		llr = cbk_node_lookup( h );
-		
+		/*
+		 * if cbk_node_lookup() wandered to another node (due to eottl
+		 * or non-unique keys), adjust @node
+		 */
+		node = h -> active_lh -> node;
+
 		if( llr != LOOKUP_DONE ) {
 			/* restart of continue on the next level */
 			reiser4_stat_tree_add( cbk_cache_wrong_node );
 			result = -ENOENT;
 		} else if( ( h -> result != CBK_COORD_NOTFOUND ) &&
-			 ( h -> result != CBK_COORD_FOUND ) )
+			   ( h -> result != CBK_COORD_FOUND ) )
 			/* io or oom */
 			result = -ENOENT;
 		else if( key_is_delimiting( node, h -> key ) ) {
@@ -1177,6 +1234,7 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 		result = -ENOENT; /* -ERAUGHT */
 	}
 	zrelse( node );
+	assert( "nikita-2476", cbk_cache_invariant( cache ) );
 	return result;
 }
 

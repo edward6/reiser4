@@ -173,7 +173,7 @@ typedef struct node_plugin {
 	 * already detected. This should read some data into znode (like free
 	 * space counter) and, optionally, check data consistency.
 	 */
-	int ( *init_znode )( const znode *node );
+	int ( *parse )( znode *node );
 	/**
 	 * This method is called on a new node to initialise plugin specific
 	 * data (header, etc.)

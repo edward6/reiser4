@@ -23,7 +23,7 @@
  * lock_left_neighbor */
 #define GET_NODE_BY_PTR_OFFSET(node, off) (*(znode**)(((unsigned long)(node)) + (off)))
 #define FIELD_OFFSET(name)  ((int)(&((znode*)0)-> ## name ))
-#define PARENT_PTR_OFFSET FIELD_OFFSET(ptr_in_parent_hint.node)
+#define PARENT_PTR_OFFSET FIELD_OFFSET(in_parent.node)
 #define LEFT_PTR_OFFSET   FIELD_OFFSET(left)
 #define RIGHT_PTR_OFFSET  FIELD_OFFSET(right)
 

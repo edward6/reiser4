@@ -141,7 +141,7 @@ void print_node_content( const char *prefix /* output prefix */,
 	for( i = 0; i < node_num_items( node ); i ++ ) {
 		indent_znode (node);info( "%d: ", i );
 
-		coord.item_pos = i;
+		coord_set_item_pos (&coord, i);
 		
 		iplug = item_plugin_by_coord( &coord );
 		if( flags & REISER4_NODE_PRINT_PLUGINS ) {
@@ -237,7 +237,7 @@ reiser4_plugin node_plugins[ LAST_NODE_ID ] = {
 			.key_at           = node40_key_at,
 			.estimate         = node40_estimate,
 			.check            = node40_check,
-			.init_znode       = node40_parse,/* was parse */
+			.parse            = node40_parse,
 			.init             = node40_init,
 #ifdef GUESS_EXISTS
 			.guess            = node40_guess,

@@ -223,11 +223,11 @@ int internal_create_hook( const coord_t *item /* coord of item */,
 		spin_lock_dk( current_tree );
 		spin_lock_tree( current_tree );
 		assert( "nikita-1400", 
-			( child -> ptr_in_parent_hint.node == NULL ) ||
-			( znode_above_root( child -> ptr_in_parent_hint.node ) ) );
+			( child -> in_parent.node == NULL ) ||
+			( znode_above_root( child -> in_parent.node ) ) );
 		atomic_inc( &item -> node -> c_count );
-		child -> ptr_in_parent_hint = *item;
-		child -> ptr_in_parent_hint.between = AT_UNIT;
+		child -> in_parent = *item;
+		child -> in_parent.between = AT_UNIT;
 		if( arg != NULL )
 			sibling_list_insert_nolock( child, arg );
 
@@ -284,7 +284,7 @@ int internal_kill_hook( const coord_t *item /* coord of item */,
 		/* fare thee well */
 		ZF_SET( child, JNODE_HEARD_BANSHEE );
 		spin_lock_tree( current_tree );
-		coord_init_zero( &child -> ptr_in_parent_hint );
+		coord_init_zero( &child -> in_parent );
 		spin_unlock_tree( current_tree );
 		del_c_ref( item -> node );
 		trace_on( TRACE_ZWEB, "kill: %llx: %i [%llx]\n",
@@ -340,7 +340,7 @@ int internal_shift_hook( const coord_t *item /* coord of item */,
 		atomic_inc( &new_node -> c_count );
 		assert( "nikita-1395", znode_parent( child ) == old_node );
 		assert( "nikita-1396", atomic_read( &old_node -> c_count ) > 0 );
-		child -> ptr_in_parent_hint = *item;
+		child -> in_parent = *item;
 		assert( "nikita-1781", znode_parent( child ) == new_node );
 		assert( "nikita-1782", check_tree_pointer( item, 
 							   child ) == NS_FOUND );

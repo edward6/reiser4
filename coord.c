@@ -13,7 +13,7 @@ static inline void coord_init_values (coord_t  *coord,
 				      between_enum between)
 {
 	coord->node     = node;
-	coord->item_pos = item_pos;
+	coord_set_item_pos (coord, item_pos);
 	coord->unit_pos = unit_pos;
 	coord->between  = between;
 
@@ -30,6 +30,11 @@ void coord_normalize (coord_t * coord)
 	node = coord->node;
 	assert ("vs-683", node);
 
+	/*
+	 * FIXME-NIKITA overkill
+	 */
+	coord->iplug = NULL;
+
 	if (node_is_empty (node)) {
 		coord_init_first_unit (coord, node);
 	} else if ((coord->between == AFTER_ITEM) ||
@@ -37,7 +42,7 @@ void coord_normalize (coord_t * coord)
 		return;
 	} else if (coord->item_pos == coord_num_items (coord) &&
 		   coord->between == BEFORE_ITEM) {
-		coord->item_pos --;
+		coord_dec_item_pos (coord);
 		coord->between = AFTER_ITEM;
 	} else if (coord->unit_pos == coord_num_units (coord) &&
 		   coord->between == BEFORE_UNIT) {
@@ -46,7 +51,7 @@ void coord_normalize (coord_t * coord)
 	} else if (coord->item_pos == coord_num_items (coord) &&
 		   coord->unit_pos == 0 &&
 		   coord->between == BEFORE_UNIT) {
-		coord->item_pos --;
+		coord_dec_item_pos (coord);
 		coord->unit_pos = 0;
 		coord->between = AFTER_ITEM;
 	}
@@ -66,9 +71,10 @@ void coord_dup (coord_t *coord, const coord_t *old_coord)
 void coord_dup_nocheck (coord_t *coord, const coord_t *old_coord)
 {
 	coord->node     = old_coord->node;
-	coord->item_pos = old_coord->item_pos;
+	coord_set_item_pos (coord, old_coord->item_pos);
 	coord->unit_pos = old_coord->unit_pos;
 	coord->between  = old_coord->between;
+	coord->iplug    = old_coord->iplug;
 }
 
 
@@ -136,7 +142,7 @@ void coord_init_after_last_item (coord_t *coord, znode *node)
 void coord_init_parent_hint (coord_t *coord, znode *node)
 {
 	coord->node = node;
-	coord->item_pos = ~0u;
+	coord_set_item_pos (coord, ~0u);
 }
 
 /* Initialize a coordinate by 0s. Used in places where init_coord was used and
@@ -337,7 +343,7 @@ static int coord_adjust_items (coord_t *coord, unsigned items, int is_next)
 	/* If the node is empty, set it appropriately. */
 	if (items == 0) {
 		coord->between  = EMPTY_NODE;
-		coord->item_pos = 0;
+		coord_set_item_pos (coord, 0);
 		coord->unit_pos = 0;
 		return 1;
 	}
@@ -345,7 +351,7 @@ static int coord_adjust_items (coord_t *coord, unsigned items, int is_next)
 	/* If it was empty and it no longer is, set to BEFORE/AFTER_ITEM. */
 	if (coord->between == EMPTY_NODE) {
 		coord->between  = (is_next ? BEFORE_ITEM : AFTER_ITEM);
-		coord->item_pos = 0;
+		coord_set_item_pos (coord, 0);
 		coord->unit_pos = 0;
 		return 0;
 	}
@@ -353,7 +359,7 @@ static int coord_adjust_items (coord_t *coord, unsigned items, int is_next)
 	/* If the item_pos is out-of-range, set it appropriatly. */
 	if (coord->item_pos >= items) {
 		coord->between  = AFTER_ITEM;
-		coord->item_pos = items - 1;
+		coord_set_item_pos (coord, items - 1);
 		coord->unit_pos = 0;
 		/* If is_next, return 1 (can't go any further). */
 		return is_next;
@@ -400,7 +406,7 @@ int coord_next_unit (coord_t *coord)
 			return 1;
 		}
 
-		coord->item_pos += 1;
+		coord_inc_item_pos (coord);
 		coord->unit_pos  = 0;
 		coord->between   = AT_UNIT;
 		return 0;
@@ -445,7 +451,7 @@ int coord_next_item (coord_t *coord)
 
 		/* Anywhere in an item, go to the next one. */
 		coord->between   = AT_UNIT;
-		coord->item_pos += 1;
+		coord_inc_item_pos (coord);
 		coord->unit_pos  = 0;
 		return 0;
 
@@ -488,7 +494,7 @@ int coord_prev_unit (coord_t *coord)
 			return 1;
 		}
 
-		coord->item_pos -= 1;
+		coord_dec_item_pos (coord);
 		coord->unit_pos  = coord_last_unit_pos (coord);
 		coord->between   = AT_UNIT;
 		return 0;
@@ -504,7 +510,7 @@ int coord_prev_unit (coord_t *coord)
 			return 1;
 		}
 
-		coord->item_pos -= 1;
+		coord_dec_item_pos (coord);
 		/* FALLTHROUGH */
 
 	case AFTER_ITEM:
@@ -543,7 +549,7 @@ int coord_prev_item (coord_t *coord)
 			return 1;
 		}
 
-		coord->item_pos -= 1;
+		coord_dec_item_pos (coord);
 		coord->unit_pos  = 0;
 		coord->between   = AT_UNIT;
 		return 0;
@@ -879,7 +885,7 @@ int coord_set_to_right (coord_t *coord)
 				return 1;
 			}
 
-			coord->item_pos += 1;
+			coord_inc_item_pos (coord);
 			coord->between   = AT_UNIT;
 			return 0;
 		}
@@ -889,7 +895,7 @@ int coord_set_to_right (coord_t *coord)
 			return 1;
 		}
 
-		coord->item_pos += 1;
+		coord_inc_item_pos (coord);
 		coord->unit_pos  = 0;
 		coord->between   = AT_UNIT;
 		return 0;
@@ -938,7 +944,7 @@ int coord_set_to_left (coord_t *coord)
 			}
 
 			coord->unit_pos  = coord_last_unit_pos (coord);
-			coord->item_pos -= 1;
+			coord_dec_item_pos (coord);
 			coord->between   = AT_UNIT;
 			return 0;
 		}
@@ -948,7 +954,7 @@ int coord_set_to_left (coord_t *coord)
 			return 1;
 		}
 
-		coord->item_pos -= 1;
+		coord_dec_item_pos (coord);
 		coord->unit_pos  = coord_last_unit_pos (coord);
 		coord->between   = AT_UNIT;
 		return 0;

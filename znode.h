@@ -179,6 +179,9 @@ struct znode {
 	    loaded. */
 	node_plugin           *nplug;
 
+	/** number of items in this node */
+	int                    nr_items;
+
 	/** version of znode data. This is increased on each modification. */
 	__u64                  version;
 
@@ -213,7 +216,7 @@ struct znode {
 	 * Also, parent pointer is stored here.  The parent pointer
 	 * stored here is NOT a hint, only the position is.
 	 */
-	coord_t            ptr_in_parent_hint;
+	coord_t            in_parent;
 
 #if REISER4_DEBUG_MODIFY
 	/**
