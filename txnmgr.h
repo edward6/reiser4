@@ -19,7 +19,7 @@
 
 TS_LIST_DECLARE(atom);		/* The manager's list of atoms */
 TS_LIST_DECLARE(txnh);		/* The atom's list of handles */
-
+/* NIKITA-FIXME-HANS: josh is gone, so you must clean this file up */
 /* FIXME!!! Comments unclear, names even worse? */
 TS_LIST_DECLARE(fwaitfor);	/* Each atom has one of these lists: one for its own handles */
 TS_LIST_DECLARE(fwaiting);	/* waiting on another atom and one for reverse mapping.  Used
@@ -46,7 +46,7 @@ typedef enum {
 	TXN_CAPTURE_READ_NONCOM = (1 << 1),
 
 	/* A READ_MODIFY request indicates that a block will be read but that the caller
-	   wishes for the block to be captured as will be written.  This capture request
+	   wishes for the block to be captured as it will be written.  This capture request
 	   mode is not currently used, but eventually it will be useful for preventing
 	   deadlock in read-modify-write cycles. */
 	TXN_CAPTURE_READ_MODIFY = (1 << 2),
@@ -209,7 +209,7 @@ struct txn_atom {
 	/* Start time. */
 	unsigned long start_time;
 
-	/* The atom's delete set. */
+	/* The atom's delete set. ZAM-FIXME-HANS: define this. */
 	blocknr_set delete_set;
 
 	/* The atom's wandered_block mapping. */
@@ -496,6 +496,7 @@ struct flush_queue {
 	atomic_t nr_errors;
 	/* An atom this flush handle is attached to */
 	txn_atom *atom;
+	/* ZAM-FIXME-HANS: can you use a better name */
 	/* A semaphore for waiting on i/o completion */
 	struct semaphore sema;
 	void *owner;
