@@ -1084,18 +1084,10 @@ static void unlock_carry_node( carry_node *node /* node to be released */,
 			/*
 			 * free node in bitmap
 			 *
-			 * FIXME-NIKITA deallocate_znode() is wrong call
-			 * here. We only want to release bit in bitmap and
-			 * nothing more.
-			 *
-			 * FIXME_JMACD Deallocate_znode calls zdestroy
-			 * without checking refcounts?  Why not set HEARD_BANSHEE
-			 * bit here and zput later?
-			 *
-			 * This looks so bogus to me.  Why isn't this handled eventually
-			 * by zput()?
+			 * Prepare node for removal. Last zput() will finish
+			 * with it.
 			 */
-			jdelete( ZJNODE( real_node ));
+			ZF_SET( real_node, ZNODE_HEARD_BANSHEE );
 		}
 		if( node -> free ) {
 			assert( "nikita-2177", 
