@@ -5,7 +5,6 @@
 
 
 /*
-  
      w=\$v v=\$u u=5 z=\$w+$w
                echo $z
           eval echo $z
@@ -146,9 +145,9 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 
 
 
-
+/*
 %left BLANK_SLASH_BLANK
-
+*/
 
 
 
@@ -193,22 +192,22 @@ Expression
 
 | UnordBeg Unordered_list R_SKW_PARENT            { $$ = $2; level_down( UNORDERED ); }      /* grouping: [name1 name2 [name3]]  */
 
-| Object_Name BLANK_SLASH_BLANK Object_Name       { $$ = associate( $1, $3 );}    
+| Object_Name SLASH Object_Name       { $$ = associate( $1, $3 );}    
 
 
 | tw_begin Expression R_SKW_PARENT                { $$ = end_tw_list( $1, $2 ); level_down( TW_BEGIN ); }     /*   ..tw/[a<-b;b<-c] */ 
 | Expression SEMICOLON  Expression                { $$ = list_expression( $1, $3 ); }
-| Expression COMMA      Expression                { $$ = list_asinc_expression( $1, $3 ); }
+| Expression COMMA      Expression                { $$ = list_async_expression( $1, $3 ); }
 
 
 | asyn_begin Expression R_FLX_PARENT              { $$ = end_async_list( $1, $2 ); level_down( ASYN_BEGIN ); }
 
 | if_statement                                    { $$ = $1; }
 | cd_begin Expression R_PARENT                    { $$ = $2;  level_down( CD_BEGIN ); }                    /*   path_name/(a<-b;b<-c) */ 
-
+/* the ASSIGNMENT operator and the SYMLINK operator return a value: bytes written */
 |  Object_Name  L_ASSIGN        Expression        { $$ = assign( $1, $3 ); }            /*  <-  direct assign  */
 |  Object_Name  L_APPEND        Expression        { $$ = assign( $1, $3 ); }            /*  <-  direct assign  */
-|  Object_Name  L_ASSIGN  INV_L Expression INV_R  { $$ = assign_invert( $1, $4 ); }     /*  <-  invert assign. destination mast have ..invert method  */
+|  Object_Name  L_ASSIGN  INV_L Expression INV_R  { $$ = assign_invert( $1, $4 ); }     /*  <-  invert assign. destination must have ..invert method  */
 |  Object_Name  L_SYMLINK       Expression        { $$ = symlink( $1, $3 ); }           /*   ->  symlink   */
 
 
@@ -496,6 +495,12 @@ b_check_word(struct yy_r4_work_spaces * ws )
 inttab(struct yy_r4_work_spaces * ws )
 {
 	int i;
+
+
+
+
+
+
 	if (strco)
 		for( i = strco - 1; i; i--)
 			if( !( strcmp( wrdTab( i ), ws->freeSpace ) )  )
@@ -800,6 +805,70 @@ initial( struct yy_r4_work_spaces * ws)
 
 
 
+
+/*
+ A flow is a source from which data can be obtained. A Flow can be one of these types:
+
+   1. memory area in user space. (char *area, size_t length)
+   2. memory area in kernel space. (caddr_t *area, size_t length)
+   3. file-system object (lnode *obj, loff_t offset, size_t length)
+*/
+
+
+int reiser4_assign( sink_t *dst, flow_t *src )
+{
+    int           ret_code;
+    file_plugin  *src_fplug;
+    file_plugin  *dst_fplug;
+    connect_t     connection;
+
+    /* 
+     * select how to transfer data from @src to @dst. 
+     * 
+     * Default implementation of this is common_transfer() (see below).
+     * 
+     * Smart file plugin can choose connection based on type of @dst.
+     *
+     */
+    connection = source->fplug -> select_connection( source, target );
+
+    /* do transfer */
+    return connection( &target, &source );
+}
+
+/*
+ Often connection() will be a method that employs memcpy(). Sometimes copying data from one file plugin to another will mean transforming the data. What reiser4_assign does depends on the type of the flow and sink. If @flow is based on the kernel-space area, memmove() is used to copy data. If @flow is based on the user-space area, copy_from_user() is used. If @flow is based on a file-system object, flow_place() uses the page cache as a universal translator, loads the object's data into the page cache, and then copies them into @area. Someday methods will be written to copy objects more efficiently than using the page cache (e.g. consider copying holes [add link to definition of a hole]), but this will not be implemented in V4.0. 
+*/
+int common_transfer( sink_t *target, flow_t *source )
+{
+      hub_t hub;
+
+    while( flow_not_empty( source ) ) {
+
+      /* Hub is for files what pipes are for processes.  Since not
+      every file has a method that understands how to transfer data
+      directly to every other file, we need a lingua franca for them.
+      This is like when a Russian and a Swede talk to each other in
+      English.
+
+      One optimization is particularly important to consider though,
+      and that is when the write method for the sink does not perform
+      transformation of the content.  In this case, it is typically
+      possible for the hub to point to a location in memory that will
+      be at least some part of the sink, and thereby avoid the
+      overhead of copying the data twice.  Since plugins typically
+      store their data in multiple physical sequences of bytes (while
+      presenting an appearance of being a single sequence of bytes),
+      this will typically involve creating hubs for each physical
+      sequence of bytes, and then reading from the flow into them.  */
+
+        ret_code = target->fplug -> prep_hub( source, target, hub );
+        ret_code = source->fplug -> flow_to_hub( source, hub );
+        ret_code = target->fplug -> hub_to_sink( hub, target );
+    }
+}
+
+	
 
 
 
