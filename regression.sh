@@ -78,8 +78,8 @@ mv gmon.out gmon.out.rm.30.1${ORDER}.0.$r 2>/dev/null
 run ${PROGRAM} nikita mongo 30 1${ORDER} 1 || exit 6
 mv gmon.out gmon.out.rm.30.1${ORDER}.1.$r 2>/dev/null
 
-#run ulevel/cp-r plugin || exit 7
-#mv gmon.out gmon.out.cp-r.plugin.$r 2>/dev/null
+run ulevel/cp-r plugin || exit 7
+mv gmon.out gmon.out.cp-r.plugin.$r 2>/dev/null
 
 #( find /tmp | ${PROGRAM} vs copydir ) || exit 8
 #mv gmon.out gmon.out.vs.copydir.tmp.$r
