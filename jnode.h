@@ -622,7 +622,6 @@ static inline int jprotect (jnode * node)
 
 	assert("zam-836", !JF_ISSET(node, JNODE_EPROTECTED));
 	assert("vs-1216", jnode_is_unformatted(node));
-	assert("vs-1217", !(jnode_mapping(node)->host->i_state & I_GHOST));
 	
 
 	JF_SET(node, JNODE_EPROTECTED);
