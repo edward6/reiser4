@@ -270,7 +270,7 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large);
 
 static int capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh, txn_capture mode, int can_coc);
 
-static void invalidate_list(capture_list_head *);
+void invalidate_list(capture_list_head *);
 
 /* GENERIC STRUCTURES */
 
@@ -1572,7 +1572,7 @@ flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 #if REISER4_COPY_ON_CAPTURE
 
 /* Remove processed nodes from atom's clean list (thereby remove them from transaction). */
-static void
+void
 invalidate_list(capture_list_head * head)
 {
 	txn_atom *atom;
@@ -1606,7 +1606,7 @@ invalidate_list(capture_list_head * head)
 #else
 
 /* Remove processed nodes from atom's clean list (thereby remove them from transaction). */
-static void
+void
 invalidate_list(capture_list_head * head)
 {
 	while (!capture_list_empty(head)) {

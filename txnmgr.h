@@ -636,6 +636,7 @@ extern flush_queue_t *get_fq_for_current_atom(void);
 
 void protected_jnodes_init(protected_jnodes *list);
 void protected_jnodes_done(protected_jnodes *list);
+void invalidate_list(capture_list_head * head);
 
 /* Debugging */
 #if REISER4_DEBUG_OUTPUT

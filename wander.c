@@ -1538,7 +1538,7 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 	 * This can only be done after pre_commit_hook(), because it is where
 	 * early flushed jnodes with CREATED bit are transferred to the
 	 * overwrite list. */
-	invalidate_list(ATOM_CLEAN_LIST(*atom));
+	invalidate_list(ATOM_CLEAN_LIST(atom));
 
 	trace_mark(wander);
 
