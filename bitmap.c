@@ -291,7 +291,7 @@ static inline int reconstruct_blocknr (jnode * node, reiser4_disk_addr *da)
 }
 
 /** find out wandered block number */
-static inline int reconstruct_wandered_blocknr (jnode * node, reiser4_disk_addr * da)
+static inline int reconstruct_wandered_blocknr (jnode * node UNUSED_ARG, reiser4_disk_addr * da)
 {
 	da->blk = 0;
 	/* ??? */
