@@ -182,6 +182,10 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	if (result)
 		return result;
 
+	result = eflush_init_at(s);
+	if (result)
+		return result;
+
 	/* ok, we are sure that filesystem format is a format40 format */
 	result = reiser4_journal_replay(s);
 	if (result)
@@ -309,6 +313,10 @@ int
 format40_release(struct super_block *s)
 {
 	int ret;
+	reiser4_super_info_data *info;
+
+	info = get_super_private(s);
+	assert("zam-579", info != NULL);
 
 	if (reiser4_grab_space_exact(1, 1))
 		return -ENOSPC;
@@ -325,16 +333,16 @@ format40_release(struct super_block *s)
 	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
 		print_fs_info("umount ok", s);
 
-	done_tree(&get_super_private(s)->tree);
+	done_tree(&info->tree);
 
-	assert("zam-579", get_super_private(s) != NULL);
-	assert("zam-580", get_super_private(s)->space_plug != NULL);
+	assert("zam-580", info->space_plug != NULL);
 
-	if (get_super_private(s)->space_plug->destroy_allocator != NULL)
-		get_super_private(s)->space_plug->destroy_allocator(&get_super_private(s)->space_allocator, s);
+	if (info->space_plug->destroy_allocator != NULL)
+		info->space_plug->destroy_allocator(&info->space_allocator, s);
 
 	done_journal_info(s);
 
+	eflush_done_at(s);
 	done_super_jnode(s);
 
 	return 0;
