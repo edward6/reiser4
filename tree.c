@@ -1273,12 +1273,10 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 		}
 		/* cut data from one node */
 		smallest_removed = *min_key();
-		result = cut_node(&intranode_from, &intranode_to,	/* is used as an input and
-									   an output, with output
-									   being a hint used by next
-									   loop iteration */
-				  from_key, to_key, &smallest_removed, DELETE_KILL	/*flags */
-				  , 0);
+		result = cut_node(&intranode_from, &intranode_to,  /* is used as an input and an output, with output
+								      being a hint used by next loop iteration */
+				  from_key, to_key, &smallest_removed, DELETE_KILL, /*flags */
+				  0);
 		zrelse(loaded);
 
 		if (result == -EAGAIN) {
