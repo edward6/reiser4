@@ -49,6 +49,7 @@ typedef enum {
  *     . close transaction
  *
  */
+/* Audited by: green(2002.06.15) */
 static int common_link( struct inode *parent /* parent directory */, 
 			struct dentry *existing /* dentry of object to which
 						 * new link is being
@@ -127,6 +128,7 @@ static int common_link( struct inode *parent /* parent directory */,
  *     . if nlink drops to 0, delete object
  *     . close transaction
  */
+/* Audited by: green(2002.06.15) */
 static int common_unlink( struct inode *parent /* parent object */, 
 			  struct dentry *victim /* name being removed from
 						 * @parent */ )
@@ -222,6 +224,7 @@ static int common_unlink( struct inode *parent /* parent object */,
  * . instantiate dentry
  *
  */
+/* Audited by: green(2002.06.15) */
 static int common_create_child( struct inode *parent /* parent object */, 
 				struct dentry *dentry /* new name */, 
 				reiser4_object_create_data *data /* parameters
@@ -399,6 +402,7 @@ static int common_create_child( struct inode *parent /* parent object */,
 }
 
 /** ->is_name_acceptable() method of directory plugin */
+/* Audited by: green(2002.06.15) */
 int is_name_acceptable( const struct inode *inode /* directory to check */, 
 			const char *name UNUSED_ARG /* name to check */, 
 			int len /* @name's length */)
