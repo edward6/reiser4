@@ -1530,10 +1530,10 @@ unprotect_extent_nodes(oid_t oid, unsigned long ind, __u64 count)
 		jnode  *node;
 
 		node = jlook_lock(tree, oid, ind);
-		if (node != NULL) {
-			junprotect(node);
-			jput(node);
-		}
+		assert("nikita-3088", node != NULL);
+
+		junprotect(node);
+		jput(node);
 		unprotected ++;
 	}
 	return unprotected;
@@ -1564,14 +1564,11 @@ protect_extent_nodes(oid_t oid, unsigned long ind, __u64 count, __u64 *protected
 		jnode  *node;
 
 		node = jlook_lock(tree, oid, ind);
-		if (node == NULL) {
-			/* non-existence of at least one jnode means that this unallocated extent is going to be
-			   removed */
-			(*protected) ++;
-			continue;
-			result = -EAGAIN;
-			goto error;
-		}
+		/*
+		 * all jnodes of unallocated extent should be in
+		 * place. Truncate first removes extent item, then jnodes.
+		 */
+		assert("nikita-3087", node != NULL);
 
 		if (JF_ISSET(node, JNODE_EFLUSH)) {
 			if (eflushed == JNODES_TO_UNFLUSH) {
