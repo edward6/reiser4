@@ -176,43 +176,70 @@ static void slum_scan_set_current (slum_scan *scan, jnode *node)
 static int slum_scan_left_using_parent (slum_scan *scan)
 {
 	int ret;
+	reiser4_lock_handle node_lh, parent_lh, left_parent_lh;
+	tree_coord coord;
 
 	assert ("jmacd-1403", ! slum_scan_left_finished (scan));
 
-	/* FIXME_JMACD: HERE YOU ARE*/
+	reiser4_init_coord (& coord);
+	reiser4_init_lh    (& node_lh);
+	reiser4_init_lh    (& parent_lh);
+	reiser4_init_lh    (& left_parent_lh);
 
 	if (JF_ISSET (scan->node, ZNODE_UNFORMATTED)) {
 
 		/* FIXME_JMACD: Don't know how to do this. */
+		ret = 0;
 
 	} else {
+		/* Formatted node case: */
 		znode *node = JZNODE (scan->node);
-		reiser4_lock_handle node_lh, parent_lh;
-		tree_coord coord;
 
-		reiser4_init_lh (& node_lh);
-		reiser4_init_lh (& parent_lh);
-
+		/* Lock the node itself, which is necessary for getting its parent (FIXME_JMACD: not sure why). */
 		if ((ret = reiser4_lock_znode (& node_lh, node, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
-			return ret;
+			goto done;
 		}
 
+		/* Get the parent read locked. */
 		if ((ret = reiser4_get_parent (& parent_lh, node, ZNODE_READ_LOCK, 1))) {
-			return ret;
+			goto done;
 		}
 
+		/* FIXME_JMACD: Do we still need the node lock? */
+
+		/* Make the child's position "hint" up-to-date. */
 		if ((ret = find_child_ptr (parent_lh.node, node, & coord))) {
-			return ret;
+			goto done;
 		}
 
+		/* Shift the coord to the left. */
+		if ((ret = coord_prev (& coord)) != 0) {
+			/* If coord_prev returns 1, coord is already leftmost of its node. */
+
+			/* Lock the left-of-parent node, but don't read into memory. */
+			if ((ret = reiser4_get_left_neighbor (& left_parent_lh, parent_lh.node, ZNODE_READ_LOCK, 0))) {
+				goto done;
+			}
+
+			/* Release parent lock -- don't need it any more. */
+			reiser4_done_lh (& parent_lh);
+
+			/* Set coord to the rightmost position of the left-of-parent node. */
+			coord.node = left_parent_lh.node;
+			coord_last_unit (& coord);
+		}
+
+		
 	}
 
-	/* get_parent() */
-	/* get item to the left, but not crossing node boundary */
-	/* get rightmost node in extent to the left.  */
+	/* FIXME_JMACD: */
 	/* if it is dirty, belongs to the same atom, connected, etc, continue scan, else stop. */
+ done:
+	reiser4_done_lh (& node_lh);
+	reiser4_done_lh (& parent_lh);
+	reiser4_done_lh (& left_parent_lh);
 
-	return 0;
+	return ret;
 }
 
 /* Gets the sibling of an unformatted jnode using its index, only if it is in memory, and
@@ -293,7 +320,7 @@ static int slum_scan_left_formatted (slum_scan *scan, znode *node)
 	/* If left is NULL then we reached the end of a formatted region, or else the
 	 * sibling is out of memory, now check for an extent to the left (as long as
 	 * LEAF_LEVEL). */
-	if (left == NULL && znode_get_level (left) == LEAF_LEVEL) {
+	if (left == NULL && znode_get_level (left) == LEAF_LEVEL && ! slum_scan_left_finished (scan)) {
 		return slum_scan_left_using_parent (scan);
 	}
 
