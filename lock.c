@@ -737,8 +737,9 @@ int longterm_lock_znode (
 {
 	int ret;
 	int hipri = (request & ZNODE_LOCK_HIPRI) != 0;
-	int non_blocking = (request & ZNODE_LOCK_NONBLOCK) != 0;
 	int wake_up_next = 0;
+	txn_capture try_capture_flags = 0;
+	int non_blocking = 0;
 
 	/* Get current process context */
 	lock_stack *owner = get_current_lock_stack();
@@ -747,6 +748,14 @@ int longterm_lock_znode (
 	assert ("jmacd-808", handle->owner == NULL);
 
 	assert ("nikita-1391", lock_counters()->spin_locked == 0);
+
+	if (request & ZNODE_LOCK_NONBLOCK)  {
+		try_capture_flags |= TXN_CAPTURE_NONBLOCKING;
+		non_blocking = 1;
+	}
+
+	if (request & ZNODE_LOCK_DONT_FUSE)
+		try_capture_flags |= TXN_CAPTURE_DONT_FUSE;
 
 	/* If we are changing our process priority we must adjust a number
 	 * of high priority owners for each znode that we already lock */
@@ -786,7 +795,7 @@ int longterm_lock_znode (
 		       (ret == 0) || ((ret == -EAGAIN) && !non_blocking));
 		/* If we could get the lock... Try to capture first before taking the
 		 * lock.*/
-		if ((ret = txn_try_capture (ZJNODE (node), mode, non_blocking)) != 0) {
+		if ((ret = txn_try_capture (ZJNODE (node), mode, try_capture_flags)) != 0) {
 			/* In the failure case, the txnmgr releases the znode's lock (or
 			 * in some cases, it was released a while ago).  There's no need
 			 * to reacquire it so we should return here, avoid releasing the

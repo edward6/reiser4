@@ -1265,6 +1265,8 @@ try_capture_block (txn_handle  *txnh,
 			/* Either the txnh is now assigned to the block's atom or the read-request was
 			 * granted because the block is committing.  Locks still held. */
 		} else {
+			if (mode & TXN_CAPTURE_DONT_FUSE) return -ENAVAIL;
+
 			/* In this case, both txnh and node belong to different atoms.  This function
 			 * returns -EAGAIN on successful fusion, 0 on the fall-through case. */
 			if ((ret = capture_init_fusion (node, txnh, mode)) != 0) {
@@ -1341,12 +1343,14 @@ try_capture_block (txn_handle  *txnh,
 int
 txn_try_capture (jnode           *node,
 		 znode_lock_mode  lock_mode,
-		 int              non_blocking)
+		 txn_capture      flags /* ...NONBLOCKING and ...DONT_FUSE are allowed here */)
 {
 	int ret;
 	txn_handle  *txnh;
 	txn_capture  cap_mode;
 	txn_atom    *atom_alloc = NULL;
+
+	int non_blocking = flags & TXN_CAPTURE_NONBLOCKING;
 
 	if ((txnh = get_current_context ()->trans) == NULL) {
 		rpanic ("jmacd-492", "invalid transaction txnh");
@@ -1370,9 +1374,7 @@ txn_try_capture (jnode           *node,
 		return 0;
 	}
 
-	if (non_blocking) {
-		cap_mode |= TXN_CAPTURE_NONBLOCKING;
-	}
+	cap_mode |= (flags & (TXN_CAPTURE_NONBLOCKING | TXN_CAPTURE_DONT_FUSE));
 
 	assert ("jmacd-604", spin_jnode_is_locked (node));
 
@@ -1447,7 +1449,7 @@ txn_try_capture_page  (struct page        *pg,
 	
 	spin_lock_jnode (node);
 	
-	ret = txn_try_capture (node, lock_mode, non_blocking);
+	ret = txn_try_capture (node, lock_mode, non_blocking ? TXN_CAPTURE_NONBLOCKING : 0);
 	if (ret == 0) {
 		spin_unlock_jnode (node);
 	}

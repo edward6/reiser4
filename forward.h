@@ -139,6 +139,9 @@ typedef enum {
 	 * return the value -EAGAIN.
 	 */
 	ZNODE_LOCK_NONBLOCK = (1 << 1),
+	/*
+	 * An option for longterm_lock_znode which prevents atom fusion */
+	ZNODE_LOCK_DONT_FUSE = (1 << 2)
 } znode_lock_request;
 
 typedef enum { READ_OP = 0, WRITE_OP = 1 } rw_op;

@@ -138,15 +138,12 @@ static inline void JF_SET (jnode *j, int f) { set_bit (f, &j->state); }
  */
 #define spin_ordering_pred_jnode( node )					\
 	( ( lock_counters() -> spin_locked_tree == 0 ) &&			\
-	  ( lock_counters() -> spin_locked_dk == 0 ))
-
-	  /*
-	   * in addition you cannot hold more than one jnode spin lock at a
-	   * time.
-	   */
-          // NOTE: we lock two jnodes (smaller memory address first) for
-	  // comparing of their atoms
-	  // && ( lock_counters() -> spin_locked_jnode == 0 ) )
+	  ( lock_counters() -> spin_locked_dk == 0 )   &&                       \
+	  /*                                                                    \
+	   * in addition you cannot hold more than one jnode spin lock at a     \
+	   * time.                                                              \
+	   */                                                                   \
+	  ( lock_counters() -> spin_locked_jnode == 0 ) )
 
 /** 
  * Define spin_lock_znode, spin_unlock_znode, and spin_znode_is_locked.
@@ -358,8 +355,6 @@ extern void jrelse_nolock     (jnode* node);
 
 extern jnode * alloc_io_head (const reiser4_block_nr * block);
 extern void    drop_io_head  (jnode * node);
-
-extern int jnodes_are_not_in_same_atom (jnode*, jnode*);
 
 /**
  * drop reference to node data. When last reference is dropped, data are

@@ -69,6 +69,9 @@ typedef enum
 	 * prefer not to sleep waiting for an aging atom to commit. */
 	TXN_CAPTURE_NONBLOCKING   = (1 << 4),
 
+	/* An option to txn_try_capture to prevent atom fusion, just simple capturing is allowed */
+	TXN_CAPTURE_DONT_FUSE     = (1 << 5)
+
 	/* This macro selects only the exclusive capture request types, stripping out any
 	 * options that were supplied (i.e., NONBLOCKING). */
 #define CAPTURE_TYPE(x) ((x) & TXN_CAPTURE_TYPES)
@@ -305,7 +308,7 @@ extern int          txn_same_atom_dirty   (jnode              *base,
 
 extern int          txn_try_capture       (jnode              *node,
 					   znode_lock_mode     mode,
-					   int                 non_blocking);
+					   txn_capture         flags);
 
 extern int          txn_try_capture_page  (struct page        *pg,
 					   znode_lock_mode     mode,

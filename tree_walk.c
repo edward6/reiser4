@@ -66,6 +66,7 @@ static int lock_neighbor (
 	reiser4_stat_znode_add(lock_neighbor);
 
 	if (flags & GN_TRY_LOCK) req |= ZNODE_LOCK_NONBLOCK;
+	if (flags & GN_SAME_ATOM) req |= ZNODE_LOCK_DONT_FUSE;
 
 	/* get neighbor's address by using of sibling link, quit while loop
 	 * (and return) if link is not available. */
@@ -80,17 +81,6 @@ static int lock_neighbor (
 		zref(neighbor);
 
 		spin_unlock_tree(tree);
-
-		/* In the flush code we need a tree traversal which does not
-		 * cross atom boundaries which implies atom fusion to avoid
-		 * deadlocks. The following statement prevents current atom
-		 * from fusion with another atom, simple adding new not
-		 * captured node to current atom is also rejected. */
-		if ((flags & GN_SAME_ATOM) && jnodes_are_not_in_same_atom (node, neighbor)) {
-			zput (neighbor);
-			spin_lock_tree (tree);
-			return -ENAVAIL;
-		}
 
 		ret = longterm_lock_znode(result, neighbor, mode, req);
 
