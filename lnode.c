@@ -90,16 +90,16 @@ static int lnode_lw_eq( const lnode *node1, const lnode *node2 );
 static int lnode_valid_type( lnode_type type );
 
 /*
- * Common operations for verious types of lnodes.
+ * Common operations for various types of lnodes.
  *
  * FIXME-NIKITA consider making this plugin.
  */
 static struct {
 	/** get a key of the corresponding file system object */
 	reiser4_key * ( * key )( const lnode *node, reiser4_key *result );
-	/** get a plugin suit for the corresponding file system object */
+	/** get a plugin suitable for the corresponding file system object */
 	int ( *get_plugins )( const lnode *node, reiser4_plugin_ref *area );
-	/** set a plugin suit for the corresponding file system object */
+	/** set a plugin suitable for the corresponding file system object */
 	int ( *set_plugins )( lnode *node, const reiser4_plugin_ref *area );
 	/** true if @node1 and @node2 refer to the same object */
 	int ( *eq )( const lnode *node1, const lnode *node2 );
