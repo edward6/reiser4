@@ -157,11 +157,9 @@ znode *add_tree_root( znode *old_root /* existing tree root */,
 				 * insert into new root pointer to the
 				 * @old_root.
 				 */
-				if( REISER4_DEBUG && !zload( new_root ) ) {
-					assert( "nikita-1110", 
-						node_is_empty( new_root ) );
-					zrelse( new_root );
-				}
+				assert( "nikita-1110", 
+					WITH_DATA( new_root, 
+						   node_is_empty( new_root ) ) );
 				spin_lock_dk( current_tree );
 				*znode_get_ld_key( new_root ) = *min_key();
 				*znode_get_rd_key( new_root ) = *max_key();
