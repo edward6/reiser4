@@ -67,8 +67,8 @@
    "rx_event_list_push_back", and so on.
 */
 
-#define TYPE_SAFE_LIST_LINK_INIT( name ) { &(name), &(name) }
-#define TYPE_SAFE_LIST_HEAD_INIT( name ) { &(name), &(name) }
+#define TYPE_SAFE_LIST_LINK_INIT(name) { &(name), &(name) }
+#define TYPE_SAFE_LIST_HEAD_INIT(name) { (void *)&(name), (void *)&(name) }
 #define TYPE_SAFE_LIST_LINK_ZERO { NULL, NULL }
 #define TYPE_SAFE_LIST_HEAD_ZERO { NULL, NULL }
 
