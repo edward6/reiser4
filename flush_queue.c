@@ -540,9 +540,11 @@ static int fq_submit_write (flush_queue_t * fq, jnode * first, int nr)
 		struct page * pg;
 
 		pg = jnode_page (first);
-		/* FIXME-ZAM: What we should do to protect this page from
-		 * being removed from memory? I think that reiser4
-		 * releasepage() should look at JNODE_WRITEBACK bit */
+
+		/* This page is protected from washing from the page cache by
+		 * pages' jnode state bits: JNODE_OVERWRITE if jnode is in
+		 * overwrite set or JNODE_WRITEBACK if jnode is in relocate
+		 * set. */
 		assert ("zam-727", pg != NULL);
 
 		page_cache_get (pg);
