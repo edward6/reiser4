@@ -1102,7 +1102,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.pre_delete = pre_delete_unix_file,
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
-		.forget_inode = forget_inode_unix_file
+		.forget_inode = forget_inode_common
 	},
 	[DIRECTORY_FILE_PLUGIN_ID] = {
 		.h = {
