@@ -88,6 +88,7 @@ static int reiser4_set_page_dirty (struct page * page)
 		if (mapping) {
 			spin_lock(&mapping->page_lock);
 			if (page->mapping) {	/* Race with truncate? */
+				                /* VS-FIXME-HANS: answer is? */
 				if (!mapping->backing_dev_info->memory_backed)
 					inc_page_state(nr_dirty);
 				list_del(&page->list);
@@ -99,7 +100,7 @@ static int reiser4_set_page_dirty (struct page * page)
 	}
 	return ret;
 }
-
+/* VS-FIXME-HANS: how about a nice explanation of why we have both readpage and readpages? */
 
 /* ->readpage() VFS method in reiser4 address_space_operations */
 static int
@@ -250,7 +251,7 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 	reiser4_exit_context(&ctx);
 	return ret;
 }
-
+/* VS-FIXME-HANS: is the #if really a good idea?  where are the comments? */
 #if !REISER4_DEBUG
 static
 #endif
@@ -295,6 +296,7 @@ releasable(const jnode *node)
 			    level[jnode_get_level(node) - LEAF_LEVEL].counter);
 
 /* ->releasepage method for reiser4 */
+/* NIKITA-FIXME-HANS: comment this function */
 int
 reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 {
@@ -366,6 +368,7 @@ We can be called from balance_dirty_pages()
 	   Reiser4 code is supposed to call balance_dirty_pages at places where no locks
 	   are held, which means we can call begin jnode_flush right from there  (VS-FIXME-HANS where? ) having no
 	   deadlocks between the caller of balance_dirty_pages() and jnode_flush(). */
+/* VS-FIXME-HANS; comment this function better.  What is status of inode capturing?  Did you decide you need to do it or? */
 int
 reiser4_writepages(struct address_space *mapping,
 		   struct writeback_control *wbc)
@@ -415,6 +418,7 @@ int reiser4_sync_page(struct page *page)
 			(void)jnode_short_info(j, jbuf);
 			write_tracef(&get_super_private(s)->trace_file, s,
 				     "wait_on_page: %llu %s\n", block, jbuf);
+			/* VS-FIXME-HANS: this does what?  Comment this function. */
 			(void)jbuf; /* ohoho */
 		}
 	}
@@ -430,7 +434,9 @@ struct address_space_operations reiser4_as_operations = {
 	.readpage = reiser4_readpage,
 	/* This is most annoyingly misnomered method. 
 
-VS-FIXME-HANS: then rename it.
+VS-FIXME-HANS: then rename it to reiser4_start_up_io or some such, and post on lkml asking that the generic name be
+changed, instead of being passive and powerless in the face of the linux kernel gods;-).  You might find others agree
+with you....
 
 Actually it is called
 	   from wait_on_page_bit() and lock_page() and its purpose is to
