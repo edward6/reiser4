@@ -157,7 +157,19 @@ done_context(reiser4_context * context /* context being released */)
 		if (context->grabbed_blocks != 0)
 			all_grabbed2free("done_context: free grabbed blocks");
 		
-		/* synchronize against longterm_unlock_znode(). */
+		/*
+		 * synchronize against longterm_unlock_znode():
+		 * wake_up_requestor() wakes up requestors without holding
+		 * zlock (otherwise they will immediately bump into that lock
+		 * after wake up on another CPU). To work around (rare)
+		 * situation where requestor has been woken up asynchronously
+		 * and managed to run until completion (and destroy its
+		 * context and lock stack) before wake_up_requestor() called
+		 * wake_up() on it, wake_up_requestor() synchronize on lock
+		 * stack spin lock. It has actually been observed that spin
+		 * lock _was_ locked at this point, because
+		 * wake_up_requestor() took interrupt.
+		 */
 		spin_lock_stack(&context->stack);
 		spin_unlock_stack(&context->stack);
 
