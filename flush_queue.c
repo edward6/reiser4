@@ -132,7 +132,7 @@ static void uncapture_queued_node (flush_queue_t *fq, jnode *node)
 
 	trace_on (TRACE_FLUSH, "queued jnode removed from memory\n");
 
-	capture_list_remove (node);
+	capture_list_remove_clean (node);
 	count_dequeued_node (fq);
 
 	JF_CLR (node, JNODE_FLUSH_QUEUED);
