@@ -312,8 +312,9 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 										\
 static inline void spin_lock_ ## NAME (TYPE *x)					\
 {										\
-	assert ("nikita-1383", spin_ordering_pred_ ## NAME (x));		\
-	spin_lock (& x->FIELD);							\
+	ON_DEBUG_CONTEXT( assert( "nikita-1383",                                \
+				  spin_ordering_pred_ ## NAME( x ) ) );		\
+	spin_lock( &x -> FIELD );						\
 	ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked_ ## NAME );		\
 	ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked );			\
 }										\
