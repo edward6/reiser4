@@ -1119,7 +1119,7 @@ jwait_io(jnode * node, int rw)
 	return result;
 }
 
-void
+static void
 jnode_set_type(jnode * node, jnode_type type)
 {
 	static unsigned long type_to_mask[] = {
