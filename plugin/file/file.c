@@ -1922,9 +1922,6 @@ write_unix_file(struct file *file, /* file to write to */
 	if (written == 0) {
 		unix_file_info_t *uf_info;
 
-		/* UNIX behavior: clear suid bit on file modification */
-		remove_suid(file->f_dentry);
-
 		uf_info = unix_file_inode_data(inode);
 
 		if (inode_get_flag(inode, REISER4_HAS_MMAP)) {
@@ -1957,7 +1954,17 @@ write_unix_file(struct file *file, /* file to write to */
 					get_nonexclusive_access(uf_info);
 
 				if (rep == 0) {
-					/* UNIX behavior: clear suid bit on file modification */
+					/* UNIX behavior: clear suid bit on
+					 * file modification. This cannot be
+					 * done earlier, because removing suid
+					 * bit captures blocks into
+					 * transaction, which should be done
+					 * after taking exclusive access on
+					 * the file.
+					 *
+					 * FIXME-NIKITA: check
+					 * return code of remove_suid(). */
+					remove_suid(file->f_dentry);
 					grab_space_enable();
 				}
 
