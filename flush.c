@@ -503,7 +503,7 @@ static int prepare_flush_pos(flush_pos_t *pos, jnode * org)
 	init_load_count(&load);
 
 	if (jnode_is_znode(org)) {
-		ret = longterm_lock_znode(&lock, JZNODE(org), 
+		ret = longterm_lock_znode(&lock, JZNODE(org),
 					  ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
 		if (ret)
 			return ret;
@@ -516,7 +516,7 @@ static int prepare_flush_pos(flush_pos_t *pos, jnode * org)
 		move_flush_pos(pos, &lock, &load, NULL);
 	} else {
 		coord_t parent_coord;
-		ret = jnode_lock_parent_coord(org, &parent_coord, &lock, 
+		ret = jnode_lock_parent_coord(org, &parent_coord, &lock,
 					      &load, ZNODE_WRITE_LOCK, 0);
 		if (ret)
 			goto done;
@@ -715,7 +715,7 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 
 	/* ... and the answer is: we should relocate leaf nodes if at least
 	   FLUSH_RELOCATE_THRESHOLD nodes were found. */
-	flush_pos.leaf_relocate = JF_ISSET(node, JNODE_REPACK) || 
+	flush_pos.leaf_relocate = JF_ISSET(node, JNODE_REPACK) ||
 		(left_scan.count + right_scan.count >= sbinfo->flush.relocate_threshold);
 
 	/*assert ("jmacd-6218", jnode_check_dirty (left_scan.node)); */
@@ -754,6 +754,12 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	ret = prepare_flush_pos(&flush_pos, leftmost_in_slum);
 	if (ret)
 		goto failed;
+
+	if (jnode_check_flushprepped(leftmost_in_slum)) {
+		ON_TRACE(TRACE_FLUSH_VERB, "flush concurrency: %s already allocated\n", pos_tostring(&flush_pos));
+		ret = 0;
+		goto failed;
+	}
 
 	/* Set pos->preceder and (re)allocate pos and its ancestors if it is needed  */
 	ret = alloc_pos_and_ancestors(&flush_pos);
