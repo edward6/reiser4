@@ -667,12 +667,12 @@ init_coord_extension_tail(uf_coord_t *uf_coord, loff_t lookuped)
   plugin->u.item.s.file.get_block
 */
 reiser4_internal int
-get_block_address_tail(const uf_coord_t *uf_coord, sector_t block, struct buffer_head *bh)
+get_block_address_tail(const coord_t *coord, sector_t block, struct buffer_head *bh)
 {
 	assert("nikita-3252",
-	       znode_get_level(uf_coord->base_coord.node) == LEAF_LEVEL);
+	       znode_get_level(coord->node) == LEAF_LEVEL);
 
-	bh->b_blocknr = *znode_get_block(uf_coord->base_coord.node);
+	bh->b_blocknr = *znode_get_block(coord->node);
 	return 0;
 }
 

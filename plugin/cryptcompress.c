@@ -2673,7 +2673,7 @@ get_block_cryptcompress(struct inode *inode, sector_t block, struct buffer_head 
 			validate_crc_extended_coord(&hint.coord,
 						(loff_t) block << PAGE_CACHE_SHIFT);
 		if (iplug->s.file.get_block)
-			result = iplug->s.file.get_block(&hint.coord, block, bh_result);
+			result = iplug->s.file.get_block(&hint.coord.base_coord, block, bh_result);
 		else
 			result = RETERR(-EINVAL);
 		
