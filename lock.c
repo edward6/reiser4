@@ -1280,7 +1280,7 @@ znode_lock_mode lock_mode(lock_handle * handle)
 
 /* Transfer a lock handle (presumably so that variables can be moved between stack and
    heap locations). */
-void
+static void
 move_lh_internal(lock_handle * new, lock_handle * old, int unlink_old)
 {
 	znode *node = old->node;
