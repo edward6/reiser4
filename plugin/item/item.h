@@ -58,8 +58,13 @@ typedef struct {
 	    grow indefinitely (extent, directory item) this should
 	    return max_key().
 	    
+	   For example extent with the key 
+	  
+	   (LOCALITY,4,OBJID,STARTING-OFFSET), and length BLK blocks,
+	  
+	   ->max_key_inside is (LOCALITY,4,OBJID,0xffffffffffffffff), and
 	*/
-	reiser4_key *(*max_key_inside) (const coord_t * coord, reiser4_key * area);
+	reiser4_key *(*max_key_inside) (const coord_t * coord, reiser4_key * area, void *);
 	/* Maximal key that is _really_ occupied by this item currently. This
 	   cannot be greater than ->max_key_inside.
 	  
@@ -74,7 +79,7 @@ typedef struct {
 	   (LOCALITY,4,OBJID,STARTING-OFFSET + BLK * block_size - 1)
 	  
 	*/
-	reiser4_key *(*real_max_key_inside) (const coord_t * coord, reiser4_key *);
+	/*reiser4_key *(*real_max_key_inside) (const coord_t * coord, reiser4_key *);*/
 
 	/* true if item @coord can merge data at @key. */
 	int (*can_contain_key) (const coord_t * coord, const reiser4_key * key, const reiser4_item_data * data);
@@ -189,12 +194,6 @@ typedef struct {
 	/* converts flow @f to item data. @coord == 0 on insert */
 	int (*item_data_by_flow) (const coord_t * coord, const flow_t * f, reiser4_item_data * data);
 
-	/* return true if item contains key in it, coord is adjusted
-	   correspondingly */
-	int (*key_in_item) (coord_t * coord, const reiser4_key * key);
-
-	/* return true if unit to which coord is set contains @key */
-	int (*key_in_unit) (const coord_t * coord, const reiser4_key * key);
 	/* gather statistics */
 	void (*item_stat) (const coord_t * coord, void *);
 } balance_ops;
@@ -236,13 +235,25 @@ typedef struct {
 	/* @page is used in extent's write. If it is set (when tail2extent
 	   conversion is in progress) - do not grab a page and do not copy data
 	   from flow into it because all the data are already */
-	int (*write) (struct inode *, coord_t *, lock_handle *, flow_t *);
+	int (*write) (struct inode *, coord_t *, lock_handle *, flow_t *, struct sealed_coord *);
 	int (*read) (struct file *, coord_t *, flow_t *);
 	int (*readpage) (coord_t *, struct page *);
 	int (*writepage) (coord_t *, lock_handle *, struct page *);
 	int (*page_cache_readahead) (struct file *, coord_t *, lock_handle *, unsigned long start, unsigned long count);
 	int (*get_block) (const coord_t *, sector_t, struct buffer_head *);
 	void (*readpages) (coord_t *, struct address_space *, struct list_head *pages);
+	/* key of first byte which is not addressed by the item @coord is set to
+	   For example extent with the key 
+	  
+	   (LOCALITY,4,OBJID,STARTING-OFFSET), and length BLK blocks,
+	  
+	   ->append_key is 
+	  
+	   (LOCALITY,4,OBJID,STARTING-OFFSET + BLK * block_size) */
+	reiser4_key *(*append_key) (const coord_t * coord, reiser4_key *, void *);
+	/* return true if item contains key in it, coord is adjusted correspondingly */
+	int (*key_in_item) (coord_t * coord, const reiser4_key * key, void *);
+
 } file_ops;
 
 /* operations specific to items of stat data type */
