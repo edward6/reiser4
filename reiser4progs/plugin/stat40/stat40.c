@@ -41,9 +41,7 @@ static errno_t stat40_create(reiserfs_stat40_base_t *stat,
     return 0;
 }
 
-static errno_t stat40_estimate(reiserfs_item_hint_t *hint, 
-    reiserfs_pos_t *pos) 
-{
+static errno_t stat40_estimate(uint16_t pos, reiserfs_item_hint_t *hint) {
     aal_assert("vpf-074", hint != NULL, return -1);
 
     /* Should calculate extentions size also */
@@ -96,7 +94,7 @@ static reiserfs_plugin_t stat40_plugin = {
 
 #ifndef ENABLE_COMPACT
 	    .create = (errno_t (*)(void *, void *))stat40_create,
-	    .estimate = (errno_t (*)(void *, void *))stat40_estimate,
+	    .estimate = (errno_t (*)(uint16_t, void *))stat40_estimate,
 #else
 	    .create = NULL,
 	    .estimate = NULL,
@@ -107,7 +105,7 @@ static reiserfs_plugin_t stat40_plugin = {
 	    .minsize = (uint16_t (*)(void))stat40_minsize,
 	    .internal = (int (*)(void))stat40_internal,
 
-	    .max_key = NULL,
+	    .maxkey = NULL,
 	    .lookup = NULL,
 	    
 	    .insert = NULL,

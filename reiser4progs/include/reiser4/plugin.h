@@ -147,26 +147,40 @@ typedef struct reiserfs_dir_ops reiserfs_dir_ops_t;
 struct reiserfs_item_common_ops {
     reiserfs_item_type_t type;
 
+    /* Forms item structures based on passed hint in passed memory area */
     errno_t (*create) (void *, void *);
+
+    /* Makes lookup for passed key */
     int (*lookup) (void *, void *, void *);
 
+    /* Confirms item type */
     errno_t (*confirm) (void *);
+
+    /* Checks item for validness */
     errno_t (*check) (void *);
+
+    /* Prints item into specified buffer */
     void (*print) (void *, char *, uint16_t);
 
-    /* 
-	Get the max key which could be stored in the item of 
-	this type.
-    */
-    errno_t (*max_key) (void *);
+    /* Get the max key which could be stored in the item of this type */
+    errno_t (*maxkey) (void *);
     
-    errno_t (*insert) (void *, uint16_t, void *);
-    errno_t (*remove) (void *, uint16_t);
+    /* Returns unit count */
     uint16_t (*count) (void *);
+
+    /* Removes specified unit from the item */
+    errno_t (*remove) (void *, uint16_t);
+
+    /* Inserts unit described by passed hint into the item */
+    errno_t (*insert) (void *, uint16_t, void *);
     
-    errno_t (*estimate) (void *, void *);
+    /* Estimatess item */
+    errno_t (*estimate) (uint16_t, void *);
+    
+    /* Retunrs min size the item may occupy */
     uint16_t (*minsize) (void);
     
+    /* Returns TRUE if item is internal one */
     int (*internal) (void);
 };
 
@@ -581,8 +595,8 @@ struct reiserfs_object_hint {
 typedef struct reiserfs_object_hint reiserfs_object_hint_t;
 
 struct reiserfs_pos {
-    int16_t item;
-    int16_t unit;
+    uint16_t item;
+    uint16_t unit;
 };
 
 typedef struct reiserfs_pos reiserfs_pos_t;

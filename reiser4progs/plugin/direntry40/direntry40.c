@@ -38,7 +38,7 @@ static errno_t direntry40_create(reiserfs_direntry40_t *direntry,
 	direntry_hint->count * sizeof(reiserfs_entry40_t);
 
     for (i = 0; i < direntry_hint->count; i++) {	
-	e40_set_offset(&direntry->entry[i], offset);
+	en40_set_offset(&direntry->entry[i], offset);
 
 	libreiser4_plugin_call(return -1, key_plugin->key, build_dir_short_key, 
 	    &direntry->entry[i].entryid, direntry_hint->entry[i].name, 
@@ -63,14 +63,22 @@ static errno_t direntry40_create(reiserfs_direntry40_t *direntry,
     return 0;
 }
 
-static errno_t direntry40_estimate(reiserfs_item_hint_t *hint, 
-    reiserfs_pos_t *pos) 
+static errno_t direntry40_insert(reiserfs_direntry40_t *direntry, 
+    uint16_t pos, reiserfs_item_hint_t *hint)
 {
+    aal_assert("umka-791", direntry != NULL, return -1);
+    aal_assert("umka-792", hint != NULL, return -1);
+    
+    de40_set_count(direntry, de40_get_count(direntry) + 1);
+    
+    return 0;
+}
+
+static errno_t direntry40_estimate(uint16_t pos, reiserfs_item_hint_t *hint) {
     int i;
     reiserfs_direntry_hint_t *direntry_hint;
 	    
     aal_assert("vpf-095", hint != NULL, return -1);
-    aal_assert("umka-608", pos != NULL, return -1);
     
     direntry_hint = (reiserfs_direntry_hint_t *)hint->hint;
     hint->length = direntry_hint->count * sizeof(reiserfs_entry40_t);
@@ -80,7 +88,7 @@ static errno_t direntry40_estimate(reiserfs_item_hint_t *hint,
 	    sizeof(reiserfs_objid_t) + 1;
     }
 
-    if (pos == NULL || pos->unit == -1)
+    if (pos == 0xffff)
 	hint->length += sizeof(reiserfs_direntry40_t);
     
     return 0;
@@ -142,7 +150,7 @@ static int callback_comp_for_lookup(const void *key1,
 }
 
 static int direntry40_lookup(reiserfs_direntry40_t *direntry, 
-    reiserfs_key_t *key, reiserfs_pos_t *pos)
+    reiserfs_key_t *key, uint16_t *pos)
 {
     int lookup;
     uint64_t unit;
@@ -156,7 +164,7 @@ static int direntry40_lookup(reiserfs_direntry40_t *direntry,
     if ((lookup = reiserfs_misc_bin_search((void *)direntry, 
 	    direntry->count, key->body, callback_elem_for_lookup, 
 	    callback_comp_for_lookup, key->plugin, &unit)) != -1)
-	pos->unit = (uint32_t)pos;
+	*pos = (uint16_t)unit;
 
     return lookup;
 }
@@ -165,7 +173,7 @@ static int direntry40_internal(void) {
     return 0;
 }
 
-static errno_t direntry40_max_key(reiserfs_key_t *key) {
+static errno_t direntry40_maxkey(reiserfs_key_t *key) {
     aal_assert("umka-716", key->plugin != NULL, return -1);
     aal_assert("vpf-121", key->plugin->key.set_objectid != NULL, return -1);
     aal_assert("vpf-122", key->plugin->key.get_objectid != NULL, return -1);
@@ -195,7 +203,7 @@ static reiserfs_plugin_t direntry40_plugin = {
 
 #ifndef ENABLE_COMPACT	    
 	    .create = (errno_t (*)(void *, void *))direntry40_create,
-	    .estimate = (errno_t (*)(void *, void *))direntry40_estimate,
+	    .estimate = (errno_t (*)(uint16_t, void *))direntry40_estimate,
 #else
 	    .create = NULL,
 	    .estimate = NULL,
@@ -204,14 +212,14 @@ static reiserfs_plugin_t direntry40_plugin = {
 	    .print = (void (*)(void *, char *, uint16_t))direntry40_print,
 	    .lookup = (int (*) (void *, void *, void *))direntry40_lookup,
 	    .internal = (int (*)(void))direntry40_internal,
-	    .max_key = (errno_t (*)(void *))direntry40_max_key,
+	    .maxkey = (errno_t (*)(void *))direntry40_maxkey,
+	    
+	    .insert = (errno_t (*)(void *, uint16_t, void *))direntry40_insert,
+	    .count = NULL,
+	    .remove = NULL,
 	    
 	    .confirm = NULL,
-	    .check = NULL,
-
-	    .insert = NULL,
-	    .count = NULL,
-	    .remove = NULL
+	    .check = NULL
 	},
 	.specific = {
 	    .dir = { }
@@ -225,3 +233,4 @@ static reiserfs_plugin_t *direntry40_entry(reiserfs_plugin_factory_t *f) {
 }
 
 libreiser4_factory_register(direntry40_entry);
+

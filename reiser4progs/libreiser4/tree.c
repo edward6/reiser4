@@ -151,7 +151,7 @@ int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t stop,
     aal_assert("umka-742", coord != NULL, return -1);
    
     coord->pos.item = 0;
-    coord->pos.unit = -1;
+    coord->pos.unit = 0xffff;
     coord->node = tree->root;
 
     while (1) {
@@ -315,7 +315,7 @@ static errno_t reiserfs_tree_insert_node(reiserfs_tree_t *tree,
 	}
     } else {
     
-	coord.pos.unit = -1;
+	coord.pos.unit = 0xffff;
 
 	/* Inserting item */
 	if (reiserfs_node_insert(parent, &coord.pos, &ldkey, &item)) {
@@ -390,7 +390,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 	    }
 	
 	    coord.pos.item = 0;
-	    coord.pos.unit = -1;
+	    coord.pos.unit = 0xffff;
     
 	    /* Inserting item into new leaf */
 	    if (reiserfs_node_insert(leaf, &coord.pos, key, item)) {
@@ -437,7 +437,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 		}
 	
 		coord.pos.item = 0;
-		coord.pos.unit = -1;
+		coord.pos.unit = 0xffff;
     
 		/* Inserting item into new leaf */
 		if (reiserfs_node_insert(leaf, &coord.pos, key, item)) {

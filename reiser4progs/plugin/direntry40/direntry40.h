@@ -47,11 +47,11 @@ struct reiserfs_direntry40 {
 
 typedef struct reiserfs_direntry40 reiserfs_direntry40_t;
 
-#define de40_get_count(de, num)		    aal_get_le16(de, count)
+#define de40_get_count(de)		    aal_get_le16(de, count)
 #define de40_set_count(de, num)		    aal_set_le16(de, count, num)
 
-#define e40_get_offset(e, num)		    aal_get_le16(e, offset)
-#define e40_set_offset(e, num)		    aal_set_le16(e, offset, num)
+#define en40_get_offset(en)		    aal_get_le16(en, offset)
+#define en40_set_offset(en, num)	    aal_set_le16(en, offset, num)
 
 #endif
 

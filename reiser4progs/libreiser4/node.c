@@ -359,11 +359,11 @@ errno_t reiserfs_node_split(reiserfs_node_t *node,
 	
 	src.node = node;
 	src.pos.item = reiserfs_node_count(node) - 1;
-	src.pos.unit = -1;
+	src.pos.unit = 0xffff;
 	
 	dst.node = right;
 	dst.pos.item = 0;
-	dst.pos.unit = -1;
+	dst.pos.unit = 0xffff;
 	
 	if (reiserfs_node_move_item(&dst, &src, node->key_plugin))
 	    return -1;
@@ -392,7 +392,7 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key,
     aal_assert("umka-476", key != NULL, return -1);
 
     pos->item = 0;
-    pos->unit = -1;
+    pos->unit = 0xffff;
 
     if ((lookup = libreiser4_plugin_call(return -1, 
 	node->node_plugin->node, lookup, node->block, pos, key)) == -1) 
@@ -422,9 +422,9 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key,
     reiserfs_key_init(&max_key, reiserfs_node_item_key(node, 
 	pos->item), key->plugin);
     
-    if (item_plugin->item.common.max_key) {
+    if (item_plugin->item.common.maxkey) {
 	    
-	if (item_plugin->item.common.max_key(&max_key) == -1) {
+	if (item_plugin->item.common.maxkey(&max_key) == -1) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Getting max key of the item %d in the node %llu failed.", 
 		pos->item, aal_block_get_nr(node->block));
@@ -653,11 +653,11 @@ errno_t reiserfs_node_shift(reiserfs_coord_t *old, reiserfs_coord_t *new) {
     {
         src.node = old->node;
         src.pos.item = 0;
-        src.pos.unit = -1;
+        src.pos.unit = 0xffff;
 	
         dst.node = left;
         dst.pos.item = reiserfs_node_count(left);
-        dst.pos.unit = -1;
+        dst.pos.unit = 0xffff;
 	
         if (reiserfs_node_move_item(&dst, &src, old->node->key_plugin)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -678,11 +678,11 @@ errno_t reiserfs_node_shift(reiserfs_coord_t *old, reiserfs_coord_t *new) {
     {
         src.node = old->node;
         src.pos.item = reiserfs_node_count(old->node) - 1;
-        src.pos.unit = -1;
+        src.pos.unit = 0xffff;
 	
         dst.node = right;
         dst.pos.item = 0;
-        dst.pos.unit = -1;
+        dst.pos.unit = 0xffff;
 	
         if (reiserfs_node_move_item(&dst, &src, old->node->key_plugin)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -728,19 +728,19 @@ errno_t reiserfs_node_shift(reiserfs_coord_t *old, reiserfs_coord_t *new) {
 	/* Insertion point was moved into left neighbor */
 	new->node = left;
 	new->pos.item = reiserfs_node_count(left) + point; 
-	new->pos.unit = -1;
+	new->pos.unit = 0xffff;
     } else if (right_moved >= (count - point)) {
 	    
 	/* Insertion point was moved into right neightbor */
 	new->node = right;
 	new->pos.item = right_moved - (count - point);
-	new->pos.unit = -1;
+	new->pos.unit = 0xffff;
     } else {
 	    
 	/* Insertion point stay in old node */
 	new->node = old->node;
 	new->pos.item = point;
-	new->pos.unit = -1;
+	new->pos.unit = 0xffff;
     }
     return 0;
 }
@@ -796,7 +796,7 @@ errno_t reiserfs_node_insert(reiserfs_node_t *node,
         return -1;
     }
 
-    if (pos->unit == -1) {
+    if (pos->unit == 0xffff) {
         if ((ret = libreiser4_plugin_call(return -1, node->node_plugin->node, 
 		insert, node->block, pos, key, item)) != 0)
 	    return ret;
@@ -1057,22 +1057,22 @@ void reiserfs_node_set_pointer(reiserfs_node_t *node,
     or of item_info->info (data to be created on the base of).
     
     1. Insertion of data: 
-    a) pos->unit == -1 
+    a) pos->unit == 0xffff 
     b) hint->data != NULL
     c) get hint->plugin on the base of pos.
     
     2. Insertion of info: 
-    a) pos->unit == -1 
+    a) pos->unit == 0xffff 
     b) hint->info != NULL
     c) hint->plugin != NULL
     
     3. Pasting of data: 
-    a) pos->unit != -1 
+    a) pos->unit != 0xffff 
     b) hint->data != NULL
     c) get hint->plugin on the base of pos.
     
     4. Pasting of info: 
-    a) pos->unit_pos != -1 
+    a) pos->unit_pos != 0xffff 
     b) hint->info != NULL
     c) get hint->plugin on the base of pos.
 */
@@ -1085,7 +1085,7 @@ errno_t reiserfs_node_item_estimate(reiserfs_node_t *node,
     aal_assert("umka-604", pos != NULL, return -1);
 
     /* We must have hint->plugin initialized for the 2nd case */
-    aal_assert("vpf-118", pos->unit != -1 || 
+    aal_assert("vpf-118", pos->unit != 0xffff || 
 	hint->plugin != NULL, return -1);
    
     if (!hint->plugin && !(hint->plugin = 
@@ -1096,13 +1096,13 @@ errno_t reiserfs_node_item_estimate(reiserfs_node_t *node,
 	return -1;
     }
 
-    /* hint->has been already set for the 3rd case */
+    /* Here hint has been already set for the 3rd case */
     if (hint->data != NULL)
 	return 0;
     
     /* Estimate for the 2nd and for the 4th cases */
-    return libreiser4_plugin_call(return -1, hint->plugin->item.common, estimate, 
-	hint, pos);
+    return libreiser4_plugin_call(return -1, hint->plugin->item.common, 
+	estimate, pos->item, hint);
 }
 
 void reiserfs_node_set_item_plugin_id(reiserfs_node_t *node, 

@@ -29,9 +29,7 @@ static errno_t internal40_create(reiserfs_internal40_t *internal,
     return 0;
 }
 
-static errno_t internal40_estimate(reiserfs_item_hint_t *hint, 
-    reiserfs_pos_t *pos) 
-{
+static errno_t internal40_estimate(uint16_t pos, reiserfs_item_hint_t *hint) {
     aal_assert("vpf-068", hint != NULL, return -1);
 
     hint->length = sizeof(reiserfs_internal40_t);
@@ -93,7 +91,7 @@ static reiserfs_plugin_t internal40_plugin = {
 
 #ifndef ENABLE_COMPACT	    
 	    .create = (errno_t (*)(void *, void *))internal40_create,
-	    .estimate = (errno_t (*)(void *, void *))internal40_estimate,
+	    .estimate = (errno_t (*)(uint16_t, void *))internal40_estimate,
 #else
 	    .create = NULL,
 	    .estimate = NULL,
@@ -103,7 +101,7 @@ static reiserfs_plugin_t internal40_plugin = {
 	    .internal = (int (*)(void))internal40_internal,
 
 	    .lookup = NULL,
-	    .max_key = NULL,
+	    .maxkey = NULL,
 	    .confirm = NULL,
 	    .check = NULL,
 	    

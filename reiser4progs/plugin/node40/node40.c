@@ -100,7 +100,7 @@ static errno_t node40_prepare(aal_block_t *block, reiserfs_pos_t *pos,
     aal_assert("vpf-026", is_enought_space, return -1);
     aal_assert("vpf-027", is_inside_range, return -1);
 
-    is_new_item = (pos->unit == -1);
+    is_new_item = (pos->unit == 0xffff);
     item_pos = pos->item + !is_new_item;
     
     nh = reiserfs_nh40(block);
@@ -162,7 +162,7 @@ static errno_t node40_insert(aal_block_t *block, reiserfs_pos_t *pos,
     reiserfs_nh40_t *nh;
     
     aal_assert("vpf-119", pos != NULL && 
-	pos->unit == -1, return -1);
+	pos->unit == 0xffff, return -1);
     
     if (node40_prepare(block, pos, key, item))
 	return -1;
@@ -249,7 +249,7 @@ static errno_t node40_paste(aal_block_t *block, reiserfs_pos_t *pos,
 	occured.
     */
     aal_assert("vpf-120", 
-	pos != NULL && pos->unit != -1, return -1);
+	pos != NULL && pos->unit != 0xffff, return -1);
     
     if (node40_prepare(block, pos, key, item))
 	return -1;
