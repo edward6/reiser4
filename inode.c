@@ -567,6 +567,33 @@ inode_check_scale(struct inode *inode, __u64 old, __u64 new)
 	spin_unlock_inode(inode);
 }
 
+void 
+init_inode_ordering(struct inode *inode, 
+		    reiser4_object_create_data *crd, int create)
+{
+	reiser4_key key;
+
+	if (create) {
+		struct inode *parent;
+
+		parent = crd->parent;
+		assert("nikita-3224", inode_dir_plugin(parent) != NULL);
+		inode_dir_plugin(parent)->build_entry_key(parent, 
+							  &crd->dentry->d_name, 
+							  &key);
+	} else {
+		coord_t *coord;
+
+		coord = &reiser4_inode_data(inode)->sd_coord;
+		coord_clear_iplug(coord);
+		/* safe to use ->sd_coord, because node is under long term
+		 * lock */
+		WITH_DATA(coord->node, item_key_by_coord(coord, &key));
+	}
+
+	set_inode_ordering(inode, get_key_ordering(&key));
+}
+
 #if REISER4_DEBUG_OUTPUT
 /* Debugging aid: print information about inode. */
 void

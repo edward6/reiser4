@@ -1130,7 +1130,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.unlink = estimate_unlink_dir_common
 		},
 		.readpages = NULL,
-		.init_inode_data = NULL,
+		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
 		.drop = drop_common
 	},
@@ -1178,7 +1178,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.unlink = estimate_unlink_common
 		},
 		.readpages = NULL,
-		.init_inode_data = NULL,
+		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
 		.drop = drop_common
 	},
@@ -1225,7 +1225,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.unlink = estimate_unlink_common
 		},
 		.readpages = NULL,
-		.init_inode_data = NULL,
+		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
 		.drop = drop_common,
 	},

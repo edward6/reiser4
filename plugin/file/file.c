@@ -1860,8 +1860,6 @@ init_inode_data_unix_file(struct inode *inode,
 			  reiser4_object_create_data *crd, int create)
 {
 	unix_file_info_t *data;
-	struct inode     *parent;
-	reiser4_key       key;
 
 	data = unix_file_inode_data(inode);
 	data->state = create ? UNIX_FILE_EMPTY : UNIX_FILE_STATE_UNKNOWN;
@@ -1872,23 +1870,7 @@ init_inode_data_unix_file(struct inode *inode,
 #if REISER4_DEBUG
 	data->ea_owner = 0;
 #endif
-	if (create) {
-		parent = crd->parent;
-		assert("nikita-3224", inode_dir_plugin(parent) != NULL);
-		inode_dir_plugin(parent)->build_entry_key(parent, 
-							  &crd->dentry->d_name, 
-							  &key);
-	} else {
-		coord_t *coord;
-
-		coord = &reiser4_inode_data(inode)->sd_coord;
-		coord_clear_iplug(coord);
-		/* safe to use ->sd_coord, because node is under long term
-		 * lock */
-		WITH_DATA(coord->node, item_key_by_coord(coord, &key));
-	}
-
-	set_inode_ordering(inode, get_key_ordering(&key));
+	init_inode_ordering(inode, cdr, create);
 }
 
 /* plugin->u.file.pre_delete */

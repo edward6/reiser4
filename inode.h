@@ -255,6 +255,9 @@ get_readdir_list(const struct inode *inode)
 	return &reiser4_inode_data(inode)->readdir_list;
 }
 
+extern void init_inode_ordering(struct inode *inode, 
+				reiser4_object_create_data *crd, int create);
+
 #if REISER4_DEBUG_OUTPUT
 extern void print_inode(const char *prefix, const struct inode *i);
 #else
