@@ -1670,7 +1670,8 @@ balance_dirty_page_cluster(reiser4_cluster_t * clust, struct inode * inode,
 		
 	assert("edward-724", inode != NULL);
 	assert("edward-725", crc_inode_ok(inode));
-	
+	assert("edward-1272", get_current_context()->grabbed_blocks == 0);
+
 	/* set next window params */
 	update_cluster(inode, clust, off, to_file);
 	set_hint_cluster(inode, clust->hint, clust->index, ZNODE_WRITE_LOCK);
@@ -1683,7 +1684,7 @@ balance_dirty_page_cluster(reiser4_cluster_t * clust, struct inode * inode,
 	assert("edward-726", clust->hint->coord.lh->owner == NULL);
 	
 	reiser4_throttle_write(inode);
-	
+	all_grabbed2free();
 	return 0;
 }
 
@@ -2177,7 +2178,8 @@ prepare_cluster(struct inode *inode,
 {
 	int result = 0;
 	reiser4_slide_t * win = clust->win;
-
+	
+	assert("edward-1273", get_current_context()->grabbed_blocks == 0);
 	reset_cluster_params(clust);
 #if REISER4_DEBUG
 	clust->ctx = get_current_context();
@@ -2311,6 +2313,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 	assert("edward-748", crc_inode_ok(inode));
 	assert("edward-159", current_blocksize == PAGE_CACHE_SIZE);
 	assert("edward-749", reiser4_inode_data(inode)->cluster_shift <= MAX_CLUSTER_SHIFT);
+	assert("edward-1274", get_current_context()->grabbed_blocks == 0);
 	
 	result = load_file_hint(file, &hint);
 	if (result)
