@@ -23,6 +23,8 @@
 #include "plugin/disk_format/disk_format40.h"
 #include "plugin/security/perm.h"
 
+#include "emergency_flush.h"
+
 #include <linux/spinlock.h>
 #include <linux/types.h>	/* for __u??, etc.  */
 #include <linux/fs.h>		/* for struct super_block, etc.  */
@@ -233,6 +235,8 @@ struct reiser4_super_info_data {
 	} txnmgr;
 
 	flush_params flush;
+
+	ef_hash_table efhash_table;
 
 	/* pointers to jnodes for journal header and footer */
 	jnode *journal_header;

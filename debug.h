@@ -703,6 +703,10 @@ typedef struct reiser4_statistics {
 		 * how many pages were released on this level
 		 */
 		stat_cnt page_released;
+		/**
+		 * how many times emergency flush was invoked on this level
+		 */
+		stat_cnt emergency_flush;
 		stat_cnt total_hits_at_level;
 	} level[REAL_MAX_ZTREE_HEIGHT];
 	struct {
