@@ -324,7 +324,7 @@ extern __u32 reiser4_current_trace_flags;
 #define trace_on( f, args... )   trace_if( f, dinfo( ##args ) )
 
 #ifndef REISER4_STATS
-#define REISER4_STATS (1)
+#define REISER4_STATS (0)
 #endif
 
 #if REISER4_STATS
@@ -804,6 +804,7 @@ typedef struct reiser4_statistics {
 #define reiser4_stat_znode_add( stat ) noop
 #define reiser4_stat_dir_add( stat ) noop
 #define reiser4_stat_flush_add( stat ) noop
+#define reiser4_stat_flush_add_few( stat, cnt ) noop
 #define reiser4_stat_pool_add( stat ) noop
 #define reiser4_stat_file_add( stat ) noop
 #define	reiser4_stat_add_at_level( lev, stat ) noop
