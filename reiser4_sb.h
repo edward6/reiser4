@@ -16,7 +16,7 @@
    that only reserves space. In our code (fs/reiser4/super.c) there is
    compile time assertion that triggers if not enough space were reserved
    here. Real declaration of reiser4-specific part of super-block is in
-   fs/reiser4/super.h:reiser4_sb_info_data. */
+   fs/reiser4/super.h:reiser4_super_info_data. */
 #if REISER4_STATS
 #define REISER4_STUB_SUPER_INFO_LENGTH    (20480)
 #else
