@@ -48,12 +48,14 @@ typedef struct reiser4_super_info_data {
 	__u64    blocks_used;
 
 	/**
-	 * amount of free blocks.
+	 * amount of free blocks. This is "working" free blocks counter. It is
+	 * like "working" bitmap, please see block_alloc.c for description.
 	 */
 	__u64    blocks_free;
 
 	/**
-	 * free block count for fs committed state.
+	 * free block count for fs committed state. This is "commit" version
+	 * of free block counter.
 	 */
 	__u64    blocks_free_committed;
 
