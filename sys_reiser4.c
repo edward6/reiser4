@@ -84,7 +84,7 @@ sys_reiser4(char *p_string)
 			putname(str);
 		}
 	else
-		ret = PTR_ERR(inkernel);
+		ret = PTR_ERR(str);
 	
 	return ret;
 }
