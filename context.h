@@ -20,7 +20,10 @@
 #include <linux/sched.h>	/* for struct task_struct */
 
 /* list of active lock stacks */
-ON_DEBUG(TYPE_SAFE_LIST_DECLARE(context);)
+#if REISER4_DEBUG_CONTEXTS
+TYPE_SAFE_LIST_DECLARE(context);
+#endif
+
 ON_DEBUG(TYPE_SAFE_LIST_DECLARE(flushers);)
 
 #if REISER4_DEBUG
@@ -162,8 +165,10 @@ struct reiser4_context {
 #endif
 };
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_CONTEXTS
 TYPE_SAFE_LIST_DEFINE(context, reiser4_context, contexts_link);
+#endif
+#if REISER4_DEBUG
 TYPE_SAFE_LIST_DEFINE(flushers, reiser4_context, flushers_link);
 #endif
 
