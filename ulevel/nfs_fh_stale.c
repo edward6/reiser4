@@ -109,6 +109,7 @@ int dirs = DEFAULT_DIRS;
 int fd_num = DEFAULT_OPEN_FD;
 int nr_mmapped = DEFAULT_MMAPED_AREAS;
 int pgsize;
+int sigs = 0;
 
 DIR **cwds = NULL;
 
@@ -240,6 +241,12 @@ usage(char *argv0)
 	}
 }
 
+static void
+sighandler(int signo)
+{
+	++ sigs;
+}
+
 static unsigned long long
 getavail()
 {
@@ -369,7 +376,8 @@ main(int argc, char **argv)
 	pgsize = getpagesize();
 	initiallyavail = getavail();
 
-	signal(SIGBUS, SIG_IGN);
+	signal(SIGBUS, sighandler);
+	signal(SIGSEGV, sighandler);
 
 	cwds = calloc(dirs, sizeof cwds[0]);
 	if (cwds == NULL) {
@@ -407,13 +415,12 @@ main(int argc, char **argv)
 	for (i = 0; i < iterations; i += delta) {
 		used = initiallyavail - getavail();
 		printf("\nseconds: %i\topens: %lu [%f] lseeks: %lu [%f]\n"
-		       "\terrors: %lu, naps: %lu [%f], "
+		       "\terrors: %lu, sigs: %i, "
 		       "used: %lli, gc: %i\n",
 		       i,
 		       stats.opens, rate(stats.opens, i),
 		       stats.lseeks, rate(stats.lseeks, i),
-		       stats.errors, stats.naps, rate(stats.naps, i),
-		       used, ops[gcop].freq);
+		       stats.errors, sigs, used, ops[gcop].freq);
 		printf("op:\tok\tmiss\tbusy\terr\tdone\trate\tglobal rate\n");
 		for (op = &ops[0] ; op->label ; ++ op) {
 			int done;
@@ -462,6 +469,15 @@ worker(void *arg)
 {
 	params_t params;
 	char fileName[30];
+
+	if (signal(SIGBUS, sighandler) == SIG_ERR) {
+		perror("signal(SIGBUS)");
+		return NULL;
+	}
+	if (signal(SIGSEGV, sighandler) == SIG_ERR) {
+		perror("signal(SIGSEGV)");
+		return NULL;
+	}
 
 	memset(&params, 0, sizeof params);
 	params.files    = files;
@@ -943,20 +959,22 @@ mmap_file(params_t *params)
 		char *scan;
 		char *end;
 		int length;
+		int sigs0;
 
 		scan = params->mmapped[areano].start;
 		scan += RND(params->mmapped[areano].length);
 		end = minp(scan + RND(max_buf_size) + 30,
 			   params->mmapped[areano].start +
 			   params->mmapped[areano].length - 1);
+		sigs0 = sigs;
 		if (RND(1) == 0) {
 			char x;
 
 			x = 0;
-			for (;scan < end; ++scan)
+			for (;scan < end && sigs == sigs0; ++scan)
 				x += *scan;
 		} else {
-			for (;scan < end; ++scan)
+			for (;scan < end && sigs == sigs0; ++scan)
 				*scan = ((int)scan) ^ (*scan);
 		}
 		STEX(++ops[mmapop].result.ok);
