@@ -669,11 +669,28 @@ forget_znode(lock_handle * handle)
 	assert("nikita-1280", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
 	assert("nikita-3337", rw_zlock_is_locked(&node->lock));
 
+	/* We assume that this node was detached from its parent before
+	 * unlocking, it gives no way to reach this node from parent through a
+	 * down link.  The node should have no children and, thereby, can't be
+	 * reached from them by their parent pointers.  The only way to obtain a
+	 * reference to the node is to use sibling pointers from its left and
+	 * right neighbors.  In the next several lines we remove the node from
+	 * the sibling list. */
+
 	WLOCK_TREE(tree);
 	sibling_list_remove(node);
 	znode_remove(node, tree);
 	WUNLOCK_TREE(tree);
 
+	/* Here we set JNODE_DYING and cancel all pending lock requests.  It
+	 * forces all lock requestor threads to repeat iterations of getting
+	 * lock on a child, neighbor or parent node.  But, those threads can't
+	 * come to this node again, because this node is no longer a child,
+	 * neighbor or parent of any other node.  This order of znode
+	 * invalidation does not allow other threads to waste cpu time is a busy
+	 * loop, trying to lock dying object.  The exception is in the flush
+	 * code when we take node directly from atom's dirty list.  There is
+	 * special code to handle such nodes.*/
 	invalidate_lock(handle);
 
 	/* Get e-flush block allocation back before deallocating node's
