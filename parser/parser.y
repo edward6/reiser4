@@ -460,11 +460,11 @@ asynchronous_list
    all unspecified defaults? */
 
 
-/* hte ASSIGNMENT operator mast be have a value: bytes to written */
+/* the ASSIGNMENT operator and the SYMLINK operator return a value: bytes written */
 
 assignment          
 :  Object_Name L_ASSIGN       Expression                { $$ = assign( $1, $3 ); }            /*  <-  direct assign  */
-|  Object_Name L_ASSIGN INV_L Expression INV_R          { $$ = assign_invert( $1, $4 ); }     /*  <-  invert assign. destination mast have ..invert method  */
+|  Object_Name L_ASSIGN INV_L Expression INV_R          { $$ = assign_invert( $1, $4 ); }     /*  <-  invert assign. destination must have ..invert method  */
 |  Object_Name L_SYMLINK      Expression                { $$ = symlink( $1, $3 ); }           /*   ->  symlink   */
 
 
@@ -473,17 +473,21 @@ Expression
 | op_level assignment ')'                               { $$ = $2; level_down( OP_LEVEL );}   /*  this expression mast have value of written bytes    */
 | Constant                                              { $$ = constToExpr( $1 ); }
 | Expression '+' Expression                             { $$ = connect_expression( $1,  $3 ); }
-| Expression EQ Expression                              { $$ = compare_expression( $1, $2, $3 ); }
+/* requires an IF operation to be meaningful */
+/* | Expression EQ Expression                              { $$ = compare_expression( $1, $2, $3 ); }
 | Expression NE Expression                              { $$ = compare_expression( $1, $2, $3 ); }
 | Expression LE Expression                              { $$ = compare_expression( $1, $2, $3 ); }
 | Expression GE Expression                              { $$ = compare_expression( $1, $2, $3 ); }
 | Expression LT Expression                              { $$ = compare_expression( $1, $2, $3 ); }
 | Expression GT Expression                              { $$ = compare_expression( $1, $2, $3 ); }
+*/
 | Expression OR  Expression                             { $$ = compare_expression( $1, $2, $3 ); }
 | Expression AND Expression                             { $$ = compare_expression( $1, $2, $3 ); }
 | NOT_head Expression ')'                               { $$ = not_expression( $3 ); level_down( NOT_HEAD );}
 | op_level Expression ')'                               { $$ = $2; level_down( OP_LEVEL ); }
-| EXIST Object_Name                                     { $$ = check_exist( $2 ); }
+/* requires an IF to be meaningful? */
+/* | EXIST Object_Name                                     { $$ = check_exist( $2 ); }
+ */
 ;
  
 Constant
