@@ -250,6 +250,13 @@ reiser4_kfree(void *area /* memory to from */,
 	}
 }
 
+#if defined(CONFIG_REISER4_NOOPT)
+void __you_cannot_kmalloc_that_much(void)
+{
+	BUG();
+}
+#endif
+
 void
 reiser4_kfree_in_sb(void *area /* memory to from */,
 		    size_t size UNUSED_ARG /* number of bytes to free */,
@@ -454,7 +461,6 @@ info_atom(const char *prefix, const txn_atom * atom)
 }
 
 #endif
-
 
 /* Make Linus happy.
    Local variables:
