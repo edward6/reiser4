@@ -631,12 +631,6 @@ atom_try_commit_locked (txn_atom *atom)
 
 	trace_on (TRACE_TXN, "commit atom %u: PRE_COMMIT\n", atom->atom_id);
 	
-	/*
-	 * FIXME:NIKITA->JMACD|ZAM I added line below, because otherwise it
-	 * didn't work. Not that I completely understand what I am doing.
-	 */
-	invalidate_clean_list (atom);
-
 	wakeup_atom_waitfor_list (atom);
 	wakeup_atom_waiting_list (atom);
 
@@ -645,7 +639,6 @@ atom_try_commit_locked (txn_atom *atom)
 	atom->refcount -= 1;
 
 	assert ("jmacd-1070", atom->refcount > 0);
-	assert ("jmacd-1062", atom->capture_count == 0);
 	assert ("jmacd-1071", spin_atom_is_locked (atom));
 
 	trace_on (TRACE_TXN, "commit atom %u refcount %d\n", atom->atom_id, atom->refcount);
@@ -835,6 +828,7 @@ commit_txnh (txn_handle *txnh)
 	}
 #endif
 	invalidate_clean_list(atom);
+	assert ("jmacd-1062", atom->capture_count == 0);
 
 	atom->txnh_count -= 1;
 	txnh->atom = NULL;
