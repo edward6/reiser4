@@ -317,7 +317,6 @@ extern void print_coord_content( const char *prefix, tree_coord *p );
 extern void print_address( const char *prefix, const reiser4_disk_addr *block );
 extern const char *bias_name( lookup_bias bias );
 extern int cbk_cache_init( cbk_cache *cache );
-extern znode *cbk_cache_check( reiser4_tree *tree, const reiser4_key *key );
 extern void cbk_cache_invalidate( znode *node );
 extern void cbk_cache_add( znode *node );
 
