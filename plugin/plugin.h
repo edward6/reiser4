@@ -262,6 +262,12 @@ typedef struct dir_plugin {
 	int ( *is_name_acceptable )( const struct inode *inode, 
 				     const char *name, int len );
 
+	int ( *entry_key )( const struct inode *dir /* directory where entry
+						     * is (or will be) in.*/, 
+			    const struct qstr *name /* name of file referenced
+						     * by this entry */,
+			    reiser4_key *result /* resulting key of directory
+						 * entry */ );
 	int ( *add_entry )( struct inode *object, struct dentry *where, 
 			    reiser4_object_create_data *data, 
 			    reiser4_dir_entry_desc *entry );
@@ -491,6 +497,7 @@ typedef enum { REGULAR_FILE_PLUGIN_ID, DIRECTORY_FILE_PLUGIN_ID,
 /* builtin dir-plugins */
 typedef enum { 
 	HASHED_DIR_PLUGIN_ID,
+	LARGE_DIR_PLUGIN_ID,
 	LAST_DIR_ID
 } reiser4_dir_id;
 

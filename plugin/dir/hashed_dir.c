@@ -423,7 +423,7 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 	coord = &reiser4_get_dentry_fsdata( de ) -> entry_coord;
 	seal  = &reiser4_get_dentry_fsdata( de ) -> entry_seal;
 	/* compose key of directory entry for @name */
-	result = build_entry_key( dir, name, &entry -> key );
+	result = inode_dir_plugin( dir ) -> entry_key( dir, name, &entry -> key );
 	if( result != 0 )
 		return result;
 
@@ -471,10 +471,13 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 			/* step back */
 			done_lh( lh );
 
-			coord_dup( coord, &arg.last_coord );
-			move_lh( lh, &arg.last_lh );
-
-			result = -ENOENT;
+			result = zload( arg.last_coord.node );
+			if( result == 0 ) {
+				coord_dup( coord, &arg.last_coord );
+				move_lh( lh, &arg.last_lh );
+				result = -ENOENT;
+				zrelse( arg.last_coord.node );
+			}
 		}
 
 		done_lh( &arg.last_lh );
@@ -518,11 +521,6 @@ static int entry_actor( reiser4_tree *tree UNUSED_ARG /* tree being scanned */,
 			       unit_key_by_coord( coord, &unit_key ) ) );
 		args -> not_found = 1;
 		args -> last_coord.between = AFTER_UNIT;
-		if( args -> last_coord.node == NULL ) {
-			print_key( "unit_key", &unit_key );
-			print_key( "args", args -> key );
-			rpanic( "nikita-2102", "No way!" );
-		}
 		return 0;
 	}
 

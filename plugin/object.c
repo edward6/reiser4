@@ -700,7 +700,7 @@ static int dir_can_rem_link( const struct inode *dir )
 	dot.name = ".";
 	dot.len  = 1;
 
-	result = build_entry_key( dir, &dot, &de_key );
+	result = inode_dir_plugin( dir ) -> entry_key( dir, &dot, &de_key );
 	if( result != 0 )
 		return result;
 

@@ -150,6 +150,62 @@ int build_entry_key( const struct inode *dir /* directory where entry is
 }
 
 /**
+ * build key for directory entry.
+ *
+ * This is for directories where we want repeatable and restartable readdir()
+ * even in case 32bit user level struct dirent (readdir(3)).
+ */
+int build_readdir_stable_entry_key( const struct inode *dir /* directory where
+							     * entry is (or
+							     * will be) in. */, 
+				    const struct qstr *name /* name of file
+							     * referenced by
+							     * this entry */,
+				    reiser4_key *result /* resulting key of
+							 * directory entry */ )
+{
+	oid_t objectid;
+
+	assert( "nikita-1139", dir != NULL );
+	assert( "nikita-1140", name != NULL );
+	assert( "nikita-1141", name -> name != NULL );
+	assert( "nikita-1142", result != NULL );
+
+	key_init( result );
+	/*
+	 * locality of directory entry's key is objectid of parent
+	 * directory
+	 */
+	set_key_locality( result, ( oid_t ) dir -> i_ino );
+	/*
+	 * minor packing locality is constant
+	 */
+	set_key_type( result, KEY_FILE_NAME_MINOR );
+	/*
+	 * dot is special case---we always want it to be first entry in
+	 * a directory. Actually, we just want to have smallest
+	 * directory entry.
+	 */
+	if( ( name -> len == 1 ) && ( name -> name[ 0 ] == '.' ) )
+		return 0;
+
+	/*
+	 * objectid of key is 32 lowest bits of hash.
+	 */
+	objectid = ( __u32 ) inode_hash_plugin( dir ) -> 
+		hash( name -> name, ( int ) name -> len );
+
+	assert( "nikita-1405", !( objectid & ~KEY_OBJECTID_MASK ) );
+	set_key_objectid( result, objectid );
+
+	/*
+	 * offset is always 0.
+	 */
+	set_key_offset( result, ( __u64 ) 0 );
+	return 0;
+}
+
+/**
  * true, if @key is the key of "."
  */
 int is_dot_key( const reiser4_key *key /* key to check */ )
@@ -278,7 +334,7 @@ int build_de_id( const struct inode *dir /* inode of directory */,
 	/*
 	 * FIXME-NIKITA this is suboptimal.
 	 */
-	build_entry_key( dir, name, &key );
+	inode_dir_plugin( dir ) -> entry_key( dir, name, &key );
 	return build_de_id_by_key( &key, id );
 }
 

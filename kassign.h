@@ -69,6 +69,9 @@ extern cmp_t de_id_key_cmp( const de_id *id, const reiser4_key *key );
 extern int build_readdir_key( struct file *dir, reiser4_key *result );
 extern int build_entry_key( const struct inode *dir, const struct qstr *name,
 			    reiser4_key *result );
+extern int build_readdir_stable_entry_key( const struct inode *dir, 
+					   const struct qstr *name,
+					   reiser4_key *result );
 extern int is_dot_key( const reiser4_key *key );
 extern reiser4_key *build_sd_key( const struct inode *target, 
 				  reiser4_key *result );
