@@ -1036,7 +1036,7 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	 * adjacent extents on the twig level, it has to "drill" to the leaf
 	 * level, creating new node. Here we are removing this node.
 	 */
-	if( is_empty_node( node ) ) {
+	if( node_is_empty( node ) ) {
 		delete_dummy = reiser4_post_carry( todo, COP_DELETE, node, 1 );
 		if( IS_ERR( delete_dummy ) )
 			return PTR_ERR( delete_dummy );
