@@ -629,6 +629,8 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	assert ("jmacd-7866", ! node_is_empty (right_lock.node));
 
+	trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] before right_neighbor: %s\n", call_depth, flush_pos_tostring (pos));
+
 	/* We found the right znode (and locked it), now squeeze from right into
 	 * current node position. */
 	switch ((ret = squalloc_right_neighbor (node, right_lock.node, pos))) {
@@ -755,6 +757,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	lock_handle right_lock;
 	znode *node;
 
+ repeat:
 	if ((is_unformatted = flush_pos_unformatted (pos))) {
 		assert ("jmacd-9812", coord_is_after_rightmost (& pos->parent_coord));
 
@@ -780,10 +783,6 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 
 		trace_on (TRACE_FLUSH, "squalloc_right changed ancestors unformatted after: %s\n", flush_pos_tostring (pos));
 
-		/* In which case we should continue to the right. */
-		/* FIXME: I'm unsure of this, was coord_next_unit, but the assertion below was failing. */
-		coord_set_to_right (& pos->parent_coord);
-
 		assert ("jmacd-8188", ! coord_is_after_rightmost (& pos->parent_coord));
 
 		/* Then, if we are positioned at a formatted item, allocate & descend. */
@@ -808,6 +807,8 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 			goto exit;
 		}
 
+		trace_on (TRACE_FLUSH, "sq_changed_ancestors no right: %s\n", flush_pos_tostring (pos));
+		
 		/* We are leaving node now, enqueue it. */
 		if ((ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
 			goto exit;
@@ -828,13 +829,16 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 
 		/* Now maybe try the twig to the right... */
 		if (coord_is_after_rightmost (& pos->parent_coord)) {
-			goto RIGHT_AGAIN;
+			trace_on (TRACE_FLUSH, "sq_changed_ancestors right again: %s\n", flush_pos_tostring (pos));
+			goto repeat;
 		}
 
 		/* If positioned over a formatted node, then the preceding
 		 * get_utmost_if_dirty would have succeeded if it were in memory. */
 		if (item_is_internal (& pos->parent_coord)) {
 		stop_at_twig:
+			trace_on (TRACE_FLUSH, "sq_changed_ancestors stop at twig: %s\n", flush_pos_tostring (pos));
+
 			/* We are leaving twig now, enqueue it if allocated. */
 			if (znode_check_dirty (node) && (ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
 				goto exit;
@@ -843,6 +847,8 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 			ret = flush_pos_stop (pos);
 			goto exit;
 		}
+
+		trace_on (TRACE_FLUSH, "sq_changed_ancestors check right twig child: %s\n", flush_pos_tostring (pos));
 
 		/* Finally, we must now be positioned over an extent, but is it dirty? */
 		if ((ret = item_utmost_child_dirty (& pos->parent_coord, LEFT_SIDE, & is_dirty))) {
@@ -857,7 +863,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 
 	/* We have a new right and it should have been allocated by the call to
 	 * flush_squalloc_one_changed_ancestor. */
-	assert ("jmacd-8113", jnode_is_allocated (ZJNODE (right_lock.node)));
+	assert ("jmacd-90123", jnode_is_allocated (ZJNODE (right_lock.node)));
 
 	/* We are leaving 'node' now, enqueue it for writing.  (If position is
 	 * unformatted, the twig may be clean, thus the dirty check). */
@@ -1134,7 +1140,7 @@ static int squalloc_right_twig (znode    *left,
 	if (node_is_empty (right)) {
 		/* The whole right node was copied into @left. */
 		assert ("vs-464", ret == SQUEEZE_SOURCE_EMPTY);
-		return ret;
+		goto out;
 	}
 
 	coord_init_first_unit (&coord, right);
@@ -1143,13 +1149,15 @@ static int squalloc_right_twig (znode    *left,
 		/* There is no space in @left anymore. */
 		assert ("vs-433", item_is_extent (&coord));
 		assert ("vs-465", ret == SQUEEZE_TARGET_FULL);
-		return ret;
+		goto out;
 	}
 
 	/* Shift an internal unit.  The child must be allocated before shifting any more
 	 * extents, so we stop here. */
 	ret = shift_one_internal_unit (left, right);
 
+out:
+	coord_set_to_right (& pos->parent_coord);
 	assert ("jmacd-8612", ret < 0 || ret == SQUEEZE_TARGET_FULL || ret == SUBTREE_MOVED);
 	return ret;
 }
