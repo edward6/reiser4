@@ -19,42 +19,44 @@
 #  define _(String) (String)
 #endif
 
-#define REISERFS_PLUGIN_CASHE_SIZE 255
-
 extern aal_list_t *plugin_cashe;
 extern aal_list_t *plugin_map;
 
-struct run_desc {
+struct walk_desc {
 	reiserfs_plugin_type_t type;
 	reiserfs_plugin_id_t id;
 };
 
-static int callback_match_plugin(reiserfs_plugin_t *plugin, struct run_desc *desc) {
+static int callback_match_cashe_plugin(reiserfs_plugin_t *plugin, struct walk_desc *desc) {
+	
 	if (plugin->h.type == desc->type && plugin->h.id == desc->id)
 		return 1;
 	
 	return 0;
 }
 
-static reiserfs_plugin_t *reiserfs_plugin_from_cashe(reiserfs_plugin_type_t type, 
+static int callback_match_map_plugin(reiserfs_item_t *item, struct walk_desc *desc) {
+	
+	if (item->type == desc->type && item->id == desc->id)
+		return 1;
+	
+	return 0;
+}
+
+static reiserfs_plugin_t *reiserfs_plugin_find_in_cashe(reiserfs_plugin_type_t type, 
 	reiserfs_plugin_id_t id)
 {
-	struct run_desc desc;
+	struct walk_desc desc;
 	reiserfs_plugin_t *plugin;
 	
 	desc.type = type;
 	desc.id = id;
 	
 	if (!(plugin = (reiserfs_plugin_t *)aal_list_run(plugin_cashe, 
-			(int (*)(void *, void *))callback_match_plugin, (void *)&desc)))
+			(int (*)(void *, void *))callback_match_cashe_plugin, (void *)&desc)))
 		return NULL;
 	
-	plugin->h.nlink++;
 	return plugin;
-}
-
-static void reiserfs_plugin_to_cashe(reiserfs_plugin_t *plugin) {
-	plugin->h.nlink--;
 }
 
 reiserfs_plugin_t *reiserfs_plugin_load_by_name(const char *name, const char *point) {
@@ -94,26 +96,36 @@ error:
 }
 
 /* Looks for plugin by its coords in the plugin map. */
-int reiserfs_plugin_find_by_cords(reiserfs_plugin_type_t type, 
-	reiserfs_plugin_id_t id, char *name) 
+static char *reiserfs_plugin_find_in_map(reiserfs_plugin_type_t type, 
+	reiserfs_plugin_id_t id) 
 {
-	ASSERT(name != NULL, return 0);
-	return 1;
+	struct walk_desc desc;
+	reiserfs_item_t *item;
+	
+	desc.type = type;
+	desc.id = id;
+	
+	if (!(item = (reiserfs_item_t *)aal_list_run(plugin_map, 
+			(int (*)(void *, void *))callback_match_map_plugin, (void *)&desc)))
+		return NULL;
+	
+	return item->name;
 }
 
 reiserfs_plugin_t *reiserfs_plugin_load_by_cords(reiserfs_plugin_type_t type, 
 	reiserfs_plugin_id_t id) 
 {
-	char name[PATH_MAX];
+	char *name;
 	reiserfs_plugin_t *plugin;
 		
 	/* Looking up code for plugin in plugin map must be here */
-	if (!(plugin = reiserfs_plugin_from_cashe(type, id)))
+	if (!(plugin = reiserfs_plugin_find_in_cashe(type, id))) {
+		plugin->h.nlink++;
 		return plugin;
+	}
 	
 	/* Loading plugin */
-	memset(name, 0, sizeof(name));
-	if (!reiserfs_plugin_find_by_cords(type, id, name)) {
+	if (!(name = reiserfs_plugin_find_in_map(type, id))) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-003", 
 			_("Can't find plugin by its type=%d and id=%d."), (int)type, (int)id);
 		return NULL;
@@ -133,7 +145,7 @@ reiserfs_plugin_t *reiserfs_plugin_load_by_cords(reiserfs_plugin_type_t type,
 void reiserfs_plugin_unload(reiserfs_plugin_t *plugin) {
 	ASSERT(plugin != NULL, return);
 	
-	reiserfs_plugin_to_cashe(plugin);
+	plugin->h.nlink--;
 
 	if (!plugin->h.nlink) {
 		dlclose(plugin->h.handle);

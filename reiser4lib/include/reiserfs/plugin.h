@@ -138,9 +138,6 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
 extern reiserfs_plugin_t *reiserfs_plugin_load_by_name(const char *name, 
 	const char *point);
 
-extern int reiserfs_plugin_find_by_cords(reiserfs_plugin_type_t type, 
-	reiserfs_plugin_id_t id, char *name);
-
 extern reiserfs_plugin_t *reiserfs_plugin_load_by_cords(reiserfs_plugin_type_t type, 
 	reiserfs_plugin_id_t id);
 
