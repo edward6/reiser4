@@ -62,9 +62,6 @@ static reiserfs_journal40_t *journal40_open(aal_device_t *device) {
 	goto error_free_journal;
     }
 	
-    if (journal40_check_header(journal->header->data, device))
-	goto error_free_header;
-	
     /* Reading and checking journal footer */
     if (!(journal->footer = aal_block_read(device, 
 	(blk_t)(REISERFS_JOURNAL40_FOOTER / aal_device_get_bs(device)))))
@@ -74,9 +71,6 @@ static reiserfs_journal40_t *journal40_open(aal_device_t *device) {
 	goto error_free_header;
     }
 	
-    if (journal40_check_footer(journal->footer->data, device))
-	goto error_free_footer;
-    
     journal->device = device;
     return journal;
 
@@ -98,7 +92,6 @@ static reiserfs_journal40_t *journal40_create(aal_device_t *device,
     reiserfs_journal40_t *journal;
     
     aal_assert("umka-417", device != NULL, return NULL);
-//    aal_assert("umka-418", params != NULL, return NULL);
     
     if (!(journal = aal_calloc(sizeof(*journal), 0)))
 	return NULL;
@@ -125,6 +118,18 @@ error_free_journal:
     aal_free(journal);
 error:
     return NULL;
+}
+
+static errno_t journal40_check(reiserfs_journal40_t *journal, int flags) {
+    aal_assert("umka-965", journal != NULL, return -1);
+    
+    if (journal40_check_header(journal->header->data, journal->device))
+	return -1;
+	
+    if (journal40_check_footer(journal->footer->data, journal->device))
+	return -1;
+    
+    return 0;
 }
 
 static errno_t journal40_sync(reiserfs_journal40_t *journal) {
@@ -164,7 +169,7 @@ static errno_t journal40_replay(reiserfs_journal40_t *journal) {
     return 0;
 }
 
-static void journal40_area(reiserfs_journal40_t *journal, 
+static void journal40_bounds(reiserfs_journal40_t *journal, 
     blk_t *start, blk_t *end) 
 {
     aal_assert("umka-734", journal != NULL, return);
@@ -190,16 +195,17 @@ static reiserfs_plugin_t journal40_plugin = {
 	    journal40_create,
 
 	.sync = (errno_t (*)(reiserfs_entity_t *))journal40_sync,
-	.check = NULL,
+	.check = (errno_t (*)(reiserfs_entity_t *, int))journal40_check,
 #else
 	.create = NULL,
 	.sync = NULL,
 	.check = NULL,
 #endif
-	.area = (void (*)(reiserfs_entity_t *, blk_t *, blk_t *))journal40_area,
+	.bounds = (void (*)(reiserfs_entity_t *, blk_t *, blk_t *))
+	    journal40_bounds,
+	
 	.close = (void (*)(reiserfs_entity_t *))journal40_close,
 	.replay = (errno_t (*)(reiserfs_entity_t *))journal40_replay,
-	.confirm = NULL,
     }
 };
 

@@ -98,7 +98,6 @@ static reiserfs_plugin_t alloc36_plugin = {
 	.used = NULL,
 
 	.check = NULL,
-	.confirm = NULL
     }
 };
 

@@ -179,7 +179,7 @@ static int format36_confirm(aal_device_t *device) {
 
 static const char *formats[] = {"3.5", "unknown", "3.6"};
 
-static const char *format36_format(reiserfs_format36_t *format) {
+static const char *format36_name(reiserfs_format36_t *format) {
     reiserfs_format36_super_t *super = (reiserfs_format36_super_t *)format->super->data;
     int version = get_sb_format(super);
     return formats[version >= 0 && version < 3 ? version : 1];
@@ -207,7 +207,7 @@ static blk_t format36_get_root(reiserfs_format36_t *format) {
     return get_sb_root_block((reiserfs_format36_super_t *)format->super->data);
 }
 
-static count_t format36_get_blocks(reiserfs_format36_t *format) {
+static count_t format36_get_len(reiserfs_format36_t *format) {
     aal_assert("umka-388", format != NULL, return 0);
     return get_sb_block_count((reiserfs_format36_super_t *)format->super->data);
 }
@@ -224,7 +224,7 @@ static void format36_set_root(reiserfs_format36_t *format, blk_t root) {
     set_sb_root_block((reiserfs_format36_super_t *)format->super->data, root);
 }
 
-static void format36_set_blocks(reiserfs_format36_t *format, count_t blocks) {
+static void format36_set_len(reiserfs_format36_t *format, count_t blocks) {
     aal_assert("umka-391", format != NULL, return);
     set_sb_block_count((reiserfs_format36_super_t *)format->super->data, blocks);
 }
@@ -257,7 +257,7 @@ static reiserfs_plugin_t format36_plugin = {
 	.check = (errno_t (*)(reiserfs_entity_t *, int))format36_check,
 	
 	.set_root = (void (*)(reiserfs_entity_t *, blk_t))format36_set_root,
-	.set_blocks = (void (*)(reiserfs_entity_t *, count_t))format36_set_blocks,
+	.set_len = (void (*)(reiserfs_entity_t *, count_t))format36_set_len,
 	.set_free = (void (*)(reiserfs_entity_t *, count_t))format36_set_free,
 	.set_height = NULL,
 #else
@@ -266,25 +266,21 @@ static reiserfs_plugin_t format36_plugin = {
 	.check = NULL,
 	
 	.set_root = NULL,
-	.set_blocks = NULL,
+	.set_len = NULL,
 	.set_free = NULL,
 	.set_height = NULL,
 #endif
 	.close = (void (*)(reiserfs_entity_t *))format36_close,
 	.confirm = (int (*)(aal_device_t *))format36_confirm,
-	.format = (const char *(*)(reiserfs_entity_t *))format36_format,
+	.name = (const char *(*)(reiserfs_entity_t *))format36_name,
 
 	.offset = (blk_t (*)(reiserfs_entity_t *))format36_offset,
-	
 	.get_root = (blk_t (*)(reiserfs_entity_t *))format36_get_root,
-	
-	.get_blocks = (count_t (*)(reiserfs_entity_t *))format36_get_blocks,
-	
+	.get_len = (count_t (*)(reiserfs_entity_t *))format36_get_len,
 	.get_free = (count_t (*)(reiserfs_entity_t *))format36_get_free,
 	
 	.get_height = NULL,
-	
-	.oid = NULL,
+	.oid_area = NULL,
 	
 	.journal_pid = (reiserfs_id_t(*)(reiserfs_entity_t *))
 	    format36_journal_plugin,

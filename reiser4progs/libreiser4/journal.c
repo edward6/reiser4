@@ -132,14 +132,18 @@ errno_t reiserfs_journal_check(
 
 #endif
 
-/* Peforms small check of journal structures */
-int reiserfs_journal_confirm(
-    reiserfs_journal_t *journal	/* journal to be checked */
+/* Returns journal bounds */
+void reiserfs_journal_bounds(
+    reiserfs_journal_t *journal, 
+    blk_t *start, 
+    blk_t *end
 ) {
-    aal_assert("umka-831", journal != NULL, return 0);
-
-    return libreiser4_plugin_call(return 0, journal->plugin->journal_ops, 
-	confirm, journal->entity);
+    aal_assert("umka-967", journal != NULL, return);
+    aal_assert("umka-968", start != NULL, return);
+    aal_assert("umka-969", end != NULL, return);
+    
+    libreiser4_plugin_call(return, journal->plugin->journal_ops, 
+	bounds, journal->entity, start, end);
 }
 
 /* Closes journal by means of freeing all assosiated memory */

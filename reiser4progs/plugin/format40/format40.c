@@ -60,11 +60,6 @@ static aal_block_t *format40_super_open(aal_device_t *device) {
     if (!format40_signature(super))
 	return NULL;
     
-    if (format40_super_check(super, device)) {
-        aal_block_free(block);
-        return NULL;
-    }
-    
     return block;
 }
 
@@ -175,18 +170,22 @@ static int format40_confirm(aal_device_t *device) {
     return 1;
 }
 
-static void format40_oid(reiserfs_format40_t *format, 
-    void **oid_area_start, void **oid_area_end) 
+static void format40_oid_area(reiserfs_format40_t *format, 
+    void **oid_start, uint32_t *oid_len) 
 {
+    reiserfs_format40_super_t *super;
+    
     aal_assert("umka-732", format != NULL, return);
     
-    *oid_area_start = &((reiserfs_format40_super_t *)format->super->data)->sb_oid;
-    *oid_area_end = &((reiserfs_format40_super_t *)format->super->data)->sb_file_count;
+    super = (reiserfs_format40_super_t *)format->super->data;
+    
+    *oid_start = &super->sb_oid;
+    *oid_len = &super->sb_file_count - &super->sb_oid;
 }
 
 static const char *formats[] = {"4.0"};
 
-static const char *format40_format(reiserfs_format40_t *format) {
+static const char *format40_name(reiserfs_format40_t *format) {
     return formats[0];
 }
 
@@ -212,7 +211,7 @@ static blk_t format40_get_root(reiserfs_format40_t *format) {
     return get_sb_root_block((reiserfs_format40_super_t *)format->super->data);
 }
 
-static count_t format40_get_blocks(reiserfs_format40_t *format) {
+static count_t format40_get_len(reiserfs_format40_t *format) {
     aal_assert("umka-401", format != NULL, return 0);
     return get_sb_block_count((reiserfs_format40_super_t *)format->super->data);
 }
@@ -234,7 +233,7 @@ static void format40_set_root(reiserfs_format40_t *format, blk_t root) {
     set_sb_root_block((reiserfs_format40_super_t *)format->super->data, root);
 }
 
-static void format40_set_blocks(reiserfs_format40_t *format, count_t blocks) {
+static void format40_set_len(reiserfs_format40_t *format, count_t blocks) {
     aal_assert("umka-404", format != NULL, return);
     set_sb_block_count((reiserfs_format40_super_t *)format->super->data, blocks);
 }
@@ -264,33 +263,38 @@ static reiserfs_plugin_t format40_plugin = {
 
 #ifndef ENABLE_COMPACT	
 	.sync = (errno_t (*)(reiserfs_entity_t *))format40_sync,
-	.create = (reiserfs_entity_t *(*)(aal_device_t *, count_t, uint16_t))format40_create,
+	
+	.create = (reiserfs_entity_t *(*)(aal_device_t *, 
+	    count_t, uint16_t))format40_create,
+	
 	.check = (errno_t (*)(reiserfs_entity_t *, int))format40_check,
 #else
 	.sync = NULL,
 	.create = NULL,
 	.check = NULL,
 #endif
-	.oid = (void (*)(reiserfs_entity_t *, void **, void **))format40_oid,
+	.oid_area = (void (*)(reiserfs_entity_t *, void **, uint32_t *))
+	    format40_oid_area,
+	
 	.close = (void (*)(reiserfs_entity_t *))format40_close,
 	.confirm = (int (*)(aal_device_t *))format40_confirm,
-	.format = (const char *(*)(reiserfs_entity_t *))format40_format,
+	.name = (const char *(*)(reiserfs_entity_t *))format40_name,
 	
 	.offset = (blk_t (*)(reiserfs_entity_t *))format40_offset,
 	
 	.get_root = (blk_t (*)(reiserfs_entity_t *))format40_get_root,
-	.get_blocks = (count_t (*)(reiserfs_entity_t *))format40_get_blocks,
+	.get_len = (count_t (*)(reiserfs_entity_t *))format40_get_len,
 	.get_free = (count_t (*)(reiserfs_entity_t *))format40_get_free,
 	.get_height = (uint16_t (*)(reiserfs_entity_t *))format40_get_height,
 	
 #ifndef ENABLE_COMPACT	
 	.set_root = (void (*)(reiserfs_entity_t *, blk_t))format40_set_root,
-	.set_blocks = (void (*)(reiserfs_entity_t *, count_t))format40_set_blocks,
+	.set_len = (void (*)(reiserfs_entity_t *, count_t))format40_set_len,
 	.set_free = (void (*)(reiserfs_entity_t *, count_t))format40_set_free,
 	.set_height = (void (*)(reiserfs_entity_t *, uint16_t))format40_set_height,
 #else
 	.set_root = NULL,
-	.set_blocks = NULL,
+	.set_len = NULL,
 	.set_free = NULL,
 	.set_height = NULL,
 #endif

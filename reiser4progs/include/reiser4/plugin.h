@@ -688,7 +688,7 @@ struct reiserfs_format_ops {
 	Returns format string for this format. For example
 	"reiserfs 4.0".
     */
-    const char *(*format) (reiserfs_entity_t *);
+    const char *(*name) (reiserfs_entity_t *);
 
     /* 
 	Returns offset in blocks where format-specific super block 
@@ -701,8 +701,8 @@ struct reiserfs_format_ops {
     void (*set_root) (reiserfs_entity_t *, blk_t);
     
     /* Gets/sets block count */
-    count_t (*get_blocks) (reiserfs_entity_t *);
-    void (*set_blocks) (reiserfs_entity_t *, count_t);
+    count_t (*get_len) (reiserfs_entity_t *);
+    void (*set_len) (reiserfs_entity_t *, count_t);
     
     /* Gets/sets height field */
     uint16_t (*get_height) (reiserfs_entity_t *);
@@ -718,7 +718,7 @@ struct reiserfs_format_ops {
     reiserfs_id_t (*oid_pid) (reiserfs_entity_t *);
 
     /* Returns area where oid data lies */
-    void (*oid)(reiserfs_entity_t *, void **, void **);
+    void (*oid_area)(reiserfs_entity_t *, void **, uint32_t *);
 };
 
 typedef struct reiserfs_format_ops reiserfs_format_ops_t;
@@ -726,24 +726,35 @@ typedef struct reiserfs_format_ops reiserfs_format_ops_t;
 struct reiserfs_oid_ops {
     reiserfs_plugin_header_t h;
 
-    reiserfs_entity_t *(*open) (void *, void *);
-    reiserfs_entity_t *(*create) (void *, void *);
+    /* Opens oid allocator on passed area */
+    reiserfs_entity_t *(*open) (const void *, uint32_t);
 
-    errno_t (*sync) (reiserfs_entity_t *);
+    /* Creates oid allocator on passed area */
+    reiserfs_entity_t *(*create) (const void *, uint32_t);
 
-    int (*confirm) (reiserfs_entity_t *);
-    errno_t (*check) (reiserfs_entity_t *);
-
+    /* Closes passed instance of oid allocator */
     void (*close) (reiserfs_entity_t *);
     
+    /* Synchronizes oid allocator */
+    errno_t (*sync) (reiserfs_entity_t *);
+
+    /* Makes check for validness */
+    errno_t (*check) (reiserfs_entity_t *, int);
+    
+    /* Gets next object id */
     uint64_t (*alloc) (reiserfs_entity_t *);
+
+    /* Releases passed object id */
     void (*dealloc) (reiserfs_entity_t *, uint64_t);
     
-    uint64_t (*next) (reiserfs_entity_t *);
+    /* Returns the number of used object ids */
     uint64_t (*used) (reiserfs_entity_t *);
-
-    uint64_t (*root_parent_locality) (void);
     
+    /* Returns the number of free object ids */
+    uint64_t (*free) (reiserfs_entity_t *);
+
+    /* Object ids of root and root parenr object */
+    uint64_t (*root_parent_locality) (void);
     uint64_t (*root_locality) (void);
     uint64_t (*root_objectid) (void);
 };
@@ -753,21 +764,37 @@ typedef struct reiserfs_oid_ops reiserfs_oid_ops_t;
 struct reiserfs_alloc_ops {
     reiserfs_plugin_header_t h;
     
+    /* Opens block allocator */
     reiserfs_entity_t *(*open) (aal_device_t *, count_t);
+
+    /* Creates block allocator */
     reiserfs_entity_t *(*create) (aal_device_t *, count_t);
+    
+    /* Closes blcok allocator */
     void (*close) (reiserfs_entity_t *);
+
+    /* Synchronizes block allocator */
     errno_t (*sync) (reiserfs_entity_t *);
 
+    /* Marks passed block as used */
     void (*mark) (reiserfs_entity_t *, blk_t);
+
+    /* Checks if passed block used */
     int (*test) (reiserfs_entity_t *, blk_t);
     
+    /* Allocates one block */
     blk_t (*alloc) (reiserfs_entity_t *);
+
+    /* Deallocates passed block */
     void (*dealloc) (reiserfs_entity_t *, blk_t);
 
+    /* Returns number of unused blocks */
     count_t (*free) (reiserfs_entity_t *);
+
+    /* Returns number of used blocks */
     count_t (*used) (reiserfs_entity_t *);
 
-    int (*confirm) (reiserfs_entity_t *);
+    /* Checks blocks allocator on validness */
     errno_t (*check) (reiserfs_entity_t *, int);
 };
 
@@ -776,17 +803,26 @@ typedef struct reiserfs_alloc_ops reiserfs_alloc_ops_t;
 struct reiserfs_journal_ops {
     reiserfs_plugin_header_t h;
     
+    /* Opens journal on specified device */
     reiserfs_entity_t *(*open) (aal_device_t *);
+
+    /* Creates journal on specified device */
     reiserfs_entity_t *(*create) (aal_device_t *, void *);
+
+    /* Frees journal instance */
     void (*close) (reiserfs_entity_t *);
 
-    int (*confirm) (reiserfs_entity_t *);
+    /* Checks journal metadata on validness */
     errno_t (*check) (reiserfs_entity_t *, int);
     
+    /* Synchronizes journal */
     errno_t (*sync) (reiserfs_entity_t *);
+
+    /* Replays journal */
     errno_t (*replay) (reiserfs_entity_t *);
     
-    void (*area) (reiserfs_entity_t *, blk_t *, blk_t *);
+    /* Returns journal bounds if exist */
+    void (*bounds) (reiserfs_entity_t *, blk_t *, blk_t *);
 };
 
 typedef struct reiserfs_journal_ops reiserfs_journal_ops_t;

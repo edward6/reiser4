@@ -173,6 +173,14 @@ int alloc40_test(reiserfs_alloc40_t *alloc, blk_t blk) {
     return reiserfs_bitmap_test(alloc->bitmap, blk);
 }
 
+/* Checks allocator on validness */
+errno_t alloc40_check(reiserfs_alloc40_t *alloc, int flags) {
+    aal_assert("umka-963", alloc != NULL, return -1);
+    aal_assert("umka-964", alloc->bitmap != NULL, return -1);
+
+    return reiserfs_bitmap_check(alloc->bitmap);
+}
+
 /* Filling the alloc40 structure by methods */
 static reiserfs_plugin_t alloc40_plugin = {
     .alloc_ops = {
@@ -202,8 +210,7 @@ static reiserfs_plugin_t alloc40_plugin = {
 	.test = (int (*)(reiserfs_entity_t *, blk_t))alloc40_test,
 	.free = (count_t (*)(reiserfs_entity_t *))alloc40_free,
 	.used = (count_t (*)(reiserfs_entity_t *))alloc40_used,
-	.check = NULL,
-	.confirm = NULL
+	.check = (errno_t (*)(reiserfs_entity_t *, int))alloc40_check,
     }
 };
 

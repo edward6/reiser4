@@ -175,9 +175,6 @@ typedef struct reiserfs_alloc reiserfs_alloc_t;
 
 /* Oid allocator structure */
 struct reiserfs_oid {
-
-    /* Key of the root object */
-    reiserfs_key_t key;
     
     /* Oid allocator entity */
     reiserfs_entity_t *entity;

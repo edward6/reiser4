@@ -161,13 +161,13 @@ int reiserfs_format_confirm(
 }
 
 /* Returns string described used disk-format */
-const char *reiserfs_format_format(
+const char *reiserfs_format_name(
     reiserfs_format_t *format	/* disk-format to be inspected */
 ) {
     aal_assert("umka-111", format != NULL, return NULL);
 	
     return libreiser4_plugin_call(return NULL, 
-	format->plugin->format_ops, format, format->entity);
+	format->plugin->format_ops, name, format->entity);
 }
 
 /* Retutns position in blocks where format lies */
@@ -191,13 +191,13 @@ blk_t reiserfs_format_get_root(
 }
 
 /* Returns filesystem length in blocks from passed disk-format */
-count_t reiserfs_format_get_blocks(
+count_t reiserfs_format_get_len(
     reiserfs_format_t *format	/* disk-format to be inspected */
 ) {
     aal_assert("umka-360", format != NULL, return 0);
     
     return libreiser4_plugin_call(return 0, format->plugin->format_ops, 
-	get_blocks, format->entity);
+	get_len, format->entity);
 }
 
 /* Returns number of free blocks */
@@ -234,14 +234,14 @@ void reiserfs_format_set_root(
 }
 
 /* Sets new filesystem length */
-void reiserfs_format_set_blocks(
+void reiserfs_format_set_len(
     reiserfs_format_t *format,	/* format instance to be used */
     count_t blocks		/* new length in blocks */
 ) {
     aal_assert("umka-422", format != NULL, return);
     
     libreiser4_plugin_call(return, format->plugin->format_ops, 
-	set_blocks, format->entity, blocks);
+	set_len, format->entity, blocks);
 }
 
 /* Sets free block count */

@@ -184,15 +184,6 @@ errno_t reiserfs_alloc_check(
 
 #endif
 
-int reiserfs_alloc_confirm(
-    reiserfs_alloc_t *alloc	/* allocator to be checked */
-) {
-    aal_assert("umka-834", alloc != NULL, return 0);
-
-    return libreiser4_plugin_call(return 0, alloc->plugin->alloc_ops, 
-	confirm, alloc->entity);
-}
-
 /* 
     Checks whether specified block used or not. Returns TRUE for used and FALSE 
     otherwise.

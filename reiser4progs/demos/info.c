@@ -31,7 +31,7 @@ static void info_print_fs(reiserfs_fs_t *fs) {
 
     fprintf(stderr, "\nreiserfs %s, block size %u, blocks: %llu, used: %llu, free: %llu.\n\n", 
 	reiserfs_fs_format(fs), reiserfs_fs_blocksize(fs), 
-	reiserfs_format_get_blocks(fs->format), reiserfs_alloc_used(fs->alloc), 
+	reiserfs_format_get_len(fs->format), reiserfs_alloc_used(fs->alloc), 
 	reiserfs_alloc_free(fs->alloc));
 
     fprintf(stderr, "Used plugins:\n-------------\n");
@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
 	info_print_usage();
 	return 0xfe;
     }
-	
+    
     if (libreiser4_init(0)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't initialize libreiser4.");
@@ -78,20 +78,11 @@ int main(int argc, char *argv[]) {
     }
     
     {
-	FILE *file;
+	int i;
+	for (i = 0; i < 5; i++)
+	    progs_exception_set_stream(i, stderr);
 	
 	aal_exception_set_handler(progs_exception_handler);
-
-	if (!(file = fopen("/tmp/test", "w+"))) {
-	    fprintf(stderr, "Error\n");
-	    return 0;
-	}
-	
-	progs_exception_set_stream(EXCEPTION_INFORMATION, file);
-	aal_exception_throw(EXCEPTION_INFORMATION, EXCEPTION_OK, 
-	    "Test exception.");
-	
-	fclose(file);
     }
     
     if (!(device = aal_file_open(argv[1], REISERFS_DEFAULT_BLOCKSIZE, O_RDONLY))) {

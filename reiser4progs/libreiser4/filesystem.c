@@ -61,7 +61,8 @@ reiserfs_fs_t *reiserfs_fs_open(
     reiserfs_id_t alloc_pid;
     reiserfs_id_t journal_pid;
 
-    void *oid_area_start, *oid_area_end;
+    void *oid_start;
+    uint32_t oid_len;
 	
     aal_assert("umka-148", host_device != NULL, return NULL);
 
@@ -86,19 +87,26 @@ reiserfs_fs_t *reiserfs_fs_open(
     
     /* Initializes used disk format. See format.c for details */
     format_pid = get_mr_format_id(fs->master);
+
     if (!(fs->format = reiserfs_format_open(host_device, format_pid)))
 	goto error_free_master;
 
+    if (reiserfs_format_check(fs->format, 0))
+	goto error_free_format;
+    
     /* Getting plugins which are in use from disk format object */
     alloc_pid = reiserfs_format_alloc_pid(fs->format);
     journal_pid = reiserfs_format_journal_pid(fs->format);
     oid_pid = reiserfs_format_oid_pid(fs->format);
    
-    len = reiserfs_format_get_blocks(fs->format);
+    len = reiserfs_format_get_len(fs->format);
     
     /* Initializes block allocator. See alloc.c for details */
     if (!(fs->alloc = reiserfs_alloc_open(host_device, len, alloc_pid)))
-	goto error_free_super;
+	goto error_free_format;
+    
+    if (reiserfs_alloc_check(fs->alloc, 0))
+	goto error_free_alloc;
     
     /* Jouranl device may be not specified. In this case it will not be opened */
     if (journal_device) {
@@ -109,6 +117,9 @@ reiserfs_fs_t *reiserfs_fs_open(
 	/* Initializing the journal. See  journal.c for details */
 	if (!(fs->journal = reiserfs_journal_open(journal_device, journal_pid)))
 	    goto error_free_alloc;
+    
+	if (reiserfs_journal_check(fs->journal, 0))
+	    goto error_free_journal;
 
 #ifndef ENABLE_COMPACT	
 	/* 
@@ -130,11 +141,14 @@ reiserfs_fs_t *reiserfs_fs_open(
     
     /* Initializes oid allocator */
     libreiser4_plugin_call(goto error_free_journal, fs->format->plugin->format_ops, 
-	oid, fs->format->entity, &oid_area_start, &oid_area_end);
+	oid_area, fs->format->entity, &oid_start, &oid_len);
     
-    if (!(fs->oid = reiserfs_oid_open(oid_area_start, oid_area_end, oid_pid)))
+    if (!(fs->oid = reiserfs_oid_open(oid_start, oid_len, oid_pid)))
 	goto error_free_journal;
   
+    if (reiserfs_oid_check(fs->oid, 0))
+	goto error_free_oid;
+    
     /* 
 	Initilaizes root directory key.
 	FIXME-UMKA: Here should be not hardcoded key id.
@@ -161,7 +175,7 @@ error_free_journal:
 	reiserfs_journal_close(fs->journal);
 error_free_alloc:
     reiserfs_alloc_close(fs->alloc);
-error_free_super:
+error_free_format:
     reiserfs_format_close(fs->format);
 error_free_master:
     reiserfs_master_close(fs->master);
@@ -188,9 +202,11 @@ reiserfs_fs_t *reiserfs_fs_create(
 ) {
     reiserfs_fs_t *fs;
     blk_t blk, master_offset;
-    void *oid_area_start, *oid_area_end;
     blk_t journal_area_start, journal_area_end;
 
+    void *oid_start;
+    uint32_t oid_len;
+    
     aal_assert("umka-149", host_device != NULL, return NULL);
     aal_assert("umka-150", journal_device != NULL, return NULL);
     aal_assert("vpf-113", profile != NULL, return NULL);
@@ -252,7 +268,7 @@ reiserfs_fs_t *reiserfs_fs_create(
 	goto error_free_alloc;
    
     libreiser4_plugin_call(goto error_free_journal, fs->journal->plugin->journal_ops, 
-	area, fs->journal->entity, &journal_area_start, &journal_area_end);
+	bounds, fs->journal->entity, &journal_area_start, &journal_area_end);
     
     /* Setts up journal blocks in block allocator */
     for (blk = journal_area_start; blk <= journal_area_end; blk++)
@@ -263,10 +279,9 @@ reiserfs_fs_t *reiserfs_fs_create(
 	specific super block.
     */
     libreiser4_plugin_call(goto error_free_journal, fs->format->plugin->format_ops, 
-	oid, fs->format->entity, &oid_area_start, &oid_area_end);
+	oid_area, fs->format->entity, &oid_start, &oid_len);
     
-    if (!(fs->oid = reiserfs_oid_create(oid_area_start, oid_area_end, 
-	    profile->oid)))
+    if (!(fs->oid = reiserfs_oid_create(oid_start, oid_len, profile->oid)))
 	goto error_free_journal;
 
     /* Initializes root key */
@@ -408,7 +423,7 @@ void reiserfs_fs_close(
 const char *reiserfs_fs_format(
     reiserfs_fs_t *fs		/* filesystem format name will be obtained from */
 ) {
-    return reiserfs_format_format(fs->format);
+    return reiserfs_format_name(fs->format);
 }
 
 /* Returns disk format plugin in use */
