@@ -2671,6 +2671,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 	extent_state st;
 	reiser4_blocknr_hint *preceder;
 	int relocate = 0;
+	int ret;
 
 	/* Handle the non-allocated cases. */
 	switch ((st = state_of_extent (extent))) {
@@ -2695,7 +2696,6 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 		unsigned long i, blocksize;
 		unsigned long ind;
 		int all_dirty = 1;
-		int ret;
 
 		unit_key_by_coord (coord, & item_key);
 
