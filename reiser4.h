@@ -124,15 +124,15 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 #define REISER4_DIR_ITEM_PLUGIN       (COMPOUND_DIR_ID)
 
 /**
- * Default value of maximal atom size. Can be ovewritten by atom_max_size
- * mount option. By default infinity.
+ * Default value of maximal atom size. Can be ovewritten by
+ * txnmgr.atom_max_size mount option. By default infinity.
  */
 #define REISER4_ATOM_MAX_SIZE         (~0)
 
 /**
  * Default value of maximal atom age (in jiffies). After reaching this age
  * atom will be forced to commit, either synchronously or asynchronously. Can
- * be overwritten by atom_max_age mount option.
+ * be overwritten by txnmgr.atom_max_age mount option.
  */
 #define REISER4_ATOM_MAX_AGE          (30 * HZ)
 
@@ -208,14 +208,9 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
  * what size units of IO we would like cp, etc., to use, in writing to
  * reiser4. In bytes.
  *
- * Currently this is constant (64k).
+ * Can be overwritten by optimal_io_size mount option.
  */
-#define REISER4_OPTIMAL_IO_SIZE ((64 * 1024))
-
-/**
- * Number of hashed spinlocks used to protect page-to-jnode linkage
- */
-#define REISER4_JNODE_TO_PAGE_HASH_SIZE (16)
+#define REISER4_OPTIMAL_IO_SIZE (64 * 1024)
 
 /**
  * see comments in inode.c:oid_to_uino()
