@@ -2052,56 +2052,50 @@ capture_assign_block_nolock(txn_atom * atom, jnode * node)
 void
 jnode_set_dirty(jnode * node)
 {
+	txn_atom * atom;
+
 	assert("umka-204", node != NULL);
 	assert("umka-296", current_tree != NULL);
 
+	/* We get both locks (atom, jnode) before jnode state check because
+	 * atom_get_locked_by_jnode may unlock jnode in a process of getting
+	 * atom spin lock */
 	spin_lock_jnode(node);
+	atom = atom_get_locked_by_jnode (node);
 
 	if (!jnode_is_dirty(node)) {
-
 		JF_SET(node, JNODE_DIRTY);
 
 		assert("jmacd-3981", jnode_is_dirty(node));
 
 		/* Make if flush_reserved if either leaf or unformatted for not FAKE_BLOCKNR. */
 		if (!JF_ISSET(node, JNODE_CREATED)/* && !is_flush_mode()*/) {
-		    trace_on(TRACE_RESERVE, "moving 1 grabbed block to flush reserved.\n");
-		    grabbed2flush_reserved(1);
+			trace_on(TRACE_RESERVE, "moving 1 grabbed block to flush reserved.\n");
+			grabbed2flush_reserved_nolock(atom, 1);
 		}
-		    
-		if (!JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
-			txn_atom *atom;
+		
+		if (atom && !JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 			/* If the atom is not set yet, it will be added to the appropriate list in
 			 * capture_assign_block_nolock. */
-			atom = atom_get_locked_by_jnode(node);
-
 			/* Sometimes a node is set dirty before being captured -- the case for new
 			 * jnodes.  In that case the jnode will be added to the appropriate list
 			 * in capture_assign_block_nolock. Another reason not to re-link jnode is
 			 * that jnode is on a flush queue (see flush.c for details) */
-			if (atom != NULL) {
-				int level = jnode_get_level(node);
 
-				assert("zam-654", !(JF_ISSET(node, JNODE_OVRWR)
+			int level = jnode_get_level(node);
+
+			assert("zam-654", !(JF_ISSET(node, JNODE_OVRWR)
 						    && atom->stage >= ASTAGE_PRE_COMMIT));
-				assert("nikita-2607", 0 <= level);
-				assert("nikita-2606", level <= REAL_MAX_ZTREE_HEIGHT);
+			assert("nikita-2607", 0 <= level);
+			assert("nikita-2606", level <= REAL_MAX_ZTREE_HEIGHT);
 
-				capture_list_remove(node);
-				capture_list_push_back(&atom->dirty_nodes[level], node);
-
-				spin_unlock_atom(atom);
-			}
+			capture_list_remove(node);
+			capture_list_push_back(&atom->dirty_nodes[level], node);
 		}
-
-		/*
-		 * FIXME-NIKITA probably balance_dirty_pages_ratelimited()
-		 * should be called here.
-		 */
-
-		/*trace_on (TRACE_FLUSH, "dirty %sformatted node %p\n", 
-		   jnode_is_unformatted (node) ? "un" : "", node); */
 	}
+
+	if (atom)
+		spin_unlock_atom (atom);
 
 	if (jnode_is_znode(node)) {
 		reiser4_tree *tree;

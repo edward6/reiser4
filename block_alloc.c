@@ -620,17 +620,15 @@ int check_atom_reserved_blocks(struct txn_atom *atom, __u64 overwrite_set)
     return atom->flush_reserved >= overwrite_set;
 }
 
-void grabbed2flush_reserved (__u64 count) 
+void grabbed2flush_reserved_nolock (txn_atom * atom, __u64 count) 
 {
 	const struct super_block * super = reiser4_get_current_sb(); 
-	txn_atom * atom = get_current_atom_locked_nocheck ();
 
 	sub_from_ctx_grabbed (count);
 
 	/* add to atom if exists, otherwise to ctx. */
 	if (atom) {
 	    atom->flush_reserved += count;
-	    spin_unlock_atom (atom);
 	} else
 	    add_to_ctx_flush_reserved (count);
 
@@ -644,6 +642,15 @@ void grabbed2flush_reserved (__u64 count)
 	reiser4_spin_unlock_sb (super);	
 }
 
+void grabbed2flush_reserved (__u64 count)
+{
+	txn_atom * atom = get_current_atom_locked_nocheck ();
+
+	grabbed2flush_reserved_nolock (atom, count);
+
+	if (atom)
+		spin_unlock_atom (atom);
+}
 __u64 reiser4_atom_flush_reserved(void)
 {
 	__u32 count;
