@@ -96,6 +96,7 @@ static unsigned int offset_of( const tree_coord *coord, int idx )
 	else if( idx == units( coord ) )
 		return item_length_by_coord( coord );
 	else impossible( "nikita-1308", "Wrong idx" );
+	return 0;
 }
 
 /**
@@ -887,8 +888,8 @@ int cde_add_entry( const struct inode *dir, tree_coord *coord,
 					  NO_RA, 0/*flags*/ );
 	} else {
 		data.length = cde_estimate( coord, &data );
-		result = resize_item( coord, lh, 
-				      &dir_entry -> key, &data, 0/*flags*/ );
+		result = resize_item( coord, &data, 
+				      &dir_entry -> key, lh, 0/*flags*/ );
 	}
 	return result;
 }
