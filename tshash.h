@@ -103,6 +103,7 @@ PREFIX##_hash_init (PREFIX##_hash_table *hash,						\
       return RETERR(-ENOMEM);								\
     }											\
   xmemset (hash->_table, 0, sizeof (ITEM_TYPE*) * buckets);				\
+  ON_DEBUG(printk(#PREFIX "_hash_table: %i buckets\n", buckets));			\
   return 0;										\
 }											\
 											\
@@ -236,21 +237,22 @@ static __inline__ ITEM_TYPE*								\
 PREFIX##_hash_find (PREFIX##_hash_table *hash,						\
 	            KEY_TYPE const      *find_key)					\
 {											\
-  return PREFIX##_hash_find_index (hash, HASH_FUNC(find_key), find_key);		\
+  return PREFIX##_hash_find_index (hash, HASH_FUNC(hash, find_key), find_key);		\
 }											\
 											\
 static __inline__ ITEM_TYPE*								\
 PREFIX##_hash_find_lru (PREFIX##_hash_table *hash,					\
 	                KEY_TYPE const      *find_key)					\
 {											\
-  return PREFIX##_hash_find_index_lru (hash, HASH_FUNC(find_key), find_key);		\
+  return PREFIX##_hash_find_index_lru (hash, HASH_FUNC(hash, find_key), find_key);	\
 }											\
 											\
 static __inline__ int									\
 PREFIX##_hash_remove (PREFIX##_hash_table *hash,					\
 		      ITEM_TYPE           *del_item)					\
 {											\
-  return PREFIX##_hash_remove_index (hash, HASH_FUNC(&del_item->KEY_NAME), del_item);	\
+  return PREFIX##_hash_remove_index (hash,      					\
+                                     HASH_FUNC(hash, &del_item->KEY_NAME), del_item);	\
 }											\
 											\
 static __inline__ int									\
@@ -264,14 +266,15 @@ static __inline__ void									\
 PREFIX##_hash_insert (PREFIX##_hash_table *hash,					\
 		      ITEM_TYPE           *ins_item)					\
 {											\
-  return PREFIX##_hash_insert_index (hash, HASH_FUNC(&ins_item->KEY_NAME), ins_item);	\
+  return PREFIX##_hash_insert_index (hash,      					\
+                                     HASH_FUNC(hash, &ins_item->KEY_NAME), ins_item);	\
 }											\
 											\
 static __inline__ void									\
 PREFIX##_hash_insert_rcu (PREFIX##_hash_table *hash,					\
 		          ITEM_TYPE           *ins_item)				\
 {											\
-  return PREFIX##_hash_insert_index_rcu (hash, HASH_FUNC(&ins_item->KEY_NAME),   	\
+  return PREFIX##_hash_insert_index_rcu (hash, HASH_FUNC(hash, &ins_item->KEY_NAME),   	\
                                          ins_item);     				\
 }											\
 											\
@@ -298,7 +301,7 @@ PREFIX##_hash_next (PREFIX##_hash_table *hash,						\
     return NULL;									\
   next = item->LINK_NAME._next;								\
   if (next == NULL)									\
-    next = PREFIX##_hash_first (hash, HASH_FUNC(&item->KEY_NAME) + 1);			\
+    next = PREFIX##_hash_first (hash, HASH_FUNC(hash, &item->KEY_NAME) + 1);		\
   return next;										\
 }											\
 											\
