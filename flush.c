@@ -494,7 +494,7 @@ static int znode_get_utmost_if_dirty(znode * node, lock_handle * right_lock, sid
 static int znode_same_parents(znode * a, znode * b);
 
 /* Flush position functions */
-static int flush_pos_init(flush_position * pos);
+static void flush_pos_init(flush_position * pos);
 static int flush_pos_valid(flush_position * pos);
 static void flush_pos_done(flush_position * pos);
 static int flush_pos_stop(flush_position * pos);
@@ -774,12 +774,8 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 
 	trace_on(TRACE_FLUSH, "flush squalloc %s %s\n", flush_jnode_tostring(node), flush_flags_tostring(flags));
 
-	/* Initialize a flush position.  Currently this cannot fail but if any memory
-	   allocation, locks, etc. were needed then this would be the place to fail before
-	   flush really gets going. */
-	if ((ret = flush_pos_init(&flush_pos))) {
-		goto clean_out;
-	}
+	/* Initialize a flush position. */
+	flush_pos_init(&flush_pos);
 
 	flush_pos.nr_to_flush = nr_to_flush;
 	flush_pos.fq = fq;
@@ -3477,7 +3473,7 @@ exit:
 /* FLUSH POS HELPERS */
 
 /* Initialize the fields of a flush_position. */
-static int
+static void
 flush_pos_init(flush_position * pos)
 {
 	xmemset(pos, 0, sizeof *pos);
@@ -3488,8 +3484,6 @@ flush_pos_init(flush_position * pos)
 	init_lh(&pos->parent_lock);
 	init_load_count(&pos->parent_load);
 	init_load_count(&pos->point_load);
-
-	return 0;
 }
 
 /* The flush loop inside flush_forward_squalloc periodically checks flush_pos_valid to
