@@ -219,7 +219,8 @@ static int do_reiser4_file_readahead (struct inode * inode, loff_t offset, loff_
 	return ret;
 }
 
-/* This is derived from the linux original read-ahead code (mm/readahead.c) */
+/* This is derived from the linux original read-ahead code (mm/readahead.c), and
+ * cannot be licensed from Namesys in its current state.  */
 int reiser4_file_readahead (struct file * file, loff_t offset, size_t size)
 {
 	loff_t min;
