@@ -1,9 +1,0 @@
-#! /bin/sh
-
-FSTYPE=reiserfs
-MOPTS=''
-MPOINT=/mnt/b1
-DEVICE=/dev/hdb1
-MKOPTS='-ff --format 3.6'
-
-
