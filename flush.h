@@ -82,8 +82,21 @@ set_flush_scan_nstat(flush_scan * scan, flush_scan_node_stat_t nstat)
 	scan->nstat = nstat;
 }
 
+/* This is a set of item states in a disk cluster. 
+   Disk cluster is a set of items which consists at least of a FIRST item,
+   other items (if any) are CHAINED. This states are used to assign item write
+   modes in flush convert phase.
+*/
+typedef enum {
+	DC_UNKNOWN_ITEM = 0,
+	DC_FIRST_ITEM = 1,
+	DC_CHAINED_ITEM = 2,
+	DC_AFTER_CLUSTER = 3
+} dc_item_stat;
+
 typedef struct squeeze_item_info {
-	int mergeable;
+	dc_item_stat d_cur;  /* status of the current item */
+	dc_item_stat d_next; /* status of the next slum item */
 	struct inode * inode;
 	flow_t flow;
 } squeeze_item_info_t;
@@ -193,6 +206,57 @@ tfm_stream_sq (flush_pos_t * pos, tfm_stream_id id)
 	return tfm_stream(tfm_cluster_sq(pos), id);
 }
 
+/* Returns true if item convert data should be moved
+   to the right slum neighbor */
+static inline int
+chain_next_node(flush_pos_t * pos) {
+	int result = 0;
+
+	assert("edward-1007", 
+	       squeeze_data(pos) && item_squeeze_data(pos));
+	assert("edward-1008", 
+	       pos->coord.item_pos == coord_num_items(&pos->coord) - 1);
+	
+	switch (item_squeeze_data(pos)->d_next) {
+	case DC_CHAINED_ITEM:
+		result = 1;
+		break;
+	case DC_AFTER_CLUSTER:
+		break;
+	default:
+		impossible("edward-1009", 
+			   "wrong cluster status of next slum item");
+	}
+	return result;
+}
+
+static inline void
+move_item_squeeze_data(flush_pos_t * pos, 
+		       int this_node /* where is next item */) {
+	
+	assert("edward-1010", squeeze_data(pos) && item_squeeze_data(pos));
+	
+	if (this_node == 0) {
+		/* next item is on the right neighbor */
+		assert("edward-1011", 
+		       item_squeeze_data(pos)->d_cur == DC_FIRST_ITEM ||
+		       item_squeeze_data(pos)->d_cur == DC_CHAINED_ITEM);
+		assert("edward-1012", 
+		       item_squeeze_data(pos)->d_next == DC_CHAINED_ITEM);
+		
+		item_squeeze_data(pos)->d_cur = DC_CHAINED_ITEM;
+		item_squeeze_data(pos)->d_next = DC_UNKNOWN_ITEM;
+	} else {
+		/* next item is on the same node */ 
+		
+		assert("edward-1013",
+		       item_squeeze_data(pos)->d_next == DC_AFTER_CLUSTER ||
+		       item_squeeze_data(pos)->d_next == DC_UNKNOWN_ITEM);
+		
+		item_squeeze_data(pos)->d_cur = DC_AFTER_CLUSTER;
+	}
+}
+
 static inline int
 should_squeeze_node(flush_pos_t * pos, znode * node)
 {
@@ -206,7 +270,7 @@ should_squeeze_next_node(flush_pos_t * pos, znode * node)
 	return squeeze_data(pos) && item_squeeze_data(pos);
 }
 
-#define SQUALLOC_THRESHOLD 256  /* meaningful for ctails */
+#define SQUALLOC_THRESHOLD 256 
 
 static inline int
 should_terminate_squalloc(flush_pos_t * pos)
@@ -234,11 +298,12 @@ const char *jnode_tostring(jnode * node);
 #if REISER4_DEBUG
 #define check_preceder(blk) \
 assert("nikita-2588", blk < reiser4_block_count(reiser4_get_current_sb()));
-
+extern void item_squeeze_invariant(flush_pos_t * pos);
 extern void check_pos(flush_pos_t *pos);
 #else
 #define check_preceder(b) noop
 #define check_pos(pos) noop
+#define item_squeeze_invariant(pos) noop
 #endif
 
 /* __REISER4_FLUSH_H__ */
