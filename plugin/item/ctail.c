@@ -654,6 +654,13 @@ write_ctail(flow_t *f, coord_t *coord, lock_handle *lh, int grabbed, crc_write_m
 	return result;
 }
 
+item_plugin *
+item_plugin_by_jnode(jnode * node)
+{
+	assert("edward-302", jnode_is_cluster_page(node));
+	return (item_plugin_by_id(CTAIL_ID));
+}
+
 /* plugin->u.item.f.scan */
 /* Check if the cluster node we started from doesn't have any items
    in the tree. If so, insert prosessed cluster into the tree.
