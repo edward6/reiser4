@@ -373,14 +373,14 @@ __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
  * Unlink and truncate require space in transaction (to update stat data, at
  * least). But we don't want rm(1) to fail with "No space on device" error.
  *
+ * Solution is to reserve 5% of disk space for truncates and
+ * unlinks. Specifically, normal space grabbing requests don't grab space from
+ * reserved area. Only requests with BA_RESERVED bit in flags are allowed to
+ * drain it. Per super block delete_sema semaphore is used to allow only one
+ * thread at a time to grab from reserved area.
  *
- *
- *
- *
- *
- *
- *
- *
+ * Grabbing from reserved area should always be performed with BA_CAN_COMMIT
+ * flag.
  *
  */
 
