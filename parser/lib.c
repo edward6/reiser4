@@ -11,8 +11,8 @@
 
 #include <linux/mount.h>
 
-#define my_mntget(mess,s)  mntget(s); printk ("mntget  %d,  %s\n",(s)->mnt_count, mess)
-#define my_dget(mess,s)    dget(s)  ; printk ("dget    %d,  %s\n",(s)->d_count, mess)
+#define my_mntget(mess,s)  {mntget(s); printk ("mntget  %d,  %s\n",(s)->mnt_count, mess);}
+#define my_dget(mess,s)    {dget(s)  ; printk ("dget    %d,  %s\n",(s)->d_count, mess);}
 
 #define path4_release( pointer )  { dput( (pointer).dentry ); \
                                      mntput((pointer).mnt);   \
@@ -101,13 +101,13 @@ static void yyerror( struct reiser4_syscall_w_space *ws  /* work space ptr */,
 }
 
 /* free lists of work space*/
-static void freeList(freeSpace_t * list /* head of list to be fee */)
+static void freeList(free_space_t * list /* head of list to be fee */)
 {
-	freeSpace_t * curr,* next;
+	free_space_t * curr,* next;
 	next = list;
 	while (next) {
 		curr = next;
-		next = curr->freeSpace_next;
+		next = curr->free_space_next;
 		kfree(curr);
 	}
 }
@@ -159,44 +159,44 @@ static inline void path4_release( struct dentry *de, struct vfsmount *mnt)
 
 /* FIXME:NIKITA->VOVA code below looks like custom made memory allocator. Why
  * not to use slab? */
-#define initNextFreeSpace(fs)	(fs)->freeSpace_next = NULL;                                      \
+#define INITNEXTFREESPACE(fs)	(fs)->free_space_next = NULL;                                      \
                                 (fs)->freeSpaceMax   = (fs)->freeSpaceBase+FREESPACESIZE;         \
 			        (fs)->freeSpace      = (fs)->freeSpaceBase
 
 
 /* allocate work space */
-static freeSpace_t * freeSpaceAlloc()
+static free_space_t * free_space_alloc()
 {
-	freeSpace_t * fs;
-	fs = ( freeSpace_t * ) kmalloc( sizeof( freeSpace_t ),GFP_KERNEL ) ;
+	free_space_t * fs;
+	fs = ( free_space_t * ) kmalloc( sizeof( free_space_t ),GFP_KERNEL ) ;
 	assert("VD kmalloc work space",fs!=NULL);
-	memset( fs , 0, sizeof( freeSpace_t ));
-	initNextFreeSpace(fs);
+	memset( fs , 0, sizeof( free_space_t ));
+	INITNEXTFREESPACE(fs);
 	return fs;
 }
 
-#define get_first_freeSpHead(ws) (ws)->freeSpHead
-#define get_next_freeSpHead(curr) (curr)->freeSpace_next
+#define GET_FIRST_FREESPHEAD(ws) (ws)->freeSpHead
+#define GET_NEXT_FREESPHEAD(curr) (curr)->free_space_next
 
 
 /* allocate next work space */
-static freeSpace_t * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws /* work space ptr */ )
+static free_space_t * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws /* work space ptr */ )
 {
-	freeSpace_t * curr,* next;
+	free_space_t * curr,* next;
 	curr=NULL;
-	next = get_first_freeSpHead(ws);
+	next = GET_FIRST_FREESPHEAD(ws);
 	while (next) {
 		curr = next;
-		next = get_next_freeSpHead(curr);
+		next = GET_NEXT_FREESPHEAD(curr);
 	}
-	next = freeSpaceAlloc();
+	next = free_space_alloc();
 	if(curr==NULL) 		{
 		ws->freeSpHead=next;
 	}
 	else {
-		curr->freeSpace_next=next;
+		curr->free_space_next=next;
 	}
-	next->freeSpace_next=NULL;
+	next->free_space_next=NULL;
 	return next;
 }
 
@@ -352,7 +352,7 @@ static struct reiser4_syscall_w_space * reiser4_pars_init(void)
 	ws->ws_yymaxdepth  = MAXLEVELCO; /* must be 500 by default */
 	                                                    /* allocate first part of working tables
 							       and initialise headers */
-	ws->freeSpHead          = freeSpaceAlloc();
+	ws->freeSpHead          = free_space_alloc();
 	ws->freeSpCur           = ws->freeSpHead;
 	ws->wrdHead             = NULL;
 	ws->root_e              = init_root(ws);
@@ -458,7 +458,7 @@ static void move_selected_word(struct reiser4_syscall_w_space * ws /* work space
 		}
 		else *ws->tmpWrdEnd++ = *ws->yytext++;
 		if( ws->tmpWrdEnd > (ws->freeSpCur->freeSpaceMax - sizeof(wrd_t)) ) {
-			freeSpace_t * tmp;
+			free_space_t * tmp;
 			int i;
 			assert ("VD sys_reiser4. selectet_word:Internal space buffer overflow: input token exceed size of bufer",
 				ws->freeSpCur->freeSpace > ws->freeSpCur->freeSpaceBase);
@@ -1032,13 +1032,6 @@ static pars_var_t *  lookup_pars_var_word(struct reiser4_syscall_w_space * ws /*
 }
 
 
-/* execute code: walk tree, call plugins and return value */
-static expr_v4_t * make_do_it(struct reiser4_syscall_w_space * ws /* work space ptr */,
-			      expr_v4_t * e1 /* expression for execution (not yet used)*/ )
-{
-	return e1;
-}
-
 /* if_then_else procedure */
 static expr_v4_t * if_then_else(struct reiser4_syscall_w_space * ws /* work space ptr */,
 				expr_v4_t * e1 /* expression of condition */,
@@ -1065,7 +1058,7 @@ static void goto_end(struct reiser4_syscall_w_space * ws /* work space ptr */)
 
 
 /* STRING_CONSTANT to expression */
-static expr_v4_t * constToExpr(struct reiser4_syscall_w_space * ws /* work space ptr */,
+static expr_v4_t * const_to_expr(struct reiser4_syscall_w_space * ws /* work space ptr */,
 			       wrd_t * e1 /* constant for convert to expression */)
 {
 	expr_v4_t * new_expr = alloc_new_expr(ws, EXPR_WRD );
@@ -1085,6 +1078,7 @@ static expr_v4_t * allocate_expr_op2(struct reiser4_syscall_w_space * ws /* work
 	ret->h.exp_code = op;
 	ret->op2.op_l = e1;
 	ret->op2.op_r = e2;
+	printk ("allocate new expr op2: e1=%p e2=%p ret=%p op=%d", e1, e2, ret, op);
 	return ret;
 }
 
@@ -1103,11 +1097,11 @@ static expr_v4_t * allocate_expr_op(struct reiser4_syscall_w_space * ws /* work 
 
 
 /* concatenate expressions */
-static expr_v4_t * connect_expression(struct reiser4_syscall_w_space * ws /* work space ptr */,
-				      expr_v4_t * e1 /* first expr of connecting */,
-				      expr_v4_t * e2 /* second expr of connecting */)
+static expr_v4_t * concat_expression(struct reiser4_syscall_w_space * ws /* work space ptr */,
+				      expr_v4_t * e1 /* first expr of concating */,
+				      expr_v4_t * e2 /* second expr of concating */)
 {
-	return allocate_expr_op2( ws, e1, e2, CONNECT );
+	return allocate_expr_op2( ws, e1, e2, CONCAT );
 }
 
 
@@ -1477,8 +1471,8 @@ static int get_tube_next_src(tube_t * tube)
 					{
 						readdir();
 					}
-#endif
 			}
+#endif
 			ret = 0;
 			break;
 		case EXPR_LIST:
@@ -1586,7 +1580,8 @@ static size_t get_available_src_len(tube_t * tube)
 	printk("get av src len tube=%p, tube->writeoff=%d len=%d\n", tube,(int) (tube->writeoff), (int) len);
 	while ( tube->st_current != NULL && ret ) {
 		ret = 0;
-		switch( tube->st_current->type ) {
+		switch( tube->st_current->type )
+			{
 		case 	ST_FILE:
 			s_len = tube->st_current->u.file->f_dentry->d_inode->i_size;
 			/* for reiser4 find_file_size() */
@@ -1601,7 +1596,7 @@ static size_t get_available_src_len(tube_t * tube)
 			len = -1;
 			ret = 1;
 			break;
-		}
+			}
 	}
 	s_len -= tube->readoff;
 	if (tube->st_current == NULL) {
@@ -1714,13 +1709,15 @@ static int  pump( pars_var_t *sink, expr_v4_t *source )
 	      tube_to_sink   = tube_to_sink_general;
 #endif
 	      reserv_space_in_sink( tube );
-	      while ( tube->st_current != NULL && prep_tube( tube )  ) {
-		      printk("p 1 tube=%p,tube->writeoff=%d,tube->readoff=%d\n", tube,(int) tube->writeoff, (int)tube->readoff);
-		      ret_code = source_to_tube( tube );
-		      if ( ret_code>0 ) {
-			      ret_code = tube_to_sink( tube );
+	      while ( tube->st_current != NULL ) {
+		      if (ret_code = prep_tube( tube ) ) {
+			      printk("p 1 tube=%p,tube->writeoff=%d,tube->readoff=%d\n", tube,(int) tube->writeoff, (int)tube->readoff);
+			      ret_code = source_to_tube( tube );
+			      if ( ret_code>0 ) {
+				      ret_code = tube_to_sink( tube );
+			      }
 		      }
-		      else {
+		      if ( tube->st_current != NULL && !(ret_code>0)) {
 			      put_tube_src( tube );
 		      }
 	      }
