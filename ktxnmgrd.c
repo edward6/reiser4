@@ -9,16 +9,25 @@
 
 static int scan_mgr( txn_mgr *mgr );
 
-#if (1)
+#if (0)
 #define ktxnmgrd_trace( args... ) info( "ktxnmgrd: " ##args )
 #else
-#define ktxnmgrd_trace noop
+#define ktxnmgrd_trace( args... ) noop
 #endif
 
-/*
+/**
+ * change current->comm so that ps, top, and friends will see changed
+ * state. This serves no useful purpose whatsoever, but also costs
+ * nothing. May be it will make lonely system administrator feeling less alone
+ * at 3 A.M.
+ */
+#define set_comm( s ) 						\
+	snprintf( current -> comm, sizeof( current -> comm ),	\
+		  "%s:%s", __FUNCTION__, ( s ) )
+
+/**
  * The background transaction manager daemon, started as a kernel thread
  * during reiser4 initialization.
- *
  */
 int ktxnmgrd( void *arg )
 {
@@ -60,18 +69,18 @@ int ktxnmgrd( void *arg )
 		if( me -> flags & PF_FREEZE )
 			refrigerator( PF_IOTHREAD );
 
-		/* While otherwise is good, kcond_timedwait is actually based on
-		   semaphores, when task is waiting on semaphore, it is
-		   converted to "UNINTERRUPTIBLE SLEEP" state, and each such
-		   task adds one to LA, and this would confuse just about
-		   everyone.
-		   FIXME: I just fixed that with choosing not to ignore
-		   signals, and handling -EINTR case absolutely the same as
-		   in case of real timeout. */
+		set_comm( "wait" );
+		/*
+		 * wait for @ctx -> timeout or explicit wake up.
+		 *
+		 * kcond_wait() is called with last argument 1 enabling wakeup
+		 * by signals so that this thread is not counted in
+		 * load-average. This doesn't require any special handling,
+		 * because all signals were blocked.
+		 */
 		result = kcond_timedwait( &ctx -> wait, &ctx -> guard,
-					  ctx -> timeout, 1 /* do not block signals */ );
-		if( ( result != -ETIMEDOUT && result != -EINTR ) &&
-		    ( result != 0 ) ) {
+					  ctx -> timeout, 1 /* signalable */ );
+		if( ( result != -ETIMEDOUT ) && ( result != 0 ) ) {
 			/*
 			 * some other error
 			 */
@@ -86,6 +95,8 @@ int ktxnmgrd( void *arg )
 			break;
 
 		ktxnmgrd_trace( "woke up\n" );
+
+		set_comm( result ? "timed" : "run" );
 
 		/*
 		 * wait timed out or ktxnmgrd was woken up by explicit request
@@ -226,7 +237,8 @@ void ktxnmgrd_kick( void )
 	assert( "nikita-2460", ctx != NULL );
 	spin_lock( &ctx -> guard );
 	if( ctx -> tsk != NULL ) {
-		trace_on( TRACE_TXN, "Waking ktxnmgrd %i", ctx -> tsk -> pid );
+		trace_on( TRACE_BUG | TRACE_TXN, 
+			  "Waking ktxnmgrd %i", ctx -> tsk -> pid );
 		kcond_signal( &ctx -> wait );
 	}
 	spin_unlock( &ctx -> guard );
