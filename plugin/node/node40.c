@@ -38,16 +38,16 @@ static node_header_40 *node40_node_header( const znode *node /* node to
 
 /* functions to get/set fields of node_header_40 */
 /* Audited by: green(2002.06.12) */
-static void nh_40_set_magic (node_header_40 * nh, __u32 value)
+static void nh_40_set_magic (node_header_40 * nh UNUSED_ARG, __u32 value UNUSED_ARG)
 {
-	cputod32 (value, &nh->magic);
+	/*cputod32 (value, &nh->magic);*/
 }
 
 
 /* Audited by: green(2002.06.12) */
-static __u32 nh_40_get_magic (node_header_40 * nh)
+static __u32 nh_40_get_magic (node_header_40 * nh UNUSED_ARG)
 {
-	return d32tocpu (&nh->magic);
+	return 0;/*d32tocpu (&nh->magic);*/
 }
 
 
@@ -349,26 +349,18 @@ node_search_result node40_lookup( znode *node /* node to query */,
 		assert( "nikita-1259", order == EQUAL_TO );
 		return NS_FOUND;
 	}
-#if 0
-	/*
-	 * FIXME-NIKITA probably this should be dropped. It can cause false
-	 * CBK_FOUND
-	 */
-	if( iplug -> b.max_key_inside != NULL ) {
+	if( iplug -> common.max_key_inside != NULL ) {
 		reiser4_key max_item_key;
 
 		/* key > max_item_key --- outside of an item */
-		if( keygt( key, iplug -> b.max_key_inside( coord, 
-							   &max_item_key ) ) ) {
-			/*
-			 * FIXME-NIKITA nikita: should be AFTER_ITEM
-			 */
-			coord -> between  = AFTER_UNIT;
-			coord -> unit_pos = last_unit_pos( coord );
+		if( keygt( key, iplug -> common.max_key_inside( coord, 
+								&max_item_key ) ) ) {
+			coord -> unit_pos = 0;
+			coord -> between  = AFTER_ITEM;
 			return ( bias == FIND_EXACT ) ? NS_NOT_FOUND : NS_FOUND;
 		}
 	}
-#endif
+
 	if( iplug -> common.lookup != NULL ) {
 		return iplug -> common.lookup( key, bias, coord );
 	} else {
@@ -639,7 +631,7 @@ int node40_parse( const znode *node /* node to parse */)
 	if( ( ( __u8 ) znode_get_level( node ) ) != nh_40_get_level( header ) )
 		warning( "nikita-494", "Wrong level found in node: %i != %i",
 			 znode_get_level( node ), nh_40_get_level( header ) );
-	else if( nh_40_get_magic( header ) != reiser4_node_magic )
+	else if( 0/*nh_40_get_magic( header ) != reiser4_node_magic*/ )
 		warning( "nikita-495", "Wrong magic in tree node: %x != %x",
 			 reiser4_node_magic, nh_40_get_magic( header ) );
 	else
@@ -674,7 +666,7 @@ int node40_init( znode *node /* node to initialise */)
 	/* items: 0 */
 	save_plugin_id (node_plugin_to_plugin (node -> nplug), &header -> common_header.plugin_id);
 	nh_40_set_level (header, znode_get_level( node ));
-	nh_40_set_magic (header, reiser4_node_magic);
+	/*nh_40_set_magic (header, reiser4_node_magic);*/
 
 	/* flags: 0 */
 	return 0;
