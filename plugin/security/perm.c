@@ -6,8 +6,6 @@
 #include "../plugin_header.h"
 #include "../../debug.h"
 
-#include "acl.h"
-
 #include <linux/fs.h>
 #include <linux/dcache.h>	/* for struct dentry */
 #include <linux/quotaops.h>
@@ -64,7 +62,6 @@ perm_plugin perm_plugins[LAST_PERM_ID] = {
 			 .setattr_ok = setattr_ok_common,
 			 .getattr_ok = NULL,
 			 .rename_ok = NULL,
-			 .clear = NULL
 	},
 };
 

@@ -420,9 +420,6 @@ init_once(void *obj /* pointer to new inode */ ,
 		INIT_RADIX_TREE(&info->p.jnode_tree, GFP_ATOMIC);
 		ON_DEBUG(info->p.jnodes = 0);
 		ON_DEBUG(info->p.eflushed = 0);
-		/* inode's builtin jnode is initialized in reiser4_alloc_inode */
-		xmemset(&info->p.perm_plugin_data, 0,
-			sizeof info->p.perm_plugin_data);
 	}
 }
 
