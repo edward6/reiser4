@@ -1,10 +1,15 @@
 /* Copyright 2002 by Hans Reiser */
 
+/*
+ * Reiser4 i/o handles are used to count i/o requests which were submitted for
+ * given the atom and i/o synchronization. 
+ */
+
+
 #include "reiser4.h"
 
 TS_LIST_DEFINE (io_handles, struct reiser4_io_handle, linkage);
 
-/* The routines to submit and wait for completion node write requests. */
 static void init_io_handle (struct reiser4_io_handle * io)
 {
 	sema_init(&io->io_sema, 0);
@@ -16,6 +21,7 @@ static void init_io_handle (struct reiser4_io_handle * io)
 	atomic_set(&io->nr_errors, 0);
 }
 
+/* wait for completion of all i/o requests submitted given i/o handle */
 static int io_handle_wait_io (struct reiser4_io_handle * io)
 {
 	/* this 1 was from init_io_handle() */
@@ -32,6 +38,7 @@ static int io_handle_wait_io (struct reiser4_io_handle * io)
 	return  atomic_read(&io->nr_errors);
 }
 
+/* count one bio in i/o handle */
 static void io_handle_add_bio (struct reiser4_io_handle * io, struct bio * bio)
 {
 	bio->bi_private = io;
@@ -39,7 +46,7 @@ static void io_handle_add_bio (struct reiser4_io_handle * io, struct bio * bio)
 	if (io) atomic_add(bio->bi_vcnt, &io->nr_submitted);
 }
 
-
+/* should be called from i/o completion routine to count i/o completion */
 void io_handle_end_io (struct bio * bio)
 {
 	struct reiser4_io_handle * io = bio->bi_private;
@@ -53,6 +60,8 @@ void io_handle_end_io (struct bio * bio)
 		up (&io->io_sema);
 }
 
+/* Take one available i/o handle from @atom's list and count one @bio there.
+ * If @atom has no i/o handles, drop atom lock and allocate one */
 int atom_add_bio (txn_atom * atom, struct bio * bio, struct reiser4_io_handle ** iop)
 {
 	struct reiser4_io_handle * hio;
@@ -77,12 +86,16 @@ int atom_add_bio (txn_atom * atom, struct bio * bio, struct reiser4_io_handle **
 
 	io_handle_add_bio (hio, bio);
 
-	if (*iop)
+	if (*iop) {
 		reiser4_kfree (*iop, sizeof (struct reiser4_io_handle));
+		*iop = NULL;
+	}
 
 	return 0;
 }
 
+
+/* Adding bio to current atom (should be unlocked) */
 int current_atom_add_bio (struct bio * bio)
 {
 	struct reiser4_io_handle * hio = NULL;
@@ -133,6 +146,7 @@ int atom_wait_on_io (txn_atom * atom, int * io_error)
 	return -EAGAIN;
 }
 
+/* wait for completion of all i/o requests submitted for current atom */
 int current_atom_wait_on_io (void)
 {
 	int error = 0;
@@ -157,11 +171,13 @@ int current_atom_wait_on_io (void)
 	return 0;
 }
 
+/* A part of atom initialization */
 void atom_init_io (txn_atom * atom)
 {
 	io_handles_list_init (&atom->io_handles);
 }
 
+/* A part of atom destroying */
 void atom_done_io (txn_atom * atom) 
 {
 	assert ("zam-698", spin_atom_is_locked (atom));
