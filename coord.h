@@ -176,11 +176,18 @@ extern int coord_prev_unit (tree_coord *coord);
  * is an existing item. */
 extern int coord_prev_item (tree_coord *coord);
 
-/* If the coordinate is between items, shifts it to the right.  Returns ??? */
+/* If the coordinate is between items, shifts it to the right.  Returns 0 on success and
+ * non-zero if there is no position to the right. */
 extern int coord_set_to_right (tree_coord *coord);
 
-/* If the coordinate is between items, shifts it to the left.  Returns ??? */
+/* If the coordinate is between items, shifts it to the left.  Returns 0 on success and
+ * non-zero if there is no position to the left. */
 extern int coord_set_to_left (tree_coord *coord);
+
+/* If the coordinate is before an item/unit, set to next item/unit.  If the coordinate is
+ * after an item/unit, set to the previous item/unit.  Returns 0 on success and non-zero
+ * if there is no position (i.e., if the coordinate is empty). */
+extern int coord_set_to_unit (tree_coord *coord);
 
 /* Calls either coord_next_unit or coord_prev_unit depending on sideof argument. */
 extern int coord_sideof_unit (tree_coord *coord, sideof dir);
