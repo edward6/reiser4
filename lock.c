@@ -1342,14 +1342,14 @@ __go_to_sleep(lock_stack * owner
 #endif
 )
 {
-#ifdef CONFIG_REISER4_STATS
+#if REISER4_STATS
 	unsigned long sleep_start = jiffies;
 #endif
 	/* Well, we might sleep here, so holding of any spinlocks is no-no */
 	assert("nikita-3027", schedulable());
 	/* return down_interruptible(&owner->sema); */
 	down(&owner->sema);
-#ifdef CONFIG_REISER4_STATS
+#if REISER4_STATS
 	switch (node_level) {
 	    case ADD_TO_SLEPT_IN_WAIT_EVENT:
 		    reiser4_stat_add(txnmgr.slept_in_wait_event, jiffies - sleep_start);
