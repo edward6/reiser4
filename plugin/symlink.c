@@ -33,7 +33,7 @@ create_symlink(struct inode *symlink,	/* inode of symlink */
 	assert("nikita-682", dir != NULL);
 	assert("nikita-684", data != NULL);
 	assert("nikita-686", data->id == SYMLINK_FILE_PLUGIN_ID);
-
+/* NIKITA-FIXME-HANS: explain significance of comment below. */
 	/* stat data of symlink has symlink extension */
 	mask = &reiser4_inode_data(symlink)->extmask;
 	scint_pack(mask, scint_unpack(mask) | (1 << SYMLINK_STAT), GFP_ATOMIC);

@@ -7,6 +7,8 @@
 
    Currently only trivial policies are implemented.
 
+   NIKITA-FIXME-HANS: update comment
+
 */
 
 #include "../tree.h"
