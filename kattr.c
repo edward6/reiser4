@@ -399,6 +399,9 @@ DEFINE_SUPER_RO(26, entd.flushers, "%llu", 32);
 DEFINE_SUPER_RW(27, trace_flags, "%#llx", 32);
 DEFINE_SUPER_RW(28, log_flags, "%#llx", 32);
 
+/*XXXX*/
+DEFINE_SUPER_RW(30, oid_to_log, "%#llx", 32);
+
 #define ATTR_NO(n) &kattr_super_ ## n .attr.kattr
 
 static struct attribute * kattr_def_attrs[] = {
@@ -432,6 +435,10 @@ static struct attribute * kattr_def_attrs[] = {
 	ATTR_NO(26),
 	ATTR_NO(27),
 	ATTR_NO(28),
+/*
+	ATTR_NO(29),
+	ATTR_NO(30),
+*/
 	&compile_options.attr.kattr,
 	&device.attr.kattr,
 #if REISER4_DEBUG
