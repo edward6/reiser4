@@ -47,14 +47,16 @@ reiser4_block_nr never_tail_estimate ( const struct inode *inode, loff_t size,
 	    reiser4_block_nr amount;
 	    
 	    /* In the case of unallocated extent (truncate does) we are counting 
-	     * only overhead for one balancing */
+	     * the overhead for one balancing, stat data update and three blocks
+	     * may become dirty in the worse case on the twig level */
 	    estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
-	    return inode_file_plugin(inode)->estimate.update(inode) + amount;
+	    return inode_file_plugin(inode)->estimate.update(inode) + amount + 3;
 	} else {
 	    /* Here we are counting the number of blocks needed for creating of the
-	     * real allocated extent(s) */
+	     * allocated extent(s). The digit 3 is the number of dirty nodes on 
+	     * the twing level. */
 	    return div64_32(size + (current_blocksize - 1), current_blocksize, NULL) + 
-		inode_file_plugin(inode)->estimate.update(inode);
+		inode_file_plugin(inode)->estimate.update(inode) + 3;
 	}
 }
 
@@ -71,31 +73,30 @@ always_tail(const struct inode *inode UNUSED_ARG	/* inode to
 reiser4_block_nr always_tail_estimate ( const struct inode *inode, loff_t size,
 	int is_fake) 
 {
-	__u32 max_item_size;
+	__u32 worse_item_size;
 	reiser4_block_nr amount;
 	
 	assert("umka-1244", inode != NULL);
 
-	/* The five blocks is needed for shifting on leaf level */
-        max_item_size = div64_32(tree_by_inode(inode)->nplug->max_item_size(), 5, NULL);
+	/* The five blocks become dirty durring shifting on the leaf level */
+        worse_item_size = div64_32(tree_by_inode(inode)->nplug->max_item_size(), 5, NULL);
 	
-	/* Write 4000 bytes: 2000 into one block and 2000 into the neighbour - 
-	 * 2 blocks are ditry */
 	estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
-        return div64_32(size + (max_item_size - 1), max_item_size, NULL) * amount + 2;
+        return div64_32(size + (worse_item_size - 1), worse_item_size, NULL) * amount;
 }
 
-/** store tails only Always store file's tail as direct item */
-/* Audited by: green(2002.06.12) */
-/* AUDIT: above comment is incorerct and unclean. Also PAGE_SIZE is not correct
-   thing to test against. It should become fs_blocksize instead */
+/* This function makes test if we should store file denoted @inode as tails only or
+ * as extents only. */
 static int
 test_tail(const struct inode *inode UNUSED_ARG	/* inode to operate
 						 * on */ ,
 	  loff_t size /* new object size */ )
 {
-	if (size > PAGE_CACHE_SIZE * 4)
+	assert("umka-1253", inode != NULL);
+	
+	if (size > inode->i_sb->s_blocksize * 4)
 		return 0;
+	
 	return 1;
 }
 
