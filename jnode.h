@@ -153,6 +153,7 @@ TS_LIST_DEFINE(capture, jnode, capture_link);
 
 typedef enum {
 	/* jnode's data parsed */
+/* NIKITA-FIXME-HANS: this means what? */
 	JNODE_PARSED = 0,
        /* node was deleted, not all locks on it were released. This
 	   node is empty and is going to be removed from the tree
