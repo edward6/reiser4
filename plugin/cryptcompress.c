@@ -87,8 +87,7 @@ crc_inode_ok(struct inode * inode)
 	assert("edward-686", 
 	       (info->cluster_shift <= MAX_CLUSTER_SHIFT) &&
 	       (data->tfm[CRYPTO_TFM] == NULL) &&
-	       (data->tfm[DIGEST_TFM] == NULL) &&
-	       (data->tfm[COMPRESS_TFM] == NULL));
+	       (data->tfm[DIGEST_TFM] == NULL));
 	//inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
 	return 1;
 }
@@ -259,7 +258,6 @@ static int
 inode_set_crypto(struct inode * object, crypto_data_t * data)
 {
 	int result;
-	scint_t * extmask;
 	crypto_data_t def;
 	struct crypto_tfm * tfm;
 	crypto_plugin * cplug;
@@ -292,8 +290,6 @@ inode_set_crypto(struct inode * object, crypto_data_t * data)
 	assert("edward-83", data->keyid_size != 0);
 	assert("edward-89", data->keysize != 0);
 	
-	extmask = &info->extmask;
-
 	tfm = inode_get_tfm(object, CRYPTO_TFM);
 	assert("edward-695", tfm != NULL);
 	
@@ -305,10 +301,8 @@ inode_set_crypto(struct inode * object, crypto_data_t * data)
 	assert ("edward-34", !inode_get_flag(object, REISER4_SECRET_KEY_INSTALLED));
 	inode_set_flag(object, REISER4_SECRET_KEY_INSTALLED);
 	
-	result = scint_pack(extmask, scint_unpack(extmask) |
-			    (1 << CRYPTO_STAT), GFP_ATOMIC);
-	if (result)
-		goto error;
+	info->extmask |= (1 << CRYPTO_STAT);
+
 	result = attach_crypto_stat(object, data);
 	if (result) 
 		goto error;
@@ -341,15 +335,13 @@ inode_set_compression(struct inode * object, compression_data_t * data)
 static int
 inode_set_cluster(struct inode * object, cluster_data_t * data)
 {
-	int result;
-	scint_t * extmask;
+	int result = 0;
 	cluster_data_t def;
 	reiser4_inode * info;
 	
 	assert("edward-696", object != NULL);
 	
 	info = reiser4_inode_data(object);
-	extmask = &info->extmask;
 	
 	if(!data) {
 		/* NOTE-EDWARD: 
@@ -362,8 +354,7 @@ inode_set_cluster(struct inode * object, cluster_data_t * data)
 	assert("edward-697", *data <= MAX_CLUSTER_SHIFT);
 	
 	info->cluster_shift = *data;
-	result = scint_pack(extmask, scint_unpack(extmask) |
-			    (1 << CLUSTER_STAT), GFP_ATOMIC);
+	info->extmask |= (1 << CLUSTER_STAT);
 	return result;
 }
 
@@ -493,11 +484,6 @@ reiser4_internal loff_t inode_scaled_offset (struct inode * inode,
 		return src_off;
 	
 	return inode_crypto_plugin(inode)->scale(inode, crypto_blocksize(inode), src_off);
-}
-
-static inline loff_t min_count(loff_t a, loff_t b)
-{
-	return (a < b ? a : b);
 }
 
 /* returns disk cluster size */
