@@ -657,6 +657,12 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
 	fplug = inode_file_plugin(mapping->host);
 	if (fplug->readpages)
 		fplug->readpages(file, mapping, pages);
+	/* FIXME-VS: until it is not centralized */
+	while (!list_empty(pages)) {
+		struct page *page = list_entry(pages->prev, struct page, list);
+		list_del(&page->list);
+		page_cache_release(page);
+	}
 	return 0;
 }
 
