@@ -375,6 +375,7 @@ extern __u32 reiser4_current_trace_flags;
 #define reiser4_stat_znode_add( stat ) ST_INC_CNT( znode . stat )
 #define reiser4_stat_dir_add( stat ) ST_INC_CNT( dir . stat )
 #define reiser4_stat_file_add( stat ) ST_INC_CNT( file . stat )
+#define reiser4_stat_extent_add( stat ) ST_INC_CNT( extent . stat )
 #define reiser4_stat_flush_add( stat ) ST_INC_CNT( flush . stat )
 #define reiser4_stat_flush_add_few( stat, cnt ) ST_ADD_CNT( flush . stat, cnt )
 #define reiser4_stat_pool_add( stat ) ST_INC_CNT( pool. stat )
@@ -729,6 +730,10 @@ typedef struct reiser4_statistics {
 
 	} file;
 	struct {
+		/* how many unformatted nodes were read */
+		stat_cnt unfm_block_reads;
+	} extent;
+	struct {
 		/*
 		 * how many nodes were squeezed
 		 */
@@ -853,6 +858,7 @@ typedef struct reiser4_statistics {
 #define reiser4_stat_flush_add_few( stat, cnt ) noop
 #define reiser4_stat_pool_add( stat ) noop
 #define reiser4_stat_file_add( stat ) noop
+#define reiser4_stat_extent_add( stat ) noop
 #define	reiser4_stat_add_at_level( lev, stat ) noop
 #define	reiser4_stat_level_add( l, stat ) noop
 #define reiser4_stat_nuniq_max( gen ) noop
