@@ -1180,7 +1180,7 @@ flush_reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_c
 		if (ret == 1) {
 
 			if (reiser4_grab_space_force((__u64)1, BA_RESERVED, "flush_reverse_relocate_check_dirty_parent") != 0)
-			    reiser4_panic("umka-1250", "No space left durring flush.");
+			    reiser4_panic("umka-1250", "No space left during flush.");
 			
 			assert("jmacd-18923", znode_is_write_locked(parent_coord->node));
 			znode_set_dirty(parent_coord->node);
