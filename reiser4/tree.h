@@ -144,26 +144,28 @@ struct reiser4_item_data {
 	 */
 	int             length;
 	/**
-	 *  "Cookie" is opaque data that is passed down to the
+	 *  "Arg" is opaque data that is passed down to the
 	 *  ->create_item() method of node layout, which in turn
 	 *  hands it to the ->create_hook() of item being created. This
-	 *  cookie is currently only used by ->create_hook() of internal
-	 *  item
+	 *  arg is currently used by:
+	 *
+	 *  .  ->create_hook() of internal item
 	 *  (fs/reiser4/plugin/item/internal.c:internal_create_hook()),
-	 *  and by ->paste() method of directory item.
+	 *  . ->paste() method of directory item.
+	 *  . ->create_hook() of extent item
 	 *
 	 * For internal item, this is left "brother" of new node being
 	 * inserted and it is used to add new node into sibling list
 	 * after parent to it was just inserted into parent.
 	 *
-	 * While ->cookie does look somewhat of unnecessary compication,
+	 * While ->arg does look somewhat of unnecessary compication,
 	 * it actually saves a lot of headache in many places, because
 	 * all data necessary to insert or paste new data into tree are
 	 * collected in one place, and this eliminates a lot of extra
 	 * argument passing and storing everywhere.
 	 *
 	 */
-	void           *cookie;
+	void           *arg;
 	/**
 	 * plugin of item we are inserting
 	 */
@@ -187,10 +189,10 @@ typedef enum { RESIZE_OK           = 0,
 typedef int ( *tree_iterate_actor_t )( reiser4_tree *tree, 
 				       tree_coord *coord,
 				       reiser4_lock_handle *lh,
-				       void *cookie );
+				       void *arg );
 extern int reiser4_iterate_tree( reiser4_tree *tree, tree_coord *coord, 
 				 reiser4_lock_handle *lh, 
-				 tree_iterate_actor_t actor, void *cookie,
+				 tree_iterate_actor_t actor, void *arg,
 				 znode_lock_mode mode, int through_units_p );
 int is_empty_node (const znode * node);
 
