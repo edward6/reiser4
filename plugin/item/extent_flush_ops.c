@@ -764,7 +764,6 @@ alloc_extent(flush_pos_t *flush_pos)
 	__u64 width;
 	extent_state state;
 	int result;
-	txn_atom *atom;
 	reiser4_block_nr first_allocated;
 	__u64 allocated;
 	reiser4_key key;
@@ -964,7 +963,6 @@ squalloc_extent(znode *left, const coord_t *coord, flush_pos_t *flush_pos, reise
 	reiser4_block_nr start;
 	extent_state state;
 	oid_t oid;
-	txn_atom *atom;
 	reiser4_block_nr first_allocated;
 	__u64 allocated;
 	__u64 protected;
