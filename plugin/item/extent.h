@@ -123,6 +123,7 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 int   extent_is_allocated (const coord_t *item); /* True if this extent is allocated (i.e., not a hole, not unallocated). */
 __u64 extent_unit_index   (const coord_t *item); /* Block offset of this unit. */
 __u64 extent_unit_width   (const coord_t *item); /* Number of blocks in this unit. */
+reiser4_block_nr extent_unit_start (const coord_t *item); /* Starting block location of this unit. */
 void  extent_get_inode    (const coord_t *item, struct inode **inode); /* Get the inode: you must iput() it. */
 
 /* 

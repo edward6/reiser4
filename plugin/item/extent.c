@@ -2862,7 +2862,8 @@ int alloc_extent (reiser4_tree * tree UNUSED_ARG, coord_t * coord,
 
 /* Block offset of first block addressed by unit */
 /* Audited by: green(2002.06.13) */
-/* AUDIT shouldn't return value be of reiser4_block_nr type? */
+/* AUDIT shouldn't return value be of reiser4_block_nr type?
+ * Josh's answer: who knows?  This returns the same type of information as "struct page->index", which is currently an unsigned long. */
 __u64 extent_unit_index (const coord_t * item)
 {
 	reiser4_key key;
@@ -2874,11 +2875,18 @@ __u64 extent_unit_index (const coord_t * item)
 
 
 /* Audited by: green(2002.06.13) */
-/* AUDIT shouldn't return value be of reiser4_block_nr type? */
+/* AUDIT shouldn't return value be of reiser4_block_nr type?
+ * Josh's answer: who knows?  Is a "number of blocks" the same type as "block offset"? */
 __u64 extent_unit_width (const coord_t * item)
 {
 	assert ("vs-649", coord_is_existing_unit (item));
 	return width_by_coord (item);
+}
+
+/* Starting block location of this unit. */
+reiser4_block_nr extent_unit_start (const coord_t *item)
+{
+	return extent_get_start (extent_by_coord (item));
 }
 
 
