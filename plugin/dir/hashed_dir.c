@@ -363,7 +363,7 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 {
 	const struct qstr *name;
 	seal_t            *seal;
-	new_coord        *coord;
+	new_coord         *coord;
 	int                result;
 
 	assert( "nikita-1130", lh != NULL );
