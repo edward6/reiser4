@@ -1,7 +1,7 @@
 /*
     node40.c -- reiser4 default node plugin.
     Copyright (C) 1996-2002 Hans Reiser.
-    Author Vitaly Fertman.
+    Author Yury Umanets.
 */
 
 #ifdef HAVE_CONFIG_H
@@ -172,9 +172,9 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
     reiserfs_ih40_t *ih;
     reiserfs_nh40_t *nh;
     
+    int is_insert;
     int is_enought_space;
     int is_inside_range;
-    int is_new_item;
 
     aal_assert("umka-817", node != NULL, return -1);
     aal_assert("vpf-006", pos != NULL, return -1);
@@ -190,8 +190,8 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
     aal_assert("vpf-026", is_enought_space, return -1);
     aal_assert("vpf-027", is_inside_range, return -1);
 
-    is_new_item = (pos->unit == 0xffff);
-    item_pos = pos->item + !is_new_item;
+    is_insert = (pos->unit == 0xffff);
+    item_pos = pos->item + !is_insert;
     
     nh = reiserfs_nh40(node->block);
     ih = node40_ih_at(node->block, item_pos);
@@ -205,22 +205,21 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
 	for (i = item_pos; i < nh40_get_num_items(nh); i++, ih--) 
 	    ih40_set_offset(ih, ih40_get_offset(ih) + item->len);
 
-    	if (is_new_item) {
-	    ih = node40_ih_at(node->block, item_pos);
-	    
-	    aal_memmove(ih - 1, ih, sizeof(reiserfs_ih40_t) * 
-		(node40_count(node) - item_pos));
+    	if (is_insert) {
+	    aal_memmove(ih, ih + 1, sizeof(reiserfs_ih40_t) * 
+		(nh40_get_num_items(nh) - item_pos));
 	}
+	ih += (nh40_get_num_items(nh) - item_pos);
     } else
 	offset = nh40_get_free_space_start(nh);
     
     nh40_set_free_space(nh, nh40_get_free_space(nh) - 
-	item->len - (is_new_item ? sizeof(reiserfs_ih40_t) : 0));
+	item->len - (is_insert ? sizeof(reiserfs_ih40_t) : 0));
     
     nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) + 
 	item->len);
     
-    if (!is_new_item) {
+    if (!is_insert) {
 	ih = node40_ih_at(node->block, pos->item);
 	ih40_set_length(ih, ih40_get_length(ih) + item->len);
 	return 0;
@@ -309,6 +308,8 @@ static errno_t node40_remove(reiserfs_node40_t *node, reiserfs_pos_t *pos) {
     
     nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) - 
 	ih40_get_length(ih_at_pos));
+    
+    nh40_set_num_items(nh, nh40_get_num_items(nh) - 1);
     
     /* Moving the item headers */
     if (do_move) {

@@ -191,6 +191,7 @@ static errno_t direntry40_insert(reiserfs_direntry40_t *direntry,
 static errno_t direntry40_create(reiserfs_direntry40_t *direntry, 
     reiserfs_item_hint_t *hint)
 {
+    de40_set_count(direntry, 0);
     return direntry40_insert(direntry, 0, hint);
 }
 

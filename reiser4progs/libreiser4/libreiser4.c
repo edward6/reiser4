@@ -27,10 +27,12 @@ static inline errno_t __item_insert(
     const void *tree,		    /* opaque pointer to the tree */
     reiserfs_item_hint_t *item	    /* item hint to be inserted into tree */
 ) {
+    reiserfs_coord_t coord;
+
     aal_assert("umka-846", tree != NULL, return -1);
     aal_assert("umka-847", item != NULL, return -1);
     
-    return reiserfs_tree_insert((reiserfs_tree_t *)tree, item);
+    return reiserfs_tree_insert((reiserfs_tree_t *)tree, item, &coord);
 }
 
 /* Handler for item removing requests from the all plugins */
