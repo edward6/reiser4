@@ -48,6 +48,11 @@ aal_device_t *aal_device_open(
 	return NULL;
     }	
     
+    if (blocksize < 512) {
+	aal_exception_error("Block size can't be less than 512 bytes.");
+	return NULL;
+    }	
+    
     /* Allocating memory for device instance and initializing all fields */
     if (!(device = (aal_device_t *)aal_calloc(sizeof(*device), 0)))
 	return NULL;
@@ -83,6 +88,12 @@ errno_t aal_device_set_bs(
 	aal_exception_error("Block size %u isn't power of two.", blocksize);
 	return -1;
     }	
+    
+    if (blocksize < 512) {
+	aal_exception_error("Block size can't be less than 512 bytes.");
+	return -1;
+    }	
+    
     device->blocksize = blocksize;
 	
     return 0;
