@@ -554,7 +554,8 @@ static int jnode_start_read (jnode * node, struct page * page)
 }
 
 /* load jnode's data into memory */
-int jload_gfp (jnode * node, int gfp_flags ) /* NIKITA-FIXME-HANS: review every function you have written, and comment every parameter that is not obvious from its name what it is.   */
+int jload_gfp (jnode * node /* node to load */, int gfp_flags /* allocation
+							       * flags*/)
 {
 	struct page * page;
 	int result = 0;
@@ -563,7 +564,7 @@ int jload_gfp (jnode * node, int gfp_flags ) /* NIKITA-FIXME-HANS: review every 
 	PROF_BEGIN(jload);
 
 	assert("nikita-3010", schedulable());
-/* NIKITA-FIXME-HANS: was this debugging/profiling code left on?	write_node_trace(node); */
+	write_node_trace(node);
 
 	/* taking d-reference implies taking x-reference. */
 	jref(node);
