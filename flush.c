@@ -475,8 +475,7 @@ static int write_prepped_nodes (flush_pos_t * pos, int check_congestion)
 	write_current_logf(WRITE_IO_LOG, "mark=flush\n");
 
 	ret = write_fq(pos->fq, pos->nr_written, 
-		       WRITEOUT_SINGLE_STREAM | get_writeout_flags());
-	set_rapid_flush_mode(0);
+		       WRITEOUT_SINGLE_STREAM | WRITEOUT_FOR_PAGE_RECLAIM);
 	flush_started_io();
 	return ret;
 }
@@ -926,9 +925,6 @@ failed:
 
 #if REISER4_USE_RAPID_FLUSH
 
-/* A system-wide rapid_flush_mode flag. */
-static atomic_t rapid_flush_mode_flg = ATOMIC_INIT(0);
-
 /**
  * submit all prepped nodes if rapid flush mode is set,
  * turn rapid flush mode off.
@@ -936,23 +932,10 @@ static atomic_t rapid_flush_mode_flg = ATOMIC_INIT(0);
 
 static int rapid_flush (flush_pos_t * pos)
 {
-	if (!atomic_read(&rapid_flush_mode_flg))
+	if (!wbq_available())
 		return 0;
 
 	return write_prepped_nodes(pos, 1);
-}
-
-/**
- * set rapid flush mode.
- */
-void set_rapid_flush_mode (int on)
-{
-	atomic_set(&rapid_flush_mode_flg, on);
-}
-
-int get_rapid_flush_mode (void)
-{
-	return atomic_read(&rapid_flush_mode_flg);
 }
 
 #else
@@ -1068,8 +1051,7 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 	/* trace_mark(flush); */
 	write_current_logf(WRITE_IO_LOG, "mark=flush\n");
 	
-	ret = write_fq(fq, nr_submitted, WRITEOUT_SINGLE_STREAM | get_writeout_flags());
-	set_rapid_flush_mode(0);
+	ret = write_fq(fq, nr_submitted, WRITEOUT_SINGLE_STREAM | WRITEOUT_FOR_PAGE_RECLAIM);
 
 	*atom = get_current_atom_locked();
 	(*atom)->nr_flushers --;

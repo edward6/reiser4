@@ -173,6 +173,7 @@
 #include "super.h"
 #include "vfs_ops.h"
 #include "writeout.h"
+#include "entd.h"
 
 #include <linux/types.h>
 #include <linux/fs.h>		/* for struct super_block  */
@@ -803,7 +804,7 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 
 				SetPageWriteback(pg);
 				if (for_reclaim)
-					SetPageReclaim(pg);
+					ent_writes_page(super, pg);
 				spin_lock(&pg->mapping->page_lock);
 
 				if (REISER4_STATS && !PageDirty(pg))
@@ -1243,7 +1244,7 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 
 			set_page_writeback(pg);
                         if (for_reclaim)
-                                SetPageReclaim(pg);
+				ent_writes_page(super, pg);
 			/* clear DIRTY or REISER4_MOVED tag if it is set */
 			reiser4_clear_page_dirty(pg);
 
@@ -1669,7 +1670,7 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 
 		UNLOCK_ATOM(fq->atom);
 
-		ret = write_jnode_list(ch.overwrite_set, fq, NULL, get_writeout_flags());
+		ret = write_jnode_list(ch.overwrite_set, fq, NULL, WRITEOUT_FOR_PAGE_RECLAIM);
 
 		fq_put(fq);
 
@@ -1695,8 +1696,6 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 
 	reiser4_stat_inc(txnmgr.post_commit_writes);
 	reiser4_stat_add(txnmgr.time_spent_in_commits, jiffies - commit_start_time);
-
-	set_rapid_flush_mode(0);
 
 up_and_ret:
 	if (ret) {
