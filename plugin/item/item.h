@@ -40,7 +40,7 @@ struct common_item_plugin {
 	   found what we have looked for, rather than some different item that
 	   has the same minor packing locality. Use "item_plugin_id" to determine
 	   what kind of item you have found.  
-	  */
+	*/
 	item_plugin_id item_plugin_id;
 
 
@@ -208,9 +208,11 @@ struct common_item_plugin {
 				    const flow_t *f,
 				    reiser4_item_data *data );
 	/* */
-	int ( *utmost_child )( const tree_coord *coord, sideof side, int flags,
-			       jnode **child, reiser4_block_nr *blocknr );
+	int ( *utmost_child )( const tree_coord *coord, sideof side,
+			       jnode **child );
+	int ( *utmost_child_dirty )( const tree_coord *coord, sideof side, int *is_dirty );
 	
+	int ( *utmost_child_real_block )( const tree_coord *coord, sideof side, reiser4_block_nr *block );
 
 	/* if these are set - an item is internal one */
 	void ( *down_link )( const tree_coord *coord,
