@@ -845,6 +845,31 @@ int znode_is_root( const znode *node )
 	return result;
 }
 
+
+void rlock_bit_tear()
+{
+	/*read_lock*/
+	spin_lock( &reiser4_get_current_super_private() -> bit_tear_guard );
+}
+
+void wlock_bit_tear()
+{
+	/*write_lock*/
+	spin_lock( &reiser4_get_current_super_private() -> bit_tear_guard );
+}
+
+void runlock_bit_tear()
+{
+	/*read_unlock*/
+	spin_unlock( &reiser4_get_current_super_private() -> bit_tear_guard );
+}
+
+void wunlock_bit_tear()
+{
+	/*write_unlock*/
+	spin_unlock( &reiser4_get_current_super_private() -> bit_tear_guard );
+}
+
 /** debugging aid: znode invariant */
 static int znode_invariant_f( const znode *node, char const **msg )
 {
