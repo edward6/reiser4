@@ -45,20 +45,12 @@
 #define check_is_not_write_locked(s) ((void)(s), 1)
 
 /* Checks that spin lock @s is locked (or not) by the -current- thread. */
-#if defined(CONFIG_DEBUG_SPINLOCK) && defined(CONFIG_SMP)
-     /* Spin lock debugging in the kernel. This depends on patch that adds
-      * ->owner field to the spin lock. */
-#    define check_spin_is_not_locked(s) ((s)->owner != get_current())
-#    define spin_is_not_locked(s)       ((s)->owner == NULL)
-#    define check_spin_is_locked(s)     ((s)->owner == get_current())
+#define check_spin_is_not_locked(s) ((void)(s), 1)
+#define spin_is_not_locked(s)       ((void)(s), 1)
+#if defined(CONFIG_SMP)
+#    define check_spin_is_locked(s)     spin_is_locked(s)
 #else
-#    define check_spin_is_not_locked(s) ((void)(s), 1)
-#    define spin_is_not_locked(s)       ((void)(s), 1)
-#    if defined(CONFIG_SMP)
-#        define check_spin_is_locked(s)     spin_is_locked(s)
-#    else
-#        define check_spin_is_locked(s)     ((void)(s), 1)
-#    endif
+#    define check_spin_is_locked(s)     ((void)(s), 1)
 #endif
 
 #if REISER4_DEBUG_SPIN_LOCKS
