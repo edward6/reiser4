@@ -351,12 +351,55 @@ static void reiser4_truncate( struct inode *inode )
 	return;
 }
 
+
+/** return number of files in a filesystem. It is used in reiser4_statfs to
+ * fill ->f_ffiles */
+static long oids_used( struct super_block *s )
+{
+	oid_mgr_plugin *oplug;
+	__u64 used;
+
+
+	assert( "vs-484", get_super_private( s ) );
+
+	oplug = get_super_private( s ) -> oplug;
+	if( !oplug || oplug -> oids_used )
+		return (long)-1;
+
+	used = oplug -> oids_used( &get_super_private( s ) -> allocator );
+	if( used < ( __u64 )( ( long )~0 ) >> 1 )
+		return ( long )used;
+	else
+		return ( long )-1;
+}
+
+
+/** number of oids available for use by users. It is used in reiser4_statfs to
+ * fill ->f_ffree */
+static long oids_free( struct super_block *s )
+{
+	oid_mgr_plugin *oplug;
+	__u64 used;
+
+
+	assert( "vs-485", get_super_private( s ) );
+
+	oplug = get_super_private( s ) -> oplug;
+	if( !oplug || oplug -> oids_free )
+		return (long)-1;
+
+	used = oplug -> oids_free( &get_super_private( s ) -> allocator );
+	if( used < ( __u64 )( ( long )~0 ) >> 1 )
+		return ( long )used;
+	else
+		return ( long )-1;
+}
+
 /**
  * ->statfs() VFS method in reiser4 super_operations
  */
 static int reiser4_statfs( struct super_block *super, struct statfs *buf )
 {
-	reiser4_oid_allocator_t *oidmap;
 	REISER4_ENTRY( super );
 
 	assert( "nikita-408", super != NULL );
@@ -379,11 +422,9 @@ static int reiser4_statfs( struct super_block *super, struct statfs *buf )
 	buf -> f_bfree   = reiser4_free_blocks( super );
 	buf -> f_bavail  = buf -> f_bfree - 
 		reiser4_reserved_blocks( super, 0, 0 );
-	oidmap = reiser4_get_oid_allocator( super );
-	buf -> f_files   = get_super_private( super ) -> lplug -> oids_used ?
-		get_super_private( super ) -> lplug -> oids_used( super ) : -1;
-	buf -> f_ffree   = get_super_private( super ) -> lplug -> oids_free ?
-		get_super_private( super ) -> lplug -> oids_free( super ) : -1;
+
+	buf -> f_files   = oids_used( super );
+	buf -> f_ffree   = oids_free( super );
 	/* maximal acceptable name length depends on directory plugin. */
 	buf -> f_namelen = -1;
 	REISER4_EXIT( 0 );
@@ -981,16 +1022,109 @@ static void reiser4_destroy_inode( struct inode *inode )
 	kmem_cache_free( inode_cache, reiser4_inode_data( inode ) );
 }
 
+/* helper for ->fill_super() super operation
+ * get layout plugin by disk_plugin_id field of struct reiser4_master_sb if
+ * @master_sb != 0, call guess method for all layout plugins available
+ * otherwise */
+static layout_plugin * find_layout_plugin (struct super_block * s UNUSED_ARG,
+					   struct reiser4_master_sb * master_sb,
+					   struct buffer_head ** super_bh UNUSED_ARG)
+{
+	__u16 plugin_id;
+
+	if (!master_sb) {
+		/* FIXME-VS: call guess method for all available layout plugins */
+		return ERR_PTR (-EINVAL);
+	} else {
+		plugin_id = d16tocpu (&master_sb->disk_plugin_id);
+		/* only one plugin is available for now */
+		assert ("vs-476", plugin_id == LAYOUT_40_ID);
+	}
+
+	return layout_plugin_by_id (plugin_id);
+}
+
 /**
  * read super block from device and fill remaining fields in @s.
  *
- * This is read_super() of the past.
+ * This is read_super() of the past.  
  */
-static int reiser4_fill_super( struct super_block *s UNUSED_ARG, void *data UNUSED_ARG,
-			       int silent UNUSED_ARG )
+const char *REISER4_SUPER_MAGIC_STRING = "R4Sb";
+const int REISER4_MAGIC_OFFSET = 16 * 4096; /* offset to magic string from the
+					     * beginning of device */
+static int reiser4_fill_super (struct super_block * s, void * data UNUSED_ARG,
+			       int silent UNUSED_ARG)
 {
-	not_implemented( "nikita-1698", "fixme, *YOU*!" );
-	return -ENOSYS;
+	struct buffer_head * super_bh;
+	struct reiser4_master_sb * master_sb;
+	layout_plugin * lplug;
+	struct inode * inode;
+	int result;
+	REISER4_ENTRY (s);
+
+ read_super_block:
+	/* look for reiser4 magic at hardcoded place */
+	super_bh = sb_bread (s, (int)(REISER4_MAGIC_OFFSET / s->s_blocksize));
+	if (!super_bh)
+		REISER4_EXIT (-EIO);
+	
+	master_sb = (struct reiser4_master_sb *)super_bh->b_data;
+	/* check reiser4 magic string */
+	if (!strncmp (master_sb->magic, REISER4_SUPER_MAGIC_STRING, 4)) {
+		/* reset block size if it is not a right one */
+		if (d16tocpu (&master_sb->blocksize) != s->s_blocksize) {
+			brelse (super_bh);
+			if (!sb_set_blocksize (s, d16tocpu (&master_sb->blocksize)))
+				REISER4_EXIT (-EINVAL);
+			goto read_super_block;
+		}
+	} else {
+		/* no standard reiser4 super block found */
+		brelse (super_bh);
+		master_sb = 0;
+		super_bh = 0;
+	}
+
+	lplug = find_layout_plugin (s, master_sb, &super_bh);
+	if (IS_ERR (lplug)) {
+		brelse (super_bh);
+		REISER4_EXIT (-EINVAL);
+	}
+
+	s->s_op = &reiser4_super_operations;
+
+	/* this is common for every disk layout. It has a pointer where layout
+	 * specific part of info can be attached to, though */
+	s->u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
+				    GFP_KERNEL);
+	if (!s->u.generic_sbp) {
+		brelse (super_bh);
+		REISER4_EXIT (-ENOMEM);
+	}
+	memset (s->u.generic_sbp, 0, sizeof (reiser4_super_info_data));
+
+	/* init layout plugin */
+	get_super_private (s)->lplug = lplug;
+ 
+	/*
+	 * FIXME-JMACD: init txn mgr here?
+	 */
+	txn_mgr_init (&get_super_private (s)->tmgr);
+
+	/* call disk format plugin method to do all the preparations like
+	 * journal replay, super_info_data initialization, etc */
+	result = lplug->get_ready (s, get_super_private (s), super_bh);
+	if (result)
+		REISER4_EXIT (result);
+
+	inode = reiser4_iget (s, lplug->root_dir_key ());
+	/* allocate dentry for root inode, It works with inode == 0 */
+	s->s_root = d_alloc_root (inode);
+	if (!s->s_root) {
+		REISER4_EXIT (-EINVAL);
+	}
+
+	REISER4_EXIT (0);
 }
 
 /**
