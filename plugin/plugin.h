@@ -146,6 +146,10 @@ typedef struct file_plugin {
 
 	/* generic fields */
 	plugin_header h;
+
+	/* file_operations->open is dispatched here */
+	int (*open) (struct inode * inode, struct file * file);
+	
 	int (*truncate) (struct inode * inode, loff_t size);
 
 	/* save inode cached stat-data onto disk. It was called
@@ -158,7 +162,7 @@ typedef struct file_plugin {
 	 ssize_t(*read) (struct file * file, char *buf, size_t size, loff_t * off);
 	 ssize_t(*write) (struct file * file, const char *buf, size_t size, loff_t * off);
 
-	int (*release) (struct file * file);
+	int (*release) (struct inode *inode, struct file * file);
 	int (*ioctl) (struct inode *, struct file *, unsigned int cmd, unsigned long arg);
 	int (*mmap) (struct file * file, struct vm_area_struct * vma);
 	int (*get_block) (struct inode * inode, sector_t block, struct buffer_head * bh_result, int create);
@@ -250,6 +254,9 @@ typedef struct file_plugin {
 
 	/* truncate file to zero size. called by reiser4_drop_inode before truncate_inode_pages */
 	int (*pre_delete)(struct inode *);
+
+	/* called from reiser4_drop_inode() */
+	void (*drop)(struct inode *);
 } file_plugin;
 
 typedef struct dir_plugin {
