@@ -1596,6 +1596,7 @@ static int flush_finish (flush_position *pos, int none_busy)
 	for (i = 0; ret == 0 && i < pos->queue_num; ) {
 
 		jnode *check;
+		struct page *cpage;
 
 		check = pos->queue[i];
 
@@ -1640,8 +1641,21 @@ static int flush_finish (flush_position *pos, int none_busy)
 			pos->queue[i++] = NULL;
 			continue;
 
-		} else {
+		}
 
+		/* Lock the first page, test writeback. */
+		cpage = jnode_page (check);
+		lock_page (cpage);
+		if (PageWriteback (cpage)) {
+			/* FIXME: It is being written, presumably it is clean already?  In
+			 * any case, deal with it later. */
+			unlock_page (cpage);
+			jput (check);
+			pos->queue[i++] = NULL;
+			continue;
+
+		} else {
+		
 			/* Find consecutive nodes. */
 			struct bio *bio;
 			jnode *prev = check;
@@ -1650,7 +1664,7 @@ static int flush_finish (flush_position *pos, int none_busy)
 			int blksz;
 			int max_j;
 
-			super = check->pg->mapping->host->i_sb;
+			super = jnode_page (check)->mapping->host->i_sb;
 			assert( "jmacd-2029", super != NULL );
 
 			/* FIXME: Need to work on this: */
@@ -1662,12 +1676,19 @@ static int flush_finish (flush_position *pos, int none_busy)
 
 			/* Set j to the first non-consecutive, non-wandered block (or end-of-queue) */
 			for (j = i + 1; j < max_j; j += 1) {
-				if ((WRITE_LOG && JF_ISSET (pos->queue[j], ZNODE_WANDER)) ||
-				    JF_ISSET (pos->queue[j], ZNODE_FLUSH_BUSY) ||
-				    (*jnode_get_block (prev) + 1 != *jnode_get_block (pos->queue[j]))) {
+				jnode *next;
+				struct page *npage;
+				next = pos->queue[j];
+				npage = jnode_page (next);
+				lock_page (npage);
+				if ((WRITE_LOG && JF_ISSET (next, ZNODE_WANDER)) ||
+				    JF_ISSET (next, ZNODE_FLUSH_BUSY) ||
+				    (*jnode_get_block (prev) + 1 != *jnode_get_block (next)) ||
+				    PageWriteback (npage)) {
+					unlock_page (npage);
 					break;
 				}
-				prev = pos->queue[j];
+				prev = next;
 			}
 
 			nr = j - i;
@@ -1690,7 +1711,7 @@ static int flush_finish (flush_position *pos, int none_busy)
 			for (c = 0, j = i; c < nr; c += 1, j += 1) {
 
 				jnode       *node = pos->queue[j];
-				struct page *pg   = node->pg;
+				struct page *pg   = jnode_page (node);
 
 				pos->queue[j] = NULL;
 
@@ -1700,11 +1721,12 @@ static int flush_finish (flush_position *pos, int none_busy)
 
 				jnode_set_clean (node);
 
-				lock_page (pg);
 				if (! PageDirty (pg)) {
+					/* FIXME: trying to figure this out: */
 					warning ("jmacd-74232", "flush_finish: page not dirty");
 					SetPageDirty (pg);
 				}
+				assert ("jmacd-74233", !PageWriteback (pg));
 				SetPageWriteback (pg);
 				unlock_page (pg);
 
