@@ -2515,7 +2515,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 	assert("jmacd-7989", coord_is_invalid(parent_coord)
 	       || znode_is_write_locked(parent_coord->node));
 
-	if (znode_created(node) || znode_is_root(node)) {
+	if (ZF_ISSET(node, JNODE_REPACK) || znode_created(node) || znode_is_root(node)) {
 		/* No need to decide with new nodes, they are treated the same as
 		   relocate. If the root node is dirty, relocate. */
 		goto best_reloc;
