@@ -1352,7 +1352,7 @@ prepare_to_sleep(lock_stack * owner)
 	   clear wake-up signal. The initial design was to re-check all
 	   conditions under which we continue locking, release locks or sleep
 	   until conditions are changed. However, even lock.c does not follow
-	   that design.  So, wake-up signal which is stored semaphore state
+	   that design.  So, wake-up signal which is stored in semaphore state
 	   could we loosen by semaphore reset.  The less complex scheme without
 	   resetting the semaphore is enough to not to loose wake-ups.
 
