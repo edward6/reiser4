@@ -340,7 +340,6 @@ for( node = carry_node_back( level ),		\
    node and counter and operations carried upward from this node.
   
 */
-/* Audited by: green(2002.06.17) */
 static int
 carry_on_level(carry_level * doing	/* queue of carry operations to
 					 * do on this level */ ,
@@ -482,7 +481,6 @@ post_carry(carry_level * level	/* queue where new operation is to
 }
 
 /* number of carry operations in a @level */
-/* Audited by: green(2002.06.17) */
 int
 carry_op_num(const carry_level * level)
 {
@@ -490,7 +488,6 @@ carry_op_num(const carry_level * level)
 }
 
 /* number of carry nodes in a @level */
-/* Audited by: green(2002.06.17) */
 int
 carry_node_num(const carry_level * level)
 {
@@ -498,7 +495,6 @@ carry_node_num(const carry_level * level)
 }
 
 /* initialise carry queue */
-/* Audited by: green(2002.06.17) */
 void
 init_carry_level(carry_level * level /* level to initialise */ ,
 		 carry_pool * pool	/* pool @level will allocate objects
@@ -515,7 +511,6 @@ init_carry_level(carry_level * level /* level to initialise */ ,
 }
 
 /* initialise pools within queue */
-/* Audited by: green(2002.06.17) */
 void
 init_carry_pool(carry_pool * pool /* pool to initialise */ )
 {
@@ -526,7 +521,6 @@ init_carry_pool(carry_pool * pool /* pool to initialise */ )
 }
 
 /* finish with queue pools */
-/* Audited by: green(2002.06.17) */
 void
 done_carry_pool(carry_pool * pool UNUSED_ARG /* pool to destroy */ )
 {
@@ -543,7 +537,6 @@ done_carry_pool(carry_pool * pool UNUSED_ARG /* pool to destroy */ )
    automatically. To control ordering use @order and @reference parameters.
   
 */
-/* Audited by: green(2002.06.17) */
 carry_node *
 add_carry_skip(carry_level * level	/* &carry_level to add node
 					 * to */ ,
@@ -600,7 +593,6 @@ add_carry(carry_level * level	/* &carry_level to add node
    @order and @reference parameters.
   
 */
-/* Audited by: green(2002.06.17) */
 carry_op *
 add_op(carry_level * level /* &carry_level to add node to */ ,
        pool_ordering order	/* where to insert: at the beginning of
@@ -626,7 +618,6 @@ add_op(carry_level * level /* &carry_level to add node to */ ,
    parent, it has corresponding bit (JNODE_ORPHAN) set in zstate.
   
 */
-/* Audited by: green(2002.06.17) */
 carry_node *
 find_begetting_brother(carry_node * node	/* node to start search
 						 * from */ ,
@@ -781,7 +772,6 @@ lock_carry_level(carry_level * level /* level to lock */ )
    neighbor's right delimiting key to conincide with least key in @node.
   
 */
-/* Audited by: green(2002.06.17) */
 static void
 sync_dkeys(carry_node * node /* node to update */ ,
 	   carry_level * doing UNUSED_ARG /* level @node is in */ )
@@ -832,7 +822,6 @@ sync_dkeys(carry_node * node /* node to update */ ,
 }
 
 /* unlock all carry nodes in @level */
-/* Audited by: green(2002.06.17) */
 static void
 unlock_carry_level(carry_level * level /* level to unlock */ ,
 		   int failure	/* true if unlocking owing to
@@ -870,7 +859,6 @@ unlock_carry_level(carry_level * level /* level to unlock */ ,
 /* finish with @level
   
    Unlock nodes and release all allocated resources */
-/* Audited by: green(2002.06.17) */
 static void
 done_carry_level(carry_level * level /* level to finish */ )
 {
@@ -903,7 +891,6 @@ done_carry_level(carry_level * level /* level to finish */ )
    fills ->real_node from this lock handle.
   
 */
-/* Audited by: green(2002.06.17) */
 int
 lock_carry_node_tail(carry_node * node /* node to complete locking of */ )
 {
@@ -941,7 +928,6 @@ lock_carry_node_tail(carry_node * node /* node to complete locking of */ )
    operation (->real_node field of carry_node) from base.
   
 */
-/* Audited by: green(2002.06.17) */
 int
 lock_carry_node(carry_level * level /* level @node is in */ ,
 		carry_node * node /* node to lock */ )
@@ -1039,7 +1025,6 @@ lock_carry_node(carry_level * level /* level @node is in */ ,
    same node.
   
 */
-/* Audited by: green(2002.06.17) */
 static void
 unlock_carry_node(carry_node * node /* node to be released */ ,
 		  int failure	/* 0 if node is unlocked due
@@ -1116,7 +1101,6 @@ followed by remount, but this can wait for later versions.
 it more before deciding if it should be done.  -Hans
   
 */
-/* Audited by: green(2002.06.17) */
 static void
 fatal_carry_error(carry_level * doing UNUSED_ARG	/* carry level
 							 * where
@@ -1141,7 +1125,6 @@ fatal_carry_error(carry_level * doing UNUSED_ARG	/* carry level
    locked.
   
 */
-/* Audited by: green(2002.06.17) */
 static int
 add_new_root(carry_level * level	/* carry level in context of which
 					 * operation is performed */ ,
@@ -1186,7 +1169,6 @@ add_new_root(carry_level * level	/* carry level in context of which
    This is carry related routing that calls new_node() to allocate new
    node.
 */
-/* Audited by: green(2002.06.17) */
 carry_node *
 add_new_znode(znode * brother	/* existing left neighbor of new
 				 * node */ ,
