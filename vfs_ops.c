@@ -2427,8 +2427,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 }
 
 /* reiser4 writepages() address space operation */
-int
-reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
+int reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {
 	int ret = 0;
 	struct super_block *s = mapping->host->i_sb;
@@ -2436,39 +2435,29 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 
 	REISER4_ENTRY(s);
 
-	if (lock_stack_isclean(get_current_lock_stack())) {
+	assert ("zam-760", lock_stack_isclean(get_current_lock_stack()));
+	/* Here we can call synchronously. We can be called from
+	 * balance_dirty_pages() Reiser4 code is supposed to call
+	 * balance_dirty_pages at paces where no locks are hold it means we can
+	 * call begin jnode_flush right from there having no deadlocks between the
+	 * caller of balance_dirty_pages() and jnode_flush(). */
 
-		// current->flags & PF_MEMALLOC
+	while (wbc->nr_to_write > 0) {
+		long nr_submitted = 0;
 
-		/* Here we can call synchronously. 
-call or be called?
-
-We can be called from
-		 * balance_dirty_pages().  Reiser4 code is supposed to call
-		 * balance_dirty_pages at places where no locks are held.  This means we can
-		 * call begin jnode_flush right from there, and have no deadlocks between the
-		 * caller of balance_dirty_pages() and jnode_flush(). */
-
-		while (wbc->nr_to_write > 0) {
-			long nr_submitted = 0;
-
-			if (wbc->nonblocking && bdi_write_congested(bdi)) {
-				blk_run_queues();
-				wbc->encountered_congestion = 1;
-				break;
-			}
-
-			ret =
-			    flush_some_atom(&nr_submitted,
-					    JNODE_FLUSH_WRITE_BLOCKS);
-
-			if (!nr_submitted)
-				break;
-
-			wbc->nr_to_write -= nr_submitted;
+		/* do not put more requests to overload write queue */
+		if (wbc->nonblocking && bdi_write_congested(bdi)) {
+			blk_run_queues();
+			wbc->encountered_congestion = 1;
+			break;
 		}
-	} else {
-		ret = generic_writepages(mapping, wbc);
+
+		ret = txn_flush_some_atom (&nr_submitted, JNODE_FLUSH_WRITE_BLOCKS);
+
+		if (!nr_submitted)
+			break;
+
+		wbc->nr_to_write -= nr_submitted;
 	}
 
 	REISER4_EXIT(ret);
