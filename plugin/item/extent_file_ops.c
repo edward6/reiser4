@@ -373,7 +373,8 @@ overwrite_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *bl
 
 /* after make extent uf_coord's lock handle must be set to node containing unit which was inserted/found */
 static void
-check_make_extent_result(int result, write_mode_t mode, reiser4_key *key, lock_handle *lh, reiser4_block_nr block)
+check_make_extent_result(int result, write_mode_t mode, const reiser4_key *key,
+			 const lock_handle *lh, reiser4_block_nr block)
 {
 	coord_t coord;
 
@@ -398,7 +399,7 @@ check_make_extent_result(int result, write_mode_t mode, reiser4_key *key, lock_h
 		assert("vs-1658", state_of_extent(extent_by_coord(&coord)) == ALLOCATED_EXTENT);
 		unit_key_by_coord(&coord, &tmp);
 		pos_in_unit = (get_key_offset(key) - get_key_offset(&tmp)) >> current_blocksize_bits;
-		assert("vs-1659", block == extent_get_start(extent_by_coord(&coord)) +pos_in_unit);
+		assert("vs-1659", block == extent_get_start(extent_by_coord(&coord)) + pos_in_unit);
 	}
 	zrelse(lh->node);
 }
@@ -606,7 +607,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		if (count > flow->length)
 			count = flow->length;
 
-		write_page_trace(inode->i_mapping, page_nr);
+		write_page_log(inode->i_mapping, page_nr);
 
 		result = make_extent(&page_key, uf_coord, mode, &blocknr, &created);
 		if (result) {
@@ -976,7 +977,8 @@ read_extent(struct file *file, flow_t *flow,  hint_t *hint)
 		/* If users can be writing to this page using arbitrary virtual addresses, take care about potential
 		   aliasing before reading the page on the kernel side.
 		*/
-		if (!list_empty(&inode->i_mapping->i_mmap_shared))
+/*		if (!list_empty(&inode->i_mapping->i_mmap_shared))*/
+		if (!prio_tree_empty(&inode->i_mapping->i_mmap_shared))
 			flush_dcache_page(page);
 
 		assert("nikita-3034", schedulable());
