@@ -29,6 +29,7 @@
 #include "ktxnmgrd.h"
 #include "super.h"
 #include "reiser4.h"
+#include "ioctl.h"
 
 #include <linux/types.h>
 #include <linux/fs.h>
@@ -2575,7 +2576,7 @@ struct file_operations reiser4_file_operations = {
 	.write             = reiser4_write, /* d */
  	.readdir           = reiser4_readdir, /* d */
 /* 	.poll              = reiser4_poll, */
-/* 	.ioctl             = reiser4_ioctl, */
+ 	.ioctl             = reiser4_ioctl,
  	.mmap              = reiser4_mmap, /* d */
 /* 	.open              = reiser4_open, */
 /* 	.flush             = reiser4_flush, */
