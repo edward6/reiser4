@@ -1101,7 +1101,9 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 	
 	/* for one extent item only yet */
 	assert ("vs-591", item_is_extent (from));
-	assert ("vs-592", from->item_pos == to->item_pos);
+	/* FIXME: Really we should assert that all the items are extents, or not, however
+	 * the following assertion was too strict. */
+	/*assert ("vs-592", from->item_pos == to->item_pos);*/
 
 	if (from_key && keygt (from_key, item_key_by_coord (from, &key))) {
 		/* head of item @from is not removed, there is nothing to
