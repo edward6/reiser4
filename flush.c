@@ -7,6 +7,10 @@
 
 #include "reiser4.h"
 
+/* FIXME: Hans' idea.  When you don't know the preceder use a global value for the last
+ * written location.  When you're writing just a single internal node, use the global
+ * value. */
+
 typedef struct flush_scan     flush_scan;
 typedef struct flush_position flush_position;
 
