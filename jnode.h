@@ -212,7 +212,6 @@ typedef enum {
 
 	/* cheap and effective protection of jnode from emergency flush */
 	JNODE_EPROTECTED = 22
-
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
