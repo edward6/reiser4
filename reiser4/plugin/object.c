@@ -1005,9 +1005,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.owns_item           = common_file_owns_item,
 				.item_plugin_at      = NULL,
 				.truncate            = reiser4_ordinary_file_truncate,
-				.u = {
-					.file = {},
-				},
 				.find_item	     = reiser4_ordinary_file_find_item,
 				.readpage	     = reiser4_ordinary_readpage
 			}
@@ -1039,12 +1036,12 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 					.save        = __reserve_one_balance
 				},
 				.create_child        = common_create_child,
-				.create              = directory_file_create,
+				.create              = hashed_create,
 				.unlink              = common_unlink,
 				.link                = common_link,
-				.delete              = directory_file_delete,
-				.add_entry           = directory_add_entry,
-				.rem_entry           = directory_rem_entry,
+				.delete              = hashed_delete,
+				.add_entry           = hashed_add_entry,
+				.rem_entry           = hashed_rem_entry,
 				.add_link            = NULL,
 				.rem_link            = NULL,
 				.can_add_link        = common_file_can_add_link,
@@ -1061,17 +1058,10 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				},
 				.build_flow          = common_build_flow,
 				.is_name_acceptable  = is_name_acceptable,
-				.lookup              = directory_lookup,
-				.owns_item           = dir_file_owns_item,
+				.lookup              = hashed_lookup,
+				.owns_item           = hashed_owns_item,
 				.item_plugin_at      = NULL,
 				.truncate            = NULL,
-				.u = {
-					.dir = {
-						.find_entry = hashed_dir_find,
-						.add_entry = hashed_dir_add,
-						.rem_entry = hashed_dir_rem,
-					}
-				},
 				.find_item            = NULL,
 				.readpage	      = NULL
 			}
@@ -1125,9 +1115,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.owns_item           = common_file_owns_item,
 				.item_plugin_at      = NULL,
 				.truncate            = NULL,
-				.u = {
-					.file = {},
-				},
 				.find_item            = NULL,
 				.readpage	      = NULL
 			}
@@ -1181,9 +1168,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.owns_item           = common_file_owns_item,
 				.item_plugin_at      = NULL,
 				.truncate            = NULL,
-				.u = {
-					.file = {},
-				},
 				.find_item            = NULL,
 				.readpage	      = NULL
 			}
