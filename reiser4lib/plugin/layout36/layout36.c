@@ -3,7 +3,7 @@
 	Copyright (C) 1996-2002 Hans Reiser
 */
 
-#include <agl/agl.h>
+#include <aal/aal.h>
 #include <reiserfs/plugin.h>
 
 #include <stdlib.h>

@@ -7,7 +7,7 @@
 #define LAYOUT40_H
 
 #include <stdint.h>
-#include <agl/agl.h>
+#include <aal/aal.h>
 
 struct reiserfs_layout40_super {
 	uint64_t s_block_count;

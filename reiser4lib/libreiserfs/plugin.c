@@ -8,7 +8,7 @@
 #include <string.h>
 #include <limits.h>
 
-#include <agl/agl.h>
+#include <aal/aal.h>
 #include <reiserfs/reiserfs.h>
 #include <reiserfs/debug.h>
 
@@ -67,14 +67,14 @@ reiserfs_plugin_t *reiserfs_plugin_load_by_name(const char *name, const char *po
 	ASSERT(point != NULL, return NULL);
 
 	if (!(handle = dlopen(name, RTLD_NOW))) {
-		agl_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-001", 
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-001", 
 			_("Can't load plugin library %s. Error: %s."), name, strerror(errno));
 		return NULL;
 	}
 
 	entry = dlsym(handle, point);
 	if ((error = dlerror()) != NULL) {
-		agl_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-002", 
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-002", 
 			_("Can't find symbol %s in plugin %s. Error: %s."), point, name, error);
 		goto error_free_handle;
 	}
@@ -114,13 +114,13 @@ reiserfs_plugin_t *reiserfs_plugin_load_by_cords(reiserfs_plugin_type_t type,
 	/* Loading plugin */
 	memset(name, 0, sizeof(name));
 	if (!reiserfs_plugin_find_by_cords(type, id, name)) {
-		agl_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-003", 
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-003", 
 			_("Can't find plugin by its type=%d and id=%d."), (int)type, (int)id);
 		return NULL;
 	}
 
 	if (!(plugin = reiserfs_plugin_load_by_name(name, "reiserfs_plugin_info"))) {
-		agl_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-004", 
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-004", 
 			_("Can't load plugin by name %s."), name);
 		return NULL;
 	}

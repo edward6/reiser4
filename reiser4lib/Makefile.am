@@ -1,4 +1,4 @@
-SUBDIRS 		= libagl libreiserfs plugin demos include doc debug
+SUBDIRS 		= libaal libreiserfs plugin demos include doc debug
 
 EXTRA_DIST 		= ABOUT-NLS AUTHORS BUGS COPYING TODO NEWS THANKS README \
 			 	libreiserfs.spec.in libreiserfs.m4

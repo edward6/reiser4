@@ -6,7 +6,7 @@
 #ifndef FILESYSTEM_H
 #define FILESYSTEM_H
 
-#include <agl/agl.h>
+#include <aal/aal.h>
 #include <reiserfs/plugin.h>
 
 struct reiserfs_super {

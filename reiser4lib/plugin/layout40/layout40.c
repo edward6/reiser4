@@ -5,7 +5,7 @@
 
 #include <stdlib.h>
 
-#include <agl/agl.h>
+#include <aal/aal.h>
 #include <reiserfs/plugin.h>
 
 #include "layout40.h"

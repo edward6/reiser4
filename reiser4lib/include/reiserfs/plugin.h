@@ -6,7 +6,7 @@
 #ifndef PLUGIN_H
 #define PLUGIN_H
 
-#include <agl/agl.h>
+#include <aal/aal.h>
 
 enum reiserfs_plugin_type {
 	REISERFS_FILE_PLUGIN,

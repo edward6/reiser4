@@ -140,9 +140,9 @@ esac
 AC_OUTPUT([
 	Makefile
 	include/Makefile
-	include/agl/Makefile
+	include/aal/Makefile
 	include/reiserfs/Makefile
-	libagl/Makefile
+	libaal/Makefile
 	libreiserfs/Makefile
 	plugin/Makefile
 	plugin/layout36/Makefile

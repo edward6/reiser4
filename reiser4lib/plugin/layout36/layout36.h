@@ -7,7 +7,7 @@
 #define LAYOUT36_H
 
 #include <stdint.h>
-#include <agl/agl.h>
+#include <aal/aal.h>
 
 struct reiserfs_journal_params {
 	uint32_t jp_start;

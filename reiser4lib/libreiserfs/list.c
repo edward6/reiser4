@@ -3,7 +3,7 @@
 	Copyright (C) 1996-2002 Hans Reiser
 */
 
-#include <agl/agl.h>
+#include <aal/aal.h>
 #include <reiserfs/reiserfs.h>
 
 #define ptr_by_pos(base, pos) (base + pos)
@@ -12,7 +12,7 @@
 list_t *list_create(int inc) {
 	list_t *list;
 
-	if (!(list = agl_calloc(sizeof(list_t), 0)))
+	if (!(list = aal_calloc(sizeof(list_t), 0)))
 		return NULL;
 	
 	list->count = 0;
@@ -25,14 +25,14 @@ list_t *list_create(int inc) {
 	return list;
 	
 error_free_list:
-	agl_free(list);
+	aal_free(list);
 error:
 	return NULL;
 }
 
 void list_free(list_t *list) {
-	agl_free(list->body);
-	agl_free(list);
+	aal_free(list->body);
+	aal_free(list);
 }
 
 int list_expand(list_t *list) {
@@ -41,7 +41,7 @@ int list_expand(list_t *list) {
 	if (list->count < list->size)
 		return 1;
 
-	if (!agl_realloc((void **)&list->body, size_by_count(list->size + list->inc)))
+	if (!aal_realloc((void **)&list->body, size_by_count(list->size + list->inc)))
 		return 0;
 	
 	for (i = list->count; i < list->count + list->inc; i++)
@@ -57,7 +57,7 @@ int list_shrink(list_t *list) {
 	if (list->size - list->count < list->inc)
 		return 1;
 	
-	if (!agl_realloc((void *)&list->body, size_by_count(list->size - list->inc)))
+	if (!aal_realloc((void *)&list->body, size_by_count(list->size - list->inc)))
 		return 0;
 		
 	list->size -= list->inc;

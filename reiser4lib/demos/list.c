@@ -4,6 +4,8 @@
 */
 
 #include <stdio.h>
+
+#include <aal/aal.h>
 #include <reiserfs/reiserfs.h>
 
 int main(int argc, char *argv[]) {
@@ -21,6 +23,11 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "%s\n", list_at(list, i));
 	
 	list_free(list);
+
+	aal_exception_throw(EXCEPTION_INFORMATION, EXCEPTION_OK, 
+		"umka-001", "Test message: %s, ya message: %s, number: %d.", "just message", 
+		"ya ya message", 524600);
+	
 	return 0;
 }
 
