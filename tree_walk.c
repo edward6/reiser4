@@ -347,10 +347,16 @@ static int connect_one_side (tree_coord * coord, znode * node, int flags)
 
 	reiser4_done_coord(&local);
 
+	/*
+	 * FIXME-VS renew_sibling_link() already did
+	 * reiser4_unlock_znode(handle) before returning -ENAVAIL, so here it
+	 * crashes.
+	 */
 	if (handle.node != NULL) {
 		/* complementary operations for zload() and lock() in far_next_coord() */
 		zrelse(handle.node, 1);
-		reiser4_unlock_znode(&handle);
+		if (handle.owner != NULL)
+			reiser4_unlock_znode(&handle);
 	}
 
 	/* we catch error codes which are not interesting for us because we
