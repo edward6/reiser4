@@ -2519,7 +2519,7 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 	if (!JF_ISSET(node, JNODE_CREATED) && !JF_ISSET(node, JNODE_RELOC)
 	    && !JF_ISSET(node, JNODE_OVRWR) && jnode_is_leaf(node)) {
 		assert("vs-1093", !blocknr_is_fake(&node->blocknr));
-		grabbed2flush_reserved_nolock(atom, (__u64)1);
+		grabbed2flush_reserved_nolock(atom, (__u64)1, "jnode_set_dirty: for clean, !created, !reloc and !ovrwr");
 	}
 
 	if (!JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
@@ -2682,6 +2682,8 @@ void jnode_make_wander_nolock (jnode * node)
 
 	capture_list_remove_clean(node);
 	capture_list_push_back(&atom->ovrwr_nodes, node);
+	assert("", ergo(jnode_is_leaf(node), JF_ISSET(node, JNODE_FLUSH_RESERVED)));
+	ON_DEBUG(if (jnode_is_leaf(node) && node->list != OVRWR_LIST) atom->ovrwr_leaves ++);
 	ON_DEBUG(node->list = OVRWR_LIST);
 	JF_SET(node, JNODE_OVRWR);
 }
@@ -3511,7 +3513,6 @@ copy_on_capture_clean(jnode *node)
 
 	spin_lock(&scan_lock);
 	if (!JF_ISSET(node, JNODE_SCANNED)) {
-		ON_DEBUG(JF_SET(node, JNODE_CCED_CLEAN));
 		JF_SET(node, JNODE_CCED);
 		uncapture_block(node);
 		/* atom is protected by stage >= ASTAGE_PRE_COMMIT, so no
@@ -3584,7 +3585,6 @@ copy_on_capture_reloc(jnode *node, txn_atom *atom)
 	} else if (node->atom != atom) {
 		reiser4_stat_inc(coc.atom_changed);
 	} else {
-		ON_DEBUG(JF_SET(node, JNODE_CCED_RELOC));
 		JF_SET(node, JNODE_CCED);
 		replace_reloc(node, copy);
 		reiser4_stat_inc(coc.ok_reloc);
@@ -3665,7 +3665,6 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 
 		if (node->atom == atom && !JF_ISSET(node, JNODE_SCANNED)) {
 			assert("vs-1428", znode_above_root(JZNODE(node)));
-			ON_DEBUG(JF_SET(node, JNODE_CCED_UBER));
 			JF_SET(node, JNODE_CCED);
 			replace_ovrwr(node, copy);
 			reiser4_stat_inc(coc.ok_uber);
@@ -3735,7 +3734,6 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 
 					assert("vs-1419", page_count(new_page) >= 3);
 					spin_unlock(&scan_lock);
-					ON_DEBUG(JF_SET(node, JNODE_CCED_OVRWR));
 					JF_SET(node, JNODE_CCED);
 					UNLOCK_JNODE(node);
 					unlock_page(page);
@@ -3863,9 +3861,11 @@ void uncapture_block(jnode * node)
 	JF_CLR(node, JNODE_CCED);
 #if REISER4_DEBUG
 	node->written = 0;
+	JF_CLR(node, JNODE_FLUSH_RESERVED);
 #endif
 
 	capture_list_remove_clean(node);
+	ON_DEBUG(if (node->list == OVRWR_LIST && jnode_is_leaf(node)) atom->ovrwr_leaves --);
 	ON_DEBUG(node->list = NOT_CAPTURED);
 	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 		assert("zam-925", atom_isopen(atom));
