@@ -461,7 +461,8 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 					result = zload( couple.node );
 					if( result != 0 )
 						return result;
-					coord_init_first_unit( coord, couple.node );
+					coord_init_first_unit( coord, 
+							       couple.node );
 					move_lh( lh, &couple );
 				} else
 					return result;
@@ -471,7 +472,7 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 		} else {
 			coord_next_item( coord );
 		}
-		/* FIXME_COORD: this looks suspicious */
+		/* @actor can only be called on existing unit. Check this. */
 		assert( "nikita-1149", coord_is_existing_unit( coord ) );
 	}
 	zrelse( coord -> node );
@@ -1184,26 +1185,21 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
 	assert( "nikita-1484", parent != NULL );
 	assert( "nikita-1485", spin_dk_is_locked( current_tree ) );
 	
-	coord_dup( &neighbor, parent_coord );
+	/* 
+	 * this function is called with either @parent_coord obtained from
+	 * lookup in a parent node, in which case it is AFTER_{UNIT|ITEM}
+	 * coord, or with @parent_coord pointing exactly AT_UNIT with pointer
+	 * to the child.
+	 *
+	 */
 
-	/* imitate item ->lookup() behavior. */
-	/* FIXME_COORD: is it right? */
-	coord_set_after_unit( &neighbor );
-
-	if( coord_is_existing_unit( &neighbor ) || 
-	    ( coord_set_to_left( &neighbor ) == 0 ) )
-		unit_key_by_coord( &neighbor, ld );
-	else
-		*ld = *znode_get_ld_key( parent );
+	unit_key_by_coord( parent_coord, ld );
 
 	coord_dup( &neighbor, parent_coord );
-	coord_set_after_unit( &neighbor );
-	/* FIXME_COORD: is it right? */
-	if( coord_set_to_right( &neighbor ) == 0 )
-		unit_key_by_coord( &neighbor, rd );
-	else
+	if( coord_next_unit( &neighbor ) )
 		*rd = *znode_get_rd_key( parent );
-
+	else
+		unit_key_by_coord( &neighbor, rd );
 	return 0;
 }
 

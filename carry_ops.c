@@ -838,6 +838,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	int                  real_size;
 	item_plugin         *iplug;
 	int                  can_paste_here;
+	tree_coord           dcoord;
 
 	assert( "nikita-982", op != NULL );
 	assert( "nikita-983", todo != NULL );
@@ -850,13 +851,15 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	if( result != 0 )
 		return result;
 
+	dcoord = op -> u.insert.d -> coord;
+
 	/*
 	 * handle case when op -> u.insert.coord doesn't point to the item
 	 * of required type. restart as insert.
 	 */
-	if (coord_is_existing_item( op -> u.insert.d -> coord )) {
-		iplug = item_plugin_by_coord( op -> u.insert.d -> coord );
-		can_paste_here = iplug == op -> u.insert.d -> data -> iplug;
+	if (coord_is_existing_item( dcoord ) ) {
+		iplug = item_plugin_by_coord( dcoord );
+		can_paste_here = ( iplug == op -> u.insert.d -> data -> iplug );
 	} else {
 		iplug = NULL;
 		can_paste_here = 0;
@@ -864,8 +867,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 
 	if( !can_paste_here || 
 	    ( can_paste_here &&
-	      !item_can_contain_key( op -> u.insert.d -> coord, 
-				     op -> u.insert.d -> key,
+	      !item_can_contain_key( dcoord, op -> u.insert.d -> key,
 				     op -> u.insert.d -> data ) ) ) {
 		op -> op = COP_INSERT;
 		op -> u.insert.type = COPT_PASTE_RESTARTED;
@@ -875,39 +877,32 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 		return result;
 	}
 
-	node = op -> u.insert.d -> coord -> node;
+	node = dcoord -> node;
 	assert( "nikita-985", node != NULL );
 	assert( "nikita-986", node_plugin_by_node( node ) != NULL );
 
 	assert( "nikita-987",
 		space_needed_for_op( node, op ) <= znode_free_space( node ) );
 
-	assert( "nikita-1286", coord_is_existing_item( op -> u.insert.d -> coord ) );
+	assert( "nikita-1286", coord_is_existing_item( dcoord ) );
 
 	assert( "nikita-992", iplug != NULL );
 	real_size = space_needed_for_op( node, op );
-	if( real_size > 0 ) {
-		node -> nplug ->
-			change_item_size( op -> u.insert.d -> coord, real_size );
-	}
+	if( real_size > 0 )
+		node -> nplug -> change_item_size( dcoord, real_size );
+
 	doing -> restartable = 0;
-	result = iplug -> common.paste( op -> u.insert.d -> coord,
-					op -> u.insert.d -> data, todo );
+	result = iplug -> common.paste( dcoord, op -> u.insert.d -> data, todo );
 	znode_set_dirty( node );
-	if( real_size < 0 ) {
-		node -> nplug ->
-			change_item_size( op -> u.insert.d -> coord, 
-					  real_size );
-	}
+	if( real_size < 0 )
+		node -> nplug -> change_item_size( dcoord, real_size );
+
 	/* if we pasted at the beginning of the item, update item's key. */
-	if( /* FIXME_COORD: ( op -> u.insert.d -> coord -> unit_pos == 0 ) &&
-	      ( op -> u.insert.d -> coord -> between != AFTER_UNIT )*/
-	     coord_is_leftmost_unit( op -> u.insert.d -> coord ) ) {
+	if( coord_is_delimiting( dcoord, LEFT_SIDE ) ) {
 		reiser4_key item_key;
 
-		unit_key_by_coord( op -> u.insert.d -> coord, &item_key );
-		node -> nplug -> update_item_key 
-			( op -> u.insert.d -> coord, &item_key, todo );
+		unit_key_by_coord( dcoord, &item_key );
+		node -> nplug -> update_item_key( dcoord, &item_key, todo );
 	}
 
 	return result;
