@@ -2519,7 +2519,7 @@ int flush_enqueue_unformatted (jnode *node, flush_position *pos)
 
 
 /*
- * FIXEM-VS: temporary old end io handler
+ * FIXME-VS: temporary old end io handler
  */
 /* This is an I/O completion callback which is called after the result of a submit_bio has
  * completed.  Its task is to notify any waiters that are waiting, either for an
