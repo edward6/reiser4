@@ -140,7 +140,18 @@ int reiser4_status_write(u64 status, u64 extended_status, char *message)
 	cputod64(status, &statuspage->status);
 	cputod64(extended_status, &statuspage->extended_status);
 	strncpy(statuspage->texterror, message, REISER4_TEXTERROR_LEN);
-	/*copy stacktrace.;*/
+
+	cputod64((unsigned long)__builtin_return_address(1), &statuspage->stacktrace[0]);
+	cputod64((unsigned long)__builtin_return_address(2), &statuspage->stacktrace[1]);
+	cputod64((unsigned long)__builtin_return_address(3), &statuspage->stacktrace[2]);
+	cputod64((unsigned long)__builtin_return_address(4), &statuspage->stacktrace[3]);
+	cputod64((unsigned long)__builtin_return_address(5), &statuspage->stacktrace[4]);
+	cputod64((unsigned long)__builtin_return_address(6), &statuspage->stacktrace[5]);
+	cputod64((unsigned long)__builtin_return_address(7), &statuspage->stacktrace[6]);
+	cputod64((unsigned long)__builtin_return_address(8), &statuspage->stacktrace[7]);
+	cputod64((unsigned long)__builtin_return_address(9), &statuspage->stacktrace[8]);
+	cputod64((unsigned long)__builtin_return_address(10), &statuspage->stacktrace[9]);
+
 	kunmap_atomic(get_super_private(sb)->status_page, KM_USER0);
 	bio->bi_bdev = sb->s_bdev;
 	bio->bi_io_vec[0].bv_page = get_super_private(sb)->status_page;
