@@ -220,17 +220,14 @@ reiserfs_object_t *reiserfs_object_open(
 	return NULL;
 
     object->fs = fs;
-
-    object->key.plugin = fs->key.plugin;
-    reiserfs_key_init(&object->key, fs->key.body);
+    reiserfs_key_init(&object->key, fs->key.plugin, fs->key.body);
     
     /* 
 	I assume that name is absolute name. So, user, who will call this method 
 	should convert name previously into absolute one by getcwd function.
     */
 
-    parent_key.plugin = fs->key.plugin;
-    reiserfs_key_init(&parent_key, fs->key.body);
+    reiserfs_key_init(&parent_key, fs->key.plugin, fs->key.body);
     
     if (reiserfs_object_lookup(object, name, &parent_key)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 

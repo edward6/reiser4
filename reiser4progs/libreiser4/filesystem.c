@@ -29,7 +29,7 @@ static errno_t reiserfs_fs_build_root_key(
 
     /* Getting root directory attributes from oid allocator */
     parent_objectid = libreiser4_plugin_call(return -1,
-	fs->oid->plugin->oid_ops, root_parent_objectid,);
+	fs->oid->plugin->oid_ops, root_locality,);
 
     objectid = libreiser4_plugin_call(return -1,
 	fs->oid->plugin->oid_ops, root_objectid,);

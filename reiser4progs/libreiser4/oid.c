@@ -154,11 +154,11 @@ oid_t reiserfs_oid_root_parent_locality(reiserfs_oid_t *oid) {
 }
 
 /* Returns root parent objectid from specified oid allocator */
-oid_t reiserfs_oid_root_parent_objectid(reiserfs_oid_t *oid) {
+oid_t reiserfs_oid_root_locality(reiserfs_oid_t *oid) {
     aal_assert("umka-746", oid != NULL, return 0);
     
     return libreiser4_plugin_call(return 0, oid->plugin->oid_ops, 
-	root_parent_objectid,);
+	root_locality,);
 }
 
 /* Returns root objectid from specified oid allocator */

@@ -35,8 +35,7 @@ static reiserfs_node_t *reiserfs_tree_alloc_node(
 
     /* Creating new node */
     return reiserfs_node_create(tree->fs->host_device, block_nr,
-        reiserfs_node_get_pid(tree->cache->node), 
-        tree->cache->node->key_plugin->h.id, level);
+        reiserfs_node_get_pid(tree->cache->node), level);
 }
 
 #endif
@@ -74,7 +73,7 @@ reiserfs_tree_t *reiserfs_tree_open(reiserfs_fs_t *fs) {
     
     /* Opening root node */
     if (!(node = reiserfs_node_open(fs->host_device, 
-	    reiserfs_format_get_root(fs->format), fs->key.plugin->h.id)))
+	    reiserfs_format_get_root(fs->format))))
 	goto error_free_tree;
     
     /* Creating cache for root node */
@@ -134,7 +133,7 @@ reiserfs_tree_t *reiserfs_tree_create(
 
     /* Creating root node */
     if (!(node = reiserfs_node_create(fs->host_device, block_nr,
-        profile->node, profile->key, reiserfs_format_get_height(fs->format))))
+        profile->node, reiserfs_format_get_height(fs->format))))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create root node.");
@@ -277,8 +276,7 @@ int reiserfs_tree_lookup(
 		Node was not found in the cache, we open it and register in the 
 		cache.
 	    */
-	    if (!(node = reiserfs_node_open(parent->node->block->device, 
-		    block_nr, parent->node->key_plugin->h.id))) 
+	    if (!(node = reiserfs_node_open(parent->node->block->device, block_nr))) 
 		return -1;
 	    
 	    if (!(coord->cache = reiserfs_cache_create(node))) {
@@ -517,8 +515,7 @@ errno_t reiserfs_tree_add(
     aal_memset(&item, 0, sizeof(item));
     internal.pointer = aal_block_get_nr(cache->node->block);
 
-    item.key.plugin = ldkey.plugin;
-    reiserfs_key_init(&item.key, ldkey.body);
+    reiserfs_key_init(&item.key, ldkey.plugin, ldkey.body);
     
     item.hint = &internal;
     item.type = REISERFS_INTERNAL_ITEM;

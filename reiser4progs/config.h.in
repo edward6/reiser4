@@ -5,8 +5,8 @@
 /* Define to the version of the package */
 #undef VERSION
 
-#undef LIBREISERFS_MAX_INTERFACE_VERSION
-#undef LIBREISERFS_MIN_INTERFACE_VERSION
+#undef LIBREISER4_MAX_INTERFACE_VERSION
+#undef LIBREISER4_MIN_INTERFACE_VERSION
 
 #undef loff_t
 

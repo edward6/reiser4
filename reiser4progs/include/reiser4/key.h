@@ -10,7 +10,9 @@
 #include <aal/aal.h>
 
 extern errno_t reiserfs_key_init(reiserfs_key_t *key, 
-    const void *data);
+    reiserfs_plugin_t *plugin, const void *data);
+
+extern reiserfs_plugin_t *reiserfs_key_guess(const void *data);
 
 extern int reiserfs_key_compare_full(reiserfs_key_t *key1, 
     reiserfs_key_t *key2);

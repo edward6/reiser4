@@ -23,10 +23,19 @@
 
 /* Master super block structure and macros */
 struct reiserfs_master {
+    /* Reiser4 magic R4Sb */
     char mr_magic[4];
+
+    /* Disk format plugin in use */
     uint16_t mr_format_id;
+
+    /* Block size in use */
     uint16_t mr_blocksize;
+
+    /* Universaly unique identifier */
     char mr_uuid[16];
+
+    /* File system label in use */
     char mr_label[16];
 };
 
@@ -41,8 +50,8 @@ typedef struct reiserfs_master reiserfs_master_t;
 typedef struct reiserfs_fs reiserfs_fs_t;
 
 /* 
-    Profile structure. It describes what plugins will be used
-    for every corresponding filesystem part.
+    Profile structure. It describes what plugins will be used for every part
+    of the filesystem.
 */
 struct reiserfs_profile {
     char label[255];
@@ -81,36 +90,61 @@ typedef struct reiserfs_tree reiserfs_tree_t;
 typedef struct reiserfs_cache reiserfs_cache_t;
 typedef struct reiserfs_node reiserfs_node_t;
 
+/* Coord inside reiser4 tree */
 struct reiserfs_coord {
+    /* Pointer to the cached node */
     reiserfs_cache_t *cache;
+
+    /* Position inside the cached node */
     reiserfs_pos_t pos;
 };
 
 typedef struct reiserfs_coord reiserfs_coord_t;
 
+/* Reiser4 in-memory node structure */
 struct reiserfs_node {
+
+    /* Block node lies in */
     aal_block_t *block;
+
+    /* Node entity. This field is uinitializied by node plugin */
     reiserfs_entity_t *entity;
     
-    reiserfs_plugin_t *key_plugin;
-    reiserfs_plugin_t *node_plugin;
+    /* Node plugin is use */
+    reiserfs_plugin_t *plugin;
 };
 
+/* Reiserfs object structure (file, dir) */
 struct reiserfs_object {
+
+    /* Referrence to the filesystem object opened on */
     reiserfs_fs_t *fs;
     
-    reiserfs_key_t key;
-    reiserfs_coord_t coord;
-
+    /* Object entity. It is initialized by object plugin */
     reiserfs_entity_t *entity;
+
+    /* Object plugin in use */
     reiserfs_plugin_t *plugin;
+    
+    /* Object key of first item (most probably stat data item) */
+    reiserfs_key_t key;
+
+    /* Current coord */
+    reiserfs_coord_t coord;
 };
 
 typedef struct reiserfs_object reiserfs_object_t;
 
-/* Format structure */
+/* Reiser4 disk-format in-memory structure */
 struct reiserfs_format {
+
+    /* 
+	Disk-format entity. It is initialized by disk-format plugin durring
+	initialization.
+    */
     reiserfs_entity_t *entity;
+
+    /* Disk-format plugin in use */
     reiserfs_plugin_t *plugin;
 };
 
@@ -134,9 +168,15 @@ typedef struct reiserfs_alloc reiserfs_alloc_t;
 
 /* Oid allocator structure */
 struct reiserfs_oid {
+
+    /* Key of the root object */
+    reiserfs_key_t key;
+    
+    /* Oid allocator entity */
     reiserfs_entity_t *entity;
+
+    /* Oid allocator plugin in use */
     reiserfs_plugin_t *plugin;
-    reiserfs_key_t root_key;
 };
 
 typedef struct reiserfs_oid reiserfs_oid_t;
@@ -214,6 +254,8 @@ struct reiserfs_fs {
     reiserfs_object_t *dir;
 
     reiserfs_key_t key;
+
+    void *data;
 };
 
 /* Public functions */

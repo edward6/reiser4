@@ -16,7 +16,7 @@
 #include <reiser4/plugin.h>
 
 extern reiserfs_node_t *reiserfs_node_open(aal_device_t *device, 
-    blk_t blk, reiserfs_id_t key_pid);
+    blk_t blk);
 
 extern errno_t reiserfs_node_close(reiserfs_node_t *node);
 
@@ -66,8 +66,7 @@ extern int reiserfs_node_item_internal(reiserfs_node_t *node,
 #ifndef ENABLE_COMPACT
 
 extern reiserfs_node_t *reiserfs_node_create(aal_device_t *device, 
-    blk_t blk, reiserfs_id_t key_pid, reiserfs_id_t node_pid, 
-    uint8_t level);
+    blk_t blk, reiserfs_id_t pid, uint8_t level);
 
 extern errno_t reiserfs_node_sync(reiserfs_node_t *node);
 extern errno_t reiserfs_node_flush(reiserfs_node_t *node);
@@ -75,8 +74,8 @@ extern errno_t reiserfs_node_flush(reiserfs_node_t *node);
 extern errno_t reiserfs_node_insert(reiserfs_node_t *node, 
     reiserfs_pos_t *pos, reiserfs_item_hint_t *item);
 
-extern errno_t reiserfs_node_set_key(reiserfs_node_t *node, uint32_t pos, 
-    reiserfs_key_t *key);
+extern errno_t reiserfs_node_set_key(reiserfs_node_t *node, 
+    uint32_t pos, reiserfs_key_t *key);
 
 extern errno_t reiserfs_node_set_pointer(reiserfs_node_t *node, 
     uint32_t pos, blk_t blk); 

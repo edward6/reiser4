@@ -101,13 +101,11 @@ static errno_t node40_get_key(reiserfs_node40_t *node, uint32_t pos,
     reiserfs_key_t *key) 
 {
     aal_assert("umka-821", key != NULL, return -1);
-    aal_assert("umka-822", key->plugin != NULL, return -1);
-    
     aal_assert("vpf-009", node != NULL, return -1);
     aal_assert("umka-810", pos < node40_count(node), return -1);
     
     aal_memcpy(key->body, &(node40_ih_at(node->block, pos)->key), 
-	key->plugin->key_ops.size());
+	sizeof(reiserfs_key40_t));
     
     return 0;
 }

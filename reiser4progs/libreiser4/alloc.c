@@ -73,7 +73,7 @@ reiserfs_alloc_t *reiserfs_alloc_create(
     
     /* Getting needed plugin from plugin factory by its id */
     if (!(plugin = libreiser4_factory_find(REISERFS_ALLOC_PLUGIN, pid)))
-    	libreiser4_factory_failed(goto error_free_alloc, find, alloc, pid);
+    	libreiser4_factory_failed(goto error_free_alloc, find, block allocator, pid);
 
     alloc->plugin = plugin;
 

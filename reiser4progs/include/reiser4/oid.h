@@ -33,9 +33,10 @@ extern errno_t reiserfs_oid_sync(reiserfs_oid_t *oid);
 extern uint64_t reiserfs_oid_next(reiserfs_oid_t *oid);
 extern uint64_t reiserfs_oid_used(reiserfs_oid_t *oid);
 
-extern oid_t reiserfs_oid_root_parent_locality(reiserfs_oid_t *oid);
-extern oid_t reiserfs_oid_root_parent_objectid(reiserfs_oid_t *oid);
+extern oid_t reiserfs_oid_root_locality(reiserfs_oid_t *oid);
 extern oid_t reiserfs_oid_root_objectid(reiserfs_oid_t *oid);
+
+extern oid_t reiserfs_oid_root_parent_locality(reiserfs_oid_t *oid);
 
 #endif
 

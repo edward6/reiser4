@@ -76,12 +76,12 @@ static inline errno_t __item_body(
     node = ((reiserfs_cache_t *)place->cache)->node;
     
     /* Getting item from the node */
-    *item = libreiser4_plugin_call(return -1, node->node_plugin->node_ops, 
+    *item = libreiser4_plugin_call(return -1, node->plugin->node_ops, 
 	item_body, node->entity, place->pos.item);
     
     /* Getting item length from the node */
     if (len) {
-	*len = libreiser4_plugin_call(return -1, node->node_plugin->node_ops,
+	*len = libreiser4_plugin_call(return -1, node->plugin->node_ops,
 	    item_len, node->entity, place->pos.item);
     }
     
@@ -214,12 +214,12 @@ reiserfs_core_t core = {
 
 /* Returns libreiser4 max supported interface version */
 int libreiser4_get_max_interface_version(void) {
-    return LIBREISERFS_MAX_INTERFACE_VERSION;
+    return LIBREISER4_MAX_INTERFACE_VERSION;
 }
 
 /* Returns libreiser4 min supported interface version */
 int libreiser4_get_min_interface_version(void) {
-    return LIBREISERFS_MIN_INTERFACE_VERSION;
+    return LIBREISER4_MIN_INTERFACE_VERSION;
 }
 
 /* Returns libreiser4 version */

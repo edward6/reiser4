@@ -95,14 +95,16 @@ reiserfs_object_t *reiserfs_dir_create(
 	return NULL;
     
     if (parent) {
-	parent_key.plugin = parent->key.plugin;
-        reiserfs_key_init(&parent_key, parent->key.body);
+        reiserfs_key_init(&parent_key, parent->key.plugin, parent->key.body);
         objectid = reiserfs_oid_alloc(parent->fs->oid);
     } else {
+	oid_t root_locality = reiserfs_oid_root_locality(fs->oid);
+	oid_t root_parent_locality = reiserfs_oid_root_parent_locality(fs->oid);
+		
         parent_key.plugin = fs->key.plugin;
-        reiserfs_key_build_generic_full(&parent_key, KEY40_STATDATA_MINOR, 
-	    reiserfs_oid_root_parent_locality(fs->oid), 
-	    reiserfs_oid_root_parent_objectid(fs->oid), 0);
+        reiserfs_key_build_generic_full(&parent_key, 
+	    KEY40_STATDATA_MINOR, root_parent_locality, 
+	    root_locality, 0);
 
 	objectid = reiserfs_oid_root_objectid(fs->oid);
     }

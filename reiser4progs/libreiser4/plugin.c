@@ -11,8 +11,9 @@
 /* There is possible to use dlopen-ed plugins */
 #if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
 #  include <dlfcn.h>
-#  include <sys/types.h>
 #  include <dirent.h>
+#  include <errno.h>
+#  include <sys/types.h>
 #endif
 
 #include <reiser4/reiser4.h>
@@ -48,24 +49,25 @@ reiserfs_plugin_t *libreiser4_plugin_load_name(const char *name) {
 
     aal_assert("umka-260", name != NULL, return NULL);
     
-    /* dlopen-ing specified filename */
+    /* Loading specified plugin filename */
     if (!(handle = dlopen(name, RTLD_NOW))) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	   "Can't load plugin %s.", name);
+	   "Can't load plugin \"%s\". %s.", name, dlerror());
 	return NULL;
     }
 
     /* Getting plugin entry point */
     addr = dlsym(handle, "__plugin_entry");
-    if (dlerror() != NULL || entry == NULL) {
+    if (dlerror() != NULL || addr == NULL) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	   "Can't find entry point in plugin %s.", name);
+	   "Can't find entry point in plugin \"%s\". %s.", 
+	   name, dlerror());
 	goto error_free_handle;
     }
     
     /* Getting plugin info by entry point */
     entry = *((reiserfs_plugin_entry_t *)addr);
-    if (!(plugin = reiserfs_plugins_load_entry(entry)))
+    if (!(plugin = libreiser4_plugin_load_entry(entry)))
 	goto error_free_handle;
     
     plugin->h.handle = handle;
@@ -150,7 +152,7 @@ errno_t libreiser4_factory_init(void) {
 	aal_snprintf(name, sizeof(name), "%s/%s", PLUGIN_DIR, ent->d_name);
 
 	/* Loading plugin*/
-	libreiser4_plugins_load_name(name);
+	libreiser4_plugin_load_name(name);
     }
     closedir(dir);
 #else

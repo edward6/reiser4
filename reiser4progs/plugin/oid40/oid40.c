@@ -89,8 +89,8 @@ static oid_t oid40_root_parent_locality(void) {
     return REISERFS_OID40_ROOT_PARENT_LOCALITY;
 }
 
-static oid_t oid40_root_parent_objectid(void) {
-    return REISERFS_OID40_ROOT_PARENT_OBJECTID;
+static oid_t oid40_root_locality(void) {
+    return REISERFS_OID40_ROOT_LOCALITY;
 }
 
 static oid_t oid40_root_objectid(void) {
@@ -128,7 +128,7 @@ static reiserfs_plugin_t oid40_plugin = {
 	.used = (oid_t (*)(reiserfs_entity_t *))oid40_used,
 	
 	.root_parent_locality = (oid_t (*)(void))oid40_root_parent_locality,
-	.root_parent_objectid = (oid_t (*)(void))oid40_root_parent_objectid,
+	.root_locality = (oid_t (*)(void))oid40_root_locality,
 	.root_objectid = (oid_t (*)(void))oid40_root_objectid
     }
 };
