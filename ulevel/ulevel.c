@@ -1026,6 +1026,7 @@ static __u64 lc_rand_max( __u64 max )
 
 static struct inode * call_lookup (struct inode * dir, const char * name);
 static int call_mkdir (struct inode * dir, const char * name);
+static struct inode *sandbox( struct inode * dir );
 
 typedef struct echo_filldir_info {
 	int eof;
@@ -1523,7 +1524,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		struct inode *f;
 		char name[ 30 ];
 
-		f = create_root_dir( root );
+		f = sandbox( create_root_dir( root ) );
 		call_readdir( f, "unlink-start" );
 		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
 			sprintf( name, "%x-%x", i, i*10 );
@@ -1549,7 +1550,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		mkdir_thread_info info;
 		struct inode *f;
 
-		f = create_root_dir( root );
+		f = sandbox( create_root_dir( root ) );
 		threads = atoi( argv[ 3 ] );
 		assert( "nikita-1494", threads > 0 );
 		tid = malloc( threads * sizeof tid[ 0 ] );
@@ -2114,6 +2115,18 @@ static struct inode * call_cd (struct inode * dir, const char * name)
 	return call_lookup (dir, name);
 }
 
+
+static struct inode *sandbox( struct inode * dir )
+{
+	char dir_name[ 100 ];
+	int ret;
+
+	sprintf( dir_name, "sandbox-%li", ( long ) getpid() );
+	ret = call_mkdir( dir, dir_name );
+	assert( "nikita-1935", ret == 0 );
+	return call_lookup( dir, dir_name );
+
+}
 
 static int call_mkdir (struct inode * dir, const char * name)
 {
@@ -3176,10 +3189,12 @@ void jmacd_key_no (reiser4_key *key, reiser4_key *next_key, jmacd_sd *sd, reiser
 	key_no += 1000;
 	key_init           (key);
 	set_key_objectid   (key, key_no);
+	set_key_locality   (key, ~0ull - getpid());
 
 	if (next_key != NULL) {
 		key_init           (next_key);
 		set_key_objectid   (next_key, key_no + 1);
+		set_key_locality   (next_key, ~0ull - getpid());
 	}
 
 	cputod16( 0, &sd->base.mode );
