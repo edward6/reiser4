@@ -60,6 +60,10 @@ TYPE_SAFE_LIST_DECLARE(blocknr_set);	/* Used for the transaction's delete set
 /* list of flush queues attached to a given atom */
 TYPE_SAFE_LIST_DECLARE(fq);
 
+/* list of lists of jnodes that threads take into exclusive ownership during
+ * allocate-on-flush.*/
+TYPE_SAFE_LIST_DECLARE(prot);
+
 /* TYPE DECLARATIONS */
 
 /* This enumeration describes the possible types of a capture request (try_capture).
@@ -319,6 +323,8 @@ struct txn_atom {
 	/* List of this atom's handles that are waiting: see 'capture_fuse_wait' comment. */
 	fwaiting_list_head fwaiting_list;
 
+	prot_list_head protected;
+
 	/* Numbers of objects which were deleted/created in this transaction
 	   thereby numbers of objects IDs which were released/deallocated. */
 	int nr_objects_deleted;
@@ -353,6 +359,13 @@ struct txn_atom {
 #endif
 };
 
+typedef struct protected_jnodes {
+	prot_list_link inatom;
+	capture_list_head nodes;
+} protected_jnodes;
+
+TYPE_SAFE_LIST_DEFINE(prot, protected_jnodes, inatom);
+
 /* A transaction handle: the client obtains and commits this handle which is assigned by
    the system to a txn_atom. */
 struct txn_handle {
@@ -360,7 +373,7 @@ struct txn_handle {
 	reiser4_spin_data hlock;
 
 	/* Flags for controlling commit_txnh() behavior */
-	/* NIKITA-HANS: txn_handle_flags_t */
+	/* from txn_handle_flags_t */
 	txn_handle_flags_t flags;
 
 	/* Whether it is READ_FUSING or WRITE_FUSING. */
@@ -610,6 +623,9 @@ extern int atom_isopen(const txn_atom * atom);
 
 extern void add_fq_to_bio(flush_queue_t *, struct bio *);
 extern flush_queue_t *get_fq_for_current_atom(void);
+
+void protected_jnodes_init(protected_jnodes *list);
+void protected_jnodes_done(protected_jnodes *list);
 
 /* Debugging */
 #if REISER4_DEBUG_OUTPUT
