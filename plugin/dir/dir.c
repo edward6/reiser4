@@ -148,9 +148,7 @@ common_link(struct inode *parent /* parent directory */ ,
 	if ((reserve = common_estimate_link(parent, existing->d_inode)) < 0)
 	    return reserve;
 
-	trace_on(TRACE_RESERVE, "link grabs %llu blocks.\n", reserve);
-
-	if (reiser4_grab_space_exact(reserve, BA_CAN_COMMIT))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "common_link"))
 	    return -ENOSPC;
 
 	result = reiser4_add_nlink(object, parent, 1);
@@ -241,18 +239,16 @@ common_unlink(struct inode *parent /* parent object */ ,
 	if ((reserve = common_estimate_unlink(parent, victim->d_inode)) < 0)
 		return reserve;
 
-	if (reiser4_grab_space_exact(reserve, BA_CAN_COMMIT)) {
+	if (reiser4_grab_space_exact(reserve, BA_CAN_COMMIT, "common_unlink")) {
 		down(&private->delete_sema);
 		delete_semaphore_taken = 1;
 
-		if(reiser4_grab_space_exact(reserve, BA_RESERVED | BA_CAN_COMMIT)) {
+		if(reiser4_grab_space_exact(reserve, BA_RESERVED | BA_CAN_COMMIT, "common_unlink(from reserved)")) {
 			warning("zam-833", "reserved space is not enough to perform object unlinking\n");
 			return -ENOSPC;
 		}
 	}
 	
-	trace_on(TRACE_RESERVE, "unlink grabs %llu blocks.\n", reserve);
-
 	/* check for race with create_object() */
 	if (inode_get_flag(object, REISER4_IMMUTABLE))
 		return -EAGAIN;
@@ -468,10 +464,8 @@ common_create_child(struct inode *parent /* parent object */ ,
 	if ((reserve = common_estimate_create_child(parent, object)) < 0)
 	    return reserve;
 
-	trace_on(TRACE_RESERVE, "create child grabs %llu blocks.\n", reserve);
-
-	if (reiser4_grab_space_exact(reserve, BA_CAN_COMMIT))
-	    return -ENOSPC;
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "comon_create_child"))
+		return -ENOSPC;
 	
 	/* mark inode `immutable'. We disable changes to the file being
 	   created until valid directory entry for it is inserted. Otherwise,

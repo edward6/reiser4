@@ -1160,7 +1160,7 @@ flush_reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_c
 
 		if (ret == 1) {
 
-			if (reiser4_grab_space_force((__u64)1, BA_RESERVED) != 0)
+			if (reiser4_grab_space_force((__u64)1, BA_RESERVED, "flush_reverse_relocate_check_dirty_parent") != 0)
 			    reiser4_panic("umka-1250", "No space left durring flush.");
 			
 			assert("jmacd-18923", znode_is_write_locked(parent_coord->node));
@@ -2179,7 +2179,6 @@ squeeze_right_non_twig(znode * left, znode * right)
 		
 		/* Carry is called to update delimiting key or to remove empty
 		   node. */
-		//info ("shifted %u bytes %p <- %p\n", ret, left, right);
 		ON_STATS(todo.level_no = znode_get_level(left) + 1);
 		
 #if 0
@@ -2192,14 +2191,12 @@ squeeze_right_non_twig(znode * left, znode * right)
 		amount = estimate_internal_amount(2, 
 						  get_current_super_private()->tree.height);
 #endif
-		amount = 1;
-		if ((ret = reiser4_grab_space_force(amount, BA_RESERVED)) != 0) {
+		amount = left->zjnode.tree->height;
+		if ((ret = reiser4_grab_space_force(amount, BA_RESERVED, "squeeze_right_non_twig")) != 0) {
 			done_carry_pool(&pool);
 			return ret;
 		}
 
-		trace_on(TRACE_RESERVE, 
-			 "squeeze right non twig grabs %llu blocks.\n", amount);
 		ret = carry(&todo, NULL /* previous level */ );
 	}
 
@@ -2394,7 +2391,12 @@ shift_one_internal_unit(znode * left, znode * right)
 
 	if (moved) {
 		/* Grabbing two blocks for left and right neighbours */
-		if ((ret = reiser4_grab_space_force((__u64)2, BA_RESERVED)) != 0)
+		/*
+		 * FIXME-VS: left and right are involved into flush that means that they were modifed already and
+		 * therefore space for their change was reserved already. What we have to reserve here is space for
+		 * updating delimiting keys after shifting
+		 */
+		if ((ret = reiser4_grab_space_force((__u64)(left->zjnode.tree->height), BA_RESERVED, "shift_one_internal_unit")) != 0)
 			return ret;
 		
 		znode_set_dirty(left);
@@ -2569,7 +2571,7 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord, flush_position
 	lock_handle fake_lock;
 
 	/* for a node and its parent */
-	ret = reiser4_grab_space_force((__u64)2, BA_RESERVED);
+	ret = reiser4_grab_space_force((__u64)2, BA_RESERVED, "flush_allocate_znode_update");
 	
 	if (ret != 0)
 		return ret;
@@ -2585,15 +2587,14 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord, flush_position
 	if (ret)
 		return ret;
         /* We may do not use 5% of reserved disk space here and flush will not pack tightly. */
-        ret = reiser4_alloc_blocks(&pos->preceder, &blk, &len, BA_FORMATTED | BA_PERMANENT);
+        ret = reiser4_alloc_blocks(&pos->preceder, &blk, &len, BA_FORMATTED | BA_PERMANENT, "flush_allocate_znode_update");
 	zrelse(node);
 	if(ret)
                 return ret;
                             
-        trace_on(TRACE_RESERVE, "flush allocates %llu blocks.\n", len);
 
-	if (!ZF_ISSET(node, JNODE_CREATED) && (ret = reiser4_dealloc_block(znode_get_block(node), 
-		0 /* target stage, it only matters when BA_DEFER is not present */, BA_DEFER/* defer */))) 
+	if (!ZF_ISSET(node, JNODE_CREATED) && (ret = reiser4_dealloc_block(znode_get_block(node),
+		0 /* target stage, it only matters when BA_DEFER is not present */, BA_DEFER/* defer */, "flush_allocate_znode_update"))) 
 	{
 		return ret;
 	}
