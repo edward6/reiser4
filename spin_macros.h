@@ -5,7 +5,7 @@
 #ifndef __SPIN_MACROS_H__
 #define __SPIN_MACROS_H__
 
-#include <asm/spinlock.h>
+#include <linux/spinlock.h>
 #include <linux/profile.h>
 
 #include "debug.h"
