@@ -120,11 +120,6 @@ static inline int disk_addr_eq( const reiser4_block_nr *b1 /* first block
 	return !memcmp( b1, b2, sizeof *b1 );
 }
 
-
-extern void get_bitmap_blocknr (struct super_block *, int, reiser4_block_nr *);
-
-
-
 /* structure of master reiser4 super block */
 typedef struct reiser4_master_sb {
 	char magic [4];     /* "R4Sb" */
