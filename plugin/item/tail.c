@@ -281,7 +281,7 @@ overwrite_tail(coord_t * coord, flow_t * f)
 		count = f->length;
 
 	if (__copy_from_user((char *) item_body_by_coord(coord) + coord->unit_pos, f->data, count))
-		return -EFAULT;
+		return RETERR(-EFAULT);
 
 	znode_make_dirty(coord->node);
 
@@ -369,7 +369,7 @@ write_tail(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, hin
 		case APPEND_ITEM:
 			/* check quota before appending data */
 			if (DQUOT_ALLOC_SPACE_NODIRTY(inode, f->length)) {
-				result = -EDQUOT;
+				result = RETERR(-EDQUOT);
 				break;
 			}
 
@@ -389,7 +389,7 @@ write_tail(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, hin
 			break;
 
 		case RESEARCH:
-			result = -EAGAIN;
+			result = RETERR(-EAGAIN);
 			break;
 		default:
 			impossible("vs-1031", "does this ever happen?");
@@ -447,7 +447,7 @@ read_tail(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
 
 	assert("nikita-3037", schedulable());
 	if (!key_in_item_tail(coord, &f->key, 0))
-		return -EAGAIN;
+		return RETERR(-EAGAIN);
 
 	/* calculate number of bytes to read off the item */
 	item_length = item_length_by_coord(coord);
@@ -456,7 +456,7 @@ read_tail(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
 		count = f->length;
 
 	if (__copy_to_user(f->data, ((char *) item_body_by_coord(coord) + coord->unit_pos), count))
-		return -EFAULT;
+		return RETERR(-EFAULT);
 
 	/* probably mark_page_accessed() should only be called if
 	 * coord->unit_pos is zero. */

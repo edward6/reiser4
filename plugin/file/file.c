@@ -822,7 +822,7 @@ hint_validate(hint_t *hint, const reiser4_key * key, lock_handle * lh, int check
 {
 	if (!hint || !hint_is_set(hint))
 		/* hint either not set or set for different key */
-		return -EAGAIN;
+		return RETERR(-EAGAIN);
 
 	assert("vs-1277", all_but_offset_key_eq(key, &hint->seal.key));
 
@@ -1328,7 +1328,7 @@ write_checks(struct file * file, size_t * ocount, loff_t * off)
 	if (limit != RLIM_INFINITY) {
 		if (unlikely(pos >= limit)) {
 			send_sig(SIGXFSZ, current, 0);
-			return -EFBIG;
+			return RETERR(-EFBIG);
 		}
 		if (unlikely(pos > 0xFFFFFFFFULL || count > limit - (u32)pos)) {
 			/* send_sig(SIGXFSZ, current, 0); */
@@ -1343,7 +1343,7 @@ write_checks(struct file * file, size_t * ocount, loff_t * off)
 		     !(file->f_flags & O_LARGEFILE))) {
 		if (pos >= MAX_NON_LFS) {
 			send_sig(SIGXFSZ, current, 0);
-			return -EFBIG;
+			return RETERR(-EFBIG);
 		}
 		if (count > MAX_NON_LFS - (u32)pos) {
 			/* send_sig(SIGXFSZ, current, 0); */
@@ -1361,7 +1361,7 @@ write_checks(struct file * file, size_t * ocount, loff_t * off)
 	if (unlikely(pos >= inode->i_sb->s_maxbytes)) {
 		if (count || pos > inode->i_sb->s_maxbytes) {
 			send_sig(SIGXFSZ, current, 0);
-			return -EFBIG;
+			return RETERR(-EFBIG);
 		}
 		/* zero-length writes at ->s_maxbytes are OK */
 	}
@@ -1576,7 +1576,7 @@ ioctl_unix_file(struct inode *inode, struct file *filp, unsigned int cmd, unsign
 		break;
 
 	default:
-		result = -ENOTTY;
+		result = RETERR(-ENOTTY);
 		break;
 	}
 	return result;
