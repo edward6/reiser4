@@ -271,16 +271,9 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     if (!(fs->tree = reiserfs_tree_open(fs)))
 	goto error_free_oid;
     
-    {
-	reiserfs_plugin_t *dir_plugin;
-	
-	/* Finding directroy plugin */
-	if (!(dir_plugin = libreiser4_factory_find(REISERFS_DIR_PLUGIN, 0x0)))
-	    libreiser4_factory_failed(goto error_free_tree, find, dir, 0x0);
-	
-	if (!(fs->dir = reiserfs_object_open(fs, dir_plugin, "/")))
-	    goto error_free_tree;
-    }
+    if (!(fs->dir = reiserfs_object_open(fs, "/")))
+	goto error_free_tree;
+    
     return fs;
 
 error_free_tree:
@@ -409,15 +402,13 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
 	/* Finding directroy plugin */
 	if (!(dir_plugin = libreiser4_factory_find(REISERFS_DIR_PLUGIN, profile->dir)))
 	    libreiser4_factory_failed(goto error_free_tree, find, dir, profile->dir);
-
+	
 	dir_hint.statdata_pid = profile->item.statdata;
 	dir_hint.direntry_pid = profile->item.direntry;
 	dir_hint.hash_pid = profile->hash;
 	
 	/* Creating object "dir40". See object.c for details */
-	if (!(fs->dir = reiserfs_object_create(fs, dir_plugin, 
-	    NULL, &dir_hint, NULL))) 
-	{
+	if (!(fs->dir = reiserfs_object_create(fs, &dir_hint, dir_plugin, NULL, "/"))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't create root directory.");
 	    goto error_free_tree;

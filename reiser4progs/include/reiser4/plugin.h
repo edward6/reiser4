@@ -336,6 +336,9 @@ struct reiserfs_dir_ops {
 
     /* Returns current position in directory */
     uint32_t (*tell) (reiserfs_entity_t *);
+
+    /* Makes lookup inside dir */
+    errno_t (*lookup) (reiserfs_entity_t *, reiserfs_entry_hint_t *);
 };
 
 typedef struct reiserfs_dir_ops reiserfs_dir_ops_t;

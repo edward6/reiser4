@@ -63,6 +63,10 @@ static errno_t dir40_rewind(reiserfs_dir40_t *dir) {
 static errno_t dir40_realize(reiserfs_dir40_t *dir) {
     aal_assert("umka-857", dir != NULL, return -1);	
 
+    /* FIXME-UMKA: Here should not be hardcoded key minor */
+    libreiser4_plugin_call(return -1, dir->key.plugin->key_ops, build_generic_full, 
+	dir->key.body, KEY40_STATDATA_MINOR, dir40_locality(dir), dir40_objectid(dir), 0);
+    
     /* Positioning to the dir stat data */
     if (core->tree_lookup(dir->tree, &dir->key, &dir->place) != 1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -440,6 +444,8 @@ static reiserfs_plugin_t dir40_plugin = {
 
 	.read = (errno_t (*)(reiserfs_entity_t *, reiserfs_entry_hint_t *))
 	    dir40_read,
+
+	.lookup = NULL
     }
 };
 

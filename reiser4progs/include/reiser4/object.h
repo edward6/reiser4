@@ -12,7 +12,7 @@
 #endif
 
 extern reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, 
-    reiserfs_plugin_t *plugin, const char *name);
+    const char *name);
 
 extern void reiserfs_object_close(reiserfs_object_t *object);
 extern errno_t reiserfs_object_rewind(reiserfs_object_t *object);
@@ -24,8 +24,8 @@ extern errno_t reiserfs_object_read(reiserfs_object_t *object,
 #ifndef ENABLE_COMPACT
 
 extern reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, 
-    reiserfs_plugin_t *plugin, reiserfs_object_t *parent, 
-    reiserfs_object_hint_t *hint, const char *name);
+    reiserfs_object_hint_t *hint, reiserfs_plugin_t *plugin, 
+    reiserfs_object_t *parent, const char *name);
 
 extern errno_t reiserfs_object_add(reiserfs_object_t *object, 
     reiserfs_entry_hint_t *hint);
