@@ -894,6 +894,22 @@ dir_bind(struct inode *child, struct inode *parent)
 	return dplug->attach(child, parent);
 }
 
+static ssize_t
+isdir(void)
+{
+	return -EISDIR;
+}
+
+#define eisdir ((void *)isdir)
+
+static ssize_t
+perm(void)
+{
+	return -EPERM;
+}
+
+#define eperm ((void *)perm)
+
 file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 	[UNIX_FILE_PLUGIN_ID] = {
 				    .h = {
@@ -946,15 +962,15 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					    .label = "dir",
 					    .desc = "directory",
 					    .linkage = TS_LIST_LINK_ZERO},
-				      .truncate = NULL,	/* EISDIR */
+				      .truncate = eisdir,
 				      .write_sd_by_inode = common_file_save,
-				      .readpage = NULL,	/* EISDIR */
-				      .writepage = NULL,
-				      .read = NULL,	/* EISDIR */
-				      .write = NULL,	/* EISDIR */
+				      .readpage = eisdir,
+				      .writepage = eisdir,
+				      .read = eisdir,
+				      .write = eisdir,
 				      .release = dir_release,
-				      .ioctl = NULL,
-				      .mmap = NULL,
+				      .ioctl = eisdir,
+				      .mmap = eisdir,
 				      .get_block = NULL,
 				      .flow_by_inode = NULL,
 				      .key_by_inode = NULL,
@@ -989,15 +1005,15 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					  .desc = "symbolic link",
 					  .linkage = TS_LIST_LINK_ZERO}
 				    ,
-				    .truncate = NULL,
+				    .truncate = eperm,
 				    .write_sd_by_inode = common_file_save,
-				    .readpage = NULL,
-				    .writepage = NULL,
-				    .read = NULL,
-				    .write = NULL,
+				    .readpage = eperm,
+				    .writepage = eperm,
+				    .read = eperm,
+				    .write = eperm,
 				    .release = NULL,
-				    .ioctl = NULL,
-				    .mmap = NULL,
+				    .ioctl = eperm,
+				    .mmap = eperm,
 				    .get_block = NULL,
 				    .flow_by_inode = NULL,
 				    .key_by_inode = NULL,
@@ -1033,16 +1049,16 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					  .desc = "special: fifo, device or socket",
 					  .linkage = TS_LIST_LINK_ZERO}
 				    ,
-				    .truncate = NULL,
+				    .truncate = eperm,
 				    .create = common_file_create,
 				    .write_sd_by_inode = common_file_save,
-				    .readpage = NULL,
-				    .writepage = NULL,
-				    .read = NULL,
-				    .write = NULL,
+				    .readpage = eperm,
+				    .writepage = eperm,
+				    .read = eperm,
+				    .write = eperm,
 				    .release = NULL,
-				    .ioctl = NULL,
-				    .mmap = NULL,
+				    .ioctl = eperm,
+				    .mmap = eperm,
 				    .get_block = NULL,
 				    .flow_by_inode = NULL,
 				    .key_by_inode = NULL,

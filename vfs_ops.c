@@ -379,10 +379,9 @@ reiser4_read(struct file *file /* file to read from */ ,
 				 * is updated to indicate actual
 				 * number of bytes read */ )
 {
-	file_plugin *fplug;
 	ssize_t result;
-
-	REISER4_ENTRY(file->f_dentry->d_inode->i_sb);
+	struct inode *inode = file->f_dentry->d_inode;
+	REISER4_ENTRY(inode->i_sb);
 	write_syscall_trace("%s", file->f_dentry->d_name.name);
 
 	assert("umka-072", file != NULL);
@@ -393,19 +392,19 @@ reiser4_read(struct file *file /* file to read from */ ,
 
 	trace_on(TRACE_VFS_OPS,
 		 "READ: (i_ino %li, size %lld): %u bytes from pos %lli\n",
-		 file->f_dentry->d_inode->i_ino, file->f_dentry->d_inode->i_size,
-		 count, *off);
+		 inode->i_ino, inode->i_size, count, *off);
 
-	fplug = inode_file_plugin(file->f_dentry->d_inode);
-	assert("nikita-417", fplug != NULL);
+	result = perm_chk(inode, read, file, buf, count, off);
+	if (likely(result == 0)) {
+		file_plugin *fplug;
 
-	if (fplug->read == NULL) {
-		result = -EPERM;
-	} else {
+		fplug = inode_file_plugin(inode);
+		assert("nikita-417", fplug != NULL);
+		assert("nikita-2935", fplug->write != NULL);
+
 		/* unix_file_read is one method that might be invoked below */
 		result = fplug->read(file, buf, count, off);
 	}
-
 	write_syscall_trace("ex");
 	REISER4_EXIT(result);
 }
@@ -420,7 +419,6 @@ reiser4_write(struct file *file /* file to write on */ ,
 				 * from. This is updated to indicate
 				 * actual number of bytes written */ )
 {
-	file_plugin *fplug;
 	struct inode *inode;
 	ssize_t result;
 
@@ -436,16 +434,15 @@ reiser4_write(struct file *file /* file to write on */ ,
 	trace_on(TRACE_VFS_OPS,
 		 "WRITE: (i_ino %li, size %lld): %u bytes to pos %lli\n", inode->i_ino, inode->i_size, size, *off);
 
-	if (size != 0) {
-		down(&inode->i_sem);
+	result = perm_chk(inode, write, file, buf, size, off);
+	if (likely(result == 0)) {
+		file_plugin *fplug;
+
 		fplug = inode_file_plugin(inode);
-		if (fplug->write != NULL)
-			result = fplug->write(file, buf, size, off);
-		else
-			result = -EPERM;
-		up(&inode->i_sem);
-	} else
-		result = 0;
+		assert("nikita-2934", fplug->read != NULL);
+
+		result = fplug->write(file, buf, size, off);
+	}
 	write_syscall_trace("ex");
 	REISER4_EXIT(result);
 }
@@ -1169,6 +1166,7 @@ truncate_object(struct inode *inode /* object to truncate */ ,
 		loff_t size /* size to truncate object to */ )
 {
 	file_plugin *fplug;
+	int result;
 
 	assert("nikita-1026", inode != NULL);
 	assert("nikita-1027", is_reiser4_inode(inode));
@@ -1179,17 +1177,13 @@ truncate_object(struct inode *inode /* object to truncate */ ,
 	fplug = inode_file_plugin(inode);
 	assert("vs-142", fplug != NULL);
 
-	if (fplug->truncate != NULL) {
-		int result;
-		result = fplug->truncate(inode, size);
-		if (result != 0) {
-			warning("nikita-1602", "Truncate error: %i for %lli", result, get_inode_oid(inode));
-		}
-		return result;
-	} else {
-		return -EPERM;
-	}
+	assert("nikita-2933", fplug->truncate != NULL);
+	result = fplug->truncate(inode, size);
+	if (result != 0)
+		warning("nikita-1602", "Truncate error: %i for %lli", 
+			result, get_inode_oid(inode));
 	write_syscall_trace("ex");
+	return result;
 }
 
 /* initial prefix of names of pseudo-files like ..plugin, ..acl,
