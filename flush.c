@@ -2990,11 +2990,10 @@ flush_scan_common(flush_scan * scan, flush_scan * other)
 		   call to flush_scan_extent then fall into the loop at a formatted
 		   position below.
 		*/
-		if ((ret = flush_scan_extent(scan, 0
-					     /* skip_first = false (i.e., starting position is unformatted) */
-		     ))) {
+		/* skip_first = false (i.e., starting position is
+		 * unformatted) */
+		if ((ret = flush_scan_extent(scan, 0)))
 			return ret;
-		}
 	}
 
 	/* This loop expects to start at a formatted position, which explains the
@@ -3296,9 +3295,11 @@ flush_scan_extent_coord(flush_scan * scan, const coord_t * in_coord)
 	int ret = 0, allocated, incr;
 	reiser4_tree *tree;
 
-	if (!jnode_check_dirty(scan->node))
-		return -EAGAIN;	// Race with truncate, this node is already
-	// truncated.
+	if (!jnode_check_dirty(scan->node)) {
+		scan->stop = 1;
+		return 0; /* Race with truncate, this node is already
+			   * truncated. */
+	}
 
 	coord_dup(&coord, in_coord);
 
@@ -3392,7 +3393,8 @@ repeat:
 		neighbor = UNDER_SPIN(tree, tree, jlook(tree, oid, scan_index));
 		if (neighbor == NULL) {
 			/* Race with truncate */
-			ret = -EAGAIN;
+			scan->stop = 1;
+			ret = 0;
 			goto exit;
 		}
 
