@@ -646,7 +646,7 @@ int tail_read (struct inode * inode UNUSED_ARG, tree_coord * coord,
 	({
 		reiser4_key key;
 
-		keycmp (unit_key_by_coord (coord, &key), &f->key) == EQUAL_TO;
+		keyeq (unit_key_by_coord (coord, &key), &f->key);
 	}));
 
 	/*

@@ -206,7 +206,7 @@ int internal_create_hook( const tree_coord *item /* coord of item */,
 
 			sibling_list_insert_nolock( child, arg );
 			rd = znode_get_rd_key( arg );
-			if( keycmp( rd, znode_get_ld_key( child ) ) != EQUAL_TO ) {
+			if( !keyeq( rd, znode_get_ld_key( child ) ) ) {
 				assert( "nikita-1806", 
 					keycmp( rd, znode_get_ld_key( child ) ) == GREATER_THAN );
 				reiser4_stat_add_at_level

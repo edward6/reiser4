@@ -111,6 +111,14 @@ cmp_t keycmp( const reiser4_key *k1 /* first key to compare */,
 	return result;
 }
 
+int keyeq( const reiser4_key *k1 /* first key to compare */, 
+	   const reiser4_key *k2 /* second key to compare */ )
+{
+	assert( "nikita-1879", k1 != NULL );
+	assert( "nikita-1880", k2 != NULL );
+	return !memcmp( k1, k2, sizeof *k1 );
+}
+
 /** debugging aid: print symbolic name of key type */
 static const char *type_name( unsigned int key_type /* key type */ )
 {

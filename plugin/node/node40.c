@@ -269,7 +269,7 @@ node_search_result node40_lookup( znode *node /* node to query */,
 		if( abs( left - right ) < 2 ) {
 			if( keycmp( __get_key( right ), key ) != GREATER_THAN )
 				left = right;
-			found = keycmp( key, __get_key( left ) ) == EQUAL_TO;
+			found = keyeq( key, __get_key( left ) );
 			break;
 		}
 #undef __get_key
@@ -517,7 +517,8 @@ int node40_check( const znode *node /* node to check */,
 			*error = "Keys are in wrong order";
 			return -1;
 		}
-		if( keycmp( &ih -> key, unit_key_by_coord( &coord, &unit_key ) ) != EQUAL_TO ) {
+		if( !keyeq( &ih -> key, 
+			    unit_key_by_coord( &coord, &unit_key ) ) ) {
 			*error = "Wrong key of first unit";
 			return -1;
 		}
@@ -567,8 +568,7 @@ int node40_check( const znode *node /* node to check */,
 		    ! ZF_ISSET( node -> left, ZNODE_HEARD_BANSHEE )  &&
 		    ! node_is_empty( node -> left ) && 
 		    ergo( flags & REISER4_NODE_TREE_STABLE,
-			  ( keycmp( &node -> left -> rd_key, 
-				    &node -> ld_key ) != EQUAL_TO ) ) &&
+			  !keyeq( &node -> left -> rd_key, &node -> ld_key ) ) &&
 		    ergo( ! ( flags & REISER4_NODE_TREE_STABLE ),
 			  ( keycmp( &node -> left -> rd_key, 
 				    &node -> ld_key ) == GREATER_THAN ) ) )
@@ -581,8 +581,7 @@ int node40_check( const znode *node /* node to check */,
 		    ! ZF_ISSET( node -> right, ZNODE_HEARD_BANSHEE )  &&
 		    ! node_is_empty( node -> right ) && 
 		    ergo( flags & REISER4_NODE_TREE_STABLE,
-			  ( keycmp( &node -> rd_key, 
-				    &node -> right -> ld_key ) != EQUAL_TO ) ) &&
+			  !keyeq( &node -> rd_key, &node -> right -> ld_key ) ) &&
 		    ergo( ! ( flags & REISER4_NODE_TREE_STABLE ),
 			  ( keycmp( &node -> rd_key, 
 				    &node -> right -> ld_key ) == GREATER_THAN ) ) )
@@ -1087,8 +1086,8 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 		if (node_is_empty (node) && !(flags & DELETE_RETAIN_EMPTY))
 			/* all contents of node is deleted */
 			prepare_for_removal (node, todo);
-		else if (keycmp (&node40_ih_at (node, 0)->key,
-				 &old_first_key) != EQUAL_TO) {
+		else if (!keyeq (&node40_ih_at (node, 0)->key,
+				 &old_first_key)) {
 			/* first key changed */
 			prepare_for_update (NULL, node, todo);
 		}

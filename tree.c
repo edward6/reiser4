@@ -1275,8 +1275,7 @@ int cut_tree (reiser4_tree * tree,
 				   from_key, to_key, &smallest_removed, DELETE_KILL/*flags*/);
 		if (result)
 			break;
-		assert ("vs-301", keycmp (&smallest_removed, 
-					  min_key ()) != EQUAL_TO);
+		assert ("vs-301", !keyeq (&smallest_removed, min_key ()));
 	} while (keycmp (&smallest_removed, from_key) == GREATER_THAN);
 
 	done_coord (&intranode_to);

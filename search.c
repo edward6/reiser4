@@ -883,7 +883,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 			
 		spin_lock_dk( current_tree );
 		assert( "nikita-1759", znode_contains_key( node, key ) );
-		is_ld = keycmp( znode_get_ld_key( node ), key ) == EQUAL_TO;
+		is_ld = keyeq( znode_get_ld_key( node ), key );
 		spin_unlock_dk( current_tree );
 		return is_ld;
 	}
@@ -999,9 +999,8 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 				return LLR_DONE;
 			}
 			assert( "vs-358",
-				keycmp( h -> key,
-					item_key_by_coord( h -> coord,
-							   &key)) == EQUAL_TO );
+				keyeq( h -> key,
+				       item_key_by_coord( h -> coord, &key ) ) );
 		} else {
 			/* 
 			 * this is special case mentioned in the comment on
@@ -1044,8 +1043,8 @@ static int key_is_delimiting( znode *node /* node to check key against */,
 
 	spin_lock_dk( current_tree );
 	result = 
-		( keycmp( znode_get_ld_key( node ), key ) == EQUAL_TO ) ||
-		( keycmp( znode_get_rd_key( node ), key ) == EQUAL_TO );
+		keyeq( znode_get_ld_key( node ), key ) ||
+		keyeq( znode_get_rd_key( node ), key );
 	spin_unlock_dk( current_tree );
 	return result;
 }

@@ -211,6 +211,7 @@ void key_init( reiser4_key *key );
 extern const reiser4_key *min_key( void );
 extern const reiser4_key *max_key( void );
 extern cmp_t keycmp( const reiser4_key *k1, const reiser4_key *k2 );
+extern int keyeq( const reiser4_key *k1, const reiser4_key *k2 );
 extern void print_key( const char *prefix, const reiser4_key *key );
 extern char *sprintf_key( char *buffer, const reiser4_key *key );
 
