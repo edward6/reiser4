@@ -4187,48 +4187,61 @@ int jmacd_test( int argc UNUSED_ARG,
 
 #define BLOCK_COUNT 10000
 
-#if 0
 /* tree op. read node which emulates read from valid reiser4 volume  */
-static int bm_test_read_node (const reiser4_block_nr *addr, char **data, size_t blksz )
+static int bm_test_read_node (reiser4_tree * tree, jnode * node )
 {
-	struct super_block * super = get_current_context() -> super;
 	bmap_nr_t bmap_nr;
-	reiser4_block_nr bmap_block_addr;
+	struct page * page;
+	struct super_block * super;
 
-	assert ("zam-413", *data == NULL);
+	unsigned long page_idx;
 
-	if (blocknr_is_fake(addr)) {
-		*data = reiser4_kmalloc (blksz, GFP_KERNEL);
+	assert ("zam-413", tree != NULL);
+	assert ("zam-431", node != NULL);
 
-		if (*data == NULL) return -ENOMEM;
+	super = tree -> super;
 
-		xmemset (*data, 0, blksz);
+	page_idx = (unsigned long)node;
 
+	page = grab_cache_page (get_super_fake(super)->i_mapping, page_idx);
+
+	if (page == NULL) return -ENOMEM;
+	
+	jnode_attach_page (node, page);
+
+	page_cache_release (page);
+
+	if (PageUptodate(page)) {
+		kmap (page);
 		return 0;
 	}
 
-	/* it is a hack for finding what block we read (bitmap block or not) */
-	bmap_nr = *addr / (super->s_blocksize * 8);
-	get_bitmap_blocknr (super,  bmap_nr, &bmap_block_addr);
+	xmemset (jdata(node), 0, tree->super->s_blocksize);
 
-	if (disk_addr_eq (addr, &bmap_block_addr)) {
-		int offset = *addr - bmap_nr * blksz * 8;
-		
-		*data = reiser4_kmalloc (blksz, GFP_KERNEL);
+	if (! blocknr_is_fake(jnode_get_block (node))) {
+		reiser4_block_nr bmap_block_addr;
 
-		if (*data == NULL) return -ENOMEM;
+		/* it is a hack for finding what block we read (bitmap block or not) */
+		bmap_nr = *jnode_get_block(node) / (tree->super->s_blocksize * 8);
+		get_bitmap_blocknr (tree->super,  bmap_nr, &bmap_block_addr);
 
-		xmemset(*data, 0, blksz);
-		set_bit(offset, (long*)*data);
+		if (disk_addr_eq (jnode_get_block (node), &bmap_block_addr)) {
+			int offset = *jnode_get_block(node) - (bmap_nr << super->s_blocksize_bits);
+			set_bit(offset, jdata(node));
 
-	} else {
-		warning ("zam-411", "bitmap test should not read not bitmap block #%llu", *addr);
-		return -EIO;
+		} else {
+			warning ("zam-411", "bitmap test should not read"
+				 " not bitmap block #%llu", jnode_get_block(node));
+
+			return -EIO;
+		}
 	}
+
+	SetPageUptodate(page);
+	kmap (page);
 
 	return 0;
 }
-#endif
 
 /** a temporary solutions for setting up reiser4 super block */
 static void fill_sb (struct super_block * super)
@@ -4262,7 +4275,7 @@ static int bitmap_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tr
 		get_super_private (super)->space_plug->init_allocator (
 			get_space_allocator (super), super, 0);
 
-	// tree -> ops -> read_node = bm_test_read_node;
+	tree -> ops -> read_node = bm_test_read_node;
 
 
 	{
