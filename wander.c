@@ -151,19 +151,14 @@
    reiser4 super block has fields to store both the free block counter and the
    OID allocator.
   
-   The reason for that is that for the writing of the reiser4 super block we
-   need to know the actual values of all of its fields.  For example if we
-   have a transaction which has not captured the super block we cannot
-   re-write the super block when such a transaction is committed because we do
-   not know the actual value of the tree root pointer.
-
-ZAM-FIXME-HANS: rewrite paragraph above, it is confusing.
-
-   Knowing that requires write locking of the super block and implies some
-   dependency between atoms which we wanted to avoid. So, the simplest solution
-   seems to be the implemented one, in which the data logged in different ways
-   are written in different blocks.
-*/
+   Writing the whole super block at commit time requires knowing true values of
+   all its fields without changes made by not yet committed transactions. It is
+   possible by having their "committed" version of the super block like the
+   reiser4 bitmap blocks have "committed" and "working" versions.  However,
+   another scheme was implemented which stores special logged values in the
+   unused free space inside transaction head block.  In my opinion it has an
+   advantage of not writing whole super block when only part of it was
+   modified. */
 
 #include "debug.h"
 #include "dformat.h"
