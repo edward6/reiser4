@@ -391,13 +391,13 @@ TS_LIST_DECLARE(context);
  */
 struct reiser4_context {
 	/** magic constant. For debugging */
-	__u32                magic;
+	__u32                 magic;
 
 	/** current lock stack. See lock.[ch]. This is where list of all
 	 * locks taken by current thread is kept. This is also used in
 	 * deadlock detection.
 	 */
-	lock_stack    stack;
+	lock_stack            stack;
 
 	/** current transcrash. */
 	txn_handle           *trans;
