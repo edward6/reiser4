@@ -412,6 +412,26 @@ drop_eflushed_nodes(struct inode *inode, unsigned long index, unsigned long end)
 #endif
 }
 
+/* distinguish jnodes with and without pages, captured and not */
+static void
+invalidate_unformatted(jnode *node)
+{
+	struct page *page;
+
+	LOCK_JNODE(node);
+	page = node->pg;
+	if (page) {
+		page_cache_get(page);
+		UNLOCK_JNODE(node);
+		truncate_mapping_pages_range(page->mapping, page->index, 1);
+		page_cache_release(page);
+	} else {
+		JF_SET(node, JNODE_HEARD_BANSHEE);		
+		uncapture_jnode(node);
+		unhash_unformatted_jnode(node);
+	}
+}
+
 static int
 truncate_inode_jnodes_range(struct inode *inode, unsigned long from, int count)
 {
@@ -422,13 +442,19 @@ truncate_inode_jnodes_range(struct inode *inode, unsigned long from, int count)
 
 	truncated_jnodes = 0;
 	r4_inode = reiser4_inode_data(inode);
+	WLOCK_TREE(node->tree);
 	for (i = 0; i < count; i ++) {
 		node = radix_tree_lookup(&r4_inode->jnode_tree, from + i);
 		if (node) {
-			uncapture_jnode(node);
+			jref(node);
+			WUNLOCK_TREE(node->tree);
+			invalidate_unformatted(node);
 			truncated_jnodes ++;
+			jput(node);
+			WLOCK_TREE(node->tree);
 		}
 	}
+	WUNLOCK_TREE(node->tree);
 	return truncated_jnodes;
 }
 
