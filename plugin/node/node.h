@@ -251,6 +251,7 @@ extern void print_znode_content( const znode *node, __u32 flags );
 extern void indent( unsigned indentation );
 extern void indent_znode( const znode *node );
 extern void node_check( const znode *node, __u32 flags );
+extern void indent_znode( const znode *node );
 
 #if YOU_CAN_COMPILE_PSEUDO_CODE
 

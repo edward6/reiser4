@@ -138,11 +138,12 @@ void print_znode_content( const znode *node, __u32 flags )
 		}
 		if( flags & REISER4_NODE_PRINT_KEYS ) {
 			item_key_by_coord( &coord, &key );
-			print_key( "\titem key", &key ), indent_znode (node);
+			print_key( "\titem key", &key );
 		}
 
 		if( ( flags & REISER4_NODE_PRINT_ITEMS ) &&
 		    ( iplug -> b.print ) ) {
+			indent_znode (node);
 			info ("\tlength %d\n", item_length_by_coord( &coord ) );
 			indent_znode (node); 
 			iplug -> b.print( "\titem", &coord );
@@ -154,17 +155,24 @@ void print_znode_content( const znode *node, __u32 flags )
 
 			data = item_body_by_coord( &coord );
 			length = item_length_by_coord( &coord );
-			indent_znode (node); 
+			indent_znode( node );
 			info( "\titem length: %i, offset: %i\n",
 			      length, data - zdata( node ) );
 			for( j = 0 ; j < length ; ++j ) {
 				char datum;
-
+				
 				if( ( j % 16 ) == 0 ) {
-					if( j > 0 )
+					/*
+					 * next 16 bytes
+					 */					
+					if( j == 0 ) {
+						indent_znode( node );
+						info( "\tdata % .2i: ", j );
+					} else {
 						info( "\n" );
-					indent_znode( node );
-					info( "\tdata % .2i: ", j );
+						indent_znode( node );
+						info( "\t     % .2i: ", j );
+					}
 				}
 				datum = data[ j ];
 				info( "%c", 
@@ -173,6 +181,7 @@ void print_znode_content( const znode *node, __u32 flags )
 			}
 			info( "\n" ); indent_znode (node);
 		}
+		info( "======================\n" );
 	}
 	info( "\n" );
 }

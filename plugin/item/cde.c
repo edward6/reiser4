@@ -401,6 +401,7 @@ void cde_print( const char *prefix, tree_coord *coord )
 			cde_unit_header *header;
 
 			header = header_at( coord, i );
+			indent_znode( coord -> node );
 			info( "\theader %i: ", i );
 			if( ( char * ) ( header + 1 ) > end ) {
 				info( "out of bounds: %p [%p, %p]\n", header,
@@ -418,6 +419,7 @@ void cde_print( const char *prefix, tree_coord *coord )
 			directory_entry_format *entry;
 
 			entry = entry_at( coord, i );
+			indent_znode( coord -> node );
 			info( "\tentry: %i: ", i );
 			if( ( ( char * ) ( entry + 1 ) > end ) || 
 			    ( ( char * ) entry < start ) ) {
