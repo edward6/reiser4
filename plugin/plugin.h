@@ -123,7 +123,7 @@ typedef struct file_plugin {
 	ssize_t ( *write )( struct file *file, char *buf, size_t size, 
 			 loff_t *off );
 
-	
+	int ( *release )( struct file *file );
 /*
  * private methods: These are optional.  If used they will allow you to
  * minimize the amount of code needed to implement a deviation from some other
