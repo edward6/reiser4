@@ -425,6 +425,7 @@ make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode, reiser4_b
 		break;
 
 	case APPEND_ITEM:
+		/* FIXME: item plugin should be initialized */
 		item_plugin_by_coord(&uf_coord->base_coord);
 		assert("vs-1316", coord_extension_is_ok(uf_coord));
 		result = append_one_block(uf_coord, key, block);
@@ -432,6 +433,7 @@ make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode, reiser4_b
 		break;
 
 	case OVERWRITE_ITEM:
+		/* FIXME: item plugin should be initialized */
 		item_plugin_by_coord(&uf_coord->base_coord);
 		assert("vs-1316", coord_extension_is_ok(uf_coord));
 		result = overwrite_one_block(uf_coord, key, block, created);
@@ -445,6 +447,10 @@ make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode, reiser4_b
 
 	ENABLE_NODE_CHECK;
 	ON_DEBUG(check_make_extent_result(result, mode, key, uf_coord->lh, *block));
+
+	write_current_logf(ALLOC_EXTENT_LOG,
+			   "mode %d: oid %llu, index %llu",
+			   mode, get_key_objectid(key), get_key_offset(key) >> current_blocksize_bits);
 	return result;
 }
 
