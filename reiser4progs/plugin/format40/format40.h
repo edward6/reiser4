@@ -33,7 +33,7 @@ struct reiserfs_format40_super {
     
     uint16_t sb_padd[3];
     char sb_unused[420];
-} __attribute__((__packed__));
+};
 
 typedef struct reiserfs_format40_super reiserfs_format40_super_t;
 

@@ -261,15 +261,15 @@ static error_t reiserfs_tree_sync_node(reiserfs_fs_t *fs, reiserfs_node_t *node)
 	    if (reiserfs_tree_sync_node(fs, (reiserfs_node_t *)walk->data))
 		return -1;
 	}
-	aal_list_free(node->children);
-	node->children = NULL;
+/*	aal_list_free(node->children);
+	node->children = NULL;*/
     }
     
     if (reiserfs_node_sync(node))
 	return -1;
     
-    if (reiserfs_node_get_level(node) > REISERFS_ROOT_LEVEL)
-	reiserfs_node_fini(node);
+/*    if (reiserfs_node_get_level(node) > REISERFS_ROOT_LEVEL)
+	reiserfs_node_fini(node);*/
 
     return 0;
 }

@@ -131,8 +131,8 @@ static reiserfs_format40_t *reiserfs_format40_init(aal_device_t *host_device,
     /* Initializing oid allocator on super block */
     reiserfs_check_method(oid_plugin->oid, init, goto error_free_journal);
     if (!(format->oid = oid_plugin->oid.init(
-	get_sb_oid((reiserfs_format40_super_t *)format->super), 
-	get_sb_file_count((reiserfs_format40_super_t *)format->super)))) 
+	get_sb_oid((reiserfs_format40_super_t *)format->super->data),
+	get_sb_file_count((reiserfs_format40_super_t *)format->super->data)))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't initialize oid allocator \"%s\".", oid_plugin->h.label);
@@ -262,8 +262,8 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
     
     reiserfs_check_method(oid_plugin->oid, init, goto error_free_journal);
     if (!(format->oid = oid_plugin->oid.init(
-	get_sb_oid((reiserfs_format40_super_t *)format->super), 
-	get_sb_file_count((reiserfs_format40_super_t *)format->super)))) 
+	get_sb_oid((reiserfs_format40_super_t *)format->super->data),
+	get_sb_file_count((reiserfs_format40_super_t *)format->super->data)))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't initialize oid allocator \"%s\".", oid_plugin->h.label);
@@ -333,10 +333,12 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
     }
     
     reiserfs_check_method(plugin->oid, next, return -1);
-    set_sb_oid((reiserfs_format40_super_t *)format->super, plugin->oid.next(format->oid));
+    set_sb_oid((reiserfs_format40_super_t *)format->super->data, 
+	plugin->oid.next(format->oid));
     
     reiserfs_check_method(plugin->oid, used, return -1);
-    set_sb_file_count((reiserfs_format40_super_t *)format->super, plugin->oid.used(format->oid));
+    set_sb_file_count((reiserfs_format40_super_t *)format->super->data, 
+	plugin->oid.used(format->oid));
     
     if (aal_device_write_block(format->device, format->super)) {
 	offset = aal_device_get_block_nr(format->device, format->super);
@@ -350,6 +352,7 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
 
 static error_t reiserfs_format40_check(reiserfs_format40_t *format) {
     aal_assert("umka-397", format != NULL, return -1);
+    
     return reiserfs_format40_super_check((reiserfs_format40_super_t *)format->super->data, 
 	format->device);
 }
