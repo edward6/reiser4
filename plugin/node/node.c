@@ -255,7 +255,8 @@ reiser4_plugin node_plugins[ LAST_NODE_ID ] = {
 #ifdef MODIFY_EXISTS
 			.modify           = NULL,
 #endif
-			.max_item_size    = node40_max_item_size
+			.max_item_size    = node40_max_item_size,
+			.prepare_removal  = node40_prepare_for_removal
 		}
 	},
 };

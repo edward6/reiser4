@@ -712,9 +712,7 @@ void zrelse( znode *node /* znode to release references to */ )
 	assert( "nikita-2233", atomic_read( &ZJNODE(node) -> d_count ) > 0 );
 	assert( "nikita-1381", znode_invariant( node ) );
 
-	UNDER_SPIN_VOID( znode, node, jrelse_nolock( ZJNODE(node) ) );
-
-	assert( "nikita-1382", znode_invariant( node ) );
+	jrelse( ZJNODE( node ) );
 }
 
 /** size of data in znode */
@@ -1007,7 +1005,10 @@ static int znode_invariant_f( const znode *node /* znode to check */,
 		       atomic_read( &node -> c_count ) == 0 ) &&
 		_ergo( node -> lock.nr_readers != 0,
 		       atomic_read( &ZJNODE(node) -> x_count ) != 0 ) &&
-		zergo( JNODE_ORPHAN, znode_parent( node ) == NULL );
+		zergo( JNODE_ORPHAN, znode_parent( node ) == NULL ) &&
+		( (*msg) = "x_count >= d_count", 
+		  atomic_read( &ZJNODE(node) -> x_count ) >=
+		  atomic_read( &ZJNODE(node) -> d_count ) );
 }
 
 /** debugging aid: check znode invariant and panic if it doesn't hold */

@@ -373,6 +373,7 @@ static inline void jrelse(jnode *node)
 	assert( "zam-508", atomic_read( &node -> d_count ) > 0 );
 
 	UNDER_SPIN_VOID (jnode, node, jrelse_nolock(node));
+	jput (node);
 }
 
 extern void pin_jnode_data (jnode*);

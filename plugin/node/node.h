@@ -247,6 +247,7 @@ typedef struct node_plugin {
 	 * number of bytes item in a node may be appended with
 	 */
 	int ( *max_item_size )( void );	
+	int ( *prepare_removal )( znode * empty, carry_plugin_info *info );
 } node_plugin;
 
 

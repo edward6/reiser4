@@ -251,8 +251,7 @@ int internal_kill_hook( const coord_t *item /* coord of item */,
 	else if( node_is_empty( child ) ) {
 		assert( "nikita-1397", znode_is_write_locked( child ) );
 		assert( "nikita-1398", atomic_read( &child -> c_count ) == 0 );
-		/* fare thee well */
-		ZF_SET( child, JNODE_HEARD_BANSHEE );
+		assert( "nikita-2546", ZF_ISSET( child, JNODE_HEARD_BANSHEE ) );
 		UNDER_SPIN_VOID( tree, current_tree,
 				 coord_init_zero( &child -> in_parent ) );
 		del_c_ref( item -> node );
@@ -264,12 +263,12 @@ int internal_kill_hook( const coord_t *item /* coord of item */,
 		zput( child );
 		return 0;
 	} else {
-		warning( "nikita-1223", 
-			 "Cowardly refuse to remove link to non-empty node" );
-		print_znode( "parent", item -> node );
-		print_znode( "child", child );
-		zput( child );
-		return -EIO;
+  		warning( "nikita-1223",  
+  			 "Cowardly refuse to remove link to non-empty node" ); 
+  		print_znode( "parent", item -> node ); 
+  		print_znode( "child", child ); 
+  		zput( child ); 
+  		return -EIO; 
 	}
 }
 

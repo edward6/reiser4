@@ -377,11 +377,15 @@ static void init_bnode (struct bnode * bnode, struct super_block * super, bmap_n
 static void invalidate_jnode(jnode * node)
 {
 	if (node) {
+		int relsed = 0;
 		spin_lock_jnode (node);
 		if (JF_ISSET(node, JNODE_LOADED)) {
 			jrelse_nolock(node);
+			relsed = 1;
 		}
 		spin_unlock_jnode(node);
+		if (relsed)
+			jput(node);
 		jdrop(node);
 	}
 }

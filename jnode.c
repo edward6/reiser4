@@ -611,6 +611,7 @@ int jload( jnode *node )
 
 	result = 0;
 	reiser4_stat_znode_add( zload );
+	jref( node );
 	add_d_ref( node );
 	if( !jnode_is_loaded( node ) ) {
 		jnode_plugin *jplug;
@@ -722,6 +723,7 @@ int jinit_new( jnode *node /* jnode to initialise */ )
 
 	assert( "nikita-1234", node != NULL );
 
+	jref( node );
 	add_d_ref( node );
 	jplug = jnode_ops( node );
 	page = grab_cache_page( jplug -> mapping( node ), 

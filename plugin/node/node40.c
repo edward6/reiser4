@@ -21,7 +21,6 @@
 const __u32 reiser4_node_magic = 0x52344653; /* (*(__u32 *)"R4FS"); */
 
 static int prepare_for_update (znode * left, znode * right, carry_plugin_info *info);
-static int prepare_for_removal (znode * empty, carry_plugin_info *info);
 
 
 /* header of node of reiser40 format is at the beginning of node */
@@ -1202,7 +1201,7 @@ static int cut_or_kill (coord_t * from, coord_t * to,
 		   of changes on upper levels */
 		if (node_is_empty (node) && !(flags & DELETE_RETAIN_EMPTY))
 			/* all contents of node is deleted */
-			prepare_for_removal (node, info);
+			node40_prepare_for_removal (node, info);
 		else if (!keyeq (&node40_ih_at (node, 0)->key,
 				 &old_first_key)) {
 			/* first key changed */
@@ -1839,17 +1838,22 @@ static int prepare_for_update (znode * left, znode * right, carry_plugin_info *i
 /* to delete a pointer to @empty from the tree add corresponding carry
    operation (delete) to @info list */
 /* Audited by: green(2002.06.13) */
-static int prepare_for_removal (znode * empty, carry_plugin_info *info)
+int node40_prepare_for_removal (znode * empty, carry_plugin_info *info)
 {
 	carry_op * op;
 
 	if (!should_notify_parent (empty))
+		return 0;
+	/* already on a road to Styx */
+	if (ZF_ISSET (empty, JNODE_HEARD_BANSHEE))
 		return 0;
 	op = node_post_carry (info, COP_DELETE, empty, 1);
 	if (IS_ERR (op) || op == NULL)
 		return op ? PTR_ERR (op) : -EIO;
 
 	op->u.delete.child = 0;
+	/* fare thee well */
+	ZF_SET (empty, JNODE_HEARD_BANSHEE);
 	return 0;
 }
 
@@ -2156,7 +2160,7 @@ int node40_shift (coord_t * from, znode * to,
 		/* all contents of @from->node is moved to @to and @from->node
 		   has to be removed from the tree, so, on higher level we
 		   will be removing the pointer to node @from->node */
-		result = prepare_for_removal (source, info);
+		result = node40_prepare_for_removal (source, info);
 	}
 
 #ifdef DEBUGGING_SHIFT

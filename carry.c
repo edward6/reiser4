@@ -421,8 +421,29 @@ static int carry_on_level( carry_level *doing /* queue of carry operations to
 			 * is fatal and will be handled by fatal_carry_error()
 			 * sledgehammer.
 			 */
-			if( result )
+			if( result != 0 )
 				break;
+		}
+	}
+	if( result == 0 ) {
+		carry_plugin_info info;
+		carry_node *scan;
+		carry_node *tmp_scan;
+
+		info.doing = doing;
+		info.todo  = todo;
+
+		for_all_nodes( doing, scan, tmp_scan ) {
+			znode *node;
+
+			node = scan -> real_node;
+			assert( "nikita-2547", node != NULL );
+			if( node_is_empty( node ) ) {
+				result = node_plugin_by_node( node ) ->
+					prepare_removal( node, &info );
+				if( result != 0 )
+					break;
+			}
 		}
 	}
 	return result;
