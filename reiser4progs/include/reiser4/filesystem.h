@@ -36,6 +36,8 @@ typedef struct reiserfs_master reiserfs_master_t;
 #define get_mr_block_size(mr)		get_le16(mr, mr_blocksize)
 #define set_mr_block_size(mr, val)	set_le16(mr, mr_blocksize, val)
 
+typedef struct reiserfs_fs reiserfs_fs_t;
+
 /* 
     Profile structure. It describes what plugins will be used
     for every corresponding filesystem part.
@@ -112,6 +114,7 @@ typedef struct reiserfs_tree reiserfs_tree_t;
 
 struct reiserfs_object {
     reiserfs_key_t key;
+    reiserfs_fs_t *fs;
 };
 
 typedef struct reiserfs_object reiserfs_object_t;
@@ -177,8 +180,6 @@ struct reiserfs_fs {
     reiserfs_oid_t *oid;
     reiserfs_tree_t *tree;
 };
-
-typedef struct reiserfs_fs reiserfs_fs_t;
 
 /* Public functions */
 extern reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, 
