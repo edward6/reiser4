@@ -40,12 +40,12 @@ TS_LIST_DECLARE(owners);
    list is attached to. Hence, no locking is necessary.
 */
 TS_LIST_DECLARE(locks);
-  
+
 /**
  * Per-znode lock object
  */
 struct zlock {
-        /**
+	/**
 	 * The number of readers if positive; the number of recursively taken
 	 * write locks if negative */
 	/*  0 */ int nr_readers;
@@ -137,7 +137,7 @@ struct znode {
 	 * Also, parent pointer is stored here.  The parent pointer
 	 * stored here is NOT a hint, only the position is.
 	 */
-	/*  56 */ coord_t            in_parent;
+	/*  56 */ coord_t in_parent;
 
 	/*  76 */ znode *left;
 	/*  80 */ znode *right;
@@ -160,16 +160,16 @@ struct znode {
 	 * because we don't want to take and release spinlock for each
 	 * reference addition/drop.
 	 */
-	/* 112 */ atomic_t               c_count;
+	/* 112 */ atomic_t c_count;
 
 	/** 
 	 * plugin of node attached to this znode. NULL if znode is not
 	 * loaded. 
 	 */
-	/* 116 */ node_plugin           *nplug;
+	/* 116 */ node_plugin *nplug;
 
 	/** version of znode data. This is increased on each modification. */
-	/* 120 */ __u64                  version;
+	/* 120 */ __u64 version;
 
 	/** 
 	 * size of node referenced by this znode. This is not necessary
@@ -179,28 +179,28 @@ struct znode {
 	 * left delimiting key. Necessary to efficiently perform
 	 * balancing with node-level locking. Kept in memory only.
 	 */
-	/* 128 */ reiser4_key            ld_key;
+	/* 128 */ reiser4_key ld_key;
 	/**
 	 * right delimiting key.
 	 */
-	/* 152 */ reiser4_key            rd_key;
+	/* 152 */ reiser4_key rd_key;
 
 	/* znode's tree level */
 	/* 176 */ __u16 level;
 	/* 178 */ __u16 nr_items;
-	/* 180 */ /* gap --- 4 bytes */
+/* 180 *//* gap --- 4 bytes */
 	/* 184 */
 	/* removed for now. We only support blocksize == PAGE_CACHE_SIZE
 	   unsigned      size;
-	*/
+	 */
 #if REISER4_DEBUG_MODIFY
 	/**
 	 * In debugging mode, used to detect loss of znode_set_dirty()
 	 * notification.
 	 */
-	__u32                  cksum; 
-	spinlock_t             cksum_guard;
-#endif 
+	__u32 cksum;
+	spinlock_t cksum_guard;
+#endif
 };
 
 /* In general I think these macros should not be exposed. */
@@ -325,125 +325,129 @@ TS_LIST_DEFINE(locks, lock_handle, locks_link);
  * User-visible znode locking functions
 \*****************************************************************************/
 
-extern int longterm_lock_znode     (lock_handle *handle,
-				   znode               *node,
-				   znode_lock_mode      mode,
-				   znode_lock_request   request);
-extern void longterm_unlock_znode  (lock_handle *handle);
+extern int longterm_lock_znode(lock_handle * handle,
+			       znode * node,
+			       znode_lock_mode mode,
+			       znode_lock_request request);
+extern void longterm_unlock_znode(lock_handle * handle);
 
-extern int check_deadlock ( void );
+extern int check_deadlock(void);
 
-extern lock_stack *get_current_lock_stack (void);
+extern lock_stack *get_current_lock_stack(void);
 
-extern void init_lock_stack (lock_stack * owner);
-extern void reiser4_init_lock (zlock * lock);
+extern void init_lock_stack(lock_stack * owner);
+extern void reiser4_init_lock(zlock * lock);
 
-extern void init_lh (lock_handle*);
-extern void move_lh (lock_handle *new, lock_handle *old);
-extern void copy_lh (lock_handle *new, lock_handle *old);
-extern void done_lh (lock_handle*);
-extern znode_lock_mode lock_mode (lock_handle*);
+extern void init_lh(lock_handle *);
+extern void move_lh(lock_handle * new, lock_handle * old);
+extern void copy_lh(lock_handle * new, lock_handle * old);
+extern void done_lh(lock_handle *);
+extern znode_lock_mode lock_mode(lock_handle *);
 
-extern int  prepare_to_sleep (lock_stack *owner);
-extern int  go_to_sleep      (lock_stack *owner);
-extern void __reiser4_wake_up          (lock_stack *owner);
+extern int prepare_to_sleep(lock_stack * owner);
+extern int go_to_sleep(lock_stack * owner);
+extern void __reiser4_wake_up(lock_stack * owner);
 
-extern int  lock_stack_isclean (lock_stack *owner);
+extern int lock_stack_isclean(lock_stack * owner);
 
 /* zlock object state check macros: only used in assertions.  Both forms imply that the
  * lock is held by the current thread. */
 #if REISER4_DEBUG
-extern int znode_is_write_locked( const znode *node );
+extern int znode_is_write_locked(const znode * node);
 #endif
 
 /* lock ordering is: first take znode spin lock, then lock stack spin lock */
 #define spin_ordering_pred_stack(stack) (1)
 /** Same for lock_stack */
-SPIN_LOCK_FUNCTIONS(stack,lock_stack,sguard);
+SPIN_LOCK_FUNCTIONS(stack, lock_stack, sguard);
 
-static inline void reiser4_wake_up (lock_stack *owner)
+static inline void
+reiser4_wake_up(lock_stack * owner)
 {
 	spin_lock_stack(owner);
 	__reiser4_wake_up(owner);
 	spin_unlock_stack(owner);
 }
 
-extern void add_x_ref( jnode *node );
-extern void del_c_ref( znode *node );
+extern void add_x_ref(jnode *node);
+extern void del_c_ref(znode *node);
 
-extern znode *zget( reiser4_tree *tree, const reiser4_block_nr *const block,
-		    znode *parent, tree_level level, int gfp_flag );
-extern znode *zlook( reiser4_tree *tree, const reiser4_block_nr *const block );
-extern int zload( znode *node );
-extern int zinit_new( znode *node );
-extern void zrelse( znode *node );
-extern void znode_change_parent( znode *new_parent, reiser4_block_nr *block );
+extern znode *zget(reiser4_tree *tree, const reiser4_block_nr *const block,
+		    znode *parent, tree_level level, int gfp_flag);
+extern znode *zlook(reiser4_tree *tree, const reiser4_block_nr *const block);
+extern int zload(znode *node);
+extern int zinit_new(znode *node);
+extern void zrelse(znode *node);
+extern void znode_change_parent(znode *new_parent, reiser4_block_nr *block);
 
 /** size of data in znode */
 static inline unsigned
-znode_size(const znode * node UNUSED_ARG /* znode to query */ )
+znode_size(const znode * node UNUSED_ARG /* znode to query */)
 {
 	assert("nikita-1416", node != NULL);
 	return PAGE_CACHE_SIZE;
 }
 
 
-extern unsigned znode_free_space( znode *node );
-extern int znode_is_loaded( const znode *node );
-extern int znode_is_loaded_nolock( const znode *node );
+extern unsigned znode_free_space(znode *node);
+extern int znode_is_loaded(const znode *node);
+extern int znode_is_loaded_nolock(const znode *node);
 
-extern reiser4_key *znode_get_rd_key( znode *node );
-extern reiser4_key *znode_get_ld_key( znode *node );
+extern reiser4_key *znode_get_rd_key(znode *node);
+extern reiser4_key *znode_get_ld_key(znode *node);
 
 /** `connected' state checks */
-static inline int znode_is_right_connected (const znode * node)
+static inline int
+znode_is_right_connected(const znode * node)
 {
-	return ZF_ISSET (node, JNODE_RIGHT_CONNECTED);
+	return ZF_ISSET(node, JNODE_RIGHT_CONNECTED);
 }
 
-static inline int znode_is_left_connected (const znode * node)
+static inline int
+znode_is_left_connected(const znode * node)
 {
-	return ZF_ISSET (node, JNODE_LEFT_CONNECTED);
+	return ZF_ISSET(node, JNODE_LEFT_CONNECTED);
 }
 
-static inline int znode_is_connected (const znode * node)
+static inline int
+znode_is_connected(const znode * node)
 {
-	return znode_is_right_connected (node) && znode_is_left_connected (node);
+	return znode_is_right_connected(node) && znode_is_left_connected(node);
 }
 
-extern int znode_rehash( znode *node, const reiser4_block_nr *new_block_nr );
-extern znode *znode_parent( const znode *node );
-extern znode *znode_parent_nolock( const znode *node );
-extern int znode_above_root (const znode *node);
-extern int znode_is_true_root( const znode *node );
-extern void zdrop( znode *node );
-extern int  znodes_init( void );
-extern int  znodes_done( void );
-extern int  znodes_tree_init( reiser4_tree *ztree );
-extern void znodes_tree_done( reiser4_tree *ztree );
-extern int znode_contains_key( znode *node, const reiser4_key *key );
-extern int znode_contains_key_lock( znode *node, const reiser4_key *key );
-extern int znode_invariant( const znode *node );
-extern unsigned znode_save_free_space( znode *node );
-extern unsigned znode_recover_free_space( znode *node );
+extern int znode_rehash(znode * node, const reiser4_block_nr * new_block_nr);
+extern znode *znode_parent(const znode * node);
+extern znode *znode_parent_nolock(const znode * node);
+extern int znode_above_root(const znode * node);
+extern int znode_is_true_root(const znode * node);
+extern void zdrop(znode * node);
+extern int znodes_init(void);
+extern int znodes_done(void);
+extern int znodes_tree_init(reiser4_tree * ztree);
+extern void znodes_tree_done(reiser4_tree * ztree);
+extern int znode_contains_key(znode * node, const reiser4_key * key);
+extern int znode_contains_key_lock(znode * node, const reiser4_key * key);
+extern int znode_invariant(const znode * node);
+extern unsigned znode_save_free_space(znode * node);
+extern unsigned znode_recover_free_space(znode * node);
 
-extern int znode_just_created( const znode *node );
+extern int znode_just_created(const znode * node);
 
-extern void zfree( znode *node );
+extern void zfree(znode * node);
 
 #if REISER4_DEBUG_MODIFY
-extern __u32 znode_checksum( const znode *node );
-extern int znode_pre_write( znode *node );
-extern int znode_post_write( const znode *node );
+extern __u32 znode_checksum(const znode * node);
+extern int znode_pre_write(znode * node);
+extern int znode_post_write(const znode * node);
 #endif
 
-const char *lock_mode_name( znode_lock_mode lock );
+const char *lock_mode_name(znode_lock_mode lock);
 
 #if REISER4_DEBUG_OUTPUT
-extern void print_znode( const char *prefix, const znode *node );
-extern void info_znode( const char *prefix, const znode *node );
-extern void print_znodes( const char *prefix, reiser4_tree *tree );
-extern void print_lock_stack( const char *prefix, lock_stack  *owner);
+extern void print_znode(const char *prefix, const znode * node);
+extern void info_znode(const char *prefix, const znode * node);
+extern void print_znodes(const char *prefix, reiser4_tree * tree);
+extern void print_lock_stack(const char *prefix, lock_stack * owner);
 #else
 #define print_znode( p, n ) noop
 #define info_znode( p, n ) noop
@@ -472,42 +476,46 @@ extern void print_lock_stack( const char *prefix, lock_stack  *owner);
 #define spin_znode_is_not_locked(x) spin_jnode_is_not_locked ( ZJNODE(x) )
 
 #if REISER4_DEBUG
-extern int znode_x_count_is_protected (const znode *node);
+extern int znode_x_count_is_protected(const znode * node);
 #endif
 
-static inline znode* zref (znode *node)
+static inline znode *
+zref(znode * node)
 {
 	/*
 	 * change of x_count from 0 to 1 is protected by tree spin-lock
 	 */
-	assert ("nikita-2517", znode_x_count_is_protected (node));
-	return JZNODE (jref (ZJNODE (node)));
+	assert("nikita-2517", znode_x_count_is_protected(node));
+	return JZNODE(jref(ZJNODE(node)));
 }
 
-static inline void zput (znode *node)
+static inline void
+zput(znode * node)
 {
-	jput (ZJNODE (node));
+	jput(ZJNODE(node));
 }
 
 /** get the level field for a znode */
-static inline tree_level znode_get_level (const znode *node)
+static inline tree_level
+znode_get_level(const znode * node)
 {
 	return node->level;
 }
 
 /** set the level field for a znode */
-static inline void znode_set_level (znode      *node,
-				    tree_level  level)
+static inline void
+znode_set_level(znode * node, tree_level level)
 {
-	assert ("jmacd-1161", level < REISER4_MAX_ZTREE_HEIGHT);
+	assert("jmacd-1161", level < REISER4_MAX_ZTREE_HEIGHT);
 	node->level = level;
 }
 
 /** get the level field for a jnode */
-static inline tree_level jnode_get_level (const jnode *node)
+static inline tree_level
+jnode_get_level(const jnode * node)
 {
-	if (jnode_is_znode (node))
-		return znode_get_level (JZNODE (node));
+	if (jnode_is_znode(node))
+		return znode_get_level(JZNODE(node));
 	else
 		/*
 		 * unformatted nodes are all at the LEAF_LEVEL and for
@@ -516,10 +524,11 @@ static inline tree_level jnode_get_level (const jnode *node)
 		return LEAF_LEVEL;
 }
 
-static inline reiser4_tree *znode_get_tree(const znode *node)
+static inline reiser4_tree *
+znode_get_tree(const znode * node)
 {
-	assert ("nikita-2692", node != NULL);
-	return jnode_get_tree (ZJNODE (node));
+	assert("nikita-2692", node != NULL);
+	return jnode_get_tree(ZJNODE(node));
 }
 
 /* Data-handles.  A data handle object manages pairing calls to zload() and zrelse().  We
@@ -532,18 +541,18 @@ static inline reiser4_tree *znode_get_tree(const znode *node)
  */
 typedef struct load_count {
 	znode *node;
-	int    d_ref;
+	int d_ref;
 } load_count;
 
-extern void init_load_count( load_count *lc );                     /* Initialize a load_count set the current node to NULL. */
-extern void done_load_count( load_count *dh );                     /* Finalize a load_count: call zrelse() if necessary */
-extern int  incr_load_count( load_count *dh );                     /* Call zload() on the current node. */
-extern int  incr_load_count_znode( load_count *dh, znode *node );  /* Set the argument znode to the current node, call zload(). */
-extern int  incr_load_count_jnode( load_count *dh, jnode *node );  /* If the argument jnode is formatted, do the same as
-							     * incr_load_count_znode, otherwise do nothing (unformatted nodes
-							     * don't require zload/zrelse treatment). */
-extern void move_load_count( load_count *new, load_count *old );  /* Move the contents of a load_count.  Old handle is released. */
-extern void copy_load_count( load_count *new, load_count *old );  /* Copy the contents of a load_count.  Old handle remains held. */
+extern void init_load_count(load_count * lc);	/* Initialize a load_count set the current node to NULL. */
+extern void done_load_count(load_count * dh);	/* Finalize a load_count: call zrelse() if necessary */
+extern int incr_load_count(load_count * dh);	/* Call zload() on the current node. */
+extern int incr_load_count_znode(load_count * dh, znode * node);	/* Set the argument znode to the current node, call zload(). */
+extern int incr_load_count_jnode(load_count * dh, jnode * node);	/* If the argument jnode is formatted, do the same as
+									   * incr_load_count_znode, otherwise do nothing (unformatted nodes
+									   * don't require zload/zrelse treatment). */
+extern void move_load_count(load_count * new, load_count * old);	/* Move the contents of a load_count.  Old handle is released. */
+extern void copy_load_count(load_count * new, load_count * old);	/* Copy the contents of a load_count.  Old handle remains held. */
 
 /* Variable initializers for load_count. */
 #define INIT_LOAD_COUNT ( load_count * ){ .node = NULL, .d_ref = 0 }
@@ -603,7 +612,7 @@ ON_DEBUG_CONTEXT(						\
 
 #if REISER4_DEBUG
 extern void check_lock_data(void);
-extern void check_lock_node_data( znode *node );
+extern void check_lock_node_data(znode * node);
 #else
 #define check_lock_data() noop
 #define check_lock_node_data() noop
