@@ -10,6 +10,7 @@ endif
 
 reiser4-objs := \
                    crypt.o \
+		   compress.o\
 		   debug.o \
 		   jnode.o \
 		   znode.o \
