@@ -1275,6 +1275,7 @@ static level_lookup_result search_to_left( cbk_handle *h )
 	level_lookup_result result;
 	tree_coord         *coord;
 	znode              *node;
+	znode              *neighbor;
 
 	reiser4_lock_handle lh;
 
@@ -1289,12 +1290,12 @@ static level_lookup_result search_to_left( cbk_handle *h )
 	reiser4_stat_tree_add( check_left_nonuniq );
 	h -> result = reiser4_get_left_neighbor( &lh, node, 
 						 ( int ) h -> lock_mode, 0 );
+	neighbor = NULL;
 	switch( h -> result ) {
 	case -EDEADLK:
 		result = LLR_REST;
 		break;
 	case 0: {
-		znode               *neighbor;
 		node_plugin         *nplug;
 		tree_coord           crd;
 		lookup_bias          bias;
@@ -1334,7 +1335,8 @@ static level_lookup_result search_to_left( cbk_handle *h )
 		} else {
 			result = LLR_DONE;
 		}
-		zrelse( neighbor, 1 );
+		if( neighbor != NULL )
+			zrelse( neighbor, 1 );
 	}
 	}
 	reiser4_done_lh( &lh );
