@@ -170,6 +170,10 @@ typedef enum {
 	SHIFT_PREPEND = -1
 } shift_direction;
 
+typedef enum {
+	LEFT_SIDE,
+	RIGHT_SIDE
+} sideof;
 
 #define round_up( value, order )						\
 	( ( typeof( value ) )( ( ( long ) ( value ) + ( order ) - 1U ) &	\
