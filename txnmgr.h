@@ -363,7 +363,7 @@ atom_get_locked_with_txnh_locked(txn_handle * txnh)
 	return atom;
 }
 
-extern txn_atom *atom_get_locked_by_jnode(jnode *);
+extern txn_atom *atom_locked_by_jnode(jnode *);
 
 extern void atom_wait_event(txn_atom *);
 extern void atom_send_event(txn_atom *);

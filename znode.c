@@ -837,7 +837,7 @@ znode_io_hook(jnode * node, struct page *page UNUSED_ARG, int rw)
 		   not being committed but just flushed at out-of-memory
 		   situation. */
 		spin_lock_jnode(node);
-		atom = atom_get_locked_by_jnode(node);
+		atom = atom_locked_by_jnode(node);
 		/* formatted nodes cannot be written without assigning an atom
 		   to them */
 		assert("zam-674", atom != NULL);

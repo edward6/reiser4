@@ -2322,7 +2322,7 @@ try_to_lock:
 					txn_atom *atom;
 					int nr_io_errors;
 
-					atom = atom_get_locked_by_jnode(node);
+					atom = atom_locked_by_jnode(node);
 					spin_unlock_jnode(node);
 
 					assert("zam-x1070", atom != NULL);
