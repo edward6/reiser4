@@ -276,6 +276,7 @@ static reiser4_plugin_t format36_plugin = {
 	},
 	.open		= format36_open,
 	.valid		= format36_valid,
+	.device		= NULL,
 #ifndef ENABLE_COMPACT
 	.check		= NULL,
 	.sync		= format36_sync,

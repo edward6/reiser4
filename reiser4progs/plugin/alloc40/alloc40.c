@@ -14,16 +14,25 @@ extern reiser4_plugin_t alloc40_plugin;
 
 static reiser4_core_t *core = NULL;
 
-static errno_t callback_fetch_bitmap(aal_device_t *device, 
-    blk_t blk, void *data) 
+static errno_t callback_fetch_bitmap(reiser4_entity_t *format, 
+    blk_t blk, void *data)
 {
     uint32_t chunk;
     aal_block_t *block;
-    char *current, *start; 
+    aal_device_t *device;
+    char *current, *start;
     alloc40_t *alloc = (alloc40_t *)data;
     
-    aal_assert("umka-1052", device != NULL, return -1);
     aal_assert("umka-1053", alloc != NULL, return -1);
+    
+    device = plugin_call(return -1, format->plugin->format_ops, 
+	device, format);
+    
+    if (!device) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid device has been detected.");
+	return -1;
+    }
     
     if (!(block = aal_block_open(device, blk))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -33,8 +42,7 @@ static errno_t callback_fetch_bitmap(aal_device_t *device,
 
     start = alloc->bitmap->map;
     
-    current = start + (aal_block_size(block) * 
-	(blk / aal_block_size(block) / 8));
+    current = start + (aal_block_size(block) * (blk / aal_block_size(block) / 8));
     
     chunk = (start + alloc->bitmap->size - current < (int)aal_block_size(block) ? 
 	start + alloc->bitmap->size - current : aal_block_size(block));
@@ -50,7 +58,7 @@ error_free_block:
 }
 
 static reiser4_entity_t *alloc40_open(reiser4_entity_t *format,
-    count_t len) 
+    count_t len)
 {
     alloc40_t *alloc;
     reiser4_layout_func_t layout;
@@ -128,16 +136,25 @@ error:
     return NULL;
 }
 
-static errno_t callback_flush_bitmap(aal_device_t *device, 
+static errno_t callback_flush_bitmap(reiser4_entity_t *format, 
     blk_t blk, void *data)
 {
     uint32_t chunk;
     aal_block_t *block;
+    aal_device_t *device;
     char *current, *start; 
     alloc40_t *alloc = (alloc40_t *)data;
     
-    aal_assert("umka-1054", device != NULL, return -1);
     aal_assert("umka-1055", alloc != NULL, return -1);
+    
+    device = plugin_call(return -1, format->plugin->format_ops, 
+	device, format);
+    
+    if (!device) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid device has been detected.");
+	return -1;
+    }
     
     if (!(block = aal_block_create(device, blk, 0xff))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 

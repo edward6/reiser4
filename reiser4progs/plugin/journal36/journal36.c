@@ -55,7 +55,8 @@ static reiser4_plugin_t journal36_plugin = {
 	.close	= journal36_close,
 	.sync	= journal36_sync,
 	.replay = journal36_replay,
-	.valid	= NULL
+	.valid	= NULL,
+	.device = NULL
     }
 };
 

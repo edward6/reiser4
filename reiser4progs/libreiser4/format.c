@@ -126,8 +126,8 @@ errno_t reiser4_format_valid(
 }
 
 /* This function is used as callback for marking format blocks used */
-errno_t callback_action_mark(
-    aal_device_t *device,	/* device for operating on */ 
+static errno_t callback_action_mark(
+    reiser4_entity_t *entity,	/* device for operating on */ 
     blk_t blk,			/* block number to be marked */
     void *data			/* pointer to block allocator */
 ) {

@@ -24,10 +24,20 @@ static errno_t journal40_fcheck(journal40_footer_t *footer) {
     return 0;
 }
 
-static errno_t callback_fetch_journal(aal_device_t *device, 
+static errno_t callback_fetch_journal(reiser4_entity_t *format, 
     blk_t blk, void *data)
 {
+    aal_device_t *device;
     journal40_t *journal = (journal40_t *)data;
+
+    device = plugin_call(return -1, format->plugin->format_ops, 
+	device, format);
+    
+    if (!device) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid device has been detected.");
+	return -1;
+    }
 
     if (!journal->header) {
 	if (!(journal->header = aal_block_open(device, blk))) {
@@ -46,6 +56,10 @@ static errno_t callback_fetch_journal(aal_device_t *device,
     }
     
     return 0;
+}
+
+static aal_device_t *journal40_device(reiser4_entity_t *entity) {
+    return ((journal40_t *)entity)->device;
 }
 
 static reiser4_entity_t *journal40_open(reiser4_entity_t *format) {
@@ -97,11 +111,21 @@ static errno_t journal40_valid(reiser4_entity_t *entity) {
 
 #ifndef ENABLE_COMPACT
 
-static errno_t callback_alloc_journal(aal_device_t *device, 
+static errno_t callback_alloc_journal(reiser4_entity_t *format,
     blk_t blk, void *data)
 {
+    aal_device_t *device;
     journal40_t *journal = (journal40_t *)data;
 
+    device = plugin_call(return -1, format->plugin->format_ops, 
+	device, format);
+    
+    if (!device) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid device has been detected.");
+	return -1;
+    }
+    
     if (!journal->header) {
 	if (!(journal->header = aal_block_create(device, blk, 0))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -156,11 +180,21 @@ error:
     return NULL;
 }
 
-static errno_t callback_flush_journal(aal_device_t *device, 
+static errno_t callback_flush_journal(reiser4_entity_t *format,
     blk_t blk, void *data)
 {
+    aal_device_t *device;
     journal40_t *journal = (journal40_t *)data;
 
+    device = plugin_call(return -1, format->plugin->format_ops, 
+	device, format);
+    
+    if (!device) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid device has been detected.");
+	return -1;
+    }
+    
     if (blk == aal_block_number(journal->header)) {
 	if (aal_block_sync(journal->header)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -238,6 +272,7 @@ static reiser4_plugin_t journal40_plugin = {
 	.valid	= journal40_valid,
 	.close	= journal40_close,
 	.replay = journal40_replay,
+	.device = journal40_device
     }
 };
 
