@@ -13,7 +13,6 @@
  * This code implements the design documented at:
  *
  *   http://namesys.com/txn-doc.html
- *
  */
 
 #include "reiser4.h"

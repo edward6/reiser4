@@ -77,7 +77,7 @@ typedef enum
 typedef enum
 {
 	TXN_WRITE_FUSING  = (1 << 0),
-	TXN_READ_FUSING   = (1 << 1) | TXN_WRITE_FUSING, /* READ fusing implies WRITE fusing */
+	TXN_READ_FUSING   = (1 << 1) | TXN_WRITE_FUSING, /* READ implies WRITE */
 } txn_mode;
 
 /* Every atom has a stage, which is one of these exclusive values: */

@@ -26,7 +26,6 @@ Optimizations to make on flush:
 * wandering log definition
 
 
-
 Memory Pressure:
 
 There are kinds of memory pressure:

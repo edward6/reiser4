@@ -536,7 +536,7 @@ extern void   jput( jnode *node );
 /** get the level field for a jnode */
 static inline tree_level jnode_get_level (const jnode *node)
 {
-	return node -> level;
+	return node->level;
 }
 
 /** set the level field for a jnode */
@@ -544,7 +544,7 @@ static inline void jnode_set_level (jnode      *node,
 				    tree_level  level)
 {
 	assert ("jmacd-1161", level < 32);
-	node -> level = level;
+	node->level = level;
 }
 
 /** return true if "node" is dirty */
