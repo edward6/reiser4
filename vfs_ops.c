@@ -195,6 +195,9 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to look fo
 	} else
 		result = ERR_PTR(-ENOTDIR);
 
+	/* prevent balance_dirty_pages() from being called: we don't want to
+	 * do this under directory i_sem. */
+	__context.nr_marked_dirty = 0;
 	REISER4_EXIT_PTR(result);
 }
 
@@ -348,7 +351,10 @@ reiser4_setattr(struct dentry *dentry, struct iattr *attr)
 		} else
 			result = -EAGAIN;
 	}
-	REISER4_EXIT(result);
+	up(&inode->i_sem);
+	reiser4_exit_context(&__context);
+	down(&inode->i_sem);
+	return result;
 }
 
 /* ->getattr() inode operation called (indirectly) by sys_stat(). */
@@ -860,7 +866,12 @@ reiser4_link(struct dentry *existing	/* dentry of existing
 	} else {
 		result = -EPERM;
 	}
-	REISER4_EXIT(result);
+	up(&existing->d_inode->i_sem);
+	up(&parent->i_sem);
+	reiser4_exit_context(&__context);
+	down(&parent->i_sem);
+	down(&existing->d_inode->i_sem);
+	return result;
 }
 
 static loff_t
@@ -931,8 +942,10 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 
 	UPDATE_ATIME(inode);
 	write_syscall_trace("ex");
-	REISER4_EXIT(result);
-
+	up(&inode->i_sem);
+	reiser4_exit_context(&__context);
+	down(&inode->i_sem);
+	return result;
 }
 
 /* reiser4_ioctl - handler for ioctl for inode supported commands:
@@ -1005,7 +1018,12 @@ unlink_file(struct inode *parent /* parent directory */ ,
 	   then marked so that iput() wouldn't try to remove stat data. But
 	   inode itself is still there.
 	*/
-	REISER4_EXIT(result);
+	up(&victim->d_inode->i_sem);
+	up(&parent->i_sem);
+	reiser4_exit_context(&__context);
+	down(&parent->i_sem);
+	down(&victim->d_inode->i_sem);
+	return result;
 }
 
 /* ->unlink() VFS method in reiser4 inode_operations
@@ -1204,7 +1222,11 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 		result = -EPERM;
 
 	write_syscall_trace("ex");
-	REISER4_EXIT(result);
+
+	up(&parent->i_sem);
+	reiser4_exit_context(&__context);
+	down(&parent->i_sem);
+	return result;
 }
 
 /* initial prefix of names of pseudo-files like ..plugin, ..acl,
@@ -1327,8 +1349,13 @@ static int
 reiser4_fsync(struct file *file UNUSED_ARG, 
 	      struct dentry *dentry, int datasync UNUSED_ARG)
 {
+	int result;
 	REISER4_ENTRY(dentry->d_inode->i_sb);
-	REISER4_EXIT(txnmgr_force_commit_all(dentry->d_inode->i_sb));
+	result = txnmgr_force_commit_all(dentry->d_inode->i_sb);
+	up(&dentry->d_inode->i_sem);
+	reiser4_exit_context(&__context);
+	down(&dentry->d_inode->i_sem);
+	return result;
 }
 
 /* our ->read_inode() is no-op. Reiser4 inodes should be loaded
@@ -2455,6 +2482,7 @@ reiser4_get_sb(struct file_system_type *fs_type	/* file
 
 /* ->invalidatepage method for reiser4 */
 int
+
 reiser4_invalidatepage(struct page *page, unsigned long offset)
 {
 	int ret = 0;
