@@ -784,11 +784,12 @@ find_child_delimiting_keys(znode * parent	/* parent znode, passed
 		/* imitate item ->lookup() behavior. */
 		neighbor.between = AFTER_UNIT;
 
-	if (coord_is_existing_unit(&neighbor) ||
-	    coord_set_to_left(&neighbor) == 0)
+	if (coord_set_to_left(&neighbor) == 0)
 		unit_key_by_coord(&neighbor, ld);
-	else
+	else {
+		assert("nikita-14851", 0);
 		*ld = *znode_get_ld_key(parent);
+	}
 
 	coord_dup(&neighbor, parent_coord);
 	if (neighbor.between == AT_UNIT)
@@ -813,27 +814,25 @@ set_child_delimiting_keys(znode * parent,
 			  const coord_t * coord, znode * child)
 {
 	reiser4_tree *tree;
-	int result;
 
 	assert("nikita-2952",
 	       znode_get_level(parent) == znode_get_level(coord->node));
 
-	tree = znode_get_tree(parent);
-	result = 0;
 	/* fast check without taking dk lock. This is safe, because
 	 * JNODE_DKSET is never cleared once set. */
 	if (!ZF_ISSET(child, JNODE_DKSET)) {
+		tree = znode_get_tree(parent);
 		WLOCK_DK(tree);
 		if (likely(!ZF_ISSET(child, JNODE_DKSET))) {
 			find_child_delimiting_keys(parent, coord,
-						   znode_get_ld_key(child),
-						   znode_get_rd_key(child));
+						   &child->ld_key,
+						   &child->rd_key);
 			ZF_SET(child, JNODE_DKSET);
-			result = 1;
 		}
 		WUNLOCK_DK(tree);
+		return 1;
 	}
-	return result;
+	return 0;
 }
 
 /* Perform tree lookup at one level. This is called from cbk_traverse()
@@ -1000,7 +999,7 @@ fail_or_restart:
 #if REISER4_DEBUG
 /* check left and right delimiting keys of a znode */
 void
-check_dkeys(const znode *node)
+check_dkeys(znode *node)
 {
 	znode *left;
 	znode *right;
@@ -1009,7 +1008,7 @@ check_dkeys(const znode *node)
 	RLOCK_TREE(current_tree);
 
 	assert("vs-1710", znode_is_any_locked(node));
-	assert("vs-1197", !keygt(&node->ld_key, &node->rd_key));
+	assert("vs-1197", !keygt(znode_get_ld_key(node), znode_get_rd_key(node)));
 
 	left = node->left;
 	right = node->right;
@@ -1018,14 +1017,14 @@ check_dkeys(const znode *node)
 	    left != NULL && ZF_ISSET(left, JNODE_DKSET))
 		/* check left neighbor. Note that left neighbor is not locked,
 		   so it might get wrong delimiting keys therefore */
-		assert("vs-1198", (keyeq(&left->rd_key, &node->ld_key) ||
+		assert("vs-1198", (keyeq(znode_get_rd_key(left), znode_get_ld_key(node)) ||
 				   ZF_ISSET(left, JNODE_HEARD_BANSHEE)));
 
 	if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && ZF_ISSET(node, JNODE_DKSET) &&
 	    right != NULL && ZF_ISSET(right, JNODE_DKSET))
 		/* check right neighbor. Note that right neighbor is not
 		   locked, so it might get wrong delimiting keys therefore  */
-		assert("vs-1199", (keyeq(&node->rd_key, &right->ld_key) ||
+		assert("vs-1199", (keyeq(znode_get_rd_key(node), znode_get_ld_key(right)) ||
 				   ZF_ISSET(right, JNODE_HEARD_BANSHEE)));
 
 	RUNLOCK_TREE(current_tree);
@@ -1338,7 +1337,8 @@ static void stale_dk(reiser4_tree *tree, znode *node)
 	RLOCK_TREE(tree);
 	right = node->right;
 
-	if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && right &&
+	if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && 
+	    right && ZF_ISSET(right, JNODE_DKSET) &&
 	    !keyeq(znode_get_rd_key(node), znode_get_ld_key(right)))
 		znode_set_rd_key(node, znode_get_ld_key(right));
 
@@ -1357,8 +1357,12 @@ static void update_stale_dk(reiser4_tree *tree, znode *node)
 	rd = *znode_get_rd_key(node);
 	RLOCK_TREE(tree);
 	right = node->right;
-	if (unlikely(ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && right &&
+	if (unlikely(ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && 
+		     right && ZF_ISSET(right, JNODE_DKSET) &&
 		     !keyeq(&rd, znode_get_ld_key(right)))) {
+		/* does this ever happen? */
+		warning("nikita-38210", "stale dk");
+		assert("nikita-38211", ZF_ISSET(node, JNODE_DKSET));
 		RUNLOCK_TREE(tree);
 		RUNLOCK_DK(tree);
 		stale_dk(tree, node);
@@ -1564,10 +1568,10 @@ setup_delimiting_keys(cbk_handle * h /* search handle */)
 	assert("nikita-1088", h != NULL);
 
 	active = h->active_lh->node;
-	tree = znode_get_tree(active);
 	/* fast check without taking dk lock. This is safe, because
 	 * JNODE_DKSET is never cleared once set. */
 	if (!ZF_ISSET(active, JNODE_DKSET)) {
+		tree = znode_get_tree(active);
 		WLOCK_DK(tree);
 		if (!ZF_ISSET(active, JNODE_DKSET)) {
 			znode_set_ld_key(active, &h->ld_key);
