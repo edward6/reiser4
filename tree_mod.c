@@ -208,12 +208,12 @@ static int add_child_ptr( znode *parent, znode *child )
 
 	assert( "nikita-1111", parent != NULL );
 	assert( "nikita-1112", child != NULL );
-	assert( "nikita-1113", node_is_empty( parent ) );
 	assert( "nikita-1115", znode_get_level( parent ) == znode_get_level( child ) + 1 );
 
 	result = zload( parent );
 	if( result != 0 )
 		return result;
+	assert( "nikita-1113", node_is_empty( parent ) );
 	ncoord_init_first_unit( &coord, parent );
 
 	build_child_ptr_data( child, &data );
