@@ -497,6 +497,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	jnode *node;
 	struct super_block *s = page->mapping->host->i_sb;
 	reiser4_tree *tree;
+	txn_atom * atom;
 	int result;
 
 	REISER4_ENTRY(s);
@@ -540,6 +541,17 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 
 	assert("nikita-3044", schedulable());
 
+	LOCK_JNODE(node);
+	atom = atom_locked_by_jnode(node);
+	if (atom != NULL) {
+		if (!(atom->flags & ATOM_FORCE_COMMIT)) {
+			atom->flags |= ATOM_FORCE_COMMIT;
+			kcond_signal(&get_super_private(s)->tmgr.daemon->wait);
+			reiser4_stat_inc(txnmgr.commit_from_writepage);
+		}
+		UNLOCK_ATOM(atom);
+	}
+	UNLOCK_JNODE(node);
 	reiser4_lock_page(page);
 
 	if (page->mapping)
