@@ -11,7 +11,7 @@
 #include <reiserfs/reiserfs.h>
 
 /* (*(__u32 *)"R4FS"); */
-static uint32_t reiser4_node_magic = 0x52344653;
+static uint32_t reiserfs_node_magic = 0x52344653;
 
 /* Format of node header for node40. */
 struct reiserfs_node40_header {
@@ -27,7 +27,7 @@ struct reiserfs_node40_header {
 
 typedef struct reiserfs_node40_header reiserfs_node40_header_t;  
 
-#define node_header(block)			((reiserfs_node40_header_t *)(block->data))
+#define node40_header(node)			((reiserfs_node40_header_t *)(node->block->data))
 
 #define get_nh40_free_space(header)		get_le16(header, free_space)
 #define set_nh40_free_space(header, val)	set_le16(header, free_space, val)
@@ -47,10 +47,10 @@ typedef struct reiserfs_node40_header reiserfs_node40_header_t;
 #define get_nh40_flush_time(header)		get_le32(header, flush_time)
 #define set_nh40_flush_time(header, val)	set_le32(header, flush_time, val)
 
-
 /* Node object which plugin works with */
 struct reiserfs_node40 {
-    aal_block_t  *block;
+    aal_block_t *block;
+    aal_device_t *device;
 };
 
 typedef struct reiserfs_node40 reiserfs_node40_t;
@@ -60,7 +60,7 @@ typedef struct reiserfs_node40 reiserfs_node40_t;
     pos_in_node to functions instead.
 */
 struct reiserfs_item_header40 {
-    reiser4_key_t key;	    
+    reiserfs_key_t key;	    
     uint16_t offset;
     uint16_t length;
     uint16_t plugin_id;
