@@ -357,7 +357,7 @@ static int flush_left_relocate_dirty (jnode *node, const coord_t *parent_coord, 
 {
 	int ret;
 
-	if (! znode_is_dirty (parent_coord->node)) {
+	if (! znode_check_dirty (parent_coord->node)) {
 
 		if ((ret = flush_left_relocate_check (node, parent_coord, pos)) < 0) {
 			return ret;
