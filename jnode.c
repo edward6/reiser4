@@ -1885,7 +1885,7 @@ info_jnode(const char *prefix /* prefix to print */ ,
 		return;
 	}
 
-	printk("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
+	printk("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
 	       " block: %s, d_count: %d, x_count: %d, "
 	       "pg: %p, atom: %p, lock: %i:%i, type: %s, ",
 	       prefix, node, node->state,
@@ -1899,7 +1899,6 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	       jnode_state_name(node, JNODE_OVRWR),
 	       jnode_state_name(node, JNODE_DIRTY),
 	       jnode_state_name(node, JNODE_IS_DYING),
-	       jnode_state_name(node, JNODE_MAPPED),
 	       jnode_state_name(node, JNODE_EFLUSH),
 	       jnode_state_name(node, JNODE_FLUSH_QUEUED),
 	       jnode_state_name(node, JNODE_RIP),
