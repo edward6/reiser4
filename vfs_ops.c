@@ -1020,7 +1020,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 		/* no standard reiser4 super block found */
 		reiser4_sb_brelse (&super_bh);
 		/* FIXME-VS: call guess method for all available layout plugins */
-		return -EINVAL;
+		REISER4_EXIT (-EINVAL);
 	}
 
 	s->s_op = &reiser4_super_operations;
@@ -1097,14 +1097,24 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 }
 
 
-static void reiser4_put_super (struct super_block * s)
+static int put_super (struct super_block * s)
 {
+	REISER4_ENTRY (s);
+
 	if (get_super_private (s)->lplug->release)
 		get_super_private (s)->lplug->release (s);
 
 	kfree(s->u.generic_sbp);
 	s->u.generic_sbp = NULL;
 
+	REISER4_EXIT (0);
+}
+
+static void reiser4_put_super (struct super_block * s)
+{
+	int result;
+
+	result = put_super (s);
 	return;
 }
 
