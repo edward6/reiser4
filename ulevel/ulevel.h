@@ -52,7 +52,6 @@ extern void spinlock_bug (const char *msg);
 
 #include "reiser4.h"
 #include "debug.h"
-#include "reiser4_i.h"
 #include "reiser4_sb.h"
 
 #define HAS_BFD                         (1)
@@ -64,8 +63,14 @@ extern void spinlock_bug (const char *msg);
 #define current_pid     ( ( int ) pthread_self() )
 #define UNUSE __attribute__( ( unused ) )
 #define GFP_KERNEL     (0)
+#define	SLAB_KERNEL		GFP_KERNEL
 #define printk printf
 #define SLAB_HWCACHE_ALIGN (0)
+/* flags passed to a constructor func */
+#define	SLAB_CTOR_CONSTRUCTOR	0x001UL /* if not set, then deconstructor */
+#define SLAB_CTOR_ATOMIC	0x002UL	/* tell constructor it can't sleep */
+#define	SLAB_CTOR_VERIFY	0x004UL	/* tell constructor it's a verify call */
+
 #define CURRENT_TIME ( ( __u32 ) time( NULL ) )
 #define likely( x ) ( x )
 #define unlikely( x ) ( x )
@@ -76,6 +81,19 @@ extern void spinlock_bug (const char *msg);
 #define S_IRUGO		(S_IRUSR|S_IRGRP|S_IROTH)
 #define S_IWUGO		(S_IWUSR|S_IWGRP|S_IWOTH)
 #define S_IXUGO		(S_IXUSR|S_IXGRP|S_IXOTH)
+
+#define __init
+#define __exit
+
+#define module_init(a)
+#define module_exit(b)
+
+#define MODULE_DESCRIPTION(a)
+#define MODULE_AUTHOR(a)
+#define MODULE_LICENSE(a)
+
+#define THIS_MODULE (NULL)
+#define FS_REQUIRES_DEV (0)
 
 /** from <linux/kernel.h>
  * min()/max() macros that also do
@@ -405,6 +423,8 @@ struct statfs {
 
 struct seq_file;
 struct super_operations {
+   	struct inode *(*alloc_inode)(struct super_block *sb);
+	void (*destroy_inode)(struct inode *);
 	void (*read_inode) (struct inode *);
     	void (*read_inode2) (struct inode *, void *) ;
    	void (*dirty_inode) (struct inode *);
@@ -526,7 +546,6 @@ struct inode {
 	unsigned int		i_attr_flags;
 	__u32			i_generation;
 	union {
-		struct reiser4_inode_info	reiser4_i;
 		void				*generic_ip;
 	} u;
 };
@@ -572,9 +591,12 @@ extern inline long IS_ERR(const void *ptr);
 extern void *kmalloc( size_t size, int flag UNUSE );
 extern void kfree( void *addr );
 
-extern kmem_cache_t *kmem_cache_create( const char *name UNUSE, int size, 
-					int a UNUSE, int b UNUSE, int *c UNUSE,
-					int *d  UNUSE );
+extern kmem_cache_t *kmem_cache_create( const char *name, 
+				 size_t size UNUSED_ARG, 
+				 size_t offset UNUSED_ARG,
+				 unsigned long flags UNUSED_ARG, 
+				 void (*ctor)(void*, kmem_cache_t *, unsigned long) UNUSED_ARG,
+				 void (*dtor)(void*, kmem_cache_t *, unsigned long) UNUSED_ARG );
 extern int  kmem_cache_destroy( kmem_cache_t *slab );
 extern void kmem_cache_free( kmem_cache_t *slab UNUSE, void *addr );
 extern void *kmem_cache_alloc( kmem_cache_t *slab, int gfp_flag UNUSE );
@@ -818,6 +840,49 @@ struct dentry_operations {
 
 static inline int vfs_permission(struct inode * inode UNUSED_ARG, 
 				 int mask UNUSED_ARG)
+{
+	return 0;
+}
+
+/*
+ * These are initializations that only need to be done
+ * once, because the fields are idempotent across use
+ * of the inode, so let the slab aware of that.
+ */
+static inline void inode_init_once(struct inode *inode)
+{
+	memset(inode, 0, sizeof(*inode));
+}
+
+struct module;
+struct file_system_type {
+	const char *name;
+	int fs_flags;
+	struct super_block *(*get_sb) (struct file_system_type *, int, char *, void *);
+	void (*kill_sb) (struct super_block *);
+	struct module *owner;
+	struct file_system_type * next;
+	struct list_head fs_supers;
+};
+
+static inline struct super_block *get_sb_bdev(struct file_system_type *fs_type UNUSED_ARG,
+					      int flags UNUSED_ARG, char *dev_name UNUSED_ARG, void * data UNUSED_ARG,
+					      int (*fill_super)(struct super_block *, void *, int) UNUSED_ARG)
+{
+	return NULL;
+}
+
+static inline void kill_block_super(struct super_block *sb UNUSED_ARG)
+{
+
+}
+
+static inline int register_filesystem(struct file_system_type * fs UNUSED_ARG)
+{
+	return 0;
+}
+
+static inline int unregister_filesystem(struct file_system_type * fs UNUSED_ARG)
 {
 	return 0;
 }
