@@ -516,7 +516,7 @@ static int page_filler( void *arg, struct page *page )
 	 * on error, detach jnode from page
 	 */
 	if( unlikely( result != 0 ) ) {
-		/* ->readpage() should leave page locked on error */
+		/* ->readpage() shouldn't leave page locked on error */
 		assert( "nikita-2596", !PageLocked( page ) );
 		warning( "nikita-2416", "->readpage failed: %i", result );
 		lock_page( page );
@@ -626,8 +626,6 @@ int jload( jnode *node )
 						jplug -> index( node ), 
 						page_filler, node );
 			if( !IS_ERR( page ) ) {
-				wait_on_page_locked( page );
-				kmap( page );
 				/*
 				 * It is possible (however unlikely) that page
 				 * was concurrently released (by flush or
@@ -641,6 +639,7 @@ int jload( jnode *node )
 					jnode_attach_page( node, page );
 				spin_unlock_jnode( node );
 				unlock_page( page );
+				kmap( page );
 				if( PageUptodate( page ) ) {
 					result = jparse( node );
 					/*
