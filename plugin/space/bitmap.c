@@ -901,8 +901,8 @@ search_one_bitmap_backward (bmap_nr_t bmap, bmap_off_t * start_offset, bmap_off_
 }
 
 /* allocate contiguous range of blocks in bitmap */
-static int
-bitmap_alloc(reiser4_block_nr * start, const reiser4_block_nr * end, int min_len, int max_len, int backward)
+static int bitmap_alloc_forward(reiser4_block_nr * start, const reiser4_block_nr * end,
+				int min_len, int max_len)
 {
 	bmap_nr_t bmap, end_bmap;
 	bmap_off_t offset, end_offset;
@@ -911,7 +911,7 @@ bitmap_alloc(reiser4_block_nr * start, const reiser4_block_nr * end, int min_len
 	reiser4_block_nr tmp;
 
 	struct super_block *super = get_current_context()->super;
-	bmap_off_t max_offset = bmap_bit_count(super->s_blocksize);
+	const bmap_off_t max_offset = bmap_bit_count(super->s_blocksize);
 
 	parse_blocknr(start, &bmap, &offset);
 
@@ -919,57 +919,53 @@ bitmap_alloc(reiser4_block_nr * start, const reiser4_block_nr * end, int min_len
 	parse_blocknr(&tmp, &end_bmap, &end_offset);
 	++end_offset;
 
-	if (backward) {
-		assert("zam-961", end_bmap <= bmap);
-		assert("zam-962", ergo(end_bmap == bmap, end_offset < offset));
+	assert("zam-358", end_bmap >= bmap);
+	assert("zam-359", ergo(end_bmap == bmap, end_offset > offset));
 
-		for (; bmap > end_bmap; end_bmap --, offset = max_offset) {
-			len = search_one_bitmap_backward(bmap, &offset, 1, min_len, max_len);
-			if (len != 0)
-				goto out;
-		}
-		
-		len = search_one_bitmap_backward(bmap, &offset, end_offset, min_len, max_len);
-	} else {
-		assert("zam-358", end_bmap >= bmap);
-		assert("zam-359", ergo(end_bmap == bmap, end_offset > offset));
-
-		for (; bmap < end_bmap; bmap++, offset = 0) {
-			len = search_one_bitmap_forward(bmap, &offset, max_offset, min_len, max_len);
-			if (len != 0)
-				goto out;
-		}
-		
-		len = search_one_bitmap_forward(bmap, &offset, end_offset, min_len, max_len);
+	for (; bmap < end_bmap; bmap++, offset = 0) {
+		len = search_one_bitmap_forward(bmap, &offset, max_offset, min_len, max_len);
+		if (len != 0)
+			goto out;
 	}
+		
+	len = search_one_bitmap_forward(bmap, &offset, end_offset, min_len, max_len);
 out:
 	*start = bmap * max_offset + offset;
 	return len;
 }
 
-/* set the search end to correct value */
-static void set_search_end (reiser4_blocknr_hint * hint, reiser4_block_nr * search_end)
+/* allocate contiguous range of blocks in bitmap (from @start to @end in
+ * backward direction) */
+static int bitmap_alloc_backward(reiser4_block_nr * start, const reiser4_block_nr * end,
+				 int min_len, int max_len)
 {
-	struct super_block * super = reiser4_get_current_sb();
-	if (hint->backward) {
-		if (hint->max_dist == 0 || hint->blk <= hint->max_dist)
-			*search_end = 1;
-		else
-			*search_end = hint->blk - hint->max_dist;
-			
-	} else {
-		if (hint->max_dist == 0)
-			*search_end = reiser4_block_count(super);
-		else
-			*search_end = LIMIT(hint->blk + hint->max_dist, reiser4_block_count(super));
+	bmap_nr_t bmap, end_bmap;
+	bmap_off_t offset, end_offset;
+	int len;
+	struct super_block *super = get_current_context()->super;
+	const bmap_off_t max_offset = bmap_bit_count(super->s_blocksize) - 1;
+
+	parse_blocknr(start, &bmap, &offset);
+	parse_blocknr(end, &end_bmap, &end_offset);
+
+	assert("zam-961", end_bmap <= bmap);
+	assert("zam-962", ergo(end_bmap == bmap, end_offset <= offset));
+
+	for (; bmap > end_bmap; end_bmap --, offset = max_offset) {
+		len = search_one_bitmap_backward(bmap, &offset, 1, min_len, max_len);
+		if (len != 0)
+			goto out;
 	}
+		
+	len = search_one_bitmap_backward(bmap, &offset, end_offset, min_len, max_len);
+ out:
+	*start = bmap * max_offset + offset;
+	return len;
 }
 
-
 /* plugin->u.space_allocator.alloc_blocks() */
-int
-alloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
-		    reiser4_blocknr_hint * hint, int needed, reiser4_block_nr * start, reiser4_block_nr * len)
+int alloc_blocks_forward(reiser4_blocknr_hint * hint, int needed, 
+			 reiser4_block_nr * start, reiser4_block_nr * len)
 {
 	ON_DEBUG(struct super_block *super = get_current_context()->super;)
 
@@ -982,34 +978,72 @@ alloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
 	assert("zam-412", hint != NULL);
 	assert("zam-397", hint->blk < reiser4_block_count(super));
 
-	set_search_end(hint, &search_end);
+	if (hint->max_dist == 0)
+		search_end = reiser4_block_count(super);
+	else
+		search_end = LIMIT(hint->blk + hint->max_dist, reiser4_block_count(super));
 
 	/* We use @hint -> blk as a search start and search from it to the end
 	   of the disk or in given region if @hint -> max_dist is not zero */
 	search_start = hint->blk;
 
-	actual_len = bitmap_alloc(&search_start, &search_end, 1, needed, hint->backward);
+	actual_len = bitmap_alloc_forward(&search_start, &search_end, 1, needed);
 
 	/* There is only one bitmap search if max_dist was specified or first
 	   pass was from the beginning of the bitmap. We also do one pass for
 	   scanning bitmap in backward direction. */
-	if (!(actual_len != 0 || hint->max_dist != 0 || hint->backward || search_start == 0)) {
+	if (!(actual_len != 0 || hint->max_dist != 0  || search_start == 0)) {
 		/* next step is a scanning from 0 to search_start */
 		search_end = search_start;
 		search_start = 0;
-		actual_len = bitmap_alloc(&search_start, &search_end, 1, needed, 0);
+		actual_len = bitmap_alloc_forward(&search_start, &search_end, 1, needed);
 	}
-
 	if (actual_len == 0)
 		return RETERR(-ENOSPC);
-
 	if (actual_len < 0)
-		return actual_len;
-
+		return RETERR(actual_len);
 	*len = actual_len;
 	*start = search_start;
-
 	return 0;
+}
+
+static int alloc_blocks_backward (reiser4_blocknr_hint * hint, int needed, 
+				  reiser4_block_nr * start, reiser4_block_nr * len)
+{
+	reiser4_block_nr search_start;
+	reiser4_block_nr search_end;
+	int actual_len;
+
+	ON_DEBUG(struct super_block * super = reiser4_get_current_sb());
+
+	assert ("zam-969", super != NULL);
+	assert ("zam-970", hint != NULL);
+	assert ("zam-971", hint->blk < reiser4_block_count(super));
+
+	search_start = hint->blk;
+	if (hint->max_dist == 0 || search_start <= hint->max_dist)
+		search_end = 0;
+	else
+		search_end = search_start - hint->max_dist;
+
+	actual_len = bitmap_alloc_backward(&search_start, &search_end, 1, needed);
+	if (actual_len == 0)
+		return RETERR(-ENOSPC);
+	if (actual_len < 0)
+		return RETERR(actual_len);
+	*len = actual_len;
+	*start = search_start;
+	return 0;
+}
+
+/* plugin->u.space_allocator.alloc_blocks() */
+int alloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
+			reiser4_blocknr_hint * hint, int needed, 
+			reiser4_block_nr * start, reiser4_block_nr * len)
+{
+	if (hint->backward)
+		return alloc_blocks_backward(hint, needed, start, len);
+	return alloc_blocks_forward(hint, needed, start, len);
 }
 
 /* plugin->u.space_allocator.dealloc_blocks(). */
