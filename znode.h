@@ -330,7 +330,9 @@ struct znode {
 	 * date. Synched in find_child_ptr().
 	 *
 	 * This value allows us to avoid expensive binary searches.
-	 * Also, parent pointer is stored here.
+	 *
+	 * Also, parent pointer is stored here.  The parent pointer
+	 * stored here is NOT a hint, only the position is.
 	 */
 	tree_coord            ptr_in_parent_hint;
 
