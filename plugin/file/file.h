@@ -8,11 +8,14 @@
 
 #include "../../forward.h"
 #include "../../seal.h"
+#include "../../readahead.h"
 
-#include <linux/types.h>
+#if 0
+/*#include <linux/types.h>*/
 #include <linux/fs.h>		/* for struct file  */
 #include <linux/mm.h>		/* for struct page */
 #include <linux/buffer_head.h>	/* for struct buffer_head */
+#endif
 
 void get_exclusive_access(struct inode *inode);
 void drop_exclusive_access(struct inode *inode);
@@ -21,8 +24,8 @@ void drop_nonexclusive_access(struct inode *inode);
 int tail2extent(struct inode *inode);
 int extent2tail(struct file *file);
 int unix_file_writepage_nolock(struct page *page);
-int find_next_item(struct sealed_coord *, const reiser4_key *, coord_t *,
-		   lock_handle *, znode_lock_mode, __u32 cbk_flags);
+int find_file_item(struct sealed_coord *, const reiser4_key *, coord_t *,
+		   lock_handle *, znode_lock_mode, __u32 cbk_flags, ra_info_t *);
 int goto_right_neighbor(coord_t *, lock_handle *);
 void set_hint(struct sealed_coord *, const reiser4_key *, coord_t *);
 void unset_hint(struct sealed_coord *hint);
@@ -56,6 +59,8 @@ reiser4_block_nr unix_file_estimate_release(struct inode *inode);
    required by VFS */
 int unix_file_truncate(struct inode *, loff_t size);
 int unix_file_readpage(struct file *, struct page *);
+void unix_file_readpages(struct file *, struct address_space *,
+			 struct list_head *pages);
 int unix_file_writepage(struct page *);
 ssize_t unix_file_read(struct file *, char *buf, size_t size, loff_t * off);
 int update_inode_and_sd_if_necessary(struct inode *inode, loff_t, int);
