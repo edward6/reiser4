@@ -134,22 +134,31 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 				keylt (item_plugin_by_coord (coord)->common.real_max_key_inside (coord, &max_key), key)));
 
 	/* get key of item after which coord is set */
-	coord_dup (&item, coord);
+	coord->unit_pos = 0;
+	coord->between = AT_UNIT;
+	iplug = coord->iplug;
+	item_key_by_coord (coord, &item_key);
+#if 0
+	item.node = coord->node;
+	item.item_pos = coord->item_pos;
+	item.iplug = coord->iplug;
+	/*coord_dup (&item, coord);*/
 	item.unit_pos = 0;
 	item.between = AT_UNIT;
 	item_key_by_coord (&item, &item_key);
 	iplug = item_plugin_by_coord (&item);
+#endif
 
 
 	/* max key stored in item */
 	if (iplug->common.real_max_key_inside)
-		iplug->common.real_max_key_inside (&item, &max_key);
+		iplug->common.real_max_key_inside (coord, &max_key);
 	else
 		max_key = item_key;
 
 	/* max possible key which can be in item */
 	if (iplug->common.max_key_inside)
-		iplug->common.max_key_inside (&item, &max_possible_key);
+		iplug->common.max_key_inside (coord, &max_possible_key);
 	else
 		max_possible_key = item_key;
 
