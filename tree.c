@@ -972,6 +972,58 @@ item_removed_completely(coord_t * from, const reiser4_key * from_key, const reis
 	return 1;
 }
 
+static int
+prepare_children(znode *left, znode *right, carry_cut_data *cdata)
+{
+	int result;
+	int left_loaded;
+	int right_loaded;
+
+	result = 0;
+	left_loaded = right_loaded = 0;
+
+	if (left != NULL) {
+		result = zload(left);
+		if (result == 0) {
+			left_loaded = 1;
+			result = longterm_lock_znode(cdata->left, left, 
+						     ZNODE_READ_LOCK, 
+						     ZNODE_LOCK_LOPRI);
+		}
+	}
+	if (result == 0 && right != NULL) {
+		result = zload(right);
+		if (result == 0) {
+			right_loaded = 1;
+			result = longterm_lock_znode(cdata->right, right,
+						     ZNODE_READ_LOCK, 
+						     ZNODE_LOCK_HIPRI | ZNODE_LOCK_NONBLOCK);
+		}
+	}
+	if (result != 0) {
+		done_lh(cdata->left);
+		done_lh(cdata->right);
+		if (left_loaded != 0)
+			zrelse(left);
+		if (right_loaded != 0)
+			zrelse(right);
+	}
+	return result;
+}
+
+static void
+done_children(carry_cut_data *cdata)
+{
+	if (cdata->left != NULL && cdata->left->node != NULL) {
+		zrelse(cdata->left->node);
+		done_lh(cdata->left);
+	}
+	if (cdata->right != NULL && cdata->right->node != NULL) {
+		zrelse(cdata->right->node);
+		done_lh(cdata->right);
+	}
+}
+
 /* part of cut_node. It is called when cut_node is called to remove or cut part
    of extent item. When head of that item is removed - we have to update right
    delimiting of left neighbor of extent. When item is removed completely - we
@@ -981,8 +1033,11 @@ item_removed_completely(coord_t * from, const reiser4_key * from_key, const reis
 */
 /* Audited by: umka (2002.06.16) */
 static int
-prepare_twig_cut(coord_t * from, coord_t * to,
-		 const reiser4_key * from_key, const reiser4_key * to_key, znode * locked_left_neighbor)
+prepare_twig_cut(coord_t * from, 
+		 coord_t * to,
+		 const reiser4_key * from_key, 
+		 const reiser4_key * to_key, 
+		 znode * locked_left_neighbor, carry_cut_data *cdata)
 {
 	int result;
 	reiser4_key key;
@@ -1009,6 +1064,7 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 		return 0;
 	}
 
+	result = 0;
 	left_zloaded_here = 0;
 	right_zloaded_here = 0;
 
@@ -1033,7 +1089,7 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 			case -E_DEADLOCK:
 				/* need to restart */
 			default:
-				return RETERR(result);
+				return result;
 			}
 
 			/* we have acquired left neighbor of from->node */
@@ -1124,30 +1180,27 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 				goto done;
 			}
 
-			WLOCK_TREE(tree);
-			if (left_child != NULL) {
-				left_child->right = NULL;
-				ZF_CLR(left_child, JNODE_RIGHT_CONNECTED);
-			}
-			if (right_child != NULL) {
-				right_child->left = NULL;
-				ZF_CLR(right_child, JNODE_LEFT_CONNECTED);
-			}
-			WUNLOCK_TREE(tree);
 		}
+		result = prepare_children(left_child, right_child, cdata);
 	} else {
 		/* only head of item @to is removed. calculate new item key, it
 		   will be used to set right delimiting key of "left child" */
 		key = *to_key;
 		set_key_offset(&key, get_key_offset(&key) + 1);
 		assert("vs-608", (get_key_offset(&key) & (reiser4_get_current_sb()->s_blocksize - 1)) == 0);
+		cdata->left = cdata->right = NULL;
 	}
 
 	/* update right delimiting key of left_child */
 
-	if (left_child)
-		UNDER_RW_VOID(dk, tree, write, 
-			      znode_set_rd_key(left_child, &key));
+	if (result == 0 && left_child != NULL) {
+		WLOCK_DK(tree);
+		RLOCK_TREE(tree);
+		znode_set_rd_key(left_child, &key);
+		ZF_SET(left_child, JNODE_DKSET);
+		RUNLOCK_TREE(tree);
+		WUNLOCK_DK(tree);
+	}
  done:
 	if (right_child)
 		zput(right_child);
@@ -1160,7 +1213,7 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 	if (left_zloaded_here)
 		zrelse(locked_left_neighbor);
 	done_lh(&left_lh);
-	return 0;
+	return result;
 }
 
 /* cut part of the node
@@ -1196,6 +1249,8 @@ cut_node(coord_t * from		/* coord of the first unit/item that will be
 	carry_level lowest_level;
 	carry_op *op;
 	carry_cut_data cdata;
+	lock_handle left_child;
+	lock_handle right_child;
 
 	assert("umka-328", from != NULL);
 	assert("vs-316", !node_is_empty(from->node));
@@ -1216,21 +1271,31 @@ cut_node(coord_t * from		/* coord of the first unit/item that will be
 	assert("vs-161", coord_is_existing_unit(from));
 	assert("vs-162", coord_is_existing_unit(to));
 
+	init_lh(&left_child);
+	init_lh(&right_child);
+
+	cdata.left = &left_child;
+	cdata.right = &right_child;
+
 	if (znode_get_level(from->node) == TWIG_LEVEL && item_is_extent(from)) {
 		/* left child of extent item may have to get updated right
 		   delimiting key and to get linked with right child of extent
 		   @from if it will be removed completely */
-		result = prepare_twig_cut(from, to, from_key, to_key, locked_left_neighbor);
-		if (result)
+		result = prepare_twig_cut(from, to, from_key, to_key, locked_left_neighbor, &cdata);
+		if (result) {
+			done_children(&cdata);
 			return result;
+		}
 	}
 
 	init_carry_pool(&pool);
 	init_carry_level(&lowest_level, &pool);
 
 	op = post_carry(&lowest_level, COP_CUT, from->node, 0);
-	if (IS_ERR(op) || (op == NULL))
+	if (IS_ERR(op) || (op == NULL)) {
+		done_children(&cdata);
 		return RETERR(op ? PTR_ERR(op) : -EIO);
+	}
 
 	cdata.from = from;
 	cdata.to = to;
@@ -1245,6 +1310,7 @@ cut_node(coord_t * from		/* coord of the first unit/item that will be
 	result = carry(&lowest_level, 0);
 	done_carry_pool(&pool);
 
+	done_children(&cdata);
 	return result;
 }
 
@@ -1448,7 +1514,7 @@ int cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key
 
 		preempt_point();
 
-	} while (result == -E_DEADLOCK);
+	} while (result == -E_DEADLOCK || result == -E_REPEAT);
 
 	if (result == -E_NO_NEIGHBOR)
 		result = 0;
@@ -1647,7 +1713,9 @@ cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key,
 
 		preempt_point();
 
-	} while (result == -E_DEADLOCK);
+	} while (result == -E_DEADLOCK || result == -E_REPEAT);
+
+	done_lh(&lock);
 
 	if (result == -E_NO_NEIGHBOR)
 		result = 0;
