@@ -26,9 +26,9 @@ extern __u64 scint_unpack(const scint_t *scint);
 
 typedef __u64 scint_t;
 
-static inline void
+static inline int
 scint_init_once(void)
-{;}
+{ return 0;}
 
 static inline void
 scint_done_once(void)
@@ -48,6 +48,7 @@ static inline int
 scint_pack(scint_t *scint, __u64 value, int gfp_mask UNUSED_ARG)
 {
 	*scint = value;
+	return 0;
 }
 
 static inline __u64 
