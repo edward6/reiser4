@@ -58,11 +58,20 @@ typedef enum {
 
 #define  PARSER_DEBUG
 
+
+#if 1
 #define PTRACE(ws, format, ... )						\
 ({										\
 	ON_TRACE(TRACE_PARSE, "parser:%s %p %s: " format "\n",	                \
 		 __FUNCTION__, ws, (ws)->ws_pline, __VA_ARGS__);		\
 })
+#else
+#define PTRACE(ws, format, ... )						\
+({										\
+	printk("parser:%s %p %s: " format "\n",	                \
+		 __FUNCTION__, ws, (ws)->ws_pline, __VA_ARGS__);		\
+})
+#endif
 
 #define PTRACE1( format, ... )				        		\
 ({										\
@@ -133,7 +142,7 @@ struct pars_var {
 	pars_var_t * parent;        /* parent                              */
 	wrd_t * w ;                 /* pair (parent,w) is unique           */
 	lnode * ln;                 /* file/dir name lnode                 */
-	struct path_walk path;      /* for mount point                     */
+//	struct path_walk path;      /* for mount point                     */
 	int count;                  /* ref counter                         */
 	int vtype;                  /* Type of name                        */
 	size_t off;	            /* current offset read/write of object */
