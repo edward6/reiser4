@@ -577,10 +577,12 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 
 	assert("vs-828", PageLocked(page));
 
+#if 0
 	result = emergency_flush(page, wbc);
 	if (result > 0) {
 		REISER4_EXIT(0);
 	}
+#endif
 
 	tree = &get_super_private(s)->tree;
 	/* jfind which used to be here creates jnode for the page if it is not private yet. But that jnode is only later
