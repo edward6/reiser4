@@ -1287,19 +1287,20 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 	info.doing = doing;
 	info.todo = todo;
 	{
-		struct cut_list params;
-		params.from = &coord;
-		params.to = &coord2;
-		params.from_key = NULL;
-		params.to_key = NULL;
-		params.smallest_removed = NULL;
-		params.info = &info;
-		params.flags = op->u.delete.flags;
-		result = node_plugin_by_node(parent)->cut_and_kill(&params);
+		struct carry_kill_data kdata;
+		kdata.params.from = &coord;
+		kdata.params.to = &coord2;
+		kdata.params.from_key = NULL;
+		kdata.params.to_key = NULL;
+		kdata.params.smallest_removed = NULL;
+		kdata.flags = op->u.delete.flags;
+		kdata.inode = 0;
+		kdata.left = 0;
+		kdata.right = 0;
+		result = node_plugin_by_node(parent)->cut_and_kill(&kdata, &info);
 	}
 	doing->restartable = 0;
-	znode_make_dirty(coord.node);
-	znode_make_dirty(coord2.node);
+
 	/* check whether root should be killed violently */
 	if (znode_is_root(parent) &&
 	    /* don't kill roots at and lower than twig level */
@@ -1322,7 +1323,6 @@ carry_cut(carry_op * op /* operation to be performed */ ,
 {
 	int result;
 	carry_plugin_info info;
-	struct cut_list params;
 
 	assert("nikita-896", op != NULL);
 	assert("nikita-897", todo != NULL);
@@ -1333,27 +1333,11 @@ carry_cut(carry_op * op /* operation to be performed */ ,
 	info.doing = doing;
 	info.todo = todo;
 
-	params.from = op->u.cut->from;
-	params.to = op->u.cut->to;
-	params.from_key = op->u.cut->from_key;
-	params.to_key = op->u.cut->to_key;
-	params.smallest_removed = op->u.cut->smallest_removed;
-	params.info = &info;
-	params.flags = 0;
-	params.inode = op->u.cut->inode;
-	params.left = op->u.cut->left;
-	params.right = op->u.cut->right;
+	if (op->u.cut_or_kill.is_cut)
+		result = node_plugin_by_node(carry_real(op->node))->cut(op->u.cut_or_kill.u.cut, &info);
+	else
+		result = node_plugin_by_node(carry_real(op->node))->cut_and_kill(op->u.cut_or_kill.u.kill, &info);
 
-	if (op->u.cut->flags & DELETE_KILL) {
-		/* data gets removed from the tree */
-		result = node_plugin_by_node(carry_real(op->node))->cut_and_kill(&params);
-	} else
-		/* data get cut,  */
-		result = node_plugin_by_node(carry_real(op->node))->cut(&params);
-
-	assert("vs-1192", op->u.cut->from->node == op->u.cut->to->node);
-	znode_make_dirty(op->u.cut->from->node);
-	/*znode_set_dirty(op->u.cut->to->node);*/
 	doing->restartable = 0;
 	return result < 0 ? : 0;
 }
