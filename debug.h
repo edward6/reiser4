@@ -238,6 +238,10 @@ typedef enum {
 	 */
 	TRACE_LOCKS       =    (1 << 15),     /* 0x00008000 */
 	/*
+	 * trace coords
+	 */
+	TRACE_COORDS      =    (1 << 16),     /* 0x00010000 */
+	/*
 	 * vague section: used to trace bugs. Use it to issue optional prints
 	 * at arbitrary points of code.
 	 */

@@ -16,6 +16,8 @@ static inline void coord_init_values (coord_t  *coord,
 	coord->item_pos = item_pos;
 	coord->unit_pos = unit_pos;
 	coord->between  = between;
+
+	trace_on (TRACE_COORDS, "init coord %p node %p: %u %u %s", coord, item_pos, unit_pos, coord_tween_tostring (between));
 }
 
 /* after shifting coord previously set properly may become invalid. */
@@ -205,8 +207,8 @@ int coord_is_existing_item (const coord_t * coord)
 		return coord->item_pos < coord_num_items (coord);
 	}
 
-	coord_print ("unreachable", coord, 0);
-	impossible ("jmacd-9900", "unreachable");
+	trace_if (TRACE_COORDS, coord_print ("unreachable", coord, 0));
+	impossible ("jmacd-9900", "unreachable coord: %p", coord);
 	return 0;
 }
 
