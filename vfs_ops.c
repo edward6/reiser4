@@ -201,6 +201,7 @@ static struct dentry *lookup_object( struct inode *parent,
 		 * decided that existing implementation
 		 * (lookup_pseudo()) was unsatisfactory.
 		 */
+		return ERR_PTR( -ENOSYS );
 		break;
 	case FILE_NAME_FOUND: {
 		__u32 *flags;
