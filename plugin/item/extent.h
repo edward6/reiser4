@@ -42,7 +42,7 @@ static inline void extent_set_width(reiser4_extent *ext, reiser4_block_nr width)
 
 
 /*
- * plugin->u.item.b.*
+ * plugin->item.common.*
  */
 reiser4_key * extent_max_key_inside    (const tree_coord *, reiser4_key *);
 int           extent_can_contain_key   ( const tree_coord *coord,
@@ -53,6 +53,7 @@ int           extent_mergeable         (const tree_coord * p1,
 unsigned      extent_nr_units          (const tree_coord *);
 lookup_result extent_lookup            (const reiser4_key *, lookup_bias,
 					tree_coord *);
+int           extent_init              (tree_coord *, reiser4_item_data *);
 int           extent_paste             (tree_coord *, reiser4_item_data *,
 					carry_level *);
 int           extent_can_shift         (unsigned free_space,
@@ -99,21 +100,13 @@ int extent_read     (struct inode *, tree_coord *, lock_handle *,
 		     flow_t *);
 int extent_readpage (void * arg, struct page * page);
 
-
-
+/* these are used in flush.c
+ * FIXME-VS: should they be somewhere in item_plugin? */
 int allocate_extent_item_in_place (tree_coord * item, reiser4_blocknr_hint * preceder);
 int allocate_and_copy_extent (znode * left, tree_coord * right,
 			      reiser4_blocknr_hint * preceder,
 			      reiser4_key * stop_key);
 
-typedef struct extent_item_plugin {
-	int (* write) (struct inode *, tree_coord *,
-		       lock_handle *, flow_t *);
-	int (* read) (struct inode *, tree_coord *,
-		      lock_handle *, flow_t *);
-	int (* readpage) (void *, struct page *);
-	common_item_plugin * common;
-} extent_item_plugin;
 
 /* 
  * Local variables:
