@@ -19,11 +19,7 @@
 #include <linux/fs.h>		/* for struct super_block  */
 #include <asm/semaphore.h>
 
-/*
-
-   ZAM-FIXME-HANS: review whether there is code relating to the below not useful
-   optimization that can be removed from the code base.  Complexity is slower.;-)
-
+/* Proposed optimization: dynamic loading/unloading of bitmap blocks
 
    The useful optimization in reiser4 bitmap handling would be dynamic bitmap
    blocks loading/unloading which is different from v3.x where all bitmap
@@ -47,14 +43,15 @@
    from atom deleted (if we do so) list should decrement bitmap usage counter
    also.
 
-   FIXME-ZAM: This schema seems to be working but that reference counting is
+   This schema seems to be working but that reference counting is
    not easy to debug. I think we should agree with Hans and do not implement
    it in v4.0. Current code implements "on-demand" bitmap blocks loading only.
 
-   For simplicity bitmap node (both commit and working bitmap blocks) are
-   loaded into memory on the first access and remain kmapped until umount.
-
-*/
+   For simplicity all bitmap nodes (both commit and working bitmap blocks) are
+   loaded into memory on fs mount time or each bitmap nodes are loaded at the
+   first access to it, the "dont_load_bitmap" mount option controls whether
+   bimtap nodes should be loaded at mount time. Dynamic unloading of bitmap
+   nodes currently is not supported. */
 
 #define CHECKSUM_SIZE    4
 
@@ -119,7 +116,9 @@ bnode_set_commit_crc(struct bnode *bnode, __u32 crc)
 	cputod32(crc, (d32 *) data);
 }
 
-/* ZAM-FIXME-HANS: is the idea that this might be a union someday? having written the code, does this added abstraction still have */
+/* ZAM-FIXME-HANS: is the idea that this might be a union someday? having
+ * written the code, does this added abstraction still have */
+/* ANSWER(Zam): No, the reiser4_space_allocator structure is for it. */
 struct bitmap_allocator_data {
 	/* an array for bitmap blocks direct access */
 	struct bnode *bitmap;
