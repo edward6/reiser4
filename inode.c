@@ -362,6 +362,40 @@ reiser4_inode_find_actor(struct inode *inode	/* inode from hash table to
 		reiser4_inode_data(inode)->locality_id == get_key_locality(key);
 }
 
+/* hook for kmem_cache_create */
+void loading_init_once(reiser4_inode *info)
+{
+	sema_init(&info->loading, 1);
+}
+
+/* for reiser4_alloc_inode */
+void loading_alloc(reiser4_inode *info)
+{
+#if REISER4_DEBUG		
+	assert("vs-1717", down_trylock(&info->loading) == 0);
+	up(&info->loading);
+#endif
+}
+
+/* for reiser4_destroy */
+void loading_destroy(reiser4_inode *info)
+{
+#if REISER4_DEBUG		
+	assert("vs-1717", down_trylock(&info->loading) == 0);
+	up(&info->loading);
+#endif
+}
+
+void loading_down(reiser4_inode *info)
+{
+	down(&info->loading);
+}
+
+void loading_up(reiser4_inode *info)
+{
+	up(&info->loading);
+}
+
 /*
  * this is our helper function a la iget(). This is be called by
  * reiser4_lookup() and reiser4_read_super(). Return inode locked or error
@@ -374,7 +408,7 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 {
 	struct inode *inode;
 	int result;
-	reiser4_inode * info;
+	reiser4_inode *info;
 
 	assert("nikita-302", super != NULL);
 	assert("nikita-303", key != NULL);
@@ -390,8 +424,8 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 			     (reiser4_key *) key);
 	if (inode == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
-	if (is_bad_inode(inode) && !silent) {
-		warning("nikita-304", "Stat data not found");
+	if (is_bad_inode(inode)) {
+		warning("nikita-304", "Bad inode found");
 		print_key("key", key);
 		iput(inode);
 		return ERR_PTR(RETERR(-EIO));
@@ -406,7 +440,7 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 	   is the reiser4 repacker, see repacker-related functions in
 	   plugin/item/extent.c */
 	if (!is_inode_loaded(inode)) {
-		down(&info->loading);
+		loading_down(info);
 		if (!is_inode_loaded(inode)) {
 			/* locking: iget5_locked returns locked inode */
 			assert("nikita-1941", !is_inode_loaded(inode));
@@ -418,19 +452,21 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 			   read_inode() to read stat data from the disk */
 			result = read_inode(inode, key, silent);
 		} else
-			up(&info->loading);
+			loading_up(info);
 	}
 
 	if (inode->i_state & I_NEW)
 		unlock_new_inode(inode);
 
 	if (is_bad_inode(inode)) {
-		up(&info->loading);
+		assert("vs-1717", result != 0);
+		loading_up(info);
 		iput(inode);
 		inode = ERR_PTR(result);
 	} else if (REISER4_DEBUG) {
 		reiser4_key found_key;
 
+		assert("vs-1717", result == 0);
 		build_sd_key(inode, &found_key);
 		if (!keyeq(&found_key, key)) {
 			warning("nikita-305", "Wrong key in sd");
@@ -454,7 +490,7 @@ reiser4_internal void reiser4_iget_complete (struct inode * inode)
 
 	if (!is_inode_loaded(inode)) {
 		inode_set_flag(inode, REISER4_LOADED);
-		up(&reiser4_inode_data(inode)->loading);
+		loading_up(reiser4_inode_data(inode));
 	}
 }
 
@@ -748,6 +784,15 @@ inode_invariant(const struct inode *inode)
 				   jnode_tree_by_reiser4_inode(object)->rnode != NULL));
 
 	spin_unlock_eflush(inode->i_sb);
+}
+
+int
+inode_has_no_jnodes(reiser4_inode *r4_inode)
+{
+	return jnode_tree_by_reiser4_inode(r4_inode)->rnode == NULL &&
+		r4_inode->nr_jnodes == 0 &&
+		r4_inode->captured_eflushed == 0 &&
+		r4_inode->anonymous_eflushed == 0;
 }
 
 void
