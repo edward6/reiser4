@@ -17,6 +17,11 @@
 #include <linux/fs.h> /* for struct super_block  */
 #include <asm/semaphore.h>
 
+#define CRC_SIZE    4
+
+#define bmap_size(blocksize)	    (blocksize - CRC_SIZE)
+#define bmap_bit_count(blocksize)   (bmap_size(blocksize) << 3)
+
 /* Block allocation/deallocation are done through special bitmap objects which
  * are allocated in an array at fs mount. */
 struct bnode {
@@ -43,7 +48,7 @@ static inline char * bnode_working_data (struct bnode * bnode) {
 static inline char * bnode_commit_data (struct bnode * bnode) {
 	char * data;
 
-	data = jdata(bnode->cjnode);
+	data = jdata(bnode->cjnode) + CRC_SIZE;
 	assert ("zam-430", data != NULL);
 
 	return data;
@@ -249,6 +254,53 @@ static void reiser4_set_bits (char * addr, bmap_off_t start, bmap_off_t end)
 	}
 }
 
+/* Helper function for 64 bits numbers division. */
+static inline void divl(__u32 high, __u32 low, __u32 div, __u32 *q, __u32 *r) {
+        __u64 n = (__u64)high << 32 | low;
+        __u64 d = (__u64)div << 31;
+        __u32 q1 = 0;
+        int c = 32;
+        while (n > 0xffffffffU) {
+                q1 <<= 1;
+                if (n >= d) {
+                        n -= d;
+                        q1 |= 1;
+                }
+                d >>= 1;
+                c--;
+        }
+        q1 <<= c;
+        if (n) {
+                low = n;
+                *q = q1 | (low / div);
+                if (r) *r = low % div;
+        } else {
+                if (r) *r = 0;
+                *q = q1;
+        }
+        return;
+}
+
+/* Function for 64 bits numbers division. */
+static inline __u64 div64_32(__u64 n, __u32 div, __u32 *rem) {
+        __u32 low, high;
+        low = n & 0xffffffff;
+        high = n >> 32;
+        if (high) {
+                __u32 high1 = high % div;
+                __u32 low1 = low;
+                high /= div;
+                divl(high1, low1, div, &low, rem);
+                return (__u64)high << 32 | low;
+        } else {
+		if (rem) *rem = low % div;
+                return low / div;
+        }
+
+	return 0;
+}
+
+
 /* The useful optimization in reiser4 bitmap handling would be dynamic bitmap
  * blocks loading/unloading which is different from v3.x where all bitmap
  * blocks are loaded at mount time.
@@ -287,7 +339,9 @@ static bmap_nr_t get_nr_bmap (struct super_block * super)
 {
 	assert ("zam-393", reiser4_block_count (super) != 0);
 
-	return ((reiser4_block_count (super) - 1) >> (super->s_blocksize_bits + 3)) + 1;
+	return div64_32(reiser4_block_count (super) - 1, 
+	    bmap_bit_count(super->s_blocksize), NULL) + 1;
+	
 }
 
 /** calculate bitmap block number and offset within that bitmap block */
@@ -295,8 +349,7 @@ static void parse_blocknr (const reiser4_block_nr *block, bmap_nr_t *bmap, bmap_
 {
 	struct super_block * super = get_current_context()->super;
 
-	*bmap   = *block >> (super->s_blocksize_bits + 3);
-	*offset = *block & ((super->s_blocksize << 3) - 1);
+	*bmap = div64_32(*block, bmap_bit_count(super->s_blocksize), offset);
 
 	assert ("zam-433", *bmap < get_nr_bmap(super));
 } 
@@ -359,7 +412,7 @@ void get_bitmap_blocknr (struct super_block * super, bmap_nr_t bmap, reiser4_blo
 	if (bmap == 0) {
 		*bnr = REISER4_FIRST_BITMAP_BLOCK;
 	} else {
-		*bnr = bmap * super->s_blocksize * 8;
+		*bnr = bmap * bmap_bit_count(super->s_blocksize);
 	}
 }
 
@@ -468,7 +521,8 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 				jload(wj);
 				jload(cj);
 
-				assert ("zam-634", memcmp(jdata(wj), jdata(wj), super->s_blocksize) == 0);
+				assert ("zam-634", memcmp(jdata(wj), jdata(wj), 
+				    bmap_size(super->s_blocksize)) == 0);
 
 				jrelse(wj);
 				jrelse(cj);
@@ -529,7 +583,8 @@ static int load_and_lock_bnode (struct bnode * bnode)
 
 		/* node has been loaded by this jload call  */
 		/* working bitmap is initialized by on-disk commit bitmap */
-		xmemcpy(bnode_working_data(bnode), bnode_commit_data(bnode), super->s_blocksize);
+		xmemcpy(bnode_working_data(bnode), bnode_commit_data(bnode), 
+		    bmap_size(super->s_blocksize));
 
 		pin_jnode_data(bnode->wjnode);
 		pin_jnode_data(bnode->cjnode);
@@ -689,7 +744,7 @@ int bitmap_alloc (reiser4_block_nr *start, const reiser4_block_nr *end, int min_
 	reiser4_block_nr tmp;
 
 	struct super_block * super = get_current_context()->super;
-	bmap_off_t max_offset = super->s_blocksize << 3;
+	bmap_off_t max_offset = bmap_bit_count(super->s_blocksize);
 
 	parse_blocknr(start, &bmap, &offset);
 
@@ -788,7 +843,7 @@ void bitmap_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 
 	parse_blocknr (&start, &bmap, &offset);
 
-	assert ("zam-469", offset + len <= (super->s_blocksize << 3));
+	assert ("zam-469", offset + len <= bmap_bit_count(super->s_blocksize));
 
 	bnode = get_bnode (super, bmap);
 
@@ -822,7 +877,7 @@ void bitmap_check_blocks (const reiser4_block_nr *start, const reiser4_block_nr 
 	parse_blocknr (start, &bmap, &start_offset);
 
 	end_offset = start_offset + *len;
-	assert ("nikita-2214", end_offset <= (super->s_blocksize << 3));
+	assert ("nikita-2214", end_offset <= bmap_bit_count(super->s_blocksize));
 
 	bnode = get_bnode (super, bmap);
 
@@ -908,7 +963,7 @@ static int apply_dset_to_commit_bmap (txn_atom               * atom,
 
 	if (len != NULL) {
 		/* FIXME-ZAM: a check that all bits are set should be there */
-		assert ("zam-443", offset + *len <= (sb->s_blocksize << 3));
+		assert ("zam-443", offset + *len <= bmap_bit_count(sb->s_blocksize));
 		reiser4_clear_bits (data, offset, (bmap_off_t)(offset + *len));
 
 		(*blocks_freed_p) += *len;
