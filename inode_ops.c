@@ -51,8 +51,10 @@
 
 /* inode operations */
 
-static int reiser4_create(struct inode *, struct dentry *, int);
-static struct dentry *reiser4_lookup(struct inode *, struct dentry *);
+static int reiser4_create(struct inode *, struct dentry *, int, 
+			  struct nameidata *);
+static struct dentry *reiser4_lookup(struct inode *, struct dentry *, 
+				     struct nameidata *);
 static int reiser4_link(struct dentry *, struct inode *, struct dentry *);
 static int reiser4_unlink(struct inode *, struct dentry *);
 static int reiser4_rmdir(struct inode *, struct dentry *);
@@ -63,7 +65,7 @@ static int reiser4_rename(struct inode *, struct dentry *, struct inode *, struc
 static int reiser4_readlink(struct dentry *, char *, int);
 static int reiser4_follow_link(struct dentry *, struct nameidata *);
 static void reiser4_truncate(struct inode *);
-static int reiser4_permission(struct inode *, int);
+static int reiser4_permission(struct inode *, int, struct nameidata *);
 static int reiser4_setattr(struct dentry *, struct iattr *);
 static int reiser4_getattr(struct vfsmount *mnt, struct dentry *, struct kstat *);
 
@@ -81,10 +83,11 @@ static int invoke_create_method(struct inode *parent,
 /* ->create() VFS method in reiser4 inode_operations */
 static int
 reiser4_create(struct inode *parent	/* inode of parent
-					 * directory */ ,
+					 * directory */,
 	       struct dentry *dentry	/* dentry of new object to
-					 * create */ ,
-	       int mode /* new object mode */ )
+					 * create */,
+	       int mode /* new object mode */,
+	       struct nameidata *nameidata)
 {
 	reiser4_object_create_data data;
 
@@ -190,10 +193,10 @@ reiser4_rename(struct inode *old_dir, struct dentry *old, struct inode *new_dir,
 static struct dentry *
 reiser4_lookup(struct inode *parent,	/* directory within which we are to look for the name
 					 * specified in dentry */
-	       struct dentry *dentry	/* this contains the name that is to be looked for on entry,
+	       struct dentry *dentry,	/* this contains the name that is to be looked for on entry,
 					   and on exit contains a filled in dentry with a pointer to
 					   the inode (unless name not found) */
-    )
+	       struct nameidata *nameidata)
 {
 	dir_plugin *dplug;
 	int retval;
@@ -372,8 +375,9 @@ reiser4_truncate(struct inode *inode /* inode to truncate */ )
 /* ->permission() method in reiser4_inode_operations. */
 static int
 reiser4_permission(struct inode *inode /* object */ ,
-		   int mask	/* mode bits to check permissions
-				 * for */ )
+		   int mask,	/* mode bits to check permissions
+				 * for */
+		   struct nameidata *nameidata)
 {
 	int result;
 	/* reiser4_context creation/destruction removed from here,
