@@ -533,18 +533,6 @@ try_capture_cluster(reiser4_cluster_t * clust, znode_lock_mode lock_mode, int no
 }
 
 static void
-set_cluster_uptodate(struct inode * inode, reiser4_cluster_t * clust)
-{
-	int i;
-
-	assert("edward-209", inode != NULL);
-	assert("edward-210", clust != NULL);
-	assert("edward-211", clust->nr_pages <= (1 << inode_cluster_shift(inode)));
-	for (i=0; i < clust->nr_pages; i++)
-		SetPageUptodate(clust->pages[i]);
-}
-
-static void
 cluster_jnodes_make_dirty(reiser4_cluster_t * clust)
 {
 }
@@ -637,6 +625,7 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
 		data = kmap_atomic(page, KM_USER0);
 		memset(data + page_off, 0, to_page);
 		kunmap_atomic(data, KM_USER0);
+		SetPageUptodate(page);
 		reiser4_unlock_page(page);
 		
 		clust->off += to_page;
@@ -822,15 +811,18 @@ write_flow(struct file * file , struct inode * inode, const char *buf, size_t co
 		for (i = clust.off >> PAGE_CACHE_SHIFT;
 		     i <= (clust.off + clust.count) >> PAGE_CACHE_SHIFT; i++) {
 			page_count = min_count(PAGE_CACHE_SIZE - page_off, clust.count);
+			reiser4_lock_page(pages[i]);
 			result = __copy_from_user((char *)kmap(pages[i]) + page_off, f.data, page_count);
 			kunmap(pages[i]);
 			if (unlikely(result)) {
+				reiser4_unlock_page(pages[i]);
 				result = -EFAULT;
 				goto exit2;
 			}
+			SetPageUptodate(pages[i]);
+			reiser4_unlock_page(pages[i]);
 			page_off = 0;
 		}
-		set_cluster_uptodate(inode, &clust);
 		result = try_capture_cluster(&clust, ZNODE_WRITE_LOCK, 0);
 		if (result)
 			goto exit2;
