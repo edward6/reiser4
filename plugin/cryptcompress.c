@@ -33,6 +33,7 @@ The list of cryptcompress specific EA:
 #include "../context.h"
 #include "../cluster.h"
 #include "../seal.h"
+#include "../vfs_ops.h"
 #include "plugin.h"
 #include "object.h"
 #include "file/funcs.h"
@@ -1917,7 +1918,7 @@ balance_dirty_page_cluster(reiser4_cluster_t * clust, loff_t off, loff_t to_file
                return result;
        assert("edward-726", clust->hint->coord.lh->owner == NULL);
        atomic_inc(&inode->i_count);
-       balance_dirty_pages_ratelimited(inode->i_mapping);
+       reiser4_throttle_write(inode);
 
        return 0;
 }
@@ -2714,7 +2715,7 @@ shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	result = update_inode_cryptcompress(inode, new_size, 1, 1, update_sd);
 	if(!result)
 		goto exit;
-	balance_dirty_pages_ratelimited(inode->i_mapping);
+	reiser4_throttle_write(inode);
  exit:
 	free_reserved4cluster(inode, &clust);
 	reiser4_kfree(pages);

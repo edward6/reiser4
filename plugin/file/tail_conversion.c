@@ -6,7 +6,9 @@
 #include "../../carry.h"
 #include "../../lib.h"
 #include "../../safe_link.h"
+#include "../../vfs_ops.h"
 #include "funcs.h"
+
 #include <linux/writeback.h>
 
 /* this file contains:
@@ -396,7 +398,7 @@ tail2extent(unix_file_info_t *uf_info)
 			if (result)
 				goto error;
 			/* throttle the conversion */
-			balance_dirty_pages_ratelimited(inode->i_mapping);
+			reiser4_throttle_write(inode);
 		}
 	}
 

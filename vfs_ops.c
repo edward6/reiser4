@@ -640,6 +640,12 @@ reiser4_sync_inodes(struct super_block * sb, struct writeback_control * wbc)
 	spin_lock(&inode_lock);
 }
 
+void reiser4_throttle_write(struct inode * inode)
+{
+	txn_restart_current();
+	balance_dirty_pages_ratelimited(inode->i_mapping);
+}
+
 /* ->delete_inode() super operation */
 static void
 reiser4_delete_inode(struct inode *object)
