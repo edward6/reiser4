@@ -105,6 +105,14 @@ ktxnmgrd(void *arg)
 			     !txn_mgrs_list_end(&ctx->queue, mgr); mgr = txn_mgrs_list_next(mgr)) {
 				scan_mgr(mgr);
 				ktxnmgrd_trace("\tscan mgr\n");
+
+				if (ctx->rescan) {
+					/* the list could be modified while ctx
+					   spinlock was released, we have to
+					   repeat scanning from the
+					   beginning  */
+					break;
+				}
 			}
 			ktxnmgrd_trace("scan finished\n");
 		} while (ctx->rescan);
