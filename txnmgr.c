@@ -1239,14 +1239,6 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	 * thread using tmgr semaphore */
 	down(&sbinfo->tmgr.commit_semaphore);
 
-	/* relocate set is on the atom->clean_nodes list after
-	 * current_atom_complete_writes() finishes. It can be safely
-	 * uncaptured after commit_semaphore is taken, because any atom that
-	 * captures these nodes is guaranteed to commit after current one. */
-	/* NOTE-NIKITA for some reason this doesn't work: bitmaps are
-	 * not-consistent with the tree after umount. */
-	/* invalidate_list(ATOM_CLEAN_LIST(*atom)); */
-
 	ret = reiser4_write_logs(nr_submitted);
 	if (ret < 0)
 		reiser4_panic("zam-597", "write log failed (%ld)\n", ret);
