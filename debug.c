@@ -42,16 +42,31 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 	printk(KERN_EMERG "reiser4 panicked cowardly: %s", panic_buf);
 	spin_unlock(&panic_guard);
 
+	DEBUGON(1);
+
 	/* do something more impressive here, print content of
 	   get_current_context() */
 	if (get_current_context_check() != NULL) {
 		struct super_block *super;
+		reiser4_context *ctx;
 
 		print_lock_counters("pins held", lock_counters());
 		print_contexts();
-		super = get_current_context()->super;
+		ctx = get_current_context();
+		super = ctx->super;
 		if ((get_super_private(super) != NULL) && reiser4_is_debugged(super, REISER4_VERBOSE_PANIC))
 			print_znodes("znodes", current_tree);
+#if REISER4_DEBUG
+		{
+			reiser4_context *top;
+			extern spinlock_t active_contexts_lock;
+
+			top = ctx->parent;
+			spin_lock(&active_contexts_lock);
+			context_list_remove(top);
+			spin_unlock(&active_contexts_lock);
+		}
+#endif
 	}
 
 	BUG();
@@ -799,10 +814,12 @@ void balance_dirty_pages_ratelimited1(struct address_space *mapping)
 	PROF_END(real_bdp, real_bdp);
 }
 
+#if KERNEL_DEBUGGER
 void debugtrap(void)
 {
 	/* do nothing. Put break point here. */
 }
+#endif
 
 
 /* Make Linus happy.
