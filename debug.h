@@ -43,10 +43,12 @@
 
 #define CONFIG_REISER4_CHECK
 
+#ifndef REISER4_DEBUG
 #if defined( CONFIG_REISER4_CHECK )
 #define REISER4_DEBUG (1)
 #else
 #define REISER4_DEBUG (0)
+#endif
 #endif
 
 #define REISER4_DEBUG_MODIFY 0 /* this significantly slows down testing, but we should run
@@ -130,7 +132,9 @@ extern lock_counters_info *lock_counters();
     output useless for average user.
 */
 
+#ifndef REISER4_TRACE
 #define REISER4_TRACE (1)
+#endif
 
 #if REISER4_TRACE
 /* helper macro for tracing, see trace_stamp() below. */
@@ -216,8 +220,10 @@ extern __u32 reiser4_current_trace_flags;
 /** print output only if appropriate trace flag(s) is on */
 #define trace_on( f, args... )   trace_if( f, dinfo( ##args ) )
 
+#ifndef REISER4_STATS
 /** statistics gathering */
 #define REISER4_STATS (1)
+#endif
 
 #if REISER4_STATS
 
