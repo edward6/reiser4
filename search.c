@@ -1014,15 +1014,15 @@ check_dkeys(const znode *node)
 	left = node->left;
 	right = node->right;
 
-	if (ZF_ISSET(node, JNODE_LEFT_CONNECTED) &&
+	if (ZF_ISSET(node, JNODE_LEFT_CONNECTED) && ZF_ISSET(node, JNODE_DKSET) &&
 	    left != NULL && ZF_ISSET(left, JNODE_DKSET))
 		/* check left neighbor. Note that left neighbor is not locked,
 		   so it might get wrong delimiting keys therefore */
 		assert("vs-1198", (keyeq(&left->rd_key, &node->ld_key) ||
 				   ZF_ISSET(left, JNODE_HEARD_BANSHEE)));
 
-	if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && right != NULL &&
-	    ZF_ISSET(right, JNODE_DKSET))
+	if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && ZF_ISSET(node, JNODE_DKSET) &&
+	    right != NULL && ZF_ISSET(right, JNODE_DKSET))
 		/* check right neighbor. Note that right neighbor is not
 		   locked, so it might get wrong delimiting keys therefore  */
 		assert("vs-1199", (keyeq(&node->rd_key, &right->ld_key) ||
