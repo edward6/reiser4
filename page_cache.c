@@ -432,7 +432,11 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 	}
 
 	/* Attach the txn handle to this node, preventing the atom from
-	 * committing while this flush occurs. */ 
+	 * committing while this flush occurs. */
+
+	/* FIXME: JMACD->NIKITA: This ATOM_FORCE_COMMIT causes the atom to commit right
+	 * away... except the hacked no_commit_thread() disabled it...
+	 */
 	result = txn_attach_txnh_to_node (txnh, node, ATOM_FORCE_COMMIT);
 
 	spin_unlock_txnh (txnh);
