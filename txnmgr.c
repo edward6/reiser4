@@ -1243,7 +1243,7 @@ void jnode_set_dirty( jnode *node )
 		/*assert ("nikita-1900", znode_is_write_locked (JZNODE (node)));*/
 		assert ("jmacd-9777", node->atom != NULL && znode_is_any_locked (JZNODE (node)));
 	} else {
-		info ("dirty unformatted page %lu\n", node->pg->index);
+		/*info ("dirty unformatted page %lu\n", node->pg->index);*/
 	}
 
 	spin_unlock_jnode (node);
