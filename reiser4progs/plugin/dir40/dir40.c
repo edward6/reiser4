@@ -588,6 +588,19 @@ static uint32_t dir40_tell(reiser4_entity_t *entity) {
     return ((dir40_t *)entity)->pos;
 }
 
+static errno_t dir40_seek(reiser4_entity_t *entity, 
+    uint32_t offset) 
+{
+    dir40_t *dir = (dir40_t *)entity;
+    
+    aal_assert("umka-1130", entity != NULL, return 0);
+
+    /* FIXME-UMKA: Not implemented yet! */
+
+    dir->pos = offset;
+    return -1;
+}
+
 static reiser4_plugin_t dir40_plugin = {
     .dir_ops = {
 	.h = {
@@ -612,6 +625,7 @@ static reiser4_plugin_t dir40_plugin = {
 	.close	    = dir40_close,
 	.rewind	    = dir40_rewind,
 	.tell	    = dir40_tell,
+	.seek	    = dir40_seek,
 	.read	    = dir40_read
     }
 };

@@ -34,4 +34,7 @@ extern errno_t reiser4_dir_read(reiser4_object_t *object,
 
 extern uint32_t reiser4_dir_tell(reiser4_object_t *object);
 
+extern int32_t reiser4_dir_seek(reiser4_object_t *object, 
+    uint32_t pos);
+
 #endif

@@ -433,6 +433,9 @@ struct reiser4_dir_ops {
     /* Returns current position in directory */
     uint32_t (*tell) (reiser4_entity_t *);
 
+    /* Returns current position in directory */
+    errno_t (*seek) (reiser4_entity_t *, uint32_t);
+
     /* Makes lookup inside dir */
     int (*lookup) (reiser4_entity_t *, char *, reiser4_key_t *);
 };

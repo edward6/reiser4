@@ -97,9 +97,8 @@ reiser4_object_t *reiser4_dir_create(
 
     locality = reiser4_key_get_objectid(&parent_key);
     
-    object_key.plugin = parent_key.plugin;
-
     /* Building stat data key of directory */
+    object_key.plugin = parent_key.plugin;
     reiser4_key_build_generic(&object_key, KEY_STATDATA_TYPE,
         locality, objectid, 0);
     
@@ -188,5 +187,16 @@ uint32_t reiser4_dir_tell(
 
     return plugin_call(return -1, object->entity->plugin->dir_ops, 
 	tell, object->entity);
+}
+
+/* Seeks directory current position to passed pos */
+errno_t reiser4_dir_seek(
+    reiser4_object_t *object,	    /* dir where position shopuld be chnaged */
+    uint32_t offset		    /* offset for seeking */
+) {
+    aal_assert("umka-1129", object != NULL, return -1);
+    
+    return plugin_call(return -1, object->entity->plugin->dir_ops, 
+	seek, object->entity, offset);
 }
 

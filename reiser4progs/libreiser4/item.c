@@ -57,6 +57,11 @@ errno_t reiser4_item_open(reiser4_item_t *item,
     return 0;
 }
 
+errno_t reiser4_item_reopen(reiser4_item_t *item) {
+    aal_assert("umka-1131", item != NULL, return -1);
+    return reiser4_item_open(item, item->node, item->pos);
+}
+
 errno_t reiser4_item_init(reiser4_item_t *item, 
     reiser4_node_t *node, reiser4_pos_t *pos) 
 {

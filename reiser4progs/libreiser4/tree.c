@@ -629,8 +629,13 @@ errno_t reiser4_tree_lshift(
 		return -1;
 	    }
 	    
-	    if (reiser4_node_count(old->cache->node) > 0)
+	    if (reiser4_node_count(old->cache->node) > 0) {
+		    
+		if (reiser4_item_open(&item, old->cache->node, &mpos))
+		    return -1;
+
 		item_len = reiser4_item_len(&item) + item_overhead;
+	    }
 	}
 	
 	if (left != old->cache->left) {
@@ -764,6 +769,10 @@ errno_t reiser4_tree_rshift(
 	    /* Updating item_len for next item to be moved */
 	    if (reiser4_node_count(old->cache->node) > 0) {
 		mpos.item = reiser4_node_count(old->cache->node) - 1;
+
+		if (reiser4_item_open(&item, old->cache->node, &mpos))
+		    return -1;
+		
 		item_len = reiser4_item_len(&item) + item_overhead;
 	    }
 	}
