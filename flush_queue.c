@@ -52,8 +52,8 @@ static void init_fq (flush_queue_t * fq)
 
 	atomic_set (&fq->nr_submitted, 0);
 
-	capture_list_init (&fq->queue);
-	capture_list_init (&fq->io);
+	capture_list_init (&fq->prepped);
+	capture_list_init (&fq->sent);
 
 	sema_init (&fq->sema, 0);
 }
@@ -194,10 +194,10 @@ void fq_queue_node (flush_queue_t * fq, jnode * node)
 	spin_lock_jnode (node);
 
 	if (JF_ISSET(node, JNODE_WRITEBACK)) {
-		capture_list_push_back (&fq->io, node);
+		capture_list_push_back (&fq->sent, node);
 		atomic_inc (&fq->nr_submitted);
 	} else {
-		capture_list_push_back (&fq->queue, node);
+		capture_list_push_back (&fq->prepped, node);
 	}
 
 	count_enqueued_node (fq);
@@ -273,9 +273,9 @@ static void fq_scan_io_list (flush_queue_t * fq)
 	assert ("zam-741", atom != NULL);
 	assert ("zam-742", spin_atom_is_locked (atom));
 
-	cur = capture_list_front (&fq->io);
+	cur = capture_list_front (&fq->sent);
 
-	while (! capture_list_end (&fq->io, cur)) {
+	while (! capture_list_end (&fq->sent, cur)) {
 		jnode * next = capture_list_next (cur);
 
 		spin_lock_jnode (cur);
@@ -284,7 +284,7 @@ static void fq_scan_io_list (flush_queue_t * fq)
 
 		if (JF_ISSET (cur, JNODE_DIRTY)) {
 			capture_list_remove (cur);
-			capture_list_push_back (&fq->queue, cur);
+			capture_list_push_back (&fq->prepped, cur);
 
 			spin_unlock_jnode (cur);
 		} else {
@@ -392,8 +392,8 @@ void fq_fuse (txn_atom * to, txn_atom * from)
 		while (!fq_list_end (&from->flush_queues, fq)) {
 			spin_lock_fq (fq);
 
-			fq_queue_change_atom (&fq->queue, to);
-			fq_queue_change_atom (&fq->io, to);
+			fq_queue_change_atom (&fq->prepped, to);
+			fq_queue_change_atom (&fq->sent, to);
 
 			fq->atom = to;
 
@@ -525,7 +525,7 @@ static int fq_prepare_node_for_write (flush_queue_t * fq, jnode * node)
 		JF_CLR (node, JNODE_DIRTY);
 
 		capture_list_remove (node);
-		capture_list_push_back (&fq->io, node);
+		capture_list_push_back (&fq->sent, node);
 
 		spin_unlock_jnode (node);
 	}
@@ -559,7 +559,7 @@ int fq_write (flush_queue_t * fq, int how_many)
 	int max_blocks;		/* a limit for maximum number of blocks in one bio implied by the
 				 * device specific request queue restriction */
 
-	if (capture_list_empty (&fq->queue))
+	if (capture_list_empty (&fq->prepped))
 		return 0;
 
 #if REISER4_USER_LEVEL_SIMULATION
@@ -573,7 +573,7 @@ int fq_write (flush_queue_t * fq, int how_many)
 
 	nr_submitted = 0;
 
-	first = capture_list_front (&fq->queue);
+	first = capture_list_front (&fq->prepped);
 	last = first;
 
 	/* repeat until either we empty the queue or we submit how_many were requested to be submitted. */
@@ -587,7 +587,7 @@ int fq_write (flush_queue_t * fq, int how_many)
 		for (;;) {
 			jnode * cur = last;
 
-			if (capture_list_end (&fq->queue, cur))
+			if (capture_list_end (&fq->prepped, cur))
 				break;
 
 			if (*jnode_get_block (cur) != *jnode_get_block (first) + nr_contiguous)
@@ -616,7 +616,7 @@ int fq_write (flush_queue_t * fq, int how_many)
 			break;
 
 		first = last;
-	} while (!capture_list_end (&fq->queue, last));
+	} while (!capture_list_end (&fq->prepped, last));
 
 	return 0;
 }
