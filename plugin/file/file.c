@@ -1110,9 +1110,10 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index)
 		*index = pg->index + 1;
 
 		result = capture_anonymous_page(pg, 0);
-		if (result == 1)
+		if (result == 1) {
+			result = 0;
 			++ nr;
-		else if (result < 0) {
+		} else if (result < 0) {
 			/* error happened, set PAGECACHE_TAG_REISER4_MOVED tag back */
 			page_cache_release(pg);
 			spin_lock_irq(&mapping->tree_lock);
