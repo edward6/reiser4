@@ -152,6 +152,11 @@ typedef enum
  * See the getatom_locked() method for a common case.
  */
 
+/* A block number set consists of only the list head. */
+struct blocknr_set {
+	blocknr_set_list_head entries;
+};
+
 /* An atomic transaction: this is the underlying system representation
  * of a transaction, not the one seen by clients. */
 struct txn_atom
@@ -186,6 +191,12 @@ struct txn_atom
 	/* Start time. */
 	unsigned long          start_time;
 
+	/* The atom's delete set. */
+	blocknr_set            delete_set;
+
+	/* The atom's wandered_block mapping. */
+	blocknr_set            wandered_map;
+	
 	/* The transaction's list of dirty captured nodes--per level.  Index by (level-LEAF_LEVEL). */
 	capture_list_head      dirty_nodes[REAL_MAX_ZTREE_HEIGHT];
 
@@ -236,11 +247,6 @@ struct txn_mgr
 
 	/* A counter used to assign atom->atom_id values. */
 	__u32                  id_count;
-};
-
-/* A block number set consists of only the list head. */
-struct blocknr_set {
-	blocknr_set_list_head entries;
 };
 
 /****************************************************************************************

@@ -219,12 +219,14 @@ atom_init (txn_atom     *atom)
 		capture_list_init (& atom->dirty_nodes[level]);
 	}
 
-	capture_list_init (& atom->clean_nodes);
+	capture_list_init  (& atom->clean_nodes);
 	spin_lock_init     (& atom->alock);
 	txnh_list_init     (& atom->txnh_list);
 	atom_list_clean    (atom);
 	fwaitfor_list_init (& atom->fwaitfor_list);
 	fwaiting_list_init (& atom->fwaiting_list);
+	blocknr_set_init   (& atom->delete_set);
+	blocknr_set_init   (& atom->wandered_map);
 }
 
 /* Check if an atom is clean. */
@@ -561,6 +563,9 @@ atom_free (txn_atom *atom)
 			     atom->stage == ASTAGE_PRE_COMMIT));
 	atom->stage = ASTAGE_FREE;
 	
+	blocknr_set_destroy (& atom->delete_set);
+	blocknr_set_destroy (& atom->wandered_map);
+
 	assert ("jmacd-16", atom_isclean (atom));
 
 	spin_unlock_atom (atom);
@@ -1517,6 +1522,10 @@ capture_fuse_into (txn_atom  *small,
 	/* Assign the oldest start_time, merge flags. */
 	large->start_time = min (large->start_time, small->start_time);
 	large->flags     |= small->flags;
+
+	/* Merge blocknr sets. */
+	blocknr_set_merge (& large->delete_set, & small->delete_set);
+	blocknr_set_merge (& large->wandered_map, & small->wandered_map);
 
 	/* Notify any waiters--small needs to unload its wait lists.  Waiters actually remove
 	 * themselves from the list before returning from the fuse_wait function. */
