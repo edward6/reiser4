@@ -149,33 +149,17 @@ PREFIX##_hash_remove_index (PREFIX##_hash_table *hash,					\
 			    __u32                hash_index,				\
 			    ITEM_TYPE           *del_item)				\
 {											\
-  ITEM_TYPE *hash_item = hash->_table[hash_index];					\
-  ITEM_TYPE *last_item;									\
+  ITEM_TYPE ** hash_item_p = &hash->_table[hash_index];                                 \
 											\
   PREFIX##_check_hash(hash, hash_index);						\
                                                                                         \
-  if (hash_item == NULL)                                                                \
-    {                                                                                   \
-      return 0;                                                                         \
+  while (*hash_item_p != NULL) {                                                        \
+    if (*hash_item_p == del_item) {                                                     \
+      *hash_item_p = (*hash_item_p)->LINK_NAME._next;                                   \
+      return 1;                                                                         \
     }                                                                                   \
-                                                                                        \
-  if (del_item == hash_item)								\
-    {											\
-      hash->_table[hash_index] = del_item->LINK_NAME._next;				\
-      return 1;										\
-    }											\
-											\
-  for (last_item  = hash_item, hash_item = hash_item->LINK_NAME._next;			\
-       hash_item != NULL;								\
-       last_item  = hash_item, hash_item = hash_item->LINK_NAME._next)			\
-    {											\
-      if (hash_item == del_item)							\
-	{										\
-	  last_item->LINK_NAME._next = hash_item->LINK_NAME._next;			\
-	  return 1;									\
-	}										\
-    }											\
-											\
+    hash_item_p = &(*hash_item_p)->LINK_NAME._next;                                     \
+  }											\
   return 0;										\
 }											\
 											\
