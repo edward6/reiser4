@@ -690,6 +690,10 @@ typedef struct reiser4_statistics {
 		 * how many nodes were squeezed to left neighbor completely
 		 */
 		stat_cnt squeezed_completely;
+		/*
+		 * how many times nodes with unallocated children are written
+		 */
+		stat_cnt flushed_with_unallocated;
 	} flush;
 	struct {
 		/*

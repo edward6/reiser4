@@ -223,6 +223,7 @@ void reiser4_print_stats()
 	      "\t squeeze:\t %lli\n"
 	      "\t flush_carry:\t %lli\n"
 	      "\t squeezed_completely:\t %lli\n"
+	      "\t flushed with unallocated children: \t %lli\n"
 
 	      "pool:\n"
 	      "\t alloc:\t %lli\n"
@@ -290,6 +291,7 @@ void reiser4_print_stats()
 	      s -> flush.squeeze,
 	      s -> flush.flush_carry,
 	      s -> flush.squeezed_completely,
+	      s -> flush.flushed_with_unallocated,
 
 	      s -> pool.pool_alloc,
 	      s -> pool.pool_kmalloc,
