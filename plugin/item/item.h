@@ -201,13 +201,17 @@ typedef struct {
 	int ( *item_data_by_flow )( const tree_coord *coord,
 				    const flow_t *f,
 				    reiser4_item_data *data );
-	/* */
+
+	/* return the right or left child of @coord, only if it is in memory */
 	int ( *utmost_child )( const tree_coord *coord, sideof side,
 			       jnode **child );
+	/* return whether the right or left child of @coord is dirty. */
 	int ( *utmost_child_dirty )( const tree_coord *coord, sideof side, int *is_dirty );
 	
+	/* return whether the right or left child of @coord has a non-fake block number. */
 	int ( *utmost_child_real_block )( const tree_coord *coord, sideof side,
 					  reiser4_block_nr *block );
+
 	reiser4_key *( *real_max_key_inside )( const tree_coord *coord, reiser4_key * );
 } common_item_plugin;
 

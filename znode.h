@@ -318,11 +318,6 @@ typedef enum {
        ZNODE_RELOC             = 7,
        /** this node is currently wandered */
        ZNODE_WANDER            = 8,
-
-       /** this node was modified by an atom and was subsequently allocated.
-	* If this is set, it implies that one of ZNODE_ALLOC, ZNODE_RELOC, or
-	* ZNODE_WANDER has been set. */
-       ZNODE_SQUALLOCED         = 9,
 	   
        /** this node was deleted by its txn.  Eliminated because the
 	* znode/jnode will be released as soon as possible.  The atom doesn't
@@ -602,7 +597,7 @@ extern void   jnode_set_dirty (jnode *node);
 extern void   jnode_set_clean (jnode *node);
 extern const reiser4_block_nr* jnode_get_block( const jnode *node );
 
-extern int    jnode_flush     (jnode *node);
+extern int    jnode_flush     (jnode *node, int flags);
 
 #if REISER4_DEBUG
 void info_jnode( const char *prefix, const jnode *node );
