@@ -144,10 +144,14 @@ esac
 AM_CONDITIONAL(ENABLE_MONOLITIC, test x$enable_monolitic = xyes)
 
 PLUGIN_LDFLAGS=""
+LIBREISERFS_LDFLAGS=""
 if test x$enable_monolitic = xno; then
     PLUGIN_LDFLAGS="-module -avoid-version"
+else
+    LIBREISERFS_LDFLAGS="-Wl,-T -Wl,libreiserfs.lds"
 fi
 AC_SUBST(PLUGIN_LDFLAGS)
+AC_SUBST(LIBREISERFS_LDFLAGS)
 
 AC_OUTPUT([
     Makefile

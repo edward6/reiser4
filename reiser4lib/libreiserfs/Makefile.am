@@ -3,7 +3,8 @@ LIBS			= @LIBS@
 includedir		= -I$(top_srcdiq)/include
 
 lib_LTLIBRARIES		= libreiserfs.la
-libreiserfs_la_LDFLAGS 	= -version-info $(LT_CURRENT):$(LT_REVISION):$(LT_AGE) -release $(LT_RELEASE)
+libreiserfs_la_LDFLAGS 	= -version-info $(LT_CURRENT):$(LT_REVISION):$(LT_AGE) -release $(LT_RELEASE) \
+			  $(LIBREISERFS_LDFLAGS)
 
 if ENABLE_MONOLITIC
 libreiserfs_la_LIBADD  	= $(top_builddir)/libaal/libaal.la \
