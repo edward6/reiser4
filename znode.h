@@ -445,7 +445,7 @@ extern void done_lh (reiser4_lock_handle*);
 
 extern int  prepare_to_sleep (reiser4_lock_stack *owner);
 extern void go_to_sleep      (reiser4_lock_stack *owner);
-extern void reiser4_wake_up          (reiser4_lock_stack *owner);
+extern void __reiser4_wake_up          (reiser4_lock_stack *owner);
 
 extern void show_lock_stack    (reiser4_context    *owner);
 extern int  lock_stack_isclean (reiser4_lock_stack *owner);
@@ -457,10 +457,17 @@ extern int znode_is_any_locked( const znode *node );
 extern int znode_is_write_locked( const znode *node );
 #endif
 
-/* FIXME-NIKITA nikita: what are locking rules for lock stacks? */
+/* lock ordering is: first take znode spin lock, then lock stack spin lock */
 #define spin_ordering_pred_stack(stack) (1)
 /** Same for lock_stack */
 SPIN_LOCK_FUNCTIONS(stack,reiser4_lock_stack,sguard);
+
+static inline void reiser4_wake_up (reiser4_lock_stack *owner)
+{
+	spin_lock_stack(owner);
+	reiser4_wake_up(owner);
+	spin_unlock_stack(owner);
+}
 
 extern znode *zref( znode *node );
 extern znode *zget( reiser4_tree *tree, const reiser4_disk_addr *const block,
