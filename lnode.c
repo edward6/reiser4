@@ -21,10 +21,11 @@
  * In other words, lnode is handle that reiser4 keeps for a file system object
  * while object is being actively used. For example, when read is performed by
  * reiser4_read(), lnode exists for inode being read. When reiser4_read()
- * exists lnode is deleted, but inode is still there in the inode cache.
+ * exits lnode is deleted, but inode is still there in the inode cache.
  *
  * As lnode only exists while object is being actively manipulated by some
- * threads, it follows that lnode can always live on the stack of this thread.
+ * threads, it follows that lnodes can always live on the stack of such
+ * threads.
  *
  * Case-by-case:
  *
@@ -53,7 +54,7 @@
  *     1. check for existing inode in a hash-table. 
  *
  *        Rationale: if inode is already here it is advantageous to use it,
- *        because it already have information from stat data.
+ *        because it already has information from stat data.
  *
  *        If inode is found proceed as in case A.
  *
@@ -72,7 +73,7 @@
  *
  * 1. fs/inode.c:inode_lock is not static: we can use it. Good.
  *
- * 2. but fs/inode.c:find_inode() isn't. Either write own version, or remove
+ * 2. but fs/inode.c:find_inode() is. Either write own version, or remove
  * static and EXPORT_SYMBOL-ize it.
  *
  *
