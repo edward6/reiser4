@@ -77,6 +77,18 @@ static inline int check_repacker_state_bit(struct repacker *repacker, enum repac
 	return result;
 }
 
+static int check_repacker_state (struct repacker * repacker)
+{
+	if (check_repacker_state_bit(
+		    get_current_super_private()->repacker, REPACKER_STOP))
+		return -EINTR;
+	if (current->flags & PF_FREEZE)
+		return -E_REPEAT;
+	if (current_atom_should_commit())
+		return -E_REPEAT;
+	return 0;
+}
+
 static void repacker_cursor_init (struct repacker_cursor * cursor, struct repacker * repacker)
 {
 	int backward = check_repacker_state_bit(repacker, REPACKER_GOES_BACKWARD);
@@ -118,11 +130,13 @@ static int process_znode_forward (tap_t * tap, void * arg)
 {
 	struct repacker_cursor * cursor = arg;
 	znode * node = tap->lh->node;
+	int ret;
 
 	assert("zam-954", cursor->count > 0);
 
-	if (check_repacker_state_bit(get_current_super_private()->repacker, REPACKER_STOP))
-		return -EINTR;
+	ret = check_repacker_state(get_current_super_private()->repacker);
+	if (ret)
+		return ret;
 
 	if (ZF_ISSET(node, JNODE_REPACK))
 		return 0;
@@ -147,11 +161,9 @@ static int process_extent_forward (tap_t *tap, void * arg)
 	int ret;
 	struct repacker_cursor * cursor = arg;
 
-	if (check_repacker_state_bit(get_current_super_private()->repacker, REPACKER_STOP))
-		return -EINTR;
-
-	if (current_atom_should_commit())
-		return -E_REPEAT;
+	ret = check_repacker_state(get_current_super_private()->repacker);
+	if (ret)
+		return ret;
 
 	ret = mark_extent_for_repacking(tap, cursor->count);
 	if (ret > 0) {
@@ -302,11 +314,9 @@ static int process_extent_backward (tap_t * tap, void * arg)
 
 	assert("zam-978", (unsigned)(cursor->count) <= get_current_context()->grabbed_blocks);
 
-	if (check_repacker_state_bit(get_current_super_private()->repacker, REPACKER_STOP))
-		return -EINTR;
-
-	if (current_atom_should_commit())
-		return -E_REPEAT;
+	ret = check_repacker_state(get_current_super_private()->repacker);
+	if (ret)
+		return ret;
 
 	ret = process_extent_backward_for_repacking(tap, cursor);
 	if (ret)
