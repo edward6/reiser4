@@ -195,11 +195,12 @@ static errno_t direntry40_init(reiser4_body_t *body,
     return direntry40_insert(body, 0, hint);
 }
 
-static uint32_t direntry40_remove(reiser4_body_t *body, 
+static uint16_t direntry40_remove(reiser4_body_t *body, 
     uint32_t pos)
 {
+    uint16_t rem_len;
+    uint32_t offset;
     uint32_t i, head_len;
-    uint32_t offset, rem_len;
 
     reiser4_direntry40_t *direntry;
     

@@ -233,13 +233,13 @@ struct reiser4_entry_hint {
 
     /* Locality and objectid of object pointed by entry */
     struct {
-	uint64_t locality;
-	uint64_t objectid;
+	roid_t locality;
+	roid_t objectid;
     } objid;
 
     /* Offset of entry */
     struct {
-	uint64_t objectid;
+	roid_t objectid;
 	uint64_t offset;
     } entryid;
 
@@ -283,13 +283,13 @@ struct reiser4_item_hint {
 	an item.
     */
     void *hint;
-
-    /* The key of item */
-    reiser4_key_t key;
-
+    
     /* Length of the item to inserted */
     uint16_t len;
     
+    /* The key of item */
+    reiser4_key_t key;
+
     /* Plugin to be used for creating item */
     reiser4_plugin_t *plugin;
 };
@@ -440,10 +440,11 @@ struct reiser4_item_common_ops {
     errno_t (*init) (reiser4_body_t *, reiser4_item_hint_t *);
 
     /* Inserts unit described by passed hint into the item */
-    errno_t (*insert) (reiser4_body_t *, uint32_t, reiser4_item_hint_t *);
+    errno_t (*insert) (reiser4_body_t *, uint32_t, 
+	reiser4_item_hint_t *);
     
     /* Removes specified unit from the item. Returns released space */
-    uint32_t (*remove) (reiser4_body_t *, uint32_t);
+    uint16_t (*remove) (reiser4_body_t *, uint32_t);
 
     /* Estimates item */
     errno_t (*estimate) (uint32_t, reiser4_item_hint_t *);
@@ -452,13 +453,15 @@ struct reiser4_item_common_ops {
     int (*confirm) (reiser4_body_t *);
 
     /* Makes lookup for passed key */
-    int (*lookup) (reiser4_body_t *, reiser4_key_t *, uint32_t *);
+    int (*lookup) (reiser4_body_t *, reiser4_key_t *, 
+	uint32_t *);
 
     /* Checks item for validness */
     errno_t (*valid) (reiser4_body_t *);
 
     /* Prints item into specified buffer */
-    errno_t (*print) (reiser4_body_t *, char *, uint32_t, uint16_t);
+    errno_t (*print) (reiser4_body_t *, char *, uint32_t, 
+	uint16_t);
 
     /* Get the max key which could be stored in the item of this type */
     errno_t (*maxkey) (reiser4_key_t *);
@@ -512,19 +515,15 @@ struct reiser4_item_ops {
 
 typedef struct reiser4_item_ops reiser4_item_ops_t;
 
-/* Unix stat data fileds extention plugin */
+/* Stat data extention plugin */
 struct reiser4_sdext_ops {
     reiser4_plugin_header_t h;
 
-    errno_t (*init) (reiser4_body_t *, 
-	reiser4_sdext_unix_hint_t *);
-    
-    errno_t (*open) (reiser4_body_t *, 
-	reiser4_sdext_unix_hint_t *);
+    errno_t (*init) (reiser4_body_t *, void *);
+    errno_t (*open) (reiser4_body_t *, void *);
     
     int (*confirm) (reiser4_body_t *);
-    
-    uint32_t (*length) (void);
+    uint16_t (*length) (void);
 };
 
 typedef struct reiser4_sdext_ops reiser4_sdext_ops_t;

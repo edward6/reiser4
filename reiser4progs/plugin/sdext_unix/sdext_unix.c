@@ -11,43 +11,47 @@
 static reiser4_core_t *core = NULL;
 
 static errno_t sdext_unix_init(reiser4_body_t *body, 
-    reiser4_sdext_unix_hint_t *hint) 
+    void *hint) 
 {
     sdext_unix_t *ext;
+    reiser4_sdext_unix_hint_t *sdext_unix;
     
     aal_assert("umka-884", body != NULL, return -1);
     aal_assert("umka-885", hint != NULL, return -1);
 	
     ext = (sdext_unix_t *)body;
+    sdext_unix = (reiser4_sdext_unix_hint_t *)body;
     
-    sdext_unix_set_uid(ext, hint->uid);
-    sdext_unix_set_gid(ext, hint->gid);
-    sdext_unix_set_atime(ext, hint->atime);
-    sdext_unix_set_mtime(ext, hint->mtime);
-    sdext_unix_set_ctime(ext, hint->ctime);
-    sdext_unix_set_rdev(ext, hint->rdev);
-    sdext_unix_set_bytes(ext, hint->bytes);
+    sdext_unix_set_uid(ext, sdext_unix->uid);
+    sdext_unix_set_gid(ext, sdext_unix->gid);
+    sdext_unix_set_atime(ext, sdext_unix->atime);
+    sdext_unix_set_mtime(ext, sdext_unix->mtime);
+    sdext_unix_set_ctime(ext, sdext_unix->ctime);
+    sdext_unix_set_rdev(ext, sdext_unix->rdev);
+    sdext_unix_set_bytes(ext, sdext_unix->bytes);
 
     return 0;
 }
 
 static errno_t sdext_unix_open(reiser4_body_t *body, 
-    reiser4_sdext_unix_hint_t *hint) 
+    void *hint) 
 {
     sdext_unix_t *ext;
+    reiser4_sdext_unix_hint_t *sdext_unix;
     
     aal_assert("umka-886", body != NULL, return -1);
     aal_assert("umka-887", hint != NULL, return -1);
 
     ext = (sdext_unix_t *)body;
+    sdext_unix = (reiser4_sdext_unix_hint_t *)body;
     
-    hint->uid = sdext_unix_get_uid(ext);
-    hint->gid = sdext_unix_get_gid(ext);
-    hint->atime = sdext_unix_get_atime(ext);
-    hint->mtime = sdext_unix_get_mtime(ext);
-    hint->ctime = sdext_unix_get_ctime(ext);
-    hint->rdev = sdext_unix_get_rdev(ext);
-    hint->bytes = sdext_unix_get_bytes(ext);
+    sdext_unix->uid = sdext_unix_get_uid(ext);
+    sdext_unix->gid = sdext_unix_get_gid(ext);
+    sdext_unix->atime = sdext_unix_get_atime(ext);
+    sdext_unix->mtime = sdext_unix_get_mtime(ext);
+    sdext_unix->ctime = sdext_unix_get_ctime(ext);
+    sdext_unix->rdev = sdext_unix_get_rdev(ext);
+    sdext_unix->bytes = sdext_unix_get_bytes(ext);
 
     return 0;
 }
@@ -57,7 +61,7 @@ static int sdext_unix_confirm(reiser4_body_t *body) {
     return 0;
 }
 
-static uint32_t sdext_unix_length(void) {
+static uint16_t sdext_unix_length(void) {
     return sizeof(sdext_unix_t);
 }
 
