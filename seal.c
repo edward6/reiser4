@@ -99,11 +99,12 @@ check_seal_match(const coord_t * coord /* coord to check */,
 		 const reiser4_key * k /* expected key */)
 {
 	reiser4_key ukey;
-
+	
 	return (coord->between != AT_UNIT) ||
-	    /* FIXME-VS: we only can compare keys for items whose units
-	       represent exactly one key */
-	    (coord_is_existing_unit(coord) && (item_is_extent(coord) || keyeq(k, unit_key_by_coord(coord, &ukey))));
+		/* FIXME-VS: we only can compare keys for items whose units
+		   represent exactly one key */
+		(coord_is_existing_unit(coord) && 
+		 (item_is_extent(coord) || item_is_ctail(coord) || keyeq(k, unit_key_by_coord(coord, &ukey))));
 }
 #endif
 
