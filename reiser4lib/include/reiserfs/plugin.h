@@ -67,7 +67,7 @@ typedef struct reiserfs_dir_plugin reiserfs_dir_plugin_t;
 struct reiserfs_common_item_plugin {
     reiserfs_item_type_id_t item_type;
 
-    reiserfs_opaque_t *(*create) (reiserfs_key_t *);
+    reiserfs_opaque_t *(*create) (reiserfs_opaque_t *, reiserfs_opaque_t *);
     reiserfs_opaque_t *(*open) (void *);
 
     int (*add_unit) (reiserfs_opaque_t *, int32_t, 
@@ -80,8 +80,12 @@ struct reiserfs_common_item_plugin {
     
     int (*remove_units) (reiserfs_opaque_t *, int32_t, int32_t);
     
-    uint32_t (*estimate) (reiserfs_opaque_t *, int32_t,
-	reiserfs_opaque_t *);
+    /*  Estimate gets coords (where to insert/past into) and item_info
+	(what needs to be inserted). If coords is NULL, then this is 
+	insertion, othewise it is pasting. The amount of needed space
+	should be set into item_info->lenght. */
+    void (*estimate) (reiserfs_opaque_t *, reiserfs_opaque_t *);
+    
     int (*is_internal) ();
 };
 
@@ -112,7 +116,7 @@ struct reiserfs_stat_ops {
 typedef struct reiserfs_stat_ops reiserfs_stat_ops_t;
 
 struct reiserfs_internal_ops {
-    blk_t (*down_link) (reiserfs_opaque_t *, uint16_t);
+    blk_t (*down_link) (reiserfs_opaque_t *);
     
     /* Check that given internal item contains given pointer. */
     int (*has_pointer_to) (reiserfs_opaque_t *, blk_t);
@@ -142,22 +146,29 @@ struct reiserfs_node_plugin {
 
     reiserfs_opaque_t *(*open) (aal_device_t *, aal_block_t *);
     reiserfs_opaque_t *(*create) (aal_device_t *, aal_block_t *, uint8_t);
-    
+    error_t (*close) (reiserfs_opaque_t *);
     error_t (*confirm) (reiserfs_opaque_t *);
     error_t (*check) (reiserfs_opaque_t *, int);
     int (*lookup) (reiserfs_opaque_t *, reiserfs_key_t *, void *);
-    
+    error_t (*insert) (reiserfs_opaque_t *, reiserfs_opaque_t *, 
+	    reiserfs_opaque_t *);
+ 
     uint16_t (*item_max_size) (reiserfs_opaque_t *);
     uint16_t (*item_max_num) (reiserfs_opaque_t *);
     uint16_t (*item_count) (reiserfs_opaque_t *);
     uint16_t (*item_length) (reiserfs_opaque_t *, int32_t);
-    reiserfs_key_t *(*item_min_key) (reiserfs_opaque_t *, int32_t);
+    reiserfs_key_t *(*key_at) (reiserfs_opaque_t *, int32_t);
     uint16_t (*item_plugin_id) (reiserfs_opaque_t *, int32_t);
     void *(*item) (reiserfs_opaque_t *, int32_t);
     
     uint16_t (*get_free_space) (reiserfs_opaque_t *);
     void (*set_free_space) (reiserfs_opaque_t *, uint32_t);
-    
+
+    /*  this is optional method. That means that there could be 
+	node formats which do not keep level. */
+    uint8_t (*get_level) (reiserfs_opaque_t *);
+    void (*set_level) (reiserfs_opaque_t *, uint8_t);
+
     void (*print) (reiserfs_opaque_t *, char *);
 };
 
