@@ -280,7 +280,7 @@ reiser4_free_dentry_fsdata(struct dentry *dentry /* dentry released */ )
 	}
 }
 
-/* Release reiser4 dentry. This is d_op->d_delease() method. */
+/* Release reiser4 dentry. This is d_op->d_release() method. */
 static void
 reiser4_d_release(struct dentry *dentry /* dentry released */ )
 {
