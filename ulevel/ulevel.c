@@ -3053,6 +3053,8 @@ static int bash_mkfs (const char * file_name)
 		{
 			reiser4_master_sb * master_sb;
 			size_t blocksize;
+			__u64 block_count;
+
 
 			blocksize = super.s_blocksize;
 			bh = sb_bread (&super, (int)(REISER4_MAGIC_OFFSET / blocksize));
@@ -3088,7 +3090,8 @@ static int bash_mkfs (const char * file_name)
 			cputod16 (NEVER_TAIL_ID, &test_sb->tail_policy);
 
 			/* block count on device */
-			cputod64 (get_fs_size (&super), &test_sb->block_count);
+			block_count = get_fs_size (&super);
+			cputod64 (block_count, &test_sb->block_count);
 
 			/* this will change on put_super in accordance to state
 			 * of filesystem at that time */
@@ -3100,6 +3103,15 @@ static int bash_mkfs (const char * file_name)
 			mark_buffer_dirty (bh);
 			ll_rw_block (WRITE, 1, &bh);
 			wait_on_buffer (bh);
+
+			/* initialize super block fields: 
+			 * number of blocks on device */
+			reiser4_set_block_count(&super, block_count);
+			/* number of used blocks */
+			reiser4_set_data_blocks(&super, (REISER4_MAGIC_OFFSET / blocksize) + 1);
+			/* number of free blocks */
+			reiser4_set_free_blocks(&super, block_count - ((REISER4_MAGIC_OFFSET / blocksize) + 1));
+
 		}
 
 		/* initialize empty tree */
