@@ -460,13 +460,17 @@ void print_fs_info (const char *prefix, const struct super_block * s)
 
 	private = get_super_private (s);
 
-	info ("================ fs info =================\n");
+	info ("================ fs info (%s) =================\n", prefix);
 	info ("root block: %lli\ntree height: %i\n",
 	      private->tree.root_block, private->tree.height);
 	if (private->space_plug->print_info)
-		private->space_plug->print_info (prefix, get_space_allocator (s));
+		private->space_plug->print_info ("", get_space_allocator (s));
 	if (private->oid_plug->print_info)
-		private->oid_plug->print_info (prefix, get_oid_allocator (s));
+		private->oid_plug->print_info ("", get_oid_allocator (s));
+	info ("Block counters:\n\tblock count\t%llu\n\tfree blocks\t%llu\n"
+	      "\tused blocks\t%llu\n\tgrabbed\t%llu\n\tunallocated\t%llu\n",
+	      reiser4_block_count (s), reiser4_free_blocks (s), reiser4_data_blocks (s),
+	      reiser4_grabbed_blocks (s), reiser4_unallocated_blocks (s));
 }
 
 /* 
