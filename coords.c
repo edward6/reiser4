@@ -500,7 +500,7 @@ int coord_eq( const tree_coord *c1, const tree_coord *c2 )
 	if( c1 -> node != c2 -> node )
 		return 0;
 	switch( c1 -> between ) {
-	default: wrong_return_value( "nikita-1809", c1 -> between );
+	default: wrong_return_value( "nikita-1809", "c1 -> between" );
 	case AT_UNIT:
 		return 0;
 	case BEFORE_UNIT:
