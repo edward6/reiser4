@@ -336,7 +336,7 @@ jnode * jnew (void)
 
 	/* FIXME: not a strictly correct, but should help in avoiding of
 	 * looking to missing znode-only fields */
-	JF_SET (node, ZNODE_UNFORMATTED);
+	JF_SET (jal, ZNODE_UNFORMATTED);
 
 	return jal;
 }
