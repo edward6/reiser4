@@ -375,6 +375,7 @@ int tail2extent (struct inode * inode)
 				if (item_id_by_coord (&coord) != TAIL_ID) {
 					/*
 					 * something other than tail found
+					 * This is only possible when first item of a file found during call to reiser4_mmap.
 					 */
 					if (get_key_offset (&key) == (__u64)0) {
 						if (item_id_by_coord (&coord) != EXTENT_POINTER_ID)
