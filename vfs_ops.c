@@ -818,17 +818,17 @@ static int create_object( struct inode *parent, struct dentry *dentry,
 			  reiser4_object_create_data *data )
 {
 	int result;
-	file_plugin *fplug;
+	dir_plugin *dplug;
 	REISER4_ENTRY( parent -> i_sb );
 
 	assert( "nikita-426", parent != NULL );
 	assert( "nikita-427", dentry != NULL );
 	assert( "nikita-428", data != NULL );
 
-	fplug = reiser4_get_file_plugin( parent );
-	assert( "nikita-429", fplug != NULL );
-	if( fplug -> create != NULL ) {
-		result = fplug -> create( parent, dentry, data );
+	dplug = reiser4_get_dir_plugin( parent );
+	assert( "nikita-429", dplug != NULL );
+	if( dplug -> create != NULL ) {
+		result = dplug -> create_child( parent, dentry, data );
 	} else {
 		result = -EPERM;
 	}
@@ -919,7 +919,8 @@ static void reiser4_destroy_inode( struct inode *inode )
  *
  * This is read_super() of the past.
  */
-static int reiser4_fill_super( struct super_block *s, void *data, int silent )
+static int reiser4_fill_super( struct super_block *s UNUSED_ARG, void *data UNUSED_ARG,
+			       int silent UNUSED_ARG )
 {
 	not_implemented( "nikita-1698", "fixme, *YOU*!" );
 	return -ENOSYS;

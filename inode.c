@@ -46,9 +46,17 @@ file_plugin *reiser4_get_file_plugin( const struct inode *inode )
 	assert( "nikita-269", inode != NULL );
 	assert( "nikita-270", is_reiser4_inode( inode ) );
 
-	return &reiser4_get_object_state( inode ) -> file -> u.file;
+	return reiser4_get_object_state( inode ) -> file;
 }
 
+/** dir plugin for @inode */
+dir_plugin *reiser4_get_dir_plugin( const struct inode *inode )
+{
+	assert( "vs-385", inode != NULL );
+	assert( "vs-386", is_reiser4_inode( inode ) );
+
+	return reiser4_get_object_state( inode ) -> dir;
+}
 
 /** lock inode. We lock file-system wide spinlock, because we have to lock
  *  inode _before_ we have actually read and initialised it and we cannot rely
@@ -207,7 +215,7 @@ int init_inode( struct inode *inode, tree_coord *coord )
 	result = iplug -> s.sd.init_inode( inode, body, length );
 	if( result )
 		return result;
-	reiser4_get_object_state( inode ) -> sd = item_plugin_to_plugin (iplug);
+	reiser4_get_object_state( inode ) -> sd = iplug;
 	return setup_inode_ops( inode );
 }
 
@@ -268,7 +276,9 @@ static int read_inode( struct inode * inode )
 	}
 	return result;
 }
- 
+
+
+
 /** this is our helper function a la iget().
     Probably we also need function taking locality_id as the second argument. ???
     This will be called by reiser4_lookup() and reiser4_read_super().
@@ -366,11 +376,11 @@ void print_inode( const char *prefix, const struct inode *i )
 	info( "\tis_reiser4_inode: %i\n", is_reiser4_inode( i ) );
 	print_key( "\tkey", build_sd_key( i, &inode_key ) );
 	ref = &reiser4_inode_data( i ) -> plugin;
-	print_plugin( "\tfile", ref -> file );
-	print_plugin( "\tperm", ref -> perm );
-	print_plugin( "\ttail", ref -> tail );
-	print_plugin( "\thash", ref -> hash );
-	print_plugin( "\tsd", ref -> sd );
+	print_plugin( "\tfile", file_plugin_to_plugin( ref -> file ) );
+	print_plugin( "\tperm", perm_plugin_to_plugin( ref -> perm ) );
+	print_plugin( "\ttail", tail_plugin_to_plugin( ref -> tail ) );
+	print_plugin( "\thash", hash_plugin_to_plugin( ref -> hash ) );
+	print_plugin( "\tsd", item_plugin_to_plugin( ref -> sd ) );
 	info( "\tflags: %u, bytes: %llu, extmask: %llu, sd_len: %i, pmask: %i\n",
 	      ref -> flags, ref -> bytes, ref -> extmask, 
 	      ( int ) ref -> sd_len, ref -> plugin_mask );
