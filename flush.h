@@ -120,11 +120,9 @@ const char *jnode_tostring(jnode * node);
 #endif
 
 #if REISER4_DEBUG
-static void
-check_preceder(reiser4_block_nr blk)
-{
-	assert("nikita-2588", blk < reiser4_block_count(reiser4_get_current_sb()));
-}
+#define check_preceder(blk) \
+assert("nikita-2588", blk < reiser4_block_count(reiser4_get_current_sb()));
+
 #else
 #define check_preceder( b ) noop
 #endif
