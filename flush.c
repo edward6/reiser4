@@ -3070,6 +3070,7 @@ jnode_lock_parent_coord(jnode         * node,
 		case CBK_COORD_NOTFOUND:
 			if (jnode_is_cluster_page(node)) {
 				int result;
+				assert("edward-1038", 0);
 				assert("edward-164", jnode_page(node) != NULL);
 				assert("edward-165", jnode_page(node)->mapping != NULL);
 				assert("edward-166", jnode_page(node)->mapping->host != NULL);
