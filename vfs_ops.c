@@ -1152,7 +1152,7 @@ static struct inode *reiser4_alloc_inode( struct super_block *super UNUSED_ARG /
 		info -> sd_len = 0;
 		info -> locality_id = 0ull;
 		seal_init( &info -> sd_seal, NULL, NULL );
-		ncoord_init_invalid( &info -> sd_coord, NULL );
+		coord_init_invalid( &info -> sd_coord, NULL );
 		xmemset( &info -> ra, 0, sizeof info -> ra );
 		return &info -> vfs_inode;
 	} else
