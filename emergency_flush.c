@@ -154,8 +154,6 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 	struct super_block *sb;
 	jnode *node;
 	int result;
-	reiser4_block_nr blk;
-	eflush_node_t *efnode;
 
 	assert("nikita-2721", page != NULL);
 	assert("nikita-2722", wbc != NULL);
@@ -178,10 +176,14 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 	trace_on(TRACE_EFLUSH, "eflush: %i...", get_super_private(sb)->eflushed);
 
 	result = 0;
-	blk = 0ull;
-	efnode = NULL;
 	spin_lock_jnode(node);
 	if (flushable(node, page)) {
+		reiser4_block_nr blk;
+		eflush_node_t *efnode;
+
+		blk = 0ull;
+		efnode = NULL;
+
 		result = ef_prepare(node, &blk, &efnode);
 		if (flushable(node, page) && result == 0 && 
 		    test_clear_page_dirty(page)) {
@@ -196,7 +198,7 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 			if (result == 0) {
 				--wbc->nr_to_write;
 				result = 1;
-				trace_on(TRACE_EFLUSH, "ok\n");
+				trace_on(TRACE_EFLUSH, "ok: %llu\n", blk);
 			} else {
 				/* 
 				 * XXX may be set_page_dirty() should be called
@@ -467,8 +469,8 @@ static int ef_free_block(jnode *node, const reiser4_block_nr *blk)
 	return result;
 }
 
-static int ef_prepare(jnode *node, reiser4_block_nr *blk, 
-		      eflush_node_t **efnode)
+static int 
+ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode)
 {
 	int result;
 	reiser4_blocknr_hint hint;

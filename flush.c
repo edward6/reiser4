@@ -2646,7 +2646,7 @@ jnode_lock_parent_coord(jnode         * node,
 		struct inode *ino = jnode_mapping(node)->host;
 		reiser4_key key;
 		file_plugin *fplug = inode_file_plugin(ino);
-		loff_t loff = jnode_get_index(node) << PAGE_CACHE_SHIFT;
+		loff_t loff = jnode_index(node) << PAGE_CACHE_SHIFT;
 
 		assert("jmacd-1812", coord != NULL);
 
