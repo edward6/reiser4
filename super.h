@@ -236,7 +236,6 @@ struct reiser4_super_info_data {
 	struct {
 		unsigned atom_max_size;
 		unsigned atom_max_age;
-		unsigned low_memory;
 	} txnmgr;
 
 	flush_params flush;
@@ -260,6 +259,7 @@ struct reiser4_super_info_data {
 
 	struct kobject kobj;
 #if REISER4_STATS
+	struct kobject stats_kobj;
 	reiser4_level_stats_kobj level[REAL_MAX_ZTREE_HEIGHT];
 #endif
 #if REISER4_DEBUG
