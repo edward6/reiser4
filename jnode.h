@@ -625,17 +625,7 @@ jput(jnode * node)
 		jput_final(node);
 }
 
-/* drop reference to node data. When last reference is dropped, data are
-   unloaded. */
-static inline void
-jrelse(jnode * node)
-{
-	assert("zam-507", node != NULL);
-	assert("zam-508", atomic_read(&node->d_count) > 0);
-
-	UNDER_SPIN_VOID(jnode, node, jrelse_nolock(node));
-	jput(node);
-}
+extern void jrelse(jnode * node);
 
 /* protect @node from e-flush */
 static inline int jprotect (jnode * node)

@@ -717,9 +717,10 @@ jinit_new(jnode * node /* jnode to initialise */)
 	return result;
 }
 
-/* just like jrelse, but assume jnode is already spin-locked */
+/* drop reference to node data. When last reference is dropped, data are
+   unloaded. */
 void
-jrelse_nolock(jnode * node /* jnode to release references to */ )
+jrelse(jnode * node /* jnode to release references to */)
 {
 	struct page *page;
 
@@ -731,6 +732,12 @@ jrelse_nolock(jnode * node /* jnode to release references to */ )
 
 	trace_on(TRACE_PCACHE, "release node: %p\n", node);
 
+	LOCK_JNODE(node);
+	/*
+	 * we have to keep spin lock on jnode here (as well as in any other
+	 * place where jnode page is accessed) to avoid races against
+	 * ->invalidatepage().
+	 */
 	page = jnode_page(node);
 	if (page != NULL) {
 		/*
