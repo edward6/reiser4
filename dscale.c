@@ -40,14 +40,7 @@
 /* return tag of scaled integer stored at @address */
 static int gettag(const char *address)
 {
-	return (*address) >> 6;
-}
-
-/* clear tag from value */
-static void cleartag(__u64 *value)
-{
-	*value <<= 2;
-	*value >>= 2;
+	return ((unsigned char)(*address)) >> 6;
 }
 
 /* return tag for @value */
@@ -62,8 +55,16 @@ static int dscale_range(__u64 value)
 	return 0;
 }
 
-/* restore value stored at @adderss by dscale_write() and return number of
- * bytes consumed */
+#define __be8_to_cpu(x) (x)
+#define readXX(XX)					\
+{							\
+	__u##XX tmp;					\
+							\
+	tmp = get_unaligned((__u##XX *)address);	\
+	*(char *)&tmp &= ~(tag << 6);			\
+	*value = __be##XX##_to_cpu(tmp);		\
+}
+
 int dscale_read(char *address, __u64 *value)
 {
 	int tag;
@@ -75,19 +76,18 @@ int dscale_read(char *address, __u64 *value)
 		/* worst case: 8 bytes for value itself plus one byte for
 		 * tag */
 		return 9;
-	case 0:
-		*value = get_unaligned(address);
+	case 0: 
+		readXX(8);
 		break;
 	case 1:
-		*value = __be16_to_cpu(get_unaligned((__u16 *)address));
+		readXX(16);
 		break;
 	case 2:
-		*value = __be32_to_cpu(get_unaligned((__u32 *)address));
+		readXX(32);
 		break;
 	default:
 		return RETERR(-EIO);
 	}
-	cleartag(value);
 	return 1 << tag;
 }
 
@@ -102,16 +102,22 @@ int dscale_write(char *address, __u64 value)
 	value = __cpu_to_be64(value);
 	switch(tag) {
 	case 0:
-		put_unaligned((__u8)value, address);
+		value >>= 56;
+		put_unaligned(*(__u8 *)&value, (__u8 *)address);
 		break;
+
 	case 1:
-		put_unaligned((__u16)value, address);
+		value >>= 48;
+		put_unaligned(*(__u16 *)&value, (__u16 *)address);
 		break;
+
 	case 2:
-		put_unaligned((__u32)value, address);
+		value >>= 32;
+		put_unaligned(*(__u32 *)&value, (__u32 *)address);
 		break;
+
 	case 3:
-		put_unaligned((__u64)value, address + 1);
+		put_unaligned(value, (__u64 *)(address + 1));
 		shift = 1;
 		break;
 	}
