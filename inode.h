@@ -91,6 +91,10 @@ typedef struct reiser4_file_fsdata {
 	 * last 64 bits of key, used by ->readdir()
 	 */
 	__u64 readdir_offset;
+	/**
+	 * how many entries with identical keys to skip on the next readdir()
+	 */
+	__u64 skip;
 } reiser4_file_fsdata;
 
 extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata( struct dentry *dentry );
