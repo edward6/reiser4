@@ -299,6 +299,9 @@ typedef struct err_site {
 	int            code; /* error code */
 	const char    *file; /* source file, filled by __FILE__ */
 	int            line; /* source file line, filled by __LINE__ */
+#ifdef CONFIG_FRAME_POINTER
+	void *bt[5];
+#endif
 } err_site;
 
 extern void return_err(int code, const char *file, int line);

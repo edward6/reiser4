@@ -392,6 +392,13 @@ return_err(int code, const char *file, int line)
 			ctx->err.code = code;
 			ctx->err.file = file;
 			ctx->err.line = line;
+#ifdef CONFIG_FRAME_POINTER
+			ctx->err.bt[0] =__builtin_return_address(0);
+			ctx->err.bt[1] =__builtin_return_address(1);
+			ctx->err.bt[2] =__builtin_return_address(2);
+			ctx->err.bt[3] =__builtin_return_address(3);
+			ctx->err.bt[4] =__builtin_return_address(4);
+#endif
 		}
 	}
 }
