@@ -504,8 +504,10 @@ static int paste_with_carry( tree_coord *coord,
 	op -> u.paste.type  = COPT_ITEM_DATA;
 	op -> u.paste.data  = data;
 	op -> u.paste.key   = key;
-	op -> node -> track = 1;
-	op -> node -> tracked = lh;
+	if( lh != NULL ) {
+		op -> node -> track = 1;
+		op -> node -> tracked = lh;
+	}
 
 	ON_STATS( lowest_level.level_no = znode_get_level( coord -> node ) );
 	result = carry( &lowest_level, 0 );
