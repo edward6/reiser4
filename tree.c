@@ -3,64 +3,6 @@
  */
 
 /*
- * Definitions of object tree operations declared and commented in tree.h
- */
-
-/*
- * For a discussion of trees, keys, and formatted vs. unformatted nodes, see our webpage.
- *
-Add the below to our web page and remove it from here. -Hans
- *   Each node in the tree spawns some interval in the key space. Key ranges
- *   for all nodes in the tree are disjoint. Actually, this only holds in some
- *   weak sense, because of the non-unique keys: intersection of key ranges
- *   for different nodes is either empty, or consists of exactly one key.
- *
- *   A formatted node consists of a sequence of items. Each item spans some
- *   interval in key space. Key ranges for all items in a tree are disjoint,
- *   modulo non-unique keys again. Items within nodes are logically ordered in
- *   the key order of the smallest key in a item.
- *
- *   Divisible items can be further split into units. A unit is a piece of an
- *   item that can be cut from the item and moved into another item of the same
- *   time. Units are used by balancing code to repack data during balancing.
- *
- *   Non-sparse items, such as tail items and extent items, contain a piece of data corresponding to each and every key
- *   in the range that they span.  Sparse items do not.  For example, directory items, consisting of units corresponding to
- *   directory entries and keyed by hashes of file names, only contain some directory entries in the range that they
- *   span, and are considered sparse items.  
- *
- *   Each item always has a well-defined minimum key.  The (default) node40 plugin stores it in the item header for the item.  Also,
- *   item plugins can optionally define a method max_key_inside() which returns the
- *   maximal key that can _possibly_ be located within this item. This method
- *   is used (mainly) to determine when a given piece of data should be merged
- *   into an existing item, instead of creating a new one. 
-
-Say more about the sentence above.
-
-Because of this, even though ->max_key_inside() can be larger than any key actually located in
- *   the item, the intervals
- *
- *   [ min_key( item ), ->max_key_inside( item ) ] 
- *
- *   are still disjoint for all items within the _same_ node.
-
-And they aren't disjoint for all items not in the same node?  Really?  Explain. -Hans
- *
- *   In memory formatted nodes have znodes. Znodes play several roles:
- *
- *    . something locks are taken on
- *
- *    . the transaction manager captures formatted blocks using the znode
- *
- *    . something used to access node data
- *
- *    . something used to maintain tree structure in memory: sibling and
- *    parental linkage.
- *
- *   For more on znodes see in znode.[ch]
- *
- * DELIMITING KEYS.
- *
 
 Because we balance one level at a time, we need for each level to be able to change the delimiting keys of the nodes of
 that level independently of the levels above it.  This is a questionable design decision to start with.  Then we add to
@@ -135,87 +77,12 @@ design needs to be justified in a seminar on Monday.
  *   The efficiency of coord cache depends heavily on locality of reference for tree accesses. Our user level
  *   simulations show reasonably good hit ratios for coord cache under most loads so far.
  *
- * TREE MODIFICATION
- *
- *   A tree modification is one of the following:
- *
- *    . increasing size of existing item (+)
- *
- *    . decreasing size of existing item (-)
- *
- *    . creation of new item             (+)
- *
- *    . removal of existing item         (-)
- *
- *   Modifications marked (+) add new data into the tree, and (-) ones remove
- *   existing data from the tree.
- *
- *   (+) modifications are performed in three stages:
- *
- *     (1) obtain free space necessary to place new data into the tree
- *
- *     (2) place new data into the tree
- *
- *     (3) restore tree invariants that were broken on previous two steps
 
- (4) after some delay, reoptimize the tree packing in response to memory pressure, or in response to requests to flush that portion of the tree to disk, or as a result of reiser_repackd repacking the whole tree at its scheduled time
-
- *
- *   For (-) modifications step (1) is not needed.
-
-It is questionable whether (1) needs to precede (3).  If (3) was performed first, do_carry would be less needed.
- *
- *   Step (1) is determined by chosen "insertion policy". Basically to obtain
- *   free space one needs to move data from node where insertion is going into
- *   to neighboring nodes and/or allocate new nodes. Decision about what
- *   should be moved where is not trivial, because it influences performance
- *   when multiple successive insertions occurs close to some point in the
- *   tree (repetitive insertions) which is typical behavior for many kinds of
- *   applications. Default insertion policy is implemented in the make_space()
- *   function.
- *
- *   Step (2) is performed by the node and item plugins.
- *
- *   Step (3) restores following invariants (at least):
- *
- *    (T) tree is a tree, that is, each node save for the root is pointed to
- *    from its parent, this in particular includes all newly allocated nodes.
- *
- *    (S) it's a search tree, that is, delimiting keys are consistent with
- *    each other and with content of leaves.
- *
- *   Invariants are restored by so-called "carry" procedure that restores tree
- *   invariants going upward to the tree root (and possibly even
- *   farther). More information on carry is at the top of carry.c.
- *
- * SHORTCUT MODIFICATIONS
- *
- *  Step (1) is not always necessary even for (+) types of modifications, because
- *  there can be already enough free space in the insertion node next to the item being inserted.
- *
- *  Step (2) can only break (S) invariant (if, for example, new leftmost item
- *  is inserted into node) or (P) invariant (which is not mandatory in the
- *  first place). It is moreover easy to predict/check when (2) will not break
- *  any invariants. Particulars of this check depend on node plugin for
- *  insertion node and are implemented in ->fast_{insert|paste|cut}() methods.
- *
- *  Thus, if no delimiting keys are modified, (step (3)) can also be omitted. This is an important optimization, because
- *  carry needs to initialize data structures it uses for book keeping, and in practice a significant amount of all tree
- *  modifications can be performed using this shortcut.
- *
- *
- *
- *
- *
- *
- * To Be Continued.
- *
- */
-
+*/
 #include "reiser4.h"
 
 /* Long-dead pseudo-code removed Tue Apr 23 17:55:24 MSD 2002. */
-  
+				/* email me the removed pseudo-code -Hans */
 /**
  * Disk address (block number) never ever used for any real tree node. This is
  * used as block number of "fake" znode.
@@ -516,7 +383,7 @@ insert_result insert_extent_by_coord( tree_coord  *coord /* coord where to
 
 
 /**
- * Paste in the item at the given coord.
+ * Insert into the item at the given coord.
  *
  * First try to skip carry by directly calling ->paste() method of item
  * plugin. If this is impossible (there is not enough free space in the node,
@@ -524,7 +391,7 @@ insert_result insert_extent_by_coord( tree_coord  *coord /* coord where to
  * paste_with_carry() that will do full carry().
  *
  */
-static int paste_into_item( tree_coord *coord /* coord of pasting */,
+static int insert_into_item( tree_coord *coord /* coord of pasting */,
 			    lock_handle *lh /* lock handle on node
 						     * involved */,
 			    reiser4_key *key /* key of unit being pasted*/, 
@@ -552,6 +419,8 @@ static int paste_into_item( tree_coord *coord /* coord of pasting */,
 		 * we are forced to use free space of coord->node and new data
 		 * does not fit into it
 		 */
+/* this is something strange.  How about a warning if debug is on?  Or else explain to me what situation gets us into
+ * this state. -Hans */
 		return -ENOSPC;
 	}
 
@@ -562,7 +431,7 @@ static int paste_into_item( tree_coord *coord /* coord of pasting */,
 	 *
 	 * - there is enough free space
 	 *
-	 * - paste is not into the leftmost position in a node (otherwise
+	 * - paste is not into the leftmost unit in a node (otherwise
 	 * it would require updating of delimiting key in a parent)
 	 *
 	 * - node plugin agrees with this
@@ -624,12 +493,13 @@ resize_result resize_item( tree_coord *coord /* coord of item being resized */,
 	 */
 
 	if( data -> length < 0 ) {
+/* comment this. -Hans */
 		op = post_carry( &lowest_level, COP_CUT, coord->node, 0 );
 		if( IS_ERR( op ) || ( op == NULL ) )
 			return op ? PTR_ERR (op) : -EIO;
 		not_yet( "nikita-1263", "resize_item() can not cut data yet" );
 	} else
-		result = paste_into_item( coord, lh, key, data, flags );
+		result = insert_into_item( coord, lh, key, data, flags );
 
 #if 0
 	/*
