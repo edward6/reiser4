@@ -125,7 +125,7 @@ int go_dir_el( tap_t *tap, sideof dir, int units_p )
 		result = 0;
 		coord_dup( coord, &dup );
 	}
-	assert( "nikita-2564", coord_check( tap -> coord ) );
+	assert( "nikita-2564", ergo( !result, coord_check( tap -> coord ) ) );
 	return result;
 }
 
