@@ -825,7 +825,9 @@ sync_dkeys(carry_node * node /* node to update */ ,
 	   key of first non-empty left neighbor.
 	*/
 	while (1) {
-		assert("nikita-2193", ZF_ISSET(spot, JNODE_LEFT_CONNECTED));
+		if (!ZF_ISSET(spot, JNODE_LEFT_CONNECTED))
+			break;
+
 		spot = spot->left;
 		if (spot == NULL)
 			break;
