@@ -285,7 +285,7 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 		/* recalculate max balance overhead */
 		tree->estimate_one_insert = estimate_one_insert_item(tree);
 
-		assert("nikita-1202", tree->height = znode_get_level(new_root));
+		assert("nikita-1202", tree->height == znode_get_level(new_root));
 
 		/* new root is child on "fake" node */
 		init_parent_coord(&new_root->in_parent, uber);
