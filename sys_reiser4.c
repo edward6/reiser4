@@ -107,15 +107,15 @@ sys_reiser4(void *p_string)
  * is not based on the yacc toolkit.
  *
  * This parser was initially supposed to be a prototype implementation created
- * to develop and test back end methods to be used by yacc parser. For this
- * reason, parser's functions are placed into proto_* name space.
+ * to develop and test back end methods to be used by the yacc parser. For
+ * this reason, parser's functions are placed into proto_* name space.
  *
  * Parser is actually almost non-recursive. That is, it all information
- * required during parsing is kept in a special stack, allocated by kmalloc,
- * rather than on native C stack. Parser uses C recursion, but only for
- * simplicity of prototyping---the only information communicated via C stack
- * is integer return codes. It should be trivial to maintain it in the
- * allocated stack and to re-write parser in the iterative manner.
+ * required during the parsing is kept in a special stack, allocated by
+ * kmalloc, rather than on the native C stack. Parser uses C recursion, but
+ * only for the simplicity of prototyping---the only information communicated
+ * via C stack is integer return codes. It should be trivial to maintain it in
+ * the allocated stack and to re-write parser in the iterative manner.
  *
  * Grammar:
  *
@@ -129,7 +129,7 @@ sys_reiser4(void *p_string)
  *
  *     binary_expression ::=
  *
- *         pathname binop pathname
+ *         pathname binop expression
  *
  *     literal ::=
  *
