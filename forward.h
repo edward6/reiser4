@@ -19,6 +19,7 @@ typedef struct item_coord item_coord;
 typedef struct shift_params shift_params;
 typedef struct reiser4_object_create_data reiser4_object_create_data;
 typedef struct reiser4_plugin reiser4_plugin;
+typedef struct common_item_plugin common_item_plugin;
 typedef struct reiser4_item_data reiser4_item_data;
 typedef union reiser4_key reiser4_key;
 typedef union reiser4_dblock_nr reiser4_dblock_nr;
@@ -34,7 +35,9 @@ typedef struct reiser4_context reiser4_context;
 typedef struct carry_level carry_level;
 /* super_block->u.generic_sbp points to this */
 typedef struct reiser4_super_info_data reiser4_super_info_data;
+/*next two objects are fields of reiser4_super_info_data */
 typedef struct reiser4_oid_allocator reiser4_oid_allocator;
+typedef struct reiser4_space_allocator reiser4_space_allocator;
 
 typedef unsigned pos_in_node;
 typedef unsigned pos_in_item;
