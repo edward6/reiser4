@@ -36,6 +36,7 @@ static int never_ever_ ## op ( void )						\
 	return -EIO;								\
 }
 
+extern void set_page_clean_nolock (struct page *);
 
 #if REISER4_DEBUG
 extern void print_page( const char *prefix, struct page *page );

@@ -509,6 +509,23 @@ static struct address_space_operations formatted_fake_as_ops = {
 	.direct_IO      = V( never_ever_direct_IO )
 };
 
+/* clear page's dirty bit, set writeback bit and remove the page from inode's
+ * dirty pages list. it is assumed that page is already locked */
+void set_page_clean_nolock (struct page * pg)
+{
+	assert ("zam-669", PageLocked(pg));
+
+	ClearPageDirty (pg);
+
+	write_lock(&pg->mapping->page_lock);
+
+	list_del(&pg->list);
+	list_add(&pg->list, &pg->mapping->clean_pages);
+
+	write_unlock(&pg->mapping->page_lock);
+} 
+
+
 #if REISER4_DEBUG
 
 #define page_flag_name( page, flag )			\

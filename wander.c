@@ -504,9 +504,8 @@ static int submit_write (jnode * first, int nr,
 			lock_page (pg);
 
 			assert ("zam-605", !PageWriteback(pg));
-
 			SetPageWriteback (pg);
-			ClearPageDirty   (pg);
+			set_page_clean_nolock(pg);
 
 			unlock_page (pg);
 
