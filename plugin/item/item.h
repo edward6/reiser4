@@ -305,6 +305,7 @@ int item_can_contain_key( const tree_coord *item, const reiser4_key *key,
 			  const reiser4_item_data * );
 int are_items_mergeable( const tree_coord *i1, const tree_coord *i2 );
 int item_is_internal(const tree_coord * );
+int item_is_extent(const tree_coord * );
 int item_is_statdata (const tree_coord *item);
 
 
