@@ -197,7 +197,8 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to look fo
 
 	/* prevent balance_dirty_pages() from being called: we don't want to
 	 * do this under directory i_sem. */
-	__context.nr_marked_dirty = 0;
+	__context.nobalance = 1;
+	__context.trans->flags |= TXNH_DONT_COMMIT;
 	REISER4_EXIT_PTR(result);
 }
 

@@ -122,7 +122,8 @@ int reiser4_exit_context(reiser4_context * context)
 	 * FIXME-ZAM: temporary
 	 */
 	if (context == context->parent) {
-		balance_dirty_pages_at(context);
+		if (!(context->nobalance))
+			balance_dirty_pages_at(context);
 		result = txn_end(context);
 	}
 	done_context(context);

@@ -71,6 +71,7 @@ struct reiser4_context {
 	 * reiser4_write_logs() */
 	int writeout_mode :1;
 	int entd          :1;
+	int nobalance     :1;
 
 	/* count non-trivial jnode_set_dirty() calls */
 	__u64 nr_marked_dirty;
