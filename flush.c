@@ -178,7 +178,7 @@ int jnode_flush (jnode *node, int flags)
 		 * first.  The alternative would be to run squalloc_leftpoint with a "just
 		 * count up-to" argument, but I think this would be more costly and not
 		 * less effective in almost all cases. */
-		if (flush_pos.left_scan_count < FLUSH_RELOCATE_THRESHOLD) {
+		if (0 /* @@@ */ && flush_pos.left_scan_count < FLUSH_RELOCATE_THRESHOLD) {
 			if ((ret = flush_scan_right_upto (& right_scan, node, & flush_pos.right_scan_count, FLUSH_RELOCATE_THRESHOLD - flush_pos.left_scan_count))) {
 				goto failed;
 			}
@@ -1400,6 +1400,7 @@ static int flush_finish (flush_position *pos)
 		jnode_set_clean (node);
 
 		done_lh (& child_lock);
+		done_lh (& parent_lock);
 	}
 
 	/* FIXME: finish this struct bio. */
