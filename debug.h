@@ -324,7 +324,7 @@ extern __u32 reiser4_current_trace_flags;
 #define trace_on( f, args... )   trace_if( f, dinfo( ##args ) )
 
 #ifndef REISER4_STATS
-#define REISER4_STATS (0)
+#define REISER4_STATS (1)
 #endif
 
 #if REISER4_STATS
@@ -335,6 +335,7 @@ extern __u32 reiser4_current_trace_flags;
 #define ON_STATS( e ) e
 #define STS ( get_super_private_nocheck( reiser4_get_current_sb() ) -> stats )
 #define ST_INC_CNT( field ) ( ++ STS.field )
+#define ST_ADD_CNT( field, cnt ) ( STS.field += cnt )
 
 /*
  * Macros to gather statistical data. If REISER4_STATS is disabled, they
@@ -351,6 +352,7 @@ extern __u32 reiser4_current_trace_flags;
 #define reiser4_stat_dir_add( stat ) ST_INC_CNT( dir. ## stat )
 #define reiser4_stat_file_add( stat ) ST_INC_CNT( file. ## stat )
 #define reiser4_stat_flush_add( stat ) ST_INC_CNT( flush. ## stat )
+#define reiser4_stat_flush_add_few( stat, cnt ) ST_ADD_CNT( flush. ## stat, cnt )
 #define reiser4_stat_pool_add( stat ) ST_INC_CNT( pool. ## stat )
 #define reiser4_stat_seal_add( stat ) ST_INC_CNT( seal. ## stat )
 
@@ -702,6 +704,18 @@ typedef struct reiser4_statistics {
 		 * how many times a znode is allocated.
 		 */
 		stat_cnt flush_zalloc;
+		/*
+		 * how many leaves were squeezed to left
+		 */
+		stat_cnt squeezed_leaves;
+		/*
+		 * how many items were squeezed on leaf level
+		 */
+		stat_cnt squeezed_leaf_items;
+		/*
+		 * how mnay bytes were squeezed on leaf level
+		 */
+		stat_cnt squeezed_leaf_bytes;
 	} flush;
 	struct {
 		/*
