@@ -84,6 +84,20 @@ clust_to_off(unsigned long idx, struct inode * inode)
 	return pg_to_off(clust_to_pg(idx, inode));
 }
 
+/* number of pages occupied by @count bytes */
+static inline unsigned long 
+count_to_nrpages(loff_t count)
+{
+	return (!count ? 0 : off_to_pg(count - 1) + 1);
+}
+
+/* number of clusters occupied by @count bytes */
+static inline unsigned long
+count_to_nrclust(loff_t count, struct inode * inode)
+{
+	return (count ? off_to_clust(count - 1, inode) + 1 : 0);
+}
+
 static inline loff_t
 off_to_clust_to_off(loff_t off, struct inode * inode)
 {
