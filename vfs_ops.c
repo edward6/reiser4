@@ -684,7 +684,7 @@ static int reiser4_unlink( struct inode *parent /* parent directory */,
 	assert( "nikita-2011", parent != NULL );
 	assert( "nikita-2012", victim != NULL );
 	assert( "nikita-2013", victim -> d_inode != NULL );
-	if( inode_dir_plugin( parent ) != NULL )
+	if( inode_dir_plugin( victim -> d_inode ) == NULL )
 		return unlink_file( parent, victim );
 	else
 		return -EISDIR;
