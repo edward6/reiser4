@@ -55,7 +55,9 @@ typedef enum {
 	REISER4_FILE_STATE_KNOWN = 9,
 	REISER4_BUILT_OF_TAILS = 10,
 	REISER4_BUILT_OF_EXTENTS = 11,
-	REISER4_FILE_EMPTY = 12
+	REISER4_FILE_EMPTY = 12,
+	/* do not eflush nodes of this file */
+	REISER4_DONT_EFLUSH = 13
 } reiser4_file_plugin_flags;
 
 #if BITS_PER_LONG == 64
@@ -111,10 +113,18 @@ typedef struct reiser4_inode {
 	struct list_head  moved_pages;
 	readdir_list_head readdir_list;
 	unsigned long flags;
+	/* list of emergency flushed nodes */
+	struct list_head eflushed_nodes;
+
 #if REISER4_DEBUG
 	/* pointer to task struct of thread owning exclusive access to file */
 	void *ea_owner;
 #endif
+
+	/* FIXME: remove after debugging */
+	int items;
+	/* FIXME: remove after debugging */
+	
 } reiser4_inode;
 
 typedef struct reiser4_inode_object {
