@@ -84,7 +84,7 @@ int hashed_owns_item( const struct inode *inode, const tree_coord *coord )
 	assert( "nikita-1335", inode != NULL );
 	assert( "nikita-1334", coord != NULL );
 
-	if( item_type_by_coord( coord ) == DIR_ENTRY_ITEM_TYPE )
+	if( item_plugin_id_by_coord( coord ) == SIMPLE_DIR_ENTRY_IT )
 		/*
 		 * FIXME-NIKITA move this into kassign.c
 		 */
@@ -271,8 +271,8 @@ int hashed_add_entry( struct inode *object, struct dentry *where,
 		 * similar to sd.
 		 */
 		assert( "nikita-1709", 
-			item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> item_type
-			== DIR_ENTRY_ITEM_TYPE );
+			item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> item_plugin_id
+			== SIMPLE_DIR_ENTRY_IT );
 		result = item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> 
 			s.dir.add_entry( object, 
 					 &coord, &lh, where, entry );
@@ -313,7 +313,7 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 		 * remove entry. Just pass control to the directory item
 		 * plugin.
 		 */
-		if( item_type_by_coord( &coord ) != DIR_ENTRY_ITEM_TYPE ) {
+		if( item_plugin_id_by_coord( &coord ) != SIMPLE_DIR_ENTRY_IT ) {
 			warning( "nikita-1161", "Non directory item found" );
 			print_plugin( "plugin", item_plugin_to_plugin (item_plugin_by_coord( &coord ) ) );
 			print_coord_content( "at", &coord );
@@ -466,7 +466,7 @@ static int entry_actor( reiser4_tree *tree UNUSED_ARG, tree_coord *coord,
 		warning( "nikita-1135", "Cannot get item plugin" );
 		print_coord( "coord", coord, 1 );
 		return -EIO;
-	} else if( ( item_type_by_coord( coord ) != DIR_ENTRY_ITEM_TYPE ) ) {
+	} else if( ( item_plugin_id_by_coord( coord ) != SIMPLE_DIR_ENTRY_IT ) ) {
 		warning( "nikita-1136", "Wrong item plugin" );
 		print_coord( "coord", coord, 1 );
 		print_plugin( "plugin", item_plugin_to_plugin (iplug) );
@@ -491,7 +491,7 @@ static int entry_actor( reiser4_tree *tree UNUSED_ARG, tree_coord *coord,
 	trace_on( TRACE_DIR, "[%i]: \"%s\", \"%s\" in %lli\n",
 		  current_pid, args -> name, 
 		  iplug -> s.dir.extract_name( coord ),
-		  znode_get_block( coord -> node ) -> blk );
+		  *znode_get_block( coord -> node ) );
 
 	/*
 	 * Compare name stored in this entry with name we are looking for.

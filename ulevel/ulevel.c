@@ -321,7 +321,7 @@ static struct inode * find_inode (struct super_block *super UNUSED_ARG,
 	spin_lock( &inode_hash_guard );
 	list_for_each (cur, &inode_hash_list) {
 		inode = list_entry (cur, struct inode, i_hash);
-		info( "inode: %lli, %lli\n", inode->i_ino, ino );
+		info( "inode: %li, %li\n", inode->i_ino, ino );
 		if (inode->i_ino == ino) {
 			spin_unlock( &inode_hash_guard );
 			return inode;
@@ -368,13 +368,13 @@ void d_instantiate(struct dentry *entry, struct inode * inode)
 
 static spinlock_t alloc_guard;
 int  reiser4_alloc_block( znode *neighbor UNUSED_ARG,
-			  reiser4_disk_addr *blocknr UNUSED_ARG )
+			  reiser4_block_nr *blocknr )
 {
-	static reiser4_disk_addr new_block_nr = ( reiser4_disk_addr ){ .blk = 10 };
+	static reiser4_block_nr new_block_nr = 10;
 	
 	spin_lock( &alloc_guard );
 	*blocknr = new_block_nr;
-	++ new_block_nr.blk;
+	++ new_block_nr;
 	spin_unlock( &alloc_guard );
 	return 0;
 }
@@ -660,7 +660,7 @@ int create_empty_buffers (struct page * page, unsigned blocksize)
 }
 
 
-void map_bh (struct buffer_head * bh, struct super_block * sb, block_nr block)
+void map_bh (struct buffer_head * bh, struct super_block * sb, reiser4_block_nr block)
 {
 	mark_buffer_mapped (bh);
 	bh->b_bdev = sb->s_bdev;
@@ -700,13 +700,12 @@ static int mmap_back_end_fd = -1;
 static char *mmap_back_end_start = NULL;
 static off_t mmap_back_end_size = 0;
 
-int ulevel_read_node( reiser4_tree *tree UNUSED_ARG, 
-		      const reiser4_disk_addr *addr UNUSED_ARG, char **data )
+int ulevel_read_node( const reiser4_block_nr *addr, char **data )
 {
 	if( mmap_back_end_fd > 0 ) {
 		off_t start;
 
-		start = addr -> blk * reiser4_get_current_sb ()->s_blocksize;
+		start = *addr * reiser4_get_current_sb ()->s_blocksize;
 		if( start + reiser4_get_current_sb ()->s_blocksize > mmap_back_end_size ) {
 			warning( "nikita-1372", "Trying to access beyond the device: %Li > %Li",
 				 start, mmap_back_end_size );
@@ -725,7 +724,7 @@ int ulevel_read_node( reiser4_tree *tree UNUSED_ARG,
 }
 
 znode *allocate_znode( reiser4_tree *tree, znode *parent,
-		       unsigned int level, const reiser4_disk_addr *addr, int init_node_p )
+		       unsigned int level, const reiser4_block_nr *addr, int init_node_p )
 {
 	znode *root;
 	int    result;
@@ -1304,7 +1303,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 			data.data = ( char * ) &sd;
 			data.length = sizeof sd.base;
-			data.iplug = item_plugin_by_id( SD_ITEM_ID );
+			data.iplug = item_plugin_by_id( STATIC_STAT_DATA_IT );
 
 			ret = insert_by_key( tree, &key, &data, &coord, &lh, 
 					     LEAF_LEVEL,
@@ -1359,7 +1358,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			/* this inserts stat data */
 			data.data = ( char * ) &sd;
 			data.length = sizeof sd.base;
-			data.iplug = item_plugin_by_id( SD_ITEM_ID );
+			data.iplug = item_plugin_by_id( STATIC_STAT_DATA_IT );
 			coord_first_unit( &coord, NULL );
 
 			set_key_locality( &key, 2ull + i );
@@ -1433,7 +1432,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 			data.data = ( char * ) &sd;
 			data.length = sizeof sd.base;
-			data.iplug = item_plugin_by_id( SD_ITEM_ID );
+			data.iplug = item_plugin_by_id( STATIC_STAT_DATA_IT );
 
 			ret = insert_by_key( tree, &key, &data, &coord, &lh, 
 					     LEAF_LEVEL,
@@ -1473,7 +1472,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		STYPE( reiser4_plugin_ops );
 		STYPE( file_plugins );
 		STYPE( item_header_40 );
-		STYPE( reiser4_disk_addr );
+		STYPE( reiser4_block_nr );
 		STYPE( znode );
 		STYPE( d16 );
 		STYPE( d32 );
@@ -1553,7 +1552,7 @@ static struct inode * create_root_dir (znode * root)
 	/* this inserts stat data */
 	data.data = ( char * ) &sd;
 	data.length = sizeof sd.base;
-	data.iplug = item_plugin_by_id( SD_ITEM_ID );
+	data.iplug = item_plugin_by_id( STATIC_STAT_DATA_IT );
 	coord_first_unit( &coord, NULL );
 	
 	key_init( &key );
@@ -1619,7 +1618,7 @@ int insert_item (struct inode *inode,
 	init_coord (&coord);
 	init_lh (&lh);
 
-	level = (item_plugin_id (data->iplug) == EXTENT_ITEM_ID) ? TWIG_LEVEL : LEAF_LEVEL;
+	level = (item_plugin_id (data->iplug) == EXTENT_POINTER_IT) ? TWIG_LEVEL : LEAF_LEVEL;
 	result = insert_by_key (tree_by_inode (inode), key, data, &coord, &lh,
 				level, inter_syscall_ra (inode), 0, 
 				CBK_UNIQUE);
@@ -2145,8 +2144,8 @@ static int do_twig_squeeze (reiser4_tree * tree, tree_coord * coord,
 {
 	reiser4_lock_handle right_lock;
 	int result;
-	reiser4_disk_addr da;
-	block_nr preceder;
+	reiser4_block_nr da;
+	reiser4_blocknr_hint preceder;
 
 
 	assert ("vs-461", coord->item_pos == 0 && coord->unit_pos == 0 &&
@@ -2166,11 +2165,11 @@ static int do_twig_squeeze (reiser4_tree * tree, tree_coord * coord,
 	if (item_is_internal (coord)) {
 		item_plugin_by_coord (coord)->s.internal.down_link (coord, 0,
 								    &da);
-		preceder = da.blk;
+		preceder.blk = da;
 	} else if (item_is_extent (coord)) {
 		reiser4_extent * ext;
 		ext = extent_by_coord (coord);
-		preceder = extent_get_start (ext) + extent_get_width (ext);
+		preceder.blk = extent_get_start (ext) + extent_get_width (ext);
 	} else
 		impossible ("vs-462", "unknown item type");
 
@@ -2428,7 +2427,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		set_key_offset (&key, 0ull);
 
 
-		item.plugin = plugin_by_id (REISER4_ITEM_PLUGIN_TYPE, SD_ITEM_ID);
+		item.plugin = plugin_by_id (REISER4_ITEM_PLUGIN_TYPE, STATIC_STAT_DATA_IT);
 		if (insert_item (root_dir, &item, &key)) {
 			info ("insert_item failed for stat data\n");
 			return 1;
@@ -2648,7 +2647,7 @@ void jmacd_key_no (reiser4_key *key, reiser4_key *next_key, jmacd_sd *sd, reiser
 	
 	id->data = ( char * ) sd;
 	id->length = sizeof (sd->base);
-	id->iplug = item_plugin_by_id( SD_ITEM_ID );
+	id->iplug = item_plugin_by_id( STATIC_STAT_DATA_IT );
 }
 
 void* monitor_test_handler (void* arg)
@@ -2945,7 +2944,7 @@ int real_main( int argc, char **argv )
 	struct super_block super;
 	struct dentry root_dentry;
 	reiser4_tree *tree;
-	reiser4_disk_addr root_block;
+	reiser4_block_nr root_block;
 	int tree_height;
 
 	REISER4_ENTRY( &super );
@@ -2995,7 +2994,7 @@ int real_main( int argc, char **argv )
 	INIT_LIST_HEAD( &inode_hash_list );
 	INIT_LIST_HEAD( &page_list );
 
-	root_block.blk = 3ull;
+	root_block = 3ull;
 	tree_height = 1;
 	if( getenv( "REISER4_UL_DURABLE_MMAP" ) != NULL ) {
 		mmap_back_end_fd = open( getenv( "REISER4_UL_DURABLE_MMAP" ),
@@ -3023,8 +3022,8 @@ int real_main( int argc, char **argv )
 			perror( "read root block" );
 			exit( 4 );
 		}
-		if( root_block.blk == 0 )
-			root_block.blk = 3;
+		if( root_block == 0 )
+			root_block = 3;
 		if( pread( mmap_back_end_fd, &tree_height, sizeof tree -> height, (off_t)(sizeof root_block) ) != sizeof tree -> height ) {
 			perror( "read tree height" );
 			exit( 4 );

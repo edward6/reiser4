@@ -26,12 +26,12 @@ void sd_print( const char *prefix, tree_coord *coord )
 		info( "%s: wrong size: %i < %i\n", prefix,
 		      item_length_by_coord( coord ), sizeof *sd_base );
 	} else {
-		info( "%s: mode: %o, extmask: %x, nlink: %lu, size: %lu\n", 
+		info( "%s: mode: %o, extmask: %x, nlink: %u, size: %qu\n", 
 		      prefix,
 		      d16tocpu( &sd_base -> mode ), 
 		      d16tocpu( &sd_base -> extmask ),
-		      ( unsigned long ) d32tocpu( &sd_base -> nlink ), 
-		      ( unsigned long ) d64tocpu( &sd_base -> size ) );
+		      d32tocpu( &sd_base -> nlink ), 
+		      d64tocpu( &sd_base -> size ) );
 		/*
 		 * FIXME-NIKITA should call ->print() sub-methods for all sd
 		 * extensions.
@@ -96,7 +96,7 @@ static int align( struct inode *inode, int *length, char **area, int alignment )
 }
 
 /** this is installed as ->init_inode() method of 
-    item_plugins[ SD_ITEM_ID ] (fs/reiser4/plugin/item/item.c).
+    item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c).
     Copies data from on-disk stat-data format into inode.
     Hanldes stat-data extensions. */
 int sd_load( struct inode *inode, char *sd, int len )
@@ -192,7 +192,7 @@ int sd_load( struct inode *inode, char *sd, int len )
 
 /** estimates size of stat-data required to store inode.
     Installed as ->save_len() method of
-    item_plugins[ SD_ITEM_ID ] (fs/reiser4/plugin/item/item.c). */
+    item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c). */
 int sd_len( struct inode *inode )
 {
 	unsigned int result;
@@ -220,7 +220,7 @@ int sd_len( struct inode *inode )
 
 /** saves inode into stat-data.
     Installed as ->save() method of
-    item_plugins[ SD_ITEM_ID ] (fs/reiser4/plugin/item/item.c). */
+    item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c). */
 int sd_save( struct inode *inode, char **area )
 {
 	int   result;

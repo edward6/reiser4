@@ -46,15 +46,16 @@ static internal_item_layout *internal_at( const tree_coord *coord )
 {
 	assert( "nikita-607", coord != NULL );
 	assert( "nikita-1650", item_plugin_by_coord( coord ) == 
-		item_plugin_by_id( INTERNAL_ITEM_ID ) );
+		item_plugin_by_id( NODE_POINTER_IT ) );
 	return ( internal_item_layout * ) item_body_by_coord( coord );
 }
 
 /** return child block number stored in the internal item at @coord */
+/* FIXME: casts 64bit -> 32bit */
 static __u32 pointer_at( const tree_coord *coord )
 {
 	assert( "nikita-608", coord != NULL );
-	return d64tocpu( &internal_at( coord ) -> pointer );
+	return d64tocpu( &internal_at( coord ) -> pointer.blk );
 }
 
 /** get znode pointet to by internal @item */
@@ -71,8 +72,8 @@ static znode *znode_at( const tree_coord *item )
 /** store pointer from internal item into "block". Implementation of
     ->down_link() method */
 void internal_down_link( const tree_coord *coord, 
-			 const reiser4_key *key UNUSED_ARG, 
-			 reiser4_disk_addr *block )
+			 const reiser4_key *key, 
+			 reiser4_block_nr *block )
 {
 #if REISER4_DEBUG
 	reiser4_key item_key;
@@ -84,7 +85,7 @@ void internal_down_link( const tree_coord *coord,
 		keycmp( item_key_by_coord( coord, 
 					   &item_key ), key ) != GREATER_THAN );
 
-	block -> blk = pointer_at( coord );
+	*block = pointer_at( coord );
 }
 
 /** 
@@ -98,12 +99,12 @@ void internal_print( const char *prefix, tree_coord *coord )
 
 /** return true only if this item really points to "block" */
 int internal_has_pointer_to( const tree_coord *coord, 
-			     const reiser4_disk_addr *block )
+			     const reiser4_block_nr *block )
 {
 	assert( "nikita-613", coord != NULL );
 	assert( "nikita-614", block != NULL );
 
-	return pointer_at( coord ) == block -> blk;
+	return pointer_at( coord ) == *block;
 }
 
 /**
@@ -152,9 +153,9 @@ int internal_create_hook( const tree_coord *item, void *arg )
 		ZF_CLR( child, ZNODE_NEW );
 
 		trace_on( TRACE_ZWEB, "create: %lli: %i [%lli]\n",
-			  znode_get_block( item -> node ) -> blk, 
+			  *znode_get_block( item -> node ),
 			  atomic_read( &item -> node -> c_count ),
-			  znode_get_block( child ) -> blk );
+			  *znode_get_block( child ) );
 
 		spin_unlock_tree( current_tree );
 		spin_unlock_dk( current_tree );
@@ -203,9 +204,9 @@ int internal_kill_hook( const tree_coord *item,
 		spin_unlock_tree( current_tree );
 		atomic_dec( &item -> node -> c_count );
 		trace_on( TRACE_ZWEB, "kill: %lli: %i [%lli]\n",
-			  znode_get_block( item -> node ) -> blk, 
+			  *znode_get_block( item -> node ),
 			  atomic_read( &item -> node -> c_count ),
-			  znode_get_block( child ) -> blk );
+			  *znode_get_block( child ) );
 
 		zput( child );
 		return 0;
@@ -252,11 +253,11 @@ int internal_shift_hook( const tree_coord *item,
 		spin_unlock_tree( current_tree );
 		zput( child );
 		trace_on( TRACE_ZWEB, "shift: %lli: %i -> %lli: %i [%lli]\n",
-			  znode_get_block( old_node ) -> blk, 
+			  *znode_get_block( old_node ), 
 			  atomic_read( &old_node -> c_count ),
-			  znode_get_block( item -> node ) -> blk, 
+			  *znode_get_block( item -> node ), 
 			  atomic_read( &item -> node -> c_count ),
-			  znode_get_block( child ) -> blk );
+			  *znode_get_block( child ) );
 		return 0;
 	} else
 		return PTR_ERR( child );
