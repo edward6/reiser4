@@ -1970,9 +1970,9 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 			 * is in use. Enable this when jnodes get proper
 			 * ->x_count.
 			 */
-			/* page_detach_jnode( page ); */
+			/* page_detach_jnode( page );
 			assert( "nikita-2261", page_count( page ) == 2 );
-
+			*/
 			/*
 			 * this page is just about to be recycled by
 			 * shrink_cache()
