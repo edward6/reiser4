@@ -254,15 +254,13 @@ int reiser4_sysfs_init(struct super_block *super)
 	reiser4_super_info_data *sbinfo;
 	struct kobject *kobj;
 	int result;
-	char b[BDEVNAME_SIZE];
 	ON_STATS(struct kobject *stats_kobj);
 
 	sbinfo = get_super_private(super);
 
 	kobj = &super->kobj;
 
-	snprintf(kobj->name, KOBJ_NAME_LEN, "%s", 
-		 bdevname(super->s_bdev, b));
+	snprintf(kobj->name, KOBJ_NAME_LEN, "%s", super->s_id);
 	kobj_set_kset_s(super, super->s_type->subsys);
 	result = kobject_register(kobj);
 	if (result != 0)

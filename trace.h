@@ -57,8 +57,6 @@ extern void write_tree_trace(reiser4_tree * tree, reiser4_traced_op op, ...);
 
 extern char *jnode_short_info(const jnode *j, char *buf);
 
-#define DECLARE_BDEVNAME_BUFFER char buf[BDEVNAME_SIZE]
-
 #else
 
 typedef struct {
@@ -77,16 +75,13 @@ typedef struct {
 #define write_page_trace(mapping, index) noop
 #define jnode_short_info(j, buf) buf
 
-#define DECLARE_BDEVNAME_BUFFER
-
 #endif
 
 #define write_tracef(file, super, format, ...)		\
 ({							\
-	DECLARE_BDEVNAME_BUFFER;			\
 	write_trace(file, "%i %s %s %lu " format "\n",	\
 		    current->pid, current->comm,	\
-		    bdevname(super->s_bdev, buf),	\
+		    super->s_id,			\
 		    jiffies , ## __VA_ARGS__);		\
 })
 
