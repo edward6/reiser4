@@ -72,7 +72,7 @@ int tail_mergeable (const tree_coord * p1, const tree_coord * p2)
 		item_type_by_coord (p1) == ORDINARY_FILE_METADATA_TYPE);
 	assert ("vs-365", item_id_by_coord (p1) == TAIL_ID);
 
-	if (item_type_by_coord (p2) != TAIL_ID) {
+	if (item_id_by_coord (p2) != TAIL_ID) {
 		/*
 		 * second item is of another type
 		 */
@@ -474,7 +474,7 @@ static int create_hole (tree_coord * coord, lock_handle * lh, flow_t * f)
 	set_key_offset (&hole_key, 0ull);
 
 	assert ("vs-384", get_key_offset (&f->key) <= INT_MAX);
-	assert ("vs-575", f->what == USER_BUF);
+	assert ("vs-575", f->user == 1);
 	make_item_data (coord, &item, 0, 0/*user*/,
 			(unsigned)get_key_offset (&f->key));
 	result = insert_by_coord (coord, &item, &hole_key, lh, 0, 0, 0/*flags*/);
@@ -502,7 +502,7 @@ static int append_hole (tree_coord * coord, lock_handle * lh, flow_t * f)
 
 	assert ("vs-384", (get_key_offset (&f->key) - 
 			   get_key_offset (&hole_key)) <= INT_MAX);
-	assert ("vs-576", f->what == USER_BUF);
+	assert ("vs-576", f->user == 1);
 	make_item_data (coord, &item, 0, 0/*user*/,
 			(unsigned)(get_key_offset (&f->key) -
 				   get_key_offset (&hole_key)));
@@ -525,10 +525,8 @@ static int insert_first_item (tree_coord * coord, lock_handle * lh, flow_t * f)
 
 	assert ("vs-383", get_key_offset (&f->key) == 0);
 
-	make_item_data (coord, &item,
-			f->what == USER_BUF ? f->data.user_buf : 
-			                      page_address (f->data.page),
-			f->what == USER_BUF ? 1 : 0, f->length);
+	make_item_data (coord, &item, f->data, f->user, f->length);
+
 	result = insert_by_coord (coord, &item, &f->key, lh, 0, 0, 0/*flags*/);
 	if (result)
 		return result;
@@ -548,10 +546,7 @@ static int append_tail (tree_coord * coord, lock_handle * lh, flow_t * f)
 	int result;
 
 
-	make_item_data (coord, &item,
-			f->what == USER_BUF ? f->data.user_buf : 
-			                      page_address (f->data.page),
-			f->what == USER_BUF ? 1 : 0, f->length);
+	make_item_data (coord, &item, f->data, f->user, f->length);
 
 	result = resize_item (coord, &item, &f->key, lh, 0/*flags*/);
 	if (result)
@@ -578,9 +573,9 @@ static int overwrite_tail (tree_coord * coord, flow_t * f)
 	/*
 	 * FIXME-ME: mark_znode_dirty ?
 	 */
-	assert ("vs-570", f->what == USER_BUF);
+	assert ("vs-570", f->user == 1);
 	result = __copy_from_user ((char *)item_body_by_coord (coord) +
-				   coord->unit_pos, f->data.user_buf, count);
+				   coord->unit_pos, f->data, count);
 	if (result)
 		return result;
 		
@@ -594,7 +589,7 @@ static int overwrite_tail (tree_coord * coord, flow_t * f)
  * access to data stored in tails goes directly through formatted nodes
  */
 int tail_write (struct inode * inode, tree_coord * coord,
-		lock_handle * lh, flow_t * f)
+		lock_handle * lh, flow_t * f, struct page * page UNUSED_ARG)
 {
 	int result;
 
@@ -630,9 +625,10 @@ int tail_write (struct inode * inode, tree_coord * coord,
 			 */
 			return result;
 
-		if (result) {
+		if (result && !page) {
 			/*
-			 * file became longer
+			 * file became longer and his write is not part of
+			 * extent2tail
 			 */
 			inode->i_size += result;
 			mark_inode_dirty (inode);
@@ -666,9 +662,9 @@ int tail_read (struct inode * inode UNUSED_ARG, tree_coord * coord,
 	if (count > f->length)
 		count = f->length;
 
-	assert ("vs-571", f->what == USER_BUF);
-	xmemcpy (f->data.user_buf, (char *)item_body_by_coord (coord) + coord->unit_pos,
-		 count);
+	assert ("vs-571", f->user == 1);
+	__copy_to_user (f->data,  (char *)item_body_by_coord (coord) + coord->unit_pos,
+			count);
 
 	move_flow_forward (f, count);
 	return 0;
