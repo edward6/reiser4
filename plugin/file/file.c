@@ -679,7 +679,9 @@ setattr_reserve(reiser4_tree *tree)
 }
 
 /* this either cuts or add items of/to the file so that items match new_size. It is used in unix_file_setattr when it is
-   used to truncate and in unix_file_delete */
+   used to truncate 
+VS-FIXME-HANS: explain that
+and in unix_file_delete */
 static int
 truncate_file(struct inode *inode, loff_t new_size, int update_sd)
 {
@@ -1990,6 +1992,7 @@ setattr_unix_file(struct inode *inode,	/* Object to change attributes */
 			old_size = inode->i_size;
 
 			get_exclusive_access(unix_file_inode_data(inode));
+			/* VS-FIXME-HANS: explain why setattr calls truncate file */
 			result = truncate_file(inode, attr->ia_size, 1/* update stat data */);
 			if (!result) {
 				/* items are removed already. inode_setattr will call vmtruncate to invalidate truncated

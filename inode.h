@@ -25,9 +25,8 @@
 #include <linux/spinlock.h>
 #include <asm/types.h>
 
-/* reiser4-specific inode flags */
 /* reiser4-specific inode flags. They are "transient" and are not
-   supposed to be stored on a disk. Used to trace "state" of
+   supposed to be stored on disk. Used to trace "state" of
    inode. Bitmasks for this field are defined in
    reiser4_file_plugin_flags enum.
 
@@ -46,10 +45,12 @@ typedef enum {
 	REISER4_LOADED = 3,
 	/* this bit is set for symlinks. inode->u.generic_ip points to target
 	   name of symlink */
+	/* NIKITA-FIXME-HANS: VP stands for what? */
 	REISER4_GENERIC_VP_USED = 4,
 /*	REISER4_EXCLUSIVE_USE = 5,*/
 	REISER4_SDLEN_KNOWN   = 6,
 	/* reiser4_inode->crypt points to the crypto stat */
+	/* NIKITA-FIXME-HANS: perhaps just see if reiser4_inode->crypt != 0 ....? */
 	REISER4_CRYPTO_STAT_LOADED = 7,
 	/* reiser4_inode->cluster_shift makes sense */
 	REISER4_CLUSTER_KNOWN = 8,
@@ -101,6 +102,7 @@ reiser4_inode_data(const struct inode * inode /* inode queried */);
 #include "plugin/file/file.h"
 
 struct reiser4_inode {
+	/* NIKITA-FIXME-HANS: improve commenting */
 	/* */ reiser4_spin_data guard;
 	/* object plugins */
 	/*   0 */ plugin_set *pset;
@@ -114,23 +116,31 @@ struct reiser4_inode {
 	/*  28 */ coord_t sd_coord;
 	/* truncate, tail2extent and extent2tail use down_write, read, write,
 	 * readpage - down_read */
+	/* NIKITA-FIXME-HANS: improve commenting */
 	/* 88 */ scint_t extmask;
+	/* NIKITA-FIXME-HANS: improve commenting */
 	/* 92 */ int eflushed;
+	/* NIKITA-FIXME-HANS: improve commenting */
 	int eflushed_anon;
+	/* NIKITA-FIXME-HANS: improve commenting */
 	/* bitmask of non-default plugins for this inode */
 	/* 96 */ __u16 plugin_mask;
+	/* NIKITA-FIXME-HANS: improve commenting */
 	/* 98 */ inter_syscall_rap ra;
 	/* 98 */ __u16 padding;
+	/* NIKITA-FIXME-HANS: improve commenting */
 	/* cluster parameter for crypto and compression */
 	/* 100 */__u8 cluster_shift;
 	/* secret key parameter for crypto */
 	/* 101 */crypto_stat_t *crypt;
+	/* NIKITA-FIXME-HANS: improve commenting */
 	/* 105 */
 	struct list_head  moved_pages;
 	union {
 		readdir_list_head readdir_list;
 		struct list_head mmaped;
 	} lists;
+	/* NIKITA-FIXME-HANS: improve commenting */
 	unsigned long flags;
 	union {
 		unix_file_info_t unix_file_info;

@@ -3,6 +3,8 @@
 /* Handling of "pseudo" files representing unified access to meta data in
    reiser4. See pseudo.c for more comments. */
 
+/* NIKITA-FIXME-HANS: write a comprehensive pseudo file design document */
+
 #if !defined( __REISER4_PSEUDO_H__ )
 #define __REISER4_PSEUDO_H__
 
@@ -75,6 +77,7 @@ struct pseudo_plugin {
 	int (*readdir)(struct file *f, void *dirent, filldir_t filld);
 };
 
+	/* NIKITA-FIXME-HANS: improve commenting */
 typedef struct pseudo_info {
 	pseudo_plugin *plugin;
 	struct inode  *host;
