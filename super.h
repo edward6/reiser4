@@ -272,7 +272,7 @@ struct reiser4_super_info_data {
 	ra_params_t ra_params;
 
 	/* A semaphore for serializing cut tree operation if
-	   out-of-free-space: the only one cut_tree tread is allowed to grab
+	   out-of-free-space: the only one cut_tree thread is allowed to grab
 	   space from reserved area (it is 5% of disk space) */
 	struct semaphore delete_sema;
 	/* task owning ->delete_sema */
