@@ -191,7 +191,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	flush_scan left_scan;
 
 	if (FLUSH_SERIALIZE) {
-		down (& flush_semaphore);
+		/*down (& flush_semaphore);*/
 	}
 
 	spin_lock_jnode (node);
@@ -350,7 +350,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 
  clean_out:
 	if (FLUSH_SERIALIZE) {
-		up (& flush_semaphore);
+		/*up (& flush_semaphore);*/
 	}
 
 	return ret;
