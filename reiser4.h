@@ -109,13 +109,15 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /* item plugin used by directories by default to store directory entries. */
 #define REISER4_DIR_ITEM_PLUGIN       (COMPOUND_DIR_ID)
 
+/* NOTE NIKITA this is no longer used: maximal atom size is auto-adjusted to
+ * available memory. */
 /* Default value of maximal atom size. Can be ovewritten by
-   txnmgr.atom_max_size mount option. By default infinity. */
+   tmgr.atom_max_size mount option. By default infinity. */
 #define REISER4_ATOM_MAX_SIZE         ((unsigned)(~0))
 
 /* Default value of maximal atom age (in jiffies). After reaching this age
    atom will be forced to commit, either synchronously or asynchronously. Can
-   be overwritten by txnmgr.atom_max_age mount option. */
+   be overwritten by tmgr.atom_max_age mount option. */
 #define REISER4_ATOM_MAX_AGE          (600 * HZ)
 
 /* After percentage of free memory falls below this, preventive flushing is
