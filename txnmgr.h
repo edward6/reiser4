@@ -168,7 +168,6 @@ struct blocknr_set {
 };
 
 TS_LIST_DECLARE(fq);
-TS_LIST_DECLARE(fq_prepared);
 
 /* An atomic transaction: this is the underlying system representation
    of a transaction, not the one seen by clients. */
@@ -441,7 +440,6 @@ struct flush_queue {
 	   easier.  See field in atom struct for description of list. */
 	fq_list_link alink;
 
-	fq_prepared_list_link mlink;
 	/* A spinlock to protect state changes.  Acquire before modifying all fields in this struct except atomic
 	   fields. */
 	spinlock_t guard;

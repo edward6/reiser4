@@ -608,18 +608,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 
 	reiser4_unlock_page(page);
 
-	/* An attempt to balance queued and dirty nodes on a reiser4 fs is done by the following: vm writeback points us
-	   to some arbitrary dirty node.  We analyze "queued" status of the node to determine should we ask ktxnmgrd to
-	   prepare some nodes by calling jnode_flush().  If the node is not "queued" we do that. This job is done
-	   asynchronously by ktxnmgrd. Our current thread just write required number of nodes from flush queues. If
-	   there are no prepared nodes, we say VM that we can write nothing to disk.*/
-	flush_some = !node || !JF_ISSET(node, JNODE_FLUSH_QUEUED);
-
 	writeback_queued_jnodes(s, node, wbc);
-
-	if (flush_some) {
-		ktxnmgr_writeback(s, wbc);
-	}
 
 	if (node)
 		jput(node);
