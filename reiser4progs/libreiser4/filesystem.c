@@ -271,7 +271,7 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     if (!(fs->tree = reiserfs_tree_open(fs)))
 	goto error_free_oid;
     
-    if (!(fs->dir = reiserfs_object_open(fs, "/")))
+    if (!(fs->dir = reiserfs_dir_open(fs, "/")))
 	goto error_free_tree;
     
     return fs;
@@ -408,7 +408,7 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
 	dir_hint.hash_pid = profile->hash;
 	
 	/* Creating object "dir40". See object.c for details */
-	if (!(fs->dir = reiserfs_object_create(fs, &dir_hint, dir_plugin, NULL, "/"))) {
+	if (!(fs->dir = reiserfs_dir_create(fs, &dir_hint, dir_plugin, NULL, "/"))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't create root directory.");
 	    goto error_free_tree;

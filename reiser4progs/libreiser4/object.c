@@ -278,10 +278,6 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs,
     object->key.plugin = fs->key.plugin;
     reiserfs_key_init(&object->key, fs->key.body);
     
-    /* 
-	I assume that name is absolute name. So, user, who will call this method 
-	should convert name previously into absolute one by getcwd function.
-    */
     if (parent) {
 	parent_key.plugin = parent->key.plugin;
 	reiserfs_key_init(&parent_key, parent->key.body);
@@ -330,66 +326,6 @@ error_free_object:
 }
 
 #endif
-
-errno_t reiserfs_object_rewind(reiserfs_object_t *object) {
-    aal_assert("umka-842", object != NULL, return -1);
-    aal_assert("umka-843", object->entity != NULL, return -1);
-
-    if (object->plugin->h.type == REISERFS_DIR_PLUGIN) {
-	return libreiser4_plugin_call(return -1, object->plugin->dir_ops, 
-	    rewind, object->entity);
-    } else {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Sorry, files are not supported now!");
-	return -1;
-    }
-}
-
-errno_t reiserfs_object_read(reiserfs_object_t *object, 
-    reiserfs_entry_hint_t *hint) 
-{
-    aal_assert("umka-860", object != NULL, return -1);
-    aal_assert("umka-861", object->entity != NULL, return -1);
-
-    if (object->plugin->h.type == REISERFS_DIR_PLUGIN) {
-	return libreiser4_plugin_call(return -1, object->plugin->dir_ops, 
-	    read, object->entity, hint);
-    } else {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Sorry, files are not supported now!");
-	return -1;
-    }
-}
-
-uint32_t reiserfs_object_tell(reiserfs_object_t *object) {
-    aal_assert("umka-875", object != NULL, return -1);
-    aal_assert("umka-876", object->entity != NULL, return -1);
-
-    if (object->plugin->h.type == REISERFS_DIR_PLUGIN) {
-	return libreiser4_plugin_call(return -1, object->plugin->dir_ops, 
-	    tell, object->entity);
-    } else {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Sorry, files are not supported now!");
-	return -1;
-    }
-}
-
-errno_t reiserfs_object_add(reiserfs_object_t *object, 
-    reiserfs_entry_hint_t *hint) 
-{
-    aal_assert("umka-862", object != NULL, return -1);
-    aal_assert("umka-863", object->entity != NULL, return -1);
-
-    if (object->plugin->h.type == REISERFS_DIR_PLUGIN) {
-	return libreiser4_plugin_call(return -1, object->plugin->dir_ops, 
-	    add, object->entity, hint);
-    } else {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Sorry, files are not supported now!");
-	return -1;
-    }
-}
 
 void reiserfs_object_close(reiserfs_object_t *object) {
     aal_assert("umka-680", object != NULL, return);
