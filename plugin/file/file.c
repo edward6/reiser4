@@ -1157,6 +1157,16 @@ commit_file_atoms(struct inode *inode)
 	unix_file_info_t *uf_info;
 	reiser4_context  *ctx;
 
+	/*
+	 * close current transaction
+	 */
+
+	ctx = get_current_context();
+	result = txn_end(ctx);
+	if (result != 0)
+		return result;
+	txn_begin(ctx);
+
 	uf_info = unix_file_inode_data(inode);
 
 	/*
@@ -1220,7 +1230,6 @@ commit_file_atoms(struct inode *inode)
 		break;
 	}
 
-	ctx = get_current_context();
 	/*
 	 * commit current transaction: there can be captured nodes from
 	 * find_file_state() and finish_conversion().
