@@ -753,6 +753,7 @@ int coord_are_neighbors (coord_t *c1, coord_t *c2)
 	assert( "nikita-1244", coord_is_existing_unit( c1 ) );
 	assert( "nikita-1245", coord_is_existing_unit( c2 ) );
 
+	left = right = 0;
 	switch( coord_compare( c1, c2 ) ) {
 	case COORD_CMP_ON_LEFT:
 		left  = c1;
@@ -767,6 +768,7 @@ int coord_are_neighbors (coord_t *c1, coord_t *c2)
 	default:
 		wrong_return_value( "nikita-1246", "compare_coords()" );
 	}
+	assert ("vs-731", left && right);
 	if( left -> item_pos == right -> item_pos ) {
 		return left -> unit_pos + 1 == right -> unit_pos;
 	} else if( left -> item_pos + 1 == right -> item_pos ) {
