@@ -198,17 +198,43 @@ void reiser4_print_stats()
 	      "\t rd_key_skew:\t %lu\n"
 	      "\t multikey_restart:\t %lu\n"
 	      "\t check_left_nonuniq:\t %lu\n"
-	      "\t left_nonuniq_found:\t %lu\n"
+	      "\t left_nonuniq_found:\t %lu\n",
+	      s -> tree.cbk,
+	      s -> tree.cbk_found,
+	      s -> tree.cbk_notfound,
+	      s -> tree.cbk_restart,
+	      s -> tree.cbk_cache_hit,
+	      s -> tree.cbk_cache_miss,
+	      s -> tree.cbk_cache_wrong_node,
+	      s -> tree.cbk_cache_race,
+	      s -> tree.cbk_cache_utmost,
+	      s -> tree.pos_in_parent_hit,
+	      s -> tree.pos_in_parent_miss,
+	      s -> tree.pos_in_parent_set,
+	      s -> tree.fast_insert,
+	      s -> tree.fast_paste,
+	      s -> tree.fast_cut,
+	      s -> tree.reparenting,
+	      s -> tree.rd_key_skew,
+	      s -> tree.multikey_restart,
+	      s -> tree.check_left_nonuniq,
+	      s -> tree.left_nonuniq_found );
 
-	      "znode:\n"
+	info( "znode:\n"
 	      "\t zload:\t %lu\n"
 	      "\t zload_read:\t %lu\n"
 	      "\t lock_znode:\t %lu\n"
 	      "\t lock_znode_iteration:\t %lu\n"
 	      "\t lock_neighbor:\t %lu\n"
-	      "\t lock_neighbor_iteration:\t %lu\n"
-
-	      "file:\n"
+	      "\t lock_neighbor_iteration:\t %lu\n",
+	      s -> znode.zload,
+	      s -> znode.zload_read,
+	      s -> znode.lock_znode,
+	      s -> znode.lock_znode_iteration,
+	      s -> znode.lock_neighbor,
+	      s -> znode.lock_neighbor_iteration );
+	      
+	info( "file:\n"
 	      "\t wait_on_page:\t %lu\n"
 	      "\t fsdata_alloc:\t %lu\n"
 	      "\t private_data_alloc:\t %lu\n"
@@ -218,18 +244,39 @@ void reiser4_print_stats()
 	      "\t extent2tail:\t %lu\n"
 	      "\t unformatted node pointers added (hole plugging not included):\t %lu\n"
 	      "\t find_items:\t %lu\n"
-	      "\t full find items:\t%lu\n"
+	      "\t full find items:\t%lu\n",
+	      s -> file.wait_on_page,
+	      s -> file.fsdata_alloc,
+	      s -> file.private_data_alloc,
+	      s -> file.writes,
+	      s -> file.write_repeats,
+	      s -> file.tail2extent,
+	      s -> file.extent2tail,
+	      s -> file.pointers,
+	      s -> file.find_items,
+	      s -> file.full_find_items );
 
-	      "flush:\n"
+	info( "flush:\n"
 	      "\t squeeze:\t %lu\n"
 	      "\t flush_carry:\t %lu\n"
 	      "\t squeezed_completely:\t %lu\n"
 	      "\t flushed with unallocated children: \t %lu\n"
 	      "\t XXXX leaves squeezed to left:\t %lu\n"
 	      "\t XXXX items squeezed in those leaves:\t %lu\n"
-	      "\t XXXX bytes in those items:\t %lu\n"
+	      "\t XXXX bytes in those items:\t %lu\n",
+	      s -> flush.squeeze,
+	      s -> flush.flush_carry,
+	      s -> flush.squeezed_completely,
+	      s -> flush.flushed_with_unallocated,
+	      /*
+	       * FIXME-VS: urgently added leaf squeeze stats
+	       */
+	      s -> flush.squeezed_leaves,
+	      s -> flush.squeezed_leaf_items,
+	      s -> flush.squeezed_leaf_bytes );
 
-	      "pool:\n"
+
+	info( "pool:\n"
 	      "\t alloc:\t %lu\n"
 	      "\t kmalloc:\t %lu\n"
 
@@ -253,56 +300,6 @@ void reiser4_print_stats()
 	      "\t eq3:\t %lu\n"
 
 	      ,
-	      
-	      s -> tree.cbk,
-	      s -> tree.cbk_found,
-	      s -> tree.cbk_notfound,
-	      s -> tree.cbk_restart,
-	      s -> tree.cbk_cache_hit,
-	      s -> tree.cbk_cache_miss,
-	      s -> tree.cbk_cache_wrong_node,
-	      s -> tree.cbk_cache_race,
-	      s -> tree.cbk_cache_utmost,
-	      s -> tree.pos_in_parent_hit,
-	      s -> tree.pos_in_parent_miss,
-	      s -> tree.pos_in_parent_set,
-	      s -> tree.fast_insert,
-	      s -> tree.fast_paste,
-	      s -> tree.fast_cut,
-	      s -> tree.reparenting,
-	      s -> tree.rd_key_skew,
-	      s -> tree.multikey_restart,
-	      s -> tree.check_left_nonuniq,
-	      s -> tree.left_nonuniq_found,
-
-	      s -> znode.zload,
-	      s -> znode.zload_read,
-	      s -> znode.lock_znode,
-	      s -> znode.lock_znode_iteration,
-	      s -> znode.lock_neighbor,
-	      s -> znode.lock_neighbor_iteration,
-
-	      s -> file.wait_on_page,
-	      s -> file.fsdata_alloc,
-	      s -> file.private_data_alloc,
-	      s -> file.writes,
-	      s -> file.write_repeats,
-	      s -> file.tail2extent,
-	      s -> file.extent2tail,
-	      s -> file.pointers,
-	      s -> file.find_items,
-	      s -> file.full_find_items,
-
-	      s -> flush.squeeze,
-	      s -> flush.flush_carry,
-	      s -> flush.squeezed_completely,
-	      s -> flush.flushed_with_unallocated,
-	      /*
-	       * FIXME-VS: urgently added leaf squeeze stats
-	       */
-	      s -> flush.squeezed_leaves,
-	      s -> flush.squeezed_leaf_items,
-	      s -> flush.squeezed_leaf_bytes,
 
 	      s -> pool.pool_alloc,
 	      s -> pool.pool_kmalloc,
