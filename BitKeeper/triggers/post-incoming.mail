@@ -14,6 +14,13 @@ if test "X$BK_CSETLIST" == X; then
     exit 0
 fi
 
+#I'm still wondering why "bk export" includes all of these ChangeSet
+#comments even though Hans only changed two files and only the last
+#ChangeSet entry belongs to him.  I wonder if this is a "feature" or an
+#accident of the BK design.  It happens because Hans did a commit, then
+#pulled all these other changes, then a push.
+
+
 CSET=`cat $BK_CSETLIST`
 
 SUBJECT=`bk rset -r$CSET | cut --delim=\| -f1 | grep -v ^BitKeeper | grep -v ChangeSet`
