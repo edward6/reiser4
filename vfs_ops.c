@@ -568,8 +568,10 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 	/* FIXME: This way to support fsync is too expensive. Proper solution
 	   support is to commit only atoms which contain dirty pages from given
 	   address space. */
-	if (wbc->sync_mode != WB_SYNC_NONE)
-		txnmgr_force_commit_all(sb, 0);
+	if (wbc->sync_mode != WB_SYNC_NONE) {
+		txnmgr_force_commit_all(sb, 1);
+		return;
+	}
 
 	do {
 		long nr_submitted = 0;
