@@ -950,8 +950,12 @@ jput_final(jnode * node)
 
 	r_i_p = !JF_TEST_AND_SET(node, JNODE_RIP);
 	spin_unlock_jnode(node);
-	jnode_finish_io(node);
+	/*
+	 * if r_i_p is true, we were first to set JNODE_RIP on this node. In
+	 * this case it is safe to access node after spin unlock.
+	 */
 	if (r_i_p) {
+		jnode_finish_io(node);
 		if (JF_ISSET(node, JNODE_HEARD_BANSHEE))
 			/* node is removed from the tree. */
 			jdelete(node);
