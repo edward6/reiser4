@@ -126,6 +126,7 @@ typedef enum {
 	COPT_PASTE_RESTARTED,
 } cop_insert_pos_type;
 
+/* comment this Nikita -Hans */
 typedef enum {
 	COPI_DONT_SHIFT_LEFT     = ( 1 << 0 ),
 	COPI_DONT_SHIFT_RIGHT    = ( 1 << 1 ),

@@ -135,6 +135,9 @@ struct reiser4_tree {
 
 /**
  * &reiser4_item_data - description of data to be inserted or pasted
+
+articulate the reasons for the difference between this and flow.
+
  */
 struct reiser4_item_data {
 	/**
@@ -146,7 +149,10 @@ struct reiser4_item_data {
 	 */
 	char           *data;
 	/* 1 if 'char * data' contains pointer to user space and 0 if it is
-	 * kernel space */
+	 * kernel space 
+
+	could be a char not an int?
+	*/
 	int             user;
 	/**
 	 * amount of data we are going to insert or paste
@@ -174,6 +180,7 @@ struct reiser4_item_data {
 	 * argument passing and storing everywhere.
 	 *
 	 */
+/* arg is a bad name. */
 	void           *arg;
 	/**
 	 * plugin of item we are inserting
