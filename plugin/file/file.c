@@ -1095,6 +1095,9 @@ static int capture_anonymous_pages(struct address_space * mapping)
 	return result;
 }
 
+/*
+ * Commit atom of the jnode of a page.
+ */
 static int
 sync_page(struct page *page)
 {
@@ -1117,6 +1120,9 @@ sync_page(struct page *page)
 	return result;
 }
 
+/*
+ * Commit atoms of pages on @pages list.
+ */
 static int
 sync_page_list(struct inode *inode, struct list_head *pages)
 {
@@ -1153,6 +1159,10 @@ commit_file_atoms(struct inode *inode)
 
 	uf_info = unix_file_inode_data(inode);
 
+	/*
+	 * finish extent<->tail conversion if necessary
+	 */
+
 	get_exclusive_access(uf_info);
 	if (inode_get_flag(inode, REISER4_PART_CONV)) {
 		result = finish_conversion(inode);
@@ -1161,6 +1171,10 @@ commit_file_atoms(struct inode *inode)
 			return result;
 		}
 	}
+
+	/*
+	 * find what items file is made from
+	 */
 
 	result = find_file_state(uf_info);
 	drop_exclusive_access(uf_info);
@@ -1174,10 +1188,30 @@ commit_file_atoms(struct inode *inode)
 	switch(uf_info->container) {
 	case UF_CONTAINER_EXTENTS:
 		result =
+			/*
+			 * when we are called by
+			 * filemap_fdatawrite->
+			 *    do_writepages()->
+			 *       reiser4_writepages()
+			 *
+			 * inode->i_mapping->dirty_pages are spices into
+			 * ->io_pages, leaving ->dirty_pages dirty.
+			 *
+			 * When we are called from
+			 * reiser4_fsync()->sync_unix_file(), we have to
+			 * commit atoms of all pages on the ->dirty_list.
+			 *
+			 * So for simplicity we just commit ->io_pages and
+			 * ->dirty_pages.
+			 */
 			sync_page_list(inode, &inode->i_mapping->io_pages) ||
 			sync_page_list(inode, &inode->i_mapping->dirty_pages);
 		break;
 	case UF_CONTAINER_TAILS:
+		/*
+		 * NOTE-NIKITA probably we can be smarter for tails. For now
+		 * just commit all existing atoms.
+		 */
 		result = txnmgr_force_commit_all(inode->i_sb, 0);
 		break;
 	case UF_CONTAINER_UNKNOWN:
@@ -1259,6 +1293,18 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 	return result;
 }
 
+/*
+ * ->sync() method for unix file.
+ *
+ * We are trying to be smart here. Instead of committing all atoms (original
+ * solution), we scan dirty pages of this file and commit all atoms they are
+ * part of.
+ *
+ * Situation is complicated by anonymous pages: i.e., extent-less pages
+ * dirtied through mmap. Fortunately sys_fsync() first calls
+ * filemap_fdatawrite() that will ultimately call reiser4_writepages(), insert
+ * all missing extents and capture anonymous pages.
+ */
 reiser4_internal int
 sync_unix_file(struct file *file, struct dentry *dentry, int datasync)
 {
