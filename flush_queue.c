@@ -404,18 +404,22 @@ current_atom_finish_all_fq(void)
 {
 	txn_atom *atom;
 	int nr_io_errors = 0;
-	int ret;
+	int ret = 0;
 
 	do {
-		atom = get_current_atom_locked();
-		ret = finish_all_fq(atom, &nr_io_errors);
-
+		while (1) {
+			atom = get_current_atom_locked();
+			ret = finish_all_fq(atom, &nr_io_errors);
+			if (ret != -EBUSY)
+				break;
+			atom_wait_event(atom);
+		}
 	} while (ret == -EAGAIN);
 
 	/* we do not need locked atom after this function finishes, SUCCESS or
 	   -EBUSY are two return codes when atom remains locked after
 	   finish_all_fq */
-	if (!ret || ret == -EBUSY)
+	if (!ret)
 		spin_unlock_atom(atom);
 
 	assert("nikita-2696", spin_atom_is_not_locked(atom));
