@@ -612,11 +612,10 @@ int hint_validate (struct sealed_coord * hint, const reiser4_key * key,
 
 
 /*
- * this finds item of file corresponding to page being read/written in and calls its
- * readpage/writepage method. It is used when exclusive or sharing access to inode is
- * grabbed
+ * this finds item of file corresponding to page being read/written in and
+ * calls its readpage/writepage method. It is used when exclusive or sharing
+ * access to inode is grabbed
  */
-/* Audited by: green(2002.06.15) */
 static int page_op (struct file * file, struct page * page, rw_op op)
 {
 	int result;
@@ -650,7 +649,11 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 		result = find_next_item (&hint, &key, &coord, &lh,
 					 op == READ_OP ? ZNODE_READ_LOCK : ZNODE_WRITE_LOCK,
 					 CBK_UNIQUE);
-		if (result != CBK_COORD_FOUND) {
+		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
+			done_lh (&lh);
+			break;
+		}
+		if (op == READ_OP && result == CBK_COORD_NOTFOUND) {
 			warning ("vs-280",
 				 "Looking for page %lu of file %lu (size %lli)."
 				 "No file items found (%d). "
@@ -667,7 +670,7 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 			break;
 		}
 		
-		if (!coord_is_existing_unit (&coord)) {
+		if (op == READ_OP && !coord_is_existing_unit (&coord)) {
 			/*
 			 * truncate stole a march of us
 			 */
@@ -679,8 +682,12 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 
 		lock_page (page);
 
-		/* get plugin of found item */
-		iplug = item_plugin_by_coord (&coord);
+		/* get plugin of found item or use plugin if extent if there
+		 * are no one */
+		if (!coord_is_existing_item (&coord))
+			iplug = item_plugin_by_id (EXTENT_POINTER_ID);
+		else
+			iplug = item_plugin_by_coord (&coord);
 		zrelse (coord.node);
 		
 		set_hint (&hint, &key, &coord);
@@ -696,6 +703,7 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 		}
 		if (result == -EAGAIN) {
 			assert ("vs-982", !PageLocked (page));
+			coord_init_zero (&coord);
 			continue;
 		}
 		break;
@@ -715,6 +723,13 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 int unix_file_readpage_nolock (void * file, struct page * page)
 {
 	return page_op (file, page, READ_OP);
+}
+
+
+/* this is used by tail2extent to replace tail items with extent ones */
+int unix_file_writepage_nolock (void * file, struct page * page)
+{
+	return page_op (file, page, WRITE_OP);
 }
 
 
