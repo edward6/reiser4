@@ -20,7 +20,7 @@ extern void reiser4_unlock_page(struct page *page);
 
 #if REISER4_TRACE_TREE
 extern char *jnode_short_info(const jnode *j, char *buf);
-extern int reiser4_submit_bio_helper(const char *moniker, 
+extern int reiser4_submit_bio_helper(const char *moniker,
 				     int rw, struct bio *bio);
 #define reiser4_submit_bio(rw, bio)				\
 	reiser4_submit_bio_helper(__FUNCTION__, (rw), (bio))
@@ -34,21 +34,12 @@ static inline void lock_and_wait_page_writeback (struct page * page)
 	reiser4_lock_page(page);
 	if (unlikely(PageWriteback(page)))
 	    reiser4_wait_page_writeback(page);
-}  
+}
 
 #define jprivate(page) ((jnode *) (page)->private)
 
 extern int page_io(struct page *page, jnode * node, int rw, int gfp);
-extern int page_common_writeback(struct page *page, struct writeback_control *wbc, int flush_flags);
-
-#define define_never_ever_op( op )						\
-static int never_ever_ ## op ( void )						\
-{										\
-	warning( "nikita-1708",							\
-		 "Unexpected operation" #op " was called for fake znode" );	\
-	return RETERR(-EIO);							\
-}
-
+extern int reiser4_writepage(struct page *page, struct writeback_control *wbc);
 extern void drop_page(struct page *page);
 
 #if REISER4_DEBUG_OUTPUT

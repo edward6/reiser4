@@ -224,8 +224,8 @@ ok:
 
 /* update inode's timestamps and size. If any of these change - update sd as well */
 int
-update_inode_and_sd_if_necessary(struct inode *inode, 
-				 loff_t new_size, 
+update_inode_and_sd_if_necessary(struct inode *inode,
+				 loff_t new_size,
 				 int update_i_size, int update_times,
 				 int do_update)
 {
@@ -243,7 +243,7 @@ update_inode_and_sd_if_necessary(struct inode *inode,
 		inode_changed = 1;
 	}
 	
-	if (update_times && (inode->i_ctime.tv_sec != get_seconds() || 
+	if (update_times && (inode->i_ctime.tv_sec != get_seconds() ||
 			     inode->i_mtime.tv_sec != get_seconds())) {
 		/* time stamps are to be updated */
 		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
@@ -361,7 +361,7 @@ find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 
 	/* collect statistics on the number of calls to this function */
 	reiser4_stat_inc(file.find_file_item);
-       
+
 	coord = &hint->coord.base_coord;
 	lh = hint->coord.lh;
 	init_lh(lh);
@@ -471,7 +471,7 @@ static int reserve_partial_page(reiser4_tree *tree)
 {
 	grab_space_enable();
 	return reiser4_grab_reserved(reiser4_get_current_sb(),
-				     1 + 
+				     1 +
 				     2 * estimate_one_insert_into_item(tree),
 				     BA_CAN_COMMIT, __FUNCTION__);
 }
@@ -479,7 +479,7 @@ static int reserve_partial_page(reiser4_tree *tree)
 /* estimate and reserve space needed to cut one item and update one stat data */
 int reserve_cut_iteration(reiser4_tree *tree, const char * message)
 {
-	__u64 estimate = estimate_one_item_removal(tree) 
+	__u64 estimate = estimate_one_item_removal(tree)
 		+ estimate_one_insert_into_item(tree);
 
 	assert("nikita-3172", lock_stack_isclean(get_current_lock_stack()));
@@ -509,7 +509,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 		if (result)
 			break;
 
-		result = cut_tree_object(current_tree, &from_key, &to_key, 
+		result = cut_tree_object(current_tree, &from_key, &to_key,
 					 &smallest_removed, inode);
 		if (result == -E_REPEAT) {
 			/* -E_REPEAT is a signal to interrupt a long file truncation process */
@@ -598,7 +598,6 @@ shorten_file(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_siz
 		reiser4_release_reserved(inode->i_sb);
 		return RETERR(-EIO);
 	}
-	set_page_dirty_internal(page);
 	result = unix_file_writepage_nolock(page);
 	assert("vs-98221", PageLocked(page));
 
@@ -696,7 +695,7 @@ truncate_file(struct inode *inode, loff_t new_size, int update_sd)
 	return result;
 }
 
-/* plugin->u.file.truncate 
+/* plugin->u.file.truncate
    all the work is done on reiser4_setattr->unix_file_setattr->truncate_file
 */
 int
@@ -976,7 +975,7 @@ readpage_unix_file(void *vp, struct page *page)
 
 	assert("vs-979", ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
 	/* if page has jnode - that jnode is mapped */
-	assert("vs-1098", ergo(result == 0 && PagePrivate(page), 
+	assert("vs-1098", ergo(result == 0 && PagePrivate(page),
 			       jnode_mapped(jprivate(page))));
 	return result;
 }
@@ -993,8 +992,8 @@ should_have_notail(const unix_file_info_t *uf_info, loff_t new_size)
 
 }
 
-static reiser4_block_nr unix_file_estimate_read(struct inode *inode, 
-						loff_t count UNUSED_ARG) 
+static reiser4_block_nr unix_file_estimate_read(struct inode *inode,
+						loff_t count UNUSED_ARG)
 {
     	/* We should reserve one block, because of updating of the stat data
 	   item */
@@ -1002,9 +1001,9 @@ static reiser4_block_nr unix_file_estimate_read(struct inode *inode,
 	return estimate_update_common(inode);
 }
 
-/* plugin->u.file.read 
+/* plugin->u.file.read
 
-   the read method for the unix_file plugin 
+   the read method for the unix_file plugin
 
 */
 int first_read_started = 0;
@@ -1496,7 +1495,7 @@ release_unix_file(struct inode *object, struct file *file)
 
 	get_exclusive_access(uf_info);
 	if (atomic_read(&file->f_dentry->d_count) == 1 &&
-	    uf_info->container == UF_CONTAINER_EXTENTS && 
+	    uf_info->container == UF_CONTAINER_EXTENTS &&
 	    !should_have_notail(uf_info, object->i_size)) {
 		result = extent2tail(uf_info);
 		if (result != 0) {
@@ -1644,7 +1643,7 @@ get_block_unix_file(struct inode *inode,
 	}
 	iplug = item_plugin_by_coord(&hint.coord.base_coord);
 	if (!hint.coord.valid)
-		validate_extended_coord(&hint.coord, 
+		validate_extended_coord(&hint.coord,
 					(loff_t) block << PAGE_CACHE_SHIFT);
 	if (iplug->s.file.get_block)
 		result = iplug->s.file.get_block(&hint.coord, block, bh_result);
@@ -1656,7 +1655,7 @@ get_block_unix_file(struct inode *inode,
 	return result;
 }
 
-/* plugin->u.file.flow_by_inode 
+/* plugin->u.file.flow_by_inode
    initialize flow (key, length, buf, etc) */
 int
 flow_by_inode_unix_file(struct inode *inode /* file to build flow for */ ,
@@ -1720,7 +1719,7 @@ delete_unix_file(struct inode *inode)
    plugin->u.file.add_link = add_link_common
    plugin->u.file.rem_link = NULL */
 
-/* plugin->u.file.owns_item 
+/* plugin->u.file.owns_item
    this is common_file_owns_item with assertion */
 /* Audited by: green(2002.06.15) */
 int
@@ -1801,7 +1800,7 @@ readpages_unix_file(struct file *file, struct address_space *mapping,
 
 /* plugin->u.file.init_inode_data */
 void
-init_inode_data_unix_file(struct inode *inode, 
+init_inode_data_unix_file(struct inode *inode,
 			  reiser4_object_create_data *crd, int create)
 {
 	unix_file_info_t *data;

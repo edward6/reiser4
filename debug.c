@@ -36,7 +36,7 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 
 		/* FIXME-NIKITA bust_spinlocks() should go here. Quoting
 		   lib/bust_spinlocks.c:
-	  
+	
 		   bust_spinlocks() clears any spinlocks which would prevent oops,
 		   die(), BUG() and panic() information from reaching the user.
 		*/
@@ -94,7 +94,7 @@ reiser4_print_prefix(const char *level, int reperr, const char *mid,
 		comm = current->comm;
 		pid  = current->pid;
 	}
-	printk("%s reiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n",
+	printk("%sreiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n",
 	       level, comm, pid, function, file, lineno, mid);
 	if (reperr)
 		report_err();
@@ -114,7 +114,7 @@ preempt_point(void)
 /* Debugging aid: return struct where information about locks taken by current
    thread is accumulated. This can be used to formulate lock ordering
    constraints and various assertions.
-  
+
 */
 lock_counters_info *
 lock_counters()
@@ -153,8 +153,8 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 	       "zlock: %i\n"
 	       "spin: %i, long: %i inode_sem: (r:%i,w:%i)\n"
 	       "d: %i, x: %i, t: %i\n", prefix,
-	       info->spin_locked_jnode, 
-	       info->rw_locked_tree, info->read_locked_tree, 
+	       info->spin_locked_jnode,
+	       info->rw_locked_tree, info->read_locked_tree,
 	       info->write_locked_tree,
 
 	       info->rw_locked_dk, info->read_locked_dk, info->write_locked_dk,
@@ -163,7 +163,7 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 	       info->spin_locked_atom, info->spin_locked_stack,
 	       info->spin_locked_txnmgr, info->spin_locked_ktxnmgrd,
 	       info->spin_locked_fq, info->spin_locked_super,
-	       info->spin_locked_inode_object, 
+	       info->spin_locked_inode_object,
 	       info->spin_locked_cbk_cache,
 	       info->spin_locked_epoch,
 	       info->spin_locked_super_eflush,
@@ -299,7 +299,7 @@ no_counters_are_held()
 		(counters->spin_locked_stack == 0) &&
 		(counters->spin_locked_txnmgr == 0) &&
 		(counters->spin_locked_inode_object == 0) &&
-		(counters->spin_locked == 0) && 
+		(counters->spin_locked == 0) &&
 		(counters->long_term_locked_znode == 0) &&
 		(counters->inode_sem_r == 0) &&
 		(counters->inode_sem_w == 0);
@@ -324,14 +324,14 @@ commit_check_locks()
 	return result;
 }
 
-void 
+void
 return_err(int code, const char *file, int line)
 {
 	if (code < 0) {
 		reiser4_context *ctx = get_current_context();
 
 		if (ctx != NULL) {
-			fill_backtrace(&ctx->err.path, 
+			fill_backtrace(&ctx->err.path,
 				       REISER4_BACKTRACE_DEPTH, 0);
 			ctx->err.code = code;
 			ctx->err.file = file;
@@ -340,7 +340,7 @@ return_err(int code, const char *file, int line)
 	}
 }
 
-void 
+void
 report_err(void)
 {
 	reiser4_context *ctx = get_current_context_check();
@@ -353,7 +353,7 @@ report_err(void)
 				printk("0x%p ", ctx->err.path.trace[i]);
 			printk("\n");
 #endif
-			printk("code: %i at %s:%i\n", 
+			printk("code: %i at %s:%i\n",
 			       ctx->err.code, ctx->err.file, ctx->err.line);
 		}
 	}
@@ -443,7 +443,7 @@ int atom_isopen(const txn_atom * atom)
  * use the reiserfs warning/panic infrastructure, or cut it entirely. */
 /* ANSWER(ZAM): Hans, this is not panic, this is not warning, it is a debug
  * output, printk is OK for this. */
-#endif 
+#endif
 
 #if REISER4_DEBUG_OUTPUT
 void
