@@ -200,7 +200,7 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 	assert("nikita-888", doing != NULL);
 
 	trace_stamp(TRACE_CARRY);
-	
+
 	todo = &todo_area;
 	init_carry_level(todo, doing->pool);
 	if (done == NULL) {
@@ -396,20 +396,12 @@ carry_on_level(carry_level * doing	/* queue of carry operations to
 		opcode = op->op;
 		assert("nikita-1042", op->op < COP_LAST_OP);
 		f = op_dispatch_table[op->op].handler;
-		/* As we are going to generalize single predefined set of
-		   carry operations stored in @op_dispatch_table into
-		   "balancing plugin" of some kind, case of @f == NULL should
-		   be handled.
+		result = f(op, doing, todo);
+		/* locking can fail with -EAGAIN. Any different error is fatal
+		   and will be handled by fatal_carry_error() sledgehammer.
 		*/
-		if (f != NULL) {
-			result = f(op, doing, todo);
-			/* locking can fail with -EAGAIN. Any different error
-			   is fatal and will be handled by fatal_carry_error()
-			   sledgehammer.
-			*/
-			if (result != 0)
-				break;
-		}
+		if (result != 0)
+			break;
 	}
 	if (result == 0) {
 		carry_plugin_info info;
@@ -847,9 +839,8 @@ unlock_carry_level(carry_level * level /* level to unlock */ ,
 
 	if (!failure) {
 		/* update delimiting keys */
-
 		for_all_nodes(level, node, tmp_node)
-		    sync_dkeys(node, level);
+			sync_dkeys(node, level);
 	}
 
 	/* nodes can be unlocked in arbitrary order.  In preemptible
