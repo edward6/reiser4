@@ -106,6 +106,7 @@ void test_layout_release (struct super_block * s)
 	struct buffer_head * super_bh;
 	test_disk_super_block * disk_sb;
 
+	done_tree (&get_super_private (s)->tree);
 
 	super_bh = sb_bread (s, (int)(REISER4_MAGIC_OFFSET / s->s_blocksize));
 	if (!super_bh) {

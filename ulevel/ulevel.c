@@ -3101,7 +3101,7 @@ static int bash_mkfs (const char * file_name)
 		sibling_list_insert( root, NULL );
 
 		zput (root);
-		/*zput (fake);*/
+		zput (fake);
 
 		{
 			int result;
