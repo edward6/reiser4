@@ -2169,6 +2169,9 @@ read_super_block:
 		/* only two plugins are available for now */
 		assert("vs-476", (plugin_id == FORMAT40_ID || plugin_id == TEST_FORMAT_ID));
 		df_plug = disk_format_plugin_by_id(plugin_id);
+#ifdef CONFIG_REISER4_BADBLOCKS
+		sbinfo->fixmap_block = d64tocpu(&master_sb->fixmap);
+#endif
 		brelse(super_bh);
 	} else {
 		if (!silent)
