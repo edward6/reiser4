@@ -1735,12 +1735,10 @@ int extent_write (struct inode * inode, tree_coord * coord,
 				return -ENOMEM;
 			}
 			/* Capture the page. */
-/*
 			result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
 			if (result != 0) {
 				goto capture_failed;
 			}
-*/
 			p_data = kmap (page);
 		} else {
 			/* tail2extent is in progress */
@@ -2174,12 +2172,10 @@ int extent_read (struct inode * inode, tree_coord * coord,
 	}
 
 	/* Capture the page. */
-/*
 	result = txn_try_capture_page (page, ZNODE_READ_LOCK, 0);
 	if (result != 0) {
 		goto capture_failed;
 	}
-*/
 	
 	/* position within the page to read from */
 	page_off = (get_key_offset (&f->key) & ~PAGE_MASK);
