@@ -2534,7 +2534,8 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 	   relocate set we assume that atom's flush reserved counter was
 	   already adjusted. */
 	if (!JF_ISSET(node, JNODE_CREATED) && !JF_ISSET(node, JNODE_RELOC)
-	    && !JF_ISSET(node, JNODE_OVRWR) && jnode_is_leaf(node)) {
+	    && !JF_ISSET(node, JNODE_OVRWR) && jnode_is_leaf(node)
+	    && !jnode_is_cluster_page(node)) {
 		assert("vs-1093", !blocknr_is_fake(&node->blocknr));
 		grabbed2flush_reserved_nolock(atom, (__u64)1);
 	}
