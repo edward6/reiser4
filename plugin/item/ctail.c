@@ -23,6 +23,7 @@ Internal on-disk structure:
 #include "item.h"
 #include "../node/node.h"
 #include "../plugin.h"
+#include "../object.h"
 #include "../../znode.h"
 #include "../../carry.h"
 #include "../../tree.h"
@@ -31,6 +32,7 @@ Internal on-disk structure:
 #include "../../context.h"
 #include "ctail.h"
 #include "../../page_cache.h"
+#include "../../flush.h"
 
 #include <linux/swap.h>
 #include <linux/fs.h>
@@ -352,9 +354,18 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	int release = 0;
 
 	assert("edward-212", PageLocked(page));
-	
 	inode = page->mapping->host;
 
+	if (!cluster_is_uptodate(clust)) {
+		clust->index = cluster_index_by_page(page, inode);
+		reiser4_unlock_page(page);
+		ret = ctail_read_cluster(clust, inode, 0 /* do not write */);
+		reiser4_lock_page(page);
+		if (ret)
+			return ret;
+		/* cluster was uptodated here, release it before exit */
+		release = 1;	
+	}
 	if (clust->stat == FAKE_CLUSTER) {
 		/* fill page by zeroes */
 		char *kaddr = kmap_atomic(page, KM_USER0);
@@ -369,16 +380,6 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 		ON_TRACE(TRACE_CTAIL, " - hole, OK\n");
 		return 0;
 	}	
-	if (!cluster_is_uptodate(clust)) {
-		clust->index = cluster_index_by_page(page, inode);
-		reiser4_unlock_page(page);
-		ret = ctail_read_cluster(clust, inode, 0 /* do not write */);
-		reiser4_lock_page(page);
-		if (ret)
-			return ret;
-		/* cluster was uptodated here, release it before exit */
-		release = 1;	
-	}
 	if(PageUptodate(page))
 		/* races with other read/write */
 		goto exit;	
@@ -416,9 +417,11 @@ int readpage_ctail(void * vp, struct page * page)
 	assert("edward-118", page->mapping && page->mapping->host);
 	
 	result = do_readpage_ctail(clust, page);
+
 	assert("edward-213", PageLocked(page));
-	if (!result)
-		reiser4_unlock_page(page);
+	/* */
+	reiser4_unlock_page(page);
+
 	return result;
 }
 
@@ -493,7 +496,6 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 int
 write_ctail(struct inode *inode, flow_t * f, hint_t *hint, int grabbed, write_mode_t mode)
 {
-	znode_make_dirty(hint->coord.base_coord.node);
 	return 0;
 }
 
@@ -507,9 +509,102 @@ append_key_ctail(const coord_t *coord, reiser4_key *key)
 	return NULL;
 }
 
+int
+insert_cryptcompress_flow(coord_t * coord, lock_handle * lh, flow_t * f)
+{
+	int result;
+	carry_pool pool;
+	carry_level lowest_level;
+	carry_op *op;
+	reiser4_item_data data;
+
+	init_carry_pool(&pool);
+	init_carry_level(&lowest_level, &pool);
+	
+	op = post_carry(&lowest_level, COP_INSERT_FLOW, coord->node, 0 /* operate directly on coord -> node */ );
+	if (IS_ERR(op) || (op == NULL))
+		return RETERR(op ? PTR_ERR(op) : -EIO);
+	data.user = 0;
+	data.iplug = item_plugin_by_id(CTAIL_ID);
+	data.arg = 0;
+
+	data.length = 0;
+	data.data = 0;
+
+	op->u.insert_flow.insert_point = coord;
+	op->u.insert_flow.flow = f;
+	op->u.insert_flow.data = &data;
+	op->u.insert_flow.new_nodes = 0;
+
+	op->node->track = 1;
+	lowest_level.tracked = lh;
+	
+	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
+	result = carry(&lowest_level, 0);
+	done_carry_pool(&pool);
+	
+	return result;
+}
+
 /* plugin->u.item.f.scan */
+/* Check if the cluster node we started from doesn't have any items
+   in the tree. If so, insert prosessed cluster into the tree.
+   Don't care about scan counter since scanning left will be continue
+   from rightmost dirty node.
+*/  
 int scan_ctail(flush_scan * scan, const coord_t * in_coord)
 {
+	int result;
+	struct page * page;
+	struct inode * inode;
+	reiser4_cluster_t clust;
+	flow_t f;
+	file_plugin * fplug;
+	
+	assert("edward-227", scan->node != NULL);
+	assert("edward-228", jnode_is_cluster_page(scan->node));
+	
+	page = jnode_page(scan->node);
+	
+	assert("edward-229", page->mapping != NULL);
+	assert("edward-230", page->mapping != NULL);
+	assert("edward-231", page->mapping->host != NULL);
+
+	inode = page->mapping->host;
+	fplug = inode_file_plugin(inode);
+
+	assert("edward-244", fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
+	assert("edward-232", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
+	
+	reiser4_cluster_init(&clust);
+
+	if (!coord_is_invalid(&scan->parent_coord)) {
+		assert("edward-233", scan->direction == RIGHT_SIDE);
+		/* do nothing */
+		return 0;
+	}
+	/* we start at an unformatted node, which doesn't have any items
+	   in the tree (new file or converted hole), so insert flow and
+	   continue scan from rightmost dirty node */
+	
+	clust.index = cluster_index_by_page(page, inode);
+	
+	/* remove appropriate jnodes from dirty list */
+	result = flush_cluster_pages(&clust, inode);
+	if (result)
+		return result;
+	deflate_cluster(&clust, inode);
+	fplug->flow_by_inode(inode, clust.buf, 0, clust.len /* ??? */, clust.index << PAGE_CACHE_SHIFT, WRITE, &f);
+	/* insert processed data */
+	result = insert_cryptcompress_flow(&scan->parent_coord, /* insert point */
+					   &scan->parent_lock, &f);
+	if (result)
+		return result;
+
+	assert("edward-234", f.length == 0);
+	assert("edward-235", !coord_is_invalid(&scan->parent_coord));
+	
+	put_cluster_data(&clust, inode);
 	return 0;
 }
 
