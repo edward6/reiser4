@@ -78,9 +78,11 @@ void internal_down_link( const tree_coord *coord /* coord of item */,
 
 	assert( "nikita-609", coord != NULL );
 	assert( "nikita-611", block != NULL );
-	assert( "nikita-612", ( key == NULL ) ||
-		keycmp( item_key_by_coord( coord, 
-					   &item_key ), key ) != GREATER_THAN );
+	assert( "nikita-612",
+		(( key == NULL ) ||
+		 ( znode_get_level( coord -> node ) == TWIG_LEVEL ) ||
+		 ( keycmp( item_key_by_coord( coord, &item_key ),
+			   key ) != GREATER_THAN ) ) );
 
 	*block = pointer_at( coord );
 }
