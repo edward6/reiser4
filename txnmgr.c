@@ -485,6 +485,10 @@ atom_dec_and_unlock (txn_atom *atom)
 static txn_atom*
 atom_begin_andlock (void)
 {
+	/*
+	 * FIXME:NIKITA->JMACD we are under jnode spinlock, allocation is
+	 * unsafe.
+	 */
 	txn_atom *atom = kmem_cache_alloc (_atom_slab, GFP_KERNEL);
 	txn_mgr  *mgr  = &get_super_private (reiser4_get_current_sb ())->tmgr;
 
