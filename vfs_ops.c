@@ -2729,6 +2729,7 @@ int
 reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {
 	int ret = 0;
+	int waslocked;
 	struct inode *inode;
 
 	REISER4_ENTRY(mapping->host->i_sb);
@@ -2762,21 +2763,25 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	 * sure whether it is legal to unlock inode during
 	 * ->writepages(). Should consult AKPM.
 	 */
-	assert("nikita-2991", inode->i_state & I_LOCK);
-	inode->i_state &= ~I_LOCK;
-	wake_up_inode(inode);
+	waslocked = inode->i_state & I_LOCK;
+	if (waslocked) {
+		inode->i_state &= ~I_LOCK;
+		wake_up_inode(inode);
+	}
 	spin_unlock(&inode_lock);
 
 	ret = writeout(mapping, wbc);
 
-	spin_lock(&inode_lock);
-	while (inode->i_state & I_LOCK) {
-		spin_unlock(&inode_lock);
-		wait_on_inode(inode);
+	if (waslocked) {
 		spin_lock(&inode_lock);
+		while (inode->i_state & I_LOCK) {
+			spin_unlock(&inode_lock);
+			wait_on_inode(inode);
+			spin_lock(&inode_lock);
+		}
+		inode->i_state |= I_LOCK;
+		spin_unlock(&inode_lock);
 	}
-	inode->i_state |= I_LOCK;
-	spin_unlock(&inode_lock);
 
 	REISER4_EXIT(ret);
 }
