@@ -541,6 +541,7 @@ static inline reiser4_context *get_current_context(void)
 #define __REISER4_EXIT( context )		\
 ({						\
         int __ret1 = txn_end( context );	\
+        check_tree();     			\
 	done_context( context );		\
         __ret1;					\
 })
@@ -580,6 +581,12 @@ SPIN_LOCK_FUNCTIONS( tree, reiser4_tree, tree_lock );
  * keys.
  */
 SPIN_LOCK_FUNCTIONS( dk, reiser4_tree, dk_lock );
+
+#if REISER4_DEBUG
+#define check_tree() print_tree_rec( "", current_tree, REISER4_TREE_CHECK )
+#else
+#define check_tree() noop
+#endif
 
 /* __REISER4_TREE_H__ */
 #endif
