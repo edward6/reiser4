@@ -121,22 +121,13 @@ gzip1_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 #if REISER4_GZIP_TFM
 	int ret = 0;
 	struct z_stream_s stream;
-	compression_plugin *cplug =
-	    compression_plugin_by_id(GZIP1_COMPRESSION_ID);
-
+	
 	xmemset(&stream, 0, sizeof(stream));
 
 	assert("edward-842", coa != NULL);
 	assert("edward-875", src_len != 0);
 
-	if (!coa) {
-		coa_t tmp = cplug->alloc(TFM_WRITE);
-		if (IS_ERR(tmp))
-			goto rollback;
-		stream.workspace = tmp;
-	} else
-		stream.workspace = coa;
-
+	stream.workspace = coa;
 	ret = zlib_deflateInit2(&stream, GZIP1_DEF_LEVEL, Z_DEFLATED,
 				-GZIP1_DEF_WINBITS, GZIP1_DEF_MEMLEVEL,
 				Z_DEFAULT_STRATEGY);
@@ -160,12 +151,8 @@ gzip1_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 		goto rollback;
 	}
 	*dst_len = stream.total_out;
-	if (!coa)
-		cplug->free(stream.workspace, TFM_WRITE);
 	return;
  rollback:
-	if (!coa && stream.workspace)
-		cplug->free(stream.workspace, TFM_WRITE);
 	*dst_len = src_len;
 #endif
 	return;
@@ -178,31 +165,22 @@ gzip1_decompress(coa_t coa, __u8 * src_first, unsigned src_len,
 #if REISER4_GZIP_TFM
 	int ret = 0;
 	struct z_stream_s stream;
-	compression_plugin *cplug =
-	    compression_plugin_by_id(GZIP1_COMPRESSION_ID);
 
 	xmemset(&stream, 0, sizeof(stream));
 
 	assert("edward-843", coa != NULL);
 	assert("edward-876", src_len != 0);
 
-	if (!coa) {
-		coa_t tmp = cplug->alloc(TFM_READ);
-		if (IS_ERR(tmp))
-			goto out;
-		stream.workspace = tmp;
-	} else
-		stream.workspace = coa;
-
+	stream.workspace = coa;
 	ret = zlib_inflateInit2(&stream, -GZIP1_DEF_WINBITS);
 	if (ret != Z_OK) {
 		warning("edward-774", "zlib_inflateInit2 returned %d\n", ret);
-		goto out;
+		return;
 	}
 	ret = zlib_inflateReset(&stream);
 	if (ret != Z_OK) {
 		warning("edward-775", "zlib_inflateReset returned %d\n", ret);
-		goto out;
+		return;
 	}
 
 	stream.next_in = src_first;
@@ -224,12 +202,9 @@ gzip1_decompress(coa_t coa, __u8 * src_first, unsigned src_len,
 	}
 	if (ret != Z_STREAM_END) {
 		warning("edward-776", "zlib_inflate returned %d\n", ret);
-		goto out;
+		return;
 	}
 	*dst_len = stream.total_out;
-      out:
-	if (!coa && stream.workspace)
-		cplug->free(stream.workspace, TFM_READ);
 #endif
 	return;
 }
