@@ -650,6 +650,15 @@ static void check_block_range (const reiser4_block_nr * start, const reiser4_blo
 
 #endif
 
+static inline void add_bnode_to_commit_list (struct bnode ** commit_list, struct bnode * bnode)
+{
+	if (bnode -> next_in_commit_list != NULL) return;
+
+	bnode -> next_in_commit_list = *commit_list;
+	*commit_list = bnode;
+}
+
+
 /** an actor which applies delete set to COMMIT bitmap pages and link modified
  * pages in a single-linked list */
 /* Audited by: green(2002.06.12) */
@@ -663,7 +672,7 @@ static int apply_dset_to_commit_bmap (txn_atom               * atom UNUSED_ARG,
 	bmap_off_t offset;
 
 	struct bnode       * bnode;
-	struct bnode       * commit_list = data;
+	struct bnode      ** commit_list = data;
 
 	struct super_block * sb = reiser4_get_current_sb();
 
@@ -679,10 +688,7 @@ static int apply_dset_to_commit_bmap (txn_atom               * atom UNUSED_ARG,
 	assert ("zam-448", bnode != NULL);
 
 	/* put bnode in a special list for post-processing */
-	if (bnode->next_in_commit_list == NULL) {
-		bnode->next_in_commit_list = commit_list;
-		commit_list = bnode;
-	}
+	add_bnode_to_commit_list (commit_list, bnode);
 
 	/* apply DELETE SET */
 	assert ("zam-444", bnode->cpage != NULL);
@@ -727,6 +733,45 @@ void bitmap_pre_commit_hook (void)
 	assert ("zam-435", atom != 0);
 
 	blocknr_set_iterator (atom, &atom->delete_set, apply_dset_to_commit_bmap, &commit_list, 0);
+
+	{ /* scan atom's captured list and find all freshly allocated nodes,
+	   * mark corresponded bits in COMMIT BITMAP as used */
+		int level;
+
+		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level ++) {
+			capture_list_head * head = &atom->dirty_nodes[level];
+			jnode * node = capture_list_front (head);
+
+			while (!capture_list_end (head, node)) {
+				/* we detect freshly allocated jnodes */
+				if (JF_ISSET(node, ZNODE_ALLOC)) {
+					bmap_nr_t  bmap;
+					bmap_off_t offset;
+					struct bnode * bn;
+
+					assert ("zam-460", !blocknr_is_fake(& node->blocknr));
+
+					parse_blocknr(& node->blocknr, &bmap, &offset);
+
+					bn = get_bnode (ctx->super, bmap);
+
+					assert ("zam-458", bn != NULL);
+					assert ("zam-459", bn->cpage != NULL); 
+					
+					spin_lock_bnode (bn);
+					reiser4_set_bit (offset, bn->cpage);
+					spin_unlock_bnode (bn);
+
+					/* we use the same commit list to
+					 * store bnodes we will capture */
+					add_bnode_to_commit_list (&commit_list, bn);
+				}
+
+				node = capture_list_next(node);
+			}
+			
+		}
+	}
 
 	spin_unlock_atom (atom);
 
