@@ -50,14 +50,6 @@ cluster_shift_by_coord(const coord_t * coord)
 	return d8tocpu(&formatted_at(coord)->cluster_shift);
 }
 
-#if 0
-static unsigned
-cluster_size_by_coord(const coord_t * coord)
-{
-	return (PAGE_CACHE_SIZE << cluster_shift_by_coord(coord));
-}
-#endif
-
 static unsigned long
 pg_by_coord(const coord_t * coord)
 {
@@ -158,6 +150,13 @@ estimate_ctail(const coord_t * coord /* coord of item */,
 }
 
 #if REISER4_DEBUG_OUTPUT
+static unsigned
+cluster_size_by_coord(const coord_t * coord)
+{
+	return (PAGE_CACHE_SIZE << cluster_shift_by_coord(coord));
+}
+
+
 /* ->print() method for this item plugin. */
 void
 print_ctail(const char *prefix /* prefix to print */ ,
