@@ -823,12 +823,14 @@ jnode_try_drop(jnode * node)
 	}
 
 	result = jplug->is_busy(node);
-	UNLOCK_JNODE(node);
-	if (result == 0)
+	if (result == 0) {
+		UNLOCK_JNODE(node);
 		/* no page and no references---despatch him. */
 		result = jplug->remove(node, tree);
-	else
+	} else {
 		JF_CLR(node, JNODE_RIP);
+		UNLOCK_JNODE(node);
+	}
 	WUNLOCK_TREE(tree);
 	return result;
 }
