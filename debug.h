@@ -371,16 +371,6 @@ typedef struct reiser4_statistics {
 		 */
 		stat_cnt cbk_restart;
 		/*
-		 * key was moved out of node while thread was waiting
-		 * for the lock
-		 */		
-		stat_cnt cbk_key_moved;
-		/*
-		 * node was moved out of tree while thread was waiting
-		 * for the lock
-		 */		
-		stat_cnt cbk_met_ghost;
-		/*
 		 * calls to coord_by_key that found key in coord cache
 		 */
 		stat_cnt cbk_cache_hit;
@@ -574,6 +564,16 @@ typedef struct reiser4_statistics {
 		 * a tree
 		 */
 		stat_cnt sibling_search;
+		/*
+		 * key was moved out of node while thread was waiting
+		 * for the lock
+		 */		
+		stat_cnt cbk_key_moved;
+		/*
+		 * node was moved out of tree while thread was waiting
+		 * for the lock
+		 */		
+		stat_cnt cbk_met_ghost;
 		stat_cnt total_hits_at_level;
 	} level[ REAL_MAX_ZTREE_HEIGHT ];
 	struct {

@@ -199,6 +199,7 @@ static int common_unlink( struct inode *parent /* parent object */,
 		/* and second, remove or update stat data */
 		switch( uf_type ) {
 		case UNLINK_BY_DELETE:
+			-- object -> i_nlink;
 			result = fplug -> destroy_stat_data( object, parent );
 			break;
 		case UNLINK_BY_PLUGIN:
@@ -314,6 +315,8 @@ static int common_create_child( struct inode *parent /* parent object */,
 	   objectid (if we support objectid reuse). For
 	   directories this implies creation of dot and
 	   dotdot */
+	if( !( *reiser4_inode_flags( object ) & REISER4_NO_STAT_DATA ) )
+		panic( "bar" );
 	result = fplug -> create( object, parent, data );
 	if( result == 0 ) {
 		assert( "nikita-434", !( *reiser4_inode_flags( object ) & 
@@ -340,7 +343,7 @@ static int common_create_child( struct inode *parent /* parent object */,
 	} else {
 		warning( "nikita-2219", "Failed to create sd for %lu (%x)",
 			 object -> i_ino, *reiser4_inode_flags( object ) );
-		BUG();
+		panic( "foo!" );
 	}
 
 	/* file has name now, clear immutable flag */

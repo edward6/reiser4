@@ -10,20 +10,22 @@
 #include "../reiser4.h"
 
 
-int fs_is_here;
-
 void panic( const char *format, ... )
 {
+	char *panic_mode;
 	va_list args;
 
 	va_start( args, format );
 	vfprintf( stderr, format, args );
 	va_end( args );
-	if( getenv( "REISER4_CRASH_MODE" ) &&
-	    !strcmp( getenv( "REISER4_CRASH_MODE" ), "debugger" ) ) {
-		abend();
-	} else {
+	panic_mode = getenv( "REISER4_CRASH_MODE" );
+	if( !panic_mode )
 		abort();
+	else if( !strcmp( panic_mode, "debugger" ) )
+		abend();
+	else if( !strcmp( panic_mode, "suspend" ) ) {
+		while( 1 )
+		{;}
 	}
 }
 
@@ -435,7 +437,7 @@ int invalidate_inodes (struct super_block *sb)
 			continue;
 		truncate_inode_pages (inode->i_mapping, (loff_t)0);
 		if (atomic_read (&inode->i_count) || (inode->i_state & I_DIRTY)){
-			print_inode ("invalidate_inodes", inode);
+			/* print_inode ("invalidate_inodes", inode); */
 			++ busy;
 		}
 		spin_lock (&inode_hash_guard);
@@ -461,7 +463,8 @@ void iput( struct inode *inode )
 		xmemset (&file, 0, sizeof file);
 		file.f_dentry = &dentry;
 		dentry.d_inode = inode;
-		truncate_inode_pages (inode->i_mapping, 0);
+		if( inode->i_nlink == 0 )
+			 truncate_inode_pages (inode->i_mapping, 0); 
 		if (inode->i_fop && inode->i_fop->release (inode, &file))
 			info ("release failed");
 
@@ -1186,7 +1189,7 @@ int submit_bio( int rw, struct bio *bio )
 
 
 /* include/linux/pagemap.h */
-struct page *page_cache_alloc (struct address_space * mapping)
+struct page *page_cache_alloc (struct address_space * mapping UNUSED_ARG)
 {
 	struct page * page;
 
@@ -2757,7 +2760,7 @@ static int bash_cpr (struct inode * dir, const char * source)
 	struct inode * subdir, * tmp;
 	char * cwd;
 	char * name;
- 
+
 
 	d = opendir (source);
 	if (d == 0) {

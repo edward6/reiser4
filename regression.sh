@@ -22,7 +22,7 @@ function do_mkfs()
 }
 
 export REISER4_PRINT_STATS=1
-export REISER4_CRASH_MODE=debugger
+export REISER4_CRASH_MODE=suspend
 export REISER4_TRAP=1
 
 rm -f gmon.out.*

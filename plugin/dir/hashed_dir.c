@@ -41,6 +41,10 @@ int hashed_create( struct inode *object /* new directory */,
 	result = common_file_save( object );
 	if( result == 0 )
 		result = create_dot_dotdot( object, parent );
+	else
+		warning( "nikita-2223", 
+			 "Failed to create sd of directory %lu: %i",
+			 object -> i_ino, result );
 	return result;
 }
 
@@ -140,6 +144,9 @@ static int create_dot_dotdot( struct inode *object /* object to create dot and
 	
 	if( result == 0 )
 		result = reiser4_add_nlink( object );
+	else
+		warning( "nikita-2222", "Failed to create dot in %lu: %i",
+			 object -> i_ino, result );
 
 	if( result == 0 ) {
 		entry.obj = dots_entry.d_inode = parent;
@@ -150,6 +157,10 @@ static int create_dot_dotdot( struct inode *object /* object to create dot and
 		 * if creation of ".." failed, iput() will delete object
 		 * with ".".
 		 */
+		if( result != 0 )
+			warning( "nikita-2222", 
+				 "Failed to create dotdot in %lu: %i",
+				 object -> i_ino, result );
 	}
 
 	if( result == 0 )

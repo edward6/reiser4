@@ -127,8 +127,7 @@ static void trap_sig(int signum,
 		     siginfo_t *info UNUSED_ARG, 
 		     void *datum UNUSED_ARG)
 {
-	info( "Signal %i trapped\n", signum );
-	abend();
+	panic( "Signal %i trapped\n", signum );
 }
 
 void trap_signal( int signum )

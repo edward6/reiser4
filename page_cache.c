@@ -482,7 +482,8 @@ static int formatted_writepage( struct page *page /* page to write */ )
 }
 
 /** ->invalidatepage() method for formatted nodes */
-static int formatted_invalidatepage( struct page *page /* page to write */,
+static int formatted_invalidatepage( struct page *page UNUSED_ARG /* page to
+								   * write */,
 				     unsigned long offset UNUSED_ARG /*  truncate
 								      *  offset */ )
 {

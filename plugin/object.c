@@ -64,7 +64,8 @@ static void key_warning( const char *error_message /* message to print */,
 {
 	assert( "nikita-716", key != NULL );
 	
-	warning( "nikita-717", "%s %i", error_message ? : "error for sd", code );
+	warning( "nikita-717", "%llu: %s %i", 
+		 get_key_objectid( key ), error_message ? : "error", code );
 	print_key( "for key", key );
 }
 
@@ -422,6 +423,9 @@ int common_file_save( struct inode *inode /* object to save */ )
 		result = insert_new_sd( inode );
 	else
 		result = update_sd( inode );
+	if( result != 0 )
+		warning( "nikita-2221", "Failed to save sd for %lu: %i",
+			 inode -> i_ino, result );
 	return result;
 }
 
@@ -653,7 +657,6 @@ static int is_empty_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
 /** default ->add_link() method of file plugin */
 static int common_add_link( struct inode *object )
 {
-	/* do reasonable default stuff */
 	++ object -> i_nlink;
 	object -> i_ctime = CURRENT_TIME;
 	return inode_file_plugin( object ) -> write_sd_by_inode( object );

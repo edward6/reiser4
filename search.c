@@ -665,9 +665,11 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 		 */
 		if( REISER4_STATS ) {
 			if( znode_contains_key_lock( active, h -> key ) )
-				reiser4_stat_tree_add( cbk_met_ghost );
+				reiser4_stat_add_at_level( h -> level, 
+							   cbk_met_ghost );
 			else
-				reiser4_stat_tree_add( cbk_key_moved );
+				reiser4_stat_add_at_level( h -> level, 
+							   cbk_key_moved );
 		}
 		h -> result = -EAGAIN;
 	}
