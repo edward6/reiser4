@@ -220,25 +220,8 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	ON_STATS(todo.level_no = TWIG_LEVEL);
 	assert("vs-49827", znode_contains_key_lock(insert_coord->node, key));
 
-#if 0
-	grabbed = get_current_context() -> grabbed_blocks;
-	
-	/* VITALY: Grab block for the balancing needs. */
-	result = reiser4_grab_space_force(1, BA_CAN_COMMIT);
-	if( result != 0 )
-		return result;
-
-	trace_on(TRACE_RESERVE, "balancing grabs 1 block for a leaf.\n");
-#endif
-
 	tree = znode_get_tree(insert_coord->node);
 	node = new_node(insert_coord->node, LEAF_LEVEL);
-#if 0
-	/* VITALY: Ungrab block for the balancing needs. */
-	grabbed2free
-	    /*reiser4_release_grabbed_space */
-	    (get_current_context()->grabbed_blocks - grabbed);
-#endif
 	if (IS_ERR(node))
 		return PTR_ERR(node);
 	/* setup delimiting keys for node being inserted */
