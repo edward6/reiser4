@@ -120,8 +120,8 @@ struct reiserfs_key_ops {
     errno_t (*build_generic_full) (void *, uint32_t, uint64_t, uint64_t, uint64_t);
     errno_t (*build_entry_full) (void *, void *, uint64_t, uint64_t, const char *);
     
-    errno_t (*build_generic_short) (void *, uint32_t, uint64_t, uint64_t, uint8_t);
-    errno_t (*build_entry_short) (void *, const char *, void *, uint8_t);
+    errno_t (*build_generic_short) (void *, uint32_t, uint64_t, uint64_t);
+    errno_t (*build_entry_short) (void *, void *, const char *);
 };
 
 typedef struct reiserfs_key_ops reiserfs_key_ops_t;

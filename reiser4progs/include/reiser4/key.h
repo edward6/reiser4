@@ -55,9 +55,15 @@ extern void reiserfs_key_clean(reiserfs_key_t *key);
 extern errno_t reiserfs_key_build_generic_full(reiserfs_key_t *key, 
     uint32_t type, oid_t locality, oid_t objectid, uint64_t offset);
 
+extern errno_t reiserfs_key_build_generic_short(reiserfs_key_t *key, 
+    uint32_t type, oid_t locality, oid_t objectid);
+
 extern errno_t reiserfs_key_build_entry_full(reiserfs_key_t *key, 
     reiserfs_plugin_t *hash_plugin, oid_t locality, 
     oid_t objectid, const char *name);
+
+extern errno_t reiserfs_key_build_entry_short(reiserfs_key_t *key, 
+    reiserfs_plugin_t *hash_plugin, const char *name);
 
 extern errno_t reiserfs_key_set_type(reiserfs_key_t *key, uint32_t type);
 extern errno_t reiserfs_key_set_offset(reiserfs_key_t *key, uint64_t offset);

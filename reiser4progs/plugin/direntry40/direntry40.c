@@ -39,13 +39,12 @@ static errno_t direntry40_create(reiserfs_direntry40_t *direntry,
 	en40_set_offset(&direntry->entry[i], offset);
 
 	libreiser4_plugin_call(return -1, key_plugin->key, build_entry_short, 
-	    &direntry->entry[i].entryid, direntry_hint->entry[i].name, 
-	    direntry_hint->hash_plugin, sizeof(reiserfs_entryid_t));
+	    &direntry->entry[i].entryid, direntry_hint->hash_plugin, 
+	    direntry_hint->entry[i].name);
 
 	libreiser4_plugin_call(return -1, key_plugin->key, build_generic_short, 
 	    (reiserfs_objid_t *)((char *)direntry + offset), KEY40_STATDATA_MINOR, 
-	    direntry_hint->entry[i].locality, direntry_hint->entry[i].objectid, 
-	    sizeof(reiserfs_objid_t));
+	    direntry_hint->entry[i].locality, direntry_hint->entry[i].objectid);
 	
 	len = aal_strlen(direntry_hint->entry[i].name);
 	offset += sizeof(reiserfs_objid_t);

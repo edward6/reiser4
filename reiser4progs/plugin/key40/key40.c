@@ -183,8 +183,8 @@ static errno_t key40_build_entry_full(reiserfs_key40_t *key,
     return 0;
 }
 
-static errno_t key40_build_generic_full(reiserfs_key40_t *key, uint32_t type, 
-    oid_t locality, oid_t objectid, uint64_t offset) 
+static errno_t key40_build_generic_full(reiserfs_key40_t *key, 
+    uint32_t type, oid_t locality, oid_t objectid, uint64_t offset) 
 {
     aal_assert("vpf-141", key != NULL, return -1);
 
@@ -198,38 +198,36 @@ static errno_t key40_build_generic_full(reiserfs_key40_t *key, uint32_t type,
     return 0;
 }
 
-static errno_t key40_build_entry_short(void *ptr, const char *name, 
-    reiserfs_plugin_t *hash_plugin, uint8_t size) 
+static errno_t key40_build_entry_short(void *ptr, 
+    reiserfs_plugin_t *hash_plugin, const char *name) 
 {
     reiserfs_key40_t key;    
     
     aal_assert("vpf-142", ptr != NULL, return -1);
-    aal_assert("vpf-131", (size >= 2 * sizeof(uint64_t)), return -1);
     
     key40_clean(&key);
     key40_build_hash(&key, name, hash_plugin);
     
-    aal_memset(ptr, 0, size);
+    aal_memset(ptr, 0, 2 * sizeof(uint64_t));
     aal_memcpy(ptr, &key.el[1], 2 * sizeof(uint64_t));
 
     return 0;
 }
 
 static errno_t key40_build_generic_short(void *ptr, uint32_t type, 
-    oid_t locality, oid_t objectid, uint8_t size)
+    oid_t locality, oid_t objectid)
 {
     reiserfs_key40_t key;
     
     aal_assert("vpf-143", ptr != NULL, return -1);
-    aal_assert("vpf-133", size >= 2 * sizeof(uint64_t), return -1);
-
+    
     key40_clean(&key);
 
     set_key40_locality(&key, locality);
     set_key40_type(&key, (reiserfs_key40_minor_t)type);
     set_key40_objectid(&key, objectid);
     
-    aal_memset(ptr, 0, size);
+    aal_memset(ptr, 0, 2 * sizeof(uint64_t));
     aal_memcpy(ptr, &key, 2 * sizeof(uint64_t));
 
     return 0;
@@ -276,10 +274,10 @@ static reiserfs_plugin_t key40_plugin = {
 	.build_entry_full = (errno_t (*)(void *, void *, oid_t, oid_t, const char *))
 	    key40_build_entry_full,
 
-	.build_generic_short = (errno_t (*)(void *, uint32_t, oid_t, oid_t, uint8_t))
+	.build_generic_short = (errno_t (*)(void *, uint32_t, oid_t, oid_t))
 	    key40_build_generic_short,
 
-	.build_entry_short = (errno_t (*)(void *, const char *, void *, uint8_t))
+	.build_entry_short = (errno_t (*)(void *, void *, const char *))
 	    key40_build_entry_short
     }
 };

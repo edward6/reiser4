@@ -569,6 +569,14 @@ int reiserfs_node_item_internal(reiserfs_node_t *node, uint32_t pos) {
 
 #ifndef ENABLE_COMPACT
 
+void reiserfs_node_item_set_pid(reiserfs_node_t *node, 
+    uint32_t pos, reiserfs_id_t pid)
+{
+    aal_assert("umka-551", node != NULL, return);
+    libreiser4_plugin_call(return, node->node_plugin->node, item_set_pid, 
+	node->block, pos, pid);
+}
+
 errno_t reiserfs_node_set_pointer(reiserfs_node_t *node, 
     uint32_t pos, blk_t blk) 
 {
@@ -648,14 +656,6 @@ errno_t reiserfs_node_item_estimate(reiserfs_node_t *node,
     /* Estimate for the 2nd and for the 4th cases */
     return libreiser4_plugin_call(return -1, hint->plugin->item.common, 
 	estimate, pos->item, hint);
-}
-
-void reiserfs_node_item_set_pid(reiserfs_node_t *node, 
-    uint32_t pos, reiserfs_id_t pid)
-{
-    aal_assert("umka-551", node != NULL, return);
-    libreiser4_plugin_call(return, node->node_plugin->node, item_set_pid, 
-	node->block, pos, pid);
 }
 
 #endif
