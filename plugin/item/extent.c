@@ -283,6 +283,7 @@ static void set_extent (reiser4_extent * ext, extent_state state,
 		start = 1ull;
 		break;
 	default:
+		start = 0;
 		impossible ("vs-338",
 			    "do not create extents but holes and unallocated");
 	}
@@ -1797,6 +1798,7 @@ int extent_write (struct inode * inode, tree_coord * coord,
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
 	file_off = get_key_offset (&f->key);
 	written = 0;
+	p_data = 0;
 	while (f->length) {
 		if (f->user == 1) {
 			assert ("vs-586", !page);
