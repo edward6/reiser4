@@ -157,8 +157,13 @@ check_stack(void)
 
 		}
 #endif
-		if (gap > REISER4_STACK_ABORT)
+		if (gap > REISER4_STACK_ABORT) {
+			printk("Stack overflow! Starting busyloop\n");
+			while ( 1 )
+				if ( !in_interrupt() && !in_irq() )
+					schedule();
 			reiser4_panic("nikita-1080", "Stack overflow: %i", gap);
+		}
 
 		reiser4_stat_stack_check_max(gap);
 	}
