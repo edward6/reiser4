@@ -50,8 +50,8 @@ unsigned last_unit_pos (const tree_coord * coord);
 int coord_between_items (const tree_coord * coord);
 int coord_after_last (const tree_coord * coord);
 
-int left_item_pos (tree_coord * coord);
-unsigned right_item_pos (tree_coord * coord);
+int left_item_pos (const tree_coord * coord);
+unsigned right_item_pos (const tree_coord * coord);
 
 typedef enum {
 	COORD_CMP_SAME = 0, COORD_CMP_ON_LEFT = -1, COORD_CMP_ON_RIGHT = +1
@@ -66,36 +66,16 @@ extern int coord_is_after_item( const tree_coord * coord );
 extern int  coord_are_neighbors( tree_coord *c1, tree_coord *c2 );
 void print_coord (const char * mes, const tree_coord * coord, int);
 
-/* The following are examples of things that you might or might not
-   want when remembering state regarding where you are in the tree. */
-#if 0
-	/** item plugin */
-	reiser4_plugin     *plugin;
-	/** key of this point */
-	reiser4_key        *key;
-	/** where to store key if node/item implements some form of key
-	    compression */
-	reiser4_key         key_space;
-	/** this is incremented by tree operation if data were loaded
-	    into znode of this point as part of tree operation */
-	int                 data_loaded;
-	/** pointer to start of item in node. Call unpack_item( point )
-	    before accessing this, and pack_item( point ) after */
-	void               *item_data;
-	/** length of item */
-	int                 item_length;
-	znode_lock_mode     lock_mode;
-	union __validness {
-		struct __bits {
-			__u32               plugin_valid :1;
-			__u32               key_valid    :1;
-			__u32               item_valid   :1;
-		} b;
-		__u32 flat;
-	} validness;
+/**
+ * location of coord w.r.t. its node
+ */
+typedef enum {
+	COORD_ON_THE_LEFT  = -1,
+	COORD_ON_THE_RIGHT = +1,
+	COORD_INSIDE       = 0
+} coord_wrt_node;
 
-#endif
-
+extern coord_wrt_node coord_wrt( const tree_coord *coord );
 
 /* __REISER4_COORDS_H__ */
 #endif

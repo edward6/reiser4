@@ -220,7 +220,7 @@ int coord_after_last (const tree_coord * coord)
 
 /* this is supposed to be used when @coord is set between items. Return value
    is position of item which is left of those neighboring items */
-int left_item_pos (tree_coord * coord)
+int left_item_pos (const tree_coord * coord)
 {
 	assert ("vs-208", coord_correct (coord));
 	assert ("vs-197", !is_empty_node (coord->node));
@@ -271,7 +271,7 @@ int coord_set_to_left (tree_coord * coord)
 
 /* this is supposed to be used when @coord is set between items. Return value
    is position of item which is right of those neighboring items */
-unsigned right_item_pos (tree_coord * coord)
+unsigned right_item_pos (const tree_coord * coord)
 {
 	assert ("vs-204", coord_correct (coord));
 	assert ("vs-198", !is_empty_node (coord->node));
@@ -410,6 +410,22 @@ int coord_is_after_item (const tree_coord * coord)
 		coord->between == AFTER_UNIT);
 }
 
+/**
+ * determine how @coord is located w.r.t. its node.
+ */
+coord_wrt_node coord_wrt( const tree_coord *coord )
+{
+	assert( "nikita-1713", coord != NULL );
+	assert( "nikita-1714", coord -> node != NULL );
+
+	if( coord_between_items( coord ) ) {
+		if( left_item_pos( coord ) == -1 )
+			return COORD_ON_THE_LEFT;
+		if( right_item_pos( coord ) >= num_items( coord -> node ) )
+			return COORD_ON_THE_RIGHT;
+	}
+	return COORD_INSIDE;
+}
 
 static const char * tween (between_enum n)
 {
