@@ -231,28 +231,17 @@ int check_sibling_list(znode * node)
 }
 #endif
 
-/* znode sibling pointers maintaining. */
+/* Znode sibling pointers maintenence. */
 
-/* After getting new znode we have to establish sibling pointers. Znode web
-   maintaining overhead is in additional hash table searches for left and
-   right neighbors (and worse locking scheme in case close neighbors do not
-   share same parent).
+/* Znode sibling pointers are established between any neighbored nodes which are
+   in cache.  There are two znode state bits (JNODE_LEFT_CONNECTED,
+   JNODE_RIGHT_CONNECTED), if left or right sibling pointer contains actual
+   value (even NULL), corresponded JNODE_*_CONNECTED bit is set.  
 
-   We can reduce that overhead by introducing of znode `connected' states. For
-   simpler locking and simpler implementation znodes have two connection state
-   bits: left-connected and right connected. We never do hash table search for
-   neighbor from connected side
-
-ZAM-FIXME-HANS: connected side means?  rewrite sentence
-
-even corresponded pointer is null. This way we
-   only do hash searches when new znode is allocated and should be connected
-   to znode web dynamic structure.
-
-   Locking in left direction (required for finding of parent of left neighbor)
-   can fail and cause whole lookup process to restart. It means lookup process
-   may leave znode in unconnected state. These znodes should not be used,
-   loaded while they are is such state. ZAM-FIXME-HANS: sentence unclear */
+   Reiser4 tree operations which may allocate new znodes (CBK, tree balancing)
+   take care about searching (hash table lookup may be required) of znode
+   neighbors, establishing sibling pointers between them and setting
+   JNODE_*_CONNECTED state bits. */
 
 /* adjusting of sibling pointers and `connected' states for two
    neighbors; works if one neighbor is NULL (was not found). */
