@@ -371,7 +371,7 @@ emergency_flush(struct page *page)
 			}
 
 			/* ok, now we can flush it */
-			reiser4_unlock_page(page);
+			unlock_page(page);
 
 			queue_jnode(fq, node);
 
@@ -466,7 +466,7 @@ jnode_hfn(ef_hash_table *table, jnode * const * j)
 /* The hash table definition */
 #define KMALLOC(size) vmalloc(size)
 #define KFREE(ptr, size) vfree(ptr)
-TS_HASH_DEFINE(ef, eflush_node_t, jnode *, node, linkage, jnode_hfn, jnode_eq);
+TYPE_SAFE_HASH_DEFINE(ef, eflush_node_t, jnode *, node, linkage, jnode_hfn, jnode_eq);
 #undef KFREE
 #undef KMALLOC
 
@@ -637,7 +637,7 @@ eflush_del(jnode *node, int page_locked)
 			 * gets wrong block number. */
 			UNLOCK_JNODE(node);
 			if (!page_locked)
-				reiser4_lock_page(page);
+				lock_page(page);
 			wait_on_page_writeback(page);
 			LOCK_JNODE(node);
 
@@ -646,7 +646,7 @@ eflush_del(jnode *node, int page_locked)
 				 * race: some other thread unflushed jnode.
 				 */
 				if (!page_locked)
-					reiser4_unlock_page(page);
+					unlock_page(page);
 				page_cache_release(page);
 				return;
 			}
@@ -724,7 +724,7 @@ eflush_del(jnode *node, int page_locked)
 
 		if (page != NULL) {
 			if (!page_locked)
-				reiser4_unlock_page(page);
+				unlock_page(page);
 			page_cache_release(page);
 		}
 

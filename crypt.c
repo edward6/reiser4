@@ -31,7 +31,7 @@ static int align_cluster_common(__u8 *pad, int clust_size, int blocksize)
 	return pad_size;
 }
 
-/* use this only for symmetric algorithms 
+/* use this only for symmetric algorithms
 EDWARD-FIXME-HANS: go through all your code and write function headers that explain what the function does.  For instance, what is "scale".*/
 static loff_t scale_common(struct inode * inode UNUSED_ARG,
 			   size_t blocksize UNUSED_ARG,
@@ -73,7 +73,7 @@ crypto_plugin crypto_plugins[LAST_CRYPTO_ID] = {
 			   debuging purposes and various benchmarks */
 			.label = "none",
 			.desc = "Id rearrangement",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.nr_keywords = NONE_EXPKEY_WORDS,
 		.blocksize = blocksize_none,

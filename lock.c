@@ -259,7 +259,7 @@ wake_up_all_lopri_owners(znode * node)
 	lock_handle *handle;
 
 	assert("nikita-1824", rw_zlock_is_locked(&node->lock));
-	for_all_tslist(owners, &node->lock.owners, handle) {
+	for_all_type_safe_list(owners, &node->lock.owners, handle) {
 		spin_lock_stack(handle->owner);
 
 		assert("nikita-1832", handle->node == node);
@@ -384,7 +384,7 @@ znode_is_any_locked(const znode * node)
 
 	ret = 0;
 
-	for_all_tslist(locks, &stack->locks, handle) {
+	for_all_type_safe_list(locks, &stack->locks, handle) {
 		if (handle->node == node) {
 			ret = 1;
 			break;
@@ -1118,7 +1118,7 @@ invalidate_lock(lock_handle * handle	/* path to lock
 	node->lock.nr_readers = 0;
 
 	/* all requestors will be informed that lock is invalidated. */
-	for_all_tslist(requestors, &node->lock.requestors, rq) {
+	for_all_type_safe_list(requestors, &node->lock.requestors, rq) {
 		reiser4_wake_up(rq);
 	}
 
@@ -1369,7 +1369,7 @@ print_lock_stack(const char *prefix, lock_stack * owner)
 
 	printk(".... current locks:\n");
 
-	for_all_tslist(locks, &owner->locks, handle) {
+	for_all_type_safe_list(locks, &owner->locks, handle) {
 		if (handle->node != NULL)
 			print_address(znode_is_rlocked(handle->node) ?
 				      "......  read" : "...... write", znode_get_block(handle->node));
@@ -1399,7 +1399,7 @@ check_lock_data()
 		reiser4_context *context;
 
 		spin_lock(&active_contexts_lock);
-		for_all_tslist(context, &active_contexts, context) {
+		for_all_type_safe_list(context, &active_contexts, context) {
 			check_lock_stack(&context->stack);
 		}
 		spin_unlock(&active_contexts_lock);
@@ -1427,7 +1427,7 @@ request_is_deadlock_safe(znode * node, znode_lock_mode mode,
 	    znode_get_level(node) != 0) {
 		lock_handle *item;
 
-		for_all_tslist(locks, &owner->locks, item) {
+		for_all_type_safe_list(locks, &owner->locks, item) {
 			znode *other = item->node;
 
 			if (znode_get_level(other) == 0)

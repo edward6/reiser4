@@ -193,6 +193,13 @@ get_moved_pages(struct address_space *mapping)
 	return &reiser4_inode_data(mapping->host)->moved_pages;
 }
 
+static inline struct inode *
+unix_file_info_to_inode(const unix_file_info_t *uf_info)
+{
+	return &container_of(uf_info, reiser4_inode_object,
+			     p.file_plugin_data.unix_file_info)->vfs_inode;
+}
+
 /* ordering predicate for inode spin lock: only jnode lock can be held */
 #define spin_ordering_pred_inode_object(inode)			\
 	( lock_counters() -> rw_locked_dk == 0 ) &&		\
