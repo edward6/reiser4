@@ -75,9 +75,9 @@ static ssize_t reiser4_listxattr(struct dentry *, char *, size_t);
 static int reiser4_removexattr(struct dentry *, const char *);
 #endif
 
-static int invoke_create_method(struct inode *parent,
-				struct dentry *dentry,
-				reiser4_object_create_data * data);
+reiser4_internal int invoke_create_method(struct inode *parent,
+					  struct dentry *dentry,
+					  reiser4_object_create_data * data);
 
 /* ->create() VFS method in reiser4 inode_operations */
 static int
@@ -535,7 +535,7 @@ reiser4_link(struct dentry *existing	/* dentry of existing
 }
 
 /* call ->create() directory plugin method. */
-static int
+reiser4_internal int
 invoke_create_method(struct inode *parent /* parent directory */ ,
 		     struct dentry *dentry	/* dentry of new
 						 * object */ ,

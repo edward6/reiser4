@@ -1173,13 +1173,46 @@ static int items_show(struct seq_file *m, void *v)
 	return 0;
 }
 
+extern int
+invoke_create_method(struct inode *, struct dentry *,
+		     reiser4_object_create_data *);
+
 static int get_new(struct file *file, const char *buf)
 {
 	int result;
 
-
 	if (strchr(buf, '/') == NULL) {
-		result = RETERR(-ENOSYS);
+		struct dentry *d;
+		struct qstr name;
+		unsigned int  c;
+		unsigned long hash;
+
+		reiser4_object_create_data data;
+		xmemset(&data, 0, sizeof data);
+
+		data.mode = S_IFREG | 0 /* mode */;
+		data.id = UNIX_FILE_PLUGIN_ID;
+
+		name.name = buf;
+		c = *(const unsigned char *)buf;
+
+		hash = init_name_hash();
+		do {
+			buf++;
+			hash = partial_name_hash(c, hash);
+			c = *(const unsigned char *)buf;
+		} while (c);
+		name.len = buf - (const char *) name.name;
+		name.hash = end_name_hash(hash);
+
+		d = d_alloc(file->f_dentry->d_parent->d_parent, &name);
+		if (d == NULL)
+			result = RETERR(-ENOMEM);
+		else {
+			result = invoke_create_method(get_pseudo_host(file),
+						      d, &data);
+			reiser4_free_dentry_fsdata(d);
+		}
 	} else
 		result = RETERR(-EINVAL);
 	return result;
