@@ -427,7 +427,15 @@ jnode_set_wander(jnode * node)
 	JF_SET(node, JNODE_OVRWR);
 }
 
-extern void add_d_ref(jnode * node);
+/* bump data counter on @node */
+static inline void add_d_ref(jnode * node /* node to increase d_count of */ )
+{
+	assert("nikita-1962", node != NULL);
+
+	atomic_inc(&node->d_count);
+	ON_DEBUG_CONTEXT(++lock_counters()->d_refs);
+}
+
 
 /* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
 

@@ -463,16 +463,6 @@ jnode_lock_page(jnode * node)
 	return page;
 }
 
-/* bump data counter on @node */
-void
-add_d_ref(jnode * node /* node to increase d_count of */ )
-{
-	assert("nikita-1962", node != NULL);
-
-	atomic_inc(&node->d_count);
-	ON_DEBUG_CONTEXT(++lock_counters()->d_refs);
-}
-
 struct page_filler_arg {
 	jnode * node;
 	int gfp;
