@@ -1972,7 +1972,7 @@ uncapture_block (txn_atom *atom,
 
 	spin_unlock_jnode (node);
 
-	trace_if (TRACE_FLUSH, print_page ("uncapture", node->pg));
+	/*trace_if (TRACE_FLUSH, print_page ("uncapture", node->pg));*/
 
 	jput (node);
 
