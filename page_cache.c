@@ -283,25 +283,6 @@ done_formatted_fake(struct super_block *super)
 	return 0;
 }
 
-/* helper function to find-and-lock page in a page cache and do additional
-   checks  */
-void
-reiser4_lock_page(struct page *page)
-{
-	assert("nikita-2408", page != NULL);
-	assert("nikita-3041", schedulable());
-	lock_page(page);
-}
-
-/* NIKITA-FIXME-HANS: at the moment this looks like dead code that should be killed....  invent some more assertions or
- * kill the wrapper;-) */
-void
-reiser4_unlock_page(struct page *page)
-{
-	/* assert("nikita-2700", page->owner != NULL); */
-	unlock_page(page);
-}
-
 #if REISER4_TRACE_TREE
 int reiser4_submit_bio_helper(const char *moniker, int rw, struct bio *bio)
 {
@@ -318,9 +299,9 @@ void reiser4_wait_page_writeback (struct page * page)
 	assert ("zam-783", PageLocked(page));
 
 	do {
-		reiser4_unlock_page(page);
+		unlock_page(page);
 		wait_on_page_writeback(page);
-		reiser4_lock_page(page);
+		lock_page(page);
 	} while (PageWriteback(page));
 }
 
@@ -413,7 +394,7 @@ end_bio_single_page_read(struct bio *bio, unsigned int bytes_done UNUSED_ARG, in
 		ClearPageUptodate(page);
 		SetPageError(page);
 	}
-	reiser4_unlock_page(page);
+	unlock_page(page);
 	bio_put(bio);
 	return 0;
 }
@@ -467,7 +448,7 @@ page_io(struct page *page /* page to perform io for */ ,
 
 	if (rw) {
 		if (unlikely(page->mapping->host->i_sb->s_flags & MS_RDONLY)) {
-			reiser4_unlock_page(page);
+			unlock_page(page);
 			return 0;
 		}
 	}
@@ -476,7 +457,7 @@ page_io(struct page *page /* page to perform io for */ ,
 	if (!IS_ERR(bio)) {
 		if (rw == WRITE) {
 			SetPageWriteback(page);
-			reiser4_unlock_page(page);
+			unlock_page(page);
 		}
 		reiser4_submit_bio(rw, bio);
 		result = 0;
@@ -605,7 +586,7 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 		 */
 		SetPageDirty(page);
 		inc_page_state(nr_dirty);
-		reiser4_unlock_page(page);
+		unlock_page(page);
 	}
 	reiser4_exit_context(&ctx);
 	return result;
@@ -670,11 +651,11 @@ drop_page(struct page *page)
 #endif
 	if (page->mapping != NULL) {
 		remove_from_page_cache(page);
-		reiser4_unlock_page(page);
+		unlock_page(page);
 		/* page removed from the mapping---decrement page counter */
 		page_cache_release(page);
 	} else
-		reiser4_unlock_page(page);
+		unlock_page(page);
 }
 
 #if REISER4_DEBUG_OUTPUT
