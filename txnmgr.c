@@ -769,13 +769,21 @@ atom_try_commit_locked (txn_atom *atom)
 
 		scan = capture_list_front (& atom->dirty_nodes[level]);
 
+		/* add an extra reference to jnode we begin flush from,
+		 * because concurrent flushing may flush it faster than we
+		 * and, probably, even throw it from memory */
+		jref (scan);
+
 		/* jnode_flush requires node locks, which require the atom
 		 * lock and so on.  We begin this processing with the atom in
 		 * the CAPTURE_WAIT state, unlocked. */
 		spin_unlock_atom (atom);
 
 		/* Call jnode_flush() without tree_lock held. */
-		if ((ret = jnode_flush (scan, NULL, JNODE_FLUSH_COMMIT)) != 0) {
+		ret = jnode_flush (scan, NULL, JNODE_FLUSH_COMMIT);
+		jput (scan);
+
+		if (ret != 0) {
 			warning ("nikita-2420", "jnode flush failed: %i", ret);
 			return ret;
 		}
