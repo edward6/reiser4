@@ -77,6 +77,22 @@ void ncoord_init_after_last_item (new_coord *coord, znode *node)
 	assert ("jmacd-9804", ncoord_check (coord));
 }
 
+/* Initialize a parent hint pointer. (parent hint pointer is a field in znode,
+ * look for comments there) */
+void ncoord_init_parent_hint (new_coord *coord, znode *node)
+{
+	coord->node = node;
+	coord->item_pos = ~0u;
+}
+
+/* Initialize a coordinate by 0s. Used in places where init_coord was used and
+ * it was not clear how actually */
+void ncoord_init_zero (new_coord *coord)
+{
+	memset (coord, 0, sizeof (*coord));
+}
+
+
 /* Return the number of items at the present node.  Asserts coord->node != NULL. */
 unsigned ncoord_num_items (const new_coord * coord)
 {
@@ -88,13 +104,9 @@ unsigned ncoord_num_items (const new_coord * coord)
 /* Return the number of units at the present item.  Asserts ncoord_is_existing_item(). */
 unsigned ncoord_num_units (const new_coord * coord)
 {
-	tree_coord tcoord;
-
 	assert ("jmacd-9806", ncoord_is_existing_item (coord));
 
-	ncoord_to_tcoord (& tcoord, coord);
-
-	return item_plugin_by_coord (& tcoord)->common.nr_units (& tcoord);
+	return item_plugin_by_coord (coord)->common.nr_units (coord);
 }
 
 /* Return the last valid unit number at the present item (i.e., ncoord_num_units() - 1). */
@@ -191,8 +203,6 @@ int ncoord_is_rightmost_item (const new_coord *coord)
 /* For assertions only, checks for a valid coordinate. */
 int ncoord_check (const new_coord *coord)
 {
-	tree_coord tcoord;
-
 	if (coord->node == NULL) {
 		return 0; 
 	}
@@ -230,10 +240,15 @@ int ncoord_check (const new_coord *coord)
 		return 0;
 	}
 
-	ncoord_to_tcoord (& tcoord, coord);
+	/*
+	 * FIXME-VS: we are going to check unit_pos. This makes no sense when
+	 * between is set either AFTER_ITEM or BEFORE_ITEM
+	 */
+	if (coord->between == AFTER_ITEM || coord->between == BEFORE_ITEM)
+		return 1;
 
 	if (coord->unit_pos > 
-	    item_plugin_by_coord (& tcoord)->common.nr_units (& tcoord) - 1) {
+	    item_plugin_by_coord (coord)->common.nr_units (coord) - 1) {
 		return 0;
 	}
 
@@ -855,6 +870,8 @@ static const char * ncoord_tween (between_enum n)
 	case AT_UNIT: return "at unit";
 	case AFTER_UNIT: return "after unit";
 	case AFTER_ITEM: return "after item";
+	case EMPTY_NODE: return "empty node";
+	case INVALID_COORD: return "invalid";
 	default: return "unknown";
 	}
 }
@@ -874,7 +891,8 @@ void ncoord_print (const char * mes, const new_coord * coord, int node)
 }
 
 /* Hack. */
-void ncoord_to_tcoord (tree_coord *tcoord, const new_coord *ncoord)
+/*
+void ncoord_to_tcoord (new_coord *tcoord, const new_coord *ncoord)
 {
 	tcoord->item_pos = ncoord->item_pos;
 	tcoord->unit_pos = ncoord->unit_pos;
@@ -895,7 +913,7 @@ void ncoord_to_tcoord (tree_coord *tcoord, const new_coord *ncoord)
 	}
 }
 
-void tcoord_to_ncoord (new_coord *ncoord, const tree_coord *tcoord)
+void tcoord_to_ncoord (new_coord *ncoord, const new_coord *tcoord)
 {
 	unsigned items;
 
@@ -923,61 +941,58 @@ void tcoord_to_ncoord (new_coord *ncoord, const tree_coord *tcoord)
 	assert ("jmacd-5112", ncoord->item_pos < items);
 	assert ("jmacd-5113", ncoord->unit_pos <= ncoord_last_unit_pos (ncoord));
 }
+*/
 
 /*item_plugin* item_plugin_by_ncoord (const new_coord *ncoord)
 {
-	tree_coord tcoord;
+	new_coord tcoord;
 	ncoord_to_tcoord (& tcoord, ncoord);
 	return item_plugin_by_coord (& tcoord);
 }*/
 
 int item_utmost_child_real_block (const new_coord *coord, sideof side, reiser4_block_nr *blk)
 {
-	tree_coord tcoord;
-	ncoord_to_tcoord (&tcoord, coord);
-	return item_plugin_by_coord (& tcoord)->common.utmost_child_real_block (& tcoord, side, blk);
+	return item_plugin_by_coord (coord)->common.utmost_child_real_block (coord, side, blk);
 }
 
 int item_utmost_child (const new_coord *coord, sideof side, jnode **child)
 {
-	tree_coord tcoord;
-	ncoord_to_tcoord (&tcoord, coord);
-	return item_plugin_by_coord (& tcoord)->common.utmost_child (& tcoord, side, child);
+	return item_plugin_by_coord (coord)->common.utmost_child (coord, side, child);
 }
 
 int item_is_extent_n (const new_coord *coord)
 {
-	tree_coord tcoord;
-	ncoord_to_tcoord (&tcoord, coord);
-	return item_is_extent (& tcoord);
+/*	new_coord tcoord;
+	ncoord_to_tcoord (&tcoord, coord);*/
+	return item_is_extent (coord);
 }
 
 int item_is_internal_n (const new_coord *coord)
 {
-	tree_coord tcoord;
-	ncoord_to_tcoord (&tcoord, coord);
-	return item_is_internal (& tcoord);
+/*	new_coord tcoord;
+	ncoord_to_tcoord (&tcoord, coord);*/
+	return item_is_internal (coord);
 }
 
 void item_key_by_ncoord (const new_coord *coord, reiser4_key *key)
 {
-	tree_coord tcoord;
-	ncoord_to_tcoord (&tcoord, coord);
-	item_key_by_coord (& tcoord, key);
+/*	new_coord tcoord;
+	ncoord_to_tcoord (&tcoord, coord);*/
+	item_key_by_coord (coord, key);
 }
 
 int item_length_by_ncoord (const new_coord *coord)
 {
-	tree_coord tcoord;
-	ncoord_to_tcoord (&tcoord, coord);
-	return item_length_by_coord (& tcoord);
+/*	new_coord tcoord;
+	ncoord_to_tcoord (&tcoord, coord);*/
+	return item_length_by_coord (coord);
 }
 
 znode* child_znode_n (const new_coord *coord, int set_delim)
 {
-	tree_coord tcoord;
-	ncoord_to_tcoord (&tcoord, coord);
-	return child_znode (& tcoord, set_delim);
+/*	new_coord tcoord;
+	ncoord_to_tcoord (&tcoord, coord);*/
+	return child_znode (coord, set_delim);
 }
 
 int cut_node_n (new_coord * from, new_coord * to,
@@ -987,22 +1002,22 @@ int cut_node_n (new_coord * from, new_coord * to,
 		znode * left)
 {
 	int ret;
-	tree_coord tfrom, tto;
+/*	new_coord tfrom, tto;
 	ncoord_to_tcoord (&tfrom, from);
-	ncoord_to_tcoord (&tto, to);
-	ret = cut_node (&tfrom, &tto, from_key, to_key, smallest_removed, flags, left);
-	tcoord_to_ncoord (from, &tfrom);
-	tcoord_to_ncoord (to, &tto);
+	ncoord_to_tcoord (&tto, to);*/
+	ret = cut_node (from, to, from_key, to_key, smallest_removed, flags, left);
+/*	tcoord_to_ncoord (from, &tfrom);
+	tcoord_to_ncoord (to, &tto);*/
 	return ret;
 }
 
 int allocate_extent_item_in_place_n (new_coord * item, reiser4_blocknr_hint * preceder)
 {
 	int ret;
-	tree_coord titem;
-	ncoord_to_tcoord (&titem, item);
-	ret = allocate_extent_item_in_place (& titem, preceder);
-	tcoord_to_ncoord (item, &titem);
+/*	new_coord titem;
+	ncoord_to_tcoord (&titem, item);*/
+	ret = allocate_extent_item_in_place (item, preceder);
+/*	tcoord_to_ncoord (item, &titem);*/
 	return ret;
 }
 
@@ -1011,39 +1026,39 @@ int allocate_and_copy_extent_n (znode * left, new_coord * right,
 				reiser4_key * stop_key)
 {
 	int ret;
-	tree_coord tright;
-	ncoord_to_tcoord (&tright, right);
-	ret = allocate_and_copy_extent (left, & tright, preceder, stop_key);
-	tcoord_to_ncoord (right, &tright);
+/*	new_coord tright;
+	ncoord_to_tcoord (&tright, right);*/
+	ret = allocate_and_copy_extent (left, right, preceder, stop_key);
+/*	tcoord_to_ncoord (right, &tright);*/
 	return ret;
 }
 
 int extent_is_allocated_n (const new_coord *coord)
 {
-	tree_coord tcoord;
-	ncoord_to_tcoord (&tcoord, coord);
-	return extent_is_allocated (&tcoord);
+/*	new_coord tcoord;
+	ncoord_to_tcoord (&tcoord, coord);*/
+	return extent_is_allocated (coord);
 }
 
 __u64 extent_unit_index_n (const new_coord *coord)
 {
-	tree_coord tcoord;
-	ncoord_to_tcoord (&tcoord, coord);
-	return extent_unit_index (&tcoord);
+/*	new_coord tcoord;
+	ncoord_to_tcoord (&tcoord, coord);*/
+	return extent_unit_index (coord);
 }
 
 __u64 extent_unit_width_n (const new_coord *coord)
 {
-	tree_coord tcoord;
-	ncoord_to_tcoord (&tcoord, coord);
-	return extent_unit_width (&tcoord);
+/*	new_coord tcoord;
+	ncoord_to_tcoord (&tcoord, coord);*/
+	return extent_unit_width (coord);
 }
 
 void extent_get_inode_n (const new_coord *coord, struct inode **inode)
 {
-	tree_coord tcoord;
-	ncoord_to_tcoord (&tcoord, coord);
-	extent_get_inode (&tcoord, inode);
+/*	new_coord tcoord;
+	ncoord_to_tcoord (&tcoord, coord);*/
+	extent_get_inode (coord, inode);
 }
 
 int node_shift_n (znode *pnode, new_coord *coord, znode *snode, sideof side,
@@ -1052,10 +1067,10 @@ int node_shift_n (znode *pnode, new_coord *coord, znode *snode, sideof side,
 		  carry_level *todo)
 {
 	int ret;
-	tree_coord tcoord;
-	ncoord_to_tcoord (&tcoord, coord);
-	ret = node_plugin_by_node (pnode)->shift (&tcoord, snode, side, del_right, move_coord, todo);
-	tcoord_to_ncoord (coord, &tcoord);
+/*	new_coord tcoord;
+	ncoord_to_tcoord (&tcoord, coord);*/
+	ret = node_plugin_by_node (pnode)->shift (coord, snode, side, del_right, move_coord, todo);
+/*	tcoord_to_ncoord (coord, &tcoord);*/
 	return ret;
 }
 
@@ -1066,20 +1081,20 @@ lookup_result ncoord_by_key (reiser4_tree *tree, const reiser4_key *key,
 			     __u32 flags )
 {
 	lookup_result ret;
-	tree_coord tcoord;
+/*	new_coord tcoord;*/
 	//ncoord_to_tcoord (&tcoord, coord);
-	ret = coord_by_key (tree, key, &tcoord, handle, lock, bias, lock_level, stop_level, flags);
-	tcoord_to_ncoord (coord, &tcoord);
+	ret = coord_by_key (tree, key, coord, handle, lock, bias, lock_level, stop_level, flags);
+/*	tcoord_to_ncoord (coord, &tcoord);*/
 	return ret;
 }
 
 int find_child_ptr_n (znode *parent, znode *child, new_coord *result)
 {
 	int ret;
-	tree_coord tcoord;
+	//new_coord tcoord;
 	//ncoord_to_tcoord (&tcoord, coord);
-	ret = find_child_ptr (parent, child, &tcoord);
-	tcoord_to_ncoord (result, &tcoord);
+	ret = find_child_ptr (parent, child, result);
+/*	tcoord_to_ncoord (result, &tcoord);*/
 	return ret;
 }
 
