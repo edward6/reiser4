@@ -52,6 +52,7 @@ reiser4-objs := \
 		   readahead.o \
 	           crypt.o \
 		   compress.o\
+		   diskmap.o \
            \
 		   plugin/plugin.o \
 		   plugin/plugin_set.o \
