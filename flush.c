@@ -2756,22 +2756,30 @@ static int flush_rewrite_jnode (jnode *node)
 	 * everywhere and I'm confused.  What do you think? */
 	spin_unlock_jnode (node);
 
+ repeat:
 	pg = jnode_lock_page (node);
 	spin_unlock_jnode (node);
 	if (pg == NULL) {
 		return 0;
 	}
 
-	jnode_set_clean (node);
-
-	/*
-	 * FIXME-NIKITA not sure about this. mpage.c:mpage_writepages() does
-	 * this,
-	 */
-	if (unlikely (PageWriteback (pg))) {
+	if (PageWriteback (pg)) {
+		/* FIXME-ZAM: There is no simple alternative other than wait
+		 * on i/o. We cannot just to put this jnode into atom's clean
+		 * list because we this jnode page contains modified data
+		 * which have to be re-submitted to disk. We cannot put this
+		 * jnode back to atom dirty list because jnode_flush() will
+		 * spin trying to move this jnode from dirty list. The
+		 * solution might be in adding special per-atom list for
+		 * jnodes which have an i/o in progress. However, it looks
+		 * like a duplication of page cache structures. */
 		unlock_page (pg);
-		return 0;
+		wait_on_page_writeback (pg);
+
+		goto repeat;
 	}
+
+	jnode_set_clean (node);
 
 	/* NOTE: this page can be not dirty due to mpage.c:mpage_writepages
 	 * strange behavior which is in cleaning page right before calling
