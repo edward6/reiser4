@@ -18,9 +18,6 @@ void get_exclusive_access(struct inode *inode);
 void drop_exclusive_access(struct inode *inode);
 void get_nonexclusive_access(struct inode *inode);
 void drop_nonexclusive_access(struct inode *inode);
-void nea2ea(struct inode *);
-void ea2nea(struct inode *);
-
 int tail2extent(struct inode *inode);
 int extent2tail(struct file *file);
 int unix_file_writepage_nolock(struct page *page);
