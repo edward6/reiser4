@@ -744,6 +744,8 @@ int main(int argc, char *argv[]) {
 progress information will looks like this:</p>
 
 <p><b>"Test long operation: done"</b></p>
+
+<p>etc.</p>
 </td></tr></table>
 
 <h3>Memory allocation.</h3>
@@ -751,7 +753,9 @@ progress information will looks like this:</p>
 <p>In order to using libreiserfs in bootloaders (Yaboot, GNU GRUB, etc), which 
 are working without libc and kernel, libreiserfs should have a mechanism for 
 using memory allocation functions which actualy implemented by its "master" 
-project (some bootloader in this case).</p>
+project (some bootloader in this case). As usual, a project oriented to be working
+alone (without libc and kernel) has its own memory management subsystem. Therefore,
+we may be using its memory allocation subsystem for libreiserfs.</p>
 
 <p>This mechanism is based on installable memory-allocation functions, which 
 will be called for every time, when memory will be allocated on freed in libreiserfs.</p>
@@ -846,16 +850,43 @@ void milo_libreiserfs_init() {
 
 </td</tr></table>
 
-<h3>String working functions.</h3>
+<h3>String-working functions. Memory-working functions.</h3>
 
 <table width=70%><tr><td align=justify>
+<p>As libreiserfs will be using by bootloaders or any other applications which are working
+alone (without libc), we need to reimplement in libreiserfs some string-working functions and
+memory-working functions which are used by libreiserfs.</p>
+
+<p>Using of our own memory-working functions and string-working functions will be 
+activating by some additional parameter in standard <b>configure</b> script. By default,
+will be using standard functions.</p>
+
+<p>Memory working functions will be using memory allocation factory and will be following:<br>
+memcpy(), memset(), memcmp(), memmove()</p>
+
+<p>For example, memcpy function may be look:</p>
+
+<pre>
+void *memcpy(void *dest, const void *src, size_t n) {
+	char *dest_p = (char *)dest; char *src_p = (char *)src;
+
+	for (; (int)src_p - (int)src &lt; n; src_p++, dest_p++)
+		*destp = *srcp;
+
+	return dest;
+}
+</pre>
+
+<p>String working functions will be using memory-working functions and will be following:<br>
+strlen(), strcmp(), strncmp(), strncat(), strchr().
+</p>
 
 </td</tr></table>
 	
 <h3>Filesystem API.</h3>
 
 <table width=70%><tr><td align=justify>
-<p>Filesystem API will be containing all public function.</p>
+<p>Filesystem API will be containing all public functions.</p>
 
 <p>There are general functions:<br>
 reiserfs_fs_open, reiserfs_fs_close, reiserfs_fs_resize, reiserfs_fs_copy, etc.</p>
