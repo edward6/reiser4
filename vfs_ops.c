@@ -1347,10 +1347,10 @@ init_once(void *obj /* pointer to new inode */ ,
 		/* NOTE-NIKITA add here initialisations for locks, list heads,
 		   etc. that will be added to our private inode part. */
 		inode_init_once(&info->vfs_inode);
-		/*		rw_latch_init(&info->p.latch);*/
 		info->p.eflushed = 0;
 		INIT_LIST_HEAD(&info->p.moved_pages);
 		readdir_list_init(get_readdir_list(&info->vfs_inode));
+		INIT_LIST_HEAD(&info->p.eflushed_jnodes);
 	}
 }
 
@@ -1412,19 +1412,12 @@ static void
 reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 {
 	reiser4_inode *info;
-	int fallout;
 
 	info = reiser4_inode_data(inode);
 	reiser4_stat_inc_at(inode->i_sb, vfs_calls.destroy_inode);
 
-	spin_lock(&eflushed_guard);
-	fallout = info->eflushed > 0;
-	if (fallout)
-		inode->i_state |= I_GHOST;
-	spin_unlock(&eflushed_guard);
-
-	if (fallout)
-		return;
+	assert("vs-1220", list_empty(&info->eflushed_jnodes));
+	assert("", inode->eflushed == 0);
 
 	if (!is_bad_inode(inode) && inode_get_flag(inode, REISER4_LOADED)) {
 
