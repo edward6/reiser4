@@ -59,7 +59,7 @@ struct coord {
 	/* 12 */
 };
 
-#define INVALID_PLUGID  ((char)((1 << sizeof(char)) - 1))
+#define INVALID_PLUGID  ((char)((1 << 8) - 1))
 
 static inline item_plugin *item_plugin_by_id(reiser4_plugin_id id);
 
