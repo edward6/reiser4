@@ -135,10 +135,11 @@ reiser4_inode_data(const struct inode * inode /* inode queried */)
 }
 
 /* ordering predicate for inode spin lock: only jnode lock can be held */
-#define spin_ordering_pred_inode_object(inode)				\
+#define spin_ordering_pred_inode_object(inode)			\
 	( lock_counters() -> rw_locked_dk == 0 ) &&		\
 	( lock_counters() -> rw_locked_tree == 0 ) &&		\
 	( lock_counters() -> spin_locked_txnh == 0 ) &&		\
+	( lock_counters() -> spin_locked_jnode == 0 ) &&	\
 	( lock_counters() -> spin_locked_atom == 0 ) &&		\
 	( lock_counters() -> spin_locked_ktxnmgrd == 0 ) &&	\
 	( lock_counters() -> spin_locked_txnmgr == 0 )
