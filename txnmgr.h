@@ -401,6 +401,8 @@ struct txn_mgr {
 	/* parameters. Adjustable through mount options. */
 	unsigned int atom_max_size;
 	unsigned int atom_max_age;
+	/* max number of concurrent flushers for one atom, 0 - unlimited.  */
+	unsigned int atom_max_flushers;
 };
 
 /* list of all transaction managers in a system */

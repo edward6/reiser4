@@ -956,6 +956,7 @@ skip_jnode(const jnode *node)
  * other errors as they are. */
 int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 {
+	reiser4_super_info_data * sinfo = get_current_super_private();
 	flush_queue_t *fq = NULL;
 	jnode * node;
 	int nr_queued;
@@ -965,6 +966,19 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 	assert ("zam-890", spin_atom_is_locked(*atom));
 	assert ("zam-892", get_current_context()->trans->atom == *atom);
 
+	/* parallel flushers limit */
+	if (sinfo->tmgr.atom_max_flushers != 0) {
+		while ((*atom)->nr_flushers >= sinfo->tmgr.atom_max_flushers) {
+			(*atom)->nr_waiters ++;
+			atom_wait_event(*atom);
+			*atom = get_current_atom_locked();
+			(*atom)->nr_waiters --;
+		}
+	}
+
+	/* count ourself as a flusher */
+	(*atom)->nr_flushers++;
+
 	while(1) {
 		ret = fq_by_atom(*atom, &fq);
 		if (ret != -E_REPEAT)
@@ -972,8 +986,10 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 		*atom = get_current_atom_locked();
 	}
 
-        if (ret)
+        if (ret) {
+		(*atom)->nr_flushers --;
 		return ret;
+	}
 
 	assert ("zam-891", spin_atom_is_locked(*atom));
 
@@ -984,9 +1000,6 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 	}
 	reiser4_stat_inc(flush.flush);
 	writeout_mode_enable();
-
-	/* count ourself as a flusher */
-	(*atom)->nr_flushers++;
 
 	nr_queued = 0;
 
