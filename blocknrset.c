@@ -1,0 +1,207 @@
+/* Copyright 2001 by Hans Reiser, licensing governed by reiser4/README */
+
+/* This file contains code for various block number sets used by the atom to
+ * track the deleted set and wandered block mappings. */
+
+#include "reiser4.h"
+
+/* The proposed data structure for storing unordered block number sets is a
+ * list of elements, each of which contains an array of block number or/and
+ * array of block number pairs. That element called blocknr_set_entry is used
+ * to store block numbers from the beginning and for extents from the end of
+ * the data field (char data[...]). The ->nr_blocks and ->nr_pairs fields
+ * count numbers of blocks and extents.
+ *
+ * +------------------- blocknr_set_entry->data ------------------+
+ * |block1|block2| ... <free space> ... |pair3|pair2|pair1|
+ * +------------------------------------------------------------+
+ *
+ * When current blocknr_set_entry is full, allocate a new one. */
+
+typedef struct blocknr_set_entry blocknr_set_entry;
+typedef struct blocknr_pair      blocknr_pair;
+
+/** The total size of a blocknr_set_entry. */
+#define BLOCKNR_SET_ENTRY_SIZE 128
+
+/** The number of blocks that can fit the blocknr data area. */
+#define BLOCKNR_SET_ENTS_SIZE ((BLOCKNR_SET_ENTRY_SIZE - 2 * sizeof (unsigned) - sizeof (blocknr_set_list_link)) / sizeof (reiser4_block_nr))
+
+/** An entry of the blocknr_set */
+struct blocknr_set_entry {
+	unsigned              nr_singles;
+	unsigned              nr_pairs;
+	blocknr_set_list_link link;
+	reiser4_block_nr      ents[BLOCKNR_SET_ENTS_SIZE];
+};
+
+/* A pair of blocks as recorded in the blocknr_set_entry data. */
+struct blocknr_pair {
+	reiser4_block_nr a;
+	reiser4_block_nr b;
+};
+
+/* The list definition. */
+TS_LIST_DEFINE(blocknr_set, blocknr_set_entry, link);
+
+/* Return the number of blocknr slots available in a blocknr_set_entry. */
+static unsigned bse_avail (blocknr_set_entry *bse)
+{
+	unsigned used = bse->nr_singles + 2 * bse->nr_pairs;
+
+	assert ("jmacd-5088", BLOCKNR_SET_ENTS_SIZE >= used);
+	cassert (sizeof (blocknr_set_entry) == BLOCKNR_SET_ENTRY_SIZE);
+
+	return BLOCKNR_SET_ENTS_SIZE - used;
+}
+
+/** Initialize a blocknr_set_entry. */
+static void bse_init (blocknr_set_entry *bse)
+{
+	bse->nr_singles = 0;
+	bse->nr_pairs  = 0;
+	blocknr_set_list_clean (bse);
+}
+
+/** Allocate and initialize a blocknr_set_entry. */
+static blocknr_set_entry* bse_alloc (void)
+{
+	blocknr_set_entry *e;
+
+	if ((e = (blocknr_set_entry*) kmalloc (sizeof (blocknr_set_entry), GFP_KERNEL)) == NULL) {
+		return NULL;
+	}
+
+	bse_init (e);
+
+	return e;
+}
+
+/** Free a blocknr_set_entry. */
+static void bse_free (blocknr_set_entry *bse)
+{
+	kfree (bse);
+}
+
+/** Add a block number to given blocknr_set_entry */
+static void bse_put_single (blocknr_set_entry *bse, const reiser4_block_nr *block)
+{
+	assert ("jmacd-5099", bse_avail (bse) >= 1);
+
+	bse->ents[bse->nr_singles++] = *block;
+}
+
+/** add one more extent to given DSLE */
+static void bse_put_pair (blocknr_set_entry *bse, const reiser4_block_nr *a, const reiser4_block_nr *b)
+{
+	blocknr_pair *pair;
+
+	assert ("jmacd-5100", bse_avail (bse) >= 2);
+
+	bse->nr_pairs += 1;
+
+	pair = (blocknr_pair*) (bse->ents + BLOCKNR_SET_ENTS_SIZE - 2 * bse->nr_pairs);
+
+	pair->a = *a;
+	pair->b = *b;
+}
+
+/** Add either a block or pair of blocks to the block number set.  The first
+ * blocknr (@a) must be non-NULL.  If @b is NULL a single blocknr is added, if
+ * @b is non-NULL a pair is added.  The block number set belongs to atom, and
+ * the call is made with the atom lock held.  There may not be enough space in
+ * the current blocknr_set_entry.  If new_bsep points to a non-NULL
+ * blocknr_set_entry then it will be added to the blocknr_set and new_bsep
+ * will be set to NULL.  If new_bsep contains NULL then the atom lock will be
+ * released and a new bse will be allocated in new_bsep.  EAGAIN will be
+ * returned with the atom unlocked for the operation to be tried again.  If
+ * the operation succeeds, 0 is returned.  If new_bsep is non-NULL and not
+ * used during the call, it will be freed automatically. */
+static int blocknr_set_add (txn_atom                *atom,
+			    blocknr_set             *bset,
+			    blocknr_set_entry      **new_bsep,
+			    const reiser4_block_nr  *a,
+			    const reiser4_block_nr  *b)
+{
+	blocknr_set_entry *bse;
+	unsigned ents_needed;
+
+	assert ("jmacd-5101", a != NULL);
+
+	ents_needed = (b == NULL) ? 1 : 2;
+
+	if (blocknr_set_list_empty (& bset->entries) ||
+	    bse_avail (blocknr_set_list_front (& bset->entries)) < ents_needed) {
+
+		/* See if a bse was previously allocated. */
+		if (*new_bsep == NULL) {
+			spin_unlock_atom (atom);
+			*new_bsep = bse_alloc ();
+			return (*new_bsep != NULL) ? EAGAIN : ENOMEM;
+		}
+
+		/* Put it on the head of the list. */
+		blocknr_set_list_push_front (& bset->entries, *new_bsep);
+
+		*new_bsep = NULL;
+	}
+
+	/* Add the single or pair. */
+	bse = blocknr_set_list_front (& bset->entries);
+	if (b == NULL) {
+		bse_put_single (bse, a);
+	} else {
+		bse_put_pair (bse, a, b);
+	}
+
+	/* If new_bsep is non-NULL then there was an allocation race, free this copy. */
+	if (*new_bsep != NULL) {
+		bse_free (*new_bsep);
+	}
+	
+	return 0;
+}
+
+/* Add an extent to the block set.  If the length is 1, it is treated as a
+ * single block (e.g., reiser4_set_add_block). */
+int blocknr_set_add_extent (txn_atom                *atom,
+			    blocknr_set             *bset,
+			    blocknr_set_entry      **new_bsep,
+			    const reiser4_block_nr  *start,
+			    const reiser4_block_nr  *len)
+{
+	assert ("jmacd-5102", start != NULL && len != NULL && *len > 0);
+	return blocknr_set_add (atom, bset, new_bsep, start, *len == 1 ? NULL : len);
+}
+
+/* Add a single block to the block set. */
+int blocknr_set_add_block (txn_atom                *atom,
+			   blocknr_set             *bset,
+			   blocknr_set_entry      **new_bsep,
+			   const reiser4_block_nr  *block)
+{
+	assert ("jmacd-5102", block != NULL);
+	return blocknr_set_add (atom, bset, new_bsep, block, NULL);
+}
+
+/* Add a single block to the block set. */
+int blocknr_set_add_pair (txn_atom                *atom,
+			  blocknr_set             *bset,
+			  blocknr_set_entry      **new_bsep,
+			  const reiser4_block_nr  *a,
+			  const reiser4_block_nr  *b)
+{
+	assert ("jmacd-5103", a != NULL && b != NULL);
+	return blocknr_set_add (atom, bset, new_bsep, a, b);
+}
+
+/* 
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 78
+ * scroll-step: 1
+ * End:
+ */
