@@ -1969,6 +1969,7 @@ write_unix_file(struct file *file, /* file to write to */
 		}
 		if (written == 0) {
 			int rep;
+			int try_free_space = 1;
 
 			for (rep = 0; ; ++ rep) {
 				if (inode_get_flag(inode,
@@ -2003,6 +2004,14 @@ write_unix_file(struct file *file, /* file to write to */
 				all_grabbed2free();
 				written = write_file(file, buf, count, off);
 				drop_access(uf_info);
+
+				/* With no locks held we can commit atoms in
+				 * attempt to recover free space. */
+				if (written == -ENOSPC && try_free_space) {
+					txnmgr_force_commit_all(inode->i_sb, 0);
+					try_free_space = 0;
+					continue;
+				}
 
 				if (written == -E_REPEAT)
 					/* write_file required exclusive
