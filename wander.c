@@ -500,7 +500,7 @@ static int get_more_wandered_blocks (int count, reiser4_block_nr * start, int *l
 	blocknr_hint_init (&hint);
 	hint.block_stage = BLOCK_GRABBED;
 	
-	ret = reiser4_alloc_blocks (&hint, start, &wide_len);
+	ret = reiser4_alloc_blocks (&hint, start, &wide_len, 1/*not unformatted*/);
 
 	blocknr_hint_done (&hint);
 
@@ -763,7 +763,7 @@ static int alloc_tx (struct commit_handle * ch)
 
 		/* FIXME: there should be some block allocation policy for
 		 * nodes which contain log records */
-		ret = reiser4_alloc_blocks (&hint, &first, &len);
+		ret = reiser4_alloc_blocks (&hint, &first, &len, 1/*not unformatted*/);
 
 		blocknr_hint_done (&hint);
 
@@ -972,7 +972,7 @@ int reiser4_write_logs (void)
 	/* count all records needed for storing of the wandered set */
 	get_tx_size (&ch);
 
-	if ((ret = reiser4_grab_space1((__u64)(ch.overwrite_set_size + ch.tx_size))))
+	if ((ret = reiser4_grab_space_exact((__u64)(ch.overwrite_set_size + ch.tx_size))))
 		goto up_and_ret;
 
 	if ((ret = alloc_wandered_blocks (&ch)))
@@ -1023,7 +1023,8 @@ int reiser4_write_logs (void)
 	dealloc_tx_list(&ch);
 	dealloc_wmap (&ch);
 
-	reiser4_release_all_grabbed_space();
+	/*reiser4_release_all_grabbed_space();*/
+	all_grabbed2free();
 
 	capture_list_splice (&ch.atom->clean_nodes, &ch.overwrite_set);
 
