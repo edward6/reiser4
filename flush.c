@@ -598,6 +598,10 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 			 * have an unformatted node to the right.  That is tested again in
 			 * the calling function.  Could be done here without a second
 			 * test, except that complicates the recursion here. */
+			/*
+			 * FIXME:NIKITA->JMACD this fails with "a.out nikita
+			 * dir 1 100 1" on an empty fs.
+			 */
 			assert ("jmacd-5332", call_depth == 0);
 			ret = 0;
 		}
@@ -1727,6 +1731,10 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 			if (ret == -ENAVAIL) { scan->stop = 1; ret = 0; break; }
 
 			if (ret != 0) { goto exit; }
+
+			/*
+			 * FIXME:NIKITA->JMACD next_lock.node is not loaded
+			 */
 
 			coord_init_sideof_unit (& next_coord, next_lock.node, sideof_reverse (scan->direction));
 		}
