@@ -112,19 +112,19 @@ static inline int get_key_locality2 (const reiserfs_key_t *key) {
 
 #define DEFINE_KEY_FIELD(L, U, T)				\
 static inline T get_key_ ## L (const reiserfs_key_t *key) {	\
-    aal_assert("vpf-035", key != NULL, return 0);		\
+    aal_assert("vpf-036", key != NULL, return 0);		\
     return (T) ((get_key_el(key, KEY_##U##_INDEX) &		\
 	KEY_##U##_MASK) >> KEY_##U##_SHIFT);			\
-}                                                               \
+}								\
 								\
 static inline void set_key_##L(reiserfs_key_t *key, T loc) {	\
-    uint64_t el;                                                \
-                                                                \
-    aal_assert("vpf-033", key != NULL, return);                 \
-                                                                \
+    uint64_t el;						\
+								\
+    aal_assert("vpf-033", key != NULL, return);			\
+								\
     el = get_key_el(key, KEY_##U##_INDEX);			\
 								\
-    /* clear field bits in the key */                           \
+    /* clear field bits in the key */				\
     el &= ~KEY_##U##_MASK;					\
 								\
     aal_assert("vpf-034", ((loc << KEY_##U##_SHIFT) &		\
