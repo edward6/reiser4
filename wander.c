@@ -914,6 +914,7 @@ static int check_log_record (const jnode * node)
 
 /** replay one transaction: restore and write overwrite set in place */
 static int replay_transaction (const struct super_block * s,
+			       jnode * tx_head,
 			       const reiser4_block_nr * log_rec_block_p, 
 			       const reiser4_block_nr * end_block,
 			       unsigned int nr_log_records)
@@ -921,6 +922,7 @@ static int replay_transaction (const struct super_block * s,
 	capture_list_head overwrite;
 	reiser4_block_nr log_rec_block = *log_rec_block_p;
 	jnode * log;
+
 	int ret;
 
 	log = jnew();
@@ -1005,10 +1007,10 @@ static int replay_transaction (const struct super_block * s,
 		if (ret) goto free_ow_set;
 	}
 
-	ret = -EAGAIN;
+	ret = update_journal_footer(tx_head);
 
  free_ow_set:
-	while (!capture_list_empty) {
+	while (!capture_list_empty(&overwrite)) {
 		jnode * cur = capture_list_pop_front(&overwrite);
 		jrelse(cur);
 		jdrop(cur);
@@ -1049,9 +1051,7 @@ static int replay_oldest_transaction(struct super_block * s)
 		return 0;
 	}
 
-	/* FIXME: journal replaying is not read yet */
 	trace_on(TRACE_REPLAY, "not flushed transactions found.");
-	return 0;
 
 	if ((tx_head = jnew()) == NULL) return -ENOMEM;
 
@@ -1092,16 +1092,14 @@ static int replay_oldest_transaction(struct super_block * s)
 	jref(tx_head);
 	jrelse(tx_head);
 
-	ret = replay_transaction(s, &log_rec_block, jnode_get_block(tx_head), total - 1);
-	if (ret) goto out;
+	ret = replay_transaction(s, tx_head, &log_rec_block, jnode_get_block(tx_head), total - 1);
 
-	ret = update_journal_footer(tx_head);
- out:
 	jput(tx_head);
 	jdrop(tx_head);
 	jfree(tx_head);
 
-	return ret;
+	if (ret) return ret;
+	return -EAGAIN;
 }
 
 /* reiser4 replay journal procedure */
