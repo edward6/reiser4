@@ -200,13 +200,16 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
  */
 #define FLUSH_SCAN_MAXNODES 10000
 
+/** default tracing buffer size */
+#define REISER4_TRACE_BUF_SIZE ( 1 << 16 )
+
 /* 
  * what size units of IO we would like cp, etc., to use, in writing to
  * reiser4. In bytes.
  *
  * Currently this is constant (64k).
  */
-#define REISER4_OPTIMAL_IO_SIZE( super, inode ) ((64 * 1024))
+#define REISER4_OPTIMAL_IO_SIZE ((64 * 1024))
 
 /**
  * Number of hashed spinlocks used to protect page-to-jnode linkage
@@ -425,6 +428,8 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "carry.h"
 #include "carry_ops.h"
 #include "tree.h"
+
+#include "trace.h"
 
 #include "inode.h"
 #include "lnode.h"

@@ -764,7 +764,10 @@ static int common_getattr( struct vfsmount *mnt UNUSED_ARG,
 	stat -> ctime   = obj -> i_ctime;
 	stat -> size    = obj -> i_size;
 	stat -> blocks  = obj -> i_blocks;
-	stat -> blksize = REISER4_OPTIMAL_IO_SIZE( obj -> i_sb, obj );
+	/*
+	 * "preferred" blocksize for efficient file system I/O
+	 */
+	stat -> blksize = get_super_private( obj -> i_sb ) -> optimal_io_size;
 
 	return 0;
 }

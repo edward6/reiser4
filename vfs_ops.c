@@ -1448,7 +1448,7 @@ typedef struct opt_desc {
 	const char *name;
 	opt_type_t type;
 	union {
-		char *string;
+		char **string;
 		struct {
 			int   nr;
 			void *addr;
@@ -1480,6 +1480,8 @@ static int parse_option( char *opt_string, opt_desc_t *opt )
 	 * +-- opt_string
 	 */
 	char *val_start;
+	int   result;
+	char *err_msg;
 
 	val_start = strchr( opt_string, '=' );
 	if( val_start != NULL ) {
@@ -1487,30 +1489,34 @@ static int parse_option( char *opt_string, opt_desc_t *opt )
 		++ val_start;
 	}
 
+	err_msg = NULL;
 	switch( opt -> type ) {
 	case OPT_STRING:
 		if( val_start == NULL ) {
-			warning( "nikita-2101", "Arg missing for \"%s\"",
-				 opt -> name );
-			return -EINVAL;
-		}
-		opt -> u.string = val_start;
+			err_msg = "String arg missing";
+			result = -EINVAL;
+		} else
+			*opt -> u.string = val_start;
 		break;
 	case OPT_BIT:
 		if( val_start != NULL )
-			warning( "nikita-2097", "Value ignored for \"%s\"",
-				 opt -> name );
-		set_bit( opt -> u.bit.nr, opt -> u.bit.addr );
+			err_msg = "Value ignored";
+		else
+			set_bit( opt -> u.bit.nr, opt -> u.bit.addr );
 		break;
 	case OPT_FORMAT:
+		if( val_start == NULL ) {
+			err_msg = "Formatted arg missing";
+			result = -EINVAL;
+			break;
+		}
 		if( sscanf( val_start, opt -> u.f.format, 
 			    opt -> u.f.arg1,
 			    opt -> u.f.arg2,
 			    opt -> u.f.arg3,
 			    opt -> u.f.arg4 ) != opt -> u.f.nr_args ) {
-			warning( "nikita-2098", "Wrong conversion for \"%s\"",
-				 opt -> name );
-			return -EINVAL;
+			err_msg = "Wrong conversion";
+			result = -EINVAL;
 		}
 		break;
 	case OPT_ONEOF:
@@ -1519,13 +1525,18 @@ static int parse_option( char *opt_string, opt_desc_t *opt )
 	case OPT_PLUGIN: {
 		reiser4_plugin *plug;
 
+		if( *opt -> u.plugin.addr != NULL ) {
+			err_msg = "Plugin already set";
+			result = -EINVAL;
+			break;
+		}
+
 		plug = lookup_plugin( opt -> u.plugin.type_label, val_start );
 		if( plug != NULL )
 			*opt -> u.plugin.addr = plug;
 		else {
-			warning( "nikita-2494", "Wrong plugin for \"%s\"",
-				 opt -> name );
-			return -EINVAL;
+			err_msg = "Wrong plugin";
+			result = -EINVAL;
 		}
 		break;
 	}
@@ -1533,7 +1544,12 @@ static int parse_option( char *opt_string, opt_desc_t *opt )
 		wrong_return_value( "nikita-2100", "opt -> type" );
 		break;
 	}
-	return 0;
+	if( err_msg != NULL ) {
+		warning( "nikita-2496", "%s when parsing option \"%s%s%s\"",
+			 err_msg,
+			 opt -> name, val_start ? "=" : "", val_start ? : "" );
+	}
+	return result;
 }
 
 static int parse_options( char *opt_string, opt_desc_t *opts, int nr_opts )
@@ -1605,6 +1621,7 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 {
 	int result;
 	reiser4_super_info_data *info = get_super_private (s);
+	char *trace_file_name;
 
 	opt_desc_t opts[] = {
 		/*
@@ -1662,11 +1679,16 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 		   hoping that next time we get called this jnode will be
 		   clean already, and we will save some seeks. */
 		SB_FIELD_OPT( flush.written_threshold, "%u" ),
-		/**
+		/*
 		 * The maximum number of nodes to scan left on a level during
 		 * flush.
 		 */
 		SB_FIELD_OPT( flush.scan_maxnodes, "%u" ),
+
+		/*
+		 * preferred IO size
+		 */
+		SB_FIELD_OPT( optimal_io_size, "%u" ),
 
 		PLUG_OPT( "plugin.tail",     tail, &info -> plug.t ),
 		PLUG_OPT( "plugin.sd",       item, &info -> plug.sd ),
@@ -1674,7 +1696,17 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 		PLUG_OPT( "plugin.perm",     perm, &info -> plug.p ),
 		PLUG_OPT( "plugin.file",     file, &info -> plug.f ),
 		PLUG_OPT( "plugin.dir",      dir,  &info -> plug.d ),
-		PLUG_OPT( "plugin.hash",     hash, &info -> plug.h )
+		PLUG_OPT( "plugin.hash",     hash, &info -> plug.h ),
+
+#if REISER4_TRACE_TREE
+		{
+			.name = "trace_file",
+			.type = OPT_STRING, 
+			.u = { 
+				.string = &trace_file_name
+			}
+		}
+#endif
 	};
 
 	info -> txnmgr.atom_max_size = REISER4_ATOM_MAX_SIZE;
@@ -1703,11 +1735,30 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 	if( info -> plug.h == NULL )
 		info -> plug.h        = hash_plugin_by_id( REISER4_HASH_PLUGIN );
 
+	info -> optimal_io_size = REISER4_OPTIMAL_IO_SIZE;
+
+	trace_file_name = NULL;
+
 	result = parse_options( opt_string, opts, sizeof_array( opts ) );
+
 	info -> txnmgr.atom_max_age *= HZ;
 	if( info -> txnmgr.atom_max_age <= 0 )
 		/* overflow */
 		info -> txnmgr.atom_max_age = REISER4_ATOM_MAX_AGE;
+
+	/* round optimal io size up to 512 bytes */
+	info -> optimal_io_size >>= VFS_BLKSIZE_BITS;
+	info -> optimal_io_size <<= VFS_BLKSIZE_BITS;
+	if( info -> optimal_io_size == 0 ) {
+		warning( "nikita-2497", "optimal_io_size is too small" );
+		result = -EINVAL;
+	}
+
+	if( REISER4_TRACE_TREE && ( trace_file_name != NULL ) ) {
+		result = open_trace_file( s, trace_file_name, 
+					  REISER4_TRACE_BUF_SIZE, 
+					  &info -> trace_file );
+	}
 	return result;
 }
 
@@ -1758,7 +1809,8 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	assert( "umka-085", s != NULL );
 	
 	if (REISER4_DEBUG || REISER4_DEBUG_MODIFY || REISER4_TRACE ||
-	    REISER4_STATS || REISER4_DEBUG_MEMCPY || REISER4_ZERO_NEW_NODE)
+	    REISER4_STATS || REISER4_DEBUG_MEMCPY || REISER4_ZERO_NEW_NODE ||
+	    REISER4_TRACE_TREE)
 		warning ("nikita-2372", "Debugging is on. Benchmarking is invalid.");
 
 	/* this is common for every disk layout. It has a pointer where layout
@@ -1959,6 +2011,8 @@ static void reiser4_kill_super (struct super_block *s)
 	ktxnmgrd_detach (&info->tmgr);
 
 	done_formatted_fake (s);
+
+	close_trace_file(&info->trace_file);
 
 	/*
 	 * we don't want ->write_super to be called any more.
