@@ -1247,7 +1247,7 @@ int txn_attach_txnh_to_node (jnode *node)
 	txnh = ctx->trans;
 
 	/* Expecting the call under these circumstances: root context, txnh has no atom. */
-	assert ("jmacd-77917", ctx->parent == NULL);
+	assert ("jmacd-77917", ctx->parent == ctx);
 	assert ("jmacd-77918", txnh->atom == NULL);
 
 	atom = atom_get_locked_by_jnode (node);
