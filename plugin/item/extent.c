@@ -2183,10 +2183,10 @@ static int range_is_full (struct ra_page_range * range)
  * (because page is there already)
  * 
  */
-void extent_readahead (struct file * file, coord_t * coord,
-		       lock_handle * lh UNUSED_ARG,
-		       unsigned long start_page,
-		       unsigned long * intrafile_readahead_amount)
+int extent_page_cache_readahead (struct file * file, coord_t * coord,
+				 lock_handle * lh UNUSED_ARG,
+				 unsigned long start_page,
+				 unsigned long intrafile_readahead_amount)
 {
 	struct address_space * mapping;
 	reiser4_extent * ext;
@@ -2204,7 +2204,7 @@ void extent_readahead (struct file * file, coord_t * coord,
 	mapping = file->f_dentry->d_inode->i_mapping;
 
 	assert ("vs-779", current_blocksize == PAGE_CACHE_SIZE);
-	assert ("vs-782", *intrafile_readahead_amount);
+	assert ("vs-782", intrafile_readahead_amount);
 	/* make sure that unit, @coord is set to, addresses @start page */
 	assert ("vs-786", in_extent (coord, (__u64)start_page << PAGE_CACHE_SHIFT));
 
@@ -2215,7 +2215,7 @@ void extent_readahead (struct file * file, coord_t * coord,
 	pos_in_unit = in_extent (coord, (__u64)start_page << PAGE_CACHE_SHIFT);
 
 	/* number of pages to readahead */
-	left = *intrafile_readahead_amount;
+	left = intrafile_readahead_amount;
 
 	/* while not all pages are allocated and item is not over */
 	for (i = 0; left && (coord->unit_pos + i < nr_units); i ++) {
@@ -2365,6 +2365,11 @@ void extent_readahead (struct file * file, coord_t * coord,
 		}
 		assert ("vs-785", list_empty (&range_list));
 	}
+	/* return number of pages readahead was performed for. It is not
+	 * necessary pages i/o was submitted for. Pages from readahead range
+	 * which were in cache are skipped here but they are included into
+	 * returned value */
+	return intrafile_readahead_amount - left;
 }
 
 /*
@@ -2694,10 +2699,11 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 					 * "defer" parameter of
 					 * reiser4_dealloc_block to 0 because
 					 * these blocks can be made allocable
-					 * again immediately
+					 * again immediately.
+					 * FIXME-VS: not sure about block stage here, 
 					 */
 					reiser4_dealloc_blocks (&first_allocated, &allocated,
-								0 /* defer */);
+								0 /* defer */, BLOCK_ALLOCATED);
 					result = SQUEEZE_TARGET_FULL;
 					trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: target full, to_allocate = %llu\n", to_allocate);
 					goto done;

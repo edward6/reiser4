@@ -255,6 +255,8 @@ typedef struct {
 	int (* read) (struct inode *, coord_t *,
 		      lock_handle *, flow_t *);
 	int (* readpage) (void *, struct page *);
+	int (* page_cache_readahead) (struct file *, coord_t *, lock_handle *,
+				      unsigned long start, unsigned long count);
 } file_ops;
 
 
