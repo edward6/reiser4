@@ -326,8 +326,8 @@ int lookup_hashed(struct inode * parent	/* inode of directory to
 			}
 			/* success */
 			d_add(dentry, inode);
-			if (inode->i_state & I_NEW)
-				unlock_new_inode(inode);
+			if (!is_inode_loaded(inode))
+				reiser4_iget_complete(inode);
 		} else
 			result = PTR_ERR(inode);
 	} else if (result == -ENOENT) {

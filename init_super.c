@@ -298,7 +298,7 @@ _INIT_(fs_root)
 	
 	s->s_root->d_op = &sbinfo->ops.dentry;
 
-	if (inode->i_state & I_NEW) {
+	if (!is_inode_loaded(inode)) {
 		reiser4_inode *info;
 
 		info = reiser4_inode_data(inode);
@@ -319,7 +319,7 @@ _INIT_(fs_root)
 		assert("nikita-1818", info->pset->perm != NULL);
 		assert("vs-545", info->pset->dir_item != NULL);
 
-		unlock_new_inode(inode);
+		reiser4_iget_complete(inode);
 	}
 	s->s_maxbytes = MAX_LFS_FILESIZE;
 	return 0;
