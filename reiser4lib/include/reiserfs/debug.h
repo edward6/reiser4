@@ -14,30 +14,30 @@
 
 #ifdef __GNUC__
 
-#define ASSERT(cond, action)					\
-	do {										\
-		if (!libreiserfs_assert(cond,			\
-			 #cond,								\
-			 __FILE__,							\
-			 __LINE__,							\
-			 __PRETTY_FUNCTION__))				\
-		{										\
-			action;								\
-		}										\
+#define ASSERT(cond, action)			\
+	do {								\
+		if (!libreiserfs_assert(cond,	\
+			 #cond,						\
+			 __FILE__,					\
+			 __LINE__,					\
+			 __PRETTY_FUNCTION__))		\
+		{								\
+			action;						\
+		}								\
 	} while (0);
 
 #else
 
-#define ASSERT(cond, action)					\
-	do {										\
-		if (!libreiserfs_assert(cond,			\
-			 #cond,								\
-			 "unknown",							\
-			 0,									\
-			 "unknown"))						\
-		{										\
-			action;								\
-		}										\
+#define ASSERT(cond, action)			\
+	do {								\
+		if (!libreiserfs_assert(cond,	\
+			 #cond,						\
+			 "unknown",					\
+			 0,							\
+			 "unknown"))				\
+		{								\
+			action;						\
+		}								\
 	} while (0);
 
 #endif
