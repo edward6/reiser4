@@ -322,12 +322,14 @@ lookup_name_hashed(struct inode *parent /* inode of directory to lookup for name
 reiser4_internal int
 lookup_hashed(struct inode * parent	/* inode of directory to
 					 * lookup into */ ,
-	      struct dentry * dentry /* name to look for */ )
+	      struct dentry **dentryloc /* name to look for */ )
 {
 	int result;
 	struct inode *inode;
+	struct dentry *dentry;
 	reiser4_dir_entry_desc entry;
 
+	dentry = *dentryloc;
 	/* set up operations on dentry. */
 	dentry->d_op = &get_super_private(parent->i_sb)->ops.dentry;
 
@@ -344,12 +346,12 @@ lookup_hashed(struct inode * parent	/* inode of directory to
 				inode_clr_flag(inode, REISER4_LIGHT_WEIGHT);
 			}
 			/* success */
-			d_add(dentry, inode);
+			*dentryloc = d_splice_alias(inode, dentry);
 			reiser4_iget_complete(inode);
 		} else
 			result = PTR_ERR(inode);
 	} else if (result == -ENOENT) {
-		result = lookup_pseudo_file(parent, dentry);
+		result = lookup_pseudo_file(parent, dentryloc);
 	}
 	return result;
 }

@@ -50,7 +50,7 @@ struct pseudo_plugin {
 	   ->lookup( "dup" ) can be called to get operation.
 	
 	*/
-	int (*lookup)(struct inode *parent, struct dentry * dentry);
+	int (*lookup)(struct inode *parent, struct dentry ** dentry);
 
 	oid_t (*makeid)(void);
 
@@ -87,7 +87,7 @@ typedef struct pseudo_info {
 	unsigned long  datum;
 } pseudo_info_t;
 
-extern int lookup_pseudo_file(struct inode *parent, struct dentry *dentry);
+extern int lookup_pseudo_file(struct inode *parent, struct dentry **dentry);
 
 typedef enum {
 	PSEUDO_UID_ID,

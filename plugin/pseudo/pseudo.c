@@ -100,7 +100,7 @@ static int init_pseudo(struct inode *parent, struct inode *pseudo,
 		       pseudo_plugin *pplug, const char *name);
 
 static struct inode *add_pseudo(struct inode *parent,
-				pseudo_plugin *pplug, struct dentry *d);
+				pseudo_plugin *pplug, struct dentry **d);
 
 static void pseudo_set_datum(struct inode *pseudo, unsigned long datum)
 {
@@ -111,7 +111,7 @@ static void pseudo_set_datum(struct inode *pseudo, unsigned long datum)
  * try to look up built-in pseudo file by its name.
  */
 reiser4_internal int
-lookup_pseudo_file(struct inode *parent, struct dentry * dentry)
+lookup_pseudo_file(struct inode *parent, struct dentry **dentry)
 {
 	reiser4_plugin *plugin;
 	const char     *name;
@@ -125,7 +125,7 @@ lookup_pseudo_file(struct inode *parent, struct dentry * dentry)
 	if (reiser4_is_set(parent->i_sb, REISER4_NO_PSEUDO))
 		return RETERR(-ENOENT);
 
-	name = dentry->d_name.name;
+	name = (*dentry)->d_name.name;
 	pseudo = ERR_PTR(-ENOENT);
 	/* scan all pseudo file plugins and check each */
 	for_all_plugins(REISER4_PSEUDO_PLUGIN_TYPE, plugin) {
@@ -145,7 +145,7 @@ lookup_pseudo_file(struct inode *parent, struct dentry * dentry)
 }
 
 static struct inode *add_pseudo(struct inode *parent,
-				pseudo_plugin *pplug, struct dentry *d)
+				pseudo_plugin *pplug, struct dentry **d)
 {
 	struct inode *pseudo;
 
@@ -153,11 +153,11 @@ static struct inode *add_pseudo(struct inode *parent,
 	if (pseudo != NULL) {
 		int result;
 
-		result = init_pseudo(parent, pseudo, pplug, d->d_name.name);
+		result = init_pseudo(parent, pseudo, pplug, (*d)->d_name.name);
 		if (result != 0)
 			pseudo = ERR_PTR(result);
 		else
-			d_add(d, pseudo);
+			*d = d_splice_alias(pseudo, *d);
 	} else
 		pseudo = ERR_PTR(RETERR(-ENOMEM));
 	return pseudo;
@@ -705,7 +705,7 @@ static int show_plugin(struct seq_file *seq, void *cookie)
 	return 0;
 }
 
-static int array_lookup_pseudo(struct inode *parent, struct dentry * dentry,
+static int array_lookup_pseudo(struct inode *parent, struct dentry ** dentry,
 			       plugin_entry *array, pseudo_plugin *pplug)
 {
 	int result;
@@ -714,7 +714,7 @@ static int array_lookup_pseudo(struct inode *parent, struct dentry * dentry,
 
 	pseudo = ERR_PTR(-ENOENT);
 	for (idx = 0; array[idx].name != NULL; ++ idx) {
-		if (!strcmp(dentry->d_name.name, array[idx].name)) {
+		if (!strcmp((*dentry)->d_name.name, array[idx].name)) {
 			pseudo = add_pseudo(parent, pplug, dentry);
 			break;
 		}
@@ -767,7 +767,7 @@ static int array_readdir_pseudo(struct file *f, void *dirent, filldir_t filld,
 }
 
 
-static int lookup_plugin_field(struct inode *parent, struct dentry * dentry)
+static int lookup_plugin_field(struct inode *parent, struct dentry ** dentry)
 {
 	return array_lookup_pseudo(parent, dentry, fentry,
 				   pseudo_plugin_by_id(PSEUDO_PLUGIN_FIELD_ID));
@@ -823,7 +823,7 @@ static int readdir_plugin_field(struct file *f, void *dirent, filldir_t filld)
 				    fentry, sizeof_array(fentry));
 }
 
-static int lookup_plugins(struct inode *parent, struct dentry * dentry)
+static int lookup_plugins(struct inode *parent, struct dentry ** dentry)
 {
 	return array_lookup_pseudo(parent, dentry, pentry,
 				   pseudo_plugin_by_id(PSEUDO_PLUGIN_ID));
@@ -889,7 +889,7 @@ static int readdir_pagecache(struct file *f, void *dirent, filldir_t filld)
 				    sizeof_array(pagecache_entry));
 }
 
-static int lookup_pagecache(struct inode *parent, struct dentry * dentry)
+static int lookup_pagecache(struct inode *parent, struct dentry ** dentry)
 {
 	return array_lookup_pseudo(parent, dentry, pagecache_entry,
 				   pseudo_plugin_by_id(PSEUDO_PAGECACHE_STAT_ID));

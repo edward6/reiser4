@@ -11,7 +11,7 @@
 #include <linux/dcache.h>	/* for struct dentry */
 
 /* implementation of ->lookup() method for pseudo files. */
-reiser4_internal int lookup_pseudo(struct inode * parent, struct dentry * dentry)
+reiser4_internal int lookup_pseudo(struct inode * parent, struct dentry **dentry)
 {
 	pseudo_plugin *pplug;
 	int result;

@@ -287,7 +287,7 @@ typedef struct dir_plugin {
 	   operate in a manner appropriate.  Note that this may require storing
 	   some state for the plugin, and that this state might even include
 	   the name used by open.  */
-	int (*lookup) (struct inode * parent_inode, struct dentry * dentry);
+	int (*lookup) (struct inode * parent_inode, struct dentry **dentry);
 	/* VFS required/defined operations below this line */
 	int (*unlink) (struct inode * parent, struct dentry * victim);
 	int (*link) (struct inode * parent, struct dentry * existing, struct dentry * where);

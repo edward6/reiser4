@@ -205,7 +205,7 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to
 	int retval;
 	struct dentry *result;
 	reiser4_context ctx;
-	int (*lookup) (struct inode * parent_inode, struct dentry * dentry);
+	int (*lookup) (struct inode * parent_inode, struct dentry **dentry);
 
 	assert("nikita-403", parent != NULL);
 	assert("nikita-404", dentry != NULL);
@@ -228,25 +228,34 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to
 	else
 		lookup = NULL;
 	if (lookup != NULL) {
-		/* call its lookup method */
-		retval = lookup(parent, dentry);
-		if (retval == 0) {
-			struct inode *obj;
-			file_plugin *fplug;
+		struct dentry *name;
 
-			obj = dentry->d_inode;
-			assert("nikita-2645", obj != NULL);
-			fplug = inode_file_plugin(obj);
-			retval = fplug->bind(obj, parent);
+		name = dentry;
+		/* call its lookup method */
+		retval = lookup(parent, &name);
+		if (retval == 0) {
+			if (name == NULL) {
+				/*
+				 * new object was looked up. Initialize it.
+				 */
+				struct inode *obj;
+				file_plugin *fplug;
+
+				obj = dentry->d_inode;
+				assert("nikita-2645", obj != NULL);
+				fplug = inode_file_plugin(obj);
+				retval = fplug->bind(obj, parent);
+			}
 		} else if (retval == -ENOENT) {
 			/* object not found */
 			d_add(dentry, NULL);
 			retval = 0;
+			name = NULL;
 		}
 
 		if (retval == 0)
 			/* success */
-			result = NULL;
+			result = name;
 		else
 			result = ERR_PTR(retval);
 	} else

@@ -17,7 +17,7 @@ extern int done_hashed(struct inode *object);
 extern int detach_hashed(struct inode *object, struct inode *parent);
 extern int owns_item_hashed(const struct inode *inode, const coord_t * coord);
 extern int lookup_name_hashed(struct inode *inode, struct dentry *dentry, reiser4_key *);
-extern int lookup_hashed(struct inode *inode, struct dentry *dentry);
+extern int lookup_hashed(struct inode *inode, struct dentry **dentry);
 extern int rename_hashed(struct inode *old_dir,
 			 struct dentry *old_name, struct inode *new_dir, struct dentry *new_name);
 extern int add_entry_hashed(struct inode *object,

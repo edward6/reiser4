@@ -10,7 +10,7 @@
 #include <linux/fs.h>		/* for struct inode */
 #include <linux/dcache.h>	/* for struct dentry */
 
-extern int lookup_pseudo(struct inode * parent, struct dentry * dentry);
+extern int lookup_pseudo(struct inode * parent, struct dentry **dentry);
 extern int readdir_pseudo(struct file *f, void *dirent, filldir_t filld);
 
 /* __PSEUDO_DIR_H__ */
