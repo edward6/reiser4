@@ -344,6 +344,7 @@ static int
 renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_level level, int flags, int *nr_locked)
 {
 	int ret;
+	int to_left = flags & GN_GO_LEFT;
 	reiser4_block_nr da;
 	/* parent of the neighbor node; we set it to parent until not sharing
 	   of one parent between child and neighbor node is detected */
@@ -377,7 +378,7 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 		   unformatted nodes and return -E_NO_NEIGHBOR in that case. */
 		iplug = item_plugin_by_coord(coord);
 		if (!item_is_internal(coord)) {
-			link_znodes(child, NULL, flags & GN_GO_LEFT);
+			link_znodes(child, NULL, to_left);
 			WUNLOCK_TREE(tree);
 			/* we know there can't be formatted neighbor */
 			return RETERR(-E_NO_NEIGHBOR);
@@ -404,7 +405,10 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 		WLOCK_TREE(tree);
 	}
 
-	link_znodes(child, neighbor, flags & GN_GO_LEFT);
+	/* Under tree lock we check that another thread did not allocate new
+	 * znode and has not connected it to `child'. */
+	if (!(to_left ? znode_is_left_connected(child) : znode_is_right_connected(child)))
+		link_znodes(child, neighbor, to_left);
 
 	WUNLOCK_TREE(tree);
 
