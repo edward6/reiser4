@@ -141,8 +141,7 @@ tail_plugin tail_plugins[LAST_TAIL_ID] = {
 				.id = TEST_TAIL_ID,
 				.pops = NULL,
 				.label = "test",
-				.desc =
-				"store files shorter than 2 blocks in tail items",
+				.desc = "store files shorter than 2 blocks in tail items",
 				.linkage = TS_LIST_LINK_ZERO}
 			  ,
 			  .have_tail = test_tail,
