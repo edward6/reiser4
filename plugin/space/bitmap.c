@@ -170,7 +170,7 @@ bnew(void)
 static int
 find_next_zero_bit_in_word(ulong_t word, int start_bit)
 {
-	unsigned int mask = 1 << start_bit;
+	ulong_t mask = 1 << start_bit;
 	int i = start_bit;
 
 	while ((word & mask) != 0) {
@@ -234,7 +234,7 @@ static bmap_off_t reiser4_find_next_set_bit(
 /* search for the first set bit in single word. */
 static int find_last_set_bit_in_word (ulong_t word, int start_bit)
 {
-	unsigned bit_mask;
+	ulong_t bit_mask;
 	int nr = start_bit;
 
 	assert ("zam-965", start_bit < BITS_PER_LONG);
