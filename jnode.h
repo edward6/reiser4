@@ -487,47 +487,7 @@ extern unsigned long jnode_index(const jnode * node);
 
 extern int jnode_try_drop(jnode * node);
 
-static inline void spin_unlock_tree(reiser4_tree *tree);
-
-/* jput() - decrement x_count reference counter on znode.
-  
-   Count may drop to 0, jnode stays in cache until memory pressure causes the
-   eviction of its page. The c_count variable also ensures that children are
-   pressured out of memory before the parent. The jnode remains hashed as
-   long as the VM allows its page to stay in memory.
-*/
-static inline void
-jput(jnode * node)
-{
-	reiser4_tree *tree;
-	trace_stamp(TRACE_ZNODES);
-
-	assert("jmacd-509", node != NULL);
-	assert("jmacd-510", atomic_read(&node->x_count) > 0);
-	assert("jmacd-511", atomic_read(&node->d_count) >= 0);
-	ON_DEBUG_CONTEXT(--lock_counters()->x_refs);
-
-	tree = jnode_get_tree(node);
-
-	if (atomic_dec_and_lock(&node->x_count, &tree->tree_lock)) {
-		int r_i_p;
-
-		assert("nikita-2772", !JF_ISSET(node, JNODE_EFLUSH));
-
-		ON_DEBUG_CONTEXT(++lock_counters()->spin_locked_tree);
-		ON_DEBUG_CONTEXT(++lock_counters()->spin_locked);
-		r_i_p = !JF_TEST_AND_SET(node, JNODE_RIP);
-		spin_unlock_tree(tree);
-		if (r_i_p) {
-			if (JF_ISSET(node, JNODE_HEARD_BANSHEE))
-				/* node is removed from the tree. */
-				jdelete(node);
-			else
-				jnode_try_drop(node);
-		}
-		/* if !r_i_p some other thread is already killing it */
-	}
-}
+static inline void jput(jnode * node);
 
 /* drop reference to node data. When last reference is dropped, data are
    unloaded. */
