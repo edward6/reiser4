@@ -397,8 +397,7 @@ int
 readpage_tail(void *vp, struct page *page)
 {
 	uf_coord_t *uf_coord = vp;
-	coord_t *coord = &uf_coord->base_coord;
-	
+	ON_DEBUG(coord_t *coord = &uf_coord->base_coord);
 	ON_DEBUG(reiser4_key key);
 
 	assert("umka-2515", PageLocked(page));
