@@ -1386,6 +1386,11 @@ capture_unix_file(struct inode *inode, const struct writeback_control *wbc)
 	do {
 		reiser4_context ctx;
 
+		init_context(&ctx, inode->i_sb);
+		/* avoid recursive calls to ->sync_inodes */
+		ctx.nobalance = 1;
+		assert("zam-760", lock_stack_isclean(get_current_lock_stack()));
+
 		to_capture = CAPTURE_APAGE_BURST;
 		/*
 		 * locking: creation of extent requires read-semaphore on
@@ -1407,17 +1412,12 @@ capture_unix_file(struct inode *inode, const struct writeback_control *wbc)
  * any of them fail to return EBUSY to user space, and if yes, then
  * recode them to not use the EBUSY macro.*/
 				result = RETERR(-EBUSY);
+				reiser4_exit_context(&ctx);
 				break;
 			}
 		} else
 			down_read(&uf_info->latch);
 		LOCK_CNT_INC(inode_sem_r);
-
-
-		init_context(&ctx, inode->i_sb);
-		/* avoid recursive calls to ->sync_inodes */
-		ctx.nobalance = 1;
-		assert("zam-760", lock_stack_isclean(get_current_lock_stack()));
 
 		while (to_capture) {
 			pgoff_t start;
