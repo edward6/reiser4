@@ -221,6 +221,11 @@ typedef struct file_plugin {
 	 * true if there is only one link (aka name) for this file
 	 */
 	int ( *single_link )( const struct inode *inode );
+
+	/**
+	 * change inode attributes.
+	 */
+	int ( *setattr )( struct inode * inode, struct iattr * attr );
 } file_plugin;
 
 

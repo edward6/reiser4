@@ -845,7 +845,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.owns_item           = unix_file_owns_item,
 			.can_add_link        = common_file_can_add_link,
 			.can_rem_link        = NULL,
-			.single_link         = common_single_link
+			.single_link         = common_single_link,
+			.setattr             = inode_setattr
 		}
 	},
 	[ DIRECTORY_FILE_PLUGIN_ID ] = {
@@ -879,7 +880,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.owns_item           = hashed_owns_item,
 			.can_add_link        = common_file_can_add_link,
 			.can_rem_link        = dir_can_rem_link,
-			.single_link         = dir_single_link
+			.single_link         = dir_single_link,
+			.setattr             = inode_setattr
 		}
 	},
 	[ SYMLINK_FILE_PLUGIN_ID ] = {
@@ -916,7 +918,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.owns_item           = NULL,
 			.can_add_link        = common_file_can_add_link,
 			.can_rem_link        = NULL,
-			.single_link         = common_single_link
+			.single_link         = common_single_link,
+			.setattr             = inode_setattr
 		}
 	},
 	[ SPECIAL_FILE_PLUGIN_ID ] = {
@@ -950,7 +953,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.owns_item           = common_file_owns_item,
 			.can_add_link        = common_file_can_add_link,
 			.can_rem_link        = NULL,
-			.single_link         = common_single_link
+			.single_link         = common_single_link,
+			.setattr             = inode_setattr
 		}
 	}
 };

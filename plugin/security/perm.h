@@ -47,9 +47,12 @@ typedef struct perm_plugin {
 	/** check permissions for unlinking @victim from @parent */
 	int ( *unlink_ok )( struct inode *parent, struct dentry *victim );
 
-	/** check permissions for deletion of @object whose last reference is by @parent */
+	/** check permissions for deletion of @object whose last reference is
+	 * by @parent */
 	int ( *delete_ok )( struct inode *parent, struct dentry *victim );
 	int ( *mask_ok )( struct inode *inode, int mask );
+	/** check whether attribute change is acceptable */
+	int ( *setattr_ok )( struct dentry *dentry, struct iattr *attr );
 } perm_plugin;
 
 /** call ->check_ok method of perm plugin for inode */

@@ -248,11 +248,29 @@ static int reiser4_revalidate (struct dentry *dentry UNUSED_ARG)
 	return -ENOSYS;
 }
 
-static int reiser4_setattr (struct dentry *dentry UNUSED_ARG,
-			    struct iattr *attr UNUSED_ARG)
+/*
+ * ->setattr() inode operation
+ *
+ * Called from notify_change.
+ */
+static int reiser4_setattr( struct dentry *dentry, struct iattr *attr )
 {
-	printk("reiser4_setattr\n");
-	return -ENOSYS;
+	struct       inode *inode = dentry -> d_inode;
+	int          result;
+	REISER4_ENTRY( inode -> i_sb );
+
+	assert( "nikita-2269", attr != NULL );
+
+	result = perm_chk( inode, setattr, dentry, attr );
+	if( result == 0 ) {
+		file_plugin *fplug;
+
+		fplug = inode_file_plugin( inode );
+		assert( "nikita-2271", fplug != NULL );
+		if( fplug -> setattr != NULL )
+			result = fplug -> setattr( inode, attr );
+	}
+	REISER4_EXIT( result );
 }
 
 static int reiser4_getattr (struct vfsmount *mnt UNUSED_ARG,

@@ -459,7 +459,44 @@ struct file_operations {
 	unsigned long (*get_unmapped_area)(struct file *, unsigned long, unsigned long, unsigned long, unsigned long);
 };
 
-struct iattr;
+/*
+ * Attribute flags.  These should be or-ed together to figure out what
+ * has been changed!
+ */
+#define ATTR_MODE	1
+#define ATTR_UID	2
+#define ATTR_GID	4
+#define ATTR_SIZE	8
+#define ATTR_ATIME	16
+#define ATTR_MTIME	32
+#define ATTR_CTIME	64
+#define ATTR_ATIME_SET	128
+#define ATTR_MTIME_SET	256
+#define ATTR_FORCE	512	/* Not a change, but a change it */
+#define ATTR_ATTR_FLAG	1024
+#define ATTR_KILL_SUID	2048
+#define ATTR_KILL_SGID	4096
+
+/*
+ * This is the Inode Attributes structure, used for notify_change().  It
+ * uses the above definitions as flags, to know which values have changed.
+ * Also, in this manner, a Filesystem can look at only the values it cares
+ * about.  Basically, these are the attributes that the VFS layer can
+ * request to change from the FS layer.
+ *
+ * Derek Atkins <warlord@MIT.EDU> 94-10-20
+ */
+struct iattr {
+	unsigned int	ia_valid;
+	umode_t		ia_mode;
+	uid_t		ia_uid;
+	gid_t		ia_gid;
+	loff_t		ia_size;
+	time_t		ia_atime;
+	time_t		ia_mtime;
+	time_t		ia_ctime;
+	unsigned int	ia_attr_flags;
+};
 
 struct inode_operations {
 	int (*create) (struct inode *,struct dentry *,int);
@@ -1448,6 +1485,12 @@ static inline int page_count( const struct page *page )
 {
 	return atomic_read( &page -> count );
 }
+
+extern int inode_setattr( struct inode * inode, struct iattr * attr );
+
+#define DQUOT_TRANSFER( a, b ) (0)
+
+extern int inode_change_ok( struct inode *inode, struct iattr *attr );
 
 /* __REISER4_ULEVEL_H__ */
 #endif
