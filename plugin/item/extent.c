@@ -19,7 +19,7 @@ reiser4_key * extent_max_key_inside (const tree_coord * coord,
 
 /* how many bytes are addressed by @nr (or all of @nr == -1) first extents of
    the extent item */
-static unsigned long long extent_size (const tree_coord * coord, unsigned nr)
+static __u64 extent_size (const tree_coord * coord, unsigned nr)
 {
 	unsigned i;
 	loff_t bytes;
@@ -160,11 +160,11 @@ unsigned extent_nr_units (const tree_coord * coord)
  */
 lookup_result extent_lookup (const reiser4_key * key, lookup_bias bias,
 			     tree_coord * coord) /* znode and item_pos are
-						     set to an extent item to
-						     look through */
+						    set to an extent item to
+						    look through */
 {
 	int i, nr;
-	unsigned long long byte_off,
+	__u64 byte_off,
 		block_off, /* offset of first byte of a block which contains
 			      desired offset */
 		cur,
@@ -390,9 +390,9 @@ static int cut_or_kill_units (tree_coord * coord,
 	unsigned to; /* position of last extent we have to cut */
 	reiser4_key key;
 	unsigned blocksize;
-	unsigned long long new_width;
+	__u64 new_width;
 	int can_delete_from;
-	unsigned long long offset;
+	__u64 offset;
 
 
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
@@ -443,14 +443,14 @@ static int cut_or_kill_units (tree_coord * coord,
 		
 		
 		if (!can_delete_from) {
-			unsigned long long first;
+			__u64 first;
 			
 			ext = extent_item (coord) + from;
 			first = offset + extent_size (coord, from);
 			new_width = (get_key_offset (from_key) + (blocksize - 1) - first) / blocksize;
 			assert ("vs-307", new_width && new_width <= extent_get_width (ext));
 			if (state_of_extent (ext) == ALLOCATED_EXTENT) {
-				unsigned long long cut_blocks, i;
+				__u64 cut_blocks, i;
 				
 				cut_blocks = extent_get_width (ext) - new_width;
 				for (i = 0; i < cut_blocks; i ++)
@@ -723,11 +723,11 @@ static int add_extents (tree_coord * coord,
  * position within extent pointed to by @coord to block containing given offset
  * @off
  */
-static unsigned long long in_extent (const tree_coord * coord,
-				     unsigned long long off)
+static __u64 in_extent (const tree_coord * coord,
+			__u64 off)
 {
         reiser4_key key;
-        unsigned long long cur;
+        __u64 cur;
         reiser4_extent * ext;
 
 
@@ -864,11 +864,11 @@ static int append_one_block (tree_coord * coord,
 /* @coord is set to hole extent, replace it with unallocated extent of length
    1 and correct amount of hole extents around it */
 static int plug_hole (tree_coord * coord, reiser4_lock_handle * lh,
-		      unsigned long long off)
+		      __u64 off)
 {
 	reiser4_extent * ext,
 		new_exts [2];
-	unsigned long long width, pos_in_unit;
+	__u64 width, pos_in_unit;
 	reiser4_key key;
 	reiser4_item_data item;
 	int count;
@@ -911,7 +911,7 @@ static int plug_hole (tree_coord * coord, reiser4_lock_handle * lh,
 
 /* return value is block number pointed by the @coord */
 static block_nr blocknr_by_coord_in_extent (tree_coord * coord,
-					    unsigned long long off)
+					    __u64 off)
 {
 	assert ("vs-12", coord_of_unit (coord));
 	assert ("vs-264", state_of_extent (extent_by_coord (coord)) ==
@@ -928,7 +928,7 @@ static block_nr blocknr_by_coord_in_extent (tree_coord * coord,
 struct jnode * extent_utmost_child (tree_coord * coord, sideof side)
 {
 	reiser4_extent * ext;
-	unsigned long long pos_in_unit;
+	__u64 pos_in_unit;
 	block_nr block;
 	
 
@@ -966,7 +966,7 @@ struct jnode * extent_utmost_child (tree_coord * coord, sideof side)
    @coord. If it is hole - make unallocated extent for it. */
 static int overwrite_one_block (tree_coord * coord, reiser4_lock_handle * lh,
 				struct buffer_head * bh,
-				unsigned long long off)
+				__u64 off)
 {
 	reiser4_extent * ext;
 	int result;
@@ -1025,8 +1025,8 @@ static int add_hole (tree_coord * coord, reiser4_lock_handle * lh,
 		     extent_write_todo todo)
 {
 	reiser4_extent * ext, new_ext;
-	unsigned long long hole_off; /* hole starts at this offset */
-	unsigned long long hole_width;
+	__u64 hole_off; /* hole starts at this offset */
+	__u64 hole_width;
 	int result;
 	reiser4_item_data item;
 	reiser4_key last_key;
@@ -1169,7 +1169,7 @@ static extent_write_todo what_todo (tree_coord * coord, reiser4_key * key)
 		return key_in_extent (coord, key) ? OVERWRITE_BLOCK : RESEARCH;
 
 	if (coord_between_items (coord)) {
-		unsigned long long fbb_offset; /* offset of First Byte of Block */
+		__u64 fbb_offset; /* offset of First Byte of Block */
 
 		right = *coord;
 		if (coord_set_to_right (&right) == 0) {
@@ -1232,25 +1232,25 @@ static extent_write_todo what_todo (tree_coord * coord, reiser4_key * key)
 
 /* generic_file_write starts with getting locked page,
 
-   then it calls prepare_write which deals only with buffers being changed. If
-   all those buffers are mapped - prepare_write does nothing. If page is
-   uptodate - buffers are marked uptodate too
+then it calls prepare_write which deals only with buffers being changed. If
+all those buffers are mapped - prepare_write does nothing. If page is
+uptodate - buffers are marked uptodate too
 
-   then user data is copied to the page
+then user data is copied to the page
 
-   commit_write deals with all buffers containing a page. Changed buffers are
-   marked uptodate and dirty. If all buffers are uptodate - page is marked uptodate
- */
+commit_write deals with all buffers containing a page. Changed buffers are
+marked uptodate and dirty. If all buffers are uptodate - page is marked uptodate
+*/
 
 /*
  * return 1 we do not need to read block before overwriting
  */
 static int overwritten_entirely (loff_t file_size,
-				 unsigned long long file_off,
+				 __u64 file_off,
 				 int count, int block_off)
 {
 	if (block_off == 0 && (count == (int)reiser4_get_current_sb ()->s_blocksize ||
-			       file_off + count >= (unsigned long long)file_size))
+			       file_off + count >= (__u64)file_size))
 		return 1;
 	return 0;
 }
@@ -1271,7 +1271,7 @@ static int prepare_write (tree_coord * coord, reiser4_lock_handle * lh,
 	int block_off, to_block;
 	extent_write_todo todo;
 	reiser4_key tmp_key;
-	unsigned long long file_off;
+	__u64 file_off;
 		
 
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
@@ -1392,7 +1392,7 @@ static int prepare_write (tree_coord * coord, reiser4_lock_handle * lh,
 /*
  * mark all modified buffers dirty, update inode's i_size
  */
-static int commit_write (struct page * page, unsigned long long file_off,
+static int commit_write (struct page * page, __u64 file_off,
 			 unsigned count)
 {
 	struct inode * inode;
@@ -1435,8 +1435,8 @@ int extent_write (struct inode * inode, tree_coord * coord,
 {
 	int result;
 	struct page * page;
-	unsigned long long file_off; /* offset within a file we write to */
-	unsigned long long blocksize;
+	__u64 file_off; /* offset within a file we write to */
+	__u64 blocksize;
 	int research = 0;
 	char * kaddr;
 	unsigned count;
@@ -1521,7 +1521,7 @@ struct readpage_desc {
 	struct page * page;      /* page being read */
 	struct buffer_head * bh; /* buffer of page which was not proceeded
 				    yet */
-	int done_nr;             /* number of buffers in the page we have
+	unsigned done_nr;        /* number of buffers in the page we have
 				    proceeded */
 	struct buffer_head *bhs [PAGE_SIZE / 512]; /* array of buffers which
 						      have to be read */
@@ -1539,18 +1539,18 @@ static int map_extent (reiser4_tree * tree UNUSED_ARG,
 		       reiser4_lock_handle *lh UNUSED_ARG, void * arg)
 {
 	reiser4_extent * ext;
-	unsigned long long pos_in_unit, width;
+	__u64 pos_in_unit, width;
 	block_nr start;
 	unsigned nr;
 	struct page * page;
 	struct inode * inode;
 	struct buffer_head * bh;
-	struct fill_page_desc * desc;
+	struct readpage_desc * desc;
 	unsigned blocksize;
 	unsigned i;
 
 	
-	desc = (struct fill_page_desc *)arg;
+	desc = (struct readpage_desc *)arg;
 	page = desc->page;
 	assert ("vs-290", PageLocked (page));
 	
@@ -1562,15 +1562,15 @@ static int map_extent (reiser4_tree * tree UNUSED_ARG,
 
 	inode = page->mapping->host;
 	
-	if (item_plugin_id (item_plugin_by_coord (coord) != EXTENT_ITEM_ID ||
-			    !reiser4_get_file_plugin (inode)->owns_item (inode, coord))) {
+	if (item_plugin_id (item_plugin_by_coord (coord)) != EXTENT_ITEM_ID ||
+	    !reiser4_get_file_plugin (inode)->owns_item (inode, coord)) {
 		warning ("vs-283", "there should be more items of file\n");
 		return -EIO;
 	}
 	
 	ext = extent_by_coord (coord);
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
-	pos_in_unit = in_extent (coord, (unsigned long long)page->index * PAGE_SIZE + 
+	pos_in_unit = in_extent (coord, (__u64)page->index * PAGE_SIZE + 
 				 desc->done_nr * blocksize);
 	start = extent_get_start (ext);
 	width = extent_get_width (ext);
@@ -1605,15 +1605,15 @@ static int map_extent (reiser4_tree * tree UNUSED_ARG,
 		/*
 		 * one more block to be read
 		 */
-		desc->bhs [desc->read_nr ++] = bh;
+		desc->bhs [desc->have_to_read ++] = bh;
 	}
 
 	if (bh != page->buffers) {
 		/*
 		 * not all buffers of this page are done
 		 */
-		if ((unsigned long long)round_up (inode->i_size, blocksize) !=
-		    ((unsigned long long)page->index * PAGE_SIZE + 
+		if ((__u64)round_up (inode->i_size, blocksize) !=
+		    ((__u64)page->index * PAGE_SIZE + 
 		     desc->done_nr * blocksize)) {
 			/*
 			 * file should continue in next item
@@ -1644,13 +1644,14 @@ static int map_extent (reiser4_tree * tree UNUSED_ARG,
 static int reset_coord (struct page * page,
 			tree_coord * coord, reiser4_lock_handle * lh)
 {
+	int result;
 	reiser4_key key;
 
 	/*
 	 * get key of first byte of the page
 	 */
 	item_key_by_coord (coord, &key);
-	set_key_offset (&key, (unsigned long long)page->index << PAGE_SHIFT);
+	set_key_offset (&key, (__u64)page->index << PAGE_SHIFT);
 
 	if (key_in_extent (coord, &key)) {
 		/*
@@ -1686,14 +1687,17 @@ static int reset_coord (struct page * page,
  * plugin->u.item.s.file.readpage
  * map all buffers of the page and start io if necessary
  */
-int extent_readpage (struct readpage_arg * arg, struct page * page)
+int extent_readpage (void * p, struct page * page)
 {
 	int result;
+	unsigned blocksize;
 	struct readpage_desc desc;
+	struct readpage_arg * arg;
 
-
+	arg = (struct readpage_arg *)p;
+	blocksize = reiser4_get_current_sb ()->s_blocksize;
 	if (!page->buffers)
-		create_empty_buffers (page, reiser4_get_current_sb ()->s_blocksize);
+		create_empty_buffers (page, blocksize);
 
 	/*
 	 * set arg->coord to extent containing beginning of page
@@ -1709,7 +1713,7 @@ int extent_readpage (struct readpage_arg * arg, struct page * page)
 	 * go through extents until all buffers are mapped
 	 */
 	result = reiser4_iterate_tree (current_tree, arg->coord, arg->lh,
-				       readpage_actor, &desc,
+				       map_extent, &desc,
 				       ZNODE_READ_LOCK, 1 /* through units */);
 	if (result)
 		return result;
@@ -1728,7 +1732,7 @@ int extent_readpage (struct readpage_arg * arg, struct page * page)
 		/*
 		 * start read for not uptodate buffers of the page
 		 */
-		submit_bhs (desc.bhs, desc.read_nr);
+		submit_bhs (desc.bhs, desc.have_to_read);
 	}
 
 	return 0;
@@ -1749,14 +1753,14 @@ static int extent_readpage_ahead (void * arg, struct page * page)
 {
 	struct buffer_head *bhs [PAGE_SIZE / 512];
 	struct buffer_head * bh;
-	unsigned long long block;
+	__u64 block;
 	unsigned nr;
 
 	
 	if (!page->buffers)
 		create_empty_buffers (page, reiser4_get_current_sb ()->s_blocksize);
 	bh = page->buffers;
-	block = *(unsigned long long *)arg;
+	block = *(__u64 *)arg;
 	nr = 0;
 	do {
 		if (buffer_uptodate (bh))
@@ -1776,46 +1780,59 @@ static int extent_readpage_ahead (void * arg, struct page * page)
 
 
 /*
- * if coord is set to extent addressing last block of @page. If this extent is
- * allocated one we try to use the rest of it to readahead few pages
+ * @coord is set to extent addressing last block of @page which . If this
+ * extent is allocated one we try to use the rest of it to readahead few pages
  */
-static void readahead (struct page * page,
-		       tree_coord * coord,
-		       reiser4_extent * ext,
-		       unsigned long long pos_in_unit)
+static void read_ahead (struct page * page, tree_coord * coord)
 {
 	int i;
-	unsigned long long start, can_readahead;
+	__u64 start, can_readahead;
 	int blocks_per_page;
 	struct page * ra_page;
+	reiser4_extent * ext;
+	__u64 pos_in_extent, offset;
 
+
+	/*
+	 * item @coord must belong to the file we read
+	 */
+	assert ("vs-392", (
+	{
+		struct inode * inode;
+		inode = page->mapping->host;
+		reiser4_get_file_plugin (inode)->owns_item (inode, coord);
+	}));
 	
+	ext = extent_by_coord (coord);
 	if (state_of_extent (ext) != ALLOCATED_EXTENT)
 		return;
 
  	blocks_per_page = PAGE_SIZE / reiser4_get_current_sb ()->s_blocksize;
 
 	/*
-	 * coord has to be set properly
-	 * FIXME-VS: check that last byte of page is addressed by extent pointed by @coord
+	 * offset of last block in the page
 	 */
-	assert ();
+	offset = ((__u64)page->index << PAGE_SHIFT) + PAGE_SIZE - 
+		reiser4_get_current_sb ()->s_blocksize;
+	/*
+	 * position wihin the extent of next block
+	 */
+	pos_in_extent = in_extent (coord, offset) + 1;
 
 	/*
 	 * how many blocks does the rest of extent can we readahead (not looking
 	 * further than current extent)
 	 */
-	can_readahead = ((extent_get_width (ext) - pos_in_unit) /
+	can_readahead = ((extent_get_width (ext) - pos_in_extent) /
 			 blocks_per_page);
-
 	if (can_readahead > MAX_READAHEAD)
 		can_readahead = MAX_READAHEAD;
 
-	start = extent_get_start (ext) + pos_in_unit;
+	start = extent_get_start (ext) + pos_in_extent;
 
 	for (i = 0; i < (int)can_readahead; i ++, start += blocks_per_page) {
-		ra_page = read_cache_page (page->mapping, page->index + i,
-					   readahead_filler, &start);
+		ra_page = read_cache_page (page->mapping, page->index + i + 1,
+					   extent_readpage_ahead, &start);
 		page_cache_release (ra_page);
 	}
 }
@@ -1827,9 +1844,12 @@ static void readahead (struct page * page,
 int extent_read (struct inode * inode, tree_coord * coord,
 		 reiser4_lock_handle * lh, flow * f)
 {
+	int result;
 	struct page * page;
 	unsigned long page_nr;
 	struct readpage_arg arg;
+	unsigned page_off, count;
+	char * kaddr;
 
 
 	page_nr = (get_key_offset (&f->key) >> PAGE_SHIFT);
@@ -1849,11 +1869,11 @@ int extent_read (struct inode * inode, tree_coord * coord,
 		 * make some readahead pages of extent we stopped at and start
 		 * reading them
 		 */
-		read_ahead (&desc, arg->coord);
+		read_ahead (page, arg.coord);
 
 	wait_on_page (page);
 	
-	if (!Page_Uptodate(page)) {
+	if (!Page_Uptodate (page)) {
 		page_cache_release (page);
 		return -EIO;
 	}
@@ -1913,10 +1933,8 @@ static void check_resize_result (tree_coord * coord, reiser4_key * key)
 
 /* look for all pages containing buffers for which block numbers were just
    allocated */
-static void set_blocknrs (unsigned long long objectid,
-			  unsigned long long offset,
-			  unsigned long long first,
-			  unsigned long long count)
+static void set_blocknrs (__u64 objectid, __u64 offset, __u64 first,
+			  __u64 count)
 {
 	struct inode * inode;
 	struct page * page;
@@ -1966,7 +1984,7 @@ static int allocate_unallocated_extent (tree_coord * coord,
 	int result;
 	unsigned i, nr_units;
 	reiser4_extent * ext;
-	unsigned long long hint, width;
+	__u64 hint, width;
 	int blocksize;
 	reiser4_key tmp_key;
 
@@ -1989,11 +2007,11 @@ static int allocate_unallocated_extent (tree_coord * coord,
 			hint = extent_get_start (ext) + extent_get_width (ext);
 		case HOLE_EXTENT:
 			set_key_offset (key, (get_key_offset (key) + 
-					       width * blocksize));
+					      width * blocksize));
 			continue;
 		case UNALLOCATED_EXTENT:
 			{
-				unsigned long long first, needed;
+				__u64 first, needed;
 				reiser4_extent new_ext;
 				reiser4_item_data item;
 
