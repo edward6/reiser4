@@ -478,7 +478,7 @@ eflush_del(jnode *node, int page_locked)
 		blk = ef->blocknr;
 		ef_hash_remove(table, ef);
 		-- get_super_private(tree->super)->eflushed;
-		write_unlock_tree(tree);
+		WUNLOCK_TREE(tree);
 
 		if (jnode_is_unformatted(node)) {
 			reiser4_inode *info;
@@ -716,6 +716,8 @@ drop_enodes(struct inode *inode, unsigned long index)
 		trace_on(TRACE_EFLUSH, "drop_enodes: ino %llu, page %lu...\n", 
 			 get_inode_oid(inode), j->key.j.index);
 
+		LOCK_JNODE(j);
+
 		list_del(&ef_node->list);
 
 		/* remove eflush node from hash table */
@@ -723,16 +725,15 @@ drop_enodes(struct inode *inode, unsigned long index)
 		assert("vs-1178", ef_hash_find(table, C(ef_node->node)) == ef_node);
 		ef_hash_remove(table, ef_node);
 		-- get_super_private(tree->super)->eflushed;
-		write_unlock_tree(tree);
+		WUNLOCK_TREE(tree);
 
+		JF_CLR(j, JNODE_EFLUSH);
+		UNLOCK_JNODE(j);
+		
 		/* free block which was allocated for emergency flushing */
 		ef_free_block(j, &ef_node->blocknr);
 		kmem_cache_free(eflush_slab, ef_node);
 
-		LOCK_JNODE(j);
-		JF_CLR(j, JNODE_EFLUSH);
-		UNLOCK_JNODE(j);
-		
 		uncapture_jnode(j);
 		/* jget is in emergency_flush */
 		jput(j);
