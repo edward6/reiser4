@@ -419,34 +419,41 @@ static int shorten (struct inode * inode)
 		page_cache_release (page);
 		return PTR_ERR (j);
 	}
-	if (*jnode_get_block (j) == 0 && !jnode_created (j) && !PageDirty (page)) {
+	if (*jnode_get_block (j) == 0 && !PageDirty (page)) {
 		/* hole page. It is not dirty so it was not modified via
 		 * mmaping */
+		assert ("vs-955", !jnode_created (j));
+		assert ("vs-955", !jnode_mapped (j));
 		unlock_page (page);
-		jput (j);
 		page_cache_release (page);
+		jput (j);
 		return 0;
 	}
-	unlock_page (page);
-	jput (j);
-	lock_page (page);
 
-	result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
-	if (result) {
-		unlock_page (page);
-		page_cache_release (page);
-		return -EIO;
+	/* make sure that page has corresponding extent */
+	if (!jnode_mapped (j)) {
+		result = unix_file_writepage (page);
+		if (result) {
+			unlock_page (page);
+			page_cache_release (page);
+			jput (j);
+			return result;
+		}
 	}
-	
+
 	memset (kmap (page) + padd_from, 0, PAGE_CACHE_SIZE - padd_from);
 	flush_dcache_page (page);
-
 	kunmap (page);
-	
-	jnode_set_dirty (jnode_by_page (page));
-	
+
+	result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
 	unlock_page (page);
 	page_cache_release (page);
+	if (result) {
+		return result;
+	}
+
+	jnode_set_dirty (j);
+	jput (j);
 
 	return 0;
 }
