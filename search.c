@@ -436,29 +436,6 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 }
 
 
-/* relook for @key in the tree if @coord is not set correspondingly already */
-/* Audited by: green(2002.06.15) */
-int coord_by_hint_and_key (reiser4_tree * tree, const reiser4_key * key,
-			   coord_t * coord, lock_handle * lh,
-			   lookup_bias bias,
-			   tree_level lock_level,/* at which level to start
-						    getting write locks */
-			   tree_level stop_level)
-{
-	int result;
-
-/* so where do we check to see if @coord is already set? -Hans */
-	done_lh (lh);
-
-	ncoord_init_zero (coord);
-	init_lh (lh);
-	result = coord_by_key (tree, key, coord, lh,
-			       ZNODE_WRITE_LOCK, bias,
-			       lock_level, stop_level, 0);
-	return result;
-}
-
-
 /**
  * Execute actor for each item (or unit, depending on @through_units_p),
  * starting from @coord, right-ward, until either: 
