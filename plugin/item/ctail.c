@@ -50,11 +50,13 @@ cluster_shift_by_coord(const coord_t * coord)
 	return d8tocpu(&formatted_at(coord)->cluster_shift);
 }
 
+#if 0
 static unsigned
 cluster_size_by_coord(const coord_t * coord)
 {
 	return (PAGE_CACHE_SIZE << cluster_shift_by_coord(coord));
 }
+#endif
 
 static unsigned long
 pg_by_coord(const coord_t * coord)
@@ -226,7 +228,7 @@ paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info 
                 /* paste at the end */
 		coord->unit_pos++;
 	}
-	else 
+	else
 		impossible("edward-453", "bad paste position");
 	
 	xmemcpy(first_unit(coord) + coord->unit_pos, data->data, data->length);
@@ -272,7 +274,7 @@ copy_units_ctail(coord_t * target, coord_t * source,
 		/* new item has been created */
 		assert("edward-465", count > sizeof(ctail_item_format));
 		
-		count--; 
+		count--;
 	}
 	if (where_is_free_space == SHIFT_LEFT) {
 		/* append item @target with @count first bytes of @source:
@@ -338,6 +340,8 @@ ctail_squeezable (const coord_t *coord)
 	LOCK_JNODE(child);
 	if (jnode_is_dirty(child))
 		result = 1;
+	else
+		result = 0;
 	UNLOCK_JNODE(child);
 	jput(child);
 	return result;
@@ -395,7 +399,7 @@ cut_or_kill_units(coord_t * coord, unsigned *from, unsigned *to, int cut,
 			set_key_offset(&key, get_key_offset(&key) + count);
 			node_plugin_by_node(coord->node)->update_item_key(coord, &key, 0 /*info */ );
 		}
-		else 
+		else
 			/* whole item is cut, so more then amount of space occupied
 			   by units got freed */
 			count += sizeof(ctail_item_format);
