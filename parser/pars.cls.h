@@ -32,13 +32,13 @@ typedef enum {
     Les  ,   /* < */
     Slh  ,   /* / */
 
-    Lsq  ,   /* [ ----------*/
-    Rsq  ,   /* ] ----------*/
+    Lsq  ,   /* [ */
+    Rsq  ,   /* ] */
 
     Bsl  ,   /* \ */
 
-    Lfl  ,   /* { ----------*/
-    Rfl  ,   /* } ----------*/
+    Lfl  ,   /* { */
+    Rfl  ,   /* } */
 
     Pip  ,   /* | */
     Sp1  ,   /* : */
@@ -76,7 +76,7 @@ static char   ncl     [256] = {
       /* 0      1     2    3     4     5     6     7 */
 	Int,  Int,  Int,  Int,  Int,  Int,  Int,  Int,
       /* 8      9     :    ;     <     =     >     ? */
-	Int,  Int,  Sp2,  Sp1,  Les,  Sp4,  Sp5,  Sp6,
+	Int,  Int,  Sp1,  Sp2,  Les,  Sp4,  Sp5,  Sp6,
 
 	/* 64*/
       /* @      A     B    C     D     E     F     G */
@@ -86,7 +86,7 @@ static char   ncl     [256] = {
       /* P      Q     R    S     T     U     V     W */
 	Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,
       /* X      Y     Z    [     \     ]     ^     _ */
-	Wrd,  Wrd,  Wrd,  Lpr,  Bsl,  Rpr,  Res,  Pru,
+	Wrd,  Wrd,  Wrd,  Lsq,  Bsl,  Rsq,  Res,  Pru,
 	/* 96*/
       /* `      a     b    c     d     e     f     g */
         Stb,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,
@@ -95,7 +95,7 @@ static char   ncl     [256] = {
       /* p      q     r    s     t     u     v     w */
 	Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,
       /* x      y     z    {     |     }     ~       */
-	Wrd,  Wrd,  Wrd,  Lpr,  Pip,  Rpr,  Wrd,  ERR,
+	Wrd,  Wrd,  Wrd,  Lfl,  Pip,  Rfl,  Wrd,  ERR,
 
 	/*128*/
 	Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,
@@ -184,15 +184,15 @@ OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,ASG,App,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,
 [Slh]={  SLASH,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,Slh,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 
-[Lsq]={  0/*L_SKW_PARENT*/,{0,           /*mast removed*/
+[Lsq]={  L_BRACKET,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Rsq]={  0/*R_SKW_PARENT*/,{0,            /*mast removed*/
+[Rsq]={  R_BRACKET,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 [Bsl]={  0,{0,
 Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,  Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,  Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,  Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd}},
-[Lfl]={  0 /*L_FLX_PARENT*/,{0,            /*mast removed*/
+[Lfl]={  L_BRACKET,{0,            /*mast removed*/
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Rfl]={  0 /*R_FLX_PARENT*/,{0,            /*mast removed*/
+[Rfl]={  R_BRACKET,{0,            /*mast removed*/
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 [Pip]={  0,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
@@ -224,7 +224,10 @@ OK ,OK ,OK ,OK ,OK ,OK ,Stb,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,
 [ASG]={  L_ASSIGN,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 [App]={  L_ASSIGN,{0,
+ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,Ap2,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR}},
+/*
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,Ap2,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+*/
 [Lnk]={ L_SYMLINK,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  ERR ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 
