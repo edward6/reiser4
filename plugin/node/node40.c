@@ -847,7 +847,7 @@ static unsigned cut_units (tree_coord * coord, unsigned *from, unsigned *to,
 			   int cut,
 			   const reiser4_key * from_key,
 			   const reiser4_key * to_key,
-			   reiser4_key * smallest_removed)
+			   reiser4_key * smallest_removed, void *kill_params)
 {
 	unsigned cut_size;
 	item_plugin * iplug;
@@ -878,7 +878,7 @@ static unsigned cut_units (tree_coord * coord, unsigned *from, unsigned *to,
 		if (smallest_removed)
 			item_key_by_coord (coord, smallest_removed);
 		if (!cut && iplug->common.kill_hook)
-			iplug->common.kill_hook (coord, 0, 1);
+			iplug->common.kill_hook (coord, 0, 1, kill_params);
 	}
 
 	return cut_size;
@@ -893,8 +893,8 @@ static unsigned cut_units (tree_coord * coord, unsigned *from, unsigned *to,
 static int cut_or_kill (tree_coord * from, tree_coord * to,
 			const reiser4_key * from_key,
 			const reiser4_key * to_key,
-			reiser4_key * smallest_removed,
-			carry_level * todo, int cut, __u32 flags)
+			reiser4_key * smallest_removed, carry_level * todo, 
+			int cut, void *cut_params, __u32 flags)
 {
 	znode * node;
 	node_header_40 * nh;
@@ -916,6 +916,7 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 	assert ("vs-297", ergo (from->item_pos == to->item_pos,
 				from->unit_pos <= to->unit_pos));
 	assert ("vs-312", !node_is_empty (from->node));
+	assert ("nikita-1912", ergo (cut, cut_params == NULL));
 
 	node = from->node;
 	nh = node40_node_header (node);
@@ -931,7 +932,8 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 		from_unit = from->unit_pos;
 		to_unit = to->unit_pos;
 		cut_size = cut_units (from, &from_unit, &to_unit,
-				      cut, from_key, to_key, smallest_removed);
+				      cut, from_key, to_key, smallest_removed,
+				      cut_params);
 		if (cut_size == (unsigned)item_length_by_coord (from))
 			/*
 			 * item will be removed entirely
@@ -986,7 +988,7 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 		removed_entirely = to->item_pos - from->item_pos - 1;
 		if (!cut) {
 			/*
-			 * for every item beign removed entirely between @from
+			 * for every item being removed entirely between @from
 			 * and @to call special kill method
 			 */
 			tree_coord tmp;
@@ -998,7 +1000,7 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 
 				iplug = item_plugin_by_coord (&tmp);
 				if (iplug->common.kill_hook) {
-					iplug->common.kill_hook (&tmp, 0, coord_num_units (&tmp));
+					iplug->common.kill_hook (&tmp, 0, coord_num_units (&tmp), cut_params);
 				}
 			}
 		}
@@ -1009,7 +1011,8 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 		from_unit = from->unit_pos;
 		to_unit = last_unit_pos (from);
 		cut_size = cut_units (from, &from_unit, &to_unit,
-				      cut, from_key, to_key, smallest_removed);
+				      cut, from_key, to_key, smallest_removed,
+				      cut_params);
 		if (cut_size == (unsigned)item_length_by_coord (from)) {
 			/*
 			 * item will be removed
@@ -1027,7 +1030,7 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 		from_unit = 0;
 		to_unit = to->unit_pos;
 		cut_size = cut_units (to, &from_unit, &to_unit,
-				      cut, from_key, to_key, 0);
+				      cut, from_key, to_key, 0, cut_params);
 		if (cut_size == (unsigned)item_length_by_coord (to))
 			/*
 			 * item will be removed
@@ -1111,10 +1114,10 @@ int node40_cut_and_kill (tree_coord * from, tree_coord * to,
 			 const reiser4_key * from_key,
 			 const reiser4_key * to_key,
 			 reiser4_key * smallest_removed,
-			 carry_level * todo, __u32 flags)
+			 carry_level * todo, void *kill_params, __u32 flags)
 {
 	return cut_or_kill (from, to, from_key, to_key, smallest_removed,
-			    todo, 0 /* not cut */, flags);
+			    todo, 0 /* not cut */, kill_params, flags);
 }
 
 
@@ -1127,7 +1130,7 @@ int node40_cut (tree_coord * from, tree_coord * to,
 		carry_level * todo, __u32 flags)
 {
 	return cut_or_kill (from, to, from_key, to_key, smallest_removed,
-			    todo, 1 /* cut */, flags);
+			    todo, 1 /* cut */, NULL, flags);
 }
 
 
