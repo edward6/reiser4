@@ -1303,3 +1303,6 @@ plugin/.plugin_set.o.cmd
 plugin/.plugin_hash.o.cmd
 vfs_ops.c.diff
 vfs_ops.c.orig
+.spinprof.o.cmd
+plugin/.cryptcompress.o.cmd
+spin_macros_template.h
