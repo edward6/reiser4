@@ -1242,7 +1242,7 @@ static int prepare_twig_cut (tree_coord * from, tree_coord * to,
 
 
 		assert ("vs-607", to->unit_pos == last_unit_pos (to));
-		dup_coord (&right_coord, from);
+		dup_coord (&right_coord, to);
 		init_lh (&right_lh);
 		if (coord_next_unit (&right_coord)) {
 			/* @to is rightmost unit in the node */
