@@ -57,7 +57,7 @@ typedef struct {
 	 *  When node ->lookup() method (called by
 	 *  coord_by_key()) reaches an item after binary search
 	 *  ->max_key_inside() item plugin's method is used to determine
-	 *  whether new item should pasted into existing item 
+	 *  if new item should pasted into existing item 
 	 *   (new_key<=max_key_inside()) or new item has to be created
 	 *  (new_key>max_key_inside()).
 	 *
@@ -70,6 +70,21 @@ typedef struct {
 	reiser4_key *( *max_key_inside )( const coord_t *coord, 
 					  reiser4_key *area );
 
+	/**
+	 * Maximal key that is _really_ occupied by this item currently. This
+	 * cannot be greater than ->max_key_inside.
+	 *
+	 * For example extent with the key 
+	 *
+	 * (LOCALITY,4,OBJID,STARTING-OFFSET), and length BLK blocks,
+	 *
+	 * ->max_key_inside is (LOCALITY,4,OBJID,0xffffffffffffffff), and
+	 *
+	 * ->real_max_key_inside is 
+	 *
+	 * (LOCALITY,4,OBJID,STARTING-OFFSET + BLK * block_size - 1)
+	 *
+	 */
 	reiser4_key *( *real_max_key_inside )( const coord_t *coord, 
 					       reiser4_key * );
 
@@ -101,16 +116,13 @@ typedef struct {
 	/* number of atomic things in an item */
 	unsigned ( *nr_units )( const coord_t *coord );
 	
-	/* search within item for a unit within the item, and return a
-	   pointer to it.  This can be used to calculate how many
-	   bytes to shrink an item if you use pointer arithmetic and
-	   compare to the start of the item body if the item's data
-	   are continuous in the node, if the item's data are not
-	   continuous in the node, all sorts of other things are maybe
-	   going to break as well. */
+	/**
+	 * search for @key in the body of item at @coord. This method is
+	 * responsible for setting ->unit_pos in @coord. If no exact match was
+	 * found, prepare @coord->between for paste, taking @bias into account.
+	 */
 	lookup_result ( *lookup )( const reiser4_key *key, 
-				   lookup_bias bias, 
-				   coord_t *coord );
+				   lookup_bias bias, coord_t *coord );
 	/** method called by ode_plugin->create_item() to initialise new
 	 * item */
 	int ( *init )( coord_t *coord, reiser4_item_data *data );
