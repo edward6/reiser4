@@ -771,26 +771,8 @@ lexem()
 }
 
 
-movdigtofr()
-{
-	int i;
-	for(freetend=freetab;yytext<=s;)
-		{
-		i=0;
-		if (yytext<=s)
-			{
-			*freetend++ = *yytext++;
-			}
-		if( freetend > maxtab )
-			{
-			yyerror(1101);
-			exit(1101);
-			}
-		}
-	*freetend++ = '\0';
-}
-
-movstrtofr()
+/*movstrtofr()*/
+select_word()
 {
 	int i,j;
 
@@ -799,91 +781,96 @@ movstrtofr()
 			i=0;
 			while( *yytext == '\'' )
 				{
-				 	yytext++;
+					yytext++;
 					i++;
 				} 
-			if ( yytext > s ) i--;
-			if ( i ) for ( i/=2; i; i-- )      *freetend++='\'';    /*   in source text for each '' in result will '   */
-			if ( yytext <= s )
+			while ( yytext > s )
 				{
-					if ( *yytext == '\\' )           /*         \????????   */
+					i--;
+					yytext--;
+				}
+			if ( i ) for ( i/=2; i; i-- )      *freetend++='\'';    /*   in source text for each '' - result will '   */
+
+			if ( *yytext == '\\' )           /*         \????????   */
+				{
+					int tmpI;
+					yytext++;
+					switch ( tolower(*yytext) )
 						{
-							int tmpI;
+						case 'n':                       /*  \n  */
+							*freetend++='\n';
 							yytext++;
-							switch ( tolower(*yytext) )
+							break;
+						case 'b':                       /*  \n  */
+							*freetend++='\b';
+							yytext++;
+							break;
+						case 'r':                       /*  \n  */
+							*freetend++='\r';
+							yytext++;
+							break;
+						case 'f':                       /*  \n  */
+							*freetend++='\f';
+							yytext++;
+							break;
+						case 't':                       /*  \t  */
+							*freetend++='\t';
+							yytext++;
+							break;
+						case 'o':                       /*  \o123  */
+							tmpI = 3;
+							i = 0;
+							while( tmpI-- && isdigit( * ( yytext ) ) )
 								{
-									
-								case 'n':                       /*  \n  */
-									*freetend++='\n';
-									yytext++;
-									break;
-								case 'b':                       /*  \n  */
-									*freetend++='\b';
-									yytext++;
-									break;
-								case 'r':                       /*  \n  */
-									*freetend++='\r';
-									yytext++;
-									break;
-								case 'f':                       /*  \n  */
-									*freetend++='\f';
-									yytext++;
-									break;
-								case 't':                       /*  \t  */
-									*freetend++='\t';
-									yytext++;
-									break;
-								case 'o':                       /*  \o123  */
-									tmpI = 3;
-									i = 0;
-									while( tmpI-- && isdigit( * ( yytext ) ) )
+									i = (i * 8) + ( *yytext++ - '0' );
+								}
+							*freetend++ = (unsigned char) i;
+							break;
+						case 'x':                       /*  \x01..9a..e  */
+							i = 0;
+							tmpI = 1;
+							while( tmpI)
+								{
+									if (isdigit( *yytext ) )
 										{
-											i = (i * 8) + ( *yytext++ - '0' );
+											i = (i * 16) + ( *yytext++ - '0' );
 										}
-									*freetend++ = (unsigned char) i;
-									break;
-								case 'x':                       /*  \x01..9a..e  */
-									i = 0;
-									tmpI = 1;
-									while( tmpI)
+									else if( tolower( *yytext ) >= 'a' && tolower( *yytext ) <= 'e' )
 										{
-											if (isdigit( *yytext ) )
-												{
-													i = (i * 16) + ( *yytext++ - '0' );
-												}
-											else if( tolower( *yytext ) >= 'a' && tolower( *yytext ) <= 'e' )
-												{
-													i = (i * 16) + ( *yytext++ - 'a' + 10 );
-												}
-											else 
-												{
-													tmpI = 0;
-												}
-											if ( tmpI && !( tmpI++ % 2 ) )
-												{
-													*freetend++ = (unsigned char) i;
-													i = 0;
-												}
+											i = (i * 16) + ( *yytext++ - 'a' + 10 );
 										}
-									break;
-								default:     
-									if ( isdigit(*yytext) )            /*  decimal notation \123  */
+									else 
 										{
-											int tmpI;
-											i=atoi(yytext);
-											tmpI=3;
-											while( tmpI-- && isdigit( * ( ++yytext ) ) ) ;
-											i = i % 256 ;    /* ??????? */
+											if ( tmpI % 2 )
+												{
+													yyerror(); /* x format has odd number of symbols */
+												}
+											tmpI = 0;
+										}
+									if ( tmpI && !( tmpI++ % 2 ) )
+										{
 											*freetend++ = (unsigned char) i;
-										}
-									else
-										{                          /*    any symbol */
-											*freetend++ = *yytext++;
+											i = 0;
 										}
 								}
-				                }
-			                else *freetend++ = *yytext++;
-		                }
+							break;
+						default:     
+							if ( isdigit(*yytext) )            /*  decimal notation \123  */
+								{
+									int tmpI;
+									i=atoi(yytext);
+									tmpI=3;
+									while( tmpI-- && isdigit( * ( ++yytext ) ) ) ;
+									i = i % 256 ;    /* ??????? */
+									*freetend++ = (unsigned char) i;
+								}
+							else
+								{                          /*    any symbol */
+									*freetend++ = *yytext++;
+								}
+						}
+				}
+			else *freetend++ = *yytext++;
 	                if( freetend > maxtab )
 		                {
 					yyerror(1101);
@@ -895,41 +882,21 @@ movstrtofr()
 
 
 
-movkeytofr()
-{
-	int i;
-	for(freetend=freetab;yytext<=s;)
-		{
-		if (yytext<=s)
-			{
-			*freetend++=tolower(*yytext);
-			yytext++;
-			}
-		if( freetend > maxtab )
-			{
-			yyerror(1101);
-			exit(1101);
-			}
-		}
-	*freetend++ = '\0';
-}
-
-
-chkkey()
+b_check_word()
 {
 	int i, j, l;
 	j=sizeof(key)/4;
 	l=0;
-	do
+	while( ( j - l ) >= 0 )
 		{
-		i  =  ( j + l + 1 ) >> 1;
-		switch( strcmp(key[i].wrd,freetab) )
-			{
-			case  0: return(key[i].class);  break;
-			case  1: j = i - 1;             break;
-			default: l = i + 1;             break;
-			}
-		}       while( (j-l)>=0 );
+			i  =  ( j + l + 1 ) >> 1;
+			switch( strcmp( key[i].wrd, freetab ) )
+				{
+				case  0: return( key[i].class );  break;
+				case  1: j = i - 1;               break;
+				default: l = i + 1;               break;
+				}
+		}     
 	return(0);
 }
 
@@ -937,11 +904,11 @@ inttab()
 {
 	int i;
 	if (strco)
-	for( i=strco-1;i; i--)
-		if( !(strcmp(tptr[i],freetab)) )
-		{
-		return(i);
-		}
+		for( i=strco-1;i; i--)
+			if( !(strcmp(tptr[i],freetab)) )
+				{
+					return(i);
+				}
 	if( strco >= MAXSTRN )             yyerror(1101);
 	tptr[strco] = freetab;
 	freetab=freetend;
@@ -1019,11 +986,21 @@ int 	nmsg,x1,x2,x3,x4,x5,x6,x7,x8;
 int pars_pathname($1)
 {
 	struct nameidata nd;
+	struct inode * inode;
 	int error;
+	reiser4_plugin * r4_plugin;
 
 	error = user_path_walk(yytext, &nd);
-	if (!error) {
-	}
+
+	if (error) 
+		{
+			r4_plugin = lookup_plugin_name( char *plug_label );
+		}
+	else
+		{
+			inode = nd.dentry->d_inode;
+		}
+
 	return error;
 }
 
