@@ -200,7 +200,7 @@ reiser4_create(struct inode *parent	/* inode of parent
 	reiser4_object_create_data data;
 
 	data.mode = S_IFREG | mode;
-	data.id = REGULAR_FILE_PLUGIN_ID;
+	data.id = UNIX_FILE_PLUGIN_ID;
 	return invoke_create_method(parent, dentry, &data);
 }
 
@@ -348,12 +348,18 @@ reiser4_getattr(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct k
 	REISER4_EXIT(result);
 }
 
-/* ->read() VFS method in reiser4 file_operations */
+/* reiser4 implementation of ->read() VFS method, member of reiser4 struct file_operations
+ 
+ reads some part of a file from the filesystem into the user space buffer 
+
+ gets the plugin for the file and calls its read method which does everything except some initialization 
+
+*/
 static ssize_t
 reiser4_read(struct file *file /* file to read from */ ,
 	     char *buf		/* user-space buffer to put data read
 				 * from the file */ ,
-	     size_t size /* bytes to read */ ,
+	     size_t count /* bytes to read */ ,
 	     loff_t * off	/* offset to start reading from. This
 				 * is updated to indicate actual
 				 * number of bytes read */ )
@@ -373,7 +379,7 @@ reiser4_read(struct file *file /* file to read from */ ,
 	trace_on(TRACE_VFS_OPS,
 		 "READ: (i_ino %li, size %lld): %u bytes from pos %lli\n",
 		 file->f_dentry->d_inode->i_ino, file->f_dentry->d_inode->i_size,
-		 size, *off);
+		 count, *off);
 
 	fplug = inode_file_plugin(file->f_dentry->d_inode);
 	assert("nikita-417", fplug != NULL);
@@ -381,7 +387,8 @@ reiser4_read(struct file *file /* file to read from */ ,
 	if (fplug->read == NULL) {
 		result = -EPERM;
 	} else {
-		result = fplug->read(file, buf, size, off);
+		/* unix_file_read is one method that might be invoked below */
+		result = fplug->read(file, buf, count, off);
 	}
 
 	write_syscall_trace("ex");
@@ -604,6 +611,20 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 	REISER4_EXIT(0);
 }
 
+static int
+reiser4_readpages(struct file *file, struct address_space *mapping,
+		  struct list_head *pages, unsigned nr_pages)
+{
+	file_plugin *fplug;
+
+	assert("vs-1146", is_in_reiser4_context());
+
+	fplug = inode_file_plugin(mapping->host);
+	if (fplug->readpages)
+		fplug->readpages(file, mapping, pages);
+	return 0;
+}
+
 /* write page in response to memory pressure */
 static int
 reiser4_writepage(struct page *page, struct writeback_control *wbc)
@@ -621,7 +642,6 @@ reiser4_writepage(struct page *page, struct writeback_control *wbc)
 /* ->writepages()
    ->vm_writeback()
    ->set_page_dirty()
-   ->readpages()
    ->prepare_write()
    ->commit_write()
 */
@@ -644,6 +664,7 @@ reiser4_bmap(struct address_space *mapping, sector_t block)
 /* ->invalidatepage()
    ->releasepage() */
 
+#if 0
 /* FIXME-VS: 
    for some reasons we are not satisfied with address space's readpages() method.
   
@@ -727,6 +748,7 @@ reiser4_do_page_cache_readahead(struct file *file, unsigned long start_page, uns
 	done_lh(&lh);
 	return result <= 0 ? result : (int) (cur_page - start_page);
 }
+#endif
 
 /* ->link() VFS method in reiser4 inode_operations
   
@@ -1758,18 +1780,18 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		},
 		{
 			/* tree traversal readahead parameters:
-			   -o readahead=MAX:ADJACENT:LEAVES_ONLY:ONE_PARENT_ONLY
-			   set MAX to 0 to disable tree traversal readahead */
+			   -o readahead:MAXNUM:FLAGS
+			   MAXNUM - max number fo nodes to request readahead for: -1UL will set it to max_sane_readahead()
+			   FLAGS - combination of bits: RA_ADJCENT_ONLY, RA_ALL_LEVELS, CONTINUE_ON_PRESENT
+			*/
 			.name = "readahead",
 			.type = OPT_FORMAT,
 			.u = {
 				.f = {
-					.format  = "%u:%u:%u:%u",
-					.nr_args = 4,
+					.format  = "%u:%u",
+					.nr_args = 2,
 					.arg1 = &info->ra_params.max,
-					.arg2 = &info->ra_params.adjacent_only,
-					.arg3 = &info->ra_params.leaves_only,
-					.arg4 = &info->ra_params.one_parent_only
+					.arg2 = &info->ra_params.flags
 				}
 			}
 		},
@@ -1824,14 +1846,15 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	/*
 	  init default readahead params
 	*/
-	info->ra_params.max = 256;
-	info->ra_params.adjacent_only = 1;
-	info->ra_params.leaves_only = 1;
-	info->ra_params.one_parent_only = 0;
+	info->ra_params.max = totalram_pages / 4;
+	info->ra_params.flags = 0;
 
 	result = parse_options(opt_string, opts, sizeof_array(opts));
 	if (result != 0)
 		return result;
+
+	if (info->ra_params.max == -1UL)
+		info->ra_params.max = max_sane_readahead(info->ra_params.max);
 
 	info->txnmgr.atom_max_age *= HZ;
 	if (info->txnmgr.atom_max_age <= 0)
@@ -1858,9 +1881,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	/*
 	 * FIXME-VS: remove after debugging readahead mount option
 	 */
-	info("readahead options: max=%d, adjacent=%d, leaves only=%d, one parent=%d\n", 
-	     info->ra_params.max, info->ra_params.adjacent_only, info->ra_params.leaves_only,
-	     info->ra_params.one_parent_only);
+	info("readahead options: max=%lu, flags=0x%x\n", info->ra_params.max, info->ra_params.flags);
 
 	return result;
 }
@@ -2723,7 +2744,7 @@ struct address_space_operations reiser4_as_operations = {
 	.writepages = reiser4_writepages,
 	.set_page_dirty = reiser4_set_page_dirty,
 	/* called during read-ahead */
-	.readpages = NULL,
+	.readpages = reiser4_readpages,
 	.prepare_write = V(never_ever_prepare_write_vfs),
 	.commit_write = V(never_ever_commit_write_vfs),
 	.bmap = reiser4_bmap,
