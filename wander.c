@@ -35,7 +35,9 @@ struct io_handle {
 
 static int submit_write (jnode*, int, const reiser4_block_nr *, struct io_handle *);
 
-
+/**
+ * fill journal header block data 
+ */
 static void format_journal_header (struct super_block *s, capture_list_head * tx)
 {
 	struct reiser4_super_info_data * private;
@@ -58,6 +60,10 @@ static void format_journal_header (struct super_block *s, capture_list_head * tx
 	junlock_and_relse (private->journal_header);
 }
 
+
+/**
+ * fill journal footer block data
+ */
 static void format_journal_footer (struct super_block *s, jnode * txhead)
 {
 	struct reiser4_super_info_data * private;
@@ -87,6 +93,10 @@ static int log_record_capacity (const struct super_block * super)
 		sizeof (struct log_entry);
 }
 
+
+/**
+ * fill first log record (tx head) in accordance with supplied given data
+ */
 static void format_tx_head (
 	jnode * node,
 	int total,
@@ -111,6 +121,9 @@ static void format_tx_head (
 	cputod64((__u64)reiser4_free_committed_blocks(super), & h->free_blocks);
 }
 
+/**
+ * prepare ordinary log record block (fill all service fields)
+ */
 static void format_log_record (
 	jnode * node,
 	int total, 
@@ -136,6 +149,7 @@ static void format_log_record (
 	cputod64((__u64)(*next_block), & h->next_block);
 }
 
+/* add one wandered map entry to formatted log record */
 static void store_entry (jnode * node, 
 			 int index,
 			 const reiser4_block_nr * a,
@@ -179,6 +193,8 @@ struct store_wmap_params {
 #endif
 };
 
+/* an actor for use in blocknr_set_iterator routine which populates the list
+ * of pre-formatted log records by wandered map info */
 static int store_wmap_actor (txn_atom * atom UNUSED_ARG,
 			     const reiser4_block_nr * a,
 			     const reiser4_block_nr * b,
