@@ -444,7 +444,7 @@ carry_op *post_carry( carry_level *level    /* queue where new operation is to
 	result -> node = child;
 	result -> op = op;
 	child  -> parent = apply_to_parent_p;
-	if( ZF_ISSET( node, ZNODE_NEW ) )
+	if( ZF_ISSET( node, ZNODE_ORPHAN ) )
 		child -> left_before = 1;
 	child  -> node = node;
 	return result;
@@ -599,7 +599,7 @@ carry_op *add_op( carry_level *level  /* &carry_level to add node to */,
  * which is special case not handled here).
  *
  * @node is new node created on some level, but not yet inserted into its
- * parent, it has corresponding bit (ZNODE_NEW) set in zstate.
+ * parent, it has corresponding bit (ZNODE_ORPHAN) set in zstate.
  *
  */
 /* Audited by: green(2002.06.17) */
@@ -614,14 +614,14 @@ carry_node *find_begetting_brother( carry_node *node /* node to start search
 	assert( "nikita-1615", kin != NULL );
 	assert( "nikita-1616", lock_counters() -> spin_locked_tree > 0 );
 	assert( "nikita-1619", ergo( node -> real_node != NULL, 
-				     ZF_ISSET( node -> real_node, ZNODE_NEW ) ) );
+				     ZF_ISSET( node -> real_node, ZNODE_ORPHAN ) ) );
 
 	for( scan = node ; ; 
 	     scan = ( carry_node * ) pool_level_list_prev( &scan -> header ) ) {
 		assert( "nikita-1617", 
 			!pool_level_list_end( &kin -> nodes, &scan -> header ) );
 		if( ( scan -> node != node -> node ) && 
-		    ! ZF_ISSET( scan -> node, ZNODE_NEW ) ) {
+		    ! ZF_ISSET( scan -> node, ZNODE_ORPHAN ) ) {
 			assert( "nikita-1618", scan -> real_node != NULL );
 			break;
 		}
@@ -733,7 +733,7 @@ static void unlock_carry_level( carry_level *level /* level to unlock */,
 		 */
 		assert( "nikita-1631", 
 			ergo( ! failure,
-			      ! ZF_ISSET( node -> real_node, ZNODE_NEW ) ) );
+			      ! ZF_ISSET( node -> real_node, ZNODE_ORPHAN ) ) );
 		if( ! failure )
 			node_check( node -> real_node, 
 				    REISER4_NODE_DKEYS | REISER4_NODE_PANIC );
@@ -1138,10 +1138,10 @@ carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
 	 * it. make_space() does.
 	 */
 
-	ZF_SET( new_znode, ZNODE_NEW );
+	ZF_SET( new_znode, ZNODE_ORPHAN );
 	fresh -> node = new_znode;
 
-	while( ZF_ISSET( ref -> real_node, ZNODE_NEW ) ) {
+	while( ZF_ISSET( ref -> real_node, ZNODE_ORPHAN ) ) {
 		ref = ( carry_node * ) pool_level_list_prev( &ref -> header );
 		assert( "nikita-1606", !pool_level_list_end( &doing -> nodes, 
 							     &ref -> header ) );

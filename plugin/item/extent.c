@@ -1070,7 +1070,7 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 	}
 
 	jnode_set_mapped (j);
-	jnode_set_new (j);
+	jnode_set_created (j);
 
 	reiser4_stat_file_add (write_repeats);
 	return -EAGAIN;
@@ -1114,7 +1114,7 @@ static int append_one_block (coord_t * coord,
 	}
 
 	jnode_set_mapped (j);
-	jnode_set_new (j);
+	jnode_set_created (j);
 
 	coord->unit_pos = coord_last_unit_pos (coord);
 	coord->between = AFTER_UNIT;
@@ -1467,7 +1467,7 @@ static int overwrite_one_block (coord_t * coord, lock_handle * lh,
 		if (result)
 			return result;
 		jnode_set_mapped (j);
-		jnode_set_new (j);
+		jnode_set_created (j);
 		break;
 
 	default:
@@ -1928,7 +1928,7 @@ static int write_flow_to_page (coord_t * coord, lock_handle * lh, flow_t * f,
 				}
 			}
 			
-			if (jnode_new (j)) {
+			if (jnode_created (j)) {
 				int padd;
 				
 				/* new block added. Zero block content which is
@@ -1940,7 +1940,8 @@ static int write_flow_to_page (coord_t * coord, lock_handle * lh, flow_t * f,
 				padd = current_blocksize - block_off - to_block;
 				assert ("vs-721", padd >= 0);
 				memset (b_data + block_off + to_block, 0, (unsigned)padd);
-				jnode_clear_new (j);
+				/* FIXME: JMACD->VS: Are you sure this doesn't cause excess zero-ing? */
+				/*jnode_clear_new (j);*/
 			}
 			/* copy data into page */
 			if (unlikely (__copy_from_user (b_data + block_off,

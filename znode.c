@@ -602,7 +602,7 @@ zget (reiser4_tree *tree,
 		 * complicated.
 		 */
 		assert ("nikita-2131", 1 || znode_parent (result) == parent ||
-			(ZF_ISSET (result, ZNODE_NEW) && 
+			(ZF_ISSET (result, ZNODE_ORPHAN) && 
 			 (znode_parent (result) == NULL)));
 	}
 
@@ -874,7 +874,7 @@ int zinit_new( znode *node /* znode to initialise */ )
 		assert( "nikita-2076", spin_znode_is_locked( node ) );
 		if( likely( !znode_is_loaded( node ) ) ) {
 			ZF_SET( node, ZNODE_LOADED );
-			ZF_SET( node, ZNODE_ALLOC );
+			ZF_SET( node, ZNODE_CREATED );
 			assert( "nikita-1235", znode_is_loaded( node ) );
 			assert( "nikita-1236", node_plugin_by_node( node ) != NULL );
 			result = node_plugin_by_node( node ) -> init( node );
@@ -1145,7 +1145,7 @@ static int znode_invariant_f( const znode *node /* znode to check */,
 				     &FAKE_TREE_ADDR ) ) &&
 		_ergo( znode_get_level( node ) == LEAF_LEVEL,
 		       atomic_read( &node -> c_count ) == 0 ) &&
-		zergo( ZNODE_NEW, znode_parent( node ) == NULL );
+		zergo( ZNODE_ORPHAN, znode_parent( node ) == NULL );
 }
 
 /** debugging aid: check znode invariant and panic if it doesn't hold */

@@ -596,7 +596,8 @@ atom_try_commit_locked (txn_atom *atom)
 
 	trace_on (TRACE_TXN, "atom %u trying to commit %u: CAPTURE_WAIT\n", atom->atom_id, (unsigned) pthread_self ());
 
-	/* When trying to commit, try to prevent new txnhs. */
+	/* When trying to commit, make sure we keep trying, also prevent new txnhs. */
+	atom->flags |= ATOM_FORCE_COMMIT;
 	atom->stage = ASTAGE_CAPTURE_WAIT;
 
 	/* From the leaf level up, find dirty nodes in this transaction that need balancing/flushing. */
@@ -1874,7 +1875,7 @@ uncapture_block (txn_atom *atom,
 
 	JF_CLR (node, ZNODE_RELOC);
 	JF_CLR (node, ZNODE_WANDER);
-	JF_CLR (node, ZNODE_ALLOC);
+	JF_CLR (node, ZNODE_CREATED);
 
 	spin_unlock_jnode (node);
 

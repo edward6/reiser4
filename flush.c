@@ -306,7 +306,7 @@ static int flush_left_relocate_check (jnode *node, const coord_t *parent_coord, 
 	assert ("jmacd-8989", ! jnode_is_root (node));
 
 	/* New nodes are treated as if they are being relocated. */
-	if (JF_ISSET (node, ZNODE_ALLOC) || (pos->leaf_relocate && jnode_get_level (node) == LEAF_LEVEL)) {
+	if (jnode_created (node) || (pos->leaf_relocate && jnode_get_level (node) == LEAF_LEVEL)) {
 		return 1;
 	}
 
@@ -1387,7 +1387,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 	assert ("jmacd-7988", znode_is_write_locked (node));
 	assert ("jmacd-7989", coord_is_invalid (parent_coord) || znode_is_write_locked (parent_coord->node));
 
-	if (ZF_ISSET (node, ZNODE_ALLOC) || znode_is_root (node)) {
+	if (jnode_created (node) || znode_is_root (node)) {
 		/* No need to decide with new nodes, they are treated the same as
 		 * relocate. If the root node is dirty, relocate. */
 		goto best_reloc;
@@ -1448,7 +1448,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 
 	assert ("jmacd-4277", ! blocknr_is_fake (& pos->preceder.blk));
 
-	trace_if (TRACE_FLUSH, info ("%s znode: %p block %llu level %u\n", ZF_ISSET (node, ZNODE_ALLOC) ? "allocte" : (ZF_ISSET (node, ZNODE_WANDER) ? "wander " : "relocte"), node, *znode_get_block (node), znode_get_level (node)));
+	trace_if (TRACE_FLUSH, info ("%s znode: %p block %llu level %u\n", jnode_created (node) ? "allocte" : (ZF_ISSET (node, ZNODE_WANDER) ? "wander " : "relocte"), node, *znode_get_block (node), znode_get_level (node)));
 	return 0;
 }
 

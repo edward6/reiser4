@@ -71,15 +71,18 @@ typedef enum {
        ZNODE_LEFT_CONNECTED    = 2,
        /** right sibling pointer is valid */
        ZNODE_RIGHT_CONNECTED   = 3,
+
        /** znode was just created and doesn't yet have a pointer from
 	   its parent */
-       ZNODE_NEW               = 4,
+       ZNODE_ORPHAN            = 4,
 
        /* The jnode is a unformatted node.  False for all znodes.  */
        ZNODE_UNFORMATTED       = 5,
 
-       /** this node was allocated by its txn */
-       ZNODE_ALLOC             = 6,
+       /** this node was created by its transaction and has not been assigned a block
+	* address. */
+       ZNODE_CREATED           = 6,
+
        /** this node is currently relocated */
        ZNODE_RELOC             = 7,
        /** this node is currently wandered */
@@ -165,11 +168,10 @@ extern reiser4_blocknr_hint* flush_pos_hint (flush_position *pos);
 /* does extent_get_block have to be called */
 #define jnode_mapped(node)     JF_ISSET (node, ZNODE_MAPPED)
 #define jnode_set_mapped(node) JF_SET (node, ZNODE_MAPPED)
-/* was pointer to this block just created (either by appending or by plugging a
- * hole) */
-#define jnode_new(node)        JF_ISSET (node, ZNODE_NEW)
-#define jnode_set_new(node)    JF_SET (node, ZNODE_NEW)
-#define jnode_clear_new(node)    JF_SET (node, ZNODE_NEW)
+/* pointer to this block was just created (either by appending or by plugging a
+ * hole), or zinit_new was called */
+#define jnode_created(node)        JF_ISSET (node, ZNODE_CREATED)
+#define jnode_set_created(node)    JF_SET (node, ZNODE_CREATED)
 /* similar to buffer_uptodate */
 #define jnode_loaded(node)     JF_ISSET (node, ZNODE_LOADED)
 #define jnode_set_loaded(node) JF_SET (node, ZNODE_LOADED)
