@@ -1531,7 +1531,7 @@ static int put_super (struct super_block * s)
 	REISER4_ENTRY (s);
 	assert( "umka-087", get_super_private (s) != NULL );
 
-	print_tree_rec ("umount", &get_super_private (s)->tree, ~0ull);
+	print_tree_rec ("umount", &get_super_private (s)->tree, ~0ul);
 
 	if (get_super_private (s)->lplug->release)
 		get_super_private (s)->lplug->release (s);
