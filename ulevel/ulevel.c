@@ -6,7 +6,7 @@
  * User-level simulation.
  */
 #define _GNU_SOURCE
-
+#define _FILE_OFFSET_BITS 64
 #include "../reiser4.h"
 
 
@@ -2506,6 +2506,7 @@ static int call_readdir_long (struct inode * dir, const char *prefix)
 
 
 size_t BUFSIZE;
+size_t MAX_BUFSIZE = 3000000;
 
 
 /* this copies normal file @oldname to reiser4 filesystem (in directory @dir
@@ -2544,6 +2545,8 @@ static int copy_file (const char * oldname, struct inode * dir,
 	}	
 
 	BUFSIZE = st->st_size;
+	if (BUFSIZE > MAX_BUFSIZE)
+		BUFSIZE = MAX_BUFSIZE;
 	buf = xxmalloc (BUFSIZE);
 	if (!buf) {
 		perror ("copy_file: xxmalloc failed");
@@ -3265,6 +3268,7 @@ static int bash_cp (char * real_file, struct inode * cwd, const char * name)
 	if (stat (real_file, &st) || !S_ISREG (st.st_mode)) {
 		errno ? perror ("stat failed") : 
 			info ("%s is not regular file\n", real_file);
+		return 0;
 	}
 	silent = 1;
 	ret = copy_file (real_file, cwd, name, &st, silent);
