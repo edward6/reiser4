@@ -11,31 +11,28 @@ typedef enum {
 	/* an entry for each item type goes here, suffix _IT for "item type" */
 	/* FIXME_JMACD: These names are U.G.L.Y.  Especially the _IT suffix.  _TID makes more sense. */
 	
-	SIMPLE_DIR_ENTRY_IT,
-	COMPOUND_DIR_IT,
-	STATIC_STAT_DATA_IT,
-	ACL_IT,
-	EXTENT_POINTER_IT, 
-	TAIL_IT, /* not yet */
-	NODE_POINTER_IT,
-	LAST_ITEM_IT
-} reiser4_item_plugin_id;
+	SIMPLE_DIR_ENTRY_TID,
+	COMPOUND_DIR_TID,
+	STATIC_STAT_DATA_TID,
+	ACL_TID,
+	EXTENT_POINTER_TID, 
+	TAIL_TID, /* not yet */
+	NODE_POINTER_TID,
+	LAST_ITEM_TID /* used for sizing some arrays */
+} item_plugin_id;
 
-typedef struct item_plugin {
-	/* in reiser4 key doesn't contain full item type only several bits of
+
+/* this is the part of each item plugin that all items are expected to
+ * support or at least explicitly fail to support by setting the
+ * pointer to null. */
+typedef struct common_item_plugin {
+	/* in reiser4 the key doesn't contain the full item type only several bits of
 	   it. So after doing coord_by_key() we need to check that we really
 	   found what we have looked for, rather than some different item that
 	   has the same minor packing locality. Use "item_plugin_id" to determine
-	   what kind of item you have found.
-	   
-	   Item type distinguishes items not logically, but functionaly: all
-	   item plugins share the same common set of balancing operations
-	   (described below), but items of each generic type have different
-	   set of operations to interact with object plugins. For example,
-	   Items of STATIC_STAT_DATA_IT can load themselves from disk to inode
-	   and store themselves back, which makes no sense for directory items
-	   etc. Look at the .o union at the bottom of this declaration. */
-	reiser4_item_plugin_id item_plugin_id;
+	   what kind of item you have found.  
+	  */
+	item_plugin_id item_plugin_id;
 	/** operations called by balancing 
 
 	It is interesting to consider that some of these item
@@ -43,7 +40,6 @@ typedef struct item_plugin {
 	really items in nodes.  This could be ok/useful.
 
 	*/
-	struct balance_ops {
 		/** 
 		 * maximal key that can _possibly_ be occupied by this item
 		 *
@@ -187,45 +183,8 @@ typedef struct item_plugin {
 		int ( *item_data_by_flow )( const tree_coord *coord,
 					    const flow_t *f,
 					    reiser4_item_data *data );
-	} b;
-	
-	/* item methods are separated into two groups:
-            . methods common for all item types, used by balancing code.
-              They are declared in .b struct above this point.
-            . methods specific to particular type of item (as indicated by
-	      ->item_plugin_id field) and used by object plugin (exception:
-	      specific operations of internal items are used by balancing
-	      code also). 
-	   Explicit structs within this union should go inside .h files 
-	   with declaration of respective items when they will appear. 
-	   (Hans proposal). */
-	union {
-		dir_entry_ops     dir;
-		file_ops	  file;
-		sd_ops            sd;
-		internal_item_ops internal;
-	} s;			/* item specific item operations */
+} common_item_plugin;
 
-	/**
-	 * Return information about the rightmost or leftmost child of this
-	 * item according to the @side argument (RIGHT_SIDE or LEFT_SIDE).
-	 *
-	 * Return the child's block number in @blocknr.
-	 *
-	 * If flags has UMOST_GET_CHILD set it returns the child jnode with
-	 * refcount incremented if it is in memory, else NULL.
-	 *
-	 * This method must be defined for non-leaf items and is left NULL for
-	 * leaf items.  It is used by slum gathering and flushing code.
-	 */
-	int ( *utmost_child )( const tree_coord *coord, sideof side, int flags, jnode **child, reiser4_block_nr *blocknr );
-} item_plugin;
-
-/* Possible flags passed to item_plugin's utmost_child method. */
-typedef enum {
-	UTMOST_GET_CHILD   = (1 << 0), /* Return the jnode with refcount incremented. */
-	/*UTMOST_READ_CHILD  = (1 << 1),*/ /* Return the jnode even if it is not in memory. */
-} utmost_child_flags;
 
 int item_can_contain_key( const tree_coord *item, const reiser4_key *key,
 			  const reiser4_item_data * );
