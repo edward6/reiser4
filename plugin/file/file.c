@@ -5,6 +5,9 @@
 #include "../../reiser4.h"
 
 
+#define should_convert2extent() reiser4_get_object_state (inode)->tail->u.tail.tail ()
+#define should_convert2tail() reiser4_get_object_state (inode)->tail->u.tail.extent ()
+
 /* Dead USING_INSERT_UNITYPE_FLOW code removed from version 1.76 of this file. */
 
 typedef enum {
@@ -14,10 +17,6 @@ typedef enum {
 } write_todo;
 
 
-write_todo what_todo (tree_coord * coord UNUSED_ARG, reiser4_key * key UNUSED_ARG)
-{
-	return WRITE_EXTENT;
-}
 
 
 /* look for item of file @inode corresponding to @key */
@@ -26,11 +25,44 @@ static int find_item (struct inode * inode, reiser4_key * key,
 		      reiser4_lock_handle * lh)
 {
 	return coord_by_key (tree_by_inode (inode), key, coord, lh, ZNODE_WRITE_LOCK,
-			     FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL);
+			     FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL);
 }
 
 
-/* plugin->u.file.rw_f [WRITE_OP]
+/*
+ * decide how to write @count bytes to position @offset of file @inode
+ */
+write_todo what_todo (struct inode * inode, loff_t offset, size_t count,
+		      tree_coord * coord)
+{
+	loff_t new_size;
+
+	/*
+	 * size file will have after write
+	 */
+	new_size = offset + size;
+
+	/*
+	 * if file does not get longer - no conversion will be performed 
+	 */
+	if (new_size <= inode->i_size) {
+		if (coord->node->level == TWIG_LEVEL)
+			return WRITE_EXTENT;
+		else
+			return WRITE_TAIL;
+	}
+
+	/*
+	 * regular file should have tail plugin
+	 */
+	assert ("vs-377", reiser4_get_object_state (inode)->tail);
+	if (reiser4_get_object_state (inode)->tail->u.tail.tail)
+	return WRITE_EXTENT;
+}
+
+
+/*
+ * plugin->u.file.rw_f [WRITE_OP]
  */
 ssize_t reiser4_ordinary_file_write (struct file * file,
 				     flow * f, loff_t * off)
@@ -58,6 +90,9 @@ ssize_t reiser4_ordinary_file_write (struct file * file,
 
 		result = find_item (inode, &f->key, &coord, &lh);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
+			/*
+			 * error occured
+			 */
 			reiser4_done_lh (&lh);
 			reiser4_done_coord (&coord);
 			break;
