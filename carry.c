@@ -1408,12 +1408,10 @@ add_new_znode(znode * brother	/* existing left neighbor of new
 /**
  * estimate how much disk space is necessary to perform @op
  */
+/*
 static __u64
-carry_estimate_op(carry_level * level UNUSED_ARG	/* level to
-							 * estimate
-							 * space for */ ,
-		  carry_op * op UNUSED_ARG	/* operation to
-						 * estimate */ )
+carry_estimate_op(carry_level * level UNUSED_ARG,
+		  carry_op * op UNUSED_ARG )
 {
 	return op_dispatch_table[op->op].estimate(op, level);
 }
@@ -1421,9 +1419,8 @@ carry_estimate_op(carry_level * level UNUSED_ARG	/* level to
 /**
  * estimate how much disk space is necessary to perform @level
  */
-static __u64
-carry_estimate_space(carry_level * level	/* level to estimate space
-						   * for */ )
+/*static __u64
+carry_estimate_space(carry_level * level)
 {
 	carry_op *op;
 	carry_op *tmp_op;
