@@ -348,6 +348,7 @@ extern void add_d_ref( jnode *node );
 extern int jload(jnode * node);
 extern int jinit_new( jnode *node );
 
+extern void jdrop_in_tree     (jnode *node, reiser4_tree *tree);
 extern void jdrop             (jnode* node);
 extern int  jwait_io          (jnode* node, int rw);
 
@@ -360,7 +361,7 @@ extern void    drop_io_head  (jnode * node);
  * drop reference to node data. When last reference is dropped, data are
  * unloaded.
  */
-static inline void jrelse( jnode *node)
+static inline void jrelse(jnode *node)
 {
 	assert( "zam-507", node != NULL );
 	assert( "zam-508", atomic_read( &node -> d_count ) > 0 );
