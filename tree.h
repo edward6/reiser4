@@ -488,6 +488,11 @@ int lookup_couple(reiser4_tree * tree,
 /* list of active lock stacks */
 TS_LIST_DECLARE(context);
 
+typedef enum {
+    FLUSH_MODE	    =   0,
+    GRABBED_ONCE    =	1
+} context_flags_t;
+
 /** 
  * global context used during system call. Variable of this type is
  * allocated on the stack at the beginning of the reiser4 part of the
@@ -529,6 +534,7 @@ struct reiser4_context {
 	 */
 	reiser4_block_nr grabbed_blocks;
 
+	reiser4_block_nr      flush_reserved;
 	/**
 	 * per-thread tracing flags. Use reiser4_trace_flags enum to set
 	 * bits in it.
@@ -544,6 +550,9 @@ struct reiser4_context {
 	/** parent context */
 	reiser4_context *parent;
 	tap_list_head taps;
+	long                  flags;
+	int		      grab_enabled;
+	    
 #if REISER4_DEBUG
 	lock_counters_info locks;
 	int nr_children;	/* number of child contexts */
@@ -555,6 +564,10 @@ struct reiser4_context {
 };
 
 extern reiser4_context *get_context_by_lock_stack(lock_stack *);
+
+#define is_flush_mode()	    test_bit(FLUSH_MODE, &get_current_context()->flags)
+#define flush_mode()	    set_bit(FLUSH_MODE, &get_current_context()->flags)
+#define not_flush_mode()    clear_bit(FLUSH_MODE, &get_current_context()->flags)
 
 /* Debugging helps. */
 extern int init_context_mgr(void);
@@ -627,6 +640,7 @@ get_current_context(void)
                 if (__ret != 0) {				\
 			return errret;				\
 		}						\
+		reiser4_grab_space_enable();			\
         } while (0)
 
 #define REISER4_ENTRY_PTR( super )  __REISER4_ENTRY( super, ERR_PTR(__ret) )
