@@ -1232,12 +1232,12 @@ exit:
 /* INITIAL ALLOCATE ANCESTORS STEP (REVERSE PARENT-FIRST ALLOCATION BEFORE FORWARD
    PARENT-FIRST LOOP BEGINS) */
 
-/* Get the leftmost child for the coord from given flush position. */
-static int get_leftmost_child_of_unit (flush_pos_t * pos, jnode ** child)
+/* Get the leftmost child for given coord. */
+static int get_leftmost_child_of_unit (const coord_t * coord, jnode ** child)
 {
 	int ret;
 
-	ret = item_utmost_child(&pos->coord, LEFT_SIDE, child);
+	ret = item_utmost_child(coord, LEFT_SIDE, child);
 
 	if (ret)
 		return ret;
@@ -1491,11 +1491,8 @@ static int squeeze_right_twig (flush_pos_t * pos, znode * left, znode * right)
 		coord_dup(&last, &first);
 		ret = allocate_and_copy_extent(left, &last, pos, &last_key);
 
-		if (ret < 0)
+		if (ret < 0 || ret == SQUEEZE_TARGET_FULL)
 			return ret;
-
-		if (ret == SQUEEZE_TARGET_FULL)
-			return 0;
 
 		/* FIXME(Zam): the old code was more optimal, it deleted all
 		   copied extents a time */
@@ -1507,9 +1504,6 @@ static int squeeze_right_twig (flush_pos_t * pos, znode * left, znode * right)
 
 	node_check(left, REISER4_NODE_DKEYS);
 	node_check(right, REISER4_NODE_DKEYS);
-
-	if (ret > 0)
-		ret = 0;
 
 	return ret;
 }
@@ -1601,14 +1595,14 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 
 /* Check the leftmost child "flushprepped" status, also returns true if child
  * node was not found in cache.  */
-static int leftmost_child_of_unit_check_flushprepped (flush_pos_t * pos)
+static int leftmost_child_of_unit_check_flushprepped (const coord_t *coord)
 {
 	int ret;
 	int prepped;
 
 	jnode * child;
 
-	ret = get_leftmost_child_of_unit(pos, &child);
+	ret = get_leftmost_child_of_unit(coord, &child);
 
 	if (ret)
 		return ret;
@@ -1769,7 +1763,7 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 	/* FIXME: Here we implement simple check, we are only looking on the
 	   leftmost child. */
 	if (!extent_is_unallocated(&pos->coord)) {
-		ret = leftmost_child_of_unit_check_flushprepped(pos);
+		ret = leftmost_child_of_unit_check_flushprepped(&pos->coord);
 
 		if (unlikely(ret < 0))
 			return ret;
@@ -1801,15 +1795,47 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 	return 0;
 }
 
+/* Shift items from right twig node to the left one: zero, one or more extents
+ * plus zero or one internal item. Return zero if it finished with internal
+ * item, positive return code means last shift was unsuccessful because of
+ * target node full or source node is empty, negative result is other error. */
+static int full_squeeze_right_twig (flush_pos_t * pos, znode * right)
+{
+	int ret;
+
+	assert ("zam-863", znode_is_write_locked(right));
+	assert ("zam-864", znode_is_loaded(right));
+
+	while(1) {
+		assert ("zam-865", coord_is_after_rightmost(&pos->coord));
+
+		ret = squeeze_right_twig(pos, pos->lock.node, right);
+		if (ret)
+			return ret;
+
+		coord_next_unit(&pos->coord);
+		assert ("zam-867", coord_is_existing_unit(&pos->coord));
+
+		if (!item_is_extent(&pos->coord)) {
+			assert ("zam-866", item_is_internal(&pos->coord));
+			return 0;
+		}
+
+		coord_next_item(&pos->coord);
+	}
+
+	return 0;
+}
+
 /* When we about to return flush position from twig to leaf level we can process
  * the right twig node or move position to the leaf.  This processes right twig
  * if it is possible and jump to leaf level if not. */
 static int handle_pos_end_of_twig (flush_pos_t * pos)
 {
 	int ret;
-
 	lock_handle right_lock;
 	load_count right_load;
+	coord_t at_right;
 
 	assert ("zam-848", pos->state == POS_END_OF_TWIG);
 	assert ("zam-849", coord_is_after_rightmost(&pos->coord));
@@ -1817,71 +1843,56 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 	init_lh(&right_lock);
 	init_load_count(&right_load);
 
-	/* FIXME: twig node might be not dirty but first unformatted.  We should
-	 * get right neighbor regardless of its dirty state and continue with
-	 * its leftmost child.  Clean right twig could be relocated.  It is what
-	 * reverse_relocate_end_of_twig did in Josh's code. */
-	ret = znode_get_utmost_if_dirty(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
-
+	ret = reiser4_get_right_neighbor(&right_lock, pos->lock.node, ZNODE_WRITE_LOCK, GN_SAME_ATOM);
 	if (ret)
 		goto out;
-
-	if(znode_check_flushprepped(right_lock.node)) {
-		pos->state = POS_INVALID;
-		goto out;
-	}
 
 	ret = incr_load_count_znode(&right_load, right_lock.node);
-
 	if (ret)
 		goto out;
 
-	ret = squeeze_right_twig(pos, pos->lock.node, right_lock.node);
+	coord_init_first_unit(&at_right, right_lock.node);
 
-	if (ret < 0)
-		goto out;
-
-	if (coord_next_unit(&pos->coord)) {
-		/* coord_next_unit() returned not zero => target node is full */
-
-		if (!znode_same_parents(pos->lock.node, right_lock.node)) {
-			ret = squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
-
-			if (ret)
-				goto out;
+	if (znode_check_dirty(right_lock.node)) {
+		ret = full_squeeze_right_twig(pos, right_lock.node);
+		if (ret <=0) {
+			/* pos->coord is on internal item, go to leaf level, or
+			 * we have an error which will be caught in squalloc() */
+			pos->state = POS_TO_LEAF;
+			goto out;
 		}
 
-		ret = lock_parent_and_allocate_znode(right_lock.node, pos);
-
+		/* repeat if right twig was squeezed completely */
+		if (node_is_empty(right_lock.node))
+			goto out;
+	} else {
+		/* check first child of next twig, should we continue there ? */
+		ret = leftmost_child_of_unit_check_flushprepped(&at_right);
+		if (ret < 0)
+			goto out;
+		if (ret > 0) {
+			pos_stop(pos);
+			goto out;
+		}
+#if 0
+		/* check clean twig for possible relocation */
+		ret = reverse_relocate_end_of_twig(pos, right_lock.node);
 		if (ret)
 			goto out;
+		if (znode_check_dirty(right_lock.node))
+			goto became_dirty;
+#endif
+	}
 
-		/* advance flush position to the right twig */
-		move_flush_pos(pos, &right_lock, &right_load, NULL);
+	assert("zam-868", coord_is_existing_unit(&at_right));
 
-		assert("zam-853", coord_is_existing_item(&pos->coord));
-		ret = 0;
-
-		if (item_is_extent(&pos->coord)) {
-			pos->state = POS_ON_TWIG;
-			goto out;
-		}
-
-		assert ("zam-854", item_is_internal(&pos->coord));
+	if (item_is_extent(&at_right))
+		pos->state = POS_ON_TWIG;
+	else
 		pos->state = POS_TO_LEAF;
 
-		goto out;
-	}
+	move_flush_pos(pos, &right_lock, &right_load, &at_right);
 
-	if (item_is_extent(&pos->coord)) {
-		/* extent code copied an extent item, go next one */
-		coord_next_item(&pos->coord);
-		goto out;
-	}
-
-	assert ("zam-861", item_is_internal(&pos->coord));
-
-	pos->state = POS_TO_LEAF;
  out:
 	done_load_count(&right_load);
 	done_lh(&right_lock);
@@ -1903,7 +1914,7 @@ static int handle_pos_to_leaf (flush_pos_t * pos)
 	init_lh(&child_lock);
 	init_load_count(&child_load);
 
-	ret = get_leftmost_child_of_unit(pos, &child);
+	ret = get_leftmost_child_of_unit(&pos->coord, &child);
 
 	if (ret)
 		return ret;
@@ -1999,15 +2010,15 @@ static int squalloc (flush_pos_t * pos)
 
 	while (pos_valid (pos)) {
 		ret = flush_pos_handlers[pos->state](pos);
-		if (ret)
+		if (ret < 0)
 			break;
 	}
 
 	PROF_END(forward_squalloc, forward_squalloc);
 
-	/* -EINVAL is a legal return code for handle_pos* routines, -EINVAL means that
-	   slum edge was reached */
-	if (ret == -ENAVAIL)
+	/* any positive value or -EINVAL are legal return codes for handle_pos*
+	   routines, -EINVAL means that slum edge was reached */
+	if (ret > 0 || ret == -ENAVAIL)
 		ret = 0;
 
 	return ret;
