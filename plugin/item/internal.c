@@ -174,7 +174,7 @@ int internal_kill_hook( const tree_coord *item,
 		/* fare thee well */
 		ZF_SET( child, ZNODE_HEARD_BANSHEE );
 		spin_lock_tree( current_tree );
-		child -> ptr_in_parent_hint.node = NULL;
+		reiser4_init_coord( &child -> ptr_in_parent_hint );
 		spin_unlock_tree( current_tree );
 		atomic_dec( &item -> node -> c_count );
 		trace_on( TRACE_ZWEB, "kill: %lli: %i [%lli]\n",
@@ -220,6 +220,9 @@ int internal_shift_hook( const tree_coord *item,
 		assert( "nikita-1395", child -> ptr_in_parent_hint.node == old_node );
 		assert( "nikita-1396", atomic_read( &old_node -> c_count ) > 0 );
 		child -> ptr_in_parent_hint = *item;
+		assert( "nikita-1781", znode_parent( child ) == item -> node );
+		assert( "nikita-1782", check_tree_pointer( item, 
+							   child ) == NS_FOUND );
 		atomic_dec( &old_node -> c_count );
 		spin_unlock_tree( current_tree );
 		zput( child );
