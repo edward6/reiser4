@@ -82,6 +82,11 @@ static void repacker_cursor_init (struct repacker_cursor * cursor, struct repack
 
 	blocknr_hint_init(&cursor->hint);
 	cursor->hint.backward = backward;
+
+	if (backward)
+		cursor->hint.blk = get_current_super_private()->block_count;
+	else
+		cursor->hint.blk = 0;
 }
 
 static void repacker_cursor_done (struct repacker_cursor * cursor)
@@ -249,7 +254,11 @@ static int relocate_znode (tap_t * tap, void * arg)
 
 static int relocate_extent (tap_t * tap, void * arg)
 {
-	return 0;
+	struct repacker_cursor * cursor = arg;
+	int ret;
+
+	ret = process_extent(tap, arg);
+	return ret;
 }
 
 static struct tree_walk_actor forward_actor = {
