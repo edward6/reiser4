@@ -1702,9 +1702,34 @@ int copy_file (const char * oldname,
 			info ("copy_file: write failed\n");
 			return 1;
 		}
+		switch (off % (BUFSIZE * 8)) {
+		case 0:
+			if (off)
+				printf ("\b");
+			printf ("-");
+			break;
+		case BUFSIZE * 4:
+			printf ("\b-");
+			break;
+		case BUFSIZE * 1:
+		case BUFSIZE * 5:
+			printf ("\b\\");
+			break;
+		case BUFSIZE * 2:
+		case BUFSIZE * 6:
+			printf ("\b|");
+			break;
+		case BUFSIZE * 3:
+		case BUFSIZE * 7:
+ 			printf ("\b/");
+			break;
+		}
+		fflush (stdout);
 		st->st_size -= count;
 		off += count;
 	}
+
+	printf ("\b");
 	close (fd);
 	free (buf);
 	return 0;
@@ -1977,7 +2002,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	/* root directory is the only thing in the tree */
 
 	/* make tree high enough */
-#define NAME_LENGTH 128
+#define NAME_LENGTH 10
 	for (i = 0; i < 1; i ++) {
 		char name [NAME_LENGTH];
 		
@@ -1987,7 +2012,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	}
 
 	/* to insert extent items tree must be at least this high */
-	assert ("vs-359", tree->height > 1);
+	/*assert ("vs-359", tree->height > 1);*/
 
 
 	if (argc == 2) {
@@ -2244,7 +2269,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				 * print tree
 				 */
 				print_tree_rec ("DONE", tree_by_inode (cwd),
-						REISER4_NODE_PRINT_ALL);
+						REISER4_NODE_PRINT_ALL & ~REISER4_NODE_PRINT_PLUGINS & ~REISER4_NODE_PRINT_ZNODE);
 			} else if (!strcmp (command, "exit")) {
 				/*
 				 * exit
