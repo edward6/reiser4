@@ -299,7 +299,7 @@ static int dont_wait_for_flush(struct super_block *super)
 		reiser4_stat_inc(wff.skipped_ent);
 		return 1;
 	}
-/*  */
+
 	if (get_flushers(super, &flush_started) == 1 && 
 	    cur->flush_started != INITIAL_JIFFIES) {
 		reiser4_stat_inc(wff.skipped_last);
@@ -318,9 +318,10 @@ static int dont_wait_for_flush(struct super_block *super)
  *
  * Algorithm:
  *
- *  1. there is dedicated per-super block "ent" (from Tolkien's LOTR) thread used to start flushing if no other flushers
- *  are active. It is called an ent because it takes care of trees, it requires awakening, and once awakened it might do
- *  a lot.
+ *  1. there is dedicated per-super block "ent" (from Tolkien's LOTR) thread
+ *  used to start flushing if no other flushers are active. It is called an
+ *  ent because it takes care of trees, it requires awakening, and once
+ *  awakened it might do a lot.
  *
  *  2. our goal is to wait for some reasonable amount of time ("timeout") in
  *  hope that ongoing concurrent flush would process and clean @page.
@@ -442,11 +443,12 @@ wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 	}
 
 	/*
-	 * at this point either the scanning priority is low and we choose to not wait, or we flushed something, or there was a
-	 * flushing thread going on for at least @timeout but nothing was sent
-	 * down to the disk. Probably flush stalls waiting for memory. This
-	 * shouldn't happen often for normal file system loads, because
-	 * balance dirty pages ensures there are enough clean pages around.
+	 * at this point either the scanning priority is low and we choose to
+	 * not wait, or we flushed something, or there was a flushing thread
+	 * going on for at least @timeout but nothing was sent down to the
+	 * disk. Probably flush stalls waiting for memory. This shouldn't
+	 * happen often for normal file system loads, because balance dirty
+	 * pages ensures there are enough clean pages around.
 	 */
 	return result;
 }
