@@ -459,7 +459,7 @@ define_never_ever_op( direct_IO );
  * address space operations for the fake inode
  */
 static struct address_space_operations formatted_fake_as_ops = {
-	.writepage      = NULL,
+	.writepage      = formatted_writepage,
 	/* this is called to read formatted node */
 	.readpage       = formatted_readpage,
 	/**
