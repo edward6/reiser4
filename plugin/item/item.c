@@ -675,7 +675,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.writepage = writepage_ctail,
 				.get_block = get_block_address_tail,
 				.readpages = readpages_ctail,
-				.append_key = append_key_ctail
+				.append_key = append_key_ctail,
+				.init_coord_extension = init_coord_extension_tail
 /*
 #if REISER4_DEBUG
 				, .key_in_item = key_in_item_ctail
