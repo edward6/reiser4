@@ -447,6 +447,7 @@ _DONE_(sysfs)
 	reiser4_sysfs_done(s);
 }
 
+#if defined(REISER4_REPACKER)
 _INIT_(repacker)
 {
 	return init_reiser4_repacker(s);
@@ -456,6 +457,7 @@ _DONE_(repacker)
 {
 	done_reiser4_repacker(s);
 }
+#endif /*REISER4_REPACKER*/
 
 _INIT_(safelink)
 {
@@ -502,7 +504,9 @@ static struct reiser4_subsys subsys_array[] = {
 	_SUBSYS(d_cursor),
 	_SUBSYS(fs_root),
 	_SUBSYS(sysfs),
+#if defined(REISER4_REPACKER)
 	_SUBSYS(repacker),
+#endif /*REISER4_REPACKER*/
 	_SUBSYS(safelink),
 	_SUBSYS(exit_context)
 };
