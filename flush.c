@@ -658,9 +658,10 @@ much easier
 	}
 
 	/* Do the rightward-bottom-up pass. */
-	if ((ret = flush_squalloc_right (& flush_pos))) {
-		goto failed;
-	}
+	ret = flush_squalloc_right (& flush_pos);
+
+	/* we catch -ENAVAIL code because it may happen due to reaching the atom boundary */
+	if (ret && ret != -ENAVAIL) goto failed;
 
 	/* Write anything left in the queue. */
 	ret = flush_empty_queue (& flush_pos);
