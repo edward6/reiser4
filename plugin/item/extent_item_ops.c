@@ -468,10 +468,8 @@ kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, struct cut
 		WLOCK_TREE(tree);
 		link_left_and_right(left, right);
 		WUNLOCK_TREE(tree);
-
 		if (right != NULL)
-			UNDER_RW_VOID(dk, tree, write,
-				      update_znode_dkeys(left, right));
+			UNDER_RW_VOID(dk, tree, write, update_znode_dkeys(left, right));
 	}
 
 	if (inode != NULL) {
@@ -493,8 +491,6 @@ kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, struct cut
 
 		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
 			/* some jnodes corresponding to this unallocated extent */
-
-			/* FIXME-VITALY: this is necessary??? */
 			fake_allocated2free(extent_get_width(ext),
 					    0 /* unformatted */);
 			continue;
@@ -502,10 +498,8 @@ kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, struct cut
 
 		assert("vs-1218", state_of_extent(ext) == ALLOCATED_EXTENT);
 
-		/* FIXME-VS: do I need to do anything for unallocated extents */
 		/* BA_DEFER bit parameter is turned on because blocks which get freed
 		   are not safe to be freed immediately */
-		
 		reiser4_dealloc_blocks(&start, &length, 0 /* not used */,
 			BA_DEFER/* unformatted with defer */);
 	}
