@@ -518,26 +518,6 @@ kill_units_ctail(coord_t *item, pos_in_node_t from, pos_in_node_t to,
 	return cut_or_kill_ctail_units(item, from, to, 0, kdata, smallest_removed, new_first);
 }
 
-#if 0
-static int 
-ctail_get_extension(hint_t * hint)
-{
-	return hint->coord.extension.ctail.shift;
-}
-
-static void
-ctail_set_extension(hint_t * hint)
-{
-	assert("edward-1240", item_id_by_coord(&hint->coord.base_coord) == CTAIL_ID);
-	hint->coord.extension.ctail.shift = cluster_shift_by_coord(&hint->coord.base_coord);
-}
-
-reiser4_internal int
-hint_is_unprepped_ctail(hint_t * hint)
-{
-	return ctail_get_extension(hint) == (int)UCTAIL_SHIFT;
-#endif
-
 /* plugin->u.item.s.file.read */
 reiser4_internal int
 read_ctail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
@@ -545,8 +525,8 @@ read_ctail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 	uf_coord_t *uf_coord;
 	coord_t *coord;
 
-	uf_coord = &hint->coord;
-	coord = &uf_coord->base_coord;
+	uf_coord = &hint->ext_coord;
+	coord = &uf_coord->coord;
 	assert("edward-127", f->user == 0);
 	assert("edward-129", coord && coord->node);
 	assert("edward-130", coord_is_existing_unit(coord));
@@ -599,7 +579,7 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 		set_hint_cluster(inode, clust->hint, 
 				 clust->index + 1, ZNODE_READ_LOCK);
 	
-	assert("edward-673", znode_is_any_locked(clust->hint->coord.lh->node));
+	assert("edward-673", znode_is_any_locked(clust->hint->ext_coord.lh->node));
 	
 	if (clust->dstat == FAKE_DISK_CLUSTER ||
 	    clust->dstat == UNPR_DISK_CLUSTER) {
@@ -718,7 +698,7 @@ reiser4_internal int readpage_ctail(void * vp, struct page * page)
 	if (result)
 		return result;
 	init_lh(&lh);
-	hint.coord.lh = &lh;
+	hint.ext_coord.lh = &lh;
 
 	result = do_readpage_ctail(clust, page);
 	
@@ -728,7 +708,7 @@ reiser4_internal int readpage_ctail(void * vp, struct page * page)
 	       
 	unlock_page(page);
 
-	hint.coord.valid = 0;
+	hint.ext_coord.valid = 0;
 	save_file_hint(clust->file, &hint);
 	done_lh(&lh);
 	tfm_cluster_clr_uptodate(&clust->tc);
@@ -815,7 +795,7 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 	ret = load_file_hint(clust.file, &hint);
 	if (ret) 
 		goto out;
- 	hint.coord.lh = &lh;
+ 	hint.ext_coord.lh = &lh;
 
 	/* address_space-level file readahead doesn't know about
 	   reiser4 page clustering, so we work around this fact */
@@ -871,7 +851,7 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 	save_file_hint(clust.file, &hint);
  out:	
 	done_lh(&lh);
-	hint.coord.valid = 0;
+	hint.ext_coord.valid = 0;
 	put_cluster_handle(&clust, TFM_READ);
 	pagevec_lru_add(&lru_pvec);
 	return;
@@ -913,10 +893,10 @@ insert_unprepped_ctail(reiser4_cluster_t * clust, struct inode * inode)
 	data.length = sizeof(ctail_item_format) + (size_t)UCTAIL_NR_UNITS;
 	data.data = buf;
 	
-	result = insert_by_coord(&clust->hint->coord.base_coord,
+	result = insert_by_coord(&clust->hint->ext_coord.coord,
 				 &data, 
 				 &key, 
-				 clust->hint->coord.lh, 0);
+				 clust->hint->ext_coord.lh, 0);
 	return result;
 }
 
@@ -1057,19 +1037,19 @@ int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode * ino
 	if (cbk_errored(result))
 		return result;
 	assert("edward-1249", result == CBK_COORD_NOTFOUND);
-	assert("edward-1250", znode_is_write_locked(clust->hint->coord.lh->node));
+	assert("edward-1250", znode_is_write_locked(clust->hint->ext_coord.lh->node));
 	
-	clust->hint->coord.base_coord.between = AFTER_ITEM;
-	clust->hint->coord.base_coord.unit_pos = 0;
+	clust->hint->ext_coord.coord.between = AFTER_ITEM;
+	clust->hint->ext_coord.coord.unit_pos = 0;
 	
 	result = insert_unprepped_ctail(clust, inode);
 	all_grabbed2free();
 	
 	assert("edward-1251", !result);
 	assert("edward-1252", crc_inode_ok(inode));
-	assert("edward-1253", znode_is_write_locked(clust->hint->coord.lh->node));
+	assert("edward-1253", znode_is_write_locked(clust->hint->ext_coord.lh->node));
 	assert("edward-1254", reiser4_clustered_blocks(reiser4_get_current_sb()));
-	assert("edward-1255", znode_convertible(clust->hint->coord.base_coord.node));
+	assert("edward-1255", znode_convertible(clust->hint->ext_coord.coord.node));
  
 	return result;
 }

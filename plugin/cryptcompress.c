@@ -545,10 +545,10 @@ crc_hint_validate(hint_t *hint, const reiser4_key *key, znode_lock_mode lock_mod
 	coord_t * coord;
 	
 	assert("edward-704", hint != NULL);
-	assert("edward-1089", !hint->coord.valid);
-	assert("edward-706", hint->coord.lh->owner == NULL);
+	assert("edward-1089", !hint->ext_coord.valid);
+	assert("edward-706", hint->ext_coord.lh->owner == NULL);
 	
-	coord = &hint->coord.base_coord;
+	coord = &hint->ext_coord.coord;
 	
 	if (!hint || !hint_is_set(hint) || hint->mode != lock_mode)
 		/* hint either not set or set by different operation */
@@ -560,9 +560,9 @@ crc_hint_validate(hint_t *hint, const reiser4_key *key, znode_lock_mode lock_mod
 	
 	assert("edward-707", schedulable());
 	
-	return seal_validate(&hint->seal, &hint->coord.base_coord,
-			     key, hint->level, hint->coord.lh,
-			     FIND_MAX_NOT_MORE_THAN, lock_mode,
+	return seal_validate(&hint->seal, &hint->ext_coord.coord,
+			     key, hint->ext_coord.lh,
+			     lock_mode,
 			     ZNODE_LOCK_LOPRI);
 }
 
@@ -638,12 +638,12 @@ find_cluster_item(hint_t * hint,
 {
 	int result;
 	reiser4_key ikey;
-	coord_t * coord = &hint->coord.base_coord;
+	coord_t * coord = &hint->ext_coord.coord;
 	coord_t orig = *coord;
 	
 	assert("edward-152", hint != NULL);
 	
-	if (hint->coord.valid == 0) {
+	if (hint->ext_coord.valid == 0) {
 		result = crc_hint_validate(hint, key, lock_mode);
 		if (result == -E_REPEAT)
 			goto traverse_tree;
@@ -651,7 +651,7 @@ find_cluster_item(hint_t * hint,
 			assert("edward-1216", 0);
 			return result;
 		}
-		hint->coord.valid = 1;
+		hint->ext_coord.valid = 1;
 	}
 	assert("edward-709", znode_is_any_locked(coord->node));
 	
@@ -659,7 +659,7 @@ find_cluster_item(hint_t * hint,
 	   check if next item of the @coord match to the @keyhint) */
 	
 	if (equal_to_rdk(coord->node, key)) {
-		result = goto_right_neighbor(coord, hint->coord.lh);
+		result = goto_right_neighbor(coord, hint->ext_coord.lh);
 		if (result == -E_NO_NEIGHBOR) {
 			assert("edward-1217", 0);
 			return RETERR(-EIO);
@@ -697,17 +697,17 @@ find_cluster_item(hint_t * hint,
 	return CBK_COORD_NOTFOUND;
 	
  traverse_tree:
-	assert("edward-713", hint->coord.lh->owner == NULL);
+	assert("edward-713", hint->ext_coord.lh->owner == NULL);
 	assert("edward-714", schedulable());
 	
 	unset_hint(hint);
 	coord_init_zero(coord);
-	result = coord_by_key(current_tree, key, coord, hint->coord.lh,
+	result = coord_by_key(current_tree, key, coord, hint->ext_coord.lh,
 			      lock_mode, bias, LEAF_LEVEL, LEAF_LEVEL,
 			      CBK_UNIQUE | flags, ra_info);
 	if (cbk_errored(result))
 		return result;
-	hint->coord.valid = 1;
+	hint->ext_coord.valid = 1;
 	return result;
 }
 
@@ -1689,9 +1689,8 @@ set_hint_cluster(struct inode * inode, hint_t * hint,
 
 	inode_file_plugin(inode)->key_by_inode(inode, clust_to_off(index, inode), &key);
 
-	seal_init(&hint->seal, &hint->coord.base_coord, &key);
+	seal_init(&hint->seal, &hint->ext_coord.coord, &key);
 	hint->offset = get_key_offset(&key);
-	hint->level = znode_get_level(hint->coord.base_coord.node);
 	hint->mode = mode;
 }
 
@@ -1701,8 +1700,8 @@ invalidate_hint_cluster(reiser4_cluster_t * clust)
 	assert("edward-1291", clust != NULL);
 	assert("edward-1292", clust->hint != NULL);
 	
-	longterm_unlock_znode(clust->hint->coord.lh);
-	clust->hint->coord.valid = 0;
+	longterm_unlock_znode(clust->hint->ext_coord.lh);
+	clust->hint->ext_coord.valid = 0;
 }
 
 static void
@@ -1733,7 +1732,7 @@ balance_dirty_page_cluster(reiser4_cluster_t * clust, struct inode * inode,
 	assert("edward-988", !result);
 	if (result)
 		return result;
-	assert("edward-726", clust->hint->coord.lh->owner == NULL);
+	assert("edward-726", clust->hint->ext_coord.lh->owner == NULL);
 	
 	reiser4_throttle_write(inode);
 	all_grabbed2free();
@@ -1830,6 +1829,7 @@ find_cluster(reiser4_cluster_t * clust,
 	file_plugin * fplug;
 	item_plugin * iplug;
 	tfm_cluster_t * tc;
+
 #if REISER4_DEBUG
 	reiser4_context *ctx;
 	ctx = get_current_context();
@@ -1884,25 +1884,25 @@ find_cluster(reiser4_cluster_t * clust,
 			assert("edward-146", f.length != inode_scaled_cluster_size(inode));
 			goto ok;
 		case CBK_COORD_FOUND:
-			assert("edward-148", hint->coord.base_coord.between == AT_UNIT);
-			assert("edward-460", hint->coord.base_coord.unit_pos == 0);
+			assert("edward-148", hint->ext_coord.coord.between == AT_UNIT);
+			assert("edward-460", hint->ext_coord.coord.unit_pos == 0);
 
-			coord_clear_iplug(&hint->coord.base_coord);
-			result = zload_ra(hint->coord.base_coord.node, &ra_info);
+			coord_clear_iplug(&hint->ext_coord.coord);
+			result = zload_ra(hint->ext_coord.coord.node, &ra_info);
 			if (unlikely(result))
 				goto out2;
-			iplug = item_plugin_by_coord(&hint->coord.base_coord);
+			iplug = item_plugin_by_coord(&hint->ext_coord.coord);
 			assert("edward-147", 
-			       item_id_by_coord(&hint->coord.base_coord) == CTAIL_ID);
+			       item_id_by_coord(&hint->ext_coord.coord) == CTAIL_ID);
 			
 			result = iplug->s.file.read(NULL, &f, hint);
 			if (result)
 				goto out;
 			if (write) {
-				znode_make_dirty(hint->coord.base_coord.node);
-				znode_set_convertible(hint->coord.base_coord.node);
+				znode_make_dirty(hint->ext_coord.coord.node);
+				znode_set_convertible(hint->ext_coord.coord.node);
 			}
-			zrelse(hint->coord.base_coord.node);
+			zrelse(hint->ext_coord.coord.node);
 			break;
 		default:
 			goto out2;
@@ -1921,7 +1921,7 @@ find_cluster(reiser4_cluster_t * clust,
 	all_grabbed2free(); 
 	return 0;
  out:
-	zrelse(hint->coord.base_coord.node);
+	zrelse(hint->ext_coord.coord.node);
  out2:
 	all_grabbed2free(); 
 	return result;
@@ -1977,7 +1977,7 @@ read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 		   new page cluster is about to be written, nothing to read,
 		*/
 		assert("edward-734", schedulable());
-		assert("edward-735", clust->hint->coord.lh->owner == NULL);
+		assert("edward-735", clust->hint->ext_coord.lh->owner == NULL);
 		
 		clust->dstat = FAKE_DISK_CLUSTER;
 		return 0;
@@ -2113,7 +2113,7 @@ crc_make_unprepped_cluster (reiser4_cluster_t * clust, struct inode * inode)
 	
 	assert("edward-743", crc_inode_ok(inode));
 	assert("edward-1269", get_current_context()->grabbed_blocks == 0);
-	assert("edward-744", znode_is_write_locked(clust->hint->coord.lh->node));
+	assert("edward-744", znode_is_write_locked(clust->hint->ext_coord.lh->node));
 	
 	clust->dstat = UNPR_DISK_CLUSTER;
 	return 0;
@@ -2371,7 +2371,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 	if (result)
 		return result;
 	init_lh(&lh);
-	hint.coord.lh = &lh;
+	hint.ext_coord.lh = &lh;
 		
 	result = flow_by_inode_cryptcompress(inode, (char *)buf, 1 /* user space */, count, pos, WRITE_OP, &f);
 	if (result)
@@ -2405,8 +2405,8 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 		
 		assert("edward-751", crc_inode_ok(inode));
 		assert("edward-204", win.stat == DATA_WINDOW);
-		assert("edward-1288", clust.hint->coord.valid);
-		assert("edward-752", znode_is_write_locked(hint.coord.base_coord.node));
+		assert("edward-1288", clust.hint->ext_coord.valid);
+		assert("edward-752", znode_is_write_locked(hint.ext_coord.coord.node));
 		
 		put_hint_cluster(&clust, inode, ZNODE_WRITE_LOCK);
 
@@ -2455,7 +2455,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 		result = balance_dirty_page_cluster(&clust, inode, 0, f.length);
 		if(result)
 			goto err1;
-		assert("edward-755", hint.coord.lh->owner == NULL);
+		assert("edward-755", hint.ext_coord.lh->owner == NULL);
 		reset_cluster_params(&clust);
 		continue;
 	err3:
@@ -2646,7 +2646,7 @@ find_real_disk_cluster(struct inode * inode, cloff_t * found, cloff_t index)
 
 	init_lh(&lh);
 	hint_init_zero(&hint);
-	hint.coord.lh = &lh;
+	hint.ext_coord.lh = &lh;
 
 	bias =   (index ? FIND_EXACT : FIND_MAX_NOT_MORE_THAN);
 	offset = (index ? clust_to_off(index, inode) - 1 : get_key_offset(max_key()));
@@ -2666,7 +2666,7 @@ find_real_disk_cluster(struct inode * inode, cloff_t * found, cloff_t index)
 		return 0;
 	}
 	/* disk cluster is found */
-	coord = &hint.coord.base_coord;
+	coord = &hint.ext_coord.coord;
 	coord_clear_iplug(coord);
 	result = zload(coord->node);
 	if (unlikely(result)) {
@@ -2850,7 +2850,7 @@ cryptcompress_append_hole(struct inode * inode /*contains old i_size */,
 	
 	init_lh(&lh);
 	hint_init_zero(&hint);
-	hint.coord.lh = &lh;
+	hint.ext_coord.lh = &lh;
 	
 	reiser4_slide_init(&win);
 	reiser4_cluster_init(&clust, &win);
@@ -2978,7 +2978,7 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 
 	init_lh(&lh);
 	hint_init_zero(&hint);
-	hint.coord.lh = &lh;
+	hint.ext_coord.lh = &lh;
 
 	reiser4_slide_init(&win);
 	reiser4_cluster_init(&clust, &win);
@@ -3161,7 +3161,7 @@ capture_anonymous_clusters(struct address_space * mapping, pgoff_t * index)
 
 	init_lh(&lh);
 	hint_init_zero(&hint);
-	hint.coord.lh = &lh;	
+	hint.ext_coord.lh = &lh;	
 	reiser4_cluster_init(&clust, 0);
 	clust.hint = &hint;
 
@@ -3297,27 +3297,27 @@ get_block_cryptcompress(struct inode *inode, sector_t block, struct buffer_head 
 		key_by_inode_cryptcompress(inode, (loff_t)block * current_blocksize, &key);
 		init_lh(&lh);
 		hint_init_zero(&hint);
-		hint.coord.lh = &lh;
+		hint.ext_coord.lh = &lh;
 		result = find_cluster_item(&hint, &key, ZNODE_READ_LOCK, 0, FIND_EXACT, 0);
 		if (result != CBK_COORD_FOUND) {
 			done_lh(&lh);
 			return result;
 		}
-		result = zload(hint.coord.base_coord.node);
+		result = zload(hint.ext_coord.coord.node);
 		if (unlikely(result)) {
 			done_lh(&lh);
 			return result;
 		}
-		iplug = item_plugin_by_coord(&hint.coord.base_coord);
+		iplug = item_plugin_by_coord(&hint.ext_coord.coord);
 
 		assert("edward-421", iplug == item_plugin_by_id(CTAIL_ID));
 
 		if (iplug->s.file.get_block)
-			result = iplug->s.file.get_block(&hint.coord.base_coord, block, bh_result);
+			result = iplug->s.file.get_block(&hint.ext_coord.coord, block, bh_result);
 		else
 			result = RETERR(-EINVAL);
 
-		zrelse(hint.coord.base_coord.node);
+		zrelse(hint.ext_coord.coord.node);
 		done_lh(&lh);
 		return result;
 	}
