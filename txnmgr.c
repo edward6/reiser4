@@ -187,7 +187,7 @@ static int capture_assign_block(txn_handle * txnh, jnode * node);
 
 static int capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode);
 
-static int check_not_fused_lock_owners(txn_handle * txnh, znode * node);
+static int fuse_not_fused_lock_owners(txn_handle * txnh, znode * node);
 
 static int capture_init_fusion(jnode * node, txn_handle * txnh, txn_capture mode);
 
@@ -441,7 +441,7 @@ txn_end(reiser4_context * context)
 		/* The txnh's field "atom" can be checked for NULL w/o holding a
 		   lock because txnh->atom could be set by this thread's call to
 		   try_capture or the deadlock prevention code in
-		   check_not_fused_lock_owners().  But that code may assign an
+		   fuse_not_fused_lock_owners().  But that code may assign an
 		   atom to this transaction handle only if there are locked and
 		   not yet fused nodes.  It cannot happen because lock stack
 		   should be clean at this moment. */
@@ -1676,7 +1676,7 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 		   not capture a znode, that znode is marked as MISSED_IN_CAPTURE.  A node marked
 		   this way is processed by the code below which restores the missed capture and
 		   fuses current atoms of all the node lock owners by calling the
-		   check_not_fused_lock_owners() function.
+		   fuse_not_fused_lock_owners() function.
 		*/
 
 		if (		// txnh_atom->stage >= ASTAGE_CAPTURE_WAIT &&
@@ -1684,7 +1684,7 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 			   && JF_ISSET(node, JNODE_MISSED_IN_CAPTURE)) {
 			JF_CLR(node, JNODE_MISSED_IN_CAPTURE);
 
-			ret = check_not_fused_lock_owners(txnh, JZNODE(node));
+			ret = fuse_not_fused_lock_owners(txnh, JZNODE(node));
 
 			if (ret) {
 				JF_SET(node, JNODE_MISSED_IN_CAPTURE);
@@ -1927,10 +1927,9 @@ try_capture(jnode * node, znode_lock_mode lock_mode, txn_capture flags
 	return try_capture_args(node, get_current_context()->trans, lock_mode, 
 				flags, flags & TXN_CAPTURE_NONBLOCKING, 0);
 }
-/* ZAM-FIXME-HANS: function name and function header say different things about what it does, which is correct, or are both, explain. */
 /* fuse all 'active' atoms of lock owners of given node. */
 static int
-check_not_fused_lock_owners(txn_handle * txnh, znode * node)
+fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 {
 	lock_handle *lh;
 	int repeat = 0;
@@ -2094,41 +2093,6 @@ int uncapture_inode(struct inode *inode)
 	UNLOCK_ATOM(atom);
 	jput(j);
 	return 0;
-}
-/* ZAM-FIXME-HANS: grep doesn't find where this is used.  email me where. */
-/* This interface is used by flush routines when they need to prevent an atom from
-   committing while they perform early flushing.  The node is already captured but the
-   txnh is not. */
-int
-attach_txnh_to_node(txn_handle * txnh, jnode * node, txn_flags flags)
-{
-	txn_atom *atom;
-	int ret = 0;
-
-	assert("jmacd-77917", spin_txnh_is_not_locked(txnh));
-	assert("jmacd-7791724897", spin_jnode_is_not_locked(node));
-	assert("jmacd-77918", txnh->atom == NULL);
-
-	LOCK_JNODE(node);
-	LOCK_TXNH(txnh);
-
-	atom = atom_locked_by_jnode(node);
-
-	/* Atom can commit at this point. */
-	if (atom == NULL) {
-		ret = -ENOENT;
-		goto fail_unlock;
-	}
-
-	atom->flags |= flags;
-
-	capture_assign_txnh_nolock(atom, txnh);
-
-	UNLOCK_ATOM(atom);
-fail_unlock:
-	UNLOCK_TXNH(txnh);
-	UNLOCK_JNODE(node);
-	return ret;
 }
 
 /* This informs the transaction manager when a node is deleted.  Add the block to the
