@@ -87,6 +87,7 @@ int tap_to( tap_t *tap, znode *target )
 	if( tap -> coord -> node != target ) {
 		lock_handle here;
 
+		init_lh( &here );
 		result = longterm_lock_znode( &here, target, tap -> mode,
 					      ZNODE_LOCK_HIPRI );
 		if( result == 0 ) {
