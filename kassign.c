@@ -340,7 +340,7 @@ build_entry_key_common(const struct inode *dir	/* directory where entry is
 
 	assert("nikita-2867", strlen(name) == len);
 
-	key_init(result);
+	reiser4_key_init(result);
 	/* locality of directory entry's key is objectid of parent
 	   directory */
 	set_key_locality(result, get_inode_oid(dir));
@@ -431,7 +431,7 @@ build_entry_key_stable_entry(const struct inode *dir	/* directory where
 	assert("nikita-2285", name->name != NULL);
 	assert("nikita-2286", result != NULL);
 
-	key_init(result);
+	reiser4_key_init(result);
 	/* locality of directory entry's key is objectid of parent
 	   directory */
 	set_key_locality(result, get_inode_oid(dir));
@@ -506,7 +506,7 @@ build_sd_key(const struct inode * target /* inode of an object */ ,
 {
 	assert("nikita-261", result != NULL);
 
-	key_init(result);
+	reiser4_key_init(result);
 	set_key_locality(result, reiser4_inode_data(target)->locality_id);
 	set_key_ordering(result, get_inode_ordering(target));
 	set_key_objectid(result, get_inode_oid(target));
@@ -563,7 +563,7 @@ extract_key_from_id(const obj_key_id * id	/* object key id to extract key
 	assert("nikita-1153", id != NULL);
 	assert("nikita-1154", key != NULL);
 
-	key_init(key);
+	reiser4_key_init(key);
 	xmemcpy(key, id, sizeof *id);
 	return 0;
 }

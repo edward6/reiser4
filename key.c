@@ -33,7 +33,7 @@ static const reiser4_key MAXIMAL_KEY = {
 
 /* Initialise key. */
 reiser4_internal void
-key_init(reiser4_key * key /* key to init */ )
+reiser4_key_init(reiser4_key * key /* key to init */ )
 {
 	assert("nikita-1169", key != NULL);
 	xmemset(key, 0, sizeof *key);

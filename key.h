@@ -220,7 +220,7 @@ typedef enum { LESS_THAN = -1,	/* if first key is less than second */
 	GREATER_THAN = +1	/* if first key is greater than second */
 } cmp_t;
 
-void key_init(reiser4_key * key);
+void reiser4_key_init(reiser4_key * key);
 
 /* minimal possible key in the tree. Return pointer to the static storage. */
 extern const reiser4_key *min_key(void);

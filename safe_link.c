@@ -93,7 +93,7 @@ safe_link_locality(reiser4_tree *tree)
 static reiser4_key *
 build_link_key(struct inode *inode, reiser4_safe_link_t link, reiser4_key *key)
 {
-	key_init(key);
+	reiser4_key_init(key);
 	set_key_locality(key, safe_link_locality(tree_by_inode(inode)));
 	set_key_objectid(key, get_inode_oid(inode));
 	set_key_offset(key, link);
@@ -209,7 +209,7 @@ typedef struct {
 static void safe_link_iter_begin(reiser4_tree *tree, safe_link_context *ctx)
 {
 	ctx->tree = tree;
-	key_init(&ctx->key);
+	reiser4_key_init(&ctx->key);
 	set_key_locality(&ctx->key, safe_link_locality(tree));
 	set_key_objectid(&ctx->key, get_key_objectid(max_key()));
 	set_key_offset(&ctx->key, get_key_offset(max_key()));

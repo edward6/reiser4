@@ -1183,7 +1183,7 @@ reiser4_internal int prepare_write_common (
 reiser4_internal int
 key_by_inode_and_offset_common(struct inode *inode, loff_t off, reiser4_key *key)
 {
-	key_init(key);
+	reiser4_key_init(key);
 	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
 	set_key_ordering(key, get_inode_ordering(inode));
 	set_key_objectid(key, get_inode_oid(inode));/*FIXME: inode->i_ino */
