@@ -2533,7 +2533,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	/* is_page_cache_freeable() check 
 
 	   (mapping + private + page_cache_get() by shrink_cache()) */
-	if (page_count(page) > 4) {
+	if (page_count(page) > 3) {
 		/*if (JF_ISSET(node, JNODE_EFLUSH))
 		  info_jnode("reiser4_releasepage: count is too big: !not releasable node!!", node);*/
 		return 0;
