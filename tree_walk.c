@@ -42,13 +42,13 @@
     right neighbor or parent). It implements common algorithm for all cases of
     getting lock on neighbor node, only znode structure field is different in
     each case. This is parameterized by ptr_offset argument, which is byte
-    offset for neighbor pointer field within znode structure. This function
-    should be called with the tree lock held */
+    offset for the pointer to the desired neighbor within the current node's
+    znode structure. This function should be called with the tree lock held */
 static int
 lock_neighbor(
 		     /* resulting lock handle*/
 		     lock_handle * result,
-		     /* node to lock */
+		     /* znode to lock */
 		     znode * node,
 		     /* pointer to neighbor (or parent) znode field offset, in bytes from
 		        the base address of znode structure  */
@@ -82,6 +82,7 @@ lock_neighbor(
 					  znode.lock_neighbor_iteration);
 		neighbor = GET_NODE_BY_PTR_OFFSET(node, ptr_offset);
 
+/* ZAM-FIXME-HANS: explain this logic in detail */
 		if (neighbor == NULL || !((flags & GN_ALLOW_NOT_CONNECTED)
 					  || znode_is_connected(neighbor))) {
 			return RETERR(-E_NO_NEIGHBOR);
@@ -107,8 +108,8 @@ lock_neighbor(
 		if (ret)
 			return ret;
 
-		/* check is neighbor link still points to just locked znode;
-		   the link could be changed while process slept. */
+		/* check if neighbor link still points to just locked znode;
+		   the link could have been changed while the process slept. */
 		if (neighbor == GET_NODE_BY_PTR_OFFSET(node, ptr_offset))
 			return 0;
 
@@ -119,7 +120,7 @@ lock_neighbor(
 		WLOCK_TREE(tree);
 	}
 }
-
+/* ZAm-FIXME-HANS: comment? */
 int
 reiser4_get_parent_flags(lock_handle * result	/* resulting lock handle */,
 			 znode * node /* child node */,
@@ -230,14 +231,18 @@ int check_sibling_list(znode * node)
    We can reduce that overhead by introducing of znode `connected' states. For
    simpler locking and simpler implementation znodes have two connection state
    bits: left-connected and right connected. We never do hash table search for
-   neighbor from connected side even corresponded pointer is null. This way we
+   neighbor from connected side 
+
+ZAM-FIXME-HANS: connected side means?  rewrite sentence
+
+even corresponded pointer is null. This way we
    only do hash searches when new znode is allocated and should be connected
    to znode web dynamic structure.
   
    Locking in left direction (required for finding of parent of left neighbor)
    can fail and cause whole lookup process to restart. It means lookup process
    may leave znode in unconnected state. These znodes should not be used,
-   loaded while they are is such state. */
+   loaded while they are is such state. ZAM-FIXME-HANS: sentence unclear */
 
 /* adjusting of sibling pointers and `connected' states for two
    neighbors; works if one neighbor is NULL (was not found). */
