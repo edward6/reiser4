@@ -304,6 +304,8 @@ jnode_of_page (struct page* pg)
 
 		jal = NULL;
 	}
+	assert ("nikita-2046", ((jnode*) pg->private)->data == page_address (pg));
+
 
 	/* FIXME: This may be called from page_cache.c, read_in_formatted, which
 	 * does is already synchronized under the page lock, but I imagine
