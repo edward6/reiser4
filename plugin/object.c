@@ -494,6 +494,7 @@ static int common_set_plug( struct inode *object /* inode to set plugin on */,
 	setup_inode_ops( object );
 	/* i_nlink is left 0 here. It'll be increased by ->add_link() */
 	seal_init( &reiser4_inode_data( object ) -> sd_seal, NULL, NULL );
+	reiser4_inode_data( object ) -> extmask = ( 1 << UNIX_STAT );
 	return 0;
 }
 
