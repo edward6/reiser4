@@ -152,10 +152,12 @@ int sd_load( struct inode *inode /* object being processed */,
 			}
 			if( mask & 1 ) {
 				assert( "nikita-628", sdplug -> present );
+				/* alignment is not supported in node layout
+				 * plugin yet.
 				result = align( inode, &len, &sd, 
 						sdplug -> alignment );
 				if( result != 0 )
-					return result;
+					return result; */
 				result = sdplug -> present( inode, 
 							    &sd, &len );
 			} else if( sdplug -> absent != NULL )
@@ -195,9 +197,8 @@ int sd_load( struct inode *inode /* object being processed */,
 			break;
 	}
 	/* common initialisations */
-	/* AUDIT: Off by one blocks calculation error here. PErhaps
-	   (VFS_BLKSIZE-1) should be added to state -> bytes before shifting */
-	inode -> i_blocks     = state -> bytes >> VFS_BLKSIZE_BITS;
+	inode -> i_blocks     = 
+		( state -> bytes + VFS_BLKSIZE - 1 ) >> VFS_BLKSIZE_BITS;
 	inode -> i_blksize    = REISER4_OPTIMAL_IO_SIZE( inode -> i_sb, inode );
 	inode -> i_version    = ++ event;
 	if( len > 0 )
