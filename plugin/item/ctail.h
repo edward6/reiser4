@@ -43,6 +43,7 @@ int readpage_ctail(void *, struct page *);
 int writepage_ctail(reiser4_key *, uf_coord_t *, struct page *, write_mode_t);
 void readpages_ctail(void *, struct address_space *, struct list_head *);
 reiser4_key *append_key_ctail(const coord_t *, reiser4_key *);
+int kill_hook_ctail(const coord_t *, unsigned, unsigned, void *);
 
 /* plugin->u.item.f */
 int utmost_child_ctail(const coord_t *, sideof, jnode **);
@@ -62,7 +63,6 @@ unsigned pg_to_off_to_cloff(unsigned long, struct inode *);
 void reiser4_cluster_init(reiser4_cluster_t *);
 void put_cluster_data(reiser4_cluster_t *, struct inode *);
 int cluster_is_uptodate (reiser4_cluster_t *);
-loff_t inode_scaled_offset(struct inode *, const loff_t);
 size_t inode_scaled_cluster_size(struct inode *);
 __u8 inode_cluster_shift (struct inode * inode);
 inline unsigned long pg_to_clust_to_pg(unsigned long idx, struct inode *);
