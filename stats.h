@@ -362,6 +362,23 @@ typedef struct reiser4_statistics {
 		statcnt_t capture_block;
 		statcnt_t capture_txnh;
 		statcnt_t capture_none;
+
+		struct {
+			statcnt_t atom_begin;
+			statcnt_t cannot_commit;
+			statcnt_t should_wait;
+			statcnt_t flush;
+			statcnt_t fuse_lock_owners_fused;
+			statcnt_t fuse_lock_owners;
+			statcnt_t trylock_throttle;
+			statcnt_t assign_block;
+			statcnt_t assign_txnh;
+			statcnt_t fuse_wait_nonblock;
+			statcnt_t fuse_wait_slept;
+			statcnt_t init_fusion_atomf;
+			statcnt_t init_fusion_atomh;
+			statcnt_t init_fusion_fused;
+		} restart;
 	} txnmgr;
 	struct {
 		/* how many nodes were squeezed to left neighbor completely */
