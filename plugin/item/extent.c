@@ -2501,17 +2501,6 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		 *
 		 */
 
-#if REISER4_DEBUG
-		{
-			struct super_block * s = reiser4_get_current_sb();
-			reiser4_super_info_data * p = get_super_private(s);
-
-			reiser4_spin_lock_sb(s);
-			assert ("zam-805", p->blocks_fake_allocated_unformatted + p->eflushed >= initial_width);
-			reiser4_spin_unlock_sb(s);
-		}
-#endif
-
 		result = unflush(coord);
 		if (result)
 			break;
