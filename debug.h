@@ -159,7 +159,11 @@
 #define assert(label, cond)						\
 ({									\
 	/* call_on_each_assert(); */					\
-	if (unlikely(!(cond))) {					\
+	if (cond) {						\
+		/* put negated check to avoid using !(cond) that would lose \
+		 * warnings for things like assert(a = b); */		\
+		;							\
+	} else {							\
 		DEBUGON(1);						\
 		reiser4_panic(label, "assertion failed: %s", #cond);	\
 	}								\
