@@ -357,7 +357,7 @@ reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
 
 	assert("nikita-2964", ergo(flags & BA_CAN_COMMIT,
 				   lock_stack_isclean(get_current_lock_stack())));
-	ON_TRACE(TRACE_RESERVE, "grab_space: %llu for: %s..", count);
+	ON_TRACE(TRACE_RESERVE, "grab_space: %llu block(s).", count);
 
 	ctx = get_current_context();
 	if (!(flags & BA_FORCE) && !is_grab_enabled(ctx)) {
