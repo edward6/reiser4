@@ -44,36 +44,41 @@ pfault [color=pink, style=filled, peripheries=2]
 kalloc [color=pink, style=filled, peripheries=2]
 
 /* system spin locks */
-mapping_i_shared_lock [label="mapping->i_shared_lock", shape=box, color=yellow, style=filled]
-mapping_private_lock [label="mapping->private_lock", shape=box, color=yellow, style=filled]
-mapping_page_lock [label="mapping->page_lock", shape=box, color=yellow, style=filled]
 cachep_spinlock [label="cachep->spinlock", shape=box, color=yellow, style=filled]
 zone_lock [label="zone->lock", shape=box, color=yellow, style=filled]
-inode_lock [label="&inode_lock", shape=box, color=yellow, style=filled]
 swaplock [label="&swaplock", shape=box, color=yellow, style=filled]
-swap_device_lock[label="swap->device_lock", shape=box, color=yellow, style=filled]
-mm_page_table_lock [label="mm->page_table_lock", shape=box, color=yellow, style=filled]
 zone_lru_lock [label="zone->lru_lock", shape=box, color=yellow, style=filled]
+mapping_private_lock [label="mapping->private_lock", shape=box, color=yellow, style=filled]
+mapping_page_lock [label="mapping->page_lock", shape=box, color=yellow, style=filled]
+inode_lock [label="&inode_lock", shape=box, color=yellow, style=filled]
+swap_device_lock [label="swap->device_lock", shape=box, color=yellow, style=filled]
+mm_page_table_lock [label="mm->page_table_lock", shape=box, color=yellow, style=filled]
 sb_lock [label="&sb_lock", shape=box, color=yellow, style=filled]
+pte_chain_lock [label="pte_chain_lock", shape=box, color=yellow, style=filled]
 
 /* system long term locks */
+page_write [color=yellow, style=filled]
 mm_mmap_sem [label="mm->mmap_sem", color=yellow, style=filled]
+mapping_i_shared_sem [label="mapping->i_shared_sem", shape=box, color=yellow, style=filled]
 i_sem [color=yellow, style=filled]
 page_lock [color=yellow, style=filled]
-page_write [color=yellow, style=filled]
+cache_chain_sem [label="&cache_chain_sem", color=yellow, style=filled]
 
 /* dependencies */
 
 inode_guard->inode_lock [label="eflush_add()"]
 atom_lock->jnode_lock [label="uncapture_block(),\ncapture_fuse_jnode_lists()"]
 jnode_lock->txnh_lock [label="try_capture_block()"]
-atom_lock->txnh_lock [label="capture_fuse_txnh_lists()"]
+//alredy covered
+//atom_lock->txnh_lock [label="capture_fuse_txnh_lists()"]
 jnode_lock->tree_lock [label="BY DESIGN"]
 tree_lock->cbk_guard [label="cbk_cache_scan_slots()"]
 dk_lock->tree_lock [label="sync_dkeys()"]
 txnmgr_lock->atom_lock [label="atom_dec_and_unlock(),\ntxnmgr_force_commit_all(),\ncommit_some_atoms(),\nflush_one_atom()"]
-txnmgr_lock->jnode_lock [label="atom_begin_andlock()"]
-/* txnmgr_lock->txnh_lock [label="atom_begin_andlock()"] already covered */
+//already covered
+//txnmgr_lock->jnode_lock [label="atom_begin_andlock()"]
+//already covered
+//txnmgr_lock->txnh_lock [label="atom_begin_andlock()"]
 i_sem->inode_rw_lock [label="unix_file_setattr(),\nunix_file_write()"]
 inode_rw_lock->delete_sema [label="shorten()"]
 delete_sema->flush_sema [label="reiser4_release_reserved()"]
@@ -92,19 +97,31 @@ jnode_lock->inode_guard [label="eflush_add()"]
 //longterm_lock->jnode_lock [label="longterm_unlock_znode(),\nflush_allocate_znode()"]
 
 kalloc->ktxnmgrd_lock [label="spinlock", style=dotted]
-kalloc->mapping_i_shared_lock [label="spinlock", style=dotted]
 
 kalloc->inode_guard [label="eflush_add()"]
 ktxnmgrd_lock->txnmgr_lock [label="commit_some_atoms()"]
 
-mapping_i_shared_lock->mapping_private_lock
-mapping_i_shared_lock->mapping_page_lock
-mapping_page_lock->cachep_spinlock
-mapping_page_lock->zone_lock
-mapping_page_lock->inode_lock
-mapping_page_lock->swaplock
-swaplock->swap_device_lock
-swap_device_lock->mm_page_table_lock
-swap_device_lock->zone_lru_lock
-swaplock->sb_lock
+//already covered
+//mapping_i_shared_sem->mapping_private_lock [label="__set_page_dirty_buffers()"]
+//already covered
+//mapping_i_shared_sem->mapping_page_lock
+mapping_i_shared_sem->mm_page_table_lock [label="vma_link()"]
+
+inode_lock->mapping_page_lock [label="__sync_single_inode()"]
+inode_lock->sb_lock [label="writeback_inodes()"]
+
+mm_page_table_lock->swap_device_lock [label="try_to_unmap_one()"]
+mm_page_table_lock->mapping_private_lock [label="try_to_unmap_one()"]
+//already covered
+//mm_page_table_lock->mapping_page_lock [label="try_to_unmap_one()"]
+
+mm_mmap_sem->mapping_i_shared_sem [label="do_mmap_pgoff()"]
+
+swaplock->swap_device_lock [label="swap_info_get()"]
+swap_device_lock->mapping_page_lock [label="exclusive_swap_page()"]
+
+page_lock->pte_chain_lock [label="shrink_list()"]
+mapping_page_lock->zone_lru_lock [label="filemap_fdatawait(),\nadd_to_page_cache()"]
+cache_chain_sem->kalloc [label="cpuup_callback()"]
+//cache_chain_sem->pfault [label="kmem_cache_create()"]
 }
