@@ -702,6 +702,7 @@ jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flus
 
 			lock_and_wait_page_writeback(pg);
 
+			ON_DEBUG_MODIFY(znode_set_checksum(cur));
 			LOCK_JNODE(cur);
 			assert("nikita-3166", 
 			       pg->mapping == jnode_get_mapping(cur));

@@ -1141,12 +1141,15 @@ znode_invariant(const znode * node /* znode to check */ )
 #endif
 
 #if REISER4_DEBUG_MODIFY
-void znode_set_checksum(znode * node)
+void znode_set_checksum(jnode * node)
 {
-	if (znode_is_loaded(node)) {
-		spin_lock(&node->cksum_guard);
-		node->cksum = znode_checksum(node);
-		spin_unlock(&node->cksum_guard);
+	if (jnode_is_znode(node)) {
+		znode *z;
+
+		z = JZNODE(node);
+		spin_lock(&z->cksum_guard);
+		z->cksum = znode_is_loaded(z) ? znode_checksum(z) : 0;
+		spin_unlock(&z->cksum_guard);
 	}
 }
 
@@ -1198,7 +1201,7 @@ znode_post_write(znode * node)
 
 	cksum = znode_checksum(node);
 
-	if (!(znode_is_dirty(node) || cksum == node->cksum))
+	if (!znode_is_dirty(node) && cksum != node->cksum && node->cksum != 0)
 		reiser4_panic("jmacd-1081", "changed znode is not dirty: %llu", node->zjnode.blocknr);
 
 	if (0 && znode_is_dirty(node) && cksum == node->cksum && !ZF_ISSET(node, JNODE_CREATED)) {
