@@ -107,9 +107,6 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 			++context->parent->nr_children;
 #endif
 			return 0;
-		} else {
-			warning("nikita-3359", "Cross-fs deadlock is possible");
-			dump_stack();
 		}
 	}
 
