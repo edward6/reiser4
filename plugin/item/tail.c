@@ -471,10 +471,10 @@ static int overwrite_tail (coord_t * coord, flow_t * f)
 	znode_set_dirty (coord->node);
 
 	move_flow_forward (f, count);
-	coord->unit_pos += count;
 	/*
 	 * update coordinate to match flow's key. Soo that it can be sealed
 	 */
+	coord->unit_pos += count;
 	if (count == item_length_by_coord (coord)) {
 		coord->unit_pos --;
 		coord->between = AFTER_UNIT;
@@ -497,13 +497,10 @@ int tail_write (struct inode * inode, struct sealed_coord * hint,
 	lock_handle lh;
 
 
-	init_lh (&lh);
-
 	assert ("vs-967", hint);
-	result = seal_validate (&hint->seal, &hint->coord, &f->key,
-				hint->level,
-				&lh, FIND_MAX_NOT_MORE_THAN,
-				ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+	
+	init_lh (&lh);
+	result = hint_validate (hint, &f->key, &coord, &lh);
 	if (result) {
 		/*reiser4_stat_tail_add (broken_seals);*/
 		return -EAGAIN;
@@ -563,34 +560,67 @@ int tail_write (struct inode * inode, struct sealed_coord * hint,
 /*
  * plugin->u.item.s.file.read
  */
-int tail_read (struct inode * inode UNUSED_ARG, coord_t * coord,
-	       lock_handle * lh UNUSED_ARG, flow_t * f)
+int tail_read (struct inode * inode UNUSED_ARG, struct sealed_coord * hint,
+	       flow_t * f)
 {
+	int result;
 	unsigned count;
+	coord_t coord;
+	lock_handle lh;
 
 
 	assert ("vs-571", f->user == 1);
 	assert ("vs-571", f->data);
+	assert ("vs-967", hint);
 	ON_DEBUG_CONTEXT( assert( "green-8", lock_counters() -> spin_locked == 0 ) );
+
+
+	init_lh (&lh);
+	result = hint_validate (hint, &f->key, &coord, &lh);
+	if (result)
+		return -EAGAIN;
+
+	result = zload (coord.node);
+	if (result) {
+		done_lh (&lh);
+		return result;
+	}
+
 	assert ("vs-387", 
 	({
 		reiser4_key key;
 
-		keyeq (unit_key_by_coord (coord, &key), &f->key);
+		keyeq (unit_key_by_coord (&coord, &key), &f->key);
 	}));
 
 	/*
 	 * calculate number of bytes to read off the item
 	 */
-	count = item_length_by_coord (coord) - coord->unit_pos;
+	count = item_length_by_coord (&coord) - coord.unit_pos;
 	if (count > f->length)
 		count = f->length;
 
-	if (__copy_to_user (f->data, ((char *)item_body_by_coord (coord) +
-				      coord->unit_pos), count))
+	if (__copy_to_user (f->data, ((char *)item_body_by_coord (&coord) +
+				      coord.unit_pos), count)) {
+		zrelse (coord.node);
+		done_lh (&lh);
 		return -EFAULT;
+	}
 
 	move_flow_forward (f, count);
+	/*
+	 * update coordinate to match flow's key. Soo that it can be sealed
+	 */
+	coord.unit_pos += count;
+	if (coord.unit_pos == item_length_by_coord (&coord)) {
+		coord.unit_pos --;
+		coord.between = AFTER_UNIT;
+	}
+	zrelse (coord.node);
+
+	set_hint (hint, &f->key, &coord);
+	done_lh (&lh);
+
 	return 0;
 }
 
