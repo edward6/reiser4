@@ -2105,7 +2105,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	return result;
 }
 
-static void reiser4_put_super (struct super_block *s)
+static void reiser4_kill_super (struct super_block *s)
 {
 	reiser4_super_info_data *info;
 	__REISER4_ENTRY (s,);
@@ -2125,7 +2125,7 @@ static void reiser4_put_super (struct super_block *s)
 	 * FIXME-VS: the problem is that there still might be dirty pages which
 	 * became dirty via mapping. Have them to go through writepage
 	 */
-	// fsync_super (s);
+	fsync_super (s);
 
 	if (reiser4_is_debugged (s, REISER4_VERBOSE_UMOUNT)) {
 		get_current_context() -> trace_flags |= (TRACE_PCACHE|
@@ -2151,6 +2151,7 @@ static void reiser4_put_super (struct super_block *s)
 	 * we don't want ->write_super to be called any more.
 	 */
 	s->s_op->write_super = NULL;
+	kill_block_super (s);
 
 #if REISER4_DEBUG
 	{
@@ -2458,7 +2459,7 @@ static struct file_system_type reiser4_fs_type = {
 	.owner     = THIS_MODULE,
 	.name      = "reiser4",
 	.get_sb    = reiser4_get_sb,
-	.kill_sb   = kill_block_super,
+	.kill_sb   = reiser4_kill_super,
 
 	/*
 	 * FIXME-NIKITA something more?
@@ -2566,7 +2567,7 @@ struct super_operations reiser4_super_operations = {
 /* 	.put_inode          = reiser4_put_inode, */
 	.drop_inode         = reiser4_drop_inode, /* d */
  	.delete_inode       = reiser4_delete_inode, /* d */
-	.put_super          = reiser4_put_super /* d */,
+	.put_super          = NULL /* d */,
  	.write_super        = reiser4_write_super,
 /* 	.write_super_lockfs = reiser4_write_super_lockfs, */
 /* 	.unlockfs           = reiser4_unlockfs, */
