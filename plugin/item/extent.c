@@ -825,6 +825,11 @@ optimize_extent(const coord_t * item)
 		   FIXME: JMACD->VS: Just return the error! */
 		assert("vs-456", result == 0);
 	}
+	/*
+	 * FIXME-NIKITA disk block has to be grabbed before marking jnode
+	 * dirty
+	 */
+	check_me("nikita-2755", reiser4_grab_space_force(1, 1) == 0);
 	znode_set_dirty(item->node);
 }
 
