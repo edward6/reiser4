@@ -311,22 +311,28 @@ static ssize_t reiser4_write( struct file *file, char *buf,
 			      size_t size, loff_t *off )
 {
 	file_plugin *fplug;
+	struct inode *inode;
 	ssize_t result;
 
-	REISER4_ENTRY( file -> f_dentry -> d_inode -> i_sb );
+	REISER4_ENTRY( ( inode = file -> f_dentry -> d_inode ) -> i_sb );
 	
 	assert( "nikita-1421", file != NULL );
 	assert( "nikita-1422", buf != NULL );
 	assert( "nikita-1424", off != NULL );
 
-	fplug = get_file_plugin( file -> f_dentry -> d_inode );
-
+	fplug = get_file_plugin( inode );
 	if( fplug -> write != NULL ) {
 		result = fplug -> write( file, buf, size, off );
 	} else {
 		result = -EPERM;
 	}
-
+	if( result > 0 ) {
+		/* something was written. Update stat data */
+		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+		if( fplug -> write_sd_by_inode )
+			if( fplug -> write_sd_by_inode( inode ) )
+				info("reiser4_write: updating stat data failed\n");
+	}
 	REISER4_EXIT( result );
 }
 
@@ -374,8 +380,10 @@ static int reiser4_statfs( struct super_block *super, struct statfs *buf )
 	buf -> f_bavail  = buf -> f_bfree - 
 		reiser4_reserved_blocks( super, 0, 0 );
 	oidmap = reiser4_get_oid_allocator( super );
-	buf -> f_files   = oids_used( oidmap );
-	buf -> f_ffree   = oids_free( oidmap );
+	buf -> f_files   = get_super_private( super ) -> lplug -> oids_used ?
+		get_super_private( super ) -> lplug -> oids_used( super ) : -1;
+	buf -> f_ffree   = get_super_private( super ) -> lplug -> oids_free ?
+		get_super_private( super ) -> lplug -> oids_free( super ) : -1;
 	/* maximal acceptable name length depends on directory plugin. */
 	buf -> f_namelen = -1;
 	REISER4_EXIT( 0 );
