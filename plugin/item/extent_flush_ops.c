@@ -1022,14 +1022,14 @@ squalloc_extent(znode *left, const coord_t *coord, flush_pos_t *flush_pos, reise
 
 		result = put_unit_to_end(left, &key, &copy_extent);
 		if (result == -E_NODE_FULL) {
+			int target_block_stage;
+
 			/* free blocks which were just allocated */
 			ON_TRACE(TRACE_EXTENT_ALLOC,
 				 "left is full, free (first %llu, count %llu)\n",
 				 first_allocated, allocated);
-			if (state == ALLOCATED_EXTENT)
-				reiser4_dealloc_blocks(&first_allocated, &allocated, BLOCK_FLUSH_RESERVED, 0);
-			else
-				reiser4_dealloc_blocks(&first_allocated, &allocated, BLOCK_UNALLOCATED, 0);
+			target_block_stage = (state == ALLOCATED_EXTENT) ? BLOCK_FLUSH_RESERVED : BLOCK_UNALLOCATED;
+			reiser4_dealloc_blocks(&first_allocated, &allocated, target_block_stage, BA_PERMANENT);
 			unprotect_extent_nodes(flush_pos, allocated, &jnodes);
 
 			/* rewind the preceder. */
