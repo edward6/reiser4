@@ -2163,6 +2163,9 @@ reiser4_kill_super(struct super_block *s)
 						       TRACE_IO_R | TRACE_IO_W);
 	}
 
+	if (reiser4_grab_space_exact(1, 0))
+		goto out;
+	
 	/* flushes transactions, etc. */
 	get_super_private(s)->df_plug->release(s);
 
@@ -2202,6 +2205,7 @@ reiser4_kill_super(struct super_block *s)
 	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
 		reiser4_print_stats();
 
+out:
 	/* no assertions below this line */
 	__REISER4_EXIT(&context);
 
