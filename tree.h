@@ -175,9 +175,20 @@ struct reiser4_item_data {
 	item_plugin   *iplug;
 };
 
+/** cbk flags: options for coord_by_key() */
 typedef enum {
-	CBK_FOR_INSERT   =    ( 1 << 0 ),
-	CBK_UNIQUE       =    ( 1 << 1 )
+	/** coord_by_key() is called for insertion */
+	CBK_FOR_INSERT =    ( 1 << 0 ),
+	/** coord_by_key() is called with key that is known to be unique */
+	CBK_UNIQUE     =    ( 1 << 1 ),
+	/** 
+	 * coord_by_key() can trust delimiting keys. This options is not user
+	 * accessible. coord_by_key() will set it automatically. It will be
+	 * only celared by special-case in extents-on-the-twig-level handling
+	 * where it is necessary to insert item with a key smaller than
+	 * leftmost key in a node. 
+	 */
+	CBK_TRUST_DK   =    ( 1 << 2 )
 } cbk_flags;
 
 /** insertion outcome. IBK = insert by key */

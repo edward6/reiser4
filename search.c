@@ -404,7 +404,8 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 	handle.llevel    = lock_level;
 	handle.slevel    = stop_level;
 	handle.coord     = coord;
-	handle.flags     = flags;
+	/* set flags. See comment in tree.h:cbk_flags */
+	handle.flags     = flags | CBK_TRUST_DK;
 
 	handle.active_lh = lh;
 	handle.parent_lh = &parent_lh;
@@ -671,7 +672,8 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h)
 	}
 
 	spin_lock_dk( current_tree );
-	if( ! znode_contains_key( active, h -> key ) ||
+	if( ( !znode_contains_key( active, h -> key ) &&
+	      ( h -> flags & CBK_TRUST_DK ) ) ||
 	    ZF_ISSET( active, ZNODE_HEARD_BANSHEE ) ) {
 		/*
 		 * 1. key was moved out of this node while this thread was
@@ -682,16 +684,11 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h)
 		 * 2. or, node itself is going to be removed from the
 		 * tree. Release lock and restart.
 		 */
-		if( 1 || REISER4_STATS ) {
-			if( znode_contains_key( active, h -> key ) ) {
-				print_znode( "ghost", active );
-				print_key( "ghost key", h -> key );
+		if( REISER4_STATS ) {
+			if( znode_contains_key( active, h -> key ) )
 				reiser4_stat_tree_add( cbk_met_ghost );
-			} else {
-				print_znode( "moved", active );
-				print_key( "moved key", h -> key );
+			else
 				reiser4_stat_tree_add( cbk_key_moved );
-			}
 		}
 		h -> result = -EAGAIN;
 	}
@@ -1018,7 +1015,18 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 			assert( "vs-362", item_type_by_coord( h -> coord ) ==
 				INTERNAL_ITEM_TYPE );
 			iplug = item_plugin_by_coord( h -> coord );
-		}
+		} else
+			/* 
+			 * this is special case mentioned in the comment on
+			 * tree.h:cbk_flags. We have found internal item
+			 * immediately on the right of extent, and we are
+			 * going to insert new item there. Key of item we are
+			 * going to insert is smaller than leftmost key in the
+			 * node pointed to by said internal item (otherwise
+			 * search wouldn't come to the extent in the first
+			 * place).
+			 */
+			h -> flags &= ~CBK_TRUST_DK;
 	}
 	/*
 	 * prepare delimiting keys for the next node
