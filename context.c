@@ -28,6 +28,8 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 					 * work with */)
 {
 
+	PROF_BEGIN(init_context);
+
 	assert("nikita-2662", !in_interrupt() && !in_irq());
 
 	if (context == NULL || super == NULL) {
@@ -50,6 +52,7 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 #if (REISER4_DEBUG)
 			++context->parent->nr_children;
 #endif
+			__PROF_END(init_context, 6, 0);
 			return 0;
 		}
 	}
@@ -82,6 +85,7 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 
 	grab_space_enable();
 	log_entry(super, ":in");
+	__PROF_END(init_context, 3, 0);
 	return 0;
 }
 

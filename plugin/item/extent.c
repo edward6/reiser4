@@ -2771,7 +2771,7 @@ exit1:
 	if (flow->length)
 		DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
 
-	PROF_END(extent_write, 0);
+	PROF_END(extent_write);
 	return result;
 }
 

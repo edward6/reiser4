@@ -41,6 +41,9 @@ typedef struct {
 } reiser4_prof_entry;
 
 typedef struct {
+	reiser4_prof_entry init_context;
+	reiser4_prof_entry jlook;
+#if 0
 	reiser4_prof_entry writepage;
 	reiser4_prof_entry jload;
 	reiser4_prof_entry jrelse;
@@ -52,13 +55,15 @@ typedef struct {
 	reiser4_prof_entry extent_write;
 	/* read profiling */
 	reiser4_prof_entry file_read;
+#endif
 } reiser4_prof;
 
 extern reiser4_prof reiser4_prof_defs;
 
 extern unsigned long nr_context_switches(void);
 void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now, 
-		     unsigned long swtch_mark, __u64 start_jif, int shift);
+		     unsigned long swtch_mark, __u64 start_jif, 
+		     int delta, int shift);
 void calibrate_prof(void);
 
 #define PROF_BEGIN(aname)							\
@@ -67,7 +72,9 @@ void calibrate_prof(void);
 	__u64 __prof_cnt__ ## aname = ({ __u64 __tmp_prof ;			\
 			      		rdtscll(__tmp_prof) ; __tmp_prof; })
 
-#define PROF_END(aname, shift)				\
+#define PROF_END(aname) __PROF_END(aname, REISER4_BACKTRACE_DEPTH, 0)
+
+#define __PROF_END(aname, depth, shift)			\
 ({							\
 	__u64 __prof_end;				\
 							\
@@ -77,7 +84,7 @@ void calibrate_prof(void);
 			__prof_end,			\
 			__swtch_mark__ ## aname, 	\
 			__prof_jiffies ## aname, 	\
-			shift );			\
+			depth, shift );			\
 })
 
 extern int init_prof_kobject(void);
@@ -90,7 +97,8 @@ typedef struct reiser4_prof_cnt {} reiser4_prof_cnt;
 typedef struct reiser4_prof {} reiser4_prof;
 
 #define PROF_BEGIN(aname) noop
-#define PROF_END(aname, shift) noop
+#define PROF_END(aname) noop
+#define __PROF_END(aname, depth, shift) noop
 #define calibrate_prof() noop
 
 #define init_prof_kobject() (0)

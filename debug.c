@@ -315,7 +315,8 @@ return_err(int code, const char *file, int line)
 		reiser4_context *ctx = get_current_context();
 
 		if (ctx != NULL) {
-			fill_backtrace(&ctx->err.path, 0);
+			fill_backtrace(&ctx->err.path, 
+				       REISER4_BACKTRACE_DEPTH, 0);
 			ctx->err.code = code;
 			ctx->err.file = file;
 			ctx->err.line = line;
@@ -360,7 +361,7 @@ static int is_last_frame(void *addr)
 		return 0;
 }
 
-void fill_backtrace(backtrace_path *path, int shift)
+void fill_backtrace(backtrace_path *path, int depth, int shift)
 {
 	int i;
 	void *addr;
@@ -377,7 +378,7 @@ void fill_backtrace(backtrace_path *path, int shift)
 
 	xmemset(path, 0, sizeof *path);
 	addr = NULL;
-	for (i = 0; i < REISER4_BACKTRACE_DEPTH; ++ i) {
+	for (i = 0; i < depth; ++ i) {
 		switch(i + shift) {
 			FRAME(0);
 			FRAME(1);
@@ -397,6 +398,7 @@ void fill_backtrace(backtrace_path *path, int shift)
 		if (is_last_frame(addr))
 			break;
 	}
+	DEBUGON(path->trace[0] != NULL && path->trace[1] == NULL);
 }
 #endif
 

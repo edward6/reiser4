@@ -411,7 +411,7 @@ formatted_writepage(struct page *page, /* page to write */ struct writeback_cont
 
 	assert("nikita-3042", schedulable());
 	result = page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_FORMATTED);
-	PROF_END(writepage, 5);
+	__PROF_END(writepage, REISER4_BACKTRACE_DEPTH, 5);
 	assert("nikita-3043", schedulable());
 	return result;
 }

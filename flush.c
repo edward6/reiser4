@@ -680,7 +680,7 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 
 	todo = sbinfo->flush.relocate_threshold - left_scan.count;
 	/* FIXME-NIKITA scan right is inherently deadlock prone, because we
-	 * are (potentially holding a lock on the twig node at this moment. */
+	 * are (potentially) holding a lock on the twig node at this moment. */
 	if (0 && todo > 0) {
 		ret = scan_right(&right_scan, node, (unsigned)todo);
 		if (ret != 0)
@@ -1236,7 +1236,7 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 exit:
 	done_load_count(&pload);
 	done_lh(&plock);
-	PROF_END(flush_alloc, 0);
+	PROF_END(flush_alloc);
 	return ret;
 }
 
@@ -2194,7 +2194,7 @@ static int squalloc (flush_pos_t * pos)
 			break;
 	}
 
-	PROF_END(forward_squalloc, 0);
+	PROF_END(forward_squalloc);
 
 	/* any positive value or -E_NO_NEIGHBOR are legal return codes for handle_pos*
 	   routines, -E_NO_NEIGHBOR means that slum edge was reached */

@@ -226,10 +226,10 @@ extern lock_counters_info *lock_counters(void);
 typedef struct {
 	void *trace[REISER4_BACKTRACE_DEPTH];
 } backtrace_path;
-extern void fill_backtrace(backtrace_path *path, int shift);
+extern void fill_backtrace(backtrace_path *path, int depth, int shift);
 #else
 typedef struct {} backtrace_path;
-#define fill_backtrace(path, shift) noop
+#define fill_backtrace(path, depth, shift) noop
 #endif
 
 

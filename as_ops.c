@@ -188,7 +188,7 @@ reiser4_writepage(struct page *page, struct writeback_control *wbc)
 
 	result = page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
 	assert("nikita-3018", schedulable());
-	PROF_END(writepage, 5);
+	__PROF_END(writepage, REISER4_BACKTRACE_DEPTH, 5);
 	return result;
 }
 
@@ -303,6 +303,10 @@ releasable(const jnode *node)
 	return 1;
 }
 
+#define INC_STAT(page, node, counter)						\
+	reiser4_stat_inc_at(page->mapping->host->i_sb, 				\
+			    level[jnode_get_level(node) - LEAF_LEVEL].counter);
+
 /* ->releasepage method for reiser4 */
 int
 reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
@@ -321,8 +325,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	node = jnode_by_page(page);
 	assert("nikita-2258", node != NULL);
 
-	reiser4_stat_inc_at(page->mapping->host->i_sb, 
-			    level[jnode_get_level(node) - LEAF_LEVEL].page_try_release);
+	INC_STAT(page, node, page_try_release);
 
 	/* is_page_cache_freeable() check 
 
@@ -337,14 +340,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 	LOCK_JNODE(node);
 	if (releasable(node)) {
-		reiser4_tree *tree = tree_by_page(page);
-		reiser4_context ctx;
-
-		init_context(&ctx, tree->super);
-		/* account for LOCK_JNODE() above */
-		if (REISER4_DEBUG && get_current_context() == &ctx)
-			spin_jnode_inc();
-
+		INC_STAT(page, node, page_released);
 		jref(node);
 		/* there is no need to synchronize against
 		 * jnode_extent_write() here, because pages seen by
@@ -352,13 +348,8 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		page_clear_jnode(page, node);
 		UNLOCK_JNODE(node);
 
-		reiser4_stat_inc_at_level(jnode_get_level(node), page_released);
-
 		/* we are under memory pressure so release jnode also. */
 		jput(node);
-
-		/* return with page still locked. shrink_cache() expects this. */
-		reiser4_exit_context(&ctx);
 		return 1;
 	} else {
 		UNLOCK_JNODE(node);

@@ -19,7 +19,7 @@
 
 #ifdef CONFIG_FRAME_POINTER
 static void 
-update_prof_trace(reiser4_prof_cnt *cnt, int shift)
+update_prof_trace(reiser4_prof_cnt *cnt, int depth, int shift)
 {
 	int i;
 	int minind;
@@ -27,7 +27,7 @@ update_prof_trace(reiser4_prof_cnt *cnt, int shift)
 	unsigned long hash;
 	backtrace_path bt;
 
-	fill_backtrace(&bt, shift);
+	fill_backtrace(&bt, depth, shift);
 
 	for (i = 0, hash = 0 ; i < REISER4_BACKTRACE_DEPTH ; ++ i) {
 		hash += (unsigned long)bt.trace[i];
@@ -49,11 +49,12 @@ update_prof_trace(reiser4_prof_cnt *cnt, int shift)
 	cnt->bt[minind].hits = 1;
 }
 #else
-#define update_prof_trace(cnt, shift) noop
+#define update_prof_trace(cnt, depth, shift) noop
 #endif
 
 void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now, 
-		     unsigned long swtch_mark, __u64 start_jif, int shift)
+		     unsigned long swtch_mark, __u64 start_jif, 
+		     int depth, int shift)
 {
 	__u64 delta;
 
@@ -66,7 +67,7 @@ void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now,
 		cnt->noswtch_total += delta;
 		cnt->noswtch_max = max(cnt->noswtch_max, delta);
 	}
-	update_prof_trace(cnt, shift);
+	update_prof_trace(cnt, depth, shift);
 }
 
 
@@ -153,6 +154,9 @@ static struct kobject spin_prof;
  	DEFINE_PROF_ENTRY_0(#name,name)
 
 reiser4_prof reiser4_prof_defs = {
+	DEFINE_PROF_ENTRY(init_context),
+	DEFINE_PROF_ENTRY(jlook),
+#if 0
 	DEFINE_PROF_ENTRY(writepage),
 	DEFINE_PROF_ENTRY(jload),
 	DEFINE_PROF_ENTRY(jrelse),
@@ -164,6 +168,7 @@ reiser4_prof reiser4_prof_defs = {
 	DEFINE_PROF_ENTRY(extent_write),
 	/* read profiling */
 	DEFINE_PROF_ENTRY(file_read)
+#endif
 };
 
 void calibrate_prof(void)

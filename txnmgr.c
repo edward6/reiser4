@@ -1375,7 +1375,7 @@ void atom_wait_event(txn_atom * atom)
 	LOCK_ATOM (atom);
 	fwaitfor_list_remove(&_wlinks);
 	atom_dec_and_unlock (atom);
-	PROF_END(atom_wait_event, 0);
+	PROF_END(atom_wait_event);
 }
 
 /* wake all threads which wait for an event */
