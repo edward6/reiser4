@@ -1415,7 +1415,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 		assert ("jmacd-6173", ! blocknr_is_fake (& pos->preceder.blk));
 		assert ("jmacd-6174", pos->preceder.blk != 0);
 
-		if (pos->preceder.blk == nblk + 1) {
+		if (pos->preceder.blk == nblk - 1) {
 			/* Ideal. */
 			ZF_SET (node, ZNODE_WANDER);
 		} else {
