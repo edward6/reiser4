@@ -86,8 +86,7 @@ static int reiser4_fill_super(struct super_block *s, void *data, int silent);
 static int reiser4_writepage(struct page *);
 static int reiser4_readpage(struct file *, struct page *);
 static int reiser4_sync_page(struct page *);
-static int reiser4_vm_writeback( struct page *page, 
-				 int *nr_to_write );
+static int reiser4_vm_writeback( struct page *page, int *nr_to_write );
 /*
 static int reiser4_prepare_write(struct file *, 
 				 struct page *, unsigned, unsigned);

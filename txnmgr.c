@@ -62,7 +62,8 @@ static void   uncapture_block                 (txn_atom   *atom,
 
 
 /* Local debugging */
-void          atom_print                      (txn_atom   *atom);
+void          print_atom                      (const char *prefix,
+					       txn_atom   *atom);
 
 #define JNODE_ID(x) ((unsigned long long) (x))
 
@@ -602,13 +603,6 @@ atom_try_commit_locked (txn_atom *atom)
 	atom->flags |= ATOM_FORCE_COMMIT;
 	atom->stage = ASTAGE_CAPTURE_WAIT;
 
-	/*
-	 * FIXME:NIKITA->JMACD I am seeing atom with ->capture_count
-	 * inconsistent with amount of nodes on capture + clean lists here
-	 * (capture_count remains 2 at the end of this procedure and triggers
-	 * assertion below.
-	 */
-
 	/* From the leaf level up, find dirty nodes in this transaction that need balancing/flushing. */
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
 
@@ -636,6 +630,12 @@ atom_try_commit_locked (txn_atom *atom)
 	atom->stage = ASTAGE_PRE_COMMIT;
 
 	trace_on (TRACE_TXN, "commit atom %u: PRE_COMMIT\n", atom->atom_id);
+	
+	/*
+	 * FIXME:NIKITA->JMACD|ZAM I added line below, because otherwise it
+	 * didn't work. Not that I completely understand what I am doing.
+	 */
+	invalidate_clean_list (atom);
 
 	wakeup_atom_waitfor_list (atom);
 	wakeup_atom_waiting_list (atom);
@@ -1974,10 +1974,10 @@ void txn_insert_into_clean_list (txn_atom * atom, jnode * node)
 
 /* Audited by: umka (2002.06.13) */
 void
-atom_print (txn_atom *atom)
+print_atom (const char *prefix, txn_atom *atom)
 {
 	jnode *scan;
-	char prefix[32];
+	char list[32];
 	int level;
 	
 	assert("umka-229", atom != NULL);
@@ -1989,13 +1989,13 @@ atom_print (txn_atom *atom)
 
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
 
-		sprintf (prefix, "capture level %d", level);
+		sprintf (list, "capture level %d", level);
 
 		for (scan = capture_list_front (& atom->dirty_nodes[level]);
 		     /**/ ! capture_list_end   (& atom->dirty_nodes[level], scan);
 		     scan = capture_list_next  (scan)) {
 
-			info_jnode (prefix, scan);
+			info_jnode (list, scan);
 			info ("\n");
 		}
 	}
