@@ -676,8 +676,8 @@ static int squalloc_leftpoint (flush_position *pos)
 					goto exit;
 				}
 
-				/* ncoord_next_item returns 0 if there are no more items. */
-				if (ncoord_next_item (& pos->parent_coord) == 0) {
+				/* ncoord_next_item returns 1 if there are no more items. */
+				if (ncoord_next_item (& pos->parent_coord) == 1) {
 
 					/* End of twig node.  This call updates the state of this
 					 * loop for the next iteration at the leftpoint of the
