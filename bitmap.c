@@ -9,7 +9,6 @@
  */
 
 #include "reiser4.h"
-#include <asm/bitops.h>
 
 /** find next zero bit in byte */
 static inline int find_next_zero_bit_in_byte (unsigned int byte, int start)
@@ -26,6 +25,8 @@ static inline int find_next_zero_bit_in_byte (unsigned int byte, int start)
 }
 
 #if defined (__KERNEL__)
+
+#include <asm/bitops.h>
 
 #define reiser4_set_bit(nr, addr)    ext2_set_bit(nr, addr)
 #define reiser4_clear_bit(nr, addr)  ext2_clear_bit(nr, addr)
