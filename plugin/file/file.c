@@ -501,18 +501,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 			/* cut_tree_object() was interrupted probably because
 			 * current atom requires commit, we have to release
 			 * transaction handle to allow atom commit. */
-			{
-				reiser4_context * ctx;
-				long long_ret;
-
-				ctx = get_current_context();
-				long_ret = txn_end(ctx);
-				txn_begin(ctx);
-				if (long_ret < 0) {
-					result = (int)long_ret;
-					break;
-				}
-			}
+			txn_restart_current();
 			continue;
 		}
 		if (result)
@@ -1162,10 +1151,7 @@ commit_file_atoms(struct inode *inode)
 	 */
 
 	ctx = get_current_context();
-	result = txn_end(ctx);
-	if (result != 0)
-		return result;
-	txn_begin(ctx);
+	txn_restart(ctx);
 
 	uf_info = unix_file_inode_data(inode);
 
@@ -1234,9 +1220,7 @@ commit_file_atoms(struct inode *inode)
 	 * commit current transaction: there can be captured nodes from
 	 * find_file_state() and finish_conversion().
 	 */
-	result = txn_end(ctx);
-	if (result == 0)
-		txn_begin(ctx);
+	txn_restart(ctx);
 	return result;
 }
 
@@ -1344,15 +1328,12 @@ sync_unix_file(struct file *file, struct dentry *dentry, int datasync)
 
 				node = jref(ZJNODE(coord.node));
 				done_lh(&lh);
-				result = txn_end(ctx);
-				if (result >= 0) {
-					txn_begin(ctx);
-					LOCK_JNODE(node);
-					atom = jnode_get_atom(node);
-					UNLOCK_JNODE(node);
-					result = sync_atom(atom);
-					jput(node);
-				}
+				txn_restart(ctx);
+				LOCK_JNODE(node);
+				atom = jnode_get_atom(node);
+				UNLOCK_JNODE(node);
+				result = sync_atom(atom);
+				jput(node);
 			} else
 				done_lh(&lh);
 		} while (result == -E_REPEAT);
@@ -1979,17 +1960,13 @@ write_unix_file(struct file *file, /* file to write to */
 				drop_access(uf_info);
 				gotaccess = 0;
 
-				if (written == -E_REPEAT) {
-					/* write_file required exclusive access (for tail2extent). It returned E_REPEAT
-					 * so that we restart it with exclusive access */
-					reiser4_context * ctx;
-					
-					ctx = get_current_context();
-					written = txn_end(ctx);
-					if (written < 0)
-						break;
-					txn_begin(ctx);
-				} else
+				if (written == -E_REPEAT)
+					/* write_file required exclusive
+					 * access (for tail2extent). It
+					 * returned E_REPEAT so that we
+					 * restart it with exclusive access */
+					txn_restart_current();
+				else
 					break;
 			}
 		}
@@ -2036,7 +2013,8 @@ set_file_notail(struct inode *inode)
 	state = reiser4_inode_data(inode);
 	tplug = formatting_plugin_by_id(NEVER_TAILS_FORMATTING_ID);
 	plugin_set_formatting(&state->pset, tplug);
-	inode_set_plugin(inode, formatting_plugin_to_plugin(tplug));
+	inode_set_plugin(inode,
+			 formatting_plugin_to_plugin(tplug), PSET_FORMATTING);
 }
 
 /* if file is built of tails - convert it to extents */
