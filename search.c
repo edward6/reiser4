@@ -159,38 +159,6 @@ static cbk_cache_slot *slot_by_entry( struct list_head *scan )
 	return list_entry( scan, cbk_cache_slot, lru_chain );
 }
 
-/** find in cbk-cache slot, if any, containing given key */
-static cbk_cache_slot *cbk_cache_lookup( cbk_cache *cache, 
-					 const reiser4_key *key )
-{
-	struct list_head *scan;
-
-	assert( "nikita-343", cache != NULL );
-	assert( "nikita-344", key != NULL );
-
-	scan = cache -> lru.next;
-	list_for_each( scan, &cache -> lru ) {
-		cbk_cache_slot *slot;
-		znode          *node;
-
-		slot = slot_by_entry( scan );
-		node = slot -> node;
-		if( node == NULL )
-			break;
-		/* min_key <= key < max_key */
-		spin_lock_znode( node );
-		if( znode_contains_key( node, key ) ) {
-			spin_unlock_znode( node );
-			cbk_cache_slot_hit( cache, slot );
-			reiser4_stat_tree_add( cbk_cache_hit );
-			return slot;
-		}
-		spin_unlock_znode( node );
-	}
-	reiser4_stat_tree_add( cbk_cache_miss );
-	return NULL;
-}
-
 /**
  * Initialise coord cache slot
  */
@@ -217,28 +185,6 @@ int cbk_cache_init( cbk_cache *cache )
 		list_add_tail( &cache -> slot[ i ].lru_chain, &cache -> lru );
 	}
 	return 0;
-}
-
-/**
- * Search coord cache for the @key
- */
-znode *cbk_cache_check( reiser4_tree *tree, const reiser4_key *key )
-{
-	cbk_cache_slot *slot;
-	znode          *result;
-
-	return 0;
-	assert( "nikita-347", tree != NULL );
-	assert( "nikita-348", key != NULL );
-
-	spin_lock_tree( tree );
-	slot = cbk_cache_lookup( tree -> cbk_cache, key );
-	if( slot != NULL )
-		result = zref( slot -> node );
-	else
-		result = NULL;
-	spin_unlock_tree( tree );
-	return result;
 }
 
 /**
@@ -1057,6 +1003,24 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 }
 
 /**
+ * true if @key is one of delimiting keys in @node
+ */
+static int key_is_delimiting( znode *node, const reiser4_key *key )
+{
+	int result;
+
+	assert( "nikita-1721", node != NULL );
+	assert( "nikita-1722", key != NULL );
+
+	spin_lock_dk( current_tree );
+	result = 
+		( keycmp( znode_get_ld_key( node ), key ) == EQUAL_TO ) ||
+		( keycmp( znode_get_rd_key( node ), key ) == EQUAL_TO );
+	spin_unlock_dk( current_tree );
+	return result;
+}
+
+/**
  * look for item with given key in the coord cache
  *
  * This function, called by coord_by_key(), scans "coord cache" (&cbk_cache)
@@ -1164,8 +1128,7 @@ static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 				 * good. Item found
 				 */
 				result = 0;
-			else if( !( h -> flags & CBK_UNIQUE ) &&
-				 ( coord_wrt( h -> coord ) != COORD_INSIDE ) ) {
+			else if( key_is_delimiting( node, h -> key ) ) {
 				/*
 				 * we are looking for possibly non-unique key
 				 * and it is item is at the edge of @node. May
