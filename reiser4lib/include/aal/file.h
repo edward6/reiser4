@@ -1,0 +1,24 @@
+/*
+	file.h -- standard file device.
+	Copyright (C) 1996-2002 Hans Reiser.
+*/
+
+#ifndef FILE_DEVICE_H
+#define FILE_DEVICE_H
+
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
+#ifndef ENABLE_ALONE
+
+#include <agl/device.h>
+
+extern aal_device_t *aal_file_open(const char *file, size_t blocksize, int flags);
+extern int aal_file_reopen(aal_device_t *device, int flags);
+extern void aal_file_close(aal_device_t *device);
+
+#endif
+
+#endif
+
