@@ -1399,7 +1399,6 @@ static int squeeze_right_twig (flush_pos_t * pos, znode * left, znode * right)
 
 		coord_dup(&last, &first);
 		ret = allocate_and_copy_extent(left, &last, pos, &last_key);
-
 		if (ret < 0 || ret == SQUEEZE_TARGET_FULL)
 			return ret;
 
@@ -1441,12 +1440,10 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 	init_load_count(&right_parent_load);
 
 	ret = reiser4_get_parent(&left_parent_lock, left, ZNODE_WRITE_LOCK, 1);
-
 	if (ret)
 		goto out;
 
 	ret = reiser4_get_parent(&right_parent_lock, right, ZNODE_WRITE_LOCK, 1);
-
 	if (ret)
 		goto out;
 
@@ -1458,19 +1455,16 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 		goto out;
 
 	ret = incr_load_count_znode(&left_parent_load, left_parent_lock.node);
-
 	if (ret)
 		goto out;
 
 	ret = incr_load_count_znode(&right_parent_load, right_parent_lock.node);
-
 	if (ret)
 		goto out;
 
 	coord_init_after_last_item(&between, left_parent_lock.node);
 
 	ret = squeeze_right_non_twig(left_parent_lock.node, right_parent_lock.node);
-
 	if (ret)
 		goto out;
 
@@ -1484,7 +1478,6 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 	/* parent(@left) and parent(@right) may have different parents also. We
 	 * do a recursive call for checking that. */
 	ret = squalloc_upper_levels(pos, left_parent_lock.node, right_parent_lock.node);
-
 	if (ret)
 		goto out;
 
@@ -1547,12 +1540,10 @@ static int lock_parent_and_allocate_znode (znode * node, flush_pos_t * pos)
 		goto out;
 
 	ret = incr_load_count_znode(&parent_load, parent_lock.node);
-
 	if (ret)
 		goto out;
 
 	ret = find_child_ptr(parent_lock.node, node, &pcoord);
-
 	if (ret)
 		goto out;
 
@@ -1579,7 +1570,6 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 	assert ("zam-845", pos->state == POS_ON_LEAF);
 
 	ret = znode_get_utmost_if_dirty(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
-
 	if (ret) {
 		if (ret == -EINVAL) {
 			/* cannot get right neighbor, go process extents. */
@@ -1593,13 +1583,11 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 		goto stop;
 
 	ret = incr_load_count_znode(&right_load, right_lock.node);
-
 	if (ret)
 		goto stop;
 
 	/* squeeze _before_ going upward. */
 	ret = squeeze_right_non_twig(pos->lock.node, right_lock.node);
-
 	if (ret < 0)
 		goto stop;
 
@@ -1615,14 +1603,12 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 		/* parent(right_lock.node) has to be processed before
 		 * (right_lock.node) due to "parent-first" allocation order. */
 		ret = squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
-
 		if (ret)
 			goto stop;
 	}
 
 	/* (re)allocate _after_ going upward */
 	ret = lock_parent_and_allocate_znode(right_lock.node, pos);
-
 	if (ret)
 		goto stop;
 
@@ -1877,6 +1863,8 @@ static int handle_pos_to_leaf (flush_pos_t * pos)
 		goto out;
 
 	ret = incr_load_count_znode(&child_load, JZNODE(child));
+	if (ret)
+		goto out;
 
 	ret = allocate_znode(JZNODE(child), &pos->coord, pos);
 	if (ret)
