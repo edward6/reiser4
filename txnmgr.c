@@ -1130,9 +1130,9 @@ flush_this_atom(txn_atom * atom, long *nr_submitted, int flags)
 		if (ret < 0) {
 			info("jnode_flush failed with err = %ld\n", ret);
 		} else {
-			/* please cut the dead code below, it can always be found in bk */
-
 			*nr_submitted += ret;
+
+			/* please cut the dead code below, it can always be found in bk */
 
 			{	/* FIXME-ZAM: this accounting should be re-implemented or just
 				 * thrown away. It is needed for current reiser4_vm_writeback()
