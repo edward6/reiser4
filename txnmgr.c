@@ -1051,7 +1051,9 @@ txn_try_capture_page  (struct page        *pg,
 	jnode *node = jnode_of_page (pg);
 	spin_lock_jnode (node);
 	ret = txn_try_capture (node, lock_mode, non_blocking);
-	spin_unlock_jnode (node);
+	if (ret == 0) {
+		spin_unlock_jnode (node);
+	}
 	jput (node);
 	return ret;
 }
