@@ -4,6 +4,37 @@
 
 #include "reiser4.h"
 #include "bitmap.h"
+
+/* Block allocation/deallocation are done through special bitmap objects which
+ * are allocated in an array at fs mount. */
+struct bnode {
+	spinlock_t guard;
+	char     * wpage; /* working bitmap block */
+	char     * cpage; /* commit bitmap block */
+
+	struct bnode * next_in_commit_list;
+};
+
+static inline void spin_lock_bnode (struct bnode * bnode)
+{
+	spin_lock (& bnode -> guard);
+}
+
+static inline void spin_unlock_bnode (struct bnode * bnode)
+{
+	spin_unlock (& bnode -> guard);
+}
+
+struct bitmap_allocator_data {
+	/** an array for bitmap blocks direct access */
+	struct bnode * bitmap;
+};
+
+#define get_barray(super) \
+(((struct bitmap_allocator_data *)(get_super_private(super)->space_allocator.u.generic)) -> bitmap)
+
+#define get_bnode(super, i) (get_barray(super) + i)
+
 /*
  * this file contains:
  * - bitmap based implementation of space allocation plugin
@@ -219,11 +250,9 @@ static int get_nr_bmap (struct super_block * super)
 }
 
 /* bnode structure initialization */
-static void init_bnode (struct reiser4_bnode * bnode)
+static void init_bnode (struct bnode * bnode)
 {
-	bnode -> wpage = NULL;
-	bnode -> cpage = NULL;
-
+	xmemset (bnode, 0, sizeof (struct bnode)); 
 	spin_lock_init (& bnode -> guard); 
 }
 
@@ -265,10 +294,10 @@ int bitmap_init_allocator (reiser4_space_allocator * allocator,
 	bitmap_blocks_nr = get_nr_bmap(super); 
 
 	data->bitmap = reiser4_kmalloc (
-		sizeof(struct reiser4_bnode) * bitmap_blocks_nr, GFP_KERNEL);
+		sizeof(struct bnode) * bitmap_blocks_nr, GFP_KERNEL);
 
 	if (data->bitmap ==  NULL) {
-		reiser4_kfree (data, sizeof(struct reiser4_bnode) * bitmap_blocks_nr);
+		reiser4_kfree (data, sizeof(struct bnode) * bitmap_blocks_nr);
 		return -ENOMEM;
 	}
 
@@ -296,7 +325,7 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 	bitmap_blocks_nr = get_nr_bmap(super);
 
 	for (i = 0; i < bitmap_blocks_nr; i ++) {
-		struct reiser4_bnode * bnode = data -> bitmap + i;
+		struct bnode * bnode = data -> bitmap + i;
 
 		assert ("zam-378", equi(bnode -> wpage == NULL, bnode -> cpage == NULL));
 
@@ -305,7 +334,7 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 	}
 
 	reiser4_kfree (data->bitmap,
-		       sizeof(struct reiser4_bnode) * bitmap_blocks_nr);
+		       sizeof(struct bnode) * bitmap_blocks_nr);
 	reiser4_kfree (data, sizeof (struct bitmap_allocator_data));
 	allocator->u.generic = NULL;
 	return 0;
@@ -319,7 +348,7 @@ void get_working_bitmap_blocknr (int bmap, reiser4_block_nr *bnr)
 
 /** Load node at given blocknr, update given pointer. This function should be
  * called under tree lock held */
-static int load_bnode_half (struct reiser4_bnode * bnode, char ** data, reiser4_block_nr *block)
+static int load_bnode_half (struct bnode * bnode, char ** data, reiser4_block_nr *block)
 {
 	struct super_block * super = get_current_context() -> super;
 	int (*read_node) (const reiser4_block_nr *, char **, size_t);
@@ -356,7 +385,7 @@ static int load_bnode_half (struct reiser4_bnode * bnode, char ** data, reiser4_
 }
 
 /* load bitmap blocks "on-demand" */
-static int load_bnode (struct reiser4_bnode * bnode)
+static int load_bnode (struct bnode * bnode)
 {
 	struct super_block * super = get_current_context()->super;
 	int ret = 0;
@@ -441,7 +470,7 @@ static int search_one_bitmap (int bmap, int *offset, int max_offset,
 			      int min_len, int max_len)
 {
 	struct super_block * super = get_current_context() -> super;
-	struct reiser4_bnode * bnode = get_bnode (super, bmap);
+	struct bnode * bnode = get_bnode (super, bmap);
 
 	int search_end;
 	int start;
@@ -520,16 +549,6 @@ int bitmap_alloc (reiser4_block_nr *start, const reiser4_block_nr *end, int min_
 	return len;
 }
 
-#define WALK_ATOM_VARS \
-        int    h; \
-        jnode *node;
-
-#define WALK_ATOM                                             \
-        for (h = 0; h < REAL_MAX_ZTREE_HEIGHT; h ++)          \
-        for (node = capture_list_front(&atom->dirty_nodes[h]); \
-             capture_list_end(&atom->dirty_nodes[h], node);          \
-             node = capture_list_next(node))
-
 /* plugin->u.space_allocator.alloc_blocks */
 int bitmap_alloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 			 reiser4_blocknr_hint * hint, int needed,
@@ -583,79 +602,106 @@ int bitmap_alloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	return 0;
 }
 
-/* plugin->u.space_allocator.dealloc_block */
-void bitmap_dealloc_blocks (reiser4_space_allocator * allocator,
-			    reiser4_block_nr start,
-			    reiser4_block_nr len)
-{
-	
-}
-
 /*
  * These functions are hooks from the journal code to manipulate COMMIT BITMAP
  * and WORKING BITMAP objects.
  */
 
+static int pre_commit_actor (txn_atom               * atom UNUSED_ARG,
+			     const reiser4_block_nr * start,
+			     const reiser4_block_nr * len,
+			     void                   * data)
+{
+	
+	int bmap, offset;
+
+	struct bnode       * bnode;
+	struct bnode       * commit_list = data;
+
+	struct super_block * sb = reiser4_get_current_sb();
+
+	assert ("zam-436", sb != NULL);
+
+	assert ("zam-437", *start != 0);
+	assert ("zam-438", *len != 0);
+
+	assert ("zam-441", *start < reiser4_block_count(sb));
+	assert ("zam-442", *start + *len <= reiser4_block_count(sb));
+
+	parse_blocknr(start, &bmap, &offset);
+
+	/* FIXME-ZAM: we assume that all block ranges are allocated by this
+	 * bitmap-based allocator and each block range can't go over a zone of
+	 * responsibility of one bitmap block; same assumption is used in
+	 * other journal hooks in bitmap code. */
+	assert ("zam-443", offset + *len <= sb->s_blocksize);
+
+	bnode = get_bnode(sb, bmap);
+
+	/* put bnode in a special list for post-processing */
+	if (bnode->next_in_commit_list == NULL) {
+		bnode->next_in_commit_list = commit_list;
+		commit_list = bnode;
+	}
+
+	/* apply DELETE SET */
+	assert ("zam-444", bnode->cpage != NULL);
+
+	spin_lock_bnode (bnode);
+	reiser4_clear_bits (bnode->cpage, offset, (int)(offset + *len));
+	spin_unlock_bnode (bnode);
+
+	return 0;
+}
+
 /** It just applies transaction changes to fs-wide COMMIT BITMAP, hoping the
  * rest is done by transaction manager (allocate wandered locations for COMMIT
  * BITMAP blocks, copy COMMIT BITMAP blocks data). */
-int bitmap_pre_commit_hook (txn_atom * atom)
+void bitmap_pre_commit_hook (void)
 {
-	struct super_block * super          = reiser4_get_current_sb ();
-	reiser4_super_info_data * info_data = get_super_private (super);
-	reiser4_space_allocator * allocator = &info_data->space_allocator;
-	int ret = 0;
-	WALK_ATOM_VARS;
+	reiser4_context * ctx = get_current_context ();
 
-	spin_lock_atom(atom);
+	txn_handle      * tx;
+	txn_atom        * atom;
 
-	WALK_ATOM {
-		int bmap, offset;
+	struct bnode    * commit_list = NULL;
 
-		struct reiser4_bnode * bnode;
+	assert ("zam-433", ctx != NULL);
 
-		if (!jnode_is_in_deleteset(node) && 
-		    !JF_ISSET(node, ZNODE_ALLOC))
-			continue;
+	tx = ctx->trans;
+	assert ("zam-434", tx != NULL);
 
-		parse_blocknr(& node->blocknr, &bmap, &offset);
+	atom = atom_get_locked_by_txnh(tx);
+	assert ("zam-435", atom != 0);
 
-		assert("zam-370", !blocknr_is_fake(&node->blocknr));
+	blocknr_set_iterator (atom, &atom->delete_set, pre_commit_actor, &commit_list, 0);
 
-		bnode = get_bnode(super, bmap);
+	spin_unlock_atom (atom);
 
-		if (node->atom == NULL) { 
-			/* capture a commit bitmap block */
-			jnode * jnode;
+	/* adding bnode->cpage into the transaction. it may wait, so it is
+	 * done as a bnode commit list post-processing */
+	while (commit_list != NULL) {
+		struct bnode * bnode = commit_list;
+		struct page  * page;
+		int err;
 
-		}
+		/* FIXME: page locking ?*/
+//		page = virt_to_page (bnode->cpage);
+		
+		assert ("zam-445", page != NULL);
 
-		/* apply DELETED SET */
-		if (jnode_is_in_deleteset(node))
-			reiser4_clear_bit(offset, bnode->cpage);
+		err = txn_try_capture_page(page, ZNODE_WRITE_LOCK, 0);
 
-#if 0
-		/* adjust blocks_free_committed counter -- a free blocks
-		 * counter we write to disk */
-		if (JF_ISSET(node, ZNODE_DELETED))
-			reiser4_inc_free_committed_blocks (super);
+		if (err == -EAGAIN) continue;
 
-		if (JF_ISSET(node, ZNODE_ALLOC)) {
-			/* set bits for freshly allocated nodes */
-			reiser4_set_bit(offset, bnode->cpage);
-			/* count block which are allocated in the transaction, */
-			reiser4_dec_free_committed_blocks (super);
-		}
-#endif
+		commit_list = bnode->next_in_commit_list;
+		bnode->next_in_commit_list = NULL;
 	}
-
-	spin_unlock_atom(atom);
-
-	return ret;
 }
 
 /** called after transaction commit, apply DELETE SET to WORKING BITMAP */
-int bitmap_post_commit_hook (txn_atom * atom) {
+void bitmap_post_commit_hook (void) {
+#if 0
 	struct super_block      * super     = reiser4_get_current_sb ();
 	reiser4_super_info_data * info_data = get_super_private (super); 
 	reiser4_space_allocator * allocator = &info_data->space_allocator;
@@ -669,13 +715,12 @@ int bitmap_post_commit_hook (txn_atom * atom) {
 
 	WALK_ATOM {
 		int bmap, offset;
-		struct reiser4_bnode * bnode;
+		struct bnode * bnode;
 
 		/* At this moment after successful commit we replay previously
 		 * recorded in atom's deleted_nodes list changes to working
 		 * bitmap and working free blocks counter ... */
 
-#if 0
 		/* ... count all blocks which are freed in a "working" free
 		 * block counter */
 		if (JF_ISSET(node, ZNODE_DELETED)) {
@@ -684,7 +729,7 @@ int bitmap_post_commit_hook (txn_atom * atom) {
 			reiser4_inc_free_blocks (super);
 			spin_lock (&info_data->guard);
 		}
-#endif
+
 		if (! jnode_is_in_deleteset(node))
 			continue;
 
@@ -707,13 +752,15 @@ int bitmap_post_commit_hook (txn_atom * atom) {
 	 * moment */
 
 	return ret;
+#endif
 }
 
 /** This function is called after write-back (writing blocks from OVERWRITE
  * SET to real locations) transaction stage completes. (clear WANDERED SET in
  * WORKING BITMAP) */
-int bitmap_post_write_back_hook (txn_atom * atom)
+void bitmap_post_write_back_hook (void)
 {
+#if 0
 	struct super_block      * super     = reiser4_get_current_sb ();
 	reiser4_super_info_data * info_data = get_super_private (super);
 	reiser4_space_allocator * allocator =  &info_data->space_allocator;
@@ -730,7 +777,7 @@ int bitmap_post_write_back_hook (txn_atom * atom)
 	 * under an assumption that those objects are jnodes. */
 	WALK_ATOM {
 		int bmap, offset;
-		struct reiser4_bnode * bnode;
+		struct bnode * bnode;
 
 		if (!JF_ISSET(node, ZNODE_WANDER))
 			continue;
@@ -753,6 +800,7 @@ int bitmap_post_write_back_hook (txn_atom * atom)
 	spin_unlock_atom(atom);
 
 	return ret;
+#endif
 }
 
 /* 

@@ -340,9 +340,9 @@ typedef struct space_allocator_plugin {
 	void ( *print_info )( reiser4_space_allocator * );
 
 	/* program hooks from journal code */
-	void ( *pre_commit_hook      )( txn_atom * );
-	void ( *post_commit_hook     )( txn_atom * );
-	void ( *post_write_back_hook )( txn_atom * );
+	void ( *pre_commit_hook      )( void );
+	void ( *post_commit_hook     )( void );
+	void ( *post_write_back_hook )( void );
 } space_allocator_plugin;
 
 /* disk layout plugin: this specifies super block, journal, bitmap (if there

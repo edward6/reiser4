@@ -3,6 +3,7 @@
  */
 
 #include "reiser4.h"
+#include "bitmap.h"
 
 /* initialization of objectid space allocator plugins */
 reiser4_plugin space_plugins[ LAST_SPACE_ALLOCATOR_ID ] = {
@@ -19,10 +20,10 @@ reiser4_plugin space_plugins[ LAST_SPACE_ALLOCATOR_ID ] = {
 			.init_allocator       = bitmap_init_allocator,
 			.destroy_allocator    = bitmap_destroy_allocator,
 			.alloc_blocks         = bitmap_alloc_blocks,
-			.dealloc_blocks       = bitmap_dealloc_blocks,
-			.pre_commit_hook      = NULL,
-			.post_commit_hook     = NULL,
-			.post_write_back_hook = NULL,
+			.dealloc_blocks       = NULL,
+			.pre_commit_hook      = bitmap_pre_commit_hook,
+			.post_commit_hook     = bitmap_post_commit_hook,
+			.post_write_back_hook = bitmap_post_write_back_hook,
 			.print_info           = NULL
 		}
 	},
