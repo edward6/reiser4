@@ -481,7 +481,7 @@ struct block_device {
 };
 
 typedef unsigned short kdev_t;
-typedef long long off64_t;
+
 #define val_to_kdev(val) val
 #define kdev_val(kdev) kdev
 
@@ -756,6 +756,7 @@ struct page {
 	unsigned count;
 	unsigned long private;
 	struct list_head list;
+	int kmap_count;
 };
 
 #define PG_locked	 0	/* Page is locked. Don't touch. */
@@ -913,7 +914,13 @@ struct page {
 #define ClearPageKmaped(page)		clear_bit(PG_kmapped, &(page)->flags)
 #define TestClearPageKmaped(page)	test_and_clear_bit(PG_kmapped, &(page)->flags)
 
-#define page_address(page)   ((page)->virtual)
+#define page_address(page)                                              \
+	({								\
+		assert ("vs-694", PageKmaped (page));			\
+		(page)->virtual;					\
+	})
+
+
 void remove_inode_page(struct page *);
 void page_cache_readahead(struct file *file, unsigned long offset);
 
@@ -1021,6 +1028,7 @@ int generic_file_mmap(struct file * file, struct vm_area_struct * vma);
         } while (0)
 
 int fsync_bdev(struct block_device *);
+sector_t generic_block_bmap(struct address_space *, sector_t, get_block_t *);
 
 /* include/linux/locks.h */
 void wait_on_buffer(struct buffer_head *);
@@ -1029,7 +1037,6 @@ void wait_on_buffer(struct buffer_head *);
 #define flush_dcache_page(page)	do { } while (0)
 
 /* include/asm/page.h */
-/* FIXME-VS: */
 #define virt_to_page(addr) ((struct page *)((char *)addr - sizeof (struct page)))
 
 /* mm/filemap.c */
@@ -1174,13 +1181,10 @@ static inline void unlock_new_inode(struct inode *inode)
 
 extern void declare_memory_pressure( void );
 
-#define PAGE_SHIFT	9
-#define PAGE_SIZE	(1UL << PAGE_SHIFT)
-#define PAGE_MASK	(~(PAGE_SIZE-1))
+#define PAGE_CACHE_SHIFT	9
+#define PAGE_CACHE_SIZE	(1UL << PAGE_CACHE_SHIFT)
+#define PAGE_CACHE_MASK	(~(PAGE_CACHE_SIZE-1))
 
-#define PAGE_CACHE_SHIFT	PAGE_SHIFT
-#define PAGE_CACHE_SIZE		PAGE_SIZE
-#define PAGE_CACHE_MASK		PAGE_MASK
 #define PAGE_CACHE_ALIGN(addr)	(((addr)+PAGE_CACHE_SIZE-1)&PAGE_CACHE_MASK)
 
 enum bh_state_bits {
