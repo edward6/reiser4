@@ -48,15 +48,16 @@ typedef union
 #define EXIST 285
 #define NAME 286
 #define UNNAME 287
-#define ROOT 288
-#define USLASH 289
+#define NAMED 288
+#define ROOT 289
+#define USLASH 290
 #define YYERRCODE 256
-#define YYTABLESIZE 444
+#define YYTABLESIZE 467
 #define YYFINAL 4
 #ifndef YYDEBUG
 #define YYDEBUG 0
 #endif
-#define YYMAXTOKEN 289
+#define YYMAXTOKEN 290
 #if defined(YYREISER4_DEF)
 #define extern static
 #endif
@@ -111,7 +112,7 @@ short yyss[YYSTACKSIZE];
 YYSTYPE yyvs[YYSTACKSIZE];
 #define yystacksize YYSTACKSIZE
 #endif
-#line 160 "fs/reiser4/parser/parser.y"
+#line 166 "fs/reiser4/parser/parser.y"
 
 
 #define yyversion "4.0.0"
@@ -128,7 +129,7 @@ YYSTYPE yyvs[YYSTACKSIZE];
    tab-width: 8
    End:
 */
-#line 132 "fs/reiser4/parser/parser.code.c"
+#line 133 "fs/reiser4/parser/parser.code.c"
 #define YYABORT goto yyabort
 #define YYREJECT goto yyabort
 #define YYACCEPT goto yyaccept
@@ -410,10 +411,14 @@ case 33:
 { yyval.expr = yyvsp[-1].expr; level_down( ws, yyvsp[-2].charType, yyvsp[0].charType );}
 break;
 case 34:
-#line 156 "fs/reiser4/parser/parser.y"
-{ yyval.charType = yyvsp[0].charType; level_up( ws, yyvsp[0].charType ); /*set_curr_path( ws ); */}
+#line 157 "fs/reiser4/parser/parser.y"
+{ yyval.charType = yyvsp[0].charType; level_up( ws, yyvsp[0].charType, 0 ); /*set_curr_path( ws ); */}
 break;
-#line 417 "fs/reiser4/parser/parser.code.c"
+case 35:
+#line 161 "fs/reiser4/parser/parser.y"
+{ yyval.wrd = lookup_word( ws, yyvsp[-1].wrd, NAMED ); }
+break;
+#line 422 "fs/reiser4/parser/parser.code.c"
     }
     yyssp -= yym;
     yystate = *yyssp;

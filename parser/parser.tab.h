@@ -29,8 +29,9 @@
 #define EXIST 285
 #define NAME 286
 #define UNNAME 287
-#define ROOT 288
-#define USLASH 289
+#define NAMED 288
+#define ROOT 289
+#define USLASH 290
 typedef union 
 {
 	long charType;
