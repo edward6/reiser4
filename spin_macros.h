@@ -14,6 +14,10 @@
 #if REISER4_USER_LEVEL_SIMULATION
 #    define check_spin_is_locked(s)     spin_is_locked(s)
 #    define check_spin_is_not_locked(s) spin_is_not_locked(s)
+#elif defined( CONFIG_DEBUG_SPINLOCK ) && defined( CONFIG_SMP )
+#    define check_spin_is_not_locked(s) ( ( s ) -> owner != get_current() )
+#    define spin_is_not_locked(s)       ( ( s ) -> owner == NULL )
+#    define check_spin_is_locked(s)     ( ( s ) -> owner == get_current() )
 #else
 #    define check_spin_is_not_locked(s) (1)
 #    define spin_is_not_locked(s)       (1)
@@ -27,8 +31,19 @@
 /** Define several inline functions for each type of spinlock. */
 #define SPIN_LOCK_FUNCTIONS(NAME,TYPE,FIELD)					\
 										\
+static inline int  spin_ ## NAME ## _is_locked (const TYPE *x)			\
+{										\
+	return check_spin_is_locked (& x->FIELD);				\
+}										\
+										\
+static inline int  spin_ ## NAME ## _is_not_locked (TYPE *x)			\
+{										\
+	return check_spin_is_not_locked (& x->FIELD);				\
+}										\
+										\
 static inline void spin_lock_ ## NAME ## _no_ord (TYPE *x)			\
 {										\
+	assert( "nikita-2703", spin_ ## NAME ## _is_not_locked( x ) );		\
 	spin_lock( &x -> FIELD );						\
 	ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked_ ## NAME );		\
 	ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked );			\
@@ -36,9 +51,9 @@ static inline void spin_lock_ ## NAME ## _no_ord (TYPE *x)			\
 										\
 static inline void spin_lock_ ## NAME (TYPE *x)					\
 {										\
-	ON_DEBUG_CONTEXT( assert( "nikita-1383",                                \
+	ON_DEBUG_CONTEXT( assert( "nikita-1383",				\
 				  spin_ordering_pred_ ## NAME( x ) ) );		\
-	spin_lock_ ## NAME ## _no_ord( x );                                     \
+	spin_lock_ ## NAME ## _no_ord( x );					\
 }										\
 										\
 static inline int  spin_trylock_ ## NAME (TYPE *x)				\
@@ -59,17 +74,8 @@ static inline void spin_unlock_ ## NAME (TYPE *x)				\
 		lock_counters() -> spin_locked > 0 ) );				\
 	ON_DEBUG_CONTEXT( -- lock_counters() -> spin_locked_ ## NAME );		\
 	ON_DEBUG_CONTEXT( -- lock_counters() -> spin_locked );			\
+	assert( "nikita-2703", spin_ ## NAME ## _is_locked( x ) );		\
 	spin_unlock (& x->FIELD);						\
-}										\
-										\
-static inline int  spin_ ## NAME ## _is_locked (const TYPE *x)			\
-{										\
-	return check_spin_is_locked (& x->FIELD);				\
-}										\
-										\
-static inline int  spin_ ## NAME ## _is_not_locked (TYPE *x)			\
-{										\
-	return check_spin_is_not_locked (& x->FIELD);				\
 }										\
 										\
 typedef struct { int foo; } NAME ## _spin_dummy
