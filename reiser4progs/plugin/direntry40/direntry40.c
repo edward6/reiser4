@@ -4,10 +4,6 @@
     Author Yury Umanets.
 */
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h>
-#endif
-
 #include "direntry40.h"
 
 static reiser4_core_t *core = NULL;
@@ -249,6 +245,8 @@ static uint16_t direntry40_remove(reiser4_body_t *body,
     return rem_len + sizeof(entry40_t);
 }
 
+extern errno_t direntry40_check(reiser4_body_t *, uint16_t);
+
 #endif
 
 static errno_t direntry40_print(reiser4_body_t *body, 
@@ -369,11 +367,13 @@ static reiser4_plugin_t direntry40_plugin = {
 	    .insert	= direntry40_insert,
 	    .remove	= direntry40_remove,
 	    .estimate	= direntry40_estimate,
+	    .check	= direntry40_check,
 #else
 	    .init	= NULL,
 	    .estimate	= NULL,
 	    .insert	= NULL,
 	    .remove	= NULL,
+	    .check	= NULL,
 #endif
 	    .confirm	= NULL,
 	    .valid	= NULL,

@@ -124,7 +124,7 @@ errno_t format40_print(reiser4_entity_t *entity, char *buff,
 {
     format40_super_t *super;
     
-    aal_assert("vpf-160", entity != NULL, return -1);
+    aal_assert("vpf-246", entity != NULL, return -1);
     
     if (!buff) return -1;
 

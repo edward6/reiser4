@@ -7,6 +7,10 @@
 #ifndef DIRENTRY40_H
 #define DIRENTRY40_H
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <aal/aal.h>
 #include <aux/aux.h>
 #include <reiser4/plugin.h>

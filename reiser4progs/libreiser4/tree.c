@@ -1025,15 +1025,16 @@ errno_t reiser4_tree_move(
 
 #endif
 
-/* This function makes travers of the tree */
+/* This function travers an internal reiser4 tree. */
 errno_t reiser4_tree_traverse(
     aal_device_t *device,		/* tree to be traversed */
     aal_block_t *block,			/* root block traverse will be going from */
     reiser4_open_func_t open_func,	/* callback will be used for opening node */
-    reiser4_edge_func_t before_func,	/* callback will be called before node */
-    reiser4_setup_func_t setup_func,	/* callback will be called on node */
-    reiser4_update_func_t update_func,	/* callback will be called on child */
-    reiser4_edge_func_t after_func,	/* callback will be called after node */
+    reiser4_handler_func_t handler_func,/* callback will be called on node */
+    reiser4_edge_func_t before_func,	/* callback will be called before all childs */
+    reiser4_setup_func_t setup_func,	/* callback will be called before a child */
+    reiser4_setup_func_t update_func,	/* callback will be called after a child */
+    reiser4_edge_func_t after_func,	/* callback will be called after all childs  */
     void *data				/* user-spacified data */
 ) {
     errno_t result = 0;
@@ -1049,12 +1050,13 @@ errno_t reiser4_tree_traverse(
 	return -1;
     }
     
-    if (before_func && (result = before_func(node, data)))
-        goto error_free_node;
-
-    if ((setup_func && !(result = setup_func(node, data))) || !setup_func) {
+    if ((handler_func && !(result = handler_func(node, data))) || !handler_func) {
 	reiser4_item_t item;
 	reiser4_pos_t pos = {0, 0};
+	uint8_t unit;
+
+	if (before_func && (result = before_func(node, data)))
+	    goto error_free_node;
 
 	for (; pos.item < reiser4_node_count(node); pos.item++) {
 	    aal_block_t *block;
@@ -1065,9 +1067,11 @@ errno_t reiser4_tree_traverse(
 		    aal_block_number(node->block), pos.item);
 		goto error_free_node;
 	    }
-	    
-	    for (; pos.unit <= reiser4_item_count(&item); pos.unit++) {
+
+	    for (unit = 0; unit < reiser4_item_count(&item); unit++) {
 		blk_t target;
+
+		pos.unit = reiser4_item_count(&item) == 1 ? ~0ul : unit;
 
 		if (!reiser4_item_internal(&item))
 		    continue;
@@ -1079,19 +1083,23 @@ errno_t reiser4_tree_traverse(
 			    "Can't read block %llu. %s.", target, device->error);
 			goto error_free_node;
 		    }
-		
-		    result = reiser4_tree_traverse(device, block, open_func, 
-			before_func, setup_func, update_func, after_func, data);
+	
+		    if (setup_func && (result = setup_func(node, &item, data)))
+			goto error_free_node;
+		    	    
+		    if ((result = reiser4_tree_traverse(device, block, open_func, 
+			handler_func, before_func, setup_func, update_func, 
+			after_func, data)))
+			goto error_free_node;
 
-		    if (update_func && !update_func(node, pos.item, data))
+		    if (update_func && (result = update_func(node, &item, data)))
 			goto error_free_node;
 		}
 	    }
 	}
+	if (after_func && (result = after_func(node, data)))
+	    goto error_free_node;	
     }
-
-    if (after_func && !(result = after_func(node, data)))
-	goto error_free_node;
 
     reiser4_node_close(node);
     return result;

@@ -1,7 +1,11 @@
 includedir			= -I$(top_srcdir)/include
 libdir				= $(plugindir)
 
+if ENABLE_COMPACT
 direntry40_sources		= direntry40.c direntry40.h
+else
+direntry40_sources              = direntry40.c direntry40_repair.c direntry40.h
+endif
 
 lib_LTLIBRARIES			= libdirentry40.la
 noinst_LTLIBRARIES		= libdirentry40-static.la

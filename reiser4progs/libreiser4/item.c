@@ -83,7 +83,7 @@ uint32_t reiser4_item_count(reiser4_item_t *item) {
     if (item->plugin->item_ops.common.count)
 	return item->plugin->item_ops.common.count(item->body);
 
-    return 0;
+    return 1;
 }
 
 #ifndef ENABLE_COMPACT
@@ -142,12 +142,20 @@ int reiser4_item_permissn(reiser4_item_t *item) {
 	item->plugin->item_ops.group == PERMISSN_ITEM_GROUP;
 }
 
-int reiser4_item_filebody(reiser4_item_t *item) {
+int reiser4_item_tail(reiser4_item_t *item) {
     aal_assert("umka-1098", item != NULL, return 0);
     aal_assert("umka-1099", item->plugin != NULL, return 0);
 
     return item->plugin->h.type == ITEM_PLUGIN_TYPE &&
-	item->plugin->item_ops.group == FILEBODY_ITEM_GROUP;
+	item->plugin->item_ops.group == TAIL_ITEM_GROUP;
+}
+
+int reiser4_item_extent(reiser4_item_t *item) {
+    aal_assert("vpf-238", item != NULL, return 0);
+    aal_assert("vpf-239", item->plugin != NULL, return 0);
+
+    return item->plugin->h.type == ITEM_PLUGIN_TYPE &&
+	item->plugin->item_ops.group == EXTENT_ITEM_GROUP;
 }
 
 int reiser4_item_direntry(reiser4_item_t *item) {
