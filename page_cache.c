@@ -550,6 +550,7 @@ static struct bio *page_bio( struct page *page, int rw, int gfp )
 		jnode              *node;
 		int                 blksz;
 		struct super_block *super;
+		reiser4_block_nr    blocknr;
 
 		trace_if( TRACE_BUG, print_page( __FUNCTION__, page ) );
 
@@ -560,8 +561,11 @@ static struct bio *page_bio( struct page *page, int rw, int gfp )
 		blksz = super -> s_blocksize;
 		assert( "nikita-2028", blksz == ( int ) PAGE_CACHE_SIZE );
 
-		/* Note: This code is somewhat duplicated in flush.c:flush_finish */
-		bio -> bi_sector = *jnode_get_block( node ) * ( blksz >> 9 );
+		blocknr = *jnode_get_block( node );
+		assert( "nikita-2275", blocknr != ( reiser4_block_nr ) 0 );
+		assert( "nikita-2276", !blocknr_is_fake( &blocknr ) );
+
+		bio -> bi_sector = blocknr * ( blksz >> 9 );
 		bio -> bi_bdev   = super -> s_bdev;
 		bio -> bi_io_vec[ 0 ].bv_page   = page;
 		bio -> bi_io_vec[ 0 ].bv_len    = blksz;

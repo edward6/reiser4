@@ -4,6 +4,8 @@
 
 #include "../../reiser4.h"
 
+static const reiser4_block_nr null_block_nr = (__u64)0;
+
 /*
  * prepare structure reiser4_item_data to put one extent unit into tree
  */
@@ -1057,7 +1059,6 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 	reiser4_item_data unit;
 	reiser4_key first_key;
 
-
 	/* make sure that we really write to first block */
 	assert ("vs-240",
 		(get_key_offset (key) & ~(current_blocksize - 1)) == 0);
@@ -1076,6 +1077,7 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 
 	jnode_set_mapped (j);
 	jnode_set_created (j);
+	jnode_set_block (j, &null_block_nr);
 
 	reiser4_stat_file_add (write_repeats);
 	return -EAGAIN;
@@ -1120,6 +1122,7 @@ static int append_one_block (coord_t * coord,
 
 	jnode_set_mapped (j);
 	jnode_set_created (j);
+	jnode_set_block (j, &null_block_nr);
 
 	/* it is possible that coord is moved to newly allocated node. If so -
 	 * coord->node can be not loaded now */
@@ -1488,6 +1491,7 @@ static int overwrite_one_block (coord_t * coord, lock_handle * lh,
 
 		jnode_set_mapped (j);
 		jnode_set_created (j);
+		jnode_set_block (j, &null_block_nr);
 		break;
 
 	default:
