@@ -373,6 +373,8 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 	assert( "nikita-356",
 		( bias == FIND_EXACT ) || ( bias == FIND_MAX_NOT_MORE_THAN ) );
 	assert( "nikita-357", stop_level >= LEAF_LEVEL );
+	/* no locks can be held during tree traversal */
+	assert( "nikita-2104", lock_stack_isclean( get_current_lock_stack() ) );
 	trace_stamp( TRACE_TREE );
 
 	xmemset( &handle, 0, sizeof handle );
@@ -577,21 +579,13 @@ static lookup_result cbk_traversal( cbk_handle *h /* search handle */ )
 	    ( h -> result != CBK_COORD_NOTFOUND ) ) {
 		/* failure. do cleanup */
 		hput( h );
-	} else if( REISER4_DEBUG ) {
-		int result;
-
-		result = zload( h -> coord -> node );
-		if( !result ) {
-			assert( "nikita-1605", ergo( ( h -> result == CBK_COORD_FOUND ) &&
-						     ( h -> bias == FIND_EXACT ) &&
-						     ( !node_is_empty( h -> coord -> node ) ),
-						     coord_is_existing_unit( h -> coord ) ) );
-			zrelse( h -> coord -> node );
-		} else {
-			h -> error = "zload failed on unloading";
-			h -> result = result;
-			hput( h );
-		}
+	} else {
+		assert( "nikita-1605", WITH_DATA_RET
+			( h -> coord -> node, 1, 
+			  ergo( ( h -> result == CBK_COORD_FOUND ) &&
+				( h -> bias == FIND_EXACT ) &&
+				( !node_is_empty( h -> coord -> node ) ),
+				coord_is_existing_unit( h -> coord ) ) ) );
 	}
 	return h -> result;
 }
