@@ -51,6 +51,7 @@
 #include <linux/backing-dev.h>
 #include <linux/quotaops.h>
 #include <linux/security.h>
+#include <linux/reboot.h>
 
 /* super operations */
 
@@ -625,7 +626,8 @@ typedef struct opt_desc {
 			void *arg4;
 		} f;
 		struct {
-			/* NOT YET */
+			int *result;
+			const char *list[10];
 		} oneof;
 		/* description of plugin option */
 		struct {
@@ -691,9 +693,21 @@ parse_option(char *opt_string /* starting point of parsing */ ,
 			result = RETERR(-EINVAL);
 		}
 		break;
-	case OPT_ONEOF:
-		not_yet("nikita-2099", "Oneof");
-		break;
+	case OPT_ONEOF:{
+			int i = 0;
+			err_msg = "Wrong option value";
+			result = RETERR(-EINVAL);
+			while ( opt->u.oneof.list[i] ) {
+				if ( !strcmp(opt->u.oneof.list[i], val_start) ) {
+					result = 0;
+					*opt->u.oneof.result = i;
+printk("%s choice is %d\n",opt->name, i);
+					break;
+				}
+				i++;
+			}
+		        break;
+		       }
 	case OPT_PLUGIN:{
 			reiser4_plugin *plug;
 
@@ -932,6 +946,17 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 				}
 			}
 		},
+		/* What to do in case of fs error */
+		{
+                        .name = "onerror",
+                        .type = OPT_ONEOF,
+                        .u = {
+                                .oneof = {
+                                        .result = &sbinfo->onerror,
+                                        .list = {"panic", "remount-ro", "reboot", NULL},
+                                }
+                        }
+                },
 
 #if REISER4_TRACE_TREE
 		{
@@ -1557,14 +1582,16 @@ void reiser4_handle_error(void)
 
 	if ( !sb )
 		return;
-
-/* FIXME-GREEN, need to implement this as mount options
-	if ( get_super_private(sb)->some_var_holding_mount_options ) {
+	switch ( get_super_private(sb)->onerror ) {
+	case 0:
 		reiser4_panic("", "Filesystem error occured\n");
-	} else */ { 
+	case 1:
 		if ( sb->s_flags & MS_RDONLY )
 			return;
 		sb->s_flags |= MS_RDONLY;
+		break;
+	case 2:
+		machine_restart(NULL);
 	}
 }
 
