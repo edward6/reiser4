@@ -40,7 +40,7 @@
 #include "tree.h"
 #include "super.h"
 
-static znode *seal_node( const seal_t *seal, reiser4_tree *tree );
+static znode *seal_node( const seal_t *seal );
 static int seal_matches( const seal_t *seal, znode *node );
 static int seal_search_node( seal_t *seal, coord_t *coord, 
 			     znode *node, const reiser4_key *key, lookup_bias bias,
@@ -145,7 +145,7 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 	assert( "nikita-1989", !memcmp( &seal -> coord, coord, sizeof *coord ) );
 
 	/* obtain znode by block number */
-	node = seal_node( seal, znode_get_tree( coord -> node ) );
+	node = seal_node( seal );
 	if( node != NULL ) {
 		/* znode was in cache, lock it */
 		result = longterm_lock_znode( lh, node, mode, request );
@@ -200,11 +200,10 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 
 /** obtain reference to znode seal points to, if in cache */
 /* Audited by: green(2002.06.17) */
-static znode *seal_node( const seal_t *seal /* seal to query */, 
-			 reiser4_tree *tree /* tree we are in */ )
+static znode *seal_node( const seal_t *seal /* seal to query */ )
 {
 	assert( "nikita-1891", seal != NULL );
-	return zlook( tree, &seal -> block );
+	return zlook( current_tree, &seal -> block );
 }
 
 /** true if @seal version and @node version coincide */
