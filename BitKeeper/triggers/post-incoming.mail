@@ -35,6 +35,12 @@ if test "X$BK_EVENT" != "Xincoming push"; then
     exit 0
 fi
 
+# Suppress duplicates
+if test "X$BK_DUP" != "X"; then
+    #echo suppressed >> /tmp/supp
+    exit 0
+fi
+
 # Expecting have a change set list
 if test "X$BK_CSETLIST" == X; then
     echo "Unexpected input: no BK_CSETLIST"
@@ -150,6 +156,9 @@ fi
 
 # And the subject is:
 SUBJECT="$SPREFIX $SMODFILES"
+
+# Castrating username , "making Hans Reiser happy" (tm).
+#USER=
 
 # Start generating output
 (
