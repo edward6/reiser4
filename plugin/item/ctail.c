@@ -610,7 +610,7 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 	
 	while (!list_empty(pages)) {
 		page = list_to_page(pages);
-		list_del(&page->list);
+		list_del(&page->lru);
 		if (add_to_page_cache(page, mapping, page->index, GFP_KERNEL)) {
 			page_cache_release(page);
 			continue;
@@ -640,7 +640,7 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 				struct page *victim;
 				
 				victim = list_to_page(pages);
-				list_del(&victim->list);
+				list_del(&victim->lru);
 				page_cache_release(victim);
 			}
 			break;

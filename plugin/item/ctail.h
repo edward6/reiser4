@@ -24,8 +24,8 @@ typedef struct ctail_squeeze_info {
 
 #define CTAIL_MIN_BODY_SIZE MIN_CRYPTO_BLOCKSIZE
 
-#define list_to_page(head) (list_entry((head)->prev, struct page, list))
-#define list_to_next_page(head) (list_entry((head)->prev->prev, struct page, list))
+#define list_to_page(head) (list_entry((head)->prev, struct page, lru))
+#define list_to_next_page(head) (list_entry((head)->prev->prev, struct page, lru))
 
 struct cut_list;
 
