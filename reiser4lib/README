@@ -1,0 +1,32 @@
+This is a library for reiserfs filesystem access and manipulation.
+The primary goal is to develop the nice, full functionality library 
+wich might be linked against any projects which needed reiserfs filesystem 
+access. There are GNU Parted, GNU GRUB, Yaboot, Partimage, EVMS, etc.
+
+The second goal is high maintainability source code.
+
+The third goal is to develop an alternative set of the reiserfsprogs as 
+small and nice frontends to this library.
+
+For now progsreiserfs consists of:
+1. libreiserfs, which have a number of high level APIs for access reiserfs 
+   filesystem. There are: main filesystem code (reiserfs_fs_open, reiserfs_fs_close, 
+   resierfs_fs_create, reiserfs_fs_resize, reiserfs_fs_journal_tune, etc), journal 
+   code, bitmap code, directories and files access code and device abstraction layer.
+2. fouth progs which are simple frontends to libreiserfs. There are: mkfs.reiserfs,
+   resizefs.reiserfs, cpfs.reiserfs, tunefs.reiserfs.
+   
+progsreiserfs supports versions 3.5, 3.6 with standard and relocated journal.
+Also all possible blocksizes which supported by kernel (2.4.18 with patches or 2.4.19)
+
+The project homepage is http://reiserfs.linux.kiev.ua
+
+In order to check whether libreiserfs works fine you should run regression tests which
+lie in debug directory. Just run *test* bash script. Unfortunately not the all features 
+will be tested (example, files and directory access API) because right testing requered 
+mounting of the loop device and mounting of reiserfs with blocksize which not equals 
+4096 bytes is dangerous yet!
+
+Send bug reports, requests for help, feature requests, comments, etc. to
+umka@altlinux.ru or torque@ukrpost.net. The authors can be contacted directly 
+(see the AUTHORS file).
