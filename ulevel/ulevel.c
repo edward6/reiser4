@@ -1319,6 +1319,7 @@ typedef struct mt_queue_s {
 	kcond_t not_empty;
 	kcond_t not_full;
 	spinlock_t custodian;
+	int        buried;
 } mt_queue_t;
 
 TS_LIST_DEFINE( mt_queue, mt_queue_el_t, linkage );
@@ -1328,6 +1329,7 @@ static int mt_queue_init( int cap, mt_queue_t *queue )
 	mt_queue_list_init( &queue -> body );
 	queue -> capacity = cap;
 	queue -> elements = 0;
+	queue -> buried = 0;
 	kcond_init( &queue -> not_full );
 	kcond_init( &queue -> not_empty );
 	spin_lock_init( &queue -> custodian );
@@ -1339,9 +1341,17 @@ static int mt_queue_get( mt_queue_t *queue )
 	int            v;
 	mt_queue_el_t *el;
 
+	v = 0;
 	spin_lock( &queue -> custodian );
-	while( queue -> elements == 0 )
-		kcond_wait( &queue -> not_empty, &queue -> custodian, 1 );
+	while( queue -> elements == 0 ) {
+		if( queue -> buried ) {
+			spin_unlock( &queue -> custodian );
+			return -ENOENT;
+		}
+		v = kcond_wait( &queue -> not_empty, &queue -> custodian, 1 );
+	}
+	if( v != 0 )
+		return v;
 	el = mt_queue_list_pop_front( &queue -> body ); 
 	-- queue -> elements;
 	spin_unlock( &queue -> custodian );
@@ -1354,6 +1364,7 @@ static int mt_queue_get( mt_queue_t *queue )
 static int mt_queue_put( mt_queue_t *queue, int value )
 {
 	mt_queue_el_t *el;
+	int ret;
 
 	el = malloc( sizeof *el );
 	if( el == NULL )
@@ -1362,14 +1373,42 @@ static int mt_queue_put( mt_queue_t *queue, int value )
 	mt_queue_list_clean( el );
 	el -> datum = value;
 
+	ret = 0;
 	spin_lock( &queue -> custodian );
-	while( queue -> elements == queue -> capacity )
-		kcond_wait( &queue -> not_full, &queue -> custodian, 1 );
+	while( queue -> elements == queue -> capacity ) {
+		if( queue -> buried ) {
+			spin_unlock( &queue -> custodian );
+			return -ENOENT;
+		}
+		ret = kcond_wait( &queue -> not_full, &queue -> custodian, 1 );
+	}
+	if( ret != 0 )
+		return ret;
 	mt_queue_list_push_back( &queue -> body, el );
 	++ queue -> elements;
 	spin_unlock( &queue -> custodian );
 	kcond_signal( &queue -> not_empty );
 	return 0;
+}
+
+static int mt_queue_bury( mt_queue_t *queue )
+{
+	spin_lock( &queue -> custodian );
+	queue -> buried = 1;
+	spin_unlock( &queue -> custodian );
+	kcond_broadcast( &queue -> not_full );
+	kcond_broadcast( &queue -> not_empty );
+	return 0;
+}
+
+static int mt_queue_is_buried( mt_queue_t *queue )
+{
+	int result;
+
+	spin_lock( &queue -> custodian );
+	result = queue -> buried;
+	spin_unlock( &queue -> custodian );
+	return result;
 }
 
 static void mt_queue_info( mt_queue_t *queue )
@@ -1393,7 +1432,6 @@ typedef struct mt_queue_thread_info {
 	int          ops;
 	struct super_block *sb;
 	mt_queue_thread_role_t role;
-	int stop;
 } mt_queue_thread_info;
 
 void *mt_queue_thread( void *arg )
@@ -1405,16 +1443,14 @@ void *mt_queue_thread( void *arg )
 	REISER4_ENTRY_PTR( info -> sb );
 
 	queue = info -> queue;
-	for( i = 0 ; i < info -> ops ; ++ i ) {
+	for( i = 0 ; 
+	     !mt_queue_is_buried( queue ) && ( ( info -> role != any_role ) ||
+					       ( i < info -> ops ) ) ; ++ i ) {
 		mt_queue_thread_role_t role;
 
-		if( info -> role != any_role ) {
-			if( info -> stop )
-				break;
-			else
-				i = 0;
+		if( info -> role != any_role )
 			role = info -> role;
-		} else
+		else
 			role = lc_rand_max( 2ull ) + 1;
 		switch( role ) {
 		case consumer:
@@ -1570,7 +1606,6 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		info.ops   = ops;
 		info.sb    = reiser4_get_current_sb();
 		info.role  = any_role;
-		info.stop  = 0;
 
 		for( i = 0 ; i < threads ; ++ i )
 			pthread_create( &tid[ i ],
@@ -1587,10 +1622,9 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 		for( i = 0 ; i < threads ; ++ i )
 			pthread_join( tid[ i ], NULL );
-		copy1.stop = 1; 
-		pthread_join( tid[ threads ], NULL );
-		copy2.stop = 1;
-		pthread_join( tid[ threads + 1 ], NULL );
+		mt_queue_bury( &queue );
+		for( i = threads ; i < threads + 2 ; ++ i )
+			pthread_join( tid[ i ], NULL );
 	} else if( !strcmp( argv[ 2 ], "ibk" ) ) {
 		reiser4_item_data data;
 		struct {
