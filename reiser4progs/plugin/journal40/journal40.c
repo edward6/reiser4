@@ -9,7 +9,7 @@
 
 #include "journal40.h"
 
-static reiserfs_plugins_factory_t *factory = NULL;
+static reiserfs_plugin_factory_t *factory = NULL;
 
 static error_t reiserfs_journal40_check_header(reiserfs_journal40_header_t *header, 
     aal_device_t *device) 
@@ -51,7 +51,7 @@ static reiserfs_journal40_t *reiserfs_journal40_init(aal_device_t *device) {
 
     /* Reading and chanking journal header */
     if (!(journal->header = aal_device_read_block(device, 
-	(blk_t)(REISERFS_JOURNAL40_HEADER / aal_device_get_blocksize(device)))))
+	(blk_t)(REISERFS_JOURNAL40_HEADER / aal_device_get_bs(device)))))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't read journal header.");
@@ -63,7 +63,7 @@ static reiserfs_journal40_t *reiserfs_journal40_init(aal_device_t *device) {
 	
     /* Reading and checking journal footer */
     if (!(journal->footer = aal_device_read_block(device, 
-	(blk_t)(REISERFS_JOURNAL40_FOOTER / aal_device_get_blocksize(device)))))
+	(blk_t)(REISERFS_JOURNAL40_FOOTER / aal_device_get_bs(device)))))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't read journal footer.");
@@ -100,13 +100,13 @@ static reiserfs_journal40_t *reiserfs_journal40_create(aal_device_t *device,
     journal->device = device;
 
     if (!(journal->header = aal_device_alloc_block(device, 
-	    (REISERFS_JOURNAL40_HEADER / aal_device_get_blocksize(device)), 0)))
+	    (REISERFS_JOURNAL40_HEADER / aal_device_get_bs(device)), 0)))
 	goto error_free_journal;
    
     /* Forming journal header basing on passed params */
     
     if (!(journal->footer = aal_device_alloc_block(device, 
-	    (REISERFS_JOURNAL40_FOOTER / aal_device_get_blocksize(device)), 0)))
+	    (REISERFS_JOURNAL40_FOOTER / aal_device_get_bs(device)), 0)))
 	goto error_free_header;
     
     /* Forming journal footer basing on passed params */
@@ -128,14 +128,14 @@ static error_t reiserfs_journal40_sync(reiserfs_journal40_t *journal) {
     if (aal_device_write_block(journal->device, journal->header)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't write journal header at %llu block.", 
-	    aal_device_get_block_nr(journal->device, journal->header));
+	    aal_device_get_block_nr(journal->header));
 	return -1;
     }
     
     if (aal_device_write_block(journal->device, journal->footer)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't write journal footer at %llu block.", 
-	    aal_device_get_block_nr(journal->device, journal->footer));
+	    aal_device_get_block_nr(journal->footer));
 	return -1;
     }
     return 0;
@@ -176,7 +176,7 @@ static reiserfs_plugin_t journal40_plugin = {
     }
 };
 
-reiserfs_plugin_t *reiserfs_journal40_entry(reiserfs_plugins_factory_t *f) {
+reiserfs_plugin_t *reiserfs_journal40_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &journal40_plugin;
 }

@@ -14,7 +14,7 @@
     level should be concering about validness this memory area.
 */
 
-static reiserfs_plugins_factory_t *factory = NULL;
+static reiserfs_plugin_factory_t *factory = NULL;
 
 /* Forms internal item in given memory area */
 static error_t reiserfs_internal40_create(reiserfs_internal40_t *internal, 
@@ -109,7 +109,7 @@ static reiserfs_plugin_t internal40_plugin = {
     }
 };
 
-reiserfs_plugin_t *reiserfs_internal40_entry(reiserfs_plugins_factory_t *f) {
+reiserfs_plugin_t *reiserfs_internal40_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &internal40_plugin;
 }

@@ -9,7 +9,7 @@
 
 #include "format36.h"
 
-static reiserfs_plugins_factory_t *factory = NULL;
+static reiserfs_plugin_factory_t *factory = NULL;
 
 static int reiserfs_format36_3_5_signature(const char *signature) {
     return(!aal_strncmp(signature, REISERFS_3_5_SUPER_SIGNATURE,
@@ -69,15 +69,15 @@ static aal_block_t *reiserfs_format36_super_init(aal_device_t *device) {
     reiserfs_format36_super_t *super;
     int i, super_offset[] = {16, 2, -1};
 
-    blocksize = aal_device_get_blocksize(device);
-    aal_device_set_blocksize(device, REISERFS_DEFAULT_BLOCKSIZE);
+    blocksize = aal_device_get_bs(device);
+    aal_device_set_bs(device, REISERFS_DEFAULT_BLOCKSIZE);
     
     for (i = 0; super_offset[i] != -1; i++) {
 	if ((block = aal_device_read_block(device, super_offset[i]))) {
 	    super = (reiserfs_format36_super_t *)block->data;
 			
 	    if (reiserfs_format36_signature(super)) {
-		if (aal_device_set_blocksize(device, get_sb_block_size(super))) {
+		if (aal_device_set_bs(device, get_sb_block_size(super))) {
 		    aal_device_free_block(block);
 		    continue;
 		}
@@ -87,7 +87,7 @@ static aal_block_t *reiserfs_format36_super_init(aal_device_t *device) {
 		    continue;
 		}
 		
-		if (aal_device_set_blocksize(device, get_sb_block_size(super)))
+		if (aal_device_set_bs(device, get_sb_block_size(super)))
 		    return block;
 		
 	    }
@@ -126,7 +126,7 @@ static error_t reiserfs_format36_sync(reiserfs_format36_t *format) {
     if (aal_device_write_block(format->device, format->super)) {
     	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
 	    "Can't write superblock to block %llu.", 
-	    aal_device_get_block_nr(format->device, format->super));
+	    aal_device_get_block_nr(format->super));
 	return -1;
     }
     return 0;
@@ -188,7 +188,7 @@ static reiserfs_plugin_id_t reiserfs_format36_oid_plugin(reiserfs_format36_t *fo
 
 static blk_t reiserfs_format36_offset(reiserfs_format36_t *format) {
     aal_assert("umka-386", format != NULL, return 0);
-    return (REISERFS_MASTER_OFFSET / aal_device_get_blocksize(format->device));
+    return (REISERFS_MASTER_OFFSET / aal_device_get_bs(format->device));
 }
 
 static reiserfs_opaque_t *reiserfs_format36_journal(reiserfs_format36_t *format) {
@@ -287,7 +287,7 @@ static reiserfs_plugin_t format36_plugin = {
     }
 };
 
-reiserfs_plugin_t *reiserfs_format36_entry(reiserfs_plugins_factory_t *f) {
+reiserfs_plugin_t *reiserfs_format36_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &format36_plugin;
 }

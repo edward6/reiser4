@@ -57,9 +57,23 @@ typedef struct reiserfs_plugin_header reiserfs_plugin_header_t;
 struct reiserfs_key_plugin {
     reiserfs_plugin_header_t h;
 
-    error_t (*build) (void *, uint16_t, oid_t, oid_t, uint64_t);
+    /* Confirms key format */
     int (*confirm) (void *);
+
+    /* Returns minimal key for this key-format */
+    const void *(*minimal) (void);
+    
+    /* Returns maximal key for this key-format */
+    const void *(*maximal) (void);
+
+    /* Compares two keys */
     int (*compare) (const void *, const void *);
+
+    /* Creates key by its components */
+    void *(*create) (uint16_t, oid_t, oid_t, uint64_t);
+
+    /* Destroys given key */
+    void (*fini) (void *);
 };
 
 typedef struct reiserfs_key_plugin reiserfs_key_plugin_t;
@@ -406,6 +420,7 @@ union reiserfs_plugin {
     reiserfs_oid_plugin_t oid;
     reiserfs_alloc_plugin_t alloc;
     reiserfs_journal_plugin_t journal;
+    reiserfs_key_plugin_t key;
 };
 
 typedef union reiserfs_plugin reiserfs_plugin_t;
@@ -501,14 +516,14 @@ struct reiserfs_node_coord {
 
 typedef struct reiserfs_node_coord reiserfs_node_coord_t;
 
-struct reiserfs_plugins_factory {
+struct reiserfs_plugin_factory {
     reiserfs_plugin_t *(*find_by_coords)(reiserfs_plugin_id_t, reiserfs_plugin_id_t);
     reiserfs_plugin_t *(*find_by_label)(const char *);
 };
 
-typedef struct reiserfs_plugins_factory reiserfs_plugins_factory_t;
+typedef struct reiserfs_plugin_factory reiserfs_plugin_factory_t;
 
-typedef reiserfs_plugin_t *(*reiserfs_plugin_entry_t) (reiserfs_plugins_factory_t *);
+typedef reiserfs_plugin_t *(*reiserfs_plugin_entry_t) (reiserfs_plugin_factory_t *);
 typedef error_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
 
 #ifndef ENABLE_COMPACT

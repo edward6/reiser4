@@ -9,7 +9,7 @@
 
 #include "alloc36.h"
 
-static reiserfs_plugins_factory_t *factory = NULL;
+static reiserfs_plugin_factory_t *factory = NULL;
 
 static reiserfs_alloc36_t *reiserfs_alloc36_init(aal_device_t *device, count_t len) {
     reiserfs_alloc36_t *alloc;
@@ -85,7 +85,7 @@ static reiserfs_plugin_t alloc36_plugin = {
     }
 };
 
-reiserfs_plugin_t *reiserfs_alloc36_entry(reiserfs_plugins_factory_t *f) {
+reiserfs_plugin_t *reiserfs_alloc36_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &alloc36_plugin;
 }

@@ -45,7 +45,7 @@ static error_t reiserfs_master_init(reiserfs_fs_t *fs) {
     aal_assert("umka-143", fs != NULL, return -1);
     
     master_offset = (blk_t)(REISERFS_MASTER_OFFSET / REISERFS_DEFAULT_BLOCKSIZE);
-    aal_device_set_blocksize(fs->host_device, REISERFS_DEFAULT_BLOCKSIZE);
+    aal_device_set_bs(fs->host_device, REISERFS_DEFAULT_BLOCKSIZE);
 	
     if (!(block = aal_device_read_block(fs->host_device, master_offset))) {
 	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
@@ -68,7 +68,7 @@ static error_t reiserfs_master_init(reiserfs_fs_t *fs) {
 	    goto error_free_block;
 		
 	/* Forming in memory master super block for reiser3 */
-	if (reiserfs_master_create(fs, 0x1, aal_device_get_blocksize(fs->host_device), "", "")) {
+	if (reiserfs_master_create(fs, 0x1, aal_device_get_bs(fs->host_device), "", "")) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Can't create in-memory "
 		"master super block in order to initialize reiser3 filesystem.");
 	    goto error_free_block;
@@ -80,7 +80,7 @@ static error_t reiserfs_master_init(reiserfs_fs_t *fs) {
 	
 	aal_memcpy(fs->master, master, sizeof(*master));
 	
-	if (aal_device_set_blocksize(fs->host_device, get_mr_block_size(master))) {
+	if (aal_device_set_bs(fs->host_device, get_mr_block_size(master))) {
 	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
 		"Invalid block size detected %u. It must be power of two.", 
 		get_mr_block_size(master));
@@ -154,7 +154,7 @@ reiserfs_fs_t *reiserfs_fs_init(aal_device_t *host_device,
 	goto error_free_super;
 	
     if (journal_device) {
-	aal_device_set_blocksize(journal_device, reiserfs_fs_blocksize(fs));
+	aal_device_set_bs(journal_device, reiserfs_fs_blocksize(fs));
 
 	if (reiserfs_journal_init(fs, replay))
 	    goto error_free_alloc;

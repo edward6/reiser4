@@ -217,14 +217,14 @@ error_t reiserfs_bitmap_pipe(reiserfs_bitmap_t *bitmap,
     aal_assert("umka-348", bitmap->device != NULL, return -1);
 	
     for (left = bitmap->size, blk = bitmap->start, map = bitmap->map; left > 0; ) {	
-	chunk = (left < aal_device_get_blocksize(bitmap->device) ? left : 
-	    aal_device_get_blocksize(bitmap->device));
+	chunk = (left < aal_device_get_bs(bitmap->device) ? left : 
+	    aal_device_get_bs(bitmap->device));
 	
 	if (pipe_func && pipe_func(bitmap->device, blk, map, chunk, NULL))
 	    return -1;
 		
-	blk = (blk / (aal_device_get_blocksize(bitmap->device) * 8) + 1) * 
-	    (aal_device_get_blocksize(bitmap->device) * 8);
+	blk = (blk / (aal_device_get_bs(bitmap->device) * 8) + 1) * 
+	    (aal_device_get_bs(bitmap->device) * 8);
 
 	map += chunk;
 	left -= chunk;
@@ -278,9 +278,9 @@ reiserfs_bitmap_t *reiserfs_bitmap_create(aal_device_t *device,
     reiserfs_bitmap_use_block(bitmap, start);
   
     /* Setting up other bitmap blocks */
-    bmap_blknr = (len - 1) / (aal_device_get_blocksize(device) * 8) + 1;
+    bmap_blknr = (len - 1) / (aal_device_get_bs(device) * 8) + 1;
     for (i = 1; i < bmap_blknr; i++)
-	reiserfs_bitmap_use_block(bitmap, i * aal_device_get_blocksize(device) * 8);
+	reiserfs_bitmap_use_block(bitmap, i * aal_device_get_bs(device) * 8);
 
     return bitmap;
 }
@@ -345,10 +345,10 @@ error_t reiserfs_bitmap_resize(reiserfs_bitmap_t *bitmap,
 	    bitmap->size == 0)
 	return 0;
 
-    bmap_old_blknr = bitmap->size / aal_device_get_blocksize(bitmap->device);
+    bmap_old_blknr = bitmap->size / aal_device_get_bs(bitmap->device);
     
     bmap_new_blknr = (end - start - 1) / 
-	(aal_device_get_blocksize(bitmap->device) * 8) + 1;
+	(aal_device_get_bs(bitmap->device) * 8) + 1;
 
     bitmap->size = size;
     bitmap->total_blocks = end - start;
@@ -356,7 +356,7 @@ error_t reiserfs_bitmap_resize(reiserfs_bitmap_t *bitmap,
     /* Marking new bitmap blocks as used */
     if (bmap_new_blknr - bmap_old_blknr > 0) {
 	for (i = bmap_old_blknr; i < bmap_new_blknr; i++)
-	    reiserfs_bitmap_use_block(bitmap, i * aal_device_get_blocksize(bitmap->device) * 8);
+	    reiserfs_bitmap_use_block(bitmap, i * aal_device_get_bs(bitmap->device) * 8);
     }
 
     return 0;

@@ -10,7 +10,7 @@
 
 #define STAT40_ID 0x0
 
-static reiserfs_plugins_factory_t *factory = NULL;
+static reiserfs_plugin_factory_t *factory = NULL;
 
 static error_t reiserfs_stat40_confirm(reiserfs_stat40_base_t *stat) {
     return 0;
@@ -94,7 +94,7 @@ static reiserfs_plugin_t stat40_plugin = {
     }
 };
 
-reiserfs_plugin_t *reiserfs_stat40_entry(reiserfs_plugins_factory_t *f) {
+reiserfs_plugin_t *reiserfs_stat40_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &stat40_plugin;
 }

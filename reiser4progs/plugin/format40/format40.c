@@ -9,7 +9,7 @@
 
 #include "format40.h"
 
-static reiserfs_plugins_factory_t *factory = NULL;
+static reiserfs_plugin_factory_t *factory = NULL;
 
 static error_t reiserfs_format40_super_check(reiserfs_format40_super_t *super, 
     aal_device_t *device) 
@@ -24,7 +24,7 @@ static error_t reiserfs_format40_super_check(reiserfs_format40_super_t *super,
 	return -1;
     }
     
-    offset = (REISERFS_FORMAT40_OFFSET / aal_device_get_blocksize(device));
+    offset = (REISERFS_FORMAT40_OFFSET / aal_device_get_bs(device));
     if (get_sb_root_block(super) < offset || get_sb_root_block(super) > dev_len) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Superblock has an invalid root block %llu for device "
@@ -44,7 +44,7 @@ static aal_block_t *reiserfs_format40_super_init(aal_device_t *device) {
     aal_block_t *block;
     reiserfs_format40_super_t *super;
     
-    offset = (REISERFS_FORMAT40_OFFSET / aal_device_get_blocksize(device));
+    offset = (REISERFS_FORMAT40_OFFSET / aal_device_get_bs(device));
 	
     if (!(block = aal_device_read_block(device, offset))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -179,7 +179,7 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
 	journal_device = host_device;
 
     if (!(format->super = aal_device_alloc_block(host_device, 
-	(REISERFS_FORMAT40_OFFSET / aal_device_get_blocksize(host_device)), 0))) 
+	(REISERFS_FORMAT40_OFFSET / aal_device_get_bs(host_device)), 0))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't allocate superblock.");
@@ -218,7 +218,7 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
     
     /* Marking the skiped area (0-16 blocks) as used */
     for (blk = 0; blk < (blk_t)(REISERFS_MASTER_OFFSET / 
-	    aal_device_get_blocksize(host_device)); blk++)
+	    aal_device_get_bs(host_device)); blk++)
     {
 	libreiserfs_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
 	    mark, format->alloc, blk);
@@ -226,11 +226,11 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
     
     /* Marking master super block as used */
     libreiserfs_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
-	mark, format->alloc, (REISERFS_MASTER_OFFSET / aal_device_get_blocksize(host_device)));
+	mark, format->alloc, (REISERFS_MASTER_OFFSET / aal_device_get_bs(host_device)));
     
     /* Marking format-specific super block as used */
     libreiserfs_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
-	mark, format->alloc, (REISERFS_FORMAT40_OFFSET / aal_device_get_blocksize(host_device)));
+	mark, format->alloc, (REISERFS_FORMAT40_OFFSET / aal_device_get_bs(host_device)));
     
     if (!(journal_plugin = factory->find_by_coords(REISERFS_JOURNAL_PLUGIN, 
 	REISERFS_FORMAT40_JOURNAL))) 
@@ -251,11 +251,11 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
     /* Marking journal blocks as used */
     libreiserfs_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
 	mark, format->alloc, (REISERFS_FORMAT40_JOURNAL_HEADER / 
-	aal_device_get_blocksize(host_device)));
+	aal_device_get_bs(host_device)));
     
     libreiserfs_plugins_call(goto error_free_alloc, alloc_plugin->alloc, 
 	mark, format->alloc, (REISERFS_FORMAT40_JOURNAL_FOOTER / 
-	aal_device_get_blocksize(host_device)));
+	aal_device_get_bs(host_device)));
     
     if (!(oid_plugin = factory->find_by_coords(REISERFS_OID_PLUGIN, 
 	REISERFS_FORMAT40_OID))) 
@@ -343,7 +343,7 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
 	libreiserfs_plugins_call(return -1, plugin->oid, used, format->oid));
     
     if (aal_device_write_block(format->device, format->super)) {
-	offset = aal_device_get_block_nr(format->device, format->super);
+	offset = aal_device_get_block_nr(format->super);
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't write superblock to %llu.", offset);
 	return -1;
@@ -436,7 +436,7 @@ static reiserfs_plugin_id_t reiserfs_format40_oid_plugin(reiserfs_format40_t *fo
 
 static blk_t reiserfs_format40_offset(reiserfs_format40_t *format) {
     aal_assert("umka-399", format != NULL, return 0);
-    return (REISERFS_FORMAT40_OFFSET / aal_device_get_blocksize(format->device));
+    return (REISERFS_FORMAT40_OFFSET / aal_device_get_bs(format->device));
 }
 
 static reiserfs_opaque_t *reiserfs_format40_journal(reiserfs_format40_t *format) {
@@ -545,7 +545,7 @@ static reiserfs_plugin_t format40_plugin = {
     }
 };
 
-reiserfs_plugin_t *reiserfs_format40_entry(reiserfs_plugins_factory_t *f) {
+reiserfs_plugin_t *reiserfs_format40_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &format40_plugin;
 }

@@ -9,7 +9,7 @@
 
 #include "alloc40.h"
 
-static reiserfs_plugins_factory_t *factory = NULL;
+static reiserfs_plugin_factory_t *factory = NULL;
 
 static reiserfs_alloc40_t *reiserfs_alloc40_init(aal_device_t *device, count_t len) {
     blk_t offset;
@@ -20,8 +20,8 @@ static reiserfs_alloc40_t *reiserfs_alloc40_init(aal_device_t *device, count_t l
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
     
-    offset = (REISERFS_MASTER_OFFSET + (2 * aal_device_get_blocksize(device))) / 
-	aal_device_get_blocksize(device);
+    offset = (REISERFS_MASTER_OFFSET + (2 * aal_device_get_bs(device))) / 
+	aal_device_get_bs(device);
     
     if (!(alloc->bitmap = reiserfs_bitmap_init(device, offset, len))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -49,8 +49,8 @@ static reiserfs_alloc40_t *reiserfs_alloc40_create(aal_device_t *device,
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
 
-    offset = (REISERFS_MASTER_OFFSET + (2 * aal_device_get_blocksize(device))) / 
-	aal_device_get_blocksize(device);
+    offset = (REISERFS_MASTER_OFFSET + (2 * aal_device_get_bs(device))) / 
+	aal_device_get_bs(device);
     
     if (!(alloc->bitmap = reiserfs_bitmap_create(device, offset, len))) 
     {
@@ -106,7 +106,10 @@ static blk_t reiserfs_alloc40_alloc(reiserfs_alloc40_t *alloc) {
     aal_assert("umka-374", alloc != NULL, return 0);
     aal_assert("umka-375", alloc->bitmap != NULL, return 0);
     
-    /* It is possible to implement here more smart allocation algorithm */
+    /* 
+	It is possible to implement here more smart 
+	allocation algorithm 
+    */
     if (!(blk = reiserfs_bitmap_find_free(alloc->bitmap, 0)))
 	return 0;
     
@@ -154,7 +157,7 @@ static reiserfs_plugin_t alloc40_plugin = {
     }
 };
 
-reiserfs_plugin_t *reiserfs_alloc40_entry(reiserfs_plugins_factory_t *f) {
+reiserfs_plugin_t *reiserfs_alloc40_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &alloc40_plugin;
 }

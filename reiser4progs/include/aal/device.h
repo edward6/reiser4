@@ -40,6 +40,7 @@ struct aal_block {
     void *data;
     uint16_t size;
     uint64_t offset;
+    aal_device_t *device;
 };
 
 typedef struct aal_block aal_block_t;
@@ -49,8 +50,8 @@ extern aal_device_t *aal_device_open(struct aal_device_ops *ops, uint16_t blocks
 
 extern void aal_device_close(aal_device_t *device);
 
-extern error_t aal_device_set_blocksize(aal_device_t *device, uint16_t blocksize);
-extern uint16_t aal_device_get_blocksize(aal_device_t *device);
+extern error_t aal_device_set_bs(aal_device_t *device, uint16_t blocksize);
+extern uint16_t aal_device_get_bs(aal_device_t *device);
 
 extern error_t aal_device_read(aal_device_t *device, void *buff, blk_t block, count_t count);
 extern error_t aal_device_write(aal_device_t *device, void *buff, blk_t block, count_t count);
@@ -65,8 +66,8 @@ extern char *aal_device_name(aal_device_t *device);
 extern aal_block_t *aal_device_alloc_block(aal_device_t *device, blk_t blk, char c);
 extern aal_block_t *aal_device_read_block(aal_device_t *device, blk_t blk);
 extern error_t aal_device_write_block(aal_device_t *device, aal_block_t *block);
-extern blk_t aal_device_get_block_nr(aal_device_t *device, aal_block_t *block);
-extern void aal_device_set_block_nr(aal_device_t *device, aal_block_t *block, blk_t blk);
+extern blk_t aal_device_get_block_nr(aal_block_t *block);
+extern void aal_device_set_block_nr(aal_block_t *block, blk_t blk);
 extern void aal_device_free_block(aal_block_t *block);
 
 #define B_DIRTY 0 

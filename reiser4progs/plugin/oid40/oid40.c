@@ -7,7 +7,7 @@
 #include <reiser4/reiser4.h>
 #include "oid40.h"
 
-static reiserfs_plugins_factory_t *factory = NULL;
+static reiserfs_plugin_factory_t *factory = NULL;
 
 static reiserfs_opaque_t *reiserfs_oid40_init(oid_t next, oid_t used) {
     reiserfs_oid40_t *oid;
@@ -86,7 +86,7 @@ static reiserfs_plugin_t oid40_plugin = {
     }
 };
 
-reiserfs_plugin_t *reiserfs_oid40_entry(reiserfs_plugins_factory_t *f) {
+reiserfs_plugin_t *reiserfs_oid40_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &oid40_plugin;
 }

@@ -6,13 +6,13 @@
 
 #include <aal/aal.h>
 
-#define aal_device_check_routine(device, routine, action) \
-    do { \
-	if (!device->ops->##routine##) { \
-	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, \
-		"Device operation \"" #routine "\" isn't implemented."); \
-	    action; \
-	} \
+#define aal_device_check_routine(device, routine, action)		    \
+    do {								    \
+	if (!device->ops->##routine##) {				    \
+	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,		    \
+		"Device operation \"" #routine "\" isn't implemented.");    \
+	    action;							    \
+	}								    \
     } while (0)
 
 aal_device_t *aal_device_open(struct aal_device_ops *ops, uint16_t blocksize, 
@@ -44,7 +44,7 @@ void aal_device_close(aal_device_t *device) {
     aal_free(device);
 }
 
-error_t aal_device_set_blocksize(aal_device_t *device, uint16_t blocksize) {
+error_t aal_device_set_bs(aal_device_t *device, uint16_t blocksize) {
 
     aal_assert("umka-431", device != NULL, return -1);
 	
@@ -58,7 +58,7 @@ error_t aal_device_set_blocksize(aal_device_t *device, uint16_t blocksize) {
     return 0;
 }
 
-uint16_t aal_device_get_blocksize(aal_device_t *device) {
+uint16_t aal_device_get_bs(aal_device_t *device) {
 
     aal_assert("umka-432", device != NULL, return 0);
 
@@ -138,12 +138,13 @@ aal_block_t *aal_device_alloc_block(aal_device_t *device, blk_t blk, char c) {
     if (!(block = (aal_block_t *)aal_calloc(sizeof(*block), 0)))
 	return NULL;
 
-    block->size = aal_device_get_blocksize(device);
+    block->size = aal_device_get_bs(device);
+    block->device = device;
 	    
     if (!(block->data = aal_calloc(block->size, c)))
 	goto error_free_block;
 	
-    block->offset = (aal_device_get_blocksize(device) * blk);
+    block->offset = (aal_device_get_bs(device) * blk);
     aal_block_mark_dirty(block);
 	
     return block;
@@ -185,25 +186,23 @@ error_t aal_device_write_block(aal_device_t *device, aal_block_t *block) {
 	return 0;
 
     if((error = aal_device_write(device, block->data, 
-	aal_device_get_block_nr(device, block), 1)))
+	aal_device_get_block_nr(block), 1)))
 
     aal_block_mark_clean(block);
     
     return error;
 }
 
-blk_t aal_device_get_block_nr(aal_device_t *device, aal_block_t *block) {
-    aal_assert("umka-447", device != NULL, return 0);
+blk_t aal_device_get_block_nr(aal_block_t *block) {
     aal_assert("umka-448", block != NULL, return 0);
    
-    return (blk_t)(block->offset >> aal_log2(aal_device_get_blocksize(device)));
+    return (blk_t)(block->offset >> aal_log2(aal_device_get_bs(block->device)));
 }
 
-void aal_device_set_block_nr(aal_device_t *device, aal_block_t *block, blk_t blk) {
-    aal_assert("umka-449", device != NULL, return);
+void aal_device_set_block_nr(aal_block_t *block, blk_t blk) {
     aal_assert("umka-450", block != NULL, return);
 
-    block->offset = (uint64_t)(blk * aal_device_get_blocksize(device));
+    block->offset = (uint64_t)(blk * aal_device_get_bs(block->device));
 }
 
 void aal_device_free_block(aal_block_t *block) {

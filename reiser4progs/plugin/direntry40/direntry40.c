@@ -11,7 +11,7 @@
 
 #define	DIRENTRY40_ID 0x2
 
-static reiserfs_plugins_factory_t *factory = NULL;
+static reiserfs_plugin_factory_t *factory = NULL;
 
 /* This will build sd key as objid has SD_MINOR */
 static void build_key_by_objid(reiserfs_key40_t *key, 
@@ -198,7 +198,7 @@ static reiserfs_plugin_t direntry40_plugin = {
     }
 };
 
-reiserfs_plugin_t *reiserfs_direntry40_entry(reiserfs_plugins_factory_t *f) {
+reiserfs_plugin_t *reiserfs_direntry40_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &direntry40_plugin;
 }

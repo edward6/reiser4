@@ -7,24 +7,7 @@
 #include <reiser4/reiser4.h>
 #include "node40.h"
 
-/*
-    Vitaly, I think node plugin's functions should accept aal_block_t, 
-    not reiserfs_node_t. Plugins know nothing about API structures.
-    And reiserfs_node_t is API structure. It is enought to know only
-    block where node lies.
-
-    About updating parent issue. I think and it is likely you agreed
-    node plugin should not update parent node, because it doesn't know
-    about its parent. Second reason is that, updating of parent is job
-    of tree-balancing code, that will be on API level in library. Third 
-    reason is that plugins should be as simple as possible. And finally
-    fourth reason. We should not let user affect general library algorithms 
-    such as balancing a lot. Because it is very simple to develop plugin
-    that will break these algorithms and we will have a bug that will be 
-    difficult to fix.
-*/
-
-static reiserfs_plugins_factory_t *factory = NULL;
+static reiserfs_plugin_factory_t *factory = NULL;
 
 /* 
     This is helper function. It is used for getting item's key by
@@ -428,7 +411,7 @@ static reiserfs_plugin_t node40_plugin = {
     }
 };
 
-reiserfs_plugin_t *reiserfs_node40_entry(reiserfs_plugins_factory_t *f) {
+reiserfs_plugin_t *reiserfs_node40_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &node40_plugin;
 }
