@@ -291,7 +291,8 @@ struct inode * reiser4_iget( struct super_block *super,
 
 	/** call iget(). Our ->read_inode() is dummy, so this will either
 	    find inode in cache or return uninitialised inode */
-	inode = iget( super, get_key_objectid( key ) );
+	/* FIXME_JMACD: get_key_objectid is 64 bits, but iget() takes unsigned long */
+	inode = iget( super, (__u32) get_key_objectid( key ) );
 	failed = 0;
 	if( ! inode ) 
 		return NULL;
