@@ -528,7 +528,10 @@ static inline TYPE *TYPE ## _by_unsafe_id( reiser4_plugin_id id )               
 }                                                                                  \
 static inline reiser4_plugin* TYPE ## _to_plugin( TYPE* plugin )                   \
 {                                                                                  \
-	return (reiser4_plugin*) (((long) plugin) - sizeof (plugin_header));       \
+	if (plugin != NULL)                                                        \
+		return (reiser4_plugin*) (((long) plugin) - sizeof (plugin_header));       \
+	else                                                                       \
+		return NULL;                                                       \
 }                                                                                  \
 static inline reiser4_plugin_id TYPE ## _id( TYPE* plugin )                        \
 {                                                                                  \
