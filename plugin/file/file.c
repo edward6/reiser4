@@ -2033,6 +2033,7 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 		if (user_space)
 			reiser4_put_user_pages(pages, nr_pages);
 		drop_nonexclusive_access(uf_info);
+		txn_restart_current();
 
 		if (read < 0) {
 			result = read;
