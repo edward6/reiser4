@@ -254,19 +254,19 @@ write_trace_stamp(reiser4_tree * tree, reiser4_traced_op op, ...)
 	*rest = '\0';
 
 	switch (op) {
-	case tree_cut:{
+	case tree_cut: {
 			reiser4_key *to;
 
 			to = va_arg(args, reiser4_key *);
 			rest += sprintf_key(rest, to);
 			break;
-		}
-	case tree_lookup:{
+	}
+	case tree_lookup: {
 	default:
 			break;
-		}
+	}
 	case tree_insert:
-	case tree_paste:{
+	case tree_paste: {
 			reiser4_item_data *data;
 			coord_t *coord;
 			__u32 flags;
@@ -278,7 +278,7 @@ write_trace_stamp(reiser4_tree * tree, reiser4_traced_op op, ...)
 			rest += sprintf(rest, "%s (%u,%u) %x",
 					data->iplug->h.label, 
 					coord->item_pos, coord->unit_pos, flags);
-		}
+	}
 	}
 	va_end(args);
 	return write_tracef(file, tree->super, "%s", buf);

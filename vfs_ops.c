@@ -431,7 +431,6 @@ static void
 reiser4_truncate(struct inode *inode /* inode to truncate */ )
 {
 	__REISER4_ENTRY(inode->i_sb,);
-	WRITE_IN_TRACE("truncate", "in");
 
 	assert("umka-075", inode != NULL);
 
@@ -441,7 +440,6 @@ reiser4_truncate(struct inode *inode /* inode to truncate */ )
 	/* for mysterious reasons ->truncate() VFS call doesn't return
 	   value  */
 
-	WRITE_IN_TRACE("truncate", "ex");
 	__REISER4_EXIT(&__context);
 }
 
@@ -861,6 +859,7 @@ reiser4_mmap(struct file *file, struct vm_area_struct *vma)
 	struct inode *inode;
 	int result;
 	REISER4_ENTRY(file->f_dentry->d_inode->i_sb);
+	WRITE_IN_TRACE("mmap", file->f_dentry->d_name.name);
 
 	trace_on(TRACE_VFS_OPS, "MMAP: (i_ino %li, size %lld)\n",
 		 file->f_dentry->d_inode->i_ino, file->f_dentry->d_inode->i_size);
@@ -870,6 +869,7 @@ reiser4_mmap(struct file *file, struct vm_area_struct *vma)
 		result = -ENOSYS;
 	else
 		result = inode_file_plugin(inode)->mmap(file, vma);
+	WRITE_IN_TRACE("mmap", "ex");
 	REISER4_EXIT(result);
 }
 
@@ -881,6 +881,7 @@ unlink_file(struct inode *parent /* parent directory */ ,
 	int result;
 	dir_plugin *dplug;
 	REISER4_ENTRY(parent->i_sb);
+	WRITE_IN_TRACE("unlink", victim->d_name.name);
 
 	assert("nikita-1435", parent != NULL);
 	assert("nikita-1436", victim != NULL);
@@ -893,6 +894,7 @@ unlink_file(struct inode *parent /* parent directory */ ,
 		result = dplug->unlink(parent, victim);
 	else
 		result = -EPERM;
+	WRITE_IN_TRACE("unlink", "ex");
 	/* @victim can be already removed from the disk by this time. Inode is
 	   then marked so that iput() wouldn't try to remove stat data. But
 	   inode itself is still there.
@@ -1099,6 +1101,9 @@ truncate_object(struct inode *inode /* object to truncate */ ,
 	assert("nikita-1027", is_reiser4_inode(inode));
 	assert("nikita-1028", inode->i_sb != NULL);
 
+	write_tracef(&get_super_private(inode->i_sb)->trace_file, inode->i_sb,
+		     "truncate %lli to %lli", get_inode_oid(inode), size);
+
 	fplug = inode_file_plugin(inode);
 	assert("vs-142", fplug != NULL);
 
@@ -1112,6 +1117,7 @@ truncate_object(struct inode *inode /* object to truncate */ ,
 	} else {
 		return -EPERM;
 	}
+	WRITE_IN_TRACE("truncate", "ex");
 }
 
 /* initial prefix of names of pseudo-files like ..plugin, ..acl,
