@@ -859,6 +859,8 @@ int memory_pressure (struct super_block *super, int *nr_to_flush)
 
 	if (node != NULL) {
 
+		trace_on (TRACE_TXN, "memory pressure atom %u node %p\n", atom->atom_id, node);
+
 		ret = jnode_flush (node, nr_to_flush, jnode_is_formatted (node) ? JNODE_FLUSH_MEMORY_FORMATTED : JNODE_FLUSH_MEMORY_UNFORMATTED);
 
 		jput (node);

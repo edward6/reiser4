@@ -173,6 +173,11 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 		return 0;
 	}
 
+	/* A race is possible where node is not dirty at this point. */
+	if (! jnode_check_dirty (node)) {
+		return 0;
+	}
+
 	flush_scan_init (& right_scan);
 	flush_scan_init (& left_scan);
 
@@ -180,8 +185,6 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 	
 	trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF));
 	/*trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK));*/
-
-	assert ("jmacd-5012", jnode_check_dirty (node));
 
 	if ((ret = flush_pos_init (& flush_pos, nr_to_flush))) {
 		return ret;

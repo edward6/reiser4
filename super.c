@@ -489,14 +489,11 @@ void deregister_thread( void )
 
 void activate_thread( void )
 {
-#if 0
 	atomic_inc( &get_current_super_private() -> active_threads );
-#endif
 }
 
 void deactivate_thread( void )
 {
-#if 0
 	reiser4_super_info_data *sdata;
 
 	sdata = get_current_super_private();
@@ -509,7 +506,6 @@ void deactivate_thread( void )
 		 */
 		warning( "nikita-2026", "Deadlock!" );
 	}
-#endif
 }
 
 #endif
