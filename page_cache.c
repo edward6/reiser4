@@ -697,7 +697,7 @@ void print_page( const char *prefix, struct page *page )
 	      page_flag_name( page,  PG_referenced ),
 	      page_flag_name( page,  PG_uptodate ),
 
-	      page_flag_name( page,  PG_dirty_dontuse ),
+	      page_flag_name( page,  PG_dirty ),
 	      page_flag_name( page,  PG_lru ),
 	      page_flag_name( page,  PG_active ),
 	      page_flag_name( page,  PG_slab ),
