@@ -3452,12 +3452,13 @@ protected_jnodes_done(protected_jnodes *list)
 
 #if REISER4_COPY_ON_CAPTURE
 
-/* capture copy has to replace jnode on capture list (overwrite list of atom?)
-   with cc jnode. Capture list is being continuously scanned: (by
-   wander.c:write_jnode_list(), wander.c:jnode_extent_write(), others?). Those
-   scanners assume that number of jnodes on that list does not change. (FIXME:
-   is it true?).
+/* copy on capture steals jnode (J) from capture list. It may replace (J) with
+   special newly created jnode (CCJ) to which J's page gets attached. J in its
+   turn gets newly created copy of page. 
+   Or, it may merely take J from capture list if J was never dirtied
 
+   The problem with this replacement is that capture lists are being contiguously
+   scanned.
    Race between replacement and scanning are avoided with one global spin lock
    (scan_lock) and JNODE_SCANNED state of jnode. Replacement (in capture copy)
    goes under scan_lock locked only if jnode is not in JNODE_SCANNED state. This
@@ -3618,6 +3619,7 @@ copy_on_capture_clean(jnode *node, txn_atom *atom)
 	assert("vs-1432", spin_jnode_is_locked(node));
 	spin_lock(&scan_lock);
 	if (capturable(node, atom)) {
+		spin_unlock(&scan_lock);
 		uncapture_block(node);
 		/* atom is protected by stage >= ASTAGE_PRE_COMMIT, so no
 		   UNLOCK_ATOM here */
