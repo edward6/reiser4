@@ -639,6 +639,7 @@ atom_try_commit_locked (txn_atom *atom)
 	atom->stage = ASTAGE_PRE_COMMIT;
 
 	trace_on (TRACE_TXN, "commit atom %u: PRE_COMMIT\n", atom->atom_id);
+	trace_on (TRACE_FLUSH, "everything flushed atom %u: PRE_COMMIT\n", atom->atom_id);
 	
 	if (REISER4_DEBUG) {
 		int level;
