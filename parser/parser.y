@@ -70,15 +70,15 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 %type <expr> Expression 
 
 %type <expr> if_statement 
-%type <expr> reiser4
+//%type <expr> reiser4
 %type <expr> if_statement if_Expression if_Begin
 %type <expr> then_operation 
 
 %token TRANSCRASH
-%token EOF 
+//%token EOF 
 %token L_ASSIGN L_APPEND  L_SYMLINK
 
-%token EOL
+//%token EOL
 
 %token SEMICOLON          /* ; */
 %token COMMA              /* , */
@@ -141,13 +141,13 @@ For bison:
 /*
   Starting production of our grammar.  8000.00:04:c1:14:50:07.800
  */
-%start reiser4
+%start Expression
 
 %%
 
-reiser4
-: Expression   EOF                                { $$ = make_do_it( ws, $1 ); }
-;
+//reiser4
+//: Expression                                      { $$ = make_do_it( ws, $1 ); }
+//;
 
 Expression
 : Object_Name                                     { $$ = $1;}
