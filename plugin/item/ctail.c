@@ -762,7 +762,7 @@ ctail_read_page_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	}
 	tfm_cluster_clr_uptodate(&clust->tc);
  out:
-	release_cluster_pages(clust, 0);
+	release_cluster_pages_nocapture(clust);
 	assert("edward-1060", !result);
 	
 	return result;
