@@ -636,11 +636,10 @@ extent2tail(unix_file_info_t *uf_info)
 		page_cache_release(page);
 	}
 
-	assert("vs-1260", inode_has_no_jnodes(reiser4_inode_data(inode)));
-
 	if (i == num_pages) {
 		/* file is converted to formatted items */
 		assert("vs-1698", inode_get_flag(inode, REISER4_PART_CONV));
+		assert("vs-1260", inode_has_no_jnodes(reiser4_inode_data(inode)));
 
 		uf_info->container = UF_CONTAINER_TAILS;
 		complete_conversion(inode);
