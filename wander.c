@@ -1530,6 +1530,11 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 	if (ret)
 		return ret;
 
+	/* No locks are required if we take atom which stage >=
+	 * ASTAGE_PRE_COMMIT */
+	atom = get_current_context()->trans->atom;
+	assert("zam-965", atom != NULL);
+	
 	/* relocate set is on the atom->clean_nodes list after
 	 * current_atom_complete_writes() finishes. It can be safely
 	 * uncaptured after commit_semaphore is taken, because any atom that
@@ -1547,11 +1552,6 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 
 	trace_mark(wander);
 
-	/* No locks are required if we take atom which stage >=
-	 * ASTAGE_PRE_COMMIT */
-	atom = get_current_context()->trans->atom;
-	assert("zam-965", atom != NULL);
-	
 	if (REISER4_DEBUG) {
 		 int level;
 
