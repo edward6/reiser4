@@ -308,7 +308,7 @@ typedef struct oid_allocator_plugin {
 				     __u64 oids );
 	/* used to report statfs->f_files */	
 	__u64 ( *oids_used )( reiser4_oid_allocator *map );
-	/* used to report statfs->f_ffree */	
+	/* used to report statfs->f_ffree */
 	__u64 ( *oids_free )( reiser4_oid_allocator *map );
 	/* allocate new objectid */
 	int ( *allocate_oid )( reiser4_oid_allocator *map, oid_t * );
@@ -327,7 +327,7 @@ typedef struct space_allocator_plugin {
 	/** generic fields */
 	plugin_header h;
 	int ( *init_allocator )( reiser4_space_allocator *,
-				 struct super_block * );
+				 struct super_block *, void * );
 	int ( *destroy_allocator )( reiser4_space_allocator *,
 				    struct super_block *);
 	int ( *alloc_blocks )( reiser4_blocknr_hint *, int needed,
@@ -349,7 +349,9 @@ typedef struct layout_plugin {
 	int ( *get_ready )( struct super_block *, void * data);
 
 	/* key of root directory stat data */
-	const reiser4_key * ( *root_dir_key )( void );
+	const reiser4_key * ( *root_dir_key )( const struct super_block * );
+
+	void ( *release )( struct super_block * );
 } layout_plugin;
 
 
