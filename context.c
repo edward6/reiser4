@@ -14,7 +14,7 @@ context_list_head active_contexts;
 /* lock protecting access to active_contexts. */
 spinlock_t active_contexts_lock;
 
-static void
+void
 check_contexts(void)
 {
 	reiser4_context *ctx;

@@ -41,15 +41,21 @@ int item_body_is_valid(const coord_t * coord)
 
 /* return length of item at @coord */
 /* Audited by: green(2002.06.15) */
+void
+check_contexts(void);
 int
 item_length_by_coord(const coord_t * coord /* coord to query */ )
 {
+	int len;
+
 	assert("nikita-327", coord != NULL);
 	assert("nikita-328", coord->node != NULL);
 	assert("nikita-329", znode_is_loaded(coord->node));
 	trace_stamp(TRACE_TREE);
 
-	return node_plugin_by_node(coord->node)->length_by_coord(coord);
+	len = node_plugin_by_node(coord->node)->length_by_coord(coord);
+	check_contexts();
+	return len;
 }
 
 void

@@ -201,14 +201,23 @@ reiser4_is_debugged(struct super_block *super, __u32 flag)
 __u32 get_current_trace_flags(void)
 {
 	__u32 flags;
+	reiser4_context *ctx;
+	reiser4_super_info_data *super;
 
 	flags = reiser4_current_trace_flags;
+#if 0
 	if (get_current_context_check() != NULL) {
 		flags |= get_current_context()->trace_flags;
 		if (get_current_super_private() != NULL)
 			flags |= get_current_super_private()->trace_flags;
 	}
+#endif
 
+	ctx = get_current_context_check();
+	if (ctx) {
+		flags |= ctx->trace_flags;
+		flags != get_super_private(ctx->super)->trace_flags;
+	}
 	return flags;
 }
 #endif

@@ -162,7 +162,7 @@ get_current_context_check(void)
 		return NULL;
 }
 
-static inline reiser4_context * get_current_context(void) __attribute__((const));
+static inline reiser4_context * get_current_context(void);/* __attribute__((const));*/
 
 /* return context associated with current thread */
 static inline reiser4_context *
