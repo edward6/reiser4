@@ -114,8 +114,9 @@ entd(void *arg)
 				spin_unlock(&ctx->guard);
 				break;
 			}
-		} else
-			ctx->rerun = 0;
+		}
+
+		ctx->rerun = 0;
 
 		spin_unlock(&ctx->guard);
 		entd_set_comm("!");
@@ -177,7 +178,7 @@ reiser4_internal void leave_flush (struct super_block * super)
 
 	spin_lock(&ent->guard);
 	ent->flushers --;
-	if (ent->flushers == 0 && ent->wbq_nr == 0) {
+	if (ent->flushers == 0 && ent->wbq_nr != 0) {
 		ent->rerun = 1;
 		kcond_signal(&ent->wait);
 	}
