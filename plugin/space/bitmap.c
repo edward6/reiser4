@@ -10,8 +10,8 @@
 struct bnode {
 	struct semaphore sema;	/* long term lock object */
 
-	jnode      wjnode;	/* embedded jnodes for WORKING ... */
-	jnode      cjnode;	/* ... and COMMIT bitmap blocks */
+	jnode      * wjnode;	/* j-nodes for WORKING ... */
+	jnode      * cjnode;	/* ... and COMMIT bitmap blocks */
 
 	bmap_off_t first_zero_bit;	/* for skip_busy option implementation */
 
@@ -22,7 +22,7 @@ struct bnode {
 static inline char * bnode_working_data (struct bnode * bnode) {
 	char * data;
 
-	data = jdata(&(bnode)->wjnode);
+	data = jdata(bnode->wjnode);
 	assert ("zam-429", data != NULL);
 
 	return data;
@@ -31,7 +31,7 @@ static inline char * bnode_working_data (struct bnode * bnode) {
 static inline char * bnode_commit_data (struct bnode * bnode) {
 	char * data;
 
-	data = jdata(&(bnode)->cjnode);
+	data = jdata(bnode->cjnode);
 	assert ("zam-430", data != NULL);
 
 	return data;
@@ -306,8 +306,8 @@ static void check_block_range (const reiser4_block_nr * start, const reiser4_blo
 static void check_bnode_loaded (const struct bnode * bnode)
 {
 	assert ("zam-485", bnode != NULL);
-	assert ("zam-483", jnode_page(&bnode->wjnode) != NULL);
-	assert ("zam-484", jnode_page(&bnode->cjnode) != NULL);
+	assert ("zam-483", jnode_page(bnode->wjnode) != NULL);
+	assert ("zam-484", jnode_page(bnode->cjnode) != NULL);
 }
 
 #else
@@ -360,15 +360,22 @@ static void init_bnode (struct bnode * bnode, struct super_block * super, bmap_n
 
 	sema_init (&bnode->sema, 1);
 
-	jnode_init (& bnode->wjnode);
-	/*bitmap nodes should be marked as having no znode fields, it is done
-	  by setting of ZNODE_UNFORMATTED bit.*/
-	JF_SET(& bnode->wjnode, ZNODE_UNFORMATTED);
-	get_working_bitmap_blocknr (bmap, & bnode->wjnode.blocknr); 
+}
 
-	jnode_init (& bnode->cjnode);
-	JF_SET(& bnode->cjnode, ZNODE_UNFORMATTED);
-	get_bitmap_blocknr (super, bmap, & bnode->cjnode.blocknr);
+/* This function is for internal bitmap.c use because it assumes that jnode is
+ * in under full control of this thread */
+static void invalidate_jnode(jnode * node)
+{
+	if (node) {
+		spin_lock_jnode (node);
+		if (JF_ISSET(node, ZNODE_LOADED)) {
+			jrelse_nolock(node);
+		}
+		spin_unlock_jnode(node);
+
+		jdrop(node);
+		jfree(node);
+	}
 }
 
 /** plugin->u.space_allocator.init_allocator
@@ -430,8 +437,8 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 		down (&bnode->sema);
 
 		if (bnode->loaded) {
-			jnode *wj = &bnode->wjnode;
-			jnode *cj = &bnode->cjnode;
+			jnode *wj = bnode->wjnode;
+			jnode *cj = bnode->cjnode;
 
 			assert ("zam-480", jnode_page (cj) != NULL);
 			assert ("zam-633", jnode_page (wj) != NULL);
@@ -447,13 +454,13 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 			}
 
 			jput (cj);
-			jdrop(cj);
+			jput(wj);
 
-			jput (wj);
-			jdrop(wj);
+			invalidate_jnode (wj);
+			invalidate_jnode (cj);
 
-			/* FIXME: check for page state and ref count should be
-			 * added here */
+			bnode->wjnode = NULL;
+			bnode->cjnode = NULL;
 
 			bnode->loaded = 0;
 		}
@@ -469,71 +476,85 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 	return 0;
 }
 
-
 /* load bitmap blocks "on-demand" */
 static int load_and_lock_bnode (struct bnode * bnode)
 {
-	struct super_block * super = get_current_context()->super;
-
-	jnode * wj = &bnode->wjnode;
-	jnode * cj = &bnode->cjnode;
-
-	int ret = 0;
+	int ret;
 
 	down (&bnode->sema);
 
-	ret = jload (cj);
-	if (ret < 0) goto up_and_ret; 
-
-	assert ("zam-635", equi(bnode->loaded, ret > 0)); 
-
 	if (!bnode->loaded) {
+		struct super_block * super = get_current_context()->super;
+		bmap_nr_t bmap;
+
+		ret = -ENOMEM;
+
+		if ((bnode->wjnode = jnew ()) == NULL) goto fail;
+
+		if ((bnode->cjnode = jnew ()) == NULL) goto fail;
+
+		/*bitmap nodes should be marked as having no znode fields, it is done
+		  by setting of ZNODE_UNFORMATTED bit.*/
+		JF_SET(bnode->wjnode, ZNODE_UNFORMATTED);
+		JF_SET(bnode->cjnode, ZNODE_UNFORMATTED);
+
+		bmap = bnode - get_bnode(super, 0);
+
+		get_working_bitmap_blocknr (bmap, &bnode->wjnode->blocknr); 
+		get_bitmap_blocknr (super, bmap, &bnode->cjnode->blocknr);
+		
+		if ((ret = jload (bnode->cjnode)) < 0) goto fail; 
+
 		{ /* allocate memory for working bitmap block */
 			reiser4_tree * tree = current_tree;
 
-			spin_lock_jnode (wj);
-			add_d_ref (wj);
+			spin_lock_jnode (bnode->wjnode);
+			add_d_ref (bnode->wjnode);
 
 			assert ("zam-630", tree->ops != NULL && tree->ops->allocate_node != NULL);
 
-			spin_unlock_jnode(wj);
-			ret = tree->ops->allocate_node(tree, wj);
+			spin_unlock_jnode(bnode->wjnode);
+			ret = tree->ops->allocate_node(tree, bnode->wjnode);
 			if (ret < 0) {
-				jrelse_nolock(wj);
-				spin_unlock_jnode(wj);
-				jrelse(cj);
-				goto up_and_ret;
+				spin_unlock_jnode(bnode->wjnode);
+				goto fail;
 			}
 
-			JF_SET(wj, ZNODE_LOADED);
-			spin_unlock_jnode(wj);
+			JF_SET(bnode->wjnode, ZNODE_LOADED);
+			spin_unlock_jnode(bnode->wjnode);
 		} 
 
 		/* node has been loaded by this jload call  */
 		/* working bitmap is initialized by on-disk commit bitmap */
 		xmemcpy(bnode_working_data(bnode), bnode_commit_data(bnode), super->s_blocksize);
 
-		jref(cj);
-		jref(wj);
+		jref(bnode->wjnode);
+		jref(bnode->cjnode);
 
 		bnode->loaded = 1;
 	} else {
-		ret = jload(wj);
-		if (ret < 0) goto up_and_ret;
+		if ((ret = jload(bnode->wjnode)) < 0) goto fail;
+		if ((ret = jload(bnode->cjnode)) < 0) goto fail;
 	}
 
 	return 0;
 
- up_and_ret:
+fail:
+	invalidate_jnode (bnode->wjnode);
+	invalidate_jnode (bnode->cjnode);
+
+	bnode->wjnode = NULL;
+	bnode->cjnode = NULL;
 
 	up (&bnode->sema);
+
 	return ret;
 }
 
 static void release_and_unlock_bnode (struct bnode * bnode)
 {
-	jrelse (&bnode->cjnode);
-	jrelse (&bnode->wjnode);
+	jrelse (bnode->cjnode);
+	jrelse (bnode->wjnode);
 
 	up (&bnode->sema);
 }
@@ -807,7 +828,7 @@ void bitmap_check_blocks (const reiser4_block_nr *start, const reiser4_block_nr 
 	ret = load_and_lock_bnode (bnode);
 	assert ("zam-626", ret == 0);
 
-	assert ("nikita-2216", JF_ISSET(&bnode->wjnode, ZNODE_LOADED));
+	assert ("nikita-2216", JF_ISSET(bnode->wjnode, ZNODE_LOADED));
 
 	if (desired) {
 		assert ("zam-623", 
@@ -878,7 +899,7 @@ static int apply_dset_to_commit_bmap (txn_atom               * atom,
 	load_and_lock_bnode (bnode);
 
 	/* put bnode in a special list for post-processing */
-	cond_add_to_clean_list (atom, &bnode->cjnode);
+	cond_add_to_clean_list (atom, bnode->cjnode);
 
 	data = bnode_commit_data(bnode);
 
@@ -956,7 +977,7 @@ void bitmap_pre_commit_hook (void)
 				 * new j-node into clean list, because we are
 				 * scanning the same list now. It is OK, if
 				 * insertion is done to the list front */
-				cond_add_to_clean_list(atom, &bn->cjnode);
+				cond_add_to_clean_list(atom, bn->cjnode);
 			}
 
 			node = capture_list_next(node);
