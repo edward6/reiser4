@@ -1848,12 +1848,6 @@ uncapture_block (txn_atom *atom,
 	spin_unlock_jnode (node);
 
 	jput (node);
-
-	/* FIXME: because jref/jput are not implemented/not used... */
-	if (jnode_is_unformatted (node)) {
-		jnode_detach_page (node);
-		jfree (node);
-	}
 }
 
 /*****************************************************************************************

@@ -747,6 +747,11 @@ static void truncate_inode_pages (struct address_space * mapping,
 				atomic_inc (&page->count);
 				mapping->a_ops->invalidatepage (page, 0);
 				remove_inode_page (page);
+				assert ("jmacd-8743",  atomic_read (&page->count) > 0);
+				/* FIXME: this is questionable, however it currently
+				 * doesn't cause problems because jnodes never release
+				 * their pages, thus there is an extra jnode reference to
+				 * dec here and the above assertion never fails. */
 				atomic_dec (&page->count);
 				if (!atomic_read (&page->count)) {
 					spin_lock( &page_list_guard );
