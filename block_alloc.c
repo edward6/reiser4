@@ -156,6 +156,11 @@ sub_from_ctx_grabbed(reiser4_context *ctx, __u64 count)
 	ctx->grabbed_blocks -= count;
 }
 
+static void
+add_to_ctx_grabbed(reiser4_context *ctx, __u64 count)
+{
+	ctx->grabbed_blocks += count;
+}
 
 static void
 sub_from_sb_grabbed(reiser4_super_info_data *sbinfo, __u64 count)
@@ -287,7 +292,7 @@ reiser4_grab(reiser4_context *ctx, __u64 count, reiser4_ba_flags_t flags)
 		goto unlock_and_ret;
 	}
 
-	ctx->grabbed_blocks += count;
+	add_to_ctx_grabbed(ctx, count);
 
 	sbinfo->blocks_grabbed += count;
 	sbinfo->blocks_free -= count;
@@ -482,7 +487,7 @@ cluster_reserved2grabbed(int count)
 	assert("edward-505", check_block_counters(ctx->super));
 
 	reiser4_spin_unlock_sb(sbinfo);
-	ctx->grabbed_blocks += count;
+	add_to_ctx_grabbed(ctx, count);
 }
 
 reiser4_internal void
@@ -757,7 +762,7 @@ used2flush_reserved(reiser4_super_info_data *sbinfo, txn_atom * atom, __u64 coun
 static void
 fake_allocated2grabbed(reiser4_context *ctx, reiser4_super_info_data *sbinfo, __u64 count, reiser4_ba_flags_t flags)
 {
-	ctx->grabbed_blocks += count;
+	add_to_ctx_grabbed(ctx, count);
 
 	reiser4_spin_lock_sb(sbinfo);
 
@@ -862,7 +867,7 @@ reiser4_internal void flush_reserved2grabbed(txn_atom * atom, __u64 count)
 	ctx = get_current_context();
 	sbinfo = get_super_private(ctx->super);
 
-	ctx->grabbed_blocks += count;
+	add_to_ctx_grabbed(ctx, count);
 
 	sub_from_atom_flush_reserved_nolock(atom, (__u32)count);
 
@@ -890,7 +895,7 @@ all_grabbed2free(void)
 static void
 used2grabbed(reiser4_context *ctx, reiser4_super_info_data *sbinfo, __u64 count)
 {
-	ctx->grabbed_blocks += count;
+	add_to_ctx_grabbed(ctx, count);
 
 	reiser4_spin_lock_sb(sbinfo);
 
