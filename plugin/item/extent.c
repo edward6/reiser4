@@ -1809,6 +1809,7 @@ static int extent_get_create_block (coord_t * coord, lock_handle * lh,
 		
 	case EXTENT_CANT_CONTINUE:
 		/* unexpected structure of file found */
+		warning ("jmacd-81263", "extent_get_create_block: can't continue");
 		return  -EIO;
 				
 	case EXTENT_RESEARCH:
@@ -1922,6 +1923,7 @@ static int write_flow_to_page (coord_t * coord, lock_handle * lh, flow_t * f,
 				page_io (page, READ, GFP_NOIO);
 				wait_on_page_locked (page);
 				if (!PageUptodate (page)) {
+					warning ("jmacd-61238", "write_flow_to_page: page not up to date");
 					result = -EIO;
 					break;
 				}
@@ -2112,7 +2114,7 @@ static int map_extent (reiser4_tree * tree UNUSED_ARG,
 	
 	if (item_id_by_coord (coord) != EXTENT_POINTER_ID ||
 	    !inode_file_plugin (inode)->owns_item (inode, coord)) {
-		warning ("vs-283", "there should be more items of file\n");
+		warning ("vs-283", "there should be more items of file");
 		return -EIO;
 	}
 	
@@ -2378,6 +2380,7 @@ int extent_read (struct inode * inode, coord_t * coord,
 	if (!PageUptodate (page)) {
 		page_detach_jnode (page);
 		page_cache_release (page);
+		warning ("jmacd-97178", "extent_read: page is not up to date");
 		return -EIO;
 	}
 
@@ -2775,6 +2778,8 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 	}
  done:
 
+	/* FIXME: JMACD->VS: This assertion is wrong, should be (result == FULL || result
+	 * == CONTINUE || result < 0) I think.  It can never fail right now... */
 	assert ("vs-421", result == SQUEEZE_TARGET_FULL || SQUEEZE_CONTINUE);
 
 	/* set coord to first unit in it */

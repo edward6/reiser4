@@ -647,27 +647,11 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	/* We found the right znode (and locked it), now squeeze from right into
 	 * current node position. */
-	switch ((ret = squalloc_right_neighbor (node, right_lock.node, pos))) {
-	default:
-		/* Error. */
+	if ((ret = squalloc_right_neighbor (node, right_lock.node, pos)) < 0) {
 		goto exit;
-
-	case SQUEEZE_SOURCE_EMPTY:
-		/* Emptied the right node, repeat after updating parent_coord. */
-		done_zh (& right_load);
-		done_lh (& right_lock);
-		any_shifted = 1;
-		break;
-
-	case SQUEEZE_TARGET_FULL:
-		/* Fully squeezed this node.  Keep right lock. */
-		any_shifted |= ! coord_is_after_rightmost (& at_right);
-		break;
-
-	case SUBTREE_MOVED:
-		any_shifted = 1;
-		break;
 	}
+
+	any_shifted |= ! coord_is_after_rightmost (& at_right);
 
 	/* any_shifted may be true but we still may have allocated to the end of a twig
 	 * (via extent_copy_and_allocate), in which case we should unset it. */
@@ -697,8 +681,10 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] after (shifted & unformatted): %s\n", call_depth, flush_pos_tostring (pos));
 	}
 
-	if (ret == SQUEEZE_SOURCE_EMPTY) {
+	if (node_is_empty (right_lock.node)) {
 		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] right again: %s\n", call_depth, flush_pos_tostring (pos));
+		done_zh (& right_load);
+		done_lh (& right_lock);
 		goto RIGHT_AGAIN;
 	}
 
@@ -962,9 +948,9 @@ static int flush_squalloc_right (flush_position *pos)
 
 		int is_dirty;
 
-		trace_on (TRACE_FLUSH, "squalloc_right unformatted: %s\n", flush_pos_tostring (pos));
-
 		assert ("jmacd-8712", item_is_extent (& pos->parent_coord));
+
+		trace_on (TRACE_FLUSH, "allocate_extent_in_place: %s\n", flush_pos_tostring (pos));
 
 		/* This allocates extents up to the end of the current twig and returns
 		 * pos->parent_coord set to the next item. */
@@ -1067,6 +1053,8 @@ static int flush_squalloc_right (flush_position *pos)
 	assert ("jmacd-9322", ! node_is_empty (right));
 	assert ("jmacd-9323", znode_get_level (left) == znode_get_level (right));
 
+	trace_on (TRACE_FLUSH, "sq_right_neighbor level %u left %p <- right %p: %s\n", znode_get_level (left), left, right, flush_pos_tostring (pos));
+
 	switch (znode_get_level (left)) {
 	case TWIG_LEVEL:
 		/* Shift with extent allocating until either an internal item
@@ -1155,7 +1143,13 @@ static int squalloc_right_twig (znode    *left,
 	 * was copied (and there is nothing to cut). */
 	stop_key = *min_key ();
 
+	trace_on (TRACE_FLUSH, "squalloc_right_twig:before copy extents: %p %p\n", left, right);
+	trace_if (TRACE_FLUSH, print_znode_content (left, ~0u));
+	trace_if (TRACE_FLUSH, print_znode_content (right, ~0u));
+
 	while (item_is_extent (&coord)) {
+
+		trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:item_is_extent:", & coord, 0));
 
 		if ((ret = allocate_and_copy_extent (left, &coord, pos, &stop_key)) < 0) {
 			return ret;
@@ -1163,6 +1157,7 @@ static int squalloc_right_twig (znode    *left,
 
 		if (ret == SQUEEZE_TARGET_FULL) {
 			/* Could not complete with current extent item. */
+			trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:target_full:", & coord, 0));
 			break;
 		}
 
@@ -1171,12 +1166,21 @@ static int squalloc_right_twig (znode    *left,
 		/* coord_next_item returns 0 if there are more items. */
 		if (coord_next_item (&coord) != 0) {
 			ret = SQUEEZE_SOURCE_EMPTY;
+			trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:source_empty:", & coord, 0));
 			break;
 		}
+
+		trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:continue:", & coord, 0));
 	}
+
+	trace_on (TRACE_FLUSH, "squalloc_right_twig:after copy extents: %p %p\n", left, right);
+	trace_if (TRACE_FLUSH, print_znode_content (left, ~0u));
+	trace_if (TRACE_FLUSH, print_znode_content (right, ~0u));
 
 	if (!keyeq (&stop_key, min_key ())) {
 		int cut_ret;
+
+		trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:cut1:", & coord, 0));
 
 		/* @coord is set to the first unit that does not have to be
 		 * cut or after last item in the node.  If we are positioned
@@ -1187,15 +1191,20 @@ static int squalloc_right_twig (znode    *left,
 			coord_prev_unit (& coord);
 		}
 
+		trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:cut2:", & coord, 0));
+
 		/* Helper function to do the cutting. */
 		if ((cut_ret = squalloc_right_twig_cut (&coord, &stop_key, left))) {
 			assert ("jmacd-6443", cut_ret < 0);
 			return cut_ret;
 		}
+
+		trace_if (TRACE_FLUSH, print_znode_content (right, ~0u));
 	}
 
 	if (node_is_empty (right)) {
 		/* The whole right node was copied into @left. */
+		trace_on (TRACE_FLUSH, "sq_right_neighbor right node %p is empty: %s\n", right, flush_pos_tostring (pos));
 		assert ("vs-464", ret == SQUEEZE_SOURCE_EMPTY);
 		goto out;
 	}
@@ -1206,6 +1215,7 @@ static int squalloc_right_twig (znode    *left,
 		/* There is no space in @left anymore. */
 		assert ("vs-433", item_is_extent (&coord));
 		assert ("vs-465", ret == SQUEEZE_TARGET_FULL);
+		trace_on (TRACE_FLUSH, "sq_right_neighbor target is full: %s\n", flush_pos_tostring (pos));
 		goto out;
 	}
 
@@ -1229,7 +1239,8 @@ static int squalloc_right_twig_cut (coord_t * to, reiser4_key * to_key UNUSED_AR
 	coord_init_first_unit (&from, to->node);
 	/*item_key_by_coord (&from, &from_key);*/
 
-	/* We don't need to pass from_key, to_key when cutting a whole number of units. */
+	/* We don't need to pass from_key, to_key when cutting a whole number of units.
+	 * FIXME: JMACD->VS: Wait a sec, why can't we shift a whole number of units???? */
 	return cut_node (&from, to, NULL /*from_key*/, NULL/*to_key*/,
 			 NULL /* smallest_removed */, DELETE_DONT_COMPACT, left);
 }
@@ -1272,6 +1283,9 @@ static int shift_one_internal_unit (znode * left, znode * right)
 
 		ret = carry (&todo, NULL /* previous level */);
 	}
+
+	trace_on (TRACE_FLUSH, "shift_one_internal %s an item: left has %u items, right has %u items\n",
+		  moved > 0 ? "moved" : "did not move", node_num_items (left), node_num_items (right));
 
 	done_carry_pool (&pool);
 
@@ -1472,7 +1486,11 @@ int flush_enqueue_jnode_page_locked (jnode *node, flush_position *pos UNUSED_ARG
 
 	jnode_set_clean (node);
 
-	trace_if (TRACE_FLUSH, info ("enqueue %snode: %p block %llu level %u\n", jnode_is_formatted (node) ? "z" : "j", node, *jnode_get_block (node), jnode_get_level (node)));
+	if (jnode_is_formatted (node)) {
+		trace_on (TRACE_FLUSH, "enqueue znode: %p block %llu level %u\n", node, *jnode_get_block (node), jnode_get_level (node));
+	} else {
+		trace_on (TRACE_FLUSH, "enqueue znode: %p block %llu index %lu level %u\n", node, *jnode_get_block (node), node->pg->index, jnode_get_level (node));
+	}
 
 	return ret;
 }
