@@ -260,6 +260,7 @@ typedef struct {
 	int (*readpage) (coord_t *, lock_handle *, struct page *);
 	int (*writepage) (coord_t *, lock_handle *, struct page *);
 	int (*page_cache_readahead) (struct file *, coord_t *, lock_handle *, unsigned long start, unsigned long count);
+	int (*get_block) (const coord_t *, sector_t, struct buffer_head *);
 } file_ops;
 
 /* operations specific to items of stat data type */
