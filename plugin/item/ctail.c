@@ -358,9 +358,8 @@ kill_hook_ctail(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, c
 		item_key_by_coord(coord, &key);
 
 		if (from == 0 && cluster_key(&key, coord)) {
-			pgoff_t start = off_to_pg(get_key_offset(&key));
-			pgoff_t count = inode_cluster_pages(inode);
-			truncate_cluster(inode, start, count);
+			pgoff_t start = off_to_clust(get_key_offset(&key), inode);
+			truncate_page_clusters(inode, start, 1);
 		}
 	}
 	return 0;
@@ -452,7 +451,8 @@ cut_or_kill_ctail_units(coord_t * coord, pos_in_node_t from, pos_in_node_t to, i
 			node_plugin_by_node(coord->node)->update_item_key(coord, &key, 0 /*info */ );
 		}
 		else {
-			impossible("vs-1532", "cut_units should not be called to cut evrything");
+			/* cut_units should not be called to cut evrything */
+			assert("vs-1532", ergo(cut, 0));
 			/* whole item is cut, so more then amount of space occupied
 			   by units got freed */
 			count += sizeof(ctail_item_format);

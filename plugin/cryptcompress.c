@@ -2636,7 +2636,7 @@ truncate_page_clusters(struct inode * inode, cloff_t start,
 	from = clust_to_off(start, inode);
 	end = from + ((loff_t)count << 
 		      inode_cluster_shift(inode) <<
-		      PAGE_CACHE_SHIFT);
+		      PAGE_CACHE_SHIFT) - 1;
 	
 	truncate_inode_pages_range(inode->i_mapping, from, end);
 	truncate_jnodes_range(inode, from, inode_cluster_pages(inode));
@@ -2677,6 +2677,14 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	assert("edward-1142", crc_inode_ok(inode));
 	assert("edward-1143", current_blocksize == PAGE_CACHE_SIZE);
 
+	init_lh(&lh);
+	hint_init_zero(&hint);
+	hint.coord.lh = &lh;
+
+	reiser4_slide_init(&win);
+	reiser4_cluster_init(&clust, &win);
+	clust.hint = &hint;
+
 	result = cut_file_items(inode,
 				new_size,
 				update_sd,
@@ -2708,14 +2716,7 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	assert("edward-1148", aidx == index + 1);
 	
 	/* read page cluster, set zeroes to its tail and try to capture */
-	init_lh(&lh);
-	hint_init_zero(&hint);
-	hint.coord.lh = &lh;
 
-	reiser4_slide_init(&win);
-	reiser4_cluster_init(&clust, &win);
-	clust.hint = &hint;
-	
 	result = alloc_cluster_pgset(&clust, inode_cluster_pages(inode));
 	if (result)
 		goto out;
@@ -2766,8 +2767,6 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 	int result;
 	cloff_t aidx; /* appended index to the last actual one */
 	loff_t old_size = inode->i_size;
-	
-	assert("edward-1152", new_size != old_size);
 	
 	result = find_actual_cloff(inode, &aidx);
 	if (result)
