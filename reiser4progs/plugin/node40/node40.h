@@ -22,7 +22,7 @@ typedef struct node40 node40_t;
 
 struct flush_stamp {
     uint32_t mkfs_id;
-    uint64_t flush_time;
+    uint64_t write_counter;
 };
 
 typedef struct flush_stamp flush_stamp_t;
