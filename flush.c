@@ -587,7 +587,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	flush_scan_init (& right_scan);
 	flush_scan_init (& left_scan);
 
-	/*trace_if (TRACE_FLUSH_VERB,*/ print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF); /*);*/
+	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF));*/
 	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK));*/
 
 	/* First scan left and remember the leftmost scan position.  If the leftmost
