@@ -756,6 +756,8 @@ typedef struct reiser4_statistics {
 		   balance_dirty_pages broke that seal and caused to repease search tree traversal
 		*/
 		stat_cnt bdp_caused_repeats;
+		/* how many times extent_write could not write a coord and had to ask for research */
+		stat_cnt repeats;
 	} extent;
 	struct { /* stats on tail items */		
 		/* tail_write calls balance_dirty_pages after every call to insert_flow. Before that it seals node it
