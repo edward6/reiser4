@@ -14,6 +14,7 @@
 #include "../debug.h"
 #include "../inode.h"
 #include "../jnode.h"
+#include "../page_cache.h"
 #include "plugin.h"
 
 extern int common_file_save(struct inode *inode);
@@ -86,7 +87,7 @@ inline cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode
 	/* attach secret key */
 	assert("edward-84", crc_info->expkey == NULL);
 	
-	crc_info->expkey = reiser4_kmalloc((cplug->keysize)*sizeof(__u32), GFP_KERNEL);
+	crc_info->expkey = reiser4_kmalloc((cplug->nr_keywords)*sizeof(__u32), GFP_KERNEL);
 	if (!crc_info->expkey)
 		return RETERR(-ENOMEM);
 	result = cplug->set_key(crc_info->expkey, crc_data->key);
@@ -138,13 +139,140 @@ inline cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode
 	inode_clr_flag(object, REISER4_CLUSTER_KNOWN);
 	
  destroy_key:
-	xmemset(crc_info->expkey, 0, (cplug->keysize)*sizeof(__u32));
-	reiser4_kfree(crc_info->expkey, (cplug->keysize)*sizeof(__u32));
+	xmemset(crc_info->expkey, 0, (cplug->nr_keywords)*sizeof(__u32));
+	reiser4_kfree(crc_info->expkey, (cplug->nr_keywords)*sizeof(__u32));
 	inode_clr_flag(object, REISER4_SECRET_KEY_INSTALLED);
 	return result;
 }
 
+static crypto_stat_t * inode_crypto_stat (struct inode * inode)
+{
+	assert("edward-90", inode != NULL);
+	assert("edward-91", reiser4_inode_data(inode) != NULL);
+	return (reiser4_inode_data(inode)->crypt);
+}
 
+static __u8 inode_cluster_shift (struct inode * inode)
+{
+	reiser4_inode * info;
+	
+	assert("edward-92", inode != NULL);
 
+	info = reiser4_inode_data(inode);
 
+	assert("edward-93", info != NULL);
+	assert("edward-94", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
+	assert("edward-95", info->cluster_shift <= MAX_CLUSTER_SHIFT);
 
+	return info->cluster_shift;
+}
+
+static size_t inode_cluster_size (struct inode * inode)
+{
+	assert("edward-96", inode != NULL);
+	
+	return (PAGE_CACHE_SIZE << inode_cluster_shift(inode));
+}
+
+/* returns translated offset */ 
+static loff_t inode_scaled_offset (struct inode * inode,
+				   const loff_t src_off /* input offset */)
+{
+	crypto_plugin * cplug;
+	crypto_stat_t * stat;
+	size_t size;
+
+	assert("edward-97", inode != NULL);
+	
+	stat = inode_crypto_stat(inode);
+	
+	assert("edward-98", stat != NULL);
+	assert("edward-99", stat->keysize != 0);
+
+	cplug = inode_crypto_plugin(inode);
+	
+	assert("edward-109", cplug != NULL);
+	
+	size = cplug->blocksize(stat->keysize);
+	return cplug->scale(inode, size, src_off);
+}
+
+/* returns disk cluster size */
+__attribute__((unused)) static size_t
+inode_scaled_cluster_size (struct inode * inode)
+{
+	assert("edward-110", inode != NULL);
+	assert("edward-111", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
+	
+	return inode_scaled_offset(inode, inode_cluster_size(inode));
+}
+
+/* plugin->key_by_inode() */
+__attribute__((unused)) static int
+cluster_key_by_inode(struct inode *inode, loff_t off, reiser4_key * key)
+{
+	assert("edward-64", inode != 0);
+	assert("edward-112", !(off & ~(~0UL << inode_cluster_shift(inode))));
+	/* don't come here with other offsets */
+	
+	build_sd_key(inode, key);
+	set_key_type(key, KEY_BODY_MINOR);
+	set_key_offset(key, (__u64) inode_scaled_offset(inode, off));
+	return 0;
+}
+
+static void reiser4_cluster_init (reiser4_cluster_t * clust)
+{
+	assert("edward-84", clust != NULL);
+	xmemset(clust, 0, sizeof *clust);
+}
+
+static int ctail_read_page(reiser4_cluster_t * clust, struct page * page)
+{
+	return 0;
+}
+
+/* plugin->read() :
+ * generic_file_read()   
+ * All key offsets don't make sense in traditional unix semantics unless they
+ * represent the beginning of clusters, so the only thing we can do is start
+ * right from mapping to the address space (this is precisely what filemap
+ * generic method does) */
+
+/* plugin->readpage() */
+__attribute__((unused)) static int
+cryptcompress_readpage(void *vp, struct page *page)
+{
+	reiser4_cluster_t clust;
+	struct file * file;
+	item_plugin * iplug;
+	int result;
+	
+	assert("edward-88", PageLocked(page));
+	assert("edward-89", page->mapping && page->mapping->host);
+
+	file = vp;
+	assert("edward-112", page->mapping == file->f_dentry->d_inode->i_mapping);
+	
+	if (PageUptodate(page)) {
+		printk("cryptcompress_readpage: page became already uptodate\n");
+		unlock_page(page);
+		return 0;
+	}
+	reiser4_cluster_init(&clust);
+	
+	iplug = item_plugin_by_id(CTAIL_ID);
+	if (!iplug->s.file.readpage)
+		return -EINVAL;
+
+	/* Perhaps here must be the following:
+	   result = iplug->s.file.readpage().
+	   But this is impossible due to poor item plugin interface */
+	
+	result = ctail_read_page(&clust, page);
+	assert("edward-64", ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
+	/* if page has jnode - that jnode is mapped */
+	assert("edward-65", ergo(result == 0 && PagePrivate(page), 
+				 jnode_mapped(jprivate(page))));
+	return result;
+}
