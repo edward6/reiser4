@@ -96,7 +96,10 @@ typedef enum {
 	TXN_CAPTURE_NONBLOCKING = (1 << 4),
 
 	/* An option to try_capture to prevent atom fusion, just simple capturing is allowed */
-	TXN_CAPTURE_DONT_FUSE = (1 << 5)
+	TXN_CAPTURE_DONT_FUSE = (1 << 5),
+
+	/* if it is set - copy on capture is allowed */
+	TXN_CAPTURE_CAN_COC = (1 << 6)
 
 	    /* This macro selects only the exclusive capture request types, stripping out any
 	       options that were supplied (i.e., NONBLOCKING). */
@@ -336,6 +339,13 @@ struct txn_atom {
 	/* A counter of grabbed unformatted nodes, see a description of the
 	 * reiser4 space reservation scheme at block_alloc.c */
 	reiser4_block_nr flush_reserved;
+#if REISER4_DEBUG
+	/* number of flush queues for this atom. */
+	void *committer;
+	atomic_t coc_reloc;
+	atomic_t coc_ovrwr;
+	int leaves_in_ovrwr_list;
+#endif
 };
 
 /* A transaction handle: the client obtains and commits this handle which is assigned by
@@ -437,7 +447,7 @@ extern int try_capture_args(jnode * node,
 			    txn_capture flags,
 			    int non_blocking, txn_capture cap_mode);
 
-extern int try_capture_page(struct page *pg, znode_lock_mode mode, int non_blocking);
+extern int try_capture_page_to_invalidate(struct page *pg);
 
 extern void uncapture_page(struct page *pg);
 extern void uncapture_block(jnode *);
