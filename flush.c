@@ -318,6 +318,7 @@ static int flush_lock_leftpoint (jnode                  *start_node,
 		/* No scanning, only upward. */
 		end_node = start_node;
 		pos->left_scan_count += 1;
+		ret = 0;
 	}
 
 	assert ("jmacd-5015", jnode_check_dirty (end_node));
