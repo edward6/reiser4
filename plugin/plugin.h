@@ -152,7 +152,7 @@ typedef struct file_plugin {
 	/* save inode cached stat-data onto disk. It was called
 	    reiserfs_update_sd() in 3.x */
 	int (*write_sd_by_inode) (struct inode * inode);
-	int (*readpage) (struct file * file, struct page *);
+	int (*readpage) (void *, struct page *);
 	int (*writepage) (struct page *);
 	/* these should be implemented using body_read_flow and body_write_flow
 	   builtins */
@@ -160,6 +160,7 @@ typedef struct file_plugin {
 	 ssize_t(*write) (struct file * file, const char *buf, size_t size, loff_t * off);
 
 	int (*release) (struct file * file);
+	int (*ioctl) (struct inode *, struct file *, unsigned int cmd, unsigned long arg);
 	int (*mmap) (struct file * file, struct vm_area_struct * vma);
 	int (*get_block) (struct inode * inode, sector_t block, struct buffer_head * bh_result, int create);
 /* private methods: These are optional.  If used they will allow you to
