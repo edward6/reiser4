@@ -524,7 +524,7 @@ static int reiser4_writepage( struct page *page )
 	 * clean page.  An extra reference should protect this page from
 	 * removing from memory */
 	page_cache_get (page);
-	result = page_common_writeback( page, &result, 
+	result = page_common_writeback( page, &nr_to_write,
 					JNODE_FLUSH_MEMORY_UNFORMATTED );
 	page_cache_release (page);
 
@@ -542,11 +542,11 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 	file_plugin  *fplug;
 	int           result;
 	REISER4_ENTRY( f -> f_dentry -> d_inode -> i_sb );
-	
+
 	assert( "umka-078", f != NULL );
 	assert( "umka-079", page != NULL );
 	assert( "nikita-2280", PageLocked( page ) );
-	
+
 	assert( "vs-318", page -> mapping && page -> mapping -> host );
 	assert( "nikita-1352", 
 		( f == NULL ) ||
@@ -559,15 +559,10 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 	else
 		result = -EINVAL;
 	if( result != 0 ) {
-		/*
-		 * callers don't check ->readpage() return value, so we have
-		 * to kill page ourselves.
-		 */
-		remove_from_page_cache( page );
-		page_cache_release(page);
+		SetPageError( page );
 		unlock_page( page );
 	}
-	REISER4_EXIT( result );
+	REISER4_EXIT( 0 );
 }
 
 /* nikita-fixme-hans: comment all functions and their parameters */
