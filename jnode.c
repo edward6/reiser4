@@ -552,27 +552,27 @@ jload(jnode * node)
 		   cache. To avoid data copying during this re-indexing it was
 		   decided that first version of reiser4 will only support
 		   block size equal to PAGE_CACHE_SIZE.
-		  
+
 		   But another problem came up: our block numbers are 64bit
 		   and pages are indexed by 32bit ->index. Moreover:
-		  
+
 		    - there is strong opposition for enlarging ->index field
 		    (and for good reason: size of struct page is critical,
 		    because there are so many of them).
-		  
+
 		    - our "unallocated" block numbers have highest bit set,
 		    which makes 64bit block number support essential
 		    independently of device size.
-		  
+
 		   Code below uses jnode _address_ as page index. This has
 		   following advantages:
-		  
+
 		    - relocation is simplified
-		  
+
 		    - if ->index is jnode address, than ->private is free for
 		    use. It can be used to store some jnode data making it
 		    smaller (not yet implemented). Pointer to atom?
-		  
+
 		*/
 		page = UNDER_SPIN(jnode, node, jnode_page(node));
 		/* subtle locking point: ->pg pointer is protected by jnode
