@@ -1,0 +1,1181 @@
+<HTML>
+<BODY>
+<PRE>
+
+
+</PRE>
+<H2>INTRODUCTION</H2><PRE>
+       This document  consists  of  two  parts.  The  first  part
+       describes  DAL  as  the  way  for  communications with any
+       device by unified interface.  And  second  part  describes
+       libreiserfs that works over DAL.
+
+
+
+</PRE>
+<H2>DAL (Device Abstraction Layer)</H2><PRE>
+       This  is  a  layer  between  the device abstract object in
+       underlying software package that is used  libreiserfs  and
+       libreiserfs  for  handling  all  I/O calls from it to that
+       device.
+
+       <B>Abstract</B>
+
+       Lets enumerate all projects which interested in  using  of
+       libreiserfs.  There following: GNU Parted, EVMS, GNU GRUB,
+       Yaboot, Partimage, Reiserfsprogs.
+
+       What is the nature of this software packages in context of
+       I/O operations?  Lets find it out.
+
+       All  these  projects have their own device abstract device
+       that has additional purposes except plain device  for  I/O
+       operations.  This  additional  purposes are the following:
+       policies, backing up,  checking,  logging,  etc.  Some  of
+       these  device  abstract  objects  doesn't have opened file
+       descriptor (for real device) in itself  at  all.  This  is
+       because  they  doesn't  use standard library (libc, glibc,
+       etc) at all. For example, GNU GRUB  or  Yaboot.  They  are
+       bootloaders.
+
+       Therefore  we  must export some "device-presentation inde­
+       pendent" interface for all I/O operations. This  interface
+       will  be based on installable callback functions for every
+       atomic I/O operation. There following: read, write,  sync,
+       equals,  length,  flags,  stat. And more detailed: to read
+       from device, to write to device, to sync a device, to com­
+       pare  two  devices, to make request for length from device
+       and to make request for flags  device  opened  with  (read
+       only, read/write, etc).
+
+       Why is this our job?
+
+       This is because we must build our project (libreiserfs) on
+       an stable interface.  We must  rely  on  it.  However  I/O
+       interface  very  vary  from one project to another.  Or it
+       not exists at all.
+
+       In fact we are forcing all projects to use our DAL  inter­
+       face.  Every  project implements our interface in order to
+
+       The  reiserfsprogs DAL object will be the simplest of them
+       all, since reiserfsprogs operates directly on a UNIX block
+       device (e.g., /dev/hda1), the reiserfsprogs implementation
+       of the abstract DAL operations  will  be  just  the  usual
+       read(),  write(),  and fsync() that operate on a UNIX file
+       descriptor.
+
+       The GNU Parted DAL object will be a bit more complex.  One
+       reason  that  Parted  requires a more sophisticated DAL is
+       that  it  has,  roughly  speaking,  more  complex   device
+       abstract  object.  Parted  is able to check for errors and
+       aborts current action if anything goes wrong. Due to  this
+       more complex behavior, libreiserfs cannot operate directly
+       on a block device and file descriptor. Another feature  of
+       Parted  might be support for partition "slices", which are
+       sub-partitions of a  single  block  device  (supported  in
+       FreeBSD, for example).
+
+       The  GNU  GRUB  system is a bootloader, so it runs without
+       any Kernel to support it. Therefore there must be a  layer
+       of abstraction between libreiserfs and the client programs
+       that use it. Reiserfsprogs is a simple example that  would
+       not require any DAL support, but support for a wider range
+       of libreiserfs applications will require a  DAL  layer  to
+       interface with them.
+
+       So  every  project  that  is going to use libreiserfs must
+       prepare "dal_ops" structure and fill it by its device spe­
+       cific  I/O  working functions. This "dal_ops" structure is
+       the main field of DAL. And as libreiserfs is using DAL for
+       I/O  operations, it will call installed in "dal_ops" call­
+       back functions for every "read",  "write",  etc  operation
+       every  time as it will be needed to read, write something.
+
+       In fact for every I/O operation will be  called  installed
+       callback  function,  that will does all work. For example,
+       for reiserfsck will be called  reiserfsck_read  that  will
+       call  standard "read" function for passed file descriptor,
+       for GNU Parted will be called  ped_geometry_read  function
+       that  will call standard "read" function, and for GNU GRUB
+       will be called "biosdisk" function.
+
+       For example, "dal_ops" for GNU GRUB will roughly look:
+
+       This stuff lies in separate device.S file. This function does all work on device.
+
+       ENTRY(biosdsik)
+
+            ...
+
+            int $0x13
+
+            ...
+
+            ret
+
+       This stuff lies in DAL implementation for GNU GRUB. Let it be bios_dal.c.
+
+       extern int biosdisk(some_parameters);
+
+       int bios_read(some_parameters) {
+           return biosdisk(some_parameters);
+       }
+
+       int bios_write(some_parameters) {
+           return biosdisk(some_parameters);
+       }
+
+       struct bios_dal_ops bios_ops {
+            read: bios_read,
+            write: bios_write,
+            ...
+       }
+
+       And after bios_dal_ops is ready, we will create dal_t that will contain bios_dal_ops in it.
+
+       dal_t *bios_dal_open(some_parameters) {
+
+            /* Actual opening the device. I mean, here must be some initialization code. */
+
+            return dal_open(bios_ops, some_parameters);
+       }
+
+
+       On other hand, reiserfsprogs will prepare  "file_dal_ops".
+       It will roughly look:
+
+       int file_read(some_parameters) {
+            return read(some_parameters);
+       }
+
+       int file_write(some_parameters) {
+            return write
+       }
+
+       struct file_dal_ops file_ops {
+            read: file_read,
+            write: file_write,
+            ...
+       }
+
+       dal_t *file_dal_open(some_parameters) {
+
+            /* Actual opening the device. I mean, here must be some initialization code. */
+
+            return dal_open(file_ops, some_parameters);
+       }
+
+       As  you  can see these two DALs have very different nature
+       and implementation.
+
+       Now lets show on Parted example, what happens when user issues command to resize
+       partition with reiserfs on it. First of all we are interested in tracking of I/O
+       operations.
+
+       (1) At user's request to resize partition, parted's parted-libreiserfs glue code creates 
+       an instance of "parted_dal" with installed into it own callback I/O operations, opens 
+       filesystem on it by "reiserfs_fs_open" and requests libreiserfs to perform filesystem 
+       resizing on passed "parted_dal".
+
+       (2) At Parted's request, libreiserfs resizes given filesystem on given device 
+       (parted_dal) and for every I/O operation during resizing, libreiserfs calls I/O handlers
+       from "parted_dal".
+
+       (2.1) In this stage execution control flows beetwen Parted and libreiserfs. Parted's I/O 
+       handlers do all I/O work (as usual reading or writing a block) and returns result to 
+       libreiserfs. libreiserfs continue working and again calls Parted's I/O handlers for
+       reading, writing, etc.
+
+       (3) After libreiserfs finished resizing, it returns result of operation to Parted.
+
+       Therefore DAL is just simple and stable interface. I has been called it "stable", 
+       because it stills unchanged from one project to another.
+
+       <B>Implementation.</B>
+
+       Following is complete list of I/O operations that have  to
+       be implemented by any DAL implementation.  Notice that not
+       all of them have to do real work. For example, "stat" call
+       is  only  required  just  for  proper stating of files and
+       directories.  If "stat" not implemented, then stat  struct
+       (filled  by reiserfs_object_stat) will not contain a valid
+       st_dev field.
+
+       struct dal_ops {
+            int (*read)(dal_t *, void *, blk_t, blk_t);
+            int (*write)(dal_t *, void *, blk_t, blk_t);
+            int (*sync)(dal_t *);
+            int (*flags)(dal_t *);
+            int (*equals)(dal_t *, dal_t *);
+            int (*stat)(dal_t *, struct stat *);
+            blk_t (*len)(dal_t *);
+            char *(*error) (dal_t *);
+       };
+
+       <B>int</B> <B>(*read)(dal_t</B> <B>*dal,</B> <B>void</B>  <B>*buff,</B>  <B>blk_t</B>  <B>block,</B>  <B>blk_t</B>
+       <B>count)</B>
+
+       Reads  count  of  blocks  into given buffer, starting from
+       given block. Returns true on success,  false  on  failure.
+       Used  by  reiserfs_block_read  function  for  reading from
+       device.
+
+       <B>int</B> <B>(*write)(dal_t</B> <B>*dal,</B> <B>void</B> <B>*buff,</B>  <B>blk_t</B>  <B>block,</B>  <B>blk_t</B>
+       <B>count)</B>
+
+       Writes  count  of  blocks  from  given buffer onto device,
+       starting from given block. Returns true on success,  false
+       on  failure.  Used  by  reiserfs_block_write  function for
+       writing data to device.
+
+       <B>int</B> <B>(*sync)(dal_t</B> <B>*dal)</B>
+
+       Syncs given device. Returns result. Used by front-ends for
+       syncing device before it will be closed.
+
+       <B>int</B> <B>(*flags)(dal_t</B> <B>*dal)</B>
+
+       Returns the flags for pointed device. For example, O_RDWR, O_LARGEFILE,
+       etc. Used, for example, by reiserfs_fs_open.
+
+       <B>int</B> <B>(*equals)(dal_t</B> <B>*dal1, dal_t</B> <B>*dal2)</B>
+
+       Returns the result of comparing of dal1 and dal2. Widely used for determining
+       whether given DALs are equal.
+
+       Imagine, mkfs program is calling "reiserfs_fs_create" function in order to create
+       reiserfs filesystem on passed device with passed properties (hash, format, block size,
+       standard or relocated journal, etc).
+	   
+       "reiserfs_fs_create"  function  has  two  first arguments:
+       host_dal  -  device  where  filesystem  will   be   placed
+       (superblock, bitmap, tree, etc) journal_dal - device where
+       journal will be placed.
+
+       "journal_dal" may be the same as  host_dal.  And  this  is
+       means  "mkfs" is trying to create filesystem with standard
+       journal. When "journal_dal"  is  some  other  device  that
+       "host_dal",  it  is  means  "mkfs"  is  trying  to  create
+       filesystem with relocated journal.  In  this  case  "jour­
+       nal_dal"  will be using in order to perform I/O operations
+       on that device for working with journal.  Replaying  jour­
+       nal, looking for mapped block, etc.
+
+       Therefore libreiserfs core code must know whether DALs are
+       different or not. The libreiserfs' behavior  very  depends
+       on equals callback.
+
+       "equals"  callback  is  using also in "tune" routines. For
+       example, when "tunefs" is trying to resize the journal  in
+       reiser3.  If  journal  is standard then relocation of some
+       region of tree also needed and it will  be  performed.  If
+       journal  is relocated (separated) then relocation will not
+       be performed.
+
+       <B>int</B> <B>(*stat)(dal_t</B> <B>*dal,</B> <B>struct</B> <B>stat*</B> <B>st)</B>
+
+       Fills statistics buffer for dal,  like  standard  <B>stat(2)</B>.
+       Used by journal opening and creating routines.
+
+       <B>blk_t</B> <B>(*len)(dal_t</B> <B>*dal)</B>
+
+       Returns  actual  device length in blocks. Used by libreis­
+       erfs in all cases where device length is needed. For exam­
+       ple,  it  is  used in reiserfs_fs_super_check.  This func­
+       tions makes some checks on opened superblock  and  one  of
+       them  is  check whether sb_block_count is correct (less or
+       equals than device length).
+
+       <B>char</B> <B>*(*error)</B> <B>(dal_t</B> <B>*dal)</B>
+
+       Returns last error.
+
+       Front-end application that wants to use  libreiserfs  over
+       some  specific  storage,  implements all above operations,
+       packs them into dal_ops structure and  calls  dal_open  to
+       create  DAL  instance  working  over  application-specific
+       storage.
+
+       DAL functions and structures are following:
+
+       <B>dal_t *dal_open(struct dal_ops *ops, const void *dev, size_t blocksize, int flags, void *data)</B>
+
+       Allocates new instance of DAL that will use given operations. Sets blocksize
+       and user specific data for allocated DAL. Returns initialized instance.
+
+       <B>void dal_close(dal_t *dal)</B>
+
+       Releases all memory associated with DAL.
+
+       <B>int dal_set_blocksize(dal_t *dal, size_t blocksize)</B>
+       <B>size_t dal_blocksize(dal_t *dal)</B>
+
+       Functions to set/get block size. dal_set_blocksize makes check whether given
+       block size is power of two and if so, sets new blocksize. Function dal_blocksize
+       returns blocksize of specified DAL.
+
+       The functions below are wrappers for operations registered in DAL's "ops" field.
+
+       <B>int</B> <B>dal_read(dal_t</B> <B>*dal,</B> <B>void</B> <B>*buff,</B> <B>blk_t</B> <B>block,</B> <B>blk_t</B> <B>count)</B>
+
+       Reads a number of blocks from DAL.
+
+       <B>int</B> <B>dal_write(dal_t</B> <B>*dal,</B> <B>void</B> <B>*buff,</B> <B>blk_t</B> <B>block,</B> <B>blk_t</B> <B>count)</B>
+
+       Writes a number of blocks to DAL.
+
+       <B>int</B> <B>dal_sync(dal_t</B> <B>*dal)</B>
+
+       Synchronizes specified DAL.
+
+       <B>int</B> <B>dal_flags(dal_t</B> <B>*dal)</B>
+
+       Returns flags from DAL.
+
+       <B>int</B> <B>dal_equals(dal_t</B> <B>*dal1,</B> <B>dal_t</B> <B>*dal2)</B>
+
+       Compares two DALs.
+
+       <B>int</B> <B>dal_stat(dal_t</B> <B>*dal,</B> <B>struct</B> <B>stat</B> <B>*stat)</B>
+
+       Makes stat for specified DAL.
+
+       <B>blk_t</B> <B>dal_len(dal_t</B> <B>*dal)</B>
+
+       Returns device length in blocks.
+
+       <B>char</B> <B>*dal_error(dal_t</B> <B>*dal)</B>
+
+       Returns last error.
+
+       dal_t struct has following fields:
+
+       struct dal {
+            const void *dev;
+            size_t blocksize;
+            struct dal_ops *ops;
+
+            int flags;
+            void *data;
+       };
+
+       typedef struct dal dal_t;
+
+       <B>struct</B> <B>dal_ops</B> <B>*ops</B>
+
+       Set of operations for this device. Device operations affect the behavior of
+       device. See above for more details.
+
+       <B>const void *dev</B>
+
+       The opaque pointer to device private data. For example, for "file_dal" this is
+       pointer to opened file descriptor, for GNU Parted this is pointer to initialized
+       "PedGeometry" struct, etc.
+
+       <B>size_t blocksize</B>
+
+       The blocksize for this device. All offset calculations on it are based on this
+       field.
+	   
+       <B>int</B> <B>flags</B>
+
+       The flags with which device was opened.
+
+       <B>void</B> <B>*data</B>
+
+       Some device specific data. It may be used for any  purpose
+       by particular DAL implementation provided by front-end. In
+       file_dal this field are used to store file name in it.
+
+       Project that doesn't need to implement  a  special  device
+       (due  to using standard file descriptor), may use file_dal
+       - device abstraction for standard device or file. file_dal
+       may be used in manner like this:
+
+       This  is  small  and stupid program for detecting reiserfs
+       format on underlying device.
+
+       #include &lt;stdio.h&gt;
+
+       #include &lt;dal/dal.h&gt;
+       #include &lt;reiserfs/reiserfs.h&gt;
+
+       int main (int argc, char *argv[]) {
+            char *dev;
+
+            dal_t *dal;
+            reiserfs_fs_t *fs;
+
+            if (argc &lt; 2) {
+                 fprintf(stderr, "Usage: %s DEV\n", argv[0]);
+                 return 0xfe;
+            }
+
+            dev = argv[1];
+
+            if (!(dal = file_dal_open(dev))) {
+                 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+                      "Couldn't open device %s." , dev);
+                 goto error;
+            }
+
+            /*
+                 As DALs passed into reiserfs_fs_open are identical, this is attempt
+                 to open filesystem with standard journal. If filesystem has relocated
+                 journal then exception will be throwed out and NULL will be returned.
+            */
+            if (!(fs = reiserfs_fs_open(dal, dal))) {
+                 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+                      "Couldn't open reiserfs on %s.", dev);
+                 goto error_free_dal;
+            }
+
+       error:
+            return 0xff;
+       }
+
+       What does it mean to open a filesystem?
+
+       It is mean  the  following:  to  initialize  all  internal
+       structures,  to read superblock, journal header, to replay
+       journal, to check superblock and journal header for valid­
+       ness   (sb_block_count  &lt;=  dev_length,  etc),  re-reading
+       superblock from the journal (if it is mapped to some jour­
+       nal  block),  to initialize bitmap, optionally to check it
+       for validness, to initialize tree, to read the root  block
+       and   check  it  for  validness  and  returns  initialized
+       filesystem instance.
+
+
+
+</PRE>
+<H2>libreiserfs</H2><PRE>
+       libreiserfs will consists of set of APIs. There  are  fol­
+       lowing:  plugins  API  (plugins  factory), filesystem API,
+       journal API, allocator API, oid allocator API,  tree  API.
+       Also  it  will contain API (the set of wrappers functions)
+       for every plugin. For example, libreiserfs will be working
+       with directory plugin via directory API.
+
+       Also  libreiserfs  will  consists of minor APIs too. There
+       following:  exceptions  API,  memory  working   functions,
+       tools.
+
+       <B>Abstraction</B> <B>levels</B> <B>in</B> <B>libreiserfs.</B>
+
+       libreiserfs is structured into several abstraction layers.
+       Main goal of an abstraction layer is to  correctly  handle
+       all  possible  situations and let higher abstraction layer
+       to know what was the result.
+
+       libreiserfs has got such abstraction levels:
+
+       lowest level: plugins, DAL middle level: wrappers for plu­
+       gins  (journal,  allocator,  oid allocator, etc).  highest
+       level: filesystem  (reiserfs_fs_open,  reiserfs_fs_create,
+       etc)
+
+       In  the case of an error, current abstraction layer issues
+       error message, meaningful on  this  level,  handles  error
+       condition  as  much  as possible (by means of "exceptions"
+       see below) and returns error code to the higher layer.
+
+       For example, if  journal  layer  (function  reiserfs_jour­
+       nal_open)  failed  to  read block from the device, it will
+       handle error like this:
+
+       etc.
+
+       <B>Exceptions</B> <B>in</B> <B>libreiserfs.</B>
+
+       Exceptions  in  libreiserfs  are  uniform  way  to  handle
+       errors. Contrary to some similarity in naming,  they  have
+       nothing  to  with  non-local  exits in languages like C++.
+       When using exceptions, control flow is still based on nor­
+       mal C return-and-check-error-code pattern.
+
+       After  exception  is  raised  (thrown)  it is processed by
+       exception handled (currently there is single global excep­
+       tion  handler,  adding ability to register local exception
+       handlers for particular types of errors is simple).
+
+       Exception handling factory contains default exception han­
+       dler and set of function for exception processing. Default
+       exception handler just prints to the  stderr  a  exception
+       message and exception type (ERROR, WARNING, FATAL, NO_FEA­
+       TURE, BUG). Default handler may be re-implemented and reg­
+       istered  in  libreiserfs by libreiserfs_exception_set_han­
+       dler function.
+
+       Default exception handler looks like this:
+
+       static reiserfs_exception_option_t default_handler(reiserfs_exception_t *ex) {
+            if (ex-&gt;type == EXCEPTION_BUG)
+                 fprintf (stderr, _("A bug has been detected in libreiserfs. "
+                      "Please email a bug report to umka@namesys.com containing the version (%s) "
+                      "and the following message: "), VERSION);
+            else
+                 fprintf (stderr, "%s: ", libreiserfs_exception_type_string(ex-&gt;type));
+
+            fprintf (stderr, "%s\n", ex-&gt;message);
+
+            switch (ex-&gt;options) {
+                 case EXCEPTION_OK:
+                 case EXCEPTION_CANCEL:
+                 case EXCEPTION_IGNORE:
+                      return ex-&gt;options;
+                 default: return EXCEPTION_UNHANDLED;
+            }
+       }
+       A front-end may reimplement exception handler and add  new
+       functionality to it.
+
+       Exception handling functions:
+
+       <B>typedef</B> <B>reiserfs_exception_option_t</B> <B>(reiserfs_exception_handler_t)</B> <B>(reiserfs_exception_t</B> <B>*ex);</B>
+
+       Type for exception handler function.
+
+       <B>reiserfs_exception_option_t</B> <B>libreiserfs_exception_throw(reiserfs_exception_type_t</B> <B>type,</B> <B>reiserfs_exception_option_t</B> <B>opt,</B> <B>const</B> <B>char*</B> <B>message,</B> <B>...);</B>
+
+       Raises (throws) an exception.
+
+       <B>reiserfs_exception_option_t</B> <B>libreiserfs_exception_rethrow(void);</B>
+
+       Re-throws last exception.
+
+       <B>void</B> <B>libreiserfs_exception_catch(void);</B>
+
+       Releases exception.
+
+       <B>void</B> <B>libreiserfs_exception_fetch_all(void);</B>
+
+       Disables exceptions: force exception handler to just return.
+
+       <B>void</B> <B>libreiserfs_exception_leave_all(void);</B>
+
+       Enables exceptions: switches back to normal handler behavior.
+
+       <B>filesystem</B> <B>API.</B>
+
+       Filesystem  API  will  be  containing all public function.
+       There  are  general  functions:  reiserfs_fs_open,   reis­
+       erfs_fs_close,  reiserfs_fs_resize, reiserfs_fs_copy, etc,
+       and some utilities: reiserfs_fs_format,  reiserfs_fs_uuid,
+       reiserfs_fs_lable,   reiserfs_fs_size,   reiserfs_fs_meta­
+       data_size, etc.
+
+       There will be also the set of  wrappers  for  journal  and
+       allocator  functions.   This is because journal object and
+       allocator object lies on the lower abstraction layer  than
+       filesystem  and  can't change properties of the filesystem
+       object directly.
+
+       Changes of the filesystem properties are needed, for exam­
+       ple,  for  tuning  (updating the journal properties in the
+       superblock). There will  be  functions:  reiserfs_fs_jour­
+       nal_open,   reiserfs_fs_journal_close,   reiserfs_fs_jour­
+       nal_create,  reiserfs_fs_journal_tune,   reiserfs_fs_jour­
+       nal_resize, etc.
+
+       <B>journal</B> <B>API.</B>
+
+       Journal  API  is  a  set of wrappers functions for journal
+       plugin. Also it will contain common code for  all  journal
+       formats.
+
+       <B>allocator</B> <B>API.</B>
+
+       A  replica  of bitmap in reiser3. There will be functions:
+       reiserfs_alloc_create,     reiserfs_alloc_close,     reis­
+       item,  hash  and  security  plugins. Each plugin will be a
+       separate library (shared object, .so)  with  all  required
+       functionality.  All  plugins  will be mapped to the corre­
+       sponding  abstract  objects  in   libreiserfs.   Therefore
+       libreiserfs  will contain the set of APIs for all plugins.
+
+       It would be nice to have the same plugins  set  for  users
+       pace purpose (libreiserfs) and kernel space purpose. It is
+       more likely some of plugins will be have  double  purpose.
+       For  example,  hash  plugin  due  to it is very simple for
+       implementation.
+
+       <B>plugins</B> <B>map.</B>
+
+       Plugins map keeps correspondence between  plugins  id  and
+       library for this plugin.
+
+       <B>plugin</B> <B>factory.</B>
+
+       In  the  initialization  time  libreiserfs will initialize
+       plugins factory with plugins cache that will store  loaded
+       plugins.  Plugin  cache  keeps track of loaded plugins and
+       allows to avoid duplicate loading of the same plugin.
+
+       During filesystem open library will determine what journal
+       plugin  to  use.   Corresponding  plugin  will be located,
+       loaded and stored in the  cache.  After  that,  filesystem
+       open will proceed further.
+
+       The  all other plugins will be loaded on demand and stored
+       in plugin cache.  And all subsequent requests to load  the
+       same plugin will be satisfied from the cache.
+
+       Plugins loading code and data-structures look roughly like
+       following:
+
+       #define REISERFS_PLUG_MAX_NAME          255
+       #define REISERFS_PLUG_MAX_DESC          255
+
+       #define REISERFS_PLUG_MAX_KIND          255
+       #define REISERFS_PLUG_MAX_TYPE          255
+
+       extern reiserfs_plug_t *plug_cashe[REISERFS_PLUG_MAX_KIND][REISERFS_PLUG_MAX_TYPE];
+
+       enum reiserfs_plug_kind {
+            REISERFS_PLUG_JOURNAL              = 1 &lt;&lt; 0,
+            REISERFS_PLUG_DIR                  = 1 &lt;&lt; 1,
+            REISERFS_PLUG_FILE                 = 1 &lt;&lt; 2,
+            REISERFS_PLUG_ITEM                 = 1 &lt;&lt; 3
+            ...
+       };
+
+       typedef enum reiserfs_plug_kind reiserfs_plug_kind_t;
+
+       struct reiserfs_plug_header {
+           uint32_t plug_id;
+           reiserfs_plug_kind_t plug_kind;
+           const char plug_name[REISERFS_PLUG_MAX_NAME];
+           const char plug_desc[REISERFS_PLUG_MAX_DESC];
+           void *plug_data;
+       };
+
+       typedef struct reiserfs_plug_header reiserfs_plug_header_t;
+
+       struct reiserfs_plug {
+            void *plug_handle;
+	        uint32_t plug_nlink;
+
+            reiserfs_plug_header_t header;
+
+            union {
+                 reiserfs_journal_plug_t journal;
+                 reiserfs_alloc_plug_t alloc;
+                 reiserfs_layout_plug_t layout;
+                 reiserfs_security_plug_t security;
+                 reiserfs_dir_plug_t dir;
+                 reiserfs_file_plug_t file;
+                 reiserfs_node_plug_t node;
+                 reiserfs_item_plug_t item;
+            } __attribute__ (__packed__) u;
+       };
+
+       typedef struct reiserfs_plug reiserfs_plug_t;
+
+       <B>void</B> <B>*plug_handle</B>
+
+       Handle of loaded shared library.
+
+       <B>uint32_t</B> <B>plug_nlink;</B>
+
+       Number of references on underlying plugin. This value is initializing by zero
+       during first time loading. It is incrementing by reiserfs_plug_load function
+       and decrementing by reiserfs_plug_unload function. If "plug_nlink" reaches zero,
+       then plugin will be unloaded.
+
+       <B>uint32_t</B> <B>plug_id</B>
+       <B>reiserfs_plug_kind_t</B> <B>plug_kind</B>
+
+       Plugin identifier and kind/type. Used to look plugin up in the plugin cache.
+       Also used for looking in the plugins map in order to found required plugin
+       library. For, example: plug_id = 0x01, plug_kind = 0x01, file = libreiserfs_journal40.so
+
+       <B>const</B> <B>char</B> <B>plug_name[REISERFS_PLUG_MAX_NAME]</B>
+
+       Plugin name. For example, "journal40". Will be used to looking plug up
+       by it "plug_name".
+
+       <B>const</B> <B>char</B> <B>plug_desc[REISERFS_PLUG_MAX_DESC]</B>
+
+       Plugin description. For example, "This is the standard journal plugin for Reiser4".
+
+       <B>union</B> <B>{...}</B> <B>u;</B>
+
+       Plugin instance.
+
+       struct reiserfs_fs {
+            dal_t *dal;
+
+            reiserfs_tree_t *tree;
+            reiserfs_super_t *super;
+            reiserfs_oid_t *oid;
+            reiserfs_alloc_t *alloc;
+            reiserfs_journal_t *journal;
+
+            uint16_t flags;
+        };
+
+        reiserfs_plug_t *reiserfs_plug_load_by_name(const char *name) {
+            char *error;
+            void *plug_handle;
+            void *plug_entry;
+            reiserfs_plug_t *plug;
+            reiserfs_plug_t *(*gpi) (void);
+
+            ASSERT(name != NULL, return NULL);
+
+            if (!(plug_handle = dlopen(name, RTLD_NOW))) {
+                 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+                      "Couldn't load plugin %s.", name);
+                 goto error;
+            }
+
+            plug_entry = dlsym(plug_handle, "reiserfs_plugin_info");
+            if ((error = dlerror()) != NULL) {
+                 libreiserfs_exception_throw(EXCEPTION_ERROR, PED_EXCEPTION_IGNORE,
+                      _("Couldn't resolve symbol %s. Error: %s."), reiserfs_plugin_info, error);
+                 goto error_free_plug_handle;
+            }
+            gpi = (reiserfs_plug_t *(*)(void))plug_entry;
+
+            plug = gpi();
+
+            plug-&gt;plug_handle = plug_handle;
+            plug-&gt;plug_nlink = 0;
+
+            reiserfs_plugin_register(plug);
+
+            return plug;
+
+       error_free_plug_handle:
+            dlclose(plug_handle);
+       error:
+            return NULL;
+
+       }
+
+       reiserfs_plug_t *reiserfs_plug_load(reiserfs_plug_kind_t plug_kind, uint32_t plug_id) {
+            char *plug_name;
+            reiserfs_plug_t *plug;
+
+            /* First of all we are trying to find loaded plugin in plugins cache by it id */
+            if ((plug = reiserfs_plug_find(plug_id))) {
+                 plug-&gt;plug_nlink++;
+                 return plug;
+            }
+
+            if (!(plug_name = reiserfs_plug_path_by_id(plug_kind, plug_id))) {
+                 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+                      "Couldn't find registered plugin by it identifier %d.", plug_id);
+                 goto error;
+            }
+
+            if (!(plug = reiserfs_plug_load_by_name(plug_name)))
+                 goto error;
+                 reiserfs_plug_unregister(plug);
+                 dlclose(plug-&gt;header.plug_handle);
+            }
+       }
+
+       As you can see loaded plugins are registering in the  plu­
+       gin cashe.
+
+       There  will  be  set  of functions (reiserfs_plugin_*) for
+       working with plugins.
+
+       <B>int</B> <B>reiserfs_plug_register(reiserfs_plug_t</B> <B>*plug)</B>
+
+       Registers initialized plugin in the plugins cache. Returns
+       true on success, false on failure.
+
+       <B>int</B> <B>reiserfs_plug_unregister(reiserfs_plug_t</B> <B>*plug)</B>
+
+       Unregisters of given plugin.
+
+       <B>reiserfs_plug_t</B>   <B>*reiserfs_plug_load(uint16_t</B>  <B>plug_kind,</B>
+       <B>uint16_t</B> <B>plug_id)</B>
+
+       Loads plugin by identifier. If plugin is  already  loaded,
+       retrieves  it  from the cache. If not, loads it and stores
+       loaded plugin in the cache.
+
+       <B>int</B> <B>reiserfs_plug_unload(reiserfs_plug_t</B> <B>*plug)</B>
+
+       Unloads plugin, unregisters it from cache.
+
+       In finalization time plugin factory will release all plug­
+       ins.
+
+       <B>Journal</B> <B>plugin.</B>
+
+       Reiser4  will  support  several formats of the journal. In
+       order to support format-variable journal we need the jour­
+       nal plugin.
+
+       I assume, that any format of journal will support at least
+       following properties: journal  will  be  transaction-based
+       and journal can be opened and closed.
+
+       Journal plugin will handle such requests and events:
+
+       <B>Initialization/finalization.</B>
+
+       Initialization  will  include  reading the journal header,
+       checking it for validness. Possibly it will build  journal
+       cache,  or  something  else.  The  journal  behavior fully
+       depends on the journal plugin. Then  journal  plugin  will
+
+       <B>Transaction</B> <B>handling.</B>
+
+       Transaction  handling  interface  in  journal  plugin will
+       depends on common journal  parameters  for  every  journal
+       format.  As reiser4 will support old journal format, jour­
+       nal plugin must export interface to  obtain  such  parame­
+       ters:  start,  length, max_trans_size, etc. Also interface
+       must let to do something with the journal (tuning,  resiz­
+       ing, etc).
+
+       Besides,  libreiserfs  code  must  know  where  journal is
+       placed. Especially standard journal  in  reiser3.  Journal
+       plugin  must  have an journal-internals independent inter­
+       face.
+
+       typedef void reiserfs_opaque_t;
+
+       struct reiserfs_journal_plug {
+            reiserfs_opaque_t *(*init) (dal_t *dal);
+            void (*done) (reiserfs_opaque_t *);
+
+            /* Journal routines which are common in reiser3 and reiser4 journal format */
+            int (*replay) (reiserfs_opaque_t *, int is_replay);
+            int (*tune) (reiserfs_opaque_t *, some_journal_parameters);
+            int (*alterable) (reiserfs_opaque_t *);
+
+            /* Journal routines which are specific for reiser3 journal format */
+            int (*resize) (reiserfs_opaque_t *, blk_t, blk_t);
+            void (*boundaries) (reiserfs_opaque_t *, blk_t *, blk_t *);
+       };
+
+       <B>reiserfs_opaque_t</B> <B>*(*init)</B> <B>(dal_t</B> <B>*dal)</B>
+
+       Opens journal (reading the header and checking it for errors) and returns
+       initialized journal instance. This instance will be using to working with
+       journal.
+
+       <B>void</B> <B>(*done)</B> <B>(reiserfs_opaque_t</B> <B>*)</B>
+
+       Closes journal. Frees all internal structures.
+
+       <B>int</B> <B>(*replay)</B> <B>(reiserfs_opaque_t</B> <B>*,</B> <B>int</B> <B>is_replay)</B>
+
+       Replays journal. Returns result of replaying.
+
+       <B>int</B> <B>(*tune)</B> <B>(reiserfs_opaque_t</B> <B>*,</B> <B>some_journal_parameters)</B>
+
+       Changes journal parameters. Exact list of parameters isn't defined yet.
+       (We must discuss it)
+
+       <B>int</B> <B>(*alterable)</B> <B>(reiserfs_opaque_t</B> <B>*)</B>
+
+       Returns "bool" value that means whether journal can be resized, tuned or not.
+	   
+       <B>void</B> <B>(*boundaries)</B> <B>(reiserfs_opaque_t *, blk_t *, blk_t *)</B>
+
+       Returns journal boundaries for journal in reiser3. As journal in reiser4 will
+       has not exactly defined boundaries, this function will do nothing or will be
+       uninitialized.
+	   
+       <B>Disk-Format</B> <B>plugin.</B>
+
+       Disk-Format plugin defines filesystem layout  at  general.
+       First of all it defines where the superblock lies and what
+       the format this superblock has.
+
+       Also  it  exports  interface  for  getting/setting  values
+       from/to superblock.
+
+       Therefore all available disk-format plugins must be loaded
+       during library  initialization  time,  just  after  plugin
+       cache  will be initialized in order to be able to find any
+       superblock at filesystem opening time.
+
+       Also  disk-format  plugin  defines  where  root  block  is
+       located, etc. It will look like this:
+
+       struct reiserfs_layout_plug {
+            reiserfs_opaque_t *(*init) (dal_t *);
+            void (*done) (reiserfs_opaque_t *);
+
+            uint16_t (*alloc_plug_id) (reiserfs_opaque_t *);
+            uint16_t (*oid_plug_id) (reiserfs_opaque_t *);
+            uint16_t (*journal_plug_id) (reiserfs_opaque_t *);
+
+            /* Routines for working with superblock */
+            blk_t (*get_journal_block) (reiserfs_opaque_t *);
+            void (*set_journal_block) (reiserfs_opaque_t *, blk_t);
+
+            blk_t (*get_block_count) (reiserfs_opaque_t *);
+            void (*set_block_count) (reiserfs_opaque_t *, blk_t);
+
+            blk_t (*get_free_blocks) (reiserfs_opaque_t *);
+            void (*set_free_blocks) (reiserfs_opaque_t *, blk_t);
+
+            blk_t (*get_root_block) (reiserfs_opaque_t *);
+            void (*set_root_block) (reiserfs_opaque_t *, blk_t);
+
+            uint16_t (*get_tree_height) (reiserfs_opaque_t *);
+            void (*set_tree_height) (reiserfs_opaque_t *, uint32_t);
+
+            uint64_t (*get_oid) (reiserfs_opaque_t *);
+            void (*set_oid) (reiserfs_opaque_t *, uint64_t);
+
+            uint64_t (*get_file_count) (reiserfs_opaque_t *);
+            void (*set_file_count) (reiserfs_opaque_t *, uint64_t);
+       };
+
+       typedef    struct    reiserfs_layout_plug    reiserfs_lay­
+       out_plug_t;
+
+       <B>reiserfs_opaque_t</B> <B>*(*init)</B> <B>(dal_t</B> <B>*)</B>
+
+       Returns oid allocator plugin's ID. Will be used  in  order
+       to  find oid allocator plugin in plugins cashe and plugins
+       map.
+
+       <B>uint16_t</B> <B>(*alloc_plug_id)</B> <B>(reiserfs_opaque_t</B> <B>*)</B>
+
+       Returns allocator's plugin ID. Will used in order to  find
+       needed allocator plugin.
+
+       <B>blk_t</B>  <B>(*get_journal_block)</B>  <B>(reiserfs_opaque_t</B>  <B>*)</B>  <B>reis­</B>
+       <B>erfs_opaque_t(*set_journal_block)</B>  <B>(reiserfs_opaque_t</B>   <B>*,</B>
+       <B>blk_t)</B>
+
+       Gets/sets the block where journal header is lies.
+
+       <B>blk_t</B>   <B>(*get_block_count)</B>   <B>(reiserfs_opaque_t</B>  <B>*)</B>  <B>reis­</B>
+       <B>erfs_opaque_t(*set_block_count)</B>   <B>(reiserfs_opaque_t</B>    <B>*,</B>
+       <B>blk_t)</B>
+
+       Gets/sets  "block_count" field of super block of this lay­
+       out.
+
+       <B>blk_t</B>  <B>(*get_free_blocks)</B>  <B>(reiserfs_opaque_t</B>   <B>*)</B>   <B>reis­</B>
+       <B>erfs_opaque_t(*set_free_blocks)</B>    <B>(reiserfs_opaque_t</B>   <B>*,</B>
+       <B>blk_t)</B>
+
+       Gets/sets "free_blocks" field of super block of this  lay­
+       out.
+
+       <B>blk_t</B>   <B>(*get_root_block)</B>   <B>(reiserfs_opaque_t</B>   <B>*)</B>  <B>reis­</B>
+       <B>erfs_opaque_t(*set_root_block)</B>    <B>(reiserfs_opaque_t</B>    <B>*,</B>
+       <B>blk_t)</B>
+
+       Gets/sets  "root_block"  field of super block of this lay­
+       out.
+
+       <B>uint16_t</B> <B>(*get_tree_height)</B>  <B>(reiserfs_opaque_t</B>  <B>*)</B>  <B>reis­</B>
+       <B>erfs_opaque_t(*set_tree_height)</B>    <B>(reiserfs_opaque_t</B>   <B>*,</B>
+       <B>uint16_t)</B>
+
+       Gets/sets field "tree_height" of super block of this  lay­
+       out.
+
+       <B>uint64_t</B>    <B>(*get_oid)</B>    <B>(reiserfs_opaque_t</B>    <B>*)</B>   <B>reis­</B>
+       <B>erfs_opaque_t(*set_oid)</B> <B>(reiserfs_opaque_t</B> <B>*,</B> <B>uint64_t)</B>
+
+       Gets/sets "oid" field of super block of this layout.
+
+       <B>uint64_t</B>  <B>(*get_file_count)</B>  <B>(reiserfs_opaque_t</B>  <B>*)</B>  <B>reis­</B>
+       <B>erfs_opaque_t(*get_file_count)</B>    <B>(reiserfs_opaque_t</B>    <B>*,</B>
+       <B>uint64_t)</B>
+
+       Gets/sets "file_count" of super block of this layout.
+
+       Filesystem opening stuff look roughly like following:
+
+       reiserfs_super_t *reiserfs_super_open(dal_t *dal) {
+           int i;
+		   reiserfs_super_t *super;
+		   reiserfs_opaque_t *layout_instance = NULL;
+		   reiserfs_plug_t *layout_plug = NULL;
+
+           for (i = 0; i < plug_count; i++) {
+               if (plugs[i]->plug_kind != REISERFS_PLUG_DISK_LAYOUT)
+			      continue;
+
+               if ((layout_instance = plugs[i]-&gt;u.layout.init(dal))) {
+                    layout_plug = plugs[i];
+                    break;
+               }
+            }
+
+            if (!layout_plug) {
+                 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+                      _("Couldn't find any disk layout."));
+                 return NULL;
+            }
+
+            if (!(super = libreiserfs_calloc(sizeof(*super), 0)))
+                 return NULL;
+
+            super-&gt;layout_plug = layout_plug;
+            super-&gt;layout_instance = layout_instance;
+
+            return super;
+       }
+
+       void reiserfs_super_close(reiserfs_super_t *super) {
+            ASSERT(super != NULL, return);
+
+            super-&gt;layout_plug-&gt;u.layout-&gt;done(super-&gt;layout_instance);
+
+            /* Layout plugins must do not unload */
+
+            libreiserfs_free(journal);
+       }
+
+       reiserfs_journal_t *reiserfs_journal_open(dak_t *dal, blk_t journal_block,
+            uint16_t journal_plug_id)
+       {
+            reiserfs_opaque_t *journal_instance;
+            reiserfs_journal_t *journal;
+            reiserfs_plug_t *journal_plug;
+
+            if (!(journal_plug = reiserfs_plug_load(REISERFS_PLUG_JOURNAL, journal_plug_id)))
+                 return NULL;
+
+            if (!(journal_instance = journal_plug-&gt;u.journal.init(dal))) {
+                 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+                      _("Couldn't initialize journal."));
+                 return NULL;
+            }
+
+            if (!(journal = libreiserfs_calloc(sizeof(*journal), 0)))
+                 goto error_free_journal_instance;
+    		
+            journal-&gt;journal_block = journal_block;
+            journal-&gt;journal_plug = journal_plug;
+            journal-&gt;journal_instance = journal_instance;
+
+            /* Optional journal replaying */
+
+            return journal;
+
+       error_free_journal_instance:
+            libreiserfs_free(journal_instance);
+       error:
+            return NULL;
+       }
+				 
+       void reiserfs_journal_close(reiserfs_journal_t *journal) {
+            ASSERT(journal != NULL, return);
+
+            journal-&gt;journal_plug-&gt;u.journal-&gt;done(journal-&gt;journal_instance);
+            reiserfs_plug_unload(journal-&gt;journal_plug);
+            libreiserfs_free(journal);
+       }
+
+       reiserfs_fs_t *reiserfs_fs_open(dal_t *host_dal, dal_t *journal_dal) {
+            blk_t root_block;
+            reiserfs_fs_t *fs;
+            blk_t journal_block;
+
+            uint16_t alloc_plug_id;
+            uint16_t journal_plug_id;
+
+            ASSERT(host_dal != NULL, return NULL);
+            ASSERT(journal_dal != NULL, return NULL);
+
+            if (!(fs != libreiserfs_calloc(sizeof(*fs), 0)))
+                 return NULL;
+
+            if (!(fs-&gt;super = reiserfs_super_open(host_dal))) {
+                 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+                      _("Couldn't open superblock."));
+                 goto error_free_fs;
+            }
+
+            journal_plug_id = super-&gt;layout_plug-&gt;u.layout.journal_plug_id();
+            journal_block = super-&gt;layout_plug-&gt;u.get_journal_block();
+            if (!(fs-&gt;journal = reiserfs_journal_open(journal_dal, journal_block, journal_plug_id))) {
+                 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+                      _("Couldn't open journal."));
+                 goto error_free_super;
+            }
+
+            alloc_plug_id = super-&gt;layout_plug-&gt;u.layout.alloc_plug_id();
+            if (!(fs-&gt;alloc = reiserfs_alloc_open(alloc_plug_id))) {
+                 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+                      _("Couldn't open allocator"));
+                 goto error_free_journal
+            }
+
+            oid_plug_id = super-&gt;layout_plug-&gt;u.layout.oid_plug_id();
+            if (!(fs-&gt;oid = reiserfs_oid_open(oid_plug_id))) {
+                 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+                      _("Couldn't open oid allocator."));
+                 goto error_free_alloc;
+            }
+
+            root_block = super-&gt;layout_plug-&gt;u.layout.get_root_block();
+            if (!(fs-&gt;tree = reiserfs_tree_open(root_block))) {
+            libreiserfs_free(fs-&gt;super);
+       error_free_fs:
+            libreiserfs_free(fs);
+       error:
+            return  NULL;
+       }
+
+       Main library structures are following:
+
+       struct reiserfs_super {
+            reiserfs_opaque_t *layout_instance;
+            reiserfs_plug_t *layout_plug;
+       };
+
+       typedef struct reiserfs_super reiserfs_super_t;
+
+       <B>reiserfs_plug_t</B> <B>*layout_plug</B>
+
+       The pointer to layout_plugin;
+
+       <B>reiserfs_opaque_t</B> <B>*layout_instance</B>
+
+       Pointer to initialized instance of some layout. Will be using later
+       for working with that layout.
+
+       struct reiserfs_journal {
+            dal_t *dal;
+            reiserfs_opaque_t *journal_instance;
+            reiserfs_plug_t *journal_plug;
+       };
+
+       typedef struct reiserfs_journal reiserfs_journal_t;
+
+       <B>dal_t</B> <B>*dal</B>
+
+       DAL where journal lies.
+
+       <B>reiserfs_opaque_t</B> <B>*journal_instance</B>
+
+       Pointer to initialized journal instance. Will be using later to interact with
+       underlying journal.
+
+       <B>reiserfs_plug_t</B> <B>*journal_plug</B>
+
+       Journal format plugin.
+
+       struct reiserfs_tree {
+            reiserfs_fs_t *fs;
+       };
+
+       typedef struct reiserfs_tree reiserfs_tree_t;
+
+       Copyright 1996-2002 Hans Reiser
+
+libreiserfs                13 May, 2002            <B>libreiserfs(8)</B>
+</PRE>
+</BODY>
+</HTML>
