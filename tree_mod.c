@@ -31,6 +31,7 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
 	 tree_level level	/* tree level at which new node is to
 				 * be allocated */ )
 {
+/* NIKITA-FIXME-HANS: use a more descriptive name than result */
 	znode *result = 0;	/* to make cc happy */
 	int retcode;
 	reiser4_block_nr blocknr;
@@ -46,7 +47,7 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
 				 "Cannot allocate znode for carry: %li", PTR_ERR(result));
 			return result;
 		}
-
+				/* NIKITA-FIXME-HANS: this if is executed even if debugging is off, why? */
 		if (!znode_just_created(result)) {
 			warning("nikita-2213", "Allocated already existing block: %llu", blocknr);
 			zput(result);
@@ -55,7 +56,7 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
 
 		/* @result is created and inserted into hash-table. There is
 		   no need to lock it: nobody can access it yet anyway.
-		
+		NIKITA-FIXME-HANS: josh is gone, so clean this comment up.
 		   FIXME_JMACD zget() should add additional checks to panic if attempt to
 		   access orphaned znode is made. -- is this comment still
 		   accurate? nikita: yes, it is, I think.  want to add those
