@@ -280,8 +280,8 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
    it looks for name specified in @dentry in directory @parent and if name is found - key of object found entry points
    to is stored in @entry->key */
 int
-lookup_name_hashed(const struct inode *parent /* inode of directory to lookup for name in */,
-		   const struct dentry *dentry /* name to look for */,
+lookup_name_hashed(struct inode *parent /* inode of directory to lookup for name in */,
+		   struct dentry *dentry /* name to look for */,
 		   reiser4_key *key /* place to store key */)
 {
 	int result;
@@ -289,12 +289,12 @@ lookup_name_hashed(const struct inode *parent /* inode of directory to lookup fo
 	lock_handle lh;
 	const char *name;
 	int len;
-	struct inode *inode;
 	reiser4_dir_entry_desc entry;
 
 	assert("nikita-1247", parent != NULL);
 	assert("nikita-1248", dentry != NULL);
 	assert("nikita-1123", dentry->d_name.name != NULL);
+	assert("vs-1486", dentry->d_op == &reiser4_dentry_operations);
 
 	result = perm_chk(parent, lookup, parent, dentry);
 	if (result != 0)
@@ -306,9 +306,6 @@ lookup_name_hashed(const struct inode *parent /* inode of directory to lookup fo
 	if (!is_name_acceptable(parent, name, len))
 		/* some arbitrary error code to return */
 		return RETERR(-ENAMETOOLONG);
-
-	/* set up operations on dentry. */
-	dentry->d_op = &reiser4_dentry_operations;
 
 	coord = &reiser4_get_dentry_fsdata(dentry)->dec.entry_coord;
 	coord_clear_iplug(coord);
@@ -335,6 +332,9 @@ int lookup_hashed(struct inode * parent	/* inode of directory to
 	int result;
 	struct inode *inode;
 	reiser4_dir_entry_desc entry;
+
+	/* set up operations on dentry. */
+	dentry->d_op = &reiser4_dentry_operations;
 
 	result = lookup_name_hashed(parent, dentry, &entry.key);
 	if (result == 0) {

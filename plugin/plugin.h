@@ -269,7 +269,7 @@ typedef struct dir_plugin {
 	/* generic fields */
 	plugin_header h;
 	/* this is to find name in a directory and key of object the name points to */
-	int (*lookup_name) (const struct inode * parent, const struct dentry *, reiser4_key *);
+	int (*lookup_name) (struct inode * parent, struct dentry *, reiser4_key *);
 	/* for use by open call, based on name supplied will install
 	   appropriate plugin and state information, into the inode such that
 	   subsequent VFS operations that supply a pointer to that inode

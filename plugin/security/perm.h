@@ -56,7 +56,8 @@ typedef struct perm_plugin {
 	/* check whether stat(2) is allowed */
 	int (*getattr_ok) (struct vfsmount * mnt UNUSED_ARG, struct dentry * dentry, struct kstat * stat);
 	/* check whether rename(2) is allowed */
-	int (*rename_ok) (struct inode * old_dir, struct dentry * old, struct inode * new_dir, struct dentry * new);
+	int (*rename_ok) (struct inode * old_dir, struct dentry * old,
+			  struct inode * new_dir, struct dentry * new);
 } perm_plugin;
 
 /* call ->check_ok method of perm plugin for inode */
