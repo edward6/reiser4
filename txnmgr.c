@@ -1414,8 +1414,6 @@ capture_assign_txnh (jnode       *node,
 		 * is not to avoid deadlock, its just waiting.  Releases all three locks
 		 * and returns EAGAIN. */
 
-		/* FIXME: This NULL causes an assertion failure, but its not clear how we
-		 * can get here (yet). */
 		return capture_fuse_wait (node, txnh, atom, NULL, mode);
 
 	} else if (atom->stage > ASTAGE_CAPTURE_WAIT) {

@@ -688,11 +688,16 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	/* If we emptied and allocated the entire contents of the right twig, try again. */
 	/* FIXME: The (! any_shifted) part of this test causes the -ENAVAIL failure from
 	 * reiser4_get_parent in the second regression test.  Strange. */
-	if (! any_shifted && node_is_empty (right_lock.node)) {
+	if (node_is_empty (right_lock.node)) {
 		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] right again: %s\n", call_depth, flush_pos_tostring (pos));
 		done_zh (& right_load);
 		done_lh (& right_lock);
-		goto RIGHT_AGAIN;
+
+		/* If none where shifted (i.e., if we skipped all the shifted nodes
+		 * above), do it again. */
+		if (any_shifted == 0 || znode_get_level (node) == LEAF_LEVEL) {
+			goto RIGHT_AGAIN;
+		}
 	}
 
 	/* If anything is shifted at an upper level, we should not allocate any further
