@@ -77,8 +77,6 @@ static ssize_t reiser4_read(struct file *, char *, size_t, loff_t *);
 static ssize_t reiser4_write(struct file *, const char *, size_t, loff_t *);
 static int reiser4_readdir(struct file *, void *, filldir_t);
 static unsigned int reiser4_poll(struct file *, struct poll_table_struct *);
-static int reiser4_ioctl(struct inode *,
-			 struct file *, unsigned int, unsigned long);
 static int reiser4_mmap(struct file *, struct vm_area_struct *);
 static int reiser4_open(struct inode *, struct file *);
 static int reiser4_flush(struct file *);
