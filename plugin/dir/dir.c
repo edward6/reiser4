@@ -1003,6 +1003,10 @@ common_readdir(struct file *f /* directory file being read */ ,
 	init_lh(&lh);
 	tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
 
+	/* initialize readdir readahead information */
+	tap.ra_info.flags = RA_READDIR;
+	tap.ra_info.u.readdir.oid = get_inode_oid(inode);
+
 	trace_on(TRACE_DIR | TRACE_VFS_OPS, 
 		 "readdir: inode: %llu offset: %lli\n", 
 		 get_inode_oid(inode), f->f_pos);
