@@ -180,24 +180,44 @@ static inline int is_grab_enabled(void)
 	return get_current_context()->flags & GRAB_ENABLED;
 }
 
-#define __REISER4_ENTRY( super, errret )			\
+#define REISER4_TRACE_CONTEXT (0)
+
+#if REISER4_TRACE_TREE && REISER4_TRACE_CONTEXT
+extern int write_in_trace(const char *func, const char *mes);
+
+#define log_entry(super, str)						\
+({									\
+	if (super != NULL && get_super_private(super) != NULL &&	\
+	    get_super_private(super)->trace_file.buf != NULL)		\
+		write_in_trace(__FUNCTION__, str);			\
+})
+
+#else
+#define log_entry(super, str) noop
+#endif
+
+#define __REISER4_ENTRY(super, errret)				\
 	reiser4_context __context;				\
 	do {							\
                 int __ret;					\
-                __ret = init_context( &__context, ( super ) );	\
+                __ret = init_context(&__context, (super));	\
+		log_entry(super, ":in");			\
                 if (__ret != 0) {				\
 			return errret;				\
 		}						\
         } while (0)
 
-#define REISER4_ENTRY_PTR( super )  __REISER4_ENTRY( super, ERR_PTR(__ret) )
-#define REISER4_ENTRY( super )      __REISER4_ENTRY( super, __ret )
+#define REISER4_ENTRY_PTR(super)  __REISER4_ENTRY(super, ERR_PTR(__ret))
+#define REISER4_ENTRY(super)      __REISER4_ENTRY(super, __ret)
 
-#define __REISER4_EXIT( context )		\
+#define __REISER4_EXIT(context)			\
 ({						\
-        int __ret1 = txn_end( context );	\
-	done_context( context );		\
-        if (__ret1 > 0) __ret1 = 0;             \
+        int __ret1;				\
+						\
+	log_entry((context)->super, ":ex");	\
+	__ret1 = txn_end(context);		\
+	done_context(context);			\
+        if (__ret1 > 0) __ret1 = 0;		\
         __ret1;					\
 })
 

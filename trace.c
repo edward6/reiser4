@@ -116,8 +116,10 @@ close_trace_file(reiser4_trace_file * trace)
 	flush_trace(trace);
 	if (trace->fd != NULL)
 		filp_close(trace->fd, NULL);
-	if (trace->buf != NULL)
+	if (trace->buf != NULL) {
 		kfree(trace->buf);
+		trace->buf = NULL;
+	}
 }
 
 int
@@ -246,7 +248,7 @@ write_trace_stamp(reiser4_tree * tree, reiser4_traced_op op, ...)
 
 	key = va_arg(args, reiser4_key *);
 	rest = buf + sprintf_key(buf, key);
-	*rest++ = ':';
+	*rest++ = ' ';
 	*rest = '\0';
 
 	switch (op) {
@@ -271,25 +273,26 @@ write_trace_stamp(reiser4_tree * tree, reiser4_traced_op op, ...)
 			coord = va_arg(args, coord_t *);
 			flags = va_arg(args, __u32);
 
-			rest += sprintf(rest, "%s:(%u:%u):%x",
-					data->iplug->h.label, coord->item_pos, coord->unit_pos, flags);
+			rest += sprintf(rest, "%s (%u,%u) %x",
+					data->iplug->h.label, 
+					coord->item_pos, coord->unit_pos, flags);
 		}
 	}
 	va_end(args);
-	return write_trace(file, "%i:%s:[%s]:%lu:..tree:%c:%s\n",
+	return write_trace(file, "%i %s  %s %lu ....tree %c %s\n",
 			   current->pid, current->comm, 
 			   kdevname(to_kdev_t(tree->super->s_dev)), jiffies, op, buf);
 }
 
-int write_in_trace(const char *mes)
+int write_in_trace(const char *f, const char *mes)
 {
 	struct super_block *super;
 
 	super = reiser4_get_current_sb();
 	return write_trace(&get_super_private(super)->trace_file,
-			   "%i:%s:[%s]:%lu:%s\n",
+			   "%i %s %s %lu %s %s\n",
 			   current->pid, current->comm,
-			   kdevname(to_kdev_t(super->s_dev)), jiffies, mes);
+			   kdevname(to_kdev_t(super->s_dev)), jiffies, f, mes);
 }
 
 #endif
