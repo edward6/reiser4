@@ -82,7 +82,7 @@ BUILD_TAG_FILE     = .build
   ###########################################################################
 
 JUNK_FILES        := *.o *.so *.rpo core core.* *~ \\\#*\\\#
-FIND_NON_SCCS     := find . \( -regex '.*\(\(SCCS\)\|\(Attic\)\).*' -prune -o -true \) -name '*.[ch]'
+FIND_NON_SCCS     := find . \( -regex '.*\(\(SCCS\)\|\(Attic\)\|\(reiser4progs\)\).*' -prune -o -true \) -name '*.[ch]'
 
 ###########################################################################
 #                                                                         #
