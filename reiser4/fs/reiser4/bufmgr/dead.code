@@ -1,0 +1,835 @@
+/* -*- C -*- */
+
+      /* See if the frame is referenced or if it has no blockid (its being deleted, not yet
+       * removed from LRU).  @@@ I don't understand the paren comment or the second expr! */
+      if ( != 0 || bufmgr_blockid_isnull (& frame->_blockid))
+	{
+	  spin_unlock (& frame->_frame_lock);
+	  continue;
+	}
+
+  /* @@@ Old comments:
+   *
+   * The allocate-and-flush plugin has done its work.  We know which blocks are relocate,
+   * which are overwrite/wandered, and which are deleted.  Blocks that were captured and
+   * never modified are released.
+   *
+   * Blocks that reference relocate blocks refer to the relocate positions (how this
+   * happens, I don't know), and at this point the blocks are remapped in the buffer
+   * manager to their new relocate positions.  The new relocate positions are allocated
+   * from the free space.  The deallocate set is saved in memory (bitmap/list/extent of
+   * blocks-for-deletion).
+   *
+   * Wandered locations are allocated for the overwrite set.  The list of wandered
+   * relationships is saved in memory.
+   *
+   * The free space bitmaps are protected by the usual copy-on-capture mechanism while
+   * being written as part of the overwrite set.
+   *
+   * Format commit record.
+   *
+   * Issue relocate writes.  The atom aquires a reference for each frame it is controlling
+   * at this point.  The copy mechanism needs to cooperate with this reference to
+   * coordinate releasing anonymous copies.  */
+
+
+  /* @@@ Read/write lock needed somewhere -- but before or after the capture???
+   *
+   * Its not right before the capture because we may lock the wrong frame -- a capture
+   * request will result in EAGAIN and then blkget returns a different frame.
+   *
+   * After the capture seems more correct, but will there be race conditions?  Suppose you
+   * have a read request for an uncaptured block.  How do you insure that the reader(s)
+   * finish before a write-capture request arrives?
+   *
+   * How about the fact that there are two spinlocks per frame???  Seems fishy.  Think
+   * about it--easy to fix but hard to back-out.  Still need to solve the read/write lock
+   * issue.
+   *
+   * Based on the assumption that the aunion lock is okay, looks like we can capture and
+   * rw-lock by holding the aunion lock while attempting the rw-lock.
+   *
+   * WRITEOUT is not related.
+   */
+
+  /* @@@ How about this: code forces an unnecssary blkget call when the race condition
+   * happens above, not just when copy-on-capture changes things, which is what it is
+   * intended to fix.  Could fix that with a check for COPIED or something?????  That's
+   * ugly.  Could fix it with a different return code.  Maybe less ugly, but... */
+
++All competently designed general purpose filesystems perform write
++caching.  (NTFS does not, and its performance is the worst of
++all commercially significant filesystems for general purpose usage patterns
++as a direct result.)
++
++When using write caching a crash can come at any time causing some
++updates to be lost.  It is common for it to be important to guarantee
++that either all of a set of particles is lost or none of the particles
++are lost.  Think of transferring money from one bank account to
++another to understand why.  The set of particles that must either be
++lost entirely, or lost not at all, is called an atom.
++
++Another feature of occasional value to some applications is preserving
++the order of modifications, such that if some file fA is written by
++process pA and subsequently significantly depended on by process pB
++which then writes some other file fB, and the system crashes, it will
++not happen that fB survives the crash and fA does not.  We call this
++feature "order preservation".
++
++(Order preservation is satisfied by committing two atoms together,
++which means that order preservation is a convenient side effect of how
++we implement atom fusing, and the aging out of old particles, when
++implementing high performance unisolated transcrashes.  It would
++complicate the code to not provide this feature, and it is often a
++nice one to have:-).)
++It can sometimes be convenient to an application programmer to assume
++that all data read is significantly depended on and let the filesystem
++track that for him in the case of isolated transcrashes.  The set of
++all data significantly depended on plus all data written by a
++transcrash owner, during the course of a transcrash, is called a
++sphere of influence.
++
++Another feature sometimes of value is to guarantee a set of data (the
++"LOCK_SET") is modified only by a particular process until some
++set of modifications are complete.  If the LOCK_SET contains all
++modifications, then it is possible to perform an isolated rollback of
++the modifications.
++
++If the LOCK_SET is made equal to the sphere of influence, you
++have an ACID transaction.
++
++Persons familiar with the database literature will note that these
++definitions do not imply that "serializability" is a requirement.  I
++simply disagree with those who view serializability as a requirement
++for correctness.  What is required for correctness is left to the
++application to define, and this might or might not be sufficient for
++the result to be independent of whether processed in parallel or not.
++Alternatively, dispatching taxis or rendering scenes might have
++multiple adequate results with the distinction between the results
++mattering less than the speed with which they are computed.  Only if
++it requires it, and only to the extent that it requires it, do we
++provide serialization invariance guarantees.  An application often
++knows that serialization invariance will occur for reasons other than
++the filesystem, and it is inappropriate to slow performance to provide
++what it did not ask for and does not need.
++
++When LOCK_SETs overlap, depending on the details serialization may be
++required, and performance can easily go through the floor.  Overuse
++and oversizing of LOCK_SETs is a serious performance concern.
++Making every filesystem operation into an ACID transaction is not
++appropriate.  Oversizing of LOCK_SETs is probably a significantly
++contributing factor to why many efforts to implement filesystems on
++top of databases have not been effective.
+
+
+
+For performance reasons, updates to the file system are typically
+deferred, which allows better throughput by combining many small
+modifications into larger updates than can exploit the performance of
+sequential disk writes.  The deferred update strategy causes problems
+for atomicity, however, because a crash can come at any time causing
+some updates to be lost.  The problem is that some updates may be lost
+while others are not, leaving the file system in an inconsistent
+state.
+
+For example, if some file is written by process A and then later read
+by process B, then process A has had an influence on process B.  Now
+suppose process B writes to a different file, possibly depending on
+the output of process A.  A crash could leave the system in an
+inconsistent state if the deferred update strategy used by the file
+system allows process B's write to commit before process A's write
+does.
+
+Our definition of atomicity is based on the notion of a "sphere of
+influence" which encompasses a set of modifications that must commit
+atomically.  The sphere of influence covers a deferred update period
+and includes all writes that are possibly dependent on one another,
+such as described by the above example.  This set of writes must
+commit atomically or else the file system can become inconsistent.  In
+our implementation, each atom maintains a sphere of influence.  There
+are several rules the atom uses to maintain its sphere of influence:
+
+[@@@ Hans says these rules need to be revised, but doesn't say how.]
+
+     @@@ DEAD
+
+This makes snapshots easy to implement, and works well overall.  In
+Reiser4, we consider the number of children, and journal (write twice,
+last write is an overwrite) all nodes whose number of siblings in this
+transaction is not enough to make it worthwhile to modify the parent
+instead of journaling.  What exactly is sufficient to make it
+worthwhile is left carefully unspecified here, as we will start with
+simple criteria and refine them in later versions.  The performance
+edge this will give us over WAFL is unlikely to be significant until
+simultaneously fully isolated transactions are added later.
+
+ReiserFS V3 does metadata journaling, which doubles the
+amount of metadata written, and this is significant when tails are on.
+
+This technique doubles the number of writes in the system.  Our design
+aims to reduce the cost of atomic writes by relocating data blocks
+instead of logging them prior to overwriting in place.  We expect this
+technique will reduce the cost of atomic ordered writes to an
+acceptable level and perform competitively with non-data-journaling
+file systems.  Even with the new architecture, we still offer the
+option of disabling atomic ordered writes in "meta-data journaling"
+mode.
+
+File systems with ordered atomic writes are called
+"data-journaling", but this feature usually comes at a significant
+cost and does not allow for multiple file system calls to be treated
+as one atom.
+
+2@@@
+
+
+
+  This is handled by collecting a list of all the old relocate block
+  locations at the end of stage one.  The bitmaps are written without
+  deallocating these blocks yet, avoiding the requirement to write
+  copies of each bitmap containing an old relocate block.  Instead,
+  the list of old relocate block locations is included in the commit
+  record for this atom and the deallocations are performed as part of
+  crash recovery.  Once the atom commits, the in-memory bitmap copies
+  are updated using the same list of old relocate blocks.
+
+@@@ This para needs to be reworded.  Its not a "steal", but the effect
+is the same.  However, the waiting doesn't have to happen here, it can
+be merged with the same thing when temp overwrite blocks are
+deallocated next stage.  Right?
+
+@@@
+
+At this point, a record is written to signify DONT REPLAY.  Begin
+deallocation the same way as before, but, the problem is figuring out
+how replay will work.  Some atoms that stole-deallocated from this one
+may have committed, re-allocating the atoms.  Others may not, which
+means the deallocation is partially complete.  Does the same problem
+happen for old relocate set blocks???                HMMMMMMMMMMMMMM.
+
+@@@ This section is a rough draft and still quite sketchy.  However, I
+believe we are still evaluating this so I suggest you read it to get
+the idea and provide early feedback.
+
+@@@ 10/31 version
+
+Once the atom should not be replayed, write a record to the log saying
+"don't replay this atom".  Wait for it to be forced.  Once the record
+has been forced we can begin deallocating overwrite blocks--recovery
+will notice the "don't replay" record and ignore that atom.
+Deallocation stays the same as before, just a second phase.
+
+@@@ 10/30 version
+
+In ReiserFS version 3, the disk is segregated into a logging area and
+ordinary disk space.  In that version, modified blocks in a
+transaction correspond to the overwrite set as described here, and
+when the transaction commits all overwrite blocks are written first to
+the log.  Thus, the temporary overwrite block locations are actually
+part of the log and they are not allocated in the ordinary sense.
+
+In this version, we wish to largely eliminate the segregation of log
+space and ordinary disk space, allowing temporary overwrite blocks to
+be allocated anywhere in the disk.  This avoids any fixed size
+restrictions on the overwrite set and also allows the overwrite set to
+be spread across the disk, which could improve performance in LVM
+configurations.  We will also reserve one or more areas in the disk
+for giving priority to temporary overwrite block allocation, but this
+temporary overwrite block allocation is not strictly required to
+allocate from the reserved areas, they can also "wander" outside the
+log.
+
+There will still be a segregated log space, but block data is never
+written to this log.  Only commit records, including the list of old
+relocate block locations and the association between temporary and
+real overwrite block locations, are written to the log.  This log
+space does not need to be very large since it does not contain data
+blocks.  This could be located near one of the reserved temporary
+overwrite block areas, but the commit records still need to be written
+after the temporary overwrite block writes complete.
+
+The additional complexity of this approach comes from deallocating the
+temporary overwrite block positions.  When an atom reaches stage five
+in the above discussion it no longer needs to be replayed except its
+temporary overwrite block locations still need to be deallocated.  I
+don't yet have a solution for this problem.  It cannot be handled in
+the same way the old relocate blocks were deallocated because once you
+begin deallocating these blocks the atom must not be replayed.  Once
+we force the atom not to be replayed (by overwriting the superblock)
+we no longer have a way to recover the list of temporary overwrite
+blocks that needs to be freed.  Sketch of a solution: write a record
+to the log saying "this atom will no longer be replayed" along with a
+list of its temporary overwrite blocks.  Once that record has been
+forced to the log, the superblock can be overwritten and the atom will
+never be replayed.  A crash at this point has sufficient information
+to recover the free space, however, it is unclear how to free the
+temporary overwrite blocks in memory at this point.  I get confused
+and think that non-dedicated log space is far too complicated.  I'll
+think about it tomorrow.
+
+
+
+The superblock requires special-case handling for the steal-on-capture
+optimization for the following reason.  Assuming the superblock is
+frequently modified it will be stolen and thus avoid being
+overwritten.  During crash recovery the first step is to read the
+superblock and determine the first atom to replay, so the an atom will
+be replayed until the superblock is actually overwritten.  In order to
+reclaim log space, therefore, the superblock must be forcefully
+overwritten.
+
+
+No it doesn't work this way.  Need to ensure that the log deallocation
+still occurs!  That's where the non-dedicated logging approach is more
+complex!  Aha1
+
+Related problem: can't free an atom until all of the atoms that were
+used to deallocate relocate blocks have committed.
+
+STAGE SIX: "Log reclamation"
+
+
+Once the superblock is actually written to its real location, any
+atoms that are now guaranteed not to be replayed can have their
+temporary overwrite block locations deallocated.  This deallocation
+process is similar to the handling of the relocate set in stage
+four.
+
+@@@ I think I should cut this discussion here and move it to a section
+on allocation & log structure.
+
+When early
+flushing is needed, we only select blocks from the relocate set
+because they can be written to their final positions.
+
+@@@ Here's where the log stuff starts: 3 paragraphs
+
+It could be impossible to find early flush candidates with this
+restriction if the only modified blocks are leaf nodes, thus members
+of the overwrite set.  The reason for this restriction is that we want
+to optimize for sequential writing.  When choosing blocks for early
+flushing, we could easily ignore the relocate--overwrite distinction.
+After all, one copy of each modified block will be written before the
+transaction commits, regardless of its status.
+
+The argument in favor of selecting only relocate blocks for early
+flushing is that it simplifies the maintenence of sequentially
+allocated space for the overwrite blocks.  The overwrite blocks will
+be deallocated as a group shortly after the transaction commits, so by
+writing them into dedicated circular log space we avoid the need to
+focus on overwrite block allocation and avoid fragmentation of the
+available log space.  The counter-argument is that the old contents of
+the relocate set are also deallocated shortly after the transaction
+commits, which could lead to general fragmentation and the inability
+to make sequential writes for the relocate set, which may degrade
+performance equally.
+
+Still, given the current description it may be impossible to find any
+relocate blocks for early flushing because all modified blocks are
+leaf nodes.  This can be addressed similar to the minimum overwrite
+optimization by turning overwrite blocks into relocate blocks.  This
+illustrates that you can trade overwrite blocks for relocate blocks
+but you cannot avoid potential fragmentation.  Without a repacker
+there will be fragmentation outside the dedicated log space.  With a
+repacker there is no reason to distinguish the log from the rest of
+the storage space.  I cannot find many strong arguments in favor of
+restricting early-flushing to relocate set members, I think it only
+shifts the problem from one place to another.  You can argue that
+fixed-size dedicated log space leads to simpler bookkeeping because it
+avoids the needs to allocate and deallocate log space, however I worry
+that it will place Hans' "soul in peril" to have such fixed limits in
+the file system.
+
+We delay block allocation until flush-time for maximum flexibility in
+@@@ (complete this sentence).  Allocation requires access to the
+bitmap blocks, which is obtained through the ordinary capturing
+process.  This is likely to be a cause of atoms fusing due to sharing
+of bitmap blocks.
+
+There is more involved with the steal-on-capture optimization,
+especially if the log does not use dedicated space.  In this case, the
+wandered locations of the overwrite set need to be deallocated at some
+point, and this can only be done once the transaction is guaranteed
+not to be replayed following a crash.  In this case
+(non-dedicated log space), deallocation of the overwrite set happens
+in the same manner described above for the relocate set.
+
+
+			     OTHER TOPICS
+
+
+META-DATA JOURNALING
+
+In meta-data journaling mode, file data blocks (unformatted nodes) are
+not captured and therefore need not be flushed as the result of
+transaction commit.  In this case, file data blocks are not considered
+members of the either relocate or the overwrite set because they do
+not participate in the atomic update protocol--memory pressure and age
+are the only factors that cause unformatted nodes to be written to
+disk in the meta-data journaling mode.
+
+Transcrashes and blocks are initially unassigned to any atom.  When
+processing a capture request there are four possible scenarios:
+
+1. BLOCK is not assigned, TRANSCRASH is not assigned:
+
+   If it is a write request, the transaction manager may begin a new
+   atom or, if there are resource limits in place that prevent
+   beginning a new atom, the manager may select another stage one atom
+   already in progress.  Both the transcrash and the block are
+   assigned to the selected atom.
+
+   A read request will be granted without assigning either the block
+   or the transcrash.
+
+2. BLOCK is not assigned, TRANSCRASH already assigned:
+
+   If it is a write request, the transcrash's atom captures the block.
+
+   A read request will be granted without assigning the block.
+
+3. BLOCK already assigned, TRANSCRASH is not assigned:
+
+   Assigned the transcrash to the block's atom (both read and write
+   requests).
+
+4. BLOCK already assigned, TRANSCRASH already assigned:
+
+   If they are assigned to the same atom, the capture request succeeds
+   immediately (both read and write requests).
+
+   Otherwise the two atoms are "fused" together, resulting in
+   reassignment of one atom's blocks and transcrashes to the other atom
+   (both read and write requests).
+
+
+  /* @@@ If we flush a block now is it not dirty afterwards?  If we flush a block now and
+   * it has a clean parent: it is in the overwrite set.  Later it and the parent are
+   * modified, its overwrite block becomes its relocate block, correct?  Hmm.
+   *
+   * No.  The determination as to overwrite/relocate is deferred until the atom closes, at
+   * this point we merely allocate a temporary location and mark that it has a new
+   * position in this atom.
+   *
+   * What to do if a request to modify arrives while the atom is being written.  Issue a
+   * cancel request?  Then reapply the memory pressuring function?
+   */
+
+/* Notes from 10.8.2001 discussion with Hans.  We have defined:
+ *
+ * - A transcrash has a corresponding implementation-dependent "txn_handle".
+ *
+ * - A transaction is a batch of transcrashes known as an "txn_atom", but this is just an
+ *   implementation detail.
+ *
+ * - The "preserve" set are those buffers that cannot be written until the transaction
+ *   commits.
+ *
+ * - The "minover" set are the minimum set of buffers that must be overwritten after a
+ *   transaction commits.  Clearly, these blocks must be written to the log before txn
+ *   commit.  No "minover" buffer is the parent of another.
+ *
+ * - The "optover" set are those buffers that would optimally be written in place of their
+ *   corresponding "preserve" location, but they cannot due to membership in the
+ *   "preserve" set.  They can be "wandered" back into place in a future transaction.
+ *
+ * - Bitmaps are not captured by a transaction (in v4.0), the transaction never flushes
+ *   any buffers until commit time, at which point they begin their allocation phase with
+ *   exclusive access to the bitmaps.  Effectively, this serializes transaction commits
+ *   but it avoids unwelcome "fusion" of atoms due to bitmap contention.  (Alternatively,
+ *   it avoids the need for logical logging of bitmap ops.)
+ */
+
+/* Some questions that the preceding comments raise:
+ *
+ * - How do we determine the "minover" set of a transaction?  Modifications usually begin
+ *   at the leaves and modify their way upward.  I suspect the specific modifying actions
+ *   will need to give hints.  The znode of a formatted node can keep a bit saying if it
+ *   is in the minover set.
+ *
+ * - How do we index the buffer manager for: fresh blocks that are not yet allocated and
+ *   not yet wandered?  The above arguments suggest that we cannot allocate until an atom
+ *   closes, so how does this work?  For unformatted nodes allocated to new files the
+ *   issue can be resolved by the inode keeping a linked list, much like the present Linux
+ *   page cache.  For formatted nodes do we use the znode?
+ */
+
+/* Notes from 10.10.2001 discussion with Hans, answering the above:
+ *
+ * - The "minover" set need not be optimal (minimal) because finding the minimal set would
+ *   be expensive.  Instead we simply find the set of nodes with unmodified parents, those
+ *   are our "minover" set.  The difference would be: suppose a node is modified but the
+ *   parent is not, now suppose its cousin is also modified, but the cousin's modification
+ *   propagates up to the common grandparent.  The grandparent is the true "minover" set,
+ *   but it takes extra work to determine this relationship.  Let's just call it the
+ *   "overwrite" set?
+ *
+ * Notes from myself:
+ *
+ * - The buffer manager is logically indexed, so fresh blocks are just fine.  Set their
+ *   true and wandered block numbers to 0 until the atom closes.
+ *
+ * So all of this means that I should:
+ *
+ * - NOT WORK ON: Alloc/dealloc interface to bufmgr/txnmgr, you can assume for now that
+ *   the txn has a list of allocated and deallocated buffers.  Further you don't really
+ *   need bitmaps at this point either, they are treated as ordinary "overwrite" blocks by
+ *   the logmgr, we decided their access will be serialized in txn_atom closed state.
+ *
+ * - WORK ON: set_journal_block and formatting the log.
+ *
+ * A problem scenario:
+ *
+ * - If the wandered location can differ from the true location, then how do we prevent
+ *   more than one block from appearing in the same true location?  The parent of a
+ *   wandered block always knows its wandered location, but the bitmap can't tell a
+ *   true-but-wandered-thus-deallocated location from an actually-unallocated location.
+ *
+ * Possible solutions:
+ *
+ * - Maintain an auxiliary structure in memory, using the journal to maintain it following
+ *   a crash (i.e., by checkpointing it), of all the blocks currently wandered away from
+ *   true locations--it could be a large number though.  Checkpoint to a file?
+ *
+ * - Avoid using wanderd_block at all, this leaves the "true location" a function of the
+ *   parent in the tree, which avoids redundency.  It means changing the hash table when a
+ *   block is wandered.  I think this is the best solution.
+ */
+
+/* Notes from 10.11.2001 discussion with Hans, answering the above:
+ *
+ * - Okay not to keep wandered block address, its transient state in the transaction/log.
+ *
+ * - Should use negative block numbers to indicate as-yet-unallocated blocks in a
+ *   transaction.
+ *
+ * More thoughts:
+ *
+ * - Are we supporting transactions across multiple Reiser4 file systems?  Doubt it...
+ */
+
+This operation is fundamentally different than copy-on-capture for
+relocate blocks and is called "steal-on-capture" instead.  Because the
+block must still be written back to its proper location, the atom
+which steals it receives control of the block in the dirty state.  The
+comitting atom retains an anonymous copy which is released (freed)
+when the write completes.
+
+Unlike relocate blocks, steal-on-capture protection continues until
+the overwrite blocks are finally written in stage four.  A block that
+is stolen by another atom will not be written by this atom in stage
+four.  This is a complicated issue--see further comments in stage four
+and five.
+
+/* Lock ordering in this method:
+ *
+ * TWO_ATOM_LOCKS (ordered)
+ */
+static void
+txnmgr_block_capture_wakeup_fusers (txn_atom *lockme, fusewait_list_head *head)
+{
+  /* If others would wait for this atom, then this atom cannot wait for others.  This
+   * wakes any current waiters in this atom. */
+  while (! fusewait_list_empty (head))
+    {
+      txn_fusewait *fw = fusewait_list_pop_front (head);
+
+      /* @@@ AKKKKKKK this won't work. */
+      fw->_linked = 0;
+    }
+}
+
+
+static void
+txnmgr_atom_commit_preserve_set (txn_atom *atom)
+{
+  /* @@@ This function... */
+
+  znode *frame;
+
+  /* The atom is locked. */
+  for (frame = capture_list_front (& atom->_capture_list);
+             ! capture_list_end   (& atom->_capture_list, frame);
+       frame = capture_list_next  (frame))
+    {
+      assert ("jmacd-183", ( ZF_ISSET (frame, ZFLAG_CAPTURED) &&
+			     frame->_aunion._atom == atom));
+
+      iosched_write (frame, & frame->_blockid);
+    }
+}
+
+void
+txnmgr_atom_commit_write_complete (znode *frame)
+{
+  /* @@@ This function... */
+
+  /* The write I/O completion. */
+  txn_atom *atom = frame->_aunion._atom;
+
+  /* Okay to lock atom w/o aunion lock because the atom cannot be fused at this point.  */
+  spin_lock (& atom->_atom_lock);
+  spin_lock (& frame->_aunion._lock);
+
+  if (ZF_ISSET (frame, ZFLAG_CAPTURED))
+    {
+      /* For atoms in the preserve set (those still remaining in CAPTURE) the atom
+       * is finished with this block.  */
+
+      ZF_CLR (frame, ZFLAG_CAPTURED);
+
+      capture_list_remove (frame);
+
+      atomic_dec (& frame->_refcount);
+
+      atom->_capture_count -= 1;
+
+      frame->_aunion._atom = NULL;
+    }
+  else
+    {
+      assert ("jmacd-143", ZF_ISSET (frame, ZFLAG_INJRNL));
+    }
+
+  spin_unlock (& frame->_aunion._atom->_atom_lock);
+  spin_unlock (& frame->_aunion._lock);
+}
+
+static int
+txnmgr_atom_begin_commit_locked (txn_atom *atom)
+{
+  /* @@@ Don't know what this function does anymore... */
+  assert ("jmacd-150", atom->_stage == ASTAGE_CAPTURE_FUSE);
+
+  /* At this point the atom is locked for entering stage two.  Other atoms will detect
+   * that this atom is busy and cannot be fused. */
+  atom->_stage = ASTAGE_PRE_COMMIT;
+
+  /* Finish preparing to commit--this assigns wandered locations to the overwrite set,
+   * side-effect: removes overwrite set from the capture list. */
+  logmgr_prepare_journal (atom);
+
+  wait_queue_broadcast (& atom->_capture_wait);
+
+  spin_unlock (& atom->_atom_lock);
+
+  return 0;
+}
+
+static int
+txnmgr_atom_commit_locked (txn_atom *atom)
+{
+  assert ("jmacd-150", atom->_phase == APHASE_CAPTURE_FUSE);
+
+  /* At this point the atom is locked for entering phase two.  Other atoms will detect
+   * that this atom is busy and cannot be fused. */
+  atom->_phase = APHASE_PRE_COMMIT;
+
+  /* Unlocking the atom at this point allows others to stop spinning and wait. */
+  spin_unlock (& atom->_atom_lock);
+
+  /* Allocate and flush remaining blocks. */
+  txnmgr_atom_commit_allocate_and_flush (atom);
+
+  /* Finish preparing to commit--this assigns wandered locations to the overwrite set,
+   * side-effect: removes overwrite set from the exbk list. */
+  logmgr_prepare_journal (atom);
+
+  /* Re-lock the atom. */
+  spin_lock (& atom->_atom_lock);
+
+  /* Issue writes: in the locked region because we can't have I/O completions arriving
+   * before we finish issueing. */
+  txnmgr_atom_commit_preserve_set (atom);
+
+  /* @@@ Commit overwrite set and journal header, everything but the commit block.  OR,
+   * wait for the preserve_set to complete because it is likely to be much larger, this
+   * would leave the journal description, wandered blocks, and commit block to a single
+   * sequential write? */
+
+  atom->_phase = APHASE_PRE_COMMIT;
+
+  wait_queue_broadcast (& atom->_capture_wait);
+
+  spin_unlock (& atom->_atom_lock);
+
+  return 0;
+}
+
+#if 0
+static void
+txnmgr_atom_commit_allocate_and_flush (txn_atom *atom)
+{
+  /* This is a bogus allocate-on-flush implementation--@@ no deletion. */
+  znode *frame;
+
+  for (frame = exbk_list_front (& atom->_exbk_list);
+             ! exbk_list_end   (& atom->_exbk_list, frame);
+       frame = exbk_list_next  (frame))
+    {
+      bm_blockid bid, oid;
+
+      assert ("jmacd-174", ! ZF_ISSET (frame, ZFLAG_PRESERVE));
+
+      if (bufmgr_fresh_frame (frame))
+	{
+	  /* For fresh blocks, allocate a real blockid and remap. */
+	  freemap_allocate (atom, & bid);
+
+	  bufmgr_blkremap (frame, & bid);
+	}
+      else if (sys_drand () < PRESERVE_PROB)
+	{
+	  /* For preserve blocks, save the old blockid, allocate a new blockid and
+	   * remap. */
+	  ZF_SET (frame, ZFLAG_PRESERVE);
+
+	  oid = frame->_blockid;
+
+	  freemap_allocate (atom, & bid);
+
+	  bufmgr_blkremap (frame, & bid);
+	}
+      else
+	{
+	  /* For overwrite blocks call the log manager: this adds it to the _over list. */
+	  logmgr_set_journal_block (atom, frame);
+	}
+    }
+}
+#endif
+
+bm_bool
+freemap_block_is_free (bm_blockid const *block)
+{
+  super_block *super = block->_super;
+  bm_blockno   blkno = block->_blkno;
+  int bmapnr, byteoff, mask;
+
+  assert ("jmacd-105", super->_freemap_busy);
+
+  mask = freemap_get_bit_address (super, blkno, & bmapnr, & byteoff);
+
+  return super->_freemap_frames[bmapnr]->_buffer->_contents[byteoff] & mask;
+}
+
+
+/* Where to start?  Need to get the data structures in place starting the log, allocating
+ * future log space, tracking "splices".  Need to be able to reclaim log space, which is
+ * probably the biggest concern at this point.
+ *
+ * What kind of log entries to begin with, then:
+ *
+ * 1. Administrative ones: splicing, oid-alloc/dealloc, checkpoint
+ * 2. Transaction ones: commit & updating free bitmaps
+ * 3. Block-placement
+ * 4. Superblock ones:
+ *
+ * Log reclamation raises the issue of how to clean an old log segment.  We can look at
+ * the free space bitmap and see that an old section of the log has been 50% depleted, but
+ * that leaves us moving the remaining blocks out of the log.  How to determine where to
+ * move those blocks?  Need a way to find out what extents refer to "wandered" blocks, so
+ * the extent key should be part of the log record.
+ *
+ * Think about special logging devices?  I think the plan is to support a "main" log area
+ * and then "wandered" regions on normal disk devices, which are "spliced" together in a
+ * two-phase log update: write a new log segment to an unallocated space on disk, then
+ * return to the "main" log area and log a splice record and update the free space bitmap.
+ *
+ * Some (tough) issues:
+ *
+ * 1. Ensuring sufficient advance log space for transaction commit, cleaning to occur.
+ *    Cannot allow the situation to arise where there is insufficient log space to make *
+ *    progress.
+ * 2. Log-replay on a read-only file system, should be possible: dirty pages are pinned in
+ *    memory: can be swapped?
+ *
+ * How to test?  I would like to begin with an abstract block device that I can use to
+ * test crash recovery.  Init_device, Run-some-operations, Crash, Recover log, Test
+ * results, etc.  I will need to run that by Hans though.
+ * */
+
+
+
+  mgr->_txg_size    = 0;
+  txg_log_list_init    (& mgr->_txg_log);
+
+txf_log_list_empty (& fstate->_txf_log) &&
+  atomic->_txa_size     = 0;
+  txa_log_list_init  (& atomic->_txa_log);
+  txnmgr_aunion_init (& atomic->_aunion);
+
+  txf_log_list_init (& fstate->_txf_log);
+
+  fstate->_logging      = 0;
+  fstate->_txf_size     = 0;
+
+  txg_log_list_head      _txg_log;         /* The non-flushed global log. */
+  u_int32_t              _txg_size;        /* Size of the non-flushed global log. */
+TS_LIST_DEFINE(txa_log,log_entry,_txa_link);
+TS_LIST_DEFINE(txf_log,log_entry,_txf_link);
+TS_LIST_DEFINE(txg_log,log_entry,_txg_link);
+
+/* There are three list classes linking each non-flushed log record into three separate
+ * lists:
+ *
+ * 1. TXA_LOG: the log records for actions taken by a txn_atomic
+ * 2. TXF_LOG: the log records for an individual frame
+ * 3. TXG_LOG: the global list of log records */
+TS_LIST_DECLARE(txa_log);
+TS_LIST_DECLARE(txf_log);
+TS_LIST_DECLARE(txg_log);
+
+/* The log entry. */
+struct _log_entry
+{
+  txa_log_list_link      _txa_link;        /* The three list links... */
+  txf_log_list_link      _txf_link;
+  txg_log_list_link      _txg_link;
+
+  u_int32_t              _size;            /* Data size of this record. */
+
+  /* -- PLACEHOLDER -- */
+};
+
+  txf_log_list_head      _txf_log;         /* If (_logging), the log records for this
+					    * frame. */
+
+  bm_bool                _logging;         /* True if logging is enabled, meaning the
+				            * frame is not write-locked by a single
+				            * txn. */
+
+  u_int32_t              _txf_size;        /* If (_logging), the current size of _txf_log,
+				            * used to determine when to disable
+				            * logging. */
+
+  txa_log_list_head      _txa_log;         /* List of all log records belonging to this
+					    * TXN. */
+
+  u_int32_t              _txa_size;        /* Size of all log records belonging to this
+					    * TXN. */
+
+
+/*
+ * Step 1: You must #define the upper- and lower-case prefix-names.
+ * In the example above they are "RX_EVENT" and "rx_event",
+ * respectively.  You do not use quotations around the names.  For
+ * example:
+ *
+ * #define TS_LIST_UPPER_PREFIX RX_LIST
+ * #define TS_LIST_LOWER_PREFIX rx_list
+ */
+
+//#define TS_LIST_UPPER_STRING  TS_LIST_STRINGIFY(TS_LIST_UPPER_PREFIX)
+//#define TS_LIST_LOWER_STRING  TS_LIST_STRINGIFY(TS_LIST_LOWER_PREFIX)
+
+//#define TS_LIST_UPPER(x)      TS_LIST_UPPER2(x,TS_LIST_UPPER_PREFIX)
+//#define TS_LIST_UPPER2(x,n)   TS_LIST_UPPER3(x,n)
+//#define TS_LIST_UPPER3(x,n)   n ## x
+
+//#define TS_LIST_LOWER(x)      TS_LIST_LOWER2(x,TS_LIST_LOWER_PREFIX)
+//#define TS_LIST_LOWER2(x,n)   TS_LIST_LOWER3(x,n)
+//#define TS_LIST_LOWER3(x,n)   n ## x
+
+//#define TS_LIST_STRINGIFY(x)  TS_LIST_STRINGIFY2(x)
+//#define TS_LIST_STRINGIFY2(x) #x
