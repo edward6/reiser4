@@ -594,7 +594,7 @@ reiser4_statfs(struct super_block *super	/* super block of file
 static struct list_head *
 get_moved_pages(struct address_space *mapping)
 {
-	return &reiser4_inode_data(mapping->host)->moved_pages;
+	return &reiser4_inode_by_inode(mapping->host)->moved_pages;
 }
 
 /* address space operations */
@@ -1073,11 +1073,20 @@ reiser4_permission(struct inode *inode /* object */ ,
 	return result;
 }
 
+/* this is called whenever mark_inode_dirty is to be called. It links ("captures") inode to the atom. This allows to
+   postpone stat data update until atom commits */
+int
+reiser4_mark_inode_dirty(struct inode *inode)
+{
+	assert("vs-1207", is_in_reiser4_context());
+	return capture_inode(inode);
+}
+
 /* update inode stat-data by calling plugin */
 int
-reiser4_write_sd(struct inode *object)
+reiser4_update_sd(struct inode *object)
 {
-	file_plugin *fplug;
+        file_plugin *fplug;
 
 	assert("nikita-2338", object != NULL);
 
@@ -1352,6 +1361,7 @@ init_once(void *obj /* pointer to new inode */ ,
 		INIT_LIST_HEAD(&info->p.moved_pages);
 		readdir_list_init(get_readdir_list(&info->vfs_inode));
 		INIT_LIST_HEAD(&info->p.eflushed_jnodes);
+		/* inode's builtin jnode is initialized in reiser4_alloc_inode */
 	}
 }
 
@@ -1403,6 +1413,12 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 		info->keyid = NULL;
 		info->flags = 0;
 		spin_inode_object_init(info);
+
+		/* initizalize inode's jnode */
+		jnode_init(&info->inode_jnode, current_tree);
+		jnode_set_type(&info->inode_jnode, JNODE_INODE);
+		atomic_set(&info->inode_jnode.x_count, 1);
+
 		return &obj->vfs_inode;
 	} else
 		return NULL;
@@ -1414,15 +1430,25 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 {
 	reiser4_inode *info;
 
-	info = reiser4_inode_data(inode);
+	info = reiser4_inode_by_inode(inode);
 	reiser4_stat_inc_at(inode->i_sb, vfs_calls.destroy_inode);
 
 	assert("vs-1220", list_empty(&info->eflushed_jnodes));
 	assert("vs-1222", info->eflushed == 0);
 
+	{
+		/* complete with inode's jnode */
+		jnode *j;
+
+		j = &info->inode_jnode;
+		assert("vs-1243", atomic_read(&j->x_count) == 1);
+		atomic_set(&j->x_count, 0);
+		JF_SET(j, JNODE_RIP);
+		check_me("vs-1242", jnode_try_drop(j) == 0);
+	}
 	if (!is_bad_inode(inode) && inode_get_flag(inode, REISER4_LOADED)) {
 
-		assert("nikita-2828", reiser4_inode_data(inode)->eflushed == 0);
+		assert("nikita-2828", reiser4_inode_by_inode(inode)->eflushed == 0);
 		if (inode_get_flag(inode, REISER4_GENERIC_VP_USED)) {
 			assert("vs-839", S_ISLNK(inode->i_mode));
 			reiser4_kfree_in_sb(inode->u.generic_ip, (size_t) inode->i_size + 1, inode->i_sb);
@@ -1499,6 +1525,8 @@ reiser4_drop_inode(struct inode *object)
 		inodes_stat.nr_inodes--;
 		spin_unlock(&inode_lock);
 
+		uncapture_inode(object);
+
 		if (!is_bad_inode(object))
 			drop_object_body(object);
 
@@ -1508,6 +1536,7 @@ reiser4_drop_inode(struct inode *object)
 		security_inode_delete(object);
 		if (!is_bad_inode(object))
 			DQUOT_INIT(object);
+
 		reiser4_delete_inode(object);
 		if (object->i_state != I_CLEAR)
 			BUG();
@@ -2248,7 +2277,7 @@ read_super_block:
 	if (inode->i_state & I_NEW) {
 		reiser4_inode *info;
 
-		info = reiser4_inode_data(inode);
+		info = reiser4_inode_by_inode(inode);
 
 		grab_plugin_from(info, file, default_file_plugin(s));
 		grab_plugin_from(info, dir, default_dir_plugin(s));
