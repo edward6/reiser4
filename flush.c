@@ -3435,8 +3435,13 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 		  (flush_scanning_left (scan) ? "left" : "right"),
 		  scan_index, coord.node, get_inode_oid (ino));
 
-	/* Get the values of this extent unit: */
+	/*
+	 * FIXME:NIKITA->* this is wrong: hole is treated as allocated extent
+	 * by this function---this leads to incorrect preceder update in
+	 * "stop-same-parent" branch below.
+	 */
 	allocated  = ! extent_is_unallocated (& coord);
+	/* Get the values of this extent unit: */
 	unit_index = extent_unit_index (& coord);
 	unit_width = extent_unit_width (& coord);
 	unit_start = extent_unit_start (& coord);
