@@ -196,7 +196,7 @@ static void xxfree( void *addr )
 
 	assert ("vs-819", total_allocations >= xx_get_size (addr));
 	total_allocations -= xx_get_size (addr);
-	memset( addr, 0xf0, xx_get_size (addr) );
+//	memset( addr, 0xf0, xx_get_size (addr) );
 	free( (char *)addr - sizeof (__u32) * 2);
 }
 

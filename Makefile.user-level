@@ -193,7 +193,7 @@ all: $(OBJ)
 all-in-one:
 	echo "/* Automatically generated do *NOT* edit. -*- c -*- */" > all-reiser4.c
 	for f in $(SRC) ;do echo '#include "'$$f'"' >> all-reiser4.c ;done
-	$(CC) -O6 $(INCS) $(CFLAGS) $(DEFINES) -DREISER4_STATS=0 -DREISER4_TRACE=0 -DREISER4_DEBUG=0 -DREISER4_ZERO_NEW_NODE=0 -DREISER4_TRACE_TREE=0 $(LDFLAGS) all-reiser4.c $(LIBS)
+	$(CC) -O6 $(INCS) $(CFLAGS) $(DEFINES) -DREISER4_STATS=0 -DREISER4_TRACE=0 -DREISER4_DEBUG=0 -DREISER4_DEBUG_NODE=0 -DREISER4_ZERO_NEW_NODE=0 -DREISER4_TRACE_TREE=0 $(LDFLAGS) all-reiser4.c $(LIBS)
 
 clean:
 	for dir in `find . -type d -exec echo {} \;` ;do ( cd $$dir ; rm -f $(JUNK_FILES) ; rm -fr $(JUNK_DIRS) ) ;done

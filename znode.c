@@ -1115,6 +1115,7 @@ void print_znode( const char *prefix /* prefix to print */,
 	info_znode( prefix, node );
 	if( !jnode_is_znode( ZJNODE( node ) ) )
 		return;
+	info( "\n" );
 	info_znode( "\tparent", znode_parent_nolock( node ) );
 	info_znode( "\tleft", node -> left );
 	info_znode( "\tright", node -> right );

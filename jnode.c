@@ -825,15 +825,18 @@ void jput (jnode *node)
 	if (atomic_dec_and_lock (& node->x_count, & tree->tree_lock)) {
 		ON_DEBUG (++ lock_counters()->spin_locked_tree);
 		ON_DEBUG (++ lock_counters()->spin_locked);
-		if (!JF_TEST_AND_SET (node, JNODE_RIP)) {
-			spin_unlock_tree (tree);
-			if (JF_ISSET (node, JNODE_HEARD_BANSHEE))
+		if (JF_ISSET (node, JNODE_HEARD_BANSHEE)) {
+			if (!JF_TEST_AND_SET (node, JNODE_RIP)) {
+				spin_unlock_tree (tree);
 				/*
 				 * node is removed from the tree.
 				 */
 				jdelete (node);
-/*  			else if(! jnode_ops (node)->is_busy (node)) */
-/*  				jdrop (node); */
+			} else
+				/*
+				 * some other thread is already killing it
+				 */
+				spin_unlock_tree (tree);
 		} else
 			spin_unlock_tree (tree);
 	}
@@ -879,11 +882,13 @@ int jdelete( jnode *node /* jnode to finish with */ )
 			unlock_page( page );
 			page_cache_release( page );
 		}
+		spin_unlock_jnode( node );
 		result = jplug -> delete( node, tree );
-	} else
+	} else {
+		spin_unlock_jnode( node );
 		JF_CLR( node, JNODE_RIP );
+	}
 	spin_unlock_tree( tree );
-	spin_unlock_jnode( node );
 	return result;
 }
 
@@ -904,7 +909,7 @@ int jdrop_in_tree( jnode *node, reiser4_tree *tree, int drop_page_p )
 	int           result;
 
 	assert( "zam-602", node != NULL );
-	assert( "nikita-2362", spin_tree_is_locked( tree ) );
+	assert( "nikita-2362", spin_tree_is_not_locked( tree ) );
 	assert( "nikita-2403", !JF_ISSET( node, JNODE_HEARD_BANSHEE ) );
 	// assert( "nikita-2532", JF_ISSET( node, JNODE_RIP ) );
 
@@ -932,11 +937,15 @@ int jdrop_in_tree( jnode *node, reiser4_tree *tree, int drop_page_p )
 			} else
 				unlock_page( page );
 		}
+		spin_unlock_jnode( node );
 		result = jplug -> remove( node, tree );
-	} else
+	} else {
+		spin_unlock_jnode( node );
 		JF_CLR( node, JNODE_RIP );
+		if( page != NULL )
+			unlock_page( page );
+	}
 	spin_unlock_tree( tree );
-	spin_unlock_jnode( node );
 	return result;
 }
 

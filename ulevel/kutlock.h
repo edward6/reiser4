@@ -258,6 +258,15 @@ spin_is_not_locked (spinlock_t *s)
 	return ret;
 }
 
+static inline int atomic_dec_and_lock(atomic_t *atomic, spinlock_t *lock)
+{
+	spin_lock(lock);
+	if (atomic_dec_and_test(atomic))
+		return 1;
+	spin_unlock(lock);
+	return 0;
+}
+
 static __inline__ void print_spin_lock (const char *prefix, const spinlock_t *s)
 {
 	info ("%s: calls: %u, free: %u, slept: %llu, max sleep: %llu", prefix,
