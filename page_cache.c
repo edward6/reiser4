@@ -174,7 +174,7 @@
 
 #include "reiser4.h"
 
-static struct bio *page_bio( struct page *page, int rw, int gfp );
+static struct bio *page_bio( struct page *page, jnode *node, int rw, int gfp );
 
 static struct address_space_operations formatted_fake_as_ops;
 
@@ -395,34 +395,35 @@ static void end_bio_single_page_write( struct bio *bio )
 }
 
 /** ->readpage() method for formatted nodes */
-static int formatted_readpage( struct file *f UNUSED_ARG, 
+static int formatted_readpage( struct file *f UNUSED_ARG,
 			       struct page *page /* page to read */ )
 {
-	return page_io( page, READ, GFP_KERNEL );
+	assert( "nikita-2412", PagePrivate( page ) && jprivate( page ) );
+	return page_io( page, jprivate( page ), READ, GFP_KERNEL );
 }
 
 /** ->writepage() method for formatted nodes */
 static int formatted_writepage( struct page *page /* page to write */ )
 {
-	return page_io( page, WRITE, GFP_NOFS | __GFP_HIGH );
+	assert( "nikita-2632", PagePrivate( page ) && jprivate( page ) );
+	return page_io( page, jprivate( page ), WRITE, GFP_NOFS | __GFP_HIGH );
 }
 
 /** submit single-page bio request */
 int page_io( struct page *page /* page to perform io for */, 
+	     jnode *node /* jnode of page */,
 	     int rw /* read or write */, int gfp /* GFP mask */ )
 {
 	struct bio *bio;
 	int         result;
-	jnode      *node;
 
 	assert( "nikita-2094", page != NULL );
 	assert( "nikita-2226", PageLocked( page ) );
+	assert( "nikita-2634", node != NULL );
 
-	assert( "nikita-2412", PagePrivate( page ) && jprivate( page ) );
-	node = jprivate( page );
 	jnode_ops( node ) -> io_hook( node, page, rw );
 
-	bio = page_bio( page, rw, gfp );
+	bio = page_bio( page, node, rw, gfp );
 	if( !IS_ERR( bio ) ) {
 		if( rw == WRITE ) {
 			SetPageWriteback( page );
@@ -437,10 +438,11 @@ int page_io( struct page *page /* page to perform io for */,
 
 
 /** helper function to construct bio for page */
-static struct bio *page_bio( struct page *page, int rw, int gfp )
+static struct bio *page_bio( struct page *page, jnode *node, int rw, int gfp )
 {
 	struct bio *bio;
 	assert( "nikita-2092", page != NULL );
+	assert( "nikita-2633", node != NULL );
 
 	/*
 	 * Simple implemenation in the assumption that blocksize == pagesize.
@@ -460,13 +462,10 @@ static struct bio *page_bio( struct page *page, int rw, int gfp )
 
 	bio = bio_alloc( gfp, 1 );
 	if( bio != NULL ) {
-		jnode              *node;
 		int                 blksz;
 		struct super_block *super;
 		reiser4_block_nr    blocknr;
 
-		assert( "nikita-2172", jprivate( page ) != NULL );
-		node = jprivate( page );
 		super = page -> mapping -> host -> i_sb;
 		assert( "nikita-2029", super != NULL );
 		blksz = super -> s_blocksize;

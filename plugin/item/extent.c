@@ -1872,7 +1872,7 @@ int extent_readpage (void * vp, struct page * page)
 	case UNALLOCATED_EXTENT:
 		assert ("vs-926", *jnode_get_block (j));
 		reiser4_stat_extent_add (unfm_block_reads);
-		page_io (page, READ, GFP_NOIO);
+		page_io (page, j, READ, GFP_NOIO);
 		break;
 	}
 	/*
@@ -3414,7 +3414,7 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 
 			reiser4_stat_extent_add (unfm_block_reads);
 
-			page_io (page, READ, GFP_NOIO);
+			page_io (page, j, READ, GFP_NOIO);
 			wait_on_page_locked (page);
 			if (!PageUptodate (page)) {
 				jput (j);

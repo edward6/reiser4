@@ -29,7 +29,7 @@ extern void *xmemset( void *s, int c, size_t n );
 #define xmemset( s, c, n ) memset( ( s ), ( c ), ( n ) )
 #endif
 
-extern int page_io( struct page *page, int rw, int gfp );
+extern int page_io( struct page *page, jnode *node, int rw, int gfp );
 extern int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags );
 
 #define define_never_ever_op( op )						\

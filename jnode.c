@@ -490,57 +490,37 @@ void add_d_ref( jnode *node /* node to increase d_count of */ )
 static int page_filler( void *arg, struct page *page )
 {
 	jnode *node;
-	int    result;
 
 	node = arg;
 
 	assert( "nikita-2369", 
 		page -> mapping == jnode_ops( node ) -> mapping( node ) );
 
-	/*
-	 * add reiser4 decorations to the page, if they aren't in place:
-	 * pointer to jnode, whatever.
-	 * 
-	 * We are under page lock now, so it can be used as synchronization.
-	 */
-	UNDER_SPIN_VOID( jnode, node, jnode_attach_page( node, page ) );
-	result = page -> mapping -> a_ops -> readpage( NULL, page );
-	/*
-	 * on error, detach jnode from page
-	 */
-	if( unlikely( result != 0 ) ) {
-		/* ->readpage() shouldn't leave page locked on error */
-		assert( "nikita-2596", !PageLocked( page ) );
-		warning( "nikita-2416", "->readpage failed: %i", result );
-		lock_page( page );
-		/* 
-		 * jnode is still attached to page, because its reference
-		 * counter is > 0 
-		 */
-		assert( "nikita-2595", jnode_by_page( page ) == node );
-		UNDER_SPIN_VOID( jnode, node, page_clear_jnode( page, node ) );
-		/*
-		 * filler returns page to read_cache_page() unlocked.
-		 */
-		unlock_page( page );
-	}
-	return result;
+	return page_io( page, node, READ, GFP_KERNEL );
 }
 
-static inline int jparse( jnode *node )
+static inline int jparse( jnode *node, struct page *page )
 {
 	int result;
 
 	assert( "nikita-2466", node != NULL );
+	assert( "nikita-2630", page != NULL );
+	assert( "nikita-2637", spin_jnode_is_locked( node ) );
+	assert( "nikita-2638", PageLocked( page ) );
 
 	result = 0;
-	spin_lock_jnode( node );
 	if( !jnode_is_loaded( node ) ) {
 		result = jnode_ops( node ) -> parse( node );
-		if( likely( result == 0 ) )
+		if( likely( result == 0 ) ) {
 			JF_SET( node, JNODE_LOADED );
+		} else {
+			/*
+			 * if parsing failed, detach jnode from page.
+			 */
+			assert( "nikita-2467", page == jnode_page( node ) );
+			page_clear_jnode( page, node );
+		}
 	}
-	spin_unlock_jnode( node );
 	return result;
 }
 
@@ -604,7 +584,7 @@ int jload( jnode *node )
 		 *  smaller (not yet implemented). Pointer to atom?
 		 *
 		 */
-		page = UNDER_SPIN( jnode, node, node -> pg );
+		page = UNDER_SPIN( jnode, node, jnode_page( node ) );
 		/*
 		 * subtle locking point: ->pg pointer is protected by jnode
 		 * spin lock, but it is safe to release spin lock here,
@@ -615,10 +595,15 @@ int jload( jnode *node )
 			JF_SET( node, JNODE_LOADED );
 			load_page( page );
 		} else {
-			page = read_cache_page( jplug -> mapping( node ),
+			page = read_cache_page( jplug -> mapping( node ), 
 						jplug -> index( node ), 
 						page_filler, node );
+			/*
+			 * after (successful) return from read_cache_page()
+			 * @page is pinned into memory.
+			 */
 			if( !IS_ERR( page ) ) {
+				kmap( page );
 				/*
 				 * It is possible (however unlikely) that page
 				 * was concurrently released (by flush or
@@ -628,27 +613,15 @@ int jload( jnode *node )
 				 */
 				lock_page( page );
 				spin_lock_jnode( node );
-				if( node -> pg == NULL )
+				if( jnode_page( node ) == NULL )
 					jnode_attach_page( node, page );
+				assert( "nikita-2636", jnode_page( node ) == page );
+				if( PageUptodate( page ) )
+					result = jparse( node, page );
+				else
+					result = -EIO;
 				spin_unlock_jnode( node );
 				unlock_page( page );
-				kmap( page );
-				if( PageUptodate( page ) ) {
-					result = jparse( node );
-					/*
-					 * if parsing failed, detach jnode
-					 * from page.
-					 */
-					if( unlikely( result != 0 ) ) {
-						lock_page( page );
-						spin_lock_jnode( node );
-						assert( "nikita-2467", page == node -> pg );
-						page_clear_jnode( page, node );
-						spin_unlock_jnode( node );
-						unlock_page( page );
-					}
-				} else
-					result = -EIO;
 			} else
 				result = PTR_ERR( page );
 
