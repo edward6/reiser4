@@ -279,14 +279,6 @@ extern int is_coord_in_node( const coord_t *coord );
 extern int key_in_node( const reiser4_key *, const coord_t * );
 extern void coord_item_move_to( coord_t *coord, int items );
 extern void coord_unit_move_to( coord_t *coord, int units );
-extern void *item_body_by_coord( const coord_t *coord );
-extern int item_length_by_coord( const coord_t *coord );
-extern item_plugin *item_plugin_by_coord( const coord_t *coord );
-extern item_type_id item_type_by_coord( const coord_t *coord );
-extern item_id item_id_by_coord( const coord_t *coord /* coord to query */ );
-extern reiser4_key *item_key_by_coord( const coord_t *coord, reiser4_key *key );
-extern reiser4_key *unit_key_by_coord( const coord_t *coord, reiser4_key *key );
-
 
 /* there are two types of repetitive accesses (ra): intra-syscall
    (local) and inter-syscall (global). Local ra is used when
