@@ -72,7 +72,7 @@ uint16_t progs_ui_screen_width(void) {
     if (ioctl(2, TIOCGWINSZ, &winsize))
 	return 0;
     
-    return winsize.ws_col <= 0 ? 80 : winsize.ws_col;
+    return winsize.ws_col == 0 ? 80 : winsize.ws_col;
 }
 
 void progs_ui_wipe_line(void *stream) {

@@ -11,8 +11,9 @@
 #include <fsck.h>
 
 static void fsck_print_usage() {
+    fprintf(stderr, "\n");
     fprintf(stderr, BANNER("fsck.reiser4"));
-    fprintf(stderr, "Usage: fsck.reiser4 [ options ] FILE\n");
+    fprintf(stderr, "\nUsage: fsck.reiser4 [ options ] FILE\n");
     
     fprintf(stderr, "Modes:\n"
 	"  --check                        consistency checking (default).\n"
@@ -227,8 +228,9 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
 		fsck_print_usage();
 		return NO_ERROR;	    
 	    case 'V': 
-		printf(BANNER("fsck.reiser4"));
-		return NO_ERROR;	    
+		fprintf("\n");
+		fprintf(BANNER("fsck.reiser4"));
+		return USER_ERROR;
 	    case 'q': 
 		repair_set_option(REPAIR_OPT_QUIET, data);
 		break;
@@ -312,6 +314,7 @@ int main(int argc, char *argv[]) {
     int exit_code = NO_ERROR;
     repair_data_t data;
     reiser4_fs_t *fs;
+    uint16_t mask = 0;
     
     memset(&data, 0, sizeof(data));
 
