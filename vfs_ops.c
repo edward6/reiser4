@@ -2377,6 +2377,8 @@ static void capture_page_and_create_extent (struct page * page)
 	if (fplug == NULL)
 		return;
 
+	reiser4_grab_space_enable ();
+
 	result = fplug->writepage(page);
 
 	if (result != 0) {
