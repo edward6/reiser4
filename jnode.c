@@ -1329,9 +1329,7 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 		WUNLOCK_TREE(tree);
 		jnode_free(node, jtype);
 		if (page != NULL) {
-			remove_from_page_cache(page);
-			reiser4_unlock_page(page);
-			page_cache_release(page);
+			drop_page(page);
 		}
 	} else {
 		JF_CLR(node, JNODE_RIP);
