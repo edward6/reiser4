@@ -962,7 +962,8 @@ unix_file_readpage(void *vp, struct page *page)
 
 	if (!result) {
 		set_key_offset(&key, (loff_t) (page->index + 1) << PAGE_CACHE_SHIFT);
-		set_hint(&hint, &key, &coord, COORD_UNKNOWN_STATE);
+		/* FIXME should call set_hint() */
+		unset_hint(&hint);
 	} else
 		unset_hint(&hint);
 	zrelse(coord.node);
