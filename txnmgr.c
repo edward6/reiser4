@@ -2524,32 +2524,23 @@ capture_assign_block_nolock(txn_atom * atom, jnode * node)
 
 #if REISER4_COPY_ON_CAPTURE
 static void
-set_cced_bit(jnode *node, reiser4_jnode_state bit)
+set_cced_bit(jnode *node)
 {
-	BUG_ON(JF_ISSET(node, JNODE_CCED_CLEAN));
-	BUG_ON(JF_ISSET(node, JNODE_CCED_NOPAGE));
-	BUG_ON(JF_ISSET(node, JNODE_CCED_RELOC));
-	BUG_ON(JF_ISSET(node, JNODE_CCED_OVRWR));
-	JF_SET(node, bit);
+	BUG_ON(JF_ISSET(node, JNODE_CCED));
+	JF_SET(node, JNODE_CCED);
 }
 #endif
 
 static void
 clear_cced_bits(jnode *node)
 {
-	JF_CLR(node, JNODE_CCED_CLEAN);
-	JF_CLR(node, JNODE_CCED_NOPAGE);
-	JF_CLR(node, JNODE_CCED_RELOC);
-	JF_CLR(node, JNODE_CCED_OVRWR);	
+	JF_CLR(node, JNODE_CCED);
 }
 
 int
 is_cced(const jnode *node)
 {
-	return (JF_ISSET(node, JNODE_CCED_CLEAN) ||
-		JF_ISSET(node, JNODE_CCED_NOPAGE) ||
-		JF_ISSET(node, JNODE_CCED_RELOC) ||
-		JF_ISSET(node, JNODE_CCED_OVRWR));
+	return JF_ISSET(node, JNODE_CCED);
 }
 
 /* common code for dirtying both unformatted jnodes and formatted znodes. */
@@ -2573,6 +2564,7 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 	    && !jnode_is_cluster_page(node)) {
 		assert("vs-1093", !blocknr_is_fake(&node->blocknr));
 		grabbed2flush_reserved_nolock(atom, (__u64)1);
+		JF_SET(node, JNODE_FLUSH_RESERVED);
 	}
 
 	if (!JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
@@ -3683,7 +3675,7 @@ copy_on_capture_nopage(jnode *node, txn_atom *atom)
 	
 	if (capturable(node, atom) && node->pg == 0) {
 		replace_on_capture_list(node, copy);
-		set_cced_bit(node, JNODE_CCED_NOPAGE);
+		set_cced_bit(node);
 		if (znode_above_root(JZNODE(node))) {
 			reiser4_stat_inc(coc.ok_uber);
 			ON_DEBUG(atom->coc_uber ++);
@@ -3770,18 +3762,15 @@ real_copy_on_capture(jnode *node, txn_atom *atom)
 					replace_on_capture_list(node, copy);
 					/* statistics */
 					if (JF_ISSET(copy, JNODE_RELOC)) {
-						set_cced_bit(node, JNODE_CCED_RELOC);
-						JF_SET(node, JNODE_CCED_RELOC);
 						reiser4_stat_inc(coc.ok_reloc);
 						ON_DEBUG(atom->coc_reloc ++);
 					} else if (JF_ISSET(copy, JNODE_OVRWR)) {
-						set_cced_bit(node, JNODE_CCED_OVRWR);
-						JF_SET(node, JNODE_CCED_OVRWR);
 						reiser4_stat_inc(coc.ok_ovrwr);
 						ON_DEBUG(atom->coc_ovrwr ++);
 					} else
 						impossible("", "");
 
+					set_cced_bit(node);
 					memcpy(to, from, PAGE_CACHE_SIZE);
 					SetPageUptodate(new_page);
 					if (was_jloaded)
