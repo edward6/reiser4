@@ -505,10 +505,11 @@ int bitmap_alloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	if (actual_len != 0) goto out;
 
 	/* next step is a scanning from 0 to search_start */
-	search_end = search_start;
-	search_start = 0;
-
-	actual_len = bitmap_alloc (&search_start, &search_end, 1, needed);
+	if (search_start != 0) {
+		search_end = search_start;
+		search_start = 0;
+		actual_len = bitmap_alloc (&search_start, &search_end, 1, needed);
+	}
 
  out:
 	if (actual_len <= 0) return actual_len;
