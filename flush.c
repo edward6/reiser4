@@ -2351,15 +2351,12 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 	reiser4_block_nr len = 1;
 	lock_handle fake_lock;
 
-	pos->preceder.block_stage = BLOCK_NOT_COUNTED;
+	pos->preceder.block_stage = ZF_ISSET(node, JNODE_CREATED) ? BLOCK_UNALLOCATED : BLOCK_NOT_COUNTED ;
 
 	if ((ret = reiser4_alloc_blocks (& pos->preceder, & blk, & len))) {
 		return ret;
 	}
 
-	 /* FIXME: JMACD->ZAM: In the dealloc_block call, it is unclear to me whether I
-	  * need to pass BLOCK_NOT_COUNTED or whether setting preceder.block_stage above
-	  * is correct. */
 	if (! ZF_ISSET (node, JNODE_CREATED) &&
 	    (ret = reiser4_dealloc_block (znode_get_block (node), 1 /* defer */, 0 /* BLOCK_NOT_COUNTED */))) {
 		return ret;
