@@ -485,11 +485,7 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 
 static int reiser4_vm_writeback( struct page *page, int *nr_to_write )
 {
-	int result;
-	REISER4_ENTRY( page -> mapping -> host -> i_sb );
-
-	result = jnode_flush (jnode_by_page (page), nr_to_write, JNODE_FLUSH_MEMORY_UNFORMATTED);
-	REISER4_EXIT( result );
+	return page_common_writeback( page, nr_to_write, JNODE_FLUSH_MEMORY_UNFORMATTED);
 }
 
 /* ->sync_page()

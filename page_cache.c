@@ -582,18 +582,34 @@ static struct bio *page_bio( struct page *page, int rw, int gfp )
 		return ERR_PTR( -ENOMEM );
 }
 
-/**
- * memory pressure notification. Flush transaction, etc.
- */
 static int formatted_vm_writeback( struct page *page, int *nr_to_write )
 {
+	return page_common_writeback( page, nr_to_write, JNODE_FLUSH_MEMORY_FORMATTED);
+}
+
+/**
+ * Common memory pressure notification.
+ */
+int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags )
+{
 	int result;
+	jnode *node;
 	REISER4_ENTRY( page -> mapping -> host -> i_sb );
 
 	assert( "vs-828", PageLocked( page ) );
 	unlock_page( page );
-	result = jnode_flush (jnode_by_page (page),
-			      nr_to_write, JNODE_FLUSH_MEMORY_FORMATTED);
+
+	node = jnode_by_page (page);
+
+	/* Attach the txn handle to this node, preventing the atom from committing while
+	 * this flush occurs. */ 
+	result = txn_attach_txnh_to_node (node);
+
+   	if (result == 0) {
+		/* And flush it... */
+		result = jnode_flush (node, nr_to_write, flush_flags);
+	}
+
 	REISER4_EXIT( result );
 }
 

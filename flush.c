@@ -283,8 +283,9 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 		}
 	}
 
-	if (ret == -EINVAL || ret == -EDEADLK /* FIXME: What about -ENAVAIL, -ENOENT? */ || ret == -ENAVAIL || ret == -ENOENT) {
-		/* FIXME: Something bad happened, but difficult to avoid...  Try again! */
+	if (ret == -EINVAL || ret == -EDEADLK || ret == -ENAVAIL || ret == -ENOENT) {
+		/* Something bad happened, but difficult to avoid...  Try again! */
+		trace_on (TRACE_FLUSH, "flush restartable failure: %d\n", ret);
 		ret = 0;
 	}
 

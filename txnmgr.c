@@ -914,7 +914,7 @@ int memory_pressure (struct super_block *super, int *nr_to_flush)
 				/* Found a dirty node to flush. */
 				node = jref (capture_list_back (& atom->dirty_nodes [level]));
 
-				/* Add this context to the same atom */
+				/* Add this context to the same atom.  Same as txn_attach_txnh_to_node does. */
 				capture_assign_txnh_nolock (atom, txnh);
 
 				/* By setting node != NULL, this will break the outer loop
@@ -1231,6 +1231,37 @@ txn_try_capture_page  (struct page        *pg,
 	}
 	jput (node);
 	return ret;
+}
+
+/* This interface is used by flush routines when they need to prevent an atom from
+ * committing while they perform early flushing.  The node is already captured but the
+ * txnh is not.
+ */
+int txn_attach_txnh_to_node (jnode *node)
+{
+	txn_atom *atom;
+	reiser4_context *ctx;
+	txn_handle *txnh;
+
+	ctx  = get_current_context ();
+	txnh = ctx->trans;
+
+	/* Expecting the call under these circumstances: root context, txnh has no atom, captured node. */
+	assert ("jmacd-77917", ctx->parent == NULL);
+	assert ("jmacd-77918", txnh->atom == NULL);
+
+	atom = atom_get_locked_by_jnode (node);
+
+	/* Atom can commit at this point. */
+	if (atom == NULL) {
+		return 0;
+	}
+
+	spin_lock_txnh (txnh);
+
+	capture_assign_txnh_nolock (atom, txnh);
+
+	return 0;
 }
 
 /* This informs the transaction manager when a node is deleted.  Add the block to the

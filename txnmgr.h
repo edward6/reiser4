@@ -286,6 +286,8 @@ extern int          txn_try_capture_page  (struct page        *pg,
 					   znode_lock_mode     mode,
 					   int                 non_blocking);
 
+extern int          txn_attach_txnh_to_node (jnode *node);
+
 extern void         txn_delete_page       (struct page        *pg);
 
 extern txn_atom*    atom_get_locked_with_txnh_locked (txn_handle       *txnh);
