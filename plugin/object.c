@@ -747,8 +747,6 @@ rem_link_common(struct inode *object, struct inode *parent UNUSED_ARG)
 	 */
 
 	INODE_DEC_FIELD(object, i_nlink);
-	assert("nikita-3407", inode_dir_plugin(object) == NULL ||
-	       object->i_nlink != 1 || object->i_size <= 1);
 	object->i_ctime = CURRENT_TIME;
 	return 0;
 }
