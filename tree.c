@@ -1470,7 +1470,7 @@ collect_tree_stat(reiser4_tree * tree, znode * node)
 
 	/* calculate number of leaves which have unformatted left neighbor */
 	if (znode_get_level(node) == TWIG_LEVEL) {
-		for (coord_init_before_first_item(&coord, node); coord_next_item(&coord) == 0;) {
+		for_all_items(&coord, node) {
 			if (last_twig_item) {
 				if (last_twig_item == 1 && item_is_internal(&coord))
 					tree_stat.leaves_with_unformatted_left_neighbor++;
@@ -1484,7 +1484,7 @@ collect_tree_stat(reiser4_tree * tree, znode * node)
 		}
 	}
 
-	for (coord_init_before_first_item(&coord, node); coord_next_item(&coord) == 0;) {
+	for_all_items(&coord, node) {
 		item_id id;
 
 		tree_stat.items++;
@@ -1613,7 +1613,7 @@ tree_rec(reiser4_tree * tree /* tree to print */ ,
 		print_address("children of node", znode_get_block(node));
 	}
 
-	for (coord_init_before_first_item(&coord, node); coord_next_item(&coord) == 0;) {
+	for_all_items(&coord, node) {
 
 		if (item_is_internal(&coord)) {
 			znode *child;
