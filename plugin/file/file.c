@@ -137,7 +137,8 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 	if (!fplug->flow_by_inode)
 		return -EINVAL;
 
-	result = fplug->flow_by_inode (file, buf, size, off, READ_OP, &f);
+	result = fplug->flow_by_inode (inode, buf, 1/* user space */, size, *off,
+				       READ_OP, &f);
 	if (result)
 		return result;
 
@@ -189,7 +190,7 @@ typedef enum {
 } write_todo;
 
 static write_todo what_todo (struct inode *, flow_t *, tree_coord *);
-static int tail2extent (struct file *, tree_coord *, lock_handle *);
+static int tail2extent (struct inode *, tree_coord *, lock_handle *);
 
 ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 			     loff_t * off)
@@ -220,7 +221,8 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 	if (!fplug->flow_by_inode)
 		return -EINVAL;
 
-	result = fplug->flow_by_inode (file, buf, size, off, WRITE_OP, &f);
+	result = fplug->flow_by_inode (inode, buf, 1/* user space */, size, *off,
+				       WRITE_OP, &f);
 	if (result)
 		return result;
 
@@ -251,7 +253,7 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 			break;
 			
 		case CONVERT:
-			result = tail2extent (file, &coord, &lh);
+			result = tail2extent (inode, &coord, &lh);
 			break;
 
 		default:
@@ -306,6 +308,7 @@ static int built_of_extents (struct inode * inode UNUSED_ARG,
 /* all file data have to be stored in unformatted nodes */
 static int should_have_notail (struct inode * inode, loff_t new_size)
 {
+	assert ("vs-549", inode_tail_plugin (inode));
 	return !inode_tail_plugin (inode)->have_tail (inode, new_size);
 
 }
@@ -492,18 +495,20 @@ static int copy2page (reiser4_tree * tree UNUSED_ARG /* tree scanned */,
 /* read all direct items of file into newly created pages
  * remove all those item from the tree
  * insert extent item */
-static int tail2extent (struct file * file, tree_coord * coord, 
+static int tail2extent (struct inode * inode, tree_coord * coord, 
 			lock_handle * lh)
 {
 	int result;
-	struct inode * inode;
 	file_plugin * fplug;
 	reiser4_key key;
 	copy2page_arg arg;
 	reiser4_item_data extent_data;
 
 
-	inode = file ->f_dentry->d_inode;
+	/* collect statistics on the number of tail2extent conversions */
+	reiser4_stat_file_add (tail2extent);
+
+
 	fplug = inode_file_plugin (inode);
 	if (!fplug || !fplug->key_by_inode) {
 		return -EINVAL;
@@ -547,6 +552,7 @@ static int tail2extent (struct file * file, tree_coord * coord,
 	 * here. Width of extent is passed via extent_data.arg. extent_init
 	 * will set extent state (unallocated) and its width directly */
 	extent_data.data = 0;
+	extent_data.user = 0;
 	extent_data.length = sizeof (reiser4_extent);
 	/* width of extent to be inserted */
 	assert ("vs-533", get_key_offset (&arg.next) > 0);
@@ -561,12 +567,134 @@ static int tail2extent (struct file * file, tree_coord * coord,
 }
 
 
-/* plugin->u.file.release */
-int ordinary_file_release (struct file * file UNUSED_ARG)
+/* plugin->u.file.release
+ * convert all extent items into tail items */
+static int extent2tail (struct file *);
+int ordinary_file_release (struct file * file)
 {
+	struct inode * inode;
+
+	inode = file ->f_dentry->d_inode;
+
+	if (should_have_notail (inode, inode->i_size))
+		return 0;
+
+	return extent2tail (file);
+}
+
+
+static int write_page_by_tail (struct inode * inode, struct page * page,
+			       unsigned count)
+{
+	flow_t f;
+	tree_coord coord;
+	lock_handle lh;
+	item_plugin * iplug;
+	char * p_data;
+	int result;
+
+
+	p_data = kmap (page);
+	inode_file_plugin (inode)->
+		flow_by_inode (inode, p_data, 0/* kernel space */,
+			       count, (loff_t)(page->index << PAGE_SHIFT),
+			       WRITE_OP, &f);
+
+	result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
+	if (result != CBK_COORD_NOTFOUND) {
+		assert ("vs-559", result != CBK_COORD_FOUND);
+		page_cache_release (page);
+		return result;
+	}
+
+	iplug = item_plugin_by_id (TAIL_ID);
+	assert ("vs-558", iplug && iplug->s.file.write);
+	result = iplug->s.file.write (inode, &coord, &lh, &f);
+	kunmap (page);
+	done_lh (&lh);
+	done_coord (&coord);
+	if (result != (int)count) {
+		/*
+		 * FIXME-VS: how do we handle this case? Abort
+		 * transaction?
+		 */
+		warning ("vs-560", "extent2tail conversion has eaten data");
+		return (result < 0) ? result : -ENOSPC;
+	}
 	return 0;
 }
 
+
+/* for every page of file: read page, cut part of extent pointing to this page,
+ * put data of page tree by tail item */
+static int extent2tail (struct file * file)
+{
+	int result;
+	struct inode * inode;
+	file_plugin * fplug;
+	struct page * page;
+	int num_pages;
+	reiser4_key from;
+	reiser4_key to;
+	int i;
+	unsigned count;
+
+
+	/* collect statistics on the number of extent2tail conversions */
+	reiser4_stat_file_add (extent2tail);
+	
+	inode = file->f_dentry->d_inode;
+
+	/* number of pages in the file */
+	num_pages = (inode->i_size + PAGE_SIZE - 1) / PAGE_SIZE;
+	if (!num_pages)
+		return 0;
+
+	fplug = inode_file_plugin (inode);
+	assert ("vs-551", fplug);
+	assert ("vs-552", fplug->key_by_inode);
+
+	fplug->key_by_inode (inode, 0ull, &from);
+	to = from;
+
+	for (i = 0; i < num_pages; i ++) {
+		page = grab_cache_page (inode->i_mapping, (unsigned long)i);
+		if (!page) {
+			if (i)
+				warning ("vs-550", "file left extent2tail-ed converted partially");
+			return -ENOMEM;
+		}
+		result = ordinary_readpage (file, page);
+		if (result) {
+			UnlockPage (page);
+			page_cache_release (page);
+			return result;
+		}
+		wait_on_page (page);
+		if (!Page_Uptodate (page)) {
+			page_cache_release (page);
+			return -EIO;
+		}
+		/* cut part of file we have read */
+		set_key_offset (&from, (__u64)(i << PAGE_SHIFT));
+		set_key_offset (&to, (__u64)((i << PAGE_SHIFT) + PAGE_SIZE - 1));
+		result = cut_tree (tree_by_inode (inode), &from, &to);
+		if (result) {
+			page_cache_release (page);
+			return -EIO;
+		}
+		/* put page data into tree via tail_write */
+		count = PAGE_SIZE;
+		if (i == num_pages - 1)
+			count = (inode->i_size & ~PAGE_MASK) ? : PAGE_SIZE;
+		result = write_page_by_tail (inode, page, count);
+		page_cache_release (page);
+		if (result)
+			return result;
+	}
+
+	return 0;
+}
 
 
 /* plugin->u.file.flow_by_inode  = common_build_flow
@@ -608,10 +736,10 @@ int ordinary_file_owns_item( const struct inode *inode /* object to check
 							* against */, 
 			     const tree_coord *coord /* coord to check */ )
 {
-	int retval;
+	int result;
 
-	retval = common_file_owns_item (inode, coord);
-	if (!retval)
+	result = common_file_owns_item (inode, coord);
+	if (!result)
 		return 0;
 	assert ("vs-546",
 		item_type_by_coord (coord) == ORDINARY_FILE_METADATA_TYPE);
@@ -623,6 +751,7 @@ int ordinary_file_owns_item( const struct inode *inode /* object to check
 
 /* plugin->u.file.can_add_link = common_file_can_add_link
  */
+
 
 #if 0
 
