@@ -50,6 +50,7 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 			warning( "nikita-2213", 
 				 "Allocated already existing block: %llu",
 				 blocknr );
+			zput (result);
 			return ERR_PTR( -EIO );
 		}
 
@@ -72,6 +73,7 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 			ZF_SET( result, JNODE_CREATED );
 			zrelse( result );
 		} else
+			zput (result);
 			result = ERR_PTR( retcode );
 	} else {
 		/*
