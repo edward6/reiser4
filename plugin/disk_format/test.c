@@ -59,7 +59,7 @@ int test_format_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	private->plug.t = tail_plugin_by_id (d16tocpu (&disk_sb->tail_policy));
 
 	/* init oid allocator */		  
-	private->oid_plug = oid_allocator_plugin_by_id (OID_40_ALLOCATOR_ID);
+	private->oid_plug = oid_allocator_plugin_by_id (OID40_ALLOCATOR_ID);
 	assert ("vs-627", (private->oid_plug &&
 			   private->oid_plug->init_oid_allocator));
 	result = private->oid_plug->init_oid_allocator (get_oid_allocator (s),
@@ -154,7 +154,7 @@ int test_format_release (struct super_block * s)
 		  &disk_sb->next_free_block);
 
 	/* next free objectid */
-	cputod64 (get_oid_allocator (s)->u.oid_40.next_to_use, 
+	cputod64 (get_oid_allocator (s)->u.oid40.next_to_use, 
 		  &disk_sb->next_free_oid);
 
 	/* FIXME-VS: remove this debugging info */

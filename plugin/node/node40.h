@@ -3,7 +3,7 @@
  */
 
 
-typedef d16 node_offset_40;
+typedef d16 node40_offset;
 
 /*
     flushstamp is made of mk_id and write_counter. mk_id is an id generated 
@@ -18,7 +18,7 @@ typedef struct flush_stamp {
 } flush_stamp_t;
 
 /** format of node header for 40 node layouts. Keep bloat out of this struct.  */
-typedef struct node_header_40 {
+typedef struct node40_header {
 	/** 
 	 * identifier of node plugin. Must be located at the very beginning
 	 * of a node.
@@ -28,9 +28,9 @@ typedef struct node_header_40 {
 	/* it might make some of the code simpler to store this just
 	   before the last item header, but then free_space finding
 	   code would be more complex.... A thought.... */
-	node_offset_40    free_space; /**/
+	node40_offset    free_space; /**/
 	/** offset to start of free space in node */
-	node_offset_40    free_space_start;
+	node40_offset    free_space_start;
 	/** 1 is leaf level, 2 is twig level, root is the numerically largest
 	 * level */
 	d8	       level;
@@ -50,20 +50,20 @@ typedef struct node_header_40 {
 	    delete the wrong files and send us desperate emails
 	    offering $25 for them back.  */
 	flush_stamp_t flush;
-} node_header_40;
+} node40_header;
 
 /* item headers are not standard across all node layouts, pass
  * pos_in_node to functions instead */
-typedef struct item_header_40 {
+typedef struct item_header40 {
 	/** key of item */
 /* this will get compressed to a few bytes on average in 4.1, so don't get too excited about how it doesn't hurt much to
  * add more bytes to item headers.  Probably you'll want your code to work for the 4.1 format also.... -Hans */
 	/*  0 */ reiser4_key  key;
 	/** offset from start of a node measured in 8-byte chunks */
-	/* 24 */ node_offset_40  offset;
+	/* 24 */ node40_offset  offset;
 	/* 26 */ d16             length;
 	/* 28 */ d16             plugin_id;
-} item_header_40;
+} item_header40;
 
 size_t             node40_item_overhead    ( const znode *node, flow_t * aflow);
 size_t             node40_free_space       ( znode *node );

@@ -3,10 +3,10 @@
 #
 
 ifdef CONFIG_REISER4_CHECK
-CFLAGS_oid_40.o += -O0
+CFLAGS_oid40.o += -O0
 CFLAGS_oid.o += -O0
 endif
 
-obj-y	+= oid_40.o oid.o
+obj-y	+= oid40.o oid.o
 
 include $(TOPDIR)/Rules.make

@@ -7,21 +7,21 @@
 
 /* initialization of disk layout plugins */
 reiser4_plugin format_plugins[ LAST_FORMAT_ID ] = {
-	[ FORMAT_40_ID ] = {
+	[ FORMAT40_ID ] = {
 		.format = {
 			.h = {
 				.type_id = REISER4_FORMAT_PLUGIN_TYPE,
-				.id      = FORMAT_40_ID,
+				.id      = FORMAT40_ID,
 				.pops    = NULL,
 				.label   = "reiser40",
 				.desc    = "standard disk layout for reiser40",
 				.linkage = TS_LIST_LINK_ZERO,
 			},
-			.get_ready     = format_40_get_ready,
-			.root_dir_key  = format_40_root_dir_key,
-			.release       = format_40_release,
-			.log_super     = format_40_log_super,
-			.print_info    = format_40_print_info
+			.get_ready     = format40_get_ready,
+			.root_dir_key  = format40_root_dir_key,
+			.release       = format40_release,
+			.log_super     = format40_log_super,
+			.print_info    = format40_print_info
 		}
 	},
 	[ TEST_FORMAT_ID ] = {

@@ -25,38 +25,38 @@ static int prepare_for_update (znode * left, znode * right, carry_plugin_info *i
 
 /* header of node of reiser40 format is at the beginning of node */
 /* Audited by: green(2002.06.12) */
-static inline node_header_40 *node40_node_header( const znode *node /* node to
+static inline node40_header *node40_node_header( const znode *node /* node to
 								     * query */ )
 {
 	assert( "nikita-567", node != NULL );
 	assert( "nikita-568", znode_page( node ) != NULL );
 	assert( "nikita-569", zdata( node ) != NULL );
-	return ( node_header_40 * ) zdata( node );
+	return ( node40_header * ) zdata( node );
 }
 
 
-/* functions to get/set fields of node_header_40 */
+/* functions to get/set fields of node40_header */
 
-static __u32 nh_40_get_magic (node_header_40 * nh)
+static __u32 nh40_get_magic (node40_header * nh)
 {
 	return d32tocpu (&nh->magic);
 }
 
-static void nh_40_set_magic (node_header_40 * nh, __u32 magic)
+static void nh40_set_magic (node40_header * nh, __u32 magic)
 {
 	cputod32 (magic, &nh->magic);
 }
 
 
 /* Audited by: green(2002.06.12) */
-static void nh_40_set_free_space (node_header_40 * nh, unsigned value)
+static void nh40_set_free_space (node40_header * nh, unsigned value)
 {
 	cputod16 (value, &nh->free_space);
 	/*node->free_space = value;*/
 }
 
 /* Audited by: green(2002.06.12) */
-static inline unsigned nh_40_get_free_space (node_header_40 * nh)
+static inline unsigned nh40_get_free_space (node40_header * nh)
 {
 	return d16tocpu (&nh->free_space);
 }
@@ -64,42 +64,42 @@ static inline unsigned nh_40_get_free_space (node_header_40 * nh)
 
 
 /* Audited by: green(2002.06.12) */
-static void nh_40_set_free_space_start (node_header_40 * nh, unsigned value)
+static void nh40_set_free_space_start (node40_header * nh, unsigned value)
 {
 	cputod16 (value, &nh->free_space_start);
 }
 
 
 /* Audited by: green(2002.06.12) */
-static inline unsigned nh_40_get_free_space_start (node_header_40 * nh)
+static inline unsigned nh40_get_free_space_start (node40_header * nh)
 {
 	return d16tocpu (&nh->free_space_start);
 }
 
 
 /* Audited by: green(2002.06.12) */
-static inline void nh_40_set_level (node_header_40 * nh, unsigned value)
+static inline void nh40_set_level (node40_header * nh, unsigned value)
 {
 	cputod8 (value, &nh->level);
 }
 
 
 /* Audited by: green(2002.06.12) */
-static unsigned nh_40_get_level (node_header_40 * nh)
+static unsigned nh40_get_level (node40_header * nh)
 {
 	return d8tocpu( &nh->level);
 }
 
 
 /* Audited by: green(2002.06.12) */
-static void nh_40_set_num_items (node_header_40 * nh, unsigned value)
+static void nh40_set_num_items (node40_header * nh, unsigned value)
 {
 	cputod16 (value, &nh->num_items);
 }
 
 
 /* Audited by: green(2002.06.12) */
-static inline unsigned nh_40_get_num_items (node_header_40 * nh)
+static inline unsigned nh40_get_num_items (node40_header * nh)
 {
 	return d16tocpu( &nh->num_items);
 }
@@ -111,9 +111,9 @@ static inline unsigned nh_40_get_num_items (node_header_40 * nh)
 
 /* array of item headers is at the end of node */
 /* Audited by: green(2002.06.12) */
-static item_header_40 *node40_ih_at( const znode *node, unsigned pos )
+static item_header40 *node40_ih_at( const znode *node, unsigned pos )
 {
-	return (item_header_40 *)( zdata( node ) + znode_size( node ) ) - pos - 1;
+	return (item_header40 *)( zdata( node ) + znode_size( node ) ) - pos - 1;
 }
 /* 
 
@@ -121,24 +121,24 @@ static item_header_40 *node40_ih_at( const znode *node, unsigned pos )
 
  */
 /* Audited by: green(2002.06.12) */
-static inline item_header_40 *node40_ih_at_coord( const coord_t *coord )
+static inline item_header40 *node40_ih_at_coord( const coord_t *coord )
 {
-	return (item_header_40 *)( zdata( coord -> node ) + 
+	return (item_header40 *)( zdata( coord -> node ) + 
 				   znode_size( coord -> node ) ) - 
 		( coord -> item_pos ) - 1;
 }
 
 
-/* functions to get/set fields of item_header_40 */
+/* functions to get/set fields of item_header40 */
 /* Audited by: green(2002.06.12) */
-static void ih_40_set_offset (item_header_40 * ih, unsigned offset)
+static void ih40_set_offset (item_header40 * ih, unsigned offset)
 {
 	cputod16 (offset, &ih->offset);
 }
 
 
 /* Audited by: green(2002.06.12) */
-static inline unsigned ih_40_get_offset (item_header_40 * ih)
+static inline unsigned ih40_get_offset (item_header40 * ih)
 {
 	return d16tocpu (&ih->offset);
 }
@@ -159,7 +159,7 @@ static inline unsigned ih_40_get_offset (item_header_40 * ih)
 /* Audited by: green(2002.06.12) */
 size_t node40_item_overhead (const znode * node UNUSED_ARG, flow_t * f UNUSED_ARG)
 {
-	return sizeof (item_header_40);
+	return sizeof (item_header40);
 }
 
 /*
@@ -179,7 +179,7 @@ size_t node40_free_space ( znode *node )
 	assert( "nikita-579", zdata( node ) != NULL );
 	trace_stamp( TRACE_NODES );
 
-	return nh_40_get_free_space (node40_node_header (node));
+	return nh40_get_free_space (node40_node_header (node));
 }
 
 /* plugin->u.node.num_of_items
@@ -189,7 +189,7 @@ size_t node40_free_space ( znode *node )
 int node40_num_of_items( const znode *node )
 {
 	trace_stamp( TRACE_NODES );
-	return nh_40_get_num_items (node40_node_header (node));
+	return nh40_get_num_items (node40_node_header (node));
 }
 
 
@@ -199,7 +199,7 @@ int node40_num_of_items( const znode *node )
 /* Audited by: green(2002.06.12) */
 char * node40_item_by_coord( const coord_t *coord )
 {
-	item_header_40 *ih;
+	item_header40 *ih;
 
 
 	/* @coord is set to existing item */
@@ -207,7 +207,7 @@ char * node40_item_by_coord( const coord_t *coord )
 	assert( "vs-255", coord_is_existing_item( coord ) );
 
 	ih = node40_ih_at_coord( coord );
-	return zdata( coord->node ) + ih_40_get_offset( ih );
+	return zdata( coord->node ) + ih40_get_offset( ih );
 }
 
 
@@ -217,7 +217,7 @@ char * node40_item_by_coord( const coord_t *coord )
 /* Audited by: green(2002.06.12) */
 int node40_length_by_coord (const coord_t * coord)
 {
-	item_header_40 * ih;
+	item_header40 * ih;
 
 
 	/* @coord is set to existing item */
@@ -226,10 +226,10 @@ int node40_length_by_coord (const coord_t * coord)
 
 	ih = node40_ih_at_coord( coord );
 	if( (int) coord -> item_pos == node40_num_of_items( coord -> node ) - 1 )
-		return nh_40_get_free_space_start( node40_node_header (coord -> node) ) -
-			ih_40_get_offset( ih );
+		return nh40_get_free_space_start( node40_node_header (coord -> node) ) -
+			ih40_get_offset( ih );
 	else
-		return ih_40_get_offset( ih - 1 ) - ih_40_get_offset( ih );
+		return ih40_get_offset( ih - 1 ) - ih40_get_offset( ih );
 }
 
 
@@ -239,7 +239,7 @@ int node40_length_by_coord (const coord_t * coord)
 /* Audited by: green(2002.06.12) */
 item_plugin *node40_plugin_by_coord( const coord_t *coord )
 {
-	item_header_40 *ih;
+	item_header40 *ih;
 
 
 	/* @coord is set to existing item */
@@ -260,7 +260,7 @@ item_plugin *node40_plugin_by_coord( const coord_t *coord )
 /* Audited by: green(2002.06.12) */
 reiser4_key *node40_key_at( const coord_t *coord, reiser4_key *key )
 {
-	item_header_40 *ih;
+	item_header40 *ih;
 
 	assert( "nikita-1765", coord_is_existing_item( coord ) );
 
@@ -284,7 +284,7 @@ node_search_result node40_lookup( znode *node /* node to query */,
 	int right;
 	int found;
 	item_plugin *iplug;
-	item_header_40 *bstop;
+	item_header40 *bstop;
 	cmp_t order;
 
 	assert( "nikita-583", node != NULL );
@@ -319,7 +319,7 @@ node_search_result node40_lookup( znode *node /* node to query */,
 
 	if( right < REISER4_SEQ_SEARCH_BREAK ) {
 #define __get_key( pos ) ( &node40_ih_at( node, ( unsigned ) ( pos ) ) -> key )
-		item_header_40 *ih;
+		item_header40 *ih;
 		/*
 		 * sequential scan. Item headers, and, therefore, keys are
 		 * stored at the rightmost part of a node from right to
@@ -482,7 +482,7 @@ size_t node40_estimate( znode *node )
 
 	assert( "nikita-597", node != NULL );
 
-	result = node40_free_space( node ) - sizeof( item_header_40 );
+	result = node40_free_space( node ) - sizeof( item_header40 );
 
 	return ( result > 0 ) ? result : 0;
 }
@@ -534,28 +534,28 @@ int node40_check( const znode *node /* node to check */,
 	coord.unit_pos = 0;
 	coord.between = AT_UNIT;
 	for ( i = 0; i < nr_items ; i ++ ) {
-		item_header_40 *ih;
+		item_header40 *ih;
 		reiser4_key unit_key;
 		unsigned j;
 
 		ih = node40_ih_at( node, (unsigned)i );
 		coord_set_item_pos (&coord, ( unsigned ) i);
-		if ( ( ih_40_get_offset( ih ) >= 
-		       znode_size( node ) - nr_items * sizeof( item_header_40 ) ) ||
-		     ( ih_40_get_offset( ih ) < sizeof( node_header_40 ) ) ) {
+		if ( ( ih40_get_offset( ih ) >= 
+		       znode_size( node ) - nr_items * sizeof( item_header40 ) ) ||
+		     ( ih40_get_offset( ih ) < sizeof( node40_header ) ) ) {
 			*error = "Offset is out of bounds";
 			return -1;
 		}
-		if ( ih_40_get_offset( ih ) <= old_offset ) {
+		if ( ih40_get_offset( ih ) <= old_offset ) {
 			*error = "Offsets are in wrong order";
 			return -1;
 		}
 		if ( ( i == 0 ) && 
-		     ( ih_40_get_offset( ih ) != sizeof( node_header_40 ) ) ) {
+		     ( ih40_get_offset( ih ) != sizeof( node40_header ) ) ) {
 			*error = "Wrong offset of first item";
 			return -1;
 		}
-		old_offset = ih_40_get_offset( ih );
+		old_offset = ih40_get_offset( ih );
 
 		if ( keygt( &prev, &ih -> key ) ) {
 			*error = "Keys are in wrong order";
@@ -606,7 +606,7 @@ int node40_check( const znode *node /* node to check */,
 			
 			if( keygt( iplug -> common.real_max_key_inside( &coord, 
 									&mkey ), 
-				   znode_get_rd_key( node ) ) ) {
+				   znode_get_rd_key( ( znode * ) node ) ) ) {
 				*error = "key of rightmost item is too large";
 				return -1;
 			}
@@ -687,18 +687,18 @@ int node40_check( const znode *node /* node to check */,
 /* Audited by: green(2002.06.12) */
 int node40_parse( znode *node /* node to parse */)
 {
-	node_header_40   *header;
+	node40_header   *header;
 	int               result;
 
 	header = node40_node_header( ( znode * ) node );
 	result = -EIO;
-	if( ( ( __u8 ) znode_get_level( node ) ) != nh_40_get_level( header ) )
+	if( ( ( __u8 ) znode_get_level( node ) ) != nh40_get_level( header ) )
 		warning( "nikita-494", "Wrong level found in node: %i != %i",
-			 znode_get_level( node ), nh_40_get_level( header ) );
-	else if( nh_40_get_magic( header ) != REISER4_NODE_MAGIC )
+			 znode_get_level( node ), nh40_get_level( header ) );
+	else if( nh40_get_magic( header ) != REISER4_NODE_MAGIC )
 		warning( "nikita-495", 
 			 "Wrong magic in tree node: want %x, got %x",
-			 REISER4_NODE_MAGIC, nh_40_get_magic( header ) );
+			 REISER4_NODE_MAGIC, nh40_get_magic( header ) );
 	else {
 		node -> nr_items = node40_num_of_items( node );
 		result = 0;
@@ -715,7 +715,7 @@ int node40_parse( znode *node /* node to parse */)
 /* Audited by: green(2002.06.12) */
 int node40_init( znode *node /* node to initialise */)
 {
-	node_header_40 *header;
+	node40_header *header;
 
 	assert( "nikita-570", node != NULL );
 	assert( "nikita-571", znode_is_loaded( node ) );
@@ -726,14 +726,14 @@ int node40_init( znode *node /* node to initialise */)
 	if( REISER4_ZERO_NEW_NODE )
 		xmemset( zdata( node ), 0, ( unsigned int ) znode_size( node ) );
 	else
-		xmemset( header, 0, sizeof (node_header_40) );
-	nh_40_set_free_space (header, znode_size( node ) - sizeof (node_header_40));
-	nh_40_set_free_space_start (header, sizeof (node_header_40));
+		xmemset( header, 0, sizeof (node40_header) );
+	nh40_set_free_space (header, znode_size( node ) - sizeof (node40_header));
+	nh40_set_free_space_start (header, sizeof (node40_header));
 	/* sane hypothesis: 0 in CPU format is 0 in disk format */
 	/* items: 0 */
 	save_plugin_id (node_plugin_to_plugin (node -> nplug), &header -> common_header.plugin_id);
-	nh_40_set_level (header, znode_get_level( node ));
-	nh_40_set_magic (header, REISER4_NODE_MAGIC);
+	nh40_set_level (header, znode_get_level( node ));
+	nh40_set_magic (header, REISER4_NODE_MAGIC);
 	node -> nr_items = 0;
 
 	/* flags: 0 */
@@ -744,12 +744,12 @@ int node40_init( znode *node /* node to initialise */)
 /* Audited by: green(2002.06.12) */
 int node40_guess( const znode *node /* node to guess plugin of */)
 {
-	node_header_40 *nethack;
+	node40_header *nethack;
 
 	assert( "nikita-1058", node != NULL );
 	nethack = node40_node_header( node );
 	return
-		( nh_40_get_magic( nethack ) == REISER4_NODE_MAGIC ) &&
+		( nh40_get_magic( nethack ) == REISER4_NODE_MAGIC ) &&
 		( plugin_by_disk_id( current_tree,
 				     REISER4_NODE_PLUGIN_TYPE,
 				     &nethack -> common_header.plugin_id ) -> h.id ==
@@ -762,16 +762,16 @@ void node40_print( const char *prefix,
 		   const znode *node /* node to print */, 
 		   __u32 flags UNUSED_ARG /* print flags */ )
 {
-	node_header_40   *header;
+	node40_header   *header;
 	
 	
 	header = node40_node_header( node );
 	info( "%s: BLOCKNR %Lu FREE_SPACE %u, LEVEL %u, ITEM_NUMBER %u\n",
 	      prefix,
 	      *znode_get_block (node),
-	      nh_40_get_free_space( header ),
-	      nh_40_get_level( header ),
-	      nh_40_get_num_items( header ) );
+	      nh40_get_free_space( header ),
+	      nh40_get_level( header ),
+	      nh40_get_num_items( header ) );
 }
 
 
@@ -781,8 +781,8 @@ void node40_print( const char *prefix,
 /* Audited by: green(2002.06.13) */
 void node40_change_item_size (coord_t * coord, int by)
 {
-	node_header_40 * nh;
-	item_header_40 * ih;
+	node40_header * nh;
+	item_header40 * ih;
 	char * item_data;
 	int item_length;
 	unsigned i;
@@ -801,18 +801,18 @@ void node40_change_item_size (coord_t * coord, int by)
 	/* move item bodies */
 	ih = node40_ih_at_coord (coord);
 	xmemmove (item_data + item_length + by, item_data + item_length,
-		 nh_40_get_free_space_start (node40_node_header (coord->node)) -
-		 (ih_40_get_offset (ih) + item_length));
+		 nh40_get_free_space_start (node40_node_header (coord->node)) -
+		 (ih40_get_offset (ih) + item_length));
 
 	/* update offsets of moved items */
-	for (i = coord->item_pos + 1; i < nh_40_get_num_items (nh); i ++) {
+	for (i = coord->item_pos + 1; i < nh40_get_num_items (nh); i ++) {
 		ih = node40_ih_at (coord->node, i);
-		ih_40_set_offset (ih, ih_40_get_offset (ih) + by);
+		ih40_set_offset (ih, ih40_get_offset (ih) + by);
 	}
 
 	/* update node header */
-	nh_40_set_free_space (nh, nh_40_get_free_space (nh) - by);
-	nh_40_set_free_space_start (nh, nh_40_get_free_space_start (nh) + by);
+	nh40_set_free_space (nh, nh40_get_free_space (nh) - by);
+	nh40_set_free_space_start (nh, nh40_get_free_space_start (nh) + by);
 }
 
 
@@ -832,8 +832,8 @@ static int should_notify_parent (const znode *node)
 int node40_create_item (coord_t * target, const reiser4_key * key,
 			reiser4_item_data * data, carry_plugin_info *info )
 {
-	node_header_40 * nh;
-	item_header_40 * ih;
+	node40_header * nh;
+	item_header40 * ih;
 	unsigned offset;
 	unsigned i;
 
@@ -844,48 +844,48 @@ int node40_create_item (coord_t * target, const reiser4_key * key,
 	assert ("vs-212", coord_is_between_items (target));
 	/* node must have enough free space */
 	assert ("vs-254", node40_free_space (target->node) >=
-		data->length + sizeof (item_header_40));
+		data->length + sizeof (item_header40));
 	
 	if (coord_set_to_right (target))
 		/* there are not items to the right of @target, so, new item
 		   will be inserted after last one */
-		coord_set_item_pos (target, nh_40_get_num_items (nh));
+		coord_set_item_pos (target, nh40_get_num_items (nh));
 
-	if (target->item_pos < nh_40_get_num_items (nh)) {
+	if (target->item_pos < nh40_get_num_items (nh)) {
 		/* there are items to be moved to prepare space for new
 		   item */
 		ih = node40_ih_at_coord (target);
 		/* new item will start at this offset */
-		offset = ih_40_get_offset (ih);
+		offset = ih40_get_offset (ih);
 
 		xmemmove (zdata (target->node) + offset + data->length,
 			 zdata (target->node) + offset,
-			 nh_40_get_free_space_start (nh) - offset);
+			 nh40_get_free_space_start (nh) - offset);
 		/* update headers of moved items */
-		for (i = target->item_pos; i < nh_40_get_num_items (nh); i ++) {
+		for (i = target->item_pos; i < nh40_get_num_items (nh); i ++) {
 			ih = node40_ih_at (target->node, i);
-			ih_40_set_offset (ih, ih_40_get_offset (ih) + data->length);
+			ih40_set_offset (ih, ih40_get_offset (ih) + data->length);
 		}
 
 		/* @ih is set to item header of the last item, move item headers */
 		xmemmove (ih - 1, ih,
-			 sizeof (item_header_40) * (nh_40_get_num_items (nh) - target->item_pos));
+			 sizeof (item_header40) * (nh40_get_num_items (nh) - target->item_pos));
 	} else {
 		/* new item will start at this offset */
-		offset = nh_40_get_free_space_start (nh);
+		offset = nh40_get_free_space_start (nh);
 	}
 
 	/* make item header for the new item */
 	ih = node40_ih_at_coord (target);
 	xmemcpy (&ih->key, key, sizeof (reiser4_key));
-	ih_40_set_offset (ih, offset);
+	ih40_set_offset (ih, offset);
 	save_plugin_id (item_plugin_to_plugin (data->iplug), &ih->plugin_id);
 
 	/* update node header */
-	nh_40_set_free_space (nh, nh_40_get_free_space (nh) -
-			      data->length - sizeof (item_header_40));
-	nh_40_set_free_space_start (nh, nh_40_get_free_space_start (nh) + data->length);
-	nh_40_set_num_items (nh, nh_40_get_num_items (nh) + 1);
+	nh40_set_free_space (nh, nh40_get_free_space (nh) -
+			      data->length - sizeof (item_header40));
+	nh40_set_free_space_start (nh, nh40_get_free_space_start (nh) + data->length);
+	nh40_set_num_items (nh, nh40_get_num_items (nh) + 1);
 	target->node->nr_items ++;
 
 	/* FIXME: check how does create_item work when between is set to BEFORE_UNIT */
@@ -938,7 +938,7 @@ int node40_create_item (coord_t * target, const reiser4_key * key,
 void node40_update_item_key (coord_t * target, reiser4_key * key,
 			     carry_plugin_info *info)
 {
-	item_header_40 * ih;
+	item_header40 * ih;
 
 	ih = node40_ih_at_coord (target);
 	xmemcpy (&ih->key, key, sizeof (reiser4_key));
@@ -1010,8 +1010,8 @@ static int cut_or_kill (coord_t * from, coord_t * to,
 			int cut, void *cut_params, __u32 flags)
 {
 	znode * node;
-	node_header_40 * nh;
-	item_header_40 * ih;
+	node40_header * nh;
+	item_header40 * ih;
 	unsigned freed_space_start;/*new_from_end;*/
 	unsigned freed_space_end; /*new_to_start;*/
 	unsigned first_removed; /* position of first item removed entirely */
@@ -1066,24 +1066,24 @@ static int cut_or_kill (coord_t * from, coord_t * to,
 			/*
 			 * whole item is cut
 			 */
-			freed_space_start = ih_40_get_offset (ih);
+			freed_space_start = ih40_get_offset (ih);
 			freed_space_end = freed_space_start + cut_size;
 			rightmost_not_moved = from->item_pos - 1;
 		} else if (from_unit == 0) {
 			/*
 			 * head is cut, freed space is in the beginning
 			 */
-			freed_space_start = ih_40_get_offset (ih);
+			freed_space_start = ih40_get_offset (ih);
 			freed_space_end = freed_space_start + cut_size;
 			rightmost_not_moved = from->item_pos - 1;
 			/* item now starts at different place */
-			ih_40_set_offset (ih, freed_space_end);
+			ih40_set_offset (ih, freed_space_end);
 			
 		} else if (to_unit == coord_last_unit_pos (to)) {
 			/*
 			 * tail is cut, freed space is in the end
 			 */
-			freed_space_start = ih_40_get_offset (ih) + item_length_by_coord (from) - cut_size;
+			freed_space_start = ih40_get_offset (ih) + item_length_by_coord (from) - cut_size;
 			freed_space_end = freed_space_start + cut_size;
 			rightmost_not_moved = from->item_pos;
 		} else {
@@ -1092,7 +1092,7 @@ static int cut_or_kill (coord_t * from, coord_t * to,
 			 * NOTE: cut method of item must leave freed space at
 			 * the end of item
 			 */
-			freed_space_start = ih_40_get_offset (ih) + item_length_by_coord (from) - cut_size;
+			freed_space_start = ih40_get_offset (ih) + item_length_by_coord (from) - cut_size;
 			freed_space_end = freed_space_start + cut_size;
 			rightmost_not_moved = from->item_pos;
 		}
@@ -1147,7 +1147,7 @@ static int cut_or_kill (coord_t * from, coord_t * to,
 			rightmost_not_moved --;
 		}
 		ih = node40_ih_at (node, (unsigned) from->item_pos);
-		freed_space_start = ih_40_get_offset (ih) +
+		freed_space_start = ih40_get_offset (ih) +
 			node40_length_by_coord (from) - cut_size;
 
 		/*
@@ -1167,39 +1167,39 @@ static int cut_or_kill (coord_t * from, coord_t * to,
 			wrong_item = to->item_pos;
 
 		ih = node40_ih_at (node, (unsigned) to->item_pos);
-		freed_space_end = ih_40_get_offset (ih) + cut_size;
+		freed_space_end = ih40_get_offset (ih) + cut_size;
 
 		/* item now starts at different place */
-		ih_40_set_offset (ih, freed_space_end);
+		ih40_set_offset (ih, freed_space_end);
 	}
 
 
 	/* move remaining data to left */
 	xmemmove (zdata (node) + freed_space_start, zdata (node) + freed_space_end,
-		 nh_40_get_free_space_start (nh) - freed_space_end);
+		 nh40_get_free_space_start (nh) - freed_space_end);
 
 	/* update item headers of moved items */
 	for (i = rightmost_not_moved + 1 + removed_entirely; 
 	     (int)i < node40_num_of_items (node); i ++) {
 		ih = node40_ih_at (node, i);
-		ih_40_set_offset (ih, (ih_40_get_offset (ih) -
+		ih40_set_offset (ih, (ih40_get_offset (ih) -
 				       (freed_space_end - freed_space_start)));
 	}
 
 	/* cut item headers of removed items */
 	ih = node40_ih_at (node, (unsigned)node40_num_of_items (node) - 1);
 	xmemmove (ih + removed_entirely, ih,
-		 sizeof (item_header_40) * (node40_num_of_items (node) -
+		 sizeof (item_header40) * (node40_num_of_items (node) -
 					    removed_entirely - first_removed));
 
 	/* update node header */
-	nh_40_set_num_items (nh, node40_num_of_items (node) - removed_entirely);
+	nh40_set_num_items (nh, node40_num_of_items (node) - removed_entirely);
 	node->nr_items -= removed_entirely;
-	nh_40_set_free_space_start (nh, nh_40_get_free_space_start (nh) -
+	nh40_set_free_space_start (nh, nh40_get_free_space_start (nh) -
 				    (freed_space_end - freed_space_start));
-	nh_40_set_free_space (nh, nh_40_get_free_space (nh) +
+	nh40_set_free_space (nh, nh40_get_free_space (nh) +
 			      ((freed_space_end - freed_space_start) +
-			       sizeof (item_header_40) * removed_entirely));
+			       sizeof (item_header40) * removed_entirely));
 
 	if (wrong_item != ~0u) {
 		coord_t coord;
@@ -1533,10 +1533,10 @@ static void copy_units (coord_t * target, coord_t * source,
 /* Audited by: green(2002.06.13) */
 void node40_copy (struct shift_params * shift)
 {
-	node_header_40 * nh;
+	node40_header * nh;
 	coord_t from;
 	coord_t to;
-	item_header_40 * from_ih, * to_ih;
+	item_header40 * from_ih, * to_ih;
 	int free_space_start;
 	int new_items;
 	unsigned old_items;
@@ -1544,8 +1544,8 @@ void node40_copy (struct shift_params * shift)
 	unsigned i;
 
 	nh = node40_node_header (shift->target);
-	free_space_start = nh_40_get_free_space_start (nh);
-	old_items = nh_40_get_num_items (nh);
+	free_space_start = nh40_get_free_space_start (nh);
+	old_items = nh40_get_num_items (nh);
 	new_items = shift->entire + (shift->part_units ? 1 : 0);
 	assert ("vs-185",
 		shift->shift_bytes ==
@@ -1579,8 +1579,8 @@ void node40_copy (struct shift_params * shift)
 			/* expand last item, so that plugin methods will see
 			 * correct data */
 			free_space_start += shift->merging_bytes;
-			nh_40_set_free_space_start (nh, (unsigned) free_space_start);
-			nh_40_set_free_space (nh, nh_40_get_free_space (nh) -
+			nh40_set_free_space_start (nh, (unsigned) free_space_start);
+			nh40_set_free_space (nh, nh40_get_free_space (nh) -
 					      shift->merging_bytes);
 
 			trace_if (TRACE_COORDS, print_coord ("before copy_units from:", & from, 0));
@@ -1602,32 +1602,32 @@ void node40_copy (struct shift_params * shift)
 			/* copy item headers */
 			xmemcpy (to_ih - shift->entire + 1,
 				from_ih - shift->entire + 1,
-				shift->entire * sizeof (item_header_40));
+				shift->entire * sizeof (item_header40));
 			/* update item header offset */
-			old_offset = ih_40_get_offset (from_ih);
+			old_offset = ih40_get_offset (from_ih);
 			/* AUDIT: Looks like if we calculate old_offset + free_space_start here instead of just old_offset, we can perform one "add" operation less per each iteration */
 			for (i = 0; i < shift->entire; i ++, to_ih --, from_ih --)
-				ih_40_set_offset (to_ih,
-						  ih_40_get_offset (from_ih) - old_offset + free_space_start );
+				ih40_set_offset (to_ih,
+						  ih40_get_offset (from_ih) - old_offset + free_space_start );
 
 			/* copy item bodies */
 			xmemcpy (zdata (shift->target) + free_space_start,
-				zdata (from.node) + old_offset,/*ih_40_get_offset (from_ih),*/
+				zdata (from.node) + old_offset,/*ih40_get_offset (from_ih),*/
 				shift->entire_bytes);
 
 			coord_add_item_pos (&from, (int)shift->entire);
 			coord_add_item_pos (&to, (int)shift->entire);
 		}
 
-		nh_40_set_free_space_start (nh, free_space_start + shift->shift_bytes - shift->merging_bytes);
-		nh_40_set_free_space (nh, nh_40_get_free_space (nh) -
-				      (shift->shift_bytes - shift->merging_bytes + sizeof (item_header_40) * new_items));
+		nh40_set_free_space_start (nh, free_space_start + shift->shift_bytes - shift->merging_bytes);
+		nh40_set_free_space (nh, nh40_get_free_space (nh) -
+				      (shift->shift_bytes - shift->merging_bytes + sizeof (item_header40) * new_items));
 
 		/* update node header */
-		nh_40_set_num_items (nh, old_items + new_items);
+		nh40_set_num_items (nh, old_items + new_items);
 		shift->target->nr_items = old_items + new_items;
 		assert ("vs-170",
-			nh_40_get_free_space (nh) < znode_size (shift->target));
+			nh40_get_free_space (nh) < znode_size (shift->target));
 
 		if (shift->part_units) {
 			/* copy heading part (@part units) of @source item as
@@ -1636,8 +1636,8 @@ void node40_copy (struct shift_params * shift)
 			/* copy item header of partially copied item */
 			coord_set_item_pos (&to, 
 					    (unsigned)node40_num_of_items (to.node) - 1);
-			xmemcpy (to_ih, from_ih, sizeof (item_header_40));
-			ih_40_set_offset (to_ih, nh_40_get_free_space_start (nh) - shift->part_bytes);
+			xmemcpy (to_ih, from_ih, sizeof (item_header40));
+			ih40_set_offset (to_ih, nh40_get_free_space_start (nh) - shift->part_bytes);
 			if (item_plugin_by_coord (&to)->common.init)
 				item_plugin_by_coord (&to)->common.init(&to, 0);
 			copy_units (&to, &from, 0, shift->part_units, 
@@ -1654,36 +1654,36 @@ void node40_copy (struct shift_params * shift)
 		coord_set_item_pos (&to, 0);
 
 		/* prepare space for new items */
-		xmemmove (zdata (to.node) + sizeof (node_header_40) + shift->shift_bytes,
-			 zdata (to.node) + sizeof (node_header_40),
-			 free_space_start - sizeof (node_header_40));
+		xmemmove (zdata (to.node) + sizeof (node40_header) + shift->shift_bytes,
+			 zdata (to.node) + sizeof (node40_header),
+			 free_space_start - sizeof (node40_header));
 		/* update item headers of moved items */
 		to_ih = node40_ih_at (to.node, 0);
 		/* first item gets @merging_bytes longer. free space appears
 		   at its beginning */
 		if (!node_is_empty (to.node))
-			ih_40_set_offset (to_ih, ih_40_get_offset (to_ih) +
+			ih40_set_offset (to_ih, ih40_get_offset (to_ih) +
 					  shift->shift_bytes -
 					  shift->merging_bytes);
 
 		for (i = 1; i < old_items; i ++)
-			ih_40_set_offset (to_ih - i,
-					  ih_40_get_offset (to_ih - i) + shift->shift_bytes);
+			ih40_set_offset (to_ih - i,
+					  ih40_get_offset (to_ih - i) + shift->shift_bytes);
 
 		/* move item headers to make space for new items */
 		xmemmove (to_ih - old_items + 1 - new_items, to_ih - old_items + 1,
-			 sizeof (item_header_40) * old_items);
+			 sizeof (item_header40) * old_items);
 		to_ih -= (new_items - 1);
 
-		nh_40_set_free_space_start (nh, free_space_start + shift->shift_bytes);
-		nh_40_set_free_space (nh, nh_40_get_free_space (nh) -
-				      (shift->shift_bytes + sizeof (item_header_40) * new_items));
+		nh40_set_free_space_start (nh, free_space_start + shift->shift_bytes);
+		nh40_set_free_space (nh, nh40_get_free_space (nh) -
+				      (shift->shift_bytes + sizeof (item_header40) * new_items));
 
 		/* update node header */
-		nh_40_set_num_items (nh, old_items + new_items);
+		nh40_set_num_items (nh, old_items + new_items);
 		shift->target->nr_items = old_items + new_items;
 		assert ("vs-170",
-			nh_40_get_free_space (nh) < znode_size (shift->target));
+			nh40_get_free_space (nh) < znode_size (shift->target));
 
 		if (shift->merging_units) {
 			coord_add_item_pos (&to, new_items);
@@ -1702,18 +1702,18 @@ void node40_copy (struct shift_params * shift)
 			/* copy @entire items entirely */
 
 			/* copy item headers */
-			xmemcpy (to_ih, from_ih, shift->entire * sizeof (item_header_40));
+			xmemcpy (to_ih, from_ih, shift->entire * sizeof (item_header40));
 
 			/* update item header offset */
-			old_offset = ih_40_get_offset (from_ih + shift->entire - 1);
-			/* AUDIT: old_offset + sizeof (node_header_40) + shift->part_bytes calculation can be taken off the loop. */
+			old_offset = ih40_get_offset (from_ih + shift->entire - 1);
+			/* AUDIT: old_offset + sizeof (node40_header) + shift->part_bytes calculation can be taken off the loop. */
 			for (i = 0; i < shift->entire; i ++, to_ih ++, from_ih ++)
-				ih_40_set_offset (to_ih,
-						  ih_40_get_offset (from_ih) - old_offset +
-						  sizeof (node_header_40) + shift->part_bytes);
+				ih40_set_offset (to_ih,
+						  ih40_get_offset (from_ih) - old_offset +
+						  sizeof (node40_header) + shift->part_bytes);
 			/* copy item bodies */
 			coord_add_item_pos (&from, - (int)(shift->entire - 1));
-			xmemcpy (zdata (to.node) + sizeof (node_header_40) + shift->part_bytes,
+			xmemcpy (zdata (to.node) + sizeof (node40_header) + shift->part_bytes,
 				item_body_by_coord (&from), shift->entire_bytes);
 			coord_dec_item_pos (&from);
 		}
@@ -1726,8 +1726,8 @@ void node40_copy (struct shift_params * shift)
 			   a new item into @target->node */
 
 			/* copy item header of partially copied item */
-			xmemcpy (to_ih, from_ih, sizeof (item_header_40));
-			ih_40_set_offset (to_ih, sizeof (node_header_40));
+			xmemcpy (to_ih, from_ih, sizeof (item_header40));
+			ih40_set_offset (to_ih, sizeof (node40_header));
 			if (item_plugin_by_coord (&to)->common.init)
 				item_plugin_by_coord (&to)->common.init(&to, 0);
 			copy_units (&to, &from, 
@@ -2228,7 +2228,7 @@ int node40_fast_cut( const coord_t *coord UNUSED_ARG /* node to query */ )
 int node40_max_item_size( void )
 {
 	return reiser4_get_current_sb() -> s_blocksize -
-		sizeof( node_header_40 ) - sizeof( item_header_40 );
+		sizeof( node40_header ) - sizeof( item_header40 );
 }
 
 

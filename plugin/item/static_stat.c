@@ -420,7 +420,7 @@ static int symlink_sd_present( struct inode *inode,
 	assert( "vs-840", *( *area + length ) == 0 );
 
 	sd = ( reiser4_symlink_stat * ) *area;
-	result = symlink_target_to_inode( inode, &sd -> body, length );
+	result = symlink_target_to_inode( inode, sd -> body, length );
 
 	move_on( len, area, length + 1 );
 	return result;
@@ -449,6 +449,7 @@ static int symlink_sd_save( struct inode *inode, char **area )
 	assert( "vs-841", length );
 
 	result = 0;
+	sd = ( reiser4_symlink_stat * ) *area;
 	if( !inode_get_flag( inode, REISER4_GENERIC_VP_USED ) ) {
 		const char *target;
 
@@ -458,12 +459,12 @@ static int symlink_sd_save( struct inode *inode, char **area )
 		result = symlink_target_to_inode( inode, target, length );
 
 		/* copy symlink to stat data */
-		xmemcpy( *area, target, ( size_t ) length );
+		xmemcpy( sd -> body, target, ( size_t ) length );
 		( *area )[ length ] = 0;
 	} else {
 		/* there is nothing to do in update but move area */
 		assert( "vs-844", !memcmp( inode -> u.generic_ip,
-					   *area, ( size_t ) length + 1 ) );
+					   sd -> body, ( size_t ) length + 1 ) );
 	}
 
 	*area += ( length + 1 );

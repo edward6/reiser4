@@ -2688,7 +2688,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		STYPE( inter_syscall_rap );
 		STYPE( reiser4_plugin_ops );
 		STYPE( file_plugins );
-		STYPE( item_header_40 );
+		STYPE( item_header40 );
 		STYPE( reiser4_block_nr );
 		STYPE( znode );
 		STYPE( d16 );
@@ -3543,7 +3543,7 @@ static int bash_mkfs (char * file_name)
 						&super, &next_block );
 
 			/* oid allocator */
-			get_super_private (&super)->oid_plug = oid_allocator_plugin_by_id (OID_40_ALLOCATOR_ID);
+			get_super_private (&super)->oid_plug = oid_allocator_plugin_by_id (OID40_ALLOCATOR_ID);
 			get_super_private (&super)->oid_plug->
 				init_oid_allocator (get_oid_allocator (&super), 1ull, TEST_MKFS_ROOT_OBJECTID - 3);
 
@@ -4848,7 +4848,7 @@ int real_main( int argc, char **argv )
 	mallopt( M_MMAP_MAX, 0 );
 	mallopt( M_TRIM_THRESHOLD, INT_MAX );
 
-	dinfo("node size: %d\n", sizeof(node_header_40));
+	dinfo("node size: %d\n", sizeof(node40_header));
 	__prog_name = strrchr( argv[ 0 ], '/' );
 	if( __prog_name == NULL )
 		__prog_name = argv[ 0 ];

@@ -418,14 +418,14 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "plugin/node/node40.h"
 #include "plugin/security/perm.h"
 
-#include "plugin/oid/oid_40.h"
+#include "plugin/oid/oid40.h"
 #include "plugin/oid/oid.h"
 
 #include "plugin/space/bitmap.h"
 #include "plugin/space/test.h"
 #include "plugin/space/space_allocator.h"
 
-#include "plugin/disk_format/disk_format_40.h"
+#include "plugin/disk_format/disk_format40.h"
 #include "plugin/disk_format/test.h"
 #include "plugin/disk_format/disk_format.h"
 
