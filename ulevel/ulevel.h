@@ -31,6 +31,7 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <dirent.h>
 
 /* for rdtscll() */
 #include <asm/msr.h>
@@ -900,6 +901,7 @@ extern ssize_t  pwrite(int  fd,  const  void  *buf, size_t count, off_t offset);
 /*
  * File types
  */
+/*
 #define DT_UNKNOWN	0
 #define DT_FIFO		1
 #define DT_CHR		2
@@ -909,7 +911,7 @@ extern ssize_t  pwrite(int  fd,  const  void  *buf, size_t count, off_t offset);
 #define DT_LNK		10
 #define DT_SOCK		12
 #define DT_WHT		14
-
+*/
 struct dentry_operations {
 	int (*d_revalidate)(struct dentry *, int);
 	int (*d_hash) (struct dentry *, struct qstr *);
