@@ -788,6 +788,7 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 		else 
 			/* Discard */
 			clust->len = clust->count;
+		reiser4_kfree(wbuf, cplug->mem_req);
 	}
 	
 	if (inode_crypto_plugin(inode)) {
@@ -889,15 +890,18 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 		if (clust->pages) {
 			if (!pg) {
 				assert("edward-629", !src);
+				assert("edward-631", !clust->len);
 				/* -not specified, [5] */
 				pg = *clust->pages;
 				lock_page(pg);
 				src = kmap(pg);
+				clust->len = clust->count;
 			}
-			else 
+			else {
 				/* -discarded, [13] */
 				assert("edward-630", src != NULL);
-			
+				assert("edward-632", clust->len == clust->count);
+			}
 			xmemcpy(clust->buf, src, clust->count);
 		}
  exit:
