@@ -12,6 +12,7 @@ libreiserfs_la_LIBADD  	= $(top_builddir)/libaal/libaal.la \
 			  $(top_builddir)/plugin/format40/libformat40-static.la \
 			  $(top_builddir)/plugin/journal40/libjournal40-static.la \
 			  $(top_builddir)/plugin/alloc40/liballoc40-static.la \
+			  $(top_builddir)/plugin/oid40/liboid40-static.la \
 			  $(top_builddir)/plugin/node40/libnode40-static.la \
 			  $(top_builddir)/plugin/internal40/libinternal40-static.la \
 			  $(top_builddir)/plugin/direntry40/libdirentry40-static.la \

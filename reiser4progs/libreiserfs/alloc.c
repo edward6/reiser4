@@ -102,11 +102,11 @@ void reiserfs_alloc_unuse(reiserfs_fs_t *fs, blk_t blk) {
     fs->alloc->plugin->alloc.unuse(fs->alloc->entity, blk);
 }
 
-blk_t reiserfs_alloc_find(reiserfs_fs_t *fs) {
+blk_t reiserfs_alloc_alloc(reiserfs_fs_t *fs) {
     aal_assert("umka-504", fs != NULL, return 0);
     aal_assert("umka-505", fs->alloc != NULL, return 0);
 
-    reiserfs_check_method(fs->alloc->plugin->alloc, find, return 0);
-    return fs->alloc->plugin->alloc.find(fs->alloc->entity, 0);
+    reiserfs_check_method(fs->alloc->plugin->alloc, alloc, return 0);
+    return fs->alloc->plugin->alloc.alloc(fs->alloc->entity);
 }
 

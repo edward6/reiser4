@@ -128,13 +128,11 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
 	return -1;
     
     /* Create a root node */
-    if (!(block_nr = reiserfs_alloc_find(fs))) {
+    if (!(block_nr = reiserfs_alloc_alloc(fs))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't allocate block for root node.");
 	goto error_free_tree;
     }
-    
-    reiserfs_alloc_use(fs, block_nr);
     reiserfs_format_set_root(fs, block_nr);
   
     if (reiserfs_node_create(&squeeze, fs->host_device, block_nr, NULL, 
@@ -145,13 +143,11 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
 	goto error_free_tree;
     }
 
-    if (!(block_nr = reiserfs_alloc_find(fs))) {
+    if (!(block_nr = reiserfs_alloc_alloc(fs))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't allocate block for root node.");
 	goto error_close_squeese;
     }
-    
-    reiserfs_alloc_use(fs, block_nr);
 
     /* Initialize internal item. */
     internal_info.blk = &block_nr;
@@ -168,7 +164,7 @@ error_t reiserfs_tree_create_2(reiserfs_fs_t *fs,
 
     /* 
 	Insert an internal item. Item will be created automatically from 
-	the node insert api method 
+	the node insert api method. 
     */
     if (reiserfs_node_insert_item (&coord, &key, &item_info, 
 	default_plugins->item.internal)) 

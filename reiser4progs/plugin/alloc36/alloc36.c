@@ -77,7 +77,7 @@ static reiserfs_plugin_t alloc36_plugin = {
 
 	.use = NULL,
 	.unuse = NULL,
-	.find = NULL,
+	.alloc = NULL,
 	
 	.free = NULL,
 	.used = NULL

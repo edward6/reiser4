@@ -46,12 +46,10 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
 
     /* Forming internal node */
     
-    if (!(blk = reiserfs_alloc_find(fs)))
+    if (!(blk = reiserfs_alloc_alloc(fs)))
 	return 0;
 
     root_blk = blk;
-    
-    reiserfs_alloc_use(fs, blk);
     if (!(block = aal_device_alloc_block(fs->host_device, blk, 0)))
 	return 0;
     
@@ -83,12 +81,10 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     
     internal_body = (reiserfs_internal40_t *)(block->data + ih40_get_offset(item));
     
-    if (!(blk = reiserfs_alloc_find(fs))) {
+    if (!(blk = reiserfs_alloc_alloc(fs))) {
 	aal_device_free_block(block);
 	return 0;
     }	
-
-    reiserfs_alloc_use(fs, blk);
     internal_body->block_nr = blk;
     
     if (aal_device_write_block(fs->host_device, block)) {

@@ -64,8 +64,8 @@ static reiserfs_plugin_t stat40_plugin = {
 	    .handle = NULL,
 	    .id = STAT_DATA_ITEM,
 	    .type = REISERFS_ITEM_PLUGIN,
-	    .label = "StatData40",
-	    .desc = "Stat Data for reiserfs 4.0, ver. 0.1, "
+	    .label = "stat40",
+	    .desc = "Stat data for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.common = {

@@ -99,12 +99,18 @@ static void reiserfs_alloc40_unuse(reiserfs_alloc40_t *alloc, blk_t blk) {
     reiserfs_bitmap_unuse_block(alloc->bitmap, blk);
 }
 
-static blk_t reiserfs_alloc40_find(reiserfs_alloc40_t *alloc, blk_t start) {
+static blk_t reiserfs_alloc40_alloc(reiserfs_alloc40_t *alloc) {
+    blk_t blk;
     
     aal_assert("umka-374", alloc != NULL, return 0);
     aal_assert("umka-375", alloc->bitmap != NULL, return 0);
     
-    return reiserfs_bitmap_find_free(alloc->bitmap, start);
+    /* It is possible to implement here more smart allocation algorithm */
+    if (!(blk = reiserfs_bitmap_find_free(alloc->bitmap, 0)))
+	return 0;
+    
+    reiserfs_bitmap_use_block(alloc->bitmap, blk);
+    return blk;
 }
 
 count_t reiserfs_alloc40_free(reiserfs_alloc40_t *alloc) {
@@ -140,7 +146,7 @@ static reiserfs_plugin_t alloc40_plugin = {
 
 	.use = (void (*)(reiserfs_opaque_t *, blk_t))reiserfs_alloc40_use,
 	.unuse = (void (*)(reiserfs_opaque_t *, blk_t))reiserfs_alloc40_unuse,
-	.find = (blk_t (*)(reiserfs_opaque_t *, blk_t))reiserfs_alloc40_find,
+	.alloc = (blk_t (*)(reiserfs_opaque_t *))reiserfs_alloc40_alloc,
 	
 	.free = (count_t (*)(reiserfs_opaque_t *))reiserfs_alloc40_free,
 	.used = (count_t (*)(reiserfs_opaque_t *))reiserfs_alloc40_used
