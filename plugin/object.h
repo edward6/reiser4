@@ -26,6 +26,8 @@ extern int safelink_common(struct inode *object,
 			   reiser4_safe_link_t link, __u64 value);
 extern int prepare_write_common (struct file *, struct page *, unsigned, unsigned);
 extern int key_by_inode_and_offset_common(struct inode *, loff_t, reiser4_key *);
+extern int setattr_reserve_common(reiser4_tree *);
+extern int setattr_common(struct inode *, struct iattr *);
 
 extern reiser4_plugin_ops cryptcompress_plugin_ops;
 

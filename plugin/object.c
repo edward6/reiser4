@@ -492,12 +492,10 @@ can_add_link_common(const struct inode *object /* object to check */ )
 	return object->i_nlink + 1 != 0;
 }
 
-
-/* space for stat data removal is reserved */
-/* NIKITA-FIXME-HANS: must be reserved by caller before calling you mean? */
+/* remove object stat data. Space for it must be reserved by caller before */
 reiser4_internal int
-common_file_delete_no_reserve(struct inode *inode /* object to remove */,
-			      int mode /* cut_mode */)
+common_object_delete_no_reserve(struct inode *inode /* object to remove */,
+				int mode /* cut_mode */)
 {
 	int result;
 
@@ -526,7 +524,7 @@ common_file_delete_no_reserve(struct inode *inode /* object to remove */,
 	return result;
 }
 
-/* delete_file_common() - delete object stat-data. This is to be used when file deletion turns into stat data removal */
+/* delete object stat-data. This is to be used when file deletion turns into stat data removal */
 reiser4_internal int
 delete_object(struct inode *inode /* object to remove */, int mode /* cut mode */)
 {
@@ -539,14 +537,13 @@ delete_object(struct inode *inode /* object to remove */, int mode /* cut mode *
 	if (!inode_get_flag(inode, REISER4_NO_SD)) {
 		reiser4_block_nr reserve;
 
-		/* grab space which is needed to remove stat data and
-NIKITA-FIXME-HANS: form?
-		 * safe-link form the tree */
+		/* grab space which is needed to remove 2 items from the tree:
+		 stat data and safe-link */
 		reserve = 2 * estimate_one_item_removal(tree_by_inode(inode));
 		if (reiser4_grab_space_force(reserve,
 					     BA_RESERVED | BA_CAN_COMMIT))
 			return RETERR(-ENOSPC);
-		result = common_file_delete_no_reserve(inode, mode);
+		result = common_object_delete_no_reserve(inode, mode);
 	} else
 		result = 0;
 	return result;
@@ -573,8 +570,7 @@ static int delete_directory_common(struct inode *inode)
 
 	result = dplug->done(inode);
 	if (!result)
-/* NIKITA-FIXME-HANS: please comment on whether file is the right word here.  maybe common_object_delete_no_reserve? */
-		result = common_file_delete_no_reserve(inode, 1);
+		result = common_object_delete_no_reserve(inode, 1);
 	all_grabbed2free();
 	return result;
 }
@@ -927,6 +923,14 @@ bind_dir(struct inode *child, struct inode *parent)
 	return dplug->attach(child, parent);
 }
 
+reiser4_internal int
+setattr_reserve_common(reiser4_tree *tree)
+{
+	assert("vs-1096", is_grab_enabled(get_current_context()));
+	return reiser4_grab_space(estimate_one_insert_into_item(tree),
+				  BA_CAN_COMMIT);
+}
+
 /* ->setattr() method. This is called when inode attribute (including
  * ->i_size) is modified. */
 reiser4_internal int
@@ -934,23 +938,32 @@ setattr_common(struct inode *inode /* Object to change attributes */,
 	       struct iattr *attr /* change description */)
 {
 	int   result;
-	__u64 tograb;
 
 	assert("nikita-3119", !(attr->ia_valid & ATTR_SIZE));
+
+	result = inode_change_ok(inode, attr);
+	if (result)
+		return result;
 
 	/*
 	 * grab disk space and call standard inode_setattr().
 	 */
-
-	tograb = estimate_one_insert_into_item(tree_by_inode(inode));
-	result = reiser4_grab_space(tograb, BA_CAN_COMMIT);
+	result = setattr_reserve_common(tree_by_inode(inode));
 	if (!result) {
+		if ((attr->ia_valid & ATTR_UID && attr->ia_uid != inode->i_uid) ||
+		    (attr->ia_valid & ATTR_GID && attr->ia_gid != inode->i_gid)) {
+			result = DQUOT_TRANSFER(inode, attr) ? -EDQUOT : 0;
+			if (result) {
+				all_grabbed2free();
+				return result;
+			}
+		}
 		result = inode_setattr(inode, attr);
 		if (!result)
-			/* "capture" inode */
-			result = reiser4_mark_inode_dirty(inode);
-		all_grabbed2free();
+			reiser4_update_sd(inode);
 	}
+
+	all_grabbed2free();
 	return result;
 }
 
