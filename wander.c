@@ -13,20 +13,23 @@
  * data only once while performing the operation atomically.
 
  * For the purposes of this code, it is enough for it to understand that it
- * has been told a given block should be written once, or that it should be
- * written twice (once to the wandered location and once to the real
- * location).
+ * has been told a given block should be written either once, or twice (if
+ * twice then once to the wandered location and once to the real location).
 
  * This code guarantees that those blocks that are defined to be part of an
  * atom either all take effect or none of them take effect.
 
- * The nodes which should be written (they compose the atom's relocate set)
- * once are submitted to write by the jnode_flush() routine.  The log writer
- * processes the atom's overwrite set.  It allocates and writes "wandered"
- * blocks and maintains additional atom's on-disk structures as log records
- * (each log record occupies one block) for storing of "wandered" map (a table
- * which contains a relation between wandered and real block numbers) and
- * other information might be needed at transaction recovery time.
+ * Relocate set nodes are submitted to write by the jnode_flush() routine, and
+ * the overwrite set is submitted by reiser4_write_log().  This is because
+ * with the overwrite set we seek to optimize writes, and with the relocate
+ * set we seek to cause disk order to correlate with the parent first preorder.
+
+
+ * reiser4_write_log() allocates and writes wandered blocks and maintains
+ * additional on-disk structures of the atom as log records (each log record
+ * occupies one block) for storing of the "wandered map" (a table which
+ * contains a relation between wandered and real block numbers) and other
+ * information which might be needed at transaction recovery time.
 
  * The log records are unidirectionally linked into a circle: each log record
  * contains a block number of the next log record, the last log records points
@@ -60,7 +63,7 @@
  * 
  * 6. update journal header: change the pointer to the block number of just
  * written tx head, submit an i/o for modified journal header block and wait
- * i/o completion.
+ * for i/o completion.
 
  * NOTE: The special logging for bitmap blocks and some reiser4 super block
  * fields makes processes of atom commit, flush and recovering a bit more
@@ -70,6 +73,8 @@
  * meaning than in flush.c, it means writing block of atom's overwrite set
  * in-place, i.e. to their real locations) follows atom commit.
 
+ZAM-FIXME-HANS: use term "play" and define it too;-)
+
  * Atom flush:
  *
  * 1. Write atom's overwrite set in-place
@@ -77,7 +82,7 @@
  * 2. Wait on i/o.
  *
  * 3. Update journal footer: change the pointer to block number of tx head
- * block of the atom we currently flushing, submit an i/o, wait i/o
+ * block of the atom we currently flushing, submit an i/o, wait on i/o
  * completion.
  *
  * 4. Free disk space which was used for wandered blocks and log records.
@@ -92,10 +97,10 @@
  */
 
 /*
- * The support of the special logging of reiser4 super block fields
+ * Special logging of reiser4 super block fields.
  */
 
-/* There some reiser4 super block fields (free block count and OID allocator
+/* There are some reiser4 super block fields (free block count and OID allocator
  * state (number of files and next free OID) which are logged separately from
  * super block to avoid unnecessary atom fusion.
  *
@@ -124,23 +129,25 @@
  * collected during the transaction. These counters are stored on disk as a
  * part of tx head block when atom is committed.
  * 
- * 2. When atom is flushed the value of free block counter and OID allocator
+ * 2. When the atom is flushed the value of free block counter and OID allocator
  * state get written to the journal footer block.  A special journal procedure
  * (journal_recover_sb_data()) takes those values from the journal footer and
  * updates the reiser4 in-memory super block.
  *
- * NOTE: That means free block count and OID allocator state are logged separately
- * from the reiser4 super block regardless that reiser4 super block has fields
- * to store both free block counter and OID allocator.
+ * NOTE: That means free block count and OID allocator state are logged
+ * separately from the reiser4 super block regardless of the fact that the
+ * reiser4 super block has fields to store both the free block counter and the
+ * OID allocator.
  *
- * The reason for that for writing of reiser4 super block we need to know
- * actual values of all its fields.  For example if we have a transaction
- * which has not captured the super block we cannot re-write the super block
- * when such a transaction is committed because we do not know the actual
- * value of the tree root pointer. Knowing that requires write locking of the
- * super block and implies some dependency between atoms which we wanted to
- * avoid. So, the simplest solutions seems to be the implemented one, when the
- * data logged different ways are written in different blocks.
+ * The reason for that is that for the writing of the reiser4 super block we
+ * need to know the actual values of all of its fields.  For example if we
+ * have a transaction which has not captured the super block we cannot
+ * re-write the super block when such a transaction is committed because we do
+ * not know the actual value of the tree root pointer. Knowing that requires
+ * write locking of the super block and implies some dependency between atoms
+ * which we wanted to avoid. So, the simplest solution seems to be the
+ * implemented one, in which the data logged in different ways are written in
+ * different blocks.
  */
 
 
