@@ -411,7 +411,7 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 	if (is_bad_inode(inode)) {
 		up(&inode->i_sem);
 		iput(inode);
-		inode = ERR_PTR(RETERR(result));
+		inode = ERR_PTR(result);
 	} else if (REISER4_DEBUG) {
 		reiser4_key found_key;
 
