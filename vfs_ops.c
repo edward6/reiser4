@@ -96,11 +96,11 @@ static int reiser4_direct_IO(int, struct inode *,
 
 static struct dentry_operations reiser4_dentry_operation;
 
-static int            create_object  ( struct inode *parent, 
-				       struct dentry *dentry, 
-				       reiser4_object_create_data *data );
-static struct dentry *lookup_object  ( struct inode *parent, 
-				       struct dentry *dentry );
+static int            invoke_create_method ( struct inode *parent, 
+					     struct dentry *dentry, 
+					     reiser4_object_create_data *data );
+static struct dentry *lookup_object        ( struct inode *parent, 
+					     struct dentry *dentry );
 
 
 static int readdir_actor( reiser4_tree *tree, 
@@ -136,7 +136,7 @@ static int reiser4_create( struct inode *parent,
 	
 	data.mode = S_IFREG | mode;
 	data.id   = REGULAR_FILE_PLUGIN_ID;
-	return create_object( parent, dentry, &data );
+	return invoke_create_method( parent, dentry, &data );
 }
 
 /**
@@ -148,7 +148,7 @@ static int reiser4_mkdir( struct inode *parent, struct dentry *dentry, int mode 
 	
 	data.mode = S_IFDIR | mode;
 	data.id   = DIRECTORY_FILE_PLUGIN_ID;
-	return create_object( parent, dentry, &data );
+	return invoke_create_method( parent, dentry, &data );
 }
 
 /**
@@ -162,7 +162,7 @@ static int reiser4_symlink( struct inode *parent, struct dentry *dentry,
 	data.name = linkname;
 	data.id   = SYMLINK_FILE_PLUGIN_ID;
 	data.mode = S_IFLNK | S_IRWXUGO;
-	return create_object( parent, dentry, &data );
+	return invoke_create_method( parent, dentry, &data );
 }
 
 /**
@@ -176,7 +176,7 @@ static int reiser4_mknod( struct inode *parent, struct dentry *dentry,
 	data.mode = mode;
 	data.rdev = rdev;
 	data.id   = SPECIAL_FILE_PLUGIN_ID;
-	return create_object( parent, dentry, &data );
+	return invoke_create_method( parent, dentry, &data );
 }
 
 /**
@@ -247,7 +247,7 @@ static void reiser4_truncate( struct inode *inode )
  */
 static int reiser4_statfs( struct super_block *super, struct statfs *buf )
 {
-	reiser4_oid_allocator *oidmap;
+	reiser4_oid_allocator_t *oidmap;
 	REISER4_ENTRY( super );
 
 	assert( "nikita-408", super != NULL );
@@ -255,17 +255,24 @@ static int reiser4_statfs( struct super_block *super, struct statfs *buf )
 
 
 	buf -> f_type    = reiser4_statfs_type( super );
-        /* applications use this not to know what is the block size, but to know what is the optimal size for performing IOs, it
-         * is mis-named. So we give them what they want. */
-	buf -> f_bsize   =  OPTIMAL_REISER4_IO_SIZE;
+        /* applications use this not to know what is the block size, but to
+         * know what is the optimal size for performing IOs, it is
+         * mis-named. So we give them what they want.
+	 * 
+	 * FIXME-NIKITA why this is constant? Hans? Shouldn't it depend on
+	 * super block?
+	 *
+	 * As for applications, they use ->st_blksize field as reported by
+	 * stat(2).
+	 */
+	buf -> f_bsize   = REISER4_OPTIMAL_IO_SIZE( super, NULL );
 	buf -> f_blocks  = reiser4_data_blocks( super );
 	buf -> f_bfree   = reiser4_free_blocks( super );
-	buf -> f_bavail  = buf -> f_bfree - reiser4_reserved_blocks( super, 0, 0 );
+	buf -> f_bavail  = buf -> f_bfree - 
+		reiser4_reserved_blocks( super, 0, 0 );
 	oidmap = reiser4_get_oid_allocator( super );
-	buf -> f_files   = reiser4_objects_in_use(super);
-	buf -> f_ffree   = 
-		reiser4_maximal_oid( oidmap ) - 
-		reiser4_minimal_oid( oidmap ) - buf -> f_files;
+	buf -> f_files   = reiser4_oids_used( oidmap );
+	buf -> f_ffree   = reiser4_oids_free( oidmap );
 	/* maximal acceptable name length depends on directory plugin. */
 	buf -> f_namelen = -1;
 	REISER4_EXIT( 0 );
@@ -558,6 +565,30 @@ int reiser4_del_nlink( struct inode *object )
 		object -> i_ctime = CURRENT_TIME;
 		return fplug -> write_sd_by_inode( object );
 	}
+}
+
+/**
+ * call ->create() directory plugin method.
+ */
+static int invoke_create_method( struct inode *parent, struct dentry *dentry, 
+				 reiser4_object_create_data *data )
+{
+	int result;
+	dir_plugin *dplug;
+	REISER4_ENTRY( parent -> i_sb );
+
+	assert( "nikita-426", parent != NULL );
+	assert( "nikita-427", dentry != NULL );
+	assert( "nikita-428", data != NULL );
+
+	dplug = reiser4_get_dir_plugin( parent );
+	assert( "nikita-429", dplug != NULL );
+	if( dplug -> create_child != NULL ) {
+		result = dplug -> create_child( parent, dentry, data );
+	} else {
+		result = -EPERM;
+	}
+	REISER4_EXIT( result );
 }
 
 /**
