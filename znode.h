@@ -347,6 +347,9 @@ extern int znode_is_loaded_nolock(const znode * node);
 extern reiser4_key *znode_get_rd_key(znode * node);
 extern reiser4_key *znode_get_ld_key(znode * node);
 
+extern reiser4_key *znode_set_rd_key(znode * node, const reiser4_key * key);
+extern reiser4_key *znode_set_ld_key(znode * node, const reiser4_key * key);
+
 /* `connected' state checks */
 static inline int
 znode_is_right_connected(const znode * node)

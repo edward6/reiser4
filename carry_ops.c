@@ -1221,8 +1221,8 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 	    (znode_get_level(parent) <= REISER4_MIN_TREE_HEIGHT) && (node_num_items(parent) == 1)) {
 		/* Delimiting key manipulations. */
 		spin_lock_dk(tree);
-		*znode_get_ld_key(child) = *znode_get_ld_key(parent) = *min_key();
-		*znode_get_rd_key(child) = *znode_get_rd_key(parent) = *max_key();
+		znode_set_ld_key(child, znode_set_ld_key(parent, min_key()));
+		znode_set_rd_key(child, znode_set_rd_key(parent, max_key()));
 		spin_unlock_dk(tree);
 
 		/* @child escaped imminent death! */

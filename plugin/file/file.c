@@ -876,7 +876,7 @@ unix_file_writepage_nolock(struct page *page)
 	iplug = item_plugin_by_id(EXTENT_POINTER_ID);
 	result = iplug->s.file.writepage(&coord, &lh, page);
 	assert("vs-982", PageLocked(page));
-	assert("", result != -EAGAIN);
+	assert("vs-429378", result != -EAGAIN);
 	done_lh(&lh);
 	return result;
 }

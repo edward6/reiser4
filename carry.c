@@ -799,7 +799,7 @@ sync_dkeys(carry_node * node /* node to update */ ,
 	else
 		leftmost_key_in_node(spot, &pivot);
 
-	*znode_get_ld_key(spot) = pivot;
+	znode_set_ld_key(spot, &pivot);
 
 	/* there can be sequence of empty nodes pending removal on the left of
 	   @spot. Scan them and update their left and right delimiting keys to
@@ -818,9 +818,9 @@ sync_dkeys(carry_node * node /* node to update */ ,
 		       ergo(!znode_is_write_locked(spot), 
 			    keyge(&pivot, znode_get_rd_key(spot))));
 
-		*znode_get_rd_key(spot) = pivot;
+		znode_set_rd_key(spot, &pivot);
 		if (ZF_ISSET(spot, JNODE_HEARD_BANSHEE))
-			*znode_get_ld_key(spot) = pivot;
+			znode_set_ld_key(spot, &pivot);
 		else
 			break;
 	}
@@ -1246,7 +1246,8 @@ add_new_znode(znode * brother	/* existing left neighbor of new
 	add_pointer->u.insert.brother = brother;
 	/* initially new node spawns empty key range */
 	spin_lock_dk(znode_get_tree(brother));
-	*znode_get_ld_key(new_znode) = *znode_get_rd_key(new_znode) = *znode_get_rd_key(brother);
+	znode_set_ld_key(new_znode, 
+			 znode_set_rd_key(new_znode, znode_get_rd_key(brother)));
 	spin_unlock_dk(znode_get_tree(brother));
 	return fresh;
 }

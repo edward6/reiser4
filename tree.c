@@ -1067,7 +1067,8 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 
 	/* update right delimiting key of left_child */
 
-	UNDER_SPIN_VOID(dk, znode_get_tree(left_child), *znode_get_rd_key(left_child) = key);
+	UNDER_SPIN_VOID(dk, znode_get_tree(left_child), 
+			znode_set_rd_key(left_child, &key));
 
 	zput(left_child);
 	if (left_zloaded_here)

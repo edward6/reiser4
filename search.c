@@ -1375,11 +1375,15 @@ hput(cbk_handle * h /* search handle */ )
 static void
 setup_delimiting_keys(cbk_handle * h /* search handle */ )
 {
+	znode *active;
+
 	assert("nikita-1088", h != NULL);
-	spin_lock_dk(znode_get_tree(h->active_lh->node));
-	*znode_get_ld_key(h->active_lh->node) = h->ld_key;
-	*znode_get_rd_key(h->active_lh->node) = h->rd_key;
-	spin_unlock_dk(znode_get_tree(h->active_lh->node));
+
+	active = h->active_lh->node;
+	spin_lock_dk(znode_get_tree(active));
+	znode_set_ld_key(active, &h->ld_key);
+	znode_set_rd_key(active, &h->rd_key);
+	spin_unlock_dk(znode_get_tree(active));
 }
 
 static int

@@ -157,8 +157,8 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 				   @old_root. */
 				assert("nikita-1110", WITH_DATA(new_root, node_is_empty(new_root)));
 				spin_lock_dk(tree);
-				*znode_get_ld_key(new_root) = *min_key();
-				*znode_get_rd_key(new_root) = *max_key();
+				znode_set_ld_key(new_root, min_key());
+				znode_set_rd_key(new_root, max_key());
 				spin_unlock_dk(tree);
 				sibling_list_insert(new_root, NULL);
 				result = add_child_ptr(new_root, old_root);

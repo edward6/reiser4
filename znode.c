@@ -717,6 +717,26 @@ znode_get_ld_key(znode * node /* znode to query */ )
 	return &node->ld_key;
 }
 
+reiser4_key *znode_set_rd_key(znode * node, const reiser4_key * key)
+{
+	assert("nikita-2937", node != NULL);
+	assert("nikita-2939", key != NULL);
+	assert("nikita-2938", spin_dk_is_locked(znode_get_tree(node)));
+	assert("nikita-2944", znode_is_any_locked(node) || keyge(key, znode_get_rd_key(node)) || keyeq(znode_get_rd_key(node), min_key()));
+	node->rd_key = *key;
+	return &node->rd_key;
+}
+
+reiser4_key *znode_set_ld_key(znode * node, const reiser4_key * key)
+{
+	assert("nikita-2940", node != NULL);
+	assert("nikita-2941", key != NULL);
+	assert("nikita-2942", spin_dk_is_locked(znode_get_tree(node)));
+	assert("nikita-2943", znode_is_any_locked(node) || keyeq(znode_get_ld_key(node), min_key()));
+	node->ld_key = *key;
+	return &node->ld_key;
+}
+
 /* true if @key is inside key range for @node */
 /* Audited by: umka (2002.06.11) */
 int
