@@ -1614,7 +1614,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 
 			/* adjust coordinates so that they are set to existing units */
 			if (coord_set_to_right(&left_coord) || coord_set_to_left(tap->coord)) {
-				result = RETERR(-EIO);
+				result = 0;
 				break;
 			}
 
