@@ -442,7 +442,7 @@ typedef struct compression_plugin {
 	plugin_header h;
 	/* the maximum number of bytes the size of the "compressed" data can
 	 * exceed the uncompressed data. */
-	unsigned overrun;
+	int (*overrun) (unsigned src_len);
 	int (*alloc) (tfm_info_t * ctx, tfm_action act);
 	void (*free) (tfm_info_t * ctx, tfm_action act);
 	/* main text processing procedures */
@@ -669,6 +669,7 @@ typedef enum {
 	NONE_COMPRESSION_ID,
 	NULL_COMPRESSION_ID,
 	LZRW1_COMPRESSION_ID,
+	LZO1_COMPRESSION_ID,
 	GZIP1_COMPRESSION_ID,
 	LAST_COMPRESSION_ID
 } reiser4_compression_id;

@@ -4,6 +4,7 @@
 #include "debug.h"
 #include "plugin/plugin.h"
 #include "plugin/cryptcompress.h"
+#include "minilzo.h"
 
 #include <linux/config.h>
 #include <linux/zlib.h>
@@ -166,6 +167,12 @@ LOCAL void __lzrw1_decompress(p_src_first,src_len,p_dst_first,p_dst_len)
 /*                          End of LZRW1.C                                    */
 /******************************************************************************/
 
+static int
+lzrw1_overrun(unsigned src_len UNUSED_ARG)
+{
+	return 256;
+}
+
 static void 
 lzrw1_compress(tfm_info_t ctx, __u8 *src_first, unsigned src_len, __u8 *dst_first, unsigned *dst_len)
 {
@@ -193,6 +200,12 @@ lzrw1_decompress(tfm_info_t ctx, __u8 *src_first, unsigned src_len, __u8 *dst_fi
 #define GZIP1_DEF_LEVEL		        Z_BEST_SPEED
 #define GZIP1_DEF_WINBITS		15
 #define GZIP1_DEF_MEMLEVEL		MAX_MEM_LEVEL
+
+static int
+gzip6_overrun(unsigned src_len UNUSED_ARG)
+{
+	return 0;
+}
 
 static int 
 gzip1_alloc (tfm_info_t * ctx, tfm_action act)
@@ -364,6 +377,71 @@ gzip1_decompress(tfm_info_t ctx, __u8 *src_first, unsigned src_len, __u8 *dst_fi
 	return;
 }
 
+/******************************************************************************/
+/*                            none compression                                */
+/******************************************************************************/
+
+static int
+none_overrun(unsigned src_len UNUSED_ARG)
+{
+	return 0;
+}
+
+/******************************************************************************/
+/*                                 lzo1                                       */
+/******************************************************************************/
+
+static int
+lzo1_overrun(unsigned in_len)
+{
+	return in_len / 64 + 16 + 3;
+}
+
+#define HEAP_ALLOC(var,size) \
+	lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t) ]
+
+static void
+lzo1_compress(tfm_info_t ctx, __u8 *src_first, unsigned src_len, __u8 *dst_first, unsigned *dst_len)
+{
+	int result;
+	HEAP_ALLOC(wrkmem,LZO1X_1_MEM_COMPRESS);
+	
+	assert("edward-846", ctx == NULL);
+	assert("edward-847", src_len != 0);
+	
+	result = lzo_init();
+	
+	if (result != LZO_E_OK) {
+		warning("edward-848", "lzo_init() failed\n");
+		goto out;
+	}
+	result = lzo1x_1_compress(src_first, src_len, dst_first, dst_len, wrkmem);
+	if (result != LZO_E_OK) {
+		warning("edward-849", "lzo1x_1_compress failed\n");
+		goto out;
+	}
+	if (*dst_len >= src_len)
+		warning("edward-850", "lzo1x_1_compress: incompressible data\n");
+	return;
+ out:
+	*dst_len = src_len;
+	return;
+}
+
+static void
+lzo1_decompress(tfm_info_t ctx, __u8 *src_first, unsigned src_len, __u8 *dst_first, unsigned *dst_len)
+{
+	int result;
+	
+	assert("edward-851", ctx == NULL);
+	assert("edward-852", src_len != 0);
+	
+	result = lzo1x_decompress(src_first, src_len, dst_first, dst_len, NULL);
+	if (result != LZO_E_OK) 
+		warning("edward-853", "lzo1x_1_decompress failed\n");
+	return;
+}
+
 compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 	[NONE_COMPRESSION_ID] = {
 		.h = {
@@ -374,7 +452,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 			.desc = "absence of any compression transform",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.overrun = 0,
+		.overrun = none_overrun,
 		.alloc = NULL,
 		.free = NULL,
 	        .compress = NULL,
@@ -389,7 +467,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 			.desc = "fast copy",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.overrun = 0,
+		.overrun = none_overrun,
 		.alloc = NULL,
 		.free = NULL,
 	        .compress = null_compress,
@@ -404,11 +482,26 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 			.desc = "lzrw1 compression transform",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.overrun = 256,
+		.overrun = lzrw1_overrun,
 		.alloc = NULL,
 		.free = NULL,
 	        .compress = lzrw1_compress,
 	        .decompress = lzrw1_decompress
+	},
+	[LZO1_COMPRESSION_ID] = {
+		.h = {
+			.type_id = REISER4_COMPRESSION_PLUGIN_TYPE,
+			.id = LZO1_COMPRESSION_ID,
+			.pops = NULL,
+			.label = "lzo1",
+			.desc = "lzo1 compression transform",
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+		},
+		.overrun = lzo1_overrun,
+		.alloc = NULL,
+		.free = NULL,
+	        .compress = lzo1_compress,
+	        .decompress = lzo1_decompress
 	},
 	[GZIP1_COMPRESSION_ID] = {
 		.h = {
@@ -419,7 +512,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 			.desc = "gzip1 compression transform",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.overrun = 0,
+		.overrun = gzip6_overrun,
 		.alloc = gzip1_alloc,
 		.free = gzip1_free,
 	        .compress = gzip1_compress,
