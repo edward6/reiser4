@@ -124,36 +124,19 @@ errno_t reiser4_format_valid(
 }
 
 /* Marks format area as used */
-errno_t reiser4_format_mark(
+void reiser4_format_mark(
     reiser4_format_t *format,	    /* format function works with */
     reiser4_alloc_t *alloc	    /* block allocator */
 ) {
     blk_t blk;
-    blk_t master_offset;
-    blk_t format_offset;
     
-    aal_assert("umka-974", format != NULL, return -1);
-    aal_assert("umka-975", alloc != NULL, return -1);
+    aal_assert("umka-974", format != NULL, return);
+    aal_assert("umka-975", alloc != NULL, return);
     
-    /* Getting master super block offset */
-    master_offset = (blk_t)(REISER4_MASTER_OFFSET / 
-	aal_device_get_bs(format->device));
-    
-    /* Getting format-specific super block offset */
-    format_offset = reiser4_format_offset(format);
-
-    if (format_offset < master_offset) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Invalid format offset has been detected. Master "
-	    "super offset: %llu, format specific super %llu.",
-	    master_offset, format_offset);
-	return -1;
+    for (blk = 0; blk < aal_device_len(format->device); blk++) {
+	if (!reiser4_format_data_block(format, blk))
+	    reiser4_alloc_mark(alloc, blk); 
     }
-    
-    for (blk = 0; blk <= format_offset; blk++)
-	reiser4_alloc_mark(alloc, blk);
-
-    return 0;
 }
 
 /* Marks journal area as used */
@@ -355,3 +338,30 @@ reiser4_id_t reiser4_format_oid_pid(
 	oid_pid, format->entity);
 }
 
+/* Checks if the block blk_n belongs to the allocator area. */
+int reiser4_format_alloc_block(
+    reiser4_format_t *format,	/* disk-format which defines the block lauout */ 
+    blk_t blk			/* block number to be checked. */
+) {
+    aal_assert("vpf-177", format != NULL, return -1);
+	
+    return libreiser4_plugin_call(return -1, format->plugin->format_ops, 
+	alloc_block, format->entity, blk);
+
+}
+
+/* Checks if the block blk_n does not belong to the format area. */
+int reiser4_format_data_block(
+    reiser4_format_t *format,	/* disk-format which defines the block layout */ 
+    blk_t blk			/* block number to be checked. */
+) {
+    aal_assert("vpf-176", format != NULL, return -1);
+    aal_assert("vpf-176", format->device != NULL, return -1);
+    aal_assert("vpf-176", format->plugin != NULL, return -1);
+
+    if (aal_device_len(format->device) <= blk)
+	return 0;
+    
+    return libreiser4_plugin_call(return -1, format->plugin->format_ops, 
+	data_block, format->entity, blk);
+}
