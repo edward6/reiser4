@@ -71,6 +71,11 @@
 /** provide our own memcpy/memmove to profile shifts */
 #define REISER4_DEBUG_MEMCPY (0)
 
+#ifndef REISER4_DEBUG_NODE
+/** check node content integrity */
+#define REISER4_DEBUG_NODE   (0)
+#endif
+
 /** if this is non-zero, clear content of new node, otherwise leave
     whatever may happen to be here */
 #ifndef REISER4_ZERO_NEW_NODE

@@ -265,7 +265,7 @@ extern void print_node_content( const char *prefix,
 extern void indent( unsigned indentation );
 extern void indent_znode( const znode *node );
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_NODE
 extern void node_check( const znode *node, __u32 flags );
 #else
 #define node_check( n, f )noop

@@ -197,7 +197,7 @@ void print_node_content( const char *prefix /* output prefix */,
 	info( "\n" );
 }
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_NODE
 /** debugging aid: check consistency of @node content */
 void node_check( const znode *node /* node to check */, 
 		 __u32 flags /* check flags */ )
