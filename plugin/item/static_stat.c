@@ -968,6 +968,7 @@ static int keyid_sd_save(struct inode *inode, char **area)
 	assert("edward-13", area != NULL);
 	assert("edward-14", *area != NULL);
 
+	sd = (reiser4_keyid_stat *) *area;
 	if (!inode_get_flag(inode, REISER4_KEYID_LOADED)) {
 		/* file is just created, so update info->keyid which contains
 		 a pointer to the temporary data */ 
@@ -975,7 +976,7 @@ static int keyid_sd_save(struct inode *inode, char **area)
 
 		assert("edward-15", word != NULL);
 		
-		sd = (reiser4_keyid_stat *) *area;
+		/*sd = (reiser4_keyid_stat *) *area;*/
 		info->keyid = NULL;
 		result = keyid_to_inode(inode, word);
 		/* copy the word to stat-data */
@@ -996,7 +997,7 @@ keyid_sd_print(const char *prefix, char **area /* position in stat-data */ ,
 	reiser4_keyid_stat *sd = (reiser4_keyid_stat *) * area;
 
 	/* FIXME-EDWARD: printed simbols can be not readable */
- 	info("%s: \"%s\"\n", prefix, sd->keyid);
+ 	info("%s: \"%llx\"\n", prefix, *(__u64 *)(sd->keyid));
 	next_stat(len, area, sizeof *sd);
 }
 #endif
@@ -1125,7 +1126,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				.save_len = keyid_sd_save_len,
 				.save = keyid_sd_save,
 #if REISER4_DEBUG_OUTPUT
-				.print = NULL,
+				.print = keyid_sd_print,
 #endif
 				.alignment = 8
 	}
