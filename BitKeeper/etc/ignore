@@ -1307,3 +1307,4 @@ vfs_ops.c.orig
 plugin/.cryptcompress.o.cmd
 spin_macros_template.h
 plugin/pseudo/.pseudo.o.cmd
+.latch.o.cmd
