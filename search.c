@@ -498,7 +498,9 @@ restart:
 		case LOOKUP_REST:
 			reiser4_stat_inc(tree.cbk_restart);
 			hput(h);
-			++iterations;
+			/* deadlock avoidance is normal case. */
+			if (h->result != -EDEADLK)
+				++iterations;
 			preempt_point();
 			goto restart;
 		}
