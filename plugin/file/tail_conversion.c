@@ -155,8 +155,6 @@ replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 
 	assert("vs-596", nr_pages > 0 && pages[0]);
 
-	info("tail2extent: %lu: reserved in replace: %llu\n", inode->i_ino, get_current_context()->grabbed_blocks);
-
 	/* cut copied items */
 	result = cut_tail_items(inode, (loff_t) pages[0]->index << PAGE_CACHE_SHIFT, count);
 	if (result)
@@ -247,7 +245,6 @@ tail2extent(struct inode *inode)
 	result = reserve_tail2extent(inode, &first, &last);
 	if (result)
 		return result;
-	info("tail2extent: %lu: reserved: %llu\n", inode->i_ino, get_current_context()->grabbed_blocks);
 
 	xmemset(pages, 0, sizeof (pages));
 
