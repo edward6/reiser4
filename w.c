@@ -1,5 +1,7 @@
 /* temporary file for transaction writer code */
 
+#include "reiser4.h"
+
 /* each log record (one reiser4 block in size) has unified format with log
  * record header followed by an array of wandered pairs */
 
@@ -7,17 +9,21 @@ struct log_record_header {
 	d64      id;		/* transaction sequential number */
 	d32      total;		/* total number of log records in current
 				 * transaction  */
-	d32      serial;	/* number of blocks in  */
-} __attribute__ ((__packed__));
+	d32      serial;	/* this block number in transaction */
+};
 
+/* rest of log record is filled by these wandered pairs, unused space filled
+ * by zeroes */
 struct wandered_pair {
 	d64      oririnal;	/* block original location */
 	d64      wandered;	/* block wandered location */
-} __attribute__ ((_packed__));
+};
 
+/* journal header uses dedicated device block for storing id of last
+ * completely flushed transaction */
 struct journal_header {
 	d64      last_flushed_id;
-} __attribute__ ((__packed__));
+};
 
 /* log record capacity depends on current block size */
 static int log_record_capacity (struct super_block * super)
@@ -81,20 +87,36 @@ static int count_wmap_size_actor (txn_atom * atom,
 	return 0;
 }
 
-static int estimate_space (void)
+/* currently, log records contains contain only wandered map, and transaction
+ * size in log blocks depends only on size of transaction wandered map */
+static int get_tx_size (struct super_block * super)
 {
 	txn_atom * atom;
 	int wmap_size = 0;
+	int tx_size;
 
 	atom = get_current_atom_locked();
 
+	/* FIXME: this is a bit expensive */
 	blocknr_set_iterator(atom, &atom->wandered_map, count_wmap_actor, &wmap_size, 0);
 
 	spin_unlock_atom(atom);
 
-	return wmap_size + 1;	/* + 1 for final commit record */
+	/* FIXME: seems overwrite set can't be null */
+	assert ("zam-440", wmap_size != 0);
+
+	tx_size = (wmap_size - 1) / get_log_record_capacity (super) + 1;
+
+	return tx_size;
 }
 
+
+/* allocate given number of nodes over the journal area and link them into a
+ * list, return pinter to the first jnode in the list */
+static int alloc_tx (capture_list_head * head, struct super_block * super, int nr)
+{
+	
+}
 
 static int store_wmap_actor (txn_atom * atom,
 			     reiser4_block_nr * a,
@@ -106,26 +128,33 @@ static int store_wmap_actor (txn_atom * atom,
 	return 0;
 }
 
+static void fill_tx (capture_list_head * tx_list,struct super_block * super)
+
+{
+	atom = get_current_atom_locked ();
+	blocknr_set_iterator (atom, &atom->wandered_map, store_wmap_actor, tx_list /* ??? */, 0);
+	spin_unlock_atom (atom);
+}
+
 /* I assume that at this moment that all captured blocks from RELOCATE SET are
  * written to disk to new locations, all blocks from OVERWRITE SET are written
  * to wandered location, WANDERED MAP is created, DELETED SET exists. */
 
-int commit (txn_atom * atom)
+int commit_tx (void)
 {
-	int space_needed;
+	capture_list_head tx_list;
 
-	reiser4_context * cx = get_current_context();
+	int               tx_size;
+	int               ret;
 
-	jnode * cur = NULL;
-	txn_atom * atom;
-	txn_handle * txnh; 
+	struct super_block * super = reiser4_get_current_sb();
 
 	/* This atom should be in COMMIT state which prevents any attempt to
 	 * fuse with him. So, we can safely spin unlock the atom. ?  */
 
-	space_needed = estimate_space (super);
+	tx_size = get_tx_size (super);
 
-	while (space_needed > space_available (super)) { 
+	while (tx_size > space_available (super)) { 
 
 		force_write_back_completion ();
 
@@ -136,16 +165,20 @@ int commit (txn_atom * atom)
 	/* allocate all space in journal area that we need, connect jnode into
 	 * a list using capture link fields */
 
-	for (;;);
+	capure_list_init (&tx_list);
+
+	ret = alloc_tx (&tx_list, super, tx_size);
+
+	if (ret) return ret;
 
 	/* format log blocks from WANDERED MAP & DELETE SET, allocate blocks
 	 * over journal area if it is needed. */
 
-	atom = get_current_atom_locked ();
+	fill_tx (&tx_list, super);
 
-	blocknr_set_iterator (atom, &atom->wandered_map, store_wmap_actor, &cur_jnode, 0);
+	ret = write_tx (super, &tx_list);
 
-	spin_unlock_atom (atom);
+	return ret;
 }
 
 /*
