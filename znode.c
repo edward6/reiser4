@@ -648,7 +648,7 @@ zload_ra(znode * node /* znode to load */, ra_info_t *info)
 
 	if (info && znode_just_created(node)) {
 		/* only handle readahead flags if node content is not available immediately */
-		if (info->flags & RA_READDIR)
+		if (info->type == RA_READDIR)
 			readdir_readahead(node, info);
 	}
 
