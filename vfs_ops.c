@@ -33,6 +33,7 @@
 #include "prof.h"
 #include "repacker.h"
 #include "init_super.h"
+#include "reiser4_status_flags.h"
 
 #include <linux/profile.h>
 #include <linux/types.h>
@@ -1421,6 +1422,7 @@ void reiser4_handle_error(void)
 
 	if ( !sb )
 		return;
+	reiser4_status_write(REISER4_STATUS_DAMAGED, 0, "Filesystem error occured");
 	switch ( get_super_private(sb)->onerror ) {
 	case 0:
 		reiser4_panic("", "Filesystem error occured\n");
