@@ -1273,7 +1273,7 @@ int extent_utmost_child ( const coord_t *coord, sideof side, jnode **childp )
 
 		extent_get_inode_and_key (coord, & inode, & key);
 
-		if ( !inode || IS_ERR(inode) )  {
+		if ( !inode )  {
 			assert ("jmacd-1231", state_of_extent (ext) != UNALLOCATED_EXTENT);
 			*childp = NULL;
 			return 0;
