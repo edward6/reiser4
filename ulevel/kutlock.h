@@ -89,6 +89,7 @@ static inline int atomic_dec_and_lock(atomic_t *atomic, spinlock_t *lock)
 
 #elif defined (KUT_LOCK_ERRORCHECK)
 
+#if 0
 #define spinlock_t realspinlock_t
 #define spin_lock realspin_lock
 #define spin_unlock realspin_unlock
@@ -100,22 +101,29 @@ static inline int atomic_dec_and_lock(atomic_t *atomic, spinlock_t *lock)
 #undef spin_unlock
 #undef spin_trylock
 #undef spin_is_locked
+#endif
+
+#define realspin_lock pthread_mutex_lock
+#define realspin_unlock pthread_mutex_unlock
 
 #include <pthread.h>
 
 typedef struct
 {
-	realspinlock_t   _real;
-	realspinlock_t   _guard;
+	pthread_mutex_t  _real;
+	pthread_mutex_t  _guard;
 	int              _locked;
 	pthread_t        _tid;
 } spinlock_t;
 
+#undef SPIN_LOCK_UNLOCKED
+#define SPIN_LOCK_UNLOCKED (spinlock_t) { ._real = PTHREAD_MUTEX_INITIALIZER, ._guard = PTHREAD_MUTEX_INITIALIZER, ._locked = 0, ._tid = 0 }
+
 static __inline__ void
 spin_lock_init (spinlock_t *s)
 {
-	s->_real.lock = 1;
-	s->_guard.lock = 1;
+	pthread_mutex_init (& s->_real, NULL);
+	pthread_mutex_init (& s->_guard, NULL);
 	s->_locked = 0;
 	s->_tid    = 0;
 }
@@ -125,21 +133,21 @@ spin_lock (spinlock_t *s)
 {
 	pthread_t me = pthread_self ();
 
-	realspin_lock (& s->_guard);
+	pthread_mutex_lock (& s->_guard);
 	if (s->_locked && s->_tid == me) {
 		SPINLOCK_BUG ("recursive spinlock attempted");
 	}
-	realspin_unlock (& s->_guard);
+	pthread_mutex_unlock (& s->_guard);
 
-	realspin_lock (& s->_real);
+	pthread_mutex_lock (& s->_real);
 
-	realspin_lock (& s->_guard);
+	pthread_mutex_lock (& s->_guard);
 	if (s->_locked) {
 		SPINLOCK_BUG ("spinlock was locked by someone else");
 	}
 	s->_locked = 1;
 	s->_tid    = me;
-	realspin_unlock (& s->_guard);
+	pthread_mutex_unlock (& s->_guard);
 }
 
 static __inline__ void
@@ -147,7 +155,7 @@ spin_unlock (spinlock_t *s)
 {
 	pthread_t me = pthread_self ();
 
-	realspin_lock (& s->_guard);
+	pthread_mutex_lock (& s->_guard);
 	if (! s->_locked) {
 		SPINLOCK_BUG ("spinlock not locked");
 	}
@@ -156,8 +164,8 @@ spin_unlock (spinlock_t *s)
 	}
 	s->_locked = 0;
 	s->_tid    = 0;
-	realspin_unlock (& s->_real);
-	realspin_unlock (& s->_guard);
+	pthread_mutex_unlock (& s->_real);
+	pthread_mutex_unlock (& s->_guard);
 }
 
 static __inline__ int
@@ -167,9 +175,9 @@ spin_trylock (spinlock_t *s)
 	int   got_it;
 
 	me     = pthread_self ();
-	got_it = realspin_trylock (& s->_real);
+	got_it = (pthread_mutex_trylock (& s->_real) == 0);
 
-	realspin_lock (& s->_guard);
+	pthread_mutex_lock (& s->_guard);
 	if (got_it && s->_locked) {
 		SPINLOCK_BUG ("spinlock was locked by someone else");
 	}
@@ -182,7 +190,7 @@ spin_trylock (spinlock_t *s)
 		s->_locked = 1;
 		s->_tid = me;
 	}
-	realspin_unlock (& s->_guard);
+	pthread_mutex_unlock (& s->_guard);
 	return got_it;
 }
 
@@ -194,12 +202,12 @@ spin_is_locked (const spinlock_t *s)
 	pthread_t me = pthread_self ();
 	int ret;
 
-	realspin_lock (& s->_guard);
+	pthread_mutex_lock (& ((spinlock_t * ) s)->_guard);
 	if (s->_locked && s->_tid != me) {
 		SPINLOCK_BUG ("invalid spinlock assertion");
 	}
 	ret = s->_locked;
-	realspin_unlock (& s->_guard);
+	pthread_mutex_unlock (& ((spinlock_t * ) s)->_guard);
 	return ret;
 }
 
@@ -211,7 +219,7 @@ spin_is_not_locked (spinlock_t *s)
 	pthread_t me = pthread_self ();
 	int ret;
 
-	realspin_lock (& s->_guard);
+	pthread_mutex_lock (& s->_guard);
 	if (s->_locked && s->_tid == me) {
 		/* false if this thread holds the lock */
 		SPINLOCK_BUG ("invalid spinlock assertion");
@@ -219,7 +227,7 @@ spin_is_not_locked (spinlock_t *s)
 		/* true otherwise, even if someone else holds the lock */
 		ret = 1;
 	}
-	realspin_unlock (& s->_guard);
+	pthread_mutex_unlock (& s->_guard);
 	return ret;
 }
 
