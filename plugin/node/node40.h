@@ -11,8 +11,6 @@
 
 #include <linux/types.h>
 
-typedef d16 node40_offset;
-
 /*
     flushstamp is made of mk_id and write_counter. mk_id is an id generated 
     randomly at mkreiserfs time. So we can just skip all nodes with different 
@@ -21,8 +19,8 @@ typedef d16 node40_offset;
  */
 
 typedef struct flush_stamp {
-    d32 mk_fs_id;
-    d64 flush_time;
+	d32 mk_fs_id;
+	d64 flush_time;
 } flush_stamp_t;
 
 /** format of node header for 40 node layouts. Keep bloat out of this struct.  */
@@ -32,22 +30,23 @@ typedef struct node40_header {
 	 * of a node.
 	 */
 	common_node_header common_header;
+	/** 
+	 * number of items. Should be first element in the node header,
+	 * because we haven't yet finally decided whether it shouldn't go into
+	 * common_header.
+	 */
+	d16            nr_items;
 	/** free space in node measured in bytes */
 	/* it might make some of the code simpler to store this just
 	   before the last item header, but then free_space finding
 	   code would be more complex.... A thought.... */
-	node40_offset    free_space; /**/
+	d16            free_space; /**/
 	/** offset to start of free space in node */
-	node40_offset    free_space_start;
-	/** 1 is leaf level, 2 is twig level, root is the numerically largest
-	 * level */
-	d8	       level;
+	d16            free_space_start;
 	/** magic field we need to tell formatted nodes */
   	d32	       magic;
 	/** node flags to be used by fsck (reiser4ck or reiser4fsck?)
 	    and repacker */
-/* commented out because it was uncommented */
-/* 	char           flags; */
 	/** for reiser4_fsck.  When information about what is a free
 	    block is corrupted, and we try to recover everything even
 	    if marked as freed, then old versions of data may
@@ -56,6 +55,9 @@ typedef struct node40_header {
 	    delete the wrong files and send us desperate emails
 	    offering $25 for them back.  */
 	flush_stamp_t flush;
+	/** 1 is leaf level, 2 is twig level, root is the numerically largest
+	 * level */
+	d8	       level;
 } node40_header;
 
 /* item headers are not standard across all node layouts, pass
@@ -64,9 +66,9 @@ typedef struct item_header40 {
 	/** key of item */
 /* this will get compressed to a few bytes on average in 4.1, so don't get too excited about how it doesn't hurt much to
  * add more bytes to item headers.  Probably you'll want your code to work for the 4.1 format also.... -Hans */
-	/*  0 */ reiser4_key  key;
+	/*  0 */ reiser4_key     key;
 	/** offset from start of a node measured in 8-byte chunks */
-	/* 24 */ node40_offset  offset;
+	/* 24 */ d16             offset;
 	/* 26 */ d16             length;
 	/* 28 */ d16             plugin_id;
 } item_header40;
