@@ -348,14 +348,6 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	flush_scan_done (& left_scan);
 	flush_scan_done (& right_scan);
 
-	/*
-	 * flush is lengthy procedure. Give other threads chance to run. Also,
-	 * if signal was caught, return -EINTR.
-	 */
-	if (ret == 0 && (jiffies % 10) < 2 /*preempt_point ()*/) {
-		trace_on (TRACE_FLUSH, "flush returns -EINTR\n");
-		ret = -EINTR;
-	}
  clean_out:
 	if (FLUSH_SERIALIZE) {
 		up (& flush_semaphore);

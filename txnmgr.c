@@ -877,7 +877,16 @@ commit_txnh (txn_handle *txnh)
 	spin_unlock_txnh (txnh);
 	atom_dec_and_unlock (atom);
 
-	return ret;
+	/* Note: We are ignoring the failure code.  Can't change the result of the caller.
+	 * E.g., in write():
+	 *
+	 *   result = 512;
+	 *   REISER4_EXIT (result);
+	 *
+	 * It cannot "forget" that 512 bytes were written, even if commit fails.  This
+	 * means force_txn_commit will retry forever.  Is there a better solution?
+	 */
+	return 0;
 }
 
 #if REISER4_USER_LEVEL_SIMULATION
