@@ -125,7 +125,7 @@ typedef struct reiser4_inode_object {
 } reiser4_inode_object;
 
 #define spin_ordering_pred_inode(inode)   (1)
-SPIN_LOCK_FUNCTIONS(inode, struct inode, i_mapping->private_lock);
+SPIN_LOCK_FUNCTIONS(inode, struct inode, i_data.private_lock);
 
 extern oid_t get_inode_oid(const struct inode *inode);
 extern void set_inode_oid(struct inode *inode, oid_t oid);
