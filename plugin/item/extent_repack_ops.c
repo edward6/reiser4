@@ -51,6 +51,21 @@ static jnode * get_jnode_by_mapping (struct inode * inode, long index)
 	return node;
 }
 
+static int mark_jnode_for_repacking (jnode * node)
+{
+	int ret = 0;
+
+	LOCK_JNODE(node);
+	ret = try_capture(node, ZNODE_WRITE_LOCK, 0, 0/* no can_coc */);
+	if (ret)
+		goto out;
+	jnode_make_dirty_locked(node);
+ out:
+	UNLOCK_JNODE(node);
+	JF_SET(node, JNODE_REPACK);
+	return ret;
+}
+
 /*
    Mark jnodes of given extent for repacking.
    @tap : lock, coord and load status for the tree traversal position,
@@ -106,15 +121,9 @@ int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 					if (ret)
 						break;
 				}
-
-				/* Add to the transaction */
-				ret = try_capture(node, ZNODE_WRITE_LOCK, 0, 0/* no can_coc */);
+				ret = mark_jnode_for_repacking(node);
 				if (ret)
 					break;
-
-				jnode_make_dirty_locked(node);
-				JF_SET(node, JNODE_REPACK);
-
 				nr_marked ++;
 			} while (0);
 		}
@@ -354,10 +363,9 @@ static int find_relocatable_extent (struct inode * inode, coord_t * coord,
 			goto out;
 		}
 		/* add node to transaction. */
-		ret = try_capture(check, ZNODE_WRITE_LOCK, 0, 0/* no can_coc */);
+		ret = mark_jnode_for_repacking(check);
 		if (ret)
-			goto out;
-		UNDER_SPIN_VOID(jnode, check, jnode_make_dirty_locked(check));
+			goto out;		;
 		jput(check);
 
 		(*len) ++;
