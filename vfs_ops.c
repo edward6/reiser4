@@ -170,29 +170,31 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to look fo
 	/* find @parent directory plugin and make sure that it has lookup
 	   method */
 	dplug = inode_dir_plugin(parent);
-	if (dplug == NULL || !dplug->lookup) {
-		REISER4_EXIT_PTR(ERR_PTR(-ENOTDIR));
-	}
+	if (dplug != NULL && dplug->lookup != NULL) {
+		/* call its lookup method */
+		retval = dplug->lookup(parent, dentry);
+		if (retval == 0) {
+			struct inode *obj;
+			file_plugin *fplug;
 
-	/* call its lookup method */
-	retval = dplug->lookup(parent, dentry);
-	if (retval == 0) {
-		struct inode *obj;
-		file_plugin *fplug;
+			obj = dentry->d_inode;
+			assert("nikita-2645", obj != NULL);
+			fplug = inode_file_plugin(obj);
+			retval = fplug->bind(obj, parent);
+		} else if (retval == -ENOENT) {
+			/* object not found */
+			d_add(dentry, NULL);
+			retval = 0;
+		}
 
-		obj = dentry->d_inode;
-		assert("nikita-2645", obj != NULL);
-		fplug = inode_file_plugin(obj);
-		retval = fplug->bind(obj, parent);
-	} else if (retval == -ENOENT)
-		/* object not found */
-		d_add(dentry, NULL);
+		if (retval == 0)
+			/* success */
+			result = NULL;
+		else
+			result = ERR_PTR(retval);
+	} else
+		result = ERR_PTR(-ENOTDIR);
 
-	if ((retval == 0) || (retval == -ENOENT))
-		/* success */
-		result = NULL;
-	else
-		result = ERR_PTR(retval);
 	REISER4_EXIT_PTR(result);
 }
 
@@ -225,6 +227,8 @@ reiser4_mkdir(struct inode *parent	/* inode of parent
 {
 	reiser4_object_create_data data;
 
+	reiser4_stat_inc_at(parent->i_sb, vfs_calls.mkdir);
+
 	data.mode = S_IFDIR | mode;
 	data.id = DIRECTORY_FILE_PLUGIN_ID;
 	return invoke_create_method(parent, dentry, &data);
@@ -242,7 +246,7 @@ reiser4_symlink(struct inode *parent	/* inode of parent
 {
 	reiser4_object_create_data data;
 
-	reiser4_stat_inc_at(parent->i_sb, vfs_calls.mkdir);
+	reiser4_stat_inc_at(parent->i_sb, vfs_calls.symlink);
 
 	data.name = linkname;
 	data.id = SYMLINK_FILE_PLUGIN_ID;
