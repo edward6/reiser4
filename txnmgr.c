@@ -412,7 +412,8 @@ atom_isclean(txn_atom * atom)
 		capture_list_empty(&atom->clean_nodes) &&
 		capture_list_empty(&atom->ovrwr_nodes) &&
 		capture_list_empty(&atom->writeback_nodes) &&
-		fwaitfor_list_empty(&atom->fwaitfor_list) && fwaiting_list_empty(&atom->fwaiting_list));
+		fwaitfor_list_empty(&atom->fwaitfor_list) && fwaiting_list_empty(&atom->fwaiting_list)) &&
+		atom_fq_parts_are_clean(atom);
 }
 #endif
 
@@ -882,7 +883,10 @@ jnode * find_first_dirty_jnode (txn_atom * atom, int flags)
 	return NULL;
 }
 
-static void scan_reloc_list (txn_atom * atom, flush_queue_t * fq)
+/* Scan atom->writeback_nodes list and dispatch jnodes according to their state:
+ * move dirty and !writeback jnodes to @fq, clean jnodes to atom's clean
+ * list. */
+static void scan_wb_list (txn_atom * atom, flush_queue_t * fq)
 {
 	jnode * cur;
 
@@ -907,7 +911,9 @@ static void scan_reloc_list (txn_atom * atom, flush_queue_t * fq)
 	}
 }
 
-static int submit_reloc_list (void)
+/* Scan current atom->writeback_nodes list, re-submit dirty and !writeback
+ * jnodes to disk. */
+static int submit_wb_list (void)
 {
 	int ret;
 	flush_queue_t * fq;
@@ -916,7 +922,7 @@ static int submit_reloc_list (void)
 	if (IS_ERR(fq))
 		return PTR_ERR(fq);
 
-	scan_reloc_list(fq->atom, fq);
+	scan_wb_list(fq->atom, fq);
 	UNLOCK_ATOM(fq->atom);
 	ret = write_fq(fq);
 	fq_put(fq);
@@ -931,7 +937,7 @@ static int current_atom_complete_writes (void)
 
 	/* Scan wb list for nodes with already completed i/o, re-submit them to
 	 * disk */
-	ret = submit_reloc_list();
+	ret = submit_wb_list();
 	if (ret < 0)
 		return ret;
 
@@ -942,7 +948,7 @@ static int current_atom_complete_writes (void)
 
 	/* Scan wb list again; all i/o should be completed, we re-submit dirty
 	 * nodes to disk */
-	ret = submit_reloc_list();
+	ret = submit_wb_list();
 	if(ret < 0)
 		return ret;
 
@@ -1015,7 +1021,8 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	 * thread using tmgr semaphore */
 	down(&sbinfo->tmgr.commit_semaphore);
 
-	ret = reiser4_write_logs();	if (ret < 0)
+	ret = reiser4_write_logs();
+	if (ret < 0)
 		reiser4_panic("zam-597", "write log failed (%ld)\n", ret);
 
 	LOCK_ATOM(*atom);
