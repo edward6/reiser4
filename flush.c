@@ -332,9 +332,9 @@ ZAM-FXME-HANS: Please update the comments above.
    Otherwise, there are two contexts in which we make a decision to relocate:
   
    1. The REVERSE PARENT-FIRST context: Implemented in flush_reverse_relocate_test().
-   During the initial stages of flush, after scan-left completes, we want to ask the
+   During the initial stages of flush, after scan-right completes, we want to ask the
    question: should we relocate this leaf node and thus dirty the parent node.  Then if
-   the node is a leftmost child its parent is its own paren-first preceder, thus we repeat
+   the node is a leftmost child its parent is its own parent-first preceder, thus we repeat
    the question at the next level up, and so on.  In these cases we are moving in the
    reverse-parent first direction.
   
@@ -896,7 +896,16 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 
 	/* First scan left and remember the leftmost scan position.  If the leftmost
 	   position is unformatted we remember its parent_coord.  We scan until counting
-	   FLUSH_SCAN_MAXNODES. */
+	   FLUSH_SCAN_MAXNODES. 
+
+	   If starting @node is unformatted, at the beginning of left scan its
+	   parent (twig level node, containing extent item) will be long term
+	   locked and lock handle will be stored in the
+	   @right_scan->parent_lock. This lock is used to start the rightward
+	   scan without redoing the tree traversal (necessary to find parent)
+	   and, hence, is kept during leftward scan. As a result, we have to
+	   use try-lock when taking long term locks during the leftward scan.
+	*/
 	if ((ret = flush_scan_left(&left_scan, &right_scan, node, flush_get_params()->scan_maxnodes))) {
 		goto failed;
 	}
@@ -944,7 +953,11 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	   cause us to see nodes with HEARD_BANSHEE during squalloc, because nodes are not
 	   removed from sibling lists until they have zero reference count.  Flush would
 	   never observe a HEARD_BANSHEE node on the left-edge of flush, nodes are only
-	   deleted to the right.  So if nothing is broken, why fix it? */
+	   deleted to the right.  So if nothing is broken, why fix it? 
+
+	   NOTE-NIKITA actually, flush can meet HEARD_BANSHEE node at any
+	   point and in any moment, because of the concurrent file system
+	   activity (for example, truncate). */
 	if ((ret = flush_pos_set_point(&flush_pos, left_scan.node))) {
 		goto failed;
 	}
@@ -1147,6 +1160,14 @@ flush_reverse_relocate_test(jnode * node, const coord_t * parent_coord, flush_po
 
 	assert("jmacd-8989", !jnode_is_root(node));
 
+	/*
+	 * This function is called only from the
+	 * flush_reverse_relocate_check_dirty_parent() and only if the parent
+	 * node is clean. This implies that the parent has the real (i.e., not
+	 * fake) block number, and, so does the child, because otherwise the
+	 * parent would be dirty.
+	 */
+
 	/* New nodes are treated as if they are being relocated. */
 	if (jnode_created(node)
 	    || (pos->leaf_relocate && jnode_get_level(node) == LEAF_LEVEL)) {
@@ -1184,8 +1205,8 @@ flush_reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_c
 
 	if (!znode_check_dirty(parent_coord->node)) {
 
-		if ((ret = flush_reverse_relocate_test(node, parent_coord, pos))
-		    < 0) {
+		ret = flush_reverse_relocate_test(node, parent_coord, pos);
+		if (ret < 0) {
 			return ret;
 		}
 
@@ -1328,13 +1349,16 @@ flush_alloc_ancestors(flush_position * pos)
 	init_load_count(&pload);
 
 	if (flush_pos_on_twig_level(pos) || !znode_is_root(JZNODE(pos->point))) {
-		/* Lock the parent (it may already be locked, thus the special case). */
+		/* Lock the parent (it may already be locked, and
+		 * flush_pos_lock_parent() has the special case to handle
+		 * this). */
 		if ((ret = flush_pos_lock_parent(pos, &pcoord, &plock, &pload, ZNODE_WRITE_LOCK))) {
 			goto exit;
 		}
 
-		/* The parent may not be dirty, in which case we should decide whether to
-		   relocate the child now. */
+		/* The parent may not be dirty, in which case we should decide
+		   whether to relocate the child now. If decision is made to
+		   relocate the child, the parent is marked dirty. */
 		if ((ret = flush_reverse_relocate_check_dirty_parent(pos->point, &pcoord, pos))) {
 			goto exit;
 		}
@@ -1541,12 +1565,22 @@ ALLOC_EXTENTS:
 		trace_on(TRACE_FLUSH_VERB, "allocate_extent_in_place: %s\n", flush_pos_tostring(pos));
 
 		/* This allocates extents up to the end of the current extent item and
-		   returns pos->parent_coord set to the next item.  FIXME: We may wish to
-		   do partial extent allocation at some point.  If we have all of memory
-		   holding dirty pages for one unallocated extent, this
-		   allocate_extent_item_in_place call will try to allocate everything.  If
-		   the disk is fragmented and we are low on memory, this may be a bad
-		   idea.  Perhaps extent allocation should be aware of this... */
+		   returns pos->parent_coord set to the next item.  
+
+		   FIXME: We may wish to do partial extent allocation at some
+		   point.  If we have all of memory holding dirty pages for
+		   one unallocated extent, this allocate_extent_item_in_place
+		   call will try to allocate everything.  If the disk is
+		   fragmented and we are low on memory, this may be a bad
+		   idea.  Perhaps extent allocation should be aware of this...
+
+		   NOTE-NIKITA allocate_extent_item_in_place() allocates
+		   extent in portions containing not more than
+		   JNODES_TO_UNFLUSH (currently 16) emergency flushed jnodes
+		   each. This allows extent allocation to proceed without the
+		   risk of running out of the memory. This invalidates above
+		   FIXME (due to Josh), if I understood it correctly.
+		*/
 		if ((ret = allocate_extent_item_in_place(&pos->parent_coord, &pos->parent_lock, pos))) {
 			goto exit;
 		}
@@ -1571,12 +1605,30 @@ ALLOC_EXTENTS:
 				   child. Currently this is only possible due
 				   to the race with unlink. See comment in
 				   extent_utmost_child().
+
+				   NOTE-NIKITA this is strange:
+				   extent_utmost_child() puts either 0 or
+				   result of jlook() into *child.
 				*/
 				flush_pos_stop(pos);
 				ret = -EINVAL;
 				goto exit;
 			}
 
+			/* at this moment parent of @child is locked which
+			 * hopefully protects @child's flushpreppedness from
+			 * changing from under us. 
+			 *
+			 * Really: jnode_set_{reloc,wander}() are only called
+			 * from node's parent is long term locked, except for
+			 * fake, super block, and bitmap jnodes.
+			 *
+			 * The only remaining problem is the spontaneous
+			 * clearing of JNODE_DIRTY bit (one that happens
+			 * without taking the lock on the parent):
+			 * dequeue_jnode(), prepare_node_for_write(),
+			 * uncapture_page()
+			 */
 			keep_going = !jnode_check_flushprepped(child);
 
 			jput(child);
@@ -2636,35 +2688,35 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord, flush_position
 	init_lh(&fake_lock);
 
 	if (!znode_is_root(node)) {
+		item_plugin *iplug;
 
-		internal_update(parent_coord, blk);
+		iplug = item_plugin_by_coord(parent_coord);
+		assert("nikita-2954", iplug->f.update != NULL);
+		iplug->f.update(parent_coord, &blk);
 
 		znode_set_dirty(parent_coord->node);
 
 	} else {
 		reiser4_tree *tree = znode_get_tree(node);
-		znode *fake = zget(tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL);
+		znode *fake;
 
-		if (IS_ERR(fake)) {
-			ret = PTR_ERR(fake);
-			goto exit;
-		}
+		/* We take a longterm lock on the fake node in order to change
+		   the root block number.  This may cause atom fusion. */
+		ret = get_fake_znode(tree, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI,
+				     &fake_lock);
+		/* The fake node cannot be deleted, and we must have priority
+		   here, and may not be confused with ENOSPC. */
+		assert("jmacd-74412", 
+		       ret != -EINVAL && ret != -EDEADLK && ret != -ENOSPC);
 
-		/* We take a longterm lock on the fake node in order to change the root
-		   block number.  This may cause atom fusion. */
-		if ((ret = longterm_lock_znode(&fake_lock, fake, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI))) {
-			/* The fake node cannot be deleted, and we must have priority
-			   here, and may not be confused with ENOSPC. */
-			assert("jmacd-74412", ret != -EINVAL && ret != -EDEADLK && ret != -ENOSPC);
-			zput(fake);
+		if (ret)
 			goto exit;
-		}
+
+		fake = fake_lock.node;
 
 		UNDER_SPIN_VOID(tree, tree, tree->root_block = blk);
 
 		znode_set_dirty(fake);
-
-		zput(fake);
 	}
 
 	ret = zload(node);
@@ -3936,5 +3988,6 @@ flush_flags_tostring(int flags)
    c-basic-offset: 8
    tab-width: 8
    fill-column: 120
+   LocalWords:  preceder
    End:
 */
