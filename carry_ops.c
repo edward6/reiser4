@@ -1065,7 +1065,8 @@ static int make_space_by_new_nodes( carry_op *op, carry_level *doing,
 	
 	if( op -> u.insert_flow.new_nodes == CARRY_FLOW_NEW_NODES_LIMIT )
 		/*
-		 * FIXME-VS: this is confusing because it is limit reaches, not that we are running out of disk space
+		 * FIXME-VS: this is confusing because it is limit reaches, not
+		 * that we are running out of disk space
 		 */
 		return -ENOSPC;
 	/* add new node after insert point node */
@@ -1121,8 +1122,9 @@ static int make_space_for_flow_insertion( carry_op *op, carry_level *doing,
 	}
 
 	if( make_space_by_shift_left( op, doing, todo ) == 0 ) {
-		/* insert point is shifted to left neighbor of original insert point node and is set after last unit in
-		 * that node. It has enough space to fit at least minimal fraction of flow. */
+		/* insert point is shifted to left neighbor of original insert
+		 * point node and is set after last unit in that node. It has
+		 * enough space to fit at least minimal fraction of flow. */
 		return 0;
 	}
 
@@ -1132,7 +1134,8 @@ static int make_space_for_flow_insertion( carry_op *op, carry_level *doing,
 	}
 
 	if( make_space_by_shift_right( op, doing, todo ) == 0 ) {
-		/* insert point is still set to the same node, but there is nothing to the right of insert point. */
+		/* insert point is still set to the same node, but there is
+		 * nothing to the right of insert point. */
 		return 0;
 	}
 
