@@ -124,24 +124,27 @@ int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */,
 	default:
 		/* something other, for which we don't want to print a message */
 		break;
-	case CBK_COORD_FOUND: {
-		assert( "nikita-1082", ncoord_is_existing_unit( coord ) );
-		assert( "nikita-721", item_plugin_by_coord( coord ) != NULL );
-		/* next assertion checks that item we found really has
-		   the key we've been looking for */
-		assert( "nikita-722", 
-			keyeq( unit_key_by_coord( coord, &key_found ), key ) );
-		assert( "nikita-1897", 
-			znode_get_level( coord -> node ) == LEAF_LEVEL );
-		/* check that what we really found is stat data */
-		if( !item_is_statdata( coord ) ) {
-			error_message = "sd found, but it doesn't look like sd ";
-			print_plugin( "found", 
-				      item_plugin_to_plugin( 
-					      item_plugin_by_coord( coord ) ) );
-			result = -ENOENT;
+	case CBK_COORD_FOUND:
+		if( REISER4_DEBUG && ( result = zload( coord -> node ) ) == 0 ) {
+			assert( "nikita-1082", ncoord_is_existing_unit( coord ) );
+			assert( "nikita-721", item_plugin_by_coord( coord ) != NULL );
+			/* next assertion checks that item we found really has
+			 * the key we've been looking for */
+			assert( "nikita-722", 
+				keyeq( unit_key_by_coord( coord, &key_found ), key ) );
+			assert( "nikita-1897", 
+				znode_get_level( coord -> node ) == LEAF_LEVEL );
+			/* check that what we really found is stat data */
+			if( !item_is_statdata( coord ) ) {
+				error_message = "sd found, but it doesn't look like sd ";
+				print_plugin( "found", 
+					      item_plugin_to_plugin( 
+						      item_plugin_by_coord( coord ) ) );
+				result = -ENOENT;
+			}
+			zrelse( coord -> node );
 		}
-	}
+		break;
 	}
 	if( result != 0 )
 		key_warning( error_message, key, result );
@@ -303,7 +306,8 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 		result = seal_validate( &seal, &coord, 
 					&key, LEAF_LEVEL, &lh, FIND_EXACT, 
 					ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI );
-		if( REISER4_DEBUG && ( result == 0 ) ) {
+		if( REISER4_DEBUG && ( result == 0 ) &&
+		    ( ( result = zload( coord.node ) ) == 0 ) ) {
 			reiser4_key ukey;
 
 			if( !ncoord_is_existing_unit( &coord ) ||
@@ -312,11 +316,12 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 			    ( znode_get_level( coord.node ) != LEAF_LEVEL ) ||
 			    !item_is_statdata( &coord ) ) {
 				warning( "nikita-1901", "Conspicuous seal" );
-				print_inode( "inode", inode );
+				/*print_inode( "inode", inode );*/
 				print_key( "key", &key );
 				ncoord_print( "coord", &coord, 1 );
 				result = -EIO;
 			}
+			zrelse( coord.node );
 		}
 	} else
 		result = -EAGAIN;
@@ -728,6 +733,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.read                = unix_file_read,
 			.write               = unix_file_write,
 			.release             = unix_file_release,
+			.mmap                = unix_file_mmap,
 			.flow_by_inode       = common_build_flow/*NULL*/,
 			.key_by_inode        = unix_key_by_inode,
 			.set_plug_in_sd      = NULL,
@@ -761,6 +767,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.read                = NULL, /* EISDIR */
 			.write               = NULL, /* EISDIR */
 			.release             = NULL,
+			.mmap                = NULL,
 			.flow_by_inode       = NULL,
 			.key_by_inode        = NULL,
 			.set_plug_in_sd      = NULL,
@@ -794,6 +801,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.read                = NULL,
 			.write               = NULL,
 			.release             = NULL,
+			.mmap                = NULL,
 			.flow_by_inode       = NULL,
 			.key_by_inode        = NULL,
 			.set_plug_in_sd      = NULL,
@@ -831,6 +839,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.read                = NULL,
 			.write               = NULL,
 			.release             = NULL,
+			.mmap                = NULL,
 			.flow_by_inode       = NULL,
 			.key_by_inode        = NULL,
 			.set_plug_in_sd      = NULL,
