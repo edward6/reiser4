@@ -11,13 +11,35 @@
 
 /** reiser4-specific part of inode */
 typedef struct reiser4_super_info_data {
-	reiser4_allocator  allocator;
+	/**
+	 * allocator used to allocate new object ids for objects in the file
+	 * system. Current default implementation of object id allocator 
+	 */
+	reiser4_oid_allocator allocator;
+	/**
+	 *
+	 */
 	reiser4_tree       tree;
+	/**
+	 *
+	 */
 	uid_t              default_uid;
+	/**
+	 *
+	 */
 	gid_t              default_gid;
 
+	/**
+	 *
+	 */
 	__u32    blocks_used;
+	/**
+	 *
+	 */
 	__u32    blocks_free;
+	/**
+	 *
+	 */
 	__u32    inode_generation;
 	/** unique file-system identifier */
 	__u32    fsuid;
@@ -30,14 +52,26 @@ typedef struct reiser4_super_info_data {
 
 	/* super block flags */
 
+	/**
+	 *
+	 */
 	__u32    adg                :1;
+	/**
+	 *
+	 */
 	__u32    one_node_plugin    :1;
 
-	reiser4_journal *journal;
+	/**
+	 *
+	 */
 	reiser4_stat     stats;
 
 	/** transaction manager */
 	txn_mgr              tmgr;
+
+	/**
+	 *
+	 */
 	int                  allocated;
 
 } reiser4_super_info_data;
@@ -56,7 +90,7 @@ extern long reiser4_data_blocks( const struct super_block *super );
 extern long reiser4_free_blocks( const struct super_block *super );
 extern long reiser4_reserved_blocks( const struct super_block *super, 
 			      uid_t uid, gid_t gid );
-extern reiser4_allocator *reiser4_get_oid_allocator( const struct super_block *super );
+extern reiser4_oid_allocator *reiser4_get_oid_allocator( const struct super_block *super );
 extern reiser4_tree *reiser4_get_tree( const struct super_block *super );
 extern __u32 reiser4_new_inode_generation( const struct super_block *super );
 extern int  reiser4_adg( const struct super_block *super );
