@@ -1625,7 +1625,9 @@ static int squeeze_right_neighbor(flush_pos_t * pos, znode * left, znode * right
 {
 	int ret;
 
-	assert("jmacd-9321", !node_is_empty(left));
+	/* FIXME it is possible to see empty hasn't-heard-banshee node in a
+	 * tree owing to error (for example, ENOSPC) in write */
+	/* assert("jmacd-9321", !node_is_empty(left)); */
 	assert("jmacd-9322", !node_is_empty(right));
 	assert("jmacd-9323", znode_get_level(left) == znode_get_level(right));
 
