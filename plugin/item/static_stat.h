@@ -74,7 +74,7 @@ typedef struct {
 } sd_plugin;
 
 extern sd_plugin sd_plugins [];
-sd_plugin *find_sd_plugin (int);
+sd_plugin *find_sd_plugin (unsigned);
 
 
 /** stat-data extension. Please order this by presumed frequency of use */
