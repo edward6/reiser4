@@ -56,11 +56,6 @@ struct jnode
 
 TS_LIST_DEFINE(capture,jnode,capture_link);
 
-/* FIXME: NOTE: The members of this enum used to be logical bitmasks associated with each
- * state, but now they are shift values so that clear_bit, test_bit, and set_bit
- * primitives work properly.  The problem?  You can't write JF_ISSET (node, ZNODE_WANDER |
- * ZNODE_RELOC) any more.  Nikita, please comment.
- */
 typedef enum {
        /** data are loaded from node */
        ZNODE_LOADED            = 0,
