@@ -662,12 +662,14 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		assert ("jmacd-1732", ! coord_is_after_rightmost (& pos->parent_coord));
 
 		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] before (shifted & unformatted): %s\n", call_depth, flush_pos_tostring (pos));
+		trace_if (TRACE_FLUSH, coord_print ("present coord", & pos->parent_coord, 0));
 
 		/* We reached this point because we were at the end of a twig, and now we
 		 * have shifted new contents into that twig.  Skip past any allocated
 		 * extents.  If we are still at the end of the node, unset any_shifted. */
 		coord_next_unit (& pos->parent_coord);
 
+		trace_if (TRACE_FLUSH, coord_print ("after next_unit", & pos->parent_coord, 0));
 		assert ("jmacd-1731", coord_is_existing_unit (& pos->parent_coord));
 
 		while (coord_is_existing_unit (& pos->parent_coord) &&
@@ -683,7 +685,10 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] after (shifted & unformatted): %s\n", call_depth, flush_pos_tostring (pos));
 	}
 
-	if (node_is_empty (right_lock.node)) {
+	/* If we emptied and allocated the entire contents of the right twig, try again. */
+	/* FIXME: The (! any_shifted) part of this test causes the -ENAVAIL failure from
+	 * reiser4_get_parent in the second regression test.  Strange. */
+	if (! any_shifted && node_is_empty (right_lock.node)) {
 		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] right again: %s\n", call_depth, flush_pos_tostring (pos));
 		done_zh (& right_load);
 		done_lh (& right_lock);
@@ -1550,6 +1555,7 @@ static int jnode_lock_parent_coord (jnode *node,
 		assert ("jmacd-2061", ! znode_is_root (JZNODE (node)));
 
 		if ((ret = reiser4_get_parent (parent_lh, JZNODE (node), parent_mode, 1))) {
+			warning ("jmacd-976812", "reiser4_get_parent failed: %d", ret);
 			return ret;
 		}
 
@@ -1558,10 +1564,12 @@ static int jnode_lock_parent_coord (jnode *node,
 		if (coord != NULL) {
 
 			if ((ret = load_zh (parent_zh, parent_lh->node))) {
+				warning ("jmacd-976812", "load_zh failed: %d", ret);
 				return ret;
 			}
 
 			if ((ret = find_child_ptr (parent_lh->node, JZNODE (node), coord))) {
+				warning ("jmacd-976812", "find_child_ptr failed: %d", ret);
 				return ret;
 			}
 		}
@@ -1625,7 +1633,7 @@ static int znode_get_utmost_if_dirty (znode *node, lock_handle *lock, sideof sid
 	if (neighbor != NULL) {
 		zput (neighbor);
 	}
-	trace_if (TRACE_FLUSH, if (ret == 0) { info ("znode_get_utmost %p x_count %u->%u\n", lock->node, xcnt, atomic_read (& lock->node->x_count)); });
+	/*trace_if (TRACE_FLUSH, if (ret == 0) { info ("znode_get_utmost %p x_count %u->%u\n", lock->node, xcnt, atomic_read (& lock->node->x_count)); });*/
 	return ret;
 }
 
@@ -2267,6 +2275,8 @@ static int flush_pos_to_parent (flush_position *pos)
 	done_lh (& pos->point_lock);
 
 	/* Note: we leave the point set, but unlocked/unloaded. */
+	/* FIXME: This is a bad idea if the child can be deleted, but it helps for some
+	 * reason I forgot.  Why? */
 	return 0;
 }
 
