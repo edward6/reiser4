@@ -219,6 +219,17 @@ node40_num_of_items_internal(const znode * node)
 	return nh40_get_num_items(node40_node_header(node));
 }
 
+#if REISER4_DEBUG
+static inline void check_num_items(const znode *node)
+{
+	assert("nikita-2749", 
+	       node40_num_of_items_internal(node) == node->nr_items);
+	assert("nikita-2746", znode_is_write_locked(node));
+}
+#else
+#define check_num_items(node) noop
+#endif
+
 /* plugin->u.node.num_of_items
    look for description of this method in plugin/node/node.h
 */
@@ -869,6 +880,7 @@ node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data 
 	nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) + data->length);
 	nh40_set_num_items(nh, nh40_get_num_items(nh) + 1);
 	target->node->nr_items++;
+	check_num_items(target->node);
 
 	/* FIXME: check how does create_item work when between is set to BEFORE_UNIT */
 	target->unit_pos = 0;
@@ -1170,6 +1182,7 @@ cut_or_kill(coord_t * from, coord_t * to,
 	/* update node header */
 	nh40_set_num_items(nh, node40_num_of_items_internal(node) - removed_entirely);
 	node->nr_items -= removed_entirely;
+	check_num_items(node);
 	nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) - (freed_space_end - freed_space_start));
 	nh40_set_free_space(nh, nh40_get_free_space(nh) +
 			    ((freed_space_end - freed_space_start) + sizeof (item_header40) * removed_entirely));
@@ -1579,6 +1592,7 @@ node40_copy(struct shift_params *shift)
 		/* update node header */
 		nh40_set_num_items(nh, old_items + new_items);
 		shift->target->nr_items = old_items + new_items;
+		check_num_items(shift->target);
 		assert("vs-170", nh40_get_free_space(nh) < znode_size(shift->target));
 
 		if (shift->part_units) {
@@ -1629,6 +1643,7 @@ node40_copy(struct shift_params *shift)
 		/* update node header */
 		nh40_set_num_items(nh, old_items + new_items);
 		shift->target->nr_items = old_items + new_items;
+		check_num_items(shift->target);
 		assert("vs-170", nh40_get_free_space(nh) < znode_size(shift->target));
 
 		if (shift->merging_units) {

@@ -1565,6 +1565,12 @@ check_jnode_for_unallocated(jnode * node)
 	if (!REISER4_DEBUG)
 		return 0;
 
+	return 0;
+
+	/*
+	 * FIXME-NIKITA to properly implement this we need long-term lock on
+	 * znode.
+	 */
 	if (jnode_is_znode(node) && jnode_get_level(node) >= TWIG_LEVEL) {
 		int ret = zload(JZNODE(node));
 		if (ret)
@@ -1586,6 +1592,12 @@ check_jnode_for_unallocated_in_core(znode * z)
 	if (!REISER4_DEBUG)
 		return 0;
 
+	return 0;
+
+	/*
+	 * FIXME-NIKITA to properly implement this we need long-term lock on
+	 * znode.
+	 */
 	for_all_units(&coord, z) {
 		if (item_is_internal(&coord)) {
 			reiser4_block_nr block;
