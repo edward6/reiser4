@@ -303,6 +303,9 @@ void profregfill(struct pregactivation *act,
 		 struct profregion *pregion,
 		 void *objloc, void *codeloc)
 {
+	act->objloc  = NULL;
+	act->codeloc = NULL;
+	barrier();
 	act->preg    = pregion;
 	act->objloc  = objloc;
 	act->codeloc = codeloc;
