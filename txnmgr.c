@@ -64,7 +64,7 @@ static void   uncapture_block                 (txn_atom   *atom,
 /* Local debugging */
 void          atom_print                      (txn_atom   *atom);
 
-#define JNODE_ID(x) ((x)->blocknr)
+#define JNODE_ID(x) ((unsigned long long) (x))
 
 /* Audited by: umka (2002.06.13) */
 static inline unsigned jnode_real_level (jnode *node)
@@ -592,7 +592,7 @@ atom_try_commit_locked (txn_atom *atom)
 	assert ("jmacd-150", atom->txnh_count == 1);
 	assert ("jmacd-151", atom_isopen (atom));
 
-	trace_on (TRACE_TXN, "atom %u trying to commit %u\n", atom->atom_id, (unsigned) pthread_self ());
+	trace_on (TRACE_TXN, "atom %u trying to commit %u: CAPTURE_WAIT\n", atom->atom_id, (unsigned) pthread_self ());
 
 	/* When trying to commit, try to prevent new txnhs. */
 	atom->stage = ASTAGE_CAPTURE_WAIT;
@@ -624,7 +624,7 @@ atom_try_commit_locked (txn_atom *atom)
 	atom->stage = ASTAGE_PRE_COMMIT;
 
 	/* FIXME_JMACD Just release the captured nodes for now. -josh */
-	trace_on (TRACE_TXN, "commit atom %u\n", atom->atom_id);
+	trace_on (TRACE_TXN, "commit atom %u: PRE_COMMIT\n", atom->atom_id);
 
 	while (! capture_list_empty (& atom->clean_nodes)) {
 		
@@ -750,6 +750,8 @@ commit_txnh (txn_handle *txnh)
 	 * we don't need the txnh lock while trying to commit. */
 	spin_unlock_txnh (txnh);
 
+	trace_on (TRACE_TXN, "commit_txnh: failed %u; txnh_count %u; should_commit %u\n", failed, atom->txnh_count, atom_should_commit (atom));
+
 	/* Only the atom is still locked. */
 	if (! failed && (atom->txnh_count == 1) && atom_should_commit (atom)) {
 
@@ -761,6 +763,7 @@ commit_txnh (txn_handle *txnh)
 				warning ("jmacd-7881", "transaction commit failed: %d", ret);
 				failed = 1;
 			} else {
+				trace_on (TRACE_TXN, "try_commit atom repeat\n");
 				ret = 0;
 			}
 			goto again;
@@ -1227,7 +1230,7 @@ capture_assign_block_nolock (txn_atom *atom,
 	jref (node);
 	ON_DEBUG (++ lock_counters() -> t_refs);
 
-	trace_on (TRACE_TXN, "capture %llu for atom %u (captured %u)\n", JNODE_ID (node), atom->atom_id, atom->capture_count);
+	/*trace_on (TRACE_TXN, "capture %llu for atom %u (captured %u)\n", JNODE_ID (node), atom->atom_id, atom->capture_count);*/
 }
 
 /* Set the dirty status for this jnode.  If the jnode is not already dirty, this involves locking the atom (for its
@@ -1411,6 +1414,8 @@ capture_assign_txnh (jnode       *node,
 		 * is not to avoid deadlock, its just waiting.  Releases all three locks
 		 * and returns EAGAIN. */
 
+		/* FIXME: This NULL causes an assertion failure, but its not clear how we
+		 * can get here (yet). */
 		return capture_fuse_wait (node, txnh, atom, NULL, mode);
 
 	} else if (atom->stage > ASTAGE_CAPTURE_WAIT) {
@@ -1859,7 +1864,7 @@ uncapture_block (txn_atom *atom,
 	assert ("jmacd-1023", spin_atom_is_locked (atom));
 	assert ("nikita-2118", !jnode_check_dirty (node));
 
-	trace_on (TRACE_TXN, "uncapture %llu from atom %u (captured %u)\n", JNODE_ID (node), atom->atom_id, atom->capture_count);
+	/*trace_on (TRACE_TXN, "uncapture %llu from atom %u (captured %u)\n", JNODE_ID (node), atom->atom_id, atom->capture_count);*/
 
 	spin_lock_jnode (node);
 
@@ -1891,7 +1896,7 @@ atom_print (txn_atom *atom)
 	int level;
 	
 	assert("umka-229", atom != NULL);
-	
+
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
 
 		sprintf (prefix, "capture level %d", level);
