@@ -237,22 +237,6 @@ static inline int is_grab_enabled(reiser4_context *ctx)
 	return ctx->grab_enabled;
 }
 
-#define REISER4_TRACE_CONTEXT (0)
-
-#if REISER4_LOG && REISER4_TRACE_CONTEXT
-extern int write_in_trace(const char *func, const char *mes);
-
-#define log_entry(super, str)						\
-({									\
-	if (super != NULL && get_super_private(super) != NULL &&	\
-	    get_super_private(super)->trace_file.buf != NULL)		\
-		write_in_trace(__FUNCTION__, str);			\
-})
-
-#else
-#define log_entry(super, str) noop
-#endif
-
 /* mark transaction handle in @ctx as TXNH_DONT_COMMIT, so that no commit or
  * flush would be performed when it is closed. This is necessary when handle
  * has to be closed under some coarse semaphore, like i_sem of

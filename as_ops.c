@@ -142,31 +142,6 @@ static int reiser4_set_page_dirty(struct page *page /* page to mark dirty */)
 	return 0;
 }
 
-#if 0
-static int reiser4_set_page_dirty_lru(struct page *) __attribute__((unused));
-/* alternative version of reiser4_set_page_dirty() that tried to keep dirty
- * pages in LRU order */
-static int reiser4_set_page_dirty_lru(struct page * page)
-{
-	struct address_space *mapping = page->mapping;
-	int wascl = !TestSetPageDirty(page);
-
-	if (mapping != NULL) {
-		spin_lock(&mapping->page_lock);
-		/* check for race with truncate */
-		if (page->mapping != NULL) {
-			if (!mapping->backing_dev_info->memory_backed && wascl)
-				inc_page_state(nr_dirty);
-			list_move(&page->list, get_moved_pages(mapping));
-		}			
-		spin_unlock(&mapping->page_lock);
-		if (wascl && mapping != NULL)
-			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
-	}
-	return 0;
-}
-#endif
-
 /* ->readpage() VFS method in reiser4 address_space_operations
    method serving file mmapping
 */

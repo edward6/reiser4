@@ -1164,9 +1164,7 @@ asmlinkage long sys_reiser4(const char __user * command)
 
 		result = ctx_init(&ctx, inkernel);
 		if (result == 0) {
-			reiser4_current_trace_flags |= TRACE_PARSE;
 			result = execute(&ctx);
-			reiser4_current_trace_flags &= ~TRACE_PARSE;
 			ctx_done(&ctx);
 		}
 		putname(inkernel);

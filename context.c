@@ -137,7 +137,6 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	context->flush_started = INITIAL_JIFFIES;
 
 	grab_space_enable();
-	log_entry(super, ":in");
 	return 0;
 }
 
@@ -208,8 +207,6 @@ done_context(reiser4_context * context /* context being released */)
 		assert("nikita-3403", !delayed_inode_updates(context->dirty));
 		assert("nikita-2626", tap_list_empty(taps_list()));
 		assert("zam-1004", get_super_private(context->super)->delete_sema_owner != current);
-
-		log_entry(context->super, ":ex");
 
 		if (context->grabbed_blocks != 0)
 			all_grabbed2free();
