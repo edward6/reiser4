@@ -45,53 +45,6 @@
 #if REISER4_USE_SYSFS
 
 /* convert @attr to reiser4_kattr object it is embedded in */
-static inline reiser4_kattr *
-to_kattr(struct attribute *attr)
-{
-	return container_of(attr, reiser4_kattr, attr);
-}
-
-/* convert @kobj to super block it is embedded it */
-static inline struct super_block *
-to_super(struct kobject *kobj)
-{
-	reiser4_super_info_data *sbinfo;
-
-	sbinfo = container_of(kobj, reiser4_super_info_data, kobj);
-	return sbinfo->tree.super;
-}
-
-static ssize_t
-kattr_show(struct kobject *kobj, struct attribute *attr,  char *buf)
-{
-	struct super_block *super;
-	reiser4_kattr *kattr;
-
-	super = to_super(kobj);
-	kattr = to_kattr(attr);
-
-	if (kattr->show != NULL)
-		return kattr->show(super, kattr, 0, buf);
-	else
-		return 0;
-}
-
-static ssize_t
-kattr_store(struct kobject *kobj, struct attribute *attr,
-	    const char *buf, size_t size)
-{
-	struct super_block *super;
-	reiser4_kattr *kattr;
-
-	super = to_super(kobj);
-	kattr = to_kattr(attr);
-
-	if (kattr->store != NULL)
-		return kattr->store(super, kattr, 0, buf, size);
-	else
-		return 0;
-}
-
 typedef struct {
 	ptrdiff_t   offset;
 	const char *format;
@@ -105,41 +58,46 @@ static super_field_cookie __cookie_ ## aname = {		\
 								\
 static reiser4_kattr kattr_super_ro_ ## aname = {		\
 	.attr = {						\
-		.name = (char *) #afield,			\
-		.mode = 0440   /* r--r----- */			\
+		.kattr = {					\
+			.name = (char *) #afield,		\
+			.mode = 0440   /* r--r----- */		\
+		},						\
+		.show = show_ro_ ## asize			\
 	},							\
-	.cookie = &__cookie_ ## aname,				\
-	.show = show_ro_ ## asize				\
+	.cookie = &__cookie_ ## aname				\
 }
 
 #define getat(ptr, offset, type) *(type *)(((char *)(ptr)) + (offset))
 
+static inline void *
+getcookie(struct fs_kattr *attr)
+{
+	return container_of(attr, reiser4_kattr, attr)->cookie;
+}
+
 static ssize_t
-show_ro_32(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
+show_ro_32(struct super_block * s,
+	   struct fs_kobject *o, struct fs_kattr * kattr, char * buf)
 {
 	char *p;
 	super_field_cookie *cookie;
 	__u32 val;
 
-	(void)o;
-
-	cookie = kattr->cookie;
+	cookie = getcookie(kattr);
 	val = getat(get_super_private(s), cookie->offset, __u32);
 	p = buf;
 	KATTR_PRINT(p, buf, cookie->format, (unsigned long long)val);
 	return (p - buf);
 }
 
-static ssize_t show_ro_64(struct super_block * s,
-			  reiser4_kattr * kattr, void * opaque, char * buf)
+static ssize_t show_ro_64(struct super_block * s, struct fs_kobject *o,
+			  struct fs_kattr * kattr, char * buf)
 {
 	char *p;
 	super_field_cookie *cookie;
 	__u64 val;
 
-	(void)opaque;
-
-	cookie = kattr->cookie;
+	cookie = getcookie(kattr);
 	val = getat(get_super_private(s), cookie->offset, __u64);
 	p = buf;
 	KATTR_PRINT(p, buf, cookie->format, (unsigned long long)val);
@@ -153,11 +111,11 @@ static ssize_t show_ro_64(struct super_block * s,
 		KATTR_PRINT((p), (buf), #option "\n")
 
 static ssize_t
-show_options(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
+show_options(struct super_block * s,
+	     struct fs_kobject *o, struct fs_kattr * kattr, char * buf)
 {
 	char *p;
 
-	(void)o;
 	p = buf;
 
 	SHOW_OPTION(p, buf, REISER4_DEBUG);
@@ -178,19 +136,21 @@ show_options(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf
 
 static reiser4_kattr compile_options = {
 	.attr = {
-		.name = (char *) "options",
-		.mode = 0444   /* r--r--r-- */
+		.kattr = {
+			 .name = (char *) "options",
+			 .mode = 0444   /* r--r--r-- */
+		 },
+		.show = show_options,
 	},
-	.cookie = NULL,
-	.show = show_options
+	.cookie = NULL
 };
 
 static ssize_t
-show_device(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
+show_device(struct super_block * s,
+	    struct fs_kobject *o, struct fs_kattr * kattr, char * buf)
 {
 	char *p;
 
-	(void)o;
 	p = buf;
 	KATTR_PRINT(p, buf, "%lu\n", (unsigned long)s->s_dev);
 	return (p - buf);
@@ -198,58 +158,57 @@ show_device(struct super_block * s, reiser4_kattr * kattr, void * o, char * buf)
 
 static reiser4_kattr device = {
 	.attr = {
-		.name = (char *) "device",
-		.mode = 0444   /* r--r--r-- */
+		.kattr = {
+			 .name = (char *) "device",
+			 .mode = 0444   /* r--r--r-- */
+		 },
+		.show = show_device,
 	},
-	.cookie = NULL,
-	.show = show_device
+	.cookie = NULL
 };
 
 /* this is used to define similar reiser4_kattr's: log_flags and trace_flags */
-
-#define DEFINE_KATTR_FLAGS(XXX)							\
-static ssize_t									\
-show_##XXX##_flags(struct super_block * s,					\
-	       reiser4_kattr * kattr, void * o, char * buf)			\
-{										\
-	char *p;								\
-										\
-	(void)o;								\
-	p = buf;								\
-	KATTR_PRINT(p, buf, "%#x\n", get_super_private(s)-> XXX##_flags);	\
-	return (p - buf);							\
-}										\
-										\
-ssize_t store_##XXX##_flags(struct super_block * s,				\
-			reiser4_kattr *ka, void *opaque, const char *buf,	\
-			size_t size)						\
-{										\
-	__u32 flags;								\
-										\
-	if (sscanf(buf, "%i", &flags) == 1)					\
-		get_super_private(s)-> XXX##_flags = flags;			\
-	else									\
-		size = RETERR(-EINVAL);						\
-	return size;								\
-}										\
-										\
-static reiser4_kattr XXX##_flags = {						\
-	.attr = {								\
-		.name = (char *) #XXX "_flags",					\
-		.mode = 0644   /* rw-r--r-- */					\
-	},									\
-	.cookie = NULL,								\
-	.store = store_##XXX##_flags,						\
-	.show  = show_##XXX##_flags						\
+#define DEFINE_KATTR_FLAGS(XXX)						\
+static ssize_t								\
+show_##XXX##_flags(struct super_block * s,				\
+		   struct fs_kobject *o, struct fs_kattr * kattr, char * buf) \
+{									\
+	char *p;							\
+									\
+	p = buf;							\
+	KATTR_PRINT(p, buf, "%#x\n", get_super_private(s)-> XXX##_flags); \
+	return (p - buf);						\
+}									\
+									\
+ssize_t store_##XXX##_flags(struct super_block * s, struct fs_kobject *fsko, \
+			    struct fs_kattr *ka, const char *buf,	\
+			    size_t size)				\
+{									\
+	__u32 flags;							\
+									\
+	if (sscanf(buf, "%i", &flags) == 1)				\
+		get_super_private(s)-> XXX##_flags = flags;		\
+	else								\
+		size = RETERR(-EINVAL);					\
+	return size;							\
+}									\
+									\
+static reiser4_kattr XXX##_flags = {					\
+	.attr = {							\
+		.name = (char *) #XXX "_flags",				\
+		.mode = 0644   /* rw-r--r-- */				\
+	},								\
+	.cookie = NULL,							\
+	.store = store_##XXX##_flags,					\
+	.show  = show_##XXX##_flags					\
 };
 
 DEFINE_KATTR_FLAGS(log);
 DEFINE_KATTR_FLAGS(trace);
 
 #if REISER4_DEBUG
-ssize_t store_bugme(struct super_block * s,
-		    reiser4_kattr *ka, void *opaque, const char *buf,
-		    size_t size)
+ssize_t store_bugme(struct super_block * s, struct fs_kobject *o,
+		    struct fs_kattr *ka, const char *buf, size_t size)
 {
 	DEBUGON(1);
 	return size;
@@ -257,11 +216,13 @@ ssize_t store_bugme(struct super_block * s,
 
 static reiser4_kattr bugme = {
 	.attr = {
-		.name = (char *) "bugme",
-		.mode = 0222   /* -w--w--w- */
+		.kattr = {
+			 .name = (char *) "bugme",
+			 .mode = 0222   /* -w--w--w- */
+		 },
+		.store = store_bugme,
 	},
-	.cookie = NULL,
-	.store = store_bugme
+	.cookie = NULL
 };
 
 /* REISER4_DEBUG */
@@ -302,171 +263,78 @@ DEFINE_SUPER_RO(25, oids_in_use, "%llu", 64);
 DEFINE_SUPER_RO(26, entd.flushers, "%llu", 32);
 DEFINE_SUPER_RO(27, entd.timeout, "%llu", 32);
 
+#define ATTR_NO(n) &kattr_super_ro_ ## n .attr.kattr
+
 static struct attribute * kattr_def_attrs[] = {
-	&kattr_super_ro_01.attr,
-	&kattr_super_ro_02.attr,
-	&kattr_super_ro_03.attr,
-	&kattr_super_ro_04.attr,
-	&kattr_super_ro_05.attr,
-	&kattr_super_ro_06.attr,
-	&kattr_super_ro_07.attr,
-	&kattr_super_ro_08.attr,
-	&kattr_super_ro_09.attr,
+	ATTR_NO(01),
+	ATTR_NO(02),
+	ATTR_NO(03),
+	ATTR_NO(04),
+	ATTR_NO(05),
+	ATTR_NO(06),
+	ATTR_NO(07),
+	ATTR_NO(08),
+	ATTR_NO(09),
 #if REISER4_DEBUG
-	&kattr_super_ro_10.attr,
+	ATTR_NO(10),
 #endif
-	&kattr_super_ro_11.attr,
-	&kattr_super_ro_12.attr,
-	&kattr_super_ro_13.attr,
-	&kattr_super_ro_14.attr,
-	&kattr_super_ro_15.attr,
-	&kattr_super_ro_16.attr,
-	&kattr_super_ro_17.attr,
-	&kattr_super_ro_18.attr,
-	&kattr_super_ro_19.attr,
-	&kattr_super_ro_20.attr,
-	&kattr_super_ro_21.attr,
-	&kattr_super_ro_22.attr,
-	&kattr_super_ro_23.attr,
-	&kattr_super_ro_24.attr,
-	&kattr_super_ro_25.attr,
-	&kattr_super_ro_26.attr,
-	&kattr_super_ro_27.attr,
-	&compile_options.attr,
-	&device.attr,
-	&trace_flags.attr,
-	&log_flags.attr,
+	ATTR_NO(11),
+	ATTR_NO(12),
+	ATTR_NO(13),
+	ATTR_NO(14),
+	ATTR_NO(15),
+	ATTR_NO(16),
+	ATTR_NO(17),
+	ATTR_NO(18),
+	ATTR_NO(19),
+	ATTR_NO(20),
+	ATTR_NO(21),
+	ATTR_NO(22),
+	ATTR_NO(23),
+	ATTR_NO(24),
+	ATTR_NO(25),
+	ATTR_NO(26),
+	ATTR_NO(27),
+	&compile_options.attr.kattr,
+	&device.attr.kattr,
+	&trace_flags.attr.kattr,
+	&log_flags.attr.kattr,
 #if REISER4_DEBUG
-	&bugme.attr,
+	&bugme.attr.kattr,
 #endif
 	NULL
 };
 
-static struct sysfs_ops attr_ops = {
-	.show  = kattr_show,
-	.store = kattr_store
-};
-
 struct kobj_type ktype_reiser4 = {
-	.sysfs_ops	= &attr_ops,
+	.sysfs_ops	= &fs_attr_ops,
 	.default_attrs	= kattr_def_attrs,
 	.release	= NULL
 };
 
 #if REISER4_STATS
 
-static ssize_t
-kattr_stats_show(struct kobject *kobj, struct attribute *attr,  char *buf)
-{
-	reiser4_super_info_data *sbinfo;
-	reiser4_kattr *kattr;
-
-	sbinfo = container_of(kobj, reiser4_super_info_data, stats_kobj);
-	kattr = to_kattr(attr);
-
-	if (kattr->show != NULL)
-		return kattr->show(sbinfo->tree.super, kattr, 0, buf);
-	else
-		return 0;
-}
-
-static ssize_t
-kattr_stats_store(struct kobject *kobj, struct attribute *attr,
-		  const char *buf, size_t size)
-{
-	reiser4_super_info_data *sbinfo;
-	reiser4_kattr *kattr;
-
-	sbinfo = container_of(kobj, reiser4_super_info_data, stats_kobj);
-	kattr = to_kattr(attr);
-
-	if (kattr->store != NULL)
-		return kattr->store(sbinfo->tree.super, kattr, 0, buf, size);
-	else
-		return 0;
-}
-
-
-static struct sysfs_ops stats_attr_ops = {
-	.show  = kattr_stats_show,
-	.store = kattr_stats_store
-};
-
 static struct kobj_type ktype_noattr = {
-	.sysfs_ops	= &stats_attr_ops,
-	.default_attrs	= NULL,
-	.release        = NULL
-};
-
-static ssize_t
-kattr_level_show(struct kobject *kobj, struct attribute *attr,  char *buf)
-{
-	reiser4_super_info_data *sbinfo;
-	reiser4_level_stats_kobj *level_kobj;
-	int level;
-	reiser4_kattr *kattr;
-
-	level_kobj = container_of(kobj, reiser4_level_stats_kobj, kobj);
-	level = level_kobj->level;
-	level_kobj -= level;
-	sbinfo = container_of(level_kobj, reiser4_super_info_data, level[0]);
-	kattr = to_kattr(attr);
-
-	if (kattr->show != NULL)
-		return kattr->show(sbinfo->tree.super, kattr, &level, buf);
-	else
-		return 0;
-}
-
-static ssize_t
-kattr_level_store(struct kobject *kobj, struct attribute *attr,
-		  const char *buf, size_t size)
-{
-	reiser4_super_info_data *sbinfo;
-	reiser4_level_stats_kobj *level_kobj;
-	int level;
-	reiser4_kattr *kattr;
-
-	level_kobj = container_of(kobj, reiser4_level_stats_kobj, kobj);
-	level = level_kobj->level;
-	level_kobj -= level;
-	sbinfo = container_of(level_kobj, reiser4_super_info_data, level[0]);
-	kattr = to_kattr(attr);
-
-	if (kattr->store != NULL)
-		return kattr->store(sbinfo->tree.super, kattr, &level, buf, size);
-	else
-		return 0;
-}
-
-static struct sysfs_ops attr_level_ops = {
-	.show  = kattr_level_show,
-	.store = kattr_level_store
-};
-
-static struct kobj_type ktype_level_reiser4 = {
-	.sysfs_ops	= &attr_level_ops,
+	.sysfs_ops	= &fs_attr_ops,
 	.default_attrs	= NULL,
 	.release        = NULL
 };
 
 static int register_level_attrs(reiser4_super_info_data *sbinfo, int i)
 {
-	struct kobject *parent;
-	struct kobject *level;
+	struct fs_kobject *parent;
+	struct fs_kobject *level;
 	int result;
 
 	parent = &sbinfo->stats_kobj;
 	sbinfo->level[i].level = i;
 	level = &sbinfo->level[i].kobj;
-	level->parent = kobject_get(parent);
-	if (level->parent != NULL) {
-		snprintf(level->name,
-			 KOBJ_NAME_LEN, "level-%2.2i", i);
-		level->ktype = &ktype_level_reiser4;
-		result = kobject_register(level);
+	level->kobj.parent = kobject_get(&parent->kobj);
+	if (level->kobj.parent != NULL) {
+		snprintf(level->kobj.name, KOBJ_NAME_LEN, "level-%2.2i", i);
+		level->kobj.ktype = &ktype_noattr;
+		result = fs_kobject_register(sbinfo->tree.super, level);
 		if (result == 0)
-			result = reiser4_populate_kattr_level_dir(level);
+			result = reiser4_populate_kattr_level_dir(&level->kobj);
 	} else
 		result = RETERR(-EBUSY);
 	return result;
@@ -503,29 +371,29 @@ reiser4_internal int
 reiser4_sysfs_init(struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
-	struct kobject *kobj;
+	struct fs_kobject *kobj;
 	int result;
-	ON_STATS(struct kobject *stats_kobj);
+	ON_STATS(struct fs_kobject *stats_kobj);
 
 	sbinfo = get_super_private(super);
 
 	kobj = &sbinfo->kobj;
 
-	snprintf(kobj->name, KOBJ_NAME_LEN, "%s", super->s_id);
-	kobj_set_kset_s(sbinfo, reiser4_subsys);
-	result = kobject_register(kobj);
+	snprintf(kobj->kobj.name, KOBJ_NAME_LEN, "%s", super->s_id);
+	kobj_set_kset_s(&sbinfo->kobj, reiser4_subsys);
+	result = fs_kobject_register(super, kobj);
 	if (result != 0)
 		return result;
 #if REISER4_STATS
 	/* add attributes representing statistical counters */
 	stats_kobj = &sbinfo->stats_kobj;
-	stats_kobj->parent = kobject_get(kobj);
-	snprintf(stats_kobj->name, KOBJ_NAME_LEN, "stats");
-	stats_kobj->ktype = &ktype_noattr;
-	result = kobject_register(stats_kobj);
+	stats_kobj->kobj.parent = kobject_get(&kobj->kobj);
+	snprintf(stats_kobj->kobj.name, KOBJ_NAME_LEN, "stats");
+	stats_kobj->kobj.ktype = &ktype_noattr;
+	result = fs_kobject_register(super, stats_kobj);
 	if (result != 0)
 		return result;
-	result = reiser4_populate_kattr_dir(stats_kobj);
+	result = reiser4_populate_kattr_dir(&stats_kobj->kobj);
 	if (result == 0) {
 		int i;
 
@@ -551,10 +419,10 @@ reiser4_sysfs_done(struct super_block *super)
 	sbinfo = get_super_private(super);
 #if REISER4_STATS
 	for (i = 0; i < sizeof_array(sbinfo->level); ++i)
-		kobject_unregister(&sbinfo->level[i].kobj);
-	kobject_unregister(&sbinfo->stats_kobj);
+		fs_kobject_unregister(&sbinfo->level[i].kobj);
+	fs_kobject_unregister(&sbinfo->stats_kobj);
 #endif
-	kobject_unregister(&sbinfo->kobj);
+	fs_kobject_unregister(&sbinfo->kobj);
 }
 
 /* REISER4_USE_SYSFS */
