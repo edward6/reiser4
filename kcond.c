@@ -89,7 +89,7 @@ int kcond_wait( kcond_t *cvar /* cvar to wait for */,
   
 	assert( "nikita-1869", cvar != NULL );
 	assert( "nikita-1870", lock != NULL );
-	ON_SMP( assert( "nikita-1871", spin_is_locked( lock ) ) );
+	assert( "nikita-1871", check_spin_is_locked( lock ) );
 
 	spin_lock( &cvar -> lock );
 	qlink.next = cvar -> queue;

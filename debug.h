@@ -45,16 +45,6 @@
 #define CONFIG_REISER4_CHECK
 #endif
 
-#ifdef __KERNEL__
-# if CONFIG_SMP
-#  define ON_SMP( e ) e
-# else
-#  define ON_SMP( e )
-# endif
-#else
-# define ON_SMP( e ) e
-#endif
-
 #ifndef REISER4_DEBUG
 
 #if defined( CONFIG_REISER4_CHECK )
@@ -165,6 +155,13 @@ extern int reiser4_are_all_debugged( struct super_block *super, __u32 flags );
 
 /* REISER4_DEBUG */
 #endif
+
+#define ON_CONTEXT( e )	do {			\
+	if( current -> journal_info != NULL ) {	\
+		e;				\
+	} } while( 0 )
+
+#define ON_DEBUG_CONTEXT( e ) ON_DEBUG( ON_CONTEXT( e ) )
 
 #if REISER4_DEBUG_MODIFY
 #define ON_DEBUG_MODIFY( exp ) exp

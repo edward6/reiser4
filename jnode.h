@@ -276,9 +276,9 @@ static inline int jnode_is_loaded (const jnode * node)
 static inline int jnode_is_dirty( const jnode *node )
 {
 	assert( "nikita-782", node != NULL );
-	ON_SMP( assert( "jmacd-1800", spin_jnode_is_locked (node) || 
-			(jnode_is_znode (node) && 
-			 znode_is_any_locked (JZNODE (node)))));
+	assert( "jmacd-1800", spin_jnode_is_locked (node) || 
+		(jnode_is_znode (node) && 
+		 znode_is_any_locked (JZNODE (node))));
 	return JF_ISSET( node, ZNODE_DIRTY );
 }
 
@@ -293,7 +293,7 @@ static inline int jnode_check_dirty( jnode *node )
 {
 	int is_dirty;
 	assert( "jmacd-7798", node != NULL );
-	ON_SMP( assert( "jmacd-7799", spin_jnode_is_not_locked (node) ) );
+	assert( "jmacd-7799", spin_jnode_is_not_locked (node) );
 	spin_lock_jnode (node);
 	is_dirty = jnode_is_dirty (node);
 	spin_unlock_jnode (node);
@@ -302,8 +302,8 @@ static inline int jnode_check_dirty( jnode *node )
 
 static inline int jnode_is_allocated (jnode *node)
 {
-	assert( "jmacd-78212", node != NULL );
-	ON_SMP (assert ("jmacd-71276", spin_jnode_is_locked (node)));
+	assert ("jmacd-78212", node != NULL );
+	assert ("jmacd-71276", spin_jnode_is_locked (node));
 	return ! jnode_is_dirty (node) || JF_ISSET (node, ZNODE_RELOC) || JF_ISSET (node, ZNODE_WANDER);
 }
 

@@ -37,12 +37,14 @@ static node_header_40 *node40_node_header( const znode *node /* node to
 
 
 /* functions to get/set fields of node_header_40 */
+
+#if 0
 /* Audited by: green(2002.06.12) */
 static void nh_40_set_magic (node_header_40 * nh UNUSED_ARG, __u32 value UNUSED_ARG)
 {
 	/*cputod32 (value, &nh->magic);*/
 }
-
+#endif
 
 /* Audited by: green(2002.06.12) */
 static __u32 nh_40_get_magic (node_header_40 * nh UNUSED_ARG)
@@ -1706,7 +1708,7 @@ void update_znode_dkeys (znode * left, znode * right)
 {
 	reiser4_key key;
 
-	ON_SMP (assert ("nikita-1470", spin_dk_is_locked (current_tree)));
+	assert ("nikita-1470", spin_dk_is_locked (current_tree));
 
 	leftmost_key_in_node (right, &key );
 

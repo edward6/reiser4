@@ -844,7 +844,7 @@ void bitmap_check_blocks (const reiser4_block_nr *start, const reiser4_block_nr 
 static void cond_add_to_clean_list (txn_atom * atom, jnode * node)
 {
 	assert ("zam-546", atom != NULL);
-	ON_SMP (assert ("zam-547", spin_atom_is_locked(atom)));
+	assert ("zam-547", spin_atom_is_locked(atom));
 	assert ("zam-548", node != NULL);
 
 	spin_lock_jnode (node);

@@ -289,55 +289,62 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 #endif
 #include "debug.h"
 
-/** Define serveral inline functions for each type of spinlock. */
-#define SPIN_LOCK_FUNCTIONS(NAME,TYPE,FIELD)				\
-									\
-static inline void spin_lock_ ## NAME (TYPE *x)				\
-{									\
-	assert ("nikita-1383", spin_ordering_pred_ ## NAME (x));	\
-	spin_lock (& x->FIELD);						\
-	ON_DEBUG( ++ lock_counters() -> spin_locked_ ## NAME );		\
-	ON_DEBUG( ++ lock_counters() -> spin_locked );			\
-}									\
-									\
-static inline int  spin_trylock_ ## NAME (TYPE *x)			\
-{									\
-	if (spin_trylock (& x->FIELD)) {				\
-		ON_DEBUG( ++ lock_counters() -> spin_locked_ ## NAME );	\
-		ON_DEBUG( ++ lock_counters() -> spin_locked );		\
-		return 1;						\
-	}								\
-	return 0;							\
-}									\
-									\
-static inline void spin_unlock_ ## NAME (TYPE *x)			\
-{									\
-	assert( "nikita-1375",						\
-		lock_counters() -> spin_locked_ ## NAME > 0 );		\
-	assert( "nikita-1376",						\
-		lock_counters() -> spin_locked > 0 );			\
-	ON_DEBUG( -- lock_counters() -> spin_locked_ ## NAME );		\
-	ON_DEBUG( -- lock_counters() -> spin_locked );			\
+#if REISER4_USER_LEVEL_SIMULATION
+#define check_spin_is_locked(s)     spin_is_locked(s)
+#define check_spin_is_not_locked(s) spin_is_not_locked(s)
+#else
+#    define check_spin_is_not_locked(s) (1)
+#    define spin_is_not_locked(s)       (1)
+#    if defined( CONFIG_SMP )
+#        define check_spin_is_locked(s)     spin_is_locked(s)
+#    else
+#        define check_spin_is_locked(s)     (1)
+#    endif
+#endif
+
+/** Define several inline functions for each type of spinlock. */
+#define SPIN_LOCK_FUNCTIONS(NAME,TYPE,FIELD)					\
+										\
+static inline void spin_lock_ ## NAME (TYPE *x)					\
+{										\
+	assert ("nikita-1383", spin_ordering_pred_ ## NAME (x));		\
+	spin_lock (& x->FIELD);							\
+	ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked_ ## NAME );		\
+	ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked );			\
+}										\
+										\
+static inline int  spin_trylock_ ## NAME (TYPE *x)				\
+{										\
+	if (spin_trylock (& x->FIELD)) {					\
+		ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked_ ## NAME );	\
+		ON_DEBUG_CONTEXT( ++ lock_counters() -> spin_locked );		\
+		return 1;							\
+	}									\
+	return 0;								\
+}										\
+										\
+static inline void spin_unlock_ ## NAME (TYPE *x)				\
+{										\
+	ON_DEBUG_CONTEXT( assert( "nikita-1375",				\
+		lock_counters() -> spin_locked_ ## NAME > 0 ) );		\
+	ON_DEBUG_CONTEXT( assert( "nikita-1376",				\
+		lock_counters() -> spin_locked > 0 ) );				\
+	ON_DEBUG_CONTEXT( -- lock_counters() -> spin_locked_ ## NAME );		\
+	ON_DEBUG_CONTEXT( -- lock_counters() -> spin_locked );			\
 	spin_unlock (& x->FIELD);						\
 }										\
 										\
 static inline int  spin_ ## NAME ## _is_locked (const TYPE *x)			\
 {										\
-	return spin_is_locked (& x->FIELD);					\
+	return check_spin_is_locked (& x->FIELD);				\
 }										\
 										\
 static inline int  spin_ ## NAME ## _is_not_locked (TYPE *x)			\
 {										\
-	return spin_is_not_locked (& x->FIELD);				        \
+	return check_spin_is_not_locked (& x->FIELD);				\
 }										\
 										\
 typedef struct { int foo; } NAME ## _spin_dummy
-
-/* The spin_is_not_locked function can only be implemented by the user-level debugging
- * spinlocks. */
-#if ! REISER4_USER_LEVEL_SIMULATION
-#define spin_is_not_locked(s) 1
-#endif
 
 #include "kcond.h"
 #include "dformat.h"

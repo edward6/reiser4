@@ -1923,24 +1923,18 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	assert( "nikita-2258", node != NULL );
 
 	write_lock( &page -> mapping -> page_lock );
-	spin_lock_tree( current_tree );
-
 	result = 0;
-	if( ( atomic_read( &node -> x_count ) == 0 ) && !PageDirty( page ) ) {
+
+	/*
+	 * locking: we are under page lock and mapping write lock. Latter
+	 * protected against races with parallel calls to jload().
+	 */
+	if( ( atomic_read( &node -> d_count ) == 0 ) && !PageDirty( page ) ) {
 		if( node -> atom == NULL ) {
-			/*
-			 * page is free-able: one reference from page cache
-			 * itself and another from ->private field. Third
-			 * reference is temporary acquired by
-			 * shrink_cache(). Jnode could be detached already, so
-			 * there could be only 2 references to this page.
-			 */
 			page_detach_jnode( page );
 			result = 1;
 		}
 	}
-
-	spin_unlock_tree( current_tree );
 	write_unlock( &page -> mapping -> page_lock );
 
 	REISER4_EXIT( result );

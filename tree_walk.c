@@ -60,7 +60,7 @@ static int lock_neighbor (lock_handle * result /* resulting lock
 	
 	assert("umka-236", node != NULL);
 	assert("umka-237", tree != NULL);
-	ON_SMP(assert("umka-301", spin_is_locked(&tree->tree_lock)));
+	assert("umka-301", check_spin_is_locked(&tree->tree_lock));
 	
 	reiser4_stat_znode_add(lock_neighbor);
 	/* get neighbor's address by using of sibling link, quit while loop

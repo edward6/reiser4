@@ -781,7 +781,7 @@ int znode_is_loaded( const znode *node /* znode to query */ )
 reiser4_key *znode_get_rd_key( znode *node /* znode to query */ )
 {
 	assert( "nikita-958", node != NULL );
-	ON_SMP( assert( "nikita-1661", spin_dk_is_locked( current_tree ) ) );
+	assert( "nikita-1661", spin_dk_is_locked( current_tree ) );
 
 	return &node -> rd_key;
 }
@@ -791,7 +791,7 @@ reiser4_key *znode_get_rd_key( znode *node /* znode to query */ )
 reiser4_key *znode_get_ld_key( znode *node /* znode to query */ )
 {
 	assert( "nikita-974", node != NULL );
-	ON_SMP( assert( "nikita-1662", spin_dk_is_locked( current_tree ) ) );
+	assert( "nikita-1662", spin_dk_is_locked( current_tree ) );
 
 	return &node -> ld_key;
 }

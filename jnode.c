@@ -230,7 +230,7 @@ jnode *jlook (reiser4_tree *tree,
 
 	assert( "nikita-2353", tree != NULL );
 	assert( "nikita-2354", mapping != NULL );
-	ON_SMP( assert( "nikita-2355", spin_tree_is_locked( tree ) ) );
+	assert( "nikita-2355", spin_tree_is_locked( tree ) );
 
 	jkey.mapping = mapping;
 	jkey.index   = index;
@@ -650,7 +650,7 @@ void jrelse_nolock( jnode *node /* jnode to release references to */ )
 
 	assert( "nikita-487", node != NULL );
 	assert( "nikita-489", atomic_read( &node -> d_count ) > 0 );
-	ON_SMP( assert( "nikita-1906", spin_jnode_is_locked( node ) ) );
+	assert( "nikita-1906", spin_jnode_is_locked( node ) );
 
 	ON_DEBUG( -- lock_counters() -> d_refs );
 
@@ -725,7 +725,7 @@ void jdrop (jnode * node)
 	spinlock_t  *lock;
 
 	assert( "zam-602", node != NULL );
-	ON_SMP( assert( "nikita-2362", spin_tree_is_locked( current_tree ) ) );
+	assert( "nikita-2362", spin_tree_is_locked( current_tree ) );
 
 	/* reference was acquired by other thread. */
 	if( atomic_read( &node -> x_count ) > 0 )
@@ -873,7 +873,7 @@ static int znode_remove_op( jnode *node )
 {
 	znode *z;
 
-	ON_SMP( assert( "nikita-2128", spin_tree_is_locked( current_tree ) ) );
+	assert( "nikita-2128", spin_tree_is_locked( current_tree ) );
 	z = JZNODE( node );
 
 	/*
