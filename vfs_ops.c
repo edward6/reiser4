@@ -464,12 +464,33 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 	return fplug -> readpage( f, page );
 }
 
+/* ->sync_page()
+   ->writepages()
+   ->vm_writeback()
+   ->set_page_dirty()
+   ->readpages()
+   ->prepare_write()
+   ->commit_write()
+*/   
 
-static int reiser4_bmap(struct address_space * mapping UNUSED_ARG, long block UNUSED_ARG)
+/* ->bmap() VFS method in reiser4 address_space_operations */
+static int reiser4_bmap(struct address_space * mapping, long block)
 {
-	return -ENOSYS;
+	file_plugin * fplug;
+
+	assert( "vs-693", mapping && mapping -> host );
+
+	fplug = inode_file_plugin( mapping -> host );
+	if( !fplug || !fplug -> get_block ) {
+		return -EINVAL;
+	}
+
+	return generic_block_bmap( mapping, (sector_t)block, fplug -> get_block );
 }
 
+/* ->invalidatepage()
+   ->releasepage()
+*/
 
 
 /**
