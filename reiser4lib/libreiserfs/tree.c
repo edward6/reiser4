@@ -31,14 +31,15 @@ int reiserfs_tree_open(reiserfs_fs_t *fs) {
 	    "Can't read root block %d.", block);
 	goto error_free_tree;
     }
-    
+
+    /*
     if (!(fs->tree->root = reiserfs_node_open(block)))
 	goto error_free_block;
-    
+    */
     return 1;
 
 error_free_root:
-    reiserfs_node_close(fs->tree->root, 0);
+//    reiserfs_node_close(fs->tree->root, 0);
 error_free_block:
     aal_device_free_block(block);
 error_free_tree:
@@ -83,13 +84,13 @@ int reiserfs_tree_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id)
 	    REISERFS_ROOT_LEVEL)))
 	goto error_free_block;
     
-    if (!reiserfs_node_sync(fs->tree->root))
+    if (reiserfs_node_sync(fs->tree->root))
 	goto error_free_root;
     
     return 1;
 
 error_free_root:
-    reiserfs_node_close(fs->tree->root, 0);
+//    reiserfs_node_close(fs->tree->root, 0);
 error_free_block:
     aal_device_free_block(block);
 error_free_tree:
