@@ -129,7 +129,7 @@ static inline loff_t get_min_readahead(struct reiser4_file_ra_state *ra)
 }
 
 
-/* start i/o for the given window. */
+/* Start read for the given window. */
 static int do_reiser4_file_readahead (struct inode * inode, loff_t offset, loff_t size)
 {
 	reiser4_inode * object;
@@ -153,7 +153,7 @@ static int do_reiser4_file_readahead (struct inode * inode, loff_t offset, loff_
 	init_lh(&lock);
 	init_lh(&next_lock);
 
-	/* stop on twig level */
+	/* Stop on twig level */
 	ret = coord_by_key(
 		current_tree, &start_key, &coord, &lock, ZNODE_WRITE_LOCK, 
 		FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL, 0, NULL);
@@ -169,10 +169,13 @@ static int do_reiser4_file_readahead (struct inode * inode, loff_t offset, loff_
 	if (ret)
 		goto error0;
 
+	/* Advance coord to right (even across node boundaries) while coord key
+	 * less than stop_key.  */
 	while (1) {
 		reiser4_key key;
 		jnode * child;
 
+		/* Currently this read-ahead is for formatted nodes only */
 		if (!item_is_internal(&coord))
 			break;
 
@@ -193,10 +196,12 @@ static int do_reiser4_file_readahead (struct inode * inode, loff_t offset, loff_
 		if (ret)
 			break;
 
+		/* Advance coord by one unit ... */
 		ret = coord_next_unit(&coord);
 		if (ret == 0)
 			continue;
 
+		/* ... and continue on the right neighbor if needed. */
 		ret = reiser4_get_right_neighbor (
 			&next_lock, lock.node, ZNODE_WRITE_LOCK, GN_CAN_USE_UPPER_LEVELS);
 		if (ret == -E_NO_NEIGHBOR) {

@@ -1378,7 +1378,7 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 		read_f = item_plugin_by_id(EXTENT_POINTER_ID)->s.file.read;
 		break;
 	case UF_CONTAINER_TAILS:
-		/* this is read-ahead for  */
+		/* this is read-ahead for tails-only files */
 		result = reiser4_file_readahead(file, *off, read_amount);
 		if (result)
 			return result;
