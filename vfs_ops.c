@@ -553,6 +553,7 @@ static int reiser4_set_page_dirty (struct page * page)
 	return ret;
 }
 
+#if 0
 /* ->writepage() VFS method in reiser4 address_space_operations */
 static int
 reiser4_writepage(struct page *page)
@@ -561,13 +562,6 @@ reiser4_writepage(struct page *page)
 	file_plugin *fplug;
 	struct writeback_control wbc;
 	REISER4_ENTRY(page->mapping->host->i_sb);
-
-	xmemset(&wbc, 0, sizeof wbc);
-	wbc.nr_to_write = 1;
-
-	if (current->flags & PF_MEMALLOC) {
-		return reiser4_vm_writeback(page, &wbc );
-	}
 
 	impossible("vs-1099", "this is not to be called");
 
@@ -592,6 +586,7 @@ reiser4_writepage(struct page *page)
 	page_cache_release(page);
 	REISER4_EXIT(result);
 }
+#endif
 
 /* ->readpage() VFS method in reiser4 address_space_operations */
 static int
@@ -628,11 +623,12 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 	REISER4_EXIT(0);
 }
 
-/* nikita-fixme-hans: comment all functions and their parameters */
+/* write page in response to memory pressure */
 static int
-reiser4_vm_writeback(struct page *page, struct writeback_control *wbc)
+reiser4_writepage(struct page *page)
 {
-	return page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
+	assert ("zam-822", current->flags & PF_MEMALLOC);
+	return page_common_writeback(page, JNODE_FLUSH_MEMORY_UNFORMATTED);
 }
 
 /* ->writepages()

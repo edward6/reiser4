@@ -152,7 +152,7 @@ static kmem_cache_t *eflush_slab;
 
 /* try to flush @page to the disk */
 int
-emergency_flush(struct page *page, struct writeback_control *wbc)
+emergency_flush(struct page *page)
 {
 	struct super_block *sb;
 	jnode *node;
@@ -162,7 +162,6 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 		return 0;
 
 	assert("nikita-2721", page != NULL);
-	assert("nikita-2722", wbc != NULL);
 	assert("nikita-2723", PageDirty(page));
 	assert("nikita-2724", PageLocked(page));
 
@@ -205,7 +204,6 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 			result = page_io(page, 
 					 node, WRITE, GFP_NOFS | __GFP_HIGH);
 			if (result == 0) {
-				--wbc->nr_to_write;
 				result = 1;
 				trace_on(TRACE_EFLUSH, "ok: %llu\n", blk);
 			} else {
