@@ -685,7 +685,8 @@ append_hole(struct inode *inode, loff_t new_size)
 			result = -ENOSPC;
 		else
 			result = written;
-		     
+	} else {
+		assert("vs-1081", inode->i_size == new_size);
 	}
 	return result;
 }
@@ -1274,7 +1275,6 @@ write_flow(struct file *file, struct inode *inode, const char *buf, size_t count
 	int result;
 	file_plugin *fplug;
 	flow_t f;
-	loff_t written;
 
 	fplug = inode_file_plugin(inode);
 	result = fplug->flow_by_inode(inode, (char *)buf, 1 /* user space */,
@@ -1282,15 +1282,7 @@ write_flow(struct file *file, struct inode *inode, const char *buf, size_t count
 	if (result)
 		return result;
 
-	written = append_and_or_overwrite(file, inode, &f);
-	if (written != count) {
-		/* we were not able to write expand file to desired size */
-		if (written < 0)
-			return (int) written;
-		return -ENOSPC;
-	}
-	assert("vs-1081", ergo(buf == 0, ((pos + count) == inode->i_size)));
-	return written;
+	return append_and_or_overwrite(file, inode, &f);
 }
 
 /* stolen from generic_file_aio_write_nolock(). Should be genericized. */
