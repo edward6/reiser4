@@ -91,6 +91,7 @@ typedef enum {
 	KEY_OFFSET_INDEX = 2,
 	/* Name hash. Sits in 3rd element */
 	KEY_HASH_INDEX = 2,
+	KEY_CACHELINE_END = 2,
 	KEY_LAST_INDEX = 3
 } reiser4_key_field_index;
 
@@ -328,6 +329,13 @@ keyge(const reiser4_key * k1 /* first key to compare */ ,
 	assert("nikita-1957", k2 != NULL);	/* October  4: sputnik launched
 						 * November 3: Laika */
 	return keycmp(k1, k2) != LESS_THAN;
+}
+
+static inline void
+prefetchkey(reiser4_key *key)
+{
+	prefetch(key);
+	prefetch(&key->el[KEY_CACHELINE_END]);
 }
 
 extern int sprintf_key(char *buffer, const reiser4_key * key);
