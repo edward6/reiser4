@@ -9,7 +9,7 @@
  */
 
 int symlink_create( struct inode * symlink, /* inode of symlink */
-		    struct inode * dir, /* parent directory */
+		    struct inode * dir UNUSED_ARG, /* parent directory */
 		    reiser4_object_create_data * data /* info passed
 								 * to us, this
 								 * is filled by

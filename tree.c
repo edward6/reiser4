@@ -1449,7 +1449,7 @@ int cut_node (coord_t * from /* coord of the first unit/item that will be
 */
 
 /* Audited by: umka (2002.06.16) */
-int cut_tree (reiser4_tree * tree, 
+int cut_tree (reiser4_tree * tree UNUSED_ARG,
 	      const reiser4_key * from_key, const reiser4_key * to_key)
 {
 	coord_t intranode_to, intranode_from;

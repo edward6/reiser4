@@ -108,7 +108,8 @@ int go_dir_el( tap_t *tap, sideof dir, int units_p )
 
 			init_lh( &dup );
 			result = get_dir_neighbor( &dup, coord -> node, 
-						   tap -> mode, GN_DO_READ );
+						   ( int ) tap -> mode, 
+						   GN_DO_READ );
 			if( result == 0 ) {
 				result = tap_move( tap, &dup );
 				if( result != 0 )

@@ -878,8 +878,7 @@ make_space_for_flow_insertion ()
  * by calculating this value once at the beginning and passing it around. That
  * would reduce some flexibility in future changes
  */
-static int can_paste( carry_op *op /* carry operation to check */,
-		      coord_t *, const reiser4_key *, const reiser4_item_data * );
+static int can_paste( coord_t *, const reiser4_key *, const reiser4_item_data *);
 static size_t flow_insertion_overhead( carry_op *op )
 {
 	znode *node;
@@ -888,8 +887,7 @@ static size_t flow_insertion_overhead( carry_op *op )
 	node = flow_insert_point( op ) -> node;
 	insertion_overhead = 0;
 	if( node -> nplug -> item_overhead &&
-	    !can_paste( op, flow_insert_point( op ),
-			&flow_insert_flow( op ) -> key,
+	    !can_paste( flow_insert_point( op ), &flow_insert_flow( op ) -> key,
 			flow_insert_data( op ) ) )
 		insertion_overhead = node -> nplug -> item_overhead( node, 0 );
 	return insertion_overhead;
@@ -914,7 +912,8 @@ static int what_can_be_written( carry_op *op )
  */
 static int enough_space_for_whole_flow( carry_op *op )
 {
-	return what_can_be_written( op ) == op -> u.insert_flow.flow -> length;
+	return 
+		( unsigned ) what_can_be_written( op ) == op -> u.insert_flow.flow -> length;
 }
 
 #define MIN_FLOW_FRACTION 1
@@ -1161,8 +1160,7 @@ static int carry_insert_flow( carry_op *op, carry_level *doing, carry_level *tod
 		flow_insert_data( op ) -> data = f -> data;
 		flow_insert_data( op ) -> length = what_can_be_written( op );
 
-		if( can_paste( op, insert_point, &f -> key,
-			       flow_insert_data( op ) ) ) {
+		if( can_paste( insert_point, &f -> key, flow_insert_data( op ) ) ) {
 			/* existing item must be expanded */
 			assert( "vs-903", insert_point -> between == AFTER_UNIT );
 			nplug -> change_item_size( insert_point, flow_insert_data( op ) -> length );
@@ -1200,7 +1198,7 @@ static int carry_insert_flow( carry_op *op, carry_level *doing, carry_level *tod
 		doing -> restartable = 0;
 		znode_set_dirty( insert_point -> node );
 
-		move_flow_forward( f, 	flow_insert_data( op ) -> length );
+		move_flow_forward( f, ( unsigned ) flow_insert_data( op ) -> length );
 		something_written = 1;
 	}
 
@@ -1369,7 +1367,7 @@ static int can_paste( coord_t *icoord, const reiser4_key *key,
 	coord_t  circa;
 	item_plugin *new_iplug;
 	item_plugin *old_iplug;
-	int result;
+	int result = 0; /* to keep gcc shut */
 
 	assert( "nikita-2512", icoord -> between != AT_UNIT );
 
@@ -1958,7 +1956,7 @@ static carry_node *find_dir_carry( carry_node *node /* node to start scanning
 /**
  * ->estimate method of tree operations
  */
-static __u64 common_estimate( carry_op *op, carry_level *doing )
+static __u64 common_estimate( carry_op *op, carry_level *doing UNUSED_ARG )
 {
 	__u64 result = 0; /* to keep gcc happy */
 	reiser4_tree *tree;

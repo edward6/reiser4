@@ -590,11 +590,15 @@ static const char*   flush_flags_tostring         (int flags);
 
 static flush_params *flush_get_params( void );
 
+#if REISER4_DEBUG
 static void check_preceder( reiser4_block_nr blk )
 {
 	assert( "nikita-2588", 
 		blk < reiser4_block_count( reiser4_get_current_sb() ) );
 }
+#else
+#define check_preceder( b ) noop
+#endif
 
 /* This flush_cnt variable is used to track the number of concurrent flush operations,
  * useful for debugging.  It is initialized in txnmgr.c out of laziness (because flush has
@@ -704,7 +708,7 @@ ON_DEBUG (atomic_t flush_cnt;)
  * probably be handled properly rather than restarting, but there are a bunch of cases to
  * audit.
  */
-int jnode_flush (jnode *node, int *nr_to_flush, int flags)
+int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 {
 	int ret = 0;
 	flush_position flush_pos;
@@ -3804,7 +3808,7 @@ static int flush_pos_lock_parent (flush_position *pos, coord_t *parent_coord, lo
 
 	if (flush_pos_on_twig_level (pos)) {
 		/* In this case we already have the parent locked. */
-		znode_lock_mode have_mode = lock_mode (& pos->parent_lock);
+		ON_DEBUG(znode_lock_mode have_mode = lock_mode (& pos->parent_lock));
 
 		/* For now we only deal with the case where the previously requested
 		 * parent lock has the proper mode.  Otherwise we have to release the lock

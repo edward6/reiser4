@@ -625,7 +625,8 @@ void iput( struct inode *inode )
 			xmemset (&file, 0, sizeof file);
 			file.f_dentry = &dentry;
 			dentry.d_inode = inode;
-			if (inode->i_fop && inode->i_fop->release (inode, &file))
+			if (inode->i_fop && inode->i_fop->release && 
+			    inode->i_fop->release (inode, &file))
 				info ("release failed\n");
 			/* leave inode in hash table with all its pages */
 		}
