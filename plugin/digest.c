@@ -1,5 +1,7 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
+/* NIKITA-FIXME-HANS: digest plugins do what?  why no comments */
+
 /* crypto-hash functions */
 
 #include "../debug.h"

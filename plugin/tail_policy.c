@@ -5,6 +5,8 @@
 
 /* Tail policy is used by object plugin (of regular file) to convert file
    between two representations. TO BE CONTINUED.
+NIKITA-FIXME-HANS: the "TO BE CONTINUED" means what?
+GREV-FIXME-HANS: why the references to tails above?  fix comments and website.... tail implies it is less than the whole file that is formatted, and it is not.... not in v4.... 
 
    Currently following policies are implemented:
 

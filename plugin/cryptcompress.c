@@ -488,6 +488,7 @@ fsize_to_count(reiser4_cluster_t * clust, struct inode * inode)
 }
 
 /* plugin->key_by_inode() */
+/* EDWARD-FIXME-HANS: comment is where? */
 reiser4_internal int
 key_by_inode_cryptcompress(struct inode *inode, loff_t off, reiser4_key * key)
 {
@@ -2591,9 +2592,11 @@ validate_crc_extended_coord(uf_coord_t *uf_coord, loff_t offset)
 
 /* plugin->u.file.release */
 /* plugin->u.file.get_block */
+/* EDWARD-FIXME-HANS: comment is where? */
 reiser4_internal int
 get_block_cryptcompress(struct inode *inode, sector_t block, struct buffer_head *bh_result, int create UNUSED_ARG)
 {	
+/* EDWARD-FIXME-HANS: comment is where? unlikely should be used.... */
 	if (current_blocksize != inode_cluster_size(inode))
 		return RETERR(-EINVAL);
 	else {
@@ -2635,6 +2638,7 @@ get_block_cryptcompress(struct inode *inode, sector_t block, struct buffer_head 
 }
 
 /* plugin->u.file.delete */
+/* EDWARD-FIXME-HANS: comment is where? */
 reiser4_internal int
 delete_cryptcompress(struct inode *inode)
 {
@@ -2657,6 +2661,7 @@ delete_cryptcompress(struct inode *inode)
 /* plugin->u.file.owns_item:
    owns_item_common */
 /* plugin->u.file.pre_delete */
+/* EDWARD-FIXME-HANS: comment is where? */
 reiser4_internal int
 pre_delete_cryptcompress(struct inode *inode)
 {
@@ -2671,6 +2676,8 @@ setattr_cryptcompress(struct inode *inode,	/* Object to change attributes */
 	int result;
 	
 	if (attr->ia_valid & ATTR_SIZE) {
+		/* EDWARD-FIXME-HANS: VS-FIXME-HANS: this case occurs when? truncate? If so, why isn't this code in
+		 * truncate itself instead of here? */
 		/* truncate does reservation itself and requires exclusive access obtained */
 		if (inode->i_size != attr->ia_size) {
 			loff_t old_size;

@@ -1,5 +1,8 @@
 /* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
+/* EDWARD-FIXME-HANS: comment goes at top of every file you write, such as... */
+/* See http://www.namesys.com/cryptcompress_design.txt . */
+
 #if !defined( __FS_REISER4_CRYPTCOMPRESS_H__ )
 #define __FS_REISER4_CRYPTCOMPRESS_H__
 
@@ -12,12 +15,14 @@
 #define MIN_CRYPTO_BLOCKSIZE 8
 #define CLUSTER_MAGIC_SIZE (MIN_CRYPTO_BLOCKSIZE >> 1)
 
+/* EDWARD-FIXME-HANS: comment needed... */
 typedef enum {
 	DATA_CLUSTER = 0,
 	HOLE_CLUSTER = 1,
 	FAKE_CLUSTER = 2
 } reiser4_cluster_status;
 
+/* EDWARD-FIXME-HANS: comment needed... */
 typedef enum {
 	CRC_FIRST_ITEM = 1,
 	CRC_APPEND_ITEM = 2,
@@ -27,10 +32,11 @@ typedef enum {
 
 /* reiser4 cluster manager transforms pages into a set of items (and back) via
    assembling/splitting continuous regions where crypto/compression algorithm live.
-   This manager contains mostly operations with the following object: */
+   This manager consists mostly of operations on the following object: */
 typedef struct reiser4_cluster{
 	__u8 * buf;      /* pointer to the beginning of region where crypto/compression
 			    algorithms live; this region contains only one cluster */
+/* EDWARD-FIXME-HANS: I don't understand the comment above, particularly what live means. */
 	size_t bsize;    /* the length of this region */
 	size_t len;      /* current length of the processed cluster */
 	int nr_pages;    /* number of attached pages */
@@ -41,17 +47,20 @@ typedef struct reiser4_cluster{
 	   like read/write position, size, new size (for truncate), etc.. into number
 	   of pages, cluster status, etc..*/
 	unsigned long index; /* cluster index, coord of the frame */
-	unsigned off;    /* offset we want to read/write/eraze from */
-	unsigned count;  /* bytes to read/write/eraze */
+	unsigned off;    /* offset we want to read/write/erase from */
+	unsigned count;  /* bytes to read/write/erase */
+	/* EDWARD-FIXME-HANS: does erase mean truncate or? */
 	unsigned delta;  /* bytes of user's data to append to the hole */
 } reiser4_cluster_t;
 
 /* secret key params supposed to be stored on disk */
 typedef struct crypto_stat {
 	__u8 * keyid;  /* key public id */
+	/* EDWARD-FIXME-HANS: is this the plugin id for the key? If so, call it something like keyplugid. */
 	__u16 keysize; /* key size, bits */
 } crypto_stat_t;
 
+/* EDWARD-FIXME-HANS: comment needed... */
 typedef struct cryptcompress_info {
 	/* cpu-key words */
 	__u32 * expkey;

@@ -8,7 +8,7 @@
 
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block  */
-
+/* EDWARD-FIXME-HANS: write something as informative as the below for every .h file lacking it. */
 /* declarations of functions implementing methods of space allocator plugin for
    bitmap based allocator. The functions themselves are in bitmap.c */
 extern int init_allocator_bitmap(reiser4_space_allocator *, struct super_block *, void *);

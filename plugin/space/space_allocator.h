@@ -5,7 +5,8 @@
 
 #include "../../forward.h"
 #include "bitmap.h"
-
+/* NIKITA-FIXME-HANS: surely this could use a comment. Something about how bitmap is the only space allocator for now,
+ * but... */
 #define DEF_SPACE_ALLOCATOR(allocator)											\
 															\
 static inline int sa_init_allocator (reiser4_space_allocator * al, struct super_block *s, void * opaque)		\
