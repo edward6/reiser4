@@ -675,7 +675,7 @@ static int cut_or_kill_units (coord_t * coord,
 			 * @from-th extent can not be removed. Its width has to
 			 * be decreased in accordance with @from_key
 			 */
-			reiser4_block_nr new_width;
+			reiser4_block_nr new_width, old_width;
 			reiser4_block_nr first;
 
 			/* cut from the middle of extent item is not allowed,
@@ -687,22 +687,26 @@ static int cut_or_kill_units (coord_t * coord,
 
 			ext = extent_item (coord) + *from;
 			first = offset + extent_size (coord, *from);
+			old_width = extent_get_width (ext);
 			new_width = (get_key_offset (from_key) + (blocksize - 1) - first) >> blocksize_bits;
-			assert ("vs-307", new_width > 0 && new_width <= extent_get_width (ext));
-			if (state_of_extent (ext) == ALLOCATED_EXTENT && !cut) {
-				reiser4_block_nr start, length;
-				/*
-				 * truncate is in progress. Some blocks can be
-				 * freed. As they do not get immediately
-				 * available, set defer parameter of
-				 * reiser4_dealloc_blocks to 1
-				 */
-				start = extent_get_start (ext) + new_width;
-				length = extent_get_width (ext) - new_width;
-				reiser4_dealloc_blocks (&start, &length,
-							1 /* defer */, BLOCK_NOT_COUNTED);
+			assert ("vs-307", new_width > 0 && new_width <= old_width);
+			if (new_width < old_width) {
+				if (state_of_extent (ext) == ALLOCATED_EXTENT && !cut) {
+					reiser4_block_nr start, length;
+					/*
+					 * truncate is in progress. Some blocks
+					 * can be * freed. As they do not get
+					 * immediately * available, set defer
+					 * parameter of *
+					 * reiser4_dealloc_blocks to 1
+					 */
+					start = extent_get_start (ext) + new_width;
+					length = old_width - new_width;
+					reiser4_dealloc_blocks (&start, &length,
+								1 /* defer */, BLOCK_NOT_COUNTED);
+				}
+				extent_set_width (ext, new_width);
 			}
-			extent_set_width (ext, new_width);
 			(*from) ++;
 			count --;
 			if (smallest_removed) {
@@ -1141,6 +1145,13 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 	jnode_set_block (j, &null_block_nr);
 
 	reiser4_stat_file_add (write_repeats);
+
+	/*
+	 * coord and lock handle are set to leaf node whereas insertion is done
+	 * to twig level
+	 */
+	done_lh (lh);
+	coord->node = 0;
 	return -EAGAIN;
 }
 
