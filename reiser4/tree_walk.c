@@ -406,7 +406,7 @@ static int renew_neighbor (tree_coord * coord, znode * node, tree_level level, i
 	ret = renew_sibling_link(&local, &empty[nr_locked], neighbor,
 				 level, flags | GN_NO_ALLOC, &nr_locked);
 
-	if (ret = -ENOENT) ret = 0;
+	if (-ENOENT == ret) ret = 0;
 
  out:
 	reiser4_done_coord(&local);
