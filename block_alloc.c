@@ -290,7 +290,7 @@ reiser4_grab(__u64 count, reiser4_ba_flags_t flags)
 	trace_on(TRACE_ALLOC, "reiser4_grab: free_blocks %llu\n", free_blocks);
 
 	if ((use_reserved && (free_blocks < count)) || 
-	    (!use_reserved && (free_blocks - reserved_blocks < count))) {
+	    (!use_reserved && (free_blocks < count + reserved_blocks))) {
 		ret = -ENOSPC;
 		
 		trace_on(TRACE_ALLOC, "reiser4_grab: ENOSPC: count %llu\n", count);
