@@ -168,6 +168,9 @@ struct reiser4_super_info_data {
 
 	/* head block number of last committed transaction */
 	__u64                 last_committed_tx;
+
+	/* we remember last written location for using as a hint for new block allocation */
+	__u64                  last_written_location;
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck( const struct super_block *super );
