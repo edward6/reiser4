@@ -232,12 +232,12 @@ reiser4_print_stats()
 	     "\t jload_read:\t %lu\n"
 	     "\t jload_already:\t %lu\n"
 	     "\t jload_page:\t %lu\n"
-	     "\t jload_async:\t %lu\n"
-	     s->znode.jload,
-	     s->znode.jload_read,
-	     s->znode.jload_already,
-	     s->znode.jload_page,
-	     s->znode.jload_async);
+	     "\t jload_async:\t %lu\n",
+	     s->jnode.jload,
+	     s->jnode.jload_read,
+	     s->jnode.jload_already,
+	     s->jnode.jload_page,
+	     s->jnode.jload_async);
 
 	info("znode:\n"
 	     "\t lock_znode:\t %lu\n"

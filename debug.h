@@ -338,7 +338,7 @@ extern __u32 reiser4_current_trace_flags;
 */
 
 #define	reiser4_stat_tree_add( stat ) ST_INC_CNT( tree . stat )
-#define reiser4_stat_jnode_add( stat ) ST_INC_CNT( znode . stat )
+#define reiser4_stat_jnode_add( stat ) ST_INC_CNT( jnode . stat )
 #define reiser4_stat_znode_add( stat ) ST_INC_CNT( znode . stat )
 #define reiser4_stat_dir_add( stat ) ST_INC_CNT( dir . stat )
 #define reiser4_stat_vfs_calls_add( stat ) ST_INC_CNT( vfs_calls . stat )
