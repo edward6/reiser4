@@ -141,6 +141,9 @@ struct reiser4_item_data {
 	 *
 	 */
 	char           *data;
+	/* 1 if 'char * data' contains pointer to user space and 0 if it is
+	 * kernel space */
+	int             user;
 	/**
 	 * amount of data we are going to insert or paste
 	 */

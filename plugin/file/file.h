@@ -16,9 +16,10 @@
 
 /* FIXME-VS: shouldn't this be somewhere else? */
 struct flow {
-	reiser4_key  key;    /* key of start of flow's sequence of bytes */
-	size_t       length; /* length of flow's sequence of bytes */
-	char        *data;   /* start of flow's sequence of bytes */
+	reiser4_key key;    /* key of start of flow's sequence of bytes */
+	size_t      length; /* length of flow's sequence of bytes */
+	char       *data;   /* start of flow's sequence of bytes */
+	int         user;   /* 1 if data is user space, 0 - otherwise */
 };
 
 

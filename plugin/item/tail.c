@@ -40,9 +40,6 @@ int tail_can_contain_key (const tree_coord * coord, const reiser4_key * key,
 		 coord->between == AFTER_UNIT));
 
 	if (coord->between == BEFORE_UNIT) {
-		reiser4_extent * ext;
-
-		ext = (reiser4_extent *)data->data;
 		if (get_key_offset (key) + data->length !=
 		    get_key_offset (&item_key)) {
 			info ("could not merge tail items of one file\n");
@@ -208,10 +205,19 @@ int tail_paste (tree_coord * coord, reiser4_item_data * data,
 	if (coord->between == AFTER_UNIT)
 		coord->unit_pos ++;
 
-	if (data->data)
-		xmemcpy (item + coord->unit_pos, data->data, (unsigned)data->length);
-	else
+	if (data->data) {
+		assert ("vs-554", data->user == 0 || data->user == 1);
+		if (data->user)
+			/* copy from user space */
+			__copy_from_user (item + coord->unit_pos, data->data,
+					  (unsigned)data->length);
+		else
+			/* copy from kernel space */
+			xmemcpy (item + coord->unit_pos, data->data,
+				 (unsigned)data->length);
+	} else {
 		xmemset (item + coord->unit_pos, 0, (unsigned)data->length);
+	}
 	return 0;
 }
 
@@ -433,9 +439,10 @@ static tail_write_todo tail_what_todo (struct inode * inode, tree_coord * coord,
  * resize_item
  */
 static void make_item_data (tree_coord * coord, reiser4_item_data * item,
-			    char * data, unsigned desired_len)
+			    char * data, int user, unsigned desired_len)
 {
 	item->data = data;
+	item->user = user;
 	item->length = node_plugin_by_node (coord->node)->max_item_size ();
 	if ((int)desired_len < item->length)
 		item->length = (int)desired_len;
@@ -459,7 +466,8 @@ static int create_hole (tree_coord * coord, lock_handle * lh, flow_t * f)
 	set_key_offset (&hole_key, 0ull);
 
 	assert ("vs-384", get_key_offset (&f->key) <= INT_MAX);
-	make_item_data (coord, &item, 0, (unsigned)get_key_offset (&f->key));
+	make_item_data (coord, &item, 0, 0/*user*/,
+			(unsigned)get_key_offset (&f->key));
 	result = insert_by_coord (coord, &item, &hole_key, lh, 0, 0, 0/*flags*/);
 	if (result)
 		return result;
@@ -485,10 +493,10 @@ static int append_hole (tree_coord * coord, lock_handle * lh, flow_t * f)
 
 	assert ("vs-384", (get_key_offset (&f->key) - 
 			   get_key_offset (&hole_key)) <= INT_MAX);
-	make_item_data (coord, &item, 0,
+	make_item_data (coord, &item, 0, 0/*user*/,
 			(unsigned)(get_key_offset (&f->key) -
 				   get_key_offset (&hole_key)));
-	result = resize_item (coord, &item, &hole_key, lh, 0/**/);
+	result = resize_item (coord, &item, &hole_key, lh, 0/*flags*/);
 	if (result)
 		return result;
 
@@ -519,7 +527,7 @@ static int insert_first_item (tree_coord * coord, lock_handle * lh, flow_t * f)
 
 	assert ("vs-383", get_key_offset (&f->key) == 0);
 
-	make_item_data (coord, &item, f->data, f->length);
+	make_item_data (coord, &item, f->data, f->user, f->length);
 	result = insert_by_coord (coord, &item, &f->key, lh, 0, 0, 0/*flags*/);
 	if (result)
 		return result;
@@ -539,7 +547,7 @@ static int append_tail (tree_coord * coord, lock_handle * lh, flow_t * f)
 	int result;
 
 
-	make_item_data (coord, &item, f->data, f->length);
+	make_item_data (coord, &item, f->data, f->user, f->length);
 	/*
 	 * FIXME-VS: we must copy data with __copy_from_user
 	 */

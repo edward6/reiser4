@@ -90,6 +90,7 @@ int de_add_entry( const struct inode *dir /* directory of item */,
 
 	data.length = sizeof *dent + name -> d_name.len + 1;
 	data.data   = NULL;
+	data.user   = 0;
 	data.iplug  = item_plugin_by_id( SIMPLE_DIR_ENTRY_ID );
 	
 	result = insert_by_coord( coord, &data, &entry -> key, lh,

@@ -15,6 +15,8 @@ static reiser4_item_data * init_new_extent (reiser4_item_data * data,
 		memset (data, 0, sizeof (reiser4_item_data));
 
 	data->data = ext_unit;
+	/* data->data is kernel space */
+	data->user = 0;
 	data->length = sizeof (reiser4_extent);
 	data->arg = 0;
 	data->iplug = item_plugin_by_id (EXTENT_POINTER_ID);
@@ -61,6 +63,7 @@ reiser4_key * extent_max_key_inside (const tree_coord * coord,
 
 /*
  * plugin->u.item.b.can_contain_key
+ * FIXME-VS: comment this
  */
 int extent_can_contain_key (const tree_coord * coord, const reiser4_key * key,
 			    const reiser4_item_data * data)
@@ -316,6 +319,8 @@ int extent_init (tree_coord * coord, reiser4_item_data * extent)
 		item_length_by_coord (coord) == sizeof (reiser4_extent));
 	assert ("vs-530", coord->unit_pos == 0);
 	assert ("vs-531", coord_of_unit (coord));
+	/* extent was prepared in kernel space */
+	assert ("vs-555", extent->user == 0);
 
 	if (!extent || extent->data)
 		/* body of item is provided, it will be copied */
@@ -376,7 +381,8 @@ int extent_paste (tree_coord * coord, reiser4_item_data * data,
 		 ext + coord->unit_pos,
 		 (old_nr_units - coord->unit_pos) * sizeof (reiser4_extent));
 
-	/* copy new data */
+	/* copy new data from kernel space */
+	assert ("vs-556", data->user == 0);
 	xmemcpy (ext + coord->unit_pos, data->data, (unsigned)data->length);
 
 	/* after paste @coord is set to first of pasted units */
@@ -887,6 +893,7 @@ static int add_extents (tree_coord * coord,
 		 (new_num - coord->unit_pos - 1) *
 		 sizeof (reiser4_extent));
 	/* copy part of new data into space freed by "optimizing" */
+	assert ("vs-557", data->user == 0);
 	xmemcpy (extent_item (coord) + coord->unit_pos + 1, data->data,
 		min (count, delta) * sizeof (reiser4_extent));
 
@@ -1694,7 +1701,7 @@ int extent_write (struct inode * inode, tree_coord * coord,
 	reiser4_block_nr file_off; /* offset within a file we write to */
 	reiser4_block_nr blocksize;
 	int research = 0;
-	char * kaddr;
+	char * p_data;
 	unsigned count;
 
 
@@ -1714,7 +1721,7 @@ int extent_write (struct inode * inode, tree_coord * coord,
 			goto capture_failed;
 		}
 
-		kaddr = kmap (page);
+		p_data = kmap (page);
 		count = f->length;
 		result = prepare_write (coord, lh, page, &f->key, &count);
 		if (result && result != -EAGAIN) {
@@ -1730,7 +1737,7 @@ int extent_write (struct inode * inode, tree_coord * coord,
 			/* not entire page is prepared for writing into it */
 			research = 1;
 
-		result = __copy_from_user (kaddr + (file_off & ~PAGE_MASK),
+		result = __copy_from_user (p_data + (file_off & ~PAGE_MASK),
 					   f->data, count);
 		flush_dcache_page (page);
 

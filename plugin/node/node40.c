@@ -800,8 +800,15 @@ int node40_create_item (tree_coord * target, const reiser4_key * key,
 		data->iplug->common.paste (target, data, todo);
 	}
 	else if (data->data != NULL) {
-		xmemcpy (zdata (target->node) + offset, data->data, 
-			(unsigned)data->length);
+		if (data->user)
+			/* copy data from user space */
+			__copy_from_user (zdata (target->node) + offset,
+					  data->data, 
+					  (unsigned)data->length);
+		else
+			/* copy from kernel space */
+			xmemcpy (zdata (target->node) + offset, data->data,
+				 (unsigned)data->length);
 	}
 
 	if (target->item_pos == 0) {

@@ -190,6 +190,8 @@ void build_child_ptr_data( znode *child /* node pointer to which will be
 
 	/* this is subtle assignment to meditate upon */
 	data -> data = ( char * ) znode_get_block( child );
+	/* data -> data is kernel space */
+	data -> user = 0;
 	data -> length = sizeof( reiser4_block_nr );
 	/* FIXME-VS: hardcoded internal item? */
 	data -> iplug = item_plugin_by_id( NODE_POINTER_ID );

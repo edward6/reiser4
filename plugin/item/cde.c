@@ -376,7 +376,8 @@ int cde_can_contain_key( const tree_coord *coord /* coord of item */,
 {
 	reiser4_key item_key;
 
-	assert( "vs-457", data && data ->data );
+	assert( "vs-457", data && data -> data );
+	assert( "vs-553", data -> user == 0 );
 	item_key_by_coord( coord, &item_key);
 
 	return 	( item_plugin_by_coord( coord ) == data -> iplug ) &&
@@ -879,6 +880,7 @@ int cde_add_entry( const struct inode *dir /* directory object */,
 	entry.name = &name -> d_name;
 
 	data.data   = ( char * ) &edata;
+	data.user   = 0; /* &edata is not user space */
 	data.iplug  = item_plugin_by_id( COMPOUND_DIR_ID );
 	data.arg = dir_entry;
 	assert( "nikita-1302", data.iplug != NULL );
