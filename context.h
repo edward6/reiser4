@@ -96,10 +96,6 @@ struct reiser4_context {
 #if REISER4_DEBUG_NODE
 	int disable_node_check;
 #endif
-
-#if REISER4_TRACE_TREE
-	const char * trace_mark;
-#endif /* REISER4_TRACE_TREE */
 };
 
 #if REISER4_DEBUG
