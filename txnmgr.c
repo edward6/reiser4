@@ -1325,6 +1325,7 @@ void atom_wait_event(txn_atom * atom)
 	atom->refcount++;
 	spin_unlock_atom(atom);
 
+	assert("nikita-3056", no_counters_are_held());
 	prepare_to_sleep(_wlinks._lock_stack);
 	go_to_sleep(_wlinks._lock_stack, ADD_TO_SLEPT_IN_WAIT_EVENT);
 
@@ -1388,7 +1389,6 @@ again:
 
 		if (atom->txnh_count > (unsigned)atom->nr_waiters + 1) {
 			if (should_wait_commit(txnh)) {
-				assert("nikita-3056", no_counters_are_held());
 				atom->nr_waiters++;
 				wait = 1;
 				atom_wait_event(atom);
