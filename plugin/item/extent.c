@@ -1729,7 +1729,7 @@ extent_handle_relocate_in_place(flush_pos_t *flush_pos, unsigned *slum_size)
 
 	/* skip unit which is part of item being converted into tail because it is going to be removed soon */
 	if (item_id_by_coord(coord) == FROZEN_EXTENT_POINTER_ID) {
-		if (state == HOLE_EXTENT)
+		if (state != HOLE_EXTENT)
 			*slum_size -= extent_slum_size;
 		return 0;
 	}
@@ -1866,8 +1866,14 @@ extent_handle_overwrite_in_place(flush_pos_t *flush_pos, unsigned *slum_size)
 	if (extent_slum_size > *slum_size)
 		extent_slum_size = *slum_size;
 
+	/* skip unit which is part of item being converted into tail because
+	 * it is going to be removed soon */
 	if (item_id_by_coord(&flush_pos->coord) == FROZEN_EXTENT_POINTER_ID) {
-		*slum_size -= extent_slum_size;
+		reiser4_extent *ext;
+
+		ext = extent_by_coord(&flush_pos->coord);
+		if (state_of_extent(ext) != HOLE_EXTENT)
+			*slum_size -= extent_slum_size;
 		return 0;
 	}
 	for (i = 0; i < extent_slum_size; i ++) {
