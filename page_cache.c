@@ -518,12 +518,12 @@ static int formatted_vm_writeback( struct page *page /* page to start
  * Initial design was that this function would perform all flush and IO
  * submitting directly (that is, in the context of kswapd, or caller of
  * balance_classzone()). It was found, though, that problems with deadlocks
- * and flush running of memory are very hard of at all possible to overcome.
+ * and flush running of memory are very hard if at all possible to overcome.
  *
  * It was then decided, that this function should in stead just wake up some
  * worker thread (disguised under fancy name of `ent') to perform actual flush
  * and submit IO requests. Currently very simple scheme is implemented. There
- * is no much sense in elaborating it now when VM is in such a flux.
+ * is not much sense in elaborating it now when VM is in such a flux.
  *
  */
 int page_common_writeback( struct page *page /* page to start writeback from */,
