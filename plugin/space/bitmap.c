@@ -18,8 +18,23 @@ struct bnode {
 	struct bnode * next_in_commit_list;
 };
 
-#define bnode_working_data(bnode) jdata(&(bnode)->wjnode)
-#define bnode_commit_data(bnode)  jdata(&(bnode)->cjnode)
+static inline char * bnode_working_data (struct bnode * bnode) {
+	char * data;
+
+	data = jdata(&(bnode)->wjnode);
+	assert ("zam-429", data != NULL);
+
+	return data;
+}
+
+static inline char * bnode_commit_data (struct bnode * bnode) {
+	char * data;
+
+	data = jdata(&(bnode)->cjnode);
+	assert ("zam-430", data != NULL);
+
+	return data;
+}
 
 /* Audited by: green(2002.06.12) */
 static inline void spin_lock_bnode (struct bnode * bnode)
@@ -297,7 +312,7 @@ static void check_bnode_loaded (const struct bnode * bnode)
 
 /** modify bnode->first_zero_bit (if we free bits before); bnode should be
  * spin-locked */
-static void inline adjust_first_zero_bit (struct bnode * bnode, bmap_off_t offset)
+static inline void adjust_first_zero_bit (struct bnode * bnode, bmap_off_t offset)
 {
 	if (offset < bnode->first_zero_bit)
 		bnode->first_zero_bit = offset;
@@ -494,7 +509,9 @@ static int load_and_lock_bnode (struct bnode * bnode)
 	if (ret == 0) {
 		/* commit bitmap is initialized by on-disk bitmap
 		 * content (working bitmap in this context) */
-		xmemcpy(jdata (&bnode -> wjnode), jdata (&bnode->cjnode), super->s_blocksize);
+		xmemcpy(bnode_working_data(bnode), 
+			bnode_commit_data(bnode), 
+			super->s_blocksize);
 	}
 
 	return 0;
@@ -750,7 +767,7 @@ void bitmap_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	ret = load_and_lock_bnode (bnode);
 	assert ("zam-481", ret == 0);
 
-	reiser4_clear_bits (jdata (&bnode->wjnode), offset, (bmap_off_t)(offset + *len));
+	reiser4_clear_bits (bnode_working_data(bnode), offset, (bmap_off_t)(offset + *len));
 
 	adjust_first_zero_bit (bnode, offset);
 
@@ -810,7 +827,7 @@ static int apply_dset_to_commit_bmap (txn_atom               * atom UNUSED_ARG,
 	check_bnode_loaded (bnode);
 	load_and_lock_bnode (bnode);
 
-	data = jdata (& bnode->cjnode);
+	data = bnode_commit_data(bnode);
 
 	if (len != NULL) {
 		/* FIXME-ZAM: a check that all bits are set should be there */
@@ -884,7 +901,7 @@ void bitmap_pre_commit_hook (void)
 					check_bnode_loaded (bn);
 					
 					load_and_lock_bnode (bn);
-					reiser4_set_bit (offset, jdata (&bn->cjnode));
+					reiser4_set_bit (offset, bnode_commit_data(bn));
 					release_and_unlock_bnode (bn);
 
 					reiser4_spin_lock_sb (ctx->super);
@@ -946,7 +963,7 @@ static int apply_dset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
 
 	if (len != NULL) {
 		assert ("zam-449", offset + *len <= sb->s_blocksize);
-		reiser4_clear_bits(jdata (&bnode->wjnode), offset, (bmap_off_t)(offset + *len));
+		reiser4_clear_bits(bnode_working_data(bnode), offset, (bmap_off_t)(offset + *len));
 	} else {
 		reiser4_clear_bit (offset, data);
 	}
@@ -1011,7 +1028,7 @@ static int apply_wset_to_working_bmap (
 	check_bnode_loaded (bnode);
 
 	load_and_lock_bnode (bnode);
-	reiser4_clear_bit(offset, jdata (&bnode->wjnode));
+	reiser4_clear_bit(offset, bnode_working_data(bnode));
 	adjust_first_zero_bit(bnode, offset);
 	release_and_unlock_bnode(bnode);
 
