@@ -1768,17 +1768,20 @@ static int flush_scan_formatted (flush_scan *scan)
 static int flush_scan_extent (flush_scan *scan)
 {
 	jnode *neighbor;
+	unsigned long scan_index;
 
 	assert ("jmacd-1404", ! flush_scan_finished (scan));
 	assert ("jmacd-1405", jnode_get_level (scan->node) == LEAF_LEVEL);
 
+	scan_index = jnode_get_index (scan->node);
+
 	/* First, check if this node is unallocated. */
 	if (blocknr_is_fake (jnode_get_block (scan->node))) {
 		
-#if 0
 		/* ... in which case we will skip to the beginning of its extent unit. */
 		lock_handle parent_lock;
 		tree_coord parent_coord;
+		__u64 unit_index, unit_width;
 		int ret;
 
 		init_lh (& parent_lock);
@@ -1790,19 +1793,39 @@ static int flush_scan_extent (flush_scan *scan)
 
 		assert ("jmacd-6442", ! extent_is_allocated (& parent_coord));
 
-		scan->size += extent_unit_width (& parent_coord) - 1;
+		unit_index = extent_unit_index (& parent_coord);
+		unit_width = extent_unit_width (& parent_coord);
+
+		assert ("jmacd-7187", unit_width > 0);
+		assert ("jmacd-7188", scan_index >= unit_index);
+		assert ("jmacd-7189", scan_index <= unit_index + unit_width - 1);
+
+		if (scan->going_left) {
+			scan->size += scan_index - unit_index;
+			scan_index = unit_index;
+		} else {
+			scan->size += unit_index + unit_width - scan_index - 1;
+			scan_index = unit_index + unit_width - 1;
+		}
 
 		done_lh (& parent_lock);
-#else
-		abort ();
-#endif
+
+		/* This code assumes that unallocated, unformatted nodes in the same unit
+		 * all reside in the same atom, which must be the case since all accesses
+		 * must capture the parent. */
+		if ((neighbor = jnode_get_extent_neighbor (scan->node, scan_index)) == NULL) {
+			warning ("jmacd-8337", "unallocated node not in memory!");
+			return -EIO;
+		}
+
+		assert ("jmacd-7122", flush_scan_goto (scan, neighbor));
+
+		flush_scan_set_current (scan, neighbor);
 
 	} else {
 
 		/* Otherwise, start at the index (i.e., block offset) of the jnode in its
 		 * extent... */
-		unsigned long scan_index = jnode_get_index (scan->node);
-
 		while (scan_index > 0 && ! flush_scan_finished (scan)) {
 
 			/* For each loop iteration, get the previous index. */
