@@ -823,8 +823,8 @@ void jput (jnode *node)
 	tree = current_tree;
 
 	if (atomic_dec_and_lock (& node->x_count, & tree->tree_lock)) {
-		ON_DEBUG (++ lock_counters()->spin_locked_tree);
-		ON_DEBUG (++ lock_counters()->spin_locked);
+		ON_DEBUG_CONTEXT (++ lock_counters()->spin_locked_tree);
+		ON_DEBUG_CONTEXT (++ lock_counters()->spin_locked);
 		if (JF_ISSET (node, JNODE_HEARD_BANSHEE)) {
 			if (!JF_TEST_AND_SET (node, JNODE_RIP)) {
 				spin_unlock_tree (tree);
