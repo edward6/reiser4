@@ -299,8 +299,7 @@ emergency_flush(struct page *page)
 	sb = page->mapping->host->i_sb;
 	node = jprivate(page);
 
-	if (node == NULL)
-		return 1;
+	assert("vs-1452", node != NULL);
 
 	jref(node);
 	reiser4_stat_inc_at_level(jnode_get_level(node), emergency_flush);
