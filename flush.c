@@ -238,7 +238,12 @@ This process goes recursively up the tree as long as the right neighbor and
    To summarize, there are several parts to a solution that avoids the problem with
    unallocated children:
 
-ZAM-FIXME-HANS: Please indicate what approach is used.  I think you use not quite exactly any of them.  update the fixmes.
+   FIXME-ZAM: Still no one approach is implemented to eliminate the "UNALLOCATED CHILDREN"
+   problem because there was an experiment which was done showed that we have 1-2 nodes
+   with unallocated children for thousands of written nodes.  The experiment was simple
+   like coping / deletion of linux kernel sources.  However the problem can arise in more
+   complex tests.  I think we have jnode_io_hook to insert a check for unallocated
+   children and see what kind of problem we have.
   
    1. When flush reaches a stopping point (e.g., a clean node), it should continue calling
    squeeze-and-allocate on any remaining unallocated children.  FIXME: Difficulty to
@@ -309,7 +314,6 @@ ZAM-FIXME-HANS: Please indicate what approach is used.  I think you use not quit
    the left neighbor, it should pass from the node to the left neighbor's rightmost
    descendent (if dirty).
 
-ZAM-FXME-HANS: Please update the comments above.
 */
 
 /* UNIMPLEMENTED AS YET: REPACKING AND RESIZING.  We walk the tree in 4MB-16MB chunks, dirtying everything and putting
@@ -363,108 +367,6 @@ ZAM-FXME-HANS: Please update the comments above.
    search to find coordinates again (because we hold locks), we have to determine them
    from the two nodes being squeezed.  Looks difficult, but has potential to increase
    space utilization. */
-
-/* NEW FLUSH QUEUEING / UNALLOCATED CHILDREN / MEMORY PRESSURE DEADLOCK (NFQUCMPD)
-  
-   Several ideas have been discussed to address a combination of these three issues.  This
-   discussion largely obsoletes the previous discussion above on the subject of
-   UNALLOCATED CHILDREN, though not entirely.  To summarize the three problems:
-  
-   Currently the jnode_flush routine builds a queue of all the nodes that it allocates
-   during a single squeeze-and-allocate traversal.  The queue may grow quite large as a
-   large number of adjacent dirty nodes are allocated.  Then the flush_empty_queue
-   function creates a BIO and calls submit_bio for all the contiguous block ranges that
-   were allocated.  There are several interrelated problems.
-  
-   First there is memory pressure: if we wait until there is no memory left to flush we
-   are in serious trouble because flush can require allocation for new blocks, especially
-   as extents are allocated.  A secondary but similar problem is deadlock.  If a thread
-   that requests memory causes memory pressure while holding a lock, which is entirely
-   possible, it may prevent flush from making any progress.  We have discussed these cases
-   and concluded that in the absolute worst case the complex, lock-taking,
-   memory-allocating flush algorithm may not be able to free memory once memory gets
-   tight, and the solution for the absolute worse case is an EMERGENCY FLUSH (discussed
-   after this section).  But we cannot accept that emergency flush be the common case
-   under memory pressure.
-  
-   The second problem is that flush queues too many nodes before submitting them to the
-   disk.  We would like to flush a little bit at a time without breaking the flush
-   algorithm.  As discussed above for the issue of unallocated children, we decided to
-   treat twig and leaf nodes specially--always allocating all children of a twig to ensure
-   proper read- and write-optimization of those levels.  We would like to modify the flush
-   algorithm to return control after it finishes squeezing all the children of a single
-   twig, allowing the queue of nodes prepared for writing to be consumed somewhat before
-   continuing.
-  
-   With the modification that the flush algorithm will stop after finishing a twig, we can
-   impose a new flush-queueing design that will achieve the goal of avoiding emergency
-   flush in memory pressure in the common case.  To implement this we will create a new
-   kmalloced object called a "struct flush_handle" (?).  Every flush_handle is associated
-   with an atom, an atom maintains its list of flush_handles (instead of the
-   flush_position list it currently maintains), and these lists are joined when atoms
-   fuse.  A flush_handle object is passed into the jnode_flush() routine.  A flush_handle
-   contains at least these fields (plus a semaphore and/or spinlock):
-  
-     txn_atom           *atom;            -- The current atom of this flush_handle--maintained during atom fusion.
-     flushers_list_link  flushers_link;   -- A list link of all flush_handles for an atom.
-     capture_list_head   queue;           -- A list of jnodes (in allocation order), when a jnode is allocated it is
-                                             moved off the dirty list onto this list.
-     atomic_t            number_queued;   -- Number of jnodes in the queue.
-     atomic_t            number_prepped;  -- Number of jnodes ready for submit_bio.
-     atomic_t            number_bios_out; -- Number of BIOs/completion events outstanding.
-     __u32               state;           -- What state the handle is in.
-  
-   When a submit_bio request is issued for a flush_handle, the completion will decrement
-   the number_bios_out and not try to remove the flush_handle from any list (if the
-   becomes completely unused).  When the atom is locked (for some reason), we can find
-   unused flush_handles and either free them or reuse them.
-  
-   A flush_handle can have these states:
-  
-     EMPTY_QUEUE -- In this state the handle can be freed as long as the atom is locked
-     (in order to remove it from the list).  For this state:
-       (number_queued == 0 && number_prepped == 0)
-   
-     NON_EMPTY_QUEUE -- In this state the handle is not being used by any current flusher
-     but it has prepared nodes ready to for submit_bio (to be put "in-flight").  For this
-     state:
-       (number_queued == number_prepped && number_queued > 0)
-   
-     CURRENT_FLUSHER -- A call to jnode_flush is currently filling this queue.  This state
-     implies that the queue is being populated with nodes ready for flushing, but not all
-     of the queue nodes are fully "prepared".  For this state:
-       (number_queued <= number_prepped && number_queued >= 0)
-  
-   To manage these filling these queues we have a number of dedicated flushing threads.
-   In addition, any atom that is trying to commit may be flushed by the thread that is
-   closing it.  The dedicated flushing threads attempt to maintain a certain minimum
-   number of outstanding write requests.  In addition to the in-flight requests, the
-   dedicated flushing threads also attempt to maintain some additional number of queued
-   and prepped jnodes that are ready to write but not yet submitted.  When the number of
-   in-flight requests falls beneath the threshold, more BIOs are submitted.  When the
-   number of prepped nodes falls beneath some other threshold, more flushing work is
-   performed.
-  
-   Flush is never called directly from a memory pressure handler.  Instead, a memory
-   pressure handler finds a flush_handle with number_prepped > 0 and calls submit_bio
-   until the number of in-flight requests exceeds the "nr_to_flush" parameter supplied by
-   the VM.
-  
-   This will require tuning to maintain a proper balance, but it should attain the goal:
-   (1) the disk is kept busy (2) there is almost always enough allocated and prepped nodes
-   ready to submit to the disk and thus free memory.
-  
-   What is required of the flush code to implement this strategy?  I will place comments
-   in the code below marked with FIXME_NFQUCMPD.  I hope that no one ever uses this login.
-*/
-
-/* EMERGENCY FLUSH: In the worst case, we must have a way to assign block numbers without
-   any memory allocation.  This requires that we can allocate a node without updating its
-   parent immediately.  We can walk the dirty list and assign block numbers, and somehow
-   the parent must "know" to update itself later.  This may be difficult to implement
-   efficiently, so it may result in special code that is only activated when it knows that
-   emergency flushing has occurred.
-*/
 
 /* DECLARATIONS: */
 
@@ -540,13 +442,6 @@ struct flush_position {
 	long nr_written;		/* number of nodes submitted to disk */
 	int flags;		/* a copy of jnode_flush flags argument */
 };
-
-/* The flushers list maintains a per-atom list of active flush_positions.  This is because
-   each concurrent flush maintains its own, private queue of allocated nodes.  When a node
-   is placed on the flush queue it is removed from the atom's dirty list.  When the node
-   is finally written to disk, it is returned to the atom's clean list.  Remember that
-   atoms can fuse during flush--the flushers lists are fused and each flush_position and
-   every jnode in the flush queues are updated to reflect the new combined atom. */
 
 /* Flush-scan helper functions. */
 static void flush_scan_init(flush_scan * scan);
@@ -675,6 +570,7 @@ static int write_prepped_nodes (flush_position * pos, int scan)
    the temporary-hack txn_wait_on_io() in txnmgr.c.  Currently it is possible for a
    transaction to commit before all of its IO has completed... Solution described
    below. */
+/* DONE */
 /* B. There is an issue described in flush_reverse_relocate_test having to do with an
    imprecise is_preceder? check having to do with partially-dirty extents.  The code that
    sets preceder hints and computes the preceder is basically untested.  Careful testing
@@ -703,16 +599,19 @@ static int write_prepped_nodes (flush_position * pos, int scan)
    test layout. Placing wandered blocks in the flush queue can only cause more BIO objects to be
    allocated than might otherwise be required.  We need to create a wander_queue to solve
    this properly. */
+/* DONE */
 /* F. bio_alloc() failure is not handled gracefully. */
 /* G. Unallocated children. */
 /* H. Add a WANDERED_LIST to the atom to clarify the placement of wandered blocks. */
 /* I. SHORT LIST:
   
    FIXME: Rename flush-scan to scan-point, (flush-pos to flush-point?) */
+
 /* JNODE_FLUSH: MAIN ENTRY POINT */
-/* This is the main entry point for flushing a jnode, called by the transaction manager
-   when an atom closes (to commit writes) and called by the VM under memory pressure (via
-   page_cache.c:page_common_writeback() to early-flush dirty blocks).
+/* This is the main entry point for flushing a jnode and its dirty neighborhood (dirty
+   neighborhood is named "slum").  Jnode_flush() is called if reiser4 has to write dirty
+   blocks to disk, it happens when Linux VM decides to reduce number of dirty pages or as
+   a part of transaction commit.
   
    The "argument" @node tells flush where to start.  From there, flush searches through
    the adjacent nodes to find a better place to start the parent-first traversal, during
@@ -1758,7 +1657,8 @@ flush_squalloc_changed_ancestors(flush_position * pos)
 	}
 
 	/* Now advance to the right neighbor.  We may repeat at this point when handling the */
-      repeat:assert("jmacd-1092", znode_is_write_locked(node));
+ repeat:
+	assert("jmacd-1092", znode_is_write_locked(node));
 
 	if ((ret = znode_get_utmost_if_dirty(node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK))) {
 
@@ -2851,50 +2751,28 @@ jnode_lock_parent_coord(jnode         * node,
 static int
 znode_get_utmost_if_dirty(znode * node, lock_handle * lock, sideof side, znode_lock_mode mode)
 {
-	znode *neighbor;
-	int go;
 	int ret;
 
 	assert("jmacd-6334", znode_is_connected(node));
 
-	spin_lock_tree(znode_get_tree(node));
-	neighbor = side == RIGHT_SIDE ? node->right : node->left;
-	if (neighbor != NULL) {
-		zref(neighbor);
-	}
-	spin_unlock_tree(znode_get_tree(node));
+	ret = reiser4_get_neighbor(lock, node, mode, GN_SAME_ATOM | (side == LEFT_SIDE ? GN_GO_LEFT : 0));
 
-	if (neighbor == NULL) {
-		return -ENAVAIL;
-	}
-
-	if (!(go = same_atom_dirty(ZJNODE(node), ZJNODE(neighbor), 0, 0))) {
-		ret = -ENAVAIL;
-		goto fail;
-	}
-
-	if ((ret = reiser4_get_neighbor(lock, node, mode, GN_SAME_ATOM | (side == LEFT_SIDE ? GN_GO_LEFT : 0)))) {
+	if (ret) {
 		/* May return -ENOENT or -ENAVAIL. */
 		/* FIXME(C): check EINVAL, EDEADLK */
 		if (ret == -ENOENT) {
 			ret = -ENAVAIL;
 		}
-		goto fail;
+
+		return ret;
 	}
 
-	/* Can't assert is_dirty here, even though we checked it above,
-	   because there is a race when the tree_lock is released. */
-	if (!znode_check_dirty(lock->node)) {
-		done_lh(lock);
-		ret = -ENAVAIL;
-	}
+	/* Check dirty bit of locked znode, no races here */
+	if (znode_check_dirty(lock->node))
+		return 0;
 
-fail:
-	if (neighbor != NULL) {
-		zput(neighbor);
-	}
-
-	return ret;
+	done_lh(lock);
+	return -ENAVAIL;
 }
 
 /* Return true if two znodes have the same parent.  This is called with both nodes
