@@ -158,6 +158,10 @@ typedef struct reiser4_level_statistics {
 		/* how many requests for znode long term lock managed to
 		 * succeed immediately. */
 		statcnt_t lock_uncontented;
+		statcnt_t lock_dying;
+		statcnt_t lock_cannot_lock;
+		statcnt_t lock_can_lock;
+		statcnt_t lock_no_capture;
 		statcnt_t unlock;
 		statcnt_t wakeup;
 		statcnt_t wakeup_found;

@@ -1002,6 +1002,7 @@ longterm_lock_znode(
 			/* @node is dying. Leave it alone. */
 			/* wakeup next requestor to support lock invalidating */
 			wake_up_next = 1;
+			ADDSTAT(node, lock_dying);
 			break;
 		}
 
@@ -1009,6 +1010,7 @@ longterm_lock_znode(
 			/* either locking of @node by the current thread will
 			 * lead to the deadlock, or lock modes are
 			 * incompatible. */
+			ADDSTAT(node, lock_cannot_lock);
 			break;
 		}
 
@@ -1070,7 +1072,7 @@ longterm_lock_znode(
 		 */
 
 		if (likely(has_atom && ZJNODE(node)->atom == txnh->atom)) {
-			reiser4_stat_inc(txnmgr.capture_equal);
+			ADDSTAT(node, lock_no_capture);
 		} else {
 			/*
 			 * unlock zlock spin lock here. It is possible for
@@ -1107,6 +1109,7 @@ longterm_lock_znode(
 		/* This time, a return of (ret == 0) means we can lock, so we
 		   should break out of the loop. */
 		if (likely(ret != -EAGAIN || non_blocking)) {
+			ADDSTAT(node, lock_cannot_lock);
 			break;
 		}
 
@@ -1146,7 +1149,7 @@ longterm_lock_znode(
 		UNLOCK_ZLOCK(lock);
 		/* ... and sleep */
 		go_to_sleep(owner, level);
-		
+
 		LOCK_ZLOCK(lock);
 
 		if (hipri) {
