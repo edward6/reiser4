@@ -2,7 +2,7 @@
  * Copyright 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 /*
- * Kernel condition variables implemenation.
+ * Kernel condition variables implementation.
  *
  * This is simplistic (90 LOC mod comments) condition variable
  * implementation. Condition variable is the most natural "synchronization
