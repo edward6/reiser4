@@ -176,7 +176,6 @@
 #define REISER4_LOCKPROF (0)
 #endif
 
-#if defined(CONFIG_REISER4_LARGE_KEY)
 /*
  * Turn on large keys mode. In his mode (which is default), reiser4 key has 4
  * 8-byte components. In the old "small key" mode, it's 3 8-byte
@@ -196,9 +195,7 @@
  * inaccessible.
  */
 #define REISER4_LARGE_KEY (1)
-#else
-#define REISER4_LARGE_KEY (0)
-#endif
+/*#define REISER4_LARGE_KEY (0)*/
 
 #if defined(CONFIG_REISER4_ALL_IN_ONE)
 /*
