@@ -2725,7 +2725,7 @@ filler(void *vp, struct page *page)
 	PROF_END(copy_to_user, copy_to_user);\
 }
 
-#ifdef REISER4_DEBUG
+#if REISER4_DEBUG
 static int
 check_key_in_unit(const coord_t * coord, const reiser4_key * key)
 {
