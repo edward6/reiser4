@@ -1005,6 +1005,8 @@ static void dispatch_wb_list (txn_atom * atom, flush_queue_t * fq)
 				/* move from writeback list to clean list */
 				capture_list_remove(cur);
 				capture_list_push_back(&atom->clean_nodes, cur);
+				assert("vs-1618", cur->list == WB_LIST);
+				ON_DEBUG(cur->list = CLEAN_LIST);
 			}
 		}
 		UNLOCK_JNODE(cur);
@@ -2535,6 +2537,8 @@ capture_assign_block_nolock(txn_atom * atom, jnode * node)
 	/* reference to jnode is acquired by atom. */
 	jref(node);
 
+	ON_DEBUG(node->list = CLEAN_LIST);
+
 	LOCK_CNT_INC(t_refs);
 
 	ON_TRACE(TRACE_TXN, "capture %p for atom %u (captured %u)\n", node, atom->atom_id, atom->capture_count);
@@ -2605,6 +2609,7 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 		capture_list_remove(node);
 		capture_list_push_back(&atom->dirty_nodes[level], node);
 		
+		ON_DEBUG(node->list = DIRTY_LIST);
 		/*
 		 * JNODE_CCED bit protects clean copy (page created by
 		 * copy-on-capture) from being evicted from the memory. This
@@ -2719,9 +2724,9 @@ jnode_make_clean(jnode * node)
 		/* Now it's possible that atom may be NULL, in case this was called
 		   from invalidate page */
 		if (atom != NULL) {
-
 			capture_list_remove_clean(node);
 			capture_list_push_front(&atom->clean_nodes, node);
+			ON_DEBUG(node->list = CLEAN_LIST);
 		}
 	}
 
@@ -2751,6 +2756,7 @@ reiser4_internal void jnode_make_wander_nolock (jnode * node)
 
 	capture_list_remove_clean(node);
 	capture_list_push_back(&atom->ovrwr_nodes, node);
+	ON_DEBUG(node->list = OVRWR_LIST);
 	JF_SET(node, JNODE_OVRWR);
 }
 
@@ -3640,6 +3646,7 @@ replace_on_capture_list(jnode *node, jnode *copy)
 	jref(copy);
 	copy->atom = node->atom;
 	node->atom->capture_count ++;
+	ON_DEBUG(copy->list = node->list);
 
 	{
 		ON_DEBUG_MODIFY(znode_set_checksum(node, 1));
@@ -3654,6 +3661,7 @@ replace_on_capture_list(jnode *node, jnode *copy)
 		capture_list_remove_clean(node);
 		node->atom->capture_count --;
 		atomic_dec(&node->x_count);
+		ON_DEBUG(node->list = NOT_CAPTURED);
 		node->atom = 0;
 	}
 }
@@ -3679,6 +3687,7 @@ copy_on_capture_clean(jnode *node, txn_atom *atom)
 			capture_list_remove_clean(node);
 			node->atom->capture_count --;
 			atomic_dec(&node->x_count);	
+			ON_DEBUG(node->list = NOT_CAPTURED);
 			node->atom = 0;
 		}
 
@@ -4022,6 +4031,7 @@ reiser4_internal void uncapture_block(jnode * node)
 		JF_CLR(node, JNODE_FLUSH_QUEUED);
 	}
 	atom->capture_count -= 1;
+	ON_DEBUG(node->list = NOT_CAPTURED);
 	node->atom = NULL;
 
 	UNLOCK_JNODE(node);
@@ -4044,6 +4054,7 @@ insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node)
 	jref(node);
 	node->atom = atom;
 	atom->capture_count++;
+	ON_DEBUG(node->list = OVRWR_LIST);
 }
 
 /* return 1 if two dirty jnodes belong to one atom, 0 - otherwise */
