@@ -11,7 +11,7 @@
 
 /* old rupasov (yura) hash */
 static __u64
-rupasov_hash(const unsigned char *name /* name to hash */ ,
+hash_rupasov(const unsigned char *name /* name to hash */ ,
 	     int len /* @name's length */ )
 {
 	int i;
@@ -57,7 +57,7 @@ rupasov_hash(const unsigned char *name /* name to hash */ ,
 
 /* r5 hash */
 static __u64
-r5_hash(const unsigned char *name /* name to hash */ ,
+hash_r5(const unsigned char *name /* name to hash */ ,
 	int len UNUSED_ARG /* @name's length */ )
 {
 	__u64 a = 0;
@@ -87,7 +87,7 @@ r5_hash(const unsigned char *name /* name to hash */ ,
    This code was blindly upgraded to __u64 by s/__u32/__u64/g.
 */
 static __u64
-tea_hash(const unsigned char *name /* name to hash */ ,
+hash_tea(const unsigned char *name /* name to hash */ ,
 	 int len /* @name's length */ )
 {
 	__u64 k[] = { 0x9464a485u, 0x542e1a94u, 0x3e846bffu, 0xb75bcfc3u };
@@ -211,7 +211,7 @@ tea_hash(const unsigned char *name /* name to hash */ ,
    
 */
 static __u64
-fnv1_hash(const unsigned char *name /* name to hash */ ,
+hash_fnv1(const unsigned char *name /* name to hash */ ,
 	  int len UNUSED_ARG /* @name's length */ )
 {
 	unsigned long long a = 0xcbf29ce484222325ull;
@@ -234,7 +234,7 @@ fnv1_hash(const unsigned char *name /* name to hash */ ,
 /* degenerate hash function used to simplify testing of non-unique key
    handling */
 static __u64
-deg_hash(const unsigned char *name UNUSED_ARG /* name to hash */ ,
+hash_deg(const unsigned char *name UNUSED_ARG /* name to hash */ ,
 	 int len UNUSED_ARG /* @name's length */ )
 {
 	trace_on(TRACE_DIR, "Hashing %s\n", name);
@@ -244,59 +244,60 @@ deg_hash(const unsigned char *name UNUSED_ARG /* name to hash */ ,
 /* hash plugins */
 hash_plugin hash_plugins[LAST_HASH_ID] = {
 	[RUPASOV_HASH_ID] = {
-			     .h = {
-				   .type_id = REISER4_HASH_PLUGIN_TYPE,
-				   .id = RUPASOV_HASH_ID,
-				   .pops = NULL,
-				   .label = "rupasov",
-				   .desc = "Original Yura's hash",
-				   .linkage = TS_LIST_LINK_ZERO}
-			     ,
-			     .hash = rupasov_hash}
-	,
+		.h = {
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
+			.id = RUPASOV_HASH_ID,
+			.pops = NULL,
+			.label = "rupasov",
+			.desc = "Original Yura's hash",
+			.linkage = TS_LIST_LINK_ZERO}
+		,
+		.hash = hash_rupasov
+	},
 	[R5_HASH_ID] = {
-			.h = {
-			      .type_id = REISER4_HASH_PLUGIN_TYPE,
-			      .id = R5_HASH_ID,
-			      .pops = NULL,
-			      .label = "r5",
-			      .desc = "r5 hash",
-			      .linkage = TS_LIST_LINK_ZERO}
-			,
-			.hash = r5_hash}
-	,
+		.h = {
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
+			.id = R5_HASH_ID,
+			.pops = NULL,
+			.label = "r5",
+			.desc = "r5 hash",
+			.linkage = TS_LIST_LINK_ZERO}
+		,
+		.hash = hash_r5
+	},
 	[TEA_HASH_ID] = {
-			 .h = {
-			       .type_id = REISER4_HASH_PLUGIN_TYPE,
-			       .id = TEA_HASH_ID,
-			       .pops = NULL,
-			       .label = "tea",
-			       .desc = "tea hash",
-			       .linkage = TS_LIST_LINK_ZERO}
-			 ,
-			 .hash = tea_hash}
-	,
+		.h = {
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
+			.id = TEA_HASH_ID,
+			.pops = NULL,
+			.label = "tea",
+			.desc = "tea hash",
+			.linkage = TS_LIST_LINK_ZERO}
+		,
+		.hash = hash_tea
+	},
 	[FNV1_HASH_ID] = {
-			  .h = {
-				.type_id = REISER4_HASH_PLUGIN_TYPE,
-				.id = FNV1_HASH_ID,
-				.pops = NULL,
-				.label = "fnv1",
-				.desc = "fnv1 hash",
-				.linkage = TS_LIST_LINK_ZERO}
-			  ,
-			  .hash = fnv1_hash}
-	,
+		.h = {
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
+			.id = FNV1_HASH_ID,
+			.pops = NULL,
+			.label = "fnv1",
+			.desc = "fnv1 hash",
+			.linkage = TS_LIST_LINK_ZERO}
+		,
+		.hash = hash_fnv1
+	},
 	[DEGENERATE_HASH_ID] = {
-				.h = {
-				      .type_id = REISER4_HASH_PLUGIN_TYPE,
-				      .id = DEGENERATE_HASH_ID,
-				      .pops = NULL,
-				      .label = "degenerate hash",
-				      .desc = "Degenerate hash: only for testing",
-				      .linkage = TS_LIST_LINK_ZERO}
-				,
-				.hash = deg_hash}
+		.h = {
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
+			.id = DEGENERATE_HASH_ID,
+			.pops = NULL,
+			.label = "degenerate hash",
+			.desc = "Degenerate hash: only for testing",
+			.linkage = TS_LIST_LINK_ZERO}
+		,
+		.hash = hash_deg
+	}
 };
 
 /* Make Linus happy.
