@@ -8,6 +8,8 @@ int unix_file_truncate(struct inode *, loff_t size);
 int unix_file_readpage(void *, struct page *);
 void unix_file_readpages(struct file *, struct address_space *,
 			 struct list_head *pages);
+void unix_file_init_inode(struct inode *inode, int create);
+
 int unix_file_writepage(struct page *);
 ssize_t unix_file_read(struct file *, char *buf, size_t size, loff_t * off);
 ssize_t unix_file_write(struct file *, const char *buf, size_t size, loff_t * off);
@@ -35,44 +37,33 @@ void set_hint(struct sealed_coord *, const reiser4_key *, coord_t *);
 int hint_validate(struct sealed_coord *, const reiser4_key *, coord_t *, lock_handle *);
 int update_inode_and_sd_if_necessary(struct inode *, loff_t new_size, int update_i_size);
 
+typedef enum {
+	UNIX_FILE_STATE_UNKNOWN = 0,
+	UNIX_FILE_BUILT_OF_TAILS = 1,
+	UNIX_FILE_BUILT_OF_EXTENTS = 2,
+	UNIX_FILE_EMPTY = 3
+} file_state;
 
-#if 0
-int update_inode_and_sd_if_necessary(struct inode *inode, loff_t, int);
-#include "../../readahead.h"
+#include "../../latch.h"
 
-
-void get_exclusive_access(struct inode *inode);
-void drop_exclusive_access(struct inode *inode);
-void get_nonexclusive_access(struct inode *inode);
-void drop_nonexclusive_access(struct inode *inode);
-int tail2extent(struct inode *inode);
-int extent2tail(struct file *file);
-int unix_file_writepage_nolock(struct page *page);
-int find_file_item(struct sealed_coord *, const reiser4_key *, coord_t *,
-		   lock_handle *, znode_lock_mode, __u32 cbk_flags, ra_info_t *, struct inode *);
-int goto_right_neighbor(coord_t *, lock_handle *);
-void set_hint(struct sealed_coord *, const reiser4_key *, coord_t *);
-void unset_hint(struct sealed_coord *hint);
-int hint_is_set(const struct sealed_coord *hint);
-int hint_validate(struct sealed_coord *, const reiser4_key *, coord_t *, lock_handle *);
-
-int file_is_built_of_tails(const struct inode *);
-int file_is_built_of_extents(const struct inode *);
-
-void set_file_state_extents(struct inode *);
-void set_file_state_tails(struct inode *);
-
-/* plugin->file.estimate.*
-   methods */
-reiser4_block_nr unix_file_estimate_write(struct inode *inode, loff_t count, 
-    loff_t *off);
-
-reiser4_block_nr unix_file_estimate_read(struct inode *inode, loff_t count);
-reiser4_block_nr unix_file_estimate_truncate(struct inode *inode, loff_t old_size);
-reiser4_block_nr unix_file_estimate_mmap(struct inode *inode, loff_t count);
-reiser4_block_nr unix_file_estimate_release(struct inode *inode);
-
+typedef struct unix_file_info {
+	/* truncate, tail2extent and extent2tail use down_write, read, write, readpage - down_read */
+	rw_latch_t latch;
+	int state;
+#if REISER4_DEBUG
+	/* pointer to task struct of thread owning exclusive access to file */
+	void *ea_owner;
 #endif
+} unix_file_info_t;
+
+inline struct unix_file_info *unix_file_inode_data(const struct inode * inode);
+
+/* this is to avoid repeated calculation of item's length and key */
+struct coord_item_info {
+	reiser4_key key;
+	unsigned nr_units;
+};
+
 
 /* __REISER4_FILE_H__ */
 #endif
