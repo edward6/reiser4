@@ -1613,7 +1613,7 @@ static int check_not_fused_lock_owners (txn_handle * txnh, znode *node)
 		spin_unlock_txnh (txnh);
 		spin_unlock_znode (node);
 
-		capture_fuse_into (atomh, atomf);
+		capture_fuse_into (atomf, atomh);
 
 		reiser4_wake_up (lh->owner);
 
