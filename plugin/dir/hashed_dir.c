@@ -75,7 +75,7 @@ hashed_init(struct inode *object /* new directory */ ,
 	
 	trace_on(TRACE_RESERVE, "hashed_init grabs %llu blocks.\n", reserve);
 	
-	return create_dot_dotdot( object, parent );
+	return create_dot_dotdot(object, parent);
 }
 
 reiser4_block_nr hashed_estimate_done(struct inode *parent, struct inode *object) 
@@ -122,8 +122,8 @@ hashed_done(struct inode *object /* object being deleted */ )
 		
 		trace_on(TRACE_RESERVE, "hashed_done grabs %llu blocks.\n", reserve);
 		
-		entry.obj = goodby_dots.d_inode = object;
 		xmemset(&goodby_dots, 0, sizeof goodby_dots);
+		entry.obj = goodby_dots.d_inode = object;
 		goodby_dots.d_name.name = ".";
 		goodby_dots.d_name.len = 1;
 		result = hashed_rem_entry(object, &goodby_dots, &entry);
@@ -140,8 +140,8 @@ hashed_done(struct inode *object /* object being deleted */ )
 		   @object, viz. object whose key is stored in dotdot
 		   entry. Wouldn't work with hard-links on directories.
 		*/
-		entry.obj = goodby_dots.d_inode = parent;
 		xmemset(&goodby_dots, 0, sizeof goodby_dots);
+		entry.obj = goodby_dots.d_inode = parent;
 		goodby_dots.d_name.name = "..";
 		goodby_dots.d_name.len = 2;
 		result = hashed_rem_entry(object, &goodby_dots, &entry);
@@ -841,7 +841,7 @@ hashed_add_entry(struct inode *object	/* directory to add new name
 		seal_done(&fsdata->entry_seal);
 		result = inode_dir_item_plugin(object)->s.dir.add_entry(object, coord, &lh, where, entry);
 		if (result == 0) {
-			adjust_dir_file(object, coord, off, +1);
+			adjust_dir_file(object, where, off, +1);
 			object->i_size += 1;
 		}
 	} else if (result == 0) {
@@ -887,7 +887,7 @@ hashed_rem_entry(struct inode *object	/* directory from which entry
 		   plugin. */
 		assert("vs-542", inode_dir_item_plugin(object));
 		seal_done(&fsdata->entry_seal);
-		adjust_dir_file(object, coord, off, -1);
+		adjust_dir_file(object, where, off, -1);
 		result = WITH_DATA(coord->node,
 				   inode_dir_item_plugin(object)->s.dir.rem_entry(object, coord, &lh, entry));
 		if (result == 0) {

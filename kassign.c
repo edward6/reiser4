@@ -283,11 +283,6 @@ oid_t extract_dir_id_from_key(const reiser4_key * de_key	/* key of
 */
 int
 build_de_id(const struct inode *dir /* inode of directory */ ,
-	    const struct inode *obj UNUSED_ARG	/* inode of object
-						 * to be bound to by
-						 * directory entry
-						 * being
-						 * constructed*/ ,
 	    const struct qstr *name	/* name to be given to @obj by
 					 * directory entry being
 					 * constructed */ ,
@@ -296,7 +291,6 @@ build_de_id(const struct inode *dir /* inode of directory */ ,
 	reiser4_key key;
 
 	assert("nikita-1290", dir != NULL);
-	assert("nikita-1291", obj != NULL);
 	assert("nikita-1292", id != NULL);
 
 	/* FIXME-NIKITA this is suboptimal. */

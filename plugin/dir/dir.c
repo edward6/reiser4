@@ -667,8 +667,12 @@ cmp_t dir_pos_cmp(const dir_pos * p1, const dir_pos * p2)
 	return result;
 }
 
+
 void
-adjust_dir_pos(struct file *dir, readdir_pos * readdir_spot, const dir_pos * mod_point, int adj)
+adjust_dir_pos(struct file   * dir,
+	       readdir_pos   * readdir_spot, 
+	       const dir_pos * mod_point, 
+	       int             adj)
 {
 	dir_pos *pos;
 
@@ -713,27 +717,27 @@ adjust_dir_pos(struct file *dir, readdir_pos * readdir_spot, const dir_pos * mod
 /* scan all file-descriptors for this directory and adjust their positions
    respectively. */
 void
-adjust_dir_file(struct inode *dir, const coord_t * coord, int offset, int adj)
+adjust_dir_file(struct inode *dir, const struct dentry * de, int offset, int adj)
 {
 	reiser4_file_fsdata *scan;
 	reiser4_inode *info;
-	reiser4_key de_key;
 	dir_pos mod_point;
 
 	assert("nikita-2536", dir != NULL);
-	assert("nikita-2538", coord != NULL);
+	assert("nikita-2538", de  != NULL);
 	assert("nikita-2539", adj != 0);
 
-	WITH_DATA(coord->node, unit_key_by_coord(coord, &de_key));
-	build_de_id_by_key(&de_key, &mod_point.dir_entry_key);
+	build_de_id(dir, &de->d_name, &mod_point.dir_entry_key);
 	mod_point.pos = offset;
 
 	info = reiser4_inode_data(dir);
 	spin_lock(&info->guard);
+
 	for (scan = readdir_list_front(&info->readdir_list);
-	     !readdir_list_end(&info->readdir_list, scan); scan = readdir_list_next(scan)) {
+	          !readdir_list_end(&info->readdir_list, scan); 
+	     scan = readdir_list_next(scan))
 		adjust_dir_pos(scan->back, &scan->dir.readdir, &mod_point, adj);
-	}
+
 	spin_unlock(&info->guard);
 }
 
@@ -1080,5 +1084,6 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
    c-basic-offset: 8
    tab-width: 8
    fill-column: 120
+   properties-flag: t
    End:
 */
