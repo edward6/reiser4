@@ -88,7 +88,6 @@ reiser4_init_pool(reiser4_pool * pool /* pool to initialise */ ,
 		h = (reiser4_pool_header *) (data + i * obj_size);
 		reiser4_init_pool_obj(h);
 		pool_usage_list_push_back(&pool->free, h);
-		h->pool = pool;
 	}
 }
 
@@ -124,7 +123,6 @@ reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 	if (!pool_usage_list_empty(&pool->free)) {
 		result = pool_usage_list_pop_front(&pool->free);
 		pool_usage_list_clean(result);
-		assert("nikita-960", result->pool == pool);
 		assert("nikita-965", pool_extra_list_is_clean(result));
 	} else {
 		reiser4_stat_inc(pool.kmalloc);
@@ -134,7 +132,6 @@ reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 		if (result != 0) {
 			reiser4_init_pool_obj(result);
 			pool_extra_list_push_front(&pool->extra, result);
-			result->pool = pool;
 		} else
 			return ERR_PTR(-ENOMEM);
 	}
@@ -148,23 +145,24 @@ reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 /* return object back to the pool */
 /* Audited by: green(2002.06.15) */
 void
-reiser4_pool_free(reiser4_pool_header * h	/* pool to return object back
+reiser4_pool_free(reiser4_pool * pool,
+		  reiser4_pool_header * h	/* pool to return object back
 						 * into */ )
 {
 	assert("nikita-961", h != NULL);
-	assert("nikita-962", h->pool != NULL);
+	assert("nikita-962", pool != NULL);
 	trace_stamp(TRACE_CARRY);
 
-	--h->pool->objs;
-	assert("nikita-963", h->pool->objs >= 0);
+	-- pool->objs;
+	assert("nikita-963", pool->objs >= 0);
 
 	pool_usage_list_remove_clean(h);
 	pool_level_list_remove_clean(h);
 	if (pool_extra_list_is_clean(h))
-		pool_usage_list_push_front(&h->pool->free, h);
+		pool_usage_list_push_front(&pool->free, h);
 	else {
 		pool_extra_list_remove_clean(h);
-		reiser4_kfree(h, h->pool->obj_size);
+		reiser4_kfree(h, pool->obj_size);
 	}
 }
 

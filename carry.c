@@ -155,7 +155,7 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
 static int lock_carry_level(carry_level * level);
 static void unlock_carry_level(carry_level * level, int failure);
 static void done_carry_level(carry_level * level);
-static void unlock_carry_node(carry_node * node, int failure);
+static void unlock_carry_node(carry_level * level, carry_node * node, int fail);
 
 int lock_carry_node(carry_level * level, carry_node * node);
 int lock_carry_node_tail(carry_node * node);
@@ -467,7 +467,7 @@ post_carry(carry_level * level	/* queue where new operation is to
 		return result;
 	child = add_carry(level, POOLO_LAST, NULL);
 	if (IS_ERR(child)) {
-		reiser4_pool_free(&result->header);
+		reiser4_pool_free(&level->pool->node_pool, &result->header);
 		return (carry_op *) child;
 	}
 	result->node = child;
@@ -737,7 +737,7 @@ node_post_carry(carry_plugin_info * info	/* carry parameters
 		return result;
 	child = add_carry_atplace(info->doing, info->todo, node);
 	if (IS_ERR(child)) {
-		reiser4_pool_free(&result->header);
+		reiser4_pool_free(&info->todo->pool->op_pool, &result->header);
 		return (carry_op *) child;
 	}
 	result->node = child;
@@ -876,7 +876,7 @@ unlock_carry_level(carry_level * level /* level to unlock */ ,
 			node_check(node->real_node, REISER4_NODE_DKEYS);
 		/* FIXME: remove after debugging */
 		check_dkeys(node->real_node);
-		unlock_carry_node(node, failure);
+		unlock_carry_node(level, node, failure);
 	}
 	level->new_root = NULL;
 }
@@ -900,10 +900,10 @@ done_carry_level(carry_level * level /* level to finish */ )
 	for_all_nodes(level, node, tmp_node) {
 		assert("nikita-2113", locks_list_is_clean(&node->lock_handle));
 		assert("nikita-2114", owners_list_is_clean(&node->lock_handle));
-		reiser4_pool_free(&node->header);
+		reiser4_pool_free(&level->pool->node_pool, &node->header);
 	}
 	for_all_ops(level, op, tmp_op)
-	    reiser4_pool_free(&op->header);
+	    reiser4_pool_free(&level->pool->op_pool, &op->header);
 }
 
 /* helper function to complete locking of carry node
@@ -1052,7 +1052,8 @@ lock_carry_node(carry_level * level /* level @node is in */ ,
   
 */
 static void
-unlock_carry_node(carry_node * node /* node to be released */ ,
+unlock_carry_node(carry_level * level, 
+		  carry_node * node /* node to be released */ ,
 		  int failure	/* 0 if node is unlocked due
 				 * to some error */ )
 {
@@ -1082,7 +1083,7 @@ unlock_carry_node(carry_node * node /* node to be released */ ,
 		if (node->free) {
 			assert("nikita-2177", locks_list_is_clean(&node->lock_handle));
 			assert("nikita-2112", owners_list_is_clean(&node->lock_handle));
-			reiser4_pool_free(&node->header);
+			reiser4_pool_free(&level->pool->node_pool, &node->header);
 		}
 	}
 }

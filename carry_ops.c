@@ -85,7 +85,7 @@ find_left_neighbor(carry_op * op	/* node to find left
 			reiser4_stat_level_inc(doing, carry_left_missed);
 		if (REISER4_STATS && (result == -E_NO_NEIGHBOR))
 			reiser4_stat_level_inc(doing, carry_left_not_avail);
-		reiser4_pool_free(&left->header);
+		reiser4_pool_free(&doing->pool->node_pool, &left->header);
 		left = NULL;
 	} else if (doing->restartable) {
 		/* if left neighbor is locked, and level is restartable, add
@@ -98,7 +98,7 @@ find_left_neighbor(carry_op * op	/* node to find left
 	} else {
 		/* left neighbor is locked, level cannot be restarted. Just
 		   ignore left neighbor. */
-		reiser4_pool_free(&left->header);
+		reiser4_pool_free(&doing->pool->node_pool, &left->header);
 		left = NULL;
 		reiser4_stat_level_inc(doing, carry_left_refuse);
 	}
