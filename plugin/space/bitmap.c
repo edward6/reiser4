@@ -587,7 +587,7 @@ void bitmap_dealloc_blocks (reiser4_block_nr start UNUSED_ARG,
 /** It just applies transaction changes to fs-wide COMMIT BITMAP, hoping the
  * rest is done by transaction manager (allocate wandered locations for COMMIT
  * BITMAP blocks, copy COMMIT BITMAP blocks data). */
-int block_alloc_pre_commit_hook (txn_atom * atom)
+int bitmap_pre_commit_hook (txn_atom * atom)
 {
 	struct super_block * super          = reiser4_get_current_sb ();
 	reiser4_super_info_data * info_data = get_super_private (super);
@@ -660,7 +660,7 @@ int block_alloc_pre_commit_hook (txn_atom * atom)
 }
 
 /** called after transaction commit, apply DELETE SET to WORKING BITMAP */
-int block_alloc_post_commit_hook (txn_atom * atom) {
+int bitmap_post_commit_hook (txn_atom * atom) {
 	struct super_block      * super     = reiser4_get_current_sb ();
 	reiser4_super_info_data * info_data = get_super_private (super); 
 	reiser4_space_allocator * allocator = &info_data->space_allocator;
@@ -716,7 +716,7 @@ int block_alloc_post_commit_hook (txn_atom * atom) {
 /** This function is called after write-back (writing blocks from OVERWRITE
  * SET to real locations) transaction stage completes. (clear WANDERED SET in
  * WORKING BITMAP) */
-int block_alloc_post_writeback_hook (txn_atom * atom)
+int bitmap_post_write_back_hook (txn_atom * atom)
 {
 	struct super_block      * super     = reiser4_get_current_sb ();
 	reiser4_super_info_data * info_data = get_super_private (super);
