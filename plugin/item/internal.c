@@ -210,7 +210,7 @@ internal_create_hook(const coord_t * item /* coord of item */ ,
 
 		left = arg;
 		tree = znode_get_tree(item->node);
-		write_lock_dk(tree);
+		WLOCK_DK(tree);
 		WLOCK_TREE(tree);
 		assert("nikita-1400", (child->in_parent.node == NULL) || (znode_above_root(child->in_parent.node)));
 		atomic_inc(&item->node->c_count);
@@ -228,7 +228,7 @@ internal_create_hook(const coord_t * item /* coord of item */ ,
 					     znode_get_rd_key(child))) {
 			znode_set_rd_key(child, znode_get_rd_key(left));
 		}
-		write_unlock_dk(tree);
+		WUNLOCK_DK(tree);
 		zput(child);
 		return result;
 	} else

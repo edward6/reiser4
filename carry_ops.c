@@ -1235,10 +1235,10 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 	if (znode_is_root(parent) &&
 	    (znode_get_level(parent) <= REISER4_MIN_TREE_HEIGHT) && (node_num_items(parent) == 1)) {
 		/* Delimiting key manipulations. */
-		write_lock_dk(tree);
+		WLOCK_DK(tree);
 		znode_set_ld_key(child, znode_set_ld_key(parent, min_key()));
 		znode_set_rd_key(child, znode_set_rd_key(parent, max_key()));
-		write_unlock_dk(tree);
+		WUNLOCK_DK(tree);
 
 		/* @child escaped imminent death! */
 		ZF_CLR(child, JNODE_HEARD_BANSHEE);

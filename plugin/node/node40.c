@@ -290,11 +290,6 @@ node40_plugin_by_coord(const coord_t * coord)
 	ih = node40_ih_at_coord(coord);
 	/* pass NULL in stead of current tree. This is time critical call. */
 	result = item_plugin_by_disk_id(NULL, &ih->plugin_id);
-	/* XXX debugging. Remove me. */
-	if (result == NULL) {
-		print_coord("null plugin", coord, 0);
-		print_node_content("node", coord->node, ~0);
-	}
 	return result;
 }
 
@@ -614,7 +609,7 @@ node40_check(const znode * node /* node to check */ ,
 		}
 	}
 
-	read_lock_dk(current_tree);
+	RLOCK_DK(current_tree);
 	if ((flags & REISER4_NODE_DKEYS) && !node_is_empty(node)) {
 		coord_t coord;
 		item_plugin *iplug;
@@ -667,7 +662,7 @@ node40_check(const znode * node /* node to check */ ,
 
 		RUNLOCK_TREE(current_tree);
 	}
-	read_unlock_dk(current_tree);
+	RUNLOCK_DK(current_tree);
 
 	return 0;
 }

@@ -806,7 +806,7 @@ sync_dkeys(carry_node * node /* node to update */ ,
 	assert("nikita-1612", lock_counters()->rw_locked_dk == 0);
 
 	tree = znode_get_tree(carry_real(node));
-	write_lock_dk(tree);
+	WLOCK_DK(tree);
 	spot = carry_real(node);
 	RLOCK_TREE(tree);
 
@@ -851,7 +851,7 @@ sync_dkeys(carry_node * node /* node to update */ ,
 	}
 
 	RUNLOCK_TREE(tree);
-	write_unlock_dk(tree);
+	WUNLOCK_DK(tree);
 }
 
 void
@@ -1275,10 +1275,10 @@ add_new_znode(znode * brother	/* existing left neighbor of new
 	add_pointer->u.insert.child = fresh;
 	add_pointer->u.insert.brother = brother;
 	/* initially new node spawns empty key range */
-	write_lock_dk(znode_get_tree(brother));
+	WLOCK_DK(znode_get_tree(brother));
 	znode_set_ld_key(new_znode, 
 			 znode_set_rd_key(new_znode, znode_get_rd_key(brother)));
-	write_unlock_dk(znode_get_tree(brother));
+	WUNLOCK_DK(znode_get_tree(brother));
 	return fresh;
 }
 

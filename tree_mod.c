@@ -156,10 +156,10 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 				/* insert into new root pointer to the
 				   @old_root. */
 				assert("nikita-1110", WITH_DATA(new_root, node_is_empty(new_root)));
-				write_lock_dk(tree);
+				WLOCK_DK(tree);
 				znode_set_ld_key(new_root, min_key());
 				znode_set_rd_key(new_root, max_key());
-				write_unlock_dk(tree);
+				WUNLOCK_DK(tree);
 				sibling_list_insert(new_root, NULL);
 				result = add_child_ptr(new_root, old_root);
 				done_lh(&rlh);

@@ -739,6 +739,22 @@ typedef struct { int foo; } NAME ## _rw_dummy
 	write_lock_tree_at(tree, &__hits_t, &__hits_h);	\
 })
 
+#define RLOCK_DK(tree)  				\
+({							\
+	LOCKSITE_INIT(__hits_t);			\
+	LOCKSITE_INIT(__hits_h);			\
+							\
+	read_lock_dk_at(tree, &__hits_t, &__hits_h);	\
+})
+
+#define WLOCK_DK(tree)  				\
+({							\
+	LOCKSITE_INIT(__hits_t);			\
+	LOCKSITE_INIT(__hits_h);			\
+							\
+	write_lock_dk_at(tree, &__hits_t, &__hits_h);	\
+})
+
 
 #else
 #define LOCK_JNODE(node) spin_lock_jnode(node)
@@ -746,6 +762,8 @@ typedef struct { int foo; } NAME ## _rw_dummy
 #define LOCK_TXNH(txnh) spin_lock_txnh(txnh)
 #define RLOCK_TREE(tree) read_lock_tree(tree)
 #define WLOCK_TREE(tree) write_lock_tree(tree)
+#define RLOCK_DK(tree) read_lock_dk(tree)
+#define WLOCK_DK(tree) write_lock_dk(tree)
 #endif
 
 #define UNLOCK_JNODE(node) spin_unlock_jnode(node)
@@ -753,6 +771,8 @@ typedef struct { int foo; } NAME ## _rw_dummy
 #define UNLOCK_TXNH(txnh) spin_unlock_txnh(txnh)
 #define RUNLOCK_TREE(tree) read_unlock_tree(tree)
 #define WUNLOCK_TREE(tree) write_unlock_tree(tree)
+#define RUNLOCK_DK(tree) read_unlock_dk(tree)
+#define WUNLOCK_DK(tree) write_unlock_dk(tree)
 
 /* __SPIN_MACROS_H__ */
 #endif
