@@ -39,7 +39,7 @@
     in 3.x journal.c. If cassertion fails you get compiler error,
     so no "maintainer-id". 
     From post by Andy Chou <acc@CS.Stanford.EDU> at lkml. */
-#define cassert( cond ) ({ switch( -1 ) { case ( cond ): case 0: } })
+#define cassert( cond ) ({ switch( -1 ) { case ( cond ): case 0: break; } })
 
 #define CONFIG_REISER4_CHECK
 
