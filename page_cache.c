@@ -569,9 +569,10 @@ int page_common_writeback( struct page *page /* page to start writeback from */,
 {
 	int result;
 	jnode *node;
-	reiser4_context *ctx;
-	txn_handle *txnh;
-	REISER4_ENTRY( page -> mapping -> host -> i_sb );
+	txn_atom * atom;
+	struct super_block *s = page -> mapping -> host -> i_sb;
+
+	REISER4_ENTRY (s);
 
 	assert( "vs-828", PageLocked( page ) );
 
@@ -580,62 +581,24 @@ int page_common_writeback( struct page *page /* page to start writeback from */,
 
 	unlock_page( page );
 
-	ctx  = get_current_context ();
-	txnh = ctx->trans;
+	spin_lock_jnode (node);
+	atom = atom_get_locked_by_jnode (node);
 
-	if (! spin_trylock_txnh (txnh)) {
-		jput (node);
-		REISER4_EXIT (0);
+	if (atom) {
+		atom->flags |= ATOM_FORCE_COMMIT;
+
+		spin_unlock_atom (atom);
 	}
 
-	if (txnh->atom != NULL || ! lock_stack_isclean( & ctx->stack )) {
-		/*
-		 * Good Lord, we are called synchronously! What a shame.
-		 *
-		 * we got here by
-		 * __alloc_pages->balance_classzone->...->shrink_cache
-		 *
-		 * no chance of working in such situation.
-		 */
-		spin_unlock_txnh (txnh);
-		jput (node);
-		REISER4_EXIT (0);
-	}
+	spin_unlock_jnode (node);
 
-	spin_unlock_txnh (txnh);
-
-	/* Attach the txn handle to this node, preventing the atom from
-	 * committing while this flush occurs.
-	 *
-	 * Note: This ATOM_FORCE_COMMIT causes the atom to commit right
-	 * away... except the no_commit_thread() check in txnmgr.c may disable
-	 * it if called from memory pressure.
+	/*
+	 * all flushing is done outside of kswapd context (in "ent" thread).
 	 */
-	result = txn_attach_txnh_to_node (txnh, node, ATOM_FORCE_COMMIT);
-
-	if( 1 ) {
-		/*
-		 * this is for case when all flushing is done outside of
-		 * kswapd context (in "ent" thread).
-		 */
-		ktxnmgrd_kick (get_super_private (ctx->super)->tmgr.daemon, 
-			       MEMORY_PRESSURE);
-		jput (node);
-		REISER4_EXIT (0);
-	}
-
-	if (result == -ENOENT) {
-
-		/* Txn committed during attach, jnode has no atom. */
-		result = 0;
-
-	} else if (result == 0) {
-		/* And flush it... */
-		result = jnode_flush (node, &wbc -> nr_to_write, flush_flags);
-	}
+	ktxnmgrd_kick (get_super_private (s)->tmgr.daemon, MEMORY_PRESSURE);
 
 	jput (node);
-	REISER4_EXIT (result);
+	REISER4_EXIT (0);
 }
 
 /** ->set_page_dirty() method of formatted address_space */
