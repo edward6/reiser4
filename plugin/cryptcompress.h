@@ -110,10 +110,9 @@ free_ts_data(tfm_stream_t * stm)
 
 /* Write modes for item conversion in flush convert phase */
 typedef enum {
-	CRC_FIRST_ITEM = 1,
-	CRC_APPEND_ITEM = 2,
-	CRC_OVERWRITE_ITEM = 3,
-	CRC_CUT_ITEM = 4
+	CRC_APPEND_ITEM = 1,
+	CRC_OVERWRITE_ITEM = 2,
+	CRC_CUT_ITEM = 3
 } crc_write_mode_t;
 
 typedef enum {
