@@ -1596,7 +1596,7 @@ reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent
 	/* calculate size of buffer needed to store locality, objectid and, possibly, ordering of inode and, possibly
 	   the same information about its parent */
 	need = dscale_bytes(get_inode_oid(inode)) + dscale_bytes(get_inode_locality(inode));
-	ON_LARGE_KEY(need += dscale_write(addr, get_inode_ordering(inode)));
+	ON_LARGE_KEY(need += dscale_bytes(get_inode_ordering(inode)));
 	if (need_parent) {
 		parent = dentry->d_parent->d_inode;
 		need += dscale_bytes(get_inode_oid(parent)) + dscale_bytes(get_inode_locality(parent));
@@ -1634,8 +1634,6 @@ reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent
 		/*XXX*/
 	}
 	
-
-
 	if (need_parent) {
 		/* FIXME: spin_lock(&dentry->d_lock)? */
 		parent = dentry->d_parent->d_inode;
