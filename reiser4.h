@@ -107,6 +107,8 @@
 /** number of bits in size of VFS block (512==2^9) */
 #define VFS_BLKSIZE_BITS 9
 
+#define REISER4_I reiser4_inode_data
+
 /** implication */
 #define ergo( antecedent, consequent ) ( !( antecedent ) || ( consequent ) )
 /** logical equivalence */
@@ -121,7 +123,6 @@
 
 #include "forward.h"
 
-#include "reiser4_i.h"
 #include "reiser4_sb.h"
 
 #include "build.h"
