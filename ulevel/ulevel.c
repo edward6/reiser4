@@ -3156,7 +3156,7 @@ static int bash_mkfs (const char * file_name)
 			/* oid allocator */
 			get_super_private (&super)->oid_plug = oid_allocator_plugin_by_id (OID_40_ALLOCATOR_ID);
 			get_super_private (&super)->oid_plug->
-				init_oid_allocator (get_oid_allocator (&super), 1ull, TEST_MKFS_ROOT_OBJECTID - 2);
+				init_oid_allocator (get_oid_allocator (&super), 1ull, TEST_MKFS_ROOT_OBJECTID);
 
 			/* test layout super block */
 			test_sb = (test_disk_super_block *)(bh->b_data + sizeof (*master_sb));
@@ -3169,7 +3169,7 @@ static int bash_mkfs (const char * file_name)
 			cputod64 (0ull, &test_sb->root_block);
 			cputod16 (0, &test_sb->tree_height);
 			cputod64 (0ull, &test_sb->new_block_nr);
-			cputod64 (TEST_MKFS_ROOT_OBJECTID - 2, &test_sb->next_to_use);
+			cputod64 (TEST_MKFS_ROOT_OBJECTID - 3, &test_sb->next_to_use);
 			mark_buffer_dirty (bh);
 			ll_rw_block (WRITE, 1, &bh);
 			wait_on_buffer (bh);
@@ -3182,7 +3182,7 @@ static int bash_mkfs (const char * file_name)
 		init_formatted_fake( &super );
 		result = init_tree( tree, &super, &root_block,
 				    1/*tree_height*/, node_plugin_by_id( NODE40_ID ),
-				    &mkfs_tops );
+				    /*&mkfs_tops*/ &page_cache_tops);
 
 		fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR );
 		root = allocate_znode( tree, fake, tree->height, &tree->root_block);
