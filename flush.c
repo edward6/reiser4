@@ -1578,57 +1578,54 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 	init_lh(&right_lock);
 	init_load_count(&right_load);
 
- again:
-	assert ("zam-845", pos->state == POS_ON_LEAF);
+	while (1) {
+		assert ("zam-845", pos->state == POS_ON_LEAF);
 
-	ret = znode_get_utmost_if_dirty(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
-	if (ret) {
-		if (ret == -ENAVAIL) {
-			/* cannot get right neighbor, go process extents. */
-			pos->state = POS_TO_TWIG;
-			return 0;
+		ret = znode_get_utmost_if_dirty(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
+		if (ret) {
+			if (ret == -ENAVAIL) {
+				/* cannot get right neighbor, go process extents. */
+				pos->state = POS_TO_TWIG;
+				return 0;
+			}
+			return ret;
 		}
-		return ret;
+
+		if (znode_check_flushprepped(right_lock.node))
+			break;
+
+		ret = incr_load_count_znode(&right_load, right_lock.node);
+		if (ret)
+			break;
+
+		/* squeeze _before_ going upward. */
+		ret = squeeze_right_non_twig(pos->lock.node, right_lock.node);
+		if (ret < 0)
+			break;
+
+		if (node_is_empty(right_lock.node)) {
+			/* repeat if right node was squeezed completely */
+			done_load_count(&right_load);
+			done_lh(&right_lock);
+			continue;
+		}
+
+		/* parent(right_lock.node) has to be processed before
+		 * (right_lock.node) due to "parent-first" allocation order. */
+		ret = check_parents_and_squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
+		if (ret)
+			break;
+
+		/* (re)allocate _after_ going upward */
+		ret = lock_parent_and_allocate_znode(right_lock.node, pos);
+		if (ret)
+			break;
+
+		/* advance the flush position to the right neighbor */
+		move_flush_pos(pos, &right_lock, &right_load, NULL);
 	}
 
-	if (znode_check_flushprepped(right_lock.node))
-		goto stop;
-
-	ret = incr_load_count_znode(&right_load, right_lock.node);
-	if (ret)
-		goto stop;
-
-	/* squeeze _before_ going upward. */
-	ret = squeeze_right_non_twig(pos->lock.node, right_lock.node);
-	if (ret < 0)
-		goto stop;
-
-	if (node_is_empty(right_lock.node)) {
-		/* repeat if right node was squeezed completely */
-		done_load_count(&right_load);
-		done_lh(&right_lock);
-		goto again;
-	}
-
-	/* parent(right_lock.node) has to be processed before
-	 * (right_lock.node) due to "parent-first" allocation order. */
-	ret = check_parents_and_squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
-	if (ret)
-		goto stop;
-
-	/* (re)allocate _after_ going upward */
-	ret = lock_parent_and_allocate_znode(right_lock.node, pos);
-	if (ret)
-		goto stop;
-
-	/* advance the flush position to the right neighbor */
-	move_flush_pos(pos, &right_lock, &right_load, NULL);
-
-	if(0) {
-	stop: 
-		pos->state = POS_INVALID;
-	}
-
+	pos_stop(pos);
 	done_load_count(&right_load);
 	done_lh(&right_lock);
 
