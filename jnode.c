@@ -1132,6 +1132,26 @@ static int znode_parse( jnode *node )
 }
 
 extern void znode_remove( znode *node, reiser4_tree *tree );
+static int znode_delete_op( jnode *node, reiser4_tree *tree )
+{
+	znode *z;
+
+	assert( "nikita-2128", spin_tree_is_locked( tree ) );
+	assert( "vs-898", JF_ISSET( node, JNODE_HEARD_BANSHEE ) );
+
+	z = JZNODE( node );
+	assert( "vs-899", atomic_read( &z -> c_count ) == 0 );
+
+	/*
+	 * delete znode from sibling list.
+	 */
+	sibling_list_remove( z );
+
+	znode_remove( z, tree );
+	zfree( z );
+	return 0;
+}
+
 static int znode_remove_op( jnode *node, reiser4_tree *tree )
 {
 	znode *z;
@@ -1210,7 +1230,7 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 			.init    = znode_init,
 			.parse   = znode_parse,
 			.remove  = znode_remove_op,
-			.delete  = znode_remove_op,
+			.delete  = znode_delete_op,
 			.mapping = znode_mapping,
 			.index   = znode_index,
 			.io_hook = znode_io_hook
