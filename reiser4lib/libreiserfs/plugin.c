@@ -9,6 +9,7 @@
 #include <limits.h>
 
 #include <reiserfs/plugin.h>
+#include <reiserfs/debug.h>
 
 reiserfs_plugin_t *reiserfs_plugin_load_by_name(const char *name, const char *point) {
 	char *error;

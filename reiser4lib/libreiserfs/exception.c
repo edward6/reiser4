@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <string.h>
 
 static reiserfs_exception_option_t default_handler(reiserfs_exception_t *ex);
 static reiserfs_exception_handler_t exception_handler = default_handler;

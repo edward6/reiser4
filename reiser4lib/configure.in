@@ -47,9 +47,30 @@ AC_DEFINE_UNQUOTED(LIBREISERFS_MAX_INTERFACE_VERSION, $LIBREISERFS_BINARY_AGE)
 AC_DEFINE_UNQUOTED(LIBREISERFS_MIN_INTERFACE_VERSION, $LIBREISERFS_INTERFACE_AGE)
 
 AC_ARG_ENABLE(debug, 
-	[  --enable-debug  compile in assertions [default=yes]], , enable_debug=yes
+	[  --enable-debug    compile in assertions [default=yes]], , 
+		enable_debug=yes
 )
-	
+if test x$enable_debug = xyes; then
+    AC_DEFINE(ENABLE_DEBUG)
+fi
+
+AC_ARG_ENABLE(compact,
+	[  --enable-compact    build in compact maner [default=no]], ,
+	    enable_compact=no
+)
+if test x$enable_compact = xyes; then
+	AC_DEFINE(ENABLE_COMPACT)
+fi
+
+LIBREISERFS_LIBS=""
+dnl Check for libdl, if we are doing dynamic loading
+AC_CHECK_LIB(dl, dlopen, LIBREISERFS_LIBS="$LIBREISERFS_LIBS -ldl",
+	AC_MSG_ERROR(libdl not found!)
+	exit
+)
+															
+AC_SUBST(LIBREISERFS_LIBS)
+
 dnl make libc threadsafe (not required for us, but useful other users of
 dnl libreiserfs)
 CFLAGS="$CFLAGS -D_REENTRANT"
