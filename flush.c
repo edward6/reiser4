@@ -2456,10 +2456,10 @@ static int flush_scan_common (flush_scan *scan, flush_scan *other)
 /* Initialize the fields of a flush_position. */
 static int flush_pos_init (flush_position *pos, int *nr_to_flush)
 {
-	if ((pos->queue = kmalloc (FLUSH_QUEUE_SIZE * sizeof (jnode*), GFP_NOFS)) == NULL) {
+	if ((pos->queue = reiser4_kmalloc (FLUSH_QUEUE_SIZE * sizeof (jnode*), GFP_NOFS)) == NULL) {
 		return -ENOMEM;
 	}
-	xmemset (pos->queue, 0, FLUSH_QUEUE_SIZE * sizeof (jnode*));
+	memset (pos->queue, 0, FLUSH_QUEUE_SIZE * sizeof (jnode*));
 
 	pos->queue_num = 0;
 	pos->point = NULL;
