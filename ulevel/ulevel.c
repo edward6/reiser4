@@ -1168,6 +1168,10 @@ static void print_percentage( unsigned long reached,
 	}
 }
 
+const reiser4_key ROOT_DIR_KEY = {
+	.el = { { ( 2 << 4 ) | KEY_SD_MINOR }, { 42ull }, { 0ull } }
+};
+
 int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG, 
 		 reiser4_tree *tree )
 {
@@ -1592,6 +1596,7 @@ static struct inode * create_root_dir (znode * root)
 	reiser4_get_object_state( inode ) -> locality_id = get_key_locality( &key );
 
 	call_create (inode, ".");
+	inode -> i_sb -> s_root -> d_inode = inode;
 
 	return inode;
 }
