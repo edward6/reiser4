@@ -357,8 +357,8 @@ static int tap_invariant(const tap_t * tap)
 	/* tap->loaded > 0 => znode_is_loaded(tap->coord->node), and */
 	if (!ergo(tap->loaded, znode_is_loaded(tap->coord->node)))
 		return 5;
-	/* tap->coord->node == tap->lh->node */
-	if (tap->coord->node != tap->lh->node)
+	/* tap->coord->node == tap->lh->node if tap->lh->node is not 0 */
+	if (tap->lh->node != NULL && tap->coord->node != tap->lh->node)
 		return 6;
 	return 0;
 }
