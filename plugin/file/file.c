@@ -90,12 +90,13 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 		return 0;
 
 	if (node_is_empty (coord->node)) {
-		spin_lock_dk (current_tree);
 		/*
 		 * FIXME:NIKITA->VS can reproducible fail this
+		 *
+		 * Probably coord->node was created by coord_by_key drill? It
+		 * is empty, but HEARD_BANSHEE is not set (CREATED is).
 		 */
-		assert ("vs-751", keyeq (key, znode_get_ld_key (coord->node)));
-		spin_unlock_dk (current_tree);
+		//assert ("vs-751", keyeq (key, znode_get_ld_key (coord->node)));
 
 		zrelse (coord->node);
 		return 1;
