@@ -136,27 +136,30 @@ typedef struct item_plugin {
 				     unsigned from, unsigned count, 
 				     znode *old_node );
 
-		/* remove @count units from @item starting of @from-th
-		   unit. Item size is not changed, remaining body of item is
-		   moved either to left or to right, return total size of
-		   removed units. If @where_to_move_free_space == append -
-		   leave freed space at the end of item, if
-		   @where_to_move_free_space == prepend - collect freed space
-		   n the head of item. Amount of freed space is
-		   returned. @count can be less or equal to number of unit in
-		   the item. When @count is equal to number of units in the
-		   item - item length should be returned */
-		int ( *cut_units )( tree_coord *, unsigned from,
-				    unsigned count, shift_direction,
-				    const reiser4_key *, const reiser4_key *,
-				    reiser4_key * );
+		/*
+		 * unit @*from contains @from_key. unit @*to contains
+		 * @to_key. Cut all keys between @from_key and @to_key
+		 * including boundaries. Set @from and @to to number of units
+		 * which were removed. When units are cut from item beginning -
+		 * move space which gets freed to head of item. When units are
+		 * cut from item end - move freed space to item end. When units
+		 * are cut from the middle of item - move freed space to item
+		 * head. Return amount of space which got freed. Save smallest
+		 * removed key is @smallest_removed is not 0
+		 */
+		int ( *cut_units )( tree_coord *, unsigned *from, unsigned *to,
+				    const reiser4_key *from_key,
+				    const reiser4_key *to_key,
+				    reiser4_key *smallest_removed );
 
-		/* like the above, except that these units are removed from
-		   the tree, not only from a node */
-		int ( *kill_units )( tree_coord *item, unsigned from,
-				     unsigned count, shift_direction,
-				     const reiser4_key *, const reiser4_key *,
-				     reiser4_key * );
+		/*
+		 * like cut_units, except that these units are removed from the
+		 * tree, not only from a node
+		 */
+		int ( *kill_units )( tree_coord *, unsigned *from, unsigned *to,
+				     const reiser4_key *from_key,
+				     const reiser4_key *to_key,
+				     reiser4_key *smallest_removed );
 
 		/* if @key_of_coord == 1 - returned key of coord, otherwise -
 		   key of unit is returned. If @coord is not set to certain
