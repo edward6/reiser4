@@ -549,6 +549,7 @@ extern reiser4_plugin space_plugins[ LAST_SPACE_MGR_ID ];
 extern reiser4_plugin layout_plugins[ LAST_LAYOUT_ID ];
 #endif
 
+#if REISER4_DEBUG
 reiser4_plugin hook_plugins[] = {
 	[ DUMP_HOOK_ID ] = {
 		.hook = {
@@ -564,6 +565,7 @@ reiser4_plugin hook_plugins[] = {
 		}
 	}
 };
+#endif
 
 static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 	/* C90 initializers */
@@ -599,6 +601,7 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.builtin       = tail_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
+#if REISER4_DEBUG
 	[ REISER4_HOOK_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_HOOK_PLUGIN_TYPE,
 		.label         = "hook",
@@ -607,6 +610,7 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.builtin       = hook_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
+#endif
 	[ REISER4_PERM_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_PERM_PLUGIN_TYPE,
 		.label         = "perm",

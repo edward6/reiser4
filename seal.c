@@ -42,7 +42,7 @@ static int seal_search_node( seal_t *seal, tree_coord *coord,
  */
 void seal_init( seal_t      *seal /* seal to initialise */, 
 		tree_coord  *coord /* coord @seal will be attached to */, 
-		reiser4_key *key  /* key @seal will be attached to */ )
+		reiser4_key *key UNUSED_ARG /* key @seal will be attached to */ )
 {
 	assert( "nikita-1886", seal != NULL );
 	xmemset( seal, 0, sizeof *seal );
@@ -55,11 +55,11 @@ void seal_init( seal_t      *seal /* seal to initialise */,
 		seal -> version = node -> version;
 		assert( "nikita-1880", seal -> version != 0 );
 		seal -> block   = *znode_get_block( node );
-		if( REISER4_DEBUG ) {
-			seal -> coord = *coord;
-			if( key != NULL )
-				seal -> key = *key;
-		}
+#if REISER4_DEBUG
+		seal -> coord = *coord;
+		if( key != NULL )
+			seal -> key = *key;
+#endif
 		spin_unlock_znode( node );
 	}
 }

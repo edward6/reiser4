@@ -569,7 +569,11 @@ PLUGIN_BY_ID(space_allocator_plugin,REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,
 
 extern int save_plugin_id( reiser4_plugin *plugin, d16 *area );
 
+#if REISER4_DEBUG
 extern void print_plugin( const char *prefix, reiser4_plugin *plugin );
+#else
+#define print_plugin( pr, pl ) noop
+#endif
 
 TS_LIST_DEFINE( plugin, reiser4_plugin, h.linkage );
 
