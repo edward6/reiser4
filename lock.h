@@ -41,21 +41,28 @@ TS_LIST_DECLARE(locks);
 
 /* Per-znode lock object */
 struct zlock {
+	reiser4_spin_data guard;
 	/* The number of readers if positive; the number of recursively taken
-	   write locks if negative. Protected by znode spin lock. */
-	/*  0 */ int nr_readers;
+	   write locks if negative. Protected by zlock spin lock. */
+	int nr_readers;
 	/* A number of processes (lock_stacks) that have this object
 	   locked with high priority */
-	/*  4 */ unsigned nr_hipri_owners;
+	unsigned nr_hipri_owners;
 	/* A number of attempts to lock znode in high priority direction */
-	/*  8 */ unsigned nr_hipri_requests;
+	unsigned nr_hipri_requests;
 	/* A linked list of lock_handle objects that contains pointers
 	   for all lock_stacks which have this lock object locked */
-	/* 12 */ owners_list_head owners;
+	owners_list_head owners;
 	/* A linked list of lock_stacks that wait for this lock */
-	/* 20 */ requestors_list_head requestors;
-	/* 28 */
+	requestors_list_head requestors;
 };
+
+#define spin_ordering_pred_zlock(lock)		\
+	  /* top-most lock */			\
+	  (lock_counters()->spin_locked == 0)
+
+/* Define spin_lock_zlock, spin_unlock_zlock, etc. */
+SPIN_LOCK_FUNCTIONS(zlock, zlock, guard);
 
 #define lock_is_locked(lock)          ((lock)->nr_readers != 0)
 #define lock_is_rlocked(lock)         ((lock)->nr_readers > 0)
@@ -207,8 +214,22 @@ extern int lock_stack_isclean(lock_stack * owner);
    lock is held by the current thread. */
 extern int znode_is_write_locked(const znode * node);
 
-/* lock ordering is: first take znode spin lock, then lock stack spin lock */
-#define spin_ordering_pred_stack(stack) (1)
+/* lock ordering is: first take zlock spin lock, then lock stack spin lock */
+#define spin_ordering_pred_stack(stack)				\
+	((lock_counters()->spin_locked_atom == 0) &&		\
+	 (lock_counters()->spin_locked_txnh == 0) &&		\
+	 (lock_counters()->spin_locked_jnode == 0) &&		\
+	 (lock_counters()->spin_locked_stack == 0) &&		\
+	 (lock_counters()->spin_locked_txnmgrd == 0) &&		\
+	 (lock_counters()->spin_locked_fq == 0) &&		\
+	 (lock_counters()->spin_locked_super == 0) &&		\
+	 (lock_counters()->spin_locked_inode_object == 0) &&	\
+	 (lock_counters()->spin_locked_cbk_cache == 0) &&	\
+	 (lock_counters()->spin_locked_epoch == 0) &&		\
+	 (lock_counters()->spin_locked_super_eflush == 0) &&	\
+	 (lock_counters()->rw_locked_dk == 0) &&		\
+	 (lock_counters()->rw_locked_tree == 0))
+
 /* Same for lock_stack */
 SPIN_LOCK_FUNCTIONS(stack, lock_stack, sguard);
 

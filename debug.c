@@ -142,7 +142,7 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 	printk("%s: jnode: %i, tree: %i (r:%i,w:%i), dk: %i (r:%i,w:%i)\n"
 	       "txnh: %i, atom: %i, stack: %i, txnmgr: %i, "
 	       "ktxnmgrd: %i, fq: %i, reiser4_sb: %i\n"
-	       "inode: %i, cbk_cache: %i, epoch: %i, eflush: %i\n"
+	       "inode: %i, cbk_cache: %i, epoch: %i, eflush: %i, zlock: %i\n"
 	       "spin: %i, long: %i inode_sem: (r:%i,w:%i)\n"
 	       "d: %i, x: %i, t: %i\n", prefix,
 	       info->spin_locked_jnode, 
@@ -159,6 +159,7 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 	       info->spin_locked_cbk_cache,
 	       info->spin_locked_epoch,
 	       info->spin_locked_super_eflush,
+	       info->spin_locked_zlock,
 	       info->spin_locked,
 	       info->long_term_locked_znode,
 	       info->inode_sem_r, info->inode_sem_w,
@@ -505,6 +506,7 @@ reiser4_stats_cnt reiser4_stat_level_defs[] = {
 	DEFINE_STAT_LEVEL_CNT(node.lookup.found),
 	DEFINE_STAT_LEVEL_CNT(node.lookup.pos),
 	DEFINE_STAT_LEVEL_CNT(node.lookup.posrelative),
+	DEFINE_STAT_LEVEL_CNT(node.lookup.samepos),
 
 	DEFINE_STAT_LEVEL_CNT(time_slept),
 	DEFINE_STAT_LEVEL_CNT(total_hits_at_level)

@@ -95,6 +95,9 @@ Reiser4 introduces following locks:
 35. Per-atom "event". This is not really lock. Rather, this is an event
     signaled each time atom changes its state.                  (atom_event)
 
+36. Per-znode spin lock used to protect long term locking 
+    structures                                                  (zlock*)
+
 99. Various locks used by the user level simulator
 
 Locks marked by (*) after label, are accessed through spin lock macros,
@@ -276,12 +279,13 @@ i_sem
 ....................txnmgr_lock
 ......................atom_lock
 ........................jnode_lock            [->vm_writeback()->jget()]
-..........................stack_lock
 ..........................txnh_lock
 ..................dk_lock
 ..............................tree_lock
 ................................cbk_guard
 ................................epoch_lock
+..................zlock
+....................stack_lock
 ....................mm->page_table_lock
 ......................mapping->private_lock
 ........................swaplock
@@ -453,6 +457,11 @@ jnode_lock->stack_lock
 tree_lock->cbk_guard
 
     znode_remove() calls cbk_cache_invalidate()
+
+zlock->stack_lock
+ 
+    wake_up_all_lopri_owners()
+
 ----------------------------------DEADLOCKS-------------------------------------
 
 Big section describing found/possible/already-worked-around deadlocks.

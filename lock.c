@@ -368,7 +368,7 @@ wake_up_all_lopri_owners(znode * node)
 {
 	lock_handle *handle;
 
-	assert("nikita-1824", spin_znode_is_locked(node));
+	assert("nikita-1824", spin_zlock_is_locked(&node->lock));
 	for_all_tslist(owners, &node->lock.owners, handle) {
 		spin_lock_stack(handle->owner);
 
@@ -395,7 +395,7 @@ link_object(lock_handle * handle, lock_stack * owner, znode * node)
 {
 	assert("jmacd-810", handle->owner == NULL);
 	assert("nikita-1828", owner == get_current_lock_stack());
-	assert("nikita-1830", spin_znode_is_locked(node));
+	assert("nikita-1830", spin_zlock_is_locked(&node->lock));
 
 	handle->owner = owner;
 	handle->node = node;
@@ -410,7 +410,7 @@ unlink_object(lock_handle * handle)
 {
 	assert("zam-354", handle->owner != NULL);
 	assert("nikita-1608", handle->node != NULL);
-	assert("nikita-1633", spin_znode_is_locked(handle->node));
+	assert("nikita-1633", spin_zlock_is_locked(&handle->node->lock));
 	assert("nikita-1829", handle->owner == get_current_lock_stack());
 
 	locks_list_remove_clean(handle);
@@ -430,7 +430,7 @@ lock_object(lock_stack * owner)
 
 	request = &owner->request;
 	node    = request->node;
-	assert("nikita-1834", spin_znode_is_locked(node));
+	assert("nikita-1834", spin_zlock_is_locked(&node->lock));
 	if (request->mode == ZNODE_READ_LOCK) {
 		node->lock.nr_readers++;
 	} else {
@@ -463,7 +463,7 @@ recursive(lock_stack * owner)
 	/* Owners list is not empty for a locked node */
 	assert("zam-314", !owners_list_empty(&node->lock.owners));
 	assert("nikita-1841", owner == get_current_lock_stack());
-	assert("nikita-1848", spin_znode_is_locked(node));
+	assert("nikita-1848", spin_zlock_is_locked(&node->lock));
 
 	ret = (owners_list_front(&node->lock.owners)->owner == owner);
 
@@ -543,7 +543,7 @@ znode_is_write_locked(const znode * node)
 static inline int
 check_deadlock_condition(znode * node)
 {
-	assert("nikita-1833", spin_znode_is_locked(node));
+	assert("nikita-1833", spin_zlock_is_locked(&node->lock));
 	return node->lock.nr_hipri_requests > 0 && node->lock.nr_hipri_owners == 0;
 }
 
@@ -554,7 +554,7 @@ check_lock_object(lock_stack * owner)
 	znode *node = owner->request.node;
 
 	assert("nikita-1842", owner == get_current_lock_stack());
-	assert("nikita-1843", spin_znode_is_locked(node));
+	assert("nikita-1843", spin_zlock_is_locked(&node->lock));
 
 	/* See if the node is disconnected. */
 	if (unlikely(ZF_ISSET(node, JNODE_IS_DYING))) {
@@ -612,7 +612,7 @@ set_high_priority(lock_stack * owner)
 		while (!locks_list_end(&owner->locks, item)) {
 			znode *node = item->node;
 
-			spin_lock_znode(node);
+			LOCK_ZLOCK(&node->lock);
 
 			node->lock.nr_hipri_owners++;
 
@@ -624,7 +624,7 @@ set_high_priority(lock_stack * owner)
 			   previous statement (nr_hipri_owners ++) guarantees
 			   that signaled will be never set again. */
 			item->signaled = 0;
-			spin_unlock_znode(node);
+			UNLOCK_ZLOCK(&node->lock);;
 
 			item = locks_list_next(item);
 		}
@@ -647,7 +647,7 @@ set_low_priority(lock_stack * owner)
 		lock_handle *handle = locks_list_front(&owner->locks);
 		while (!locks_list_end(&owner->locks, handle)) {
 			znode *node = handle->node;
-			spin_lock_znode(node);
+			LOCK_ZLOCK(&node->lock);
 			/* this thread just was hipri owner of @node, so
 			   nr_hipri_owners has to be greater than zero. */
 			ON_TRACE(TRACE_LOCKS,
@@ -666,7 +666,7 @@ set_low_priority(lock_stack * owner)
 				handle->signaled = 1;
 				atomic_inc(&owner->nr_signaled);
 			}
-			spin_unlock_znode(node);
+			UNLOCK_ZLOCK(&node->lock);
 			handle = locks_list_next(handle);
 		}
 		owner->curpri = 0;
@@ -710,7 +710,7 @@ wake_up_requestor(znode *node)
 	int                   convoylimit;
 
 	assert("nikita-3180", node != NULL);
-	assert("nikita-3181", spin_znode_is_locked(node));
+	assert("nikita-3181", spin_zlock_is_locked(&node->lock));
 	assert("nikita-3183", !znode_is_wlocked(node));
 
 	ADDSTAT(node, wakeup);
@@ -760,7 +760,7 @@ wake_up_requestor(znode *node)
 		spin_lock(&convoy[0]->sguard.lock);
 	}
 
-	spin_unlock_znode(node);
+	UNLOCK_ZLOCK(&node->lock);
 	
 	while (convoyused > 0) {
 		-- convoyused;
@@ -776,7 +776,7 @@ wake_up_requestor(znode *node)
 		reiser4_wake_up(requestor);
 	}
 
-	spin_unlock_znode(node);
+	UNLOCK_ZLOCK(&node->lock);
 #endif
 }
 
@@ -799,7 +799,7 @@ longterm_unlock_znode(lock_handle * handle)
 
 	ADDSTAT(node, unlock);
 
-	spin_lock_znode(node);
+	LOCK_ZLOCK(&node->lock);
 
 	assert("zam-101", znode_is_locked(node));
 
@@ -826,7 +826,7 @@ longterm_unlock_znode(lock_handle * handle)
 			   still waiting on this node and notifying them
 			   that node is dying.
 			*/
-			spin_unlock_znode(node);
+			UNLOCK_ZLOCK(&node->lock);
 			ON_DEBUG(check_lock_data());
 			ON_DEBUG(check_lock_node_data(node));
 			ON_DEBUG(node_check(node, 0));
@@ -859,9 +859,9 @@ longterm_unlock_znode(lock_handle * handle)
 	if (!znode_is_wlocked(node))
 		wake_up_requestor(node);
 	else
-		spin_unlock_znode(node);
+		UNLOCK_ZLOCK(&node->lock);
 
-	assert("nikita-3182", spin_znode_is_not_locked(node));
+	assert("nikita-3182", spin_zlock_is_not_locked(&node->lock));
 	/* minus one reference from handle->node */
 	handle->node = NULL;
 	assert("nikita-2190", znode_invariant(node));
@@ -875,7 +875,7 @@ lock_tail(lock_stack *owner, int wake_up_next, int ok, znode_lock_mode mode)
 {
 	znode *node = owner->request.node;
 
-	assert("jmacd-807", spin_znode_is_locked(node));
+	assert("jmacd-807", spin_zlock_is_locked(&node->lock));
 
 	/* If we broke with (ok == 0) it means we can_lock, now do it. */
 	if (ok == 0) {
@@ -888,7 +888,7 @@ lock_tail(lock_stack *owner, int wake_up_next, int ok, znode_lock_mode mode)
 	if (wake_up_next)
 		wake_up_requestor(node);
 	else
-		spin_unlock_znode(node);
+		UNLOCK_ZLOCK(&node->lock);
 
 	if (ok == 0) {
 		/* count a reference from lockhandle->node 
@@ -981,8 +981,8 @@ longterm_lock_znode(
 
 	cap_mode = (mode == ZNODE_WRITE_LOCK) ? TXN_CAPTURE_WRITE : 0;
 
-	/* Synchronize on node's guard lock. */
-	spin_lock_znode(node);
+	/* Synchronize on node's zlock guard lock. */
+	LOCK_ZLOCK(lock);
 
 	if (znode_is_locked(node) && 
 	    mode == ZNODE_WRITE_LOCK && recursive(owner))
@@ -1013,8 +1013,12 @@ longterm_lock_znode(
 		assert("nikita-1844", (ret == 0) || ((ret == -EAGAIN) && !non_blocking));
 		/* If we can get the lock... Try to capture first before
 		   taking the lock.*/
+		UNLOCK_ZLOCK(lock);
+		spin_lock_znode(node);
 		ret = try_capture_args(ZJNODE(node), txnh, mode,
 				       cap_flags, non_blocking, cap_mode);
+		spin_unlock_znode(node);
+		LOCK_ZLOCK(lock);
 		if (unlikely(ret != 0)) {
 			/* In the failure case, the txnmgr releases the znode's lock (or
 			   in some cases, it was released a while ago).  There's no need
@@ -1047,7 +1051,7 @@ longterm_lock_znode(
 			break;
 		}
 
-		assert("nikita-1837", spin_znode_is_locked(node));
+		assert("nikita-1837", spin_zlock_is_locked(&node->lock));
 		if (hipri) {
 			/* If we are going in high priority direction then
 			   increase high priority requests counter for the
@@ -1070,11 +1074,11 @@ longterm_lock_znode(
 
 		/* Ok, here we have prepared a lock request, so unlock
 		   a znode ...*/
-		spin_unlock_znode(node);
+		UNLOCK_ZLOCK(lock);
 		/* ... and sleep */
 		go_to_sleep(owner, level);
 		
-		spin_lock_znode(node);
+		LOCK_ZLOCK(lock);
 
 		if (hipri) {
 			assert("nikita-1838", lock->nr_hipri_requests > 0);
@@ -1084,7 +1088,7 @@ longterm_lock_znode(
 		requestors_list_remove(owner);
 	}
 
-	assert("jmacd-807/a", spin_znode_is_locked(node));
+	assert("jmacd-807/a", spin_zlock_is_locked(&node->lock));
 	return lock_tail(owner, wake_up_next, ret, mode);
 }
 
@@ -1102,7 +1106,7 @@ invalidate_lock(lock_handle * handle	/* path to lock
 
 	assert("zam-325", owner == get_current_lock_stack());
 
-	spin_lock_znode(node);
+	LOCK_ZLOCK(&node->lock);
 
 	assert("zam-103", znode_is_write_locked(node));
 	assert("nikita-1393", !ZF_ISSET(node, JNODE_LEFT_CONNECTED));
@@ -1129,14 +1133,14 @@ invalidate_lock(lock_handle * handle	/* path to lock
 
 		prepare_to_sleep(owner);
 
-		spin_unlock_znode(node);
+		UNLOCK_ZLOCK(&node->lock);
 		go_to_sleep(owner, znode_get_level(node));
-		spin_lock_znode(node);
+		LOCK_ZLOCK(&node->lock);
 
 		requestors_list_remove(owner);
 	}
 
-	spin_unlock_znode(node);
+	UNLOCK_ZLOCK(&node->lock);
 }
 
 /* Initializes lock_stack. */
@@ -1162,6 +1166,7 @@ reiser4_init_lock(zlock * lock	/* pointer on allocated
 				   * structure. */ )
 {
 	xmemset(lock, 0, sizeof (zlock));
+	spin_zlock_init(lock);
 	requestors_list_init(&lock->requestors);
 	owners_list_init(&lock->owners);
 }
@@ -1212,7 +1217,7 @@ move_lh_internal(lock_handle * new, lock_handle * old, int unlink_old)
 	assert("nikita-1827", owner == get_current_lock_stack());
 	assert("nikita-1831", new->owner == NULL);
 
-	spin_lock_znode(node);
+	LOCK_ZLOCK(&node->lock);
 
 	new->node = node;
 
@@ -1238,7 +1243,7 @@ move_lh_internal(lock_handle * new, lock_handle * old, int unlink_old)
 	link_object(new, owner, node);
 	new->signaled = signaled;
 
-	spin_unlock_znode(node);
+	UNLOCK_ZLOCK(&node->lock);
 }
 
 void
@@ -1398,10 +1403,10 @@ check_lock_data()
 void
 check_lock_node_data(znode * node)
 {
-	spin_lock_znode(node);
+	LOCK_ZLOCK(&node->lock);
 	owners_list_check(&node->lock.owners);
 	requestors_list_check(&node->lock.requestors);
-	spin_unlock_znode(node);
+	UNLOCK_ZLOCK(&node->lock);
 }
 
 #endif

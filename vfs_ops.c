@@ -1083,6 +1083,7 @@ DEFINE_SPIN_PROFREGIONS(inode_object);
 DEFINE_SPIN_PROFREGIONS(fq);
 DEFINE_SPIN_PROFREGIONS(cbk_cache);
 DEFINE_SPIN_PROFREGIONS(super_eflush);
+DEFINE_SPIN_PROFREGIONS(zlock);
 
 DEFINE_RW_PROFREGIONS(dk);
 DEFINE_RW_PROFREGIONS(tree);
@@ -1105,6 +1106,7 @@ static int register_profregions(void)
 	pregion_spin_jnode_held.champion = jnode_most_held;
 	pregion_spin_jnode_trying.champion = jnode_most_wanted;
 #endif
+	register_zlock_profregion();
 	register_super_eflush_profregion();
 	register_epoch_profregion();
 	register_jnode_profregion();
@@ -1126,6 +1128,7 @@ static int register_profregions(void)
 
 static void unregister_profregions(void)
 {
+	unregister_zlock_profregion();
 	unregister_super_eflush_profregion();
 	unregister_epoch_profregion();
 	unregister_jnode_profregion();

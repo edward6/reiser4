@@ -96,6 +96,7 @@ subgraph spin {
 	RSPIN(cbk_guard);
 	RSPIN(epoch_lock);
 	RSPIN(stack_lock);
+	RSPIN(zlock);
 
 	//RSPIN(stack_lock);
 	//RSPIN(super_guard);
@@ -237,5 +238,6 @@ ARC(I_LOCK, longterm_lock, "reiser4_iget()");
 ARC(atom_event, longterm_lock, "flush");
 //one cannot wait for atom event keeping page lock
 ARC(atom_event, page_lock, "jnode_extent_write()");
-ARC(jnode_lock, stack_lock, "longterm_lock_znode()");//,\nlongterm_unlock_znode(), wake_up_all_lopri_owners()");
+ARC(zlock, stack_lock, "longterm_lock_znode()");//,\nlongterm_unlock_znode(), wake_up_all_lopri_owners()");
+
 }

@@ -200,6 +200,7 @@ typedef struct lock_counters_info {
 	int spin_locked_cbk_cache;
 	int spin_locked_epoch;
 	int spin_locked_super_eflush;
+	int spin_locked_zlock;
 	int spin_locked;
 	int long_term_locked_znode;
 
@@ -558,13 +559,14 @@ typedef struct reiser4_level_statistics {
 	} znode;
 	struct {
 		struct {
-		stat_cnt calls;
-		stat_cnt items;
-		stat_cnt binary;
-		stat_cnt seq;
-		stat_cnt found;
-		stat_cnt pos;
-		stat_cnt posrelative;
+			stat_cnt calls;
+			stat_cnt items;
+			stat_cnt binary;
+			stat_cnt seq;
+			stat_cnt found;
+			stat_cnt pos;
+			stat_cnt posrelative;
+			stat_cnt samepos;
 		} lookup;
 	} node;
 	stat_cnt total_hits_at_level;
