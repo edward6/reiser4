@@ -46,7 +46,7 @@ static internal_item_layout *internal_at( const tree_coord *coord )
 {
 	assert( "nikita-607", coord != NULL );
 	assert( "nikita-1650", item_plugin_by_coord( coord ) == 
-		item_plugin_by_id( NODE_POINTER_IT ) );
+		common_item_plugin_by_id( NODE_POINTER_ID ) );
 	return ( internal_item_layout * ) item_body_by_coord( coord );
 }
 
@@ -88,6 +88,13 @@ void internal_down_link( const tree_coord *coord,
 	*block = pointer_at( coord );
 }
 
+/* FIXME_JMACD: Implement me! */
+int internal_utmost_child ( const tree_coord *coord UNUSED_ARG,
+			    sideof side UNUSED_ARG, int flags UNUSED_ARG,
+			    jnode **child UNUSED_ARG,
+			    reiser4_block_nr *blocknr UNUSED_ARG )
+{
+	not_yet ("jmacd-20000", "internal_utmost_child");
 /**
  * Set if the the child is dirty.
  */
