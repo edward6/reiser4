@@ -1328,10 +1328,17 @@ allocated2unallocated(coord_t *coord, reiser4_block_nr ue_start, reiser4_block_n
 	ae_first_block = extent_get_start(ext);
 	ae_width = extent_get_width(ext);
 	
+	ON_TRACE(TRACE_BUG, "allocated2unallocated: oid %llu, item_pos %d unit_pos %d. index %llu orig [%llu %llu]->",
+		 get_key_objectid(item_key_by_coord(coord, &key)),
+		 coord->item_pos, coord->unit_pos,
+		 extent_unit_index(coord), extent_get_start(ext), extent_get_width(ext));
+
 	if (ae_width == ue_width) {
 		/* 1 */
 		set_extent(ext, UNALLOCATED_EXTENT_START, ae_width);
 		znode_make_dirty(coord->node);
+
+		ON_TRACE(TRACE_BUG, "[%llu %llu]\n", extent_get_start(ext), extent_get_width(ext));
 		return 0;
 	} else if (ue_start == 0) {
 		/* 2 */
@@ -1340,6 +1347,11 @@ allocated2unallocated(coord_t *coord, reiser4_block_nr ue_start, reiser4_block_n
 		/* allocated extent  */
 		set_extent(&new_exts[0], ae_first_block + ue_width, ae_width - ue_width);
 		count = 1;
+
+		ON_TRACE(TRACE_BUG, "[%llu %llu][%llu %llu]\n",
+			 extent_get_start(&replace), extent_get_width(&replace),
+			 extent_get_start(&new_exts[0]), extent_get_width(&new_exts[0]));
+
 	} else if (ue_start + ue_width == ae_width) {
 		/* 3 */
 		/* replace ae with ae and ue */
@@ -1350,6 +1362,11 @@ allocated2unallocated(coord_t *coord, reiser4_block_nr ue_start, reiser4_block_n
 		/* unallocated extent */
 		set_extent(&new_exts[0], UNALLOCATED_EXTENT_START, ue_width);
 		count = 1;
+
+		ON_TRACE(TRACE_BUG, "[%llu %llu][%llu %llu]\n",
+			 extent_get_start(&replace), extent_get_width(&replace),
+			 extent_get_start(&new_exts[0]), extent_get_width(&new_exts[0]));
+
 	} else {
 		/* 4 */
 		/* replace ae with ae, ue, ae */
@@ -1358,6 +1375,12 @@ allocated2unallocated(coord_t *coord, reiser4_block_nr ue_start, reiser4_block_n
 		set_extent(&new_exts[0], UNALLOCATED_EXTENT_START, ue_width);
 		set_extent(&new_exts[1], ae_first_block + ue_start + ue_width, ae_width - ue_start - ue_width);
 		count = 2;
+
+		ON_TRACE(TRACE_BUG, "[%llu %llu][%llu %llu][%llu %llu]\n",
+			 extent_get_start(&replace), extent_get_width(&replace),
+			 extent_get_start(&new_exts[0]), extent_get_width(&new_exts[0]),
+			 extent_get_start(&new_exts[1]), extent_get_width(&new_exts[1]));
+
 	}
 
 	/* insert_into_item will insert new units after the one @coord is set to. So, update key correspondingly */
@@ -1544,7 +1567,7 @@ unsigned find_extent_slum_size(const coord_t *start, unsigned pos_in_unit)
 	oid = get_key_objectid(item_key_by_coord(&coord, &key));
 	index = extent_unit_index(&coord) + pos_in_unit;
 
-	ON_TRACE(TRACE_EXTENTS, "find_extent_slum_size: start from page %lu, [item %d, unit %d, pos_in_unit %u] ext:[%llu/%llu] of oid %llu\n",
+	ON_TRACE(TRACE_BUG, "find_extent_slum_size: start from page %lu, [item %d, unit %d, pos_in_unit %u] ext:[%llu/%llu] of oid %llu\n",
 		 index, coord.item_pos, coord.unit_pos, pos_in_unit, extent_unit_start(&coord), extent_unit_width(&coord), oid);
 
 	slum_size = 0;
@@ -1603,13 +1626,13 @@ unsigned find_extent_slum_size(const coord_t *start, unsigned pos_in_unit)
 			oid = get_key_objectid(item_key_by_coord(&coord, &key));
 		}
 
-		ON_TRACE(TRACE_EXTENTS, "find_extent_slum_size: slum size %u. Next page %lu. "
+		ON_TRACE(TRACE_BUG, "find_extent_slum_size: slum size %u. Next page %lu. "
 			 "Coord: [item %d, unit %d, pos_in_unit %u] ext:[%llu/%llu] of oid %llu\n",
 			 slum_size, index, coord.item_pos, coord.unit_pos, pos_in_unit,
 			 extent_unit_start(&coord), extent_unit_width(&coord), oid);
 	} while (1);
 
-	ON_TRACE(TRACE_EXTENTS, "find_extent_slum_size: end. slum size: %u\n", slum_size);
+	ON_TRACE(TRACE_BUG, "find_extent_slum_size: end. slum size: %u\n", slum_size);
 	return slum_size;
 }
 
@@ -1667,8 +1690,8 @@ convert_allocated_extent2unallocated(oid_t oid, coord_t *coord, unsigned slum_st
 }
 
 /* flush_pos is set to extent unit. Slum starts from flush_pos->pos_in_unit within this unit. This function may perform
-   complex extent convertion. It may be either converted to allocated or to mixture of allocated and unallocated
-   extents. */
+   complex extent convertion. It (extent) may be either converted to allocated or to mixture of allocated and
+   unallocated extents. */
 int
 extent_handle_relocate_in_place(flush_pos_t *flush_pos, unsigned *slum_size)
 {
@@ -1716,18 +1739,28 @@ extent_handle_relocate_in_place(flush_pos_t *flush_pos, unsigned *slum_size)
 		return 0;
 
 	if (state == ALLOCATED_EXTENT) {
+		/*XXXX*/reiser4_extent tmp;
+
+		/*XXXX*/tmp = *ext;
+		
 		/* [start/width] ->
 		 * [start/pos_in_unit][u/extent_slum_size][start+pos_in_unit+extent_slum_size/width-pos_in_unit-extent_slum_size] */
 		result = convert_allocated_extent2unallocated(oid, coord, flush_pos->pos_in_unit, extent_slum_size, 1/*do conversion*/);
 		if (result)
 			return result;
+
 		if (flush_pos->pos_in_unit) {
 			/* slum starts in next unit */
-			assert("vs-1399", state_of_extent(ext) == ALLOCATED_EXTENT);
+			assert("vs-1399", state_of_extent(ext) == ALLOCATED_EXTENT);			
+			assert("vs-1404", extent_by_coord(coord) == ext);
+			assert("vs-1405", ergo(coord->unit_pos < (nr_units_extent(coord) - 1), 
+					       (state_of_extent(ext + 1) == UNALLOCATED_EXTENT &&
+						extent_get_width(ext + 1) == extent_slum_size)));
 			return 0;
 		}
 	}
 
+	assert("vs-1404", extent_by_coord(coord) == ext);
 	assert("vs-1400", state_of_extent(ext) == UNALLOCATED_EXTENT);
 	assert("vs-1402", extent_slum_size == extent_get_width(ext));
 	assert("vs-1403", flush_pos->pos_in_unit == 0);
@@ -1772,6 +1805,11 @@ extent_handle_relocate_in_place(flush_pos_t *flush_pos, unsigned *slum_size)
 	set_extent(&replace, first_allocated, allocated);
 	if (allocated == extent_slum_size) {
 		/* whole extent is allocated */
+		ON_TRACE(TRACE_BUG, "extent_handle_relocate_in_place: oid %llu, item_pos %d, unit_pos %d. orig [%llu %llu]->[%llu %llu]\n",
+			 oid, coord->item_pos, coord->unit_pos,
+			 extent_unit_start(coord), extent_unit_width(coord),
+			 extent_get_start(&replace), extent_get_width(&replace));
+
 		*ext = replace;
 		
 		/* no need to grab space as it is done already */
@@ -1783,10 +1821,15 @@ extent_handle_relocate_in_place(flush_pos_t *flush_pos, unsigned *slum_size)
 
 	/* set @key to key of first byte of part of extent which left unallocated */
 	set_key_offset(&key, index << PAGE_CACHE_SHIFT);
-	set_extent(&paste, UNALLOCATED_EXTENT_START, width - allocated);
+	set_extent(&paste, UNALLOCATED_EXTENT_START, extent_slum_size - allocated);
 
 	/* [u/width] ->
 	   [first_allocated/allocated][u/width - allocated] */
+	ON_TRACE(TRACE_BUG, "extent_handle_relocate_in_place: oid %llu, item_pos %d, unit_pos %d. orig [%llu %llu]->[%llu %llu][%llu %llu]\n",
+		 oid, coord->item_pos, coord->unit_pos,
+		 extent_unit_start(coord), extent_unit_width(coord),
+		 extent_get_start(&replace), extent_get_width(&replace),
+		 extent_get_start(&paste), extent_get_width(&paste));
 	
 	/* space for this operation is not reserved. reserve it from inviolable reserve */
 	grabbed = reserve_replace();
