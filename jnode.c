@@ -198,6 +198,7 @@ jfree(jnode * node)
 
 	assert("nikita-2422", !list_empty(&node->jnodes));
 	assert("nikita-2663", capture_list_is_clean(node));
+	assert("nikita-2774", !JF_ISSET(node, JNODE_EFLUSH));
 
 	ON_DEBUG(list_del_init(&node->jnodes));
 	/* poison memory. */
@@ -511,11 +512,12 @@ jparse(jnode * node, struct page *page)
 
 /* helper function used by jload() */
 static inline void
-load_page(struct page *page)
+load_page(struct page *page, jnode *node)
 {
 	page_cache_get(page);
 	mark_page_accessed(page);
 	kmap(page);
+	UNDER_SPIN_VOID(jnode, node, eflush_del(node));
 }
 
 /* load jnode's data into memory using read_cache_page() */
@@ -579,7 +581,7 @@ jload(jnode * node)
 		*/
 		if (page != NULL) {
 			JF_SET(node, JNODE_LOADED);
-			load_page(page);
+			load_page(page, node);
 			node->data = page_address(page);
 		} else {
 			page = read_cache_page(jplug->mapping(node), jplug->index(node), page_filler, node);
@@ -603,6 +605,7 @@ jload(jnode * node)
 					result = jparse(node, page);
 				else
 					result = -EIO;
+				eflush_del(node);
 				spin_unlock_jnode(node);
 				reiser4_unlock_page(page);
 			} else
@@ -616,7 +619,7 @@ jload(jnode * node)
 
 		page = jnode_page(node);
 		assert("nikita-2348", page != NULL);
-		load_page(page);
+		load_page(page, node);
 	}
 	if (result == 0 && jnode_is_znode(node))
 		assert("nikita-2678", JZNODE(node)->nplug);

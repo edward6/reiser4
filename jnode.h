@@ -241,6 +241,9 @@ jnode_get_block(const jnode * node	/* jnode to
 static inline const reiser4_block_nr *
 jnode_get_io_block(const jnode * node)
 {
+	assert("nikita-2768", node != NULL);
+	assert("nikita-2769", spin_jnode_is_locked(node));
+
 	if (likely(!JF_ISSET(node, JNODE_EFLUSH)))
 		return jnode_get_block(node);
 	else

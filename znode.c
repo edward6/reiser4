@@ -247,6 +247,7 @@ zfree(znode * node /* znode to free */ )
 	assert("nikita-2301", owners_list_empty(&node->lock.owners));
 	assert("nikita-2302", requestors_list_empty(&node->lock.requestors));
 	assert("nikita-2663", capture_list_is_clean(ZJNODE(node)));
+	assert("nikita-2773", !JF_ISSET(ZJNODE(node), JNODE_EFLUSH));
 
 	ON_DEBUG(list_del(&ZJNODE(node)->jnodes));
 
@@ -362,7 +363,6 @@ znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 
 	/* remove znode from hash-table */
 	z_hash_remove(&tree->zhash_table, node);
-	eflush_del(ZJNODE(node));
 }
 
 /* zdrop() -- Remove znode from the tree.
