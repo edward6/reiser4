@@ -246,7 +246,10 @@ write_mode how_to_write(coord_t * coord, lock_handle * lh UNUSED_ARG,
 		coord_init_before_first_item(coord, coord->node);
 		/* FIXME-VS: BEFORE_ITEM should be fine, but node's
 		   lookup returns BEFORE_UNIT */
-		coord->between = BEFORE_UNIT;
+		if (node_is_empty(coord->node))
+			coord->between = EMPTY_NODE;
+		else
+			coord->between = BEFORE_UNIT;
 		result = FIRST_ITEM;
 		goto ok;
 	}
