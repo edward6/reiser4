@@ -287,7 +287,7 @@ static struct file_system_type * find_filesystem (const char * name)
 
 
 
-static struct super_block * call_mount (const char * dev_name)
+static struct super_block * call_mount (const char * dev_name, char *opts)
 {
 	struct file_system_type * fs;
 
@@ -295,7 +295,7 @@ static struct super_block * call_mount (const char * dev_name)
 	if (!fs)
 		return 0;
 
-	return fs->get_sb (fs, 0/*flags*/, (char *)dev_name, 0/*data*/);
+	return fs->get_sb (fs, 0/*flags*/, (char *)dev_name, opts);
 }
 
 
@@ -2941,11 +2941,16 @@ static int bash_cpr (struct inode * dir, const char * source)
 
 
 
-static int bash_mount (reiser4_context * context, const char * file_name)
+static int bash_mount (reiser4_context * context, char * cmd)
 {
 	struct super_block * sb;
+	char *opts;
+	char *file_name;
 
-	sb = call_mount (file_name);
+	file_name = strsep( &cmd, (char *)" " );
+	opts = cmd;
+
+	sb = call_mount (file_name, opts);
 	if (IS_ERR (sb)) {
 		return PTR_ERR (sb);
 	}
@@ -3513,6 +3518,18 @@ static void bash_df (struct inode * cwd)
 	info( "\n\tf_namelen: %li\n", st.f_namelen );
 }
 
+static int bash_trace (struct inode * cwd, const char * cmd)
+{
+	__u32 flags;
+
+	if( sscanf( cmd, "%i", &flags ) != 1 ) {
+		info( "usage: trace N\n" );
+		return 0;
+	}
+	get_super_private( cwd -> i_sb ) -> trace_flags = flags;
+	return 0;
+}
+
 static int bash_trunc (struct inode * cwd, const char * name)
 {
 	struct inode * inode;
@@ -3839,6 +3856,7 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		BASH_CMD ("write ", bash_write);
 		BASH_CMD ("trunc ", bash_trunc);
 		BASH_CMD ("cp-r ", bash_cpr);
+		BASH_CMD ("trace ", bash_trace);
 
 		BASH_CMD3 ("cp ", bash_cp);
 		BASH_CMD3 ("diff ", bash_diff);

@@ -166,7 +166,7 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 				  struct dentry *dentry /* name to look for */ )
 {
 	int                    result;
-	coord_t            *coord;
+	coord_t               *coord;
 	lock_handle            lh;
 	const char            *name;
 	int                    len;
@@ -174,7 +174,7 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 	
 	assert( "nikita-1247", parent != NULL );
 	assert( "nikita-1248", dentry != NULL );
-	assert( "nikita-1123", dentry->d_name.name != NULL );
+	assert( "nikita-1123", dentry -> d_name.name != NULL );
 
 #if 0
 	/*
@@ -203,6 +203,9 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 
 	coord = &reiser4_get_dentry_fsdata( dentry ) -> entry_coord;
 	init_lh( &lh );
+
+	trace_on( TRACE_DIR | TRACE_VFS_OPS, "lookup inode: %lli \"%s\"\n",
+		  ( __u64 ) parent -> i_ino, dentry -> d_name.name );
 
 	/* find entry in a directory. This is plugin method. */
 	result = find_entry( parent, dentry, &lh, ZNODE_READ_LOCK, &entry );
@@ -527,7 +530,7 @@ static int check_item( const struct inode *dir,
 	}
 	assert( "nikita-1137", iplug -> s.dir.extract_name );
 
-	trace_on( TRACE_DIR, "[%i]: \"%s\", \"%s\" in %lli\n",
+	trace_on( TRACE_DIR, "[%i]: check_item: \"%s\", \"%s\" in %lli\n",
 		  current_pid, name, 
 		  iplug -> s.dir.extract_name( coord ),
 		  *znode_get_block( coord -> node ) );
