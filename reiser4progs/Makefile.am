@@ -1,4 +1,4 @@
-SUBDIRS		= libaal libmisc plugin libreiser4 reiser4progs demos include doc debug
+SUBDIRS		= libaal libmisc plugin libreiser4 demos include doc debug libmisc mkfs fsck
 
 EXTRA_DIST	= ABOUT-NLS AUTHORS BUGS COPYING TODO NEWS THANKS README \
 		  reiser4progs.spec.in libreiser4.m4
