@@ -304,6 +304,9 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 	 * owing to transaction manager
 	 */
 	CHECK_COUNTERS;
+	/*
+	 * FIXME-NIKITA probably balance_dirty_pages() should be called here.
+	 */
 	return result;
 }
 
