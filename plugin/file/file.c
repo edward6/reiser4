@@ -514,7 +514,7 @@ static int tail2extent (struct inode * inode, tree_coord * coord,
 		return -EINVAL;
 	}
 	/* get key of first byte of a file */
-	result = fplug->key_by_inode (inode, 0, &key);
+	result = fplug->key_by_inode (inode, 0ull, &key);
 	if (result) {
 		return result;
 	}
@@ -564,6 +564,114 @@ static int tail2extent (struct inode * inode, tree_coord * coord,
 		return result;
 	}
 	return insert_extent_by_coord (coord, &extent_data, &key, lh);
+}
+
+
+/* this returns true if tail2extent has to move to next page */
+static int next_page (reiser4_key * key)
+{
+	return (get_key_offset (&key) & PAGE_MASK) == 0;
+}
+
+
+/* this does conversion item by item */
+static int tail2extent2 (struct inode * inode, tree_coord * coord, 
+			 lock_handle * lh)
+{
+	int result;
+	file_plugin * fplug;
+	reiser4_key key;
+	copy2page_arg arg;
+	reiser4_item_data extent_data;
+	struct page * page;
+	char * p_data;
+	int i;
+	unsigned page_off, count;
+	char * item;
+
+
+	/* collect statistics on the number of tail2extent conversions */
+	reiser4_stat_file_add (tail2extent);
+
+
+	fplug = inode_file_plugin (inode);
+	if (!fplug || !fplug->key_by_inode) {
+		return -EINVAL;
+	}
+	/* get key of first byte of a file */
+	result = fplug->key_by_inode (inode, 0ull, &key);
+	if (result) {
+		return result;
+	}
+
+	done_lh (lh);
+	done_coord (coord);
+
+	page = 0;
+	i = 0;
+	item = 0;
+	while () {
+		if (!item) {
+			result = find_item (&key, coord, lh, ZNODE_READ_LOCK);
+			if (result != CBK_COORD_FOUND) {
+				return result;
+			}
+			assert ("vs-562", fplug->owns_item (inode, coord));
+			item = item_body_by_coord (coord);
+			copied = 0;
+		}
+
+		page_off = get_key_offset (&key) & PAGE_MASK;
+		if (page_off == 0) {
+			assert ("vs-561",
+				(__u64)i << PAGE_SHIFT == get_key_offset (&key));
+			page = grab_cache_page (inode->i_mapping, i);
+			if (!page)
+				return -ENOMEM;
+			i ++;
+			/* call extent_write here */
+		}
+		count = item_length_by_coord (coord) - copied;
+		if (count > PAGE_SIZE - page_off) {
+			count = PAGE_SIZE - page_off;
+		}
+		p_data = kmap (page);
+		memcpy (p_data + page_off, item, count);
+		kunmap (page);
+		item += count;
+		copied += count;
+		page_off + count;
+		set_key_offset (&key, get_key_offset (&key) + count);
+
+		if (page_off == PAGE_SIZE) {
+			/* page is filled completely */
+			done_lh (lh);
+			done_coord (coord);
+			cut_node ();
+			write_extent ();
+			UnlockPage (page);
+			page_cache_release (page);
+			page = 0;
+			item = 0;
+			continue;
+		}
+		if (copied == item_length_by_coord (coord)) {
+			/* item is copied completely, cut it and write cut data
+			 * to extent */
+			result = cut_node ();
+			item = 0;
+			done_lh (lh);
+			done_coord (coord);
+			if (!should_continue ()) {
+				/* conversion done */
+				if (page) {
+					UnlockPage (page);
+					page_cache_release (page);
+				}
+				break;
+			}
+		}
+	}
 }
 
 
