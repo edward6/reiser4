@@ -130,7 +130,7 @@
 
 static struct page *add_page( struct super_block *super, jnode *node );
 static void kmap_once( jnode *node, struct page *page );
-static struct bio *page_bio( struct page *page, int gfp );
+static struct bio *page_bio( struct page *page, int rw, int gfp );
 
 static struct address_space_operations formatted_fake_as_ops;
 
@@ -211,10 +211,6 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 								       page );
 			if( result == 0 ) {
 				wait_on_page_locked( page );
-				trace_on( TRACE_IO, "[%i]: end io: %lu %lu\n",
-					  current_pid,
-					  page -> mapping -> host -> i_ino, 
-					  page -> index );
 				if( PageUptodate( page ) )
 					mark_page_accessed( page );
 				else
@@ -456,7 +452,7 @@ void *xmemset( void *s, int c, size_t n )
  * mpage_end_io_read() would also do. But it's static.
  *
  */
-static void end_bio_single_page_io_sync( struct bio *bio )
+static void end_bio_single_page_read( struct bio *bio )
 {
 	struct page *page;
 
@@ -469,6 +465,18 @@ static void end_bio_single_page_io_sync( struct bio *bio )
 		SetPageError( page );
 	}
 	unlock_page( page );
+	bio_put( bio );
+}
+
+static void end_bio_single_page_write( struct bio *bio )
+{
+	struct page *page;
+
+	page = bio -> bi_io_vec[ 0 ].bv_page;
+
+	if( !test_bit( BIO_UPTODATE, &bio -> bi_flags ) )
+		SetPageError( page );
+	end_page_writeback( page );
 	bio_put( bio );
 }
 
@@ -503,12 +511,14 @@ int page_io( struct page *page, int rw, int gfp )
 	REISER4_ENTRY( page -> mapping -> host -> i_sb );
 	
 	assert( "nikita-2094", page != NULL );
+	assert( "nikita-2226", PageLocked( page ) );
 
-	bio = page_bio( page, gfp );
+	bio = page_bio( page, rw, gfp );
 	if( !IS_ERR( bio ) ) {
-		trace_on( TRACE_IO, "[%i]: submit %c: %lu %lu\n",
-			  current_pid, ( rw == WRITE ) ? 'w' : 'r',
-			  page -> mapping -> host -> i_ino, page -> index );
+		if( rw == WRITE ) {
+			assert( "nikita-2225", !PageWriteback( page ) );
+			SetPageWriteback( page );
+		}
 		submit_bio( rw, bio );
 		result = 0;
 	} else
@@ -518,7 +528,7 @@ int page_io( struct page *page, int rw, int gfp )
 
 
 /** helper function to construct bio for page */
-static struct bio *page_bio( struct page *page, int gfp )
+static struct bio *page_bio( struct page *page, int rw, int gfp )
 {
 	struct bio *bio;
 	assert( "nikita-2092", page != NULL );
@@ -564,7 +574,8 @@ static struct bio *page_bio( struct page *page, int gfp )
 		bio -> bi_idx  = 0;
 		bio -> bi_size = blksz;
 
-		bio -> bi_end_io = end_bio_single_page_io_sync;
+		bio -> bi_end_io = ( rw == READ ) ? 
+			end_bio_single_page_read : end_bio_single_page_write;
 
 		return bio;
 	} else
